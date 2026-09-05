@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.8.0">
+<link rel="stylesheet" href="style.css?v=1.9.0">
 </head>
 <body>
 
@@ -148,9 +148,14 @@
   <!-- ------------------------------------------------------------ bước 5 -->
   <section class="step">
     <h2><span class="num"></span> Tổng hợp</h2>
+    <p class="note">
+      Thả file nào là trang tự tổng hợp và tách sẵn tab của file đó ngay — thả lẻ
+      từng file cũng được. Nút dưới đây chỉ cần bấm khi bạn đổi kỳ, đổi thuế suất
+      hay sửa danh mục ở bước trên rồi muốn tính lại.
+    </p>
     <div class="row-actions">
       <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
-      <button type="button" id="run" class="btn primary" disabled>Tổng hợp &amp; tạo file VAT</button>
+      <button type="button" id="run" class="btn primary" disabled>Tổng hợp lại</button>
       <button type="button" id="download" class="btn" hidden>⬇ Tải file .xlsx</button>
       <span id="status" class="status" role="status" aria-live="polite"></span>
     </div>
@@ -275,9 +280,21 @@
         <h3 id="locTieuDe">Lọc dữ liệu</h3>
         <p class="note" id="locGhiChu"></p>
         <div class="chips" id="locThongKe"></div>
-        <div class="row-actions">
+        <!-- Mỗi tiêu chí một ô lọc riêng, lọc chồng lên nhau. Dòng TỔNG và dải
+             số bên dưới luôn tính theo đúng phần đang lọc. -->
+        <div class="filters">
           <label class="inline">Ngày
             <select id="locNgay"></select>
+          </label>
+          <label class="inline">Nhóm
+            <select id="locNhom"></select>
+          </label>
+          <label class="inline">Danh mục
+            <select id="locTrangThai">
+              <option value="" selected>Tất cả</option>
+              <option value="co">Đã có điểm xuất hoá đơn</option>
+              <option value="khong">Chưa có trong danh mục</option>
+            </select>
           </label>
           <label class="inline" id="locKhoiWrap">Khối số
             <select id="locKhoi">
@@ -286,6 +303,15 @@
               <option value="ve">Cổng phải trả về TK</option>
             </select>
           </label>
+          <label class="inline grow">Tìm
+            <input type="search" id="locTim" placeholder="tên điểm, mã điểm bán, mã misa…">
+          </label>
+          <label class="inline tick">
+            <input type="checkbox" id="locAnRong"> Ẩn dòng bằng 0
+          </label>
+          <button type="button" id="locXoaLoc" class="btn ghost mini">Bỏ lọc</button>
+        </div>
+        <div class="row-actions">
           <span id="locTong" class="hint"></span>
         </div>
         <div class="table-scroll tall">
@@ -308,7 +334,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.8.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
+      Phiên bản <strong>1.9.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
     </p>
   </footer>
 </div>
@@ -316,6 +342,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.8.0"></script>
+<script src="js/app.js?v=1.9.0"></script>
 </body>
 </html>

@@ -449,3 +449,38 @@ label.inline select {
 }
 
 .chip.warn .k, .chip.warn .v { color: var(--warn); }
+
+/* Dải ô lọc của một tab: xuống dòng gọn trên màn hẹp, ô Tìm giãn hết chỗ trống. */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.filters label.grow {
+  flex: 1 1 220px;
+}
+
+.filters label.grow input { width: 100%; }
+
+.filters label.tick {
+  gap: 6px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.filters input[type="search"] {
+  font: inherit;
+  font-weight: 400;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: inherit;
+}

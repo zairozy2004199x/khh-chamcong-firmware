@@ -422,9 +422,28 @@ Bảng dựng thẳng từ giao dịch thô, **không đi qua bước tra danh m
 misa để trống, còn số tiền vẫn đủ.
 
 Trên trang web, phần Kết quả chia thành các tab: `Tổng hợp` là trang gộp cuối
-cùng, còn mỗi file được một tab riêng. Bảng của mỗi file mở ra ở **ngày mới nhất
-có dữ liệu**; chọn lại ô *Ngày* để xem ngày khác, hoặc `— Cả kỳ —` để cộng gộp.
-Ô *Khối số* chỉ hiện ở nguồn có thu phí.
+cùng, còn mỗi file được một tab riêng.
+
+**Thả file nào là trang tự tổng hợp và tách sẵn tab của file đó ngay** — thả lẻ
+từng file cũng được, không phải bấm nút. Thả cả bộ thì vẫn chỉ chạy một lần, sau
+khi đọc xong file cuối; thả thêm file trong lúc đang chạy thì chạy lại cho đủ.
+Nút *Tổng hợp lại* chỉ cần khi đổi kỳ, đổi thuế suất hay sửa danh mục rồi muốn
+tính lại.
+
+Mỗi tab có một dải ô lọc, lọc chồng lên nhau:
+
+| Ô | Tác dụng |
+|---|---|
+| **Ngày** | Mở ra ở ngày mới nhất có dữ liệu; `— Cả kỳ —` để cộng gộp |
+| **Nhóm** | Luồng tiền / hình thức thanh toán, dựng theo đúng các nhóm có trong file |
+| **Danh mục** | Tất cả · đã có điểm xuất hoá đơn · chưa có trong danh mục |
+| **Khối số** | Số xuất hoá đơn · phí · tiền phải trả về TK — chỉ hiện ở nguồn có thu phí |
+| **Tìm** | Khớp tên điểm, mã điểm bán, mã misa, nhóm — **bỏ dấu**, gõ `hue` ra được `HUẾ` |
+| **Ẩn dòng bằng 0** | Bỏ các mã không phát sinh trong phần đang lọc |
+| **Bỏ lọc** | Trả mọi ô về mặc định, giữ nguyên ô Ngày |
+
+Dòng `TỔNG`, số dòng và số điểm ngay dưới dải lọc luôn tính theo đúng phần đang
+lọc, nên lọc tới đâu là đọc được số tới đó.
 
 **Chống trùng:** cột `Mã giao dịch Payoo` trong sao kê thực tế **bỏ trống toàn
 bộ**, nên trước đây dán nhầm sheet hai lần là Payoo cộng đôi mà không cảnh báo

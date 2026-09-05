@@ -12,6 +12,8 @@
   var files = [];          // [{ name, size, sheets, trangThai }]
   var pending = 0;         // số file đang đọc dở
   var ketQua = null;       // payload 'done' gần nhất
+  var dangChay = false;    // đang có một lượt tổng hợp chạy dở
+  var canChayLai = false;  // có file mới đọc xong trong lúc đang chạy
   var blobUrl = null;
 
   var el = {};
@@ -21,7 +23,8 @@
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
     'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
     'resultTabs', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu', 'locTable',
-    'locNgay', 'locKhoi', 'locKhoiWrap', 'locTong', 'locCotSo', 'locThongKe'
+    'locNgay', 'locNhom', 'locTrangThai', 'locKhoi', 'locKhoiWrap', 'locTim',
+    'locAnRong', 'locXoaLoc', 'locTong', 'locCotSo', 'locThongKe'
   ].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
@@ -142,6 +145,8 @@
       showError('Lỗi trong luồng xử lý: ' + (event.message || 'không rõ nguyên nhân'));
       setStatus('');
       pending = 0;
+      dangChay = false;
+      canChayLai = false;
       refreshRunButton();
     };
     return worker;
@@ -159,6 +164,8 @@
       showError(message.message + (message.stack ? '\n\n' + message.stack : ''));
       setStatus('');
       pending = 0;
+      dangChay = false;
+      canChayLai = false;
       refreshRunButton();
     }
   }
@@ -204,7 +211,26 @@
     renderFiles();
     renderSheets();
     refreshRunButton();
-    if (pending <= 0) setStatus('Đã đọc xong ' + files.length + ' file.', 'ok');
+    if (pending > 0) return;
+    setStatus('Đã đọc xong ' + files.length + ' file.', 'ok');
+    // Thả file nào là tách sẵn tab của file đó luôn, khỏi phải bấm chạy rồi mới
+    // thấy gì. Thả cả bộ thì vẫn chỉ chạy một lần, sau khi đọc xong file cuối.
+    tuDongChay();
+  }
+
+  /**
+   * Chạy tổng hợp ngay sau khi đọc xong file, nếu không có gì cản.
+   *
+   * Không chạy khi đang có lượt chạy dở, khi chưa chọn kỳ, hay khi không sheet
+   * nào được chọn — mấy trường hợp đó để người dùng bấm nút và đọc lỗi cho rõ.
+   */
+  function tuDongChay() {
+    // Thả thêm file trong lúc đang chạy thì ghi nhận lại, chạy tiếp khi xong —
+    // nếu không, kết quả sẽ thiếu đúng cái file vừa thả.
+    if (dangChay) { canChayLai = true; return; }
+    if (el.run.disabled) return;
+    if (!el.kyTu.value || !el.kyDen.value || el.kyTu.value > el.kyDen.value) return;
+    run();
   }
 
   function renderFiles() {
@@ -401,6 +427,7 @@
 
   function run() {
     showError('');
+    if (dangChay) return;
     if (!el.kyTu.value || !el.kyDen.value) {
       showError('Chưa chọn kỳ báo cáo.');
       return;
@@ -410,6 +437,7 @@
       return;
     }
     saveSettings();
+    dangChay = true;
     el.run.disabled = true;
     el.download.hidden = true;
     setStatus('Đang tổng hợp...', 'busy');
@@ -432,9 +460,12 @@
 
   function onDone(message) {
     ketQua = message;
+    dangChay = false;
+    el.run.disabled = false;
+    // Có file thả thêm trong lúc chạy: bỏ kết quả vừa xong, chạy lại cho đủ.
+    if (canChayLai) { canChayLai = false; tuDongChay(); return; }
     setStatus('Xong — ' + money(message.soGiaoDich) + ' giao dịch, ' +
       money(message.soDiem) + ' điểm xuất hoá đơn.', 'ok');
-    el.run.disabled = false;
 
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     var blob = new Blob([message.file], {
@@ -443,9 +474,12 @@
     blobUrl = URL.createObjectURL(blob);
     el.download.hidden = false;
 
+    var lanDau = el.results.hidden;
     renderResults(message);
     el.results.hidden = false;
-    el.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Chỉ cuộn xuống ở lần ra kết quả đầu tiên. Thả lẻ từng file thì mỗi lần
+    // thả lại chạy lại, cuộn mỗi lần là giật trang ngay lúc đang đọc số.
+    if (lanDau) el.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function download() {
@@ -552,6 +586,35 @@
     caKy.textContent = '— Cả kỳ —';
     el.locNgay.appendChild(caKy);
     el.locNgay.value = coPhatSinh.indexOf(dangChon) >= 0 ? dangChon : (coPhatSinh[0] || '');
+
+    // Ô Nhóm dựng theo đúng các nhóm có trong file này, không phải danh sách cứng.
+    var nhom = [];
+    kenh.rows.forEach(function (row) {
+      if (nhom.indexOf(row.nhom) < 0) nhom.push(row.nhom);
+    });
+    var nhomCu = el.locNhom.value;
+    el.locNhom.textContent = '';
+    var tatCa = document.createElement('option');
+    tatCa.value = '';
+    tatCa.textContent = nhom.length > 1 ? '— Tất cả (' + nhom.length + ') —' : '— Tất cả —';
+    el.locNhom.appendChild(tatCa);
+    nhom.forEach(function (ten) {
+      var option = document.createElement('option');
+      option.value = ten;
+      option.textContent = ten;
+      el.locNhom.appendChild(option);
+    });
+    el.locNhom.value = nhom.indexOf(nhomCu) >= 0 ? nhomCu : '';
+
+    fillLoc();
+  }
+
+  /** Bỏ hết ô lọc, trừ ô Ngày — ngày là trục chính của bảng, không phải bộ lọc phụ. */
+  function xoaLoc() {
+    el.locNhom.value = '';
+    el.locTrangThai.value = '';
+    el.locTim.value = '';
+    el.locAnRong.checked = false;
     fillLoc();
   }
 
@@ -594,34 +657,80 @@
     var nhan = { tien: 'Số xuất hoá đơn', phi: 'Phí cổng thu', ve: 'Cổng phải trả về TK' };
     el.locCotSo.textContent = nhan[khoi];
 
+    var loc = {
+      nhom: el.locNhom.value,
+      trangThai: el.locTrangThai.value,
+      tim: keyText(el.locTim.value),
+      anRong: el.locAnRong.checked
+    };
+
     var tong = 0;
-    var rows = kenh.rows.map(function (row) {
+    var giu = [];
+    kenh.rows.forEach(function (row) {
       var soTien = giaTriLoc(row, ngay, khoi);
+      if (!hopLoc(row, soTien, loc)) return;
       tong += soTien;
+      giu.push({ row: row, soTien: soTien });
+    });
+
+    // Đánh STT theo điểm chứ không theo dòng: một điểm có thể có nhiều nhóm.
+    // Đánh sau khi lọc, để số thứ tự luôn liền mạch trên phần đang xem.
+    var stt = 0;
+    var truoc = null;
+    var rows = giu.map(function (item) {
+      var khoaDiem = item.row.tenDiem || item.row.code;
+      var so = '';
+      if (khoaDiem !== truoc) { stt += 1; truoc = khoaDiem; so = stt; }
       return {
         cells: [
-          { value: '', num: true },
-          row.tenDiem || '(chưa có trong danh mục)',
-          row.maMisa || '—',
-          row.code,
-          row.nhom,
-          { value: soTien ? money(soTien) : '—', num: true }
+          { value: so, num: true },
+          item.row.tenDiem || '(chưa có trong danh mục)',
+          item.row.maMisa || '—',
+          item.row.code,
+          item.row.nhom,
+          { value: item.soTien ? money(item.soTien) : '—', num: true }
         ]
       };
     });
-    // Đánh STT theo điểm, không theo dòng: một điểm có thể có nhiều nhóm.
-    var stt = 0;
-    var truoc = null;
-    kenh.rows.forEach(function (row, i) {
-      var khoaDiem = row.tenDiem || row.code;
-      if (khoaDiem !== truoc) { stt += 1; truoc = khoaDiem; rows[i].cells[0].value = stt; }
-    });
-    rows.push({
-      cells: [{ value: '', num: true }, { value: 'TỔNG', bold: true }, '', '', '',
-        { value: money(tong), num: true, bold: true }]
-    });
+
+    if (!rows.length) {
+      rows.push({ cells: [{ value: '' }, 'Không có dòng nào khớp bộ lọc.', '', '', '', ''] });
+    } else {
+      rows.push({
+        cells: [{ value: '', num: true }, { value: 'TỔNG', bold: true }, '', '', '',
+          { value: money(tong), num: true, bold: true }]
+      });
+    }
     fillTable(el.locTable, rows);
-    el.locTong.textContent = (ngay ? 'Ngày ' + viDate(ngay) : 'Cả kỳ') + ': ' + money(tong) + ' đ';
+
+    var phan = [(ngay ? 'Ngày ' + viDate(ngay) : 'Cả kỳ') + ': ' + money(tong) + ' đ'];
+    if (giu.length !== kenh.rows.length) {
+      phan.push(giu.length + '/' + kenh.rows.length + ' dòng');
+    }
+    phan.push(stt + ' điểm');
+    el.locTong.textContent = phan.join('  ·  ');
+  }
+
+  /** Một dòng có qua được hết các ô lọc đang đặt hay không. */
+  function hopLoc(row, soTien, loc) {
+    if (loc.nhom && row.nhom !== loc.nhom) return false;
+    if (loc.trangThai === 'co' && !row.tenDiem) return false;
+    if (loc.trangThai === 'khong' && row.tenDiem) return false;
+    if (loc.anRong && !soTien) return false;
+    if (loc.tim) {
+      var trong = keyText(row.tenDiem) + ' ' + keyText(row.code) + ' ' +
+        keyText(row.maMisa) + ' ' + keyText(row.nhom);
+      if (trong.indexOf(loc.tim) < 0) return false;
+    }
+    return true;
+  }
+
+  /** Khoá so khớp cho ô Tìm: bỏ dấu, hạ chữ thường — gõ "hue" ra được "Huế". */
+  function keyText(value) {
+    return String(value === null || value === undefined ? '' : value)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .toLowerCase().trim();
   }
 
   function giaTriLoc(row, ngay, khoi) {
@@ -849,8 +958,10 @@
       saveExtra();
     }
   });
-  el.locNgay.addEventListener('change', fillLoc);
-  el.locKhoi.addEventListener('change', fillLoc);
+  ['locNgay', 'locNhom', 'locTrangThai', 'locKhoi', 'locAnRong']
+    .forEach(function (id) { el[id].addEventListener('change', fillLoc); });
+  el.locTim.addEventListener('input', fillLoc);
+  el.locXoaLoc.addEventListener('click', xoaLoc);
 
   el.addAllUnmapped.addEventListener('click', function () {
     if (!ketQua) return;
