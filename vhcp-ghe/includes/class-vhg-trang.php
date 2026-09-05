@@ -808,9 +808,12 @@ class VHG_Trang {
 		}
 
 		if ( 'nop_tao' === $viec ) {
+			/* `coso` — danh sách cơ sở được tích ở khối "Tôi đang cầm". Không gửi (app cũ, nộp
+			   qua đường khác) thì nộp tất, y như trước. Xem VHG_Quy::nop(). */
 			self::tra( VHG_Quy::nop( (string) $ai['name'],
 				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
-				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '' ) );
+				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '',
+				( isset( $d['coso'] ) && is_array( $d['coso'] ) ) ? $d['coso'] : null ) );
 			return;
 		}
 
@@ -6499,13 +6502,43 @@ function veQuy(){
          doanh thu nhân viên đang cầm" — dòng thứ ba, cùng kiểu hangSo() với 2 dòng trên, chỉ hiện
          khi có số (đa số ghế chốt qua QR thì dòng này luôn 0, không cần chiếm chỗ màn hình). */
       + (toi.tu_bao_cao > 0 ? hangSo(L('Từ báo cáo doanh thu','From revenue reports'), tien(toi.tu_bao_cao)) : '')
+      /* 🔴 CHƯA NỘP Ở CƠ SỞ NÀO — anh Thắng 05/09/2026: *"hiện cơ sở nào chưa nộp · khi nhân
+         viên nộp hoặc gửi bill thì tích vào sẽ nộp cơ sở nào · nếu tích ít hơn thì sẽ hiện lại
+         tổng số tiền cơ sở tích"*.
+
+         Một người đi ba nơi trong một vòng nhưng nộp tiền hai nơi đầu ở quầy rồi mới đi nốt nơi
+         thứ ba — chuyện thường ngày. Bản trước chỉ có MỘT con số tổng nên bấm Nộp là nộp tất,
+         không có cách nào nói "tôi mới nộp hai cơ sở này thôi", và người ta xoay bằng cách...
+         không bấm gì cả, để tiền treo trên sổ tới cuối tháng.
+
+         ⚠️ MẶC ĐỊNH TÍCH HẾT. Nộp cả vòng vẫn là việc thường ngày nhất, nên nó phải là một cú
+            bấm; bỏ tích là việc của ca lẻ. Mặc định bỏ trống thì mỗi lần nộp là một lần đi tích
+            từng dòng, và sớm muộn có người tích sót một cơ sở mà không nhận ra. */
+      + (( toi.theo_coso || [] ).length > 1
+          ? ('<div style="margin-top:12px;border:1px solid #2a3550;border-radius:10px;overflow:hidden">'
+             + '<table style="margin:0"><tr><th style="width:34px">'
+             + '<input type="checkbox" id="nop-cs-all" checked></th><th>'
+             + L('Cơ sở chưa nộp','Sites not yet handed in') + '</th><th class="r">'
+             + L('Số tiền','Amount') + '</th></tr>'
+             + toi.theo_coso.map(function(c){
+                 var chi = [];
+                 if (c.tu_ghe > 0)     chi.push(L('ngăn ghế','boxes') + ' ' + tien(c.tu_ghe));
+                 if (c.tu_quay > 0)    chi.push(L('tại quầy','counter') + ' ' + tien(c.tu_quay));
+                 if (c.tu_bao_cao > 0) chi.push(L('báo cáo','reports') + ' ' + tien(c.tu_bao_cao));
+                 return '<tr><td><input type="checkbox" class="nop-cs" data-cs="' + esc(c.coso)
+                   + '" data-tien="' + c.tong + '" checked></td>'
+                   + '<td><b>' + esc(c.coso) + '</b><div class="mut">' + chi.join(' · ') + '</div></td>'
+                   + '<td class="r"><b>' + tien(c.tong) + '</b></td></tr>'; }).join('')
+             + '</table></div>')
+          : '')
       + '<div class="act" style="margin-top:12px">'
       + '<input id="nop-gc" type="text" placeholder="'
       + L('ghi chú (không bắt buộc)','note (optional)') + '" style="flex:1">'
       + '<button id="nop-ok" class="on">' + L('Nộp về quầy','Hand in') + '</button></div>'
-      /* ⚠️ Nói rõ nộp là nộp HẾT, không nộp một phần. Nộp một phần thì con số "đang cầm" thành
-         thứ người nộp tự chọn, và cái sổ này thôi không kiểm được gì nữa. */
-      + '<div class="canh" style="margin-top:10px">'
+      /* Dòng này ĐỔI THEO ô tích (xem `nopCapNhat_()` ở phần buộc tay) — anh Thắng: *"nếu tích ít
+         hơn thì sẽ hiện lại tổng số tiền cơ sở tích"*. Một con số đứng yên trong khi ô tích đã
+         đổi là con số nói dối, và nó nói dối về tiền. */
+      + '<div class="canh" style="margin-top:10px" id="nop-canh">'
       + L('Bấm Nộp là nộp <b>toàn bộ</b> ' + tien(toi.tong) + ' đang cầm (' + toi.so_dong
           + ' lượt). Quản lý đếm lại rồi xác nhận — con số hai bên đều được giữ trong sổ.',
           'Handing in covers <b>all</b> ' + tien(toi.tong) + ' you hold (' + toi.so_dong
@@ -8232,14 +8265,80 @@ function noi(){
     lam('ch_don_vi', { don_vi: v });
   };
 
+  /* ---- QUỸ: nộp theo cơ sở đã tích -------------------------------------------------------
+   * Anh Thắng 05/09/2026: *"tích vào sẽ nộp cơ sở nào · nếu tích ít hơn thì sẽ hiện lại tổng số
+   * tiền cơ sở tích"*.
+   *
+   * 🔴 CON SỐ PHẢI ĐỔI THEO Ô TÍCH, NGAY LÚC TÍCH. Một dòng chữ "nộp toàn bộ 12.610.000đ" đứng
+   *    yên trong khi người ta vừa bỏ tích hai cơ sở là con số nói dối — và nó nói dối về tiền,
+   *    ngay trên cái nút sắp bấm.
+   */
+  function nopO_(){ return [].slice.call(document.querySelectorAll('.nop-cs')); }
+  function nopChon_(){ return nopO_().filter(function(o){ return o.checked; }); }
+  function nopCapNhat_(){
+    var os = nopO_(); if (!os.length) return;             // một cơ sở thôi thì không bày bảng tích
+    var ch = nopChon_();
+    var tong = 0; ch.forEach(function(o){ tong += Number(o.getAttribute('data-tien')) || 0; });
+    var canh = document.getElementById('nop-canh');
+    var nut  = document.getElementById('nop-ok');
+    /* Không tích gì thì khoá nút — cho bấm rồi để máy chủ trả về "không có đồng nào" là bắt
+       người ta đi một vòng mạng để biết một chuyện màn hình đã biết sẵn. */
+    if (nut) nut.disabled = !ch.length;
+    var all = document.getElementById('nop-cs-all');
+    if (all) all.checked = ch.length === os.length;
+    if (!canh) return;
+    if (!ch.length) {
+      canh.innerHTML = L('Chưa tích cơ sở nào — tích ít nhất một cơ sở để nộp.',
+                         'No site ticked — tick at least one to hand in.');
+      return;
+    }
+    if (ch.length === os.length) {
+      canh.innerHTML = L('Bấm Nộp là nộp <b>toàn bộ</b> ' + tien(tong) + ' đang cầm ('
+          + os.length + ' cơ sở). Quản lý đếm lại rồi xác nhận — con số hai bên đều được giữ trong sổ.',
+          'Handing in covers <b>all</b> ' + tien(tong) + ' you hold (' + os.length
+          + ' sites). A manager counts it and confirms; both figures stay on the record.');
+      return;
+    }
+    /* Nộp một phần: nói ra CẢ hai con số — nộp bao nhiêu, và còn cầm lại bao nhiêu. Chỉ nói con
+       số nộp thì người ta không biết mình vừa để lại gì trên tay. */
+    var conLai = 0;
+    nopO_().forEach(function(o){ if (!o.checked) conLai += Number(o.getAttribute('data-tien')) || 0; });
+    canh.innerHTML = L('Nộp <b>' + tien(tong) + '</b> của ' + ch.length + '/' + os.length
+        + ' cơ sở đã tích. Còn <b>' + tien(conLai) + '</b> của ' + (os.length - ch.length)
+        + ' cơ sở vẫn tính là anh/chị đang cầm.',
+        'Handing in <b>' + tien(tong) + '</b> for ' + ch.length + '/' + os.length
+        + ' ticked sites. <b>' + tien(conLai) + '</b> across ' + (os.length - ch.length)
+        + ' sites stays on your hands.');
+  }
+  nopO_().forEach(function(o){ o.onchange = nopCapNhat_; });
+  var nopAll = document.getElementById('nop-cs-all');
+  if (nopAll) nopAll.onchange = function(){
+    var v = this.checked;
+    nopO_().forEach(function(o){ o.checked = v; });
+    nopCapNhat_();
+  };
+  nopCapNhat_();
+
   var nopOk = document.getElementById('nop-ok');
   if (nopOk) nopOk.onclick = function(){
     if (ban) return;
-    var q = (D.quy && D.quy.toi) ? D.quy.toi : { tong: 0 };
-    if (!confirm(L('Nộp toàn bộ ' + tien(q.tong) + ' đang cầm về quầy?',
-                   'Hand in all ' + tien(q.tong) + ' you are holding?'))) return;
-    var gc = (document.getElementById('nop-gc') || {}).value || '';
-    lam('nop_tao', { ghi_chu: gc });
+    var q  = (D.quy && D.quy.toi) ? D.quy.toi : { tong: 0 };
+    var os = nopO_(), ch = nopChon_();
+    /* Không bày bảng tích (chỉ một cơ sở, hoặc máy chủ chưa trả `theo_coso`) -> nộp tất như cũ.
+       Gửi mảng rỗng ở đây thì máy chủ hiểu là "nộp tất" — nhưng để nó tự rơi vào nhánh ấy thì
+       một hôm nào đó bảng tích hỏng sẽ lặng lẽ thành nộp tất. Nên tách nhánh rõ ràng. */
+    if (!os.length) {
+      if (!confirm(L('Nộp toàn bộ ' + tien(q.tong) + ' đang cầm về quầy?',
+                     'Hand in all ' + tien(q.tong) + ' you are holding?'))) return;
+      lam('nop_tao', { ghi_chu: (document.getElementById('nop-gc') || {}).value || '' });
+      return;
+    }
+    if (!ch.length) { alert(L('Tích ít nhất một cơ sở để nộp.','Tick at least one site.')); return; }
+    var ds = ch.map(function(o){ return o.getAttribute('data-cs'); });
+    var tong = 0; ch.forEach(function(o){ tong += Number(o.getAttribute('data-tien')) || 0; });
+    if (!confirm(L('Nộp ' + tien(tong) + ' của ' + ds.length + ' cơ sở về quầy?\n\n' + ds.join('\n'),
+                   'Hand in ' + tien(tong) + ' for ' + ds.length + ' sites?\n\n' + ds.join('\n')))) return;
+    lam('nop_tao', { ghi_chu: (document.getElementById('nop-gc') || {}).value || '', coso: ds });
   };
 
   /* ---- QUỸ: quản lý xác nhận đã nhận ---------------------------------------------------

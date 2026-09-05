@@ -87,11 +87,36 @@ t('🔴 ô tổng KHÔNG có nhánh nào ít ô hơn', !/\?[\s\S]{0,300}bc-tt/.t
 const NGOAI = ['parseInt', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval',
   /* Hai hàm này khai qua `window.VHG_BaoCao = {...}` chứ không phải `function X(`. */
   'moTuDuLieu', 'cashSubmitStatus'];
+/* 🔴 BÓC CHÚ THÍCH RA TRƯỚC KHI DÒ — 05/09/2026. Phép này đọc cả chú thích, nên nó vừa TỰ ĐỎ
+   vừa TỰ XANH được, và cả hai đều đã xảy ra ở kho này:
+     · tự ĐỎ  — một dòng chú thích trỏ tới `nopCapNhat()` trong khi hàm thật tên `nopCapNhat_()`;
+       hàm không hề thiếu, chỉ là câu văn gọi hụt một dấu gạch dưới.
+     · tự XANH — nguy hơn: gỡ một hàm đi mà chú thích còn nhắc `function apGonServer(` thì tên ấy
+       vẫn nằm trong tập KHAI, và mấy lời gọi mồ côi lọt qua đúng cái phép sinh ra để bắt chúng.
+   Bóc chú thích rồi mới dò thì phép canh MÃ, không canh văn bản quanh mã.
+
+   ⚠️ CHỈ BÓC CHÚ THÍCH KHỐI. Bóc cả chú thích dòng (`//`) bằng biểu thức là không làm được:
+      trong JS hai dấu gạch chéo còn là URL trong chuỗi và còn là một biểu thức chính quy rỗng.
+      Bản đầu bóc cả hai và ăn mất ba hàm THẬT (cellRo, beforeOf, theGheSua) — bài đỏ ngay, nhưng
+      đỏ vì bài tự cắt vào mã nguồn, không phải vì mã nguồn sai. Kho này viết chú thích khối là
+      chính, nên bóc khối đã đủ.
+
+   🔴 VÀ DẤU MỞ CHÚ THÍCH PHẢI ĐỨNG SAU KHOẢNG TRẮNG MỚI TÍNH. Trang này có ba ô chọn ảnh khai
+      `accept` bằng kiểu MIME dạng "image" gạch chéo sao — hai ký tự cuối của nó chính là dấu mở
+      chú thích. Bóc trần trụi thì chúng MỞ một chú thích giả, và biểu thức ăn một mạch tới dấu
+      đóng thật tiếp theo, nuốt luôn mã ở giữa; đúng ba hàm trên biến mất theo cách đó. Chú thích
+      thật luôn đứng đầu dòng hoặc sau khoảng trắng, còn kiểu MIME kia đứng sau một chữ cái.
+      (Chú thích này cố ý KHÔNG viết ra chuỗi ấy: viết ra là nó tự đóng khối chú thích này — đã
+      dính đúng một lần.) */
+const JS_MA = JS_HET.replace(/(^|[\s;{}(,])\/\*[\s\S]*?\*\//g, '$1 ');
 const khai = new Set();
-for (const m of JS_HET.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)) { khai.add(m[1]); }
-for (const m of JS_HET.matchAll(/(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*function/g)) { khai.add(m[1]); }
+for (const m of JS_MA.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)) { khai.add(m[1]); }
+for (const m of JS_MA.matchAll(/(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*function/g)) { khai.add(m[1]); }
+/* Đối chứng: bóc xong vẫn phải còn mã thật để dò — bóc quá tay thành bóc sạch thì phép này
+   xanh vĩnh viễn vì chẳng còn gì để soi. */
+t('đối chứng: bóc chú thích xong vẫn còn hàm để soi', khai.size > 50, khai.size);
 const treo = [];
-for (const m of JS_HET.matchAll(/(^|[^\w$.'"])([a-z][\w$]*)\s*\(/gm)) {
+for (const m of JS_MA.matchAll(/(^|[^\w$.'"])([a-z][\w$]*)\s*\(/gm)) {
   const ten = m[2];
   if (/[A-Z]/.test(ten) && !khai.has(ten) && NGOAI.indexOf(ten) === -1 && treo.indexOf(ten) === -1) {
     treo.push(ten);

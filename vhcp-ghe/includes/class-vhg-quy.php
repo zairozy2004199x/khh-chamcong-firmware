@@ -554,7 +554,86 @@ class VHG_Quy {
 
 		return array( 'nguoi' => $ai, 'tong' => $ghe + $quay + $bao_cao,
 			'tu_ghe' => $ghe, 'tu_quay' => $quay, 'tu_bao_cao' => $bao_cao,
-			'so_dong' => $n_ghe + $n_quay + $n_bao_cao );
+			'so_dong' => $n_ghe + $n_quay + $n_bao_cao,
+			'theo_coso' => self::dang_cam_theo_coso( $ai ) );
+	}
+
+	/** Nhãn cho tiền không tra ra được cơ sở nào — dùng CHUNG cho cả đường đọc lẫn đường nộp. */
+	const CS_CHUA_GAN = '(chưa gán)';
+
+	/**
+	 * TIỀN MỘT NGƯỜI ĐANG CẦM, TÁCH RA TỪNG CƠ SỞ.
+	 *
+	 * Anh Thắng 05/09/2026: *"chỗ phần tôi đang cầm tiền: hiện cơ sở nào chưa nộp · khi nhân
+	 * viên nộp hoặc gửi bill thì tích vào sẽ nộp cơ sở nào"*.
+	 *
+	 * 🔴 MỘT NGƯỜI ĐI NHIỀU CƠ SỞ TRONG MỘT VÒNG, NHƯNG KHÔNG NỘP HẾT MỘT LƯỢT. Ghé ba nơi, nộp
+	 *    tiền hai nơi đầu ở quầy rồi mới đi nốt nơi thứ ba — chuyện thường ngày. Bản trước chỉ
+	 *    có MỘT con số tổng, nên bấm Nộp là nộp tất, không có cách nào nói "tôi mới nộp tiền của
+	 *    hai cơ sở này thôi".
+	 *
+	 * 🔴 BA NGUỒN TIỀN, BA CÁCH TRA RA CƠ SỞ, nhưng phải gom về CÙNG MỘT TÊN:
+	 *      · `chot` (ngăn ghế)    -> `ma_may` -> `may.coso_id` -> `coso.ten`
+	 *      · `thu`  (khách trả quầy) -> cùng đường ấy
+	 *      · `bc`   (báo cáo doanh thu) -> `bc.coso` đã là TÊN sẵn
+	 *    Hai đường đầu đi qua bảng `may`, nên ghế chưa gán cơ sở (hoặc mã ghế không còn trong
+	 *    danh mục) sẽ tra ra rỗng. Những đồng ấy KHÔNG ĐƯỢC RƠI MẤT — gom vào một nhóm mang tên
+	 *    `(chưa gán)`, vì tổng của các nhóm phải bằng đúng tổng đang cầm; lệch một đồng là người
+	 *    ta thôi tin cả cái bảng.
+	 */
+	public static function dang_cam_theo_coso( $nguoi ) {
+		global $wpdb;
+		$ai = trim( (string) $nguoi );
+		if ( '' === $ai ) { return array(); }
+		$tc  = VHG_DB::t( 'chot' );
+		$tt  = VHG_DB::t( 'thu' );
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$tm  = VHG_DB::t( 'may' );
+		$tcs = VHG_DB::t( 'coso' );
+		$ra  = array();
+
+		$vao = function ( $ten, $khoa, $tien, $dong ) use ( &$ra ) {
+			$ten = '' !== trim( (string) $ten ) ? (string) $ten : self::CS_CHUA_GAN;
+			if ( ! isset( $ra[ $ten ] ) ) {
+				$ra[ $ten ] = array( 'coso' => $ten, 'tu_ghe' => 0, 'tu_quay' => 0,
+					'tu_bao_cao' => 0, 'tong' => 0, 'so_dong' => 0 );
+			}
+			$ra[ $ten ][ $khoa ] += (int) $tien;
+			$ra[ $ten ]['tong']  += (int) $tien;
+			$ra[ $ten ]['so_dong'] += (int) $dong;
+		};
+
+		/* LEFT JOIN chứ không JOIN: ghế đã xoá khỏi danh mục thì tiền của nó vẫn đang trên tay
+		   ai đó, và JOIN thường sẽ nuốt mất đúng những đồng ấy. */
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT COALESCE(cs.ten,'') AS ten, SUM(c.tien_dem) AS t, COUNT(*) AS n
+			 FROM $tc c LEFT JOIN $tm m ON m.ma=c.ma_may LEFT JOIN $tcs cs ON cs.id=m.coso_id
+			 WHERE c.nguoi=%s AND c.nop_id=0 GROUP BY cs.ten", $ai ) ) as $r ) {
+			$vao( $r['ten'], 'tu_ghe', $r['t'], $r['n'] );
+		}
+
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT COALESCE(cs.ten,'') AS ten, SUM(x.so_tien) AS t, COUNT(*) AS n
+			 FROM $tt x LEFT JOIN $tm m ON m.ma=x.ma_may LEFT JOIN $tcs cs ON cs.id=m.coso_id
+			 WHERE x.nguon=%s AND x.noi_dung=%s AND x.huy=0 AND x.nop_id=0 GROUP BY cs.ten",
+			VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) ) as $r ) {
+			$vao( $r['ten'], 'tu_quay', $r['t'], $r['n'] );
+		}
+
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT h.coso AS ten, COALESCE(SUM(d.tien_mat),0) AS t, COUNT(DISTINCT h.report_id) AS n
+			 FROM $tb h LEFT JOIN $tbd d ON d.report_id=h.report_id
+			 WHERE h.nhan_vien=%s AND h.nop_id=0 GROUP BY h.coso", $ai ) ) as $r ) {
+			$vao( $r['ten'], 'tu_bao_cao', $r['t'], $r['n'] );
+		}
+
+		/* ⚠️ BỎ NHÓM 0 ĐỒNG. Báo cáo toàn QR không có đồng tiền mặt nào phải nộp, nhưng vẫn đếm
+		   ra một dòng — bày một cơ sở "0đ" kèm ô tích là mời người ta tích vào rồi bấm Nộp và
+		   nhận về câu "đang không cầm đồng nào". */
+		$ra = array_filter( $ra, function ( $x ) { return (int) $x['tong'] > 0; } );
+		usort( $ra, function ( $a, $b ) { return strcmp( $a['coso'], $b['coso'] ); } );
+		return array_values( $ra );
 	}
 
 	/**
@@ -628,11 +707,70 @@ class VHG_Quy {
 	 * ⚠️ TÊN NGƯỜI NỘP LẤY TỪ PHIÊN ĐĂNG NHẬP, không nhận từ gói tin. Nhận từ gói tin là ai
 	 *    cũng nộp hộ được người khác, tức là ai cũng xoá được nợ tiền mặt của người khác.
 	 */
-	public static function nop( $nguoi, $ghi_chu = '', $ma_lan = '' ) {
+	public static function nop( $nguoi, $ghi_chu = '', $ma_lan = '', $coso_ds = null ) {
 		global $wpdb;
 		$ai = trim( (string) $nguoi );
 		if ( '' === $ai ) {
 			return array( 'ok' => false, 'error' => 'Chưa biết ai đang nộp — không ghi sổ được.' );
+		}
+
+		/* 🔴 NỘP THEO CƠ SỞ ĐƯỢC TÍCH — anh Thắng 05/09/2026: *"khi nhân viên nộp hoặc gửi bill
+		   thì tích vào sẽ nộp cơ sở nào"*. Một người đi ba nơi trong một vòng nhưng nộp tiền hai
+		   nơi đầu ở quầy rồi mới đi nốt nơi thứ ba — chuyện thường ngày, mà bản trước bấm Nộp là
+		   nộp tất, không có cách nào nói "tôi mới nộp hai cơ sở này thôi".
+
+		   ⚠️ `null` HOẶC MẢNG RỖNG = NỘP TẤT, y như trước. Đây là đường mọi nơi khác trong hệ vẫn
+		      gọi (app, nộp thay, nộp qua màn quỹ cũ); đổi nghĩa của nó thành "nộp 0 đồng" là làm
+		      hỏng những chỗ chưa hề biết tới tính năng này. */
+		$loc_cs = array();
+		if ( is_array( $coso_ds ) ) {
+			foreach ( $coso_ds as $c ) {
+				$c = trim( (string) $c );
+				if ( '' !== $c && ! in_array( $c, $loc_cs, true ) ) { $loc_cs[] = $c; }
+			}
+		}
+		/* Câu WHERE thêm vào ba lệnh gắn dòng bên dưới. Ghế chưa gán cơ sở (hoặc mã ghế không
+		   còn trong danh mục) tra ra NULL — nhóm `(chưa gán)` phải bắt được đúng những dòng ấy,
+		   không thì tiền của chúng nằm lại vĩnh viễn: không nhóm nào nộp được. */
+		$dk_may = ''; $dk_bc = '';
+		if ( count( $loc_cs ) ) {
+			$tm  = VHG_DB::t( 'may' );
+			$tcs = VHG_DB::t( 'coso' );
+			$ten = array(); $co_chua_gan = false;
+			foreach ( $loc_cs as $c ) {
+				if ( self::CS_CHUA_GAN === $c ) { $co_chua_gan = true; } else { $ten[] = $c; }
+			}
+			$in_ten = count( $ten )
+				? "SELECT m.ma FROM $tm m JOIN $tcs cs ON cs.id=m.coso_id WHERE cs.ten IN ("
+					. implode( ',', array_fill( 0, count( $ten ), '%s' ) ) . ')'
+				: '';
+			$ve_may = array();
+			if ( '' !== $in_ten ) { $ve_may[] = 'ma_may IN (' . $wpdb->prepare( $in_ten, ...$ten ) . ')'; }
+			if ( $co_chua_gan ) {
+				$ve_may[] = "ma_may NOT IN (SELECT m2.ma FROM $tm m2 JOIN $tcs cs2 ON cs2.id=m2.coso_id)";
+			}
+			/* 🔴 CÂU NÀY KHÔNG BAO GIỜ ĐƯỢC RỖNG KHI ĐÃ TÍCH — rỗng là lặng lẽ thành NỘP TẤT,
+			   đúng thứ người ta vừa cố tránh. Bất biến giữ điều đó là ở ngay trên: mỗi tên trong
+			   `$loc_cs` rơi vào đúng một trong hai rổ (`$ten` hoặc `$co_chua_gan`), và mỗi rổ có
+			   hàng thì sinh đúng một vế — nên `$loc_cs` không rỗng kéo theo `$ve_may` không rỗng.
+			   ⚠️ Đừng thêm một nhánh `count($ve_may) ? … : '1=0'` cho "chắc ăn": nhánh ấy KHÔNG
+			      ĐẠT TỚI ĐƯỢC, mà mã chết thì không ai chạy qua để biết nó còn đúng — nó chỉ nằm
+			      đó tạo cảm giác an toàn và làm mấy phép thử dò chuỗi tự xanh. Muốn chắc thì giữ
+			      bất biến trên, đừng vá ở đây.
+			   Tích một cơ sở KHÔNG CÒN TỒN TẠI vẫn an toàn mà không cần nhánh nào: vế `IN
+			   (SELECT …)` tra ra rỗng, gắn được 0 dòng, và lượt nộp bị huỷ ngay bên dưới. */
+			$dk_may = ' AND (' . implode( ' OR ', $ve_may ) . ')';
+			/* Đường báo cáo dựng ĐỐI XỨNG với đường trên: cùng hai rổ, cùng nối OR, cùng bất
+			   biến "có tích thì có vế". `bc.coso` đã là TÊN sẵn nên không phải đi qua bảng ghế;
+			   báo cáo không có tên cơ sở thì `coso` rỗng — đúng nhóm `(chưa gán)` mà bảng đọc
+			   gom chúng vào (xem dang_cam_theo_coso()). */
+			$ve_bc = array();
+			if ( count( $ten ) ) {
+				$ve_bc[] = $wpdb->prepare(
+					'coso IN (' . implode( ',', array_fill( 0, count( $ten ), '%s' ) ) . ')', ...$ten );
+			}
+			if ( $co_chua_gan ) { $ve_bc[] = "coso=''"; }
+			$dk_bc = ' AND (' . implode( ' OR ', $ve_bc ) . ')';
 		}
 
 		/* 🔴 GỬI LẠI THÌ TRẢ VỀ LƯỢT CŨ — cùng lý do với `chot()`, xem chú thích ở đó.
@@ -674,15 +812,15 @@ class VHG_Quy {
 		$tt = VHG_DB::t( 'thu' );
 		$tb = VHG_DB::t( 'bc' );
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $tc SET nop_id=%d WHERE nguoi=%s AND nop_id=0", $id, $ai ) );
+			"UPDATE $tc SET nop_id=%d WHERE nguoi=%s AND nop_id=0", $id, $ai ) . $dk_may );
 		$wpdb->query( $wpdb->prepare(
 			"UPDATE $tt SET nop_id=%d WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0",
-			$id, VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) );
+			$id, VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) . $dk_may );
 		/* Nguồn thứ ba (29/08/2026) — báo cáo doanh thu. Gắn theo HEADER (`bc.nop_id`), không phải
 		   theo từng dòng ghế: một báo cáo là một lần "nộp cả cụm", không tách lẻ từng ghế trong
 		   đó — khớp đúng cách chot/thu vẫn gắn theo TỪNG DÒNG hoàn chỉnh của chúng. */
 		$wpdb->query( $wpdb->prepare(
-			"UPDATE $tb SET nop_id=%d WHERE nhan_vien=%s AND nop_id=0", $id, $ai ) );
+			"UPDATE $tb SET nop_id=%d WHERE nhan_vien=%s AND nop_id=0", $id, $ai ) . $dk_bc );
 
 		/* Cộng lại từ đúng những dòng vừa gắn được — không tin con số đã tính trước đó. */
 		$tbd = VHG_DB::t( 'bc_dong' );
@@ -701,14 +839,18 @@ class VHG_Quy {
 			/* Không gắn được đồng nào -> xoá luôn lượt nộp. Để lại một dòng 0 đồng là bảng chờ
 			   xác nhận đầy những lượt rỗng, và người ta thôi không nhìn nó nữa. */
 			$wpdb->delete( VHG_DB::t( 'nop' ), array( 'id' => $id ) );
-			return array( 'ok' => false, 'error' => 'Anh/chị đang không cầm đồng nào chưa nộp.' );
+			return array( 'ok' => false, 'error' => count( $loc_cs )
+				? ( 'Không có đồng nào chưa nộp ở cơ sở đã tích (' . implode( ', ', $loc_cs ) . ').' )
+				: 'Anh/chị đang không cầm đồng nào chưa nộp.' );
 		}
 
 		$wpdb->update( VHG_DB::t( 'nop' ), array( 'so_tien' => $tong, 'so_dong' => $dong ),
 			array( 'id' => $id ) );
 		return array( 'ok' => true, 'id' => $id, 'so_tien' => $tong, 'so_dong' => $dong, 'lap_lai' => 0,
-			'thong_bao' => 'Đã nộp ' . number_format( $tong, 0, ',', '.' ) . 'đ (' . $dong
-				. ' lượt) — chờ quản lý xác nhận đã nhận đủ.' );
+			'coso' => $loc_cs,
+			'thong_bao' => 'Đã nộp ' . number_format( $tong, 0, ',', '.' ) . 'đ (' . $dong . ' lượt'
+				. ( count( $loc_cs ) ? ( ', cơ sở: ' . implode( ', ', $loc_cs ) ) : '' )
+				. ') — chờ quản lý xác nhận đã nhận đủ.' );
 	}
 
 	/**
