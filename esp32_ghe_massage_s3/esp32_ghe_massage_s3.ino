@@ -1,23 +1,32 @@
 /* ============================================================================
  *  GHẾ QR — Waveshare ESP32-S3-Touch-LCD-2.8B (480×640, ST7701 RGB)
- *  ⚠️ BƯỚC 2 — STAGE B: LỚP VẼ + CHỌN GÓI BẰNG CẢM ỨNG (chưa QR/tiền/mạng).
+ *  ⚠️ BƯỚC 2 — STAGE C: CHỌN GÓI (cảm ứng GT911) -> HIỆN QR VietQR THẬT.
  * ----------------------------------------------------------------------------
  *  Nền: driver ST7701 RGB gốc Waveshare (Display_ST7701 + TCA9554 + I2C).
- *  Lớp vẽ (rect/text/bo góc/tiền) bê từ bản _p4 (vẽ thẳng framebuffer), đổi sang
- *  đẩy buffer qua LCD_addWindow. Font 5×7 khử răng cưa (font_ascii.h).
- *  Cảm ứng CST328 (touch_cst328.h) — poll I2C, lấy điểm đầu, dò trúng ô.
+ *  Lớp vẽ (rect/text/bo góc/tiền) bê từ bản _p4, đẩy buffer qua LCD_addWindow.
+ *  Cảm ứng: GT911 (0x14) — touch_cst328.h tự nhận diện GT911/CST328.
+ *  QR: thư viện "QRCode" (Richard Moore) + VietQR tự dựng (bê _p4).
  *
- *  KẾT QUẢ: chạm 1 gói ở lưới 2×2 -> sang màn "ĐÃ CHỌN GÓI" (thẻ to + nút
- *  QUAY LAI). Chứng minh cả vẽ lẫn cảm ứng (dò trúng ô) chạy trên panel thật.
- *  Bước sau: hiện QR thanh toán -> cổng tiền ICT/4G/NVS/chốt offline (bê _p4).
+ *  KẾT QUẢ: chạm 1 gói -> màn QR (VietQR thật: số tiền + nội dung CK) + nút HUỶ.
+ *  ⚠️ CẦN CÀI thư viện "QRCode" (Library Manager). Số TK/ID ghế còn là PLACEHOLDER.
+ *  Bước sau: nhận tiền (cổng ICT/4G) -> chạy phiên -> NVS/chốt offline (bê _p4).
  * ========================================================================== */
 #include <Arduino.h>
 #include <math.h>
+#include <qrcode.h>              // THU VIEN "QRCode" (Richard Moore) - cai qua Library Manager
 #include "I2C_Driver.h"
 #include "TCA9554PWR.h"
 #include "Display_ST7701.h"
 #include "font_ascii.h"
 #include "touch_cst328.h"
+
+// ─── CAU HINH THANH TOAN (VietQR) ───────────────────────────────────────────
+// ⚠️ Repo CONG KHAI: KHONG dat so tai khoan/khoa that o day. Cac gia tri duoi la
+//    PLACEHOLDER de test hien QR. Sau se nap tu web/NVS (nhu ban _p4).
+static const char* BANK_BIN    = "970422";     // vi du BIN MB Bank (cong khai)
+static const char* ACCOUNT_NO  = "0000000000"; // TODO: nap tu web/NVS
+static const char* ND_TIEN_TO  = "POSH";       // tien to noi dung CK
+static const char* CHAIR_ID    = "01";         // TODO: nap tu web/NVS
 
 // ───────────────────────────── KHUNG MÀN + FRAMEBUFFER ──────────────────────
 #define LW 480
@@ -117,6 +126,38 @@ static void lMoneyC(int cx, int y, long v, int sc, uint16_t c, uint16_t bg){ lMo
 #define C_PHU   RGB565(0xAE,0xD8,0xE8)
 #define C_ID    RGB565(0x5A,0xD8,0x88)
 #define C_YEL   RGB565(0xF4,0xC8,0x54)
+#define C_RED   RGB565(0xF0,0x60,0x60)
+#define C_BLACK RGB565(0x00,0x00,0x00)
+
+// ───────────────────────────── VietQR (bê từ _p4) ──────────────────────────
+static String _tlv(const char* id, const String& val){
+  char len[4]; snprintf(len, sizeof len, "%02d", (int)val.length());
+  return String(id) + len + val;
+}
+static String _crc16(const String& s){
+  uint16_t crc = 0xFFFF;
+  for(size_t i = 0; i < s.length(); i++){ crc ^= ((uint8_t)s[i]) << 8;
+    for(int b = 0; b < 8; b++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1); }
+  char o[5]; snprintf(o, sizeof o, "%04X", crc); return String(o);
+}
+static String buildVietQR(const String& bin, const String& acct, long amount, const String& addInfo){
+  String s = _tlv("00","01") + _tlv("01", amount ? "12" : "11");
+  String ben = _tlv("00", bin) + _tlv("01", acct);
+  s += _tlv("38", _tlv("00","A000000727") + _tlv("01", ben) + _tlv("02","QRIBFTTA"));
+  s += _tlv("53","704"); if(amount) s += _tlv("54", String(amount));
+  s += _tlv("58","VN"); if(addInfo.length()) s += _tlv("62", _tlv("08", addInfo));
+  s += "6304"; return s + _crc16(s);
+}
+// Vẽ QR (v11=61 module) vào ô oPx px, nền trắng, module đen.
+static void lQR(int lx, int ly, int oPx, const char* text){
+  QRCode qr; uint8_t buf[qrcode_getBufferSize(11)];
+  qrcode_initText(&qr, buf, 11, ECC_MEDIUM, text);
+  int mod = oPx / qr.size; if(mod < 1) mod = 1;
+  int side = mod * qr.size;
+  lRect(lx, ly, side + 2*mod, side + 2*mod, C_WHITE);
+  for(int y = 0; y < qr.size; y++) for(int x = 0; x < qr.size; x++)
+    if(qrcode_getModule(&qr, x, y)) lRect(lx + mod + x*mod, ly + mod + y*mod, mod, mod, C_BLACK);
+}
 
 // ───────────────────────────── GÓI DỊCH VỤ (tạm) ───────────────────────────
 struct Goi { const char* ten; int phut; long tien; };
@@ -153,21 +194,12 @@ static void veTheGoi(int i, int x, int y, int w, int h){
   lTextC(cx, y+h-40, p, 2, C_PHU, C_BOT);                // phút
 }
 
-// Thanh chẩn đoán cảm ứng — TO, RÕ, nguyên dải (dưới tiêu đề).
-// XANH = thấy 0x1A (touch sống), ĐỎ = không thấy 1A.
-static void drawTPStatus(){
-  uint16_t bar = TP_OK ? RGB565(0x1E,0x8E,0x3E) : RGB565(0xC0,0x2A,0x2A);
-  lRect(0, 92, LW, 18, bar);
-  lTextC(LW/2, 95, TP_STATUS, 2, C_WHITE, bar);
-}
-
 static void veIdle(){
   lFill(C_BG);
   // Thanh tiêu đề
   lRect(0, 0, LW, 92, C_BAR);
   lTextC(LW/2, 20, "POSH", 5, C_YEL, C_BAR);
   lTextC(LW/2, 62, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
-  drawTPStatus();
   // Lưới 2×2 chọn gói
   int k = 0;
   for(int r=0;r<2;r++) for(int c=0;c<2;c++) veTheGoi(k++, GX[c], GY[r], TW, TH);
@@ -177,56 +209,60 @@ static void veIdle(){
   veFlush();
 }
 
-// Vẽ dấu + toạ độ ngay chỗ chạm (đè lên màn hiện tại) rồi đẩy ra — để kiểm
-// tra cảm ứng bằng MẮT, không cần Serial.
-static void veMark(int x, int y){
-  uint16_t c = RGB565(0xFF,0x40,0x40);
-  for(int i=-16;i<=16;i++){ lpx(x+i,y,c); lpx(x,y+i,c); }   // dấu cộng
-  lRect(x-3,y-3,6,6,c);
-  char s[24]; snprintf(s, sizeof s, "x=%d y=%d", x, y);
-  int ty = (y > LH-60) ? y-40 : y+18;
-  lRect(x-70, ty-2, 140, 18, C_SHD);
-  lTextC(x, ty, s, 2, C_WHITE, C_SHD);
-  veFlush();
-}
-
-// Màn "đã chọn gói" — tạm thời (chỗ QR sẽ ráp ở Stage sau). Có nút QUAY LAI.
-static const int BACK_X = 40, BACK_Y = LH - 120, BACK_W = LW - 80, BACK_H = 76;
-static void veChon(int idx){
-  lFill(C_BG);
-  lRect(0, 0, LW, 92, C_BAR);
-  lTextC(LW/2, 20, "DA CHON GOI", 4, C_YEL, C_BAR);
-  lTextC(LW/2, 64, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
-  // Thẻ gói đã chọn (giữa màn)
-  int cw = LW - 80, ch = 250, cx0 = 40, cy0 = 140;
-  lRoundRectA(cx0, cy0, cw, ch, 16, C_TOP, C_BG);
-  lRoundRectA(cx0+2, cy0+ch/2, cw-4, ch/2-2, 14, C_BOT, C_TOP);
-  int cx = LW/2;
-  lTextC(cx, cy0+26, GOI[idx].ten, 4, C_WHITE, C_TOP);
-  lMoneyC(cx, cy0+ch/2-24, GOI[idx].tien, 5, C_YEL, C_BOT);
-  char p[16]; snprintf(p, sizeof p, "%d PHUT", GOI[idx].phut);
-  lTextC(cx, cy0+ch-46, p, 2, C_PHU, C_BOT);
-  // Ghi chú bước sau
-  lTextC(cx, cy0+ch+28, "QR THANH TOAN SE HIEN O DAY", 2, C_GLOW, C_BG);
-  // Nút QUAY LAI
-  lRoundRectA(BACK_X, BACK_Y, BACK_W, BACK_H, 14, C_BAR, C_BG);
-  lTextC(cx, BACK_Y+26, "QUAY LAI", 3, C_WHITE, C_BAR);
-  drawTPStatus();
-  veFlush();
-}
-static bool inBack(int tx, int ty){
-  return tx >= BACK_X && tx < BACK_X+BACK_W && ty >= BACK_Y && ty < BACK_Y+BACK_H;
-}
-
 // ───────────────────────────── TRẠNG THÁI APP ──────────────────────────────
-enum { ST_IDLE, ST_CHON };
-static int  g_state = ST_IDLE;
-static int  g_goi   = -1;
+enum { ST_IDLE, ST_WAITPAY };
+static int    g_state = ST_IDLE;
+static int    g_goi   = -1;
+static char   g_code[8] = "";        // mã giao dịch (nội dung CK)
+static String g_memo, g_payload;     // nội dung + chuỗi VietQR
+
+// Sinh mã giao dịch ngắn (không ký tự dễ nhầm).
+static void genCode(){
+  static const char* A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for(int i = 0; i < 5; i++) g_code[i] = A[esp_random() % 31];
+  g_code[5] = 0;
+}
+
+// Nút HUỶ (đáy màn QR)
+static const int HUY_X = 40, HUY_Y = LH - 84, HUY_W = LW - 80, HUY_H = 60;
+static bool inHuy(int tx, int ty){
+  return tx >= HUY_X && tx < HUY_X+HUY_W && ty >= HUY_Y && ty < HUY_Y+HUY_H;
+}
+
+// Màn chờ thanh toán: hiện QR VietQR thật + số tiền + nội dung CK.
+static void veWaitPay(int idx){
+  lFill(C_BG);
+  // Tiêu đề
+  lRect(0, 0, LW, 84, C_BAR);
+  lTextC(LW/2, 12, "QUET QR THANH TOAN", 2, C_WHITE, C_BAR);
+  { char t[24]; _tienStr(GOI[idx].tien, t, sizeof t);
+    char g[40]; snprintf(g, sizeof g, "%sD  -  %d PHUT", t, GOI[idx].phut);
+    lTextC(LW/2, 46, g, 2, C_YEL, C_BAR); }
+  lTextC(LW/2, 70, GOI[idx].ten, 2, C_PHU, C_BAR);
+  // Ô QR trắng bo góc
+  int box = 380, bx = (LW - box) / 2, by = 100;
+  lRoundRectA(bx+3, by+5, box, box, 14, C_SHD, C_BG);
+  lRoundRectA(bx, by, box, box, 14, C_WHITE, C_BG);
+  // Dựng nội dung + payload VietQR
+  g_memo = String(ND_TIEN_TO) + " GHE" + CHAIR_ID + " " + g_code;
+  g_payload = buildVietQR(BANK_BIN, ACCOUNT_NO, GOI[idx].tien, g_memo);
+  int oPx = box - 40, mod = oPx / 61; if(mod < 1) mod = 1;
+  int qside = mod * 61 + 2*mod;
+  lQR(bx + (box - qside)/2, by + (box - qside)/2, oPx, g_payload.c_str());
+  // Nội dung chuyển khoản
+  char nd[48]; snprintf(nd, sizeof nd, "NOI DUNG: %s", g_memo.c_str());
+  lTextC(LW/2, by + box + 16, nd, 2, C_YEL, C_BG);
+  lTextC(LW/2, by + box + 40, "MO APP NGAN HANG > QUET MA", 2, C_GLOW, C_BG);
+  // Nút HUỶ
+  lRoundRectA(HUY_X, HUY_Y, HUY_W, HUY_H, 12, C_BAR, C_BG);
+  lTextC(LW/2, HUY_Y+20, "HUY - CHON GOI KHAC", 2, C_PHU, C_BAR);
+  veFlush();
+}
 
 void setup(){
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n\n=== GHE QR S3 - Stage B (lop ve + cham chon goi) ===");
+  Serial.println("\n\n=== GHE QR S3 - Stage C (chon goi -> QR VietQR) ===");
 
   I2C_Init();
   TCA9554PWR_Init(0x00);         // demo Waveshare: tất cả EXIO = LOW
@@ -246,10 +282,9 @@ void setup(){
 
   if(!veInit()){ Serial.println("[S3] THIEU PSRAM cho framebuffer!"); return; }
   delay(300);                    // chờ CST328 boot sau khi nhả reset
-  TP_Init();                     // cảm ứng CST328
-  Serial.println("[S3] ve man chon goi...");
+  TP_Init();                     // cảm ứng GT911/CST328
   veIdle();
-  Serial.println("[S3] xong. Cham 1 goi de chon; man 'da chon' co nut QUAY LAI.");
+  Serial.println("[S3] xong. Cham 1 goi -> hien QR; nut HUY quay lai.");
 }
 
 // Chạm 1 lần (sườn lên): trả true + toạ độ tại thời điểm nhả/chạm mới.
@@ -268,14 +303,17 @@ static bool chamMoi(int* px, int* py){
 void loop(){
   int tx, ty;
   if(chamMoi(&tx, &ty)){
-    Serial.printf("[TP] cham x=%d y=%d (state=%d)\n", tx, ty, g_state);
     if(g_state == ST_IDLE){
       int k = hitGoi(tx, ty);
-      if(k >= 0){ g_goi = k; g_state = ST_CHON; veChon(k); }
-    } else if(g_state == ST_CHON){
-      if(inBack(tx, ty)){ g_state = ST_IDLE; g_goi = -1; veIdle(); }
+      if(k >= 0){
+        g_goi = k; g_state = ST_WAITPAY; genCode();
+        Serial.printf("[APP] chon %s -> QR (ND: %s GHE%s %s)\n",
+                      GOI[k].ten, ND_TIEN_TO, CHAIR_ID, g_code);
+        veWaitPay(k);
+      }
+    } else if(g_state == ST_WAITPAY){
+      if(inHuy(tx, ty)){ g_state = ST_IDLE; g_goi = -1; veIdle(); }
     }
-    veMark(tx, ty);      // luôn vẽ dấu + toạ độ chỗ chạm (kiểm tra bằng mắt)
   }
   delay(15);
 }
