@@ -3161,7 +3161,6 @@ var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
 var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
 var QL_SEL = {};   // Quản lý ghế: các mã ghế ĐANG TÍCH CHỌN (giữ qua các trang) — { ma: true }
-var QL_HIEN_AN = false;   // Quản lý ghế: có hiện ghế ĐÃ ĐIỀU CHUYỂN (ẩn) hay không
 var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 /* Tự làm mới tab Điều khiển (2 giây/lần). Anh Thắng: "tắt tự f5 trang". Nhớ lựa chọn trong
@@ -6886,13 +6885,20 @@ function veQuanLy(){
     + '</p></div>';
 
   /* ---- Ghế ---- */
-  /* Cơ sở id đang lọc (để nút Thêm ghế mặc định gán luôn vào cơ sở đang xem). */
+  /* 🔴 MỘT Ô CƠ SỞ, MỘT NGHĨA — anh Thắng 05/09/2026: *"phần thêm ghế, 2 dữ liệu cách thêm khác
+     nhau, phía trên đang chọn khác, phía dưới khác"*.
+
+     Trước bản này khối Thêm ghế có ô chọn cơ sở RIÊNG, tách hẳn ô "Lọc cơ sở" ngay dưới. Hai ô
+     ấy chỉ khớp nhau đúng lúc trang vừa vẽ; đổi ô lọc thì ô kia đứng yên. Kết quả: người dùng
+     lọc sang GO TRƯỜNG CHINH, gõ mã, bấm Thêm — ghế rơi vào cơ sở CŨ, và vì bảng đang lọc cơ sở
+     mới nên nó KHÔNG hiện ra. Trông y như "thêm không được", nên người ta bấm thêm lần nữa, rồi
+     lần nữa: mỗi lần một ghế ma ở một cơ sở khác.
+
+     Nay chỉ còn MỘT ô — ô lọc. Nó vừa quyết định bảng đang xem cơ sở nào, vừa quyết định ghế mới
+     vào đâu; khối Thêm chỉ NÓI RA cái tên ấy chứ không cho chọn lại. Hai ô không thể lệch nữa vì
+     chỉ có một ô. */
   var locId = 0;
   coso.forEach(function(c){ if (c.ten === QL_LOC) locId = c.id; });
-  var opt = '<option value="0"' + (locId ? '' : ' selected') + '>' + L('(chưa gán)','(unassigned)')
-    + '</option>' + coso.map(function(c){
-        return '<option value="' + c.id + '"' + (c.id === locId ? ' selected' : '') + '>'
-          + esc(c.ten) + '</option>'; }).join('');
   /* Bộ lọc theo cơ sở — kèm số ghế mỗi cơ sở cho dễ nhìn. */
   var flt = '<option value="">' + L('Tất cả cơ sở','All sites') + ' (' + may.length + ')</option>'
     + coso.map(function(c){
@@ -6901,31 +6907,36 @@ function veQuanLy(){
     + (chuaGan ? '<option value="__none__"' + (QL_LOC === '__none__' ? ' selected' : '') + '>'
         + L('(chưa gán)','(unassigned)') + ' (' + chuaGan + ')</option>' : '');
 
-  var mayLoc = may.filter(function(m){
-    if (QL_LOC === '') return true;
-    if (QL_LOC === '__none__') return !m.coso;
-    return m.coso === QL_LOC;
-  });
+  /* Tên cơ sở ghế mới sẽ vào, đọc thẳng từ ô lọc. Lọc "Tất cả" hoặc "(chưa gán)" thì ghế mới
+     thành CHƯA GÁN — nói thẳng ra, chứ không lặng lẽ nhét vào một cơ sở nào đó. */
+  var themVao = locId ? esc(QL_LOC) : L('(chưa gán)','(unassigned)');
 
   h += '<div class="card"><h2>' + L('Ghế','Chairs') + '</h2>'
-    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px">'
+    /* Ô lọc lên TRƯỚC: nó là thứ quyết định cả bảng lẫn chỗ ghế mới vào, nên phải là thứ người
+       ta chọn đầu tiên. */
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px"><label class="mut" style="align-self:center">'
+    + L('Cơ sở đang xem','Site') + ':</label>'
+    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select>'
+    /* 🔴 Ô TÍCH "HIỆN GHẾ ĐÃ ĐIỀU CHUYỂN" ĐÃ BỎ — anh Thắng 05/09/2026: *"chỗ phần điều chuyển
+       tức là ẩn nó đi, nằm ở dưới trang, sau này cần lắp lại ta mở nó lên là được"*.
+       Ghế đã điều chuyển nay luôn có mặt, trong khối gập ở CUỐI bảng. Ô tích cũ bắt người ta
+       phải NHỚ là mình từng ẩn một cái ghế mới đi tìm được nó — mà thứ hay phải tìm lại nhất
+       chính là ghế ẩn nhầm, tức là ghế người ta KHÔNG nhớ đã ẩn. */
+    + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button></div>'
+    /* Khối Thêm đứng NGAY TRÊN BẢNG, sau ô lọc — anh Thắng: *"khi lọc cơ sở ghế, có thể thêm xoá
+       sửa được ghế luôn"*. Thêm · sửa tên · đổi cơ sở · xoá nay nằm gọn trong một tầm mắt. */
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:6px">'
     + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
       + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:160px">'
-    + '<select id="ma-cs" style="flex:1;min-width:130px">' + opt + '</select>'
-    + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế','Add chair') + '</button></div>'
+    + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế vào','Add chair to') + ' ' + themVao + '</button>'
+    + '<input type="hidden" id="ma-cs" value="' + (locId || 0) + '"></div>'
     + '<p class="mut" style="margin:0 0 10px">'
-    + L('Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
-        'The code goes into the transfer memo the customer types — letters and digits only.') + '</p>'
-    + '<div class="act" style="flex-wrap:wrap;margin-bottom:10px"><label class="mut" style="align-self:center">'
-    + L('Lọc cơ sở','Filter site') + ':</label>'
-    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select>'
-    + '<label class="mut" style="align-self:center;white-space:nowrap"><input type="checkbox" id="ql-htan"'
-    + (QL_HIEN_AN ? ' checked' : '') + '> ' + L('Hiện ghế đã điều chuyển','Show moved chairs') + '</label>'
-    + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button></div>';
+    + L('Ghế mới vào đúng cơ sở đang chọn ở ô trên. Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
+        'The new chair goes to the site selected above. The code goes into the transfer memo — letters and digits only.') + '</p>';
   h += '<div id="ql-wrap"></div>'
     + '<p class="mut" style="margin:8px 0 0">'
-    + L('Tích chọn nhiều ghế rồi bấm “Điều chuyển (ẩn đi)” để ẩn ghế đã dời nơi khác — CHỈ SỐ và doanh thu GIỮ NGUYÊN, không mất, đưa về lại được. Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay).',
-        'Tick chairs then “Move out (hide)” for chairs relocated elsewhere — meter & revenue are KEPT and reversible. Change the site dropdown to reassign a chair (saves immediately).')
+    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). “Điều chuyển” là ẩn ghế đi — ghế ẩn nằm trong khối “Ghế đã điều chuyển” ở cuối bảng, CHỈ SỐ và doanh thu giữ nguyên, cần lắp lại thì mở khối ấy ra bấm “Đưa về”. “Xoá” chỉ dùng cho ghế gõ nhầm mã: ghế đã có lượt thu thì không xoá được.',
+        'Edit the name inline; change Site to reassign (saves immediately). “Move out” hides a chair — hidden chairs sit in the “Moved-out chairs” block at the bottom with meter and revenue intact; open it and press “Restore” to bring one back. “Delete” is only for mistyped codes: a chair with recorded takings cannot be deleted.')
     + '</p></div>';
   return h;
 }
@@ -7058,17 +7069,29 @@ function qlTimTrung(){
 }
 
 /* Danh sach ghe (tab Quan ly ghe): 10 ghe/trang, loc theo QL_LOC. O tich chon giu qua cac trang
-   + thanh dieu chuyen hang loat. Ghe DA DIEU CHUYEN (m.an) mac dinh an — bat QL_HIEN_AN de soi.
-   Dieu chuyen = an, KHONG xoa (giu chi so). */
+   + thanh dieu chuyen hang loat. Dieu chuyen = AN DI, KHONG xoa (giu nguyen chi so va doanh thu).
+
+   Ghe da dieu chuyen KHONG con tron vao bang chinh: no nam trong khoi gap o CUOI, luon co mat.
+   Xem khoi 🔴 ngay duoi. */
 function qlGheRender(){
   var box = document.getElementById('ql-wrap'); if (!box) return;
   var may = (D && D.may) || [], coso = (D && D.coso) || [];
-  var list = may.filter(function(m){
-    if (!QL_HIEN_AN && m.an) return false;
+  /* Cung mot bo loc co so cho ca hai phan — bang chinh va khoi ghe da dieu chuyen. Hai bo loc
+     khac nhau la mot ghe an o co so nay lai hien duoi bang cua co so kia. */
+  function thuocLoc(m){
     if (QL_LOC === '') return true;
     if (QL_LOC === '__none__') return !m.coso;
     return m.coso === QL_LOC;
-  }).sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); });
+  }
+  function xepMa(a,b){ return String(a.ma).localeCompare(String(b.ma)); }
+  var list = may.filter(function(m){ return !m.an && thuocLoc(m); }).sort(xepMa);
+  /* 🔴 GHE DA DIEU CHUYEN NAM O DUOI TRANG, KHONG BIEN MAT — anh Thang 05/09/2026: *"cho phan
+     dieu chuyen tuc la an no di, nam o duoi trang, sau nay can lap lai ta mo no len la duoc"*.
+     Ban truoc an han khoi bang, chi hien khi tich mot o "Hien ghe da dieu chuyen" o tren. Nghia
+     la muon tim lai mot ghe an nham thi phai NHO ra rang minh da an no — dung thu khong ai nho.
+     Nay no la mot khoi gap dung san o cuoi, dem so ngay tren nhan: khong mo cung biet co bao
+     nhieu ghe dang nam trong do. */
+  var anDs = may.filter(function(m){ return m.an && thuocLoc(m); }).sort(xepMa);
   var pages = Math.max(1, Math.ceil(list.length / QL_PER));
   if (QL_PG >= pages) QL_PG = pages - 1; if (QL_PG < 0) QL_PG = 0;
   var from = QL_PG * QL_PER, to = Math.min(list.length, from + QL_PER);
@@ -7086,7 +7109,6 @@ function qlGheRender(){
       + '<span class="mut">' + L('hoac doi sang co so','or move to site') + ':</span>'
       + '<select id="ql-dccs" style="min-width:150px">' + qlCsOpt(coso, '') + '</select>'
       + '<button id="ql-doics" class="ghost">' + L('Doi co so','Change site') + '</button>'
-      + (QL_HIEN_AN ? '<button id="ql-hien" class="ghost">↩︎ ' + L('Dua ve dung lai','Restore') + '</button>' : '')
       + '<button id="ql-boc" class="ghost">' + L('Bo chon','Clear') + '</button></div>';
   }
 
@@ -7100,20 +7122,61 @@ function qlGheRender(){
   for (var i = from; i < to; i++){ var m = list[i];
     var tt = m.tt === 'running' ? '▶️' : (m.tt === 'wait_pay' ? '⏳' : (m.song ? '🟢' : '⚪'));
     var ck = QL_SEL[m.ma] ? ' checked' : '';
-    h += '<tr' + (m.an ? ' style="opacity:.6"' : '') + '>'
+    /* ⚠️ KHONG con nhanh "neu ghe da dieu chuyen" o day. `list` da loc sach `m.an` ngay tu dau,
+       nen mot nhanh nhu vay la nhanh CHET — ma nhanh chet van chua nguyen day du chuoi chu, du
+       de bai kiem nao do do chuoi bao rang tinh nang con song. */
+    h += '<tr>'
       + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
-      + '<td><b' + (m.an ? ' style="text-decoration:line-through"' : '') + '>' + esc(m.ma) + '</b>'
-      + (m.an ? ' <span class="pill p-wait">' + L('da dieu chuyen','moved') + '</span>' : '') + '</td>'
+      + '<td><b>' + esc(m.ma) + '</b></td>'
       + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
       + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
       + '<td class="r hide-sm mut">' + tt + '</td>'
-      + '<td class="r">' + (m.an
-          ? '<button data-mhien="' + esc(m.ma) + '">↩︎ ' + L('Dua ve','Restore') + '</button>'
-          : '<button data-man="' + esc(m.ma) + '">📦 ' + L('Dieu chuyen','Move out') + '</button>')
+      + '<td class="r">'
+      + '<button data-man="' + esc(m.ma) + '">📦 ' + L('Dieu chuyen','Move out') + '</button>'
+      /* 🔴 XOA DUNG SAU DIEU CHUYEN, va nhat hon — anh Thang 05/09/2026 muon xoa duoc ngay tai
+         bang, nhung voi ghe DANG CHAY thi loi dung la Dieu chuyen (giu chi so va doanh thu).
+         May chu choi xoa ghe da co luot thu; nut nay chi de don ca go nham ma luc them. */
+      + ' <button data-mxoa="' + esc(m.ma) + '" class="ghost" title="'
+      + L('Chi xoa duoc ghe chua tung co luot thu nao','Only chairs with no recorded takings')
+      + '">🗑</button>'
       + '</td></tr>';
   }
   h += '</table>';
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * KHOI GHE DA DIEU CHUYEN — O DUOI, GAP LAI, LUON CO MAT
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  if (anDs.length){
+    /* Dung <details>: gap san nen khong chiem cho, nhung nhan dem so nen khong mo cung biet
+       trong do co gi. Trinh duyet tu lo phan dong/mo — khong can mot manh script rieng, va
+       trang thai mo/dong khong song sot qua lan ve lai, dung y: khoi nay la cho tra cuu khi
+       can, khong phai cho lam viec hang ngay. */
+    h += '<details class="ql-an" style="margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;'
+      + 'background:#f8fafc;padding:8px 12px">'
+      + '<summary style="cursor:pointer;font-weight:600;color:#475569">📦 '
+      + L('Ghe da dieu chuyen','Moved-out chairs') + ' (' + anDs.length + ')</summary>'
+      + '<p class="mut" style="margin:8px 0">'
+      + L('Cac ghe nay da an khoi man thu tien cua nhan vien. CHI SO va DOANH THU van con nguyen — bam "Dua ve" la dung lai duoc ngay.',
+          'These chairs are hidden from the staff screen. Meter and revenue are intact — press "Restore" to bring one back.')
+      + '</p><table><tr><th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name')
+      + '</th><th>' + L('Dia diem','Site') + '</th><th class="r"></th></tr>';
+    anDs.forEach(function(m){
+      h += '<tr><td><b style="text-decoration:line-through;color:#94a3b8">' + esc(m.ma) + '</b></td>'
+        + '<td class="mut">' + esc(m.ten || '') + '</td>'
+        + '<td class="mut">' + (m.coso ? esc(m.coso) : L('(chua gan)','(unassigned)')) + '</td>'
+        + '<td class="r"><button data-mhien="' + esc(m.ma) + '" class="on">↩︎ '
+        + L('Dua ve','Restore') + '</button>'
+        + ' <button data-mxoa="' + esc(m.ma) + '" class="ghost" title="'
+        + L('Chi xoa duoc ghe chua tung co luot thu nao','Only chairs with no recorded takings')
+        + '">🗑</button></td></tr>';
+    });
+    /* Duong hoan tac cho "An nhanh ghe trung ten": mot cu bam co the an hang chuc ghe, nen phai
+       co mot cu bam dua ca dong ay ve. Nhung no nam TRONG khoi gap va co hoi lai — dung lai ca
+       dong ghe trung ten mot cach tinh co la lam ban lai dung thu vua don. */
+    h += '</table><div class="act" style="margin-top:8px"><button id="ql-hien-tat" class="ghost">↩︎ '
+      + L('Dua ve tat ca','Restore all') + ' (' + anDs.length + ')</button></div></details>';
+  }
   box.innerHTML = h;
   var pg = document.createElement('div'); pg.className = 'act'; pg.style.cssText = 'margin-top:8px;align-items:center';
   var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Truoc','Prev');
@@ -7153,6 +7216,32 @@ function qlGheRender(){
   [].forEach.call(box.querySelectorAll('[data-mhien]'), function(b){
     b.onclick = function(){ lam('may_an', { ma: b.getAttribute('data-mhien'), an: 0 }); };
   });
+  /* Nut "Dua ve tat ca" nam trong khoi gap o cuoi. Cung ly do voi may nut hang: buoc tay o day,
+     khong phai o `noi()` — khoi nay duoc ve lai moi lan sang trang hay tick chon. */
+  var _ht = document.getElementById('ql-hien-tat');
+  if (_ht) _ht.onclick = function(){
+    var ds = anDs.map(function(m){ return m.ma; });
+    if (!ds.length) return;
+    if (!confirm(L('Dua ve dung lai CA ' + ds.length + ' ghe da dieu chuyen?\nChung se hien lai tren man thu tien cua nhan vien.',
+      'Restore ALL ' + ds.length + ' moved-out chairs?\nThey will reappear on the staff screen.'))) return;
+    lam('may_an_lo', { ma: ds, an: 0 });
+  };
+  /* 🔴 BUỘC TAY CHO NÚT XOÁ PHẢI Ở ĐÂY, KHÔNG PHẢI Ở `noi()`. `noi()` chạy đúng một lần lúc vẽ
+     trang; còn khối này `qlGheRender()` vẽ lại mỗi lần sang trang, tick chọn, hay bật "hiện ghế
+     đã điều chuyển". Buộc ở `noi()` thì sau lần vẽ lại ĐẦU TIÊN mấy nút 🗑 là phần tử mới,
+     không tay nào buộc — bấm không ra gì, mà cũng không báo lỗi. Đúng cái bẫy mấy nút anh em
+     kia (`data-man`, `data-mhien`) tránh được bằng cách nằm ngay đây. */
+  [].forEach.call(box.querySelectorAll('[data-mxoa]'), function(b){
+    b.onclick = function(){
+      var m = b.getAttribute('data-mxoa');
+      /* Nói đúng thứ sắp xảy ra: máy chủ CHỐI xoá ghế đã có lượt thu, nên câu hỏi này chỉ áp
+         cho ghế trắng sổ. Câu cũ ("doanh thu đã ghi giữ nguyên") là của bản xoá thẳng ngày
+         trước — để lại thì hứa một đằng, máy chủ làm một nẻo. */
+      if (!confirm(L('Xoá hẳn ghế ' + m + ' khỏi danh mục?\nChỉ xoá được ghế CHƯA TỪNG có lượt thu nào — ghế đang chạy thì dùng "Điều chuyển".',
+        'Delete chair ' + m + ' from the list?\nOnly chairs with NO recorded takings can be deleted — use "Move out" for active chairs.'))) return;
+      lam('may_xoa', { ma: m });
+    };
+  });
   var e;
   if ((e = document.getElementById('ql-boc'))) e.onclick = function(){ QL_SEL = {}; qlGheRender(); };
   if ((e = document.getElementById('ql-dc'))) e.onclick = function(){
@@ -7160,9 +7249,6 @@ function qlGheRender(){
     if (!confirm(L('Dieu chuyen ' + ds.length + ' ghe da chon di?\nCac ghe an khoi trang thu tien — chi so & doanh thu GIU NGUYEN, khong mat. Dua ve lai duoc.',
       'Move ' + ds.length + ' selected chairs out?\nThey hide from staff — meter & revenue are KEPT. Reversible.'))) return;
     QL_SEL = {}; lam('may_an_lo', { ma: ds, an: 1 });
-  };
-  if ((e = document.getElementById('ql-hien'))) e.onclick = function(){
-    var ds = qlChon(); if (!ds.length) return; QL_SEL = {}; lam('may_an_lo', { ma: ds, an: 0 });
   };
   if ((e = document.getElementById('ql-doics'))) e.onclick = function(){
     var ds = qlChon(); if (!ds.length) return;
@@ -7815,24 +7901,17 @@ function noi(){
     }
     lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value });
   };
-  [].forEach.call(document.querySelectorAll('[data-mxoa]'), function(b){
-    b.onclick = function(){
-      var m = b.getAttribute('data-mxoa');
-      if (!confirm(L('Xoá ghế ' + m + '?\nChỉ xoá cấu hình ghế — doanh thu đã ghi giữ nguyên.',
-        'Delete chair ' + m + '?\nOnly the chair config is removed — recorded revenue is kept.'))) return;
-      lam('may_xoa', { ma: m });
-    };
-  });
   [].forEach.call(document.querySelectorAll('[data-csma]'), function(s){
     s.onchange = function(){
       lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value });  // đổi cơ sở, giữ giá
     };
   });
   if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
-    QL_LOC = this.value; QL_PG = 0; QL_SEL = {}; qlGheRender();   // lọc + vẽ lại DANH SÁCH tại chỗ (không cả trang)
-  };
-  if ((_e = document.getElementById('ql-htan'))) _e.onchange = function(){
-    QL_HIEN_AN = this.checked; QL_PG = 0; qlGheRender();   // soi / giấu ghế đã điều chuyển
+    QL_LOC = this.value; QL_PG = 0; QL_SEL = {};
+    /* 🔴 VẼ LẠI CẢ KHỐI, KHÔNG CHỈ DANH SÁCH. Ô lọc nay quyết định luôn ghế mới vào đâu (xem
+       khối 🔴 ở phần dựng), nên nhãn nút "Thêm ghế vào …" và ô ẩn `ma-cs` phải đổi theo. Vẽ mỗi
+       bảng thì nhãn nói một cơ sở còn ghế rơi vào cơ sở khác — đúng cái lỗi vừa đi sửa. */
+    ve();
   };
   if ((_e = document.getElementById('ql-timtrung'))) _e.onclick = function(){ qlTimTrung(); };
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){

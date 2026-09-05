@@ -1020,13 +1020,44 @@ class VHG_May {
 		return array( 'ok' => true, 'thong_bao' => 'Đã chuyển cơ sở cho ghế ' . $ma . '.' );
 	}
 
+	/**
+	 * XOÁ HẲN MỘT GHẾ KHỎI DANH MỤC — chỉ khi nó CHƯA TỪNG CÓ ĐỒNG NÀO.
+	 *
+	 * Anh Thắng 05/09/2026: *"khi lọc cơ sở ghế, có thể thêm xoá sửa được ghế luôn"*.
+	 *
+	 * 🔴 GHẾ CÓ DOANH THU THÌ KHÔNG XOÁ, VÀ ĐÂY LÀ CHỖ NGUY NHẤT CỦA CẢ MÀN NÀY. Bản trước xoá
+	 *    thẳng, không hỏi gì. Doanh thu cũ nằm ở `bc_dong`/`thu` theo `ma_may` chứ không theo id,
+	 *    nên xoá ghế không làm mất tiền — nhưng làm mất TÊN: bảng chéo, báo cáo tổng, đối chiếu
+	 *    kế toán còn nguyên mấy trăm dòng mang một mã ghế mà tra ra không còn ghế nào. Số vẫn
+	 *    đúng, chỉ là không ai biết nó của cái ghế nào nữa.
+	 *
+	 * ⚠️ LỐI ĐÚNG CHO GHẾ ĐANG CHẠY LÀ "ĐIỀU CHUYỂN". Nó ẩn ghế khỏi màn thu tiền của nhân viên
+	 *    mà giữ nguyên chỉ số, doanh thu, và đưa về lại được. Xoá chỉ để dọn ca gõ nhầm mã lúc
+	 *    thêm — ghế chưa có lượt nào.
+	 */
 	public static function xoa_may( $ma ) {
 		global $wpdb;
-		$wpdb->delete( VHG_DB::t( 'may' ), array( 'ma' => (string) $ma ) );
-		/* Doanh thu của máy đó KHÔNG xoá theo — tiền đã thu là chuyện đã xảy ra, xoá cấu hình
-		   máy không làm nó chưa xảy ra. */
-		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cấu hình máy ' . $ma
-			. '. Doanh thu đã ghi của máy này giữ nguyên.' );
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+
+		$so_dong = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ma_may=%s', $ma ) );
+		$so_thu  = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'thu' ) . ' WHERE ma_may=%s', $ma ) );
+		if ( $so_dong > 0 || $so_thu > 0 ) {
+			$ke = array();
+			if ( $so_dong ) { $ke[] = $so_dong . ' dòng báo cáo'; }
+			if ( $so_thu )  { $ke[] = $so_thu . ' lượt thu'; }
+			return array( 'ok' => false, 'error' => 'Ghế ' . $ma . ' đã có ' . implode( ' và ', $ke )
+				. ' trong sổ — xoá đi thì mấy dòng ấy còn nguyên nhưng không tra ra được ghế nào nữa. '
+				. 'Dùng "Điều chuyển" để ẩn nó khỏi màn thu tiền: chỉ số và doanh thu giữ nguyên, '
+				. 'và đưa về lại được bất cứ lúc nào.' );
+		}
+
+		$xoa = $wpdb->delete( VHG_DB::t( 'may' ), array( 'ma' => $ma ) );
+		if ( ! $xoa ) { return array( 'ok' => false, 'error' => 'Không có ghế nào mang mã ' . $ma . '.' ); }
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá ghế ' . $ma . ' khỏi danh mục '
+			. '(ghế này chưa từng có lượt thu nào).' );
 	}
 
 	/**
