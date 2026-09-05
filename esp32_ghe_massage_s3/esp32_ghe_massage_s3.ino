@@ -268,6 +268,19 @@ static void veWaitPay(int idx){
   veFlush();
 }
 
+// Xung reset chuẩn cho cảm ứng GT911: TP_RST nằm trên 1 chân EXIO (TCA9554 dùng
+// hết 8 chân). Giữ các chân (2,4,5,6,7 — trừ LCD 1/3, còi 8) LOW ≥20ms rồi nhả
+// HIGH và chờ chip boot. (Init(0x00) đã kéo low; ở đây giữ đủ lâu cho reset SẠCH
+// — trước đây nhả gần như tức thì nên GT911 lúc lên lúc không.)
+static void touchResetPulse(){
+  Set_EXIO(EXIO_PIN2, Low); Set_EXIO(EXIO_PIN4, Low); Set_EXIO(EXIO_PIN5, Low);
+  Set_EXIO(EXIO_PIN6, Low); Set_EXIO(EXIO_PIN7, Low);
+  delay(20);
+  Set_EXIO(EXIO_PIN2, High); Set_EXIO(EXIO_PIN4, High); Set_EXIO(EXIO_PIN5, High);
+  Set_EXIO(EXIO_PIN6, High); Set_EXIO(EXIO_PIN7, High);
+  delay(150);
+}
+
 void setup(){
   Serial.begin(115200);
   delay(300);
@@ -276,22 +289,21 @@ void setup(){
   I2C_Init();
   TCA9554PWR_Init(0x00);         // demo Waveshare: tất cả EXIO = LOW
   Set_EXIO(EXIO_PIN8, Low);      // còi tắt
-  // TCA9554 dùng HẾT 8 chân (không đưa ra ngoài). Init(0x00) kéo tất cả xuống
-  // LOW -> giữ luôn TP_RST của CST328 => cảm ứng "chết". Kéo các chân còn lại
-  // (2,4,5,6,7 — trừ LCD RST/CS = 1/3, trừ còi = 8) lên HIGH để NHẢ reset touch.
-  Set_EXIO(EXIO_PIN2, High);
-  Set_EXIO(EXIO_PIN4, High);
-  Set_EXIO(EXIO_PIN5, High);
-  Set_EXIO(EXIO_PIN6, High);
-  Set_EXIO(EXIO_PIN7, High);
-  delay(10);
+
+  touchResetPulse();             // XUNG RESET CHUAN cho GT911 (giữ RST low đủ lâu)
   Backlight_Init();
   LCD_Init();                    // drives EXIO1 (RST) + EXIO3 (CS)
   Serial.println("[S3] LCD OK, cap phat framebuffer...");
 
   if(!veInit()){ Serial.println("[S3] THIEU PSRAM cho framebuffer!"); return; }
-  delay(300);                    // chờ CST328 boot sau khi nhả reset
-  TP_Init();                     // cảm ứng GT911/CST328
+
+  // Nhận diện cảm ứng — thử lại tối đa 3 lần (GT911 đôi khi cần reset lại).
+  for(int i = 0; i < 3; i++){
+    TP_Init();
+    if(TP_OK) break;
+    Serial.println("[TP] chua nhan dien -> reset lai...");
+    touchResetPulse();
+  }
   veIdle();
   Serial.println("[S3] xong. Cham 1 goi -> hien QR; nut HUY quay lai.");
 }
@@ -312,6 +324,7 @@ static bool chamMoi(int* px, int* py){
 void loop(){
   int tx, ty;
   if(chamMoi(&tx, &ty)){
+    Serial.printf("[TP] cham x=%d y=%d (state=%d)\n", tx, ty, g_state);
     if(g_state == ST_IDLE){
       int k = hitGoi(tx, ty);
       if(k >= 0){
