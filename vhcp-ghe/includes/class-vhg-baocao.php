@@ -1035,6 +1035,28 @@ class VHG_BaoCao {
 		return $t ? ( ( current_time( 'timestamp' ) - $t ) < self::GIO_SUA * 3600 ) : false;
 	}
 
+	/**
+	 * BÁO CÁO ĐÃ ĐÍNH BILL VÀ XÁC NHẬN NỘP CHƯA — tức là đã KHOÁ chưa.
+	 *
+	 * Anh Thắng 05/09/2026: *"khi nhân viên add bill và xác nhận đã nộp thì báo cáo đó sẽ không
+	 * sửa được nữa"*.
+	 *
+	 * 🔴 MỐC THỜI GIAN CHÍNH LÀ CÁI KHOÁ, không có cột cờ riêng. Cờ riêng thì sớm muộn cũng có
+	 *    lúc cờ nói "khoá" mà không ai biết khoá từ bao giờ, hoặc có `bill_luc` mà cờ quên bật.
+	 *    Một nguồn sự thật, không có gì để lệch.
+	 */
+	private static function khoa_bill_( $h ) {
+		return '' !== trim( (string) ( isset( $h['bill_luc'] ) ? $h['bill_luc'] : '' ) );
+	}
+
+	/** Mảng URL ảnh bill đã đính (rỗng nếu chưa có). */
+	private static function bill_anh_( $h ) {
+		$raw = (string) ( isset( $h['bill_anh'] ) ? $h['bill_anh'] : '' );
+		if ( '' === $raw ) { return array(); }
+		$tmp = json_decode( $raw, true );
+		return is_array( $tmp ) ? array_values( array_filter( $tmp ) ) : array();
+	}
+
 	public static function ds_24h( $pin ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
@@ -1067,10 +1089,166 @@ class VHG_BaoCao {
 					'actual' => (int) $d['actual'], 'cash' => (int) $d['tien_mat'], 'qr' => (int) $d['qr'],
 					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'], 'anh' => $anh_ds );
 			}
+			/* 🔴 TRẢ KÈM TRẠNG THÁI NỘP VÀ KHOÁ — anh Thắng 05/09/2026 muốn khối 24h nói được
+			   từng cơ sở đã nộp hay chưa, và khoá thì phải hiện ra chứ không để người ta gõ xong
+			   mới biết. Ba trạng thái, khớp nguyên vòng `bc.nop_id` -> `nop.trang_thai` mà quỹ
+			   tiền mặt đã dùng từ 29/08: đang cầm -> chờ xác nhận -> đã nhận. */
+			$nop_id = (int) $h['nop_id'];
+			$nop_tt = 'dang_cam';
+			if ( $nop_id > 0 ) {
+				$n = $wpdb->get_row( $wpdb->prepare(
+					'SELECT trang_thai FROM ' . VHG_DB::t( 'nop' ) . ' WHERE id=%d LIMIT 1', $nop_id ), ARRAY_A );
+				$nop_tt = ( $n && 'cho' !== (string) $n['trang_thai'] ) ? 'da_nhan' : 'cho_xac_nhan';
+			}
+			/* Tiền mặt PHẢI NỘP của báo cáo này — QR đã về tài khoản công ty rồi, không ai cầm.
+			   Đây là con số cái bill phải khớp, nên nó phải ra tới màn hình. */
+			$tien_mat = 0; foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; }
 			$ra[] = array( 'reportId' => $h['report_id'], 'date' => self::ngay_( $h['ngay'] ),
-				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe );
+				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe,
+				'cash' => $tien_mat, 'nopTt' => $nop_tt,
+				'khoa' => self::khoa_bill_( $h ) ? 1 : 0,
+				'billAnh' => self::bill_anh_( $h ),
+				'billLuc' => (string) ( isset( $h['bill_luc'] ) ? $h['bill_luc'] : '' ),
+				'billGhiChu' => (string) ( isset( $h['bill_ghichu'] ) ? $h['bill_ghichu'] : '' ) );
 		}
 		return $ra;
+	}
+
+	/**
+	 * ĐÍNH BILL CHUYỂN KHOẢN VÀ XÁC NHẬN ĐÃ NỘP — một cú bấm, ba việc.
+	 *
+	 * Anh Thắng 05/09/2026: *"chỗ đó sẽ có thêm (bổ sung bill chuyển khoản) · khi nhân viên add
+	 * bill và xác nhận đã nộp thì báo cáo đó sẽ không sửa được nữa"*.
+	 *
+	 *   1. Lưu ảnh bill vào `bill_anh`.
+	 *   2. Mở một LƯỢT NỘP mang đúng số tiền mặt của báo cáo này, để kế toán bấm "Đã nhận".
+	 *   3. Đóng `bill_luc` — báo cáo hết sửa.
+	 *
+	 * 🔴 THỨ TỰ LÀ CÓ CHỦ Ý, VÀ KHOÁ LÀ VIỆC CUỐI. Khoá trước rồi mở lượt nộp mà lượt nộp hỏng
+	 *    (báo cáo vừa bị nộp ở lượt khác, báo cáo toàn QR) thì báo cáo nằm lại ở trạng thái tệ
+	 *    nhất có thể: KHOÁ, không sửa được, mà tiền thì chẳng ai nhận — nhân viên không còn
+	 *    đường nào tự gỡ. Nộp trước, nộp xong mới khoá.
+	 *
+	 * 🔴 ẢNH BILL LÀ BẮT BUỘC. Cho bấm mà không có ảnh là khoá một báo cáo bằng KHÔNG GÌ CẢ:
+	 *    đúng cái khoá ấy đứng giữa kế toán và quyền sửa số, nên nó phải đổi lấy một tờ bằng
+	 *    chứng. Chốt cả ở đây lẫn ở nút bấm — nút bấm chỉ là gợi ý.
+	 *
+	 * ⚠️ ẢNH LƯU TRƯỚC, NHƯNG CHỈ GHI VÀO CSDL SAU KHI LƯỢT NỘP CHẠY XONG. Nén/đọc ảnh hỏng hết
+	 *    (dữ liệu ảnh lỗi) thì dừng ngay tại đó, chưa đụng gì tới sổ tiền.
+	 */
+	public static function nop_bill( $rid, $anh, $ghi_chu, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ.' ); }
+		$rid = trim( (string) $rid );
+		if ( '' === $rid ) { return array( 'ok' => false, 'message' => 'Thiếu mã báo cáo.' ); }
+		$h = self::header_theo_id_( $rid );
+		if ( ! $h ) { return array( 'ok' => false, 'message' => 'Không thấy báo cáo.' ); }
+		if ( ! self::trong_pham_vi( $q, $h['coso'] ) ) {
+			return array( 'ok' => false, 'message' => 'Báo cáo này không thuộc phạm vi của bạn.' );
+		}
+		/* Chỉ người đã gửi báo cáo mới nộp được nó — nộp hộ là xoá nợ hộ. `nop_bao_cao()` chốt
+		   lại lần nữa; ở đây chốt sớm để câu trả lời nói đúng chuyện, không phải câu của sổ quỹ. */
+		if ( (string) $h['nhan_vien'] !== (string) $q['ten'] ) {
+			return array( 'ok' => false, 'message' => 'Báo cáo này do ' . $h['nhan_vien']
+				. ' gửi — chỉ người ấy đính bill và xác nhận nộp được.' );
+		}
+		if ( self::khoa_bill_( $h ) ) {
+			return array( 'ok' => false, 'khoa_bill' => 1,
+				'message' => 'Báo cáo này đã đính bill và xác nhận nộp lúc ' . $h['bill_luc'] . ' rồi.' );
+		}
+		if ( ! self::con_han_( $h['tao_luc'] ) ) {
+			return array( 'ok' => false, 'message' => 'Báo cáo đã quá ' . self::GIO_SUA
+				. ' giờ — nộp qua màn quỹ hoặc nhờ kế toán.' );
+		}
+
+		/* Ảnh: nhận cùng hình dạng `proofs` mà `luu()`/`gui_tong()` vẫn dùng, để đi chung một
+		   đường lưu ảnh chứ không dựng thêm một kiểu thứ hai. */
+		$anh_ds = self::luu_nhieu_anh_( is_array( $anh ) ? $anh : array(), $rid, 'bill' );
+		if ( ! count( $anh_ds ) ) {
+			return array( 'ok' => false, 'thieu_anh' => 1,
+				'message' => 'Cần ít nhất 1 ảnh bill chuyển khoản mới xác nhận nộp được.' );
+		}
+
+		$np = VHG_Quy::nop_bao_cao( $rid, (string) $q['ten'],
+			'Bill chuyển khoản · ' . $h['coso'] . ' · ' . self::ngay_( $h['ngay'] ) );
+		if ( empty( $np['ok'] ) ) {
+			return array( 'ok' => false, 'message' => isset( $np['error'] ) ? $np['error'] : 'Không mở được lượt nộp.' );
+		}
+
+		$luc = current_time( 'mysql' );
+		$wpdb->update( VHG_DB::t( 'bc' ), array(
+			'bill_anh'    => wp_json_encode( $anh_ds ),
+			'bill_luc'    => $luc,
+			'bill_ai'     => (string) $q['ten'],
+			'bill_ghichu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ),
+		), array( 'report_id' => $rid ) );
+
+		if ( class_exists( 'VHG_Nhat_Ky' ) ) {
+			VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $q['ten']
+				. ' đính bill và xác nhận nộp báo cáo ' . $rid . ' (' . $h['coso'] . ' '
+				. self::ngay_( $h['ngay'] ) . ') — ' . number_format( (int) $np['so_tien'], 0, ',', '.' ) . 'đ' ) );
+		}
+
+		return array( 'ok' => true, 'reportId' => $rid, 'soTien' => (int) $np['so_tien'],
+			'billAnh' => $anh_ds, 'billLuc' => $luc,
+			'message' => 'Đã đính ' . count( $anh_ds ) . ' ảnh bill và xác nhận nộp '
+				. number_format( (int) $np['so_tien'], 0, ',', '.' ) . 'đ — chờ kế toán bấm "Đã nhận". '
+				. 'Báo cáo này nay khoá, không sửa được nữa.' );
+	}
+
+	/**
+	 * KẾ TOÁN MỞ KHOÁ MỘT BÁO CÁO ĐÃ ĐÍNH BILL.
+	 *
+	 * Anh Thắng 05/09/2026 chọn: nhân viên thì không, kế toán mở được.
+	 *
+	 * 🔴 ĐÍNH NHẦM BILL LÀ CHUYỆN SẼ XẢY RA, và không có đường sửa thì người ta sẽ gửi thêm một
+	 *    báo cáo MỚI cho cùng một ngày — hai báo cáo cùng cơ sở cùng ngày, một cái đúng một cái
+	 *    nhầm, và không ai biết cái nào là cái nào. Một cái nút mở khoá có ghi sổ rẻ hơn nhiều.
+	 *
+	 * 🔴 GỠ LƯỢT NỘP RA TRƯỚC, MỞ KHOÁ SAU — và gỡ KHÔNG ĐƯỢC thì KHÔNG mở khoá. Lượt nộp kế
+	 *    toán đã bấm "Đã nhận" là tiền đã đếm, đã vào quầy: mở cho sửa số sau đó là để sổ khác
+	 *    hẳn xấp tiền vừa đếm. Ca ấy phải đi đường điều chỉnh quỹ.
+	 *
+	 * ⚠️ ẢNH BILL CŨ Ở LẠI trong `bill_anh`. Mở khoá là cho sửa tiếp, không phải xoá dấu vết
+	 *    một lần đã bấm nộp — bằng chứng ấy còn cần cho đúng lúc đi tìm xem chuyện gì đã xảy ra.
+	 */
+	public static function mo_khoa_bill( $rid, $ai, $ly_do = '' ) {
+		global $wpdb;
+		$rid = trim( (string) $rid );
+		$ai  = trim( (string) $ai );
+		if ( '' === $rid ) { return array( 'ok' => false, 'error' => 'Thiếu mã báo cáo.' ); }
+		if ( '' === $ai )  { return array( 'ok' => false, 'error' => 'Chưa biết ai mở khoá — không ghi sổ được.' ); }
+		$h = self::header_theo_id_( $rid );
+		if ( ! $h ) { return array( 'ok' => false, 'error' => 'Không thấy báo cáo.' ); }
+		if ( ! self::khoa_bill_( $h ) ) {
+			return array( 'ok' => false, 'error' => 'Báo cáo này không bị khoá vì bill.' );
+		}
+		$ly_do = mb_substr( trim( (string) $ly_do ), 0, 250 );
+		if ( '' === $ly_do ) { return array( 'ok' => false, 'error' => 'Ghi lý do mở khoá.' ); }
+
+		$go = VHG_Quy::go_bao_cao_khoi_nop( $rid );
+		if ( empty( $go['ok'] ) ) {
+			return array( 'ok' => false, 'error' => isset( $go['error'] ) ? $go['error'] : 'Không gỡ được lượt nộp.' );
+		}
+
+		$luc = current_time( 'mysql' );
+		$wpdb->update( VHG_DB::t( 'bc' ), array(
+			'bill_luc'    => null,
+			'bill_mo_luc' => $luc,
+			'bill_mo_ai'  => $ai,
+			'bill_ghichu' => mb_substr( trim( (string) $h['bill_ghichu'] . ' · Mở khoá ' . $luc
+				. ' bởi ' . $ai . ': ' . $ly_do ), 0, 250 ),
+		), array( 'report_id' => $rid ) );
+
+		if ( class_exists( 'VHG_Nhat_Ky' ) ) {
+			VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai . ' MỞ KHOÁ báo cáo '
+				. $rid . ' (' . $h['coso'] . ' ' . self::ngay_( $h['ngay'] ) . ') — lý do: ' . $ly_do ) );
+		}
+
+		return array( 'ok' => true, 'thong_bao' => 'Đã mở khoá báo cáo ' . $rid
+			. ( ! empty( $go['da_go'] ) ? ' và gỡ lượt nộp đang chờ.' : '.' )
+			. ' Nhân viên sửa lại được nếu còn trong ' . self::GIO_SUA . ' giờ.' );
 	}
 
 	public static function sua_dong( $rid, $ma, $patch, $pin ) {
@@ -1083,6 +1261,16 @@ class VHG_BaoCao {
 		if ( ! $h ) { return array( 'ok' => false, 'message' => 'Không thấy báo cáo.' ); }
 		if ( ! self::trong_pham_vi( $q, $h['coso'], $ma ) ) { return array( 'ok' => false, 'message' => 'Báo cáo này không thuộc phạm vi của bạn.' ); }
 		if ( ! self::con_han_( $h['tao_luc'] ) ) { return array( 'ok' => false, 'message' => 'Báo cáo đã quá ' . self::GIO_SUA . ' giờ nên khoá. Nhờ kế toán.' ); }
+		/* 🔴 ĐÃ ĐÍNH BILL VÀ BẤM NỘP THÌ HẾT SỬA — anh Thắng 05/09/2026. Chốt phải ở ĐÂY chứ
+		   không chỉ ở nút: nút bấm là gợi ý, còn cổng `bc_edit` nhận lệnh từ bất cứ ai có PIN
+		   trong phạm vi. Và cái đang bảo vệ không nhỏ: đằng sau cú bấm nộp là một lượt tiền
+		   đang nằm trong bảng chờ của kế toán, mang đúng con số của báo cáo này. Sửa được số ấy
+		   sau khi đã nộp là để bill nói một đằng, sổ nói một nẻo. */
+		if ( self::khoa_bill_( $h ) ) {
+			return array( 'ok' => false, 'khoa_bill' => 1,
+				'message' => 'Báo cáo này đã đính bill và xác nhận nộp lúc ' . $h['bill_luc']
+					. ' nên khoá. Nhờ kế toán mở lại nếu đính nhầm bill hoặc gõ sai số.' );
+		}
 		if ( self::dang_khoa( $h['coso'], $h['ngay'] ) ) { return array( 'ok' => false, 'message' => 'Ngày này đang KHOÁ — nhờ kế toán.' ); }
 		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
 		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy dòng cần sửa.' ); }
@@ -1259,6 +1447,16 @@ class VHG_BaoCao {
 		$h = self::header_theo_id_( $rid );
 		if ( ! $h ) { return array( 'ok' => false, 'message' => 'Không thấy báo cáo.' ); }
 		if ( ! self::trong_pham_vi( $q, $h['coso'] ) ) { return array( 'ok' => false, 'message' => 'Báo cáo này không thuộc phạm vi của bạn.' ); }
+		/* 🔴 ĐÃ ĐÍNH BILL VÀ BẤM NỘP THÌ ĐƯỜNG NÀY CŨNG ĐÓNG. Chốt khoá đặt ở `sua_dong()` không
+		   che được đây: `nop_bosung()` không sửa chỉ số hay tiền của ghế, nhưng nó sửa `nop_so_tien`
+		   — con số NHÂN VIÊN TỰ KHAI đã nộp bao nhiêu. Khai thêm sau khi đã bấm nộp bằng bill là
+		   để con số tự khai lệch hẳn với lượt nộp thật đang nằm chờ kế toán, mà hai con số ấy
+		   chính là thứ người ta đem ra đối chiếu. Một cái khoá bỏ sót một cửa thì không phải khoá. */
+		if ( self::khoa_bill_( $h ) ) {
+			return array( 'ok' => false, 'khoa_bill' => 1,
+				'message' => 'Báo cáo này đã đính bill và xác nhận nộp lúc ' . $h['bill_luc']
+					. ' nên khoá. Nhờ kế toán mở lại nếu cần khai lại số đã nộp.' );
+		}
 		if ( self::dang_khoa( $h['coso'], $h['ngay'] ) ) { return array( 'ok' => false, 'message' => 'Ngày ' . self::ngay_( $h['ngay'] ) . ' đang KHOÁ — nhờ kế toán.' ); }
 		$s = self::tong_bc_( $rid );
 		$con = max( 0, $s['tien_mat'] - (int) $h['nop_so_tien'] );

@@ -712,6 +712,111 @@ class VHG_Quy {
 	}
 
 	/**
+	 * NỘP RIÊNG MỘT BÁO CÁO DOANH THU — đường của nút "Xác nhận đã nộp" kèm bill chuyển khoản
+	 * ở màn nhân viên (VHG_BaoCao::nop_bill).
+	 *
+	 * 🔴 KHÁC `nop()` Ở TRÊN MỘT CHỖ DUY NHẤT NHƯNG QUAN TRỌNG: `nop()` gom TẤT CẢ những gì người
+	 *    ấy đang cầm — chốt ca, thu tay, và MỌI báo cáo chưa nộp — vào một lượt. Đúng cho cảnh
+	 *    ôm cả xấp tiền mặt ra quầy. Sai hoàn toàn cho cảnh này: nhân viên chuyển khoản tiền của
+	 *    ĐÚNG MỘT báo cáo và đính đúng một cái bill. Gom cả những khoản khác vào đó là gắn một
+	 *    tờ bill làm bằng chứng cho số tiền nó không hề chi trả.
+	 *
+	 * 🔴 GẮN TRƯỚC, CỘNG SAU — cùng luật với `nop()`. `WHERE report_id=%s AND nop_id=0` là chốt
+	 *    chống bấm hai lần: lượt thứ hai gắn được 0 dòng, và lượt nộp rỗng ấy bị xoá ngay chứ
+	 *    không nằm lại trong bảng chờ của kế toán.
+	 *
+	 * ⚠️ TÊN NGƯỜI NỘP DO NƠI GỌI XÁC ĐỊNH TỪ PHIÊN (PIN), không nhận từ gói tin — và còn phải
+	 *    KHỚP `bc.nhan_vien`, không thì người này bấm nộp hộ (tức là xoá nợ hộ) người khác.
+	 */
+	public static function nop_bao_cao( $rid, $nguoi, $ghi_chu = '' ) {
+		global $wpdb;
+		$ai  = trim( (string) $nguoi );
+		$rid = trim( (string) $rid );
+		if ( '' === $ai )  { return array( 'ok' => false, 'error' => 'Chưa biết ai đang nộp — không ghi sổ được.' ); }
+		if ( '' === $rid ) { return array( 'ok' => false, 'error' => 'Thiếu mã báo cáo.' ); }
+
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$h   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tb WHERE report_id=%s LIMIT 1", $rid ), ARRAY_A );
+		if ( ! $h ) { return array( 'ok' => false, 'error' => 'Không thấy báo cáo ' . $rid . '.' ); }
+		if ( (string) $h['nhan_vien'] !== $ai ) {
+			return array( 'ok' => false, 'error' => 'Báo cáo này do ' . $h['nhan_vien'] . ' gửi — chỉ người ấy nộp được.' );
+		}
+		if ( (int) $h['nop_id'] > 0 ) {
+			return array( 'ok' => false, 'error' => 'Báo cáo này đã nộp rồi.' );
+		}
+
+		$luc = current_time( 'mysql' );
+		$wpdb->insert( VHG_DB::t( 'nop' ), array(
+			'nguoi' => $ai, 'so_tien' => 0, 'so_tien_nhan' => 0, 'so_dong' => 0,
+			'trang_thai' => 'cho', 'tao_luc' => $luc, 'nhan_luc' => null, 'nhan_ai' => '',
+			'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ), 'ma_lan' => null ) );
+		$id = (int) $wpdb->insert_id;
+		if ( ! $id ) { return array( 'ok' => false, 'error' => 'Không mở được lượt nộp, thử lại.' ); }
+
+		$gan = (int) $wpdb->query( $wpdb->prepare(
+			"UPDATE $tb SET nop_id=%d WHERE report_id=%s AND nop_id=0 AND nhan_vien=%s", $id, $rid, $ai ) );
+		if ( $gan < 1 ) {
+			/* Ai đó vừa nộp báo cáo này ở lượt khác (bấm hai lần, hai máy). Xoá lượt rỗng vừa mở. */
+			$wpdb->delete( VHG_DB::t( 'nop' ), array( 'id' => $id ) );
+			return array( 'ok' => false, 'error' => 'Báo cáo này vừa được nộp ở một lượt khác.' );
+		}
+
+		/* Cộng từ chính những dòng của báo cáo vừa gắn được — không tin con số nào tính trước đó. */
+		$tong = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(d.tien_mat),0) FROM $tbd d JOIN $tb hh ON hh.report_id=d.report_id
+			 WHERE hh.nop_id=%d", $id ) );
+		if ( $tong <= 0 ) {
+			/* Báo cáo toàn QR (không đồng tiền mặt nào phải nộp) — không có gì để nộp về quầy.
+			   Nhả `nop_id` ra và xoá lượt: một dòng 0 đồng nằm trong bảng chờ của kế toán là thứ
+			   người ta học cách bỏ qua, rồi bỏ qua luôn dòng thật nằm cạnh nó. */
+			$wpdb->query( $wpdb->prepare( "UPDATE $tb SET nop_id=0 WHERE report_id=%s AND nop_id=%d", $rid, $id ) );
+			$wpdb->delete( VHG_DB::t( 'nop' ), array( 'id' => $id ) );
+			return array( 'ok' => false, 'khong_co_tien_mat' => 1,
+				'error' => 'Báo cáo này không có đồng tiền mặt nào phải nộp (toàn QR) — không cần nộp.' );
+		}
+
+		$wpdb->update( VHG_DB::t( 'nop' ), array( 'so_tien' => $tong, 'so_dong' => 1 ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'id' => $id, 'so_tien' => $tong, 'so_dong' => 1 );
+	}
+
+	/**
+	 * GỠ MỘT BÁO CÁO KHỎI LƯỢT NỘP — dùng khi kế toán mở khoá bill (VHG_BaoCao::mo_khoa_bill).
+	 *
+	 * 🔴 CHỈ GỠ ĐƯỢC LƯỢT CÒN ĐANG CHỜ. Kế toán đã bấm "Đã nhận" là tiền đã đếm, đã vào quầy —
+	 *    gỡ báo cáo ra khỏi lượt ấy sau đó là làm lệch đúng con số vừa đếm xong. Ca đó phải đi
+	 *    đường điều chỉnh quỹ, không phải đường mở khoá một báo cáo.
+	 */
+	public static function go_bao_cao_khoi_nop( $rid ) {
+		global $wpdb;
+		$rid = trim( (string) $rid );
+		if ( '' === $rid ) { return array( 'ok' => false, 'error' => 'Thiếu mã báo cáo.' ); }
+		$tb = VHG_DB::t( 'bc' );
+		$tn = VHG_DB::t( 'nop' );
+		$h  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tb WHERE report_id=%s LIMIT 1", $rid ), ARRAY_A );
+		if ( ! $h ) { return array( 'ok' => false, 'error' => 'Không thấy báo cáo.' ); }
+		$nid = (int) $h['nop_id'];
+		if ( $nid <= 0 ) { return array( 'ok' => true, 'da_go' => 0 ); }
+
+		$n = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $tn WHERE id=%d LIMIT 1", $nid ), ARRAY_A );
+		if ( $n && 'cho' !== (string) $n['trang_thai'] ) {
+			return array( 'ok' => false, 'da_nhan' => 1,
+				'error' => 'Lượt nộp của báo cáo này kế toán đã bấm "Đã nhận" — tiền đã vào quầy. '
+					. 'Mở khoá ở đây sẽ làm lệch quỹ; sửa số thì đi đường điều chỉnh của kế toán.' );
+		}
+
+		$wpdb->query( $wpdb->prepare( "UPDATE $tb SET nop_id=0 WHERE report_id=%s AND nop_id=%d", $rid, $nid ) );
+		/* Lượt nộp nay không còn dòng nào -> xoá, khỏi để lại một dòng 0 đồng trong bảng chờ. */
+		$con = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tb WHERE nop_id=%d", $nid ) )
+			+ (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT COUNT(*) FROM ' . VHG_DB::t( 'chot' ) . ' WHERE nop_id=%d', $nid ) )
+			+ (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT COUNT(*) FROM ' . VHG_DB::t( 'thu' ) . ' WHERE nop_id=%d', $nid ) );
+		if ( $con < 1 ) { $wpdb->delete( $tn, array( 'id' => $nid ) ); }
+		return array( 'ok' => true, 'da_go' => 1, 'nop_id' => $nid );
+	}
+
+	/**
 	 * QUẢN LÝ XÁC NHẬN ĐÃ NHẬN.
 	 *
 	 * 🔴 GIỮ CẢ HAI CON SỐ. `so_tien` là máy cộng từ các dòng; `so_tien_nhan` là người nhận đếm
@@ -807,10 +912,33 @@ class VHG_Quy {
 	/** Các lượt nộp đang chờ xác nhận. */
 	public static function nop_cho( $gioi_han = 50 ) {
 		global $wpdb;
-		$t = VHG_DB::t( 'nop' );
-		return VHG_DB::rows( $wpdb->prepare(
+		$t  = VHG_DB::t( 'nop' );
+		$ds = VHG_DB::rows( $wpdb->prepare(
 			"SELECT * FROM $t WHERE trang_thai='cho' ORDER BY id ASC LIMIT %d",
 			max( 1, min( 200, (int) $gioi_han ) ) ) );
+
+		/* 🔴 KÉO BILL RA ĐÚNG CHỖ NGƯỜI TA QUYẾT ĐỊNH — anh Thắng 05/09/2026 cho nhân viên đính
+		   bill chuyển khoản rồi bấm nộp. Kế toán ngồi trước đúng cái bảng này để bấm "Đã nhận";
+		   bắt họ đi mở màn khác tìm tờ bill rồi quay lại đây bấm là chuyện sẽ không ai làm — họ
+		   sẽ bấm "Đã nhận" mà không xem bill, và cái bill ấy thành ra vô nghĩa.
+		   Đây cũng là nơi bấm MỞ KHOÁ khi bill sai (xem VHG_BaoCao::mo_khoa_bill). */
+		$tb = VHG_DB::t( 'bc' );
+		foreach ( $ds as $i => $n ) {
+			$ds[ $i ]['bill'] = array();
+			$hs = $wpdb->get_results( $wpdb->prepare(
+				"SELECT report_id, coso, ngay, bill_anh, bill_luc, bill_ghichu
+				 FROM $tb WHERE nop_id=%d AND bill_luc IS NOT NULL ORDER BY id ASC", (int) $n['id'] ), ARRAY_A );
+			foreach ( (array) $hs as $h ) {
+				$anh = array();
+				$raw = (string) $h['bill_anh'];
+				if ( '' !== $raw ) { $tmp = json_decode( $raw, true ); if ( is_array( $tmp ) ) { $anh = array_values( array_filter( $tmp ) ); } }
+				$ds[ $i ]['bill'][] = array(
+					'reportId' => (string) $h['report_id'], 'coso' => (string) $h['coso'],
+					'ngay' => (string) $h['ngay'], 'anh' => $anh,
+					'luc' => (string) $h['bill_luc'], 'ghiChu' => (string) $h['bill_ghichu'] );
+			}
+		}
+		return $ds;
 	}
 
 	/** Lịch sử nộp trong kỳ. */

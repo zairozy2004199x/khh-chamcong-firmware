@@ -187,6 +187,15 @@ class VHG_Trang {
 					isset( $d['patch'] ) ? $d['patch'] : array(), $pin ) );
 				return;
 			}
+			/* Đính bill chuyển khoản + xác nhận đã nộp — khoá báo cáo và mở lượt nộp cho kế
+			   toán. Xem VHG_BaoCao::nop_bill(). */
+			if ( 'bc_nop_bill' === $viec ) {
+				self::tra( VHG_BaoCao::nop_bill(
+					isset( $d['report_id'] ) ? $d['report_id'] : '',
+					isset( $d['anh'] ) ? $d['anh'] : array(),
+					isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $pin ) );
+				return;
+			}
 			if ( 'bc_history' === $viec ) {
 				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::lich_su(
 					isset( $d['thang'] ) ? $d['thang'] : '', $pin ) ) );
@@ -820,6 +829,17 @@ class VHG_Trang {
 				isset( $d['so_tien_nhan'] ) ? (int) $d['so_tien_nhan'] : 0,
 				(string) $ai['name'],
 				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+			return;
+		}
+
+		/* 🔴 MỞ KHOÁ MỘT BÁO CÁO ĐÃ ĐÍNH BILL — quyết định về tiền, nên cùng nhóm quyền với
+		   `nop_nhan`/`nop_huy` (chốt ở VHG_Auth, kiểm ngay đầu hàm này). Người vừa bấm nộp mà
+		   tự mở khoá được thì cái khoá ấy chẳng khoá ai. */
+		if ( 'bc_mo_bill' === $viec ) {
+			self::tra( VHG_BaoCao::mo_khoa_bill(
+				isset( $d['report_id'] ) ? (string) $d['report_id'] : '',
+				(string) $ai['name'],
+				isset( $d['ly_do'] ) ? (string) $d['ly_do'] : '' ) );
 			return;
 		}
 
@@ -2194,8 +2214,12 @@ class VHG_Trang {
       img.src=url;
     }catch(e){ cb(''); }
   }
-  function docAnh_(id,cb){
-    var f=$(id); var files=(f&&f.files)?[].slice.call(f.files).slice(0,40):[];
+  function docAnh_(id,cb){ return docAnhTu_($(id),cb); }
+  /* Cùng việc với docAnh_ nhưng nhận THẲNG thẻ input, không qua id. Khối "Bổ sung bill chuyển
+     khoản" dựng một ô chọn ảnh cho MỖI báo cáo trong danh sách, nên không có id cố định nào để
+     tra — mà tự đặt id rồi tra ngược lại là thêm một chỗ để lệch. */
+  function docAnhTu_(f,cb){
+    var files=(f&&f.files)?[].slice.call(f.files).slice(0,40):[];
     if(!files.length) return cb([]);
     var out=[],done=0;
     files.forEach(function(file,i){ nenAnh_(file,function(du){ out[i]=du?{name:file.name,dataUrl:du}:null; if(++done===files.length) cb(out.filter(Boolean)); }); });
@@ -2321,7 +2345,30 @@ class VHG_Trang {
       var TRANG=10, trang=1, soTrang=Math.max(1,Math.ceil(ds.length/TRANG));
       function ve(){
         wrapl.textContent='';
-        ds.slice((trang-1)*TRANG, trang*TRANG).forEach(function(rp){ wrapl.appendChild(recentItem(rp)); });
+        /* 🔴 NHÓM THEO CƠ SỞ — anh Thắng 05/09/2026: *"chỗ phần báo cáo trong 24h sửa được sẽ
+           hiện ra báo cáo từng cơ sở mà nhân viên đã nộp"*. Trước đây danh sách phẳng, mỗi thẻ
+           tự nói tên cơ sở của nó — một người trực hai ba cơ sở phải đọc từng dòng mới biết cơ
+           sở nào đã gửi, cơ sở nào chưa. Nay gom lại: một tiêu đề cơ sở, dưới nó là báo cáo của
+           đúng cơ sở ấy kèm số báo cáo.
+           ⚠️ NHÓM TRONG PHẠM VI MỘT TRANG, không gom xuyên trang. `ds` đã xếp theo thời gian gửi
+              (mới nhất trước) và trang cắt theo đúng thứ tự đó; gom xuyên trang thì một cơ sở có
+              thể mất tiêu đề ở trang sau, hoặc một tiêu đề đứng trơ không có thẻ nào dưới nó. */
+        var trangDs=ds.slice((trang-1)*TRANG, trang*TRANG);
+        var thuTu=[], theoCs={};
+        trangDs.forEach(function(rp){
+          var cs=rp.locName||'(chưa rõ cơ sở)';
+          if(!theoCs[cs]){ theoCs[cs]=[]; thuTu.push(cs); }
+          theoCs[cs].push(rp);
+        });
+        thuTu.forEach(function(cs){
+          var nhom=el('div'); nhom.style.cssText='margin-top:12px';
+          var tieu=el('div'); tieu.style.cssText='font-weight:800;font-size:13px;letter-spacing:.3px;'
+            +'text-transform:uppercase;color:#334155;border-left:3px solid #6366f1;padding-left:8px';
+          tieu.textContent='🏬 '+cs+' · '+theoCs[cs].length+' báo cáo';
+          nhom.appendChild(tieu);
+          theoCs[cs].forEach(function(rp){ nhom.appendChild(recentItem(rp)); });
+          wrapl.appendChild(nhom);
+        });
         pager.textContent='';
         if(soTrang<=1) return;
         pager.style.cssText='display:flex;gap:10px;align-items:center;justify-content:center;'
@@ -2338,19 +2385,134 @@ class VHG_Trang {
       ve();
     });
   }
+  /* Huy hiệu trạng thái nộp của một báo cáo — ba trạng thái, khớp vòng `bc.nop_id` mà quỹ tiền
+     mặt đã dùng từ 29/08: đang cầm -> chờ xác nhận -> đã nhận (xem ds_24h()). */
+  function huyHieuNop_(rp){
+    var m={ dang_cam:['Đang cầm','#b45309','#fef3c7'],
+            cho_xac_nhan:['Đã nộp — chờ kế toán','#1d4ed8','#dbeafe'],
+            da_nhan:['Kế toán đã nhận','#166534','#dcfce7'] };
+    var x=m[rp.nopTt]||m.dang_cam;
+    var sp=el('span',null,(rp.khoa?'🔒 ':'')+x[0]);
+    sp.style.cssText='font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;'
+      +'color:'+x[1]+';background:'+x[2]+';white-space:nowrap';
+    return sp;
+  }
   function recentItem(rp){
     var d=el('div'); d.style.cssText='border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:8px';
+    if(rp.khoa) d.style.background='#f8fafc';
     var head=el('div'); head.style.cssText='display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center';
-    head.appendChild(el('b',null,rp.date+' · '+rp.locName+' · '+rp.rows+' ghế · '+money(rp.total)+'đ'));
-    var b=el('button','bc-btn','Sửa'); head.appendChild(b); d.appendChild(head);
-    var body=el('div'); body.style.display='none'; body.style.marginTop='8px'; d.appendChild(body);
-    b.onclick=function(){
-      if(body.style.display===''){ body.style.display='none'; b.textContent='Sửa'; return; }
-      body.style.display=''; b.textContent='Đóng';
-      if(body.dataset.built==='1') return; body.dataset.built='1';
-      (rp.chairs||[]).forEach(function(c){ body.appendChild(theGheSua(rp,c)); });
-    };
+    var trai=el('div'); trai.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+    /* Tên cơ sở đã nằm ở tiêu đề nhóm ngay trên (xem loadRecent) — nhắc lại ở đây là ba lần một
+       cái tên trên cùng một màn hình. */
+    trai.appendChild(el('b',null,rp.date+' · '+rp.rows+' ghế · '+money(rp.total)+'đ'));
+    trai.appendChild(huyHieuNop_(rp));
+    head.appendChild(trai);
+    var body=el('div'); body.style.display='none'; body.style.marginTop='8px';
+    /* 🔴 ĐÃ KHOÁ THÌ KHÔNG CÓ NÚT SỬA — anh Thắng 05/09/2026. Bày một cái nút rồi để máy chủ
+       chối là bắt người ta gõ lại cả báo cáo mới biết mình không được sửa. Chốt THẬT nằm ở
+       `sua_dong()`; đây chỉ là dọn mắt. */
+    if(!rp.khoa){
+      var b=el('button','bc-btn','Sửa'); head.appendChild(b);
+      b.onclick=function(){
+        if(body.style.display===''){ body.style.display='none'; b.textContent='Sửa'; return; }
+        body.style.display=''; b.textContent='Đóng';
+        if(body.dataset.built==='1') return; body.dataset.built='1';
+        (rp.chairs||[]).forEach(function(c){ body.appendChild(theGheSua(rp,c)); });
+      };
+    }
+    d.appendChild(head); d.appendChild(body);
+    d.appendChild(khoiBill_(rp));
     return d;
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * BỔ SUNG BILL CHUYỂN KHOẢN — và cú bấm khoá báo cáo lại
+   *
+   * Anh Thắng 05/09/2026: *"chỗ đó sẽ có thêm (bổ sung bill chuyển khoản) · khi nhân viên add
+   * bill và xác nhận đã nộp thì báo cáo đó sẽ không sửa được nữa"*.
+   *
+   * 🔴 MỘT CÚ BẤM LÀM BA VIỆC (lưu bill · mở lượt nộp cho kế toán · khoá báo cáo), nên nó phải
+   *    NÓI RA cả ba trước khi bấm. Người ta đồng ý với thứ mình đọc được, không phải thứ mã
+   *    nguồn làm.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  function khoiBill_(rp){
+    var w=el('div'); w.style.cssText='margin-top:10px;border-top:1px dashed #e2e8f0;padding-top:9px';
+    var tieu=el('div'); tieu.style.cssText='font-weight:700;font-size:12px;color:#334155';
+    tieu.textContent='🧾 Bill chuyển khoản';
+    w.appendChild(tieu);
+
+    /* ĐÃ KHOÁ: chỉ bày lại bằng chứng và chỉ đường đi tiếp. */
+    if(rp.khoa){
+      var xong=el('div','bc-mut'); xong.style.marginTop='4px';
+      xong.textContent='Đã đính '+((rp.billAnh||[]).length)+' ảnh bill và xác nhận nộp lúc '
+        +(rp.billLuc||'—')+'. Báo cáo này khoá, không sửa được nữa — nhờ kế toán mở lại nếu đính '
+        +'nhầm bill hoặc gõ sai số.';
+      w.appendChild(xong);
+      if((rp.billAnh||[]).length){
+        var hang=el('div'); hang.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-top:6px';
+        rp.billAnh.forEach(function(u){
+          var a=el('a'); a.href=u; a.target='_blank'; a.rel='noopener';
+          var im=el('img'); im.src=u;
+          im.style.cssText='width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0';
+          a.appendChild(im); hang.appendChild(a);
+        });
+        w.appendChild(hang);
+      }
+      return w;
+    }
+
+    /* Số tiền mặt PHẢI NỘP — cái bill phải khớp con số này, nên nó đứng ngay trên ô chọn ảnh.
+       QR đã về tài khoản công ty rồi, không nằm trong đây. */
+    var sotien=el('div','bc-mut'); sotien.style.marginTop='4px';
+    sotien.textContent='Tiền mặt phải nộp của báo cáo này: '+money(rp.cash||0)+'đ'
+      +((rp.cash||0)<=0?' — không có tiền mặt (toàn QR), không cần nộp.':'');
+    w.appendChild(sotien);
+    if((rp.cash||0)<=0) return w;
+
+    var pk=anhPicker_('e-bill','📷 Ảnh bill chuyển khoản');
+    pk.fileInput.multiple=true;
+    w.appendChild(pk);
+
+    var gc=inp('e-billgc','Mã giao dịch / ngân hàng / ghi chú (không bắt buộc)',true);
+    gc.style.cssText='margin-top:6px;width:100%';
+    w.appendChild(gc);
+
+    var msg=el('div','bc-mut'); msg.style.marginTop='4px'; w.appendChild(msg);
+    var nut=el('button','bc-btn','✓ Xác nhận đã nộp');
+    nut.style.cssText='margin-top:6px;font-weight:700';
+    w.appendChild(nut);
+
+    var dang=false;
+    nut.onclick=function(){
+      if(dang) return;
+      var co=!!(pk.fileInput.files&&pk.fileInput.files.length);
+      /* 🔴 KHÔNG CÓ ẢNH THÌ KHÔNG BẤM ĐƯỢC. Cái khoá này đứng giữa kế toán và quyền sửa số của
+         nhân viên — khoá một báo cáo bằng KHÔNG GÌ CẢ thì nó chẳng bảo vệ ai. Máy chủ chốt lại
+         lần nữa (nop_bill()); đây chỉ để khỏi phải đi một vòng mạng mới biết. */
+      if(!co){ msg.textContent='⚠ Chọn ít nhất 1 ảnh bill chuyển khoản mới xác nhận được.';
+        msg.className='bc-mut bc-err'; return; }
+      if(!confirm('Xác nhận đã nộp '+money(rp.cash||0)+'đ của báo cáo '+rp.date+' · '+rp.locName+'?\n\n'
+        +'Bấm xong sẽ có ba chuyện:\n'
+        +'  · Ảnh bill được đính vào báo cáo này.\n'
+        +'  · Một lượt nộp '+money(rp.cash||0)+'đ hiện lên cho kế toán bấm "Đã nhận".\n'
+        +'  · BÁO CÁO NÀY KHOÁ — không sửa được nữa. Sai thì phải nhờ kế toán mở.')) return;
+      dang=true; nut.disabled=true; msg.className='bc-mut';
+      msg.textContent='Đang gửi ảnh bill…';
+      docAnhTu_(pk.fileInput,function(anh){
+        if(!anh.length){ dang=false; nut.disabled=false;
+          msg.textContent='⚠ Không đọc được ảnh — chọn lại ảnh khác.'; msg.className='bc-mut bc-err'; return; }
+        goi('bc_nop_bill',{report_id:rp.reportId, anh:{qr:anh}, ghi_chu:gc.value||''},function(r){
+          dang=false; nut.disabled=false;
+          if(!r||!r.ok){ msg.textContent='⚠ '+((r&&r.message)||'Không gửi được.');
+            msg.className='bc-mut bc-err'; return; }
+          msg.textContent=r.message||'Đã nộp.'; msg.className='bc-mut';
+          /* Vẽ lại cả khối 24h: báo cáo vừa khoá phải mất nút Sửa và đổi huy hiệu ngay, chứ
+             không đợi lần tải trang sau. */
+          loadRecent();
+        });
+      });
+    };
+    return w;
   }
   /* Ô chọn 1 ảnh cho màn Sửa 24h — cùng kiểu ẩn input xấu/tự vẽ nút "Chọn ảnh" như celAnh() ở
      bảng chính (xem lý do ở đó: chữ nút input file đổi theo ngôn ngữ trình duyệt từng máy), nhưng
@@ -6370,8 +6532,33 @@ function veQuy(){
       + '<th class="r">' + L('Sổ ghi','On record') + '</th><th class="r">'
       + L('Đếm lại được','Counted') + '</th></tr>';
     q.cho.forEach(function(n){
+      /* 🔴 BILL NẰM NGAY TRONG DÒNG PHẢI QUYẾT ĐỊNH. Nhân viên đính bill chuyển khoản rồi bấm
+         nộp (anh Thắng 05/09/2026) — kế toán ngồi trước đúng bảng này để bấm "Đã nhận". Bắt họ
+         đi màn khác tìm tờ bill rồi quay lại đây là việc sẽ không ai làm: họ sẽ bấm "Đã nhận"
+         mà không xem, và tờ bill thành ra vô nghĩa. Ảnh bấm mở được ra tab mới để soi rõ. */
+      var bill = '';
+      (n.bill || []).forEach(function(bl){
+        bill += '<div style="margin-top:6px;padding:6px 8px;background:#fffaf0;border:1px solid #f0d9ac;'
+          + 'border-radius:8px">'
+          + '<div class="mut">🧾 ' + esc(bl.coso) + ' · ' + esc(bl.ngay) + '</div>'
+          + (bl.ghiChu ? '<div class="mut">' + esc(bl.ghiChu) + '</div>' : '')
+          + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'
+          + (bl.anh || []).map(function(u){
+              return '<a href="' + esc(u) + '" target="_blank" rel="noopener">'
+                + '<img src="' + esc(u) + '" style="width:46px;height:46px;object-fit:cover;'
+                + 'border-radius:6px;border:1px solid #e2e8f0"></a>'; }).join('')
+          + '</div>'
+          /* Mở khoá: chỉ người có quyền xác nhận nhận tiền. Cùng nhóm quyền, cùng lý do — nó gỡ
+             một lượt tiền ra khỏi bảng chờ. */
+          + (q.quyen_nhan
+              ? '<button data-mobill="' + esc(bl.reportId) + '" data-mocs="' + esc(bl.coso)
+                + '" data-mongay="' + esc(bl.ngay) + '" class="ghost" style="margin-top:5px">🔓 '
+                + L('Mở khoá báo cáo','Unlock report') + '</button>'
+              : '')
+          + '</div>';
+      });
       h += '<tr><td>' + esc(n.tao_luc) + '</td><td><b>' + esc(n.nguoi) + '</b>'
-        + (n.ghi_chu ? '<br><span class="mut">' + esc(n.ghi_chu) + '</span>' : '') + '</td>'
+        + (n.ghi_chu ? '<br><span class="mut">' + esc(n.ghi_chu) + '</span>' : '') + bill + '</td>'
         + '<td class="r"><b>' + tien(n.so_tien) + '</b><br><span class="mut">'
         + n.so_dong + ' ' + L('lượt','entries') + '</span></td>'
         + '<td class="r">';
@@ -8066,6 +8253,24 @@ function noi(){
       var v  = Number(((o && o.value) || '').replace(/\D/g, '')) || 0;
       if (!confirm(L('Xác nhận đã nhận ' + tien(v) + '?','Confirm receipt of ' + tien(v) + '?'))) return;
       lam('nop_nhan', { id: id, so_tien_nhan: v });
+    };
+  });
+  /* 🔴 MỞ KHOÁ MỘT BÁO CÁO ĐÃ ĐÍNH BILL — anh Thắng 05/09/2026 chọn "kế toán mở được".
+     Bắt gõ LÝ DO chứ không chỉ hỏi có/không: đây là gỡ một lượt tiền ra khỏi bảng chờ, và ba
+     tháng sau câu hỏi sẽ là "vì sao báo cáo này mở lại" chứ không phải "có ai mở không".
+     Lý do đi vào cả `bill_ghichu` lẫn nhật ký hệ thống (xem VHG_BaoCao::mo_khoa_bill). */
+  [].forEach.call(document.querySelectorAll('[data-mobill]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      var rid = b.getAttribute('data-mobill');
+      var nhan = (b.getAttribute('data-mocs') || '') + ' · ' + (b.getAttribute('data-mongay') || '');
+      var ly = prompt(L('Mở khoá báo cáo ' + nhan + '?\nLượt nộp đang chờ sẽ bị gỡ, nhân viên sửa '
+        + 'lại được nếu còn trong hạn.\n\nLý do mở khoá:',
+        'Unlock report ' + nhan + '?\nThe pending hand-in will be detached.\n\nReason:'), '');
+      if (ly === null) return;
+      ly = ly.trim();
+      if (!ly) { alert(L('Phải ghi lý do mở khoá.','A reason is required.')); return; }
+      lam('bc_mo_bill', { report_id: rid, ly_do: ly });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-nophuy]'), function(b){

@@ -126,7 +126,9 @@ class VHG_Auth {
 	 * đợi chính người đó tự bấm Nộp trước — dùng cho dữ liệu CŨ/ĐÃ NHẬP (`kt_nhap`, nhân viên
 	 * không còn phiên nào để tự bấm) mà tiền thật đã về tay ngoài đời từ trước khi cột `nop_id`
 	 * ra đời, xem VHG_Quy::nop_va_nhan_thay(). */
-	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy', 'quy_nop_thay' );
+	/* `bc_mo_bill` — mở khoá một báo cáo nhân viên đã đính bill và bấm nộp. Cùng nhóm với ba
+	   việc trên vì cùng một lý do: nó gỡ một lượt tiền ra khỏi bảng chờ. */
+	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy', 'quy_nop_thay', 'bc_mo_bill' );
 
 	/**
 	 * Vai trò được giúp khách. Khai được, cùng lý do với `vai_tro_chot()`.

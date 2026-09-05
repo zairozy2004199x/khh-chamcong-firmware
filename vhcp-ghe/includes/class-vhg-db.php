@@ -81,6 +81,24 @@ class VHG_DB {
 		if ( ! $co_makh ) {
 			$wpdb->query( "ALTER TABLE $coso ADD COLUMN ma_kh VARCHAR(40) NOT NULL DEFAULT '' AFTER tinh" );
 		}
+
+		/* `bc.bill_*` (v2.6.0) — thêm tay cùng lý do với `phien.pin` và `coso.ma_kh` ở trên: `bc`
+		   là bảng ĐANG SỐNG, đông hàng thật. Và ở đây hậu quả của việc dbDelta lỡ một cột nặng
+		   hơn hẳn: `bill_luc` là CÁI KHOÁ của báo cáo. Cột không lên thì mọi câu đọc khoá đều
+		   đọc ra rỗng, tức là KHÔNG BÁO CÁO NÀO KHOÁ CẢ — nhân viên vẫn sửa được báo cáo đã bấm
+		   nộp, mà màn hình thì không có gì kêu. Thà thêm tay và chắc. */
+		foreach ( array(
+			'bill_anh'    => "TEXT NULL",
+			'bill_luc'    => "DATETIME NULL",
+			'bill_ai'     => "VARCHAR(190) NOT NULL DEFAULT ''",
+			'bill_ghichu' => "VARCHAR(255) NOT NULL DEFAULT ''",
+			'bill_mo_luc' => "DATETIME NULL",
+			'bill_mo_ai'  => "VARCHAR(190) NOT NULL DEFAULT ''",
+		) as $cot => $kieu ) {
+			if ( ! $wpdb->get_var( "SHOW COLUMNS FROM $bc LIKE '" . $cot . "'" ) ) {
+				$wpdb->query( "ALTER TABLE $bc ADD COLUMN $cot $kieu" );
+			}
+		}
 	}
 
 	public static function bang() {
@@ -695,6 +713,22 @@ class VHG_DB {
 		      toán xác nhận, hết nợ) mà `chot`/`thu` đã dùng từ trước, không phải dựng lại từ đầu.
 		      Khớp theo TÊN (`nhan_vien` = `chot.nguoi`/`thu`'s người) — cùng namespace tên người
 		      dùng chung cho quỹ tiền mặt, xem VHG_Quy::dang_cam()/ai_dang_cam(). */
+		/* 🔴 `bill_*` (05/09/2026) — BILL CHUYỂN KHOẢN NHÂN VIÊN ĐÍNH SAU, VÀ CÁI KHOÁ NÓ MANG THEO.
+		   Anh Thắng: *"chỗ đó sẽ có thêm (bổ sung bill chuyển khoản) · khi nhân viên add bill và
+		   xác nhận đã nộp thì báo cáo đó sẽ không sửa được nữa"*.
+
+		   ⚠️ KHÁC HẲN `chung_tu` Ở TRÊN, đừng gộp làm một. `chung_tu` là ảnh đính lúc GỬI báo cáo
+		      — bằng chứng cho con số doanh thu. `bill_anh` là ảnh đính SAU, lúc nhân viên thật sự
+		      chuyển tiền về công ty — bằng chứng cho việc TIỀN ĐÃ ĐI. Hai thứ chụp ở hai thời
+		      điểm, trả lời hai câu hỏi khác nhau; nhét chung một cột là mất khả năng nói "báo cáo
+		      này có số liệu nhưng chưa nộp tiền".
+
+		   🔴 `bill_luc` LÀ CÁI KHOÁ, không phải một cột cờ riêng. Có `bill_luc` = đã đính bill và
+		      xác nhận nộp = báo cáo hết sửa. Dùng chính cái mốc thời gian làm khoá thì không bao
+		      giờ có chuyện cờ nói "khoá" mà không ai biết khoá từ lúc nào, hay ngược lại.
+
+		   `bill_mo_*` — kế toán mở khoá (đính nhầm bill, gõ sai số). Ảnh bill CŨ Ở LẠI trong
+		   `bill_anh`: mở khoá là cho sửa tiếp, không phải xoá dấu vết một lần đã bấm nộp. */
 		$b['bc'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			report_id VARCHAR(40) NOT NULL,
@@ -716,6 +750,12 @@ class VHG_DB {
 			tao_luc DATETIME NULL,
 			sua_luc DATETIME NULL,
 			nop_id BIGINT(20) NOT NULL DEFAULT 0,
+			bill_anh TEXT NULL,
+			bill_luc DATETIME NULL,
+			bill_ai VARCHAR(190) NOT NULL DEFAULT '',
+			bill_ghichu VARCHAR(255) NOT NULL DEFAULT '',
+			bill_mo_luc DATETIME NULL,
+			bill_mo_ai VARCHAR(190) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY report_id (report_id),
 			UNIQUE KEY coso_ngay_lan (coso_key,ngay,lan),
