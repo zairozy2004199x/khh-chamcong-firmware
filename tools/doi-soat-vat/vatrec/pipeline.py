@@ -15,7 +15,7 @@ from .catalog import (
 )
 from .config import Config
 from .invoices import Invoice, build_invoices
-from .loc_view import cac_kenh
+from .loc_view import cac_file
 from .report import write_workbook
 from .sources import READERS, Txn
 
@@ -68,6 +68,6 @@ def run(config: Config, out_path: str, theo_ngay: bool | None = None) -> tuple[A
         config.ten_khach,
         config.vat_rate,
         theo_ngay,
-        cac_kenh(txns, catalog),
+        cac_file(txns, catalog),
     )
     return result, invoices

@@ -75,6 +75,14 @@ body {
 
 /* ------------------------------------------------------------------- bước */
 
+/* Đánh số bước bằng bộ đếm CSS, chỉ tính bước đang hiện — bước "Sheet đã nhận
+   diện" ẩn cho tới khi có file, đánh số cứng thì trang nhảy 1, 2, 4. */
+#cacBuoc { counter-reset: buoc; }
+
+.step:not([hidden]) { counter-increment: buoc; }
+
+.step .num::before { content: counter(buoc); }
+
 .step {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -411,3 +419,33 @@ label.inline select {
 }
 
 .tabs button[aria-selected="true"] .count { color: var(--accent); }
+
+/* Dải số tóm tắt của một file, đặt ngay trên bảng lọc. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 13px;
+  max-width: 100%;
+}
+
+.chip .k { color: var(--muted); }
+.chip .v { font-weight: 700; }
+
+.chip.warn {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.chip.warn .k, .chip.warn .v { color: var(--warn); }

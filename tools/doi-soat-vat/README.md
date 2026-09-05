@@ -348,9 +348,9 @@ mã vẫn được coi là hai giao dịch thật.
 | `DS xuất HĐ MTT` | Danh sách hoá đơn để nhập Misa — đúng thứ tự cột của file mẫu. Cột *Số HĐ* để trống vì số do Misa cấp |
 | `kê ds xuất HĐ MTT` | Bản kê chi tiết, thêm cột tách theo từng luồng tiền để tra ngược |
 | Một sheet cho mỗi luồng tiền | Pivot điểm xuất hoá đơn × ngày (luồng không phát sinh thì không tạo sheet) |
-| `Lọc <cổng>` | **Một tab cho mỗi cổng** — mã điểm bán × nhóm × ngày. Payoo thêm hai khối cột phí và tiền phải trả về TK |
+
 | `Đối soát theo file` | Mỗi file đầu vào một dòng: luồng đọc được, số GD, tiền vào hoá đơn, và phần bị tách riêng của chính file đó |
-| `F1 …`, `F2 …` | **Một tab cho mỗi file** — điểm xuất hoá đơn × ngày, chỉ tính riêng file đó |
+| `F1 …`, `F2 …` | **Một tab cho mỗi file** — mã điểm bán × nhóm × ngày, chỉ tính riêng file đó, kèm dải số bị tách riêng ở đầu tab. Payoo thêm hai khối cột phí và tiền phải trả về TK |
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
 | `Đối soát` | Tổng theo luồng, số hoá đơn, và **toàn bộ cảnh báo ở mục 3.5** |
 
@@ -387,22 +387,30 @@ sửa hoặc xoá thoải mái trước khi chạy lại.
 `Mã cửa hàng` (`00003182`). Danh mục khai theo mã nào cũng tra ra được — mã chính
 không thấy thì tra tiếp mã phụ.
 
-### 5.0. Bảng lọc từng cổng
+### 5.0. Bảng lọc từng file
 
-Sao kê của mọi cổng tải về đều là một danh sách giao dịch thô. Mỗi cổng được một
-tab `Lọc <cổng>` trong file kết quả, và một **tab riêng trên trang web** — kiểm
-từng nguồn rồi mới tin số tổng, thay vì trộn hết vào một chỗ rồi không biết sai
-từ đâu. Bố cục:
+Sao kê tải về đều là một danh sách giao dịch thô. **Mỗi file đầu vào được một tab
+riêng** — cả trên trang web lẫn trong file kết quả (`F1 …`, `F2 …`) — để so thẳng
+với chính file gốc rồi mới tin số tổng, thay vì trộn hết vào một chỗ rồi không
+biết sai từ đâu. Bố cục:
 
 ```
+File · Luồng tiền đọc được · Kỳ · Số GD · Vào hoá đơn
+Chưa có danh mục · Vãng lai · Ngoài kỳ · Trùng mã · Pháp nhân khác
+─────────────────────────────────────────────────────────────────
 STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · Mã điểm bán · Nhóm
    || <mỗi ngày một cột> · Tổng xuất hóa đơn
 ```
 
-Payoo có cột phí trong sao kê nên nối thêm hai khối nữa — `Tổng tiền phí` và
-`Tổng tiền Payoo phải trả` (= khối thứ nhất trừ khối phí, tức số thực chuyển về
-tài khoản) — và tách mỗi cửa hàng thành hai dòng `Quét mã QR` / `Thẻ`. Các cổng
-khác không có cột phí nên chỉ một khối, và tách theo luồng tiền.
+Phần đầu ghi lại tên file và các số bị tách riêng, để nhìn một chỗ là biết file
+đó đã đọc đủ chưa. Bảng dựng từ giao dịch thô nên **hiện cả mã chưa có trong
+danh mục** — thứ mà bảng tổng hợp phải giấu đi vì chưa quy được về điểm.
+
+Một file có thể chứa nhiều cổng (`đối soát zalo app và vnpay.xls` có cả hai), lúc
+đó cột `Nhóm` tách theo luồng tiền. Riêng Payoo có cột phí trong sao kê nên tách
+mỗi cửa hàng thành hai dòng `Quét mã QR` / `Thẻ` và nối thêm hai khối cột —
+`Tổng tiền phí` và `Tổng tiền cổng phải trả` (= khối thứ nhất trừ khối phí, tức
+số thực chuyển về tài khoản). Nguồn không có cột phí thì chỉ một khối.
 
 STT gộp ô cho mọi dòng của cùng một điểm. Thứ tự giữ đúng thứ tự gặp trong file
 gốc, không xếp lại theo bảng chữ cái — nhưng gom theo điểm trước rồi mới tới mã,
@@ -414,9 +422,9 @@ Bảng dựng thẳng từ giao dịch thô, **không đi qua bước tra danh m
 misa để trống, còn số tiền vẫn đủ.
 
 Trên trang web, phần Kết quả chia thành các tab: `Tổng hợp` là trang gộp cuối
-cùng, còn mỗi cổng có phát sinh được một tab riêng. Bảng của mỗi cổng mở ra ở
-**ngày mới nhất có dữ liệu**; chọn lại ô *Ngày* để xem ngày khác, hoặc
-`— Cả kỳ —` để cộng gộp. Ô *Khối số* chỉ hiện ở cổng có thu phí.
+cùng, còn mỗi file được một tab riêng. Bảng của mỗi file mở ra ở **ngày mới nhất
+có dữ liệu**; chọn lại ô *Ngày* để xem ngày khác, hoặc `— Cả kỳ —` để cộng gộp.
+Ô *Khối số* chỉ hiện ở nguồn có thu phí.
 
 **Chống trùng:** cột `Mã giao dịch Payoo` trong sao kê thực tế **bỏ trống toàn
 bộ**, nên trước đây dán nhầm sheet hai lần là Payoo cộng đôi mà không cảnh báo

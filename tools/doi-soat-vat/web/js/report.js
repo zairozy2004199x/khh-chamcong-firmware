@@ -56,19 +56,15 @@
     });
 
     addSheet(XLSXLib, book, 'Tổng theo ngày', sheetTheoNgay(opts));
-    // Mỗi cổng một tab lọc riêng, để kiểm từng nguồn rồi mới tin số tổng.
-    (opts.loc || []).forEach(function (kenh) {
-      addSheet(XLSXLib, book, safeTitle('Lọc ' + kenh.ten, book), sheetLoc(opts, kenh));
-    });
+
     addSheet(XLSXLib, book, 'Đối soát', sheetDoiSoat(opts));
 
-    // Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
+    // Mỗi file đầu vào một tab riêng, để so thẳng với chính file gốc rồi mới tin
+    // số tổng. Bảng lọc dựng từ giao dịch thô nên hiện cả mã chưa có danh mục.
     addSheet(XLSXLib, book, 'Đối soát theo file', sheetTheoFile(opts));
-    opts.result.nguonList.forEach(function (nguon, i) {
-      var built = sheetMotFile(opts, nguon, i + 1);
-      if (built.rows.length > 1) {
-        addSheet(XLSXLib, book, safeTitle('F' + (i + 1) + ' ' + tenNgan(nguon), book), built);
-      }
+    (opts.loc || []).forEach(function (kenh, i) {
+      addSheet(XLSXLib, book, safeTitle('F' + (i + 1) + ' ' + tenNgan(kenh.nguon), book),
+        sheetLoc(opts, kenh));
     });
 
     return book;
@@ -299,28 +295,39 @@
     };
   }
 
-  /**
-   * Một tab cho một file: điểm xuất hoá đơn x ngày, chỉ tính riêng file đó.
+  /** Tên file rút gọn để đặt tên tab (Excel giới hạn 31 ký tự). */
+  function tenNgan(nguon) {
+    var ten = String(nguon).replace(/\.[^.]+$/, '');
+    return ten.length > 24 ? ten.slice(0, 24) : ten;
+  }
+
+  /*
+   * Bảng lọc dữ liệu của một file - chọn một ngày là ra số xuất hoá đơn của từng mã.
    *
-   * Đây là bảng để so thẳng với chính file gốc. Phần đầu ghi lại tên file và các
-   * số bị tách riêng, để nhìn một chỗ là biết file đó đã đọc đủ chưa.
+   * Phần đầu ghi lại tên file và các số bị tách riêng, để nhìn một chỗ là biết
+   * file đó đã đọc đủ chưa. Nguồn có thu phí (Payoo) thì nối thêm hai khối cột
+   * đúng như bảng đang làm tay: phí cổng thu, và tiền cổng thực trả về tài khoản
+   * (= số xuất hoá đơn trừ phí). Nguồn không có cột phí thì chỉ một khối, khỏi
+   * rác cột toàn số 0.
    */
-  function sheetMotFile(opts, nguon, thuTu) {
-    var V = root.VatRec;
-    var result = opts.result;
-    var tk = result.nguonStats[nguon];
-    var dates = V.periodDates(opts.kyTu, opts.kyDen);
-    var rows = [];
+  function sheetLoc(opts, kenh) {
+    var rows = kenh.rows;
+    var dates = kenh.ngay;
+    var nhanNgay = dates.map(viDate);
+    var tk = kenh.thongKe;
+
+    var out = [];
     var formats = {};
+    var merges = [];
 
     function ghiChu(nhan, giaTri, laTien) {
-      var r = rows.length;
-      rows.push([nhan, giaTri]);
+      var r = out.length;
+      out.push([nhan, giaTri]);
       if (laTien) formats[r + ',1'] = TIEN;
     }
 
-    ghiChu('File', nguon);
-    ghiChu('Luồng tiền đọc được', tk.luong.join(', '));
+    ghiChu('File', kenh.nguon);
+    ghiChu('Luồng tiền đọc được', kenh.luong.join(', '));
     ghiChu('Kỳ', viDate(opts.kyTu) + ' - ' + viDate(opts.kyDen));
     ghiChu('Số giao dịch tính vào hoá đơn', tk.soGiaoDich);
     ghiChu('Số tiền vào hoá đơn', tk.soTien, true);
@@ -329,91 +336,25 @@
     ghiChu('Ngoài kỳ (đã loại)', tk.ngoaiKy, true);
     ghiChu('Trùng mã (đã bỏ bản thứ hai)', tk.trungLap, true);
     ghiChu('Điểm thuộc pháp nhân khác (đã loại)', tk.loaiKhacPhapNhan, true);
-    rows.push([]);
+    out.push([]);
 
-    var headerRow = rows.length;
-    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Khu vực', 'Tổng']
-      .concat(dates.map(function (date) { return date.slice(8) + '/' + date.slice(5, 7); }));
-    rows.push(header);
-
-    var moneyColumns = [];
-    for (var c = 4; c < header.length; c += 1) moneyColumns.push(c);
-
-    var totals = V.pointsOfNguon(result, nguon);
-    var keys = Object.keys(totals).sort(function (a, b) {
-      var pa = result.points[a], pb = result.points[b];
-      return ((pa && pa.tenDiem) || a).localeCompare((pb && pb.tenDiem) || b, 'vi');
-    });
-
-    var stt = 0;
-    keys.forEach(function (key) {
-      if (!totals[key]) return;
-      var point = result.points[key] || { tenDiem: key, maMisa: '', khuVuc: '' };
-      var perDate = V.rowOfNguon(result, nguon, key);
-      stt += 1;
-      var r = rows.length;
-      rows.push([stt, point.tenDiem, point.maMisa, point.khuVuc, totals[key]]
-        .concat(dates.map(function (date) { return perDate[date] || 0; })));
-      moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN; });
-    });
-
-    if (stt > 0) {
-      var totalRow = new Array(header.length).fill(null);
-      totalRow[0] = 'TỔNG';
-      rows.push(totalRow);
-      var tr = rows.length - 1;
-      moneyColumns.forEach(function (c) {
-        var letter = columnLetter(c);
-        rows[tr][c] = { f: 'SUM(' + letter + (headerRow + 2) + ':' + letter + tr + ')' };
-        formats[tr + ',' + c] = TIEN;
-      });
-    }
-
-    return {
-      rows: rows, formats: formats,
-      widths: [34, 32, 24, 11, 15], freezeRow: headerRow + 1
-    };
-  }
-
-  /** Tên file rút gọn để đặt tên tab (Excel giới hạn 31 ký tự). */
-  function tenNgan(nguon) {
-    var ten = String(nguon).replace(/\.[^.]+$/, '');
-    return ten.length > 24 ? ten.slice(0, 24) : ten;
-  }
-
-  /*
-   * Bảng lọc dữ liệu một cổng - chọn một ngày là ra số xuất hoá đơn của từng mã.
-   *
-   * Cổng có thu phí (Payoo) thì nối thêm hai khối cột đúng như bảng đang làm tay:
-   * phí cổng thu, và tiền cổng thực trả về tài khoản (= số xuất hoá đơn trừ phí).
-   * Cổng không có cột phí thì chỉ một khối, khỏi rác cột toàn số 0.
-   */
-  function sheetLoc(opts, kenh) {
-    var rows = kenh.rows;
-    var dates = kenh.ngay;
-    var nhanNgay = dates.map(viDate);
-    var laPayoo = kenh.channel === 'payoo';
-
-    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế',
-      laPayoo ? 'Chi nhánh' : 'Mã điểm bán',
-      laPayoo ? 'Hình thức thanh toán' : 'Luồng tiền']
+    var headerRow = out.length;
+    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Mã điểm bán', 'Nhóm']
       .concat(nhanNgay, ['Tổng xuất hóa đơn']);
     if (kenh.coPhi) {
       header = header.concat(nhanNgay, ['Tổng tiền phí'])
-        .concat(nhanNgay, ['Tổng tiền ' + kenh.ten + ' phải trả']);
+        .concat(nhanNgay, ['Tổng tiền cổng phải trả']);
     }
+    out.push(header);
 
-    var out = [header];
-    var formats = {};
-    var merges = [];
     var moneyColumns = [];
     for (var c = 5; c < header.length; c += 1) moneyColumns.push(c);
 
     var stt = 0;
-    var dauDiem = 1;
+    var dauDiem = headerRow + 1;
     var diemTruoc = null;
     rows.forEach(function (row, i) {
-      var r = i + 1;
+      var r = headerRow + 1 + i;
       var nhanDiem = row.tenDiem || row.code;
       if (nhanDiem !== diemTruoc) {
         if (diemTruoc !== null && r - dauDiem > 1) {
@@ -435,12 +376,27 @@
       out.push(line);
       moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN_GACH; });
     });
-    if (rows.length && rows.length + 1 - dauDiem > 1) {
-      merges.push({ s: { r: dauDiem, c: 0 }, e: { r: rows.length, c: 0 } });
+    var dongCuoi = headerRow + rows.length;
+    if (rows.length && dongCuoi - dauDiem > 0) {
+      merges.push({ s: { r: dauDiem, c: 0 }, e: { r: dongCuoi, c: 0 } });
     }
 
-    pushTotal(out, formats, moneyColumns, header.length);
-    return { rows: out, formats: formats, merges: merges, widths: [5, 30, 24, 30, 18] };
+    if (rows.length) {
+      var totalRow = new Array(header.length).fill(null);
+      totalRow[0] = 'TỔNG';
+      out.push(totalRow);
+      var tr = out.length - 1;
+      moneyColumns.forEach(function (c) {
+        var letter = columnLetter(c);
+        out[tr][c] = { f: 'SUM(' + letter + (headerRow + 2) + ':' + letter + tr + ')' };
+        formats[tr + ',' + c] = TIEN_GACH;
+      });
+    }
+
+    return {
+      rows: out, formats: formats, merges: merges,
+      widths: [5, 30, 24, 30, 18], freezeRow: headerRow + 1
+    };
   }
 
   /** Bảng đối soát: tổng theo luồng, số hoá đơn, cảnh báo, mã chưa map. */

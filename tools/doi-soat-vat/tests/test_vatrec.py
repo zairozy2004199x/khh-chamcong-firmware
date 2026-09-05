@@ -16,7 +16,7 @@ from vatrec.catalog import Catalog, Point  # noqa: E402
 from vatrec.excel import column_index, date_blocks, find_header  # noqa: E402
 from vatrec.invoices import build_invoices, split_vat  # noqa: E402
 from vatrec.normalize import clean_text, key_text, to_date, to_int  # noqa: E402
-from vatrec.loc_view import THU_TU_NHOM, cac_kenh, loc_dates, loc_view  # noqa: E402
+from vatrec.loc_view import THU_TU_NHOM, cac_file, loc_dates, loc_view  # noqa: E402
 from vatrec.suggest import goi_y, tach_tu, trong_so, tu_pho_bien  # noqa: E402
 from vatrec import report  # noqa: E402
 from vatrec.sources import Txn  # noqa: E402
@@ -483,7 +483,16 @@ def test_tu_pho_bien():
     check("ít mã quá thì không kết luận", tu_pho_bien(["A_X", "A_Y"]) == set())
 
 
-# ------------------------------------------------ bảng lọc từng cổng
+# ------------------------------------------------ bảng lọc từng file
+
+def _la_kenh(channel):
+    """Bảng lọc nhận một hàm chọn giao dịch — thật thì lọc theo file, test thì theo kênh."""
+    return lambda txn: txn.channel == channel
+
+
+def _la_file(nguon):
+    return lambda txn: txn.nguon == nguon
+
 
 def _payoo_txn(code, ngay, tien, phi, nhom, ref):
     return Txn(channel="payoo", stream=f"Payoo - {nhom}", nguon="p.xlsx", code=code,
@@ -496,7 +505,7 @@ def test_loc_view():
         _payoo_txn("SHOP_B", 2, 2000, 20, "Quét mã QR", "r2"),
         _payoo_txn("SHOP_B", 3, 500, 5, "Quét mã QR", "r3"),
         _payoo_txn("SHOP_A", 2, 700, 7, "Quét mã QR", "r4"),
-    ], "payoo")
+    ], _la_kenh("payoo"))
     check("mỗi cửa hàng × hình thức một dòng", len(rows) == 3, str(len(rows)))
     check("giữ thứ tự cửa hàng như trong file gốc", rows[0].code == "SHOP_B", rows[0].code)
     check("QR xếp trước Thẻ", rows[0].nhom == "Quét mã QR", rows[0].nhom)
@@ -509,7 +518,8 @@ def test_loc_view():
 
     catalog = Catalog()
     catalog.add("payoo", "SHOP_B", Point(ten_diem="Điểm B", ma_misa="MISA B"))
-    co_danh_muc = loc_view([_payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1")], "payoo", catalog)
+    co_danh_muc = loc_view([_payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1")],
+                           _la_kenh("payoo"), catalog)
     check("có danh mục thì điền tên điểm", co_danh_muc[0].ten_diem == "Điểm B")
     check("có danh mục thì điền mã misa", co_danh_muc[0].ma_misa == "MISA B")
 
@@ -535,27 +545,50 @@ def test_loc_view_gom_theo_diem():
         return Txn(channel="qr", stream="QR", nguon="q.xlsx", code=code,
                    ngay=dt.date(2026, 8, 2), so_tien=100, ref=ref)
 
-    rows = loc_view([qr("MA1", "a"), qr("MA2", "b"), qr("MA3", "c")], "qr", catalog)
+    rows = loc_view([qr("MA1", "a"), qr("MA2", "b"), qr("MA3", "c")], _la_kenh("qr"), catalog)
     check("hai mã cùng điểm nằm liền nhau",
           [row.ten_diem for row in rows] == ["Điểm A", "Điểm A", "Điểm B"],
           str([row.ten_diem for row in rows]))
     check("giữ thứ tự điểm gặp trước", rows[0].code == "MA1", rows[0].code)
 
 
-def test_cac_kenh():
-    """Mỗi cổng một bảng riêng, theo thứ tự gặp trong dữ liệu."""
+def test_cac_file():
+    """Mỗi file một bảng riêng, theo thứ tự gặp trong dữ liệu."""
     txns = [
-        Txn(channel="qr", stream="QR", nguon="a", code="M1", ngay=dt.date(2026, 8, 1),
+        Txn(channel="qr", stream="QR", nguon="a.xlsx", code="M1", ngay=dt.date(2026, 8, 1),
             so_tien=100, ref="r1"),
         _payoo_txn("SHOP_B", 1, 200, 2, "Thẻ", "r2"),
-        Txn(channel="qr", stream="QR", nguon="a", code="M2", ngay=dt.date(2026, 8, 1),
+        Txn(channel="qr", stream="QR", nguon="a.xlsx", code="M2", ngay=dt.date(2026, 8, 1),
             so_tien=300, ref="r3"),
     ]
-    ra = cac_kenh(txns)
-    check("một bảng cho mỗi cổng", [channel for channel, _ in ra] == ["qr", "payoo"],
-          str([channel for channel, _ in ra]))
-    check("gom đủ mã của cổng đầu", len(ra[0][1]) == 2, str(len(ra[0][1])))
-    check("cổng không phát sinh thì không có bảng", cac_kenh([]) == [])
+    ra = cac_file(txns)
+    check("một bảng cho mỗi file", [nguon for nguon, _ in ra] == ["a.xlsx", "p.xlsx"],
+          str([nguon for nguon, _ in ra]))
+    check("gom đủ mã của file đầu", len(ra[0][1]) == 2, str(len(ra[0][1])))
+    check("file không phát sinh thì không có bảng", cac_file([]) == [])
+
+
+def test_loc_view_theo_file():
+    """Lọc theo file là đường đi thật.
+
+    Một file có thể chứa nhiều cổng (file đối soát Zalo kèm luôn VNPay), và cùng
+    một mã điểm bán có thể về từ hai file khác nhau.
+    """
+    txns = [
+        Txn(channel="zalo", stream="Zalo mini app", nguon="a.xls", code="HUẾ",
+            ngay=dt.date(2026, 8, 2), so_tien=100, ref="z1"),
+        Txn(channel="vnpay", stream="VNPay", nguon="a.xls", code="SHOP1",
+            ngay=dt.date(2026, 8, 2), so_tien=200, ref="v1"),
+        Txn(channel="vnpay", stream="VNPay", nguon="b.xlsx", code="SHOP1",
+            ngay=dt.date(2026, 8, 2), so_tien=900, ref="v2"),
+    ]
+    file_a = loc_view(txns, _la_file("a.xls"))
+    check("một file gộp đủ các cổng trong nó", len(file_a) == 2, str(len(file_a)))
+    check("chỉ tính giao dịch của file đó", file_a[1].tong_tien == 200, str(file_a[1].tong_tien))
+    check("nhóm lấy theo luồng tiền", file_a[0].nhom == "Zalo mini app", file_a[0].nhom)
+    file_b = loc_view(txns, _la_file("b.xlsx"))
+    check("file kia tách hẳn ra", len(file_b) == 1, str(len(file_b)))
+    check("cùng mã ở hai file không bị cộng lẫn", file_b[0].tong_tien == 900)
 
 
 def _mang_trong_js(ten: str) -> list[str]:

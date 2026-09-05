@@ -446,6 +446,15 @@ eq('không rơi vào mã chưa map', maPhu.chuaMap.length, 0);
 
 /* ------------------------------------------------ bảng lọc từng cổng */
 
+/* Bảng lọc nhận một hàm chọn giao dịch — thật thì lọc theo file, test thì theo kênh. */
+function laKenh(channel) {
+  return function (txn) { return txn.channel === channel; };
+}
+
+function laFile(nguon) {
+  return function (txn) { return txn.nguon === nguon; };
+}
+
 function payooTxn(code, ngay, tien, phi, nhom, ref) {
   return { channel: 'payoo', stream: 'Payoo - ' + nhom, nguon: 'p.xlsx', code: code,
     ngay: ngay, soTien: tien, phi: phi, nhom: nhom, ref: ref };
@@ -456,7 +465,7 @@ var payooRows = V.locView([
   payooTxn('SHOP_B', '2026-08-02', 2000, 20, 'Quét mã QR', 'r2'),
   payooTxn('SHOP_B', '2026-08-03', 500, 5, 'Quét mã QR', 'r3'),
   payooTxn('SHOP_A', '2026-08-02', 700, 7, 'Quét mã QR', 'r4')
-], 'payoo', null);
+], laKenh('payoo'), null);
 
 eq('mỗi cửa hàng × hình thức một dòng', payooRows.length, 3);
 eq('giữ thứ tự cửa hàng như trong file gốc', payooRows[0].code, 'SHOP_B');
@@ -470,7 +479,8 @@ eq('chưa có danh mục thì để trống tên điểm', payooRows[0].tenDiem,
 
 var payooCat = new V.Catalog();
 payooCat.add('payoo', 'SHOP_B', V.makePoint({ tenDiem: 'Điểm B', maMisa: 'MISA B' }));
-var coDanhMuc = V.locView([payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1')], 'payoo', payooCat);
+var coDanhMuc = V.locView([payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1')],
+  laKenh('payoo'), payooCat);
 eq('có danh mục thì điền tên điểm', coDanhMuc[0].tenDiem, 'Điểm B');
 eq('có danh mục thì điền mã misa', coDanhMuc[0].maMisa, 'MISA B');
 
@@ -478,8 +488,8 @@ var payooNgay = V.locDates(payooRows, '2026-08-01', '2026-08-03');
 eq('đủ ngày trong kỳ', payooNgay.length, 3);
 eq('ngày xếp tăng dần', payooNgay[0], '2026-08-01');
 // Ngày ngoài kỳ không bị cắt mà nối ở cuối, để nhìn ra ngay khi tải nhầm khoảng ngày.
-var lacNgay = V.locDates(V.locView([payooTxn('S', '2026-09-09', 1, 0, 'Thẻ', 'x')], 'payoo', null),
-  '2026-08-01', '2026-08-02');
+var lacNgay = V.locDates(V.locView([payooTxn('S', '2026-09-09', 1, 0, 'Thẻ', 'x')],
+  laKenh('payoo'), null), '2026-08-01', '2026-08-02');
 eq('ngày ngoài kỳ nối ở cuối', lacNgay[lacNgay.length - 1], '2026-09-09');
 
 /*
@@ -495,13 +505,34 @@ function qrTxn(code, ref) {
   return { channel: 'qr', stream: 'QR', nguon: 'q.xlsx', code: code,
     ngay: '2026-08-02', soTien: 100, ref: ref };
 }
-var gomDiem = V.locView([qrTxn('MA1', 'a'), qrTxn('MA2', 'b'), qrTxn('MA3', 'c')], 'qr', catQr);
+var gomDiem = V.locView([qrTxn('MA1', 'a'), qrTxn('MA2', 'b'), qrTxn('MA3', 'c')],
+  laKenh('qr'), catQr);
 eq('hai mã cùng điểm nằm liền nhau',
   gomDiem.map(function (r) { return r.tenDiem; }).join(','), 'Điểm A,Điểm A,Điểm B');
 eq('giữ thứ tự điểm gặp trước', gomDiem[0].code, 'MA1');
 
 eq('tên cổng hiện thành chữ dễ đọc', V.tenKenh('zalo'), 'Zalo Mini App');
 eq('cổng lạ thì giữ nguyên mã', V.tenKenh('abc'), 'abc');
+
+/*
+ * Lọc theo file là đường đi thật: một file có thể chứa nhiều cổng (file đối soát
+ * Zalo kèm luôn VNPay), và cùng một mã điểm bán có thể về từ hai file khác nhau.
+ */
+var haiFile = [
+  { channel: 'zalo', stream: 'Zalo mini app', nguon: 'a.xls', code: 'HUẾ',
+    ngay: '2026-08-02', soTien: 100, ref: 'z1' },
+  { channel: 'vnpay', stream: 'VNPay', nguon: 'a.xls', code: 'SHOP1',
+    ngay: '2026-08-02', soTien: 200, ref: 'v1' },
+  { channel: 'vnpay', stream: 'VNPay', nguon: 'b.xlsx', code: 'SHOP1',
+    ngay: '2026-08-02', soTien: 900, ref: 'v2' }
+];
+var fileA = V.locView(haiFile, laFile('a.xls'), null);
+eq('một file gộp đủ các cổng trong nó', fileA.length, 2);
+eq('chỉ tính giao dịch của file đó', fileA[1].tongTien, 200);
+eq('nhóm lấy theo luồng tiền', fileA[0].nhom, 'Zalo mini app');
+var fileB = V.locView(haiFile, laFile('b.xlsx'), null);
+eq('file kia tách hẳn ra', fileB.length, 1);
+eq('cùng mã ở hai file không bị cộng lẫn', fileB[0].tongTien, 900);
 
 /* ------------------------------------------------- cột của file đầu ra */
 

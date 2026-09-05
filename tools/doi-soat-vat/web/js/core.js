@@ -796,13 +796,13 @@
   /* ------------------------------------------------ bảng lọc từng cổng */
 
   /*
-   * Sao kê của mọi cổng tải về đều là một danh sách giao dịch thô. Bảng này gom
-   * lại đúng dạng đang dùng để xuất hoá đơn: mỗi mã điểm bán một dòng (Payoo
-   * tách thêm "Quét mã QR" / "Thẻ", các cổng khác tách theo luồng tiền), mỗi
-   * ngày một cột - chọn ngày nào là đọc thẳng ra số của ngày đó.
+   * Sao kê tải về đều là một danh sách giao dịch thô. Bảng này gom lại đúng dạng
+   * đang dùng để xuất hoá đơn: mỗi mã điểm bán một dòng (Payoo tách thêm "Quét
+   * mã QR" / "Thẻ", các nguồn khác tách theo luồng tiền), mỗi ngày một cột -
+   * chọn ngày nào là đọc thẳng ra số của ngày đó.
    *
-   * Mỗi cổng một bảng riêng để kiểm từng nguồn rồi mới tin số tổng, thay vì
-   * trộn hết vào một chỗ rồi không biết sai từ đâu.
+   * Mỗi file đầu vào một bảng riêng để so thẳng với chính file gốc rồi mới tin
+   * số tổng, thay vì trộn hết vào một chỗ rồi không biết sai từ đâu.
    *
    * Dựng thẳng từ giao dịch thô nên chạy được cả khi file chưa kèm danh mục
    * điểm; lúc đó cột tên điểm và mã misa để trống, còn số tiền vẫn đủ.
@@ -817,22 +817,22 @@
     return TEN_KENH[channel] || channel;
   }
 
-  function locView(txns, channel, catalog) {
+  function locView(txns, chon, catalog) {
     var rows = Object.create(null);
     var order = [];
     var thuTuCode = Object.create(null);
 
     txns.forEach(function (txn) {
-      if (txn.channel !== channel || !txn.ngay) return;
+      if (!chon(txn) || !txn.ngay) return;
       // Payoo tách theo hình thức thanh toán, các cổng khác theo luồng tiền.
       var nhom = txn.nhom || txn.stream || '(không rõ)';
-      var key = txn.code + SEP + nhom;
+      var key = txn.channel + SEP + txn.code + SEP + nhom;
       var row = rows[key];
       if (!row) {
-        var point = catalog ? catalog.lookup(channel, txn.code) : null;
-        if (!point && catalog && txn.codePhu) point = catalog.lookup(channel, txn.codePhu);
+        var point = catalog ? catalog.lookup(txn.channel, txn.code) : null;
+        if (!point && catalog && txn.codePhu) point = catalog.lookup(txn.channel, txn.codePhu);
         row = {
-          code: txn.code, nhom: nhom,
+          channel: txn.channel, code: txn.code, nhom: nhom,
           tenDiem: point ? point.tenDiem : '',
           maMisa: point ? point.maMisa : '',
           tien: Object.create(null), phi: Object.create(null),

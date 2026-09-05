@@ -179,9 +179,10 @@ function run(message) {
     kyTu: message.kyTu, kyDen: message.kyDen, phapNhan: message.phapNhan || null
   });
   var invoices = VatRec.buildInvoices(result, message.rate, message.theoNgay);
-  // Mỗi cổng một bảng lọc riêng, dựng thẳng từ giao dịch thô chứ không qua bước
-  // tra danh mục, nên vẫn ra số kể cả khi file chỉ có mỗi sheet dữ liệu gốc.
-  var loc = bangLocTungKenh(txns, catalog, message);
+  // Mỗi file đầu vào một bảng lọc riêng, dựng thẳng từ giao dịch thô chứ không
+  // qua bước tra danh mục, nên vẫn ra số kể cả khi file chỉ có mỗi sheet dữ
+  // liệu gốc, chưa kèm danh mục điểm.
+  var loc = bangLocTungFile(txns, catalog, result, message);
 
   post('progress', { phase: 'Đang dựng file Excel...' });
   var options = {
@@ -249,22 +250,37 @@ function run(message) {
 
 /** Bảng doanh thu từng ngày để hiện ngay trên trang, không phải mở file mới thấy. */
 /**
- * Một bảng lọc cho mỗi cổng có phát sinh, theo thứ tự gặp trong dữ liệu.
- * Trả về mảng { channel, ten, rows, ngay, coPhi } để giao diện dựng từng tab.
+ * Một bảng lọc cho mỗi file đầu vào, theo thứ tự thả file vào trang.
+ *
+ * Số tổng chỉ đáng tin khi từng file đã đúng, nên mỗi file được một tab riêng để
+ * so thẳng với chính file gốc. Bảng dựng từ giao dịch thô nên hiện cả mã chưa có
+ * trong danh mục — thứ mà bảng tổng hợp phải giấu đi vì chưa quy được về điểm.
+ *
+ * Trả về mảng { nguon, rows, ngay, coPhi, luong, thongKe } để giao diện dựng tab.
  */
-function bangLocTungKenh(txns, catalog, message) {
-  var kenh = [];
+function bangLocTungFile(txns, catalog, result, message) {
+  var thuTu = [];
   txns.forEach(function (txn) {
-    if (txn.channel && kenh.indexOf(txn.channel) < 0) kenh.push(txn.channel);
+    var ten = txn.nguon || '(không rõ file)';
+    if (thuTu.indexOf(ten) < 0) thuTu.push(ten);
   });
-  return kenh.map(function (channel) {
-    var rows = VatRec.locView(txns, channel, catalog);
+  return thuTu.map(function (nguon) {
+    var rows = VatRec.locView(txns, function (txn) {
+      return (txn.nguon || '(không rõ file)') === nguon;
+    }, catalog);
+    var tk = result.nguonStats[nguon] || {};
     return {
-      channel: channel,
-      ten: VatRec.tenKenh(channel),
+      nguon: nguon,
       rows: rows,
       ngay: rows.length ? VatRec.locDates(rows, message.kyTu, message.kyDen) : [],
-      coPhi: rows.some(function (row) { return row.tongPhi; })
+      coPhi: rows.some(function (row) { return row.tongPhi; }),
+      luong: tk.luong || [],
+      thongKe: {
+        soGiaoDich: tk.soGiaoDich || 0, soDiem: tk.soDiem || 0, soTien: tk.soTien || 0,
+        chuaMapSoTien: tk.chuaMapSoTien || 0, vangLai: tk.vangLai || 0,
+        ngoaiKy: tk.ngoaiKy || 0, trungLap: tk.trungLap || 0,
+        loaiKhacPhapNhan: tk.loaiKhacPhapNhan || 0, khongCoNgay: tk.khongCoNgay || 0
+      }
     };
   }).filter(function (item) { return item.rows.length; });
 }

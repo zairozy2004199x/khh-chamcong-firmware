@@ -8,9 +8,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from .aggregate import Aggregate, period_dates
+from .aggregate import Aggregate, NguonStats, period_dates
 from .invoices import split_vat
-from .loc_view import LocRow, loc_dates, ten_kenh
+from .loc_view import LocRow, loc_dates
 from .invoices import Invoice
 
 _TIEN = "#,##0"
@@ -106,15 +106,13 @@ def write_workbook(
         if result.total(stream=stream):
             _sheet_pivot(book, result, stream, ky_tu, ky_den)
     _sheet_theo_ngay(book, result, ky_tu, ky_den, rate)
-    # Mỗi cổng một tab lọc riêng, để kiểm từng nguồn rồi mới tin số tổng.
-    for channel, rows in loc or []:
-        _sheet_loc(book, channel, rows, ky_tu, ky_den)
     _sheet_doi_soat(book, co_so, result, invoices, ky_tu, ky_den, theo_ngay)
 
-    # Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
+    # Mỗi file đầu vào một tab riêng, để so thẳng với chính file gốc rồi mới tin
+    # số tổng. Bảng lọc dựng từ giao dịch thô nên hiện cả mã chưa có danh mục.
     _sheet_theo_file(book, result)
-    for index, nguon in enumerate(result.nguon_list, start=1):
-        _sheet_mot_file(book, result, nguon, index, ky_tu, ky_den)
+    for index, (nguon, rows) in enumerate(loc or [], start=1):
+        _sheet_loc(book, result, nguon, rows, index, ky_tu, ky_den)
 
     book.save(path)
 
@@ -301,30 +299,52 @@ def _sheet_theo_ngay(
 
 
 def _sheet_loc(
-    book: Workbook, channel: str, rows: list[LocRow], ky_tu: _dt.date, ky_den: _dt.date
+    book: Workbook, result: Aggregate, nguon: str, rows: list[LocRow], thu_tu: int,
+    ky_tu: _dt.date, ky_den: _dt.date
 ) -> None:
-    """Bảng lọc dữ liệu một cổng — chọn một ngày là ra số xuất hoá đơn của từng mã.
+    """Một tab cho một file: mã điểm bán × nhóm × ngày, chỉ tính riêng file đó.
 
-    Cổng có thu phí (Payoo) thì nối thêm hai khối cột đúng như bảng đang làm tay:
-    phí cổng thu, và tiền cổng thực trả về tài khoản (= số xuất hoá đơn trừ phí).
-    Cổng không có cột phí thì chỉ một khối, khỏi rác cột toàn số 0.
+    Đây là bảng để so thẳng với chính file gốc. Phần đầu ghi lại tên file và các
+    số bị tách riêng, để nhìn một chỗ là biết file đó đã đọc đủ chưa. Bảng dựng
+    từ giao dịch thô nên hiện cả mã chưa có trong danh mục — thứ mà bảng tổng
+    hợp phải giấu đi vì chưa quy được về điểm.
+
+    Nguồn có thu phí (Payoo) thì nối thêm hai khối cột đúng như bảng đang làm
+    tay: phí cổng thu, và tiền cổng thực trả về tài khoản (= số xuất hoá đơn trừ
+    phí). Nguồn không có cột phí thì chỉ một khối, khỏi rác cột toàn số 0.
     """
-    ten = ten_kenh(channel)
-    sheet = book.create_sheet(_safe_title(f"Lọc {ten}", book))
+    sheet = book.create_sheet(_safe_title(f"F{thu_tu} {_ten_ngan(nguon)}", book))
+    tk = result.nguon_stats.get(nguon, NguonStats(nguon=nguon))
     dates = _ngay_loc(rows, ky_tu, ky_den)
     co_phi = any(row.tong_phi for row in rows)
-    la_payoo = channel == "payoo"
 
+    ghi_chu = [
+        ("File", nguon, False),
+        ("Luồng tiền đọc được", ", ".join(tk.luong), False),
+        ("Kỳ", f"{ky_tu:%d/%m/%Y} - {ky_den:%d/%m/%Y}", False),
+        ("Số giao dịch tính vào hoá đơn", tk.so_giao_dich, False),
+        ("Số tiền vào hoá đơn", tk.so_tien, True),
+        ("Chưa có trong danh mục", tk.chua_map_so_tien, True),
+        ("Vãng lai (không mã điểm bán)", tk.vang_lai, True),
+        ("Ngoài kỳ (đã loại)", tk.ngoai_ky, True),
+        ("Trùng mã (đã bỏ bản thứ hai)", tk.trung_lap, True),
+        ("Điểm thuộc pháp nhân khác (đã loại)", tk.loai_khac_phap_nhan, True),
+    ]
+    for row_index, (nhan, gia_tri, la_tien) in enumerate(ghi_chu, start=1):
+        sheet.cell(row=row_index, column=1, value=nhan).font = Font(bold=True)
+        cell = sheet.cell(row=row_index, column=2, value=gia_tri)
+        if la_tien:
+            cell.number_format = _TIEN
+
+    header_row = len(ghi_chu) + 2
     nhan_ngay = [ngay.strftime("%d/%m/%Y") for ngay in dates]
-    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế",
-              "Chi nhánh" if la_payoo else "Mã điểm bán",
-              "Hình thức thanh toán" if la_payoo else "Luồng tiền"]
+    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Mã điểm bán", "Nhóm"]
     labels += nhan_ngay + ["Tổng xuất hóa đơn"]
     if co_phi:
         labels += nhan_ngay + ["Tổng tiền phí"]
-        labels += nhan_ngay + [f"Tổng tiền {ten} phải trả"]
-    _header(sheet, labels)
-    for index, width in enumerate([5, 30, 24, 30, 18], start=1):
+        labels += nhan_ngay + ["Tổng tiền cổng phải trả"]
+    _header(sheet, labels, row=header_row)
+    for index, width in enumerate([34, 30, 24, 30, 18], start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
     for index in range(6, len(labels) + 1):
         sheet.column_dimensions[get_column_letter(index)].width = 13
@@ -333,10 +353,10 @@ def _sheet_loc(
     dau_khoi = [6, 6 + khoi, 6 + 2 * khoi]
 
     stt = 0
-    dau_diem = 2
+    dau_diem = header_row + 1
     diem_truoc = None
     for offset, row in enumerate(rows):
-        excel_row = offset + 2
+        excel_row = header_row + 1 + offset
         nhan_diem = row.ten_diem or row.code
         if nhan_diem != diem_truoc:
             if diem_truoc is not None and excel_row - dau_diem > 1:
@@ -364,11 +384,13 @@ def _sheet_loc(
         for column in range(1, len(labels) + 1):
             sheet.cell(row=excel_row, column=column).border = _BORDER
 
-    if rows and len(rows) + 2 - dau_diem > 1:
-        sheet.merge_cells(start_row=dau_diem, start_column=1, end_row=len(rows) + 1, end_column=1)
+    dong_cuoi = header_row + len(rows)
+    if rows and dong_cuoi - dau_diem > 0:
+        sheet.merge_cells(start_row=dau_diem, start_column=1, end_row=dong_cuoi, end_column=1)
 
     money = {index: get_column_letter(index) for index in range(6, len(labels) + 1)}
-    _total_row(sheet, len(rows) + 2, len(labels), money, len(rows))
+    _total_row(sheet, dong_cuoi + 1, len(labels), money, len(rows),
+               first_data_row=header_row + 1)
 
 
 def _ngay_loc(rows: list[LocRow], ky_tu: _dt.date, ky_den: _dt.date) -> list[_dt.date]:
@@ -487,75 +509,6 @@ def _sheet_theo_file(book: Workbook, result: Aggregate) -> None:
 
     _total_row(sheet, len(result.nguon_list) + 2, len(labels), money_columns,
                len(result.nguon_list))
-
-
-def _sheet_mot_file(
-    book: Workbook, result: Aggregate, nguon: str, thu_tu: int,
-    ky_tu: _dt.date, ky_den: _dt.date
-) -> None:
-    """Một tab cho một file: điểm xuất hoá đơn × ngày, chỉ tính riêng file đó.
-
-    Đây là bảng để so thẳng với chính file gốc. Phần đầu ghi lại tên file và các
-    số bị tách riêng, để nhìn một chỗ là biết file đó đã đọc đủ chưa.
-    """
-    totals = result.diem_cua_nguon(nguon)
-    if not any(totals.values()):
-        return
-
-    tk = result.nguon_stats[nguon]
-    sheet = book.create_sheet(_safe_title(f"F{thu_tu} {_ten_ngan(nguon)}", book))
-
-    ghi_chu = [
-        ("File", nguon, False),
-        ("Luồng tiền đọc được", ", ".join(tk.luong), False),
-        ("Kỳ", f"{ky_tu:%d/%m/%Y} - {ky_den:%d/%m/%Y}", False),
-        ("Số giao dịch tính vào hoá đơn", tk.so_giao_dich, False),
-        ("Số tiền vào hoá đơn", tk.so_tien, True),
-        ("Chưa có trong danh mục", tk.chua_map_so_tien, True),
-        ("Vãng lai (không mã điểm bán)", tk.vang_lai, True),
-        ("Ngoài kỳ (đã loại)", tk.ngoai_ky, True),
-        ("Trùng mã (đã bỏ bản thứ hai)", tk.trung_lap, True),
-        ("Điểm thuộc pháp nhân khác (đã loại)", tk.loai_khac_phap_nhan, True),
-    ]
-    for row, (nhan, gia_tri, la_tien) in enumerate(ghi_chu, start=1):
-        sheet.cell(row=row, column=1, value=nhan).font = Font(bold=True)
-        cell = sheet.cell(row=row, column=2, value=gia_tri)
-        if la_tien:
-            cell.number_format = _TIEN
-
-    header_row = len(ghi_chu) + 2
-    dates = period_dates(ky_tu, ky_den)
-    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Khu vực", "Tổng", *dates]
-    _header(sheet, [d.strftime("%d/%m") if isinstance(d, _dt.date) else d for d in labels],
-            row=header_row)
-    for index, width in enumerate([34, 32, 24, 11, 15], start=1):
-        sheet.column_dimensions[get_column_letter(index)].width = width
-    for index in range(6, len(labels) + 1):
-        sheet.column_dimensions[get_column_letter(index)].width = 12
-
-    money_columns = {index: get_column_letter(index) for index in range(5, len(labels) + 1)}
-    ordered = sorted(
-        (key for key, total in totals.items() if total),
-        key=lambda key: (result.points[key].ten_diem if key in result.points else key).casefold(),
-    )
-    for offset, point_key in enumerate(ordered):
-        point = result.points.get(point_key)
-        per_date = result.dong_cua_nguon(nguon, point_key)
-        row = header_row + 1 + offset
-        values = [offset + 1,
-                  point.ten_diem if point else point_key,
-                  point.ma_misa if point else "",
-                  point.khu_vuc if point else "",
-                  totals[point_key]]
-        values.extend(per_date.get(ngay, 0) for ngay in dates)
-        for column, value in enumerate(values, start=1):
-            cell = sheet.cell(row=row, column=column, value=value)
-            cell.border = _BORDER
-            if column in money_columns:
-                cell.number_format = _TIEN
-
-    _total_row(sheet, header_row + len(ordered) + 1, len(labels), money_columns,
-               len(ordered), first_data_row=header_row + 1)
 
 
 def _ten_ngan(nguon: str) -> str:

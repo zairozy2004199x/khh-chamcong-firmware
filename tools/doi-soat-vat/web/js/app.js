@@ -21,8 +21,8 @@
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
     'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
     'resultTabs', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu', 'locTable',
-    'locNgay', 'locKhoi', 'locKhoiWrap', 'locTong', 'locCotSo', 'locCotMa',
-    'locCotNhom'].forEach(function (id) {
+    'locNgay', 'locKhoi', 'locKhoiWrap', 'locTong', 'locCotSo', 'locThongKe'
+  ].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
 
@@ -465,23 +465,29 @@
   /* ------------------------------------------------------- tab kết quả */
 
   /*
-   * Mỗi cổng một tab riêng: kiểm từng nguồn rồi mới tin số tổng, thay vì trộn
-   * hết vào một trang rồi không biết sai từ đâu. Tab "Tổng hợp" là trang gộp
-   * cuối cùng, các tab còn lại là dữ liệu thô của từng cổng.
+   * Mỗi file đầu vào một tab riêng: kiểm từng file rồi mới tin số tổng, thay vì
+   * trộn hết vào một trang rồi không biết sai từ đâu. Tab "Tổng hợp" là trang
+   * gộp cuối cùng, các tab còn lại là dữ liệu thô của từng file.
    */
-  var locData = [];        // [{ channel, ten, rows, ngay, coPhi }]
-  var tabDangXem = '';     // '' = Tổng hợp, còn lại là mã cổng
+  var locData = [];        // [{ nguon, rows, ngay, coPhi, luong, thongKe }]
+  var tabDangXem = '';     // '' = Tổng hợp, còn lại là tên file
 
   function renderTabs(message) {
     locData = message.loc || [];
     el.resultTabs.textContent = '';
-    if (locData.every(function (item) { return item.channel !== tabDangXem; })) tabDangXem = '';
+    if (locData.every(function (item) { return item.nguon !== tabDangXem; })) tabDangXem = '';
 
     themTab('', 'Tổng hợp', '');
     locData.forEach(function (item) {
-      themTab(item.channel, item.ten, item.rows.length + ' mã');
+      themTab(item.nguon, tenNganGon(item.nguon), item.rows.length + ' mã');
     });
     chonTab(tabDangXem);
+  }
+
+  /** Tên file rút gọn cho nhãn tab; tên đầy đủ vẫn hiện trong tiêu đề bảng. */
+  function tenNganGon(nguon) {
+    var ten = String(nguon).replace(/\.[^.]+$/, '');
+    return ten.length > 28 ? ten.slice(0, 27) + '…' : ten;
   }
 
   function themTab(id, nhan, phu) {
@@ -505,28 +511,27 @@
     if (id) renderLoc(timKenh(id));
   }
 
-  function timKenh(channel) {
-    return locData.filter(function (item) { return item.channel === channel; })[0] || null;
+  function timKenh(nguon) {
+    return locData.filter(function (item) { return item.nguon === nguon; })[0] || null;
   }
 
-  /* ----------------------------------------------------- bảng lọc cổng */
+  /* ------------------------------------------------------ bảng lọc file */
 
   /*
-   * Bảng của một cổng: mã điểm bán × nhóm, chọn một ngày là ra thẳng số của ngày
+   * Bảng của một file: mã điểm bán × nhóm, chọn một ngày là ra thẳng số của ngày
    * đó. Chọn "Cả kỳ" thì cộng gộp toàn kỳ.
    */
   function renderLoc(kenh) {
     if (!kenh) return;
-    el.locTieuDe.textContent = 'Lọc dữ liệu ' + kenh.ten;
-    el.locGhiChu.textContent = 'Sao kê ' + kenh.ten + ' tải theo ngày hay theo tháng đều được — ' +
-      'bảng này gom lại theo mã điểm bán × ' + (kenh.channel === 'payoo' ? 'hình thức thanh toán' : 'luồng tiền') +
-      ' × ngày. Mở ra là thấy sẵn ngày mới nhất có dữ liệu, muốn xem ngày khác thì chọn lại ở ô Ngày. ' +
-      'Bảng dựng thẳng từ dữ liệu gốc nên chạy được cả khi file chưa kèm danh mục điểm.';
-    el.locCotMa.textContent = kenh.channel === 'payoo' ? 'Chi nhánh' : 'Mã điểm bán';
-    el.locCotNhom.textContent = kenh.channel === 'payoo' ? 'Hình thức thanh toán' : 'Luồng tiền';
-    // Chỉ Payoo có cột phí trong sao kê, các cổng khác không có gì để đổi khối.
+    el.locTieuDe.textContent = 'Lọc dữ liệu — ' + kenh.nguon;
+    el.locGhiChu.textContent = 'Chỉ tính riêng file này, gom theo mã điểm bán × nhóm × ngày. ' +
+      'Mở ra là thấy sẵn ngày mới nhất có dữ liệu, muốn xem ngày khác thì chọn lại ở ô Ngày. ' +
+      'Bảng dựng thẳng từ dữ liệu gốc nên hiện cả mã chưa có trong danh mục — ' +
+      'so thẳng được với file gốc mà không phải bóc tách gì thêm.';
+    // Chỉ Payoo có cột phí trong sao kê, các nguồn khác không có gì để đổi khối.
     el.locKhoiWrap.hidden = !kenh.coPhi;
     if (!kenh.coPhi) el.locKhoi.value = 'tien';
+    renderLocThongKe(kenh);
 
     // Chỉ liệt kê ngày thật sự có phát sinh, khỏi phải cuộn qua ngày trống.
     // Ngày mới nhất lên đầu và được chọn sẵn: dữ liệu về theo ngày nên mở ra là
@@ -548,6 +553,37 @@
     el.locNgay.appendChild(caKy);
     el.locNgay.value = coPhatSinh.indexOf(dangChon) >= 0 ? dangChon : (coPhatSinh[0] || '');
     fillLoc();
+  }
+
+  /*
+   * Dải số của riêng file đang xem, đặt ngay trên bảng: luồng đọc được, số tiền
+   * vào hoá đơn, và các phần bị tách riêng. Nhìn một chỗ là biết file đó đã đọc
+   * đủ chưa, khỏi phải mở sheet Đối soát ra dò.
+   *
+   * Chỉ hiện mục nào khác 0 — file sạch thì dải này ngắn, file có vấn đề thì
+   * đúng chỗ có vấn đề nổi lên.
+   */
+  function renderLocThongKe(kenh) {
+    var tk = kenh.thongKe;
+    el.locThongKe.textContent = '';
+    var muc = [
+      ['Luồng tiền', kenh.luong.join(', ') || '—', false, true],
+      ['Số GD', money(tk.soGiaoDich), false, true],
+      ['Vào hoá đơn', money(tk.soTien) + ' đ', false, true],
+      ['Chưa có danh mục', money(tk.chuaMapSoTien) + ' đ', true, !!tk.chuaMapSoTien],
+      ['Vãng lai', money(tk.vangLai) + ' đ', true, !!tk.vangLai],
+      ['Ngoài kỳ', money(tk.ngoaiKy) + ' đ', true, !!tk.ngoaiKy],
+      ['Trùng mã', money(tk.trungLap) + ' đ', true, !!tk.trungLap],
+      ['Pháp nhân khác', money(tk.loaiKhacPhapNhan) + ' đ', true, !!tk.loaiKhacPhapNhan],
+      ['Không đọc được ngày', money(tk.khongCoNgay), true, !!tk.khongCoNgay]
+    ];
+    muc.forEach(function (item) {
+      if (!item[3]) return;
+      var chip = text('span', null, 'chip' + (item[2] ? ' warn' : ''));
+      chip.appendChild(text('span', item[0], 'k'));
+      chip.appendChild(text('span', item[1], 'v'));
+      el.locThongKe.appendChild(chip);
+    });
   }
 
   function fillLoc() {

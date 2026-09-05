@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.7.0">
+<link rel="stylesheet" href="style.css?v=1.8.0">
 </head>
 <body>
 
@@ -17,7 +17,7 @@
   </div>
 </header>
 
-<div class="wrap main">
+<div class="wrap main" id="cacBuoc">
 
   <p class="privacy">
     <strong>Toàn bộ xử lý chạy ngay trong trình duyệt của bạn.</strong>
@@ -26,7 +26,7 @@
 
   <!-- ------------------------------------------------------------ bước 1 -->
   <section class="step">
-    <h2><span class="num">1</span> Kỳ báo cáo</h2>
+    <h2><span class="num"></span> Kỳ báo cáo</h2>
     <div class="grid">
       <label>Cơ sở
         <input type="text" id="coSo" value="KH989" placeholder="KH989">
@@ -68,7 +68,7 @@
 
   <!-- ------------------------------------------------------------ bước 2 -->
   <section class="step">
-    <h2><span class="num">2</span> Chọn file sao kê</h2>
+    <h2><span class="num"></span> Chọn file sao kê</h2>
     <p class="note">
       Thả cả bộ file vào đây. Trang tự nhận diện từng sheet là sao kê của cổng nào,
       hay là bảng danh mục điểm — bạn không phải chọn sheet thủ công.
@@ -90,7 +90,7 @@
 
   <!-- ------------------------------------------------------------ bước 3 -->
   <section class="step" id="stepSheets" hidden>
-    <h2><span class="num">3</span> Sheet đã nhận diện</h2>
+    <h2><span class="num"></span> Sheet đã nhận diện</h2>
     <p class="note">
       Bỏ chọn sheet không muốn tính. Cột <em>Tên luồng tiền</em> là tên hiển thị trên
       báo cáo — mỗi luồng ra một sheet pivot riêng trong file kết quả.
@@ -114,7 +114,7 @@
 
   <!-- ------------------------------------------------------------ bước 4 -->
   <section class="step" id="stepExtra">
-    <h2><span class="num">4</span> Danh mục bổ sung <span class="optional">không bắt buộc</span></h2>
+    <h2><span class="num"></span> Danh mục bổ sung <span class="optional">không bắt buộc</span></h2>
     <p class="note">
       Mã điểm bán nào không có trong file danh mục thì khai ở đây. Hay gặp nhất là
       <strong>gian hàng Zalo Mini App</strong> — file Zalo không kèm mã điểm bán, tên gian hàng
@@ -147,7 +147,7 @@
 
   <!-- ------------------------------------------------------------ bước 5 -->
   <section class="step">
-    <h2><span class="num">5</span> Tổng hợp</h2>
+    <h2><span class="num"></span> Tổng hợp</h2>
     <div class="row-actions">
       <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
       <button type="button" id="run" class="btn primary" disabled>Tổng hợp &amp; tạo file VAT</button>
@@ -274,6 +274,7 @@
       <div class="panel">
         <h3 id="locTieuDe">Lọc dữ liệu</h3>
         <p class="note" id="locGhiChu"></p>
+        <div class="chips" id="locThongKe"></div>
         <div class="row-actions">
           <label class="inline">Ngày
             <select id="locNgay"></select>
@@ -292,8 +293,8 @@
             <thead>
               <tr>
                 <th class="num-col">STT</th><th>Tên điểm xuất hóa đơn</th>
-                <th>Mã điểm trên misa thuế</th><th id="locCotMa">Mã điểm bán</th>
-                <th id="locCotNhom">Nhóm</th><th class="num-col" id="locCotSo">Số tiền</th>
+                <th>Mã điểm trên misa thuế</th><th>Mã điểm bán</th>
+                <th>Nhóm</th><th class="num-col" id="locCotSo">Số tiền</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -307,7 +308,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.7.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
+      Phiên bản <strong>1.8.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
     </p>
   </footer>
 </div>
@@ -315,6 +316,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.7.0"></script>
+<script src="js/app.js?v=1.8.0"></script>
 </body>
 </html>
