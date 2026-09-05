@@ -348,3 +348,14 @@ tr.warn td { background: var(--warn-soft); }
   .main { padding: 16px 14px 44px; }
   .wrap { padding: 0 14px; }
 }
+
+/* Nhãn nằm ngang cho các ô chọn trên thanh công cụ của bảng. */
+label.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+label.inline select {
+  font-weight: 600;
+}

@@ -80,8 +80,12 @@ def find_header(rows: list[list], required: list[str], max_scan: int = _MAX_HEAD
     raise HeaderNotFound(f"không dò được dòng tiêu đề chứa {required} trong {max_scan} dòng đầu")
 
 
-def column_index(header: list, required: list[str]) -> dict[str, int]:
-    """Ánh xạ tên cột -> chỉ số, so khớp không phân biệt hoa thường và khoảng trắng."""
+def column_index(header: list, required: list[str], required_all: bool = True) -> dict[str, int]:
+    """Ánh xạ tên cột -> chỉ số, so khớp không phân biệt hoa thường và khoảng trắng.
+
+    ``required_all=False`` thì cột nào không có chỉ vắng mặt trong kết quả, không
+    báo lỗi — dùng cho cột tuỳ chọn như phí hay mã tham chiếu.
+    """
     by_key = {}
     for index, cell in enumerate(header):
         key = key_text(cell)
@@ -95,7 +99,7 @@ def column_index(header: list, required: list[str]) -> dict[str, int]:
             missing.append(name)
         else:
             result[name] = index
-    if missing:
+    if missing and required_all:
         raise HeaderNotFound(f"thiếu cột {missing}")
     return result
 

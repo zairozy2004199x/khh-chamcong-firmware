@@ -10,9 +10,12 @@ from openpyxl.utils import get_column_letter
 
 from .aggregate import Aggregate, period_dates
 from .invoices import split_vat
+from .payoo_view import PayooRow, payoo_dates
 from .invoices import Invoice
 
 _TIEN = "#,##0"
+# Ô không phát sinh hiện dấu gạch cho dễ dò mắt, giống bảng đang làm tay.
+_TIEN_GACH = '#,##0;-#,##0;"-"'
 _NGAY = "dd/mm/yyyy"
 _HEADER_FILL = PatternFill("solid", fgColor="DDEBF7")
 _TOTAL_FILL = PatternFill("solid", fgColor="FFF2CC")
@@ -90,6 +93,7 @@ def write_workbook(
     ten_khach: str,
     rate: float = 0.08,
     theo_ngay: bool = False,
+    payoo: list[PayooRow] | None = None,
 ) -> None:
     """Ghi toàn bộ file đầu ra: danh sách hoá đơn, bản kê, pivot từng luồng, đối soát."""
     book = Workbook()
@@ -102,6 +106,8 @@ def write_workbook(
         if result.total(stream=stream):
             _sheet_pivot(book, result, stream, ky_tu, ky_den)
     _sheet_theo_ngay(book, result, ky_tu, ky_den, rate)
+    if payoo:
+        _sheet_loc_payoo(book, payoo, ky_tu, ky_den)
     _sheet_doi_soat(book, co_so, result, invoices, ky_tu, ky_den, theo_ngay)
 
     # Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
@@ -291,6 +297,78 @@ def _sheet_theo_ngay(
                 cell.number_format = _TIEN
 
     _total_row(sheet, len(dates) + 2, len(labels), money_columns, len(dates))
+
+
+def _sheet_loc_payoo(book: Workbook, rows: list[PayooRow], ky_tu: _dt.date, ky_den: _dt.date) -> None:
+    """Bảng lọc dữ liệu Payoo — chọn một ngày là ra số xuất hoá đơn của từng cửa hàng.
+
+    Ba khối cột nối nhau đúng như bảng đang làm tay: số xuất hoá đơn, phí Payoo
+    thu, và tiền Payoo thực trả về tài khoản (= số xuất hoá đơn trừ phí).
+    """
+    sheet = book.create_sheet("Lọc Payoo")
+    dates = _ngay_payoo(rows, ky_tu, ky_den)
+
+    nhan_ngay = [ngay.strftime("%d/%m/%Y") for ngay in dates]
+    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Chi nhánh",
+              "Hình thức thanh toán"]
+    labels += nhan_ngay + ["Tổng xuất hóa đơn"]
+    labels += nhan_ngay + ["Tổng tiền phí"]
+    labels += nhan_ngay + ["Tổng tiền Payoo phải trả"]
+    _header(sheet, labels)
+    for index, width in enumerate([5, 30, 24, 30, 18], start=1):
+        sheet.column_dimensions[get_column_letter(index)].width = width
+    for index in range(6, len(labels) + 1):
+        sheet.column_dimensions[get_column_letter(index)].width = 13
+
+    khoi = len(dates) + 1  # mỗi khối = các ngày + một cột tổng
+    dau_khoi = [6, 6 + khoi, 6 + 2 * khoi]
+
+    stt = 0
+    dau_diem = 2
+    diem_truoc = None
+    for offset, row in enumerate(rows):
+        excel_row = offset + 2
+        nhan_diem = row.ten_diem or row.code
+        if nhan_diem != diem_truoc:
+            if diem_truoc is not None and excel_row - dau_diem > 1:
+                sheet.merge_cells(start_row=dau_diem, start_column=1, end_row=excel_row - 1, end_column=1)
+            stt += 1
+            dau_diem = excel_row
+            diem_truoc = nhan_diem
+            sheet.cell(row=excel_row, column=1, value=stt).alignment = Alignment(
+                horizontal="center", vertical="center")
+
+        for column, value in enumerate([row.ten_diem, row.ma_misa, row.code, row.nhom], start=2):
+            sheet.cell(row=excel_row, column=column, value=value)
+
+        khoi_gia_tri = [
+            ([row.tien.get(ngay, 0) for ngay in dates], row.tong_tien),
+            ([row.phi.get(ngay, 0) for ngay in dates], row.tong_phi),
+            ([row.tien.get(ngay, 0) - row.phi.get(ngay, 0) for ngay in dates],
+             row.tong_tien - row.tong_phi),
+        ]
+        for dau, (theo_ngay_, tong) in zip(dau_khoi, khoi_gia_tri):
+            for i, value in enumerate(theo_ngay_ + [tong]):
+                cell = sheet.cell(row=excel_row, column=dau + i, value=value)
+                cell.number_format = _TIEN_GACH
+        for column in range(1, len(labels) + 1):
+            sheet.cell(row=excel_row, column=column).border = _BORDER
+
+    if rows and len(rows) + 2 - dau_diem > 1:
+        sheet.merge_cells(start_row=dau_diem, start_column=1, end_row=len(rows) + 1, end_column=1)
+
+    money = {index: get_column_letter(index) for index in range(6, len(labels) + 1)}
+    _total_row(sheet, len(rows) + 2, len(labels), money, len(rows))
+
+
+def _ngay_payoo(rows: list[PayooRow], ky_tu: _dt.date, ky_den: _dt.date) -> list[_dt.date]:
+    """Các ngày của bảng: đủ kỳ báo cáo, cộng thêm ngày lạc ngoài kỳ ở cuối.
+
+    Giữ ngày ngoài kỳ thay vì cắt bỏ để nhìn ra ngay khi tải nhầm khoảng ngày.
+    """
+    trong_ky = period_dates(ky_tu, ky_den)
+    ngoai_ky = [ngay for ngay in payoo_dates(rows) if ngay not in set(trong_ky)]
+    return trong_ky + ngoai_ky
 
 
 def _sheet_doi_soat(

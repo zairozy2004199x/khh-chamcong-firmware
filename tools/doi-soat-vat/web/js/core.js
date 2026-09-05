@@ -224,15 +224,27 @@
    * Sao kê Payoo. Lấy "Số tiền thanh toán" (tiền khách trả, chưa trừ phí) và
    * tách riêng hai luồng "Quét mã QR" / "Thẻ".
    */
+  /*
+   * Chống trùng của Payoo phải ghép nhiều cột: "Mã giao dịch Payoo" trong sao kê
+   * thực tế bỏ trống toàn bộ, còn hai cột có mã thì mỗi cột chỉ phủ một hình thức
+   * thanh toán - "Mã QR" cho giao dịch quét mã, "Mã chuẩn chi" cho giao dịch thẻ.
+   * Ghép lại mới phủ hết 100% số dòng và không có mã nào trùng nhau.
+   */
+  var PAYOO_REF = ['Mã giao dịch Payoo', 'Mã QR', 'Mã chuẩn chi', 'Số tham chiếu'];
+
   function readPayoo(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow], ['Cửa hàng', 'Ngày giao dịch', 'Hình thức thanh toán',
-      'Số tiền thanh toán (₫)', 'Mã giao dịch Payoo']);
+      'Số tiền thanh toán (₫)', 'Phí xử lý giao dịch (₫)'].concat(PAYOO_REF));
     var out = [];
     for (var r = headerRow + 1; r < rows.length; r += 1) {
       var row = rows[r] || [];
       var code = cleanText(at(row, ix['Cửa hàng']));
       if (!code) continue;
       var hinhThuc = cleanText(at(row, ix['Hình thức thanh toán']));
+      var ref = '';
+      for (var i = 0; i < PAYOO_REF.length && !ref; i += 1) {
+        ref = cleanText(at(row, ix[PAYOO_REF[i]]));
+      }
       out.push({
         channel: 'payoo',
         stream: hinhThuc ? stream + ' - ' + hinhThuc : stream,
@@ -240,7 +252,9 @@
         code: code,
         ngay: toDate(at(row, ix['Ngày giao dịch'])),
         soTien: toInt(at(row, ix['Số tiền thanh toán (₫)'])),
-        ref: cleanText(at(row, ix['Mã giao dịch Payoo']))
+        phi: toInt(at(row, ix['Phí xử lý giao dịch (₫)'])),
+        nhom: hinhThuc,
+        ref: ref
       });
     }
     return out;
@@ -773,6 +787,74 @@
     return out;
   }
 
+  /* ---------------------------------------------------- bảng lọc Payoo */
+
+  /*
+   * Sao kê Payoo tải về theo ngày hay theo tháng đều là một danh sách giao dịch
+   * thô. Bảng này gom lại đúng dạng đang dùng để xuất hoá đơn: mỗi cửa hàng tách
+   * hai dòng "Quét mã QR" và "Thẻ", mỗi ngày một cột - chọn ngày nào là đọc
+   * thẳng ra số của ngày đó cho từng cửa hàng.
+   *
+   * Dựng thẳng từ giao dịch thô nên chạy được cả khi file chưa kèm danh mục
+   * điểm; lúc đó cột tên điểm và mã misa để trống, còn số tiền vẫn đủ.
+   */
+  var PAYOO_NHOM = ['Quét mã QR', 'Thẻ'];
+
+  function payooView(txns, catalog) {
+    var rows = Object.create(null);
+    var order = [];
+    var thuTuCode = Object.create(null);
+
+    txns.forEach(function (txn) {
+      if (txn.channel !== 'payoo' || !txn.ngay) return;
+      var nhom = txn.nhom || '(không rõ)';
+      var key = txn.code + SEP + nhom;
+      var row = rows[key];
+      if (!row) {
+        var point = catalog ? catalog.lookup('payoo', txn.code) : null;
+        row = {
+          code: txn.code, nhom: nhom,
+          tenDiem: point ? point.tenDiem : '',
+          maMisa: point ? point.maMisa : '',
+          tien: Object.create(null), phi: Object.create(null),
+          tongTien: 0, tongPhi: 0
+        };
+        rows[key] = row;
+        order.push(row);
+        if (!(txn.code in thuTuCode)) thuTuCode[txn.code] = Object.keys(thuTuCode).length;
+      }
+      row.tien[txn.ngay] = (row.tien[txn.ngay] || 0) + txn.soTien;
+      row.phi[txn.ngay] = (row.phi[txn.ngay] || 0) + (txn.phi || 0);
+      row.tongTien += txn.soTien;
+      row.tongPhi += txn.phi || 0;
+    });
+
+    // Xếp theo thứ tự cửa hàng xuất hiện trong file gốc, không xếp lại theo bảng
+    // chữ cái - để bảng ra giống hệt thứ tự đang dò tay.
+    return order.sort(function (a, b) {
+      if (thuTuCode[a.code] !== thuTuCode[b.code]) return thuTuCode[a.code] - thuTuCode[b.code];
+      var ia = PAYOO_NHOM.indexOf(a.nhom), ib = PAYOO_NHOM.indexOf(b.nhom);
+      if (ia < 0) ia = PAYOO_NHOM.length;
+      if (ib < 0) ib = PAYOO_NHOM.length;
+      return ia - ib || a.nhom.localeCompare(b.nhom, 'vi');
+    });
+  }
+
+  /**
+   * Các ngày của bảng lọc: đủ kỳ báo cáo, cộng thêm ngày lạc ngoài kỳ ở cuối.
+   * Giữ ngày ngoài kỳ thay vì cắt bỏ để nhìn ra ngay khi tải nhầm khoảng ngày.
+   */
+  function payooDates(rows, kyTu, kyDen) {
+    var trongKy = periodDates(kyTu, kyDen);
+    var co = Object.create(null);
+    trongKy.forEach(function (d) { co[d] = true; });
+    var ngoai = Object.create(null);
+    rows.forEach(function (row) {
+      Object.keys(row.tien).forEach(function (d) { if (!co[d]) ngoai[d] = true; });
+    });
+    return trongKy.concat(Object.keys(ngoai).sort());
+  }
+
   root.VatRec = {
     SEP: SEP,
     toDate: toDate,
@@ -799,6 +881,8 @@
     pointsOfNguon: pointsOfNguon,
     splitVat: splitVat,
     buildInvoices: buildInvoices,
+    payooView: payooView,
+    payooDates: payooDates,
     totalsByDate: totalsByDate,
     periodDates: periodDates
   };

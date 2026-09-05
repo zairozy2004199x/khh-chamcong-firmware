@@ -15,6 +15,7 @@ from .catalog import (
 )
 from .config import Config
 from .invoices import Invoice, build_invoices
+from .payoo_view import payoo_view
 from .report import write_workbook
 from .sources import READERS, Txn
 
@@ -67,5 +68,6 @@ def run(config: Config, out_path: str, theo_ngay: bool | None = None) -> tuple[A
         config.ten_khach,
         config.vat_rate,
         theo_ngay,
+        payoo_view(txns, catalog),
     )
     return result, invoices

@@ -179,6 +179,9 @@ function run(message) {
     kyTu: message.kyTu, kyDen: message.kyDen, phapNhan: message.phapNhan || null
   });
   var invoices = VatRec.buildInvoices(result, message.rate, message.theoNgay);
+  // Bảng lọc Payoo dựng thẳng từ giao dịch thô, không qua bước tra danh mục,
+  // nên vẫn ra số kể cả khi file Payoo chỉ có mỗi sheet dữ liệu gốc.
+  var payoo = VatRec.payooView(txns, catalog);
 
   post('progress', { phase: 'Đang dựng file Excel...' });
   var options = {
@@ -191,7 +194,8 @@ function run(message) {
     noiDung: message.noiDung,
     tenKhach: message.tenKhach,
     rate: message.rate,
-    theoNgay: message.theoNgay
+    theoNgay: message.theoNgay,
+    payoo: payoo
   };
   var book = VatRecReport.buildWorkbook(options);
   var buffer = XLSX.write(book, { bookType: 'xlsx', type: 'array', cellDates: true });
@@ -214,6 +218,8 @@ function run(message) {
       };
     }),
     theoNgay: !!message.theoNgay,
+    payoo: payoo,
+    payooNgay: payoo.length ? VatRec.payooDates(payoo, message.kyTu, message.kyDen) : [],
     theoNgayBang: bangTheoNgay(result, message),
     chuaVat: invoices.reduce(function (a, i) { return a + i.chuaVat; }, 0),
     vat: invoices.reduce(function (a, i) { return a + i.vat; }, 0),

@@ -19,7 +19,8 @@
     'kieuXuat', 'today', 'dayTable', 'thNgay', 'drop', 'fileInput', 'fileList', 'stepSheets', 'sheetTable', 'extraTable',
     'addExtra', 'clearExtra', 'extraCount', 'run', 'download', 'status', 'error',
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
-    'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable'].forEach(function (id) {
+    'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
+    'payooPanel', 'payooTable', 'payooNgay', 'payooKhoi', 'payooTong', 'payooCotSo'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
 
@@ -459,6 +460,90 @@
 
   /* ------------------------------------------------------------- kết quả */
 
+  /* ---------------------------------------------------------- lọc Payoo */
+
+  /*
+   * Bảng Payoo trên màn hình: mã cửa hàng × hình thức thanh toán, chọn một ngày
+   * là ra thẳng số của ngày đó. Chọn "Cả kỳ" thì cộng gộp toàn kỳ.
+   */
+  var payooData = { rows: [], ngay: [] };
+
+  function renderPayoo(message) {
+    payooData = { rows: message.payoo || [], ngay: message.payooNgay || [] };
+    el.payooPanel.hidden = !payooData.rows.length;
+    if (!payooData.rows.length) return;
+
+    // Chỉ liệt kê ngày thật sự có phát sinh, khỏi phải cuộn qua ngày trống.
+    // Ngày mới nhất lên đầu và được chọn sẵn: dữ liệu về theo ngày nên mở ra là
+    // thấy ngay ngày vừa cập nhật, muốn xem ngày khác thì chọn lại.
+    var coPhatSinh = payooData.ngay.filter(function (ngay) {
+      return payooData.rows.some(function (row) { return row.tien[ngay]; });
+    }).reverse();
+    var dangChon = el.payooNgay.value;
+    el.payooNgay.textContent = '';
+    coPhatSinh.forEach(function (ngay) {
+      var option = document.createElement('option');
+      option.value = ngay;
+      option.textContent = viDate(ngay) + ' · ' + thuTrongTuan(ngay);
+      el.payooNgay.appendChild(option);
+    });
+    var caKy = document.createElement('option');
+    caKy.value = '';
+    caKy.textContent = '— Cả kỳ —';
+    el.payooNgay.appendChild(caKy);
+    el.payooNgay.value = coPhatSinh.indexOf(dangChon) >= 0 ? dangChon : (coPhatSinh[0] || '');
+    fillPayoo();
+  }
+
+  function fillPayoo() {
+    var ngay = el.payooNgay.value;
+    var khoi = el.payooKhoi.value;
+    var nhan = { tien: 'Số xuất hoá đơn', phi: 'Phí Payoo thu', ve: 'Payoo phải trả về TK' };
+    el.payooCotSo.textContent = nhan[khoi];
+
+    var tong = 0;
+    var rows = payooData.rows.map(function (row) {
+      var soTien = giaTriPayoo(row, ngay, khoi);
+      tong += soTien;
+      return {
+        cells: [
+          { value: '', num: true },
+          row.tenDiem || '(chưa có trong danh mục)',
+          row.maMisa || '—',
+          row.code,
+          row.nhom,
+          { value: soTien ? money(soTien) : '—', num: true }
+        ]
+      };
+    });
+    // Đánh STT theo điểm, không theo dòng: mỗi điểm có hai dòng QR và Thẻ.
+    var stt = 0;
+    var truoc = null;
+    payooData.rows.forEach(function (row, i) {
+      var khoaDiem = row.tenDiem || row.code;
+      if (khoaDiem !== truoc) { stt += 1; truoc = khoaDiem; rows[i].cells[0].value = stt; }
+      else rows[i].cells[0].value = '';
+    });
+    rows.push({
+      cells: [{ value: '', num: true }, { value: 'TỔNG', bold: true }, '', '', '',
+        { value: money(tong), num: true, bold: true }]
+    });
+    fillTable(el.payooTable, rows);
+    el.payooTong.textContent = (ngay ? 'Ngày ' + viDate(ngay) : 'Cả kỳ') + ': ' +
+      money(tong) + ' đ';
+  }
+
+  function giaTriPayoo(row, ngay, khoi) {
+    function lay(bang) { return ngay ? (bang[ngay] || 0) : cong(bang); }
+    if (khoi === 'phi') return lay(row.phi);
+    if (khoi === 've') return lay(row.tien) - lay(row.phi);
+    return lay(row.tien);
+  }
+
+  function cong(bang) {
+    return Object.keys(bang).reduce(function (a, k) { return a + bang[k]; }, 0);
+  }
+
   function renderResults(message) {
     el.cards.textContent = '';
     // Đếm số việc cần người xem lại, khớp với các dòng được tô ở bảng Cảnh báo.
@@ -526,6 +611,7 @@
     }));
 
     renderUnmapped(message.chuaMap);
+    renderPayoo(message);
 
     el.thNgay.hidden = !message.theoNgay;
     fillTable(el.pointTable, message.diem.map(function (point, i) {
@@ -636,6 +722,9 @@
       saveExtra();
     }
   });
+  el.payooNgay.addEventListener('change', fillPayoo);
+  el.payooKhoi.addEventListener('change', fillPayoo);
+
   el.addAllUnmapped.addEventListener('click', function () {
     if (!ketQua) return;
     ketQua.chuaMap.forEach(khaiVaoDanhMuc);

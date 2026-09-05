@@ -16,6 +16,7 @@ from vatrec.catalog import Catalog, Point  # noqa: E402
 from vatrec.excel import column_index, date_blocks, find_header  # noqa: E402
 from vatrec.invoices import build_invoices, split_vat  # noqa: E402
 from vatrec.normalize import clean_text, key_text, to_date, to_int  # noqa: E402
+from vatrec.payoo_view import THU_TU_NHOM, payoo_dates, payoo_view  # noqa: E402
 from vatrec import report  # noqa: E402
 from vatrec.sources import Txn  # noqa: E402
 
@@ -403,6 +404,51 @@ def test_by_date():
     per_date = result.points_per_date()
     check("đếm đúng số điểm trong ngày", per_date[dt.date(2026, 8, 1)] == 2)
     check("ngày chỉ một điểm", per_date[dt.date(2026, 8, 3)] == 1)
+
+
+# ----------------------------------------------------- bảng lọc Payoo
+
+def _payoo_txn(code, ngay, tien, phi, nhom, ref):
+    return Txn(channel="payoo", stream=f"Payoo - {nhom}", nguon="p.xlsx", code=code,
+               ngay=dt.date(2026, 8, ngay), so_tien=tien, phi=phi, nhom=nhom, ref=ref)
+
+
+def test_payoo_view():
+    rows = payoo_view([
+        _payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1"),
+        _payoo_txn("SHOP_B", 2, 2000, 20, "Quét mã QR", "r2"),
+        _payoo_txn("SHOP_B", 3, 500, 5, "Quét mã QR", "r3"),
+        _payoo_txn("SHOP_A", 2, 700, 7, "Quét mã QR", "r4"),
+    ])
+    check("mỗi cửa hàng × hình thức một dòng", len(rows) == 3, str(len(rows)))
+    check("giữ thứ tự cửa hàng như trong file gốc", rows[0].code == "SHOP_B", rows[0].code)
+    check("QR xếp trước Thẻ", rows[0].nhom == "Quét mã QR", rows[0].nhom)
+    check("cộng đúng theo ngày", rows[0].tien[dt.date(2026, 8, 2)] == 2000)
+    check("cộng đúng cả kỳ", rows[0].tong_tien == 2500)
+    check("cộng đúng phí", rows[0].tong_phi == 25)
+    check("dòng thẻ tách riêng", rows[1].nhom == "Thẻ")
+    check("cửa hàng gặp sau xếp sau", rows[2].code == "SHOP_A")
+    check("chưa có danh mục thì để trống tên điểm", rows[0].ten_diem == "")
+
+    catalog = Catalog()
+    catalog.add("payoo", "SHOP_B", Point(ten_diem="Điểm B", ma_misa="MISA B"))
+    co_danh_muc = payoo_view([_payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1")], catalog)
+    check("có danh mục thì điền tên điểm", co_danh_muc[0].ten_diem == "Điểm B")
+    check("có danh mục thì điền mã misa", co_danh_muc[0].ma_misa == "MISA B")
+
+    ngay = payoo_dates(rows)
+    check("chỉ liệt kê ngày có phát sinh", ngay == [dt.date(2026, 8, 2), dt.date(2026, 8, 3)], str(ngay))
+
+    check("hai bản lõi cùng thứ tự nhóm",
+          THU_TU_NHOM == _mang_trong_js("PAYOO_NHOM"), str(THU_TU_NHOM))
+
+
+def _mang_trong_js(ten: str) -> list[str]:
+    """Đọc lại một mảng khai trong web/js/core.js để so hai bản lõi."""
+    source = (Path(__file__).resolve().parent.parent / "web" / "js" / "core.js").read_text("utf-8")
+    start = source.index(f"var {ten} = [")
+    end = source.index("];", start)
+    return re.findall(r"'([^']*)'", source[start:end])
 
 
 # ------------------------------------------------- cột của file đầu ra

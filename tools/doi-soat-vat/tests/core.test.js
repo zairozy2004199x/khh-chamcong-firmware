@@ -376,6 +376,44 @@ eq('cộng đúng theo ngày', theoNgayBang['2026-08-02'].tong, 250);
 eq('ngày không phát sinh thì không có khoá', theoNgayBang['2026-08-03'], undefined);
 eq('tách được theo luồng trong ngày', theoNgayBang['2026-08-01'].theoLuong.QR, 100);
 
+/* ----------------------------------------------------- bảng lọc Payoo */
+
+function payooTxn(code, ngay, tien, phi, nhom, ref) {
+  return { channel: 'payoo', stream: 'Payoo - ' + nhom, nguon: 'p.xlsx', code: code,
+    ngay: ngay, soTien: tien, phi: phi, nhom: nhom, ref: ref };
+}
+
+var payooRows = V.payooView([
+  payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1'),
+  payooTxn('SHOP_B', '2026-08-02', 2000, 20, 'Quét mã QR', 'r2'),
+  payooTxn('SHOP_B', '2026-08-03', 500, 5, 'Quét mã QR', 'r3'),
+  payooTxn('SHOP_A', '2026-08-02', 700, 7, 'Quét mã QR', 'r4')
+], null);
+
+eq('mỗi cửa hàng × hình thức một dòng', payooRows.length, 3);
+eq('giữ thứ tự cửa hàng như trong file gốc', payooRows[0].code, 'SHOP_B');
+eq('QR xếp trước Thẻ', payooRows[0].nhom, 'Quét mã QR');
+eq('cộng đúng theo ngày', payooRows[0].tien['2026-08-02'], 2000);
+eq('cộng đúng cả kỳ', payooRows[0].tongTien, 2500);
+eq('cộng đúng phí', payooRows[0].tongPhi, 25);
+eq('dòng thẻ tách riêng', payooRows[1].nhom, 'Thẻ');
+eq('cửa hàng gặp sau xếp sau', payooRows[2].code, 'SHOP_A');
+eq('chưa có danh mục thì để trống tên điểm', payooRows[0].tenDiem, '');
+
+var payooCat = new V.Catalog();
+payooCat.add('payoo', 'SHOP_B', V.makePoint({ tenDiem: 'Điểm B', maMisa: 'MISA B' }));
+var coDanhMuc = V.payooView([payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1')], payooCat);
+eq('có danh mục thì điền tên điểm', coDanhMuc[0].tenDiem, 'Điểm B');
+eq('có danh mục thì điền mã misa', coDanhMuc[0].maMisa, 'MISA B');
+
+var payooNgay = V.payooDates(payooRows, '2026-08-01', '2026-08-03');
+eq('đủ ngày trong kỳ', payooNgay.length, 3);
+eq('ngày xếp tăng dần', payooNgay[0], '2026-08-01');
+// Ngày ngoài kỳ không bị cắt mà nối ở cuối, để nhìn ra ngay khi tải nhầm khoảng ngày.
+var lacNgay = V.payooDates(V.payooView([payooTxn('S', '2026-09-09', 1, 0, 'Thẻ', 'x')], null),
+  '2026-08-01', '2026-08-02');
+eq('ngày ngoài kỳ nối ở cuối', lacNgay[lacNgay.length - 1], '2026-09-09');
+
 /* ------------------------------------------------- cột của file đầu ra */
 
 /*

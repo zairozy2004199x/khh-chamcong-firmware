@@ -348,10 +348,42 @@ mã vẫn được coi là hai giao dịch thật.
 | `DS xuất HĐ MTT` | Danh sách hoá đơn để nhập Misa — đúng thứ tự cột của file mẫu. Cột *Số HĐ* để trống vì số do Misa cấp |
 | `kê ds xuất HĐ MTT` | Bản kê chi tiết, thêm cột tách theo từng luồng tiền để tra ngược |
 | Một sheet cho mỗi luồng tiền | Pivot điểm xuất hoá đơn × ngày (luồng không phát sinh thì không tạo sheet) |
+| `Lọc Payoo` | **Bảng lọc dữ liệu Payoo** — mã cửa hàng × hình thức thanh toán × ngày, ba khối cột: số xuất hoá đơn, phí Payoo thu, tiền Payoo phải trả về TK |
 | `Đối soát theo file` | Mỗi file đầu vào một dòng: luồng đọc được, số GD, tiền vào hoá đơn, và phần bị tách riêng của chính file đó |
 | `F1 …`, `F2 …` | **Một tab cho mỗi file** — điểm xuất hoá đơn × ngày, chỉ tính riêng file đó |
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
 | `Đối soát` | Tổng theo luồng, số hoá đơn, và **toàn bộ cảnh báo ở mục 3.5** |
+
+### 5.0. Bảng lọc Payoo
+
+Sao kê Payoo tải theo ngày hay theo tháng đều là một danh sách giao dịch thô. Tab
+`Lọc Payoo` (và bảng cùng tên trên trang web) gom lại đúng dạng đang dùng để xuất
+hoá đơn:
+
+```
+STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · Chi nhánh · Hình thức thanh toán
+   || <mỗi ngày một cột> · Tổng xuất hóa đơn
+   || <mỗi ngày một cột> · Tổng tiền phí
+   || <mỗi ngày một cột> · Tổng tiền Payoo phải trả
+```
+
+Mỗi cửa hàng tách hai dòng `Quét mã QR` và `Thẻ`; STT gộp ô cho cả hai dòng. Thứ
+tự cửa hàng giữ đúng thứ tự gặp trong file gốc, không xếp lại theo bảng chữ cái.
+Khối thứ ba = khối thứ nhất trừ khối phí, tức số Payoo thực chuyển về tài khoản.
+
+Bảng dựng thẳng từ giao dịch thô, **không đi qua bước tra danh mục**, nên chạy
+được cả khi file Payoo chỉ có mỗi sheet dữ liệu gốc — lúc đó cột tên điểm và mã
+misa để trống, còn số tiền vẫn đủ.
+
+Trên trang web, bảng mở ra ở **ngày mới nhất có dữ liệu**; chọn lại ô *Ngày* để
+xem ngày khác, hoặc `— Cả kỳ —` để cộng gộp. Ô *Khối số* đổi giữa số xuất hoá
+đơn, phí, và tiền Payoo phải trả.
+
+**Chống trùng:** cột `Mã giao dịch Payoo` trong sao kê thực tế **bỏ trống toàn
+bộ**, nên trước đây dán nhầm sheet hai lần là Payoo cộng đôi mà không cảnh báo
+gì. Nay mã tham chiếu ghép theo thứ tự `Mã giao dịch Payoo` → `Mã QR` →
+`Mã chuẩn chi` → `Số tham chiếu`: `Mã QR` phủ giao dịch quét mã, `Mã chuẩn chi`
+phủ giao dịch thẻ, ghép lại phủ đủ 100% số dòng và không mã nào trùng nhau.
 
 ### 5.1. Cột của hai sheet chính
 

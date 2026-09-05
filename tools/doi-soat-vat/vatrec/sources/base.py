@@ -28,3 +28,9 @@ class Txn:
 
     nguon: str = ""
     """Tên file đã đọc ra giao dịch này, để đối chiếu ngược từng file một."""
+
+    nhom: str = ""
+    """Nhóm nhỏ trong cùng một luồng, ví dụ hình thức thanh toán của Payoo."""
+
+    phi: int = 0
+    """Phí cổng thu trên giao dịch. Không vào hoá đơn — chỉ để đối chiếu tiền về tài khoản."""

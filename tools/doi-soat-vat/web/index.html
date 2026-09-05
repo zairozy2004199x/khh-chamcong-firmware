@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.4.0">
+<link rel="stylesheet" href="style.css?v=1.5.0">
 </head>
 <body>
 
@@ -227,6 +227,42 @@
       </div>
     </div>
 
+    <div class="panel" id="payooPanel" hidden>
+      <h3>Lọc dữ liệu Payoo</h3>
+      <p class="note">
+        Sao kê Payoo tải theo ngày hay theo tháng đều được — bảng này gom lại theo
+        <strong>mã cửa hàng × hình thức thanh toán × ngày</strong>. Chọn một ngày là
+        Mở ra là thấy sẵn <strong>ngày mới nhất</strong> có dữ liệu; muốn xem ngày
+        khác thì chọn lại ở ô Ngày. Bảng dựng từ dữ liệu gốc nên chạy được cả khi
+        file chưa kèm danh mục điểm.
+      </p>
+      <div class="row-actions">
+        <label class="inline">Ngày
+          <select id="payooNgay"></select>
+        </label>
+        <label class="inline">Khối số
+          <select id="payooKhoi">
+            <option value="tien" selected>Số xuất hoá đơn</option>
+            <option value="phi">Phí Payoo thu</option>
+            <option value="ve">Payoo phải trả về TK</option>
+          </select>
+        </label>
+        <span id="payooTong" class="hint"></span>
+      </div>
+      <div class="table-scroll tall">
+        <table class="grid-table" id="payooTable">
+          <thead>
+            <tr>
+              <th class="num-col">STT</th><th>Tên điểm xuất hóa đơn</th>
+              <th>Mã điểm trên misa thuế</th><th>Chi nhánh</th>
+              <th>Hình thức thanh toán</th><th class="num-col" id="payooCotSo">Số tiền</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="panel">
       <h3>Doanh thu theo ngày</h3>
       <p class="note">
@@ -262,7 +298,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.4.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo.
+      Phiên bản <strong>1.5.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
     </p>
   </footer>
 </div>
@@ -270,6 +306,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.4.0"></script>
+<script src="js/app.js?v=1.5.0"></script>
 </body>
 </html>
