@@ -5,15 +5,15 @@
  *  Nền: driver ST7701 RGB gốc Waveshare (Display_ST7701 + TCA9554 + I2C).
  *  Lớp vẽ (rect/text/bo góc/tiền) bê từ bản _p4, đẩy buffer qua LCD_addWindow.
  *  Cảm ứng: GT911 (0x14) — touch_cst328.h tự nhận diện GT911/CST328.
- *  QR: thư viện "QRCode" (Richard Moore) + VietQR tự dựng (bê _p4).
+ *  QR: bộ esp_qrcode CÓ SẴN trong ESP32 core + VietQR tự dựng (bê _p4).
  *
  *  KẾT QUẢ: chạm 1 gói -> màn QR (VietQR thật: số tiền + nội dung CK) + nút HUỶ.
- *  ⚠️ CẦN CÀI thư viện "QRCode" (Library Manager). Số TK/ID ghế còn là PLACEHOLDER.
+ *  ⚠️ Không cần cài thư viện. Số TK/ID ghế còn là PLACEHOLDER (nạp web/NVS sau).
  *  Bước sau: nhận tiền (cổng ICT/4G) -> chạy phiên -> NVS/chốt offline (bê _p4).
  * ========================================================================== */
 #include <Arduino.h>
 #include <math.h>
-#include <qrcode.h>              // THU VIEN "QRCode" (Richard Moore) - cai qua Library Manager
+#include "qrcode.h"              // esp_qrcode: CO SAN trong ESP32 core, KHONG can cai them
 #include "I2C_Driver.h"
 #include "TCA9554PWR.h"
 #include "Display_ST7701.h"
@@ -148,15 +148,24 @@ static String buildVietQR(const String& bin, const String& acct, long amount, co
   s += _tlv("58","VN"); if(addInfo.length()) s += _tlv("62", _tlv("08", addInfo));
   s += "6304"; return s + _crc16(s);
 }
-// Vẽ QR (v11=61 module) vào ô oPx px, nền trắng, module đen.
+// Vẽ QR bằng bộ esp_qrcode (core). Callback vẽ từng module vào framebuffer.
+static int _qrx, _qry, _qropx;
+static void _qrDraw(esp_qrcode_handle_t qr){
+  int size = esp_qrcode_get_size(qr);
+  int mod = _qropx / size; if(mod < 1) mod = 1;
+  int side = mod * size;
+  lRect(_qrx, _qry, side + 2*mod, side + 2*mod, C_WHITE);   // viền trắng (quiet zone)
+  for(int y = 0; y < size; y++) for(int x = 0; x < size; x++)
+    if(esp_qrcode_get_module(qr, x, y))
+      lRect(_qrx + mod + x*mod, _qry + mod + y*mod, mod, mod, C_BLACK);
+}
 static void lQR(int lx, int ly, int oPx, const char* text){
-  QRCode qr; uint8_t buf[qrcode_getBufferSize(11)];
-  qrcode_initText(&qr, buf, 11, ECC_MEDIUM, text);
-  int mod = oPx / qr.size; if(mod < 1) mod = 1;
-  int side = mod * qr.size;
-  lRect(lx, ly, side + 2*mod, side + 2*mod, C_WHITE);
-  for(int y = 0; y < qr.size; y++) for(int x = 0; x < qr.size; x++)
-    if(qrcode_getModule(&qr, x, y)) lRect(lx + mod + x*mod, ly + mod + y*mod, mod, mod, C_BLACK);
+  _qrx = lx; _qry = ly; _qropx = oPx;
+  esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT();
+  cfg.display_func = _qrDraw;
+  cfg.max_qrcode_version = 20;      // đủ cho chuỗi VietQR (~130 ký tự)
+  cfg.qrcode_ecc_level = ESP_QRCODE_ECC_MED;
+  esp_qrcode_generate(&cfg, text);
 }
 
 // ───────────────────────────── GÓI DỊCH VỤ (tạm) ───────────────────────────

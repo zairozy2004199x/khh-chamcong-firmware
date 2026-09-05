@@ -7,8 +7,8 @@ Màn **ST7701 RGB 480×640** (không phải TFT_eSPI). Dùng **driver gốc đã
 ## Cài đặt Arduino
 - Board: **ESP32S3 Dev Module**
 - **PSRAM: OPI PSRAM**  ·  **Flash Size: 16MB**  ·  **USB CDC On Boot: Enabled** (để có Serial)
-- Thư viện cần cài (Library Manager): **QRCode** (Richard Moore) — dùng vẽ mã VietQR.
-  Ngoài ra chỉ cần ESP32 core ≥ 3.x (driver màn/cảm ứng nằm sẵn trong sketch).
+- **KHÔNG cần cài thư viện nào** — mã QR dùng bộ `esp_qrcode` có sẵn trong ESP32 core ≥ 3.x
+  (driver màn/cảm ứng cũng nằm sẵn trong sketch).
 
 ## Các file trong sketch
 | File | Việc |
