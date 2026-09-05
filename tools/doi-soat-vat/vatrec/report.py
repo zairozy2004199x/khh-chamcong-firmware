@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 
 from .aggregate import Aggregate, NguonStats, period_dates
 from .invoices import split_vat
-from .loc_view import LocRow, loc_dates
+from .loc_view import LocRow, bo_cuc, gia_tri, loc_dates, ten_kenh
 from .invoices import Invoice
 
 _TIEN = "#,##0"
@@ -112,7 +112,7 @@ def write_workbook(
     # số tổng. Bảng lọc dựng từ giao dịch thô nên hiện cả mã chưa có danh mục.
     _sheet_theo_file(book, result)
     for index, (nguon, rows) in enumerate(loc or [], start=1):
-        _sheet_loc(book, result, nguon, rows, index, ky_tu, ky_den)
+        _sheet_loc(book, result, co_so, nguon, rows, index, ky_tu, ky_den)
 
     book.save(path)
 
@@ -299,8 +299,8 @@ def _sheet_theo_ngay(
 
 
 def _sheet_loc(
-    book: Workbook, result: Aggregate, nguon: str, rows: list[LocRow], thu_tu: int,
-    ky_tu: _dt.date, ky_den: _dt.date
+    book: Workbook, result: Aggregate, co_so: str, nguon: str, rows: list[LocRow],
+    thu_tu: int, ky_tu: _dt.date, ky_den: _dt.date
 ) -> None:
     """Một tab cho một file: mã điểm bán × nhóm × ngày, chỉ tính riêng file đó.
 
@@ -330,27 +330,34 @@ def _sheet_loc(
         ("Trùng mã (đã bỏ bản thứ hai)", tk.trung_lap, True),
         ("Điểm thuộc pháp nhân khác (đã loại)", tk.loai_khac_phap_nhan, True),
     ]
-    for row_index, (nhan, gia_tri, la_tien) in enumerate(ghi_chu, start=1):
+    for row_index, (nhan, so, la_tien) in enumerate(ghi_chu, start=1):
         sheet.cell(row=row_index, column=1, value=nhan).font = Font(bold=True)
-        cell = sheet.cell(row=row_index, column=2, value=gia_tri)
+        cell = sheet.cell(row=row_index, column=2, value=so)
         if la_tien:
             cell.number_format = _TIEN
 
     header_row = len(ghi_chu) + 2
     nhan_ngay = [ngay.strftime("%d/%m/%Y") for ngay in dates]
-    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Mã điểm bán", "Nhóm"]
-    labels += nhan_ngay + ["Tổng xuất hóa đơn"]
+
+    # Cột phụ khai theo từng cổng, cho khớp bảng gốc mà cổng đó đang dùng.
+    cot_phu = bo_cuc(_kenh_chinh(rows))
+    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế"]
+    labels += [ten for ten, _ in cot_phu]
+    # Cột tổng đứng trước các ngày, đúng như bảng đang làm tay.
+    labels += [f"Tổng {ten_kenh(_kenh_chinh(rows))} cơ sở {co_so}"] + nhan_ngay
     if co_phi:
-        labels += nhan_ngay + ["Tổng tiền phí"]
-        labels += nhan_ngay + ["Tổng tiền cổng phải trả"]
+        labels += ["Tổng tiền phí"] + nhan_ngay
+        labels += ["Tổng tiền cổng phải trả"] + nhan_ngay
     _header(sheet, labels, row=header_row)
-    for index, width in enumerate([34, 30, 24, 30, 18], start=1):
+
+    dau_so = 4 + len(cot_phu)  # cột đầu tiên mang số tiền
+    for index, width in enumerate([34, 30, 24] + [22] * len(cot_phu), start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
-    for index in range(6, len(labels) + 1):
+    for index in range(dau_so, len(labels) + 1):
         sheet.column_dimensions[get_column_letter(index)].width = 13
 
-    khoi = len(dates) + 1  # mỗi khối = các ngày + một cột tổng
-    dau_khoi = [6, 6 + khoi, 6 + 2 * khoi]
+    khoi = len(dates) + 1  # mỗi khối = một cột tổng rồi tới các ngày
+    dau_khoi = [dau_so, dau_so + khoi, dau_so + 2 * khoi]
 
     stt = 0
     dau_diem = header_row + 1
@@ -367,18 +374,19 @@ def _sheet_loc(
             sheet.cell(row=excel_row, column=1, value=stt).alignment = Alignment(
                 horizontal="center", vertical="center")
 
-        for column, value in enumerate([row.ten_diem, row.ma_misa, row.code, row.nhom], start=2):
+        gia_tri_phu = [row.ten_diem, row.ma_misa] + [gia_tri(row, f) for _, f in cot_phu]
+        for column, value in enumerate(gia_tri_phu, start=2):
             sheet.cell(row=excel_row, column=column, value=value)
 
-        khoi_gia_tri = [([row.tien.get(ngay, 0) for ngay in dates], row.tong_tien)]
+        khoi_gia_tri = [(row.tong_tien, [row.tien.get(ngay, 0) for ngay in dates])]
         if co_phi:
-            khoi_gia_tri.append(([row.phi.get(ngay, 0) for ngay in dates], row.tong_phi))
+            khoi_gia_tri.append((row.tong_phi, [row.phi.get(ngay, 0) for ngay in dates]))
             khoi_gia_tri.append((
-                [row.tien.get(ngay, 0) - row.phi.get(ngay, 0) for ngay in dates],
                 row.tong_tien - row.tong_phi,
+                [row.tien.get(ngay, 0) - row.phi.get(ngay, 0) for ngay in dates],
             ))
-        for dau, (theo_ngay_, tong) in zip(dau_khoi, khoi_gia_tri):
-            for i, value in enumerate(theo_ngay_ + [tong]):
+        for dau, (tong, theo_ngay_) in zip(dau_khoi, khoi_gia_tri):
+            for i, value in enumerate([tong] + theo_ngay_):
                 cell = sheet.cell(row=excel_row, column=dau + i, value=value)
                 cell.number_format = _TIEN_GACH
         for column in range(1, len(labels) + 1):
@@ -388,9 +396,21 @@ def _sheet_loc(
     if rows and dong_cuoi - dau_diem > 0:
         sheet.merge_cells(start_row=dau_diem, start_column=1, end_row=dong_cuoi, end_column=1)
 
-    money = {index: get_column_letter(index) for index in range(6, len(labels) + 1)}
+    money = {index: get_column_letter(index) for index in range(dau_so, len(labels) + 1)}
     _total_row(sheet, dong_cuoi + 1, len(labels), money, len(rows),
                first_data_row=header_row + 1)
+
+
+def _kenh_chinh(rows: list[LocRow]) -> str:
+    """Cổng chiếm nhiều dòng nhất trong file — quyết định bố cục cột của bảng.
+
+    Một file có thể chứa nhiều cổng; lấy cổng nhiều dòng nhất chứ không trộn bố
+    cục, vì trộn thì không khớp bảng gốc của cổng nào cả.
+    """
+    dem: dict[str, int] = {}
+    for row in rows:
+        dem[row.channel] = dem.get(row.channel, 0) + 1
+    return max(dem, key=lambda k: dem[k]) if dem else ""
 
 
 def _ngay_loc(rows: list[LocRow], ky_tu: _dt.date, ky_den: _dt.date) -> list[_dt.date]:

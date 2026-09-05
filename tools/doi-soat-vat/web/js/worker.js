@@ -299,6 +299,9 @@ function bangLocTungFile(txns, catalog, result, message) {
       rows: rows,
       ngay: rows.length ? VatRec.locDates(rows, message.kyTu, message.kyDen) : [],
       coPhi: rows.some(function (row) { return row.tongPhi; }),
+      // Bố cục cột tính sẵn ở đây: luồng chính không nạp core.js nên không tự
+      // tra được, mà bảng trên màn hình phải hiện đúng cột như tab trong Excel.
+      cot: VatRec.boCuc(VatRec.kenhChinh(rows)),
       // Đếm theo mã duy nhất, không theo dòng: một mã có thể ra nhiều dòng vì
       // tách theo nhóm, đếm dòng thì con số trên nhãn tab bị thổi lên.
       soChuaMap: demMa(chuaMap),

@@ -27,7 +27,7 @@
     'locTieuDe', 'locGhiChu',
     'locTable', 'locTai',
     'locNgay', 'locNhom', 'locTrangThai', 'locKhoi', 'locKhoiWrap', 'locTim',
-    'locAnRong', 'locXoaLoc', 'locTong', 'locCotSo', 'locThongKe'
+    'locAnRong', 'locXoaLoc', 'locTong', 'locThongKe'
   ].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
@@ -748,7 +748,17 @@
     var ngay = el.locNgay.value;
     var khoi = el.locKhoi.value;
     var nhan = { tien: 'Số xuất hoá đơn', phi: 'Phí cổng thu', ve: 'Cổng phải trả về TK' };
-    el.locCotSo.textContent = nhan[khoi];
+
+    // Tiêu đề cột dựng theo cổng của file đang xem, cho khớp bảng gốc của cổng
+    // đó. Bố cục do worker tính sẵn và gửi kèm.
+    var cotPhu = kenh.cot || [['Mã điểm bán', 'code'], ['Nhóm', 'nhom']];
+    var dauBang = el.locTable.tHead.rows[0];
+    dauBang.textContent = '';
+    dauBang.appendChild(text('th', 'STT', 'num-col'));
+    dauBang.appendChild(text('th', 'Tên điểm xuất hóa đơn'));
+    dauBang.appendChild(text('th', 'Mã điểm trên misa thuế'));
+    cotPhu.forEach(function (c) { dauBang.appendChild(text('th', c[0])); });
+    dauBang.appendChild(text('th', nhan[khoi], 'num-col'));
 
     var loc = {
       nhom: el.locNhom.value,
@@ -778,21 +788,22 @@
         cells: [
           { value: so, num: true },
           item.row.tenDiem || '(chưa có trong danh mục)',
-          item.row.maMisa || '—',
-          item.row.code,
-          item.row.nhom,
-          { value: item.soTien ? money(item.soTien) : '—', num: true }
-        ]
+          item.row.maMisa || '—'
+        ].concat(cotPhu.map(function (c) {
+          var v = c[1] === 'trong' ? null : item.row[c[1]];
+          return (v === null || v === undefined || v === '') ? '—' : v;
+        })).concat([{ value: item.soTien ? money(item.soTien) : '—', num: true }])
       };
     });
 
+    var soCot = 3 + cotPhu.length + 1;
     if (!rows.length) {
-      rows.push({ cells: [{ value: '' }, 'Không có dòng nào khớp bộ lọc.', '', '', '', ''] });
+      rows.push({ cells: ['', 'Không có dòng nào khớp bộ lọc.'] });
     } else {
-      rows.push({
-        cells: [{ value: '', num: true }, { value: 'TỔNG', bold: true }, '', '', '',
-          { value: money(tong), num: true, bold: true }]
-      });
+      var dongTong = [{ value: '', num: true }, { value: 'TỔNG', bold: true }];
+      while (dongTong.length < soCot - 1) dongTong.push('');
+      dongTong.push({ value: money(tong), num: true, bold: true });
+      rows.push({ cells: dongTong });
     }
     fillTable(el.locTable, rows);
 
@@ -812,7 +823,7 @@
     if (loc.anRong && !soTien) return false;
     if (loc.tim) {
       var trong = keyText(row.tenDiem) + ' ' + keyText(row.code) + ' ' +
-        keyText(row.maMisa) + ' ' + keyText(row.nhom);
+        keyText(row.maMisa) + ' ' + keyText(row.nhom) + ' ' + keyText(row.nhan);
       if (trong.indexOf(loc.tim) < 0) return false;
     }
     return true;

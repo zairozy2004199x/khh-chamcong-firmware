@@ -311,6 +311,7 @@
    * rác cột toàn số 0.
    */
   function sheetLoc(opts, kenh) {
+    var V = root.VatRec;
     var rows = kenh.rows;
     var dates = kenh.ngay;
     var nhanNgay = dates.map(viDate);
@@ -339,16 +340,21 @@
     out.push([]);
 
     var headerRow = out.length;
-    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Mã điểm bán', 'Nhóm']
-      .concat(nhanNgay, ['Tổng xuất hóa đơn']);
+    // Cột phụ khai theo từng cổng, cho khớp bảng gốc mà cổng đó đang dùng.
+    var cotPhu = V.boCuc(V.kenhChinh(rows));
+    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế']
+      .concat(cotPhu.map(function (c) { return c[0]; }))
+      // Cột tổng đứng trước các ngày, đúng như bảng đang làm tay.
+      .concat(['Tổng ' + V.tenKenh(V.kenhChinh(rows)) + ' cơ sở ' + opts.coSo], nhanNgay);
     if (kenh.coPhi) {
-      header = header.concat(nhanNgay, ['Tổng tiền phí'])
-        .concat(nhanNgay, ['Tổng tiền cổng phải trả']);
+      header = header.concat(['Tổng tiền phí'], nhanNgay)
+        .concat(['Tổng tiền cổng phải trả'], nhanNgay);
     }
     out.push(header);
 
+    var dauSo = 3 + cotPhu.length;   // cột đầu tiên mang số tiền (0-based)
     var moneyColumns = [];
-    for (var c = 5; c < header.length; c += 1) moneyColumns.push(c);
+    for (var c = dauSo; c < header.length; c += 1) moneyColumns.push(c);
 
     var stt = 0;
     var dauDiem = headerRow + 1;
@@ -365,13 +371,14 @@
         diemTruoc = nhanDiem;
       }
       // STT chỉ ghi ở dòng đầu của mỗi điểm, các dòng còn lại gộp ô vào dòng đó.
-      var line = [r === dauDiem ? stt : null, row.tenDiem, row.maMisa, row.code, row.nhom]
-        .concat(dates.map(function (d) { return row.tien[d] || 0; }), [row.tongTien]);
+      var line = [r === dauDiem ? stt : null, row.tenDiem, row.maMisa]
+        .concat(cotPhu.map(function (c) { return V.giaTriCot(row, c[1]); }))
+        .concat([row.tongTien], dates.map(function (d) { return row.tien[d] || 0; }));
       if (kenh.coPhi) {
         line = line
-          .concat(dates.map(function (d) { return row.phi[d] || 0; }), [row.tongPhi])
-          .concat(dates.map(function (d) { return (row.tien[d] || 0) - (row.phi[d] || 0); }),
-            [row.tongTien - row.tongPhi]);
+          .concat([row.tongPhi], dates.map(function (d) { return row.phi[d] || 0; }))
+          .concat([row.tongTien - row.tongPhi],
+            dates.map(function (d) { return (row.tien[d] || 0) - (row.phi[d] || 0); }));
       }
       out.push(line);
       moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN_GACH; });
@@ -395,7 +402,8 @@
 
     return {
       rows: out, formats: formats, merges: merges,
-      widths: [5, 30, 24, 30, 18], freezeRow: headerRow + 1
+      widths: [5, 30, 24].concat(cotPhu.map(function () { return 22; })),
+      freezeRow: headerRow + 1
     };
   }
 

@@ -269,7 +269,7 @@
    */
   function readVnpay(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow],
-      ['Mã điểm thu', 'Thời gian GD', 'Số tiền sau KM', 'Trạng thái', 'Mã giao dịch']);
+      ['Mã điểm thu', 'Thời gian GD', 'Số tiền sau KM', 'Trạng thái', 'Mã giao dịch', 'Chi nhánh']);
     var out = [];
     for (var r = headerRow + 1; r < rows.length; r += 1) {
       var row = rows[r] || [];
@@ -283,6 +283,9 @@
         code: code,
         ngay: toDate(at(row, ix['Thời gian GD'])),
         soTien: toInt(at(row, ix['Số tiền sau KM'])),
+        // Mã điểm thu để tra danh mục, tên chi nhánh để hiện lên bảng đối soát
+        // cho khớp với bảng đang làm tay.
+        nhan: cleanText(at(row, ix['Chi nhánh'])),
         ref: cleanText(at(row, ix['Mã giao dịch']))
       });
     }
@@ -809,6 +812,55 @@
    */
   var PAYOO_NHOM = ['Quét mã QR', 'Thẻ'];
 
+  /*
+   * Bố cục cột của bảng lọc, khai theo từng cổng cho khớp bảng gốc mà cổng đó
+   * dùng. Mỗi mục là [tên cột, tên trường trong dòng]. Cột STT, tên điểm và mã
+   * misa luôn đứng đầu nên không khai ở đây.
+   */
+  var BO_CUC = {
+    // Đúng sheet "Danh mục điểm" của file VNPay.
+    vnpay: [
+      ['Chi nhánh', 'nhan'],
+      ['Mã điểm thu', 'code'],
+      ['Khu vực', 'khuVuc'],
+      ['Dịch vụ', 'dichVu'],
+      ['Hình thức hợp tác', 'hinhThucHopTac'],
+      ['Lọc trùng tên điểm xuất hóa đơn', 'trungTen'],
+      ['Pháp nhân', 'phapNhan'],
+      ['lọc điểm xuất hóa đơn chưa ps trên danh mục sản phẩm', 'trong']
+    ],
+    // Đúng sheet "Danh mục tên điểm" của file Payoo.
+    payoo: [
+      ['Chi nhánh', 'code'],
+      ['Hình thức thanh toán', 'nhom']
+    ]
+  };
+
+  var BO_CUC_CHUNG = [['Mã điểm bán', 'code'], ['Nhóm', 'nhom']];
+
+  function boCuc(channel) {
+    return BO_CUC[channel] || BO_CUC_CHUNG;
+  }
+
+  function giaTriCot(row, truong) {
+    if (truong === 'trong') return null;
+    var v = row[truong];
+    return v === undefined ? '' : v;
+  }
+
+  /**
+   * Cổng chiếm nhiều dòng nhất trong file — quyết định bố cục cột của bảng.
+   * Một file có thể chứa nhiều cổng; lấy cổng nhiều dòng nhất chứ không trộn bố
+   * cục, vì trộn thì không khớp bảng gốc của cổng nào cả.
+   */
+  function kenhChinh(rows) {
+    var dem = Object.create(null);
+    rows.forEach(function (row) { dem[row.channel] = (dem[row.channel] || 0) + 1; });
+    var tot = '';
+    Object.keys(dem).forEach(function (k) { if (!tot || dem[k] > dem[tot]) tot = k; });
+    return tot;
+  }
+
   var TEN_KENH = {
     qr: 'QR VietQR', payoo: 'Payoo', vnpay: 'VNPay', zalo: 'Zalo Mini App', momo: 'MoMo'
   };
@@ -832,9 +884,14 @@
         var point = catalog ? catalog.lookup(txn.channel, txn.code) : null;
         if (!point && catalog && txn.codePhu) point = catalog.lookup(txn.channel, txn.codePhu);
         row = {
-          channel: txn.channel, code: txn.code, nhom: nhom,
+          channel: txn.channel, code: txn.code, nhan: txn.nhan || '', nhom: nhom,
           tenDiem: point ? point.tenDiem : '',
           maMisa: point ? point.maMisa : '',
+          khuVuc: point ? point.khuVuc : '',
+          dichVu: point ? point.dichVu : '',
+          hinhThucHopTac: point ? point.hinhThucHopTac : '',
+          phapNhan: point ? point.phapNhan : '',
+          trungTen: null,
           tien: Object.create(null), phi: Object.create(null),
           tongTien: 0, tongPhi: 0
         };
@@ -861,6 +918,16 @@
       var diem = row.tenDiem || row.code;
       if (!(diem in thuTuDiem)) thuTuDiem[diem] = Object.keys(thuTuDiem).length;
     });
+    /*
+     * Nhiều mã điểm bán cùng về một điểm là chuyện bình thường, nhưng lúc cộng
+     * tay thì đó là chỗ dễ đếm hai lần nhất, nên đánh dấu sẵn ra một cột.
+     */
+    var demTen = Object.create(null);
+    order.forEach(function (row) {
+      if (row.tenDiem) demTen[row.tenDiem] = (demTen[row.tenDiem] || 0) + 1;
+    });
+    order.forEach(function (row) { row.trungTen = demTen[row.tenDiem] || null; });
+
     return order.sort(function (a, b) {
       var da = thuTuDiem[a.tenDiem || a.code], db = thuTuDiem[b.tenDiem || b.code];
       if (da !== db) return da - db;
@@ -1089,6 +1156,9 @@
     locView: locView,
     locDates: locDates,
     tenKenh: tenKenh,
+    boCuc: boCuc,
+    giaTriCot: giaTriCot,
+    kenhChinh: kenhChinh,
     totalsByDate: totalsByDate,
     periodDates: periodDates
   };

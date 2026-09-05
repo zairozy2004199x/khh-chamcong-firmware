@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=2.1.0">
+<link rel="stylesheet" href="style.css?v=2.2.0">
 </head>
 <body>
 
@@ -335,14 +335,9 @@
           <span id="locTong" class="hint"></span>
         </div>
         <div class="table-scroll tall">
+          <!-- Tiêu đề cột dựng theo cổng của file đang xem, do app.js đổ vào. -->
           <table class="grid-table" id="locTable">
-            <thead>
-              <tr>
-                <th class="num-col">STT</th><th>Tên điểm xuất hóa đơn</th>
-                <th>Mã điểm trên misa thuế</th><th>Mã điểm bán</th>
-                <th>Nhóm</th><th class="num-col" id="locCotSo">Số tiền</th>
-              </tr>
-            </thead>
+            <thead><tr></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -354,7 +349,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>2.1.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — mỗi đối soát một trang riêng.
+      Phiên bản <strong>2.2.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — mỗi đối soát một trang riêng.
     </p>
   </footer>
 </div>
@@ -362,6 +357,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=2.1.0"></script>
+<script src="js/app.js?v=2.2.0"></script>
 </body>
 </html>

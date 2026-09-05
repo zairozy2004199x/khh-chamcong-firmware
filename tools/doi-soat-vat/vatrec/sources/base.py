@@ -36,6 +36,14 @@ class Txn:
     "Mã cửa hàng" (00003182). Danh mục khai theo mã nào cũng tra ra được.
     """
 
+    nhan: str = ""
+    """Tên mô tả của điểm bán theo cách gọi của cổng.
+
+    VNPay ghi cả "Mã điểm thu" (GHOSTDN1) lẫn "Chi nhánh" (GHOST BRIDE MEGA ĐÀ
+    NẴNG); mã dùng để tra danh mục, còn tên chi nhánh để hiện lên bảng đối soát
+    cho khớp với bảng đang làm tay.
+    """
+
     nhom: str = ""
     """Nhóm nhỏ trong cùng một luồng, ví dụ hình thức thanh toán của Payoo."""
 

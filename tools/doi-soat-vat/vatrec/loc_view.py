@@ -44,16 +44,26 @@ class LocRow:
     code: str = ""
     """Mã điểm bán theo cách đánh số của cổng — Payoo là cột 'Chi nhánh'."""
 
+    nhan: str = ""
+    """Tên mô tả của mã đó theo cách gọi của cổng, ví dụ 'Chi nhánh' của VNPay."""
+
     nhom: str = ""
     """Hình thức thanh toán (Payoo) hoặc luồng tiền (các nguồn khác)."""
 
     ten_diem: str = ""
     ma_misa: str = ""
+    khu_vuc: str = ""
+    dich_vu: str = ""
+    hinh_thuc_hop_tac: str = ""
+    phap_nhan: str = ""
     tien: dict[_dt.date, int] = field(default_factory=dict)
     """Số tiền thanh toán theo ngày — đây là số dùng để xuất hoá đơn."""
 
     phi: dict[_dt.date, int] = field(default_factory=dict)
     """Phí cổng thu theo ngày. Không vào hoá đơn, chỉ để soát tiền về tài khoản."""
+
+    trung_ten: int | None = None
+    """Số dòng trong bảng có cùng tên điểm xuất hoá đơn — chỗ dễ cộng hai lần."""
 
     @property
     def tong_tien(self) -> int:
@@ -88,9 +98,14 @@ def loc_view(
             row = LocRow(
                 channel=txn.channel,
                 code=txn.code,
+                nhan=txn.nhan,
                 nhom=nhom,
                 ten_diem=point.ten_diem if point else "",
                 ma_misa=point.ma_misa if point else "",
+                khu_vuc=point.khu_vuc if point else "",
+                dich_vu=point.dich_vu if point else "",
+                hinh_thuc_hop_tac=point.hinh_thuc_hop_tac if point else "",
+                phap_nhan=point.phap_nhan if point else "",
             )
             rows[(txn.channel, txn.code, nhom)] = row
             thu_tu_code.setdefault(txn.code, len(thu_tu_code))
@@ -111,7 +126,60 @@ def loc_view(
         return (thu_tu_diem[row.ten_diem or row.code], thu_tu_code.get(row.code, 0),
                 thu_tu, row.nhom)
 
-    return sorted(rows.values(), key=sort_key)
+    ra = sorted(rows.values(), key=sort_key)
+    danh_dau_trung_ten(ra)
+    return ra
+
+
+# Bố cục cột của bảng lọc, khai theo từng cổng cho khớp bảng gốc mà cổng đó
+# dùng. Mỗi mục là (tên cột, tên trường trong LocRow / Point). Cột STT, tên điểm
+# và mã misa luôn đứng đầu nên không khai ở đây.
+BO_CUC = {
+    # Đúng sheet "Danh mục điểm" của file VNPay.
+    "vnpay": [
+        ("Chi nhánh", "nhan"),
+        ("Mã điểm thu", "code"),
+        ("Khu vực", "khu_vuc"),
+        ("Dịch vụ", "dich_vu"),
+        ("Hình thức hợp tác", "hinh_thuc_hop_tac"),
+        ("Lọc trùng tên điểm xuất hóa đơn", "trung_ten"),
+        ("Pháp nhân", "phap_nhan"),
+        ("lọc điểm xuất hóa đơn chưa ps trên danh mục sản phẩm", "trong"),
+    ],
+    # Đúng sheet "Danh mục tên điểm" của file Payoo.
+    "payoo": [
+        ("Chi nhánh", "code"),
+        ("Hình thức thanh toán", "nhom"),
+    ],
+}
+
+BO_CUC_CHUNG = [
+    ("Mã điểm bán", "code"),
+    ("Nhóm", "nhom"),
+]
+
+
+def bo_cuc(channel: str) -> list[tuple[str, str]]:
+    return BO_CUC.get(channel, BO_CUC_CHUNG)
+
+
+def gia_tri(row: LocRow, truong: str):
+    """Giá trị của một cột phụ trong bảng lọc."""
+    return None if truong == "trong" else getattr(row, truong, "")
+
+
+def danh_dau_trung_ten(rows: list[LocRow]) -> None:
+    """Đếm số dòng cùng tên điểm xuất hoá đơn.
+
+    Nhiều mã điểm bán cùng về một điểm là chuyện bình thường, nhưng lúc cộng tay
+    thì đó là chỗ dễ đếm hai lần nhất, nên đánh dấu sẵn ra một cột.
+    """
+    dem: dict[str, int] = {}
+    for row in rows:
+        if row.ten_diem:
+            dem[row.ten_diem] = dem.get(row.ten_diem, 0) + 1
+    for row in rows:
+        row.trung_ten = dem.get(row.ten_diem, 0) or None
 
 
 def loc_dates(rows: list[LocRow]) -> list[_dt.date]:

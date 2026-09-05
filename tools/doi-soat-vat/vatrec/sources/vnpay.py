@@ -21,10 +21,9 @@ def read_vnpay(path: str, sheet: str, stream: str | None = None,
     rows = read_sheet(path, sheet)
     header_row = find_header(rows, REQUIRED)
     index = column_index(rows[header_row], REQUIRED)
-    try:
-        ref_column = column_index(rows[header_row], ["Mã giao dịch"])["Mã giao dịch"]
-    except LookupError:
-        ref_column = -1
+    tuy_chon = column_index(rows[header_row], ["Mã giao dịch", "Chi nhánh"], required_all=False)
+    ref_column = tuy_chon.get("Mã giao dịch", -1)
+    chi_nhanh_column = tuy_chon.get("Chi nhánh", -1)
 
     label = stream or "VNPay"
     out: list[Txn] = []
@@ -43,6 +42,7 @@ def read_vnpay(path: str, sheet: str, stream: str | None = None,
                 ngay=to_date(_at(row, index["Thời gian GD"])),
                 so_tien=to_int(_at(row, index["Số tiền sau KM"])),
                 ref=clean_text(_at(row, ref_column)) if ref_column >= 0 else "",
+                nhan=clean_text(_at(row, chi_nhanh_column)) if chi_nhanh_column >= 0 else "",
             )
         )
     return out

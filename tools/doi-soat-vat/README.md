@@ -398,9 +398,22 @@ biết sai từ đâu. Bố cục:
 File · Luồng tiền đọc được · Kỳ · Số GD · Vào hoá đơn
 Chưa có danh mục · Vãng lai · Ngoài kỳ · Trùng mã · Pháp nhân khác
 ─────────────────────────────────────────────────────────────────
-STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · Mã điểm bán · Nhóm
-   || <mỗi ngày một cột> · Tổng xuất hóa đơn
+STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · <cột riêng theo cổng>
+   || Tổng <cổng> cơ sở <cơ sở> · <mỗi ngày một cột>
 ```
+
+Cột ở giữa **khai riêng cho từng cổng**, chép đúng bảng gốc mà cổng đó dùng:
+
+| Cổng | Cột riêng |
+|---|---|
+| VNPay | Chi nhánh · Mã điểm thu · Khu vực · Dịch vụ · Hình thức hợp tác · Lọc trùng tên điểm xuất hóa đơn · Pháp nhân · lọc điểm xuất hóa đơn chưa ps trên danh mục sản phẩm |
+| Payoo | Chi nhánh · Hình thức thanh toán |
+| còn lại | Mã điểm bán · Nhóm |
+
+Cột *Lọc trùng tên điểm xuất hóa đơn* đếm số dòng trong bảng có cùng tên điểm —
+nhiều mã cùng về một điểm là chuyện thường, nhưng đó là chỗ dễ cộng hai lần nhất.
+Một file chứa nhiều cổng thì lấy bố cục của cổng chiếm nhiều dòng nhất, không
+trộn — trộn thì không khớp bảng gốc của cổng nào cả.
 
 Phần đầu ghi lại tên file và các số bị tách riêng, để nhìn một chỗ là biết file
 đó đã đọc đủ chưa. Bảng dựng từ giao dịch thô nên **hiện cả mã chưa có trong
