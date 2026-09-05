@@ -3,7 +3,7 @@
  * Plugin Name:       Đối soát VAT
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Gộp sao kê QR VietQR, Payoo, VNPay, Zalo Mini App và MoMo, quy về điểm xuất hoá đơn, tách VAT rồi xuất file Excel để nhập Misa. Sao kê được xử lý ngay trong trình duyệt, không tải lên máy chủ.
- * Version:           2.0.0
+ * Version:           2.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * License:           MIT
@@ -28,7 +28,7 @@ const DSVAT_SLUG = 'doi-soat-vat';
  * không có nó thì người dùng cập nhật xong vẫn thấy bản cũ trong bộ đệm.
  * dong-goi.sh kiểm tra ba chỗ này khớp nhau lúc đóng gói.
  */
-const DSVAT_VERSION = '2.0.0';
+const DSVAT_VERSION = '2.1.0';
 
 /** Quyền cần có để mở công cụ trong trang quản trị. */
 const DSVAT_CAPABILITY = 'manage_options';

@@ -496,3 +496,30 @@ label.inline select {
 }
 
 .pane-head .results-title { margin: 0; }
+
+/* Nhãn phụ của tab khi còn việc phải làm — số mã chờ gán chẳng hạn. */
+.tabs button .count.warn { color: var(--warn); font-weight: 600; }
+
+/* Cảnh báo kỳ báo cáo không trùm dữ liệu trong file. */
+.ky-canh-bao {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.ky-canh-bao.nang {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.ky-canh-bao .btn { margin-left: auto; }

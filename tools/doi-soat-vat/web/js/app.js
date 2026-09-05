@@ -23,7 +23,8 @@
     'addExtra', 'clearExtra', 'extraCount', 'run', 'download', 'status', 'error',
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
     'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
-    'resultTabs', 'paneThietLap', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu',
+    'resultTabs', 'paneThietLap', 'paneCauHinh', 'paneTongHop', 'paneKenh',
+    'locTieuDe', 'locGhiChu',
     'locTable', 'locTai',
     'locNgay', 'locNhom', 'locTrangThai', 'locKhoi', 'locKhoiWrap', 'locTim',
     'locAnRong', 'locXoaLoc', 'locTong', 'locCotSo', 'locThongKe'
@@ -394,7 +395,7 @@
       if (values.channel === pair[0]) option.selected = true;
       select.appendChild(option);
     });
-    select.addEventListener('change', saveExtra);
+    select.addEventListener('change', function () { saveExtra(); khaiXongThiChayLai(); });
     channelCell.appendChild(select);
     row.appendChild(channelCell);
 
@@ -404,7 +405,7 @@
       input.type = 'text';
       input.dataset.field = field;
       input.value = values[field] || '';
-      input.addEventListener('change', saveExtra);
+      input.addEventListener('change', function () { saveExtra(); khaiXongThiChayLai(); });
       cell.appendChild(input);
       row.appendChild(cell);
     });
@@ -413,7 +414,11 @@
     var remove = text('button', '✕', 'btn ghost mini');
     remove.type = 'button';
     remove.title = 'Xoá dòng';
-    remove.addEventListener('click', function () { row.remove(); saveExtra(); });
+    remove.addEventListener('click', function () {
+      row.remove();
+      saveExtra();
+      khaiXongThiChayLai();
+    });
     removeCell.appendChild(remove);
     row.appendChild(removeCell);
 
@@ -533,6 +538,7 @@
    * một file đầu vào.
    */
   var THIET_LAP = '\u0000thiet-lap';
+  var CAU_HINH = '\u0000cau-hinh';
   var TONG_HOP = '\u0000tong-hop';
 
   var locData = [];              // [{ nguon, rows, ngay, coPhi, luong, thongKe }]
@@ -540,10 +546,16 @@
 
   function renderTabs(message) {
     locData = (message && message.loc) || locData;
-    el.results.hidden = tabDangXem === THIET_LAP;
+    el.results.hidden = tabDangXem === THIET_LAP || tabDangXem === CAU_HINH;
     el.resultTabs.textContent = '';
 
     themTab(THIET_LAP, 'Thiết lập', files.length ? files.length + ' file' : '');
+
+    // Số mã còn chờ gán hiện ngay trên nhãn tab, để không phải mở ra mới biết.
+    var chuaGan = locData.reduce(function (a, item) { return a + (item.soChuaMap || 0); }, 0);
+    themTab(CAU_HINH, 'Cấu hình', chuaGan ? chuaGan + ' mã chờ gán' : 'đã gán đủ',
+      chuaGan > 0);
+
     locData.forEach(function (item, i) {
       themTab(item.nguon, (i + 1) + '. ' + tenNganGon(item.nguon), item.rows.length + ' mã');
     });
@@ -562,13 +574,13 @@
     return ten.length > 28 ? ten.slice(0, 27) + '…' : ten;
   }
 
-  function themTab(id, nhan, phu) {
+  function themTab(id, nhan, phu, canhBao) {
     var button = document.createElement('button');
     button.type = 'button';
     button.setAttribute('role', 'tab');
     button.dataset.tab = id;
     button.appendChild(document.createTextNode(nhan));
-    if (phu) button.appendChild(text('span', phu, 'count'));
+    if (phu) button.appendChild(text('span', phu, 'count' + (canhBao ? ' warn' : '')));
     button.addEventListener('click', function () { chonTab(id); });
     el.resultTabs.appendChild(button);
   }
@@ -579,9 +591,10 @@
       button.setAttribute('aria-selected', button.dataset.tab === id ? 'true' : 'false');
     });
     el.paneThietLap.hidden = id !== THIET_LAP;
+    el.paneCauHinh.hidden = id !== CAU_HINH;
     el.paneTongHop.hidden = id !== TONG_HOP;
-    el.paneKenh.hidden = id === THIET_LAP || id === TONG_HOP;
-    el.results.hidden = id === THIET_LAP;
+    el.paneKenh.hidden = id === THIET_LAP || id === CAU_HINH || id === TONG_HOP;
+    el.results.hidden = id === THIET_LAP || id === CAU_HINH;
     if (!el.paneKenh.hidden) renderLoc(timKenh(id));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -689,6 +702,44 @@
       chip.appendChild(text('span', item[1], 'v'));
       el.locThongKe.appendChild(chip);
     });
+    canhBaoKy(kenh);
+  }
+
+  /*
+   * Kỳ báo cáo không trùm dữ liệu trong file là thủ phạm hay gặp nhất của việc
+   * "chạy xong mà mọi số đều bằng 0": giao dịch bị loại hết vì ngoài kỳ. Nói
+   * thẳng ra và cho một nút đặt kỳ đúng theo file, thay vì để người dùng ngồi
+   * đoán xem mình khai sai chỗ nào.
+   */
+  function canhBaoKy(kenh) {
+    var tk = kenh.thongKe;
+    var ngay = kenh.ngayDuLieu;
+    if (!ngay || !tk.ngoaiKy) return;
+    var trumHet = tk.soTien === 0;
+
+    var canh = text('div', null, 'ky-canh-bao' + (trumHet ? ' nang' : ''));
+    canh.appendChild(text('strong',
+      trumHet ? 'Toàn bộ giao dịch của file này nằm ngoài kỳ báo cáo.'
+              : 'Một phần giao dịch của file này nằm ngoài kỳ báo cáo.'));
+    canh.appendChild(text('span',
+      ' Dữ liệu trong file chạy từ ' + viDate(ngay.tu) + '/' + ngay.tu.slice(0, 4) +
+      ' đến ' + viDate(ngay.den) + '/' + ngay.den.slice(0, 4) +
+      ', còn kỳ đang đặt là ' + viDate(el.kyTu.value) + '/' + el.kyTu.value.slice(0, 4) +
+      ' – ' + viDate(el.kyDen.value) + '/' + el.kyDen.value.slice(0, 4) + '.'));
+
+    var nut = text('button', 'Đặt kỳ đúng theo file này', 'btn ghost mini');
+    nut.type = 'button';
+    nut.addEventListener('click', function () {
+      el.kyTu.value = ngay.tu;
+      el.kyDen.value = ngay.den;
+      if (!el.ngayHoaDon.value || el.ngayHoaDon.value < ngay.tu || el.ngayHoaDon.value > ngay.den) {
+        el.ngayHoaDon.value = ngay.den;
+      }
+      saveSettings();
+      tuDongChay();
+    });
+    canh.appendChild(nut);
+    el.locThongKe.appendChild(canh);
   }
 
   function fillLoc() {
@@ -852,8 +903,8 @@
       };
     }));
 
-    renderUnmapped(message.chuaMap);
     renderTabs(message);
+    renderUnmapped(macChuaGan());
 
     el.thNgay.hidden = !message.theoNgay;
     fillTable(el.pointTable, message.diem.map(function (point, i) {
@@ -873,6 +924,31 @@
     }));
   }
 
+  /*
+   * Gom mã chưa gán từ dữ liệu thô của mọi file, không lấy từ kết quả đã tổng
+   * hợp: giao dịch bị loại vì ngoài kỳ không vào kết quả, nhưng mã của nó vẫn
+   * cần gán — nếu không, sửa lại kỳ xong vẫn kẹt đúng chỗ cũ.
+   */
+  function macChuaGan() {
+    var theoMa = Object.create(null);
+    var thuTu = [];
+    locData.forEach(function (kenh) {
+      kenh.rows.forEach(function (row) {
+        if (row.tenDiem) return;
+        var key = row.channel + '\u001f' + row.code;
+        if (!theoMa[key]) {
+          theoMa[key] = {
+            channel: row.channel, code: row.code, soTien: 0, soGiaoDich: null,
+            goiY: row.goiY || []
+          };
+          thuTu.push(theoMa[key]);
+        }
+        theoMa[key].soTien += row.tongTien;
+      });
+    });
+    return thuTu.sort(function (a, b) { return b.soTien - a.soTien; });
+  }
+
   function renderUnmapped(list) {
     el.unmappedPanel.hidden = !list.length;
     var body = el.unmappedTable.tBodies[0];
@@ -882,7 +958,8 @@
       row.className = 'warn';
       row.appendChild(text('td', item.channel));
       row.appendChild(text('td', item.code));
-      row.appendChild(text('td', money(item.soGiaoDich), 'num-col'));
+      // Bảng này gom từ dữ liệu thô nên chỉ có số tiền, không đếm giao dịch.
+      row.appendChild(text('td', item.soGiaoDich === null ? '—' : money(item.soGiaoDich), 'num-col'));
       row.appendChild(text('td', money(item.soTien), 'num-col'));
 
       // Ô đề xuất là một danh sách chọn, không phải chữ chết: máy chỉ đoán, người
@@ -910,7 +987,8 @@
       button.addEventListener('click', function () {
         khaiVaoDanhMuc(item, chon.value === '' ? null : goiY[+chon.value]);
         button.disabled = true;
-        button.textContent = 'Đã thêm ↑';
+        button.textContent = 'Đã thêm ↓';
+        khaiXongThiChayLai();
       });
       actionCell.appendChild(button);
       row.appendChild(actionCell);
@@ -938,8 +1016,19 @@
         values[field] = goiY[field] || '';
       });
     }
-    addExtraRow(values);
+    var row = addExtraRow(values);
     saveExtra();
+    // Không có đề xuất nào thì tên điểm còn trống — đưa con trỏ vào đúng ô đó.
+    if (row && !values.tenDiem) {
+      var o = row.querySelector('input[data-field="tenDiem"]');
+      if (o) o.focus();
+    }
+  }
+
+  /** Khai xong thì tính lại ngay, khỏi phải nhớ bấm nút. */
+  function khaiXongThiChayLai() {
+    updateExtraCount();
+    tuDongChay();
   }
 
   /**
@@ -1009,9 +1098,10 @@
     if (!ketQua) return;
     // Khai hàng loạt thì lấy đề xuất tốt nhất của từng mã; dòng nào máy không
     // đoán được thì vẫn thêm với tên điểm để trống cho người khai tự điền.
-    ketQua.chuaMap.forEach(function (item) {
+    macChuaGan().forEach(function (item) {
       khaiVaoDanhMuc(item, (item.goiY && item.goiY[0]) || null);
     });
+    khaiXongThiChayLai();
     document.getElementById('stepExtra').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 

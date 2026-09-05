@@ -272,16 +272,40 @@ function bangLocTungFile(txns, catalog, result, message) {
     var ten = txn.nguon || '(không rõ file)';
     if (thuTu.indexOf(ten) < 0) thuTu.push(ten);
   });
+  var can = VatRec.trongSo(catalog);
   return thuTu.map(function (nguon) {
     var rows = VatRec.locView(txns, function (txn) {
       return (txn.nguon || '(không rõ file)') === nguon;
     }, catalog);
+
+    // Mã chưa tra được điểm thì kèm sẵn đề xuất, để gán ngay trên trang đối soát
+    // chứ không phải chạy xong rồi mới đi tìm ở trang tổng hợp.
+    var chuaMap = rows.filter(function (row) { return !row.tenDiem; });
+    var boQua = VatRec.tuPhoBien(chuaMap.map(function (row) { return row.code; }));
+    chuaMap.forEach(function (row) {
+      row.goiY = VatRec.goiYDiem(row.code, row.channel, catalog, boQua, 3, can)
+        .map(function (g) {
+          return {
+            diem: g.diem, lyDo: g.lyDo, tenDiem: g.point.tenDiem, maMisa: g.point.maMisa,
+            khuVuc: g.point.khuVuc, dichVu: g.point.dichVu,
+            hinhThucHopTac: g.point.hinhThucHopTac, phapNhan: g.point.phapNhan
+          };
+        });
+    });
+
     var tk = result.nguonStats[nguon] || {};
     return {
       nguon: nguon,
       rows: rows,
       ngay: rows.length ? VatRec.locDates(rows, message.kyTu, message.kyDen) : [],
       coPhi: rows.some(function (row) { return row.tongPhi; }),
+      // Đếm theo mã duy nhất, không theo dòng: một mã có thể ra nhiều dòng vì
+      // tách theo nhóm, đếm dòng thì con số trên nhãn tab bị thổi lên.
+      soChuaMap: demMa(chuaMap),
+      // Khoảng ngày thật trong file, tính cả ngày nằm ngoài kỳ báo cáo — để báo
+      // được khi kỳ đang đặt không trùm dữ liệu, thủ phạm hay gặp nhất của việc
+      // "chạy xong mà mọi số đều bằng 0".
+      ngayDuLieu: khoangNgay(txns, nguon),
       luong: tk.luong || [],
       thongKe: {
         soGiaoDich: tk.soGiaoDich || 0, soDiem: tk.soDiem || 0, soTien: tk.soTien || 0,
@@ -291,6 +315,24 @@ function bangLocTungFile(txns, catalog, result, message) {
       }
     };
   }).filter(function (item) { return item.rows.length; });
+}
+
+function demMa(rows) {
+  var thay = Object.create(null);
+  rows.forEach(function (row) { thay[row.channel + '\u001f' + row.code] = true; });
+  return Object.keys(thay).length;
+}
+
+/** Ngày nhỏ nhất và lớn nhất đọc được trong một file, không lọc theo kỳ. */
+function khoangNgay(txns, nguon) {
+  var tu = null;
+  var den = null;
+  txns.forEach(function (txn) {
+    if ((txn.nguon || '(không rõ file)') !== nguon || !txn.ngay) return;
+    if (tu === null || txn.ngay < tu) tu = txn.ngay;
+    if (den === null || txn.ngay > den) den = txn.ngay;
+  });
+  return tu ? { tu: tu, den: den } : null;
 }
 
 /*

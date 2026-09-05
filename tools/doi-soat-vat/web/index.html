@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=2.0.0">
+<link rel="stylesheet" href="style.css?v=2.1.0">
 </head>
 <body>
 
@@ -120,8 +120,56 @@
   </section>
 
   <!-- ------------------------------------------------------------ bước 4 -->
+  <section class="step">
+    <h2><span class="num"></span> Tổng hợp</h2>
+    <p class="note">
+      Thả file nào là trang tự tổng hợp và mở luôn <strong>trang đối soát riêng</strong>
+      của file đó — thả lẻ từng file cũng được, chuyển qua lại bằng thanh ở đầu trang.
+      Mã điểm bán chưa gán được điểm xuất hoá đơn thì sang trang <strong>Cấu hình</strong>.
+      Nút dưới đây chỉ cần bấm khi bạn đổi kỳ hay thuế suất rồi muốn tính lại.
+    </p>
+    <div class="row-actions">
+      <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
+      <button type="button" id="run" class="btn primary" disabled>Tổng hợp lại</button>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </div>
+    <div id="error" class="error" hidden></div>
+  </section>
+
+  </div><!-- /paneThietLap -->
+
+  <!-- ----------------------------------------------------------- cấu hình -->
+  <!-- Mọi việc gán mã điểm bán về điểm xuất hoá đơn gom hết ở trang này: mã nào
+       chưa gán, đề xuất của máy, và bảng danh mục tự khai. -->
+  <div id="paneCauHinh" class="pane" hidden>
+    <h2 class="results-title">Cấu hình — gán mã điểm bán về điểm xuất hoá đơn</h2>
+
+    <div class="panel" id="unmappedPanel" hidden>
+      <h3>Mã điểm bán chưa có trong danh mục</h3>
+      <p class="note">
+        Tiền của các mã này <strong>chưa được tính vào hoá đơn nào</strong>.
+        Cột <em>Đề xuất</em> là điểm mà hệ thống đoán khớp nhất, kèm mức chắc chắn —
+        <strong>chỉ là gợi ý, không tự áp vào</strong>. Chọn lại nếu đoán sai, rồi bấm
+        “Khai vào danh mục” để đưa xuống bảng bên dưới; trang tự chạy lại ngay sau đó.
+      </p>
+      <div class="table-scroll">
+        <table class="grid-table" id="unmappedTable">
+          <thead>
+            <tr><th>Kênh</th><th>Mã điểm bán</th><th class="num-col">Số GD</th><th class="num-col">Số tiền</th>
+              <th>Đề xuất điểm xuất hoá đơn</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="addAllUnmapped" class="btn ghost">Khai tất cả vào danh mục</button>
+      </div>
+    </div>
+
+
+  <!-- --------------------------------------------------- danh mục tự khai -->
   <section class="step" id="stepExtra">
-    <h2><span class="num"></span> Danh mục bổ sung <span class="optional">không bắt buộc</span></h2>
+    <h2>Danh mục tự khai <span class="optional">lưu trong trình duyệt</span></h2>
     <p class="note">
       Mã điểm bán nào không có trong file danh mục thì khai ở đây. Hay gặp nhất là
       <strong>gian hàng Zalo Mini App</strong> — file Zalo không kèm mã điểm bán, tên gian hàng
@@ -152,24 +200,7 @@
     </div>
   </section>
 
-  <!-- ------------------------------------------------------------ bước 5 -->
-  <section class="step">
-    <h2><span class="num"></span> Tổng hợp</h2>
-    <p class="note">
-      Thả file nào là trang tự tổng hợp và mở luôn <strong>trang đối soát riêng</strong>
-      của file đó — thả lẻ từng file cũng được, chuyển qua lại bằng thanh ở đầu trang.
-      Nút dưới đây chỉ cần bấm khi bạn đổi kỳ, đổi thuế suất hay sửa danh mục rồi
-      muốn tính lại.
-    </p>
-    <div class="row-actions">
-      <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
-      <button type="button" id="run" class="btn primary" disabled>Tổng hợp lại</button>
-      <span id="status" class="status" role="status" aria-live="polite"></span>
-    </div>
-    <div id="error" class="error" hidden></div>
-  </section>
-
-  </div><!-- /paneThietLap -->
+  </div><!-- /paneCauHinh -->
 
   <!-- ------------------------------------------------------------- kết quả -->
   <section id="results" hidden>
@@ -224,28 +255,6 @@
           </thead>
           <tbody></tbody>
         </table>
-      </div>
-    </div>
-
-    <div class="panel" id="unmappedPanel" hidden>
-      <h3>Mã điểm bán chưa có trong danh mục</h3>
-      <p class="note">
-        Tiền của các mã này <strong>chưa được tính vào hoá đơn nào</strong>.
-        Cột <em>Đề xuất</em> là điểm mà hệ thống đoán khớp nhất, kèm mức chắc chắn —
-        <strong>chỉ là gợi ý, không tự áp vào</strong>. Chọn lại nếu đoán sai, rồi bấm
-        “Khai vào danh mục” để đưa lên bảng ở bước 4 và chạy lại.
-      </p>
-      <div class="table-scroll">
-        <table class="grid-table" id="unmappedTable">
-          <thead>
-            <tr><th>Kênh</th><th>Mã</th><th class="num-col">Số GD</th><th class="num-col">Số tiền</th>
-              <th>Đề xuất điểm xuất hoá đơn</th><th></th></tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-      <div class="row-actions">
-        <button type="button" id="addAllUnmapped" class="btn ghost">Khai tất cả vào danh mục</button>
       </div>
     </div>
 
@@ -345,7 +354,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>2.0.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — mỗi đối soát một trang riêng.
+      Phiên bản <strong>2.1.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — mỗi đối soát một trang riêng.
     </p>
   </footer>
 </div>
@@ -353,6 +362,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=2.0.0"></script>
+<script src="js/app.js?v=2.1.0"></script>
 </body>
 </html>

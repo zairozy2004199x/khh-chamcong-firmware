@@ -425,13 +425,24 @@ Trên trang web, **mỗi đối soát là một trang riêng**, chuyển qua l�
 đầu trang:
 
 ```
-[ Thiết lập ] [ 1. Payoo_… ] [ 2. VNPay_… ] [ 3. … ] [ Tổng hợp ]
+[ Thiết lập ] [ Cấu hình  2 mã chờ gán ] [ 1. Payoo_… ] [ 2. VNPay_… ] [ Tổng hợp ]
 ```
 
-- **Thiết lập** — kỳ báo cáo, thả file, sheet nhận diện, danh mục bổ sung.
+- **Thiết lập** — kỳ báo cáo, thả file, sheet nhận diện.
+- **Cấu hình** — gán mã điểm bán về điểm xuất hoá đơn: bảng mã chưa gán kèm đề
+  xuất, và bảng danh mục tự khai. Nhãn tab hiện luôn còn bao nhiêu mã chờ gán.
+  Gán xong là trang tự tính lại ngay.
 - **Mỗi file một trang** — dải số của riêng file, bộ lọc, bảng, và nút
   *Tải riêng đối soát này* xuất ra một file `.xlsx` chỉ chứa đúng đối soát đó.
 - **Tổng hợp** — kết quả gộp và nút *Tải file .xlsx đầy đủ*.
+
+Bảng mã chưa gán dựng từ **dữ liệu thô**, không lấy từ kết quả đã tổng hợp: giao
+dịch bị loại vì ngoài kỳ không vào kết quả, nhưng mã của nó vẫn cần gán — lấy từ
+kết quả thì sửa lại kỳ xong vẫn kẹt đúng chỗ cũ.
+
+**Kỳ không trùm dữ liệu** là thủ phạm hay gặp nhất của việc chạy xong mà mọi số
+đều bằng 0: giao dịch bị loại hết vì ngoài kỳ. Trang đối soát nói thẳng ra khoảng
+ngày thật trong file so với kỳ đang đặt, kèm nút *Đặt kỳ đúng theo file này*.
 
 **Thả file nào là trang tự tổng hợp và tách sẵn tab của file đó ngay** — thả lẻ
 từng file cũng được, không phải bấm nút. Thả cả bộ thì vẫn chỉ chạy một lần, sau
