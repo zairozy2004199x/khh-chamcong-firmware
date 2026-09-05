@@ -153,10 +153,12 @@ static void veTheGoi(int i, int x, int y, int w, int h){
   lTextC(cx, y+h-40, p, 2, C_PHU, C_BOT);                // phút
 }
 
-// Dòng chẩn đoán cảm ứng (ngay dưới tiêu đề). Xanh = thấy 0x1A, đỏ = không.
+// Thanh chẩn đoán cảm ứng — TO, RÕ, nguyên dải (dưới tiêu đề).
+// XANH = thấy 0x1A (touch sống), ĐỎ = không thấy 1A.
 static void drawTPStatus(){
-  lRect(0, 94, LW, 14, C_BG);
-  lTextC(LW/2, 96, TP_STATUS, 1, TP_OK ? C_ID : RGB565(0xF0,0x60,0x60), C_BG);
+  uint16_t bar = TP_OK ? RGB565(0x1E,0x8E,0x3E) : RGB565(0xC0,0x2A,0x2A);
+  lRect(0, 92, LW, 18, bar);
+  lTextC(LW/2, 95, TP_STATUS, 2, C_WHITE, bar);
 }
 
 static void veIdle(){
