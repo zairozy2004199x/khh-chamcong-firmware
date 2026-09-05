@@ -56,9 +56,10 @@
     });
 
     addSheet(XLSXLib, book, 'Tổng theo ngày', sheetTheoNgay(opts));
-    if (opts.payoo && opts.payoo.length) {
-      addSheet(XLSXLib, book, 'Lọc Payoo', sheetLocPayoo(opts));
-    }
+    // Mỗi cổng một tab lọc riêng, để kiểm từng nguồn rồi mới tin số tổng.
+    (opts.loc || []).forEach(function (kenh) {
+      addSheet(XLSXLib, book, safeTitle('Lọc ' + kenh.ten, book), sheetLoc(opts, kenh));
+    });
     addSheet(XLSXLib, book, 'Đối soát', sheetDoiSoat(opts));
 
     // Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
@@ -381,22 +382,26 @@
   }
 
   /*
-   * Bảng lọc dữ liệu Payoo - chọn một ngày là ra số xuất hoá đơn của từng cửa hàng.
+   * Bảng lọc dữ liệu một cổng - chọn một ngày là ra số xuất hoá đơn của từng mã.
    *
-   * Ba khối cột nối nhau đúng như bảng đang làm tay: số xuất hoá đơn, phí Payoo
-   * thu, và tiền Payoo thực trả về tài khoản (= số xuất hoá đơn trừ phí).
+   * Cổng có thu phí (Payoo) thì nối thêm hai khối cột đúng như bảng đang làm tay:
+   * phí cổng thu, và tiền cổng thực trả về tài khoản (= số xuất hoá đơn trừ phí).
+   * Cổng không có cột phí thì chỉ một khối, khỏi rác cột toàn số 0.
    */
-  function sheetLocPayoo(opts) {
-    var V = root.VatRec;
-    var rows = opts.payoo;
-    var dates = V.payooDates(rows, opts.kyTu, opts.kyDen);
+  function sheetLoc(opts, kenh) {
+    var rows = kenh.rows;
+    var dates = kenh.ngay;
     var nhanNgay = dates.map(viDate);
+    var laPayoo = kenh.channel === 'payoo';
 
-    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Chi nhánh',
-      'Hình thức thanh toán']
-      .concat(nhanNgay, ['Tổng xuất hóa đơn'])
-      .concat(nhanNgay, ['Tổng tiền phí'])
-      .concat(nhanNgay, ['Tổng tiền Payoo phải trả']);
+    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế',
+      laPayoo ? 'Chi nhánh' : 'Mã điểm bán',
+      laPayoo ? 'Hình thức thanh toán' : 'Luồng tiền']
+      .concat(nhanNgay, ['Tổng xuất hóa đơn']);
+    if (kenh.coPhi) {
+      header = header.concat(nhanNgay, ['Tổng tiền phí'])
+        .concat(nhanNgay, ['Tổng tiền ' + kenh.ten + ' phải trả']);
+    }
 
     var out = [header];
     var formats = {};
@@ -419,13 +424,14 @@
         diemTruoc = nhanDiem;
       }
       // STT chỉ ghi ở dòng đầu của mỗi điểm, các dòng còn lại gộp ô vào dòng đó.
-      var line = [r === dauDiem ? stt : null, row.tenDiem, row.maMisa, row.code, row.nhom];
-      [
-        dates.map(function (d) { return row.tien[d] || 0; }).concat([row.tongTien]),
-        dates.map(function (d) { return row.phi[d] || 0; }).concat([row.tongPhi]),
-        dates.map(function (d) { return (row.tien[d] || 0) - (row.phi[d] || 0); })
-          .concat([row.tongTien - row.tongPhi])
-      ].forEach(function (khoi) { line = line.concat(khoi); });
+      var line = [r === dauDiem ? stt : null, row.tenDiem, row.maMisa, row.code, row.nhom]
+        .concat(dates.map(function (d) { return row.tien[d] || 0; }), [row.tongTien]);
+      if (kenh.coPhi) {
+        line = line
+          .concat(dates.map(function (d) { return row.phi[d] || 0; }), [row.tongPhi])
+          .concat(dates.map(function (d) { return (row.tien[d] || 0) - (row.phi[d] || 0); }),
+            [row.tongTien - row.tongPhi]);
+      }
       out.push(line);
       moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN_GACH; });
     });
@@ -434,10 +440,7 @@
     }
 
     pushTotal(out, formats, moneyColumns, header.length);
-    return {
-      rows: out, formats: formats, merges: merges,
-      widths: [5, 30, 24, 30, 18]
-    };
+    return { rows: out, formats: formats, merges: merges, widths: [5, 30, 24, 30, 18] };
   }
 
   /** Bảng đối soát: tổng theo luồng, số hoá đơn, cảnh báo, mã chưa map. */

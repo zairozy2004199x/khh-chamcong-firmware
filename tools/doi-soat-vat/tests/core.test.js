@@ -444,19 +444,19 @@ var maPhu = V.aggregate([{
 eq('tra được qua mã cửa hàng', V.totalOf(maPhu), 5000);
 eq('không rơi vào mã chưa map', maPhu.chuaMap.length, 0);
 
-/* ----------------------------------------------------- bảng lọc Payoo */
+/* ------------------------------------------------ bảng lọc từng cổng */
 
 function payooTxn(code, ngay, tien, phi, nhom, ref) {
   return { channel: 'payoo', stream: 'Payoo - ' + nhom, nguon: 'p.xlsx', code: code,
     ngay: ngay, soTien: tien, phi: phi, nhom: nhom, ref: ref };
 }
 
-var payooRows = V.payooView([
+var payooRows = V.locView([
   payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1'),
   payooTxn('SHOP_B', '2026-08-02', 2000, 20, 'Quét mã QR', 'r2'),
   payooTxn('SHOP_B', '2026-08-03', 500, 5, 'Quét mã QR', 'r3'),
   payooTxn('SHOP_A', '2026-08-02', 700, 7, 'Quét mã QR', 'r4')
-], null);
+], 'payoo', null);
 
 eq('mỗi cửa hàng × hình thức một dòng', payooRows.length, 3);
 eq('giữ thứ tự cửa hàng như trong file gốc', payooRows[0].code, 'SHOP_B');
@@ -470,17 +470,38 @@ eq('chưa có danh mục thì để trống tên điểm', payooRows[0].tenDiem,
 
 var payooCat = new V.Catalog();
 payooCat.add('payoo', 'SHOP_B', V.makePoint({ tenDiem: 'Điểm B', maMisa: 'MISA B' }));
-var coDanhMuc = V.payooView([payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1')], payooCat);
+var coDanhMuc = V.locView([payooTxn('SHOP_B', '2026-08-02', 1000, 10, 'Thẻ', 'r1')], 'payoo', payooCat);
 eq('có danh mục thì điền tên điểm', coDanhMuc[0].tenDiem, 'Điểm B');
 eq('có danh mục thì điền mã misa', coDanhMuc[0].maMisa, 'MISA B');
 
-var payooNgay = V.payooDates(payooRows, '2026-08-01', '2026-08-03');
+var payooNgay = V.locDates(payooRows, '2026-08-01', '2026-08-03');
 eq('đủ ngày trong kỳ', payooNgay.length, 3);
 eq('ngày xếp tăng dần', payooNgay[0], '2026-08-01');
 // Ngày ngoài kỳ không bị cắt mà nối ở cuối, để nhìn ra ngay khi tải nhầm khoảng ngày.
-var lacNgay = V.payooDates(V.payooView([payooTxn('S', '2026-09-09', 1, 0, 'Thẻ', 'x')], null),
+var lacNgay = V.locDates(V.locView([payooTxn('S', '2026-09-09', 1, 0, 'Thẻ', 'x')], 'payoo', null),
   '2026-08-01', '2026-08-02');
 eq('ngày ngoài kỳ nối ở cuối', lacNgay[lacNgay.length - 1], '2026-09-09');
+
+/*
+ * Một điểm có nhiều mã điểm bán thì các dòng của nó phải nằm liền nhau. Kênh QR
+ * hay gặp cảnh này; xếp rời ra là STT nhảy lại và ô STT gộp trong file Excel
+ * gộp nhầm sang điểm khác.
+ */
+var catQr = new V.Catalog();
+catQr.add('qr', 'MA1', V.makePoint({ tenDiem: 'Điểm A' }));
+catQr.add('qr', 'MA2', V.makePoint({ tenDiem: 'Điểm B' }));
+catQr.add('qr', 'MA3', V.makePoint({ tenDiem: 'Điểm A' }));
+function qrTxn(code, ref) {
+  return { channel: 'qr', stream: 'QR', nguon: 'q.xlsx', code: code,
+    ngay: '2026-08-02', soTien: 100, ref: ref };
+}
+var gomDiem = V.locView([qrTxn('MA1', 'a'), qrTxn('MA2', 'b'), qrTxn('MA3', 'c')], 'qr', catQr);
+eq('hai mã cùng điểm nằm liền nhau',
+  gomDiem.map(function (r) { return r.tenDiem; }).join(','), 'Điểm A,Điểm A,Điểm B');
+eq('giữ thứ tự điểm gặp trước', gomDiem[0].code, 'MA1');
+
+eq('tên cổng hiện thành chữ dễ đọc', V.tenKenh('zalo'), 'Zalo Mini App');
+eq('cổng lạ thì giữ nguyên mã', V.tenKenh('abc'), 'abc');
 
 /* ------------------------------------------------- cột của file đầu ra */
 

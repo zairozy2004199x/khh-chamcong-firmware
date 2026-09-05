@@ -20,7 +20,9 @@
     'addExtra', 'clearExtra', 'extraCount', 'run', 'download', 'status', 'error',
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
     'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
-    'payooPanel', 'payooTable', 'payooNgay', 'payooKhoi', 'payooTong', 'payooCotSo'].forEach(function (id) {
+    'resultTabs', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu', 'locTable',
+    'locNgay', 'locKhoi', 'locKhoiWrap', 'locTong', 'locCotSo', 'locCotMa',
+    'locCotNhom'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
 
@@ -460,50 +462,105 @@
 
   /* ------------------------------------------------------------- kết quả */
 
-  /* ---------------------------------------------------------- lọc Payoo */
+  /* ------------------------------------------------------- tab kết quả */
 
   /*
-   * Bảng Payoo trên màn hình: mã cửa hàng × hình thức thanh toán, chọn một ngày
-   * là ra thẳng số của ngày đó. Chọn "Cả kỳ" thì cộng gộp toàn kỳ.
+   * Mỗi cổng một tab riêng: kiểm từng nguồn rồi mới tin số tổng, thay vì trộn
+   * hết vào một trang rồi không biết sai từ đâu. Tab "Tổng hợp" là trang gộp
+   * cuối cùng, các tab còn lại là dữ liệu thô của từng cổng.
    */
-  var payooData = { rows: [], ngay: [] };
+  var locData = [];        // [{ channel, ten, rows, ngay, coPhi }]
+  var tabDangXem = '';     // '' = Tổng hợp, còn lại là mã cổng
 
-  function renderPayoo(message) {
-    payooData = { rows: message.payoo || [], ngay: message.payooNgay || [] };
-    el.payooPanel.hidden = !payooData.rows.length;
-    if (!payooData.rows.length) return;
+  function renderTabs(message) {
+    locData = message.loc || [];
+    el.resultTabs.textContent = '';
+    if (locData.every(function (item) { return item.channel !== tabDangXem; })) tabDangXem = '';
+
+    themTab('', 'Tổng hợp', '');
+    locData.forEach(function (item) {
+      themTab(item.channel, item.ten, item.rows.length + ' mã');
+    });
+    chonTab(tabDangXem);
+  }
+
+  function themTab(id, nhan, phu) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.setAttribute('role', 'tab');
+    button.dataset.tab = id;
+    button.appendChild(document.createTextNode(nhan));
+    if (phu) button.appendChild(text('span', phu, 'count'));
+    button.addEventListener('click', function () { chonTab(id); });
+    el.resultTabs.appendChild(button);
+  }
+
+  function chonTab(id) {
+    tabDangXem = id;
+    Array.prototype.forEach.call(el.resultTabs.children, function (button) {
+      button.setAttribute('aria-selected', button.dataset.tab === id ? 'true' : 'false');
+    });
+    el.paneTongHop.hidden = id !== '';
+    el.paneKenh.hidden = id === '';
+    if (id) renderLoc(timKenh(id));
+  }
+
+  function timKenh(channel) {
+    return locData.filter(function (item) { return item.channel === channel; })[0] || null;
+  }
+
+  /* ----------------------------------------------------- bảng lọc cổng */
+
+  /*
+   * Bảng của một cổng: mã điểm bán × nhóm, chọn một ngày là ra thẳng số của ngày
+   * đó. Chọn "Cả kỳ" thì cộng gộp toàn kỳ.
+   */
+  function renderLoc(kenh) {
+    if (!kenh) return;
+    el.locTieuDe.textContent = 'Lọc dữ liệu ' + kenh.ten;
+    el.locGhiChu.textContent = 'Sao kê ' + kenh.ten + ' tải theo ngày hay theo tháng đều được — ' +
+      'bảng này gom lại theo mã điểm bán × ' + (kenh.channel === 'payoo' ? 'hình thức thanh toán' : 'luồng tiền') +
+      ' × ngày. Mở ra là thấy sẵn ngày mới nhất có dữ liệu, muốn xem ngày khác thì chọn lại ở ô Ngày. ' +
+      'Bảng dựng thẳng từ dữ liệu gốc nên chạy được cả khi file chưa kèm danh mục điểm.';
+    el.locCotMa.textContent = kenh.channel === 'payoo' ? 'Chi nhánh' : 'Mã điểm bán';
+    el.locCotNhom.textContent = kenh.channel === 'payoo' ? 'Hình thức thanh toán' : 'Luồng tiền';
+    // Chỉ Payoo có cột phí trong sao kê, các cổng khác không có gì để đổi khối.
+    el.locKhoiWrap.hidden = !kenh.coPhi;
+    if (!kenh.coPhi) el.locKhoi.value = 'tien';
 
     // Chỉ liệt kê ngày thật sự có phát sinh, khỏi phải cuộn qua ngày trống.
     // Ngày mới nhất lên đầu và được chọn sẵn: dữ liệu về theo ngày nên mở ra là
     // thấy ngay ngày vừa cập nhật, muốn xem ngày khác thì chọn lại.
-    var coPhatSinh = payooData.ngay.filter(function (ngay) {
-      return payooData.rows.some(function (row) { return row.tien[ngay]; });
+    var coPhatSinh = kenh.ngay.filter(function (ngay) {
+      return kenh.rows.some(function (row) { return row.tien[ngay]; });
     }).reverse();
-    var dangChon = el.payooNgay.value;
-    el.payooNgay.textContent = '';
+    var dangChon = el.locNgay.value;
+    el.locNgay.textContent = '';
     coPhatSinh.forEach(function (ngay) {
       var option = document.createElement('option');
       option.value = ngay;
       option.textContent = viDate(ngay) + ' · ' + thuTrongTuan(ngay);
-      el.payooNgay.appendChild(option);
+      el.locNgay.appendChild(option);
     });
     var caKy = document.createElement('option');
     caKy.value = '';
     caKy.textContent = '— Cả kỳ —';
-    el.payooNgay.appendChild(caKy);
-    el.payooNgay.value = coPhatSinh.indexOf(dangChon) >= 0 ? dangChon : (coPhatSinh[0] || '');
-    fillPayoo();
+    el.locNgay.appendChild(caKy);
+    el.locNgay.value = coPhatSinh.indexOf(dangChon) >= 0 ? dangChon : (coPhatSinh[0] || '');
+    fillLoc();
   }
 
-  function fillPayoo() {
-    var ngay = el.payooNgay.value;
-    var khoi = el.payooKhoi.value;
-    var nhan = { tien: 'Số xuất hoá đơn', phi: 'Phí Payoo thu', ve: 'Payoo phải trả về TK' };
-    el.payooCotSo.textContent = nhan[khoi];
+  function fillLoc() {
+    var kenh = timKenh(tabDangXem);
+    if (!kenh) return;
+    var ngay = el.locNgay.value;
+    var khoi = el.locKhoi.value;
+    var nhan = { tien: 'Số xuất hoá đơn', phi: 'Phí cổng thu', ve: 'Cổng phải trả về TK' };
+    el.locCotSo.textContent = nhan[khoi];
 
     var tong = 0;
-    var rows = payooData.rows.map(function (row) {
-      var soTien = giaTriPayoo(row, ngay, khoi);
+    var rows = kenh.rows.map(function (row) {
+      var soTien = giaTriLoc(row, ngay, khoi);
       tong += soTien;
       return {
         cells: [
@@ -516,24 +573,22 @@
         ]
       };
     });
-    // Đánh STT theo điểm, không theo dòng: mỗi điểm có hai dòng QR và Thẻ.
+    // Đánh STT theo điểm, không theo dòng: một điểm có thể có nhiều nhóm.
     var stt = 0;
     var truoc = null;
-    payooData.rows.forEach(function (row, i) {
+    kenh.rows.forEach(function (row, i) {
       var khoaDiem = row.tenDiem || row.code;
       if (khoaDiem !== truoc) { stt += 1; truoc = khoaDiem; rows[i].cells[0].value = stt; }
-      else rows[i].cells[0].value = '';
     });
     rows.push({
       cells: [{ value: '', num: true }, { value: 'TỔNG', bold: true }, '', '', '',
         { value: money(tong), num: true, bold: true }]
     });
-    fillTable(el.payooTable, rows);
-    el.payooTong.textContent = (ngay ? 'Ngày ' + viDate(ngay) : 'Cả kỳ') + ': ' +
-      money(tong) + ' đ';
+    fillTable(el.locTable, rows);
+    el.locTong.textContent = (ngay ? 'Ngày ' + viDate(ngay) : 'Cả kỳ') + ': ' + money(tong) + ' đ';
   }
 
-  function giaTriPayoo(row, ngay, khoi) {
+  function giaTriLoc(row, ngay, khoi) {
     function lay(bang) { return ngay ? (bang[ngay] || 0) : cong(bang); }
     if (khoi === 'phi') return lay(row.phi);
     if (khoi === 've') return lay(row.tien) - lay(row.phi);
@@ -611,7 +666,7 @@
     }));
 
     renderUnmapped(message.chuaMap);
-    renderPayoo(message);
+    renderTabs(message);
 
     el.thNgay.hidden = !message.theoNgay;
     fillTable(el.pointTable, message.diem.map(function (point, i) {
@@ -758,8 +813,8 @@
       saveExtra();
     }
   });
-  el.payooNgay.addEventListener('change', fillPayoo);
-  el.payooKhoi.addEventListener('change', fillPayoo);
+  el.locNgay.addEventListener('change', fillLoc);
+  el.locKhoi.addEventListener('change', fillLoc);
 
   el.addAllUnmapped.addEventListener('click', function () {
     if (!ketQua) return;

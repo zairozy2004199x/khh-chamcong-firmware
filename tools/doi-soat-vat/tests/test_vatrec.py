@@ -16,7 +16,7 @@ from vatrec.catalog import Catalog, Point  # noqa: E402
 from vatrec.excel import column_index, date_blocks, find_header  # noqa: E402
 from vatrec.invoices import build_invoices, split_vat  # noqa: E402
 from vatrec.normalize import clean_text, key_text, to_date, to_int  # noqa: E402
-from vatrec.payoo_view import THU_TU_NHOM, payoo_dates, payoo_view  # noqa: E402
+from vatrec.loc_view import THU_TU_NHOM, cac_kenh, loc_dates, loc_view  # noqa: E402
 from vatrec.suggest import goi_y, tach_tu, trong_so, tu_pho_bien  # noqa: E402
 from vatrec import report  # noqa: E402
 from vatrec.sources import Txn  # noqa: E402
@@ -483,20 +483,20 @@ def test_tu_pho_bien():
     check("ít mã quá thì không kết luận", tu_pho_bien(["A_X", "A_Y"]) == set())
 
 
-# ----------------------------------------------------- bảng lọc Payoo
+# ------------------------------------------------ bảng lọc từng cổng
 
 def _payoo_txn(code, ngay, tien, phi, nhom, ref):
     return Txn(channel="payoo", stream=f"Payoo - {nhom}", nguon="p.xlsx", code=code,
                ngay=dt.date(2026, 8, ngay), so_tien=tien, phi=phi, nhom=nhom, ref=ref)
 
 
-def test_payoo_view():
-    rows = payoo_view([
+def test_loc_view():
+    rows = loc_view([
         _payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1"),
         _payoo_txn("SHOP_B", 2, 2000, 20, "Quét mã QR", "r2"),
         _payoo_txn("SHOP_B", 3, 500, 5, "Quét mã QR", "r3"),
         _payoo_txn("SHOP_A", 2, 700, 7, "Quét mã QR", "r4"),
-    ])
+    ], "payoo")
     check("mỗi cửa hàng × hình thức một dòng", len(rows) == 3, str(len(rows)))
     check("giữ thứ tự cửa hàng như trong file gốc", rows[0].code == "SHOP_B", rows[0].code)
     check("QR xếp trước Thẻ", rows[0].nhom == "Quét mã QR", rows[0].nhom)
@@ -509,15 +509,53 @@ def test_payoo_view():
 
     catalog = Catalog()
     catalog.add("payoo", "SHOP_B", Point(ten_diem="Điểm B", ma_misa="MISA B"))
-    co_danh_muc = payoo_view([_payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1")], catalog)
+    co_danh_muc = loc_view([_payoo_txn("SHOP_B", 2, 1000, 10, "Thẻ", "r1")], "payoo", catalog)
     check("có danh mục thì điền tên điểm", co_danh_muc[0].ten_diem == "Điểm B")
     check("có danh mục thì điền mã misa", co_danh_muc[0].ma_misa == "MISA B")
 
-    ngay = payoo_dates(rows)
+    ngay = loc_dates(rows)
     check("chỉ liệt kê ngày có phát sinh", ngay == [dt.date(2026, 8, 2), dt.date(2026, 8, 3)], str(ngay))
 
     check("hai bản lõi cùng thứ tự nhóm",
           THU_TU_NHOM == _mang_trong_js("PAYOO_NHOM"), str(THU_TU_NHOM))
+
+
+def test_loc_view_gom_theo_diem():
+    """Một điểm có nhiều mã điểm bán thì các dòng của nó phải nằm liền nhau.
+
+    Kênh QR hay gặp cảnh này. Xếp rời ra là STT nhảy lại và ô STT gộp trong file
+    Excel gộp nhầm sang điểm khác.
+    """
+    catalog = Catalog()
+    catalog.add("qr", "MA1", Point(ten_diem="Điểm A"))
+    catalog.add("qr", "MA2", Point(ten_diem="Điểm B"))
+    catalog.add("qr", "MA3", Point(ten_diem="Điểm A"))
+
+    def qr(code, ref):
+        return Txn(channel="qr", stream="QR", nguon="q.xlsx", code=code,
+                   ngay=dt.date(2026, 8, 2), so_tien=100, ref=ref)
+
+    rows = loc_view([qr("MA1", "a"), qr("MA2", "b"), qr("MA3", "c")], "qr", catalog)
+    check("hai mã cùng điểm nằm liền nhau",
+          [row.ten_diem for row in rows] == ["Điểm A", "Điểm A", "Điểm B"],
+          str([row.ten_diem for row in rows]))
+    check("giữ thứ tự điểm gặp trước", rows[0].code == "MA1", rows[0].code)
+
+
+def test_cac_kenh():
+    """Mỗi cổng một bảng riêng, theo thứ tự gặp trong dữ liệu."""
+    txns = [
+        Txn(channel="qr", stream="QR", nguon="a", code="M1", ngay=dt.date(2026, 8, 1),
+            so_tien=100, ref="r1"),
+        _payoo_txn("SHOP_B", 1, 200, 2, "Thẻ", "r2"),
+        Txn(channel="qr", stream="QR", nguon="a", code="M2", ngay=dt.date(2026, 8, 1),
+            so_tien=300, ref="r3"),
+    ]
+    ra = cac_kenh(txns)
+    check("một bảng cho mỗi cổng", [channel for channel, _ in ra] == ["qr", "payoo"],
+          str([channel for channel, _ in ra]))
+    check("gom đủ mã của cổng đầu", len(ra[0][1]) == 2, str(len(ra[0][1])))
+    check("cổng không phát sinh thì không có bảng", cac_kenh([]) == [])
 
 
 def _mang_trong_js(ten: str) -> list[str]:

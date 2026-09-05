@@ -793,31 +793,44 @@
     return out;
   }
 
-  /* ---------------------------------------------------- bảng lọc Payoo */
+  /* ------------------------------------------------ bảng lọc từng cổng */
 
   /*
-   * Sao kê Payoo tải về theo ngày hay theo tháng đều là một danh sách giao dịch
-   * thô. Bảng này gom lại đúng dạng đang dùng để xuất hoá đơn: mỗi cửa hàng tách
-   * hai dòng "Quét mã QR" và "Thẻ", mỗi ngày một cột - chọn ngày nào là đọc
-   * thẳng ra số của ngày đó cho từng cửa hàng.
+   * Sao kê của mọi cổng tải về đều là một danh sách giao dịch thô. Bảng này gom
+   * lại đúng dạng đang dùng để xuất hoá đơn: mỗi mã điểm bán một dòng (Payoo
+   * tách thêm "Quét mã QR" / "Thẻ", các cổng khác tách theo luồng tiền), mỗi
+   * ngày một cột - chọn ngày nào là đọc thẳng ra số của ngày đó.
+   *
+   * Mỗi cổng một bảng riêng để kiểm từng nguồn rồi mới tin số tổng, thay vì
+   * trộn hết vào một chỗ rồi không biết sai từ đâu.
    *
    * Dựng thẳng từ giao dịch thô nên chạy được cả khi file chưa kèm danh mục
    * điểm; lúc đó cột tên điểm và mã misa để trống, còn số tiền vẫn đủ.
    */
   var PAYOO_NHOM = ['Quét mã QR', 'Thẻ'];
 
-  function payooView(txns, catalog) {
+  var TEN_KENH = {
+    qr: 'QR VietQR', payoo: 'Payoo', vnpay: 'VNPay', zalo: 'Zalo Mini App', momo: 'MoMo'
+  };
+
+  function tenKenh(channel) {
+    return TEN_KENH[channel] || channel;
+  }
+
+  function locView(txns, channel, catalog) {
     var rows = Object.create(null);
     var order = [];
     var thuTuCode = Object.create(null);
 
     txns.forEach(function (txn) {
-      if (txn.channel !== 'payoo' || !txn.ngay) return;
-      var nhom = txn.nhom || '(không rõ)';
+      if (txn.channel !== channel || !txn.ngay) return;
+      // Payoo tách theo hình thức thanh toán, các cổng khác theo luồng tiền.
+      var nhom = txn.nhom || txn.stream || '(không rõ)';
       var key = txn.code + SEP + nhom;
       var row = rows[key];
       if (!row) {
-        var point = catalog ? catalog.lookup('payoo', txn.code) : null;
+        var point = catalog ? catalog.lookup(channel, txn.code) : null;
+        if (!point && catalog && txn.codePhu) point = catalog.lookup(channel, txn.codePhu);
         row = {
           code: txn.code, nhom: nhom,
           tenDiem: point ? point.tenDiem : '',
@@ -835,14 +848,27 @@
       row.tongPhi += txn.phi || 0;
     });
 
-    // Xếp theo thứ tự cửa hàng xuất hiện trong file gốc, không xếp lại theo bảng
-    // chữ cái - để bảng ra giống hệt thứ tự đang dò tay.
+    /*
+     * Xếp theo thứ tự xuất hiện trong file gốc, không xếp lại theo bảng chữ cái
+     * - để bảng ra giống hệt thứ tự đang dò tay.
+     *
+     * Nhưng gom theo điểm trước rồi mới tới mã: một điểm có thể có nhiều mã điểm
+     * bán (kênh QR hay gặp), nếu xếp thuần theo mã thì các dòng của cùng một
+     * điểm nằm rời nhau, STT nhảy lại và ô STT gộp trong file Excel sẽ sai.
+     */
+    var thuTuDiem = Object.create(null);
+    order.forEach(function (row) {
+      var diem = row.tenDiem || row.code;
+      if (!(diem in thuTuDiem)) thuTuDiem[diem] = Object.keys(thuTuDiem).length;
+    });
     return order.sort(function (a, b) {
+      var da = thuTuDiem[a.tenDiem || a.code], db = thuTuDiem[b.tenDiem || b.code];
+      if (da !== db) return da - db;
       if (thuTuCode[a.code] !== thuTuCode[b.code]) return thuTuCode[a.code] - thuTuCode[b.code];
       var ia = PAYOO_NHOM.indexOf(a.nhom), ib = PAYOO_NHOM.indexOf(b.nhom);
       if (ia < 0) ia = PAYOO_NHOM.length;
       if (ib < 0) ib = PAYOO_NHOM.length;
-      return ia - ib || a.nhom.localeCompare(b.nhom, 'vi');
+      return ia - ib || (a.nhom < b.nhom ? -1 : (a.nhom > b.nhom ? 1 : 0));
     });
   }
 
@@ -850,7 +876,7 @@
    * Các ngày của bảng lọc: đủ kỳ báo cáo, cộng thêm ngày lạc ngoài kỳ ở cuối.
    * Giữ ngày ngoài kỳ thay vì cắt bỏ để nhìn ra ngay khi tải nhầm khoảng ngày.
    */
-  function payooDates(rows, kyTu, kyDen) {
+  function locDates(rows, kyTu, kyDen) {
     var trongKy = periodDates(kyTu, kyDen);
     var co = Object.create(null);
     trongKy.forEach(function (d) { co[d] = true; });
@@ -1060,8 +1086,9 @@
     tuPhoBien: tuPhoBien,
     trongSo: trongSo,
     goiYDiem: goiYDiem,
-    payooView: payooView,
-    payooDates: payooDates,
+    locView: locView,
+    locDates: locDates,
+    tenKenh: tenKenh,
     totalsByDate: totalsByDate,
     periodDates: periodDates
   };

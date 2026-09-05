@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 
 from .aggregate import Aggregate, period_dates
 from .invoices import split_vat
-from .payoo_view import PayooRow, payoo_dates
+from .loc_view import LocRow, loc_dates, ten_kenh
 from .invoices import Invoice
 
 _TIEN = "#,##0"
@@ -93,7 +93,7 @@ def write_workbook(
     ten_khach: str,
     rate: float = 0.08,
     theo_ngay: bool = False,
-    payoo: list[PayooRow] | None = None,
+    loc: list[tuple[str, list[LocRow]]] | None = None,
 ) -> None:
     """Ghi toàn bộ file đầu ra: danh sách hoá đơn, bản kê, pivot từng luồng, đối soát."""
     book = Workbook()
@@ -106,8 +106,9 @@ def write_workbook(
         if result.total(stream=stream):
             _sheet_pivot(book, result, stream, ky_tu, ky_den)
     _sheet_theo_ngay(book, result, ky_tu, ky_den, rate)
-    if payoo:
-        _sheet_loc_payoo(book, payoo, ky_tu, ky_den)
+    # Mỗi cổng một tab lọc riêng, để kiểm từng nguồn rồi mới tin số tổng.
+    for channel, rows in loc or []:
+        _sheet_loc(book, channel, rows, ky_tu, ky_den)
     _sheet_doi_soat(book, co_so, result, invoices, ky_tu, ky_den, theo_ngay)
 
     # Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
@@ -299,21 +300,29 @@ def _sheet_theo_ngay(
     _total_row(sheet, len(dates) + 2, len(labels), money_columns, len(dates))
 
 
-def _sheet_loc_payoo(book: Workbook, rows: list[PayooRow], ky_tu: _dt.date, ky_den: _dt.date) -> None:
-    """Bảng lọc dữ liệu Payoo — chọn một ngày là ra số xuất hoá đơn của từng cửa hàng.
+def _sheet_loc(
+    book: Workbook, channel: str, rows: list[LocRow], ky_tu: _dt.date, ky_den: _dt.date
+) -> None:
+    """Bảng lọc dữ liệu một cổng — chọn một ngày là ra số xuất hoá đơn của từng mã.
 
-    Ba khối cột nối nhau đúng như bảng đang làm tay: số xuất hoá đơn, phí Payoo
-    thu, và tiền Payoo thực trả về tài khoản (= số xuất hoá đơn trừ phí).
+    Cổng có thu phí (Payoo) thì nối thêm hai khối cột đúng như bảng đang làm tay:
+    phí cổng thu, và tiền cổng thực trả về tài khoản (= số xuất hoá đơn trừ phí).
+    Cổng không có cột phí thì chỉ một khối, khỏi rác cột toàn số 0.
     """
-    sheet = book.create_sheet("Lọc Payoo")
-    dates = _ngay_payoo(rows, ky_tu, ky_den)
+    ten = ten_kenh(channel)
+    sheet = book.create_sheet(_safe_title(f"Lọc {ten}", book))
+    dates = _ngay_loc(rows, ky_tu, ky_den)
+    co_phi = any(row.tong_phi for row in rows)
+    la_payoo = channel == "payoo"
 
     nhan_ngay = [ngay.strftime("%d/%m/%Y") for ngay in dates]
-    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Chi nhánh",
-              "Hình thức thanh toán"]
+    labels = ["STT", "Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế",
+              "Chi nhánh" if la_payoo else "Mã điểm bán",
+              "Hình thức thanh toán" if la_payoo else "Luồng tiền"]
     labels += nhan_ngay + ["Tổng xuất hóa đơn"]
-    labels += nhan_ngay + ["Tổng tiền phí"]
-    labels += nhan_ngay + ["Tổng tiền Payoo phải trả"]
+    if co_phi:
+        labels += nhan_ngay + ["Tổng tiền phí"]
+        labels += nhan_ngay + [f"Tổng tiền {ten} phải trả"]
     _header(sheet, labels)
     for index, width in enumerate([5, 30, 24, 30, 18], start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
@@ -341,12 +350,13 @@ def _sheet_loc_payoo(book: Workbook, rows: list[PayooRow], ky_tu: _dt.date, ky_d
         for column, value in enumerate([row.ten_diem, row.ma_misa, row.code, row.nhom], start=2):
             sheet.cell(row=excel_row, column=column, value=value)
 
-        khoi_gia_tri = [
-            ([row.tien.get(ngay, 0) for ngay in dates], row.tong_tien),
-            ([row.phi.get(ngay, 0) for ngay in dates], row.tong_phi),
-            ([row.tien.get(ngay, 0) - row.phi.get(ngay, 0) for ngay in dates],
-             row.tong_tien - row.tong_phi),
-        ]
+        khoi_gia_tri = [([row.tien.get(ngay, 0) for ngay in dates], row.tong_tien)]
+        if co_phi:
+            khoi_gia_tri.append(([row.phi.get(ngay, 0) for ngay in dates], row.tong_phi))
+            khoi_gia_tri.append((
+                [row.tien.get(ngay, 0) - row.phi.get(ngay, 0) for ngay in dates],
+                row.tong_tien - row.tong_phi,
+            ))
         for dau, (theo_ngay_, tong) in zip(dau_khoi, khoi_gia_tri):
             for i, value in enumerate(theo_ngay_ + [tong]):
                 cell = sheet.cell(row=excel_row, column=dau + i, value=value)
@@ -361,13 +371,13 @@ def _sheet_loc_payoo(book: Workbook, rows: list[PayooRow], ky_tu: _dt.date, ky_d
     _total_row(sheet, len(rows) + 2, len(labels), money, len(rows))
 
 
-def _ngay_payoo(rows: list[PayooRow], ky_tu: _dt.date, ky_den: _dt.date) -> list[_dt.date]:
+def _ngay_loc(rows: list[LocRow], ky_tu: _dt.date, ky_den: _dt.date) -> list[_dt.date]:
     """Các ngày của bảng: đủ kỳ báo cáo, cộng thêm ngày lạc ngoài kỳ ở cuối.
 
     Giữ ngày ngoài kỳ thay vì cắt bỏ để nhìn ra ngay khi tải nhầm khoảng ngày.
     """
     trong_ky = period_dates(ky_tu, ky_den)
-    ngoai_ky = [ngay for ngay in payoo_dates(rows) if ngay not in set(trong_ky)]
+    ngoai_ky = [ngay for ngay in loc_dates(rows) if ngay not in set(trong_ky)]
     return trong_ky + ngoai_ky
 
 

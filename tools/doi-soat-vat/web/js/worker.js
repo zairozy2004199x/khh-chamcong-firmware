@@ -179,9 +179,9 @@ function run(message) {
     kyTu: message.kyTu, kyDen: message.kyDen, phapNhan: message.phapNhan || null
   });
   var invoices = VatRec.buildInvoices(result, message.rate, message.theoNgay);
-  // Bảng lọc Payoo dựng thẳng từ giao dịch thô, không qua bước tra danh mục,
-  // nên vẫn ra số kể cả khi file Payoo chỉ có mỗi sheet dữ liệu gốc.
-  var payoo = VatRec.payooView(txns, catalog);
+  // Mỗi cổng một bảng lọc riêng, dựng thẳng từ giao dịch thô chứ không qua bước
+  // tra danh mục, nên vẫn ra số kể cả khi file chỉ có mỗi sheet dữ liệu gốc.
+  var loc = bangLocTungKenh(txns, catalog, message);
 
   post('progress', { phase: 'Đang dựng file Excel...' });
   var options = {
@@ -195,7 +195,7 @@ function run(message) {
     tenKhach: message.tenKhach,
     rate: message.rate,
     theoNgay: message.theoNgay,
-    payoo: payoo
+    loc: loc
   };
   var book = VatRecReport.buildWorkbook(options);
   var buffer = XLSX.write(book, { bookType: 'xlsx', type: 'array', cellDates: true });
@@ -218,8 +218,7 @@ function run(message) {
       };
     }),
     theoNgay: !!message.theoNgay,
-    payoo: payoo,
-    payooNgay: payoo.length ? VatRec.payooDates(payoo, message.kyTu, message.kyDen) : [],
+    loc: loc,
     theoNgayBang: bangTheoNgay(result, message),
     chuaVat: invoices.reduce(function (a, i) { return a + i.chuaVat; }, 0),
     vat: invoices.reduce(function (a, i) { return a + i.vat; }, 0),
@@ -249,6 +248,27 @@ function run(message) {
 }
 
 /** Bảng doanh thu từng ngày để hiện ngay trên trang, không phải mở file mới thấy. */
+/**
+ * Một bảng lọc cho mỗi cổng có phát sinh, theo thứ tự gặp trong dữ liệu.
+ * Trả về mảng { channel, ten, rows, ngay, coPhi } để giao diện dựng từng tab.
+ */
+function bangLocTungKenh(txns, catalog, message) {
+  var kenh = [];
+  txns.forEach(function (txn) {
+    if (txn.channel && kenh.indexOf(txn.channel) < 0) kenh.push(txn.channel);
+  });
+  return kenh.map(function (channel) {
+    var rows = VatRec.locView(txns, channel, catalog);
+    return {
+      channel: channel,
+      ten: VatRec.tenKenh(channel),
+      rows: rows,
+      ngay: rows.length ? VatRec.locDates(rows, message.kyTu, message.kyDen) : [],
+      coPhi: rows.some(function (row) { return row.tongPhi; })
+    };
+  }).filter(function (item) { return item.rows.length; });
+}
+
 /*
  * Gắn đề xuất điểm xuất hoá đơn cho từng mã chưa có trong danh mục.
  *

@@ -348,7 +348,7 @@ mã vẫn được coi là hai giao dịch thật.
 | `DS xuất HĐ MTT` | Danh sách hoá đơn để nhập Misa — đúng thứ tự cột của file mẫu. Cột *Số HĐ* để trống vì số do Misa cấp |
 | `kê ds xuất HĐ MTT` | Bản kê chi tiết, thêm cột tách theo từng luồng tiền để tra ngược |
 | Một sheet cho mỗi luồng tiền | Pivot điểm xuất hoá đơn × ngày (luồng không phát sinh thì không tạo sheet) |
-| `Lọc Payoo` | **Bảng lọc dữ liệu Payoo** — mã cửa hàng × hình thức thanh toán × ngày, ba khối cột: số xuất hoá đơn, phí Payoo thu, tiền Payoo phải trả về TK |
+| `Lọc <cổng>` | **Một tab cho mỗi cổng** — mã điểm bán × nhóm × ngày. Payoo thêm hai khối cột phí và tiền phải trả về TK |
 | `Đối soát theo file` | Mỗi file đầu vào một dòng: luồng đọc được, số GD, tiền vào hoá đơn, và phần bị tách riêng của chính file đó |
 | `F1 …`, `F2 …` | **Một tab cho mỗi file** — điểm xuất hoá đơn × ngày, chỉ tính riêng file đó |
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
@@ -387,30 +387,36 @@ sửa hoặc xoá thoải mái trước khi chạy lại.
 `Mã cửa hàng` (`00003182`). Danh mục khai theo mã nào cũng tra ra được — mã chính
 không thấy thì tra tiếp mã phụ.
 
-### 5.0. Bảng lọc Payoo
+### 5.0. Bảng lọc từng cổng
 
-Sao kê Payoo tải theo ngày hay theo tháng đều là một danh sách giao dịch thô. Tab
-`Lọc Payoo` (và bảng cùng tên trên trang web) gom lại đúng dạng đang dùng để xuất
-hoá đơn:
+Sao kê của mọi cổng tải về đều là một danh sách giao dịch thô. Mỗi cổng được một
+tab `Lọc <cổng>` trong file kết quả, và một **tab riêng trên trang web** — kiểm
+từng nguồn rồi mới tin số tổng, thay vì trộn hết vào một chỗ rồi không biết sai
+từ đâu. Bố cục:
 
 ```
-STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · Chi nhánh · Hình thức thanh toán
+STT · Tên điểm xuất hóa đơn · Mã điểm trên misa thuế · Mã điểm bán · Nhóm
    || <mỗi ngày một cột> · Tổng xuất hóa đơn
-   || <mỗi ngày một cột> · Tổng tiền phí
-   || <mỗi ngày một cột> · Tổng tiền Payoo phải trả
 ```
 
-Mỗi cửa hàng tách hai dòng `Quét mã QR` và `Thẻ`; STT gộp ô cho cả hai dòng. Thứ
-tự cửa hàng giữ đúng thứ tự gặp trong file gốc, không xếp lại theo bảng chữ cái.
-Khối thứ ba = khối thứ nhất trừ khối phí, tức số Payoo thực chuyển về tài khoản.
+Payoo có cột phí trong sao kê nên nối thêm hai khối nữa — `Tổng tiền phí` và
+`Tổng tiền Payoo phải trả` (= khối thứ nhất trừ khối phí, tức số thực chuyển về
+tài khoản) — và tách mỗi cửa hàng thành hai dòng `Quét mã QR` / `Thẻ`. Các cổng
+khác không có cột phí nên chỉ một khối, và tách theo luồng tiền.
+
+STT gộp ô cho mọi dòng của cùng một điểm. Thứ tự giữ đúng thứ tự gặp trong file
+gốc, không xếp lại theo bảng chữ cái — nhưng gom theo điểm trước rồi mới tới mã,
+vì một điểm có thể có nhiều mã điểm bán (kênh QR hay gặp) và xếp rời ra thì STT
+nhảy lại, ô gộp trong Excel gộp nhầm sang điểm khác.
 
 Bảng dựng thẳng từ giao dịch thô, **không đi qua bước tra danh mục**, nên chạy
 được cả khi file Payoo chỉ có mỗi sheet dữ liệu gốc — lúc đó cột tên điểm và mã
 misa để trống, còn số tiền vẫn đủ.
 
-Trên trang web, bảng mở ra ở **ngày mới nhất có dữ liệu**; chọn lại ô *Ngày* để
-xem ngày khác, hoặc `— Cả kỳ —` để cộng gộp. Ô *Khối số* đổi giữa số xuất hoá
-đơn, phí, và tiền Payoo phải trả.
+Trên trang web, phần Kết quả chia thành các tab: `Tổng hợp` là trang gộp cuối
+cùng, còn mỗi cổng có phát sinh được một tab riêng. Bảng của mỗi cổng mở ra ở
+**ngày mới nhất có dữ liệu**; chọn lại ô *Ngày* để xem ngày khác, hoặc
+`— Cả kỳ —` để cộng gộp. Ô *Khối số* chỉ hiện ở cổng có thu phí.
 
 **Chống trùng:** cột `Mã giao dịch Payoo` trong sao kê thực tế **bỏ trống toàn
 bộ**, nên trước đây dán nhầm sheet hai lần là Payoo cộng đôi mà không cảnh báo

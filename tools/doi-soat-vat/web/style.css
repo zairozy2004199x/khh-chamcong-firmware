@@ -366,3 +366,48 @@ label.inline select {
   max-width: 320px;
   font-size: 13px;
 }
+
+/* ------------------------------------------------------- tab kết quả */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 18px;
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0;
+}
+
+.tabs button {
+  font: inherit;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 9px 16px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -2px;
+}
+
+.tabs button:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.tabs button[aria-selected="true"] {
+  color: var(--accent);
+  background: var(--surface);
+  border-color: var(--border);
+  border-bottom: 2px solid var(--surface);
+}
+
+.tabs button .count {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.tabs button[aria-selected="true"] .count { color: var(--accent); }
