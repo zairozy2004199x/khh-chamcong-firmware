@@ -212,6 +212,54 @@ class VHG_BaoCao {
 		return self::chi_so_truoc_ct_( $ma_may, $ngay, $toi )['cs'];
 	}
 
+	/**
+	 * CHỈ SỐ CỦA LẦN ĐỌC KẾ TIẾP — cái TRẦN cho ngày đang nhập.
+	 *
+	 * Anh Thắng 05/09/2026: *"nếu nhập giữa ngày, thì chỉ số sau sẽ hiện chữ gợi ý của ngày sau
+	 * đó, để tránh nhập nhầm lần 2. như kiểu ngày 2 cũng nhập và ngày 3 cũng nhập cái chỉ số
+	 * đó"*.
+	 *
+	 * 🔴 CHÈN GIỮA LÀ LÚC DỄ GÕ NHẦM NHẤT, và nhầm theo một kiểu rất khó thấy. Người ta mở máy
+	 *    ra đọc chỉ số HÔM NAY rồi mới nhớ ra là còn thiếu báo cáo hôm kia; gõ vào hàng hôm kia
+	 *    thì con số ấy là chỉ số của HÔM NAY, không phải hôm kia. Kết quả: ngày 3 và ngày 5 mang
+	 *    ĐÚNG một chỉ số, doanh thu ngày 3 bị thổi lên bằng cả phần của ngày 4–5, còn ngày 5 rơi
+	 *    về 0. Tổng tháng vẫn khớp, nên đối chiếu tổng KHÔNG bắt được — chỉ có nhìn từng ngày mới
+	 *    thấy, mà không ai ngồi nhìn từng ngày.
+	 *
+	 * ⚠️ TRẦN NÀY CHỈ ĐỂ GỢI Ý VÀ CẢNH BÁO, KHÔNG ĐỂ CHẶN. Máy bị thay hoặc bị reset thì chỉ số
+	 *    ngày sau NHỎ HƠN ngày trước là chuyện có thật; chặn cứng ở đây là khoá cửa đúng lúc
+	 *    người ta cần ghi lại sự cố ấy.
+	 *
+	 * @return array `cs` (int|null) · `ngay` (yyyy-mm-dd, '' nếu không có)
+	 */
+	public static function chi_so_ke_ct_( $ma_may, $ngay ) {
+		global $wpdb;
+		$ma   = (string) $ma_may;
+		$ngay = self::ngay_( $ngay );
+		if ( '' === $ma || '' === $ngay ) { return array( 'cs' => null, 'ngay' => '' ); }
+		/* Hàng gần nhất SAU ngày này mà thật sự có chỉ số — hàng chưa nhập chỉ số không phải một
+		   cái trần, nó chỉ là một hàng trống. Sắp `lan ASC` để lấy LẦN THU ĐẦU của ngày ấy: đó
+		   mới là mốc nối tiếp của ngày đang nhập; lấy lần cuối là bỏ qua cả phần giữa. */
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT chi_so_sau cs, ngay d FROM ' . VHG_DB::t( 'bc_dong' )
+			. ' WHERE ma_may=%s AND ngay > %s AND chi_so_sau IS NOT NULL'
+			. ' ORDER BY ngay ASC, lan ASC, chi_so_sau ASC LIMIT 1',
+			$ma, $ngay ), ARRAY_A );
+		if ( ! $r ) { return array( 'cs' => null, 'ngay' => '' ); }
+		return array( 'cs' => (int) $r['cs'], 'ngay' => (string) $r['d'] );
+	}
+
+	public static function lay_chiso_ke( $codes, $ngay ) {
+		$out = array();
+		foreach ( (array) $codes as $c ) {
+			$x = self::chi_so_ke_ct_( $c, $ngay );
+			/* Chỉ trả ghế NÀO CÓ trần. Trả cả ghế không có (null) là bắt giao diện lọc lại một
+			   lần nữa, và mỗi nơi lọc là một nơi quên lọc. */
+			if ( null !== $x['cs'] ) { $out[ (string) $c ] = $x; }
+		}
+		return $out;
+	}
+
 	public static function lay_chiso_truoc( $codes, $ngay, $toi = false ) {
 		$out = array();
 		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay, $toi ); }

@@ -144,9 +144,14 @@ class VHG_Trang {
 			if ( 'bc_lastmeters' === $viec ) {
 				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
 				   chính ngày đó, để lần thu mới nối tiếp lần trước. Mặc định giữ như cũ (ngày trước). */
-				self::tra( array( 'ok' => true, 'map' => VHG_BaoCao::lay_chiso_truoc(
-					isset( $d['codes'] ) ? (array) $d['codes'] : array(),
-					isset( $d['ngay'] ) ? $d['ngay'] : '', ! empty( $d['toi'] ) ) ) );
+				$ma_ds = isset( $d['codes'] ) ? (array) $d['codes'] : array();
+				$ng_bc = isset( $d['ngay'] ) ? $d['ngay'] : '';
+				/* `ke` = chỉ số của lần đọc KẾ TIẾP (trần cho ngày đang nhập) — chỉ có khi đang
+				   nhập vào một ngày NẰM GIỮA. Trả kèm ở đây, không thêm một lượt gọi nữa: giao
+				   diện đang chờ đúng lượt này để vẽ bảng, thêm lượt là thêm một chỗ chờ. */
+				self::tra( array( 'ok' => true,
+					'map' => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
+					'ke'  => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc ) ) );
 				return;
 			}
 			/* Xem trước lượt kích ghế từ xa cần trừ — cho nhân viên thấy TRƯỚC khi Gửi, khớp đúng
@@ -1353,7 +1358,7 @@ class VHG_Trang {
 		return <<<'JS'
 (function(){
   var API = window.VHG_API || '';
-  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false;
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KE={}, KICHXA={}, GUI_DANG=false;
   /* 🔴 CHẾ ĐỘ "GỌN" ĐÃ BỎ HẲN — anh Thắng 31/08/2026: *"bỏ tính năng rút gọn, rút gọn nó làm
      mất cột nhập liệu"*.
      Ý ban đầu (27/08) là màn điện thoại thì bớt cột cho đỡ chật. Nhưng thứ bị bớt lại chính là
@@ -1366,6 +1371,12 @@ class VHG_Trang {
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
   function money(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+  /* 'yyyy-mm-dd' -> 'dd/mm' cho câu nhắc. Người thu tiền đọc ngày kiểu Việt; in nguyên chuỗi ISO
+     giữa một câu tiếng Việt là bắt họ dịch trong đầu đúng lúc đang gõ số. */
+  function nhanNgayVn(d){
+    var v=String(d||'');
+    return /^\d{4}-\d{2}-\d{2}/.test(v) ? (v.slice(8,10)+'/'+v.slice(5,7)) : v;
+  }
   function snum(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var d=s.replace(/[^0-9]/g,'');
     if(!d) return 0; return (neg?-1:1)*parseInt(d,10); }
   function meterVal(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
@@ -1715,6 +1726,7 @@ class VHG_Trang {
     bcDocNhap();
     goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1},function(r){
       LAST=(r&&r.map)||{};
+      KE=(r&&r.ke)||{};
       body.textContent='';
       ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
       tinhTong();
@@ -1790,7 +1802,30 @@ class VHG_Trang {
     if(coBefore){ var sp=el('span','bc-ro'); sp.textContent=money(before); tdB.appendChild(sp); }
     else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
     tr.appendChild(tdB);
-    tr.appendChild(cell(inp('after','Chỉ số sau')));
+    /* 🔴 GỢI Ý TRẦN NGAY TẠI Ô — anh Thắng 05/09/2026: *"nếu nhập giữa ngày, thì chỉ số sau sẽ
+       hiện chữ gợi ý của ngày sau đó, để tránh nhập nhầm lần 2. như kiểu ngày 2 cũng nhập và
+       ngày 3 cũng nhập cái chỉ số đó"*.
+
+       Người ta mở máy đọc chỉ số HÔM NAY rồi mới nhớ còn thiếu báo cáo hôm kia; gõ con số vừa
+       đọc vào hàng hôm kia là hai ngày mang ĐÚNG một chỉ số. Doanh thu ngày trước bị thổi lên
+       bằng cả phần ở giữa, ngày sau rơi về 0 — mà TỔNG THÁNG vẫn khớp, nên đối chiếu tổng không
+       bắt được.
+
+       Gợi ý đặt ở CHÍNH Ô đang gõ (placeholder) chứ không phải một dòng chữ đâu đó: lúc gõ, mắt
+       người ta ở trong ô. Dòng nói rõ ngày nào nằm ngay dưới, cho ai muốn kiểm lại. */
+    var ke = KE[g.ma];
+    var tdA = el('td');
+    var iA  = inp('after', ke ? ('phải nhỏ hơn ' + money(ke.cs)) : 'Chỉ số sau');
+    tdA.appendChild(iA);
+    if (ke) {
+      tr.dataset.keCs   = String(ke.cs);
+      tr.dataset.keNgay = String(ke.ngay || '');
+      var dk = el('div','bc-ke');
+      dk.style.cssText = 'font-size:11px;color:#64748b;line-height:1.25;margin-top:2px';
+      dk.textContent = 'Ngày ' + nhanNgayVn(ke.ngay) + ' đã có ' + money(ke.cs);
+      tdA.appendChild(dk);
+    }
+    tr.appendChild(tdA);
     tr.appendChild(cellRo('actual'));
     {
       tr.appendChild(cellRo('cash',true));
@@ -1902,6 +1937,24 @@ class VHG_Trang {
        nhảy — lý do đã nằm sẵn trong chính con số, bắt gõ lại là bắt chép lại điều màn vừa nói.
        ⚠️ Chặt đúng MỘT ca: sau BẰNG ĐÚNG trước. Không phải "âm thì cho qua". */
     var mayDungCoQR=(before!==''&&after!==''&&Number(after)===Number(before)&&qr>0&&rawCash<0);
+    /* 🔴 SO VỚI TRẦN CỦA NGÀY KẾ TIẾP — xem khối 🔴 ở `veDong`. Hai kiểu nhầm, hai câu khác nhau:
+         · TRÙNG ĐÚNG chỉ số ngày sau  -> gần như chắc chắn vừa gõ con số của ngày ấy vào đây;
+         · LỚN HƠN chỉ số ngày sau     -> máy chỉ tăng, nên số hôm nay không thể lớn hơn.
+       ⚠️ CHỈ NHẮC, KHÔNG CHẶN, và không đòi lý do. Máy bị thay hoặc reset thì chỉ số ngày sau
+          nhỏ hơn ngày trước là chuyện có thật — chặn cứng là khoá cửa đúng lúc người ta cần ghi
+          lại sự cố ấy. Câu nhắc nói ra con số và cái ngày, để người gõ tự đối chiếu. */
+    var keCs   = tr.dataset.keCs ? Number(tr.dataset.keCs) : null;
+    var keNgay = tr.dataset.keNgay || '';
+    var nhacKe = '';
+    if (keCs !== null && after !== '') {
+      if (Number(after) === keCs) {
+        nhacKe = '⚠ Chỉ số này TRÙNG ĐÚNG chỉ số ngày ' + nhanNgayVn(keNgay) + ' (' + money(keCs)
+          + ') — có phải đang gõ nhầm số vừa đọc trên máy hôm nay vào hàng của ngày ' + nhanNgayVn(NGAY) + ' không?';
+      } else if (Number(after) > keCs) {
+        nhacKe = '⚠ Lớn hơn chỉ số ngày ' + nhanNgayVn(keNgay) + ' (' + money(keCs)
+          + ') — máy chỉ đếm tăng, nên số của ngày ' + nhanNgayVn(NGAY) + ' phải NHỎ HƠN. Kiểm lại, trừ khi máy vừa bị thay/reset.';
+      }
+    }
     var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     /* 🔴 Ô "Thực thu" ĐỂ TRỐNG THÌ GỢI Ý SẴN SỐ CÔNG THỨC — anh Thắng 30/08/2026: *"mặc định là
@@ -1926,7 +1979,8 @@ class VHG_Trang {
       w.classList.add('bc-nhac');
       w.textContent='⚠ Máy đứng yên ('+after+') mà có QR — bình thường khi khách trả QR nhưng '
         +'bộ đếm không nhảy. Gõ số tiền mặt thật vào cột "Thực thu tiền mặt" (thường là 0) là gửi '
-        +'được, không cần ghi lý do.';
+        +'được, không cần ghi lý do.'
+        +(nhacKe ? ' · '+nhacKe : '');
     } else if(batThuong){
       /* 🔴 CHỈ HIỆN CẢNH BÁO, KHÔNG DỰNG THÊM Ô NHẬP — anh Thắng 01/09/2026: *"Chỉ hiện cảnh báo
          thôi, chứ không nhập, vì phía sau có rồi"*. Hàng nào cũng đã có sẵn cột "Ghi chú" với ô
@@ -1938,9 +1992,18 @@ class VHG_Trang {
       w.textContent=(chiSoNguoc
         ? '⚠ Chỉ số sau nhỏ hơn trước'
         : '⚠ Công thức tính ra ÂM (QR lớn hơn Actual)')
-        + ' — ghi lý do ở cột "Ghi chú" và nhập số tiền thật ở cột "Thực thu tiền mặt" của hàng này.';
+        + ' — ghi lý do ở cột "Ghi chú" và nhập số tiền thật ở cột "Thực thu tiền mặt" của hàng này.'
+        /* Nối vào cùng khung, không dựng khung thứ hai: hai khung đỏ chồng nhau trên một hàng
+           thì người đọc bỏ qua cả hai. */
+        + (nhacKe ? ' · '+nhacKe : '');
+    } else if(nhacKe){
+      /* Nhắc thôi: khung vàng như ca "máy đứng yên", KHÔNG chặn gửi và KHÔNG đòi lý do. */
+      w.style.display='';
+      w.classList.add('bc-nhac');
+      w.textContent=nhacKe;
     } else {
       w.style.display='none';
+      w.classList.remove('bc-nhac');
       w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
     }
   }
