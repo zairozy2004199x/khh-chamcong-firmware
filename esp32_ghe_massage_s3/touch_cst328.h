@@ -105,13 +105,13 @@ static bool _readGT911(int* px, int* py){
   bool has = false; int x = 0, y = 0;
   if(np >= 1 && np <= 5){
     uint8_t p[8] = {0};
+    // Chip này: toạ độ bắt đầu ngay tại 0x8150 (KHÔNG có byte track-id ở đầu):
+    //   p[0]=x_low p[1]=x_high p[2]=y_low p[3]=y_high  (little-endian)
+    // (đo thực tế: trên-trái 23/17, dưới-phải 461/618 — khớp 480×640).
     if(_r16(TP_I2C, 0x8150, p, 8)){
-      x = p[1] | (p[2] << 8);                        // x low|high
-      y = p[3] | (p[4] << 8);                        // y low|high
+      x = p[0] | (p[1] << 8);
+      y = p[2] | (p[3] << 8);
       has = true;
-      // In byte THÔ ngay tại đây (sạch, không bị dump giành) để chẩn đoán/map.
-      Serial.printf("[GT] RAW p= %02X %02X %02X %02X %02X -> x=%d y=%d\n",
-                    p[0], p[1], p[2], p[3], p[4], x, y);
     }
   }
   _w16(TP_I2C, 0x814E, 0);                            // xoá cờ buffer
