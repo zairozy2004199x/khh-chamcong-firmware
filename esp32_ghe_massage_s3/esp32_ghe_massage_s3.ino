@@ -277,5 +277,8 @@ void loop(){
     }
     veMark(tx, ty);      // luôn vẽ dấu + toạ độ chỗ chạm (kiểm tra bằng mắt)
   }
+  // Chẩn đoán: dump thanh ghi thô GT911 mỗi 500ms (xem byte that su tra ve)
+  static uint32_t td = 0;
+  if(millis() - td > 500){ td = millis(); TP_DumpRaw(); }
   delay(15);
 }
