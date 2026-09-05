@@ -153,18 +153,38 @@ static void veTheGoi(int i, int x, int y, int w, int h){
   lTextC(cx, y+h-40, p, 2, C_PHU, C_BOT);                // phút
 }
 
+// Dòng chẩn đoán cảm ứng (ngay dưới tiêu đề). Xanh = thấy 0x1A, đỏ = không.
+static void drawTPStatus(){
+  lRect(0, 94, LW, 14, C_BG);
+  lTextC(LW/2, 96, TP_STATUS, 1, TP_OK ? C_ID : RGB565(0xF0,0x60,0x60), C_BG);
+}
+
 static void veIdle(){
   lFill(C_BG);
   // Thanh tiêu đề
   lRect(0, 0, LW, 92, C_BAR);
   lTextC(LW/2, 20, "POSH", 5, C_YEL, C_BAR);
   lTextC(LW/2, 62, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
+  drawTPStatus();
   // Lưới 2×2 chọn gói
   int k = 0;
   for(int r=0;r<2;r++) for(int c=0;c<2;c++) veTheGoi(k++, GX[c], GY[r], TW, TH);
   // Thanh dưới
   lRect(0, LH-56, LW, 56, C_BAR);
   lTextC(LW/2, LH-40, "CHON GOI - QUET QR THANH TOAN", 2, C_GLOW, C_BAR);
+  veFlush();
+}
+
+// Vẽ dấu + toạ độ ngay chỗ chạm (đè lên màn hiện tại) rồi đẩy ra — để kiểm
+// tra cảm ứng bằng MẮT, không cần Serial.
+static void veMark(int x, int y){
+  uint16_t c = RGB565(0xFF,0x40,0x40);
+  for(int i=-16;i<=16;i++){ lpx(x+i,y,c); lpx(x,y+i,c); }   // dấu cộng
+  lRect(x-3,y-3,6,6,c);
+  char s[24]; snprintf(s, sizeof s, "x=%d y=%d", x, y);
+  int ty = (y > LH-60) ? y-40 : y+18;
+  lRect(x-70, ty-2, 140, 18, C_SHD);
+  lTextC(x, ty, s, 2, C_WHITE, C_SHD);
   veFlush();
 }
 
@@ -189,6 +209,7 @@ static void veChon(int idx){
   // Nút QUAY LAI
   lRoundRectA(BACK_X, BACK_Y, BACK_W, BACK_H, 14, C_BAR, C_BG);
   lTextC(cx, BACK_Y+26, "QUAY LAI", 3, C_WHITE, C_BAR);
+  drawTPStatus();
   veFlush();
 }
 static bool inBack(int tx, int ty){
@@ -248,18 +269,11 @@ void loop(){
     Serial.printf("[TP] cham x=%d y=%d (state=%d)\n", tx, ty, g_state);
     if(g_state == ST_IDLE){
       int k = hitGoi(tx, ty);
-      if(k >= 0){
-        g_goi = k; g_state = ST_CHON;
-        Serial.printf("[APP] chon goi %d (%s)\n", k, GOI[k].ten);
-        veChon(k);
-      }
+      if(k >= 0){ g_goi = k; g_state = ST_CHON; veChon(k); }
     } else if(g_state == ST_CHON){
-      if(inBack(tx, ty)){
-        g_state = ST_IDLE; g_goi = -1;
-        Serial.println("[APP] quay lai man chon goi");
-        veIdle();
-      }
+      if(inBack(tx, ty)){ g_state = ST_IDLE; g_goi = -1; veIdle(); }
     }
+    veMark(tx, ty);      // luôn vẽ dấu + toạ độ chỗ chạm (kiểm tra bằng mắt)
   }
   delay(15);
 }

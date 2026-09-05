@@ -52,15 +52,21 @@ static bool _tpWrite(uint16_t reg, uint8_t val){
   return Wire.endTransmission(true) == 0;
 }
 
-// Quét I2C in ra Serial (chẩn đoán: phải thấy 0x1A cảm ứng, 0x20 TCA9554).
-// Trả true nếu thấy địa chỉ CST328 (0x1A).
+// Trạng thái chẩn đoán để HIỆN LÊN MÀN HÌNH (không cần Serial — board S3 mặc
+// định tắt USB CDC nên Serial thường trống).
+static char TP_STATUS[64] = "TP: chua init";
+static bool TP_OK = false;
+
+// Quét I2C: gom địa chỉ tìm thấy vào TP_STATUS, đặt TP_OK nếu thấy 0x1A.
 static bool TP_Scan(){
   bool co1A = false;
+  int n = snprintf(TP_STATUS, sizeof TP_STATUS, "TP scan:");
   Serial.print("[TP] I2C scan:");
   for(uint8_t a = 1; a < 127; a++){
     Wire.beginTransmission(a);
     if(Wire.endTransmission() == 0){
       Serial.print(" 0x"); Serial.print(a, HEX);
+      if(n < (int)sizeof(TP_STATUS) - 4) n += snprintf(TP_STATUS + n, sizeof(TP_STATUS) - n, " %02X", a);
       if(a == CST328_ADDR) co1A = true;
     }
   }
@@ -69,15 +75,16 @@ static bool TP_Scan(){
 }
 
 static void TP_Init(){
-  bool co1A = TP_Scan();
-  if(!co1A){
-    Serial.println("[TP] !! KHONG thay 0x1A tren bus -> CST328 dang bi giu reset");
-    Serial.println("[TP]    hoac sai chan. Bao lai dong '[TP] I2C scan:' cho toi.");
+  TP_OK = TP_Scan();
+  if(!TP_OK){
+    strncat(TP_STATUS, " (KHONG co 1A)", sizeof(TP_STATUS) - strlen(TP_STATUS) - 1);
+    Serial.println("[TP] !! KHONG thay 0x1A -> CST328 bi giu reset / sai chan");
     return;
   }
   uint8_t b[1];
-  if(_tpRead(CST328_REG_NUM, b, 1)) Serial.println("[TP] CST328 0x1A tra loi OK - san sang");
-  else Serial.println("[TP] Thay 0x1A nhung doc thanh ghi loi (?)");
+  bool ok = _tpRead(CST328_REG_NUM, b, 1);
+  strncat(TP_STATUS, ok ? " -> 1A OK" : " -> 1A doc loi", sizeof(TP_STATUS) - strlen(TP_STATUS) - 1);
+  Serial.println(ok ? "[TP] CST328 0x1A san sang" : "[TP] 0x1A doc thanh ghi loi");
 }
 
 // Đọc 1 điểm chạm. Trả true nếu đang chạm; (x,y) theo hệ màn 480×640.
