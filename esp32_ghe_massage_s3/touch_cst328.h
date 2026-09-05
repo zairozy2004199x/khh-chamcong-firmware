@@ -97,35 +97,26 @@ static void TP_Init(){
 }
 
 // ── Đọc 1 điểm chạm ─────────────────────────────────────────────────────────
-static uint8_t GT_ST = 0, GT_P[8] = {0};             // byte thô lần đọc gần nhất
 static bool _readGT911(int* px, int* py){
-  GT_ST = 0;
-  if(!_r16(TP_I2C, 0x814E, &GT_ST, 1)) return false;
-  if(!(GT_ST & 0x80)){ return false; }               // chưa sẵn sàng
-  uint8_t np = GT_ST & 0x0F;
+  uint8_t st = 0;
+  if(!_r16(TP_I2C, 0x814E, &st, 1)) return false;
+  if(!(st & 0x80)){ return false; }                  // buffer chưa sẵn sàng
+  uint8_t np = st & 0x0F;
   bool has = false; int x = 0, y = 0;
   if(np >= 1 && np <= 5){
-    if(_r16(TP_I2C, 0x8150, GT_P, 8)){
-      x = GT_P[1] | (GT_P[2] << 8);                  // x low|high
-      y = GT_P[3] | (GT_P[4] << 8);                  // y low|high
+    uint8_t p[8] = {0};
+    if(_r16(TP_I2C, 0x8150, p, 8)){
+      x = p[1] | (p[2] << 8);                        // x low|high
+      y = p[3] | (p[4] << 8);                        // y low|high
       has = true;
+      // In byte THÔ ngay tại đây (sạch, không bị dump giành) để chẩn đoán/map.
+      Serial.printf("[GT] RAW p= %02X %02X %02X %02X %02X -> x=%d y=%d\n",
+                    p[0], p[1], p[2], p[3], p[4], x, y);
     }
   }
-  _w16(TP_I2C, 0x814E, 0);                           // xoá cờ buffer
+  _w16(TP_I2C, 0x814E, 0);                            // xoá cờ buffer
   if(!has) return false;
   *px = x; *py = y; return true;
-}
-
-// Dump thanh ghi thô GT911 (chẩn đoán) — đọc trực tiếp, không xoá cờ.
-static void TP_DumpRaw(){
-  if(TP_KIND == TK_GT911){
-    uint8_t st = 0; _r16(TP_I2C, 0x814E, &st, 1);
-    uint8_t p[8] = {0}; _r16(TP_I2C, 0x8150, p, 8);
-    Serial.printf("[TP] GT@%02X st=%02X pts=%d | id=%02X x=%02X%02X y=%02X%02X\n",
-                  TP_I2C, st, st & 0x0F, p[0], p[2], p[1], p[4], p[3]);
-  } else {
-    Serial.printf("[TP] kind=%d addr=%02X\n", (int)TP_KIND, TP_I2C);
-  }
 }
 static bool _readCST328(int* px, int* py){
   uint8_t n = 0;
