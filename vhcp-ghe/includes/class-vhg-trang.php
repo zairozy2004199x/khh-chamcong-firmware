@@ -1606,6 +1606,24 @@ class VHG_Trang {
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
     tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
+    /* CHỌN ẢNH HÀNG LOẠT — anh Thắng 06/09/2026: chọn nhiều ảnh 1 lần rồi tự chia theo THỨ TỰ
+       vào từng ghế: ảnh 1 → CHỈ SỐ ghế 1, ảnh 2 → VỆ SINH ghế 1, ảnh 3 → CHỈ SỐ ghế 2, ảnh 4 →
+       VỆ SINH ghế 2… (2 ảnh mỗi ghế, xen kẽ chỉ số/vệ sinh, đúng thứ tự ghế trong bảng). Nhồi
+       thẳng vào các ô ảnh có sẵn của từng dòng nên luồng Gửi không đổi. Vẫn có thể bấm "Chọn ảnh"
+       của từng ghế để chỉnh lại ô nào lỡ lệch. */
+    {
+      var cbl=el('div'); cbl.style.cssText='margin-top:12px;display:flex;flex-direction:column;gap:5px';
+      var ibl=el('input'); ibl.type='file'; ibl.id='bc-anh-loat'; ibl.accept='image/*'; ibl.multiple=true;
+      ibl.style.cssText='position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0';
+      var lbl=el('label',null,'📷 Chọn ảnh hàng loạt (tự chia theo ghế)'); lbl.setAttribute('for','bc-anh-loat');
+      lbl.style.cssText='display:inline-block;align-self:flex-start;cursor:pointer;font:inherit;font-weight:700;'
+        +'font-size:13px;padding:8px 14px;border-radius:9px;border:1px solid #cbd5e1;background:#f1f5f9;color:#0f172a';
+      var hbl=el('div','bc-mut'); hbl.textContent='Thứ tự: ảnh 1 → CHỈ SỐ ghế 1, ảnh 2 → VỆ SINH ghế 1, ảnh 3 → CHỈ SỐ ghế 2… (2 ảnh mỗi ghế). Chọn lộn có thể sửa từng ô bên trên.';
+      var kbl=el('div','bc-mut'); kbl.id='bc-anh-loat-kq'; kbl.style.fontWeight='700';
+      ibl.addEventListener('change',function(){ chiaAnhLoat(ibl,kbl); });
+      cbl.appendChild(ibl); cbl.appendChild(lbl); cbl.appendChild(hbl); cbl.appendChild(kbl);
+      c2.appendChild(cbl);
+    }
     /* Tổng — gọn: chỉ Tiền mặt phải nộp + Doanh thu ngày; đầy đủ: cả 4 ô.
        🔴 "TIỀN MẶT PHẢI NỘP", KHÔNG PHẢI "TIỀN MẶT". Anh Thắng 30/08/2026: *"Còn tiền mặt tổng
           (là Tiền mặt phải nộp)"*. Đây là con số người thu tiền phải mang về quầy — cộng tiền
@@ -1911,6 +1929,33 @@ class VHG_Trang {
     td.appendChild(i); td.appendChild(lab); td.appendChild(prev);
     return td;
   }
+  /* Chia một xấp ảnh chọn hàng loạt vào các ô ảnh từng ghế. Các ô .anh-chiso/.anh-vesinh nằm
+     xen kẽ theo thứ tự DOM (mỗi ghế: chỉ số rồi vệ sinh) nên gán tuần tự file[i] → ô thứ i là
+     khớp yêu cầu. Cố set thẳng input.files bằng DataTransfer (để luồng Gửi đọc như chọn tay);
+     iOS Safari đôi khi không cho set .files → kèm fallback `_bulkFile` mà gomAnhTungGhe_ có đọc.
+     Preview tự vẽ ở đây, không phụ thuộc set .files được hay không. */
+  function chiaAnhLoat(input,res){
+    var files=Array.prototype.slice.call(input.files||[]);
+    var body=document.getElementById('bc-rows');
+    var targets=body?[].slice.call(body.querySelectorAll('.anh-chiso, .anh-vesinh')):[];
+    if(!files.length){ if(res) res.textContent=''; return; }
+    if(!targets.length){ if(res){ res.textContent='⚠️ Chưa có ghế trong bảng — chọn cơ sở trước.'; res.className='bc-mut bc-err'; } input.value=''; return; }
+    var n=Math.min(files.length,targets.length);
+    for(var i=0;i<n;i++){
+      var f=files[i], t=targets[i];
+      t._bulkFile=f;                                   // fallback cho iOS
+      try{ var dt=new DataTransfer(); dt.items.add(f); t.files=dt.files; }catch(e){}
+      var td=t.parentNode, img=td&&td.querySelector('img');
+      if(img){ try{ if(img.dataset.url) URL.revokeObjectURL(img.dataset.url); }catch(e){}
+        var u=URL.createObjectURL(f); img.src=u; img.dataset.url=u; img.style.display='inline-block'; }
+    }
+    var soGhe=Math.ceil(n/2);
+    var t2='✅ Đã gán '+n+' ảnh cho '+soGhe+' ghế đầu.';
+    if(files.length>targets.length) t2+=' Dư '+(files.length-targets.length)+' ảnh (nhiều hơn số ô).';
+    else if(n%2===1) t2+=' Ảnh cuối là CHỈ SỐ — ghế cuối còn thiếu ảnh VỆ SINH.';
+    if(res){ res.textContent=t2; res.className='bc-mut'; }
+    input.value='';                                    // cho phép chọn lại lần nữa
+  }
   function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
   function cell(c){ var td=el('td'); td.appendChild(c); return td; }
   function cellRo(cls,cash){ var td=el('td'); var s=el('span','bc-ro'+(cash?' bc-cash':'')); s.className='bc-ro'+(cash?' bc-cash':''); s.classList.add(cls); s.textContent='0'; td.appendChild(s); return td; }
@@ -2077,7 +2122,9 @@ class VHG_Trang {
     rows.forEach(function(r){
       var tr=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
       var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
-      var c=fC&&fC.files&&fC.files[0], v=fV&&fV.files&&fV.files[0];
+      /* Ưu tiên ảnh chọn tay (.files); nếu không set được (iOS, chọn hàng loạt) thì lấy _bulkFile. */
+      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile)||null;
+      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile)||null;
       if(c||v) can.push({ r:r, c:c, v:v });
     });
     if(!can.length) return cb();
@@ -2161,9 +2208,10 @@ class VHG_Trang {
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
           msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
-          document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; });
+          document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; try{ delete i._bulkFile; }catch(e){ i._bulkFile=null; } });
           document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });
           var iP=$('bc-proofs'); if(iP) iP.value='';
+          var iL=$('bc-anh-loat'); if(iL) iL.value=''; var kL=$('bc-anh-loat-kq'); if(kL) kL.textContent='';
           if(r.phien) veProg(r.phien);
           else refreshPhien();
         },90000);
