@@ -291,7 +291,17 @@ la('kêu lên khi tổng xin đã đổi sau khi duyệt', 'Tổng xin đã đ�
 la('có hàng chốt "làm được gì"', 'function _lamDuocGi(' in src)
 for nhan in ('SỬA ĐƯỢC', 'KHOÁ SỬA', 'THÊM DÒNG ĐƯỢC', 'KHOÁ THÊM DÒNG', 'XOÁ ĐƯỢC', 'KHOÁ XOÁ'):
     la('nhãn "%s"' % nhan, nhan in src)
-la('dải trạng thái in tên trạng thái cỡ lớn', "font-size:17px;font-weight:800" in src)
+# 🔴 CANH Ý ĐỊNH, KHÔNG CANH CON SỐ. Bản đầu của phép này ghim cứng "font-size:17px" — anh
+#    Thắng 06/09/2026 bảo *"chỗ trạng thái đơn chỉnh nhỏ hơn tầm 20% đang to quá"*, và phép ấy
+#    đỏ ngay, dù mã mới vẫn giữ đúng điều nó sinh ra để giữ. Một con số không phải là luật; luật
+#    là TÊN TRẠNG THÁI PHẢI NỔI HƠN HẲN CHỮ QUANH NÓ — đó mới là thứ không được mất.
+_m_ten = re.search(r"font-size:(\d+(?:\.\d+)?)px;font-weight:800;letter-spacing:\.2px", src)
+_m_giai = re.search(r"font-size:(\d+(?:\.\d+)?)px;line-height:[\d.]+\"\>'\+_ct\.chu", src)
+la('dải trạng thái in tên trạng thái cỡ riêng, đậm 800', bool(_m_ten))
+la('và câu giải thích có cỡ riêng', bool(_m_giai))
+if _m_ten and _m_giai:
+    la('🔴 tên trạng thái NỔI HƠN HẲN câu giải thích quanh nó',
+       float(_m_ten.group(1)) >= float(_m_giai.group(1)) + 2)
 la('và hàng chốt nằm trong dải', '_lamDuocGi(st)' in src)
 
 # Bấm "Chi tiết" ở tab Quyết toán -> mở THẲNG trang đơn.

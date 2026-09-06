@@ -2161,13 +2161,13 @@
             trạng thái. Còn `hint` thì bỏ hẳn: nó và `_ct.chu` nói cùng một việc, `_ct.chu` nói
             đủ hơn. */
       var _nhanDang=esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'');
-      var _dai='<div style="padding:13px 16px;background:'+_ct.nen+';border:2px solid '+_ct.vien
-        +';border-radius:10px;color:'+_ct.mau+'">'
-        +'<div style="font-size:17px;font-weight:800;letter-spacing:.2px">'
+      var _dai='<div style="padding:10px 13px;background:'+_ct.nen+';border:2px solid '+_ct.vien
+        +';border-radius:9px;color:'+_ct.mau+'">'
+        +'<div style="font-size:14px;font-weight:800;letter-spacing:.2px">'
           +'Đơn đang <u>'+esc(st||'—')+'</u></div>'
-        +'<div style="font-size:12px;color:#475569;margin:3px 0 8px">'+_nhanDang+'</div>'
-        +'<div style="margin-bottom:7px">'+_lamDuocGi(st)+'</div>'
-        +'<div style="font-size:12.5px;line-height:1.6">'+_ct.chu+'</div>'
+        +'<div style="font-size:11px;color:#475569;margin:2px 0 6px">'+_nhanDang+'</div>'
+        +'<div style="margin-bottom:5px">'+_lamDuocGi(st)+'</div>'
+        +'<div style="font-size:11.5px;line-height:1.5">'+_ct.chu+'</div>'
         +_thanhBuoc(st)+'</div>';
       el('donBadge').innerHTML=_dai+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
@@ -4573,8 +4573,8 @@
        không xoá, để Thực chi = 0 nếu không mua. Đó là luật kế toán, không phải luật giao diện. */
     ds.push(nhap ? {ok:1,chu:'XOÁ ĐƯỢC'} : {ok:0,chu:'KHOÁ XOÁ HẠNG MỤC ĐÃ XIN'});
     return ds.map(function(x){
-      return '<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;'
-        +'border-radius:999px;margin:0 6px 0 0;background:'+(x.ok?'#dcfce7':'#fee2e2')+';color:'
+      return '<span style="display:inline-block;font-size:10.5px;font-weight:800;padding:2px 7px;'
+        +'border-radius:999px;margin:0 5px 0 0;background:'+(x.ok?'#dcfce7':'#fee2e2')+';color:'
         +(x.ok?'#166534':'#b91c1c')+'">'+(x.ok?'✔ ':'🔒 ')+x.chu+'</span>';
     }).join('');
   }
@@ -4688,8 +4688,11 @@
          nằm ở CỘT BÊN PHẢI, không chặn gì, nên vẫn mở sẵn như cũ.
          Đo bằng đúng mốc 820px mà CSS dùng cho cụm nút — một hệ mốc, không đẻ thêm mốc mới. */
       var _hep = (window.matchMedia && window.matchMedia('(max-width:820px)').matches);
-      /* Hiện 5 dòng gần nhất, phần còn lại nằm trong <details>. Người ta mở đơn ra là muốn biết
-         "vừa có ai động vào không", không phải đọc hết 50 dòng. */
+      /* Hiện 3 việc gần nhất, phần còn lại nằm trong <details>. Người ta mở đơn ra là muốn biết
+         "vừa có ai động vào không", không phải đọc hết 50 dòng.
+         Anh Thắng 06/09/2026: *"phần lịch sử hiện 3 lịch sử thôi"* — trước là 5. Một con số duy
+         nhất `SU_HIEN`, dùng cho cả chỗ cắt lẫn hai câu chữ đếm phần còn lại: ba chỗ rời nhau
+         thì đổi một chỗ là hai câu kia nói sai số, mà nói sai thì không ai kêu. */
       var h='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px 10px">';
       if(_hep){
         /* Máy hẹp: cả khối nằm trong một <details> gập sẵn — một dòng chữ thay vì một màn nhật ký.
@@ -4702,8 +4705,9 @@
         return;
       }
       h+='<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
-      h+=_suDongHtml(it.slice(0,5));
-      if(it.length>5){
+      var SU_HIEN=3;
+      h+=_suDongHtml(it.slice(0,SU_HIEN));
+      if(it.length>SU_HIEN){
         /* 🔴 XỔ RA THÌ PHẢI GẬP LẠI ĐƯỢC — TỪ CHỖ ĐANG ĐỨNG.
            Anh Thắng 28/08/2026: *"khi bấm nút xổ lịch sử chỉnh đơn, nó xổ ra và không tắt gọn
            lại được"*, kèm ảnh một đơn có 38 dòng sử. <details> vẫn gập được — nhưng gập bằng
@@ -4716,10 +4720,10 @@
                tên ▸ mặc định bé quá, không ai đọc nó là một cái nút. */
         h+='<details id="suCu" style="margin-top:4px">'
           +'<summary class="su-tt" style="font-size:11px;color:#64748b;cursor:pointer">'
-            +'<span class="su-mo">xem '+(it.length-5)+' dòng cũ hơn</span>'
-            +'<span class="su-dong">thu gọn '+(it.length-5)+' dòng cũ · bấm lại để gập</span>'
+            +'<span class="su-mo">xem '+(it.length-SU_HIEN)+' dòng cũ hơn</span>'
+            +'<span class="su-dong">thu gọn '+(it.length-SU_HIEN)+' dòng cũ · bấm lại để gập</span>'
           +'</summary>'
-          +'<div style="max-height:260px;overflow:auto;margin-top:2px">'+_suDongHtml(it.slice(5))+'</div>'
+          +'<div style="max-height:260px;overflow:auto;margin-top:2px">'+_suDongHtml(it.slice(SU_HIEN))+'</div>'
           +'<div style="text-align:center;padding:6px 0 2px">'
             +'<button type="button" class="btn b-x" style="font-size:11px;padding:3px 10px" '
             +'onclick="suThuGon()">▲ Thu gọn</button></div>'
@@ -4795,7 +4799,7 @@
 
   function _thanhBuoc(st){
     var i=TT_LUONG.indexOf(st);
-    var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px">';
+    var h='<div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center;margin-top:6px">';
     TT_LUONG.forEach(function(b,k){
       /* Ba kiểu ô: đã qua (xanh nhạt) · đang ở (đậm, viền) · chưa tới (xám). Trạng thái lạ thì
          `i` = -1, lúc ấy KHÔNG tô ô nào là "đã qua" — thà thanh trông trống còn hơn vẽ bừa một
@@ -4803,7 +4807,7 @@
       var daQua=(i>=0&&k<i), dangO=(k===i);
       var nen=dangO?'#0369a1':(daQua?'#e0f2fe':'#f1f5f9');
       var chu=dangO?'#fff':(daQua?'#0369a1':'#94a3b8');
-      h+='<span style="font-size:10.5px;font-weight:'+(dangO?'800':'600')+';padding:3px 8px;border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'
+      h+='<span style="font-size:9.5px;font-weight:'+(dangO?'800':'600')+';padding:2px 7px;border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'
         +(daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
       if(k<TT_LUONG.length-1) h+='<span style="color:#cbd5e1;font-size:10px">›</span>';
     });

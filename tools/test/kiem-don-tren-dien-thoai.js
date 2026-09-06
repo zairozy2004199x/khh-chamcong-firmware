@@ -151,7 +151,7 @@ t('và mấy dải cảnh báo vẫn còn (trả lại · khoá · kế toán s�
 
 /* ⚠️ CÁI BỎ ĐI PHẢI LÀ CÁI LẶP, KHÔNG PHẢI THÔNG TIN. Kỳ · cơ sở · người lập là thứ nhận dạng
    đơn, không có ở đâu khác trên màn — nó phải chuyển VÀO khối to, không được biến mất. */
-const iDai = HTML.indexOf("var _dai='<div style=\"padding:13px 16px");
+const iDai = HTML.indexOf("var _dai='<div style=");
 t('bốc được khối to', iDai > 0);
 const khoiDai = iDai > 0 ? HTML.slice(iDai, HTML.indexOf("+_thanhBuoc(st)", iDai)) : '';
 t('🔴 kỳ · cơ sở · người lập chuyển VÀO khối to', khoiDai.indexOf('_nhanDang') > 0, khoiDai);
@@ -257,11 +257,73 @@ t('và nói rõ bấm để xem', nhanhHep.indexOf('bấm để xem') > 0, null)
 /* Mở ra thì cuộn trong khung riêng — không kéo dài trang, dù 11 hay 300 việc. */
 t('🔴 mở ra thì cuộn trong khung riêng, không kéo dài trang',
   nhanhHep.indexOf('max-height:300px;overflow:auto') > 0, null);
-/* Máy tính: nhánh cũ giữ nguyên — 5 dòng gần nhất + <details> cho phần còn lại. */
-t('🔴 máy tính giữ nguyên cách cũ: 5 dòng gần nhất',
-  HTML.indexOf('h+=_suDongHtml(it.slice(0,5));') > 0, null);
+/* Máy tính: nhánh cũ giữ nguyên — vài việc gần nhất + <details> cho phần còn lại. */
 t('và vẫn còn khối "xem dòng cũ hơn" với nút Thu gọn',
   HTML.indexOf("id=\"suCu\"") > 0 && HTML.indexOf('suThuGon()') > 0, null);
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 5. SỐ VIỆC HIỆN SẴN — MỘT CON SỐ, DÙNG CHUNG BỐN CHỖ
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+/* Anh Thắng 06/09/2026: *"phần lịch sử hiện 3 lịch sử thôi"* — trước là 5.
+   🔴 CON SỐ ẤY XUẤT HIỆN Ở BỐN CHỖ: chỗ cắt phần hiện sẵn · chỗ hỏi "còn dư không" · hai câu
+      chữ đếm phần còn lại · chỗ cắt phần dư. Viết thẳng số vào từng chỗ thì đổi một chỗ là ba
+      chỗ kia nói sai — và nói sai kiểu này KHÔNG AI KÊU: nhãn ghi "xem 17 dòng cũ hơn" trong
+      khi mở ra có 19 dòng, chẳng ai ngồi đếm. Nên phải là MỘT biến. */
+const iSH = HTML.indexOf('var SU_HIEN=');
+t('🔴 số việc hiện sẵn là MỘT biến, không rải số vào từng chỗ', iSH > 0, null);
+const mSH = HTML.slice(iSH, HTML.indexOf(';', iSH)).match(/=\s*(\d+)/);
+teq('🔴 và bằng 3 (anh Thắng 06/09/2026)', 3, mSH ? Number(mSH[1]) : null);
+
+/* Bốn chỗ dùng đều phải đi qua biến ấy — không chỗ nào còn số trần. */
+const iLoad = HTML.indexOf('function loadDonSu(');
+const khoiLoad = iLoad > 0 ? HTML.slice(iLoad, HTML.indexOf('\n  }\n', iLoad)) : '';
+t('bốc được khối vẽ lịch sử', khoiLoad.length > 400, khoiLoad.length);
+t('🔴 chỗ cắt phần hiện sẵn dùng biến', khoiLoad.indexOf('it.slice(0,SU_HIEN)') > 0, null);
+t('🔴 chỗ hỏi "còn dư không" dùng biến', khoiLoad.indexOf('it.length>SU_HIEN') > 0, null);
+t('🔴 chỗ cắt phần dư dùng biến', khoiLoad.indexOf('it.slice(SU_HIEN)') > 0, null);
+teq('🔴 hai câu chữ đếm phần còn lại cũng dùng biến', 2,
+  (khoiLoad.match(/it\.length-SU_HIEN/g) || []).length);
+/* Và không còn số 5 trần nào sót lại trong khối này. */
+t('🔴 không còn số trần nào sót lại', !/it\.slice\(0,\s*\d/.test(khoiLoad)
+  && !/it\.length\s*[>-]\s*\d/.test(khoiLoad), khoiLoad.slice(0, 300));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 6. KHỐI TRẠNG THÁI NHỎ LẠI ~20%
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+/* Anh Thắng 06/09/2026: *"chỗ trạng thái đơn chỉnh nhỏ hơn tầm 20% đang to quá"*.
+   ⚠️ NHỎ ĐỀU CẢ KHỐI, KHÔNG BÓP MỖI CHỮ. Chiều cao khối là tổng của chữ + lề trong + khoảng
+      cách; hạ mỗi cỡ chữ thì lề vẫn chiếm chỗ cũ và khối chỉ thấp đi chút. Nên bài này canh cả
+      ba nhóm cùng lúc — hạ sót một nhóm là không đạt 20%. */
+function cỡ(khoi, sau) {
+  const m = khoi.match(new RegExp(sau));
+  return m ? Number(m[1]) : null;
+}
+teq('🔴 tên trạng thái: 17px -> 14px', 14, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:800;letter-spacing"));
+teq('🔴 dòng nhận dạng: 12px -> 11px', 11, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;color:#475569"));
+teq('🔴 câu giải thích: 12.5px -> 11.5px', 11.5, cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;line-height"));
+/* Lề trong — nhóm thứ hai. */
+teq('🔴 lề trong dọc: 13px -> 10px', 10, cỡ(khoiDai, "padding:(\\d+)px \\d+px;background"));
+teq('🔴 lề trong ngang: 16px -> 13px', 13, cỡ(khoiDai, "padding:\\d+px (\\d+)px;background"));
+/* Ba chip "làm được gì" — nhóm thứ ba, nằm ở hàm khác nên rất dễ bị bỏ quên. */
+const iChip = HTML.indexOf("return '<span style=\"display:inline-block;font-size:");
+const dongChip = iChip > 0 ? HTML.slice(iChip, HTML.indexOf('</span>', iChip)) : '';
+t('bốc được ba chip "làm được gì"', dongChip.length > 60, dongChip.slice(0, 80));
+teq('🔴 chip: 11.5px -> 10.5px', 10.5, cỡ(dongChip, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:800"));
+teq('🔴 lề chip cũng nhỏ theo', 2, cỡ(dongChip, "padding:(\\d+)px \\d+px"));
+/* Thanh bước — nhóm thứ tư, cũng ở hàm khác. */
+const iBuoc = HTML.indexOf('function _thanhBuoc(st){');
+const khoiBuoc = iBuoc > 0 ? HTML.slice(iBuoc, HTML.indexOf('\n  }', iBuoc)) : '';
+t('bốc được thanh bước', khoiBuoc.length > 200);
+teq('🔴 ô thanh bước: 10.5px -> 9.5px', 9.5, cỡ(khoiBuoc, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:'"));
+
+/* 🔴 VIỀN 2px GIỮ NGUYÊN. Viền là thứ nói "khối này quan trọng"; nhỏ đi thì khối trạng thái lẫn
+   vào mọi khối trắng khác trên trang — đúng cái đã phải sửa một lần hồi 26/08. Nhỏ lại là nhỏ
+   CHỮ và LỀ, không phải nhỏ tín hiệu. */
+t('🔴 viền vẫn 2px — nhỏ chữ, không nhỏ tín hiệu', khoiDai.indexOf('border:2px solid') > 0, khoiDai.slice(0, 120));
+/* Và không được nhỏ tới mức khó đọc: 14px vẫn là cỡ tiêu đề, không tụt xuống hàng chữ thường. */
+t('🔴 tên trạng thái vẫn to hơn hẳn chữ thường quanh nó',
+  cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;font-weight:800;letter-spacing")
+  > cỡ(khoiDai, "font-size:(\\d+(?:\\.\\d+)?)px;line-height"), null);
 
 /* ---------- KẾT ---------- */
 if (TRUOT.length) {
