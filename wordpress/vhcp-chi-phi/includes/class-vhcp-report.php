@@ -9,6 +9,20 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class VHCP_Report {
 
 	/** getFinanceReport(): chi phí xin vs thực tế theo hạng mục · cơ sở · tuần. */
+	/**
+	 * MÃ ĐƠN -> TRẠNG THÁI ĐƠN, tra một lượt.
+	 *
+	 * `VHCP_Don::thuc_chi()` cần biết đơn đã cấp tiền chưa, mà mấy vòng dưới chỉ cầm DÒNG hạng
+	 * mục. Hỏi lại từng dòng là mỗi dòng một lượt truy vấn — một tuần vài trăm dòng.
+	 */
+	private static function tt_theo_don() {
+		$m = array();
+		foreach ( VHCP_Don::don_rows() as $r ) {
+			$m[ (string) $r['ma_don'] ] = ( $r['trang_thai'] !== '' ? (string) $r['trang_thai'] : 'Nháp' );
+		}
+		return $m;
+	}
+
 	public static function finance( $opts = array() ) {
 		$opts = (array) $opts;
 		$f_ky = isset( $opts['ky'] ) && $opts['ky'] !== '' ? $opts['ky'] : 'all';
@@ -46,8 +60,10 @@ class VHCP_Report {
 			if ( $coso_f !== null && ! isset( $coso_f[ mb_strtolower( $coso ) ] ) ) { continue; }
 
 			$tt_  = VHCP_Util::num( $r['thanh_tien'] );
-			$tm   = VHCP_Util::blank_or_num( $r['thuc_mua'] );
-			$eff  = ( $tm === null ) ? $tt_ : $tm;
+			/* 🔴 CỘT "XIN" GIỮ NGUYÊN, CỘT "THỰC CHI" THÌ KHÔNG. Xin là kế hoạch — có từ lúc
+			   nhân viên gõ đơn. Thực chi chỉ có nghĩa từ khi tiền ra khỏi két, nên đi qua
+			   `VHCP_Don::thuc_chi()` cùng một luật với màn Quyết toán. */
+			$eff  = VHCP_Don::thuc_chi( $r['thanh_tien'], $r['thuc_mua'], $info['tt'] );
 			$xin  = VHCP_Util::is_phat_sinh( $r['phat_sinh'] ) ? 0 : $tt_;
 			$nhom = trim( (string) $r['nhom'] );
 			if ( $nhom === '' ) { $nhom = '(không nhóm)'; }
@@ -244,11 +260,12 @@ class VHCP_Report {
 
 		// 5) Đơn vận hành
 		$rows = array(); $tot = 0;
+		$tt_don = self::tt_theo_don();
 		foreach ( VHCP_Don::cp_rows() as $r ) {
 			if ( mb_strtolower( trim( (string) $r['coso'] ) ) !== $kl ) { continue; }
-			$tt = VHCP_Util::num( $r['thanh_tien'] );
-			$tm = VHCP_Util::blank_or_num( $r['thuc_mua'] );
-			$so = ( $tm === null ) ? $tt : $tm;
+			$_m = (string) $r['ma_don'];
+			$so = VHCP_Don::thuc_chi( $r['thanh_tien'], $r['thuc_mua'],
+				isset( $tt_don[ $_m ] ) ? $tt_don[ $_m ] : '' );
 			if ( ! $so ) { continue; }
 			$rows[] = array( 'nd' => ( (string) $r['noi_dung'] !== '' ? (string) $r['noi_dung'] : (string) $r['nhom'] ), 'ct' => (string) $r['nhom'], 'tien' => $so );
 			$tot   += $so;
@@ -289,12 +306,13 @@ class VHCP_Report {
 		};
 
 		// 1) Đơn vận hành
+		$tt_don = self::tt_theo_don();
 		foreach ( VHCP_Don::cp_rows() as $r ) {
 			$dt = VHCP_Util::vh_parse_dmy( $r['ngay'] );
 			if ( ! $in_wk( $dt ) ) { continue; }
-			$tt = VHCP_Util::num( $r['thanh_tien'] );
-			$tm = VHCP_Util::blank_or_num( $r['thuc_mua'] );
-			$st = ( $tm === null ) ? $tt : $tm;
+			$_m = (string) $r['ma_don'];
+			$st = VHCP_Don::thuc_chi( $r['thanh_tien'], $r['thuc_mua'],
+				isset( $tt_don[ $_m ] ) ? $tt_don[ $_m ] : '' );
 			if ( ! $st ) { continue; }
 			$k = $co( $r['coso'] );
 			$map[ $k ]['vh'] += $st;

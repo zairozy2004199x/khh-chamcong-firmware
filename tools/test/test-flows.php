@@ -74,7 +74,21 @@ teq( 'dòng 1..3 đều là hạng mục xin', 0, $l3['phatSinh'] );
 $g0 = VHCP_Don::get_don( $ma );
 teq( '🔴 chưa nhập tay thì tạm ứng = 0, KHÔNG suy từ hạng mục xin', 0, $g0['tongCN']['tamUng'] );
 t( 'chưa nhập tay thì bảng tạm ứng theo cơ sở còn rỗng', empty( $g0['tamUng'] ) );
-teq( 'nhưng thực chi vẫn thấy đủ — hai con số tách bạch', 1500000, $g0['tongCN']['thucChi'] );
+/* 🔴 CHƯA CẤP TIỀN THÌ CHƯA CÓ THỰC CHI — anh Thắng 06/09/2026: *"Trước đã cấp tiền hệ thống
+   phải ghi nhận tiền tạm ứng, không tính tiền thực chi (vì nhập chi tiết đơn là các bạn nhập
+   để lưu trữ lên); còn tạm ứng là để kế toán chốt số tạm ứng của tuần đó"*.
+
+   Phép này trước đây mong 1.500.000 — tổng hạng mục XIN của một đơn còn Nháp. Nó xanh vì máy
+   chủ lấy `thanh_tien` lấp vào chỗ thực chi khi dòng chưa nhập thực mua, nên đơn chưa ai đưa
+   đồng nào đã có "thực chi" bằng đúng số đang xin. Đó chính là hành vi vừa bị bỏ. */
+teq( '🔴 đơn còn Nháp: thực chi = 0, dù hạng mục xin đã nhập đủ', 0, $g0['tongCN']['thucChi'] );
+teq( 'và chênh lệch cũng 0 — chưa ai đưa tiền thì không thể thừa', 0, $g0['tongCN']['chenhLech'] );
+t( 'máy chủ nói rõ đơn chưa được cấp tiền', empty( $g0['daCapTien'] ), $g0['daCapTien'] );
+/* ⚠️ NHƯNG DỮ LIỆU KHÔNG MẤT: mấy dòng hạng mục vẫn nguyên trong sổ — nhân viên nhập để lưu
+   trữ, đúng như anh Thắng nói. Cái đổi là chúng không được CỘNG vào thực chi trước khi tiền ra
+   khỏi két. */
+teq( 'các dòng hạng mục vẫn còn đủ trong đơn', 2, count( $g0['lines'] ) );
+teq( 'và vẫn giữ nguyên thành tiền', 1200000, VHCP_Util::num( $g0['lines'][0]['thanhTien'] ) );
 
 t( 'nhập tay tạm ứng FARM', ! empty( VHCP_Don::set_tam_ung( $ma, 'FARM PHAN THIẾT', 1500000 )['success'] ) );
 t( 'nhập tay tạm ứng TÀU TÂN PHÚ', ! empty( VHCP_Don::set_tam_ung( $ma_ncc, 'TÀU TÂN PHÚ', 300000 )['success'] ) );
@@ -83,10 +97,11 @@ $g = VHCP_Don::get_don( $ma );
 teq( 'tạm ứng FARM = 1.500.000', 1500000, $g['tamUng']['FARM PHAN THIẾT'] );
 t( 'đơn FARM không có cơ sở khác', ! isset( $g['tamUng']['TÀU TÂN PHÚ'] ) );
 teq( 'tổng tạm ứng cục = 1.500.000', 1500000, $g['tongCN']['tamUng'] );
-teq( 'đã chi cá nhân = 1.500.000', 1500000, $g['tongCN']['thucChi'] );
+teq( 'đơn vẫn Nháp nên thực chi vẫn 0 (nhập tạm ứng không làm nó thành đã chi)',
+	0, $g['tongCN']['thucChi'] );
 $g_ncc = VHCP_Don::get_don( $ma_ncc );
 teq( 'tạm ứng TÀU TÂN PHÚ = 300.000', 300000, $g_ncc['tamUng']['TÀU TÂN PHÚ'] );
-teq( 'đã chi NCC = 300.000', 300000, $g_ncc['tongNCC']['thucChi'] );
+teq( 'đơn NCC còn Nháp -> thực chi NCC cũng 0', 0, $g_ncc['tongNCC']['thucChi'] );
 teq( 'tiền thuế dòng NCC = 24.000', 24000, $g_ncc['lines'][0]['tienThue'] );
 teq( 'ngày dòng hiện dd/MM/yyyy', $today, $g['lines'][0]['ngay'] );
 t( 'thực mua để trống', $g['lines'][0]['thucMua'] === '' );
@@ -252,7 +267,15 @@ foreach ( $dons as $x ) { if ( $x['maDon'] === $ma ) { $d_farm = $x; } if ( $x['
 teq( 'cơ sở của đơn FARM', 'FARM PHAN THIẾT', $d_farm['coso'] );
 teq( 'cơ sở của đơn TÀU TÂN PHÚ', 'TÀU TÂN PHÚ', $d_tau['coso'] );
 teq( 'thực chi cá nhân trên danh sách', 1450000, $d_farm['thucChiCN'] );
-teq( 'thực chi NCC trên danh sách', 300000, $d_tau['thucChiNCC'] );
+/* Đơn TÀU TÂN PHÚ tới đây vẫn chưa được duyệt/cấp (mãi dòng dưới mới đi qua quy trình), nên
+   thực chi của nó phải là 0 trên danh sách — cùng luật với khối Quyết toán khi mở đơn ra. */
+teq( '🔴 đơn NCC chưa cấp tiền -> thực chi trên danh sách = 0', 0, $d_tau['thucChiNCC'] );
+teq( 'và chênh lệch cũng 0', 0, $d_tau['chenhLech'] );
+t( 'danh sách cũng nói rõ đơn chưa được cấp tiền', empty( $d_tau['daCapTien'] ), $d_tau['daCapTien'] );
+/* 🔴 ĐỐI CHỨNG — ĐƠN ĐÃ CẤP TIỀN THÌ VẪN TÍNH ĐỦ. Không có phép này thì "thực chi = 0" ở trên
+   xanh cả khi ai đó làm hỏng hẳn phép cộng thực chi, và cả hệ mất luôn con số ấy. */
+t( 'đối chứng: đơn FARM đã được cấp tiền', ! empty( $d_farm['daCapTien'] ), $d_farm['daCapTien'] );
+teq( 'nên thực chi của nó vẫn ra đủ', 1450000, $d_farm['thucChiCN'] );
 
 // BÙ TRỪ LUÂN CHUYỂN: kỳ này tự lấy phần dư/thiếu của kỳ TRƯỚC của CHÍNH người đó.
 // Đơn trên: tạm ứng 2.000.000 − thực chi cá nhân 1.450.000 = DƯ 550.000 -> kỳ sau trừ đi.
@@ -1064,12 +1087,17 @@ t( 'gợi ý sản phẩm nhớ đơn giá + ĐVT', $found );
 // ---------------------------------------------------------------- 4. báo cáo tổng quan
 $fr = VHCP_Report::finance( array() );
 teq( 'tổng xin (không tính phát sinh)', 1800000, $fr['totals']['xin'] );
-teq( 'tổng thực tế', 1750000, $fr['totals']['thucTe'] );
+/* 🔴 BÁO CÁO TỔNG QUAN CŨNG THEO LUẬT "CHƯA CẤP TIỀN THÌ CHƯA CÓ THỰC CHI". Đơn TÀU TÂN PHÚ
+   (300.000đ) lúc này còn chưa qua cấp tạm ứng, nên nó KHÔNG nằm trong cột thực tế — trước
+   bản 1.69.0 nó nằm, và cột thực tế của cả công ty cộng luôn mọi đơn còn nháp. Cột XIN thì
+   giữ nguyên 1.800.000đ: xin là kế hoạch, có từ lúc gõ đơn. */
+teq( 'tổng thực tế (đơn chưa cấp tiền không tính vào)', 1450000, $fr['totals']['thucTe'] );
 teq( 'dự phòng vào báo cáo', 200000, $fr['totals']['duPhong'] );
 teq( 'bù trừ vào báo cáo', 0, $fr['totals']['buTru'] );
 teq( 'số đơn', 2, $fr['totals']['soDon'] );
 $fr2 = VHCP_Report::finance( array( 'coso' => 'TÀU TÂN PHÚ' ) );
-teq( 'lọc theo cơ sở', 300000, $fr2['totals']['thucTe'] );
+teq( 'lọc theo cơ sở: đơn chưa cấp tiền -> thực tế 0', 0, $fr2['totals']['thucTe'] );
+teq( 'nhưng cột XIN của cơ sở ấy vẫn còn nguyên', 300000, $fr2['totals']['xin'] );
 
 // ---------------------------------------------------------------- 5. xuất MISA đơn vận hành
 // Đơn TÀU TÂN PHÚ (dòng NCC) cũng phải đi hết quy trình mới xuất MISA được — mỗi đơn 1 cơ
@@ -1080,6 +1108,17 @@ VHCP_Don::cap_tam_ung( $ma_ncc, 'Lê Kế Toán', 'Tiền mặt' );
 VHCP_Don::gui_quyet_toan( $ma_ncc );
 VHCP_Don::xac_nhan_qt_cn_nhieu( array( $ma_ncc ), 'Lê Kế Toán' );
 teq( 'đơn NCC đã quyết toán', 'Đã quyết toán', VHCP_Don::don_row( $ma_ncc )['trang_thai'] );
+/* 🔴 VÀ SAU KHI ĐI QUA CẤP TIỀN, THỰC CHI NCC HIỆN RA ĐỦ. Đây là nửa còn lại của luật: chốt
+   `da_cap_tien()` chỉ được HOÃN con số ấy tới lúc cấp tiền, không được nuốt mất nó. */
+$g_ncc2 = VHCP_Don::get_don( $ma_ncc );
+t( 'đơn NCC nay đã cấp tiền', ! empty( $g_ncc2['daCapTien'] ), $g_ncc2['daCapTien'] );
+teq( '🔴 thực chi NCC hiện ra đủ 300.000', 300000, $g_ncc2['tongNCC']['thucChi'] );
+/* Và BÁO CÁO TỔNG QUAN phải nhúc nhích theo cùng lúc — hai màn này đọc chung một hàm
+   `VHCP_Don::thuc_chi()`, sót một bên là hai con số khác nhau cho cùng một đồng tiền. */
+$fr3 = VHCP_Report::finance( array( 'coso' => 'TÀU TÂN PHÚ' ) );
+teq( '🔴 báo cáo tổng quan cũng thấy 300.000 sau khi cấp tiền', 300000, $fr3['totals']['thucTe'] );
+teq( 'tổng cả công ty cộng đủ trở lại', 1750000,
+	VHCP_Report::finance( array() )['totals']['thucTe'] );
 
 VHCP_Cfg::save_config( array(
 	'coso' => array(

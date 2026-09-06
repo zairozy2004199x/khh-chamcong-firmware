@@ -41,6 +41,71 @@ class VHCP_Don {
 	const TT_LUONG = array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng',
 		'Chờ quyết toán', 'Đã quyết toán', 'Đã xuất MISA' );
 
+	/**
+	 * ĐƠN NÀY ĐÃ ĐƯỢC CẤP TIỀN CHƯA — chốt dùng chung cho mọi phép tính thực chi.
+	 *
+	 * Anh Thắng 06/09/2026: *"Trước đã cấp tiền hệ thống phải ghi nhận tiền tạm ứng, không tính
+	 * tiền thực chi (vì nhập chi tiết đơn là các bạn nhập để lưu trữ lên); còn tạm ứng là để kế
+	 * toán chốt số tạm ứng của tuần đó. Còn khi đã cấp tiền lúc này kế toán mới quan tâm thực
+	 * chi là bao nhiêu và thừa thiếu bao nhiêu"*.
+	 *
+	 * 🔴 HAI GIAI ĐOẠN, HAI CÂU HỎI KHÁC HẲN NHAU.
+	 *      · Trước khi cấp tiền, câu hỏi là "TUẦN NÀY PHẢI ĐƯA RA BAO NHIÊU" — chỉ tạm ứng trả
+	 *        lời được. Mấy dòng hạng mục lúc ấy là KẾ HOẠCH MUA, nhân viên nhập để lưu và để
+	 *        giải trình con số xin; chưa ai mua gì, nên không có đồng thực chi nào.
+	 *      · Từ khi cấp tiền, câu hỏi đổi thành "TIÊU HẾT BAO NHIÊU, THỪA THIẾU BAO NHIÊU" —
+	 *        lúc đó thực chi mới có nghĩa.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ CHỐT NÀY: `$eff = ( $tm === null ) ? $tt : $tm` — dòng chưa nhập thực mua
+	 *    thì lấy THÀNH TIỀN XIN làm thực chi. Quy ước ấy đúng cho đơn ĐÃ cấp tiền (mua rồi mà
+	 *    chưa kịp gõ số thì tạm coi bằng số xin), nhưng với đơn chưa cấp thì nó biến toàn bộ kế
+	 *    hoạch mua thành "đã tiêu". Hệ quả: đơn Nháp/Chờ duyệt đã có thừa/thiếu ảo, và bảng
+	 *    Thừa/thiếu tuần của kế toán đầy những dòng chưa ai đưa đồng nào.
+	 *
+	 * ⚠️ CHỈ THÔI TÍNH, KHÔNG XOÁ. Mấy dòng hạng mục vẫn nguyên trong sổ và vẫn hiện ra — nhân
+	 *    viên nhập để lưu trữ, đúng như anh Thắng nói. Cái đổi là chúng không được cộng vào thực
+	 *    chi trước khi tiền ra khỏi két.
+	 */
+	public static function da_cap_tien( $trang_thai ) {
+		$st = trim( (string) $trang_thai );
+		if ( '' === $st ) { return false; }          // đơn chưa có trạng thái = Nháp
+		$i = array_search( $st, self::TT_LUONG, true );
+		$moc = array_search( 'Đã cấp tạm ứng', self::TT_LUONG, true );
+		/* Trạng thái lạ (dữ liệu cũ, gõ tay) -> coi như CHƯA cấp. Đoán nhầm theo hướng "đã cấp"
+		   là đem kế hoạch mua vào sổ thực chi; đoán nhầm hướng kia chỉ là một con số 0 nhìn thấy
+		   được, và người ta sẽ hỏi ngay. */
+		if ( false === $i || false === $moc ) { return false; }
+		return $i >= $moc;
+	}
+
+	/**
+	 * THỰC CHI CỦA MỘT DÒNG HẠNG MỤC — quy ước DUY NHẤT cho cả hệ, hàm thuần.
+	 *
+	 * Hai luật gộp vào một chỗ:
+	 *   1. Chưa cấp tiền -> 0 (xem `da_cap_tien()`).
+	 *   2. Đã cấp mà chưa gõ số thực mua -> tạm lấy thành tiền xin. NULL khác 0: NULL là chưa
+	 *      ai gõ, 0 là đã gõ và gõ là không đồng nào — nên phải qua `blank_or_num()`.
+	 *
+	 * 🔴 VÌ SAO PHẢI LÀ MỘT HÀM: quy ước này từng nằm rải RÁC SÁU CHỖ chép tay (`list_dons`,
+	 *    `get_don`, ba chỗ trong `class-vhcp-report.php`, và `class-vhcp-trama.php`). Sửa luật
+	 *    mà sót một bản chép là đúng cảnh anh Thắng gửi ảnh 31/08/2026 *"2 có số tổng tạm ứng
+	 *    khác nhau"* — lần này với thực chi, và lệch giữa màn Quyết toán với báo cáo tuần thì
+	 *    khó thấy hơn nhiều vì hai màn không bao giờ mở cạnh nhau.
+	 *
+	 * ⚠️ MISA KHÔNG gọi hàm này và không cần: nó chỉ nhận đơn "Đã quyết toán"/"Đã xuất MISA",
+	 *    vốn đã qua mốc cấp tiền từ lâu.
+	 *
+	 * @param mixed $thanh_tien Thành tiền hạng mục XIN.
+	 * @param mixed $thuc_mua   Số thực mua đã gõ, hoặc ''/null nếu chưa gõ.
+	 * @param string $trang_thai_don Trạng thái của ĐƠN chứa dòng này.
+	 */
+	public static function thuc_chi( $thanh_tien, $thuc_mua, $trang_thai_don ) {
+		if ( ! self::da_cap_tien( $trang_thai_don ) ) { return 0; }
+		$tt = VHCP_Util::num( $thanh_tien );
+		$tm = VHCP_Util::blank_or_num( $thuc_mua );
+		return ( null === $tm ) ? $tt : $tm;
+	}
+
 	public static function da_chot( $st ) {
 		return in_array( trim( (string) $st ), self::TT_CHOT, true );
 	}
@@ -480,6 +545,11 @@ class VHCP_Don {
 			$tu_has[ $m ] = true;
 		}
 
+		/* Trạng thái của ĐƠN, tra được từ mã dòng — `thuc_chi()` cần biết đơn đã cấp tiền chưa,
+		   mà vòng dưới chỉ cầm dòng hạng mục. Dựng map một lượt, không hỏi lại từng dòng. */
+		$tt_don = array();
+		foreach ( $dons as $d ) { $tt_don[ (string) $d['ma_don'] ] = (string) $d['trang_thai']; }
+
 		$xin = array(); $tt_cn = array(); $tt_ncc = array(); $coso_by = array();
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
@@ -490,8 +560,8 @@ class VHCP_Don {
 				$coso_by[ $m ][ $cs ] = ( isset( $coso_by[ $m ][ $cs ] ) ? $coso_by[ $m ][ $cs ] : 0 ) + 1;
 			}
 			$tt  = VHCP_Util::num( $r['thanh_tien'] );
-			$tm  = VHCP_Util::blank_or_num( $r['thuc_mua'] );
-			$eff = ( $tm === null ) ? $tt : $tm;
+			$eff = self::thuc_chi( $r['thanh_tien'], $r['thuc_mua'],
+				isset( $tt_don[ $m ] ) ? $tt_don[ $m ] : '' );
 			if ( ! VHCP_Util::is_phat_sinh( $r['phat_sinh'] ) ) { $xin[ $m ] = ( isset( $xin[ $m ] ) ? $xin[ $m ] : 0 ) + $tt; }
 			if ( VHCP_Util::is_ncc( $r['phan_loai_tt'], $r['cn_xu_ly'] ) ) { $tt_ncc[ $m ] = ( isset( $tt_ncc[ $m ] ) ? $tt_ncc[ $m ] : 0 ) + $eff; }
 			else { $tt_cn[ $m ] = ( isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0 ) + $eff; }
@@ -540,9 +610,14 @@ class VHCP_Don {
 			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) + $du_phong;
 			$ad_total = ( null !== $tu_d ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
-			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
-			$tc_ncc   = isset( $tt_ncc[ $m ] ) ? $tt_ncc[ $m ] : 0;
-			$tc       = $mua_cn + $tc_ncc;
+			/* 🔴 CHƯA CẤP TIỀN THÌ CHƯA CÓ THỰC CHI — `thuc_chi()` đã ép 0 ngay ở vòng gom trên,
+			   nên hai tổng dưới đây tự bằng 0. Con số này nuôi cả bảng Thừa/thiếu tuần lẫn phép
+			   bù trừ luân chuyển: để nó mang kế hoạch mua là đẩy một khoản chênh KHÔNG CÓ THẬT
+			   đi khắp hệ. */
+			$da_cap  = self::da_cap_tien( $r['trang_thai'] );
+			$mua_cn  = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
+			$tc_ncc  = isset( $tt_ncc[ $m ] ) ? $tt_ncc[ $m ] : 0;
+			$tc      = $mua_cn + $tc_ncc;
 			/* 🔴 KHÔNG LẤY THỰC CHI LẤP VÀO CHỖ TẠM ỨNG — cùng lý do với `get_don()`. Ở đây nó
 			   còn đi xa hơn: `chenhLech` = `$tam_ung - $mua_cn` nuôi cả màn Thừa/thiếu tuần và
 			   phép bù trừ luân chuyển, nên một đơn không xin tạm ứng đang báo chênh 0 ở KHẮP
@@ -593,7 +668,11 @@ class VHCP_Don {
 				'thucChi'     => $tc,
 				'thucChiCN'   => $mua_cn,
 				'thucChiNCC'  => $tc_ncc,
-				'chenhLech'   => $tam_ung - $mua_cn,
+				/* 🔴 CHƯA CẤP TIỀN -> CHÊNH LỆCH LÀ 0, KHÔNG PHẢI `tamUng`. Để nguyên phép trừ
+				   thì `mua_cn` = 0 làm chênh lệch bằng đúng số tạm ứng, và bảng Thừa/thiếu tuần
+				   đọc ra "thừa cả cục" — trong khi chưa ai đưa đồng nào thì không thể thừa. */
+				'chenhLech'   => $da_cap ? ( $tam_ung - $mua_cn ) : 0,
+				'daCapTien'   => $da_cap ? 1 : 0,
 			);
 		}
 		/* ═══════════════════════════════════════════════════════════════════════════════════
@@ -886,11 +965,16 @@ class VHCP_Don {
 		$ad_total = ( null !== $tu_duyet ) ? $tu_duyet : $tu_tay_sum;
 		$has_tu   = $ad_total > 0;
 
+		/* 🔴 CÙNG MỘT LUẬT VỚI `list_dons()`, VÀ PHẢI ĐỌC CÙNG MỘT HÀM. Hai nơi này tính cùng một
+		   con số cho cùng một đơn — một bên là dòng trong bảng tuần, một bên là khối Quyết toán
+		   khi mở đơn ra. Sót một bên là đúng cảnh anh Thắng gửi ảnh 31/08/2026 "2 có số tổng
+		   tạm ứng khác nhau", lần này với thực chi. */
+		$da_cap = self::da_cap_tien( isset( $don['trangThai'] ) ? $don['trangThai'] : '' );
+
 		$cn_by = array(); $ncc_by = array();
 		foreach ( $lines as $l ) {
-			$tt_  = VHCP_Util::num( $l['thanhTien'] );
-			$tm   = ( $l['thucMua'] === '' || $l['thucMua'] === null ) ? null : VHCP_Util::num( $l['thucMua'] );
-			$eff  = ( $tm === null ) ? $tt_ : $tm;
+			$eff = self::thuc_chi( $l['thanhTien'], $l['thucMua'],
+				isset( $don['trangThai'] ) ? $don['trangThai'] : '' );
 			if ( $l['phanLoaiTT'] === 'Nhà cung cấp' || $l['cnXuLy'] === false ) {
 				$ncc_by[ $l['coso'] ] = ( isset( $ncc_by[ $l['coso'] ] ) ? $ncc_by[ $l['coso'] ] : 0 ) + $eff;
 			} else {
@@ -898,10 +982,23 @@ class VHCP_Don {
 			}
 		}
 		ksort( $cn_by ); ksort( $ncc_by );
+		/* ⚠️ HAI VIỆC KHÁC NHAU, GÁC RIÊNG — chứ không chồng hai lớp gác lên cùng một con số:
+		   · SỐ TIỀN đã do `thuc_chi()` ép về 0 khi chưa cấp, nên tổng dưới đây cộng thẳng.
+		   · BÀY BẢNG đối chiếu theo cơ sở thì mới gác bằng `$da_cap`: một bảng "đã chi" toàn số
+		     0 chỉ tổ mời người đọc hiểu nhầm, mà giao diện cũng đang ẩn khối ấy đi.
+		   Trước đây `$cn_tc` nằm TRONG `if ( $da_cap )` nên nó gác chồng lên `thuc_chi()`: đục
+		   thủng `thuc_chi()` mà bộ thử vẫn xanh, vì lớp ngoài che mất. Mã chết kiểu ấy nguy hơn
+		   không có gác, vì nó làm bài kiểm nói dối. */
 		$recon_cn = array(); $cn_tc = 0;
-		foreach ( $cn_by as $cs => $v ) { $recon_cn[] = array( 'coso' => $cs, 'thucChi' => $v ); $cn_tc += $v; }
 		$recon_ncc = array(); $ncc_tc = 0;
-		foreach ( $ncc_by as $cs => $v ) { $recon_ncc[] = array( 'coso' => $cs, 'thucChi' => $v ); $ncc_tc += $v; }
+		foreach ( $cn_by as $cs => $v ) {
+			$cn_tc += $v;
+			if ( $da_cap ) { $recon_cn[] = array( 'coso' => $cs, 'thucChi' => $v ); }
+		}
+		foreach ( $ncc_by as $cs => $v ) {
+			$ncc_tc += $v;
+			if ( $da_cap ) { $recon_ncc[] = array( 'coso' => $cs, 'thucChi' => $v ); }
+		}
 		/* 🔴 KHÔNG LẤY THỰC CHI LẤP VÀO CHỖ TẠM ỨNG. Bản cũ: `$has_tu ? $ad_total : $cn_tc` —
 		   không có tạm ứng thì lấy luôn tổng đã mua làm tạm ứng, nên chênh lệch ra 0 và màn
 		   Quyết toán ghi "Khớp — không thừa thiếu". Đơn không xin tạm ứng phải ra "Thiếu N —
@@ -914,7 +1011,12 @@ class VHCP_Don {
 			'lines'     => $lines,
 			'tuMode'    => ( $has_tu ? 'new' : 'old' ),
 			'reconCN'   => $recon_cn,
-			'tongCN'    => array( 'tamUng' => $cn_tu, 'thucChi' => $cn_tc, 'chenhLech' => $cn_tu - $cn_tc ),
+			'daCapTien' => $da_cap ? 1 : 0,
+			/* Chưa cấp tiền -> chênh lệch 0, KHÔNG phải bằng tạm ứng: thực chi bằng 0 mà cứ trừ
+			   thì ra đúng số tạm ứng, và màn hình đọc thành "thừa cả cục" — trong khi chưa ai
+			   đưa đồng nào thì không thể thừa. */
+			'tongCN'    => array( 'tamUng' => $cn_tu, 'thucChi' => $cn_tc,
+				'chenhLech' => $da_cap ? ( $cn_tu - $cn_tc ) : 0 ),
 			'reconNCC'  => $recon_ncc,
 			'tongNCC'   => array( 'thucChi' => $ncc_tc ),
 			'products'  => $with_products ? self::product_suggestions( $cp_all ) : array(),

@@ -325,7 +325,23 @@ t( 'gán lại đúng đơn ấy: chối, không đẻ dòng thứ hai', empty( 
 $tg = VHDA_Tien::tong( $ID );
 t( 'gom được tiền', ! empty( $tg['co'] ), $tg );
 teq( 'đúng một dòng đơn', 1, count( $tg['dong'] ) );
-t( 'và có số tiền thật', (int) $tg['thucChi'] > 0 || (int) $tg['tamUng'] > 0, $tg );
+/* 🔴 ĐƠN CHƯA ĐƯỢC CẤP TIỀN THÌ CHƯA CÓ THỰC CHI (anh Thắng 06/09/2026) — chi tiết nhân viên
+   nhập lúc đơn còn Nháp mới chỉ là KẾ HOẠCH MUA, các bạn nhập để lưu trữ. Trước bản 1.69.0
+   chỗ này ăn thẳng `thanh_tien` làm thực chi, nên một dự án toàn đơn Nháp vẫn báo "đã chi 3
+   triệu", và phần trăm so với giá trị hợp đồng nhảy lên theo một khoản chưa hề ra khỏi két. */
+teq( '🔴 đơn còn Nháp: thực chi = 0', 0, (int) $tg['thucChi'] );
+teq( 'và dòng trong bảng cũng nói 0, không lệch với tổng', 0, (int) $tg['dong'][0]['thucChi'] );
+
+/* ⚠️ ĐỐI CHỨNG: cấp tiền xong thì con số ấy PHẢI nổi lên. Thiếu vế này thì một cái chặn quá
+   tay (chặn luôn cả đơn đã cấp) vẫn xanh, mà đó mới là lúc kế toán cần nhìn thực chi. */
+VHCP_Don::set_tam_ung( $_mad, 'GO DĨ AN', 3000000 );
+VHCP_Don::gui_duyet_tam_ung( $_mad );
+VHCP_Don::duyet_tam_ung( $_mad, 'Chị Kế Toán', '' );
+VHCP_Don::cap_tam_ung( $_mad, 'Chị Kế Toán' );
+$tg = VHDA_Tien::tong( $ID );
+teq( '🔴 cấp tiền rồi: thực chi hiện lên', 3000000, (int) $tg['thucChi'] );
+teq( 'tạm ứng ghi nhận đủ', 3000000, (int) $tg['tamUng'] );
+teq( 'còn lại = tạm ứng − thực chi', 0, (int) $tg['conLai'] );
 
 /* 🔴 ĐƠN ĐÃ GÁN MÀ BÊN KIA KHÔNG CÒN THẤY thì phải KÊU, không lặng lẽ bỏ qua — tổng sẽ thiếu
    đúng phần của đơn ấy mà không ai biết vì sao. */

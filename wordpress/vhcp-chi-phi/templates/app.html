@@ -2757,8 +2757,17 @@
   }
   function renderRecon(){
     var _role=(CURUSER&&CURUSER.role)||'';
-    if(el('reconCard')) el('reconCard').style.display=(_role==='Kế toán cá nhân'||_role==='Kế toán NCC')?'none':'';
+    /* Khối "Đối chiếu thừa/thiếu" cũng chỉ có nghĩa từ khi cấp tiền — cùng lý do với khối
+       Quyết toán ngay dưới. Chưa cấp thì không có gì để đối chiếu: một bên là kế hoạch mua,
+       bên kia là số tiền chưa ai đưa. Máy chủ nay trả `daCapTien` để hai bên cùng một luật. */
+    var _daCap=!!(CUR&&CUR.daCapTien);
+    if(el('reconCard')) el('reconCard').style.display=
+      ((_role==='Kế toán cá nhân'||_role==='Kế toán NCC')||!_daCap)?'none':'';
     if(_role==='Kế toán cá nhân'||_role==='Kế toán NCC') return;   // kế toán xem phần mình ở mục 4
+    /* 🔴 CHƯA CẤP TIỀN THÌ RA LUÔN, KHÔNG VẼ BẢNG VÀO KHỐI ĐANG ẨN. Vẽ rồi mới ẩn thì bảng vẫn
+       nằm sẵn trong trang: ai gỡ cái gác trên (hoặc mở bằng công cụ trình duyệt) là thấy ngay
+       một bảng "đã chi" toàn số 0 của đơn chưa ai đưa đồng nào. Ẩn không phải là xoá. */
+    if(!_daCap){ if(el('reconBox')) el('reconBox').innerHTML=''; return; }
     if(el('reconBox')) el('reconBox').innerHTML=_reconTablesHtml(CUR,{people:false});   // banner cục + đã chi theo cơ sở
   }
   function guiDuyetTU(){ if(!CUR)return;
@@ -2857,7 +2866,18 @@
   var QT={anh:''};
   function renderQT(){
     var st=CUR.don.trangThai;
-    var show=(st==='Chờ duyệt tạm ứng'||st==='Chờ cấp tạm ứng'||st==='Đã cấp tạm ứng'||st==='Chờ quyết toán'||st==='Đã quyết toán'||st==='Đã xuất MISA');
+    /* 🔴 QUYẾT TOÁN CHỈ BÀY TỪ KHI TIỀN ĐÃ RA KHỎI KÉT — anh Thắng 06/09/2026: *"Trước đã cấp
+       tiền hệ thống phải ghi nhận tiền tạm ứng, không tính tiền thực chi… Còn khi đã cấp tiền
+       lúc này kế toán mới quan tâm thực chi là bao nhiêu và thừa thiếu bao nhiêu"*.
+
+       Trước bản này khối bày từ "Chờ duyệt tạm ứng", tức là trước cả lúc cấp tiền — và vì dòng
+       chưa nhập thực mua thì máy chủ lấy THÀNH TIỀN XIN làm thực chi (xem `da_cap_tien()`), nên
+       nó bày ra một ô "Thực mua" bằng đúng số đang xin và một ô "Còn lại" bằng 0. Đọc lên như
+       thể đã mua xong và khớp sổ, trong khi chưa ai đưa đồng nào.
+
+       ⚠️ SỐ TẠM ỨNG KHÔNG MẤT ĐI ĐÂU: nó ở khối "Tổng tạm ứng" (`#tuCard`) phía trên, đúng chỗ
+          kế toán cần để chốt số tạm ứng của tuần. */
+    var show=(st==='Đã cấp tạm ứng'||st==='Chờ quyết toán'||st==='Đã quyết toán'||st==='Đã xuất MISA');
     el('qtCard').style.display=show?'block':'none'; if(!show) return;
     var editable=(st==='Đã cấp tạm ứng');
     var tongTU=(CUR.tongCN||{}).tamUng||0;

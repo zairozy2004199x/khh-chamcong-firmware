@@ -66,15 +66,20 @@ class VHCP_TraMa {
 			);
 		}
 
-		// 2) Đơn vận hành — thực chi = Thực mua nếu đã nhập, ngược lại Thành tiền
-		$don_ky = array();
-		foreach ( VHCP_Don::don_rows() as $d ) { $don_ky[ (string) $d['ma_don'] ] = VHCP_Util::fmt( $d['ky'] ); }
+		/* 2) Đơn vận hành — thực chi đi qua `VHCP_Don::thuc_chi()`: đã cấp tiền thì lấy Thực mua
+		      (chưa gõ thì tạm lấy Thành tiền), CHƯA cấp tiền thì 0. Màn này tra theo mã tài
+		      khoản để đối chiếu với sổ kế toán, nên một dòng chưa hề chi mà đã nằm dưới mã 641
+		      là số ảo đi thẳng vào bản đối chiếu. */
+		$don_ky = array(); $don_tt = array();
+		foreach ( VHCP_Don::don_rows() as $d ) {
+			$don_ky[ (string) $d['ma_don'] ] = VHCP_Util::fmt( $d['ky'] );
+			$don_tt[ (string) $d['ma_don'] ] = ( $d['trang_thai'] !== '' ? (string) $d['trang_thai'] : 'Nháp' );
+		}
 		foreach ( VHCP_Don::cp_rows() as $r ) {
-			$tt   = VHCP_Util::num( $r['thanh_tien'] );
-			$tm   = VHCP_Util::blank_or_num( $r['thuc_mua'] );
-			$tien = ( $tm === null ) ? $tt : $tm;
-			if ( ! $tien ) { continue; }
 			$ma_don = (string) $r['ma_don'];
+			$tien = VHCP_Don::thuc_chi( $r['thanh_tien'], $r['thuc_mua'],
+				isset( $don_tt[ $ma_don ] ) ? $don_tt[ $ma_don ] : '' );
+			if ( ! $tien ) { continue; }
 			$ngay   = VHCP_Util::fmt( $r['ngay'] );
 			$out[]  = array(
 				'mang' => 'don',
