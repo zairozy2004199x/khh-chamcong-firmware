@@ -486,16 +486,55 @@ print('— thanh đơn hai hàng —')
 #    Để flex tự quyết chỗ ngắt thì bố cục phụ thuộc số phần tử: thêm một nút là vỡ, không báo.
 la('thanh đơn dùng lớp don-bar (không còn một hàng flex)', 'class="bar don-bar" id="donBar"' in src)
 la('hàng 1 gom ô chọn đơn + các nút', 'class="db-hang1"' in src)
-la('hàng 2 gom trạng thái + lịch sử chỉnh đơn', 'class="db-hang2"' in src)
+la('hàng 2 gom trạng thái + lịch sử chỉnh đơn', 'db-hang2' in src)
 la('có ô đệm đẩy nhóm nút về mép phải', 'class="db-day"' in src)
 for _id in ['donSel', 'btnNewDon', 'btnChuyenDV', 'btnDelDon', 'btnDelDonAdmin', 'btnAction']:
     _i = src.index('id="%s"' % _id)
     la('%s nằm ở hàng 1' % _id,
        src.rindex('class="db-hang1"', 0, _i) > src.rindex('class="bar don-bar"', 0, _i)
        and 'class="db-hang2"' not in src[src.rindex('class="db-hang1"', 0, _i):_i])
+# ⚠️ CANH LỚP CÓ MẶT, KHÔNG CANH CHUỖI THUỘC TÍNH NGUYÊN VĂN. Bản đầu đòi đúng
+#    `class="db-hang2"` — thêm một lớp thứ hai vào thẻ ấy (việc hoàn toàn bình thường, và
+#    06/09/2026 đã phải thêm thật) là ba phép này gãy, dù bố cục không hề sai.
 for _id in ['donBadge', 'donSuBox']:
     _i = src.index('id="%s"' % _id)
-    la('%s nằm ở hàng 2' % _id, 'class="db-hang2"' in src[:_i].rsplit('class="db-hang1"', 1)[-1])
+    la('%s nằm ở hàng 2' % _id, 'db-hang2' in src[:_i].rsplit('class="db-hang1"', 1)[-1])
+
+# 🔴 HÀNG 2 PHẢI NẰM NGOÀI THANH DÍNH — anh Thắng 06/09/2026: *"nó đang cố định 1 chỗ nên chèn
+#    hết trang. Cả máy tính cũng bị"*. `#donBar` mang `position:sticky;top:0`; khi hàng 2 (khối
+#    trạng thái + sổ chỉnh đơn) còn nằm trong đó thì thanh cao hơn khung nhìn, và sticky với
+#    phần tử cao hơn khung nhìn sẽ dính ngay rồi ở nguyên đó — nội dung dưới không cuộn lên tới
+#    được. Càng thêm nội dung vào hàng 2 thì càng chắc vượt màn, nên nó hỏng DẦN chứ không hỏng
+#    đột ngột: đúng kiểu hỏng chỉ có phép canh mới bắt được.
+def _boc_the(_s, _tu):
+    # Bốc trọn một thẻ <div> bằng cách ĐẾM THẺ CÂN BẰNG. Cắt bằng chuỗi đóng thì lệch ngay khi
+    # bên trong có thẻ lồng — và ở đây bên trong có cả chục thẻ.
+    _k, _sau = _s.index('>', _tu) + 1, 1
+    for _m in re.finditer(r'<div\b|</div>', _s[_k:]):
+        _sau += -1 if _m.group(0) == '</div>' else 1
+        if _sau == 0:
+            return _s[_tu:_k + _m.end()]
+    return ''
+_bar = _boc_the(src, src.index('<div class="bar don-bar" id="donBar"'))
+la('bốc được thanh đơn', len(_bar) > 300)
+la('🔴 thanh dính chỉ chứa hàng NÚT', 'db-hang1' in _bar)
+la('🔴 khối trạng thái KHÔNG nằm trong thanh dính', 'id="donBadge"' not in _bar)
+la('🔴 sổ chỉnh đơn KHÔNG nằm trong thanh dính', 'id="donSuBox"' not in _bar)
+la('và thanh vẫn dính ở đầu màn', '.don-bar{display:block;position:sticky;top:0' in css)
+# Mở cụm "⋯" thì hàng nút cao hẳn lên — lúc ấy phải thôi dính, không thì lại đúng cái bẫy vừa
+# gỡ, chỉ khác là nấp sau một cú bấm.
+la('🔴 mở cụm "⋯" thì thanh thôi dính', '.don-bar.mo{position:static}' in css)
+# 🔴 BÓC CHÚ THÍCH TRƯỚC KHI DÒ. Phép này lúc đầu dò thẳng `':has(' not in css` và ĐỎ ngay —
+#    vì đúng câu chú thích dặn *đừng dùng* `:has()` có chứa hai chữ ấy. Đây là lần thứ năm ở hai
+#    kho này một phép thử vấp vào chính chú thích của thứ nó đang canh; chiều tự XANH thì nguy
+#    hơn (một luật đã gỡ khỏi mã nhưng còn nằm trong chú thích vẫn làm phép dò xanh).
+#    ⚠️ Chỉ bóc chú thích KHỐI, và đòi dấu mở phải đứng sau khoảng trắng — trong CSS hai dấu ấy
+#       còn xuất hiện giữa các giá trị (`calc(100%/*...*/)` là chú thích thật, nhưng `url(a/*b)`
+#       thì không), nên bóc trần trụi là ăn nhầm vào mã.
+_css_ma = re.sub(r'(^|[\s;{},:])/\*[\s\S]*?\*/', r'\1 ', css)
+la('đối chứng: bóc chú thích xong vẫn còn luật CSS để soi', '.don-bar' in _css_ma)
+la('và lớp ấy do JS gắn, không dựa vào :has() (máy cũ lặng lẽ không áp)',
+   "bar.classList.toggle('mo', mo)" in src and ':has(' not in _css_ma)
 la('ba lớp có kiểu chữ thật trong tệp css',
    '.db-hang1{' in css and '.db-hang2{' in css and '.db-day{' in css)
 # Hàng 2 rỗng thì không được treo một khoảng trắng trông như lỗi.

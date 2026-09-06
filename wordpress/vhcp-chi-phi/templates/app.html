@@ -174,7 +174,7 @@
          · hàng 1 — chọn đơn + các nút (nút gom hết về mép phải)
          · hàng 2 — dải trạng thái bên trái, Lịch sử chỉnh đơn bên phải
        Hai thứ ở hàng 2 luôn được đọc cùng nhau: "đơn đang ở đâu" và "ai vừa động vào". -->
-  <div class="bar don-bar" id="donBar" style="position:sticky;top:0;z-index:40">
+  <div class="bar don-bar" id="donBar">
     <div class="db-hang1">
       <div class="fld"><label>Đơn</label>
         <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
@@ -223,7 +223,22 @@
       <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
       </div>
     </div>
-    <div class="db-hang2">
+  </div>
+
+  <!-- 🔴 HÀNG 2 RA KHỎI THANH DÍNH — anh Thắng 06/09/2026: *"đối với trình duyệt điện thoại nó
+       không kéo cái này chạy được, nó đang cố định 1 chỗ nên chèn hết trang. Cả máy tính cũng bị"*.
+
+       `#donBar` mang `position:sticky;top:0`, và hàng 2 nằm TRONG nó — mà hàng 2 chứa cả khối
+       trạng thái lẫn sổ chỉnh đơn, nên thanh ấy cao hơn cả màn hình. Sticky với phần tử cao hơn
+       khung nhìn thì nó dính ngay khi mép trên chạm 0 và ở nguyên đó cho hết vùng cha: nội dung
+       phía dưới KHÔNG BAO GIỜ cuộn lên tới được. Càng thêm nội dung vào hàng 2 (dải trạng thái
+       to lên hồi 26/08, rồi sổ chỉnh đơn) thì càng chắc chắn vượt màn — nên nó hỏng dần, không
+       hỏng đột ngột, và trên máy tính màn cao nên lâu lộ hơn.
+
+       ⚠️ CHỈ THỨ THẤP MỚI ĐƯỢC DÍNH. `#donBar` nay chỉ còn hàng nút (một hàng), đúng thứ sticky
+          sinh ra để giữ: đang xem giữa trang vẫn đổi đơn và bấm nút được. Hàng 2 là thứ để ĐỌC,
+          đọc xong thì cuộn qua — không có lý do gì dính. -->
+  <div class="don-hang2 db-hang2">
       <span id="donBadge"></span>
       <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
            Anh Thắng 26/08: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì trong
@@ -231,7 +246,6 @@
            đổi SAU khi quản lý đã duyệt. Không có sổ thì người duyệt nhớ 15 triệu, đơn ghi 12
            triệu, và không có gì phân xử. -->
       <div id="donSuBox" style="display:none"></div>
-    </div>
   </div>
 
   <div class="card" id="donListCard">
@@ -4740,6 +4754,11 @@
   function moreDon(){
     var h=document.querySelector('.db-hang1'); if(!h) return;
     var mo=h.classList.toggle('mo');
+    /* Gắn lớp lên CẢ thanh: mở cụm ra thì hàng nút cao hẳn lên, và một thanh dính cao hơn khung
+       nhìn sẽ chặn mất phần dưới trang — đúng cái bẫy vừa gỡ hôm nay, chỉ khác là nấp sau một cú
+       bấm. Gắn ở đây chứ không dựa vào `:has()` trong CSS: bộ chọn ấy máy cũ không hiểu, và khi
+       ấy nó lặng lẽ không áp. */
+    var bar=el('donBar'); if(bar) bar.classList.toggle('mo', mo);
     var b=el('btnMoreDon');
     if(b){ b.textContent = mo ? '✕ Đóng' : '⋯ Thêm'; b.setAttribute('aria-expanded', mo?'true':'false'); }
   }
