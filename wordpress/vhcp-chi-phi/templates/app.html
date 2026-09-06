@@ -181,12 +181,29 @@
       <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
       <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
       <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
+      <div class="db-day"></div>
+      <!-- 🔴 NÚT HÀNH ĐỘNG CHÍNH ĐỨNG NGOÀI MỌI MENU. Đây là thứ người ta vào trang để bấm
+           ("Gửi xin tạm ứng", "Gửi quyết toán"); giấu nó sau một nút "⋯" là giấu đúng việc
+           chính. -->
+      <button class="btn b-s" id="btnAction" style="display:none"></button>
+      <!-- 🔴 MẤY NÚT PHỤ GOM VÀO MỘT CHỖ — anh Thắng 06/09/2026 gửi ảnh màn điện thoại: sáu nút
+           xếp thành ba hàng, chiếm gần nửa màn TRƯỚC KHI thấy dòng chi nào. Và nút đỏ đậm
+           "Xoá (admin)" — xoá vĩnh viễn kể cả đơn đã xuất MISA — đang là thứ nổi bật nhất màn.
+           Trên máy tính không có chuyện đó (một hàng ngang thừa chỗ), nên KHÔNG đụng gì tới máy
+           tính: `.db-phu{display:contents}` làm mấy nút này vẫn là con trực tiếp của hàng flex,
+           y hệt trước. Chỉ từ 820px trở xuống chúng mới rút vào sau nút "⋯ Thêm".
+           ⚠️ Bọc bằng MỘT lớp cha thay vì đổi `display` từng nút: mấy nút này bật/tắt theo quyền
+              bằng `style.display` trong JS, mà style dòng thắng CSS — đổi ở đây là đá nhau với
+              chỗ kia, và cái đá nhau ấy sẽ hiện ra dưới dạng "có quyền mà không thấy nút". -->
+      <button class="btn b-x" id="btnMoreDon" onclick="moreDon()"
+        aria-expanded="false" title="Các việc khác với đơn này">⋯ Thêm</button>
+      <div class="db-phu" id="dbPhu">
       <!-- 🔴 THÙNG RÁC — anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm
-           đơn hoặc chi phí thì hoàn lại lệnh đó."* Nút đứng cạnh danh sách đơn chứ không giấu
-           trong Cấu hình: lúc cần nó là lúc vừa bấm nhầm, tay còn đang ở màn này. -->
+           đơn hoặc chi phí thì hoàn lại lệnh đó."* Vẫn ở NGAY MÀN NÀY chứ không giấu trong Cấu
+           hình — lúc cần nó là lúc vừa bấm nhầm, tay còn đang ở đây; trên máy hẹp thì cách một
+           cú bấm "⋯", vẫn gần hơn nhiều so với đi tìm trong Cấu hình. -->
       <button class="btn b-x" id="btnThungRac" onclick="moThungRac()"
         title="Xoá nhầm đơn hoặc dòng chi thì vào đây hoàn lại">♻ Hoàn tác xoá</button>
-      <div class="db-day"></div>
       <!-- 🔴 ĐẨY ĐƠN SANG ĐƠN VỊ KHÁC — kế toán POSH gửi cho kế toán cá nhân.
            Nút chỉ hiện cho người nhìn được HƠN MỘT đơn vị: người chỉ có một đơn vị thì không
            có chỗ nào để đẩy tới, bày nút ra chỉ để bấm vào rồi báo lỗi. -->
@@ -198,9 +215,13 @@
            tiền đã cấp. -->
       <button class="btn b-x" id="btnChuyenKy" style="display:none" onclick="moChuyenKy()"
         title="Đơn chưa quyết toán kịp tuần này — cho nó nhảy sang tuần sau (hoặc tuần chỉ định), tạm ứng đi theo">📅➜ Nhảy sang tuần khác</button>
-      <button class="btn b-s" id="btnAction" style="display:none"></button>
+      <!-- Hai nút XOÁ đứng CUỐI cùng, sau một vạch ngăn trên máy hẹp: chúng là thứ hiếm dùng
+           nhất và hại nhất, nên phải là thứ tay chạm tới sau cùng, không phải thứ mắt thấy
+           đầu tiên. -->
+      <span class="db-vach"></span>
       <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
       <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
+      </div>
     </div>
     <div class="db-hang2">
       <span id="donBadge"></span>
@@ -2117,13 +2138,6 @@
         el('lineFormTitle').textContent = CUR.stNhap ? '1) Nhập hạng mục xin tạm ứng'
                                                      : '1) Thêm dòng PHÁT SINH (mua thêm ngoài dự kiến)';
       }
-      var hint={'Nháp':'✏️ nhập CHI TIẾT hạng mục xin (cơ sở · nhóm · nội dung · SL · đơn giá) — tạm ứng = tổng các hạng mục — rồi Gửi xin tạm ứng',
-                'Chờ duyệt tạm ứng':'⏳ chờ Quản lý/Kế toán duyệt tạm ứng',
-                'Chờ cấp tạm ứng':'✅ đã duyệt — chờ kế toán gửi (cấp) tiền tạm ứng',
-                'Đã cấp tạm ứng':'💰 đã cấp — nhập THỰC CHI cho hạng mục đã xin (không mua để 0); mua thêm ngoài dự kiến thì thêm ở mục PHÁT SINH; xong bấm Gửi hóa đơn cho kế toán (hoặc 🚫 Không dùng)',
-                'Chờ quyết toán':'⏳ chờ kế toán xác nhận quyết toán',
-                'Đã quyết toán':'🔒 đã quyết toán (khóa)',
-                'Đã xuất MISA':'🔒 đã xuất MISA (khóa)'}[st]||'';
       var _gc=String(r.don.ghiChu||''), _mTra=_gc.match(/\[Trả lại\]\s*([^|\[]*)/);
       var _traBanner=(_mTra&&(st==='Nháp'||st==='Chờ duyệt tạm ứng'||st==='Đã cấp tạm ứng'))?('<div style="margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;color:#b91c1c;font-size:12px">↩ <b>Đơn bị trả lại</b>'+(_mTra[1].trim()?(' — '+esc(_mTra[1].trim())):'')+' · vui lòng cập nhật rồi gửi lại.</div>'):'';
       var _kdBanner=(/\[Không dùng\]/.test(_gc))?('<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#b45309;font-size:12px">🚫 <b>Tạm ứng không dùng / không hóa đơn</b> — hoàn lại toàn bộ tạm ứng, không nhập dòng chi.</div>'):'';
@@ -2138,14 +2152,24 @@
       /* 🔴 TO LÊN. Dải cũ 12px lẫn vào mọi dòng chữ khác trên màn, nên người ta lướt qua đúng
          thứ họ đang cần. Anh Thắng: *"to lên với đặt cảnh báo…"*. Dòng đầu là TÊN TRẠNG THÁI cỡ
          lớn, dưới nó là ba chốt "làm được gì", rồi mới tới câu giải thích và thanh bước. */
-      var _dai='<div style="margin-top:10px;padding:13px 16px;background:'+_ct.nen+';border:2px solid '+_ct.vien
+      /* 🔴 MỘT KHỐI, KHÔNG PHẢI HAI — anh Thắng 06/09/2026 gửi ảnh màn điện thoại: dải nhỏ nói
+         "Chờ duyệt tạm ứng · T9/2026 · FUNZONE VŨNG TÀU · Nguyễn Mai Anh · chờ Quản lý/Kế toán
+         duyệt tạm ứng", rồi ngay dưới một khối to nói lại "Đơn đang Chờ duyệt tạm ứng" kèm đúng
+         câu ấy dài hơn. Hai lần cùng một chuyện, chiếm gần một màn.
+         ⚠️ CÁI BỎ ĐI LÀ CÁI LẶP, KHÔNG PHẢI THÔNG TIN. Kỳ · cơ sở · người lập là thứ nhận dạng
+            đơn, không có ở đâu khác trên màn — nên nó chuyển VÀO trong khối to, ngay dưới tên
+            trạng thái. Còn `hint` thì bỏ hẳn: nó và `_ct.chu` nói cùng một việc, `_ct.chu` nói
+            đủ hơn. */
+      var _nhanDang=esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'');
+      var _dai='<div style="padding:13px 16px;background:'+_ct.nen+';border:2px solid '+_ct.vien
         +';border-radius:10px;color:'+_ct.mau+'">'
-        +'<div style="font-size:17px;font-weight:800;letter-spacing:.2px;margin-bottom:7px">'
+        +'<div style="font-size:17px;font-weight:800;letter-spacing:.2px">'
           +'Đơn đang <u>'+esc(st||'—')+'</u></div>'
+        +'<div style="font-size:12px;color:#475569;margin:3px 0 8px">'+_nhanDang+'</div>'
         +'<div style="margin-bottom:7px">'+_lamDuocGi(st)+'</div>'
         +'<div style="font-size:12.5px;line-height:1.6">'+_ct.chu+'</div>'
         +_thanhBuoc(st)+'</div>';
-      el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_dai+_traBanner+_kdBanner+_ktBanner;
+      el('donBadge').innerHTML=_dai+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
       // Nhân viên GỬI XIN tạm ứng; DUYỆT là bước sau của quản lý. Gác bằng quyền 'xinTU'
@@ -4652,16 +4676,32 @@
     box.innerHTML='<div style="font-size:11.5px;color:#94a3b8">Đang tải lịch sử…</div>';
     google.script.run.withSuccessHandler(function(r){
       if(seq!==_suSeq) return;            // lượt cũ về sau thì không được cướp màn hình
-      var it=(r&&r.items)||[];
+      var it=_suGop((r&&r.items)||[]);
       if(!it.length){
         box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
           +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử chỉnh đơn</b> — chưa có ai chỉnh gì.</div>';
         return;
       }
+      /* 🔴 TRÊN MÁY HẸP, SỔ SỬ GẬP SẴN. Anh Thắng 06/09/2026 gửi ảnh màn điện thoại: khối sử
+         nằm giữa dải trạng thái và nội dung đơn, nên phải cuộn qua cả nhật ký mới tới dòng chi
+         đầu tiên — mà người mở đơn ra là để xem tiền, không phải đọc nhật ký. Trên máy tính nó
+         nằm ở CỘT BÊN PHẢI, không chặn gì, nên vẫn mở sẵn như cũ.
+         Đo bằng đúng mốc 820px mà CSS dùng cho cụm nút — một hệ mốc, không đẻ thêm mốc mới. */
+      var _hep = (window.matchMedia && window.matchMedia('(max-width:820px)').matches);
       /* Hiện 5 dòng gần nhất, phần còn lại nằm trong <details>. Người ta mở đơn ra là muốn biết
          "vừa có ai động vào không", không phải đọc hết 50 dòng. */
-      var h='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px 10px">'
-        +'<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
+      var h='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px 10px">';
+      if(_hep){
+        /* Máy hẹp: cả khối nằm trong một <details> gập sẵn — một dòng chữ thay vì một màn nhật ký.
+           Vẫn nói ra SỐ việc, để người ta biết có đáng mở hay không. */
+        h+='<details><summary style="font-size:11.5px;font-weight:800;color:#334155;cursor:pointer;'
+          +'list-style:revert">🕘 Lịch sử chỉnh đơn ('+it.length+') — bấm để xem</summary>'
+          +'<div style="max-height:300px;overflow:auto;margin-top:4px">'+_suDongHtml(it)+'</div>'
+          +'</details></div>';
+        box.innerHTML=h;
+        return;
+      }
+      h+='<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
       h+=_suDongHtml(it.slice(0,5));
       if(it.length>5){
         /* 🔴 XỔ RA THÌ PHẢI GẬP LẠI ĐƯỢC — TỪ CHỖ ĐANG ĐỨNG.
@@ -4691,12 +4731,55 @@
       box.innerHTML='<div style="font-size:11.5px;color:#dc2626">Không đọc được lịch sử.</div>';
     }).getDonLog(maDon, 50);
   }
+  /* Bật/tắt cụm nút phụ trên máy hẹp. Nhãn nút đổi theo trạng thái: mũi ba chấm không nói được
+     là nó đang mở hay đóng, mà người ta cần biết để khỏi bấm hai lần rồi tưởng nút hỏng. */
+  function moreDon(){
+    var h=document.querySelector('.db-hang1'); if(!h) return;
+    var mo=h.classList.toggle('mo');
+    var b=el('btnMoreDon');
+    if(b){ b.textContent = mo ? '✕ Đóng' : '⋯ Thêm'; b.setAttribute('aria-expanded', mo?'true':'false'); }
+  }
+
   /* Gập khối "dòng cũ hơn" lại và kéo màn hình về đúng chỗ cái nút vừa nằm — không thì gập
      xong người ta đang lơ lửng giữa trang, không biết mình vừa ở đâu. */
   function suThuGon(){
     var d=el('suCu'); if(!d) return;
     d.open=false;
     if(d.scrollIntoView) d.scrollIntoView({block:'nearest'});
+  }
+
+  /**
+   * GỘP MẤY DÒNG SỬ CỦA CÙNG MỘT THAO TÁC.
+   *
+   * Anh Thắng 06/09/2026 gửi ảnh một đơn có "Lịch sử chỉnh đơn (22)" — nhìn kỹ thì 22 dòng ấy
+   * chỉ là 11 việc: mỗi lần thêm một hạng mục, máy chủ ghi HAI dòng cùng người, cùng giây, cùng
+   * nội dung — một dòng "Thêm dòng", một dòng "Thêm hạng mục xin". Cả hai đều đúng, chỉ là
+   * người đọc không cần biết bên trong nó ghi mấy chỗ.
+   *
+   * 🔴 GỘP Ở MÀN HÌNH, KHÔNG ĐỘNG VÀO SỔ. Sổ chỉnh đơn là bằng chứng — bớt một dòng khỏi sổ để
+   *    màn hình gọn là đổi bằng chứng lấy thẩm mỹ. Nó vẫn ghi hai dòng như cũ; chỉ chỗ hiện ra
+   *    mới gộp lại, và con số đếm cũng đếm theo số VIỆC chứ không theo số dòng, vì "22" ở đây
+   *    làm người ta tưởng đơn bị sửa 22 lần.
+   *
+   * ⚠️ CHỈ GỘP KHI CHẮC CHẮN LÀ MỘT VIỆC: cùng người · cùng mốc thời gian tới GIÂY · cùng phần
+   *    chi tiết. Thiếu một trong ba thì để nguyên hai dòng — thà dài còn hơn gộp nhầm hai lần
+   *    sửa thật thành một, vì đúng lúc cần sổ này là lúc đang truy ai đổi con số nào.
+   */
+  function _suGop(ds){
+    var ra=[];
+    (ds||[]).forEach(function(x){
+      var truoc=ra.length?ra[ra.length-1]:null;
+      if(truoc && String(truoc.nguoi||'')===String(x.nguoi||'')
+                && String(truoc.tg||'')===String(x.tg||'')
+                && String(truoc.chiTiet||'')===String(x.chiTiet||'')
+                && String(truoc.hanhDong||'')!==String(x.hanhDong||'')){
+        /* Giữ cả hai tên việc, ngăn bằng dấu · — người đọc vẫn tra ngược được ra sổ gốc. */
+        truoc.hanhDong=String(truoc.hanhDong||'')+' · '+String(x.hanhDong||'');
+        return;
+      }
+      ra.push({nguoi:x.nguoi, vaiTro:x.vaiTro, tg:x.tg, hanhDong:x.hanhDong, chiTiet:x.chiTiet});
+    });
+    return ra;
   }
 
   function _suDongHtml(ds){
