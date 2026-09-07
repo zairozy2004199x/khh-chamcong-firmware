@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.9.0
+ * Version:           1.10.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -198,6 +198,19 @@ class POSH_Ve {
 	}
 
 	// ───────────────────────────── Điểm & hạng thành viên (1 điểm = 1.000đ) ─────────────────────────────
+	/* Cơ sở + toạ độ (để app gợi ý khu vực theo định vị). ten khớp với "khu_vuc" của vé. */
+	public static function ds_coso() {
+		$c = get_option( 'pve_coso' ); if ( ! is_array( $c ) ) { return array(); }
+		$ra = array();
+		foreach ( $c as $x ) {
+			$ten = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			$ra[] = array( 'ten' => $ten,
+				'lat' => (float) ( isset( $x['lat'] ) ? $x['lat'] : 0 ),
+				'lng' => (float) ( isset( $x['lng'] ) ? $x['lng'] : 0 ) );
+		}
+		return $ra;
+	}
 	public static function ds_hang() {
 		$h = get_option( 'pve_hang' );
 		if ( ! is_array( $h ) || ! $h ) { return self::HANG_MAC_DINH; }
@@ -279,7 +292,8 @@ class POSH_Ve {
 				'so_luong' => (int) $g['so_luong'] );
 		}
 		$b = self::bank();
-		return array( 'ok' => true, 'goi' => $goi, 'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
+		return array( 'ok' => true, 'goi' => $goi, 'co_so' => self::ds_coso(),
+			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 	public static function r_dat( $req ) {
 		$id  = (int) $req->get_param( 'id' );
@@ -897,6 +911,21 @@ class POSH_Ve {
 			update_option( 'pve_hang', $moi );
 			echo '<div class="notice notice-success"><p>Đã lưu hạng thành viên.</p></div>';
 		}
+		if ( isset( $_POST['pve_coso_luu'] ) && check_admin_referer( 'pve_coso' ) ) {
+			$tens = isset( $_POST['cs_ten'] ) ? (array) $_POST['cs_ten'] : array();
+			$lats = isset( $_POST['cs_lat'] ) ? (array) $_POST['cs_lat'] : array();
+			$lngs = isset( $_POST['cs_lng'] ) ? (array) $_POST['cs_lng'] : array();
+			$moi = array();
+			foreach ( $tens as $i => $t ) {
+				$t = sanitize_text_field( wp_unslash( $t ) );
+				if ( '' === trim( $t ) ) { continue; }
+				$moi[] = array( 'ten' => $t,
+					'lat' => (float) ( isset( $lats[ $i ] ) ? str_replace( ',', '.', (string) $lats[ $i ] ) : 0 ),
+					'lng' => (float) ( isset( $lngs[ $i ] ) ? str_replace( ',', '.', (string) $lngs[ $i ] ) : 0 ) );
+			}
+			update_option( 'pve_coso', $moi );
+			echo '<div class="notice notice-success"><p>Đã lưu cơ sở &amp; toạ độ.</p></div>';
+		}
 		if ( isset( $_POST['pve_pin_luu'] ) && check_admin_referer( 'pve_pin' ) ) {
 			update_option( 'pve_pin', preg_replace( '/\s+/', '', (string) wp_unslash( $_POST['pin'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu PIN khu quản lý.</p></div>';
@@ -1119,6 +1148,22 @@ class POSH_Ve {
 			}
 			echo '</tbody></table>';
 		}
+
+		/* ── Cơ sở & toạ độ (gợi ý theo định vị) ── */
+		echo '<hr><h2>Cơ sở &amp; toạ độ (gợi ý vé theo định vị)</h2>';
+		echo '<p class="description">Tên cơ sở phải khớp <b>đúng</b> với ô “Khu vực / Cơ sở” của vé. Toạ độ lấy từ Google Maps: chuột phải điểm cần → bấm cặp số để copy (dạng <code>10.776,106.700</code>).</p>';
+		$coso = self::ds_coso();
+		echo '<form method="post">'; wp_nonce_field( 'pve_coso' );
+		echo '<table class="widefat striped" style="max-width:720px"><thead><tr><th>Tên cơ sở / khu vực</th><th style="width:170px">Vĩ độ (lat)</th><th style="width:170px">Kinh độ (lng)</th></tr></thead><tbody>';
+		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'lat' => '', 'lng' => '' ); }
+		foreach ( $rows_cs as $c ) {
+			$lat = ( is_numeric( $c['lat'] ) && $c['lat'] ) ? $c['lat'] : '';
+			$lng = ( is_numeric( $c['lng'] ) && $c['lng'] ) ? $c['lng'] : '';
+			echo '<tr><td><input name="cs_ten[]" class="regular-text" value="' . esc_attr( $c['ten'] ) . '" placeholder="VD Hà Nội / Hồ Chí Minh"></td>'
+				. '<td><input name="cs_lat[]" class="regular-text code" value="' . esc_attr( $lat ) . '" placeholder="10.7769"></td>'
+				. '<td><input name="cs_lng[]" class="regular-text code" value="' . esc_attr( $lng ) . '" placeholder="106.7009"></td></tr>';
+		}
+		echo '</tbody></table><p><button class="button button-primary" name="pve_coso_luu" value="1">Lưu cơ sở</button> <span class="description">Bỏ trống tên = xoá dòng đó.</span></p></form>';
 
 		/* ── PIN khu quản lý (Zalo) ── */
 		echo '<hr><h2>Khu quản lý trên Zalo (Báo cáo / Đơn / Soát vé)</h2>';

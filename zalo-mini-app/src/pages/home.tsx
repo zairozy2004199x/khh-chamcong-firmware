@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Page, Spinner, useNavigate, useSnackbar } from "zmp-ui";
 import { openWebview, getUserInfo } from "zmp-sdk";
-import { layGoi, layTin, layDiem, dinhTien, Goi, Tin } from "../api";
+import { layGoi, layTin, layDiem, coSoGanNhat, dinhTien, Goi, Tin } from "../api";
 import { themVaoGio } from "../cart";
 import { laySdt } from "../orders";
 import TabBar from "../components/tabbar";
@@ -28,9 +28,13 @@ export default function HomePage() {
   const [avatar, setAvatar] = useState("");
   const [diem, setDiem] = useState(0);
   const [hang, setHang] = useState("Member");
+  const [kvGoiY, setKvGoiY] = useState("");   // khu vực gợi ý theo định vị
 
   useEffect(() => {
-    layGoi().then((r) => setGoi(r.goi || [])).catch((e) => setLoi(String(e.message || e))).finally(() => setDangTai(false));
+    layGoi().then((r) => {
+      setGoi(r.goi || []);
+      coSoGanNhat(r.co_so || []).then((kv) => { if (kv) setKvGoiY(kv); }).catch(() => {});
+    }).catch((e) => setLoi(String(e.message || e))).finally(() => setDangTai(false));
     layTin().then((r) => setTin(r.tin || [])).catch(() => {});
     getUserInfo({ autoRequestPermission: false }).then((r: any) => {
       setTen(r?.userInfo?.name || ""); setAvatar(r?.userInfo?.avatar || "");
@@ -40,10 +44,11 @@ export default function HomePage() {
   }, []);
 
   const nhomDs = useMemo(() => {
+    const loc = goi.filter((g) => !kvGoiY || !(g.khu_vuc || "").trim() || (g.khu_vuc || "").trim() === kvGoiY);
     const m = new Map<string, Goi[]>();
-    goi.forEach((g) => { const k = g.nhom?.trim() || "Vé"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(g); });
+    loc.forEach((g) => { const k = g.nhom?.trim() || "Vé"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(g); });
     return Array.from(m.entries());
-  }, [goi]);
+  }, [goi, kvGoiY]);
 
   const moTin = (t: Tin) => { openWebview({ url: t.link }).catch(() => { try { (window as any).open(t.link, "_blank"); } catch (e) {} }); };
   const vongQuay = () => snackbar.openSnackbar({ text: "Vòng quay may mắn sắp ra mắt 🎯", type: "info", duration: 1800 });
@@ -100,6 +105,12 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {kvGoiY && (
+        <div className="hp-goiy">📍 Gợi ý theo vị trí: <b>{kvGoiY}</b>
+          <span onClick={() => setKvGoiY("")}>Xem tất cả</span>
+        </div>
+      )}
 
       {dangTai && <div className="hp-center"><Spinner /></div>}
       {loi && <div className="hp-loi">{loi}</div>}

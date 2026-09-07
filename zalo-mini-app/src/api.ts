@@ -3,7 +3,8 @@
  *    số tài khoản nhận tiền do server trả về (vốn công khai trên QR). */
 export const BASE = "https://khmatrix.com/wp-json/posh/v1";
 
-export interface Goi { ma: number; ten: string; tien: number; gia_goc: number; nhom: string; mo_ta: string; anh: string; thoi_luong: string; so_luong: number; }
+export interface Goi { ma: number; ten: string; tien: number; gia_goc: number; nhom: string; khu_vuc: string; mo_ta: string; anh: string; thoi_luong: string; so_luong: number; }
+export interface CoSo { ten: string; lat: number; lng: number; }
 export interface BankTT { ten_nh: string; so_tk: string; ten_tk: string; }
 export interface Tin { id: number; tieu_de: string; anh: string; ngay: string; luot_xem: number; link: string; }
 export interface Ve {
@@ -19,7 +20,29 @@ async function json<T>(url: string, opt?: RequestInit): Promise<T> {
 }
 
 export function layGoi() {
-  return json<{ ok: boolean; goi: Goi[]; bank: BankTT }>(`${BASE}/ve/goi`);
+  return json<{ ok: boolean; goi: Goi[]; co_so: CoSo[]; bank: BankTT }>(`${BASE}/ve/goi`);
+}
+
+/* Định vị: tìm cơ sở gần nhất để gợi ý khu vực. Trả "" nếu không lấy được vị trí. */
+export function coSoGanNhat(coSo: CoSo[]): Promise<string> {
+  return new Promise((resolve) => {
+    const ds = (coSo || []).filter((c) => c.lat && c.lng);
+    if (!ds.length || !("geolocation" in navigator)) { resolve(""); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: la, longitude: lo } = pos.coords;
+        let best = "", bestD = Infinity;
+        for (const c of ds) {
+          const dx = c.lat - la, dy = c.lng - lo;
+          const d = dx * dx + dy * dy; // khoảng cách gần đúng, đủ để so sánh
+          if (d < bestD) { bestD = d; best = c.ten; }
+        }
+        resolve(best);
+      },
+      () => resolve(""),
+      { timeout: 6000, maximumAge: 300000 }
+    );
+  });
 }
 export function layTin() {
   return json<{ ok: boolean; tin: Tin[] }>(`${BASE}/tin`);

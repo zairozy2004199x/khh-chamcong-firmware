@@ -43,6 +43,9 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .hp-feat-item span{ font-size:12px; color:#334155; font-weight:600; }
 .hp-center{ display:flex; justify-content:center; padding:24px; }
 .hp-loi{ color:#b45309; text-align:center; padding:18px; font-size:13px; }
+.hp-goiy{ margin:14px 14px 0; background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:10px 14px; font-size:13px; color:#475569; box-shadow:0 3px 10px rgba(0,0,0,.04); }
+.hp-goiy b{ color:#1f2937; }
+.hp-goiy span{ float:right; color:var(--gold-d); font-weight:700; cursor:pointer; }
 .hp-sec{ margin-top:16px; }
 .hp-sec-head{ display:flex; justify-content:space-between; align-items:baseline; padding:0 14px 8px; }
 .hp-sec-head b{ font-size:17px; color:#1f2937; }
