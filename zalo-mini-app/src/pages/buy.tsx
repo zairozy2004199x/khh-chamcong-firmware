@@ -1,11 +1,13 @@
 import React, { useState } from "react";
-import { Page, Box, Text, Input, Button, useNavigate, useParams, useSnackbar } from "zmp-ui";
-import { datVe, dinhTien } from "../api";
+import { Page, Box, Text, Input, Button, useNavigate, useParams, useLocation, useSnackbar } from "zmp-ui";
+import { datVe, dinhTien, Goi } from "../api";
 
 export default function BuyPage() {
   const navigate = useNavigate();
-  const { tien } = useParams<{ tien: string }>();
-  const soTien = Number(tien) || 0;
+  const location = useLocation();
+  const { id } = useParams<{ id: string }>();
+  const veId = Number(id) || 0;
+  const goi = (location.state as any)?.goi as Goi | undefined;   // vé đã chọn (để hiện tên + giá)
   const snackbar = useSnackbar();
   const [ten, setTen] = useState("");
   const [sdt, setSdt] = useState("");
@@ -18,7 +20,7 @@ export default function BuyPage() {
     }
     setDangGui(true);
     try {
-      const ve = await datVe(soTien, ten.trim(), sdt.trim());
+      const ve = await datVe(veId, ten.trim(), sdt.trim());
       // Chuyển sang màn vé, mang theo dữ liệu vé (QR/nội dung/bank) để hiện ngay.
       navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
     } catch (e: any) {
@@ -32,7 +34,9 @@ export default function BuyPage() {
     <Page className="wrap">
       <Box mb={4}>
         <Text.Title>Mua vé</Text.Title>
-        <Text style={{ color: "var(--mut)" }}>Gói {dinhTien(soTien)}</Text>
+        <Text style={{ color: "var(--mut)" }}>
+          {goi ? `${goi.ten} · ${dinhTien(goi.tien)}` : "Vé khu vui chơi"}
+        </Text>
       </Box>
       <div className="field">
         <Input label="Họ tên" placeholder="Tên người mua" value={ten}

@@ -18,8 +18,8 @@ export default function HomePage() {
   return (
     <Page className="wrap" style={{ background: "var(--bg)" }}>
       <Box mb={4}>
-        <Text.Title size="large" style={{ color: "#fff" }}>Chọn gói massage</Text.Title>
-        <Text style={{ color: "#aed8e8" }}>Mua vé trước — quét mã thanh toán ngay trên điện thoại.</Text>
+        <Text.Title size="large" style={{ color: "#fff" }}>Chọn vé</Text.Title>
+        <Text style={{ color: "#aed8e8" }}>Mua vé khu vui chơi trước — quét mã thanh toán ngay trên điện thoại.</Text>
       </Box>
 
       {dangTai && <Box flex justifyContent="center" mt={8}><Spinner /></Box>}
@@ -27,11 +27,9 @@ export default function HomePage() {
 
       <div className="goi-list">
         {goi.map((g) => (
-          <div key={g.ma} className="goi-card" onClick={() => navigate(`/buy/${g.tien}`)}>
-            {g.vip ? <span className="vip">VIP</span> : null}
+          <div key={g.ma} className="goi-card" onClick={() => navigate(`/buy/${g.ma}`, { state: { goi: g } })}>
             <span className="ten">{g.ten}</span>
             <span className="tien">{dinhTien(g.tien)}</span>
-            <span className="phut">{g.phut} phút</span>
             {g.mo_ta ? <span className="mota">{g.mo_ta}</span> : null}
           </div>
         ))}

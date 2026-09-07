@@ -22,11 +22,36 @@ class VHG_Vemini {
 	const NS       = 'vhg/v1';
 	const VER_TBL  = '1';                 // tăng khi đổi cấu trúc bảng bc_ve
 
+	/* Vé KHU VUI CHƠI (không phải gói ghế massage). Admin tự sửa ở trang "Vé khu vui chơi".
+	   Đây chỉ là ví dụ mặc định để chạy thử — anh sửa lại tên/giá cho đúng khu của mình. */
+	const VE_MAC_DINH = array(
+		array( 'ten' => 'Vé vào cửa', 'gia' => 50000,  'mo_ta' => 'Vé vào cửa 1 bé' ),
+		array( 'ten' => 'Vé 1 giờ',   'gia' => 80000,  'mo_ta' => 'Chơi trong 1 giờ' ),
+		array( 'ten' => 'Vé cả ngày', 'gia' => 150000, 'mo_ta' => 'Chơi không giới hạn trong ngày' ),
+		array( 'ten' => 'Combo 2 bé', 'gia' => 140000, 'mo_ta' => '2 bé chơi cả ngày' ),
+	);
+
 	public static function init() {
 		self::bao_dam_bang();
 		add_action( 'rest_api_init', array( __CLASS__, 'dang_ky' ) );
 		/* CORS chỉ cho các route bán vé — mini app Zalo gọi từ origin khác. */
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
+		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
+	}
+
+	/** Danh mục vé (option vhg_ve_goi). Trả list [{ten,gia,mo_ta}] đã lọc, giá tăng dần. */
+	public static function ds_ve() {
+		$ds = get_option( 'vhg_ve_goi' );
+		if ( ! is_array( $ds ) || ! $ds ) { return self::VE_MAC_DINH; }
+		$ra = array();
+		foreach ( $ds as $v ) {
+			$gia = (int) ( isset( $v['gia'] ) ? $v['gia'] : 0 );
+			$ten = trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) );
+			if ( $gia < 1000 || '' === $ten ) { continue; }
+			$ra[] = array( 'ten' => $ten, 'gia' => $gia,
+				'mo_ta' => trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ) );
+		}
+		return $ra ? $ra : self::VE_MAC_DINH;
 	}
 
 	/** Tên bảng vé. */
@@ -98,17 +123,15 @@ class VHG_Vemini {
 		);
 	}
 
-	/** GET /ve/goi — danh sách gói + thông tin TK để mini app dựng màn mua. */
+	/** GET /ve/goi — danh sách VÉ khu vui chơi + thông tin TK để mini app dựng màn mua. */
 	public static function r_goi() {
 		$goi = array();
-		foreach ( VHG_May::menh_gia() as $i => $g ) {
+		foreach ( self::ds_ve() as $i => $g ) {
 			$goi[] = array(
-				'ma'    => (int) $i,
-				'ten'   => $g['ten'] !== '' ? $g['ten'] : ( number_format( $g['tien'], 0, ',', '.' ) . 'đ' ),
-				'tien'  => (int) $g['tien'],
-				'phut'  => (int) $g['phut'],
-				'mo_ta' => (string) ( isset( $g['mo_ta'] ) ? $g['mo_ta'] : '' ),
-				'vip'   => empty( $g['vip'] ) ? 0 : 1,
+				'ma'    => (int) $i,               // id = vị trí trong danh mục (ổn định trong 1 lần tải)
+				'ten'   => $g['ten'],
+				'tien'  => (int) $g['gia'],
+				'mo_ta' => (string) $g['mo_ta'],
 			);
 		}
 		$b = self::bank();
@@ -116,16 +139,16 @@ class VHG_Vemini {
 			'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 
-	/** POST /ve/dat {tien, ten, sdt} — tạo vé chờ + trả VietQR. */
+	/** POST /ve/dat {id, ten, sdt} — tạo vé chờ + trả VietQR. `id` = vị trí vé trong /ve/goi. */
 	public static function r_dat( $req ) {
-		$tien = (int) $req->get_param( 'tien' );
-		$ten  = sanitize_text_field( (string) $req->get_param( 'ten' ) );
-		$sdt  = preg_replace( '/[^0-9+]/', '', (string) $req->get_param( 'sdt' ) );
+		$id  = (int) $req->get_param( 'id' );
+		$ten = sanitize_text_field( (string) $req->get_param( 'ten' ) );
+		$sdt = preg_replace( '/[^0-9+]/', '', (string) $req->get_param( 'sdt' ) );
 
-		/* Gói phải khớp đúng một mệnh giá đang bán — không nhận số tiền tuỳ ý (chống gõ bừa). */
-		$goi = null;
-		foreach ( VHG_May::menh_gia() as $g ) { if ( (int) $g['tien'] === $tien ) { $goi = $g; break; } }
-		if ( ! $goi ) { return new WP_Error( 'goi', 'Gói không hợp lệ.', array( 'status' => 400 ) ); }
+		$ds  = self::ds_ve();
+		if ( ! isset( $ds[ $id ] ) ) { return new WP_Error( 'goi', 'Vé không hợp lệ.', array( 'status' => 400 ) ); }
+		$goi  = $ds[ $id ];
+		$tien = (int) $goi['gia'];
 		if ( '' === $ten || '' === $sdt ) {
 			return new WP_Error( 'thieu', 'Cần tên và số điện thoại.', array( 'status' => 400 ) );
 		}
@@ -140,12 +163,11 @@ class VHG_Vemini {
 		global $wpdb;
 		$ma_ve   = self::ma_ve_moi();
 		$noidung = 'VE' . $ma_ve;                       // nội dung CK = mã vé (alnum, viết hoa)
-		$phut    = VHG_May::phut_goi( $goi, (int) get_option( 'vhg_gia', 10000 ), (int) get_option( 'vhg_phut', 6 ) );
 		$wpdb->insert( self::tbl(), array(
 			'ma_ve'     => $ma_ve,
-			'goi_ten'   => $goi['ten'] !== '' ? $goi['ten'] : ( number_format( $tien, 0, ',', '.' ) . 'đ' ),
+			'goi_ten'   => $goi['ten'],
 			'goi_tien'  => $tien,
-			'phut'      => (int) $phut,
+			'phut'      => 0,
 			'ten_khach' => mb_substr( $ten, 0, 80 ),
 			'sdt'       => mb_substr( $sdt, 0, 20 ),
 			'so_tien'   => $tien,
@@ -154,7 +176,7 @@ class VHG_Vemini {
 			'tao_luc'   => current_time( 'mysql' ),
 		) );
 		$qr = VHG_QR::dung( $b['bin'], $b['so_tk'], $tien, $noidung );
-		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'phut' => (int) $phut,
+		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien,
 			'goi_ten' => $goi['ten'], 'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
@@ -192,5 +214,89 @@ class VHG_Vemini {
 		if ( get_transient( $key ) ) { return false; }
 		set_transient( $key, 1, 3 );
 		return true;
+	}
+
+	// ══════════════════════════════════════════════════════════════════ TRANG ADMIN
+	public static function admin_menu() {
+		add_submenu_page( 'options-general.php', 'Vé khu vui chơi', 'Vé khu vui chơi',
+			'manage_options', 'vhg-ve', array( __CLASS__, 'trang_admin' ) );
+	}
+
+	public static function trang_admin() {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		global $wpdb;
+
+		/* Lưu danh mục vé: mỗi dòng "Tên | Giá | Mô tả". */
+		if ( isset( $_POST['vhg_ve_luu'] ) && check_admin_referer( 'vhg_ve_luu' ) ) {
+			$txt = (string) wp_unslash( $_POST['ds'] );
+			$ds  = array();
+			foreach ( preg_split( '/\r?\n/', $txt ) as $dong ) {
+				$dong = trim( $dong );
+				if ( '' === $dong ) { continue; }
+				$p = array_map( 'trim', explode( '|', $dong ) );
+				$gia = isset( $p[1] ) ? (int) preg_replace( '/\D+/', '', $p[1] ) : 0;
+				if ( '' === $p[0] || $gia < 1000 ) { continue; }
+				$ds[] = array( 'ten' => $p[0], 'gia' => $gia, 'mo_ta' => isset( $p[2] ) ? $p[2] : '' );
+			}
+			update_option( 'vhg_ve_goi', $ds );
+			echo '<div class="notice notice-success"><p>Đã lưu danh mục vé.</p></div>';
+		}
+		/* Xác nhận / huỷ một vé (test khép vòng — Stage 2 sẽ nối đối soát tự động). */
+		if ( isset( $_POST['vhg_ve_tt'] ) && check_admin_referer( 'vhg_ve_tt' ) ) {
+			$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $_POST['ma_ve'] ) );
+			$tt = 'huy' === $_POST['vhg_ve_tt'] ? 'huy' : 'da_tt';
+			$wpdb->update( self::tbl(),
+				array( 'trang_thai' => $tt, 'tt_luc' => current_time( 'mysql' ) ),
+				array( 'ma_ve' => $ma ) );
+			echo '<div class="notice notice-success"><p>Vé ' . esc_html( $ma ) . ' → ' . esc_html( $tt ) . '.</p></div>';
+		}
+
+		$ds_txt = '';
+		foreach ( self::ds_ve() as $g ) {
+			$ds_txt .= $g['ten'] . ' | ' . $g['gia'] . ( $g['mo_ta'] !== '' ? ' | ' . $g['mo_ta'] : '' ) . "\n";
+		}
+		$b   = self::bank();
+		$url = esc_url( home_url( '/wp-json/' . self::NS . '/ve/goi' ) );
+		echo '<div class="wrap"><h1>Vé khu vui chơi (Zalo Mini App)</h1>';
+		echo '<p>API cho mini app: <code>' . $url . '</code> — mở thử phải ra JSON danh sách vé.</p>';
+		if ( '' === $b['so_tk'] || '' === $b['bin'] ) {
+			echo '<div class="notice notice-warning"><p><b>Chưa cấu hình tài khoản nhận tiền</b> — vào mục cấu hình TK chung của plugin để khai, không thì khách không tạo được mã QR.</p></div>';
+		} else {
+			echo '<p>Nhận tiền về: <b>' . esc_html( $b['so_tk'] ) . '</b> · ' . esc_html( $b['ten_nh'] ) . ' · ' . esc_html( $b['ten_tk'] ) . '</p>';
+		}
+
+		echo '<h2>Danh mục vé</h2><form method="post">';
+		wp_nonce_field( 'vhg_ve_luu' );
+		echo '<p class="description">Mỗi dòng một vé: <code>Tên | Giá | Mô tả</code> (Mô tả không bắt buộc).</p>';
+		echo '<textarea name="ds" rows="8" style="width:100%;max-width:640px;font-family:monospace">'
+			. esc_textarea( $ds_txt ) . '</textarea><br>';
+		echo '<p><button class="button button-primary" name="vhg_ve_luu" value="1">Lưu danh mục</button></p></form>';
+
+		/* Vé gần đây */
+		$rows = $wpdb->get_results( 'SELECT ma_ve, goi_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc FROM '
+			. self::tbl() . ' ORDER BY id DESC LIMIT 40', ARRAY_A );
+		echo '<h2>Vé gần đây</h2>';
+		if ( ! $rows ) { echo '<p>Chưa có vé nào.</p>'; }
+		else {
+			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã vé</th><th>Vé</th><th>Số tiền</th>'
+				. '<th>Khách</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>';
+			foreach ( $rows as $r ) {
+				$nhan = array( 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'huy' => 'Đã huỷ' );
+				echo '<tr><td>' . esc_html( $r['tao_luc'] ) . '</td><td><code>' . esc_html( $r['ma_ve'] ) . '</code></td>'
+					. '<td>' . esc_html( $r['goi_ten'] ) . '</td><td>' . esc_html( number_format( $r['so_tien'], 0, ',', '.' ) ) . 'đ</td>'
+					. '<td>' . esc_html( $r['ten_khach'] ) . '<br><small>' . esc_html( $r['sdt'] ) . '</small></td>'
+					. '<td>' . esc_html( isset( $nhan[ $r['trang_thai'] ] ) ? $nhan[ $r['trang_thai'] ] : $r['trang_thai'] ) . '</td><td>';
+				if ( 'cho' === $r['trang_thai'] ) {
+					echo '<form method="post" style="display:inline">';
+					wp_nonce_field( 'vhg_ve_tt' );
+					echo '<input type="hidden" name="ma_ve" value="' . esc_attr( $r['ma_ve'] ) . '">'
+						. '<button class="button button-primary" name="vhg_ve_tt" value="da_tt">Đã thanh toán</button> '
+						. '<button class="button" name="vhg_ve_tt" value="huy">Huỷ</button></form>';
+				} else { echo '—'; }
+				echo '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '</div>';
 	}
 }

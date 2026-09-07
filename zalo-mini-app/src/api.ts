@@ -3,10 +3,10 @@
  *    số tài khoản nhận tiền do server trả về (vốn công khai trên QR). */
 export const BASE = "https://khmatrix.com/wp-json/vhg/v1";
 
-export interface Goi { ma: number; ten: string; tien: number; phut: number; mo_ta: string; vip: number; }
+export interface Goi { ma: number; ten: string; tien: number; mo_ta: string; }
 export interface BankTT { ten_nh: string; so_tk: string; ten_tk: string; }
 export interface Ve {
-  ma_ve: string; so_tien: number; phut: number; goi_ten: string;
+  ma_ve: string; so_tien: number; goi_ten: string;
   noi_dung: string; qr: string; trang_thai: string; bank: BankTT;
 }
 
@@ -20,10 +20,10 @@ async function json<T>(url: string, opt?: RequestInit): Promise<T> {
 export function layGoi() {
   return json<{ ok: boolean; goi: Goi[]; bank: BankTT }>(`${BASE}/ve/goi`);
 }
-export function datVe(tien: number, ten: string, sdt: string) {
+export function datVe(id: number, ten: string, sdt: string) {
   return json<Ve & { ok: boolean }>(`${BASE}/ve/dat`, {
     method: "POST",
-    body: JSON.stringify({ tien, ten, sdt }),
+    body: JSON.stringify({ id, ten, sdt }),
   });
 }
 export function trangThaiVe(maVe: string) {
