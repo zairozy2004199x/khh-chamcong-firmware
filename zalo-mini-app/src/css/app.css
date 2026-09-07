@@ -22,6 +22,7 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .badge { font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; }
 .badge.cho { background:#fef3c7; color:#92600a; }
 .badge.da_tt { background:#dcfce7; color:#166534; }
+.badge.da_dung { background:#dbeafe; color:#1d4ed8; }
 .badge.huy { background:#fee2e2; color:#991b1b; }
 .note { color:var(--mut); font-size:12px; text-align:center; line-height:1.5; }
 

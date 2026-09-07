@@ -7,6 +7,7 @@ import TabBar from "../components/tabbar";
 const NHAN: Record<string, { t: string; c: string }> = {
   cho: { t: "Chờ thanh toán", c: "cho" },
   da_tt: { t: "Đã thanh toán", c: "da_tt" },
+  da_dung: { t: "Đã sử dụng", c: "da_dung" },
   huy: { t: "Đã huỷ", c: "huy" },
 };
 

@@ -458,9 +458,12 @@ class POSH_Ve {
 		}
 		if ( isset( $_POST['pve_tt'] ) && check_admin_referer( 'pve_tt' ) ) {
 			$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $_POST['ma_ve'] ) );
-			$tt = 'huy' === $_POST['pve_tt'] ? 'huy' : 'da_tt';
+			$xin = sanitize_key( (string) $_POST['pve_tt'] );
+			$hople = array( 'cho', 'da_tt', 'da_dung', 'huy' );
+			$tt = in_array( $xin, $hople, true ) ? $xin : 'da_tt';
 			$wpdb->update( self::tbl(), array( 'trang_thai' => $tt, 'tt_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
-			echo '<div class="notice notice-success"><p>Vé ' . esc_html( $ma ) . ' → ' . esc_html( $tt ) . '.</p></div>';
+			$nh = array( 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'da_dung' => 'Đã dùng (đã soát)', 'huy' => 'Đã huỷ' );
+			echo '<div class="notice notice-success"><p>Vé <b>' . esc_html( $ma ) . '</b> → ' . esc_html( $nh[ $tt ] ) . '.</p></div>';
 		}
 
 		$b = self::bank(); $ds = self::ds_tatca();
@@ -469,7 +472,39 @@ class POSH_Ve {
 		if ( $sid ) { foreach ( $ds as $v ) { if ( (int) $v['id'] === $sid ) { $sua = $v; break; } } }
 
 		echo '<div class="wrap"><h1>Vé khu vui chơi</h1>';
-		echo '<p>API cho Zalo Mini App: <code>' . $url . '</code></p>';
+		echo '<p>API cho Zalo Mini App: <code>' . $url . '</code> · Trang bán trên web: dán shortcode <code>[posh_ve]</code> vào một trang bất kỳ.</p>';
+
+		/* ── Tổng quan ── */
+		$tbl   = self::tbl();
+		$paid  = "trang_thai IN ('da_tt','da_dung')";
+		$hnay  = current_time( 'Y-m-d' );
+		$thang = current_time( 'Y-m' );
+		$dt_hnay  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) );
+		$dt_thang = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE_FORMAT(tao_luc,'%%Y-%%m')=%s", $thang ) );
+		$sl_ban   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid" );
+		$sl_cho   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE trang_thai='cho'" );
+		$cards = array(
+			array( 'Doanh thu hôm nay', number_format( $dt_hnay, 0, ',', '.' ) . 'đ', '#166534' ),
+			array( 'Doanh thu tháng này', number_format( $dt_thang, 0, ',', '.' ) . 'đ', '#1d4ed8' ),
+			array( 'Vé đã bán', number_format( $sl_ban, 0, ',', '.' ), '#0f172a' ),
+			array( 'Vé đang chờ TT', number_format( $sl_cho, 0, ',', '.' ), '#92600a' ),
+		);
+		echo '<div style="display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 6px">';
+		foreach ( $cards as $c ) {
+			echo '<div style="flex:1;min-width:170px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 16px;box-shadow:0 2px 8px rgba(0,0,0,.04)">'
+				. '<div style="color:#64748b;font-size:13px">' . esc_html( $c[0] ) . '</div>'
+				. '<div style="font-size:24px;font-weight:800;color:' . esc_attr( $c[2] ) . ';margin-top:4px">' . esc_html( $c[1] ) . '</div></div>';
+		}
+		echo '</div>';
+		$top = $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY sl DESC LIMIT 5", ARRAY_A );
+		if ( $top ) {
+			echo '<p style="margin:12px 0 4px"><b>Vé bán chạy</b></p><table class="widefat striped" style="max-width:640px"><thead><tr><th>Dịch vụ</th><th style="width:110px">Đã bán</th><th style="width:150px">Doanh thu</th></tr></thead><tbody>';
+			foreach ( $top as $t ) {
+				echo '<tr><td>' . esc_html( $t['dv_ten'] ) . '</td><td>' . (int) $t['sl'] . '</td><td>' . esc_html( number_format( $t['dt'], 0, ',', '.' ) ) . 'đ</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '<hr>';
 
 		/* Tài khoản nhận tiền */
 		echo '<h2>Tài khoản nhận tiền</h2><form method="post"><table class="form-table">';
@@ -519,26 +554,70 @@ class POSH_Ve {
 			. 'if(f){f.open();return;}f=wp.media({title:"Chọn ảnh",multiple:false,library:{type:"image"}});'
 			. 'f.on("select",function(){var a=f.state().get("selection").first().toJSON();$("#pve-anh").val(a.url);$("#pve-xem").attr("src",a.url).show();});f.open();});});</script>';
 
-		/* Vé đã đặt */
-		$rows = $wpdb->get_results( 'SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc FROM ' . self::tbl() . ' ORDER BY id DESC LIMIT 50', ARRAY_A );
-		echo '<hr><h2>Vé đã đặt (từ Zalo)</h2>';
-		if ( ! $rows ) { echo '<p>Chưa có vé nào.</p>'; }
+		/* ── Đơn vé (bộ lọc trạng thái + tìm + soát vé) ── */
+		echo '<hr><h2>Đơn vé</h2>';
+
+		// Soát vé nhanh: nhập/quét mã -> lọc đúng vé đó.
+		echo '<form method="get" style="margin:6px 0 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+			. '<input type="hidden" name="page" value="posh-ve">'
+			. '<input type="text" name="tim" value="' . esc_attr( isset( $_GET['tim'] ) ? wp_unslash( $_GET['tim'] ) : '' ) . '" placeholder="Soát vé: nhập mã vé / SĐT" class="regular-text code" style="max-width:280px">'
+			. '<button class="button button-primary">Tìm / Soát vé</button>';
+		if ( isset( $_GET['tim'] ) && '' !== trim( (string) $_GET['tim'] ) ) {
+			echo ' <a class="button" href="' . esc_url( admin_url( 'admin.php?page=posh-ve' ) ) . '">Xoá lọc</a>';
+		}
+		echo '</form>';
+
+		$nhan = array( 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'da_dung' => 'Đã dùng', 'huy' => 'Đã huỷ' );
+		$loc  = isset( $_GET['loc'] ) ? sanitize_key( $_GET['loc'] ) : '';
+		$tim  = isset( $_GET['tim'] ) ? trim( (string) wp_unslash( $_GET['tim'] ) ) : '';
+
+		// Tabs lọc trạng thái (đếm nhanh).
+		$tabs = array( '' => 'Tất cả', 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'da_dung' => 'Đã dùng', 'huy' => 'Đã huỷ' );
+		echo '<h2 class="nav-tab-wrapper" style="margin-bottom:12px">';
+		foreach ( $tabs as $k => $ten ) {
+			$dem = '' === $k ? (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl" )
+				: (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tbl WHERE trang_thai=%s", $k ) );
+			$au  = add_query_arg( array( 'page' => 'posh-ve', 'loc' => $k ), admin_url( 'admin.php' ) );
+			echo '<a class="nav-tab' . ( $loc === $k ? ' nav-tab-active' : '' ) . '" href="' . esc_url( $au ) . '">' . esc_html( $ten ) . ' (' . $dem . ')</a>';
+		}
+		echo '</h2>';
+
+		// Truy vấn có lọc + tìm.
+		$where = array(); $args = array();
+		if ( '' !== $loc ) { $where[] = 'trang_thai=%s'; $args[] = $loc; }
+		if ( '' !== $tim ) {
+			$like = '%' . $wpdb->esc_like( $tim ) . '%';
+			$where[] = '(ma_ve LIKE %s OR sdt LIKE %s OR ten_khach LIKE %s)';
+			array_push( $args, $like, $like, $like );
+		}
+		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc, tt_luc FROM $tbl";
+		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
+		$sql .= ' ORDER BY id DESC LIMIT 100';
+		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+
+		if ( ! $rows ) { echo '<p>Không có vé nào khớp.</p>'; }
 		else {
-			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã vé</th><th>Dịch vụ</th><th>Số tiền</th><th>Khách</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
-			$nhan = array( 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'huy' => 'Đã huỷ' );
+			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã vé</th><th>Dịch vụ</th><th>Số tiền</th><th>Khách</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>';
 			foreach ( $rows as $r ) {
+				$mau = array( 'cho' => '#92600a', 'da_tt' => '#166534', 'da_dung' => '#1d4ed8', 'huy' => '#991b1b' );
+				$c   = isset( $mau[ $r['trang_thai'] ] ) ? $mau[ $r['trang_thai'] ] : '#334155';
 				echo '<tr><td>' . esc_html( $r['tao_luc'] ) . '</td><td><code>' . esc_html( $r['ma_ve'] ) . '</code></td><td>' . esc_html( $r['dv_ten'] ) . '</td>'
 					. '<td>' . esc_html( number_format( $r['so_tien'], 0, ',', '.' ) ) . 'đ</td>'
 					. '<td>' . esc_html( $r['ten_khach'] ) . '<br><small>' . esc_html( $r['sdt'] ) . '</small></td>'
-					. '<td>' . esc_html( isset( $nhan[ $r['trang_thai'] ] ) ? $nhan[ $r['trang_thai'] ] : $r['trang_thai'] ) . '</td><td>';
+					. '<td><b style="color:' . esc_attr( $c ) . '">' . esc_html( isset( $nhan[ $r['trang_thai'] ] ) ? $nhan[ $r['trang_thai'] ] : $r['trang_thai'] ) . '</b></td><td>';
+				echo '<form method="post" style="display:inline">'; wp_nonce_field( 'pve_tt' );
+				echo '<input type="hidden" name="ma_ve" value="' . esc_attr( $r['ma_ve'] ) . '">';
 				if ( 'cho' === $r['trang_thai'] ) {
-					echo '<form method="post" style="display:inline">'; wp_nonce_field( 'pve_tt' );
-					echo '<input type="hidden" name="ma_ve" value="' . esc_attr( $r['ma_ve'] ) . '"><button class="button button-primary" name="pve_tt" value="da_tt">Đã thanh toán</button> '
-						. '<button class="button" name="pve_tt" value="huy">Huỷ</button></form>';
+					echo '<button class="button button-primary" name="pve_tt" value="da_tt">Đã thanh toán</button> '
+						. '<button class="button" name="pve_tt" value="huy">Huỷ</button>';
+				} elseif ( 'da_tt' === $r['trang_thai'] ) {
+					echo '<button class="button button-primary" name="pve_tt" value="da_dung">Đã dùng (soát)</button> '
+						. '<button class="button" name="pve_tt" value="huy">Huỷ</button>';
 				} else { echo '—'; }
-				echo '</td></tr>';
+				echo '</form></td></tr>';
 			}
 			echo '</tbody></table>';
+			echo '<p class="description">“Đã dùng (soát)” dùng khi khách vào cổng. Bộ lọc + ô soát vé giúp tìm nhanh 1 vé bằng mã hoặc SĐT.</p>';
 		}
 		echo '</div>';
 	}

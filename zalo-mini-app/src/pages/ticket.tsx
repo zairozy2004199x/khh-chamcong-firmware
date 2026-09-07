@@ -3,7 +3,7 @@ import { Page, Box, Text, Button, useLocation, useParams, useSnackbar } from "zm
 import { QRCodeSVG } from "qrcode.react";
 import { trangThaiVe, dinhTien, Ve } from "../api";
 
-const NHAN: Record<string, string> = { cho: "Chờ thanh toán", da_tt: "Đã thanh toán", huy: "Đã huỷ" };
+const NHAN: Record<string, string> = { cho: "Chờ thanh toán", da_tt: "Đã thanh toán", da_dung: "Đã sử dụng", huy: "Đã huỷ" };
 
 export default function TicketPage() {
   const { maVe } = useParams<{ maVe: string }>();
@@ -54,8 +54,8 @@ export default function TicketPage() {
               </Text>
             </>
           ) : (
-            <Text.Title style={{ color: tt === "da_tt" ? "#166534" : "#991b1b" }}>
-              {tt === "da_tt" ? "Vé đã thanh toán ✓" : "Vé đã huỷ"}
+            <Text.Title style={{ color: tt === "huy" ? "#991b1b" : tt === "da_dung" ? "#1d4ed8" : "#166534" }}>
+              {tt === "huy" ? "Vé đã huỷ" : tt === "da_dung" ? "Vé đã sử dụng ✓" : "Vé đã thanh toán ✓"}
             </Text.Title>
           )}
 
