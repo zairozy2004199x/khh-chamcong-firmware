@@ -3044,6 +3044,14 @@ tr:last-child td{border-bottom:0}
 .note{background:#fdf4e3;border:1px solid #f0d9ac;border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#7a5a1e}
 .note b{color:var(--amber-d)}
 .mut{color:var(--mut);font-size:12px}
+/* Rê chuột vào thumbnail bill -> hiện bill phóng to ngay (khỏi bấm mở tab). Máy cảm ứng
+   (hover:none) thì tắt popup, vẫn bấm mở tab như cũ. Anh Thắng 07/09/2026. */
+.bill-thumb{position:relative;display:inline-block}
+.bill-thumb .bill-zoom{display:none;position:absolute;left:52px;top:-8px;z-index:60;padding:5px;
+  background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.30)}
+.bill-thumb .bill-zoom img{display:block;max-width:340px;max-height:460px;width:auto;height:auto;border-radius:6px}
+.bill-thumb:hover .bill-zoom{display:block}
+@media(hover:none){.bill-thumb .bill-zoom{display:none!important}}
 /* --- Biểu đồ dashboard (SVG donut + thanh ngang thuần CSS, không thư viện ngoài) --- */
 .bd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:14px}
 .bd-grid .card{margin-bottom:0}
@@ -6634,9 +6642,11 @@ function veQuy(){
           + (bl.ghiChu ? '<div class="mut">' + esc(bl.ghiChu) + '</div>' : '')
           + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">'
           + (bl.anh || []).map(function(u){
-              return '<a href="' + esc(u) + '" target="_blank" rel="noopener">'
+              /* Rê chuột: popup .bill-zoom hiện ngay bill to (khỏi bấm). Vẫn giữ link mở tab để soi kỹ. */
+              return '<a href="' + esc(u) + '" target="_blank" rel="noopener" class="bill-thumb" title="Rê chuột để xem bill; bấm để mở tab">'
                 + '<img src="' + esc(u) + '" style="width:46px;height:46px;object-fit:cover;'
-                + 'border-radius:6px;border:1px solid #e2e8f0"></a>'; }).join('')
+                + 'border-radius:6px;border:1px solid #e2e8f0">'
+                + '<span class="bill-zoom"><img src="' + esc(u) + '"></span></a>'; }).join('')
           + '</div>'
           /* Mở khoá: chỉ người có quyền xác nhận nhận tiền. Cùng nhóm quyền, cùng lý do — nó gỡ
              một lượt tiền ra khỏi bảng chờ. */
