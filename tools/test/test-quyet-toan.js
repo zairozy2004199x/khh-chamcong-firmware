@@ -259,8 +259,11 @@ t('gỡ dòng chết "→ xử lý ở tab Quyết toán" trong bảng Duyệt',
 t('màn Quyết toán có đủ 3 ô lọc',
   /id="qtThang"/.test(HTML) && /id="qtKy"/.test(HTML) && /id="qtCoso"/.test(HTML));
 t('có nút Bỏ lọc', /onclick="qtXoaLoc\(\)"/.test(HTML) && /function qtXoaLoc\(\)/.test(HTML));
+/* ⚠️ CANH Ý ĐỊNH, KHÔNG GHIM CÁCH VIẾT. Bản trước đòi nguyên văn lời gọi ba tham số, nên thêm
+   một tham số thứ tư (chọn sẵn tuần này, 07/09/2026) là gãy — gãy vì BÀI KIỂM chứ không phải
+   vì mã hỏng. Điều cần canh là: màn này gọi CHÍNH `_napLocDon` với đúng ba ô lọc của nó. */
 t('dùng CHUNG bộ dựng ô lọc với tab Duyệt tạm ứng (không chép luật lọc ra bản thứ hai)',
-  /_napLocDon\(moiDon, 'qtThang', 'qtKy', 'qtCoso'\)/.test(HTML));
+  /_napLocDon\(moiDon, 'qtThang', 'qtKy', 'qtCoso'[,)]/.test(HTML));
 // Dựng ô lọc từ danh sách ĐÃ LỌC thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
 t('ô lọc dựng từ TOÀN BỘ đơn của màn, không phải từ danh sách đã lọc',
   /var moiDon=\(BOOT\.dons\|\|\[\]\)\.filter[\s\S]{0,220}?_napLocDon\(moiDon/.test(HTML));

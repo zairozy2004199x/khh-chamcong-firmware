@@ -135,12 +135,14 @@ t('bốc được _laChim()', fnLaChim.length > 30, fnLaChim);
 /* 🔴 ĐƠN CHÌM NAY NẰM CHUNG DANH SÁCH với đơn chờ (chúng đi chung bảng, dạng chìm), nên bệ đỡ
    phải nối hai mảng lại — đúng như `renderQTList()` làm. Truyền riêng như bản trước là bài
    kiểm dựng một cảnh không còn tồn tại. */
-function chayQt(rows, chim, tich) {
+function chayQt(rows, chim, tich, kyLoc, tatCaDon) {
   const o = dungDom(IDS_QT);
-  const f = new Function('el', 'QT_ROWS_CHO', 'QT_ROWS_CHIM', 'qtSelected', 'money',
+  o.qtKy = { value: kyLoc || '' };
+  const f = new Function('el', 'QT_ROWS_CHO', 'QT_ROWS_CHIM', 'qtSelected', 'money', 'BOOT',
     fnLaChim + '\n' + fnSums + '\n' + fnQt + '\nqtUpdateBar();');
   f(function (id) { return o[id] || null; }, (rows || []).concat(chim || []), chim,
-    function () { return oTich(tich); }, function (n) { return String(n); });
+    function () { return oTich(tich); }, function (n) { return String(n); },
+    { dons: tatCaDon || [] });
   return o;
 }
 
@@ -201,6 +203,34 @@ teq('hiện nút duyệt hàng loạt', '', q2.btnQtChon.style.display);
 const q3 = chayQt([], [], []);
 teq('bảng rỗng: thanh vẫn hiện', 'flex', q3.qtBatchBar.style.display);
 t('và nói thẳng là không có đơn nào', /Không có đơn nào/.test(q3.qtSelInfo.textContent), q3.qtSelInfo.textContent);
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LỌC THEO TUẦN THÌ PHẢI NÓI CÒN BAO NHIÊU ĐƠN Ở TUẦN KHÁC
+ *
+ * Từ 1.79.0 màn tự chọn sẵn tuần hiện tại, nên đơn tuần cũ còn tồn biến mất khỏi bảng mà không
+ * ai bảo gì — kế toán mở màn ra thấy sạch sẽ và tưởng đã xong hết. Con số nhắc này là thứ giữ
+ * cho việc "cho gọn" không thành việc "giấu đi".
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const MOI_DON = [
+  { trangThai: 'Chờ quyết toán', ky: 'T9/2026 (7/9-13/9/2026)' },
+  { trangThai: 'Chờ quyết toán', ky: 'T9/2026 (31/8-6/9/2026)' },   // tuần khác
+  { trangThai: 'Đã cấp tạm ứng', ky: 'T8/2026 (24/8-30/8/2026)' },  // tuần khác, lại là đơn chìm
+  { trangThai: 'Đã quyết toán',  ky: 'T8/2026 (17/8-23/8/2026)' },  // xong rồi, không phải việc
+  { trangThai: 'Nháp',           ky: 'T8/2026 (17/8-23/8/2026)' },  // chưa tới khâu này
+];
+const qk = chayQt(QT, [], [], 'T9/2026 (7/9-13/9/2026)', MOI_DON);
+t('🔴 lọc tuần: nhắc còn đơn ở tuần khác', /còn 2 đơn ở TUẦN KHÁC/.test(qk.qtSelChim.textContent), qk.qtSelChim.textContent);
+t('   và chỉ đường bỏ lọc', /bỏ lọc tuần/.test(qk.qtSelChim.textContent), qk.qtSelChim.textContent);
+/* ⚠️ Chỉ đếm việc CÒN PHẢI LÀM: đơn đã quyết toán xong và đơn còn Nháp không phải chuyện của
+   màn này — kể vào là con số nhắc phình lên rồi người ta thôi đọc nó. */
+t('⚠️ KHÔNG kể đơn đã quyết toán hay còn Nháp', !/còn [345] đơn/.test(qk.qtSelChim.textContent), qk.qtSelChim.textContent);
+/* Bỏ lọc tuần -> hết nhắc, vì chẳng còn gì bị ẩn. */
+const qk2 = chayQt(QT, [], [], '', MOI_DON);
+t('⚠️ bỏ lọc tuần thì thôi nhắc', !/TUẦN KHÁC/.test(qk2.qtSelChim.textContent), qk2.qtSelChim.textContent);
+/* Lọc đúng tuần mà mọi đơn đều ở tuần ấy -> cũng thôi nhắc. */
+const qk3 = chayQt(QT, [], [], 'T9/2026 (7/9-13/9/2026)',
+  [{ trangThai: 'Chờ quyết toán', ky: 'T9/2026 (7/9-13/9/2026)' }]);
+t('⚠️ không có đơn tuần khác thì không nhắc suông', !/TUẦN KHÁC/.test(qk3.qtSelChim.textContent), qk3.qtSelChim.textContent);
+
 /* Không còn đơn chờ nào mà vẫn có đơn chìm -> con số treo vẫn phải hiện ra. */
 const q4 = chayQt([], CHIM, []);
 t('   và nói rõ không có đơn chờ nào', /Không có đơn nào chờ quyết toán/.test(q4.qtSelInfo.textContent), q4.qtSelInfo.textContent);
@@ -361,10 +391,19 @@ function locXong(d, oChung, oRieng) {
 const D_T8_17 = { ky: 'T8/2026 (17/8-23/8/2026)', coso: 'FARM PHAN THIẾT' };
 const D_T8_24 = { ky: 'T8/2026 (24/8-30/8/2026)', coso: 'FUNZONE VŨNG TÀU' };
 
-/* --- Ô riêng BỎ TRỐNG: y hệt lọc chung, không đổi gì cho ai không dùng tới --- */
-teq('ô riêng trống: theo lọc chung (khớp)', true, locXong(D_T8_17, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
-teq('ô riêng trống: theo lọc chung (không khớp)', false, locXong(D_T8_24, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
+/* --- 🔴 Ô RIÊNG BỎ TRỐNG: BÀY HẾT, KHÔNG ĐI THEO Ô TUẦN CHUNG ---
+   Từ 1.79.0 ô chung tự chọn tuần hiện tại. Nếu bảng này đi theo nó thì nó rỗng trắng, vì đơn
+   quyết toán xong thường là của tuần trước — kế toán mở màn ra thấy "0 đơn" và tưởng chưa ai
+   làm gì (đúng ảnh anh Thắng gửi). */
+teq('🔴 ô riêng trống: KHÔNG theo ô tuần chung, đơn tuần khác vẫn hiện',
+  true, locXong(D_T8_24, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
+teq('   đơn cùng tuần với ô chung dĩ nhiên cũng hiện',
+  true, locXong(D_T8_17, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
 teq('ô riêng trống, lọc chung rỗng: nhận hết', true, locXong(D_T8_24, {}, ''));
+/* ⚠️ Nhưng ô THÁNG chung vẫn áp — lọc chung của cả màn, không phải chuyện "tuần nào đang làm". */
+teq('⚠️ ô tháng chung vẫn cắt (tháng khác thì loại)',
+  false, locXong(D_T8_24, { thang: '2026-9' }, ''));
+teq('   tháng khớp thì nhận', true, locXong(D_T8_24, { thang: '2026-8' }, ''));
 
 /* --- 🔴 Ô RIÊNG ĐÈ Ô CHUNG: đây là cả điểm của tính năng --- */
 teq('🔴 ô riêng ĐÈ ô chung: chọn tuần 24/8 dù ô chung đang là 17/8',
@@ -373,8 +412,11 @@ teq('   và đơn tuần khác bị loại',
   false, locXong(D_T8_17, { ky: 'T8/2026 (17/8-23/8/2026)' }, 'T8/2026 (24/8-30/8/2026)'));
 /* ⚠️ Ô THÁNG chung KHÔNG được đè ngược lại tuần riêng — chọn tuần T8 mà ô tháng chung đang để
    T9 thì bảng rỗng, và người dùng không hiểu vì sao ô tuần mình vừa chọn lại không ra gì. */
-teq('⚠️ ô THÁNG chung không cắt mất tuần riêng',
-  true, locXong(D_T8_24, { thang: '2026-9' }, 'T8/2026 (24/8-30/8/2026)'));
+/* ⚠️ Ô tuần riêng đã chọn thì ô tháng chung vẫn áp — nếu hai thứ chọi nhau thì bảng rỗng, và
+   đó là điều người dùng tự thấy ngay (họ vừa chọn cả hai). Khác hẳn ca ở trên, nơi ô chung tự
+   đặt sẵn mà người dùng không hề bấm. */
+teq('⚠️ tuần riêng + tháng chung chọi nhau thì loại',
+  false, locXong(D_T8_24, { thang: '2026-9' }, 'T8/2026 (24/8-30/8/2026)'));
 /* Nhưng ô CƠ SỞ chung thì vẫn áp — lọc cơ sở là việc chung của cả màn, không phải chuyện tuần. */
 teq('⚠️ nhưng ô CƠ SỞ chung vẫn áp',
   false, locXong(D_T8_24, { coso: 'FARM PHAN THIẾT' }, 'T8/2026 (24/8-30/8/2026)'));
@@ -393,7 +435,7 @@ function napKy(ds, cu) {
   return o.qtKyXong;
 }
 const nk = napKy([D_T8_17, D_T8_24, { ky: 'T8/2026 (24/8-30/8/2026)' }], '');
-t('ô có lựa chọn "theo lọc chung"', /theo lọc chung/.test(nk.innerHTML), nk.innerHTML);
+t('ô có lựa chọn "mọi tuần"', /mọi tuần/.test(nk.innerHTML), nk.innerHTML);
 teq('⚠️ tuần trùng chỉ hiện MỘT lần', 2, (nk.innerHTML.match(/<option value="T8/g) || []).length);
 t('tuần mới nhất lên trước', nk.innerHTML.indexOf('24/8-30/8') < nk.innerHTML.indexOf('17/8-23/8'), nk.innerHTML);
 /* 🔴 GIỮ LỰA CHỌN CŨ khi vẽ lại. Bảng này vẽ lại mỗi lần tải; ô lọc tự nhảy về "mọi tuần" thì
@@ -434,7 +476,7 @@ t('bốc được _mondayOf() và _kyRange() (hàm một dòng)',
 
 /* Bệ đỡ: ba ô chọn, mỗi ô nhớ innerHTML + value. Ngày "hôm nay" do bài kiểm ghim, nên kết quả
    không trôi theo lịch thật — bài kiểm phụ thuộc ngày chạy là bài kiểm tự đỏ sau vài tháng. */
-function napLoc(dons, thangDangChon, kyDangChon) {
+function napLoc(dons, thangDangChon, kyDangChon, macDinh, daMoi) {
   const o = {
     fThang: { value: thangDangChon || '', innerHTML: '' },
     fKy: { value: kyDangChon || '', innerHTML: '' },
@@ -445,8 +487,10 @@ function napLoc(dons, thangDangChon, kyDangChon) {
   const src = 'var _HOM_NAY=new Date(2026,8,10);\n'          // Thứ Năm 10/09/2026
     + bocDong('_mondayOf') + '\n' + bocDong('_kyRange') + '\n'
     + fnTuanGan.replace('new Date()', '_HOM_NAY') + '\n' + fnNapLoc
-    + '\n_napLocDon(DONS, "fThang", "fKy", "fCoso");';
-  new Function('el', 'esc', '_kyVal', '_thangCuaKy', 'DONS', src)(
+    + '\nvar _LOC_DA_MOI=' + JSON.stringify(daMoi || {}) + ';'
+    + '\n_napLocDon(DONS, "fThang", "fKy", "fCoso", ' + (macDinh ? 'true' : 'false') + ');'
+    + '\nreturn _LOC_DA_MOI;';
+  o._co = new Function('el', 'esc', '_kyVal', '_thangCuaKy', 'DONS', src)(
     function (id) { return o[id] || null; },
     function (v) { return String(v == null ? '' : v); },
     function (k) {
@@ -499,6 +543,39 @@ const n4 = napLoc([D_T7_CU], '', 'T7/2026 (6/7-12/7/2026)');
 teq('🔴 tuần đang chọn nằm ngoài khoảng vẫn giữ được', 'T7/2026 (6/7-12/7/2026)', n4.fKy.value);
 t('   và có trong danh sách', cacTuan(n4.fKy.innerHTML).indexOf('T7/2026 (6/7-12/7/2026)') >= 0,
   cacTuan(n4.fKy.innerHTML));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 VÀO MÀN LÀ CHỌN SẴN TUẦN NÀY (anh Thắng 07/09/2026)
+ *
+ * *"nhớ mặc định khi vào là chọn tuần hiện tại nhé"*. Kế toán mở màn ra là để soát tuần đang
+ * chạy; bắt chọn lại mỗi lần vào là một thao tác thừa, ngày nào cũng lặp.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const m1 = napLoc([D_T9, D_T7_CU], '', '', true, {});
+teq('🔴 lần đầu vào: ô tuần tự chọn tuần này', 'T9/2026 (7/9-13/9/2026)', m1.fKy.value);
+t('   và ghi cờ để không đặt lại', !!m1._co.fKy, m1._co);
+
+/* ⚠️ CHỈ ĐẶT MỘT LẦN. `_napLocDon()` chạy lại mỗi lượt vẽ bảng — đặt lại mỗi lượt thì người
+   dùng chọn "Mọi tuần" hay tuần khác xong là bị kéo về ngay, và họ sẽ tưởng ô lọc hỏng. */
+const m2 = napLoc([D_T9, D_T7_CU], '', '', true, { fKy: 1 });
+teq('🔴 lượt vẽ sau: KHÔNG đè lựa chọn "Mọi tuần" của người dùng', '', m2.fKy.value);
+const m3 = napLoc([D_T9, D_T7_CU], '2026-7', 'T7/2026 (6/7-12/7/2026)', true, { fKy: 1 });
+teq('🔴 và KHÔNG kéo về tuần này khi họ đang xem tuần cũ',
+  'T7/2026 (6/7-12/7/2026)', m3.fKy.value);
+
+/* ⚠️ Không bật mặc định (tab khác) thì để nguyên "Mọi tuần" như cũ. */
+const m4 = napLoc([D_T9, D_T7_CU], '', '', false, {});
+teq('⚠️ tab không bật mặc định: vẫn là "Mọi tuần"', '', m4.fKy.value);
+
+/* ⚠️ Tuần này không nằm trong danh sách (đang lọc theo tháng cũ) thì đừng đặt bừa — đặt một
+   giá trị không có trong ô là ô về rỗng, mà cờ thì đã ghi, nên lần sau cũng thôi luôn. */
+const m5 = napLoc([D_T7_CU], '2026-7', '', true, {});
+teq('⚠️ tuần này không có trong danh sách thì để nguyên', '', m5.fKy.value);
+
+/* Cửa gọi thật: chỉ tab Quyết toán bật mặc định. */
+t('🔴 tab Quyết toán bật chọn sẵn tuần này',
+  HTML.indexOf("_napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso', true);") > 0);
+t('⚠️ tab Duyệt tạm ứng KHÔNG bật (ở đó việc là duyệt cho hết, giấu tuần cũ nguy hơn)',
+  HTML.indexOf("_napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');") > 0);
 
 /* --- Ô THÁNG vẫn bày mọi tháng có đơn, không bị cắt theo 5 tuần --- */
 const thangs = (n1.fThang.innerHTML.match(/<option value="(\d{4}-\d+)"/g) || []);

@@ -883,7 +883,7 @@
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <label style="font-size:12px;color:#64748b">Tuần / kỳ riêng</label>
           <select id="qtKyXong" onchange="renderQTList()" style="min-width:180px"></select>
-          <button class="btn b-x" onclick="qtXoaLocXong()" title="Bỏ lọc tuần riêng, quay về ô lọc chung ở đầu trang">✕</button>
+          <button class="btn b-x" onclick="qtXoaLocXong()" title="Bỏ lọc tuần riêng — bảng này bày lại mọi tuần">✕</button>
         </div>
       </div>
       <div style="font-size:12px;color:#475569;padding:0 14px 6px" id="qtSumXong"></div>
@@ -1798,7 +1798,10 @@
     }
     return ra;
   }
-  function _napLocDon(all, idThang, idKy, idCoso){
+  /* Ô lọc nào đã được đặt mặc định một lần rồi thì thôi — nếu không, mỗi lần vẽ lại bảng là
+     lựa chọn của người dùng bị đè về tuần này, và họ không tài nào xem được tuần khác. */
+  var _LOC_DA_MOI={};
+  function _napLocDon(all, idThang, idKy, idCoso, macDinhTuanNay){
     function duy(arr){ var o={},r=[]; arr.forEach(function(v){ v=String(v||'').trim(); if(v&&!o[v]){o[v]=1;r.push(v);} }); return r; }
     function nap(id, ds, nhan){
       var sel=el(id); if(!sel) return;
@@ -1831,6 +1834,18 @@
     var dangChon=el(idKy)?String(el(idKy).value||''):'';
     if(dangChon && dsKy.indexOf(dangChon)<0) dsKy=dsKy.concat([dangChon]);
     nap(idKy, dsKy.sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tuần —');
+    /* 🔴 LẦN ĐẦU VÀO MÀN -> CHỌN SẴN TUẦN NÀY (anh Thắng 07/09/2026: *"nhớ mặc định khi vào là
+       chọn tuần hiện tại nhé"*). Kế toán mở màn ra là để soát tuần đang chạy; bắt họ chọn lại
+       mỗi lần vào là một thao tác thừa, ngày nào cũng lặp.
+
+       ⚠️ CHỈ ĐẶT MỘT LẦN. `_napLocDon()` chạy lại mỗi lượt vẽ bảng — đặt lại mỗi lượt thì
+          người dùng chọn "Mọi tuần" hay tuần khác xong là bị kéo về ngay, và họ sẽ tưởng ô
+          lọc hỏng. Cờ `_LOC_DA_MOI` giữ đúng ranh giới ấy. */
+    if(macDinhTuanNay && el(idKy) && !_LOC_DA_MOI[idKy]){
+      _LOC_DA_MOI[idKy]=1;
+      var tuanNay=_tuanGanDay(1)[0];
+      if(dsKy.indexOf(tuanNay)>=0) el(idKy).value=tuanNay;
+    }
     nap(idCoso, duy(all.map(function(d){return d.coso;})).sort(), '— Mọi cơ sở —');
   }
   /* Nạp một ô chọn TUẦN đứng riêng (không kèm tháng/cơ sở như `_napLocDon`). Giữ lựa chọn cũ
@@ -1842,7 +1857,7 @@
     (ds||[]).forEach(function(d){ var k=String(d.ky||'').trim(); if(k&&!o[k]){o[k]=1;ks.push(k);} });
     ks.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });
     var cu=sel.value||'', co=ks.indexOf(cu)>=0;
-    sel.innerHTML='<option value="">— theo lọc chung —</option>'
+    sel.innerHTML='<option value="">— mọi tuần —</option>'
       +ks.map(function(v){ return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>'; }).join('');
     sel.value=co?cu:'';
   }
@@ -5503,12 +5518,21 @@
   }
   function qtXoaLoc(){ ['qtThang','qtKy','qtCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderQTList(); }
   function qtXoaLocXong(){ if(el('qtKyXong')) el('qtKyXong').value=''; renderQTList(); }
-  /* Lọc riêng cho bảng "Đã quyết toán": ô tuần riêng ĐÈ ô chung, các ô còn lại (tháng, cơ sở)
-     vẫn theo ô chung. Bỏ trống ô riêng thì y hệt `_qtLoc()`. */
+  /* 🔴 BẢNG "ĐÃ QUYẾT TOÁN" KHÔNG ĐI THEO Ô TUẦN CHUNG (anh Thắng 07/09/2026: *"đã quyết toán
+     vẫn nhớ hiện đơn và lọc theo tuần để tìm đơn cũ"*).
+
+     Từ bản này ô chung tự chọn tuần hiện tại — hợp cho bảng "Chờ quyết toán" (việc của tuần
+     đang chạy), nhưng làm bảng "Đã quyết toán" rỗng trắng, vì đơn quyết toán xong thường là
+     của tuần trước. Kế toán mở màn ra thấy "0 đơn" và tưởng chưa ai làm gì.
+
+     Nên: bảng này mặc định BÀY HẾT theo trục thời gian, muốn thu hẹp thì dùng ô tuần RIÊNG
+     của chính nó. Ô THÁNG và Ô CƠ SỞ chung vẫn áp — hai thứ ấy là lọc chung của cả màn, không
+     phải chuyện "tuần nào đang làm". */
   function _qtLocXong(d){
     var kR=el('qtKyXong')?el('qtKyXong').value:'';
-    if(!kR) return _qtLoc(d);
-    if(String(d.ky||'')!==kR) return false;
+    if(kR && String(d.ky||'')!==kR) return false;
+    var fT=el('qtThang')?el('qtThang').value:'';
+    if(fT && _thangCuaKy(d.ky)!==fT) return false;
     var fC=el('qtCoso')?el('qtCoso').value:'';
     if(fC && String(d.coso||'')!==fC) return false;
     return true;
@@ -5550,7 +5574,7 @@
     // danh sách đã lọc — không thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
     var moiDon=(BOOT.dons||[]).filter(function(d){
       return d.trangThai==='Chờ quyết toán'||d.trangThai==='Đã quyết toán'||d.trangThai==='Đã cấp tạm ứng'; });
-    _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso');
+    _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso', true);
     /* Ô tuần riêng của bảng "Đã quyết toán" dựng từ CHÍNH những đơn đã quyết toán — không phải
        từ mọi đơn của màn. Bày ra một tuần không có đơn đã quyết toán nào là mời người ta chọn
        rồi nhận bảng rỗng. */
@@ -5776,6 +5800,19 @@
         ? (nCho+' đơn chờ quyết toán') : 'Không có đơn nào chờ quyết toán';
       if(nChim){
         chim='+ '+nChim+' đơn CHƯA gửi quyết toán ('+money(tuChim)+'đ tạm ứng còn treo, chưa tính vào thực chi)';
+      }
+      /* 🔴 LỌC THEO TUẦN THÌ PHẢI NÓI CÒN BAO NHIÊU ĐƠN Ở TUẦN KHÁC.
+         Từ bản này màn tự chọn sẵn tuần hiện tại, nên đơn tuần cũ còn tồn biến mất khỏi bảng
+         mà không ai bảo gì — kế toán mở màn ra thấy sạch sẽ và tưởng đã xong hết. Con số này
+         là thứ giữ cho việc "cho gọn" không thành việc "giấu đi". */
+      var kyLoc=el('qtKy')?String(el('qtKy').value||''):'';
+      if(kyLoc){
+        var nKhac=0;
+        (BOOT.dons||[]).forEach(function(d){
+          if(d.trangThai!=='Chờ quyết toán' && !_laChim(d)) return;
+          if(String(d.ky||'')!==kyLoc) nKhac++;
+        });
+        if(nKhac) chim+=(chim?' · ':'')+'⚠️ còn '+nKhac+' đơn ở TUẦN KHÁC đang bị ẩn (bỏ lọc tuần để xem)';
       }
     }
     if(el('qtSelChim')) el('qtSelChim').textContent=chim;
