@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.10.0
+ * Version:           1.11.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -576,6 +576,25 @@ class POSH_Ve {
 		</div>
 		<div class="pve-wrap" id="pve-ds">
 			<?php if ( $kvucs ) : ?><div class="pve-kvbar" hidden>📍 Khu vực: <b class="pve-kvbar-ten"></b> <a href="#" class="pve-kvbar-doi">Đổi khu vực</a></div><?php endif; ?>
+
+			<div class="pve-qf">
+				<div class="pve-qf-h">🎟️ Đặt vé nhanh</div>
+				<div class="pve-qf-grid">
+					<input class="pve-qf-ten" placeholder="Họ và tên" autocomplete="name">
+					<input class="pve-qf-sdt" inputmode="tel" placeholder="Số điện thoại" autocomplete="tel">
+					<?php if ( $kvucs ) : ?>
+					<select class="pve-qf-cs">
+						<option value="">Tất cả cơ sở</option>
+						<?php foreach ( $kvucs as $kv ) : ?><option value="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></option><?php endforeach; ?>
+					</select>
+					<?php endif; ?>
+					<select class="pve-qf-ve"><option value="">-- Chọn loại vé --</option></select>
+					<input class="pve-qf-sl" type="number" min="1" value="1" title="Số lượng">
+				</div>
+				<button type="button" class="pve-qf-go">Mua vé ngay</button>
+				<div class="pve-qf-err" hidden></div>
+				<div class="pve-qf-note">Hoặc chọn loại vé ở danh mục bên dưới ↓</div>
+			</div>
 			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
 			<?php if ( empty( $nhom ) ) : ?>
 				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
@@ -724,6 +743,45 @@ class POSH_Ve {
 				else { chon(kvChon); wel.hidden = false; }
 			}
 
+			// ----- Đặt vé nhanh (form trên hero) -----
+			(function(){
+				var qf = document.querySelector('.pve-qf'); if(!qf) return;
+				var selVe = qf.querySelector('.pve-qf-ve');
+				var selCs = qf.querySelector('.pve-qf-cs');
+				var cards = [].slice.call(document.querySelectorAll('.pve-card')).map(function(c){
+					return { id:c.getAttribute('data-id'), ten:c.getAttribute('data-ten'), gia:c.getAttribute('data-gia'), kv:c.getAttribute('data-kv')||'', het:c.classList.contains('pve-het') };
+				});
+				function fillVe(){
+					var cs = selCs ? selCs.value : '';
+					selVe.innerHTML = '<option value="">-- Chọn loại vé --</option>';
+					cards.forEach(function(c){
+						if (c.het) return;
+						if (cs && c.kv && c.kv !== cs) return;
+						var o = document.createElement('option'); o.value = c.id; o.textContent = c.ten + ' — ' + tien(c.gia); selVe.appendChild(o);
+					});
+				}
+				if (selCs){ var kv0=''; try{ kv0 = sessionStorage.getItem('posh_kvuc')||''; }catch(e){} if(kv0){ selCs.value = kv0; } selCs.addEventListener('change', fillVe); }
+				fillVe();
+				qf.querySelector('.pve-qf-go').addEventListener('click', function(){
+					var ten = qf.querySelector('.pve-qf-ten').value.trim();
+					var sdt = qf.querySelector('.pve-qf-sdt').value.trim();
+					var id = Number(selVe.value || 0);
+					var sl = Math.max(1, Number(qf.querySelector('.pve-qf-sl').value || 1));
+					var err = qf.querySelector('.pve-qf-err');
+					if(!id){ err.textContent='Vui lòng chọn loại vé.'; err.hidden=false; return; }
+					if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
+					err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
+					fetch(REST+'/ve/dat-gio', { method:'POST', headers:{'Content-Type':'application/json'},
+						body: JSON.stringify({ items:[{ id:id, sl:sl }], ten:ten, sdt:sdt }) })
+					.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+					.then(function(o){ btn.disabled=false; btn.textContent='Mua vé ngay';
+						if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
+						hienQR(o.d);
+					})
+					.catch(function(){ btn.disabled=false; btn.textContent='Mua vé ngay'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
+				});
+			})();
+
 			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
 				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
 			});
@@ -748,6 +806,7 @@ class POSH_Ve {
 			});
 
 			function hienQR(v){
+				mask.hidden = false;   // mở popup (dùng cho cả form đặt nhanh)
 				qs('.pve-r-mave').textContent = v.ma_ve;
 				qs('.pve-r-goi').textContent  = v.goi_ten;
 				qs('.pve-r-tien').textContent = tien(v.so_tien);
@@ -837,6 +896,17 @@ class POSH_Ve {
 		.pve-kvbar{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:9px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
 		.pve-kvbar b{ color:#1f2937; }
 		.pve-kvbar-doi{ float:right; color:#b8871a; font-weight:700; text-decoration:none; }
+		/* Form đặt vé nhanh */
+		.pve-qf{ background:#fff; border:1px solid #f0e7d2; border-radius:16px; padding:16px; margin:0 0 20px; box-shadow:0 6px 18px rgba(0,0,0,.07); }
+		.pve-qf-h{ font-weight:900; font-size:18px; color:#1f2937; margin-bottom:12px; }
+		.pve-qf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+		.pve-qf-grid input, .pve-qf-grid select{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 12px; font-size:14px; background:#fff; }
+		.pve-qf-ve{ grid-column:1 / -1; }
+		.pve-qf-sl{ max-width:100%; }
+		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
+		.pve-qf-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
+		.pve-qf-note{ color:#94a3b8; font-size:12px; text-align:center; margin-top:10px; }
+		@media(max-width:520px){ .pve-qf-grid{ grid-template-columns:1fr; } }
 		</style>
 		<?php
 		return ob_get_clean();
