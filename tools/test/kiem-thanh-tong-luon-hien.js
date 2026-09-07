@@ -448,12 +448,17 @@ teq('⚠️ tuần không còn đơn nào thì nhả lựa chọn', '', nk3.valu
 
 /* --- Ô ấy dựng từ CHÍNH đơn đã quyết toán, không phải mọi đơn của màn --- */
 const HTML_MA2 = HTML.replace(/<!--[\s\S]*?-->/g, ' ');
-t('🔴 ô tuần riêng nạp từ đơn ĐÃ quyết toán',
-  /_napKyRieng\('qtKyXong',[^;]*trangThai==='Đã quyết toán'/.test(HTML_MA2), 'napKyRieng');
+/* ⚠️ CANH Ý ĐỊNH, ĐỪNG GHIM NGUYÊN VĂN. Bản trước ghim đúng chuỗi `trangThai==='Đã quyết toán'`
+   ở cả hai chỗ — rồi 07/09/2026 chốt ấy nới ra thành `_daQT()` (nhận thêm 'Đã xuất MISA') là hai
+   phép này đỏ, đỏ vì một thay đổi ĐÚNG. Bất biến thật chỉ có hai điều: ô tuần riêng dựng từ
+   BOOT.dons chứ không dùng ké danh sách đã lọc của màn, và bảng cũng thế.
+   Chốt trạng thái nào lọt bảng thì đã có bộ riêng chạy thật: kiem-hien-don-da-quyet-toan.js. */
+t('🔴 ô tuần riêng nạp thẳng từ BOOT.dons, không dùng ké danh sách đã lọc',
+  /_napKyRieng\('qtKyXong',\s*\(BOOT\.dons\|\|\[\]\)/.test(HTML_MA2), 'napKyRieng');
 /* 🔴 VÀ BẢNG "ĐÃ QUYẾT TOÁN" PHẢI DỰNG LẠI TỪ ĐẦU, không lọc tiếp từ danh sách đã bị ô chung
    cắt — lọc tiếp thì tuần riêng không bao giờ với tới được mấy tuần ô chung đã loại. */
 t('🔴 bảng đã quyết toán dựng lại từ BOOT.dons, không lọc tiếp từ `all`',
-  /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\(function\(d\)\{ return d\.trangThai==='Đã quyết toán' && _qtLocXong\(d\); \}\)/.test(HTML_MA2),
+  /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\([^;]*_qtLocXong\(d\)/.test(HTML_MA2),
   'xong=');
 t('nút bỏ lọc riêng có thật', HTML_MA2.indexOf('qtXoaLocXong()') > 0);
 

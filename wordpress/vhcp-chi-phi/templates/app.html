@@ -5363,6 +5363,20 @@
         biết nên tin số nào. Lấy đúng hiệu thì tiền tạm ứng của đơn chưa gửi tự nằm ở phần
         thừa, đúng chỗ nó phải nằm: tiền đã đưa mà chưa thấy chứng từ về. */
   function _laChim(d){ return d && d.trangThai==='Đã cấp tạm ứng'; }
+  /* 🔴 ĐƠN ĐÃ QUYẾT TOÁN XONG = 'Đã quyết toán' HOẶC 'Đã xuất MISA'.
+
+     Anh Thắng 07/09/2026, sau khi bảng vẫn trắng: *"hiện đơn đã quyết toán"*. Bảng ấy trước
+     chỉ nhận đúng chữ 'Đã quyết toán'. Nhưng xuất MISA xong là đơn tự chuyển sang 'Đã xuất
+     MISA' — nghĩa là mỗi đơn quyết toán rồi, hễ kế toán xuất file, LÀ BIẾN MẤT khỏi bảng
+     "Đã quyết toán". Càng làm đúng quy trình thì bảng càng rỗng.
+
+     Và đúng những đơn ấy mới là thứ anh cần: *"lọc theo tuần để TÌM ĐƠN CŨ"* — đơn cũ thì
+     xuất MISA từ lâu rồi.
+
+     ⚠️ Bên máy chủ đã chốt đúng ranh giới này từ trước, ở `VHCP_Don::TT_CHOT`:
+        'Đã xuất MISA' nằm SAU 'Đã quyết toán' trong luồng, nên nó cũng là đã chốt. Chỗ này
+        chỉ là màn hình đi lệch khỏi cái chốt đó. */
+  function _daQT(d){ return d && (d.trangThai==='Đã quyết toán'||d.trangThai==='Đã xuất MISA'); }
   function _qtSums(rows){
     var tu=0, mua=0;
     (rows||[]).forEach(function(d){
@@ -5424,7 +5438,11 @@
     var duyetBtn='';
     if(chim) duyetBtn='';   // chưa gửi quyết toán thì chẳng có gì để duyệt
     else if(d.trangThai==='Chờ quyết toán' && canDo('xacNhanQT') && !d.qtCN) duyetBtn='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')" title="Xác nhận quyết toán (chốt thừa/thiếu)">✔ Duyệt</button> ';
-    else if(canDo('duyetNCC') && (Number(d.thucChiNCC)||0)>0 && !d.qtNCC && d.trangThai!=='Nháp') duyetBtn='<button class="btn b-g" onclick="qtInlineNCC(\''+esc(d.maDon)+'\')" title="Duyệt phần NCC (331)">✔ Duyệt NCC</button> ';
+    /* Không bày nút "Duyệt NCC" trên đơn ĐÃ XUẤT MISA. Máy chủ vốn đã chối
+       (`xac_nhan_quyet_toan_ncc`: 'Đơn chưa gửi hoặc đã xuất'), nên nút ấy chỉ là một đường
+       dẫn tới câu báo lỗi — mà từ bản này đơn đã xuất MISA mới hiện ra bảng, nên nó sẽ nằm
+       ngay trước mắt kế toán chứ không còn là chuyện lý thuyết. */
+    else if(canDo('duyetNCC') && (Number(d.thucChiNCC)||0)>0 && !d.qtNCC && d.trangThai!=='Nháp' && d.trangThai!=='Đã xuất MISA') duyetBtn='<button class="btn b-g" onclick="qtInlineNCC(\''+esc(d.maDon)+'\')" title="Duyệt phần NCC (331)">✔ Duyệt NCC</button> ';
     var g=gcls?(' '+gcls):'', hide=(gcls&&collapsed)?' style="display:none"':'';
     if(chim) g+=' qt-chim';
     return '<tr class="qm'+g+'"'+hide+'>'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
@@ -5537,6 +5555,24 @@
     if(fC && String(d.coso||'')!==fC) return false;
     return true;
   }
+  /* 🔴 BẢNG RỖNG PHẢI NÓI VÌ SAO RỖNG.
+     "Chưa có đơn nào đã quyết toán" và "có 12 đơn nhưng ô lọc đang cắt hết" là hai tình huống
+     khác hẳn nhau, mà trước đây màn hình nói cùng một câu cho cả hai. Kế toán đọc câu ấy rồi
+     kết luận là mất dữ liệu — đã xảy ra thật. Đếm số đơn đã quyết toán CÓ trong máy, rồi nói
+     thẳng ô nào đang cắt. */
+  function _qtEmptyXongText(soHien){
+    var e=el('qtEmptyXong'); if(!e) return;
+    if(soHien) return;
+    var co=(BOOT.dons||[]).filter(_daQT).length;
+    if(!co){ e.textContent='Chưa có đơn nào đã quyết toán.'; return; }
+    var oL=[];
+    if(el('qtKyXong') && el('qtKyXong').value) oL.push('tuần riêng "'+el('qtKyXong').value+'"');
+    if(el('qtThang')  && el('qtThang').value)  oL.push('tháng "'+el('qtThang').value+'"');
+    if(el('qtCoso')   && el('qtCoso').value)   oL.push('cơ sở "'+el('qtCoso').value+'"');
+    e.textContent=oL.length
+      ? ('Có '+co+' đơn đã quyết toán, nhưng ô lọc '+oL.join(' + ')+' đang cắt hết. Bỏ lọc để xem.')
+      : ('Có '+co+' đơn đã quyết toán nhưng không đơn nào hiện ra — báo lại để dò.');
+  }
   function _qtVeChuaNop(){
     if(!el('qtBodyChuaNop')) return;
     var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); });
@@ -5573,13 +5609,13 @@
     // Ô lọc dựng từ TOÀN BỘ đơn của màn này (chờ + đã + đang cầm tiền), không phải từ
     // danh sách đã lọc — không thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
     var moiDon=(BOOT.dons||[]).filter(function(d){
-      return d.trangThai==='Chờ quyết toán'||d.trangThai==='Đã quyết toán'||d.trangThai==='Đã cấp tạm ứng'; });
+      return d.trangThai==='Chờ quyết toán'||_daQT(d)||d.trangThai==='Đã cấp tạm ứng'; });
     _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso', true);
     /* Ô tuần riêng của bảng "Đã quyết toán" dựng từ CHÍNH những đơn đã quyết toán — không phải
        từ mọi đơn của màn. Bày ra một tuần không có đơn đã quyết toán nào là mời người ta chọn
        rồi nhận bảng rỗng. */
-    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã quyết toán'; }));
-    var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'); });
+    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(_daQT));
+    var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || _daQT(d)); });
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
     if(el('qtXemTuan')) el('qtXemTuan').className='btn '+(tuan?'b-p':'b-x');
@@ -5595,13 +5631,14 @@
         .concat((BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); }));
       /* Bảng "Đã quyết toán" đi qua bộ lọc RIÊNG, nên dựng lại từ đầu chứ không lọc tiếp từ
          `all` (vốn đã bị ô chung cắt mất mấy tuần). */
-      var xong=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã quyết toán' && _qtLocXong(d); });
+      var xong=(BOOT.dons||[]).filter(function(d){ return _daQT(d) && _qtLocXong(d); });
       // Chờ: kỳ CŨ nhất lên trước (đơn tồn lâu nhất phải xử trước).
       // Đã xong: kỳ MỚI nhất lên trước (tra lại thì tìm cái vừa làm).
       cho.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
       xong.sort(function(a,b){ return _kyVal(b.ky)-_kyVal(a.ky); });
       _qtVeBang('cho', cho, canBatch);
       _qtVeBang('xong', xong, false);   // đơn đã xong thì không tích duyệt nữa
+      _qtEmptyXongText(xong.length);
       _qtVeChuaNop();
       if(el('qtChkAll')) el('qtChkAll').checked=false;
       qtUpdateBar();
