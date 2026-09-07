@@ -20,7 +20,7 @@ const Layout = () =>
           AnimationRoutes,
           null,
           React.createElement(Route, { path: "/", element: React.createElement(HomePage) }),
-          React.createElement(Route, { path: "/buy/:tien", element: React.createElement(BuyPage) }),
+          React.createElement(Route, { path: "/buy/:id", element: React.createElement(BuyPage) }),
           React.createElement(Route, { path: "/ticket/:maVe", element: React.createElement(TicketPage) })
         )
       )
