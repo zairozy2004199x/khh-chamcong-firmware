@@ -145,9 +145,10 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ve/goi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_goi' ) ) );
 		register_rest_route( self::NS, '/ve/dat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat' ) ) );
 		register_rest_route( self::NS, '/ve/trangthai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_trangthai' ) ) );
+		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 	}
 	public static function cors( $served, $result, $request, $server ) {
-		if ( $request && 0 === strpos( (string) $request->get_route(), '/' . self::NS . '/ve' ) ) {
+		if ( $request && 0 === strpos( (string) $request->get_route(), '/' . self::NS ) ) {
 			header( 'Access-Control-Allow-Origin: *' );
 			header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS' );
 			header( 'Access-Control-Allow-Headers: Content-Type' );
@@ -199,6 +200,29 @@ class POSH_Ve {
 		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
 		return array( 'ok' => true, 'ma_ve' => $r['ma_ve'], 'goi_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
 			'trang_thai' => $r['trang_thai'], 'tao_luc' => $r['tao_luc'], 'tt_luc' => $r['tt_luc'] );
+	}
+
+	public static function r_tin() {
+		$q = new WP_Query( array(
+			'post_type' => 'post', 'post_status' => 'publish',
+			'posts_per_page' => 12, 'ignore_sticky_posts' => true,
+			'no_found_rows' => true,
+		) );
+		$ra = array();
+		foreach ( $q->posts as $p ) {
+			$anh = get_the_post_thumbnail_url( $p->ID, 'medium' );
+			$xem = (int) get_post_meta( $p->ID, 'post_views_count', true );
+			$ra[] = array(
+				'id'       => (int) $p->ID,
+				'tieu_de'  => get_the_title( $p ),
+				'anh'      => $anh ? $anh : '',
+				'ngay'     => get_the_date( 'H:i, d/m/Y', $p ),
+				'luot_xem' => $xem,
+				'link'     => get_permalink( $p ),
+			);
+		}
+		wp_reset_postdata();
+		return array( 'ok' => true, 'tin' => $ra );
 	}
 
 	private static function ma_ve_moi() {

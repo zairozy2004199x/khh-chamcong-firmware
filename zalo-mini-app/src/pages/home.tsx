@@ -1,22 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Page, Spinner, useNavigate } from "zmp-ui";
-import { layGoi, dinhTien, Goi } from "../api";
+import { openWebview } from "zmp-sdk";
+import { layGoi, layTin, dinhTien, Goi, Tin } from "../api";
 import TabBar from "../components/tabbar";
 
-/* Trang chủ: header vàng + lưới TÍNH NĂNG (icon tròn) + các HÀNG NGANG theo nhóm vé
- * (mỗi nhóm 1 hàng cuộn ngang). Bám mẫu FunZone. */
-const TINH_NANG = [
-  { ic: "🎟️", ten: "Mua vé", nhom: "" },
-  { ic: "🗂️", ten: "Danh mục", nhom: "" },
-  { ic: "🎁", ten: "Ưu đãi", nhom: "" },
-  { ic: "📅", ten: "Lịch mở cửa", nhom: "" },
-  { ic: "📍", ten: "Bản đồ", nhom: "" },
-  { ic: "☎️", ten: "Liên hệ", nhom: "" },
-];
-
+/* Trang chủ: header + carousel vé theo nhóm (hàng cuộn ngang) + mục "Tin tức"
+ * (bài viết WordPress trên khmatrix.com). Bám đúng app FunZone thật. */
 export default function HomePage() {
   const navigate = useNavigate();
   const [goi, setGoi] = useState<Goi[]>([]);
+  const [tin, setTin] = useState<Tin[]>([]);
   const [loi, setLoi] = useState("");
   const [dangTai, setDangTai] = useState(true);
 
@@ -25,9 +18,9 @@ export default function HomePage() {
       .then((r) => setGoi(r.goi || []))
       .catch((e) => setLoi(String(e.message || e)))
       .finally(() => setDangTai(false));
+    layTin().then((r) => setTin(r.tin || [])).catch(() => {});
   }, []);
 
-  // Nhóm vé -> [ [ten_nhom, Goi[] ], ... ] giữ thứ tự xuất hiện.
   const nhomDs = useMemo(() => {
     const m = new Map<string, Goi[]>();
     goi.forEach((g) => {
@@ -37,6 +30,10 @@ export default function HomePage() {
     });
     return Array.from(m.entries());
   }, [goi]);
+
+  const moTin = (t: Tin) => {
+    openWebview({ url: t.link }).catch(() => { try { (window as any).open(t.link, "_blank"); } catch (e) {} });
+  };
 
   const the = (g: Goi) => {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
@@ -71,17 +68,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="hp-feat-card">
-        <div className="hp-feat">
-          {TINH_NANG.map((f) => (
-            <div key={f.ten} className="hp-feat-item" onClick={() => navigate("/danhmuc", { state: { nhom: f.nhom } })}>
-              <div className="hp-feat-ic">{f.ic}</div>
-              <span>{f.ten}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
       {dangTai && <div className="hp-center"><Spinner /></div>}
       {loi && <div className="hp-loi">{loi}</div>}
 
@@ -94,6 +80,29 @@ export default function HomePage() {
           <div className="hp-row">{ds.map(the)}</div>
         </div>
       ))}
+
+      {tin.length > 0 && (
+        <div className="hp-sec">
+          <div className="hp-sec-head">
+            <b>Tin tức</b>
+            {tin[0] && <span className="hp-all" onClick={() => moTin(tin[0])}>Xem thêm ›</span>}
+          </div>
+          <div className="hp-news">
+            {tin.map((t) => (
+              <div key={t.id} className="ncard" onClick={() => moTin(t)}>
+                <div className="ncard-img">
+                  {t.anh ? <img src={t.anh} alt={t.tieu_de} loading="lazy" /> : <div className="ncard-noimg">📰</div>}
+                </div>
+                <div className="ncard-t">{t.tieu_de}</div>
+                <div className="ncard-m">
+                  <span>{t.ngay}</span>
+                  {t.luot_xem > 0 && <span>· 👁 {t.luot_xem}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div style={{ height: 76 }} />
       <TabBar active="home" />
