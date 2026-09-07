@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.8.2
+ * Version:           1.9.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -255,6 +255,12 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ve/trangthai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_trangthai' ) ) );
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
+		register_rest_route( self::NS, '/uudai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_uudai' ) ) );
+		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
+		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
+		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
+		register_rest_route( self::NS, '/ql/donhang', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_donhang' ) ) );
+		register_rest_route( self::NS, '/ql/capnhat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_capnhat' ) ) );
 	}
 	public static function cors( $served, $result, $request, $server ) {
 		if ( $request && 0 === strpos( (string) $request->get_route(), '/' . self::NS ) ) {
@@ -391,6 +397,121 @@ class POSH_Ve {
 			'hang' => $h['hang'], 'hang_ke' => $h['hang_ke'], 'con_thieu' => $h['con_thieu'],
 			'moc' => self::ds_hang(),
 		);
+	}
+
+	// ───────────────────────────── Ưu đãi (voucher/khuyến mãi) ─────────────────────────────
+	private static function chuan_hoa_uu( $v, $auto ) {
+		return array(
+			'id'    => (int) ( ! empty( $v['id'] ) ? $v['id'] : $auto ),
+			'ten'   => trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ),
+			'mo_ta' => trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ),
+			'anh'   => esc_url_raw( (string) ( isset( $v['anh'] ) ? $v['anh'] : '' ) ),
+			'hang'  => trim( (string) ( isset( $v['hang'] ) ? $v['hang'] : '' ) ),   // hạng tối thiểu (trống = mọi khách)
+			'han'   => trim( (string) ( isset( $v['han'] ) ? $v['han'] : '' ) ),     // hạn dùng (text tự do)
+			'hien'  => empty( $v['hien'] ) ? 0 : 1,
+		);
+	}
+	public static function ds_uudai_tatca() {
+		$ds = get_option( 'pve_uudai' ); if ( ! is_array( $ds ) ) { return array(); }
+		$ra = array(); $auto = 1;
+		foreach ( $ds as $v ) {
+			foreach ( $ra as $x ) { if ( $x['id'] >= $auto ) { $auto = $x['id'] + 1; } }
+			$m = self::chuan_hoa_uu( $v, $auto ); if ( '' === $m['ten'] ) { continue; }
+			$ra[] = $m;
+		}
+		return $ra;
+	}
+	private static function ds_uudai() { $r = array(); foreach ( self::ds_uudai_tatca() as $v ) { if ( $v['hien'] ) { $r[] = $v; } } return $r; }
+	private static function luu_uudai( $ds ) {
+		$ra = array(); $auto = 1;
+		foreach ( (array) $ds as $v ) {
+			foreach ( $ra as $x ) { if ( $x['id'] >= $auto ) { $auto = $x['id'] + 1; } }
+			$m = self::chuan_hoa_uu( $v, $auto ); if ( '' === $m['ten'] ) { continue; }
+			$ra[] = $m;
+		}
+		update_option( 'pve_uudai', array_values( $ra ) );
+	}
+	public static function r_uudai() {
+		$ra = array();
+		foreach ( self::ds_uudai() as $u ) {
+			$ra[] = array( 'id' => (int) $u['id'], 'ten' => $u['ten'], 'mo_ta' => $u['mo_ta'],
+				'anh' => $u['anh'], 'hang' => $u['hang'], 'han' => $u['han'] );
+		}
+		return array( 'ok' => true, 'uudai' => $ra );
+	}
+
+	// ───────────────────────────── Bảo vệ khu quản lý bằng PIN ─────────────────────────────
+	private static function pin_hople( $req ) {
+		$pin_luu = (string) get_option( 'pve_pin', '' );
+		if ( '' === $pin_luu ) { return false; }                    // chưa khai PIN => khoá hẳn khu quản lý
+		$pin = (string) $req->get_param( 'pin' );
+		return hash_equals( $pin_luu, $pin );
+	}
+	private static function pin_chan() {
+		// Chặn dò PIN: tối đa ~1 lần/giây/IP cho khu /ql.
+		$ip = isset( $_SERVER['REMOTE_ADDR'] ) ? preg_replace( '/[^0-9a-f:.]/i', '', (string) $_SERVER['REMOTE_ADDR'] ) : 'x';
+		$k = 'pve_pinchan_' . md5( $ip );
+		if ( get_transient( $k ) ) { return true; }
+		set_transient( $k, 1, 1 ); return false;
+	}
+	private static function loi_pin() { return new WP_Error( 'pin', 'Sai mã PIN hoặc chưa cấu hình.', array( 'status' => 401 ) ); }
+	public static function r_ql_dangnhap( $req ) {
+		if ( self::pin_chan() ) { return new WP_Error( 'nhip', 'Thử lại sau giây lát.', array( 'status' => 429 ) ); }
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		return array( 'ok' => true );
+	}
+	public static function r_ql_baocao( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb; $tbl = self::tbl(); $paid = "trang_thai IN ('da_tt','da_dung')";
+		$hnay = current_time( 'Y-m-d' ); $thang = current_time( 'Y-m' );
+		$top = array();
+		foreach ( $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY sl DESC LIMIT 100", ARRAY_A ) as $r ) {
+			$top[] = array( 'ten' => $r['dv_ten'], 'sl' => (int) $r['sl'], 'dt' => (int) $r['dt'] );
+		}
+		return array( 'ok' => true,
+			'dt_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
+			'dt_thang' => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE_FORMAT(tao_luc,'%%Y-%%m')=%s", $thang ) ),
+			've_ban'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid" ),
+			've_cho'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE trang_thai='cho'" ),
+			've_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
+			'top'      => $top );
+	}
+	public static function r_ql_donhang( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb; $tbl = self::tbl();
+		$loc = sanitize_key( (string) $req->get_param( 'loc' ) );
+		$tim = trim( (string) $req->get_param( 'tim' ) );
+		$where = array(); $args = array();
+		if ( in_array( $loc, array( 'cho', 'da_tt', 'da_dung', 'huy' ), true ) ) { $where[] = 'trang_thai=%s'; $args[] = $loc; }
+		if ( '' !== $tim ) { $like = '%' . $wpdb->esc_like( $tim ) . '%'; $where[] = '(ma_ve LIKE %s OR sdt LIKE %s OR ten_khach LIKE %s)'; array_push( $args, $like, $like, $like ); }
+		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc FROM $tbl";
+		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
+		$sql .= ' ORDER BY id DESC LIMIT 60';
+		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+		$ds = array();
+		foreach ( (array) $rows as $r ) {
+			$ds[] = array( 'ma_ve' => $r['ma_ve'], 'dv_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
+				'ten_khach' => $r['ten_khach'], 'sdt' => $r['sdt'], 'trang_thai' => $r['trang_thai'], 'tao_luc' => $r['tao_luc'] );
+		}
+		return array( 'ok' => true, 'don' => $ds );
+	}
+	public static function r_ql_capnhat( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb; $tbl = self::tbl();
+		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma_ve' ) ) );
+		$xin = sanitize_key( (string) $req->get_param( 'trang_thai' ) );
+		if ( '' === $ma ) { return new WP_Error( 'ma', 'Thiếu mã vé.', array( 'status' => 400 ) ); }
+		if ( ! in_array( $xin, array( 'da_tt', 'da_dung', 'huy' ), true ) ) { return new WP_Error( 'tt', 'Trạng thái không hợp lệ.', array( 'status' => 400 ) ); }
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT sdt, ten_khach, so_tien, da_cong_diem FROM $tbl WHERE ma_ve=%s", $ma ), ARRAY_A );
+		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
+		$wpdb->update( $tbl, array( 'trang_thai' => $xin, 'tt_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
+		$diem = 0;
+		if ( 'da_tt' === $xin && ! (int) $r['da_cong_diem'] ) {
+			self::cong_diem( $r['sdt'], $r['ten_khach'], $r['so_tien'] );
+			$wpdb->update( $tbl, array( 'da_cong_diem' => 1 ), array( 'ma_ve' => $ma ) );
+			$diem = (int) floor( (int) $r['so_tien'] / 1000 );
+		}
+		return array( 'ok' => true, 'ma_ve' => $ma, 'trang_thai' => $xin, 'diem_cong' => $diem );
 	}
 
 	private static function ma_ve_moi() {
@@ -776,6 +897,29 @@ class POSH_Ve {
 			update_option( 'pve_hang', $moi );
 			echo '<div class="notice notice-success"><p>Đã lưu hạng thành viên.</p></div>';
 		}
+		if ( isset( $_POST['pve_pin_luu'] ) && check_admin_referer( 'pve_pin' ) ) {
+			update_option( 'pve_pin', preg_replace( '/\s+/', '', (string) wp_unslash( $_POST['pin'] ) ) );
+			echo '<div class="notice notice-success"><p>Đã lưu PIN khu quản lý.</p></div>';
+		}
+		if ( isset( $_POST['pve_uu_luu'] ) && check_admin_referer( 'pve_uu' ) ) {
+			$id = (int) $_POST['id'];
+			$moi = array( 'id' => $id, 'ten' => sanitize_text_field( wp_unslash( $_POST['ten'] ) ),
+				'mo_ta' => sanitize_textarea_field( wp_unslash( $_POST['mo_ta'] ) ),
+				'anh' => esc_url_raw( wp_unslash( $_POST['anh'] ) ),
+				'hang' => sanitize_text_field( wp_unslash( isset( $_POST['hang'] ) ? $_POST['hang'] : '' ) ),
+				'han' => sanitize_text_field( wp_unslash( isset( $_POST['han'] ) ? $_POST['han'] : '' ) ),
+				'hien' => empty( $_POST['hien'] ) ? 0 : 1 );
+			$ds = self::ds_uudai_tatca(); $thay = false;
+			if ( $id > 0 ) { foreach ( $ds as $k => $v ) { if ( (int) $v['id'] === $id ) { $ds[ $k ] = $moi; $thay = true; break; } } }
+			if ( ! $thay ) { $moi['id'] = 0; $ds[] = $moi; }
+			self::luu_uudai( $ds );
+			echo '<div class="notice notice-success"><p>Đã lưu ưu đãi.</p></div>';
+		}
+		if ( isset( $_POST['pve_uu_xoa'] ) && check_admin_referer( 'pve_uu_xoa' ) ) {
+			$id = (int) $_POST['id'];
+			self::luu_uudai( array_filter( self::ds_uudai_tatca(), function ( $v ) use ( $id ) { return (int) $v['id'] !== $id; } ) );
+			echo '<div class="notice notice-success"><p>Đã xoá ưu đãi.</p></div>';
+		}
 
 		$b = self::bank(); $ds = self::ds_tatca();
 		$url = esc_url( home_url( '/wp-json/' . self::NS . '/ve/goi' ) );
@@ -975,6 +1119,50 @@ class POSH_Ve {
 			}
 			echo '</tbody></table>';
 		}
+
+		/* ── PIN khu quản lý (Zalo) ── */
+		echo '<hr><h2>Khu quản lý trên Zalo (Báo cáo / Đơn / Soát vé)</h2>';
+		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'pve_pin' );
+		echo '<tr><th>Mã PIN nhân viên</th><td><input name="pin" class="regular-text code" value="' . esc_attr( get_option( 'pve_pin', '' ) ) . '" placeholder="VD 4–8 chữ số"> '
+			. '<span class="description">Nhập PIN này trong app Zalo (mục Quản lý) để xem báo cáo, xác nhận/huỷ, soát vé. Để trống = KHOÁ khu quản lý.</span></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_pin_luu" value="1">Lưu PIN</button></p></form>';
+
+		/* ── Ưu đãi (hiện trên Zalo) ── */
+		echo '<hr><h2>Ưu đãi (hiện trên Zalo)</h2>';
+		$uus = self::ds_uudai_tatca();
+		$uu_sua = null; $uid = isset( $_GET['sua_uu'] ) ? (int) $_GET['sua_uu'] : 0;
+		if ( $uid ) { foreach ( $uus as $v ) { if ( (int) $v['id'] === $uid ) { $uu_sua = $v; break; } } }
+		echo '<table class="widefat striped"><thead><tr><th style="width:70px">Ảnh</th><th>Tên</th><th>Hạng cần</th><th>Hạn</th><th>Hiện</th><th>Thao tác</th></tr></thead><tbody>';
+		if ( ! $uus ) { echo '<tr><td colspan="6">Chưa có ưu đãi nào.</td></tr>'; }
+		foreach ( $uus as $v ) {
+			echo '<tr><td>' . ( $v['anh'] ? '<img src="' . esc_url( $v['anh'] ) . '" style="width:56px;height:56px;object-fit:cover;border-radius:8px">' : '—' ) . '</td>'
+				. '<td><b>' . esc_html( $v['ten'] ) . '</b>' . ( $v['mo_ta'] ? '<br><small>' . esc_html( $v['mo_ta'] ) . '</small>' : '' ) . '</td>'
+				. '<td>' . esc_html( $v['hang'] !== '' ? $v['hang'] : 'Mọi khách' ) . '</td>'
+				. '<td>' . esc_html( $v['han'] ) . '</td><td>' . ( $v['hien'] ? '✅' : '⛔' ) . '</td><td>'
+				. '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=posh-ve&sua_uu=' . $v['id'] . '#uu' ) ) . '">Sửa</a> '
+				. '<form method="post" style="display:inline" onsubmit="return confirm(\'Xoá ưu đãi?\')">';
+			wp_nonce_field( 'pve_uu_xoa' );
+			echo '<input type="hidden" name="id" value="' . (int) $v['id'] . '"><button class="button" name="pve_uu_xoa" value="1">Xoá</button></form></td></tr>';
+		}
+		echo '</tbody></table>';
+
+		echo '<h3 id="uu">' . ( $uu_sua ? 'Sửa ưu đãi' : 'Thêm ưu đãi' ) . '</h3><form method="post">';
+		wp_nonce_field( 'pve_uu' );
+		echo '<input type="hidden" name="id" value="' . (int) ( $uu_sua ? $uu_sua['id'] : 0 ) . '"><table class="form-table">';
+		echo '<tr><th>Tên ưu đãi</th><td><input name="ten" class="regular-text" required value="' . esc_attr( $uu_sua ? $uu_sua['ten'] : '' ) . '"></td></tr>';
+		echo '<tr><th>Mô tả</th><td><textarea name="mo_ta" rows="3" class="large-text">' . esc_textarea( $uu_sua ? $uu_sua['mo_ta'] : '' ) . '</textarea></td></tr>';
+		echo '<tr><th>Hạng cần (tối thiểu)</th><td><input name="hang" class="regular-text" placeholder="VD Vàng / Kim cương — trống = mọi khách" value="' . esc_attr( $uu_sua ? $uu_sua['hang'] : '' ) . '"></td></tr>';
+		echo '<tr><th>Hạn dùng</th><td><input name="han" class="regular-text" placeholder="VD đến 31/12 / còn 10 ngày" value="' . esc_attr( $uu_sua ? $uu_sua['han'] : '' ) . '"></td></tr>';
+		echo '<tr><th>Ảnh</th><td><input type="text" name="anh" id="pve-uu-anh" class="large-text code" value="' . esc_attr( $uu_sua ? $uu_sua['anh'] : '' ) . '"><br>'
+			. '<button type="button" class="button" id="pve-uu-chon" style="margin-top:6px">Chọn ảnh từ thư viện</button> '
+			. '<img id="pve-uu-xem" src="' . esc_url( $uu_sua ? $uu_sua['anh'] : '' ) . '" style="' . ( $uu_sua && $uu_sua['anh'] ? '' : 'display:none;' ) . 'height:70px;border-radius:8px;margin-left:10px;vertical-align:middle"></td></tr>';
+		echo '<tr><th>Hiện</th><td><label><input type="checkbox" name="hien" value="1" ' . checked( $uu_sua ? $uu_sua['hien'] : 1, 1, false ) . '> Cho hiện trên Zalo</label></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_uu_luu" value="1">' . ( $uu_sua ? 'Lưu thay đổi' : 'Thêm ưu đãi' ) . '</button>'
+			. ( $uu_sua ? ' <a class="button" href="' . esc_url( admin_url( 'admin.php?page=posh-ve' ) ) . '">Huỷ</a>' : '' ) . '</p></form>';
+		echo '<script>jQuery(function($){var f;$("#pve-uu-chon").on("click",function(e){e.preventDefault();'
+			. 'if(f){f.open();return;}f=wp.media({title:"Chọn ảnh",multiple:false,library:{type:"image"}});'
+			. 'f.on("select",function(){var a=f.state().get("selection").first().toJSON();$("#pve-uu-anh").val(a.url);$("#pve-uu-xem").attr("src",a.url).show();});f.open();});});</script>';
+
 		echo '</div>';
 	}
 }
