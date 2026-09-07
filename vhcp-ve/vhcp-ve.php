@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.8.0
+ * Version:           1.8.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -495,7 +495,7 @@ class POSH_Ve {
 						<button type="button" class="pve-wel-kv" data-kv="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></button>
 					<?php endforeach; ?>
 				</div>
-				<button type="button" class="pve-wel-ok" disabled>Xác nhận</button>
+				<button type="button" class="pve-wel-ok">Xác nhận</button>
 				<div class="pve-wel-note">Chọn khu vực để xem đúng vé đang mở bán tại đó.</div>
 			</div>
 		</div>
@@ -560,30 +560,33 @@ class POSH_Ve {
 			var wel = document.querySelector('.pve-wel');
 			if (wel) {
 				try { document.body.appendChild(wel); } catch(e){}
-				var KVKEY = 'posh_kvuc', kvChon = null;
+				var KVKEY = 'posh_kvuc';
 				var okBtn = wel.querySelector('.pve-wel-ok');
-				var kvBtns = wel.querySelectorAll('.pve-wel-kv');
+				var kvBtns = [].slice.call(wel.querySelectorAll('.pve-wel-kv'));
 				var bar = document.querySelector('.pve-kvbar');
+				var kvChon = kvBtns.length ? kvBtns[0].getAttribute('data-kv') : '';
+				function chon(kv){
+					kvChon = kv;
+					kvBtns.forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-kv') === kv); });
+				}
 				function locKV(kv){
-					document.querySelectorAll('.pve-sec').forEach(function(s){
+					[].slice.call(document.querySelectorAll('.pve-sec')).forEach(function(s){
 						var vis = 0;
-						s.querySelectorAll('.pve-card').forEach(function(c){
-							var k = c.dataset.kv || '', ok = (!k || k === kv);
+						[].slice.call(s.querySelectorAll('.pve-card')).forEach(function(c){
+							var k = c.getAttribute('data-kv') || '', ok = (!k || k === kv);
 							c.style.display = ok ? '' : 'none'; if (ok) vis++;
 						});
 						s.style.display = vis ? '' : 'none';
 					});
-					if (bar){ bar.querySelector('.pve-kvbar-ten').textContent = kv; bar.hidden = false; }
+					if (bar){ var t = bar.querySelector('.pve-kvbar-ten'); if (t) t.textContent = kv; bar.hidden = false; }
 				}
-				function moWel(){ kvChon = null; okBtn.disabled = true; kvBtns.forEach(function(b){ b.classList.remove('on'); }); wel.hidden = false; }
-				kvBtns.forEach(function(b){ b.addEventListener('click', function(){
-					kvChon = b.dataset.kv; kvBtns.forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); okBtn.disabled = false;
-				}); });
-				okBtn.addEventListener('click', function(){ if(!kvChon) return; try{ sessionStorage.setItem(KVKEY, kvChon); }catch(e){} wel.hidden = true; locKV(kvChon); });
-				if (bar){ bar.querySelector('.pve-kvbar-doi').addEventListener('click', function(e){ e.preventDefault(); moWel(); }); }
+				kvBtns.forEach(function(b){ b.onclick = function(){ chon(b.getAttribute('data-kv')); }; });
+				okBtn.onclick = function(){ wel.hidden = true; try{ sessionStorage.setItem(KVKEY, kvChon); }catch(e){} locKV(kvChon); };
+				if (bar){ var d = bar.querySelector('.pve-kvbar-doi'); if (d) d.onclick = function(e){ e.preventDefault(); wel.hidden = false; }; }
 				var daChon = ''; try{ daChon = sessionStorage.getItem(KVKEY) || ''; }catch(e){}
-				var hopLe = false; kvBtns.forEach(function(b){ if (b.dataset.kv === daChon) hopLe = true; });
-				if (daChon && hopLe) { locKV(daChon); } else { moWel(); }
+				var hopLe = kvBtns.some(function(b){ return b.getAttribute('data-kv') === daChon; });
+				if (daChon && hopLe) { chon(daChon); locKV(daChon); wel.hidden = true; }
+				else { chon(kvChon); wel.hidden = false; }
 			}
 
 			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
