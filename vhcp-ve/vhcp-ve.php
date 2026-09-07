@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -411,7 +411,12 @@ class POSH_Ve {
 	/* Dán [posh_ve] vào 1 trang trên khmatrix.com. Đặt vé ở đây đẩy thẳng vào cùng bảng
 	 * pve_ve mà Zalo App + trang admin đọc — nên vé bán ở web/Zalo đều thấy chung một chỗ. */
 	public static function shortcode( $atts ) {
-		$atts = shortcode_atts( array( 'tieu_de' => 'Mua vé khu vui chơi' ), $atts, 'posh_ve' );
+		$atts = shortcode_atts( array(
+			'tieu_de'  => '',                              // tiêu đề nhỏ trong lưới (để trống = không lặp)
+			'hero'     => 'Khu vui chơi POSH',             // tiêu đề banner hero
+			'hero_phu' => 'Mua vé trước – nhận mã QR – vào cửa nhanh, không xếp hàng',
+			'anh_nen'  => '',                              // ảnh nền hero (URL). Trống = nền gradient vàng
+		), $atts, 'posh_ve' );
 		$rest = esc_url_raw( rest_url( self::NS ) );
 
 		// Gom dịch vụ theo nhóm, giữ thứ tự.
@@ -423,8 +428,16 @@ class POSH_Ve {
 
 		ob_start();
 		?>
-		<div class="pve-wrap">
-			<h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2>
+		<div class="pve-page">
+		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(180,120,10,.55),rgba(140,90,10,.75)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
+			<div class="pve-hero-in">
+				<h1 class="pve-hero-t"><?php echo esc_html( $atts['hero'] ); ?></h1>
+				<?php if ( $atts['hero_phu'] ) : ?><p class="pve-hero-p"><?php echo esc_html( $atts['hero_phu'] ); ?></p><?php endif; ?>
+				<a href="#pve-ds" class="pve-hero-btn">Mua vé ngay ↓</a>
+			</div>
+		</div>
+		<div class="pve-wrap" id="pve-ds">
+			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
 			<?php if ( empty( $nhom ) ) : ?>
 				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
 			<?php endif; ?>
@@ -466,6 +479,7 @@ class POSH_Ve {
 				</div>
 			<?php endforeach; ?>
 		</div>
+		</div>
 
 		<div class="pve-mask" hidden>
 			<div class="pve-modal">
@@ -501,8 +515,8 @@ class POSH_Ve {
 		<script>
 		(function(){
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
-			var wrap = document.currentScript.previousElementSibling; // .pve-mask
 			var mask = document.querySelector('.pve-mask');
+			try { document.body.appendChild(mask); } catch(e){}  // đưa popup ra body để nền mờ phủ kín (khỏi lỗi theme bọc transform)
 			var mFor = null, timer = null;
 			function tien(n){ try{ return (Number(n)||0).toLocaleString('vi-VN')+'đ'; }catch(e){ return n+'đ'; } }
 			function qs(s){ return mask.querySelector(s); }
@@ -573,11 +587,19 @@ class POSH_Ve {
 		</script>
 
 		<style>
-		.pve-wrap{ max-width:1000px; margin:0 auto; padding:8px 4px 24px; }
+		/* Full-bleed: phá khung theme để trang trải hết chiều ngang */
+		.pve-page{ width:100vw; margin-left:calc(50% - 50vw); background:#faf6ee; color:#1f2937; overflow:hidden; }
+		.pve-hero{ background:linear-gradient(135deg,#e6b32e,#c1901b); background-size:cover; background-position:center; padding:56px 20px 60px; text-align:center; }
+		.pve-hero-in{ max-width:760px; margin:0 auto; }
+		.pve-hero-t{ color:#fff; font-size:clamp(26px,5vw,44px); font-weight:900; margin:0 0 12px; text-shadow:0 2px 12px rgba(0,0,0,.25); line-height:1.15; }
+		.pve-hero-p{ color:#fff; opacity:.95; font-size:clamp(14px,2.4vw,18px); margin:0 0 22px; text-shadow:0 1px 6px rgba(0,0,0,.25); }
+		.pve-hero-btn{ display:inline-block; background:#1f2937; color:#fff; font-weight:800; font-size:16px; padding:13px 30px; border-radius:999px; text-decoration:none; box-shadow:0 6px 18px rgba(0,0,0,.2); }
+		.pve-hero-btn:hover{ background:#111827; color:#fff; }
+		.pve-wrap{ max-width:1040px; margin:0 auto; padding:26px 16px 40px; }
 		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; }
 		.pve-empty{ color:#64748b; }
-		.pve-sec{ margin-bottom:22px; }
-		.pve-sec-h{ font-size:17px; font-weight:800; color:#1f2937; margin:0 0 12px; padding-left:10px; border-left:4px solid #cf9f22; }
+		.pve-sec{ margin-bottom:30px; }
+		.pve-sec-h{ font-size:22px; font-weight:900; color:#1f2937; margin:0 0 14px; padding-left:12px; border-left:5px solid #cf9f22; }
 		.pve-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
 		.pve-card{ background:#fff; border:1px solid #eee; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 14px rgba(0,0,0,.06); }
 		.pve-img{ position:relative; aspect-ratio:1/1; background:#f1f5f9; }
