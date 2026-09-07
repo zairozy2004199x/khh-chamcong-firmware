@@ -72,7 +72,7 @@ export default function TicketPage() {
       <Box mt={4}>
         <Button fullWidth variant="secondary" onClick={() => history.back()}>Xong</Button>
       </Box>
-      <p className="note">Giữ lại mã vé <b>{maVe}</b>. Khi tới cơ sở, đọc mã vé này để nhân viên kích hoạt ghế.</p>
+      <p className="note">Giữ lại mã vé <b>{maVe}</b>. Khi tới nơi, đọc/đưa mã vé này cho nhân viên soát vé.</p>
     </Page>
   );
 }
