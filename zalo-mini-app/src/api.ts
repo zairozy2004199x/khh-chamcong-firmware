@@ -3,7 +3,7 @@
  *    số tài khoản nhận tiền do server trả về (vốn công khai trên QR). */
 export const BASE = "https://khmatrix.com/wp-json/posh/v1";
 
-export interface Goi { ma: number; ten: string; tien: number; mo_ta: string; anh: string; thoi_luong: string; }
+export interface Goi { ma: number; ten: string; tien: number; gia_goc: number; nhom: string; mo_ta: string; anh: string; thoi_luong: string; }
 export interface BankTT { ten_nh: string; so_tk: string; ten_tk: string; }
 export interface Ve {
   ma_ve: string; so_tien: number; goi_ten: string;

@@ -24,3 +24,39 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .badge.da_tt { background:#dcfce7; color:#166534; }
 .badge.huy { background:#fee2e2; color:#991b1b; }
 .note { color:var(--mut); font-size:12px; text-align:center; line-height:1.5; }
+
+/* ===== Trang chủ kiểu sàn bán vé (FunZone) ===== */
+:root{ --gold:#cf9f22; --gold-d:#b8871a; --cream:#faf6ee; }
+.hp{ background:var(--cream); padding:0 0 8px; }
+.hp-head{ background:linear-gradient(180deg,#d7a521,#c1901b); padding:14px 16px 34px; display:flex; align-items:center; gap:12px; }
+.hp-ava{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.35); flex:none; }
+.hp-hi{ color:#fff; opacity:.9; font-size:13px; }
+.hp-name{ color:#fff; font-weight:800; font-size:18px; }
+.hp-feat-card{ background:#fff; margin:-24px 14px 0; border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.08); padding:14px 8px; }
+.hp-feat{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px 4px; }
+.hp-feat-item{ display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; }
+.hp-feat-ic{ width:52px; height:52px; border-radius:50%; background:#fcf3d9; display:flex; align-items:center; justify-content:center; font-size:26px; }
+.hp-feat-item span{ font-size:12px; color:#334155; font-weight:600; }
+.hp-center{ display:flex; justify-content:center; padding:24px; }
+.hp-loi{ color:#b45309; text-align:center; padding:18px; font-size:13px; }
+.hp-sec{ margin-top:16px; }
+.hp-sec-head{ display:flex; justify-content:space-between; align-items:baseline; padding:0 14px 8px; }
+.hp-sec-head b{ font-size:17px; color:#1f2937; }
+.hp-all{ color:var(--gold-d); font-size:13px; font-weight:600; }
+.hp-row{ display:flex; gap:12px; overflow-x:auto; padding:0 14px 4px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; }
+.hp-row::-webkit-scrollbar{ display:none; }
+.pcard{ flex:0 0 190px; background:#fff; border-radius:14px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.06); border:1px solid #f0e7d2; scroll-snap-align:start; cursor:pointer; }
+.pcard-img{ position:relative; width:100%; aspect-ratio:1/1; background:#f1f5f9; }
+.pcard-img img{ width:100%; height:100%; object-fit:cover; }
+.pcard-noimg{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; font-size:40px; }
+.pcard-sale{ position:absolute; top:0; left:0; background:var(--gold); color:#fff; font-weight:800; font-size:13px; padding:4px 10px; border-bottom-right-radius:12px; }
+.pcard-body{ padding:10px 11px 12px; }
+.pcard-ten{ font-size:14px; font-weight:700; color:#1f2937; line-height:1.3; height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.pcard-gia-row{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+.pcard-gia{ font-size:16px; font-weight:900; color:#111827; }
+.pcard-goc{ font-size:12px; color:#9ca3af; text-decoration:line-through; margin-left:6px; }
+.pcard-add{ width:30px; height:30px; border:none; border-radius:50%; background:var(--gold); color:#fff; font-size:20px; font-weight:800; line-height:1; cursor:pointer; }
+.hp-tab{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid #eee; display:flex; padding:6px 0 max(6px,env(safe-area-inset-bottom)); z-index:30; }
+.hp-tab-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; color:#94a3b8; font-size:11px; cursor:pointer; }
+.hp-tab-i.on{ color:var(--gold-d); font-weight:700; }
+.hp-tab-ic{ font-size:20px; }
