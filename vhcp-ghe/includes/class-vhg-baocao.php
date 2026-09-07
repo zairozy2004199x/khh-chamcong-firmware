@@ -267,6 +267,20 @@ class VHG_BaoCao {
 	}
 
 	/**
+	 * NGÀY của lần đọc "chỉ số trước" (mốc) cho từng ghế — để giao diện hiện "chỉ số trước là của
+	 * ngày nào", giống bản điện thoại (anh Thắng 07/09/2026). Chỉ trả ghế NÀO có ngày (bỏ ghế
+	 * chưa có mốc), khỏi bắt giao diện lọc lại. yyyy-mm-dd.
+	 */
+	public static function lay_chiso_truoc_ngay( $codes, $ngay, $toi = false ) {
+		$out = array();
+		foreach ( (array) $codes as $c ) {
+			$x = self::chi_so_truoc_ct_( $c, $ngay, $toi );
+			if ( null !== $x['cs'] && '' !== (string) $x['ngay'] ) { $out[ (string) $c ] = (string) $x['ngay']; }
+		}
+		return $out;
+	}
+
+	/**
 	 * NỐI DÒNG THỜI GIAN — anh Thắng 29/08/2026: *"nhập vào ngày nằm giữa 2 ngày thì chỉ số tự
 	 * hiểu và chèn vào giữa… chỉ số cũ ngày hôm sau tự nhảy chỉnh lại"*.
 	 *

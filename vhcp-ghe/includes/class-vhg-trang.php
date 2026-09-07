@@ -150,8 +150,9 @@ class VHG_Trang {
 				   nhập vào một ngày NẰM GIỮA. Trả kèm ở đây, không thêm một lượt gọi nữa: giao
 				   diện đang chờ đúng lượt này để vẽ bảng, thêm lượt là thêm một chỗ chờ. */
 				self::tra( array( 'ok' => true,
-					'map' => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
-					'ke'  => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc ) ) );
+					'map'  => VHG_BaoCao::lay_chiso_truoc( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
+					'mapd' => VHG_BaoCao::lay_chiso_truoc_ngay( $ma_ds, $ng_bc, ! empty( $d['toi'] ) ),
+					'ke'   => VHG_BaoCao::lay_chiso_ke( $ma_ds, $ng_bc ) ) );
 				return;
 			}
 			/* Xem trước lượt kích ghế từ xa cần trừ — cho nhân viên thấy TRƯỚC khi Gửi, khớp đúng
@@ -1381,7 +1382,7 @@ class VHG_Trang {
 		return <<<'JS'
 (function(){
   var API = window.VHG_API || '';
-  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KE={}, KICHXA={}, GUI_DANG=false;
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, LASTD={}, KE={}, KICHXA={}, GUI_DANG=false;
   /* 🔴 CHẾ ĐỘ "GỌN" ĐÃ BỎ HẲN — anh Thắng 31/08/2026: *"bỏ tính năng rút gọn, rút gọn nó làm
      mất cột nhập liệu"*.
      Ý ban đầu (27/08) là màn điện thoại thì bớt cột cho đỡ chật. Nhưng thứ bị bớt lại chính là
@@ -1394,6 +1395,8 @@ class VHG_Trang {
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
   function money(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+  /* 'yyyy-mm-dd[...]' -> 'dd/mm/yy' (ngày đọc mốc chỉ số trước). Chuỗi lạ thì trả nguyên. */
+  function ddmmyy_(s){ s=String(s||''); return s.length>=10 ? (s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4)) : s; }
   /* 'yyyy-mm-dd' -> 'dd/mm' cho câu nhắc. Người thu tiền đọc ngày kiểu Việt; in nguyên chuỗi ISO
      giữa một câu tiếng Việt là bắt họ dịch trong đầu đúng lúc đang gõ số. */
   function nhanNgayVn(d){
@@ -1767,6 +1770,7 @@ class VHG_Trang {
     bcDocNhap();
     goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1},function(r){
       LAST=(r&&r.map)||{};
+      LASTD=(r&&r.mapd)||{};
       KE=(r&&r.ke)||{};
       body.textContent='';
       ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
@@ -1838,9 +1842,14 @@ class VHG_Trang {
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
     tdN.appendChild(kx);
     var w=el('div','bc-warn'); w.style.display='none'; tdN.appendChild(w); tr.appendChild(tdN);
-    // chỉ số trước
+    // chỉ số trước (+ ngày đọc mốc, giống bản điện thoại — anh Thắng 07/09/2026)
     var tdB=el('td');
-    if(coBefore){ var sp=el('span','bc-ro'); sp.textContent=money(before); tdB.appendChild(sp); }
+    if(coBefore){
+      var sp=el('span','bc-ro'); sp.textContent=money(before); tdB.appendChild(sp);
+      var nd=LASTD[g.ma];
+      if(nd){ var sd=el('div','bc-mut'); sd.style.cssText='font-size:11px;font-weight:600;margin-top:2px';
+        sd.textContent='ngày '+ddmmyy_(nd); tdB.appendChild(sd); }
+    }
     else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
     tr.appendChild(tdB);
     /* 🔴 GỢI Ý TRẦN NGAY TẠI Ô — anh Thắng 05/09/2026: *"nếu nhập giữa ngày, thì chỉ số sau sẽ
