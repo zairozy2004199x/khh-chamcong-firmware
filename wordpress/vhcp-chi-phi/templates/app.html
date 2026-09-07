@@ -868,10 +868,25 @@
     </div>
 
     <div class="card" id="qtCardXong">
+      <!-- 🔴 Ô LỌC TUẦN RIÊNG CHO BẢNG NÀY (anh Thắng 07/09/2026: *"Bổ sung phần đã quyết
+           toán lọc theo tuần (tránh lọc trùng với chờ quyết toán)"*).
+
+           Ô lọc chung ở đầu trang áp cho CẢ BA bảng — mà hai bảng ấy cần hai khoảng thời gian
+           khác nhau: "Chờ quyết toán" là việc của tuần này, còn "Đã quyết toán" là tra lại
+           tuần trước. Chọn một tuần ở ô chung là bảng kia rỗng theo, muốn xem lại phải bỏ lọc
+           rồi chọn lại — mỗi lần đối chiếu một tuần cũ là một vòng như thế.
+
+           ⚠️ Ô riêng ĐÈ ô chung, và chỉ đè cho bảng này. Bỏ trống thì vẫn theo ô chung như cũ,
+              nên ai không dùng tới thì không thấy gì đổi. -->
       <div class="ch">
         <h2>✅ Đã quyết toán <span class="badge st-duyet" id="qtSoXong">0</span></h2>
-        <div style="font-size:12px;color:#475569" id="qtSumXong"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <label style="font-size:12px;color:#64748b">Tuần / kỳ riêng</label>
+          <select id="qtKyXong" onchange="renderQTList()" style="min-width:180px"></select>
+          <button class="btn b-x" onclick="qtXoaLocXong()" title="Bỏ lọc tuần riêng, quay về ô lọc chung ở đầu trang">✕</button>
+        </div>
       </div>
+      <div style="font-size:12px;color:#475569;padding:0 14px 6px" id="qtSumXong"></div>
       <div class="tw">
         <table>
           <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
@@ -1784,6 +1799,19 @@
     var tc=el(idThang)?el(idThang).value:'';
     nap(idKy, duy(all.filter(function(d){ return !tc || _thangCuaKy(d.ky)===tc; }).map(function(d){return d.ky;})).sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tuần —');
     nap(idCoso, duy(all.map(function(d){return d.coso;})).sort(), '— Mọi cơ sở —');
+  }
+  /* Nạp một ô chọn TUẦN đứng riêng (không kèm tháng/cơ sở như `_napLocDon`). Giữ lựa chọn cũ
+     nếu tuần ấy còn trong danh sách — vẽ lại bảng mà ô lọc tự nhảy về "mọi tuần" thì người
+     đang đối chiếu mất chỗ đứng. */
+  function _napKyRieng(id, ds){
+    var sel=el(id); if(!sel) return;
+    var o={}, ks=[];
+    (ds||[]).forEach(function(d){ var k=String(d.ky||'').trim(); if(k&&!o[k]){o[k]=1;ks.push(k);} });
+    ks.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });
+    var cu=sel.value||'', co=ks.indexOf(cu)>=0;
+    sel.innerHTML='<option value="">— theo lọc chung —</option>'
+      +ks.map(function(v){ return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>'; }).join('');
+    sel.value=co?cu:'';
   }
   function _fillDonFilters(all){
     function nap(id, ds, nhan){
@@ -5408,6 +5436,17 @@
     return true;
   }
   function qtXoaLoc(){ ['qtThang','qtKy','qtCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderQTList(); }
+  function qtXoaLocXong(){ if(el('qtKyXong')) el('qtKyXong').value=''; renderQTList(); }
+  /* Lọc riêng cho bảng "Đã quyết toán": ô tuần riêng ĐÈ ô chung, các ô còn lại (tháng, cơ sở)
+     vẫn theo ô chung. Bỏ trống ô riêng thì y hệt `_qtLoc()`. */
+  function _qtLocXong(d){
+    var kR=el('qtKyXong')?el('qtKyXong').value:'';
+    if(!kR) return _qtLoc(d);
+    if(String(d.ky||'')!==kR) return false;
+    var fC=el('qtCoso')?el('qtCoso').value:'';
+    if(fC && String(d.coso||'')!==fC) return false;
+    return true;
+  }
   function _qtVeChuaNop(){
     if(!el('qtBodyChuaNop')) return;
     var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); });
@@ -5446,6 +5485,10 @@
     var moiDon=(BOOT.dons||[]).filter(function(d){
       return d.trangThai==='Chờ quyết toán'||d.trangThai==='Đã quyết toán'||d.trangThai==='Đã cấp tạm ứng'; });
     _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso');
+    /* Ô tuần riêng của bảng "Đã quyết toán" dựng từ CHÍNH những đơn đã quyết toán — không phải
+       từ mọi đơn của màn. Bày ra một tuần không có đơn đã quyết toán nào là mời người ta chọn
+       rồi nhận bảng rỗng. */
+    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã quyết toán'; }));
     var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'); });
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
@@ -5457,7 +5500,9 @@
 
     if(!tuan){
       var cho=all.filter(function(d){ return d.trangThai==='Chờ quyết toán'; });
-      var xong=all.filter(function(d){ return d.trangThai==='Đã quyết toán'; });
+      /* Bảng "Đã quyết toán" đi qua bộ lọc RIÊNG, nên dựng lại từ đầu chứ không lọc tiếp từ
+         `all` (vốn đã bị ô chung cắt mất mấy tuần). */
+      var xong=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã quyết toán' && _qtLocXong(d); });
       // Chờ: kỳ CŨ nhất lên trước (đơn tồn lâu nhất phải xử trước).
       // Đã xong: kỳ MỚI nhất lên trước (tra lại thì tìm cái vừa làm).
       cho.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });

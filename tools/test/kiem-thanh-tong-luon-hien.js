@@ -229,6 +229,92 @@ if (mQtChk) {
     /data-tu="'\+\(Number\(d\.tamUng\)/.test(mQtChk[0]), mQtChk[0]);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 4. BẢNG "ĐÃ QUYẾT TOÁN" CÓ Ô LỌC TUẦN RIÊNG — anh Thắng 07/09/2026
+ *
+ * *"Bổ sung phần đã quyết toán lọc theo tuần (tránh lọc trùng với chờ quyết toán)"*.
+ *
+ * Ô lọc chung ở đầu trang áp cho CẢ BA bảng — mà hai bảng cần hai khoảng thời gian khác nhau:
+ * "Chờ quyết toán" là việc của tuần này, "Đã quyết toán" là tra lại tuần trước. Chọn một tuần
+ * ở ô chung là bảng kia rỗng theo.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const fnLoc = bocHam('_qtLoc');
+const fnLocXong = bocHam('_qtLocXong');
+t('bốc được _qtLoc()', fnLoc.length > 100, fnLoc.length);
+t('bốc được _qtLocXong()', fnLocXong.length > 100, fnLocXong.length);
+
+/* Bệ đỡ: bốn ô lọc, mỗi ô một giá trị. */
+function locXong(d, oChung, oRieng) {
+  const o = {
+    qtThang: { value: oChung.thang || '' },
+    qtKy: { value: oChung.ky || '' },
+    qtCoso: { value: oChung.coso || '' },
+    qtKyXong: { value: oRieng || '' },
+  };
+  const f = new Function('el', '_thangCuaKy',
+    fnLoc + '\n' + fnLocXong + '\nreturn _qtLocXong;')(
+    function (id) { return o[id] || null; },
+    function (k) { const m = /^T(\d+)\/(\d+)/.exec(String(k || '')); return m ? (m[2] + '-' + m[1]) : ''; });
+  return f(d);
+}
+
+const D_T8_17 = { ky: 'T8/2026 (17/8-23/8/2026)', coso: 'FARM PHAN THIẾT' };
+const D_T8_24 = { ky: 'T8/2026 (24/8-30/8/2026)', coso: 'FUNZONE VŨNG TÀU' };
+
+/* --- Ô riêng BỎ TRỐNG: y hệt lọc chung, không đổi gì cho ai không dùng tới --- */
+teq('ô riêng trống: theo lọc chung (khớp)', true, locXong(D_T8_17, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
+teq('ô riêng trống: theo lọc chung (không khớp)', false, locXong(D_T8_24, { ky: 'T8/2026 (17/8-23/8/2026)' }, ''));
+teq('ô riêng trống, lọc chung rỗng: nhận hết', true, locXong(D_T8_24, {}, ''));
+
+/* --- 🔴 Ô RIÊNG ĐÈ Ô CHUNG: đây là cả điểm của tính năng --- */
+teq('🔴 ô riêng ĐÈ ô chung: chọn tuần 24/8 dù ô chung đang là 17/8',
+  true, locXong(D_T8_24, { ky: 'T8/2026 (17/8-23/8/2026)' }, 'T8/2026 (24/8-30/8/2026)'));
+teq('   và đơn tuần khác bị loại',
+  false, locXong(D_T8_17, { ky: 'T8/2026 (17/8-23/8/2026)' }, 'T8/2026 (24/8-30/8/2026)'));
+/* ⚠️ Ô THÁNG chung KHÔNG được đè ngược lại tuần riêng — chọn tuần T8 mà ô tháng chung đang để
+   T9 thì bảng rỗng, và người dùng không hiểu vì sao ô tuần mình vừa chọn lại không ra gì. */
+teq('⚠️ ô THÁNG chung không cắt mất tuần riêng',
+  true, locXong(D_T8_24, { thang: '2026-9' }, 'T8/2026 (24/8-30/8/2026)'));
+/* Nhưng ô CƠ SỞ chung thì vẫn áp — lọc cơ sở là việc chung của cả màn, không phải chuyện tuần. */
+teq('⚠️ nhưng ô CƠ SỞ chung vẫn áp',
+  false, locXong(D_T8_24, { coso: 'FARM PHAN THIẾT' }, 'T8/2026 (24/8-30/8/2026)'));
+teq('   và khớp cơ sở thì nhận',
+  true, locXong(D_T8_24, { coso: 'FUNZONE VŨNG TÀU' }, 'T8/2026 (24/8-30/8/2026)'));
+
+/* --- Ô CHỌN TUẦN RIÊNG dựng từ đâu --- */
+const fnNapKy = bocHam('_napKyRieng');
+t('bốc được _napKyRieng()', fnNapKy.length > 200, fnNapKy.length);
+function napKy(ds, cu) {
+  const o = { qtKyXong: { value: cu || '', innerHTML: '' } };
+  new Function('el', 'esc', '_kyVal', fnNapKy + '\n_napKyRieng("qtKyXong", ' + JSON.stringify(ds) + ');')(
+    function (id) { return o[id] || null; },
+    function (v) { return String(v == null ? '' : v); },
+    function (k) { const m = /\((\d+)\/(\d+)-/.exec(String(k || '')); return m ? (+m[2] * 100 + +m[1]) : -1; });
+  return o.qtKyXong;
+}
+const nk = napKy([D_T8_17, D_T8_24, { ky: 'T8/2026 (24/8-30/8/2026)' }], '');
+t('ô có lựa chọn "theo lọc chung"', /theo lọc chung/.test(nk.innerHTML), nk.innerHTML);
+teq('⚠️ tuần trùng chỉ hiện MỘT lần', 2, (nk.innerHTML.match(/<option value="T8/g) || []).length);
+t('tuần mới nhất lên trước', nk.innerHTML.indexOf('24/8-30/8') < nk.innerHTML.indexOf('17/8-23/8'), nk.innerHTML);
+/* 🔴 GIỮ LỰA CHỌN CŨ khi vẽ lại. Bảng này vẽ lại mỗi lần tải; ô lọc tự nhảy về "mọi tuần" thì
+   người đang đối chiếu mất chỗ đứng sau mỗi thao tác. */
+const nk2 = napKy([D_T8_17, D_T8_24], 'T8/2026 (17/8-23/8/2026)');
+teq('🔴 vẽ lại vẫn giữ tuần đang chọn', 'T8/2026 (17/8-23/8/2026)', nk2.value);
+/* Nhưng tuần không còn trong danh sách thì phải nhả ra, không giữ một lựa chọn chết. */
+const nk3 = napKy([D_T8_24], 'T8/2026 (17/8-23/8/2026)');
+teq('⚠️ tuần không còn đơn nào thì nhả lựa chọn', '', nk3.value);
+
+/* --- Ô ấy dựng từ CHÍNH đơn đã quyết toán, không phải mọi đơn của màn --- */
+const HTML_MA2 = HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+t('🔴 ô tuần riêng nạp từ đơn ĐÃ quyết toán',
+  /_napKyRieng\('qtKyXong',[^;]*trangThai==='Đã quyết toán'/.test(HTML_MA2), 'napKyRieng');
+/* 🔴 VÀ BẢNG "ĐÃ QUYẾT TOÁN" PHẢI DỰNG LẠI TỪ ĐẦU, không lọc tiếp từ danh sách đã bị ô chung
+   cắt — lọc tiếp thì tuần riêng không bao giờ với tới được mấy tuần ô chung đã loại. */
+t('🔴 bảng đã quyết toán dựng lại từ BOOT.dons, không lọc tiếp từ `all`',
+  /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\(function\(d\)\{ return d\.trangThai==='Đã quyết toán' && _qtLocXong\(d\); \}\)/.test(HTML_MA2),
+  'xong=');
+t('nút bỏ lọc riêng có thật', HTML_MA2.indexOf('qtXoaLocXong()') > 0);
+
 if (TRUOT.length) {
   console.log('\n=== THANH TỔNG LUÔN HIỆN ===');
   TRUOT.forEach(function (x) { console.log('  ✗ ' + x); });
