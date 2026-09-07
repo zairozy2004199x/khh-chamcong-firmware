@@ -89,3 +89,48 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .gcard-gia{ font-size:16px; font-weight:900; color:#111827; }
 .gcard-goc{ font-size:12px; color:#9ca3af; text-decoration:line-through; }
 .gcard-add{ width:30px; height:30px; border:none; border-radius:50%; background:var(--gold); color:#fff; font-size:20px; font-weight:800; line-height:1; cursor:pointer; flex:none; }
+
+/* ===== Thanh tab dưới (dùng chung) ===== */
+.tabbar{ position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid #eee;
+  display:flex; padding:6px 0 max(6px,env(safe-area-inset-bottom)); z-index:40; }
+.tabbar-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; color:#94a3b8; font-size:11px; cursor:pointer; }
+.tabbar-i.on{ color:var(--gold-d); font-weight:700; }
+.tabbar-ic{ font-size:20px; line-height:1; }
+
+/* ===== Màn phụ (Giỏ hàng / Tin nhắn / Đơn hàng) ===== */
+.tp{ background:var(--cream); min-height:100vh; }
+.tp-head{ background:linear-gradient(180deg,#d7a521,#c1901b); color:#fff; font-weight:800; font-size:18px; padding:16px 16px; }
+.tp-empty{ display:flex; flex-direction:column; align-items:center; gap:8px; padding:56px 30px; text-align:center; }
+.tp-empty-ic{ font-size:54px; }
+.tp-empty-t{ font-weight:800; font-size:17px; color:#1f2937; }
+.tp-empty-s{ color:#64748b; font-size:13px; line-height:1.5; }
+.tp-btn{ margin-top:10px; border:none; background:var(--gold); color:#fff; font-weight:700; font-size:14px;
+  padding:11px 22px; border-radius:999px; cursor:pointer; }
+
+/* Danh sách đơn hàng */
+.dh-list{ padding:14px; display:flex; flex-direction:column; gap:12px; }
+.dh-item{ background:#fff; border:1px solid #f0e7d2; border-radius:14px; padding:13px 14px; box-shadow:0 4px 12px rgba(0,0,0,.05); cursor:pointer; }
+.dh-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.dh-top b{ font-size:15px; color:#1f2937; }
+.dh-bot{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
+.dh-ma{ color:#64748b; font-size:12px; }
+.dh-tien{ font-weight:900; color:#c2410c; font-size:16px; }
+
+/* ===== Cá nhân ===== */
+.cn{ background:var(--cream); min-height:100vh; }
+.cn-head{ background:linear-gradient(180deg,#d7a521,#c1901b); padding:22px 16px; display:flex; align-items:center; gap:14px; }
+.cn-ava{ width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.35); display:flex; align-items:center; justify-content:center; font-size:30px; overflow:hidden; flex:none; }
+.cn-ava img{ width:100%; height:100%; object-fit:cover; }
+.cn-name{ color:#fff; font-weight:800; font-size:19px; }
+.cn-sub{ color:rgba(255,255,255,.85); font-size:13px; }
+.cn-banner{ margin:-16px 14px 0; background:#fff; border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.08);
+  padding:14px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.cn-banner-t{ font-weight:800; color:#1f2937; font-size:15px; }
+.cn-banner-s{ color:#64748b; font-size:12px; margin-top:2px; }
+.cn-banner-b{ border:none; background:var(--gold); color:#fff; font-weight:700; font-size:13px; padding:9px 16px; border-radius:999px; cursor:pointer; flex:none; }
+.cn-menu{ margin:16px 14px 0; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+.cn-item{ display:flex; align-items:center; gap:12px; padding:15px 16px; border-bottom:1px solid #f3f4f6; cursor:pointer; }
+.cn-item:last-child{ border-bottom:none; }
+.cn-item-ic{ font-size:20px; width:26px; text-align:center; }
+.cn-item-ten{ flex:1; color:#1f2937; font-size:15px; }
+.cn-item-mui{ color:#cbd5e1; font-size:20px; }
