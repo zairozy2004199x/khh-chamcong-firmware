@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.12.0
+ * Version:           1.13.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '3';
+	const VER_TBL = '4';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -158,6 +158,7 @@ class POSH_Ve {
 			sdt VARCHAR(20) NOT NULL DEFAULT '',
 			noi_dung VARCHAR(40) NOT NULL DEFAULT '',
 			chi_tiet TEXT NULL,
+			nguon VARCHAR(10) NOT NULL DEFAULT 'web',
 			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
 			da_cong_diem TINYINT NOT NULL DEFAULT 0,
 			tao_luc DATETIME NOT NULL,
@@ -317,7 +318,8 @@ class POSH_Ve {
 		$wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
-			'noi_dung' => $noidung, 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
+			'noi_dung' => $noidung, 'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
 		self::giam_ton( $goi['id'], 1 );
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
@@ -357,7 +359,9 @@ class POSH_Ve {
 		$wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => mb_substr( $tomtat, 0, 120 ), 'so_tien' => $tong,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
-			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ), 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
+			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ),
+			'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
@@ -508,6 +512,11 @@ class POSH_Ve {
 			've_ban'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid" ),
 			've_cho'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE trang_thai='cho'" ),
 			've_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
+			// Tách theo kênh bán (zalo / web)
+			've_zalo'  => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon='zalo'" ),
+			've_web'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon<>'zalo'" ),
+			'dt_zalo'  => (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon='zalo'" ),
+			'dt_web'   => (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon<>'zalo'" ),
 			'top'      => $top );
 	}
 	public static function r_ql_donhang( $req ) {
@@ -518,14 +527,19 @@ class POSH_Ve {
 		$where = array(); $args = array();
 		if ( in_array( $loc, array( 'cho', 'da_tt', 'da_dung', 'huy' ), true ) ) { $where[] = 'trang_thai=%s'; $args[] = $loc; }
 		if ( '' !== $tim ) { $like = '%' . $wpdb->esc_like( $tim ) . '%'; $where[] = '(ma_ve LIKE %s OR sdt LIKE %s OR ten_khach LIKE %s)'; array_push( $args, $like, $like, $like ); }
-		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc FROM $tbl";
+		if ( in_array( $loc, array( 'zalo', 'web' ), true ) ) {
+			// cho phép lọc theo kênh: loc=zalo / loc=web
+			$where[] = ( 'zalo' === $loc ? "nguon='zalo'" : "nguon<>'zalo'" );
+		}
+		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc FROM $tbl";
 		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
 		$sql .= ' ORDER BY id DESC LIMIT 60';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
 		$ds = array();
 		foreach ( (array) $rows as $r ) {
 			$ds[] = array( 'ma_ve' => $r['ma_ve'], 'dv_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
-				'ten_khach' => $r['ten_khach'], 'sdt' => $r['sdt'], 'trang_thai' => $r['trang_thai'], 'tao_luc' => $r['tao_luc'] );
+				'ten_khach' => $r['ten_khach'], 'sdt' => $r['sdt'], 'trang_thai' => $r['trang_thai'],
+				'nguon' => $r['nguon'], 'tao_luc' => $r['tao_luc'] );
 		}
 		return array( 'ok' => true, 'don' => $ds );
 	}
@@ -1092,6 +1106,17 @@ class POSH_Ve {
 			}
 			echo '</tbody></table>';
 		}
+
+		// Tách theo kênh bán (Zalo / Web)
+		$ve_zalo = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon='zalo'" );
+		$ve_web  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon<>'zalo'" );
+		$dt_zalo = (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon='zalo'" );
+		$dt_web  = (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon<>'zalo'" );
+		echo '<p style="margin:14px 0 4px"><b>Bán theo kênh</b></p>';
+		echo '<table class="widefat striped" style="max-width:520px"><thead><tr><th>Kênh</th><th style="width:120px">Vé đã bán</th><th style="width:160px">Doanh thu</th></tr></thead><tbody>';
+		echo '<tr><td>📱 Zalo Mini App</td><td>' . $ve_zalo . '</td><td>' . esc_html( number_format( $dt_zalo, 0, ',', '.' ) ) . 'đ</td></tr>';
+		echo '<tr><td>🌐 Web (khmatrix.com)</td><td>' . $ve_web . '</td><td>' . esc_html( number_format( $dt_web, 0, ',', '.' ) ) . 'đ</td></tr>';
+		echo '</tbody></table>';
 		echo '<hr>';
 
 		/* Tài khoản nhận tiền */
@@ -1181,18 +1206,20 @@ class POSH_Ve {
 			$where[] = '(ma_ve LIKE %s OR sdt LIKE %s OR ten_khach LIKE %s)';
 			array_push( $args, $like, $like, $like );
 		}
-		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, tao_luc, tt_luc FROM $tbl";
+		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc, tt_luc FROM $tbl";
 		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
 		$sql .= ' ORDER BY id DESC LIMIT 100';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
 
 		if ( ! $rows ) { echo '<p>Không có vé nào khớp.</p>'; }
 		else {
-			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã vé</th><th>Dịch vụ</th><th>Số tiền</th><th>Khách</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>';
+			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã vé</th><th>Dịch vụ</th><th>Kênh</th><th>Số tiền</th><th>Khách</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>';
 			foreach ( $rows as $r ) {
 				$mau = array( 'cho' => '#92600a', 'da_tt' => '#166534', 'da_dung' => '#1d4ed8', 'huy' => '#991b1b' );
 				$c   = isset( $mau[ $r['trang_thai'] ] ) ? $mau[ $r['trang_thai'] ] : '#334155';
+				$kenh = ( 'zalo' === $r['nguon'] ) ? '📱 Zalo' : '🌐 Web';
 				echo '<tr><td>' . esc_html( $r['tao_luc'] ) . '</td><td><code>' . esc_html( $r['ma_ve'] ) . '</code></td><td>' . esc_html( $r['dv_ten'] ) . '</td>'
+					. '<td>' . $kenh . '</td>'
 					. '<td>' . esc_html( number_format( $r['so_tien'], 0, ',', '.' ) ) . 'đ</td>'
 					. '<td>' . esc_html( $r['ten_khach'] ) . '<br><small>' . esc_html( $r['sdt'] ) . '</small></td>'
 					. '<td><b style="color:' . esc_attr( $c ) . '">' . esc_html( isset( $nhan[ $r['trang_thai'] ] ) ? $nhan[ $r['trang_thai'] ] : $r['trang_thai'] ) . '</b></td><td>';

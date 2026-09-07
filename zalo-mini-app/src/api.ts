@@ -50,13 +50,13 @@ export function layTin() {
 export function datVe(id: number, ten: string, sdt: string) {
   return json<Ve & { ok: boolean }>(`${BASE}/ve/dat`, {
     method: "POST",
-    body: JSON.stringify({ id, ten, sdt }),
+    body: JSON.stringify({ id, ten, sdt, nguon: "zalo" }),
   });
 }
 export function datGio(items: { id: number; sl: number }[], ten: string, sdt: string) {
   return json<Ve & { ok: boolean }>(`${BASE}/ve/dat-gio`, {
     method: "POST",
-    body: JSON.stringify({ items, ten, sdt }),
+    body: JSON.stringify({ items, ten, sdt, nguon: "zalo" }),
   });
 }
 export interface Diem {
@@ -89,10 +89,11 @@ export function layUudai() {
 /* ── Khu quản lý (nhân viên, có PIN) ── */
 export interface BaoCao {
   ok: boolean; dt_hnay: number; dt_thang: number; ve_ban: number; ve_cho: number; ve_hnay: number;
+  ve_zalo: number; ve_web: number; dt_zalo: number; dt_web: number;
   top: { ten: string; sl: number; dt: number }[];
 }
 export interface DonQL {
-  ma_ve: string; dv_ten: string; so_tien: number; ten_khach: string; sdt: string; trang_thai: string; tao_luc: string;
+  ma_ve: string; dv_ten: string; so_tien: number; ten_khach: string; sdt: string; trang_thai: string; nguon: string; tao_luc: string;
 }
 export function qlDangNhap(pin: string) {
   return json<{ ok: boolean }>(`${BASE}/ql/dangnhap`, { method: "POST", body: JSON.stringify({ pin }) });

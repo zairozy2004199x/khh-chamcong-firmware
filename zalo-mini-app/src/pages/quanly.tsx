@@ -4,7 +4,7 @@ import { qlDangNhap, qlBaoCao, qlDonHang, qlCapNhat, dinhTien, BaoCao, DonQL } f
 
 const PINKEY = "posh_ql_pin";
 const NHAN: Record<string, string> = { cho: "Chờ", da_tt: "Đã thanh toán", da_dung: "Đã dùng", huy: "Đã huỷ" };
-const LOCS: [string, string][] = [["", "Tất cả"], ["cho", "Chờ"], ["da_tt", "Đã TT"], ["da_dung", "Đã dùng"], ["huy", "Huỷ"]];
+const LOCS: [string, string][] = [["", "Tất cả"], ["cho", "Chờ"], ["da_tt", "Đã TT"], ["da_dung", "Đã dùng"], ["huy", "Huỷ"], ["zalo", "📱 Zalo"], ["web", "🌐 Web"]];
 
 /* Khu quản lý (nhân viên) — vào bằng PIN khai ở admin web. */
 export default function QuanLyPage() {
@@ -77,6 +77,12 @@ function BaoCaoTab({ pin }: { pin: string }) {
       <div className="ql-cards">
         {cards.map(([l, v]) => <div key={l} className="ql-card"><div className="ql-card-l">{l}</div><div className="ql-card-v">{v}</div></div>)}
       </div>
+      <div className="ql-sec">Bán theo kênh</div>
+      <div className="ql-tbl">
+        <div className="ql-tr ql-th"><span>Kênh</span><b>Vé</b><b>Doanh thu</b></div>
+        <div className="ql-tr"><span>📱 Zalo Mini App</span><b>{bc.ve_zalo}</b><b>{dinhTien(bc.dt_zalo)}</b></div>
+        <div className="ql-tr"><span>🌐 Web</span><b>{bc.ve_web}</b><b>{dinhTien(bc.dt_web)}</b></div>
+      </div>
       <div className="ql-sec">Vé bán chạy</div>
       <div className="ql-tbl">
         <div className="ql-tr ql-th"><span>Vé</span><b>SL</b><b>Doanh thu</b></div>
@@ -124,7 +130,7 @@ function DonTab({ pin }: { pin: string }) {
           <div className="ql-don-mid">
             <span>{d.ten_khach} · {d.sdt}</span><span className="ql-don-tien">{dinhTien(d.so_tien)}</span>
           </div>
-          <div className="ql-don-ma">Mã: {d.ma_ve} · {d.tao_luc}</div>
+          <div className="ql-don-ma">{d.nguon === "zalo" ? "📱 Zalo" : "🌐 Web"} · Mã: {d.ma_ve} · {d.tao_luc}</div>
           <div className="ql-don-act">
             {d.trang_thai === "cho" && <>
               <button className="ql-b ok" onClick={() => capNhat(d.ma_ve, "da_tt")}>Đã thanh toán</button>
