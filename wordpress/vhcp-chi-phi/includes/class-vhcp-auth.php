@@ -13,7 +13,9 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_Auth {
 
-	const TTL = 2592000;   // 30 ngày — giao diện nhớ phiên trong sessionStorage/localStorage
+	const TTL = 2592000;   // 30 ngày — giao diện nhớ phiên trong localStorage (token, KHÔNG phải PIN)
+	/* Còn dưới 7 ngày thì gia hạn về đủ 30 — xem `ai_dang_dang_nhap()`. */
+	const TTL_GIA_HAN = 604800;
 
 	/**
 	 * Vai trò của người đang gọi trong lượt request này.
@@ -171,6 +173,50 @@ class VHCP_Auth {
 		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'],
 			'roleGoc' => VHCP_Cfg::vai_goc( (string) $r['vai_tro'] ),
 			'coso' => $r['coso'], 'boPhan' => $r['bo_phan'] );
+	}
+
+	/**
+	 * TÔI LÀ AI — danh tính của phiên đang cầm token, để trang tự vào lại khỏi hỏi PIN.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG BAO GIỜ LƯU PIN Ở MÁY KHÁCH
+	 * =========================================================================================
+	 * Anh Thắng 07/09/2026: *"trang chưa tự lưu mật khẩu để lần sau… khỏi đăng nhập lại"*.
+	 * Cách làm đúng KHÔNG phải là nhớ PIN trong trình duyệt: PIN nằm trong `localStorage` thì
+	 * bất cứ ai mượn máy, hoặc bất cứ đoạn mã lạ nào chạy trên trang, đều đọc được nó — mà PIN
+	 * ấy còn mở được cả trang chấm công và trang nội bộ. Trang chạy ngoài internet.
+	 *
+	 * Thứ được nhớ là TOKEN PHIÊN: một chuỗi ngẫu nhiên, chỉ dùng được cho đúng phiên này, thu
+	 * hồi được từ máy chủ (bấm Đăng xuất), và tự chết sau 30 ngày.
+	 *
+	 * ⚠️ VÌ SAO PHẢI CÓ HÀM NÀY: token vốn đã sống 30 ngày trong `localStorage`, nhưng DANH TÍNH
+	 *    (tên · vai · cơ sở) lại nằm ở `sessionStorage` — mà `sessionStorage` chết ngay khi đóng
+	 *    trình duyệt. Nên mở lại là trang không biết mình là ai, bày cổng PIN, dù token còn
+	 *    nguyên. Hỏi máy chủ một câu là xong, và danh tính lấy từ máy chủ thì luôn đúng: đổi vai
+	 *    trò hay đổi cơ sở cho ai đó là lần mở trang sau họ nhận ngay, không phải đăng xuất.
+	 *
+	 * ⚠️ GIA HẠN LĂN: còn dưới 7 ngày thì đẩy hạn về đủ 30 ngày. Người dùng hằng ngày sẽ không
+	 *    bao giờ chạm mốc hết hạn; người bỏ trang 30 ngày thì vẫn phải nhập lại — đúng ý.
+	 */
+	public static function ai_dang_dang_nhap( $token = '' ) {
+		global $wpdb;
+		$token = (string) $token;
+		$u = self::user_by_token( $token );
+		if ( ! $u ) { return array( 'ok' => false, 'error' => 'Phiên đã hết hạn' ); }
+
+		/* ⚠️ ĐO KHOẢNG THỜI GIAN BẰNG PHP, KHÔNG NHỜ SQL. `TIMESTAMPDIFF()` là hàm của MySQL —
+		   đúng trên host thật, nhưng bệ đỡ thử chạy SQLite thì nó trả 0, và 0 thì lần nào cũng
+		   rơi vào nhánh gia hạn. Nghĩa là phép kiểm sẽ xanh mà chẳng canh được gì. Đọc ra rồi
+		   so bằng `strtotime()` thì hai nơi cùng một kết quả. */
+		$t   = VHCP_DB::t( 'session' );
+		$hh  = (string) $wpdb->get_var( $wpdb->prepare( "SELECT het_han FROM $t WHERE token=%s", $token ) );
+		$con = $hh !== '' ? ( strtotime( $hh . ' UTC' ) - time() ) : 0;
+		if ( $con < self::TTL_GIA_HAN ) {
+			$wpdb->update( $t, array( 'het_han' => gmdate( 'Y-m-d H:i:s', time() + self::TTL ) ),
+				array( 'token' => $token ) );
+		}
+		return array( 'ok' => true, 'name' => $u['name'], 'role' => $u['role'],
+			'roleGoc' => $u['roleGoc'], 'coso' => $u['coso'], 'boPhan' => $u['boPhan'] );
 	}
 
 	public static function logout( $token ) {

@@ -12,7 +12,17 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class VHCP_API {
 
 	/** Hàm chạy được KHI CHƯA đăng nhập. */
-	private static $public_fns = array( 'login' );
+	/* Hàm chạy được KHI CHƯA đăng nhập.
+
+	   `aiDangDangNhap` phải nằm đây: nó CHÍNH LÀ hàm hỏi "phiên còn sống không", nên bắt nó đi
+	   qua chốt phiên là vòng tròn. Để ngoài danh sách này thì token chết sẽ ăn 401 `no_session`,
+	   mà gặp mã ấy giao diện TỰ TẢI LẠI TRANG — người dùng mở trang lên thấy nó chớp một cái
+	   rồi mới ra ô PIN, không hiểu vừa xảy ra chuyện gì.
+
+	   ⚠️ An toàn không đổi: hàm chỉ nhận một token 64 ký tự hex ngẫu nhiên và tự tra bảng
+	      phiên; sai thì trả "Phiên đã hết hạn", không lộ gì. Đoán được token ấy thì cũng đã gọi
+	      được mọi hàm khác rồi. */
+	private static $public_fns = array( 'login', 'aiDangDangNhap' );
 
 	/**
 	 * Hàm chỉ dành cho vai trò nhất định — chặn ngay ở máy chủ, không tin giao diện.
@@ -175,6 +185,10 @@ class VHCP_API {
 		return array(
 			// phiên & nhật ký
 			'login'                 => array( 'VHCP_Auth', 'login' ),
+			/* Trang tự vào lại bằng TOKEN, không bằng PIN nhớ sẵn — xem `ai_dang_dang_nhap()`.
+			   Vẫn đi qua cổng xác thực như mọi hàm khác: token hỏng thì cổng trả 401 trước khi
+			   tới đây, và giao diện bày lại ô PIN. */
+			'aiDangDangNhap'        => array( 'VHCP_Auth', 'ai_dang_dang_nhap' ),
 			'changePin'             => array( 'VHCP_Auth', 'change_pin' ),
 			'vhcpLogout'            => array( 'VHCP_Auth', 'logout' ),
 			'logAction'             => array( 'VHCP_Log', 'log_action' ),

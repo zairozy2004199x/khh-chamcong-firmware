@@ -1607,8 +1607,34 @@
       onLoggedIn(); return;
     }
     var s=null; try{s=JSON.parse(sessionStorage.getItem('vhcp_user')||'null');}catch(e){}
-    if(s&&s.role){ CURUSER=s; onLoggedIn(); }
-    else { el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120); }
+    if(s&&s.role){ CURUSER=s; onLoggedIn(); return; }
+    /* 🔴 CÒN TOKEN THÌ HỎI MÁY CHỦ "TÔI LÀ AI", ĐỪNG BẮT NHẬP PIN LẠI (anh Thắng 07/09/2026).
+
+       Token vốn đã sống 30 ngày trong `localStorage`, nhưng DANH TÍNH lại nằm ở
+       `sessionStorage` — mà cái đó chết ngay khi đóng trình duyệt. Nên mở lại là trang không
+       biết mình là ai và bày cổng PIN, dù phiên còn nguyên. Hỏi máy chủ một câu là xong.
+
+       ⚠️ KHÔNG LƯU PIN Ở MÁY. PIN nằm trong `localStorage` thì ai mượn máy cũng đọc được, mà
+          PIN ấy còn mở được cả trang chấm công lẫn trang nội bộ. Thứ được nhớ là token: chuỗi
+          ngẫu nhiên, chỉ dùng cho đúng phiên này, bấm Đăng xuất là thu hồi được từ máy chủ.
+
+       ⚠️ VÀ DANH TÍNH LẤY TỪ MÁY CHỦ THÌ LUÔN ĐÚNG: đổi vai trò hay đổi cơ sở cho ai đó là lần
+          mở trang sau họ nhận ngay, không phải đăng xuất rồi vào lại. */
+    var tok=''; try{tok=localStorage.getItem('vhcp_token')||'';}catch(e){}
+    if(!tok){ _moCongPin(); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.ok&&r.role){
+        CURUSER={name:r.name,role:r.role,coso:r.coso,boPhan:r.boPhan||''};
+        try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){}
+        el('gate').style.display='none'; onLoggedIn();
+      } else { _moCongPin(); }
+    }).withFailureHandler(function(){ loading(false); _moCongPin(); }).aiDangDangNhap(tok);
+  }
+  /* Phiên hết hạn / bị thu hồi thì dọn luôn token chết, khỏi hỏi lại máy chủ ở lần mở sau. */
+  function _moCongPin(){
+    try{localStorage.removeItem('vhcp_token');}catch(e){}
+    el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120);
   }
   function doLogin(){
     var pin=(el('gatePin').value||'').trim();
