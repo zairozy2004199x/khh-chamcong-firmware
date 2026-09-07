@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Page, Spinner, useNavigate, useSnackbar } from "zmp-ui";
 import { openWebview, getUserInfo } from "zmp-sdk";
 import { layGoi, layTin, layDiem, coSoGanNhat, dinhTien, Goi, Tin } from "../api";
-import { themVaoGio } from "../cart";
 import { laySdt } from "../orders";
 import TabBar from "../components/tabbar";
+import ChonVe from "../components/chonve";
 
 /* Trang chủ: header + thẻ Member (điểm/hạng) + lưới 6 tính năng + section vé theo nhóm
  * + Tin tức. Bám đúng app FunZone thật. */
@@ -29,6 +29,7 @@ export default function HomePage() {
   const [diem, setDiem] = useState(0);
   const [hang, setHang] = useState("Member");
   const [kvGoiY, setKvGoiY] = useState("");   // khu vực gợi ý theo định vị
+  const [chon, setChon] = useState<Goi | null>(null);
 
   useEffect(() => {
     layGoi().then((r) => {
@@ -56,10 +57,9 @@ export default function HomePage() {
   const the = (g: Goi) => {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
     const het = g.so_luong >= 0 && g.so_luong < 1;
-    const moMua = () => { if (!het) navigate(`/buy/${g.ma}`, { state: { goi: g } }); };
-    const themGio = () => { themVaoGio(g); snackbar.openSnackbar({ text: "Đã thêm vào giỏ 🛒", type: "success", duration: 1500 }); };
+    const moChon = () => { if (!het) setChon(g); };
     return (
-      <div key={g.ma} className={"pcard" + (het ? " pcard-het" : "")} onClick={moMua}>
+      <div key={g.ma} className={"pcard" + (het ? " pcard-het" : "")} onClick={moChon}>
         <div className="pcard-img">
           {g.anh ? <img src={g.anh} alt={g.ten} /> : <div className="pcard-noimg">🎟️</div>}
           {sale > 0 && <span className="pcard-sale">-{sale}%</span>}
@@ -73,7 +73,7 @@ export default function HomePage() {
               <span className="pcard-gia">{dinhTien(g.tien)}</span>
               {sale > 0 && <span className="pcard-goc">{dinhTien(g.gia_goc)}</span>}
             </div>
-            <button className="pcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); themGio(); }}>+</button>
+            <button className="pcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); moChon(); }}>+</button>
           </div>
         </div>
       </div>
@@ -141,6 +141,7 @@ export default function HomePage() {
       )}
 
       <div style={{ height: 76 }} />
+      <ChonVe goi={chon} onClose={() => setChon(null)} />
       <TabBar active="home" />
     </Page>
   );
