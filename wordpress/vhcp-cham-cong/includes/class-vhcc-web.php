@@ -6469,11 +6469,12 @@ class VHCC_Web {
 	/** Máy tự động — tính theo CÔNG và theo GIỜ, tách thường / cuối tuần / lễ. */
 	private static function luong_mtd( $m ) {
 		echo '<div class="the">';
-		if ( $m['chuaKhaiGia'] ) {
-			/* Nói rõ ô tiền bằng 0 vì THIẾU ĐƠN GIÁ, không phải vì không ai làm. */
-			echo '<div class="bao loi"><b>Chưa khai đơn giá</b> (<code>MTD_DON_GIA</code>) — mọi ô '
-				. 'tiền dưới đây là 0 vì thiếu đơn giá, KHÔNG phải vì không ai làm.</div>';
-		}
+		/* 🔴 CẢNH BÁO "Chưa khai đơn giá" ĐÃ BỎ — anh Thắng 07/09/2026, ảnh chụp đúng banner này:
+		   *"bỏ luôn cái này"*. Trước đây in `<div class="bao loi">` khi `$m['chuaKhaiGia']` để
+		   nói rõ ô tiền = 0 là do THIẾU ĐƠN GIÁ chứ không phải không ai làm.
+		   ⚠️ CHỈ BỎ CÂU NHẮC — KHÔNG BỎ CÁCH TÍNH. `$m['chuaKhaiGia']` vẫn được tính ở
+		      `VHCC_Luong` y hệt cũ và mọi ô tiền vẫn ra đúng 0 khi thiếu đơn giá (bịa đơn giá là
+		      bịa ra tiền lương); chỉ là màn không còn tự giải thích vì sao nữa. */
 		if ( ! empty( $m['theoGioCaCoSo'] ) ) {
 			echo '<p class="mo">Cơ sở này được tích “tính theo giờ” — mọi dòng tính theo tiếng.</p>';
 		}
