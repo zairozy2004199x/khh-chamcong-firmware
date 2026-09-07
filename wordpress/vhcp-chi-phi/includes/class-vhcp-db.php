@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.8.0';
+	const SCHEMA_VERSION = '1.9.0';   // 1.9.0: thêm bảng lenh_tu (lệnh tạm ứng)
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -362,6 +362,38 @@ class VHCP_DB {
 			PRIMARY KEY  (id),
 			KEY luc (luc),
 			KEY khoa (khoa)
+		) $c";
+
+		/* 🔴 LỆNH TẠM ỨNG — anh Thắng 07/09/2026: *"khi quản lý duyệt 1 lần đơn tạm ứng, sẽ tạo
+		   1 lệnh tạm ứng phía dưới cuối trang (tạm ứng bao nhiêu, mấy cơ sở tạm ứng, cơ sở nào
+		   tạm ứng)"*.
+
+		   Mỗi LƯỢT DUYỆT là một lệnh — không phải mỗi đơn. Quản lý tích chín đơn rồi bấm một
+		   cái, thì cái kế toán cần cầm là MỘT tờ lệnh: tổng bấy nhiêu, chia cho mấy cơ sở,
+		   những cơ sở nào. Đọc ngược từ bảng đơn thì không dựng lại được lượt bấm ấy: mấy đơn
+		   duyệt cùng lúc trông y hệt mấy đơn duyệt rải rác trong ngày.
+
+		   `chi_tiet` giữ JSON từng cơ sở (tên · số tiền · mã đơn). Không tách thành bảng con:
+		   lệnh là ẢNH CHỤP tại thời điểm duyệt, và nó phải giữ nguyên con số lúc ấy kể cả khi
+		   sau này đơn bị trả lại, sửa số, hay xoá — đúng lý do bảng `thungrac` cũng lưu JSON. */
+		$sql[] = "CREATE TABLE " . self::t( 'lenh_tu' ) . " (
+			id VARCHAR(40) NOT NULL,
+			luc DATETIME NULL,
+			nguoi VARCHAR(120) NOT NULL DEFAULT '',
+			don_vi VARCHAR(60) NOT NULL DEFAULT '',
+			ky VARCHAR(120) NOT NULL DEFAULT '',
+			tong DECIMAL(18,2) NOT NULL DEFAULT 0,
+			so_don INT NOT NULL DEFAULT 0,
+			so_coso INT NOT NULL DEFAULT 0,
+			chi_tiet LONGTEXT NULL,
+			/* 🔴 SẮP XẾP THEO `stt`, KHÔNG THEO `luc` + `id`. `luc` chỉ tới GIÂY, mà quản lý
+			   duyệt hai lô liền tay thì cả hai rơi cùng một giây; còn `id` là base36 thời gian
+			   nối base36 ngẫu nhiên KHÔNG đệm 0 (`..._abc1` và `..._abcxyz`), nên so chuỗi ra
+			   thứ tự lẫn lộn. Sổ lệnh đảo thứ tự thì người cầm tiền phát nhầm tờ. */
+			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			PRIMARY KEY  (id),
+			UNIQUE KEY stt (stt),
+			KEY luc (luc)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'session' ) . " (

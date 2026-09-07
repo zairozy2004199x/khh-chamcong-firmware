@@ -547,8 +547,40 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}session (token TEXT PRIMARY KEY, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', bo_phan TEXT DEFAULT '', het_han TEXT)",
 		/* Thùng rác của Vận hành chi phí — xoá nhầm đơn / dòng chi thì hoàn lại được. */
 		"CREATE TABLE {$p}thungrac (id INTEGER PRIMARY KEY AUTOINCREMENT, luc TEXT, loai TEXT DEFAULT '', khoa TEXT DEFAULT '', nhan TEXT DEFAULT '', du_lieu TEXT, nguoi TEXT DEFAULT '', vai_tro TEXT DEFAULT '', don_vi TEXT DEFAULT '', da_hoan INTEGER DEFAULT 0, hoan_luc TEXT, hoan_nguoi TEXT DEFAULT '')",
+		/* Lệnh tạm ứng — mỗi lượt quản lý bấm duyệt một tờ. */
+		"CREATE TABLE {$p}lenh_tu (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, luc TEXT, nguoi TEXT DEFAULT '', don_vi TEXT DEFAULT '', ky TEXT DEFAULT '', tong REAL DEFAULT 0, so_don INTEGER DEFAULT 0, so_coso INTEGER DEFAULT 0, chi_tiet TEXT)",
 	);
 	foreach ( $q as $s ) { $wpdb->exec_raw( $s ); }
+}
+
+/**
+ * 🔴 BỆ ĐỠ CÓ ĐỦ MỌI BẢNG MÀ PLUGIN KHAI CHƯA?
+ *
+ * Danh sách bảng ở trên GÕ TAY, còn `VHCP_DB::install()` mới là nguồn thật. Thêm một bảng vào
+ * plugin mà quên khai ở đây thì bệ đỡ SQLite **nuốt lỗi**: `$wpdb->insert()` vào bảng không có
+ * trả về false, không ném gì, và bài kiểm chỉ thấy "sổ rỗng" — trông y hệt lỗi của plugin.
+ *
+ * Đã sập đúng bẫy này khi thêm bảng `lenh_tu` (07/09/2026): mã ghi lệnh chạy đúng, `ds_lenh_tu()`
+ * chạy đúng, mà bài kiểm vẫn đỏ mười lăm dòng. Chú thích ngay trên đã cảnh báo hai lần cho
+ * bảng của plugin khác — lần này đến lượt bảng của chính plugin chi phí.
+ *
+ * Gọi hàm này trong bài kiểm nào cũng được; nó trả về danh sách bảng CÒN THIẾU.
+ */
+function vhcp_test_bang_thieu() {
+	global $wpdb;
+	$goc = dirname( dirname( __DIR__ ) );
+	$src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-db.php' );
+	/* Bóc chú thích KHỐI trước khi dò — trong tệp ấy có cả những khối chú thích nhắc lại tên
+	   bảng đã bỏ, mà bảng đã bỏ thì bệ đỡ không cần dựng. */
+	$src = preg_replace( '#(^|[\s;{,:])/\*[\s\S]*?\*/#', '$1 ', $src );
+	preg_match_all( "#CREATE TABLE \" \. self::t\( '([a-z_]+)' \)#", $src, $m );
+	$thieu = array();
+	foreach ( array_unique( $m[1] ) as $ten ) {
+		$b = $wpdb->prefix . 'vhcp_' . $ten;
+		$co = $wpdb->get_var( "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $b . "'" );
+		if ( ! $co ) { $thieu[] = $ten; }
+	}
+	return $thieu;
 }
 
 /** Nạp các lớp của plugin (không nạp file bootstrap để tránh hook WordPress). */

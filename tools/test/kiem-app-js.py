@@ -540,6 +540,26 @@ la('ba lớp có kiểu chữ thật trong tệp css',
 # Hàng 2 rỗng thì không được treo một khoảng trắng trông như lỗi.
 la('hàng 2 chỉ chiếm chỗ khi có nội dung', '.db-hang2:not(:empty){margin-top' in css)
 
+# ---------------------------------------------------------------- sổ lệnh tạm ứng
+# Anh Thắng 07/09/2026: mỗi lượt duyệt đẻ một tờ lệnh, nằm CUỐI trang Duyệt tạm ứng.
+print('— sổ lệnh tạm ứng —')
+_i_duyet = src.index('<div id="page-duyet"') if '<div id="page-duyet"' in src else -1
+la('tìm được trang Duyệt tạm ứng', _i_duyet > 0)
+_trang = _boc_the(src, _i_duyet) if _i_duyet > 0 else ''
+la('bốc được trọn trang', len(_trang) > 1000, len(_trang))
+la('🔴 khối sổ lệnh nằm TRONG trang Duyệt tạm ứng', 'id="lenhTUCard"' in _trang)
+# "phía dưới cuối trang" — phải nằm SAU bảng đơn, không phải chen lên trên nó.
+la('🔴 và nằm SAU bảng đơn, không chen lên trên',
+   _trang.index('id="duyetBody"') < _trang.index('id="lenhTUBody"'))
+la('có chỗ vẽ các tờ lệnh', 'id="lenhTUBody"' in _trang)
+la('có câu cho sổ rỗng', 'id="lenhTUEmpty"' in _trang)
+# Ba thứ anh hỏi phải là BA CỘT thật, không nhét chung một ô chữ.
+for _c in ['Tổng tạm ứng', 'Số cơ sở', 'Cơ sở tạm ứng']:
+    la('cột "%s"' % _c, _c in _trang)
+# Nạp sổ mỗi lần vào tab — không thì duyệt xong phải tải lại trang mới thấy tờ lệnh.
+la('🔴 vào tab Duyệt là nạp sổ lệnh', 'function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }' in src)
+la('sổ lệnh gọi đúng cửa máy chủ', '.dsLenhTU(' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

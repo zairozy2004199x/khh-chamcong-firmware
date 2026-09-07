@@ -791,6 +791,28 @@
         </table>
         <div class="empty" id="duyetEmpty">Không có đơn.</div>
       </div>
+
+      <!-- ===== LỆNH TẠM ỨNG — anh Thắng 07/09/2026 =====
+           *"khi quản lý duyệt 1 lần đơn tạm ứng, sẽ tạo 1 lệnh tạm ứng phía dưới cuối trang
+           (tạm ứng bao nhiêu, mấy cơ sở tạm ứng, cơ sở nào tạm ứng)"*.
+
+           MỖI LƯỢT BẤM DUYỆT = MỘT TỜ LỆNH. Bảng đơn phía trên trả lời "đơn nào đang ở khâu
+           nào"; tờ lệnh trả lời câu khác hẳn: "lượt duyệt lúc 9h sáng gồm bao nhiêu tiền, chia
+           cho những cơ sở nào" — thứ người cầm tiền đi phát cần, và thứ không đọc ngược ra được
+           từ bảng đơn (mấy đơn duyệt cùng lúc trông y hệt mấy đơn duyệt rải rác cả ngày). -->
+      <div class="card" id="lenhTUCard" style="margin-top:14px">
+        <div class="ch">
+          <h2>📜 Lệnh tạm ứng <span style="font-size:11px;font-weight:400;color:#64748b">— mỗi lượt duyệt một lệnh</span> <span class="badge st-cho" id="lenhTUSo">0</span></h2>
+          <button class="btn b-x" onclick="loadLenhTU()">↻ Tải lại</button>
+        </div>
+        <div class="tw" style="padding:0 14px 14px">
+          <table>
+            <thead><tr><th>Lúc duyệt</th><th>Người duyệt</th><th>Kỳ / tuần</th><th style="text-align:right">Tổng tạm ứng</th><th style="text-align:center">Số đơn</th><th style="text-align:center">Số cơ sở</th><th>Cơ sở tạm ứng</th></tr></thead>
+            <tbody id="lenhTUBody"></tbody>
+          </table>
+          <div class="empty" id="lenhTUEmpty">Chưa có lệnh tạm ứng nào.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -5521,7 +5543,43 @@
     box.style.background=big?'#fef2f2':'#f0fdf4'; box.style.border='1px solid '+(big?'#fecaca':'#86efac'); box.style.color=big?'#b91c1c':'#166534';
     box.innerHTML=(big?'⚠️ ':'💰 ')+'Tạm ứng đang lưu hành (chưa quyết toán): <b>'+money(tong)+'đ</b> · '+lh.length+' đơn';
   }
-  function loadDuyet(){ boot(renderDuyet); }
+  function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }
+
+  /* ================= SỔ LỆNH TẠM ỨNG =================
+     Anh Thắng 07/09/2026: mỗi lượt quản lý bấm duyệt đẻ ra MỘT tờ lệnh, nằm cuối trang này.
+
+     ⚠️ NẠP RIÊNG, KHÔNG ĐI NHỜ `boot()`. Sổ lệnh chỉ có nghĩa trên đúng tab này, mà `boot()`
+        là gói dữ liệu chung cho cả ứng dụng — nhét thêm vào đó là mọi trang khác cũng phải
+        tải nó về rồi vứt đi. */
+  var LENH_TU=[];
+  function loadLenhTU(){
+    if(!el('lenhTUBody')) return;
+    google.script.run.withSuccessHandler(function(r){
+      LENH_TU=(r&&r.items)||[]; renderLenhTU();
+    }).withFailureHandler(function(){ LENH_TU=[]; renderLenhTU(); }).dsLenhTU(50);
+  }
+  function renderLenhTU(){
+    var tb=el('lenhTUBody'); if(!tb) return;
+    if(el('lenhTUSo')) el('lenhTUSo').textContent=LENH_TU.length;
+    if(el('lenhTUEmpty')) el('lenhTUEmpty').style.display=LENH_TU.length?'none':'';
+    tb.innerHTML=LENH_TU.map(function(L){
+      /* Cơ sở nào tạm ứng bao nhiêu — đây là thứ anh Thắng hỏi, nên bày thẳng ra hàng chứ
+         không giấu sau một nút bấm. Lô lớn thì xuống dòng, vẫn đọc được. */
+      var cs=(L.chiTiet||[]).map(function(c){
+        return '<span style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;'
+          +'padding:1px 7px;margin:1px 3px 1px 0;font-size:11.5px">'
+          +esc(c.coso||'')+' · <b>'+money(c.tien)+'đ</b>'
+          +((c.soDon>1)?(' <span style="color:#64748b">('+c.soDon+' đơn)</span>'):'')+'</span>';
+      }).join('');
+      return '<tr><td style="white-space:nowrap">'+esc(L.luc||'')+'</td>'
+        +'<td>'+esc(L.nguoi||'')+'</td>'
+        +'<td style="font-size:12px">'+esc(L.ky||'')+'</td>'
+        +'<td class="money"><b>'+money(L.tong)+'</b></td>'
+        +'<td style="text-align:center">'+(L.soDon||0)+'</td>'
+        +'<td style="text-align:center">'+(L.soCoso||0)+'</td>'
+        +'<td>'+cs+'</td></tr>';
+    }).join('');
+  }
   function dvXoaLoc(){ ['dvThang','dvKy','dvCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDuyet(); }
   /* ================= TÁCH KHỐI THEO ĐƠN VỊ (K&H · POSH) =================
      Anh Thắng 26/08/2026: *"để biết sao đơn bên bộ phận nào thì trong phần chi phí, tạm ứng,
@@ -5622,7 +5680,10 @@
     if(!confirm('Duyệt '+ms.length+' đơn đã chọn?\nTổng tạm ứng gửi kế toán: '+money(total)+'đ\n(Mỗi đơn giữ số tạm ứng của đơn đó.)'))return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r.success) toast('ok','Đã duyệt '+r.approved+' đơn · tổng '+money(total)+'đ');
+      /* Nói lại NGUYÊN VĂN tờ lệnh vừa ghi, không nói lại con số đã tính trên trình duyệt:
+         số của máy chủ mới là số vào sổ, và hai bên lệch nhau thì phải thấy ngay lúc này. */
+      var L=r&&r.lenh, ct=L?(' · '+L.soCoso+' cơ sở'):'';
+      if(r.success) toast('ok','Đã duyệt '+r.approved+' đơn · lệnh tạm ứng '+money(L?L.tong:total)+'đ'+ct);
       else toast('warn','Duyệt '+r.approved+' đơn, lỗi: '+(r.errors||[]).join('; '));
       loadDuyet();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).duyetTamUngNhieu(ms,(CURUSER&&CURUSER.name)||'');
@@ -5643,7 +5704,9 @@
     var d=(BOOT.dons||[]).filter(function(x){return x.maDon===m;})[0], def=d?d.tamUng:0;
     var amt=prompt('DUYỆT TẠM ỨNG — số tiền tạm ứng cấp cho NV (sửa lại nếu chưa hợp lý):', def); if(amt===null)return;
     loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã duyệt tạm ứng');loadDuyet();} else toast('err',r.error);})
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r.success){ var L=r.lenh; toast('ok','Đã duyệt tạm ứng'+(L?(' · lệnh '+money(L.tong)+'đ'):'')); loadDuyet(); }
+      else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).duyetTamUng(m,(CURUSER&&CURUSER.name)||'',amt);
   }
   function doDuyetCur(){ if(!CUR)return;

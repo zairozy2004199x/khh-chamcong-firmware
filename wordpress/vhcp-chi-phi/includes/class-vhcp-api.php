@@ -221,7 +221,10 @@ class VHCP_API {
 			'guiQuyetToan'          => array( 'VHCP_Don', 'gui_quyet_toan' ),
 			'saveQuyetToan'         => array( 'VHCP_Don', 'save_quyet_toan' ),
 			'setHoaDonQT'           => array( 'VHCP_Don', 'set_hoa_don_qt' ),
-			'duyetTamUng'           => array( 'VHCP_Don', 'duyet_tam_ung' ),
+			/* Đi qua bản BỌC để mỗi lượt duyệt lẻ cũng ghi một lệnh tạm ứng — xem
+			   `duyet_tam_ung_ghi_lenh()`. Lõi `duyet_tam_ung()` giữ nguyên, không ghi lệnh,
+			   vì nó còn bị `duyet_tam_ung_nhieu()` gọi trong vòng lặp. */
+			'duyetTamUng'           => array( 'VHCP_Don', 'duyet_tam_ung_ghi_lenh' ),
 			'capTamUng'             => array( 'VHCP_Don', 'cap_tam_ung' ),
 			'xacNhanQuyetToanCN'    => array( 'VHCP_Don', 'xac_nhan_quyet_toan_cn' ),
 			'xacNhanQuyetToanNCC'   => array( 'VHCP_Don', 'xac_nhan_quyet_toan_ncc' ),
@@ -253,6 +256,7 @@ class VHCP_API {
 			'hoanTac'               => array( 'VHCP_Don', 'hoan_tac' ),
 			'dsDonVi'               => array( 'VHCP_DonVi', 'ds' ),
 			'duyetTamUngNhieu'      => array( 'VHCP_Don', 'duyet_tam_ung_nhieu' ),
+			'dsLenhTU'              => array( 'VHCP_Don', 'ds_lenh_tu' ),
 			'capTamUngNhieu'        => array( 'VHCP_Don', 'cap_tam_ung_nhieu' ),
 			'traLaiDonNhieu'        => array( 'VHCP_Don', 'tra_lai_don_nhieu' ),
 			'khongDungTamUng'       => array( 'VHCP_Don', 'khong_dung_tam_ung' ),

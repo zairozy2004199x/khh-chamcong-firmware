@@ -13073,6 +13073,10 @@ vhcc_dung_bang();
  *         không mất công.
  * ====================================================================================== */
 vhcc_dung_bang();
+/* 🔴 GHIM ĐỒNG HỒ — cùng lý do với phần 69: dữ liệu ở ngày CỐ ĐỊNH 06-07/07/2026, mà sửa giờ
+   chối ngày quá 62 ngày. Chạy bằng giờ thật thì bài kiểm tự đỏ khi lịch trôi qua, và đỏ vì
+   lịch chứ không vì mã. Trả đồng hồ lại ở cuối phần. */
+vhcp_test_dat_gio( '2026-08-31 09:00:00' );
 $S_VP = 'SU_VP_HCM';
 $S_SU = 'SU_SETUP_VP';
 vhcc_bo_phan( $S_VP, 'Văn phòng' );
@@ -13408,6 +13412,7 @@ t( 'ca đêm đủ cặp: KHÔNG đỏ vì chuyện thiếu giờ',
 	'' !== $o_dem2 && strpos( $o_dem2, '🌙0' ) === false, $o_dem2 );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='" . VHCC_Luong::GHEP_O . "'" );
+vhcp_test_dat_gio( null );      // trả đồng hồ về giờ thật — xem khối 🔴 ở đầu phần 65
 vhcc_dung_bang();
 
 /* ======================================================================================
@@ -14206,6 +14211,16 @@ vhcc_dung_bang();
  *  đường dưới đây đều IM LẶNG, xoá mất một quyết định có lý do, có người ký, có nhật ký.
  * ====================================================================================== */
 vhcc_dung_bang();
+/* 🔴 GHIM ĐỒNG HỒ. Phần này dựng dữ liệu vào ngày CỐ ĐỊNH 06/07/2026, mà luật sửa giờ chối
+   ngày quá 62 ngày ("lương tháng đó chốt rồi"). Chạy bằng giờ THẬT thì bài kiểm xanh trong
+   hai tháng rồi tự đỏ — và đỏ vì lịch, không vì mã. Đúng cảnh đã xảy ra sáng 07/09/2026: hôm
+   trước còn xanh, hôm sau đỏ tám phép mà không ai đụng vào chấm công.
+
+   ⚠️ Ghim rồi phải TRẢ LẠI (`dat_gio( null )`) ở cuối phần — mấy phần sau còn dựa vào giờ thật. */
+/* Chọn 31/08: mọi ngày dữ liệu của phần này (06→09/07) đều ĐÃ TỚI, mà vẫn cách chưa tới 62
+   ngày nên chưa chạm cái chốt "lương tháng đó chốt rồi". Ghim sớm quá thì mấy cảnh sau chối
+   với lý do ngược lại — "Không bù được cho ngày chưa tới". */
+vhcp_test_dat_gio( '2026-08-31 09:00:00' );
 $D_CS2 = 'DE_CS';
 vhcc_bo_phan( $D_CS2, 'Khu vui chơi' );
 $u_de = array( 'role' => 'Admin', 'name' => 'Anh Admin', 'ma_nv' => 'DEAD' );
@@ -14349,6 +14364,7 @@ t( 'dựng cảnh: cổng nhận được lô', is_array( $lo_de ) && ! empty( $
 teq( '🔴 lô kể riêng số lượt bị giữ vì ô đã có người sửa', 1, $lo_de['giuTay'] );
 teq( 'và lượt trùng vẫn đếm riêng', 1, $lo_de['trung'] );
 
+vhcp_test_dat_gio( null );      // trả đồng hồ về giờ thật — xem khối 🔴 ở đầu phần 69
 vhcc_dung_bang();
 
 /* ======================================================================================

@@ -2940,13 +2940,150 @@ class VHCP_Don {
 
 	// ---------------------------------------------------------------- xử lý theo lô
 
+	/**
+	 * NHÃN CƠ SỞ CHO LỆNH TẠM ỨNG — đơn chưa gán cơ sở vẫn phải có chỗ đứng trong lệnh.
+	 *
+	 * 🔴 Ảnh anh Thắng 07/09/2026 có đúng một hàng như thế: người lập Trần Ngọc Minh Truyền,
+	 *    tạm ứng 600.000đ, ô Cơ sở TRỐNG. Bỏ qua nó thì tổng của lệnh không khớp tổng đã duyệt,
+	 *    mà lệch ở chỗ không ai nhìn ra — cộng lại các cơ sở thấy thiếu 600.000đ và không biết
+	 *    thiếu của ai.
+	 */
+	const CS_CHUA_GAN = '(chưa gán cơ sở)';
+
+	/**
+	 * GHI MỘT LỆNH TẠM ỨNG cho MỘT LƯỢT DUYỆT.
+	 *
+	 * Anh Thắng 07/09/2026: *"khi quản lý duyệt 1 lần đơn tạm ứng, sẽ tạo 1 lệnh tạm ứng phía
+	 * dưới cuối trang (tạm ứng bao nhiêu, mấy cơ sở tạm ứng, cơ sở nào tạm ứng)"*.
+	 *
+	 * ⚠️ SỐ TẠM ỨNG ĐỌC QUA `list_dons()`, KHÔNG TỰ CỘNG LẠI. Luật gom tạm ứng có chỗ tinh
+	 *    (số đã duyệt đè số nhập tay; NULL khác 0; cộng cả dự phòng của đơn cũ) — chép sang đây
+	 *    là dựng bản thứ hai cho cùng một câu hỏi, rồi tờ lệnh và bảng đơn nói hai số khác
+	 *    nhau. Đúng cảnh ảnh 31/08/2026 *"2 có số tổng tạm ứng khác nhau"*, lần này in ra giấy.
+	 *
+	 * ⚠️ GỌI SAU KHI ĐÃ DUYỆT XONG, và chỉ với những mã duyệt THÀNH CÔNG: lệnh phải nói đúng
+	 *    số tiền vừa được duyệt, không gồm đơn bị chối.
+	 *
+	 * @param array  $ma_dons Mã đơn đã duyệt thành công trong lượt này.
+	 * @param string $nguoi   Người bấm duyệt.
+	 * @return array|null Lệnh vừa ghi, hoặc null nếu không có gì để ghi.
+	 */
+	public static function ghi_lenh_tu( $ma_dons, $nguoi ) {
+		global $wpdb;
+		$ds = array_values( array_unique( array_filter( array_map( 'strval', (array) $ma_dons ) ) ) );
+		if ( ! count( $ds ) ) { return null; }
+		$can = array_fill_keys( $ds, true );
+
+		$theo_cs = array(); $tong = 0; $so_don = 0; $ky = ''; $dv = ''; $nhieu_ky = false;
+		foreach ( self::list_dons() as $d ) {
+			$m = (string) $d['maDon'];
+			if ( ! isset( $can[ $m ] ) ) { continue; }
+			$so_don++;
+			$tu = (int) VHCP_Util::num( isset( $d['tamUng'] ) ? $d['tamUng'] : 0 );
+			$tong += $tu;
+			$k = trim( (string) ( isset( $d['ky'] ) ? $d['ky'] : '' ) );
+			if ( $k !== '' ) {
+				if ( $ky === '' ) { $ky = $k; } elseif ( $ky !== $k ) { $nhieu_ky = true; }
+			}
+			if ( $dv === '' && ! empty( $d['donVi'] ) ) { $dv = (string) $d['donVi']; }
+			$cs = trim( (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ) );
+			/* 🔴 CỘT "CƠ SỞ" CỦA BẢNG ĐƠN DỰNG TỪ DÒNG CHI, nên đơn XIN ỨNG TRƯỚC (có số tạm
+			   ứng, chưa liệt kê hạng mục — luật 01/09/2026 cho phép gửi như thế) hiện ra ô
+			   TRỐNG. Đúng hàng thứ hai trong ảnh anh Thắng 07/09/2026. Nhưng cơ sở của nó có
+			   thật, nằm ở hàng tạm ứng — mà câu anh hỏi là *"cơ sở nào tạm ứng"*, nên hỏi
+			   tiếp `coso_cua_don()` (vốn ưu tiên cơ sở của tạm ứng) trước khi chịu thua. */
+			if ( $cs === '' ) { $cs = trim( (string) self::coso_cua_don( $m ) ); }
+			if ( $cs === '' ) { $cs = self::CS_CHUA_GAN; }
+			if ( ! isset( $theo_cs[ $cs ] ) ) { $theo_cs[ $cs ] = array( 'coso' => $cs, 'tien' => 0, 'soDon' => 0, 'maDons' => array() ); }
+			$theo_cs[ $cs ]['tien']  += $tu;
+			$theo_cs[ $cs ]['soDon'] += 1;
+			$theo_cs[ $cs ]['maDons'][] = $m;
+		}
+		if ( ! $so_don ) { return null; }
+
+		/* Cơ sở nhiều tiền lên trước — người cầm lệnh đi phát tiền đọc từ trên xuống. */
+		uasort( $theo_cs, function ( $a, $b ) { return $b['tien'] - $a['tien']; } );
+		$chi_tiet = array_values( $theo_cs );
+
+		$id = VHCP_Util::uid( 'LTU' );
+		$wpdb->insert( VHCP_DB::t( 'lenh_tu' ), array(
+			'id'       => $id,
+			'luc'      => VHCP_Util::now_sql(),
+			'nguoi'    => (string) $nguoi,
+			'don_vi'   => $dv,
+			/* Lô trộn nhiều tuần thì nói thẳng là trộn, đừng gán bừa tuần của đơn đầu tiên. */
+			'ky'       => $nhieu_ky ? '(nhiều kỳ)' : $ky,
+			'tong'     => $tong,
+			'so_don'   => $so_don,
+			'so_coso'  => count( $chi_tiet ),
+			'chi_tiet' => wp_json_encode( $chi_tiet ),
+		) );
+		return array(
+			'id'      => $id,
+			'tong'    => $tong,
+			'soDon'   => $so_don,
+			'soCoso'  => count( $chi_tiet ),
+			'chiTiet' => $chi_tiet,
+		);
+	}
+
+	/** Danh sách lệnh tạm ứng, mới nhất trước. */
+	public static function ds_lenh_tu( $gioi_han = 50 ) {
+		$n = (int) $gioi_han;
+		if ( $n < 1 ) { $n = 1; }
+		if ( $n > 200 ) { $n = 200; }
+		$t = VHCP_DB::t( 'lenh_tu' );
+		$out = array();
+		foreach ( (array) VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt DESC LIMIT $n" ) as $r ) {
+			/* Gác đơn vị Ở ĐÂY chứ không trong SQL: lệnh cũ (trước khi có cột) mang đơn vị rỗng,
+			   mà rỗng thì ai cũng phải thấy — lọc thẳng trong câu truy vấn là giấu mất chúng. */
+			$dv = (string) $r['don_vi'];
+			if ( $dv !== '' && ! VHCP_DonVi::duoc_xem( $dv ) ) { continue; }
+			$ct = json_decode( (string) $r['chi_tiet'], true );
+			$out[] = array(
+				'id'      => (string) $r['id'],
+				'luc'     => VHCP_Util::fmt( $r['luc'] ),
+				'nguoi'   => (string) $r['nguoi'],
+				'donVi'   => $dv,
+				'ky'      => (string) $r['ky'],
+				'tong'    => VHCP_Util::num( $r['tong'] ),
+				'soDon'   => (int) $r['so_don'],
+				'soCoso'  => (int) $r['so_coso'],
+				'chiTiet' => is_array( $ct ) ? $ct : array(),
+			);
+		}
+		return VHCP_Util::ok( array( 'items' => $out ) );
+	}
+
+	/**
+	 * DUYỆT MỘT ĐƠN RỒI GHI LỆNH — cửa cho nút "✔ Duyệt tạm ứng" trên từng hàng.
+	 *
+	 * 🔴 KHÔNG ghi lệnh bên trong `duyet_tam_ung()`: hàm ấy bị `duyet_tam_ung_nhieu()` gọi trong
+	 *    vòng lặp, nên đặt ở đó là một lượt bấm đẻ ra N tờ lệnh — đúng thứ cả tính năng này đi
+	 *    tránh. Ghi lệnh là việc của TẦNG GỌI, nơi biết một lượt bấm gồm những đơn nào.
+	 *
+	 * ⚠️ Duyệt lẻ cũng ghi lệnh (lô một đơn). Chỉ lô mới có lệnh thì sổ lệnh thủng lỗ chỗ, và
+	 *    kế toán cộng các tờ lệnh lại không ra tổng đã duyệt trong tuần.
+	 */
+	public static function duyet_tam_ung_ghi_lenh( $ma_don, $nguoi, $so_tam_ung = '' ) {
+		$r = self::duyet_tam_ung( $ma_don, $nguoi, $so_tam_ung );
+		if ( empty( $r['success'] ) ) { return $r; }
+		$lenh = self::ghi_lenh_tu( array( $ma_don ), $nguoi );
+		if ( ! is_array( $r ) ) { $r = array( 'success' => true ); }
+		$r['lenh'] = $lenh;
+		return $r;
+	}
+
 	public static function duyet_tam_ung_nhieu( $ma_dons, $nguoi ) {
-		$ok = 0; $errs = array();
+		$ok = 0; $errs = array(); $xong = array();
 		foreach ( (array) $ma_dons as $m ) {
 			$r = self::duyet_tam_ung( $m, $nguoi, '' );
-			if ( ! empty( $r['success'] ) ) { $ok++; } else { $errs[] = $m . ': ' . ( isset( $r['error'] ) ? $r['error'] : '?' ); }
+			if ( ! empty( $r['success'] ) ) { $ok++; $xong[] = (string) $m; } else { $errs[] = $m . ': ' . ( isset( $r['error'] ) ? $r['error'] : '?' ); }
 		}
-		return array( 'success' => count( $errs ) === 0, 'approved' => $ok, 'errors' => $errs );
+		/* Một lượt bấm = MỘT tờ lệnh, và chỉ gồm những đơn duyệt được. Lô có đơn bị chối thì
+		   lệnh vẫn ghi cho phần đã duyệt — chối cả lô là kế toán mất luôn dấu vết phần đã qua. */
+		$lenh = self::ghi_lenh_tu( $xong, $nguoi );
+		return array( 'success' => count( $errs ) === 0, 'approved' => $ok, 'errors' => $errs, 'lenh' => $lenh );
 	}
 
 	public static function cap_tam_ung_nhieu( $ma_dons, $nguoi, $ht_cap = 'Tiền mặt', $anh_cap = '' ) {
