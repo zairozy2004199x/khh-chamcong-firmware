@@ -37,21 +37,24 @@ export default function HomePage() {
 
   const the = (g: Goi) => {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
-    const moMua = () => navigate(`/buy/${g.ma}`, { state: { goi: g } });
+    const het = g.so_luong >= 0 && g.so_luong < 1;
+    const moMua = () => { if (!het) navigate(`/buy/${g.ma}`, { state: { goi: g } }); };
     return (
-      <div key={g.ma} className="pcard" onClick={moMua}>
+      <div key={g.ma} className={"pcard" + (het ? " pcard-het" : "")} onClick={moMua}>
         <div className="pcard-img">
           {g.anh ? <img src={g.anh} alt={g.ten} /> : <div className="pcard-noimg">🎟️</div>}
           {sale > 0 && <span className="pcard-sale">-{sale}%</span>}
+          {het && <span className="pcard-het-badge">Hết vé</span>}
         </div>
         <div className="pcard-body">
           <div className="pcard-ten">{g.ten}</div>
+          {g.so_luong >= 0 && <div className="pcard-con">{het ? "Hết vé" : "Còn " + g.so_luong + " vé"}</div>}
           <div className="pcard-gia-row">
             <div>
               <span className="pcard-gia">{dinhTien(g.tien)}</span>
               {sale > 0 && <span className="pcard-goc">{dinhTien(g.gia_goc)}</span>}
             </div>
-            <button className="pcard-add" onClick={(e) => { e.stopPropagation(); moMua(); }}>+</button>
+            <button className="pcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); moMua(); }}>+</button>
           </div>
         </div>
       </div>

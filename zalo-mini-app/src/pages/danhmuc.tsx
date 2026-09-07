@@ -40,20 +40,23 @@ export default function DanhMucPage() {
 
   const the = (g: Goi) => {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
-    const moMua = () => navigate(`/buy/${g.ma}`, { state: { goi: g } });
+    const het = g.so_luong >= 0 && g.so_luong < 1;
+    const moMua = () => { if (!het) navigate(`/buy/${g.ma}`, { state: { goi: g } }); };
     return (
-      <div key={g.ma} className="gcard" onClick={moMua}>
+      <div key={g.ma} className={"gcard" + (het ? " pcard-het" : "")} onClick={moMua}>
         <div className="gcard-img">
           {g.anh ? <img src={g.anh} alt={g.ten} /> : <div className="gcard-noimg">🎟️</div>}
           {sale > 0 && <span className="gcard-sale">-{sale}%</span>}
+          {het && <span className="pcard-het-badge">Hết vé</span>}
         </div>
         <div className="gcard-ten">{g.ten}</div>
+        {g.so_luong >= 0 && <div className="gcard-con">{het ? "Hết vé" : "Còn " + g.so_luong + " vé"}</div>}
         <div className="gcard-foot">
           <div>
             <span className="gcard-gia">{dinhTien(g.tien)}</span>
             {sale > 0 && <div className="gcard-goc">{dinhTien(g.gia_goc)}</div>}
           </div>
-          <button className="gcard-add" onClick={(e) => { e.stopPropagation(); moMua(); }}>+</button>
+          <button className="gcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); moMua(); }}>+</button>
         </div>
       </div>
     );

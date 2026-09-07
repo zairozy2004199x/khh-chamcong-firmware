@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -89,8 +89,20 @@ class POSH_Ve {
 			'mo_ta'      => trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ),
 			'anh'        => esc_url_raw( (string) ( isset( $v['anh'] ) ? $v['anh'] : '' ) ),
 			'thoi_luong' => trim( (string) ( isset( $v['thoi_luong'] ) ? $v['thoi_luong'] : '' ) ),
+			'so_luong'   => isset( $v['so_luong'] ) && '' !== $v['so_luong'] ? (int) $v['so_luong'] : -1,   // -1 = không giới hạn; >=0 = số vé còn
 			'hien'       => empty( $v['hien'] ) ? 0 : 1,
 		);
+	}
+	/* Trừ tồn kho (n vé) cho dịch vụ có giới hạn. Bỏ qua nếu không giới hạn (-1). */
+	private static function giam_ton( $id, $n ) {
+		$ds = self::ds_tatca(); $thay = false;
+		foreach ( $ds as $k => $v ) {
+			if ( (int) $v['id'] === (int) $id && $v['so_luong'] >= 0 ) {
+				$ds[ $k ]['so_luong'] = max( 0, (int) $v['so_luong'] - (int) $n );
+				$thay = true; break;
+			}
+		}
+		if ( $thay ) { self::luu_ds( $ds ); }
 	}
 	public static function ds_tatca() {
 		$ds = get_option( 'pve_dichvu' );
@@ -160,7 +172,8 @@ class POSH_Ve {
 		foreach ( self::ds() as $g ) {
 			$goi[] = array( 'ma' => (int) $g['id'], 'ten' => $g['ten'], 'tien' => (int) $g['gia'],
 				'gia_goc' => (int) $g['gia_goc'], 'nhom' => (string) $g['nhom'],
-				'mo_ta' => (string) $g['mo_ta'], 'anh' => (string) $g['anh'], 'thoi_luong' => (string) $g['thoi_luong'] );
+				'mo_ta' => (string) $g['mo_ta'], 'anh' => (string) $g['anh'], 'thoi_luong' => (string) $g['thoi_luong'],
+				'so_luong' => (int) $g['so_luong'] );
 		}
 		$b = self::bank();
 		return array( 'ok' => true, 'goi' => $goi, 'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
@@ -175,6 +188,7 @@ class POSH_Ve {
 			if ( $t > 0 ) { foreach ( self::ds() as $v ) { if ( (int) $v['gia'] === $t ) { $goi = $v; break; } } }
 		}
 		if ( ! $goi ) { return new WP_Error( 'goi', 'Vé không hợp lệ.', array( 'status' => 400 ) ); }
+		if ( $goi['so_luong'] >= 0 && $goi['so_luong'] < 1 ) { return new WP_Error( 'het', 'Vé "' . $goi['ten'] . '" đã hết.', array( 'status' => 409 ) ); }
 		if ( '' === $ten || '' === $sdt ) { return new WP_Error( 'thieu', 'Cần tên và số điện thoại.', array( 'status' => 400 ) ); }
 		$b = self::bank();
 		if ( '' === $b['so_tk'] || '' === $b['bin'] ) { return new WP_Error( 'tk', 'Chưa cấu hình tài khoản nhận tiền.', array( 'status' => 409 ) ); }
@@ -187,6 +201,7 @@ class POSH_Ve {
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
+		self::giam_ton( $goi['id'], 1 );
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
 			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho',
@@ -267,8 +282,9 @@ class POSH_Ve {
 					<div class="pve-grid">
 						<?php foreach ( $ds as $g ) :
 							$sale = ( (int) $g['gia_goc'] > (int) $g['gia'] )
-								? round( ( 1 - $g['gia'] / $g['gia_goc'] ) * 100 ) : 0; ?>
-							<div class="pve-card"
+								? round( ( 1 - $g['gia'] / $g['gia_goc'] ) * 100 ) : 0;
+								$het = ( $g['so_luong'] >= 0 && $g['so_luong'] < 1 ); ?>
+							<div class="pve-card<?php echo $het ? ' pve-het' : ''; ?>"
 								data-id="<?php echo (int) $g['id']; ?>"
 								data-ten="<?php echo esc_attr( $g['ten'] ); ?>"
 								data-gia="<?php echo (int) $g['gia']; ?>">
@@ -282,12 +298,14 @@ class POSH_Ve {
 									<div class="pve-ten"><?php echo esc_html( $g['ten'] ); ?></div>
 									<?php if ( $g['thoi_luong'] ) : ?><div class="pve-tl">⏱ <?php echo esc_html( $g['thoi_luong'] ); ?></div><?php endif; ?>
 									<?php if ( $g['mo_ta'] ) : ?><div class="pve-mota"><?php echo esc_html( $g['mo_ta'] ); ?></div><?php endif; ?>
+									<?php if ( $g['so_luong'] >= 0 ) : ?><div class="pve-con"><?php echo $het ? 'Hết vé' : 'Còn ' . (int) $g['so_luong'] . ' vé'; ?></div><?php endif; ?>
 									<div class="pve-foot">
 										<div class="pve-gia-wrap">
 											<span class="pve-gia"><?php echo esc_html( number_format_i18n( $g['gia'] ) ); ?>đ</span>
 											<?php if ( $sale > 0 ) : ?><span class="pve-goc"><?php echo esc_html( number_format_i18n( $g['gia_goc'] ) ); ?>đ</span><?php endif; ?>
 										</div>
-										<button type="button" class="pve-buy">Đặt vé</button>
+										<?php if ( $het ) : ?><button type="button" class="pve-buy" disabled>Hết vé</button>
+										<?php else : ?><button type="button" class="pve-buy">Đặt vé</button><?php endif; ?>
 									</div>
 								</div>
 							</div>
@@ -422,6 +440,9 @@ class POSH_Ve {
 		.pve-gia{ font-size:18px; font-weight:900; color:#c2410c; }
 		.pve-goc{ font-size:12px; color:#9ca3af; text-decoration:line-through; margin-left:6px; }
 		.pve-buy{ border:none; background:#cf9f22; color:#fff; font-weight:700; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer; }
+		.pve-buy[disabled]{ background:#cbd5e1; cursor:not-allowed; }
+		.pve-con{ font-size:12px; color:#64748b; font-weight:600; }
+		.pve-het{ opacity:.72; } .pve-het .pve-con{ color:#991b1b; }
 		.pve-mask{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:99999; }
 		.pve-modal{ background:#fff; border-radius:18px; padding:20px; width:100%; max-width:380px; max-height:90vh; overflow:auto; position:relative; }
 		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:#94a3b8; cursor:pointer; }
@@ -468,6 +489,7 @@ class POSH_Ve {
 				'mo_ta' => sanitize_textarea_field( wp_unslash( $_POST['mo_ta'] ) ),
 				'anh' => esc_url_raw( wp_unslash( $_POST['anh'] ) ),
 				'thoi_luong' => sanitize_text_field( wp_unslash( $_POST['thoi_luong'] ) ),
+				'so_luong' => ( ! isset( $_POST['so_luong'] ) || '' === trim( (string) $_POST['so_luong'] ) ) ? -1 : max( 0, (int) preg_replace( '/\D+/', '', (string) $_POST['so_luong'] ) ),
 				'hien' => empty( $_POST['hien'] ) ? 0 : 1 );
 			$ds = self::ds_tatca(); $thay = false;
 			if ( $id > 0 ) { foreach ( $ds as $k => $v ) { if ( (int) $v['id'] === $id ) { $ds[ $k ] = $moi; $thay = true; break; } } }
@@ -542,7 +564,7 @@ class POSH_Ve {
 
 		/* Bảng dịch vụ */
 		echo '<h2>Danh sách dịch vụ</h2><table class="widefat striped"><thead><tr><th style="width:70px">Ảnh</th>'
-			. '<th>Tên</th><th>Nhóm</th><th>Giá</th><th>Thời lượng</th><th>Hiện</th><th>Thao tác</th></tr></thead><tbody>';
+			. '<th>Tên</th><th>Nhóm</th><th>Giá</th><th>Còn</th><th>Thời lượng</th><th>Hiện</th><th>Thao tác</th></tr></thead><tbody>';
 		foreach ( $ds as $v ) {
 			$gia_html = esc_html( number_format( $v['gia'], 0, ',', '.' ) ) . 'đ';
 			if ( $v['gia_goc'] > $v['gia'] ) { $gia_html .= ' <s style="color:#999">' . esc_html( number_format( $v['gia_goc'], 0, ',', '.' ) ) . 'đ</s>'; }
@@ -550,6 +572,7 @@ class POSH_Ve {
 				. '<td><b>' . esc_html( $v['ten'] ) . '</b>' . ( $v['mo_ta'] !== '' ? '<br><small>' . esc_html( $v['mo_ta'] ) . '</small>' : '' ) . '</td>'
 				. '<td>' . esc_html( $v['nhom'] ) . '</td>'
 				. '<td>' . $gia_html . '</td>'
+				. '<td>' . ( $v['so_luong'] < 0 ? '∞' : ( $v['so_luong'] > 0 ? (int) $v['so_luong'] : '<b style="color:#991b1b">Hết</b>' ) ) . '</td>'
 				. '<td>' . esc_html( $v['thoi_luong'] ) . '</td><td>' . ( $v['hien'] ? '✅' : '⛔' ) . '</td><td>'
 				. '<a class="button" href="' . esc_url( admin_url( 'admin.php?page=posh-ve&sua=' . $v['id'] ) ) . '">Sửa</a> '
 				. '<form method="post" style="display:inline" onsubmit="return confirm(\'Xoá?\')">';
@@ -566,6 +589,7 @@ class POSH_Ve {
 		echo '<tr><th>Giá bán (đ)</th><td><input name="gia" type="number" min="1000" step="1000" required value="' . esc_attr( $sua ? $sua['gia'] : '' ) . '"></td></tr>';
 		echo '<tr><th>Giá gốc (đ)</th><td><input name="gia_goc" type="number" min="0" step="1000" value="' . esc_attr( $sua ? $sua['gia_goc'] : '' ) . '"> <span class="description">để 0 hoặc trống nếu không giảm giá. Lớn hơn giá bán → hiện badge % + giá gạch.</span></td></tr>';
 		echo '<tr><th>Nhóm</th><td><input name="nhom" class="regular-text" placeholder="VD Vé lẻ / Combo / Funzone Aeon…" value="' . esc_attr( $sua ? $sua['nhom'] : '' ) . '"> <span class="description">gom các vé cùng nhóm thành một hàng trên app.</span></td></tr>';
+		echo '<tr><th>Số lượng vé</th><td><input name="so_luong" type="number" min="0" step="1" value="' . esc_attr( $sua && $sua['so_luong'] >= 0 ? $sua['so_luong'] : '' ) . '"> <span class="description">số vé còn bán — để <b>trống</b> = không giới hạn. Mỗi vé bán (web/Zalo) tự trừ 1.</span></td></tr>';
 		echo '<tr><th>Thời lượng</th><td><input name="thoi_luong" class="regular-text" placeholder="VD 60 phút / Cả ngày" value="' . esc_attr( $sua ? $sua['thoi_luong'] : '' ) . '"></td></tr>';
 		echo '<tr><th>Mô tả</th><td><textarea name="mo_ta" rows="3" class="large-text">' . esc_textarea( $sua ? $sua['mo_ta'] : '' ) . '</textarea></td></tr>';
 		echo '<tr><th>Ảnh</th><td><input type="text" name="anh" id="pve-anh" class="large-text code" value="' . esc_attr( $sua ? $sua['anh'] : '' ) . '"><br>'
