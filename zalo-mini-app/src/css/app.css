@@ -1,0 +1,24 @@
+:root { --bg:#0c223a; --bar:#154257; --yel:#f4c854; --card:#ffffff; --ink:#0f172a; --mut:#64748b; }
+body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; background:#eef2f6; }
+.wrap { padding:14px; }
+.title { color:#fff; }
+.goi-list { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.goi-card { background:var(--card); border-radius:14px; padding:14px; box-shadow:0 4px 14px rgba(0,0,0,.06);
+  display:flex; flex-direction:column; gap:4px; border:1px solid #e2e8f0; cursor:pointer; }
+.goi-card .ten { font-weight:800; font-size:16px; color:var(--ink); }
+.goi-card .tien { font-weight:900; font-size:22px; color:#c2410c; }
+.goi-card .phut { color:var(--mut); font-size:13px; }
+.goi-card .vip { align-self:flex-start; background:#fef3c7; color:#92600a; font-size:11px; font-weight:800;
+  padding:2px 8px; border-radius:999px; }
+.mota { color:var(--mut); font-size:12px; }
+.sec-h { font-weight:800; color:var(--ink); margin:6px 0 10px; }
+.field { margin-bottom:12px; }
+.qr-box { background:#fff; border-radius:16px; padding:16px; display:flex; flex-direction:column;
+  align-items:center; gap:10px; box-shadow:0 6px 20px rgba(0,0,0,.08); }
+.kv { display:flex; justify-content:space-between; width:100%; font-size:14px; padding:5px 0; border-bottom:1px dashed #e2e8f0; }
+.kv b { color:var(--ink); }
+.badge { font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; }
+.badge.cho { background:#fef3c7; color:#92600a; }
+.badge.da_tt { background:#dcfce7; color:#166534; }
+.badge.huy { background:#fee2e2; color:#991b1b; }
+.note { color:var(--mut); font-size:12px; text-align:center; line-height:1.5; }

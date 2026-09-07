@@ -1,0 +1,14 @@
+{
+  "app": {
+    "title": "POSH · Vé Massage",
+    "headerColor": "#0c223a",
+    "textColor": "white",
+    "leftButton": "back",
+    "statusBar": "transparent",
+    "actionBarHidden": true,
+    "hideAndroidBottomNavigationBar": true,
+    "hideIOSSafeAreaBottomNavBar": true
+  },
+  "debug": false,
+  "template": { "name": "posh-ve" }
+}

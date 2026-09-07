@@ -1,0 +1,25 @@
+{
+  "name": "posh-ve-mini",
+  "private": true,
+  "version": "0.1.0",
+  "description": "POSH - Zalo Mini App ban ve massage tra truoc (backend: WordPress vhcp-ghe, REST vhg/v1/ve/*)",
+  "scripts": {
+    "start": "zmp start",
+    "deploy": "zmp deploy"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.22.3",
+    "zmp-ui": "^1.11.1",
+    "zmp-sdk": "^2.42.0",
+    "qrcode.react": "^3.1.0"
+  },
+  "devDependencies": {
+    "zmp-cli": "^3.5.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0"
+  }
+}

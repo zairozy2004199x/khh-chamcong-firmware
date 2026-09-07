@@ -1,0 +1,49 @@
+import React, { useState } from "react";
+import { Page, Box, Text, Input, Button, useNavigate, useParams, useSnackbar } from "zmp-ui";
+import { datVe, dinhTien } from "../api";
+
+export default function BuyPage() {
+  const navigate = useNavigate();
+  const { tien } = useParams<{ tien: string }>();
+  const soTien = Number(tien) || 0;
+  const snackbar = useSnackbar();
+  const [ten, setTen] = useState("");
+  const [sdt, setSdt] = useState("");
+  const [dangGui, setDangGui] = useState(false);
+
+  const mua = async () => {
+    if (!ten.trim() || !sdt.trim()) {
+      snackbar.openSnackbar({ text: "Nhập tên và số điện thoại.", type: "warning" });
+      return;
+    }
+    setDangGui(true);
+    try {
+      const ve = await datVe(soTien, ten.trim(), sdt.trim());
+      // Chuyển sang màn vé, mang theo dữ liệu vé (QR/nội dung/bank) để hiện ngay.
+      navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
+    } catch (e: any) {
+      snackbar.openSnackbar({ text: String(e.message || e), type: "error" });
+    } finally {
+      setDangGui(false);
+    }
+  };
+
+  return (
+    <Page className="wrap">
+      <Box mb={4}>
+        <Text.Title>Mua vé</Text.Title>
+        <Text style={{ color: "var(--mut)" }}>Gói {dinhTien(soTien)}</Text>
+      </Box>
+      <div className="field">
+        <Input label="Họ tên" placeholder="Tên người mua" value={ten}
+          onChange={(e) => setTen(e.target.value)} />
+      </div>
+      <div className="field">
+        <Input label="Số điện thoại" type="number" placeholder="Số Zalo/điện thoại" value={sdt}
+          onChange={(e) => setSdt(e.target.value)} />
+      </div>
+      <Button fullWidth loading={dangGui} onClick={mua}>Tạo mã thanh toán</Button>
+      <p className="note">Bấm để tạo vé và hiện mã QR chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
+    </Page>
+  );
+}
