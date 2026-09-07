@@ -36,6 +36,13 @@ export function datGio(items: { id: number; sl: number }[], ten: string, sdt: st
     body: JSON.stringify({ items, ten, sdt }),
   });
 }
+export interface Diem {
+  ok: boolean; sdt: string; ten: string; diem: number; tong_chi: number; so_don: number;
+  hang: string; hang_ke: string; con_thieu: number; moc: { ten: string; moc: number }[];
+}
+export function layDiem(sdt: string) {
+  return json<Diem>(`${BASE}/tv?sdt=${encodeURIComponent(sdt)}`);
+}
 export function trangThaiVe(maVe: string) {
   return json<{ ok: boolean; ma_ve: string; goi_ten: string; so_tien: number; phut: number;
     trang_thai: string; tao_luc: string; tt_luc: string | null }>(

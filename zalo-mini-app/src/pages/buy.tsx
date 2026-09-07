@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Page, Box, Text, Input, Button, useNavigate, useParams, useLocation, useSnackbar } from "zmp-ui";
 import { datVe, dinhTien, Goi } from "../api";
-import { luuVe } from "../orders";
+import { luuVe, luuSdt } from "../orders";
 
 export default function BuyPage() {
   const navigate = useNavigate();
@@ -22,8 +22,9 @@ export default function BuyPage() {
     setDangGui(true);
     try {
       const ve = await datVe(veId, ten.trim(), sdt.trim());
-      // Lưu vé lên máy để tra cứu lại trong tab "Đơn hàng".
+      // Lưu vé + SĐT lên máy để tra cứu lại (Đơn hàng) và tra điểm (Cá nhân).
       luuVe({ ma_ve: ve.ma_ve, goi_ten: ve.goi_ten || (goi?.ten || ""), so_tien: ve.so_tien, tao_luc: Date.now() });
+      luuSdt(sdt.trim());
       // Chuyển sang màn vé, mang theo dữ liệu vé (QR/nội dung/bank) để hiện ngay.
       navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
     } catch (e: any) {

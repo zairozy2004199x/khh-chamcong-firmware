@@ -28,3 +28,8 @@ export function luuVe(v: VeLuu) {
     /* bỏ qua nếu trình duyệt chặn localStorage */
   }
 }
+
+/* SĐT gần nhất khách dùng khi mua — để tra điểm ở tab Cá nhân. */
+const KHOA_SDT = "posh_sdt";
+export function luuSdt(sdt: string) { try { localStorage.setItem(KHOA_SDT, sdt); } catch {} }
+export function laySdt(): string { try { return localStorage.getItem(KHOA_SDT) || ""; } catch { return ""; } }

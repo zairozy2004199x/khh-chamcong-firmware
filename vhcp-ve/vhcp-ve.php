@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.4.0
+ * Version:           1.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -19,7 +19,15 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '2';
+	const VER_TBL = '3';
+
+	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
+	const HANG_MAC_DINH = array(
+		array( 'ten' => 'Thành viên', 'moc' => 0 ),
+		array( 'ten' => 'Bạc',        'moc' => 1500 ),
+		array( 'ten' => 'Vàng',       'moc' => 3000 ),
+		array( 'ten' => 'Kim cương',  'moc' => 10000 ),
+	);
 
 	const VE_MAC_DINH = array(
 		array( 'id' => 1, 'ten' => 'Vé vào cửa', 'gia' => 50000,  'gia_goc' => 0,      'nhom' => 'Vé lẻ',  'mo_ta' => 'Vé vào cửa 1 người', 'anh' => '', 'thoi_luong' => '', 'hien' => 1 ),
@@ -131,6 +139,7 @@ class POSH_Ve {
 
 	// ───────────────────────────── Bảng vé ─────────────────────────────
 	public static function tbl() { global $wpdb; return $wpdb->prefix . 'pve_ve'; }
+	public static function tbl_tv() { global $wpdb; return $wpdb->prefix . 'pve_tv'; }
 	public static function bao_dam_bang() {
 		if ( get_option( 'pve_tbl' ) === self::VER_TBL ) { return; }
 		global $wpdb;
@@ -146,11 +155,74 @@ class POSH_Ve {
 			noi_dung VARCHAR(40) NOT NULL DEFAULT '',
 			chi_tiet TEXT NULL,
 			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			da_cong_diem TINYINT NOT NULL DEFAULT 0,
 			tao_luc DATETIME NOT NULL,
 			tt_luc DATETIME NULL,
 			PRIMARY KEY (id), UNIQUE KEY ma_ve (ma_ve), KEY trang_thai (trang_thai)
 		) $col;" );
+		$tv = self::tbl_tv();
+		dbDelta( "CREATE TABLE $tv (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			sdt VARCHAR(20) NOT NULL,
+			ten VARCHAR(80) NOT NULL DEFAULT '',
+			diem INT NOT NULL DEFAULT 0,
+			tong_chi BIGINT NOT NULL DEFAULT 0,
+			so_don INT NOT NULL DEFAULT 0,
+			tao_luc DATETIME NOT NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY (id), UNIQUE KEY sdt (sdt), KEY diem (diem)
+		) $col;" );
 		update_option( 'pve_tbl', self::VER_TBL );
+	}
+
+	// ───────────────────────────── Điểm & hạng thành viên (1 điểm = 1.000đ) ─────────────────────────────
+	public static function ds_hang() {
+		$h = get_option( 'pve_hang' );
+		if ( ! is_array( $h ) || ! $h ) { return self::HANG_MAC_DINH; }
+		$ra = array();
+		foreach ( $h as $x ) {
+			$ten = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			$ra[] = array( 'ten' => $ten, 'moc' => max( 0, (int) ( isset( $x['moc'] ) ? $x['moc'] : 0 ) ) );
+		}
+		if ( ! $ra ) { return self::HANG_MAC_DINH; }
+		usort( $ra, function ( $a, $b ) { return $a['moc'] - $b['moc']; } );
+		return $ra;
+	}
+	/* Hạng hiện tại + hạng kế + điểm còn thiếu để lên hạng. */
+	public static function hang_cua( $diem ) {
+		$ds = self::ds_hang(); $cur = $ds[0]; $ke = null;
+		foreach ( $ds as $h ) {
+			if ( $diem >= $h['moc'] ) { $cur = $h; } elseif ( null === $ke ) { $ke = $h; }
+		}
+		return array(
+			'hang'      => $cur['ten'],
+			'hang_ke'   => $ke ? $ke['ten'] : '',
+			'con_thieu' => $ke ? max( 0, $ke['moc'] - (int) $diem ) : 0,
+		);
+	}
+	/* Cộng điểm cho 1 số điện thoại (1 điểm = 1.000đ). */
+	public static function cong_diem( $sdt, $ten, $so_tien ) {
+		$sdt = preg_replace( '/[^0-9+]/', '', (string) $sdt );
+		if ( '' === $sdt ) { return; }
+		global $wpdb; $tv = self::tbl_tv();
+		$diem = (int) floor( (int) $so_tien / 1000 );
+		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem, tong_chi, so_don FROM $tv WHERE sdt=%s", $sdt ), ARRAY_A );
+		if ( $cu ) {
+			$wpdb->update( $tv, array(
+				'ten' => mb_substr( (string) $ten, 0, 80 ),
+				'diem' => (int) $cu['diem'] + $diem,
+				'tong_chi' => (int) $cu['tong_chi'] + (int) $so_tien,
+				'so_don' => (int) $cu['so_don'] + 1,
+				'sua_luc' => current_time( 'mysql' ),
+			), array( 'id' => (int) $cu['id'] ) );
+		} else {
+			$wpdb->insert( $tv, array(
+				'sdt' => mb_substr( $sdt, 0, 20 ), 'ten' => mb_substr( (string) $ten, 0, 80 ),
+				'diem' => $diem, 'tong_chi' => (int) $so_tien, 'so_don' => 1,
+				'tao_luc' => current_time( 'mysql' ), 'sua_luc' => current_time( 'mysql' ),
+			) );
+		}
 	}
 
 	// ───────────────────────────── REST ─────────────────────────────
@@ -160,6 +232,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ve/dat-gio', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat_gio' ) ) );
 		register_rest_route( self::NS, '/ve/trangthai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_trangthai' ) ) );
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
+		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
 	}
 	public static function cors( $served, $result, $request, $server ) {
 		if ( $request && 0 === strpos( (string) $request->get_route(), '/' . self::NS ) ) {
@@ -280,6 +353,22 @@ class POSH_Ve {
 		}
 		wp_reset_postdata();
 		return array( 'ok' => true, 'tin' => $ra );
+	}
+
+	/* Tra điểm/hạng thành viên theo SĐT (cho tab Cá nhân). */
+	public static function r_tv( $req ) {
+		$sdt = preg_replace( '/[^0-9+]/', '', (string) $req->get_param( 'sdt' ) );
+		if ( '' === $sdt ) { return new WP_Error( 'sdt', 'Thiếu số điện thoại.', array( 'status' => 400 ) ); }
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT ten, diem, tong_chi, so_don FROM ' . self::tbl_tv() . ' WHERE sdt=%s', $sdt ), ARRAY_A );
+		$diem = $r ? (int) $r['diem'] : 0;
+		$h = self::hang_cua( $diem );
+		return array(
+			'ok' => true, 'sdt' => $sdt, 'ten' => $r ? $r['ten'] : '',
+			'diem' => $diem, 'tong_chi' => $r ? (int) $r['tong_chi'] : 0, 'so_don' => $r ? (int) $r['so_don'] : 0,
+			'hang' => $h['hang'], 'hang_ke' => $h['hang_ke'], 'con_thieu' => $h['con_thieu'],
+			'moc' => self::ds_hang(),
+		);
 	}
 
 	private static function ma_ve_moi() {
@@ -550,8 +639,30 @@ class POSH_Ve {
 			$hople = array( 'cho', 'da_tt', 'da_dung', 'huy' );
 			$tt = in_array( $xin, $hople, true ) ? $xin : 'da_tt';
 			$wpdb->update( self::tbl(), array( 'trang_thai' => $tt, 'tt_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
+			$bs = '';
+			if ( 'da_tt' === $tt ) {
+				$r = $wpdb->get_row( $wpdb->prepare( 'SELECT sdt, ten_khach, so_tien, da_cong_diem FROM ' . self::tbl() . ' WHERE ma_ve=%s', $ma ), ARRAY_A );
+				if ( $r && ! (int) $r['da_cong_diem'] ) {
+					self::cong_diem( $r['sdt'], $r['ten_khach'], $r['so_tien'] );
+					$wpdb->update( self::tbl(), array( 'da_cong_diem' => 1 ), array( 'ma_ve' => $ma ) );
+					$bs = ' (+' . number_format( (int) floor( (int) $r['so_tien'] / 1000 ), 0, ',', '.' ) . ' điểm cho ' . esc_html( $r['sdt'] ) . ')';
+				}
+			}
 			$nh = array( 'cho' => 'Chờ', 'da_tt' => 'Đã thanh toán', 'da_dung' => 'Đã dùng (đã soát)', 'huy' => 'Đã huỷ' );
-			echo '<div class="notice notice-success"><p>Vé <b>' . esc_html( $ma ) . '</b> → ' . esc_html( $nh[ $tt ] ) . '.</p></div>';
+			echo '<div class="notice notice-success"><p>Vé <b>' . esc_html( $ma ) . '</b> → ' . esc_html( $nh[ $tt ] ) . $bs . '.</p></div>';
+		}
+
+		if ( isset( $_POST['pve_hang'] ) && check_admin_referer( 'pve_hang' ) ) {
+			$tens = isset( $_POST['hang_ten'] ) ? (array) $_POST['hang_ten'] : array();
+			$mocs = isset( $_POST['hang_moc'] ) ? (array) $_POST['hang_moc'] : array();
+			$moi = array();
+			foreach ( $tens as $i => $t ) {
+				$t = sanitize_text_field( wp_unslash( $t ) );
+				if ( '' === trim( $t ) ) { continue; }
+				$moi[] = array( 'ten' => $t, 'moc' => max( 0, (int) preg_replace( '/\D+/', '', (string) ( isset( $mocs[ $i ] ) ? $mocs[ $i ] : 0 ) ) ) );
+			}
+			update_option( 'pve_hang', $moi );
+			echo '<div class="notice notice-success"><p>Đã lưu hạng thành viên.</p></div>';
 		}
 
 		$b = self::bank(); $ds = self::ds_tatca();
@@ -708,6 +819,38 @@ class POSH_Ve {
 			}
 			echo '</tbody></table>';
 			echo '<p class="description">“Đã dùng (soát)” dùng khi khách vào cổng. Bộ lọc + ô soát vé giúp tìm nhanh 1 vé bằng mã hoặc SĐT.</p>';
+		}
+
+		/* ── Thành viên & tích điểm ── */
+		echo '<hr><h2>Thành viên &amp; tích điểm</h2>';
+		echo '<p class="description">Quy đổi: <b>1 điểm = 1.000đ</b> chi tiêu. Điểm cộng tự động khi bấm “Đã thanh toán” cho vé.</p>';
+
+		// Cấu hình hạng.
+		$hang = self::ds_hang();
+		echo '<h3>Hạng thành viên (theo điểm)</h3><form method="post">'; wp_nonce_field( 'pve_hang' );
+		echo '<table class="widefat striped" style="max-width:560px"><thead><tr><th>Tên hạng</th><th style="width:200px">Điểm tối thiểu</th></tr></thead><tbody>';
+		$rows_hang = $hang; for ( $i = count( $rows_hang ); $i < 6; $i++ ) { $rows_hang[] = array( 'ten' => '', 'moc' => '' ); }
+		foreach ( $rows_hang as $h ) {
+			echo '<tr><td><input name="hang_ten[]" class="regular-text" value="' . esc_attr( $h['ten'] ) . '" placeholder="VD Bạc / Vàng / Kim cương"></td>'
+				. '<td><input name="hang_moc[]" type="number" min="0" step="100" value="' . esc_attr( '' === $h['moc'] ? '' : (int) $h['moc'] ) . '"></td></tr>';
+		}
+		echo '</tbody></table><p><button class="button button-primary" name="pve_hang" value="1">Lưu hạng</button> <span class="description">Bỏ trống tên = xoá hạng đó.</span></p></form>';
+
+		// Danh sách thành viên.
+		$tvs = $wpdb->get_results( 'SELECT sdt, ten, diem, tong_chi, so_don, sua_luc FROM ' . self::tbl_tv() . ' ORDER BY diem DESC LIMIT 100', ARRAY_A );
+		echo '<h3>Khách tích điểm</h3>';
+		if ( ! $tvs ) { echo '<p>Chưa có khách nào tích điểm. (Điểm cộng khi vé chuyển sang “Đã thanh toán”.)</p>'; }
+		else {
+			echo '<table class="widefat striped"><thead><tr><th>SĐT</th><th>Tên</th><th>Điểm</th><th>Hạng</th><th>Tổng chi</th><th>Số đơn</th><th>Cập nhật</th></tr></thead><tbody>';
+			foreach ( $tvs as $t ) {
+				$hc = self::hang_cua( (int) $t['diem'] );
+				echo '<tr><td><code>' . esc_html( $t['sdt'] ) . '</code></td><td>' . esc_html( $t['ten'] ) . '</td>'
+					. '<td><b>' . esc_html( number_format( $t['diem'], 0, ',', '.' ) ) . '</b></td>'
+					. '<td>' . esc_html( $hc['hang'] ) . '</td>'
+					. '<td>' . esc_html( number_format( $t['tong_chi'], 0, ',', '.' ) ) . 'đ</td>'
+					. '<td>' . (int) $t['so_don'] . '</td><td>' . esc_html( $t['sua_luc'] ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
 		}
 		echo '</div>';
 	}

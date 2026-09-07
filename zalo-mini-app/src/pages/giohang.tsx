@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Page, useNavigate, useSnackbar } from "zmp-ui";
 import { datGio, dinhTien } from "../api";
 import { layGio, datSoLuong, xoaKhoiGio, xoaGio, tongTien, MonGio } from "../cart";
-import { luuVe } from "../orders";
+import { luuVe, luuSdt } from "../orders";
 import TabBar from "../components/tabbar";
 
 /* Giỏ hàng: chỉnh số lượng từng vé + nhập tên/SĐT + thanh toán 1 lần (1 mã QR tổng). */
@@ -36,6 +36,7 @@ export default function GioHangPage() {
       const items = ds.map((x) => ({ id: x.ma, sl: x.sl }));
       const ve = await datGio(items, ten.trim(), sdt.trim());
       luuVe({ ma_ve: ve.ma_ve, goi_ten: ve.goi_ten, so_tien: ve.so_tien, tao_luc: Date.now() });
+      luuSdt(sdt.trim());
       xoaGio(); nap();
       navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
     } catch (e: any) {

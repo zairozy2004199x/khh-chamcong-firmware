@@ -165,6 +165,20 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .cn-banner-t{ font-weight:800; color:#1f2937; font-size:15px; }
 .cn-banner-s{ color:#64748b; font-size:12px; margin-top:2px; }
 .cn-banner-b{ border:none; background:var(--gold); color:#fff; font-weight:700; font-size:13px; padding:9px 16px; border-radius:999px; cursor:pointer; flex:none; }
+.cn-nhap{ display:flex; gap:8px; margin-top:10px; }
+.cn-nhap input{ flex:1; min-width:0; border:1px solid #cbd5e1; border-radius:10px; padding:9px 12px; font-size:14px; }
+.cn-nhap button{ border:none; background:var(--gold); color:#fff; font-weight:700; padding:9px 16px; border-radius:10px; cursor:pointer; }
+.cn-diem{ margin:-16px 14px 0; background:linear-gradient(135deg,#1f2937,#0f172a); color:#fff; border-radius:16px; box-shadow:0 6px 18px rgba(0,0,0,.15); padding:16px; }
+.cn-diem-top{ display:flex; justify-content:space-between; align-items:flex-start; }
+.cn-diem-l{ font-size:12px; color:#cbd5e1; }
+.cn-diem-v{ font-size:30px; font-weight:900; line-height:1.1; color:var(--gold); }
+.cn-hang{ background:rgba(207,159,34,.2); color:var(--gold); font-weight:800; font-size:13px; padding:5px 12px; border-radius:999px; border:1px solid rgba(207,159,34,.5); }
+.cn-bar{ height:8px; background:rgba(255,255,255,.15); border-radius:999px; overflow:hidden; margin:12px 0 6px; }
+.cn-bar span{ display:block; height:100%; background:var(--gold); border-radius:999px; }
+.cn-diem-note{ font-size:12px; color:#e2e8f0; }
+.cn-diem-note b{ color:var(--gold); }
+.cn-diem-sub{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:11px; color:#94a3b8; margin-top:10px; }
+.cn-doi{ text-align:center; margin-top:10px; font-size:12px; color:#cbd5e1; text-decoration:underline; cursor:pointer; }
 .cn-menu{ margin:16px 14px 0; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.05); }
 .cn-item{ display:flex; align-items:center; gap:12px; padding:15px 16px; border-bottom:1px solid #f3f4f6; cursor:pointer; }
 .cn-item:last-child{ border-bottom:none; }
