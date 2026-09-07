@@ -590,6 +590,40 @@ la('🔴 tờ lệnh chỉ ra VÀO ĐƠN NÀO', 'c.maDons' in _fn_ve)
 la('và mã đơn bấm được, mở thẳng đơn', 'viewDon(' in _fn_ve)
 la('   dùng chính mã đơn ấy làm nhãn', "esc(m)" in _fn_ve)
 
+# ---------------------------------------------------------------- rê chuột vào bill -> phóng to
+# Anh Thắng 07/09/2026: ảnh chứng từ trong bảng chỉ cao 28-34px, muốn đọc số tiền trên bill
+# phải bấm mở thẻ mới rồi đóng lại — kế toán soát chục dòng là chục lần mở-đóng.
+print('— rê chuột vào bill —')
+la('🔴 có hàm dựng lớp phủ phóng to', 'function _billZoomInit(){' in src)
+la('và nó chạy ngay khi mở trang', '_billZoomInit();' in src)
+_i_bz = src.index('function _billZoomInit(){')
+_j_bz = src.index('\n  }', _i_bz) + 4
+_fn_bz = src[_i_bz:_j_bz]
+la('bốc được hàm', len(_fn_bz) > 600, len(_fn_bz))
+la('đối chứng: hàm bốc ra khép kín', _fn_bz.rstrip().endswith('}'), _fn_bz[-40:])
+# 🔴 ỦY QUYỀN SỰ KIỆN Ở document — mọi bảng ở đây đều được VẼ LẠI (đổi trang, lọc, tải lại).
+#    Gắn tay vào từng thẻ ảnh thì sau lần vẽ lại đầu tiên là rê chuột không ra gì, không báo
+#    lỗi gì cả — đúng cái bẫy đã cắn nút xoá ghế bên nhánh Ghế.
+la('🔴 nghe ở document, không gắn vào từng thẻ ảnh',
+   "document.addEventListener('mouseover'" in _fn_bz)
+la('   và lọc bằng closest([data-bill])', "closest('[data-bill]')" in _fn_bz)
+la('   không gắn tay vào từng img', '.querySelectorAll' not in _fn_bz)
+# Lớp phủ phải ở body: bảng có overflow-x nên ảnh phóng to bên trong ô sẽ bị khung cuộn cắt.
+la('🔴 lớp phủ gắn vào body, thoát khỏi khung cuộn của bảng',
+   'document.body.appendChild(ov)' in _fn_bz)
+la('   và dựng MỘT lần rồi dùng lại (không rác chồng rác)', 'if(ov) return ov;' in _fn_bz)
+_css_bz = re.sub(r'(^|[\s;{},:])/\*[\s\S]*?\*/', r'\1 ', css)
+la('   lớp phủ định vị fixed trong css', '#billZoom{' in _css_bz and 'position:fixed' in _css_bz)
+la('   và không ăn chuột (khỏi chặn chính thẻ đang rê)', 'pointer-events:none' in _css_bz)
+# Ảnh bill ở cột cuối bảng, tức sát mép phải — thả bừa bên phải con trỏ là nửa ảnh ra ngoài màn.
+la('🔴 giữ ảnh trong khung nhìn, không tràn ra ngoài màn',
+   'window.innerWidth' in _fn_bz and 'window.innerHeight' in _fn_bz)
+la('cuộn trang thì đóng ảnh lại', "addEventListener('scroll'" in _fn_bz)
+# Ảnh nào rê được: hai bảng có ảnh chứng từ + liên kết ảnh chuyển khoản.
+la('🔴 ảnh chứng từ trong bảng dòng chi rê được', src.count('data-bill="') >= 3, src.count('data-bill="'))
+la('⚠️ thẻ <a> giữ nguyên: bấm vẫn mở ảnh gốc (điện thoại không rê được)',
+   src.count('target="_blank" title="Rê chuột để phóng to') >= 2)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

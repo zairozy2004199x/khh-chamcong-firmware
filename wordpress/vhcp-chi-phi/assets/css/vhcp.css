@@ -189,3 +189,27 @@
   .su-tt .su-dong{display:none}
   details[open] > .su-tt .su-mo{display:none}
   details[open] > .su-tt .su-dong{display:inline}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   RÊ CHUỘT VÀO ẢNH BILL -> PHÓNG TO (anh Thắng 07/09/2026)
+
+   Ảnh chứng từ trong bảng chỉ cao 28-34px — vừa đủ biết CÓ ảnh, không đủ đọc số tiền trên
+   bill. Muốn xem thì phải bấm, mở thẻ mới, xem xong đóng lại, mất chỗ đang đứng trong bảng.
+   Kế toán soát cả chục dòng một lượt thì đó là cả chục lần mở-đóng.
+
+   🔴 LỚP PHỦ NẰM Ở <body>, KHÔNG NẰM TRONG Ô BẢNG. Bảng có `overflow-x:auto` để cuộn ngang;
+      một ảnh phóng to bên trong ô sẽ bị chính khung cuộn ấy CẮT — hiện ra đúng phần nằm lọt
+      trong ô, tức là chẳng to hơn bao nhiêu. `position:fixed` ở body thì thoát khỏi mọi
+      khung cuộn.
+
+   ⚠️ Không đụng tới thẻ <a>: bấm vẫn mở ảnh gốc ở thẻ mới như cũ. Trên điện thoại không có
+      "rê chuột", nên đường bấm ấy vẫn là đường chính. */
+#billZoom{
+  display:none;position:fixed;z-index:9999;pointer-events:none;
+  background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:4px;
+  box-shadow:0 12px 34px rgba(15,23,42,.28)
+}
+#billZoom img{display:block;max-width:none;border-radius:7px}
+/* Ảnh nhỏ trong bảng: cho biết nó rê được. */
+[data-bill]{cursor:zoom-in}

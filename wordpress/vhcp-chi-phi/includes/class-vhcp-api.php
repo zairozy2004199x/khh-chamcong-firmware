@@ -43,6 +43,8 @@ class VHCP_API {
 		// của người khác nên phải chốt ở máy chủ.
 		$nguoi_duyet = array(
 			'duyetTamUng', 'capTamUng', 'duyetTamUngNhieu', 'capTamUngNhieu',
+			/* Dựng lệnh bù ghi thẳng vào sổ lệnh — không phải việc của nhân viên. */
+			'dungLenhBu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
 			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
@@ -257,6 +259,8 @@ class VHCP_API {
 			'dsDonVi'               => array( 'VHCP_DonVi', 'ds' ),
 			'duyetTamUngNhieu'      => array( 'VHCP_Don', 'duyet_tam_ung_nhieu' ),
 			'dsLenhTU'              => array( 'VHCP_Don', 'ds_lenh_tu' ),
+			'chanDoanLenhTU'        => array( 'VHCP_Don', 'chan_doan_lenh_tu' ),
+			'dungLenhBu'            => array( 'VHCP_Don', 'dung_lenh_bu' ),
 			'capTamUngNhieu'        => array( 'VHCP_Don', 'cap_tam_ung_nhieu' ),
 			'traLaiDonNhieu'        => array( 'VHCP_Don', 'tra_lai_don_nhieu' ),
 			'khongDungTamUng'       => array( 'VHCP_Don', 'khong_dung_tam_ung' ),

@@ -295,7 +295,82 @@ foreach ( VHCP_Don::list_dons() as $d ) { if ( $d['maDon'] === $m11 ) { $tu_bang
 teq( '🔴 và khớp đúng con số bảng đơn đang hiện', $tu_bang, (int) $L7['tong'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * PHẦN 8 — 🔴 CỬA API TRỎ ĐÚNG HÀM
+ * PHẦN 8 — 🔴 ĐƠN DUYỆT TRƯỚC KHI CÓ TÍNH NĂNG NÀY
+ *
+ * Anh Thắng 07/09/2026: *"duyệt xong nhưng vẫn chưa thấy lệnh"*. Ba đơn ấy được duyệt TRƯỚC
+ * khi cài bản có sổ lệnh, nên sổ không kể tới — mà màn hình chỉ nói "Chưa có lệnh tạm ứng
+ * nào", nghe y như chưa ai duyệt lần nào. Mất một lượt qua lại chỉ để biết chuyện gì.
+ *
+ * Bài này canh hai thứ: máy chủ NÓI ĐƯỢC vì sao sổ rỗng, và DỰNG BÙ được cho phần đã lỡ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* Dựng đúng cảnh: đơn đi qua cửa duyệt LÕI (`duyet_tam_ung`), tức không ghi lệnh — y hệt một
+   site đang chạy bản cũ. */
+$m_cu1 = don_cho_duyet( $KY, $CS_A, 700000 );
+$m_cu2 = don_cho_duyet( $KY, '',    600000 );   // ô Cơ sở trống, như hàng thứ hai trong ảnh
+$m_cu3 = don_cho_duyet( $KY, $CS_B, 500000 );
+foreach ( array( $m_cu1, $m_cu2, $m_cu3 ) as $_m ) {
+	VHCP_Don::duyet_tam_ung( $_m, 'Nguyễn Thị Phương Hòa', '' );
+}
+
+$sot = VHCP_Don::don_duyet_chua_co_lenh();
+$sot_ma = array();
+foreach ( $sot as $x ) { $sot_ma[ $x['maDon'] ] = (int) $x['tamUng']; }
+t( '🔴 nhận ra ba đơn đã duyệt mà thiếu lệnh',
+	isset( $sot_ma[ $m_cu1 ] ) && isset( $sot_ma[ $m_cu2 ] ) && isset( $sot_ma[ $m_cu3 ] ), array_keys( $sot_ma ) );
+teq( 'và đọc đúng số tạm ứng của chúng', 700000, $sot_ma[ $m_cu1 ] );
+/* ⚠️ ĐƠN ĐÃ CÓ LỆNH THÌ KHÔNG ĐƯỢC KỂ LẠI — kể lại là dựng bù đẻ ra tờ thứ hai cho cùng một
+   lượt duyệt, tức tiền đếm đôi trong sổ. */
+t( '🔴 đơn ĐÃ có lệnh không bị kể vào danh sách sót', ! isset( $sot_ma[ $m1 ] ), array_keys( $sot_ma ) );
+
+/* 🔴 ĐƠN CHƯA DUYỆT KHÔNG PHẢI ĐƠN SÓT. Kể nó vào là dựng bù ghi một tờ lệnh cho khoản chưa
+   ai duyệt — tức tờ lệnh nói dối, mà người ta cầm tờ ấy đi phát tiền. */
+$m_chua = don_cho_duyet( $KY, $CS_C, 990000 );      // gửi xin rồi, CHƯA duyệt
+$sot2 = array();
+foreach ( VHCP_Don::don_duyet_chua_co_lenh() as $x ) { $sot2[ $x['maDon'] ] = 1; }
+t( '🔴 đơn CHƯA duyệt không bị kể là sót', ! isset( $sot2[ $m_chua ] ), array_keys( $sot2 ) );
+teq( 'đối chứng: nó đúng là đang chờ duyệt', 'Chờ duyệt tạm ứng',
+	(string) VHCP_Don::don_row( $m_chua )['trang_thai'] );
+
+$cd = VHCP_Don::chan_doan_lenh_tu();
+teq( 'chẩn đoán: bảng sổ có thật', 1, (int) $cd['coBang'] );
+teq( '🔴 chẩn đoán: đếm đúng số tờ lệnh đang có',
+	count( VHCP_Don::ds_lenh_tu( 200 )['items'] ), (int) $cd['soLenh'] );
+t( 'và số ấy khác 0 (sổ đang có lệnh thật)', (int) $cd['soLenh'] > 0, $cd );
+t( 'chẩn đoán: đếm đúng số đơn sót', (int) $cd['soDonSot'] === count( $sot ), $cd );
+teq( '🔴 và cộng đúng số tiền đang thiếu khỏi sổ', array_sum( $sot_ma ), (int) $cd['tienSot'] );
+teq( 'ba đơn vừa dựng góp đúng 1.800.000',
+	1800000, $sot_ma[ $m_cu1 ] + $sot_ma[ $m_cu2 ] + $sot_ma[ $m_cu3 ] );
+
+/* --- DỰNG BÙ --- */
+$truoc_bu = count( VHCP_Don::ds_lenh_tu( 200 )['items'] );
+$rb = VHCP_Don::dung_lenh_bu();
+t( 'dựng bù: chạy được', ! empty( $rb['success'] ), $rb );
+t( '🔴 dựng ra ít nhất một tờ', (int) $rb['soLenh'] >= 1, $rb );
+teq( 'gom đủ mọi đơn sót', count( $sot ), (int) $rb['soDon'] );
+teq( 'sổ dài thêm đúng bằng số tờ vừa dựng',
+	$truoc_bu + (int) $rb['soLenh'], count( VHCP_Don::ds_lenh_tu( 200 )['items'] ) );
+
+/* 🔴 GOM THEO NGƯỜI DUYỆT + NGÀY DUYỆT: ba đơn trên cùng một người, cùng một ngày -> MỘT tờ. */
+$L8 = null;
+foreach ( VHCP_Don::ds_lenh_tu( 200 )['items'] as $x ) {
+	if ( $x['nguoi'] === 'Nguyễn Thị Phương Hòa' ) { $L8 = $x; break; }
+}
+t( 'tìm được tờ lệnh bù', is_array( $L8 ), $L8 );
+teq( '🔴 ba đơn cùng người cùng ngày -> MỘT tờ', 3, (int) $L8['soDon'] );
+teq( 'tổng đúng 1.800.000', 1800000, (int) $L8['tong'] );
+teq( 'hai cơ sở (một đơn ô trống tra ra được cơ sở)', 2, (int) $L8['soCoso'] );
+
+/* 🔴 CHẠY LẦN HAI KHÔNG ĐẺ THÊM GÌ. Bấm nhầm hai lần là tiền đếm đôi trong sổ — mà sổ này
+   người ta cầm đi phát tiền. */
+$sau_bu = count( VHCP_Don::ds_lenh_tu( 200 )['items'] );
+$rb2 = VHCP_Don::dung_lenh_bu();
+teq( '🔴 dựng bù lần hai: không đơn nào sót nữa', 0, (int) $rb2['soDon'] );
+teq( 'và không đẻ thêm tờ nào', $sau_bu, count( VHCP_Don::ds_lenh_tu( 200 )['items'] ) );
+teq( 'chẩn đoán cũng nói hết sót', 0, (int) VHCP_Don::chan_doan_lenh_tu()['soDonSot'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * PHẦN 9 — 🔴 CỬA API TRỎ ĐÚNG HÀM
  *
  * Mọi phép trên đây gọi thẳng lớp. Nhưng màn hình đi qua BẢNG ÁNH XẠ trong `class-vhcp-api.php`
  * — trỏ `duyetTamUng` về lõi `duyet_tam_ung` là nút "✔ Duyệt tạm ứng" trên từng hàng lặng lẽ
@@ -319,6 +394,15 @@ if ( preg_match( "#'duyetTamUngNhieu'\s*=>\s*array\( 'VHCP_Don', '([a-z_]+)' \)#
 	t( 'tìm được dòng ánh xạ duyetTamUngNhieu', false, '' );
 }
 t( '🔴 sổ lệnh có cửa cho màn hình đọc', false !== strpos( $api_ma, "'dsLenhTU'" ), '' );
+t( 'chẩn đoán có cửa', false !== strpos( $api_ma, "'chanDoanLenhTU'" ), '' );
+t( 'dựng lệnh bù có cửa', false !== strpos( $api_ma, "'dungLenhBu'" ), '' );
+/* ⚠️ Dựng bù GHI THẲNG vào sổ lệnh — nhân viên không được gọi. */
+if ( preg_match( '#\$nguoi_duyet = array\(([\s\S]*?)\);#', $api_ma, $mv ) ) {
+	t( '🔴 dựng lệnh bù chỉ dành cho người duyệt / kế toán',
+		false !== strpos( $mv[1], "'dungLenhBu'" ), $mv[1] );
+} else {
+	t( '🔴 bốc được danh sách hàm của người duyệt', false, '' );
+}
 
 /* --- 🔴 CHỖ MÙ CỦA BỆ ĐỠ, PHẢI NÓI RA ---
    Bệ đỡ SQLite ở đây dùng ĐỒNG HỒ GIẢ ĐỨNG YÊN, nên mọi tờ lệnh mang cùng một `luc`, và mã

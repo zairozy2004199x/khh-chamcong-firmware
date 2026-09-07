@@ -811,6 +811,7 @@
             <tbody id="lenhTUBody"></tbody>
           </table>
           <div class="empty" id="lenhTUEmpty">Chưa có lệnh tạm ứng nào.</div>
+          <div id="lenhTUChanDoan" style="display:none;margin-top:10px;padding:11px 13px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;font-size:12.5px;line-height:1.6"></div>
         </div>
       </div>
     </div>
@@ -922,6 +923,7 @@
           <tbody id="lenhTUBodyKT"></tbody>
         </table>
         <div class="empty" id="lenhTUEmptyKT">Chưa có lệnh tạm ứng nào.</div>
+          <div id="lenhTUChanDoanKT" style="display:none;margin-top:10px;padding:11px 13px;background:#fffbeb;border:1px solid #fde68a;border-radius:9px;font-size:12.5px;line-height:1.6"></div>
       </div>
     </div>
   </div>
@@ -1536,8 +1538,67 @@
     if(!el('f_dvt').value && p.dvt) el('f_dvt').value=p.dvt;
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     RÊ CHUỘT VÀO ẢNH BILL -> PHÓNG TO (anh Thắng 07/09/2026)
+
+     🔴 ỦY QUYỀN SỰ KIỆN Ở <document>, KHÔNG GẮN VÀO TỪNG THẺ ẢNH. Mọi bảng ở đây đều được
+        VẼ LẠI (đổi trang, lọc, tải lại) — gắn tay vào từng thẻ thì sau lần vẽ lại đầu tiên
+        là rê chuột không ra gì, mà không báo lỗi gì cả. Đúng cái bẫy đã cắn nút xoá ghế bên
+        nhánh Ghế: gắn một lần lúc dựng trang, rồi trang tự vẽ lại và mất hết.
+
+        Nghe ở `document` thì ảnh vẽ ra lúc nào cũng chạy, kể cả ảnh của bảng chưa tồn tại
+        khi hàm này chạy.
+
+     ⚠️ Lớp phủ dựng MỘT lần rồi dùng lại — dựng mỗi lần rê là rác chồng rác trong DOM. */
+  function _billZoomInit(){
+    var ov=null;
+    function hop(){
+      if(ov) return ov;
+      ov=document.createElement('div'); ov.id='billZoom';
+      ov.innerHTML='<img alt="">'; document.body.appendChild(ov); return ov;
+    }
+    function dat(e, url){
+      var o=hop(), im=o.querySelector('img');
+      if(im.getAttribute('src')!==url) im.setAttribute('src',url);
+      /* Cỡ theo KHUNG NHÌN, không phải một con số cứng: màn 13 inch và màn 27 inch cần hai
+         cỡ khác nhau, mà bill chụp dọc thì chiều cao mới là chiều quyết định đọc được hay
+         không. Chặn trên 560px để ảnh khổ lớn không phủ kín cả màn. */
+      var cao=Math.min(560, Math.round(window.innerHeight*0.72));
+      im.style.height=cao+'px'; im.style.width='auto';
+      o.style.display='block';
+      /* Đặt cạnh con trỏ, nhưng KHÔNG ĐỂ TRÀN RA NGOÀI MÀN. Ảnh bill nằm ở cột cuối bảng,
+         tức sát mép phải — thả bừa bên phải con trỏ là nửa ảnh ra ngoài màn hình. */
+      var w=o.offsetWidth||360, h=o.offsetHeight||cao+8, m=14;
+      var x=e.clientX+18, y=e.clientY-h/2;
+      if(x+w+m>window.innerWidth)  x=e.clientX-18-w;
+      if(x<m) x=m;
+      if(y<m) y=m;
+      if(y+h+m>window.innerHeight) y=window.innerHeight-h-m;
+      o.style.left=x+'px'; o.style.top=y+'px';
+    }
+    function an(){ if(ov) ov.style.display='none'; }
+    document.addEventListener('mouseover',function(e){
+      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
+      if(!t) return;
+      var u=t.getAttribute('data-bill'); if(!u) return;
+      dat(e,u);
+    });
+    document.addEventListener('mousemove',function(e){
+      if(!ov||ov.style.display==='none') return;
+      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
+      if(t) dat(e,t.getAttribute('data-bill')); else an();
+    });
+    document.addEventListener('mouseout',function(e){
+      var t=e.target&&e.target.closest?e.target.closest('[data-bill]'):null;
+      if(t) an();
+    });
+    /* Cuộn trang trong lúc ảnh đang mở thì ảnh treo lơ lửng sai chỗ — đóng luôn cho gọn. */
+    window.addEventListener('scroll',an,true);
+  }
+
   window.onload=initApp;
   function initApp(){
+    _billZoomInit();
     // SSO: có danh tính từ trang tổng → tự đăng nhập, bỏ cổng PIN (xác thực lại mỗi lần tải từ token)
     if(typeof SSO_USER!=='undefined' && SSO_USER && SSO_USER.role){
       CURUSER=SSO_USER; el('gate').style.display='none';
@@ -2767,7 +2828,7 @@
           // chủ (set_line_anh) vốn đã cho đính khi Nháp — chỉ giao diện không bày ra.
           // Hiện ảnh nhỏ luôn: nhìn một cái biết dòng nào đã có chứng từ.
           '<td style="text-align:center;white-space:nowrap">'+(function(){
-             var xem=l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem chứng từ"><img src="'+esc(l.anh)+'" style="height:28px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'';
+             var xem=l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+esc(l.anh)+'" data-bill="'+esc(l.anh)+'" style="height:28px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'';
              /* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN.
                 Hóa đơn giấy về sau ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường;
                 khóa luôn cả ảnh là bộ chứng từ vĩnh viễn thiếu trong khi số tiền đã đúng.
@@ -2988,7 +3049,7 @@
     // Phần Cá nhân (141): KT cá nhân xác nhận ở bước Chờ quyết toán
     if(loai.cn && role!=='Kế toán NCC'){
       var duyetInfo=CUR.don.nguoiDuyet?' <span style="font-size:11px;color:#94a3b8">· duyệt TƯ: <b>'+esc(CUR.don.nguoiDuyet)+'</b>'+(CUR.don.ngayDuyet?' ('+esc(CUR.don.ngayDuyet)+')':'')+'</span>':'';
-      var capInfo=CUR.don.nguoiCap?' <span style="font-size:11px;color:#94a3b8">· cấp tiền: <b>'+esc(CUR.don.nguoiCap)+'</b>'+(CUR.don.ngayCap?' ('+esc(CUR.don.ngayCap)+')':'')+(CUR.don.htCap?' · '+esc(CUR.don.htCap):'')+'</span>'+(CUR.don.anhCap?' <a href="'+esc(CUR.don.anhCap)+'" target="_blank" style="font-size:11px">🖼 ảnh CK</a>':''):'';
+      var capInfo=CUR.don.nguoiCap?' <span style="font-size:11px;color:#94a3b8">· cấp tiền: <b>'+esc(CUR.don.nguoiCap)+'</b>'+(CUR.don.ngayCap?' ('+esc(CUR.don.ngayCap)+')':'')+(CUR.don.htCap?' · '+esc(CUR.don.htCap):'')+'</span>'+(CUR.don.anhCap?' <a href="'+esc(CUR.don.anhCap)+'" target="_blank" data-bill="'+esc(CUR.don.anhCap)+'" title="Rê chuột để phóng to · bấm để mở ảnh gốc" style="font-size:11px">🖼 ảnh CK</a>':''):'';
       var qtInfo=cnDone?' <span style="font-size:11px;color:#94a3b8">· QT: <b>'+esc(CUR.don.nguoiQT)+'</b>'+(CUR.don.ngayQT?' ('+esc(CUR.don.ngayQT)+')':'')+'</span>':'';
       h+='<div style="margin-bottom:6px">👤 <b>Cá nhân (141)</b>: ';
       if(cnDone){ h+='<span style="color:#166534">✓ đã quyết toán</span>'+duyetInfo+capInfo+qtInfo; }
@@ -5478,7 +5539,7 @@
         '<td class="money">'+money(l.thanhTien)+'</td>'+
         '<td class="money">'+(tm==null?('<span style="color:#94a3b8">='+money(e)+'</span>'):('<b>'+money(e)+'</b>'))+'</td>'+
         '<td style="text-align:center;font-size:11px">'+loai+'</td>'+
-        '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem ảnh chứng từ"><img src="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
+        '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+esc(l.anh)+'" data-bill="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
     }
     var COT='<thead><tr><th style="width:104px">Ngày</th><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead>';
     // MỘT LOẠI CHI PHÍ = một khối: tiêu đề loại + danh sách + chi phí con của chính loại đó
@@ -5572,11 +5633,37 @@
         là gói dữ liệu chung cho cả ứng dụng — nhét thêm vào đó là mọi trang khác cũng phải
         tải nó về rồi vứt đi. */
   var LENH_TU=[];
+  var LENH_CD=null, LENH_LOI='';
   function loadLenhTU(){
-    if(!el('lenhTUBody')) return;
+    if(!el('lenhTUBody') && !el('lenhTUBodyKT')) return;
+    LENH_LOI='';
     google.script.run.withSuccessHandler(function(r){
       LENH_TU=(r&&r.items)||[]; renderLenhTU();
-    }).withFailureHandler(function(){ LENH_TU=[]; renderLenhTU(); }).dsLenhTU(50);
+      /* 🔴 SỔ RỖNG THÌ HỎI THẲNG MÁY CHỦ VÌ SAO. Ba chuyện khác hẳn nhau mà nhìn vào y hệt:
+         chưa ai duyệt · duyệt trước khi cài bản này · bảng chưa dựng được. Anh Thắng
+         07/09/2026 mất một lượt qua lại vì màn hình chỉ nói "Chưa có lệnh tạm ứng nào". */
+      if(!LENH_TU.length){
+        google.script.run.withSuccessHandler(function(c){ LENH_CD=c||null; renderLenhTU(); })
+          .withFailureHandler(function(){ LENH_CD=null; }).chanDoanLenhTU();
+      }
+    }).withFailureHandler(function(e){
+      /* Cửa máy chủ chối hoặc lỗi mạng: NÓI RA, đừng để sổ rỗng im lặng — rỗng vì không có
+         lệnh và rỗng vì không hỏi được là hai chuyện. */
+      LENH_TU=[]; LENH_LOI=(e&&e.message)?e.message:'không hỏi được máy chủ'; renderLenhTU();
+    }).dsLenhTU(50);
+  }
+  function doDungLenhBu(){
+    var n=(LENH_CD&&LENH_CD.soDonSot)||0;
+    if(!confirm('Dựng lệnh bù cho '+n+' đơn đã duyệt trước đây?\n\n'
+      +'Đây là DỰNG LẠI, không phải lịch sử thật: lượt bấm duyệt cũ không được lưu, nên các đơn '
+      +'được gom theo NGƯỜI DUYỆT và NGÀY DUYỆT. Tổng tiền đúng, nhưng mấy lượt bấm trong cùng '
+      +'một ngày của cùng một người sẽ thành MỘT tờ.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success) toast('ok','Đã dựng '+r.soLenh+' lệnh bù · '+r.soDon+' đơn · '+money(r.tong)+'đ');
+      else toast('err',(r&&r.error)||'Không dựng được');
+      loadLenhTU();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dungLenhBu();
   }
   /* MỘT PHÉP VẼ, DÙNG CHO CẢ HAI CHỖ BÀY (tab Duyệt tạm ứng · tab Quyết toán của kế toán).
      Dựng hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con số cho cùng một tờ lệnh. */
@@ -5613,6 +5700,30 @@
   function renderLenhTU(){
     _veLenhTU('lenhTUBody',   'lenhTUSo',   'lenhTUEmpty');    // tab Duyệt tạm ứng
     _veLenhTU('lenhTUBodyKT', 'lenhTUSoKT', 'lenhTUEmptyKT');  // tab Quyết toán — màn kế toán
+    _veChanDoan('lenhTUChanDoan'); _veChanDoan('lenhTUChanDoanKT');
+  }
+  /* Câu giải thích cho khối rỗng — mỗi nguyên nhân một lối ra khác nhau, nên phải nói đúng
+     nguyên nhân chứ không nói chung chung. */
+  function _veChanDoan(id){
+    var b=el(id); if(!b) return;
+    if(LENH_TU.length){ b.style.display='none'; return; }
+    var h='';
+    if(LENH_LOI){
+      h='<b>⚠️ Không đọc được sổ lệnh</b> — '+esc(LENH_LOI)
+       +'<div style="margin-top:4px">Sổ rỗng vì <b>không hỏi được máy chủ</b>, khác với "chưa có lệnh nào". Thử <b>↻ Tải lại</b>; còn báo lỗi thì gửi câu này cho kỹ thuật.</div>';
+    } else if(LENH_CD && !LENH_CD.coBang){
+      h='<b>⚠️ Bảng sổ lệnh chưa dựng được trên máy chủ.</b>'
+       +'<div style="margin-top:4px">Vào <b>wp-admin → Plugin</b>, tắt rồi bật lại <b>Vận Hành Chi Phí</b> — bảng sẽ tự dựng. Chưa có bảng thì mọi lượt duyệt đều không ghi được lệnh.</div>';
+    } else if(LENH_CD && LENH_CD.soDonSot>0){
+      h='<b>📌 Có '+LENH_CD.soDonSot+' đơn đã duyệt mà chưa có tờ lệnh nào</b> — tổng <b>'+money(LENH_CD.tienSot)+'đ</b>.'
+       +'<div style="margin:4px 0 8px">Đó là những đơn được duyệt <b>trước khi cài bản có tính năng này</b>, nên sổ không kể tới. Dựng bù thì chúng có mặt trong sổ.</div>'
+       +'<button class="btn b-g" onclick="doDungLenhBu()">🧾 Dựng lệnh bù cho '+LENH_CD.soDonSot+' đơn</button>'
+       +'<div style="margin-top:6px;color:#92400e">Lưu ý: đây là <b>dựng lại</b>, gom theo người duyệt + ngày duyệt — tổng tiền đúng, nhưng không tách được từng lượt bấm như lệnh thật.</div>';
+    } else if(LENH_CD){
+      h='<b>Chưa có lượt duyệt nào kể từ khi cài bản này.</b>'
+       +'<div style="margin-top:4px">Sổ ghi từ lượt bấm <b>Duyệt tạm ứng</b> tiếp theo — mỗi lượt một tờ.</div>';
+    }
+    b.innerHTML=h; b.style.display=h?'':'none';
   }
   function dvXoaLoc(){ ['dvThang','dvKy','dvCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDuyet(); }
   /* ================= TÁCH KHỐI THEO ĐƠN VỊ (K&H · POSH) =================

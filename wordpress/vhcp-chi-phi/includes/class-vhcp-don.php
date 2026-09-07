@@ -2968,8 +2968,10 @@ class VHCP_Don {
 	 * @param string $nguoi   Người bấm duyệt.
 	 * @return array|null Lệnh vừa ghi, hoặc null nếu không có gì để ghi.
 	 */
-	public static function ghi_lenh_tu( $ma_dons, $nguoi ) {
+	public static function ghi_lenh_tu( $ma_dons, $nguoi, $luc = '' ) {
 		global $wpdb;
+		$luc = trim( (string) $luc );
+		if ( '' === $luc ) { $luc = VHCP_Util::now_sql(); }
 		$ds = array_values( array_unique( array_filter( array_map( 'strval', (array) $ma_dons ) ) ) );
 		if ( ! count( $ds ) ) { return null; }
 		$can = array_fill_keys( $ds, true );
@@ -3006,9 +3008,9 @@ class VHCP_Don {
 		$chi_tiet = array_values( $theo_cs );
 
 		$id = VHCP_Util::uid( 'LTU' );
-		$wpdb->insert( VHCP_DB::t( 'lenh_tu' ), array(
+		$ok = $wpdb->insert( VHCP_DB::t( 'lenh_tu' ), array(
 			'id'       => $id,
-			'luc'      => VHCP_Util::now_sql(),
+			'luc'      => $luc,
 			'nguoi'    => (string) $nguoi,
 			'don_vi'   => $dv,
 			/* Lô trộn nhiều tuần thì nói thẳng là trộn, đừng gán bừa tuần của đơn đầu tiên. */
@@ -3018,6 +3020,25 @@ class VHCP_Don {
 			'so_coso'  => count( $chi_tiet ),
 			'chi_tiet' => wp_json_encode( $chi_tiet ),
 		) );
+		/* 🔴 GHI HỎNG THÌ PHẢI KÊU. `$wpdb->insert()` vào bảng chưa có trả FALSE và không ném
+		   gì — màn hình chỉ thấy sổ rỗng, trông y hệt "chưa ai duyệt lần nào". Đúng cái bẫy đã
+		   cắn bộ thử một lượt (07/09/2026): mã chạy đúng cả, chỉ là bảng chưa dựng.
+
+		   Bảng thiếu thì thử dựng lại MỘT LƯỢT rồi ghi lần nữa: site nâng cấp plugin mà
+		   `dbDelta` chưa chạy tới (hoặc chạy hụt) là chuyện có thật, và người dùng không có
+		   cách nào tự gọi nó. */
+		if ( false === $ok && ! self::co_bang_lenh_() ) {
+			VHCP_DB::install();
+			$ok = $wpdb->insert( VHCP_DB::t( 'lenh_tu' ), array(
+				'id' => $id, 'luc' => $luc, 'nguoi' => (string) $nguoi, 'don_vi' => $dv,
+				'ky' => $nhieu_ky ? '(nhiều kỳ)' : $ky, 'tong' => $tong, 'so_don' => $so_don,
+				'so_coso' => count( $chi_tiet ), 'chi_tiet' => wp_json_encode( $chi_tiet ),
+			) );
+		}
+		if ( false === $ok ) {
+			return array( 'loi' => 'Không ghi được lệnh tạm ứng vào sổ'
+				. ( $wpdb->last_error ? ' (' . $wpdb->last_error . ')' : '' ) );
+		}
 		return array(
 			'id'      => $id,
 			'tong'    => $tong,
@@ -3025,6 +3046,128 @@ class VHCP_Don {
 			'soCoso'  => count( $chi_tiet ),
 			'chiTiet' => $chi_tiet,
 		);
+	}
+
+	/**
+	 * 'd/m/Y' -> 'Y-m-d 00:00:00' để tờ lệnh bù mang đúng NGÀY đã duyệt, không mang ngày bấm
+	 * nút dựng bù. Không đọc được thì trả rỗng và để `ghi_lenh_tu()` dùng giờ hiện tại — thà
+	 * mốc sai một ngày còn hơn tờ lệnh không ghi được.
+	 */
+	private static function sql_tu_dmy_( $dmy ) {
+		$d = VHCP_Util::vh_parse_dmy( (string) $dmy );
+		return $d ? $d->format( 'Y-m-d H:i:s' ) : '';
+	}
+
+	/** Bảng lệnh tạm ứng đã dựng chưa? Dùng để phân biệt "sổ rỗng" với "sổ chưa có". */
+	private static function co_bang_lenh_() {
+		global $wpdb;
+		$t = VHCP_DB::t( 'lenh_tu' );
+		return (string) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) === $t;
+	}
+
+	/** Mọi mã đơn đã nằm trong một tờ lệnh nào đó. */
+	private static function don_da_co_lenh_() {
+		$co = array();
+		foreach ( self::ds_lenh_tu( 200 )['items'] as $L ) {
+			foreach ( (array) $L['chiTiet'] as $c ) {
+				foreach ( (array) ( isset( $c['maDons'] ) ? $c['maDons'] : array() ) as $m ) {
+					$co[ (string) $m ] = true;
+				}
+			}
+		}
+		return $co;
+	}
+
+	/**
+	 * CHẨN ĐOÁN SỔ LỆNH — vì sao khối trên màn đang rỗng.
+	 *
+	 * 🔴 Anh Thắng 07/09/2026: *"duyệt xong nhưng vẫn chưa thấy lệnh"*. Một khối rỗng có thể do
+	 *    BA chuyện hoàn toàn khác nhau, mà nhìn vào thì y hệt nhau:
+	 *      1. Chưa ai duyệt lần nào kể từ khi cài — không có gì để ghi, đúng như vậy.
+	 *      2. Đã duyệt, nhưng duyệt TRƯỚC khi cài bản có tính năng này — sổ bắt đầu từ lượt sau.
+	 *      3. Bảng chưa dựng được, ghi lệnh hỏng lặng lẽ.
+	 *    Đoán mò giữa ba cái ấy là mất mấy lượt qua lại. Hỏi thẳng máy chủ thì xong trong một
+	 *    lần mở màn.
+	 */
+	public static function chan_doan_lenh_tu() {
+		$co_bang = self::co_bang_lenh_();
+		$so_lenh = $co_bang ? count( self::ds_lenh_tu( 200 )['items'] ) : 0;
+		$sot = $co_bang ? self::don_duyet_chua_co_lenh() : array();
+		$tien = 0;
+		foreach ( $sot as $d ) { $tien += (int) $d['tamUng']; }
+		return VHCP_Util::ok( array(
+			'coBang'   => $co_bang ? 1 : 0,
+			'soLenh'   => $so_lenh,
+			'soDonSot' => count( $sot ),
+			'tienSot'  => $tien,
+		) );
+	}
+
+	/**
+	 * ĐƠN ĐÃ QUA DUYỆT MÀ CHƯA NẰM TRONG TỜ LỆNH NÀO.
+	 *
+	 * Đây là những đơn được duyệt TRƯỚC khi có tính năng lệnh tạm ứng (hoặc trong lúc sổ ghi
+	 * hỏng). Chúng có thật, tiền có thật, chỉ là không có tờ lệnh nào kể tới.
+	 */
+	public static function don_duyet_chua_co_lenh() {
+		$co = self::don_da_co_lenh_();
+		$ra = array();
+		foreach ( self::list_dons() as $d ) {
+			$m = (string) $d['maDon'];
+			if ( isset( $co[ $m ] ) ) { continue; }
+			/* "Đã qua duyệt" = có người duyệt đứng tên. Không dùng trạng thái: đơn đã đi tiếp
+			   tới quyết toán vẫn từng có một lượt duyệt tạm ứng, và lượt ấy cũng thiếu lệnh. */
+			if ( trim( (string) ( isset( $d['nguoiDuyet'] ) ? $d['nguoiDuyet'] : '' ) ) === '' ) { continue; }
+			$ra[] = array(
+				'maDon'      => $m,
+				'nguoiDuyet' => (string) $d['nguoiDuyet'],
+				'ngayDuyet'  => (string) ( isset( $d['ngayDuyet'] ) ? $d['ngayDuyet'] : '' ),
+				'tamUng'     => (int) VHCP_Util::num( isset( $d['tamUng'] ) ? $d['tamUng'] : 0 ),
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * DỰNG LỆNH BÙ cho những đơn đã duyệt mà chưa có tờ lệnh nào.
+	 *
+	 * ⚠️ ĐÂY LÀ DỰNG LẠI, KHÔNG PHẢI GHI MỚI. Lượt bấm duyệt thật đã trôi qua và không lưu ở
+	 *    đâu cả, nên chỗ này chỉ XẤP XỈ nó: gom theo NGƯỜI DUYỆT + NGÀY DUYỆT.
+	 *
+	 *    🔴 CHỈ TỚI NGÀY, KHÔNG TỚI GIỜ — `list_dons()` trả `ngayDuyet` qua `fmt()`, mà hàm ấy
+	 *       cắt bỏ phần giờ. Nghĩa là mọi lượt duyệt của cùng một người trong CÙNG MỘT NGÀY gộp
+	 *       thành một tờ. Thô, nhưng đúng ở chỗ quan trọng nhất: tổng tiền không sai và không
+	 *       đơn nào bị bỏ rơi. Tờ bù mang nhãn ngày, người đọc biết ngay nó không phải lịch sử
+	 *       thật tới từng lượt bấm.
+	 *
+	 * 🔴 KHÔNG GỌI TỰ ĐỘNG. Người dùng phải bấm, và phải biết mình đang dựng lại chứ không
+	 *    phải nhìn thấy lịch sử thật — một tờ lệnh tự mọc ra với mốc thời gian đoán được là
+	 *    thứ tệ hơn không có tờ nào.
+	 */
+	public static function dung_lenh_bu() {
+		$sot = self::don_duyet_chua_co_lenh();
+		/* ⚠️ CHỐT NÀY LÀ ĐỘT BIẾN TƯƠNG ĐƯƠNG — phá thử 07/09/2026 gỡ nó ra mà bộ thử vẫn xanh,
+		   và đúng là vậy: `$sot` rỗng thì `$nhom` cũng rỗng, vòng dưới không chạy, kết quả y
+		   hệt. Giữ lại vì nó nói thẳng ý "không có gì để bù" ngay đầu hàm, thay vì bắt người
+		   đọc suy ra từ một vòng lặp không chạy. Không ép bộ thử bắt cho bằng được. */
+		if ( ! count( $sot ) ) {
+			return VHCP_Util::ok( array( 'soLenh' => 0, 'soDon' => 0, 'tong' => 0 ) );
+		}
+		$nhom = array();
+		foreach ( $sot as $d ) {
+			$k = $d['nguoiDuyet'] . '|' . $d['ngayDuyet'];
+			if ( ! isset( $nhom[ $k ] ) ) { $nhom[ $k ] = array( 'nguoi' => $d['nguoiDuyet'], 'luc' => $d['ngayDuyet'], 'ds' => array() ); }
+			$nhom[ $k ]['ds'][] = $d['maDon'];
+		}
+		$so_lenh = 0; $so_don = 0; $tong = 0; $loi = array();
+		foreach ( $nhom as $n ) {
+			$L = self::ghi_lenh_tu( $n['ds'], $n['nguoi'], self::sql_tu_dmy_( $n['luc'] ) );
+			if ( ! is_array( $L ) ) { continue; }
+			if ( isset( $L['loi'] ) ) { $loi[] = (string) $L['loi']; continue; }
+			$so_lenh++; $so_don += (int) $L['soDon']; $tong += (int) $L['tong'];
+		}
+		if ( count( $loi ) ) { return VHCP_Util::err( implode( ' · ', array_unique( $loi ) ) ); }
+		return VHCP_Util::ok( array( 'soLenh' => $so_lenh, 'soDon' => $so_don, 'tong' => $tong ) );
 	}
 
 	/** Danh sách lệnh tạm ứng, mới nhất trước. */

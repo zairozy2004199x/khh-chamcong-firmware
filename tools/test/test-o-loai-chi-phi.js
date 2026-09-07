@@ -132,7 +132,13 @@ t('và nút đó nói rõ là KHÔNG đụng số tiền',
 t('máy chủ mới là nơi gác, không phải giao diện',
   /Đơn đã chốt sổ — chỉ KẾ TOÁN mới bổ sung/.test(
     fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8')));
-t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', /<img src="'\+esc\(l\.anh\)\+'" style="height:28px/.test(HTML));
+/* ⚠️ CANH Ý ĐỊNH, KHÔNG GHIM CÁCH VIẾT. Bản trước đòi nguyên văn
+   `<img src="'+esc(l.anh)+'" style="height:28px` — thêm một thuộc tính vào giữa thẻ là gãy,
+   mà gãy vì BÀI KIỂM chứ không phải vì mã hỏng. Đã gãy đúng như thế khi thêm `data-bill`
+   cho tính năng rê chuột phóng to (07/09/2026). Điều cần canh là: dòng có ảnh thì DỰNG THẺ
+   ẢNH NHỎ từ chính `l.anh`, và cỡ vẫn là cỡ ảnh nhỏ trong bảng. */
+const _the_anh = /<img src="'\+esc\(l\.anh\)\+'"[^>]*height:28px/.test(HTML);
+t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', _the_anh);
 
 // ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng
 // NGÀY sửa tại chỗ: đang có dòng mang năm vô lý ("22/08/4625"), bắt mở form sửa cả dòng
