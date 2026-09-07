@@ -184,6 +184,19 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .gio-tt{ border:none; background:var(--gold); color:#fff; font-weight:800; font-size:16px; padding:13px 28px; border-radius:12px; cursor:pointer; }
 .gio-tt:disabled{ background:#cbd5e1; cursor:not-allowed; }
 
+/* ===== Tin nhắn ===== */
+.tn-hero{ margin:14px 14px 0; background:linear-gradient(135deg,#e6b32e,#c1901b); border-radius:16px; padding:24px 18px; text-align:center; color:#fff; box-shadow:0 6px 18px rgba(0,0,0,.08); }
+.tn-hero-ic{ font-size:44px; }
+.tn-hero-t{ font-weight:900; font-size:19px; margin-top:6px; }
+.tn-hero-s{ font-size:13px; opacity:.95; margin-top:4px; line-height:1.5; }
+.tn-hero-b{ margin-top:14px; border:none; background:#1f2937; color:#fff; font-weight:800; font-size:15px; padding:12px 26px; border-radius:999px; cursor:pointer; }
+.tn-sec{ font-weight:800; color:#1f2937; margin:18px 14px 8px; }
+.tn-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; padding:0 14px; }
+.tn-item{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.04); }
+.tn-item-ic{ font-size:24px; }
+.tn-item span{ font-size:11px; color:#475569; text-align:center; }
+.tn-note{ color:#94a3b8; font-size:12px; text-align:center; margin:18px 20px 0; line-height:1.5; }
+
 /* ===== Cá nhân ===== */
 .cn{ background:var(--cream); min-height:100vh; }
 .cn-head{ background:linear-gradient(180deg,#d7a521,#c1901b); padding:22px 16px; display:flex; align-items:center; gap:14px; }
