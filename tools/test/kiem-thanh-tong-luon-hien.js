@@ -38,6 +38,7 @@ function oTich(ds) {
   return ds.map(function (x) {
     return { getAttribute: function (k) {
       return k === 'data-tu' ? String(x.tu || 0)
+        : k === 'data-tc' ? String(x.tc || 0)
         : k === 'data-cl' ? String(x.cl || 0)
         : k === 'data-st' ? (x.st || '') : (x.m || '');
     } };
@@ -118,36 +119,74 @@ const fnQt = bocHam('qtUpdateBar');
 t('bốc được qtUpdateBar()', fnQt.length > 300, fnQt.length);
 t('đối chứng: hàm bốc ra khép kín', /\}\s*$/.test(fnQt), fnQt.slice(-30));
 
-const IDS_QT = ['qtBatchBar', 'qtSelInfo', 'qtSelTU', 'qtSelTotal', 'btnQtChon'];
-function chayQt(rows, tich) {
+const IDS_QT = ['qtBatchBar', 'qtSelInfo', 'qtSelTU', 'qtSelTC', 'qtSelTotal', 'qtSelChim', 'btnQtChon'];
+const fnSums = bocHam('_qtSums');
+t('bốc được _qtSums()', fnSums.length > 100, fnSums.length);
+function chayQt(rows, chim, tich) {
   const o = dungDom(IDS_QT);
-  const f = new Function('el', 'QT_ROWS_CHO', 'qtSelected', 'money', fnQt + '\nqtUpdateBar();');
-  f(function (id) { return o[id] || null; }, rows, function () { return oTich(tich); },
+  const f = new Function('el', 'QT_ROWS_CHO', 'QT_ROWS_CHIM', 'qtSelected', 'money',
+    fnSums + '\n' + fnQt + '\nqtUpdateBar();');
+  f(function (id) { return o[id] || null; }, rows, chim, function () { return oTich(tich); },
     function (n) { return String(n); });
   return o;
 }
 
+/* Đúng bảng trong ảnh anh gửi: 7 đơn chờ quyết toán, tạm ứng 23.983.000, thực chi 21.967.000,
+   thừa/thiếu 2.016.000. Rút gọn còn ba dòng nhưng giữ nguyên ba con số ấy. */
 const QT = [
-  { tamUng: 3780000, chenhLech: 120000 },
-  { tamUng: 4150000, chenhLech: -80000 },
-  { tamUng: 8149000, chenhLech: 0 },
+  { tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 },
+  { tamUng: 10000000, soThucMua: 2743000, chenhLech: 7257000 },
+  { tamUng: 10333000, soThucMua: 16134000, chenhLech: -5801000 },
 ];
-const q = chayQt(QT, []);
+const q = chayQt(QT, [], []);
 teq('🔴 bên quyết toán: thanh cũng LUÔN hiện', 'flex', q.qtBatchBar.style.display);
-teq('🔴 và cũng có ô Tổng tạm ứng', '16079000đ', q.qtSelTU.textContent);
-teq('thừa/thiếu vẫn cộng như cũ', '40000đ', q.qtSelTotal.textContent);
+teq('🔴 và cũng có ô Tổng tạm ứng', '23983000đ', q.qtSelTU.textContent);
+teq('🔴 ô THỰC CHI ở giữa', '21967000đ', q.qtSelTC.textContent);
+teq('thừa/thiếu vẫn cộng như cũ', '2016000đ', q.qtSelTotal.textContent);
 t('nhãn nói rõ đang cộng cả bảng chờ', /3 đơn chờ quyết toán/.test(q.qtSelInfo.textContent), q.qtSelInfo.textContent);
 teq('⚠️ chưa tích thì ẩn nút duyệt hàng loạt', 'none', q.btnQtChon.style.display);
+teq('không có đơn chìm thì không nói gì thêm', '', q.qtSelChim.textContent);
 
-const q2 = chayQt(QT, [{ tu: 4150000, cl: -80000 }]);
-teq('tích 1 đơn: tạm ứng theo đơn ấy', '4150000đ', q2.qtSelTU.textContent);
-teq('và thừa/thiếu theo đơn ấy', '-80000đ', q2.qtSelTotal.textContent);
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐƠN "CHÌM" — đã cấp tiền mà CHƯA gửi quyết toán
+ *
+ * Anh Thắng 07/09/2026: *"nhớ không cộng vào thực chi, nếu đơn chưa gửi quyết toán thì phần
+ * tạm ứng vẫn cộng vào (tức phần thừa chưa chi)"*.
+ *
+ * Không có phần này thì bảng chờ quyết toán trông rất đẹp — mọi đơn đều khớp — trong khi ngoài
+ * đời còn mấy chục triệu treo ở đâu đó không ai nhắc tới.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const CHIM = [
+  /* Cố ý để `soThucMua` khác 0: đơn đã cấp tiền thì máy chủ vẫn tính thực chi cho nó. Cộng
+     nhầm số ấy vào là con số thực chi phình lên bằng một khoản chưa ai soát. */
+  { tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 },
+  { tamUng: 2000000, soThucMua: 1900000, chenhLech: 100000 },
+];
+const qc = chayQt(QT, CHIM, []);
+teq('🔴 tạm ứng CỘNG cả đơn chìm', '30983000đ', qc.qtSelTU.textContent);
+teq('🔴 thực chi KHÔNG cộng đơn chìm', '21967000đ', qc.qtSelTC.textContent);
+teq('🔴 thừa/thiếu cộng NGUYÊN cục tạm ứng của đơn chìm', '9016000đ', qc.qtSelTotal.textContent);
+t('và nói rõ có bao nhiêu đơn chìm', /2 đơn CHƯA gửi quyết toán/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
+t('   kèm số tiền đang treo', /7000000/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
+/* ⚠️ Đối chứng: nếu lỡ cộng `soThucMua` của đơn chìm thì thực chi sẽ là 28.067.000đ. */
+t('⚠️ KHÔNG phải con số của bản cộng nhầm', qc.qtSelTC.textContent !== '28067000đ', qc.qtSelTC.textContent);
+
+const q2 = chayQt(QT, CHIM, [{ tu: 3650000, tc: 3090000, cl: 560000 }]);
+teq('tích 1 đơn: tạm ứng theo đơn ấy', '3650000đ', q2.qtSelTU.textContent);
+teq('thực chi theo đơn ấy', '3090000đ', q2.qtSelTC.textContent);
+teq('và thừa/thiếu theo đơn ấy', '560000đ', q2.qtSelTotal.textContent);
+teq('⚠️ đang tích thì KHÔNG kéo đơn chìm vào', '', q2.qtSelChim.textContent);
 teq('nhãn đổi sang "Đã chọn"', 'Đã chọn 1 đơn', q2.qtSelInfo.textContent);
 teq('hiện nút duyệt hàng loạt', '', q2.btnQtChon.style.display);
 
-const q3 = chayQt([], []);
+const q3 = chayQt([], [], []);
 teq('bảng rỗng: thanh vẫn hiện', 'flex', q3.qtBatchBar.style.display);
 t('và nói thẳng là không có đơn nào', /Không có đơn nào/.test(q3.qtSelInfo.textContent), q3.qtSelInfo.textContent);
+/* Không còn đơn chờ nào mà vẫn có đơn chìm -> con số treo vẫn phải hiện ra. */
+const q4 = chayQt([], CHIM, []);
+teq('🔴 hết đơn chờ nhưng còn đơn chìm: tạm ứng vẫn hiện', '7000000đ', q4.qtSelTU.textContent);
+teq('   thực chi bằng 0', '0đ', q4.qtSelTC.textContent);
+teq('   và cả cục là thừa chưa chi', '7000000đ', q4.qtSelTotal.textContent);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. HAI THANH KHÔNG CÒN ẨN SẴN TRONG MÃ TRANG
@@ -164,6 +203,9 @@ const HTML_MA = HTML.replace(/<!--[\s\S]*?-->/g, ' ');
 /* 🔴 CỘNG CẢ NHÓM, KHÔNG CHỈ TRANG ĐANG XEM. Bảng quyết toán phân trang 15 đơn — cộng theo ô
    tích trên màn thì con số tụt mỗi khi sang trang, mà người đọc không có cách nào biết. */
 t('🔴 bảng quyết toán giữ CẢ NHÓM để cộng', HTML.indexOf("if(khoa==='cho') QT_ROWS_CHO=rows;") > 0);
+t('🔴 và bảng đơn chìm cũng được giữ lại', HTML.indexOf('QT_ROWS_CHIM=rows;') > 0);
+t('   lấy từ bảng "Đã cấp tạm ứng — chưa nộp hóa đơn"',
+  /rows=\(BOOT\.dons\|\|\[\]\)\.filter\(function\(d\)\{ return d\.trangThai==='Đã cấp tạm ứng'/.test(HTML));
 t('   và `rows` là cả nhóm, không phải trang đang xem (`lat`)',
   HTML.indexOf('QT_ROWS_CHO=lat') < 0);
 
@@ -181,6 +223,7 @@ const mQtChk = HTML_MA.match(/<input type="checkbox" class="qtChk"[^>]*/);
 t('bốc được ô tích của bảng quyết toán', !!mQtChk, 'qtChk');
 if (mQtChk) {
   t('🔴 ô tích mang cả số tạm ứng của dòng', mQtChk[0].indexOf('data-tu=') > 0, mQtChk[0]);
+  t('   và mang cả thực chi', mQtChk[0].indexOf('data-tc=') > 0, mQtChk[0]);
   t('   và mang cả thừa/thiếu', mQtChk[0].indexOf('data-cl=') > 0, mQtChk[0]);
   t('   lấy từ chính dòng ấy, không phải số cứng',
     /data-tu="'\+\(Number\(d\.tamUng\)/.test(mQtChk[0]), mQtChk[0]);

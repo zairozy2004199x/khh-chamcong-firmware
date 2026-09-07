@@ -851,7 +851,9 @@
       <div id="qtBatchBar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:10px 14px">
         <b id="qtSelInfo">Đã chọn 0 đơn</b>
         <span>Tổng tạm ứng: <b id="qtSelTU" style="color:#166534">0đ</b></span>
+        <span>Thực chi: <b id="qtSelTC" style="color:#1d4ed8">0đ</b></span>
         <span>Tổng thừa/thiếu: <b id="qtSelTotal" style="color:#166534">0đ</b></span>
+        <span id="qtSelChim" style="font-size:12px;color:#b45309"></span>
         <span style="flex:1"></span>
         <button class="btn b-g" id="btnQtChon" onclick="doQtChon()" style="display:none">✔ Duyệt chi phí các đơn đã chọn</button>
       </div>
@@ -5314,7 +5316,7 @@
     var cl=d.chenhLech>=0?'pos':'neg';
     var mua=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
     var canChk=canBatch && d.trangThai==='Chờ quyết toán' && !d.qtCN;
-    var chk=canBatch?('<td style="text-align:center">'+(canChk?'<input type="checkbox" class="qtChk" data-m="'+esc(d.maDon)+'" data-cl="'+(Number(d.chenhLech)||0)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="qtUpdateBar()">':'')+'</td>'):'';
+    var chk=canBatch?('<td style="text-align:center">'+(canChk?'<input type="checkbox" class="qtChk" data-m="'+esc(d.maDon)+'" data-cl="'+(Number(d.chenhLech)||0)+'" data-tu="'+(Number(d.tamUng)||0)+'" data-tc="'+(Number(mua)||0)+'" onchange="qtUpdateBar()">':'')+'</td>'):'';
     // Nút DUYỆT ngay ở ô thao tác (khỏi mở trang đầy đủ): xác nhận quyết toán CN, hoặc duyệt NCC — tùy phần còn lại
     var duyetBtn='';
     if(d.trangThai==='Chờ quyết toán' && canDo('xacNhanQT') && !d.qtCN) duyetBtn='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')" title="Xác nhận quyết toán (chốt thừa/thiếu)">✔ Duyệt</button> ';
@@ -5410,6 +5412,8 @@
     if(!el('qtBodyChuaNop')) return;
     var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); });
     rows.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
+    /* Giữ lại để thanh tổng cộng phần "tiền đã đưa mà chưa thấy chứng từ" — xem `qtUpdateBar`. */
+    QT_ROWS_CHIM=rows;
     var soTrang=Math.max(1, Math.ceil(rows.length/QT_MOI_TRANG));
     if(QT_TRANG.chuanop>soTrang) QT_TRANG.chuanop=soTrang;
     var trang=QT_TRANG.chuanop;
@@ -5623,7 +5627,7 @@
   // ---- Batch duyệt chi phí (KT cá nhân) ----
   function qtSelected(){ return [].slice.call(document.querySelectorAll('.qtChk:checked')); }
   function qtToggleAll(cb){ [].slice.call(document.querySelectorAll('.qtChk')).forEach(function(c){ c.checked=cb.checked; }); qtUpdateBar(); }
-  var QT_ROWS_CHO=[];
+  var QT_ROWS_CHO=[], QT_ROWS_CHIM=[];
   /* 🔴 CÙNG LUẬT VỚI THANH BÊN TAB DUYỆT (anh Thắng 07/09/2026: *"nhớ cả bên quyết toán
      luôn"*): lúc nào cũng hiện, chưa tích gì thì cộng CẢ BẢNG chờ quyết toán.
 
@@ -5634,16 +5638,39 @@
         trên màn là con số tụt xuống mỗi khi sang trang, mà người đọc không có cách nào biết. */
   function qtUpdateBar(){
     var chks=qtSelected(), bar=el('qtBatchBar'); if(!bar) return;
-    var tu=0, cl=0;
+    var tu=0, tc=0, cl=0, chim='';
     if(chks.length){
-      chks.forEach(function(c){ cl+=Number(c.getAttribute('data-cl'))||0; tu+=Number(c.getAttribute('data-tu'))||0; });
+      chks.forEach(function(c){
+        cl+=Number(c.getAttribute('data-cl'))||0;
+        tu+=Number(c.getAttribute('data-tu'))||0;
+        tc+=Number(c.getAttribute('data-tc'))||0;
+      });
       el('qtSelInfo').textContent='Đã chọn '+chks.length+' đơn';
     } else {
-      QT_ROWS_CHO.forEach(function(d){ tu+=Number(d.tamUng)||0; cl+=Number(d.chenhLech)||0; });
+      var s1=_qtSums(QT_ROWS_CHO);
+      tu=s1.tu; tc=s1.mua; cl=s1.cl;
+      /* 🔴 ĐƠN "CHÌM" — đã cấp tiền mà CHƯA gửi quyết toán (anh Thắng 07/09/2026).
+
+         Tiền đã ra khỏi két nhưng chưa có chứng từ nào về, nên:
+           · TẠM ỨNG  -> CỘNG. Đó là tiền công ty đã đưa, đang nằm ở người cầm.
+           · THỰC CHI -> KHÔNG cộng. Chưa ai gửi quyết toán thì chưa có gì để nói là đã tiêu;
+             cộng vào là con số thực chi phình lên bằng một khoản chưa được soát.
+           · THỪA/THIẾU -> cộng NGUYÊN cục tạm ứng, vì đó đúng là *"phần thừa chưa chi"*.
+
+         Không có phần này thì bảng chờ quyết toán trông rất đẹp — mọi đơn đều khớp — trong
+         khi ngoài đời còn mấy chục triệu treo ở đâu đó không ai nhắc tới. */
+      var tuChim=0;
+      QT_ROWS_CHIM.forEach(function(d){ tuChim+=Number(d.tamUng)||0; });
+      tu+=tuChim; cl+=tuChim;
       el('qtSelInfo').textContent=QT_ROWS_CHO.length
         ? (QT_ROWS_CHO.length+' đơn chờ quyết toán') : 'Không có đơn nào chờ quyết toán';
+      if(QT_ROWS_CHIM.length){
+        chim='+ '+QT_ROWS_CHIM.length+' đơn CHƯA gửi quyết toán ('+money(tuChim)+'đ tạm ứng còn treo, chưa tính vào thực chi)';
+      }
     }
+    if(el('qtSelChim')) el('qtSelChim').textContent=chim;
     el('qtSelTU').textContent=money(tu)+'đ';
+    el('qtSelTC').textContent=money(tc)+'đ';
     el('qtSelTotal').textContent=money(cl)+'đ';
     if(el('btnQtChon')) el('btnQtChon').style.display=chks.length?'':'none';
     bar.style.display='flex';
