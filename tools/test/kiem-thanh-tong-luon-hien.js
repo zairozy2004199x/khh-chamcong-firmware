@@ -15,6 +15,7 @@
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
 const HTML = fs.readFileSync('wordpress/vhcp-chi-phi/templates/app.html', 'utf8');
+const CSS_QT = fs.readFileSync('wordpress/vhcp-chi-phi/assets/css/vhcp.css', 'utf8');
 
 let DAT = 0; const TRUOT = [];
 function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== undefined ? (' → ' + JSON.stringify(them)) : '')); } }
@@ -128,29 +129,34 @@ t('đối chứng: hàm bốc ra khép kín', /\}\s*$/.test(fnQt), fnQt.slice(-3
 
 const IDS_QT = ['qtBatchBar', 'qtSelInfo', 'qtSelTU', 'qtSelTC', 'qtSelTotal', 'qtSelChim', 'btnQtChon'];
 const fnSums = bocHam('_qtSums');
+const fnLaChim = bocDong('_laChim');
 t('bốc được _qtSums()', fnSums.length > 100, fnSums.length);
+t('bốc được _laChim()', fnLaChim.length > 30, fnLaChim);
+/* 🔴 ĐƠN CHÌM NAY NẰM CHUNG DANH SÁCH với đơn chờ (chúng đi chung bảng, dạng chìm), nên bệ đỡ
+   phải nối hai mảng lại — đúng như `renderQTList()` làm. Truyền riêng như bản trước là bài
+   kiểm dựng một cảnh không còn tồn tại. */
 function chayQt(rows, chim, tich) {
   const o = dungDom(IDS_QT);
   const f = new Function('el', 'QT_ROWS_CHO', 'QT_ROWS_CHIM', 'qtSelected', 'money',
-    fnSums + '\n' + fnQt + '\nqtUpdateBar();');
-  f(function (id) { return o[id] || null; }, rows, chim, function () { return oTich(tich); },
-    function (n) { return String(n); });
+    fnLaChim + '\n' + fnSums + '\n' + fnQt + '\nqtUpdateBar();');
+  f(function (id) { return o[id] || null; }, (rows || []).concat(chim || []), chim,
+    function () { return oTich(tich); }, function (n) { return String(n); });
   return o;
 }
 
 /* Đúng bảng trong ảnh anh gửi: 7 đơn chờ quyết toán, tạm ứng 23.983.000, thực chi 21.967.000,
    thừa/thiếu 2.016.000. Rút gọn còn ba dòng nhưng giữ nguyên ba con số ấy. */
 const QT = [
-  { tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 },
-  { tamUng: 10000000, soThucMua: 2743000, chenhLech: 7257000 },
-  { tamUng: 10333000, soThucMua: 16134000, chenhLech: -5801000 },
+  { trangThai: 'Chờ quyết toán', tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 },
+  { trangThai: 'Chờ quyết toán', tamUng: 10000000, soThucMua: 2743000, chenhLech: 7257000 },
+  { trangThai: 'Chờ quyết toán', tamUng: 10333000, soThucMua: 16134000, chenhLech: -5801000 },
 ];
 const q = chayQt(QT, [], []);
 teq('🔴 bên quyết toán: thanh cũng LUÔN hiện', 'flex', q.qtBatchBar.style.display);
 teq('🔴 và cũng có ô Tổng tạm ứng', '23983000đ', q.qtSelTU.textContent);
 teq('🔴 ô THỰC CHI ở giữa', '21967000đ', q.qtSelTC.textContent);
 teq('thừa/thiếu vẫn cộng như cũ', '2016000đ', q.qtSelTotal.textContent);
-t('nhãn nói rõ đang cộng cả bảng chờ', /3 đơn chờ quyết toán/.test(q.qtSelInfo.textContent), q.qtSelInfo.textContent);
+t('nhãn nói rõ đang cộng cả bảng chờ', /^3 đơn chờ quyết toán$/.test(q.qtSelInfo.textContent), q.qtSelInfo.textContent);
 teq('⚠️ chưa tích thì ẩn nút duyệt hàng loạt', 'none', q.btnQtChon.style.display);
 teq('không có đơn chìm thì không nói gì thêm', '', q.qtSelChim.textContent);
 
@@ -166,14 +172,20 @@ teq('không có đơn chìm thì không nói gì thêm', '', q.qtSelChim.textCon
 const CHIM = [
   /* Cố ý để `soThucMua` khác 0: đơn đã cấp tiền thì máy chủ vẫn tính thực chi cho nó. Cộng
      nhầm số ấy vào là con số thực chi phình lên bằng một khoản chưa ai soát. */
-  { tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 },
-  { tamUng: 2000000, soThucMua: 1900000, chenhLech: 100000 },
+  { trangThai: 'Đã cấp tạm ứng', tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 },
+  { trangThai: 'Đã cấp tạm ứng', tamUng: 2000000, soThucMua: 1900000, chenhLech: 100000 },
 ];
 const qc = chayQt(QT, CHIM, []);
 teq('🔴 tạm ứng CỘNG cả đơn chìm', '30983000đ', qc.qtSelTU.textContent);
 teq('🔴 thực chi KHÔNG cộng đơn chìm', '21967000đ', qc.qtSelTC.textContent);
-teq('🔴 thừa/thiếu cộng NGUYÊN cục tạm ứng của đơn chìm', '9016000đ', qc.qtSelTotal.textContent);
+teq('🔴 thừa/thiếu KHÔNG cộng đơn chìm', '2016000đ', qc.qtSelTotal.textContent);
 t('và nói rõ có bao nhiêu đơn chìm', /2 đơn CHƯA gửi quyết toán/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
+/* 🔴 ĐẾM ĐÔI LÀ CÁI BẪY CỦA LƯỢT NÀY: đơn chìm nay nằm TRONG `QT_ROWS_CHO`, nên cộng thêm một
+   lần nữa từ `QT_ROWS_CHIM` là 7.000.000đ vào tổng hai lượt — sai theo hướng làm mọi thứ trông
+   tệ hơn thực tế, kiểu sai khó cãi lại nhất vì không ai muốn tin là mình đang thừa tiền. */
+t('🔴 nhãn số đơn chờ KHÔNG kể đơn chìm', /^3 đơn chờ quyết toán$/.test(qc.qtSelInfo.textContent), qc.qtSelInfo.textContent);
+teq('🔴 KHÔNG đếm đôi tạm ứng của đơn chìm (không phải 37.983.000đ)', '30983000đ', qc.qtSelTU.textContent);
+teq('   thừa/thiếu giữ nguyên con số của phần đã soát', '2016000đ', qc.qtSelTotal.textContent);
 t('   kèm số tiền đang treo', /7000000/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
 /* ⚠️ Đối chứng: nếu lỡ cộng `soThucMua` của đơn chìm thì thực chi sẽ là 28.067.000đ. */
 t('⚠️ KHÔNG phải con số của bản cộng nhầm', qc.qtSelTC.textContent !== '28067000đ', qc.qtSelTC.textContent);
@@ -191,9 +203,10 @@ teq('bảng rỗng: thanh vẫn hiện', 'flex', q3.qtBatchBar.style.display);
 t('và nói thẳng là không có đơn nào', /Không có đơn nào/.test(q3.qtSelInfo.textContent), q3.qtSelInfo.textContent);
 /* Không còn đơn chờ nào mà vẫn có đơn chìm -> con số treo vẫn phải hiện ra. */
 const q4 = chayQt([], CHIM, []);
+t('   và nói rõ không có đơn chờ nào', /Không có đơn nào chờ quyết toán/.test(q4.qtSelInfo.textContent), q4.qtSelInfo.textContent);
 teq('🔴 hết đơn chờ nhưng còn đơn chìm: tạm ứng vẫn hiện', '7000000đ', q4.qtSelTU.textContent);
 teq('   thực chi bằng 0', '0đ', q4.qtSelTC.textContent);
-teq('   và cả cục là thừa chưa chi', '7000000đ', q4.qtSelTotal.textContent);
+teq('   và thừa/thiếu bằng 0 (chưa soát đơn nào)', '0đ', q4.qtSelTotal.textContent);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. HAI THANH KHÔNG CÒN ẨN SẴN TRONG MÃ TRANG
@@ -235,6 +248,78 @@ if (mQtChk) {
   t('   lấy từ chính dòng ấy, không phải số cứng',
     /data-tu="'\+\(Number\(d\.tamUng\)/.test(mQtChk[0]), mQtChk[0]);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3b. DÒNG "CHÌM" NẰM NGAY TRONG BẢNG CHỜ QUYẾT TOÁN
+ *
+ * Anh Thắng 07/09/2026: *"hiện thêm các đơn chưa quyết toán chung 1 tuần, nhưng dạng ẩn chìm
+ * và chỉ lấy số tạm ứng nếu đơn đó chưa quyết toán"*.
+ *
+ * Trước đây chúng chỉ có ở một bảng riêng tận cuối trang, nên soát một tuần là phải nhớ cuộn
+ * xuống đối chiếu — mà thứ dễ quên nhất lại đúng là mấy đơn đang treo tiền.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const fnRow = bocHam('_qtRowHtml');
+t('bốc được _qtRowHtml()', fnRow.length > 500, fnRow.length);
+function veHang(d) {
+  return new Function('d', 'canBatch', 'COLS', 'gcls', 'collapsed', 'esc', 'money', 'canDo', 'stCls',
+    fnLaChim + '\n' + fnRow + '\nreturn _qtRowHtml(d, canBatch, COLS, gcls, collapsed);')(
+    d, true, 10, '', false,
+    function (v) { return String(v == null ? '' : v); },
+    function (n) { return String(n); },
+    function () { return true; },
+    function () { return 'st-cho'; });
+}
+const hChim = veHang({ trangThai: 'Đã cấp tạm ứng', maDon: 'D_CHIM', ky: 'T9/2026', coso: 'A',
+  tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 });
+const hCho = veHang({ trangThai: 'Chờ quyết toán', maDon: 'D_CHO', ky: 'T9/2026', coso: 'A',
+  tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 });
+
+t('🔴 dòng chìm mang lớp riêng để nhạt đi', /class="qm[^"]*qt-chim/.test(hChim), hChim.slice(0, 80));
+t('   dòng thường thì không', !/qt-chim/.test(hCho), hCho.slice(0, 80));
+t('🔴 dòng chìm VẪN hiện số tạm ứng', hChim.indexOf('5000000') > 0, hChim);
+/* 🔴 "—" CHỨ KHÔNG PHẢI SỐ 0: số 0 đọc như "đã soát, không chi đồng nào", còn "—" nói đúng
+   chuyện đang xảy ra — chưa có gì để nói. */
+t('🔴 nhưng thực chi để dấu "—", không phải số', hChim.indexOf('4200000') < 0, hChim);
+t('   và thừa/thiếu cũng "—"', hChim.indexOf('800000') < 0, hChim);
+teq('   đúng hai dấu "—"', 2, (hChim.match(/—/g) || []).length);
+t('⚠️ dòng thường vẫn hiện đủ ba số', hCho.indexOf('3650000') > 0 && hCho.indexOf('3090000') > 0 && hCho.indexOf('560000') > 0, hCho);
+/* Chìm thì không tích được (chưa gửi quyết toán thì chẳng có gì để duyệt), và không có nút. */
+t('🔴 dòng chìm KHÔNG có ô tích', hChim.indexOf('class="qtChk"') < 0, hChim);
+t('   và KHÔNG có nút duyệt', hChim.indexOf('qtInlineXacNhan') < 0 && hChim.indexOf('qtInlineNCC') < 0, hChim);
+/* 🔴 CA DUY NHẤT LÀM NÚT MỌC RA: đơn chìm CÓ phần nhà cung cấp chưa duyệt. Không có ca này thì
+   bỏ hẳn chốt "chìm thì không nút" đi bài vẫn xanh — nhánh kia tự false vì thiếu dữ liệu. */
+const hChimNCC = veHang({ trangThai: 'Đã cấp tạm ứng', maDon: 'D_CHIM2', ky: 'T9/2026', coso: 'A',
+  tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000, thucChiNCC: 900000, qtNCC: false });
+t('🔴 đơn chìm CÓ phần NCC chưa duyệt: vẫn KHÔNG mọc nút duyệt',
+  hChimNCC.indexOf('qtInlineNCC') < 0, hChimNCC);
+/* Đối chứng: đơn ĐÃ gửi quyết toán mà còn phần NCC thì nút ấy PHẢI có — nếu không thì phép
+   trên xanh vì nút chẳng bao giờ mọc cho ai cả. */
+const hChoNCC = veHang({ trangThai: 'Chờ quyết toán', maDon: 'D_CHO2', ky: 'T9/2026', coso: 'A',
+  tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000, thucChiNCC: 900000, qtNCC: false, qtCN: true });
+t('⚠️ đối chứng: đơn đã gửi QT còn phần NCC thì CÓ nút duyệt NCC',
+  hChoNCC.indexOf('qtInlineNCC') > 0, hChoNCC);
+t('⚠️ nhưng vẫn mở được chi tiết', hChim.indexOf('viewDon(') > 0, hChim);
+t('dòng thường thì tích được', hCho.indexOf('class="qtChk"') > 0, hCho);
+
+/* --- `_qtSums` là nơi DUY NHẤT biết luật đơn chìm --- */
+function sums(rows) {
+  return new Function('rows', fnLaChim + '\n' + fnSums + '\nreturn _qtSums(rows);')(rows);
+}
+const sChim = sums([{ trangThai: 'Đã cấp tạm ứng', tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 }]);
+teq('🔴 _qtSums: đơn chìm cộng tạm ứng', 5000000, sChim.tu);
+teq('🔴 _qtSums: KHÔNG cộng thực chi', 0, sChim.mua);
+teq('🔴 _qtSums: thừa/thiếu KHÔNG cộng (chưa soát thì chưa có thừa thiếu)', 0, sChim.cl);
+const sCho = sums([{ trangThai: 'Chờ quyết toán', tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 }]);
+teq('⚠️ đơn thường vẫn cộng như cũ (tạm ứng)', 3650000, sCho.tu);
+teq('   (thực chi)', 3090000, sCho.mua);
+teq('   (thừa/thiếu)', 560000, sCho.cl);
+
+/* --- Bảng chờ thật sự có kéo đơn chìm vào --- */
+const HTML_MA3 = HTML.replace(/<!--[\s\S]*?-->/g, ' ');
+t('🔴 bảng chờ nối thêm đơn "Đã cấp tạm ứng"',
+  /\.concat\(\(BOOT\.dons\|\|\[\]\)\.filter\(function\(d\)\{ return d\.trangThai==='Đã cấp tạm ứng' && _qtLoc\(d\); \}\)\)/.test(HTML_MA3),
+  'concat');
+t('lớp .qt-chim có kiểu chữ thật trong css', /tr\.qt-chim > td\{/.test(CSS_QT), 'css');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 4. BẢNG "ĐÃ QUYẾT TOÁN" CÓ Ô LỌC TUẦN RIÊNG — anh Thắng 07/09/2026

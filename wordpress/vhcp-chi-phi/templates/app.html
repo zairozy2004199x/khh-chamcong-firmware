@@ -5330,10 +5330,23 @@
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
   // Tổng Tạm ứng / Thực chi / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
+  /* 🔴 ĐƠN "CHÌM" — đã cấp tiền mà CHƯA gửi quyết toán (anh Thắng 07/09/2026:
+     *"Khi đã cấp tạm ứng thì phần tạm ứng vẫn cộng vào tổng tạm ứng, còn thực chi và thừa
+     thiếu không cộng vào"*).
+
+       · TẠM ỨNG  -> CỘNG. Tiền công ty đã đưa, đang nằm ở người cầm.
+       · THỰC CHI -> KHÔNG cộng. Chưa gửi quyết toán thì chưa có gì để nói là đã tiêu.
+         ⚠️ Đơn đã cấp tiền thì máy chủ VẪN tính thực chi cho nó, nên số ấy có sẵn và rất dễ
+            cộng nhầm — chốt nằm ở đây để không nơi nào phải nhớ lại luật này.
+       · THỪA/THIẾU -> KHÔNG cộng. Cột ấy là kết quả của việc ĐÃ SOÁT; đơn chưa gửi thì chưa
+         soát, chưa có thừa thiếu gì để nói. Con số tạm ứng đang treo của chúng nói riêng ở
+         dòng nhắc bên cạnh thanh tổng, không trộn vào đây. */
+  function _laChim(d){ return d && d.trangThai==='Đã cấp tạm ứng'; }
   function _qtSums(rows){
     var tu=0, mua=0, cl=0;
     (rows||[]).forEach(function(d){
       tu += Number(d.tamUng)||0;
+      if(_laChim(d)){ return; }
       var m=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
       mua += Number(m)||0;
       cl += Number(d.chenhLech)||0;
@@ -5376,16 +5389,27 @@
   function _qtRowHtml(d, canBatch, COLS, gcls, collapsed){
     var cl=d.chenhLech>=0?'pos':'neg';
     var mua=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
+    /* 🔴 ĐƠN CHƯA GỬI QUYẾT TOÁN NẰM NGAY TRONG BẢNG, DẠNG CHÌM (anh Thắng 07/09/2026:
+       *"hiện thêm các đơn chưa quyết toán chung 1 tuần, nhưng dạng ẩn chìm và chỉ lấy số tạm
+       ứng"*). Trước đây chúng chỉ có ở một bảng riêng tận cuối trang, nên soát một tuần là
+       phải nhớ cuộn xuống đối chiếu — mà thứ dễ quên nhất lại đúng là mấy đơn đang treo tiền.
+
+       CHÌM = nhạt hơn, KHÔNG tích được, KHÔNG có nút duyệt, và hai cột Thực chi / Thừa-thiếu
+       để dấu "—" chứ không phải số 0: số 0 đọc như "đã soát, không chi đồng nào", còn "—" nói
+       đúng chuyện đang xảy ra — chưa có gì để nói. */
+    var chim=_laChim(d);
     var canChk=canBatch && d.trangThai==='Chờ quyết toán' && !d.qtCN;
     var chk=canBatch?('<td style="text-align:center">'+(canChk?'<input type="checkbox" class="qtChk" data-m="'+esc(d.maDon)+'" data-cl="'+(Number(d.chenhLech)||0)+'" data-tu="'+(Number(d.tamUng)||0)+'" data-tc="'+(Number(mua)||0)+'" onchange="qtUpdateBar()">':'')+'</td>'):'';
     // Nút DUYỆT ngay ở ô thao tác (khỏi mở trang đầy đủ): xác nhận quyết toán CN, hoặc duyệt NCC — tùy phần còn lại
     var duyetBtn='';
-    if(d.trangThai==='Chờ quyết toán' && canDo('xacNhanQT') && !d.qtCN) duyetBtn='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')" title="Xác nhận quyết toán (chốt thừa/thiếu)">✔ Duyệt</button> ';
+    if(chim) duyetBtn='';   // chưa gửi quyết toán thì chẳng có gì để duyệt
+    else if(d.trangThai==='Chờ quyết toán' && canDo('xacNhanQT') && !d.qtCN) duyetBtn='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')" title="Xác nhận quyết toán (chốt thừa/thiếu)">✔ Duyệt</button> ';
     else if(canDo('duyetNCC') && (Number(d.thucChiNCC)||0)>0 && !d.qtNCC && d.trangThai!=='Nháp') duyetBtn='<button class="btn b-g" onclick="qtInlineNCC(\''+esc(d.maDon)+'\')" title="Duyệt phần NCC (331)">✔ Duyệt NCC</button> ';
     var g=gcls?(' '+gcls):'', hide=(gcls&&collapsed)?' style="display:none"':'';
+    if(chim) g+=' qt-chim';
     return '<tr class="qm'+g+'"'+hide+'>'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
-      '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(mua)+'</td>'+
-      '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
+      '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+(chim?'—':money(mua))+'</td>'+
+      '<td class="money '+(chim?'':cl)+'">'+(chim?'—':money(d.chenhLech))+'</td>'+
       '<td>'+esc(d.httt||'')+'</td>'+
       '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
       '<td style="text-align:center;white-space:nowrap">'+duyetBtn+'<button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
@@ -5452,7 +5476,11 @@
     if(khoa==='cho') QT_ROWS_CHO=rows;
     el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
     el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
-    el('qtSo'+hoa).textContent=rows.length+' đơn';
+    /* Badge đếm RIÊNG: đơn chờ quyết toán là việc phải làm, đơn chìm là việc phải NHẮC — gộp
+       một số là kế toán tưởng còn nhiều việc hơn thực tế. */
+    var nChim0=0; rows.forEach(function(d){ if(_laChim(d)) nChim0++; });
+    el('qtSo'+hoa).textContent=(rows.length-nChim0)+' đơn'
+      +(nChim0?(' + '+nChim0+' chưa gửi'):'');
     el('qtSum'+hoa).innerHTML=rows.length?_qtSumHtml(rows):'';
     el('qtPager'+hoa).innerHTML=_qtPagerHtml(khoa, rows.length, trang, soTrang);
     return rows.length;
@@ -5532,7 +5560,10 @@
     if(el('qtCardTuan')) el('qtCardTuan').style.display=tuan?'':'none';
 
     if(!tuan){
-      var cho=all.filter(function(d){ return d.trangThai==='Chờ quyết toán'; });
+      /* Đơn chìm đi CHUNG bảng với đơn chờ, xếp lẫn theo kỳ — cùng một tuần thì nằm cạnh nhau,
+         đúng cái anh Thắng cần khi soát từng tuần. */
+      var cho=all.filter(function(d){ return d.trangThai==='Chờ quyết toán'; })
+        .concat((BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); }));
       /* Bảng "Đã quyết toán" đi qua bộ lọc RIÊNG, nên dựng lại từ đầu chứ không lọc tiếp từ
          `all` (vốn đã bị ô chung cắt mất mấy tuần). */
       var xong=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã quyết toán' && _qtLocXong(d); });
@@ -5725,25 +5756,21 @@
       });
       el('qtSelInfo').textContent='Đã chọn '+chks.length+' đơn';
     } else {
+      /* 🔴 MỘT LUẬT, MỘT CHỖ — VÀ ĐỪNG CỘNG HAI LẦN.
+         `QT_ROWS_CHO` nay đã GỒM CẢ đơn chìm (chúng nằm chung bảng, dạng chìm), mà `_qtSums()`
+         thì đã biết cách xử chúng. Nên chỉ gọi nó một lượt là xong; cộng thêm `tuChim` ở đây
+         nữa là đếm đôi đúng khoản tiền đang treo — sai theo hướng làm mọi thứ trông tệ hơn
+         thực tế, kiểu sai khó cãi lại nhất vì không ai muốn tin là mình đang thừa tiền. */
       var s1=_qtSums(QT_ROWS_CHO);
       tu=s1.tu; tc=s1.mua; cl=s1.cl;
-      /* 🔴 ĐƠN "CHÌM" — đã cấp tiền mà CHƯA gửi quyết toán (anh Thắng 07/09/2026).
-
-         Tiền đã ra khỏi két nhưng chưa có chứng từ nào về, nên:
-           · TẠM ỨNG  -> CỘNG. Đó là tiền công ty đã đưa, đang nằm ở người cầm.
-           · THỰC CHI -> KHÔNG cộng. Chưa ai gửi quyết toán thì chưa có gì để nói là đã tiêu;
-             cộng vào là con số thực chi phình lên bằng một khoản chưa được soát.
-           · THỪA/THIẾU -> cộng NGUYÊN cục tạm ứng, vì đó đúng là *"phần thừa chưa chi"*.
-
-         Không có phần này thì bảng chờ quyết toán trông rất đẹp — mọi đơn đều khớp — trong
-         khi ngoài đời còn mấy chục triệu treo ở đâu đó không ai nhắc tới. */
-      var tuChim=0;
-      QT_ROWS_CHIM.forEach(function(d){ tuChim+=Number(d.tamUng)||0; });
-      tu+=tuChim; cl+=tuChim;
-      el('qtSelInfo').textContent=QT_ROWS_CHO.length
-        ? (QT_ROWS_CHO.length+' đơn chờ quyết toán') : 'Không có đơn nào chờ quyết toán';
-      if(QT_ROWS_CHIM.length){
-        chim='+ '+QT_ROWS_CHIM.length+' đơn CHƯA gửi quyết toán ('+money(tuChim)+'đ tạm ứng còn treo, chưa tính vào thực chi)';
+      var nCho=0, nChim=0, tuChim=0;
+      QT_ROWS_CHO.forEach(function(d){
+        if(_laChim(d)){ nChim++; tuChim+=Number(d.tamUng)||0; } else { nCho++; }
+      });
+      el('qtSelInfo').textContent=nCho
+        ? (nCho+' đơn chờ quyết toán') : 'Không có đơn nào chờ quyết toán';
+      if(nChim){
+        chim='+ '+nChim+' đơn CHƯA gửi quyết toán ('+money(tuChim)+'đ tạm ứng còn treo, chưa tính vào thực chi)';
       }
     }
     if(el('qtSelChim')) el('qtSelChim').textContent=chim;

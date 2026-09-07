@@ -213,3 +213,13 @@
 #billZoom img{display:block;max-width:none;border-radius:7px}
 /* Ảnh nhỏ trong bảng: cho biết nó rê được. */
 [data-bill]{cursor:zoom-in}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   DÒNG "CHÌM" TRONG BẢNG CHỜ QUYẾT TOÁN (anh Thắng 07/09/2026)
+
+   Đơn đã cấp tiền mà chưa gửi quyết toán nằm chung bảng với đơn chờ, nhưng phải đọc ra ngay
+   là KHÁC LOẠI: nhạt hơn, nền xám, chữ nghiêng ở cột trạng thái. Không làm mờ tới mức khó
+   đọc — đây là mấy đơn đang treo tiền, thứ cần nhắc chứ không phải thứ cần giấu. */
+tr.qt-chim > td{background:#fafafa;color:#64748b}
+tr.qt-chim > td .badge{opacity:.8}
