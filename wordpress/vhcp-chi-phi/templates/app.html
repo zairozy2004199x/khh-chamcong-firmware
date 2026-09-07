@@ -807,7 +807,7 @@
         </div>
         <div class="tw" style="padding:0 14px 14px">
           <table>
-            <thead><tr><th>Lúc duyệt</th><th>Người duyệt</th><th>Kỳ / tuần</th><th style="text-align:right">Tổng tạm ứng</th><th style="text-align:center">Số đơn</th><th style="text-align:center">Số cơ sở</th><th>Cơ sở tạm ứng</th></tr></thead>
+            <thead><tr><th>Lúc duyệt</th><th>Người duyệt</th><th>Kỳ / tuần</th><th style="text-align:right">Tổng tạm ứng</th><th style="text-align:center">Số đơn</th><th style="text-align:center">Số cơ sở</th><th>Cơ sở · số tiền · đơn</th></tr></thead>
             <tbody id="lenhTUBody"></tbody>
           </table>
           <div class="empty" id="lenhTUEmpty">Chưa có lệnh tạm ứng nào.</div>
@@ -902,6 +902,26 @@
           <tbody id="qtBody"></tbody>
         </table>
         <div class="empty" id="qtListEmpty">Không có đơn.</div>
+      </div>
+    </div>
+
+    <!-- ===== LỆNH TẠM ỨNG — bản thứ hai, cho KẾ TOÁN (anh Thắng 07/09/2026) =====
+         Cùng sổ với khối ở tab Duyệt tạm ứng, chỉ khác chỗ đứng. Kế toán là người CẦM TIỀN
+         ĐI PHÁT, nên tờ lệnh phải nằm trong tầm mắt họ chứ không bắt sang tab của quản lý.
+
+         ⚠️ MỘT NGUỒN, HAI CHỖ BÀY. Cùng gọi `dsLenhTU` và cùng đi qua `_veLenhTU()` — dựng hai
+            phép vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con số cho cùng một tờ lệnh. -->
+    <div class="card" id="lenhTUCardKT" style="margin-top:14px">
+      <div class="ch">
+        <h2>📜 Lệnh tạm ứng <span style="font-size:11px;font-weight:400;color:#64748b">— quản lý đã duyệt, kế toán cầm đi phát tiền</span> <span class="badge st-cho" id="lenhTUSoKT">0</span></h2>
+        <button class="btn b-x" onclick="loadLenhTU()">↻ Tải lại</button>
+      </div>
+      <div class="tw" style="padding:0 14px 14px">
+        <table>
+          <thead><tr><th>Lúc duyệt</th><th>Người duyệt</th><th>Kỳ / tuần</th><th style="text-align:right">Tổng tạm ứng</th><th style="text-align:center">Số đơn</th><th style="text-align:center">Số cơ sở</th><th>Cơ sở · số tiền · đơn</th></tr></thead>
+          <tbody id="lenhTUBodyKT"></tbody>
+        </table>
+        <div class="empty" id="lenhTUEmptyKT">Chưa có lệnh tạm ứng nào.</div>
       </div>
     </div>
   </div>
@@ -5155,7 +5175,7 @@
   }
 
   // ===================== QUYẾT TOÁN (danh sách) =====================
-  function loadQT(){ boot(renderQTList); }
+  function loadQT(){ boot(renderQTList); loadLenhTU(); }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
   // Tổng Tạm ứng / Thực chi / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
@@ -5558,18 +5578,28 @@
       LENH_TU=(r&&r.items)||[]; renderLenhTU();
     }).withFailureHandler(function(){ LENH_TU=[]; renderLenhTU(); }).dsLenhTU(50);
   }
-  function renderLenhTU(){
-    var tb=el('lenhTUBody'); if(!tb) return;
-    if(el('lenhTUSo')) el('lenhTUSo').textContent=LENH_TU.length;
-    if(el('lenhTUEmpty')) el('lenhTUEmpty').style.display=LENH_TU.length?'none':'';
+  /* MỘT PHÉP VẼ, DÙNG CHO CẢ HAI CHỖ BÀY (tab Duyệt tạm ứng · tab Quyết toán của kế toán).
+     Dựng hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con số cho cùng một tờ lệnh. */
+  function _veLenhTU(idBody, idSo, idEmpty){
+    var tb=el(idBody); if(!tb) return;
+    if(el(idSo)) el(idSo).textContent=LENH_TU.length;
+    if(el(idEmpty)) el(idEmpty).style.display=LENH_TU.length?'none':'';
     tb.innerHTML=LENH_TU.map(function(L){
-      /* Cơ sở nào tạm ứng bao nhiêu — đây là thứ anh Thắng hỏi, nên bày thẳng ra hàng chứ
-         không giấu sau một nút bấm. Lô lớn thì xuống dòng, vẫn đọc được. */
+      /* Cơ sở nào tạm ứng bao nhiêu, VÀ VÀO NHỮNG ĐƠN NÀO — anh Thắng 07/09/2026. Kế toán cầm
+         tờ lệnh đi phát tiền phải mở được thẳng đơn để soát, chứ không quay sang bảng đơn dò
+         lại theo tên cơ sở: một cơ sở có thể có mấy đơn trong cùng lượt duyệt. */
       var cs=(L.chiTiet||[]).map(function(c){
-        return '<span style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;'
-          +'padding:1px 7px;margin:1px 3px 1px 0;font-size:11.5px">'
+        var ds=(c.maDons||[]).map(function(m){
+          return '<a href="javascript:void(0)" onclick="viewDon(\''+esc(m)+'\')" '
+            +'title="Mở đơn '+esc(m)+'" style="color:#1d4ed8;text-decoration:none;font-family:ui-monospace,Menlo,monospace;'
+            +'font-size:10.5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:0 4px;margin-left:3px">'
+            +esc(m)+'</a>';
+        }).join('');
+        return '<div style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;'
+          +'padding:2px 7px;margin:2px 4px 2px 0;font-size:11.5px">'
           +esc(c.coso||'')+' · <b>'+money(c.tien)+'đ</b>'
-          +((c.soDon>1)?(' <span style="color:#64748b">('+c.soDon+' đơn)</span>'):'')+'</span>';
+          +((c.soDon>1)?(' <span style="color:#64748b">('+c.soDon+' đơn)</span>'):'')
+          +ds+'</div>';
       }).join('');
       return '<tr><td style="white-space:nowrap">'+esc(L.luc||'')+'</td>'
         +'<td>'+esc(L.nguoi||'')+'</td>'
@@ -5579,6 +5609,10 @@
         +'<td style="text-align:center">'+(L.soCoso||0)+'</td>'
         +'<td>'+cs+'</td></tr>';
     }).join('');
+  }
+  function renderLenhTU(){
+    _veLenhTU('lenhTUBody',   'lenhTUSo',   'lenhTUEmpty');    // tab Duyệt tạm ứng
+    _veLenhTU('lenhTUBodyKT', 'lenhTUSoKT', 'lenhTUEmptyKT');  // tab Quyết toán — màn kế toán
   }
   function dvXoaLoc(){ ['dvThang','dvKy','dvCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDuyet(); }
   /* ================= TÁCH KHỐI THEO ĐƠN VỊ (K&H · POSH) =================

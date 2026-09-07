@@ -554,11 +554,41 @@ la('🔴 và nằm SAU bảng đơn, không chen lên trên',
 la('có chỗ vẽ các tờ lệnh', 'id="lenhTUBody"' in _trang)
 la('có câu cho sổ rỗng', 'id="lenhTUEmpty"' in _trang)
 # Ba thứ anh hỏi phải là BA CỘT thật, không nhét chung một ô chữ.
-for _c in ['Tổng tạm ứng', 'Số cơ sở', 'Cơ sở tạm ứng']:
+for _c in ['Tổng tạm ứng', 'Số cơ sở', 'Cơ sở · số tiền · đơn']:
     la('cột "%s"' % _c, _c in _trang)
 # Nạp sổ mỗi lần vào tab — không thì duyệt xong phải tải lại trang mới thấy tờ lệnh.
 la('🔴 vào tab Duyệt là nạp sổ lệnh', 'function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }' in src)
 la('sổ lệnh gọi đúng cửa máy chủ', '.dsLenhTU(' in src)
+
+# --- 🔴 BẢN THỨ HAI CHO KẾ TOÁN (anh Thắng 07/09/2026) ---
+# Kế toán là người cầm tiền đi phát, nên tờ lệnh phải nằm trong tầm mắt họ, không bắt sang
+# tab của quản lý.
+_i_qt = src.index('<div id="page-qt"') if '<div id="page-qt"' in src else -1
+la('tìm được trang Quyết toán', _i_qt > 0)
+_trang_qt = _boc_the(src, _i_qt) if _i_qt > 0 else ''
+la('bốc được trọn trang Quyết toán', len(_trang_qt) > 1000, len(_trang_qt))
+la('🔴 màn kế toán CŨNG có khối lệnh tạm ứng', 'id="lenhTUCardKT"' in _trang_qt)
+la('và nó nằm SAU bảng đơn của màn ấy',
+   _trang_qt.index('id="qtBody"') < _trang_qt.index('id="lenhTUBodyKT"'))
+la('🔴 vào tab Quyết toán cũng nạp sổ lệnh',
+   'function loadQT(){ boot(renderQTList); loadLenhTU(); }' in src)
+# 🔴 MỘT PHÉP VẼ CHO CẢ HAI CHỖ. Hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con
+#    số cho cùng một tờ lệnh — đúng cảnh ảnh 31/08/2026 "2 có số tổng tạm ứng khác nhau".
+la('🔴 hai chỗ bày dùng CHUNG một phép vẽ', 'function _veLenhTU(idBody, idSo, idEmpty){' in src)
+for _b in ['lenhTUBody', 'lenhTUBodyKT']:
+    la('   %s vẽ qua hàm chung' % _b, ("_veLenhTU('%s'" % _b) in src)
+# Mã đơn phải bấm được: một cơ sở có thể có mấy đơn trong cùng lượt duyệt, kế toán cần mở
+# thẳng đơn để soát chứ không dò lại theo tên cơ sở.
+# 🔴 DÒ TRONG ĐÚNG HÀM VẼ, không dò cả tệp: `onclick="viewDon(` có mặt ở dăm chỗ khác trong
+#    app.html, nên dò trần trụi là tự XANH kể cả khi mã đơn trên tờ lệnh đã thành chữ chết.
+_i_ve = src.index('function _veLenhTU(idBody, idSo, idEmpty){')
+_j_ve = src.index('\n  }', _i_ve) + 4
+_fn_ve = src[_i_ve:_j_ve]
+la('bốc được hàm vẽ tờ lệnh', len(_fn_ve) > 400, len(_fn_ve))
+la('đối chứng: hàm bốc ra khép kín', _fn_ve.rstrip().endswith('}'), _fn_ve[-40:])
+la('🔴 tờ lệnh chỉ ra VÀO ĐƠN NÀO', 'c.maDons' in _fn_ve)
+la('và mã đơn bấm được, mở thẳng đơn', 'viewDon(' in _fn_ve)
+la('   dùng chính mã đơn ấy làm nhãn', "esc(m)" in _fn_ve)
 
 print()
 if hong:
