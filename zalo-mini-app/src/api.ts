@@ -1,7 +1,7 @@
 /* Kết nối backend WordPress (vhcp-ghe) — REST công khai vhg/v1/ve/*.
  * ⚠️ ĐỔI BASE cho đúng tên miền web của anh (khmatrix.com). KHÔNG có bí mật ở đây;
  *    số tài khoản nhận tiền do server trả về (vốn công khai trên QR). */
-export const BASE = "https://khmatrix.com/wp-json/vhg/v1";
+export const BASE = "https://khmatrix.com/wp-json/posh/v1";
 
 export interface Goi { ma: number; ten: string; tien: number; mo_ta: string; anh: string; thoi_luong: string; }
 export interface BankTT { ten_nh: string; so_tk: string; ten_tk: string; }
