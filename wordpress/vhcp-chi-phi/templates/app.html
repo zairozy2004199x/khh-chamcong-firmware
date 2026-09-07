@@ -1787,6 +1787,17 @@
    * Ô Tuần/kỳ chỉ liệt kê kỳ THUỘC tháng đang chọn, để hai ô không chọi nhau.
    */
   /** Nạp 3 ô lọc tháng / tuần / cơ sở dùng chung cho nhiều màn. */
+  /* N TUẦN GẦN NHẤT THEO LỊCH — tuần này rồi lùi dần, nhãn dựng đúng khuôn kỳ (`_kyRange`),
+     nên so chuỗi với kỳ của đơn là khớp. */
+  function _tuanGanDay(n){
+    var ra=[], m=_mondayOf(new Date());
+    for(var i=0;i<n;i++){
+      var s=new Date(m); s.setDate(s.getDate()-7*i);
+      var e=new Date(s); e.setDate(e.getDate()+6);
+      ra.push(_kyRange(s,e));
+    }
+    return ra;
+  }
   function _napLocDon(all, idThang, idKy, idCoso){
     function duy(arr){ var o={},r=[]; arr.forEach(function(v){ v=String(v||'').trim(); if(v&&!o[v]){o[v]=1;r.push(v);} }); return r; }
     function nap(id, ds, nhan){
@@ -1797,7 +1808,29 @@
     }
     nap(idThang, duy(all.map(function(d){return _thangCuaKy(d.ky);})).sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tháng —');
     var tc=el(idThang)?el(idThang).value:'';
-    nap(idKy, duy(all.filter(function(d){ return !tc || _thangCuaKy(d.ky)===tc; }).map(function(d){return d.ky;})).sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tuần —');
+    var kyCoDon=duy(all.filter(function(d){ return !tc || _thangCuaKy(d.ky)===tc; }).map(function(d){return d.ky;}));
+    var dsKy;
+    if(tc){
+      /* 🔴 ĐÃ CHỌN THÁNG -> BÀY HẾT TUẦN CỦA THÁNG ẤY. Đây là đường "tra hết các đơn" mà anh
+         Thắng 07/09/2026 nói: ô tuần cắt gọn cho việc hằng ngày, muốn lùi xa thì đi qua ô
+         tháng. Chỉ bày tuần CÓ ĐƠN — tháng cũ mà bày cả tuần rỗng thì danh sách dài ra mà
+         chọn vào chẳng có gì. */
+      dsKy=kyCoDon;
+    } else {
+      /* 🔴 CHƯA CHỌN THÁNG -> TUẦN NÀY + 4 TUẦN TRƯỚC, kể cả tuần chưa có đơn nào.
+         Trước đây ô này chỉ liệt kê tuần CÓ ĐƠN, nên đầu tuần — lúc chưa ai lập đơn — nó rỗng
+         hoặc chỉ có mỗi tuần cũ, mà kế toán thì cần chọn đúng tuần đang chạy để soát.
+
+         ⚠️ Đơn ở tuần XA HƠN vẫn giữ nếu nó mới hơn mốc (đơn lập trước cho tuần sau), chỉ cắt
+            phần cũ hơn — cắt cả hai đầu là giấu mất đơn mà không ai biết. */
+      var gan=_tuanGanDay(5), moc=_kyVal(gan[gan.length-1]);
+      dsKy=duy(gan.concat(kyCoDon)).filter(function(k){ return _kyVal(k)>=moc; });
+    }
+    /* ⚠️ TUẦN ĐANG CHỌN LUÔN CÒN TRONG DANH SÁCH, dù nó nằm ngoài khoảng. Không thì vẽ lại
+       bảng là ô tự nhảy về "Mọi tuần" và người đang đối chiếu mất chỗ đứng. */
+    var dangChon=el(idKy)?String(el(idKy).value||''):'';
+    if(dangChon && dsKy.indexOf(dangChon)<0) dsKy=dsKy.concat([dangChon]);
+    nap(idKy, dsKy.sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tuần —');
     nap(idCoso, duy(all.map(function(d){return d.coso;})).sort(), '— Mọi cơ sở —');
   }
   /* Nạp một ô chọn TUẦN đứng riêng (không kèm tháng/cơ sở như `_napLocDon`). Giữ lựa chọn cũ

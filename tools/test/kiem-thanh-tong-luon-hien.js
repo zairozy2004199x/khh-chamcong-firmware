@@ -20,6 +20,13 @@ let DAT = 0; const TRUOT = [];
 function t(n, ok, them) { if (ok) { DAT++; } else { TRUOT.push(n + (them !== undefined ? (' → ' + JSON.stringify(them)) : '')); } }
 function teq(n, mong, thuc) { t(n + ' (mong ' + JSON.stringify(mong) + ')', JSON.stringify(mong) === JSON.stringify(thuc), thuc); }
 
+/* Hàm khai gọn trên MỘT dòng — `bocHam` tìm dấu đóng `\n  }` nên không bắt được loại này. */
+function bocDong(ten) {
+  const i = HTML.indexOf('  function ' + ten + '(');
+  if (i < 0) return '';
+  const j = HTML.indexOf('\n', i);
+  return (j > i) ? HTML.slice(i, j) : '';
+}
 function bocHam(ten) {
   const i = HTML.indexOf('  function ' + ten + '(');
   if (i < 0) return '';
@@ -314,6 +321,95 @@ t('🔴 bảng đã quyết toán dựng lại từ BOOT.dons, không lọc ti�
   /var xong=\(BOOT\.dons\|\|\[\]\)\.filter\(function\(d\)\{ return d\.trangThai==='Đã quyết toán' && _qtLocXong\(d\); \}\)/.test(HTML_MA2),
   'xong=');
 t('nút bỏ lọc riêng có thật', HTML_MA2.indexOf('qtXoaLocXong()') > 0);
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 5. Ô LỌC TUẦN CHUNG — TUẦN NÀY + 4 TUẦN TRƯỚC (anh Thắng 07/09/2026)
+ *
+ * *"lọc theo tuần hiện tại và 4 tuần phía sau, kèm lọc theo tháng để tra hết các đơn"*.
+ *
+ * Trước đây ô này chỉ liệt kê tuần CÓ ĐƠN, nên đầu tuần — lúc chưa ai lập đơn — nó rỗng hoặc
+ * chỉ còn mỗi tuần cũ (đúng ảnh anh gửi: cả ô chỉ có một tuần). Kế toán thì cần chọn đúng tuần
+ * đang chạy để soát.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+const fnNapLoc = bocHam('_napLocDon');
+const fnTuanGan = bocHam('_tuanGanDay');
+t('bốc được _napLocDon()', fnNapLoc.length > 500, fnNapLoc.length);
+t('bốc được _tuanGanDay()', fnTuanGan.length > 100, fnTuanGan.length);
+t('bốc được _mondayOf() và _kyRange() (hàm một dòng)',
+  bocDong('_mondayOf').length > 60 && bocDong('_kyRange').length > 60,
+  [bocDong('_mondayOf').length, bocDong('_kyRange').length]);
+
+/* Bệ đỡ: ba ô chọn, mỗi ô nhớ innerHTML + value. Ngày "hôm nay" do bài kiểm ghim, nên kết quả
+   không trôi theo lịch thật — bài kiểm phụ thuộc ngày chạy là bài kiểm tự đỏ sau vài tháng. */
+function napLoc(dons, thangDangChon, kyDangChon) {
+  const o = {
+    fThang: { value: thangDangChon || '', innerHTML: '' },
+    fKy: { value: kyDangChon || '', innerHTML: '' },
+    fCoso: { value: '', innerHTML: '' },
+  };
+  /* Bốc luôn `_mondayOf` và `_kyRange` từ mã thật — chép tay hai hàm ấy sang đây là dựng bản
+     sao, rồi bản sao xanh mãi kể cả khi khuôn nhãn kỳ bên kia đã đổi. */
+  const src = 'var _HOM_NAY=new Date(2026,8,10);\n'          // Thứ Năm 10/09/2026
+    + bocDong('_mondayOf') + '\n' + bocDong('_kyRange') + '\n'
+    + fnTuanGan.replace('new Date()', '_HOM_NAY') + '\n' + fnNapLoc
+    + '\n_napLocDon(DONS, "fThang", "fKy", "fCoso");';
+  new Function('el', 'esc', '_kyVal', '_thangCuaKy', 'DONS', src)(
+    function (id) { return o[id] || null; },
+    function (v) { return String(v == null ? '' : v); },
+    function (k) {
+      const m = /\((\d+)\/(\d+)-(\d+)\/(\d+)\/(\d+)\)/.exec(String(k || ''));
+      if (m) return (+m[5]) * 10000 + (+m[2]) * 100 + (+m[1]);
+      const mt = /^(\d+)-(\d+)$/.exec(String(k || ''));
+      return mt ? (+mt[1]) * 10000 + (+mt[2]) * 100 : -1;
+    },
+    function (k) {
+      const m = /^T(\d+)\/(\d+)/.exec(String(k || ''));
+      return m ? (m[2] + '-' + m[1]) : '';
+    },
+    dons);
+  return o;
+}
+function cacTuan(html) {
+  return (html.match(/<option value="(T[^"]*)"/g) || []).map(function (x) { return x.slice(15, -1); });
+}
+
+/* Tuần chứa 10/09/2026 là 7/9-13/9; bốn tuần trước là 31/8, 24/8, 17/8, 10/8. */
+const D_T9 = { ky: 'T9/2026 (7/9-13/9/2026)', coso: 'A' };
+const D_T7_CU = { ky: 'T7/2026 (6/7-12/7/2026)', coso: 'B' };
+
+const n1 = napLoc([D_T9, D_T7_CU], '', '');
+const t1 = cacTuan(n1.fKy.innerHTML);
+teq('🔴 chưa chọn tháng: đúng 5 tuần', 5, t1.length);
+teq('   tuần này lên đầu', 'T9/2026 (7/9-13/9/2026)', t1[0]);
+teq('   và bốn tuần trước nó', 'T8/2026 (10/8-16/8/2026)', t1[4]);
+/* ⚠️ Tuần bắc hai tháng mang nhãn của tháng NGÀY CUỐI — 31/8-6/9 là "T9/2026", không phải
+   "T8/2026". Đó là luật của `_kyRange`, và bài kiểm phải theo nó chứ không theo trực giác. */
+t('🔴 tuần chưa có đơn nào VẪN được bày (đầu tuần vẫn chọn được tuần đang chạy)',
+  t1.indexOf('T9/2026 (31/8-6/9/2026)') >= 0, t1);
+t('🔴 tuần cũ hơn khoảng thì KHÔNG bày (để dành cho ô tháng)',
+  t1.indexOf('T7/2026 (6/7-12/7/2026)') < 0, t1);
+
+/* --- CHỌN THÁNG -> bày hết tuần CÓ ĐƠN của tháng ấy: đường "tra hết các đơn" --- */
+const n2 = napLoc([D_T9, D_T7_CU], '2026-7', '');
+const t2 = cacTuan(n2.fKy.innerHTML);
+teq('🔴 chọn tháng T7: bày tuần của tháng ấy', 1, t2.length);
+teq('   đúng tuần có đơn', 'T7/2026 (6/7-12/7/2026)', t2[0]);
+t('⚠️ và KHÔNG kéo 5 tuần gần đây vào', t2.indexOf('T9/2026 (7/9-13/9/2026)') < 0, t2);
+
+/* --- ĐƠN Ở TUẦN XA HƠN VỀ PHÍA TRƯỚC vẫn giữ (lập trước cho tuần sau) --- */
+const n3 = napLoc([{ ky: 'T9/2026 (21/9-27/9/2026)', coso: 'A' }], '', '');
+t('⚠️ đơn của tuần chưa tới vẫn có mặt', cacTuan(n3.fKy.innerHTML).indexOf('T9/2026 (21/9-27/9/2026)') >= 0,
+  cacTuan(n3.fKy.innerHTML));
+
+/* --- 🔴 TUẦN ĐANG CHỌN KHÔNG BỊ RƠI khi vẽ lại --- */
+const n4 = napLoc([D_T7_CU], '', 'T7/2026 (6/7-12/7/2026)');
+teq('🔴 tuần đang chọn nằm ngoài khoảng vẫn giữ được', 'T7/2026 (6/7-12/7/2026)', n4.fKy.value);
+t('   và có trong danh sách', cacTuan(n4.fKy.innerHTML).indexOf('T7/2026 (6/7-12/7/2026)') >= 0,
+  cacTuan(n4.fKy.innerHTML));
+
+/* --- Ô THÁNG vẫn bày mọi tháng có đơn, không bị cắt theo 5 tuần --- */
+const thangs = (n1.fThang.innerHTML.match(/<option value="(\d{4}-\d+)"/g) || []);
+teq('⚠️ ô tháng vẫn bày đủ tháng có đơn (T9 và T7)', 2, thangs.length);
 
 if (TRUOT.length) {
   console.log('\n=== THANH TỔNG LUÔN HIỆN ===');
