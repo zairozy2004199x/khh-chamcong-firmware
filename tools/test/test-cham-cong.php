@@ -7950,7 +7950,10 @@ function vp_o_ngay( $ma, $ngay, $tong ) {
 		'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '', 'demSangNgay' => '',
 		'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0, 'buTuNgay' => '',
 		'tuCoSo' => '',
-		'vao' => '08:30', 'ra' => '17:00', 'h2vao' => '', 'h2ra' => '' );
+		'vao' => '08:30', 'ra' => '17:00', 'h2vao' => '', 'h2ra' => '',
+		/* 07/09/2026: thêm ảnh chấm công (xem `VHCC_Luong::vp_tinh_nguoi()`) — cảnh dựng tay ở
+		   đây phải mang đủ khoá như chú thích ⚠️ ngay dưới đây đòi hỏi. */
+		'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '' );
 }
 /* ⚠️ Cảnh dựng tay phải mang ĐỦ khoá mà hàm thật nhận — thiếu `station` là PHP kêu
    "Undefined array key" và hàm đọc chuỗi rỗng, tức nó đang chạy trên một cảnh KHÔNG giống
@@ -7965,6 +7968,40 @@ t( 'tổng lưới lệch tổng phép tính -> KÊU LÊN, không im lặng',
 t( 'và in cả hai con số cạnh nhau để so',
 	strpos( $h_lech, '≠ 5' ) !== false, $h_lech );
 t( 'còn khi khớp thì nói khớp', strpos( $h_vp, 'Tổng từng người khớp' ) !== false );
+
+// ====== 47b. ẢNH CHẤM CÔNG TRÊN LƯỚI CÔNG (VP)
+/* Anh Thắng 07/09/2026, chỉ vào một ô "có giờ vào mà không có giờ ra": *"hiện ảnh chấm công"*.
+   `anh_vao`/`anh_ra` được `VHCC_Nhan::luu_anh()` ghi vào `cham_cong` từ lâu, nhưng trước bản
+   này KHÔNG có chỗ nào đọc lại — ảnh nằm im trên đĩa, không ai xem được. */
+$ngay_anh = vp_o_ngay( 'AV1', '2026-07-01', 1.0 );
+$ngay_anh['anhVao'] = 'vhcc-anh/AV_CS/Tháng 07-2026/AV1_2026-07-01_08-00-00.jpg';
+$ngay_anh['anhRa']  = 'vhcc-anh/AV_CS/Tháng 07-2026/AV1_2026-07-01_17-00-00.jpg';
+$ngay_dem_anh = vp_o_ngay( 'AV1', '2026-07-02', 1.0 );
+$ngay_dem_anh['h2vao']   = '22:00';
+$ngay_dem_anh['h2ra']    = '23:30';
+$ngay_dem_anh['anhH2Vao'] = 'vhcc-anh/AV_CS/Tháng 07-2026/AV1_2026-07-02_22-00-00.jpg';
+$ngay_khong_anh = vp_o_ngay( 'AV1', '2026-07-03', 1.0 );
+$b_anh = array( 'month' => '2026-07', 'station' => 'AV_CS',
+	'rows' => array( array( 'ma' => 'AV1', 'ten' => 'Người AV1', 'tong' => 3.0, 'laKeToan' => false ) ),
+	'detail' => array( $ngay_anh, $ngay_dem_anh, $ngay_khong_anh ) );
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 've_luoi_vp', array( $b_anh ) ); $h_anh_vp = ob_get_clean();
+$url_vao = 'http://example.test/wp-content/uploads/' . $ngay_anh['anhVao'];
+$url_ra  = 'http://example.test/wp-content/uploads/' . $ngay_anh['anhRa'];
+$url_h2  = 'http://example.test/wp-content/uploads/' . $ngay_dem_anh['anhH2Vao'];
+t( 'ngày có ảnh vào: link 📷 mở đúng URL ảnh vào',
+	strpos( $h_anh_vp, '<a href="' . $url_vao . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc VÀO">📷</a>' ) !== false,
+	$h_anh_vp );
+t( 'và link ảnh ra riêng, không lẫn với ảnh vào',
+	strpos( $h_anh_vp, '<a href="' . $url_ra . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc RA">📷</a>' ) !== false,
+	$h_anh_vp );
+t( 'ảnh của ca đêm (hàng 2) mang nhãn riêng, phân biệt được với hàng chính',
+	strpos( $h_anh_vp, '<a href="' . $url_h2 . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc VÀO (đêm)">📷</a>' ) !== false,
+	$h_anh_vp );
+teq( 'đúng 2 khối ảnh trên toàn lưới (ngày 1 hàng chính + ngày 2 hàng đêm) — ngày 3 không ảnh thì không dựng khối',
+	2, substr_count( $h_anh_vp, 'class="manhcc"' ) );
+t( 'màn vẫn KHÔNG có thẻ <script> nào dù vừa thêm link ảnh', stripos( $h_anh_vp, '<script' ) === false, $h_anh_vp );
+teq( 'url_anh_cham() trả rỗng cho đường dẫn rỗng — không tự bịa ra URL',
+	'', vhcc_goi_rieng( 'VHCC_Web', 'url_anh_cham', array( '' ) ) );
 
 /* Tháng không có dữ liệu -> nói rõ, và chỉ đường sang chỗ nạp. */
 $h_vp0 = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2020-01' ) );

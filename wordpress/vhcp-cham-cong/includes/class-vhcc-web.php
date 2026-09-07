@@ -2262,6 +2262,10 @@ class VHCC_Web {
 			. '.tach-cong b{font-weight:700;color:var(--chu)}'
 			. '.mghep{font-size:9.5px;font-weight:700;line-height:1.15;margin-top:2px;padding:0 3px;'
 			. 'border-radius:3px;background:#e0f2fe;color:#0369a1;letter-spacing:.2px}'
+			/* Nhãn 📷 ảnh chấm công — nằm dưới số, ngoài đường bấm sửa/bù nên bấm vào ảnh KHÔNG
+			   mở nhầm biểu mẫu sửa giờ của cả ô. */
+			. '.manhcc{margin-top:2px;line-height:1}'
+			. '.manhcc a{display:inline-block;text-decoration:none;font-size:11px;padding:0 1px}'
 			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
 			. 'border-top:1px dotted var(--vien);color:#475569;font-style:italic;white-space:nowrap}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
@@ -6140,6 +6144,10 @@ class VHCC_Web {
 						. ' — cơ sở ấy đã GHÉP vào bảng này, nên công của nó ĐÃ nằm trong cột TỔNG.' )
 						. '">' . esc_html( $d['tuCoSo'] ) . '</div>';
 				}
+				/* 📷 Ảnh chấm công — hàng chính và ca đêm CÓ THỂ mang ảnh khác nhau (hai lượt bấm
+				   khác nhau), nên gộp cả hai vào cùng một nhãn nhỏ thay vì chọn một. */
+				$ngoai .= self::manh_cham( $d['anhVao'], $d['anhRa'] )
+					. self::manh_cham( $d['anhH2Vao'], $d['anhH2Ra'], true );
 				if ( '' !== $dem_o ) {
 					/* Chú thích của ô nay phải nói CẢ HAI phần — hàng ca đêm không còn ô riêng
 					   để mang chú thích của nó nữa. */
@@ -6222,6 +6230,46 @@ class VHCC_Web {
 	private static function so_vp( $n ) {
 		$n = round( (float) $n, 2 );
 		return rtrim( rtrim( number_format( $n, 2, '.', '' ), '0' ), '.' );
+	}
+
+	/**
+	 * Đường dẫn TƯƠNG ĐỐI (lưu ở `cham_cong.anh_vao`/`anh_ra`, xem `VHCC_Nhan::luu_anh()`) ->
+	 * URL xem được. Chưa từng có chỗ nào đọc lại hai cột này trước bản 07/09/2026 — ảnh vẫn được
+	 * ghi mỗi lượt chấm công gửi kèm ảnh, chỉ là không ai xem lại được cho tới nay.
+	 */
+	private static function url_anh_cham( $duong ) {
+		$duong = trim( (string) $duong );
+		if ( '' === $duong ) { return ''; }
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) ) { return ''; }
+		return trailingslashit( $u['baseurl'] ) . $duong;
+	}
+
+	/**
+	 * Nhãn nhỏ 📷 bấm được, mở đúng ảnh chấm công của lượt đó — anh Thắng 07/09/2026: *"hiện ảnh
+	 * chấm công"*, sau khi soi một ca "có giờ vào mà không có giờ ra" và muốn xem có đúng người
+	 * hay không.
+	 *
+	 * ⚠️ MÀN NÀY KHÔNG SCRIPT (phép thử "màn quản trị KHÔNG có thẻ <script>") nên không phóng to
+	 *    được lúc rê chuột kiểu bên app Chi phí — bấm mở ẢNH GỐC ở tab mới là cách duy nhất còn
+	 *    lại. `title` của liên kết vẫn nói rõ đây là ảnh lúc vào hay lúc ra, phòng khi hai ảnh
+	 *    trùng ngày trông giống hệt nhau trên danh sách.
+	 */
+	private static function manh_cham( $vao, $ra, $nhan_h2 = false ) {
+		$v = self::url_anh_cham( $vao );
+		$r = self::url_anh_cham( $ra );
+		if ( '' === $v && '' === $r ) { return ''; }
+		$hau = $nhan_h2 ? ' (đêm)' : '';
+		$out = '<div class="manhcc">';
+		if ( '' !== $v ) {
+			$out .= '<a href="' . esc_url( $v ) . '" target="_blank" rel="noopener" title="'
+				. esc_attr( 'Ảnh chấm công lúc VÀO' . $hau ) . '">📷</a>';
+		}
+		if ( '' !== $r ) {
+			$out .= '<a href="' . esc_url( $r ) . '" target="_blank" rel="noopener" title="'
+				. esc_attr( 'Ảnh chấm công lúc RA' . $hau ) . '">📷</a>';
+		}
+		return $out . '</div>';
 	}
 
 	/** Chú thích rê chuột của một ô ngày — nói VÌ SAO ô đó ra con số ấy. */

@@ -480,7 +480,7 @@ class VHCC_Luong {
 		$cho  = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
 		$tham = array_merge( $chum, array( $tt . '-%' ) );
 		return VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso FROM '
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso, anh_vao, anh_ra FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
 			$tham ) );
@@ -982,7 +982,12 @@ class VHCC_Luong {
 					/* Giờ THÔ của cả hai hàng. Không dùng để tính công — phép tính đã xong ở trên —
 					   mà để lưới còn nói được VÌ SAO ô này ra con số đó. Một ô công 0.5 không có
 					   giờ đi kèm thì người soi chỉ biết là 0.5, không biết cãi vào đâu. */
-					'vao' => '', 'ra' => '', 'h2vao' => '', 'h2ra' => '', 'gioNgay' => 0.0 );
+					'vao' => '', 'ra' => '', 'h2vao' => '', 'h2ra' => '', 'gioNgay' => 0.0,
+					/* Ảnh chấm công của ĐÚNG lượt bấm — anh Thắng 07/09/2026: *"hiện ảnh chấm
+					   công"*. Ở NGUYÊN ngày ghi giờ thô (h2vao/h2ra), không dồn theo congDem sang
+					   ngày hôm sau: ảnh là bằng chứng của LƯỢT BẤM, còn công đêm mới là thứ dồn
+					   ngày — hai chuyện khác nhau. */
+					'anhVao' => '', 'anhRa' => '', 'anhH2Vao' => '', 'anhH2Ra' => '' );
 			}
 			return $ngay;
 		};
@@ -1009,6 +1014,8 @@ class VHCC_Luong {
 			if ( $chinh ) {
 				$out[ $ngay ]['vao'] = VHCC_DB::hhmm( $chinh[0] );
 				$out[ $ngay ]['ra']  = VHCC_DB::hhmm( $chinh[1] );
+				$out[ $ngay ]['anhVao'] = isset( $chinh[2] ) ? (string) $chinh[2] : '';
+				$out[ $ngay ]['anhRa']  = isset( $chinh[3] ) ? (string) $chinh[3] : '';
 			}
 			/* Kế toán CHỦ NHẬT: lịch nghỉ -> 0 công ngày. Vẫn GIỮ số phút để giao diện hiện được
 			   "đi làm chủ nhật nhưng chủ nhật là ngày nghỉ", không xoá dấu vết. */
@@ -1020,6 +1027,8 @@ class VHCC_Luong {
 			if ( $dem ) {
 				$out[ $ngay ]['h2vao'] = VHCC_DB::hhmm( $dem[0] );
 				$out[ $ngay ]['h2ra']  = VHCC_DB::hhmm( $dem[1] );
+				$out[ $ngay ]['anhH2Vao'] = isset( $dem[2] ) ? (string) $dem[2] : '';
+				$out[ $ngay ]['anhH2Ra']  = isset( $dem[3] ) ? (string) $dem[3] : '';
 			}
 			$ca  = self::vp_ca_hang2( $cfg, $dem ? $dem[0] : null, $dem ? $dem[1] : null );
 			if ( 'tangca' === $ca['loai'] ) {
@@ -1234,7 +1243,12 @@ class VHCC_Luong {
 			}
 			if ( ! isset( $nguoi[ $ma ] ) ) { $nguoi[ $ma ] = array(); }
 			if ( ! isset( $ten[ $ma ] ) || '' === $ten[ $ma ] ) { $ten[ $ma ] = (string) $r['ho_ten']; }
-			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'] );
+			/* [2]/[3] = ảnh chấm công vào/ra của ĐÚNG lượt này (đường dẫn tương đối, xem
+			   `VHCC_Nhan::luu_anh()`) — anh Thắng 07/09/2026: *"hiện ảnh chấm công"*, thêm vào
+			   CUỐI mảng để không đụng chỗ nào đang đọc `$chinh[0]`/`$chinh[1]`/`$dem[0]`/`$dem[1]`
+			   bằng số. */
+			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'],
+				(string) $r['anh_vao'], (string) $r['anh_ra'] );
 			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào. Bảng ghép cộng công của nhiều mã lại; không giữ
 			   dấu vết thì con số đúng mà không ai soi lại được ca đêm nằm ở đâu. */
 			if ( isset( $r['coso'] ) && 0 !== strcasecmp( (string) $r['coso'], (string) $coso ) ) {
