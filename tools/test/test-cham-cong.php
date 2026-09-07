@@ -11705,12 +11705,37 @@ function vhcc_luong_web( $vai, $get = array(), $coso_the = 'TUTU_BT' ) {
 	$_GET = array(); $_COOKIE = array();
 	return $h;
 }
+/**
+ * 🔴 GỌI THẲNG `the_khoi_luong()`, KHÔNG QUA TRANG — anh Thắng 07/09/2026: *"bỏ nguyên lương
+ * luôn, anh chưa cần"*, sau khi đã bỏ 3 cột tiền (cùng ngày). Màn Bảng công từ bản 3.39.0 KHÔNG
+ * còn gọi `the_khoi_luong()` nữa (xem khối 🔴 ở `the_bang_cham()`), nên `vhcc_luong_web()` ở
+ * trên giờ KHÔNG BAO GIỜ còn thấy khối lương — dùng nó để soi khối lương là đo một cái đã tắt,
+ * mọi phép thử sẽ xanh vì lý do sai (trang không gọi hàm) chứ không phải vì hàm chạy đúng.
+ *
+ * `the_khoi_luong()` (và ba hàm con `luong_tho()`/`luong_mtd()`/`luong_vp()`) KHÔNG bị xoá —
+ * chỉ mất chỗ gọi — nên gọi thẳng hàm này qua Reflection vẫn đo được đúng lõi (gác quyền, chọn
+ * đúng bảng theo kiểu cơ sở, không tự bịa công thức) để còn dùng lại được ngay khi cần bật lại.
+ */
+function vhcc_khoi_luong_rieng( $vai, $cs, $th, $coso_the = 'TUTU_BT' ) {
+	$toi = array( 'name' => 'Kế', 'role' => $vai, 'coso' => $coso_the, 'ma_nv' => 'KT9' );
+	ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khoi_luong', array( $toi, $cs, $th ) );
+	return ob_get_clean();
+}
 
-/* ---- Ba kiểu cơ sở, ba bảng khác nhau — dùng CHUNG bộ lọc của Bảng công (ccs/cth) ---- */
-$lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'LW_VP', 'cth' => '2026-08' ) );
+/* ---- Ba kiểu cơ sở, ba bảng khác nhau — dùng CHUNG bộ lọc của Bảng công (ccs/cth) ----
+   🔴 07/09/2026: khối lương KHÔNG còn tự vẽ trên màn Bảng công nữa (xem khối 🔴 ở
+   `the_bang_cham()` — anh Thắng: *"bỏ nguyên lương luôn, anh chưa cần"*). Từ đây tới hết mục
+   65, các phép thử gọi THẲNG `the_khoi_luong()` qua `vhcc_khoi_luong_rieng()` — soi đúng lõi
+   hàm (vẫn nguyên, chỉ mất chỗ gọi), không soi trang thật (trang thật giờ không gọi nó nữa). */
+t( '🔴 màn Bảng công thật (Kế toán, cơ sở tính THEO CÔNG) KHÔNG còn khối Lương nào',
+	strpos( vhcc_luong_web( 'Kế toán', array( 'ccs' => 'LW_VP', 'cth' => '2026-08' ) ), '<b>Lương</b>' ) === false );
+t( 'và cũng KHÔNG còn với cơ sở Máy tự động (POSH_HCM)',
+	strpos( vhcc_luong_web( 'Kế toán', array( 'ccs' => 'POSH_HCM', 'cth' => '2026-08' ) ), '<b>Lương</b>' ) === false );
+
+$lw_h = vhcc_khoi_luong_rieng( 'Kế toán', 'LW_VP', '2026-08' );
 /* ⚠️ Khối này ĐỔI TÊN từ "Giờ & Lương" thành "Lương" ở bản 2.63.0: bốn cột công (ngày · tăng
    ca · đêm · bù) đã dời lên cột TỔNG của lưới, nên nó không còn phần "giờ" nào nữa. */
-t( '🔴 khối Lương hiện ngay trong màn Bảng công',
+t( '🔴 the_khoi_luong() vẫn dựng đúng khối Lương khi gọi thẳng',
 	strpos( $lw_h, '<b>Lương</b>' ) !== false, $lw_h );
 /* 🔴 HAI BẢNG PHỤ ĐÃ BỎ — LƯỚI NÓI HẾT.
    Anh Thắng 27/08/2026, hai lượt liền: *"bỏ bảng này đi, không cần thiết"* (bảng lương
@@ -11743,7 +11768,7 @@ t( 'và KHÔNG có ô chọn tháng riêng', strpos( $lw_h, 'name="lth"' ) === f
 t( 'tiêu đề khối nói rõ đang xem cơ sở nào, tháng nào',
 	strpos( $lw_h, 'LW_VP' ) !== false && strpos( $lw_h, '2026-08' ) !== false );
 
-$lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'POSH_HCM', 'cth' => '2026-08' ) );
+$lw_h = vhcc_khoi_luong_rieng( 'Kế toán', 'POSH_HCM', '2026-08' );
 /* 🔴 BA CỘT TIỀN (Tiền công/Tiền giờ/Tổng) ĐÃ BỎ khỏi bảng Máy tự động — anh Thắng 07/09/2026,
    ảnh chụp đúng bảng này (toàn 0 vì chưa khai đơn giá): *"Loại bỏ lương chưa cần thiết"*. Xem
    khối 🔴 ở `luong_mtd()`. Soi CÔNG + GIỜ qua "Giờ cuối tuần" — cột tiền không còn nữa nên
@@ -11755,7 +11780,7 @@ t( 'và KHÔNG còn cột tiền nào (chưa cần thiết, đơn giá chưa kha
 
 /* 🔴 CƠ SỞ CHƯA CÓ CÔNG THỨC thì KHÔNG bịa ra tiền. Bịa một công thức là đưa ra con số tiền mà
    không ai biết từ đâu — mà bảng thì vẫn có số nên chẳng ai nghi. */
-$lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'LW_THO', 'cth' => '2026-08' ) );
+$lw_h = vhcc_khoi_luong_rieng( 'Kế toán', 'LW_THO', '2026-08' );
 t( '🔴 cơ sở chưa khai bộ phận thì nói thẳng là CHƯA CÓ công thức lương',
 	strpos( $lw_h, 'chưa có công thức lương' ) !== false, $lw_h );
 t( 'và không có cột tiền nào',
@@ -11771,20 +11796,27 @@ $lw_h = vhcc_luong_web( 'Cửa hàng trưởng', array( 'ccs' => 'LW_VP', 'cth' 
 t( 'Cửa hàng trưởng vẫn vào được màn Bảng công', strpos( $lw_h, 'Chấm công' ) !== false, $lw_h );
 t( 'và thật sự đọc được bảng công của cơ sở mình (chốt cơ sở KHÔNG chối họ)',
 	strpos( $lw_h, 'LW_VP' ) !== false, $lw_h );
-t( '🔴 nhưng KHÔNG thấy khối Giờ & Lương', strpos( $lw_h, 'Giờ &amp; Lương' ) === false, $lw_h );
+/* 🔴 07/09/2026: trang thật đã KHÔNG còn gọi `the_khoi_luong()` cho BẤT KỲ ai (xem khối 🔴 ở
+   `vhcc_khoi_luong_rieng()`), nên soi `$lw_h` ở trên để biết "CHT có thấy khối lương không" là
+   đo một cái chắc chắn không, vì lý do khác hẳn ("trang không gọi") chứ không phải "chốt quyền
+   chối họ". Gọi THẲNG hàm để đo đúng chốt quyền — vẫn còn ý nghĩa cho ngày cần bật lại. */
+$lw_cht = vhcc_khoi_luong_rieng( 'Cửa hàng trưởng', 'LW_VP', '2026-08', 'LW_VP' );
+t( '🔴 nhưng KHÔNG thấy khối Lương (kể cả gọi thẳng hàm)',
+	strpos( $lw_cht, '<b>Lương</b>' ) === false, $lw_cht );
 t( '🔴 và không một con số tiền nào lọt xuống HTML của họ',
-	strpos( $lw_h, 'Đơn giá 1 công' ) === false && strpos( $lw_h, 'Tiền công' ) === false, $lw_h );
-$lw_h = vhcc_luong_web( 'Quản lý', array( 'ccs' => 'LW_VP', 'cth' => '2026-08' ), 'LW_VP' );
-t( '🔴 Quản lý cũng KHÔNG thấy khối lương', strpos( $lw_h, 'Giờ &amp; Lương' ) === false, $lw_h );
+	strpos( $lw_cht, 'Đơn giá 1 công' ) === false && strpos( $lw_cht, 'Tiền công' ) === false, $lw_cht );
+$lw_ql = vhcc_khoi_luong_rieng( 'Quản lý', 'LW_VP', '2026-08', 'LW_VP' );
+t( '🔴 Quản lý cũng KHÔNG thấy khối lương (kể cả gọi thẳng hàm)',
+	strpos( $lw_ql, '<b>Lương</b>' ) === false, $lw_ql );
 
 /* Chưa chọn cơ sở thì KHÔNG vẽ khối lương — không có cơ sở thì lương của ai?
    ⚠️ Soi chính CÁI KHỐI, đừng soi mỗi tên cột. Bỏ chốt `$cs` rỗng thì
       `bang_cong_va_luong('')` trả lỗi "Thiếu cơ sở", khối vẫn vẽ ra một `<details>` mang câu
       lỗi ấy — không có cột "Đơn giá 1 công" nào, nên phép thử soi tên cột vẫn xanh trong khi
       màn đã mọc thêm một khối rỗng vô nghĩa. Phá thử tìm ra. */
-$lw_h = vhcc_luong_web( 'Kế toán', array( 'cth' => '2026-08' ) );
-t( '🔴 chưa chọn cơ sở thì KHÔNG mọc ra khối Giờ & Lương nào',
-	strpos( $lw_h, 'Giờ &amp; Lương' ) === false, $lw_h );
+$lw_h = vhcc_khoi_luong_rieng( 'Kế toán', '', '2026-08' );
+t( '🔴 chưa chọn cơ sở thì KHÔNG mọc ra khối Lương nào',
+	strpos( $lw_h, '<b>Lương</b>' ) === false, $lw_h );
 t( 'và tất nhiên không có cột tiền nào', strpos( $lw_h, 'Đơn giá 1 công' ) === false, $lw_h );
 
 /* ---- 🔴 LỖI THẬT TÌM RA KHI GỘP: Kế toán chỉ thấy ĐÚNG MỘT cơ sở ----
@@ -11818,10 +11850,13 @@ t( 'ds_coso_xem hỏi QUYỀN chứ không so tên vai',
 	&& strpos( $lw_ma, "if ( 'Admin' === \$vt || 'Quản lý' === \$vt )" ) === false );
 
 /* Địa chỉ cũ `?man=luong` phải dẫn về Bảng công, đừng để ai đã lưu lại đường ấy rơi về màn mặc
-   định mà không hiểu vì sao. */
+   định mà không hiểu vì sao.
+   ⚠️ 07/09/2026: KHÔNG còn đòi thấy `<b>Lương</b>` — khối ấy đã tắt cho MỌI người (xem khối 🔴
+      ở `vhcc_khoi_luong_rieng()`), nên còn lại đúng phần vẫn thật: địa chỉ cũ đưa về ĐÚNG màn
+      Bảng công, không rơi về màn mặc định nào khác. */
 $lw_h = vhcc_luong_web( 'Kế toán', array( 'man' => 'luong', 'ccs' => 'LW_VP', 'cth' => '2026-08' ) );
 t( '🔴 địa chỉ cũ ?man=luong dẫn về Bảng công, không rơi về màn mặc định',
-	strpos( $lw_h, '<b>Lương</b>' ) !== false && strpos( $lw_h, 'Chấm công' ) !== false, $lw_h );
+	strpos( $lw_h, 'Chấm công' ) !== false, $lw_h );
 
 /* ⚠️ Chốt cơ sở của khối: `bang_cong_va_luong()` không nhận người dùng nên nó không gác gì.
    Nhánh ấy hiện chưa từng chối ai (bậc `luong` = 4 đã có `cong_tat_ca` = 3), nhưng giữ — nó
@@ -11847,9 +11882,13 @@ t( '🔴 và gác riêng bằng quyền luong, không đi theo cửa của màn 
 t( '🔴 và không vẽ gì khi chưa có cơ sở',
 	strpos( $lw_than1, "if ( '' === \$cs ) { return; }" ) !== false, $lw_than1 );
 
-/* Màn quản trị KHÔNG có script — luật chung, khối mới không được phá lệ. */
-t( '🔴 màn có khối lương vẫn không có thẻ script nào', stripos( $lw_h, '<script' ) === false );
+/* Màn quản trị KHÔNG có script — luật chung. Khối lương đã tắt trên trang thật (ở trên), nên
+   đây là phép thử chung của cả màn Bảng công, không riêng gì khối lương nữa. */
+t( '🔴 màn Bảng công không có thẻ script nào', stripos( $lw_h, '<script' ) === false );
 t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $lw_h ) === 0, $lw_h );
+/* Và hàm the_khoi_luong() (gọi thẳng) cũng vẫn giữ luật ấy — cần bật lại thì không phá lệ. */
+t( '🔴 the_khoi_luong() gọi thẳng cũng không có thẻ script nào',
+	stripos( $lw_cht, '<script' ) === false, $lw_cht );
 vhcc_dung_bang();
 
 /* ==========================================================================================

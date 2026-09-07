@@ -3847,15 +3847,15 @@ class VHCC_Web {
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
 
-			/* 🔴 GIỜ & LƯƠNG NẰM NGAY DƯỚI, CÙNG CƠ SỞ CÙNG THÁNG. Anh Thắng 27/08/2026: *"bảng
-			   công và giờ lương gộp lại thành 1 trang"*.
-			   ⚠️ Đặt SAU `ve_bang_cham` chứ không phải trước: người ta mở màn này ra để xem BẢNG
-			      CÔNG, còn lương là thứ soi sau. Đảo lại là mỗi lần mở phải cuộn qua bảng tiền mới
-			      tới thứ mình cần.
-			   ⚠️ Và chỉ ở nhánh bảng công VẼ ĐƯỢC — bảng công lỗi mà vẫn in bảng tiền ra thì đó là
-			      tiền tính từ một tháng không đọc nổi. */
+			/* 🔴 KHỐI "LƯƠNG" ĐÃ BỎ KHỎI MÀN — anh Thắng 07/09/2026, sau khi đã bỏ 3 cột tiền của
+			   bảng mtd (bản 3.39.0): *"bỏ nguyên lương luôn, anh chưa cần"*. Trước đây gộp vào
+			   đây 27/08/2026: *"bảng công và giờ lương gộp lại thành 1 trang"* — nay bỏ lại, vì
+			   lương CHƯA CẦN ở giai đoạn này (đơn giá còn chưa khai xong cho các cơ sở).
+			   ⚠️ CHỈ BỎ LỜI GỌI, KHÔNG XOÁ `the_khoi_luong()`. Hàm dựng màn (và ba hàm con
+			      `luong_tho()`/`luong_mtd()`/`luong_vp()`) vẫn nguyên — cần lại lương thì chỉ việc
+			      gọi lại đúng dòng dưới đây, không phải dựng lại từ đầu. `VHCC_Luong` (lõi tính
+			      tiền) cũng không đụng: tính lương qua nơi khác (nếu có) vẫn ra đúng số. */
 			self::the_khoi_in( $toi, $mot_cs, $th );
-			self::the_khoi_luong( $toi, $mot_cs, $th );
 			echo '</details></div>';
 		}
 	}
