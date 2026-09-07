@@ -2012,19 +2012,20 @@ teq( '🔴 ô là số giờ THẬP PHÂN (9.5), không phải chuỗi "9h30"', 
 teq( 'cột cuối ghi rõ TỔNG GIỜ', 'TỔNG GIỜ', $to_xg[0]['hang'][0][33] );
 teq( 'ngày thiếu giờ ra không cộng giờ nào vào tổng', 9.5, $to_xg[0]['hang'][1][33] );
 
-/* ---- Qua MÀN HÌNH: nút phải có ở CẢ HAI kiểu cơ sở ---- */
-foreach ( array( $cs_xl => 'số công', $cs_xg => 'số giờ' ) as $cs_n => $dv_n ) {
+/* ---- Qua MÀN HÌNH: nút "Xuất bảng công (.xlsx)" ĐÃ BỎ khỏi màn 07/09/2026 ----
+   Anh Thắng, kèm ảnh chụp đúng nút này: *"loại bỏ cái này"*. Xem khối 🔴 ở `the_luoi_thang()`
+   (chỗ từng vẽ nút, ngoài cả hai nhánh công/giờ).
+   ⚠️ CHỈ BỎ NÚT — `xuat_luoi()` (viec `xuat=luoi`) không đụng, `vi_sao_khong_xuat()`/
+      `xuat_can_zip()` dưới đây vẫn kiểm nguyên lõi đó, độc lập với màn có nút hay không. */
+foreach ( array( $cs_xl, $cs_xg ) as $cs_n ) {
 	$_GET = array( 'man' => 'cham', 'ccs' => $cs_n, 'cth' => '2026-08' );
 	$_POST = array();
 	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Sếp Xuất', 'Admin', $cs_n, 'ADXL' );
 	ob_start(); VHCC_Web::phuc_vu(); $h_n = ob_get_clean();
 	$_GET = array(); $_COOKIE = array();
-	t( 'màn ' . $cs_n . ' có nút Xuất bảng công',
-		strpos( $h_n, 'Xuất bảng công (.xlsx)' ) !== false
-		&& strpos( $h_n, 'xuat=luoi' ) !== false, substr( $h_n, 0, 400 ) );
-	/* Câu bên cạnh nút phải nói ĐÚNG đơn vị của cơ sở ấy — nói sai đơn vị là hứa một tệp
-	   khác với tệp thật ra, và người ta mở lên mới biết. */
-	t( 'và nói đúng đơn vị của ô: ' . $dv_n, strpos( $h_n, 'mỗi ô một ' . $dv_n ) !== false, $dv_n );
+	t( 'màn ' . $cs_n . ' KHÔNG còn nút Xuất bảng công (.xlsx)',
+		strpos( $h_n, 'Xuất bảng công (.xlsx)' ) === false
+		&& strpos( $h_n, 'xuat=luoi' ) === false, substr( $h_n, 0, 400 ) );
 }
 t( '🔴 loại xuất "luoi" được nhận, không bị chối là kiểu lạ',
 	'' === VHCC_Web::vi_sao_khong_xuat( array( 'role' => 'Admin', 'coso' => '' ), 'luoi', $cs_xl )
@@ -11743,8 +11744,14 @@ t( 'tiêu đề khối nói rõ đang xem cơ sở nào, tháng nào',
 	strpos( $lw_h, 'LW_VP' ) !== false && strpos( $lw_h, '2026-08' ) !== false );
 
 $lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'POSH_HCM', 'cth' => '2026-08' ) );
+/* 🔴 BA CỘT TIỀN (Tiền công/Tiền giờ/Tổng) ĐÃ BỎ khỏi bảng Máy tự động — anh Thắng 07/09/2026,
+   ảnh chụp đúng bảng này (toàn 0 vì chưa khai đơn giá): *"Loại bỏ lương chưa cần thiết"*. Xem
+   khối 🔴 ở `luong_mtd()`. Soi CÔNG + GIỜ qua "Giờ cuối tuần" — cột tiền không còn nữa nên
+   không dùng "Tiền giờ" làm dấu hiệu "có phần giờ" được nữa. */
 t( 'cơ sở Máy tự động ra bảng theo CÔNG + GIỜ',
-	strpos( $lw_h, 'Công cuối tuần' ) !== false && strpos( $lw_h, 'Tiền giờ' ) !== false, $lw_h );
+	strpos( $lw_h, 'Công cuối tuần' ) !== false && strpos( $lw_h, 'Giờ cuối tuần' ) !== false, $lw_h );
+t( 'và KHÔNG còn cột tiền nào (chưa cần thiết, đơn giá chưa khai)',
+	strpos( $lw_h, 'Tiền giờ' ) === false && strpos( $lw_h, 'Tiền công' ) === false, $lw_h );
 
 /* 🔴 CƠ SỞ CHƯA CÓ CÔNG THỨC thì KHÔNG bịa ra tiền. Bịa một công thức là đưa ra con số tiền mà
    không ai biết từ đâu — mà bảng thì vẫn có số nên chẳng ai nghi. */

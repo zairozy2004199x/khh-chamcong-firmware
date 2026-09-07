@@ -4296,16 +4296,12 @@ class VHCC_Web {
 				. '<b>giờ vào–giờ ra</b> ngay dưới số giờ công. Mở bằng trình duyệt hoặc kéo thẳng '
 				. 'vào Word / Zalo; muốn ra .png thì mở lên rồi chuột phải → lưu ảnh.</span></p>';
 		}
-		/* 🔴 NÚT XUẤT BẢNG CÔNG NẰM NGOÀI CẢ HAI NHÁNH — anh Thắng 31/08/2026: *"bổ sung xuất
-		   bảng công ra"*. Anh gửi ảnh màn `VP_KH-HCM`, cơ sở tính THEO CÔNG, và ở đó không có
-		   một nút xuất nào: hai nút cũ (`ca`, `anh`) vẽ trong nhánh `else`, tức chỉ cơ sở tính
-		   theo giờ mới thấy. Cái người ta gửi đi đối chiếu là CHÍNH CÁI LƯỚI này, mà lưới thì
-		   cơ sở nào cũng có. Nên nút ở đây, ngoài nhánh, cho cả hai. */
-		echo '<p style="margin:10px 0 0"><a class="nut" href="'
-			. esc_url( add_query_arg( array( 'xuat' => 'luoi', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
-			. '">⬇ Xuất bảng công (.xlsx)</a> <span class="mo">— đúng cái lưới đang xem, mỗi ô '
-			. 'một ' . ( $la_vp ? 'số công' : 'số giờ' ) . ', kèm trang <b>Ô cần soi</b> nói rõ ngày nào '
-			. 'thiếu giờ' . ( $la_vp ? ', ngày nào có ca đêm' : '' ) . '.</span></p>';
+		/* 🔴 NÚT "XUẤT BẢNG CÔNG (.xlsx)" (nút ngoài cả hai nhánh, cho MỌI cơ sở) ĐÃ BỎ KHỎI MÀN —
+		   anh Thắng 07/09/2026: *"loại bỏ cái này"* (kèm ảnh chụp đúng nút này). Từng thêm
+		   31/08/2026 để cơ sở tính THEO CÔNG cũng có đường xuất — hai nút `ca`/`anh` bên dưới vẫn
+		   còn, chỉ riêng cơ sở tính theo giờ mới thấy chúng.
+		   ⚠️ CHỈ BỎ NÚT, KHÔNG BỎ ĐƯỜNG XUẤT. `xuat_luoi()` (viec `xuat=luoi`) vẫn nguyên —
+		      cần lại đường này thì chỉ việc thêm nút, không phải dựng lại hàm xuất. */
 
 		/* 🔴 BẢNG GHÉP PHẢI NÓI RA NÓ ĐANG GỒM NHỮNG GÌ. Một bảng lặng lẽ cộng thêm công của một
 		   mã cơ sở khác là con số đúng mà không ai kiểm được — người đọc cộng tay lại theo mã
@@ -6541,10 +6537,15 @@ class VHCC_Web {
 		if ( ! empty( $m['theoGioCaCoSo'] ) ) {
 			echo '<p class="mo">Cơ sở này được tích “tính theo giờ” — mọi dòng tính theo tiếng.</p>';
 		}
+		/* 🔴 BA CỘT TIỀN (Tiền công/Tiền giờ/Tổng) ĐÃ BỎ KHỎI BẢNG NÀY — anh Thắng 07/09/2026,
+		   ảnh chụp đúng bảng này (toàn 0 vì cơ sở chưa khai đơn giá): *"Loại bỏ lương chưa cần
+		   thiết"*. Bảng giờ chỉ còn Công/Giờ — đúng phần đã có số thật, chưa cần đơn giá.
+		   ⚠️ CHỈ BỎ MÀN HIỂN THỊ. `VHCC_Luong` vẫn tính đủ `tienCong`/`tienGio`/`tong` như cũ
+		      trong `$m` (đơn giá khai xong là có ngay, không phải sửa lại đây) — engine không
+		      đụng, chỉ ba cột và dòng tổng tiền không còn in ra màn nữa. */
 		echo '<div class="cuon"><table><thead><tr><th>Mã</th><th>Tên</th>'
 			. '<th>Công thường</th><th>Công cuối tuần</th><th>Công lễ</th>'
-			. '<th>Giờ thường</th><th>Giờ cuối tuần</th><th>Giờ lễ</th>'
-			. '<th>Tiền công</th><th>Tiền giờ</th><th>Tổng</th></tr></thead><tbody>';
+			. '<th>Giờ thường</th><th>Giờ cuối tuần</th><th>Giờ lễ</th></tr></thead><tbody>';
 		foreach ( $m['rows'] as $e ) {
 			echo '<tr><td><b>' . esc_html( $e['ma'] ) . '</b></td><td>' . esc_html( $e['ten'] ) . '</td>'
 				. '<td>' . esc_html( $e['cong']['thuong'] ) . '</td>'
@@ -6552,16 +6553,9 @@ class VHCC_Web {
 				. '<td>' . esc_html( $e['cong']['le'] ) . '</td>'
 				. '<td>' . esc_html( $e['gio']['thuong'] ) . '</td>'
 				. '<td>' . esc_html( $e['gio']['cuoiTuan'] ) . '</td>'
-				. '<td>' . esc_html( $e['gio']['le'] ) . '</td>'
-				. '<td>' . esc_html( number_format( $e['tienCong'] ) ) . '</td>'
-				. '<td>' . esc_html( number_format( $e['tienGio'] ) ) . '</td>'
-				. '<td><b>' . esc_html( number_format( $e['tong'] ) ) . '</b></td></tr>';
+				. '<td>' . esc_html( $e['gio']['le'] ) . '</td></tr>';
 		}
-		echo '</tbody><tfoot><tr><th colspan="8">Tổng</th>'
-			. '<th>' . esc_html( number_format( $m['tong']['tienCong'] ) ) . '</th>'
-			. '<th>' . esc_html( number_format( $m['tong']['tienGio'] ) ) . '</th>'
-			. '<th>' . esc_html( number_format( $m['tong']['tong'] ) ) . '</th></tr></tfoot>';
-		echo '</table></div></div>';
+		echo '</tbody></table></div></div>';
 	}
 
 	/** Văn phòng — tính theo NGÀY CÔNG, có tăng ca / ca đêm / công bù. */
