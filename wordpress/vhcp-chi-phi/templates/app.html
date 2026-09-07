@@ -776,7 +776,7 @@
           <button class="btn b-x" onclick="loadDuyet()">↻ Tải lại</button>
         </div>
       </div>
-      <div id="duyetBatchBar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:10px">
+      <div id="duyetBatchBar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:10px">
         <b id="duyetSelInfo">Đã chọn 0 đơn</b>
         <span>Tổng tạm ứng: <b id="duyetSelTotal" style="color:#166534">0đ</b></span>
         <span style="flex:1"></span>
@@ -848,11 +848,12 @@
         <h2>⏳ Chờ quyết toán <span style="font-size:11px;font-weight:400;color:#64748b">— kế toán xác nhận</span> <span class="badge st-cho" id="qtSoCho">0</span></h2>
         <div style="font-size:12px;color:#475569" id="qtSumCho"></div>
       </div>
-      <div id="qtBatchBar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:10px 14px">
+      <div id="qtBatchBar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:10px 14px">
         <b id="qtSelInfo">Đã chọn 0 đơn</b>
+        <span>Tổng tạm ứng: <b id="qtSelTU" style="color:#166534">0đ</b></span>
         <span>Tổng thừa/thiếu: <b id="qtSelTotal" style="color:#166534">0đ</b></span>
         <span style="flex:1"></span>
-        <button class="btn b-g" onclick="doQtChon()">✔ Duyệt chi phí các đơn đã chọn</button>
+        <button class="btn b-g" id="btnQtChon" onclick="doQtChon()" style="display:none">✔ Duyệt chi phí các đơn đã chọn</button>
       </div>
       <div class="tw">
         <table>
@@ -5313,7 +5314,7 @@
     var cl=d.chenhLech>=0?'pos':'neg';
     var mua=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
     var canChk=canBatch && d.trangThai==='Chờ quyết toán' && !d.qtCN;
-    var chk=canBatch?('<td style="text-align:center">'+(canChk?'<input type="checkbox" class="qtChk" data-m="'+esc(d.maDon)+'" data-cl="'+(Number(d.chenhLech)||0)+'" onchange="qtUpdateBar()">':'')+'</td>'):'';
+    var chk=canBatch?('<td style="text-align:center">'+(canChk?'<input type="checkbox" class="qtChk" data-m="'+esc(d.maDon)+'" data-cl="'+(Number(d.chenhLech)||0)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="qtUpdateBar()">':'')+'</td>'):'';
     // Nút DUYỆT ngay ở ô thao tác (khỏi mở trang đầy đủ): xác nhận quyết toán CN, hoặc duyệt NCC — tùy phần còn lại
     var duyetBtn='';
     if(d.trangThai==='Chờ quyết toán' && canDo('xacNhanQT') && !d.qtCN) duyetBtn='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')" title="Xác nhận quyết toán (chốt thừa/thiếu)">✔ Duyệt</button> ';
@@ -5384,6 +5385,8 @@
     if(QT_TRANG[khoa]>soTrang) QT_TRANG[khoa]=soTrang;
     var trang=QT_TRANG[khoa];
     var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
+    /* Giữ CẢ NHÓM (không phải chỉ trang đang xem) để thanh tổng cộng đúng — xem `qtUpdateBar`. */
+    if(khoa==='cho') QT_ROWS_CHO=rows;
     el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
     el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
     el('qtSo'+hoa).textContent=rows.length+' đơn';
@@ -5620,12 +5623,29 @@
   // ---- Batch duyệt chi phí (KT cá nhân) ----
   function qtSelected(){ return [].slice.call(document.querySelectorAll('.qtChk:checked')); }
   function qtToggleAll(cb){ [].slice.call(document.querySelectorAll('.qtChk')).forEach(function(c){ c.checked=cb.checked; }); qtUpdateBar(); }
+  var QT_ROWS_CHO=[];
+  /* 🔴 CÙNG LUẬT VỚI THANH BÊN TAB DUYỆT (anh Thắng 07/09/2026: *"nhớ cả bên quyết toán
+     luôn"*): lúc nào cũng hiện, chưa tích gì thì cộng CẢ BẢNG chờ quyết toán.
+
+     ⚠️ Ở màn này mọi đơn đều ĐÃ qua cửa duyệt tạm ứng — có duyệt và cấp tiền rồi mới tới bước
+        quyết toán — nên không phải lọc theo trạng thái như bên kia. Cộng cả bảng là đúng.
+
+     ⚠️ CỘNG CẢ NHÓM, KHÔNG CHỈ TRANG ĐANG XEM. Bảng này phân trang 15 đơn; cộng theo ô tích
+        trên màn là con số tụt xuống mỗi khi sang trang, mà người đọc không có cách nào biết. */
   function qtUpdateBar(){
     var chks=qtSelected(), bar=el('qtBatchBar'); if(!bar) return;
-    if(!chks.length){ bar.style.display='none'; return; }
-    var total=0; chks.forEach(function(c){ total+=Number(c.getAttribute('data-cl'))||0; });
-    el('qtSelInfo').textContent='Đã chọn '+chks.length+' đơn';
-    el('qtSelTotal').textContent=money(total)+'đ';
+    var tu=0, cl=0;
+    if(chks.length){
+      chks.forEach(function(c){ cl+=Number(c.getAttribute('data-cl'))||0; tu+=Number(c.getAttribute('data-tu'))||0; });
+      el('qtSelInfo').textContent='Đã chọn '+chks.length+' đơn';
+    } else {
+      QT_ROWS_CHO.forEach(function(d){ tu+=Number(d.tamUng)||0; cl+=Number(d.chenhLech)||0; });
+      el('qtSelInfo').textContent=QT_ROWS_CHO.length
+        ? (QT_ROWS_CHO.length+' đơn chờ quyết toán') : 'Không có đơn nào chờ quyết toán';
+    }
+    el('qtSelTU').textContent=money(tu)+'đ';
+    el('qtSelTotal').textContent=money(cl)+'đ';
+    if(el('btnQtChon')) el('btnQtChon').style.display=chks.length?'':'none';
     bar.style.display='flex';
   }
   function doQtChon(){
@@ -5804,6 +5824,10 @@
       if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'].indexOf(d.trangThai)>=0;
       return d.trangThai===f; });
     el('duyetEmpty').style.display=list.length?'none':'block';
+    /* 🔴 GIỮ DANH SÁCH ĐANG HIỆN ĐỂ CỘNG TỔNG TỪ DỮ LIỆU, KHÔNG TỪ Ô TÍCH. Ô tích chỉ mọc ở
+       dòng người đang xem có quyền thao tác (`canChk`), nên cộng theo ô tích là bỏ sót đúng
+       những đơn họ không được đụng vào — mà tiền của chúng vẫn nằm trong tổng phải chi. */
+    DV_LIST=list;
     el('duyetBody').innerHTML=_tachDonVi(list, function(d){
       var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=(CURUSER&&CURUSER.role)||'';
       var canChk=(st==='Chờ duyệt tạm ứng'&&canDo('duyetTU'))||(st==='Chờ cấp tạm ứng'&&canDo('capTU'));
@@ -5832,16 +5856,36 @@
   // ---- Batch chọn nhiều đơn trong tab Duyệt ----
   function dvSelected(){ return [].slice.call(document.querySelectorAll('.dvChk:checked')); }
   function dvToggleAll(cb){ [].slice.call(document.querySelectorAll('.dvChk')).forEach(function(c){ c.checked=cb.checked; }); dvUpdateBar(); }
+  /* 🔴 THANH NÀY LÚC NÀO CŨNG HIỆN (anh Thắng 07/09/2026). Trước đây nó chỉ mọc ra khi có
+     người tích đơn — mà con số kế toán cần nhất lại là con số KHI CHƯA TÍCH GÌ: *"tổng tạm
+     ứng của các đơn đã duyệt"*, tức số tiền đang phải chi ra. Muốn thấy nó thì phải tích chọn
+     hết bảng rồi bỏ tích, hoặc tự cộng bằng mắt.
+
+     Hai chế độ, cùng một chỗ đứng:
+       · Chưa tích gì  -> tổng của MỌI đơn đang hiện đã qua cửa duyệt (Chờ cấp + Đã cấp).
+       · Có tích       -> tổng của đúng mấy đơn đã tích, như cũ.
+     Nhãn đổi theo, để không ai đọc nhầm con số này thành con số kia. */
+  var DV_LIST=[];
+  /* Đã qua cửa duyệt tạm ứng — dùng chung một chốt với máy chủ chứ không gõ tay tên trạng
+     thái ở nhiều chỗ. */
+  function _daDuyetTU(st){ return st==='Chờ cấp tạm ứng'||st==='Đã cấp tạm ứng'; }
   function dvUpdateBar(){
     var chks=dvSelected(), bar=el('duyetBatchBar'); if(!bar) return;
-    if(!chks.length){ bar.style.display='none'; return; }
-    var total=0,nDuyet=0,nCap=0;
-    chks.forEach(function(c){ total+=Number(c.getAttribute('data-tu'))||0; var s=c.getAttribute('data-st'); if(s==='Chờ duyệt tạm ứng')nDuyet++; if(s==='Chờ cấp tạm ứng')nCap++; });
-    el('duyetSelInfo').textContent='Đã chọn '+chks.length+' đơn';
+    var nDuyet=0,nCap=0,total=0;
+    if(chks.length){
+      chks.forEach(function(c){ total+=Number(c.getAttribute('data-tu'))||0; var s=c.getAttribute('data-st'); if(s==='Chờ duyệt tạm ứng')nDuyet++; if(s==='Chờ cấp tạm ứng')nCap++; });
+      el('duyetSelInfo').textContent='Đã chọn '+chks.length+' đơn';
+    } else {
+      var n=0;
+      DV_LIST.forEach(function(d){ if(_daDuyetTU(d.trangThai)){ n++; total+=Number(d.tamUng)||0; } });
+      el('duyetSelInfo').textContent=n?(n+' đơn đã duyệt tạm ứng'):'Chưa có đơn nào đã duyệt tạm ứng';
+    }
     el('duyetSelTotal').textContent=money(total)+'đ';
     el('btnDuyetChon').style.display=(nDuyet>0&&canDo('duyetTU'))?'':'none';
     el('btnCapChon').style.display=(nCap>0&&canDo('capTU'))?'':'none';
-    if(el('btnTraChon')) el('btnTraChon').style.display=canDo('traDon')?'':'none';
+    /* Nút "Trả các đơn đã chọn" chỉ có nghĩa khi ĐANG chọn — bày nó lúc chưa tích gì là mời
+       người ta bấm vào một lệnh không có đối tượng. */
+    if(el('btnTraChon')) el('btnTraChon').style.display=(chks.length&&canDo('traDon'))?'':'none';
     bar.style.display='flex';
   }
   function _dvPick(st){ return dvSelected().filter(function(c){return c.getAttribute('data-st')===st;}).map(function(c){return c.getAttribute('data-m');}); }
