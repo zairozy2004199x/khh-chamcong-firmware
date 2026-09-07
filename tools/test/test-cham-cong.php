@@ -6901,11 +6901,17 @@ t( '🔴 cơ sở THEO CÔNG: bảng "Tổng giờ làm theo nhân viên" KHÔNG
 t( 'và cơ sở TUTU_BT (tính THEO GIỜ) không bị đụng — bảng tổng vẫn hiện như cũ',
 	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) !== false, $h_qtc );
 
-/* ---- lọc theo NGÀY: kéo bảng chi tiết, KHÔNG kéo bảng tổng ---- */
+/* ---- lọc theo NGÀY: ô Ngày vẫn giữ lựa chọn, KHÔNG còn kéo bảng tổng ----
+   🔴 Ô lọc "Ngày" từng còn kéo theo MỘT danh sách lọc được theo từng ngày — "Ngày thiếu giờ ra"
+   (khối gập riêng của `ve_bang_cham()`, xem khối 🔴 ở cuối hàm đó). Khối ấy đã BỎ khỏi màn
+   07/09/2026 (anh Thắng: *"bỏ chỗ này trên web quản trị chấm công"*) CÙNG LƯỢT với "bảng chi
+   tiết" đã bỏ trước đó (01/09/2026) — nên từ bản này, ô lọc "Ngày" KHÔNG còn kéo theo bất cứ
+   danh sách nào lọc theo ngày trên màn Bảng công nữa; nó chỉ còn giữ lại giá trị đã chọn trên ô
+   nhập, để người dùng không phải gõ lại khi bấm Xem lần nữa. */
 $g_ng = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cng' => '2026-07-06' );
 $h_ng = vhcc_web( '135791', array(), $g_ng );
-t( 'chọn một ngày thì bảng chi tiết bỏ ngày khác đi',
-	substr_count( $h_ng, '2026-07-07' ) < substr_count( $h_qtc, '2026-07-07' ), $h_ng );
+t( 'ô lọc "Ngày" giữ đúng giá trị đã chọn',
+	strpos( $h_ng, 'id="cng" name="cng" type="date" value="2026-07-06"' ) !== false, $h_ng );
 /* 🔴 Bảng tổng CỐ Ý không theo ngày — bản gốc `renderTotals` cũng vậy. Để nó tụt xuống một ngày
    thì cột "Ngày công" luôn bằng 1 và cả bảng hết ý nghĩa. */
 /* ⚠️ Bám đúng MỘT DÒNG của bảng tổng, không dùng `.*?` bắc cầu: `.*?` với cờ /s vắt được qua
@@ -6997,8 +7003,10 @@ t( 'tên cơ sở là dòng bấm được (summary), không phải tiêu đề 
 t( '🔴 chọn đúng một cơ sở thì ô ấy MỞ SẴN',
 	strpos( $h_qtc, '<details open><summary class="cs-ten">' ) !== false, $h_qtc );
 
-/* Và bốn tính năng bên trong đều là dòng gập, xếp một cột. */
-foreach ( array( 'Lưới cả tháng', 'Tổng giờ làm theo nhân viên', 'Đã động vào giờ công tháng này' ) as $_tn ) {
+/* Và các tính năng bên trong đều là dòng gập, xếp một cột.
+   🔴 "Đã động vào giờ công tháng này" đã BỎ khỏi màn này — anh Thắng 07/09/2026: *"bỏ chỗ này
+   trên web quản trị chấm công"*. Xem khối 🔴 ở cuối `VHCC_Web::ve_bang_cham()`. */
+foreach ( array( 'Lưới cả tháng', 'Tổng giờ làm theo nhân viên' ) as $_tn ) {
 	t( 'tính năng "' . $_tn . '" là một dòng gập',
 		preg_match( '/<summary><b>' . preg_quote( $_tn, '/' ) . '<\/b>/u', $h_qtc ) === 1, $_tn );
 }
@@ -7052,20 +7060,18 @@ t( 'và chỉ đường sang tab Dữ liệu đầu vào',
 t( 'màn Bảng công KHÔNG còn khối xếp bộ phận', strpos( $h_qtc, 'id="bophan"' ) === false, $h_qtc );
 t( 'màn Bảng công KHÔNG còn khối nạp .csv', strpos( $h_qtc, 'id="napcong"' ) === false, $h_qtc );
 
-/* ---- sổ nhật ký giờ công · nạp công từ .csv ---- */
+/* ---- sổ nhật ký giờ công (ĐÃ BỎ 07/09/2026) · nạp công từ .csv ---- */
 /* 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08: *"Vẫn còn"*, sau khi khối "Sửa giờ công"
    rời bị bỏ ở lượt trước). Bù và sửa nay làm NGAY TẠI Ô trong lưới cả tháng.
-   Chỗ `id="bucong"` giữ nguyên tên, nay là SỔ NHẬT KÝ, không phải biểu mẫu.
-   ⚠️ CẢNH BÁO CŨ (đã sửa 29/08/2026): có một thời ô TRỐNG trong lưới trỏ nhầm neo về đúng
-   `#bucong` này (còn sót lại từ hồi nó còn là biểu mẫu) — bấm bù thì trang nhảy xuống tận sổ
-   nhật ký ở cuối trang thay vì dừng ở hàng vừa mở, đúng ca anh Thắng báo "bay vị trí khác".
-   Mọi ô trong lưới (cả sửa lẫn bù) nay đều neo về `#suaday` — xem khối "ô TRỐNG trỏ sang khối
-   Chấm công bù" phía dưới. */
-t( 'màn có khối sổ nhật ký giờ công', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
-t( 'sổ nói rõ ghi cả bù lẫn sửa và không xoá được',
-	strpos( $h_qtc, 'không xoá được' ) !== false, $h_qtc );
-t( 'và vẫn nói rõ không tự bù cho mình', strpos( $h_qtc, 'Không tự bù cho mình' ) !== false
-	|| strpos( $h_qtc, 'không tự bù' ) !== false, $h_qtc );
+   Chỗ `id="bucong"` từng giữ nguyên tên làm SỔ NHẬT KÝ (không phải biểu mẫu) — rồi chính khối
+   sổ nhật ký ấy ("Đã động vào giờ công tháng này") cũng bị bỏ khỏi màn, anh Thắng 07/09/2026:
+   *"bỏ chỗ này trên web quản trị chấm công"*. `id="bucong"` từ bản này KHÔNG còn xuất hiện ở
+   đâu trên màn nữa — mọi ô trong lưới (cả sửa lẫn bù) đều neo về `#suaday`, xem khối "ô TRỐNG
+   trỏ sang khối Chấm công bù" phía dưới. */
+t( 'màn KHÔNG còn khối sổ nhật ký giờ công (đã bỏ 07/09/2026)',
+	strpos( $h_qtc, 'id="bucong"' ) === false, $h_qtc );
+t( 'và không còn hàm dựng nó trong mã',
+	strpos( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ), 'function the_nhat_ky_gio' ) === false );
 /* 🔴 KHÔNG CÒN BIỂU MẪU BÙ RỜI Ở CUỐI MÀN. Để lại là hai biểu mẫu giống hệt nhau trên cùng
    một màn và người dùng phải đoán cái nào đang dùng. */
 t( 'cuối màn KHÔNG còn biểu mẫu bù rời (gõ tay ngày + mã)',
@@ -7191,7 +7197,11 @@ t( 'và liệt kê đúng dòng cảnh báo của CSV', strpos( $h_bug_csv, 'hà
 VHCC_NguoiDung::luu( '', 'CHT Soát Công', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
 $h_cht = vhcc_web( '357913', array(), $g_qtc );
 t( 'Cửa hàng trưởng vào được màn bảng công', strpos( $h_cht, 'name="pin"' ) === false, $h_cht );
-t( 'và THẤY khối Chấm công bù', strpos( $h_cht, 'id="bucong"' ) !== false, $h_cht );
+/* 🔴 "id=\"bucong\"" (sổ nhật ký) đã bỏ khỏi màn 07/09/2026 — không còn dùng được làm dấu hiệu
+   "thấy khối Chấm công bù" nữa. Bù/sửa nay là Ô BẤM được ngay trong lưới (`class="o-sua"`,
+   xem `the_luoi_thang()` dòng ~5017): role CHT trở lên mới có cả hai quyền `cham_bu`/`sua_gio`
+   nên ô nào của họ cũng bấm được — đó mới là dấu hiệu đúng của quyền bù/sửa còn hay mất. */
+t( 'và THẤY được ô bấm để bù/sửa (class="o-sua")', strpos( $h_cht, 'class="o-sua"' ) !== false, $h_cht );
 t( 'nhưng KHÔNG thấy khối Nạp công', strpos( $h_cht, 'id="napcong"' ) === false, $h_cht );
 /* Ẩn cái khối không phải là gác cửa — gửi thẳng lượt POST cũng phải bị chối. */
 $_POST = array( 'viec' => 'nap_cong' );
@@ -7201,7 +7211,7 @@ t( 'và POST thẳng việc nap_cong cũng KHÔNG lọt', is_array( $r_np ) && !
 $_POST = array();
 /* Nhân viên thì không có cả hai. */
 $h_nv2 = vhcc_web( '864202', array(), $g_qtc );
-t( 'Nhân viên không thấy khối bù', strpos( $h_nv2, 'id="bucong"' ) === false, $h_nv2 );
+t( 'Nhân viên không thấy ô bấm bù/sửa nào', strpos( $h_nv2, 'class="o-sua"' ) === false, $h_nv2 );
 $_POST = array( 'viec' => 'bu' );
 $r_bu  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 	array( 'bu', array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ) ) );
@@ -7219,9 +7229,10 @@ t( 'KHÔNG còn khối Sửa giờ công rời ở cuối màn',
 	strpos( $h_qtc, 'id="suagio"' ) === false, $h_qtc );
 t( 'và không còn hàm dựng nó trong mã',
 	strpos( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ), 'function the_sua_gio' ) === false );
-/* Nhưng khối CHẤM CÔNG BÙ thì GIỮ: người chưa có dòng nào trong tháng thì lưới không vẽ hàng
-   của họ, tức là không có ô nào để bấm — bù cho họ phải đi bằng đường khác. */
-t( 'khối Chấm công bù vẫn còn', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
+/* Nhưng khả năng CHẤM CÔNG BÙ (ô bấm được ngay trong lưới) thì GIỮ — chỉ riêng SỔ NHẬT KÝ
+   ("id=\"bucong\"") mới bị bỏ khỏi màn 07/09/2026, xem khối 🔴 ở cuối `VHCC_Web::ve_bang_cham()`. */
+t( 'khả năng Chấm công bù vẫn còn (ô bấm được trong lưới)',
+	strpos( $h_qtc, 'class="o-sua"' ) !== false, $h_qtc );
 
 /* Bảng chi tiết vẫn có cột ✏️, và nay nó neo thẳng vào HÀNG SỬA trong lưới. */
 
@@ -7273,10 +7284,18 @@ $_POST = array();
 $h_sau = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
 t( '🔴 sửa qua trang thật thì bảng hiện giờ MỚI',
 	strpos( $h_sau, '09:45' ) !== false, $h_sau );
-/* Sổ nhật ký gộp cả bù lẫn sửa, và nói rõ cũ -> mới. */
-t( 'sổ nhật ký có cột Giờ cũ', strpos( $h_sau, '<th>Giờ cũ</th>' ) !== false, $h_sau );
+/* 🔴 SỔ NHẬT KÝ ("Đã động vào giờ công tháng này") ĐÃ BỎ KHỎI MÀN 07/09/2026 — không còn khối
+   HTML nào để soi "cột Giờ cũ"/"sửa đè" trên `$h_sau` nữa. Sổ vẫn ghi đủ (`cham_bu`), chỉ là
+   không còn hiện ở đây; xem trực tiếp qua `VHCC_Bu::ds_nhat_ky()` — cũng là cách
+   `tools/test/kiem-cham-bu.php` đang kiểm phần lõi này, độc lập với màn hiển thị. */
+$nk_sau = VHCC_Bu::ds_nhat_ky( $u_qtc, 'TUTU_BT', '2026-07' );
+$nk_qtc1 = null;
+foreach ( $nk_sau as $x ) {
+	if ( 'QTC1' === $x['ma_nv'] && '2026-07-07' === $x['ngay'] ) { $nk_qtc1 = $x; }
+}
+t( 'sổ nhật ký (dữ liệu) vẫn ghi đúng lượt sửa vừa rồi', null !== $nk_qtc1, $nk_sau );
 t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
-	strpos( $h_sau, 'sửa đè' ) !== false, $h_sau );
+	null !== $nk_qtc1 && 'sua' === $nk_qtc1['viec'], $nk_qtc1 );
 
 // ====== 48b. XẾP CƠ SỞ VÀO BỘ PHẬN + THỨ TỰ KHỐI CẤU HÌNH
 /* Anh Thắng 26/08/2026: *"bổ sung set cơ sở thuộc bộ phận nào"*, *"thêm bộ phận PART TIME"*,
@@ -7430,22 +7449,18 @@ if ( defined( 'VHCP_VERSION' ) ) {
 		strpos( $h_pb, 'Chi phí ' . VHCP_VERSION ) !== false, $h_pb );
 }
 
-/* 🔴 BẢNG "NGÀY THIẾU GIỜ RA" THU GỌN SẴN.
-   Anh Thắng 26/08: *"Cho này gọn lại, khi nào bấm xổ mới xổ ra"*. Số dòng do dữ liệu quyết
-   định — sổ thật đang 36 ngày và nó xổ hết ra giữa màn, đẩy mọi thứ phía dưới đi mấy màn hình.
-   Người mở màn bảng công phần lớn chỉ cần biết CÓ BAO NHIÊU; con số nằm trên nhãn. */
+/* 🔴 BẢNG RIÊNG "NGÀY THIẾU GIỜ RA" (khối gập, đếm số ngày trên nhãn) ĐÃ BỎ KHỎI MÀN — anh
+   Thắng 07/09/2026: *"bỏ chỗ này trên web quản trị chấm công"* (kèm ảnh chụp đúng khối này,
+   cùng lượt với "Đã động vào giờ công tháng này"). Xem khối 🔴 ở cuối `VHCC_Web::ve_bang_cham()`.
+   ⚠️ Chuỗi "Ngày thiếu giờ ra" VẪN còn xuất hiện trên màn — đó là TIÊU ĐỀ CỘT của bảng "Tổng
+      giờ làm theo nhân viên" (`the_tong_cham()`), một chỗ khác hẳn, không phải khối vừa bỏ.
+      Nên không thể chỉ `strpos()` chuỗi ấy để biết khối gập còn hay mất — phải soi đúng mẫu
+      `<details><summary><b>Ngày thiếu giờ ra</b>` (chỉ khối gập mới có). */
 $h_thieu = vhcc_web( '135791', array(), $g_qtc );
-if ( strpos( $h_thieu, 'Ngày thiếu giờ ra' ) !== false ) {
-	t( '🔴 bảng "Ngày thiếu giờ ra" gói trong khối gập',
-		preg_match( '/<details><summary><b>Ngày thiếu giờ ra<\/b>/', $h_thieu ) === 1, 'không thấy details' );
-	t( 'và gập SẴN (không có thuộc tính open)',
-		preg_match( '/<details open><summary><b>Ngày thiếu giờ ra/', $h_thieu ) === 0, 'đang mở sẵn' );
-	t( 'nhãn nói sẵn bao nhiêu ngày, khỏi phải mở ra đếm',
-		preg_match( '/Ngày thiếu giờ ra<\/b> — <span class="chu-hong">\d+ ngày<\/span>/', $h_thieu ) === 1,
-		'nhãn không có con số' );
-	/* Gập bằng <details> của HTML, không phải JavaScript — cả màn này không có một dòng script. */
-	t( 'khối gập KHÔNG dùng JavaScript', stripos( $h_thieu, '<script' ) === false );
-}
+t( 'màn KHÔNG còn khối gập riêng "Ngày thiếu giờ ra" (đã bỏ 07/09/2026)',
+	preg_match( '/<details><summary><b>Ngày thiếu giờ ra<\/b>/', $h_thieu ) === 0, $h_thieu );
+t( 'và không còn hàm the_co() trong mã',
+	strpos( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ), 'function the_co(' ) === false );
 
 /* 🔴 CHỈ BÀY ĐÚNG MỘT TRONG HAI: CA (cho cơ sở theo giờ) hoặc CÔNG THỨC (cho Văn phòng).
    Anh Thắng 26/08: *"Cơ sở mới có ca, Bộ Phận VP không có ca"* và *"Bộ phận văn phòng tính
@@ -7961,7 +7976,11 @@ t( 'và chỉ sang chỗ nạp .csv', strpos( $h_vp0, 'Nạp công từ .csv' ) 
    ⚠️ Canh vào ĐÚNG khối lưới, không quét cả trang: màn đã gộp còn có khối Chấm công bù và khối
    Sửa giờ công, hai khối ấy CÓ ô nhập giờ và có quyền có. Quét cả trang là chốt đỏ oan, mà sửa
    cho xanh bằng cách bỏ chốt thì mất luôn thứ nó đang canh. */
-$khoi_luoi = preg_match( '/Lưới cả tháng(.*?)(?=<div class="the" id="bucong")/s', $h_vp, $m_lu )
+/* 🔴 Mốc `id="bucong"` (sổ nhật ký giờ công) đã BỎ khỏi màn 07/09/2026 — không còn dùng làm
+   ranh giới cuối khối lưới được nữa. Ranh giới nay là khối "the" KẾ TIẾP (nếu có, cơ sở tính
+   theo giờ còn có "Tổng giờ làm theo nhân viên" theo sau) hoặc hết chuỗi (cơ sở tính theo công,
+   như $CS đang xét ở đây, không còn khối nào theo sau lưới nữa). */
+$khoi_luoi = preg_match( '/Lưới cả tháng(.*?)(?=<div class="the"|\z)/s', $h_vp, $m_lu )
 	? $m_lu[1] : '';
 t( 'tìm được khối lưới trong màn đã gộp', '' !== $khoi_luoi, substr( $h_vp, 0, 200 ) );
 t( 'lưới KHÔNG có ô nhập giờ nào',

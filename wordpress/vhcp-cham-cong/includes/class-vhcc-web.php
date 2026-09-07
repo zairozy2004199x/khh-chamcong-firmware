@@ -3899,16 +3899,11 @@ class VHCC_Web {
 		   nơi là có ngày bảng lệch cột mà không ai hiểu vì sao. */
 		$duoc_sua_gio = VHCC_Vai::duoc( $toi, 'sua_gio' );
 
-		/* Lọc cho BẢNG CHI TIẾT. Bảng tổng dùng mảng khác — xem chú thích ở `the_bang_cham`. */
+		/* Lọc cho BẢNG TỔNG — bảng chi tiết dùng mảng khác trước đây, xem chú thích ở `the_bang_cham`. */
 		$loc_thang = array();
 		foreach ( $hang as $r ) {
 			if ( '' !== $ma_nv && strcasecmp( (string) $r['maNV'], $ma_nv ) !== 0 ) { continue; }
 			$loc_thang[] = $r;
-		}
-		$chi_tiet = array();
-		foreach ( $loc_thang as $r ) {
-			if ( '' !== $ngay && (string) $r['ngay'] !== $ngay ) { continue; }
-			$chi_tiet[] = $r;
 		}
 
 		/* Cờ đã gắn, tra theo (ngày, mã) để đánh dấu dòng nào đang chờ kiểm. */
@@ -3920,16 +3915,6 @@ class VHCC_Web {
 		foreach ( (array) $b['co'] as $c ) {
 			if ( 'Đã xử lý' === (string) $c['trang_thai'] ) { continue; }
 			$co_theo[ (string) $c['ngay'] . '|' . strtoupper( (string) $c['ma_nv'] ) ] = $c;
-		}
-
-		/* Ngày thiếu giờ ra — tính TRƯỚC khi vẽ.
-		   Bản trước gom `$thieu` ngay trong vòng lặp vẽ bảng chi tiết, nên bảng tổng buộc phải
-		   nằm SAU nó. Anh Thắng 26/08: *"lưới chiều ngang nó gọn, này quá dài"* — đúng, một tháng
-		   của 24 người là mấy trăm dòng, và thứ gọn nhất (bảng tổng) lại nằm dưới đáy. Tách phép
-		   đếm ra khỏi phép vẽ thì muốn xếp thứ tự nào cũng được. */
-		$thieu = array();
-		foreach ( $chi_tiet as $r ) {
-			if ( '' !== $r['vao'] && '' === $r['ra'] ) { $thieu[] = $r; }
 		}
 
 		/* 🔴 MẤY KHỐI CẤU HÌNH LÊN TRÊN, TRƯỚC BẢNG SỐ.
@@ -3973,11 +3958,24 @@ class VHCC_Web {
 		   ngay tại ô của từng người từng ngày; một bảng thứ hai kể lại cùng dữ liệu là bắt người
 		   đọc dò xem hai chỗ có khớp nhau không, mỗi lần mở màn.
 
-		   ⚠️ Bỏ bảng này là bỏ luôn nút 🚩 nằm trong nó — xem khối 🔴 ở `the_co()` về hệ quả với
+		   ⚠️ Bỏ bảng này là bỏ luôn nút 🚩 nằm trong nó — xem khối 🔴 phía dưới về hệ quả với
 		      cơ chế cờ. */
 
-		self::the_nhat_ky_gio( $cs, $tt, $ky, $toi );
-		self::the_co( $b, $cs, $tt, $ky, $thieu );
+		/* 🔴 HAI KHỐI "ĐÃ ĐỘNG VÀO GIỜ CÔNG THÁNG NÀY" VÀ "NGÀY THIẾU GIỜ RA" ĐÃ BỎ KHỎI MÀN
+		   NÀY — anh Thắng 07/09/2026: *"bỏ chỗ này trên web quản trị chấm công"* (kèm ảnh chụp
+		   đúng hai khối này). Trước đây là `self::the_nhat_ky_gio( $cs, $tt, $ky, $toi );` và
+		   `self::the_co( $b, $cs, $tt, $ky, $thieu );`, nay bỏ hẳn hai lời gọi cùng hai hàm dựng
+		   màn của chúng (từng là `the_nhat_ky_gio()` và `the_co()`) — không còn chỗ nào gọi tới.
+		 *
+		 * ⚠️ CHỈ BỎ MÀN HIỂN THỊ, KHÔNG BỎ SỔ GHI. `VHCC_Bu::ds_nhat_ky()` (nhật ký mọi lượt bù/
+		 *    sửa đè giờ công) và bảng `cham_bu` phía sau nó VẪN NGUYÊN — bù/sửa vẫn ghi sổ đầy đủ,
+		 *    chỉ là không còn khung xem lại ngay tại màn Bảng công nữa. Cần xem lại thì phải dựng
+		 *    một màn khác (hoặc mở lại khối này) chứ dữ liệu không mất.
+		 *
+		 * ⚠️ LÕI "THIẾU GIỜ RA" CŨNG KHÔNG BỎ — dòng thiếu giờ ra vẫn tô đỏ ngay trong Lưới cả
+		 *    tháng ở trên (xem chú thích "Cả DÒNG thiếu giờ ra" ở `the_luoi_thang`); khối vừa bỏ
+		 *    chỉ là một bảng liệt kê RIÊNG, gộp lại thành một số đếm — không phải nơi duy nhất
+		 *    thấy được ngày thiếu giờ ra. */
 	}
 
 	/**
@@ -6332,66 +6330,10 @@ class VHCC_Web {
 		return ( 3 === count( $p ) ) ? $p[2] . '/' . $p[1] . '/' . $p[0] : (string) $ngay;
 	}
 
-	/**
-	 * SỔ NHẬT KÝ GIỜ CÔNG — mọi lượt bù và mọi lượt sửa đè của tháng đang xem.
-	 *
-	 * 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08/2026: *"Vẫn còn"*, sau khi khối "Sửa giờ
-	 *    công" rời bị bỏ ở lượt trước). Bù và sửa nay làm ngay TẠI Ô trong lưới cả tháng: bấm ô
-	 *    trống → bù, bấm ô có giờ → sửa. Không phải gõ lại ngày và mã cho từng lượt.
-	 *
-	 * ⚠️ Trước khi bỏ, khối rời còn giữ MỘT việc mà lưới không làm được: bù cho người cả tháng
-	 *    chưa chấm lần nào — lưới cũ dựng hàng từ chính các lượt chấm nên họ không có hàng, không
-	 *    có ô để bấm. Việc ấy đã vá ở `ve_luoi_gio`: lưới kéo thêm người từ sổ nhân sự, ai chưa
-	 *    chấm lần nào vẫn có một hàng toàn dấu chấm, gắn nhãn "chưa chấm". Bỏ một khối mà không
-	 *    vá chỗ đó là bỏ mất một việc, chứ không phải dọn màn hình.
-	 *
-	 * 🔴 MỘT SỔ CHO CẢ HAI VIỆC — bù và sửa đè cùng ghi vào bảng `cham_bu`.
-	 *    Tách làm hai sổ thì người soát phải mở hai chỗ mới dựng lại được chuyện gì đã xảy ra với
-	 *    một ngày công; mà thứ họ cần biết là "ngày này ai đã động vào, mấy lần", không phải "ai
-	 *    đã bù" và "ai đã sửa" thành hai câu chuyện rời nhau.
-	 */
-	private static function the_nhat_ky_gio( $cs, $tt, $ky, $toi ) {
-		if ( ! VHCC_Vai::duoc( $toi, 'cham_bu' ) && ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
-		echo '<div class="the" id="bucong"><details>';
-		echo '<summary><b>Đã động vào giờ công tháng này</b></summary>';
-		echo '<p class="mo">Mỗi lượt <b>bù</b> (điền ô còn trống) và mỗi lượt <b>sửa đè</b> đều vào '
-			. 'sổ này — ai làm · cho ai · ngày nào · giờ cũ ra sao · vì sao — và <b>không xoá được</b>. '
-			. 'Bù và sửa làm ngay tại ô trong <a href="#luoithang"><b>Lưới cả tháng</b></a>: ô '
-			. '<b>trống</b> thì bù, ô <b>có giờ</b> thì sửa.</p>';
-		echo '<p class="mo">⚠️ Không tự bù cho mình được, kể cả Admin — nhờ người khác bù giúp. '
-			. 'Bù công là đổi thẳng ra tiền, nên chỗ này không để hở.</p>';
-
-		$nk = VHCC_Bu::ds_nhat_ky( $toi, $cs, $tt );
-		if ( $nk ) {
-			echo '<p class="mo"><b>' . count( $nk ) . '</b> lượt trong tháng ' . esc_html( $tt ) . '.</p>';
-			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Việc</th>'
-				. '<th>Ô</th><th>Giờ cũ</th><th>Giờ mới</th><th>Lý do</th><th>Người làm</th>'
-				. '</tr></thead><tbody>';
-			foreach ( $nk as $x ) {
-				$la_sua = ( 'sua' === ( isset( $x['viec'] ) ? $x['viec'] : 'bu' ) );
-				echo '<tr><td>' . esc_html( $x['ngay'] ) . '</td>';
-				echo '<td>' . esc_html( $x['ma_nv'] ) . '</td>';
-				echo '<td>' . ( $la_sua ? '<span class="k hong">sửa đè</span>' : '<span class="k luc">bù</span>' ) . '</td>';
-				echo '<td>' . ( 'vao' === $x['o_gio'] ? 'giờ vào' : 'giờ ra' ) . '</td>';
-				/* Cột giờ cũ chỉ có nghĩa với lượt SỬA. Lượt bù thì ô vốn trống — in '—' ở đó là
-				   đúng, in '00:00' thì lại thành một con số trông như thật. */
-				echo '<td>' . esc_html( $la_sua
-					? VHCC_Bu::hhmm_hoac_trong( isset( $x['gio_cu_giay'] ) && '' !== $x['gio_cu_giay']
-						? $x['gio_cu_giay'] : null )
-					: '—' ) . '</td>';
-				echo '<td><b>' . esc_html( VHCC_Bu::hhmm_hoac_trong(
-					( null === $x['gio_giay'] || '' === $x['gio_giay'] ) ? null : $x['gio_giay'] ) )
-					. '</b></td>';
-				echo '<td style="white-space:pre-wrap;max-width:340px">' . esc_html( $x['ly_do'] ) . '</td>';
-				echo '<td>' . esc_html( $x['nguoi_bu'] ) . '<br><span class="mo">'
-					. esc_html( substr( (string) $x['tao_luc'], 0, 16 ) ) . '</span></td></tr>';
-			}
-			echo '</tbody></table></div>';
-		} else {
-			echo '<p class="mo">Tháng này chưa ai bù hay sửa giờ công ở cơ sở này.</p>';
-		}
-		echo '</details></div>';
-	}
+	/* 🔴 SỔ NHẬT KÝ GIỜ CÔNG ("Đã động vào giờ công tháng này") ĐÃ BỎ KHỎI MÀN — xem khối 🔴
+	   ở cuối `ve_bang_cham()` (07/09/2026) cho lý do và những gì VẪN CÒN (sổ `cham_bu`,
+	   `VHCC_Bu::ds_nhat_ky()`). Hàm dựng màn từng ở đây (`the_nhat_ky_gio()`) đã xoá vì không
+	   còn ai gọi tới. */
 
 	/* 🔴 KHỐI "SỬA GIỜ CÔNG" Ở CUỐI MÀN ĐÃ BỎ (anh Thắng 26/08/2026: *"Loại bỏ chỗ này. Chỗ này
 	   đã hiện đủ rồi."*).
@@ -6974,54 +6916,29 @@ class VHCC_Web {
 		echo '</form></div>';
 	}
 
-	/** Khối cờ: gắn mới · danh sách đang chờ · ngày thiếu giờ ra. */
-	private static function the_co( $b, $cs, $tt, $ky, $thieu ) {
-		$o_loc = self::o_loc();
-
-		if ( $thieu ) {
-			/* 🔴 THU GỌN SẴN. Anh Thắng 26/08/2026: *"Cho này gọn lại, khi nào bấm xổ mới xổ ra"*.
-			   Bảng này có bao nhiêu dòng là do dữ liệu quyết định — sổ thật đang 36 ngày, và nó
-			   xổ hết ra giữa màn, đẩy mọi thứ phía dưới đi mất mấy màn hình. Người mở màn bảng
-			   công phần lớn không đến đây để đọc nó; họ chỉ cần biết CÓ BAO NHIÊU. Con số nằm
-			   ngay trên nhãn, ai cần chi tiết thì bấm.
-			   ⚠️ Dùng `<details>` của chính HTML, KHÔNG JavaScript — cả màn quản trị này không
-			      có lấy một dòng script, và Ctrl+F của trình duyệt vẫn tìm được chữ bên trong. */
-			echo '<div class="the"><details><summary><b>Ngày thiếu giờ ra</b> — '
-				. '<span class="chu-hong">' . count( $thieu ) . ' ngày</span> '
-				. '<span class="mo">(bấm để mở)</span></summary>';
-			echo '<p class="mo" style="margin:10px 0">Có giờ vào mà không có giờ ra — hệ thống '
-				. '<b>không tự điền</b>: điền là bịa ra số giờ làm cho một ngày, mà số đó thành '
-				. 'tiền. Gắn cờ để còn tra lại.</p>';
-			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Họ tên</th>'
-				. '<th>Giờ vào</th></tr></thead><tbody>';
-			foreach ( $thieu as $x ) {
-				echo '<tr><td>' . esc_html( $x['ngay'] ) . '</td><td>' . esc_html( $x['maNV'] )
-					. ( '' !== $x['hauTo'] ? ' <span class="duoi">' . esc_html( $x['hauTo'] ) . '</span>' : '' )
-					. '</td><td>' . esc_html( $x['hoTen'] ) . '</td><td>'
-					. esc_html( substr( (string) $x['vao'], 0, 5 ) ) . '</td></tr>';
-			}
-			echo '</tbody></table></div></details></div>';
-		}
-
-		/* ══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 HAI KHỐI CỜ ĐÃ BỎ KHỎI MÀN NÀY — anh Thắng 01/09/2026: *"bỏ luôn"* (form "Gắn cờ
-		 * cần kiểm") và *"bỏ"* (bảng "Cờ tháng này (0)").
-		 *
-		 * Ba khối bỏ cùng lượt — bảng "Chi tiết từng lượt", form gắn cờ, bảng cờ tháng — vốn là
-		 * một dây: nút 🚩 nằm trong bảng chi tiết, bấm nó điền sẵn xuống form, form ghi ra bảng.
-		 * Bỏ bảng chi tiết mà giữ hai khối kia là để lại một cái form không có đường nào dẫn tới,
-		 * và một bảng quanh năm hiện "Chưa có cờ nào" — đúng thứ đang chiếm chỗ trên màn.
-		 *
-		 * ⚠️ LÕI CỜ THÌ KHÔNG BỎ, VÀ KHÔNG ĐƯỢC BỎ. Đối chiếu khuôn mặt (`VHCC_Mat::gan_co()`)
-		 *    vẫn TỰ gắn cờ khi ảnh chấm công lệch với ảnh thẻ — đó là đường tự động, không qua
-		 *    tay ai, và nó là thứ duy nhất phát hiện người chấm hộ. Tờ in A4 (`VHCC_PDF`) vẫn in
-		 *    cột cờ ra giấy. Bỏ bảng ghi hay hàm ghi là làm hỏng cả hai.
-		 *
-		 * 🔴 HỆ QUẢ PHẢI NÓI RA: từ bản này, cờ do khuôn mặt tự gắn KHÔNG còn chỗ xem và đóng
-		 *    trên web — chỉ còn thấy khi in tờ A4. Cần lại chỗ xem thì dựng ở một màn khác (màn
-		 *    Nhân sự hợp hơn: nó vốn là nơi soi từng người), chứ không kéo về đây.
-		 * ══════════════════════════════════════════════════════════════════════════════════ */
-	}
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHỐI "NGÀY THIẾU GIỜ RA" (RIÊNG, GỘP SỐ ĐẾM) CŨNG ĐÃ BỎ KHỎI MÀN — anh Thắng
+	 * 07/09/2026: *"bỏ chỗ này trên web quản trị chấm công"*. Hàm dựng màn từng ở đây
+	 * (`the_co()`) đã xoá vì không còn ai gọi tới — xem khối 🔴 ở cuối `ve_bang_cham()` cho lý
+	 * do và những gì VẪN CÒN (dòng thiếu giờ ra vẫn tô đỏ ngay trong Lưới cả tháng).
+	 *
+	 * 🔴 HAI KHỐI CỜ KHÁC ĐÃ BỎ TRƯỚC ĐÓ — anh Thắng 01/09/2026: *"bỏ luôn"* (form "Gắn cờ
+	 * cần kiểm") và *"bỏ"* (bảng "Cờ tháng này (0)").
+	 *
+	 * Ba khối bỏ cùng lượt — bảng "Chi tiết từng lượt", form gắn cờ, bảng cờ tháng — vốn là
+	 * một dây: nút 🚩 nằm trong bảng chi tiết, bấm nó điền sẵn xuống form, form ghi ra bảng.
+	 * Bỏ bảng chi tiết mà giữ hai khối kia là để lại một cái form không có đường nào dẫn tới,
+	 * và một bảng quanh năm hiện "Chưa có cờ nào" — đúng thứ đang chiếm chỗ trên màn.
+	 *
+	 * ⚠️ LÕI CỜ THÌ KHÔNG BỎ, VÀ KHÔNG ĐƯỢC BỎ. Đối chiếu khuôn mặt (`VHCC_Mat::gan_co()`)
+	 *    vẫn TỰ gắn cờ khi ảnh chấm công lệch với ảnh thẻ — đó là đường tự động, không qua
+	 *    tay ai, và nó là thứ duy nhất phát hiện người chấm hộ. Tờ in A4 (`VHCC_PDF`) vẫn in
+	 *    cột cờ ra giấy. Bỏ bảng ghi hay hàm ghi là làm hỏng cả hai.
+	 *
+	 * 🔴 HỆ QUẢ PHẢI NÓI RA: từ bản này, cờ do khuôn mặt tự gắn KHÔNG còn chỗ xem và đóng
+	 *    trên web — chỉ còn thấy khi in tờ A4. Cần lại chỗ xem thì dựng ở một màn khác (màn
+	 *    Nhân sự hợp hơn: nó vốn là nơi soi từng người), chứ không kéo về đây.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 
 	private static function ve_bao( $b ) {
 		/* 🔴 CÁC KẾT QUẢ CÓ `viec` PHẢI ĐI TRƯỚC nhánh `canh` chung bên dưới — anh Thắng
