@@ -7988,18 +7988,35 @@ ob_start(); vhcc_goi_rieng( 'VHCC_Web', 've_luoi_vp', array( $b_anh ) ); $h_anh_
 $url_vao = 'http://example.test/wp-content/uploads/' . $ngay_anh['anhVao'];
 $url_ra  = 'http://example.test/wp-content/uploads/' . $ngay_anh['anhRa'];
 $url_h2  = 'http://example.test/wp-content/uploads/' . $ngay_dem_anh['anhH2Vao'];
-t( 'ngày có ảnh vào: link 📷 mở đúng URL ảnh vào',
-	strpos( $h_anh_vp, '<a href="' . $url_vao . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc VÀO">📷</a>' ) !== false,
+/* Anh Thắng, ngay sau đó: *"rê chuột vào và thấy luôn được không, không phải bấm"* — nên mỗi
+   liên kết 📷 giờ mang SẴN một `<img>` (ẩn bằng CSS `display:none`, hiện lại khi `:hover`), chứ
+   không chỉ là một liên kết trơn. Soi cả liên kết lẫn `<img>` bên trong nó, không chỉ một câu
+   `title` — thiếu `<img>` là còn phải bấm mới xem được, đúng thứ anh Thắng vừa chê. */
+t( 'ngày có ảnh vào: liên kết 📷 mang sẵn <img> xem trước, bấm vẫn mở đúng URL ảnh vào',
+	preg_match( '~<a class="anh-xem" href="' . preg_quote( $url_vao, '~' ) . '" target="_blank" '
+		. 'rel="noopener" title="Ảnh chấm công lúc VÀO">📷<img src="' . preg_quote( $url_vao, '~' )
+		. '"[^>]*></a>~', $h_anh_vp ) === 1,
 	$h_anh_vp );
-t( 'và link ảnh ra riêng, không lẫn với ảnh vào',
-	strpos( $h_anh_vp, '<a href="' . $url_ra . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc RA">📷</a>' ) !== false,
+t( 'và ảnh ra riêng, không lẫn với ảnh vào',
+	preg_match( '~<a class="anh-xem" href="' . preg_quote( $url_ra, '~' ) . '" target="_blank" '
+		. 'rel="noopener" title="Ảnh chấm công lúc RA">📷<img src="' . preg_quote( $url_ra, '~' )
+		. '"[^>]*></a>~', $h_anh_vp ) === 1,
 	$h_anh_vp );
 t( 'ảnh của ca đêm (hàng 2) mang nhãn riêng, phân biệt được với hàng chính',
-	strpos( $h_anh_vp, '<a href="' . $url_h2 . '" target="_blank" rel="noopener" title="Ảnh chấm công lúc VÀO (đêm)">📷</a>' ) !== false,
-	$h_anh_vp );
+	strpos( $h_anh_vp, 'title="Ảnh chấm công lúc VÀO (đêm)"' ) !== false, $h_anh_vp );
 teq( 'đúng 2 khối ảnh trên toàn lưới (ngày 1 hàng chính + ngày 2 hàng đêm) — ngày 3 không ảnh thì không dựng khối',
 	2, substr_count( $h_anh_vp, 'class="manhcc"' ) );
-t( 'màn vẫn KHÔNG có thẻ <script> nào dù vừa thêm link ảnh', stripos( $h_anh_vp, '<script' ) === false, $h_anh_vp );
+/* `ve_luoi_vp()` chỉ vẽ THÂN lưới — khối `<style>` (dùng chung cả trang) nằm ở `$h_qtc` (đã tải
+   nguyên trang Bảng công từ đầu tệp), nên soi CSS phải soi đúng biến đó, không phải $h_anh_vp. */
+t( '<img> xem trước ẩn sẵn bằng CSS (display:none), chỉ hiện lúc :hover/:focus — không phải JS',
+	strpos( $h_qtc, '.manhcc a img{display:none' ) !== false
+		&& strpos( $h_qtc, '.manhcc a:hover img,.manhcc a:focus img' ) !== false,
+	$h_qtc );
+t( 'ảnh nổi LÊN TRÊN ô (bottom:100%), không sang ngang — tránh khung .cuon cuộn ngang cắt mất',
+	strpos( $h_qtc, '.manhcc a img{display:none;position:absolute;z-index:30;bottom:100%' ) !== false,
+	$h_qtc );
+t( 'màn vẫn KHÔNG có thẻ <script> nào dù vừa thêm ảnh xem trước rê chuột',
+	stripos( $h_anh_vp, '<script' ) === false, $h_anh_vp );
 teq( 'url_anh_cham() trả rỗng cho đường dẫn rỗng — không tự bịa ra URL',
 	'', vhcc_goi_rieng( 'VHCC_Web', 'url_anh_cham', array( '' ) ) );
 

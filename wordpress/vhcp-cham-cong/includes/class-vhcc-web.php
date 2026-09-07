@@ -2265,7 +2265,17 @@ class VHCC_Web {
 			/* Nhãn 📷 ảnh chấm công — nằm dưới số, ngoài đường bấm sửa/bù nên bấm vào ảnh KHÔNG
 			   mở nhầm biểu mẫu sửa giờ của cả ô. */
 			. '.manhcc{margin-top:2px;line-height:1}'
-			. '.manhcc a{display:inline-block;text-decoration:none;font-size:11px;padding:0 1px}'
+			. '.manhcc a{display:inline-block;text-decoration:none;font-size:11px;padding:0 1px;'
+			. 'position:relative}'
+			/* Ảnh xem trước — RÊ CHUỘT LÀ THẤY, thuần CSS (không script, xem chú thích ở
+			   `manh_cham()`). Ẩn sẵn bằng `display:none`, chỉ `:hover`/`:focus` mới hiện. Nổi
+			   LÊN TRÊN ô (`bottom:100%`) để tránh khung `.cuon` cuộn NGANG cắt mất — cuộn ngang
+			   không đụng tới trục dọc. */
+			. '.manhcc a img{display:none;position:absolute;z-index:30;bottom:100%;left:50%;'
+			. 'transform:translateX(-50%);margin-bottom:4px;width:150px;max-width:40vw;height:auto;'
+			. 'border:2px solid #fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.35);'
+			. 'background:#fff}'
+			. '.manhcc a:hover img,.manhcc a:focus img,.manhcc a:focus-visible img{display:block}'
 			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
 			. 'border-top:1px dotted var(--vien);color:#475569;font-style:italic;white-space:nowrap}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
@@ -6246,14 +6256,18 @@ class VHCC_Web {
 	}
 
 	/**
-	 * Nhãn nhỏ 📷 bấm được, mở đúng ảnh chấm công của lượt đó — anh Thắng 07/09/2026: *"hiện ảnh
-	 * chấm công"*, sau khi soi một ca "có giờ vào mà không có giờ ra" và muốn xem có đúng người
-	 * hay không.
+	 * Nhãn nhỏ 📷, RÊ CHUỘT VÀO LÀ THẤY LUÔN ảnh chấm công của lượt đó, không cần bấm — anh Thắng
+	 * 07/09/2026: *"hiện ảnh chấm công"*, rồi ngay sau đó: *"rê chuột vào và thấy luôn được
+	 * không, không phải bấm"*.
 	 *
-	 * ⚠️ MÀN NÀY KHÔNG SCRIPT (phép thử "màn quản trị KHÔNG có thẻ <script>") nên không phóng to
-	 *    được lúc rê chuột kiểu bên app Chi phí — bấm mở ẢNH GỐC ở tab mới là cách duy nhất còn
-	 *    lại. `title` của liên kết vẫn nói rõ đây là ảnh lúc vào hay lúc ra, phòng khi hai ảnh
-	 *    trùng ngày trông giống hệt nhau trên danh sách.
+	 * ⚠️ MÀN NÀY KHÔNG SCRIPT (phép thử "màn quản trị KHÔNG có thẻ <script>"), nên phóng to lúc
+	 *    rê chuột KHÔNG làm được bằng JS căn vị trí theo con trỏ như bên app Chi phí — làm bằng
+	 *    thuần CSS: `<img>` nằm SẴN trong `<a>`, ẩn bằng `display:none`, hiện lại đúng lúc
+	 *    `:hover`/`:focus` (xem khối CSS `.manhcc a img`). Bấm vẫn mở được ảnh gốc ở tab mới —
+	 *    đường cũ GIỮ NGUYÊN cho máy chạm (điện thoại không có "rê chuột").
+	 * ⚠️ Ảnh nổi lên PHÍA TRÊN ô (`bottom:100%`), không sang ngang: `.cuon` cuộn NGANG
+	 *    (`overflow-x:auto`), lồi sang ngang dễ bị cắt theo khung cuộn đang đứng ở đâu; lồi lên
+	 *    trên gần như luôn nằm trong vùng nhìn thấy của cả bảng (trừ đúng hàng đầu tiên).
 	 */
 	private static function manh_cham( $vao, $ra, $nhan_h2 = false ) {
 		$v = self::url_anh_cham( $vao );
@@ -6261,15 +6275,16 @@ class VHCC_Web {
 		if ( '' === $v && '' === $r ) { return ''; }
 		$hau = $nhan_h2 ? ' (đêm)' : '';
 		$out = '<div class="manhcc">';
-		if ( '' !== $v ) {
-			$out .= '<a href="' . esc_url( $v ) . '" target="_blank" rel="noopener" title="'
-				. esc_attr( 'Ảnh chấm công lúc VÀO' . $hau ) . '">📷</a>';
-		}
-		if ( '' !== $r ) {
-			$out .= '<a href="' . esc_url( $r ) . '" target="_blank" rel="noopener" title="'
-				. esc_attr( 'Ảnh chấm công lúc RA' . $hau ) . '">📷</a>';
-		}
+		if ( '' !== $v ) { $out .= self::anh_xem_( $v, 'Ảnh chấm công lúc VÀO' . $hau ); }
+		if ( '' !== $r ) { $out .= self::anh_xem_( $r, 'Ảnh chấm công lúc RA' . $hau ); }
 		return $out . '</div>';
+	}
+
+	/** Một liên kết 📷 mang sẵn ảnh xem trước — xem chú thích ở `manh_cham()`. */
+	private static function anh_xem_( $url, $nhan ) {
+		return '<a class="anh-xem" href="' . esc_url( $url ) . '" target="_blank" rel="noopener" title="'
+			. esc_attr( $nhan ) . '">📷<img src="' . esc_url( $url ) . '" alt="' . esc_attr( $nhan )
+			. '" loading="lazy"></a>';
 	}
 
 	/** Chú thích rê chuột của một ô ngày — nói VÌ SAO ô đó ra con số ấy. */
