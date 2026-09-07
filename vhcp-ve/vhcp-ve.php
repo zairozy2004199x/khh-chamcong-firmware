@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.7.0
+ * Version:           1.8.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -94,6 +94,7 @@ class POSH_Ve {
 			'gia'        => (int) ( isset( $v['gia'] ) ? $v['gia'] : 0 ),
 			'gia_goc'    => (int) ( isset( $v['gia_goc'] ) ? $v['gia_goc'] : 0 ),   // giá gốc (gạch ngang) — 0 = không sale
 			'nhom'       => trim( (string) ( isset( $v['nhom'] ) ? $v['nhom'] : '' ) ),
+			'khu_vuc'    => trim( (string) ( isset( $v['khu_vuc'] ) ? $v['khu_vuc'] : '' ) ),   // cơ sở/khu vực (HN/HCM…), trống = mọi khu vực
 			'mo_ta'      => trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ),
 			'anh'        => esc_url_raw( (string) ( isset( $v['anh'] ) ? $v['anh'] : '' ) ),
 			'thoi_luong' => trim( (string) ( isset( $v['thoi_luong'] ) ? $v['thoi_luong'] : '' ) ),
@@ -267,7 +268,7 @@ class POSH_Ve {
 		$goi = array();
 		foreach ( self::ds() as $g ) {
 			$goi[] = array( 'ma' => (int) $g['id'], 'ten' => $g['ten'], 'tien' => (int) $g['gia'],
-				'gia_goc' => (int) $g['gia_goc'], 'nhom' => (string) $g['nhom'],
+				'gia_goc' => (int) $g['gia_goc'], 'nhom' => (string) $g['nhom'], 'khu_vuc' => (string) $g['khu_vuc'],
 				'mo_ta' => (string) $g['mo_ta'], 'anh' => (string) $g['anh'], 'thoi_luong' => (string) $g['thoi_luong'],
 				'so_luong' => (int) $g['so_luong'] );
 		}
@@ -419,11 +420,13 @@ class POSH_Ve {
 		), $atts, 'posh_ve' );
 		$rest = esc_url_raw( rest_url( self::NS ) );
 
-		// Gom dịch vụ theo nhóm, giữ thứ tự.
-		$nhom = array();
+		// Gom dịch vụ theo nhóm + gom danh sách khu vực (để hiện màn chọn khu vực).
+		$nhom = array(); $kvucs = array();
 		foreach ( self::ds() as $g ) {
 			$k = trim( (string) $g['nhom'] ) !== '' ? $g['nhom'] : 'Vé';
 			$nhom[ $k ][] = $g;
+			$kv = trim( (string) $g['khu_vuc'] );
+			if ( '' !== $kv && ! in_array( $kv, $kvucs, true ) ) { $kvucs[] = $kv; }
 		}
 
 		ob_start();
@@ -437,6 +440,7 @@ class POSH_Ve {
 			</div>
 		</div>
 		<div class="pve-wrap" id="pve-ds">
+			<?php if ( $kvucs ) : ?><div class="pve-kvbar" hidden>📍 Khu vực: <b class="pve-kvbar-ten"></b> <a href="#" class="pve-kvbar-doi">Đổi khu vực</a></div><?php endif; ?>
 			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
 			<?php if ( empty( $nhom ) ) : ?>
 				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
@@ -451,6 +455,7 @@ class POSH_Ve {
 								$het = ( $g['so_luong'] >= 0 && $g['so_luong'] < 1 ); ?>
 							<div class="pve-card<?php echo $het ? ' pve-het' : ''; ?>"
 								data-id="<?php echo (int) $g['id']; ?>"
+								data-kv="<?php echo esc_attr( trim( (string) $g['khu_vuc'] ) ); ?>"
 								data-ten="<?php echo esc_attr( $g['ten'] ); ?>"
 								data-gia="<?php echo (int) $g['gia']; ?>">
 								<div class="pve-img">
@@ -480,6 +485,21 @@ class POSH_Ve {
 			<?php endforeach; ?>
 		</div>
 		</div>
+
+		<?php if ( $kvucs ) : ?>
+		<div class="pve-wel" hidden>
+			<div class="pve-wel-box">
+				<div class="pve-wel-h">Chào mừng bạn! Vui lòng chọn khu vực</div>
+				<div class="pve-wel-list">
+					<?php foreach ( $kvucs as $kv ) : ?>
+						<button type="button" class="pve-wel-kv" data-kv="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></button>
+					<?php endforeach; ?>
+				</div>
+				<button type="button" class="pve-wel-ok" disabled>Xác nhận</button>
+				<div class="pve-wel-note">Chọn khu vực để xem đúng vé đang mở bán tại đó.</div>
+			</div>
+		</div>
+		<?php endif; ?>
 
 		<div class="pve-mask" hidden>
 			<div class="pve-modal">
@@ -535,6 +555,36 @@ class POSH_Ve {
 				show('form'); mask.hidden = false;
 			}
 			function dong(){ mask.hidden = true; if(timer){ clearInterval(timer); timer=null; } }
+
+			// ----- Màn chào mừng: chọn khu vực rồi lọc vé -----
+			var wel = document.querySelector('.pve-wel');
+			if (wel) {
+				try { document.body.appendChild(wel); } catch(e){}
+				var KVKEY = 'posh_kvuc', kvChon = null;
+				var okBtn = wel.querySelector('.pve-wel-ok');
+				var kvBtns = wel.querySelectorAll('.pve-wel-kv');
+				var bar = document.querySelector('.pve-kvbar');
+				function locKV(kv){
+					document.querySelectorAll('.pve-sec').forEach(function(s){
+						var vis = 0;
+						s.querySelectorAll('.pve-card').forEach(function(c){
+							var k = c.dataset.kv || '', ok = (!k || k === kv);
+							c.style.display = ok ? '' : 'none'; if (ok) vis++;
+						});
+						s.style.display = vis ? '' : 'none';
+					});
+					if (bar){ bar.querySelector('.pve-kvbar-ten').textContent = kv; bar.hidden = false; }
+				}
+				function moWel(){ kvChon = null; okBtn.disabled = true; kvBtns.forEach(function(b){ b.classList.remove('on'); }); wel.hidden = false; }
+				kvBtns.forEach(function(b){ b.addEventListener('click', function(){
+					kvChon = b.dataset.kv; kvBtns.forEach(function(x){ x.classList.remove('on'); }); b.classList.add('on'); okBtn.disabled = false;
+				}); });
+				okBtn.addEventListener('click', function(){ if(!kvChon) return; try{ sessionStorage.setItem(KVKEY, kvChon); }catch(e){} wel.hidden = true; locKV(kvChon); });
+				if (bar){ bar.querySelector('.pve-kvbar-doi').addEventListener('click', function(e){ e.preventDefault(); moWel(); }); }
+				var daChon = ''; try{ daChon = sessionStorage.getItem(KVKEY) || ''; }catch(e){}
+				var hopLe = false; kvBtns.forEach(function(b){ if (b.dataset.kv === daChon) hopLe = true; });
+				if (daChon && hopLe) { locKV(daChon); } else { moWel(); }
+			}
 
 			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
 				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
@@ -634,6 +684,20 @@ class POSH_Ve {
 		.pve-kv{ display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:6px 0; border-bottom:1px dashed #e2e8f0; }
 		.pve-kv b{ color:#1f2937; text-align:right; word-break:break-all; }
 		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#94a3b8; font-size:11px; font-style:normal; }
+		/* Màn chào mừng chọn khu vực */
+		.pve-wel{ position:fixed; inset:0; background:rgba(15,23,42,.72); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100000; }
+		.pve-wel-box{ background:#fff; border-radius:18px; padding:26px 22px; width:100%; max-width:440px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+		.pve-wel-h{ font-size:20px; font-weight:900; color:#1f2937; margin-bottom:18px; }
+		.pve-wel-list{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; }
+		.pve-wel-kv{ border:2px solid #e2e8f0; background:#fff; color:#1f2937; font-weight:700; font-size:15px; padding:14px 10px; border-radius:12px; cursor:pointer; transition:.15s; }
+		.pve-wel-kv:hover{ border-color:#cf9f22; }
+		.pve-wel-kv.on{ border-color:#cf9f22; background:#fcf3d9; color:#8a6a10; }
+		.pve-wel-ok{ width:100%; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:14px; border-radius:12px; cursor:pointer; }
+		.pve-wel-ok:disabled{ background:#cbd5e1; cursor:not-allowed; }
+		.pve-wel-note{ color:#94a3b8; font-size:12px; margin-top:12px; }
+		.pve-kvbar{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:9px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
+		.pve-kvbar b{ color:#1f2937; }
+		.pve-kvbar-doi{ float:right; color:#b8871a; font-weight:700; text-decoration:none; }
 		</style>
 		<?php
 		return ob_get_clean();
@@ -660,6 +724,7 @@ class POSH_Ve {
 				'gia' => (int) preg_replace( '/\D+/', '', (string) $_POST['gia'] ),
 				'gia_goc' => (int) preg_replace( '/\D+/', '', (string) ( isset( $_POST['gia_goc'] ) ? $_POST['gia_goc'] : '' ) ),
 				'nhom' => sanitize_text_field( wp_unslash( isset( $_POST['nhom'] ) ? $_POST['nhom'] : '' ) ),
+				'khu_vuc' => sanitize_text_field( wp_unslash( isset( $_POST['khu_vuc'] ) ? $_POST['khu_vuc'] : '' ) ),
 				'mo_ta' => sanitize_textarea_field( wp_unslash( $_POST['mo_ta'] ) ),
 				'anh' => esc_url_raw( wp_unslash( $_POST['anh'] ) ),
 				'thoi_luong' => sanitize_text_field( wp_unslash( $_POST['thoi_luong'] ) ),
@@ -776,7 +841,7 @@ class POSH_Ve {
 			if ( $v['gia_goc'] > $v['gia'] ) { $gia_html .= ' <s style="color:#999">' . esc_html( number_format( $v['gia_goc'], 0, ',', '.' ) ) . 'đ</s>'; }
 			echo '<tr><td>' . ( $v['anh'] ? '<img src="' . esc_url( $v['anh'] ) . '" style="width:56px;height:56px;object-fit:cover;border-radius:8px">' : '—' ) . '</td>'
 				. '<td><b>' . esc_html( $v['ten'] ) . '</b>' . ( $v['mo_ta'] !== '' ? '<br><small>' . esc_html( $v['mo_ta'] ) . '</small>' : '' ) . '</td>'
-				. '<td>' . esc_html( $v['nhom'] ) . '</td>'
+				. '<td>' . esc_html( $v['nhom'] ) . ( $v['khu_vuc'] !== '' ? '<br><small>📍 ' . esc_html( $v['khu_vuc'] ) . '</small>' : '' ) . '</td>'
 				. '<td>' . $gia_html . '</td>'
 				. '<td>' . ( $v['so_luong'] < 0 ? '∞' : ( $v['so_luong'] > 0 ? (int) $v['so_luong'] : '<b style="color:#991b1b">Hết</b>' ) ) . '</td>'
 				. '<td>' . esc_html( $v['thoi_luong'] ) . '</td><td>' . ( $v['hien'] ? '✅' : '⛔' ) . '</td><td>'
@@ -795,6 +860,7 @@ class POSH_Ve {
 		echo '<tr><th>Giá bán (đ)</th><td><input name="gia" type="number" min="1000" step="1000" required value="' . esc_attr( $sua ? $sua['gia'] : '' ) . '"></td></tr>';
 		echo '<tr><th>Giá gốc (đ)</th><td><input name="gia_goc" type="number" min="0" step="1000" value="' . esc_attr( $sua ? $sua['gia_goc'] : '' ) . '"> <span class="description">để 0 hoặc trống nếu không giảm giá. Lớn hơn giá bán → hiện badge % + giá gạch.</span></td></tr>';
 		echo '<tr><th>Nhóm</th><td><input name="nhom" class="regular-text" placeholder="VD Vé lẻ / Combo / Funzone Aeon…" value="' . esc_attr( $sua ? $sua['nhom'] : '' ) . '"> <span class="description">gom các vé cùng nhóm thành một hàng trên app.</span></td></tr>';
+		echo '<tr><th>Khu vực / Cơ sở</th><td><input name="khu_vuc" class="regular-text" placeholder="VD Hà Nội / Hồ Chí Minh / Aeon Long Biên…" value="' . esc_attr( $sua ? $sua['khu_vuc'] : '' ) . '"> <span class="description">Khách sẽ chọn khu vực khi vào trang bán; để <b>trống</b> = hiện ở mọi khu vực.</span></td></tr>';
 		echo '<tr><th>Số lượng vé</th><td><input name="so_luong" type="number" min="0" step="1" value="' . esc_attr( $sua && $sua['so_luong'] >= 0 ? $sua['so_luong'] : '' ) . '"> <span class="description">số vé còn bán — để <b>trống</b> = không giới hạn. Mỗi vé bán (web/Zalo) tự trừ 1.</span></td></tr>';
 		echo '<tr><th>Thời lượng</th><td><input name="thoi_luong" class="regular-text" placeholder="VD 60 phút / Cả ngày" value="' . esc_attr( $sua ? $sua['thoi_luong'] : '' ) . '"></td></tr>';
 		echo '<tr><th>Mô tả</th><td><textarea name="mo_ta" rows="3" class="large-text">' . esc_textarea( $sua ? $sua['mo_ta'] : '' ) . '</textarea></td></tr>';
