@@ -28,8 +28,10 @@ export default function HomePage() {
       <div className="goi-list">
         {goi.map((g) => (
           <div key={g.ma} className="goi-card" onClick={() => navigate(`/buy/${g.ma}`, { state: { goi: g } })}>
+            {g.anh ? <img className="goi-anh" src={g.anh} alt={g.ten} /> : <div className="goi-anh goi-anh-trong">🎟️</div>}
             <span className="ten">{g.ten}</span>
             <span className="tien">{dinhTien(g.tien)}</span>
+            {g.thoi_luong ? <span className="phut">{g.thoi_luong}</span> : null}
             {g.mo_ta ? <span className="mota">{g.mo_ta}</span> : null}
           </div>
         ))}

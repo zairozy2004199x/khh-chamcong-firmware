@@ -5,6 +5,8 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .goi-list { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .goi-card { background:var(--card); border-radius:14px; padding:14px; box-shadow:0 4px 14px rgba(0,0,0,.06);
   display:flex; flex-direction:column; gap:4px; border:1px solid #e2e8f0; cursor:pointer; }
+.goi-card .goi-anh { width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:10px; margin-bottom:6px; }
+.goi-card .goi-anh-trong { display:flex; align-items:center; justify-content:center; font-size:34px; background:#f1f5f9; }
 .goi-card .ten { font-weight:800; font-size:16px; color:var(--ink); }
 .goi-card .tien { font-weight:900; font-size:22px; color:#c2410c; }
 .goi-card .phut { color:var(--mut); font-size:13px; }
