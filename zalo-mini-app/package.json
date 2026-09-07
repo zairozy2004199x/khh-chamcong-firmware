@@ -2,7 +2,7 @@
   "name": "posh-ve-mini",
   "private": true,
   "version": "0.1.0",
-  "description": "POSH - Zalo Mini App ban ve massage tra truoc (backend: WordPress vhcp-ghe, REST vhg/v1/ve/*)",
+  "description": "POSH - Zalo Mini App ban ve khu vui choi tra truoc (backend: WordPress vhcp-ve, REST posh/v1/*)",
   "scripts": {
     "start": "zmp start",
     "deploy": "zmp deploy"
@@ -17,7 +17,7 @@
   },
   "devDependencies": {
     "zmp-cli": "^3.5.0",
-    "zmp-vite-plugin": "^2.0.2",
+    "zmp-vite-plugin": "^1.1.6",
     "typescript": "^5.4.5",
     "vite": "^5.2.0",
     "@types/react": "^18.2.0",

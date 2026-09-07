@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.5.0
+ * Version:           1.6.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -114,7 +114,10 @@ class POSH_Ve {
 	}
 	public static function ds_tatca() {
 		$ds = get_option( 'pve_dichvu' );
-		if ( ! is_array( $ds ) || ! $ds ) { return self::VE_MAC_DINH; }
+		if ( ! is_array( $ds ) || ! $ds ) {
+			$mac = array(); foreach ( self::VE_MAC_DINH as $v ) { $mac[] = self::chuan_hoa( $v, $v['id'] ); }
+			return $mac;   // chuẩn hoá để có đủ trường (so_luong = -1 = không giới hạn)
+		}
 		$ra = array(); $auto = 1;
 		foreach ( $ds as $v ) {
 			foreach ( $ra as $x ) { if ( $x['id'] >= $auto ) { $auto = $x['id'] + 1; } }
@@ -173,6 +176,24 @@ class POSH_Ve {
 			PRIMARY KEY (id), UNIQUE KEY sdt (sdt), KEY diem (diem)
 		) $col;" );
 		update_option( 'pve_tbl', self::VER_TBL );
+	}
+
+	/* Bảo đảm có sẵn 1 trang bán vé chứa [posh_ve]. Trả về ID trang (0 nếu lỗi). */
+	public static function bao_dam_trang() {
+		$pid = (int) get_option( 'pve_page_id' );
+		if ( $pid && ( $p = get_post( $pid ) ) && 'trash' !== $p->post_status ) { return $pid; }
+		global $wpdb;
+		$co = (int) $wpdb->get_var( "SELECT ID FROM {$wpdb->posts} WHERE post_type='page' AND post_status IN ('publish','draft','pending') AND post_content LIKE '%[posh_ve]%' ORDER BY ID ASC LIMIT 1" );
+		if ( $co ) { update_option( 'pve_page_id', $co ); return $co; }
+		$moi = wp_insert_post( array(
+			'post_title'   => 'Mua vé khu vui chơi',
+			'post_name'    => 'mua-ve',
+			'post_content' => '[posh_ve]',
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+		) );
+		if ( $moi && ! is_wp_error( $moi ) ) { update_option( 'pve_page_id', (int) $moi ); return (int) $moi; }
+		return 0;
 	}
 
 	// ───────────────────────────── Điểm & hạng thành viên (1 điểm = 1.000đ) ─────────────────────────────
@@ -670,8 +691,18 @@ class POSH_Ve {
 		$sua = null; $sid = isset( $_GET['sua'] ) ? (int) $_GET['sua'] : 0;
 		if ( $sid ) { foreach ( $ds as $v ) { if ( (int) $v['id'] === $sid ) { $sua = $v; break; } } }
 
+		$page_id   = self::bao_dam_trang();
+		$page_link = $page_id ? get_permalink( $page_id ) : '';
+		$page_edit = $page_id ? get_edit_post_link( $page_id ) : '';
+
 		echo '<div class="wrap"><h1>Vé khu vui chơi</h1>';
-		echo '<p>API cho Zalo Mini App: <code>' . $url . '</code> · Trang bán trên web: dán shortcode <code>[posh_ve]</code> vào một trang bất kỳ.</p>';
+		if ( $page_link ) {
+			echo '<div class="notice notice-info inline" style="margin:10px 0"><p><b>Trang bán vé trên web đã sẵn:</b> '
+				. '<a href="' . esc_url( $page_link ) . '" target="_blank">' . esc_html( $page_link ) . '</a> '
+				. '&nbsp; <a class="button button-small" href="' . esc_url( $page_link ) . '" target="_blank">Mở trang</a> '
+				. '<a class="button button-small" href="' . esc_url( $page_edit ) . '">Sửa (đổi tên/đường dẫn)</a></p></div>';
+		}
+		echo '<p>API cho Zalo Mini App: <code>' . $url . '</code> · Muốn thêm trang bán khác: dán shortcode <code>[posh_ve]</code> vào trang bất kỳ.</p>';
 
 		/* ── Tổng quan ── */
 		$tbl   = self::tbl();
@@ -856,5 +887,5 @@ class POSH_Ve {
 	}
 }
 
-register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); flush_rewrite_rules(); } );
+register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); flush_rewrite_rules(); } );
 add_action( 'init', array( 'POSH_Ve', 'init' ), 6 );
