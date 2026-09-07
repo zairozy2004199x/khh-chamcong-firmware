@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '1';
+	const VER_TBL = '2';
 
 	const VE_MAC_DINH = array(
 		array( 'id' => 1, 'ten' => 'Vé vào cửa', 'gia' => 50000,  'gia_goc' => 0,      'nhom' => 'Vé lẻ',  'mo_ta' => 'Vé vào cửa 1 người', 'anh' => '', 'thoi_luong' => '', 'hien' => 1 ),
@@ -144,6 +144,7 @@ class POSH_Ve {
 			ten_khach VARCHAR(80) NOT NULL DEFAULT '',
 			sdt VARCHAR(20) NOT NULL DEFAULT '',
 			noi_dung VARCHAR(40) NOT NULL DEFAULT '',
+			chi_tiet TEXT NULL,
 			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
 			tao_luc DATETIME NOT NULL,
 			tt_luc DATETIME NULL,
@@ -156,6 +157,7 @@ class POSH_Ve {
 	public static function dang_ky() {
 		register_rest_route( self::NS, '/ve/goi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_goi' ) ) );
 		register_rest_route( self::NS, '/ve/dat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat' ) ) );
+		register_rest_route( self::NS, '/ve/dat-gio', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat_gio' ) ) );
 		register_rest_route( self::NS, '/ve/trangthai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_trangthai' ) ) );
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 	}
@@ -205,6 +207,46 @@ class POSH_Ve {
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
 			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho',
+			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
+	}
+	/* Đặt nhiều vé trong 1 giỏ -> 1 đơn, 1 mã QR tổng. items = [{id, sl}, ...] */
+	public static function r_dat_gio( $req ) {
+		$items = $req->get_param( 'items' );
+		$ten   = sanitize_text_field( (string) $req->get_param( 'ten' ) );
+		$sdt   = preg_replace( '/[^0-9+]/', '', (string) $req->get_param( 'sdt' ) );
+		if ( ! is_array( $items ) || ! $items ) { return new WP_Error( 'gio', 'Giỏ hàng trống.', array( 'status' => 400 ) ); }
+		if ( '' === $ten || '' === $sdt ) { return new WP_Error( 'thieu', 'Cần tên và số điện thoại.', array( 'status' => 400 ) ); }
+		$b = self::bank();
+		if ( '' === $b['so_tk'] || '' === $b['bin'] ) { return new WP_Error( 'tk', 'Chưa cấu hình tài khoản nhận tiền.', array( 'status' => 409 ) ); }
+		if ( ! self::nhip_ok() ) { return new WP_Error( 'nhip', 'Thao tác quá nhanh, thử lại sau giây lát.', array( 'status' => 429 ) ); }
+
+		$tong = 0; $mota = array(); $ct = array(); $can = array();
+		foreach ( $items as $it ) {
+			$id = (int) ( isset( $it['id'] ) ? $it['id'] : 0 );
+			$sl = max( 1, (int) ( isset( $it['sl'] ) ? $it['sl'] : 1 ) );
+			$g  = self::theo_id( $id );
+			if ( ! $g ) { continue; }
+			$can[ $id ] = ( isset( $can[ $id ] ) ? $can[ $id ] : 0 ) + $sl;
+			if ( $g['so_luong'] >= 0 && $g['so_luong'] < $can[ $id ] ) {
+				return new WP_Error( 'het', 'Vé "' . $g['ten'] . '" không đủ số lượng.', array( 'status' => 409 ) );
+			}
+			$tong  += (int) $g['gia'] * $sl;
+			$mota[] = $sl . 'x ' . $g['ten'];
+			$ct[]   = array( 'id' => $id, 'ten' => $g['ten'], 'gia' => (int) $g['gia'], 'sl' => $sl );
+		}
+		if ( $tong < 1000 ) { return new WP_Error( 'gio', 'Giỏ hàng không hợp lệ.', array( 'status' => 400 ) ); }
+
+		global $wpdb;
+		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve; $tomtat = implode( ', ', $mota );
+		$wpdb->insert( self::tbl(), array(
+			'ma_ve' => $ma_ve, 'dv_ten' => mb_substr( $tomtat, 0, 120 ), 'so_tien' => $tong,
+			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
+			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ), 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
+		) );
+		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
+		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
+		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
+			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho', 'chi_tiet' => $ct,
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 	public static function r_trangthai( $req ) {

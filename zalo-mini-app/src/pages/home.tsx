@@ -1,13 +1,15 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Page, Spinner, useNavigate } from "zmp-ui";
+import { Page, Spinner, useNavigate, useSnackbar } from "zmp-ui";
 import { openWebview } from "zmp-sdk";
 import { layGoi, layTin, dinhTien, Goi, Tin } from "../api";
+import { themVaoGio } from "../cart";
 import TabBar from "../components/tabbar";
 
 /* Trang chủ: header + carousel vé theo nhóm (hàng cuộn ngang) + mục "Tin tức"
  * (bài viết WordPress trên khmatrix.com). Bám đúng app FunZone thật. */
 export default function HomePage() {
   const navigate = useNavigate();
+  const snackbar = useSnackbar();
   const [goi, setGoi] = useState<Goi[]>([]);
   const [tin, setTin] = useState<Tin[]>([]);
   const [loi, setLoi] = useState("");
@@ -39,6 +41,7 @@ export default function HomePage() {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
     const het = g.so_luong >= 0 && g.so_luong < 1;
     const moMua = () => { if (!het) navigate(`/buy/${g.ma}`, { state: { goi: g } }); };
+    const themGio = () => { themVaoGio(g); snackbar.openSnackbar({ text: "Đã thêm vào giỏ 🛒", type: "success", duration: 1500 }); };
     return (
       <div key={g.ma} className={"pcard" + (het ? " pcard-het" : "")} onClick={moMua}>
         <div className="pcard-img">
@@ -54,7 +57,7 @@ export default function HomePage() {
               <span className="pcard-gia">{dinhTien(g.tien)}</span>
               {sale > 0 && <span className="pcard-goc">{dinhTien(g.gia_goc)}</span>}
             </div>
-            <button className="pcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); moMua(); }}>+</button>
+            <button className="pcard-add" disabled={het} onClick={(e) => { e.stopPropagation(); themGio(); }}>+</button>
           </div>
         </div>
       </div>

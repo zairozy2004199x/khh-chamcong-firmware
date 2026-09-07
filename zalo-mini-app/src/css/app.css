@@ -109,7 +109,8 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
   display:flex; padding:6px 0 max(6px,env(safe-area-inset-bottom)); z-index:40; }
 .tabbar-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; color:#94a3b8; font-size:11px; cursor:pointer; }
 .tabbar-i.on{ color:var(--gold-d); font-weight:700; }
-.tabbar-ic{ font-size:20px; line-height:1; }
+.tabbar-ic{ font-size:20px; line-height:1; position:relative; display:inline-block; }
+.tabbar-badge{ position:absolute; top:-6px; right:-10px; min-width:16px; height:16px; padding:0 4px; box-sizing:border-box; background:#ef4444; color:#fff; font-size:10px; font-weight:800; line-height:16px; text-align:center; border-radius:999px; }
 
 /* ===== Màn phụ (Giỏ hàng / Tin nhắn / Đơn hàng) ===== */
 .tp{ background:var(--cream); min-height:100vh; }
@@ -129,6 +130,28 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .dh-bot{ display:flex; justify-content:space-between; align-items:center; margin-top:8px; }
 .dh-ma{ color:#64748b; font-size:12px; }
 .dh-tien{ font-weight:900; color:#c2410c; font-size:16px; }
+
+/* ===== Giỏ hàng ===== */
+.gio-list{ padding:12px 14px; display:flex; flex-direction:column; gap:12px; }
+.gio-item{ background:#fff; border:1px solid #f0e7d2; border-radius:14px; padding:10px; display:flex; gap:12px; align-items:center; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+.gio-img{ width:64px; height:64px; border-radius:10px; overflow:hidden; background:#eef2f6; display:flex; align-items:center; justify-content:center; font-size:28px; flex:none; }
+.gio-img img{ width:100%; height:100%; object-fit:cover; }
+.gio-mid{ flex:1; min-width:0; }
+.gio-ten{ font-weight:700; font-size:14px; color:#1f2937; line-height:1.3; }
+.gio-gia{ color:#c2410c; font-weight:900; font-size:15px; margin-top:2px; }
+.gio-xoa{ margin-top:4px; border:none; background:none; color:#94a3b8; font-size:12px; padding:0; cursor:pointer; text-decoration:underline; }
+.gio-step{ display:flex; align-items:center; gap:10px; flex:none; }
+.gio-step button{ width:30px; height:30px; border:1px solid #e2e8f0; background:#fff; border-radius:8px; font-size:18px; line-height:1; cursor:pointer; color:#334155; }
+.gio-step b{ min-width:18px; text-align:center; font-size:15px; }
+.gio-form{ background:#fff; margin:4px 14px 0; border-radius:14px; padding:14px; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+.gio-lb{ display:block; font-size:13px; color:#475569; font-weight:600; margin:8px 0 4px; }
+.gio-lb:first-child{ margin-top:0; }
+.gio-in{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 13px; font-size:15px; }
+.gio-bar{ position:fixed; left:0; right:0; bottom:calc(58px + env(safe-area-inset-bottom)); background:#fff; border-top:1px solid #eee; padding:10px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; z-index:35; }
+.gio-bar-l{ font-size:12px; color:#64748b; }
+.gio-bar-t{ font-size:20px; font-weight:900; color:#c2410c; }
+.gio-tt{ border:none; background:var(--gold); color:#fff; font-weight:800; font-size:16px; padding:13px 28px; border-radius:12px; cursor:pointer; }
+.gio-tt:disabled{ background:#cbd5e1; cursor:not-allowed; }
 
 /* ===== Cá nhân ===== */
 .cn{ background:var(--cream); min-height:100vh; }

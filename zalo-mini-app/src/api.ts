@@ -30,6 +30,12 @@ export function datVe(id: number, ten: string, sdt: string) {
     body: JSON.stringify({ id, ten, sdt }),
   });
 }
+export function datGio(items: { id: number; sl: number }[], ten: string, sdt: string) {
+  return json<Ve & { ok: boolean }>(`${BASE}/ve/dat-gio`, {
+    method: "POST",
+    body: JSON.stringify({ items, ten, sdt }),
+  });
+}
 export function trangThaiVe(maVe: string) {
   return json<{ ok: boolean; ma_ve: string; goi_ten: string; so_tien: number; phut: number;
     trang_thai: string; tao_luc: string; tt_luc: string | null }>(
