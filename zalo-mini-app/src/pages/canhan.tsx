@@ -34,9 +34,10 @@ export default function CaNhanPage() {
 
   const MENU = [
     { ic: "🧾", ten: "Đơn hàng của tôi", di: () => navigate("/donhang") },
-    { ic: "🎁", ten: "Lịch sử tích điểm", di: () => navigate("/donhang") },
+    { ic: "🎁", ten: "Ưu đãi", di: () => navigate("/uudai") },
     { ic: "📍", ten: "Sổ địa chỉ", di: () => {} },
     { ic: "☎️", ten: "Liên hệ hỗ trợ", di: () => navigate("/tinnhan") },
+    { ic: "🔒", ten: "Quản lý (nhân viên)", di: () => navigate("/quanly") },
   ];
 
   return (

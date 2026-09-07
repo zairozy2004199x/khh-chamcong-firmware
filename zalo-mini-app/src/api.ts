@@ -50,3 +50,32 @@ export function trangThaiVe(maVe: string) {
 }
 
 export const dinhTien = (n: number) => (Number(n) || 0).toLocaleString("vi-VN") + "đ";
+
+/* ── Ưu đãi (khách) ── */
+export interface Uudai { id: number; ten: string; mo_ta: string; anh: string; hang: string; han: string; }
+export function layUudai() {
+  return json<{ ok: boolean; uudai: Uudai[] }>(`${BASE}/uudai`);
+}
+
+/* ── Khu quản lý (nhân viên, có PIN) ── */
+export interface BaoCao {
+  ok: boolean; dt_hnay: number; dt_thang: number; ve_ban: number; ve_cho: number; ve_hnay: number;
+  top: { ten: string; sl: number; dt: number }[];
+}
+export interface DonQL {
+  ma_ve: string; dv_ten: string; so_tien: number; ten_khach: string; sdt: string; trang_thai: string; tao_luc: string;
+}
+export function qlDangNhap(pin: string) {
+  return json<{ ok: boolean }>(`${BASE}/ql/dangnhap`, { method: "POST", body: JSON.stringify({ pin }) });
+}
+export function qlBaoCao(pin: string) {
+  return json<BaoCao>(`${BASE}/ql/baocao?pin=${encodeURIComponent(pin)}`);
+}
+export function qlDonHang(pin: string, loc = "", tim = "") {
+  return json<{ ok: boolean; don: DonQL[] }>(
+    `${BASE}/ql/donhang?pin=${encodeURIComponent(pin)}&loc=${encodeURIComponent(loc)}&tim=${encodeURIComponent(tim)}`);
+}
+export function qlCapNhat(pin: string, maVe: string, trangThai: string) {
+  return json<{ ok: boolean; ma_ve: string; trang_thai: string; diem_cong: number }>(
+    `${BASE}/ql/capnhat`, { method: "POST", body: JSON.stringify({ pin, ma_ve: maVe, trang_thai: trangThai }) });
+}

@@ -185,3 +185,57 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .cn-item-ic{ font-size:20px; width:26px; text-align:center; }
 .cn-item-ten{ flex:1; color:#1f2937; font-size:15px; }
 .cn-item-mui{ color:#cbd5e1; font-size:20px; }
+
+/* ===== Ưu đãi ===== */
+.ud-list{ padding:12px 14px; display:flex; flex-direction:column; gap:12px; }
+.ud-item{ background:#fff; border:1px solid #f0e7d2; border-radius:14px; overflow:hidden; display:flex; gap:12px; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+.ud-img{ width:96px; min-height:96px; background:#fcf3d9; display:flex; align-items:center; justify-content:center; font-size:34px; flex:none; }
+.ud-img img{ width:96px; height:100%; object-fit:cover; }
+.ud-body{ padding:10px 12px; flex:1; min-width:0; }
+.ud-ten{ font-weight:800; font-size:15px; color:#1f2937; }
+.ud-mota{ color:#64748b; font-size:12px; margin-top:3px; line-height:1.4; }
+.ud-meta{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+.ud-tag{ background:#fcf3d9; color:#8a6a10; font-size:11px; font-weight:700; padding:3px 9px; border-radius:999px; }
+.ud-han{ color:#94a3b8; font-size:11px; align-self:center; }
+
+/* ===== Quản lý (nhân viên) ===== */
+.ql-thoat{ float:right; font-size:13px; font-weight:600; color:rgba(255,255,255,.9); text-decoration:underline; cursor:pointer; }
+.ql-login{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:44px 26px; text-align:center; }
+.ql-login-ic{ font-size:50px; }
+.ql-login-t{ font-weight:800; font-size:17px; color:#1f2937; }
+.ql-login .gio-in{ max-width:260px; text-align:center; letter-spacing:3px; }
+.ql-tabs{ display:flex; gap:8px; padding:12px 14px 4px; }
+.ql-tabs button{ flex:1; border:1px solid #e2e8f0; background:#fff; color:#475569; font-weight:700; font-size:13px; padding:9px 4px; border-radius:10px; cursor:pointer; }
+.ql-tabs button.on{ background:var(--gold); color:#fff; border-color:var(--gold); }
+.ql-body{ padding:12px 14px; }
+.ql-cards{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.ql-card{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:12px; box-shadow:0 3px 10px rgba(0,0,0,.04); }
+.ql-card-l{ color:#64748b; font-size:12px; }
+.ql-card-v{ font-size:19px; font-weight:900; color:#c2410c; margin-top:3px; }
+.ql-sec{ font-weight:800; color:#1f2937; margin:16px 0 8px; }
+.ql-tbl{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; overflow:hidden; }
+.ql-tr{ display:flex; align-items:center; gap:8px; padding:9px 12px; border-bottom:1px solid #f3f4f6; font-size:13px; }
+.ql-tr:last-child{ border-bottom:none; }
+.ql-tr span{ flex:1; min-width:0; color:#1f2937; }
+.ql-tr b{ width:52px; text-align:right; flex:none; color:#334155; }
+.ql-tr b:last-child{ width:92px; color:#c2410c; }
+.ql-th{ background:#faf6ee; font-weight:800; }
+.ql-th span, .ql-th b{ color:#64748b; }
+.ql-timrow{ display:flex; gap:8px; margin-bottom:10px; }
+.ql-filters{ display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; }
+.ql-filters button{ flex:none; border:1px solid #e2e8f0; background:#fff; color:#475569; font-size:12px; font-weight:700; padding:6px 12px; border-radius:999px; cursor:pointer; }
+.ql-filters button.on{ background:#1f2937; color:#fff; border-color:#1f2937; }
+.ql-don{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 3px 10px rgba(0,0,0,.04); }
+.ql-don-top{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.ql-don-top b{ font-size:14px; color:#1f2937; }
+.ql-don-mid{ display:flex; justify-content:space-between; gap:8px; margin-top:6px; font-size:13px; color:#475569; }
+.ql-don-tien{ font-weight:900; color:#c2410c; }
+.ql-don-ma{ color:#94a3b8; font-size:11px; margin-top:4px; }
+.ql-don-act{ display:flex; gap:8px; margin-top:10px; }
+.ql-b{ border:none; border-radius:8px; font-weight:700; font-size:13px; padding:9px 14px; cursor:pointer; background:#e2e8f0; color:#334155; }
+.ql-b.ok{ background:#166534; color:#fff; }
+.ql-b.huy{ background:#fee2e2; color:#991b1b; }
+.ql-b:disabled{ opacity:.6; cursor:not-allowed; }
+.ql-soat-btns{ display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+.ql-soat-btns .ql-b{ padding:13px; font-size:15px; }
+.ql-kq{ margin-top:14px; background:#fff; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-weight:700; color:#1f2937; }

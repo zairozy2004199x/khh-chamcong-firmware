@@ -7,6 +7,8 @@ import GioHangPage from "./pages/giohang";
 import TinNhanPage from "./pages/tinnhan";
 import CaNhanPage from "./pages/canhan";
 import DonHangPage from "./pages/donhang";
+import UudaiPage from "./pages/uudai";
+import QuanLyPage from "./pages/quanly";
 import BuyPage from "./pages/buy";
 import TicketPage from "./pages/ticket";
 import "./css/app.css";
@@ -33,6 +35,8 @@ const Layout = () =>
           r("/tinnhan", TinNhanPage),
           r("/canhan", CaNhanPage),
           r("/donhang", DonHangPage),
+          r("/uudai", UudaiPage),
+          r("/quanly", QuanLyPage),
           React.createElement(Route, { path: "/buy/:id", element: React.createElement(BuyPage) }),
           React.createElement(Route, { path: "/ticket/:maVe", element: React.createElement(TicketPage) })
         )
