@@ -1609,6 +1609,16 @@ class VHCC_Web {
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
 		}
 
+		/* 🔴 CỬA HẸP RIÊNG CHO ẢNH THẺ — xem chú thích đầy đủ ở `khoi_thieu_anh()`. Chỉ đụng
+		   ĐÚNG cột `anh_the` của ĐÚNG một mã; không đi qua `luu_ho_so()` (hàm ấy vốn không có
+		   `anh_the` trong danh sách cho phép — xem `VHCC_NhanSu::luu_ho_so()`). */
+		if ( 'anh_the_thieu' === $viec ) {
+			$ma = isset( $_POST['atx_ma'] ) ? trim( (string) wp_unslash( $_POST['atx_ma'] ) ) : '';
+			$r  = VHCC_NhanSu::luu_anh_the_rieng( $toi, $ma,
+				isset( $_FILES['atx_anh'] ) ? $_FILES['atx_anh'] : array() );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
+		}
+
 		if ( 'khai_admin' === $viec ) {
 			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới khai được tài khoản Admin khác.' ) );
@@ -3604,13 +3614,24 @@ class VHCC_Web {
 	}
 
 	/**
-	 * AI Ở CƠ SỞ NÀY CHƯA CÓ ẢNH THẺ — cảnh báo để bù sau.
+	 * AI Ở CƠ SỞ NÀY CHƯA CÓ ẢNH THẺ — cảnh báo để bù sau, VÀ TẢI ĐƯỢC NGAY TẠI ĐÂY.
 	 *
 	 * Anh Thắng chốt ảnh thẻ *"không ép buộc, nhưng không có là phải đưa ra cảnh báo bù sau"*.
 	 * Không ép là đúng: bắt buộc thì người ta gửi bừa một tấm cho qua cửa, và tấm ấy còn tệ hơn
 	 * không có — máy nhận nhầm mặt thì lượt chấm công của người khác mang tên mình.
+	 *
+	 * =============================================================================================
+	 * 🔴 07/09/2026: "MỞ HỒ SƠ RỒI TẢI ẢNH LÊN" — CÂU ẤY TRƯỚC BẢN NÀY KHÔNG LÀM ĐƯỢC.
+	 * =============================================================================================
+	 * Form "Sửa hồ sơ" (`the_sua_ho_so()`, nhánh KHÔNG tạo mới) chưa từng có ô tải ảnh — chỉ
+	 * nhánh "Tạo hồ sơ mới" mới có. Nghĩa là câu nhắc bù ảnh của chính khối này chỉ đường tới
+	 * một chỗ chưa dựng. Anh Thắng: *"bổ sung thêm trực tiếp ảnh thẻ nhân viên trên này"* — nên
+	 * thay vì dựng thêm ô ảnh cho form Sửa hồ sơ (một form dài, nhiều việc khác), mỗi người ở
+	 * đây có một khối gập RIÊNG chỉ làm đúng một việc: chọn ảnh, tải lên. Viec mới `anh_the_thieu`
+	 * (xem `luu_anh_the_thieu()`) và `VHCC_NhanSu::luu_anh_the_rieng()` chỉ đụng đúng cột
+	 * `anh_the` của đúng một mã — không chạm gì khác trong hồ sơ.
 	 */
-	private static function khoi_thieu_anh( $toi, $cs ) {
+	private static function khoi_thieu_anh( $toi, $cs, $ky = '' ) {
 		if ( '' === $cs ) { return; }
 		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
 		/* 🔴 CHỐT CƠ SỞ, VÀ ĐÂY LÀ CHỖ SUÝT RÒ. `$cs` đến thẳng từ thanh địa chỉ; bảng công bên
@@ -3623,11 +3644,34 @@ class VHCC_Web {
 		echo '<div class="bao canh" style="margin-top:10px"><b>' . count( $ds )
 			. ' người ở cơ sở này chưa có ảnh thẻ.</b> '
 			. '<span class="mo">Chưa có ảnh thì khuôn mặt phải lấy trực tiếp tại máy chấm công, '
-			. 'và chấm công online không có gì để đối chiếu. Bù dần cũng được — mở hồ sơ từng '
-			. 'người rồi tải ảnh lên.</span><br><span class="mo">';
-		$ten = array();
-		foreach ( $ds as $x ) { $ten[] = $x['ho_ten'] . ' (' . $x['ma_nv'] . ')'; }
-		echo esc_html( implode( ' · ', $ten ) ) . '</span></div>';
+			. 'và chấm công online không có gì để đối chiếu. Bấm tên từng người bên dưới để tải '
+			. 'ảnh lên ngay tại đây.</span>';
+		/* Ảnh thẻ mẫu vẽ MỘT LẦN cho cả danh sách, không lặp lại theo từng người — 29 người là
+		   29 tấm SVG giống hệt nhau nếu vẽ trong vòng lặp, nặng trang mà không thêm gì mới. */
+		echo self::anh_the_mau();
+		echo '<div class="tnv-ds" style="margin-top:8px">';
+		foreach ( $ds as $x ) {
+			$ma = (string) $x['ma_nv'];
+			echo '<details><summary>' . esc_html( $x['ho_ten'] . ' (' . $ma . ')' )
+				. ' <span class="mo">— bấm để tải ảnh thẻ</span></summary>';
+			/* ⚠️ KHÔNG tính vector khuôn mặt ở đây, dù `khoi_them_nv()`/`the_sua_ho_so()` (nhánh
+			   tạo mới) có làm việc đó — hai chỗ ấy chỉ hiện cho MỘT VAI (Cửa hàng trưởng không
+			   có `ho_so`, hoặc đúng lúc tạo mới), còn khối này hiện cho CẢ Admin lẫn Cửa hàng
+			   trưởng trên CHÍNH màn Bảng công — màn phải giữ ĐÚNG luật "KHÔNG một dòng script"
+			   cho MỌI vai xem nó (phép thử "màn quản trị KHÔNG có thẻ <script>"). Thêm script ở
+			   đây là phá lệ cho vai Admin, chỗ trước giờ luôn sạch.
+			   Ảnh vẫn dùng được: máy chấm công vẫn tự nhận khuôn mặt từ ảnh gốc khi đẩy xuống;
+			   mẫu đối chiếu cho chấm công ONLINE thì lấy từ lượt chấm công online ĐẦU TIÊN của
+			   người đó như đường vốn có từ trước (xem `VHCC_Mat::soi()`), không mất hẳn — chỉ là
+			   không seed ngay lúc tải ảnh như nhánh tạo mới. */
+			echo '<form method="post" enctype="multipart/form-data" style="margin-top:8px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="anh_the_thieu">'
+				. '<input type="hidden" name="atx_ma" value="' . esc_attr( $ma ) . '">'
+				. '<input name="atx_anh" type="file" accept="image/*" capture="user" required>'
+				. ' <button class="chinh">Tải ảnh thẻ lên</button></form></details>';
+		}
+		echo '</div></div>';
 	}
 
 	private static function the_bang_cham( $ky, $toi ) {
@@ -3773,7 +3817,7 @@ class VHCC_Web {
 		if ( '' === $cs && '' !== $bp && $ds_cs ) { $hien_het = true; }
 
 		if ( '' === $cs && ! $hien_het ) {
-			self::khoi_thieu_anh( $toi, $cs );
+			self::khoi_thieu_anh( $toi, $cs, $ky );
 			echo '<p class="mo" style="margin-top:12px">'
 				/* Chỉ đường sang dải Bộ phận thay vì chỉ nói "chọn cơ sở": từ 01/09/2026 bấm một
 				   bộ phận là ra thẳng bảng công của từng cơ sở trong đó, nhanh hơn hẳn đường
@@ -3839,7 +3883,7 @@ class VHCC_Web {
 			echo '<details' . ( $nhieu_cs ? '' : ' open' ) . '>';
 			echo '<summary class="cs-ten">🏬 <b>' . esc_html( $mot_cs ) . '</b>'
 				. ' <span class="mo">· tháng ' . esc_html( $th ) . '</span></summary>';
-			self::khoi_thieu_anh( $toi, $mot_cs );
+			self::khoi_thieu_anh( $toi, $mot_cs, $ky );
 			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
 			if ( empty( $b['ok'] ) ) {
 				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div></details></div>';
@@ -5794,6 +5838,7 @@ class VHCC_Web {
 			? VHCC_Cham::ngay_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
 		$tk_ds = method_exists( 'VHCC_Cham', 'tong_o_coso_khac' )
 			? VHCC_Cham::tong_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
+		$anh_ds = self::anh_the_ds( array_keys( $ten ) );
 
 		$tong_cs = 0;
 		foreach ( $ten as $ma => $ho_ten ) {
@@ -5843,7 +5888,8 @@ class VHCC_Web {
 			   `td.dang-sua` (xem CSS), và ô đang sửa vốn nằm ngay TRONG hàng người đó. */
 			echo '<tr>';
 			echo '<td' . ( isset( $cho_tra[ $ma ] ) ? ' class="cho-tra"' : '' ) . '>'
-				. self::ten_nguoi( $ma, $ho_ten, $toi )
+				. self::ten_nguoi( $ma, $ho_ten, $toi, '',
+					isset( $anh_ds[ strtoupper( (string) $ma ) ] ) ? $anh_ds[ strtoupper( (string) $ma ) ] : '' )
 				. ( isset( $khong_cham[ $ma ] )
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
 						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
@@ -6055,6 +6101,7 @@ class VHCC_Web {
 			? VHCC_Cham::ngay_o_coso_khac( $ma_ds, (string) $b['station'], $tt ) : array();
 		$tk_ds = method_exists( 'VHCC_Cham', 'tong_o_coso_khac' )
 			? VHCC_Cham::tong_o_coso_khac( $ma_ds, (string) $b['station'], $tt ) : array();
+		$anh_ds = self::anh_the_ds( $ma_ds );
 
 		$lech = 0;
 		foreach ( $rows as $e ) {
@@ -6065,7 +6112,8 @@ class VHCC_Web {
 			/* Neo `id="suaday"` KHÔNG còn đặt trên `<tr>` — xem khối 🔴 giải thích ở ve_luoi_gio()
 			   phía trên (nhảy loạn xạ vì neo trên cả hàng không cuộn NGANG đúng cột ngày). Đặt
 			   thẳng vào `<td class="dang-sua">` của đúng ngày đang sửa, trong vòng lặp dưới. */
-			echo '<tr><td>' . self::ten_nguoi( $ma, $e['ten'], $toi )
+			echo '<tr><td>' . self::ten_nguoi( $ma, $e['ten'], $toi, '',
+				isset( $anh_ds[ strtoupper( $ma ) ] ) ? $anh_ds[ strtoupper( $ma ) ] : '' )
 				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$cong = 0.0;
@@ -6351,14 +6399,52 @@ class VHCC_Web {
 	 *    dọc và thẻ Truy cập nhanh.
 	 * ⚠️ Mã rỗng thì trả tên trơn: không có khoá thì không có chỗ để tới.
 	 */
-	private static function ten_nguoi( $ma, $ten, $toi, $duoi = '' ) {
+	private static function ten_nguoi( $ma, $ten, $toi, $duoi = '', $anh = '' ) {
 		$ten_h = esc_html( (string) $ten );
 		$ma    = trim( (string) $ma );
-		if ( '' === $ma || ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return $ten_h . $duoi; }
+		/* 📷 Ảnh thẻ — anh Thắng 07/09/2026: *"tải lên xong sẽ hiện ô ảnh, rê chuột vào sẽ thấy
+		   ảnh thẻ nhân viên"*. Đặt TRƯỚC chốt quyền `ho_so` bên dưới: ai thấy được lưới thì cũng
+		   thấy được huy hiệu này (chỉ Admin/Cửa hàng trưởng mới thấy lưới cả tháng), không nhất
+		   thiết phải có quyền `ho_so` mới xem được mặt người mình đang chấm công cho. */
+		$anh_bd = self::anh_the_badge( $anh );
+		if ( '' === $ma || ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return $ten_h . $duoi . $anh_bd; }
 		$url = add_query_arg( array( 'man' => 'ho_so', 'sua' => $ma ), self::url() );
 		return '<a class="ten-nv" href="' . esc_url( $url ) . '" title="'
 			. esc_attr( 'Mở hồ sơ ' . $ma . ' — sửa cơ sở, bộ phận, lương cơ bản, PIN' ) . '">'
-			. $ten_h . '</a>' . $duoi;
+			. $ten_h . '</a>' . $duoi . $anh_bd;
+	}
+
+	/**
+	 * Huy hiệu 📷 rê-chuột-là-thấy cho ẢNH THẺ (khác ảnh chấm công `manh_cham()`/`anh_xem_()`
+	 * ở trên): `anh_the` là một `data:` URI RỬA SẴN (xem `VHCC_NhanSu::rua_anh_the()`), không
+	 * phải đường dẫn tệp — `esc_url()` LỌC BỎ giao thức `data:` (không nằm trong
+	 * `wp_allowed_protocols()`), dùng nó ở đây là ảnh vỡ hoàn toàn. Dùng `esc_attr()` thay vào —
+	 * an toàn vì chuỗi này do CHÍNH `rua_anh_the()` sinh ra (đọc lại ảnh đã nén, không phải
+	 * chuỗi thô người dùng gõ), không phải một URL đi lấy dữ liệu từ nơi khác.
+	 */
+	private static function anh_the_badge( $anh ) {
+		$anh = trim( (string) $anh );
+		if ( 0 !== strpos( $anh, 'data:image/' ) ) { return ''; }
+		return '<div class="manhcc"><a class="anh-xem" href="' . esc_attr( $anh )
+			. '" target="_blank" rel="noopener" title="Ảnh thẻ nhân viên">📷<img src="'
+			. esc_attr( $anh ) . '" alt="Ảnh thẻ nhân viên" loading="lazy"></a></div>';
+	}
+
+	/** [MÃ NV chữ hoa] => data URI ảnh thẻ, cho MỘT lượt đọc thay vì hỏi từng người trong vòng lặp. */
+	private static function anh_the_ds( $ma_ds ) {
+		global $wpdb;
+		$ma_ds = array_values( array_unique( array_filter( array_map( 'strval', (array) $ma_ds ) ) ) );
+		if ( ! $ma_ds ) { return array(); }
+		$cho = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+		$rows = VHCC_DB::rows( $wpdb->prepare(
+			'SELECT ma_nv, anh_the FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv IN (' . $cho . ')',
+			$ma_ds ) );
+		$ra = array();
+		foreach ( $rows as $r ) {
+			$anh = trim( (string) $r['anh_the'] );
+			if ( '' !== $anh ) { $ra[ strtoupper( trim( (string) $r['ma_nv'] ) ) ] = $anh; }
+		}
+		return $ra;
 	}
 
 	/** Chú thích rê chuột của ô dòng ca đêm. */

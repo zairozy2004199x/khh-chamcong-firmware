@@ -2301,6 +2301,53 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * BÙ ẢNH THẺ CHO MỘT HỒ SƠ ĐÃ CÓ — cửa hẹp, chỉ đụng cột `anh_the`.
+	 *
+	 * Anh Thắng 07/09/2026: *"bổ sung thêm trực tiếp ảnh thẻ nhân viên trên này"*, ngay dưới
+	 * khối "N người chưa có ảnh thẻ" trên màn Bảng công.
+	 *
+	 * 🔴 VÌ SAO KHÔNG ĐI QUA `luu_ho_so()`. Hàm ấy có một danh sách CHO PHÉP (`$cho_phep`) và
+	 *    `anh_the` không nằm trong đó — cố tình, vì `luu_ho_so()` là form "Sửa hồ sơ" chung, còn
+	 *    ảnh thẻ trước giờ chỉ có đường TẠO MỚI (`them_nv_cua_hang()`/`day_ho_so_moi_len_may()`
+	 *    gọi từ nhánh tạo mới của `VHCC_Web::luu_ho_so()`). Nới `$cho_phep` là mở đường ẢNH THẺ
+	 *    CHO CẢ FORM SỬA HỒ SƠ DÀI — không phải việc đang xin, và form ấy có nhiều trường khác
+	 *    cần soi lại cẩn thận hơn trước khi thêm tệp tải lên. Một cửa RIÊNG, hẹp, chỉ làm một
+	 *    việc thì rủi ro chỉ nằm gọn trong đúng cột `anh_the`.
+	 *
+	 * ⚠️ KHÔNG TÍNH VECTOR KHUÔN MẶT Ở ĐÂY (khác `them_nv_cua_hang()`). Khối gọi hàm này hiện
+	 *    cho CẢ Admin lẫn Cửa hàng trưởng trên chính màn Bảng công — màn phải giữ nguyên luật
+	 *    "KHÔNG một dòng script" cho MỌI vai (xem `VHCC_Web::khoi_thieu_anh()`). Mẫu đối chiếu
+	 *    khuôn mặt cho chấm công online vẫn tự lấy được từ lượt chấm công online ĐẦU TIÊN của
+	 *    người này — đường vốn có từ trước khi có ảnh thẻ, xem `VHCC_Mat::soi()`.
+	 */
+	public static function luu_anh_the_rieng( $u, $ma_nv, $tep ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ mang mã ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $hs['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
+		}
+		$anh_kq = self::rua_anh_the( $tep );
+		if ( empty( $anh_kq['ok'] ) ) {
+			return array( 'ok' => false, 'error' => $anh_kq['error'] );
+		}
+		if ( '' === $anh_kq['anh'] ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn ảnh nào — bấm chọn tệp rồi tải lại.' );
+		}
+		$ok = $wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'anh_the' => $anh_kq['anh'], 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $ma ) );
+		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }
+		/* Đẩy luôn xuống máy — cùng đường với "sửa lại trên máy 🔄" ở trang Quản lý nhân sự,
+		   nhưng khỏi bắt bấm thêm một lượt riêng ngay sau khi vừa tải ảnh xong. */
+		$day = self::day_ho_so_moi_len_may( $u, $ma, null );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu ảnh thẻ cho ' . $hs['ho_ten'] . '.'
+			. ( ! empty( $day['ok'] ) ? ' ' . $day['thong_bao'] : '' ) );
+	}
+
+	/**
 	 * XOÁ hồ sơ.
 	 * ⚠️ CHẶN khi người đó CÒN chấm công. Xoá hồ sơ mà giữ lại chấm công là bảng lương có mã
 	 *    không tra ra được tên — người thật, công thật, mà không biết trả cho ai. Muốn cho nghỉ

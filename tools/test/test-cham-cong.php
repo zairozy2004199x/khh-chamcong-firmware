@@ -15547,13 +15547,27 @@ t( '🔴 gõ tay cơ sở khác thì khối ảnh không vẽ ra', '' === $h_xa,
 
 
 /* ⚠️ CẮT ĐÚNG KHỐI RỒI MỚI SOI. Bảng công bên dưới liệt kê TÊN MỌI NHÂN VIÊN, nên soi cả trang
-   thì "Có Ảnh Thẻ" luôn tìm thấy — phép thử xanh/đỏ vì một khối khác hẳn. */
+   thì "Có Ảnh Thẻ" luôn tìm thấy — phép thử xanh/đỏ vì một khối khác hẳn.
+   ⚠️ 07/09/2026: khối này từ bản có form tải ảnh trực tiếp (`khoi_thieu_anh()`) mang theo
+   NHIỀU `<div>` lồng nhau (ảnh thẻ mẫu, danh sách `.tnv-ds`) — bắt `</div>` ĐẦU TIÊN sau
+   "chưa có ảnh thẻ" như bản cũ là cắt trúng ngay div con của ảnh mẫu, đứt trước khi tới phần
+   liệt kê tên. Phải ĐẾM CÂN BẰNG mở/đóng để tìm đúng `</div>` khép khối `bao canh` ngoài
+   cùng. */
 function vhcc_khoi_anh( $h ) {
 	$i = strpos( $h, 'chưa có ảnh thẻ' );
 	if ( false === $i ) { return ''; }
 	$d = strrpos( substr( $h, 0, $i ), '<div class="bao canh"' );
-	$c = strpos( $h, '</div>', $i );
-	return substr( $h, $d, ( false === $c ? strlen( $h ) : $c + 6 ) - $d );
+	if ( false === $d ) { return ''; }
+	$sau = $d + strlen( '<div class="bao canh"' );
+	$muc = 1;
+	while ( $muc > 0 ) {
+		$mo  = strpos( $h, '<div', $sau );
+		$dong = strpos( $h, '</div>', $sau );
+		if ( false === $dong ) { return substr( $h, $d ); }
+		if ( false !== $mo && $mo < $dong ) { $muc++; $sau = $mo + 4; }
+		else { $muc--; $sau = $dong + 6; }
+	}
+	return substr( $h, $d, $sau - $d );
 }
 $h_anh = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
 	array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) ) );
@@ -15581,6 +15595,124 @@ teq( 'hỏi đúng cơ sở kia thì thấy', 1, count( array_filter(
 $h_anh_lam = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
 	array( 'man' => 'cham', 'ccs' => 'JP_HCM' ) ) );
 t( '🔴 gõ tay cơ sở khác thì khối ảnh không vẽ ra', '' === $h_anh_lam, $h_anh_lam );
+
+/* ==========================================================================================
+ * 🔴 07/09/2026: "BỔ SUNG THÊM TRỰC TIẾP ẢNH THẺ NHÂN VIÊN TRÊN NÀY"
+ * ------------------------------------------------------------------------------------------
+ * Anh Thắng, ngay dưới khối "N người chưa có ảnh thẻ": *"bổ sung thêm trực tiếp ảnh thẻ nhân
+ * viên trên này"*. Trước bản này, câu nhắc "mở hồ sơ rồi tải ảnh lên" của chính khối ấy KHÔNG
+ * làm được — form "Sửa hồ sơ" chưa từng có ô ảnh (chỉ nhánh Tạo mới có). Bộ thử dưới đây kiểm
+ * cả HAI TẦNG: form dựng đúng dưới mỗi tên (không phá luật "màn quản trị KHÔNG script"), và
+ * `VHCC_NhanSu::luu_anh_the_rieng()` (lõi lưu) chỉ đụng đúng một cột, đúng một mã, có gác quyền.
+ * ======================================================================================== */
+
+/* ---- form dựng đúng dưới TỪNG người, không phải một nút chung ---- */
+t( '🔴 mỗi người chưa có ảnh có MỘT khối gập riêng mang tên+mã trong <summary>',
+	preg_match( '/<summary>(?:(?!<\/summary>).)*Không Ảnh(?:(?!<\/summary>).)*<\/summary>/us', $h_anh ) === 1,
+	$h_anh );
+t( 'và form của người ấy POST đúng viec anh_the_thieu, mang đúng mã',
+	preg_match( '/<form[^>]*enctype="multipart\/form-data"[^>]*>'
+		. '(?:(?!<\/form>).)*name="viec" value="anh_the_thieu"'
+		. '(?:(?!<\/form>).)*name="atx_ma" value="' . preg_quote( VHCC_NhanSu::ho_so_theo_cccd( '012345678921' )['ma_nv'], '/' ) . '"/us',
+		$h_anh ) === 1, $h_anh );
+t( '🔴 khối vừa thêm KHÔNG kéo theo một dòng script nào (giữ nguyên luật của cả màn)',
+	stripos( $h_anh, '<script' ) === false, $h_anh );
+t( 'ô chọn tệp chỉ nhận ảnh, không nhận bừa mọi loại tệp',
+	strpos( $h_anh, 'name="atx_anh" type="file" accept="image/*"' ) !== false, $h_anh );
+
+/* ---- lõi lưu: VHCC_NhanSu::luu_anh_the_rieng() ---- */
+$ma_koanh = VHCC_NhanSu::ho_so_theo_cccd( '012345678921' )['ma_nv'];   // "Không Ảnh", tạo ở khối trên
+$r_thieu_ma = VHCC_NhanSu::luu_anh_the_rieng( $U_AD, '', array() );
+t( '🔴 thiếu mã NV thì chối', empty( $r_thieu_ma['ok'] ), $r_thieu_ma );
+$r_khong_ho_so = VHCC_NhanSu::luu_anh_the_rieng( $U_AD, 'MA-KHONG-TON-TAI', array() );
+t( '🔴 mã không có hồ sơ thì chối, nói rõ không thấy hồ sơ',
+	empty( $r_khong_ho_so['ok'] ) && strpos( $r_khong_ho_so['error'], 'Không thấy hồ sơ' ) !== false,
+	$r_khong_ho_so );
+
+/* Cửa hàng trưởng của MỘT cơ sở khác không lưu được ảnh cho người của TUTU_BT. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'ANHCHT2', 'ho_ten' => 'CHT Cơ Sở Khác',
+	'cua_hang' => 'JP_HCM', 'vai_tro' => 'Cửa hàng trưởng' ) );
+$U_CHT_KHAC = array( 'name' => 'CHT Cơ Sở Khác', 'role' => 'Cửa hàng trưởng', 'coso' => 'JP_HCM', 'ma_nv' => 'ANHCHT2' );
+$r_sai_cs = VHCC_NhanSu::luu_anh_the_rieng( $U_CHT_KHAC, $ma_koanh, array() );
+t( '🔴 Cửa hàng trưởng cơ sở khác không lưu được ảnh cho người này',
+	empty( $r_sai_cs['ok'] ), $r_sai_cs );
+
+/* Không gửi tệp nào — khác `rua_anh_the()` trần (coi "không gửi" là hợp lệ vì ảnh vốn tuỳ
+   chọn lúc TẠO hồ sơ); ở cửa RIÊNG này, "không gửi gì" là lỗi vì cả form chỉ có đúng một việc. */
+$r_khong_tep = VHCC_NhanSu::luu_anh_the_rieng( $U_AD, $ma_koanh, array() );
+t( '🔴 không chọn ảnh nào thì chối rõ ràng, không âm thầm "lưu xong"',
+	empty( $r_khong_tep['ok'] ) && strpos( $r_khong_tep['error'], 'Chưa chọn ảnh' ) !== false,
+	$r_khong_tep );
+
+/* Ảnh không phải hình — câu chối phải xuyên nguyên từ rua_anh_the(), không bọc lại chung chung. */
+$r_khong_anh_that = VHCC_NhanSu::luu_anh_the_rieng( $U_AD, $ma_koanh,
+	array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => __FILE__ ) );
+t( '🔴 tệp không phải ảnh thì chối, câu chối xuyên nguyên từ rua_anh_the()',
+	empty( $r_khong_anh_that['ok'] ) && strpos( $r_khong_anh_that['error'], 'không phải ảnh' ) !== false,
+	$r_khong_anh_that );
+teq( 'và KHÔNG đụng gì tới cột anh_the khi lưu hỏng', '',
+	(string) VHCC_NhanSu::ho_so( $ma_koanh )['anh_the'] );
+
+/* ---- NHÁNH THÀNH CÔNG: ảnh thật, cập nhật đúng cột, đẩy lệnh xuống máy ---- */
+$anh_to2 = imagecreatetruecolor( 900, 1200 );
+imagefill( $anh_to2, 0, 0, imagecolorallocate( $anh_to2, 120, 140, 160 ) );
+$tep_to2 = tempnam( sys_get_temp_dir(), 'vhcc-thu2' ) . '.jpg';
+imagejpeg( $anh_to2, $tep_to2, 90 );
+imagedestroy( $anh_to2 );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$r_luu_anh = VHCC_NhanSu::luu_anh_the_rieng( $U_AD, $ma_koanh,
+	array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => $tep_to2 ) );
+@unlink( $tep_to2 );
+t( '🔴 ảnh thật thì lưu được', ! empty( $r_luu_anh['ok'] ), $r_luu_anh );
+t( 'và câu báo có tên người, dễ biết vừa lưu cho ai',
+	strpos( $r_luu_anh['thong_bao'], 'Không Ảnh' ) !== false, $r_luu_anh );
+$hs_sau_luu = VHCC_NhanSu::ho_so( $ma_koanh );
+t( '🔴 cột anh_the trong DB đã có data URI, không còn rỗng',
+	strpos( (string) $hs_sau_luu['anh_the'], 'data:image/jpeg;base64,' ) === 0,
+	substr( (string) $hs_sau_luu['anh_the'], 0, 40 ) );
+t( 'người vừa bù ảnh KHÔNG còn nằm trong danh sách "thiếu ảnh thẻ" của cơ sở',
+	0 === count( array_filter( VHCC_NhanSu::thieu_anh_the( 'TUTU_BT' ),
+		function ( $x ) use ( $ma_koanh ) { return $ma_koanh === $x['ma_nv']; } ) ),
+	VHCC_NhanSu::thieu_anh_the( 'TUTU_BT' ) );
+/* Bù ảnh cũng đẩy lệnh xuống máy — cùng đường với "sửa lại trên máy 🔄", khỏi bắt bấm thêm. */
+$lenh_sau_anh = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' )
+	. " WHERE ma_nv='" . $ma_koanh . "'" );
+t( '🔴 và tự đẩy một lệnh xuống máy, khỏi bắt bấm "sửa lại trên máy" thêm lần nữa',
+	count( $lenh_sau_anh ) >= 1, $lenh_sau_anh );
+
+/* ---- huy hiệu 📷 rê-chuột-là-thấy trên chính TÊN người trong lưới ---- */
+$h_luoi_sau_anh = vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => substr( (string) current_time( 'Y-m-d' ), 0, 7 ) ) );
+/* ⚠️ `esc_url()` LỌC BỎ `data:` — nếu lỡ dùng nhầm ở `anh_the_badge()`, chuỗi base64 sẽ biến
+   mất khỏi HTML (chỉ còn chuỗi rỗng hoặc bị cắt), và phép thử tìm "data:image/jpeg;base64,"
+   trong `<img src=...>` sẽ trượt. Đây chính là cái bẫy tài liệu ở đầu hàm phải tránh. */
+t( '📷 huy hiệu ảnh thẻ mang ĐÚNG data URI vừa lưu, không bị esc_url() cắt mất',
+	strpos( $h_luoi_sau_anh, '<img src="' . esc_attr( $hs_sau_luu['anh_the'] ) . '"' ) !== false,
+	substr( $h_luoi_sau_anh, 0, 200 ) );
+t( 'và liên kết mở ảnh gốc mang class anh-xem, đúng nề nếp với ảnh chấm công',
+	strpos( $h_luoi_sau_anh, 'class="anh-xem"' ) !== false, $h_luoi_sau_anh );
+
+/* ---- POST thật qua VHCC_Web::phuc_vu(), không chỉ gọi lõi bằng tay ---- */
+$ma_khac_the = VHCC_NhanSu::ho_so_theo_cccd( '012345678920' )['ma_nv'];   // "Có Ảnh Thẻ" — đổi ảnh của người NÀY
+$anh_to3 = imagecreatetruecolor( 800, 1000 );
+imagefill( $anh_to3, 0, 0, imagecolorallocate( $anh_to3, 30, 60, 90 ) );
+$tep_to3 = tempnam( sys_get_temp_dir(), 'vhcc-thu3' ) . '.jpg';
+imagejpeg( $anh_to3, $tep_to3, 90 );
+imagedestroy( $anh_to3 );
+$tok_atx = VHCC_Auth::phat_token( 'CHT Thêm', 'Cửa hàng trưởng', 'TUTU_BT', 'CHTTN1' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_atx );
+$_GET  = array( 'man' => 'cham', 'ccs' => 'TUTU_BT' );
+$_POST = array( 'viec' => 'anh_the_thieu', 'ky' => VHCC_Web::chu_ky( $tok_atx ), 'atx_ma' => $ma_khac_the );
+$_FILES = array( 'atx_anh' => array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => $tep_to3, 'name' => 'the.jpg' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_post_atx = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array(); $_FILES = array();
+@unlink( $tep_to3 );
+t( '🔴 POST thật qua cổng chính (viec=anh_the_thieu) cũng lưu được, không chỉ gọi lõi bằng tay',
+	strpos( (string) VHCC_NhanSu::ho_so( $ma_khac_the )['anh_the'], 'data:image/jpeg;base64,' ) === 0,
+	substr( (string) VHCC_NhanSu::ho_so( $ma_khac_the )['anh_the'], 0, 40 ) );
+t( 'và trang chuyển hướng về đúng địa chỉ đang xem (POST → chuyển hướng → GET)',
+	strpos( $h_post_atx, 'ccs=TUTU_BT' ) !== false || strpos( $h_post_atx, 'Location' ) === false,
+	substr( $h_post_atx, 0, 300 ) );
 
 /* 🔴 ẢNH HỎNG THÌ VẪN THÊM ĐƯỢC NGƯỜI. Ảnh là phần không bắt buộc; chối cả lượt thêm người chỉ
    vì một tấm ảnh sai định dạng là đổi một tiện ích thành một cửa chặn. */
