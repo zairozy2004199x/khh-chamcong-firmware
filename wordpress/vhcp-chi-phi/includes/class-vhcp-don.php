@@ -537,12 +537,25 @@ class VHCP_Don {
 		$dons = self::don_rows();
 		$tu   = self::tu_rows();
 
-		$tu_sum = array(); $tu_has = array();
+		$tu_sum = array(); $tu_has = array(); $cs_tu = array();
 		foreach ( $tu as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( $m === '' ) { continue; }
 			$tu_sum[ $m ] = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) + VHCP_Util::num( $r['so'] );
 			$tu_has[ $m ] = true;
+			/* 🔴 CƠ SỞ CŨNG NẰM Ở HÀNG TẠM ỨNG, KHÔNG CHỈ Ở DÒNG CHI. Anh Thắng 07/09/2026:
+			   *"nhân viên khi tạo đơn đầu tiên mà nhập tạm ứng, thì phía cơ sở thì không hiện,
+			   nhưng bên trong chi tiết vẫn hiện bình thường"*.
+
+			   Đơn XIN ỨNG TRƯỚC (có số tạm ứng, chưa liệt kê hạng mục — luật 01/09/2026 cho
+			   gửi như thế) không có dòng chi nào, mà cột Cơ sở của bảng này vốn dựng TỪ DÒNG
+			   CHI. Kết quả: bảng ghi "chưa có dòng nào" trong khi mở đơn ra thấy rõ
+			   "TÀU ESTELLA · 600.000đ". Cùng một đơn, hai màn nói hai chuyện.
+
+			   Ưu tiên vẫn là dòng chi (nơi tiền thật sự đi vào); hàng tạm ứng chỉ lấp chỗ
+			   trống — cùng thứ tự với `coso_cua_don()`. */
+			$cs = trim( (string) ( isset( $r['coso'] ) ? $r['coso'] : '' ) );
+			if ( $cs !== '' && ! isset( $cs_tu[ $m ] ) ) { $cs_tu[ $m ] = $cs; }
 		}
 
 		/* Trạng thái của ĐƠN, tra được từ mã dòng — `thuc_chi()` cần biết đơn đã cấp tiền chưa,
@@ -627,6 +640,8 @@ class VHCP_Don {
 			$mp = isset( $coso_by[ $m ] ) ? $coso_by[ $m ] : array();
 			arsort( $mp );
 			$coso = implode( ', ', array_keys( $mp ) );
+			/* Không có dòng chi nào thì đọc cơ sở ở hàng tạm ứng — xem khối 🔴 ở vòng gom trên. */
+			if ( $coso === '' && isset( $cs_tu[ $m ] ) ) { $coso = $cs_tu[ $m ]; }
 
 			$out[] = array(
 				'maDon'       => $m,
@@ -2988,13 +3003,15 @@ class VHCP_Don {
 				if ( $ky === '' ) { $ky = $k; } elseif ( $ky !== $k ) { $nhieu_ky = true; }
 			}
 			if ( $dv === '' && ! empty( $d['donVi'] ) ) { $dv = (string) $d['donVi']; }
+			/* `list_dons()` đã đọc cơ sở ở CẢ dòng chi LẪN hàng tạm ứng (xem khối 🔴 trong đó),
+			   nên đơn xin ứng trước cũng có tên cơ sở ở đây. Rỗng tới được chỗ này nghĩa là đơn
+			   không khai cơ sở ở đâu cả — lúc ấy mới dùng nhãn.
+
+			   ⚠️ TỪNG CÓ MỘT LỚP GÁC THỨ HAI Ở ĐÂY (hỏi lại `coso_cua_don()`). Sau khi vá gốc
+			      thì nó không còn đạt tới được: hai hàm đọc đúng cùng hai nguồn, rỗng ở bên
+			      này thì rỗng cả bên kia. Phá thử 07/09/2026 chỉ ra — đục thủng mà bộ thử vẫn
+			      xanh. Đã bỏ: nhánh không ai chạy qua thì không ai biết nó còn đúng. */
 			$cs = trim( (string) ( isset( $d['coso'] ) ? $d['coso'] : '' ) );
-			/* 🔴 CỘT "CƠ SỞ" CỦA BẢNG ĐƠN DỰNG TỪ DÒNG CHI, nên đơn XIN ỨNG TRƯỚC (có số tạm
-			   ứng, chưa liệt kê hạng mục — luật 01/09/2026 cho phép gửi như thế) hiện ra ô
-			   TRỐNG. Đúng hàng thứ hai trong ảnh anh Thắng 07/09/2026. Nhưng cơ sở của nó có
-			   thật, nằm ở hàng tạm ứng — mà câu anh hỏi là *"cơ sở nào tạm ứng"*, nên hỏi
-			   tiếp `coso_cua_don()` (vốn ưu tiên cơ sở của tạm ứng) trước khi chịu thua. */
-			if ( $cs === '' ) { $cs = trim( (string) self::coso_cua_don( $m ) ); }
 			if ( $cs === '' ) { $cs = self::CS_CHUA_GAN; }
 			if ( ! isset( $theo_cs[ $cs ] ) ) { $theo_cs[ $cs ] = array( 'coso' => $cs, 'tien' => 0, 'soDon' => 0, 'maDons' => array() ); }
 			$theo_cs[ $cs ]['tien']  += $tu;

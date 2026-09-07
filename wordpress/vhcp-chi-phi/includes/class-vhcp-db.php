@@ -63,14 +63,16 @@ class VHCP_DB {
 
 		$sql = array();
 
+		/* Cột `don_vi` = ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. Ghi MỘT LẦN lúc lập đơn, theo
+		   nhà của người lập, rồi KHÔNG đổi nữa: đổi đơn vị của một đơn đã chạy là chuyển cả
+		   tiền sang sổ bên kia mà không có vết. Muốn chuyển thì lập đơn mới ở bên ấy.
+		   Đơn cũ có ô rỗng — đúng, vì trước khi có POSH thì mọi đơn đều là đơn K&H.
+
+		   🔴 CHÚ THÍCH Ở ĐÂY, NGOÀI CHUỖI SQL — xem chốt cuối `install()`. */
 		$sql[] = "CREATE TABLE " . self::t( 'don' ) . " (
 			ma_don VARCHAR(40) NOT NULL,
 			ky VARCHAR(120) NOT NULL DEFAULT '',
 			nguoi_lap VARCHAR(120) NOT NULL DEFAULT '',
-			/* ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. Ghi MỘT LẦN lúc lập đơn, theo nhà của
-			   người lập, rồi KHÔNG đổi nữa: đổi đơn vị của một đơn đã chạy là chuyển cả tiền
-			   sang sổ bên kia mà không có vết. Muốn chuyển thì lập đơn mới ở bên ấy.
-			   Đơn cũ có ô rỗng — đúng, vì trước khi có POSH thì mọi đơn đều là đơn K&H. */
 			don_vi VARCHAR(60) NOT NULL DEFAULT '',
 			ngay_tao DATETIME NULL,
 			trang_thai VARCHAR(40) NOT NULL DEFAULT 'Nháp',
@@ -343,7 +345,12 @@ class VHCP_DB {
 
 		   `du_lieu` giữ nguyên văn hàng đã xoá (đơn + mọi dòng chi + mọi dòng tạm ứng) dưới
 		   dạng JSON. Không tách thành cột: khuôn bảng `don` còn đổi theo thời gian, mà bản sao
-		   thì phải dựng lại được ĐÚNG những gì đã có lúc xoá, kể cả cột nay không còn dùng. */
+		   thì phải dựng lại được ĐÚNG những gì đã có lúc xoá, kể cả cột nay không còn dùng.
+
+		   Cột `da_hoan`: hoàn rồi thì KHÔNG hoàn lần hai — hoàn hai lần là đẻ ra bản sao của
+		   cùng một khoản chi, tức tiền đếm đôi. Giữ dòng lại (không xoá) để nhật ký còn nguyên.
+
+		   🔴 CHÚ THÍCH Ở ĐÂY, NGOÀI CHUỖI SQL — xem chốt cuối `install()`. */
 		$sql[] = "CREATE TABLE " . self::t( 'thungrac' ) . " (
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			luc DATETIME NULL,
@@ -354,8 +361,6 @@ class VHCP_DB {
 			nguoi VARCHAR(120) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			don_vi VARCHAR(60) NOT NULL DEFAULT '',
-			/* Đã hoàn rồi thì KHÔNG hoàn lần hai — hoàn hai lần là đẻ ra bản sao của cùng một
-			   khoản chi, tức tiền đếm đôi. Giữ dòng lại (không xoá) để nhật ký còn nguyên. */
 			da_hoan TINYINT(1) NOT NULL DEFAULT 0,
 			hoan_luc DATETIME NULL,
 			hoan_nguoi VARCHAR(120) NOT NULL DEFAULT '',
@@ -375,7 +380,14 @@ class VHCP_DB {
 
 		   `chi_tiet` giữ JSON từng cơ sở (tên · số tiền · mã đơn). Không tách thành bảng con:
 		   lệnh là ẢNH CHỤP tại thời điểm duyệt, và nó phải giữ nguyên con số lúc ấy kể cả khi
-		   sau này đơn bị trả lại, sửa số, hay xoá — đúng lý do bảng `thungrac` cũng lưu JSON. */
+		   sau này đơn bị trả lại, sửa số, hay xoá — đúng lý do bảng `thungrac` cũng lưu JSON.
+
+		   `stt` để SẮP XẾP, không dùng `luc` + `id`: `luc` chỉ tới GIÂY, mà quản lý duyệt hai
+		   lô liền tay thì cả hai rơi cùng một giây; còn `id` là base36 thời gian nối base36
+		   ngẫu nhiên KHÔNG đệm 0 (`..._abc1` so với `..._abcxyz`), nên so chuỗi ra thứ tự lẫn
+		   lộn. Sổ lệnh đảo thứ tự thì người cầm tiền phát nhầm tờ.
+
+		   🔴 CHÚ THÍCH PHẢI Ở ĐÂY, NGOÀI CHUỖI SQL — xem chốt cuối `install()`. */
 		$sql[] = "CREATE TABLE " . self::t( 'lenh_tu' ) . " (
 			id VARCHAR(40) NOT NULL,
 			luc DATETIME NULL,
@@ -386,10 +398,6 @@ class VHCP_DB {
 			so_don INT NOT NULL DEFAULT 0,
 			so_coso INT NOT NULL DEFAULT 0,
 			chi_tiet LONGTEXT NULL,
-			/* 🔴 SẮP XẾP THEO `stt`, KHÔNG THEO `luc` + `id`. `luc` chỉ tới GIÂY, mà quản lý
-			   duyệt hai lô liền tay thì cả hai rơi cùng một giây; còn `id` là base36 thời gian
-			   nối base36 ngẫu nhiên KHÔNG đệm 0 (`..._abc1` và `..._abcxyz`), nên so chuỗi ra
-			   thứ tự lẫn lộn. Sổ lệnh đảo thứ tự thì người cầm tiền phát nhầm tờ. */
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			PRIMARY KEY  (id),
 			UNIQUE KEY stt (stt),
@@ -407,6 +415,17 @@ class VHCP_DB {
 			KEY het_han (het_han)
 		) $c";
 
+		/* 🔴 KHÔNG ĐƯỢC VIẾT CHÚ THÍCH BÊN TRONG CHUỖI `CREATE TABLE`.
+		   Mấy câu trên là chuỗi PHP nhiều dòng, nên một khối `/* … *' . '/` đặt lọt vào giữa
+		   KHÔNG phải chú thích của PHP — nó là văn bản nằm trong chính câu SQL. `dbDelta()`
+		   tách câu theo TỪNG DÒNG rồi dò tên cột bằng biểu thức chính quy, gặp mấy dòng chữ ấy
+		   là hiểu nhầm thành cột, sinh ra câu sai, MySQL chối — mà `dbDelta()` KHÔNG ném lỗi ra
+		   ngoài. Kết quả: bảng lặng lẽ không được tạo, và mọi lượt ghi vào nó trả false im lặng.
+
+		   Đã sập đúng bẫy này ngày 07/09/2026 với bảng `lenh_tu`: anh Thắng cài xong, tắt bật
+		   lại plugin, vẫn *"chưa được"* — vì lần nào `dbDelta()` cũng bỏ qua đúng bảng ấy.
+		   Chú thích để NGOÀI, ngay trên dòng `$sql[] =`. `tools/test/kiem-so-do-bang.php` canh
+		   chỗ này. */
 		foreach ( $sql as $q ) { dbDelta( $q ); }
 
 		self::bo_khau_gom();

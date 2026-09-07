@@ -156,11 +156,18 @@ teq( 'và cơ sở ít tiền xuống dưới', $CS_B, (string) $Lsx['chiTiet'][
 
 $m4 = don_cho_duyet( $KY, '', 600000 );      // xin ứng trước: bảng đơn hiện ô Cơ sở TRỐNG
 $m5 = don_cho_duyet( $KY, $CS_C, 400000 );
-/* Đối chứng: xác nhận đơn ấy ĐÚNG LÀ đơn có ô Cơ sở trống trên bảng — nếu không thì cả phần
-   này canh nhầm một ca không có thật, và xanh vô nghĩa. */
+/* 🔴 ĐƠN XIN ỨNG TRƯỚC VẪN PHẢI HIỆN TÊN CƠ SỞ Ở BẢNG. Anh Thắng 07/09/2026: *"nhân viên khi
+   tạo đơn đầu tiên mà nhập tạm ứng, thì phía cơ sở thì không hiện, nhưng bên trong chi tiết
+   vẫn hiện bình thường"*. Cột Cơ sở của bảng vốn dựng TỪ DÒNG CHI, mà đơn kiểu này chưa có
+   dòng nào — nên bảng ghi "chưa có dòng nào" trong khi mở đơn ra thấy rõ tên cơ sở. Cùng một
+   đơn, hai màn nói hai chuyện. Cơ sở ấy nằm ở hàng tạm ứng, và bảng phải đọc tới đó. */
 $_cs_bang = null;
 foreach ( VHCP_Don::list_dons() as $d ) { if ( $d['maDon'] === $m4 ) { $_cs_bang = (string) $d['coso']; } }
-teq( '⚠️ đối chứng: bảng đơn đang hiện ô Cơ sở TRỐNG cho đơn xin ứng trước', '', $_cs_bang );
+teq( '🔴 bảng đơn hiện đúng cơ sở dù đơn chưa có dòng chi nào', $CS_B, $_cs_bang );
+/* Đối chứng cho chính phép trên: đơn ấy ĐÚNG LÀ chưa có dòng chi — nếu nó có dòng thì phép
+   trên xanh vì lý do khác hẳn, và cái đang canh không được canh. */
+teq( '⚠️ đối chứng: đơn ấy thật sự chưa có dòng chi nào', 0,
+	count( VHCP_Don::get_don( $m4 )['lines'] ) );
 
 /* ⚠️ ĐẾM THEO BIẾN, KHÔNG GÕ SỐ CỨNG. Bài này còn dài, và mỗi lần chèn thêm một ca duyệt ở
    trên là mọi con số đếm cứng phía dưới gãy — gãy vì BÀI KIỂM, không phải vì mã. */
