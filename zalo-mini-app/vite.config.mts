@@ -1,13 +1,10 @@
 import { defineConfig } from "vite";
+import zaloMiniApp from "zmp-vite-plugin";
 
-/* zmp deploy tìm thư mục build ở `www` (không phải `dist` mặc định của Vite), và app chạy trong
- * Zalo cần đường dẫn asset TƯƠNG ĐỐI (base="") vì được phục vụ từ một đường con. Cấu hình tối
- * thiểu này đủ để `zmp start` (dev) và `zmp deploy` (build ra www) chạy đúng. */
+/* Dùng plugin đóng gói chính thức của Zalo: nó xuất build ra `www`, chèn app-config.json và
+ * đúng cấu trúc mà `zmp deploy` yêu cầu (build trần bị "Invalid project structure"). base=""
+ * để asset dùng đường dẫn tương đối trong Zalo. */
 export default defineConfig({
   base: "",
-  build: {
-    outDir: "www",
-    emptyOutDir: true,
-    target: "esnext",
-  },
+  plugins: [zaloMiniApp()],
 });

@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "zmp-cli": "^3.5.0",
+    "zmp-vite-plugin": "^2.0.2",
     "typescript": "^5.4.5",
     "vite": "^5.2.0",
     "@types/react": "^18.2.0",
