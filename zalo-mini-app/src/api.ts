@@ -66,6 +66,12 @@ export interface Diem {
 export function layDiem(sdt: string) {
   return json<Diem>(`${BASE}/tv?sdt=${encodeURIComponent(sdt)}`);
 }
+/* Đổi token đăng nhập Zalo (getPhoneNumber) lấy SĐT thật (server giải mã bằng Secret Key). */
+export function zaloSdt(token: string, accessToken: string) {
+  return json<{ ok: boolean; sdt: string }>(`${BASE}/zalo/sdt`, {
+    method: "POST", body: JSON.stringify({ token, access_token: accessToken }),
+  });
+}
 export function trangThaiVe(maVe: string) {
   return json<{ ok: boolean; ma_ve: string; goi_ten: string; so_tien: number; phut: number;
     trang_thai: string; tao_luc: string; tt_luc: string | null }>(

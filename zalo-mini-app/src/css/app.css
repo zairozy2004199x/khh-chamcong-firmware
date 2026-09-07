@@ -185,6 +185,14 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .cn-diem-note b{ color:var(--gold); }
 .cn-diem-sub{ display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-size:11px; color:#94a3b8; margin-top:10px; }
 .cn-doi{ text-align:center; margin-top:10px; font-size:12px; color:#cbd5e1; text-decoration:underline; cursor:pointer; }
+.cn-don{ margin:16px 14px 0; background:#fff; border-radius:16px; box-shadow:0 4px 12px rgba(0,0,0,.05); overflow:hidden; }
+.cn-don-head{ display:flex; justify-content:space-between; align-items:center; padding:14px 16px 8px; cursor:pointer; }
+.cn-don-head b{ color:#1f2937; font-size:15px; }
+.cn-don-head span{ color:#94a3b8; font-size:13px; }
+.cn-don-tt{ display:grid; grid-template-columns:repeat(4,1fr); padding:4px 6px 14px; }
+.cn-don-i{ display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; }
+.cn-don-ic{ font-size:24px; }
+.cn-don-i span{ font-size:11px; color:#64748b; }
 .cn-menu{ margin:16px 14px 0; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,.05); }
 .cn-item{ display:flex; align-items:center; gap:12px; padding:15px 16px; border-bottom:1px solid #f3f4f6; cursor:pointer; }
 .cn-item:last-child{ border-bottom:none; }

@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.11.0
+ * Version:           1.12.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -269,6 +269,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
 		register_rest_route( self::NS, '/uudai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_uudai' ) ) );
+		register_rest_route( self::NS, '/zalo/sdt', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_sdt' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
@@ -452,6 +453,25 @@ class POSH_Ve {
 				'anh' => $u['anh'], 'hang' => $u['hang'], 'han' => $u['han'] );
 		}
 		return array( 'ok' => true, 'uudai' => $ra );
+	}
+
+	/* Giải mã SĐT từ token đăng nhập Zalo (getPhoneNumber). Secret Key khai ở admin, KHÔNG hardcode. */
+	public static function r_zalo_sdt( $req ) {
+		$secret = (string) get_option( 'pve_zalo_secret', '' );
+		if ( '' === $secret ) { return new WP_Error( 'cfg', 'Chưa cấu hình Zalo Secret Key.', array( 'status' => 409 ) ); }
+		$token = (string) $req->get_param( 'token' );
+		$at    = (string) $req->get_param( 'access_token' );
+		if ( '' === $token || '' === $at ) { return new WP_Error( 'thieu', 'Thiếu token đăng nhập.', array( 'status' => 400 ) ); }
+		$res = wp_remote_get( 'https://graph.zalo.me/v2.0/me/info', array(
+			'timeout' => 10,
+			'headers' => array( 'access_token' => $at, 'code' => $token, 'secret_key' => $secret ),
+		) );
+		if ( is_wp_error( $res ) ) { return new WP_Error( 'kn', 'Không gọi được Zalo.', array( 'status' => 502 ) ); }
+		$body = json_decode( (string) wp_remote_retrieve_body( $res ), true );
+		$sdt  = isset( $body['data']['number'] ) ? preg_replace( '/[^0-9]/', '', (string) $body['data']['number'] ) : '';
+		if ( '' === $sdt ) { return new WP_Error( 'sdt', 'Không lấy được số điện thoại.', array( 'status' => 400 ) ); }
+		if ( 0 === strpos( $sdt, '84' ) ) { $sdt = '0' . substr( $sdt, 2 ); }   // 84xxx -> 0xxx
+		return array( 'ok' => true, 'sdt' => $sdt );
 	}
 
 	// ───────────────────────────── Bảo vệ khu quản lý bằng PIN ─────────────────────────────
@@ -1000,6 +1020,10 @@ class POSH_Ve {
 			update_option( 'pve_pin', preg_replace( '/\s+/', '', (string) wp_unslash( $_POST['pin'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu PIN khu quản lý.</p></div>';
 		}
+		if ( isset( $_POST['pve_zalo_luu'] ) && check_admin_referer( 'pve_zalo' ) ) {
+			update_option( 'pve_zalo_secret', trim( (string) wp_unslash( $_POST['zalo_secret'] ) ) );
+			echo '<div class="notice notice-success"><p>Đã lưu Zalo Secret Key.</p></div>';
+		}
 		if ( isset( $_POST['pve_uu_luu'] ) && check_admin_referer( 'pve_uu' ) ) {
 			$id = (int) $_POST['id'];
 			$moi = array( 'id' => $id, 'ten' => sanitize_text_field( wp_unslash( $_POST['ten'] ) ),
@@ -1241,6 +1265,15 @@ class POSH_Ve {
 		echo '<tr><th>Mã PIN nhân viên</th><td><input name="pin" class="regular-text code" value="' . esc_attr( get_option( 'pve_pin', '' ) ) . '" placeholder="VD 4–8 chữ số"> '
 			. '<span class="description">Nhập PIN này trong app Zalo (mục Quản lý) để xem báo cáo, xác nhận/huỷ, soát vé. Để trống = KHOÁ khu quản lý.</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_pin_luu" value="1">Lưu PIN</button></p></form>';
+
+		/* ── Đăng nhập Zalo (lấy SĐT khách) ── */
+		echo '<hr><h2>Đăng nhập Zalo – lấy số điện thoại khách</h2>';
+		echo '<p class="description">Để app tự lấy SĐT khi khách đăng nhập Zalo. Lấy <b>Secret Key</b> ở Zalo Mini App console: <i>Thông tin ứng dụng → App Secret Key</i>. Cần bật quyền <i>“Số điện thoại”</i> cho Mini App. Secret lưu tại đây (DB), không nằm trong mã nguồn.</p>';
+		$zs = (string) get_option( 'pve_zalo_secret', '' );
+		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'pve_zalo' );
+		echo '<tr><th>Zalo App Secret Key</th><td><input name="zalo_secret" class="regular-text code" value="' . esc_attr( $zs ) . '" placeholder="Dán Secret Key">'
+			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình — app sẽ để khách nhập SĐT tay' ) . '</span></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu Secret</button></p></form>';
 
 		/* ── Ưu đãi (hiện trên Zalo) ── */
 		echo '<hr><h2>Ưu đãi (hiện trên Zalo)</h2>';
