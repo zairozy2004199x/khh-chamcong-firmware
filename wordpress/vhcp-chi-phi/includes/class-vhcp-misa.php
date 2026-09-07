@@ -135,6 +135,7 @@ class VHCP_Misa {
 		}
 
 		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array(); $ngay_xau = array();
+		$stt_chen = 0;
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( ! isset( $by_don[ $m ] ) ) { continue; }
@@ -198,13 +199,55 @@ class VHCP_Misa {
 			$dg1      = VHCP_Util::j( array( $nhom_c, $pll, $d['ky'] ) ) . ( $ten1 !== '' ? '_' . $ten1 : '' );
 			$dg2      = VHCP_Util::j( array( $nhom_c, $pll, $ten_misa ) ) . ( trim( $nd ) !== '' ? '_' . $nd : '' );
 
-			$gk = $nhom_c !== '' ? $nhom_c : '(khác)';
+			/* 🔴 GOM THEO MẢNG KINH DOANH TRƯỚC, RỒI MỚI TỚI LOẠI CHI PHÍ (anh Thắng 07/09/2026:
+			   *"Chỗ phần xuất misa. Sắp xếp theo cùng phân loại lớn"*).
+
+			   Bản trước gom mỗi theo LOẠI chi phí, mà một loại ("Chi phí cơ sở") trải khắp mọi
+			   mảng — nên tệp xuất ra xen kẽ FZ · GHOST · TUTU · VR · FZ… theo đúng thứ tự ngày.
+			   Kế toán vào MISA thì soát theo TỪNG MẢNG, nên đang phải lọc lại bằng tay ở Excel.
+
+			   ⚠️ MẢNG RỖNG XẾP CUỐI, không lẫn vào mảng có tên. Cơ sở chưa khai `phanLoaiLon` là
+			      chuyện cần thấy chứ không phải chuyện cần giấu; dồn nó xuống đáy thì nhìn phát
+			      ra ngay có bao nhiêu dòng chưa khai. */
+			/* Hạng 0 = mảng có tên · hạng 1 = chưa khai. Nói ý định bằng MỘT CON SỐ, không bằng
+			   mẹo đặt chuỗi 'zzz' cho nó rơi xuống cuối theo bảng chữ cái: mẹo ấy chỉ đúng
+			   chừng nào chưa có mảng nào đặt tên bắt đầu bằng ký tự đứng sau 'z'. */
+			$pll_k = trim( (string) $pll );
+			$hang  = ( $pll_k === '' ) ? '1' : '0';
+			if ( $pll_k === '' ) { $pll_k = '(chưa khai mảng)'; }
+			$gk = $hang . '||' . $pll_k . '||' . ( $nhom_c !== '' ? $nhom_c : '(khác)' );
 			if ( ! isset( $rows_by_nhom[ $gk ] ) ) { $rows_by_nhom[ $gk ] = array(); $nhom_order[] = $gk; }
-			$rows_by_nhom[ $gk ][] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $sotien, VHCP_Util::ma_so( $ma_dt ), VHCP_Util::ma_so( $ma_dv ) );
+			/* Giữ kèm khoá ngày + số thứ tự chèn để sắp xếp trong nhóm — xem khối dưới. */
+			$rows_by_nhom[ $gk ][] = array(
+				'k'  => ( $_dt = VHCP_Util::vh_parse_dmy( $ngay ) ) ? VHCP_Util::vh_ymd( $_dt ) : 0,
+				'i'  => $stt_chen++,
+				'r'  => array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $sotien, VHCP_Util::ma_so( $ma_dt ), VHCP_Util::ma_so( $ma_dv ) ),
+			);
 		}
 
+		/* Xếp các nhóm: MẢNG theo bảng chữ cái, rồi LOẠI CHI PHÍ theo bảng chữ cái. Trong mỗi
+		   nhóm giữ nguyên thứ tự gặp — vốn là thứ tự ngày, thứ kế toán cần khi đối chiếu.
+
+		   ⚠️ KHÔNG dùng `sort()` trần: `zzz|` chỉ là mẹo đẩy mảng rỗng xuống cuối, còn tên mảng
+		      tiếng Việt phải so bằng `strcoll`-kiểu bản địa thì "GHOST" mới đứng trước "TUTU"
+		      như mắt người đọc. `strnatcasecmp` đủ cho tên mảng (chữ Latin, có số). */
+		usort( $nhom_order, function ( $a, $b ) { return strnatcasecmp( $a, $b ); } );
+
 		$rows = array();
-		foreach ( $nhom_order as $g ) { $rows = array_merge( $rows, $rows_by_nhom[ $g ] ); }
+		foreach ( $nhom_order as $g ) {
+			/* ⚠️ TRONG MỖI NHÓM, XẾP THEO NGÀY. Vòng gom ở trên chạy theo thứ tự CHÈN của bảng
+			   chi phí (số thứ tự dòng), không phải theo ngày — nên một đơn nhập muộn mà mang
+			   ngày cũ sẽ nằm sai chỗ. Kế toán đối chiếu MISA theo ngày, nên chỗ này phải xếp
+			   thật chứ không dựa vào việc "thường thì người ta nhập theo thứ tự thời gian".
+
+			   Cùng ngày thì giữ nguyên thứ tự nhập (`i`) — `usort` của PHP không ổn định, nên
+			   phải nói rõ, nếu không hai lần xuất cùng một dữ liệu ra hai tệp khác nhau. */
+			usort( $rows_by_nhom[ $g ], function ( $a, $b ) {
+				if ( $a['k'] !== $b['k'] ) { return $a['k'] - $b['k']; }
+				return $a['i'] - $b['i'];
+			} );
+			foreach ( $rows_by_nhom[ $g ] as $x ) { $rows[] = $x['r']; }
+		}
 
 		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
 			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
