@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Page, Spinner, useNavigate, useSnackbar } from "zmp-ui";
-import { openWebview } from "zmp-sdk";
-import { layGoi, layTin, dinhTien, Goi, Tin } from "../api";
+import { openWebview, getUserInfo } from "zmp-sdk";
+import { layGoi, layTin, layDiem, dinhTien, Goi, Tin } from "../api";
 import { themVaoGio } from "../cart";
+import { laySdt } from "../orders";
 import TabBar from "../components/tabbar";
 
-/* Trang chủ: header + carousel vé theo nhóm (hàng cuộn ngang) + mục "Tin tức"
- * (bài viết WordPress trên khmatrix.com). Bám đúng app FunZone thật. */
+/* Trang chủ: header + thẻ Member (điểm/hạng) + lưới 6 tính năng + section vé theo nhóm
+ * + Tin tức. Bám đúng app FunZone thật. */
+const TINH_NANG = [
+  { ic: "🎡", ten: "Dịch vụ", di: (n: any) => n("/danhmuc") },
+  { ic: "🎁", ten: "Ưu đãi", di: (n: any) => n("/uudai") },
+  { ic: "🎟️", ten: "Vé combo", di: (n: any) => n("/danhmuc", { state: { nhom: "Combo" } }) },
+  { ic: "🎯", ten: "Vòng quay may mắn", di: (n: any, s: any) => s() },
+  { ic: "👤", ten: "Thành viên", di: (n: any) => n("/canhan") },
+  { ic: "📣", ten: "Tin tức", di: () => { const el = document.getElementById("hp-tin"); if (el) el.scrollIntoView({ behavior: "smooth" }); } },
+];
+
 export default function HomePage() {
   const navigate = useNavigate();
   const snackbar = useSnackbar();
@@ -14,28 +24,29 @@ export default function HomePage() {
   const [tin, setTin] = useState<Tin[]>([]);
   const [loi, setLoi] = useState("");
   const [dangTai, setDangTai] = useState(true);
+  const [ten, setTen] = useState("");
+  const [avatar, setAvatar] = useState("");
+  const [diem, setDiem] = useState(0);
+  const [hang, setHang] = useState("Member");
 
   useEffect(() => {
-    layGoi()
-      .then((r) => setGoi(r.goi || []))
-      .catch((e) => setLoi(String(e.message || e)))
-      .finally(() => setDangTai(false));
+    layGoi().then((r) => setGoi(r.goi || [])).catch((e) => setLoi(String(e.message || e))).finally(() => setDangTai(false));
     layTin().then((r) => setTin(r.tin || [])).catch(() => {});
+    getUserInfo({ autoRequestPermission: false }).then((r: any) => {
+      setTen(r?.userInfo?.name || ""); setAvatar(r?.userInfo?.avatar || "");
+    }).catch(() => {});
+    const sdt = laySdt();
+    if (sdt) layDiem(sdt).then((d) => { setDiem(d.diem); setHang(d.hang); }).catch(() => {});
   }, []);
 
   const nhomDs = useMemo(() => {
     const m = new Map<string, Goi[]>();
-    goi.forEach((g) => {
-      const k = g.nhom?.trim() || "Vé";
-      if (!m.has(k)) m.set(k, []);
-      m.get(k)!.push(g);
-    });
+    goi.forEach((g) => { const k = g.nhom?.trim() || "Vé"; if (!m.has(k)) m.set(k, []); m.get(k)!.push(g); });
     return Array.from(m.entries());
   }, [goi]);
 
-  const moTin = (t: Tin) => {
-    openWebview({ url: t.link }).catch(() => { try { (window as any).open(t.link, "_blank"); } catch (e) {} });
-  };
+  const moTin = (t: Tin) => { openWebview({ url: t.link }).catch(() => { try { (window as any).open(t.link, "_blank"); } catch (e) {} }); };
+  const vongQuay = () => snackbar.openSnackbar({ text: "Vòng quay may mắn sắp ra mắt 🎯", type: "info", duration: 1800 });
 
   const the = (g: Goi) => {
     const sale = g.gia_goc > g.tien ? Math.round((1 - g.tien / g.gia_goc) * 100) : 0;
@@ -67,10 +78,26 @@ export default function HomePage() {
   return (
     <Page className="hp">
       <div className="hp-head">
-        <div className="hp-ava" />
+        <div className="hp-ava">{avatar ? <img src={avatar} alt="" /> : "👤"}</div>
         <div>
-          <div className="hp-hi">Xin chào 👋</div>
-          <div className="hp-name">Khu vui chơi POSH</div>
+          <div className="hp-hi">Xin chào,</div>
+          <div className="hp-name">{ten || "Khách"}</div>
+        </div>
+      </div>
+
+      <div className="hp-mem" onClick={() => navigate("/canhan")}>
+        <span className="hp-mem-hang">{hang}</span>
+        <span className="hp-mem-diem">⭐ {diem.toLocaleString("vi-VN")} ›</span>
+      </div>
+
+      <div className="hp-feat-card">
+        <div className="hp-feat">
+          {TINH_NANG.map((f) => (
+            <div key={f.ten} className="hp-feat-item" onClick={() => f.di(navigate, vongQuay)}>
+              <div className="hp-feat-ic">{f.ic}</div>
+              <span>{f.ten}</span>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -81,29 +108,21 @@ export default function HomePage() {
         <div key={ten} className="hp-sec">
           <div className="hp-sec-head">
             <b>{ten}</b>
-            <span className="hp-all" onClick={() => navigate("/danhmuc", { state: { nhom: ten } })}>Xem tất cả ›</span>
+            <span className="hp-all" onClick={() => navigate("/danhmuc", { state: { nhom: ten } })}>Tất cả ›</span>
           </div>
           <div className="hp-row">{ds.map(the)}</div>
         </div>
       ))}
 
       {tin.length > 0 && (
-        <div className="hp-sec">
-          <div className="hp-sec-head">
-            <b>Tin tức</b>
-            {tin[0] && <span className="hp-all" onClick={() => moTin(tin[0])}>Xem thêm ›</span>}
-          </div>
+        <div className="hp-sec" id="hp-tin">
+          <div className="hp-sec-head"><b>Tin tức</b>{tin[0] && <span className="hp-all" onClick={() => moTin(tin[0])}>Tất cả ›</span>}</div>
           <div className="hp-news">
             {tin.map((t) => (
               <div key={t.id} className="ncard" onClick={() => moTin(t)}>
-                <div className="ncard-img">
-                  {t.anh ? <img src={t.anh} alt={t.tieu_de} loading="lazy" /> : <div className="ncard-noimg">📰</div>}
-                </div>
+                <div className="ncard-img">{t.anh ? <img src={t.anh} alt={t.tieu_de} loading="lazy" /> : <div className="ncard-noimg">📰</div>}</div>
                 <div className="ncard-t">{t.tieu_de}</div>
-                <div className="ncard-m">
-                  <span>{t.ngay}</span>
-                  {t.luot_xem > 0 && <span>· 👁 {t.luot_xem}</span>}
-                </div>
+                <div className="ncard-m"><span>{t.ngay}</span>{t.luot_xem > 0 && <span>· 👁 {t.luot_xem}</span>}</div>
               </div>
             ))}
           </div>
