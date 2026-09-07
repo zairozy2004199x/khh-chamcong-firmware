@@ -178,14 +178,14 @@ const CHIM = [
 const qc = chayQt(QT, CHIM, []);
 teq('🔴 tạm ứng CỘNG cả đơn chìm', '30983000đ', qc.qtSelTU.textContent);
 teq('🔴 thực chi KHÔNG cộng đơn chìm', '21967000đ', qc.qtSelTC.textContent);
-teq('🔴 thừa/thiếu KHÔNG cộng đơn chìm', '2016000đ', qc.qtSelTotal.textContent);
+teq('🔴 thừa/thiếu = tổng tạm ứng − thực chi', '9016000đ', qc.qtSelTotal.textContent);
 t('và nói rõ có bao nhiêu đơn chìm', /2 đơn CHƯA gửi quyết toán/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
 /* 🔴 ĐẾM ĐÔI LÀ CÁI BẪY CỦA LƯỢT NÀY: đơn chìm nay nằm TRONG `QT_ROWS_CHO`, nên cộng thêm một
    lần nữa từ `QT_ROWS_CHIM` là 7.000.000đ vào tổng hai lượt — sai theo hướng làm mọi thứ trông
    tệ hơn thực tế, kiểu sai khó cãi lại nhất vì không ai muốn tin là mình đang thừa tiền. */
 t('🔴 nhãn số đơn chờ KHÔNG kể đơn chìm', /^3 đơn chờ quyết toán$/.test(qc.qtSelInfo.textContent), qc.qtSelInfo.textContent);
 teq('🔴 KHÔNG đếm đôi tạm ứng của đơn chìm (không phải 37.983.000đ)', '30983000đ', qc.qtSelTU.textContent);
-teq('   thừa/thiếu giữ nguyên con số của phần đã soát', '2016000đ', qc.qtSelTotal.textContent);
+teq('   và KHÔNG đếm đôi (không phải 16.016.000đ)', '9016000đ', qc.qtSelTotal.textContent);
 t('   kèm số tiền đang treo', /7000000/.test(qc.qtSelChim.textContent), qc.qtSelChim.textContent);
 /* ⚠️ Đối chứng: nếu lỡ cộng `soThucMua` của đơn chìm thì thực chi sẽ là 28.067.000đ. */
 t('⚠️ KHÔNG phải con số của bản cộng nhầm', qc.qtSelTC.textContent !== '28067000đ', qc.qtSelTC.textContent);
@@ -206,7 +206,7 @@ const q4 = chayQt([], CHIM, []);
 t('   và nói rõ không có đơn chờ nào', /Không có đơn nào chờ quyết toán/.test(q4.qtSelInfo.textContent), q4.qtSelInfo.textContent);
 teq('🔴 hết đơn chờ nhưng còn đơn chìm: tạm ứng vẫn hiện', '7000000đ', q4.qtSelTU.textContent);
 teq('   thực chi bằng 0', '0đ', q4.qtSelTC.textContent);
-teq('   và thừa/thiếu bằng 0 (chưa soát đơn nào)', '0đ', q4.qtSelTotal.textContent);
+teq('   và cả cục là thừa (7.000.000 − 0)', '7000000đ', q4.qtSelTotal.textContent);
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. HAI THANH KHÔNG CÒN ẨN SẴN TRONG MÃ TRANG
@@ -308,11 +308,19 @@ function sums(rows) {
 const sChim = sums([{ trangThai: 'Đã cấp tạm ứng', tamUng: 5000000, soThucMua: 4200000, chenhLech: 800000 }]);
 teq('🔴 _qtSums: đơn chìm cộng tạm ứng', 5000000, sChim.tu);
 teq('🔴 _qtSums: KHÔNG cộng thực chi', 0, sChim.mua);
-teq('🔴 _qtSums: thừa/thiếu KHÔNG cộng (chưa soát thì chưa có thừa thiếu)', 0, sChim.cl);
+teq('🔴 _qtSums: thừa/thiếu = tạm ứng − thực chi (0), nên cả cục là thừa', 5000000, sChim.cl);
 const sCho = sums([{ trangThai: 'Chờ quyết toán', tamUng: 3650000, soThucMua: 3090000, chenhLech: 560000 }]);
 teq('⚠️ đơn thường vẫn cộng như cũ (tạm ứng)', 3650000, sCho.tu);
 teq('   (thực chi)', 3090000, sCho.mua);
 teq('   (thừa/thiếu)', 560000, sCho.cl);
+
+/* 🔴 BA CON SỐ PHẢI KHỚP NHAU VỀ SỐ HỌC. Anh Thắng 07/09/2026: *"tổng tạm ứng - thực chi =
+   thừa"*. Người đọc nhìn ba số cạnh nhau là tự trừ nhẩm; không ra thì không ai biết nên tin
+   số nào. Canh trên MỌI tổ hợp đơn chờ + đơn chìm, không chỉ một ca. */
+[[ ], QT, CHIM, QT.concat(CHIM)].forEach(function (bo, i) {
+  const x = sums(bo);
+  teq('🔴 tổ hợp #' + i + ': thừa/thiếu đúng bằng tạm ứng − thực chi', x.tu - x.mua, x.cl);
+});
 
 /* --- Bảng chờ thật sự có kéo đơn chìm vào --- */
 const HTML_MA3 = HTML.replace(/<!--[\s\S]*?-->/g, ' ');

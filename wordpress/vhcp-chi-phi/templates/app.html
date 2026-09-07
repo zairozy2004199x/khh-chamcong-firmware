@@ -5338,20 +5338,25 @@
        · THỰC CHI -> KHÔNG cộng. Chưa gửi quyết toán thì chưa có gì để nói là đã tiêu.
          ⚠️ Đơn đã cấp tiền thì máy chủ VẪN tính thực chi cho nó, nên số ấy có sẵn và rất dễ
             cộng nhầm — chốt nằm ở đây để không nơi nào phải nhớ lại luật này.
-       · THỪA/THIẾU -> KHÔNG cộng. Cột ấy là kết quả của việc ĐÃ SOÁT; đơn chưa gửi thì chưa
-         soát, chưa có thừa thiếu gì để nói. Con số tạm ứng đang treo của chúng nói riêng ở
-         dòng nhắc bên cạnh thanh tổng, không trộn vào đây. */
+
+     🔴 THỪA/THIẾU = TỔNG TẠM ỨNG − THỰC CHI, KHÔNG PHẢI TỔNG CỦA TỪNG `chenhLech`.
+        Anh Thắng 07/09/2026: *"chưa tính vào thực chi, thì nó vẫn là tiền thừa nếu nó không
+        được quyết toán. nên tổng tạm ứng - thực chi = thừa"*.
+
+        Ba con số nằm cạnh nhau trên một dòng thì người đọc TỰ TRỪ NHẨM. Cộng từng `chenhLech`
+        rồi bỏ qua đơn chìm là ra một số không khớp với hai số bên trái nó — và lúc ấy không ai
+        biết nên tin số nào. Lấy đúng hiệu thì tiền tạm ứng của đơn chưa gửi tự nằm ở phần
+        thừa, đúng chỗ nó phải nằm: tiền đã đưa mà chưa thấy chứng từ về. */
   function _laChim(d){ return d && d.trangThai==='Đã cấp tạm ứng'; }
   function _qtSums(rows){
-    var tu=0, mua=0, cl=0;
+    var tu=0, mua=0;
     (rows||[]).forEach(function(d){
       tu += Number(d.tamUng)||0;
       if(_laChim(d)){ return; }
       var m=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
       mua += Number(m)||0;
-      cl += Number(d.chenhLech)||0;
     });
-    return {tu:tu, mua:mua, cl:cl};
+    return {tu:tu, mua:mua, cl:tu-mua};
   }
   function _qtSumHtml(rows){
     var s=_qtSums(rows), clc=s.cl>=0?'#15803d':'#b91c1c';
