@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -41,6 +41,7 @@ class POSH_Ve {
 		add_action( 'rest_api_init', array( __CLASS__, 'dang_ky' ) );
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
+		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
 	}
 
 	// ───────────────────────────── VietQR (tự chứa) ─────────────────────────────
@@ -213,6 +214,210 @@ class POSH_Ve {
 		$k  = 'pve_nhip_' . md5( $ip );
 		if ( get_transient( $k ) ) { return false; }
 		set_transient( $k, 1, 3 ); return true;
+	}
+
+	// ───────────────────────────── Trang bán vé công khai ([posh_ve]) ─────────────────────────────
+	/* Dán [posh_ve] vào 1 trang trên khmatrix.com. Đặt vé ở đây đẩy thẳng vào cùng bảng
+	 * pve_ve mà Zalo App + trang admin đọc — nên vé bán ở web/Zalo đều thấy chung một chỗ. */
+	public static function shortcode( $atts ) {
+		$atts = shortcode_atts( array( 'tieu_de' => 'Mua vé khu vui chơi' ), $atts, 'posh_ve' );
+		$rest = esc_url_raw( rest_url( self::NS ) );
+
+		// Gom dịch vụ theo nhóm, giữ thứ tự.
+		$nhom = array();
+		foreach ( self::ds() as $g ) {
+			$k = trim( (string) $g['nhom'] ) !== '' ? $g['nhom'] : 'Vé';
+			$nhom[ $k ][] = $g;
+		}
+
+		ob_start();
+		?>
+		<div class="pve-wrap">
+			<h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2>
+			<?php if ( empty( $nhom ) ) : ?>
+				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
+			<?php endif; ?>
+			<?php foreach ( $nhom as $ten_nhom => $ds ) : ?>
+				<div class="pve-sec">
+					<div class="pve-sec-h"><?php echo esc_html( $ten_nhom ); ?></div>
+					<div class="pve-grid">
+						<?php foreach ( $ds as $g ) :
+							$sale = ( (int) $g['gia_goc'] > (int) $g['gia'] )
+								? round( ( 1 - $g['gia'] / $g['gia_goc'] ) * 100 ) : 0; ?>
+							<div class="pve-card"
+								data-id="<?php echo (int) $g['id']; ?>"
+								data-ten="<?php echo esc_attr( $g['ten'] ); ?>"
+								data-gia="<?php echo (int) $g['gia']; ?>">
+								<div class="pve-img">
+									<?php if ( $g['anh'] ) : ?>
+										<img src="<?php echo esc_url( $g['anh'] ); ?>" alt="<?php echo esc_attr( $g['ten'] ); ?>" loading="lazy">
+									<?php else : ?><span class="pve-noimg">🎟️</span><?php endif; ?>
+									<?php if ( $sale > 0 ) : ?><span class="pve-sale">-<?php echo (int) $sale; ?>%</span><?php endif; ?>
+								</div>
+								<div class="pve-body">
+									<div class="pve-ten"><?php echo esc_html( $g['ten'] ); ?></div>
+									<?php if ( $g['thoi_luong'] ) : ?><div class="pve-tl">⏱ <?php echo esc_html( $g['thoi_luong'] ); ?></div><?php endif; ?>
+									<?php if ( $g['mo_ta'] ) : ?><div class="pve-mota"><?php echo esc_html( $g['mo_ta'] ); ?></div><?php endif; ?>
+									<div class="pve-foot">
+										<div class="pve-gia-wrap">
+											<span class="pve-gia"><?php echo esc_html( number_format_i18n( $g['gia'] ) ); ?>đ</span>
+											<?php if ( $sale > 0 ) : ?><span class="pve-goc"><?php echo esc_html( number_format_i18n( $g['gia_goc'] ) ); ?>đ</span><?php endif; ?>
+										</div>
+										<button type="button" class="pve-buy">Đặt vé</button>
+									</div>
+								</div>
+							</div>
+						<?php endforeach; ?>
+					</div>
+				</div>
+			<?php endforeach; ?>
+		</div>
+
+		<div class="pve-mask" hidden>
+			<div class="pve-modal">
+				<button type="button" class="pve-x" aria-label="Đóng">×</button>
+
+				<div class="pve-step pve-step-form">
+					<div class="pve-m-ten"></div>
+					<div class="pve-m-gia"></div>
+					<label class="pve-lb">Họ tên</label>
+					<input class="pve-in pve-f-ten" placeholder="Tên người mua" autocomplete="name">
+					<label class="pve-lb">Số điện thoại</label>
+					<input class="pve-in pve-f-sdt" placeholder="Số Zalo/điện thoại" inputmode="tel" autocomplete="tel">
+					<button type="button" class="pve-go">Tạo mã thanh toán</button>
+					<div class="pve-err" hidden></div>
+					<p class="pve-note">Bấm để tạo vé và hiện mã QR chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
+				</div>
+
+				<div class="pve-step pve-step-qr" hidden>
+					<div class="pve-badge cho">⏳ Chờ thanh toán</div>
+					<div class="pve-qr"></div>
+					<div class="pve-kv"><span>Mã vé</span><b class="pve-r-mave"></b></div>
+					<div class="pve-kv"><span>Gói</span><b class="pve-r-goi"></b></div>
+					<div class="pve-kv"><span>Số tiền</span><b class="pve-r-tien"></b></div>
+					<div class="pve-kv"><span>Ngân hàng</span><b class="pve-r-nh"></b></div>
+					<div class="pve-kv"><span>Số TK</span><b class="pve-r-stk"></b></div>
+					<div class="pve-kv"><span>Chủ TK</span><b class="pve-r-ctk"></b></div>
+					<div class="pve-kv pve-copy"><span>Nội dung</span><b class="pve-r-nd"></b> <em>(chạm để copy)</em></div>
+					<p class="pve-note">Quét mã bằng app ngân hàng. Giữ đúng <b>nội dung</b> để hệ thống tự khớp. Trang sẽ tự cập nhật khi đã nhận tiền.</p>
+				</div>
+			</div>
+		</div>
+
+		<script>
+		(function(){
+			var REST = <?php echo wp_json_encode( $rest ); ?>;
+			var wrap = document.currentScript.previousElementSibling; // .pve-mask
+			var mask = document.querySelector('.pve-mask');
+			var mFor = null, timer = null;
+			function tien(n){ try{ return (Number(n)||0).toLocaleString('vi-VN')+'đ'; }catch(e){ return n+'đ'; } }
+			function qs(s){ return mask.querySelector(s); }
+			function show(step){ qs('.pve-step-form').hidden = (step!=='form'); qs('.pve-step-qr').hidden = (step!=='qr'); }
+			function loadQR(cb){
+				if (window.QRCode){ cb(); return; }
+				var s=document.createElement('script');
+				s.src='https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+				s.onload=cb; s.onerror=function(){ cb('x'); }; document.head.appendChild(s);
+			}
+			function moModal(card){
+				mFor = card;
+				qs('.pve-m-ten').textContent = card.dataset.ten;
+				qs('.pve-m-gia').textContent = tien(card.dataset.gia);
+				qs('.pve-err').hidden = true; qs('.pve-f-ten').value=''; qs('.pve-f-sdt').value='';
+				show('form'); mask.hidden = false;
+			}
+			function dong(){ mask.hidden = true; if(timer){ clearInterval(timer); timer=null; } }
+
+			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
+				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
+			});
+			mask.querySelector('.pve-x').addEventListener('click', dong);
+			mask.addEventListener('click', function(e){ if(e.target===mask) dong(); });
+
+			qs('.pve-go').addEventListener('click', function(){
+				var ten = qs('.pve-f-ten').value.trim(), sdt = qs('.pve-f-sdt').value.trim();
+				var err = qs('.pve-err');
+				if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
+				err.hidden = true; this.disabled = true; this.textContent='Đang tạo…';
+				var btn = this;
+				fetch(REST+'/ve/dat', { method:'POST', headers:{'Content-Type':'application/json'},
+					body: JSON.stringify({ id: Number(mFor.dataset.id), ten: ten, sdt: sdt }) })
+				.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+				.then(function(o){
+					btn.disabled=false; btn.textContent='Tạo mã thanh toán';
+					if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
+					hienQR(o.d);
+				})
+				.catch(function(){ btn.disabled=false; btn.textContent='Tạo mã thanh toán'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
+			});
+
+			function hienQR(v){
+				qs('.pve-r-mave').textContent = v.ma_ve;
+				qs('.pve-r-goi').textContent  = v.goi_ten;
+				qs('.pve-r-tien').textContent = tien(v.so_tien);
+				qs('.pve-r-nh').textContent   = (v.bank&&v.bank.ten_nh)||'';
+				qs('.pve-r-stk').textContent  = (v.bank&&v.bank.so_tk)||'';
+				qs('.pve-r-ctk').textContent  = (v.bank&&v.bank.ten_tk)||'';
+				qs('.pve-r-nd').textContent   = v.noi_dung;
+				var box = qs('.pve-qr'); box.innerHTML='';
+				loadQR(function(loi){
+					if(loi){ box.textContent='(Không tải được mã QR — dùng nội dung CK bên dưới)'; return; }
+					new QRCode(box, { text: v.qr, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
+				});
+				show('qr');
+				var badge = qs('.pve-badge');
+				qs('.pve-copy').onclick = function(){ try{ navigator.clipboard.writeText(v.noi_dung); }catch(e){} };
+				if(timer) clearInterval(timer);
+				timer = setInterval(function(){
+					fetch(REST+'/ve/trangthai?ma_ve='+encodeURIComponent(v.ma_ve)).then(function(r){return r.json();}).then(function(d){
+						if(d && d.trang_thai==='da_tt'){ badge.className='pve-badge da_tt'; badge.textContent='✅ Đã thanh toán'; clearInterval(timer); timer=null; }
+						else if(d && d.trang_thai==='huy'){ badge.className='pve-badge huy'; badge.textContent='✖ Đã huỷ'; clearInterval(timer); timer=null; }
+					}).catch(function(){});
+				}, 5000);
+			}
+		})();
+		</script>
+
+		<style>
+		.pve-wrap{ max-width:1000px; margin:0 auto; padding:8px 4px 24px; }
+		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; }
+		.pve-empty{ color:#64748b; }
+		.pve-sec{ margin-bottom:22px; }
+		.pve-sec-h{ font-size:17px; font-weight:800; color:#1f2937; margin:0 0 12px; padding-left:10px; border-left:4px solid #cf9f22; }
+		.pve-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
+		.pve-card{ background:#fff; border:1px solid #eee; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 14px rgba(0,0,0,.06); }
+		.pve-img{ position:relative; aspect-ratio:1/1; background:#f1f5f9; }
+		.pve-img img{ width:100%; height:100%; object-fit:cover; }
+		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; }
+		.pve-sale{ position:absolute; top:0; left:0; background:#cf9f22; color:#fff; font-weight:800; font-size:13px; padding:4px 10px; border-bottom-right-radius:12px; }
+		.pve-body{ padding:11px 12px 12px; display:flex; flex-direction:column; gap:5px; flex:1; }
+		.pve-ten{ font-weight:700; font-size:15px; color:#1f2937; line-height:1.3; }
+		.pve-tl{ color:#64748b; font-size:12px; }
+		.pve-mota{ color:#64748b; font-size:12px; line-height:1.4; }
+		.pve-foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:6px; }
+		.pve-gia{ font-size:18px; font-weight:900; color:#c2410c; }
+		.pve-goc{ font-size:12px; color:#9ca3af; text-decoration:line-through; margin-left:6px; }
+		.pve-buy{ border:none; background:#cf9f22; color:#fff; font-weight:700; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer; }
+		.pve-mask{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:99999; }
+		.pve-modal{ background:#fff; border-radius:18px; padding:20px; width:100%; max-width:380px; max-height:90vh; overflow:auto; position:relative; }
+		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:#94a3b8; cursor:pointer; }
+		.pve-m-ten{ font-weight:800; font-size:18px; color:#1f2937; }
+		.pve-m-gia{ font-weight:900; font-size:20px; color:#c2410c; margin:2px 0 14px; }
+		.pve-lb{ display:block; font-size:13px; color:#475569; margin:10px 0 4px; font-weight:600; }
+		.pve-in{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 13px; font-size:15px; }
+		.pve-go{ width:100%; margin-top:16px; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
+		.pve-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
+		.pve-note{ color:#64748b; font-size:12px; line-height:1.5; margin-top:12px; }
+		.pve-qr{ display:flex; justify-content:center; margin:6px 0 14px; }
+		.pve-qr img,.pve-qr canvas{ display:block; }
+		.pve-badge{ display:inline-block; font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; margin-bottom:12px; }
+		.pve-badge.cho{ background:#fef3c7; color:#92600a; } .pve-badge.da_tt{ background:#dcfce7; color:#166534; } .pve-badge.huy{ background:#fee2e2; color:#991b1b; }
+		.pve-kv{ display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:6px 0; border-bottom:1px dashed #e2e8f0; }
+		.pve-kv b{ color:#1f2937; text-align:right; word-break:break-all; }
+		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#94a3b8; font-size:11px; font-style:normal; }
+		</style>
+		<?php
+		return ob_get_clean();
 	}
 
 	// ───────────────────────────── Admin (menu top-level riêng) ─────────────────────────────
