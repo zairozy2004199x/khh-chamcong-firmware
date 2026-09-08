@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.31.0
+ * Version:           1.32.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -826,45 +826,70 @@ class POSH_Ve {
 	public static function r_ql_baocao( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
 		global $wpdb; $tbl = self::tbl(); $paid = "trang_thai IN ('da_tt','da_dung')";
-		$hnay = current_time( 'Y-m-d' ); $thang = current_time( 'Y-m' );
-		// Bản đồ tên vé -> ảnh (để "vé bán chạy" có hình như cnvloyalty).
-		$anh_map = array();
-		foreach ( self::ds_tatca() as $g ) { if ( '' !== (string) $g['anh'] ) { $anh_map[ $g['ten'] ] = $g['anh']; } }
+		$hnay = current_time( 'Y-m-d' ); $now = (int) current_time( 'timestamp' );
+
+		// Bộ lọc: kỳ (tuan/thang/tatca) + loại vé (theo tên).
+		$ky = sanitize_key( (string) $req->get_param( 'ky' ) );
+		$ve = trim( (string) $req->get_param( 've' ) );
+		$rng = ''; $ba = array(); $ndays = 14;
+		if ( 'tuan' === $ky )       { $rng = ' AND tao_luc>=%s'; $ba[] = gmdate( 'Y-m-d 00:00:00', strtotime( '-6 day', $now ) ); $ndays = 7; }
+		elseif ( 'thang' === $ky )  { $rng = ' AND tao_luc>=%s'; $ba[] = gmdate( 'Y-m-d 00:00:00', strtotime( '-29 day', $now ) ); $ndays = 30; }
+		$vc = ''; if ( '' !== $ve ) { $vc = ' AND dv_ten LIKE %s'; $ba[] = '%' . $wpdb->esc_like( $ve ) . '%'; }
+		$W = $paid . $rng . $vc;   // mệnh đề WHERE chung (đã lọc)
+
+		$sum = function ( $extra = '' ) use ( $wpdb, $tbl, $W, $ba ) {
+			$sql = "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $W$extra";
+			return (int) ( $ba ? $wpdb->get_var( $wpdb->prepare( $sql, $ba ) ) : $wpdb->get_var( $sql ) );
+		};
+		$cnt = function ( $extra = '' ) use ( $wpdb, $tbl, $W, $ba ) {
+			$sql = "SELECT COUNT(*) FROM $tbl WHERE $W$extra";
+			return (int) ( $ba ? $wpdb->get_var( $wpdb->prepare( $sql, $ba ) ) : $wpdb->get_var( $sql ) );
+		};
+
+		// Vé bán chạy (trong phạm vi lọc) + ảnh.
+		$anh_map = array(); $ds_ve = array();
+		foreach ( self::ds_tatca() as $g ) { $ds_ve[] = $g['ten']; if ( '' !== (string) $g['anh'] ) { $anh_map[ $g['ten'] ] = $g['anh']; } }
+		$sql_top = "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $W GROUP BY dv_ten ORDER BY dt DESC LIMIT 100";
+		$rows_top = $ba ? $wpdb->get_results( $wpdb->prepare( $sql_top, $ba ), ARRAY_A ) : $wpdb->get_results( $sql_top, ARRAY_A );
 		$top = array();
-		foreach ( $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY dt DESC LIMIT 100", ARRAY_A ) as $r ) {
+		foreach ( (array) $rows_top as $r ) {
 			$top[] = array( 'ten' => $r['dv_ten'], 'sl' => (int) $r['sl'], 'dt' => (int) $r['dt'],
 				'anh' => isset( $anh_map[ $r['dv_ten'] ] ) ? $anh_map[ $r['dv_ten'] ] : '' );
 		}
-		// Số vé thực bán (cộng số lượng trong chi_tiet; đơn lẻ = 1).
+		// Số vé thực bán (cộng số lượng chi_tiet; đơn lẻ = 1).
+		$sql_ct = "SELECT chi_tiet FROM $tbl WHERE $W";
+		$cts = $ba ? $wpdb->get_col( $wpdb->prepare( $sql_ct, $ba ) ) : $wpdb->get_col( $sql_ct );
 		$so_ve = 0;
-		foreach ( (array) $wpdb->get_col( "SELECT chi_tiet FROM $tbl WHERE $paid" ) as $ct ) {
+		foreach ( (array) $cts as $ct ) {
 			$arr = $ct ? json_decode( (string) $ct, true ) : null;
 			if ( is_array( $arr ) && $arr ) { foreach ( $arr as $it ) { $so_ve += max( 1, (int) ( isset( $it['sl'] ) ? $it['sl'] : 1 ) ); } }
 			else { $so_ve += 1; }
 		}
-		// Doanh thu 7 ngày gần nhất cho biểu đồ.
+		// Biểu đồ doanh thu theo ngày (số ngày tuỳ kỳ), vẫn theo loại vé đã lọc.
 		$chart_lb = array(); $chart_dl = array();
-		for ( $i = 6; $i >= 0; $i-- ) {
-			$d = gmdate( 'Y-m-d', strtotime( "-$i day", (int) current_time( 'timestamp' ) ) );
+		for ( $i = $ndays - 1; $i >= 0; $i-- ) {
+			$d = gmdate( 'Y-m-d', strtotime( "-$i day", $now ) );
 			$chart_lb[] = gmdate( 'd/m', strtotime( $d ) );
-			$chart_dl[] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $d ) );
+			$a = $ba; $a[] = $d;
+			$chart_dl[] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $W AND DATE(tao_luc)=%s", $a ) );
 		}
-		$dt_tong = (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid" );
 		return array( 'ok' => true,
-			'dt_tong'  => $dt_tong,
+			'ky'       => ( 'tuan' === $ky || 'thang' === $ky ) ? $ky : 'tatca',
+			've_loc'   => $ve,
+			'ds_ve'    => $ds_ve,
+			'dt_tong'  => $sum(),
 			'so_ve'    => $so_ve,
+			've_ban'   => $cnt(),
 			'chart_lb' => $chart_lb,
 			'chart_dl' => $chart_dl,
 			'dt_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
-			'dt_thang' => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE_FORMAT(tao_luc,'%%Y-%%m')=%s", $thang ) ),
-			've_ban'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid" ),
-			've_cho'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE trang_thai='cho'" ),
 			've_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
-			// Tách theo kênh bán (zalo / web)
-			've_zalo'  => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon='zalo'" ),
-			've_web'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid AND nguon<>'zalo'" ),
-			'dt_zalo'  => (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon='zalo'" ),
-			'dt_web'   => (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND nguon<>'zalo'" ),
+			'dt_thang' => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE_FORMAT(tao_luc,'%%Y-%%m')=%s", current_time( 'Y-m' ) ) ),
+			've_cho'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE trang_thai='cho'" ),
+			've_zalo'  => $cnt( " AND nguon='zalo'" ),
+			've_web'   => $cnt( " AND nguon<>'zalo'" ),
+			'dt_zalo'  => $sum( " AND nguon='zalo'" ),
+			'dt_web'   => $sum( " AND nguon<>'zalo'" ),
 			'top'      => $top );
 	}
 	public static function r_ql_donhang( $req ) {
@@ -1590,6 +1615,14 @@ class POSH_Ve {
 				</div><!-- /pane ve -->
 
 				<div class="pql-pane" data-pane="bc" hidden>
+					<div class="pql-bcf">
+						<div class="pql-seg" data-seg="ky">
+							<button data-v="tatca" class="on">Tất cả</button>
+							<button data-v="tuan">Tuần</button>
+							<button data-v="thang">Tháng</button>
+						</div>
+						<select class="pql-bcve"><option value="">Tất cả loại vé</option></select>
+					</div>
 					<div class="pql-kpi">
 						<div class="pql-kpi-i"><span>Lợi nhuận</span><b class="pql-green" data-k="dt_tong">—</b></div>
 						<div class="pql-kpi-i"><span>Tổng đơn hàng</span><b data-k="ve_ban">—</b></div>
@@ -1674,6 +1707,11 @@ class POSH_Ve {
 		.pql-tabs{ display:flex; gap:8px; margin-bottom:14px; }
 		.pql-tab{ flex:1; border:1.5px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:10px; padding:10px 4px; font-weight:700; font-size:13px; cursor:pointer; }
 		.pql-tab.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
+		.pql-bcf{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+		.pql-seg{ display:inline-flex; border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
+		.pql-seg button{ border:none; background:var(--sf); color:var(--tx); padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
+		.pql-seg button.on{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; }
+		.pql-bcve{ flex:1; min-width:160px; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
 		.pql-kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
 		.pql-kpi-i{ background:linear-gradient(180deg,var(--sf),#111319); border:1px solid var(--bd); border-radius:12px; padding:14px; text-align:center; }
 		.pql-kpi-i span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
@@ -1758,8 +1796,20 @@ class POSH_Ve {
 		    }
 		    draw();
 		  }
+		  var bcKy='tatca', bcVe='', bcVeLoaded=false;
+		  Array.prototype.forEach.call(root.querySelectorAll('.pql-seg[data-seg="ky"] button'),function(b){
+		    b.addEventListener('click',function(){
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-seg[data-seg="ky"] button'),function(x){x.classList.remove('on');}); b.classList.add('on');
+		      bcKy=b.getAttribute('data-v'); napBaoCao();
+		    });
+		  });
+		  $('.pql-bcve').addEventListener('change',function(){ bcVe=this.value; napBaoCao(); });
 		  function napBaoCao(){
-		    get('/ql/baocao').then(function(d){
+		    var u='/ql/baocao?ky='+encodeURIComponent(bcKy)+(bcVe?'&ve='+encodeURIComponent(bcVe):'');
+		    get(u).then(function(d){
+		      if(!bcVeLoaded){ // nạp dropdown loại vé 1 lần
+		        var sel=$('.pql-bcve'); (d.ds_ve||[]).forEach(function(t){ var o=document.createElement('option'); o.value=t; o.textContent=t; sel.appendChild(o); }); bcVeLoaded=true;
+		      }
 		      var money={dt_tong:1,dt_hnay:1,dt_thang:1,dt_zalo:1,dt_web:1};
 		      ['dt_tong','ve_ban','so_ve','dt_hnay','dt_thang','ve_hnay','ve_cho','ve_zalo','ve_web','dt_zalo','dt_web'].forEach(function(k){
 		        var el=root.querySelector('[data-k="'+k+'"]'); if(el) el.textContent = money[k]?VND(d[k]):(d[k]||0);
