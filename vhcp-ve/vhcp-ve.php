@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.21.0
+ * Version:           1.22.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -891,7 +891,7 @@ class POSH_Ve {
 		</style>
 		<?php endif; ?>
 		<div class="pve-page">
-		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(180,120,10,.55),rgba(140,90,10,.75)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
+		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(8,9,12,.72),rgba(8,9,12,.86)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
 			<div class="pve-hero-in">
 				<h1 class="pve-hero-t"><?php echo esc_html( $atts['hero'] ); ?></h1>
 				<?php if ( $atts['hero_phu'] ) : ?><p class="pve-hero-p"><?php echo esc_html( $atts['hero_phu'] ); ?></p><?php endif; ?>
@@ -1229,102 +1229,126 @@ class POSH_Ve {
 		</script>
 
 		<style>
-		/* Full-bleed: phá khung theme để trang trải hết chiều ngang */
-		.pve-page{ width:100vw; margin-left:calc(50% - 50vw); background:#faf6ee; color:#1f2937; overflow:hidden; }
-		.pve-hero{ background:linear-gradient(135deg,#e6b32e,#c1901b); background-size:cover; background-position:center; padding:56px 20px 60px; text-align:center; }
-		.pve-hero-in{ max-width:760px; margin:0 auto; }
-		.pve-hero-t{ color:#fff; font-size:clamp(26px,5vw,44px); font-weight:900; margin:0 0 12px; text-shadow:0 2px 12px rgba(0,0,0,.25); line-height:1.15; }
-		.pve-hero-p{ color:#fff; opacity:.95; font-size:clamp(14px,2.4vw,18px); margin:0 0 22px; text-shadow:0 1px 6px rgba(0,0,0,.25); }
-		.pve-hero-btn{ display:inline-block; background:#1f2937; color:#fff; font-weight:800; font-size:16px; padding:13px 30px; border-radius:999px; text-decoration:none; box-shadow:0 6px 18px rgba(0,0,0,.2); }
-		.pve-hero-btn:hover{ background:#111827; color:#fff; }
-		.pve-wrap{ max-width:1040px; margin:0 auto; padding:26px 16px 40px; }
-		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; }
-		.pve-empty{ color:#64748b; }
-		.pve-sec{ margin-bottom:30px; }
-		.pve-sec-h{ font-size:22px; font-weight:900; color:#1f2937; margin:0 0 14px; padding-left:12px; border-left:5px solid #cf9f22; }
-		.pve-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:16px; }
-		.pve-card{ background:#fff; border:1px solid #eee; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 4px 14px rgba(0,0,0,.06); }
-		.pve-img{ position:relative; aspect-ratio:1/1; background:#f1f5f9; }
+		/* ===== Giao diện tối/vàng gold — phong cách genesis-escape (sang, tối giản) ===== */
+		.pve-page{ --g:#d4af37; --g2:#e7cd7a; --bg:#0b0c10; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22);
+			--tx:#ece9e1; --mut:#9b978c; width:100vw; margin-left:calc(50% - 50vw); background:var(--bg); color:var(--tx);
+			overflow:hidden; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+		.pve-page ::selection{ background:var(--g); color:#0b0c10; }
+		/* Hero */
+		.pve-hero{ position:relative; background:radial-gradient(1200px 500px at 50% -10%,rgba(212,175,55,.16),transparent 60%),#0b0c10;
+			background-size:cover; background-position:center; padding:84px 20px 78px; text-align:center; border-bottom:1px solid var(--bd); }
+		.pve-hero::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:linear-gradient(90deg,transparent,var(--g),transparent); opacity:.6; }
+		.pve-hero-in{ max-width:820px; margin:0 auto; position:relative; }
+		.pve-hero-t{ color:#fff; font-family:Georgia,"Times New Roman",serif; font-size:clamp(30px,5.4vw,52px); font-weight:700;
+			margin:0 0 16px; line-height:1.12; letter-spacing:.5px; }
+		.pve-hero-t::after{ content:""; display:block; width:64px; height:2px; margin:18px auto 0; background:linear-gradient(90deg,transparent,var(--g),transparent); }
+		.pve-hero-p{ color:#cfcabb; font-size:clamp(14px,2.3vw,18px); margin:0 0 26px; letter-spacing:.3px; }
+		.pve-hero-btn{ display:inline-block; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800;
+			font-size:15px; letter-spacing:.5px; padding:14px 34px; border-radius:999px; text-decoration:none; text-transform:uppercase;
+			box-shadow:0 10px 30px rgba(212,175,55,.28); }
+		.pve-hero-btn:hover{ filter:brightness(1.06); color:#1a1204; }
+		.pve-wrap{ max-width:1080px; margin:0 auto; padding:34px 16px 44px; }
+		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; color:#fff; }
+		.pve-empty{ color:var(--mut); }
+		/* Section + lưới vé */
+		.pve-sec{ margin-bottom:40px; }
+		.pve-sec-h{ font-family:Georgia,"Times New Roman",serif; font-size:24px; font-weight:700; color:#fff; margin:0 0 18px;
+			padding-bottom:10px; border-bottom:1px solid var(--bd); position:relative; }
+		.pve-sec-h::after{ content:""; position:absolute; left:0; bottom:-1px; width:54px; height:2px; background:var(--g); }
+		.pve-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:18px; }
+		.pve-card{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
+			transition:transform .18s ease,box-shadow .18s ease,border-color .18s; }
+		.pve-card:hover{ transform:translateY(-4px); border-color:rgba(212,175,55,.5); box-shadow:0 16px 40px rgba(0,0,0,.5); }
+		.pve-img{ position:relative; aspect-ratio:4/3; background:#0f1116; }
 		.pve-img img{ width:100%; height:100%; object-fit:cover; }
-		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; }
-		.pve-sale{ position:absolute; top:0; left:0; background:#cf9f22; color:#fff; font-weight:800; font-size:13px; padding:4px 10px; border-bottom-right-radius:12px; }
-		.pve-body{ padding:11px 12px 12px; display:flex; flex-direction:column; gap:5px; flex:1; }
-		.pve-ten{ font-weight:700; font-size:15px; color:#1f2937; line-height:1.3; }
-		.pve-tl{ color:#64748b; font-size:12px; }
-		.pve-mota{ color:#64748b; font-size:12px; line-height:1.4; }
-		.pve-foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:6px; }
-		.pve-gia{ font-size:18px; font-weight:900; color:#c2410c; }
-		.pve-goc{ font-size:12px; color:#9ca3af; text-decoration:line-through; margin-left:6px; }
-		.pve-buy{ border:none; background:#cf9f22; color:#fff; font-weight:700; font-size:13px; padding:9px 14px; border-radius:999px; cursor:pointer; }
-		.pve-buy[disabled]{ background:#cbd5e1; cursor:not-allowed; }
-		.pve-con{ font-size:12px; color:#64748b; font-weight:600; }
-		.pve-het{ opacity:.72; } .pve-het .pve-con{ color:#991b1b; }
+		.pve-img::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(11,12,16,.65)); }
+		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; opacity:.5; }
+		.pve-sale{ position:absolute; top:10px; left:10px; z-index:2; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204;
+			font-weight:800; font-size:12px; padding:4px 11px; border-radius:999px; }
+		.pve-body{ padding:14px 14px 15px; display:flex; flex-direction:column; gap:6px; flex:1; }
+		.pve-ten{ font-weight:700; font-size:16px; color:#fff; line-height:1.3; }
+		.pve-tl{ color:var(--mut); font-size:12px; }
+		.pve-mota{ color:var(--mut); font-size:12px; line-height:1.45; }
+		.pve-foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:10px; }
+		.pve-gia{ font-size:19px; font-weight:800; color:var(--g2); }
+		.pve-goc{ font-size:12px; color:#6f6b61; text-decoration:line-through; margin-left:6px; }
+		.pve-buy{ border:1px solid var(--g); background:transparent; color:var(--g2); font-weight:700; font-size:13px; letter-spacing:.3px;
+			padding:9px 16px; border-radius:999px; cursor:pointer; transition:.15s; }
+		.pve-buy:hover{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; }
+		.pve-buy[disabled]{ border-color:#3a3a3a; color:#6f6b61; background:transparent; cursor:not-allowed; }
+		.pve-con{ font-size:12px; color:var(--mut); font-weight:600; }
+		.pve-het{ opacity:.6; } .pve-het .pve-con{ color:#e07a7a; }
+		/* Popup mua vé */
 		.pve-mask[hidden], .pve-wel[hidden]{ display:none !important; }   /* [hidden] phải thắng display:flex */
-		.pve-mask{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; padding:16px; z-index:99999; }
-		.pve-modal{ background:#fff; border-radius:18px; padding:20px; width:100%; max-width:380px; max-height:90vh; overflow:auto; position:relative; }
-		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:#94a3b8; cursor:pointer; }
-		.pve-m-ten{ font-weight:800; font-size:18px; color:#1f2937; }
-		.pve-m-gia{ font-weight:900; font-size:20px; color:#c2410c; margin:2px 0 14px; }
-		.pve-lb{ display:block; font-size:13px; color:#475569; margin:10px 0 4px; font-weight:600; }
-		.pve-in{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 13px; font-size:15px; }
-		.pve-go{ width:100%; margin-top:16px; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
-		.pve-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
-		.pve-note{ color:#64748b; font-size:12px; line-height:1.5; margin-top:12px; }
+		.pve-mask{ position:fixed; inset:0; background:rgba(4,5,8,.72); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:99999; }
+		.pve-modal{ background:var(--sf); border:1px solid var(--bd); border-radius:18px; padding:22px; width:100%; max-width:390px; max-height:90vh; overflow:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:var(--mut); cursor:pointer; }
+		.pve-m-ten{ font-weight:800; font-size:18px; color:#fff; }
+		.pve-m-gia{ font-weight:800; font-size:21px; color:var(--g2); margin:2px 0 14px; }
+		.pve-lb{ display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; font-weight:600; }
+		.pve-in{ width:100%; box-sizing:border-box; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 13px; font-size:15px; }
+		.pve-in::placeholder{ color:#6f6b61; }
+		.pve-in:focus{ outline:none; border-color:var(--g); }
+		.pve-go{ width:100%; margin-top:16px; border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
+		.pve-err{ color:#f0a0a0; font-size:13px; margin-top:10px; }
+		.pve-note{ color:var(--mut); font-size:12px; line-height:1.5; margin-top:12px; }
 		.pve-cong{ display:flex; gap:8px; margin:4px 0 14px; }
-		.pve-cong-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:2px solid #e5e7eb; background:#fff; border-radius:12px; font-size:12px; font-weight:700; color:#1f2937; cursor:pointer; }
+		.pve-cong-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:1.5px solid #33363f; background:var(--sf2); border-radius:12px; font-size:12px; font-weight:700; color:var(--tx); cursor:pointer; }
 		.pve-cong-i span{ font-size:22px; }
-		.pve-cong-i.on{ border-color:#c1901b; background:#fffbeb; color:#92400e; }
-		.pve-cong-msg{ background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:12px; font-size:13px; margin-bottom:12px; text-align:center; }
-		.pve-cong-msg a{ color:#b45309; font-weight:800; }
-		.pve-qr{ display:flex; justify-content:center; margin:6px 0 14px; }
+		.pve-cong-i.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
+		.pve-cong-msg{ background:rgba(212,175,55,.1); border:1px solid var(--bd); color:var(--g2); border-radius:10px; padding:12px; font-size:13px; margin-bottom:12px; text-align:center; }
+		.pve-cong-msg a{ color:var(--g2); font-weight:800; }
+		.pve-qr{ display:flex; justify-content:center; margin:6px auto 14px; background:#fff; padding:14px; border-radius:14px; width:max-content; max-width:100%; }
 		.pve-qr img,.pve-qr canvas{ display:block; }
 		.pve-badge{ display:inline-block; font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; margin-bottom:12px; }
-		.pve-badge.cho{ background:#fef3c7; color:#92600a; } .pve-badge.da_tt{ background:#dcfce7; color:#166534; } .pve-badge.huy{ background:#fee2e2; color:#991b1b; }
-		.pve-kv{ display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:6px 0; border-bottom:1px dashed #e2e8f0; }
-		.pve-kv b{ color:#1f2937; text-align:right; word-break:break-all; }
-		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#94a3b8; font-size:11px; font-style:normal; }
+		.pve-badge.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pve-badge.da_tt{ background:rgba(34,197,94,.18); color:#7ee2a8; } .pve-badge.huy{ background:rgba(239,68,68,.18); color:#f0a0a0; }
+		.pve-kv{ display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:7px 0; border-bottom:1px dashed #33363f; color:var(--mut); }
+		.pve-kv b{ color:var(--tx); text-align:right; word-break:break-all; }
+		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#6f6b61; font-size:11px; font-style:normal; }
 		/* Màn chào mừng chọn khu vực */
-		.pve-wel{ position:fixed; inset:0; background:rgba(15,23,42,.72); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100000; }
-		.pve-wel-box{ background:#fff; border-radius:18px; padding:26px 22px; width:100%; max-width:440px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,.35); }
-		.pve-wel-h{ font-size:20px; font-weight:900; color:#1f2937; margin-bottom:18px; }
-		.pve-wel-list{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px; }
-		.pve-wel-kv{ border:2px solid #e2e8f0; background:#fff; color:#1f2937; font-weight:700; font-size:15px; padding:14px 10px; border-radius:12px; cursor:pointer; transition:.15s; }
-		.pve-wel-kv:hover{ border-color:#cf9f22; }
-		.pve-wel-kv.on{ border-color:#cf9f22; background:#fcf3d9; color:#8a6a10; }
-		.pve-wel-ok{ width:100%; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:14px; border-radius:12px; cursor:pointer; }
-		.pve-wel-ok:disabled{ background:#cbd5e1; cursor:not-allowed; }
-		.pve-wel-note{ color:#94a3b8; font-size:12px; margin-top:12px; }
-		.pve-kvbar{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:9px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
-		.pve-kvbar b{ color:#1f2937; }
-		.pve-kvbar-doi{ float:right; color:#b8871a; font-weight:700; text-decoration:none; }
+		.pve-wel{ position:fixed; inset:0; background:rgba(4,5,8,.8); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100000; }
+		.pve-wel-box{ background:var(--sf); border:1px solid var(--bd); border-radius:18px; padding:30px 24px; width:100%; max-width:460px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.6); }
+		.pve-wel-h{ font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:700; color:#fff; margin-bottom:20px; }
+		.pve-wel-list{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:22px; }
+		.pve-wel-kv{ border:1.5px solid #33363f; background:var(--sf2); color:var(--tx); font-weight:700; font-size:15px; padding:15px 10px; border-radius:12px; cursor:pointer; transition:.15s; }
+		.pve-wel-kv:hover{ border-color:var(--g); }
+		.pve-wel-kv.on{ border-color:var(--g); background:rgba(212,175,55,.14); color:var(--g2); }
+		.pve-wel-ok{ width:100%; border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; font-size:16px; padding:14px; border-radius:12px; cursor:pointer; }
+		.pve-wel-ok:disabled{ background:#33363f; color:#6f6b61; cursor:not-allowed; }
+		.pve-wel-note{ color:var(--mut); font-size:12px; margin-top:12px; }
+		.pve-kvbar{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:14px; color:var(--mut); }
+		.pve-kvbar b{ color:var(--tx); }
+		.pve-kvbar-doi{ float:right; color:var(--g2); font-weight:700; text-decoration:none; }
 		/* Đăng nhập Zalo */
-		.pve-auth{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
-		.pve-auth b{ color:#1f2937; }
-		.pve-auth a{ color:#b8871a; font-weight:700; text-decoration:none; }
+		.pve-auth{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:11px 15px; margin-bottom:18px; font-size:14px; color:var(--mut); }
+		.pve-auth b{ color:var(--tx); }
+		.pve-auth a{ color:var(--g2); font-weight:700; text-decoration:none; }
 		.pve-auth-btn{ background:#0068ff; color:#fff !important; padding:8px 16px; border-radius:999px; }
-		/* Banner carousel (kiểu ticketbox) */
-		.pve-bn{ position:relative; margin-bottom:18px; border-radius:16px; overflow:hidden; }
+		/* Banner carousel */
+		.pve-bn{ position:relative; margin-bottom:22px; border-radius:16px; overflow:hidden; border:1px solid var(--bd); }
 		.pve-bn-track{ display:flex; transition:transform .4s ease; }
 		.pve-bn-track img{ width:100%; flex:0 0 100%; aspect-ratio:16/6; object-fit:cover; display:block; }
 		.pve-bn-dots{ position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:7px; }
-		.pve-bn-dots span{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.6); cursor:pointer; }
-		.pve-bn-dots span.on{ background:#fff; width:20px; border-radius:999px; }
+		.pve-bn-dots span{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.5); cursor:pointer; }
+		.pve-bn-dots span.on{ background:var(--g2); width:20px; border-radius:999px; }
 		/* Chân trang */
-		.pve-ft{ margin-top:20px; padding:22px 16px calc(22px + env(safe-area-inset-bottom)); background:#1f2937; color:#cbd5e1; text-align:center; font-size:13px; line-height:1.7; }
-		.pve-ft-ten{ font-weight:800; color:#fff; font-size:15px; }
-		.pve-ft-l{ color:#cbd5e1; }
-		.pve-ft-nb a{ color:#f4c854; font-weight:700; text-decoration:none; }
-		.pve-ft-ver{ color:#94a3b8; font-size:12px; margin-top:8px; }
+		.pve-ft{ margin-top:24px; padding:30px 16px calc(28px + env(safe-area-inset-bottom)); background:#08090c; border-top:1px solid var(--bd); color:var(--mut); text-align:center; font-size:13px; line-height:1.8; }
+		.pve-ft-ten{ font-family:Georgia,"Times New Roman",serif; font-weight:700; color:#fff; font-size:16px; letter-spacing:.3px; }
+		.pve-ft-l{ color:var(--mut); }
+		.pve-ft-nb a{ color:var(--g2); font-weight:700; text-decoration:none; }
+		.pve-ft-ver{ color:#5f5c54; font-size:12px; margin-top:8px; }
 		/* Form đặt vé nhanh */
-		.pve-qf{ background:#fff; border:1px solid #f0e7d2; border-radius:16px; padding:16px; margin:0 0 20px; box-shadow:0 6px 18px rgba(0,0,0,.07); }
-		.pve-qf-h{ font-weight:900; font-size:18px; color:#1f2937; margin-bottom:12px; }
+		.pve-qf{ background:linear-gradient(180deg,var(--sf),#111319); border:1px solid var(--bd); border-radius:16px; padding:18px; margin:0 0 24px; box-shadow:0 16px 40px rgba(0,0,0,.4); }
+		.pve-qf-h{ font-family:Georgia,"Times New Roman",serif; font-weight:700; font-size:19px; color:#fff; margin-bottom:14px; }
 		.pve-qf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-		.pve-qf-grid input, .pve-qf-grid select{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 12px; font-size:14px; background:#fff; }
+		.pve-qf-grid input, .pve-qf-grid select{ width:100%; box-sizing:border-box; border:1px solid #33363f; border-radius:10px; padding:11px 12px; font-size:14px; background:var(--sf2); color:var(--tx); }
+		.pve-qf-grid input::placeholder{ color:#6f6b61; }
+		.pve-qf-grid input:focus, .pve-qf-grid select:focus{ outline:none; border-color:var(--g); }
 		.pve-qf-ve{ grid-column:1 / -1; }
 		.pve-qf-sl{ max-width:100%; }
-		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
-		.pve-qf-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
-		.pve-qf-note{ color:#94a3b8; font-size:12px; text-align:center; margin-top:10px; }
+		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; font-size:16px; letter-spacing:.3px; padding:13px; border-radius:12px; cursor:pointer; text-transform:uppercase; }
+		.pve-qf-err{ color:#f0a0a0; font-size:13px; margin-top:10px; }
+		.pve-qf-note{ color:var(--mut); font-size:12px; text-align:center; margin-top:10px; }
 		@media(max-width:520px){ .pve-qf-grid{ grid-template-columns:1fr; } }
 		</style>
 		<?php
