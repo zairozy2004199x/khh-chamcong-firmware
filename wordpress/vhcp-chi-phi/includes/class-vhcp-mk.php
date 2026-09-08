@@ -20,6 +20,29 @@ class VHCP_MK {
 		return VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma_don=%s ORDER BY stt ASC", (string) $ma ) );
 	}
 
+	/**
+	 * ĐƠN VỊ của một đợt marketing — neo theo CƠ SỞ (mỗi đợt chạy cho một gian).
+	 *
+	 * ⚠️ `$id` Ở LỚP NÀY LÀ MỘT DÒNG TRONG ĐỢT, không phải mã đợt — `update_line()` và
+	 *    `delete_line()` nhận nó. Phải đi vòng qua bảng dòng để lấy mã đợt; tra thẳng vào
+	 *    `mk_don` thì không thấy, trả `null`, và `null` là CHO QUA: kế toán bên này sửa
+	 *    được từng dòng tiền của bên kia.
+	 */
+	public static function don_vi_cua( $khoa, $kieu = 'ma' ) {
+		if ( 'id' === $kieu ) {
+			global $wpdb;
+			$t = VHCP_DB::t( 'mk_line' );
+			$l = VHCP_DB::row( $wpdb->prepare( "SELECT ma_don FROM $t WHERE id=%s", (string) $khoa ) );
+			if ( ! $l ) { return null; }
+			$khoa = (string) $l['ma_don'];
+		} elseif ( 'ma' !== $kieu && 'ma_don' !== $kieu ) {
+			return null;
+		}
+		$r = self::don_row( $khoa );
+		if ( ! $r ) { return null; }
+		return VHCP_DonVi::cua_coso( isset( $r['coso'] ) ? $r['coso'] : '' );
+	}
+
 	public static function all_dons() {
 		global $wpdb;
 		$t = VHCP_DB::t( 'mk_don' );
@@ -70,7 +93,11 @@ class VHCP_MK {
 	public static function list_don( $coso = 'all' ) {
 		$agg = self::agg();
 		$out = array();
+		$dv_xem = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_dons() as $r ) {
+			/* Lọc theo ĐƠN VỊ đứng trước ô lọc cơ sở của người dùng: ô kia là "tôi muốn xem
+			   gian nào", chốt này là "tôi được xem gian nào". */
+			if ( null !== $dv_xem && ! VHCP_DonVi::xem_duoc_coso( isset( $r['coso'] ) ? $r['coso'] : '' ) ) { continue; }
 			if ( $coso && $coso !== 'all' && trim( (string) $r['coso'] ) !== $coso ) { continue; }
 			$a  = isset( $agg[ $r['ma'] ] ) ? $agg[ $r['ma'] ] : array( 'dt' => 0, 'tt' => 0, 'kq' => 0 );
 			$out[] = array(

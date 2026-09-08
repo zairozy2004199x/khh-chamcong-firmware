@@ -1137,8 +1137,9 @@
     <div class="card">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px">Đơn vị (K&amp;H · POSH)</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
+      <datalist id="dl_donvi"></datalist>
     </div>
 
     <!-- ============ LOẠI CHI PHÍ THEO CƠ SỞ ============
@@ -1322,6 +1323,7 @@
       <div class="fld" style="margin-bottom:10px"><label>Tên thường gọi</label><input id="ncTen" placeholder="VD: FARM PHAN THIẾT"></div>
       <div class="fld" style="margin-bottom:10px"><label>Tên theo MISA</label><input id="ncMisa" placeholder="VD: FARM MN Lotte Phan Thiết"></div>
       <div class="fld" style="margin-bottom:10px"><label>Mã đơn vị (MISA)</label><input id="ncMa" placeholder="VD: FLMPT"></div>
+      <div class="fld" style="margin-bottom:10px"><label>Đơn vị (K&amp;H · POSH) — bên nào nhìn thấy chi phí của gian này</label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
       <div class="fld" style="margin-bottom:16px"><label>Phân loại lớn</label><input id="ncPll" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn b-x" onclick="closeCfgCoso()">Huỷ</button>
@@ -6693,6 +6695,9 @@
   function renderCosoBody(){
     var plls={}; (CFG.coso||[]).forEach(function(x){ var v=String(x.phanLoaiLon||'').trim(); if(v) plls[v]=1; });
     if(el('dl_pll')) el('dl_pll').innerHTML=Object.keys(plls).sort().map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+    /* Gợi ý đơn vị lấy từ CHÍNH danh sách máy chủ gửi xuống (`BOOT.donVi`), không gõ cứng
+       "K&H, POSH" ở đây: thêm đơn vị thứ ba thì ô này tự có, khỏi phải nhớ sửa hai nơi. */
+    if(el('dl_donvi')) el('dl_donvi').innerHTML=(BOOT.donVi||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
     // Cột ĐÓNG CỬA: đóng gian là kế toán đã tất toán hết bằng tiền -> thôi luân chuyển bù
     // trừ sang kỳ sau, và gian đó không nhận chi phí mới. Nút riêng chứ không phải ô nhập:
     // lệnh này còn tất toán các đơn còn treo nên phải hỏi lại trước khi làm.
@@ -6701,15 +6706,28 @@
       var oDong=dc
         ? '<span style="color:#b91c1c;font-weight:700">🔒 đóng '+esc(dc)+'</span> <button class="btn b-x" style="padding:4px 8px;font-size:11px" onclick="doDongCua(\''+esc(x.ten)+'\',false)">Mở lại</button>'
         : '<button class="btn b-d" style="padding:5px 9px;font-size:11.5px" onclick="doDongCua(\''+esc(x.ten)+'\',true)">🔒 Đóng gian</button>';
-      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
+      /* 🔴 CỘT "ĐƠN VỊ" KHÁC HẲN CỘT "MÃ ĐƠN VỊ (MISA)" đứng cách đó hai ô. Mã đơn vị đi vào
+         tệp xuất; còn ô này quyết định BÊN NÀO NHÌN THẤY chi phí của gian. Khai nhầm chỗ là
+         số của POSH nằm trong sổ K&H. Nên ô này có gợi ý sẵn từ danh sách đơn vị đang có,
+         không phải gõ chay. */
+      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td><input value="'+esc(x.donVi||'')+'" list="dl_donvi" placeholder="'+esc(_dvMacDinh())+'" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
     var gr={}, ord=[]; (CFG.coso||[]).forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
     ord.sort();
     el('cfgCosoBody').innerHTML=ord.map(function(g){
-      return '<tr><td colspan="6" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
+      return '<tr><td colspan="7" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
     }).join('');
     _csLock(true);
     doCoSoLa();   // dò tên cơ sở có trên dữ liệu mà chưa khai ở bảng này
   }
+  /* Đọc MỘT hàng của bảng cơ sở. Gom thành một khuôn dùng chung cho cả ba chỗ (đồng bộ khi
+     gõ · thêm mới · bấm Lưu): trước đây ba chỗ chép tay cùng một danh sách cột, nên thêm cột
+     thứ năm là phải nhớ sửa cả ba — mà chỗ quên sẽ ghi đè ô Đơn vị bằng rỗng, tức mọi cơ sở
+     POSH lặng lẽ về K&H và bên kia nhìn thấy hết. */
+  function _dongCoso(r){
+    return { ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||'', donVi:(r[4]||'').trim() };
+  }
+  /* Nhà mặc định = đơn vị đầu danh sách máy chủ gửi xuống. Ô để trống nghĩa là nhà này. */
+  function _dvMacDinh(){ return (BOOT.donVi&&BOOT.donVi[0])||'K&H'; }
   // Khóa bảng cơ sở: mã đơn vị MISA sửa nhầm là xuất sai đơn vị, nên mặc định chỉ xem
   var CS_LOCK=true;
   function _csLock(on){
@@ -6721,17 +6739,18 @@
   function toggleCsLock(){ _csLock(!CS_LOCK); }
   // Đồng bộ chỉnh sửa đang gõ trên bảng vào CFG.coso (để không mất khi thêm/vẽ lại)
   function _syncCosoFromDOM(){
-    CFG.coso=_readRows('cfgCosoBody').filter(function(r){return r.length>=4;}).map(function(r){return {ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||''};}).filter(function(x){return x.ten;});
+    CFG.coso=_readRows('cfgCosoBody').filter(function(r){return r.length>=4;}).map(_dongCoso).filter(function(x){return x.ten;});
   }
-  function addCfgCoso(){ el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value=''; el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60); }
+  function addCfgCoso(){ el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value=''; if(el('ncDonVi')) el('ncDonVi').value=''; el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60); }
   function closeCfgCoso(){ el('cosoModal').style.display='none'; }
   function submitCfgCoso(){
     var ten=el('ncTen').value.trim(); if(!ten){toast('warn','Nhập tên thường gọi');return;}
     _syncCosoFromDOM();
-    CFG.coso.push({ten:ten, tenMisa:el('ncMisa').value.trim(), maDonVi:el('ncMa').value.trim(), phanLoaiLon:el('ncPll').value.trim()});
+    CFG.coso.push({ten:ten, tenMisa:el('ncMisa').value.trim(), maDonVi:el('ncMa').value.trim(), phanLoaiLon:el('ncPll').value.trim(),
+      donVi:(el('ncDonVi')?el('ncDonVi').value.trim():'')});
     closeCfgCoso(); renderCosoBody(); toast('ok','Đã thêm vào nhóm — nhớ bấm 💾 Lưu');
   }
-  function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(function(r){return {ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||''};}).filter(function(x){return x.ten;});
+  function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(_dongCoso).filter(function(x){return x.ten;});
     _saveCfg({coso:data},'Đã lưu cấu hình cơ sở');
   }
   // ---- BẢNG DUY NHẤT: hàng = loại chi phí · cột = mảng kinh doanh

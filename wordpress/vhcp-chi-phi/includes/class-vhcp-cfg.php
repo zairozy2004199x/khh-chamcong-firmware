@@ -28,7 +28,19 @@ class VHCP_Cfg {
 		$h = array(
 			// Cột "Đóng cửa": ngày kế toán làm lệnh đóng gian hàng. Đóng rồi thì thôi luân
 			// chuyển bù trừ sang kỳ sau — lúc đóng là đã tất toán bằng tiền.
-			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa' ),
+			/* 🔴 CỘT "ĐƠN VỊ" (cuối) LÀ K&H · POSH — KHÔNG PHẢI cột "Mã đơn vị" (thứ hai).
+			   Hai chữ gần giống nhau nằm cùng một bảng, nên nói cho rõ một lần: "Mã đơn vị"
+			   là mã của MISA, đi thẳng vào tệp xuất; "Đơn vị" là NHÀ của cơ sở — nó quyết
+			   định bên nào nhìn thấy chi phí của cơ sở ấy. Đổi tên cột "Mã đơn vị" thì tệp
+			   MISA của anh Thắng gãy, nên để nguyên và đặt cột mới ở cuối.
+
+			   Anh Thắng 08/09/2026: *"danh mục cơ sở nhập vẫn trường thông tin đó luôn, cơ sở
+			   lấy từ bên posh là các cơ sở posh đang hoạt động"* — dùng chung một danh mục,
+			   cơ sở POSH khai thêm vào đây, cột này nói nó thuộc bên nào.
+
+			   ⚠️ Ô để trống = K&H (nhà mặc định). Mọi cơ sở khai trước bản này đều rỗng, mà
+			      trước khi có POSH thì cơ sở nào cũng là cơ sở K&H. */
+			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
@@ -340,7 +352,7 @@ class VHCP_Cfg {
 	private static function seed_from( $all ) {
 		$did = false;
 		if ( ! count( self::rows_of( $all, self::COSO ) ) ) {
-			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '' ) ); }
+			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '', '' ) ); }
 			$did = true;
 		}
 		if ( ! count( self::rows_of( $all, self::NHOM ) ) ) {
@@ -407,7 +419,8 @@ class VHCP_Cfg {
 			// MÃ SỐ bị bảng tính thêm đuôi ".0" ("64196.0", "6329.0"): mã đó không khớp hệ
 			// thống tài khoản và xuất MISA ra sai. Rửa ngay lúc ĐỌC nên dòng đã nạp lệch tự
 			// về đúng, khỏi phải sửa tay từng ô.
-			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => VHCP_Util::ma_so( $r[1] ), 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '' );
+			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => VHCP_Util::ma_so( $r[1] ), 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '',
+				'donVi' => VHCP_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' ) );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -455,9 +468,15 @@ class VHCP_Cfg {
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
 		// ma trận [loại chi phí][phân loại lớn] -> TK Nợ (khóa đã hạ chữ thường).
 		$out['cosoPll'] = array();
+		/* Cơ sở -> ĐƠN VỊ. Tra nhanh, khoá đã hạ chữ thường — mọi màn hỏi "dòng chi này của
+		   bên nào" đều đi qua bảng này, xem `VHCP_DonVi::cua_coso()`. */
+		$out['cosoDonVi'] = array();
 		foreach ( $out['coso'] as $x ) {
 			$k = mb_strtolower( trim( (string) $x['ten'] ) );
-			if ( $k !== '' ) { $out['cosoPll'][ $k ] = trim( (string) $x['phanLoaiLon'] ); }
+			if ( $k !== '' ) {
+				$out['cosoPll'][ $k ]   = trim( (string) $x['phanLoaiLon'] );
+				$out['cosoDonVi'][ $k ] = VHCP_DonVi::chuan( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+			}
 		}
 		// Một ô có thể khai NHIỀU mã (cách nhau bởi "|") khi cùng một tên gọi chi phí ở
 		// cùng một mảng lại hạch toán vào 2 tài khoản khác nhau. Khi đó app KHÔNG tự chọn:
@@ -562,10 +581,17 @@ class VHCP_Cfg {
 			// Giữ lại ngày ĐÓNG CỬA khi dữ liệu gửi lên không mang theo — bảng cơ sở trên
 			// giao diện không có cột đó, lưu bảng là mất trạng thái đóng của mọi gian.
 			$dong_cu = array();
+			/* Cột ĐƠN VỊ giữ y hệt lý do: một bản giao diện cũ (hoặc một lượt nạp .csv thiếu
+			   cột) gửi lên bảng cơ sở không có ô ấy, mà ghi đè bằng rỗng là MỌI cơ sở POSH
+			   lặng lẽ về K&H — tức kế toán K&H nhìn thấy toàn bộ chi phí của POSH, đúng thứ
+			   đang phải tách. Không có ô thì giữ nguyên ô đang lưu. */
+			$dv_cu = array();
 			foreach ( self::read( self::COSO ) as $r0 ) {
 				$r0 = array_values( (array) $r0 );
 				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
-				if ( $t0 !== '' && isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
+				if ( $t0 === '' ) { continue; }
+				if ( isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
+				if ( isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $dv_cu[ $t0 ] = (string) $r0[5]; }
 			}
 			foreach ( $cfg['coso'] as $x ) {
 				$x  = (array) $x;
@@ -575,7 +601,12 @@ class VHCP_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $dong_cu[ $k0 ] ) ) { $dc = $dong_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc );
+				$dv = $g( $x, 'donVi' );
+				if ( $dv === '' && ! array_key_exists( 'donVi', $x ) ) {
+					$k1 = mb_strtolower( trim( $tn ) );
+					if ( isset( $dv_cu[ $k1 ] ) ) { $dv = $dv_cu[ $k1 ]; }
+				}
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv );
 			}
 			self::write( self::COSO, $rows );
 		}

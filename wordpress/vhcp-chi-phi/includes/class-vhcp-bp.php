@@ -22,6 +22,20 @@ class VHCP_BP {
 		return VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma=%s ORDER BY row_no ASC", (string) $ma ) );
 	}
 
+	/**
+	 * ĐƠN VỊ của một đợt công tác / setup — neo theo NGƯỜI TẠO.
+	 *
+	 * Bảng này có `dia_diem` chứ không có cơ sở: địa điểm là chỗ người ta ĐI TỚI (một tỉnh,
+	 * một hội chợ), gõ tự do, không nằm trong danh mục cơ sở nên không tra được đơn vị. Người
+	 * lập thì luôn có đúng một nhà — xem chốt dài ở `VHCP_DuAn::don_vi_cua()`.
+	 */
+	public static function don_vi_cua( $khoa, $kieu = 'ma' ) {
+		if ( 'ma' !== $kieu ) { return null; }
+		$r = self::find( $khoa );
+		if ( ! $r ) { return null; }
+		return VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' );
+	}
+
 	public static function all_index() {
 		$t = VHCP_DB::t( 'bp_index' );
 		return VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" );
@@ -112,7 +126,11 @@ class VHCP_BP {
 		$coso = array();
 		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
 		$out = array();
+		$dv_xem = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_with_lines() as $r ) {
+			/* Công tác / Setup neo theo NGƯỜI TẠO — địa điểm gõ tự do, không tra được đơn vị. */
+			if ( null !== $dv_xem
+				&& ! VHCP_DonVi::duoc_xem( VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
 			if ( $loai && $loai !== 'all' && (string) $r['loai'] !== $loai ) { continue; }
 			$dt = 0; $tt = 0;
 			foreach ( $r['lines'] as $x ) {

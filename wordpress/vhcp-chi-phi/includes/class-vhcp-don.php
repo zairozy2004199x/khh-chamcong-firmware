@@ -451,8 +451,18 @@ class VHCP_Don {
 		$cp  = self::cp_rows();
 		$cfg = VHCP_Cfg::get_config( $cp );
 
+		/* 🔴 Ô CHỌN CƠ SỞ CHỈ BÀY GIAN CỦA BÊN MÌNH (anh Thắng 08/09/2026: *"2 bộ phận không
+		   nhìn thấy nhau"*). Lọc ở ĐÂY vì đây là nơi DUY NHẤT dựng danh sách cơ sở gửi xuống
+		   trình duyệt — mọi ô chọn của mọi màn đều ăn từ nó, nên một chỗ là xong, không có ô
+		   nào để quên.
+
+		   ⚠️ Danh sách này chỉ nuôi Ô CHỌN. Tên cơ sở hiện trên từng dòng dữ liệu lấy thẳng
+		      từ chính dòng ấy, nên đơn cũ mang gian bên kia vẫn đọc được tên bình thường —
+		      lọc ở đây không làm dữ liệu trông như bị mất chữ. */
+		$dv_xem = VHCP_DonVi::xem_duoc();
 		$coso = array(); $coso_dong = array();
 		foreach ( $cfg['coso'] as $x ) {
+			if ( null !== $dv_xem && ! VHCP_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' ) ) { continue; }
 			$coso[] = $x['ten'];
 			// Gian đã đóng: gửi kèm để giao diện bỏ khỏi ô chọn lúc nhập
 			if ( trim( (string) ( isset( $x['dongCua'] ) ? $x['dongCua'] : '' ) ) !== '' ) { $coso_dong[] = $x['ten']; }

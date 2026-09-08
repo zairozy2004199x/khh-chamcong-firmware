@@ -22,6 +22,28 @@ class VHCP_DuAn {
 		return VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s", (string) $ma_da ) );
 	}
 
+	/**
+	 * ĐƠN VỊ của một dự án — neo theo NGƯỜI TẠO, không theo cơ sở.
+	 *
+	 * 🔴 KHÁC HAI MẢNG KIA, VÀ ĐÂY LÀ LÝ DO. Bảng `da_index` KHÔNG có cột cơ sở: một dự án
+	 *    (setup/tháo dỡ) trải qua nhiều gian, cơ sở chỉ nằm trên từng DÒNG (`da_line.gian`),
+	 *    và các dòng ấy có thể thuộc nhiều gian khác nhau. Neo theo cơ sở thì phải trả lời
+	 *    "dự án chạm gian của cả hai bên thì của ai" — không có câu trả lời đúng, và câu nào
+	 *    cũng làm lộ số của một bên.
+	 *
+	 *    Người lập thì luôn có đúng một nhà. Dự án là việc của một bên đứng ra làm, nên neo
+	 *    vào nhà của người ấy là đúng nghiệp vụ và không có ca nhập nhằng.
+	 *
+	 * ⚠️ Người tạo rỗng (dữ liệu cũ, nhập từ sổ) -> `cua_nguoi()` trả nhà mặc định = K&H.
+	 *    Đúng: trước khi có POSH thì mọi dự án đều là dự án K&H.
+	 */
+	public static function don_vi_cua( $khoa, $kieu = 'ma_da' ) {
+		if ( 'ma_da' !== $kieu ) { return null; }
+		$r = self::find( $khoa );
+		if ( ! $r ) { return null; }
+		return VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' );
+	}
+
 	private static function lines_of( $ma_da ) {
 		global $wpdb;
 		$t = VHCP_DB::t( 'da_line' );
@@ -92,7 +114,11 @@ class VHCP_DuAn {
 	public static function list_du_an() {
 		$out = array();
 		$sc_tong = VHCP_SoChi::tong_theo_du_an();   // 1 lệnh DB cho mọi dự án
+		$dv_xem  = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_with_lines() as $r ) {
+			/* Dự án neo theo NGƯỜI TẠO — xem chốt dài ở `don_vi_cua()`. */
+			if ( null !== $dv_xem
+				&& ! VHCP_DonVi::duoc_xem( VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
 			$lines = $r['lines'];
 			$dt = 0; $tt = 0; $child = array();
 			foreach ( $lines as $x ) {

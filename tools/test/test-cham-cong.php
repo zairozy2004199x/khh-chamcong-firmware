@@ -7277,14 +7277,37 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ),
 	array( 'ma_nv' => 'QTC1', 'ho_ten' => 'Người QTC1', 'cua_hang' => 'TUTU_BT' ) );
 $tok_sg = VHCC_Auth::login( '135791' )['token'];
 $_COOKIE[ VHCC_Web::COOKIE ] = $tok_sg;
+/* 🔴 GHIM ĐỒNG HỒ CHO KHỐI NÀY. `VHCC_Bu::sua()` chối mọi ngày cách hôm nay quá
+   `NGAY_TOI_DA` (62) — "lương tháng đó chốt rồi". Ngày thử ở đây là 07/07/2026, nên chạy
+   bằng giờ THẬT thì bài kiểm sống đúng 62 ngày rồi tự đỏ, và đã đỏ thật ngày 08/09/2026:
+   đúng 63 ngày, không ai đụng vào mã nào cả.
+
+   Ghim quanh khối rồi NHẢ NGAY — cả tệp này (4700 phép) chạy bằng giờ thật, kéo đồng hồ
+   toàn cục về tháng 7 là đổi hành vi của những phép không liên quan. */
+$giay_cu = $GLOBALS['VHCP_GIAY_BAY_GIO'];
+$GLOBALS['VHCP_GIAY_BAY_GIO'] = strtotime( '2026-07-20 10:00:00 UTC' );
 $_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_sg ),
 	'ccs' => 'TUTU_BT', 'ngay' => '2026-07-07', 'ma_nv' => 'QTC1',
 	'sg_vao' => '09:45', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array();
+/* Đối chứng: mốc 62 ngày VẪN CÒN HIỆU LỰC. Không có phép này thì ai đó nới hằng số ấy lên
+   999 là bài kiểm trên vẫn xanh, mà lương tháng đã chốt lại sửa được. */
+$r_qua_han = VHCC_Bu::sua(
+	array( 'name' => 'Admin', 'role' => 'Admin', 'coso' => 'TUTU_BT' ),
+	array( 'coso' => 'TUTU_BT', 'ngay' => '2026-01-05', 'ma_nv' => 'QTC1',
+		'vao' => '08:00', 'ra' => '17:00', 'ly_do' => 'thử ngày quá cũ' ) );
+t( '🔴 ngày cách hôm nay quá ' . VHCC_Bu::NGAY_TOI_DA . ' ngày thì VẪN chối',
+	empty( $r_qua_han['ok'] ), $r_qua_han );
+$GLOBALS['VHCP_GIAY_BAY_GIO'] = $giay_cu;
 $h_sau = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
-t( '🔴 sửa qua trang thật thì bảng hiện giờ MỚI',
-	strpos( $h_sau, '09:45' ) !== false, $h_sau );
+/* ⚠️ SOI ĐÚNG Ô CỦA NGÀY ẤY, không soi cả trang. Chuỗi "09:45" trần có thể nằm ở ô nhập giờ,
+   ở chú thích khung ca, ở bất cứ đâu — soi cả trang thì phép này xanh kể cả khi lượt sửa bị
+   chối thẳng, và nó đã xanh oan như thế suốt lúc mốc 62 ngày đang chặn. */
+$o_0707 = '';
+if ( preg_match( '/07\/07\/2026 · Người QTC1[\s\S]{0,200}/u', $h_sau, $m_0707 ) ) { $o_0707 = $m_0707[0]; }
+t( '🔴 sửa qua trang thật thì Ô CỦA NGÀY 07/07 hiện giờ MỚI',
+	'' !== $o_0707 && strpos( $o_0707, '09:45' ) !== false, $o_0707 );
 /* 🔴 SỔ NHẬT KÝ ("Đã động vào giờ công tháng này") ĐÃ BỎ KHỎI MÀN 07/09/2026 — không còn khối
    HTML nào để soi "cột Giờ cũ"/"sửa đè" trên `$h_sau` nữa. Sổ vẫn ghi đủ (`cham_bu`), chỉ là
    không còn hiện ở đây; xem trực tiếp qua `VHCC_Bu::ds_nhat_ky()` — cũng là cách

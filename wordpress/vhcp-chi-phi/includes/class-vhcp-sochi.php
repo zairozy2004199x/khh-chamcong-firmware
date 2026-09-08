@@ -31,6 +31,25 @@ class VHCP_SoChi {
 		return VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" );
 	}
 
+	/**
+	 * ĐƠN VỊ của một dòng sổ chi phí — neo theo CƠ SỞ.
+	 *
+	 * Mỗi dòng ở đây bắt buộc ghi cơ sở (tiền chi cho gian nào), nên cơ sở là chỗ neo đúng
+	 * nhất: chi cho gian của POSH là tiền của POSH, bất kể ai gõ vào máy. Xem chốt dài ở
+	 * `VHCP_DonVi::cua_coso()`.
+	 */
+	public static function don_vi_cua( $khoa, $kieu = 'id' ) {
+		if ( 'ids' === $kieu ) {
+			$ra = array();
+			foreach ( (array) $khoa as $x ) { $ra[] = self::don_vi_cua( $x, 'id' ); }
+			return $ra;
+		}
+		if ( 'id' !== $kieu ) { return null; }
+		$r = self::row( $khoa );
+		if ( ! $r ) { return null; }   // không có dòng -> để hàm thật trả câu lỗi của nó
+		return VHCP_DonVi::cua_coso( isset( $r['coso'] ) ? $r['coso'] : '' );
+	}
+
 	// ---------------------------------------------------------------- mã tài khoản
 
 	/** Chốt mã tài khoản cho 1 dòng — dùng chung bộ chốt của Cấu hình (mọi mảng giống nhau). */
@@ -191,7 +210,14 @@ class VHCP_SoChi {
 		$by_loai = array(); $by_coso = array(); $by_ky = array(); $by_tk = array(); $by_da = array();
 		$tong = 0; $tong_thue = 0; $ky_set = array(); $loai_set = array(); $tk_set = array(); $da_set = array();
 
+		/* 🔴 LỌC THEO ĐƠN VỊ TRƯỚC MỌI THỨ KHÁC — kể cả trước khi gom các ô lọc.
+		   Mấy dòng `$ky_set` / `$loai_set` / `$tk_set` dưới đây dựng nội dung cho ô chọn Kỳ,
+		   Loại chi phí, Mã TK. Lọc sau chúng thì bảng đúng nhưng Ô LỌC vẫn bày kỳ và loại chi
+		   phí của bên kia — người ta chọn rồi nhận bảng rỗng, và biết bên kia có phát sinh gì
+		   ở kỳ nào. Rò rỉ ít hơn, nhưng vẫn là rò rỉ. */
+		$dv_xem = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_rows() as $r ) {
+			if ( null !== $dv_xem && ! VHCP_DonVi::xem_duoc_coso( isset( $r['coso'] ) ? $r['coso'] : '' ) ) { continue; }
 			$ky_set[ (string) $r['ky'] ] = 1;
 			if ( trim( (string) $r['loai'] ) !== '' ) { $loai_set[ (string) $r['loai'] ] = 1; }
 			if ( trim( (string) $r['tk_no'] ) !== '' ) { $tk_set[ (string) $r['tk_no'] ] = 1; }

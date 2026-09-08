@@ -218,10 +218,16 @@ class VHCP_DonVi {
 		if ( ! $ts || ! array_key_exists( 0, $args ) ) { return ''; }
 		$ten = $ts[0]->getName();
 
-		if ( 'ma_don' === $ten ) {
+		/* ⚠️ HAI NHÁNH DƯỚI CHỈ DÀNH CHO `VHCP_Don`. `VHCP_Mk::add_line()` cũng nhận `$ma_don`,
+		   nhưng đó là mã ĐỢT MARKETING — tra nó trong bảng đơn vận hành thì không bao giờ
+		   thấy, và người dùng nhận "Không tìm thấy đơn" cho một thao tác hoàn toàn hợp lệ.
+		   Chỉ cắn người BỊ giới hạn đơn vị (ai xem cả thì đã thoát ở dòng `xem_duoc()` phía
+		   trên) — tức đúng người POSH sắp dùng. Mảng khác đi tiếp xuống chốt `don_vi_cua()`. */
+		$la_don = ( 'VHCP_Don' === $callable[0] );
+		if ( 'ma_don' === $ten && $la_don ) {
 			return self::vi_sao_khong_dung( (string) $args[0] );
 		}
-		if ( 'ma_dons' === $ten ) {
+		if ( 'ma_dons' === $ten && $la_don ) {
 			foreach ( (array) $args[0] as $m ) {
 				$loi = self::vi_sao_khong_dung( (string) $m );
 				if ( '' !== $loi ) { return $loi; }
@@ -230,12 +236,95 @@ class VHCP_DonVi {
 		}
 		/* `$id` = id DÒNG chi. Chặn ở đây nữa dù `loi_khong_phai_dong_minh()` cũng chặn: hai
 		   lớp không tốn gì, mà một ngày nào đó ai bỏ lớp kia thì vẫn còn lớp này. */
-		if ( 'id' === $ten && is_array( $callable ) && 'VHCP_Don' === $callable[0] ) {
+		if ( 'id' === $ten && $la_don ) {
 			$l = VHCP_Don::line_row( $args[0] );
 			if ( ! $l ) { return ''; }
 			return self::vi_sao_khong_dung( (string) $l['ma_don'] );
 		}
+
+		/* 🔴 BỐN MẢNG CÒN LẠI ĐI QUA ĐÚNG CỬA NÀY (anh Thắng 08/09/2026: *"dùng chung web chi
+		   phí, nhưng 2 bộ phận không nhìn thấy nhau"*).
+
+		   Sổ chi phí · Kỹ thuật · Marketing · Công tác/Setup gộp lại hơn 60 hàm đụng vào một
+		   bản ghi. Rải chốt vào từng hàm là 60 chỗ để quên, và hàm thứ 61 viết sau này thì
+		   chắc chắn quên — đúng lý do khối 🔴 ở đầu hàm đã nêu cho mảng Đơn.
+
+		   Mỗi lớp tự khai `don_vi_cua( $khoa )`: nó biết bản ghi của mình neo vào đâu (cơ sở
+		   hay người tạo), còn chỗ này chỉ hỏi và so. Thêm mảng thứ năm thì khai một hàm là
+		   xong, không phải đụng vào đây.
+
+		   ⚠️ `null` = KHÔNG TÌM THẤY BẢN GHI -> cho qua, để hàm thật trả câu lỗi của nó. Chối
+		      ở đây thì người dùng nhận "không được xem" cho một thứ không tồn tại, và đó lại
+		      là cách dò xem bên kia có bản ghi nào — thứ vừa phải bịt. */
+		if ( method_exists( $callable[0], 'don_vi_cua' ) ) {
+			/* Truyền CẢ TÊN THAM SỐ, không chỉ giá trị. `$id` của `VHCP_SoChi` là một dòng
+			   sổ, còn `$id` của `VHCP_Mk` là một dòng trong đợt — hai thứ tra ở hai bảng
+			   khác nhau. Đoán từ giá trị thì lúc đoán trượt sẽ trả `null`, mà `null` là
+			   CHO QUA: một lần đoán trượt là một dòng tiền sửa được xuyên hai bên sổ. */
+			$dv = call_user_func( array( $callable[0], 'don_vi_cua' ), $args[0], $ten );
+			foreach ( ( is_array( $dv ) ? $dv : array( $dv ) ) as $x ) {
+				if ( null !== $x && ! self::duoc_xem( $x ) ) { return 'Không tìm thấy dữ liệu'; }
+			}
+		}
 		return '';
+	}
+
+	/* ====================================================================== của cơ sở */
+
+	/**
+	 * ĐƠN VỊ CỦA MỘT CƠ SỞ — chốt DUY NHẤT cho mọi mảng chi phí gắn với cơ sở.
+	 *
+	 * Anh Thắng 08/09/2026: *"dùng chung web chi phí, nhưng 2 bộ phận không nhìn thấy nhau"*,
+	 * và *"cơ sở lấy từ bên posh là các cơ sở posh đang hoạt động"*.
+	 *
+	 * 🔴 VÌ SAO RANH GIỚI LÀ CƠ SỞ, KHÔNG PHẢI MỘT CỘT `don_vi` RIÊNG TRÊN TỪNG BẢNG.
+	 *    Bốn mảng còn lại (Sổ chi phí · Kỹ thuật · Marketing · Công tác/Setup) nằm ở bốn cặp
+	 *    bảng riêng. Thêm cột vào cả bốn thì có bốn chỗ phải nhớ GHI lúc tạo, bốn chỗ phải lấp
+	 *    cho dữ liệu cũ, và mảng thứ năm viết sau này chắc chắn quên — mà một dòng quên ghi là
+	 *    một khoản chi của POSH nằm trong sổ của K&H, không ai thấy để sửa.
+	 *
+	 *    Cơ sở thì mảng nào cũng có, đã có sẵn trên mọi dòng, và nó đúng theo nghĩa nghiệp vụ:
+	 *    tiền chi cho gian hàng của POSH là tiền của POSH, bất kể ai gõ vào máy. Một nguồn
+	 *    sự thật, không có gì để quên ghi, và dữ liệu cũ tự đúng — cơ sở cũ đều là cơ sở K&H.
+	 *
+	 * ⚠️ CƠ SỞ LẠ (gõ tay, nhập từ sổ cũ, đã xoá khỏi danh mục) -> nhà mặc định, KHÔNG phải
+	 *    "không của ai". Trả về một đơn vị không ai xem được thì dòng ấy biến mất khỏi mọi
+	 *    màn, kể cả màn của Admin — tiền có thật mà không ai nhìn thấy là thứ tệ hơn hẳn việc
+	 *    nó tạm nằm nhầm bên.
+	 */
+	public static function cua_coso( $ten_coso ) {
+		$k = mb_strtolower( trim( (string) $ten_coso ) );
+		if ( '' === $k ) { return self::MAC_DINH; }
+		/* ⚠️ `cfg_static()` chứ KHÔNG phải `get_config()`. Bảng tra `cosoDonVi` dựng trong
+		   `cfg_static()`, và `get_config()` chỉ chuyển tiếp một phần các khoá của nó — hỏi
+		   nhầm chỗ thì bảng rỗng, mọi cơ sở rơi về nhà mặc định, và hai bên nhìn thấy nhau
+		   trở lại mà không câu lỗi nào. `get_config()` còn quét cả bảng chi phí để dựng danh
+		   sách đối tượng: nặng hơn hẳn, mà chỗ này chỉ cần đúng một bảng tra. */
+		$cfg = VHCP_Cfg::cfg_static();
+		$m   = isset( $cfg['cosoDonVi'] ) ? (array) $cfg['cosoDonVi'] : array();
+		return self::chuan( isset( $m[ $k ] ) ? $m[ $k ] : '' );
+	}
+
+	/** Người đang gọi có được đọc chi phí của cơ sở này không. */
+	public static function xem_duoc_coso( $ten_coso ) {
+		return self::duoc_xem( self::cua_coso( $ten_coso ) );
+	}
+
+	/**
+	 * Danh sách CƠ SỞ người đang gọi được nhìn — để ô chọn cơ sở không bày gian của bên kia.
+	 *
+	 * @return array|null Mảng tên cơ sở · `null` = xem cả (không lọc gì).
+	 */
+	public static function coso_xem_duoc() {
+		if ( null === self::xem_duoc() ) { return null; }
+		$ra  = array();
+		$cfg = VHCP_Cfg::cfg_static();
+		foreach ( (array) ( isset( $cfg['coso'] ) ? $cfg['coso'] : array() ) as $x ) {
+			$ten = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			if ( self::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' ) ) { $ra[] = $ten; }
+		}
+		return $ra;
 	}
 
 	/* ====================================================================== của đơn */
