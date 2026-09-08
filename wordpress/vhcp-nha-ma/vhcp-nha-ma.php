@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
- * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma, trang quản trị ở /ban-ve-nha-ma/#quanly (kế toán duyệt tiền, soát vé tại cửa, đối soát). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.0.0
+ * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), trang quản trị ở /ban-ve-nha-ma/#quanly (kế toán duyệt tiền, soát vé tại cửa, đối soát). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.0.0';
+	const VER  = '1.1.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -78,6 +78,9 @@ class NHAMA {
 			'denSom' => 10,       // khách phải có mặt trước bao nhiêu phút
 			'quet'   => 6000,     // màn quản trị tự nạp lại, mili giây
 			'am'     => 1,        // kêu chuông khi có đơn mới chờ duyệt
+			'bin'    => '',       // mã ngân hàng Napas (BIDV 970418, Vietcombank 970436, MB 970422…)
+			'so_tk'  => '',       // số tài khoản nhận tiền
+			'ten_tk' => '',       // tên chủ tài khoản, viết HOA không dấu cho khớp app ngân hàng
 			'ten'    => 'GHOST BRIDE VIP',
 			'phu'    => 'Nghi thức phân luồng dành riêng cho Khách Mời Danh Dự',
 		);
@@ -86,6 +89,75 @@ class NHAMA {
 		$c = get_option( 'nhama_cf' );
 		return array_merge( self::cf_md(), is_array( $c ) ? $c : array() );
 	}
+	/**
+	 * Tài khoản nhận tiền. Chưa khai ở đây thì MƯỢN của plugin ghế massage — cùng một cửa hàng,
+	 * cùng một tài khoản, khai hai lần là hai chỗ để gõ nhầm.
+	 *
+	 * 🔴 SỐ TÀI KHOẢN THIẾU MỘT CHỮ SỐ LÀ QUÉT RA LỖI "định dạng tài khoản định danh không hợp lệ"
+	 *    — chuyện đã xảy ra thật bên plugin ghế ngày 22/08/2026. Nên màn Cài đặt in luôn chuỗi
+	 *    VietQR thử để soi bằng mắt trước khi giao cho khách.
+	 */
+	public static function tk() {
+		$cf = self::cf();
+		$ra = array(
+			'bin'    => trim( (string) $cf['bin'] ),
+			'so_tk'  => trim( (string) $cf['so_tk'] ),
+			'ten_tk' => trim( (string) $cf['ten_tk'] ),
+		);
+		if ( '' === $ra['bin'] )    { $ra['bin']    = trim( (string) get_option( 'vhg_bin', '' ) ); }
+		if ( '' === $ra['so_tk'] )  { $ra['so_tk']  = trim( (string) get_option( 'vhg_so_tk', '' ) ); }
+		if ( '' === $ra['ten_tk'] ) { $ra['ten_tk'] = trim( (string) get_option( 'vhg_ten_tk', '' ) ); }
+		$ra['ten_nh'] = self::ten_nh( $ra['bin'] );
+		return $ra;
+	}
+
+	/** Tên ngân hàng từ mã BIN — không có trong bảng thì trả rỗng, thà "không rõ" còn hơn đoán. */
+	const NGAN_HANG = array(
+		'970418' => 'BIDV', '970436' => 'Vietcombank', '970415' => 'VietinBank', '970422' => 'MB',
+		'970407' => 'Techcombank', '970416' => 'ACB', '970448' => 'OCB', '970432' => 'VPBank',
+		'970405' => 'Agribank', '970423' => 'TPBank', '970443' => 'SHB', '970441' => 'VIB',
+		'970426' => 'MSB', '970403' => 'Sacombank', '970431' => 'Eximbank', '970437' => 'HDBank',
+	);
+	public static function ten_nh( $bin ) {
+		$bin = preg_replace( '/\D+/', '', (string) $bin );
+		return isset( self::NGAN_HANG[ $bin ] ) ? self::NGAN_HANG[ $bin ] : '';
+	}
+
+	/**
+	 * Nội dung chuyển khoản = mã thiệp BỎ DẤU GẠCH.
+	 *
+	 * 🔴 ĐÂY LÀ SỢI DÂY DUY NHẤT NỐI TIỀN VỚI ĐƠN. Gõ sai một ký tự là tiền vào tài khoản mà
+	 *    không ai biết của đơn nào — kế toán ngồi dò tay giữa lúc khách đứng đợi ở cửa.
+	 * ⚠️ Bỏ dấu gạch vì nhiều app ngân hàng lọc ký tự đặc biệt trong nội dung chuyển khoản; để
+	 *    nguyên `GB-XXXX` thì app cắt thành `GBXXXX` và hai bên không khớp nhau nữa.
+	 */
+	public static function noi_dung( $ma ) {
+		return preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $ma ) );
+	}
+
+	/**
+	 * Gắn tài khoản + mã QR vào một đơn để trả về cho trang khách.
+	 * Chưa khai tài khoản thì trả `tk.thieu = 1` và KHÔNG dựng QR — thà nói thẳng "chưa khai"
+	 * còn hơn vẽ một tấm QR trỏ vào tài khoản rỗng để khách quét rồi chuyển đi đâu không rõ.
+	 */
+	public static function kem_qr( $don ) {
+		if ( ! $don ) { return $don; }
+		$tk = self::tk();
+		$don['nd'] = self::noi_dung( $don['ma'] );
+		if ( '' === $tk['so_tk'] || '' === $tk['bin'] ) {
+			$don['tk'] = array( 'thieu' => 1 );
+			return $don;
+		}
+		$chuoi = NHAMA_QR::dung( $tk['bin'], $tk['so_tk'], (int) $don['tien'], $don['nd'] );
+		$mt    = NHAMA_QRVe::ma_tran( $chuoi, 'L' );
+		$don['tk'] = array( 'thieu' => 0, 'bin' => $tk['bin'], 'so_tk' => $tk['so_tk'],
+			'ten_tk' => $tk['ten_tk'], 'ten_nh' => $tk['ten_nh'] );
+		/* Mức sửa lỗi L: chuỗi VietQR dài ~125 ký tự, mức L cho ra 37×37 thay vì 41×41 — mã hiện
+		   trên màn điện thoại thì mỗi ô to hơn, mà màn hình không chịu vết xước như tem in. */
+		$don['qr'] = $mt ? NHAMA_QRVe::svg( $mt, 220 ) : '';
+		return $don;
+	}
+
 	public static function slug() {
 		$s = (string) get_option( 'nhama_slug', 'ban-ve-nha-ma' );
 		return $s !== '' ? $s : 'ban-ve-nha-ma';
@@ -313,7 +385,7 @@ class NHAMA {
 			return self::loi( 'Khung ' . $gio . ' vừa có người giữ trước mất rồi. Chọn khung khác giúp em.' );
 		}
 
-		return array( 'ok' => true, 'don' => self::don_theo_ma( $ma ) );
+		return array( 'ok' => true, 'don' => self::kem_qr( self::don_theo_ma( $ma ) ) );
 	}
 
 	private static function v_cua_toi( $d ) {
@@ -327,7 +399,9 @@ class NHAMA {
 		$r = $wpdb->get_results( $wpdb->prepare(
 			'SELECT ma,ten,sdt,ngay,gio,sl,tien,tt,ghi FROM ' . self::t()
 			. ' WHERE sdt=%s ORDER BY ngay DESC, gio DESC LIMIT 50', $sdt ), ARRAY_A );
-		return array( 'ok' => true, 'don' => $r ? $r : array() );
+		$r = $r ? $r : array();
+		foreach ( $r as $i => $x ) { $r[ $i ] = self::kem_qr( $x ); }
+		return array( 'ok' => true, 'don' => $r );
 	}
 
 	private static function v_bao_ck( $d ) {
@@ -335,10 +409,10 @@ class NHAMA {
 		$ma = strtoupper( self::chu( $d, 'ma', 24 ) );
 		$don = self::don_theo_ma( $ma );
 		if ( ! $don ) { return self::loi( 'Không thấy thiệp này.' ); }
-		if ( 'giu_cho' !== $don['tt'] ) { return array( 'ok' => true, 'don' => $don ); }
+		if ( 'giu_cho' !== $don['tt'] ) { return array( 'ok' => true, 'don' => self::kem_qr( $don ) ); }
 		$wpdb->update( self::t(), array( 'tt' => 'cho_duyet', 'sua' => current_time( 'mysql' ) ),
 			array( 'ma' => $ma ) );
-		return array( 'ok' => true, 'don' => self::don_theo_ma( $ma ) );
+		return array( 'ok' => true, 'don' => self::kem_qr( self::don_theo_ma( $ma ) ) );
 	}
 
 	// -------------------------------------------------------------------- cửa của nhân viên
@@ -427,12 +501,17 @@ class NHAMA {
 				$cf[ $k ] = (string) $moi[ $k ];
 			}
 		}
+		foreach ( array( 'so_tk', 'ten_tk' ) as $k ) {
+			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = mb_substr( sanitize_text_field( (string) $moi[ $k ] ), 0, 60 ); }
+		}
+		if ( isset( $moi['bin'] ) ) { $cf['bin'] = preg_replace( '/\D+/', '', (string) $moi['bin'] ); }
 		foreach ( array( 'ten', 'phu' ) as $k ) {
 			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = mb_substr( sanitize_text_field( (string) $moi[ $k ] ), 0, 120 ); }
 		}
 		$cf['suc']  = max( 1, (int) $cf['suc'] );
 		$cf['buoc'] = max( 1, (int) $cf['buoc'] );
 		update_option( 'nhama_cf', $cf );
+		$cf['tk_thu'] = self::tk();
 		$pin = isset( $d['pin'] ) ? preg_replace( '/\D/', '', (string) $d['pin'] ) : '';
 		if ( strlen( $pin ) >= 4 ) { self::dat_pin( $pin ); }
 		return array( 'ok' => true, 'cf' => $cf, 'khung' => self::ds_khung( $cf ) );
@@ -602,6 +681,20 @@ border-bottom:1px dashed #2a222a;font-size:13.5px}
 .thiep .dong:last-of-type{border-bottom:0}.thiep .dong span{color:var(--chu-mo)}
 .huong-dan{background:#0e0b10;border:1px solid var(--vien);border-radius:8px;padding:13px;
 margin-top:14px;font-size:13px}.huong-dan b{color:var(--vang-nhat)}
+.qr-khung{text-align:center;margin-top:16px}
+.qr-anh{background:#fff;border-radius:10px;padding:10px;display:inline-block;line-height:0}
+.qr-anh svg{width:220px;height:220px;display:block}
+.tk-dong{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;
+border-bottom:1px dashed #2a222a;font-size:13.5px;text-align:left}
+.tk-dong:last-child{border-bottom:0}
+.tk-dong span{color:var(--chu-mo);flex:none}
+.tk-dong b{margin-left:auto;text-align:right;word-break:break-all}
+.chep{background:#191319;border:1px solid var(--vien);color:var(--vang-nhat);border-radius:6px;
+padding:4px 9px;font-size:11px;font-weight:600;flex:none}
+.chep:hover{border-color:var(--vang)}
+.nd-to{font-family:Cinzel,Georgia,serif;font-size:20px;letter-spacing:.14em;color:var(--vang);
+text-align:center;background:#0c0a0e;border:1px dashed var(--vang);border-radius:8px;
+padding:10px;margin:10px 0 4px;word-break:break-all}
 .nut-phu{background:#191319;border:1px solid var(--vien);color:var(--chu);border-radius:8px;
 padding:10px 14px;font-size:13px;font-weight:600}.nut-phu:hover{border-color:var(--vang)}
 .hang-nut{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -827,6 +920,59 @@ function htmlThiep(v){
     +"<div class='dong'><span>Thành viên</span><b>"+esc(v.sl)+" người</b></div>"
     +"<div class='dong'><span>Cần thu</span><b style='color:var(--vang)'>"+tien(v.tien)+"</b></div></div>";
 }
+/**
+ * Khối trả tiền: mã QR VietQR + số tài khoản + nội dung.
+ *
+ * 🔴 CÓ CẢ QR LẪN CHỮ CHÉP TAY, hai đường, vì khách dùng hai kiểu khác nhau. Người đang cầm chính
+ *    cái máy hiện trang này vẫn quét được: app ngân hàng Việt Nam đều cho CHỌN ẢNH QR TỪ THƯ VIỆN,
+ *    và người đi cùng chĩa máy vào màn là quét luôn. Còn ai không quét được thì vẫn còn số tài
+ *    khoản và nội dung để gõ tay.
+ * 🔴 NỘI DUNG CHUYỂN KHOẢN LÀ SỢI DÂY DUY NHẤT NỐI TIỀN VỚI ĐƠN — nên nó to, có nút chép, và có
+ *    câu cảnh báo ngay cạnh, không nhét vào chữ nhỏ.
+ */
+function htmlTraTien(v, nhieu){
+  if (!v.tk || v.tk.thieu){
+    return "<div class='bao hong' style='margin-top:14px'>Ban tổ chức chưa khai tài khoản nhận "
+      +"tiền nên chưa dựng được mã QR. Nhờ anh/chị báo giúp ban tổ chức — thiệp vẫn giữ chỗ bình "
+      +"thường.</div>";
+  }
+  return "<div class='qr-khung'>"
+    +(v.qr ? "<div class='qr-anh'>"+v.qr+"</div>" : "")
+    +(nhieu ? "<p class='kh-phu' style='font-size:12px;margin:8px 0 0'>Mã QR này cho thiệp "
+      +esc(v.ma)+". Mỗi thiệp chuyển một lần riêng.</p>" : "")
+    +"</div>"
+    +"<div style='margin-top:14px'>"
+    +"<div class='tk-dong'><span>Ngân hàng</span><b>"+esc(v.tk.ten_nh||("BIN "+v.tk.bin))+"</b></div>"
+    +"<div class='tk-dong'><span>Số tài khoản</span><b>"+esc(v.tk.so_tk)+"</b>"
+      +"<button class='chep' data-chep='"+esc(v.tk.so_tk)+"'>Chép</button></div>"
+    +(v.tk.ten_tk ? "<div class='tk-dong'><span>Chủ tài khoản</span><b>"+esc(v.tk.ten_tk)+"</b></div>" : "")
+    +"<div class='tk-dong'><span>Số tiền</span><b style='color:var(--vang)'>"+tien(v.tien)+"</b>"
+      +"<button class='chep' data-chep='"+esc(v.tien)+"'>Chép</button></div>"
+    +"</div>"
+    +"<p class='nhan' style='text-align:center'>Nội dung chuyển khoản — GÕ ĐÚNG chuỗi này:</p>"
+    +"<div class='nd-to'>"+esc(v.nd||v.ma)+"</div>"
+    +"<div style='text-align:center'><button class='chep' data-chep='"+esc(v.nd||v.ma)+"'>Chép nội dung</button></div>"
+    +"<p class='kh-phu' style='font-size:12px;margin-top:8px;text-align:center'>Sai nội dung là tiền "
+    +"vào tài khoản mà không biết của thiệp nào — ban tổ chức phải dò tay.</p>";
+}
+/* Chép vào bộ nhớ tạm. Bản `clipboard` chỉ chạy trên HTTPS; máy nào không có thì bôi đen sẵn cho
+   khách tự bấm chép — im lặng không làm gì là khách bấm mãi tưởng máy hỏng. */
+function chep(txt, nut){
+  function xong(){
+    var cu=nut.textContent; nut.textContent="✓ Đã chép";
+    setTimeout(function(){ nut.textContent=cu; },1400);
+  }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(xong, function(){ tayChep(txt,xong); });
+  } else { tayChep(txt,xong); }
+}
+function tayChep(txt, xong){
+  var o=document.createElement("textarea");
+  o.value=txt; o.style.position="fixed"; o.style.opacity="0";
+  document.body.appendChild(o); o.select();
+  try{ document.execCommand("copy"); xong(); }catch(e){ prompt("Chép chuỗi này:", txt); }
+  document.body.removeChild(o);
+}
 function moThiep(ds, loi){
   if (!ds || !ds.length){
     return moHop("<h3 class='the-tieu'>Thiệp của tôi</h3><p class='kh-phu' style='text-align:left'>"
@@ -834,9 +980,13 @@ function moThiep(ds, loi){
   }
   var h=(loi?"<div class='bao duoc'>"+esc(loi)+"</div>":"");
   for (var i=0;i<ds.length;i++){ h+=htmlThiep(ds[i]); }
-  h+="<div class='huong-dan'><b>Bước tiếp theo:</b> chuyển khoản đủ số tiền trên, nội dung ghi "
-    +"<b>mã thiệp</b>. Chuyển xong bấm nút dưới đây để báo; ban tổ chức duyệt xong thiệp chuyển "
-    +"sang <i>Chờ Check-in</i>. Tới nơi đọc mã ở cửa là được dẫn vào.</div>";
+  /* Khối chuyển khoản chỉ hiện cho đơn CHƯA trả tiền. Đơn đã duyệt rồi mà còn chìa QR ra là mời
+     khách trả lần thứ hai. */
+  var noTien = ds.filter(function(v){ return v.tt==="giu_cho"||v.tt==="cho_duyet"; });
+  if (noTien.length) { h += htmlTraTien(noTien[0], noTien.length>1); }
+  h+="<div class='huong-dan'><b>Bước tiếp theo:</b> quét mã QR trên bằng app ngân hàng — số tiền và "
+    +"nội dung đã điền sẵn, không phải gõ. Chuyển xong bấm nút dưới đây để báo; ban tổ chức duyệt "
+    +"xong thiệp chuyển sang <i>Chờ Check-in</i>. Tới nơi đọc mã ở cửa là được dẫn vào.</div>";
   var chua=ds.filter(function(v){ return v.tt==="giu_cho"; });
   h+="<div class='hang-nut'>"+(chua.length?"<button class='nut-phu' id='btDaCK'>Tôi đã chuyển khoản</button>":"")
     +"<button class='nut-phu' id='btLuuAnh'>Lưu thiệp (.svg)</button></div>";
@@ -896,6 +1046,9 @@ function moHop(html){
     +"<button class='hop-dong' aria-label='Đóng'>&times;</button>"+html+"</div></div>";
   g("hopThoai").querySelector(".hop-dong").addEventListener("click", dongHop);
   g("hopThoai").querySelector(".man-che").addEventListener("click", function(e){ if(e.target===this){ dongHop(); } });
+  g("hopThoai").addEventListener("click", function(e){
+    var n=e.target.closest("[data-chep]"); if(n){ chep(n.getAttribute("data-chep"), n); }
+  });
 }
 function dongHop(){ g("hopThoai").innerHTML=""; }
 
@@ -1135,6 +1288,14 @@ function manCai(){
     +oCai("Mỗi khung cách nhau (phút)","cBuoc",CFQ.buoc,"number")
     +oCai("Mở bán trước (ngày)","cNgayMo",CFQ.ngayMo,"number")
     +oCai("Khách phải có mặt trước (phút)","cDenSom",CFQ.denSom,"number")
+    +"<hr style='border:0;border-top:1px solid var(--q-vien);margin:18px 0'>"
+    +"<h3 style='margin:0 0 4px;color:var(--q-cam)'>🏦 Tài khoản nhận tiền</h3>"
+    +"<p class='q-nho' style='margin:0'>Mã QR trên thiệp của khách dựng từ ba ô này. Bỏ trống thì "
+      +"mượn tài khoản đã khai ở plugin Ghế Massage.</p>"
+    +oCai("Mã ngân hàng BIN (BIDV 970418 · Vietcombank 970436 · MB 970422 · Techcombank 970407)","cBin",CFQ.bin||"","text")
+    +oCai("Số tài khoản","cSoTk",CFQ.so_tk||"","text")
+    +oCai("Chủ tài khoản (viết HOA không dấu)","cTenTk",CFQ.ten_tk||"","text")
+    +"<div id='tkThu' class='q-nho' style='margin-top:8px'></div>"
     +"<button class='q-nut xanh' id='btLuuKD' style='width:100%;margin-top:16px'>LƯU LÊN SERVER</button></div>"
     +"<div class='q-the'><h3 style='margin-top:0;color:var(--q-luc)'>🖥 Cấu hình Màn Hình</h3>"
     +"<label class='q-nho'>Tốc độ tự động quét đơn mới:</label>"
@@ -1149,9 +1310,11 @@ function manCai(){
     +"<button class='q-nut xam' id='btMau' style='width:100%'>Nạp 12 đơn mẫu (để xem thử)</button>"
     +"<button class='q-nut do' id='btXoa' style='width:100%;margin-top:9px'>Xoá sạch sổ</button></div></div>";
   g("cQuet").value=String(CFQ.quet);
+  veTkThu();
   g("btLuuKD").addEventListener("click", function(){
     luuCai({ gia:+g("cGia").value||0, suc:+g("cSuc").value||1, mo:g("cMo").value, dong:g("cDong").value,
-      buoc:+g("cBuoc").value||5, ngayMo:+g("cNgayMo").value||14, denSom:+g("cDenSom").value||0 }, "");
+      buoc:+g("cBuoc").value||5, ngayMo:+g("cNgayMo").value||14, denSom:+g("cDenSom").value||0,
+      bin:g("cBin").value, so_tk:g("cSoTk").value, ten_tk:g("cTenTk").value }, "");
   });
   g("btLuuMH").addEventListener("click", function(){
     luuCai({ quet:+g("cQuet").value, ten:g("cTen").value, phu:g("cPhu").value }, g("cPin").value);
@@ -1163,6 +1326,23 @@ function manCai(){
     if (!confirm("Xoá sạch mọi đơn trong sổ? Không lấy lại được.")) { return; }
     api("xoa").then(napQL).then(veQL).catch(function(e){ alert(e.message); });
   });
+}
+/* 🔴 IN RA TÀI KHOẢN ĐANG THỰC DÙNG, không phải ô vừa gõ. Ba ô có thể còn trống mà hệ thống vẫn
+   chạy bằng tài khoản mượn của plugin ghế — không nói ra thì người khai tưởng chưa có gì, hoặc tệ
+   hơn: tưởng đang thu về tài khoản này mà thật ra tiền chảy sang tài khoản kia. Số tài khoản
+   THIẾU MỘT CHỮ SỐ là app ngân hàng báo "định dạng không hợp lệ" — đã xảy ra thật bên ghế
+   22/08/2026, nên phải soi được bằng mắt trước khi giao cho khách. */
+function veTkThu(){
+  var o=g("tkThu"); if(!o) return;
+  var t=CFQ.tk_thu||{};
+  if (!t.so_tk || !t.bin){
+    o.innerHTML="<span style='color:var(--q-do)'>⚠️ CHƯA CÓ TÀI KHOẢN — thiệp của khách sẽ không có "
+      +"mã QR, chỉ giữ chỗ được thôi.</span>";
+    return;
+  }
+  o.innerHTML="Đang thực dùng: <b>"+esc(t.ten_nh||("BIN "+t.bin))+" · "+esc(t.so_tk)+"</b>"
+    +(t.ten_tk?" · "+esc(t.ten_tk):"")
+    +"<br>Soi kỹ số tài khoản: thiếu một chữ số là app ngân hàng chối, mà mã QR thì trông vẫn bình thường.";
 }
 function luuCai(phan, pin){
   var moi=Object.assign({}, CFQ, phan);
@@ -1236,6 +1416,676 @@ function veCuaPin(){
 window.addEventListener("hashchange", veTrang);
 veTrang();
 JS;
+	}
+}
+
+
+/**
+ * DỰNG CHUỖI VietQR (EMVCo) — chép từ `class-vhg-qr.php` của plugin ghế, cùng lý do như trên.
+ *
+ * ⚠️ CRC16/CCITT-FALSE: khởi tạo 0xFFFF, đa thức 0x1021, KHÔNG đảo bit, KHÔNG xor cuối. Các biến
+ *    thể CRC16 khác cho ra chuỗi khác và điện thoại từ chối quét.
+ */
+class NHAMA_QR {
+
+	public static function tlv( $ma, $gia_tri ) {
+		$gia_tri = (string) $gia_tri;
+		return $ma . substr( '0' . strlen( $gia_tri ), -2 ) . $gia_tri;
+	}
+
+	public static function crc16( $s ) {
+		$crc = 0xFFFF;
+		$n = strlen( $s );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$crc ^= ( ord( $s[ $i ] ) & 0xFF ) << 8;
+			for ( $b = 0; $b < 8; $b++ ) {
+				$crc = ( $crc & 0x8000 ) ? ( ( $crc << 1 ) ^ 0x1021 ) : ( $crc << 1 );
+				$crc &= 0xFFFF;
+			}
+		}
+		return substr( '000' . strtoupper( dechex( $crc ) ), -4 );
+	}
+
+	/**
+	 * Chuỗi VietQR chuyển khoản nhanh (QRIBFTTA). `$so_tien` = 0 nghĩa là khách tự nhập số tiền.
+	 */
+	public static function dung( $bank_bin, $so_tk, $so_tien, $noi_dung ) {
+		$s  = self::tlv( '00', '01' );
+		$s .= self::tlv( '01', $so_tien ? '12' : '11' );   // 12 = QR dùng MỘT LẦN (có số tiền)
+		$ben = self::tlv( '00', (string) $bank_bin ) . self::tlv( '01', (string) $so_tk );
+		$s .= self::tlv( '38', self::tlv( '00', 'A000000727' ) . self::tlv( '01', $ben )
+			. self::tlv( '02', 'QRIBFTTA' ) );
+		$s .= self::tlv( '53', '704' );                    // 704 = VND
+		if ( $so_tien ) { $s .= self::tlv( '54', (string) (int) $so_tien ); }
+		$s .= self::tlv( '58', 'VN' );
+		if ( '' !== (string) $noi_dung ) { $s .= self::tlv( '62', self::tlv( '08', (string) $noi_dung ) ); }
+		$s .= '6304';
+		return $s . self::crc16( $s );
+	}
+}
+
+/**
+ * BỘ DỰNG MÃ QR — chép nguyên từ `wordpress/vhcp-ghe/includes/class-vhg-qrve.php`, đổi tên lớp.
+ *
+ * 🔴 CHÉP CHỨ KHÔNG VIẾT LẠI, VÀ ĐÓ LÀ CHỦ Ý. Bộ ấy đã chạy thật trên tem dán 26 cái ghế và có
+ *    phép thử ĐỌC NGƯỢC ma trận về lại chuỗi ban đầu — tức là nó tự chứng minh được mã dựng ra
+ *    quét được. Viết một bộ QR thứ hai bằng tay là phải tự chứng minh lại từ đầu, mà một tấm QR
+ *    "gần đúng" thì không ai phát hiện cho tới lúc khách đứng ở quầy quét mãi không ra.
+ *
+ * ⚠️ Sửa ở đây thì sửa cả bên kia, và ngược lại. Hai bản đã lệch nhau là một bên tem in ra không
+ *    quét được mà bên kia vẫn chạy, nên không ai nghĩ tới chuyện so hai tệp.
+ */
+class NHAMA_QRVe {
+
+	/** Sức chứa (số ký tự) theo [version][mức sửa lỗi][chế độ]. Chỉ tới version 10. */
+	const MUC = array( 'L' => 0, 'M' => 1, 'Q' => 2, 'H' => 3 );
+
+	/** Số codeword sửa lỗi mỗi khối, và số khối — [version][mức] => array(ecc_moi_khoi, so_khoi_g1, so_khoi_g2). */
+	private static function bang_khoi() {
+		return array(
+			1  => array( 'L' => array( 7, 1, 0 ),  'M' => array( 10, 1, 0 ), 'Q' => array( 13, 1, 0 ), 'H' => array( 17, 1, 0 ) ),
+			2  => array( 'L' => array( 10, 1, 0 ), 'M' => array( 16, 1, 0 ), 'Q' => array( 22, 1, 0 ), 'H' => array( 28, 1, 0 ) ),
+			3  => array( 'L' => array( 15, 1, 0 ), 'M' => array( 26, 1, 0 ), 'Q' => array( 18, 2, 0 ), 'H' => array( 22, 2, 0 ) ),
+			4  => array( 'L' => array( 20, 1, 0 ), 'M' => array( 18, 2, 0 ), 'Q' => array( 26, 2, 0 ), 'H' => array( 16, 4, 0 ) ),
+			5  => array( 'L' => array( 26, 1, 0 ), 'M' => array( 24, 2, 0 ), 'Q' => array( 18, 2, 2 ), 'H' => array( 22, 2, 2 ) ),
+			6  => array( 'L' => array( 18, 2, 0 ), 'M' => array( 16, 4, 0 ), 'Q' => array( 24, 4, 0 ), 'H' => array( 28, 4, 0 ) ),
+			7  => array( 'L' => array( 20, 2, 0 ), 'M' => array( 18, 4, 0 ), 'Q' => array( 18, 2, 4 ), 'H' => array( 26, 4, 1 ) ),
+			8  => array( 'L' => array( 24, 2, 0 ), 'M' => array( 22, 2, 2 ), 'Q' => array( 22, 4, 2 ), 'H' => array( 26, 4, 2 ) ),
+			9  => array( 'L' => array( 30, 2, 0 ), 'M' => array( 22, 3, 2 ), 'Q' => array( 20, 4, 4 ), 'H' => array( 24, 4, 4 ) ),
+			10 => array( 'L' => array( 18, 2, 2 ), 'M' => array( 26, 4, 1 ), 'Q' => array( 24, 6, 2 ), 'H' => array( 28, 6, 2 ) ),
+		);
+	}
+
+	/** Tổng số codeword của một version (dữ liệu + sửa lỗi). */
+	private static function tong_codeword( $ver ) {
+		$t = array( 1 => 26, 2 => 44, 3 => 70, 4 => 100, 5 => 134, 6 => 172,
+			7 => 196, 8 => 242, 9 => 292, 10 => 346 );
+		return isset( $t[ $ver ] ) ? $t[ $ver ] : 0;
+	}
+
+	/** Toạ độ tâm các ô căn chỉnh, theo version. */
+	private static function tam_can( $ver ) {
+		$t = array( 1 => array(), 2 => array( 6, 18 ), 3 => array( 6, 22 ), 4 => array( 6, 26 ),
+			5 => array( 6, 30 ), 6 => array( 6, 34 ), 7 => array( 6, 22, 38 ), 8 => array( 6, 24, 42 ),
+			9 => array( 6, 26, 46 ), 10 => array( 6, 28, 50 ) );
+		return isset( $t[ $ver ] ) ? $t[ $ver ] : array();
+	}
+
+	// ===================================================================== số học GF(256)
+
+	private static $log = null;
+	private static $alog = null;
+
+	/**
+	 * Bảng luỹ thừa/logarit của GF(256) với đa thức sinh 0x11D — đúng bản chuẩn QR dùng.
+	 * Dựng một lần rồi giữ: mỗi tấm tem gọi hàng nghìn phép nhân.
+	 */
+	private static function gf() {
+		if ( null !== self::$log ) { return; }
+		self::$log = array_fill( 0, 256, 0 );
+		self::$alog = array_fill( 0, 256, 0 );
+		$x = 1;
+		for ( $i = 0; $i < 255; $i++ ) {
+			self::$alog[ $i ] = $x;
+			self::$log[ $x ] = $i;
+			$x <<= 1;
+			if ( $x & 0x100 ) { $x ^= 0x11D; }
+		}
+	}
+
+	private static function gf_nhan( $a, $b ) {
+		if ( 0 === $a || 0 === $b ) { return 0; }
+		self::gf();
+		return self::$alog[ ( self::$log[ $a ] + self::$log[ $b ] ) % 255 ];
+	}
+
+	/**
+	 * Đa thức sinh Reed-Solomon cho `n` codeword sửa lỗi: tích của (x - α^i).
+	 * ⚠️ Tính chứ KHÔNG chép bảng: chép bảng là chép cả lỗi gõ, mà một hệ số sai thì mã vẫn dựng
+	 *    ra được và vẫn nhìn như thật — chỉ là máy quét từ chối. Phép thử đối chiếu kết quả hàm
+	 *    này với bộ hệ số đã công bố cho n=7 và n=10.
+	 */
+	public static function da_thuc_sinh( $n ) {
+		self::gf();
+		$g = array( 1 );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$moi = array_fill( 0, count( $g ) + 1, 0 );
+			foreach ( $g as $k => $he ) {
+				$moi[ $k ]     ^= self::gf_nhan( $he, self::$alog[ $i ] );
+				$moi[ $k + 1 ] ^= $he;
+			}
+			/* Nhân với (x + α^i): hệ số bậc cao dịch sang, hệ số thấp nhân α^i. */
+			$g = $moi;
+		}
+		/* Đảo về thứ tự bậc GIẢM DẦN (hệ số 1 đứng đầu) — cùng thứ tự với chuỗi codeword, và
+		   cùng thứ tự với bộ hệ số đã công bố mà phép thử đối chiếu. */
+		return array_reverse( $g );
+	}
+
+	/** Codeword sửa lỗi của một khối dữ liệu. */
+	public static function ecc( $du_lieu, $n ) {
+		$g = self::da_thuc_sinh( $n );
+		$du = array_merge( array_values( $du_lieu ), array_fill( 0, $n, 0 ) );
+		$len = count( $du_lieu );
+		for ( $i = 0; $i < $len; $i++ ) {
+			$he = $du[ $i ];
+			if ( 0 === $he ) { continue; }
+			foreach ( $g as $k => $gk ) {
+				$du[ $i + $k ] ^= self::gf_nhan( $gk, $he );
+			}
+		}
+		return array_slice( $du, $len, $n );
+	}
+
+	// ===================================================================== mã hoá dữ liệu
+
+	const AN = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
+
+	public static function la_alnum( $s ) {
+		$n = strlen( $s );
+		for ( $i = 0; $i < $n; $i++ ) {
+			if ( false === strpos( self::AN, $s[ $i ] ) ) { return false; }
+		}
+		return $n > 0;
+	}
+
+	/** Số codeword DỮ LIỆU của một version+mức. */
+	public static function so_cw_du_lieu( $ver, $muc ) {
+		$b = self::bang_khoi();
+		if ( ! isset( $b[ $ver ][ $muc ] ) ) { return 0; }
+		list( $ecc, $k1, $k2 ) = $b[ $ver ][ $muc ];
+		return self::tong_codeword( $ver ) - $ecc * ( $k1 + $k2 );
+	}
+
+	/** Version nhỏ nhất chứa nổi chuỗi này. 0 = không version nào (tới 10) chứa nổi. */
+	public static function chon_version( $s, $muc ) {
+		$alnum = self::la_alnum( $s );
+		for ( $v = 1; $v <= 10; $v++ ) {
+			$bit_dai = $alnum ? ( $v <= 9 ? 9 : 11 ) : ( $v <= 9 ? 8 : 16 );
+			$bit_du  = $alnum
+				? ( intdiv( strlen( $s ), 2 ) * 11 + ( ( strlen( $s ) % 2 ) ? 6 : 0 ) )
+				: strlen( $s ) * 8;
+			if ( 4 + $bit_dai + $bit_du <= self::so_cw_du_lieu( $v, $muc ) * 8 ) { return $v; }
+		}
+		return 0;
+	}
+
+	/** Chuỗi -> mảng codeword dữ liệu (đã đệm đủ). */
+	public static function ma_hoa( $s, $ver, $muc ) {
+		$alnum = self::la_alnum( $s );
+		$bit = '';
+		$bit .= $alnum ? '0010' : '0100';
+		$bit_dai = $alnum ? ( $ver <= 9 ? 9 : 11 ) : ( $ver <= 9 ? 8 : 16 );
+		$bit .= str_pad( decbin( strlen( $s ) ), $bit_dai, '0', STR_PAD_LEFT );
+
+		if ( $alnum ) {
+			for ( $i = 0; $i < strlen( $s ); $i += 2 ) {
+				if ( $i + 1 < strlen( $s ) ) {
+					$v = strpos( self::AN, $s[ $i ] ) * 45 + strpos( self::AN, $s[ $i + 1 ] );
+					$bit .= str_pad( decbin( $v ), 11, '0', STR_PAD_LEFT );
+				} else {
+					$bit .= str_pad( decbin( strpos( self::AN, $s[ $i ] ) ), 6, '0', STR_PAD_LEFT );
+				}
+			}
+		} else {
+			for ( $i = 0; $i < strlen( $s ); $i++ ) {
+				$bit .= str_pad( decbin( ord( $s[ $i ] ) ), 8, '0', STR_PAD_LEFT );
+			}
+		}
+
+		$tong_bit = self::so_cw_du_lieu( $ver, $muc ) * 8;
+		/* Dấu kết thúc tối đa 4 bit, rồi đệm cho tròn byte, rồi đệm EC/11 luân phiên. */
+		$bit .= str_repeat( '0', min( 4, $tong_bit - strlen( $bit ) ) );
+		while ( strlen( $bit ) % 8 ) { $bit .= '0'; }
+		$dem = array( 0xEC, 0x11 ); $k = 0;
+		while ( strlen( $bit ) < $tong_bit ) {
+			$bit .= str_pad( decbin( $dem[ $k % 2 ] ), 8, '0', STR_PAD_LEFT );
+			$k++;
+		}
+		$cw = array();
+		for ( $i = 0; $i < strlen( $bit ); $i += 8 ) { $cw[] = bindec( substr( $bit, $i, 8 ) ); }
+		return $cw;
+	}
+
+	/**
+	 * Xen kẽ khối dữ liệu và khối sửa lỗi theo đúng luật của chuẩn.
+	 * ⚠️ Xen kẽ SAI thì mã vẫn dựng ra được, vẫn nhìn như thật, và máy quét đọc ra rác. Đây là
+	 *    chỗ dễ sai nhất của cả tệp — nên bộ đọc ngược ở dưới cũng phải tự tháo xen kẽ, và phép
+	 *    thử bắt hai bên gặp nhau.
+	 */
+	public static function xen_ke( $cw, $ver, $muc ) {
+		$b = self::bang_khoi();
+		list( $n_ecc, $k1, $k2 ) = $b[ $ver ][ $muc ];
+		$tong_khoi = $k1 + $k2;
+		$cw_g1 = intdiv( self::so_cw_du_lieu( $ver, $muc ), $tong_khoi );
+		$khoi = array(); $khoi_ecc = array(); $vt = 0;
+		for ( $i = 0; $i < $tong_khoi; $i++ ) {
+			$n = $cw_g1 + ( $i >= $k1 ? 1 : 0 );
+			$kh = array_slice( $cw, $vt, $n );
+			$vt += $n;
+			$khoi[] = $kh;
+			$khoi_ecc[] = self::ecc( $kh, $n_ecc );
+		}
+		$ra = array();
+		$dai_nhat = 0;
+		foreach ( $khoi as $kh ) { $dai_nhat = max( $dai_nhat, count( $kh ) ); }
+		for ( $i = 0; $i < $dai_nhat; $i++ ) {
+			foreach ( $khoi as $kh ) { if ( isset( $kh[ $i ] ) ) { $ra[] = $kh[ $i ]; } }
+		}
+		for ( $i = 0; $i < $n_ecc; $i++ ) {
+			foreach ( $khoi_ecc as $kh ) { if ( isset( $kh[ $i ] ) ) { $ra[] = $kh[ $i ]; } }
+		}
+		return $ra;
+	}
+
+	// ===================================================================== dựng ma trận
+
+	/** Ma trận trống + các hình cố định. Trả về array( $o, $cam ) — `$cam` đánh dấu ô không đặt dữ liệu. */
+	private static function khung( $ver ) {
+		$n = 17 + 4 * $ver;
+		$o   = array_fill( 0, $n, array_fill( 0, $n, 0 ) );
+		$cam = array_fill( 0, $n, array_fill( 0, $n, false ) );
+
+		$dat = function ( $x, $y, $v ) use ( &$o, &$cam, $n ) {
+			if ( $x < 0 || $y < 0 || $x >= $n || $y >= $n ) { return; }
+			$o[ $y ][ $x ] = $v ? 1 : 0;
+			$cam[ $y ][ $x ] = true;
+		};
+
+		/* Ba ô định vị + dải trắng quanh chúng. */
+		foreach ( array( array( 0, 0 ), array( $n - 7, 0 ), array( 0, $n - 7 ) ) as $g ) {
+			list( $gx, $gy ) = $g;
+			for ( $dy = -1; $dy <= 7; $dy++ ) {
+				for ( $dx = -1; $dx <= 7; $dx++ ) {
+					$x = $gx + $dx; $y = $gy + $dy;
+					if ( $x < 0 || $y < 0 || $x >= $n || $y >= $n ) { continue; }
+					$trong = ( $dx >= 0 && $dx <= 6 && $dy >= 0 && $dy <= 6 );
+					$den = $trong && ( 0 === $dx || 6 === $dx || 0 === $dy || 6 === $dy
+						|| ( $dx >= 2 && $dx <= 4 && $dy >= 2 && $dy <= 4 ) );
+					$dat( $x, $y, $den );
+				}
+			}
+		}
+
+		/* Hai dải nhịp. */
+		for ( $i = 8; $i < $n - 8; $i++ ) {
+			$dat( $i, 6, 0 === $i % 2 );
+			$dat( 6, $i, 0 === $i % 2 );
+		}
+
+		/* Ô căn chỉnh — bỏ những ô đè lên ô định vị. */
+		$tam = self::tam_can( $ver );
+		foreach ( $tam as $cy ) {
+			foreach ( $tam as $cx ) {
+				if ( ( 6 === $cx && 6 === $cy ) || ( 6 === $cx && $cy === $n - 7 )
+					|| ( $cx === $n - 7 && 6 === $cy ) ) { continue; }
+				for ( $dy = -2; $dy <= 2; $dy++ ) {
+					for ( $dx = -2; $dx <= 2; $dx++ ) {
+						$den = ( 2 === max( abs( $dx ), abs( $dy ) ) ) || ( 0 === $dx && 0 === $dy );
+						$dat( $cx + $dx, $cy + $dy, $den );
+					}
+				}
+			}
+		}
+
+		/* ===== Chừa chỗ cho thông tin định dạng, rồi ô tối cố định ==================
+		 * 🔴 HAI CHỖ DỄ GIẪM LÊN THỨ KHÁC, và phép thử cấu trúc bắt được cả hai (bộ đọc ngược thì
+		 *    KHÔNG — nó chỉ chứng minh vẽ và đọc tự nhất quán, không chứng minh đúng chuẩn):
+		 *
+		 *    1. Ô (6,8) và (8,6) thuộc DẢI NHỊP, không thuộc vùng định dạng. Quét cả dải 0..8 là
+		 *       xoá mất hai ô nhịp — mà dải nhịp chính là thước đo cỡ module của máy quét.
+		 *    2. Dải định dạng dọc ở góc dưới-trái chỉ có BẢY ô (n-1 lên n-7). Quét tám ô là chạm
+		 *       tới (8, n-8) — đúng chỗ Ô TỐI CỐ ĐỊNH, và xoá nó thành trắng.
+		 *
+		 *    Cả hai đều cho ra một mã "nhìn như thật" mà máy quét khó hoặc không đọc được. */
+		for ( $i = 0; $i <= 8; $i++ ) {
+			if ( 6 === $i ) { continue; }          // ô nhịp, không phải vùng định dạng
+			$dat( $i, 8, 0 );
+			$dat( 8, $i, 0 );
+		}
+		for ( $i = 0; $i < 8; $i++ ) { $dat( $n - 1 - $i, 8, 0 ); }   // ngang: 8 ô
+		for ( $i = 0; $i < 7; $i++ ) { $dat( 8, $n - 1 - $i, 0 ); }   // dọc: 7 ô
+		/* Đặt SAU cùng, để không nhánh nào ở trên giẫm lên. */
+		$dat( 8, $n - 8, 1 );
+
+		/* Thông tin version (từ version 7). */
+		if ( $ver >= 7 ) {
+			$bit = self::bit_version( $ver );
+			for ( $i = 0; $i < 18; $i++ ) {
+				$b = ( $bit >> $i ) & 1;
+				$dat( intdiv( $i, 3 ), $n - 11 + ( $i % 3 ), $b );
+				$dat( $n - 11 + ( $i % 3 ), intdiv( $i, 3 ), $b );
+			}
+		}
+		return array( $o, $cam );
+	}
+
+	/** 18 bit thông tin version: 6 bit version + 12 bit BCH(18,6). */
+	public static function bit_version( $ver ) {
+		$d = $ver << 12;
+		$r = $d;
+		for ( $i = 17; $i >= 12; $i-- ) {
+			if ( ( $r >> $i ) & 1 ) { $r ^= 0x1F25 << ( $i - 12 ); }
+		}
+		return $d | $r;
+	}
+
+	/** 15 bit thông tin định dạng: 2 bit mức + 3 bit mặt nạ + BCH, rồi XOR mặt nạ cố định. */
+	public static function bit_dinh_dang( $muc, $mat_na ) {
+		$bit_muc = array( 'L' => 1, 'M' => 0, 'Q' => 3, 'H' => 2 );
+		$d = ( $bit_muc[ $muc ] << 3 ) | $mat_na;
+		$r = $d << 10;
+		for ( $i = 14; $i >= 10; $i-- ) {
+			if ( ( $r >> $i ) & 1 ) { $r ^= 0x537 << ( $i - 10 ); }
+		}
+		return ( ( $d << 10 ) | ( $r & 0x3FF ) ) ^ 0x5412;
+	}
+
+	private static function ham_mat_na( $k, $x, $y ) {
+		switch ( $k ) {
+			case 0: return 0 === ( $x + $y ) % 2;
+			case 1: return 0 === $y % 2;
+			case 2: return 0 === $x % 3;
+			case 3: return 0 === ( $x + $y ) % 3;
+			case 4: return 0 === ( intdiv( $y, 2 ) + intdiv( $x, 3 ) ) % 2;
+			case 5: return 0 === ( $x * $y ) % 2 + ( $x * $y ) % 3;
+			case 6: return 0 === ( ( ( $x * $y ) % 2 + ( $x * $y ) % 3 ) % 2 );
+			default: return 0 === ( ( ( $x + $y ) % 2 + ( $x * $y ) % 3 ) % 2 );
+		}
+	}
+
+	/** Đường đi zigzag của vùng dữ liệu: từ dưới-phải lên, hai cột một, bỏ cột nhịp số 6. */
+	private static function duong_di( $n, $cam ) {
+		$vt = array();
+		$len = false;
+		for ( $cot = $n - 1; $cot > 0; $cot -= 2 ) {
+			if ( 6 === $cot ) { $cot--; }   // cột nhịp không mang dữ liệu
+			$len = ! $len;
+			for ( $i = 0; $i < $n; $i++ ) {
+				$y = $len ? ( $n - 1 - $i ) : $i;
+				foreach ( array( $cot, $cot - 1 ) as $x ) {
+					if ( ! $cam[ $y ][ $x ] ) { $vt[] = array( $x, $y ); }
+				}
+			}
+		}
+		return $vt;
+	}
+
+	/** Chấm điểm một ma trận theo bốn luật phạt của chuẩn — thấp hơn là tốt hơn. */
+	private static function cham_diem( $o, $n ) {
+		$diem = 0;
+		/* Luật 1: dãy 5 ô trở lên cùng màu, theo cả hàng lẫn cột. */
+		for ( $lan = 0; $lan < 2; $lan++ ) {
+			for ( $a = 0; $a < $n; $a++ ) {
+				$dem = 1;
+				for ( $b = 1; $b < $n; $b++ ) {
+					$nay = $lan ? $o[ $b ][ $a ] : $o[ $a ][ $b ];
+					$truoc = $lan ? $o[ $b - 1 ][ $a ] : $o[ $a ][ $b - 1 ];
+					if ( $nay === $truoc ) { $dem++; }
+					else { if ( $dem >= 5 ) { $diem += 3 + ( $dem - 5 ); } $dem = 1; }
+				}
+				if ( $dem >= 5 ) { $diem += 3 + ( $dem - 5 ); }
+			}
+		}
+		/* Luật 2: mỗi khối 2×2 cùng màu. */
+		for ( $y = 0; $y < $n - 1; $y++ ) {
+			for ( $x = 0; $x < $n - 1; $x++ ) {
+				$v = $o[ $y ][ $x ];
+				if ( $v === $o[ $y ][ $x + 1 ] && $v === $o[ $y + 1 ][ $x ] && $v === $o[ $y + 1 ][ $x + 1 ] ) {
+					$diem += 3;
+				}
+			}
+		}
+		/* Luật 3: hình 1:1:3:1:1 kèm khoảng trắng — dễ bị nhầm với ô định vị. */
+		$mau = array( array( 1,0,1,1,1,0,1,0,0,0,0 ), array( 0,0,0,0,1,0,1,1,1,0,1 ) );
+		for ( $lan = 0; $lan < 2; $lan++ ) {
+			for ( $a = 0; $a < $n; $a++ ) {
+				for ( $b = 0; $b + 10 < $n; $b++ ) {
+					foreach ( $mau as $m ) {
+						$khop = true;
+						for ( $k = 0; $k < 11; $k++ ) {
+							$v = $lan ? $o[ $b + $k ][ $a ] : $o[ $a ][ $b + $k ];
+							if ( $v !== $m[ $k ] ) { $khop = false; break; }
+						}
+						if ( $khop ) { $diem += 40; }
+					}
+				}
+			}
+		}
+		/* Luật 4: lệch tỉ lệ đen/trắng khỏi 50%. */
+		$den = 0;
+		foreach ( $o as $hang ) { $den += array_sum( $hang ); }
+		$ti = intdiv( $den * 100, $n * $n );
+		$diem += 10 * intdiv( abs( $ti - 50 ), 5 );
+		return $diem;
+	}
+
+	/**
+	 * Dựng ma trận QR cho một chuỗi. Trả về mảng hai chiều 0/1, hoặc rỗng nếu không dựng được.
+	 *
+	 * ⚠️ Không dựng được thì trả RỖNG, không trả một ma trận "gần đúng". Nơi gọi phải nói ra —
+	 *    một tấm tem in ra mà không quét được thì tệ hơn hẳn việc chưa in tem nào.
+	 */
+	public static function ma_tran( $chuoi, $muc = 'M' ) {
+		$s = (string) $chuoi;
+		if ( '' === $s || ! isset( self::MUC[ $muc ] ) ) { return array(); }
+		$ver = self::chon_version( $s, $muc );
+		if ( 0 === $ver ) { return array(); }
+
+		$cw = self::xen_ke( self::ma_hoa( $s, $ver, $muc ), $ver, $muc );
+		list( $khung, $cam ) = self::khung( $ver );
+		$n = 17 + 4 * $ver;
+
+		/* Chuỗi bit dữ liệu + bit thừa (remainder) của version. */
+		$bit = '';
+		foreach ( $cw as $b ) { $bit .= str_pad( decbin( $b ), 8, '0', STR_PAD_LEFT ); }
+		$duong = self::duong_di( $n, $cam );
+		$bit = str_pad( $bit, count( $duong ), '0' );
+
+		$tot = null; $diem_tot = PHP_INT_MAX; $mn_tot = 0;
+		for ( $mn = 0; $mn < 8; $mn++ ) {
+			$o = $khung;
+			foreach ( $duong as $k => $xy ) {
+				list( $x, $y ) = $xy;
+				$v = ( '1' === $bit[ $k ] ) ? 1 : 0;
+				if ( self::ham_mat_na( $mn, $x, $y ) ) { $v ^= 1; }
+				$o[ $y ][ $x ] = $v;
+			}
+			$dd = self::bit_dinh_dang( $muc, $mn );
+			for ( $i = 0; $i < 15; $i++ ) {
+				$b = ( $dd >> $i ) & 1;
+				/* ══════════════════════════════════════════════════════════════════════════
+				 * 🔴 LỖI 23/08/2026: 15 BIT NÀY BỊ ĐẶT SOI GƯƠNG — MÃ QR KHÔNG QUÉT ĐƯỢC.
+				 *
+				 * Anh Thắng: *"giờ quét mã này không nhận"*. Đem ma trận so từng ô với một bộ mã
+				 * hoá độc lập thì 1.353/1.369 ô KHỚP TUYỆT ĐỐI — chỉ 16 ô lệch, và cả 16 đều nằm
+				 * ở cột 8 hoặc hàng 8, tức là đúng vùng thông tin định dạng.
+				 *
+				 * Giá trị 15 bit thì ĐÚNG (mức L, mặt nạ 0 — cùng kết quả với bộ chuẩn). Sai ở
+				 * chỗ ĐẶT: bản cũ cho nửa bit thấp chạy NGANG hàng 8 và nửa bit cao chạy DỌC cột
+				 * 8, trong khi bản đặc tả quy định ngược lại. Đọc bit của bộ chuẩn theo thứ tự
+				 * của bản cũ thì ra đúng chuỗi bit của bản cũ ĐẢO NGƯỢC — dấu vân tay của một
+				 * lỗi soi gương.
+				 *
+				 * Hậu quả: máy quét đọc ra một mức sửa lỗi và một mặt nạ SAI, gỡ mặt nạ sai, và
+				 * nhận về toàn rác. Nó không báo "mã hỏng" — nó chỉ lặng lẽ không nhận.
+				 *
+				 * ⚠️ VÌ SAO BỘ ĐỌC CỦA CHÍNH TỆP NÀY KHÔNG BẮT ĐƯỢC. `doc()` đọc thông tin định
+				 *    dạng từ ĐÚNG NHỮNG Ô SAI đó, nên nó khớp với bộ vẽ một cách hoàn hảo. Phép
+				 *    thử đọc-ngược chỉ chứng minh "bộ đọc của tôi hiểu bộ vẽ của tôi" — nó KHÔNG
+				 *    chứng minh được gì về việc máy quét thật có hiểu hay không. Muốn biết điều
+				 *    đó thì phải so với một bộ mã hoá KHÁC, và nay bộ thử làm đúng vậy.
+				 * ══════════════════════════════════════════════════════════════════════════ */
+				/* Bản sao 1, quanh ô định vị trên-trái: bit thấp chạy DỌC cột 8 (từ trên xuống),
+				   bit cao chạy NGANG hàng 8 (từ phải sang trái). Ô nhịp (8,6) và (6,8) bị nhảy qua. */
+				if ( $i < 6 )       { $o[ $i ][8] = $b; }          // (x=8, y=i)
+				elseif ( 6 === $i ) { $o[7][8] = $b; }             // (x=8, y=7)
+				elseif ( 7 === $i ) { $o[8][8] = $b; }             // (8,8)
+				elseif ( 8 === $i ) { $o[8][7] = $b; }             // (x=7, y=8)
+				else                { $o[8][ 14 - $i ] = $b; }     // (x=14-i, y=8)
+				/* Bản sao 2: TÁM bit đầu chạy NGANG ở mép phải hàng 8 (cột n-1 lùi về n-8), BẢY
+				   bit sau chạy DỌC ở mép dưới cột 8 (hàng n-7 xuống n-1).
+				   ⚠️ Bảy chứ không tám ở vế sau. Lấy tám là bit đầu của vế đó rơi vào (8, n-8) —
+				      đúng chỗ Ô TỐI CỐ ĐỊNH, và ghi đè nó thành bit dữ liệu. Ô đó luôn phải đen;
+				      máy quét dùng nó để chốt hướng đọc thông tin định dạng. */
+				if ( $i < 8 ) { $o[8][ $n - 1 - $i ] = $b; }       // (x=n-1-i, y=8)
+				else          { $o[ $n - 15 + $i ][8] = $b; }      // (x=8, y=n-15+i)
+			}
+			$d = self::cham_diem( $o, $n );
+			if ( $d < $diem_tot ) { $diem_tot = $d; $tot = $o; $mn_tot = $mn; }
+		}
+		return $tot ? $tot : array();
+	}
+
+	// ===================================================================== đọc ngược (tự kiểm)
+
+	/**
+	 * ĐỌC NGƯỢC một ma trận QR về lại chuỗi. Rỗng nếu không đọc được.
+	 *
+	 * 🔴 Đây KHÔNG phải tính năng cho người dùng — đây là cách tệp này tự chứng minh mình đúng.
+	 *    Tự viết bộ vẽ QR thì "chắc là quét được" chỉ là một lời chúc; phép thử bắt mọi chuỗi
+	 *    dựng ra phải đọc ngược đúng chuỗi ban đầu.
+	 *
+	 *    Nó đi ngược đúng những bước dễ sai nhất: đọc thông tin định dạng để biết mặt nạ, gỡ mặt
+	 *    nạ, đi lại đường zigzag, THÁO XEN KẼ khối, rồi đọc chế độ và độ dài. Một lỗi ở bất kỳ
+	 *    bước nào trong bộ vẽ là chuỗi đọc ra khác chuỗi ban đầu.
+	 *
+	 * ⚠️ Không sửa lỗi Reed-Solomon: nó đọc một ma trận SẠCH. Phần Reed-Solomon được kiểm riêng
+	 *    bằng cách đối chiếu với bộ hệ số và ví dụ đã công bố trong bản đặc tả.
+	 */
+	public static function doc( $o ) {
+		if ( ! is_array( $o ) || ! count( $o ) ) { return ''; }
+		$n = count( $o );
+		if ( $n < 21 || 0 !== ( $n - 17 ) % 4 ) { return ''; }
+		$ver = ( $n - 17 ) / 4;
+		if ( $ver < 1 || $ver > 10 ) { return ''; }
+
+		/* Thông tin định dạng: đọc bản sao 1, XOR mặt nạ cố định. */
+		$dd = 0;
+		for ( $i = 0; $i < 15; $i++ ) {
+			/* ⚠️ PHẢI KHỚP CHÍNH XÁC toạ độ bên `ma_tran()` — và cả hai phải khớp BẢN ĐẶC TẢ.
+			   23/08/2026: hai bên cùng đọc/ghi ở những ô SOI GƯƠNG so với đặc tả, nên chúng khớp
+			   nhau hoàn hảo và phép thử đọc-ngược đạt 100% — trong khi máy quét thật không đọc
+			   nổi mã nào (0/36). Sửa một bên mà quên bên kia thì bộ thử gãy ngay, và đó là điều
+			   TỐT: nó buộc người sửa nhìn cả hai. */
+			if ( $i < 6 )       { $b = $o[ $i ][8]; }          // (x=8, y=i)
+			elseif ( 6 === $i ) { $b = $o[7][8]; }             // (x=8, y=7)
+			elseif ( 7 === $i ) { $b = $o[8][8]; }             // (8,8)
+			elseif ( 8 === $i ) { $b = $o[8][7]; }             // (x=7, y=8)
+			else                { $b = $o[8][ 14 - $i ]; }     // (x=14-i, y=8)
+			$dd |= ( $b & 1 ) << $i;
+		}
+		$dd ^= 0x5412;
+		$bit_muc = ( $dd >> 13 ) & 3;
+		$mat_na  = ( $dd >> 10 ) & 7;
+		$ten_muc = array( 1 => 'L', 0 => 'M', 3 => 'Q', 2 => 'H' );
+		if ( ! isset( $ten_muc[ $bit_muc ] ) ) { return ''; }
+		$muc = $ten_muc[ $bit_muc ];
+
+		list( , $cam ) = self::khung( $ver );
+		$duong = self::duong_di( $n, $cam );
+		$bit = '';
+		foreach ( $duong as $xy ) {
+			list( $x, $y ) = $xy;
+			$v = $o[ $y ][ $x ] & 1;
+			if ( self::ham_mat_na( $mat_na, $x, $y ) ) { $v ^= 1; }
+			$bit .= $v ? '1' : '0';
+		}
+
+		$cw = array();
+		for ( $i = 0; $i + 8 <= strlen( $bit ); $i += 8 ) { $cw[] = bindec( substr( $bit, $i, 8 ) ); }
+
+		/* Tháo xen kẽ: dựng lại các khối dữ liệu theo đúng luật đã xen. */
+		$b = self::bang_khoi();
+		list( $n_ecc, $k1, $k2 ) = $b[ $ver ][ $muc ];
+		$tong_khoi = $k1 + $k2;
+		$so_du = self::so_cw_du_lieu( $ver, $muc );
+		$cw_g1 = intdiv( $so_du, $tong_khoi );
+		$dai = array();
+		for ( $i = 0; $i < $tong_khoi; $i++ ) { $dai[ $i ] = $cw_g1 + ( $i >= $k1 ? 1 : 0 ); }
+		$khoi = array_fill( 0, $tong_khoi, array() );
+		$vt = 0;
+		for ( $i = 0; $i < max( $dai ); $i++ ) {
+			for ( $k = 0; $k < $tong_khoi; $k++ ) {
+				if ( $i < $dai[ $k ] ) {
+					if ( ! isset( $cw[ $vt ] ) ) { return ''; }
+					$khoi[ $k ][] = $cw[ $vt ];
+					$vt++;
+				}
+			}
+		}
+		$du = array();
+		foreach ( $khoi as $kh ) { $du = array_merge( $du, $kh ); }
+
+		$bs = '';
+		foreach ( $du as $x ) { $bs .= str_pad( decbin( $x ), 8, '0', STR_PAD_LEFT ); }
+
+		$che_do = bindec( substr( $bs, 0, 4 ) );
+		$p = 4;
+		if ( 2 === $che_do ) {
+			$bd = $ver <= 9 ? 9 : 11;
+			$len = bindec( substr( $bs, $p, $bd ) ); $p += $bd;
+			$ra = '';
+			for ( $i = 0; $i + 1 < $len; $i += 2 ) {
+				$v = bindec( substr( $bs, $p, 11 ) ); $p += 11;
+				$ra .= self::AN[ intdiv( $v, 45 ) ] . self::AN[ $v % 45 ];
+			}
+			if ( $len % 2 ) { $ra .= self::AN[ bindec( substr( $bs, $p, 6 ) ) ]; }
+			return $ra;
+		}
+		if ( 4 === $che_do ) {
+			$bd = $ver <= 9 ? 8 : 16;
+			$len = bindec( substr( $bs, $p, $bd ) ); $p += $bd;
+			$ra = '';
+			for ( $i = 0; $i < $len; $i++ ) { $ra .= chr( bindec( substr( $bs, $p, 8 ) ) ); $p += 8; }
+			return $ra;
+		}
+		return '';
+	}
+
+	/**
+	 * Ma trận -> mảng chuỗi '0'/'1', mỗi chuỗi một hàng. Dạng gọn để gửi xuống trình duyệt rồi
+	 * vẽ lên canvas — nhẹ hơn hẳn SVG, và canvas thì XUẤT RA PNG ĐƯỢC.
+	 *
+	 * 🔴 Vì sao cần PNG chứ không chỉ SVG: khách tải ảnh mã QR về máy rồi mở app ngân hàng, chọn
+	 *    "quét từ thư viện ảnh". Thư viện ảnh của điện thoại KHÔNG hiện tệp SVG — tải về một tệp
+	 *    không nhìn thấy trong thư viện thì coi như chưa tải.
+	 */
+	public static function hang( $o ) {
+		$ra = array();
+		foreach ( (array) $o as $hang ) { $ra[] = implode( '', array_map( 'intval', $hang ) ); }
+		return $ra;
+	}
+
+	// ===================================================================== xuất SVG
+
+	/**
+	 * Ma trận -> SVG. Vẽ bằng các ô vuông gộp theo hàng: một tấm tem version 3 là 29×29 ô, vẽ
+	 * từng ô riêng là gần 900 thẻ — nặng và in chậm.
+	 *
+	 * ⚠️ VÙNG LẶNG 4 Ô mỗi bên, đúng chuẩn. Cắt bớt cho "gọn" là nhiều máy quét không nhận ra mã,
+	 *    và đó là kiểu hỏng chỉ lộ ra ở một số máy — tức là sau khi đã dán tem lên 26 cái ghế.
+	 */
+	public static function svg( $o, $canh_px = 240, $lang = 4 ) {
+		if ( ! is_array( $o ) || ! count( $o ) ) { return ''; }
+		$n = count( $o );
+		$tong = $n + 2 * $lang;
+		$duong = '';
+		for ( $y = 0; $y < $n; $y++ ) {
+			$x = 0;
+			while ( $x < $n ) {
+				if ( ! $o[ $y ][ $x ] ) { $x++; continue; }
+				$d = $x;
+				while ( $d < $n && $o[ $y ][ $d ] ) { $d++; }
+				$duong .= 'M' . ( $x + $lang ) . ' ' . ( $y + $lang )
+					. 'h' . ( $d - $x ) . 'v1h-' . ( $d - $x ) . 'z';
+				$x = $d;
+			}
+		}
+		return '<svg xmlns="http://www.w3.org/2000/svg" width="' . (int) $canh_px . '" height="'
+			. (int) $canh_px . '" viewBox="0 0 ' . $tong . ' ' . $tong . '" shape-rendering="crispEdges">'
+			. '<rect width="' . $tong . '" height="' . $tong . '" fill="#fff"/>'
+			. '<path d="' . $duong . '" fill="#000"/></svg>';
 	}
 }
 

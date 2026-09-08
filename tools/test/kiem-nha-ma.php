@@ -257,6 +257,83 @@ goi( array( 'viec' => 'cai', 'the' => $the, 'pin' => '999888' ) );
 t( 'đổi PIN xong PIN cũ hết dùng được', empty( goi( array( 'viec' => 'vao', 'pin' => '246810' ) )['ok'] ) );
 t( 'PIN mới vào được', ! empty( goi( array( 'viec' => 'vao', 'pin' => '999888' ) )['ok'] ) );
 
+// ================================================================== 9. Mã QR chuyển khoản
+/* =============================================================================================
+ * 🔴 QR SAI THÌ KHÔNG AI PHÁT HIỆN CHO TỚI LÚC KHÁCH ĐỨNG Ở QUẦY QUÉT MÃI KHÔNG RA
+ * =============================================================================================
+ * Nên bộ dựng QR chép nguyên từ plugin ghế (đã chạy trên tem dán 26 ghế), và ở đây kiểm bằng
+ * phép ĐỌC NGƯỢC: dựng ma trận rồi đọc nó về lại chuỗi ban đầu. Không có phép ấy thì "chắc là
+ * quét được" chỉ là một lời chúc.
+ * =========================================================================================== */
+$chuoi = NHAMA_QR::dung( '970418', '8888815678', 100000, 'GB9MVHMQKK' );
+t( 'chuỗi VietQR mở đầu đúng khuôn EMVCo', strpos( $chuoi, '000201' ) === 0, substr( $chuoi, 0, 20 ) );
+t( 'chuỗi mang mã ngân hàng và số tài khoản',
+	strpos( $chuoi, '970418' ) !== false && strpos( $chuoi, '8888815678' ) !== false );
+t( 'chuỗi mang số tiền (5406100000) và nội dung',
+	strpos( $chuoi, '5406100000' ) !== false && strpos( $chuoi, 'GB9MVHMQKK' ) !== false, $chuoi );
+t( 'CRC ở cuối, đúng 4 ký tự sau 6304',
+	(bool) preg_match( '/6304[0-9A-F]{4}$/', $chuoi ), substr( $chuoi, -8 ) );
+/* =============================================================================================
+ * 🔴 CRC PHẢI SO VỚI MỘT CON SỐ CHUẨN, KHÔNG ĐƯỢC SO VỚI CHÍNH NÓ
+ * =============================================================================================
+ * Bản đầu của phép thử này tính lại CRC bằng chính hàm đang kiểm rồi so với chuỗi do chính hàm
+ * ấy sinh ra — hai vế cùng một nguồn, nên nó ĐÚNG kể cả khi hàm sai. Phá thử cho thấy: đổi sang
+ * biến thể CRC khác (xor cuối) thì bài vẫn xanh, trong khi mọi điện thoại sẽ từ chối quét.
+ *
+ * Nay so với giá trị kiểm CHUẨN của CRC-16/CCITT-FALSE: crc("123456789") = 0x29B1. Con số ấy
+ * nằm trong đặc tả, không phụ thuộc mã của mình.
+ * =========================================================================================== */
+t( 'CRC đúng biến thể CCITT-FALSE (giá trị kiểm chuẩn 29B1)',
+	'29B1' === NHAMA_QR::crc16( '123456789' ), NHAMA_QR::crc16( '123456789' ) );
+$than_qr = substr( $chuoi, 0, -4 );
+t( 'CRC trong chuỗi là CRC của phần thân', NHAMA_QR::crc16( $than_qr ) === substr( $chuoi, -4 ) );
+
+$mt = NHAMA_QRVe::ma_tran( $chuoi, 'L' );
+t( 'dựng được ma trận QR', is_array( $mt ) && count( $mt ) >= 21, is_array( $mt ) ? count( $mt ) : 'không' );
+t( 'ĐỌC NGƯỢC ma trận ra đúng chuỗi ban đầu', NHAMA_QRVe::doc( $mt ) === $chuoi );
+$svg = NHAMA_QRVe::svg( $mt, 220 );
+t( 'xuất được SVG', strpos( $svg, '<svg' ) === 0 && strlen( $svg ) > 500, strlen( $svg ) );
+
+/* --- đơn trả về phải kèm QR + tài khoản ------------------------------------------------- */
+goi( array( 'viec' => 'cai', 'the' => $the,
+	'cf' => array( 'bin' => '970418', 'so_tk' => '8888815678', 'ten_tk' => 'NGUYEN VAN A',
+		'gia' => 100000, 'suc' => 10, 'mo' => '10:10', 'dong' => '11:45', 'buoc' => 5 ) ) );
+$r = goi( array( 'viec' => 'dat', 'ngay' => $mai, 'gio' => '11:00',
+	'ten' => 'Khách QR', 'sdt' => '0988777666', 'sl' => 2 ) );
+t( 'đơn mới trả kèm mã QR', ! empty( $r['ok'] ) && ! empty( $r['don']['qr'] ), $r );
+t( 'đơn mới trả kèm số tài khoản', '8888815678' === $r['don']['tk']['so_tk'] );
+t( 'nhận ra tên ngân hàng từ BIN', 'BIDV' === $r['don']['tk']['ten_nh'] );
+/* Nội dung chuyển khoản BỎ DẤU GẠCH: nhiều app ngân hàng lọc ký tự đặc biệt, để nguyên GB-XXXX
+   thì app cắt thành GBXXXX và hai bên không khớp nhau nữa. */
+t( 'nội dung chuyển khoản bỏ dấu gạch', strpos( $r['don']['nd'], '-' ) === false
+	&& $r['don']['nd'] === str_replace( '-', '', $r['don']['ma'] ), $r['don']['nd'] );
+$ma_qr = $r['don']['ma'];
+
+/* QR của đơn phải mang ĐÚNG số tiền của đơn ấy — dựng một lần cho mọi đơn là khách nào cũng
+   chuyển đúng một số tiền, và kế toán ngồi dò tay. */
+$don = NHAMA::kem_qr( NHAMA::don_theo_ma( $ma_qr ) );
+$chuoi2 = NHAMA_QR::dung( '970418', '8888815678', 200000, $don['nd'] );
+t( 'QR của đơn mang đúng số tiền của đơn (2 người × 100.000)',
+	NHAMA_QRVe::doc( NHAMA_QRVe::ma_tran( $chuoi2, 'L' ) ) === $chuoi2
+	&& strpos( $chuoi2, '5406200000' ) !== false, $chuoi2 );
+
+/* --- chưa khai tài khoản thì NÓI THẲNG, không vẽ QR trỏ vào tài khoản rỗng ---------------- */
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'bin' => '', 'so_tk' => '', 'ten_tk' => '' ) ) );
+update_option( 'vhg_bin', '' ); update_option( 'vhg_so_tk', '' );
+$r = goi( array( 'viec' => 'cua_toi', 'sdt' => '0988777666' ) );
+t( 'chưa khai tài khoản: đơn báo THIẾU chứ không dựng QR bừa',
+	1 === (int) $r['don'][0]['tk']['thieu'] && empty( $r['don'][0]['qr'] ), $r['don'][0] );
+t( 'nhưng thiệp vẫn giữ chỗ bình thường', 'giu_cho' === $r['don'][0]['tt'] );
+
+/* --- mượn tài khoản của plugin ghế khi ô của mình bỏ trống -------------------------------- */
+update_option( 'vhg_bin', '970436' ); update_option( 'vhg_so_tk', '1234567890' );
+update_option( 'vhg_ten_tk', 'CONG TY KH' );
+$tk = NHAMA::tk();
+t( 'bỏ trống thì mượn tài khoản đã khai ở plugin ghế',
+	'970436' === $tk['bin'] && '1234567890' === $tk['so_tk'] && 'Vietcombank' === $tk['ten_nh'], $tk );
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'bin' => '970418', 'so_tk' => '8888815678' ) ) );
+t( 'khai riêng thì ĐÈ lên tài khoản mượn', '8888815678' === NHAMA::tk()['so_tk'] );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
@@ -264,4 +341,4 @@ if ( $truot ) {
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "ĐẠT: $dat phép thử — máy chủ giữ số chỗ, không ai bán quá một khung giờ.\n";
+echo "ĐẠT: $dat phép thử — máy chủ giữ số chỗ, và mã QR đọc ngược ra đúng chuỗi.\n";
