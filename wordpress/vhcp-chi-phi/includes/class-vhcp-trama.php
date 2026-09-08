@@ -217,6 +217,21 @@ class VHCP_TraMa {
 
 		$all = self::all_lines();
 
+		/* 🔴 TRA THEO MÃ CŨNG LỌC THEO ĐƠN VỊ. Màn này gom dòng tiền của MỌI mảng lại một chỗ
+		   nên nó là đường vòng quanh mọi chốt kia: bốn mảng đã lọc từng cái, mà ở đây gom lại
+		   thì kế toán bên này đọc được từng khoản chi của bên kia, kèm mã tài khoản và số tiền.
+
+		   Neo theo CƠ SỞ của từng dòng, đúng chốt dùng chung `VHCP_DonVi::cua_coso()` — mọi
+		   dòng ở đây đều có cơ sở, kể cả dòng gom từ đơn vận hành. */
+		$dv_xem = VHCP_DonVi::xem_duoc();
+		if ( null !== $dv_xem ) {
+			$loc = array();
+			foreach ( $all as $r0 ) {
+				if ( VHCP_DonVi::xem_duoc_coso( isset( $r0['coso'] ) ? $r0['coso'] : '' ) ) { $loc[] = $r0; }
+			}
+			$all = $loc;
+		}
+
 		$ma_set = array(); $ky_set = array(); $cs_set = array();
 		$items = array(); $tong = 0;
 		$by_ma = array(); $by_mang = array(); $by_ky = array(); $by_cs = array();

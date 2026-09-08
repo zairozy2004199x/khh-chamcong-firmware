@@ -122,6 +122,13 @@ class VHCP_Misa {
 			elseif ( $pl_f === 'ncc' )   { $take = $qt_ncc && ( $mode === 'daxuat' ? $x_ncc : ! $x_ncc ); }
 			else                         { $take = ( $mode === 'daxuat' ? ( $r['trang_thai'] === 'Đã xuất MISA' ) : ( $r['trang_thai'] === 'Đã quyết toán' ) ); }
 			if ( ! $take ) { continue; }
+			/* 🔴 XUẤT MISA CŨNG PHẢI THEO ĐƠN VỊ. Đây là chỗ tiền ĐI RA sổ kế toán, nên hở ở
+			   đây nặng hơn hở ở một màn xem: kế toán POSH bấm Xuất là tệp mang luôn đơn của
+			   K&H sang bên họ, và ngược lại — hai công ty nộp chồng số của nhau.
+
+			   Anh Thắng 08/09/2026 nói *"misa anh sẽ set sau"*, nhưng ý đó là MÃ TÀI KHOẢN.
+			   Lọc theo đơn vị là chuyện phải làm bất kể mã đã khai hay chưa. */
+			if ( ! VHCP_DonVi::duoc_xem( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ) ) { continue; }
 			$ngay = VHCP_Util::fmt( $r['ngay_qt'] );
 			if ( $ngay === '' ) { $ngay = VHCP_Util::fmt( $r['ngay_tao'] ); }
 			$by_don[ (string) $r['ma_don'] ] = array(

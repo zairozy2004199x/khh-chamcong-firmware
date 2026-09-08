@@ -250,6 +250,101 @@ teq( 'nhưng gửi LÊN giá trị mới thì đổi thật (không phải khoá
 	'K&H', VHCP_DonVi::cua_coso( CS_POSH ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5b. LUỒNG TẠO CHI PHÍ CHO POSH — ĐẦU TỚI CUỐI
+ *
+ * Anh Thắng 08/09/2026: *"Phần tạo chi phí cho Posh (mảng thứ 2) em đã làm chưa"*. Bài dưới
+ * chạy đúng luồng thật: người POSH lập đơn → đơn mang đơn vị POSH → chỉ bên POSH thấy → mở
+ * thẳng bằng mã cũng không lọt.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ DỰNG LẠI SÂN NGAY ĐÂY, đừng tin trạng thái mấy khối trên để lại. Bài kiểm này có khối
+   cố ý gọi `save_config()` để thử đường ghi, và một trong số đó đặt lại đơn vị của mọi cơ sở —
+   khối sau đọc nhờ là xanh/đỏ theo thứ tự viết chứ không theo điều đang kiểm. Đã đỏ đúng như
+   thế lượt đầu: ô chọn cơ sở ra rỗng vì gian POSH lúc ấy đang mang đơn vị K&H. */
+VHCP_Cfg::write( VHCP_Cfg::COSO, array(
+	array( CS_KH,   'FLMPT', 'FARM MN', '', '', '' ),
+	array( CS_POSH, 'PSHCM', 'POSH',    '', '', 'POSH' ),
+) );
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'KT K&H',  '111111', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
+	array( 'KT POSH', '222222', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
+	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'K&H',  '' ),
+	array( 'NV POSH', '444444', 'Nhân viên', CS_POSH, '', '', '', 'POSH', '' ),
+) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH', CS_POSH );
+$r_tao = VHCP_Don::create_don( 'T9/2026 (7/9-13/9/2026)', 'NV POSH' );
+$ma_p  = isset( $r_tao['maDon'] ) ? $r_tao['maDon'] : '';
+t( 'NV POSH lập được đơn', '' !== $ma_p, $r_tao );
+teq( '🔴 đơn tự mang đơn vị POSH (theo nhà người lập)',
+	'POSH', VHCP_DonVi::chuan( VHCP_Don::don_row( $ma_p )['don_vi'] ) );
+teq( '🔴 và ô chọn cơ sở lúc lập chỉ bày gian POSH', array( CS_POSH ), o_coso() );
+
+$wpdb->insert( VHCP_DB::t( 'chiphi' ), array( 'id' => 'CP_P', 'ma_don' => $ma_p,
+	'coso' => CS_POSH, 'nhom' => 'Chi phí NVL', 'noi_dung' => 'nước rửa', 'thanh_tien' => 200000 ) );
+
+function thay_don( $ma ) {
+	foreach ( VHCP_Don::list_dons() as $x ) { if ( (string) $x['maDon'] === (string) $ma ) { return true; } }
+	return false;
+}
+lam( 'KT POSH' );
+teq( '🔴 kế toán POSH thấy đơn ấy',        true,  thay_don( $ma_p ) );
+lam( 'KT K&H' );
+teq( '🔴 kế toán K&H KHÔNG thấy đơn ấy',   false, thay_don( $ma_p ) );
+t( 'và mở thẳng bằng mã cũng bị chối', '' !== VHCP_DonVi::vi_sao_khong_dung( $ma_p ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5c. HAI MÀN GOM DỮ LIỆU — chỗ dễ hở nhất, và ĐÃ hở
+ *
+ * 🔴 XUẤT MISA là chỗ tiền ĐI RA sổ kế toán: hở ở đây nặng hơn hở ở một màn xem, vì tệp mang
+ *    luôn đơn của bên kia sang và hai công ty nộp chồng số của nhau.
+ * 🔴 TRA THEO MÃ gom dòng tiền của MỌI mảng lại một chỗ, nên nó là đường vòng quanh mọi chốt
+ *    đã đặt ở từng mảng.
+ *
+ * Cả hai đều hở thật cho tới 08/09/2026 — chạy thử luồng đầu-cuối mới lòi ra.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'trang_thai' => 'Đã quyết toán' ), array( 'ma_don' => $ma_p ) );
+$wpdb->insert( VHCP_DB::t( 'don' ), array( 'ma_don' => 'D_KH_QT', 'ky' => 'T9/2026 (7/9-13/9/2026)',
+	'trang_thai' => 'Đã quyết toán', 'nguoi_lap' => 'NV KH', 'don_vi' => 'K&H' ) );
+$wpdb->insert( VHCP_DB::t( 'chiphi' ), array( 'id' => 'CP_K', 'ma_don' => 'D_KH_QT',
+	'coso' => CS_KH, 'nhom' => 'Chi phí NVL', 'noi_dung' => 'dầu ăn', 'thanh_tien' => 50000 ) );
+
+function misa_ma() {
+	$x = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
+	$a = isset( $x['maDons'] ) ? (array) $x['maDons'] : array();
+	sort( $a );
+	return $a;
+}
+lam( 'Sếp', 'Admin' );
+teq( 'đối chứng · Sếp xuất MISA được cả hai đơn', array( 'D_KH_QT', $ma_p ), misa_ma() );
+lam( 'KT POSH' );
+teq( '🔴 kế toán POSH chỉ xuất MISA được đơn POSH', array( $ma_p ), misa_ma() );
+lam( 'KT K&H' );
+teq( '🔴 kế toán K&H chỉ xuất MISA được đơn K&H',   array( 'D_KH_QT' ), misa_ma() );
+
+/* ⚠️ CANH TÍNH CHẤT, ĐỪNG GHIM CON SỐ. Màn này gom dòng của MỌI mảng, mà bài kiểm đã đổ dữ
+   liệu ở mấy khối trên — ghim "đúng 2 dòng" là phép đỏ mỗi lần ai thêm một dòng thử ở chỗ
+   khác. Bất biến thật: mỗi bên chỉ thấy dòng của gian mình, và phải thấy ÍT NHẤT một dòng
+   (không thì một hàm lọc hỏng trả rỗng cũng làm phép này xanh). */
+function trama_coso() {
+	$x  = VHCP_TraMa::search( array() );
+	$ra = array();
+	foreach ( (array) ( isset( $x['items'] ) ? $x['items'] : array() ) as $r ) {
+		$c = trim( (string) ( isset( $r['coso'] ) ? $r['coso'] : '' ) );
+		if ( '' !== $c ) { $ra[ $c ] = 1; }
+	}
+	return array_keys( $ra );
+}
+lam( 'Sếp', 'Admin' );
+$cs_sep = trama_coso();
+t( 'đối chứng · Sếp tra theo mã thấy gian của CẢ HAI bên',
+	in_array( CS_KH, $cs_sep, true ) && in_array( CS_POSH, $cs_sep, true ), $cs_sep );
+lam( 'KT POSH' );
+teq( '🔴 kế toán POSH tra theo mã chỉ thấy gian POSH', array( CS_POSH ), trama_coso() );
+lam( 'KT K&H' );
+$cs_kh = trama_coso();
+t( '🔴 kế toán K&H tra theo mã KHÔNG thấy gian POSH', ! in_array( CS_POSH, $cs_kh, true ), $cs_kh );
+t( 'và vẫn thấy gian của mình',                        in_array( CS_KH, $cs_kh, true ), $cs_kh );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 6. DANH MỤC CƠ SỞ TÁCH THEO ĐƠN VỊ — và LƯU KHÔNG ĐƯỢC XOÁ MẤT BÊN KIA
  *
  * Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy cơ
