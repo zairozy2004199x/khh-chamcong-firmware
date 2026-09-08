@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.35.0
+ * Version:           1.36.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -322,6 +322,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/uu-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_xoa' ) ) );
 		register_rest_route( self::NS, '/ql/hang-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_ds' ) ) );
 		register_rest_route( self::NS, '/ql/hang-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_luu' ) ) );
+		register_rest_route( self::NS, '/ql/khach', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_khach' ) ) );
 	}
 	/* Trang có [posh_ve] -> tắt admin bar cho gọn (chạy sớm ở hook wp). */
 	public static function an_admin_bar() {
@@ -1048,6 +1049,30 @@ class POSH_Ve {
 		return array( 'ok' => true, 'ds' => self::ds_hang() );
 	}
 
+	/* ── Danh sách khách hàng đã mua vé (từ bảng thành viên pve_tv) ── */
+	public static function r_ql_khach( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb; $tv = self::tbl_tv();
+		$tim = trim( (string) $req->get_param( 'tim' ) );
+		$sx  = sanitize_key( (string) $req->get_param( 'sx' ) );   // moi | chi | diem
+		$order = 'chi' === $sx ? 'tong_chi DESC' : ( 'diem' === $sx ? 'diem DESC' : 'sua_luc DESC' );
+		$sql = "SELECT sdt, ten, diem, tong_chi, so_don FROM $tv";
+		$args = array();
+		if ( '' !== $tim ) { $like = '%' . $wpdb->esc_like( $tim ) . '%'; $sql .= ' WHERE ten LIKE %s OR sdt LIKE %s'; $args = array( $like, $like ); }
+		$sql .= ' ORDER BY ' . $order . ' LIMIT 300';
+		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+		$hangs = self::ds_hang();
+		$ten_hang = function ( $diem ) use ( $hangs ) { $h = $hangs[0]['ten']; foreach ( $hangs as $x ) { if ( $diem >= $x['moc'] ) { $h = $x['ten']; } } return $h; };
+		$ds = array(); $tong_kh = 0; $tong_chi = 0;
+		foreach ( (array) $rows as $r ) {
+			$diem = (int) $r['diem'];
+			$ds[] = array( 'ten' => $r['ten'], 'sdt' => $r['sdt'], 'diem' => $diem,
+				'so_don' => (int) $r['so_don'], 'tong_chi' => (int) $r['tong_chi'], 'hang' => $ten_hang( $diem ) );
+			$tong_kh++; $tong_chi += (int) $r['tong_chi'];
+		}
+		return array( 'ok' => true, 'ds' => $ds, 'tong_kh' => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tv" ), 'tong_chi' => $tong_chi );
+	}
+
 	private static function ma_ve_moi() {
 		global $wpdb; $bang = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -1641,6 +1666,8 @@ class POSH_Ve {
 					<button class="pql-tab on" data-tab="bc">📊 Tổng quan</button>
 					<button class="pql-tab" data-tab="ve">🎟️ Vé</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn hàng &amp; soát vé</button>
+					<div class="pql-side-g">Khách hàng</div>
+					<button class="pql-tab" data-tab="kh">👥 Danh sách khách</button>
 					<div class="pql-side-g">Loyalty</div>
 					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
 					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
@@ -1763,6 +1790,16 @@ class POSH_Ve {
 					<div class="pql-hangmsg"></div>
 				</div><!-- /pane hang -->
 
+				<div class="pql-pane" data-pane="kh" hidden>
+					<div class="pql-khtop">
+						<input class="pql-khtim" placeholder="Tìm tên / SĐT khách">
+						<select class="pql-khsx"><option value="moi">Mới nhất</option><option value="chi">Chi nhiều nhất</option><option value="diem">Điểm cao nhất</option></select>
+						<button class="pql-khloc">Lọc</button>
+					</div>
+					<div class="pql-khtong"></div>
+					<div class="pql-khwrap"><table class="pql-tbl pql-khtbl"><thead><tr><th>Khách hàng</th><th>SĐT</th><th>Điểm</th><th>Hạng</th><th>Đơn</th><th>Tổng chi</th></tr></thead><tbody class="pql-khlist"></tbody></table></div>
+				</div><!-- /pane kh -->
+
 				</div><!-- /main -->
 			</div><!-- /layout -->
 			</div>
@@ -1808,6 +1845,12 @@ class POSH_Ve {
 		.pql-hrow input{ border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
 		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#f0a0a0; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
 		.pql-hangmsg{ font-size:13px; margin-top:10px; text-align:center; }
+		.pql-khtop{ display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+		.pql-khtim{ flex:1; min-width:150px; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-khsx{ border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-khloc{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:10px 16px; cursor:pointer; }
+		.pql-khtong{ font-size:13px; color:var(--mut); margin-bottom:10px; } .pql-khtong b{ color:var(--g2); }
+		.pql-khwrap{ overflow-x:auto; } .pql-khtbl{ min-width:520px; }
 		.pql-2{ display:flex; gap:12px; } .pql-2 > div{ flex:1; }
 		.pql-anh{ display:flex; gap:10px; align-items:center; }
 		.pql-anh .f-anh{ flex:1; }
@@ -1903,7 +1946,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang();
+		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -2030,6 +2073,23 @@ class POSH_Ve {
 		      .catch(function(e){ $('.pql-uumsg').style.color='#f0a0a0'; $('.pql-uumsg').textContent=String(e.message||e); })
 		      .then(function(){ b.disabled=false; b.textContent='Lưu ưu đãi'; });
 		  });
+
+		  // ── Khách hàng ──
+		  function napKhach(){
+		    var tim=$('.pql-khtim').value.trim(), sx=$('.pql-khsx').value;
+		    $('.pql-khlist').innerHTML='<tr><td colspan="6" style="color:#9b978c">Đang tải…</td></tr>';
+		    var u='/ql/khach?sx='+encodeURIComponent(sx)+(tim?'&tim='+encodeURIComponent(tim):'');
+		    get(u).then(function(d){
+		      $('.pql-khtong').innerHTML='Tổng <b>'+(d.tong_kh||0)+'</b> khách · Tổng chi <b>'+VND(d.tong_chi)+'</b>';
+		      $('.pql-khlist').innerHTML=(d.ds||[]).map(function(k){
+		        return '<tr><td><b>'+esc(k.ten||'—')+'</b></td><td>'+esc(k.sdt)+'</td><td>'+(k.diem||0)+'</td>'
+		          +'<td><span class="pql-tag on">'+esc(k.hang)+'</span></td><td>'+(k.so_don||0)+'</td><td>'+VND(k.tong_chi)+'</td></tr>';
+		      }).join('')||'<tr><td colspan="6" style="color:#9b978c">Chưa có khách nào.</td></tr>';
+		    }).catch(function(e){ $('.pql-khlist').innerHTML='<tr><td colspan="6" class="pql-err">'+esc(e.message||e)+'</td></tr>'; });
+		  }
+		  $('.pql-khloc').addEventListener('click',napKhach);
+		  $('.pql-khsx').addEventListener('change',napKhach);
+		  $('.pql-khtim').addEventListener('keydown',function(e){if(e.key==='Enter')napKhach();});
 
 		  // ── Hạng thành viên ──
 		  function napHang(){
