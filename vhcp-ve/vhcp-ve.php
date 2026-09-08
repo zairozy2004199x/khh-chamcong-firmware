@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.28.0
+ * Version:           1.29.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1520,6 +1520,13 @@ class POSH_Ve {
 			</div>
 
 			<div class="pql-app" hidden>
+				<div class="pql-tabs">
+					<button class="pql-tab on" data-tab="ve">🎟️ Vé</button>
+					<button class="pql-tab" data-tab="bc">📊 Báo cáo</button>
+					<button class="pql-tab" data-tab="don">🧾 Đơn &amp; soát</button>
+				</div>
+
+				<div class="pql-pane" data-pane="ve">
 				<div class="pql-bar">
 					<b>Danh sách vé</b>
 					<button class="pql-them">+ Tạo vé mới</button>
@@ -1557,6 +1564,35 @@ class POSH_Ve {
 					</div>
 					<div class="pql-msg2"></div>
 				</div>
+				</div><!-- /pane ve -->
+
+				<div class="pql-pane" data-pane="bc" hidden>
+					<div class="pql-cards">
+						<div class="pql-stat"><span>Doanh thu hôm nay</span><b data-k="dt_hnay">—</b></div>
+						<div class="pql-stat"><span>Doanh thu tháng</span><b data-k="dt_thang">—</b></div>
+						<div class="pql-stat"><span>Vé đã bán</span><b data-k="ve_ban">—</b></div>
+						<div class="pql-stat"><span>Vé chờ TT</span><b data-k="ve_cho">—</b></div>
+					</div>
+					<div class="pql-h2">Bán theo kênh</div>
+					<table class="pql-tbl"><thead><tr><th>Kênh</th><th>Vé</th><th>Doanh thu</th></tr></thead>
+						<tbody><tr><td>📱 Zalo Mini App</td><td data-k="ve_zalo">—</td><td data-k="dt_zalo">—</td></tr>
+						<tr><td>🌐 Website</td><td data-k="ve_web">—</td><td data-k="dt_web">—</td></tr></tbody></table>
+					<div class="pql-h2">Vé bán chạy</div>
+					<table class="pql-tbl"><thead><tr><th>Loại vé</th><th>SL</th><th>Doanh thu</th></tr></thead><tbody class="pql-top"></tbody></table>
+				</div><!-- /pane bc -->
+
+				<div class="pql-pane" data-pane="don" hidden>
+					<div class="pql-filter">
+						<select class="pql-loc">
+							<option value="">Tất cả</option><option value="cho">Chờ TT</option><option value="da_tt">Đã TT</option>
+							<option value="da_dung">Đã dùng</option><option value="huy">Đã huỷ</option>
+							<option value="zalo">Kênh Zalo</option><option value="web">Kênh Web</option>
+						</select>
+						<input class="pql-tim" placeholder="Tìm mã vé / SĐT / tên">
+						<button class="pql-loc-btn">Lọc</button>
+					</div>
+					<div class="pql-donlist"></div>
+				</div><!-- /pane don -->
 			</div>
 		</div>
 
@@ -1603,6 +1639,29 @@ class POSH_Ve {
 		.pql-acts{ display:flex; gap:10px; margin-top:16px; }
 		.pql-acts button{ flex:1; }
 		.pql-huy{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:10px; padding:12px; cursor:pointer; font-weight:700; }
+		.pql-tabs{ display:flex; gap:8px; margin-bottom:14px; }
+		.pql-tab{ flex:1; border:1.5px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:10px; padding:10px 4px; font-weight:700; font-size:13px; cursor:pointer; }
+		.pql-tab.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
+		.pql-cards{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px; }
+		.pql-stat{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; }
+		.pql-stat span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
+		.pql-stat b{ font-size:18px; color:var(--g2); }
+		.pql-h2{ font-size:14px; font-weight:800; color:#fff; margin:18px 0 8px; }
+		.pql-tbl{ width:100%; border-collapse:collapse; background:var(--sf); border:1px solid var(--bd); border-radius:12px; overflow:hidden; font-size:13px; }
+		.pql-tbl th,.pql-tbl td{ padding:9px 10px; text-align:left; border-bottom:1px solid rgba(212,175,55,.1); color:var(--tx); }
+		.pql-tbl th{ background:var(--sf2); font-size:12px; color:var(--mut); }
+		.pql-filter{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; }
+		.pql-filter .pql-loc{ width:auto; flex:0 0 130px; } .pql-filter .pql-tim{ flex:1; min-width:140px; } .pql-filter .pql-loc-btn{ width:auto; flex:0 0 70px; padding:11px; }
+		.pql-don{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:12px; margin-bottom:8px; }
+		.pql-don-top{ display:flex; justify-content:space-between; align-items:center; }
+		.pql-don-ma{ font-weight:800; font-family:monospace; color:#fff; }
+		.pql-don-sub{ font-size:12px; color:var(--mut); margin-top:3px; }
+		.pql-bdg{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
+		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#7ee2a8; }
+		.pql-bdg.da_dung{ background:rgba(59,130,246,.2); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#f0a0a0; }
+		.pql-don-act{ display:flex; gap:6px; margin-top:10px; }
+		.pql-don-act button{ flex:1; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
+		.pql-don-act .go{ background:rgba(34,197,94,.9); color:#04210f; border:none; } .pql-don-act .use{ background:rgba(59,130,246,.9); color:#04122b; border:none; } .pql-don-act .no{ background:rgba(239,68,68,.85); color:#fff; border:none; }
 		@media(max-width:560px){ .pql-2{ flex-direction:column; gap:0; } }
 		</style>
 
@@ -1629,6 +1688,63 @@ class POSH_Ve {
 		    $('.pql-pin').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
 		  }
 		  $('.pql-out').addEventListener('click',function(){ PIN=''; $('.pql-app').hidden=true; $('.pql-login').hidden=false; $('.pql-out').hidden=true; if($('.pql-pin')){$('.pql-pin').value='';$('.pql-msg').textContent='';} });
+
+		  // Tabs: Vé / Báo cáo / Đơn & soát
+		  Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(t){
+		    t.addEventListener('click',function(){
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
+		      var name=t.getAttribute('data-tab');
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
+		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon();
+		    });
+		  });
+
+		  // Báo cáo
+		  var NHAN={cho:'Chờ TT',da_tt:'Đã TT',da_dung:'Đã dùng',huy:'Đã huỷ'};
+		  function napBaoCao(){
+		    get('/ql/baocao').then(function(d){
+		      var money={dt_hnay:1,dt_thang:1,dt_zalo:1,dt_web:1};
+		      ['dt_hnay','dt_thang','ve_ban','ve_cho','ve_zalo','ve_web','dt_zalo','dt_web'].forEach(function(k){
+		        var el=root.querySelector('[data-k="'+k+'"]'); if(el) el.textContent = money[k]?VND(d[k]):(d[k]||0);
+		      });
+		      root.querySelector('.pql-top').innerHTML=(d.top||[]).slice(0,15).map(function(r){
+		        return '<tr><td>'+esc(r.ten)+'</td><td>'+r.sl+'</td><td>'+VND(r.dt)+'</td></tr>';
+		      }).join('')||'<tr><td colspan="3" style="color:#9b978c">Chưa có dữ liệu</td></tr>';
+		    }).catch(function(e){ alert(e.message||e); });
+		  }
+
+		  // Đơn & soát
+		  function napDon(){
+		    var loc=$('.pql-loc').value, tim=$('.pql-tim').value.trim();
+		    $('.pql-donlist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    var u=new URL(REST+'/ql/donhang'); u.searchParams.set('pin',PIN); if(loc)u.searchParams.set('loc',loc); if(tim)u.searchParams.set('tim',tim);
+		    fetch(u.toString()).then(function(r){return r.json();}).then(function(d){
+		      if(!d||d.ok===false) throw new Error(d&&(d.message||d.code)||'Lỗi');
+		      $('.pql-donlist').innerHTML=(d.don||[]).map(rowDon).join('')||'<p style="color:#9b978c">Không có đơn.</p>';
+		    }).catch(function(e){ $('.pql-donlist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function rowDon(r){
+		    var src=r.nguon==='zalo'?'📱 Zalo':'🌐 Web';
+		    var act='<div class="pql-don-act">';
+		    if(r.trang_thai==='cho') act+='<button class="go" data-ma="'+r.ma_ve+'" data-tt="da_tt">Xác nhận đã TT</button>';
+		    if(r.trang_thai==='da_tt') act+='<button class="use" data-ma="'+r.ma_ve+'" data-tt="da_dung">Đã dùng (soát)</button>';
+		    if(r.trang_thai!=='huy'&&r.trang_thai!=='da_dung') act+='<button class="no" data-ma="'+r.ma_ve+'" data-tt="huy">Huỷ</button>';
+		    act+='</div>';
+		    return '<div class="pql-don"><div class="pql-don-top"><span class="pql-don-ma">'+esc(r.ma_ve)+'</span>'
+		      +'<span class="pql-bdg '+r.trang_thai+'">'+(NHAN[r.trang_thai]||r.trang_thai)+'</span></div>'
+		      +'<div class="pql-don-sub">'+esc(r.dv_ten)+' · '+VND(r.so_tien)+'</div>'
+		      +'<div class="pql-don-sub">'+esc(r.ten_khach||'')+' · '+esc(r.sdt||'')+' · '+src+'</div>'+act+'</div>';
+		  }
+		  $('.pql-loc-btn').addEventListener('click',napDon);
+		  $('.pql-loc').addEventListener('change',napDon);
+		  $('.pql-tim').addEventListener('keydown',function(e){if(e.key==='Enter')napDon();});
+		  $('.pql-donlist').addEventListener('click',function(e){
+		    var b=e.target.closest('.pql-don-act button'); if(!b)return;
+		    var ma=b.getAttribute('data-ma'), tt=b.getAttribute('data-tt');
+		    if(tt==='huy'&&!confirm('Huỷ vé '+ma+'?'))return;
+		    b.disabled=true; b.textContent='...';
+		    post('/ql/capnhat',{ma_ve:ma,trang_thai:tt}).then(napDon).catch(function(err){alert(err.message||err);b.disabled=false;});
+		  });
 
 		  // Danh sách vé
 		  function napDs(){
