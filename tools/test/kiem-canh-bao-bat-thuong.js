@@ -74,13 +74,23 @@ const iKhoi = jsSrc.indexOf('} else if(chiSoNguoc||rawCashR<0){');
 const jKhoi = jsSrc.indexOf('r.abnormalReason=ly;', iKhoi);
 t('bốc được khối chốt trước khi gửi', iKhoi > 0 && jKhoi > iKhoi);
 const khoi = (iKhoi > 0 && jKhoi > iKhoi) ? jsSrc.slice(iKhoi, jKhoi + 40) : '';
-t('🔴 lý do lấy từ ô .note của chính hàng đó',
-	/querySelector\('\.note'\)/.test(khoi), khoi.slice(0, 200));
+/* ⚠️ CANH Ý ĐỊNH: lý do phải là thứ người ta gõ ở cột "Ghi chú". Bản đầu ghim nguyên văn
+   `querySelector('.note')` — tức ghim CÁCH LẤY. Bản 2.13.6 bỏ hẳn lối dò ngược DOM ấy (mã ghế
+   có dấu nháy/dấu cách là selector gãy, lý do đọc ra rỗng, hàng bị chặn vĩnh viễn dù đã điền)
+   và dùng `r.note` mà `collect()` đã đọc từ đúng ô đó. Cùng một nguồn, ít hơn một chỗ để lệch. */
+t('🔴 lý do lấy từ ô "Ghi chú" của chính hàng đó',
+	/r\.note/.test(khoi) || /querySelector\('\.note'\)/.test(khoi), khoi.slice(0, 200));
+t('🔴 và KHÔNG dò ngược DOM bằng mã ghế nữa', !/querySelector\([^)]*data-ma/.test(khoi), khoi.slice(0, 200));
 t('và vẫn gửi lên máy chủ dưới tên abnormalReason',
 	khoi.indexOf('r.abnormalReason=ly;') > 0);
 /* Vẫn phải đòi ĐỦ HAI THỨ: có lý do VÀ có Thực thu. Bỏ một vế là mở lại đúng chỗ 28/08 bắt chặn. */
+/* ⚠️ CANH Ý ĐỊNH: vẫn phải đòi ĐỦ HAI THỨ. Bản 2.13.6 tách ra thành danh sách "thiếu ô nào" để
+   còn kể đích danh cho người nhập, nên câu `if(!ly||!coTTR)` không còn nguyên văn — nhưng luật
+   thì y hệt: thiếu bất kỳ vế nào là chặn. */
 t('vẫn đòi đủ cả lý do lẫn Thực thu mới cho gửi',
-	/if\(!ly\|\|!coTTR\)\{/.test(khoi), khoi.slice(0, 300));
+	/if\(!ly\|\|!coTTR\)\{/.test(khoi)
+	|| ( /if\(!ly\)/.test(khoi) && /if\(!coTTR\)/.test(khoi) && /thieu\.length/.test(khoi) ),
+	khoi.slice(0, 400));
 
 /* ---------- 4. MÁY CHỦ: CHỐT GIỮ NGUYÊN, CÂU CHỐI TRỎ ĐÚNG Ô ---------- */
 t('🔴 máy chủ VẪN chặn khi bất thường mà không có lý do',
@@ -88,8 +98,11 @@ t('🔴 máy chủ VẪN chặn khi bất thường mà không có lý do',
 t('câu chối trỏ vào cột Ghi chú, không còn trỏ "ô đỏ" đã bỏ',
 	phpSrc.indexOf('Ghi lý do ở cột Ghi chú') > 0
 	&& phpSrc.indexOf('Ghi lý do ở ô đỏ') < 0);
+/* ⚠️ CANH Ý ĐỊNH: câu chặn phải trỏ vào ĐÚNG hai ô có thật trên bảng. Bản 2.13.6 thôi đọc một
+   câu gộp cho mọi ghế, mà kể đích danh từng ghế thiếu ô nào — nên nguyên văn cũ không còn.
+   Điều phải đúng: nó gọi tên "Ghi chú" và "Thực thu tiền mặt", và không còn trỏ vào "ô đỏ" đã bỏ. */
 t('câu báo lỗi trên trang cũng trỏ đúng cột Ghi chú',
-	jsSrc.indexOf('ghi lý do ở cột "Ghi chú" và nhập đúng số tiền thật') > 0
+	jsSrc.indexOf('Ghi chú (lý do)') > 0 && jsSrc.indexOf('Thực thu tiền mặt') > 0
 	&& jsSrc.indexOf('ghi lý do ở ô đỏ') < 0);
 
 /* ---------- 5. KHÔNG CHÉP GHI CHÚ HAI LẦN ---------- */

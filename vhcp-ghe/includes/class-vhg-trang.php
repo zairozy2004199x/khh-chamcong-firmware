@@ -1638,6 +1638,8 @@ class VHG_Trang {
            · `min-width` theo bề rộng màn, chứ không theo bề rộng cột
            · cỡ chữ 12.5px và khung nền để mắt bắt được ngay giữa bảng số */
       '.bc-warn-row td{background:#fef2f2}',
+      /* Hàng đang thiếu thông tin — tô sáng để mắt bắt được ngay sau khi cuộn tới. */
+      '.bc-thieu>td{background:#fff1f2;box-shadow:inset 3px 0 0 #e11d48}',
       '.bc-warn-row .bc-warn{white-space:normal;word-break:normal;overflow-wrap:anywhere;'
         + 'min-width:min(560px,88vw);max-width:min(860px,94vw);font-size:12.5px;line-height:1.45;'
         + 'padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #fecaca;margin:0}',
@@ -2374,20 +2376,73 @@ class VHG_Trang {
       var mayDungR=(r.meterBefore!==''&&r.meterAfter!==''
         &&Number(r.meterAfter)===Number(r.meterBefore)&&Number(r.qr||0)>0&&rawCashR<0);
       if(mayDungR){
-        if(!coTTR){ canhBao.push((r.chairName||r.chairCode)+' (gõ Thực thu, thường là 0)'); continue; }
+        if(!coTTR){ canhBao.push({ ten:(r.chairName||r.chairCode), ma:r.chairCode, thieu:['Thực thu tiền mặt (thường là 0)'] }); continue; }
       } else if(chiSoNguoc||rawCashR<0){
-        /* Lý do lấy từ cột "Ghi chú" của chính hàng đó — ô lý do riêng trong khung đỏ đã bỏ. */
-        var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
-        var iLy=trR&&trR.querySelector('.note');
-        var ly=iLy?(iLy.value||'').trim():'';
-        if(!ly||!coTTR){ canhBao.push(r.chairName||r.chairCode); continue; }
+        /* 🔴 LÝ DO LẤY TỪ `r.note` MÀ `collect()` ĐÃ LẤY — KHÔNG DÒ NGƯỢC DOM.
+           Bản trước dựng lại một câu selector từ mã ghế: `tr[data-ma="'+r.chairCode+'"]`. Mã
+           ghế nào có dấu nháy, dấu cách hay dấu chấm là câu ấy gãy, `trR` về null, lý do đọc
+           ra RỖNG — và hàng ấy bị chặn vĩnh viễn dù người ta đã điền. Người nhập không có cách
+           nào biết: họ điền, bấm, vẫn bị chặn, điền lại, vẫn thế.
+           `collect()` đã đọc đúng ô ấy rồi. Một nguồn, không có gì để lệch. */
+        var ly=String(r.note||'').trim();
+        /* 🔴 NÓI RÕ TỪNG GHẾ CÒN THIẾU GÌ. Anh Thắng 08/09/2026: *"bấm thêm chỗ lý do cũng
+           không được"* và *"nếu vậy sẽ cảnh báo lý do thiếu, chứ lại liên quan gì đến hỏng"*.
+           Anh đúng: hàng này đòi HAI thứ — lý do VÀ Thực thu — mà câu chặn cũ gộp chung một
+           câu cho mọi ghế, nên người điền xong một thứ vẫn bị chặn và không biết còn thiếu gì.
+           Nay kể đích danh: ghế nào, thiếu ô nào. */
+        var thieu=[];
+        if(!ly) thieu.push('Ghi chú (lý do)');
+        if(!coTTR) thieu.push('Thực thu tiền mặt');
+        if(thieu.length){ canhBao.push({ ten:(r.chairName||r.chairCode), ma:r.chairCode, thieu:thieu }); continue; }
         r.abnormalReason=ly;
       }
       r.actualOverride=coTTR?r.adjust:null;
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở cột "Ghi chú" và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" của hàng đó rồi bấm Gửi lại.';
-      msg.className='bc-msg bc-err'; return;
+      /* 🔴 ĐÂY LÀ "CÒN THIẾU THÔNG TIN", KHÔNG PHẢI "TRANG HỎNG". Nói theo kiểu chung chung thì
+         người đọc xếp nó chung với mấy câu lỗi hệ thống, rồi bấm lại chục lần. Mở đầu bằng đúng
+         việc phải làm, và kể đích danh từng ghế thiếu ô nào. */
+      /* ⚠️ KHỐI JS NÀY KHÔNG CÓ `esc()` — hàm ấy ở khối của màn /ghe, khối khác hẳn. Bản nháp
+         đầu gọi thẳng `esc()` ở đây: `ReferenceError` giữa chừng, và câu chặn không bao giờ
+         hiện ra — tức là vá xong lại đúng bệnh cũ, tệ hơn trước. Dựng bằng DOM cho khỏi phải
+         thoát chuỗi: tên ghế do người khai đặt, có dấu `<` là vỡ trang. */
+      msg.textContent='';
+      var h1=document.createElement('b');
+      h1.textContent='Chưa gửi được — còn thiếu thông tin ở '+canhBao.length+' ghế.';
+      msg.appendChild(h1);
+      var ds=document.createElement('div'); ds.style.marginTop='6px';
+      canhBao.forEach(function(c){
+        var d=document.createElement('div');
+        var b=document.createElement('b'); b.textContent=c.ten;
+        d.appendChild(document.createTextNode('• ')); d.appendChild(b);
+        d.appendChild(document.createTextNode(': điền ô '));
+        c.thieu.forEach(function(x,i){
+          if(i) d.appendChild(document.createTextNode(' và ô '));
+          var e=document.createElement('b'); e.textContent=x; d.appendChild(e);
+        });
+        ds.appendChild(d);
+      });
+      msg.appendChild(ds);
+      var d2=document.createElement('div');
+      d2.style.cssText='margin-top:6px;color:#7f1d1d';
+      d2.textContent='Điền xong bấm Gửi lại. Nếu chỉ số gõ nhầm thì sửa lại chỉ số cho đúng là '
+        + 'cảnh báo tự tắt, khỏi cần lý do.';
+      msg.appendChild(d2);
+      msg.className='bc-msg bc-err';
+      /* Và chỉ THẲNG vào hàng đầu tiên đang thiếu — bảng dài mấy chục ghế thì đọc tên ghế xong
+         vẫn phải đi tìm. Tô sáng rồi cuộn tới nơi. */
+      try{
+        var trX=null;
+        document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(x){
+          if(!trX && x.dataset.ma===canhBao[0].ma) trX=x;
+        });
+        if(trX){
+          document.querySelectorAll('#bc-rows tr.bc-thieu').forEach(function(x){ x.classList.remove('bc-thieu'); });
+          trX.classList.add('bc-thieu');
+          if(trX.scrollIntoView) trX.scrollIntoView({block:'center'});
+        }
+      }catch(e){}
+      return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
     var aEl=$('bc-amt'); var amtRaw=aEl?(aEl.value||'').trim():'';   // gọn: không có ô số tiền → nộp đủ
