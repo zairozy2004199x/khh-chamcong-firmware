@@ -57,13 +57,39 @@ class VHCP_DonVi {
 	/**
 	 * Các đơn vị đang có.
 	 *
-	 * ⚠️ ĐỌC TỪ CHÍNH BẢNG NGƯỜI DÙNG, không giữ một danh sách riêng. Hai danh sách là sớm
-	 *    muộn lệch: ai đó khai "POSH " (thừa dấu cách) cho một tài khoản thì đơn vị ấy có
-	 *    thật trong dữ liệu mà không có trong danh mục — và mọi ô lọc dựng từ danh mục sẽ
-	 *    không bao giờ chạm tới đơn của họ.
+	 * ⚠️ ĐỌC TỪ CHÍNH DỮ LIỆU, không giữ một danh sách riêng. Hai danh sách là sớm muộn lệch:
+	 *    ai đó khai "POSH " (thừa dấu cách) ở một chỗ thì đơn vị ấy có thật trong dữ liệu mà
+	 *    không có trong danh mục — và mọi ô lọc dựng từ danh mục sẽ không bao giờ chạm tới
+	 *    đơn của họ.
+	 *
+	 * 🔴 PHẢI ĐỌC CẢ DANH MỤC CƠ SỞ, VÀ ĐỌC TRƯỚC HAI NGUỒN KIA.
+	 *    Anh Thắng 08/09/2026, sau khi đã khai xong khối "ĐƠN VỊ POSH · 1 cơ sở" ở danh mục
+	 *    cơ sở: *"đơn vị posh chưa có"* — hộp tích "Xem đơn vị" vẫn trơ mỗi K&H.
+	 *
+	 *    Vì hàm này trước chỉ nhìn bảng NGƯỜI DÙNG và cột `don_vi` trên ĐƠN. Cả hai đều là
+	 *    thứ có SAU: muốn có người POSH thì phải tích được "Xem đơn vị POSH", muốn tích được
+	 *    thì POSH phải nằm trong danh sách này, muốn nằm trong danh sách thì phải có người
+	 *    POSH. Vòng luẩn quẩn khoá chặt — không cách nào mở được đơn vị thứ hai.
+	 *
+	 *    Mà DANH MỤC CƠ SỞ mới đúng là nơi khai: `cua_coso()` đã lấy chính bảng ấy làm chốt
+	 *    duy nhất cho câu "dòng chi này của bên nào". Nơi khai ranh giới và nơi liệt kê ranh
+	 *    giới phải là một, không thì khai xong vẫn như chưa khai.
 	 */
 	public static function ds() {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ hạt giống này KHÔNG
+		   đổi kết quả hôm nay, vì `get_users()` luôn gieo lại tài khoản Admin với ô Đơn vị
+		   trống, và ô trống thì `chuan()` đưa về đúng nhà mặc định. Giữ nó vì cái "luôn" ấy là
+		   chuyện của MỘT hàm khác: ngày nào `get_users()` thôi gieo, mất K&H khỏi danh sách là
+		   mọi dòng cũ (ô Đơn vị trống) rơi vào một đơn vị không ô lọc nào chạm tới — hỏng lặng
+		   lẽ, không câu lỗi nào. `kiem-don-vi-moi-hien-ra.php` có phép đối chứng canh giả định
+		   ấy, nên nếu nó gãy thì bài kiểm đỏ ở đúng chỗ gãy. */
 		$ra = array( self::MAC_DINH => 1 );
+		/* Danh mục cơ sở — NƠI KHAI. `cosoDonVi` đã qua `chuan()` lúc dựng, xem `cfg_static()`. */
+		$cfg = VHCP_Cfg::cfg_static();
+		foreach ( (array) ( isset( $cfg['cosoDonVi'] ) ? $cfg['cosoDonVi'] : array() ) as $d ) {
+			$d = self::chuan( $d );
+			$ra[ $d ] = 1;
+		}
 		foreach ( VHCP_Cfg::get_users() as $u ) {
 			$d = self::chuan( isset( $u['donVi'] ) ? $u['donVi'] : '' );
 			$ra[ $d ] = 1;

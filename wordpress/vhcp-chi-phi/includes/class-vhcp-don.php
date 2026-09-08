@@ -2875,7 +2875,10 @@ class VHCP_Don {
 		/* Chuyển sang một đơn vị mình không đọc được thì chính người vừa chuyển cũng mất dấu
 		   cái mình vừa gửi đi — và không ai giải thích được đơn ấy đi đâu. */
 		if ( ! in_array( $dv_moi, VHCP_DonVi::ds(), true ) ) {
-			return VHCP_Util::err( 'Chưa có đơn vị "' . $dv_moi . '" — khai ở Cấu hình → Người dùng trước.' );
+			/* Chỉ đúng chỗ KHAI, không phải một chỗ nào đó cũng có chữ "đơn vị": danh mục cơ
+			   sở là nơi ranh giới được vạch (`VHCP_DonVi::cua_coso()`). Chỉ sai chỗ thì người
+			   ta đi khai ở bảng người dùng, khai xong vẫn báo đúng câu này. */
+			return VHCP_Util::err( 'Chưa có đơn vị "' . $dv_moi . '" — khai ở Cấu hình → Danh mục cơ sở, cột "Đơn vị" trước.' );
 		}
 		$_c = self::vi_sao_khong_sua( $ma_don );
 		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
