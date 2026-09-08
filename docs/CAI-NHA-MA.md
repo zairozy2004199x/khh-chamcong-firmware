@@ -1,6 +1,6 @@
 # Nhà Ma · Bán vé theo khung giờ — cài & vận hành
 
-*Plugin `wordpress/vhcp-nha-ma` — bản 1.3.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
+*Plugin `wordpress/vhcp-nha-ma` — bản 1.4.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
 
 | Địa chỉ | Ai dùng |
 |---|---|
