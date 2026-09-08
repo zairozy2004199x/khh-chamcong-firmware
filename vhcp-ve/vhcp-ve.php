@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.22.0
+ * Version:           1.23.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -50,6 +50,7 @@ class POSH_Ve {
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
+		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'zalo_web_login' ) );
 		add_action( 'wp_head', array( __CLASS__, 'zalo_verify_meta' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'zalo_verify_file' ), 0 );
@@ -283,6 +284,14 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
 		register_rest_route( self::NS, '/ql/donhang', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_donhang' ) ) );
 		register_rest_route( self::NS, '/ql/capnhat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_capnhat' ) ) );
+	}
+	/* Trang có [posh_ve] -> tắt admin bar cho gọn (chạy sớm ở hook wp). */
+	public static function an_admin_bar() {
+		if ( ! is_singular() ) { return; }
+		$p = get_post();
+		if ( $p && has_shortcode( (string) $p->post_content, 'posh_ve' ) ) {
+			add_filter( 'show_admin_bar', '__return_false' );
+		}
 	}
 	public static function cors( $served, $result, $request, $server ) {
 		if ( $request && 0 === strpos( (string) $request->get_route(), '/' . self::NS ) ) {
@@ -882,12 +891,26 @@ class POSH_Ve {
 		?>
 		<?php if ( $atts['an_theme'] ) : ?>
 		<style id="pve-an-theme">
+		/* Ẩn header/footer/tiêu đề của theme */
 		.wp-site-blocks > header.wp-block-template-part, .wp-site-blocks > footer.wp-block-template-part,
 		header.wp-block-template-part, footer.wp-block-template-part,
 		#masthead, #colophon, .site-header, .site-footer, .wp-block-site-title,
 		.wp-block-post-title, .entry-header, header.entry-header { display:none !important; }
-		.wp-site-blocks, .entry-content, .wp-block-group, main, .wp-block-post-content { margin-top:0 !important; padding-top:0 !important; }
-		body { margin:0 !important; }
+		/* Ẩn thanh admin bar WordPress (kèm reset khoảng đệm nó chiếm) */
+		#wpadminbar { display:none !important; }
+		html { margin-top:0 !important; }
+		* html body { margin-top:0 !important; }
+		body { margin:0 !important; padding:0 !important; }
+		/* Ép nội dung TRÀN FULL MÀN — bỏ giới hạn chiều rộng & lề của theme */
+		.wp-site-blocks, .entry-content, .wp-block-group, main, .site-main, .content-area,
+		.wp-block-post-content, article, .is-layout-constrained, .is-layout-flow,
+		.wp-block-post-content > *, .entry-content > * {
+			max-width:none !important; width:auto !important;
+			margin-top:0 !important; padding-top:0 !important;
+			margin-left:0 !important; margin-right:0 !important;
+			padding-left:0 !important; padding-right:0 !important;
+		}
+		.entry-content > .pve-page, .wp-block-post-content > .pve-page { width:100% !important; }
 		</style>
 		<?php endif; ?>
 		<div class="pve-page">
