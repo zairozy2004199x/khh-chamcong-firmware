@@ -100,6 +100,8 @@ class VHCC_Keo {
 		foreach ( VHCC_DB::rows( "SELECT ma_nv FROM $bang" ) as $x ) { $dang_co[ $x['ma_nv'] ] = 1; }
 
 		$them = 0; $sua = 0; $bo = array(); $dong = array();
+		/* PIN đã gặp trong CHÍNH lượt kéo này -> mã NV (xem khối soát trùng trong vòng lặp). */
+		$pin_keo = array( 'pin_dang_nhap' => array(), 'pin_may' => array() );
 		foreach ( $ds as $e ) {
 			$e  = (array) $e;
 			$ma = trim( (string) ( isset( $e['employeeNo'] ) ? $e['employeeNo'] : '' ) );
@@ -132,11 +134,44 @@ class VHCC_Keo {
 			if ( isset( $ghi['cua_hang'] ) ) { $ghi['cua_hang'] = VHCC_NhanSu::chuan_coso( $ghi['cua_hang'] ); }
 			unset( $ghi['ma_nv'] );   // khoá, không nằm trong phần cập nhật
 
+			/* ===================================================================================
+			 *  PIN TRÙNG THÌ KHÔNG KÉO Ô PIN ẤY VỀ
+			 * -----------------------------------------------------------------------------------
+			 *  🔴 08/09/2026 — anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*.
+			 *  Sổ ở app gốc là sổ gõ tay, nên có thể đã trùng từ bên đó. Kéo nguyên về là hai
+			 *  người cùng PIN đăng nhập: cổng nhận người GẶP TRƯỚC, nhật ký ghi tên người đó.
+			 *  ⚠️ Chỉ BỎ Ô PIN, vẫn kéo các ô khác — lượt kéo này để dựng lại cả sổ nhân sự, chối
+			 *     cả dòng vì một ô PIN là mất luôn tên/cơ sở/lương của người đó.
+			 *  ⚠️ Soát cả trùng TRONG CHÍNH LƯỢT KÉO, không chỉ với sổ đang có: một file nguồn có
+			 *     hai dòng cùng PIN thì so với sổ chẳng bắt được dòng nào.
+			 *  ⚠️ Cơ sở lấy từ `$ghi` — `$dang_co` ở đường này CHỈ giữ danh sách mã (`ma_nv => 1`),
+			 *     không phải cả hàng, nên đừng đọc cột nào từ nó.
+			 * =================================================================================== */
+			$cs_keo = VHCC_NhanSu::ds_coso_hs( array(
+				'cua_hang' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang'] : '',
+				'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu'] : '',
+			) );
+			$bo_pin = array();
+			foreach ( array( 'pin_dang_nhap' => 'PIN đăng nhập', 'pin_may' => 'PIN máy' ) as $o_p => $nhan_p ) {
+				if ( empty( $ghi[ $o_p ] ) ) { continue; }
+				$p = (string) $ghi[ $o_p ];
+				if ( isset( $pin_keo[ $o_p ][ $p ] ) && $pin_keo[ $o_p ][ $p ] !== $ma ) {
+					$k = $pin_keo[ $o_p ][ $p ];
+				} elseif ( 'pin_dang_nhap' === $o_p ) {
+					$k = VHCC_NhanSu::pin_dang_dung( $p, $ma );
+				} else {
+					$k = VHCC_NhanSu::pin_may_dang_dung( $p, $ma, $cs_keo );
+				}
+				if ( '' !== $k ) { $bo_pin[] = $nhan_p . ' trùng ' . $k; unset( $ghi[ $o_p ] ); continue; }
+				$pin_keo[ $o_p ][ $p ] = $ma;
+			}
+
 			$la_moi = ! isset( $dang_co[ $ma ] );
 			if ( $la_moi ) { $them++; } else { $sua++; }
 			$dong[] = array( 'ma' => $ma, 'ten' => $ten,
 				'coso' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang'] : '',
-				'viec' => $la_moi ? 'thêm' : 'cập nhật' );
+				'viec' => ( $la_moi ? 'thêm' : 'cập nhật' )
+					. ( $bo_pin ? ' — bỏ ' . implode( ', ', $bo_pin ) : '' ) );
 
 			if ( $chi_xem ) { continue; }
 			$ghi['cap_nhat'] = current_time( 'mysql' );

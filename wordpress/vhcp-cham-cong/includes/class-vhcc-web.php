@@ -1931,17 +1931,22 @@ class VHCC_Web {
 
 		if ( ! $ghi ) { return array( 'ok' => false, 'error' => 'Không có gì để lưu.' ); }
 		/* 🔴 HAI NGƯỜI CÙNG PIN thì cổng đăng nhập nhận người GẶP TRƯỚC, và nhật ký ghi tên
-		   người đó — người kia làm gì cũng mang tên người này. Chặn ngay lúc lưu, và nói ra
-		   trùng với AI. */
-		if ( ! empty( $ghi['pin_dang_nhap'] ) ) {
-			$trung = $wpdb->get_var( $wpdb->prepare(
-				'SELECT ho_ten FROM ' . VHCC_DB::t( 'nhan_vien' )
-				. ' WHERE pin_dang_nhap=%s AND ma_nv<>%s LIMIT 1', $ghi['pin_dang_nhap'], $ma ) );
-			if ( $trung ) {
-				return array( 'ok' => false, 'error' => 'PIN này đã cấp cho ' . $trung
-					. '. Hai người cùng PIN thì nhật ký không phân biệt được ai làm việc gì. '
-					. 'Không lưu gì cả — chọn PIN khác.' );
-			}
+		   người đó — người kia làm gì cũng mang tên người này.
+		   08/09/2026 — anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*. Phép soát chuyển sang
+		   `VHCC_NhanSu::pin_trung_loi()` để soát CẢ **PIN máy chấm công** (trùng trong cùng cơ sở
+		   là giờ của người này ghi vào người kia), và để bốn đường ghi hồ sơ dùng CHUNG một luật.
+		   ⚠️ Cơ sở đem đi so phải là cơ sở SẮP GHI (ô tích vừa gửi), không phải cơ sở cũ — người
+		      vừa được chuyển sang cơ sở khác thì đầu đọc đụng là đầu đọc MỚI. */
+		$hs_cu   = VHCC_NhanSu::ho_so( $ma );
+		$cs_soat = VHCC_NhanSu::ds_coso_hs( array(
+			'cua_hang' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang']
+				: ( $hs_cu ? $hs_cu['cua_hang'] : '' ),
+			'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu']
+				: ( $hs_cu && isset( $hs_cu['coso_phu'] ) ? $hs_cu['coso_phu'] : '' ),
+		) );
+		$loi_pin = VHCC_NhanSu::pin_trung_loi( $ghi, $ma, $cs_soat );
+		if ( '' !== $loi_pin ) {
+			return array( 'ok' => false, 'error' => $loi_pin . ' Không lưu gì cả.' );
 		}
 
 		$ghi['cap_nhat'] = current_time( 'mysql' );
@@ -7474,6 +7479,27 @@ class VHCC_Web {
 		echo '</div>';
 	}
 
+	/**
+	 * NHỮNG PIN ĐĂNG NHẬP ĐANG BỊ NHIỀU HỒ SƠ CÙNG DÙNG.
+	 *
+	 * 🔴 08/09/2026 — chặn tạo trùng (mọi đường ghi) KHÔNG dọn được chỗ đã trùng từ trước: sổ này
+	 *    kéo về từ Google Sheets, nơi PIN gõ tay và không ai gác. Trùng cũ nằm im, và người bị
+	 *    đứng sau thì gõ đúng PIN của mình mà rơi vào hồ sơ người khác — họ tưởng mình bấm nhầm
+	 *    nên KHÔNG AI BÁO. Nên màn danh sách phải tự chỉ ra.
+	 *
+	 * ⚠️ Chỉ trả PIN nào TRÙNG, không trả cả bảng PIN. Đây là dữ liệu để đếm và để lọc, không
+	 *    phải để in.
+	 */
+	private static function pin_trung_ds() {
+		$ra = array();
+		foreach ( (array) VHCC_DB::rows(
+			'SELECT pin_dang_nhap FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. " WHERE pin_dang_nhap <> '' GROUP BY pin_dang_nhap HAVING COUNT(*) > 1" ) as $r ) {
+			$ra[] = (string) $r['pin_dang_nhap'];
+		}
+		return $ra;
+	}
+
 	private static function the_ho_so( $ky, $toi ) {
 		global $wpdb;
 		$bang = VHCC_DB::t( 'nhan_vien' );
@@ -7498,6 +7524,18 @@ class VHCC_Web {
 		if ( 'chua_pin' === $loc )      { $dk[] = "pin_dang_nhap=''"; }
 		elseif ( 'co_pin' === $loc )    { $dk[] = "pin_dang_nhap<>''"; }
 		elseif ( 'chua_vt' === $loc )   { $dk[] = "vai_tro=''"; }
+		elseif ( 'trung_pin' === $loc ) {
+			/* Lọc theo DANH SÁCH PIN trùng (tính bằng một lượt GROUP BY), không lồng truy vấn con
+			   vào chính bảng ấy — MySQL cũ chạy kiểu lồng này rất chậm trên bảng vài trăm dòng,
+			   mà đây là màn mở hàng ngày. */
+			$dsp = self::pin_trung_ds();
+			if ( ! $dsp ) { $dk[] = '1=0'; }
+			else {
+				$oo = array();
+				foreach ( $dsp as $p ) { $oo[] = $wpdb->prepare( '%s', $p ); }
+				$dk[] = 'pin_dang_nhap IN (' . implode( ',', $oo ) . ')';
+			}
+		}
 		elseif ( 'chua_vao' === $loc )  {
 			/* "Chưa đăng nhập được" = thiếu PIN, HOẶC vai trò không nằm trong nhóm được vào.
 			   Đây mới là câu hỏi thật: không phải "có PIN chưa", mà "vào được chưa". */
@@ -7548,10 +7586,11 @@ class VHCC_Web {
 		echo '<div><label for="fl">Trạng thái</label><select id="fl" name="loc">';
 		foreach ( array(
 			''         => '— tất cả —',
-			'chua_vao' => '⚠ CHƯA đăng nhập được',
-			'chua_pin' => '✖ chưa có PIN',
-			'chua_vt'  => '✖ chưa khai vai trò',
-			'co_pin'   => '✔ đã có PIN',
+			'chua_vao'  => '⚠ CHƯA đăng nhập được',
+			'trung_pin' => '⚠ PIN đang TRÙNG nhau',
+			'chua_pin'  => '✖ chưa có PIN',
+			'chua_vt'   => '✖ chưa khai vai trò',
+			'co_pin'    => '✔ đã có PIN',
 		) as $k_l => $n_l ) {
 			echo '<option value="' . esc_attr( $k_l ) . '"' . selected( $k_l, $loc, false ) . '>'
 				. esc_html( $n_l ) . '</option>';
@@ -7580,6 +7619,23 @@ class VHCC_Web {
 				self::url() ) ) . '"><b>xem ' . $thieu . ' người chưa vào được</b></a>';
 		}
 		echo '</div>';
+		/* 🔴 ĐANG CÓ PIN TRÙNG thì phải nói ngay, kèm đường bấm sang đúng nhóm đó. Chặn từ nay
+		   không dọn được chỗ trùng cũ (xem `pin_trung_ds`), mà người bị đứng sau thì gõ đúng PIN
+		   của mình lại rơi vào hồ sơ người khác — và họ tưởng mình bấm nhầm nên không ai báo. */
+		$dsp_trung = self::pin_trung_ds();
+		if ( $dsp_trung ) {
+			$so_ng = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $bang
+				. " WHERE pin_dang_nhap <> '' AND pin_dang_nhap IN ("
+				. implode( ',', array_map( function ( $p ) use ( $wpdb ) {
+					return $wpdb->prepare( '%s', $p ); }, $dsp_trung ) ) . ')' );
+			echo '<div class="bao canh" style="margin:0 0 10px">&#9888;&#65039; <b>' . count( $dsp_trung )
+				. ' mã PIN đang bị ' . $so_ng . ' người dùng chung</b> — cổng đăng nhập nhận người '
+				. 'gặp trước, nên người đứng sau gõ đúng PIN của mình mà vào hồ sơ người khác '
+				. '(và họ tưởng mình bấm nhầm nên không báo). <a href="'
+				. esc_url( add_query_arg( array( 'man' => 'ho_so', 'loc' => 'trung_pin' ), self::url() ) )
+				. '"><b>Xem và sửa</b></a></div>';
+		}
+
 		/* 🔴 MỘT DÒNG DUY NHẤT về cách cho người ta đăng nhập được — đặt ở đây vì thẻ 🔑 nay ẩn
 		   khi cổng đã đọc thẳng hồ sơ (xem chú thích ở `the_tai_khoan`). Không có dòng này thì
 		   cái biết "cấp quyền ở đâu" mất theo cái thẻ vừa ẩn, và người mở trang phải đi đoán. */

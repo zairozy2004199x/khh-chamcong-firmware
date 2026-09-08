@@ -1536,6 +1536,77 @@ class VHCC_NhanSu {
 		return null === $ma ? '' : (string) $ma;
 	}
 
+	/**
+	 * PIN MÁY NÀY ĐANG LÀ CỦA AI — trong CÙNG cơ sở. Trả mã NV, hoặc chuỗi rỗng.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*.
+	 *    PIN máy là mã BẤM PHÍM trên đầu đọc Hikvision (trường `password` của user). Hai người
+	 *    cùng cơ sở mang cùng một PIN máy là **giờ của người này ghi vào người kia** — sai trực
+	 *    tiếp trên bảng công, mà không có gì báo: cả hai bấm đều "mở được".
+	 *
+	 * ⚠️ SO TRONG CÙNG CƠ SỞ, KHÔNG so cả chuỗi. Mỗi đầu đọc chỉ giữ người của cơ sở nó, nên hai
+	 *    cơ sở khác nhau trùng PIN máy là vô hại — chặn cả chuỗi thì tới cơ sở thứ mười là không
+	 *    còn số 4 chữ số nào cấp được, và người ta sẽ đi vòng qua bằng cách bỏ trống ô.
+	 * ⚠️ Tính CẢ cơ sở phụ: người tăng cường có mặt trên đầu đọc của cả hai nơi.
+	 */
+	public static function pin_may_dang_dung( $pin, $tru_ma = '', $coso_ds = array() ) {
+		$pin = trim( (string) $pin );
+		if ( '' === $pin ) { return ''; }
+		$cs = array();
+		foreach ( (array) $coso_ds as $x ) {
+			$x = self::chu_thuong( self::chuan_coso( $x ) );
+			if ( '' !== $x ) { $cs[ $x ] = 1; }
+		}
+		if ( ! $cs ) { return ''; }        // chưa khai cơ sở nào -> chưa đụng đầu đọc nào
+		$tru_ma = trim( (string) $tru_ma );
+		global $wpdb;
+		$rows = VHCC_DB::rows( $wpdb->prepare(
+			'SELECT ma_nv, cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. ' WHERE pin_may=%s AND ma_nv<>%s', $pin, $tru_ma ) );
+		foreach ( (array) $rows as $r ) {
+			foreach ( self::ds_coso_hs( $r ) as $x ) {
+				if ( isset( $cs[ self::chu_thuong( $x ) ] ) ) { return (string) $r['ma_nv']; }
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * SOÁT HAI Ô PIN TRƯỚC KHI GHI — dùng chung cho MỌI đường lưu hồ sơ.
+	 *
+	 * 🔴 Một hàm duy nhất, vì có tới bốn đường ghi được vào hai ô ấy (màn Hồ sơ ngoài web, màn
+	 *    wp-admin, nạp .csv, kéo từ app gốc). Mỗi đường tự viết một phép soát là sớm muộn có
+	 *    đường quên, mà đường quên thì hỏng IM LẶNG: cổng đăng nhập nhận người gặp trước, hoặc
+	 *    giờ chấm công của người này ghi sang người kia.
+	 *
+	 * @param array  $ghi     mảng sắp ghi (đọc `pin_dang_nhap`, `pin_may`; ô nào trống thì bỏ qua).
+	 * @param string $ma      mã NV đang lưu — trừ chính nó ra khi so.
+	 * @param array  $coso_ds cơ sở của người này (cho phép so PIN máy trong cùng cơ sở).
+	 * @return string Câu báo lỗi, hoặc '' nếu sạch.
+	 */
+	public static function pin_trung_loi( $ghi, $ma, $coso_ds = array() ) {
+		if ( ! empty( $ghi['pin_dang_nhap'] ) ) {
+			$k = self::pin_dang_dung( $ghi['pin_dang_nhap'], $ma );
+			if ( '' !== $k ) {
+				$hs = self::ho_so( $k );
+				$ten = ( $hs && '' !== trim( (string) $hs['ho_ten'] ) ) ? $hs['ho_ten'] : $k;
+				return 'PIN đăng nhập này đã cấp cho ' . $ten . ' (' . $k . '). Hai người cùng PIN '
+					. 'thì cổng nhận người gặp trước, và nhật ký ghi tên người đó — người kia làm '
+					. 'gì cũng mang tên người này. Chọn số khác.';
+			}
+		}
+		if ( ! empty( $ghi['pin_may'] ) ) {
+			$k = self::pin_may_dang_dung( $ghi['pin_may'], $ma, $coso_ds );
+			if ( '' !== $k ) {
+				$hs = self::ho_so( $k );
+				$ten = ( $hs && '' !== trim( (string) $hs['ho_ten'] ) ) ? $hs['ho_ten'] : $k;
+				return 'PIN máy chấm công này đã cấp cho ' . $ten . ' (' . $k . ') ở cùng cơ sở. '
+					. 'Hai người cùng PIN máy thì giờ của người này ghi vào người kia. Chọn số khác.';
+			}
+		}
+		return '';
+	}
+
 	/** Bốn ô liên lạc cửa hàng được sửa. Khai MỘT chỗ để cửa và màn không bao giờ lệch nhau. */
 	const O_CUA_HANG_SUA = array(
 		'sdt'                => 'Số điện thoại',
@@ -1757,6 +1828,21 @@ class VHCC_NhanSu {
 			$ghi[ $o ] = $v;
 		}
 		if ( isset( $ghi['cua_hang'] ) ) { $ghi['cua_hang'] = self::chuan_coso( $ghi['cua_hang'] ); }
+
+		/* 🔴 CHẶN PIN TRÙNG — anh Thắng 08/09/2026: *"chặn trường hợp tạo mã pin trùng nhé"*.
+		   Đường này (màn wp-admin) trước đây ghi thẳng cả hai ô PIN, không soát gì: màn ngoài web
+		   có soát PIN đăng nhập, nên cùng một việc mà hai cửa cho ra hai kết quả khác nhau.
+		   ⚠️ Trống = KHÔNG ĐỔI/không đụng, nên `pin_trung_loi()` bỏ qua ô trống — coi trống là
+		      phải soát thì mọi lượt sửa số điện thoại cũng bị chối oan. */
+		$cs_soat = self::ds_coso_hs( array(
+			'cua_hang' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang']
+				: ( $cu ? $cu['cua_hang'] : '' ),
+			'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu']
+				: ( $cu && isset( $cu['coso_phu'] ) ? $cu['coso_phu'] : '' ),
+		) );
+		$loi_pin = self::pin_trung_loi( $ghi, $ma, $cs_soat );
+		if ( '' !== $loi_pin ) { return array( 'ok' => false, 'error' => $loi_pin ); }
+
 		$ghi['cap_nhat'] = current_time( 'mysql' );
 
 		if ( $cu ) {

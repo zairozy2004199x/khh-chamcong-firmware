@@ -128,6 +128,49 @@ dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn p
   không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
   sổ cũ có những câu như "Đã nghỉ 12/2025".
 
+### Chặn PIN trùng ở mọi đường ghi (3.47.0)
+
+> Anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*.
+
+Có **bốn đường** ghi được vào hai ô PIN, mà trước bản này chỉ **một** đường soát trùng:
+
+| Đường ghi | Trước | Nay |
+|---|---|---|
+| Màn Hồ sơ ngoài web (`sua_hs`) | soát PIN đăng nhập | soát cả **PIN máy** |
+| Màn wp-admin (`luu_ho_so`) | **không soát gì** | soát cả hai |
+| Nạp `.csv` | chỉ soát *khuôn* PIN | soát trùng: **bỏ đúng ô PIN** của dòng ấy, giữ các ô khác, báo tên ra |
+| Kéo từ app gốc | không soát | như trên, và ghi lý do vào dòng báo cáo |
+
+Luật chung nằm ở **`VHCC_NhanSu::pin_trung_loi()`** — một hàm cho cả bốn đường, vì mỗi đường tự
+viết một phép soát là sớm muộn có đường quên, mà đường quên thì hỏng im lặng.
+
+**Hai ô PIN, hai phạm vi khác nhau:**
+
+* **PIN đăng nhập** — so **cả chuỗi**. Trùng là cổng nhận người *gặp trước*, nhật ký ghi tên người
+  đó, còn người kia gõ đúng PIN của mình mà vào hồ sơ người khác — và họ tưởng mình bấm nhầm nên
+  **không ai báo**.
+* **PIN máy chấm công** — so **trong cùng cơ sở** (tính cả cơ sở phụ). Trùng là **giờ của người này
+  ghi vào người kia**. Cố ý *không* so cả chuỗi: mỗi đầu đọc chỉ giữ người của cơ sở nó, chặn cả
+  chuỗi thì tới cơ sở thứ mười là không còn số 4 chữ số nào cấp được, và người ta sẽ đi vòng qua
+  bằng cách bỏ trống ô.
+
+Ô PIN **để trống vẫn là "không đổi"** — không soát ô trống, kẻo mọi lượt sửa số điện thoại cũng bị
+chối oan.
+
+**Chỗ đang trùng từ TRƯỚC thì chặn không dọn được** (sổ kéo về từ Sheets, nơi PIN gõ tay). Nên thẻ
+*Hồ sơ nhân sự* nay tự chỉ ra: một dải đỏ **"N mã PIN đang bị M người dùng chung"** kèm đường bấm,
+và một mục lọc **⚠ PIN đang TRÙNG nhau** để xem đúng nhóm ấy. Dọn hết thì dải báo tắt — báo mãi
+thành tiếng ồn rồi không ai đọc nữa.
+
+Phép thử (30 phép): chối PIN đăng nhập trùng ở `luu_ho_so` và nêu **trùng với ai** · PIN máy trùng
+**cùng cơ sở** thì chối, **khác cơ sở** thì cho · lưu lại chính hồ sơ đang giữ PIN đó không bị tự
+chối · không gửi ô PIN thì lưu bình thường · màn web chối PIN máy trùng · `.csv` bỏ đúng ô PIN mà
+vẫn nạp các ô khác, bắt cả **trùng giữa hai dòng trong cùng file** · đường kéo bỏ PIN của dòng sau
+và **nói ra trong dòng báo cáo** · dải đỏ + mục lọc chỉ ra đúng người đang trùng, và **tắt** sau khi
+dọn.
+
+---
+
 ### Dọn hai chỗ gây nhầm (3.46.0)
 
 > Anh Thắng: *"loại bỏ chỗ này tránh nhầm"* (nút ở `/nhan-su/`) và *"loại bỏ chỗ này"* (thẻ 🔑).

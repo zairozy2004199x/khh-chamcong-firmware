@@ -4594,6 +4594,30 @@ teq( 'kéo lần hai: 2 cập nhật', 2, $kq['sua'] );
 teq( 'tổng hồ sơ vẫn là 2 — không nhân đôi', 2,
 	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
 
+/* 🔴 KÉO VỀ MÀ NGUỒN ĐÃ TRÙNG PIN — anh Thắng 08/09/2026: *"chặn trường hợp tạo mã pin trùng"*.
+   Sổ ở app gốc là sổ gõ tay, không ai gác, nên có thể đã trùng từ bên đó. Kéo nguyên về là hai
+   người cùng PIN đăng nhập: cổng nhận người GẶP TRƯỚC và nhật ký ghi tên người đó.
+   ⚠️ Chỉ BỎ Ô PIN của dòng sau, vẫn kéo các ô khác — lượt kéo này để dựng lại cả sổ nhân sự,
+      chối cả dòng vì một ô PIN là mất luôn tên/cơ sở/lương của người đó. Và phải BÁO trong dòng
+      báo cáo, không thì nó là một ô PIN biến mất không dấu vết. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array( 'getEmployees' => array(
+	array( 'employeeNo' => 'NVP1', 'name' => 'Kéo Một', 'station' => 'TUTU_BT', 'pinDangNhap' => '246800' ),
+	array( 'employeeNo' => 'NVP2', 'name' => 'Kéo Hai', 'station' => 'TUTU_BT', 'pinDangNhap' => '246800' ),
+) ) ) );
+$kq_keo = VHCC_Keo::keo_nhan_su( false );
+t( 'kéo được', ! empty( $kq_keo['ok'] ), $kq_keo );
+teq( 'người đầu giữ PIN', '246800', (string) $wpdb->get_var( 'SELECT pin_dang_nhap FROM '
+	. VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NVP1'" ) );
+teq( '🔴 người sau bị BỎ ô PIN, không ghi trùng', '', (string) $wpdb->get_var( 'SELECT pin_dang_nhap FROM '
+	. VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NVP2'" ) );
+teq( 'nhưng vẫn kéo được các ô khác của người sau', 'Kéo Hai', (string) $wpdb->get_var( 'SELECT ho_ten FROM '
+	. VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NVP2'" ) );
+$viec_txt = '';
+foreach ( (array) $kq_keo['dong'] as $d ) { if ( 'NVP2' === $d['ma'] ) { $viec_txt = $d['viec']; } }
+t( '🔴 và NÓI RA trong dòng báo cáo là đã bỏ PIN vì trùng',
+	strpos( $viec_txt, 'bỏ PIN đăng nhập trùng' ) !== false, $viec_txt );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('NVP1','NVP2')" );
+
 /* App gốc trả rỗng -> nói rõ nghi PIN, đừng báo "thành công 0 dòng". */
 $GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array( 'getEmployees' => array() ) ) );
 $kq = VHCC_Keo::keo_nhan_su( true );
@@ -6532,6 +6556,91 @@ t( 'nhưng vẫn thấy người làm ở cơ sở mình (DS2 tích thêm TUTU_B
 teq( 'không có $toi thì khối rỗng hẳn', '',
 	vhcc_goi_rieng( 'VHCC_Web', 'khoi_nv_dang_co', array( null ) ) );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('DS1','DS2','DS3')" );
+
+/* ===== CHẶN PIN TRÙNG Ở MỌI ĐƯỜNG GHI (08/09/2026) ===========================================
+   🔴 Anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*.
+   Có BỐN đường ghi được vào hai ô PIN: màn Hồ sơ ngoài web (`sua_hs`), màn wp-admin
+   (`luu_ho_so`), nạp .csv, và kéo từ app gốc. Trước bản này chỉ đường đầu soát PIN đăng nhập,
+   nên cùng một việc mà mỗi cửa cho ra một kết quả khác nhau. Nay cả bốn đi qua một luật chung
+   (`VHCC_NhanSu::pin_trung_loi`), và luật ấy soát CẢ PIN máy chấm công.
+   · PIN đăng nhập trùng  -> cổng nhận người GẶP TRƯỚC, nhật ký ghi tên người đó.
+   · PIN máy trùng trong CÙNG cơ sở -> giờ của người này ghi vào người kia trên bảng công. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'PT1', 'ho_ten' => 'Người Giữ PIN',
+	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '515253', 'pin_may' => '4321' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'PT2', 'ho_ten' => 'Người Cùng Cơ Sở',
+	'cua_hang' => 'JP_HCM' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'PT3', 'ho_ten' => 'Người Cơ Sở Khác',
+	'cua_hang' => 'TUTU_BT' ) );
+
+/* --- Đường wp-admin (`luu_ho_so`) — trước đây ghi thẳng, không soát gì --- */
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT2', 'pin_dang_nhap' => '515253' ) );
+t( '🔴 luu_ho_so: PIN đăng nhập trùng -> CHỐI', empty( $r['ok'] ), $r );
+t( 'và nói rõ trùng với AI', ! empty( $r['error'] ) && strpos( $r['error'], 'Người Giữ PIN' ) !== false, $r );
+teq( 'người bị trùng KHÔNG bị ghi PIN', '', (string) vhcc_hs( 'PT2' )['pin_dang_nhap'] );
+teq( 'và người đang giữ PIN vẫn nguyên', '515253', vhcc_hs( 'PT1' )['pin_dang_nhap'] );
+
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT2', 'pin_may' => '4321' ) );
+t( '🔴 luu_ho_so: PIN MÁY trùng trong cùng cơ sở -> CHỐI', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ là PIN máy và cùng cơ sở',
+	! empty( $r['error'] ) && strpos( $r['error'], 'PIN máy' ) !== false
+	&& strpos( $r['error'], 'cùng cơ sở' ) !== false, $r );
+/* ⚠️ Nhưng cơ sở KHÁC thì PHẢI cho: mỗi đầu đọc chỉ giữ người của cơ sở nó, chặn cả chuỗi thì
+   tới cơ sở thứ mười là không còn số 4 chữ số nào cấp được. */
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT3', 'pin_may' => '4321' ) );
+t( '🔴 PIN máy trùng nhưng KHÁC cơ sở -> cho lưu', ! empty( $r['ok'] ), $r );
+teq( 'và ghi được thật', '4321', vhcc_hs( 'PT3' )['pin_may'] );
+/* Sửa chính mình thì không tự chối mình (trừ mã đang lưu ra khi so). */
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT1', 'pin_dang_nhap' => '515253',
+	'ho_ten' => 'Người Giữ PIN B' ) );
+t( 'lưu lại chính hồ sơ đang giữ PIN đó thì KHÔNG bị chối', ! empty( $r['ok'] ), $r );
+/* Ô PIN trống thì đừng soát — không thì mọi lượt sửa ô khác cũng bị chối oan. */
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT2', 'sdt' => '0909000111' ) );
+t( 'không gửi ô PIN nào thì lưu bình thường', ! empty( $r['ok'] ), $r );
+
+/* --- Đường màn Hồ sơ ngoài web (`sua_hs`) — nay soát cả PIN máy --- */
+$h_p = vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'PT2', 'pin_may' => '4321' ) );
+t( '🔴 màn web: PIN máy trùng cùng cơ sở -> chối, nói rõ trùng với ai',
+	strpos( $h_p, 'PIN máy' ) !== false && strpos( $h_p, 'Người Giữ PIN' ) !== false, $h_p );
+teq( 'và không ghi gì vào ô PIN máy', '', (string) vhcc_hs( 'PT2' )['pin_may'] );
+
+/* --- Đường nạp .csv: BỎ đúng ô PIN của dòng trùng, giữ các ô khác, và BÁO RA --- */
+$kq_csv = VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,PIN đăng nhập\n"
+	. "PT4,Người Nạp Một,JP_HCM,515253\n"
+	. "PT5,Người Nạp Hai,JP_HCM,676767\n"
+	. "PT6,Người Nạp Ba,JP_HCM,676767\n", false );
+t( 'nạp .csv chạy được', ! empty( $kq_csv['ok'] ), $kq_csv );
+$canh_txt = implode( ' | ', (array) $kq_csv['canh'] );
+t( '🔴 .csv: PIN trùng người đang có -> báo ra',
+	strpos( $canh_txt, 'Người Nạp Một' ) !== false && strpos( $canh_txt, 'PT1' ) !== false, $canh_txt );
+t( '🔴 .csv: PIN trùng giữa HAI DÒNG trong cùng file -> cũng bắt',
+	strpos( $canh_txt, 'Người Nạp Ba' ) !== false && strpos( $canh_txt, 'cùng file' ) !== false, $canh_txt );
+teq( 'dòng trùng bị BỎ ô PIN', '', (string) vhcc_hs( 'PT4' )['pin_dang_nhap'] );
+teq( 'nhưng các ô khác của nó vẫn nạp', 'Người Nạp Một', vhcc_hs( 'PT4' )['ho_ten'] );
+teq( 'dòng đầu tiên dùng PIN đó thì vẫn được giữ', '676767', vhcc_hs( 'PT5' )['pin_dang_nhap'] );
+teq( 'dòng sau bị bỏ PIN', '', (string) vhcc_hs( 'PT6' )['pin_dang_nhap'] );
+
+/* --- Chỗ ĐANG trùng từ trước: màn danh sách phải tự chỉ ra --- */
+/* ⚠️ Ghi thẳng vào bảng để dựng cảnh trùng CŨ — đi qua cửa nào cũng bị chặn, mà chặn từ nay
+   KHÔNG dọn được chỗ đã trùng trong sổ kéo về từ Sheets. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '515253' ), array( 'ma_nv' => 'PT2' ) );
+$h_tr = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
+t( '🔴 màn danh sách BÁO ĐỎ khi đang có PIN trùng',
+	strpos( $h_tr, 'người dùng chung' ) !== false, $h_tr );
+t( 'kèm đường bấm sang đúng nhóm đó',
+	strpos( $h_tr, 'loc=trung_pin' ) !== false, $h_tr );
+t( 'và có mục lọc "PIN đang TRÙNG nhau"',
+	strpos( $h_tr, 'PIN đang TRÙNG nhau' ) !== false );
+$h_tr2 = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'loc' => 'trung_pin' ) );
+t( 'lọc ra ĐÚNG hai người dùng chung PIN',
+	strpos( $h_tr2, 'Người Giữ PIN' ) !== false && strpos( $h_tr2, 'Người Cùng Cơ Sở' ) !== false, $h_tr2 );
+t( 'và KHÔNG kéo theo người không trùng', strpos( $h_tr2, 'Người Cơ Sở Khác' ) === false, $h_tr2 );
+/* Dọn xong thì dải báo phải tắt — báo mãi thành tiếng ồn, rồi không ai đọc nữa. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ), array( 'ma_nv' => 'PT2' ) );
+$h_tr3 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
+t( 'dọn hết trùng thì dải báo TẮT', strpos( $h_tr3, 'người dùng chung' ) === false );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' )
+	. " WHERE ma_nv IN ('PT1','PT2','PT3','PT4','PT5','PT6')" );
 
 /* PIN sai khuôn thì CHỐI RIÊNG DÒNG ĐÓ, không lưu nửa vời dòng đó — nhưng cũng KHÔNG được làm
    hỏng cả lượt gửi. Bắt làm lại từ đầu cả trăm dòng vì một PIN gõ nhầm là cách chắc nhất để
