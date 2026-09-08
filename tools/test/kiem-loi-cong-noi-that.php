@@ -68,7 +68,7 @@ $j2 = strpos( $SRC, "\n\t}", $i2 );
 t( 'bốc được chốt chết máy', false !== $i2 && $j2 > $i2 );
 $THAN_CHET = ( false !== $i2 && $j2 > $i2 ) ? substr( $SRC, $i2, $j2 - $i2 + 3 ) : '';
 
-eval( 'class VHG_T { public static function slug(){ return "ghe"; } private static $da_tra = false;'
+eval( 'class VHG_T { public static function slug(){ return "ghe"; } private static $da_tra = false; private static $bat_dau = 0.0;'
 	. str_replace( 'private static function tra', 'public static function tra', $THAN_TRA )
 	. $THAN_CHET
 	. ' public static function daTra(){ return self::$da_tra; }'
@@ -93,7 +93,12 @@ function chay_tra( $d, $rac_truoc = '', $debug = false ) {
 		. "function status_header(\$c){} function nocache_headers(){}\n"
 		. "function wp_json_encode(\$d){ return json_encode(\$d, JSON_UNESCAPED_UNICODE); }\n"
 		. "class VHG_T { public static function slug(){ return 'ghe'; } private static \$da_tra = false;\n"
-		. str_replace( 'private static function tra', 'public static function tra', $THAN_TRA ) . "\n}\n"
+		. "  private static \$bat_dau = 0.0;\n"
+		. str_replace( 'private static function tra', 'public static function tra', $THAN_TRA )
+		/* `api()` mới là chỗ đặt mốc thời gian thật; bệ đỡ này chỉ chạy `tra()`, nên tự đặt
+		   mốc — không thì `ms` không bao giờ có và phép dưới đỏ vì một chuyện nó không soi. */
+		. "\n  public static function datMoc(){ self::\$bat_dau = microtime(true); }\n}\n"
+		. "VHG_T::datMoc();\n"
 		. "ob_start();\n"                              // tầng "của WordPress / plugin khác"
 		. "echo " . var_export( $rac_truoc, true ) . ";\n"
 		. "VHG_T::tra(" . var_export( $d, true ) . ");\n";
@@ -156,8 +161,11 @@ teq( 'và không kêu là có rác', false, isset( $j4['racLen'] ) );
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 t( 'chốt được gắn trong api()', false !== strpos( $SRC, "register_shutdown_function( array( __CLASS__, 'chot_chet_may' ) )" ) );
 /* 🔴 Gắn TRƯỚC khi chạm dữ liệu: `json_decode` một gói tin khổng lồ cũng là chỗ hết bộ nhớ. */
+/* ⚠️ CANH Ý ĐỊNH: chốt phải đứng trước lượt ĐỌC THÂN GÓI TIN. Bản đầu ghim nguyên văn dòng
+   `$d = json_decode( self::than(), true );`; bản sau tách thân ra biến riêng để còn soi gói tin
+   bị nuốt, và phép thử đỏ vì một chuyện nó không soi. */
 $k1 = strpos( $SRC, 'register_shutdown_function' );
-$k2 = strpos( $SRC, '$d = json_decode( self::than(), true );' );
+$k2 = strpos( $SRC, 'self::than()', strpos( $SRC, 'public static function api()' ) );
 t( '🔴 gắn TRƯỚC lượt đọc gói tin', false !== $k1 && false !== $k2 && $k1 < $k2, array( $k1, $k2 ) );
 t( 'bộ thử không bị gắn chốt (không thì mọi bài kiểm in thêm JSON lạ)',
 	false !== strpos( $SRC, "if ( ! defined( 'VHG_TEST' ) ) { register_shutdown_function" ) );
@@ -194,6 +202,67 @@ foreach ( explode( "\n", $sach ) as $n => $l ) {
 teq( '🔴 không còn câu "mạng hoặc tường lửa" nào ở mã chạy', array(), $dong );
 t( 'hai màn đều dùng hàm đọc mã HTTP',
 	false !== strpos( $SRC, 'error:loiTho_(x)' ) && false !== strpos( $SRC, 'error: loiTho2_(x)' ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5. GÓI TIN BỊ HOSTING NUỐT — PHẢI GỌI ĐÚNG TÊN
+ *
+ * Trình duyệt gửi 9 MB mà `post_max_size` là 8 M: PHP vứt SẠCH thân gói tin, không báo gì. Cổng
+ * nhìn thấy một lượt gọi rỗng và trả câu lỗi chẳng liên quan — người gửi lại chục lần.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$i5 = strpos( $SRC, 'private static function goi_tin_bi_nuot(' );
+$j5 = strpos( $SRC, "\n\t}", $i5 );
+t( 'bốc được chốt gói tin bị nuốt', false !== $i5 && $j5 > $i5 );
+$THAN5 = ( false !== $i5 && $j5 > $i5 ) ? substr( $SRC, $i5, $j5 - $i5 + 3 ) : '';
+eval( 'class VHG_N { ' . str_replace( 'private static function', 'public static function', $THAN5 ) . ' }' );
+
+$_SERVER['CONTENT_LENGTH'] = 0;
+teq( 'thân rỗng mà trình duyệt cũng không gửi gì → không kêu', '', VHG_N::goi_tin_bi_nuot( '' ) );
+teq( 'có thân đàng hoàng → không kêu', '', VHG_N::goi_tin_bi_nuot( '{"a":1}' ) );
+$_SERVER['CONTENT_LENGTH'] = 9 * 1048576;
+$cau = VHG_N::goi_tin_bi_nuot( '' );
+t( '🔴 trình duyệt gửi 9 MB mà đọc ra RỖNG → gọi đúng tên chuyện', '' !== $cau, $cau );
+t( '   nói rõ bao nhiêu MB', false !== strpos( $cau, '9' ), $cau );
+t( '   nhắc đúng giới hạn đang chặn', false !== strpos( $cau, 'post_max_size' ), $cau );
+t( '   và bảo người ta làm gì tiếp', false !== strpos( $cau, 'Bớt ảnh' ), $cau );
+t( '🔴 thân CÓ dữ liệu thì không kêu, dù CONTENT_LENGTH lớn', '' === VHG_N::goi_tin_bi_nuot( '{"a":1}' ) );
+$_SERVER['CONTENT_LENGTH'] = 0;
+/* Và cổng phải THẬT SỰ gọi nó, trước khi giải mã. */
+$ka = strpos( $SRC, 'public static function api()' );
+t( '🔴 api() có gọi chốt ấy', false !== strpos( substr( $SRC, $ka, 1500 ), 'self::goi_tin_bi_nuot(' ) );
+t( '   và gọi TRƯỚC json_decode',
+	strpos( $SRC, 'self::goi_tin_bi_nuot(', $ka ) < strpos( $SRC, 'json_decode( $than', $ka ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6. NỚI THỜI GIAN CHẠY CHO LƯỢT NẶNG ẢNH + ĐO THỜI GIAN
+ *
+ * Anh Thắng 08/09/2026: *"bấm Gửi thì đợi rất lâu rồi mới báo lỗi"* — đúng hình dạng một lượt
+ * bị PHP cắt vì hết giờ (mặc định 30 giây trên phần lớn hosting).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có nới thời gian chạy', false !== strpos( $SRC, 'set_time_limit( 180 )' ) );
+$i6 = strpos( $SRC, 'set_time_limit( 180 )' );
+$khoi6 = substr( $SRC, max( 0, $i6 - 400 ), 500 );
+t( '🔴 chỉ nới cho mấy việc NẶNG ẢNH, không nới bừa cả cổng',
+	false !== strpos( $khoi6, "'bc_submit'" ) && false !== strpos( $khoi6, "in_array( \$viec" ), $khoi6 );
+t( 'nới bằng @ để host khoá hàm cũng không sinh cảnh báo', false !== strpos( $SRC, '@set_time_limit' ) );
+
+$ra6 = chay_tra( array( 'ok' => true ) );
+$j6  = json_decode( $ra6, true );
+t( '🔴 mọi lượt đều trả kèm số mili giây', isset( $j6['ms'] ), $ra6 );
+/* 🔴 VÀ `api()` PHẢI ĐẶT MỐC. Bệ đỡ trên tự đặt mốc để chạy được `tra()` một mình, nên nó KHÔNG
+   bắt được chuyện `api()` quên đặt — lúc ấy `ms` biến mất khỏi mọi lượt thật mà bộ thử vẫn
+   xanh. Phá thử chỉ ra đúng lỗ này. Soi thẳng mã, và đòi mốc đặt TRƯỚC lượt đọc thân gói tin:
+   đặt sau là con số đo thiếu mất đúng đoạn nặng nhất. */
+$ia = strpos( $SRC, 'public static function api() {' );
+$im = strpos( $SRC, 'self::$bat_dau = microtime( true );', $ia );
+$it = strpos( $SRC, 'self::than()', $ia );
+t( '🔴 api() đặt mốc thời gian', false !== $im, substr( $SRC, $ia, 200 ) );
+t( '   và đặt TRƯỚC lượt đọc thân gói tin', false !== $im && false !== $it && $im < $it, array( $im, $it ) );
+t( '   và nó là một con số', is_int( isset( $j6['ms'] ) ? $j6['ms'] : null ), $j6 );
+t( '   không âm', ( isset( $j6['ms'] ) ? $j6['ms'] : -1 ) >= 0, $j6 );
+/* Màn hình phải bày con số ấy ra, không thì trả về cho vui. */
+t( '🔴 màn có hàm dựng đuôi thời gian', false !== strpos( $SRC, 'function duoiGiay_(' ) );
+teq( '   dùng ở đúng 4 chỗ (mỗi đường: một câu xong, một câu lỗi)',
+	4, substr_count( $SRC, 'duoiGiay_(r,_t0,_soAnh)' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

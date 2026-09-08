@@ -120,6 +120,11 @@ class VHG_Trang {
 				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) { $d['racDau'] = substr( $rac, 0, 300 ); }
 			}
 		}
+		/* Lượt này chạy mất bao lâu — trả kèm MỌI lượt. Không có con số ấy thì "chậm" chỉ là
+		   cảm giác của người bấm, và không ai biết chậm ở máy chủ hay ở đường truyền. */
+		if ( is_array( $d ) && self::$bat_dau > 0 ) {
+			$d['ms'] = (int) round( ( microtime( true ) - self::$bat_dau ) * 1000 );
+		}
 		if ( ! headers_sent() ) {
 			status_header( 200 );
 			nocache_headers();
@@ -166,11 +171,43 @@ class VHG_Trang {
 		self::tra( $ra );
 	}
 
+	/** Mốc bắt đầu lượt gọi — để `tra()` nói được lượt này chạy mất bao lâu. */
+	private static $bat_dau = 0.0;
+
+	/**
+	 * 🔴 GÓI TIN BỊ HOSTING NUỐT THÌ PHẢI NÓI RA, ĐỪNG ĐỂ NÓ THÀNH "LỖI LẠ".
+	 *
+	 * Trình duyệt gửi 9 MB mà `post_max_size` của host là 8 M: PHP vứt SẠCH thân gói tin, không
+	 * báo gì cả. `$_POST` rỗng, `php://input` rỗng — cổng nhìn thấy một lượt gọi không có dữ
+	 * liệu và trả một câu lỗi chẳng liên quan gì tới nguyên nhân thật. Đúng thứ đã làm anh
+	 * Thắng gửi lại chục lần.
+	 *
+	 * Dấu vết nhận ra: `CONTENT_LENGTH` nói có N byte, mà đọc ra thì rỗng.
+	 *
+	 * @return string '' nếu không sao; ngược lại là câu nói thẳng chuyện gì xảy ra.
+	 */
+	private static function goi_tin_bi_nuot( $than ) {
+		if ( '' !== trim( (string) $than ) ) { return ''; }
+		$len = isset( $_SERVER['CONTENT_LENGTH'] ) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+		if ( $len <= 0 ) { return ''; }
+		$max = trim( (string) ini_get( 'post_max_size' ) );
+		return 'Gói tin ' . round( $len / 1048576, 1 ) . ' MB bị máy chủ từ chối vì vượt giới hạn'
+			. ( '' !== $max ? ' post_max_size = ' . $max : '' )
+			. '. Bớt ảnh rồi gửi lại, hoặc nhờ hosting nâng giới hạn.';
+	}
+
 	public static function api() {
+		self::$bat_dau = microtime( true );
 		/* Gắn chốt TRƯỚC khi chạm vào bất cứ thứ gì — kể cả `json_decode` một gói tin khổng lồ
 		   cũng có thể là chỗ hết bộ nhớ. */
 		if ( ! defined( 'VHG_TEST' ) ) { register_shutdown_function( array( __CLASS__, 'chot_chet_may' ) ); }
-		$d = json_decode( self::than(), true );
+		$than = self::than();
+		$nuot = self::goi_tin_bi_nuot( $than );
+		if ( '' !== $nuot ) {
+			self::tra( array( 'ok' => false, 'ma' => 'goi_tin_qua_lon', 'error' => $nuot ) );
+			return;
+		}
+		$d = json_decode( $than, true );
 		if ( ! is_array( $d ) ) { $d = array(); }
 		foreach ( $_POST as $k => $v ) { if ( ! isset( $d[ $k ] ) ) { $d[ $k ] = $v; } }
 		$viec = isset( $_GET['api'] ) ? (string) $_GET['api']
@@ -208,6 +245,20 @@ class VHG_Trang {
 		 *    `boot_tu_ai()` mãi mãi là mã chết. */
 		if ( 0 === strpos( $viec, 'bc_' ) && 0 !== strpos( $viec, 'bc_pin_' ) && 'bc_boot_tu_token' !== $viec ) {
 			$pin = (string) ( isset( $d['pin'] ) ? $d['pin'] : '' );
+			/* 🔴 NỚI THỜI GIAN CHẠY CHO MẤY LƯỢT NẶNG ẢNH.
+			   Một cơ sở 27 ghế có thể kèm ảnh chỉ số + ảnh vệ sinh cho từng ghế, cộng ảnh chứng
+			   từ — mỗi ảnh là một lượt `base64_decode` rồi ghi file. Hosting mặc định cho 30
+			   giây; quá là PHP dừng GIỮA CHỪNG, khách nhận trang trắng, và trang báo "mạng hoặc
+			   tường lửa". Anh Thắng 08/09/2026: *"bấm Gửi thì đợi rất lâu rồi mới báo lỗi"* —
+			   đúng hình dạng của một lượt bị cắt vì hết giờ.
+			   ⚠️ ĐÂY LÀ NỚI, KHÔNG PHẢI SỬA. Chỗ chậm thật vẫn phải tìm; `ms` trả kèm trong mỗi
+			      lượt (xem `tra()`) là để đo nó. Nới để lượt gửi của cơ sở không chết trong lúc
+			      chờ tìm — tiền đã thu mà báo cáo không nộp được là chuyện của hôm nay.
+			   ⚠️ Nhiều host khoá hẳn hàm này (safe_mode / cấu hình FastCGI); gọi vẫn vô hại, nó
+			      chỉ không có tác dụng, nên không cần gác gì thêm. */
+			if ( in_array( $viec, array( 'bc_submit', 'bc_submit_tong', 'bc_edit', 'bc_bill' ), true ) ) {
+				@set_time_limit( 180 );
+			}
 			if ( 'bc_boot' === $viec ) {
 				self::tra( VHG_BaoCao::boot( $pin ) ); return;
 			}
@@ -1497,6 +1548,18 @@ class VHG_Trang {
     if(!tho)     return 'Máy chủ trả về RỖNG (mã '+st+') — thường là PHP chết giữa chừng hoặc gói tin bị cắt.';
     return 'Máy chủ trả về thứ không đọc được (mã '+st+'): '+tho;
   }
+  /* Đuôi "· 12,3 s máy chủ · 27 ảnh" gắn vào câu báo. Người bấm cần biết chậm ở ĐÂU: máy chủ
+     nghiền lâu, hay đường truyền tải ảnh lâu. Không có con số thì "chậm" chỉ là cảm giác, và
+     lần sau vẫn không ai biết sửa chỗ nào. Dưới 3 giây thì im — nói ra chỉ là chữ thừa. */
+  function duoiGiay_(r, batDau, soAnh){
+    var tong=Math.round((Date.now()-batDau)/100)/10;
+    if(tong<3) return '';
+    var may=(r&&r.ms)?(Math.round(r.ms/100)/10):null;
+    var p=[tong+' s'];
+    if(may!==null) p.push(may+' s ở máy chủ');
+    if(soAnh) p.push(soAnh+' ảnh');
+    return ' · ' + p.join(' · ');
+  }
   function goi(viec,d,cb,timeoutMs){
     d=d||{}; if(!d.pin) d.pin=PIN;
     var x=new XMLHttpRequest();
@@ -2301,10 +2364,12 @@ class VHG_Trang {
         /* Timeout riêng 90s (thay vì 25s mặc định) — lượt gửi có thể kèm hàng chục ảnh (chứng
            từ + ảnh ghế), 4G yếu tải xong có khi quá 25s dù ảnh đã nén, gây "Lỗi khi gửi báo
            cáo" dù ảnh vẫn đang lên chứ chưa thật sự treo. */
+        var _t0=Date.now(), _soAnh=(proofs?proofs.length:0);
+        rows.forEach(function(rr){ if(rr.images){ if(rr.images.chiso) _soAnh++; if(rr.images.vesinh) _soAnh++; } });
         goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs} },function(r){
           GUI_DANG=false; $('bc-gui').disabled=false;
-          if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
-          msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
+          if(!r||!r.ok){ msg.textContent=((r&&r.message)||(r&&r.error)||'Gửi không thành công.')+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-err'; return; }
+          msg.textContent=(r.message||('Đã gửi báo cáo '+LOC+'.'))+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-ok';
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
           document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; try{ delete i._bulkFile; }catch(e){ i._bulkFile=null; } });
           document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });
@@ -2332,10 +2397,11 @@ class VHG_Trang {
     docAnh_('bc-proofs',function(proofs){
       if(!proofs.length){ GUI_DANG=false; $('bc-gui').disabled=false; msg.textContent='Cần đính ít nhất 1 ảnh chứng từ để gửi báo cáo tổng.'; msg.className='bc-msg bc-err'; return; }
       msg.textContent='Đang gửi…';
+      var _t0=Date.now(), _soAnh=(proofs?proofs.length:0);
       goi('bc_submit_tong',{ date:NGAY, loc:LOC, tong:tong, payment:payment, proofs:{qr:proofs} },function(r){
         GUI_DANG=false; $('bc-gui').disabled=false;
-        if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
-        msg.textContent=r.message||('Đã gửi báo cáo tổng '+LOC+'.'); msg.className='bc-msg bc-ok';
+        if(!r||!r.ok){ msg.textContent=((r&&r.message)||(r&&r.error)||'Gửi không thành công.')+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-err'; return; }
+        msg.textContent=(r.message||('Đã gửi báo cáo tổng '+LOC+'.'))+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-ok';
         bcXoaNhap();
         var iP=$('bc-proofs'); if(iP) iP.value='';
         if(aEl) aEl.value='';
