@@ -35,6 +35,8 @@
 $goc = dirname( dirname( __DIR__ ) );
 
 $dat = 0; $truot = array();
+/* Sơ đồ THẬT của từng bảng, gom lúc soi — dùng ở khối đối chiếu bệ đỡ cuối bài. */
+$cau_theo_bang = array();
 function t( $ten, $dk, $them = null ) {
 	global $dat, $truot;
 	if ( $dk ) { $dat++; return; }
@@ -58,6 +60,8 @@ foreach ( $tep as $f ) {
 		$tong_bang++;
 		/* Tên bảng để câu báo lỗi gọi đúng tên nó. */
 		$ten = preg_match( "#self::t\(\s*'([a-z_]+)'\s*\)#", $cau, $mt ) ? $mt[1] : '(không rõ)';
+		/* Giữ lại để cuối bài đối chiếu với bản chép tay trong bệ đỡ thử — xem khối 🔴 ở dưới. */
+		if ( '(không rõ)' !== $ten ) { $cau_theo_bang[ $ten ] = $cau; }
 		$nhan = $ten_tep . ' · ' . $ten;
 
 		/* 🔴 PHÉP CHÍNH: không dấu mở/đóng chú thích nào lọt vào giữa câu. */
@@ -103,6 +107,46 @@ foreach ( $tep as $f ) {
    dựng bảng từ mảng `bang()` nên không nằm trong đây, và không sao: chúng không đi qua chỗ
    ghép chuỗi nhiều dòng nên không dính bẫy này. */
 t( 'soi được kha khá bảng', $tong_bang >= 12, $tong_bang );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BỆ ĐỠ THỬ PHẢI CÓ ĐỦ CỘT NHƯ SƠ ĐỒ THẬT.
+ *
+ * `tools/test/wp-stub.php` chép TAY sơ đồ mấy bảng chính sang SQLite. Hai nguồn thì sớm muộn
+ * lệch, và lệch ở đây hỏng theo kiểu tệ nhất: mã thật ghi vào một cột bệ đỡ không có, lượt ghi
+ * trôi đi lặng lẽ, rồi hàng chục phép ở những bài KHÔNG liên quan cùng đỏ — người sửa đi tìm
+ * lỗi ở đúng chỗ vừa đụng vào, trong khi nguyên nhân nằm ở bệ đỡ.
+ *
+ * Đã cắn thật 08/09/2026: thêm cột `don.ngay_gui_qt`, quên bệ đỡ, và `test-flows.php` đỏ 40
+ * phép với những câu như "trạng thái sau quyết toán: nhận được Đã cấp tạm ứng".
+ *
+ * Chỉ soi bảng nào bệ đỡ CÓ chép: bệ đỡ cố ý không dựng hết mọi bảng, và đòi nó dựng đủ là
+ * bắt nó gánh việc nó không định làm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+$stub = file_get_contents( __DIR__ . '/wp-stub.php' );
+function cot_cua_( $sql ) {
+	$i = strpos( $sql, '(' );
+	$than = ( false === $i ) ? '' : substr( $sql, $i + 1 );
+	$ra = array();
+	foreach ( explode( ',', $than ) as $d ) {
+		$d = trim( $d );
+		if ( preg_match( '#^([a-z_][a-z0-9_]*)\s#i', $d, $m ) ) {
+			$k = strtolower( $m[1] );
+			if ( ! in_array( $k, array( 'primary', 'unique', 'key', 'index' ), true ) ) { $ra[ $k ] = 1; }
+		}
+	}
+	return $ra;
+}
+$so_doi = 0;
+foreach ( $cau_theo_bang as $ten => $cau ) {
+	if ( ! preg_match( '#CREATE TABLE \{\$p\}' . preg_quote( $ten, '#' ) . '\s*\((.*?)\)",#s', $stub, $ms ) ) { continue; }
+	$so_doi++;
+	$that = cot_cua_( $cau );
+	$gia  = cot_cua_( '(' . $ms[1] . ')' );
+	$thieu = array_diff( array_keys( $that ), array_keys( $gia ) );
+	t( "🔴 bệ đỡ thử có đủ cột của bảng `$ten`", ! $thieu, implode( ', ', $thieu ) );
+}
+/* Ngưỡng: đối chiếu trượt hết mà vẫn xanh thì phép trên chẳng canh gì. */
+t( 'đối chiếu được ít nhất vài bảng với bệ đỡ', $so_doi >= 3, $so_doi );
 
 if ( count( $truot ) ) {
 	echo "\n=== SƠ ĐỒ BẢNG ===\n";

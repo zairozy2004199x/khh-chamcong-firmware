@@ -5704,9 +5704,27 @@
       /* Bảng "Đã quyết toán" đi qua bộ lọc RIÊNG, nên dựng lại từ đầu chứ không lọc tiếp từ
          `all` (vốn đã bị ô chung cắt mất mấy tuần). */
       var xong=(BOOT.dons||[]).filter(function(d){ return _daQT(d) && _qtLocXong(d); });
-      // Chờ: kỳ CŨ nhất lên trước (đơn tồn lâu nhất phải xử trước).
-      // Đã xong: kỳ MỚI nhất lên trước (tra lại thì tìm cái vừa làm).
-      cho.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
+      /* 🔴 CHỜ QUYẾT TOÁN XẾP THEO LƯỢT GỬI — ai gửi trước lên trên.
+         Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên trước sẽ hiện phía
+         trên"*. Đây là HÀNG ĐỢI của kế toán, nên phải theo thứ tự đến: ai nộp sớm được xử
+         sớm. Xếp theo KỲ như trước thì mọi đơn cùng tuần nằm lẫn lộn, và người nộp từ thứ hai
+         với người nộp chiều chủ nhật đứng ngang nhau.
+
+         Ba tầng khoá, đúng thứ tự này:
+           1. Đơn ĐÃ GỬI lên trên, đơn CHƯA GỬI (chìm) xuống dưới — chưa gửi thì chưa vào hàng.
+           2. Trong nhóm đã gửi: mốc gửi CŨ nhất trước.
+           3. Không có mốc nào (đơn cũ, cả ba cột đều trống) thì lui về KỲ cũ nhất — vẫn giữ
+              được ý "tồn lâu nhất xử trước" thay vì rơi xuống đáy bảng.
+
+         Đã xong: kỳ MỚI nhất lên trước (tra lại thì tìm cái vừa làm). */
+      cho.sort(function(a,b){
+        var ca=_laChim(a)?1:0, cb=_laChim(b)?1:0;
+        if(ca!==cb) return ca-cb;
+        var ga=Number(a.guiQTAt)||0, gb=Number(b.guiQTAt)||0;
+        if(ga&&gb&&ga!==gb) return ga-gb;
+        if(ga!==gb) return gb?1:-1;          // đơn KHÔNG có mốc xuống sau đơn có mốc
+        return _kyVal(a.ky)-_kyVal(b.ky);
+      });
       xong.sort(function(a,b){ return _kyVal(b.ky)-_kyVal(a.ky); });
       _qtVeBang('cho', cho, canBatch);
       _qtVeBang('xong', xong, false);   // đơn đã xong thì không tích duyệt nữa

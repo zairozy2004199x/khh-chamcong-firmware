@@ -740,6 +740,10 @@ class VHCP_Don {
 				'xuatNCC'     => VHCP_Util::fmt( $r['ngay_xuat_ncc'] ),
 				'nguoiCap'    => (string) $r['nguoi_cap'],
 				'ngayCap'     => VHCP_Util::fmt( $r['ngay_cap'] ),
+				/* Số giây để XẾP THỨ TỰ hàng đợi quyết toán — không phải để bày ra màn. Trả số
+				   chứ không trả chuỗi ngày: giao diện chỉ cần so lớn bé, mà so chuỗi 'd/m/Y'
+				   thì "02/10" đứng trước "15/09". Xem `xep_gui_qt_()`. */
+				'guiQTAt'     => self::xep_gui_qt_( $r ),
 				'htCap'       => (string) $r['ht_cap'],
 				'anhCap'      => (string) $r['anh_cap'],
 				'tatToan'     => ( trim( (string) $r['tat_toan'] ) !== '' ),
@@ -2132,7 +2136,20 @@ class VHCP_Don {
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Đã cấp tạm ứng' ) { return VHCP_Util::err( 'Chỉ gửi khi đơn "Đã cấp tạm ứng"' ); }
 		self::clear_tra_marker( $ma_don );
-		self::upd_don( $ma_don, array( 'trang_thai' => 'Chờ quyết toán' ) );
+		/* 🔴 GHI MỐC GỬI. Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên
+		   trước sẽ hiện phía trên"* — hàng đợi của kế toán phải theo thứ tự đến, ai nộp sớm
+		   được xử sớm. Trước bản này lượt gửi chỉ đổi trạng thái chứ không để lại dấu vết nào,
+		   nên không có gì để xếp.
+
+		   ⚠️ KHÁC `ngay_qt`, đừng dùng lẫn: `ngay_qt` là mốc KẾ TOÁN xác nhận xong, đứng ở
+		      cuối chặng; cột này là mốc NHÂN VIÊN bấm gửi, đứng ở đầu.
+
+		   ⚠️ Gửi lại sau khi bị trả về thì mốc ĐẶT LẠI theo lượt mới — đơn vừa sửa xong là
+		      đơn vừa vào hàng, không được giữ chỗ cũ trong khi kế toán đã soi nó một lần rồi. */
+		self::upd_don( $ma_don, array(
+			'trang_thai'  => 'Chờ quyết toán',
+			'ngay_gui_qt' => VHCP_Util::now_sql(),
+		) );
 		return VHCP_Util::ok();
 	}
 
@@ -2936,6 +2953,32 @@ class VHCP_Don {
 			. ( $gop ? ' · GỘP vào kỳ đã có' : '' ) );
 
 		return VHCP_Util::ok( array( 'doi' => $dem_cu, 'kyMoi' => $ky_moi, 'gop' => $gop ) );
+	}
+
+	/**
+	 * MỐC ĐỂ XẾP HÀNG ĐỢI QUYẾT TOÁN — số giây; 0 nghĩa là không biết.
+	 *
+	 * Anh Thắng 08/09/2026: *"cho anh sắp xếp đơn ai gửi quyết toán lên trước sẽ hiện phía
+	 * trên"*.
+	 *
+	 * ⚠️ ĐƠN CŨ KHÔNG CÓ MỐC NÀY. Cột `ngay_gui_qt` mới có từ bản 1.88.0, còn đơn đã nằm ở
+	 *    "Chờ quyết toán" từ trước thì trống. Bỏ chúng xuống cuối là sai hẳn hướng: chúng là
+	 *    đơn CHỜ LÂU NHẤT, đúng thứ phải xử trước. Nên lui theo thứ tự:
+	 *
+	 *        ngay_gui_qt  ->  ngay_cap  ->  ngay_tao
+	 *
+	 *    Ngày cấp tiền là mốc gần lượt gửi nhất trong những thứ còn ghi lại (gửi quyết toán
+	 *    luôn đứng sau cấp tiền), nên nó xấp xỉ đúng thứ tự đến. Hết cả ba thì trả 0, và giao
+	 *    diện đẩy nhóm ấy xuống dưới — không có gì để so thì đừng đoán bừa một chỗ đứng.
+	 */
+	private static function xep_gui_qt_( $r ) {
+		foreach ( array( 'ngay_gui_qt', 'ngay_cap', 'ngay_tao' ) as $c ) {
+			$v = trim( (string) ( isset( $r[ $c ] ) ? $r[ $c ] : '' ) );
+			if ( '' === $v ) { continue; }
+			$ts = strtotime( $v . ' UTC' );
+			if ( $ts ) { return (int) $ts; }
+		}
+		return 0;
 	}
 
 	/** 'd/m/Y' hoặc 'Y-m-d' -> 'Y-m-d'; không đọc được -> ''. */

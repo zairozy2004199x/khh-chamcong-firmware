@@ -19,7 +19,10 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.9.0';   // 1.9.0: thêm bảng lenh_tu (lệnh tạm ứng)
+	/* 1.10.0: thêm cột `ngay_gui_qt` — mốc NHÂN VIÊN BẤM GỬI quyết toán. Khác hẳn `ngay_qt`
+	   (mốc KẾ TOÁN xác nhận), và trước bản này không có gì ghi lại lượt gửi, nên bảng "Chờ
+	   quyết toán" không xếp được theo "ai gửi trước xử trước". */
+	const SCHEMA_VERSION = '1.10.0';   // 1.9.0: bảng lenh_tu · 1.10.0: don.ngay_gui_qt
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -81,6 +84,7 @@ class VHCP_DB {
 			ngay_duyet DATETIME NULL,
 			nguoi_qt VARCHAR(120) NOT NULL DEFAULT '',
 			ngay_qt DATETIME NULL,
+			ngay_gui_qt DATETIME NULL,
 			chenh_lech_qt DECIMAL(18,2) NOT NULL DEFAULT 0,
 			xu_ly VARCHAR(60) NOT NULL DEFAULT '',
 			so_tien_thuc_mua DECIMAL(18,2) NULL,

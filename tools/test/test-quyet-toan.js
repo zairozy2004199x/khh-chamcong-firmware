@@ -36,8 +36,19 @@ t('bỏ endpoint dayChoKeToan ở máy chủ', !/dayChoKeToan/.test(API));
 t('bỏ hàm day_cho_ke_toan', !/function day_cho_ke_toan/.test(DON));
 t('không còn chỗ nào dựng trạng thái "Chờ quản lý gom"',
   !/'Chờ quản lý gom'/.test(HTML), (HTML.match(/Chờ quản lý gom/g) || []).length);
-t('gửi quyết toán đi THẲNG sang "Chờ quyết toán"',
-  /function gui_quyet_toan[\s\S]{0,900}?'trang_thai' => 'Chờ quyết toán'/.test(DON));
+/* ⚠️ CANH Ý ĐỊNH: `gui_quyet_toan()` đặt trạng thái sang "Chờ quyết toán" — KHÔNG ghim cách
+   viết. Bản trước đòi đúng chuỗi `'trang_thai' => 'Chờ quyết toán'` nằm trong 900 ký tự; ngày
+   08/09/2026 hàm ấy đổi sang `upd_don()` nhiều dòng (thêm mốc `ngay_gui_qt`) là phép này đỏ,
+   đỏ vì một thay đổi ĐÚNG. */
+(function(){
+  var i = DON.indexOf('function gui_quyet_toan');
+  var than = i < 0 ? '' : DON.slice(i, i + 1600);
+  t('bốc được thân hàm gui_quyet_toan', than.length > 200, than.length);
+  t('gửi quyết toán đi THẲNG sang "Chờ quyết toán"',
+    /'trang_thai'\s*=>\s*'Chờ quyết toán'/.test(than), than.slice(0, 400));
+  /* Và KHÔNG được dừng ở một chặng trung gian nào — đó là điều bài này thật sự canh. */
+  t('không dừng ở chặng "Chờ quản lý gom"', !/Chờ quản lý gom/.test(than));
+})();
 // Bỏ màn Gom mà không dời đơn đang mắc kẹt = đơn biến mất khỏi mọi tab, tiền treo luôn.
 t('CÓ phép dời đơn còn kẹt ở "Chờ quản lý gom" sang "Chờ quyết toán"',
   /function bo_khau_gom[\s\S]*?UPDATE \$t SET trang_thai=%s WHERE trang_thai=%s[\s\S]*?'Chờ quyết toán', 'Chờ quản lý gom'/.test(DB));
