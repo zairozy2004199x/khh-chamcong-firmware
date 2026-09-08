@@ -16,8 +16,9 @@ export default function TicketPage() {
   const location = useLocation();
   const snackbar = useSnackbar();
   const ve = (location.state as any)?.ve as Ve | undefined;   // dữ liệu vé chuyển từ màn Mua
+  const congChon = ((location.state as any)?.cong as CongTT) || "qr";   // phương thức đã chọn ở giỏ
   const [tt, setTt] = useState<string>(ve?.trang_thai || "cho");
-  const [cong, setCong] = useState<CongTT>("qr");
+  const [cong, setCong] = useState<CongTT>(congChon);
   const [dangMo, setDangMo] = useState(false);
 
   // Hỏi trạng thái mỗi 5s tới khi đã thanh toán/huỷ (để tự cập nhật khi kế toán/cổng xác nhận).
