@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.14.0
+ * Version:           1.15.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -527,6 +527,11 @@ class POSH_Ve {
 			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url( '/' ) ); exit;
 		}
 	}
+	/* Số phiên bản plugin (đọc từ header). */
+	public static function phien_ban() {
+		$d = get_file_data( __FILE__, array( 'v' => 'Version' ) );
+		return isset( $d['v'] ) ? $d['v'] : '';
+	}
 	/* Đọc khách đã đăng nhập Zalo (từ cookie đã ký). */
 	public static function zalo_user() {
 		if ( empty( $_COOKIE['pve_zuser'] ) ) { return null; }
@@ -751,6 +756,21 @@ class POSH_Ve {
 					</div>
 				</div>
 			<?php endforeach; ?>
+		</div>
+
+		<?php
+			$ft_ten = get_option( 'pve_ft_ten', 'K&H COM., LTD' );
+			$ft_dc  = get_option( 'pve_ft_dc', '' );
+			$ft_lh  = get_option( 'pve_ft_lh', '' );
+			$ft_nbu = get_option( 'pve_ft_nb_url', '' );
+			$ft_nbt = get_option( 'pve_ft_nb_ten', 'Trang nội bộ' );
+		?>
+		<div class="pve-ft">
+			<?php if ( $ft_ten ) : ?><div class="pve-ft-ten"><?php echo esc_html( $ft_ten ); ?></div><?php endif; ?>
+			<?php if ( $ft_dc ) : ?><div class="pve-ft-l">📍 <?php echo esc_html( $ft_dc ); ?></div><?php endif; ?>
+			<?php if ( $ft_lh ) : ?><div class="pve-ft-l">☎️ <?php echo esc_html( $ft_lh ); ?></div><?php endif; ?>
+			<?php if ( $ft_nbu ) : ?><div class="pve-ft-nb"><a href="<?php echo esc_url( $ft_nbu ); ?>"><?php echo esc_html( $ft_nbt ? $ft_nbt : 'Trang nội bộ' ); ?> →</a></div><?php endif; ?>
+			<div class="pve-ft-ver">Phiên bản <?php echo esc_html( self::phien_ban() ); ?></div>
 		</div>
 		</div>
 
@@ -1034,6 +1054,12 @@ class POSH_Ve {
 		.pve-bn-dots{ position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:7px; }
 		.pve-bn-dots span{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.6); cursor:pointer; }
 		.pve-bn-dots span.on{ background:#fff; width:20px; border-radius:999px; }
+		/* Chân trang */
+		.pve-ft{ margin-top:20px; padding:22px 16px calc(22px + env(safe-area-inset-bottom)); background:#1f2937; color:#cbd5e1; text-align:center; font-size:13px; line-height:1.7; }
+		.pve-ft-ten{ font-weight:800; color:#fff; font-size:15px; }
+		.pve-ft-l{ color:#cbd5e1; }
+		.pve-ft-nb a{ color:#f4c854; font-weight:700; text-decoration:none; }
+		.pve-ft-ver{ color:#94a3b8; font-size:12px; margin-top:8px; }
 		/* Form đặt vé nhanh */
 		.pve-qf{ background:#fff; border:1px solid #f0e7d2; border-radius:16px; padding:16px; margin:0 0 20px; box-shadow:0 6px 18px rgba(0,0,0,.07); }
 		.pve-qf-h{ font-weight:900; font-size:18px; color:#1f2937; margin-bottom:12px; }
@@ -1137,6 +1163,14 @@ class POSH_Ve {
 		if ( isset( $_POST['pve_pin_luu'] ) && check_admin_referer( 'pve_pin' ) ) {
 			update_option( 'pve_pin', preg_replace( '/\s+/', '', (string) wp_unslash( $_POST['pin'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu PIN khu quản lý.</p></div>';
+		}
+		if ( isset( $_POST['pve_ft_luu'] ) && check_admin_referer( 'pve_ft' ) ) {
+			update_option( 'pve_ft_ten', sanitize_text_field( wp_unslash( $_POST['ft_ten'] ) ) );
+			update_option( 'pve_ft_dc', sanitize_text_field( wp_unslash( $_POST['ft_dc'] ) ) );
+			update_option( 'pve_ft_lh', sanitize_text_field( wp_unslash( $_POST['ft_lh'] ) ) );
+			update_option( 'pve_ft_nb_url', esc_url_raw( wp_unslash( $_POST['ft_nb_url'] ) ) );
+			update_option( 'pve_ft_nb_ten', sanitize_text_field( wp_unslash( $_POST['ft_nb_ten'] ) ) );
+			echo '<div class="notice notice-success"><p>Đã lưu chân trang.</p></div>';
 		}
 		if ( isset( $_POST['pve_zalo_luu'] ) && check_admin_referer( 'pve_zalo' ) ) {
 			update_option( 'pve_zalo_secret', trim( (string) wp_unslash( $_POST['zalo_secret'] ) ) );
@@ -1409,6 +1443,17 @@ class POSH_Ve {
 			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình' ) . '</span></td></tr>';
 		echo '<tr><th>Callback URL (khai trên Zalo)</th><td><code>' . esc_html( home_url( '/?pve_zalo=cb' ) ) . '</code><br><span class="description">Vào Zalo App console → Đăng nhập → thêm URL này vào <i>Redirect URI</i> hợp lệ. (Đăng nhập web lấy tên/ảnh Zalo; SĐT vẫn nhập ở form vì Zalo hạn chế lấy SĐT qua web.)</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu cấu hình Zalo</button></p></form>';
+
+		/* ── Chân trang (thông tin công ty) ── */
+		echo '<hr><h2>Chân trang trang bán vé</h2>';
+		echo '<p class="description">Hiện ở cuối trang <code>[posh_ve]</code>: thông tin công ty + số phiên bản + link trang nội bộ. Phiên bản hiện tại: <b>' . esc_html( self::phien_ban() ) . '</b>.</p>';
+		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'pve_ft' );
+		echo '<tr><th>Tên công ty</th><td><input name="ft_ten" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_ten', 'K&H COM., LTD' ) ) . '"></td></tr>';
+		echo '<tr><th>Địa chỉ</th><td><input name="ft_dc" class="large-text" value="' . esc_attr( get_option( 'pve_ft_dc', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Liên hệ (ĐT / Email)</th><td><input name="ft_lh" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_lh', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Link trang nội bộ</th><td><input name="ft_nb_url" class="large-text code" value="' . esc_attr( get_option( 'pve_ft_nb_url', admin_url( 'admin.php?page=posh-ve' ) ) ) . '"> <span class="description">VD trang quản lý nội bộ.</span></td></tr>';
+		echo '<tr><th>Chữ hiển thị link</th><td><input name="ft_nb_ten" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_nb_ten', 'Trang nội bộ' ) ) . '"></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_ft_luu" value="1">Lưu chân trang</button></p></form>';
 
 		/* ── Ưu đãi (hiện trên Zalo) ── */
 		echo '<hr><h2>Ưu đãi (hiện trên Zalo)</h2>';
