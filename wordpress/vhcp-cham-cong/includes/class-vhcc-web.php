@@ -1584,7 +1584,8 @@ class VHCC_Web {
 			$r = self::luu_nhieu();
 			$b = array( array( 'xong' => 'Đã lưu ' . $r['luu'] . ' dòng'
 				. ( $r['bo_qua'] ? ' (' . $r['bo_qua'] . ' dòng không đổi gì nên không ghi)' : '' ) . '.'
-				. ( $r['loi'] ? '' : ' Nhớ bấm "Nạp tài khoản" ở ô 🔑 nếu cổng đang KHÔNG đọc thẳng hồ sơ.' ) ) );
+				. ( ( $r['loi'] || 'ho_so' === VHCC_Auth::nguon() ) ? ''
+					: ' Nhớ bấm "Nạp tài khoản" ở thẻ 🔑 thì thay đổi mới có hiệu lực ở cổng đăng nhập.' ) ) );
 			if ( $r['loi'] ) {
 				$b[] = array( 'loi' => count( $r['loi'] ) . ' dòng bị chối: ' . implode( ' · ', $r['loi'] ) );
 			}
@@ -1967,7 +1968,11 @@ class VHCC_Web {
 		/* Nhắc "Nạp tài khoản" CHỈ khi vừa đổi thứ ảnh hưởng cổng đăng nhập (PIN/vai trò) — máy
 		   chấm công và mẫu khuôn mặt bên dưới không đi qua cổng ấy, nhắc vào đó là nhắc sai việc. */
 		if ( '' !== $them_loi ) {
-			$them_loi .= ' Nhớ bấm "Nạp tài khoản" ở ô 🔑 bên trên thì thay đổi mới có hiệu lực ở cổng đăng nhập.';
+			/* Cổng đọc thẳng hồ sơ thì KHÔNG có bước nạp nào nữa — và thẻ 🔑 cũng đã ẩn, nên nhắc
+			   bấm nút ở đó là chỉ người ta đi tìm một cái thẻ không còn tồn tại. */
+			$them_loi .= ( 'ho_so' === VHCC_Auth::nguon() )
+				? ' Có hiệu lực ngay ở cổng đăng nhập.'
+				: ' Nhớ bấm "Nạp tài khoản" ở thẻ 🔑 thì thay đổi mới có hiệu lực ở cổng đăng nhập.';
 		}
 		/* Đẩy xuống máy + seed mẫu khuôn mặt CHỈ khi vừa TẠO MỚI (đọc lại hồ sơ từ DB, không tin
 		   dữ liệu vừa gửi) — sửa hồ sơ cũ đã có nút riêng "sửa lại trên máy 🔄" ở trang Quản lý
@@ -7379,19 +7384,33 @@ class VHCC_Web {
 			'app'   => 'Sổ Phân quyền của app gốc',
 		);
 
+		/* ===========================================================================
+		 *  THẺ NÀY CHỈ HIỆN KHI CỔNG ĐANG ĐỌC SAI CHỖ
+		 * ---------------------------------------------------------------------------
+		 *  🔴 08/09/2026 — anh Thắng: *"loại bỏ chỗ này"* (ảnh chụp đúng thẻ 🔑).
+		 *  Ở trạng thái ĐÚNG — cổng đọc thẳng Hồ sơ Nhân sự — thẻ này không còn việc gì, mà lại
+		 *  chiếm chỗ ngay trên thẻ Hồ sơ nhân sự và trông y như một cửa thêm người thứ hai. Tệ
+		 *  hơn: HAI NÚT của nó lúc đó đều dẫn tới chỗ vô ích, cả hai đều hỏng im lặng —
+		 *    · "Nạp tài khoản" chép hồ sơ sang **danh sách riêng**, mà cổng KHÔNG đọc danh sách
+		 *      ấy nữa; bấm xong thấy báo "đã nạp N người" mà chẳng đổi gì;
+		 *    · "Khai Admin" cũng ghi vào danh sách riêng (`VHCC_NguoiDung::khai_admin`), nên tài
+		 *      khoản vừa khai **không đăng nhập được** — đúng kiểu sai khó lần ra nhất.
+		 *  Nên: cổng đọc thẳng hồ sơ thì ẨN HẲN thẻ. Nguồn khác thì vẫn hiện, vì lúc đó nó là
+		 *  CHỖ SỬA (nút "Cho cổng đọc thẳng Hồ sơ Nhân sự") — đường duy nhất ở trang web.
+		 *  ⚠️ Không mất đường nào: đổi nguồn còn làm được ở wp-admin (màn Cài đặt), còn thêm một
+		 *     Admin thì mở hồ sơ người đó, đặt **Vai trò = Admin** + PIN — đúng cửa duy nhất.
+		 * =========================================================================== */
+		if ( 'ho_so' === $nguon_ht ) { return; }
+
 		echo '<div class="the"><h2>🔑 Tài khoản đăng nhập</h2>';
 		echo '<p class="mo">Cổng <code>/cham-cong</code> đang đọc: <b>'
 			. esc_html( isset( $nhan_ng[ $nguon_ht ] ) ? $nhan_ng[ $nguon_ht ] : $nguon_ht ) . '</b> — '
 			. '<b>' . (int) $vao_ht . '</b> người đăng nhập được.</p>';
 
-		/* 🔴 NÓI RÕ THẺ NÀY *KHÔNG* TẠO NGƯỜI. Anh Thắng 08/09/2026: *"Việc thêm nhân sự rất rối.
-		   Không rõ ràng ở trang nào. Gộp lại chỉ cần 1 trang thêm được là được"*.
-		   Nhìn màn này thì "Nạp tài khoản" và "Khai Admin" trông y như hai cửa thêm người nữa,
-		   trong khi chúng chỉ CẤP ĐƯỜNG ĐĂNG NHẬP cho hồ sơ ĐÃ CÓ. Cửa tạo hồ sơ là đúng một
-		   cái, và nói ra ngay tại đây thì không ai phải đoán. */
-		echo '<p class="mo">Thẻ này <b>không tạo người mới</b> — chỉ cấp đường đăng nhập cho hồ sơ '
-			. '<b>đã có</b>. Thêm người thì bấm <b>+ Hồ sơ mới</b> ở thẻ <b>Hồ sơ nhân sự</b> ngay '
-			. 'bên dưới: đó là <b>cửa duy nhất</b> tạo hồ sơ trong cả hệ.</p>';
+		/* Thẻ chỉ hiện ở trạng thái SAI, nên câu đầu tiên phải là "đang sai ở đâu" — người mở
+		   trang cần biết vì sao tự nhiên có thêm một thẻ, chứ không cần một câu về tạo người. */
+		echo '<p class="mo">Thẻ này <b>không tạo người mới</b> — nó chỉ để trỏ cổng đăng nhập về '
+			. 'đúng chỗ. Thêm người thì dùng thẻ <b>➕ Tạo nhân sự mới</b> ở đầu màn.</p>';
 
 		/* 🔴 CHUYỂN NGUỒN NGAY TẠI ĐÂY. Anh Thắng khai PIN trong hồ sơ rồi vẫn *"chưa đăng nhập
 		   bằng pin"* — vì cổng đang đọc một danh sách KHÁC, và muốn PIN có hiệu lực thì phải
@@ -7561,6 +7580,12 @@ class VHCC_Web {
 				self::url() ) ) . '"><b>xem ' . $thieu . ' người chưa vào được</b></a>';
 		}
 		echo '</div>';
+		/* 🔴 MỘT DÒNG DUY NHẤT về cách cho người ta đăng nhập được — đặt ở đây vì thẻ 🔑 nay ẩn
+		   khi cổng đã đọc thẳng hồ sơ (xem chú thích ở `the_tai_khoan`). Không có dòng này thì
+		   cái biết "cấp quyền ở đâu" mất theo cái thẻ vừa ẩn, và người mở trang phải đi đoán. */
+		echo '<div class="mo" style="margin:-4px 0 10px;font-size:12.5px">Cho ai đăng nhập được: '
+			. 'mở hồ sơ người đó (nút <b>Sửa</b>), đặt <b>Vai trò</b> + <b>PIN đăng nhập</b> — '
+			. 'có hiệu lực ngay, không phải nạp thêm bước nào.</div>';
 
 		if ( ! $rows ) {
 			echo '<p class="mo">Chưa có hồ sơ nào khớp bộ lọc đang chọn.'
@@ -7727,7 +7752,12 @@ class VHCC_Web {
 			. 'Hiện tối đa 100 dòng — lọc theo cơ sở hoặc gõ ô Tìm để thu hẹp. '
 			. '<b>Ô PIN để trống = giữ nguyên PIN cũ</b>; gõ 4–8 chữ số để đổi; tích <b>xoá</b> để bỏ hẳn. '
 			. 'PIN cũ KHÔNG được điền sẵn vào ô — đổ 240 PIN ra màn hình là một ảnh chụp mất sạch mật khẩu cả chuỗi. '
-			. 'Đổi PIN ở đây rồi nhớ bấm <b>Nạp tài khoản</b> ở ô 🔑 bên trên thì người đó mới đăng nhập được. '
+			/* 🔴 Câu nhắc phải theo NGUỒN đang dùng. Thẻ 🔑 nay ẩn khi cổng đọc thẳng hồ sơ, nên
+			   nhắc "bấm Nạp tài khoản ở ô 🔑 bên trên" là chỉ vào một cái thẻ KHÔNG CÒN Ở ĐÓ —
+			   người đọc đi tìm không thấy rồi tưởng mình làm sai. */
+			. ( 'ho_so' === VHCC_Auth::nguon()
+				? 'Đổi PIN hay Vai trò ở đây là <b>có hiệu lực ngay</b> ở cổng đăng nhập. '
+				: 'Đổi PIN ở đây rồi nhớ bấm <b>Nạp tài khoản</b> ở thẻ 🔑 bên trên thì người đó mới đăng nhập được. ' )
 			. '<b>Mã NV không sửa được ở đây</b>: đổi mã là sửa mọi hàng chấm công đã có của người đó.</p>';
 		echo '</div>';
 		echo $GLOBALS['VHCC_FORM_ROI'];

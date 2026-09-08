@@ -6377,6 +6377,48 @@ $h_ds = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'không có khoá sua thì vẫn là màn danh sách',
 	false === strpos( $h_ds, 'name="ma_nv" required' )
 	&& false !== strpos( $h_ds, 'Nạp hồ sơ nhân viên từ file' ) );
+
+/* ===== THẺ 🔑 CHỈ HIỆN KHI CỔNG ĐANG ĐỌC SAI CHỖ (08/09/2026) =================================
+   🔴 Anh Thắng: *"loại bỏ chỗ này"* — ảnh chụp đúng thẻ 🔑 Tài khoản đăng nhập.
+   Ở trạng thái ĐÚNG (cổng đọc thẳng Hồ sơ Nhân sự) thẻ ấy không còn việc gì, mà HAI NÚT của nó
+   lúc đó đều dẫn tới chỗ vô ích và hỏng IM LẶNG: "Nạp tài khoản" chép sang danh sách riêng mà
+   cổng không đọc nữa, còn "Khai Admin" ghi vào chính danh sách đó nên tài khoản vừa khai KHÔNG
+   đăng nhập được. Nguồn khác thì thẻ vẫn phải hiện — lúc đó nó là CHỖ SỬA. */
+$nguon_cu = get_option( 'vhcc_nguon_nguoidung' );
+/* ⚠️ ĐỔI NGUỒN LÀ ĐỔI LUÔN CHỖ CỔNG TRA PIN. PIN cũ dùng ở mấy mục trên nằm trong danh sách
+   riêng, nên chuyển nguồn sang `ho_so` rồi đăng nhập bằng nó là KHÔNG vào được — trang chỉ vẽ
+   ô PIN, và phép thử "không thấy thẻ 🔑" xanh vì trang rỗng chứ không vì đã ẩn. Đúng kiểu xanh
+   giả đã vấp ở mục Cửa hàng trưởng. Nên phải có một hồ sơ mang PIN thật để đăng nhập. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TK1', 'ho_ten' => 'Admin Hồ Sơ',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '223344', 'vai_tro' => 'Admin' ) );
+
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+$h_tk1 = vhcc_web( '223344', array(), array( 'man' => 'ho_so' ) );
+t( 'đăng nhập được bằng PIN trong hồ sơ (chốt chống xanh giả)',
+	strpos( $h_tk1, 'name="pin"' ) === false, $h_tk1 );
+t( '🔴 cổng đọc thẳng hồ sơ -> ẨN HẲN thẻ Tài khoản đăng nhập',
+	strpos( $h_tk1, 'Tài khoản đăng nhập' ) === false, $h_tk1 );
+t( 'và không còn nút "Nạp tài khoản"', strpos( $h_tk1, 'Nạp tài khoản' ) === false );
+t( 'cũng không còn nút "Khai Admin" (khai xong không đăng nhập được)',
+	strpos( $h_tk1, 'Khai Admin' ) === false );
+/* Ẩn thẻ thì cái biết "cấp quyền đăng nhập ở đâu" phải còn lại đâu đó, không thì mất theo thẻ. */
+t( '🔴 vẫn nói rõ cho ai đăng nhập được thì làm ở đâu',
+	strpos( $h_tk1, 'Cho ai đăng nhập được' ) !== false, $h_tk1 );
+t( 'và thẻ tạo nhân sự vẫn đứng đầu màn', strpos( $h_tk1, '➕ Tạo nhân sự mới' ) !== false );
+t( 'bảng hồ sơ vẫn còn nguyên', strpos( $h_tk1, 'Nạp hồ sơ nhân viên từ file' ) !== false );
+
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+$h_tk2 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
+t( 'vẫn đăng nhập được bằng PIN của danh sách riêng', strpos( $h_tk2, 'name="pin"' ) === false, $h_tk2 );
+t( '🔴 nguồn KHÁC -> thẻ vẫn hiện, vì lúc đó nó là chỗ SỬA',
+	strpos( $h_tk2, 'Tài khoản đăng nhập' ) !== false, $h_tk2 );
+t( 'kèm nút trỏ cổng về đọc thẳng hồ sơ',
+	strpos( $h_tk2, 'Cho cổng đọc thẳng Hồ sơ Nhân sự' ) !== false, $h_tk2 );
+t( 'và nói rõ nó không tạo người mới', strpos( $h_tk2, 'không tạo người mới' ) !== false );
+
+if ( false === $nguon_cu ) { delete_option( 'vhcc_nguon_nguoidung' ); }
+else { update_option( 'vhcc_nguon_nguoidung', $nguon_cu ); }
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='TK1'" );
 /* Mọi cửa chỉ đường đều phải dùng mã lệnh MỚI — sót một chỗ là chỗ đó lại hỏng im lặng. */
 $ns_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
 $ad_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
@@ -10577,16 +10619,18 @@ t( 'và không còn dùng ô tìm để giả làm đường sửa',
    `sua=moi` là mã lệnh "hồ sơ mới" (biểu mẫu có ô Mã NV). Trước là dấu `+`, đã đổi 08/09/2026
    vì `+` trong chuỗi truy vấn bị đọc thành dấu cách -> bấm nút mà trang vẽ lại y nguyên. */
 $vq_ad = vhcc_ns( 'Admin' );
-t( '🔴 có nút Thêm nhân sự', strpos( $vq_ad, 'Thêm nhân sự' ) !== false, $vq_ad );
-t( 'và nó trỏ tới biểu mẫu HỒ SƠ MỚI (sua=moi)',
-	strpos( $vq_ad, 'sua=moi' ) !== false, $vq_ad );
-/* Tạo hồ sơ mới là cấp Mã NV dùng chung cả chuỗi -> Quản lý trở lên. Kế toán tuy bậc cao hơn
-   Quản lý ở thang chung, nhưng `co_quan_tri_nv` hỏi `ngoai_coso` nên Kế toán vẫn qua. Người
-   KHÔNG qua là Cửa hàng trưởng — mà họ cũng không vào nổi trang này. Nên chỉ cần chắc rằng nút
-   được gác bằng CHÍNH hàm ấy, đừng vẽ cho người bấm vào rồi bị chối. */
-t( 'nút Thêm gác bằng co_quan_tri_nv',
+/* 🔴 08/09/2026 — NÚT NÀY ĐÃ BỎ. Anh Thắng: *"loại bỏ chỗ này tránh nhầm"*.
+   Nó chỉ là đường dẫn sang biểu mẫu ở màn *Hồ sơ & tài khoản*, nhưng đặt ở đây thì trang này
+   trông như một cửa thêm người thứ hai — đúng cái rối đợt 3.42.0 đang gỡ. Trang này làm MỘT
+   việc: khai ai vào được trang nào. */
+t( '🔴 trang /nhan-su/ KHÔNG còn nút Thêm nhân sự', strpos( $vq_ad, 'Thêm nhân sự' ) === false, $vq_ad );
+t( 'và không còn liên kết nào trỏ vào biểu mẫu tạo hồ sơ',
+	strpos( $vq_ad, 'sua=moi' ) === false, $vq_ad );
+t( 'mã nguồn trang cũng không còn dựng nút đó',
 	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' ),
-		'VHCC_NhanSu::co_quan_tri_nv( $toi )' ) !== false );
+		'Thêm nhân sự</a>' ) === false );
+/* Nhưng trang vẫn phải làm đúng việc của nó — bảng quyền còn nguyên. */
+t( 'bảng "ai vào được trang nào" vẫn còn', strpos( $vq_ad, 'name="o[' ) !== false, $vq_ad );
 vhcc_dung_bang();
 
 /* ==========================================================================================

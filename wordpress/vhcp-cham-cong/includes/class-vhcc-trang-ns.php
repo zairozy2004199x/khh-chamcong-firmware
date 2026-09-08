@@ -2208,21 +2208,13 @@ class VHCC_TrangNS {
 	}
 
 	private static function o_tim( $toi, $cs, $q, $vai ) {
-		/* ➕ THÊM NHÂN SỰ. Anh Thắng: *"Chưa có chỗ bổ sung thêm nhân sự"* — đúng, trang này chỉ
-		   có đường mở hồ sơ ĐÃ CÓ, không có đường tạo mới.
-		   ⚠️ Trỏ sang `sua=+` của màn Hồ sơ — `VHCC_Web::the_sua_ho_so()` hiểu dấu `+` là "hồ sơ
-		      mới" và dựng biểu mẫu có ô Mã NV. KHÔNG dựng biểu mẫu tạo hồ sơ thứ hai ở đây: tạo
-		      hồ sơ là cấp Mã NV dùng chung cả chuỗi, mà hai cửa cho cùng một việc thì cửa mới
-		      chưa ai gác. */
-		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' )
-			&& VHCC_NhanSu::co_quan_tri_nv( $toi ) ) {
-			echo '<p style="margin:0 0 10px"><a class="nut chinh" href="'
-				. esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => 'moi' ), VHCC_Web::url() ) )
-				. '">➕ Thêm nhân sự</a> <span class="mo">Mở <b>cửa duy nhất</b> tạo hồ sơ — biểu '
-				. 'mẫu "+ Hồ sơ mới" ở <b>Quản trị chấm công &rarr; Hồ sơ &amp; tài khoản</b>. '
-				. 'Trang này không tạo hồ sơ, vì tạo hồ sơ là cấp Mã NV dùng chung cả chuỗi '
-				. '(cần vai Quản lý trở lên).</span></p>';
-		}
+		/* 🔴 08/09/2026 — ĐÃ BỎ nút "➕ Thêm nhân sự" (và câu giải thích dài kèm nó).
+		   Anh Thắng: *"loại bỏ chỗ này tránh nhầm"*.
+		   Nút ấy chỉ là một ĐƯỜNG DẪN sang biểu mẫu ở màn *Hồ sơ & tài khoản*, nhưng đặt ở đây
+		   thì nó lại làm trang này trông như một cửa thêm người thứ hai — đúng cái rối mà đợt
+		   3.42.0 đang gỡ. Trang này làm MỘT việc: khai ai vào được trang nào.
+		   ⚠️ ĐỪNG DỰNG LẠI. Muốn thêm người thì đi màn *Hồ sơ & tài khoản* — ở đó thẻ
+		      "➕ Tạo nhân sự mới" đứng ngay đầu màn, không phải đi tìm. */
 
 		echo '<form method="get" class="hang" style="margin:0 0 12px">';
 		/* Không có permalink thì trang này nhận ra mình bằng `vhcc_ns=1` — ô tìm phải chở nó

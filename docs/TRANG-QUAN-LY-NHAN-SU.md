@@ -128,6 +128,40 @@ dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn p
   không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
   sổ cũ có những câu như "Đã nghỉ 12/2025".
 
+### Dọn hai chỗ gây nhầm (3.46.0)
+
+> Anh Thắng: *"loại bỏ chỗ này tránh nhầm"* (nút ở `/nhan-su/`) và *"loại bỏ chỗ này"* (thẻ 🔑).
+
+**1. Bỏ nút `➕ Thêm nhân sự` khỏi trang `/nhan-su/`.** Nó chỉ là một đường dẫn sang biểu mẫu ở màn
+*Hồ sơ & tài khoản*, nhưng đặt ở đây thì trang này trông như một cửa thêm người thứ hai — đúng cái
+rối đợt 3.42.0 đang gỡ. Trang `/nhan-su/` làm **một việc**: khai ai vào được trang nào.
+
+**2. Thẻ 🔑 `Tài khoản đăng nhập` chỉ còn hiện khi cổng đang đọc SAI chỗ.** Ở trạng thái đúng —
+cổng đọc thẳng Hồ sơ Nhân sự — thẻ ấy không còn việc gì, mà **hai nút của nó đều hỏng im lặng**:
+
+* *Nạp tài khoản* chép hồ sơ sang **danh sách riêng**, mà cổng không đọc danh sách ấy nữa — bấm
+  xong báo "đã nạp N người" mà chẳng đổi gì;
+* *Khai Admin* cũng ghi vào chính danh sách đó (`VHCC_NguoiDung::khai_admin`), nên tài khoản vừa
+  khai **không đăng nhập được**.
+
+Nguồn khác thì thẻ **vẫn hiện**, vì lúc đó nó là *chỗ sửa* (nút "Cho cổng đọc thẳng Hồ sơ Nhân
+sự") — đường duy nhất ở trang web. Không mất đường nào: đổi nguồn còn làm được ở **wp-admin →
+Cài đặt**, còn cấp quyền đăng nhập thì mở hồ sơ người đó, đặt **Vai trò + PIN** — có hiệu lực ngay.
+
+Ẩn thẻ thì phải giữ lại cái *biết*: thẻ **Hồ sơ nhân sự** nay có một dòng "Cho ai đăng nhập được:
+mở hồ sơ người đó, đặt Vai trò + PIN". Và **ba câu nhắc cũ** trỏ vào thẻ 🔑 ("nhớ bấm Nạp tài
+khoản ở ô 🔑 bên trên") nay đổi theo nguồn — không thì chúng chỉ người đọc đi tìm một cái thẻ
+không còn ở đó.
+
+Phép thử (11 phép): trang `/nhan-su/` không còn nút lẫn liên kết `sua=moi` nhưng **bảng quyền vẫn
+nguyên** · nguồn `ho_so` thì thẻ 🔑 biến hẳn, không còn cả chữ "Nạp tài khoản"/"Khai Admin" ở đâu
+trên màn, mà thẻ tạo nhân sự + bảng hồ sơ + dòng chỉ cách cấp đăng nhập vẫn còn · nguồn khác thì
+thẻ hiện kèm nút trỏ cổng về đọc thẳng hồ sơ. Kèm một chốt **chống xanh giả**: phép thử tự kiểm
+"đã đăng nhập được chưa" trước, vì đổi nguồn là đổi luôn chỗ cổng tra PIN — đăng nhập trượt thì
+trang chỉ có ô PIN và mọi phép "không thấy thẻ" đều xanh mà chẳng chứng minh gì.
+
+---
+
 ### Nhân viên đang có của cơ sở, hiện ngay trong biểu mẫu tạo (3.45.0)
 
 > Anh Thắng: *"trước khi tạo làm sao biết nhân viên đó có chưa, thì bổ sung danh sách cửa hàng đó
