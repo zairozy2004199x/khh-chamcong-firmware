@@ -11,7 +11,18 @@
  * Chạy: node tools/test/kiem-duyet-bao-cao.js vhcp-ghe/includes/class-vhg-trang.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs=require('fs');
-const src=fs.readFileSync(process.argv[2],'utf8');
+/* 🔴 THIẾU THAM SỐ THÌ NÓI RA, ĐỪNG NỔ. Chạy không kèm đường dẫn thì `readFileSync(undefined)`
+   ném một `ERR_INVALID_ARG_TYPE` dài mười dòng — trông y hệt bài kiểm ĐỎ, và người đọc đi tìm
+   một lỗi không có thật. Đã mất một lượt đúng như thế (08/09/2026). Nay tự lấy tệp mặc định,
+   và nếu tệp ấy cũng không có thì nói một câu người đọc hiểu ngay. */
+const MAC_DINH = 'vhcp-ghe/includes/class-vhg-trang.php';
+const duong = process.argv[2] || MAC_DINH;
+if (!fs.existsSync(duong)) {
+  console.error('✗ Không thấy tệp nguồn: ' + duong
+    + '\n  Chạy từ gốc kho, hoặc: node ' + process.argv[1] + ' <đường-dẫn-class-vhg-trang.php>');
+  process.exit(2);
+}
+const src=fs.readFileSync(duong,'utf8');
 let DAT=0; const TRUOT=[];
 function t(n,ok,them){ if(ok){DAT++;} else {TRUOT.push(n+(them!=null?(' → '+JSON.stringify(them)):''));} }
 
@@ -114,7 +125,10 @@ t('🔴 đổi tháng thì bỏ lọc ngày lệch tháng',
  *    "có gửi hay không", KHÔNG canh được giá trị gửi xuống có đúng không. Ngày nào kho có khung
  *    chạy PHP thì thay bằng phép thử gọi thẳng `VHG_KeToan::ds()`.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
-const fKt = process.argv[3] || (process.argv[2]||'').replace('class-vhg-trang.php','class-vhg-ketoan.php');
+/* ⚠️ SUY RA TỪ `duong`, KHÔNG TỪ `process.argv[2]`. Chạy không kèm tham số thì `argv[2]` rỗng,
+   `''.replace(...)` vẫn rỗng, `readFileSync('')` ném lỗi bị `catch` nuốt — và phép kế toán đỏ
+   với lý do hoàn toàn sai. `duong` đã lo phần mặc định rồi. */
+const fKt = process.argv[3] || duong.replace('class-vhg-trang.php','class-vhg-ketoan.php');
 let srcKt='';
 try { srcKt = fs.readFileSync(fKt,'utf8'); } catch(e) {}
 t('đọc được class-vhg-ketoan.php', srcKt.length>1000, fKt);

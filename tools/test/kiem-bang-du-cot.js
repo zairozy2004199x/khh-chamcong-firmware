@@ -16,6 +16,12 @@
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
 const duong = process.argv[2] || 'vhcp-ghe/includes/class-vhg-trang.php';
+/* Thiếu tệp thì nói một câu, đừng ném `ERR_INVALID_ARG_TYPE` mười dòng — nó trông y hệt bài
+   kiểm ĐỎ và người đọc đi tìm một lỗi không có thật. */
+if (!fs.existsSync(duong)) {
+  console.error('✗ Không thấy tệp nguồn: ' + duong + '\n  Chạy từ gốc kho, hoặc truyền đường dẫn làm tham số.');
+  process.exit(2);
+}
 const src = fs.readFileSync(duong, 'utf8');
 const i = src.indexOf("<<<'JS'");
 const js = src.slice(src.indexOf('\n', i) + 1, src.indexOf('\nJS;', i));

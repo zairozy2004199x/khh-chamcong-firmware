@@ -63,8 +63,19 @@ t('🔴 chỉ trả ghế CÓ trần', /if \( null !== \$x\['cs'\] \) \{ \$out\[
 /* ---------- 2. CỔNG: trả kèm trong CÙNG lượt gọi ---------- */
 /* ⚠️ Thêm một lượt gọi riêng là thêm một chỗ chờ đúng lúc bảng đang vẽ. Giao diện vốn đã chờ
    `bc_lastmeters` để có chỉ số trước, nên trần đi nhờ chuyến ấy. */
+/* ⚠️ CANH Ý ĐỊNH, ĐỪNG GHIM THỨ TỰ KHOÁ. Bản đầu của phép này đòi `'ke'` nằm ĐÚNG DÒNG KẾ TIẾP
+   sau `'map'`. Bản 2.9.0 chen thêm `'mapd'` (ngày đọc mốc) vào giữa — mã hoàn toàn đúng, mà
+   phép thử đỏ từ đó tới 2.13.2 mà không ai thấy, vì chưa có chỗ chạy hết bộ thử một lượt.
+   Điều PHẢI đúng chỉ là: cùng một lượt `bc_lastmeters` ấy trả về khoá `ke`, lấy từ
+   `lay_chiso_ke()` với đúng hai tham số của lượt gọi. Khoá khác thêm vào bao nhiêu cũng mặc. */
+const iCong = tr.indexOf("if ( 'bc_lastmeters' === $viec ) {");
+const jCong = tr.indexOf("if ( 'bc_kichxa' === $viec ) {", iCong);
+const khoiCong = (iCong > 0 && jCong > iCong) ? tr.slice(iCong, jCong) : '';
+t('bốc được khối cổng bc_lastmeters', '' !== khoiCong);
 t('🔴 cổng bc_lastmeters trả kèm khoá `ke`',
-	/'map' => VHG_BaoCao::lay_chiso_truoc\( \$ma_ds, \$ng_bc, ! empty\( \$d\['toi'\] \) \),\s*\n\s*'ke'\s*=> VHG_BaoCao::lay_chiso_ke\( \$ma_ds, \$ng_bc \)/.test(tr), null);
+	/'ke'\s*=>\s*VHG_BaoCao::lay_chiso_ke\(\s*\$ma_ds,\s*\$ng_bc\s*\)/.test(khoiCong), khoiCong);
+t('   và vẫn trả `map` trong CÙNG lượt ấy (không tách thành lượt gọi thứ hai)',
+	/'map'\s*=>\s*VHG_BaoCao::lay_chiso_truoc\(/.test(khoiCong), khoiCong);
 t('và giao diện nhận nó vào KE', /KE=\(r&&r\.ke\)\|\|\{\};/.test(tr), null);
 
 /* ---------- 3. GỢI Ý NGAY TẠI Ô ĐANG GÕ ---------- */
