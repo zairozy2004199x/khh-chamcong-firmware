@@ -4,7 +4,23 @@ Trang web rời, **không liên quan tới firmware máy chấm công**. Để �
 
 | File | Việc |
 |---|---|
-| `nha-ma-so-13.html` | Trang bán vé nhà ma "Số 13 Hàng Lược" — chọn đêm / chọn suất / chọn hạng vé, giữ chỗ và xuất vé kèm mã |
+| `nha-ma-so-13.html` | Nhà ma "Số 13 Hàng Lược": **trang bán vé** cho khách + **trang quản lý** cho nhân viên, chung một file |
+
+## Hai trang trong một file
+
+| Đường dẫn | Ai dùng | Có gì |
+|---|---|---|
+| (mặc định) | Khách | Chọn đêm → suất → hạng vé → giữ chỗ, ra vé kèm mã, tải vé `.svg` |
+| `#quanly` | Nhân viên | Tổng quan (4 ô số + tình trạng suất theo đêm + đơn mới nhất), Đơn giữ chỗ (lọc, cho vào, huỷ), Soát vé tại cửa (gõ mã → cho vào), Đối soát theo đêm (+ xuất `.csv`) |
+
+Hai trang **dùng chung một sổ đặt vé**, nên phải nằm chung một file — đây là lý do không tách đôi.
+Huỷ đơn ở trang quản lý thì chỗ được trả lại cho trang bán vé ngay.
+
+⚠️ Trang quản lý **không có lớp đăng nhập riêng**: ai mở được link là vào được `#quanly` và thấy
+tên, số điện thoại khách. Chỉ đưa link cho người trong nhà.
+
+Sổ đang có sẵn 9 đơn thử (mã bắt đầu bằng `DEMO-`) để xem trang chạy. Xoá bằng nút trong
+**Đối soát theo đêm → Dữ liệu thử**.
 
 ## Chạy
 
