@@ -269,6 +269,45 @@ class VHCP_DonVi {
 		return '';
 	}
 
+	/**
+	 * AI ĐANG KHAI "XEM ĐƠN VỊ" LẠC RA NGOÀI DANH SÁCH — trả [ tên người => tên khai lạc ].
+	 *
+	 * Anh Thắng 08/09/2026: *"Làm phần phân quyền ai xem được"*.
+	 *
+	 * 🔴 KHAI SAI Ô NÀY HỎNG THEO KIỂU IM LẶNG NHẤT. Ô "Xem đơn vị" trước là ô gõ tay; gõ
+	 *    "POS", hay nhầm sang tên CƠ SỞ ("POSH HCM"), thì tên ấy không khớp đơn vị nào — người
+	 *    đó không xem được gì, màn trắng trơn, không câu lỗi nào. Người khai thì tin là xong.
+	 *
+	 *    Bản 1.91.0 đổi ô ấy thành hộp tích nên khai mới không lạc được nữa. Nhưng dòng đã khai
+	 *    từ trước vẫn nằm đó, và chúng chính là những dòng cần soi.
+	 *
+	 * ⚠️ KHÔNG TỰ RỬA. Đơn vị mới có thể vừa khai cho một người mà chưa ai/đơn nào mang nó, nên
+	 *    `ds()` chưa thấy. Rửa là xoá mất phân quyền vừa đặt, và tệ hơn nữa là không bao giờ
+	 *    tạo được đơn vị mới. Chỉ BÁO, để người khai tự quyết.
+	 */
+	public static function ai_khai_lac() {
+		$co = array();
+		foreach ( self::ds() as $d ) { $co[ mb_strtolower( trim( $d ) ) ] = 1; }
+		$ra = array();
+		foreach ( VHCP_Cfg::get_users() as $u ) {
+			$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
+			$xem = trim( (string) ( isset( $u['xemDonVi'] ) ? $u['xemDonVi'] : '' ) );
+			/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `'' === $xem`
+			   KHÔNG đổi kết quả — `explode( ',', '' )` trả về một phần tử rỗng, và vòng dưới
+			   `continue` ngay ở nó, nên `$lac` vẫn rỗng. Giữ vế ấy vì nó nói thẳng ra ý "bỏ
+			   trống là hợp lệ", và vì nó cắt hẳn một vòng lặp cho phần lớn tài khoản. */
+			if ( '' === $ten || '' === $xem ) { continue; }
+			$lac = array();
+			foreach ( explode( ',', $xem ) as $x ) {
+				$x = trim( $x );
+				if ( '' === $x ) { continue; }
+				if ( ! isset( $co[ mb_strtolower( $x ) ] ) ) { $lac[] = $x; }
+			}
+			if ( $lac ) { $ra[] = array( 'ten' => $ten, 'lac' => implode( ', ', $lac ) ); }
+		}
+		return $ra;
+	}
+
 	/* ====================================================================== của cơ sở */
 
 	/**

@@ -551,6 +551,9 @@ class VHCP_Don {
 			'boPhanBo'   => VHCP_Auth::bo_phan_bo(),
 			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCP_DonVi::ds(),
+			/* Ai đang khai ô "Xem đơn vị" lạc ra ngoài danh sách — họ là người sắp ngồi trước
+			   một màn trắng. Xem chốt dài ở `VHCP_DonVi::ai_khai_lac()`. */
+			'khaiLac'    => VHCP_DonVi::ai_khai_lac(),
 			'donViCuaToi'=> VHCP_DonVi::cua_toi(),
 			'xemDonVi'   => VHCP_DonVi::xem_duoc(),
 			'nhieuDonVi' => VHCP_DonVi::nhieu_don_vi(),

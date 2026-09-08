@@ -1057,7 +1057,10 @@
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
            đủ chỗ mọi cột; hẹp hơn thì trượt ngang chứ không bóp. -->
-      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, cách nhau dấu phẩy. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <!-- 🔴 Ai khai "Xem đơn vị" lạc ra ngoài danh sách thì màn của họ TRẮNG, không câu lỗi
+           nào. Bày thẳng lên đầu bảng để người khai thấy ngay, thay vì chờ người kia báo. -->
+      <div id="khaiLacBanner" style="display:none;margin:8px 14px 0;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px"></div>
+      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, bấm để tích. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
         <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
         <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
@@ -7138,7 +7141,21 @@
   // Admin sửa (khoá ở dưới + chặn lại trong VHCP_Cfg::save_config).
   var VAI_CAU_HINH=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'];
   function coCauHinh(){ return !!(CURUSER && VAI_CAU_HINH.indexOf(String(CURUSER.role||''))>=0); }
+  /* Dải cảnh báo "khai lạc". Vẽ TỪ BOOT, không tự suy ở trình duyệt: danh sách đơn vị có
+     thật chỉ máy chủ mới biết đủ (nó gộp cả đơn vị nằm trên các đơn cũ, kể cả của người đã
+     nghỉ). Suy ở đây là báo nhầm cho những dòng thật ra vẫn đúng. */
+  function renderKhaiLac(){
+    var b=el('khaiLacBanner'); if(!b) return;
+    var ds=(BOOT&&BOOT.khaiLac)||[];
+    if(!ds.length){ b.style.display='none'; return; }
+    b.style.display='';
+    b.innerHTML='⚠️ <b>'+ds.length+' tài khoản khai "Xem đơn vị" không khớp đơn vị nào</b> — '
+      +'mấy người này mở app ra sẽ <b>không thấy đơn nào cả</b>, và không có câu lỗi nào báo cho họ biết vì sao.<br>'
+      +ds.map(function(x){ return '· <b>'+esc(x.ten)+'</b> đang khai: <code>'+esc(x.lac)+'</code>'; }).join('<br>')
+      +'<br><span style="color:#7f1d1d">Bấm vào ô <b>Xem đơn vị</b> của họ rồi tích lại cho đúng, hoặc bỏ hết tích để về mặc định của vai.</span>';
+  }
   function renderUsers(){
+    renderKhaiLac();
     var adm=coCauHinh();
     if(el('userCard')) el('userCard').style.display=adm?'':'none';
     if(el('ssoCard'))  el('ssoCard').style.display=adm?'':'none';
@@ -7189,10 +7206,10 @@
           +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
           +'<td style="text-align:center">🔒</td></tr>';
       }
-      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_inp(u.xemDonVi,'trống = theo vai')+'</td>'+_delBtn()+'</tr>';
+      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
-  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_inp('','trống = theo vai')+'</td>'+_delBtn()+'</tr>'); }
+  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
   /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
@@ -7200,6 +7217,39 @@
     var ds=(BOOT.donVi||['K&H']);
     return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H" style="width:100%">'
       +'<datalist id="dl_donvi">'+ds.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>';
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     Ô "XEM ĐƠN VỊ" — HỘP TÍCH, KHÔNG GÕ TAY.
+     Anh Thắng 08/09/2026: *"Làm phần phân quyền ai xem được"*.
+
+     🔴 Ô này trước là ô gõ tự do, ngăn nhau bằng dấu phẩy. Gõ sai một chữ — "POS", hay nhầm
+        sang tên cơ sở "POSH HCM" — thì tên ấy không khớp đơn vị nào, người đó KHÔNG XEM ĐƯỢC
+        GÌ, và màn của họ trắng trơn mà không câu lỗi nào. Người khai thì tin là đã khai xong.
+
+     Dùng lại đúng khuôn hộp tích của ô Cơ sở: `<select multiple>` ẩn để `_readRows()` đọc như
+     cũ, người dùng chỉ thấy một nút tóm tắt rồi bấm ra tích.
+
+     ⚠️ GIỮ LẠI GIÁ TRỊ LẠ đang lưu, đừng lặng lẽ vứt. Đơn vị có thể vừa được khai cho một
+        người mà chưa ai/đơn nào mang nó, nên `BOOT.donVi` chưa có. Vứt là xoá mất phân quyền
+        người ta vừa đặt. Bày ra kèm dấu ⚠ để nhìn là biết nó chưa khớp gì. */
+  function _xemDvSel(v){
+    var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    var arr=(BOOT.donVi||['K&H']).slice();
+    sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
+    var la={}; sel.forEach(function(s){ if((BOOT.donVi||[]).indexOf(s)<0) la[s]=1; });
+    var nhan=sel.length?(sel.join(', ')+(Object.keys(la).length?' ⚠':'')):'— theo mặc định của vai —';
+    return '<div class="csw">'
+      + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
+      + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(nhan)+'</button>'
+      + '<div class="cs-pop" style="display:none">'
+      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
+      +   '<div class="cs-list">'+arr.map(function(c,i){
+              var xau=la[c]?' <span style="color:#b91c1c;font-size:11px">⚠ không khớp đơn vị nào</span>':'';
+              return '<label data-tim="'+esc(_bd(c))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'
+                +(sel.indexOf(c)>=0?' checked':'')+'><span>'+esc(c)+xau+'</span></label>';
+            }).join('')+'</div>'
+      +   '<div style="padding:6px 8px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8">Không tích gì = theo mặc định của vai (Admin · Quản lý · Kế toán xem cả hệ, còn lại chỉ nhà mình).</div>'
+      + '</div></div>';
   }
   function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||'', donVi:(r[7]||'').trim(), xemDonVi:(r[8]||'').trim()};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }

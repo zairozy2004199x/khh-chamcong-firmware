@@ -250,7 +250,12 @@ t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.sli
    trong chuỗi. Chỉ quét tên hàm là bỏ sót đúng nó, và mọi cột sau đó lệch một nhịp trong
    CHÍNH BÀI KIỂM — một lỗi của bài kiểm trông y như lỗi của mã. Nên quét CẢ HAI, theo đúng
    thứ tự chúng xuất hiện. */
-const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
+/* ⚠️ THÊM HÀM DỰNG Ô MỚI THÌ PHẢI KHAI VÀO ĐÂY. Ngày 08/09/2026 ô "Xem đơn vị" đổi từ `_inp`
+   (gõ tay) sang `_xemDvSel` (hộp tích), và bài này đỏ ngay — đúng việc của nó: nó đang canh
+   "số ô dựng ra bằng đúng số cột dữ liệu", mà `_readRows()` đọc theo CHỈ SỐ nên lệch một ô là
+   mọi cột sau đó đọc trượt sang cột bên cạnh. Sửa bằng cách dạy nó tên hàm mới, KHÔNG phải
+   bằng cách nới con số cho qua. */
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp|_xemDvSel)\(|<(input|select)\b([^>]*)>/g)]
   .filter(m => {
     if (m[1]) return true;
     if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
