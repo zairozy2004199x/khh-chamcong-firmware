@@ -8,6 +8,7 @@
 #   bash tools/build-plugin-zip.sh ghe        -> chỉ Ghế Massage
 #   bash tools/build-plugin-zip.sh noi-bo     -> chỉ Nội Bộ K&H
 #   bash tools/build-plugin-zip.sh du-an      -> chỉ Dự Án & Tiến Độ K&H
+#   bash tools/build-plugin-zip.sh nha-ma     -> chỉ Nhà Ma (bán vé theo khung giờ)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,6 +59,7 @@ case "$CHON" in
   ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
   noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
   du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
+  nha-ma)    dong_goi "Nhà Ma · Bán vé theo khung giờ" vhcp-nha-ma ;;
   tatca)
     dong_goi "Trang Vận Hành K&H" vhcp-trang-chu
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
@@ -66,8 +68,9 @@ case "$CHON" in
     dong_goi "Ghế Massage" vhcp-ghe
     dong_goi "Nội Bộ K&H" vhcp-noi-bo
     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
+    dong_goi "Nhà Ma · Bán vé theo khung giờ" vhcp-nha-ma
     ;;
-  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | tatca)"; exit 1 ;;
+  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | nha-ma | tatca)"; exit 1 ;;
 esac
 
 # 🔴 CHỐT CHỐNG SÓT: thư mục plugin nào có trong cây mã mà không nằm trong danh sách trên thì

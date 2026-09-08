@@ -1,4 +1,9 @@
-# Ghost Bride VIP — bán vé theo khung giờ
+# Ghost Bride VIP — bán vé theo khung giờ (BẢN FILE RỜI)
+
+> ⚠️ **Đã có bản PLUGIN, dùng bản ấy để bán thật.** Xem `wordpress/vhcp-nha-ma/` — cài qua
+> wp-admin, sổ vé nằm trong MySQL nên mọi máy chung một sổ và khách tự đặt từ điện thoại được.
+> File rời dưới đây giữ lại cho ai muốn một trang chạy độc lập, không cần WordPress; nhưng sổ
+> của nó nằm trong trình duyệt nên **mỗi máy một sổ riêng**.
 
 Một file duy nhất: `index.html`. Không cần cài gì, không cần cơ sở dữ liệu, không cần server.
 

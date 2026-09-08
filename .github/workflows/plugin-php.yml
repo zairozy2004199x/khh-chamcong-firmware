@@ -53,6 +53,9 @@ jobs:
       - name: Bộ thử trạm chấm công
         run: php tools/test/kiem-tram.php
 
+      - name: Bộ thử nhà ma (bán vé theo khung giờ)
+        run: php tools/test/kiem-nha-ma.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 
