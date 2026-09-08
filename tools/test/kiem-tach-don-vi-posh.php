@@ -249,6 +249,72 @@ VHCP_Cfg::save_config( array( 'coso' => array(
 teq( 'nhưng gửi LÊN giá trị mới thì đổi thật (không phải khoá cứng)',
 	'K&H', VHCP_DonVi::cua_coso( CS_POSH ) );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6. DANH MỤC CƠ SỞ TÁCH THEO ĐƠN VỊ — và LƯU KHÔNG ĐƯỢC XOÁ MẤT BÊN KIA
+ *
+ * Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy cơ
+ * sở của mình và tự thêm sửa mã misa"*.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::write( VHCP_Cfg::COSO, array(
+	array( CS_KH,   'FLMPT', 'FARM MN', '', '', '' ),
+	array( CS_POSH, 'PSHCM', 'POSH',    '', '', 'POSH' ),
+) );
+/* ⚠️ `sort()` của PHP xếp chuỗi UTF-8 theo BYTE, nên "TÀU ESTELLA" và "POSH ĐÀ NẴNG" ra thứ
+   tự không giống cách người Việt đọc. Bài này không kiểm thứ tự — nó kiểm CÓ NHỮNG GÌ. Xếp
+   bằng `strnatcasecmp` trên bản bỏ dấu để kỳ vọng viết ra đọc được, và để phép thử không đỏ
+   vì một thứ nó không định canh. */
+function ten_coso_cfg() {
+	$a = array();
+	foreach ( (array) VHCP_Cfg::get_config( array() )['coso'] as $x ) { $a[] = (string) $x['ten']; }
+	usort( $a, function ( $x, $y ) { return strnatcasecmp( $x, $y ); } );
+	return $a;
+}
+lam( 'Sếp', 'Admin' );
+teq( 'đối chứng · Sếp thấy cả hai gian trong danh mục', array( CS_POSH, CS_KH ), ten_coso_cfg() );
+lam( 'KT POSH' );
+teq( '🔴 KT POSH chỉ thấy gian POSH trong danh mục cơ sở', array( CS_POSH ), ten_coso_cfg() );
+lam( 'KT K&H' );
+teq( '🔴 KT K&H chỉ thấy gian K&H', array( CS_KH ), ten_coso_cfg() );
+
+/* 🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA CẢ BÀI.
+   Màn Cấu hình nay chỉ bày cho mỗi người danh mục của đơn vị họ, nên bảng gửi lên KHÔNG phải
+   toàn bộ danh mục. Ghi đè bằng chừng ấy dòng là toàn bộ cơ sở của bên kia biến mất trong một
+   lần bấm Lưu — cùng với mã MISA, phân loại lớn và ngày đóng gian của chúng.
+
+   Tai nạn cùng kiểu đã xảy ra thật với bảng người dùng 25/08/2026. Lần đó bảng rỗng là do lỗi
+   mạng nên còn trông bất thường; lần này bảng chỉ có một dòng là ĐÚNG THEO THIẾT KẾ, nên không
+   có gì để ai kịp dừng tay. */
+lam( 'KT POSH' );
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => CS_POSH, 'maDonVi' => 'PSHCM-MOI', 'phanLoaiLon' => 'POSH', 'tenMisa' => 'POSH SG', 'donVi' => 'POSH' ),
+) ) );
+lam( 'Sếp', 'Admin' );
+teq( '🔴 KT POSH lưu bảng của mình thì gian K&H VẪN CÒN',
+	array( CS_POSH, CS_KH ), ten_coso_cfg() );
+$sau = array();
+foreach ( (array) VHCP_Cfg::get_config( array() )['coso'] as $x ) { $sau[ $x['ten'] ] = $x; }
+teq( 'và sửa đổi của họ có ăn thật (mã MISA mới)', 'PSHCM-MOI', $sau[ CS_POSH ]['maDonVi'] );
+teq( 'gian K&H giữ nguyên mã cũ',                  'FLMPT',     $sau[ CS_KH ]['maDonVi'] );
+teq( 'và giữ nguyên đơn vị cũ', VHCP_DonVi::MAC_DINH, VHCP_DonVi::chuan( $sau[ CS_KH ]['donVi'] ) );
+
+/* Kế toán POSH THÊM một gian mới thì gian ấy vào đúng đơn vị của họ, và bên kia vẫn nguyên. */
+lam( 'KT POSH' );
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => CS_POSH,     'maDonVi' => 'PSHCM-MOI', 'phanLoaiLon' => 'POSH', 'tenMisa' => 'POSH SG', 'donVi' => 'POSH' ),
+	array( 'ten' => 'POSH ĐÀ NẴNG', 'maDonVi' => 'PSDN',   'phanLoaiLon' => 'POSH', 'tenMisa' => '',        'donVi' => 'POSH' ),
+) ) );
+teq( '🔴 KT POSH tự thêm được gian mới cho bên mình',
+	array( CS_POSH, 'POSH ĐÀ NẴNG' ), ten_coso_cfg() );
+lam( 'Sếp', 'Admin' );
+teq( 'và Sếp thấy đủ ba gian', array( CS_POSH, 'POSH ĐÀ NẴNG', CS_KH ), ten_coso_cfg() );
+
+/* ⚠️ Admin (xem cả) lưu thì vẫn ghi đè TOÀN BỘ như trước — đó là hành vi đúng và phải giữ,
+   không thì Admin không xoá được cơ sở nào nữa. */
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => CS_KH, 'maDonVi' => 'FLMPT', 'phanLoaiLon' => 'FARM MN', 'tenMisa' => '', 'donVi' => '' ),
+) ) );
+teq( '🔴 Admin lưu thì vẫn ghi đè toàn bộ (xoá được cơ sở)', array( CS_KH ), ten_coso_cfg() );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $truot ) {
 	echo "\n✗ TRƯỢT " . count( $truot ) . " phép (đạt $dat):\n";

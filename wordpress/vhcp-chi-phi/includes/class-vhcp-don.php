@@ -477,17 +477,18 @@ class VHCP_Don {
 		$cfg = VHCP_Cfg::get_config( $cp );
 
 		/* 🔴 Ô CHỌN CƠ SỞ CHỈ BÀY GIAN CỦA BÊN MÌNH (anh Thắng 08/09/2026: *"2 bộ phận không
-		   nhìn thấy nhau"*). Lọc ở ĐÂY vì đây là nơi DUY NHẤT dựng danh sách cơ sở gửi xuống
-		   trình duyệt — mọi ô chọn của mọi màn đều ăn từ nó, nên một chỗ là xong, không có ô
-		   nào để quên.
+		   nhìn thấy nhau"*). Không lọc lại ở đây: `VHCP_Cfg::get_config()` đã cắt theo đơn vị
+		   rồi, nên `$cfg['coso']` xuống tới đây là đã sạch.
+
+		   ⚠️ ĐỪNG THÊM MỘT LỚP LỌC NỮA "CHO CHẮC". Bản nháp có, và phá thử chỉ ngay: đục cho
+		      lớp ấy nhận hết mà không phép nào đỏ, vì lớp kia đã làm xong việc. Hai lớp chồng
+		      nhau thì lớp thừa không bảo vệ được gì, chỉ làm người đọc sau tưởng chốt nằm ở
+		      đây và đi sửa nhầm chỗ.
 
 		   ⚠️ Danh sách này chỉ nuôi Ô CHỌN. Tên cơ sở hiện trên từng dòng dữ liệu lấy thẳng
-		      từ chính dòng ấy, nên đơn cũ mang gian bên kia vẫn đọc được tên bình thường —
-		      lọc ở đây không làm dữ liệu trông như bị mất chữ. */
-		$dv_xem = VHCP_DonVi::xem_duoc();
+		      từ chính dòng ấy, nên đơn cũ mang gian bên kia vẫn đọc được tên bình thường. */
 		$coso = array(); $coso_dong = array();
 		foreach ( $cfg['coso'] as $x ) {
-			if ( null !== $dv_xem && ! VHCP_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' ) ) { continue; }
 			$coso[] = $x['ten'];
 			// Gian đã đóng: gửi kèm để giao diện bỏ khỏi ô chọn lúc nhập
 			if ( trim( (string) ( isset( $x['dongCua'] ) ? $x['dongCua'] : '' ) ) !== '' ) { $coso_dong[] = $x['ten']; }

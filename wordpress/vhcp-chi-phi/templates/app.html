@@ -6736,10 +6736,27 @@
          số của POSH nằm trong sổ K&H. Nên ô này có gợi ý sẵn từ danh sách đơn vị đang có,
          không phải gõ chay. */
       return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td><input value="'+esc(x.donVi||'')+'" list="dl_donvi" placeholder="'+esc(_dvMacDinh())+'" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
-    var gr={}, ord=[]; (CFG.coso||[]).forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
-    ord.sort();
-    el('cfgCosoBody').innerHTML=ord.map(function(g){
-      return '<tr><td colspan="7" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
+    /* 🔴 GOM THEO ĐƠN VỊ TRƯỚC, RỒI MỚI THEO PHÂN LOẠI LỚN.
+       Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự nhìn thấy
+       cơ sở của mình và tự thêm sửa mã misa"*. Trước đây bảng chỉ gom theo Phân loại lớn, nên
+       gian POSH nằm lẫn giữa mười mấy khối của K&H — muốn tìm phải cuộn qua hết.
+
+       Người bị giới hạn đơn vị thì máy chủ đã lọc, họ chỉ còn đúng một khối; dải tên đơn vị
+       vẫn hiện để họ biết mình đang khai cho bên nào. */
+    var dvGr={}, dvOrd=[];
+    (CFG.coso||[]).forEach(function(x){
+      var d=String(x.donVi||'').trim()||_dvMacDinh();
+      if(!dvGr[d]){dvGr[d]=[];dvOrd.push(d);} dvGr[d].push(x);
+    });
+    dvOrd.sort();
+    el('cfgCosoBody').innerHTML=dvOrd.map(function(d){
+      var gr={}, ord=[];
+      dvGr[d].forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
+      ord.sort();
+      return '<tr><td colspan="7" style="background:#1e3a8a;color:#fff;font-weight:800;letter-spacing:.3px;padding:9px 10px">🏢 ĐƠN VỊ '+esc(d)+' <span style="font-weight:500;opacity:.85">· '+dvGr[d].length+' cơ sở</span></td></tr>'
+        +ord.map(function(g){
+          return '<tr><td colspan="7" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
+        }).join('');
     }).join('');
     _csLock(true);
     doCoSoLa();   // dò tên cơ sở có trên dữ liệu mà chưa khai ở bảng này

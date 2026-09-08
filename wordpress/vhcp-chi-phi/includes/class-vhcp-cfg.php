@@ -609,7 +609,15 @@ class VHCP_Cfg {
 		return array(
 			'vaiGoc'     => self::VAI_GOC,
 			'vaiTro'     => self::vai_tuy_bien(),
-			'coso'       => $s['coso'],
+			/* 🔴 DANH MỤC CƠ SỞ GỬI XUỐNG ĐÃ LỌC THEO ĐƠN VỊ.
+			   Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự
+			   nhìn thấy cơ sở của mình và tự thêm sửa mã misa"*. Kế toán POSH mở màn Cấu hình
+			   ra chỉ thấy gian POSH, và tự khai mã MISA cho chúng.
+
+			   ⚠️ ĐƯỜNG LƯU PHẢI HỢP NHẤT, KHÔNG GHI ĐÈ — xem chốt 🔴 ở `save_config()`. Lọc
+			      một chiều mà quên chiều kia là kế toán POSH bấm Lưu một cái, bảng gửi lên
+			      đúng một dòng, và toàn bộ cơ sở K&H biến mất. */
+			'coso'       => self::coso_theo_don_vi( $s['coso'] ),
 			'nhom'       => $s['nhom'],
 			'loaiChiPhi' => isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array(),
 			'tkNoMatrix' => $s['tkNoMatrix'],
@@ -618,6 +626,21 @@ class VHCP_Cfg {
 			'qr'         => $s['qr'],
 			'sso'        => $sso,
 		);
+	}
+
+	/**
+	 * Lọc danh mục cơ sở theo đơn vị người đang gọi. Xem cả -> trả nguyên.
+	 *
+	 * Tách thành hàm riêng vì cả đường ĐỌC lẫn đường GHI đều cần đúng một phép chia này; hai
+	 * bản chép tay là sớm muộn lệch, mà lệch ở đây nghĩa là ghi đè mất dữ liệu của bên kia.
+	 */
+	public static function coso_theo_don_vi( $ds ) {
+		if ( ! class_exists( 'VHCP_DonVi' ) || null === VHCP_DonVi::xem_duoc() ) { return $ds; }
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			if ( VHCP_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' ) ) { $ra[] = $x; }
+		}
+		return $ra;
 	}
 
 	public static function save_config( $cfg ) {
@@ -691,6 +714,36 @@ class VHCP_Cfg {
 					if ( isset( $dv_cu[ $k1 ] ) ) { $dv = $dv_cu[ $k1 ]; }
 				}
 				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv );
+			}
+
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 HỢP NHẤT, KHÔNG GHI ĐÈ — GIỮ NGUYÊN CƠ SỞ CỦA ĐƠN VỊ NGƯỜI NÀY KHÔNG THẤY.
+			 *
+			 * Từ 08/09/2026 màn Cấu hình chỉ bày cho mỗi người danh mục cơ sở của ĐƠN VỊ họ.
+			 * Nên bảng gửi lên KHÔNG PHẢI toàn bộ danh mục — kế toán POSH gửi lên đúng mấy
+			 * gian POSH. Ghi đè bằng chừng ấy dòng là toàn bộ cơ sở K&H biến mất trong một
+			 * lần bấm Lưu, và cùng với chúng là mã MISA, phân loại lớn, ngày đóng gian.
+			 *
+			 * Đây đúng loại tai nạn đã xảy ra thật với bảng người dùng ngày 25/08/2026 (xem
+			 * chốt 🔴 ở đầu hàm). Lần đó là do giao diện vẽ bảng rỗng; lần này thì bảng rỗng
+			 * là ĐÚNG THEO THIẾT KẾ, nên nguy hiểm hơn hẳn — không có gì trông bất thường để
+			 * ai đó kịp dừng tay.
+			 *
+			 * Giữ lại theo TÊN cơ sở, không theo vị trí: người ta có thể thêm, xoá, đổi thứ
+			 * tự trong phần của mình.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( class_exists( 'VHCP_DonVi' ) && null !== VHCP_DonVi::xem_duoc() ) {
+				$giu = array();
+				foreach ( self::read( self::COSO ) as $r0 ) {
+					$r0 = array_values( (array) $r0 );
+					$t0 = trim( (string) ( isset( $r0[0] ) ? $r0[0] : '' ) );
+					if ( '' === $t0 ) { continue; }
+					if ( ! VHCP_DonVi::duoc_xem( isset( $r0[5] ) ? $r0[5] : '' ) ) { $giu[] = $r0; }
+				}
+				/* Dòng của bên kia đứng TRƯỚC: giao diện gom theo đơn vị rồi mới vẽ, nên thứ
+				   tự lưu không đổi cách bày, mà giữ nguyên khối cũ ở đầu thì `set_cell()` của
+				   những lượt seed cũ (đánh theo chỉ số) không trượt lung tung. */
+				$rows = array_merge( $giu, $rows );
 			}
 			self::write( self::COSO, $rows );
 		}
