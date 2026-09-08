@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.17.0
+ * Version:           1.18.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -274,6 +274,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
 		register_rest_route( self::NS, '/uudai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_uudai' ) ) );
 		register_rest_route( self::NS, '/zalo/sdt', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_sdt' ) ) );
+		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
@@ -487,7 +488,7 @@ class POSH_Ve {
 		$act    = sanitize_key( $_GET['pve_zalo'] );
 		$appid  = (string) get_option( 'pve_zalo_appid', '' );
 		$secret = (string) get_option( 'pve_zalo_secret', '' );
-		$cb     = home_url( '/?pve_zalo=cb' );
+		$cb     = esc_url_raw( rest_url( self::NS . '/zalo/cb' ) );   // callback sạch, không có dấu ?
 
 		if ( 'login' === $act ) {
 			if ( '' === $appid ) { wp_die( 'Chưa cấu hình Zalo App ID (vào admin Vé khu vui chơi).' ); }
@@ -499,35 +500,48 @@ class POSH_Ve {
 				. '&redirect_uri=' . rawurlencode( $cb ) . '&code_challenge=' . $challenge . '&state=' . $state );
 			exit;
 		}
-		if ( 'cb' === $act ) {
-			$code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
-			$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
-			$data  = get_transient( 'pve_zl_' . $state );
-			$back  = ( $data && ! empty( $data['r'] ) ) ? $data['r'] : home_url( '/' );
-			if ( ! $data || '' === $code || '' === $secret ) { wp_safe_redirect( $back ); exit; }
-			delete_transient( 'pve_zl_' . $state );
-			$res = wp_remote_post( 'https://oauth.zaloapp.com/v4/access_token', array( 'timeout' => 12,
-				'headers' => array( 'secret_key' => $secret, 'Content-Type' => 'application/x-www-form-urlencoded' ),
-				'body'    => array( 'app_id' => $appid, 'code' => $code, 'grant_type' => 'authorization_code', 'code_verifier' => $data['v'] ) ) );
-			$tok = json_decode( (string) wp_remote_retrieve_body( $res ), true );
-			$at  = isset( $tok['access_token'] ) ? $tok['access_token'] : '';
-			if ( '' !== $at ) {
-				$me = wp_remote_get( 'https://graph.zalo.me/v2.0/me?fields=id,name,picture', array( 'timeout' => 12, 'headers' => array( 'access_token' => $at ) ) );
-				$u  = json_decode( (string) wp_remote_retrieve_body( $me ), true );
-				$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
-				$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
-				if ( '' !== $id ) {
-					$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
-					$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
-					setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
-				}
-			}
-			wp_safe_redirect( $back ); exit;
+		if ( 'cb' === $act ) {   // tương thích callback cũ ?pve_zalo=cb
+			self::xong_dang_nhap(
+				isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '',
+				isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : ''
+			);
 		}
 		if ( 'logout' === $act ) {
 			setcookie( 'pve_zuser', '', time() - 3600, '/' );
 			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url( '/' ) ); exit;
 		}
+	}
+	/* Callback sạch (REST): oauth.zaloapp.com quay về đây với code+state. */
+	public static function r_zalo_cb( $req ) {
+		self::xong_dang_nhap( (string) $req->get_param( 'code' ), (string) $req->get_param( 'state' ) );
+	}
+	/* Đổi code -> access_token -> lấy tên -> đặt cookie -> quay lại trang bán. */
+	private static function xong_dang_nhap( $code, $state ) {
+		$appid  = (string) get_option( 'pve_zalo_appid', '' );
+		$secret = (string) get_option( 'pve_zalo_secret', '' );
+		$code   = preg_replace( '/[^A-Za-z0-9._-]/', '', (string) $code );
+		$state  = preg_replace( '/[^A-Za-z0-9]/', '', (string) $state );
+		$data   = get_transient( 'pve_zl_' . $state );
+		$back   = ( $data && ! empty( $data['r'] ) ) ? $data['r'] : home_url( '/' );
+		if ( ! $data || '' === $code || '' === $secret ) { wp_safe_redirect( $back ); exit; }
+		delete_transient( 'pve_zl_' . $state );
+		$res = wp_remote_post( 'https://oauth.zaloapp.com/v4/access_token', array( 'timeout' => 12,
+			'headers' => array( 'secret_key' => $secret, 'Content-Type' => 'application/x-www-form-urlencoded' ),
+			'body'    => array( 'app_id' => $appid, 'code' => $code, 'grant_type' => 'authorization_code', 'code_verifier' => $data['v'] ) ) );
+		$tok = json_decode( (string) wp_remote_retrieve_body( $res ), true );
+		$at  = isset( $tok['access_token'] ) ? $tok['access_token'] : '';
+		if ( '' !== $at ) {
+			$me = wp_remote_get( 'https://graph.zalo.me/v2.0/me?fields=id,name,picture', array( 'timeout' => 12, 'headers' => array( 'access_token' => $at ) ) );
+			$u  = json_decode( (string) wp_remote_retrieve_body( $me ), true );
+			$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
+			$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
+			if ( '' !== $id ) {
+				$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
+				$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
+				setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
+			}
+		}
+		wp_safe_redirect( $back ); exit;
 	}
 	/* Mã xác thực domain Zalo (bỏ tiền tố nếu có). */
 	private static function zalo_verify_token() {
@@ -1481,7 +1495,7 @@ class POSH_Ve {
 		echo '<tr><th>Zalo App ID</th><td><input name="zalo_appid" class="regular-text code" value="' . esc_attr( $zappid ) . '" placeholder="VD 1234567890123"> <span class="description">Dùng cho nút “Đăng nhập bằng Zalo” trên web.</span></td></tr>';
 		echo '<tr><th>Zalo App Secret Key</th><td><input name="zalo_secret" class="regular-text code" value="' . esc_attr( $zs ) . '" placeholder="Dán Secret Key">'
 			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình' ) . '</span></td></tr>';
-		echo '<tr><th>Callback URL (khai trên Zalo)</th><td><code>' . esc_html( home_url( '/?pve_zalo=cb' ) ) . '</code><br><span class="description">Vào Zalo App console → Đăng nhập → thêm URL này vào <i>Redirect URI</i> hợp lệ. (Đăng nhập web lấy tên/ảnh Zalo; SĐT vẫn nhập ở form vì Zalo hạn chế lấy SĐT qua web.)</span></td></tr>';
+		echo '<tr><th>Callback URL (khai trên Zalo)</th><td><code>' . esc_html( rest_url( self::NS . '/zalo/cb' ) ) . '</code><br><span class="description">Vào Zalo App console → Đăng nhập → thêm URL này vào <i>Redirect URI</i>. <b>Bắt buộc</b>: vào <i>Xác thực domain → Tiền tố URL</i> thêm <code>' . esc_html( home_url( '/' ) ) . '</code> và Xác thực (redirect URI phải nằm dưới tiền tố đã xác thực). SĐT vẫn nhập ở form vì Zalo hạn chế lấy SĐT qua web.</span></td></tr>';
 		$zv = self::zalo_verify_token();
 		echo '<tr><th>Mã xác thực domain</th><td><input name="zalo_verify" class="large-text code" value="' . esc_attr( (string) get_option( 'pve_zalo_verify', '' ) ) . '" placeholder="VD IS-HTRVS1az... (dán mã Zalo cho)">'
 			. '<br><span class="description">Zalo console → <i>Xác thực domain</i> cho mã dạng <code>IS-xxxx</code>. Dán vào đây → plugin tự chèn thẻ meta + phục vụ file xác thực. '
