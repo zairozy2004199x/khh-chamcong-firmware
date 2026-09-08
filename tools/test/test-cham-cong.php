@@ -6326,6 +6326,66 @@ vhcc_luu_bang( $tok_ad, array( 'pin_dang_nhap' => array( 'W1' => '' ),
 	'xoa_pin' => array( 'W1' => '1' ) ) );
 teq( 'tích ô xoá thì mới bỏ PIN', '', vhcc_hs( 'W1' )['pin_dang_nhap'] );
 
+/* ===== THẺ "TẠO NHÂN SỰ MỚI" + BIỂU MẪU ĐỦ Ô (08/09/2026) =====================================
+   🔴 Anh Thắng, sau khi cài 3.42.0: *"không có ô rõ ràng tạo nhân sự mới, nhập đủ trường thông
+   tin nếu có"*. Gộp về một cửa là đúng, nhưng cửa ấy vẫn là cái nút NHỎ nằm lẫn trong hàng lọc,
+   dưới hai thẻ to — nên vẫn phải đi tìm. Và biểu mẫu thiếu hai ô mà bảng có: người liên hệ khẩn
+   + SĐT khẩn (trước đây chỉ khai được ở màn wp-admin vừa bỏ). */
+$h_tm = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
+t( '🔴 màn Hồ sơ có THẺ RIÊNG "Tạo nhân sự mới"',
+	strpos( $h_tm, '➕ Tạo nhân sự mới' ) !== false, $h_tm );
+t( 'và nút mở thẳng biểu mẫu', strpos( $h_tm, 'Mở biểu mẫu tạo nhân sự mới' ) !== false );
+t( 'nút trỏ đúng cửa duy nhất (man=ho_so & sua=+)',
+	strpos( $h_tm, 'man=ho_so' ) !== false && strpos( $h_tm, 'sua=%2B' ) !== false );
+/* Kê sẵn các ô sẽ phải khai — đọc là biết mình sắp điền gì, khỏi mở ra rồi đóng lại. */
+t( 'thẻ kê ra các ô sẽ khai (ảnh thẻ · lương · PIN)',
+	strpos( $h_tm, 'ảnh thẻ' ) !== false && strpos( $h_tm, 'lương cơ bản' ) !== false
+	&& strpos( $h_tm, 'PIN máy chấm công' ) !== false );
+/* Thứ tự trên màn = thứ tự việc. Thêm MỘT người là việc thường ngày; nạp .csv là việc một lần
+   lúc dựng hệ; tài khoản đăng nhập là việc sau khi đã có người. */
+$vt_tm  = strpos( $h_tm, '➕ Tạo nhân sự mới' );
+$vt_csv = strpos( $h_tm, 'NẠP HỒ SƠ NHÂN VIÊN TỪ FILE' );
+if ( false === $vt_csv ) { $vt_csv = strpos( $h_tm, 'file .csv' ); }
+$vt_tk  = strpos( $h_tm, 'Tài khoản đăng nhập' );
+t( '🔴 thẻ tạo mới đứng ĐẦU màn — trên thẻ nạp .csv',
+	false !== $vt_tm && false !== $vt_csv && $vt_tm < $vt_csv );
+t( 'và trên thẻ Tài khoản đăng nhập', false !== $vt_tk && $vt_tm < $vt_tk );
+/* Vẫn CHỈ MỘT cửa: thẻ mới không được dựng thêm một biểu mẫu tạo thứ hai. */
+t( '🔴 thẻ mới chỉ là ĐƯỜNG VÀO, không phải biểu mẫu thứ hai',
+	strpos( $h_tm, 'name="ma_nv"' ) === false );
+
+$h_f = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => '+' ) );
+t( 'biểu mẫu tạo mới có ô Người liên hệ khẩn',
+	strpos( $h_f, 'name="nguoi_lien_he_khan"' ) !== false, $h_f );
+t( 'và ô SĐT người liên hệ khẩn', strpos( $h_f, 'name="sdt_khan"' ) !== false );
+t( 'Mã NV bắt buộc', strpos( $h_f, 'name="ma_nv" required' ) !== false );
+t( 'Họ tên cũng bắt buộc — hồ sơ không tên thì bảng công tra ra mã trần',
+	strpos( $h_f, 'name="ho_ten" required' ) !== false );
+/* 🔴 Giới tính: máy chấm công chỉ nhận `male`/`female`; gõ "Nam" là máy nhận hồ sơ KHÔNG có
+   giới tính mà màn hình vẫn thấy có chữ. */
+t( '🔴 giới tính là ô CHỌN đúng giá trị máy nhận',
+	strpos( $h_f, '<select name="gioi_tinh"' ) !== false
+	&& strpos( $h_f, 'value="male"' ) !== false && strpos( $h_f, 'value="female"' ) !== false );
+t( 'trạng thái làm việc là ô gõ CÓ GỢI Ý (giữ được câu kiểu "Đã nghỉ 12/2025")',
+	strpos( $h_f, 'list="dl_tt"' ) !== false && strpos( $h_f, 'Đã nghỉ việc' ) !== false );
+
+/* Khai thật hai ô mới: phải xuống tới bảng, không rơi dọc đường (`COT_SUA` phải có chúng). */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'nguoi_lien_he_khan' => 'Mẹ — Bà Tư',
+	'sdt_khan' => '0909111222' ) );
+teq( 'ô Người liên hệ khẩn lưu được', 'Mẹ — Bà Tư', vhcc_hs( 'W1' )['nguoi_lien_he_khan'] );
+teq( 'ô SĐT khẩn lưu được', '0909111222', vhcc_hs( 'W1' )['sdt_khan'] );
+
+/* 🔴 Sổ cũ có dòng ghi giới tính "Nam" (chứ không phải `male`). Đổi sang ô CHỌN mà không kê lại
+   giá trị đang có thì lượt lưu kế tiếp XOÁ TRẮNG ô của họ — mất dữ liệu vì một cái ô chọn. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'gioi_tinh' => 'Nam' ), array( 'ma_nv' => 'W1' ) );
+$h_gt = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => 'W1' ) );
+t( '🔴 giá trị giới tính CŨ trong sổ vẫn được kê lại trong ô chọn',
+	strpos( $h_gt, 'giá trị cũ trong sổ' ) !== false, $h_gt );
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'gioi_tinh' => 'Nam' ) );
+teq( 'nên lưu lại KHÔNG xoá trắng giới tính cũ', 'Nam', vhcc_hs( 'W1' )['gioi_tinh'] );
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'gioi_tinh' => 'male' ) );
+teq( 'và chọn Nam/Nữ thì ghi đúng giá trị máy nhận', 'male', vhcc_hs( 'W1' )['gioi_tinh'] );
+
 /* PIN sai khuôn thì CHỐI RIÊNG DÒNG ĐÓ, không lưu nửa vời dòng đó — nhưng cũng KHÔNG được làm
    hỏng cả lượt gửi. Bắt làm lại từ đầu cả trăm dòng vì một PIN gõ nhầm là cách chắc nhất để
    người ta thôi dùng nút này. */

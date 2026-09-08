@@ -104,6 +104,37 @@ Chặn ở **cả hai đầu**, không chỉ ẩn nút: đường `POST` của m
 hồ sơ** (một tab còn mở từ trước, hoặc một liên kết đã lưu, vẫn gửi lên được). Sửa hồ sơ **đã có**
 thì vẫn cho — đó mới là việc của màn ấy.
 
+### Thẻ "Tạo nhân sự mới" + biểu mẫu đủ ô (3.43.0)
+
+> Anh Thắng, ngay sau khi cài 3.42.0: *"không có ô rõ ràng tạo nhân sự mới, nhập đủ trường thông
+> tin nếu có"*.
+
+Gộp về một cửa là đúng, nhưng cửa ấy vẫn là **cái nút nhỏ `+ Hồ sơ mới` nằm lẫn trong hàng lọc**,
+dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn phải đi tìm. Nay:
+
+* **Thẻ riêng `➕ Tạo nhân sự mới` đứng ĐẦU màn** *Hồ sơ & tài khoản*, kê thẳng những ô sẽ phải
+  khai để đọc là biết mình sắp điền gì. Thẻ chỉ là **đường vào** `?man=ho_so&sua=+` — không dựng
+  biểu mẫu thứ hai.
+* **Đủ ô**: thêm **Người liên hệ khẩn** và **SĐT người liên hệ khẩn**. Hai cột này có trong bảng
+  `nhan_vien` và đang giữ dữ liệu, nhưng trước đây **chỉ khai được ở màn wp-admin** — bỏ biểu mẫu
+  bên đó mà không đưa sang thì thành ra không còn cửa nào nhập chúng. Biểu mẫu nay có đủ **20 ô**
+  người dùng khai được, cộng ô ảnh thẻ và lưới tích cơ sở.
+* **Mã NV và Họ tên bắt buộc** — hồ sơ không tên thì bảng công tra ra mã trần.
+* **Giới tính đổi thành ô CHỌN** (Nam / Nữ → `male` / `female`). Lệnh xuống máy chấm công chỉ nhận
+  đúng hai giá trị ấy, nên gõ tay "Nam" là máy nhận hồ sơ **không có giới tính** mà màn hình vẫn
+  thấy có chữ. Sổ cũ ghi "Nam"/"nam" thì ô chọn **kê lại giá trị đang có** — không thì lượt lưu kế
+  tiếp xoá trắng ô của họ.
+* **Trạng thái làm việc** vẫn là ô **gõ có gợi ý** (Đang làm · Tạm nghỉ · Đã nghỉ việc), cố ý
+  không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
+  sổ cũ có những câu như "Đã nghỉ 12/2025".
+
+Phép thử: 18 phép nữa trong `test-cham-cong.php` — thẻ đứng đầu màn (trên `.csv` và trên thẻ tài
+khoản), nút trỏ đúng `man=ho_so&sua=+`, thẻ **không** chứa ô `ma_nv` nào (không phải biểu mẫu thứ
+hai), hai ô khẩn lưu xuống bảng thật, giới tính là `<select>` có `male`/`female`, và **giá trị cũ
+trong sổ không bị xoá trắng**.
+
+---
+
 Phép thử: `tools/test/test-cham-cong.php` mục **39b** (13 phép) — biểu mẫu biến khỏi màn `sua=+`,
 `POST` tạo mới bị chặn và **không** ghi hàng nào vào bảng, sửa hồ sơ đã có vẫn lưu, và **cửa duy
 nhất kia vẫn còn** (soi thẳng mã nguồn trang web, kẻo bỏ bên này mà bên kia cũng mất thì hết đường

@@ -2699,11 +2699,15 @@ class VHCC_Web {
 			echo self::goi_y( 'dl_nv', "SELECT DISTINCT nhiem_vu AS v FROM $b_hs WHERE nhiem_vu<>''", true,
 				array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) );
 			echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $b_hs WHERE coso_phu<>''", true );
+			echo self::goi_y( 'dl_tt',
+				"SELECT DISTINCT trang_thai_lam_viec AS v FROM $b_hs WHERE trang_thai_lam_viec<>''",
+				false, array( 'Đang làm', 'Tạm nghỉ', 'Đã nghỉ việc' ) );
 			self::the_sua_ho_so( $ky, $sua, $la );
 			self::dong_trang();
 			return;
 		}
 
+		self::the_tao_moi();
 		self::the_nap_csv( $ky, $tong );
 		self::the_tai_khoan( $ky, $la );
 		self::the_ho_so( $ky, $toi );
@@ -7276,6 +7280,37 @@ class VHCC_Web {
 		}
 	}
 
+	/**
+	 * THẺ ĐẦU MÀN: TẠO NHÂN SỰ MỚI.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng, sau khi cài 3.42.0: *"không có ô rõ ràng tạo nhân sự mới, nhập
+	 * đủ trường thông tin nếu có"*. Anh đúng: cửa tạo người là cái nút `+ Hồ sơ mới` **nhỏ, nằm
+	 * lẫn trong hàng lọc** của thẻ Hồ sơ nhân sự — dưới hai thẻ to (nạp .csv, tài khoản đăng
+	 * nhập). Gộp về một cửa (3.42.0) mà cửa ấy vẫn khó thấy thì chưa xong việc.
+	 *
+	 * Nay nó là THẺ RIÊNG, ĐỨNG ĐẦU màn, và kê thẳng những ô sẽ phải khai — để trước khi bấm là
+	 * biết mình sắp điền gì, khỏi mở ra rồi đóng lại.
+	 *
+	 * ⚠️ VẪN CHỈ MỘT CỬA: thẻ này chỉ là đường vào `?man=ho_so&sua=+`, đúng biểu mẫu mà nút
+	 *    `+ Hồ sơ mới` mở. KHÔNG dựng biểu mẫu thứ hai ở đây — tạo hồ sơ là cấp Mã NV dùng chung
+	 *    cả chuỗi, mà hai cửa cho cùng một việc thì cửa mới chưa ai gác.
+	 */
+	private static function the_tao_moi() {
+		echo '<div class="the"><h2>➕ Tạo nhân sự mới</h2>';
+		echo '<p class="mo">Một biểu mẫu, <b>đủ mọi ô</b>: Mã NV · Họ tên · <b>ảnh thẻ</b> · cơ sở '
+			. 'làm việc · chức vụ · nhiệm vụ · trạng thái làm việc · ngày vào làm · loại hợp đồng · '
+			. 'ngày sinh · giới tính · CCCD · SĐT · địa chỉ · người liên hệ khẩn · lương cơ bản · '
+			. 'số tài khoản · ngân hàng · vai trò + PIN đăng nhập web · PIN máy chấm công.</p>';
+		echo '<p style="margin:10px 0 6px"><a class="nut chinh" style="font-size:15px;padding:10px 16px" '
+			. 'href="' . esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), self::url() ) )
+			. '">➕ Mở biểu mẫu tạo nhân sự mới</a></p>';
+		echo '<p class="mo">Có <b>ảnh thẻ</b> thì hệ tự <b>đẩy hồ sơ xuống máy chấm công</b> và lấy '
+			. 'luôn <b>mẫu đối chiếu khuôn mặt</b> cho chấm công online — không phải làm thêm bước '
+			. 'nào. Thêm <b>nhiều người một lúc</b> thì dùng thẻ <b>Nạp hồ sơ nhân viên từ file '
+			. '.csv</b> ngay bên dưới.</p>';
+		echo '</div>';
+	}
+
 	private static function the_nap_csv( $ky, $tong ) {
 		$lui = VHCC_NapCsv::co_lui();
 		echo '<div class="the"><h2>📥 Nạp hồ sơ nhân viên từ file .csv</h2>';
@@ -7830,7 +7865,8 @@ class VHCC_Web {
 		if ( $them_moi ) {
 			echo '<div class="luoi"><label>Mã NV <b style="color:var(--do)">*</b>'
 				. '<input name="ma_nv" required style="width:100%"></label>'
-				. '<label>Họ tên<input name="ho_ten" style="width:100%"></label></div>';
+				. '<label>Họ tên <b style="color:var(--do)">*</b>'
+				. '<input name="ho_ten" required style="width:100%"></label></div>';
 			/**
 			 * 🔴 ẢNH THẺ Ở TAB ADMIN — SONG SONG VỚI "THÊM NHANH" CỦA CỬA HÀNG TRƯỞNG.
 			 *
@@ -7896,6 +7932,24 @@ class VHCC_Web {
 							. ' số &nbsp;<label style="display:inline;color:var(--do)">'
 							. '<input type="checkbox" name="xoa_pin" value="1"> xoá hẳn</label></span>';
 					}
+				} elseif ( 'gioi_tinh' === $c ) {
+					/* 🔴 CHỌN, KHÔNG GÕ TAY. Lệnh xuống máy chấm công chỉ nhận đúng `male`/`female`
+					   (chỗ dựng lệnh trong `VHCC_NhanSu`: giá trị khác -> chuỗi RỖNG). Gõ "Nam" thì
+					   màn hình trông như đã khai, mà máy nhận hồ sơ KHÔNG có giới tính — sai im lặng. */
+					$gt = trim( $g( 'gioi_tinh' ) );
+					echo '<select name="gioi_tinh" style="width:100%">';
+					echo '<option value=""' . selected( '', $gt, false ) . '>— chưa khai —</option>';
+					foreach ( array( 'male' => 'Nam', 'female' => 'Nữ' ) as $gt_v => $gt_n ) {
+						echo '<option value="' . esc_attr( $gt_v ) . '"' . selected( $gt_v, $gt, false )
+							. '>' . esc_html( $gt_n ) . '</option>';
+					}
+					/* ⚠️ SỔ CŨ có dòng ghi "Nam" / "Nữ" / "nam". Không kê lại giá trị đang có thì
+					   lượt lưu kế tiếp XOÁ TRẮNG ô của họ — mất dữ liệu chỉ vì đổi sang ô chọn. */
+					if ( '' !== $gt && ! in_array( $gt, array( 'male', 'female' ), true ) ) {
+						echo '<option value="' . esc_attr( $gt ) . '" selected>' . esc_html( $gt )
+							. ' — giá trị cũ trong sổ</option>';
+					}
+					echo '</select>';
 				} elseif ( in_array( $c, VHCC_NapCsv::COT_NGAY, true ) ) {
 					echo '<input type="date" name="' . esc_attr( $c ) . '" value="'
 						. esc_attr( $g( $c ) ) . '" style="width:100%">';
@@ -7903,8 +7957,13 @@ class VHCC_Web {
 					/* Lưới gộp: hiện CẢ hai cột, tích cái nào là làm ở đó. */
 					echo self::o_coso_phu( trim( $g( 'cua_hang' ) . ', ' . $g( 'coso_phu' ), ' ,' ) );
 				} else {
+					/* Ô gõ CÓ GỢI Ý cho mấy ô hay lệch cách viết. Trạng thái làm việc cố ý vẫn là
+					   ô GÕ chứ không phải ô chọn: luật "đã nghỉ" đọc theo chữ "nghỉ" trong câu
+					   (`VHCC_NhanSu::da_nghi`), và sổ cũ có đủ kiểu "Đã nghỉ 12/2025" — ép thành ô
+					   chọn là lượt lưu sau xoá mất câu người ta đã ghi. */
 					$dl = array( 'cua_hang' => 'dl_ch', 'chuc_vu' => 'dl_cv',
-						'nhiem_vu' => 'dl_nv', 'coso_phu' => 'dl_cp' );
+						'nhiem_vu' => 'dl_nv', 'coso_phu' => 'dl_cp',
+						'trang_thai_lam_viec' => 'dl_tt' );
 					echo '<input name="' . esc_attr( $c ) . '" value="' . esc_attr( $g( $c ) ) . '"'
 						. ( isset( $dl[ $c ] ) ? ' list="' . $dl[ $c ] . '"' : '' ) . ' style="width:100%">';
 				}
@@ -7984,6 +8043,12 @@ class VHCC_Web {
 			'cccd'      => 'CCCD',
 			'sdt'       => 'Số điện thoại',
 			'dia_chi'   => 'Địa chỉ',
+			/* 🔴 08/09/2026 — anh Thắng: *"nhập đủ trường thông tin nếu có"*. Hai ô này CÓ trong
+			   bảng `nhan_vien` và cột vẫn đang giữ dữ liệu, nhưng trước đây chỉ khai được ở màn
+			   wp-admin. Bỏ biểu mẫu bên đó (3.42.0) mà không đưa hai ô này sang thì thành ra
+			   KHÔNG còn cửa nào khai được chúng — mất chỗ nhập chứ không mất dữ liệu. */
+			'nguoi_lien_he_khan' => 'Người liên hệ khẩn',
+			'sdt_khan'           => 'SĐT người liên hệ khẩn',
 		),
 		'Lương'      => array(
 			'luong_co_ban' => 'Lương cơ bản',
@@ -8000,6 +8065,7 @@ class VHCC_Web {
 	/** Các ô sửa được ngoài web. Cố ý KHÔNG cho sửa `ma_nv` — đổi mã là sửa mọi hàng chấm công. */
 	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu', 'vai_tro',
 		'trang_thai_lam_viec', 'sdt', 'cccd', 'ngay_sinh', 'gioi_tinh', 'dia_chi',
+		'nguoi_lien_he_khan', 'sdt_khan',
 		'ngay_vao_lam', 'loai_hop_dong', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang',
 		'pin_dang_nhap', 'pin_may' );
 }
