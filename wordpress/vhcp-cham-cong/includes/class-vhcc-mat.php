@@ -647,13 +647,77 @@ class VHCC_Mat {
 
 	// ==================================================================== quản trị
 
-	/** Danh sách mẫu, để màn quản trị duyệt / xoá. */
-	public static function ds( $u, $trang_thai = '' ) {
+	/**
+	 * TẤM ẢNH ĐÃ SINH RA MẪU NÀY — để màn duyệt còn có cái mà xem.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"trên web quản trị chưa có phần duyệt khuôn mặt này (cần hiện
+	 *    rõ ảnh đó ra, đây chỉ hiện duyệt hay không thôi)"*.
+	 *    Chính chú thích trên màn ấy đã tự nói ra định nghĩa: duyệt nghĩa là *"tôi đã mở ảnh ra
+	 *    xem và đúng là người này"*. Mà màn hình lại KHÔNG có ảnh — nên nút Duyệt chỉ còn là một
+	 *    nút bấm cho hết hàng chờ. Duyệt bừa còn hại hơn không duyệt: nó dán nhãn "đã có người
+	 *    xác nhận" lên đúng tấm mẫu có thể là mặt người chấm hộ, và từ đó hệ thống gắn cờ NGƯỢC.
+	 *
+	 * Bảng `mat_mau` KHÔNG giữ ảnh (chỉ giữ dãy đặc trưng), nên phải lần ngược về lượt chấm công
+	 * đã sinh ra nó bằng cặp `nguon_ngay` + `nguon_coso`.
+	 *
+	 * ⚠️ TRẢ VỀ CẢ CỜ `dung_goc`. Ảnh chấm công cũ có thể đã bị dọn khỏi thư mục tải lên, hoặc
+	 *    mẫu được lấy từ ảnh thẻ nên không có lượt chấm nào cả. Lúc ấy hàm trả tấm chấm công
+	 *    GẦN NHẤT có ảnh — vẫn đáng xem, nhưng người duyệt PHẢI biết đó không phải tấm đã sinh
+	 *    ra mẫu, kẻo họ xác nhận nhầm một tấm khác.
+	 *
+	 * @return array ['duong'=>..., 'ngay'=>..., 'coso'=>..., 'dung_goc'=>bool] — 'duong' rỗng là không có.
+	 */
+	public static function anh_cua_mau( $ma_nv, $nguon_ngay = '', $nguon_coso = '' ) {
+		global $wpdb;
+		$khong = array( 'duong' => '', 'ngay' => '', 'coso' => '', 'dung_goc' => false );
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return $khong; }
+		$t = VHCC_DB::t( 'cham_cong' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return $khong; }
+
+		/* Lượt ĐÚNG NGUỒN trước. `hau_to` có thể khác rỗng (người kiêm hai việc ghi hàng riêng),
+		   nên không khoá theo nó — bất kỳ hàng nào của người ấy ngày ấy ở cơ sở ấy đều là tấm
+		   chụp cùng buổi. Ưu tiên hàng CÓ ảnh, rồi tới hàng vào trước. */
+		$ngay = trim( (string) $nguon_ngay );
+		$coso = trim( (string) $nguon_coso );
+		if ( '' !== $ngay ) {
+			$sql = 'SELECT anh_vao, anh_ra, ngay, coso FROM ' . $t . ' WHERE ma_nv=%s AND ngay=%s';
+			$ts  = array( $ma, $ngay );
+			if ( '' !== $coso ) { $sql .= ' AND coso=%s'; $ts[] = $coso; }
+			$sql .= " AND (anh_vao <> '' OR anh_ra <> '') ORDER BY id ASC LIMIT 1";
+			$h = $wpdb->get_row( $wpdb->prepare( $sql, $ts ), ARRAY_A );
+			if ( $h ) {
+				$d = '' !== (string) $h['anh_vao'] ? $h['anh_vao'] : $h['anh_ra'];
+				return array( 'duong' => (string) $d, 'ngay' => (string) $h['ngay'],
+					'coso' => (string) $h['coso'], 'dung_goc' => true );
+			}
+		}
+
+		$h = $wpdb->get_row( $wpdb->prepare(
+			'SELECT anh_vao, anh_ra, ngay, coso FROM ' . $t
+			. " WHERE ma_nv=%s AND (anh_vao <> '' OR anh_ra <> '') ORDER BY ngay DESC, id DESC LIMIT 1",
+			$ma ), ARRAY_A );
+		if ( ! $h ) { return $khong; }
+		$d = '' !== (string) $h['anh_vao'] ? $h['anh_vao'] : $h['anh_ra'];
+		return array( 'duong' => (string) $d, 'ngay' => (string) $h['ngay'],
+			'coso' => (string) $h['coso'], 'dung_goc' => false );
+	}
+
+	/**
+	 * Danh sách mẫu, để màn quản trị duyệt / xoá.
+	 *
+	 * @param bool $kem_anh nạp kèm ảnh để duyệt (tấm sinh ra mẫu + ảnh thẻ trong hồ sơ).
+	 *                      Để `false` khi chỉ cần đếm — xem chú thích ở dưới.
+	 */
+	public static function ds( $u, $trang_thai = '', $kem_anh = true ) {
 		global $wpdb;
 		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array(); }
 		$bang = VHCC_DB::t( 'mat_mau' );
 		$hs   = VHCC_DB::t( 'nhan_vien' );
-		$sql  = "SELECT m.*, n.ho_ten, n.cua_hang FROM $bang m LEFT JOIN $hs n ON n.ma_nv = m.ma_nv";
+		/* ⚠️ `anh_the` là LONGTEXT chứa data URI (~50–80 KB mỗi ảnh), nên CHỈ lấy khi màn hình
+		   thật sự vẽ ảnh. Kéo nó về cho một lượt đếm là tự nhân số liệu lên vài megabyte. */
+		$cot = $kem_anh ? 'm.*, n.ho_ten, n.cua_hang, n.anh_the' : 'm.*, n.ho_ten, n.cua_hang';
+		$sql = "SELECT $cot FROM $bang m LEFT JOIN $hs n ON n.ma_nv = m.ma_nv";
 		if ( in_array( $trang_thai, array( 'cho', 'duyet' ), true ) ) {
 			$sql = $wpdb->prepare( $sql . ' WHERE m.trang_thai=%s ORDER BY m.cap_nhat DESC', $trang_thai );
 		} else {
@@ -665,6 +729,11 @@ class VHCC_Mat {
 			/* KHÔNG trả dãy đặc trưng ra màn hình. Nó là dữ liệu sinh trắc học, và màn hình
 			   này không dùng tới nó — chỉ cần biết đã có mẫu, gộp mấy lần, duyệt chưa. */
 			unset( $x['vector'] );
+			if ( $kem_anh ) {
+				$x['anh'] = self::anh_cua_mau( $x['ma_nv'],
+					isset( $x['nguon_ngay'] ) ? $x['nguon_ngay'] : '',
+					isset( $x['nguon_coso'] ) ? $x['nguon_coso'] : '' );
+			}
 			$out[] = $x;
 		}
 		return $out;

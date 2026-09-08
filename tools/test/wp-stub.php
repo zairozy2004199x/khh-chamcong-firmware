@@ -175,7 +175,26 @@ function add_submenu_page( $cha, $tt, $mt, $cap, $slug, $cb = '' ) {
 }
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return esc_html( $s ); }
-function esc_url( $s ) { return (string) $s; }
+/* 🔴 `esc_url` PHẢI NUỐT `data:` — Y NHƯ WORDPRESS THẬT.
+ *
+ * WordPress chỉ cho qua một danh sách giao thức (`wp_allowed_protocols`), và `data` KHÔNG có
+ * trong đó: `esc_url('data:image/jpeg;base64,...')` trả về **chuỗi rỗng**. Ảnh biến mất, không
+ * một lời báo.
+ *
+ * Bản giả trước đây trả nguyên chuỗi, nên một chỗ viết `esc_url($anh_the)` vẫn XANH trong bài
+ * kiểm mà ĐEN ngoài đời — đúng loại xanh giả đắt nhất. Nay bản giả cũng nuốt, để cái bẫy ấy nổ
+ * ngay tại đây. Ảnh thẻ (data URI) phải đi qua `esc_attr`, kèm phép soát khuôn.
+ *
+ * ⚠️ Chỉ mô phỏng đúng phần giao thức. Bản thật còn gột nhiều thứ khác — bài kiểm không dựa vào
+ *    những thứ ấy, và mô phỏng nửa vời một hàm lọc là tự dựng một hàm thứ hai để tin nhầm. */
+function esc_url( $s ) {
+	$s = (string) $s;
+	if ( preg_match( '#^\s*([A-Za-z][A-Za-z0-9+.-]*):#', $s, $m )
+		&& ! in_array( strtolower( $m[1] ), array( 'http', 'https', 'ftp', 'ftps', 'mailto', 'tel' ), true ) ) {
+		return '';
+	}
+	return $s;
+}
 function esc_url_raw( $s ) { return (string) $s; }
 function esc_textarea( $s ) { return (string) $s; }
 /* 🔴 KHÔNG KHAI `wp_tempnam` Ở ĐÂY — VÀ ĐÓ LÀ CHỦ Ý.
