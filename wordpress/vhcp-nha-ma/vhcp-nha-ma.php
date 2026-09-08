@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
- * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), trang quản trị ở /ban-ve-nha-ma/#quanly (kế toán duyệt tiền, soát vé tại cửa, đối soát). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.2.0
+ * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA, trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
+ * Version:           1.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.2.0';
+	const VER  = '1.3.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -81,6 +81,8 @@ class NHAMA {
 			'bin'    => '',       // mã ngân hàng Napas (BIDV 970418, Vietcombank 970436, MB 970422…)
 			'so_tk'  => '',       // số tài khoản nhận tiền
 			'ten_tk' => '',       // tên chủ tài khoản, viết HOA không dấu cho khớp app ngân hàng
+			'zalo_token' => '',   // access token của Zalo OA
+			'zalo_tpl'   => '',   // mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)
 			'ten'    => 'GHOST BRIDE VIP',
 			'phu'    => 'Nghi thức phân luồng dành riêng cho Khách Mời Danh Dự',
 		);
@@ -142,6 +144,18 @@ class NHAMA {
 	 */
 	public static function kem_qr( $don ) {
 		if ( ! $don ) { return $don; }
+		/* ==========================================================================================
+		 * QR VÉ — cái nhân viên soát ở cửa. KHÁC HẲN QR chuyển khoản, và không bao giờ hiện cùng
+		 * lúc: thiệp chưa trả tiền thì chỉ có QR chuyển khoản, trả rồi thì chỉ có QR vé. Hai mã
+		 * đen trắng giống hệt nhau nằm cạnh nhau là khách quét nhầm cái này ra cái kia — quét QR
+		 * vé bằng app ngân hàng thì báo lỗi, còn nhân viên soi QR chuyển khoản thì không ra mã vé.
+		 * ⚠️ Nội dung QR vé là ĐÚNG MÃ THIỆP, không phải đường dẫn: máy quét nào cũng đọc ra được
+		 *    chuỗi ấy, và màn soát vé cũng nhận cả chuỗi gõ tay lẫn chuỗi quét ra.
+		 * ======================================================================================== */
+		if ( in_array( $don['tt'], array( 'cho_vao', 'da_vao' ), true ) ) {
+			$mt_ve = NHAMA_QRVe::ma_tran( (string) $don['ma'], 'M' );
+			$don['qr_ve'] = $mt_ve ? NHAMA_QRVe::svg( $mt_ve, 200 ) : '';
+		}
 		$tk = self::tk();
 		$don['nd'] = self::noi_dung( $don['ma'] );
 		if ( '' === $tk['so_tk'] || '' === $tk['bin'] ) {
@@ -171,6 +185,12 @@ class NHAMA {
 		return $s !== '' ? $s : 'ban-ve-nha-ma';
 	}
 	public static function t() { global $wpdb; return $wpdb->prefix . self::BANG; }
+	public static function t_tien() { global $wpdb; return $wpdb->prefix . 'nhama_tien'; }
+	public static function khoa_tien() {
+		if ( defined( 'NHAMA_KHOA_TIEN' ) && '' !== (string) NHAMA_KHOA_TIEN ) { return (string) NHAMA_KHOA_TIEN; }
+		return (string) get_option( 'nhama_khoa_tien', '' );
+	}
+	public static function duong_tien() { return home_url( '/nha-ma-tien' ); }
 
 	// ========================================================================== dựng bảng
 	public static function cai_dat() {
@@ -189,6 +209,7 @@ class NHAMA {
 			tt VARCHAR(12) NOT NULL DEFAULT 'giu_cho',
 			ghi VARCHAR(255) NOT NULL DEFAULT '',
 			vao_luc DATETIME NULL,
+			zalo_luc DATETIME NULL,
 			tao DATETIME NOT NULL,
 			sua DATETIME NULL,
 			PRIMARY KEY  (id),
@@ -197,6 +218,32 @@ class NHAMA {
 			KEY nguoi (sdt),
 			KEY trang_thai (tt)
 		) $c" );
+		/* Sổ tiền về: MỌI gói bên gửi bắn tới đều vào đây, kể cả gói không đọc được và gói không
+		   khớp thiệp nào. Đó là cách duy nhất phân biệt "ngân hàng chưa bắn" với "bắn rồi mà mình
+		   không hiểu" — hai ca ấy đi sửa ở hai nơi khác hẳn nhau.
+		   ⚠️ `ref` là UNIQUE: bên gửi bắn lại cùng một giao dịch (chuyện thường, họ đẩy lại khi
+		      không chắc mình đã nhận) thì phần trùng tự hoà, không duyệt đơn hai lần. */
+		dbDelta( 'CREATE TABLE ' . self::t_tien() . " (
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ref VARCHAR(64) NOT NULL,
+			luc DATETIME NOT NULL,
+			so_tien BIGINT NOT NULL DEFAULT 0,
+			noi_dung VARCHAR(255) NOT NULL DEFAULT '',
+			ma VARCHAR(24) NOT NULL DEFAULT '',
+			kq VARCHAR(20) NOT NULL DEFAULT '',
+			tho TEXT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ref (ref),
+			KEY luc (luc)
+		) $c" );
+		/* Khoá cổng tiền: KHÔNG bắt anh sửa wp-config. Tự sinh một chuỗi ngẫu nhiên rồi in ra ở
+		   màn quản trị để dán vào ô webhook bên ngân hàng.
+		   ⚠️ Khoá đi trên ĐƯỜNG DẪN (?token=…) vì bên gửi webhook phần lớn không cho đặt header
+		      tuỳ ý — nghĩa là nó nằm trong nhật ký máy chủ, coi như đã lộ một phần. Nên nó phải
+		      đổi được dễ (nút đổi khoá ở màn quản trị) và KHÔNG dùng chung với PIN. */
+		if ( ! get_option( 'nhama_khoa_tien' ) ) {
+			update_option( 'nhama_khoa_tien', wp_generate_password( 32, false ) );
+		}
 		if ( ! get_option( 'nhama_pin_bam' ) ) { self::dat_pin( '246810' ); }
 		update_option( 'nhama_ver', self::VER );
 	}
@@ -217,13 +264,27 @@ class NHAMA {
 	// ========================================================================== gài vào WordPress
 	public static function init() {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?nhama=1', 'top' );
+		add_rewrite_rule( '^nha-ma-tien/?$', 'index.php?nhama_tien=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ) );
 		if ( get_option( 'nhama_ver' ) !== self::VER ) { self::cai_dat(); flush_rewrite_rules( false ); }
 	}
-	public static function query_vars( $v ) { $v[] = 'nhama'; return $v; }
+	public static function query_vars( $v ) { $v[] = 'nhama'; $v[] = 'nhama_tien'; return $v; }
 
 	public static function phuc_vu() {
+		/* Cổng tiền xử TRƯỚC trang, và không bao giờ được để WordPress chuyển hướng: bên gửi
+		   webhook phần lớn KHÔNG đi theo 30x, hoặc đi theo bằng GET và mất trọn thân POST —
+		   tức là mất một lượt tiền về mà không ai biết. */
+		$la_tien = ( (int) get_query_var( 'nhama_tien' ) === 1 ) || isset( $_GET['nhama_tien'] );
+		if ( ! $la_tien && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$d = trim( (string) wp_parse_url( (string) $_SERVER['REQUEST_URI'], PHP_URL_PATH ), '/' );
+			$la_tien = ( 'nha-ma-tien' === $d || substr( $d, -12 ) === '/nha-ma-tien' );
+		}
+		if ( $la_tien ) {
+			self::cong_tien();
+			if ( ! defined( 'NHAMA_TEST' ) ) { exit; }
+			return;
+		}
 		$la = ( (int) get_query_var( 'nhama' ) === 1 );
 		if ( ! $la && isset( $_GET['nhama'] ) ) { $la = true; }
 		if ( ! $la ) {
@@ -238,6 +299,253 @@ class NHAMA {
 		nocache_headers();
 		self::trang();
 		if ( ! defined( 'NHAMA_TEST' ) ) { exit; }
+	}
+
+	/**
+	 * ==========================================================================================
+	 * CỔNG NHẬN TIỀN — ngân hàng / SePay / Casso / Tingo bắn vào đây
+	 * ==========================================================================================
+	 * Anh Thắng 08/09/2026: *"thanh toán xong, dữ liệu tự đẩy ngược về báo thành công chứ"*. Đúng:
+	 * không có cổng này thì kế toán phải ngồi soi sao kê rồi bấm duyệt tay từng đơn, mà khách thì
+	 * đứng ở cửa đợi.
+	 *
+	 * BỐN LUẬT, học nguyên từ cổng tiền của plugin ghế (class-vhg-cong.php):
+	 *
+	 * 1. TRẢ 200 CHO MỌI GÓI ĐÃ QUA KHOÁ, kể cả gói không đọc được. Bên gửi thấy khác 2xx là đẩy
+	 *    lại nhiều lần rồi TẮT HẲN webhook — lúc đó mới là mất tiền thật. Gói không hiểu thì giữ
+	 *    nguyên văn trong sổ để xử tay. Ca DUY NHẤT trả khác 200: sai khoá (401), để người cấu
+	 *    hình thấy ngay.
+	 * 2. GHI SỔ MỌI LƯỢT, KỂ CẢ LƯỢT BỊ TỪ CHỐI. Đó là cách duy nhất phân biệt "bên gửi chưa
+	 *    bắn" với "bắn rồi mà mình chặn" — hai ca đi sửa ở hai nơi khác hẳn nhau.
+	 * 3. KHÔNG BAO GIỜ CHUYỂN HƯỚNG (xem `phuc_vu`).
+	 * 4. KHOÁ ĐI TRÊN ĐƯỜNG DẪN, đổi được dễ, không dùng chung với PIN.
+	 */
+	public static function cong_tien() {
+		nocache_headers();
+		$khoa = self::khoa_tien();
+		$gui  = isset( $_GET['token'] ) ? (string) $_GET['token'] : '';
+		$tho  = self::than_tho();
+		if ( '' === $khoa || ! hash_equals( $khoa, $gui ) ) {
+			self::ghi_tien( 'sai-khoa-' . substr( md5( $tho . microtime() ), 0, 16 ), 0, '', '', 'sai_khoa', $tho );
+			status_header( 401 );
+			header( 'Content-Type: application/json; charset=utf-8' );
+			echo wp_json_encode( array( 'ok' => false, 'error' => 'Sai khoá cổng.' ) );
+			return;
+		}
+		$kq = self::nhan_tien( $tho );
+		status_header( 200 );
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo wp_json_encode( $kq );
+	}
+
+	private static function than_tho() {
+		if ( defined( 'NHAMA_TEST' ) && isset( $GLOBALS['NHAMA_THAN'] ) ) { return (string) $GLOBALS['NHAMA_THAN']; }
+		$t = file_get_contents( 'php://input' );
+		return is_string( $t ) ? $t : '';
+	}
+
+	/** Lấy giá trị đầu tiên tìm thấy trong mấy nhánh, theo danh sách tên trường. */
+	private static function lay( $nhanh, $tens ) {
+		foreach ( $nhanh as $n ) {
+			foreach ( $tens as $k ) {
+				if ( isset( $n[ $k ] ) && '' !== $n[ $k ] && ! is_array( $n[ $k ] ) ) { return $n[ $k ]; }
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Đọc gói của bên gửi và khớp với thiệp.
+	 *
+	 * ⚠️ TÊN TRƯỜNG MỖI BÊN MỘT KIỂU (SePay `transferAmount`/`content`/`referenceCode`, Casso
+	 *    `amount`/`description`/`tid`, Tingo lại khác) — nên dò theo cả một danh sách thay vì
+	 *    ép bên gửi phải giống mình. Danh sách này chép từ plugin ghế, nơi nó đã ăn gói thật.
+	 */
+	public static function nhan_tien( $tho ) {
+		$goi = json_decode( $tho, true );
+		if ( ! is_array( $goi ) ) {
+			self::ghi_tien( 'khong-doc-' . substr( md5( $tho . microtime() ), 0, 16 ), 0, '', '', 'khong_doc', $tho );
+			return array( 'ok' => true, 'ghi_chu' => 'Không đọc được gói — đã giữ nguyên văn trong sổ.' );
+		}
+		$nhanh = array( $goi );
+		foreach ( array( 'data', 'transaction', 'payload', 'result', 'body' ) as $k ) {
+			if ( isset( $goi[ $k ] ) && is_array( $goi[ $k ] ) ) { $nhanh[] = $goi[ $k ]; }
+		}
+		$tien = (int) preg_replace( '/[^0-9]/', '', (string) self::lay( $nhanh, array( 'transferAmount',
+			'amount', 'creditAmount', 'amountIn', 'value', 'money', 'transactionAmount',
+			'totalAmount', 'soTien' ) ) );
+		$nd = (string) self::lay( $nhanh, array( 'content', 'description', 'addInfo', 'note',
+			'comment', 'transactionContent', 'orderInfo', 'message', 'noiDung', 'ndct' ) );
+		$ref = (string) self::lay( $nhanh, array( 'referenceCode', 'reference', 'id', 'tid',
+			'transactionId', 'refId', 'ftCode', 'transactionCode', 'orderCode', 'maThamChieu' ) );
+		$huong = strtolower( (string) self::lay( $nhanh, array( 'transferType', 'type', 'direction' ) ) );
+		if ( '' === $ref ) { $ref = 'tu-sinh-' . substr( md5( $tho ), 0, 20 ); }
+
+		/* Tiền RA khỏi tài khoản thì bỏ — SePay bắn cả hai chiều. Duyệt nhầm một lượt chuyển đi
+		   là thiệp được duyệt mà tiền thì vừa rời tài khoản. */
+		if ( 'out' === $huong || 'debit' === $huong ) {
+			self::ghi_tien( $ref, $tien, $nd, '', 'tien_ra', $tho );
+			return array( 'ok' => true, 'ghi_chu' => 'Lượt tiền ra — bỏ qua.' );
+		}
+
+		$ma = self::ma_tu_noi_dung( $nd );
+		if ( '' === $ma ) {
+			self::ghi_tien( $ref, $tien, $nd, '', 'khong_khop', $tho );
+			return array( 'ok' => true, 'ghi_chu' => 'Nội dung không mang mã thiệp nào — vào sổ chờ xử tay.' );
+		}
+		$don = self::don_theo_ma( $ma );
+		if ( ! $don ) {
+			self::ghi_tien( $ref, $tien, $nd, $ma, 'khong_co_don', $tho );
+			return array( 'ok' => true, 'ghi_chu' => 'Không có thiệp ' . $ma . ' trong sổ.' );
+		}
+		/* 🔴 THIẾU TIỀN THÌ KHÔNG DUYỆT, nhưng phải GHI vào đơn để kế toán thấy mà gọi khách —
+		   im lặng bỏ qua là khách tưởng đã trả xong, tới cửa mới biết. */
+		if ( $tien > 0 && $tien < (int) $don['tien'] ) {
+			self::ghi_tien( $ref, $tien, $nd, $ma, 'thieu_tien', $tho );
+			self::ghi_chu_don( $ma, 'Tiền về THIẾU: ' . number_format( $tien ) . ' / '
+				. number_format( (int) $don['tien'] ) . ' (' . $ref . ')' );
+			return array( 'ok' => true, 'ghi_chu' => 'Thiếu tiền — chưa duyệt.' );
+		}
+		if ( 'huy' === $don['tt'] ) {
+			self::ghi_tien( $ref, $tien, $nd, $ma, 'don_da_huy', $tho );
+			self::ghi_chu_don( $ma, 'Tiền về cho thiệp ĐÃ HUỶ (' . $ref . ') — cần hoàn tiền.' );
+			return array( 'ok' => true, 'ghi_chu' => 'Thiệp đã huỷ — cần hoàn tiền.' );
+		}
+		/* Ghi sổ TRƯỚC khi duyệt: `ref` là UNIQUE nên bên gửi bắn lại cùng giao dịch thì lượt sau
+		   ghi trượt, và ta thôi không duyệt lần nữa. Đây là chốt chống đếm hai lần. */
+		if ( ! self::ghi_tien( $ref, $tien, $nd, $ma, 'khop', $tho ) ) {
+			return array( 'ok' => true, 'ghi_chu' => 'Giao dịch ' . $ref . ' đã xử lý trước đó.' );
+		}
+		global $wpdb;
+		if ( 'cho_vao' !== $don['tt'] && 'da_vao' !== $don['tt'] ) {
+			$wpdb->update( self::t(), array( 'tt' => 'cho_vao', 'sua' => current_time( 'mysql' ),
+				'ghi' => 'Tiền về tự động ' . $ref ), array( 'ma' => $ma ) );
+		}
+		self::gui_zalo( $ma );
+		return array( 'ok' => true, 'ghi_chu' => 'Đã duyệt thiệp ' . $ma . '.' );
+	}
+
+	/**
+	 * ==========================================================================================
+	 * GỬI MÃ VÉ + QR VÉ VÀO ZALO CHO KHÁCH
+	 * ==========================================================================================
+	 * Anh Thắng 08/09/2026: *"mã vé sẽ gửi vào tin nhắn zalo của khách mã vé và QR vé"*.
+	 *
+	 * 🔴 ĐỌC TRƯỚC KHI TRÔNG CHỜ VÀO NÓ. Zalo KHÔNG cho gửi tin cho một số điện thoại bất kỳ.
+	 *    Phải có **Official Account (OA)** và một trong hai đường:
+	 *      · **ZNS** (Zalo Notification Service) — gửi được cho mọi số, nhưng phải đăng ký MẪU TIN
+	 *        và chờ Zalo duyệt, và mỗi tin TỐN TIỀN.
+	 *      · **Tin tư vấn (CS)** — miễn phí, nhưng CHỈ gửi được cho người đã nhắn cho OA trong
+	 *        vòng 7 ngày. Khách mua vé lần đầu thì gần như chắc chắn KHÔNG thoả.
+	 *    Nghĩa là: chưa có OA + mẫu tin ZNS đã duyệt thì đường này KHÔNG chạy, và đó là chuyện của
+	 *    Zalo chứ không phải của mã nguồn.
+	 *
+	 * ⚠️ CHƯA CHẠY THỬ VỚI OA THẬT — em không có token của anh. Phần dựng gói tin và ghi nhật ký
+	 *    thì có phép thử; phần bắn đi thì chỉ chạy khi anh điền token, và nhật ký sẽ nói ngay Zalo
+	 *    trả về gì.
+	 *
+	 * 🔴 GỬI HỎNG KHÔNG ĐƯỢC LÀM HỎNG LƯỢT TIỀN VỀ. Thiệp đã duyệt là đã duyệt; Zalo chết thì ghi
+	 *    vào nhật ký rồi đi tiếp. Khách vẫn xem được thiệp trên web bằng "Tra cứu lời mời".
+	 */
+	public static function gui_zalo( $ma ) {
+		$don = self::don_theo_ma( $ma );
+		if ( ! $don ) { return false; }
+		$cf  = self::cf();
+		$tok = trim( (string) ( isset( $cf['zalo_token'] ) ? $cf['zalo_token'] : '' ) );
+		$sdt = preg_replace( '/[^0-9]/', '', (string) $don['sdt'] );
+		if ( '' === $tok ) { self::nk_zalo( $ma, 'chua_cau_hinh', 'Chưa khai token OA.' ); return false; }
+		if ( '' === $sdt ) { self::nk_zalo( $ma, 'thieu_sdt', 'Đơn không có số điện thoại.' ); return false; }
+		/* Zalo đòi số dạng 84…, không phải 0… */
+		if ( '0' === substr( $sdt, 0, 1 ) ) { $sdt = '84' . substr( $sdt, 1 ); }
+
+		$link = self::url_ve( $don['ma'] );
+		$tpl  = trim( (string) ( isset( $cf['zalo_tpl'] ) ? $cf['zalo_tpl'] : '' ) );
+		if ( '' !== $tpl ) {
+			/* ZNS — mẫu tin đã đăng ký. Tên tham số phải khớp mẫu anh khai bên Zalo. */
+			$url  = 'https://business.openapi.zalo.me/message/template';
+			$than = array( 'phone' => $sdt, 'template_id' => $tpl, 'template_data' => array(
+				'ma_ve'  => (string) $don['ma'],
+				'ten'    => (string) $don['ten'],
+				'ngay'   => (string) $don['ngay'],
+				'gio'    => (string) $don['gio'],
+				'so_ve'  => (string) $don['sl'],
+				'link'   => $link,
+			) );
+		} else {
+			/* Tin tư vấn — chỉ tới được người đã nhắn cho OA trong 7 ngày. */
+			$url  = 'https://openapi.zalo.me/v3.0/oa/message/cs';
+			$chu  = "🎟 THIỆP " . $don['ma'] . "\n" . $don['ten'] . " · " . $don['sl'] . " người\n"
+				. "Thời khắc: " . $don['ngay'] . " — " . $don['gio'] . "\n"
+				. "Mở thiệp (có mã QR để soát ở cửa): " . $link;
+			$than = array( 'recipient' => array( 'user_id_by_phone' => $sdt ),
+				'message' => array( 'text' => $chu ) );
+		}
+		$tra = wp_remote_post( $url, array(
+			'timeout' => 15,
+			'headers' => array( 'Content-Type' => 'application/json', 'access_token' => $tok ),
+			'body'    => wp_json_encode( $than ),
+		) );
+		if ( is_wp_error( $tra ) ) {
+			self::nk_zalo( $ma, 'loi_mang', $tra->get_error_message() );
+			return false;
+		}
+		$than_tra = wp_remote_retrieve_body( $tra );
+		$j = json_decode( $than_tra, true );
+		/* Zalo trả HTTP 200 kể cả khi hỏng, lỗi nằm trong `error` — đọc mã HTTP là tưởng gửi xong. */
+		if ( is_array( $j ) && isset( $j['error'] ) && 0 !== (int) $j['error'] ) {
+			self::nk_zalo( $ma, 'zalo_choi', 'Zalo báo lỗi ' . $j['error'] . ': '
+				. ( isset( $j['message'] ) ? $j['message'] : '' ) );
+			return false;
+		}
+		global $wpdb;
+		$wpdb->update( self::t(), array( 'zalo_luc' => current_time( 'mysql' ) ), array( 'ma' => $ma ) );
+		self::nk_zalo( $ma, 'da_gui', 'Đã gửi tới ' . $sdt );
+		return true;
+	}
+
+	/** Đường dẫn mở thẳng thiệp của một mã — dùng cho tin Zalo. */
+	public static function url_ve( $ma ) {
+		return home_url( '/' . self::slug() . '/#ve=' . rawurlencode( (string) $ma ) );
+	}
+
+	/** Nhật ký gửi Zalo — 200 dòng gần nhất. Gộp dòng liên tiếp giống hệt nhau. */
+	private static function nk_zalo( $ma, $kq, $chu ) {
+		$ds = get_option( 'nhama_nk_zalo', array() );
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		array_unshift( $ds, array( 'luc' => current_time( 'mysql' ), 'ma' => $ma, 'kq' => $kq,
+			'chu' => mb_substr( (string) $chu, 0, 255 ) ) );
+		update_option( 'nhama_nk_zalo', array_slice( $ds, 0, 200 ), false );
+	}
+
+	/**
+	 * Bóc mã thiệp ra khỏi nội dung chuyển khoản.
+	 * ⚠️ Ngân hàng hay chèn thêm chữ quanh nội dung ("CT DEN:… GBXXXX …"), và có nơi bỏ dấu gạch,
+	 *    có nơi giữ. Nên bỏ hết ký tự không phải chữ-số rồi mới dò khuôn GB + 8 ký tự.
+	 */
+	public static function ma_tu_noi_dung( $nd ) {
+		$s = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $nd ) );
+		if ( ! preg_match( '/GB([' . self::CHU_MA . ']{8})/', $s, $m ) ) { return ''; }
+		return 'GB-' . $m[1];
+	}
+
+	private static function ghi_chu_don( $ma, $chu ) {
+		global $wpdb;
+		$wpdb->update( self::t(), array( 'ghi' => mb_substr( $chu, 0, 255 ),
+			'sua' => current_time( 'mysql' ) ), array( 'ma' => $ma ) );
+	}
+
+	/** Ghi một dòng sổ tiền. Trả false nếu `ref` đã có (bên gửi bắn lại). */
+	private static function ghi_tien( $ref, $tien, $nd, $ma, $kq, $tho ) {
+		global $wpdb;
+		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::t_tien() . ' WHERE ref=%s', $ref ) );
+		if ( $co ) { return false; }
+		$ok = $wpdb->insert( self::t_tien(), array(
+			'ref' => mb_substr( (string) $ref, 0, 64 ), 'luc' => current_time( 'mysql' ),
+			'so_tien' => (int) $tien, 'noi_dung' => mb_substr( (string) $nd, 0, 255 ),
+			'ma' => (string) $ma, 'kq' => (string) $kq,
+			/* Giữ nguyên văn gói, cắt ở 4000 ký tự — đủ để đọc lại mà không phình sổ. */
+			'tho' => mb_substr( (string) $tho, 0, 4000 ) ) );
+		return false !== $ok;
 	}
 
 	public static function rest() {
@@ -307,6 +615,7 @@ class NHAMA {
 		if ( 'dat' === $viec )     { return self::v_dat( $d, $cf ); }
 		if ( 'cua_toi' === $viec ) { return self::v_cua_toi( $d ); }
 		if ( 'bao_ck' === $viec )  { return self::v_bao_ck( $d ); }
+		if ( 've' === $viec )      { return self::v_ve( $d ); }
 		if ( 'vao' === $viec )     { return self::v_vao( $d ); }
 
 		/* ------------------------------------------------------------------ từ đây phải có thẻ */
@@ -319,6 +628,11 @@ class NHAMA {
 		if ( 'cai' === $viec )   { return self::v_cai( $d, $cf ); }
 		if ( 'mau' === $viec )   { return self::v_mau( $cf ); }
 		if ( 'xoa' === $viec )   { return self::v_xoa(); }
+		if ( 'tien' === $viec )  { return self::v_tien(); }
+		if ( 'gui_zalo' === $viec ) {
+			$ma = strtoupper( self::chu( $d, 'ma', 24 ) );
+			return array( 'ok' => self::gui_zalo( $ma ), 'nk' => array_slice( (array) get_option( 'nhama_nk_zalo', array() ), 0, 1 ) );
+		}
 		return self::loi( 'Việc không rõ: ' . $viec );
 	}
 
@@ -394,6 +708,24 @@ class NHAMA {
 		}
 
 		return array( 'ok' => true, 'don' => self::kem_qr( self::don_theo_ma( $ma ) ) );
+	}
+
+	/** Mở một thiệp theo mã — dùng cho đường dẫn trong tin Zalo (#ve=GB-XXXX). */
+	private static function v_ve( $d ) {
+		$ma = strtoupper( self::chu( $d, 'ma', 24 ) );
+		$don = self::don_theo_ma( $ma );
+		if ( ! $don ) { return self::loi( 'Không thấy thiệp này.' ); }
+		return array( 'ok' => true, 'don' => array( self::kem_qr( $don ) ) );
+	}
+
+	/** Sổ tiền về + nhật ký Zalo — cho màn quản trị. */
+	private static function v_tien() {
+		global $wpdb;
+		$r = $wpdb->get_results( 'SELECT ref,luc,so_tien,noi_dung,ma,kq FROM ' . self::t_tien()
+			. ' ORDER BY id DESC LIMIT 200', ARRAY_A );
+		return array( 'ok' => true, 'tien' => $r ? $r : array(),
+			'zalo' => array_slice( (array) get_option( 'nhama_nk_zalo', array() ), 0, 60 ),
+			'duong' => self::duong_tien() . '?token=' . self::khoa_tien() );
 	}
 
 	private static function v_cua_toi( $d ) {
@@ -472,6 +804,9 @@ class NHAMA {
 		$wpdb->update( self::t(),
 			array( 'tt' => $tt, 'ghi' => $ghi, 'sua' => current_time( 'mysql' ) ),
 			array( 'ma' => $ma ) );
+		/* Kế toán duyệt tay (khách trả tiền mặt, hoặc tiền về mà webhook chưa khớp) thì cũng gửi
+		   Zalo — cùng một việc thì phải cùng một kết quả, bất kể ai bấm. */
+		if ( 'cho_vao' === $tt && 'cho_vao' !== $don['tt'] ) { self::gui_zalo( $ma ); }
 		return array( 'ok' => true, 'don' => self::don_theo_ma( $ma ) );
 	}
 
@@ -508,6 +843,9 @@ class NHAMA {
 			if ( isset( $moi[ $k ] ) && preg_match( '/^\d{1,2}:\d{2}$/', (string) $moi[ $k ] ) ) {
 				$cf[ $k ] = (string) $moi[ $k ];
 			}
+		}
+		foreach ( array( 'zalo_token', 'zalo_tpl' ) as $k ) {
+			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = trim( sanitize_text_field( (string) $moi[ $k ] ) ); }
 		}
 		foreach ( array( 'so_tk', 'ten_tk' ) as $k ) {
 			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = mb_substr( sanitize_text_field( (string) $moi[ $k ] ), 0, 60 ); }
@@ -999,6 +1337,59 @@ function tayChep(txt, xong){
   try{ document.execCommand("copy"); xong(); }catch(e){ prompt("Chép chuỗi này:", txt); }
   document.body.removeChild(o);
 }
+/* QR VÀO CỬA — chỉ hiện khi thiệp đã hợp lệ. */
+function htmlQrVe(v){
+  return "<div class='qr-khung' style='margin-top:18px'>"
+    +"<p class='nhan' style='text-align:center;margin-bottom:6px'>Mã QR vào cửa — đưa cho nhân viên quét:</p>"
+    +"<div class='qr-anh'>"+v.qr_ve+"</div>"
+    +"<p class='kh-phu' style='font-size:12px;margin-top:8px'>Không quét được thì đọc mã chữ "
+    +"<b style='color:var(--vang)'>"+esc(v.ma)+"</b> cũng vào được.</p></div>";
+}
+
+/* ============================================================================================
+ * TỰ DÒ TIỀN VỀ — trả lời đúng câu "thanh toán xong có tự báo thành công không"
+ * ============================================================================================
+ * Khách chuyển khoản xong thì ngân hàng bắn về cổng /nha-ma-tien, máy chủ khớp nội dung với mã
+ * thiệp rồi tự duyệt. Trang này hỏi lại máy chủ vài giây một lần để đổi màn hình ngay tại chỗ —
+ * khách không phải bấm gì, không phải tải lại trang.
+ *
+ * ⚠️ CÓ ĐIỂM DỪNG. Hỏi mãi thì một cái điện thoại để quên trong túi thành ra gõ cửa máy chủ cả
+ *    ngày. Ba phút không thấy tiền về thì thôi, và NÓI RA là đã thôi, kèm nút hỏi lại — im lặng
+ *    dừng là khách ngồi đợi một cái màn hình không bao giờ đổi.
+ * ========================================================================================== */
+var doTienHen = null;
+function doTien(ds){
+  if (doTienHen) { clearInterval(doTienHen); doTienHen=null; }
+  var can = ds.filter(function(v){ return v.tt==="giu_cho"||v.tt==="cho_duyet"; });
+  if (!can.length) { return; }
+  var sdt = can[0].sdt, lan = 0;
+  doTienHen = setInterval(function(){
+    /* Hộp đóng rồi thì thôi — người ta đã đi chỗ khác. */
+    if (!g("hopThoai").innerHTML) { clearInterval(doTienHen); doTienHen=null; return; }
+    lan++;
+    if (lan > 36) {                       /* 36 × 5 giây = 3 phút */
+      clearInterval(doTienHen); doTienHen=null;
+      var o=g("baoDo"); if(o){ o.innerHTML="<div class='bao hong'>Vẫn chưa thấy tiền về. Ngân hàng "
+        +"có khi chậm vài phút. <button class='nut-phu' id='btDoLai' style='margin-left:6px'>Kiểm tra lại</button></div>";
+        g("btDoLai").addEventListener("click", function(){ napThiep(sdt); }); }
+      return;
+    }
+    api("cua_toi",{sdt:sdt}).then(function(j){
+      if (!j || !j.ok) { return; }
+      var moi = j.don||[], doi = false;
+      for (var i=0;i<moi.length;i++){
+        for (var k=0;k<ds.length;k++){
+          if (moi[i].ma===ds[k].ma && moi[i].tt!==ds[k].tt) { doi=true; }
+        }
+      }
+      if (doi){ clearInterval(doTienHen); doTienHen=null; moThiep(moi, "✔ Đã nhận được tiền. Thiệp hợp lệ."); }
+    }).catch(function(){});
+  }, 5000);
+}
+function napThiep(sdt){
+  api("cua_toi",{sdt:sdt}).then(function(j){ moThiep((j&&j.don)||[]); }).catch(function(e){ alert(e.message); });
+}
+
 function moThiep(ds, loi){
   if (!ds || !ds.length){
     return moHop("<h3 class='the-tieu'>Thiệp của tôi</h3><p class='kh-phu' style='text-align:left'>"
@@ -1010,13 +1401,25 @@ function moThiep(ds, loi){
      khách trả lần thứ hai. */
   var noTien = ds.filter(function(v){ return v.tt==="giu_cho"||v.tt==="cho_duyet"; });
   if (noTien.length) { h += htmlTraTien(noTien[0], noTien.length>1); }
-  h+="<div class='huong-dan'><b>Bước tiếp theo:</b> quét mã QR trên bằng app ngân hàng — số tiền và "
-    +"nội dung đã điền sẵn, không phải gõ. Chuyển xong bấm nút dưới đây để báo; ban tổ chức duyệt "
-    +"xong thiệp chuyển sang <i>Chờ Check-in</i>. Tới nơi đọc mã ở cửa là được dẫn vào.</div>";
+  /* Đã trả tiền rồi thì thay QR chuyển khoản bằng QR VÀO CỬA. Không bao giờ hiện hai mã đen
+     trắng giống hệt nhau cùng lúc — khách quét nhầm cái nọ ra cái kia. */
+  var daTra = ds.filter(function(v){ return (v.tt==="cho_vao"||v.tt==="da_vao") && v.qr_ve; });
+  if (daTra.length) { h += htmlQrVe(daTra[0]); }
+  if (noTien.length){
+    h+="<div class='huong-dan'><b>Bước tiếp theo:</b> quét mã QR trên bằng app ngân hàng — số tiền và "
+      +"nội dung đã điền sẵn, không phải gõ. <b>Chuyển xong không phải làm gì thêm</b>: hệ thống nhận "
+      +"báo từ ngân hàng và tự đổi thiệp sang <i>Chờ Check-in</i>, thường trong khoảng một phút. "
+      +"Trang này tự cập nhật, anh/chị cứ để mở.</div>";
+  } else {
+    h+="<div class='huong-dan'><b>Thiệp đã hợp lệ.</b> Tới nơi đưa mã QR trên cho nhân viên ở cửa "
+      +"quét, hoặc đọc mã chữ. Nhớ có mặt trước "+esc(CFK.denSom)+" phút.</div>";
+  }
   var chua=ds.filter(function(v){ return v.tt==="giu_cho"; });
   h+="<div class='hang-nut'>"+(chua.length?"<button class='nut-phu' id='btDaCK'>Tôi đã chuyển khoản</button>":"")
-    +"<button class='nut-phu' id='btLuuAnh'>Lưu thiệp (.svg)</button></div>";
+    +"<button class='nut-phu' id='btLuuAnh'>Lưu thiệp (.svg)</button></div>"
+    +"<div id='baoDo'></div>";
   moHop(h);
+  doTien(ds);
   if (chua.length){
     g("btDaCK").addEventListener("click", function(){
       var b=this; b.disabled=true; b.textContent="Đang báo…";
@@ -1118,6 +1521,7 @@ function veQL(){
   if (manDang==="duyet") { return manDuyet(); }
   if (manDang==="soat")  { return manSoat(); }
   if (manDang==="doi")   { return manDoi(); }
+  if (manDang==="tien")  { return manTien(); }
   if (manDang==="cai")   { return manCai(); }
 }
 function daDatQ(ngay,gio){
@@ -1182,6 +1586,7 @@ function manDuyet(){
 }
 g("qNoiDung").addEventListener("click", function(e){
   var n;
+  if ((n=e.target.closest("[data-chep]"))) { return chep(n.getAttribute("data-chep"), n); }
   if ((n=e.target.closest("[data-duyet]"))) { return doi(n.getAttribute("data-duyet"),"cho_vao",""); }
   if ((n=e.target.closest("[data-choi]"))){
     var ly=prompt("Từ chối vì sao? (ghi lại để còn giải thích với khách)","không chuyển khoản");
@@ -1190,6 +1595,14 @@ g("qNoiDung").addEventListener("click", function(e){
   }
   if ((n=e.target.closest("[data-huy]")))  { return doi(n.getAttribute("data-huy"),"huy","huỷ ở màn đối soát"); }
   if ((n=e.target.closest("[data-hoan]")))  { return doi(n.getAttribute("data-hoan"),"cho_vao","mở lại"); }
+  if ((n=e.target.closest("[data-zalo]")))  {
+    var ma=n.getAttribute("data-zalo");
+    api("gui_zalo",{ma:ma}).then(function(j){
+      var d=(j&&j.nk&&j.nk[0])||{};
+      alert(j&&j.ok ? ("Đã gửi Zalo cho "+ma+".") : ("Chưa gửi được: "+(d.chu||"không rõ")));
+    }).catch(function(e2){ alert(e2.message); });
+    return;
+  }
 });
 function doi(ma,tt,ghi){
   api("doi",{ma:ma,tt:tt,ghi:ghi}).then(function(j){
@@ -1282,6 +1695,8 @@ function manDoi(){
       +"<td class='q-nho'>"+esc(d.ghi||"")+"</td><td style='white-space:nowrap'>"
       +(d.tt!=="huy"?"<button class='q-nut do' data-huy='"+esc(d.ma)+"' style='padding:6px 10px'>✕</button> ":"")
       +(d.tt==="huy"?"<button class='q-nut xam' data-hoan='"+esc(d.ma)+"' style='padding:6px 10px'>↺</button>":"")
+      +((d.tt==="cho_vao"||d.tt==="da_vao")?" <button class='q-nut xam' data-zalo='"+esc(d.ma)
+        +"' title='Gửi lại vé qua Zalo' style='padding:6px 10px'>💬</button>":"")
       +"</td></tr>";
   }
   g("qNoiDung").innerHTML=h+"</tbody></table></div>";
@@ -1305,6 +1720,55 @@ function xuatCSV(ds){
   a.href=u; a.download="doi-soat-nha-ma-"+ngayISO(new Date())+".csv"; a.click();
   setTimeout(function(){ URL.revokeObjectURL(u); },4000);
 }
+/* Màn TIỀN VỀ — sổ mọi gói ngân hàng bắn tới, kể cả gói không khớp thiệp nào.
+   🔴 SỔ NÀY LÀ CHỖ DUY NHẤT PHÂN BIỆT "ngân hàng chưa bắn" với "bắn rồi mà mình không hiểu".
+      Không có nó thì cả hai ca đều trông y hệt nhau: thiệp nằm im ở Chờ duyệt. */
+function manTien(){
+  g("qNoiDung").innerHTML="<h2 class='q-tieu'>💸 Tiền Về &amp; Zalo</h2><div class='q-the q-nho'>Đang tải…</div>";
+  api("tien").then(function(j){
+    if (!j || !j.ok) { return; }
+    var t=j.tien||[], z=j.zalo||[];
+    var nhan={khop:"✔ Đã khớp, đã duyệt", khong_khop:"Không mang mã thiệp",
+      khong_co_don:"Mã không có trong sổ", thieu_tien:"Thiếu tiền — chưa duyệt",
+      don_da_huy:"Thiệp đã huỷ — cần hoàn tiền", tien_ra:"Tiền ra — bỏ qua",
+      khong_doc:"Gói không đọc được", sai_khoa:"Sai khoá cổng"};
+    var lop={khop:"tt-vao", thieu_tien:"tt-duyet", sai_khoa:"tt-huy", khong_doc:"tt-huy",
+      don_da_huy:"tt-huy", khong_khop:"tt-giu", khong_co_don:"tt-giu", tien_ra:"tt-giu"};
+    var h="<h2 class='q-tieu'>💸 Tiền Về &amp; Zalo</h2>"
+      +"<div class='q-the'><h3 style='margin-top:0;color:var(--q-xanh)'>🔗 Địa chỉ webhook</h3>"
+      +"<p class='q-nho' style='margin-top:0'>Dán nguyên chuỗi này vào ô Webhook bên SePay / Casso / "
+        +"ngân hàng (kiểu POST JSON, sự kiện tiền vào):</p>"
+      +"<div class='q-o' style='word-break:break-all;font-size:12.5px' data-chep='"+esc(j.duong)+"'>"
+        +esc(j.duong)+"</div>"
+      +"<button class='q-nut xam' data-chep='"+esc(j.duong)+"' style='margin-top:8px'>Chép địa chỉ</button>"
+      +"<p class='q-nho'>Chuyển thử <b>1.000đ</b> với nội dung là một mã thiệp có thật — sổ dưới đây "
+        +"phải hiện ngay một dòng. Sổ trống hoàn toàn nghĩa là bên gửi chưa bắn tới, hoặc tường lửa "
+        +"hosting chặn.</p></div>"
+      +"<h3 style='margin:20px 0 10px'>Sổ tiền về ("+t.length+" dòng gần nhất)</h3><div class='q-the q-cuon'>"
+      +"<table class='q-bang'><thead><tr><th>Lúc</th><th>Mã tham chiếu</th><th>Số tiền</th>"
+      +"<th>Nội dung</th><th>Thiệp</th><th>Kết quả</th></tr></thead><tbody>";
+    if (!t.length){ h+="<tr><td colspan='6' class='q-nho' style='padding:22px'>Chưa có gói nào bắn tới.</td></tr>"; }
+    for (var i=0;i<t.length;i++){
+      var d=t[i];
+      h+="<tr><td>"+esc(d.luc)+"</td><td class='q-nho'>"+esc(d.ref)+"</td>"
+        +"<td style='color:var(--q-luc);font-weight:700'>"+tien(d.so_tien)+"</td>"
+        +"<td class='q-nho'>"+esc(d.noi_dung)+"</td><td><b>"+esc(d.ma||"—")+"</b></td>"
+        +"<td><span class='nhan-tt "+(lop[d.kq]||"tt-giu")+"'>"+esc(nhan[d.kq]||d.kq)+"</span></td></tr>";
+    }
+    h+="</tbody></table></div>"
+      +"<h3 style='margin:20px 0 10px'>Nhật ký gửi Zalo</h3><div class='q-the q-cuon'>"
+      +"<table class='q-bang'><thead><tr><th>Lúc</th><th>Thiệp</th><th>Kết quả</th><th>Chi tiết</th>"
+      +"</tr></thead><tbody>";
+    if (!z.length){ h+="<tr><td colspan='4' class='q-nho' style='padding:22px'>Chưa gửi tin nào. "
+      +"Khai token OA ở màn Cài đặt thì mỗi thiệp được duyệt sẽ tự gửi.</td></tr>"; }
+    for (var k=0;k<z.length;k++){
+      h+="<tr><td>"+esc(z[k].luc)+"</td><td><b>"+esc(z[k].ma)+"</b></td>"
+        +"<td>"+esc(z[k].kq)+"</td><td class='q-nho'>"+esc(z[k].chu)+"</td></tr>";
+    }
+    g("qNoiDung").innerHTML=h+"</tbody></table></div>";
+  }).catch(function(e){ g("qNoiDung").innerHTML="<div class='q-the'>"+esc(e.message)+"</div>"; });
+}
+
 function manCai(){
   g("qNoiDung").innerHTML="<h2 class='q-tieu'>⚙ Cấu Hình Hệ Thống</h2><div class='q-doi'>"
     +"<div class='q-the'><h3 style='margin-top:0;color:var(--q-xanh)'>☁ Cấu hình Kinh Doanh</h3>"
@@ -1331,6 +1795,15 @@ function manCai(){
     +oCai("Tên hiển thị trên trang khách","cTen",CFQ.ten,"text")
     +oCai("Câu phụ dưới tiêu đề","cPhu",CFQ.phu,"text")
     +oCai("Đổi mã PIN (để trống là giữ nguyên)","cPin","","text")
+    +"<hr style='border:0;border-top:1px solid var(--q-vien);margin:18px 0'>"
+    +"<h3 style='margin:0 0 4px;color:var(--q-cam)'>💬 Gửi vé qua Zalo</h3>"
+    +"<p class='q-nho' style='margin:0'>Thiệp được duyệt là tự gửi mã vé + đường dẫn QR vé cho khách. "
+      +"Cần <b>Zalo OA</b>. Để trống token thì bỏ qua, mọi thứ khác vẫn chạy.</p>"
+    +oCai("Access token của Zalo OA","cZaloToken",CFQ.zalo_token||"","text")
+    +oCai("Mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)","cZaloTpl",CFQ.zalo_tpl||"","text")
+    +"<p class='q-nho'>⚠️ <b>Tin tư vấn (CS)</b> miễn phí nhưng CHỈ tới được người đã nhắn cho OA "
+      +"trong 7 ngày — khách mua lần đầu gần như chắc chắn không thoả. Gửi được cho mọi số thì phải "
+      +"dùng <b>ZNS</b>: đăng ký mẫu tin, chờ Zalo duyệt, và mỗi tin tốn phí.</p>"
     +"<button class='q-nut luc' id='btLuuMH' style='width:100%;margin-top:14px'>LƯU MÀN HÌNH</button>"
     +"<hr style='border:0;border-top:1px solid var(--q-vien);margin:20px 0'>"
     +"<button class='q-nut xam' id='btMau' style='width:100%'>Nạp 12 đơn mẫu (để xem thử)</button>"
@@ -1343,7 +1816,8 @@ function manCai(){
       bin:g("cBin").value, so_tk:g("cSoTk").value, ten_tk:g("cTenTk").value }, "");
   });
   g("btLuuMH").addEventListener("click", function(){
-    luuCai({ quet:+g("cQuet").value, ten:g("cTen").value, phu:g("cPhu").value }, g("cPin").value);
+    luuCai({ quet:+g("cQuet").value, ten:g("cTen").value, phu:g("cPhu").value,
+      zalo_token:g("cZaloToken").value, zalo_tpl:g("cZaloTpl").value }, g("cPin").value);
   });
   g("btMau").addEventListener("click", function(){
     api("mau").then(napQL).then(veQL).catch(function(e){ alert(e.message); });
@@ -1407,7 +1881,18 @@ function keu(){
 }
 /* ============================================================================== cửa vào */
 function veTrang(){
-  var la = location.hash.replace("#","").toLowerCase()==="quanly";
+  var bam = location.hash.replace("#","");
+  /* Đường dẫn trong tin Zalo: #ve=GB-XXXX — mở thẳng thiệp ấy, khách khỏi gõ số điện thoại. */
+  var mve = bam.match(/^ve=(.+)$/i);
+  if (mve){
+    g("apKhach").classList.remove("an"); g("apQL").classList.add("an");
+    napKhach();
+    api("ve",{ma:decodeURIComponent(mve[1])}).then(function(j){
+      if (j && j.ok) { moThiep(j.don); } else { moThiep([]); }
+    }).catch(function(e){ alert(e.message); });
+    return;
+  }
+  var la = bam.toLowerCase()==="quanly";
   if (caiCam) { clearInterval(caiCam); caiCam=null; }
   if (hen && !la) { clearInterval(hen); hen=null; }
   if (!la){

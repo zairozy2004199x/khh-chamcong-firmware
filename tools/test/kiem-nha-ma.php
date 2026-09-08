@@ -15,6 +15,9 @@
  * Chạy: php tools/test/kiem-nha-ma.php
  */
 
+/* Cho phép bơm thân gói vào cổng tiền mà không cần HTTP thật — xem `NHAMA::than_tho()`. */
+define( 'NHAMA_TEST', 1 );
+
 require_once __DIR__ . '/wp-stub.php';
 
 /* ------------------------------------------------------- mấy hàm WordPress mà stub chưa có */
@@ -48,7 +51,12 @@ $wpdb->exec_raw( 'CREATE TABLE ' . NHAMA::t() . ' (
 	ma TEXT UNIQUE, ten TEXT DEFAULT "", sdt TEXT DEFAULT "", ngay TEXT, gio TEXT DEFAULT "",
 	sl INTEGER DEFAULT 1, tien INTEGER DEFAULT 0, tt TEXT DEFAULT "giu_cho", ghi TEXT DEFAULT "",
 	vao_luc TEXT NULL, tao TEXT, sua TEXT )' );
+$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . NHAMA::t_tien() );
+$wpdb->exec_raw( 'CREATE TABLE ' . NHAMA::t_tien() . ' (
+	id INTEGER PRIMARY KEY AUTOINCREMENT, ref TEXT UNIQUE, luc TEXT, so_tien INTEGER DEFAULT 0,
+	noi_dung TEXT DEFAULT "", ma TEXT DEFAULT "", kq TEXT DEFAULT "", tho TEXT NULL )' );
 NHAMA::dat_pin( '246810' );
+update_option( 'nhama_khoa_tien', 'khoa-thu-1234567890' );
 
 $dat = 0; $truot = array();
 register_shutdown_function( function () {
@@ -356,6 +364,133 @@ t( 'bỏ trống thì mượn tài khoản đã khai ở plugin ghế',
 	'970436' === $tk['bin'] && '1234567890' === $tk['so_tk'] && 'Vietcombank' === $tk['ten_nh'], $tk );
 goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'bin' => '970418', 'so_tk' => '8888815678' ) ) );
 t( 'khai riêng thì ĐÈ lên tài khoản mượn', '8888815678' === NHAMA::tk()['so_tk'] );
+
+// ================================================================== 10. Cổng tiền về tự động
+/* =============================================================================================
+ * 🔴 KHÔNG CÓ CỔNG NÀY THÌ KẾ TOÁN NGỒI SOI SAO KÊ, KHÁCH ĐỨNG Ở CỬA ĐỢI
+ * =============================================================================================
+ * Bốn luật của cổng, học từ cổng tiền plugin ghế, và bài này canh đủ bốn:
+ *   1. trả 200 cho mọi gói đã qua khoá, kể cả gói không đọc được (khác 2xx là bên gửi TẮT webhook)
+ *   2. ghi sổ mọi lượt, kể cả lượt bị từ chối
+ *   3. `ref` UNIQUE — bắn lại cùng giao dịch không duyệt hai lần
+ *   4. sai khoá thì chối, và chối cũng phải để lại dấu
+ * =========================================================================================== */
+function ban_tien( $goi, $khoa = 'khoa-thu-1234567890' ) {
+	$GLOBALS['NHAMA_THAN'] = is_string( $goi ) ? $goi : wp_json_encode( $goi );
+	$_GET['token'] = $khoa;
+	$GLOBALS['VHCP_MA_HTTP'] = 0;
+	ob_start(); NHAMA::cong_tien(); $ra = ob_get_clean();
+	$j = json_decode( $ra, true );
+	if ( is_array( $j ) ) { $j['_ma_http'] = (int) $GLOBALS['VHCP_MA_HTTP']; }
+	return $j;
+}
+function so_dong_tien() {
+	global $wpdb;
+	return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . NHAMA::t_tien() );
+}
+
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'gia' => 100000, 'suc' => 10,
+	'mo' => '10:10', 'dong' => '11:45', 'buoc' => 5, 'bin' => '970418', 'so_tk' => '8888815678' ) ) );
+$r = goi( array( 'viec' => 'dat', 'ngay' => $mai, 'gio' => '11:10',
+	'ten' => 'Khách tiền về', 'sdt' => '0977000111', 'sl' => 2 ) );
+$ma_t = $r['don']['ma'];
+$nd_t = $r['don']['nd'];
+
+/* --- sai khoá: chối, mã 401, nhưng VẪN để lại dấu trong sổ --- */
+$truoc = so_dong_tien();
+$r = ban_tien( array( 'content' => $nd_t, 'transferAmount' => 200000, 'referenceCode' => 'X1' ), 'khoa-bay' );
+t( 'sai khoá thì chối', empty( $r['ok'] ), $r );
+/* 🔴 SAI KHOÁ LÀ CA DUY NHẤT ĐƯỢC TRẢ KHÁC 200 — để người đi cấu hình thấy ngay. */
+t( 'sai khoá trả 401', 401 === $r['_ma_http'], $r['_ma_http'] );
+t( 'sai khoá vẫn để lại dấu trong sổ', so_dong_tien() === $truoc + 1 );
+t( 'sai khoá KHÔNG duyệt đơn', 'giu_cho' === NHAMA::don_theo_ma( $ma_t )['tt'] );
+
+/* --- gói không đọc được: vẫn 200, và GIỮ NGUYÊN VĂN để xử tay --- */
+$r = ban_tien( 'đây không phải JSON' );
+t( 'gói không đọc được vẫn trả ok (khác 2xx là bên gửi tắt webhook)', ! empty( $r['ok'] ), $r );
+/* =============================================================================================
+ * 🔴 MÃ HTTP PHẢI LÀ 200, KHÔNG CHỈ THÂN TIN NÓI "ok"
+ * =============================================================================================
+ * Bên gửi đọc MÃ HTTP chứ không đọc chữ trong thân. Thấy 5xx là họ đẩy lại vài lần rồi TẮT HẲN
+ * webhook — và từ lúc ấy tiền về mà hệ thống không hay biết, im lặng, không ai phát hiện cho tới
+ * khi khách đứng ở cửa với thiệp chưa duyệt.
+ * ⚠️ Bản đầu của bài kiểm chỉ soi `$r['ok']` trong thân tin. Phá thử: đổi `status_header(200)`
+ *    thành 500 thì bài vẫn xanh — canh nhầm chỗ. Nay canh đúng con số bên gửi nhìn vào.
+ * =========================================================================================== */
+t( 'gói không đọc được vẫn trả MÃ HTTP 200', 200 === $r['_ma_http'], $r['_ma_http'] );
+t( 'gói không đọc được vẫn vào sổ', so_dong_tien() >= $truoc + 2 );
+
+/* --- nội dung không mang mã thiệp --- */
+$r = ban_tien( array( 'content' => 'CT DEN TIEN AN TRUA', 'transferAmount' => 50000, 'referenceCode' => 'X2' ) );
+t( 'nội dung không mang mã thiệp: vào sổ chờ xử tay, không nổ', ! empty( $r['ok'] ) );
+t( 'và vẫn trả mã HTTP 200', 200 === $r['_ma_http'], $r['_ma_http'] );
+
+/* --- tiền RA thì bỏ qua (SePay bắn cả hai chiều) --- */
+$r = ban_tien( array( 'content' => $nd_t, 'transferAmount' => 200000, 'referenceCode' => 'X3',
+	'transferType' => 'out' ) );
+t( 'lượt tiền RA không được duyệt thiệp', 'giu_cho' === NHAMA::don_theo_ma( $ma_t )['tt'], $r );
+
+/* --- thiếu tiền: KHÔNG duyệt, nhưng ghi vào đơn để kế toán gọi khách --- */
+$r = ban_tien( array( 'content' => $nd_t, 'transferAmount' => 100000, 'referenceCode' => 'X4' ) );
+$don_t = NHAMA::don_theo_ma( $ma_t );
+t( 'thiếu tiền thì KHÔNG duyệt', 'giu_cho' === $don_t['tt'], $don_t['tt'] );
+t( 'thiếu tiền thì ghi vào đơn cho kế toán thấy',
+	strpos( $don_t['ghi'], 'THIẾU' ) !== false, $don_t['ghi'] );
+
+/* --- đủ tiền: TỰ DUYỆT --- */
+$r = ban_tien( array( 'content' => 'CT DEN:' . $nd_t . ' TU 0977000111',
+	'transferAmount' => 200000, 'referenceCode' => 'FT2609081234' ) );
+$don_t = NHAMA::don_theo_ma( $ma_t );
+t( 'lượt duyệt thành công cũng trả mã HTTP 200', 200 === $r['_ma_http'], $r['_ma_http'] );
+t( 'đủ tiền thì thiệp TỰ chuyển sang Chờ Check-in', 'cho_vao' === $don_t['tt'], $don_t );
+t( 'ghi lại mã tham chiếu của ngân hàng vào đơn',
+	strpos( $don_t['ghi'], 'FT2609081234' ) !== false, $don_t['ghi'] );
+/* Nội dung ngân hàng chèn thêm chữ quanh mã — vẫn phải bóc ra đúng. */
+t( 'bóc được mã thiệp lẫn trong câu chữ của ngân hàng',
+	$ma_t === NHAMA::ma_tu_noi_dung( 'CT DEN:' . $nd_t . ' TU 0977000111' ) );
+t( 'bóc được cả khi nội dung còn dấu gạch', $ma_t === NHAMA::ma_tu_noi_dung( 'ND ' . $ma_t . ' xxx' ) );
+
+/* --- 🔴 BẮN LẠI CÙNG GIAO DỊCH: không được đếm hai lần --- */
+$truoc = so_dong_tien();
+$r = ban_tien( array( 'content' => $nd_t, 'transferAmount' => 200000, 'referenceCode' => 'FT2609081234' ) );
+t( 'bắn lại cùng mã tham chiếu: không thêm dòng sổ', so_dong_tien() === $truoc, so_dong_tien() );
+t( 'và trả lời rõ là đã xử lý trước đó',
+	strpos( (string) $r['ghi_chu'], 'đã xử lý' ) !== false, $r );
+
+/* --- thiệp đã hợp lệ thì kèm QR VÀO CỬA, và KHÔNG kèm QR chuyển khoản nữa --- */
+$don_qr2 = NHAMA::kem_qr( NHAMA::don_theo_ma( $ma_t ) );
+t( 'thiệp đã trả tiền có QR vào cửa', ! empty( $don_qr2['qr_ve'] ) );
+/* Hai mã đen trắng giống hệt nhau nằm cạnh nhau là khách quét nhầm cái nọ ra cái kia. */
+$mt_ve = NHAMA_QRVe::ma_tran( $ma_t, 'M' );
+t( 'QR vào cửa đọc ngược ra ĐÚNG mã thiệp', NHAMA_QRVe::doc( $mt_ve ) === $ma_t );
+
+/* --- tiền về cho thiệp đã huỷ: không duyệt lại, và kêu lên để còn hoàn tiền --- */
+$r2 = goi( array( 'viec' => 'dat', 'ngay' => $mai, 'gio' => '11:15',
+	'ten' => 'Khách huỷ', 'sdt' => '0977000222', 'sl' => 1 ) );
+goi( array( 'viec' => 'doi', 'the' => $the, 'ma' => $r2['don']['ma'], 'tt' => 'huy', 'ghi' => 'huỷ' ) );
+ban_tien( array( 'content' => $r2['don']['nd'], 'transferAmount' => 100000, 'referenceCode' => 'X9' ) );
+$don_h = NHAMA::don_theo_ma( $r2['don']['ma'] );
+t( 'tiền về cho thiệp đã huỷ: không tự mở lại', 'huy' === $don_h['tt'] );
+t( 'và ghi rõ là cần hoàn tiền', strpos( $don_h['ghi'], 'hoàn tiền' ) !== false, $don_h['ghi'] );
+
+/* --- gửi Zalo chưa cấu hình thì im lặng bỏ qua, KHÔNG làm hỏng lượt tiền về --- */
+t( 'chưa khai token Zalo thì gửi trả false, không nổ', false === NHAMA::gui_zalo( $ma_t ) );
+$nk = (array) get_option( 'nhama_nk_zalo', array() );
+t( 'và ghi vào nhật ký Zalo để biết vì sao chưa gửi',
+	count( $nk ) > 0 && 'chua_cau_hinh' === $nk[0]['kq'], $nk ? $nk[0] : null );
+t( 'nhưng thiệp vẫn hợp lệ', 'cho_vao' === NHAMA::don_theo_ma( $ma_t )['tt'] );
+
+/* --- mở thiệp theo mã (đường dẫn trong tin Zalo) --- */
+$r = goi( array( 'viec' => 've', 'ma' => $ma_t ) );
+t( 'mở được thiệp bằng mã (link Zalo)', ! empty( $r['ok'] ) && $r['don'][0]['ma'] === $ma_t );
+t( 'mã bịa thì báo không thấy', empty( goi( array( 'viec' => 've', 'ma' => 'GB-KHONGCO2' ) )['ok'] ) );
+
+/* --- sổ tiền về đọc được ở màn quản trị --- */
+$r = goi( array( 'viec' => 'tien', 'the' => $the ) );
+t( 'màn quản trị đọc được sổ tiền về', ! empty( $r['ok'] ) && count( $r['tien'] ) > 0 );
+t( 'và in ra địa chỉ webhook kèm khoá',
+	strpos( $r['duong'], 'nha-ma-tien' ) !== false && strpos( $r['duong'], 'token=' ) !== false, $r['duong'] );
+t( 'sổ tiền về đòi thẻ, khách không xem được', empty( goi( array( 'viec' => 'tien' ) )['ok'] ) );
 
 echo "\n";
 if ( $truot ) {
