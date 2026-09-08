@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.36.0
+ * Version:           1.37.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1742,7 +1742,7 @@ class POSH_Ve {
 						<tbody><tr><td>📱 Zalo Mini App</td><td data-k="ve_zalo">—</td><td data-k="dt_zalo">—</td></tr>
 						<tr><td>🌐 Website</td><td data-k="ve_web">—</td><td data-k="dt_web">—</td></tr></tbody></table>
 					<div class="pql-h2">Vé bán chạy</div>
-					<div class="pql-top"></div>
+					<div class="pql-topban"></div>
 				</div><!-- /pane bc -->
 
 				<div class="pql-pane" data-pane="don" hidden>
@@ -1887,7 +1887,7 @@ class POSH_Ve {
 		.pql-kpi-i span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
 		.pql-kpi-i b{ font-size:19px; color:#fff; } .pql-kpi-i .pql-green{ color:#7ee2a8; }
 		.pql-chart{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; height:220px; }
-		.pql-top{ display:flex; flex-direction:column; gap:8px; }
+		.pql-topban{ display:flex; flex-direction:column; gap:8px; }
 		.pql-toprow{ display:flex; align-items:center; gap:12px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 12px; }
 		.pql-toprow img,.pql-toprow .noimg{ width:48px; height:48px; border-radius:8px; object-fit:cover; background:var(--sf2); display:flex; align-items:center; justify-content:center; font-size:20px; flex:0 0 auto; }
 		.pql-topmid{ flex:1; min-width:0; } .pql-topten{ font-weight:700; color:#fff; font-size:14px; } .pql-topsub{ font-size:12px; color:var(--mut); }
@@ -1985,7 +1985,7 @@ class POSH_Ve {
 		        var el=root.querySelector('[data-k="'+k+'"]'); if(el) el.textContent = money[k]?VND(d[k]):(d[k]||0);
 		      });
 		      veChart(d.chart_lb||[], d.chart_dl||[]);
-		      root.querySelector('.pql-top').innerHTML=(d.top||[]).slice(0,15).map(function(r){
+		      root.querySelector('.pql-topban').innerHTML=(d.top||[]).slice(0,15).map(function(r){
 		        var img=r.anh?'<img src="'+esc(r.anh)+'">':'<span class="noimg">🎟️</span>';
 		        return '<div class="pql-toprow">'+img+'<div class="pql-topmid"><div class="pql-topten">'+esc(r.ten)+'</div>'
 		          +'<div class="pql-topsub">Bán '+r.sl+' đơn</div></div><div class="pql-topdt">'+VND(r.dt)+'</div></div>';
