@@ -60,7 +60,11 @@ t('vẫn còn dòng cảnh báo cho ca công thức ra ÂM',
 t('cảnh báo trỏ vào cột "Ghi chú" và cột "Thực thu tiền mặt"',
 	/ghi lý do ở cột "Ghi chú" và nhập số tiền thật ở cột "Thực thu tiền mặt"/.test(nhanhBT));
 /* Khung vẫn phải được BẬT lên — dựng đủ chữ mà để display:none thì không ai thấy. */
-t('và khung cảnh báo được bật hiện', /w\.style\.display\s*=\s*''/.test(nhanhBT));
+/* ⚠️ CANH Ý ĐỊNH: khung phải được BẬT LÊN. Bản 2.13.5 gói việc bật/tắt vào `_hienWarn()` — nay
+   nó còn phải hiện cả HÀNG cảnh báo trải ngang, không chỉ cái khung. Ghim nguyên văn lời gán
+   `w.style.display=''` là đỏ vì cách viết, không phải vì hành vi. */
+t('và khung cảnh báo được bật hiện',
+	/_hienWarn\(true\)|w\.style\.display\s*=\s*''/.test(nhanhBT), nhanhBT.slice(0, 200));
 
 /* ---------- 3. LÝ DO NAY LẤY TỪ CỘT GHI CHÚ ---------- */
 /* Bốc đúng khối chốt-trước-khi-gửi ra soi, chứ không soi cả tệp: `.note` xuất hiện ở hàng chục

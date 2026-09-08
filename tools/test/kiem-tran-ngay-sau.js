@@ -170,8 +170,15 @@ t('🔴 câu nhắc KHÔNG làm hàng thành "bất thường" (không chặn g�
 t('🔴 khung nhắc dùng lớp vàng bc-nhac, không phải khung đỏ',
 	/\} else if\(nhacKe\)\{[\s\S]{0,200}w\.classList\.add\('bc-nhac'\)/.test(calc), null);
 /* Hết nhắc (sửa lại số) thì phải dọn CẢ lớp vàng — để lại là hàng đã sạch mà vẫn vàng khè. */
+/* ⚠️ CANH Ý ĐỊNH: nhánh "hết bất thường" phải ẩn khung VÀ gỡ lớp vàng VÀ xoá chữ. Bản đầu ghim
+   nguyên văn `w.style.display='none'` — bản 2.13.5 đưa việc ẩn vào `_hienWarn()` (vì nay còn
+   phải ẩn cả HÀNG cảnh báo, không chỉ cái khung), và phép thử đỏ vì cách viết. */
+const nhanhSach = /\} else \{([\s\S]{0,300}?)\n\s{4}\}/.exec(calc);
+t('bốc được nhánh "hết bất thường"', !!nhanhSach, calc.slice(-260));
 t('🔴 hết nhắc thì dọn cả lớp vàng lẫn chữ',
-	/\} else \{\s*\n\s*w\.style\.display='none';\s*\n\s*w\.classList\.remove\('bc-nhac'\);/.test(calc), null);
+	!!nhanhSach && /_hienWarn\(false\)|display\s*=\s*'none'/.test(nhanhSach[1])
+	&& /classList\.remove\('bc-nhac'\)/.test(nhanhSach[1])
+	&& /textContent\s*=\s*''/.test(nhanhSach[1]), nhanhSach && nhanhSach[1]);
 /* Bất thường VÀ trùng trần cùng lúc: một khung, nối câu. Hai khung đỏ chồng nhau trên một hàng
    thì người đọc bỏ qua cả hai. */
 t('🔴 bất thường + trùng trần -> NỐI vào cùng một khung',

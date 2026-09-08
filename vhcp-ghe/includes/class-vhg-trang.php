@@ -1631,6 +1631,17 @@ class VHG_Trang {
       '.bc-ro{display:block;text-align:right;font-weight:800;padding:9px 10px;border-radius:9px;background:#f1f5f9}',
       '.bc-cash{background:#ecfdf5;color:#059669}',
       '.bc-warn{font-size:11px;color:#b91c1c;font-weight:600;margin-top:3px}',
+      /* 🔴 CÂU CẢNH BÁO PHẢI ĐỌC ĐƯỢC TRÊN ĐIỆN THOẠI. Nó từng nằm trong ô cột đầu và rơi dọc
+         mỗi chữ một dòng (anh Thắng 08/09/2026). Nay ở hàng riêng trải hết chiều ngang; ba luật
+         dưới giữ cho nó không bao giờ vỡ lại:
+           · `white-space:normal` — thắng mọi luật `nowrap` của bảng
+           · `min-width` theo bề rộng màn, chứ không theo bề rộng cột
+           · cỡ chữ 12.5px và khung nền để mắt bắt được ngay giữa bảng số */
+      '.bc-warn-row td{background:#fef2f2}',
+      '.bc-warn-row .bc-warn{white-space:normal;word-break:normal;overflow-wrap:anywhere;'
+        + 'min-width:min(560px,88vw);max-width:min(860px,94vw);font-size:12.5px;line-height:1.45;'
+        + 'padding:8px 10px;border-radius:8px;background:#fff;border:1px solid #fecaca;margin:0}',
+      '.bc-warn-row .bc-warn.bc-nhac{background:#fffbeb;border-color:#fde68a}',
       /* 🔴 NHẮC ≠ CHẶN, nên KHÔNG dùng chung màu đỏ. Đỏ ở màn này từ trước tới nay nghĩa là
          "chưa gửi được"; để ca máy-đứng-yên mặc áo đỏ ấy thì nhân viên đi tìm ô lý do không có
          thật, rồi tưởng trang hỏng. Vàng: có chuyện cần biết, vẫn gửi được. */
@@ -1917,7 +1928,7 @@ class VHG_Trang {
     if(!ghe.length){ body.appendChild(elEmptyRow('Cơ sở này chưa có ghế.')); tinhTong(); return; }
     var codes=ghe.map(function(g){ return g.ma; });
     // vẽ trước với chỉ số trước rỗng, rồi lấy chỉ số trước
-    ghe.forEach(function(g){ body.appendChild(veDong(g,null)); });
+    ghe.forEach(function(g){ _gan(body, veDong(g,null)); });
     tinhTong();
     bcDocNhap();
     goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1},function(r){
@@ -1925,7 +1936,7 @@ class VHG_Trang {
       LASTD=(r&&r.mapd)||{};
       KE=(r&&r.ke)||{};
       body.textContent='';
-      ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
+      ghe.forEach(function(g){ _gan(body, veDong(g, LAST[g.ma])); });
       tinhTong();
       bcDocNhap();
     });
@@ -1982,6 +1993,8 @@ class VHG_Trang {
   }
   function bcXoaNhap(){ if(!LOC||!NGAY) return; try{ localStorage.removeItem(bcKhoaNhap_()); }catch(e){} }
 
+  /** Gắn một hàng ghế kèm hàng cảnh báo đi sau nó. Một chỗ, để không nơi nào quên hàng phụ. */
+  function _gan(body, tr){ body.appendChild(tr); if(tr._pair) body.appendChild(tr._pair); }
   function veDong(g,before){
     var tr=el('tr'); tr.dataset.ma=g.ma; tr.dataset.ten=g.ten||g.ma;
     var coBefore = (before!==null && before!==undefined && before!=='');
@@ -1993,7 +2006,7 @@ class VHG_Trang {
        khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
     tdN.appendChild(kx);
-    var w=el('div','bc-warn'); w.style.display='none'; tdN.appendChild(w); tr.appendChild(tdN);
+    tr.appendChild(tdN);
     // chỉ số trước (+ ngày đọc mốc, giống bản điện thoại — anh Thắng 07/09/2026)
     var tdB=el('td');
     if(coBefore){
@@ -2048,7 +2061,25 @@ class VHG_Trang {
        hai chế độ (khớp thứ tự cột với header). */
     tr.appendChild(celAnh('anh-chiso'));
     tr.appendChild(celAnh('anh-vesinh'));
+    /* 🔴 CÂU CẢNH BÁO PHẢI Ở HÀNG RIÊNG, TRẢI HẾT CHIỀU NGANG.
+       Anh Thắng 08/09/2026 gửi màn hình của chị Ngọc Lan: câu *"⚠ Chỉ số sau nhỏ hơn trước —
+       ghi lý do ở cột Ghi chú và nhập số tiền thật ở cột Thực thu tiền mặt"* rơi DỌC, mỗi chữ
+       một dòng, kéo dài hết màn điện thoại. Vì nó nằm trong ô CỘT ĐẦU (cột tên ghế) — cột ấy
+       chỉ rộng vài chục pixel, mà câu thì dài hơn trăm ký tự.
+
+       Nặng hơn chuyện xấu: đúng câu ấy là thứ DUY NHẤT nói cho người ta biết vì sao bấm Gửi
+       không được. Đọc không nổi thì họ bấm lại, bấm lại, và kết luận là trang hỏng.
+
+       Hàng phụ KHÔNG mang `data-ma`, nên mọi vòng lặp (`#bc-rows tr[data-ma]`) bỏ qua nó —
+       collect / calc / tính tổng đều không đổi. Giữ tham chiếu ở `tr._warn` để `calc()` khỏi
+       phải dò ngược trong DOM. */
+    var tr2=el('tr'); tr2.className='bc-warn-row'; tr2.style.display='none';
+    var td2=el('td'); td2.colSpan=99; td2.style.cssText='padding:0 8px 8px';
+    var w=el('div','bc-warn'); w.style.display='none'; td2.appendChild(w);
+    tr2.appendChild(td2); tr._warn=w; tr._warnRow=tr2;
     calc(tr);
+    /* Trả về cả hai hàng — nơi gọi tự gắn vào bảng theo đúng thứ tự. */
+    tr._pair = tr2;
     return tr;
   }
   /* Ô chọn MỘT ảnh gắn thẳng vào đúng ghế (chỉ số hoặc vệ sinh) — thay cho ô chọn nhiều ảnh
@@ -2198,15 +2229,21 @@ class VHG_Trang {
       aEl.placeholder = mayDungCoQR ? '0' : ((rawCash<0) ? 'Nhập số tiền thật' : money(rawCash));
     }
     tr.dataset.actual=actual; tr.dataset.cash=cash;
-    var w=tr.querySelector('.bc-warn');
+    /* Ô cảnh báo nay nằm ở HÀNG PHỤ ngay dưới, không còn trong ô cột đầu — xem chú thích ở
+       `veDong()`. Lui về cách dò cũ cho những hàng dựng bởi mã cũ (nếu còn). */
+    var w=tr._warn || tr.querySelector('.bc-warn');
+    function _hienWarn(co){
+      if(w) w.style.display = co ? '' : 'none';
+      if(tr._warnRow) tr._warnRow.style.display = co ? '' : 'none';
+    }
     /* Bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — Thực thu đã có sẵn ở cột chính, không
        dựng thêm ô thứ hai trong khung cảnh báo nữa. */
     if(mayDungCoQR){
       /* Khung này KHÔNG có ô lý do — có ô là người ta tưởng phải điền mới gửi được. Chỉ nói ra
          chuyện gì đang xảy ra và việc duy nhất cần làm: gõ số tiền mặt thật (thường là 0). */
-      w.style.display='';
-      w.classList.add('bc-nhac');
-      w.textContent='⚠ Máy đứng yên ('+after+') mà có QR — bình thường khi khách trả QR nhưng '
+      _hienWarn(true);
+      if(w) w.classList.add('bc-nhac');
+      if(w) w.textContent='⚠ Máy đứng yên ('+after+') mà có QR — bình thường khi khách trả QR nhưng '
         +'bộ đếm không nhảy. Gõ số tiền mặt thật vào cột "Thực thu tiền mặt" (thường là 0) là gửi '
         +'được, không cần ghi lý do.'
         +(nhacKe ? ' · '+nhacKe : '');
@@ -2216,9 +2253,9 @@ class VHG_Trang {
          "Lý do…", và cột "Thực thu tiền mặt" đứng ngay cạnh. Nhét thêm một ô lý do THỨ HAI vào
          khung đỏ là bắt người ta gõ hai lần cùng một câu, mà hai ô ấy lại đi về hai chỗ khác
          nhau trong sổ. Nay lý do lấy thẳng từ cột Ghi chú. */
-      w.style.display='';
-      w.classList.remove('bc-nhac');
-      w.textContent=(chiSoNguoc
+      _hienWarn(true);
+      if(w) w.classList.remove('bc-nhac');
+      if(w) w.textContent=(chiSoNguoc
         ? '⚠ Chỉ số sau nhỏ hơn trước'
         : '⚠ Công thức tính ra ÂM (QR lớn hơn Actual)')
         + ' — ghi lý do ở cột "Ghi chú" và nhập số tiền thật ở cột "Thực thu tiền mặt" của hàng này.'
@@ -2227,13 +2264,13 @@ class VHG_Trang {
         + (nhacKe ? ' · '+nhacKe : '');
     } else if(nhacKe){
       /* Nhắc thôi: khung vàng như ca "máy đứng yên", KHÔNG chặn gửi và KHÔNG đòi lý do. */
-      w.style.display='';
-      w.classList.add('bc-nhac');
-      w.textContent=nhacKe;
+      _hienWarn(true);
+      if(w) w.classList.add('bc-nhac');
+      if(w) w.textContent=nhacKe;
     } else {
-      w.style.display='none';
-      w.classList.remove('bc-nhac');
-      w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
+      _hienWarn(false);
+      if(w) w.classList.remove('bc-nhac');
+      if(w) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
     }
   }
 
