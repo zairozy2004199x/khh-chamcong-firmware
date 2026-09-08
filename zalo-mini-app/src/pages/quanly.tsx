@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Page, Spinner, useSnackbar } from "zmp-ui";
-import { qlDangNhap, qlBaoCao, qlDonHang, qlCapNhat, dinhTien, BaoCao, DonQL } from "../api";
+import { openWebview } from "zmp-sdk";
+import { qlDangNhap, qlBaoCao, qlDonHang, qlCapNhat, dinhTien, TRANG_QL, BaoCao, DonQL } from "../api";
 
 const PINKEY = "posh_ql_pin";
 const NHAN: Record<string, string> = { cho: "Chờ", da_tt: "Đã thanh toán", da_dung: "Đã dùng", huy: "Đã huỷ" };
@@ -59,6 +60,12 @@ export default function QuanLyPage() {
       {tab === "baocao" && <BaoCaoTab pin={pin} />}
       {tab === "don" && <DonTab pin={pin} />}
       {tab === "soat" && <SoatTab pin={pin} />}
+      <div className="ql-body">
+        <button className="ql-taove" onClick={() => { openWebview({ url: TRANG_QL }).catch(() => { try { (window as any).open(TRANG_QL, "_blank"); } catch (e) {} }); }}>
+          ＋ Tạo / sửa vé (mở trang web)
+        </button>
+        <div className="tp-empty-s" style={{ textAlign: "center", marginTop: 6 }}>Trang quản trị vé trên web — cần nhập lại PIN.</div>
+      </div>
       <div style={{ height: 20 }} />
     </Page>
   );

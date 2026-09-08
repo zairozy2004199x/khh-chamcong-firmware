@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.27.0
+ * Version:           1.28.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -793,6 +793,15 @@ class POSH_Ve {
 		$d = json_decode( base64_decode( $val ), true );
 		return is_array( $d ) ? $d : null;
 	}
+	/* Zalo user đã đăng nhập có phải admin? Danh sách ID admin khai ở admin (cách nhau dấu phẩy).
+	   Để TRỐNG = mọi người đã đăng nhập đều thấy nút Quản trị (trang vẫn khoá PIN). */
+	public static function la_admin_zalo( $zu ) {
+		if ( ! is_array( $zu ) || empty( $zu['id'] ) ) { return false; }
+		$ds = trim( (string) get_option( 'pve_zalo_admin_ids', '' ) );
+		if ( '' === $ds ) { return true; }
+		$ids = array_filter( array_map( 'trim', preg_split( '/[,\s]+/', $ds ) ) );
+		return in_array( (string) $zu['id'], $ids, true );
+	}
 
 	// ───────────────────────────── Bảo vệ khu quản lý bằng PIN ─────────────────────────────
 	private static function pin_hople( $req ) {
@@ -1023,7 +1032,12 @@ class POSH_Ve {
 			<div class="pve-auth">
 				<?php if ( $zu ) : ?>
 					<span>👋 Xin chào, <b><?php echo esc_html( $ten_dn ? $ten_dn : 'bạn' ); ?></b></span>
-					<a href="<?php echo esc_url( home_url( '/?pve_zalo=logout' ) ); ?>">Đăng xuất</a>
+					<span class="pve-auth-r">
+						<?php if ( self::la_admin_zalo( $zu ) && ( $ql = self::url_trang_ql() ) ) : ?>
+							<a class="pve-auth-ql" href="<?php echo esc_url( $ql ); ?>">🔧 Quản trị vé</a>
+						<?php endif; ?>
+						<a href="<?php echo esc_url( home_url( '/?pve_zalo=logout' ) ); ?>">Đăng xuất</a>
+					</span>
 				<?php else : ?>
 					<span>Đăng nhập để đồng bộ vé với Zalo</span>
 					<a class="pve-auth-btn" href="<?php echo esc_url( home_url( '/?pve_zalo=login' ) ); ?>">Đăng nhập bằng Zalo</a>
@@ -1437,6 +1451,8 @@ class POSH_Ve {
 		.pve-auth b{ color:var(--tx); }
 		.pve-auth a{ color:var(--g2); font-weight:700; text-decoration:none; }
 		.pve-auth-btn{ background:#0068ff; color:#fff !important; padding:8px 16px; border-radius:999px; }
+		.pve-auth-r{ display:inline-flex; align-items:center; gap:14px; }
+		.pve-auth-ql{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204 !important; font-weight:800; padding:7px 15px; border-radius:999px; }
 		/* Banner carousel */
 		.pve-bn{ position:relative; margin-bottom:22px; border-radius:16px; overflow:hidden; border:1px solid var(--bd); }
 		.pve-bn-track{ display:flex; transition:transform .4s ease; }
@@ -1793,6 +1809,7 @@ class POSH_Ve {
 			update_option( 'pve_zalo_secret', trim( (string) wp_unslash( $_POST['zalo_secret'] ) ) );
 			update_option( 'pve_zalo_appid', preg_replace( '/\D+/', '', (string) wp_unslash( isset( $_POST['zalo_appid'] ) ? $_POST['zalo_appid'] : '' ) ) );
 			update_option( 'pve_zalo_verify', sanitize_text_field( wp_unslash( isset( $_POST['zalo_verify'] ) ? $_POST['zalo_verify'] : '' ) ) );
+			update_option( 'pve_zalo_admin_ids', sanitize_text_field( wp_unslash( isset( $_POST['zalo_admin_ids'] ) ? $_POST['zalo_admin_ids'] : '' ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu cấu hình Zalo.</p></div>';
 		}
 		if ( isset( $_POST['pve_uu_luu'] ) && check_admin_referer( 'pve_uu' ) ) {
@@ -2106,6 +2123,8 @@ class POSH_Ve {
 			. '<br><span class="description">Zalo console → <i>Xác thực domain</i> cho mã dạng <code>IS-xxxx</code>. Dán vào đây → plugin tự chèn thẻ meta + phục vụ file xác thực. '
 			. ( $zv ? 'Đang có: kiểm tra <a href="' . esc_url( home_url( '/zalo_verifier' . $zv . '.html' ) ) . '" target="_blank">file xác thực</a>.' : '' )
 			. ' Xong thì bấm <b>Xác thực</b> trên Zalo (chọn cách <i>meta</i> hoặc <i>file</i> đều được).</span></td></tr>';
+		echo '<tr><th>Zalo ID quản trị</th><td><input name="zalo_admin_ids" class="large-text code" value="' . esc_attr( (string) get_option( 'pve_zalo_admin_ids', '' ) ) . '" placeholder="VD 123456789, 987654321">'
+			. '<br><span class="description">Các Zalo ID được hiện nút <b>“🔧 Quản trị vé”</b> trên web sau khi đăng nhập Zalo (cách nhau dấu phẩy). Để <b>trống</b> = mọi người đăng nhập Zalo đều thấy nút (trang vẫn khoá bằng PIN). Mẹo lấy ID: đăng nhập Zalo trên web, nút quản trị sẽ hiện — hoặc xem trong <i>Đơn vé</i>.</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu cấu hình Zalo</button></p></form>';
 
 		/* ── Chân trang (thông tin công ty) ── */

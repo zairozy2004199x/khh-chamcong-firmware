@@ -2,6 +2,8 @@
  * ⚠️ ĐỔI BASE cho đúng tên miền web của anh (khmatrix.com). KHÔNG có bí mật ở đây;
  *    số tài khoản nhận tiền do server trả về (vốn công khai trên QR). */
 export const BASE = "https://khmatrix.com/wp-json/posh/v1";
+/* Trang quản trị vé trên web (marketing tạo/sửa vé) — suy ra từ BASE. */
+export const TRANG_QL = BASE.replace(/\/wp-json\/.*$/, "") + "/quan-tri-ve";
 
 export interface Goi { ma: number; ten: string; tien: number; gia_goc: number; nhom: string; khu_vuc: string; mo_ta: string; anh: string; thoi_luong: string; so_luong: number; }
 export interface CoSo { ten: string; lat: number; lng: number; }
