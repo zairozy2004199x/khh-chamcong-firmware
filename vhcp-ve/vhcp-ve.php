@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.29.0
+ * Version:           1.30.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -827,11 +827,34 @@ class POSH_Ve {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
 		global $wpdb; $tbl = self::tbl(); $paid = "trang_thai IN ('da_tt','da_dung')";
 		$hnay = current_time( 'Y-m-d' ); $thang = current_time( 'Y-m' );
+		// Bản đồ tên vé -> ảnh (để "vé bán chạy" có hình như cnvloyalty).
+		$anh_map = array();
+		foreach ( self::ds_tatca() as $g ) { if ( '' !== (string) $g['anh'] ) { $anh_map[ $g['ten'] ] = $g['anh']; } }
 		$top = array();
-		foreach ( $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY sl DESC LIMIT 100", ARRAY_A ) as $r ) {
-			$top[] = array( 'ten' => $r['dv_ten'], 'sl' => (int) $r['sl'], 'dt' => (int) $r['dt'] );
+		foreach ( $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY dt DESC LIMIT 100", ARRAY_A ) as $r ) {
+			$top[] = array( 'ten' => $r['dv_ten'], 'sl' => (int) $r['sl'], 'dt' => (int) $r['dt'],
+				'anh' => isset( $anh_map[ $r['dv_ten'] ] ) ? $anh_map[ $r['dv_ten'] ] : '' );
 		}
+		// Số vé thực bán (cộng số lượng trong chi_tiet; đơn lẻ = 1).
+		$so_ve = 0;
+		foreach ( (array) $wpdb->get_col( "SELECT chi_tiet FROM $tbl WHERE $paid" ) as $ct ) {
+			$arr = $ct ? json_decode( (string) $ct, true ) : null;
+			if ( is_array( $arr ) && $arr ) { foreach ( $arr as $it ) { $so_ve += max( 1, (int) ( isset( $it['sl'] ) ? $it['sl'] : 1 ) ); } }
+			else { $so_ve += 1; }
+		}
+		// Doanh thu 7 ngày gần nhất cho biểu đồ.
+		$chart_lb = array(); $chart_dl = array();
+		for ( $i = 6; $i >= 0; $i-- ) {
+			$d = gmdate( 'Y-m-d', strtotime( "-$i day", (int) current_time( 'timestamp' ) ) );
+			$chart_lb[] = gmdate( 'd/m', strtotime( $d ) );
+			$chart_dl[] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $d ) );
+		}
+		$dt_tong = (int) $wpdb->get_var( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid" );
 		return array( 'ok' => true,
+			'dt_tong'  => $dt_tong,
+			'so_ve'    => $so_ve,
+			'chart_lb' => $chart_lb,
+			'chart_dl' => $chart_dl,
 			'dt_hnay'  => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $hnay ) ),
 			'dt_thang' => (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE_FORMAT(tao_luc,'%%Y-%%m')=%s", $thang ) ),
 			've_ban'   => (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tbl WHERE $paid" ),
@@ -1522,7 +1545,7 @@ class POSH_Ve {
 			<div class="pql-app" hidden>
 				<div class="pql-tabs">
 					<button class="pql-tab on" data-tab="ve">🎟️ Vé</button>
-					<button class="pql-tab" data-tab="bc">📊 Báo cáo</button>
+					<button class="pql-tab" data-tab="bc">📊 Tổng quan</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn &amp; soát</button>
 				</div>
 
@@ -1567,18 +1590,26 @@ class POSH_Ve {
 				</div><!-- /pane ve -->
 
 				<div class="pql-pane" data-pane="bc" hidden>
+					<div class="pql-kpi">
+						<div class="pql-kpi-i"><span>Lợi nhuận</span><b class="pql-green" data-k="dt_tong">—</b></div>
+						<div class="pql-kpi-i"><span>Tổng đơn hàng</span><b data-k="ve_ban">—</b></div>
+						<div class="pql-kpi-i"><span>Giá vốn</span><b>0đ</b></div>
+						<div class="pql-kpi-i"><span>Vé đã bán</span><b data-k="so_ve">—</b></div>
+					</div>
 					<div class="pql-cards">
 						<div class="pql-stat"><span>Doanh thu hôm nay</span><b data-k="dt_hnay">—</b></div>
 						<div class="pql-stat"><span>Doanh thu tháng</span><b data-k="dt_thang">—</b></div>
-						<div class="pql-stat"><span>Vé đã bán</span><b data-k="ve_ban">—</b></div>
-						<div class="pql-stat"><span>Vé chờ TT</span><b data-k="ve_cho">—</b></div>
+						<div class="pql-stat"><span>Vé bán hôm nay</span><b data-k="ve_hnay">—</b></div>
+						<div class="pql-stat"><span>Vé đang chờ TT</span><b data-k="ve_cho">—</b></div>
 					</div>
+					<div class="pql-h2">Tổng doanh thu 7 ngày</div>
+					<div class="pql-chart"><canvas id="pql-canvas"></canvas></div>
 					<div class="pql-h2">Bán theo kênh</div>
 					<table class="pql-tbl"><thead><tr><th>Kênh</th><th>Vé</th><th>Doanh thu</th></tr></thead>
 						<tbody><tr><td>📱 Zalo Mini App</td><td data-k="ve_zalo">—</td><td data-k="dt_zalo">—</td></tr>
 						<tr><td>🌐 Website</td><td data-k="ve_web">—</td><td data-k="dt_web">—</td></tr></tbody></table>
 					<div class="pql-h2">Vé bán chạy</div>
-					<table class="pql-tbl"><thead><tr><th>Loại vé</th><th>SL</th><th>Doanh thu</th></tr></thead><tbody class="pql-top"></tbody></table>
+					<div class="pql-top"></div>
 				</div><!-- /pane bc -->
 
 				<div class="pql-pane" data-pane="don" hidden>
@@ -1642,6 +1673,17 @@ class POSH_Ve {
 		.pql-tabs{ display:flex; gap:8px; margin-bottom:14px; }
 		.pql-tab{ flex:1; border:1.5px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:10px; padding:10px 4px; font-weight:700; font-size:13px; cursor:pointer; }
 		.pql-tab.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
+		.pql-kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
+		.pql-kpi-i{ background:linear-gradient(180deg,var(--sf),#111319); border:1px solid var(--bd); border-radius:12px; padding:14px; text-align:center; }
+		.pql-kpi-i span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
+		.pql-kpi-i b{ font-size:19px; color:#fff; } .pql-kpi-i .pql-green{ color:#7ee2a8; }
+		.pql-chart{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; height:220px; }
+		.pql-top{ display:flex; flex-direction:column; gap:8px; }
+		.pql-toprow{ display:flex; align-items:center; gap:12px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 12px; }
+		.pql-toprow img,.pql-toprow .noimg{ width:48px; height:48px; border-radius:8px; object-fit:cover; background:var(--sf2); display:flex; align-items:center; justify-content:center; font-size:20px; flex:0 0 auto; }
+		.pql-topmid{ flex:1; min-width:0; } .pql-topten{ font-weight:700; color:#fff; font-size:14px; } .pql-topsub{ font-size:12px; color:var(--mut); }
+		.pql-topdt{ color:var(--g2); font-weight:800; white-space:nowrap; }
+		@media(max-width:560px){ .pql-kpi{ grid-template-columns:1fr 1fr; } }
 		.pql-cards{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px; }
 		.pql-stat{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; }
 		.pql-stat span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
@@ -1701,15 +1743,32 @@ class POSH_Ve {
 
 		  // Báo cáo
 		  var NHAN={cho:'Chờ TT',da_tt:'Đã TT',da_dung:'Đã dùng',huy:'Đã huỷ'};
+		  var chart=null;
+		  function veChart(lb,dl){
+		    var c=root.querySelector('#pql-canvas'); if(!c) return;
+		    function draw(){
+		      if(!window.Chart){ setTimeout(draw,150); return; }
+		      if(chart){ chart.destroy(); }
+		      chart=new Chart(c,{type:'line',data:{labels:lb,datasets:[{label:'Doanh thu',data:dl,borderColor:'#d4af37',backgroundColor:'rgba(212,175,55,.12)',fill:true,tension:.35,pointRadius:3,borderWidth:2}]},
+		        options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9b978c'},grid:{color:'rgba(255,255,255,.05)'}},y:{beginAtZero:true,ticks:{color:'#9b978c',callback:function(v){return Number(v).toLocaleString('vi-VN');}},grid:{color:'rgba(255,255,255,.05)'}}}}});
+		    }
+		    if(!window.Chart && !document.getElementById('pql-chartjs')){
+		      var s=document.createElement('script'); s.id='pql-chartjs'; s.src='https://cdn.jsdelivr.net/npm/chart.js@4'; document.head.appendChild(s);
+		    }
+		    draw();
+		  }
 		  function napBaoCao(){
 		    get('/ql/baocao').then(function(d){
-		      var money={dt_hnay:1,dt_thang:1,dt_zalo:1,dt_web:1};
-		      ['dt_hnay','dt_thang','ve_ban','ve_cho','ve_zalo','ve_web','dt_zalo','dt_web'].forEach(function(k){
+		      var money={dt_tong:1,dt_hnay:1,dt_thang:1,dt_zalo:1,dt_web:1};
+		      ['dt_tong','ve_ban','so_ve','dt_hnay','dt_thang','ve_hnay','ve_cho','ve_zalo','ve_web','dt_zalo','dt_web'].forEach(function(k){
 		        var el=root.querySelector('[data-k="'+k+'"]'); if(el) el.textContent = money[k]?VND(d[k]):(d[k]||0);
 		      });
+		      veChart(d.chart_lb||[], d.chart_dl||[]);
 		      root.querySelector('.pql-top').innerHTML=(d.top||[]).slice(0,15).map(function(r){
-		        return '<tr><td>'+esc(r.ten)+'</td><td>'+r.sl+'</td><td>'+VND(r.dt)+'</td></tr>';
-		      }).join('')||'<tr><td colspan="3" style="color:#9b978c">Chưa có dữ liệu</td></tr>';
+		        var img=r.anh?'<img src="'+esc(r.anh)+'">':'<span class="noimg">🎟️</span>';
+		        return '<div class="pql-toprow">'+img+'<div class="pql-topmid"><div class="pql-topten">'+esc(r.ten)+'</div>'
+		          +'<div class="pql-topsub">Bán '+r.sl+' đơn</div></div><div class="pql-topdt">'+VND(r.dt)+'</div></div>';
+		      }).join('')||'<p style="color:#9b978c">Chưa có dữ liệu bán.</p>';
 		    }).catch(function(e){ alert(e.message||e); });
 		  }
 
