@@ -84,12 +84,48 @@ class VHG_Trang {
 	// API — JSON, tất cả đi qua POST và mang token của phiên
 	// =========================================================================================
 
+	/**
+	 * Trả JSON — và DỌN SẠCH MỌI THỨ ĐÃ TRÓT IN RA TRƯỚC ĐÓ.
+	 *
+	 * 🔴 MỘT DÒNG CẢNH BÁO LẠC LÀ HỎNG CẢ CỔNG. Trang gọi bằng `JSON.parse`, nên chỉ cần một
+	 *    `Warning:` / `Notice:` / một khoảng trắng thừa sau `?>` của BẤT KỲ plugin nào trên site
+	 *    in ra trước, chuỗi trả về thôi là JSON hợp lệ và trang báo *"Không đọc được trả lời của
+	 *    máy chủ (mạng hoặc tường lửa)"* — một câu đổ lỗi cho mạng trong khi mạng hoàn toàn tốt.
+	 *
+	 *    Anh Thắng đã báo đúng lỗi ấy 29/08/2026 rồi lại 08/09/2026. Lần trước vá bằng cách nén
+	 *    ảnh nhỏ lại (giảm khả năng gói tin bị cắt) — đúng một nhánh, nhưng không phải nhánh này,
+	 *    nên lỗi quay lại ngay cả khi không đính ảnh nào.
+	 *
+	 * ⚠️ DỌN HẾT MỌI TẦNG ĐỆM, không chỉ tầng trên cùng: WordPress và plugin khác có thể chồng
+	 *    nhiều tầng, và rác nằm ở tầng nào cũng ra tới trình duyệt như nhau.
+	 * ⚠️ KHÔNG VỨT ÂM THẦM. Rác ấy là câu lỗi thật của một chỗ nào đó đang hỏng; nuốt sạch là
+	 *    ta vừa che đi đúng thứ cần đọc. Ghi vào nhật ký lỗi của host, và NÓI SỐ KÝ TỰ cho người
+	 *    đang đứng ở cơ sở — họ đọc được "máy chủ in thừa 512 ký tự" là đủ để báo về đúng chỗ.
+	 * ⚠️ NỘI DUNG rác chỉ trả khi site bật `WP_DEBUG`: nó thường kèm ĐƯỜNG DẪN TUYỆT ĐỐI trên
+	 *    máy chủ, mà trang này chạy ngoài internet cho nhân viên cơ sở.
+	 */
 	private static function tra( $d ) {
+		$rac = '';
+		while ( ob_get_level() > 0 ) {
+			$x = ob_get_clean();
+			if ( false === $x ) { break; }
+			$rac = $x . $rac;
+		}
+		$rac = trim( (string) $rac );
+		if ( '' !== $rac ) {
+			error_log( 'VHG cổng /' . self::slug() . ': có ' . strlen( $rac )
+				. ' ký tự in ra TRƯỚC JSON — ' . substr( $rac, 0, 500 ) );
+			if ( is_array( $d ) ) {
+				$d['racLen'] = strlen( $rac );
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) { $d['racDau'] = substr( $rac, 0, 300 ); }
+			}
+		}
 		if ( ! headers_sent() ) {
 			status_header( 200 );
 			nocache_headers();
 			header( 'Content-Type: application/json; charset=utf-8' );
 		}
+		self::$da_tra = true;
 		echo wp_json_encode( $d );
 	}
 
@@ -99,7 +135,41 @@ class VHG_Trang {
 		return is_string( $t ) ? $t : '';
 	}
 
+	/** Đã in JSON ra chưa — để cái chốt chết máy khỏi in lần thứ hai. */
+	private static $da_tra = false;
+
+	/**
+	 * 🔴 CHẾT GIỮA CHỪNG THÌ VẪN PHẢI TRẢ JSON.
+	 *
+	 * Một lỗi nghiêm trọng của PHP (hết bộ nhớ, gọi hàm không có, một plugin khác nổ) làm trang
+	 * dừng ngay tại chỗ: khách nhận về trang trắng hoặc một trang lỗi HTML. `JSON.parse` chết,
+	 * và trang báo *"mạng hoặc tường lửa"* — người ở cơ sở đi đổi wifi, khởi động lại điện
+	 * thoại, gửi lại chục lần. Không lần nào chạm tới nguyên nhân thật.
+	 *
+	 * ⚠️ CHỈ NHẬN LỖI THẬT SỰ GIẾT TIẾN TRÌNH (`E_ERROR` và họ hàng). Cảnh báo thường không
+	 *    dừng gì cả, và tự trả JSON lỗi ở đó là biến một cảnh báo vô hại thành một lượt gửi
+	 *    hỏng.
+	 * ⚠️ Câu chi tiết chỉ hiện khi `WP_DEBUG` — cùng lý do với `tra()`.
+	 */
+	public static function chot_chet_may() {
+		if ( self::$da_tra ) { return; }
+		$e = error_get_last();
+		if ( ! $e || ! in_array( (int) $e['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR ), true ) ) { return; }
+		$ra = array(
+			'ok'    => false,
+			'ma'    => 'loi_may_chu',
+			'error' => 'Máy chủ gặp lỗi khi xử lý (không phải mạng). Chụp màn hình này gửi kỹ thuật.',
+		);
+		if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+			$ra['chiTiet'] = $e['message'] . ' @ ' . basename( (string) $e['file'] ) . ':' . $e['line'];
+		}
+		self::tra( $ra );
+	}
+
 	public static function api() {
+		/* Gắn chốt TRƯỚC khi chạm vào bất cứ thứ gì — kể cả `json_decode` một gói tin khổng lồ
+		   cũng có thể là chỗ hết bộ nhớ. */
+		if ( ! defined( 'VHG_TEST' ) ) { register_shutdown_function( array( __CLASS__, 'chot_chet_may' ) ); }
 		$d = json_decode( self::than(), true );
 		if ( ! is_array( $d ) ) { $d = array(); }
 		foreach ( $_POST as $k => $v ) { if ( ! isset( $d[ $k ] ) ) { $d[ $k ] = $v; } }
@@ -1408,6 +1478,25 @@ class VHG_Trang {
   function meterVal(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
   function coThu(s){ return /[0-9]/.test(String(s==null?'':s)); }
 
+  /* 🔴 CÂU LỖI PHẢI NÓI RA THỨ MÁY CHỦ THẬT SỰ TRẢ VỀ.
+     Anh Thắng báo *"không gửi được báo cáo"* ngày 29/08/2026 rồi lại 08/09/2026, cả hai lần
+     màn hình chỉ nói "mạng hoặc tường lửa" — một câu đoán, viết sẵn từ trước, đúng với đủ mọi
+     nguyên nhân nên chẳng chỉ ra nguyên nhân nào. Người ở cơ sở đi đổi wifi; ở đây thì vá mò.
+     Mã HTTP tách bạch ngay: 413 là gói tin quá nặng, 403 là tường lửa chặn, 5xx là máy chủ nổ,
+     còn 200-mà-không-đọc-được là có ai đó in rác trước JSON.
+     ⚠️ Chỉ lấy 160 ký tự đầu và bỏ thẻ HTML: trang chặn của hosting dài hàng chục nghìn ký tự,
+        dội hết lên màn điện thoại là không ai đọc được gì. */
+  function loiTho_(x){
+    var st=Number(x.status)||0;
+    var tho=String(x.responseText||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+    if(st===0)   return 'Không nối được tới máy chủ (mất mạng giữa chừng, hoặc bị chặn).';
+    if(st===413) return 'Gói tin quá nặng — máy chủ từ chối (413). Bớt ảnh rồi gửi lại.';
+    if(st===403||st===406) return 'Tường lửa của hosting chặn lượt gửi này ('+st+').'+(tho?(' Máy chủ nói: '+tho):'');
+    if(st>=500)  return 'Máy chủ gặp lỗi ('+st+'), không phải mạng.'+(tho?(' '+tho):'');
+    if(st>=400)  return 'Máy chủ từ chối ('+st+').'+(tho?(' '+tho):'');
+    if(!tho)     return 'Máy chủ trả về RỖNG (mã '+st+') — thường là PHP chết giữa chừng hoặc gói tin bị cắt.';
+    return 'Máy chủ trả về thứ không đọc được (mã '+st+'): '+tho;
+  }
   function goi(viec,d,cb,timeoutMs){
     d=d||{}; if(!d.pin) d.pin=PIN;
     var x=new XMLHttpRequest();
@@ -1425,7 +1514,7 @@ class VHG_Trang {
     x.onreadystatechange=function(){
       if(x.readyState!==4) return;
       var r=null; try{ r=JSON.parse(x.responseText); }catch(e){}
-      xong(r || { ok:false, error:'Không đọc được trả lời của máy chủ (mạng hoặc tường lửa).' });
+      xong(r || { ok:false, error:loiTho_(x) });
     };
     x.ontimeout=function(){ xong({ ok:false, error:'Máy chủ không trả lời — mạng yếu hoặc quá tải. Thử lại.' }); };
     x.onerror=function(){ xong({ ok:false, error:'Mất kết nối mạng khi gửi. Thử lại.' }); };
@@ -3434,6 +3523,18 @@ function docCho(giay){
 function mmss(s){ s=Math.max(0,Number(s)||0);
   return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
 
+/* Cùng việc với `loiTho_()` bên màn báo cáo, nhưng màn này hai ngôn ngữ. Xem chú thích ở đó. */
+function loiTho2_(x){
+  var st=Number(x.status)||0;
+  var tho=String(x.responseText||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,160);
+  if(st===0)   return L('Không nối được tới máy chủ (mất mạng giữa chừng, hoặc bị chặn).','Could not reach the server (connection dropped or blocked).');
+  if(st===413) return L('Gói tin quá nặng — máy chủ từ chối (413).','Payload too large — server refused (413).');
+  if(st===403||st===406) return L('Tường lửa của hosting chặn lượt gửi này (','Hosting firewall blocked this request (')+st+').'+(tho?(' '+tho):'');
+  if(st>=500)  return L('Máy chủ gặp lỗi (','Server error (')+st+L('), không phải mạng.',').')+(tho?(' '+tho):'');
+  if(st>=400)  return L('Máy chủ từ chối (','Server refused (')+st+').'+(tho?(' '+tho):'');
+  if(!tho)     return L('Máy chủ trả về RỖNG (mã ','Server returned EMPTY (status ')+st+L(') — thường là PHP chết giữa chừng hoặc gói tin bị cắt.',') — usually a PHP crash or a truncated request.');
+  return L('Máy chủ trả về thứ không đọc được (mã ','Server returned unreadable data (status ')+st+'): '+tho;
+}
 function goi(viec, d, xong0){
   d = d || {}; d.token = TOK;
   var x = new XMLHttpRequest();
@@ -3450,8 +3551,7 @@ function goi(viec, d, xong0){
     try { r = JSON.parse(x.responseText); } catch(e){}
     /* Máy chủ trả rác (tường lửa hosting chèn trang chặn, mạng đứt giữa chừng) KHÔNG được
        thành "hết phiên" — đá người ta ra rồi họ gõ lại PIN và gặp đúng lỗi đó. */
-    if (!r) { xong({ ok:false, error:L('Không đọc được trả lời của máy chủ (mạng hoặc tường lửa).',
-      'Could not read the server reply (network or firewall).') }); return; }
+    if (!r) { xong({ ok:false, error: loiTho2_(x) }); return; }
     if (r.ma === 'het_phien') { TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(L('Phiên đã hết — đăng nhập lại.','Session expired — please sign in again.')); return; }
     xong(r);
   };
