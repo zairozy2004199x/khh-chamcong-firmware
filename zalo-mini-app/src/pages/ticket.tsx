@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Page, Box, Text, Button, useLocation, useParams, useSnackbar } from "zmp-ui";
+import { openWebview } from "zmp-sdk";
 import { QRCodeSVG } from "qrcode.react";
-import { trangThaiVe, dinhTien, Ve } from "../api";
+import { trangThaiVe, taoThanhToan, dinhTien, Ve, CongTT } from "../api";
 
 const NHAN: Record<string, string> = { cho: "Chờ thanh toán", da_tt: "Đã thanh toán", da_dung: "Đã sử dụng", huy: "Đã huỷ" };
+const CONG: { id: CongTT; ic: string; ten: string }[] = [
+  { id: "qr", ic: "🏦", ten: "QR ngân hàng" },
+  { id: "momo", ic: "🟣", ten: "Momo" },
+  { id: "vnpay", ic: "🔵", ten: "VNPay" },
+];
 
 export default function TicketPage() {
   const { maVe } = useParams<{ maVe: string }>();
@@ -11,8 +17,10 @@ export default function TicketPage() {
   const snackbar = useSnackbar();
   const ve = (location.state as any)?.ve as Ve | undefined;   // dữ liệu vé chuyển từ màn Mua
   const [tt, setTt] = useState<string>(ve?.trang_thai || "cho");
+  const [cong, setCong] = useState<CongTT>("qr");
+  const [dangMo, setDangMo] = useState(false);
 
-  // Hỏi trạng thái mỗi 5s tới khi đã thanh toán/huỷ (để tự cập nhật khi kế toán xác nhận).
+  // Hỏi trạng thái mỗi 5s tới khi đã thanh toán/huỷ (để tự cập nhật khi kế toán/cổng xác nhận).
   useEffect(() => {
     if (!maVe) return;
     let dừng = false;
@@ -32,6 +40,23 @@ export default function TicketPage() {
     try { navigator.clipboard.writeText(s); snackbar.openSnackbar({ text: "Đã sao chép", type: "success" }); } catch {}
   };
 
+  // Chọn cổng: QR thì chỉ hiện mã; Momo/VNPay thì tạo đơn cổng rồi mở app thanh toán.
+  const chonCong = async (c: CongTT) => {
+    setCong(c);
+    if (c === "qr" || !maVe) return;
+    setDangMo(true);
+    try {
+      const r = await taoThanhToan(maVe, c);
+      const url = r.deeplink || r.pay_url;
+      if (!url) throw new Error("Không tạo được liên kết thanh toán.");
+      try { await openWebview({ url }); }
+      catch { window.open(url, "_blank"); }   // ngoài Zalo (test trên web)
+    } catch (e: any) {
+      snackbar.openSnackbar({ text: String(e.message || e) + " — dùng QR ngân hàng nhé.", type: "warning" });
+      setCong("qr");
+    } finally { setDangMo(false); }
+  };
+
   return (
     <Page className="wrap">
       <Box mb={3} flex justifyContent="center">
@@ -44,15 +69,37 @@ export default function TicketPage() {
         </Text>
       )}
 
+      {ve && tt === "cho" && (
+        <div className="tt-cong">
+          {CONG.map((c) => (
+            <button
+              key={c.id}
+              className={"tt-cong-i" + (cong === c.id ? " on" : "")}
+              disabled={dangMo}
+              onClick={() => chonCong(c.id)}
+            >
+              <span className="tt-cong-ic">{c.ic}</span>
+              <span>{c.ten}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {ve && (
         <div className="qr-box">
           {tt === "cho" ? (
-            <>
-              <QRCodeSVG value={ve.qr} size={230} level="M" includeMargin />
-              <Text style={{ color: "var(--mut)", fontSize: 12, textAlign: "center" }}>
-                Mở app ngân hàng → Quét mã → chuyển khoản (giữ nguyên nội dung).
+            cong === "qr" ? (
+              <>
+                <QRCodeSVG value={ve.qr} size={230} level="M" includeMargin />
+                <Text style={{ color: "var(--mut)", fontSize: 12, textAlign: "center" }}>
+                  Mở app ngân hàng → Quét mã → chuyển khoản (giữ nguyên nội dung).
+                </Text>
+              </>
+            ) : (
+              <Text style={{ color: "var(--mut)", fontSize: 13, textAlign: "center" }}>
+                {dangMo ? "Đang mở cổng thanh toán…" : "Đã mở app thanh toán. Hoàn tất rồi quay lại đây, vé sẽ tự cập nhật."}
               </Text>
-            </>
+            )
           ) : (
             <Text.Title style={{ color: tt === "huy" ? "#991b1b" : tt === "da_dung" ? "#1d4ed8" : "#166534" }}>
               {tt === "huy" ? "Vé đã huỷ" : tt === "da_dung" ? "Vé đã sử dụng ✓" : "Vé đã thanh toán ✓"}
@@ -62,10 +109,14 @@ export default function TicketPage() {
           <div className="kv"><span>Mã vé</span><b>{ve.ma_ve}</b></div>
           <div className="kv"><span>Gói</span><b>{ve.goi_ten}</b></div>
           <div className="kv"><span>Số tiền</span><b>{dinhTien(ve.so_tien)}</b></div>
-          <div className="kv"><span>Ngân hàng</span><b>{ve.bank?.ten_nh}</b></div>
-          <div className="kv" onClick={() => copy(ve.bank?.so_tk)}><span>Số TK (chạm để chép)</span><b>{ve.bank?.so_tk}</b></div>
-          <div className="kv"><span>Chủ TK</span><b>{ve.bank?.ten_tk}</b></div>
-          <div className="kv" onClick={() => copy(ve.noi_dung)}><span>Nội dung (chạm để chép)</span><b>{ve.noi_dung}</b></div>
+          {cong === "qr" && tt === "cho" && (
+            <>
+              <div className="kv"><span>Ngân hàng</span><b>{ve.bank?.ten_nh}</b></div>
+              <div className="kv" onClick={() => copy(ve.bank?.so_tk)}><span>Số TK (chạm để chép)</span><b>{ve.bank?.so_tk}</b></div>
+              <div className="kv"><span>Chủ TK</span><b>{ve.bank?.ten_tk}</b></div>
+              <div className="kv" onClick={() => copy(ve.noi_dung)}><span>Nội dung (chạm để chép)</span><b>{ve.noi_dung}</b></div>
+            </>
+          )}
         </div>
       )}
 

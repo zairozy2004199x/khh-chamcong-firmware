@@ -59,6 +59,21 @@ export function datGio(items: { id: number; sl: number }[], ten: string, sdt: st
     body: JSON.stringify({ items, ten, sdt, nguon: "zalo" }),
   });
 }
+
+/* Cổng thanh toán: qr (VietQR), momo, vnpay. */
+export type CongTT = "qr" | "momo" | "vnpay";
+export interface ThanhToan {
+  ok: boolean; cong: CongTT; ma_ve: string; so_tien: number;
+  noi_dung?: string; qr?: string; bank?: BankTT;
+  pay_url?: string; deeplink?: string;
+}
+/* Tạo yêu cầu thanh toán cho vé đã đặt. Với momo/vnpay trả về pay_url/deeplink để mở app. */
+export function taoThanhToan(maVe: string, cong: CongTT) {
+  return json<ThanhToan>(`${BASE}/ve/thanhtoan`, {
+    method: "POST",
+    body: JSON.stringify({ ma_ve: maVe, cong }),
+  });
+}
 export interface Diem {
   ok: boolean; sdt: string; ten: string; diem: number; tong_chi: number; so_don: number;
   hang: string; hang_ke: string; con_thieu: number; moc: { ten: string; moc: number }[];

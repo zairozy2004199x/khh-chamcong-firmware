@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.19.0
+ * Version:           1.20.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -269,6 +269,9 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ve/goi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_goi' ) ) );
 		register_rest_route( self::NS, '/ve/dat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat' ) ) );
 		register_rest_route( self::NS, '/ve/dat-gio', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat_gio' ) ) );
+		register_rest_route( self::NS, '/ve/thanhtoan', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_thanhtoan' ) ) );
+		register_rest_route( self::NS, '/ve/momo-ipn', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_momo_ipn' ) ) );
+		register_rest_route( self::NS, '/ve/vnpay-ipn', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vnpay_ipn' ) ) );
 		register_rest_route( self::NS, '/ve/trangthai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_trangthai' ) ) );
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
@@ -381,6 +384,171 @@ class POSH_Ve {
 		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
 		return array( 'ok' => true, 'ma_ve' => $r['ma_ve'], 'goi_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
 			'trang_thai' => $r['trang_thai'], 'tao_luc' => $r['tao_luc'], 'tt_luc' => $r['tt_luc'] );
+	}
+
+	// ───────────────────────────── Cổng thanh toán ─────────────────────────────
+	/* Đánh dấu vé ĐÃ THANH TOÁN + cộng điểm (dùng chung cho IPN Momo/VNPay). Idempotent. */
+	private static function danh_dau_tt( $ma ) {
+		global $wpdb; $tbl = self::tbl();
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT trang_thai, sdt, ten_khach, so_tien, da_cong_diem FROM $tbl WHERE ma_ve=%s", $ma ), ARRAY_A );
+		if ( ! $r ) { return false; }
+		if ( 'da_tt' !== $r['trang_thai'] && 'da_dung' !== $r['trang_thai'] ) {
+			$wpdb->update( $tbl, array( 'trang_thai' => 'da_tt', 'tt_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
+		}
+		if ( ! (int) $r['da_cong_diem'] ) {
+			self::cong_diem( $r['sdt'], $r['ten_khach'], $r['so_tien'] );
+			$wpdb->update( $tbl, array( 'da_cong_diem' => 1 ), array( 'ma_ve' => $ma ) );
+		}
+		return true;
+	}
+	/* Cấu hình cổng (khoá bí mật lưu trong options, KHÔNG hardcode). */
+	private static function cong_cf() {
+		return array(
+			'momo' => array(
+				'partner' => trim( (string) get_option( 'pve_momo_partner', '' ) ),
+				'access'  => trim( (string) get_option( 'pve_momo_access', '' ) ),
+				'secret'  => trim( (string) get_option( 'pve_momo_secret', '' ) ),
+				'test'    => (int) get_option( 'pve_momo_test', 0 ),
+			),
+			'vnpay' => array(
+				'tmn'    => trim( (string) get_option( 'pve_vnp_tmn', '' ) ),
+				'secret' => trim( (string) get_option( 'pve_vnp_secret', '' ) ),
+				'test'   => (int) get_option( 'pve_vnp_test', 0 ),
+			),
+		);
+	}
+	private static function ipn_momo() { return esc_url_raw( rest_url( self::NS . '/ve/momo-ipn' ) ); }
+	private static function ipn_vnpay() { return esc_url_raw( rest_url( self::NS . '/ve/vnpay-ipn' ) ); }
+
+	/* Tạo yêu cầu thanh toán theo cổng: qr | momo | vnpay. Trả về payUrl/deeplink để app mở. */
+	public static function r_thanhtoan( $req ) {
+		global $wpdb;
+		$ma   = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma_ve' ) ) );
+		$cong = sanitize_key( (string) $req->get_param( 'cong' ) );
+		if ( '' === $ma )   { return new WP_Error( 'ma', 'Thiếu mã vé.', array( 'status' => 400 ) ); }
+		$v = $wpdb->get_row( $wpdb->prepare( 'SELECT ma_ve, dv_ten, so_tien, noi_dung, trang_thai FROM ' . self::tbl() . ' WHERE ma_ve=%s', $ma ), ARRAY_A );
+		if ( ! $v ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
+		$tien = (int) $v['so_tien']; $nd = (string) $v['noi_dung'];
+		if ( $tien < 1000 ) { return new WP_Error( 'tien', 'Số tiền không hợp lệ.', array( 'status' => 400 ) ); }
+		$ttinfo = 'Thanh toan ve ' . $ma;
+
+		if ( 'momo' === $cong ) {
+			$cf = self::cong_cf()['momo'];
+			if ( '' === $cf['partner'] || '' === $cf['access'] || '' === $cf['secret'] ) {
+				return new WP_Error( 'chua_cf', 'Chưa cấu hình Momo. Vui lòng chọn cách khác hoặc quét QR ngân hàng.', array( 'status' => 409 ) );
+			}
+			$host    = $cf['test'] ? 'https://test-payment.momo.vn' : 'https://payment.momo.vn';
+			$reqId   = $ma . '-' . time();
+			$orderId = $reqId;                       // Momo yêu cầu orderId duy nhất mỗi lần tạo
+			$redirect = esc_url_raw( rest_url( self::NS . '/ve/trangthai' ) . '?ma_ve=' . rawurlencode( $ma ) );
+			$ipn      = self::ipn_momo();
+			$rawType  = 'captureWallet';
+			$extra    = '';
+			$raw = 'accessKey=' . $cf['access'] . '&amount=' . $tien . '&extraData=' . $extra
+				. '&ipnUrl=' . $ipn . '&orderId=' . $orderId . '&orderInfo=' . $ttinfo
+				. '&partnerCode=' . $cf['partner'] . '&redirectUrl=' . $redirect
+				. '&requestId=' . $reqId . '&requestType=' . $rawType;
+			$sig = hash_hmac( 'sha256', $raw, $cf['secret'] );
+			$body = array(
+				'partnerCode' => $cf['partner'], 'accessKey' => $cf['access'], 'requestId' => $reqId,
+				'amount' => (string) $tien, 'orderId' => $orderId, 'orderInfo' => $ttinfo,
+				'redirectUrl' => $redirect, 'ipnUrl' => $ipn, 'extraData' => $extra,
+				'requestType' => $rawType, 'signature' => $sig, 'lang' => 'vi',
+			);
+			$resp = wp_remote_post( $host . '/v2/gateway/api/create', array(
+				'timeout' => 20, 'headers' => array( 'Content-Type' => 'application/json' ),
+				'body' => wp_json_encode( $body ),
+			) );
+			if ( is_wp_error( $resp ) ) { return new WP_Error( 'momo', 'Không kết nối được Momo.', array( 'status' => 502 ) ); }
+			$d = json_decode( wp_remote_retrieve_body( $resp ), true );
+			if ( ! is_array( $d ) || empty( $d['payUrl'] ) ) {
+				$msg = is_array( $d ) && ! empty( $d['message'] ) ? $d['message'] : 'Tạo đơn Momo thất bại.';
+				return new WP_Error( 'momo', $msg, array( 'status' => 502 ) );
+			}
+			return array( 'ok' => true, 'cong' => 'momo', 'ma_ve' => $ma, 'so_tien' => $tien,
+				'pay_url' => $d['payUrl'], 'deeplink' => isset( $d['deeplink'] ) ? $d['deeplink'] : $d['payUrl'] );
+		}
+
+		if ( 'vnpay' === $cong ) {
+			$cf = self::cong_cf()['vnpay'];
+			if ( '' === $cf['tmn'] || '' === $cf['secret'] ) {
+				return new WP_Error( 'chua_cf', 'Chưa cấu hình VNPay. Vui lòng chọn cách khác hoặc quét QR ngân hàng.', array( 'status' => 409 ) );
+			}
+			$host = $cf['test'] ? 'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html' : 'https://vnpayment.vn/paymentv2/vpcpay.html';
+			$ret  = esc_url_raw( rest_url( self::NS . '/ve/vnpay-ipn' ) );
+			$ip   = isset( $_SERVER['REMOTE_ADDR'] ) ? preg_replace( '/[^0-9a-f:.]/i', '', (string) $_SERVER['REMOTE_ADDR'] ) : '127.0.0.1';
+			$now  = current_time( 'YmdHis' );
+			$exp  = current_time( 'timestamp' ) + 15 * 60;
+			$p = array(
+				'vnp_Version' => '2.1.0', 'vnp_Command' => 'pay', 'vnp_TmnCode' => $cf['tmn'],
+				'vnp_Amount' => (string) ( $tien * 100 ), 'vnp_CreateDate' => $now, 'vnp_CurrCode' => 'VND',
+				'vnp_IpAddr' => $ip, 'vnp_Locale' => 'vn', 'vnp_OrderInfo' => $ttinfo, 'vnp_OrderType' => 'other',
+				'vnp_ReturnUrl' => $ret, 'vnp_TxnRef' => $ma, 'vnp_ExpireDate' => gmdate( 'YmdHis', $exp ),
+			);
+			ksort( $p );
+			$hashdata = ''; $query = ''; $i = 0;
+			foreach ( $p as $k => $val ) {
+				$hashdata .= ( $i ? '&' : '' ) . urlencode( $k ) . '=' . urlencode( $val );
+				$query    .= ( $i ? '&' : '' ) . urlencode( $k ) . '=' . urlencode( $val );
+				$i++;
+			}
+			$secure = hash_hmac( 'sha512', $hashdata, $cf['secret'] );
+			$pay_url = $host . '?' . $query . '&vnp_SecureHash=' . $secure;
+			return array( 'ok' => true, 'cong' => 'vnpay', 'ma_ve' => $ma, 'so_tien' => $tien,
+				'pay_url' => $pay_url, 'deeplink' => $pay_url );
+		}
+
+		// Mặc định: QR ngân hàng (VietQR). Miễn phí, không cần cổng.
+		$b = self::bank();
+		if ( '' === $b['so_tk'] || '' === $b['bin'] ) { return new WP_Error( 'tk', 'Chưa cấu hình tài khoản nhận tiền.', array( 'status' => 409 ) ); }
+		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $nd );
+		return array( 'ok' => true, 'cong' => 'qr', 'ma_ve' => $ma, 'so_tien' => $tien,
+			'noi_dung' => $nd, 'qr' => $qr,
+			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
+	}
+
+	/* Momo báo về (server→server). Xác thực chữ ký rồi đánh dấu đã TT. */
+	public static function r_momo_ipn( $req ) {
+		$cf = self::cong_cf()['momo'];
+		if ( '' === $cf['secret'] ) { return new WP_REST_Response( array( 'resultCode' => 99 ), 200 ); }
+		$p = $req->get_json_params();
+		if ( ! is_array( $p ) ) { $p = $req->get_params(); }
+		$get = function ( $k ) use ( $p ) { return isset( $p[ $k ] ) ? (string) $p[ $k ] : ''; };
+		$raw = 'accessKey=' . $cf['access']
+			. '&amount=' . $get( 'amount' ) . '&extraData=' . $get( 'extraData' )
+			. '&message=' . $get( 'message' ) . '&orderId=' . $get( 'orderId' )
+			. '&orderInfo=' . $get( 'orderInfo' ) . '&orderType=' . $get( 'orderType' )
+			. '&partnerCode=' . $get( 'partnerCode' ) . '&payType=' . $get( 'payType' )
+			. '&requestId=' . $get( 'requestId' ) . '&responseTime=' . $get( 'responseTime' )
+			. '&resultCode=' . $get( 'resultCode' ) . '&transId=' . $get( 'transId' );
+		$sig = hash_hmac( 'sha256', $raw, $cf['secret'] );
+		if ( ! hash_equals( $sig, $get( 'signature' ) ) ) { return new WP_REST_Response( array( 'resultCode' => 97 ), 200 ); }
+		if ( '0' === $get( 'resultCode' ) || 0 === (int) $get( 'resultCode' ) ) {
+			$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( substr( $get( 'orderId' ), 0, 8 ) ) );
+			self::danh_dau_tt( $ma );
+		}
+		return new WP_REST_Response( array( 'resultCode' => 0, 'message' => 'received' ), 200 );
+	}
+
+	/* VNPay báo về (redirect/IPN qua GET). Xác thực chữ ký rồi đánh dấu đã TT. */
+	public static function r_vnpay_ipn( $req ) {
+		$cf = self::cong_cf()['vnpay'];
+		if ( '' === $cf['secret'] ) { return new WP_REST_Response( array( 'RspCode' => '99', 'Message' => 'no config' ), 200 ); }
+		$p = $req->get_params();
+		$secure = isset( $p['vnp_SecureHash'] ) ? (string) $p['vnp_SecureHash'] : '';
+		unset( $p['vnp_SecureHash'], $p['vnp_SecureHashType'] );
+		// bỏ tham số nội bộ của REST (rest_route…) không thuộc VNPay
+		foreach ( array_keys( $p ) as $k ) { if ( 0 !== strpos( $k, 'vnp_' ) ) { unset( $p[ $k ] ); } }
+		ksort( $p );
+		$hashdata = ''; $i = 0;
+		foreach ( $p as $k => $val ) { $hashdata .= ( $i ? '&' : '' ) . urlencode( $k ) . '=' . urlencode( $val ); $i++; }
+		$tinh = hash_hmac( 'sha512', $hashdata, $cf['secret'] );
+		if ( ! hash_equals( $tinh, $secure ) ) { return new WP_REST_Response( array( 'RspCode' => '97', 'Message' => 'Invalid signature' ), 200 ); }
+		if ( '00' === (string) ( isset( $p['vnp_ResponseCode'] ) ? $p['vnp_ResponseCode'] : '' ) ) {
+			$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) ( isset( $p['vnp_TxnRef'] ) ? $p['vnp_TxnRef'] : '' ) ) );
+			self::danh_dau_tt( $ma );
+		}
+		return new WP_REST_Response( array( 'RspCode' => '00', 'Message' => 'Confirm Success' ), 200 );
 	}
 
 	public static function r_tin() {
@@ -1144,6 +1312,16 @@ class POSH_Ve {
 			update_option( 'pve_ten_tk', sanitize_text_field( wp_unslash( $_POST['ten_tk'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu tài khoản.</p></div>';
 		}
+		if ( isset( $_POST['pve_cong'] ) && check_admin_referer( 'pve_cong' ) ) {
+			update_option( 'pve_momo_partner', sanitize_text_field( wp_unslash( $_POST['momo_partner'] ) ) );
+			update_option( 'pve_momo_access', sanitize_text_field( wp_unslash( $_POST['momo_access'] ) ) );
+			update_option( 'pve_momo_secret', sanitize_text_field( wp_unslash( $_POST['momo_secret'] ) ) );
+			update_option( 'pve_momo_test', empty( $_POST['momo_test'] ) ? 0 : 1 );
+			update_option( 'pve_vnp_tmn', sanitize_text_field( wp_unslash( $_POST['vnp_tmn'] ) ) );
+			update_option( 'pve_vnp_secret', sanitize_text_field( wp_unslash( $_POST['vnp_secret'] ) ) );
+			update_option( 'pve_vnp_test', empty( $_POST['vnp_test'] ) ? 0 : 1 );
+			echo '<div class="notice notice-success"><p>Đã lưu cổng thanh toán.</p></div>';
+		}
 		if ( isset( $_POST['pve_luu'] ) && check_admin_referer( 'pve_luu' ) ) {
 			$id = (int) $_POST['id'];
 			$moi = array( 'id' => $id, 'ten' => sanitize_text_field( wp_unslash( $_POST['ten'] ) ),
@@ -1336,6 +1514,25 @@ class POSH_Ve {
 		echo '</table><p class="description">Để trống cả 3 ô = tự dùng lại tài khoản đã khai ở plugin ghế. Đang dùng: <b>'
 			. ( $b['so_tk'] ? esc_html( $b['so_tk'] . ' · ' . $b['ten_nh'] . ' · ' . $b['ten_tk'] ) : 'CHƯA CÓ — khách sẽ không tạo được QR' ) . '</b></p>';
 		echo '<p><button class="button button-primary" name="pve_bank" value="1">Lưu tài khoản</button></p></form><hr>';
+
+		/* Cổng thanh toán Momo / VNPay (khoá bí mật lưu ở đây, KHÔNG nằm trong mã nguồn) */
+		echo '<h2>Cổng thanh toán (Momo · VNPay)</h2>';
+		echo '<p class="description">Để trống = ẩn cổng đó, khách chỉ quét QR ngân hàng. Khai khoá lấy trong trang quản trị đối tác của Momo/VNPay. '
+			. '<b>Không</b> ghi khoá vào mã nguồn.</p>';
+		echo '<form method="post"><table class="form-table">';
+		wp_nonce_field( 'pve_cong' );
+		echo '<tr><th colspan="2"><h3 style="margin:.2em 0">Momo</h3></th></tr>';
+		echo '<tr><th>Partner Code</th><td><input name="momo_partner" class="regular-text code" value="' . esc_attr( get_option( 'pve_momo_partner', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Access Key</th><td><input name="momo_access" class="regular-text code" value="' . esc_attr( get_option( 'pve_momo_access', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Secret Key</th><td><input name="momo_secret" type="password" class="regular-text code" value="' . esc_attr( get_option( 'pve_momo_secret', '' ) ) . '" autocomplete="off"></td></tr>';
+		echo '<tr><th>Chế độ thử (test)</th><td><label><input type="checkbox" name="momo_test" value="1"' . checked( 1, (int) get_option( 'pve_momo_test', 0 ), false ) . '> Dùng test-payment.momo.vn</label></td></tr>';
+		echo '<tr><th>IPN URL (khai bên Momo)</th><td><code>' . esc_html( self::ipn_momo() ) . '</code></td></tr>';
+		echo '<tr><th colspan="2"><h3 style="margin:.2em 0">VNPay</h3></th></tr>';
+		echo '<tr><th>TmnCode</th><td><input name="vnp_tmn" class="regular-text code" value="' . esc_attr( get_option( 'pve_vnp_tmn', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Hash Secret</th><td><input name="vnp_secret" type="password" class="regular-text code" value="' . esc_attr( get_option( 'pve_vnp_secret', '' ) ) . '" autocomplete="off"></td></tr>';
+		echo '<tr><th>Chế độ thử (sandbox)</th><td><label><input type="checkbox" name="vnp_test" value="1"' . checked( 1, (int) get_option( 'pve_vnp_test', 0 ), false ) . '> Dùng sandbox.vnpayment.vn</label></td></tr>';
+		echo '<tr><th>Return/IPN URL (khai bên VNPay)</th><td><code>' . esc_html( self::ipn_vnpay() ) . '</code></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_cong" value="1">Lưu cổng thanh toán</button></p></form><hr>';
 
 		/* Bảng dịch vụ */
 		echo '<h2>Danh sách dịch vụ</h2><table class="widefat striped"><thead><tr><th style="width:70px">Ảnh</th>'
