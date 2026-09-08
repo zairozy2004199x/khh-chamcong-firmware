@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.18.0
+ * Version:           1.19.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1291,6 +1291,21 @@ class POSH_Ve {
 				. '<div style="font-size:24px;font-weight:800;color:' . esc_attr( $c[2] ) . ';margin-top:4px">' . esc_html( $c[1] ) . '</div></div>';
 		}
 		echo '</div>';
+
+		// Biểu đồ doanh thu 7 ngày gần nhất
+		$lb = array(); $dl = array();
+		for ( $i = 6; $i >= 0; $i-- ) {
+			$d = gmdate( 'Y-m-d', strtotime( "-$i day", (int) current_time( 'timestamp' ) ) );
+			$lb[] = gmdate( 'd/m', strtotime( $d ) );
+			$dl[] = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(so_tien),0) FROM $tbl WHERE $paid AND DATE(tao_luc)=%s", $d ) );
+		}
+		echo '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;max-width:760px;margin:8px 0 4px"><b>Doanh thu 7 ngày</b><div style="height:180px"><canvas id="pve-chart"></canvas></div></div>';
+		echo '<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>';
+		echo '<script>(function(){function go(){var c=document.getElementById("pve-chart");if(!c)return;if(!window.Chart){setTimeout(go,120);return;}'
+			. 'new Chart(c,{type:"line",data:{labels:' . wp_json_encode( $lb ) . ',datasets:[{label:"Doanh thu",data:' . wp_json_encode( $dl )
+			. ',borderColor:"#cf9f22",backgroundColor:"rgba(207,159,34,.12)",fill:true,tension:.35,pointRadius:3,borderWidth:2}]},'
+			. 'options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:function(v){return Number(v).toLocaleString("vi-VN");}}}}}});}go();})();</script>';
+
 		$top = $wpdb->get_results( "SELECT dv_ten, COUNT(*) sl, COALESCE(SUM(so_tien),0) dt FROM $tbl WHERE $paid GROUP BY dv_ten ORDER BY sl DESC LIMIT 5", ARRAY_A );
 		if ( $top ) {
 			echo '<p style="margin:12px 0 4px"><b>Vé bán chạy</b></p><table class="widefat striped" style="max-width:640px"><thead><tr><th>Dịch vụ</th><th style="width:110px">Đã bán</th><th style="width:150px">Doanh thu</th></tr></thead><tbody>';
