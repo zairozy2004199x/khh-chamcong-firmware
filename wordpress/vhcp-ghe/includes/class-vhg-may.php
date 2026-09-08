@@ -26,6 +26,22 @@ class VHG_May {
 		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'coso' ) . ' ORDER BY ten ASC' );
 	}
 
+	/**
+	 * Thêm / đổi tên cơ sở. CỬA DUY NHẤT — nên cũng là chỗ duy nhất báo ra ngoài.
+	 *
+	 * 🔴 BÁO CHO PHẦN CHI PHÍ BIẾT. Anh Thắng 08/09/2026: *"tự đẩy lấy dữ liệu qua luôn, khi
+	 *    tạo cơ sở mới bên ghế, hệ thống tự đẩy cơ sở sang luôn"*. Bên chi phí, danh mục cơ sở
+	 *    là nơi vạch ranh giới K&H / POSH (`VHCP_DonVi::cua_coso()`), nên gian nào chưa có
+	 *    trong danh mục ấy thì mọi đồng chi cho nó rơi về nhà mặc định — tức số của POSH nằm
+	 *    trong sổ của K&H, và không ai thấy để sửa.
+	 *
+	 * ⚠️ BẮN TÍN HIỆU, KHÔNG GỌI THẲNG. Plugin chi phí có thể chưa cài, hoặc gỡ ra sau này —
+	 *    gọi thẳng tên lớp bên ấy là ngày đó trang này trắng. `do_action` thì không ai nghe
+	 *    cũng chẳng sao, và ai muốn nghe thì tự đăng ký.
+	 * ⚠️ BẮN CẢ Ở NHÁNH "ĐÃ CÓ RỒI". Cơ sở đã có bên này nhưng có thể CHƯA có bên kia (lượt
+	 *    đẩy trước rơi mất, hay dòng ấy có từ trước khi có móc này). Im lặng ở nhánh ấy là hỏng
+	 *    theo kiểu không bao giờ tự lành.
+	 */
 	public static function luu_coso( $id, $ten ) {
 		global $wpdb;
 		$ten = trim( (string) $ten );
@@ -33,11 +49,16 @@ class VHG_May {
 		$bang = VHG_DB::t( 'coso' );
 		if ( (int) $id > 0 ) {
 			$wpdb->update( $bang, array( 'ten' => $ten ), array( 'id' => (int) $id ) );
+			do_action( 'vhg_coso_da_luu', $ten );
 			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã đổi tên cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
-		if ( $co ) { return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' ); }
+		if ( $co ) {
+			do_action( 'vhg_coso_da_luu', $ten );
+			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
+		}
 		$wpdb->insert( $bang, array( 'ten' => $ten ) );
+		do_action( 'vhg_coso_da_luu', $ten );
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 

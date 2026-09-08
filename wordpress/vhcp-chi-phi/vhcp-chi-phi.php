@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.93.0
+ * Version:           1.94.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCP_VERSION', '1.93.0' );
+define( 'VHCP_VERSION', '1.94.0' );
 define( 'VHCP_FILE', __FILE__ );
 define( 'VHCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCP_URL', plugin_dir_url( __FILE__ ) );
@@ -51,7 +51,7 @@ require_once VHCP_DIR . 'includes/class-vhcp-admin.php';
 
 register_activation_hook( __FILE__, array( 'VHCP_DB', 'install' ) );
 
-add_action( 'plugins_loaded', 'vhcp_maybe_upgrade' );
+add_action( 'plugins_loaded', 'vhcp_maybe_upgrade', 20 );   // 20: sau khi plugin Ghế nạp xong lớp VHG_May
 function vhcp_maybe_upgrade() {
 	if ( get_option( 'vhcp_db_version' ) !== VHCP_DB::SCHEMA_VERSION ) {
 		VHCP_DB::install();
@@ -73,7 +73,28 @@ function vhcp_maybe_upgrade() {
 	if ( method_exists( 'VHCP_Cfg', 'va_quyen_quyet_toan' ) ) {
 		VHCP_Cfg::va_quyen_quyet_toan();
 	}
+	/* 🔴 HÚT CƠ SỞ BÊN GHẾ SANG — LƯỢT ĐẦU.
+	   Anh Thắng 08/09/2026: *"tự đẩy lấy dữ liệu qua luôn"*. Móc `vhg_coso_da_luu` dưới đây
+	   chỉ bắt được cơ sở tạo TỪ BÂY GIỜ; bên ghế thì đã có sẵn hàng chục địa điểm. Không hút
+	   một lượt thì mọi đồng chi cho mấy gian ấy rơi về nhà mặc định — số của POSH nằm trong sổ
+	   K&H, không ai thấy để sửa.
+
+	   ⚠️ CHẠY MỘT LẦN CHO MỖI PHIÊN BẢN, không phải mỗi lượt tải trang: hàm hút quét cả danh
+	      mục cơ sở cho từng dòng bên ghế, làm ở mọi lượt tải là một khoản phí vô ích trên
+	      trang nào cũng phải trả. Cờ theo phiên bản để bản sau còn hút lại được nếu cần.
+	   ⚠️ ĐẶT SAU `plugins_loaded` của bên ghế bằng cách gọi ở ưu tiên muộn — lúc này lớp
+	      `VHG_May` mới chắc chắn đã nạp. Chưa cài plugin ghế thì hàm tự trả 0. */
+	if ( get_option( 'vhcp_hut_coso_ghe' ) !== VHCP_VERSION ) {
+		update_option( 'vhcp_hut_coso_ghe', VHCP_VERSION );
+		VHCP_Cfg::hut_coso_ghe();
+	}
 }
+
+/* 🔴 CƠ SỞ MỚI BÊN GHẾ -> VÀO THẲNG DANH MỤC CƠ SỞ CỦA CHI PHÍ, gắn sẵn đơn vị POSH.
+   Nghe bằng móc chứ không để bên ghế gọi thẳng vào đây: hai plugin cài độc lập, gỡ cái nào
+   thì cái kia vẫn phải chạy. Xem `VHCP_Cfg::nhan_coso_ngoai()` — nó CHỈ THÊM, không sửa
+   không xoá, nên nghe nhiều lượt cùng một tên cũng không sinh dòng thứ hai. */
+add_action( 'vhg_coso_da_luu', array( 'VHCP_Cfg', 'moc_coso_ghe' ) );
 
 /**
  * Nạp lại bảng đường dẫn — chạy ở ưu tiên muộn để CẢ HAI trang đã khai đường dẫn xong.

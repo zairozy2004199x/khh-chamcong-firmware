@@ -370,6 +370,99 @@ class VHCP_Cfg {
 		self::clear_cache();
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * CƠ SỞ ĐẨY SANG TỪ MỘT PLUGIN KHÁC (hiện là plugin Ghế massage — mảng POSH)
+	 *
+	 * Anh Thắng 08/09/2026: *"tự đẩy lấy dữ liệu qua luôn, khi tạo cơ sở mới bên ghế, hệ thống
+	 * tự đẩy cơ sở sang luôn"*.
+	 *
+	 * 🔴 CHỈ THÊM. KHÔNG SỬA, KHÔNG XOÁ, KHÔNG ĐÈ. Ba lý do, mỗi lý do đủ để một mình nó chốt:
+	 *   · Cơ sở đã có thì mấy ô MISA (Mã đơn vị · Tên MISA · Phân loại lớn) là thứ kế toán
+	 *     ngồi khai tay. Đè lên bằng dòng trắng của bên ghế là xoá công của họ, và xoá lặng lẽ.
+	 *   · Đổi tên bên ghế -> thêm dòng MỚI, dòng cũ giữ nguyên. Đơn cũ vẫn mang tên cũ, mà
+	 *     `cua_coso()` tra theo TÊN — xoá dòng cũ là mấy đơn ấy rơi về nhà mặc định, tức số của
+	 *     POSH nhảy sang sổ K&H.
+	 *   · Xoá bên ghế -> giữ nguyên bên này. Cùng lý do trên, và tiền đã chi thì không biến mất
+	 *     theo cái gian hàng đã đóng.
+	 *
+	 * ⚠️ Ô "Đơn vị" CHỈ ĐẶT CHO DÒNG MỚI. Người ta có thể đã tự sửa đơn vị của một cơ sở cũ;
+	 *    mỗi lượt đồng bộ lại kéo nó về là sửa xong hôm nay, mai lại về chỗ cũ.
+	 *
+	 * @return bool có thêm dòng mới hay không.
+	 */
+	public static function nhan_coso_ngoai( $ten, $don_vi ) {
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { return false; }
+		/* So không phân biệt hoa thường: bên ghế gõ "Aeon Bình Tân", bên này có "AEON BÌNH TÂN"
+		   — thêm nữa là hai dòng cho cùng một gian, và tiền của nó tách làm đôi. */
+		$k = mb_strtolower( $ten );
+		/* ⚠️ `read( COSO )` TRẢ THẲNG CÁC HÀNG CỦA BẢNG ẤY. Bản nháp đầu của hàm này bọc thêm
+		   `rows_of( read( COSO ), COSO )` — mà `rows_of()` mong một mảng GỒM MỌI BẢNG, nên nó
+		   tra khoá 'CH_CoSo' trong danh sách hàng, không thấy, và trả rỗng. Kết quả: hàm này
+		   không bao giờ nhận ra cơ sở đã có, và mỗi lượt đẩy sinh thêm một dòng trùng — tiền
+		   của một gian tách làm đôi ở mọi bảng gom. Bài kiểm bắt ngay lượt chạy đầu. */
+		foreach ( self::read( self::COSO ) as $r ) {
+			if ( mb_strtolower( trim( (string) $r[0] ) ) === $k ) { return false; }
+		}
+		/* Cột: Cơ sở · Mã đơn vị · Phân loại lớn · Tên MISA · Đóng cửa · Đơn vị.
+		   Mấy ô giữa để trống — anh Thắng 08/09/2026: *"misa anh sẽ set sau"*. */
+		self::append( self::COSO, array( $ten, '', '', '', '', VHCP_DonVi::chuan( $don_vi ) ) );
+		return true;
+	}
+
+	/**
+	 * Hút toàn bộ cơ sở đang có bên plugin Ghế sang danh mục này.
+	 *
+	 * Dùng cho lượt ĐẦU (bên ghế đã có sẵn hàng chục địa điểm trước khi có móc tự đẩy) và cho
+	 * nút bấm tay ở màn Cấu hình, phòng khi một lượt đẩy nào đó rơi mất.
+	 *
+	 * ⚠️ GỌI QUA LỚP CỦA PLUGIN KIA, KHÔNG ĐỌC THẲNG BẢNG. Đọc thẳng `wp_vhg_coso` là ngày bên
+	 *    ấy đổi sơ đồ bảng thì bên này gãy — mà gãy ở một đường chạy ngầm, không ai bấm để thấy.
+	 *    Chưa cài plugin ghế thì `class_exists` false và hàm này lặng lẽ trả 0, đúng như phải thế.
+	 *
+	 * @return int số dòng THÊM MỚI.
+	 */
+	public static function hut_coso_ghe() {
+		if ( ! class_exists( 'VHG_May' ) || ! method_exists( 'VHG_May', 'ds_coso' ) ) { return 0; }
+		$n = 0;
+		foreach ( (array) VHG_May::ds_coso() as $c ) {
+			$ten = isset( $c['ten'] ) ? $c['ten'] : '';
+			if ( self::nhan_coso_ngoai( $ten, self::DON_VI_GHE ) ) { $n++; }
+		}
+		return $n;
+	}
+
+	/** Cơ sở bên ghế thuộc đơn vị nào. Một chỗ, để đổi thì đổi đúng một dòng. */
+	const DON_VI_GHE = 'POSH';
+
+	/**
+	 * Tai nghe cho móc `vhg_coso_da_luu` của plugin Ghế — xem chỗ đăng ký ở `vhcp-chi-phi.php`.
+	 *
+	 * ⚠️ ĐỂ Ở ĐÂY, không viết thành hàm rời trong tệp bootstrap: tệp ấy `define` mấy hằng nên
+	 *    bài kiểm không nạp lại được, và một tai nghe không bài kiểm nào chạm tới là một tai
+	 *    nghe không ai biết còn đúng hay không.
+	 */
+	public static function moc_coso_ghe( $ten ) {
+		self::nhan_coso_ngoai( $ten, self::DON_VI_GHE );
+	}
+
+	/**
+	 * Nút bấm tay ở màn Cấu hình — hút lại ngay, không phải chờ bản sau.
+	 *
+	 * Lượt hút tự động chỉ chạy một lần cho mỗi phiên bản plugin. Nếu một lượt đẩy rơi mất (bên
+	 * ghế thêm cơ sở lúc plugin này đang tắt, chẳng hạn) thì không có đường nào tự lành trong
+	 * cả tháng — nút này là đường ấy.
+	 */
+	public static function hut_coso_ghe_api() {
+		if ( ! class_exists( 'VHG_May' ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa cài plugin Ghế massage trên site này.' );
+		}
+		$n = self::hut_coso_ghe();
+		return array( 'ok' => true, 'them' => $n, 'thongBao' => $n
+			? ( 'Đã thêm ' . $n . ' cơ sở từ bên Ghế, gắn đơn vị ' . self::DON_VI_GHE . '.' )
+			: 'Danh mục đã đủ — không có cơ sở nào bên Ghế còn thiếu.' );
+	}
+
 	public static function count_rows( $bang ) {
 		global $wpdb;
 		$t = VHCP_DB::t( 'cfg' );

@@ -96,7 +96,22 @@ function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] 
 function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
 function apply_filters( $h, $v ) { return $v; }
-function do_action( $h ) { return null; }
+/* 🔴 `do_action` PHẢI GỌI THẬT CÁC TAI NGHE. Trước đây nó trả `null` và không làm gì — nên mọi
+   đường đi qua móc (plugin này bắn, plugin kia nghe) đều XANH OAN: bỏ hẳn `add_action` đi bài
+   kiểm vẫn không đỏ. Bắt được lúc dựng đường đẩy cơ sở từ plugin Ghế sang (08/09/2026).
+   Gọi theo đúng thứ tự ưu tiên như WordPress; ưu tiên bằng nhau thì theo thứ tự đăng ký. */
+function do_action( $h ) {
+	$ds = isset( $GLOBALS['VHCP_MOC'][ $h ] ) ? $GLOBALS['VHCP_MOC'][ $h ] : array();
+	if ( ! $ds ) { return null; }
+	$args = array_slice( func_get_args(), 1 );
+	$i = 0;
+	foreach ( $ds as $k => $v ) { $ds[ $k ] = array( $v[0], $v[1], $i++ ); }
+	usort( $ds, function ( $a, $b ) { return ( $a[1] === $b[1] ) ? ( $a[2] - $b[2] ) : ( $a[1] - $b[1] ); } );
+	foreach ( $ds as $x ) {
+		if ( is_callable( $x[0] ) ) { call_user_func_array( $x[0], $args ); }
+	}
+	return null;
+}
 function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
 function add_shortcode( $t, $cb ) { return true; }
 function flush_rewrite_rules( $x = true ) { return true; }

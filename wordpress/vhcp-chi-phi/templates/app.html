@@ -1166,7 +1166,7 @@
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
     <div class="card">
-      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây, gắn sẵn đơn vị POSH. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px">Đơn vị (K&amp;H · POSH)</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
@@ -6902,6 +6902,25 @@
   function _syncCosoFromDOM(){
     CFG.coso=_readRows('cfgCosoBody').filter(function(r){return r.length>=4;}).map(_dongCoso).filter(function(x){return x.ten;});
   }
+  /* 🔴 HÚT CƠ SỞ TỪ TRANG GHẾ (mảng POSH). Anh Thắng 08/09/2026: *"tự đẩy lấy dữ liệu qua
+     luôn, khi tạo cơ sở mới bên ghế, hệ thống tự đẩy cơ sở sang luôn"*.
+
+     Việc này đã TỰ chạy: mỗi cơ sở mới bên ghế bắn một tín hiệu sang đây, và mỗi lần nâng cấp
+     plugin thì hút lại một lượt. Nút này là đường dự phòng — lượt đẩy nào rơi mất (bên ghế
+     thêm cơ sở lúc plugin này đang tắt, chẳng hạn) thì không có gì tự lành cho tới bản sau.
+
+     ⚠️ CHỈ THÊM. Máy chủ không sửa, không xoá, không đè ô MISA của dòng đang có — xem
+        `VHCP_Cfg::nhan_coso_ngoai()`. Nên bấm mấy lần cũng không sinh dòng thứ hai. */
+  function hutCoSoGhe(){
+    if(!confirm('Kéo các địa điểm bên trang Ghế massage sang danh mục này, gắn sẵn đơn vị POSH?\n\nCHỈ THÊM cơ sở còn thiếu — không sửa, không xoá dòng nào đang có.')) return;
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.ok){ toast('err',(r&&r.error)||'Không hút được.'); return; }
+      toast('ok', r.thongBao||'Xong.');
+      /* Hút xong phải nạp lại cấu hình: bảng cơ sở trên màn đang là bản chụp cũ, và người ta
+         bấm Lưu lên bản chụp ấy là ghi đè mất mấy dòng vừa hút. */
+      if(r.them) loadCfg();
+    }).withFailureHandler(function(e){ toast('err','Lỗi: '+(e&&e.message?e.message:e)); }).hutCoSoGhe();
+  }
   function addCfgCoso(){ el('ncTen').value=''; el('ncMisa').value=''; el('ncMa').value=''; el('ncPll').value=''; if(el('ncDonVi')) el('ncDonVi').value=''; el('cosoModal').style.display='flex'; setTimeout(function(){el('ncTen').focus();},60); }
   function closeCfgCoso(){ el('cosoModal').style.display='none'; }
   function submitCfgCoso(){
@@ -7123,9 +7142,27 @@
     var ph=_csPhu(ten);
     return ph ? (ten+' · '+ph) : String(ten);
   }
-  function _cosoSel(v){
+  /* 🔴 HỘP CHỌN CƠ SỞ LỌC THEO ĐƠN VỊ CỦA CHÍNH DÒNG ẤY.
+     Anh Thắng 08/09/2026: *"khi chọn KVC hoặc K&H sẽ ra các cơ sở này, còn nếu chọn đơn vị
+     POSH sẽ hiện các cơ sở POSH"*. Danh mục dùng chung nên hộp này bày cả trăm gian của hai
+     bên trộn lẫn; khai một tài khoản POSH mà phải lội qua danh sách khu vui chơi là mời người
+     ta tích nhầm — mà tích nhầm ở đây là một nhân viên đọc được gian của bên kia.
+
+     ⚠️ CƠ SỞ ĐANG CHỌN LUÔN CÒN TRONG DANH SÁCH, kể cả khi nó lệch đơn vị. Lọc mất là lần
+        lưu tiếp theo âm thầm xoá lựa chọn người ta đã đặt — và không ai thấy nó biến đi.
+     ⚠️ ĐƠN VỊ BỎ TRỐNG = nhà mặc định, KHÔNG phải "bày hết". Ô Đơn vị của phần lớn tài khoản
+        đang trống, và trống nghĩa là K&H — bày hết là y như chưa lọc.
+     ⚠️ GỌI KHÔNG KÈM ĐƠN VỊ (bảng đăng nhập Google) thì KHÔNG lọc gì, y như trước. Bảng ấy
+        chưa có cột Đơn vị; lọc bừa theo nhà mặc định là nuốt mất mọi cơ sở POSH của nó. */
+  function _dvChuan(v){ var x=String(v==null?'':v).trim(); return x||((BOOT.donVi&&BOOT.donVi[0])||'K&H'); }
+  function _cosoTheoDv(dv){
+    var d=_dvChuan(dv).toLowerCase();
+    return (CFG.coso||[]).filter(function(x){ return _dvChuan(x.donVi).toLowerCase()===d; }).map(function(x){return x.ten;});
+  }
+  function _cosoSel(v, dv){
     var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    var arr=(CFG.coso||[]).map(function(x){return x.ten;}); sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
+    var arr=(arguments.length>1)?_cosoTheoDv(dv):(CFG.coso||[]).map(function(x){return x.ten;});
+    arr=arr.slice(); sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
     return '<div class="csw">'
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
@@ -7255,17 +7292,28 @@
           +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
           +'<td style="text-align:center">🔒</td></tr>';
       }
-      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
+      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
-  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
+  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
   /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
   function _dvInp(v){
     var ds=(BOOT.donVi||['K&H']);
-    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H" style="width:100%">'
+    /* Đổi đơn vị là hộp cơ sở CÙNG HÀNG phải đổi theo ngay. Đợi tới lượt vẽ lại cả bảng thì
+       người ta gõ "POSH" xong mở hộp cơ sở ra vẫn thấy nguyên danh sách khu vui chơi, và kết
+       luận là lọc không chạy. */
+    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H" oninput="_dvDoi(this)" style="width:100%">'
       +'<datalist id="dl_donvi">'+ds.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>';
+  }
+  /** Ô Đơn vị vừa đổi -> vẽ lại hộp cơ sở của đúng hàng ấy, GIỮ NGUYÊN những gì đang tích. */
+  function _dvDoi(o){
+    var tr=o; while(tr && tr.tagName!=='TR') tr=tr.parentNode;
+    if(!tr) return;
+    var w=tr.querySelector('.csw'); if(!w) return;
+    var sel=[]; Array.prototype.forEach.call(w.querySelectorAll('select option'),function(op){ if(op.selected) sel.push(op.value); });
+    w.parentNode.innerHTML=_cosoSel(sel.join(', '), o.value);
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════════
      Ô "XEM ĐƠN VỊ" — HỘP TÍCH, KHÔNG GÕ TAY.

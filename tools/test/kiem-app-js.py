@@ -150,7 +150,9 @@ if m5:
 la('có ô lọc trong hộp chọn', 'cs-tim' in src and 'function _csTim(' in src)
 la('lọc bỏ dấu được', 'function _bd(' in src)
 
-m6 = re.search(r'function _cosoSel\(v\)\{(.*?)\n  \}', src, re.S)
+# ⚠️ CANH Ý ĐỊNH: hàm nhận thêm tham số ĐƠN VỊ từ 1.94.0 (`_cosoSel(v, dv)`), nên đừng ghim
+#    lại đúng một tham số — ghim là đỏ vì bài kiểm chứ không phải vì mã hỏng.
+m6 = re.search(r'function _cosoSel\(v[^)]*\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _cosoSel()', m6 is not None)
 if m6:
     t6 = m6.group(1)

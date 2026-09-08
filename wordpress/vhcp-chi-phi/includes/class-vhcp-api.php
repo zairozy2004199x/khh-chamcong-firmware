@@ -87,7 +87,7 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo', 'hutCoSoGhe' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -219,6 +219,7 @@ class VHCP_API {
 			'resetQuyen'            => array( 'VHCP_Cfg', 'reset_quyen' ),
 
 			'dongCuaCoSo'           => array( 'VHCP_Cfg', 'dong_cua_coso' ),
+			'hutCoSoGhe'            => array( 'VHCP_Cfg', 'hut_coso_ghe_api' ),
 
 			// đơn vận hành
 			'listDons'              => array( 'VHCP_Don', 'list_dons' ),
