@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.24.0
+ * Version:           1.25.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -904,16 +904,21 @@ class POSH_Ve {
 		html { margin-top:0 !important; }
 		* html body { margin-top:0 !important; }
 		body { margin:0 !important; padding:0 !important; }
-		/* Ép nội dung TRÀN FULL MÀN — bỏ giới hạn chiều rộng & lề của theme */
-		.wp-site-blocks, .entry-content, .wp-block-group, main, .site-main, .content-area,
-		.wp-block-post-content, article, .is-layout-constrained, .is-layout-flow,
-		.wp-block-post-content > *, .entry-content > * {
+		/* Ép nội dung TRÀN FULL MÀN — bỏ giới hạn chiều rộng, lề & padding của theme */
+		.wp-site-blocks, .wp-site-blocks > *, .entry-content, .wp-block-group, main, .site-main, .content-area,
+		.wp-block-post-content, article, .page, .type-page, .hentry,
+		.is-layout-constrained, .is-layout-flow, .is-layout-constrained > *,
+		.wp-block-post-content > *, .entry-content > *, .alignwide, .alignfull {
 			max-width:none !important; width:auto !important;
-			margin-top:0 !important; padding-top:0 !important;
 			margin-left:0 !important; margin-right:0 !important;
 			padding-left:0 !important; padding-right:0 !important;
+			margin-top:0 !important; padding-top:0 !important;
 		}
-		.entry-content > .pve-page, .wp-block-post-content > .pve-page { width:100% !important; }
+		/* Không cho container cha cắt phần tràn (nhiều theme đặt overflow-x:hidden) */
+		html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, article { overflow-x:clip !important; }
+		/* Trang full-bleed: phá khung ra sát mép màn hình dù cha có căn giữa */
+		.pve-page { position:relative !important; left:50% !important; right:50% !important;
+			margin-left:-50vw !important; margin-right:-50vw !important; width:100vw !important; max-width:100vw !important; }
 		</style>
 		<?php endif; ?>
 		<div class="pve-page">
