@@ -624,7 +624,12 @@ class VHCC_Nhan {
 		$anh_moi = '';
 		$ghi_anh = strlen( $anh_b64 ) > 100;
 		if ( $ghi_anh ) {
+			/* Bấm giờ riêng khâu ghi ảnh — đây là khâu duy nhất trong lượt chấm công đụng tới
+			   ĐĨA, nên khi cả lượt chậm thì phải tách được nó ra khỏi phần MySQL. Xem
+			   class-vhcc-nhat-ky.php. */
+			VHCC_NhatKy::bam( 'anh' );
 			$anh_moi = self::luu_anh( $coso, $ngay, $ma_nv, $giay, $anh_b64 );
+			VHCC_NhatKy::dung( 'anh' );
 			/* Lưu ảnh trượt -> VẪN GHI GIỜ, chỉ mất ảnh. Giờ là tiền, ảnh là bằng chứng phụ. */
 			if ( '' === $anh_moi ) { $ghi_anh = false; }
 		}
@@ -654,7 +659,9 @@ class VHCC_Nhan {
 			if ( trim( (string) $cu['nguon'] ) !== '' && trim( (string) $cu['nguon'] ) !== $nguon ) {
 				$dat['nguon'] = 'hon-hop';
 			}
+			VHCC_NhatKy::bam( 'csdl' );
 			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
+			VHCC_NhatKy::dung( 'csdl' );
 		} else {
 			$dat['coso']   = $coso;
 			$dat['ngay']   = $ngay;
@@ -663,7 +670,9 @@ class VHCC_Nhan {
 			$dat['ho_ten'] = $ho_ten;
 			$dat['nguon']  = $nguon;
 			$dat['ghi_luc'] = current_time( 'mysql' );
+			VHCC_NhatKy::bam( 'csdl' );
 			$ok = $wpdb->insert( $bang, $dat );
+			VHCC_NhatKy::dung( 'csdl' );
 		}
 		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
 

@@ -294,6 +294,26 @@ function goi(viec, than){
 	var url = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec);
 	var ma  = 0;
 
+	/* ------------------------------------------------------------------ mốc giờ để đo đường
+	   Gửi kèm "bây giờ là mấy giờ THEO ĐỒNG HỒ MÁY CHỦ". Máy chủ lấy giờ nó nhận được trừ đi
+	   con số này là ra thời gian gói tin nằm trên đường.
+
+	   🔴 ĐÓ LÀ CÂU HỎI KHÔNG CÓ CÁCH NÀO KHÁC ĐỂ TRẢ LỜI. Khi lượt lưu chết vì hết 10 giây,
+	      hai nguyên nhân — mạng đẩy ảnh lên chậm, và máy chủ xử lý chậm — cho ra một màn hình
+	      y hệt nhau, mà cách sửa thì một bên là nhà mạng, một bên là hosting. Máy chủ tự nó chỉ
+	      đo được phần của nó; phần đường đi thì chỉ có điện thoại mới biết nó bắt đầu lúc nào.
+
+	   ⚠️ DÙNG `gioMayChu()`, TUYỆT ĐỐI KHÔNG DÙNG `Date.now()`. Đồng hồ điện thoại lệch vài
+	      phút là chuyện thường (đúng ràng buộc 1 của trang này), và một cái đồng hồ lệch 3 phút
+	      sẽ đẻ ra cột "đường truyền: 180 giây" — con số ấy không sai lệch một chút, nó sai hẳn
+	      về chất, và người đọc sổ sẽ đi sửa nhầm chỗ. `gioMayChu()` trả null khi chưa đồng bộ
+	      được mốc; lúc đó KHÔNG gửi gì cả và máy chủ để trống ô đó (xem class-vhcc-nhat-ky.php).
+
+	   Trường thừa này không ảnh hưởng gì tới nghiệp vụ: mọi việc bên máy chủ đều đọc đúng tên
+	   trường nó cần. */
+	var _t = gioMayChu();
+	if (_t) { than = than || {}; than.gui_luc = _t.getTime(); }
+
 	/* 🔴 FETCH PHẢI CÓ THỜI HẠN. Đây là chỗ hổng còn lại sau lần sửa trước: bản ấy đã báo được
 	   lỗi khi máy chủ trả về thứ không đọc nổi, nhưng nếu máy chủ NHẬN request rồi không trả
 	   lời gì — PHP chạy mãi, tường lửa nuốt gói tin, mạng rớt giữa chừng — thì `fetch` không

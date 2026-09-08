@@ -96,7 +96,26 @@ class VHCC_Tram {
 
 	// ==================================================================== cổng lệnh
 
+	/**
+	 * Trả JSON rồi thoát.
+	 *
+	 * 🔴 CHỐT NHẬT KÝ Ở ĐÂY, KHÔNG Ở TỪNG NHÁNH. `cong()` có mười ba lối ra, mỗi lối một câu
+	 *    `self::ra(...)` rồi `exit`. Rải lệnh ghi sổ ra mười ba chỗ thì chỉ cần một nhánh mới
+	 *    mọc lên mà quên chép theo là lượt ấy biến mất khỏi sổ — im lặng, và đúng vào nhánh
+	 *    mới nhất, tức nhánh đáng ngờ nhất. Mọi lối ra đều đi qua hàm này, nên chốt ở đây là
+	 *    chốt cho cả những lối chưa được viết.
+	 */
 	private static function ra( $data, $ma = 200 ) {
+		$kq = '';
+		if ( is_array( $data ) ) {
+			if ( isset( $data['loai'] ) ) { $kq = (string) $data['loai']; }         // vao / ra / trung / giua
+			elseif ( ! empty( $data['ok'] ) ) { $kq = 'ok'; }
+			if ( empty( $data['ok'] ) && isset( $data['error'] ) ) {
+				$kq = 'loi: ' . (string) $data['error'];
+			}
+		}
+		VHCC_NhatKy::chot( $kq );
+
 		status_header( (int) $ma );
 		header( 'Content-Type: application/json; charset=utf-8' );
 		echo wp_json_encode( $data );
@@ -181,6 +200,12 @@ class VHCC_Tram {
 		nocache_headers();
 		$b = self::than();
 
+		/* Mở đồng hồ đo của lượt này — xem class-vhcc-nhat-ky.php.
+		   ⚠️ Lấy cỡ gói từ `CONTENT_LENGTH` chứ không đo lại `strlen()` thân đã đọc: con số cần
+		      biết là bao nhiêu byte ĐI TRÊN ĐƯỜNG, mà thân sau khi đọc thì đã qua tay máy chủ. */
+		VHCC_NhatKy::mo( $viec, $b,
+			isset( $_SERVER['CONTENT_LENGTH'] ) ? (int) $_SERVER['CONTENT_LENGTH'] : 0 );
+
 		/* --- việc công khai: chưa đăng nhập cũng gọi được --- */
 		if ( 'gio' === $viec ) { self::ra( VHCC_Online::gio_may_chu() ); }
 
@@ -210,6 +235,10 @@ class VHCC_Tram {
 			self::ra( array( 'ok' => false, 'ma' => 'het_phien',
 				'error' => 'Phiên đã hết — đăng nhập lại bằng PIN.' ), 200 );
 		}
+		/* Đã biết là ai thì ghi vào sổ đo. MÃ NV và CƠ SỞ, hết — không thẻ phiên, không PIN,
+		   không tên: sổ này để đọc xem lượt nào chậm, không phải để theo dõi người. */
+		VHCC_NhatKy::tin( 'ma_nv', isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' );
+		VHCC_NhatKy::tin( 'coso', isset( $u['coso'] ) ? $u['coso'] : '' );
 
 		if ( 'toi' === $viec ) {
 			$tt = VHCC_Online::thong_tin( $u );

@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.9.0';
+	const SCHEMA_VERSION = '2.10.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -784,6 +784,30 @@ class VHCC_DB {
 			ket_qua VARCHAR(30) NOT NULL DEFAULT '',
 			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY luc (luc)";
+
+		/* ===== 18d. NHẬT KÝ TỐC ĐỘ CỦA TRẠM CHẤM CÔNG ======================================
+		   Sổ ĐO, không phải sổ lỗi: mỗi lượt "LƯU CHẤM CÔNG" ghi lại nó mất bao lâu và mất ở
+		   khâu nào. Lý do dài ở class-vhcc-nhat-ky.php — tóm tắt: dòng đỏ "máy chủ không trả
+		   lời sau 10 giây" trên máy nhân viên là do TRANG tự đếm hết giờ, còn máy chủ thì không
+		   để lại dấu vết nào (chậm không phải lỗi, `php.error.log` trống trơn).
+
+		   ⚠️ `ms_duong` để NULL ĐƯỢC, và khác hẳn 0: NULL = trang chưa gửi mốc giờ lên (bản cũ
+		      còn trong bộ nhớ đệm của điện thoại), 0 = có đo và gói tin tới gần như tức thì.
+		      Gộp hai thứ thành 0 là đọc sổ ra kết luận ngược. */
+		$b['nhat_ky_tram'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			luc DATETIME NOT NULL,
+			viec VARCHAR(20) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			kq VARCHAR(190) NOT NULL DEFAULT '',
+			ms_may INT NOT NULL DEFAULT 0,
+			ms_duong INT NULL,
+			ms_anh INT NOT NULL DEFAULT 0,
+			ms_csdl INT NOT NULL DEFAULT 0,
+			kb INT NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			KEY luc (luc)";
 

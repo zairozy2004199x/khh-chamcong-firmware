@@ -935,6 +935,170 @@ t( 'có đường lùi khi trình duyệt không cuộn mượt được',
 t( 'nhảy tới một id không có thì im, không nổ',
 	strpos( $tram_js2, 'if(!o) return;' ) !== false );
 
+/* ==================================================================== 9. NHẬT KÝ TỐC ĐỘ
+
+   Sổ đo sinh ra sau đêm 08/09/2026: nhân viên bấm Lưu lúc 22:03 nhận dòng đỏ "máy chủ không
+   trả lời sau 10 giây", mà đi tìm thì KHÔNG CÓ GÌ ĐỂ ĐỌC — dòng đỏ ấy do trang tự đếm hết
+   giờ, php.error.log trống (chậm không phải lỗi), và đường chấm công online không ghi sổ.
+
+   Mấy phép dưới đây canh đúng những chỗ mà một cái sổ đo hỏng thì hỏng IM LẶNG: nó vẫn hiện
+   ra bảng, vẫn có số, chỉ là số sai hoặc thiếu đúng dòng cần đọc. */
+
+$bang_nk = VHCC_DB::t( 'nhat_ky_tram' );
+function nk_xoa() { global $wpdb, $bang_nk; $wpdb->query( "DELETE FROM $bang_nk" ); }
+function nk_ds() {
+	global $wpdb, $bang_nk;
+	return $wpdb->get_results( "SELECT * FROM $bang_nk ORDER BY id", ARRAY_A );
+}
+
+t( 'bảng nhật ký có trong sơ đồ (không thì sổ im lặng không ghi gì)',
+	VHCC_DB::co_bang( $bang_nk ) );
+
+/* --- lượt `cham` LUÔN vào sổ, kể cả khi nhanh ------------------------------------------- */
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array(), 150000 );
+VHCC_NhatKy::tin( 'ma_nv', 'NV001' );
+VHCC_NhatKy::tin( 'coso', 'VIVO' );
+VHCC_NhatKy::chot( 'vao' );
+$d = nk_ds();
+t( 'lượt chấm công nhanh VẪN vào sổ', 1 === count( $d ), count( $d ) );
+/* 🔴 Đây là điều dễ bị "tối ưu" mất nhất: chỉ ghi lượt chậm cho gọn sổ. Nhưng không có nền để
+   so thì con số 9 giây chẳng nói lên gì — ngày thường 0,4 giây hay 6 giây? Hai câu trả lời
+   ấy dẫn tới hai kết luận trái ngược. */
+t( 'sổ ghi đúng mã NV', 'NV001' === $d[0]['ma_nv'], $d[0]['ma_nv'] );
+t( 'sổ ghi đúng cơ sở', 'VIVO' === $d[0]['coso'], $d[0]['coso'] );
+t( 'sổ ghi cỡ gói theo KB', 146 === (int) $d[0]['kb'], $d[0]['kb'] );
+t( 'sổ ghi kết quả', 'vao' === $d[0]['kq'], $d[0]['kq'] );
+
+/* --- việc NHẸ mà nhanh thì KHÔNG ghi ----------------------------------------------------- */
+nk_xoa();
+VHCC_NhatKy::mo( 'gio', array() );
+VHCC_NhatKy::chot( 'ok' );
+t( 'lượt lấy giờ chạy nhanh KHÔNG vào sổ', 0 === count( nk_ds() ) );
+/* ⚠️ Một ngày có hàng nghìn lượt `gio`/`toi`. Để chúng vào sổ là 500 dòng đầy trong buổi sáng
+   và đẩy văng hết lượt `cham` — tức sổ vẫn chạy, vẫn đầy số, mà mất sạch thứ cần đọc. */
+
+/* --- việc nhẹ mà HỎNG thì phải ghi ------------------------------------------------------- */
+nk_xoa();
+VHCC_NhatKy::mo( 'toi', array() );
+VHCC_NhatKy::chot( 'loi: Phiên đã hết' );
+t( 'lượt nhẹ bị lỗi thì VẪN vào sổ', 1 === count( nk_ds() ) );
+
+/* --- mốc giờ của điện thoại: nhận cái hợp lý, bỏ cái vô lý ------------------------------- */
+$vao_ms = ( (float) $_SERVER['REQUEST_TIME_FLOAT'] ) * 1000;
+
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array( 'gui_luc' => $vao_ms - 1500 ) );
+VHCC_NhatKy::chot( 'vao' );
+$d = nk_ds();
+t( 'mốc giờ hợp lý -> đo được thời gian gói đi trên đường',
+	null !== $d[0]['ms_duong'] && (int) $d[0]['ms_duong'] >= 1400 && (int) $d[0]['ms_duong'] <= 1600,
+	$d[0]['ms_duong'] );
+
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array( 'gui_luc' => $vao_ms - 3600000 ) );   // đồng hồ lệch một tiếng
+VHCC_NhatKy::chot( 'vao' );
+$d = nk_ds();
+/* 🔴 Điện thoại sai giờ là chuyện thường (đúng ràng buộc 1 của trang). Nhận bừa là sổ hiện
+   "đường truyền: 3600 giây" và người đọc đi gọi nhà mạng — sai hẳn chỗ. Thà để trống. */
+t( 'mốc giờ lệch quá xa thì BỎ, không bịa ra con số', null === $d[0]['ms_duong'], $d[0]['ms_duong'] );
+
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array() );        // bản trang cũ, chưa gửi mốc
+VHCC_NhatKy::chot( 'vao' );
+$d = nk_ds();
+/* ⚠️ NULL chứ không phải 0. Trống = "không đo được", 0 = "đo được và gần như tức thì". Gộp hai
+   thứ ấy là đọc sổ ra kết luận ngược hẳn. */
+t( 'trang chưa gửi mốc -> để TRỐNG, không phải 0', null === $d[0]['ms_duong'] );
+
+/* --- đồng hồ từng khâu ------------------------------------------------------------------- */
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array() );
+VHCC_NhatKy::bam( 'anh' );
+usleep( 20000 );
+VHCC_NhatKy::dung( 'anh' );
+VHCC_NhatKy::bam( 'anh' );                 // lượt thứ hai: ghi cả ảnh vào lẫn ảnh ra
+usleep( 20000 );
+VHCC_NhatKy::dung( 'anh' );
+VHCC_NhatKy::chot( 'ra' );
+$d = nk_ds();
+t( 'thời gian từng khâu CỘNG DỒN, không đè lên nhau',
+	(int) $d[0]['ms_anh'] >= 35, $d[0]['ms_anh'] );
+t( 'khâu không bấm giờ thì để 0', 0 === (int) $d[0]['ms_csdl'] );
+
+/* --- chốt hai lần cũng chỉ một dòng ------------------------------------------------------ */
+nk_xoa();
+VHCC_NhatKy::mo( 'cham', array() );
+VHCC_NhatKy::chot( 'vao' );
+VHCC_NhatKy::chot( 'vao' );
+t( 'chốt hai lần vẫn chỉ một dòng', 1 === count( nk_ds() ) );
+/* ⚠️ `VHCC_Tram::ra()` chốt sổ rồi mới `exit`. Một nhánh nào đó gọi `ra()` hai lần (hoặc bài
+   kiểm gọi thẳng) thì không được đẻ ra hai dòng cho cùng một lượt — đếm lượt sẽ sai. */
+
+/* --- tóm tắt: TRUNG VỊ, không phải trung bình -------------------------------------------- */
+$tt = VHCC_NhatKy::tom_tat( array(
+	array( 'viec' => 'cham', 'ms_may' => 300,   'ms_duong' => 0 ),
+	array( 'viec' => 'cham', 'ms_may' => 400,   'ms_duong' => 0 ),
+	array( 'viec' => 'cham', 'ms_may' => 40000, 'ms_duong' => 0 ),
+	array( 'viec' => 'gio',  'ms_may' => 9000,  'ms_duong' => 0 ),
+) );
+t( 'tóm tắt chỉ đếm lượt chấm công', 3 === $tt['so'], $tt['so'] );
+/* 🔴 Trung bình của ba số trên là 13,5 giây — đọc xong sẽ kết luận "hệ thống chậm", trong khi
+   hai trong ba lượt chạy dưới nửa giây. Câu hỏi thật là "lượt BÌNH THƯỜNG nhanh hay chậm". */
+t( 'lượt bình thường lấy theo trung vị, không bị một lượt 40 giây kéo lệch',
+	400 === $tt['giua'], $tt['giua'] );
+t( 'vẫn nói ra lượt chậm nhất', 40000 === $tt['lau_nhat'], $tt['lau_nhat'] );
+t( 'đếm đúng số lượt vượt 10 giây — đúng ngưỡng người dùng thấy dòng đỏ',
+	1 === $tt['qua_han'], $tt['qua_han'] );
+t( 'sổ trống thì tóm tắt trả 0, không chia cho 0',
+	0 === VHCC_NhatKy::tom_tat( array() )['so'] );
+
+/* --- tự cắt bớt --------------------------------------------------------------------------- */
+nk_xoa();
+for ( $i = 0; $i < VHCC_NhatKy::GIU + 20; $i++ ) {
+	VHCC_NhatKy::mo( 'cham', array() );
+	VHCC_NhatKy::chot( 'vao' );
+}
+VHCC_NhatKy::don();
+t( 'sổ tự cắt, giữ đúng số dòng đã hẹn',
+	count( nk_ds() ) <= VHCC_NhatKy::GIU, count( nk_ds() ) );
+
+/* --- không được chứa bí mật --------------------------------------------------------------- */
+$so_do_nk = VHCC_DB::bang()['nhat_ky_tram'];
+/* 🔴 Sổ này ai xem được wp-admin cũng đọc, và ảnh chụp màn hình thì đi khắp nơi. Một cột `pin`
+   hay `token` lọt vào đây là lộ đúng thứ mở được cửa. Cùng luật với nhat_ky_tra_pin. */
+t( 'sổ đo KHÔNG có cột nào chứa PIN hay thẻ phiên',
+	stripos( $so_do_nk, 'pin' ) === false && stripos( $so_do_nk, 'token' ) === false );
+
+$nk_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhat-ky.php' );
+t( 'sổ đo ghi vào BẢNG, không nhét vào wp_options',
+	strpos( $nk_src, 'update_option' ) === false );
+/* 🔴 Option là đọc-sửa-ghi cả mảng: hai lượt cùng một khoảnh khắc thì lượt sau đè mất dòng của
+   lượt trước. Mà sổ này sinh ra để soi đúng lúc NHIỀU NGƯỜI CÙNG BẤM — nó sẽ mất đúng những
+   dòng đáng giá nhất, và mất im lặng. */
+
+/* --- mọi lối ra của cổng đều chốt sổ ------------------------------------------------------ */
+$tram_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( 'chốt sổ nằm trong ra() — lối ra duy nhất của cổng',
+	preg_match( '/function ra\(.*?VHCC_NhatKy::chot/s', $tram_src ) === 1 );
+/* ⚠️ `cong()` có hơn mười lối ra, mỗi lối một câu `self::ra(...)` rồi exit. Rải lệnh ghi sổ ra
+   từng nhánh thì một nhánh mới mọc lên mà quên chép theo là lượt ấy biến mất khỏi sổ — im
+   lặng, và đúng vào nhánh mới nhất, tức nhánh đáng ngờ nhất. */
+t( 'cổng mở đồng hồ ngay sau khi đọc thân gói',
+	preg_match( '/\$b = self::than\(\);\s*(?:\/\*.*?\*\/\s*)?VHCC_NhatKy::mo\(/s', $tram_src ) === 1 );
+
+/* --- trang gửi mốc theo giờ MÁY CHỦ ------------------------------------------------------- */
+t( 'trang gửi kèm mốc giờ để đo được đường truyền',
+	strpos( $tram_js2, 'than.gui_luc' ) !== false );
+/* 🔴 Phải là `gioMayChu()`. `Date.now()` lấy đồng hồ ĐIỆN THOẠI — lệch vài phút là chuyện
+   thường, và một cột "đường truyền: 180 giây" không sai một chút, nó sai hẳn về chất. */
+t( 'mốc lấy từ giờ MÁY CHỦ, không phải đồng hồ điện thoại',
+	preg_match( '/var _t = gioMayChu\(\);/', $tram_js2 ) === 1
+	&& preg_match( '/than\.gui_luc = Date\.now/', $tram_js2 ) !== 1 );
+t( 'chưa đồng bộ được mốc thì KHÔNG gửi gì, không đoán',
+	preg_match( '/if \(_t\) \{ than = than \|\| \{\}; than\.gui_luc/', $tram_js2 ) === 1 );
+
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

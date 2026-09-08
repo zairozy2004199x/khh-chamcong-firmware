@@ -47,6 +47,12 @@ jobs:
       - name: Bộ thử chấm công
         run: php tools/test/test-cham-cong.php
 
+      # Bài này đã có sẵn từ lâu nhưng KHÔNG AI CHẠY — đúng cái bẫy mà file workflow này sinh ra
+      # để bịt (xem phần đầu). Nó canh cửa đăng nhập thứ hai của trạm và, từ 08/09/2026, canh cả
+      # sổ đo tốc độ. Một bài kiểm không nằm trong CI thì chỉ là một tệp văn bản.
+      - name: Bộ thử trạm chấm công
+        run: php tools/test/kiem-tram.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 

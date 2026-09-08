@@ -47,6 +47,8 @@ class VHCC_Admin {
 			'vhcc-lich', array( __CLASS__, 'trang_lich' ) );
 		add_submenu_page( 'vhcc', 'Máy & Firmware', 'Máy & Firmware', self::CAP,
 			'vhcc-may', array( __CLASS__, 'trang_may' ) );
+		add_submenu_page( 'vhcc', 'Nhật ký trạm (tốc độ)', 'Nhật ký trạm', self::CAP,
+			'vhcc-nhat-ky-tram', array( __CLASS__, 'trang_nhat_ky_tram' ) );
 		/* Bốn màn còn lại nằm ở class-vhcc-man.php — tệp này đã ~1000 dòng, dồn hết vào một chỗ
 		   là không ai đọc lại được. */
 		VHCC_Man::menu_them( 'vhcc', self::CAP );
@@ -1350,6 +1352,101 @@ class VHCC_Admin {
 				. '<td>' . esc_html( implode( ' · ', $gc ) ) . '</td></tr>';
 		}
 		echo '</tbody></table></div>';
+	}
+
+	/**
+	 * MÀN NHẬT KÝ TỐC ĐỘ CỦA TRẠM — trả lời đúng một câu: *lượt lưu chấm công chậm ở đâu?*
+	 *
+	 * 🔴 ĐỌC MÀN NÀY THEO CỘT, KHÔNG THEO TỔNG. Tổng thời gian chỉ nói "chậm", mà "chậm" thì đã
+	 *    biết rồi — người dùng vừa chụp màn hình gửi tới. Câu chưa ai trả lời được là chậm Ở
+	 *    KHÂU NÀO, và bốn cột dưới đây chia nó thành bốn ngả đi sửa khác hẳn nhau:
+	 *      · `Đường` to  -> gói tin nằm trên đường lâu. Sửa ở phía mạng / cỡ ảnh, KHÔNG phải hosting.
+	 *      · `Máy` to mà `Ảnh` + `CSDL` nhỏ -> PHP bị xếp hàng chờ. Đây là dấu của hosting chạm
+	 *        trần CPU/tiến trình — thứ không sinh ra dòng nào trong php.error.log.
+	 *      · `Ảnh` to -> đĩa chậm, hoặc thư mục ảnh của cơ sở đó đã quá đông tệp.
+	 *      · `CSDL` to -> MySQL đang bị khoá hoặc quá tải.
+	 *
+	 * ⚠️ XEM CẢ CỘT "LÚC". Nhiều dòng chậm DỒN VÀO CÙNG MỘT PHÚT nghĩa là cả máy chủ nghẽn cùng
+	 *    lúc — chuyện của giờ cao điểm. Một dòng chậm lẻ loi giữa những dòng nhanh thì là chuyện
+	 *    riêng của lượt đó (máy ấy, mạng ấy). Hai kết luận khác hẳn nhau, mà cùng nhìn một con số.
+	 */
+	public static function trang_nhat_ky_tram() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+
+		if ( isset( $_POST['vhcc_xoa_nk'] ) && check_admin_referer( 'vhcc_xoa_nk' ) ) {
+			VHCC_NhatKy::xoa();
+			echo '<div class="notice notice-success"><p>Đã xoá nhật ký.</p></div>';
+		}
+
+		$dong = VHCC_NhatKy::ds( 200 );
+		$tt   = VHCC_NhatKy::tom_tat( $dong );
+
+		echo '<div class="wrap"><h1>Nhật ký trạm chấm công — tốc độ</h1>';
+		echo '<p>Mỗi lượt <strong>LƯU CHẤM CÔNG</strong> ghi một dòng. Việc nhẹ (lấy giờ, nạp hồ '
+			. 'sơ) chỉ ghi khi chậm quá ' . (int) ( VHCC_NhatKy::CHAM_MS / 1000 ) . ' giây hoặc khi '
+			. 'hỏng — để chúng không đẩy văng mất phần đáng đọc.</p>';
+
+		if ( ! VHCC_DB::co_bang( VHCC_DB::t( VHCC_NhatKy::BANG ) ) ) {
+			echo '<div class="notice notice-error"><p><strong>Bảng nhật ký chưa dựng được.</strong> '
+				. 'Tắt plugin rồi bật lại một lần để WordPress chạy phần dựng bảng.</p></div></div>';
+			return;
+		}
+
+		if ( $tt['so'] ) {
+			echo '<h2>Tóm tắt ' . (int) $tt['so'] . ' lượt chấm gần nhất</h2><p>'
+				. 'Lượt bình thường (trung vị): <strong>' . self::ms( $tt['giua'] ) . '</strong> · '
+				. 'chậm nhất: <strong>' . self::ms( $tt['lau_nhat'] ) . '</strong> · '
+				. 'quá 10 giây (người dùng thấy dòng đỏ): <strong>' . (int) $tt['qua_han']
+				. ' lượt</strong></p>';
+			/* Trung vị chứ không trung bình — lý do ở VHCC_NhatKy::tom_tat(). */
+			if ( $tt['qua_han'] > 0 ) {
+				echo '<div class="notice notice-warning inline"><p>Có lượt vượt 10 giây. Xem cột nào '
+					. 'to bất thường ở đúng những dòng đó, và xem chúng có dồn vào cùng một phút '
+					. 'không.</p></div>';
+			}
+		}
+
+		echo '<h2>' . count( $dong ) . ' dòng gần nhất</h2>';
+		if ( ! $dong ) {
+			echo '<p><em>Chưa có gì. Chưa ai chấm công kể từ lúc cài bản này — nhật ký chỉ ghi từ '
+				. 'lượt chấm tiếp theo trở đi, không dựng lại được quá khứ.</em></p>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Việc</th><th>Mã NV</th>'
+				. '<th>Cơ sở</th><th>Đường</th><th>Máy</th><th>Ảnh</th><th>CSDL</th><th>Cỡ gói</th>'
+				. '<th>Kết quả</th></tr></thead><tbody>';
+			foreach ( $dong as $d ) {
+				$tong = (int) $d['ms_may'] + (int) $d['ms_duong'];
+				$do   = ( $tong >= 10000 ) ? ' style="background:#fde8e8"'
+					: ( ( $tong >= 3000 ) ? ' style="background:#fff8e1"' : '' );
+				echo '<tr' . $do . '><td>' . esc_html( $d['luc'] ) . '</td>'
+					. '<td><code>' . esc_html( $d['viec'] ) . '</code></td>'
+					. '<td>' . esc_html( $d['ma_nv'] ) . '</td>'
+					. '<td>' . esc_html( $d['coso'] ) . '</td>'
+					/* Ô trống ≠ 0 giây: trống là trang chưa gửi mốc giờ lên (bản cũ còn trong bộ
+					   nhớ đệm của điện thoại). In "0" vào đó là bịa ra một phép đo không có. */
+					. '<td>' . ( null === $d['ms_duong'] ? '—' : esc_html( self::ms( $d['ms_duong'] ) ) ) . '</td>'
+					. '<td>' . esc_html( self::ms( $d['ms_may'] ) ) . '</td>'
+					. '<td>' . esc_html( self::ms( $d['ms_anh'] ) ) . '</td>'
+					. '<td>' . esc_html( self::ms( $d['ms_csdl'] ) ) . '</td>'
+					. '<td>' . ( (int) $d['kb'] ? esc_html( (int) $d['kb'] . ' KB' ) : '—' ) . '</td>'
+					. '<td>' . esc_html( $d['kq'] ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		echo '<h2>Xoá nhật ký</h2><form method="post">';
+		wp_nonce_field( 'vhcc_xoa_nk' );
+		echo '<p><input type="submit" name="vhcc_xoa_nk" class="button" value="Xoá sạch nhật ký" '
+			. 'onclick="return confirm(\'Xoá hết nhật ký tốc độ?\')"></p></form>';
+		echo '<p><em>Sổ tự cắt, chỉ giữ ' . (int) VHCC_NhatKy::GIU . ' dòng gần nhất — không cần dọn tay.</em></p>';
+		echo '</div>';
+	}
+
+	/** Mili giây -> chữ đọc được. Trên một giây thì đổi đơn vị: "12.400ms" không ai đọc ra 12 giây. */
+	private static function ms( $ms ) {
+		$ms = (int) $ms;
+		if ( $ms < 1000 ) { return $ms . 'ms'; }
+		return number_format( $ms / 1000, 1 ) . 's';
 	}
 
 	/**

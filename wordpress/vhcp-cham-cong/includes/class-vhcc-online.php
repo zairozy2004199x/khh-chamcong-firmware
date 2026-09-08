@@ -353,6 +353,11 @@ class VHCC_Online {
 		$b64 = (string) $anh_data_url;
 		if ( false !== strpos( $b64, 'base64,' ) ) { $b64 = substr( $b64, strpos( $b64, 'base64,' ) + 7 ); }
 
+		/* Sổ đo ghi CƠ SỞ ĐÃ CHỐT, không phải chuỗi cơ sở của thẻ phiên: người làm hai nơi thì
+		   thẻ mang cả hai, mà lượt chấm này chỉ thuộc về một. Đọc sổ để tìm "cơ sở nào hay chậm"
+		   mà cột cơ sở ghi cả hai thì con số nào cũng sai. */
+		VHCC_NhatKy::tin( 'coso', $coso );
+
 		// GPS: bản gốc ghi làm GHI CHÚ trên ô giờ. Ở đây có cột riêng.
 		$ghi_chu = self::gps_thanh_chu( $gps );
 
