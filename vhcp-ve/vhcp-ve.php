@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.20.0
+ * Version:           1.21.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1028,14 +1028,22 @@ class POSH_Ve {
 
 				<div class="pve-step pve-step-qr" hidden>
 					<div class="pve-badge cho">⏳ Chờ thanh toán</div>
+					<div class="pve-cong">
+						<button type="button" class="pve-cong-i on" data-cong="qr"><span>🏦</span>QR ngân hàng</button>
+						<button type="button" class="pve-cong-i" data-cong="momo"><span>🟣</span>Momo</button>
+						<button type="button" class="pve-cong-i" data-cong="vnpay"><span>🔵</span>VNPay</button>
+					</div>
 					<div class="pve-qr"></div>
+					<div class="pve-cong-msg" hidden></div>
 					<div class="pve-kv"><span>Mã vé</span><b class="pve-r-mave"></b></div>
 					<div class="pve-kv"><span>Gói</span><b class="pve-r-goi"></b></div>
 					<div class="pve-kv"><span>Số tiền</span><b class="pve-r-tien"></b></div>
-					<div class="pve-kv"><span>Ngân hàng</span><b class="pve-r-nh"></b></div>
-					<div class="pve-kv"><span>Số TK</span><b class="pve-r-stk"></b></div>
-					<div class="pve-kv"><span>Chủ TK</span><b class="pve-r-ctk"></b></div>
-					<div class="pve-kv pve-copy"><span>Nội dung</span><b class="pve-r-nd"></b> <em>(chạm để copy)</em></div>
+					<div class="pve-bank">
+						<div class="pve-kv"><span>Ngân hàng</span><b class="pve-r-nh"></b></div>
+						<div class="pve-kv"><span>Số TK</span><b class="pve-r-stk"></b></div>
+						<div class="pve-kv"><span>Chủ TK</span><b class="pve-r-ctk"></b></div>
+						<div class="pve-kv pve-copy"><span>Nội dung</span><b class="pve-r-nd"></b> <em>(chạm để copy)</em></div>
+					</div>
 					<p class="pve-note">Quét mã bằng app ngân hàng. Giữ đúng <b>nội dung</b> để hệ thống tự khớp. Trang sẽ tự cập nhật khi đã nhận tiền.</p>
 				</div>
 			</div>
@@ -1049,6 +1057,7 @@ class POSH_Ve {
 			var mFor = null, timer = null;
 			function tien(n){ try{ return (Number(n)||0).toLocaleString('vi-VN')+'đ'; }catch(e){ return n+'đ'; } }
 			function qs(s){ return mask.querySelector(s); }
+			function qsa(s){ return Array.prototype.slice.call(mask.querySelectorAll(s)); }
 			function show(step){ qs('.pve-step-form').hidden = (step!=='form'); qs('.pve-step-qr').hidden = (step!=='qr'); }
 			function loadQR(cb){
 				if (window.QRCode){ cb(); return; }
@@ -1189,6 +1198,25 @@ class POSH_Ve {
 				show('qr');
 				var badge = qs('.pve-badge');
 				qs('.pve-copy').onclick = function(){ try{ navigator.clipboard.writeText(v.noi_dung); }catch(e){} };
+
+				// Chọn phương thức: QR (mặc định) / Momo / VNPay. Momo-VNPay mở cổng ở tab mới.
+				var msg = qs('.pve-cong-msg'), bank = qs('.pve-bank');
+				function datCong(cong, btn){
+					qsa('.pve-cong-i').forEach(function(b){ b.classList.toggle('on', b===btn); });
+					if(cong==='qr'){ box.hidden=false; bank.hidden=false; msg.hidden=true; return; }
+					box.hidden=true; bank.hidden=true; msg.hidden=false; msg.textContent='Đang mở cổng '+(cong==='momo'?'Momo':'VNPay')+'…';
+					fetch(REST+'/ve/thanhtoan', { method:'POST', headers:{'Content-Type':'application/json'},
+						body: JSON.stringify({ ma_ve:v.ma_ve, cong:cong }) })
+						.then(function(r){ return r.json().then(function(d){ if(!r.ok||d.ok===false) throw new Error(d&&(d.message||d.code)||'Lỗi'); return d; }); })
+						.then(function(d){
+							var url = d.deeplink || d.pay_url;
+							if(url){ msg.innerHTML='Đã mở cổng thanh toán ở tab mới. Nếu bị chặn, <a href="'+url+'" target="_blank" rel="noopener">bấm vào đây</a>. Thanh toán xong quay lại, trang sẽ tự cập nhật.'; window.open(url,'_blank'); }
+							else throw new Error('Không tạo được liên kết.');
+						})
+						.catch(function(e){ msg.textContent = (e.message||e)+' — vui lòng chọn QR ngân hàng.'; });
+				}
+				qsa('.pve-cong-i').forEach(function(b){ b.onclick=function(){ datCong(b.getAttribute('data-cong'), b); }; });
+				datCong('qr', qs('.pve-cong-i[data-cong="qr"]'));
 				if(timer) clearInterval(timer);
 				timer = setInterval(function(){
 					fetch(REST+'/ve/trangthai?ma_ve='+encodeURIComponent(v.ma_ve)).then(function(r){return r.json();}).then(function(d){
@@ -1242,6 +1270,12 @@ class POSH_Ve {
 		.pve-go{ width:100%; margin-top:16px; border:none; background:#cf9f22; color:#fff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
 		.pve-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
 		.pve-note{ color:#64748b; font-size:12px; line-height:1.5; margin-top:12px; }
+		.pve-cong{ display:flex; gap:8px; margin:4px 0 14px; }
+		.pve-cong-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:2px solid #e5e7eb; background:#fff; border-radius:12px; font-size:12px; font-weight:700; color:#1f2937; cursor:pointer; }
+		.pve-cong-i span{ font-size:22px; }
+		.pve-cong-i.on{ border-color:#c1901b; background:#fffbeb; color:#92400e; }
+		.pve-cong-msg{ background:#fffbeb; border:1px solid #fde68a; color:#92400e; border-radius:10px; padding:12px; font-size:13px; margin-bottom:12px; text-align:center; }
+		.pve-cong-msg a{ color:#b45309; font-weight:800; }
 		.pve-qr{ display:flex; justify-content:center; margin:6px 0 14px; }
 		.pve-qr img,.pve-qr canvas{ display:block; }
 		.pve-badge{ display:inline-block; font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; margin-bottom:12px; }
