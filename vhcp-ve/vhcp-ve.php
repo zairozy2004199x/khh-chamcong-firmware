@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.13.0
+ * Version:           1.14.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -50,6 +50,7 @@ class POSH_Ve {
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'zalo_web_login' ) );
 	}
 
 	// ───────────────────────────── VietQR (tự chứa) ─────────────────────────────
@@ -478,6 +479,65 @@ class POSH_Ve {
 		return array( 'ok' => true, 'sdt' => $sdt );
 	}
 
+	// ───────────────────────────── Đăng nhập Zalo trên web (OAuth v4) ─────────────────────────────
+	public static function zalo_web_login() {
+		if ( ! isset( $_GET['pve_zalo'] ) ) { return; }
+		$act    = sanitize_key( $_GET['pve_zalo'] );
+		$appid  = (string) get_option( 'pve_zalo_appid', '' );
+		$secret = (string) get_option( 'pve_zalo_secret', '' );
+		$cb     = home_url( '/?pve_zalo=cb' );
+
+		if ( 'login' === $act ) {
+			if ( '' === $appid ) { wp_die( 'Chưa cấu hình Zalo App ID (vào admin Vé khu vui chơi).' ); }
+			$verifier  = wp_generate_password( 64, false );
+			$challenge = rtrim( strtr( base64_encode( hash( 'sha256', $verifier, true ) ), '+/', '-_' ), '=' );
+			$state     = wp_generate_password( 24, false );
+			set_transient( 'pve_zl_' . $state, array( 'v' => $verifier, 'r' => wp_get_referer() ), 600 );
+			wp_redirect( 'https://oauth.zaloapp.com/v4/permission?app_id=' . rawurlencode( $appid )
+				. '&redirect_uri=' . rawurlencode( $cb ) . '&code_challenge=' . $challenge . '&state=' . $state );
+			exit;
+		}
+		if ( 'cb' === $act ) {
+			$code  = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+			$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+			$data  = get_transient( 'pve_zl_' . $state );
+			$back  = ( $data && ! empty( $data['r'] ) ) ? $data['r'] : home_url( '/' );
+			if ( ! $data || '' === $code || '' === $secret ) { wp_safe_redirect( $back ); exit; }
+			delete_transient( 'pve_zl_' . $state );
+			$res = wp_remote_post( 'https://oauth.zaloapp.com/v4/access_token', array( 'timeout' => 12,
+				'headers' => array( 'secret_key' => $secret, 'Content-Type' => 'application/x-www-form-urlencoded' ),
+				'body'    => array( 'app_id' => $appid, 'code' => $code, 'grant_type' => 'authorization_code', 'code_verifier' => $data['v'] ) ) );
+			$tok = json_decode( (string) wp_remote_retrieve_body( $res ), true );
+			$at  = isset( $tok['access_token'] ) ? $tok['access_token'] : '';
+			if ( '' !== $at ) {
+				$me = wp_remote_get( 'https://graph.zalo.me/v2.0/me?fields=id,name,picture', array( 'timeout' => 12, 'headers' => array( 'access_token' => $at ) ) );
+				$u  = json_decode( (string) wp_remote_retrieve_body( $me ), true );
+				$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
+				$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
+				if ( '' !== $id ) {
+					$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
+					$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
+					setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
+				}
+			}
+			wp_safe_redirect( $back ); exit;
+		}
+		if ( 'logout' === $act ) {
+			setcookie( 'pve_zuser', '', time() - 3600, '/' );
+			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url( '/' ) ); exit;
+		}
+	}
+	/* Đọc khách đã đăng nhập Zalo (từ cookie đã ký). */
+	public static function zalo_user() {
+		if ( empty( $_COOKIE['pve_zuser'] ) ) { return null; }
+		$raw = (string) wp_unslash( $_COOKIE['pve_zuser'] );
+		$p   = strrpos( $raw, '.' ); if ( false === $p ) { return null; }
+		$val = substr( $raw, 0, $p ); $sig = substr( $raw, $p + 1 );
+		if ( ! hash_equals( hash_hmac( 'sha256', $val, wp_salt( 'auth' ) ), $sig ) ) { return null; }
+		$d = json_decode( base64_decode( $val ), true );
+		return is_array( $d ) ? $d : null;
+	}
+
 	// ───────────────────────────── Bảo vệ khu quản lý bằng PIN ─────────────────────────────
 	private static function pin_hople( $req ) {
 		$pin_luu = (string) get_option( 'pve_pin', '' );
@@ -586,8 +646,12 @@ class POSH_Ve {
 			'hero'     => 'Khu vui chơi POSH',             // tiêu đề banner hero
 			'hero_phu' => 'Mua vé trước – nhận mã QR – vào cửa nhanh, không xếp hàng',
 			'anh_nen'  => '',                              // ảnh nền hero (URL). Trống = nền gradient vàng
+			'bang_ron' => '',                              // banner carousel: các URL ảnh, cách nhau dấu phẩy
 		), $atts, 'posh_ve' );
+		$bangron = array_values( array_filter( array_map( 'trim', explode( ',', (string) $atts['bang_ron'] ) ) ) );
 		$rest = esc_url_raw( rest_url( self::NS ) );
+		$zu   = self::zalo_user();
+		$ten_dn = $zu && ! empty( $zu['name'] ) ? $zu['name'] : '';
 
 		// Gom dịch vụ theo nhóm + gom danh sách khu vực (để hiện màn chọn khu vực).
 		$nhom = array(); $kvucs = array();
@@ -609,12 +673,28 @@ class POSH_Ve {
 			</div>
 		</div>
 		<div class="pve-wrap" id="pve-ds">
+			<?php if ( $bangron ) : ?>
+			<div class="pve-bn">
+				<div class="pve-bn-track"><?php foreach ( $bangron as $b ) : ?><img src="<?php echo esc_url( $b ); ?>" alt="banner" loading="lazy"><?php endforeach; ?></div>
+				<?php if ( count( $bangron ) > 1 ) : ?><div class="pve-bn-dots"><?php foreach ( $bangron as $i => $b ) : ?><span<?php echo 0 === $i ? ' class="on"' : ''; ?>></span><?php endforeach; ?></div><?php endif; ?>
+			</div>
+			<?php endif; ?>
 			<?php if ( $kvucs ) : ?><div class="pve-kvbar" hidden>📍 Khu vực: <b class="pve-kvbar-ten"></b> <a href="#" class="pve-kvbar-doi">Đổi khu vực</a></div><?php endif; ?>
+
+			<div class="pve-auth">
+				<?php if ( $zu ) : ?>
+					<span>👋 Xin chào, <b><?php echo esc_html( $ten_dn ? $ten_dn : 'bạn' ); ?></b></span>
+					<a href="<?php echo esc_url( home_url( '/?pve_zalo=logout' ) ); ?>">Đăng xuất</a>
+				<?php else : ?>
+					<span>Đăng nhập để đồng bộ vé với Zalo</span>
+					<a class="pve-auth-btn" href="<?php echo esc_url( home_url( '/?pve_zalo=login' ) ); ?>">Đăng nhập bằng Zalo</a>
+				<?php endif; ?>
+			</div>
 
 			<div class="pve-qf">
 				<div class="pve-qf-h">🎟️ Đặt vé nhanh</div>
 				<div class="pve-qf-grid">
-					<input class="pve-qf-ten" placeholder="Họ và tên" autocomplete="name">
+					<input class="pve-qf-ten" placeholder="Họ và tên" autocomplete="name" value="<?php echo esc_attr( $ten_dn ); ?>">
 					<input class="pve-qf-sdt" inputmode="tel" placeholder="Số điện thoại" autocomplete="tel">
 					<?php if ( $kvucs ) : ?>
 					<select class="pve-qf-cs">
@@ -816,6 +896,18 @@ class POSH_Ve {
 				});
 			})();
 
+			// ----- Banner carousel tự chạy -----
+			(function(){
+				var bn = document.querySelector('.pve-bn'); if(!bn) return;
+				var track = bn.querySelector('.pve-bn-track');
+				var dots = [].slice.call(bn.querySelectorAll('.pve-bn-dots span'));
+				var n = track.children.length; if (n < 2) return;
+				var i = 0;
+				function go(k){ i = (k + n) % n; track.style.transform = 'translateX(-' + (i * 100) + '%)'; dots.forEach(function(d,j){ d.classList.toggle('on', j === i); }); }
+				dots.forEach(function(d,j){ d.onclick = function(){ go(j); }; });
+				setInterval(function(){ go(i + 1); }, 4000);
+			})();
+
 			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
 				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
 			});
@@ -930,6 +1022,18 @@ class POSH_Ve {
 		.pve-kvbar{ background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:9px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
 		.pve-kvbar b{ color:#1f2937; }
 		.pve-kvbar-doi{ float:right; color:#b8871a; font-weight:700; text-decoration:none; }
+		/* Đăng nhập Zalo */
+		.pve-auth{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background:#fff; border:1px solid #f0e7d2; border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:14px; color:#475569; }
+		.pve-auth b{ color:#1f2937; }
+		.pve-auth a{ color:#b8871a; font-weight:700; text-decoration:none; }
+		.pve-auth-btn{ background:#0068ff; color:#fff !important; padding:8px 16px; border-radius:999px; }
+		/* Banner carousel (kiểu ticketbox) */
+		.pve-bn{ position:relative; margin-bottom:18px; border-radius:16px; overflow:hidden; }
+		.pve-bn-track{ display:flex; transition:transform .4s ease; }
+		.pve-bn-track img{ width:100%; flex:0 0 100%; aspect-ratio:16/6; object-fit:cover; display:block; }
+		.pve-bn-dots{ position:absolute; left:0; right:0; bottom:10px; display:flex; justify-content:center; gap:7px; }
+		.pve-bn-dots span{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.6); cursor:pointer; }
+		.pve-bn-dots span.on{ background:#fff; width:20px; border-radius:999px; }
 		/* Form đặt vé nhanh */
 		.pve-qf{ background:#fff; border:1px solid #f0e7d2; border-radius:16px; padding:16px; margin:0 0 20px; box-shadow:0 6px 18px rgba(0,0,0,.07); }
 		.pve-qf-h{ font-weight:900; font-size:18px; color:#1f2937; margin-bottom:12px; }
@@ -1036,7 +1140,8 @@ class POSH_Ve {
 		}
 		if ( isset( $_POST['pve_zalo_luu'] ) && check_admin_referer( 'pve_zalo' ) ) {
 			update_option( 'pve_zalo_secret', trim( (string) wp_unslash( $_POST['zalo_secret'] ) ) );
-			echo '<div class="notice notice-success"><p>Đã lưu Zalo Secret Key.</p></div>';
+			update_option( 'pve_zalo_appid', preg_replace( '/\D+/', '', (string) wp_unslash( isset( $_POST['zalo_appid'] ) ? $_POST['zalo_appid'] : '' ) ) );
+			echo '<div class="notice notice-success"><p>Đã lưu cấu hình Zalo.</p></div>';
 		}
 		if ( isset( $_POST['pve_uu_luu'] ) && check_admin_referer( 'pve_uu' ) ) {
 			$id = (int) $_POST['id'];
@@ -1297,10 +1402,13 @@ class POSH_Ve {
 		echo '<hr><h2>Đăng nhập Zalo – lấy số điện thoại khách</h2>';
 		echo '<p class="description">Để app tự lấy SĐT khi khách đăng nhập Zalo. Lấy <b>Secret Key</b> ở Zalo Mini App console: <i>Thông tin ứng dụng → App Secret Key</i>. Cần bật quyền <i>“Số điện thoại”</i> cho Mini App. Secret lưu tại đây (DB), không nằm trong mã nguồn.</p>';
 		$zs = (string) get_option( 'pve_zalo_secret', '' );
+		$zappid = (string) get_option( 'pve_zalo_appid', '' );
 		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'pve_zalo' );
+		echo '<tr><th>Zalo App ID</th><td><input name="zalo_appid" class="regular-text code" value="' . esc_attr( $zappid ) . '" placeholder="VD 1234567890123"> <span class="description">Dùng cho nút “Đăng nhập bằng Zalo” trên web.</span></td></tr>';
 		echo '<tr><th>Zalo App Secret Key</th><td><input name="zalo_secret" class="regular-text code" value="' . esc_attr( $zs ) . '" placeholder="Dán Secret Key">'
-			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình — app sẽ để khách nhập SĐT tay' ) . '</span></td></tr>';
-		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu Secret</button></p></form>';
+			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình' ) . '</span></td></tr>';
+		echo '<tr><th>Callback URL (khai trên Zalo)</th><td><code>' . esc_html( home_url( '/?pve_zalo=cb' ) ) . '</code><br><span class="description">Vào Zalo App console → Đăng nhập → thêm URL này vào <i>Redirect URI</i> hợp lệ. (Đăng nhập web lấy tên/ảnh Zalo; SĐT vẫn nhập ở form vì Zalo hạn chế lấy SĐT qua web.)</span></td></tr>';
+		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu cấu hình Zalo</button></p></form>';
 
 		/* ── Ưu đãi (hiện trên Zalo) ── */
 		echo '<hr><h2>Ưu đãi (hiện trên Zalo)</h2>';
