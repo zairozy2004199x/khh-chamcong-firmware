@@ -1632,8 +1632,25 @@
       var cp=el('btnChangePin'); if(cp) cp.style.display='none';   // SSO không có PIN -> ẩn đổi mật khẩu
       onLoggedIn(); return;
     }
+    /* 🔴 CÓ TOKEN THÌ LUÔN HỎI LẠI MÁY CHỦ "TÔI LÀ AI" — sessionStorage chỉ để VẼ NGAY.
+       Anh Thắng 08/09/2026, sau khi đã khai đủ vai và cài đúng bản: *"vẫn chưa"*, kèm ảnh
+       thanh tiêu đề còn ghi vai CŨ.
+
+       Bản 1.85.0 đã sửa máy chủ thôi tin vai ghi trong thẻ phiên. Nhưng giao diện thì đọc
+       `sessionStorage` xong là THOÁT LUÔN, không hỏi máy chủ câu nào — nên vai cũ nằm trong
+       trình duyệt sống mãi tới khi người ta đóng hẳn trình duyệt. Tải lại trang không dọn
+       được nó. Chú thích ngay dưới đây vẫn hứa "đổi vai là lần mở sau nhận ngay", mà nhánh
+       này đã chặn mất lời hứa đó.
+
+       Nay vẫn vẽ ngay bằng bản nhớ (khỏi nháy cổng PIN), rồi hỏi máy chủ và cập nhật đè lên.
+       Vai đổi thì màn tự đúng trong một nhịp. */
     var s=null; try{s=JSON.parse(sessionStorage.getItem('vhcp_user')||'null');}catch(e){}
-    if(s&&s.role){ CURUSER=s; onLoggedIn(); return; }
+    var tokS=''; try{tokS=localStorage.getItem('vhcp_token')||'';}catch(e){}
+    /* ⚠️ MẤT TOKEN THÌ KHÔNG CHO VÀO, dù bản nhớ còn nguyên. Bản nháp có nhánh "còn bản nhớ
+       thì cứ vào" — sai: không có token thì MỌI lệnh gọi máy chủ đều bị chối, nên người ta
+       vào một màn chết, bấm gì cũng báo lỗi và không hiểu vì sao. Bày cổng PIN là câu trả lời
+       thật thà. Phá thử chỉ ra nhánh ấy vì không phép nào phân biệt được nó. */
+    if(s&&s.role&&tokS){ CURUSER=s; el('gate').style.display='none'; onLoggedIn(); }
     /* 🔴 CÒN TOKEN THÌ HỎI MÁY CHỦ "TÔI LÀ AI", ĐỪNG BẮT NHẬP PIN LẠI (anh Thắng 07/09/2026).
 
        Token vốn đã sống 30 ngày trong `localStorage`, nhưng DANH TÍNH lại nằm ở
@@ -1646,16 +1663,20 @@
 
        ⚠️ VÀ DANH TÍNH LẤY TỪ MÁY CHỦ THÌ LUÔN ĐÚNG: đổi vai trò hay đổi cơ sở cho ai đó là lần
           mở trang sau họ nhận ngay, không phải đăng xuất rồi vào lại. */
-    var tok=''; try{tok=localStorage.getItem('vhcp_token')||'';}catch(e){}
+    var tok=tokS;
     if(!tok){ _moCongPin(); return; }
-    loading(true);
+    if(!(s&&s.role)) loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.ok&&r.role){
-        CURUSER={name:r.name,role:r.role,coso:r.coso,boPhan:r.boPhan||''};
+        var cu=_dungUser(r);
+        /* Vai/cơ sở đổi thì vẽ lại cả màn: bảng tab, quyền bấm nút và dữ liệu đều theo vai. */
+        var doiVai=!(s&&s.role===cu.role&&s.coso===cu.coso&&s.boPhan===(cu.boPhan||''));
+        CURUSER=cu;
         try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){}
-        el('gate').style.display='none'; onLoggedIn();
+        el('gate').style.display='none';
+        if(doiVai) onLoggedIn();
       } else { _moCongPin(); }
-    }).withFailureHandler(function(){ loading(false); _moCongPin(); }).aiDangDangNhap(tok);
+    }).withFailureHandler(function(){ loading(false); if(!(s&&s.role)) _moCongPin(); }).aiDangDangNhap(tok);
   }
   /* Phiên hết hạn / bị thu hồi thì dọn luôn token chết, khỏi hỏi lại máy chủ ở lần mở sau. */
   function _moCongPin(){
@@ -1667,7 +1688,7 @@
     if(!/^\d{4,8}$/.test(pin)){ el('gateErr').textContent='PIN phải 4–8 số'; return; }
     el('gateErr').textContent=''; loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.ok){ CURUSER={name:r.name,role:r.role,coso:r.coso,boPhan:r.boPhan||''}; try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){} el('gate').style.display='none'; onLoggedIn(); }
+      if(r&&r.ok){ CURUSER=_dungUser(r); try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){} el('gate').style.display='none'; onLoggedIn(); }
       else { el('gateErr').textContent=(r&&r.error)||'PIN không đúng'; el('gatePin').value=''; el('gatePin').focus(); }
     }).withFailureHandler(function(e){loading(false);el('gateErr').textContent=e.message;}).login(pin);
   }
@@ -2137,6 +2158,18 @@
   // Phân quyền theo ma trận cấu hình (Admin toàn quyền). BOOT.quyen = {actionKey:{role:bool}}
   /** Vai GỐC của người đang dùng. Vai tự tạo ("Nhân viên văn phòng") kế thừa một vai gốc;
       mọi bảng tra theo tên vai phải hỏi cái này, không thì vai tự tạo rơi vào nhánh mặc định. */
+  /* 🔴 DỰNG CURUSER Ở MỘT CHỖ, VÀ NHỚ CẢ `roleGoc`.
+     Ba chỗ dựng nó (đăng nhập · hỏi lại máy chủ · đọc từ sessionStorage) trước đây mỗi chỗ
+     chép tay bốn trường, và cả ba đều ĐÁNH RƠI `roleGoc`. Rơi nó thì `_vaiGoc()` lui về
+     `CURUSER.role` — tức TÊN VAI người ta khai. Vai gốc thì tình cờ vẫn khớp bảng tra tab,
+     nên không ai thấy gì; vai TỰ TẠO ("Kế toán máy tự động") không có trong bảng ấy nên rơi
+     vào nhánh mặc định và người đó chỉ còn đúng MỘT tab.
+
+     Lỗi này nằm im vì trước bản 1.85.0 thẻ phiên giữ vai cũ, mà vai cũ là vai gốc. Vá xong
+     chỗ kia là nó lộ ra ngay — nên phải vá cùng lượt. */
+  function _dungUser(r){
+    return { name:r.name, role:r.role, roleGoc:(r.roleGoc||r.role||''), coso:r.coso, boPhan:r.boPhan||'' };
+  }
   function _vaiGoc(){ return String((CURUSER&&(CURUSER.roleGoc||CURUSER.role))||''); }
   function canDo(action){
     if(CURUSER && CURUSER.role==='Admin') return true;
