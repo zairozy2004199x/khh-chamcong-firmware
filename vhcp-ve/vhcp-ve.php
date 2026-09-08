@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.32.0
+ * Version:           1.33.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1547,8 +1547,15 @@ class POSH_Ve {
 		<style id="pql-an-theme">
 		header.wp-block-template-part, footer.wp-block-template-part, #masthead, #colophon,
 		.site-header, .site-footer, .wp-block-site-title, .wp-block-post-title, .entry-header, #wpadminbar { display:none !important; }
-		html { margin-top:0 !important; } body { margin:0 !important; }
-		.entry-content, .wp-block-post-content, .is-layout-constrained, main, article { max-width:none !important; }
+		/* Cả trang nền đen (hết trắng 2 bên) */
+		html, body { margin:0 !important; padding:0 !important; background:#0b0c10 !important; }
+		/* Bỏ giới hạn chiều rộng của theme để .pql tự căn giữa */
+		.wp-site-blocks, .entry-content, .wp-block-group, main, .site-main, .content-area,
+		.wp-block-post-content, article, .page, .hentry, .is-layout-constrained, .is-layout-flow,
+		.wp-block-post-content > *, .entry-content > * {
+			max-width:none !important; width:auto !important; margin-left:0 !important; margin-right:0 !important;
+			padding-left:0 !important; padding-right:0 !important; background:transparent !important;
+		}
 		</style>
 		<?php endif; ?>
 		<div class="pql" data-rest="<?php echo esc_attr( $rest ); ?>">
@@ -1662,8 +1669,8 @@ class POSH_Ve {
 
 		<style>
 		.pql{ --g:#d4af37; --g2:#e7cd7a; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c;
-			box-sizing:border-box; width:100vw; margin-left:calc(50% - 50vw); min-height:100vh;
-			padding:24px max(16px, calc(50vw - 430px)) 56px; background:#0b0c10; color:var(--tx);
+			box-sizing:border-box; width:100%; max-width:900px; margin:0 auto; min-height:100vh;
+			padding:24px 16px 56px; color:var(--tx);
 			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 		.pql *{ box-sizing:border-box; }
 		.pql-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
