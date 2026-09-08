@@ -15,10 +15,10 @@ là bản đồ để người tới sau không phải dò lại.
 | Việc | Ở đâu |
 |---|---|
 | Mã nguồn | nhánh **`claude/quan-tri-cham-cong-ovmiud`** (repo `khh-chamcong-firmware`) |
-| Bản plugin | **3.47.0** (đi từ 3.41.0 trong đợt này) |
-| Bản cài | `dist/vhcp-cham-cong.zip` — đã đóng gói đúng 3.47.0 |
+| Bản plugin | **3.48.0** (đi từ 3.41.0 trong đợt này) |
+| Bản cài | `dist/vhcp-cham-cong.zip` — đã đóng gói đúng 3.48.0 |
 | Live | anh Thắng đã cài và xác nhận chạy ổn |
-| Bộ thử | **4821 phép** đạt (`test-cham-cong.php`), 8 bộ khác xanh |
+| Bộ thử | **4829 phép** đạt (`test-cham-cong.php`), 8 bộ khác xanh |
 
 ⚠️ **Nhánh này CHƯA gộp** vào `claude/rebuild-chi-phi-wordpress-hl2yze` (nhánh anh Thắng đang làm
 WordPress). Nó dựng TRÊN nhánh đó, nên gộp là chạy thẳng, không xung đột. Muốn lên live thì cài đè
@@ -45,6 +45,8 @@ nhân sự thì tìm ở đây trước.
 | Khối "nhân viên đang có của cơ sở" + cảnh báo trùng tên | `class-vhcc-web.php` · `khoi_nv_dang_co()` + hằng `JS_NV_DANG_CO` |
 | Thẻ 🔑 Tài khoản đăng nhập (chỉ hiện khi cổng đọc sai chỗ) | `class-vhcc-web.php` · `the_tai_khoan()` |
 | Chốt PIN trùng dùng chung cho MỌI đường ghi | `class-vhcc-nhan-su.php` · `pin_trung_loi()`, `pin_dang_dung()`, `pin_may_dang_dung()` |
+| Cửa trạm tra PIN (sổ PhanQuyen TRƯỚC, hồ sơ sau) | `class-vhcc-tram.php` · `tim_pin()` |
+| Lượt chấm hỏng thì hỏi lại máy chủ, đừng đoán | `templates/tram.php` · `soatLaiDaGhi()`, `chuoiHomNay()` |
 | Màn wp-admin: chỉ SỬA, không tạo | `class-vhcc-admin.php` · `trang_nhan_su()`, `url_them_hs()` |
 | Trang `/nhan-su/` (chỉ khai *ai vào được trang nào*) | `class-vhcc-trang-ns.php` |
 
@@ -54,7 +56,7 @@ nhân sự thì tìm ở đây trước.
 
 ---
 
-## 3. Bốn cái bẫy đã trả giá — đừng lặp
+## 3. Bảy cái bẫy đã trả giá — đừng lặp
 
 **1. Dấu `+` trong địa chỉ.** Mã lệnh "hồ sơ mới" từng là `sua=+`. Liên kết sinh ra đúng
 (`sua=%2B`), nhưng chỉ cần một chặng trả `%2B` về `+` nguyên hình là PHP đọc thành **dấu cách**,
@@ -81,14 +83,30 @@ PIN phải bỏ qua ô trống, kẻo sửa số điện thoại cũng bị ch�
 Luật rút ra: phép thử phủ định ("không thấy X") phải kèm một phép khẳng định chứng minh trang đã
 dựng thật.
 
+**5. Chốt chặn phải đọc ĐÚNG NHỮNG KHO MÀ CỬA NÓ ĐANG GÁC ĐỌC.** `pin_dang_dung()` bản 3.47.0
+chỉ soát bảng hồ sơ, trong khi cửa trạm `VHCC_Tram::tim_pin()` tra **sổ PhanQuyen trước**, hồ sơ
+sau. Hệ quả: người mới được cấp đúng con số sổ cũ đã cấp cho người khác thì **đăng nhập ra người
+kia** — tên trên trạm là tên người kia, lượt chấm ghi sang mã người kia, không một dòng báo lỗi.
+Sửa ở 3.48.0, và phép thử đo **cả hai đầu** (cửa ghi có chối không, *và* cửa trạm có nhận nhầm
+không) — đo mỗi cửa ghi thì chốt đặt sai kho vẫn xanh.
+
+**6. Câu chối phải chỉ tới ô CÓ THẬT trên trang người ta vừa dùng.** *"Chưa khai Cơ sở chấm công
+online"* nhắc một ô chỉ có ở màn PhanQuyen cũ; người vừa lập hồ sơ qua biểu mẫu một cửa đi tìm
+mãi không thấy. Chỉ sai chỗ còn tệ hơn không chỉ.
+
+**7. Quá hạn KHÔNG đồng nghĩa "chưa ghi".** Lượt `cham` là lượt duy nhất mang ảnh; quá hạn
+thường là ảnh đã đi rồi, chỉ câu trả lời chưa về. Đoán hộ người dùng kiểu nào cũng sai một nửa
+số lần — mà đoán "chưa ghi" thì họ bấm lượt hai, và lượt hai ngay sau giờ vào là **giờ ra**, mất
+cả ca công. Máy chủ biết thừa câu trả lời: hỏi lại nó (`soatLaiDaGhi`), đừng đoán.
+
 ---
 
 ## 4. Chạy kiểm & đóng gói
 
 ```bash
-php tools/test/test-cham-cong.php        # 4821 phép — bộ chính
+php tools/test/test-cham-cong.php        # 4829 phép — bộ chính
 php tools/test/kiem-noi-bo.php           # 439
-php tools/test/kiem-tram.php             # 291
+php tools/test/kiem-tram.php             # 311
 php tools/test/kiem-mat.php              # 189
 php tools/test/kiem-phan-quyen.php       # 117
 php tools/test/kiem-du-an.php            # 149
@@ -133,6 +151,6 @@ unzip -p dist/vhcp-cham-cong.zip vhcp-cham-cong/vhcp-cham-cong.php | grep VHCC_V
 
 | File | Nội dung |
 |---|---|
-| `docs/TRANG-QUAN-LY-NHAN-SU.md` | chi tiết từng bản 3.42 → 3.47, kèm lý do và phép thử |
+| `docs/TRANG-QUAN-LY-NHAN-SU.md` | chi tiết từng bản 3.42 → 3.48, kèm lý do và phép thử |
 | `docs/CHAM-CONG-DUNG-MOI.md` | luồng chấm công tổng thể |
 | `docs/CAI-LEN-HOSTING.md` | cài lên host |

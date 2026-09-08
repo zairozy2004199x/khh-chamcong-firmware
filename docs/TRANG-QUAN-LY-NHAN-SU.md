@@ -280,6 +280,68 @@ tạo người).
 
 ---
 
+## 4c. Người mới thêm xong không chấm công được — 3.48.0 (08/09/2026)
+
+Anh Thắng chụp màn `/cham-cong/` mở trong Zalo: *"thêm nhân viên bị lỗi ở chấm công"*, rồi hỏi
+*"khả năng nào không chọn nhiệm vụ lỗi không"* và chốt lại *"tại báo cáo lỗi không rõ ràng"*.
+
+Dựng lại đúng cảnh ấy trong bộ giả lập (`scratchpad/sim-moi.php`, và nay là phép thử thật) ra **ba
+câu trả lời khác nhau** — không cái nào là cái ban đầu tưởng.
+
+### a) Không chọn nhiệm vụ **không** phải nguyên nhân
+
+Gác nhiệm vụ trong `VHCC_Online::cham_cong()` chỉ chạy khi ô ấy **khác rỗng**. Bỏ trống là đi
+thẳng: bộ giả lập cho người vừa được thêm chấm với `nhiemVu:''` → `ok:true, loai:"vao"`. Trang
+trạm cũng không dựng ô nhiệm vụ khi hồ sơ chưa khai việc nào. Đã khoá lại bằng phép thử trong
+`kiem-tram.php` để lần sau không phải hỏi lại.
+
+### b) Lỗ thật: **PIN đăng nhập trùng với sổ PhanQuyen cũ**
+
+Chốt chặn PIN trùng ở 3.47.0 chỉ soát **bảng hồ sơ**. Nhưng cửa trạm `VHCC_Tram::tim_pin()` tra
+**sổ PhanQuyen TRƯỚC**, hồ sơ sau. Nên cấp cho người mới đúng con số mà sổ cũ đã cấp cho người
+khác thì **lọt** — rồi người mới gõ PIN của mình lại **vào nhầm tài khoản người kia**: tên hiện
+trên trạm là tên người kia, lượt chấm ghi sang mã người kia. Không một dòng báo lỗi, đúng loại
+hỏng im lặng mà người dùng tưởng mình bấm nhầm.
+
+Nay `pin_dang_dung()` soát **cả hai kho, theo đúng thứ tự cửa trạm đọc**. Hai ngoại lệ cố ý:
+
+* hàng sổ cũ mang **đúng mã đang sửa** → cho, vì đó là hai bản ghi của **cùng một người**;
+* hàng sổ cũ **chưa khai mã chấm công** → cho, vì `tim_pin` bỏ qua hàng ấy nên nó không cướp được
+  phiên của ai — mà chuyện thường gặp nhất lại là *chính người ấy* đã có tên trong sổ cũ và nay
+  mới được lập hồ sơ với đúng PIN quen dùng. Chặn nhóm đó là chối oan hàng loạt.
+
+Câu chối cũng nói thẳng số ấy **nằm ở sổ PhanQuyen cũ**, kẻo người sửa đi tìm cái mã đó trong
+danh sách hồ sơ và không thấy đâu.
+
+### c) Báo lỗi rõ ràng ở trạm
+
+| Trước | Nay |
+|---|---|
+| `Chưa khai "Cơ sở chấm công online" cho tài khoản này.` — ô ấy **chỉ có ở màn PhanQuyen cũ**, không có trên biểu mẫu một cửa họ vừa dùng | gọi tên người phải sửa, và chỉ đúng **lưới "Cơ sở"** trong hồ sơ |
+| chưa có cơ sở mà nút **CHẤM CÔNG** vẫn sáng: bấm → chờ camera → chụp → bấm lưu → mới ăn câu chối | khoá nút **ngay lúc mở trang**, kèm câu nói rõ ai phải sửa gì |
+| `Máy chủ không trả lời sau 10 giây` rồi hết — người đứng đó không biết bấm lại hay không | **hỏi lại máy chủ** rồi trả lời dứt khoát (xem dưới) |
+| `Failed to fetch` / `Load failed` — chữ của trình duyệt, ba trình ba câu | dịch ra việc phải làm, **giữ chữ gốc trong ngoặc** để còn đối chiếu |
+| không có gì để đọc trên ảnh chụp màn | mã ngắn cuối câu: `[QUA-HAN: cham]`, `[MAT-MANG: …]`, `[HTTP-500: cham]` |
+
+**Quá hạn KHÔNG đồng nghĩa chưa ghi.** Lượt `cham` là lượt duy nhất mang ảnh; quá hạn thường là
+ảnh đã đi rồi, chỉ câu trả lời chưa về. Bảo "chưa lưu được" là mời người ta bấm lượt thứ hai — mà
+lượt thứ hai ngay sau giờ vào là **giờ ra**, mất cả ca công. Nên `soatLaiDaGhi()` chụp bảng *hôm
+nay* của cơ sở ấy **trước khi gửi**, và khi lượt gọi hỏng thì hỏi lại bằng một lượt `toi` nhẹ
+(không ảnh) rồi so:
+
+* bảng đổi → **đã ghi thật**: đóng màn chọn, bỏ ảnh, và dặn *đừng bấm lại*;
+* bảng y nguyên → **chưa ghi**: bảo bấm lưu lần nữa;
+* hỏi lại cũng hỏng → nói thẳng là **chưa biết**, và chỉ cách tự kiểm bằng bảng *Hôm nay*.
+
+So **cả bảng** (kèm giờ ra) chứ không chỉ *"đã có giờ vào chưa"* — buổi chiều thì giờ vào buổi
+sáng vẫn nằm đó, đếm kiểu ấy là lượt tan làm nào cũng ra "đã ghi rồi".
+
+Phép thử: 8 phép trong `test-cham-cong.php` (đo **cả hai đầu**: cửa ghi có chối không, *và* cửa
+trạm có thật sự nhận nhầm người không — đo mỗi cửa ghi thì chốt đặt sai chỗ vẫn xanh) và 20 phép
+trong `kiem-tram.php`.
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

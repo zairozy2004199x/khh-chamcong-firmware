@@ -299,7 +299,14 @@ class VHCC_Online {
 			}
 		}
 		if ( '' === $coso ) {
-			return array( 'ok' => false, 'error' => 'Chưa khai "Cơ sở chấm công online" cho tài khoản này.' );
+			/* 🔴 08/09/2026 — CÂU NÀY TỪNG CHỈ SAI CHỖ. Nó nhắc ô *"Cơ sở chấm công online"*, mà ô
+			   ấy chỉ có ở màn PhanQuyen cũ; người vừa được lập hồ sơ qua biểu mẫu một cửa thì
+			   thứ còn thiếu là **lưới Cơ sở** trong hồ sơ. Anh Thắng: *"tại báo cáo lỗi không rõ
+			   ràng"* — người đọc câu chối phải đi thẳng được tới ô phải sửa, chứ không phải đi
+			   tìm một ô không tồn tại trên trang họ vừa dùng. */
+			return array( 'ok' => false, 'error' => 'Hồ sơ của ' . trim( (string) $u['ho_ten'] )
+				. ' (mã ' . $ma_nv . ') chưa tích cơ sở nào, nên lượt chấm không biết ghi vào đâu. '
+				. 'Nhờ quản lý mở hồ sơ người này và tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu.' );
 		}
 
 		// Gác 3: nhiệm vụ cũng đi lên từ client -> cũng đối chiếu với hồ sơ.

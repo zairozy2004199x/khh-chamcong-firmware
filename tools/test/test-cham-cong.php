@@ -6639,6 +6639,47 @@ $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ), array(
 $h_tr3 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'dọn hết trùng thì dải báo TẮT', strpos( $h_tr3, 'người dùng chung' ) === false );
 
+/* --- LỖ CÒN LẠI SAU 3.47.0: SỔ PhanQuyen CŨ (08/09/2026) ------------------------------------
+   🔴 Anh Thắng: *"thêm nhân viên bị lỗi ở chấm công"*. Dựng lại trong bộ giả lập thì lộ ra:
+      cửa trạm (`VHCC_Tram::tim_pin`) tra **sổ PhanQuyen TRƯỚC**, bảng hồ sơ sau. Bản 3.47.0
+      chỉ soát bảng hồ sơ, nên cấp cho người mới đúng con số sổ cũ đã cấp cho người khác vẫn
+      lọt — rồi người mới gõ PIN của mình mà vào nhầm tài khoản người kia: lượt chấm ghi sang
+      mã người kia, tên hiện trên trạm là tên người kia. Không một dòng báo lỗi.
+      Phép thử phải đo CẢ HAI đầu: cửa ghi có chối không, VÀ cửa trạm có thật sự nhận nhầm
+      người không — đo mỗi cửa ghi thì chốt sai chỗ vẫn xanh. */
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '445566', 'ho_ten' => 'Người Sổ Cũ',
+	'vai_tro' => 'NHAN_VIEN', 'cua_hang' => 'JP_HCM', 'ma_cc_online' => 'PQ1',
+	'coso_cc_online' => 'CS_JP_HCM' ) );
+$tp = VHCC_Tram::tim_pin( '445566' );
+teq( '🔴 cửa trạm tra sổ PhanQuyen TRƯỚC — đây là lý do phải soát cả sổ ấy', 'phan_quyen', $tp['kho'] );
+teq( 'và trả về người của sổ cũ', 'PQ1', $tp['ma_nv'] );
+
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT2', 'pin_dang_nhap' => '445566' ) );
+t( '🔴 PIN đã có trong SỔ PhanQuyen -> CHỐI (3.47.0 vẫn cho lọt)', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ số ấy nằm ở sổ cũ, kẻo đi tìm mã đó trong danh sách hồ sơ',
+	! empty( $r['error'] ) && strpos( $r['error'], 'sổ PhanQuyen cũ' ) !== false, $r );
+teq( 'và không ghi gì', '', (string) vhcc_hs( 'PT2' )['pin_dang_nhap'] );
+
+/* ⚠️ CHÍNH NGƯỜI ẤY thì phải cho: sổ cũ và hồ sơ là hai bản ghi của cùng một người, khớp nhau
+   bằng `ma_cc_online`. Chối ở đây là mỗi lượt sửa hồ sơ người cũ đều bị chối oan. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'PQ1', 'ho_ten' => 'Người Sổ Cũ',
+	'cua_hang' => 'JP_HCM' ) );
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PQ1', 'pin_dang_nhap' => '445566' ) );
+t( '🔴 chính chủ của hàng sổ cũ ấy thì KHÔNG bị chối', ! empty( $r['ok'] ), $r );
+
+/* ⚠️ Hàng sổ cũ CHƯA khai mã chấm công thì KHÔNG chặn: `tim_pin` bỏ qua hàng ấy đi tiếp xuống
+   hồ sơ, nên nó không cướp được phiên của ai — mà chuyện thường gặp nhất lại là *chính người
+   ấy* đã có tên trong sổ cũ và nay mới được lập hồ sơ với đúng PIN quen dùng. Chặn nhóm này
+   là chối oan hàng loạt đúng lúc đang nhập liệu. */
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '447788', 'ho_ten' => 'Sổ Cũ Chưa Mã',
+	'vai_tro' => 'NHAN_VIEN', 'cua_hang' => 'JP_HCM', 'ma_cc_online' => '', 'coso_cc_online' => '' ) );
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'PT2', 'pin_dang_nhap' => '447788' ) );
+t( '🔴 hàng sổ cũ CHƯA khai mã thì cho lưu (không cướp được phiên của ai)', ! empty( $r['ok'] ), $r );
+teq( 'và ghi được thật', '447788', vhcc_hs( 'PT2' )['pin_dang_nhap'] );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) . " WHERE pin IN ('445566','447788')" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='PQ1'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ), array( 'ma_nv' => 'PT2' ) );
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' )
 	. " WHERE ma_nv IN ('PT1','PT2','PT3','PT4','PT5','PT6')" );
 

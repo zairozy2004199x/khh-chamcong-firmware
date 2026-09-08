@@ -1528,12 +1528,42 @@ class VHCC_NhanSu {
 	 */
 	public static function pin_dang_dung( $pin, $tru_ma = '' ) {
 		global $wpdb;
-		$pin = trim( (string) $pin );
+		$pin    = trim( (string) $pin );
 		if ( '' === $pin ) { return ''; }
+		$tru_ma = trim( (string) $tru_ma );
+
 		$ma = $wpdb->get_var( $wpdb->prepare(
 			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' )
-			. ' WHERE pin_dang_nhap=%s AND ma_nv<>%s LIMIT 1', $pin, trim( (string) $tru_ma ) ) );
-		return null === $ma ? '' : (string) $ma;
+			. ' WHERE pin_dang_nhap=%s AND ma_nv<>%s LIMIT 1', $pin, $tru_ma ) );
+		if ( null !== $ma ) { return (string) $ma; }
+
+		/* 🔴 08/09/2026 — PHẢI SOÁT CẢ SỔ PhanQuyen, KHÔNG CHỈ BẢNG HỒ SƠ.
+		 *    Anh Thắng: *"thêm nhân viên bị lỗi ở chấm công"*. Dựng lại trong bộ giả lập thì ra
+		 *    thế này: cửa trạm (`VHCC_Tram::tim_pin`) tra **sổ PhanQuyen TRƯỚC**, hồ sơ sau. Bản
+		 *    3.47.0 chỉ soát bảng hồ sơ, nên cấp cho người mới đúng con số mà sổ cũ đã cấp cho
+		 *    người khác vẫn lọt — rồi người mới gõ PIN của mình mà **vào nhầm tài khoản người
+		 *    kia**: lượt chấm ghi sang mã người kia, tên hiện trên trạm là tên người kia. Hỏng
+		 *    im lặng, đúng loại lỗi không ai báo vì tưởng mình bấm nhầm.
+		 *    Chốt đặt ở ĐÂY chứ không ở nơi gọi: cả bốn đường ghi hồ sơ đều đi qua hàm này.
+		 *
+		 * ⚠️ CHỈ chặn hàng có `ma_cc_online` KHÁC RỖNG và khác mã đang sửa. Hai lý do:
+		 *    (1) đó đúng là hàng cướp được phiên — `tim_pin` chỉ trả về từ sổ này khi có mã;
+		 *    (2) hàng `ma_cc_online` rỗng thì KHÔNG biết là của ai, mà chuyện thường gặp nhất
+		 *        là *chính người ấy* đã có tên trong sổ cũ và nay mới được lập hồ sơ với đúng
+		 *        PIN quen dùng — chặn nhóm đó là chối oan hàng loạt.
+		 */
+		$t_pq = VHCC_DB::t( 'phan_quyen' );
+		if ( ! VHCC_DB::co_bang( $t_pq ) ) { return ''; }
+		$rows = VHCC_DB::rows( "SELECT pin, ma_cc_online FROM $t_pq WHERE pin <> '' AND ma_cc_online <> ''" );
+		foreach ( (array) $rows as $r ) {
+			/* So bằng `pin_sach` chứ không so chuỗi thô: sổ cũ kéo từ Sheets nên có hàng mang
+			   dấu nháy đầu hoặc khoảng trắng thừa — đúng cái mà cửa trạm cũng gột trước khi so,
+			   nên soát ở đây phải gột y hệt, kẻo chặn hụt đúng hàng sẽ cướp phiên. */
+			if ( VHCC_Auth::pin_sach( $r['pin'] ) !== VHCC_Auth::pin_sach( $pin ) ) { continue; }
+			$k = trim( (string) $r['ma_cc_online'] );
+			if ( '' !== $k && $k !== $tru_ma ) { return $k; }
+		}
+		return '';
 	}
 
 	/**
@@ -1588,11 +1618,14 @@ class VHCC_NhanSu {
 		if ( ! empty( $ghi['pin_dang_nhap'] ) ) {
 			$k = self::pin_dang_dung( $ghi['pin_dang_nhap'], $ma );
 			if ( '' !== $k ) {
-				$hs = self::ho_so( $k );
+				$hs  = self::ho_so( $k );
 				$ten = ( $hs && '' !== trim( (string) $hs['ho_ten'] ) ) ? $hs['ho_ten'] : $k;
-				return 'PIN đăng nhập này đã cấp cho ' . $ten . ' (' . $k . '). Hai người cùng PIN '
-					. 'thì cổng nhận người gặp trước, và nhật ký ghi tên người đó — người kia làm '
-					. 'gì cũng mang tên người này. Chọn số khác.';
+				/* Không có hồ sơ mang mã ấy = số này tới từ SỔ PhanQuyen cũ. Nói thẳng ra, kẻo
+				   người sửa đi tìm mã đó trong danh sách hồ sơ và không thấy đâu. */
+				$o_dau = $hs ? '' : ' (đang nằm trong sổ PhanQuyen cũ, chưa có hồ sơ)';
+				return 'PIN đăng nhập này đã cấp cho ' . $ten . ' (' . $k . ')' . $o_dau . '. Hai người '
+					. 'cùng PIN thì cổng nhận người gặp trước, và nhật ký ghi tên người đó — người kia '
+					. 'làm gì cũng mang tên người này. Chọn số khác.';
 			}
 		}
 		if ( ! empty( $ghi['pin_may'] ) ) {

@@ -260,9 +260,39 @@ function loiToanCuc(chu){
 	}
 	o.textContent = '⚠ Trang gặp lỗi — chụp màn hình này gửi kỹ thuật:\n' + chu;
 }
+/* 🔴 08/09/2026 — LỖI CỦA ỨNG DỤNG MỞ TRANG, KHÔNG PHẢI LỖI CỦA TRANG.
+   Anh Thắng chụp màn hình: dải đỏ "Trang gặp lỗi" ghi `ReferenceError: Can't find variable:
+   zaloJSV2`. `zaloJSV2` KHÔNG có ở đâu trong mã của mình — đó là cầu nối do trình duyệt trong
+   Zalo tự chèn vào trang, và chính nó lỗi. Trang mình vẫn chạy bình thường.
+   Nhưng bộ bắt lỗi ở trên bắt HẾT, nên nó dựng dải đỏ báo "trang gặp lỗi" cho một lỗi mình
+   không gây ra và cũng không sửa được — vừa làm người dùng sợ, vừa CHE mất lỗi thật nếu có lỗi
+   thật xảy ra sau đó (dải chỉ hiện một nội dung).
+   ⚠️ VẪN IN RA, chỉ hạ xuống một dòng xám và nói đúng nó của ai — cái nếp "bắt hết, in thẳng
+      lên trang" là thứ đã cứu ba lần trước, đừng đổi thành im lặng.
+   ⚠️ Danh sách hẹp, chỉ mấy cái cầu nối đã gặp thật. Đừng nới thành "mọi ReferenceError": gõ
+      nhầm tên biến trong mã mình cũng ra đúng loại lỗi ấy, mà đó là lỗi PHẢI thấy. */
+function loiCuaUngDung(chu){
+	return /Can't find variable:\s*(zalo|Zalo|fb|FB|messenger|line)[A-Za-z0-9_]*/.test(chu)
+		|| /\b(zaloJSV?\d*|ZaloJSV?\d*)\b.*(not defined|undefined)/.test(chu);
+}
+function ghiChuUngDung(chu){
+	var o = document.getElementById('loiUngDung');
+	if(!o){
+		o = document.createElement('div');
+		o.id = 'loiUngDung';
+		o.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:98;background:#1e293b;'
+			+ 'color:#94a3b8;padding:6px 10px;font-size:11.5px;line-height:1.4;max-height:22vh;'
+			+ 'overflow:auto;white-space:pre-wrap';
+		if(document.body){ document.body.appendChild(o); }
+	}
+	o.textContent = 'Ghi chú: ứng dụng đang mở trang này (Zalo/Facebook…) báo lỗi của CHÍNH NÓ — '
+		+ 'không phải lỗi trang chấm công, cứ dùng bình thường:\n' + chu;
+}
 window.addEventListener('error', function(e){
-	loiToanCuc((e && e.message ? e.message : 'lỗi không rõ')
-		+ (e && e.filename ? '\n' + String(e.filename).split('/').pop() + ':' + e.lineno : ''));
+	var chu = (e && e.message ? e.message : 'lỗi không rõ')
+		+ (e && e.filename ? '\n' + String(e.filename).split('/').pop() + ':' + e.lineno : '');
+	if(loiCuaUngDung(e && e.message ? String(e.message) : '')){ ghiChuUngDung(chu); return; }
+	loiToanCuc(chu);
 });
 window.addEventListener('unhandledrejection', function(e){
 	var r = e && e.reason;
@@ -290,7 +320,20 @@ var CHO_TOI_DA = 10000;   /* ms — quá lâu thì coi như máy chủ không tr
    Mười giây, không phải mười lăm: người ta đang đứng chờ để vào ca, và mười lăm giây nhìn một
    màn hình không nhúc nhích đủ để họ bỏ đi gọi quản lý. */
 
-function goi(viec, than){
+/* 🔴 08/09/2026 — LƯỢT CÓ ẢNH PHẢI ĐƯỢC CHỜ LÂU HƠN.
+   Anh Thắng chụp màn "Máy chủ không trả lời sau 10 giây" ngay ở nút LƯU CHẤM CÔNG, mở trong
+   trình duyệt của Zalo, mạng 5G.
+   Mười giây là hạn đặt cho mấy lượt gọi NHẸ (giờ máy chủ, thông tin tôi, phiên) — ở đó người ta
+   đứng nhìn một màn hình trống nên phải nói sớm. Nhưng lượt `cham` là lượt DUY NHẤT mang ẢNH:
+   720px q0.8 gói base64 ra ~100–200 KB. Đường lên của 4G/5G trong nhà, qua webview của Zalo,
+   cộng thêm một host chậm là quá 10 giây rất dễ — mà lúc đó ẢNH ĐÃ ĐI RỒI, chỉ là câu trả lời
+   chưa kịp về. Cắt ở 10 giây là báo "hosting quá tải" cho một lượt vẫn đang chạy tử tế, và người
+   ta bấm lại lần nữa — hai lượt chấm công cho một lần vào ca.
+   ⚠️ KHÔNG nới hạn của mấy lượt nhẹ: chờ 25 giây một cái tên là màn hình đứng im quá lâu, đúng
+      thứ mà hạn 10 giây được đặt ra để chặn. */
+var CHO_CO_ANH = 25000;
+
+function goi(viec, than, cho){
 	var url = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec);
 	var ma  = 0;
 
@@ -303,6 +346,7 @@ function goi(viec, than){
 
 	   Đợi vô hạn không bao giờ là câu trả lời đúng. Mười lăm giây rồi nói thật. */
 	var het  = null;
+	var han  = cho || CHO_TOI_DA;
 	var chan = ( typeof AbortController !== 'undefined' ) ? new AbortController() : null;
 	var tuy  = {
 		method:'POST', credentials:'same-origin',
@@ -314,11 +358,20 @@ function goi(viec, than){
 	return new Promise(function(xong, hong){
 		het = setTimeout(function(){
 			if(chan){ try { chan.abort(); } catch(e){} }
-			hong(new Error('Máy chủ không trả lời sau ' + Math.round(CHO_TOI_DA/1000)
+			hong(new Error('Máy chủ không trả lời sau ' + Math.round(han/1000)
 				+ ' giây. Thường là hosting đang quá tải hoặc chặn đường này — thử lại, '
-				+ 'nếu vẫn vậy thì báo quản trị xem nhật ký lỗi.'));
-		}, CHO_TOI_DA);
-		fetch(url, tuy).then(xong, hong);
+				+ 'nếu vẫn vậy thì báo quản trị xem nhật ký lỗi. [QUA-HAN: ' + viec + ']'));
+		}, han);
+		/* 🔴 08/09/2026 — anh Thắng: *"tại báo cáo lỗi không rõ ràng"*.
+		   `fetch` hỏng thì ném đúng chữ của trình duyệt: "Failed to fetch" (Chrome),
+		   "Load failed" (Safari/webview Zalo), "NetworkError…" (Firefox) — ba câu tiếng Anh,
+		   không câu nào nói được phải làm gì. Dịch ra một câu nói được VIỆC PHẢI LÀM, và giữ
+		   nguyên chữ gốc trong ngoặc để còn đối chiếu khi anh chụp màn gửi về. */
+		fetch(url, tuy).then(xong, function(e){
+			hong(new Error('Không gửi được lên máy chủ — mất mạng giữa chừng, hoặc trình duyệt '
+				+ 'chặn đường này. Kiểm tra sóng rồi bấm lại. [MAT-MANG: '
+				+ ((e && e.message) || 'không rõ') + ']'));
+		});
 	}).then(function(r){
 		clearTimeout(het);
 		return r;
@@ -341,7 +394,7 @@ function goi(viec, than){
 			   thường lộ nguyên nhân ngay dòng đầu. */
 			var dau = String(chu || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
 			throw new Error('Máy chủ trả về nội dung không đọc được (mã ' + ma + ').' + goi_y
-				+ (dau ? ' Máy chủ nói: ' + dau : ''));
+				+ (dau ? ' Máy chủ nói: ' + dau : '') + ' [HTTP-' + ma + ': ' + viec + ']');
 		}
 		if(j && j.ma==='het_phien'){ dangXuat(true); throw new Error(j.error||'Phiên đã hết'); }
 		return j;
@@ -737,6 +790,17 @@ function napToi(){
 		el('csToi').textContent  = j.coSoMacDinh || '—';
 		el('btCham').disabled = false;
 		veCoSo(j);
+		/* 🔴 08/09/2026 — CHƯA CÓ CƠ SỞ THÌ KHOÁ NÚT NGAY, đừng để họ chụp ảnh xong mới biết.
+		   Hồ sơ vừa lập mà quên tích lưới Cơ sở là `dsCoSo` rỗng: máy chủ vẫn cho đăng nhập
+		   (đúng — nói được "thiếu gì" thì hơn là báo PIN sai), nhưng lượt `cham` chắc chắn bị
+		   chối. Trước bản này nút vẫn sáng, nên người ta đi hết đường: bấm chấm, chờ camera,
+		   chụp, bấm lưu — rồi mới ăn một câu chối. Chối SỚM và nói rõ ai phải sửa. */
+		if(!((j.dsCoSo && j.dsCoSo.length) || j.coSoMacDinh)){
+			el('btCham').disabled = true;
+			bao('trangThai','dong','Hồ sơ của ' + (j.hoTen||'') + ' (mã ' + (j.maNV||'—')
+				+ ') chưa tích cơ sở nào, nên chưa chấm công được. Nhờ quản lý mở hồ sơ người này, '
+				+ 'tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu — xong thì tải lại trang này.');
+		}
 		/* Đường sang trang quản trị chỉ hiện khi MÁY CHỦ gửi nó về — tức người này thật sự mở
 		   được. Trang không tự đoán theo vai trò: đoán ở đây là bộ luật quyền thứ hai, và bộ
 		   thứ hai bao giờ cũng lệch trước. */
@@ -1117,7 +1181,8 @@ el('btLuu').addEventListener('click', function(){
 	var nv = oNV ? oNV.value : '';
 
 	var anhVuaGui = ANH;   /* giữ lại để đối chiếu mặt SAU KHI giờ đã ghi xong */
-	goi('cham',{ token:token(), anh:ANH, gps:GPS, coSo:cs, nhiemVu:nv }).then(function(j){
+	var truocKhiGui = chuoiHomNay(cs);   /* ảnh chụp trạng thái để soát lại nếu lượt gọi hỏng */
+	goi('cham',{ token:token(), anh:ANH, gps:GPS, coSo:cs, nhiemVu:nv }, CHO_CO_ANH).then(function(j){
 		if(!j || !j.ok){ bao('loiChon','dong',(j&&j.error)||'Không lưu được.'); return; }
 		ANH = null;
 		soiMat(anhVuaGui, j.ngay, j.coSo);
@@ -1127,12 +1192,73 @@ el('btLuu').addEventListener('click', function(){
 			+ ' (' + j.ngay + ')' + (j.ma!==(TOI&&TOI.maNV) ? ' · hàng ' + j.ma : ''));
 		napToi();
 	}).catch(function(e){
-		bao('loiChon','dong', e.message || 'Lỗi mạng — chưa lưu được. Bấm lại.');
+		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */
+		return soatLaiDaGhi(cs, truocKhiGui, (e && e.message) || 'Lỗi mạng — chưa lưu được.');
 	}).then(function(){
 		DANG_LUU = false;
 		b.disabled = false; b.textContent = 'LƯU CHẤM CÔNG';
 	});
 });
+
+/* Trạng thái "hôm nay" của MỘT cơ sở, gói thành một chuỗi để so trước/sau. Gồm cả giờ ra, nên
+   lượt TAN LÀM cũng so được — chỉ đếm "đã có giờ vào chưa" thì buổi chiều lượt nào cũng ra
+   "đã ghi rồi", vì giờ vào buổi sáng vẫn nằm đó. */
+function chuoiHomNay(cs){
+	var ds = (TOI && TOI.homNay && TOI.homNay[cs]) || [], r = [];
+	for(var i=0;i<ds.length;i++){
+		r.push((ds[i].hauTo||'') + '|' + (ds[i].vao||'') + '|' + (ds[i].ra||''));
+	}
+	return r.join(';');
+}
+
+function chuHomNay(cs){
+	var ds = (TOI && TOI.homNay && TOI.homNay[cs]) || [], r = [];
+	for(var i=0;i<ds.length;i++){
+		r.push((ds[i].hauTo ? ('hàng ' + ds[i].hauTo + ': ') : '')
+			+ 'vào ' + (ds[i].vao || '—') + ', ra ' + (ds[i].ra || '—'));
+	}
+	return r.join(' · ');
+}
+
+/**
+ * LƯỢT `cham` HỎNG THÌ HỎI LẠI MÁY CHỦ, ĐỪNG ĐOÁN.
+ *
+ * 🔴 08/09/2026 — anh Thắng: *"tại báo cáo lỗi không rõ ràng"*, sau khi chụp màn "Máy chủ không
+ *    trả lời sau 10 giây" ở nút LƯU CHẤM CÔNG.
+ *    Quá hạn KHÔNG có nghĩa là chưa ghi. Ảnh đã đi rồi; thứ chưa về chỉ là câu trả lời. Nên câu
+ *    lỗi cũ đặt người đứng đó vào đúng thế không biết đường nào mà lần: bấm lại thì có thể
+ *    thành **giờ ra** ngay sau giờ vào (mất cả ca công), không bấm thì có thể **không có giờ
+ *    vào nào**. Đoán hộ họ theo kiểu nào cũng sai một nửa số lần.
+ *    Máy chủ biết thừa câu trả lời. Chỉ cần hỏi: một lượt `toi` nhẹ (không ảnh), so bảng
+ *    "hôm nay" của cơ sở ấy với ảnh chụp lúc trước khi gửi.
+ *
+ * ⚠️ So CẢ BẢNG chứ không so "có giờ vào chưa" — xem `chuoiHomNay`.
+ * ⚠️ Hỏi lại mà cũng hỏng thì NÓI THẲNG LÀ KHÔNG BIẾT, và chỉ việc kiểm tra bằng tay. Bịa ra
+ *    một câu chắc chắn ở đây là thứ đắt nhất: nó khiến người ta bấm thêm một lượt nữa.
+ */
+function soatLaiDaGhi(cs, truoc, loi){
+	bao('loiChon','vang', loi + ' — đang hỏi lại máy chủ xem giờ có vào được không…');
+	return goi('toi',{token:token()}).then(function(j){
+		if(!j || !j.ok || !j.bat){ throw new Error('chưa đọc được hồ sơ'); }
+		TOI = j; veHomNay(j);
+		if(chuoiHomNay(cs) === truoc){
+			bao('loiChon','dong', loi + ' Đã hỏi lại máy chủ: ở ' + cs
+				+ ' hôm nay KHÔNG có gì mới — giờ CHƯA được ghi. Bấm LƯU CHẤM CÔNG lần nữa.');
+			return;
+		}
+		/* Đã ghi thật -> đóng màn chọn và bỏ ảnh, y như lượt thành công. Để nguyên màn ấy là
+		   mời người ta bấm thêm lượt nữa. */
+		ANH = null;
+		hien('mChon',false);
+		bao('loiChon','',null);
+		bao('baoCham','xanh','✔ Câu trả lời về chậm, nhưng GIỜ ĐÃ ĐƯỢC GHI. Hôm nay ở ' + cs
+			+ ' — ' + chuHomNay(cs) + '. ĐỪNG bấm lưu lại: bấm nữa là ghi thành giờ ra.');
+	}).catch(function(){
+		bao('loiChon','dong', loi + ' Hỏi lại máy chủ cũng không được, nên CHƯA BIẾT giờ đã ghi hay '
+			+ 'chưa. Chờ có sóng rồi mở lại trang, xem bảng "Hôm nay" ở đầu trang: đã có giờ thì '
+			+ 'thôi, chưa có thì chấm lại.');
+	});
+}
 
 /* ================================================================ ĐỐI CHIẾU KHUÔN MẶT
 
