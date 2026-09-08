@@ -74,6 +74,11 @@
 
   <!-- ============ TRANG CHỦ: TỔNG QUAN DÒNG TIỀN ============ -->
   <div id="page-tongquan" class="wrap" style="display:none">
+    <!-- 🔴 DẢI NHẮC BỘ PHẬN. Ai bị bó bộ phận phải BIẾT là mình đang bị bó, và biết vì sao
+         vẫn thấy đơn của mảng khác. Không có dòng này thì màn trông y hệt lúc không bó, và
+         người dùng kết luận là tính năng không chạy — anh Thắng đã kết luận đúng như thế
+         08/09/2026 khi nhìn màn Tổng quan còn nguyên 21 mục. -->
+    <div id="bpBanner" style="display:none;margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:12.5px"></div>
     <div class="card" id="acctInboxCard" style="display:none;border:2px solid #bae6fd">
       <div class="ch"><h2>📥 Đơn đang lên chờ kế toán</h2><span id="acctInboxCount" style="font-size:12px;color:#64748b"></span></div>
       <div class="tw"><table style="min-width:840px">
@@ -3613,8 +3618,23 @@
       '<div style="font-size:22px;font-weight:800;color:'+fg+'">'+val+'</div>'+
       (sub?'<div style="font-size:11px;color:'+fg+';opacity:.85;margin-top:2px">'+sub+'</div>':'')+'</div>';
   }
+  /* Dải nhắc "đang xem theo bộ phận nào". Vẽ TỪ BOOT, không tự suy từ tên vai: tên vai là thứ
+     anh Thắng đặt tuỳ ý, còn `boPhanBo` là kết quả của chính chốt đang gác dữ liệu — nói theo
+     nó thì dòng chữ không bao giờ nói khác với thứ người ta đang thấy. */
+  function renderBpBanner(){
+    var b=el('bpBanner'); if(!b) return;
+    var bp=String((BOOT&&BOOT.boPhanBo)||'').trim();
+    if(!bp){ b.style.display='none'; return; }
+    var n=Number((BOOT&&BOOT.loaiChuaBP)||0);
+    b.style.display='';
+    b.innerHTML='🔒 Đang xem theo bộ phận <b>'+esc(bp)+'</b> — chỉ hiện chi phí của bộ phận này.'
+      +(n?('<br><span style="color:#b45309">⚠️ Còn <b>'+n+'</b> loại chi phí CHƯA khai bộ phận, nên dòng mang mấy loại đó vẫn hiện ở đây. '
+          +'Khai ở <b>⚙️ Cấu hình → Loại chi phí</b>, cột <b>Bộ phận</b>.</span>')
+         :'<br><span style="color:#15803d">✓ Mọi loại chi phí đang dùng đều đã khai bộ phận.</span>');
+  }
   // 📥 Gom "đơn đang lên chờ kế toán" từ mọi mảng: Đơn vận hành (BOOT.dons) + Kỹ thuật/Marketing/Công tác/Setup (server)
   function renderAcctInbox(){
+    renderBpBanner();
     var role=(CURUSER&&CURUSER.role)||'', isAcct=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var box=el('acctInboxCard'); if(!box) return;
     if(!isAcct){ box.style.display='none'; return; }

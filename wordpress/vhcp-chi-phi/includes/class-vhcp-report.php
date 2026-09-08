@@ -121,10 +121,25 @@ class VHCP_Report {
 	/** getPendingModules(): đơn đang chờ kế toán ở Kỹ thuật · Marketing · Công tác · Setup. */
 	public static function pending_modules() {
 		$out = array();
+		/* 🔴 KHỐI "ĐƠN ĐANG LÊN CHỜ KẾ TOÁN" CŨNG PHẢI THEO BỘ PHẬN.
+		   Anh Thắng 08/09/2026, sau khi gán vai "Kế toán máy tự động" cho một tài khoản:
+		   *"chức năng như kế toán cá nhân, nhưng chỉ xem bên bộ phận của mình"* — kèm ảnh màn
+		   Tổng quan vẫn liệt kê đủ 21 mục của mọi mảng.
+
+		   Mỗi mục ở đây mang sẵn tên MẢNG ('Kỹ thuật' · 'Marketing' · 'Công tác' · 'Setup'),
+		   mà mảng ở đây chính là bộ phận — nên lọc thẳng bằng chính nó, khỏi tra vòng qua loại
+		   chi phí. Kế toán bó "Máy tự động" thì không mảng nào trong bốn cái này thuộc về họ,
+		   và khối ấy chỉ còn phần Đơn vận hành (do giao diện ghép vào, đã lọc ở `list_dons()`). */
+		$bo = VHCP_Auth::bo_phan_bo();
+		$loc = function ( $mang ) use ( $bo ) {
+			if ( '' === $bo ) { return true; }
+			return mb_strtolower( trim( (string) $mang ) ) === mb_strtolower( $bo );
+		};
 
 		foreach ( VHCP_DuAn::all_with_lines() as $r ) {
 			$st = (string) $r['trang_thai'];
 			if ( $st !== 'Chờ kế toán duyệt' ) { continue; }
+			if ( ! $loc( 'Kỹ thuật' ) ) { continue; }
 			$sum = 0;
 			foreach ( $r['lines'] as $x ) { $sum += VHCP_Util::num( $x['thuc_te'] ); }
 			$out[] = array(
@@ -149,6 +164,7 @@ class VHCP_Report {
 		foreach ( VHCP_MK::all_dons() as $r ) {
 			$st = (string) $r['trang_thai'];
 			if ( $st === 'Đã đóng' ) { continue; }
+			if ( ! $loc( 'Marketing' ) ) { continue; }
 			$out[] = array(
 				'module'    => 'Marketing',
 				'icon'      => '📣',
@@ -167,6 +183,7 @@ class VHCP_Report {
 			$st = (string) $r['trang_thai'];
 			if ( $st === 'Đã đóng' ) { continue; }
 			$lo  = (string) $r['loai'];
+			if ( ! $loc( $lo ) ) { continue; }
 			$sum = 0;
 			foreach ( $r['lines'] as $x ) { $sum += VHCP_Util::num( $x['thuc_te'] ); }
 			$out[] = array(

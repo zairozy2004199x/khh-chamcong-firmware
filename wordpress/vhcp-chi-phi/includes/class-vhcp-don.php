@@ -447,6 +447,31 @@ class VHCP_Don {
 	// ---------------------------------------------------------------- khởi động
 
 	/** getBootstrap(): đọc ChiPhi 1 lần rồi dùng chung cho cấu hình + đơn + gợi ý sản phẩm. */
+	/**
+	 * Đếm số LOẠI CHI PHÍ khác nhau đang có mặt trên dữ liệu mà chưa khai ô Bộ phận.
+	 *
+	 * Đếm theo LOẠI chứ không theo dòng: người đọc cần biết "còn bao nhiêu ô phải khai ở màn
+	 * Cấu hình", chứ không phải "bao nhiêu dòng tiền bị ảnh hưởng" — con số thứ hai to hơn
+	 * nhiều lần và không nói cho họ biết phải làm gì.
+	 */
+	private static function dem_loai_chua_bo_phan( $cp ) {
+		$da = array();
+		foreach ( (array) $cp as $r ) {
+			$ten = trim( (string) ( isset( $r['nhom'] ) ? $r['nhom'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			$k = mb_strtolower( $ten );
+			/* ⚠️ Dòng gác này chỉ để KHỎI TRA LẠI cùng một loại cho từng dòng chi (bảng chi phí
+			   có hàng nghìn dòng mà danh mục chỉ vài chục loại). Bỏ nó đi thì kết quả y hệt —
+			   phá thử đã chỉ ra và đây là đột biến TƯƠNG ĐƯƠNG, không ép cho đỏ được. Giữ vì
+			   nó cắt hẳn số lần tra, không phải vì nó đổi con số. */
+			if ( isset( $da[ $k ] ) ) { continue; }
+			$da[ $k ] = ( '' === VHCP_Cfg::bo_phan_cua_loai( $ten ) );
+		}
+		$n = 0;
+		foreach ( $da as $chua ) { if ( $chua ) { $n++; } }
+		return $n;
+	}
+
 	public static function get_bootstrap() {
 		$cp  = self::cp_rows();
 		$cfg = VHCP_Cfg::get_config( $cp );
@@ -504,6 +529,14 @@ class VHCP_Don {
 			'cosoDong'   => $coso_dong,
 			/* Đơn vị (K&H · POSH) — giao diện cần để gợi ý ở Cấu hình và để biết có nên tách
 			   khối trong các bảng. `donViCuaToi` là NHÀ, `xemDonVi` là tầm nhìn (null = cả hệ). */
+			/* 🔴 BỘ PHẬN ĐANG BÓ + SỐ ĐƠN CHƯA PHÂN LOẠI — để màn NÓI RA được vì sao vẫn còn
+			   đơn của mảng khác hiện lên. Anh Thắng 08/09/2026 gán vai "Kế toán máy tự động"
+			   rồi thấy màn Tổng quan vẫn liệt kê đủ mọi mảng, và kết luận là tính năng không
+			   chạy. Nó có chạy — chỉ là phần lớn loại chi phí trong danh mục CHƯA khai ô Bộ
+			   phận, mà loại chưa khai thì cố ý cho hiện với mọi kế toán (chặn hết là màn
+			   trắng). Con số này biến "trông như hỏng" thành "còn N dòng phải khai". */
+			'boPhanBo'   => VHCP_Auth::bo_phan_bo(),
+			'loaiChuaBP' => self::dem_loai_chua_bo_phan( $cp ),
 			'donVi'      => VHCP_DonVi::ds(),
 			'donViCuaToi'=> VHCP_DonVi::cua_toi(),
 			'xemDonVi'   => VHCP_DonVi::xem_duoc(),

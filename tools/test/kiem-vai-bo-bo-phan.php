@@ -201,6 +201,41 @@ teq( '🔴 kế toán máy tự động: thấy đơn của mình, đơn LẪN, 
 	array( 'D_LAN', 'D_MTD', 'D_TRONG' ), don_mas() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5a. KHỐI "ĐƠN ĐANG LÊN CHỜ KẾ TOÁN" TRÊN MÀN TỔNG QUAN
+ *
+ * Anh Thắng 08/09/2026, sau khi gán vai cho một tài khoản: *"chức năng như kế toán cá nhân,
+ * nhưng chỉ xem bên bộ phận của mình"* — kèm ảnh màn Tổng quan vẫn liệt kê đủ mọi mảng.
+ * Khối ấy đi qua `pending_modules()`, một đường riêng mà bản 1.82.0 chưa gác.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$wpdb->insert( VHCP_DB::t( 'da_index' ), array( 'ma_da' => 'DA1', 'ten' => 'setup gian', 'trang_thai' => 'Chờ kế toán duyệt', 'nguoi_tao' => 'NV' ) );
+$wpdb->insert( VHCP_DB::t( 'mk_don' ),   array( 'ma' => 'MK1', 'coso' => 'CS', 'ten' => 'ads', 'nguoi_tao' => 'NV' ) );
+$wpdb->insert( VHCP_DB::t( 'bp_index' ), array( 'ma' => 'BP1', 'loai' => 'Công tác', 'ten' => 'đi tỉnh', 'nguoi_tao' => 'NV' ) );
+
+function mang_cho() {
+	$r = VHCP_Report::pending_modules();
+	$a = array();
+	foreach ( (array) $r['items'] as $x ) { $a[] = (string) $x['module']; }
+	sort( $a );
+	return $a;
+}
+lam( 'Kế toán cá nhân' );
+teq( 'đối chứng · kế toán thường thấy cả ba mảng',
+	array( 'Công tác', 'Kỹ thuật', 'Marketing' ), mang_cho() );
+lam( 'Kế toán máy tự động' );
+teq( '🔴 kế toán máy tự động KHÔNG thấy mảng nào trong bốn mảng kia',
+	array(), mang_cho() );
+
+/* Và một vai bó vào ĐÚNG một trong mấy mảng ấy thì chỉ thấy mảng của mình — không thì luật
+   trên chỉ đúng nhờ may: "Máy tự động" tình cờ không trùng tên mảng nào. */
+VHCP_Cfg::write( VHCP_Cfg::VAI, array(
+	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
+	array( 'Kế toán chung',       'Kế toán cá nhân', '' ),
+	array( 'Kế toán marketing',   'Kế toán cá nhân', 'Marketing' ),
+) );
+lam( 'Kế toán marketing' );
+teq( '🔴 vai bó Marketing chỉ thấy mảng Marketing', array( 'Marketing' ), mang_cho() );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5b. 🔴 PHẦN ĐANG CHẠY KHÔNG ĐƯỢC ĐỘNG VÀO
  *
  * Anh Thắng 08/09/2026: *"nhớ đừng can thiệp gì bên phần chi phí khu vui chơi. mình đang làm
@@ -225,6 +260,34 @@ foreach ( array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC'
    là thứ bắt được. */
 teq( '🔴 ô Bộ phận trên tài khoản KHÔNG bó gì cả',
 	'', VHCP_Cfg::bo_phan_cua_nguoi( 'Kế toán cá nhân' ) );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5c. MÀN PHẢI NÓI RA LÀ MÌNH ĐANG BỊ BÓ
+ *
+ * 🔴 Không có dòng ấy thì màn trông y hệt lúc không bó, và người dùng kết luận là tính năng
+ *    không chạy — anh Thắng đã kết luận đúng như thế khi nhìn màn Tổng quan còn nguyên 21 mục.
+ *    Số loại CHƯA khai bộ phận là thứ biến "trông như hỏng" thành "còn N dòng phải khai".
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+lam( 'Kế toán máy tự động' );
+$b = VHCP_Don::get_bootstrap();
+teq( '🔴 boot nói rõ đang bó bộ phận nào', 'Máy tự động', $b['boPhanBo'] );
+/* Dữ liệu thử có ba loại trên các dòng chi: "Sửa máy gắp thú" (Máy tự động), "Chạy quảng cáo"
+   (Marketing) và... chỉ hai loại ấy nằm trên bảng `chiphi`. Loại "Chi phí khác" chỉ có ở sổ
+   chi phí, không có dòng chi nào — nên không được đếm. */
+teq( 'và đếm đúng số LOẠI trên dòng chi chưa khai bộ phận', 0, $b['loaiChuaBP'] );
+
+$wpdb->insert( VHCP_DB::t( 'chiphi' ), array(
+	'id' => 'CP_MOI', 'ma_don' => 'D_MTD', 'coso' => 'CS', 'nhom' => 'Loại chưa khai', 'thanh_tien' => 1 ) );
+$b2 = VHCP_Don::get_bootstrap();
+teq( '🔴 thêm một dòng mang loại chưa khai -> đếm lên 1', 1, $b2['loaiChuaBP'] );
+$wpdb->insert( VHCP_DB::t( 'chiphi' ), array(
+	'id' => 'CP_MOI2', 'ma_don' => 'D_MTD', 'coso' => 'CS', 'nhom' => 'Loại chưa khai', 'thanh_tien' => 1 ) );
+$b3 = VHCP_Don::get_bootstrap();
+teq( 'thêm dòng thứ hai CÙNG loại thì vẫn là 1 (đếm loại, không đếm dòng)', 1, $b3['loaiChuaBP'] );
+
+lam( 'Kế toán cá nhân' );
+$b4 = VHCP_Don::get_bootstrap();
+teq( '🔴 người KHÔNG bó thì boot trả rỗng -> màn không hiện dải nhắc', '', $b4['boPhanBo'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 6. VAI ĐƯỢC DỰNG SẴN — anh Thắng không phải khai tay
