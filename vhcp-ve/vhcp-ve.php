@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.33.0
+ * Version:           1.34.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -316,6 +316,10 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/ve-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_luu' ) ) );
 		register_rest_route( self::NS, '/ql/ve-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_xoa' ) ) );
 		register_rest_route( self::NS, '/ql/ve-anh', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_anh' ) ) );
+		// Marketing quản lý ưu đãi từ web (PIN).
+		register_rest_route( self::NS, '/ql/uu-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_ds' ) ) );
+		register_rest_route( self::NS, '/ql/uu-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_luu' ) ) );
+		register_rest_route( self::NS, '/ql/uu-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_xoa' ) ) );
 	}
 	/* Trang có [posh_ve] -> tắt admin bar cho gọn (chạy sớm ở hook wp). */
 	public static function an_admin_bar() {
@@ -988,6 +992,39 @@ class POSH_Ve {
 		return array( 'ok' => true, 'url' => $up['url'] );
 	}
 
+	/* ── Marketing quản lý ƯU ĐÃI từ web (PIN) ── */
+	public static function r_ql_uu_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$hang = array(); foreach ( self::ds_hang() as $h ) { $hang[] = $h['ten']; }
+		return array( 'ok' => true, 'ds' => array_values( self::ds_uudai_tatca() ), 'ds_hang' => $hang );
+	}
+	public static function r_ql_uu_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$id  = (int) $req->get_param( 'id' );
+		$moi = array(
+			'id'    => $id,
+			'ten'   => sanitize_text_field( (string) $req->get_param( 'ten' ) ),
+			'mo_ta' => sanitize_textarea_field( (string) $req->get_param( 'mo_ta' ) ),
+			'anh'   => esc_url_raw( (string) $req->get_param( 'anh' ) ),
+			'hang'  => sanitize_text_field( (string) $req->get_param( 'hang' ) ),
+			'han'   => sanitize_text_field( (string) $req->get_param( 'han' ) ),
+			'hien'  => $req->get_param( 'hien' ) ? 1 : 0,
+		);
+		if ( '' === $moi['ten'] ) { return new WP_Error( 'thieu', 'Cần tên ưu đãi.', array( 'status' => 400 ) ); }
+		$ds = self::ds_uudai_tatca(); $thay = false;
+		if ( $id > 0 ) { foreach ( $ds as $k => $v ) { if ( (int) $v['id'] === $id ) { $ds[ $k ] = $moi; $thay = true; break; } } }
+		if ( ! $thay ) { $moi['id'] = 0; $ds[] = $moi; }
+		self::luu_uudai( $ds );
+		return array( 'ok' => true );
+	}
+	public static function r_ql_uu_xoa( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$id = (int) $req->get_param( 'id' ); $ra = array();
+		foreach ( self::ds_uudai_tatca() as $v ) { if ( (int) $v['id'] !== $id ) { $ra[] = $v; } }
+		self::luu_uudai( $ra );
+		return array( 'ok' => true );
+	}
+
 	private static function ma_ve_moi() {
 		global $wpdb; $bang = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -1579,6 +1616,7 @@ class POSH_Ve {
 					<button class="pql-tab on" data-tab="ve">🎟️ Vé</button>
 					<button class="pql-tab" data-tab="bc">📊 Tổng quan</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn &amp; soát</button>
+					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
 				</div>
 
 				<div class="pql-pane" data-pane="ve">
@@ -1664,6 +1702,30 @@ class POSH_Ve {
 					</div>
 					<div class="pql-donlist"></div>
 				</div><!-- /pane don -->
+
+				<div class="pql-pane" data-pane="uu" hidden>
+					<div class="pql-bar"><b>Ưu đãi (hiện trên Zalo)</b><button class="pql-uu-them">+ Tạo ưu đãi</button></div>
+					<div class="pql-uulist"></div>
+					<div class="pql-uuform" hidden>
+						<div class="pql-h pql-uuform-h">Tạo ưu đãi</div>
+						<input type="hidden" class="u-id" value="0">
+						<label>Tên ưu đãi *</label><input class="u-ten" placeholder="VD Giảm 20% vé Funzone">
+						<label>Mô tả</label><textarea class="u-mota" rows="2"></textarea>
+						<div class="pql-2">
+							<div><label>Hạng cần (tối thiểu)</label><select class="u-hang"><option value="">Mọi khách</option></select></div>
+							<div><label>Hạn dùng</label><input class="u-han" placeholder="VD 31/12/2026"></div>
+						</div>
+						<label>Ảnh ưu đãi</label>
+						<div class="pql-anh">
+							<img class="u-xem" alt="" hidden>
+							<input class="u-anh" placeholder="Dán link ảnh, hoặc tải ảnh lên →">
+							<label class="pql-upl">Tải ảnh<input class="u-file" type="file" accept="image/*" hidden></label>
+						</div>
+						<label class="pql-ck"><input type="checkbox" class="u-hien" checked> Cho hiện trên Zalo</label>
+						<div class="pql-acts"><button class="pql-uu-luu">Lưu ưu đãi</button><button class="pql-uu-huy">Huỷ</button></div>
+						<div class="pql-uumsg"></div>
+					</div>
+				</div><!-- /pane uu -->
 			</div>
 		</div>
 
@@ -1700,7 +1762,8 @@ class POSH_Ve {
 		.pql-row-btn{ display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
 		.pql-row-btn button{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; }
 		.pql-row-btn .del{ color:#f0a0a0; border-color:rgba(239,68,68,.3); }
-		.pql-form{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
+		.pql-form,.pql-uuform{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
+		.pql-uumsg{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-2{ display:flex; gap:12px; } .pql-2 > div{ flex:1; }
 		.pql-anh{ display:flex; gap:10px; align-items:center; }
 		.pql-anh .f-anh{ flex:1; }
@@ -1783,7 +1846,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon();
+		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu();
 		    });
 		  });
 
@@ -1861,6 +1924,54 @@ class POSH_Ve {
 		    if(tt==='huy'&&!confirm('Huỷ vé '+ma+'?'))return;
 		    b.disabled=true; b.textContent='...';
 		    post('/ql/capnhat',{ma_ve:ma,trang_thai:tt}).then(napDon).catch(function(err){alert(err.message||err);b.disabled=false;});
+		  });
+
+		  // ── Ưu đãi ──
+		  var uuHangLoaded=false;
+		  function napUu(){
+		    $('.pql-uulist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    get('/ql/uu-ds').then(function(d){
+		      if(!uuHangLoaded){ var sel=$('.u-hang'); (d.ds_hang||[]).forEach(function(h){ var o=document.createElement('option'); o.value=h; o.textContent='Từ hạng '+h; sel.appendChild(o); }); uuHangLoaded=true; }
+		      var ds=d.ds||[];
+		      $('.pql-uulist').innerHTML = ds.length ? ds.map(uuRow).join('') : '<p style="color:#9b978c">Chưa có ưu đãi. Bấm “+ Tạo ưu đãi”.</p>';
+		    }).catch(function(e){ $('.pql-uulist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function uuRow(v){
+		    var img=v.anh?'<img src="'+esc(v.anh)+'">':'<span class="noimg">🎁</span>';
+		    var tag=v.hien?'<span class="pql-tag on">Đang hiện</span>':'<span class="pql-tag off">Ẩn</span>';
+		    return '<div class="pql-row">'+img+'<div class="pql-row-mid"><div class="pql-row-ten">'+esc(v.ten)+tag+'</div>'
+		      +'<div class="pql-row-sub">'+(v.hang?'Từ hạng '+esc(v.hang)+' · ':'')+(v.han?'HSD '+esc(v.han):'')+'</div></div>'
+		      +'<div class="pql-row-btn"><button data-usua=\''+esc(JSON.stringify(v))+'\'>Sửa</button><button class="del" data-uxoa="'+v.id+'" data-ten="'+esc(v.ten)+'">Xoá</button></div></div>';
+		  }
+		  function uuForm(v){
+		    v=v||{}; $('.pql-uuform-h').textContent=v.id?'Sửa ưu đãi':'Tạo ưu đãi';
+		    $('.u-id').value=v.id||0; $('.u-ten').value=v.ten||''; $('.u-mota').value=v.mo_ta||''; $('.u-hang').value=v.hang||''; $('.u-han').value=v.han||''; $('.u-anh').value=v.anh||''; $('.u-hien').checked=v.id?!!v.hien:true;
+		    var xem=$('.u-xem'); if(v.anh){xem.src=v.anh;xem.hidden=false;}else{xem.hidden=true;} $('.pql-uumsg').textContent='';
+		    $('.pql-uuform').hidden=false; $('.u-ten').focus(); $('.pql-uuform').scrollIntoView({behavior:'smooth',block:'center'});
+		  }
+		  $('.pql-uu-them').addEventListener('click',function(){ uuForm(null); });
+		  $('.pql-uu-huy').addEventListener('click',function(){ $('.pql-uuform').hidden=true; });
+		  root.addEventListener('click',function(e){
+		    var s=e.target.closest('[data-usua]'); if(s){ try{ uuForm(JSON.parse(s.getAttribute('data-usua'))); }catch(err){} return; }
+		    var x=e.target.closest('[data-uxoa]'); if(x){ if(!confirm('Xoá ưu đãi "'+x.getAttribute('data-ten')+'"?'))return;
+		      x.disabled=true; post('/ql/uu-xoa',{id:+x.getAttribute('data-uxoa')}).then(napUu).catch(function(err){alert(err.message||err);x.disabled=false;}); }
+		  });
+		  $('.u-file').addEventListener('change',function(){
+		    var f=this.files&&this.files[0]; if(!f)return; var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
+		    $('.pql-uumsg').style.color='#9b978c'; $('.pql-uumsg').textContent='Đang tải ảnh…';
+		    fetch(REST+'/ql/ve-anh',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
+		      $('.u-anh').value=d.url; var xem=$('.u-xem'); xem.src=d.url; xem.hidden=false; $('.pql-uumsg').textContent='Đã tải ảnh ✓';
+		    }).catch(function(e){ $('.pql-uumsg').style.color='#f0a0a0'; $('.pql-uumsg').textContent=String(e.message||e); });
+		  });
+		  $('.u-anh').addEventListener('change',function(){ var xem=$('.u-xem'); if(this.value){xem.src=this.value;xem.hidden=false;}else{xem.hidden=true;} });
+		  $('.pql-uu-luu').addEventListener('click',function(){
+		    var body={ id:+$('.u-id').value, ten:$('.u-ten').value.trim(), mo_ta:$('.u-mota').value.trim(), hang:$('.u-hang').value, han:$('.u-han').value.trim(), anh:$('.u-anh').value.trim(), hien:$('.u-hien').checked?1:'' };
+		    if(!body.ten){ $('.pql-uumsg').style.color='#f0a0a0'; $('.pql-uumsg').textContent='Cần tên ưu đãi.'; return; }
+		    var b=$('.pql-uu-luu'); b.disabled=true; b.textContent='Đang lưu…';
+		    post('/ql/uu-luu',body).then(function(){ $('.pql-uuform').hidden=true; napUu(); })
+		      .catch(function(e){ $('.pql-uumsg').style.color='#f0a0a0'; $('.pql-uumsg').textContent=String(e.message||e); })
+		      .then(function(){ b.disabled=false; b.textContent='Lưu ưu đãi'; });
 		  });
 
 		  // Danh sách vé
