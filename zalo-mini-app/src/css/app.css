@@ -30,7 +30,8 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 :root{ --gold:#cf9f22; --gold-d:#b8871a; --cream:#faf6ee; }
 .hp{ background:var(--cream); padding:0 0 8px; }
 .hp-head{ background:linear-gradient(180deg,#d7a521,#c1901b); padding:14px 16px 34px; display:flex; align-items:center; gap:12px; }
-.hp-ava{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.35); flex:none; }
+.hp-ava{ width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,.35); flex:none; overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:22px; }
+.hp-ava img{ width:100%; height:100%; object-fit:cover; border-radius:50%; display:block; }
 .hp-hi{ color:#fff; opacity:.9; font-size:13px; }
 .hp-name{ color:#fff; font-weight:800; font-size:18px; }
 .hp-mem{ margin:-24px 14px 0; background:#fff; border-radius:14px; box-shadow:0 6px 18px rgba(0,0,0,.08); padding:14px 18px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
