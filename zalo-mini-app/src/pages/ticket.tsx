@@ -70,22 +70,6 @@ export default function TicketPage() {
         </Text>
       )}
 
-      {ve && tt === "cho" && (
-        <div className="tt-cong">
-          {CONG.map((c) => (
-            <button
-              key={c.id}
-              className={"tt-cong-i" + (cong === c.id ? " on" : "")}
-              disabled={dangMo}
-              onClick={() => chonCong(c.id)}
-            >
-              <span className="tt-cong-ic">{c.ic}</span>
-              <span>{c.ten}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
       {ve && (
         <div className="qr-box">
           {tt === "cho" ? (
@@ -117,6 +101,31 @@ export default function TicketPage() {
               <div className="kv"><span>Chủ TK</span><b>{ve.bank?.ten_tk}</b></div>
               <div className="kv" onClick={() => copy(ve.noi_dung)}><span>Nội dung (chạm để chép)</span><b>{ve.noi_dung}</b></div>
             </>
+          )}
+        </div>
+      )}
+
+      {ve && tt === "cho" && (
+        <div className="tt-cong-wrap">
+          <div className="tt-cong-lb">Chọn phương thức thanh toán</div>
+          <div className="tt-cong">
+            {CONG.map((c) => (
+              <button
+                key={c.id}
+                className={"tt-cong-i" + (cong === c.id ? " on" : "")}
+                disabled={dangMo}
+                onClick={() => chonCong(c.id)}
+              >
+                <span className="tt-cong-ic">{c.ic}</span>
+                <span>{c.ten}</span>
+              </button>
+            ))}
+          </div>
+          {cong === "qr" && (
+            <p className="tt-cong-note">
+              QR ngân hàng: quét bằng app ngân hàng bất kỳ. Muốn <b>tự nhảy vào app ngân hàng</b> thì chọn
+              <b> VNPay</b> (chọn ngân hàng → mở app/QR ngân hàng đó) hoặc <b>Momo</b>.
+            </p>
           )}
         </div>
       )}

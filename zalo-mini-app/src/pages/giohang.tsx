@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Page, useNavigate, useSnackbar } from "zmp-ui";
-import { openWebview } from "zmp-sdk";
-import { datGio, taoThanhToan, dinhTien, CongTT } from "../api";
+import { datGio, dinhTien } from "../api";
 import { layGio, datSoLuong, xoaKhoiGio, xoaGio, tongTien, MonGio } from "../cart";
 import { luuVe, luuSdt, laySdt, layTen } from "../orders";
 import { layTTZalo } from "../zalo";
-import PhuongThuc from "../components/pttt";
 import TabBar from "../components/tabbar";
 
 /* Giỏ hàng: chỉnh số lượng từng vé + nhập tên/SĐT + thanh toán 1 lần (1 mã QR tổng). */
@@ -17,7 +15,6 @@ export default function GioHangPage() {
   const [sdt, setSdt] = useState(laySdt());
   const [dangGui, setDangGui] = useState(false);
   const [dangLay, setDangLay] = useState(false);
-  const [hoiTT, setHoiTT] = useState(false);   // hiện bảng chọn phương thức
 
   const dienZalo = async () => {
     setDangLay(true);
@@ -42,18 +39,13 @@ export default function GioHangPage() {
   const doi = (ma: number, sl: number) => { datSoLuong(ma, sl); nap(); };
   const xoa = (ma: number) => { xoaKhoiGio(ma); nap(); };
 
-  // Bấm "Thanh toán" -> kiểm tra thông tin rồi hỏi phương thức.
-  const moChonTT = () => {
+  // Bấm "Thanh toán" -> tạo vé rồi sang màn vé (chọn phương thức ở màn vé).
+  const thanhToan = async () => {
     if (ds.length === 0) return;
     if (!ten.trim() || !sdt.trim()) {
       snackbar.openSnackbar({ text: "Nhập tên và số điện thoại.", type: "warning" });
       return;
     }
-    setHoiTT(true);
-  };
-
-  // Đã chọn phương thức: tạo vé, rồi QR -> màn vé; Momo/VNPay -> mở app thanh toán.
-  const thanhToan = async (cong: CongTT) => {
     setDangGui(true);
     try {
       const items = ds.map((x) => ({ id: x.ma, sl: x.sl }));
@@ -61,17 +53,7 @@ export default function GioHangPage() {
       luuVe({ ma_ve: ve.ma_ve, goi_ten: ve.goi_ten, so_tien: ve.so_tien, tao_luc: Date.now() });
       luuSdt(sdt.trim());
       xoaGio(); nap();
-      if (cong !== "qr") {
-        try {
-          const r = await taoThanhToan(ve.ma_ve, cong);
-          const url = r.deeplink || r.pay_url;
-          if (url) { try { await openWebview({ url }); } catch { window.open(url, "_blank"); } }
-        } catch (e: any) {
-          snackbar.openSnackbar({ text: String(e.message || e) + " — chuyển sang QR ngân hàng.", type: "warning" });
-        }
-      }
-      setHoiTT(false);
-      navigate(`/ticket/${ve.ma_ve}`, { state: { ve, cong } });
+      navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
     } catch (e: any) {
       snackbar.openSnackbar({ text: String(e.message || e), type: "error" });
     } finally {
@@ -128,14 +110,12 @@ export default function GioHangPage() {
               <div className="gio-bar-l">Tổng cộng</div>
               <div className="gio-bar-t">{dinhTien(tong)}</div>
             </div>
-            <button className="gio-tt" disabled={dangGui} onClick={moChonTT}>
+            <button className="gio-tt" disabled={dangGui} onClick={thanhToan}>
               {dangGui ? "Đang tạo…" : "Thanh toán"}
             </button>
           </div>
         </>
       )}
-
-      <PhuongThuc open={hoiTT} tong={dinhTien(tong)} dang={dangGui} onChon={thanhToan} onClose={() => setHoiTT(false)} />
 
       <div style={{ height: 76 }} />
       <TabBar active="giohang" />

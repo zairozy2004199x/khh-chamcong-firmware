@@ -1,10 +1,8 @@
 import React, { useState } from "react";
 import { Page, Box, Text, Input, Button, useNavigate, useParams, useLocation, useSnackbar } from "zmp-ui";
-import { openWebview } from "zmp-sdk";
-import { datVe, taoThanhToan, dinhTien, Goi, CongTT } from "../api";
+import { datVe, dinhTien, Goi } from "../api";
 import { luuVe, luuSdt, laySdt, layTen } from "../orders";
 import { layTTZalo } from "../zalo";
-import PhuongThuc from "../components/pttt";
 
 export default function BuyPage() {
   const navigate = useNavigate();
@@ -17,7 +15,6 @@ export default function BuyPage() {
   const [sdt, setSdt] = useState(laySdt());
   const [dangGui, setDangGui] = useState(false);
   const [dangLay, setDangLay] = useState(false);
-  const [hoiTT, setHoiTT] = useState(false);
 
   const dienZalo = async () => {
     setDangLay(true);
@@ -30,33 +27,19 @@ export default function BuyPage() {
     } finally { setDangLay(false); }
   };
 
-  const moChonTT = () => {
+  const mua = async () => {
     if (!ten.trim() || !sdt.trim()) {
       snackbar.openSnackbar({ text: "Nhập tên và số điện thoại.", type: "warning" });
       return;
     }
-    setHoiTT(true);
-  };
-
-  const mua = async (cong: CongTT) => {
     setDangGui(true);
     try {
       const ve = await datVe(veId, ten.trim(), sdt.trim());
       // Lưu vé + SĐT lên máy để tra cứu lại (Đơn hàng) và tra điểm (Cá nhân).
       luuVe({ ma_ve: ve.ma_ve, goi_ten: ve.goi_ten || (goi?.ten || ""), so_tien: ve.so_tien, tao_luc: Date.now() });
       luuSdt(sdt.trim());
-      if (cong !== "qr") {
-        try {
-          const r = await taoThanhToan(ve.ma_ve, cong);
-          const url = r.deeplink || r.pay_url;
-          if (url) { try { await openWebview({ url }); } catch { window.open(url, "_blank"); } }
-        } catch (e: any) {
-          snackbar.openSnackbar({ text: String(e.message || e) + " — chuyển sang QR ngân hàng.", type: "warning" });
-        }
-      }
-      setHoiTT(false);
-      // Chuyển sang màn vé, mang theo dữ liệu vé (QR/nội dung/bank) để hiện ngay.
-      navigate(`/ticket/${ve.ma_ve}`, { state: { ve, cong } });
+      // Chuyển sang màn vé, mang theo dữ liệu vé (QR/nội dung/bank); chọn phương thức ở màn vé.
+      navigate(`/ticket/${ve.ma_ve}`, { state: { ve } });
     } catch (e: any) {
       snackbar.openSnackbar({ text: String(e.message || e), type: "error" });
     } finally {
@@ -85,9 +68,8 @@ export default function BuyPage() {
         <Input label="Số điện thoại" type="number" placeholder="Số Zalo/điện thoại" value={sdt}
           onChange={(e) => setSdt(e.target.value)} />
       </div>
-      <Button fullWidth loading={dangGui} onClick={moChonTT}>Thanh toán</Button>
-      <p className="note">Bấm để chọn phương thức và tạo vé. Vé được xác nhận sau khi nhận đủ tiền.</p>
-      <PhuongThuc open={hoiTT} tong={goi ? dinhTien(goi.tien) : ""} dang={dangGui} onChon={mua} onClose={() => setHoiTT(false)} />
+      <Button fullWidth loading={dangGui} onClick={mua}>Thanh toán</Button>
+      <p className="note">Bấm để tạo vé, sau đó chọn phương thức thanh toán (QR ngân hàng / Momo / VNPay).</p>
     </Page>
   );
 }
