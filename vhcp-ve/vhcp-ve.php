@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.25.0
+ * Version:           1.26.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -53,6 +53,7 @@ class POSH_Ve {
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
+		add_shortcode( 'posh_ql', array( __CLASS__, 'shortcode_ql' ) );
 		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'zalo_web_login' ) );
 		add_action( 'wp_head', array( __CLASS__, 'zalo_verify_meta' ) );
@@ -287,12 +288,17 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
 		register_rest_route( self::NS, '/ql/donhang', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_donhang' ) ) );
 		register_rest_route( self::NS, '/ql/capnhat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_capnhat' ) ) );
+		// Marketing tạo/sửa/xoá vé từ web (bảo vệ bằng PIN) — vé tự lên web + Zalo.
+		register_rest_route( self::NS, '/ql/ve-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_ds' ) ) );
+		register_rest_route( self::NS, '/ql/ve-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_luu' ) ) );
+		register_rest_route( self::NS, '/ql/ve-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_xoa' ) ) );
+		register_rest_route( self::NS, '/ql/ve-anh', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_ve_anh' ) ) );
 	}
 	/* Trang có [posh_ve] -> tắt admin bar cho gọn (chạy sớm ở hook wp). */
 	public static function an_admin_bar() {
 		if ( ! is_singular() ) { return; }
 		$p = get_post();
-		if ( $p && has_shortcode( (string) $p->post_content, 'posh_ve' ) ) {
+		if ( $p && ( has_shortcode( (string) $p->post_content, 'posh_ve' ) || has_shortcode( (string) $p->post_content, 'posh_ql' ) ) ) {
 			add_filter( 'show_admin_bar', '__return_false' );
 		}
 	}
@@ -849,6 +855,59 @@ class POSH_Ve {
 		return array( 'ok' => true, 'ma_ve' => $ma, 'trang_thai' => $xin, 'diem_cong' => $diem );
 	}
 
+	/* ── Marketing quản lý vé từ web (PIN) ── */
+	public static function r_ql_ve_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		return array( 'ok' => true, 'ds' => array_values( self::ds_tatca() ) );   // gồm cả vé đang ẩn
+	}
+	public static function r_ql_ve_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$id  = (int) $req->get_param( 'id' );
+		$moi = array(
+			'id'         => $id,
+			'ten'        => sanitize_text_field( (string) $req->get_param( 'ten' ) ),
+			'gia'        => (int) preg_replace( '/\D+/', '', (string) $req->get_param( 'gia' ) ),
+			'gia_goc'    => (int) preg_replace( '/\D+/', '', (string) $req->get_param( 'gia_goc' ) ),
+			'nhom'       => sanitize_text_field( (string) $req->get_param( 'nhom' ) ),
+			'khu_vuc'    => sanitize_text_field( (string) $req->get_param( 'khu_vuc' ) ),
+			'mo_ta'      => sanitize_textarea_field( (string) $req->get_param( 'mo_ta' ) ),
+			'anh'        => esc_url_raw( (string) $req->get_param( 'anh' ) ),
+			'thoi_luong' => sanitize_text_field( (string) $req->get_param( 'thoi_luong' ) ),
+			'so_luong'   => ( '' === trim( (string) $req->get_param( 'so_luong' ) ) ) ? -1 : max( 0, (int) preg_replace( '/\D+/', '', (string) $req->get_param( 'so_luong' ) ) ),
+			'hien'       => $req->get_param( 'hien' ) ? 1 : 0,
+		);
+		if ( '' === $moi['ten'] || $moi['gia'] < 1000 ) { return new WP_Error( 'thieu', 'Cần tên vé và giá ≥ 1.000đ.', array( 'status' => 400 ) ); }
+		$ds = self::ds_tatca(); $thay = false;
+		if ( $id > 0 ) { foreach ( $ds as $k => $v ) { if ( (int) $v['id'] === $id ) { $ds[ $k ] = $moi; $thay = true; break; } } }
+		if ( ! $thay ) { $moi['id'] = 0; $ds[] = $moi; }   // thêm mới -> luu_ds tự cấp id
+		self::luu_ds( $ds );
+		return array( 'ok' => true );
+	}
+	public static function r_ql_ve_xoa( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$id = (int) $req->get_param( 'id' );
+		$ds = self::ds_tatca(); $ra = array();
+		foreach ( $ds as $v ) { if ( (int) $v['id'] !== $id ) { $ra[] = $v; } }
+		self::luu_ds( $ra );
+		return array( 'ok' => true );
+	}
+	public static function r_ql_ve_anh( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		if ( empty( $_FILES['file'] ) ) { return new WP_Error( 'file', 'Chưa chọn ảnh.', array( 'status' => 400 ) ); }
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/media.php';
+		require_once ABSPATH . 'wp-admin/includes/image.php';
+		$ov = array( 'test_form' => false, 'mimes' => array( 'jpg|jpeg|jpe' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'webp' => 'image/webp' ) );
+		$up = wp_handle_upload( $_FILES['file'], $ov );
+		if ( ! is_array( $up ) || isset( $up['error'] ) ) { return new WP_Error( 'up', isset( $up['error'] ) ? $up['error'] : 'Tải ảnh thất bại.', array( 'status' => 400 ) ); }
+		$aid = wp_insert_attachment( array(
+			'post_mime_type' => $up['type'], 'post_title' => sanitize_file_name( basename( $up['file'] ) ),
+			'post_content' => '', 'post_status' => 'inherit',
+		), $up['file'] );
+		if ( ! is_wp_error( $aid ) ) { wp_update_attachment_metadata( $aid, wp_generate_attachment_metadata( $aid, $up['file'] ) ); }
+		return array( 'ok' => true, 'url' => $up['url'] );
+	}
+
 	private static function ma_ve_moi() {
 		global $wpdb; $bang = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -1382,6 +1441,221 @@ class POSH_Ve {
 		.pve-qf-note{ color:var(--mut); font-size:12px; text-align:center; margin-top:10px; }
 		@media(max-width:520px){ .pve-qf-grid{ grid-template-columns:1fr; } }
 		</style>
+		<?php
+		return ob_get_clean();
+	}
+
+	// ───────────── Trang quản trị vé trên web (cho marketing, đăng nhập PIN) ─────────────
+	/* [posh_ql] — marketing tạo/sửa/xoá vé ngay trên web, không cần vào wp-admin.
+	   Vé lưu chung kho -> tự lên trang bán vé + Zalo Mini App. Bảo vệ bằng PIN (khai ở admin). */
+	public static function shortcode_ql( $atts ) {
+		$atts   = shortcode_atts( array( 'an_theme' => '1' ), $atts, 'posh_ql' );
+		$rest   = esc_url_raw( rest_url( self::NS ) );
+		$co_pin = '' !== (string) get_option( 'pve_pin', '' );
+		$kvucs  = array();
+		foreach ( self::ds_tatca() as $g ) { $kv = trim( (string) $g['khu_vuc'] ); if ( '' !== $kv && ! in_array( $kv, $kvucs, true ) ) { $kvucs[] = $kv; } }
+		ob_start();
+		?>
+		<?php if ( $atts['an_theme'] ) : ?>
+		<style id="pql-an-theme">
+		header.wp-block-template-part, footer.wp-block-template-part, #masthead, #colophon,
+		.site-header, .site-footer, .wp-block-site-title, .wp-block-post-title, .entry-header, #wpadminbar { display:none !important; }
+		html { margin-top:0 !important; } body { margin:0 !important; }
+		.entry-content, .wp-block-post-content, .is-layout-constrained, main, article { max-width:none !important; }
+		</style>
+		<?php endif; ?>
+		<div class="pql" data-rest="<?php echo esc_attr( $rest ); ?>">
+			<div class="pql-top"><div class="pql-brand">🎟️ Quản trị vé — Marketing</div><button class="pql-out" hidden>Đăng xuất</button></div>
+
+			<div class="pql-login">
+				<div class="pql-card">
+					<div class="pql-h">Đăng nhập</div>
+					<?php if ( ! $co_pin ) : ?>
+						<p class="pql-err">Chưa đặt mã PIN. Nhờ quản trị vào <b>WP Admin → Vé khu vui chơi → Khu quản lý (PIN)</b> đặt trước.</p>
+					<?php else : ?>
+						<input class="pql-pin" type="password" inputmode="numeric" placeholder="Nhập mã PIN" autocomplete="off">
+						<button class="pql-dn">Vào quản trị</button>
+						<div class="pql-msg"></div>
+					<?php endif; ?>
+				</div>
+			</div>
+
+			<div class="pql-app" hidden>
+				<div class="pql-bar">
+					<b>Danh sách vé</b>
+					<button class="pql-them">+ Tạo vé mới</button>
+				</div>
+				<div class="pql-list"></div>
+
+				<div class="pql-form" hidden>
+					<div class="pql-h pql-form-h">Tạo vé mới</div>
+					<input type="hidden" class="f-id" value="0">
+					<label>Tên vé *</label><input class="f-ten" placeholder="VD Vé vào cửa">
+					<div class="pql-2">
+						<div><label>Giá bán (đ) *</label><input class="f-gia" type="number" inputmode="numeric" placeholder="50000"></div>
+						<div><label>Giá gốc (đ)</label><input class="f-goc" type="number" inputmode="numeric" placeholder="để trống nếu không giảm"></div>
+					</div>
+					<div class="pql-2">
+						<div><label>Nhóm</label><input class="f-nhom" placeholder="Vé lẻ / Combo"></div>
+						<div><label>Khu vực / Cơ sở</label><input class="f-kv" list="pql-kv" placeholder="để trống = mọi nơi"></div>
+					</div>
+					<datalist id="pql-kv"><?php foreach ( $kvucs as $kv ) : ?><option value="<?php echo esc_attr( $kv ); ?>"></option><?php endforeach; ?></datalist>
+					<div class="pql-2">
+						<div><label>Số lượng vé</label><input class="f-sl" type="number" inputmode="numeric" placeholder="trống = không giới hạn"></div>
+						<div><label>Thời lượng</label><input class="f-tl" placeholder="60 phút / Cả ngày"></div>
+					</div>
+					<label>Mô tả</label><textarea class="f-mota" rows="2"></textarea>
+					<label>Ảnh vé</label>
+					<div class="pql-anh">
+						<img class="f-xem" alt="" hidden>
+						<input class="f-anh" placeholder="Dán link ảnh, hoặc tải ảnh lên →">
+						<label class="pql-upl">Tải ảnh<input class="f-file" type="file" accept="image/*" hidden></label>
+					</div>
+					<label class="pql-ck"><input type="checkbox" class="f-hien" checked> Cho hiện bán (web + Zalo)</label>
+					<div class="pql-acts">
+						<button class="pql-luu">Lưu vé</button>
+						<button class="pql-huy">Huỷ</button>
+					</div>
+					<div class="pql-msg2"></div>
+				</div>
+			</div>
+		</div>
+
+		<style>
+		.pql{ --g:#d4af37; --g2:#e7cd7a; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c;
+			max-width:820px; margin:0 auto; padding:16px; background:#0b0c10; color:var(--tx); min-height:60vh;
+			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+		.pql *{ box-sizing:border-box; }
+		.pql-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+		.pql-brand{ font-size:18px; font-weight:800; color:#fff; }
+		.pql-out{ border:1px solid var(--bd); background:transparent; color:var(--g2); border-radius:8px; padding:6px 12px; cursor:pointer; font-weight:700; }
+		.pql-card{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:20px; max-width:360px; margin:10px auto; }
+		.pql-h{ font-size:16px; font-weight:800; color:#fff; margin-bottom:12px; }
+		.pql label{ display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; font-weight:600; }
+		.pql input, .pql textarea, .pql-card input{ width:100%; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 12px; font-size:15px; }
+		.pql input::placeholder,.pql textarea::placeholder{ color:#6f6b61; }
+		.pql input:focus,.pql textarea:focus{ outline:none; border-color:var(--g); }
+		.pql-dn,.pql-luu,.pql-them{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
+		.pql-dn{ width:100%; margin-top:12px; }
+		.pql-msg,.pql-err{ color:#f0a0a0; font-size:13px; margin-top:10px; text-align:center; }
+		.pql-msg2{ font-size:13px; margin-top:10px; text-align:center; }
+		.pql-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+		.pql-bar b{ color:#fff; font-size:16px; }
+		.pql-them{ padding:9px 16px; }
+		.pql-row{ display:flex; gap:12px; align-items:center; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
+		.pql-row img,.pql-row .noimg{ width:52px; height:52px; border-radius:8px; object-fit:cover; background:var(--sf2); display:flex; align-items:center; justify-content:center; font-size:22px; flex:0 0 auto; }
+		.pql-row-mid{ flex:1; min-width:0; }
+		.pql-row-ten{ font-weight:700; color:#fff; }
+		.pql-row-sub{ font-size:12px; color:var(--mut); margin-top:2px; }
+		.pql-row-gia{ color:var(--g2); font-weight:800; }
+		.pql-tag{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--sf2); color:var(--mut); margin-left:6px; }
+		.pql-tag.on{ background:rgba(34,197,94,.18); color:#7ee2a8; } .pql-tag.off{ background:rgba(239,68,68,.16); color:#f0a0a0; }
+		.pql-row-btn{ display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
+		.pql-row-btn button{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; }
+		.pql-row-btn .del{ color:#f0a0a0; border-color:rgba(239,68,68,.3); }
+		.pql-form{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
+		.pql-2{ display:flex; gap:12px; } .pql-2 > div{ flex:1; }
+		.pql-anh{ display:flex; gap:10px; align-items:center; }
+		.pql-anh .f-anh{ flex:1; }
+		.pql-anh img{ width:52px; height:52px; border-radius:8px; object-fit:cover; }
+		.pql-upl{ background:var(--sf2); border:1px solid #33363f; border-radius:10px; padding:11px 14px; cursor:pointer; white-space:nowrap; font-size:14px; margin:0 !important; color:var(--tx) !important; }
+		.pql-ck{ display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--tx) !important; }
+		.pql-ck input{ width:auto; }
+		.pql-acts{ display:flex; gap:10px; margin-top:16px; }
+		.pql-acts button{ flex:1; }
+		.pql-huy{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:10px; padding:12px; cursor:pointer; font-weight:700; }
+		@media(max-width:560px){ .pql-2{ flex-direction:column; gap:0; } }
+		</style>
+
+		<script>
+		(function(){
+		  var root = document.querySelector('.pql'); if(!root) return;
+		  var REST = root.getAttribute('data-rest'), PIN='';
+		  var $=function(s){return root.querySelector(s);};
+		  var VND=function(n){try{return (n||0).toLocaleString('vi-VN')+'đ';}catch(e){return (n||0)+'đ';}};
+		  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+		  function post(path,body){ body=body||{}; body.pin=PIN;
+		    return fetch(REST+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+		      .then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
+		  function get(path){ var u=new URL(REST+path); u.searchParams.set('pin',PIN);
+		    return fetch(u.toString()).then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
+
+		  // Đăng nhập
+		  var dn=$('.pql-dn');
+		  if(dn){
+		    var go=function(){ var v=($('.pql-pin').value||'').trim(); if(!v)return; $('.pql-msg').textContent='Đang kiểm tra…'; PIN=v;
+		      post('/ql/dangnhap',{}).then(function(){ $('.pql-login').hidden=true; $('.pql-app').hidden=false; $('.pql-out').hidden=false; napDs(); })
+		        .catch(function(e){ PIN=''; $('.pql-msg').textContent=String(e.message||e); }); };
+		    dn.addEventListener('click',go);
+		    $('.pql-pin').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+		  }
+		  $('.pql-out').addEventListener('click',function(){ PIN=''; $('.pql-app').hidden=true; $('.pql-login').hidden=false; $('.pql-out').hidden=true; if($('.pql-pin')){$('.pql-pin').value='';$('.pql-msg').textContent='';} });
+
+		  // Danh sách vé
+		  function napDs(){
+		    $('.pql-list').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    get('/ql/ve-ds').then(function(d){
+		      var ds=d.ds||[];
+		      $('.pql-list').innerHTML = ds.length ? ds.map(row).join('') : '<p style="color:#9b978c">Chưa có vé nào. Bấm “+ Tạo vé mới”.</p>';
+		    }).catch(function(e){ $('.pql-list').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function row(v){
+		    var img = v.anh ? '<img src="'+esc(v.anh)+'" alt="">' : '<span class="noimg">🎟️</span>';
+		    var goc = (v.gia_goc>v.gia) ? ' <s style="color:#6f6b61">'+VND(v.gia_goc)+'</s>' : '';
+		    var sl  = (v.so_luong<0) ? '∞' : (v.so_luong>0 ? v.so_luong+' vé' : 'Hết');
+		    var tag = v.hien ? '<span class="pql-tag on">Đang bán</span>' : '<span class="pql-tag off">Ẩn</span>';
+		    return '<div class="pql-row">'+img+'<div class="pql-row-mid"><div class="pql-row-ten">'+esc(v.ten)+tag+'</div>'
+		      +'<div class="pql-row-sub"><span class="pql-row-gia">'+VND(v.gia)+'</span>'+goc+' · '+esc(v.nhom||'—')+(v.khu_vuc?' · 📍'+esc(v.khu_vuc):'')+' · Còn '+sl+'</div></div>'
+		      +'<div class="pql-row-btn"><button data-sua=\''+esc(JSON.stringify(v))+'\'>Sửa</button><button class="del" data-xoa="'+v.id+'" data-ten="'+esc(v.ten)+'">Xoá</button></div></div>';
+		  }
+
+		  // Mở form
+		  function moForm(v){
+		    v=v||{};
+		    $('.pql-form-h').textContent = v.id ? 'Sửa vé' : 'Tạo vé mới';
+		    $('.f-id').value=v.id||0; $('.f-ten').value=v.ten||''; $('.f-gia').value=v.gia||''; $('.f-goc').value=v.gia_goc||'';
+		    $('.f-nhom').value=v.nhom||''; $('.f-kv').value=v.khu_vuc||''; $('.f-sl').value=(v.so_luong>=0?v.so_luong:''); $('.f-tl').value=v.thoi_luong||'';
+		    $('.f-mota').value=v.mo_ta||''; $('.f-anh').value=v.anh||''; $('.f-hien').checked = v.id? !!v.hien : true;
+		    var xem=$('.f-xem'); if(v.anh){xem.src=v.anh; xem.hidden=false;} else {xem.hidden=true;}
+		    $('.pql-msg2').textContent='';
+		    $('.pql-form').hidden=false; $('.f-ten').focus();
+		    $('.pql-form').scrollIntoView({behavior:'smooth',block:'center'});
+		  }
+		  $('.pql-them').addEventListener('click',function(){ moForm(null); });
+		  $('.pql-huy').addEventListener('click',function(){ $('.pql-form').hidden=true; });
+
+		  // Sửa / Xoá (uỷ quyền sự kiện)
+		  root.addEventListener('click',function(e){
+		    var s=e.target.closest('[data-sua]'); if(s){ try{ moForm(JSON.parse(s.getAttribute('data-sua'))); }catch(err){} return; }
+		    var x=e.target.closest('[data-xoa]'); if(x){ if(!confirm('Xoá vé "'+x.getAttribute('data-ten')+'"?'))return;
+		      x.disabled=true; post('/ql/ve-xoa',{id:+x.getAttribute('data-xoa')}).then(napDs).catch(function(err){alert(err.message||err);x.disabled=false;}); }
+		  });
+
+		  // Upload ảnh
+		  $('.f-file').addEventListener('change',function(){
+		    var f=this.files&&this.files[0]; if(!f)return;
+		    var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
+		    $('.pql-msg2').style.color='#9b978c'; $('.pql-msg2').textContent='Đang tải ảnh…';
+		    fetch(REST+'/ql/ve-anh',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
+		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
+		      $('.f-anh').value=d.url; var xem=$('.f-xem'); xem.src=d.url; xem.hidden=false; $('.pql-msg2').textContent='Đã tải ảnh ✓';
+		    }).catch(function(e){ $('.pql-msg2').style.color='#f0a0a0'; $('.pql-msg2').textContent=String(e.message||e); });
+		  });
+		  $('.f-anh').addEventListener('change',function(){ var xem=$('.f-xem'); if(this.value){xem.src=this.value;xem.hidden=false;}else{xem.hidden=true;} });
+
+		  // Lưu vé
+		  $('.pql-luu').addEventListener('click',function(){
+		    var body={ id:+$('.f-id').value, ten:$('.f-ten').value.trim(), gia:$('.f-gia').value, gia_goc:$('.f-goc').value,
+		      nhom:$('.f-nhom').value.trim(), khu_vuc:$('.f-kv').value.trim(), so_luong:$('.f-sl').value.trim(),
+		      thoi_luong:$('.f-tl').value.trim(), mo_ta:$('.f-mota').value.trim(), anh:$('.f-anh').value.trim(), hien:$('.f-hien').checked?1:'' };
+		    if(!body.ten || !(+String(body.gia).replace(/\D+/g,'')>=1000)){ $('.pql-msg2').style.color='#f0a0a0'; $('.pql-msg2').textContent='Cần tên vé và giá ≥ 1.000đ.'; return; }
+		    var b=$('.pql-luu'); b.disabled=true; b.textContent='Đang lưu…';
+		    post('/ql/ve-luu',body).then(function(){ $('.pql-form').hidden=true; napDs(); })
+		      .catch(function(e){ $('.pql-msg2').style.color='#f0a0a0'; $('.pql-msg2').textContent=String(e.message||e); })
+		      .then(function(){ b.disabled=false; b.textContent='Lưu vé'; });
+		  });
+		})();
+		</script>
 		<?php
 		return ob_get_clean();
 	}
