@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), trang quản trị ở /ban-ve-nha-ma/#quanly (kế toán duyệt tiền, soát vé tại cửa, đối soát). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.1.0';
+	const VER  = '1.2.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -149,6 +149,14 @@ class NHAMA {
 			return $don;
 		}
 		$chuoi = NHAMA_QR::dung( $tk['bin'], $tk['so_tk'], (int) $don['tien'], $don['nd'] );
+		/* 🔴 CHỮ HIỆN CHO KHÁCH CHÉP LẤY TỪ CHÍNH CHUỖI QR, không lấy lại từ biến ở trên.
+		   Anh Thắng 08/09/2026: *"nội dung nó theo qr chuyển khoản, để tránh khách copy bị sai"*.
+		   Đúng: khách có hai đường trả tiền — quét QR, hoặc chép chữ gõ tay. Hai đường mà đi từ
+		   hai nguồn thì sớm muộn lệch nhau, và lệch IM LẶNG: người quét thì vào đúng đơn, người
+		   gõ tay thì tiền vào tài khoản mà không ai biết của thiệp nào. Bóc ngược ra là chỉ còn
+		   một nguồn sự thật, và nếu bộ dựng QR đổi gì thì chữ trên màn đổi theo ngay. */
+		$don['nd']    = NHAMA_QR::boc( $chuoi, '62', '08' );
+		$don['tien_qr'] = (int) NHAMA_QR::boc( $chuoi, '54' );
 		$mt    = NHAMA_QRVe::ma_tran( $chuoi, 'L' );
 		$don['tk'] = array( 'thieu' => 0, 'bin' => $tk['bin'], 'so_tk' => $tk['so_tk'],
 			'ten_tk' => $tk['ten_tk'], 'ten_nh' => $tk['ten_nh'] );
@@ -692,9 +700,10 @@ border-bottom:1px dashed #2a222a;font-size:13.5px;text-align:left}
 .chep{background:#191319;border:1px solid var(--vien);color:var(--vang-nhat);border-radius:6px;
 padding:4px 9px;font-size:11px;font-weight:600;flex:none}
 .chep:hover{border-color:var(--vang)}
-.nd-to{font-family:Cinzel,Georgia,serif;font-size:20px;letter-spacing:.14em;color:var(--vang);
+.nd-to{cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:20px;letter-spacing:.14em;color:var(--vang);
 text-align:center;background:#0c0a0e;border:1px dashed var(--vang);border-radius:8px;
-padding:10px;margin:10px 0 4px;word-break:break-all}
+padding:10px;margin:10px 0 4px;word-break:break-all;transition:background .15s,border-color .15s}
+.nd-to.nd-nhay{background:#14240f;border-color:#7ddba0;border-style:solid;color:#a7e6c1}
 .nut-phu{background:#191319;border:1px solid var(--vien);color:var(--chu);border-radius:8px;
 padding:10px 14px;font-size:13px;font-weight:600}.nut-phu:hover{border-color:var(--vang)}
 .hang-nut{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -946,25 +955,42 @@ function htmlTraTien(v, nhieu){
     +"<div class='tk-dong'><span>Số tài khoản</span><b>"+esc(v.tk.so_tk)+"</b>"
       +"<button class='chep' data-chep='"+esc(v.tk.so_tk)+"'>Chép</button></div>"
     +(v.tk.ten_tk ? "<div class='tk-dong'><span>Chủ tài khoản</span><b>"+esc(v.tk.ten_tk)+"</b></div>" : "")
-    +"<div class='tk-dong'><span>Số tiền</span><b style='color:var(--vang)'>"+tien(v.tien)+"</b>"
-      +"<button class='chep' data-chep='"+esc(v.tien)+"'>Chép</button></div>"
+    /* Số tiền cũng lấy con số NẰM TRONG QR (v.tien_qr), không lấy tiền của đơn: hiện một đằng
+       mà QR mang một nẻo là khách chuyển thiếu rồi cãi nhau ở cửa. */
+    +"<div class='tk-dong'><span>Số tiền</span><b style='color:var(--vang)'>"+tien(v.tien_qr||v.tien)+"</b>"
+      +"<button class='chep' data-chep='"+esc(v.tien_qr||v.tien)+"'>Chép</button></div>"
     +"</div>"
     +"<p class='nhan' style='text-align:center'>Nội dung chuyển khoản — GÕ ĐÚNG chuỗi này:</p>"
-    +"<div class='nd-to'>"+esc(v.nd||v.ma)+"</div>"
+    /* Bấm thẳng vào ô là chép. Chuỗi hiện ra có giãn chữ cho dễ đọc, mà bôi đen tay thì rất dễ
+       hụt một ký tự ở đầu hoặc cuối — nút chép luôn ra đúng nguyên chuỗi. */
+    +"<div class='nd-to' data-chep='"+esc(v.nd||v.ma)+"' title='Bấm để chép'>"+esc(v.nd||v.ma)+"</div>"
     +"<div style='text-align:center'><button class='chep' data-chep='"+esc(v.nd||v.ma)+"'>Chép nội dung</button></div>"
     +"<p class='kh-phu' style='font-size:12px;margin-top:8px;text-align:center'>Sai nội dung là tiền "
     +"vào tài khoản mà không biết của thiệp nào — ban tổ chức phải dò tay.</p>";
 }
 /* Chép vào bộ nhớ tạm. Bản `clipboard` chỉ chạy trên HTTPS; máy nào không có thì bôi đen sẵn cho
-   khách tự bấm chép — im lặng không làm gì là khách bấm mãi tưởng máy hỏng. */
+   khách tự bấm chép — im lặng không làm gì là khách bấm mãi tưởng máy hỏng.
+ * 🔴 KHÔNG ĐƯỢC GHI ĐÈ CHỮ CỦA CHÍNH Ô NỘI DUNG. Bản đầu đổi `textContent` của phần tử vừa bấm để
+ *    báo "đã chép" — với cái nút thì được, nhưng ô nội dung chuyển khoản CŨNG bấm chép được, và
+ *    thế là chuỗi khách đang cần đọc bị thay mất trong một giây rưỡi. Bấm hai lần liên tiếp thì
+ *    nó nhớ luôn chữ "✓ Đã chép" làm chữ gốc và chuỗi mất hẳn. Phép thử bấm thật bắt được.
+ *    Nay: ô thì NHÁY VIỀN, chỉ nút mới đổi nhãn — và nút cũng chống bấm chồng. */
 function chep(txt, nut){
   function xong(){
+    if (nut.classList.contains("nd-to")){ nhay(nut); return; }
+    if (nut.dataset.dangBao) { return; }
+    nut.dataset.dangBao="1";
     var cu=nut.textContent; nut.textContent="✓ Đã chép";
-    setTimeout(function(){ nut.textContent=cu; },1400);
+    setTimeout(function(){ nut.textContent=cu; delete nut.dataset.dangBao; },1400);
   }
   if (navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(txt).then(xong, function(){ tayChep(txt,xong); });
   } else { tayChep(txt,xong); }
+}
+/* Báo "đã chép" cho ô nội dung mà KHÔNG đụng vào chữ trong ô. */
+function nhay(o){
+  o.classList.add("nd-nhay");
+  setTimeout(function(){ o.classList.remove("nd-nhay"); },900);
 }
 function tayChep(txt, xong){
   var o=document.createElement("textarea");
@@ -1444,6 +1470,31 @@ class NHAMA_QR {
 			}
 		}
 		return substr( '000' . strtoupper( dechex( $crc ) ), -4 );
+	}
+
+	/**
+	 * BÓC NGƯỢC một trường EMVCo ra khỏi chuỗi VietQR.
+	 *
+	 * 🔴 VÌ SAO CẦN, dù mình vừa tự dựng ra chuỗi ấy: cái hiện lên cho khách chép phải là ĐÚNG CÁI
+	 *    NẰM TRONG QR, không phải một chuỗi tính song song. Hai đường cùng đi từ một biến hôm nay
+	 *    thì giống nhau; ngày nào đó một bên thêm tiền tố (nhiều nơi chèn "SEVQR ") hay cắt bớt ký
+	 *    tự, hai đường lệch nhau — và lệch IM LẶNG: khách quét QR thì tiền vào đúng đơn, khách gõ
+	 *    tay theo chữ trên màn thì tiền vào hư không. Bóc ngược ra thì chỉ còn MỘT nguồn sự thật.
+	 *
+	 * @param string $chuoi chuỗi VietQR đầy đủ
+	 * @param string $ma    mã trường ngoài (vd '62')
+	 * @param string $ma_trong mã trường con bên trong (vd '08'); rỗng = lấy nguyên trường ngoài
+	 */
+	public static function boc( $chuoi, $ma, $ma_trong = '' ) {
+		$i = 0; $n = strlen( $chuoi );
+		while ( $i + 4 <= $n ) {
+			$m   = substr( $chuoi, $i, 2 );
+			$dai = (int) substr( $chuoi, $i + 2, 2 );
+			$gt  = substr( $chuoi, $i + 4, $dai );
+			if ( $m === $ma ) { return '' === $ma_trong ? $gt : self::boc( $gt, $ma_trong ); }
+			$i += 4 + $dai;
+		}
+		return '';
 	}
 
 	/**

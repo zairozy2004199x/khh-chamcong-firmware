@@ -317,6 +317,29 @@ t( 'QR của đơn mang đúng số tiền của đơn (2 người × 100.000)',
 	NHAMA_QRVe::doc( NHAMA_QRVe::ma_tran( $chuoi2, 'L' ) ) === $chuoi2
 	&& strpos( $chuoi2, '5406200000' ) !== false, $chuoi2 );
 
+/* =============================================================================================
+ * 🔴 CHỮ CHO KHÁCH CHÉP PHẢI LÀ ĐÚNG CÁI NẰM TRONG QR
+ * =============================================================================================
+ * Khách có hai đường trả tiền: quét QR, hoặc chép chữ gõ tay. Hai đường mà đi từ hai nguồn thì
+ * sớm muộn lệch nhau, và lệch IM LẶNG — người quét thì tiền vào đúng đơn, người gõ tay thì tiền
+ * vào tài khoản mà không ai biết của thiệp nào. Nên `nd` hiện trên màn được BÓC NGƯỢC ra từ
+ * chính chuỗi VietQR, không tính song song.
+ * =========================================================================================== */
+$don_qr = NHAMA::kem_qr( NHAMA::don_theo_ma( $ma_qr ) );
+$chuoi3 = NHAMA_QR::dung( '970418', '8888815678', (int) $don_qr['tien'], NHAMA::noi_dung( $ma_qr ) );
+t( 'nội dung hiện ra = đúng trường nội dung nằm trong QR',
+	$don_qr['nd'] === NHAMA_QR::boc( $chuoi3, '62', '08' ), $don_qr['nd'] );
+t( 'số tiền hiện ra = đúng số tiền nằm trong QR',
+	(int) $don_qr['tien_qr'] === (int) NHAMA_QR::boc( $chuoi3, '54' )
+	&& (int) $don_qr['tien_qr'] === (int) $don_qr['tien'], $don_qr['tien_qr'] );
+/* Trường 38 lồng hai tầng: 38 → 01 (nhóm ngân hàng) → 00 = BIN, 01 = số tài khoản. Viết rõ ra
+   đây vì phép thử đầu tiên của em bóc thiếu một tầng và tưởng bộ bóc sai — hoá ra bộ bóc đúng. */
+$nhom_nh = NHAMA_QR::boc( NHAMA_QR::boc( $chuoi3, '38' ), '01' );
+t( 'bóc ngược lấy đúng số tài khoản trong QR', '8888815678' === NHAMA_QR::boc( $nhom_nh, '01' ), $nhom_nh );
+t( 'bóc ngược lấy đúng mã ngân hàng trong QR', '970418' === NHAMA_QR::boc( $nhom_nh, '00' ) );
+/* Bóc một trường không có thì trả rỗng, không nổ và không trả bừa trường bên cạnh. */
+t( 'bóc trường không tồn tại thì trả rỗng', '' === NHAMA_QR::boc( $chuoi3, '99' ) );
+
 /* --- chưa khai tài khoản thì NÓI THẲNG, không vẽ QR trỏ vào tài khoản rỗng ---------------- */
 goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'bin' => '', 'so_tk' => '', 'ten_tk' => '' ) ) );
 update_option( 'vhg_bin', '' ); update_option( 'vhg_so_tk', '' );
