@@ -196,6 +196,76 @@ if ( preg_match( '#\$public_fns = array\(([^)]*)\)#', $api_ma, $mp ) ) {
 	t( '🔴 bốc được danh sách hàm công khai', false, '' );
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐỔI VAI PHẢI ĂN NGAY, KHÔNG CHỜ NGƯỜI TA ĐĂNG XUẤT
+ *
+ * Thẻ phiên sống 30 ngày và trước đây nó ghi luôn VAI lúc đăng nhập. Nên đổi vai của một
+ * người ở màn Cấu hình không có hiệu lực gì cho tới khi họ tự đăng xuất — mà không ai bảo họ
+ * phải làm thế.
+ *
+ * Đã cắn thật 08/09/2026: anh Thắng gán vai "Kế toán máy tự động" cho một tài khoản, bấm Lưu,
+ * rồi hỏi *"đã phân qua kế toán máy tự động, tại sao vẫn nhìn được nội dung của bộ phận khác"*.
+ * Màn của người ấy vẫn ghi vai CŨ trên thanh tiêu đề.
+ *
+ * ⚠️ Chiều nguy hiểm hơn là THU HỒI: hạ một người từ Kế toán xuống Nhân viên mà phiên đang mở
+ *    vẫn giữ quyền cũ suốt 30 ngày.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::write( VHCP_Cfg::VAI, array(
+	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
+) );
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Chị Trinh', '334400', 'Kế toán cá nhân', '', '', '', '', '', '' ),
+) );
+$tok_t = VHCP_Auth::login( '334400' );
+t( 'đăng nhập được', ! empty( $tok_t['ok'] ), $tok_t );
+teq( 'lúc đăng nhập mang vai cũ', 'Kế toán cá nhân', $tok_t['role'] );
+
+/* Đổi vai ở màn Cấu hình — KHÔNG đụng gì tới thẻ phiên đang cầm. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Chị Trinh', '334400', 'Kế toán máy tự động', '', '', '', '', '', '' ),
+) );
+VHCP_Cfg::clear_cache();
+$u_sau = VHCP_Auth::user_by_token( $tok_t['token'] );
+teq( '🔴 CÙNG thẻ phiên cũ nhưng vai đã là vai MỚI', 'Kế toán máy tự động', $u_sau['role'] );
+teq( 'và vai gốc quy đúng',                          'Kế toán cá nhân',     $u_sau['roleGoc'] );
+
+/* Chiều thu hồi. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Chị Trinh', '334400', 'Nhân viên', '', '', '', '', '', '' ),
+) );
+VHCP_Cfg::clear_cache();
+teq( '🔴 hạ quyền cũng ăn ngay trên thẻ cũ', 'Nhân viên', VHCP_Auth::user_by_token( $tok_t['token'] )['role'] );
+
+/* Cơ sở và bộ phận cũng đọc lại — không thì siết cơ sở của một người cũng không ăn. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Chị Trinh', '334400', 'Nhân viên', 'FARM NHA TRANG', '', '', 'Kỹ thuật', '', '' ),
+) );
+VHCP_Cfg::clear_cache();
+$u3 = VHCP_Auth::user_by_token( $tok_t['token'] );
+teq( 'cơ sở đọc lại từ bảng',   'FARM NHA TRANG', $u3['coso'] );
+teq( 'bộ phận đọc lại từ bảng', 'Kỹ thuật',       $u3['boPhan'] );
+
+/* ⚠️ So tên KHÔNG PHÂN BIỆT HOA THƯỜNG và bỏ khoảng trắng thừa. Bảng người dùng do người gõ
+   tay ở màn Cấu hình — ảnh anh Thắng gửi 08/09/2026 có sẵn cả "NGUYỄN THỊ MỸ TIÊN" viết hoa
+   lẫn "Nguyễn Thị Mỹ Tiên" viết thường. So nguyên văn thì đúng những dòng gõ lệch ấy sẽ không
+   khớp, và người đó lặng lẽ giữ vai cũ mãi — hỏng đúng kiểu không ai dò ra. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( '  chị TRINH ', '334400', 'Quản lý', '', '', '', '', '', '' ),
+) );
+VHCP_Cfg::clear_cache();
+teq( '🔴 tên gõ lệch hoa thường / thừa khoảng trắng vẫn khớp đúng người',
+	'Quản lý', VHCP_Auth::user_by_token( $tok_t['token'] )['role'] );
+
+/* ⚠️ Xoá tài khoản khỏi bảng thì DÙNG NGUYÊN THẺ như cũ, không chối thẳng: một lượt đọc bảng
+   lỗi mà đá văng mọi người đang đăng nhập thì tệ hơn nhiều. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Người khác', '999999', 'Admin', '', '', '', '', '', '' ),
+) );
+VHCP_Cfg::clear_cache();
+$u4 = VHCP_Auth::user_by_token( $tok_t['token'] );
+t( '⚠️ tên không còn trong bảng thì vẫn giữ phiên', is_array( $u4 ) && 'Chị Trinh' === $u4['name'], $u4 );
+teq( 'và giữ nguyên vai ghi trên thẻ', 'Kế toán cá nhân', $u4['role'] );
+
 if ( count( $truot ) ) {
 	echo "\n=== NHỚ PHIÊN ===\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

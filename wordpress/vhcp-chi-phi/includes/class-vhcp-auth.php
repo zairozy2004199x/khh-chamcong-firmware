@@ -201,12 +201,48 @@ class VHCP_Auth {
 		$t = VHCP_DB::t( 'session' );
 		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE token=%s AND het_han > UTC_TIMESTAMP()", $token ), ARRAY_A );
 		if ( ! $r ) { return null; }
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 VAI · CƠ SỞ · BỘ PHẬN ĐỌC LẠI TỪ BẢNG NGƯỜI DÙNG, KHÔNG TIN THẺ PHIÊN.
+		 *
+		 * Thẻ phiên ghi vai LÚC ĐĂNG NHẬP và thẻ sống 30 ngày. Nên đổi vai của một người ở màn
+		 * Cấu hình KHÔNG có hiệu lực gì cho tới khi họ tự đăng xuất — và không ai bảo họ phải
+		 * làm thế.
+		 *
+		 * Đã cắn thật 08/09/2026: anh Thắng gán vai "Kế toán máy tự động" cho một tài khoản,
+		 * bấm Lưu, rồi hỏi *"đã phân qua kế toán máy tự động, tại sao vẫn nhìn được nội dung
+		 * của bộ phận khác"*. Màn của người ấy vẫn ghi vai CŨ trên thanh tiêu đề — đúng thứ
+		 * đang nằm trong thẻ phiên.
+		 *
+		 * Chiều nguy hiểm hơn nhiều: THU HỒI quyền cũng không ăn. Hạ một người từ Kế toán
+		 * xuống Nhân viên, hay siết tầm nhìn đơn vị của họ, mà phiên đang mở vẫn giữ quyền cũ
+		 * suốt 30 ngày.
+		 *
+		 * Thẻ phiên từ nay chỉ trả lời đúng một câu: NGƯỜI NÀY LÀ AI. Còn họ được làm gì thì
+		 * hỏi bảng người dùng, mỗi lượt gọi.
+		 *
+		 * ⚠️ Tên không còn trong bảng (đã xoá tài khoản) -> dùng nguyên thẻ như cũ. Chối thẳng
+		 *    thì một lượt `get_users()` lỗi là đá văng mọi người đang đăng nhập.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$ten  = (string) $r['ten'];
+		$vai  = (string) $r['vai_tro'];
+		$cs   = (string) $r['coso'];
+		$bp   = (string) $r['bo_phan'];
+		$khoa = mb_strtolower( trim( $ten ) );
+		if ( '' !== $khoa && class_exists( 'VHCP_Cfg' ) ) {
+			foreach ( VHCP_Cfg::get_users() as $u ) {
+				if ( mb_strtolower( trim( (string) $u['ten'] ) ) !== $khoa ) { continue; }
+				$vai = ( trim( (string) $u['vaiTro'] ) !== '' ) ? (string) $u['vaiTro'] : 'Nhân viên';
+				$cs  = (string) $u['coso'];
+				$bp  = (string) $u['boPhan'];
+				break;
+			}
+		}
 		/* 🔴 GỬI KÈM VAI GỐC. Giao diện dựng danh sách tab bằng một bảng tra theo TÊN VAI —
 		   vai tự tạo không có trong bảng đó nên rơi vào nhánh mặc định và chỉ còn đúng một tab.
 		   Vai vừa tạo ra mà gần như không dùng được thì tính năng tạo vai coi như vô nghĩa. */
-		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'],
-			'roleGoc' => VHCP_Cfg::vai_goc( (string) $r['vai_tro'] ),
-			'coso' => $r['coso'], 'boPhan' => $r['bo_phan'] );
+		return array( 'name' => $ten, 'role' => $vai,
+			'roleGoc' => VHCP_Cfg::vai_goc( $vai ),
+			'coso' => $cs, 'boPhan' => $bp );
 	}
 
 	/**
