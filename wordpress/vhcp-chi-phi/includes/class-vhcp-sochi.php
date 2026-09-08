@@ -218,6 +218,10 @@ class VHCP_SoChi {
 		$dv_xem = VHCP_DonVi::xem_duoc();
 		foreach ( self::all_rows() as $r ) {
 			if ( null !== $dv_xem && ! VHCP_DonVi::xem_duoc_coso( isset( $r['coso'] ) ? $r['coso'] : '' ) ) { continue; }
+			/* Và lọc theo BỘ PHẬN: vai "Kế toán máy tự động" chỉ thấy dòng mang loại chi phí
+			   thuộc bộ phận ấy. Cùng chỗ với chốt đơn vị, vì cùng một lý do — lọc trước khi
+			   gom các ô lọc, không thì ô lọc vẫn bày kỳ và loại của mảng khác. */
+			if ( ! VHCP_Auth::xem_duoc_loai( isset( $r['loai'] ) ? $r['loai'] : '' ) ) { continue; }
 			$ky_set[ (string) $r['ky'] ] = 1;
 			if ( trim( (string) $r['loai'] ) !== '' ) { $loai_set[ (string) $r['loai'] ] = 1; }
 			if ( trim( (string) $r['tk_no'] ) !== '' ) { $tk_set[ (string) $r['tk_no'] ] = 1; }

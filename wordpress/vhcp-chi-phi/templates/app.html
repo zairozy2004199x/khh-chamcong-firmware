@@ -1027,7 +1027,8 @@
         ở bảng <b>🔑 Phân quyền chỉnh sửa</b> bên dưới (vai mới hiện thành một cột riêng ở đó).<br>
         <b>Không kế thừa được Admin</b> — cho phép là ai vào Cấu hình cũng tự đúc cho mình một vai Admin trá hình.
       </div>
-      <div class="tw"><table style="min-width:520px"><thead><tr><th style="width:260px">Tên vai trò</th><th style="width:220px">Kế thừa quyền của</th><th style="width:44px"></th></tr></thead><tbody id="cfgVaiBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:720px"><thead><tr><th style="width:260px">Tên vai trò</th><th style="width:220px">Kế thừa quyền của</th><th style="width:200px">Chỉ làm bộ phận</th><th style="width:44px"></th></tr></thead><tbody id="cfgVaiBody"></tbody></table></div>
+      <div style="padding:6px 14px 12px;font-size:11px;color:#94a3b8"><b>Chỉ làm bộ phận</b> — để trống là vai đó thấy mọi bộ phận, như từ trước tới nay. Khai một bộ phận thì người mang vai ấy <b>chỉ thấy chi phí của bộ phận đó</b>: dòng chi mang loại chi phí thuộc bộ phận ấy, và đơn có ít nhất một dòng như thế. Bộ phận của một loại chi phí khai ở bảng <b>Loại chi phí</b> bên dưới — loại nào <b>chưa khai</b> bộ phận thì vẫn hiện cho mọi kế toán, để tiền không biến mất khỏi màn nào.</div>
     </div>
     <div class="card" id="userCard">
       <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
@@ -6307,7 +6308,11 @@
   // 'Văn phòng' thêm 25/08/2026 theo anh Thắng: nhân viên VP đi lên dự án ở gian nào thì đơn
   // đi theo DỰ ÁN của gian đó và THỜI GIAN BẤT KỲ, không gom theo tuần. Gom theo tuần chỉ
   // đúng với nhân viên cơ sở — họ xin tạm ứng cho một tuần vận hành.
-  var BOPHAN_LIST=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup'];
+  /* 'Máy tự động' thêm 08/09/2026 theo anh Thắng: *"thêm vai trò kế toán máy tự động (để chỉ
+     thực hiện công việc bên bộ phận máy tự động)"*. Không phải tên mới — bên chấm công nó đã
+     là một bộ phận thật từ lâu (`VHCC_Luong::BP_DS`), chỉ bên chi phí là chưa có.
+     ⚠️ Danh sách này phải khớp `VHCP_Cfg::BO_PHAN_DS` bên máy chủ; có phép thử canh hai bên. */
+  var BOPHAN_LIST=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup','Máy tự động'];
   // Bộ phận được chọn KHOẢNG NGÀY TỰ DO khi tạo đơn (thay vì bắt buộc gom theo tuần).
   // Nhân viên cơ sở xin tạm ứng cho MỘT TUẦN vận hành nên tuần là đúng và không được nới ra;
   // nhân viên văn phòng lên dự án thì một đợt thi công chẳng nằm gọn trong tuần nào cả.
@@ -6861,12 +6866,12 @@
     if(!el('cfgVaiBody')) return;
     if(el('vaiCard')) el('vaiCard').style.display=_laAdmin()?'':'none';
     el('cfgVaiBody').innerHTML=((CFG.vaiTro)||[]).map(function(x){
-      return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td>'+_delBtn()+'</tr>';
+      return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td><td>'+_bpSel(x.boPhan,'— Mọi bộ phận —')+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
-  function addCfgVai(){ el('cfgVaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel('Nhân viên')+'</td>'+_delBtn()+'</tr>'); }
+  function addCfgVai(){ el('cfgVaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel('Nhân viên')+'</td><td>'+_bpSel('','— Mọi bộ phận —')+'</td>'+_delBtn()+'</tr>'); }
   function saveCfgVai(){
-    var data=_readRows('cfgVaiBody').map(function(r){return {ten:(r[0]||'').trim(), goc:r[1]||'Nhân viên'};})
+    var data=_readRows('cfgVaiBody').map(function(r){return {ten:(r[0]||'').trim(), goc:r[1]||'Nhân viên', boPhan:(r[2]||'').trim()};})
       .filter(function(x){return x.ten;});
     var cam=['Admin'].concat(VAI_GOC), thay={};
     for(var i=0;i<data.length;i++){

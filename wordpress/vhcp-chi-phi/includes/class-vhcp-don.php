@@ -573,10 +573,29 @@ class VHCP_Don {
 		$tt_don = array();
 		foreach ( $dons as $d ) { $tt_don[ (string) $d['ma_don'] ] = (string) $d['trang_thai']; }
 
+		/* 🔴 ĐƠN NÀO CHẠM TỚI BỘ PHẬN CỦA MÌNH — dựng một lượt, không hỏi lại từng đơn.
+		   Anh Thắng 08/09/2026: vai "Kế toán máy tự động" *"chỉ thực hiện công việc bên bộ
+		   phận máy tự động"*.
+
+		   Một đơn có nhiều dòng chi, mỗi dòng một loại chi phí, nên đơn KHÔNG thuộc đúng một
+		   bộ phận. Luật: CHẠM là thấy — đơn có ít nhất một dòng thuộc bộ phận của mình thì
+		   hiện. Chặt hơn (đòi mọi dòng đều thuộc bộ phận ấy) là một đơn lẫn hai loại chi phí
+		   sẽ biến mất khỏi cả hai màn, và tiền treo mà không kế toán nào thấy để xử.
+
+		   ⚠️ Đơn KHÔNG có dòng chi nào (đơn xin ứng trước — luật 01/09/2026 cho gửi như thế)
+		      thì vẫn hiện: chưa có dòng nào để mà nói nó thuộc bộ phận nào, mà đó lại đúng là
+		      đơn đang treo tiền. */
+		$bo_phan_bo = VHCP_Auth::bo_phan_bo();
+		$don_cham   = array();
+
 		$xin = array(); $tt_cn = array(); $tt_ncc = array(); $coso_by = array();
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( $m === '' ) { continue; }
+			if ( '' !== $bo_phan_bo ) {
+				if ( ! isset( $don_cham[ $m ] ) ) { $don_cham[ $m ] = false; }
+				if ( VHCP_Auth::xem_duoc_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) ) { $don_cham[ $m ] = true; }
+			}
 			$cs = trim( (string) $r['coso'] );
 			if ( $cs !== '' ) {
 				if ( ! isset( $coso_by[ $m ] ) ) { $coso_by[ $m ] = array(); }
@@ -597,6 +616,9 @@ class VHCP_Don {
 		foreach ( $dons as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( $m === '' ) { continue; }
+			/* Có dòng chi mà KHÔNG dòng nào thuộc bộ phận mình -> bỏ. Đơn chưa có dòng nào thì
+			   `$don_cham` không có khoá ấy, và nó vẫn hiện — xem khối 🔴 ở trên. */
+			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) { continue; }
 			$du_phong = VHCP_Util::num( $r['du_phong'] );
 			$bu_tru   = VHCP_Util::num( $r['bu_tru'] );
 			/* NULL = chưa ai chốt số; 0 = đã chốt và chốt là không đồng nào. Xem khối 🔴 ở

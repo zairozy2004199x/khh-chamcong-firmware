@@ -156,6 +156,40 @@ class VHCP_Cfg {
 	 */
 	const VAI_GOC = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
 
+	/**
+	 * CÁC BỘ PHẬN CHI PHÍ — chốt DUY NHẤT, phía máy chủ.
+	 *
+	 * Anh Thắng 08/09/2026: *"thêm vai trò kế toán máy tự động (để chỉ thực hiện công việc bên
+	 * bộ phận máy tự động)"*, và trước đó gọi tắt mảng ấy là *"mảng mtd"*.
+	 *
+	 * 🔴 "MÁY TỰ ĐỘNG" KHÔNG PHẢI TÊN MỚI — bên chấm công nó đã là một bộ phận thật từ lâu
+	 *    (`VHCC_Luong::BP_DS`: Máy tự động · Khu vui chơi · Văn phòng · Part time), và sổ nhân
+	 *    sự của anh Thắng có sẵn người mang chức vụ ấy. Bên chi phí thì chưa, nên tiền của mảng
+	 *    máy tự động trước giờ nằm lẫn vào bộ phận khác.
+	 *
+	 * ⚠️ TRƯỚC BẢN NÀY DANH SÁCH CHỈ CÓ Ở JAVASCRIPT (`BOPHAN_LIST` trong app.html). Máy chủ
+	 *    không biết bộ phận nào có thật, nên không gác được gì theo bộ phận — ô ấy chỉ là chữ.
+	 *    Nay chốt ở đây và giao diện đọc xuống, để hai bên không lệch.
+	 */
+	const BO_PHAN_DS = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup', 'Máy tự động' );
+
+	/** Tên bộ phận đã chuẩn hoá về đúng chữ trong `BO_PHAN_DS`; không khớp -> '' (= mọi bộ phận). */
+	public static function bo_phan_chuan( $x ) {
+		$x = trim( (string) $x );
+		if ( '' === $x ) { return ''; }
+		/* 🔴 `mb_strtolower`, KHÔNG PHẢI `strcasecmp`. Hàm so không phân biệt hoa thường của
+		   PHP chỉ biết bảng chữ ASCII, nên "MÁY TỰ ĐỘNG" và "Máy tự động" là hai chuỗi khác
+		   nhau với nó. Đúng cái bẫy đã cắn một lần ở phân quyền 25/08/2026 (`strtoupper` không
+		   nâng được chữ có dấu) và làm mọi vai tiếng Việt bị chối im lặng suốt nhiều tháng.
+		   Ở đây hậu quả nhẹ hơn nhưng cùng kiểu: khai hoa một chữ là ô ấy coi như để trống,
+		   tức vai không bó gì và người mang nó nhìn thấy sổ của mọi mảng. */
+		$k = mb_strtolower( $x );
+		foreach ( self::BO_PHAN_DS as $b ) {
+			if ( mb_strtolower( $b ) === $k ) { return $b; }
+		}
+		return '';
+	}
+
 	/** Vai tự tạo: [ ['ten'=>…, 'goc'=>…], … ]. Bỏ dòng trùng tên vai gốc / Admin. */
 	public static function vai_tuy_bien() {
 		$out = array();
@@ -171,7 +205,13 @@ class VHCP_Cfg {
 			   mà tự động thành Quản lý là mất quyền kiểm soát; thành Nhân viên thì cùng lắm là
 			   bị chặn rồi có người kêu. */
 			if ( ! in_array( $g, self::VAI_GOC, true ) ) { $g = 'Nhân viên'; }
-			$out[] = array( 'ten' => $t, 'goc' => $g );
+			/* Cột thứ ba: BỘ PHẬN mà vai này bị bó vào. Để trống = không bó (như mọi vai cũ).
+			   Gắn vào VAI chứ không chỉ vào từng tài khoản, vì đó là điều anh Thắng nói: vai
+			   ấy sinh ra để *"chỉ thực hiện công việc bên bộ phận máy tự động"* — bó ở tài
+			   khoản thì mỗi lần thêm người lại phải nhớ khai lại, và lần quên nào cũng là một
+			   kế toán nhìn thấy cả sổ của mảng khác. */
+			$bp = self::bo_phan_chuan( isset( $r[2] ) ? $r[2] : '' );
+			$out[] = array( 'ten' => $t, 'goc' => $g, 'boPhan' => $bp );
 		}
 		return $out;
 	}
@@ -199,6 +239,31 @@ class VHCP_Cfg {
 		/* Vai lạ (dòng người dùng còn giữ tên vai đã xóa) -> coi như Nhân viên, không phải
 		   "không rõ". Trả rỗng là lọt qua mọi phép kiểm `in_array` rỗng. */
 		return 'Nhân viên';
+	}
+
+	/**
+	 * BỘ PHẬN MÀ MỘT NGƯỜI BỊ BÓ VÀO — '' nghĩa là không bó (thấy mọi bộ phận).
+	 *
+	 * 🔴 CHỈ ĐỌC TỪ VAI TRÒ, KHÔNG ĐỌC Ô "BỘ PHẬN / LOẠI NV" TRÊN TÀI KHOẢN.
+	 *
+	 *    Bản nháp đầu có đọc, coi ô ấy là nguồn lui. Sai, và bài kiểm bắt được: ô đó xưa nay
+	 *    chỉ dùng để LỌC DANH MỤC lúc nhập và phân quyền TAB cho Nhân viên — nó chưa bao giờ
+	 *    cắt dữ liệu của kế toán. Biến nó thành lát cắt là mọi tài khoản đã lỡ khai ô đó (ảnh
+	 *    anh Thắng gửi 08/09/2026 có sẵn một dòng "Bộ phận: Kỹ thuật") sẽ mất đơn ngay lúc cài
+	 *    đè, mà không ai đoán được vì sao.
+	 *
+	 *    Anh Thắng cùng ngày: *"nhớ đừng can thiệp gì bên phần chi phí khu vui chơi"*. Bó theo
+	 *    VAI thì chỉ vai mới sinh ra để bó mới bị bó, và mọi thứ đang chạy không đổi một li.
+	 *
+	 * ⚠️ Vai gốc và Admin không bao giờ bó: `vai_tuy_bien()` đã loại chúng khỏi danh sách.
+	 */
+	public static function bo_phan_cua_nguoi( $ten_vai ) {
+		$ten_vai = trim( (string) $ten_vai );
+		if ( '' === $ten_vai ) { return ''; }
+		foreach ( self::vai_tuy_bien() as $v ) {
+			if ( $v['ten'] === $ten_vai ) { return (string) $v['boPhan']; }
+		}
+		return '';
 	}
 
 	/** QUYEN_ACTIONS của app cũ (giữ nguyên thứ tự + mặc định). */
@@ -385,6 +450,25 @@ class VHCP_Cfg {
 				else { self::append( self::NHOM, $x ); $rows = self::read( self::NHOM ); }
 			}
 			VHCP_Meta::set( 'seeded_thaodo_setup_v2', '1' );
+		}
+
+		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — dựng sẵn một lần (anh Thắng 08/09/2026).
+		   Dựng sẵn chứ không bắt khai tay: vai này chỉ đúng khi cột Bộ phận của nó mang đúng
+		   chữ "Máy tự động"; khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy
+		   KHÔNG bó gì cả và người mang nó nhìn thấy sổ của mọi mảng — hỏng đúng theo kiểu
+		   không ai nhận ra.
+
+		   ⚠️ Đánh dấu đã seed để anh còn XOÁ hoặc ĐỔI được. Không đánh dấu thì mỗi lượt nâng
+		      cấp lại dựng lại một vai anh vừa cố ý bỏ đi. */
+		if ( ! VHCP_Meta::get( 'seeded_vai_mtd_v1' ) ) {
+			$did = true;
+			$co  = false;
+			foreach ( self::read( self::VAI ) as $r ) {
+				$r = array_values( (array) $r );
+				if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) === mb_strtolower( 'Kế toán máy tự động' ) ) { $co = true; }
+			}
+			if ( ! $co ) { self::append( self::VAI, array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ) ); }
+			VHCP_Meta::set( 'seeded_vai_mtd_v1', '1' );
 		}
 
 		// Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ phận)
@@ -731,7 +815,7 @@ class VHCP_Cfg {
 				$b = trim( $g( $x, 'goc' ) );
 				if ( '' === $t || 'Admin' === $t || in_array( $t, self::VAI_GOC, true ) ) { continue; }
 				if ( ! in_array( $b, self::VAI_GOC, true ) ) { $b = 'Nhân viên'; }
-				$rows[] = array( $t, $b );
+				$rows[] = array( $t, $b, self::bo_phan_chuan( $g( $x, 'boPhan' ) ) );
 			}
 			self::write( self::VAI, $rows );
 		}
@@ -912,6 +996,23 @@ class VHCP_Cfg {
 			$out[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = $x;
 		}
 		return $out;
+	}
+
+	/**
+	 * BỘ PHẬN của một loại chi phí — '' nếu chưa khai hoặc loại không có trong danh mục.
+	 *
+	 * Đây là cách một DÒNG TIỀN biết mình thuộc mảng nào: dòng chi ghi tên loại, loại khai bộ
+	 * phận. Không có đường nào khác — bảng chi phí không có cột bộ phận, và thêm cột thì lại
+	 * là một chỗ nữa phải nhớ ghi.
+	 *
+	 * ⚠️ '' KHÔNG có nghĩa "không thuộc ai". Loại chưa khai bộ phận là chuyện thường (danh mục
+	 *    dựng từ sổ cũ), và những dòng ấy phải hiện cho MỌI kế toán chứ không biến mất — tiền
+	 *    có thật mà không ai nhìn thấy thì tệ hơn hẳn việc nó hiện ở cả hai màn. Chốt gọi bên
+	 *    dưới xử đúng như thế.
+	 */
+	public static function bo_phan_cua_loai( $ten_loai ) {
+		$x = self::loai_tk( $ten_loai );
+		return self::bo_phan_chuan( isset( $x['boPhan'] ) ? $x['boPhan'] : '' );
 	}
 
 	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). */

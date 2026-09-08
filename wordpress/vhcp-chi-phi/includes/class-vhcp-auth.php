@@ -50,6 +50,40 @@ class VHCP_Auth {
 		self::$nguoi    = (string) $ten;
 		self::$coso     = (string) $coso;
 	}
+	/**
+	 * BỘ PHẬN mà người đang gọi bị bó vào — '' = không bó (thấy mọi bộ phận).
+	 *
+	 * Anh Thắng 08/09/2026: *"thêm vai trò kế toán máy tự động (để chỉ thực hiện công việc bên
+	 * bộ phận máy tự động)"*. Bó gắn với VAI, không với ô "Bộ phận" trên tài khoản — xem chốt
+	 * dài ở `VHCP_Cfg::bo_phan_cua_nguoi()`.
+	 */
+	public static function bo_phan_bo() {
+		if ( ! class_exists( 'VHCP_Cfg' ) ) { return ''; }
+		return VHCP_Cfg::bo_phan_cua_nguoi( self::$vai_hien );
+	}
+
+	/* ⚠️ ĐÃ BỎ `xem_duoc_bo_phan( $bp )` — so thẳng tên bộ phận với bộ phận đang bó. Viết ra
+	   "cho chắc ăn" rồi KHÔNG chỗ nào gọi: phá thử chỉ nó ra ngay, vì đục cho nó luôn trả
+	   `true` mà không phép nào đỏ. Nhánh không ai đi tới thì không ai biết nó còn đúng, và
+	   nó cũng không bảo vệ được gì. Mọi chỗ cần hỏi đều đi qua `xem_duoc_loai()` dưới đây —
+	   dòng tiền mang TÊN LOẠI chứ không mang tên bộ phận. */
+
+	/**
+	 * Người đang gọi có được đọc một dòng chi mang LOẠI CHI PHÍ này không.
+	 *
+	 * 🔴 LOẠI CHƯA KHAI BỘ PHẬN THÌ CHO QUA. Danh mục loại chi phí của anh Thắng dựng từ sổ cũ,
+	 *    rất nhiều dòng còn bỏ trống ô Bộ phận. Chặn chúng lại là ngày bản này lên, kế toán bó
+	 *    bộ phận mở màn ra thấy gần như trắng — và họ sẽ kết luận là mất dữ liệu chứ không
+	 *    đoán ra là do một ô chưa khai ở màn Cấu hình.
+	 */
+	public static function xem_duoc_loai( $ten_loai ) {
+		$bo = self::bo_phan_bo();
+		if ( '' === $bo ) { return true; }
+		$bp = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::bo_phan_cua_loai( $ten_loai ) : '';
+		if ( '' === $bp ) { return true; }
+		return mb_strtolower( $bo ) === mb_strtolower( $bp );
+	}
+
 	public static function vai_tro() { return self::$vai_tro; }
 	public static function vai_hien() { return self::$vai_hien; }
 	public static function nguoi() { return self::$nguoi; }
