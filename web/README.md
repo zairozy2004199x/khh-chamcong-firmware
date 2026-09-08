@@ -4,7 +4,13 @@ Trang web rời, **không liên quan tới firmware máy chấm công**. Để �
 
 | File | Việc |
 |---|---|
-| `nha-ma-so-13.html` | Nhà ma "Số 13 Hàng Lược": **trang bán vé** cho khách + **trang quản lý** cho nhân viên, chung một file |
+| `nha-ma-so-13.html` | **Bản gốc** — viết cho Artifact của Claude (không có `<!doctype>`, `<head>`, `<body>`) |
+| `dist/nha-ma-so-13.html` | **Bản up lên web** — chạy độc lập, thả lên host nào cũng được |
+| `dung.py` | Gói bản gốc thành bản up lên web: `python3 web/dung.py` |
+| `so-dat-ve.gs` | Google Apps Script làm sổ chung (tuỳ chọn — xem phần Sổ đặt vé) |
+
+Sửa thì sửa `nha-ma-so-13.html` rồi chạy lại `dung.py`. **Đừng sửa thẳng trong `dist/`**, chạy lại
+script là mất.
 
 ## Hai trang trong một file
 
@@ -16,25 +22,54 @@ Trang web rời, **không liên quan tới firmware máy chấm công**. Để �
 Hai trang **dùng chung một sổ đặt vé**, nên phải nằm chung một file — đây là lý do không tách đôi.
 Huỷ đơn ở trang quản lý thì chỗ được trả lại cho trang bán vé ngay.
 
-⚠️ Trang quản lý **không có lớp đăng nhập riêng**: ai mở được link là vào được `#quanly` và thấy
-tên, số điện thoại khách. Chỉ đưa link cho người trong nhà.
+⚠️ Trang quản lý **không có lớp đăng nhập riêng**: ai mở được trang là gõ thêm `#quanly` vào được và
+thấy tên, số điện thoại khách. Cần chặn thật thì phải làm thêm mật khẩu — chưa có.
 
-Sổ đang có sẵn 9 đơn thử (mã bắt đầu bằng `DEMO-`) để xem trang chạy. Xoá bằng nút trong
-**Đối soát theo đêm → Dữ liệu thử**.
+## Up lên web
 
-## Chạy
-
-File này viết cho **Artifact của Claude**: nó nhận `<!doctype>`, `<head>`, `<body>` từ bên ngoài,
-nên trong file chỉ có `<title>`, `<style>`, phần thân và `<script>`.
-
-- Trên Artifact: số chỗ còn lại lưu ở kho dùng chung (`db`) — mọi người xem cùng lúc thấy cùng một
-  con số; nút "Tải vé về máy" dùng `downloads` để xuất vé ra file `.svg`.
-- Mở bằng trình duyệt thường: vẫn chạy, nhưng **vé chỉ lưu trên máy đó** (`localStorage`) và số chỗ
-  luôn hiện sức chứa tối đa. Muốn mở thẳng thì bọc thêm:
-
-```html
-<!doctype html><html><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"></head><body>
-<!-- dán nội dung nha-ma-so-13.html vào đây -->
-</body></html>
+```bash
+python3 web/dung.py          # ghi ra web/dist/nha-ma-so-13.html
 ```
+
+Rồi kéo đúng **một file** `dist/nha-ma-so-13.html` lên host. Không cần cài gì, không cần server,
+không cần cơ sở dữ liệu. Muốn nó là trang chủ thì đổi tên thành `index.html`.
+
+Trang gọi ra ngoài đúng **một** chỗ: Google Fonts (`fonts.googleapis.com`, `fonts.gstatic.com`) để
+lấy ba bộ chữ. Chặn mạng đó thì trang vẫn chạy, chỉ đổi sang chữ hệ thống.
+
+## Sổ đặt vé — ba kiểu, trang tự chọn kiểu chạy được
+
+| Kiểu | Khi nào | Được gì |
+|---|---|---|
+| Kho chung của Artifact | Mở trên claude.ai | Mọi người thấy cùng số chỗ, tự cập nhật |
+| Google Apps Script | Có điền `CAUHINH.so` | Một sổ chung cho mọi máy, đọc/ghi vào Google Sheet |
+| Trên máy đang mở | Không điền gì | **Mỗi máy một sổ riêng** — máy khác không thấy đơn |
+
+Kiểu thứ ba là mặc định của bản `dist/`: mở là chạy ngay, nhưng chỉ hợp để xem thử hoặc bán vé từ
+đúng một máy. Bán vé thật cho khách vào từ điện thoại của họ thì **phải** dùng kiểu hai.
+
+Cách bật kiểu hai: làm theo hướng dẫn ở đầu `so-dat-ve.gs`, xong mở
+`nha-ma-so-13.html`, tìm khối này ở đầu phần `<script>` và điền vào:
+
+```js
+var CAUHINH = {
+  so:   "",     /* dán link /exec của Google Apps Script vào đây */
+  khoa: ""      /* mật khẩu khai trong Apps Script; để trống nếu không đặt */
+};
+```
+
+Rồi chạy lại `python3 web/dung.py` và up lại file.
+
+> Phần Apps Script **chưa chạy thử được** ở đây vì cần tài khoản Google của anh. Code viết theo đúng
+> cách Apps Script vẫn dùng, nhưng anh cài xong hãy thử giữ một chỗ rồi mở Sheet xem có dòng mới
+> chưa — có dòng là chạy.
+
+## Sửa nội dung hay gặp
+
+Mở `nha-ma-so-13.html`, đầu phần `<script>`:
+
+- `DEMS` — ba đêm diễn (tên, mô tả)
+- `SUATS` — giờ, canh giờ, sức chứa (`suc`), phụ thu (`phuThu`)
+- `HANGS` — tên hạng vé, giá, số khách mỗi vé, mức sợ
+
+Địa chỉ, số điện thoại, luật nhà ma nằm thẳng trong phần thân trang, tìm theo chữ là thấy.
