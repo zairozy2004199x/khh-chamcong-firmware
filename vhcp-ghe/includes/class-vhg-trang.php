@@ -589,7 +589,9 @@ class VHG_Trang {
 			$r = VHG_May::luu_coso( isset( $d['id'] ) ? (int) $d['id'] : 0,
 				isset( $d['ten'] ) ? $d['ten'] : '',
 				isset( $d['tinh'] ) ? $d['tinh'] : null,
-				isset( $d['ma_kh'] ) ? $d['ma_kh'] : null );
+				isset( $d['ma_kh'] ) ? $d['ma_kh'] : null,
+				/* Không gửi khoá này = KHÔNG đụng cờ (mọi lượt lưu tên/tỉnh/mã KH đều thế). */
+				array_key_exists( 'reset_moi_lan', $d ) ? ! empty( $d['reset_moi_lan'] ) : null );
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' lưu địa điểm: ' . (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) ) );
@@ -1926,6 +1928,13 @@ class VHG_Trang {
     var ghe=(BC.ghe||[]).filter(function(g){ return String(g.coso||'').trim()===String(loc).trim(); });
     var lk=$('bc-lock');
     if(lk){ if(khoaNgay(loc,NGAY)){ lk.textContent='Cơ sở '+loc+' ngày '+NGAY+' đang KHOÁ — nhờ kế toán mở.'; lk.style.display=''; } else lk.style.display='none'; }
+    /* Dải nhắc "cơ sở này reset sau mỗi lần thu" — vẽ lại theo cơ sở đang chọn, và dọn cái cũ
+       trước: đổi sang cơ sở thường mà dải vẫn còn là nói sai về chính bảng đang nhìn. */
+    (function(){
+      var cu=document.querySelector('.bc-nhac-reset'); if(cu && cu.parentNode) cu.parentNode.removeChild(cu);
+      var neo=$('bc-lock');
+      if(neo && neo.parentNode) veNhacReset2(neo);
+    })();
     body.textContent='';
     if(!ghe.length){ body.appendChild(elEmptyRow('Cơ sở này chưa có ghế.')); tinhTong(); return; }
     var codes=ghe.map(function(g){ return g.ma; });
@@ -2986,6 +2995,31 @@ class VHG_Trang {
   }
 
   // ---------------- ĐỀ NGHỊ ĐỔI / XOÁ CHỈ SỐ ----------------
+  /** Cơ sở đang chọn có phải cơ sở "reset sau mỗi lần thu" không. */
+  function cosoResetMoiLan(){
+    var ds=(BC.resetCoso||[]);
+    for(var i=0;i<ds.length;i++){ if(String(ds[i]).trim()===String(LOC||'').trim()) return true; }
+    return false;
+  }
+  /* 🔴 NÓI RA, ĐỪNG ĐỂ NGƯỜI TA TỰ ĐOÁN. Ở cơ sở này ô "Chỉ số trước" luôn bằng 0 — nhìn không
+     giải thích thì đọc như hệ thống vừa mất dữ liệu kỳ trước, và người nhập sẽ đi gõ tay số cũ
+     vào, làm hỏng đúng con số cần đúng. */
+  /** Chèn dải nhắc NGAY SAU một nút neo (ô khoá), không dồn xuống cuối trang. */
+  function veNhacReset2(neo){
+    if(!cosoResetMoiLan()) return;
+    var d=dungNhacReset();
+    if(neo.nextSibling) neo.parentNode.insertBefore(d, neo.nextSibling);
+    else neo.parentNode.appendChild(d);
+  }
+  function dungNhacReset(){
+    var d=el('div','bc-nhac-reset');
+    d.style.cssText='margin:8px 0;padding:9px 12px;border-radius:8px;background:#fffbeb;'
+      +'border:1px solid #fde68a;color:#78350f;font-size:12.5px;font-weight:600';
+    d.textContent='🔄 '+LOC+' — máy reset về 0 sau mỗi lần thu, nên "Chỉ số trước" luôn là 0. '
+      +'Chỉ cần gõ chỉ số đang hiện trên máy vào ô "Chỉ số sau". Số liệu kỳ trước vẫn còn nguyên '
+      +'trong báo cáo đã nộp.';
+    return d;
+  }
   function veDenghi(){
     var box=$('bc-dn'); if(!box) return; box.textContent='';
     box.appendChild(el('h3','bc-h','Đề nghị đổi / xoá chỉ số — kế toán duyệt'));
@@ -7450,6 +7484,11 @@ function veQuanLy(){
       + (c.tinh ? '<div class="mut">📍 ' + esc(c.tinh) + '</div>' : '')
       + (c.ma_kh ? '<div class="mut">🏷 ' + esc(c.ma_kh) + '</div>'
                  : '<div class="mut" style="opacity:.55">🏷 ' + L('chưa có mã KH','no customer code') + '</div>')
+      /* 🔴 CƠ SỞ RESET BỘ ĐẾM SAU MỖI LẦN THU — anh Thắng 08/09/2026: *"có 1 cơ sở cần reset
+         định kì sau mỗi lần thu"*. Bày ngay trên hàng: đây là thứ đổi hẳn cách tính tiền của
+         cả cơ sở, giấu trong một hộp thoại là không ai biết cơ sở nào đang bật. */
+      + (Number(c.reset_moi_lan) ? '<div style="color:#b45309;font-weight:700;font-size:11px;margin-top:2px">🔄 '
+          + L('Reset về 0 sau mỗi lần thu','Meter resets to 0 after each collection') + '</div>' : '')
       + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
       + '<td class="r"><b>' + tien(r.tong) + '</b>'
@@ -7460,6 +7499,11 @@ function veQuanLy(){
       + '<td class="r" style="white-space:nowrap">'
       + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'')
         + '" data-csmakh="' + esc(c.ma_kh||'') + '">✎</button> '
+      + '<button data-csreset="' + c.id + '" data-csrten="' + esc(c.ten) + '"'
+        + ' data-csrdang="' + (Number(c.reset_moi_lan)?1:0) + '"'
+        + ' data-csrtinh="' + esc(c.tinh||'') + '" data-csrmakh="' + esc(c.ma_kh||'') + '"'
+        + ' title="' + L('Bật/tắt: máy ở đây reset về 0 sau mỗi lần thu','Toggle: meter resets to 0 after each collection') + '"'
+        + (Number(c.reset_moi_lan)?' class="on"':'') + '>🔄</button> '
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
   });
   if (chuaGan) {
@@ -8479,6 +8523,27 @@ function noi(){
          còn nguyên, và nút Thêm ghế tụt về "(chưa gán)". */
       if (QL_LOC === b.getAttribute('data-csten')) QL_CHO_CS = t;
       lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim(), ma_kh: makh.trim() });
+    };
+  });
+  /* 🔄 BẬT / TẮT "reset sau mỗi lần thu" cho một cơ sở.
+     ⚠️ HỎI LẠI, VÀ HỎI CHO RÕ. Cờ này đổi cách tính tiền của MỌI ghế trong cơ sở kể từ lần nhập
+        kế tiếp — bật nhầm là cả cơ sở tính sai. Nhưng nói cho đúng: nó KHÔNG xoá gì, báo cáo đã
+        nộp giữ nguyên từng con số. Người bấm cần biết cả hai vế.
+     ⚠️ GỬI KÈM `tinh` và `ma_kh` ĐANG CÓ. `luu_coso()` hiểu "không truyền = giữ nguyên", nhưng
+        gửi lại y nguyên thì rõ ràng hơn và không phụ thuộc vào luật ngầm ấy. */
+  [].forEach.call(document.querySelectorAll('[data-csreset]'), function(b){
+    b.onclick = function(){
+      var ten = b.getAttribute('data-csrten');
+      var dang = b.getAttribute('data-csrdang') === '1';
+      var hoi = dang
+        ? L('TẮT chế độ "reset sau mỗi lần thu" cho ' + ten + '?\n\nTừ lần nhập kế tiếp, chỉ số trước sẽ lấy lại theo kỳ trước như các cơ sở khác.\nBáo cáo đã nộp KHÔNG đổi.',
+            'Turn OFF "meter resets after each collection" for ' + ten + '?')
+        : L('BẬT chế độ "reset sau mỗi lần thu" cho ' + ten + '?\n\nTừ lần nhập kế tiếp, MỌI ghế của cơ sở này lấy chỉ số trước = 0 — khỏi phải gửi đề nghị xoá chỉ số mỗi kỳ.\nKHÔNG xoá gì cả: báo cáo đã nộp giữ nguyên từng con số.',
+            'Turn ON "meter resets after each collection" for ' + ten + '?');
+      if (!confirm(hoi)) return;
+      lam('coso_luu', { id: b.getAttribute('data-csreset'), ten: ten,
+        tinh: b.getAttribute('data-csrtinh') || '', ma_kh: b.getAttribute('data-csrmakh') || '',
+        reset_moi_lan: dang ? 0 : 1 });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){

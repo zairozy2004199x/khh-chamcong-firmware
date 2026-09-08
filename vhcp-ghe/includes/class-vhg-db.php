@@ -127,6 +127,7 @@ class VHG_DB {
 			ma_kh VARCHAR(40) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7',
+			reset_moi_lan TINYINT(1) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ten (ten)";
 

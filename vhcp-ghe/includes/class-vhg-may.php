@@ -33,7 +33,7 @@ class VHG_May {
 	 *    (đổi tên cơ sở, thêm cơ sở lúc gán ghế…) đều không truyền `ma_kh` — nếu coi thiếu tham
 	 *    số là "đặt về rỗng" thì mỗi lần ai đó sửa tên một cơ sở là mã KH của nó bị xoá, im lặng.
 	 */
-	public static function luu_coso( $id, $ten, $tinh = null, $ma_kh = null ) {
+	public static function luu_coso( $id, $ten, $tinh = null, $ma_kh = null, $reset = null ) {
 		global $wpdb;
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
@@ -43,11 +43,17 @@ class VHG_May {
 		$tinh = mb_substr( trim( (string) $tinh ), 0, 120 );
 		$co_makh = ( null !== $ma_kh );
 		$ma_kh = mb_substr( trim( (string) $ma_kh ), 0, 40 );
+		/* `reset_moi_lan` — null = KHÔNG đụng (giữ nguyên), có giá trị = đặt lại. Cùng lối với
+		   `tinh` / `ma_kh` ở trên: mấy lượt gọi cũ không truyền thì không vô tình tắt cờ. */
+		$co_reset = ( null !== $reset );
+		$reset = $reset ? 1 : 0;
 		if ( (int) $id > 0 ) {
 			$data = array( 'ten' => $ten );
 			if ( $co_tinh ) { $data['tinh'] = $tinh; }
 			if ( $co_makh ) { $data['ma_kh'] = $ma_kh; }
+			if ( $co_reset ) { $data['reset_moi_lan'] = $reset; }
 			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
+			self::quen_dem_reset_();
 			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
@@ -55,11 +61,13 @@ class VHG_May {
 			$data_cu = array();
 			if ( $co_tinh ) { $data_cu['tinh'] = $tinh; }
 			if ( $co_makh ) { $data_cu['ma_kh'] = $ma_kh; }
-			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); }
+			if ( $co_reset ) { $data_cu['reset_moi_lan'] = $reset; }
+			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); self::quen_dem_reset_(); }
 			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
 		}
 		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '',
-			'ma_kh' => $co_makh ? $ma_kh : '' ) );
+			'ma_kh' => $co_makh ? $ma_kh : '', 'reset_moi_lan' => $co_reset ? $reset : 0 ) );
+		self::quen_dem_reset_();
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 
@@ -68,6 +76,13 @@ class VHG_May {
 	 * ⚠️ Xoá máy theo là mất cấu hình giá/thời lượng/số tài khoản của những máy đang chạy thật,
 	 *    chỉ vì người ta gõ nhầm tên một cơ sở rồi muốn xoá đi làm lại.
 	 */
+	/** Đổi cấu hình cơ sở thì dọn đệm cờ reset — không thì lượt tính tiếp theo còn đọc số cũ. */
+	private static function quen_dem_reset_() {
+		if ( class_exists( 'VHG_BaoCao' ) && method_exists( 'VHG_BaoCao', 'quen_reset_memo' ) ) {
+			VHG_BaoCao::quen_reset_memo();
+		}
+	}
+
 	public static function xoa_coso( $id ) {
 		global $wpdb;
 		$id = (int) $id;

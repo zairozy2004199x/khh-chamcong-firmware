@@ -177,11 +177,64 @@ class VHG_BaoCao {
 	 * hạn đúng khoảng "lượt kích ghế từ xa" mà báo cáo NÀY bao phủ (xem kich_xa_tru() bên dưới)
 	 * — không có ngày mốc thì không biết trừ lượt kích từ đâu tới đâu, dễ đếm đôi với kỳ trước.
 	 */
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * CƠ SỞ RESET BỘ ĐẾM SAU MỖI LẦN THU
+	 *
+	 * Anh Thắng 08/09/2026: *"có 1 cơ sở cần reset định kì sau mỗi lần thu"*.
+	 *
+	 * 🔴 KHÔNG XOÁ GÌ CẢ. Máy VẬT LÝ được nhân viên bấm về 0 sau khi thu tiền; việc của web chỉ
+	 *    là BIẾT điều đó, để lần nhập kế tiếp lấy 0 làm chỉ số trước thay vì đi tìm chỉ số sau
+	 *    của kỳ trước. Mọi báo cáo đã nộp giữ nguyên từng con số.
+	 *
+	 * 🔴 VÌ SAO KHÔNG BẮT HỌ GỬI ĐỀ NGHỊ MỖI KỲ. Lệnh "đề nghị đổi/xoá chỉ số" dựng cho SỰ CỐ
+	 *    (thay máy, gõ sai) nên bắt buộc ghi lý do và chờ kế toán duyệt. Việc lặp lại mỗi lần
+	 *    thu mà phải qua đó thì tuần nào cũng một lượt gửi + một lượt duyệt, và tuần nào kế toán
+	 *    chưa kịp duyệt là nhân viên nhập vào một cái mốc sai. Khai một lần ở danh mục cơ sở,
+	 *    kế toán vẫn là người quyết — chỉ quyết MỘT LẦN thay vì mỗi kỳ.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Đệm trong một lượt gọi: hàm này bị hỏi cho từng ghế của cả cơ sở. */
+	private static $reset_memo = null;
+
+	/**
+	 * Ghế này có thuộc cơ sở "reset sau mỗi lần thu" không.
+	 *
+	 * ⚠️ TRA THEO GHẾ, không theo tên cơ sở truyền vào: mọi chỗ tính tiền đều chỉ cầm mã ghế,
+	 *    và bắt chúng tự đi tìm tên cơ sở là thêm một chỗ để lệch.
+	 */
+	public static function may_reset_moi_lan( $ma_may ) {
+		$ma = trim( (string) $ma_may );
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
+		   quả, vì bảng tra không bao giờ có khoá rỗng nên `empty()` phía dưới vẫn trả false.
+		   Giữ nó vì nó chặn luôn lượt dựng cả bảng tra cho một câu hỏi vô nghĩa — và vì nó nói
+		   thẳng ra ý "không có mã ghế thì không kết luận gì". */
+		if ( '' === $ma ) { return false; }
+		if ( null === self::$reset_memo ) {
+			global $wpdb;
+			self::$reset_memo = array();
+			$rows = VHG_DB::rows( 'SELECT m.ma, c.reset_moi_lan FROM ' . VHG_DB::t( 'may' ) . ' m'
+				. ' LEFT JOIN ' . VHG_DB::t( 'coso' ) . ' c ON c.id = m.coso_id' );
+			foreach ( (array) $rows as $r ) {
+				self::$reset_memo[ (string) $r['ma'] ] = ! empty( $r['reset_moi_lan'] );
+			}
+		}
+		return ! empty( self::$reset_memo[ $ma ] );
+	}
+
+	/** Dọn đệm — gọi sau khi đổi cấu hình cơ sở, không thì lượt sau còn đọc số cũ. */
+	public static function quen_reset_memo() { self::$reset_memo = null; }
+
 	private static function chi_so_truoc_ct_( $ma_may, $ngay, $toi = false ) {
 		global $wpdb;
 		$ma = (string) $ma_may;
 		$ngay = self::ngay_( $ngay );
 		if ( '' === $ma || '' === $ngay ) { return array( 'cs' => null, 'ngay' => '' ); }
+		/* 🔴 CƠ SỞ RESET MỖI LẦN THU → CHỈ SỐ TRƯỚC LUÔN LÀ 0, không đi tìm kỳ trước.
+		   Kể cả lượt "thu lần nữa" trong ngày ($toi=true): reset sau MỖI lần thu nghĩa là lần
+		   nào cũng bắt đầu từ 0.
+		   ⚠️ Trả `ngay` RỖNG là cố ý — "lượt kích ghế từ xa" tính theo khoảng kể từ mốc, mà ở
+		      đây không có mốc nào trước để mà tính từ đó; xem `kich_xa_tru()`. */
+		if ( self::may_reset_moi_lan( $ma ) ) { return array( 'cs' => 0, 'ngay' => '' ); }
 		$found_cs = null; $found_d = '';
 		/* $toi=true → tính CẢ chỉ số sau CỦA CHÍNH NGÀY ĐÓ (các lần thu trước trong ngày) làm mốc,
 		   để "thu lần nữa" nối tiếp lần trước; sắp lan DESC để lấy đúng lần thu MỚI NHẤT trong ngày.
@@ -329,6 +382,12 @@ class VHG_BaoCao {
 	private static function ap_moc_( $r ) {
 		global $wpdb;
 		$ma = (string) $r['ma_may'];
+		/* 🔴 KHÔNG NỐI LẠI CHO CƠ SỞ RESET MỖI LẦN THU.
+		   Hàm này sinh ra để chữa một chuyện của cơ sở THƯỜNG: chèn/sửa một báo cáo ngày trước
+		   thì mốc của ngày sau phải chạy theo. Ở cơ sở luôn bắt đầu từ 0, khái niệm ấy không
+		   tồn tại — mà nếu vẫn chạy thì nó kéo `chi_so_truoc` của mọi hàng CŨ (có từ trước khi
+		   bật cờ) về 0, tức tính lại tiền của những kỳ đã chốt xong. Không được. */
+		if ( self::may_reset_moi_lan( $ma ) ) { return; }
 		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'] );   // mốc sống (ngày < ngày hàng này)
 		if ( null === $moi ) { return; }
 		if ( (int) $r['chi_so_truoc'] === (int) $moi ) { return; }   // không đổi
@@ -461,9 +520,17 @@ class VHG_BaoCao {
 				$khoa_loc[] = array( 'coso' => $k['coso'], 'ngay' => self::ngay_( $k['ngay'] ) );
 			}
 		}
+		/* Cơ sở nào reset bộ đếm sau mỗi lần thu — màn nhập cần biết để nói ra, không thì người
+		   ta nhìn ô "Chỉ số trước" bằng 0 và tưởng hệ thống mất dữ liệu kỳ trước. */
+		$reset_cs = array();
+		foreach ( VHG_DB::rows( 'SELECT ten FROM ' . VHG_DB::t( 'coso' ) . ' WHERE reset_moi_lan=1' ) as $r ) {
+			$t = trim( (string) $r['ten'] );
+			if ( '' !== $t && isset( $cs[ $t ] ) ) { $reset_cs[] = $t; }
+		}
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
+			'resetCoso' => $reset_cs,
 			'chamCongUrl' => self::cham_cong_url() );
 	}
 

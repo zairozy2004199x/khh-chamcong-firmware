@@ -398,7 +398,10 @@ if (iOpt > 0 && jOpt > iOpt) {
 
 /* ---------- 7. MÃ KH: khai được, và KHÔNG bị xoá khi sửa việc khác ---------- */
 const may_php = fs.readFileSync('vhcp-ghe/includes/class-vhg-may.php', 'utf8');
-t('luu_coso() nhận ma_kh', /function luu_coso\( \$id, \$ten, \$tinh = null, \$ma_kh = null \)/.test(may_php));
+/* ⚠️ CANH Ý ĐỊNH: hàm phải NHẬN `ma_kh` với mặc định null (null = giữ nguyên). Bản đầu ghim
+   nguyên văn cả chữ ký, nên thêm tham số thứ năm (`$reset`, bản 2.15.0) là đỏ vì một chuyện nó
+   không soi. */
+t('luu_coso() nhận ma_kh', /function luu_coso\( \$id, \$ten, \$tinh = null, \$ma_kh = null[,)]/.test(may_php));
 /* 🔴 `null` KHÁC rỗng: mọi chỗ gọi cũ (đổi tên cơ sở, thêm cơ sở lúc gán ghế) đều không truyền
    ma_kh — coi thiếu tham số là "đặt về rỗng" thì mỗi lần sửa tên là mã KH bị xoá, im lặng. */
 t('🔴 không truyền ma_kh thì GIỮ NGUYÊN mã cũ, không xoá',
