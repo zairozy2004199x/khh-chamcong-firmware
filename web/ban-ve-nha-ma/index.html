@@ -1,0 +1,1056 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ghost Bride VIP — Giữ chỗ theo khung giờ</title>
+<meta name="description" content="Ghi danh khách mời theo khung giờ — Ghost Bride VIP.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+================================================================================================
+ GHOST BRIDE VIP — BÁN VÉ THEO KHUNG GIỜ. Một file, hai trang.
+================================================================================================
+   khmatrix.com/ban-ve-nha-ma          -> TRANG KHÁCH: chọn khung giờ, ghi danh, nhận mã giữ chỗ
+   khmatrix.com/ban-ve-nha-ma/#quanly  -> TRANG QUẢN TRỊ: duyệt tiền, soát vé, đối soát, cài đặt
+
+ 🔴 VÌ SAO HAI TRANG NẰM CHUNG MỘT FILE
+    Chúng dùng CHUNG một sổ đặt chỗ. Khách giữ một khung giờ là ô ấy phải hụt đi ngay trên màn
+    quản trị, và kế toán huỷ một đơn là chỗ ấy phải mở lại cho khách khác — tức thì. Tách đôi
+    file là hai bản sao luật đếm chỗ, và sớm muộn hai bên lệch nhau ở đúng con số quyết định:
+    "khung này còn mấy chỗ".
+
+ 🔴 ĐỌC ĐOẠN NÀY TRƯỚC KHI GIAO CHO KHÁCH THẬT — GIAI ĐOẠN 1 CHƯA BÁN ĐƯỢC CHO NGƯỜI NGOÀI
+    Bản này để sổ trong `localStorage`, tức là **mỗi máy một sổ riêng**. Khách đặt trên điện
+    thoại của họ thì máy quản trị KHÔNG thấy đơn ấy, và ngược lại. Nó chạy tốt cho: xem thử,
+    duyệt giao diện, và bán tại quầy bằng đúng một máy.
+
+    Muốn khách tự đặt từ điện thoại của họ thì PHẢI có sổ chung trên máy chủ — điền `CAUHINH.so`
+    ở đầu phần <script> là xong, phần còn lại đã viết sẵn. Xem khối "SỔ ĐẶT CHỖ" bên dưới.
+
+ ⚠️ TRANG QUẢN TRỊ GÁC BẰNG MÃ PIN Ở PHÍA TRÌNH DUYỆT — ĐÓ KHÔNG PHẢI BẢO MẬT THẬT.
+    Ai xem mã nguồn trang là đọc được. Nó chỉ ngăn người đi ngang gõ nhầm #quanly. Muốn chặn
+    thật thì cửa phải nằm ở máy chủ, và đó là việc của giai đoạn 2.
+================================================================================================
+-->
+<style>
+/* ============================================================================ nền chung */
+:root{
+  --den:#08070a; --den2:#0f0d12; --vien:#241d24;
+  --do:#8b1a1a; --do-sang:#c1272d; --vang:#c8a84b; --vang-nhat:#e6d6a2;
+  --chu:#e8e2d9; --chu-mo:#9b9189;
+  /* trang quản trị — tông khác hẳn, cố ý: nhân viên phải biết ngay mình đang ở màn nào */
+  --q-nen:#0b0e11; --q-nen2:#12161c; --q-the:#171c23; --q-vien:#242c36;
+  --q-xanh:#2f81f7; --q-luc:#2ea043; --q-do:#f85149; --q-cam:#d29922;
+  --q-chu:#e6edf3; --q-chu-mo:#8b949e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{color-scheme:dark}
+body{background:var(--den);color:var(--chu);
+  font-family:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+.an{display:none !important}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:inherit}
+
+/* ============================================================================ TRANG KHÁCH */
+#apKhach{min-height:100vh;
+  /* Không dùng ảnh nền ngoài: một tấm ảnh 2MB trên 3G ở cổng là khách bỏ đi trước khi nhìn
+     thấy khung giờ. Vân nền dựng bằng gradient, nặng 0 byte. */
+  background:
+    radial-gradient(1200px 600px at 15% -10%, #241016 0%, transparent 60%),
+    radial-gradient(900px 500px at 110% 20%, #1a1016 0%, transparent 55%),
+    repeating-linear-gradient(115deg, rgba(255,255,255,.012) 0 2px, transparent 2px 7px),
+    var(--den);
+}
+.kh-bao{max-width:1080px;margin:0 auto;padding:20px 16px 64px}
+.kh-dau{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:26px}
+.kh-nut-dau{background:#15111a;border:1px solid var(--vien);color:var(--vang-nhat);
+  border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;letter-spacing:.02em}
+.kh-nut-dau:hover{border-color:var(--vang);background:#1c1620}
+.kh-tieu{text-align:center;margin:6px 0 34px}
+.kh-tieu h1{font-family:Cinzel,Georgia,serif;font-size:clamp(30px,6vw,52px);letter-spacing:.12em;
+  margin:0;color:var(--do-sang);text-shadow:0 0 26px rgba(193,39,45,.35);font-weight:700}
+.kh-gach{width:min(420px,70%);height:1px;margin:14px auto 12px;
+  background:linear-gradient(90deg,transparent,var(--do),transparent)}
+.kh-phu{font-style:italic;color:var(--chu-mo);font-size:14px;margin:0}
+.kh-luoi{display:grid;grid-template-columns:1.35fr 1fr;gap:20px;align-items:start}
+@media(max-width:900px){.kh-luoi{grid-template-columns:1fr}}
+.the{background:rgba(18,15,20,.86);border:1px solid var(--vien);border-radius:12px;padding:20px}
+.the-tieu{display:flex;align-items:center;gap:10px;font-family:Cinzel,Georgia,serif;
+  font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--vang-nhat);
+  margin:0 0 16px;padding-left:12px;border-left:3px solid var(--do)}
+.nhan{display:block;font-size:12px;color:var(--chu-mo);font-style:italic;margin:14px 0 6px}
+.o{width:100%;background:#0c0a0e;border:1px solid var(--vien);border-radius:8px;
+  padding:11px 12px;color:var(--chu);outline:none}
+.o:focus{border-color:var(--do);box-shadow:0 0 0 2px rgba(139,26,26,.25)}
+.o::placeholder{color:#5d555c}
+select.o{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--chu-mo) 50%),
+  linear-gradient(135deg,var(--chu-mo) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 52%,calc(100% - 13px) 52%;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:34px}
+
+/* --- lưới khung giờ --- */
+.gio-luoi{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
+@media(max-width:640px){.gio-luoi{grid-template-columns:repeat(3,1fr)}}
+.gio{background:#0e0c11;border:1px solid var(--vien);border-radius:8px;padding:10px 4px;
+  text-align:center;line-height:1.25;transition:border-color .12s,background .12s}
+.gio b{display:block;font-size:15px;font-weight:600;letter-spacing:.02em}
+.gio span{display:block;font-size:11px;color:var(--chu-mo);margin-top:2px}
+.gio.duoc:hover{border-color:var(--vang);background:#171018}
+.gio.chon{border-color:var(--do-sang);background:#1d1013;box-shadow:0 0 0 1px var(--do-sang) inset}
+.gio.chon b,.gio.chon span{color:var(--vang-nhat)}
+.gio.het{opacity:.34;cursor:not-allowed}
+.gio.het b,.gio.het span{color:#6b6068}
+
+/* --- tình trạng tiền sảnh --- */
+.ts-cuon{max-height:420px;overflow:auto;padding-right:6px}
+.ts-cuon::-webkit-scrollbar{width:6px}
+.ts-cuon::-webkit-scrollbar-thumb{background:var(--do);border-radius:3px}
+.ts-hang{display:grid;grid-template-columns:60px 1fr auto;align-items:center;gap:10px;
+  padding:9px 2px;border-bottom:1px solid #1b161b;font-size:13px}
+.ts-hang b{font-weight:600}
+.ts-hang i{font-style:normal;color:var(--chu-mo);font-size:12px}
+.the-trang{background:#1c1a1d;border-radius:5px;padding:3px 9px;font-size:11px;font-weight:600;
+  white-space:nowrap}
+.the-trang.con{background:#12261a;color:#7ddba0}
+.the-trang.sap{background:#2a2110;color:#e0be6a}
+.the-trang.het{background:#231a1a;color:#c9a0a0}
+
+/* --- form --- */
+.cam-ket{display:flex;gap:10px;align-items:flex-start;background:#0e0b10;border-left:3px solid var(--do);
+  border-radius:6px;padding:12px;margin:16px 0;font-size:12.5px;color:var(--chu-mo)}
+.cam-ket input{margin-top:3px;flex:none;width:16px;height:16px;accent-color:var(--do-sang)}
+.nut-chinh{width:100%;background:linear-gradient(180deg,#6d1418,#4a0e11);border:1px solid #7c1c20;
+  color:var(--vang-nhat);border-radius:9px;padding:15px;font-family:Cinzel,Georgia,serif;
+  font-size:14px;letter-spacing:.1em;font-weight:700;text-transform:uppercase}
+.nut-chinh:hover:not(:disabled){background:linear-gradient(180deg,#87181d,#5c1114)}
+.nut-chinh:disabled{opacity:.45;cursor:not-allowed}
+.bao{border-radius:8px;padding:11px 13px;font-size:13px;margin-top:12px}
+.bao.hong{background:#2a1113;border:1px solid #5c1f22;color:#f0b8ba}
+.bao.duoc{background:#10241a;border:1px solid #1f5c37;color:#a7e6c1}
+
+/* --- thiệp (vé) --- */
+.thiep{border:1px solid var(--vang);border-radius:12px;padding:20px;margin-top:14px;
+  background:linear-gradient(180deg,#151016,#0d0a0e)}
+.thiep .ma{font-family:Cinzel,Georgia,serif;font-size:26px;letter-spacing:.16em;color:var(--vang);
+  text-align:center;margin:6px 0 4px;word-break:break-all}
+.thiep .dong{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
+  border-bottom:1px dashed #2a222a;font-size:13.5px}
+.thiep .dong:last-of-type{border-bottom:0}
+.thiep .dong span{color:var(--chu-mo)}
+.huong-dan{background:#0e0b10;border:1px solid var(--vien);border-radius:8px;padding:13px;
+  margin-top:14px;font-size:13px}
+.huong-dan b{color:var(--vang-nhat)}
+.nut-phu{background:#191319;border:1px solid var(--vien);color:var(--chu);border-radius:8px;
+  padding:10px 14px;font-size:13px;font-weight:600}
+.nut-phu:hover{border-color:var(--vang)}
+.hang-nut{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+
+/* --- hộp thoại --- */
+.man-che{position:fixed;inset:0;background:rgba(4,3,5,.86);display:flex;align-items:center;
+  justify-content:center;padding:18px;z-index:50}
+.hop{background:#100d12;border:1px solid var(--vien);border-radius:12px;padding:22px;
+  width:min(420px,100%);position:relative}
+.hop-dong{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--chu-mo);
+  font-size:20px;line-height:1}
+
+/* ============================================================================ TRANG QUẢN TRỊ */
+#apQL{min-height:100vh;background:var(--q-nen);color:var(--q-chu);display:grid;
+  grid-template-columns:260px 1fr}
+@media(max-width:820px){#apQL{grid-template-columns:1fr}.q-ben{position:static !important}}
+.q-ben{background:#000;border-right:1px solid var(--q-vien);min-height:100vh;position:sticky;top:0}
+.q-hieu{padding:22px 18px;border-bottom:1px solid var(--q-vien);text-align:center}
+.q-hieu b{display:block;font-size:20px;font-weight:700;letter-spacing:.14em}
+.q-hieu i{display:inline-block;margin-top:7px;background:var(--q-luc);color:#04120a;
+  border-radius:4px;padding:2px 9px;font-size:10px;font-style:normal;font-weight:700;
+  letter-spacing:.08em}
+.q-nav{padding:8px 0}
+.q-nav button{display:flex;align-items:center;gap:11px;width:100%;background:none;border:0;
+  border-left:3px solid transparent;color:var(--q-chu-mo);padding:13px 18px;font-size:14px;
+  text-align:left}
+.q-nav button:hover{background:#0e1319;color:var(--q-chu)}
+.q-nav button.on{background:#0d1b2e;border-left-color:var(--q-xanh);color:#fff;font-weight:600}
+.q-nav button.thoat{color:var(--q-do)}
+.q-nav .cham{margin-left:auto;background:var(--q-do);color:#fff;border-radius:999px;
+  min-width:20px;height:20px;display:grid;place-items:center;font-size:11px;font-weight:700;
+  padding:0 6px}
+.q-than{min-width:0}
+.q-tren{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  background:var(--q-nen2);border-bottom:1px solid var(--q-vien);padding:14px 22px;font-size:14px}
+.q-tren .noi{display:flex;align-items:center;gap:9px;font-weight:600}
+.q-cham-tt{width:10px;height:10px;border-radius:50%;background:var(--q-luc);flex:none}
+.q-cham-tt.rieng{background:var(--q-cam)}
+.q-noi-dung{padding:22px}
+.q-tieu{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;margin:0 0 18px}
+.q-the{background:var(--q-the);border:1px solid var(--q-vien);border-radius:10px;padding:18px}
+.q-so{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media(max-width:1180px){.q-so{grid-template-columns:1fr}}
+.q-so .q-the{display:flex;align-items:center;gap:16px}
+.q-bieu{width:52px;height:52px;border-radius:9px;display:grid;place-items:center;font-size:22px;flex:none}
+.q-so small{display:block;color:var(--q-chu-mo);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;font-weight:600}
+.q-so b{font-size:26px;font-weight:700;line-height:1.2}
+.q-thanh{height:9px;background:#0d1117;border-radius:5px;overflow:hidden;margin:14px 0 18px}
+.q-thanh i{display:block;height:100%;background:linear-gradient(90deg,var(--q-xanh),var(--q-luc))}
+.q-luoi-gio{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:12px}
+.q-gio{background:#10151b;border:1px solid var(--q-vien);border-radius:9px;padding:13px 8px;
+  text-align:center}
+.q-gio b{display:block;font-size:17px;font-weight:700}
+.q-gio span{display:block;font-size:12px;color:var(--q-chu-mo);margin-top:3px}
+.q-gio em{display:block;font-style:normal;font-size:12px;font-weight:600;margin-top:2px}
+.q-gio.trong em{color:var(--q-chu-mo)}
+.q-gio.sap{border-color:#5c4813}.q-gio.sap em{color:var(--q-cam)}
+.q-gio.day{border-color:#5c2222}.q-gio.day em{color:var(--q-do)}
+.q-nut{border:0;border-radius:8px;padding:11px 16px;font-size:13.5px;font-weight:700;color:#fff}
+.q-nut.xanh{background:var(--q-xanh)}.q-nut.luc{background:var(--q-luc)}
+.q-nut.do{background:var(--q-do)}.q-nut.xam{background:#21262d;color:var(--q-chu)}
+.q-nut:hover{filter:brightness(1.12)}
+.q-duyet{display:grid;grid-template-columns:150px 1fr auto;gap:18px;align-items:center}
+@media(max-width:760px){.q-duyet{grid-template-columns:1fr}}
+.q-bill{background:#0d1117;border:1px dashed var(--q-vien);border-radius:8px;height:150px;
+  display:grid;place-items:center;text-align:center;color:var(--q-chu-mo);font-size:12px;
+  font-weight:600;overflow:hidden}
+.q-bill img{width:100%;height:100%;object-fit:cover}
+.q-bang{width:100%;border-collapse:collapse;font-size:13.5px}
+.q-bang th{text-align:left;color:var(--q-chu-mo);font-size:11.5px;letter-spacing:.06em;
+  text-transform:uppercase;padding:12px 10px;border-bottom:1px solid var(--q-vien);white-space:nowrap}
+.q-bang td{padding:12px 10px;border-bottom:1px solid #1b2129;vertical-align:top}
+.q-bang tr:hover td{background:#10151b}
+.q-cuon{overflow-x:auto}
+.nhan-tt{display:inline-block;border-radius:5px;padding:3px 9px;font-size:11.5px;font-weight:700;
+  border:1px solid;white-space:nowrap}
+.tt-giu{background:#161b22;border-color:#30363d;color:var(--q-chu-mo)}
+.tt-duyet{background:#2a1f08;border-color:#6b4c0e;color:#e3b341}
+.tt-vao{background:#0d2416;border-color:#1a6b34;color:#56d364}
+.tt-xong{background:#0d1b2e;border-color:#1f4e85;color:#79c0ff}
+.tt-huy{background:#2a1214;border-color:#6b1f24;color:#ff7b72}
+.q-zalo{display:inline-block;background:#0068ff;color:#fff;border-radius:5px;padding:3px 9px;
+  font-size:11.5px;font-weight:600;text-decoration:none;margin-top:4px}
+.q-loc{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.q-o{background:#0d1117;border:1px solid var(--q-vien);border-radius:7px;padding:9px 12px;
+  color:var(--q-chu);outline:none}
+.q-o:focus{border-color:var(--q-xanh)}
+.q-cam-hinh{background:#0d1117;border:1px solid var(--q-vien);border-radius:9px;overflow:hidden;
+  aspect-ratio:4/3;display:grid;place-items:center;position:relative}
+.q-cam-hinh video{width:100%;height:100%;object-fit:cover}
+.q-doi{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:820px){.q-doi{grid-template-columns:1fr}}
+.q-nho{color:var(--q-chu-mo);font-size:12.5px}
+.q-canh{background:#2a1f08;border:1px solid #6b4c0e;color:#e3b341;border-radius:8px;
+  padding:12px 14px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<!-- ======================================================================== TRANG KHÁCH -->
+<div id="apKhach">
+  <div class="kh-bao">
+    <div class="kh-dau">
+      <button class="kh-nut-dau" id="btTraCuu">🔎 TRA CỨU LỜI MỜI</button>
+      <button class="kh-nut-dau" id="btThiep">🎟 THIỆP CỦA TÔI</button>
+    </div>
+
+    <div class="kh-tieu">
+      <h1>GHOST BRIDE VIP</h1>
+      <div class="kh-gach"></div>
+      <p class="kh-phu">Nghi thức phân luồng dành riêng cho Khách Mời Danh Dự</p>
+    </div>
+
+    <div class="kh-luoi">
+      <div>
+        <div class="the">
+          <h2 class="the-tieu">⧗ 1. Lựa chọn thời khắc</h2>
+          <select class="o" id="oNgay"></select>
+          <div class="gio-luoi" id="luoiGio"></div>
+        </div>
+
+        <div class="the" style="margin-top:18px">
+          <h2 class="the-tieu">🖋 2. Ghi danh khách mời</h2>
+          <label class="nhan">Thời khắc được chọn:</label>
+          <input class="o" id="oChon" readonly placeholder="Chưa chọn khung giờ">
+          <label class="nhan">Danh Tính Người Đại Diện:</label>
+          <input class="o" id="oTen" placeholder="Nhập tên người đại diện tham dự...">
+          <label class="nhan">Tín Hiệu Liên Lạc (SĐT Zalo để nhận thư):</label>
+          <input class="o" id="oSdt" inputmode="tel" placeholder="Ví dụ: 0912345678">
+          <label class="nhan" id="nhanSl">Số lượng thành viên:</label>
+          <select class="o" id="oSl"></select>
+          <label class="cam-ket">
+            <input type="checkbox" id="oCamKet">
+            <span id="chuCamKet"></span>
+          </label>
+          <button class="nut-chinh" id="btGiuCho">🔑 Khởi tạo mã giữ chỗ - 0₫</button>
+          <div id="baoDat"></div>
+        </div>
+      </div>
+
+      <div class="the">
+        <h2 class="the-tieu">👁 Tình trạng tiền sảnh</h2>
+        <p class="kh-phu" style="text-align:left;margin:-8px 0 12px;font-size:12px">
+          Hệ thống trung tâm tự động cập nhật số lượng chỗ trống tại sảnh thực tế.</p>
+        <div class="ts-cuon" id="tsCuon"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================================================================== TRANG QUẢN TRỊ -->
+<div id="apQL" class="an">
+  <aside class="q-ben">
+    <div class="q-hieu"><b>ADMIN PRO</b><i>ONLINE CLOUD</i></div>
+    <nav class="q-nav" id="qNav"></nav>
+  </aside>
+  <div class="q-than">
+    <div class="q-tren">
+      <div class="noi"><span class="q-cham-tt" id="qChamTT"></span><span id="qNoiTT"></span></div>
+      <button class="q-nut xam" id="btAm">🔔 Cảnh báo âm thanh: Đã Bật</button>
+    </div>
+    <div class="q-noi-dung" id="qNoiDung"></div>
+  </div>
+</div>
+
+<div id="hopThoai"></div>
+
+<script>
+/* ==============================================================================================
+ * SỔ ĐẶT CHỖ — ĐIỀN HAI DÒNG NÀY LÀ CẢ HỆ THỐNG DÙNG CHUNG MỘT SỔ
+ * ==============================================================================================
+ * Để trống  -> sổ nằm trong trình duyệt đang mở. MỖI MÁY MỘT SỔ RIÊNG: khách đặt trên điện
+ *              thoại của họ thì máy quản trị không thấy. Chỉ hợp để xem thử / bán tại một quầy.
+ * Có link   -> mọi máy chung một sổ. Link nhận hai lệnh, xem `khoMang()` phía dưới để biết
+ *              máy chủ phải trả về cái gì (giai đoạn 2 sẽ trỏ vào plugin trên khmatrix.com).
+ * ============================================================================================ */
+var CAUHINH = {
+  so:   "",     /* dán link máy chủ vào đây */
+  khoa: ""      /* mật khẩu khai ở máy chủ; để trống nếu không đặt */
+};
+
+/* ---------------------------------------------------------------- cấu hình vận hành
+   Mặc định lấy đúng theo mẫu. Sửa được ngay trong màn "Cài đặt hệ thống", không phải sửa mã. */
+var CF_MD = {
+  gia: 100000,        /* đồng / 1 người */
+  suc: 10,            /* số người tối đa mỗi khung giờ */
+  mo: "10:10",        /* khung đầu tiên trong ngày */
+  dong: "11:45",      /* khung cuối cùng */
+  buoc: 5,            /* mỗi khung cách nhau mấy phút */
+  ngayMo: 14,         /* mở bán trước bao nhiêu ngày */
+  denSom: 10,         /* khách phải có mặt trước bao nhiêu phút */
+  pin: "246810",      /* mã vào trang quản trị — xem cảnh báo ở đầu file */
+  quet: 6000,         /* tự động nạp lại đơn mới, mili giây */
+  am: 1               /* 1 = kêu khi có đơn mới chờ duyệt */
+};
+
+var TT = {
+  giu_cho:   { chu:"Đang giữ chỗ",          lop:"tt-giu"   },
+  cho_duyet: { chu:"Chờ duyệt thanh toán",  lop:"tt-duyet" },
+  cho_vao:   { chu:"Chờ Check-in",          lop:"tt-vao"   },
+  da_vao:    { chu:"Đã vào",                lop:"tt-xong"  },
+  huy:       { chu:"Bị huỷ",                lop:"tt-huy"   }
+};
+/* Đơn còn CHIẾM CHỖ gồm cả đơn mới giữ chưa trả tiền — giữ chỗ mà không trừ chỗ thì hai người
+   cùng giữ một khung, và người thứ hai chỉ biết mình hụt lúc đã tới cửa. */
+var CHIEM = ["giu_cho","cho_duyet","cho_vao","da_vao"];
+
+/* ============================================================================== tiện vặt */
+function g(id){ return document.getElementById(id); }
+function esc(s){ var d=document.createElement("div"); d.textContent=(s==null?"":String(s)); return d.innerHTML; }
+function tien(n){ return (Number(n)||0).toLocaleString("vi-VN")+"₫"; }
+function hai(n){ return (n<10?"0":"")+n; }
+function ngayISO(d){ return d.getFullYear()+"-"+hai(d.getMonth()+1)+"-"+hai(d.getDate()); }
+function ngayVN(iso){ var p=String(iso).split("-"); return p.length===3 ? p[2]+"/"+p[1]+"/"+p[0] : iso; }
+var THU = ["Chủ Nhật","Thứ Hai","Thứ Ba","Thứ Tư","Thứ Năm","Thứ Sáu","Thứ Bảy"];
+function phut(hhmm){ var p=String(hhmm).split(":"); return (+p[0])*60 + (+p[1]||0); }
+function gioChu(p){ return hai(Math.floor(p/60))+":"+hai(p%60); }
+function sdtSach(s){ return String(s||"").replace(/[^0-9+]/g,""); }
+
+/* Mã đơn: GB + 8 ký tự.
+   ⚠️ BỎ HẲN 0/O, 1/I/L — khách đọc mã từ ảnh chụp màn hình rồi gõ tay ở cửa, có khi nhân viên
+      đọc hộ qua điện thoại. Một mã có chữ O cạnh số 0 là một cuộc cãi nhau ở cửa. */
+var CHU_MA = "ABCDEFGHJKMNPQRTUVWXY23456789";
+function maMoi(){
+  var s=""; for(var i=0;i<8;i++){ s += CHU_MA.charAt(Math.floor(Math.random()*CHU_MA.length)); }
+  return "GB-"+s;
+}
+
+/* ============================================================================== SỔ ĐẶT CHỖ */
+/* Hai bản cài, cùng một giao diện: `doc()` trả về mảng đơn, `ghi()` cất mảng ấy đi.
+   Mọi phần còn lại của trang chỉ biết tới hai hàm này — đó là lý do đổi sang sổ trên máy chủ
+   chỉ phải sửa đúng một chỗ, không phải rà lại cả nghìn dòng. */
+function khoMay(){
+  var K="gbvip_don", C="gbvip_cf";
+  return {
+    ten: "Trên máy đang mở",
+    chung: false,
+    doc: function(){ try{ return JSON.parse(localStorage.getItem(K)||"[]"); }catch(e){ return []; } },
+    ghi: function(ds){ try{ localStorage.setItem(K, JSON.stringify(ds)); return true; }catch(e){ return false; } },
+    docCF: function(){ try{ return JSON.parse(localStorage.getItem(C)||"{}"); }catch(e){ return {}; } },
+    ghiCF: function(cf){ try{ localStorage.setItem(C, JSON.stringify(cf)); }catch(e){} }
+  };
+}
+/* Sổ chung trên máy chủ. HỢP ĐỒNG với máy chủ, viết ra đây để bên kia làm cho khớp:
+     GET  <link>?viec=doc&khoa=…            -> {"ok":true,"don":[...],"cf":{...}}
+     POST <link>  thân {viec:"ghi",khoa,don,cf} -> {"ok":true}
+   ⚠️ CHƯA CHẠY THỬ VỚI MÁY CHỦ THẬT — phần máy chủ là việc của giai đoạn 2. Để trống
+      `CAUHINH.so` thì nhánh này không bao giờ được gọi tới. */
+function khoMang(url, khoa){
+  function goi(than){
+    return fetch(url, { method:"POST", headers:{"Content-Type":"text/plain;charset=utf-8"},
+      body: JSON.stringify(Object.assign({khoa:khoa}, than)) }).then(function(r){ return r.json(); });
+  }
+  return {
+    ten: "Máy chủ (sổ chung)",
+    chung: true,
+    docXa: function(){ return goi({viec:"doc"}); },
+    ghiXa: function(don, cf){ return goi({viec:"ghi", don:don, cf:cf}); }
+  };
+}
+
+var KHO = CAUHINH.so ? khoMang(CAUHINH.so, CAUHINH.khoa) : khoMay();
+var DON = [];      /* toàn bộ đơn */
+var CF  = {};      /* cấu hình đang dùng */
+var soCho = null;  /* số đơn chờ duyệt lần nạp trước — để biết lúc nào cần kêu */
+
+function napSo(){
+  if (KHO.chung) {
+    return KHO.docXa().then(function(j){
+      DON = (j && j.don) || []; CF = Object.assign({}, CF_MD, (j && j.cf) || {});
+    }).catch(function(){ /* mất mạng thì giữ nguyên bản đang có, đừng xoá trắng màn hình */ });
+  }
+  DON = KHO.doc(); CF = Object.assign({}, CF_MD, KHO.docCF());
+  return Promise.resolve();
+}
+function luuSo(){
+  if (KHO.chung) { return KHO.ghiXa(DON, CF); }
+  KHO.ghi(DON); KHO.ghiCF(CF); return Promise.resolve({ok:true});
+}
+
+/* ============================================================================== khung giờ */
+function dsKhung(){
+  var a=phut(CF.mo), b=phut(CF.dong), ra=[];
+  if (b < a) { b = a; }
+  for (var p=a; p<=b; p+=Math.max(1,+CF.buoc)) { ra.push(gioChu(p)); }
+  return ra;
+}
+function daDat(ngay, gio){
+  var n=0;
+  for (var i=0;i<DON.length;i++){
+    var d=DON[i];
+    if (d.ngay===ngay && d.gio===gio && CHIEM.indexOf(d.tt)>=0) { n += (+d.sl||0); }
+  }
+  return n;
+}
+function conCho(ngay, gio){ return Math.max(0, (+CF.suc) - daDat(ngay, gio)); }
+
+/* Khung đã trôi qua trong ngày hôm nay thì thôi bán.
+   ⚠️ So bằng giờ MÁY KHÁCH, đành chịu: không có máy chủ thì không có giờ nào khác để tin. Đây
+      là một lý do nữa để lên sổ chung ở giai đoạn 2. */
+function daQua(ngay, gio){
+  var now = new Date();
+  if (ngay !== ngayISO(now)) { return false; }
+  return phut(gio) <= now.getHours()*60 + now.getMinutes();
+}
+
+/* ============================================================================== TRANG KHÁCH */
+var chonNgay = ngayISO(new Date()), chonGio = "";
+
+function veNgay(){
+  var s=g("oNgay"), h="", hnay=new Date();
+  for (var i=0;i<(+CF.ngayMo);i++){
+    var d=new Date(hnay.getFullYear(),hnay.getMonth(),hnay.getDate()+i), iso=ngayISO(d);
+    h += "<option value='"+iso+"'>"+(i===0?"[Hôm nay] ":"")+THU[d.getDay()]+" - "+ngayVN(iso)+"</option>";
+  }
+  s.innerHTML=h;
+  if (!chonNgay) { chonNgay = ngayISO(hnay); }
+  s.value = chonNgay;
+}
+function veLuoiGio(){
+  var ds=dsKhung(), h="";
+  for (var i=0;i<ds.length;i++){
+    var gio=ds[i], con=conCho(chonNgay,gio), qua=daQua(chonNgay,gio);
+    var het = con<=0 || qua;
+    var chu = qua ? "Đã qua" : (con<=0 ? "Đóng" : con+" chỗ");
+    h += "<button class='gio "+(het?"het":"duoc")+(chonGio===gio?" chon":"")+"'"
+       + (het?" disabled":"")+" data-gio='"+gio+"'><b>"+gio+"</b><span>"+chu+"</span></button>";
+  }
+  g("luoiGio").innerHTML=h;
+}
+function veTienSanh(){
+  var ds=dsKhung(), h="";
+  for (var i=0;i<ds.length;i++){
+    var gio=ds[i], con=conCho(chonNgay,gio), qua=daQua(chonNgay,gio);
+    var lop, chu;
+    if (qua)          { lop="het"; chu="Đã qua"; }
+    else if (con<=0)  { lop="het"; chu="Khép Kín"; }
+    else if (con<=3)  { lop="sap"; chu="Còn "+con+" chỗ"; }
+    else              { lop="con"; chu="Còn "+con+" chỗ"; }
+    h += "<div class='ts-hang'><b>"+gio+"</b><i>"+(qua||con<=0?"-":"trống "+con+"/"+CF.suc)+"</i>"
+       + "<span class='the-trang "+lop+"'>"+chu+"</span></div>";
+  }
+  g("tsCuon").innerHTML=h;
+}
+function veSoLuong(){
+  var s=g("oSl"), h="", toi=+CF.suc;
+  if (chonGio) { toi = Math.min(toi, conCho(chonNgay,chonGio)); }
+  if (toi<1) { toi=1; }
+  for (var i=1;i<=toi;i++){ h += "<option value='"+i+"'>"+i+" Thành Viên</option>"; }
+  s.innerHTML=h;
+  g("nhanSl").textContent = "Số lượng thành viên (Tối đa "+toi+" người):";
+}
+function veChonChu(){
+  g("oChon").value = chonGio ? (THU[new Date(chonNgay+"T00:00:00").getDay()]+" "+ngayVN(chonNgay)+" — "+chonGio) : "";
+}
+function veKhach(){
+  veNgay(); veLuoiGio(); veTienSanh(); veSoLuong(); veChonChu();
+  g("chuCamKet").innerHTML = "Tôi xác nhận tham gia nghi thức và cam kết hiện diện tại tiền sảnh trước <b>"
+    + esc(CF.denSom) + " phút</b> để được dẫn lối.";
+}
+
+g("oNgay").addEventListener("change", function(){ chonNgay=this.value; chonGio=""; veKhach(); });
+g("luoiGio").addEventListener("click", function(e){
+  var n=e.target.closest("[data-gio]"); if(!n) return;
+  chonGio = n.getAttribute("data-gio");
+  veLuoiGio(); veSoLuong(); veChonChu();
+});
+
+g("btGiuCho").addEventListener("click", function(){
+  var ten=g("oTen").value.trim(), sdt=sdtSach(g("oSdt").value), sl=+g("oSl").value||1;
+  function hong(chu){ g("baoDat").innerHTML = "<div class='bao hong'>"+esc(chu)+"</div>"; }
+  if (!chonGio)            { return hong("Chưa chọn khung giờ ở mục 1."); }
+  if (ten.length<2)        { return hong("Nhập tên người đại diện."); }
+  if (sdt.length<9)        { return hong("Số điện thoại chưa đúng — cần đủ số để gửi thư mời qua Zalo."); }
+  if (!g("oCamKet").checked){ return hong("Cần tích vào ô cam kết có mặt trước "+CF.denSom+" phút."); }
+  /* 🔴 ĐẾM LẠI CHỖ NGAY TRƯỚC KHI GHI. Người ta mở trang từ mười phút trước rồi mới bấm; trong
+     mười phút ấy khung có thể đã đầy. Tin vào con số vẽ trên màn là nhận hai đoàn vào một khung
+     mà không ai biết cho tới lúc cả hai cùng tới cửa. */
+  if (sl > conCho(chonNgay, chonGio)) { veKhach(); return hong("Khung "+chonGio+" vừa hết chỗ cho "+sl+" người. Chọn khung khác giúp em."); }
+  if (daQua(chonNgay, chonGio))       { veKhach(); return hong("Khung "+chonGio+" đã qua giờ."); }
+
+  var don = { ma:maMoi(), ten:ten, sdt:sdt, ngay:chonNgay, gio:chonGio, sl:sl,
+    tien: sl*(+CF.gia), tt:"giu_cho", bill:"", ghi:"",
+    tao: new Date().toISOString(), sua: new Date().toISOString() };
+  DON.push(don);
+  try { localStorage.setItem("gbvip_sdt", sdt); } catch(e){}
+  Promise.resolve(luuSo()).then(function(){
+    g("oCamKet").checked=false; g("baoDat").innerHTML="";
+    veKhach(); moThiep([don], "Đã giữ chỗ. Đây là thiệp của anh/chị.");
+  });
+});
+
+/* ---------------------------------------------------------------- thiệp / tra cứu */
+function htmlThiep(v){
+  var t=TT[v.tt]||TT.giu_cho;
+  return "<div class='thiep'>"
+    + "<div class='ma'>"+esc(v.ma)+"</div>"
+    + "<div style='text-align:center;margin-bottom:12px'><span class='the-trang "
+      + (v.tt==="huy"?"het":(v.tt==="giu_cho"?"sap":"con"))+"'>"+esc(t.chu)+"</span></div>"
+    + "<div class='dong'><span>Khách mời</span><b>"+esc(v.ten)+"</b></div>"
+    + "<div class='dong'><span>Thời khắc</span><b>"+esc(ngayVN(v.ngay))+" — "+esc(v.gio)+"</b></div>"
+    + "<div class='dong'><span>Thành viên</span><b>"+esc(v.sl)+" người</b></div>"
+    + "<div class='dong'><span>Cần thu</span><b style='color:var(--vang)'>"+tien(v.tien)+"</b></div>"
+    + "</div>";
+}
+function moThiep(ds, loi){
+  if (!ds.length) {
+    return moHop("<h3 class='the-tieu'>Thiệp của tôi</h3><p class='kh-phu' style='text-align:left'>"
+      + "Chưa tìm thấy lời mời nào. Ghi danh ở mục 2, hoặc bấm <b>Tra cứu lời mời</b> nếu anh/chị "
+      + "đặt trên máy khác.</p>");
+  }
+  var h = (loi ? "<div class='bao duoc'>"+esc(loi)+"</div>" : "");
+  for (var i=0;i<ds.length;i++){ h += htmlThiep(ds[i]); }
+  h += "<div class='huong-dan'><b>Bước tiếp theo:</b> chuyển khoản đủ số tiền trên, nội dung ghi "
+     + "<b>mã thiệp</b>. Chuyển xong bấm nút dưới đây để báo, ban tổ chức duyệt xong thiệp sẽ "
+     + "chuyển sang <i>Chờ Check-in</i>. Tới nơi đọc mã ở cửa là được dẫn vào.</div>";
+  var chuaBao = ds.filter(function(v){ return v.tt==="giu_cho"; });
+  h += "<div class='hang-nut'>"
+     + (chuaBao.length ? "<button class='nut-phu' id='btDaCK'>Tôi đã chuyển khoản</button>" : "")
+     + "<button class='nut-phu' id='btLuuAnh'>Lưu thiệp (.svg)</button></div>";
+  moHop(h);
+  if (chuaBao.length) {
+    g("btDaCK").addEventListener("click", function(){
+      for (var i=0;i<chuaBao.length;i++){ chuaBao[i].tt="cho_duyet"; chuaBao[i].sua=new Date().toISOString(); }
+      Promise.resolve(luuSo()).then(function(){ moThiep(ds, "Đã báo. Ban tổ chức sẽ duyệt trong ít phút."); });
+    });
+  }
+  g("btLuuAnh").addEventListener("click", function(){ taiThiep(ds[0]); });
+}
+/* Thiệp tải về là SVG: một tệp văn bản nhỏ, mở được trên mọi máy, in ra không vỡ nét. */
+function taiThiep(v){
+  var s = "<svg xmlns='http://www.w3.org/2000/svg' width='640' height='300' viewBox='0 0 640 300'>"
+    + "<rect width='640' height='300' fill='#0d0a0e'/>"
+    + "<rect x='10' y='10' width='620' height='280' fill='none' stroke='#c8a84b'/>"
+    + "<text x='320' y='62' fill='#c1272d' font-size='26' font-family='Georgia,serif' "
+    + "letter-spacing='6' text-anchor='middle'>GHOST BRIDE VIP</text>"
+    + "<text x='320' y='120' fill='#c8a84b' font-size='34' font-family='Georgia,serif' "
+    + "letter-spacing='8' text-anchor='middle'>"+esc(v.ma)+"</text>"
+    + "<text x='320' y='166' fill='#e8e2d9' font-size='17' font-family='Arial' text-anchor='middle'>"
+    + esc(v.ten)+" · "+esc(v.sl)+" người</text>"
+    + "<text x='320' y='200' fill='#e8e2d9' font-size='17' font-family='Arial' text-anchor='middle'>"
+    + esc(ngayVN(v.ngay))+" — "+esc(v.gio)+"</text>"
+    + "<text x='320' y='250' fill='#9b9189' font-size='13' font-family='Arial' text-anchor='middle'>"
+    + "Đọc mã này ở cửa. Có mặt trước "+esc(CF.denSom)+" phút.</text></svg>";
+  var a=document.createElement("a");
+  a.href = "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(s);
+  a.download = "thiep-"+v.ma+".svg"; a.click();
+}
+function veCuaSdt(sdt){
+  sdt = sdtSach(sdt);
+  return DON.filter(function(v){ return sdtSach(v.sdt)===sdt; })
+            .sort(function(a,b){ return (a.ngay+a.gio) < (b.ngay+b.gio) ? 1 : -1; });
+}
+g("btThiep").addEventListener("click", function(){
+  /* Máy này đã từng đặt thì nhớ luôn số điện thoại — khỏi bắt gõ lại. */
+  var sdt = "";
+  try { sdt = localStorage.getItem("gbvip_sdt")||""; } catch(e){}
+  if (sdt) { return moThiep(veCuaSdt(sdt)); }
+  moTraCuu();
+});
+g("btTraCuu").addEventListener("click", moTraCuu);
+function moTraCuu(){
+  moHop("<h3 class='the-tieu'>🔎 Tra cứu lời mời</h3>"
+    + "<p class='kh-phu' style='text-align:left;margin-top:-8px'>Cung cấp tín hiệu liên lạc (SĐT) "
+    + "để hệ thống trích xuất danh tính.</p>"
+    + "<input class='o' id='oTraSdt' inputmode='tel' placeholder='Nhập Số Điện Thoại...' "
+    + "style='text-align:center;margin:14px 0'>"
+    + "<button class='nut-chinh' id='btTra'>Trích xuất dữ liệu</button><div id='baoTra'></div>");
+  g("btTra").addEventListener("click", function(){
+    var sdt=sdtSach(g("oTraSdt").value);
+    if (sdt.length<9){ g("baoTra").innerHTML="<div class='bao hong'>Số điện thoại chưa đúng.</div>"; return; }
+    try { localStorage.setItem("gbvip_sdt", sdt); } catch(e){}
+    moThiep(veCuaSdt(sdt));
+  });
+}
+function moHop(html){
+  g("hopThoai").innerHTML = "<div class='man-che'><div class='hop'>"
+    + "<button class='hop-dong' aria-label='Đóng'>&times;</button>"+html+"</div></div>";
+  g("hopThoai").querySelector(".hop-dong").addEventListener("click", dongHop);
+  g("hopThoai").querySelector(".man-che").addEventListener("click", function(e){
+    if (e.target===this) { dongHop(); }
+  });
+}
+function dongHop(){ g("hopThoai").innerHTML=""; }
+
+/* ============================================================================ TRANG QUẢN TRỊ */
+var MAN = [
+  {id:"tong",  ten:"Tổng Quan",         bieu:"◔"},
+  {id:"duyet", ten:"Xét Duyệt Tiền",    bieu:"🧾"},
+  {id:"soat",  ten:"Soát Vé Tại Cửa",   bieu:"⛶"},
+  {id:"doi",   ten:"Dữ Liệu Đối Soát",  bieu:"🗄"},
+  {id:"cai",   ten:"Cài Đặt Hệ Thống",  bieu:"⚙"}
+];
+var manDang = "tong", qNgay = ngayISO(new Date()), daVao = false, hen = null;
+
+function veNav(){
+  var h="", cho = DON.filter(function(d){ return d.tt==="cho_duyet"; }).length;
+  for (var i=0;i<MAN.length;i++){
+    var m=MAN[i];
+    h += "<button data-man='"+m.id+"' class='"+(manDang===m.id?"on":"")+"'>"
+       + "<span>"+m.bieu+"</span><span>"+m.ten+"</span>"
+       + (m.id==="duyet"&&cho ? "<span class='cham'>"+cho+"</span>" : "")+"</button>";
+  }
+  h += "<button class='thoat' data-man='thoat'><span>⏻</span><span>Đăng Xuất</span></button>";
+  g("qNav").innerHTML=h;
+  g("qNoiTT").textContent = KHO.chung ? "Sổ chung trên máy chủ" : "Sổ riêng của máy này";
+  g("qChamTT").className = "q-cham-tt" + (KHO.chung ? "" : " rieng");
+  g("btAm").textContent = "🔔 Cảnh báo âm thanh: " + (CF.am ? "Đã Bật" : "Đã Tắt");
+}
+g("qNav").addEventListener("click", function(e){
+  var n=e.target.closest("[data-man]"); if(!n) return;
+  var m=n.getAttribute("data-man");
+  if (m==="thoat"){ daVao=false; location.hash=""; return veTrang(); }
+  manDang=m; veQL();
+});
+g("btAm").addEventListener("click", function(){ CF.am = CF.am?0:1; luuSo(); veNav(); });
+
+function veQL(){
+  veNav();
+  if (manDang==="tong")  { return manTong(); }
+  if (manDang==="duyet") { return manDuyet(); }
+  if (manDang==="soat")  { return manSoat(); }
+  if (manDang==="doi")   { return manDoi(); }
+  if (manDang==="cai")   { return manCai(); }
+}
+
+/* ------------------------------------------------------------------ 1. Tổng quan */
+function manTong(){
+  var tong=DON.length,
+      cho =DON.filter(function(d){ return d.tt==="cho_duyet"; }).length,
+      huy =DON.filter(function(d){ return d.tt==="huy"; }).length,
+      /* 🔴 THỰC THU CHỈ ĐẾM ĐƠN ĐÃ DUYỆT TIỀN. Đơn đang giữ chỗ chưa có đồng nào về tài khoản;
+         cộng nó vào là báo cáo kế toán nói dối đúng con số người ta mang đi đối chiếu. */
+      thu =DON.filter(function(d){ return d.tt==="cho_vao"||d.tt==="da_vao"; })
+              .reduce(function(s,d){ return s+(+d.tien||0); },0);
+
+  var ds=dsKhung(), khach=0, hOng="";
+  for (var i=0;i<ds.length;i++){
+    var gio=ds[i], dat=daDat(qNgay,gio), con=(+CF.suc)-dat;
+    khach += dat;
+    var lop = dat<=0 ? "trong" : (con<=0 ? "day" : "sap");
+    var chu = dat<=0 ? "Trống" : (con<=0 ? "Đầy" : "Còn "+con);
+    hOng += "<div class='q-gio "+lop+"'><b>"+gio+"</b><span>"+dat+" / "+CF.suc+" Khách</span>"
+          + "<em>"+chu+"</em></div>";
+  }
+  var sucNgay = ds.length*(+CF.suc), phanTram = sucNgay ? Math.round(khach*100/sucNgay) : 0;
+
+  g("qNoiDung").innerHTML =
+    "<h2 class='q-tieu'>📈 Báo Cáo Kế Toán &amp; Vận Hành</h2>"
+    + "<div class='q-so'>"
+    + oSo("🗓","#132a4a","Tổng lượt đặt",tong,"")
+    + oSo("⏳","#3a2c08","Chờ duyệt tiền",cho,"")
+    + oSo("🚫","#3a1416","Huỷ / hoàn tiền",huy,"")
+    + oSo("💳","#0f2a1a","Kế toán (thực thu)",tien(thu),"color:var(--q-luc)")
+    + "</div>"
+    + "<div class='q-the' style='margin-top:18px'>"
+      + "<div style='display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap'>"
+        + "<h3 style='margin:0;font-size:18px;color:var(--q-xanh)'>🗓 Tình Trạng Sảnh Theo Ngày</h3>"
+        + "<input type='date' class='q-o' id='qNgayO' value='"+qNgay+"'>"
+      + "</div>"
+      + "<p style='margin:14px 0 0'>Tổng khách trong ngày: <b>"+khach+"</b> người.</p>"
+      + "<div class='q-thanh'><i style='width:"+phanTram+"%'></i></div>"
+      + "<div class='q-luoi-gio'>"+hOng+"</div>"
+    + "</div>";
+  g("qNgayO").addEventListener("change", function(){ qNgay=this.value||qNgay; manTong(); });
+}
+function oSo(bieu,nen,ten,so,kieu){
+  return "<div class='q-the'><div class='q-bieu' style='background:"+nen+"'>"+bieu+"</div>"
+    + "<div><small>"+ten+"</small><b style='"+kieu+"'>"+so+"</b></div></div>";
+}
+
+/* ------------------------------------------------------------------ 2. Xét duyệt tiền */
+function manDuyet(){
+  var ds = DON.filter(function(d){ return d.tt==="cho_duyet"; })
+              .sort(function(a,b){ return a.tao < b.tao ? -1 : 1; });
+  var h = "<h2 class='q-tieu'>✅ Kế Toán Xét Duyệt</h2>";
+  if (!ds.length){
+    h += "<div class='q-the q-nho'>Không có đơn nào chờ duyệt. Đơn hiện ở đây khi khách bấm "
+       + "<b>“Tôi đã chuyển khoản”</b> trên thiệp của họ.</div>";
+  }
+  for (var i=0;i<ds.length;i++){
+    var d=ds[i];
+    h += "<div class='q-the' style='margin-bottom:14px'><div class='q-duyet'>"
+      + "<div class='q-bill' data-bill='"+esc(d.ma)+"'>"
+        + (d.bill ? "<img src='"+esc(d.bill)+"' alt='biên lai'>" : "🧾<br>CHƯA CÓ BILL")+"</div>"
+      + "<div>"
+        + "<div style='color:var(--q-cam);font-size:18px;font-weight:700'>Mã: "+esc(d.ma)+"</div>"
+        + "<div style='margin:8px 0'>Khách: <b>"+esc(d.ten)+"</b> | SĐT: "+esc(d.sdt)+" "
+          + "<a class='q-zalo' target='_blank' rel='noopener' href='https://zalo.me/"+esc(sdtSach(d.sdt))+"'>💬 Chat Zalo</a></div>"
+        + "<div>Lịch: "+esc(d.ngay)+" | Giờ: <b style='color:var(--q-xanh)'>"+esc(d.gio)+"</b></div>"
+        + "<div>Cần thu: <b style='color:var(--q-luc)'>"+tien(d.tien)+"</b> (Đoàn "+esc(d.sl)+" khách)</div>"
+      + "</div>"
+      + "<div style='display:grid;gap:9px'>"
+        + "<button class='q-nut luc' data-duyet='"+esc(d.ma)+"'>☑ DUYỆT</button>"
+        + "<button class='q-nut do' data-choi='"+esc(d.ma)+"'>✕ TỪ CHỐI</button>"
+      + "</div></div></div>";
+  }
+  g("qNoiDung").innerHTML=h;
+}
+g("qNoiDung").addEventListener("click", function(e){
+  var n;
+  if ((n=e.target.closest("[data-duyet]"))) { return doiTT(n.getAttribute("data-duyet"),"cho_vao"); }
+  if ((n=e.target.closest("[data-choi]")))  {
+    var ly = prompt("Từ chối vì sao? (ghi lại để còn giải thích với khách)","không chuyển khoản");
+    if (ly===null) { return; }
+    return doiTT(n.getAttribute("data-choi"),"huy",ly);
+  }
+  if ((n=e.target.closest("[data-bill]")))  {
+    var d=timDon(n.getAttribute("data-bill"));
+    if (!d || !d.bill) { return alert("Đơn này chưa có ảnh biên lai."); }
+    var w=window.open(); if (w) { w.document.write("<img src='"+d.bill+"' style='max-width:100%'>"); }
+  }
+  if ((n=e.target.closest("[data-huy]")))   { return doiTT(n.getAttribute("data-huy"),"huy","huỷ tại màn đối soát"); }
+  if ((n=e.target.closest("[data-hoan]")))  { return doiTT(n.getAttribute("data-hoan"),"cho_vao","mở lại"); }
+});
+function timDon(ma){
+  for (var i=0;i<DON.length;i++){ if (DON[i].ma===ma) { return DON[i]; } }
+  return null;
+}
+function doiTT(ma, tt, ghi){
+  var d=timDon(ma); if(!d) return;
+  d.tt=tt; d.sua=new Date().toISOString();
+  if (ghi!==undefined) { d.ghi=ghi; }
+  Promise.resolve(luuSo()).then(veQL);
+}
+
+/* ------------------------------------------------------------------ 3. Soát vé tại cửa */
+var caiCam = null;
+function manSoat(){
+  g("qNoiDung").innerHTML =
+    "<div class='q-the' style='max-width:620px;margin:0 auto;border-color:var(--q-xanh)'>"
+    + "<h2 class='q-tieu' style='justify-content:center;font-size:20px'>📷 Soát Vé Bằng Điện Thoại</h2>"
+    + "<p style='text-align:center;color:var(--q-chu-mo);margin-top:-10px'>Đưa vé QR của khách vào vùng camera bên dưới.</p>"
+    + "<div class='q-cam-hinh' id='qCam'><div style='text-align:center;padding:18px'>"
+      + "<div style='font-size:34px'>📱</div>"
+      + "<button class='q-nut xam' id='btCam' style='margin-top:10px'>Bật camera</button></div></div>"
+    + "<p style='text-align:center;color:var(--q-chu-mo);margin:16px 0 6px'>Hoặc nhập thủ công mã ID vào ô dưới đây:</p>"
+    + "<input class='q-o' id='oMa' placeholder='VD: GB-XYZ123' style='width:100%;text-align:center;"
+      + "font-size:20px;letter-spacing:.12em;padding:14px'>"
+    + "<button class='q-nut luc' id='btVao' style='width:100%;margin-top:12px;padding:15px;font-size:15px'>"
+      + "XÁC NHẬN CHO KHÁCH VÀO</button>"
+    + "<div id='baoSoat'></div></div>";
+  g("btVao").addEventListener("click", function(){ soat(g("oMa").value); });
+  g("oMa").addEventListener("keydown", function(e){ if(e.key==="Enter"){ soat(this.value); } });
+  g("btCam").addEventListener("click", batCam);
+}
+/* Quét QR bằng bộ đọc CÓ SẴN trong trình duyệt (BarcodeDetector).
+   ⚠️ KHÔNG nạp thư viện quét từ mạng ngoài: cửa nhà ma hay sóng yếu, và một trang soát vé chết
+      vì tải không nổi thư viện là cả hàng khách đứng đợi. Máy nào không có bộ đọc thì vẫn còn
+      ô gõ tay ngay bên dưới — đó là đường luôn chạy được. */
+function batCam(){
+  if (!("BarcodeDetector" in window)) {
+    return baoSoat("hong","Trình duyệt này không quét được QR. Gõ mã ở ô bên dưới — nhanh không kém.");
+  }
+  navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" } }).then(function(luong){
+    var v=document.createElement("video");
+    v.setAttribute("playsinline",""); v.srcObject=luong; v.play();
+    g("qCam").innerHTML=""; g("qCam").appendChild(v);
+    var bo = new window.BarcodeDetector({ formats:["qr_code"] });
+    caiCam = setInterval(function(){
+      bo.detect(v).then(function(kq){
+        if (kq && kq.length) { soat(kq[0].rawValue); }
+      }).catch(function(){});
+    }, 400);
+  }).catch(function(){
+    baoSoat("hong","Không mở được camera (chưa cho quyền, hoặc trang không chạy qua HTTPS).");
+  });
+}
+function baoSoat(kieu, chu){
+  var m = kieu==="hong" ? "background:#2a1214;border:1px solid #6b1f24;color:#ff7b72"
+                        : "background:#0d2416;border:1px solid #1a6b34;color:#56d364";
+  g("baoSoat").innerHTML = "<div style='"+m+";border-radius:8px;padding:13px;margin-top:14px;"
+    + "font-size:14px;font-weight:600'>"+esc(chu)+"</div>";
+}
+function soat(ma){
+  ma = String(ma||"").trim().toUpperCase();
+  var m = ma.match(/GB-[A-Z0-9]{4,}/);            /* quét QR có thể ra cả một đường dẫn */
+  if (m) { ma = m[0]; }
+  var d = timDon(ma);
+  if (!d)                { return baoSoat("hong","Không có mã "+ma+" trong sổ."); }
+  if (d.tt==="huy")      { return baoSoat("hong",d.ten+" — vé ĐÃ HUỶ ("+(d.ghi||"không rõ lý do")+")."); }
+  if (d.tt==="giu_cho")  { return baoSoat("hong",d.ten+" — CHƯA THANH TOÁN. Thu tiền rồi duyệt ở màn Xét duyệt."); }
+  if (d.tt==="cho_duyet"){ return baoSoat("hong",d.ten+" — đang CHỜ KẾ TOÁN DUYỆT tiền."); }
+  if (d.tt==="da_vao")   { return baoSoat("hong",d.ten+" — vé này ĐÃ VÀO lúc "+(d.vaoLuc||"?")+". Không cho vào lần hai."); }
+  /* ⚠️ SAI NGÀY / SAI GIỜ THÌ CẢNH BÁO CHỨ KHÔNG CHẶN. Khách tới sớm mười phút hoặc trễ một
+     khung là chuyện thường, mà chặn cứng thì nhân viên phải gọi quản lý giữa lúc đông nhất.
+     Nói ra để người ở cửa quyết định — họ đang nhìn thấy khách, trang thì không. */
+  var hnay = ngayISO(new Date()), canh = "";
+  if (d.ngay !== hnay) { canh = " ⚠️ vé của ngày "+ngayVN(d.ngay)+", không phải hôm nay."; }
+  d.tt="da_vao"; d.vaoLuc=new Date().toLocaleTimeString("vi-VN"); d.sua=new Date().toISOString();
+  Promise.resolve(luuSo()).then(function(){
+    baoSoat("duoc","✔ CHO VÀO — "+d.ten+", "+d.sl+" khách, khung "+d.gio+"."+canh);
+    g("oMa").value=""; veNav();
+  });
+}
+
+/* ------------------------------------------------------------------ 4. Dữ liệu đối soát */
+var locChu="", locNgay="", locTT="";
+function manDoi(){
+  var ds = DON.filter(function(d){
+    if (locTT && d.tt!==locTT) { return false; }
+    if (locNgay && d.ngay!==locNgay) { return false; }
+    if (locChu){
+      var k=(d.ten+" "+d.sdt+" "+d.ma).toLowerCase();
+      if (k.indexOf(locChu.toLowerCase())<0) { return false; }
+    }
+    return true;
+  }).sort(function(a,b){ return a.tao < b.tao ? 1 : -1; });
+
+  var hTT="<option value=''>Tất cả trạng thái</option>";
+  for (var k in TT){ hTT += "<option value='"+k+"'"+(locTT===k?" selected":"")+">"+TT[k].chu+"</option>"; }
+
+  var h = "<h2 class='q-tieu'>🗄 Dữ Liệu Đối Soát Khách Hàng</h2>"
+    + "<div class='q-loc'>"
+      + "<input class='q-o' id='lChu' placeholder='🔎 Tìm Tên, SĐT, Mã vé...' value='"+esc(locChu)+"' style='min-width:230px'>"
+      + "<input class='q-o' type='date' id='lNgay' value='"+esc(locNgay)+"'>"
+      + "<select class='q-o' id='lTT'>"+hTT+"</select>"
+      + "<button class='q-nut xam' id='btBoLoc'>↺ Bỏ lọc</button>"
+      + "<button class='q-nut luc' id='btXuat' style='margin-left:auto'>⬇ Xuất Excel</button>"
+    + "</div><div class='q-the q-cuon'><table class='q-bang'><thead><tr>"
+      + "<th>Mã vé</th><th>Khách hàng</th><th>Liên hệ / Chat</th><th>Số lượng</th><th>Tổng tiền</th>"
+      + "<th>Lịch trình</th><th>Trạng thái</th><th>Ghi chú</th><th>Thao tác</th>"
+    + "</tr></thead><tbody>";
+  if (!ds.length){ h += "<tr><td colspan='9' class='q-nho' style='padding:22px'>Không có đơn nào khớp.</td></tr>"; }
+  for (var i=0;i<ds.length;i++){
+    var d=ds[i], t=TT[d.tt]||TT.giu_cho;
+    h += "<tr><td><b style='color:var(--q-xanh)'>"+esc(d.ma)+"</b></td>"
+      + "<td><b>"+esc(d.ten)+"</b></td>"
+      + "<td>"+esc(d.sdt)+"<br><a class='q-zalo' target='_blank' rel='noopener' "
+        + "href='https://zalo.me/"+esc(sdtSach(d.sdt))+"'>💬 Chat Zalo</a></td>"
+      + "<td>"+esc(d.sl)+"</td>"
+      + "<td style='color:var(--q-luc);font-weight:700'>"+tien(d.tien)+"</td>"
+      + "<td>"+esc(d.ngay)+"<br><b style='color:var(--q-cam)'>"+esc(d.gio)+"</b></td>"
+      + "<td><span class='nhan-tt "+t.lop+"'>"+esc(t.chu)+"</span></td>"
+      + "<td class='q-nho'>"+esc(d.ghi||"")+"</td>"
+      + "<td style='white-space:nowrap'>"
+        + (d.tt!=="huy" ? "<button class='q-nut do' data-huy='"+esc(d.ma)+"' title='Huỷ đơn' style='padding:6px 10px'>✕</button> " : "")
+        + (d.tt==="huy" ? "<button class='q-nut xam' data-hoan='"+esc(d.ma)+"' title='Mở lại' style='padding:6px 10px'>↺</button>" : "")
+      + "</td></tr>";
+  }
+  g("qNoiDung").innerHTML = h + "</tbody></table></div>";
+  g("lChu").addEventListener("input", function(){ locChu=this.value; manDoi(); g("lChu").focus(); });
+  g("lNgay").addEventListener("change", function(){ locNgay=this.value; manDoi(); });
+  g("lTT").addEventListener("change", function(){ locTT=this.value; manDoi(); });
+  g("btBoLoc").addEventListener("click", function(){ locChu=locNgay=locTT=""; manDoi(); });
+  g("btXuat").addEventListener("click", function(){ xuatCSV(ds); });
+}
+/* Xuất ra CSV — Excel mở thẳng được.
+   🔴 PHẢI CÓ BOM Ở ĐẦU TỆP. Không có thì Excel trên Windows đọc UTF-8 thành "Ph?m Tu?ng Vi",
+      và người nhận sẽ bảo "file lỗi" chứ không ai đi dò bảng mã. */
+function xuatCSV(ds){
+  var cot=["Mã vé","Khách hàng","SĐT","Số lượng","Tổng tiền","Ngày","Giờ","Trạng thái","Ghi chú"];
+  var d1=[cot.join(",")];
+  for (var i=0;i<ds.length;i++){
+    var d=ds[i];
+    d1.push([d.ma,d.ten,d.sdt,d.sl,d.tien,d.ngay,d.gio,(TT[d.tt]||{}).chu||d.tt,d.ghi||""]
+      .map(function(x){ return '"'+String(x==null?"":x).replace(/"/g,'""')+'"'; }).join(","));
+  }
+  var b=new Blob(["\ufeff"+d1.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  var u=URL.createObjectURL(b), a=document.createElement("a");
+  a.href=u; a.download="doi-soat-nha-ma-"+ngayISO(new Date())+".csv"; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(u); }, 4000);
+}
+
+/* ------------------------------------------------------------------ 5. Cài đặt hệ thống */
+function manCai(){
+  g("qNoiDung").innerHTML =
+    "<h2 class='q-tieu'>⚙ Cấu Hình Hệ Thống</h2>"
+    + (KHO.chung ? "" : "<div class='q-canh'>⚠️ Đang chạy <b>sổ riêng của máy này</b>. Khách đặt "
+        + "từ điện thoại của họ thì máy này KHÔNG thấy đơn. Muốn bán thật cho khách ngoài thì phải "
+        + "điền <code>CAUHINH.so</code> ở đầu phần script — sổ chung trên máy chủ.</div>")
+    + "<div class='q-doi'>"
+    + "<div class='q-the'><h3 style='margin-top:0;color:var(--q-xanh)'>☁ Cấu hình Kinh Doanh</h3>"
+      + oCai("Giá Vé / 1 Người (VND)","cGia",CF.gia,"number")
+      + oCai("Sức chứa tối đa (Số người / 1 Khung giờ)","cSuc",CF.suc,"number")
+      + oCai("Khung đầu tiên","cMo",CF.mo,"time")
+      + oCai("Khung cuối cùng","cDong",CF.dong,"time")
+      + oCai("Mỗi khung cách nhau (phút)","cBuoc",CF.buoc,"number")
+      + oCai("Mở bán trước (ngày)","cNgayMo",CF.ngayMo,"number")
+      + oCai("Khách phải có mặt trước (phút)","cDenSom",CF.denSom,"number")
+      + "<button class='q-nut xanh' id='btLuuKD' style='width:100%;margin-top:16px'>LƯU CẤU HÌNH</button>"
+    + "</div>"
+    + "<div class='q-the'><h3 style='margin-top:0;color:var(--q-luc)'>🖥 Cấu hình Màn Hình</h3>"
+      + "<label class='q-nho'>Tốc độ tự động quét đơn mới:</label>"
+      + "<select class='q-o' id='cQuet' style='width:100%;margin:8px 0 16px'>"
+        + oChon(3000,"Nhanh (3 giây)")+oChon(6000,"Vừa (6 giây)")+oChon(15000,"Chậm (15 giây)")
+        + oChon(0,"Tắt")
+      + "</select>"
+      + oCai("Mã PIN vào trang quản trị","cPin",CF.pin,"text")
+      + "<p class='q-nho' style='margin-top:6px'>PIN này chỉ ngăn người gõ nhầm <code>#quanly</code>. "
+        + "Ai xem mã nguồn trang là đọc được — chặn thật thì cửa phải nằm ở máy chủ.</p>"
+      + "<button class='q-nut luc' id='btLuuMH' style='width:100%;margin-top:10px'>LƯU MÀN HÌNH</button>"
+      + "<hr style='border:0;border-top:1px solid var(--q-vien);margin:20px 0'>"
+      + "<button class='q-nut xam' id='btMau' style='width:100%'>Nạp 12 đơn mẫu (để xem thử)</button>"
+      + "<button class='q-nut do' id='btXoa' style='width:100%;margin-top:9px'>Xoá sạch sổ</button>"
+    + "</div></div>";
+  g("cQuet").value = String(CF.quet);
+  g("btLuuKD").addEventListener("click", function(){
+    CF.gia=+g("cGia").value||0; CF.suc=Math.max(1,+g("cSuc").value||1);
+    CF.mo=g("cMo").value||CF.mo; CF.dong=g("cDong").value||CF.dong;
+    CF.buoc=Math.max(1,+g("cBuoc").value||5); CF.ngayMo=Math.max(1,+g("cNgayMo").value||14);
+    CF.denSom=Math.max(0,+g("cDenSom").value||0);
+    Promise.resolve(luuSo()).then(function(){ manCai(); alert("Đã lưu cấu hình kinh doanh."); });
+  });
+  g("btLuuMH").addEventListener("click", function(){
+    CF.quet=+g("cQuet").value; CF.pin=g("cPin").value||CF.pin;
+    Promise.resolve(luuSo()).then(function(){ datHen(); alert("Đã lưu."); });
+  });
+  g("btMau").addEventListener("click", function(){ napMau(); });
+  g("btXoa").addEventListener("click", function(){
+    if (!confirm("Xoá sạch mọi đơn trong sổ? Không lấy lại được.")) { return; }
+    DON=[]; Promise.resolve(luuSo()).then(veQL);
+  });
+}
+function oCai(nhan,id,gt,kieu){
+  return "<label class='q-nho' style='display:block;margin-top:12px'>"+esc(nhan)+"</label>"
+    + "<input class='q-o' id='"+id+"' type='"+kieu+"' value='"+esc(gt)+"' style='width:100%;margin-top:6px'>";
+}
+function oChon(gt,ten){ return "<option value='"+gt+"'>"+ten+"</option>"; }
+
+/* Đơn mẫu — để bấm thử cho hết các màn khi sổ còn trống. Xoá bằng nút "Xoá sạch sổ". */
+function napMau(){
+  var ten=["Gia Huy","Hân","Đức Bùi","Nguyễn Phương Linh","Trần Mỹ Duyên","Lê Anh Khoa"];
+  var tts=["giu_cho","cho_duyet","cho_vao","cho_vao","da_vao","huy"];
+  var ds=dsKhung(), hnay=new Date();
+  for (var i=0;i<12;i++){
+    var d=new Date(hnay.getFullYear(),hnay.getMonth(),hnay.getDate()+(i%3));
+    var sl=1+Math.floor(Math.random()*4), gio=ds[i%ds.length];
+    DON.push({ ma:maMoi(), ten:ten[i%ten.length], sdt:"09"+(10000000+Math.floor(Math.random()*89999999)),
+      ngay:ngayISO(d), gio:gio, sl:sl, tien:sl*(+CF.gia), tt:tts[i%tts.length],
+      bill:"", ghi:(tts[i%tts.length]==="huy"?"không chuyển khoản":""),
+      tao:new Date(Date.now()-i*3600000).toISOString(), sua:new Date().toISOString() });
+  }
+  Promise.resolve(luuSo()).then(veQL);
+}
+
+/* ------------------------------------------------------------------ tự nạp lại + chuông */
+function datHen(){
+  if (hen) { clearInterval(hen); hen=null; }
+  if (!CF.quet) { return; }
+  hen = setInterval(function(){
+    if (!daVao) { return; }
+    Promise.resolve(napSo()).then(function(){
+      var cho = DON.filter(function(d){ return d.tt==="cho_duyet"; }).length;
+      if (soCho!==null && cho>soCho && CF.am) { keu(); }
+      soCho = cho;
+      /* Không vẽ lại màn đang gõ dở: người ta đang nhập mã ở cửa mà ô bị dựng lại là mất chữ. */
+      if (manDang!=="soat" && manDang!=="cai" && !g("hopThoai").innerHTML) { veQL(); }
+      else { veNav(); }
+    });
+  }, Math.max(1000, +CF.quet));
+}
+/* Chuông dựng bằng WebAudio — không tải tệp âm thanh nào từ mạng ngoài. */
+function keu(){
+  try{
+    var A=new (window.AudioContext||window.webkitAudioContext)();
+    var o=A.createOscillator(), gg=A.createGain();
+    o.type="sine"; o.frequency.value=880; gg.gain.value=.05;
+    o.connect(gg); gg.connect(A.destination); o.start();
+    setTimeout(function(){ o.frequency.value=1320; },130);
+    setTimeout(function(){ o.stop(); A.close(); },300);
+  }catch(e){}
+}
+
+/* ============================================================================== cửa vào */
+function veTrang(){
+  var la = location.hash.replace("#","").toLowerCase()==="quanly";
+  if (caiCam) { clearInterval(caiCam); caiCam=null; }
+  if (!la){
+    g("apKhach").classList.remove("an"); g("apQL").classList.add("an");
+    dongHop(); veKhach(); return;
+  }
+  g("apKhach").classList.add("an"); g("apQL").classList.remove("an");
+  if (!daVao) { return veCuaPin(); }
+  veQL(); datHen();
+}
+function veCuaPin(){
+  g("qNoiDung").innerHTML =
+    "<div class='q-the' style='max-width:360px;margin:60px auto;text-align:center'>"
+    + "<h2 style='margin-top:0'>Trang quản trị</h2>"
+    + "<input class='q-o' id='oPin' type='password' inputmode='numeric' placeholder='Mã PIN' "
+      + "style='width:100%;text-align:center;font-size:20px;letter-spacing:.3em;padding:13px'>"
+    + "<button class='q-nut xanh' id='btPin' style='width:100%;margin-top:12px;padding:13px'>VÀO</button>"
+    + "<div id='baoPin' class='q-nho' style='margin-top:10px'></div></div>";
+  g("qNav").innerHTML="";
+  function thu(){
+    if (g("oPin").value === String(CF.pin)) { daVao=true; return veTrang(); }
+    g("baoPin").innerHTML="<span style='color:var(--q-do)'>PIN chưa đúng.</span>";
+  }
+  g("btPin").addEventListener("click", thu);
+  g("oPin").addEventListener("keydown", function(e){ if(e.key==="Enter"){ thu(); } });
+  g("oPin").focus();
+}
+window.addEventListener("hashchange", veTrang);
+
+napSo().then(function(){
+  /* Ngày đang chọn phải là ngày CÓ BÁN. Mở trang lúc 23h mà mặc định là hôm nay thì mọi khung
+     đều "đã qua" và người ta tưởng hệ thống hỏng. */
+  var ds=dsKhung();
+  if (ds.length && daQua(chonNgay, ds[ds.length-1])) {
+    var mai=new Date(); mai.setDate(mai.getDate()+1); chonNgay=ngayISO(mai);
+  }
+  veTrang();
+});
+</script>
+</body>
+</html>
