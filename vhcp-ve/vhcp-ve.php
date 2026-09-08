@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.34.0
+ * Version:           1.35.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -320,6 +320,8 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/uu-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_ds' ) ) );
 		register_rest_route( self::NS, '/ql/uu-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_luu' ) ) );
 		register_rest_route( self::NS, '/ql/uu-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_xoa' ) ) );
+		register_rest_route( self::NS, '/ql/hang-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_ds' ) ) );
+		register_rest_route( self::NS, '/ql/hang-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_luu' ) ) );
 	}
 	/* Trang có [posh_ve] -> tắt admin bar cho gọn (chạy sớm ở hook wp). */
 	public static function an_admin_bar() {
@@ -1025,6 +1027,27 @@ class POSH_Ve {
 		return array( 'ok' => true );
 	}
 
+	/* ── Marketing quản lý HẠNG THÀNH VIÊN từ web (PIN) ── */
+	public static function r_ql_hang_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		return array( 'ok' => true, 'ds' => self::ds_hang() );
+	}
+	public static function r_ql_hang_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$ds = $req->get_param( 'ds' );
+		if ( ! is_array( $ds ) ) { return new WP_Error( 'ds', 'Dữ liệu không hợp lệ.', array( 'status' => 400 ) ); }
+		$ra = array();
+		foreach ( $ds as $x ) {
+			$ten = sanitize_text_field( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			$ra[] = array( 'ten' => mb_substr( $ten, 0, 40 ), 'moc' => max( 0, (int) preg_replace( '/\D+/', '', (string) ( isset( $x['moc'] ) ? $x['moc'] : 0 ) ) ) );
+		}
+		if ( ! $ra ) { return new WP_Error( 'trong', 'Cần ít nhất 1 hạng.', array( 'status' => 400 ) ); }
+		usort( $ra, function ( $a, $b ) { return $a['moc'] - $b['moc']; } );
+		update_option( 'pve_hang', array_values( $ra ) );
+		return array( 'ok' => true, 'ds' => self::ds_hang() );
+	}
+
 	private static function ma_ve_moi() {
 		global $wpdb; $bang = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -1612,14 +1635,19 @@ class POSH_Ve {
 			</div>
 
 			<div class="pql-app" hidden>
-				<div class="pql-tabs">
-					<button class="pql-tab on" data-tab="ve">🎟️ Vé</button>
-					<button class="pql-tab" data-tab="bc">📊 Tổng quan</button>
-					<button class="pql-tab" data-tab="don">🧾 Đơn &amp; soát</button>
+			<div class="pql-layout">
+				<aside class="pql-side">
+					<div class="pql-side-g">Bán vé</div>
+					<button class="pql-tab on" data-tab="bc">📊 Tổng quan</button>
+					<button class="pql-tab" data-tab="ve">🎟️ Vé</button>
+					<button class="pql-tab" data-tab="don">🧾 Đơn hàng &amp; soát vé</button>
+					<div class="pql-side-g">Loyalty</div>
 					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
-				</div>
+					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
+				</aside>
+				<div class="pql-main">
 
-				<div class="pql-pane" data-pane="ve">
+				<div class="pql-pane" data-pane="ve" hidden>
 				<div class="pql-bar">
 					<b>Danh sách vé</b>
 					<button class="pql-them">+ Tạo vé mới</button>
@@ -1659,7 +1687,7 @@ class POSH_Ve {
 				</div>
 				</div><!-- /pane ve -->
 
-				<div class="pql-pane" data-pane="bc" hidden>
+				<div class="pql-pane" data-pane="bc">
 					<div class="pql-bcf">
 						<div class="pql-seg" data-seg="ky">
 							<button data-v="tatca" class="on">Tất cả</button>
@@ -1726,6 +1754,17 @@ class POSH_Ve {
 						<div class="pql-uumsg"></div>
 					</div>
 				</div><!-- /pane uu -->
+
+				<div class="pql-pane" data-pane="hang" hidden>
+					<div class="pql-bar"><b>Hạng thành viên (theo điểm)</b><button class="pql-hang-them">+ Thêm hạng</button></div>
+					<p class="tp-empty-s" style="color:var(--mut);font-size:12px;margin:0 0 10px">1 điểm = 1.000đ chi tiêu. Khách đạt đủ điểm mốc sẽ lên hạng. Sửa xong bấm <b>Lưu hạng</b>.</p>
+					<div class="pql-hanglist"></div>
+					<div class="pql-acts"><button class="pql-hang-luu">Lưu hạng</button></div>
+					<div class="pql-hangmsg"></div>
+				</div><!-- /pane hang -->
+
+				</div><!-- /main -->
+			</div><!-- /layout -->
 			</div>
 		</div>
 
@@ -1764,6 +1803,11 @@ class POSH_Ve {
 		.pql-row-btn .del{ color:#f0a0a0; border-color:rgba(239,68,68,.3); }
 		.pql-form,.pql-uuform{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
 		.pql-uumsg{ font-size:13px; margin-top:10px; text-align:center; }
+		.pql-hrow{ display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+		.pql-hrow .h-ten{ flex:1; } .pql-hrow .h-moc{ flex:0 0 140px; }
+		.pql-hrow input{ border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#f0a0a0; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
+		.pql-hangmsg{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-2{ display:flex; gap:12px; } .pql-2 > div{ flex:1; }
 		.pql-anh{ display:flex; gap:10px; align-items:center; }
 		.pql-anh .f-anh{ flex:1; }
@@ -1774,9 +1818,22 @@ class POSH_Ve {
 		.pql-acts{ display:flex; gap:10px; margin-top:16px; }
 		.pql-acts button{ flex:1; }
 		.pql-huy{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:10px; padding:12px; cursor:pointer; font-weight:700; }
-		.pql-tabs{ display:flex; gap:8px; margin-bottom:14px; }
-		.pql-tab{ flex:1; border:1.5px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:10px; padding:10px 4px; font-weight:700; font-size:13px; cursor:pointer; }
-		.pql-tab.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
+		/* Layout HRM: sidebar trái + nội dung phải */
+		.pql-layout{ display:flex; gap:18px; align-items:flex-start; }
+		.pql-side{ flex:0 0 210px; position:sticky; top:16px; display:flex; flex-direction:column; gap:4px;
+			background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:12px; }
+		.pql-side-g{ font-size:11px; font-weight:800; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; margin:10px 8px 4px; }
+		.pql-side-g:first-child{ margin-top:2px; }
+		.pql-main{ flex:1; min-width:0; }
+		.pql-tab{ width:100%; text-align:left; border:none; background:transparent; color:var(--tx); border-radius:10px; padding:11px 12px; font-weight:700; font-size:14px; cursor:pointer; }
+		.pql-tab:hover{ background:var(--sf2); }
+		.pql-tab.on{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; }
+		@media(max-width:640px){
+			.pql-layout{ flex-direction:column; }
+			.pql-side{ flex:1 1 auto; width:100%; position:static; flex-direction:row; flex-wrap:wrap; }
+			.pql-side-g{ display:none; }
+			.pql-tab{ width:auto; flex:1 0 auto; text-align:center; padding:9px 12px; font-size:13px; }
+		}
 		.pql-bcf{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
 		.pql-seg{ display:inline-flex; border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
 		.pql-seg button{ border:none; background:var(--sf); color:var(--tx); padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
@@ -1833,7 +1890,7 @@ class POSH_Ve {
 		  var dn=$('.pql-dn');
 		  if(dn){
 		    var go=function(){ var v=($('.pql-pin').value||'').trim(); if(!v)return; $('.pql-msg').textContent='Đang kiểm tra…'; PIN=v;
-		      post('/ql/dangnhap',{}).then(function(){ $('.pql-login').hidden=true; $('.pql-app').hidden=false; $('.pql-out').hidden=false; napDs(); })
+		      post('/ql/dangnhap',{}).then(function(){ $('.pql-login').hidden=true; $('.pql-app').hidden=false; $('.pql-out').hidden=false; napBaoCao(); })
 		        .catch(function(e){ PIN=''; $('.pql-msg').textContent=String(e.message||e); }); };
 		    dn.addEventListener('click',go);
 		    $('.pql-pin').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
@@ -1846,7 +1903,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu();
+		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang();
 		    });
 		  });
 
@@ -1972,6 +2029,32 @@ class POSH_Ve {
 		    post('/ql/uu-luu',body).then(function(){ $('.pql-uuform').hidden=true; napUu(); })
 		      .catch(function(e){ $('.pql-uumsg').style.color='#f0a0a0'; $('.pql-uumsg').textContent=String(e.message||e); })
 		      .then(function(){ b.disabled=false; b.textContent='Lưu ưu đãi'; });
+		  });
+
+		  // ── Hạng thành viên ──
+		  function napHang(){
+		    $('.pql-hanglist').innerHTML='<p style="color:#9b978c">Đang tải…</p>'; $('.pql-hangmsg').textContent='';
+		    get('/ql/hang-ds').then(function(d){ hangVe(d.ds||[]); }).catch(function(e){ $('.pql-hanglist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function hangRow(ten,moc){
+		    return '<div class="pql-hrow"><input class="h-ten" placeholder="Tên hạng" value="'+esc(ten||'')+'">'
+		      +'<input class="h-moc" type="number" inputmode="numeric" placeholder="Điểm mốc" value="'+(moc||0)+'">'
+		      +'<button class="h-del" title="Xoá hạng">✕</button></div>';
+		  }
+		  function hangVe(ds){
+		    $('.pql-hanglist').innerHTML = (ds.length?ds:[{ten:'',moc:0}]).map(function(h){return hangRow(h.ten,h.moc);}).join('');
+		  }
+		  $('.pql-hang-them').addEventListener('click',function(){ $('.pql-hanglist').insertAdjacentHTML('beforeend', hangRow('',0)); });
+		  $('.pql-hanglist').addEventListener('click',function(e){ var b=e.target.closest('.h-del'); if(b){ b.parentNode.remove(); } });
+		  $('.pql-hang-luu').addEventListener('click',function(){
+		    var ds=[]; Array.prototype.forEach.call(root.querySelectorAll('.pql-hrow'),function(r){
+		      var ten=r.querySelector('.h-ten').value.trim(); if(ten) ds.push({ten:ten, moc:+String(r.querySelector('.h-moc').value).replace(/\D+/g,'')||0});
+		    });
+		    if(!ds.length){ $('.pql-hangmsg').style.color='#f0a0a0'; $('.pql-hangmsg').textContent='Cần ít nhất 1 hạng.'; return; }
+		    var b=$('.pql-hang-luu'); b.disabled=true; b.textContent='Đang lưu…';
+		    post('/ql/hang-luu',{ds:ds}).then(function(d){ hangVe(d.ds||[]); $('.pql-hangmsg').style.color='#7ee2a8'; $('.pql-hangmsg').textContent='Đã lưu ✓'; })
+		      .catch(function(e){ $('.pql-hangmsg').style.color='#f0a0a0'; $('.pql-hangmsg').textContent=String(e.message||e); })
+		      .then(function(){ b.disabled=false; b.textContent='Lưu hạng'; });
 		  });
 
 		  // Danh sách vé
