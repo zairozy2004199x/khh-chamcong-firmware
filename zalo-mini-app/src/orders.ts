@@ -29,7 +29,10 @@ export function luuVe(v: VeLuu) {
   }
 }
 
-/* SĐT gần nhất khách dùng khi mua — để tra điểm ở tab Cá nhân. */
+/* SĐT + tên gần nhất khách dùng (từ đăng nhập Zalo) — để tự điền thanh toán + tra điểm. */
 const KHOA_SDT = "posh_sdt";
+const KHOA_TEN = "posh_ten";
 export function luuSdt(sdt: string) { try { localStorage.setItem(KHOA_SDT, sdt); } catch {} }
 export function laySdt(): string { try { return localStorage.getItem(KHOA_SDT) || ""; } catch { return ""; } }
+export function luuTen(ten: string) { try { localStorage.setItem(KHOA_TEN, ten); } catch {} }
+export function layTen(): string { try { return localStorage.getItem(KHOA_TEN) || ""; } catch { return ""; } }

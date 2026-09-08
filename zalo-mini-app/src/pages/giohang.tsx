@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Page, useNavigate, useSnackbar } from "zmp-ui";
 import { datGio, dinhTien } from "../api";
 import { layGio, datSoLuong, xoaKhoiGio, xoaGio, tongTien, MonGio } from "../cart";
-import { luuVe, luuSdt } from "../orders";
+import { luuVe, luuSdt, laySdt, layTen } from "../orders";
+import { layTTZalo } from "../zalo";
 import TabBar from "../components/tabbar";
 
 /* Giỏ hàng: chỉnh số lượng từng vé + nhập tên/SĐT + thanh toán 1 lần (1 mã QR tổng). */
@@ -10,9 +11,22 @@ export default function GioHangPage() {
   const navigate = useNavigate();
   const snackbar = useSnackbar();
   const [ds, setDs] = useState<MonGio[]>([]);
-  const [ten, setTen] = useState("");
-  const [sdt, setSdt] = useState("");
+  const [ten, setTen] = useState(layTen());
+  const [sdt, setSdt] = useState(laySdt());
   const [dangGui, setDangGui] = useState(false);
+  const [dangLay, setDangLay] = useState(false);
+
+  const dienZalo = async () => {
+    setDangLay(true);
+    try {
+      const r = await layTTZalo();
+      if (r.ten) setTen(r.ten);
+      if (r.sdt) setSdt(r.sdt);
+      snackbar.openSnackbar({ text: "Đã lấy thông tin Zalo", type: "success", duration: 1200 });
+    } catch (e: any) {
+      snackbar.openSnackbar({ text: "Chưa lấy được thông tin. Nhập tay giúp em nhé.", type: "warning" });
+    } finally { setDangLay(false); }
+  };
 
   const nap = () => setDs(layGio());
   useEffect(() => {
@@ -80,6 +94,9 @@ export default function GioHangPage() {
           </div>
 
           <div className="gio-form">
+            <button className="gio-zalo" disabled={dangLay} onClick={dienZalo}>
+              {dangLay ? "Đang lấy…" : "⚡ Dùng thông tin Zalo (tự điền)"}
+            </button>
             <label className="gio-lb">Họ tên</label>
             <input className="gio-in" placeholder="Tên người mua" value={ten} onChange={(e) => setTen(e.target.value)} />
             <label className="gio-lb">Số điện thoại</label>

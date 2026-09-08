@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Page, useNavigate, useSnackbar } from "zmp-ui";
-import { getUserInfo, getPhoneNumber, getAccessToken } from "zmp-sdk";
-import { layDiem, zaloSdt, dinhTien, Diem } from "../api";
-import { laySdt, luuSdt } from "../orders";
+import { getUserInfo } from "zmp-sdk";
+import { layDiem, dinhTien, Diem } from "../api";
+import { laySdt } from "../orders";
+import { layTTZalo } from "../zalo";
 import TabBar from "../components/tabbar";
 
 /* Cá nhân: đăng nhập Zalo (lấy tên/SĐT) -> quản lý vé & điểm. Bám app FunZone thật. */
@@ -27,12 +28,9 @@ export default function CaNhanPage() {
   const dnZalo = async () => {
     setDangNhap(true);
     try {
-      const info: any = await getUserInfo({ autoRequestPermission: true });
-      if (info?.userInfo) setNd(info.userInfo);
-      const at: string = await new Promise((res, rej) => (getAccessToken as any)({ success: res, fail: rej }));
-      const token: string = await new Promise((res, rej) => (getPhoneNumber as any)({ success: (d: any) => res(d.token), fail: rej }));
-      const r = await zaloSdt(token, at);
-      luuSdt(r.sdt); setSdt(r.sdt);
+      const r = await layTTZalo();
+      if (r.avatar || r.ten) setNd({ name: r.ten, avatar: r.avatar });
+      if (r.sdt) setSdt(r.sdt);
       snackbar.openSnackbar({ text: "Đăng nhập thành công", type: "success", duration: 1500 });
     } catch (e: any) {
       snackbar.openSnackbar({ text: "Chưa lấy được SĐT. Có thể nhập tay bên dưới.", type: "warning" });

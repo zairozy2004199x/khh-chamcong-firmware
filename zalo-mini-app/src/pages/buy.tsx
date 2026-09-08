@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Page, Box, Text, Input, Button, useNavigate, useParams, useLocation, useSnackbar } from "zmp-ui";
 import { datVe, dinhTien, Goi } from "../api";
-import { luuVe, luuSdt } from "../orders";
+import { luuVe, luuSdt, laySdt, layTen } from "../orders";
+import { layTTZalo } from "../zalo";
 
 export default function BuyPage() {
   const navigate = useNavigate();
@@ -10,9 +11,21 @@ export default function BuyPage() {
   const veId = Number(id) || 0;
   const goi = (location.state as any)?.goi as Goi | undefined;   // vé đã chọn (để hiện tên + giá)
   const snackbar = useSnackbar();
-  const [ten, setTen] = useState("");
-  const [sdt, setSdt] = useState("");
+  const [ten, setTen] = useState(layTen());
+  const [sdt, setSdt] = useState(laySdt());
   const [dangGui, setDangGui] = useState(false);
+  const [dangLay, setDangLay] = useState(false);
+
+  const dienZalo = async () => {
+    setDangLay(true);
+    try {
+      const r = await layTTZalo();
+      if (r.ten) setTen(r.ten);
+      if (r.sdt) setSdt(r.sdt);
+    } catch {
+      snackbar.openSnackbar({ text: "Chưa lấy được thông tin Zalo. Nhập tay giúp em nhé.", type: "warning" });
+    } finally { setDangLay(false); }
+  };
 
   const mua = async () => {
     if (!ten.trim() || !sdt.trim()) {
@@ -42,6 +55,11 @@ export default function BuyPage() {
           {goi ? `${goi.ten} · ${dinhTien(goi.tien)}` : "Vé khu vui chơi"}
         </Text>
       </Box>
+      <div className="field">
+        <button className="gio-zalo" disabled={dangLay} onClick={dienZalo}>
+          {dangLay ? "Đang lấy…" : "⚡ Dùng thông tin Zalo (tự điền)"}
+        </button>
+      </div>
       <div className="field">
         <Input label="Họ tên" placeholder="Tên người mua" value={ten}
           onChange={(e) => setTen(e.target.value)} />

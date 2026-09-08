@@ -176,6 +176,8 @@ body { margin:0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; bac
 .gio-step button{ width:30px; height:30px; border:1px solid #e2e8f0; background:#fff; border-radius:8px; font-size:18px; line-height:1; cursor:pointer; color:#334155; }
 .gio-step b{ min-width:18px; text-align:center; font-size:15px; }
 .gio-form{ background:#fff; margin:4px 14px 0; border-radius:14px; padding:14px; box-shadow:0 4px 12px rgba(0,0,0,.05); }
+.gio-zalo{ width:100%; border:none; background:#0068ff; color:#fff; font-weight:800; font-size:14px; padding:12px; border-radius:10px; cursor:pointer; margin-bottom:12px; }
+.gio-zalo:disabled{ background:#93c5fd; }
 .gio-lb{ display:block; font-size:13px; color:#475569; font-weight:600; margin:8px 0 4px; }
 .gio-lb:first-child{ margin-top:0; }
 .gio-in{ width:100%; box-sizing:border-box; border:1px solid #cbd5e1; border-radius:10px; padding:11px 13px; font-size:15px; }
