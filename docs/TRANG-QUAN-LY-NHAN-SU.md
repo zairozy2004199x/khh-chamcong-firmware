@@ -128,6 +128,43 @@ dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn p
   không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
   sổ cũ có những câu như "Đã nghỉ 12/2025".
 
+### Nhân viên đang có của cơ sở, hiện ngay trong biểu mẫu tạo (3.45.0)
+
+> Anh Thắng: *"trước khi tạo làm sao biết nhân viên đó có chưa, thì bổ sung danh sách cửa hàng đó
+> có, khi chọn cửa hàng để thêm nhân viên sẽ hiện danh sách nhân viên đang có của cửa hàng đó"*.
+
+Đáng làm vì **Mã NV là khoá**: tạo hồ sơ thứ hai cho một người đang có là **công của họ bị chẻ
+đôi**, mỗi nửa một bảng lương — hỏng im lặng, cuối tháng mới lộ, và gỡ thì phải đi qua luồng đổi mã
+kéo theo mọi hàng chấm công.
+
+Trong biểu mẫu tạo, **ngay dưới lưới tích cơ sở**:
+
+* Tích cơ sở nào thì hiện **danh sách nhân viên đang có** của cơ sở đó (mã · họ tên · cờ *đã
+  nghỉ*), kèm số người. Tích nhiều cơ sở thì hiện nhiều danh sách.
+* Người **làm hai cơ sở** (tích thêm cơ sở phụ) hiện ở **cả hai** danh sách — họ chính là người dễ
+  bị tạo trùng nhất, vì cửa hàng bên kia không thấy họ trong danh sách của mình thì tưởng chưa có.
+* **Người đã nghỉ vẫn hiện**, làm mờ và ghi *đã nghỉ*: nghỉ rồi mà lập hồ sơ mới chính là cái trùng
+  cần chặn.
+* Đang gõ ô **Họ tên** mà trùng tên người đã có thì hiện ngay dải cảnh báo, nêu **mã + cơ sở** của
+  người đó. Khoá so là `khoa_so()` (bỏ dấu, bỏ ký tự lạ) — "Nguyễn Thị A" và "NGUYỄN THỊ  A" ra
+  một, vì đúng cặp ấy mới nguy: CSDL coi là hai dòng nên không chặn, còn người đọc thấy y hệt.
+
+**Dữ liệu nhúng sẵn trong trang, không mở cửa mạng mới.** Cả chuỗi hơn hai trăm hồ sơ gói lại chỉ
+vài chục KB: tích cơ sở là thấy ngay, không chờ mạng, và không phải dựng một đường ajax mới — đường
+mới là một cửa mới phải gác, mà thứ nó trả về đúng là danh sách người của cả chuỗi.
+
+Hai chốt kèm theo: gói đi qua **`ds_nhan_vien( $toi, … )`** nên Cửa hàng trưởng chỉ thấy người của
+cơ sở mình, và gói **chỉ có mã · tên · cờ nghỉ** — không PIN, không lương, không CCCD (mỗi thứ nhúng
+thêm là một thứ ai mở mã trang cũng đọc được).
+
+Phép thử (16 phép): khối chỉ có ở nhánh tạo mới · xếp đúng theo từng cơ sở · người hai cơ sở hiện ở
+cả hai · người đã nghỉ có cờ · **gói chỉ chứa đúng ba khoá `m`/`t`/`n`** và PIN không hề nằm trong
+trang · khoá so tên đã bỏ dấu · **Cửa hàng trưởng không thấy người cơ sở khác** (gọi thẳng hàm dựng
+khối, không đo qua trang — trang của họ vốn rỗng nên đo qua trang là xanh giả) · không có người đăng
+nhập thì khối rỗng hẳn.
+
+---
+
 ### Bấm nút mà trang vẽ lại y nguyên — dấu `+` trong địa chỉ (3.44.0)
 
 > Anh Thắng, sau khi cài 3.43.0: *"đã hiện, nhưng bấm cũng không chạy"*.

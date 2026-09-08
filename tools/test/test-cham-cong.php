@@ -6417,6 +6417,80 @@ teq( 'nên lưu lại KHÔNG xoá trắng giới tính cũ', 'Nam', vhcc_hs( 'W1
 vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'gioi_tinh' => 'male' ) );
 teq( 'và chọn Nam/Nữ thì ghi đúng giá trị máy nhận', 'male', vhcc_hs( 'W1' )['gioi_tinh'] );
 
+/* ===== NHÂN VIÊN ĐANG CÓ CỦA CƠ SỞ, HIỆN NGAY TRONG BIỂU MẪU TẠO (08/09/2026) =================
+   🔴 Anh Thắng: *"trước khi tạo làm sao biết nhân viên đó có chưa, thì bổ sung danh sách cửa hàng
+   đó có, khi chọn cửa hàng để thêm nhân viên sẽ hiện danh sách nhân viên đang có của cửa hàng
+   đó"*.
+   Đáng làm vì MÃ NV LÀ KHOÁ: tạo hồ sơ thứ hai cho một người đang có là công của họ bị CHẺ ĐÔI,
+   mỗi nửa một bảng lương — hỏng im lặng tới cuối tháng mới lộ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DS1', 'ho_ten' => 'Nguyễn Văn Đang Có',
+	'cua_hang' => 'JP_HCM' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DS2', 'ho_ten' => 'Người Hai Cơ Sở',
+	'cua_hang' => 'JP_HCM', 'coso_phu' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DS3', 'ho_ten' => 'Người Đã Nghỉ',
+	'cua_hang' => 'JP_HCM', 'trang_thai_lam_viec' => 'Đã nghỉ 12/2025', 'pin_dang_nhap' => '135797' ) );
+
+$h_ds1 = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => 'moi' ) );
+t( '🔴 biểu mẫu tạo có khối "nhân viên đang có"', strpos( $h_ds1, 'dsnv_ra' ) !== false, $h_ds1 );
+t( 'và ô cảnh báo trùng tên', strpos( $h_ds1, 'dsnv_trung' ) !== false );
+t( 'khối chỉ đứng ở nhánh TẠO MỚI, không ở nhánh sửa hồ sơ cũ',
+	strpos( vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => 'DS1' ) ), 'dsnv_ra' ) === false );
+
+/** Bóc gói dữ liệu nhúng trong trang -> mảng PHP, để đo bằng dữ liệu THẬT chứ không đo chuỗi. */
+function vhcc_goi_dsnv( $html, $ten_bien = 'DS' ) {
+	$mau = ( 'DS' === $ten_bien ) ? '/var DS = (\{.*?\}), TEN/s' : '/, TEN = (\{.*?\});/s';
+	if ( ! preg_match( $mau, $html, $m ) ) { return null; }
+	return json_decode( $m[1], true );
+}
+$goi = vhcc_goi_dsnv( $h_ds1 );
+t( 'gói dữ liệu bóc ra được', is_array( $goi ) );
+t( 'xếp người theo TỪNG cơ sở', isset( $goi['JP_HCM'] ) );
+$ma_jp = array();
+foreach ( (array) $goi['JP_HCM'] as $n ) { $ma_jp[] = $n['m']; }
+t( 'cơ sở JP_HCM có đủ người của nó', in_array( 'DS1', $ma_jp, true ) && in_array( 'DS3', $ma_jp, true ) );
+/* 🔴 Người tích thêm cơ sở phụ phải hiện ở CẢ HAI — họ chính là người dễ bị tạo trùng nhất, vì
+   cửa hàng bên kia không thấy họ trong danh sách của mình thì tưởng chưa có. */
+$ma_tt = array();
+foreach ( (array) $goi['TUTU_BT'] as $n ) { $ma_tt[] = $n['m']; }
+t( '🔴 người làm hai cơ sở hiện ở CẢ HAI danh sách',
+	in_array( 'DS2', $ma_jp, true ) && in_array( 'DS2', $ma_tt, true ) );
+/* Người đã nghỉ vẫn phải hiện — nghỉ rồi mà tạo lại hồ sơ mới là đúng cái trùng cần chặn. */
+$nghi_ok = false;
+foreach ( (array) $goi['JP_HCM'] as $n ) { if ( 'DS3' === $n['m'] && ! empty( $n['n'] ) ) { $nghi_ok = true; } }
+t( 'người đã nghỉ vẫn hiện, có cờ "đã nghỉ"', $nghi_ok );
+/* ⚠️ CHỈ mã + tên + cờ nghỉ. Mỗi thứ nhúng thêm là một thứ ai mở mã trang cũng đọc được. */
+$khoa_goi = array();
+foreach ( (array) $goi['JP_HCM'] as $n ) { $khoa_goi = array_merge( $khoa_goi, array_keys( $n ) ); }
+sort( $khoa_goi );
+t( '🔴 gói KHÔNG kèm PIN / lương / CCCD — chỉ m, t, n',
+	array( 'm', 'n', 't' ) === array_values( array_unique( $khoa_goi ) ), implode( ',', $khoa_goi ) );
+t( 'và PIN của người trong gói không hề nằm trong trang',
+	strpos( $h_ds1, '135797' ) === false );
+
+/* Khoá so trùng tên: bỏ dấu, bỏ ký tự lạ — "Nguyễn Văn Đang Có" -> "nguyen van dang co". */
+$ten_goi = vhcc_goi_dsnv( $h_ds1, 'TEN' );
+t( 'khoá tên đã bỏ dấu để so được kiểu gõ khác nhau',
+	isset( $ten_goi['nguyen van dang co'] ), implode( ' | ', array_keys( (array) $ten_goi ) ) );
+teq( 'và chỉ đúng mã của người trùng', 'DS1', $ten_goi['nguyen van dang co'][0]['m'] );
+teq( 'kèm cơ sở của họ để biết đi hỏi ai', 'JP_HCM', $ten_goi['nguyen van dang co'][0]['c'] );
+
+/* 🔴 LỌC THEO QUYỀN, không phải cứ dựng được khối là thấy cả chuỗi.
+   ⚠️ Gọi THẲNG hàm dựng khối, không đi qua trang: Cửa hàng trưởng vốn không mở được màn Hồ sơ
+      nên vẽ trang ra sẽ KHÔNG có khối này — phép thử "không thấy DS1" khi đó xanh vì trang rỗng,
+      chứ không chứng minh được cái lọc quyền có chạy. Gọi thẳng thì đo đúng thứ cần đo. */
+$khoi_cht = vhcc_goi_rieng( 'VHCC_Web', 'khoi_nv_dang_co', array( $U_CHT ) );
+$goi2 = vhcc_goi_dsnv( $khoi_cht );
+$ma2  = array();
+foreach ( (array) $goi2 as $ds_cs ) { foreach ( $ds_cs as $n ) { $ma2[] = $n['m']; } }
+t( '🔴 Cửa hàng trưởng TUTU_BT KHÔNG thấy người của cơ sở khác (DS1 ở JP_HCM)',
+	! in_array( 'DS1', $ma2, true ), implode( ',', $ma2 ) );
+t( 'nhưng vẫn thấy người làm ở cơ sở mình (DS2 tích thêm TUTU_BT)',
+	in_array( 'DS2', $ma2, true ), implode( ',', $ma2 ) );
+/* Không có người đăng nhập thì khối tự tắt — đừng nhúng danh sách cả chuỗi cho một lượt gọi lạ. */
+teq( 'không có $toi thì khối rỗng hẳn', '',
+	vhcc_goi_rieng( 'VHCC_Web', 'khoi_nv_dang_co', array( null ) ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('DS1','DS2','DS3')" );
+
 /* PIN sai khuôn thì CHỐI RIÊNG DÒNG ĐÓ, không lưu nửa vời dòng đó — nhưng cũng KHÔNG được làm
    hỏng cả lượt gửi. Bắt làm lại từ đầu cả trăm dòng vì một PIN gõ nhầm là cách chắc nhất để
    người ta thôi dùng nút này. */

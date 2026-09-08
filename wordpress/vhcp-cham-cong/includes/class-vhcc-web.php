@@ -2723,7 +2723,7 @@ class VHCC_Web {
 			echo self::goi_y( 'dl_tt',
 				"SELECT DISTINCT trang_thai_lam_viec AS v FROM $b_hs WHERE trang_thai_lam_viec<>''",
 				false, array( 'Đang làm', 'Tạm nghỉ', 'Đã nghỉ việc' ) );
-			self::the_sua_ho_so( $ky, $sua, $la );
+			self::the_sua_ho_so( $ky, $sua, $la, $toi );
 			self::dong_trang();
 			return;
 		}
@@ -7832,6 +7832,150 @@ class VHCC_Web {
 	}
 
 	/**
+	 * NHÂN VIÊN ĐANG CÓ CỦA CƠ SỞ — hiện ngay trong biểu mẫu tạo hồ sơ.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"trước khi tạo làm sao biết nhân viên đó có chưa, thì bổ sung
+	 * danh sách cửa hàng đó có, khi chọn cửa hàng để thêm nhân viên sẽ hiện danh sách nhân viên
+	 * đang có của cửa hàng đó"*.
+	 *
+	 * Vì sao đáng làm: MÃ NV LÀ KHOÁ. Tạo hồ sơ thứ hai cho một người đang có là **công của họ bị
+	 * chẻ đôi**, mỗi nửa một bảng lương — hỏng im lặng, tới cuối tháng mới lộ, và gỡ thì phải đi
+	 * qua luồng đổi mã kéo theo mọi hàng chấm công. Soát trước lúc tạo là cách rẻ nhất.
+	 *
+	 * 🔴 DỮ LIỆU NHÚNG SẴN, KHÔNG MỞ CỬA MẠNG MỚI. Cả chuỗi hơn hai trăm hồ sơ, gói lại chỉ vài
+	 *    chục KB — nhúng thẳng vào trang thì tích cơ sở là thấy NGAY, không chờ mạng, và không
+	 *    phải dựng một đường ajax mới. Đường mới là một cửa mới phải gác, mà thứ nó trả về đúng
+	 *    là danh sách người của cả chuỗi.
+	 * ⚠️ CHỈ NHÚNG PHẦN NGƯỜI NÀY ĐƯỢC XEM: đi qua `ds_nhan_vien( $toi, … )` — đúng cái lọc quyền
+	 *    của màn danh sách. Cửa hàng trưởng không vì khối này mà đọc được người của cơ sở khác.
+	 * ⚠️ KHÔNG kèm PIN / lương / CCCD — chỉ mã, tên và cờ đã nghỉ. Khối này để soát trùng người,
+	 *    mà mỗi thứ nhúng thêm là một thứ nằm trong mã trang cho bất kỳ ai mở xem.
+	 *
+	 * Kèm luôn phép soát TRÙNG TÊN ngay khi đang gõ ô Họ tên. Khoá so là `khoa_so()` của máy chủ
+	 * (bỏ dấu, bỏ ký tự lạ) và bản JS mô phỏng đúng luật ấy — "Nguyễn Thị A" với "NGUYỄN THỊ  A"
+	 * phải ra MỘT, vì đúng cặp đó mới nguy: cơ sở dữ liệu coi là hai dòng khác nhau nên không hề
+	 * chặn, còn người đọc thì thấy y hệt.
+	 */
+	private static function khoi_nv_dang_co( $toi ) {
+		if ( null === $toi ) { return ''; }
+		$theo_cs  = array();
+		$theo_ten = array();
+		foreach ( (array) VHCC_NhanSu::ds_nhan_vien( $toi, '', '' ) as $r ) {
+			$ma = trim( isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '' );
+			if ( '' === $ma ) { continue; }
+			$ten   = isset( $r['ho_ten'] ) ? (string) $r['ho_ten'] : '';
+			$nghi  = VHCC_NhanSu::da_nghi( isset( $r['trang_thai_lam_viec'] ) ? $r['trang_thai_lam_viec'] : '' );
+			$cs_ds = VHCC_NhanSu::ds_coso_hs( $r );
+			foreach ( $cs_ds as $cs ) {
+				$theo_cs[ $cs ][] = array( 'm' => $ma, 't' => $ten, 'n' => $nghi ? 1 : 0 );
+			}
+			$k = VHCC_NhanSu::khoa_so( $ten );
+			if ( '' !== $k ) { $theo_ten[ $k ][] = array( 'm' => $ma, 'c' => implode( ', ', $cs_ds ) ); }
+		}
+		ksort( $theo_cs );
+
+		/* JSON_HEX_TAG: họ tên là chuỗi người ta gõ — một dấu `<` lọt vào là đóng sớm thẻ
+		   `</script>` và trang vỡ từ đó xuống. UNESCAPED_UNICODE để chữ Việt trong mã trang vẫn
+		   đọc được lúc soi lỗi. */
+		$co  = JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE;
+		$js  = self::JS_NV_DANG_CO;
+		$js  = str_replace(
+			array( '__DS__', '__TEN__' ),
+			array( wp_json_encode( $theo_cs, $co ), wp_json_encode( $theo_ten, $co ) ),
+			$js
+		);
+		return '<div style="grid-column:1/-1;margin:2px 0 4px">'
+			. '<div id="dsnv_trung"></div>'
+			. '<div id="dsnv_ra" class="mo" style="font-size:12.5px"></div>'
+			. '</div><script>' . $js . '</script>';
+	}
+
+	/**
+	 * Phần JS của khối trên — để RIÊNG trong một nowdoc.
+	 *
+	 * ⚠️ Nowdoc (`<<<'JS'`) chứ không phải chuỗi nối: đoạn này đầy dấu nháy và dấu ngoặc, mà nối
+	 *    chuỗi PHP thì mỗi lần sửa là một lần đếm dấu escape — em đã viết sai đúng một lần theo
+	 *    lối nối chuỗi trước khi đổi sang đây. Nowdoc KHÔNG nội suy biến, nên hai chỗ cần dữ liệu
+	 *    dùng mốc `__DS__` / `__TEN__` rồi thay bằng `str_replace`.
+	 */
+	const JS_NV_DANG_CO = <<<'JS'
+(function(){
+	var DS = __DS__, TEN = __TEN__;
+	var ra = document.getElementById('dsnv_ra'), tr = document.getElementById('dsnv_trung');
+	if (!ra || !tr) { return; }
+	function e(s){
+		return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
+			return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+		});
+	}
+	/* Bỏ dấu bằng NFD rồi cắt dấu phụ — mô phỏng `VHCC_Vai::bo_dau` + `VHCC_NhanSu::khoa_so`.
+	   Trình duyệt cổ không có `normalize` thì chuỗi giữ nguyên dấu: phép so không khớp, tức là
+	   KHÔNG cảnh báo. Thà lặng còn hơn chỉ sai người. */
+	function khoa(s){
+		s = String(s || '').toLowerCase();
+		if (s.normalize) { s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+		s = s.replace(/\u0111/g, 'd');   // đ -> d (NFD không tách chữ này)
+		return s.replace(/[^a-z0-9]+/g, ' ').trim();
+	}
+	function oCoSo(){
+		var ra2 = [], x = document.querySelectorAll('input[name="coso_o[]"]');
+		for (var i = 0; i < x.length; i++) {
+			if ('checkbox' === x[i].type && x[i].checked) { ra2.push(x[i].value); }
+		}
+		return ra2;
+	}
+	function ve(){
+		var cs = oCoSo();
+		if (!cs.length) {
+			ra.innerHTML = 'Tích một cơ sở ở trên để xem <b>nhân viên đang có</b> của cơ sở đó'
+				+ ' — soát trước cho khỏi tạo trùng người.';
+			return;
+		}
+		var h = '';
+		for (var i = 0; i < cs.length; i++) {
+			var c = cs[i], ds = DS[c] || [];
+			h += '<div style="margin-top:6px"><b>' + e(c) + '</b> — ' + ds.length + ' người đang có';
+			if (!ds.length) {
+				h += ' <i>(chưa ai — cơ sở mới, hoặc chưa nạp hồ sơ)</i></div>';
+				continue;
+			}
+			h += '<div style="max-height:190px;overflow:auto;border:1px solid var(--vien);'
+				+ 'border-radius:8px;margin-top:4px"><table style="width:100%;'
+				+ 'border-collapse:collapse;font-size:12.5px">';
+			for (var j = 0; j < ds.length; j++) {
+				var n = ds[j];
+				h += '<tr' + (n.n ? ' style="opacity:.5"' : '') + '>'
+					+ '<td style="padding:3px 8px;white-space:nowrap"><code>' + e(n.m) + '</code></td>'
+					+ '<td style="padding:3px 8px">' + e(n.t)
+					+ (n.n ? ' <i>— đã nghỉ</i>' : '') + '</td></tr>';
+			}
+			h += '</table></div></div>';
+		}
+		ra.innerHTML = h;
+	}
+	function soatTen(){
+		var o = document.querySelector('input[name="ho_ten"]');
+		if (!o) { return; }
+		var d = TEN[khoa(o.value)];
+		if (!d || !d.length) { tr.innerHTML = ''; return; }
+		var ai = [];
+		for (var i = 0; i < d.length; i++) {
+			ai.push('<code>' + e(d[i].m) + '</code>' + (d[i].c ? (' ở ' + e(d[i].c)) : ''));
+		}
+		tr.innerHTML = '<div class="bao canh" style="margin:0 0 6px">&#9888;&#65039; '
+			+ '<b>Đã có hồ sơ trùng tên này</b>: ' + ai.join(' &middot; ')
+			+ ' — kiểm lại kẻo tạo hai hồ sơ cho MỘT người: mã là khoá của mọi lượt chấm công,'
+			+ ' nên công của họ sẽ bị chẻ đôi, mỗi nửa một bảng lương.</div>';
+	}
+	var ocs = document.querySelectorAll('input[name="coso_o[]"]');
+	for (var i = 0; i < ocs.length; i++) { ocs[i].addEventListener('change', ve); }
+	var ot = document.querySelector('input[name="ho_ten"]');
+	if (ot) { ot.addEventListener('input', soatTen); }
+	ve();
+})();
+JS;
+
+	/**
 	 * MÀN SỬA ĐỦ MỘT HỒ SƠ — và là chỗ DUY NHẤT đổi được Mã NV.
 	 *
 	 * Anh Thắng: *"bổ sửa thông tin nhân sự"* và *"Admin có quyền sửa luôn mã nhân viên lại cho
@@ -7863,7 +8007,7 @@ class VHCC_Web {
 		return $ra;
 	}
 
-	private static function the_sua_ho_so( $ky, $ma, $la_admin ) {
+	private static function the_sua_ho_so( $ky, $ma, $la_admin, $toi = null ) {
 		global $wpdb;
 		$them_moi = ( '+' === $ma );
 		$r = $them_moi ? array() : VHCC_NhanSu::ho_so( $ma );
@@ -7989,6 +8133,10 @@ class VHCC_Web {
 						. ( isset( $dl[ $c ] ) ? ' list="' . $dl[ $c ] . '"' : '' ) . ' style="width:100%">';
 				}
 				echo '</label>';
+				/* Khối "nhân viên đang có" nằm NGAY DƯỚI lưới cơ sở, ngoài thẻ <label> (nhét vào
+				   trong thì bấm vào bảng là tích/bỏ tích cơ sở). Chỉ ở nhánh TẠO MỚI: sửa hồ sơ
+				   đã có thì câu hỏi "người này có chưa" không còn nghĩa. */
+				if ( $them_moi && 'cua_hang' === $c ) { echo self::khoi_nv_dang_co( $toi ); }
 			}
 			echo '</div>';
 		}
