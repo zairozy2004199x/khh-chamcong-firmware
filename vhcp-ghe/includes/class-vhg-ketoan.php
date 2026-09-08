@@ -693,6 +693,36 @@ class VHG_KeToan {
 		$from = self::ngay_( $d['tu_ngay'] );
 		$so = ( 'xoa' === $d['loai'] ) ? 0 : (int) $d['chi_so'];
 		$ma = strtoupper( trim( (string) $d['ma_may'] ) );
+
+		/* 🔴 ĐỀ NGHỊ "CẢ CƠ SỞ" — TRẢI RA TỪNG GHẾ TẠI ĐÂY, không phải lúc gửi.
+		   Anh Thắng 08/09/2026: *"xóa theo từng máy hoặc xóa theo nguyên cơ sở, chọn được"*.
+		   Một dòng đề nghị, kế toán bấm một lần, rồi mới đặt mốc cho từng ghế. Sinh sẵn 20 dòng
+		   lúc gửi thì kế toán vẫn phải bấm 20 lần — y như chưa làm gì.
+		   ⚠️ ĐỌC DANH SÁCH GHẾ Ở THỜI ĐIỂM DUYỆT, không ghim lúc gửi: giữa hai lúc ấy cơ sở có
+		      thể vừa thêm hoặc vừa dọn ghế, và mốc phải theo thực tế hôm duyệt. */
+		if ( VHG_BaoCao::CA_COSO === $ma ) {
+			$cs = trim( (string) $d['coso'] );
+			$ds = VHG_BaoCao::ghe_cua_coso( $cs );
+			if ( ! $ds ) { return array( 'ok' => false, 'message' => 'Cơ sở ' . $cs . ' không còn ghế nào để đặt mốc.' ); }
+			$chan_ds = array();
+			foreach ( $ds as $mx ) {
+				$wpdb->update( VHG_DB::t( 'may' ), array( 'moc_chiso' => $so, 'moc_chiso_ngay' => $from ), array( 'ma' => $mx ) );
+				$n = (int) $wpdb->get_var( $wpdb->prepare(
+					'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ma_may=%s AND ngay>=%s AND chi_so_sau IS NOT NULL', $mx, $from ) );
+				if ( $n ) { $chan_ds[] = $mx; }
+			}
+			$wpdb->update( VHG_DB::t( 'bc_denghi' ), array( 'trang_thai' => 'duyet', 'duyet_boi' => (string) $boi,
+				'duyet_luc' => current_time( 'mysql' ), 'ghi_chu_kt' => mb_substr( trim( (string) $ghichu ), 0, 250 ) ),
+				array( 'id' => $id ) );
+			return array( 'ok' => true,
+				'message' => 'Đã duyệt: CẢ CƠ SỞ ' . $cs . ' (' . count( $ds ) . ' ghế) mốc chỉ số '
+					. number_format( $so, 0, ',', '.' ) . ' từ ' . $from . '.',
+				'canhBao' => $chan_ds
+					? ( count( $chan_ds ) . ' ghế đã có bản ghi từ ' . $from . ' trở đi (' . implode( ', ', $chan_ds )
+						. ') — mốc mới KHÔNG áp cho các bản ghi đó.' )
+					: '' );
+		}
+
 		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT ma FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s', $ma ) );
 		if ( ! $co ) { return array( 'ok' => false, 'message' => 'Ghế ' . $ma . ' không có trong danh mục.' ); }
 		$wpdb->update( VHG_DB::t( 'may' ), array( 'moc_chiso' => $so, 'moc_chiso_ngay' => $from ), array( 'ma' => $ma ) );

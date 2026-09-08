@@ -2993,9 +2993,19 @@ class VHG_Trang {
     var row=el('div','bc-row'); row.style.marginTop='8px';
     var fG=el('label','bc-f'); fG.appendChild(el('span',null,'Ghế'));
     var sG=el('select'); sG.id='bc-dn-ghe';
-    (BC.ghe||[]).filter(function(g){ return !LOC || String(g.coso||'').trim()===LOC; })
-      .forEach(function(g){ sG.appendChild(new Option((g.ten||g.ma)+' ('+g.ma+')', g.ma)); });
-    if(!sG.options.length) (BC.ghe||[]).forEach(function(g){ sG.appendChild(new Option((g.ten||g.ma)+' ('+g.ma+')', g.ma)); });
+    /* 🔴 CHỌN CẢ CƠ SỞ, KHÔNG PHẢI GỬI TỪNG GHẾ MỘT.
+       Anh Thắng 08/09/2026: *"xóa theo từng máy hoặc xóa theo nguyên cơ sở, chọn được"*. Cơ sở
+       PHÚ QUỐC có 20 ghế; nơi nào reset bộ đếm sau mỗi lần thu mà phải gửi từng ghế thì đó là
+       20 lượt gửi và 20 lượt kế toán bấm duyệt — không ai làm nổi, nên rồi họ thôi gửi, và chỉ
+       số cứ thế sai.
+       Mục này đứng ĐẦU danh sách: đó là việc làm nhiều nhất ở mấy cơ sở ấy. */
+    var dsG=(BC.ghe||[]).filter(function(g){ return !LOC || String(g.coso||'').trim()===LOC; });
+    if(!dsG.length) dsG=(BC.ghe||[]);
+    if(LOC && dsG.length>1){
+      var oAll=new Option('★ CẢ CƠ SỞ '+LOC+' — '+dsG.length+' ghế', '*');
+      sG.appendChild(oAll);
+    }
+    dsG.forEach(function(g){ sG.appendChild(new Option((g.ten||g.ma)+' ('+g.ma+')', g.ma)); });
     fG.appendChild(sG); row.appendChild(fG);
     var fL=el('label','bc-f'); fL.appendChild(el('span',null,'Loại'));
     var sL2=el('select'); sL2.id='bc-dn-loai';
@@ -3011,6 +3021,18 @@ class VHG_Trang {
     var iLy=el('input'); iLy.id='bc-dn-ly'; iLy.type='text'; iLy.placeholder='VD: thay máy mới 03/08, chỉ số cũ 1240'; fLy.appendChild(iLy);
     box.appendChild(fLy);
     sL2.onchange=function(){ fS.style.display = sL2.value==='dat_lai' ? '' : 'none'; };
+    /* Chọn cả cơ sở là một lượt đụng tới hàng chục ghế — nói ra ngay dưới ô chọn, đừng để tới
+       lúc bấm Gửi mới biết. */
+    var nhac=el('div','bc-mut'); nhac.style.cssText='margin-top:6px;display:none;color:#b45309;font-weight:600';
+    box.appendChild(nhac);
+    function veNhac(){
+      if(sG.value==='*'){
+        nhac.style.display='';
+        nhac.textContent='★ Đề nghị này áp cho TẤT CẢ '+dsG.length+' ghế của '+LOC
+          +'. Kế toán duyệt MỘT lần là cả cơ sở cùng nhận mốc mới.';
+      } else { nhac.style.display='none'; nhac.textContent=''; }
+    }
+    sG.onchange=veNhac; veNhac();
     var b=el('button','bc-btn pri','Gửi đề nghị'); b.style.marginTop='8px'; box.appendChild(b);
     var m=el('div','bc-msg'); box.appendChild(m);
     var list=el('div'); list.id='bc-dn-list'; list.style.marginTop='8px'; box.appendChild(list);
@@ -3021,7 +3043,8 @@ class VHG_Trang {
       if(!ly){ m.textContent='Phải ghi lý do.'; m.className='bc-msg bc-err'; return; }
       var so=''; if(loai==='dat_lai'){ so=(iS.value||'').trim(); if(so===''){ m.textContent='Nhập chỉ số đề nghị.'; m.className='bc-msg bc-err'; return; } }
       b.disabled=true; m.textContent='Đang gửi…'; m.className='bc-msg';
-      goi('bc_denghi_gui',{chairCode:code,fromDate:from,loai:loai,meterOpening:so,lyDo:ly},function(r){
+      /* Gửi kèm tên cơ sở: với lượt "cả cơ sở" thì máy chủ không có mã ghế nào để suy ra nó. */
+      goi('bc_denghi_gui',{chairCode:code,coso:LOC||'',fromDate:from,loai:loai,meterOpening:so,lyDo:ly},function(r){
         b.disabled=false;
         m.textContent=(r&&r.message)||((r&&r.ok)?'Đã gửi.':'Không gửi được.'); m.className='bc-msg '+((r&&r.ok)?'bc-ok':'bc-err');
         if(r&&r.ok){ iLy.value=''; iS.value=''; loadDenghiList(); }

@@ -1486,6 +1486,26 @@ class VHG_BaoCao {
 
 	// ══════════════════════════════════════════════════════════════════ ĐỀ NGHỊ CHỈ SỐ
 
+	/** Giá trị ô GHẾ nghĩa là "cả cơ sở". Dấu `*` không thể là mã ghế thật nên không đụng ai. */
+	const CA_COSO = '*';
+
+	/**
+	 * Ghế đang dùng của một cơ sở — dùng cho đề nghị "cả cơ sở".
+	 *
+	 * ⚠️ BỎ GHẾ ĐÃ DỌN (`may.an`). Đặt lại mốc cho một con ghế đã điều chuyển đi là ghi vào một
+	 *    chỗ không ai nhìn, và ngày nó quay lại thì mang một cái mốc chẳng ai nhớ vì sao có.
+	 */
+	public static function ghe_cua_coso( $coso ) {
+		$k = self::squash( (string) $coso );
+		$ra = array();
+		foreach ( VHG_May::ds_may() as $m ) {
+			if ( ! empty( $m['an'] ) ) { continue; }
+			if ( self::squash( (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ) ) !== $k ) { continue; }
+			$ra[] = (string) $m['ma'];
+		}
+		return $ra;
+	}
+
 	public static function denghi_gui( $p, $pin ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
@@ -1504,12 +1524,39 @@ class VHG_BaoCao {
 			if ( '' === $raw ) { return array( 'ok' => false, 'message' => 'Phải nhập chỉ số đề nghị.' ); }
 			$so = (int) preg_replace( '/[^\d-]/', '', $raw );
 		}
+		/* 🔴 MỘT ĐỀ NGHỊ CHO CẢ CƠ SỞ.
+		   Anh Thắng 08/09/2026: *"xóa theo từng máy hoặc xóa theo nguyên cơ sở, chọn được"*.
+		   Cơ sở PHÚ QUỐC có 20 ghế; mấy nơi reset bộ đếm sau mỗi lần thu thì gửi từng ghế là 20
+		   đề nghị mỗi lượt, và kế toán phải bấm duyệt 20 lần. Không ai làm nổi, nên rồi họ sẽ
+		   thôi gửi — và chỉ số cứ thế sai.
+
+		   ⚠️ MỘT DÒNG, KHÔNG PHẢI 20 DÒNG. Sinh 20 đề nghị rồi bảo kế toán duyệt hết cũng y như
+		      cũ. Dòng này mang `ma_may = '*'`, và lúc duyệt mới trải ra từng ghế — kế toán bấm
+		      một lần, thấy một dòng, và biết chính xác nó áp cho cả cơ sở. */
 		$m = null;
-		foreach ( VHG_May::ds_may() as $x ) { if ( (string) $x['ma'] === $code ) { $m = $x; break; } }
-		if ( ! $m ) { return array( 'ok' => false, 'message' => 'Không thấy ghế ' . $code . '.' ); }
-		if ( ! self::trong_pham_vi( $q, (string) $m['coso_ten'], $code ) ) { return array( 'ok' => false, 'message' => 'Ghế này không thuộc phạm vi của bạn.' ); }
-		$trung = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_denghi' ) . ' WHERE ma_may=%s AND tu_ngay=%s AND trang_thai=%s', $code, $from, 'cho_duyet' ) );
-		if ( $trung ) { return array( 'ok' => false, 'message' => 'Ghế này đã có đề nghị cùng ngày đang chờ duyệt.' ); }
+		if ( self::CA_COSO === $code ) {
+			$cs = trim( (string) ( isset( $p['coso'] ) ? $p['coso'] : '' ) );
+			if ( '' === $cs ) { return array( 'ok' => false, 'message' => 'Thiếu tên cơ sở.' ); }
+			if ( ! self::trong_pham_vi( $q, $cs ) ) { return array( 'ok' => false, 'message' => 'Cơ sở này không thuộc phạm vi của bạn.' ); }
+			$so_ghe = count( self::ghe_cua_coso( $cs ) );
+			if ( ! $so_ghe ) { return array( 'ok' => false, 'message' => 'Cơ sở ' . $cs . ' chưa có ghế nào.' ); }
+			$m = array( 'coso_ten' => $cs, 'ten_khai' => 'CẢ CƠ SỞ (' . $so_ghe . ' ghế)' );
+		} else {
+			foreach ( VHG_May::ds_may() as $x ) { if ( (string) $x['ma'] === $code ) { $m = $x; break; } }
+			if ( ! $m ) { return array( 'ok' => false, 'message' => 'Không thấy ghế ' . $code . '.' ); }
+			if ( ! self::trong_pham_vi( $q, (string) $m['coso_ten'], $code ) ) { return array( 'ok' => false, 'message' => 'Ghế này không thuộc phạm vi của bạn.' ); }
+		}
+		/* Chốt trùng: gửi cả cơ sở thì so theo CƠ SỞ (không thì gửi bao nhiêu lượt cũng lọt). */
+		if ( self::CA_COSO === $code ) {
+			$trung = (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_denghi' )
+				. ' WHERE ma_may=%s AND coso=%s AND tu_ngay=%s AND trang_thai=%s',
+				self::CA_COSO, (string) $m['coso_ten'], $from, 'cho_duyet' ) );
+			if ( $trung ) { return array( 'ok' => false, 'message' => 'Cơ sở này đã có đề nghị cùng ngày đang chờ duyệt.' ); }
+		} else {
+			$trung = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_denghi' ) . ' WHERE ma_may=%s AND tu_ngay=%s AND trang_thai=%s', $code, $from, 'cho_duyet' ) );
+			if ( $trung ) { return array( 'ok' => false, 'message' => 'Ghế này đã có đề nghị cùng ngày đang chờ duyệt.' ); }
+		}
 		$id = 'DN-' . current_time( 'YmdHis' ) . '-' . $code;
 		$wpdb->insert( VHG_DB::t( 'bc_denghi' ), array( 'id' => $id, 'tao_luc' => current_time( 'mysql' ), 'nhan_vien' => $q['ten'],
 			'coso' => (string) $m['coso_ten'], 'ma_may' => $code, 'ten' => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $code ),
