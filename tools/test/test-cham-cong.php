@@ -4839,6 +4839,73 @@ t( 'dán rỗng thì nói "Ô dán đang trống", không vẽ bảng 0/0/0',
 t( 'và chỉ sang đường kéo cho khỏi dán tay',
 	strpos( $h_rong, 'Kéo dữ liệu cũ từ app gốc' ) !== false );
 
+// ================= 39b. MỘT CỬA DUY NHẤT TẠO HỒ SƠ (08/09/2026)
+/* 🔴 Anh Thắng: *"Việc thêm nhân sự rất rối. Không rõ ràng ở trang nào. Gộp lại chỉ cần 1 trang
+   thêm được là được"*.
+   Trước bản này có HAI biểu mẫu tạo hồ sơ THẬT, cùng ghi vào `luu_ho_so()` nên nhìn không ra sai:
+     · trang web (`VHCC_Web::the_sua_ho_so`) — có ô ẢNH THẺ, tự đẩy xuống máy chấm công, và lấy
+       mẫu đối chiếu khuôn mặt cho chấm công online;
+     · wp-admin (màn này) — KHÔNG có ba thứ đó.
+   Người tạo bằng cửa wp-admin thì không có ảnh, tức là **không quẹt mặt được**, mà chẳng có gì
+   báo. Nay wp-admin chỉ CHỈ ĐƯỜNG; tạo hồ sơ còn đúng một cửa.
+   ⚠️ Phải chốt CẢ HAI đầu: biểu mẫu biến khỏi màn hình, VÀ đường POST bị chặn. Chỉ ẩn nút thì
+      một tab còn mở từ trước vẫn tạo được hồ sơ không ảnh. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$GLOBALS['VHD_POST'] = array();
+
+$_GET = array( 'sua' => '+' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_them = ob_get_clean();
+$_GET = array();
+/* Soi Ô "Mã NV *" — nhãn CHỈ biểu mẫu tạo/sửa hồ sơ có. Không soi `name="ma_nv"`: màn này còn
+   mấy khối khác (đổi mã, cho nghỉ, xoá) cũng mang ô tên ấy, nên phép thử sẽ đỏ mãi dù đã bỏ đúng. */
+t( '🔴 wp-admin KHÔNG còn biểu mẫu tạo hồ sơ (không có ô "Mã NV *")',
+	strpos( $h_them, 'Mã NV *' ) === false );
+t( '🔴 và không còn đường lưu nào trên màn đó', strpos( $h_them, 'value="luu"' ) === false );
+t( 'nói rõ tạo hồ sơ chỉ có một cửa',
+	strpos( $h_them, 'Tạo hồ sơ mới làm ở một cửa duy nhất' ) !== false );
+t( 'kèm link mở đúng biểu mẫu đó', strpos( $h_them, 'man=ho_so' ) !== false
+	&& strpos( $h_them, 'sua=%2B' ) !== false );
+t( 'và nêu ba thứ chỉ cửa kia có: ảnh thẻ · đẩy máy · mẫu khuôn mặt',
+	strpos( $h_them, 'ảnh thẻ' ) !== false && strpos( $h_them, 'đẩy xuống máy chấm công' ) !== false
+	&& strpos( $h_them, 'mẫu đối chiếu khuôn mặt' ) !== false );
+t( 'vẫn nói màn này dùng để SỬA hồ sơ đã có', strpos( $h_them, 'sửa</b> hồ sơ đã có' ) !== false );
+
+/* Đường POST: tạo mới bị chặn, và chặn thật — không có hàng nào rơi vào bảng. */
+$_POST = array( 'vhcc_ns' => 'luu', 'ma_nv' => 'NV-KHONG-CO-909', 'ho_ten' => 'Lạ Mặt',
+	'cac_coso' => 'TUTU_BT' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_pmoi = ob_get_clean();
+$_POST = array();
+t( '🔴 POST tạo hồ sơ mới qua wp-admin bị CHẶN',
+	strpos( $h_pmoi, 'chỉ SỬA hồ sơ đã có' ) !== false );
+t( 'và KHÔNG ghi hàng nào vào bảng nhân viên', null === vhcc_hs( 'NV-KHONG-CO-909' ) );
+t( 'câu chặn chỉ đúng đường sang cửa duy nhất',
+	strpos( $h_pmoi, 'Hồ sơ &amp; tài khoản' ) !== false );
+
+/* Nhưng SỬA hồ sơ đã có thì vẫn phải chạy — đó mới là việc của màn này. */
+global $wpdb;
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV902', 'ho_ten' => 'Tên Cũ',
+	'cua_hang' => 'TUTU_BT' ) );
+$_POST = array( 'vhcc_ns' => 'luu', 'ma_nv' => 'NV902', 'ho_ten' => 'Tên Đã Sửa',
+	'cac_coso' => 'TUTU_BT' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_psua = ob_get_clean();
+$_POST = array();
+$hs902 = vhcc_hs( 'NV902' );
+t( 'sửa hồ sơ ĐÃ CÓ ở wp-admin thì vẫn lưu được',
+	$hs902 && 'Tên Đã Sửa' === $hs902['ho_ten'] );
+$wpdb->query( "DELETE FROM " . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV902'" );
+
+/* Cửa duy nhất ấy PHẢI CÒN. Bỏ biểu mẫu bên này mà bên kia cũng mất thì hết đường tạo người —
+   nên soi thẳng mã nguồn của trang web, không tin vào việc "màn kia chắc vẫn còn". */
+$web_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 cửa duy nhất vẫn còn: nút "+ Hồ sơ mới" ở trang web',
+	strpos( $web_src, '>+ Hồ sơ mới</a>' ) !== false );
+t( 'và biểu mẫu tạo mới ở đó vẫn nhận dấu + làm "hồ sơ mới"',
+	strpos( $web_src, "\$them_moi = ( '+' === \$ma );" ) !== false );
+t( 'thẻ 🔑 nói rõ nó KHÔNG tạo người mới',
+	strpos( $web_src, 'không tạo người mới' ) !== false );
+
+
 // ================= 40. BA KHO PIN KHÁC NHAU — MÀN HÌNH PHẢI NÓI RÕ CÁI NÀO DÙNG ĐỂ ĐĂNG NHẬP
 /* 🔴 CA THẬT, tốn của anh Thắng một vòng: anh kéo nhân sự về, thêm một dòng PIN ở màn "Phân
    quyền & PIN", rồi thử đăng nhập trang chấm công — không vào được, tưởng dữ liệu chưa đồng bộ.

@@ -79,13 +79,45 @@ vì ô chọn — khai cho họ cũng không có tác dụng, vì thẻ phiên c
 
 ---
 
+## 4b. Thêm nhân sự — chỉ MỘT cửa (08/09/2026)
+
+> Anh Thắng: *"Việc thêm nhân sự rất rối. Không rõ ràng ở trang nào. Gộp lại chỉ cần 1 trang
+> thêm được là được"*.
+
+Cửa duy nhất tạo hồ sơ: **Quản trị chấm công → Hồ sơ & tài khoản → `+ Hồ sơ mới`**
+(`/quan-tri-cham-cong/?man=ho_so&sua=+`). Mọi chỗ khác chỉ **chỉ đường** tới đó:
+
+| Chỗ bấm | Trước | Nay |
+|---|---|---|
+| Trang này (`/nhan-su/`) — `➕ Thêm nhân sự` | link sang biểu mẫu ấy | y nguyên, nhưng nói rõ nó mở cửa duy nhất ở trang kia |
+| Quản trị chấm công — ô `➕ Thêm nhân sự mới` | mở biểu mẫu | y nguyên, ghi rõ là **cửa duy nhất** |
+| wp-admin → Chấm Công → Nhân sự | **biểu mẫu tạo hồ sơ thứ hai** | bỏ; chỉ còn nút chỉ đường + vẫn **sửa** hồ sơ đã có |
+| Thẻ 🔑 Tài khoản đăng nhập | trông như một cửa thêm người | thêm một dòng: thẻ này **không tạo người mới** |
+
+**Vì sao phải bỏ biểu mẫu ở wp-admin, không chỉ để đó cho tiện.** Hai biểu mẫu ấy cùng ghi qua
+`VHCC_NhanSu::luu_ho_so()` nên nhìn không ra sai. Nhưng cửa ở trang web còn làm **ba việc nữa** mà
+cửa wp-admin không có: nhận **ảnh thẻ**, **đẩy hồ sơ xuống máy chấm công**, và lấy **mẫu đối chiếu
+khuôn mặt** cho chấm công online. Người được tạo ở wp-admin vì thế **không quẹt mặt được** — mà
+không có gì báo, tới lúc họ đứng trước máy mới biết.
+
+Chặn ở **cả hai đầu**, không chỉ ẩn nút: đường `POST` của màn wp-admin cũng từ chối mã **chưa có
+hồ sơ** (một tab còn mở từ trước, hoặc một liên kết đã lưu, vẫn gửi lên được). Sửa hồ sơ **đã có**
+thì vẫn cho — đó mới là việc của màn ấy.
+
+Phép thử: `tools/test/test-cham-cong.php` mục **39b** (13 phép) — biểu mẫu biến khỏi màn `sua=+`,
+`POST` tạo mới bị chặn và **không** ghi hàng nào vào bảng, sửa hồ sơ đã có vẫn lưu, và **cửa duy
+nhất kia vẫn còn** (soi thẳng mã nguồn trang web, kẻo bỏ bên này mà bên kia cũng mất thì hết đường
+tạo người).
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |
 |---|---|
 | Sổ trang + luật "ai vào được trang nào" | `wordpress/vhcp-cham-cong/includes/class-vhcc-cong.php` |
 | Trang `/nhan-su/` | `wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php` |
-| Phép thử | `tools/test/test-cham-cong.php` (mục 60), `tools/test/kiem-noi-bo.php` |
+| Phép thử | `tools/test/test-cham-cong.php` (mục 60 · mục 39b cho cửa thêm người), `tools/test/kiem-noi-bo.php` |
 
 Danh sách trang **tự dò** bằng `class_exists` + `method_exists('url')` — gỡ một plugin thì cột
 của nó tự biến mất, không để lại dòng trỏ vào hư không. Số phiên bản ở chân trang đọc thẳng từ

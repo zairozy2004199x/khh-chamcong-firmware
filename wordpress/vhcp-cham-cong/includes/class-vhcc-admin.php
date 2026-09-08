@@ -170,6 +170,26 @@ class VHCC_Admin {
 	 * NHÂN SỰ: danh sách hồ sơ · sửa một hồ sơ · xếp bộ phận cho cơ sở · khai mã song song.
 	 * Mọi lượt ghi đi qua VHCC_NhanSu để đúng một bộ luật quyền, không phải hai.
 	 */
+	/**
+	 * Link tới CỬA DUY NHẤT tạo hồ sơ: biểu mẫu "+ Hồ sơ mới" của trang Quản trị chấm công.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"Việc thêm nhân sự rất rối. Không rõ ràng ở trang nào. Gộp lại
+	 * chỉ cần 1 trang thêm được là được"*. Trước bản này CÓ HAI biểu mẫu tạo hồ sơ thật: một ở
+	 * trang web (`VHCC_Web::the_sua_ho_so`, có ô ảnh thẻ + tự đẩy xuống máy + làm mẫu khuôn mặt)
+	 * và một ở đây (wp-admin, không có ba thứ đó). Cùng ghi vào `luu_ho_so()` nên không ai thấy
+	 * sai, nhưng người tạo bằng cửa này thì KHÔNG có ảnh thẻ, tức là không quẹt mặt được — mà
+	 * chẳng có gì báo. Nay wp-admin chỉ CHỈ ĐƯỜNG, không tạo nữa.
+	 *
+	 * ⚠️ Dò bằng `class_exists`/`method_exists`: plugin gỡ trang web ra thì trả '' và chỗ gọi tự
+	 *    bỏ nút, không để lại một cái link trỏ vào hư không.
+	 *
+	 * @return string URL, hoặc '' nếu không có trang web.
+	 */
+	private static function url_them_hs( $ma = '+' ) {
+		if ( ! class_exists( 'VHCC_Web' ) || ! method_exists( 'VHCC_Web', 'url' ) ) { return ''; }
+		return add_query_arg( array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() );
+	}
+
 	public static function trang_nhan_su() {
 		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
 		$u   = self::toi();
@@ -199,7 +219,19 @@ class VHCC_Admin {
 					$dat['cua_hang'] = $cs_ds ? array_shift( $cs_ds ) : '';
 					$dat['coso_phu'] = implode( ', ', $cs_ds );
 				}
-				$bao[] = VHCC_NhanSu::luu_ho_so( $u, $dat );
+				/* 🔴 CHẶN TẠO MỚI TỪ CỬA NÀY — không chỉ ẩn biểu mẫu.
+				   Ẩn nút mà vẫn nhận POST thì một tab còn mở từ trước, hoặc một liên kết cũ đã
+				   lưu, vẫn tạo được hồ sơ KHÔNG có ảnh thẻ — đúng thứ vừa bỏ đi. SỬA hồ sơ đã có
+				   thì vẫn cho: đó mới là việc của màn này (xem `url_them_hs()`). */
+				$ma_luu = isset( $dat['ma_nv'] ) ? trim( (string) $dat['ma_nv'] ) : '';
+				if ( '' === $ma_luu || ! VHCC_NhanSu::ho_so( $ma_luu ) ) {
+					$bao[] = array( 'ok' => false, 'error' => 'Màn này chỉ SỬA hồ sơ đã có. '
+						. 'Tạo hồ sơ mới làm ở một cửa duy nhất: Quản trị chấm công → '
+						. 'Hồ sơ & tài khoản → + Hồ sơ mới — cửa đó có ảnh thẻ, tự đẩy xuống máy '
+						. 'chấm công và lấy mẫu đối chiếu khuôn mặt cho chấm công online.' );
+				} else {
+					$bao[] = VHCC_NhanSu::luu_ho_so( $u, $dat );
+				}
 			} elseif ( 'xoa' === $viec ) {
 				$bao[] = VHCC_NhanSu::xoa_ho_so( $u, wp_unslash( $_POST['ma_nv'] ) );
 			} elseif ( 'bo_phan' === $viec ) {
@@ -286,12 +318,36 @@ class VHCC_Admin {
 				. esc_html( $x ) . ' · ' . esc_html( VHCC_Luong::bo_phan_cua( $x ) ) . '</option>';
 		}
 		echo '</select> <input type="search" name="tim" value="' . esc_attr( $tim )
-			. '" placeholder="mã / tên / SĐT / CCCD" /> <button class="button">Tìm</button> '
-			. '<a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=vhcc-nhan-su&sua=+' ) )
-			. '">+ Hồ sơ mới</a></form>';
+			. '" placeholder="mã / tên / SĐT / CCCD" /> <button class="button">Tìm</button> ';
+		/* Nút thêm người TRỎ RA trang web — xem chú thích ở `url_them_hs()`. */
+		$u_them = self::url_them_hs();
+		if ( '' !== $u_them ) {
+			echo '<a class="button button-primary" href="' . esc_url( $u_them )
+				. '">➕ Thêm nhân sự</a>';
+		}
+		echo '</form>';
 
-		/* ---- Biểu mẫu sửa / tạo ---- */
-		if ( '' !== $sua ) {
+		/* ---- Tạo hồ sơ: KHÔNG làm ở đây, chỉ chỉ đường ---- */
+		if ( '+' === $sua ) {
+			$u_them2 = self::url_them_hs();
+			echo '<h2>Thêm nhân sự</h2>';
+			echo '<div class="notice notice-info inline" style="margin:8px 0"><p>'
+				. '<b>Tạo hồ sơ mới làm ở một cửa duy nhất</b>: Quản trị chấm công &rarr; '
+				. '<b>Hồ sơ &amp; tài khoản</b> &rarr; <b>+ Hồ sơ mới</b>. Cửa đó có ô <b>ảnh thẻ</b>, '
+				. 'tự <b>đẩy xuống máy chấm công</b> và lấy luôn <b>mẫu đối chiếu khuôn mặt</b> cho '
+				. 'chấm công online — ba thứ màn wp-admin này không có, nên người tạo ở đây sẽ '
+				. 'không quẹt mặt được mà chẳng có gì báo.</p>';
+			if ( '' !== $u_them2 ) {
+				echo '<p><a class="button button-primary" href="' . esc_url( $u_them2 )
+					. '">➕ Mở biểu mẫu thêm nhân sự</a></p>';
+			}
+			echo '</div>';
+			echo '<p><em>Màn này vẫn dùng để <b>sửa</b> hồ sơ đã có (bấm <b>Sửa</b> ở danh sách '
+				. 'dưới), kéo dữ liệu cũ, nhập hàng loạt, xếp bộ phận, đổi mã, cho nghỉ việc.</em></p>';
+		}
+
+		/* ---- Biểu mẫu SỬA hồ sơ đã có ---- */
+		if ( '' !== $sua && '+' !== $sua ) {
 			$h = ( '+' === $sua ) ? array() : (array) VHCC_NhanSu::ho_so( $sua );
 			$g = function ( $k ) use ( $h ) { return isset( $h[ $k ] ) ? (string) $h[ $k ] : ''; };
 			echo '<h2>' . ( '+' === $sua ? 'Hồ sơ mới' : 'Sửa hồ sơ ' . esc_html( $sua ) ) . '</h2>';
@@ -487,8 +543,11 @@ class VHCC_Admin {
 			foreach ( $chua as $r ) {
 				echo '<tr><td>' . esc_html( $r['coso'] ) . '</td><td><code>' . esc_html( $r['ma_nv'] )
 					. '</code></td><td>' . esc_html( $r['ho_ten'] ) . '</td><td>' . (int) $r['so']
-					. '</td><td>' . esc_html( $r['ngay_cuoi'] ) . '</td><td><a class="button" href="'
-					. esc_url( admin_url( 'admin.php?page=vhcc-nhan-su&sua=+' ) ) . '">Lập hồ sơ</a></td></tr>';
+					. '</td><td>' . esc_html( $r['ngay_cuoi'] ) . '</td><td>'
+					. ( '' !== self::url_them_hs()
+						? '<a class="button" href="' . esc_url( self::url_them_hs() ) . '">Lập hồ sơ</a>'
+						: '<em>lập ở Quản trị chấm công &rarr; Hồ sơ &amp; tài khoản</em>' )
+					. '</td></tr>';
 			}
 			echo '</tbody></table>';
 		}

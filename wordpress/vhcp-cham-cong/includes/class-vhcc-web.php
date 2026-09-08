@@ -4139,8 +4139,9 @@ class VHCC_Web {
 		 * (tile ấy mở ra DANH SÁCH, còn việc tạo người mới nằm sau một cú bấm nữa).
 		 */
 		$viec[] = array( 'q' => 'ho_so', 'bt' => '➕', 'ten' => 'Thêm nhân sự mới',
-			'chu' => 'Tạo hồ sơ mới ngay — có ô ảnh thẻ, tự đẩy xuống máy chấm công và làm mẫu '
-				. 'đối chiếu khuôn mặt cho chấm công online.',
+			'chu' => 'CỬA DUY NHẤT tạo hồ sơ — mở đúng biểu mẫu "+ Hồ sơ mới" của thẻ Hồ sơ nhân '
+				. 'sự. Có ô ảnh thẻ, tự đẩy xuống máy chấm công và làm mẫu đối chiếu khuôn mặt '
+				. 'cho chấm công online.',
 			'url' => add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), self::url() ) );
 		/**
 		 * 🔴 "NHÂN SỰ" LÀ TRANG KHÁC (`VHCC_TrangNS`), NHƯNG VẪN LÀ MỘT VIỆC TRONG DANH SÁCH NÀY.
@@ -7326,6 +7327,15 @@ class VHCC_Web {
 		echo '<p class="mo">Cổng <code>/cham-cong</code> đang đọc: <b>'
 			. esc_html( isset( $nhan_ng[ $nguon_ht ] ) ? $nhan_ng[ $nguon_ht ] : $nguon_ht ) . '</b> — '
 			. '<b>' . (int) $vao_ht . '</b> người đăng nhập được.</p>';
+
+		/* 🔴 NÓI RÕ THẺ NÀY *KHÔNG* TẠO NGƯỜI. Anh Thắng 08/09/2026: *"Việc thêm nhân sự rất rối.
+		   Không rõ ràng ở trang nào. Gộp lại chỉ cần 1 trang thêm được là được"*.
+		   Nhìn màn này thì "Nạp tài khoản" và "Khai Admin" trông y như hai cửa thêm người nữa,
+		   trong khi chúng chỉ CẤP ĐƯỜNG ĐĂNG NHẬP cho hồ sơ ĐÃ CÓ. Cửa tạo hồ sơ là đúng một
+		   cái, và nói ra ngay tại đây thì không ai phải đoán. */
+		echo '<p class="mo">Thẻ này <b>không tạo người mới</b> — chỉ cấp đường đăng nhập cho hồ sơ '
+			. '<b>đã có</b>. Thêm người thì bấm <b>+ Hồ sơ mới</b> ở thẻ <b>Hồ sơ nhân sự</b> ngay '
+			. 'bên dưới: đó là <b>cửa duy nhất</b> tạo hồ sơ trong cả hệ.</p>';
 
 		/* 🔴 CHUYỂN NGUỒN NGAY TẠI ĐÂY. Anh Thắng khai PIN trong hồ sơ rồi vẫn *"chưa đăng nhập
 		   bằng pin"* — vì cổng đang đọc một danh sách KHÁC, và muốn PIN có hiệu lực thì phải
