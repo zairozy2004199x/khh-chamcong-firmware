@@ -53,6 +53,17 @@ dong_goi() {
 case "$CHON" in
   trang-chu) dong_goi "Trang Vận Hành K&H" vhcp-trang-chu ;;
   chi-phi)  dong_goi "Vận Hành Chi Phí" vhcp-chi-phi ;;
+  # ── BẢN CHI PHÍ RIÊNG CHO MỘT VÙNG (sinh bằng tools/tach-ban-vung.sh) ──────────────────────
+  # Nhận `chi-phi-<mã vùng>`: chi-phi-hn, chi-phi-dn… Không khai cứng từng vùng ở đây — thêm một
+  # vùng là thêm một dòng phải nhớ sửa, và lần quên nào cũng là "không đóng gói được" giữa lúc
+  # cần bản cài. Tên hiển thị lấy từ chính `Plugin Name:` trong tệp gốc plugin, nên nó luôn khớp
+  # với thứ WordPress bày ra ở màn Plugin.
+  chi-phi-*)
+    _tm="wordpress/vhcp-$CHON"
+    [ -d "$_tm" ] || { echo "✗ Chưa có $_tm — sinh trước bằng: bash tools/tach-ban-vung.sh ${CHON#chi-phi-}"; exit 2; }
+    _ten="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$_tm/vhcp-$CHON.php" | head -1)"
+    dong_goi "${_ten:-Vận Hành Chi Phí ($CHON)}" "vhcp-$CHON"
+    ;;
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
   ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;

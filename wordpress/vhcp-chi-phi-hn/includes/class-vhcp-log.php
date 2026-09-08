@@ -1,0 +1,59 @@
+<?php
+/** NHẬT KÝ HOẠT ĐỘNG — thay sheet NhatKy. */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCPHN_Log {
+
+	public static function log_action( $rec ) {
+		global $wpdb;
+		$rec = (array) $rec;
+		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? (string) $rec[ $k ] : ''; };
+		$wpdb->insert( VHCPHN_DB::t( 'log' ), array(
+			'tg'        => VHCPHN_Util::now_sql(),
+			'nguoi'     => $g( 'actor' ),
+			'vai_tro'   => $g( 'role' ),
+			'hanh_dong' => $g( 'action' ),
+			'doi_tuong' => $g( 'target' ),
+			'chi_tiet'  => $g( 'detail' ),
+		) );
+		return VHCPHN_Util::ok();
+	}
+
+	public static function get_log( $opts = array() ) {
+		global $wpdb;
+		$opts  = (array) $opts;
+		$limit = isset( $opts['limit'] ) ? (int) $opts['limit'] : 800;
+		if ( $limit <= 0 || $limit > 5000 ) { $limit = 800; }
+		$t    = VHCPHN_DB::t( 'log' );
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t ORDER BY id DESC LIMIT %d", $limit ), ARRAY_A );
+		$items = array();
+		foreach ( (array) $rows as $r ) {
+			// THỜI ĐIỂM SAI THÌ NÓI LÀ KHÔNG BIẾT, ĐỪNG HIỆN NGÀY BỊA.
+			//
+			// Nhật ký cũ nạp vào có cột thời điểm là SỐ SÊ-RI bảng tính; bộ đọc cũ nghiền nó
+			// thành "04/01/6294" hoặc để trống. Thời điểm thật KHÔNG khôi phục được (sê-ri
+			// đã mất), nên hiện "—" là trung thực; hiện 6294 là nói sai — mà nhật ký chính
+			// là chỗ người ta tra khi cần biết ai làm gì lúc nào.
+			$tg = VHCPHN_Util::fmt_dt( $r['tg'] );
+			if ( $tg !== '' && VHCPHN_Util::ngay_vo_ly( substr( $tg, 0, 10 ) ) ) { $tg = ''; }
+			$items[] = array(
+				'tg'       => $tg,
+				'tgHong'   => ( $tg === '' && trim( (string) $r['tg'] ) !== '' ) ? 1 : 0,
+				'nguoi'    => $r['nguoi'],
+				'vaiTro'   => $r['vai_tro'],
+				'hanhDong' => $r['hanh_dong'],
+				'doiTuong' => $r['doi_tuong'],
+				'chiTiet'  => (string) $r['chi_tiet'],
+			);
+		}
+		$q = isset( $opts['q'] ) ? mb_strtolower( trim( (string) $opts['q'] ) ) : '';
+		if ( $q !== '' ) {
+			$items = array_values( array_filter( $items, function ( $x ) use ( $q ) {
+				$hay = mb_strtolower( $x['nguoi'] . ' ' . $x['vaiTro'] . ' ' . $x['hanhDong'] . ' ' . $x['doiTuong'] . ' ' . $x['chiTiet'] );
+				return mb_strpos( $hay, $q ) !== false;
+			} ) );
+		}
+		return VHCPHN_Util::ok( array( 'items' => $items ) );
+	}
+}
