@@ -2874,6 +2874,124 @@ class VHCP_Don {
 	 *    cả THÁNG của ngày cuối tuần (`T9/2026 (31/8-6/9/2026)`), nên cộng tay là sai ngay ở
 	 *    tuần bắc qua tháng — đúng cái tuần hay phải nhảy đơn nhất.
 	 */
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * ADMIN ĐẶT LẠI MỐC MỘT TUẦN — "tuần này chạy từ ngày nào đến ngày nào".
+	 *
+	 * Anh Thắng 08/09/2026: *"có những tuần lỡ dở giữa tháng, nên admin có quyền chỉnh tuần đó
+	 * từ ngày nào đến ngày nào, để đồng bộ với các gian khác"*.
+	 *
+	 * 🔴 VÌ SAO CẦN. Ảnh anh gửi có CẢ HAI chuỗi cho CÙNG một tuần làm việc:
+	 *        T9/2026 (1/9-6/9/2026)      ← đơn lập trước khi có luật "tuần luôn đủ 7 ngày"
+	 *        T9/2026 (31/8-6/9/2026)     ← đơn lập sau
+	 *    Hai chuỗi khác nhau thì mọi màn coi là hai kỳ: lọc theo tuần ra hai dòng, đối chiếu
+	 *    quỹ tính hai lần, bù trừ sang tuần sau lệch theo. Gian nào lập đơn sớm thì mang chuỗi
+	 *    cũ, gian nào lập muộn mang chuỗi mới — đúng cái anh gọi là "không đồng bộ".
+	 *
+	 * 🔴 GỘP LÀ CHUYỆN BÌNH THƯỜNG Ở ĐÂY, KHÔNG PHẢI TAI NẠN. Đặt lại `1/9-6/9` thành
+	 *    `31/8-6/9` là chuỗi mới TRÙNG một kỳ đã có, và hai nhóm đơn nhập làm một. Đó chính là
+	 *    thứ anh muốn. Hàm trả về số đơn đã đổi VÀ có gộp hay không, để màn còn hỏi lại trước
+	 *    khi làm.
+	 *
+	 * ⚠️ CHỈ ĐỔI BẢNG `don`. Hai bảng con — `tamung` (khoá `ma_don,coso`) và `chiphi` (khoá
+	 *    `ma_don`) — KHÔNG có cột kỳ; kỳ của chúng suy từ đơn cha nên tự đúng theo.
+	 *
+	 *    Bản nháp có thêm một câu `UPDATE tamung SET ky=...` "cho chắc". Sai: cột ấy không tồn
+	 *    tại, và câu lệnh sẽ nổ trên host thật. Bài kiểm bắt được ngay lượt chạy đầu — đây đúng
+	 *    là lý do phải đọc sơ đồ bảng chứ đừng đoán theo tên.
+	 *
+	 *    Dòng chi cũng không đụng vì lý do khác, đáng nói riêng: nó mang NGÀY THẬT của khoản
+	 *    mua. Kế toán vẽ lại ranh giới tuần thì ngày đi chợ không đổi theo.
+	 *
+	 * @return array ok · doi (số đơn đổi) · kyMoi · gop (true nếu nhập vào một kỳ đã có)
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function doi_moc_ky( $ky_cu, $tu, $den ) {
+		global $wpdb;
+		$ky_cu = trim( (string) $ky_cu );
+		if ( '' === $ky_cu ) { return VHCP_Util::err( 'Chưa chọn kỳ cần đổi' ); }
+
+		$t1 = self::ngay_iso_( $tu );
+		$t2 = self::ngay_iso_( $den );
+		if ( '' === $t1 || '' === $t2 ) { return VHCP_Util::err( 'Ngày không hợp lệ' ); }
+		if ( $t1 > $t2 ) { return VHCP_Util::err( 'Ngày bắt đầu phải trước ngày kết thúc' ); }
+		/* Chốt trên: một "tuần" dài hơn 31 ngày thì gần như chắc chắn là gõ nhầm năm. Đổi kỳ
+		   là đổi hàng loạt đơn, nên chặn trước rẻ hơn nhiều so với dọn sau. */
+		if ( ( strtotime( $t2 ) - strtotime( $t1 ) ) / 86400 > 31 ) {
+			return VHCP_Util::err( 'Khoảng này dài hơn 31 ngày — kiểm lại ngày tháng' );
+		}
+
+		$ky_moi = self::ky_tu_khoang_( $t1, $t2 );
+		$t      = VHCP_DB::t( 'don' );
+		$dem_cu = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ky=%s", $ky_cu ) );
+		if ( ! $dem_cu ) { return VHCP_Util::err( 'Không có đơn nào ở kỳ này' ); }
+		if ( $ky_moi === $ky_cu ) { return VHCP_Util::err( 'Mốc mới trùng đúng mốc đang có — không có gì để đổi' ); }
+
+		$gop = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ky=%s", $ky_moi ) ) > 0;
+
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET ky=%s WHERE ky=%s", $ky_moi, $ky_cu ) );
+
+		self::ghi_vet( $ky_moi, 'Đổi mốc tuần',
+			'Từ "' . $ky_cu . '" -> "' . $ky_moi . '" · ' . $dem_cu . ' đơn'
+			. ( $gop ? ' · GỘP vào kỳ đã có' : '' ) );
+
+		return VHCP_Util::ok( array( 'doi' => $dem_cu, 'kyMoi' => $ky_moi, 'gop' => $gop ) );
+	}
+
+	/** 'd/m/Y' hoặc 'Y-m-d' -> 'Y-m-d'; không đọc được -> ''. */
+	private static function ngay_iso_( $x ) {
+		$x = trim( (string) $x );
+		if ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})$#', $x, $m )
+			&& checkdate( (int) $m[2], (int) $m[3], (int) $m[1] ) ) { return $x; }
+		if ( preg_match( '#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $x, $m )
+			&& checkdate( (int) $m[2], (int) $m[1], (int) $m[3] ) ) {
+			return sprintf( '%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1] );
+		}
+		return '';
+	}
+
+	/**
+	 * Dựng chuỗi kỳ từ HAI NGÀY BẤT KỲ — không ép về thứ hai/chủ nhật.
+	 *
+	 * 🔴 KHÔNG DÙNG `nhan_ky()` Ở ĐÂY. Hàm đó nhận một ngày rồi tự kéo về tuần thứ-hai-đến-chủ-
+	 *    nhật chứa ngày ấy — đúng cho việc lập đơn, nhưng ở đây thì nó vứt bỏ đúng thứ admin
+	 *    vừa gõ vào. Anh Thắng cần đặt tuần "lỡ dở" theo ý mình để khớp các gian khác, nên hai
+	 *    ngày admin nhập là hai ngày đi thẳng vào chuỗi.
+	 *
+	 * ⚠️ Nhãn tháng lấy theo NGÀY CUỐI, đúng quy ước đang chạy (`nhan_ky()`, `khoang_ky()` và
+	 *    `ky_num()` đều đọc con số ấy như tháng của ngày cuối). Lấy ngày đầu là tuần bắc tháng
+	 *    sinh ra một nhãn mà `khoang_ky()` đọc ngược lại thành năm khác.
+	 */
+	private static function ky_tu_khoang_( $t1, $t2 ) {
+		$a = strtotime( $t1 . ' 00:00:00 UTC' );
+		$b = strtotime( $t2 . ' 00:00:00 UTC' );
+		return 'T' . (int) gmdate( 'n', $b ) . '/' . gmdate( 'Y', $b )
+			. ' (' . (int) gmdate( 'j', $a ) . '/' . (int) gmdate( 'n', $a )
+			. '-' . (int) gmdate( 'j', $b ) . '/' . (int) gmdate( 'n', $b ) . '/' . gmdate( 'Y', $b ) . ')';
+	}
+
+	/**
+	 * Các kỳ đang có trên bảng đơn + số đơn mỗi kỳ, mới nhất trước.
+	 *
+	 * ⚠️ ĐỌC TỪ CHÍNH BẢNG ĐƠN, không dựng từ lịch. Kỳ cần sửa đúng là kỳ SAI khuôn — dựng từ
+	 *    lịch thì không bao giờ bày ra được nó, và admin không có gì để chọn.
+	 */
+	public static function ds_ky_dang_co() {
+		global $wpdb;
+		$t  = VHCP_DB::t( 'don' );
+		$ra = array();
+		foreach ( VHCP_DB::rows( "SELECT ky, COUNT(*) AS n FROM $t WHERE ky <> '' GROUP BY ky" ) as $r ) {
+			$k = (string) $r['ky'];
+			list( $a, $b ) = self::khoang_ky( $k );
+			$ra[] = array( 'ky' => $k, 'soDon' => (int) $r['n'], 'tu' => $a, 'den' => $b );
+		}
+		usort( $ra, function ( $x, $y ) {
+			$c = strcmp( (string) $y['tu'], (string) $x['tu'] );
+			return ( 0 !== $c ) ? $c : strcmp( (string) $x['ky'], (string) $y['ky'] );
+		} );
+		return VHCP_Util::ok( array( 'items' => $ra ) );
+	}
+
 	public static function ky_ke_tiep( $ky ) {
 		list( , $den ) = self::khoang_ky( $ky );
 		if ( '' === $den ) { return ''; }

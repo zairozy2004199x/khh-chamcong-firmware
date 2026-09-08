@@ -36,6 +36,10 @@ class VHCP_API {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
+			/* Đặt lại mốc một tuần ("tuần này chạy từ ngày nào đến ngày nào") — anh Thắng chốt
+			   08/09/2026: *"admin có quyền chỉnh tuần đó"*. Đổi kỳ là đổi HÀNG LOẠT đơn cùng
+			   lúc và có thể GỘP hai kỳ làm một, nên không mở cho kế toán. */
+			'doiMocKy',
 			/* Hạ tạm ứng của đơn ĐÃ đánh dấu cấp tiền về 0 — anh Thắng chốt 01/09/2026: chỉ
 			   Admin. Đụng vào con số đã có lượt "cấp tiền" đứng sau, nên không mở cho kế toán. */
 			'haTamUngVe0',
@@ -83,7 +87,7 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'dsKyDangCo', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -201,6 +205,8 @@ class VHCP_API {
 			'getBootstrap'          => array( 'VHCP_Don', 'get_bootstrap' ),
 			'getConfig'             => array( 'VHCP_Cfg', 'get_config' ),
 			'saveConfig'            => array( 'VHCP_Cfg', 'save_config' ),
+			'doiMocKy'              => array( 'VHCP_Don', 'doi_moc_ky' ),
+			'dsKyDangCo'            => array( 'VHCP_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCP_Cfg', 'undo_config' ),
 			'getUsers'              => array( 'VHCP_Cfg', 'get_users' ),
 			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),

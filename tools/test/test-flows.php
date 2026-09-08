@@ -694,8 +694,20 @@ VHCP_Don::delete_don_admin( $mhc2 );
 
 /* ⚠️ SỬA TIỀN TRÊN ĐƠN ĐÃ CÓ VẾT CẤP TIỀN — CHỈ ADMIN. Anh Thắng chốt 01/09/2026. */
 $_api_h = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+/* ⚠️ BÓC NGUYÊN KHỐI `$admin_only = array( … );` RỒI SOI TRONG ĐÓ.
+   Bản trước ghim `[\s\S]{0,700}?` — tức "tên ấy phải nằm trong 700 ký tự đầu của mảng". Đó là
+   canh KHOẢNG CÁCH KÝ TỰ, không phải canh ý định: thêm một mục kèm chú thích vào đầu mảng là
+   phép này đỏ, đỏ vì một thay đổi ĐÚNG (đã xảy ra 08/09/2026 khi thêm 'doiMocKy'). Và nó cũng
+   sai theo chiều kia — tên nằm ngoài mảng nhưng trong 700 ký tự ấy vẫn khớp. */
+$_ao_khoi = '';
+if ( preg_match( '/\$admin_only = array\((.*?)\n\t\t\);/s', $_api_h, $_m_ao ) ) { $_ao_khoi = $_m_ao[1]; }
+t( '🔴 bóc được khối $admin_only', '' !== $_ao_khoi, null );
 t( '🔴 haTamUngVe0 nằm trong nhóm CHỈ ADMIN',
-	1 === preg_match( '/\$admin_only = array\([\s\S]{0,700}?\x27haTamUngVe0\x27/', $_api_h ), null );
+	false !== strpos( $_ao_khoi, "'haTamUngVe0'" ), null );
+/* Đối chứng: một hàm KHÔNG chỉ-admin thì không được lọt vào khối ấy — không thì phép trên
+   xanh kể cả khi biểu thức bóc nhầm cả tệp. */
+t( '⚠️ đối chứng: hàm thường không nằm trong khối đó',
+	false === strpos( $_ao_khoi, "'getBootstrap'" ), null );
 t( 'và có khai vào bản đồ việc', false !== strpos( $_api_h, "'haTamUngVe0'           => array( 'VHCP_Don', 'ha_tam_ung_ve_0' )" ), null );
 
 /* 🔴 HỎI THẲNG CHỐT GÁC, ĐỪNG SOI CHUỖI. Anh Thắng 01/09/2026 nhắc lại: *"nhớ là chỉ admin hạ

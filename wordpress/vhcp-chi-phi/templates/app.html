@@ -1024,6 +1024,22 @@
       <span style="font-size:11px;color:#94a3b8">Lỡ lưu nhầm?</span>
       <button class="btn b-x" onclick="undoCfg()" title="Khôi phục về nội dung ngay trước lần Lưu gần nhất">↩ Hồi lại lần lưu gần nhất</button>
     </div>
+    <!-- 🔴 ĐẶT LẠI MỐC TUẦN — anh Thắng 08/09/2026: *"có những tuần lỡ dở giữa tháng, nên
+         admin có quyền chỉnh tuần đó từ ngày nào đến ngày nào, để đồng bộ với các gian
+         khác"*. Ảnh anh gửi có cả `T9/2026 (1/9-6/9/2026)` lẫn `T9/2026 (31/8-6/9/2026)` cho
+         CÙNG một tuần làm việc — gian lập đơn sớm mang chuỗi cũ, gian lập muộn mang chuỗi
+         mới, và mọi màn coi đó là hai kỳ. -->
+    <div class="card" id="kyCard" style="display:none;border:2px solid #fde68a">
+      <div class="ch"><h2>📆 Đặt lại mốc tuần</h2><button class="btn b-x" onclick="loadDsKy()">↻ Nạp lại</button></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        Mỗi dòng là một <b>kỳ/tuần đang có đơn</b>. Sửa hai ô ngày rồi bấm <b>Đặt lại</b> — mọi đơn của kỳ đó chuyển sang mốc mới.
+        Nếu mốc mới <b>trùng một kỳ đã có</b> thì hai nhóm đơn <b>nhập làm một</b> — đó chính là cách gộp hai chuỗi lệch của cùng một tuần.
+        <br>⚠️ Đổi kỳ là đổi <b>hàng loạt đơn</b> cùng lúc và <b>không có nút hoàn tác</b>. Ngày mua hàng trên từng dòng chi <b>không đổi</b> — chỉ cái nhãn tuần đổi.
+      </div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Kỳ / tuần đang có</th><th style="width:90px;text-align:right">Số đơn</th><th style="width:160px">Từ ngày</th><th style="width:160px">Đến ngày</th><th style="width:120px"></th></tr></thead><tbody id="kyBody"></tbody></table></div>
+      <div class="empty" id="kyEmpty" style="display:none">Chưa có đơn nào để đổi kỳ.</div>
+    </div>
+
     <div class="card" id="vaiCard">
       <div class="ch"><h2>🎭 Vai trò tự tạo</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgVai()">＋ Thêm vai</button><button class="btn b-g" onclick="saveCfgVai()">💾 Lưu vai trò</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -6932,8 +6948,46 @@
     return '<select style="width:100%">'+VAI_GOC.map(function(r){
       return '<option'+(r===v?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     ĐẶT LẠI MỐC TUẦN. Danh sách kỳ đọc từ CHÍNH bảng đơn, không dựng từ lịch: kỳ cần sửa đúng
+     là kỳ SAI khuôn, dựng từ lịch thì không bao giờ bày ra được nó. */
+  var DS_KY=[];
+  function loadDsKy(){
+    if(!el('kyBody')) return;
+    if(el('kyCard')) el('kyCard').style.display=_laAdmin()?'':'none';
+    if(!_laAdmin()) return;
+    google.script.run.withSuccessHandler(function(r){
+      DS_KY=(r&&r.items)||[];
+      el('kyBody').innerHTML=DS_KY.map(function(x,i){
+        return '<tr><td style="font-family:ui-monospace,monospace;font-size:12px">'+esc(x.ky)+'</td>'
+          +'<td class="money">'+(x.soDon||0)+'</td>'
+          +'<td><input type="date" id="kyTu'+i+'" value="'+esc(x.tu||'')+'" style="width:100%"></td>'
+          +'<td><input type="date" id="kyDen'+i+'" value="'+esc(x.den||'')+'" style="width:100%"></td>'
+          +'<td style="text-align:center"><button class="btn b-d" onclick="doiMocKy('+i+')">Đặt lại</button></td></tr>';
+      }).join('');
+      if(el('kyEmpty')) el('kyEmpty').style.display=DS_KY.length?'none':'block';
+    }).withFailureHandler(function(){}).dsKyDangCo();
+  }
+  function doiMocKy(i){
+    var x=DS_KY[i]; if(!x) return;
+    var tu=(el('kyTu'+i)||{}).value||'', den=(el('kyDen'+i)||{}).value||'';
+    if(!tu||!den){ toast('warn','Điền đủ hai ô ngày'); return; }
+    /* 🔴 HỎI LẠI, VÀ HỎI BẰNG CON SỐ. "Đổi kỳ này?" thì ai cũng bấm OK; "37 đơn sẽ chuyển
+       sang mốc mới, không hoàn tác được" thì người ta dừng lại đọc. */
+    if(!confirm('Đổi mốc kỳ:\n\n  '+x.ky+'\n\nthành khoảng '+tu+' → '+den+'\n\n'
+      +(x.soDon||0)+' đơn sẽ chuyển sang mốc mới. KHÔNG hoàn tác được.\n'
+      +'Nếu mốc mới trùng một kỳ đã có thì hai nhóm đơn sẽ GỘP làm một.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){
+        toast('ok','Đã đổi '+(r.doi||0)+' đơn sang "'+(r.kyMoi||'')+'"'+(r.gop?' (đã gộp vào kỳ có sẵn)':''));
+        loadDsKy(); BOOT=null; boot(function(){});
+      } else { toast('err',(r&&r.error)||'Không đổi được'); }
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiMocKy(x.ky, tu, den);
+  }
   function renderVai(){
     if(!el('cfgVaiBody')) return;
+    loadDsKy();
     if(el('vaiCard')) el('vaiCard').style.display=_laAdmin()?'':'none';
     el('cfgVaiBody').innerHTML=((CFG.vaiTro)||[]).map(function(x){
       return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td><td>'+_bpSel(x.boPhan,'— Mọi bộ phận —')+'</td>'+_delBtn()+'</tr>';
