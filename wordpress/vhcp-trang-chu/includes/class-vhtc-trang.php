@@ -46,7 +46,7 @@ class VHTC_Trang {
 		 * phí). Trang tổng này gọi sang cả 4 plugin nên là chỗ dễ dính nhất.
 		 */
 		$co = function ( $lop, $ham ) { return class_exists( $lop ) && method_exists( $lop, $ham ); };
-		return array(
+		$ds = array(
 			/* 🔴 TRỎ VỀ HỆ MỚI, KHÔNG VỀ `/cham-cong/`.
 			   Anh Thắng 26/08/2026 hỏi: *"trang này còn dùng không"* — `/cham-cong/` là app Apps
 			   Script CŨ: plugin chỉ lấy Index.html từ project Apps Script rồi chèn cầu nối, còn
@@ -122,6 +122,63 @@ class VHTC_Trang {
 				'url'   => $co( 'VHD_Trang', 'url' ) ? VHD_Trang::url() : '',
 			),
 		);
+		/* Chèn các bản chi phí RIÊNG CỦA VÙNG ngay sau ô "Vận Hành Chi Phí" — xem `app_vung()`. */
+		$vung = self::app_vung();
+		if ( $vung ) {
+			$i = 0;
+			foreach ( $ds as $k => $x ) { if ( 'Vận Hành Chi Phí' === $x['ten'] ) { $i = $k + 1; break; } }
+			array_splice( $ds, $i, 0, $vung );
+		}
+		return $ds;
+	}
+
+	/**
+	 * BẢN CHI PHÍ RIÊNG CỦA TỪNG VÙNG — anh Thắng 08/09/2026: *"đẩy link trang chi phí hà nội
+	 * vào trang nội bộ để theo dõi"*.
+	 *
+	 * Mỗi vùng là một plugin ĐỘC LẬP, sinh bằng `tools/tach-ban-vung.sh`: lớp `VHCPHN_App`,
+	 * `VHCPDN_App`… Vùng nào đã cài thì lên nút, chưa cài thì thôi — bày nút dẫn tới trang 404
+	 * còn tệ hơn không có nút nào.
+	 *
+	 * 🔴 KHÔNG KHAI CỨNG TỪNG VÙNG. Thêm một vùng mà phải nhớ sửa thêm một dòng ở đây thì lần
+	 *    quên nào cũng là "cài xong mà không thấy nút đâu" — và người cài không có cách nào
+	 *    đoán ra thiếu ở chỗ này. Dò theo đúng khuôn tên mà script sinh ra.
+	 *
+	 * ⚠️ VẪN DÒ TỪNG HÀM, không dò mỗi tên lớp — luật chung của tệp này (xem `ds_app()`).
+	 * ⚠️ TÊN HIỂN THỊ lấy từ chính plugin ấy (`Plugin Name:`), nên nó luôn khớp với thứ WordPress
+	 *    bày ra ở màn Plugin. Không đoán tên từ mã vùng: "hn" thì đoán được, "ct" thì không.
+	 */
+	public static function app_vung() {
+		$ra = array();
+		foreach ( get_declared_classes() as $lop ) {
+			if ( ! preg_match( '/^VHCP([A-Z0-9]{1,8})_App$/', $lop, $m ) ) { continue; }
+			if ( ! method_exists( $lop, 'app_url' ) ) { continue; }
+			$u = (string) call_user_func( array( $lop, 'app_url' ) );
+			if ( '' === $u ) { continue; }
+			$ra[] = array(
+				'ten'   => self::ten_plugin_vung( $m[1] ),
+				'mo_ta' => 'Bản chi phí riêng của vùng — dữ liệu tách hẳn với bản chính',
+				'icon'  => '💰',
+				'co'    => true,
+				'url'   => $u,
+			);
+		}
+		/* Xếp theo tên cho thứ tự không đổi giữa hai lượt tải — `get_declared_classes()` trả về
+		   theo thứ tự NẠP, mà thứ tự ấy đổi khi bật/tắt một plugin nào đó. */
+		usort( $ra, function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
+		return $ra;
+	}
+
+	/** Tên hiển thị của một bản vùng: lấy `Plugin Name:` thật, lui về mã vùng nếu không đọc được. */
+	private static function ten_plugin_vung( $ma_hoa ) {
+		$ma  = strtolower( $ma_hoa );
+		$lui = 'Vận Hành Chi Phí (' . $ma_hoa . ')';
+		if ( ! defined( 'WP_PLUGIN_DIR' ) || ! function_exists( 'get_plugin_data' ) ) { return $lui; }
+		$f = WP_PLUGIN_DIR . '/vhcp-chi-phi-' . $ma . '/vhcp-chi-phi-' . $ma . '.php';
+		if ( ! is_readable( $f ) ) { return $lui; }
+		$d = get_plugin_data( $f, false, false );
+		$t = isset( $d['Name'] ) ? trim( (string) $d['Name'] ) : '';
+		return '' !== $t ? $t : $lui;
 	}
 
 	/** Có đang bật "dùng làm trang chủ" không. */

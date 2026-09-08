@@ -295,6 +295,16 @@ class VHNB_Trang {
 		$them( 'VHCC_Web',  'url',     '🕐', 'Chấm công' );
 		$them( 'VHCC_Tram', 'url',     '📷', 'Chấm công online' );
 		$them( 'VHCP_App',  'app_url', '💰', 'Vận hành chi phí' );
+		/* Bản chi phí RIÊNG CỦA VÙNG (`VHCPHN_App`…) — anh Thắng 08/09/2026: *"đẩy link trang chi
+		   phí hà nội vào trang nội bộ để theo dõi"*. Dò theo khuôn tên mà `tools/tach-ban-vung.sh`
+		   sinh ra, nên vùng mới tự lên, khỏi phải nhớ sửa thêm ở đây.
+		   ⚠️ Đây là NHÁNH LUI (chưa cài plugin Cổng). Chỗ khai đầy đủ — kèm tên plugin thật — vẫn
+		      là `VHTC_Trang::app_vung()`; ở đây chỉ cần trang không cụt đường. */
+		foreach ( get_declared_classes() as $lop ) {
+			if ( preg_match( '/^VHCP([A-Z0-9]{1,8})_App$/', $lop, $m ) ) {
+				$them( $lop, 'app_url', '💰', 'Vận hành chi phí (' . $m[1] . ')' );
+			}
+		}
 		$them( 'VHG_Trang', 'url',     '💺', 'Ghế massage' );
 		$them( 'VHD_Trang', 'url',     '📄', 'Thư viện hợp đồng' );
 		return $ra;
