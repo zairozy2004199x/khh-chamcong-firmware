@@ -344,7 +344,7 @@ class VHCPHN_Auth {
 		global $wpdb;
 		delete_transient( self::fail_key() );
 		$n = 0;
-		$rows = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_vhcp\\_fail\\_%'" );
+		$rows = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_vhcphn\\_fail\\_%'" );
 		foreach ( (array) $rows as $o ) {
 			$key = preg_replace( '/^_transient_/', '', (string) $o );
 			if ( $key !== '' ) { delete_transient( $key ); $n++; }

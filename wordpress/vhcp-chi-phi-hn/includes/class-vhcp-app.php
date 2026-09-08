@@ -4,7 +4,7 @@
  * để CSS của theme không chen vào, và vẫn nhúng iframe được vào trang tổng K&H.
  *
  *   https://<tên miền>/chi-phi-hn/            (đường dẫn tĩnh, đổi được trong Cài đặt)
- *   https://<tên miền>/?vhcp=app           (dùng khi permalink đang để dạng ?p=)
+ *   https://<tên miền>/?vhcphn=app           (dùng khi permalink đang để dạng ?p=)
  *   https://<tên miền>/chi-phi-hn/?sso=<token> (đăng nhập một lần từ trang tổng)
  */
 
@@ -20,7 +20,7 @@ class VHCPHN_App {
 
 	public static function app_url() {
 		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug() . '/' ); }
-		return add_query_arg( 'vhcp', 'app', home_url( '/' ) );
+		return add_query_arg( 'vhcphn', 'app', home_url( '/' ) );
 	}
 
 	public static function init() {
@@ -39,7 +39,7 @@ class VHCPHN_App {
 
 	public static function maybe_render() {
 		$is_app = ( (int) get_query_var( 'vhcphn_app' ) === 1 );
-		if ( ! $is_app && isset( $_GET['vhcp'] ) && $_GET['vhcp'] === 'app' ) { $is_app = true; }
+		if ( ! $is_app && isset( $_GET['vhcphn'] ) && $_GET['vhcphn'] === 'app' ) { $is_app = true; }
 		if ( ! $is_app ) { return; }
 
 		// ĐƯỜNG GỌI THỨ BA — qua chính URL của app.
@@ -81,7 +81,7 @@ class VHCPHN_App {
 		if ( $trang === '' ) { $trang = add_query_arg( 'vhcphn_api', '1', self::app_url() ); }
 		if ( $fns === null )  { $fns = array_keys( VHCPHN_API::map() ); }
 		$cfg = array(
-			'endpoint' => esc_url_raw( rest_url( 'vhcp/v1/call' ) ),
+			'endpoint' => esc_url_raw( rest_url( 'vhcphn/v1/call' ) ),
 			// Đường dự phòng khi hosting chặn /wp-json/ (giao diện tự chuyển)
 			'ajax'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
 			// Đường dự phòng CUỐI: chính URL của trang này — Cloudflare chặn theo đường dẫn,

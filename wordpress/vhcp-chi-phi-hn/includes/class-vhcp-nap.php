@@ -8,7 +8,7 @@
  * KHÔNG có gì báo lỗi — số liệu sai âm thầm. Vì vậy lớp này đọc DÒNG TIÊU ĐỀ rồi khớp
  * theo tên cột, thiếu cột thì báo, cột lạ cũng báo, không đoán bừa.
  *
- * @package VHCP
+ * @package VHCPHN
  */
 
 defined( 'ABSPATH' ) || exit;

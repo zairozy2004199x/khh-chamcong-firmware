@@ -2,8 +2,8 @@
 /**
  * ẢNH CHỨNG TỪ & HỒ SƠ — thay Google Drive bằng thư mục uploads của WordPress.
  *
- * Cây thư mục giữ đúng kiểu cũ:  uploads/vhcp/<Cơ sở>/<Người lập>/CP_<mã đơn>_<ts>.jpg
- *                                uploads/vhcp/HoSo_DuAn/<mã dự án>_<tên file>
+ * Cây thư mục giữ đúng kiểu cũ:  uploads/vhcphn/<Cơ sở>/<Người lập>/CP_<mã đơn>_<ts>.jpg
+ *                                uploads/vhcphn/HoSo_DuAn/<mã dự án>_<tên file>
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -59,7 +59,7 @@ class VHCPHN_Upload {
 		return VHCPHN_Util::ok( array( 'doi' => $tong, 'chiTiet' => $chi_tiet, 'cu' => $cu, 'moi' => $moi, 'thu' => $thu ? 1 : 0 ) );
 	}
 
-	const ROOT     = 'vhcp';
+	const ROOT     = 'vhcphn';
 	const MAX_SIZE = 15728640;   // 15 MB
 
 	private static function img_ext( $mime ) {

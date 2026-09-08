@@ -11,7 +11,18 @@
 #      · trùng tên bảng -> hai bên ghi đè dữ liệu của nhau, im lặng
 #      · trùng khoá cấu hình (option) -> đổi cài đặt bên này là đổi luôn bên kia
 #      · trùng đường dẫn trang -> chỉ một bản mở được
+#      · trùng KHOÁ ĐĂNG KÝ TOÀN CỤC của WordPress -> bản nạp SAU ĐÈ bản nạp trước
 #    Đổi tên bằng tay thì chắc chắn sót một chỗ, và chỗ sót ấy lộ ra vào lúc tệ nhất.
+#
+# 🔴 CẮN THẬT 08/09/2026 — vì sao có luật "chuỗi trần" bên dưới.
+#    Bản đầu của script này chỉ đổi `VHCP_` và `vhcp_` (CÓ gạch dưới). Mấy khoá toàn cục lại
+#    viết KHÔNG gạch dưới: `register_rest_route( 'vhcp/v1', … )`, `add_menu_page( …, 'vhcp', … )`,
+#    `$_GET['vhcp']`, thư mục tải ảnh `ROOT = 'vhcp'`. Chúng thoát hết.
+#    WordPress cho đường REST đăng ký SAU đè lên đường trước, mà plugin nạp theo thứ tự chữ cái
+#    nên `vhcp-chi-phi-hn` nạp sau `vhcp-chi-phi` -> BẢN HN CHIẾM ĐƯỜNG `vhcp/v1/call`.
+#    Kết quả: anh Thắng mở /chi-phi/ ra thấy TRỐNG TRƠN — trang HCM vẫn đúng, nhưng mọi lượt hỏi
+#    dữ liệu của nó rơi vào bảng rỗng của HN. Dữ liệu không mất, mà nhìn y như đã mất sạch.
+#    Bài kiểm `tools/test/kiem-tach-ban-vung.php` nay chốt: KHÔNG chuỗi nào dùng chung.
 #
 # 🔴 CHẠY MỘT LẦN, RỒI HAI BÊN ĐI ĐƯỜNG RIÊNG. Đây là bản TÁCH, không phải bản đồng bộ: chạy lại
 #    là ĐÈ SẠCH mọi thứ vùng ấy đã sửa riêng. Script hỏi lại trước khi đè.
@@ -53,14 +64,46 @@ cp -r "$GOC" "$DICH"
 rm -rf "$DICH/goc"
 mv "$DICH/vhcp-chi-phi.php" "$DICH/vhcp-chi-phi-$MA.php"
 
-# ── Đổi tên: THỨ TỰ CÓ NGHĨA ──────────────────────────────────────────────────────────────────
-# Chữ HOA trước (VHCP_ → VHCPHN_), rồi chữ thường (vhcp_ → vhcphn_). Làm ngược lại thì lượt sau
-# đụng vào kết quả của lượt trước và sinh ra VHCPHN_HN_.
+# ── Đổi tên: MỘT LƯỢT DUY NHẤT, QUÉT SẠCH, CHỪA ĐÚNG TÊN TỆP ────────────────────────────────
+# 🔴 GỘP HẾT VÀO MỘT `s///` CHỨ KHÔNG CHẠY NỐI TIẾP NHIỀU LƯỢT. Perl quét trái sang phải và
+#    KHÔNG soi lại phần vừa thay, nên mỗi chỗ bị đổi đúng một lần. Chạy nối tiếp thì lượt sau
+#    ăn vào kết quả lượt trước: 'vhcp_slug' -> 'vhcphn_slug' -> 'vhcphnhn_slug'. Đã cắn thật
+#    08/09/2026, hỏng 143 chỗ trong một lượt sinh.
+#
+# 🔴 ĐỔI MỌI CHỮ `vhcp`, KHÔNG CHỈ `vhcp_`. Bản đầu chỉ đổi chuỗi CÓ gạch dưới, và mấy khoá
+#    toàn cục viết không gạch dưới thoát hết:
+#      · register_rest_route( 'vhcp/v1', … )   -> bản nạp SAU ĐÈ đường REST của bản nạp trước
+#      · add_menu_page( …, 'vhcp', … )          -> chung menu wp-admin, chung cả màn Cài đặt
+#      · admin.php?page=vhcp                    -> form của vùng POST sang màn của bản gốc
+#      · $_GET['vhcp'], ROOT = 'vhcp'           -> chung khoá URL, chung thư mục ảnh tải lên
+#      · 'X-VHCP-Token'                         -> chung tên tiêu đề mang thẻ phiên
+#      · LIKE '_transient_vhcp\_fail\_%'        -> vùng dọn transient là XOÁ CỦA BẢN GỐC
+#    Ngày 08/09/2026 chỗ REST làm anh Thắng mở /chi-phi/ ra thấy TRỐNG TRƠN: trang HCM vẫn
+#    đúng, nhưng mọi lượt hỏi dữ liệu của nó rơi vào bảng rỗng của HN. Dữ liệu còn nguyên mà
+#    nhìn y như mất sạch. Nên luật bây giờ là QUÉT SẠCH rồi chừa ra, chứ không phải liệt kê ra
+#    rồi đổi — liệt kê thì mỗi khoá thêm về sau lại lọt, mà lọt thì im lặng.
+#
+# THỨ TỰ TRONG DẤU | CÓ NGHĨA — perl thử từ trái sang, khớp cái nào thì dừng ở đó:
+#   1. class-vhcp-    GIỮ NGUYÊN. Tên tệp, nằm trong thư mục riêng của từng bản nên trùng
+#                     nhau vô hại; đổi thì `require_once` trỏ vào tệp không tồn tại.
+#   2. vhcp.css       GIỮ NGUYÊN. Cùng lý do — xem class-vhcp-app.php nạp nó theo tên.
+#   3. vhcp-chi-phi   tên thư mục và tên tệp gốc plugin -> thêm đuôi mã vùng
+#   4. VHCP           mọi chữ HOA còn lại: tên lớp, hằng, 'X-VHCP-Token'
+#   5. vhcp           mọi chữ thường còn lại: khoá option, tên bảng, namespace REST, slug menu,
+#                     nhóm bộ nhớ đệm, thư mục ảnh, tên hàm gọi qua cầu, cả trong chú thích
+export MA MA_HOA
 find "$DICH" -type f \( -name '*.php' -o -name '*.html' -o -name '*.js' -o -name '*.md' \) -print0 \
-  | xargs -0 sed -i \
-      -e "s/VHCP_/VHCP${MA_HOA}_/g" \
-      -e "s/vhcp_/vhcp${MA}_/g" \
-      -e "s/vhcp-chi-phi/vhcp-chi-phi-$MA/g"
+  | xargs -0 perl -pi -e '
+      my $m = $ENV{MA}; my $M = $ENV{MA_HOA};
+      s{ class-vhcp- | vhcp\.css | vhcp-chi-phi | VHCP | vhcp }{
+            $& eq "class-vhcp-" ? $&
+          : $& eq "vhcp.css"    ? $&
+          : $& eq "vhcp-chi-phi" ? "vhcp-chi-phi-$m"
+          : $& eq "VHCP"        ? "VHCP$M"
+          :                       "vhcp$m"
+      }gex;
+    '
+
 
 # Đường dẫn trang mặc định + tên plugin — sửa RIÊNG, sau lượt đổi tiền tố.
 sed -i \
@@ -73,6 +116,8 @@ echo "✓ Đã sinh $DICH"
 echo "  · tên lớp   VHCP${MA_HOA}_*      (không đụng VHCP_* của bản đang chạy)"
 echo "  · bảng      wp_vhcp${MA}_*"
 echo "  · trang     /chi-phi-$MA"
+echo "  · REST      vhcp${MA}/v1/call   (bản gốc giữ vhcp/v1/call)"
+echo "  · menu      wp-admin ?page=vhcp${MA}"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

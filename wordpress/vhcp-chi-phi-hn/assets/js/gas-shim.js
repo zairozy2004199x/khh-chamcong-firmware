@@ -3,7 +3,7 @@
  *
  * Nhờ lớp này, toàn bộ giao diện Index.html của app cũ chạy nguyên vẹn: mỗi lệnh
  *   google.script.run.withSuccessHandler(ok).withFailureHandler(err).getDon(ma)
- * được dịch thành 1 request POST tới /wp-json/vhcp/v1/call {fn:'getDon', args:[ma]}.
+ * được dịch thành 1 request POST tới /wp-json/vhcphn/v1/call {fn:'getDon', args:[ma]}.
  *
  * Token phiên (do login trả về) lưu ở localStorage và tự gắn vào mọi request.
  * Máy chủ trả 401 -> xóa phiên và tải lại trang để hiện cổng PIN.
@@ -45,7 +45,7 @@
 		return fetch( CFG.endpoint, {
 			method: 'POST',
 			credentials: 'same-origin',
-			headers: { 'Content-Type': 'application/json', 'X-VHCP-Token': tok },
+			headers: { 'Content-Type': 'application/json', 'X-VHCPHN-Token': tok },
 			body: JSON.stringify( { fn: fn, args: args, token: tok } )
 		} );
 	}
@@ -272,15 +272,15 @@
 
 	// "Đăng xuất" của giao diện chỉ xóa sessionStorage — xóa luôn token & thu hồi phiên ở máy chủ.
 	window.addEventListener( 'load', function () {
-		if ( typeof window.logout === 'function' && ! window.logout.__vhcp ) {
+		if ( typeof window.logout === 'function' && ! window.logout.__vhcphn ) {
 			var orig = window.logout;
 			window.logout = function () {
 				var tok = getToken();
-				if ( tok ) { call( 'vhcpLogout', [ tok ], null, null ); }
+				if ( tok ) { call( 'vhcphnLogout', [ tok ], null, null ); }
 				clearSession();
 				return orig.apply( this, arguments );
 			};
-			window.logout.__vhcp = true;
+			window.logout.__vhcphn = true;
 		}
 	} );
 })();

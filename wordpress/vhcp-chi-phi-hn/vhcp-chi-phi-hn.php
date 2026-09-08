@@ -3,12 +3,12 @@
  * Plugin Name:       Vận Hành Chi Phí (Hà Nội)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.94.0
+ * Version:           1.94.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
  * License:           GPL-2.0-or-later
- * Text Domain:       vhcp
+ * Text Domain:       vhcphn
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPHN_VERSION', '1.94.0' );
+define( 'VHCPHN_VERSION', '1.94.1' );
 define( 'VHCPHN_FILE', __FILE__ );
 define( 'VHCPHN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPHN_URL', plugin_dir_url( __FILE__ ) );

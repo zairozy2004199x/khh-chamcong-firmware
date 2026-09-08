@@ -162,12 +162,73 @@ t( '🔴 hỏi lại trước khi ĐÈ bản vùng đã có', false !== strpos( 
 t( '   và THẬT SỰ dừng nếu không gõ đúng',
 	false !== strpos( $sh, '[ "$tra" = "DONG-Y" ] ||' ), '' );
 t( '   và nói rõ đè là mất thứ vùng ấy đã sửa riêng', false !== mb_strpos( $sh, 'đã sửa riêng' ), '' );
-/* Thứ tự đổi tên: HOA trước, thường sau. Ngược lại thì lượt sau đụng vào kết quả lượt trước. */
-$i_hoa = strpos( $sh, 's/VHCP_/VHCP' );
-$i_thuong = strpos( $sh, 's/vhcp_/vhcp' );
-t( '🔴 đổi chữ HOA trước chữ thường (không thì sinh ra VHCPHN_HN_)',
-	false !== $i_hoa && false !== $i_thuong && $i_hoa < $i_thuong, array( $i_hoa, $i_thuong ) );
+/* 🔴 ĐỔI TÊN PHẢI LÀ MỘT LƯỢT DUY NHẤT.
+   Cắn thật 08/09/2026: bản trước chạy bốn `sed -e` nối tiếp, luật sau ăn vào kết quả luật
+   trước và sinh ra 'vhcphnhn_slug' ở 143 chỗ. Perl quét trái sang phải trong MỘT `s///` thì
+   phần vừa thay không bị soi lại — đó là thứ chốt chuyện này, nên bài kiểm canh đúng nó. */
+t( '🔴 đổi tên trong MỘT lượt s/// (không nối tiếp nhiều lượt)',
+	false !== strpos( $sh, 'class-vhcp- | vhcp\\.css | vhcp-chi-phi | VHCP | vhcp' ), '' );
+t( '   chừa tên tệp class-vhcp-* (đổi thì require_once trỏ vào tệp không có)',
+	false !== strpos( $sh, '$& eq "class-vhcp-" ? $&' ), '' );
+t( '   chừa tệp vhcp.css (nạp theo tên trong class-vhcp-app.php)',
+	false !== strpos( $sh, '$& eq "vhcp.css"    ? $&' ), '' );
 t( 'bỏ thư mục goc/ khỏi bản vùng', false !== strpos( $sh, 'rm -rf "$DICH/goc"' ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 8. 🔴 KHÔNG DÙNG CHUNG BẤT KỲ CHUỖI NÀO — PHÉP QUAN TRỌNG NHẤT CỦA CẢ BÀI
+ *
+ * Anh Thắng 08/09/2026 mở khmatrix.com/chi-phi/ ra thấy TRỐNG TRƠN, tưởng mất sạch dữ liệu.
+ * Dữ liệu còn nguyên (238 hàng cấu hình, 943 dòng chi, 104 đơn). Chuyện thật là:
+ *
+ *     CẢ HAI plugin cùng đăng ký `register_rest_route( 'vhcp/v1', '/call' )`.
+ *     WordPress cho cái đăng ký SAU đè lên cái trước. Plugin nạp theo thứ tự chữ cái nên
+ *     `vhcp-chi-phi-hn` nạp sau `vhcp-chi-phi` -> BẢN HN CHIẾM ĐƯỜNG.
+ *     Trang HCM vẫn dựng đúng, nhưng mọi lượt hỏi dữ liệu của nó rơi vào bảng RỖNG của HN.
+ *
+ * 🔴 VÌ SAO KHÔNG LIỆT KÊ TỪNG KHOÁ RA MÀ SOI. Bản trước đã liệt kê: lớp, bảng, option, đường
+ *    dẫn — bốn thứ, và sót đúng thứ năm. Liệt kê thì mỗi khoá thêm về sau lại lọt, mà lọt thì
+ *    IM LẶNG cho tới lúc hai bản cùng cài trên một site. Nên phép này làm ngược: gom MỌI chuỗi
+ *    trong mã có chữ `vhcp` của cả hai bên, rồi đòi hai tập KHÔNG giao nhau. Khoá mới kiểu gì
+ *    cũng lọt vào lưới, kể cả khoá chưa ai nghĩ ra.
+ *
+ * ⚠️ CHỪA TÊN TỆP. `includes/class-vhcp-cfg.php` và `assets/css/vhcp.css` trùng nhau là ĐÚNG:
+ *    mỗi bản nạp tệp trong thư mục của chính nó, không với sang nhau được.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function chuoi_co_vhcp( $thu_muc ) {
+	$ra = array();
+	foreach ( tep_ma( $thu_muc ) as $f ) {
+		if ( false !== strpos( $f, '/goc/' ) ) { continue; }
+		$s = file_get_contents( $f );
+		if ( ! preg_match_all( '/([\'"])([^\'"\n]*vhcp[^\'"\n]*)\\1/i', $s, $m ) ) { continue; }
+		foreach ( $m[2] as $x ) {
+			/* Tên tệp — xem chốt ⚠️ ở trên. */
+			if ( preg_match( '/\\.(php|css|js|html)$/i', $x ) ) { continue; }
+			$ra[ $x ] = 1;
+		}
+	}
+	return $ra;
+}
+$chung = array_keys( array_intersect_key( chuoi_co_vhcp( $GOCP ), chuoi_co_vhcp( $DICH ) ) );
+sort( $chung );
+teq( '🔴 hai bản KHÔNG dùng chung một chuỗi nào', array(), $chung );
+
+/* Và soi đích danh mấy khoá đã cắn, để lúc trượt còn đọc ra ngay hỏng ở đâu. */
+$api_g = file_get_contents( $GOCP . '/includes/class-vhcp-api.php' );
+$api_v = file_get_contents( $DICH . '/includes/class-vhcp-api.php' );
+t( '🔴 đường REST của bản vùng KHÁC bản gốc (thứ đã làm /chi-phi/ trống trơn)',
+	false !== strpos( $api_g, "register_rest_route( 'vhcp/v1'" )
+	&& false !== strpos( $api_v, "register_rest_route( 'vhcp" . $MA . "/v1'" ), '' );
+$ad_v = file_get_contents( $DICH . '/includes/class-vhcp-admin.php' );
+t( '   slug menu wp-admin khác nhau (không thì chung cả màn Cài đặt)',
+	false !== strpos( $ad_v, "self::CAP, 'vhcp" . $MA . "'" ), '' );
+t( '   form trong wp-admin POST về màn CỦA CHÍNH NÓ',
+	false === strpos( $ad_v, "admin.php?page=vhcp'" ), '' );
+$up_v = file_get_contents( $DICH . '/includes/class-vhcp-upload.php' );
+t( '   thư mục ảnh tải lên khác nhau (không thì hai bản trộn ảnh chung)',
+	false !== strpos( $up_v, "const ROOT     = 'vhcp" . $MA . "'" ), '' );
+$au_v = file_get_contents( $DICH . '/includes/class-vhcp-auth.php' );
+t( '🔴 lệnh dọn transient chỉ đụng transient CỦA CHÍNH NÓ',
+	false === strpos( $au_v, "_transient_vhcp\\_fail" ), '' );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

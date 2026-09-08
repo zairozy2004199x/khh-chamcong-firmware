@@ -1,6 +1,6 @@
 <?php
 /**
- * REST API — 1 cửa duy nhất: POST /wp-json/vhcp/v1/call  {fn, args:[...], token}
+ * REST API — 1 cửa duy nhất: POST /wp-json/vhcphn/v1/call  {fn, args:[...], token}
  *
  * Giao diện vẫn gọi google.script.run.<tên hàm>(...) như cũ; assets/js/gas-shim.js
  * dịch mỗi lệnh gọi đó thành 1 request tới đây. Nhờ vậy toàn bộ Index.html của app
@@ -97,7 +97,7 @@ class VHCPHN_API {
 	}
 
 	public static function register_routes() {
-		register_rest_route( 'vhcp/v1', '/call', array(
+		register_rest_route( 'vhcphn/v1', '/call', array(
 			'methods'             => 'POST',
 			'permission_callback' => '__return_true',
 			'callback'            => array( __CLASS__, 'handle' ),
@@ -121,7 +121,7 @@ class VHCPHN_API {
 			if ( is_array( $tmp ) ) { $args = $tmp; }
 		}
 
-		$req = new WP_REST_Request( 'POST', '/vhcp/v1/call' );
+		$req = new WP_REST_Request( 'POST', '/vhcphn/v1/call' );
 		$req->set_param( 'fn', $fn );
 		$req->set_param( 'args', $args );
 		$req->set_param( 'token', $tok );
@@ -173,7 +173,7 @@ class VHCPHN_API {
 			exit;
 		}
 
-		$req = new WP_REST_Request( 'POST', '/vhcp/v1/call' );
+		$req = new WP_REST_Request( 'POST', '/vhcphn/v1/call' );
 		$req->set_param( 'fn', $fn );
 		$req->set_param( 'args', $args );
 		$req->set_param( 'token', $tok );
@@ -194,7 +194,7 @@ class VHCPHN_API {
 			   tới đây, và giao diện bày lại ô PIN. */
 			'aiDangDangNhap'        => array( 'VHCPHN_Auth', 'ai_dang_dang_nhap' ),
 			'changePin'             => array( 'VHCPHN_Auth', 'change_pin' ),
-			'vhcpLogout'            => array( 'VHCPHN_Auth', 'logout' ),
+			'vhcphnLogout'            => array( 'VHCPHN_Auth', 'logout' ),
 			'logAction'             => array( 'VHCPHN_Log', 'log_action' ),
 			'getLog'                => array( 'VHCPHN_Log', 'get_log' ),
 			'getDonLog'             => array( 'VHCPHN_Don', 'nhat_ky_don' ),

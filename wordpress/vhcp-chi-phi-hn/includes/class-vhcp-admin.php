@@ -8,10 +8,10 @@ class VHCPHN_Admin {
 	const CAP = 'manage_options';
 
 	public static function menu() {
-		add_menu_page( 'Vận Hành Chi Phí', 'Vận Hành Chi Phí', self::CAP, 'vhcp', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
-		add_submenu_page( 'vhcp', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcp-import', array( __CLASS__, 'page_import' ) );
-		add_submenu_page( 'vhcp', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcp-sheet', array( __CLASS__, 'page_sheet' ) );
-		add_submenu_page( 'vhcp', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcp-settings', array( __CLASS__, 'page_settings' ) );
+		add_menu_page( 'Vận Hành Chi Phí', 'Vận Hành Chi Phí', self::CAP, 'vhcphn', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
+		add_submenu_page( 'vhcphn', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcphn-import', array( __CLASS__, 'page_import' ) );
+		add_submenu_page( 'vhcphn', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcphn-sheet', array( __CLASS__, 'page_sheet' ) );
+		add_submenu_page( 'vhcphn', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcphn-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
 	// ---------------------------------------------------------------- xử lý form
@@ -36,7 +36,7 @@ class VHCPHN_Admin {
 			VHCPHN_Meta::set( 'SSO_SECRET', $secret );
 
 			VHCPHN_Cfg::clear_cache();
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-settings', 'vhcphn_msg' => 'saved' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn-settings', 'vhcphn_msg' => 'saved' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 
@@ -56,7 +56,7 @@ class VHCPHN_Admin {
 
 			$res = VHCPHN_Import::run( $type, $text, $opts );
 			set_transient( 'vhcphn_import_res_' . get_current_user_id(), $res, 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-import' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn-import' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 
@@ -77,7 +77,7 @@ class VHCPHN_Admin {
 			set_transient( 'vhcphn_sheet_tabs_' . get_current_user_id(), $tabs_txt, 3600 );
 			set_transient( 'vhcphn_sheet_res_' . get_current_user_id(), $res, 120 );
 			set_transient( 'vhcphn_sheet_url_' . get_current_user_id(), $url, 3600 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-sheet' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn-sheet' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 		if ( $action === 'doiten' ) {
@@ -86,7 +86,7 @@ class VHCPHN_Admin {
 			$thu = ! empty( $_POST['vhcphn_thu'] );
 			$res = VHCPHN_Upload::doi_ten_mien( $cu, $moi, $thu );
 			set_transient( 'vhcphn_doiten_res_' . get_current_user_id(), $res, 60 );
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 		if ( $action === 'xoadl' ) {
@@ -96,18 +96,18 @@ class VHCPHN_Admin {
 			} else {
 				set_transient( 'vhcphn_xoadl_' . get_current_user_id(), array( 'ok' => VHCPHN_DB::xoa_du_lieu() ), 60 );
 			}
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 		if ( $action === 'mokhoa' ) {
 			$n = VHCPHN_Auth::mo_khoa();
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp', 'vhcphn_msg' => 'mokhoa', 'vhcphn_n' => $n ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn', 'vhcphn_msg' => 'mokhoa', 'vhcphn_n' => $n ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 		if ( $action === 'flush' ) {
 			update_option( 'vhcphn_flush_rewrite', 1 );
 			VHCPHN_DB::install();
-			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp', 'vhcphn_msg' => 'flushed' ), admin_url( 'admin.php' ) ) );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcphn', 'vhcphn_msg' => 'flushed' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
 	}
@@ -151,7 +151,7 @@ class VHCPHN_Admin {
 
 		echo '<h2>Đổi tên miền trong link ảnh đã lưu</h2>';
 		echo '<p>Dùng khi đã đổi tên miền web mà ảnh hóa đơn cũ vẫn trỏ về tên miền cũ. Tích <b>Chỉ thử</b> để xem sẽ đổi bao nhiêu chỗ mà chưa ghi gì.</p>';
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcphn' ) ) . '">';
 		wp_nonce_field( 'vhcphn_doiten' );
 		echo '<input type="hidden" name="vhcphn_action" value="doiten">';
 		echo '<table class="form-table"><tr><th scope="row">Tên miền cũ</th><td><input name="vhcphn_cu" class="regular-text" placeholder="khaki-scorpion-706230.hostingersite.com"></td></tr>';
@@ -179,7 +179,7 @@ class VHCPHN_Admin {
 		echo '<p>Xóa <b>đơn · dòng chi · sổ chi phí · dự án · marketing · công tác/setup · nhật ký</b>.'
 			. ' <b>Giữ</b> cấu hình, người dùng, danh mục loại chi phí và ma trận mã — phần khai tay mất công nhất.</p>';
 		echo '<p style="color:#b32d2e"><b>Không hoàn lại được.</b> Muốn chắc thì hPanel → phpMyAdmin → Export một file .sql trước.</p>';
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcphn' ) ) . '">';
 		wp_nonce_field( 'vhcphn_xoadl' );
 		echo '<input type="hidden" name="vhcphn_action" value="xoadl">';
 		echo '<table class="form-table"><tr><th scope="row">Gõ chữ <code>XOA</code> để xác nhận</th><td>'
@@ -189,7 +189,7 @@ class VHCPHN_Admin {
 
 		echo '<h2>Bị khóa vì nhập sai PIN?</h2>';
 		echo '<p>Nhập sai 10 lần thì app khóa theo địa chỉ mạng, tự mở sau 10 phút. Không muốn chờ thì bấm đây:</p>';
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcphn' ) ) . '">';
 		wp_nonce_field( 'vhcphn_mokhoa' );
 		echo '<input type="hidden" name="vhcphn_action" value="mokhoa">';
 		submit_button( 'Mở khóa đăng nhập ngay', 'secondary', 'submit', false );
@@ -275,7 +275,7 @@ class VHCPHN_Admin {
 			}
 		}
 
-		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp-sheet' ) ) . '">';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcphn-sheet' ) ) . '">';
 		wp_nonce_field( 'vhcphn_sheet' );
 		echo '<input type="hidden" name="vhcphn_action" value="sheet">';
 		echo '<table class="form-table"><tr><th scope="row">Link bảng tính</th><td>'

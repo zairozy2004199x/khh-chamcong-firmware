@@ -488,9 +488,9 @@ class VHCPHN_Cfg {
 
 	public static function clear_cache() {
 		self::$memo = null;
-		wp_cache_delete( 'vhcphn_cfgstatic', 'vhcp' );
-		wp_cache_delete( 'vhcphn_quyen', 'vhcp' );
-		wp_cache_delete( 'vhcphn_ssomap', 'vhcp' );
+		wp_cache_delete( 'vhcphn_cfgstatic', 'vhcphn' );
+		wp_cache_delete( 'vhcphn_quyen', 'vhcphn' );
+		wp_cache_delete( 'vhcphn_ssomap', 'vhcphn' );
 		delete_transient( 'vhcphn_cfgstatic' );
 		delete_transient( 'vhcphn_quyen' );
 		delete_transient( 'vhcphn_ssomap' );
