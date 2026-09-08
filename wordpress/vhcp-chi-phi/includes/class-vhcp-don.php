@@ -322,15 +322,27 @@ class VHCP_Don {
 			$like2 = '%' . $wpdb->esc_like( $q ) . '%';
 			$tv2   = array_merge( $ma_ds, array( $like2, $like2, $like2 ) );
 			foreach ( VHCP_DB::rows( $wpdb->prepare(
-				"SELECT ma_don, noi_dung, thanh_tien FROM $tc
+				"SELECT ma_don, noi_dung, thanh_tien, thuc_mua FROM $tc
 					WHERE ma_don IN ($cho)
 					  AND ( noi_dung LIKE %s OR nhom LIKE %s OR doi_tuong LIKE %s )
 					ORDER BY stt ASC", $tv2 ) ) as $l ) {
 				$m2 = (string) $l['ma_don'];
 				if ( ! isset( $dong_khop[ $m2 ] ) ) { $dong_khop[ $m2 ] = array(); }
+				/* 🔴 SỐ HIỆN RA LÀ THỰC CHI, KHÔNG PHẢI THÀNH TIỀN.
+				   Anh Thắng 08/09/2026: *"Dòng chi khớp là lấy theo thực chi, nếu thực chi
+				   không có mới lấy theo thành tiền"*. Ảnh anh gửi có dòng "mùn cưa" thành tiền
+				   144.000 mà thực chi 114.000 — cột này đang bày 144.000, tức bày con số người
+				   ta DỰ TÍNH chứ không phải số ĐÃ TIÊU. Tra cứu bằng số dự tính thì cộng ra một
+				   tổng không khớp sổ nào.
+
+				   ⚠️ Ô THỰC CHI ĐỂ TRỐNG khác hẳn ô ghi số 0: trống = chưa ai chốt lại, nên lui
+				      về thành tiền; 0 = đã chốt và chốt là không đồng nào, phải giữ đúng 0.
+				      `blank_or_num()` phân biệt được hai thứ ấy, `num()` thì nghiền cả hai
+				      thành 0. */
+				$tm = VHCP_Util::blank_or_num( $l['thuc_mua'] );
 				$dong_khop[ $m2 ][] = array(
 					'noiDung' => trim( (string) $l['noi_dung'] ),
-					'tien'    => VHCP_Util::num( $l['thanh_tien'] ),
+					'tien'    => ( null === $tm ) ? VHCP_Util::num( $l['thanh_tien'] ) : $tm,
 				);
 			}
 		}
