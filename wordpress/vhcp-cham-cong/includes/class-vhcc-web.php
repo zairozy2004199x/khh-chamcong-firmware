@@ -729,7 +729,7 @@ class VHCC_Web {
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
 	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cbp_het',
 		'cng', 'cnv', 'ctk',
-		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq' );
+		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq', 'mloc' );
 
 	/**
 	 * BAO NHIÊU BẢNG CÔNG DỰNG SẴN KHI BẤM MỘT BỘ PHẬN.
@@ -885,6 +885,14 @@ class VHCC_Web {
 		   `VHCC_NhanSu::sua_ho_so_coso()` gác lần nữa ở tầng dưới. */
 		if ( VHCC_WebNS::la_viec( $viec ) ) {
 			return VHCC_WebNS::viec( $viec, $toi );
+		}
+
+		/* Màn Khuôn mặt cũng đứng TRƯỚC chốt dưới, nhưng vì lý do NGƯỢC với ba màn trên: việc
+		   của nó không dính gì tới hồ sơ, nên một câu chối nói về màn Hồ sơ là chỉ sai chỗ.
+		   `VHCC_WebMat::viec()` tự hỏi `ngoai_coso` ngay dòng đầu — chặt hơn chốt dưới, không
+		   lỏng hơn. */
+		if ( VHCC_WebMat::la_viec( $viec ) ) {
+			return VHCC_WebMat::viec( $viec, $toi );
 		}
 
 		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
@@ -2700,6 +2708,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'mat' === $man ) {
+			VHCC_WebMat::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		/* ===========================================================================
 		 *  "HỒ SƠ MỚI" NAY LÀ `sua=moi`, KHÔNG CÒN LÀ DẤU `+`
 		 * ---------------------------------------------------------------------------
@@ -2784,8 +2798,11 @@ class VHCC_Web {
 	   tiên, và với cửa hàng trưởng thì thứ họ mở hằng ngày là Bảng công, không phải khu nhân sự
 	   — khu nhân sự là chỗ họ vào khi CÓ VIỆC. Chen lên trước là đổi màn mở đầu của mọi người
 	   chỉ vì thêm một tab. */
+	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
+	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
+	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
 	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
-		'ns_coso', 'lich', 'may' );
+		'ns_coso', 'lich', 'may', 'mat' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -2926,6 +2943,12 @@ class VHCC_Web {
 		if ( VHCC_Vai::duoc( $toi, 'ho_so_coso' ) ) { $ds['ns_coso']  = 'Nhân sự cửa hàng'; }
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
+		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
+		   ai được duyệt: *"QUản lý và admin duyệt"*.
+		   Cửa hàng trưởng KHÔNG có mục này, dù họ nhận ra mặt người cơ sở mình nhanh hơn ai hết:
+		   thứ mẫu này canh là CHẤM HỘ, mà một lớp gác do chính người bị gác dựng lên thì không
+		   còn là lớp gác. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_WebMat::QUYEN ) ) { $ds['mat'] = 'Khuôn mặt'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
 	}
@@ -2938,7 +2961,7 @@ class VHCC_Web {
 	const MAN_BIEU = array(
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
-		'ns_coso'  => '🏪', 'coso'     => '🏬',
+		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -2953,6 +2976,7 @@ class VHCC_Web {
 		'ns_coso'  => 'Người của cửa hàng: sửa liên lạc, cấp PIN',
 		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
+		'mat'      => 'Duyệt mẫu khuôn mặt của chấm công online',
 	);
 
 	public static function bieu_man( $k )  {

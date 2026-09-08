@@ -582,7 +582,7 @@ class VHCC_Mat {
 	 */
 	public static function thong_ke( $u, $tu_ngay = '', $den_ngay = '' ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Xem thống kê đối chiếu mặt' ) ); }
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) { return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Xem thống kê đối chiếu mặt' ) ); }
 		$bang = VHCC_DB::t( 'mat_nhat_ky' );
 		$dk   = '';
 		$tv   = array();
@@ -648,6 +648,26 @@ class VHCC_Mat {
 	// ==================================================================== quản trị
 
 	/**
+	 * BẬC ĐƯỢC DUYỆT MẪU — khai MỘT chỗ, cả wp-admin lẫn màn web đều hỏi hằng này.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng, khi em hỏi ai được duyệt: *"QUản lý và admin duyệt"*.
+	 *    Trước đó bốn cửa của lớp này gác bằng `ho_so` (bậc **Kế toán**, 4), nên Quản lý (bậc 3)
+	 *    mở màn ra chỉ thấy bảng RỖNG và bấm Duyệt thì bị chối — mà không có gì nói vì sao, vì
+	 *    câu chối lại nói về "hồ sơ nhân sự", một việc chẳng liên quan.
+	 *    Nay là `ngoai_coso` (bậc **Quản lý**, 3).
+	 *
+	 * ⚠️ THANG LÀ THANG: "Quản lý trở lên" nghĩa là Quản lý (3), Kế toán (4), Admin (5). Không
+	 *    có cách nào khai "Quản lý và Admin nhưng KHÔNG Kế toán" mà không phá thang — và phá
+	 *    thang là mở đường cho những tổ hợp quyền không ai giải thích nổi (xem chú thích ở
+	 *    `VHCC_Vai::NGOAI_LE`). Kế toán vốn là bậc *"full quyền ngoài admin"*, nên nằm trong là
+	 *    đúng ý chứ không phải nới lỏng.
+	 * ⚠️ Cửa hàng trưởng (2) ĐỨNG NGOÀI, và đó là cả điểm của lớp này: thứ mẫu khuôn mặt canh là
+	 *    CHẤM HỘ, mà người đứng gần chuyện chấm hộ nhất chính là người ở cửa hàng. Một lớp gác do
+	 *    chính người bị gác dựng lên thì không còn là lớp gác.
+	 */
+	const QUYEN = 'ngoai_coso';
+
+	/**
 	 * TẤM ẢNH ĐÃ SINH RA MẪU NÀY — để màn duyệt còn có cái mà xem.
 	 *
 	 * 🔴 08/09/2026 — anh Thắng: *"trên web quản trị chưa có phần duyệt khuôn mặt này (cần hiện
@@ -711,7 +731,7 @@ class VHCC_Mat {
 	 */
 	public static function ds( $u, $trang_thai = '', $kem_anh = true ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array(); }
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) { return array(); }
 		$bang = VHCC_DB::t( 'mat_mau' );
 		$hs   = VHCC_DB::t( 'nhan_vien' );
 		/* ⚠️ `anh_the` là LONGTEXT chứa data URI (~50–80 KB mỗi ảnh), nên CHỈ lấy khi màn hình
@@ -741,8 +761,8 @@ class VHCC_Mat {
 
 	public static function duyet( $u, $ma_nv ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Duyệt mẫu khuôn mặt' ) );
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Duyệt mẫu khuôn mặt' ) );
 		}
 		$ma = trim( (string) $ma_nv );
 		if ( ! self::mau( $ma ) ) { return array( 'ok' => false, 'error' => 'Không thấy mẫu của mã ' . $ma . '.' ); }
@@ -759,8 +779,8 @@ class VHCC_Mat {
 	 */
 	public static function xoa( $u, $ma_nv ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Xoá mẫu khuôn mặt' ) );
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Xoá mẫu khuôn mặt' ) );
 		}
 		$ma = trim( (string) $ma_nv );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã NV.' ); }

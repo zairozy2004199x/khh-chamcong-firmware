@@ -1,6 +1,13 @@
 # Duyệt mẫu khuôn mặt — màn `Khuôn mặt` trong wp-admin
 
-`admin.php?page=vhcc-mat`. Bản **3.49.0** (08/09/2026) là bản đầu tiên màn này **hiện ảnh ra**.
+Có ở **hai nơi**, cùng một dữ liệu:
+
+| Ở đâu | Đường vào | Ai vào được |
+|---|---|---|
+| **Web quản trị** (3.50.0) | `/quan-tri-cham-cong/?man=mat` — mục **🙂 Khuôn mặt** ở cột dọc | **Quản lý trở lên**, đăng nhập bằng PIN |
+| wp-admin (3.49.0) | `admin.php?page=vhcc-mat` — menu **Chấm công → Khuôn mặt** | phải có tài khoản WordPress |
+
+Bản **3.49.0** là bản đầu tiên màn này **hiện ảnh ra**; **3.50.0** đưa nó ra web.
 
 ---
 
@@ -43,7 +50,32 @@ thay vào là cho người ta xem nhầm ảnh rồi kết luận về một lư
 
 ---
 
-## 3. Ba cái bẫy trong đợt này
+## 2b. Ai được duyệt — và vì sao (3.50.0)
+
+Anh Thắng 08/09/2026, khi em hỏi: *"QUản lý và admin duyệt"*.
+
+Việc duyệt trước đó nằm sau cửa **wp-admin**, mà Quản lý của chuỗi đăng nhập bằng **PIN** vào
+`/quan-tri-cham-cong/` — không ai phát cho họ tài khoản WordPress. Nên hàng chờ cứ dài ra, mà
+**mẫu chưa duyệt vẫn được dùng để so**.
+
+Gác bằng `VHCC_Mat::QUYEN` = **`ngoai_coso`** (bậc **Quản lý**, 3). Khai **một hằng**, cả hai màn
+cùng hỏi nó.
+
+⚠️ **Thang là thang.** "Quản lý trở lên" gồm cả **Kế toán** (bậc 4) đứng giữa. Không có cách nào
+khai *"Quản lý và Admin nhưng KHÔNG Kế toán"* mà không phá thang năm bậc — và Kế toán vốn là bậc
+*"full quyền ngoài admin"*, nên nằm trong là đúng ý chứ không phải nới lỏng.
+
+🔴 **Cửa hàng trưởng (bậc 2) đứng ngoài, và đó là cả điểm của lớp này.** Họ nhận ra mặt người cơ
+sở mình nhanh hơn ai hết — nhưng thứ mẫu này canh là **chấm hộ**, mà người đứng gần chuyện chấm
+hộ nhất chính là người ở cửa hàng. Một lớp gác do chính người bị gác dựng lên thì không còn là
+lớp gác.
+
+Gác ở **cả hai chỗ**: lúc vẽ màn và lúc nhận POST. Chỉ gác lúc vẽ thì ai đoán ra tên `viec` là
+gửi thẳng POST được — mà `mat_duyet_het` duyệt sạch cả hàng chờ trong một lượt.
+
+---
+
+## 3. Bốn cái bẫy trong đợt này
 
 **1. `esc_url()` NUỐT `data:`.** Ảnh thẻ lưu dạng data URI. WordPress chỉ cho qua một danh sách
 giao thức, và `data` không có trong đó — `esc_url('data:image/...')` trả về **chuỗi rỗng**. Ảnh
@@ -58,7 +90,13 @@ chỗ nào khác vấp — tức là chưa từng có chỗ nào dựa vào cái
 khuôn `^data:image/(jpeg|png|webp|gif);base64,…$`, và **chối thì phải nói ra** ("Ảnh thẻ hỏng
 khuôn"), không im lặng bỏ qua.
 
-**3. Ảnh thẻ là LONGTEXT ~60 KB mỗi người.** `VHCC_Mat::ds()` nhận thêm tham số `$kem_anh`; lượt
+**3. HAI LỚP GÁC HAI BẬC KHÁC NHAU = HỎNG IM LẶNG.** Bản đầu của màn web để `ngoai_coso` trong
+khi `VHCC_Mat::ds()/duyet()/xoa()` vẫn gác `ho_so` (bậc Kế toán). Quản lý **mở được màn** mà bảng
+thì **rỗng**, bấm Duyệt thì **bị chối** — và câu chối lại nói về *"hồ sơ nhân sự"*, một việc chẳng
+liên quan. Phép thử bắt được vì nó đo **cả hai đầu**: màn có hiện không, *và* trạng thái trong sổ
+có đổi thật không. Nay là **một hằng** `VHCC_Mat::QUYEN`, màn web mượn thẳng.
+
+**4. Ảnh thẻ là LONGTEXT ~60 KB mỗi người.** `VHCC_Mat::ds()` nhận thêm tham số `$kem_anh`; lượt
 chỉ đếm mã (nút *Duyệt tất cả*) gọi với `false`, không kéo về vài megabyte cho một vòng lặp đếm.
 
 ---
@@ -71,9 +109,12 @@ chỉ đếm mã (nút *Duyệt tất cả*) gọi với `false`, không kéo v�
 | Danh sách mẫu (kèm/không kèm ảnh) | `class-vhcc-mat.php` · `ds( $u, $trang_thai, $kem_anh )` |
 | Ô ảnh hai tấm trên màn duyệt | `class-vhcc-man.php` · `o_anh_mau()`, `khoi_anh_()` |
 | Đường dẫn tương đối -> URL | `class-vhcc-man.php` · `url_anh_cham()` |
-| Phép thử (17 phép) | `tools/test/kiem-mat.php` mục **13** |
+| Màn Khuôn mặt trên WEB | `class-vhcc-web-mat.php` (`VHCC_WebMat`) |
+| Bậc được duyệt — khai một chỗ | `class-vhcc-mat.php` · hằng `QUYEN` |
+| Phép thử wp-admin (17 phép) | `tools/test/kiem-mat.php` mục **13** |
+| Phép thử màn web (23 phép) | `tools/test/test-cham-cong.php`, cuối tệp |
 
-⚠️ `url_anh_cham()` có **hai bản** — một ở `VHCC_Man`, một ở `VHCC_Web` — vì hai lớp không gọi
-chéo được vào hàm private của nhau. Đổi cách lưu ảnh chấm công thì phải sửa **cả hai**.
+⚠️ Hàm đổi đường dẫn ảnh -> URL có **ba bản** — `VHCC_Man`, `VHCC_Web`, `VHCC_WebMat` — vì ba lớp
+không gọi chéo được vào hàm private của nhau. Đổi cách lưu ảnh chấm công thì phải sửa **cả ba**.
 
 ⚠️ Màn này **không có `<script>`**; mọi thứ là HTML + CSS nội tuyến.

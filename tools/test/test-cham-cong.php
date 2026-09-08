@@ -18941,6 +18941,126 @@ $r_nv_tr = VHCC_NhanSu::xoa_sach_coso(
 t( '🔴 Nhân viên không xoá sạch được', empty( $r_nv_tr['ok'] )
 	&& isset( $r_nv_tr['error'] ) && strpos( $r_nv_tr['error'], 'Xoá sạch cơ sở' ) !== false, $r_nv_tr );
 
+/* ===================================================================================
+ *  MÀN KHUÔN MẶT TRÊN WEB — 08/09/2026
+ * -----------------------------------------------------------------------------------
+ *  🔴 Anh Thắng: *"trên wed có chỗ duyệt đó chưa"* — chưa; việc duyệt mẫu nằm sau cửa
+ *  wp-admin, mà Quản lý của chuỗi đăng nhập bằng PIN chứ không có tài khoản WordPress.
+ *  Rồi anh chốt ai được duyệt: *"QUản lý và admin duyệt"*.
+ * =================================================================================== */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'WM1', 'ho_ten' => 'Người Chờ Duyệt',
+	'cua_hang' => 'TUTU_BT', 'anh_the' => 'data:image/jpeg;base64,QUJDREVGR0g=' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-09-02',
+	'ma_nv' => 'WM1', 'hau_to' => '', 'ho_ten' => 'Người Chờ Duyệt',
+	'anh_vao' => 'vhcc-cham/2026/09/wm1.jpg', 'anh_ra' => '' ) );
+$wpdb->insert( VHCC_DB::t( 'mat_mau' ), array( 'ma_nv' => 'WM1', 'vector' => '[0.2]', 'so_lan' => 1,
+	'trang_thai' => 'cho', 'nguon_ngay' => '2026-09-02', 'nguon_coso' => 'TUTU_BT',
+	'cap_nhat' => '2026-09-02 09:00:00' ) );
+
+/* ---- ai THẤY tab, ai không ---- */
+$h_qt = vhcc_web_nhu2( 'WMQL', 'Quản lý', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( '🔴 Quản lý thấy màn Khuôn mặt', strpos( $h_qt, 'Mẫu khuôn mặt' ) !== false, substr( $h_qt, -1200 ) );
+t( 'và tab có mặt trong cột dọc', strpos( $h_qt, 'man=mat' ) !== false );
+$h_ad = vhcc_web_nhu2( 'WMAD', 'Admin', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( '🔴 Admin cũng thấy', strpos( $h_ad, 'Mẫu khuôn mặt' ) !== false );
+
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG DUYỆT. Họ nhận ra mặt người cơ sở mình nhanh hơn ai hết — nhưng thứ
+   mẫu này canh là CHẤM HỘ, mà một lớp gác do chính người bị gác dựng lên thì không còn là lớp
+   gác. Đo CẢ HAI đầu: gõ thẳng `?man=mat` lên thanh địa chỉ cũng không vào được. */
+$h_cht = vhcc_web_nhu2( 'WMCHT', 'Cửa hàng trưởng', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( 'trang có dựng thật cho Cửa hàng trưởng', strpos( $h_cht, 'K&amp;H' ) !== false
+	|| strpos( $h_cht, 'Chấm công' ) !== false, substr( $h_cht, 0, 400 ) );
+t( '🔴 Cửa hàng trưởng KHÔNG thấy bảng mẫu', strpos( $h_cht, 'Mẫu khuôn mặt' ) === false );
+/* 🔴 GÕ THẲNG `?man=mat` cũng không vào được — và không phải nhờ một phép gác thứ hai: danh
+   sách vẽ tab CHÍNH LÀ danh sách gác (`man_cua()`), nên không có cửa sau nào để quên. Trang rơi
+   về màn mặc định của họ, chứ không phải trang trắng. */
+t( 'gõ thẳng ?man=mat thì rơi về màn khác, không có tab Khuôn mặt trong cột dọc',
+	strpos( $h_cht, 'man=mat' ) === false, substr( $h_cht, 0, 300 ) );
+/* ⚠️ THANG LÀ THANG. Anh Thắng nói *"Quản lý và admin duyệt"*, mà trên thang năm bậc thì "Quản
+   lý trở lên" gồm cả Kế toán (bậc 4) đứng giữa. Không có cách nào khai "Quản lý và Admin nhưng
+   KHÔNG Kế toán" mà không phá thang — và Kế toán vốn là bậc *"full quyền ngoài admin"*, nên nằm
+   trong là đúng ý chứ không phải nới lỏng. Phép thử ghi lại đúng điều đó, để bản sau không ai
+   "sửa" nó thành một ngoại lệ rời. */
+$h_kt = vhcc_web_nhu2( 'WMKT', 'Kế toán', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( 'Kế toán đứng trên Quản lý trên thang nên cũng thấy', strpos( $h_kt, 'Mẫu khuôn mặt' ) !== false );
+$h_nv = vhcc_web_nhu2( 'WMNV', 'Nhân viên', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( '🔴 Nhân viên KHÔNG thấy', strpos( $h_nv, 'Mẫu khuôn mặt' ) === false );
+t( 'nhưng trang vẫn dựng thật cho họ', strpos( $h_nv, 'Chấm công' ) !== false );
+
+/* ---- ẢNH: cả hai tấm phải hiện ra, đây là lý do màn này tồn tại ---- */
+t( '🔴 hiện ảnh của tấm đã sinh ra mẫu',
+	strpos( $h_qt, 'vhcc-cham/2026/09/wm1.jpg' ) !== false, substr( $h_qt, -1500 ) );
+t( 'và ghi rõ đó là tấm gốc', strpos( $h_qt, 'Tấm đã sinh ra mẫu' ) !== false );
+/* 🔴 BẪY `esc_url` NUỐT DATA URI — WordPress không cho `data` qua danh sách giao thức, nên
+   `esc_url($anh_the)` trả CHUỖI RỖNG và ảnh biến mất im lặng. */
+t( '🔴 ảnh thẻ (data URI) sống sót qua lớp thoát chuỗi',
+	strpos( $h_qt, 'data:image/jpeg;base64,QUJDREVGR0g=' ) !== false, substr( $h_qt, -1500 ) );
+t( 'và có nhãn nói đó là bản đối chứng',
+	strpos( $h_qt, 'Ảnh thẻ trong hồ sơ' ) !== false );
+
+/* 🔴 MỖI DÒNG MỘT <form> RIÊNG — gộp cả bảng thì mọi ô ẩn `mat_ma` cùng lên và máy chủ đọc cái
+   CUỐI: bấm Xoá ở dòng đầu lại xoá mẫu dòng cuối. */
+t( 'mỗi dòng mẫu có form riêng',
+	substr_count( $h_qt, '<form method="post"' ) >= substr_count( $h_qt, 'name="mat_ma"' )
+	&& substr_count( $h_qt, 'name="mat_ma"' ) > 0 );
+
+/* ---- POST: gác ở CỬA GHI, không chỉ ở chỗ vẽ nút ---- */
+function vhcc_web_post_nhu( $ma_nv, $vai, $coso, $post ) {
+	$tok = VHCC_Auth::phat_token( 'Người Thử', $vai, $coso, $ma_nv );
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	$_POST = array_merge( array( 'ky' => VHCC_Web::chu_ky( $tok ) ), $post );
+	$_GET  = array();
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_COOKIE = array(); $_GET = array();
+	return $h;
+}
+$h_p = vhcc_web_post_nhu( 'WMCHT', 'Cửa hàng trưởng', 'TUTU_BT',
+	array( 'viec' => 'mat_duyet', 'mat_ma' => 'WM1' ) );
+t( '🔴 Cửa hàng trưởng gửi thẳng POST cũng bị chối',
+	'cho' === VHCC_Mat::mau( 'WM1' )['trang_thai'], $h_p );
+/* ⚠️ Câu chối đi qua transient rồi mới vẽ ở lượt GET sau (mẫu POST → REDIRECT → GET), nên soi
+   thẳng cửa ghi thay vì soi trang — soi trang ở đây là soi nhầm lượt. */
+$r_cht = VHCC_WebMat::viec( 'mat_duyet',
+	array( 'name' => 'Anh CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ) );
+t( 'và câu chối nói đúng bậc cần có',
+	isset( $r_cht[0]['loi'] ) && strpos( $r_cht[0]['loi'], 'Quản lý / Admin' ) !== false, $r_cht );
+t( 'câu chối nói cả LÝ DO, không chỉ nói không',
+	isset( $r_cht[0]['loi'] ) && strpos( $r_cht[0]['loi'], 'chấm hộ' ) !== false, $r_cht );
+
+$h_p = vhcc_web_post_nhu( 'WMQL', 'Quản lý', 'TUTU_BT',
+	array( 'viec' => 'mat_duyet', 'mat_ma' => 'WM1' ) );
+t( '🔴 Quản lý bấm Duyệt trên web thì mẫu đổi trạng thái thật',
+	'duyet' === VHCC_Mat::mau( 'WM1' )['trang_thai'], $h_p );
+
+$h_p = vhcc_web_post_nhu( 'WMQL', 'Quản lý', 'TUTU_BT',
+	array( 'viec' => 'mat_xoa', 'mat_ma' => 'WM1' ) );
+t( '🔴 và Xoá mẫu cũng chạy', null === VHCC_Mat::mau( 'WM1' ) );
+
+/* Ảnh gốc không còn -> phải BÁO RÕ ngay trên ảnh, không lặng lẽ đưa tấm khác cho người ta
+   xác nhận. */
+$wpdb->insert( VHCC_DB::t( 'mat_mau' ), array( 'ma_nv' => 'WM1', 'vector' => '[0.2]', 'so_lan' => 1,
+	'trang_thai' => 'cho', 'nguon_ngay' => null, 'nguon_coso' => '',
+	'cap_nhat' => '2026-09-02 09:00:00' ) );
+$h_v = vhcc_web_nhu2( 'WMQL', 'Quản lý', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( '🔴 không phải tấm gốc thì báo rõ ngay trên ảnh',
+	strpos( $h_v, 'KHÔNG phải tấm gốc' ) !== false, substr( $h_v, -1500 ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='WM1'" );
+$h_0 = vhcc_web_nhu2( 'WMQL', 'Quản lý', 'TUTU_BT', array( 'man' => 'mat' ) );
+t( '🔴 không còn ảnh nào thì nói thẳng và bảo Xoá mẫu, không để ô trống',
+	strpos( $h_0, 'Không còn ảnh' ) !== false && strpos( $h_0, 'Đừng duyệt mò' ) !== false,
+	substr( $h_0, -1500 ) );
+
+/* ⚠️ Màn quản trị KHÔNG có <script> — luật của cả trang, và màn mới không được phá. */
+$src_wm = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web-mat.php' );
+t( '🔴 màn Khuôn mặt trên web không có thẻ <script>', strpos( $src_wm, '<script' ) === false );
+t( 'và ảnh thẻ KHÔNG đi qua esc_url (nó nuốt data:)',
+	preg_match( '#esc_url\(\s*\$src#', $src_wm ) === 1
+	&& strpos( $src_wm, 'esc_attr( $src )' ) !== false, 'phải có cả hai nhánh' );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv='WM1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='WM1'" );
+
 vhcc_dung_bang();
 
 
