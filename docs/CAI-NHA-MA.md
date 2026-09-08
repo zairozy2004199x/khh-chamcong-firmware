@@ -8,6 +8,9 @@
 | `khmatrix.com/ban-ve-nha-ma/#quanly` | **Nhân viên** — 6 màn, gác bằng PIN (mặc định `246810`) |
 | `khmatrix.com/nha-ma-tien?token=…` | **Ngân hàng** bắn tiền về (SePay / Casso / Tingo) |
 
+Hai trang đầu **hiện sẵn ở Cổng K&H và trên thanh nút trang Nội bộ** — hai ô riêng: *Bán Vé Nhà Ma*
+(gửi cho khách) và *Quản Trị Vé Nhà Ma* (nhân viên). Cần plugin **Cổng K&H từ bản 1.6.0**.
+
 Sổ vé nằm trong **MySQL của chính website** — không Google Sheet, không Firebase. Mọi máy chung
 một sổ, nên khách tự đặt từ điện thoại của họ được.
 

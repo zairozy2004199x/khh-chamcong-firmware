@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA, trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.3.0';
+	const VER  = '1.4.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -184,6 +184,20 @@ class NHAMA {
 		$s = (string) get_option( 'nhama_slug', 'ban-ve-nha-ma' );
 		return $s !== '' ? $s : 'ban-ve-nha-ma';
 	}
+	/**
+	 * Đường dẫn trang khách và trang quản trị.
+	 *
+	 * 🔴 CÔNG KHAI RA NGOÀI để trang Cổng K&H (`VHTC_Trang::ds_app`) lấy được — bên ấy CỐ Ý không
+	 *    gõ lại địa chỉ của app nào, vì gõ lại là sớm muộn hai nơi lệch, mà lệch thì bấm vào ra
+	 *    404 chứ không có gì báo. Đổi slug ở đây là mọi nút bấm bên kia tự theo.
+	 */
+	public static function url() {
+		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug() . '/' ); }
+		return add_query_arg( 'nhama', '1', home_url( '/' ) );
+	}
+	/** Trang quản trị = cùng trang, khác dấu neo. Gác PIN nằm ở máy chủ, không nằm ở đường dẫn. */
+	public static function url_ql() { return self::url() . '#quanly'; }
+
 	public static function t() { global $wpdb; return $wpdb->prefix . self::BANG; }
 	public static function t_tien() { global $wpdb; return $wpdb->prefix . 'nhama_tien'; }
 	public static function khoa_tien() {

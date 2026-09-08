@@ -114,6 +114,26 @@ class VHTC_Trang {
 				'url'   => ( $co( 'VHDA_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ) )
 					? VHDA_Trang::url() : '',
 			),
+			/* NHÀ MA — hai ô, cố ý tách đôi.
+			   🔴 Trang khách và trang quản trị là HAI VIỆC KHÁC HẲN NHAU của hai người khác hẳn
+			      nhau: một cái để gửi cho khách, một cái để nhân viên duyệt tiền và soát vé. Gộp
+			      làm một ô thì người trực quầy bấm vào lại ra trang bán hàng, còn ai định gửi link
+			      cho khách thì phải nhớ tự thêm `#quanly` — nhớ nhầm một lần là gửi cho khách đúng
+			      cái màn hình có PIN. */
+			array(
+				'ten'   => 'Bán Vé Nhà Ma',
+				'mo_ta' => 'Trang KHÁCH đặt vé theo khung giờ — gửi đường dẫn này cho khách',
+				'icon'  => '🎟',
+				'co'    => $co( 'NHAMA', 'url' ),
+				'url'   => $co( 'NHAMA', 'url' ) ? NHAMA::url() : '',
+			),
+			array(
+				'ten'   => 'Quản Trị Vé Nhà Ma',
+				'mo_ta' => 'Duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về — gác bằng PIN',
+				'icon'  => '👻',
+				'co'    => $co( 'NHAMA', 'url_ql' ),
+				'url'   => $co( 'NHAMA', 'url_ql' ) ? NHAMA::url_ql() : '',
+			),
 			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',

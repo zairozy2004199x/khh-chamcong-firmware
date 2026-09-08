@@ -303,6 +303,56 @@ t( 'màn Cài đặt có ô "Dùng làm trang chủ"', strpos( $ad_ma2, 'Dùng l
 t( 'và trấn an rằng bật nhầm vẫn vào được wp-admin để tắt',
 	strpos( $ad_ma2, 'Bật nhầm không sao' ) !== false );
 
+// ================================================================== Nhà ma: hai ô, không phải một
+/* =============================================================================================
+ * 🔴 TRANG KHÁCH VÀ TRANG QUẢN TRỊ PHẢI LÀ HAI Ô RIÊNG
+ * =============================================================================================
+ * Hai việc khác hẳn nhau của hai người khác hẳn nhau: một cái để GỬI CHO KHÁCH, một cái để nhân
+ * viên duyệt tiền và soát vé. Gộp làm một ô thì người trực quầy bấm vào lại ra trang bán hàng,
+ * còn ai định gửi link cho khách thì phải nhớ tự thêm `#quanly` — nhớ nhầm một lần là gửi cho
+ * khách đúng cái màn hình có PIN.
+ * =========================================================================================== */
+$t_nm = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t_nm[ $a['ten'] ] = $a; }
+t( 'Cổng K&H có ô "Bán Vé Nhà Ma"', isset( $t_nm['Bán Vé Nhà Ma'] ) );
+t( 'và ô "Quản Trị Vé Nhà Ma" RIÊNG', isset( $t_nm['Quản Trị Vé Nhà Ma'] ) );
+/* Chưa cài plugin nhà ma thì hai ô ấy phải XÁM, không dựng đường dẫn đoán: một liên kết chết
+   trông y hệt một liên kết sống cho tới lúc bấm vào. */
+t( 'chưa cài plugin nhà ma -> ô bán vé xám', false === $t_nm['Bán Vé Nhà Ma']['co'] );
+t( 'chưa cài plugin nhà ma -> ô quản trị cũng xám', false === $t_nm['Quản Trị Vé Nhà Ma']['co'] );
+t( 'và KHÔNG dựng đường dẫn đoán', '' === $t_nm['Bán Vé Nhà Ma']['url']
+	&& '' === $t_nm['Quản Trị Vé Nhà Ma']['url'] );
+
+/* Cài plugin nhà ma vào rồi soi lại. */
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	function register_activation_hook( $a, $b ) { return true; }
+}
+if ( ! function_exists( 'register_rest_route' ) ) {
+	function register_rest_route( $a, $b, $c = array() ) { return true; }
+}
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( $u, $p = -1 ) { return parse_url( $u, $p ); }
+}
+require_once $goc . '/wordpress/vhcp-nha-ma/vhcp-nha-ma.php';
+$GLOBALS['VHCP_OPT']['permalink_structure'] = '/%postname%/';
+$t_nm2 = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t_nm2[ $a['ten'] ] = $a; }
+t( 'cài rồi -> ô bán vé sáng', true === $t_nm2['Bán Vé Nhà Ma']['co'] );
+t( 'cài rồi -> ô quản trị sáng', true === $t_nm2['Quản Trị Vé Nhà Ma']['co'] );
+t( 'ô bán vé trỏ vào trang khách', substr( $t_nm2['Bán Vé Nhà Ma']['url'], -15 ) === '/ban-ve-nha-ma/',
+	$t_nm2['Bán Vé Nhà Ma']['url'] );
+/* 🔴 Ô quản trị PHẢI mang dấu neo #quanly — thiếu nó là nhân viên bấm vào ra trang bán hàng. */
+t( 'ô quản trị mang dấu neo #quanly',
+	substr( $t_nm2['Quản Trị Vé Nhà Ma']['url'], -7 ) === '#quanly',
+	$t_nm2['Quản Trị Vé Nhà Ma']['url'] );
+t( 'hai ô trỏ hai đường khác nhau',
+	$t_nm2['Bán Vé Nhà Ma']['url'] !== $t_nm2['Quản Trị Vé Nhà Ma']['url'] );
+
+/* Thanh nút của trang Nội bộ đọc thẳng bảng này — phép thử cho chỗ ấy nằm ở
+   `kiem-noi-bo.php`, nơi nạp VHNB_Trang THẬT. Ở bài này VHNB_Trang chỉ là lớp giả có mỗi url(),
+   nên viết ở đây thì khối kiểm không bao giờ chạy — mà một khối kiểm không chạy còn tệ hơn
+   không có, vì nó cho cảm giác đã canh rồi. */
+
 if ( count( $truot ) ) {
 	echo 'HỎNG: ' . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

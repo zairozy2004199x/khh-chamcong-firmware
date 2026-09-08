@@ -1387,7 +1387,28 @@ t( 'nạp được plugin Cổng K&H', class_exists( 'VHTC_Trang' ) && method_ex
 $_ds_ch = VHNB_Trang::ds_trang_khac();
 $_map   = array();
 foreach ( $_ds_ch as $_x ) { $_map[ $_x['ten'] ] = $_x['url']; }
+/* Nạp plugin nhà ma THẬT (một tệp, tự chứa) để bảng trang có hai ô của nó — dựng lớp giả thì
+   phép thử chỉ canh cái lớp giả, không canh cái chạy thật. */
+if ( ! function_exists( 'register_activation_hook' ) ) {
+	function register_activation_hook( $a, $b ) { return true; }
+}
+if ( ! function_exists( 'register_rest_route' ) ) {
+	function register_rest_route( $a, $b, $c = array() ) { return true; }
+}
+if ( ! function_exists( 'wp_parse_url' ) ) {
+	function wp_parse_url( $u, $p = -1 ) { return parse_url( $u, $p ); }
+}
+require_once $goc . '/wordpress/vhcp-nha-ma/vhcp-nha-ma.php';
+$_ds_ch = VHNB_Trang::ds_trang_khac();
+$_map   = array();
+foreach ( $_ds_ch as $_x ) { $_map[ $_x['ten'] ] = $_x['url']; }
+
 t( '🔴 đọc bảng trang -> CÓ Ghế Massage', isset( $_map['Ghế Massage'] ), array_keys( $_map ) );
+/* Nhà ma: thêm MỘT mục ở bảng trang của Cổng K&H là nút hiện ra ở đây — đúng cái luật "không gõ
+   tay từng nút" mà khối này sinh ra để canh. Hai ô riêng: trang KHÁCH để gửi cho khách, trang
+   QUẢN TRỊ để nhân viên duyệt tiền; gộp một ô là gửi nhầm cho khách cái màn hình có PIN. */
+t( 'và có Bán Vé Nhà Ma', isset( $_map['Bán Vé Nhà Ma'] ), array_keys( $_map ) );
+t( 'và có Quản Trị Vé Nhà Ma RIÊNG', isset( $_map['Quản Trị Vé Nhà Ma'] ), array_keys( $_map ) );
 t( 'và có Chấm Công',        isset( $_map['Chấm Công'] ), array_keys( $_map ) );
 t( 'và có Vận Hành Chi Phí', isset( $_map['Vận Hành Chi Phí'] ), array_keys( $_map ) );
 /* 🔴 BỎ CHÍNH TRANG NÀY RA. Bảng trang có mục "Nội Bộ" — một cái nút trỏ về đúng trang đang
