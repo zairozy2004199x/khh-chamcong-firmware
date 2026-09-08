@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.15.0
+ * Version:           1.16.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -652,6 +652,7 @@ class POSH_Ve {
 			'hero_phu' => 'Mua vé trước – nhận mã QR – vào cửa nhanh, không xếp hàng',
 			'anh_nen'  => '',                              // ảnh nền hero (URL). Trống = nền gradient vàng
 			'bang_ron' => '',                              // banner carousel: các URL ảnh, cách nhau dấu phẩy
+			'an_theme' => '1',                             // 1 = ẩn header/footer mặc định của theme cho gọn
 		), $atts, 'posh_ve' );
 		$bangron = array_values( array_filter( array_map( 'trim', explode( ',', (string) $atts['bang_ron'] ) ) ) );
 		$rest = esc_url_raw( rest_url( self::NS ) );
@@ -669,6 +670,16 @@ class POSH_Ve {
 
 		ob_start();
 		?>
+		<?php if ( $atts['an_theme'] ) : ?>
+		<style id="pve-an-theme">
+		.wp-site-blocks > header.wp-block-template-part, .wp-site-blocks > footer.wp-block-template-part,
+		header.wp-block-template-part, footer.wp-block-template-part,
+		#masthead, #colophon, .site-header, .site-footer, .wp-block-site-title,
+		.wp-block-post-title, .entry-header, header.entry-header { display:none !important; }
+		.wp-site-blocks, .entry-content, .wp-block-group, main, .wp-block-post-content { margin-top:0 !important; padding-top:0 !important; }
+		body { margin:0 !important; }
+		</style>
+		<?php endif; ?>
 		<div class="pve-page">
 		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(180,120,10,.55),rgba(140,90,10,.75)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
 			<div class="pve-hero-in">
