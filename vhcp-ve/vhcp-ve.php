@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.30.0
+ * Version:           1.31.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1629,7 +1629,8 @@ class POSH_Ve {
 
 		<style>
 		.pql{ --g:#d4af37; --g2:#e7cd7a; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c;
-			max-width:820px; margin:0 auto; padding:16px; background:#0b0c10; color:var(--tx); min-height:60vh;
+			box-sizing:border-box; width:100vw; margin-left:calc(50% - 50vw); min-height:100vh;
+			padding:24px max(16px, calc(50vw - 430px)) 56px; background:#0b0c10; color:var(--tx);
 			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 		.pql *{ box-sizing:border-box; }
 		.pql-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
