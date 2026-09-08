@@ -4865,7 +4865,7 @@ t( '🔴 và không còn đường lưu nào trên màn đó', strpos( $h_them, 
 t( 'nói rõ tạo hồ sơ chỉ có một cửa',
 	strpos( $h_them, 'Tạo hồ sơ mới làm ở một cửa duy nhất' ) !== false );
 t( 'kèm link mở đúng biểu mẫu đó', strpos( $h_them, 'man=ho_so' ) !== false
-	&& strpos( $h_them, 'sua=%2B' ) !== false );
+	&& strpos( $h_them, 'sua=moi' ) !== false );
 t( 'và nêu ba thứ chỉ cửa kia có: ảnh thẻ · đẩy máy · mẫu khuôn mặt',
 	strpos( $h_them, 'ảnh thẻ' ) !== false && strpos( $h_them, 'đẩy xuống máy chấm công' ) !== false
 	&& strpos( $h_them, 'mẫu đối chiếu khuôn mặt' ) !== false );
@@ -6335,8 +6335,8 @@ $h_tm = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( '🔴 màn Hồ sơ có THẺ RIÊNG "Tạo nhân sự mới"',
 	strpos( $h_tm, '➕ Tạo nhân sự mới' ) !== false, $h_tm );
 t( 'và nút mở thẳng biểu mẫu', strpos( $h_tm, 'Mở biểu mẫu tạo nhân sự mới' ) !== false );
-t( 'nút trỏ đúng cửa duy nhất (man=ho_so & sua=+)',
-	strpos( $h_tm, 'man=ho_so' ) !== false && strpos( $h_tm, 'sua=%2B' ) !== false );
+t( 'nút trỏ đúng cửa duy nhất (man=ho_so & sua=moi)',
+	strpos( $h_tm, 'man=ho_so' ) !== false && strpos( $h_tm, 'sua=moi' ) !== false );
 /* Kê sẵn các ô sẽ phải khai — đọc là biết mình sắp điền gì, khỏi mở ra rồi đóng lại. */
 t( 'thẻ kê ra các ô sẽ khai (ảnh thẻ · lương · PIN)',
 	strpos( $h_tm, 'ảnh thẻ' ) !== false && strpos( $h_tm, 'lương cơ bản' ) !== false
@@ -6353,6 +6353,37 @@ t( 'và trên thẻ Tài khoản đăng nhập', false !== $vt_tk && $vt_tm < $v
 /* Vẫn CHỈ MỘT cửa: thẻ mới không được dựng thêm một biểu mẫu tạo thứ hai. */
 t( '🔴 thẻ mới chỉ là ĐƯỜNG VÀO, không phải biểu mẫu thứ hai',
 	strpos( $h_tm, 'name="ma_nv"' ) === false );
+
+/* ===== BẤM NÚT MÀ TRANG VẼ LẠI Y NGUYÊN — dấu `+` trong địa chỉ (08/09/2026) ==================
+   🔴 Anh Thắng, sau khi cài 3.43.0: *"đã hiện, nhưng bấm cũng không chạy"*.
+   Mã lệnh "hồ sơ mới" trước đây là DẤU `+`. Liên kết sinh ra đúng (`sua=%2B`), nhưng chỉ cần một
+   chặng trả `%2B` về `+` nguyên hình là PHP đọc nó thành DẤU CÁCH, `sanitize_text_field` cắt còn
+   rỗng, chốt `'' !== $sua` thành sai — và màn danh sách hiện lại như chưa bấm gì. KHÔNG một dòng
+   báo lỗi nào, nên nhìn vào chỉ thấy "nút không chạy".
+   Nay mã lệnh là chữ `moi`, và vẫn nhận hai dạng cũ để ai giữ liên kết cũ không gặp lại đúng cái
+   hỏng im lặng ấy. */
+function vhcc_co_form_moi( $sua ) {
+	$h = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => $sua ) );
+	return false !== strpos( $h, 'name="ma_nv" required' );
+}
+t( '🔴 sua=moi ra biểu mẫu tạo hồ sơ', vhcc_co_form_moi( 'moi' ) );
+t( 'liên kết CŨ sua=+ vẫn ra biểu mẫu (dấu trang đã lưu vẫn chạy)', vhcc_co_form_moi( '+' ) );
+t( '🔴 dấu + bị dập thành DẤU CÁCH: ra biểu mẫu, KHÔNG im lặng vẽ lại danh sách',
+	vhcc_co_form_moi( ' ' ) );
+t( 'và sua= rỗng (cũng là dấu + bị dập) cũng ra biểu mẫu', vhcc_co_form_moi( '' ) );
+/* ⚠️ Nhưng KHÔNG có khoá `sua` thì phải là màn danh sách. Nới quá tay thì mọi lượt mở màn Hồ sơ
+   đều nhảy vào biểu mẫu tạo, và không ai xem được danh sách nữa. */
+$h_ds = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
+t( 'không có khoá sua thì vẫn là màn danh sách',
+	false === strpos( $h_ds, 'name="ma_nv" required' )
+	&& false !== strpos( $h_ds, 'Nạp hồ sơ nhân viên từ file' ) );
+/* Mọi cửa chỉ đường đều phải dùng mã lệnh MỚI — sót một chỗ là chỗ đó lại hỏng im lặng. */
+$ns_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+$ad_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+$wb_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 KHÔNG còn chỗ nào sinh liên kết bằng dấu +',
+	false === strpos( $ns_src, "'sua' => '+'" ) && false === strpos( $ad_src, "'sua' => '+'" )
+	&& false === strpos( $wb_src, "'sua' => '+'" ) && false === strpos( $wb_src, "'sua', '+'" ) );
 
 $h_f = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => '+' ) );
 t( 'biểu mẫu tạo mới có ô Người liên hệ khẩn',
@@ -8847,9 +8878,12 @@ t( '🔴 Admin thấy mục "Nhân sự"', strpos( $h_nha_ad, 'Nhân sự</b>' )
 t( '🔴 dẫn đúng tới trang /nhan-su/ (VHCC_TrangNS::url())',
 	strpos( $h_nha_ad, 'href="' . esc_url( VHCC_TrangNS::url() ) . '"' ) !== false, $h_nha_ad );
 t( '🔴 Admin thấy lối tắt "Thêm nhân sự mới"', strpos( $h_nha_ad, 'Thêm nhân sự mới</b>' ) !== false, $h_nha_ad );
-t( '🔴 dẫn thẳng vào form tạo (man=ho_so&sua=+), không phải danh sách',
+/* 🔴 `sua=moi`, KHÔNG phải `sua=+`: dấu `+` trong địa chỉ bị PHP đọc là dấu cách ngay khi có
+   chặng nào trả `%2B` về nguyên hình, và trang vẽ lại y như chưa bấm (xem khối chú thích ở
+   `VHCC_Web::trang_chinh()`). Đây là phép thử KHOÁ cái mã lệnh ấy lại. */
+t( '🔴 dẫn thẳng vào form tạo (man=ho_so&sua=moi), không phải danh sách',
 	strpos( $h_nha_ad, 'href="' . esc_url( add_query_arg(
-		array( 'man' => 'ho_so', 'sua' => '+' ), VHCC_Web::url() ) ) . '"' ) !== false, $h_nha_ad );
+		array( 'man' => 'ho_so', 'sua' => 'moi' ), VHCC_Web::url() ) ) . '"' ) !== false, $h_nha_ad );
 t( 'Nhân viên KHÔNG thấy mục Nhân sự (cùng quyền ho_so như Hồ sơ & tài khoản)',
 	strpos( $h_nha_nv, 'Nhân sự</b>' ) === false, $h_nha_nv );
 t( 'Nhân viên cũng KHÔNG thấy lối tắt Thêm nhân sự mới',
@@ -10466,11 +10500,12 @@ t( 'và không còn dùng ô tìm để giả làm đường sửa',
 	strpos( $vq_h2, 'q=V_NV' ) === false, $vq_h2 );
 
 /* ➕ THÊM NHÂN SỰ — anh Thắng: *"Chưa có chỗ bổ sung thêm nhân sự"*.
-   `sua=+` là thứ `VHCC_Web::the_sua_ho_so()` hiểu là "hồ sơ mới" (biểu mẫu có ô Mã NV). */
+   `sua=moi` là mã lệnh "hồ sơ mới" (biểu mẫu có ô Mã NV). Trước là dấu `+`, đã đổi 08/09/2026
+   vì `+` trong chuỗi truy vấn bị đọc thành dấu cách -> bấm nút mà trang vẽ lại y nguyên. */
 $vq_ad = vhcc_ns( 'Admin' );
 t( '🔴 có nút Thêm nhân sự', strpos( $vq_ad, 'Thêm nhân sự' ) !== false, $vq_ad );
-t( 'và nó trỏ tới biểu mẫu HỒ SƠ MỚI (sua=+)',
-	strpos( $vq_ad, 'sua=%2B' ) !== false || strpos( $vq_ad, 'sua=+' ) !== false, $vq_ad );
+t( 'và nó trỏ tới biểu mẫu HỒ SƠ MỚI (sua=moi)',
+	strpos( $vq_ad, 'sua=moi' ) !== false, $vq_ad );
 /* Tạo hồ sơ mới là cấp Mã NV dùng chung cả chuỗi -> Quản lý trở lên. Kế toán tuy bậc cao hơn
    Quản lý ở thang chung, nhưng `co_quan_tri_nv` hỏi `ngoai_coso` nên Kế toán vẫn qua. Người
    KHÔNG qua là Cửa hàng trưởng — mà họ cũng không vào nổi trang này. Nên chỉ cần chắc rằng nút

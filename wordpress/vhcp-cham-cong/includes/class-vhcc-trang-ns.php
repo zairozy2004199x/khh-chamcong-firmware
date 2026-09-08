@@ -2217,7 +2217,7 @@ class VHCC_TrangNS {
 		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' )
 			&& VHCC_NhanSu::co_quan_tri_nv( $toi ) ) {
 			echo '<p style="margin:0 0 10px"><a class="nut chinh" href="'
-				. esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), VHCC_Web::url() ) )
+				. esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => 'moi' ), VHCC_Web::url() ) )
 				. '">➕ Thêm nhân sự</a> <span class="mo">Mở <b>cửa duy nhất</b> tạo hồ sơ — biểu '
 				. 'mẫu "+ Hồ sơ mới" ở <b>Quản trị chấm công &rarr; Hồ sơ &amp; tài khoản</b>. '
 				. 'Trang này không tạo hồ sơ, vì tạo hồ sơ là cấp Mã NV dùng chung cả chuỗi '

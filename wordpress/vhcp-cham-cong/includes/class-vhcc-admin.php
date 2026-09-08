@@ -185,7 +185,10 @@ class VHCC_Admin {
 	 *
 	 * @return string URL, hoặc '' nếu không có trang web.
 	 */
-	private static function url_them_hs( $ma = '+' ) {
+	/* ⚠️ Mã lệnh là chữ `moi`, KHÔNG phải dấu `+`. Dấu `+` trong chuỗi truy vấn bị PHP đọc là dấu
+	   cách ngay khi có chặng nào trả `%2B` về nguyên hình, và cái hỏng đó IM LẶNG — xem khối chú
+	   thích ở `VHCC_Web::trang_chinh()`. */
+	private static function url_them_hs( $ma = 'moi' ) {
 		if ( ! class_exists( 'VHCC_Web' ) || ! method_exists( 'VHCC_Web', 'url' ) ) { return ''; }
 		return add_query_arg( array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() );
 	}

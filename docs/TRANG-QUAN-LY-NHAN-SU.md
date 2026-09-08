@@ -128,6 +128,30 @@ dưới hai thẻ to (nạp `.csv`, tài khoản đăng nhập) — nên vẫn p
   không ép thành ô chọn: luật "đã nghỉ" đọc theo chữ *nghỉ* trong câu (`VHCC_NhanSu::da_nghi`) và
   sổ cũ có những câu như "Đã nghỉ 12/2025".
 
+### Bấm nút mà trang vẽ lại y nguyên — dấu `+` trong địa chỉ (3.44.0)
+
+> Anh Thắng, sau khi cài 3.43.0: *"đã hiện, nhưng bấm cũng không chạy"*.
+
+Mã lệnh "hồ sơ mới" trước đây là **dấu `+`** (`?man=ho_so&sua=+`). Liên kết sinh ra đúng
+(`sua=%2B`), nhưng chỉ cần **một chặng nào đó trả `%2B` về `+` nguyên hình** — plugin tăng
+tốc/bộ đệm viết lại liên kết, một lượt chuyển hướng chuẩn hoá, hay chép tay địa chỉ — thì PHP đọc
+`+` trong chuỗi truy vấn là **dấu cách**. `sanitize_text_field` cắt dấu cách thành chuỗi rỗng, chốt
+`'' !== $sua` thành sai, và **màn danh sách hiện lại như chưa bấm gì**: không một dòng báo lỗi, nên
+nhìn vào chỉ thấy "nút không chạy".
+
+Nay mã lệnh là chữ **`moi`** (chỉ chữ cái, không chặng nào dập được). Máy chủ vẫn nhận hai dạng cũ:
+`sua=+` (dấu trang đã lưu) và `sua=` rỗng (chính là cái `+` vừa bị dập) — sửa mỗi liên kết mới thì
+người đang giữ liên kết cũ vẫn gặp lại đúng cái hỏng im lặng ấy.
+
+Cùng lượt sửa còn một lỗi thứ hai: nút `+ Hồ sơ mới` ở thẻ *Hồ sơ nhân sự* sinh liên kết
+**thiếu `man=ho_so`**, nên với ai có màn mặc định khác thì nó rơi về màn nhà chứ không mở biểu mẫu.
+
+Phép thử (6 phép): `sua=moi` ra biểu mẫu · `sua=+` cũ vẫn ra · **`+` bị dập thành dấu cách cũng
+ra** · `sua=` rỗng cũng ra · **không có khoá `sua` thì vẫn là màn danh sách** (nới quá tay là không
+ai xem được danh sách nữa) · và **không còn chỗ nào trong mã sinh liên kết bằng dấu `+`**.
+
+---
+
 Phép thử: 18 phép nữa trong `test-cham-cong.php` — thẻ đứng đầu màn (trên `.csv` và trên thẻ tài
 khoản), nút trỏ đúng `man=ho_so&sua=+`, thẻ **không** chứa ô `ma_nv` nào (không phải biểu mẫu thứ
 hai), hai ô khẩn lưu xuống bảng thật, giới tính là `<select>` có `male`/`female`, và **giá trị cũ

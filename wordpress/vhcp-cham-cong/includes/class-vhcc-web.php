@@ -2690,7 +2690,28 @@ class VHCC_Web {
 			return;
 		}
 
-		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
+		/* ===========================================================================
+		 *  "HỒ SƠ MỚI" NAY LÀ `sua=moi`, KHÔNG CÒN LÀ DẤU `+`
+		 * ---------------------------------------------------------------------------
+		 *  🔴 08/09/2026 — anh Thắng: *"đã hiện, nhưng bấm cũng không chạy"*. Bấm nút mở biểu mẫu
+		 *  tạo hồ sơ thì trang vẽ lại Y NGUYÊN màn danh sách, không báo gì.
+		 *
+		 *  Gốc là DẤU `+` dùng làm mã lệnh trong địa chỉ. Liên kết sinh ra đúng (`sua=%2B`), nhưng
+		 *  chỉ cần một chặng nào đó trả `%2B` về dấu `+` nguyên hình — plugin tăng tốc/bộ đệm viết
+		 *  lại liên kết, một lượt chuyển hướng chuẩn hoá, hay chính người dùng chép tay địa chỉ —
+		 *  thì PHP đọc `+` trong chuỗi truy vấn là DẤU CÁCH. `sanitize_text_field` cắt dấu cách
+		 *  thành chuỗi rỗng, chốt `'' !== $sua` thành sai, và màn danh sách hiện lại như chưa bấm
+		 *  gì. Hỏng IM LẶNG, không một dòng báo lỗi — đúng thứ khó lần ra nhất.
+		 *
+		 *  Nay mã lệnh là chữ `moi` (chỉ chữ cái, không chặng nào dập được). Vẫn nhận:
+		 *    · `sua=+`  — liên kết cũ, ai đã lưu vào dấu trang;
+		 *    · `sua=`   (có khoá mà rỗng) — chính là cái `+` vừa bị dập thành dấu cách.
+		 *  ⚠️ Nhận cả hai dạng cũ là CỐ Ý: sửa mỗi liên kết mới thì người đang giữ liên kết cũ vẫn
+		 *     gặp đúng cái hỏng im lặng ấy, mà họ không có cách nào biết vì sao.
+		 * =========================================================================== */
+		$co_sua = isset( $_GET['sua'] );
+		$sua    = $co_sua ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
+		if ( 'moi' === $sua || ( $co_sua && '' === $sua ) ) { $sua = '+'; }
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
 			$b_hs = VHCC_DB::t( 'nhan_vien' );
@@ -4146,7 +4167,7 @@ class VHCC_Web {
 			'chu' => 'CỬA DUY NHẤT tạo hồ sơ — mở đúng biểu mẫu "+ Hồ sơ mới" của thẻ Hồ sơ nhân '
 				. 'sự. Có ô ảnh thẻ, tự đẩy xuống máy chấm công và làm mẫu đối chiếu khuôn mặt '
 				. 'cho chấm công online.',
-			'url' => add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), self::url() ) );
+			'url' => add_query_arg( array( 'man' => 'ho_so', 'sua' => 'moi' ), self::url() ) );
 		/**
 		 * 🔴 "NHÂN SỰ" LÀ TRANG KHÁC (`VHCC_TrangNS`), NHƯNG VẪN LÀ MỘT VIỆC TRONG DANH SÁCH NÀY.
 		 *
@@ -7302,7 +7323,7 @@ class VHCC_Web {
 			. 'ngày sinh · giới tính · CCCD · SĐT · địa chỉ · người liên hệ khẩn · lương cơ bản · '
 			. 'số tài khoản · ngân hàng · vai trò + PIN đăng nhập web · PIN máy chấm công.</p>';
 		echo '<p style="margin:10px 0 6px"><a class="nut chinh" style="font-size:15px;padding:10px 16px" '
-			. 'href="' . esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), self::url() ) )
+			. 'href="' . esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => 'moi' ), self::url() ) )
 			. '">➕ Mở biểu mẫu tạo nhân sự mới</a></p>';
 		echo '<p class="mo">Có <b>ảnh thẻ</b> thì hệ tự <b>đẩy hồ sơ xuống máy chấm công</b> và lấy '
 			. 'luôn <b>mẫu đối chiếu khuôn mặt</b> cho chấm công online — không phải làm thêm bước '
@@ -7518,7 +7539,7 @@ class VHCC_Web {
 		}
 		echo '</select></div>';
 		echo '<button>Tìm</button>';
-		echo '<a class="nut chinh" href="' . esc_url( add_query_arg( 'sua', '+', self::url() ) )
+		echo '<a class="nut chinh" href="' . esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => 'moi' ), self::url() ) )
 			. '">+ Hồ sơ mới</a>';
 		echo '</form>';
 
