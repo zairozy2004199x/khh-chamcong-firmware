@@ -381,10 +381,13 @@ function locXong(d, oChung, oRieng) {
     qtCoso: { value: oChung.coso || '' },
     qtKyXong: { value: oRieng || '' },
   };
-  const f = new Function('el', '_thangCuaKy',
+  /* Hai bộ lọc nay còn hỏi `_anVaoMo()` — ô tích "Ẩn hẳn đơn chưa rõ bộ phận" của 1.92.0.
+     Bài này soi mấy Ô LỌC TUẦN, nên để ô tích TẮT cho phần ấy đứng ngoài. */
+  const f = new Function('el', '_thangCuaKy', '_anVaoMo',
     fnLoc + '\n' + fnLocXong + '\nreturn _qtLocXong;')(
     function (id) { return o[id] || null; },
-    function (k) { const m = /^T(\d+)\/(\d+)/.exec(String(k || '')); return m ? (m[2] + '-' + m[1]) : ''; });
+    function (k) { const m = /^T(\d+)\/(\d+)/.exec(String(k || '')); return m ? (m[2] + '-' + m[1]) : ''; },
+    function () { return false; });
   return f(d);
 }
 
@@ -577,8 +580,11 @@ const m5 = napLoc([D_T7_CU], '2026-7', '', true, {});
 teq('⚠️ tuần này không có trong danh sách thì để nguyên', '', m5.fKy.value);
 
 /* Cửa gọi thật: chỉ tab Quyết toán bật mặc định. */
+/* ⚠️ CANH Ý ĐỊNH: cờ cuối là `true` cho bộ ô của tab Quyết toán. Danh sách đưa vào đổi cách
+   viết mấy lần rồi (1.92.0 lọc thêm đơn đang bị ẩn vì chưa rõ bộ phận) — ghim nguyên văn là
+   phép này đỏ vì một chuyện nó không soi. */
 t('🔴 tab Quyết toán bật chọn sẵn tuần này',
-  HTML.indexOf("_napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso', true);") > 0);
+  /_napLocDon\([^;]{0,120}'qtThang',\s*'qtKy',\s*'qtCoso',\s*true\)/.test(HTML));
 t('⚠️ tab Duyệt tạm ứng KHÔNG bật (ở đó việc là duyệt cho hết, giấu tuần cũ nguy hơn)',
   HTML.indexOf("_napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');") > 0);
 

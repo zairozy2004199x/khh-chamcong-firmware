@@ -47,6 +47,17 @@
     <button class="btn b-x" id="tab-log" onclick="showPage('log')">📜 Nhật ký</button>
   </div>
 
+  <!-- 🔴 DẢI NHẮC BỘ PHẬN — NẰM NGOÀI MỌI TAB, NGAY DƯỚI THANH TAB.
+       Anh Thắng 08/09/2026: *"lý do sao tk kế toán mtd vẫn hiện đơn kvc"*. Anh đang đứng ở tab
+       Quyết toán, mà lời giải thích duy nhất về chuyện "đang bị bó bộ phận" lúc ấy chỉ nằm
+       trong tab Tổng quan — nên anh không thấy, và kết luận là tính năng không chạy.
+
+       ⚠️ ĐỪNG ĐẶT VÀO `#main`. Khối ấy trông như khung chung nhưng thực ra là vùng CHI TIẾT
+          MỘT ĐƠN: `openDon()` bật nó lên, `logout()` tắt đi. Đặt dải nhắc vào đó là nó chỉ
+          hiện khi người ta đã mở sẵn một đơn ra — đúng lúc không cần nữa. Cùng bài học với
+          thanh tìm đơn ngay dưới đây (26/08/2026). -->
+  <div id="bpBanner" style="display:none;margin:10px 16px 0;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:12.5px"></div>
+
   <!-- 🔴 TÌM ĐƠN LÀ THANH CHUNG, NẰM NGOÀI MỌI TAB.
        Anh Thắng 26/08: *"đầu trang bổ sung tìm kiếm đơn"* → dựng xong nhưng đặt trong thanh của
        tab "Đơn chi phí". Anh nhắn lại: *"Lọc tìm kiếm chung theo loại chi phí lẻ anh chưa thấy"*
@@ -74,11 +85,6 @@
 
   <!-- ============ TRANG CHỦ: TỔNG QUAN DÒNG TIỀN ============ -->
   <div id="page-tongquan" class="wrap" style="display:none">
-    <!-- 🔴 DẢI NHẮC BỘ PHẬN. Ai bị bó bộ phận phải BIẾT là mình đang bị bó, và biết vì sao
-         vẫn thấy đơn của mảng khác. Không có dòng này thì màn trông y hệt lúc không bó, và
-         người dùng kết luận là tính năng không chạy — anh Thắng đã kết luận đúng như thế
-         08/09/2026 khi nhìn màn Tổng quan còn nguyên 21 mục. -->
-    <div id="bpBanner" style="display:none;margin:0 0 12px;padding:10px 14px;border-radius:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:12.5px"></div>
     <div class="card" id="acctInboxCard" style="display:none;border:2px solid #bae6fd">
       <div class="ch"><h2>📥 Đơn đang lên chờ kế toán</h2><span id="acctInboxCount" style="font-size:12px;color:#64748b"></span></div>
       <div class="tw"><table style="min-width:840px">
@@ -3354,6 +3360,9 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw]'),function(b){
       b.className='btn '+((b.getAttribute('data-dcsw')===p)?'b-p':'b-x');
     });
+    /* Dải nhắc bộ phận nằm NGOÀI mọi trang con nên phải vẽ lại theo mỗi lượt đổi tab: số đơn
+       "chưa rõ bộ phận" trên đó đếm từ BOOT, mà BOOT được nạp lại ở nhiều nhịp khác nhau. */
+    try{ renderBpBanner(); }catch(e){}
     if(p==='tongquan') loadTongQuan();
     if(p==='log') loadLog();
     if(p==='duan') loadDuAn();
@@ -3673,20 +3682,39 @@
   /* Dải nhắc "đang xem theo bộ phận nào". Vẽ TỪ BOOT, không tự suy từ tên vai: tên vai là thứ
      anh Thắng đặt tuỳ ý, còn `boPhanBo` là kết quả của chính chốt đang gác dữ liệu — nói theo
      nó thì dòng chữ không bao giờ nói khác với thứ người ta đang thấy. */
+  /* Ẩn hẳn đơn "chưa rõ bộ phận" hay chỉ bày mờ — lựa chọn của từng người, nhớ ở máy họ.
+     Không lưu lên máy chủ: đây là cách XEM, không phải phân quyền; hai kế toán cùng bộ phận
+     có thể muốn khác nhau, và không đáng để một lượt ghi cấu hình. */
+  var _AN_MO=false;
+  try{ _AN_MO=localStorage.getItem('vhcp_an_bp_mo')==='1'; }catch(e){}
+  function toggleAnMo(o){
+    _AN_MO=!!o.checked;
+    try{ localStorage.setItem('vhcp_an_bp_mo', _AN_MO?'1':'0'); }catch(e){}
+    renderBpBanner();
+    if(typeof renderQTList==='function') renderQTList();
+    if(typeof renderDuyet==='function') renderDuyet();
+  }
+  /** Đơn có bị ẩn vì "chưa rõ bộ phận" không. */
+  function _anVaoMo(d){ return _AN_MO && d && d.bpMo; }
   function renderBpBanner(){
     var b=el('bpBanner'); if(!b) return;
     var bp=String((BOOT&&BOOT.boPhanBo)||'').trim();
     if(!bp){ b.style.display='none'; return; }
     var n=Number((BOOT&&BOOT.loaiChuaBP)||0);
+    var mo=0; (BOOT.dons||[]).forEach(function(d){ if(d.bpMo) mo++; });
     b.style.display='';
     b.innerHTML='🔒 Đang xem theo bộ phận <b>'+esc(bp)+'</b> — chỉ hiện chi phí của bộ phận này.'
-      +(n?('<br><span style="color:#b45309">⚠️ Còn <b>'+n+'</b> loại chi phí CHƯA khai bộ phận, nên dòng mang mấy loại đó vẫn hiện ở đây. '
-          +'Khai ở <b>⚙️ Cấu hình → Loại chi phí</b>, cột <b>Bộ phận</b>.</span>')
-         :'<br><span style="color:#15803d">✓ Mọi loại chi phí đang dùng đều đã khai bộ phận.</span>');
+      +(n?('<br><span style="color:#b45309">⚠️ Còn <b>'+n+'</b> loại chi phí <b>CHƯA khai bộ phận</b>. '
+          +'Đơn mang mấy loại đó — và đơn chưa có dòng chi nào — <b>không biết thuộc bộ phận nào</b>, nên vẫn hiện ở đây'
+          +(mo?(' (<b>'+mo+' đơn</b>)'):'')+'.<br>'
+          +'Khai ở <b>⚙️ Cấu hình → Loại chi phí</b>, cột <b>Bộ phận</b> — khai tới đâu bảng sạch tới đó.</span>')
+         :'<br><span style="color:#15803d">✓ Mọi loại chi phí đang dùng đều đã khai bộ phận.</span>')
+      +(mo?('<br><label style="display:inline-flex;gap:6px;align-items:center;margin-top:6px;cursor:pointer;color:#1e40af">'
+          +'<input type="checkbox" onchange="toggleAnMo(this)"'+(_AN_MO?' checked':'')+'>'
+          +'<b>Ẩn hẳn '+mo+' đơn chưa rõ bộ phận</b> <span style="color:#64748b">— chỉ đổi cách xem của riêng bạn, không đổi dữ liệu</span></label>'):'');
   }
   // 📥 Gom "đơn đang lên chờ kế toán" từ mọi mảng: Đơn vận hành (BOOT.dons) + Kỹ thuật/Marketing/Công tác/Setup (server)
   function renderAcctInbox(){
-    renderBpBanner();
     var role=(CURUSER&&CURUSER.role)||'', isAcct=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var box=el('acctInboxCard'); if(!box) return;
     if(!isAcct){ box.style.display='none'; return; }
@@ -5524,7 +5552,10 @@
       '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+(chim?'—':money(mua))+'</td>'+
       '<td class="money '+(chim?'':cl)+'">'+(chim?'—':money(d.chenhLech))+'</td>'+
       '<td>'+esc(d.httt||'')+'</td>'+
-      '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
+      '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+
+      /* Đơn lọt vào đây mà KHÔNG dòng nào khai đúng bộ phận đang bó — đánh dấu tại chỗ, để kế
+         toán biết ngay đơn nào là "chưa rõ", thay vì phải mở từng đơn ra dò. */
+      (d.bpMo?' <span style="color:#b45309;font-weight:700;font-size:11px" title="Chưa rõ đơn này thuộc bộ phận nào — loại chi phí trên đơn chưa khai ô Bộ phận ở ⚙️ Cấu hình">❓BP</span>':'')+'</td>'+
       '<td style="text-align:center;white-space:nowrap">'+duyetBtn+'<button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
   }
   function qtGroupToggle(gid, el){
@@ -5602,7 +5633,15 @@
   // ngoài mà chưa có chứng từ, nên để ngay cạnh hai bảng kia cho thấy.
   // Sắp CŨ NHẤT LÊN TRƯỚC: đơn cầm tiền lâu nhất là đơn phải đòi trước.
   /** Một đơn có lọt bộ lọc tháng / tuần / cơ sở của màn Quyết toán không. */
+  /** Đơn có thuộc màn Quyết toán không — dùng để DỰNG Ô LỌC, nên chưa tính mấy ô lọc ấy.
+      Ẩn đơn nào thì bỏ luôn tuần của nó khỏi ô xổ: bày ra một tuần không còn đơn nào là mời
+      người ta chọn rồi nhận bảng rỗng. */
+  function _qtTrongMan(d){
+    if(_anVaoMo(d)) return false;
+    return d.trangThai==='Chờ quyết toán'||_daQT(d)||d.trangThai==='Đã cấp tạm ứng';
+  }
   function _qtLoc(d){
+    if(_anVaoMo(d)) return false;
     var fT=el('qtThang')?el('qtThang').value:'', fK=el('qtKy')?el('qtKy').value:'', fC=el('qtCoso')?el('qtCoso').value:'';
     if(fT && _thangCuaKy(d.ky)!==fT) return false;
     if(fK && String(d.ky||'')!==fK) return false;
@@ -5622,6 +5661,7 @@
      của chính nó. Ô THÁNG và Ô CƠ SỞ chung vẫn áp — hai thứ ấy là lọc chung của cả màn, không
      phải chuyện "tuần nào đang làm". */
   function _qtLocXong(d){
+    if(_anVaoMo(d)) return false;
     var kR=el('qtKyXong')?el('qtKyXong').value:'';
     if(kR && String(d.ky||'')!==kR) return false;
     var fT=el('qtThang')?el('qtThang').value:'';
@@ -5638,9 +5678,18 @@
   function _qtEmptyXongText(soHien){
     var e=el('qtEmptyXong'); if(!e) return;
     if(soHien) return;
-    var co=(BOOT.dons||[]).filter(_daQT).length;
-    if(!co){ e.textContent='Chưa có đơn nào đã quyết toán.'; return; }
+    var ds=(BOOT.dons||[]).filter(_daQT);
+    var an=ds.filter(_anVaoMo).length, co=ds.length-an;
+    /* Ô tích "ẩn đơn chưa rõ bộ phận" cũng là một thứ đang cắt bảng — không kể ra thì kế toán
+       bật nó lúc sáng, chiều mở lại thấy trống và đi tìm lỗi mất dữ liệu. */
+    if(!co){
+      e.textContent = an
+        ? ('Có '+an+' đơn đã quyết toán nhưng đang bị ô tích "Ẩn hẳn đơn chưa rõ bộ phận" giấu đi. Bỏ tích ở dải nhắc đầu trang để xem.')
+        : 'Chưa có đơn nào đã quyết toán.';
+      return;
+    }
     var oL=[];
+    if(an) oL.push('ô tích "Ẩn hẳn đơn chưa rõ bộ phận" ('+an+' đơn)');
     if(el('qtKyXong') && el('qtKyXong').value) oL.push('tuần riêng "'+el('qtKyXong').value+'"');
     if(el('qtThang')  && el('qtThang').value)  oL.push('tháng "'+el('qtThang').value+'"');
     if(el('qtCoso')   && el('qtCoso').value)   oL.push('cơ sở "'+el('qtCoso').value+'"');
@@ -5676,6 +5725,7 @@
     el('qtPagerChuaNop').innerHTML=_qtPagerHtml('chuanop', rows.length, trang, soTrang);
   }
   function renderQTList(){
+    renderBpBanner();
     var canBatch=canDo('xacNhanQT');   // ai được xác nhận quyết toán -> tích nhiều đơn duyệt 1 lần
     if(el('qtChkHead')) el('qtChkHead').style.display=canBatch?'':'none';
     // MÀN QUYẾT TOÁN CHỈ LO VIỆC QUYẾT TOÁN: chỉ hiện đơn "Chờ quyết toán" và "Đã quyết
@@ -5683,13 +5733,11 @@
     // mua thì làm ngay trong đơn của mình.
     // Ô lọc dựng từ TOÀN BỘ đơn của màn này (chờ + đã + đang cầm tiền), không phải từ
     // danh sách đã lọc — không thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
-    var moiDon=(BOOT.dons||[]).filter(function(d){
-      return d.trangThai==='Chờ quyết toán'||_daQT(d)||d.trangThai==='Đã cấp tạm ứng'; });
-    _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso', true);
+    _napLocDon((BOOT.dons||[]).filter(_qtTrongMan), 'qtThang', 'qtKy', 'qtCoso', true);
     /* Ô tuần riêng của bảng "Đã quyết toán" dựng từ CHÍNH những đơn đã quyết toán — không phải
        từ mọi đơn của màn. Bày ra một tuần không có đơn đã quyết toán nào là mời người ta chọn
        rồi nhận bảng rỗng. */
-    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(_daQT));
+    _napKyRieng('qtKyXong', (BOOT.dons||[]).filter(function(d){ return _daQT(d) && !_anVaoMo(d); }));
     var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || _daQT(d)); });
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
@@ -6119,6 +6167,7 @@
     // về đây — không thì bỏ 2 dòng khỏi ô chọn mà chọn "Tất cả" là chúng quay lại ngay.
     var KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
     var list=all.filter(function(d){
+      if(_anVaoMo(d)) return false;
       // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
       if(fT && _thangCuaKy(d.ky)!==fT) return false;
       if(fK && String(d.ky||'')!==fK) return false;

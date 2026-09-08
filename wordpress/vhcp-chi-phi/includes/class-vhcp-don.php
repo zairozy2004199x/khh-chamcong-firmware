@@ -636,6 +636,9 @@ class VHCP_Don {
 		      đơn đang treo tiền. */
 		$bo_phan_bo = VHCP_Auth::bo_phan_bo();
 		$don_cham   = array();
+		/* true = đơn này có ÍT NHẤT MỘT dòng khai đúng bộ phận đang bó. Đơn không có dòng nào
+		   như thế mà vẫn lọt là lọt nhờ mấy nhánh "cho qua" — xem chốt 🔴 ở chỗ gán `$bp_mo`. */
+		$don_ro     = array();
 
 		$xin = array(); $tt_cn = array(); $tt_ncc = array(); $coso_by = array();
 		foreach ( $cp as $r ) {
@@ -644,6 +647,12 @@ class VHCP_Don {
 			if ( '' !== $bo_phan_bo ) {
 				if ( ! isset( $don_cham[ $m ] ) ) { $don_cham[ $m ] = false; }
 				if ( VHCP_Auth::xem_duoc_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) ) { $don_cham[ $m ] = true; }
+				/* Dòng khai ĐÚNG bộ phận đang bó — khác hẳn dòng lọt vì loại của nó chưa khai,
+				   hay vì loại không có trong danh mục. Chỉ dòng như thế mới chứng minh được
+				   đơn này là việc của mình. */
+				if ( VHCP_Cfg::bo_phan_cua_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) === $bo_phan_bo ) {
+					$don_ro[ $m ] = true;
+				}
 			}
 			$cs = trim( (string) $r['coso'] );
 			if ( $cs !== '' ) {
@@ -668,6 +677,21 @@ class VHCP_Don {
 			/* Có dòng chi mà KHÔNG dòng nào thuộc bộ phận mình -> bỏ. Đơn chưa có dòng nào thì
 			   `$don_cham` không có khoá ấy, và nó vẫn hiện — xem khối 🔴 ở trên. */
 			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) { continue; }
+			/* 🔴 ĐƠN "CHƯA RÕ BỘ PHẬN" — gắn cờ, để màn còn ẩn được nếu người dùng muốn.
+			   Anh Thắng 08/09/2026: *"lý do sao tk kế toán mtd vẫn hiện đơn kvc"*.
+
+			   Ba nhánh CHO QUA cộng lại thành gần như không lọc gì:
+			     · đơn chưa có dòng chi nào (xin ứng trước) — chưa có gì để nói nó thuộc đâu
+			     · dòng mang loại chi phí CHƯA khai ô Bộ phận — danh mục dựng từ sổ cũ
+			     · dòng mang loại KHÔNG có trong danh mục
+			   Từng nhánh đều đúng một mình (chặn hết là màn trắng, tiền treo không ai thấy),
+			   nhưng gộp lại thì kế toán bó bộ phận vẫn nhìn thấy nguyên bảng của bên kia — và
+			   đó đúng là cái anh đang nhìn.
+
+			   Nên: KHÔNG chặn thêm ở máy chủ, mà nói ra đơn nào là "chưa rõ". Màn bày mờ, kèm
+			   ô tích để ẩn hẳn khi kế toán đã khai xong danh mục. Người dùng quyết, không phải
+			   mình quyết hộ. */
+			$bp_mo = ( '' !== $bo_phan_bo && empty( $don_ro[ $m ] ) );
 			$du_phong = VHCP_Util::num( $r['du_phong'] );
 			$bu_tru   = VHCP_Util::num( $r['bu_tru'] );
 			/* NULL = chưa ai chốt số; 0 = đã chốt và chốt là không đồng nào. Xem khối 🔴 ở
@@ -759,6 +783,8 @@ class VHCP_Don {
 				   chứ không trả chuỗi ngày: giao diện chỉ cần so lớn bé, mà so chuỗi 'd/m/Y'
 				   thì "02/10" đứng trước "15/09". Xem `xep_gui_qt_()`. */
 				'guiQTAt'     => self::xep_gui_qt_( $r ),
+				/* Đơn chưa xác định được bộ phận — màn bày mờ, và ẩn hẳn nếu người dùng tích. */
+				'bpMo'        => $bp_mo,
 				'htCap'       => (string) $r['ht_cap'],
 				'anhCap'      => (string) $r['anh_cap'],
 				'tatToan'     => ( trim( (string) $r['tat_toan'] ) !== '' ),
