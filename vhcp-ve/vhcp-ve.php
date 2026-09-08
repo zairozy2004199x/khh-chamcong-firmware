@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.16.0
+ * Version:           1.17.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -51,6 +51,8 @@ class POSH_Ve {
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'zalo_web_login' ) );
+		add_action( 'wp_head', array( __CLASS__, 'zalo_verify_meta' ) );
+		add_action( 'template_redirect', array( __CLASS__, 'zalo_verify_file' ), 0 );
 	}
 
 	// ───────────────────────────── VietQR (tự chứa) ─────────────────────────────
@@ -526,6 +528,32 @@ class POSH_Ve {
 			setcookie( 'pve_zuser', '', time() - 3600, '/' );
 			wp_safe_redirect( wp_get_referer() ? wp_get_referer() : home_url( '/' ) ); exit;
 		}
+	}
+	/* Mã xác thực domain Zalo (bỏ tiền tố nếu có). */
+	private static function zalo_verify_token() {
+		$v = trim( (string) get_option( 'pve_zalo_verify', '' ) );
+		if ( false !== strpos( $v, '=' ) ) { $v = substr( $v, strpos( $v, '=' ) + 1 ); }
+		return trim( $v );
+	}
+	/* Chèn thẻ meta xác thực domain Zalo vào <head> (cả name lẫn property cho chắc). */
+	public static function zalo_verify_meta() {
+		$v = self::zalo_verify_token();
+		if ( '' === $v ) { return; }
+		echo '<meta name="zalo-platform-site-verification" content="' . esc_attr( $v ) . '" />' . "\n";
+		echo '<meta property="zalo-platform-site-verification" content="' . esc_attr( $v ) . '" />' . "\n";
+	}
+	/* Tự phục vụ file zalo_verifier<token>.html ở web root (cách xác thực bằng file). */
+	public static function zalo_verify_file() {
+		if ( empty( $_SERVER['REQUEST_URI'] ) ) { return; }
+		$uri = (string) $_SERVER['REQUEST_URI'];
+		if ( false === stripos( $uri, 'zalo_verifier' ) ) { return; }
+		$tok = self::zalo_verify_token();
+		if ( '' === $tok ) { return; }
+		$norm = function ( $s ) { return strtolower( preg_replace( '/[^a-z0-9]/i', '', (string) $s ) ); };
+		if ( false === strpos( $norm( $uri ), $norm( $tok ) ) ) { return; }
+		header( 'Content-Type: text/html; charset=utf-8' );
+		echo "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta property=\"zalo-platform-site-verification\" content=\"" . esc_attr( $tok ) . "\" />\n</head>\n<body>\nThere Is No Limit To What You Can Accomplish Using Zalo!\n</body>\n</html>";
+		exit;
 	}
 	/* Số phiên bản plugin (đọc từ header). */
 	public static function phien_ban() {
@@ -1186,6 +1214,7 @@ class POSH_Ve {
 		if ( isset( $_POST['pve_zalo_luu'] ) && check_admin_referer( 'pve_zalo' ) ) {
 			update_option( 'pve_zalo_secret', trim( (string) wp_unslash( $_POST['zalo_secret'] ) ) );
 			update_option( 'pve_zalo_appid', preg_replace( '/\D+/', '', (string) wp_unslash( isset( $_POST['zalo_appid'] ) ? $_POST['zalo_appid'] : '' ) ) );
+			update_option( 'pve_zalo_verify', sanitize_text_field( wp_unslash( isset( $_POST['zalo_verify'] ) ? $_POST['zalo_verify'] : '' ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu cấu hình Zalo.</p></div>';
 		}
 		if ( isset( $_POST['pve_uu_luu'] ) && check_admin_referer( 'pve_uu' ) ) {
@@ -1453,6 +1482,11 @@ class POSH_Ve {
 		echo '<tr><th>Zalo App Secret Key</th><td><input name="zalo_secret" class="regular-text code" value="' . esc_attr( $zs ) . '" placeholder="Dán Secret Key">'
 			. ' <span class="description">' . ( $zs ? 'Đang có (' . esc_html( strlen( $zs ) ) . ' ký tự)' : 'Chưa cấu hình' ) . '</span></td></tr>';
 		echo '<tr><th>Callback URL (khai trên Zalo)</th><td><code>' . esc_html( home_url( '/?pve_zalo=cb' ) ) . '</code><br><span class="description">Vào Zalo App console → Đăng nhập → thêm URL này vào <i>Redirect URI</i> hợp lệ. (Đăng nhập web lấy tên/ảnh Zalo; SĐT vẫn nhập ở form vì Zalo hạn chế lấy SĐT qua web.)</span></td></tr>';
+		$zv = self::zalo_verify_token();
+		echo '<tr><th>Mã xác thực domain</th><td><input name="zalo_verify" class="large-text code" value="' . esc_attr( (string) get_option( 'pve_zalo_verify', '' ) ) . '" placeholder="VD IS-HTRVS1az... (dán mã Zalo cho)">'
+			. '<br><span class="description">Zalo console → <i>Xác thực domain</i> cho mã dạng <code>IS-xxxx</code>. Dán vào đây → plugin tự chèn thẻ meta + phục vụ file xác thực. '
+			. ( $zv ? 'Đang có: kiểm tra <a href="' . esc_url( home_url( '/zalo_verifier' . $zv . '.html' ) ) . '" target="_blank">file xác thực</a>.' : '' )
+			. ' Xong thì bấm <b>Xác thực</b> trên Zalo (chọn cách <i>meta</i> hoặc <i>file</i> đều được).</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu cấu hình Zalo</button></p></form>';
 
 		/* ── Chân trang (thông tin công ty) ── */
