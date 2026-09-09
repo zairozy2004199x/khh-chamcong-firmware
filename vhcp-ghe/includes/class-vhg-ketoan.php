@@ -1595,6 +1595,43 @@ class VHG_KeToan {
 	 */
 	const BCT_MAX_NGAY = 92;
 
+	/* VietQR THỰC NHẬN — lấy từ plugin Sao Kê (bảng wp_saoke_cong, giao dịch cổng VietQR) gom theo
+	   CƠ SỞ × NGÀY GIAO DỊCH, để đối chiếu với số nhân viên tự nhập. Quy máy -> cơ sở bằng chính bản
+	   đồ máy của Ghế (khớp mã máy / tên khai). Máy Ghế chưa có -> gộp vào 'khongKhop', không đoán bừa. */
+	private static function vietqr_thuc_( $tu, $den ) {
+		global $wpdb;
+		$tbl = $wpdb->prefix . 'saoke_cong';
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) !== $tbl ) { return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 ); }
+		$map = array();
+		foreach ( (array) VHG_May::ds_may() as $m ) {
+			if ( ! empty( $m['an'] ) ) { continue; }
+			$cs = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ); if ( '' === $cs ) { continue; }
+			foreach ( array( (string) $m['ma'], (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ) ) as $nm ) {
+				$k = self::squash( $nm ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = $cs; }
+			}
+		}
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban FROM $tbl"
+			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s", 'Đi', $tu, $den ), ARRAY_A );
+		$vq = array(); $khong = 0;
+		foreach ( (array) $rows as $r ) {
+			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
+			$ng = (string) $r['d'];
+			$ten = trim( (string) $r['diem_ban'] );
+			if ( '' === $ten ) { $ten = trim( preg_replace( '/^VQR\S*\s+/i', '', (string) $r['noi_dung'] ) ); if ( preg_match( '/^payment\s*for\s*order$/i', $ten ) ) { $ten = ''; } }
+			$cs = '';
+			if ( '' !== $ten ) {
+				$k = self::squash( $ten );
+				if ( isset( $map[ $k ] ) ) { $cs = $map[ $k ]; }
+				else { $kp = self::squash( preg_replace( '/\s*[0-9]+$/', '', $ten ) ); if ( isset( $map[ $kp ] ) ) { $cs = $map[ $kp ]; } }
+			}
+			if ( '' === $cs ) { $khong += $tien; continue; }
+			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
+		}
+		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => $khong );
+	}
+
 	public static function bao_cao_tong( $tu, $den, $muc = 'coso', $cot = 'tong' ) {
 		global $wpdb;
 		$tu  = self::ngay_( $tu );
@@ -1685,10 +1722,28 @@ class VHG_KeToan {
 			}
 		}
 
-		return array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'muc' => $muc, 'cot' => $cot,
+		$kq = array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'muc' => $muc, 'cot' => $cot,
 			'ngay' => $ds_ngay, 'hang' => $hang,
 			'tongCot' => array_values( $tong_cot ), 'tong' => $tong_all,
 			'soGhe' => array_sum( $dem_ghe ) );
+
+		/* Lớp VietQR THỰC (đối chiếu với NV nhập) — chỉ mức CƠ SỞ, gom theo ngày giao dịch. */
+		if ( 'coso' === $muc ) {
+			$vqd = self::vietqr_thuc_( $tu, $den );
+			if ( $vqd['co'] ) {
+				$vqTongCot = array_fill( 0, count( $ds_ngay ), 0 ); $vqTongAll = 0;
+				foreach ( $kq['hang'] as $i => $hg ) {
+					$cs = (string) ( isset( $hg['coso'] ) ? $hg['coso'] : '' ); $arr = array(); $rt = 0;
+					foreach ( $ds_ngay as $ci => $ng ) {
+						$val = isset( $vqd['vq'][ $cs ][ $ng ] ) ? (int) $vqd['vq'][ $cs ][ $ng ] : 0;
+						$arr[] = $val; $rt += $val; $vqTongCot[ $ci ] += $val;
+					}
+					$kq['hang'][ $i ]['vq'] = $arr; $kq['hang'][ $i ]['vqTong'] = $rt; $vqTongAll += $rt;
+				}
+				$kq['vqCo'] = true; $kq['vqTongCot'] = array_values( $vqTongCot ); $kq['vqTong'] = $vqTongAll; $kq['vqKhongKhop'] = (int) $vqd['khongKhop'];
+			}
+		}
+		return $kq;
 	}
 
 	/** Một hàng của báo cáo tổng. Tách ra để hai nhánh (cơ sở / ghế) dùng CHUNG phép cộng. */
