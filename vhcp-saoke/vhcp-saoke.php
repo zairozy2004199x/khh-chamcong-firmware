@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.7.1
+ * Version:           0.7.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -372,7 +372,13 @@ class SAOKE_App {
 			if ( preg_match( '/^[0-9][0-9.,]*$/', $c ) ) { $n = self::num( $c ); if ( $n >= 1000 && $n > $o['soTien'] ) { $o['soTien'] = $n; } continue; }
 			if ( false === strpos( $c, ' ' ) && false === strpos( $c, '-' ) && preg_match( '/[A-Za-z]/', $c ) && preg_match( '/[0-9]/', $c ) ) { if ( '' === $o['maGD'] ) { $o['maGD'] = $c; } continue; }
 			if ( false === strpos( $c, ' ' ) && false !== strpos( $c, '-' ) && preg_match( '/[A-Za-z]/', $c ) && preg_match( '/[0-9]/', $c ) ) { if ( '' === $o['ref'] ) { $o['ref'] = $c; } continue; }
-			if ( false !== strpos( $c, ' ' ) && strlen( $c ) > strlen( $o['noiDung'] ) ) { $o['noiDung'] = $c; }
+			if ( false !== strpos( $c, ' ' ) ) {
+				// Ô có khoảng trắng: nội dung cổng ("VQR… PaymentForOrder") vào noiDung; TÊN MÁY/CỬA HÀNG
+				// ở cột riêng ("GLX QT 02", "AMTP 24") vào diemBan để tự nhận cơ sở, khỏi gõ ánh xạ tay.
+				$laVqr = (bool) preg_match( '/^VQR/i', $c ) || preg_match( '/payment\s*for\s*order/i', $c );
+				if ( $laVqr || preg_match( '/^[0-9]/', $c ) ) { if ( strlen( $c ) > strlen( $o['noiDung'] ) ) { $o['noiDung'] = $c; } }
+				elseif ( '' === $o['diemBan'] && preg_match( '/[A-Za-z]/', $c ) ) { $o['diemBan'] = $c; }
+			}
 		}
 		if ( $o['soTien'] <= 0 && '' === $o['maGD'] && '' === $o['ref'] ) { return null; }
 		$o['docDuoc'] = ( $o['soTien'] > 0 && '' !== $o['thoiDiem'] );
@@ -408,7 +414,14 @@ class SAOKE_App {
 	}
 	private static function luu_cong( $row ) {
 		global $wpdb; $tbl = self::tbl_cong();
-		if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $tbl WHERE khoa=%s", $row['khoa'] ) ) ) { return false; }
+		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A );
+		if ( $cu ) {
+			// Dòng đã có: nếu trước đây chưa vớt được tên máy mà nay parser có -> vá vào, khỏi xoá làm lại.
+			if ( '' === trim( (string) $cu['diem_ban'] ) && '' !== trim( (string) $row['diemBan'] ) ) {
+				$wpdb->update( $tbl, array( 'diem_ban' => mb_substr( (string) $row['diemBan'], 0, 120 ) ), array( 'id' => (int) $cu['id'] ) );
+			}
+			return false;
+		}
 		$wpdb->insert( $tbl, array(
 			'nguon' => $row['nguon'], 'khoa' => mb_substr( $row['khoa'], 0, 120 ),
 			'ma_gd' => mb_substr( (string) $row['maGD'], 0, 80 ), 'ref' => mb_substr( (string) $row['ref'], 0, 80 ),
