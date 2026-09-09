@@ -192,6 +192,43 @@ class VHCC_Online {
 	}
 
 	/**
+	 * CƠ SỞ NGƯỜI NÀY **CHẤM CÔNG** ĐƯỢC = `ds_coso_cua_nv()` TRỪ mấy cơ sở đặt "chỉ quản lý".
+	 *
+	 * 🔴 Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm
+	 *    sao để loại ra khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*. Cờ
+	 *    khai ở hồ sơ (`nhan_vien.coso_ql` — xem `VHCC_NhanSu::ds_coso_ql()`).
+	 *
+	 * 🔴 HÀM RIÊNG, KHÔNG SỬA `ds_coso_cua_nv()`. Hàm kia còn ba đường gọi nữa và chúng ĐỌC LỊCH
+	 *    SỬ: "Công của tôi" trên web, `lichsu` và `thang` của trạm. Trừ ở đó là người vừa được
+	 *    đặt cờ MẤT LUÔN mấy tháng công cũ họ đã chấm thật ở cơ sở ấy khỏi màn hình của chính
+	 *    họ — im lặng, và họ sẽ tưởng công bị xoá. Cờ này chặn lượt chấm MỚI, không xoá cái đã
+	 *    ghi.
+	 */
+	public static function ds_coso_cham_cua_nv( $ma_nv, $mac_dinh ) {
+		global $wpdb;
+		$ds = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'ds_coso_ql' ) ) {
+			return $ds;
+		}
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return $ds; }
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT cua_hang, coso_phu, coso_ql FROM $t WHERE ma_nv=%s", $ma_nv ), ARRAY_A );
+		if ( ! $r ) { return $ds; }
+		$bo = array();
+		foreach ( VHCC_NhanSu::ds_coso_ql( $r ) as $x ) {
+			$bo[ VHCC_NhanSu::chu_thuong( $x ) ] = 1;
+		}
+		if ( ! $bo ) { return $ds; }
+		$ra = array();
+		foreach ( $ds as $x ) {
+			if ( isset( $bo[ VHCC_NhanSu::chu_thuong( VHCC_NhanSu::chuan_coso( $x ) ) ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
+	}
+
+	/**
 	 * SỐ CÔNG CỦA MỘT NGƯỜI, LẤY TỪ CHÍNH ENGINE ĐÃ DỰNG NÊN BẢNG CỦA QUẢN LÝ.
 	 *
 	 * 🔴 Anh Thắng 31/08/2026: *"tài khoản nhân viên sao khác với bản của quản lý"* — chị Tường
@@ -291,10 +328,24 @@ class VHCC_Online {
 		// Gác 2: cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có.
 		$chon = trim( preg_replace( '/^CS_/', '', (string) $coso_chon ) );
 		if ( '' !== $chon ) {
-			$duoc = self::ds_coso_cua_nv( $ma_nv, $the_coso );
+			$duoc = self::ds_coso_cham_cua_nv( $ma_nv, $the_coso );
 			$ok   = false;
 			foreach ( $duoc as $x ) { if ( strtolower( $x ) === strtolower( $chon ) ) { $ok = true; $coso = $x; } }
 			if ( ! $ok ) {
+				/* 🔴 HAI LÝ DO KHÁC NHAU, HAI CÂU KHÁC NHAU. "Không có ở cơ sở đó" là câu đúng khi
+				   hồ sơ thật sự không tích cơ sở ấy. Nhưng người bị loại vì cờ "chỉ quản lý" thì
+				   hồ sơ CÓ tích — họ quản ở đó, họ vừa đứng ở đó, và câu "bạn không có ở cơ sở
+				   này" nghe như hệ thống hỏng. Nói đúng việc đang xảy ra và ai sửa được. */
+				if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'la_chi_quan_ly' )
+					&& method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+					$hs_q = VHCC_NhanSu::ho_so( $ma_nv );
+					if ( $hs_q && VHCC_NhanSu::la_chi_quan_ly( $hs_q, $chon ) ) {
+						return array( 'ok' => false, 'error' => 'Cơ sở "' . $chon . '" trong hồ sơ '
+							. 'của anh/chị đang đặt là CHỈ QUẢN LÝ — không chấm công ở đó. '
+							. 'Nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô "chỉ QL" của cơ sở '
+							. 'này trong hồ sơ.' );
+					}
+				}
 				return array( 'ok' => false, 'error' => 'Bạn không có ở cơ sở "' . $chon . '". Chọn lại cơ sở.' );
 			}
 		}
@@ -449,10 +500,25 @@ class VHCC_Online {
 		}
 		$mac_dinh = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' );
 		$ds_coso = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+		/* 🔴 HAI DANH SÁCH, VÀ CHÚNG KHÁC NHAU CÓ CHỦ Ý.
+		   `dsCoSo` = cơ sở CHẤM ĐƯỢC (đã trừ cờ "chỉ quản lý") — nó dựng ô xổ lúc lưu và khối
+		   "Cơ sở được chấm công", tức là đúng chỗ anh Thắng muốn ngắn lại.
+		   `homNay` thì tính trên ĐỦ cơ sở: người vừa được đặt cờ mà hôm nay đã kịp chấm ở đó
+		   (hoặc quản lý bù cho họ) thì lượt ấy phải còn nhìn thấy — ẩn đi là họ tưởng mất giờ
+		   vào và bấm lại, mà lượt thứ hai ngay sau giờ vào là GIỜ RA. */
+		$ds_cham = self::ds_coso_cham_cua_nv( $ma_nv, $mac_dinh );
+		$ds_ql   = array();
+		foreach ( $ds_coso as $cs_x ) {
+			$co_o = false;
+			foreach ( $ds_cham as $cs_y ) {
+				if ( strtolower( $cs_y ) === strtolower( $cs_x ) ) { $co_o = true; break; }
+			}
+			if ( ! $co_o ) { $ds_ql[] = $cs_x; }
+		}
 		$hn = array();
 		foreach ( $ds_coso as $cs ) { $hn[ $cs ] = self::hom_nay( $cs, $ma_nv ); }
 		return array( 'ok' => true, 'bat' => true, 'maNV' => $ma_nv, 'hoTen' => (string) $u['ho_ten'],
-			'coSoMacDinh' => $mac_dinh, 'dsCoSo' => $ds_coso,
+			'coSoMacDinh' => $mac_dinh, 'dsCoSo' => $ds_cham, 'dsCoSoQL' => $ds_ql,
 			'dsNhiemVu' => self::nhiem_vu_cua_nv( $ma_nv ),
 			'homNay' => $hn, 'gio' => self::gio_may_chu() );
 	}

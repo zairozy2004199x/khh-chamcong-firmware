@@ -581,6 +581,12 @@ class VHCC_TrangNS {
 				. ( $cs['go'] ? ' — quyền riêng của họ đã reset về mặc định (' . $cs['go'] . ' ô).'
 					: '. Họ vốn không có quyền riêng nào nên không có gì phải reset.' ) );
 		}
+		if ( ! empty( $cs['doiQL'] ) ) {
+			$bao[] = array( 'ok' => 'Đã đổi ô "chỉ QL" (chỉ quản lý — không chấm công) cho '
+				. $cs['doiQL'] . ' người. Cơ sở đặt "chỉ QL" không còn hiện trong ô chọn lúc chấm '
+				. 'và không mọc hàng trống trong bảng công — nhưng họ VẪN quản lý nhân viên ở đó, '
+				. 'và mấy lượt đã chấm trước đó không mất.' );
+		}
 		if ( ! empty( $cs['doiChinh'] ) ) {
 			$bao[] = array( 'ok' => 'Đã đổi CƠ SỞ CHÍNH cho ' . $cs['doiChinh'] . ' người — họ vẫn '
 				. 'làm ở đủ những cơ sở đang tích, chỉ đổi cơ sở được chọn sẵn lúc chấm công. '
@@ -615,7 +621,12 @@ class VHCC_TrangNS {
 		   mảng: mỗi người chỉ có MỘT cơ sở chính. */
 		$ch  = isset( $_POST['cs_chinh'] ) ? wp_unslash( $_POST['cs_chinh'] ) : array();
 		if ( ! is_array( $ch ) ) { $ch = array(); }
-		$ra  = array( 'doi' => 0, 'doiChinh' => 0, 'go' => 0, 'loi' => array() );
+		/* Ô tích "chỉ QL" — mảng, và BỎ TÍCH HẾT thì trình duyệt không gửi phần tử nào. Nên
+		   danh sách "hàng nào có gửi" vẫn là `cs_co[MA]` (ô ẩn luôn có mặt), và với hàng ấy thì
+		   `cs_ql[MA]` vắng nghĩa là "không cơ sở nào chỉ quản lý" — đúng ý người bỏ tích. */
+		$ql  = isset( $_POST['cs_ql'] ) ? wp_unslash( $_POST['cs_ql'] ) : array();
+		if ( ! is_array( $ql ) ) { $ql = array(); }
+		$ra  = array( 'doi' => 0, 'doiChinh' => 0, 'doiQL' => 0, 'go' => 0, 'loi' => array() );
 		if ( ! is_array( $gui ) ) { $gui = array(); }
 		if ( ! is_array( $co ) || ! $co ) { return $ra; }
 		foreach ( $co as $ma => $bo_qua ) {
@@ -625,7 +636,11 @@ class VHCC_TrangNS {
 			$ds_cs = array();
 			foreach ( (array) $v as $x ) { $ds_cs[] = sanitize_text_field( (string) $x ); }
 			$c_ch = isset( $ch[ $ma ] ) ? sanitize_text_field( (string) $ch[ $ma ] ) : '';
-			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch );
+			$ds_ql = array();
+			foreach ( (array) ( isset( $ql[ $ma ] ) ? $ql[ $ma ] : array() ) as $x_q ) {
+				$ds_ql[] = sanitize_text_field( (string) $x_q );
+			}
+			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch, $ds_ql );
 			if ( empty( $r['ok'] ) ) {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
@@ -633,6 +648,7 @@ class VHCC_TrangNS {
 			/* Đổi cơ sở CHÍNH: đếm riêng và KHÔNG reset quyền (xem `dat_ds_coso`) — nhưng bản
 			   sao bên hệ ghế vẫn phải theo, vì ô `coso` bên ấy được ghép từ `cua_hang` trước
 			   rồi mới tới `coso_phu`, tức là thứ tự vừa đổi. */
+			if ( ! empty( $r['doiQL'] ) ) { $ra['doiQL']++; }
 			if ( ! empty( $r['doiChinh'] ) ) {
 				$ra['doiChinh']++;
 				VHCC_DayGhe::dong_bo( $ma_s );
@@ -936,7 +952,7 @@ class VHCC_TrangNS {
 			/* Lưới ô tích cơ sở trong cột hẹp: xếp dọc, chữ nhỏ, cuộn khi quá dài. Một người
 			   hiếm khi quá 3–4 cơ sở, nhưng cột này còn phải sống được ở chuỗi 26 cửa hàng. */
 			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;max-height:112px;overflow:auto;'
-			. 'min-width:132px}'
+			. 'min-width:186px}'
 			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
 			. 'white-space:nowrap;cursor:pointer}'
 			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--mo)}'
@@ -944,6 +960,9 @@ class VHCC_TrangNS {
 			. '.o-cs-tich .cs-hang{display:flex;align-items:center;gap:8px;justify-content:space-between}'
 			. '.o-cs-tich .cs-ch{color:var(--mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
 			. '.o-cs-tich .cs-ch:has(input:checked){color:var(--xanh,#0369a1);font-weight:600}'
+			. '.o-cs-tich .cs-ql{color:var(--mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
+			. '.o-cs-tich .cs-ql:has(input:checked){color:#92400e;font-weight:600}'
+			. '.o-cs-tich .cs-hang label:first-child{margin-right:auto}'
 			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
 			. '.xoa-hs:hover{color:#fff;background:var(--do);border-color:var(--do)}'
 			/* Nút xoá thật (nhịp hai): đỏ đặc, không lẫn với nút Lưu xanh. */
@@ -2070,7 +2089,16 @@ class VHCC_TrangNS {
 		}
 		$chinh   = isset( $dang[0] ) ? $dang[0] : '';
 		$ten_ch  = 'cs_chinh[' . esc_attr( $ma ) . ']';
+		$ten_ql  = 'cs_ql[' . esc_attr( $ma ) . '][]';
 		$ve_chinh = count( $bay ) > 1;
+		/* Cờ "chỉ quản lý — không chấm công" đang đặt ở những cơ sở nào (xem
+		   `VHCC_NhanSu::ds_coso_ql()`). Cũng chỉ có nghĩa khi bày từ hai cơ sở trở lên: một cơ
+		   sở mà đặt "chỉ quản lý" thì người ấy không chấm được ở đâu cả. */
+		$co_ql = array();
+		foreach ( VHCC_NhanSu::ds_coso_ql( is_array( $hs ) && $hs
+			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '', 'coso_ql' => '' ) ) as $c_q ) {
+			$co_ql[ VHCC_NhanSu::chu_thuong( $c_q ) ] = 1;
+		}
 
 		$h = '<div class="o-cs-tich">';
 		/* 🔴 Ô ẨN CHỞ CƠ SỞ CHÍNH ĐANG CÓ, ĐẶT TRƯỚC MỌI NÚT TRÒN. Hai lý do, cả hai đều là mất
@@ -2098,6 +2126,23 @@ class VHCC_TrangNS {
 					. ' mở trang chấm công. Chấm ở cơ sở nào trong danh sách cũng được tính đủ.">'
 					. '<input type="radio" name="' . $ten_ch . '" value="' . esc_attr( $c ) . '"'
 					. checked( true, $la_ch, false ) . ( $duoc ? '' : ' disabled' ) . '>chính</label>';
+				/* 🔴 CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG. Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ
+				   quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm công,
+				   nhưng vẫn quản lý được nhân viên cơ sở đó"*. Tích ô này thì cơ sở ấy biến khỏi
+				   ô xổ cơ sở trên trạm và khỏi lưới bảng công của người này — nhưng ô TÍCH vẫn
+				   nguyên, nên quyền quản lý ở đó không đổi một chút nào. */
+				$la_ql = isset( $co_ql[ VHCC_NhanSu::chu_thuong( $c ) ] );
+				$h .= '<label class="cs-ql" title="CHỈ QUẢN LÝ — không chấm công ở cơ sở này.'
+					. ' Cơ sở sẽ không hiện trong ô chọn lúc chấm và không mọc hàng trống trong'
+					. ' bảng công, nhưng người này VẪN quản lý nhân viên ở đó. Không đặt được cho'
+					. ' cơ sở chính.">'
+					. '<input type="checkbox" name="' . $ten_ql . '" value="' . esc_attr( $c ) . '"'
+					. checked( true, $la_ql, false ) . ( $duoc ? '' : ' disabled' ) . '>chỉ QL</label>';
+				/* Ô khoá không gửi giá trị — chở bằng ô ẩn, kẻo lượt Lưu của người không phụ
+				   trách cơ sở ấy lặng lẽ bật lại chấm công ở đó. */
+				if ( ! $duoc && $la_ql ) {
+					$h .= '<input type="hidden" name="' . $ten_ql . '" value="' . esc_attr( $c ) . '">';
+				}
 			}
 			$h .= '</div>';
 		}

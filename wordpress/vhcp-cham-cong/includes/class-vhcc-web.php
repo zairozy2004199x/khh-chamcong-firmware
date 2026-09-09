@@ -1935,13 +1935,44 @@ class VHCC_Web {
 			}
 			$ghi['cua_hang'] = $cp ? array_shift( $cp ) : '';
 			$ghi['coso_phu'] = implode( ', ', $cp );
+
+			/* 🔴 Ô "chỉ QL" — lọc theo danh sách VỪA TÍCH, và chối nếu đặt lên CƠ SỞ CHÍNH.
+			   Cơ sở chính là cơ sở trạm chọn sẵn lúc chấm; đặt cờ lên nó thì ô xổ chọn sẵn một
+			   cơ sở không có trong danh sách, còn lượt chấm không kèm ô chọn ghi thẳng vào đúng
+			   cơ sở vừa bị loại. Cùng một chốt với `VHCC_NhanSu::dat_ds_coso()`. */
+			$ds_tich = array();
+			if ( '' !== $ghi['cua_hang'] ) { $ds_tich[] = $ghi['cua_hang']; }
+			foreach ( explode( ',', $ghi['coso_phu'] ) as $x_t ) {
+				$x_t = VHCC_NhanSu::chuan_coso( $x_t );
+				if ( '' !== $x_t ) { $ds_tich[] = $x_t; }
+			}
+			$co_tich = array();
+			foreach ( $ds_tich as $x_t ) { $co_tich[ VHCC_NhanSu::chu_thuong( $x_t ) ] = $x_t; }
+			$ql_gui = array();
+			if ( isset( $_POST['coso_ql_o'] ) && is_array( $_POST['coso_ql_o'] ) ) {
+				foreach ( (array) wp_unslash( $_POST['coso_ql_o'] ) as $x_q ) {
+					$x_q = VHCC_NhanSu::chuan_coso( $x_q );
+					$k_q = VHCC_NhanSu::chu_thuong( $x_q );
+					if ( '' === $x_q || ! isset( $co_tich[ $k_q ] ) || isset( $ql_gui[ $k_q ] ) ) { continue; }
+					$ql_gui[ $k_q ] = $co_tich[ $k_q ];
+				}
+			}
+			if ( '' !== $ghi['cua_hang']
+				&& isset( $ql_gui[ VHCC_NhanSu::chu_thuong( $ghi['cua_hang'] ) ] ) ) {
+				return array( 'ok' => false, 'error' => 'Không đặt được "chỉ QL" cho '
+					. $ghi['cua_hang'] . ' vì đó đang là CƠ SỞ CHÍNH — cơ sở trạm chọn sẵn lúc '
+					. 'chấm công. Bấm nút "chính" cho một cơ sở người này CÓ chấm công, rồi lưu '
+					. 'lại. Không lưu gì cả.' );
+			}
+			$ghi['coso_ql'] = implode( ', ', array_values( $ql_gui ) );
 		}
 
 		foreach ( self::COT_SUA as $c ) {
 			/* Ô tích ở trên đã lo CẢ HAI cột cơ sở; một ô `cua_hang` hay `coso_phu` gõ tay còn
 			   sót lại trong biểu mẫu (trang mở dở từ bản cũ, hoặc màn khác dùng chung hàm này)
 			   sẽ ghi đè mất kết quả gom — và ghi đè theo hướng tệ nhất: xoá bớt cơ sở. */
-			if ( ( 'coso_phu' === $c || 'cua_hang' === $c ) && isset( $ghi['coso_phu'] ) ) { continue; }
+			if ( ( 'coso_phu' === $c || 'cua_hang' === $c || 'coso_ql' === $c )
+				&& isset( $ghi['coso_phu'] ) ) { continue; }
 			if ( ! isset( $_POST[ $c ] ) ) { continue; }
 			$v = trim( (string) wp_unslash( $_POST[ $c ] ) );
 			if ( in_array( $c, VHCC_NapCsv::COT_TIEN, true ) )      { $ghi[ $c ] = VHCC_NapCsv::tien( $v ); }
@@ -6068,6 +6099,14 @@ class VHCC_Web {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
 				$ma_hs = trim( (string) $hs['ma_nv'] );
 				if ( '' === $ma_hs || isset( $ten[ $ma_hs ] ) ) { continue; }
+				/* 🔴 NGƯỜI ĐẶT "CHỈ QUẢN LÝ" Ở CƠ SỞ NÀY THÌ KHÔNG DỰNG HÀNG TRỐNG. Anh Thắng
+				   09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm
+				   sao để loại ra khỏi bảng chấm công"*. Họ vẫn ở trong sổ nhân sự của cơ sở này
+				   (quản lý ở đây mà), nên `ds_nhan_vien()` vẫn trả về — chỉ vế BẢNG CÔNG loại
+				   ra. ⚠️ Loại HÀNG TRỐNG thôi: nếu họ đã có lượt chấm thật ở đây thì hàng ấy
+				   dựng từ chính lượt chấm ở trên rồi, và cờ này không được xoá dữ liệu đã ghi. */
+				if ( method_exists( 'VHCC_NhanSu', 'hs_cham_coso' )
+					&& ! VHCC_NhanSu::hs_cham_coso( $hs, (string) $b['coSo'] ) ) { continue; }
 				$ten[ $ma_hs ] = trim( (string) $hs['ho_ten'] );
 				/* Phải có hàng chính rỗng, không phải mảng rỗng: `array_keys( array() )` ra rỗng
 				   thì vòng vẽ hàng chạy 0 lượt và người ấy lại biến mất. */
@@ -6387,6 +6426,10 @@ class VHCC_Web {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $cs_bc ) as $hs_c ) {
 				$ma_c = trim( (string) $hs_c['ma_nv'] );
 				if ( '' === $ma_c || isset( $da_co[ strtoupper( $ma_c ) ] ) ) { continue; }
+				/* Cơ sở đặt "chỉ quản lý" thì không dựng hàng trống — xem chú thích cùng việc ở
+				   `ve_luoi_gio()`. */
+				if ( method_exists( 'VHCC_NhanSu', 'hs_cham_coso' )
+					&& ! VHCC_NhanSu::hs_cham_coso( $hs_c, (string) $cs_bc ) ) { continue; }
 				$rows[] = array(
 					'ma' => $ma_c, 'ten' => trim( (string) $hs_c['ho_ten'] ), 'laKeToan' => false,
 					'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0,
@@ -8184,7 +8227,7 @@ class VHCC_Web {
 	 * Cả hai đi cùng một tên `coso_phu_o[]`, nên bộ nhận ở `luu_ho_so()` không cần biết giá trị
 	 * đến từ ô tích hay từ ô gõ.
 	 */
-	private static function o_coso_phu( $dang_co, $chinh = '' ) {
+	private static function o_coso_phu( $dang_co, $chinh = '', $ds_ql = array() ) {
 		$chon = array();
 		foreach ( explode( ',', (string) $dang_co ) as $x ) {
 			$x = trim( $x );
@@ -8211,6 +8254,15 @@ class VHCC_Web {
 		$chinh   = VHCC_NhanSu::chuan_coso( $chinh );
 		$k_chinh = VHCC_NhanSu::chu_thuong( $chinh );
 		$ve_ch   = count( $ds ) > 1;
+		/* 🔴 Ô "chỉ QL" — CHỈ QUẢN LÝ, KHÔNG CHẤM CÔNG. Anh Thắng 09/09/2026: *"đối với cửa hàng
+		   chỉ quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm công, nhưng
+		   vẫn quản lý được nhân viên cơ sở đó"*. Ô TÍCH cơ sở vẫn nguyên (quyền quản lý đi theo
+		   nó), chỉ vế chấm công bị trừ ra. */
+		$k_ql = array();
+		foreach ( (array) $ds_ql as $x_q ) {
+			$x_q = VHCC_NhanSu::chuan_coso( $x_q );
+			if ( '' !== $x_q ) { $k_ql[ VHCC_NhanSu::chu_thuong( $x_q ) ] = 1; }
+		}
 
 		$h = '<div style="border:1px solid var(--vien);border-radius:8px;padding:8px 10px;'
 			. 'background:var(--the,#fff)">';
@@ -8233,6 +8285,14 @@ class VHCC_Web {
 						. 'font-size:11px;font-weight:400;color:var(--mo)">'
 						. '<input type="radio" name="coso_chinh" value="' . esc_attr( $v ) . '"'
 						. checked( $k === $k_chinh, true, false ) . '>chính</label>';
+					$h .= '<label title="CHỈ QUẢN LÝ ' . esc_attr( $v ) . ' — không chấm công ở đó.'
+						. ' Cơ sở sẽ không hiện trong ô chọn lúc chấm và không mọc hàng trống'
+						. ' trong bảng công, nhưng người này VẪN quản lý nhân viên ở đó. Không'
+						. ' đặt được cho cơ sở chính." style="display:flex;align-items:center;'
+						. 'gap:2px;font-size:11px;font-weight:400;color:'
+						. ( isset( $k_ql[ $k ] ) ? '#92400e' : 'var(--mo)' ) . '">'
+						. '<input type="checkbox" name="coso_ql_o[]" value="' . esc_attr( $v ) . '"'
+						. checked( isset( $k_ql[ $k ] ), true, false ) . '>chỉ QL</label>';
 				}
 				$h .= '</span>';
 			}
@@ -8243,7 +8303,9 @@ class VHCC_Web {
 			. ' style="flex:1;min-width:190px;font-size:13px">'
 			. '<span class="mo" style="font-size:11.5px">Tích bao nhiêu cơ sở cũng được.'
 			. ( $ve_ch ? ' Nút <b>chính</b> = cơ sở chọn sẵn lúc chấm công; cơ sở nào đã tích'
-				. ' cũng chấm được và tính đủ.' : '' ) . '</span>'
+				. ' cũng chấm được và tính đủ. Ô <b>chỉ QL</b> = quản lý nhân viên cơ sở đó nhưng'
+				. ' KHÔNG chấm công ở đó (loại khỏi ô chọn lúc chấm và khỏi bảng công).' : '' )
+			. '</span>'
 			. '</div></div>';
 		return $h;
 	}
@@ -8572,7 +8634,7 @@ JS;
 				} elseif ( 'cua_hang' === $c ) {
 					/* Lưới gộp: hiện CẢ hai cột, tích cái nào là làm ở đó. */
 					echo self::o_coso_phu( trim( $g( 'cua_hang' ) . ', ' . $g( 'coso_phu' ), ' ,' ),
-						$g( 'cua_hang' ) );
+						$g( 'cua_hang' ), VHCC_NhanSu::ds_coso_ql( is_array( $r ) ? $r : array() ) );
 				} else {
 					/* Ô gõ CÓ GỢI Ý cho mấy ô hay lệch cách viết. Trạng thái làm việc cố ý vẫn là
 					   ô GÕ chứ không phải ô chọn: luật "đã nghỉ" đọc theo chữ "nghỉ" trong câu

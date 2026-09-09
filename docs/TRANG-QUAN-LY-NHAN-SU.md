@@ -398,6 +398,68 @@ người hay dùng nó, kèm một câu chối nhắc "ô Cơ sở phụ" đã b
 
 ---
 
+## 4e. Cơ sở "chỉ quản lý — không chấm công" — 3.63.0 (09/09/2026)
+
+Anh Thắng, trước khối *"Cơ sở được chấm công"* của chính mình đang liệt kê **sáu** cơ sở:
+*"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm
+công, nhưng vẫn quản lý được nhân viên cơ sở đó"*.
+
+### Trả lời ngắn
+
+Trong **ô Cơ sở**, mỗi cơ sở nay có thêm ô tích **`chỉ QL`** cạnh nút tròn *chính*. Tích nó thì
+cơ sở ấy:
+
+* **biến khỏi ô chọn cơ sở lúc chấm công** trên trạm (và lượt POST gửi thẳng cũng bị chối),
+* **không mọc hàng trống** trong lưới bảng công của cơ sở ấy,
+
+nhưng **ô tích cơ sở vẫn nguyên**, nên:
+
+* thẻ phiên vẫn mang cơ sở ấy → `co_quyen_coso()` vẫn đúng,
+* **danh sách nhân sự của cơ sở ấy vẫn quản được như thường**,
+* và **mấy lượt đã chấm trước đó không mất** — cờ chặn lượt MỚI, không xoá cái đã ghi.
+
+### Vì sao phải là "cờ phụ thêm", không phải một cột riêng
+
+Từ 31/08/2026 một ô tích mang **ba nghĩa** cùng lúc: nơi người ta **làm**, nơi người ta **quản**,
+nơi người ta **chấm**. Ba nghĩa ấy trùng nhau với gần hết mọi người — nhưng không trùng với
+người quản nhiều cơ sở mà chỉ đứng làm ở một hai nơi.
+
+Cách rẻ nhất là bỏ tích cơ sở đi — nhưng đó là **làm sai đúng nửa sau câu hỏi**: bỏ tích là mất
+luôn quyền quản lý ở đó. Cách thứ hai là dựng một cột "cơ sở quản lý" riêng ngoài ô tích — nhưng
+khi ấy **mọi** câu hỏi "người này ở đâu" trong cả plugin phải sửa lại, và mỗi câu bỏ sót là một
+chỗ mất quyền câm.
+
+Nên: `nhan_vien.coso_ql` là **tập con của những cơ sở đã tích**. Mọi thứ cấp phạm vi chạy y như
+cũ, không đổi một dòng; chỉ vế **chấm công** trừ ra.
+
+### Ba chốt đi kèm
+
+* **Cơ sở chính không được đặt `chỉ QL`.** Cơ sở chính là cơ sở trạm **chọn sẵn** (nó đi vào thẻ
+  phiên rồi thành `coSoMacDinh`), và lượt chấm không kèm ô chọn ghi thẳng vào đó. Cho phép thì ô
+  xổ chọn sẵn một cơ sở không có trong danh sách, còn lượt chấm im lặng ghi vào đúng cơ sở vừa
+  bị loại. Cả hai cửa ghi (`dat_ds_coso()` và biểu mẫu hồ sơ) chối, và chỉ luôn cách làm: bấm
+  nút tròn **chính** cho một cơ sở người ấy CÓ chấm công.
+* **Không được biến mất lặng lẽ.** Người bị loại là người mở trang trạm ra — sáu cơ sở còn hai
+  thì họ tưởng hồ sơ bị sửa mất. Trạm **kể tên** mấy cơ sở "chỉ quản lý" ra, nói rõ *vẫn quản lý
+  nhân viên ở đó*, và chỉ chỗ sửa nếu đặt nhầm.
+* **Bảng "Hôm nay" và "Công của tôi" vẫn phủ ĐỦ cơ sở.** Chỉ `dsCoSo` (ô xổ) bị trừ.
+  `VHCC_Online::ds_coso_cham_cua_nv()` là **hàm riêng**, không sửa `ds_coso_cua_nv()` — hàm kia
+  còn ba đường gọi nữa và chúng ĐỌC LỊCH SỬ ("Công của tôi", `lichsu`, `thang` của trạm). Trừ ở
+  đó là người vừa được đặt cờ mất mấy tháng công cũ khỏi màn hình của chính họ, im lặng.
+
+### Câu chối phải nói đúng việc
+
+Người bị loại vì cờ này thì hồ sơ **CÓ** tích cơ sở ấy — họ quản ở đó, họ đang đứng ở đó. Câu cũ
+*"Bạn không có ở cơ sở này"* nghe như hệ thống hỏng, nên cửa ghi tách hẳn một câu riêng: cơ sở ấy
+**đang đặt là CHỈ QUẢN LÝ**, và nếu nay có làm ở đây thật thì nhờ quản lý bỏ ô `chỉ QL`.
+
+Đo bằng 44 phép trong `tools/test/test-cham-cong.php`. Mỗi cảnh đo **song song hai vế**: cái gì
+biến mất (ô xổ, hàng lưới) và cái gì còn nguyên (thẻ phiên, `co_quyen_coso`, danh sách nhân sự,
+lịch sử công). Lưới có **đối chứng cùng hình dạng nhưng không đặt cờ** trên cùng một lưới —
+thiếu nó thì một bản vá lỡ tay bỏ sạch hàng trống vẫn xanh.
+
+---
+
 ---
 
 ## 5. Nằm ở đâu trong mã

@@ -477,8 +477,21 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
-t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về',
-	count( $cot_thuc['nhan_vien'] ) === 32 ); // 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về'
+	. ' + coso_ql',
+	count( $cot_thuc['nhan_vien'] ) === 33,
+	implode( ', ', $cot_thuc['nhan_vien'] ) );
+// 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql
+/* 🔴 CỜ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" là MỘT CỘT TRONG HỒ SƠ, không phải một sổ rời.
+   Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để
+   loại ra khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*. Cờ này là thuộc
+   tính của CẶP (người, cơ sở) — cùng chỗ với `cua_hang`/`coso_phu` thì đổi cơ sở là cờ theo
+   ngay; để ở sổ rời thì đổi mã hay nạp lại sổ là cờ mồ côi, và người ta lặng lẽ chấm được ở
+   một cơ sở vừa bị loại. */
+t( 'nhan_vien có cột cờ "chỉ quản lý" (coso_ql)',
+	in_array( 'coso_ql', $cot_thuc['nhan_vien'], true ) );
+t( 'và là TEXT (nối nhiều cơ sở bằng dấu phẩy) y như coso_phu',
+	preg_match( '/coso_ql TEXT NULL/', $so_do['nhan_vien'] ) === 1 );
 /* 🔴 BA Ô "CHỜ TRẢ VỀ NHÂN SỰ" nằm ngay trong hồ sơ, không ở một sổ rời.
    Anh Thắng 28/08/2026: *"Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là chờ trả về
    nhân sự"*. Dấu ấy là thuộc tính của CHÍNH con người ấy — để ở sổ rời thì xoá hồ sơ, đổi mã,
@@ -19841,6 +19854,234 @@ t( 'và nói cơ sở nào cũng được tính công đủ như nhau',
 t( 'và chỉ luôn chỗ đổi', strpos( $src_tram_csc, 'ô Cơ sở trong hồ sơ' ) !== false, null );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='CSC1'" );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CƠ SỞ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" — 09/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng, trước khối "Cơ sở được chấm công" của chính mình đang liệt kê SÁU cơ sở: *"đối với
+ * cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để loại ra khỏi bảng chấm công,
+ * nhưng vẫn quản lý được nhân viên cơ sở đó"*.
+ *
+ * Từ 31/08/2026 một ô tích mang BA nghĩa cùng lúc: nơi LÀM, nơi QUẢN, nơi CHẤM. Với người quản
+ * nhiều cơ sở mà chỉ đứng làm ở một hai nơi thì vế QUẢN kéo theo vế CHẤM: ô xổ cơ sở lúc lưu
+ * dài sáu dòng (bấm nhầm là công rơi sang cửa hàng khác), và lưới bảng công của cả sáu cơ sở
+ * đều mọc một hàng trống tên họ.
+ *
+ * 🔴 PHÉP THỬ PHẢI ĐO CẢ HAI VẾ. "Loại khỏi bảng chấm công" một mình thì dễ — cắt ô tích là
+ *    xong; nhưng cắt ô tích là mất luôn quyền quản lý, tức là làm sai đúng nửa sau câu hỏi. Nên
+ *    mỗi cảnh dưới đây đo song song: cái gì BIẾN MẤT (ô xổ, hàng lưới) và cái gì CÒN NGUYÊN
+ *    (thẻ phiên, `co_quyen_coso`, danh sách nhân sự, lịch sử công đã chấm).
+ */
+$_cs_ql = 'VP_CHI_QL';
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $_cs_ql => 'cong' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QL1',
+	'ho_ten' => 'Người Quản Nhiều Nơi', 'cua_hang' => 'JP_HCM',
+	'coso_phu' => $_cs_ql . ', PINPALL_QL', 'pin_dang_nhap' => '818283',
+	'vai_tro' => 'Cửa hàng trưởng', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Một nhân viên THẬT của cơ sở ấy — để đo "vẫn quản lý được nhân viên cơ sở đó". */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QLNV',
+	'ho_ten' => 'Nhân Viên Của Cơ Sở Ấy', 'cua_hang' => $_cs_ql,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Và một người CÙNG HÌNH DẠNG nhưng KHÔNG đặt cờ — đối chứng trên cùng một lưới. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QLKH',
+	'ho_ten' => 'Người Không Đặt Cờ', 'cua_hang' => 'JP_HCM', 'coso_phu' => $_cs_ql,
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+
+$r_ql = VHCC_NhanSu::dat_ds_coso( $U_AD, 'QL1',
+	array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ), 'JP_HCM', array( $_cs_ql ) );
+t( '🔴 đặt cờ "chỉ quản lý" cho một cơ sở thì cửa ghi NHẬN',
+	! empty( $r_ql['ok'] ) && ! empty( $r_ql['doiQL'] ), $r_ql );
+t( 'và KHÔNG bị coi là chuyển cơ sở (doi = false, không reset quyền riêng)',
+	empty( $r_ql['doi'] ) && 0 === (int) $r_ql['go'], $r_ql );
+$hs_ql = vhcc_hs( 'QL1' );
+teq( 'cột coso_ql ghi đúng tên cơ sở', $_cs_ql, (string) $hs_ql['coso_ql'] );
+
+/* ---- VẾ 1: Ô TÍCH VẪN NGUYÊN, nên MỌI THỨ CẤP PHẠM VI không đổi một chút nào ---- */
+teq( '🔴 ô tích vẫn đủ BA cơ sở', array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ),
+	VHCC_NhanSu::ds_coso_hs( $hs_ql ) );
+t( '🔴 hồ sơ vẫn "thuộc" cơ sở ấy (câu hỏi phạm vi)',
+	VHCC_NhanSu::hs_thuoc_coso( $hs_ql, $_cs_ql ), null );
+t( 'và cờ đọc ra đúng', VHCC_NhanSu::la_chi_quan_ly( $hs_ql, $_cs_ql )
+	&& ! VHCC_NhanSu::la_chi_quan_ly( $hs_ql, 'JP_HCM' ), VHCC_NhanSu::ds_coso_ql( $hs_ql ) );
+
+/* 🔴 ĐO QUA ĐÚNG ĐƯỜNG ĐĂNG NHẬP THẬT. Quyền quản lý đi từ thẻ phiên (`VHCC_Auth::users_cua()`
+   ghép `cua_hang` + `coso_phu`), nên chỉ đo mấy hàm trên hồ sơ là chưa chứng minh được câu
+   "vẫn quản lý được nhân viên cơ sở đó". */
+/* ⚠️ Cổng web đọc danh sách người dùng theo `VHCC_Auth::nguon()`, mà tới cuối tệp này nguồn đã
+   bị mấy mục trên đổi qua đổi lại. Đặt lại về `ho_so` (đường đang chạy thật trên live: đọc
+   THẲNG hồ sơ nhân sự) rồi trả về nguyên trạng ở cuối khối. */
+$_nguon_cu_ql = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+VHCC_Auth::mo_khoa();
+$dn_ql = VHCC_Auth::login( '818283' );
+t( 'đăng nhập được bằng PIN của người ấy', ! empty( $dn_ql['ok'] ), $dn_ql );
+$u_ql = VHCC_Tram::nguoi( $dn_ql['token'] );
+t( 'bốc được thẻ phiên (kẻo mọi phép dưới đo trên null)', is_array( $u_ql ), $u_ql );
+t( '🔴 thẻ phiên VẪN mang cơ sở đặt cờ',
+	in_array( $_cs_ql, VHCC_NhanSu::ds_coso_cua( $u_ql ), true ),
+	VHCC_NhanSu::ds_coso_cua( $u_ql ) );
+t( '🔴 và VẪN phụ trách cơ sở ấy', VHCC_NhanSu::co_quyen_coso( $u_ql, $_cs_ql ), null );
+$ds_nv_ql = array();
+foreach ( VHCC_NhanSu::ds_nhan_vien( $u_ql, $_cs_ql ) as $x_nv ) {
+	$ds_nv_ql[] = (string) $x_nv['ma_nv'];
+}
+t( '🔴 VẪN QUẢN LÝ ĐƯỢC NHÂN VIÊN cơ sở đó — đúng nửa sau câu hỏi',
+	in_array( 'QLNV', $ds_nv_ql, true ), $ds_nv_ql );
+
+/* ---- VẾ 2: BIẾN KHỎI ĐƯỜNG CHẤM CÔNG ---- */
+teq( '🔴 danh sách cơ sở CHẤM ĐƯỢC đã trừ cơ sở đặt cờ', array( 'JP_HCM', 'PINPALL_QL' ),
+	VHCC_NhanSu::ds_coso_cham( $hs_ql ) );
+$tt_ql = VHCC_Online::thong_tin( $u_ql );
+t( '🔴 ô xổ cơ sở trên TRẠM không còn cơ sở ấy',
+	! in_array( $_cs_ql, $tt_ql['dsCoSo'], true ), $tt_ql['dsCoSo'] );
+t( 'hai cơ sở kia vẫn còn', in_array( 'JP_HCM', $tt_ql['dsCoSo'], true )
+	&& in_array( 'PINPALL_QL', $tt_ql['dsCoSo'], true ), $tt_ql['dsCoSo'] );
+/* 🔴 KHÔNG ĐƯỢC BIẾN MẤT LẶNG LẼ. Người bị loại là người mở trang ấy ra: sáu cơ sở còn hai thì
+   họ tưởng hồ sơ bị sửa mất. Trạm phải kể tên ra. */
+teq( '🔴 trạm nhận được danh sách cơ sở "chỉ quản lý" để nói ra', array( $_cs_ql ),
+	$tt_ql['dsCoSoQL'] );
+$src_tram_ql = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+t( 'và trang có in mấy cơ sở ấy ra kèm câu "vẫn quản lý nhân viên"',
+	strpos( $src_tram_ql, 'dsCoSoQL' ) !== false
+	&& strpos( $src_tram_ql, 'vẫn quản lý nhân viên' ) !== false, null );
+
+/* 🔴 CHỐT PHẢI Ở CỬA GHI, KHÔNG CHỈ Ở Ô XỔ. Ô xổ không vẽ chỉ là không mời; POST thì ai gửi
+   cũng tới, và một trang mở dở từ trước khi đặt cờ vẫn còn nguyên cơ sở ấy trong ô. */
+$r_cham_ql = VHCC_Online::cham_cong( $u_ql, '', null, $_cs_ql, '' );
+t( '🔴 chấm ở cơ sở "chỉ quản lý" bị CHỐI', empty( $r_cham_ql['ok'] ), $r_cham_ql );
+/* ⚠️ Câu chối phải nói ĐÚNG việc đang xảy ra. "Bạn không có ở cơ sở này" là câu của một cảnh
+   khác (hồ sơ không tích cơ sở ấy) — với người đang đứng quản ở đó thì nó nghe như hệ hỏng. */
+t( 'câu chối nói rõ là do cờ CHỈ QUẢN LÝ',
+	strpos( (string) $r_cham_ql['error'], 'CHỈ QUẢN LÝ' ) !== false, $r_cham_ql );
+t( 'và chỉ luôn cách sửa nếu đặt nhầm',
+	strpos( (string) $r_cham_ql['error'], 'chỉ QL' ) !== false, $r_cham_ql );
+$r_cham_ok = VHCC_Online::cham_cong( $u_ql, '', null, 'PINPALL_QL', '' );
+t( 'còn cơ sở KHÔNG đặt cờ thì chấm được như thường',
+	! empty( $r_cham_ok['ok'] ) && 'PINPALL_QL' === (string) $r_cham_ok['coSo'], $r_cham_ok );
+
+/* ---- VẾ 3: CỜ CHẶN LƯỢT MỚI, KHÔNG XOÁ CÁI ĐÃ GHI ---- */
+/* 🔴 Người vừa bị đặt cờ mà tháng trước đã chấm thật ở đó thì công ấy PHẢI CÒN trên màn của
+   chính họ. Trừ ở `ds_coso_cua_nv()` (hàm mà "Công của tôi", `lichsu` và `thang` đang dùng) là
+   họ mất mấy tháng công cũ — im lặng, và họ sẽ tưởng công bị xoá. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $_cs_ql, 'ngay' => '2026-08-12',
+	'ma_nv' => 'QL1', 'hau_to' => '', 'ho_ten' => 'Người Quản Nhiều Nơi',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+t( '🔴 danh sách ĐỌC LỊCH SỬ vẫn đủ cơ sở ấy (không mất công cũ)',
+	in_array( $_cs_ql, VHCC_Online::ds_coso_cua_nv( 'QL1', (string) $u_ql['coso'] ), true ),
+	VHCC_Online::ds_coso_cua_nv( 'QL1', (string) $u_ql['coso'] ) );
+$bt_ql = VHCC_Online::bang_thang( 'QL1',
+	VHCC_Online::ds_coso_cua_nv( 'QL1', (string) $u_ql['coso'] ), '2026-08' );
+$co_ngay_cu = false;
+foreach ( (array) $bt_ql['dong'] as $x_h ) {
+	if ( '2026-08-12' === (string) $x_h['ngay'] && $_cs_ql === (string) $x_h['coSo'] ) {
+		$co_ngay_cu = true;
+	}
+}
+t( '🔴 "Công của tôi" tháng cũ VẪN thấy lượt đã chấm ở cơ sở ấy', $co_ngay_cu, $bt_ql['dong'] );
+/* Và bảng "Hôm nay" của trạm cũng tính trên ĐỦ cơ sở: lượt vừa chấm hôm nay ở một cơ sở vừa bị
+   đặt cờ phải còn nhìn thấy — ẩn đi là họ tưởng mất giờ vào rồi bấm lại, mà lượt thứ hai ngay
+   sau giờ vào là GIỜ RA. */
+t( '🔴 khối "Hôm nay" vẫn phủ đủ cơ sở, kể cả cơ sở đặt cờ',
+	isset( $tt_ql['homNay'][ $_cs_ql ] ), array_keys( (array) $tt_ql['homNay'] ) );
+t( 'và trang đi theo khoá của homNay, không theo dsCoSo',
+	preg_match( '/function veHomNay\(j\)\{\s*\n\s*var hn = \(j && j\.homNay\)/',
+		$src_tram_ql ) === 1, null );
+
+/* ---- VẾ 4: LƯỚI BẢNG CÔNG KHÔNG MỌC HÀNG TRỐNG ---- */
+/* 🔴 ĐO TRÊN KHỐI LƯỚI, KHÔNG ĐO CẢ TRANG — khối "chưa có ảnh thẻ" cũng in tên người, và em đã
+   trả giá một lần cho phép đo lỏng đúng kiểu ấy. Và phải có ĐỐI CHỨNG cùng hình dạng nhưng
+   không đặt cờ trên CÙNG một lưới: thiếu nó thì một bản vá lỡ tay bỏ sạch hàng trống vẫn xanh. */
+$h_ql = vhcc_web_nhu2( 'ACAD', 'Admin', $_cs_ql,
+	array( 'man' => 'cham', 'ccs' => $_cs_ql, 'cth' => '2026-09' ) );
+$_i_ql = strpos( $h_ql, 'id="luoithang"' );
+$_j_ql = ( false !== $_i_ql ) ? strpos( $h_ql, '</details>', $_i_ql ) : false;
+$_khoi_ql = ( false !== $_i_ql && false !== $_j_ql ) ? substr( $h_ql, $_i_ql, $_j_ql - $_i_ql ) : '';
+t( 'bốc được khối lưới (kẻo mọi phép dưới đo trên chuỗi rỗng)', strlen( $_khoi_ql ) > 500, null );
+t( '🔴 người đặt cờ "chỉ QL" KHÔNG mọc hàng trống trong lưới cơ sở ấy',
+	strpos( $_khoi_ql, 'Người Quản Nhiều Nơi' ) === false, substr( $_khoi_ql, 0, 1200 ) );
+t( '🔴 còn người CÙNG HÌNH DẠNG mà không đặt cờ thì VẪN có hàng (đối chứng)',
+	strpos( $_khoi_ql, 'Người Không Đặt Cờ' ) !== false, substr( $_khoi_ql, 0, 1200 ) );
+t( 'và nhân viên thật của cơ sở vẫn có hàng',
+	strpos( $_khoi_ql, 'Nhân Viên Của Cơ Sở Ấy' ) !== false, null );
+
+/* ---- CHỐT: CƠ SỞ CHÍNH KHÔNG ĐƯỢC ĐẶT CỜ ---- */
+/* 🔴 Cơ sở chính là cơ sở TRẠM CHỌN SẴN (nó đi vào thẻ phiên rồi thành `coSoMacDinh`), và lượt
+   chấm không kèm ô chọn ghi thẳng vào đó. Cho đặt cờ lên nó thì ô xổ chọn sẵn một cơ sở không
+   có trong danh sách, còn lượt chấm im lặng ghi vào đúng cơ sở vừa bị loại — hỏng cả hai đầu. */
+$r_ch_ql = VHCC_NhanSu::dat_ds_coso( $U_AD, 'QL1',
+	array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ), 'JP_HCM', array( 'JP_HCM', $_cs_ql ) );
+t( '🔴 đặt "chỉ QL" cho CƠ SỞ CHÍNH thì bị chối', empty( $r_ch_ql['ok'] ), $r_ch_ql );
+t( 'câu chối nói rõ vì sao và chỉ cách làm',
+	strpos( (string) $r_ch_ql['error'], 'CƠ SỞ CHÍNH' ) !== false
+	&& strpos( (string) $r_ch_ql['error'], 'nút tròn "chính"' ) !== false, $r_ch_ql );
+teq( 'và KHÔNG ghi gì cả', $_cs_ql, (string) vhcc_hs( 'QL1' )['coso_ql'] );
+
+/* Cờ của cơ sở ĐÃ BỎ TÍCH thì phải rụng theo — sót lại thì lượt sau tích lại cơ sở ấy là nó
+   lặng lẽ không chấm công được, và không ô nào trên màn hình giải thích vì sao. */
+$r_bo = VHCC_NhanSu::dat_ds_coso( $U_AD, 'QL1', array( 'JP_HCM', 'PINPALL_QL' ), 'JP_HCM', null );
+t( 'bỏ tích cơ sở đặt cờ thì lưu được', ! empty( $r_bo['ok'] ), $r_bo );
+teq( '🔴 và cờ rụng theo, không sót lại trong cột', '', (string) vhcc_hs( 'QL1' )['coso_ql'] );
+
+/* ---- HAI Ô TÍCH TRÊN MÀN, và lượt POST thật ---- */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cua_hang' => 'JP_HCM',
+	'coso_phu' => $_cs_ql . ', PINPALL_QL', 'coso_ql' => '' ), array( 'ma_nv' => 'QL1' ) );
+$tok_ql = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'QLAD' );
+$h_ns_ql = vhcc_hr_ns( $tok_ql );
+t( 'đang soi trang /nhan-su/ thật', strpos( $h_ns_ql, 'name="cs_co[QL1]"' ) !== false,
+	substr( $h_ns_ql, 0, 300 ) );
+t( '🔴 lưới cơ sở có ô tích "chỉ QL" cho từng cơ sở',
+	strpos( $h_ns_ql, 'name="cs_ql[QL1][]" value="' . esc_attr( $_cs_ql ) . '"' ) !== false, null );
+$_POST = array(
+	'o'        => array( 'QL1' => array( 'tram' => '' ) ),
+	'cs_co'    => array( 'QL1' => '1' ),
+	'cs'       => array( 'QL1' => array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ) ),
+	'cs_chinh' => array( 'QL1' => 'JP_HCM' ),
+	'cs_ql'    => array( 'QL1' => array( $_cs_ql ) ),
+);
+$bao_ql = VHCC_TrangNS::lam_viec( 'luu_quyen', $U_AD );
+$_POST = array();
+teq( '🔴 tích ô "chỉ QL" rồi Lưu thì cột ghi thật', $_cs_ql,
+	(string) vhcc_hs( 'QL1' )['coso_ql'] );
+t( 'và màn hình nói ra là vừa đổi ô "chỉ QL"',
+	strpos( (string) wp_json_encode( $bao_ql ), 'chỉ QL' ) !== false, $bao_ql );
+t( 'câu báo nói rõ họ VẪN quản lý nhân viên ở đó',
+	strpos( (string) wp_json_encode( $bao_ql ), 'VẪN quản lý nhân viên' ) !== false, $bao_ql );
+/* 🔴 BỎ TÍCH HẾT thì trình duyệt KHÔNG gửi `cs_ql[QL1]` nào cả — phải hiểu là "không cơ sở nào
+   chỉ quản lý", không phải "hàng này không nói gì". Hiểu sai chiều này là bỏ tích xong bấm Lưu
+   thấy y nguyên, bấm mấy lượt rồi thôi. */
+$_POST = array(
+	'o'        => array( 'QL1' => array( 'tram' => '' ) ),
+	'cs_co'    => array( 'QL1' => '1' ),
+	'cs'       => array( 'QL1' => array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ) ),
+	'cs_chinh' => array( 'QL1' => 'JP_HCM' ),
+);
+VHCC_TrangNS::lam_viec( 'luu_quyen', $U_AD );
+$_POST = array();
+teq( '🔴 bỏ tích hết ô "chỉ QL" thì cột về rỗng', '', (string) vhcc_hs( 'QL1' )['coso_ql'] );
+
+/* ---- và cùng ô ấy trong biểu mẫu hồ sơ ---- */
+$h_hs_ql = vhcc_web_nhu2( 'QLAD', 'Admin', '', array( 'man' => 'ho_so', 'sua' => 'QL1' ) );
+t( '🔴 ô "Cơ sở làm việc" cũng có ô tích "chỉ QL"',
+	strpos( $h_hs_ql, 'name="coso_ql_o[]" value="' . esc_attr( $_cs_ql ) . '"' ) !== false, null );
+vhcc_web_post_nhu( 'QLAD', 'Admin', '', array( 'viec' => 'sua_hs', 'ma_nv' => 'QL1',
+	'coso_o' => array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ), 'coso_chinh' => 'JP_HCM',
+	'coso_ql_o' => array( $_cs_ql ) ) );
+teq( '🔴 lưu hồ sơ với ô "chỉ QL" thì cột ghi thật', $_cs_ql,
+	(string) vhcc_hs( 'QL1' )['coso_ql'] );
+teq( 'và ô tích cơ sở KHÔNG bị gỡ mất cơ sở nào', array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ),
+	VHCC_NhanSu::ds_coso_hs( vhcc_hs( 'QL1' ) ) );
+/* Biểu mẫu hồ sơ cũng phải chối khi đặt cờ lên cơ sở chính — hai cửa ghi, một luật. */
+$h_choi = vhcc_web_post_nhu( 'QLAD', 'Admin', '', array( 'viec' => 'sua_hs', 'ma_nv' => 'QL1',
+	'coso_o' => array( 'JP_HCM', $_cs_ql ), 'coso_chinh' => 'JP_HCM',
+	'coso_ql_o' => array( 'JP_HCM' ) ) );
+teq( '🔴 biểu mẫu hồ sơ cũng chối, và không ghi nửa vời', $_cs_ql,
+	(string) vhcc_hs( 'QL1' )['coso_ql'] );
+teq( 'ô tích cũng không bị cắt bớt theo lượt bị chối', array( 'JP_HCM', $_cs_ql, 'PINPALL_QL' ),
+	VHCC_NhanSu::ds_coso_hs( vhcc_hs( 'QL1' ) ) );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('QL1')" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('QL1','QLNV','QLKH')" );
+update_option( 'vhcc_nguon_nguoidung', $_nguon_cu_ql );
 
 vhcc_dung_bang();
 

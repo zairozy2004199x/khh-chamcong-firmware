@@ -171,6 +171,82 @@ class VHCC_NhanSu {
 		return array_values( $ds );
 	}
 
+	/**
+	 * CƠ SỞ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" của một hồ sơ.
+	 *
+	 * 🔴 Anh Thắng 09/09/2026, trước khối "Cơ sở được chấm công" của mình đang liệt kê SÁU cơ
+	 *    sở: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để loại ra
+	 *    khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*.
+	 *
+	 *    Từ 31/08/2026 một ô tích mang BA nghĩa cùng lúc: nơi người ta LÀM, nơi người ta QUẢN,
+	 *    và nơi người ta CHẤM. Ba nghĩa ấy trùng nhau với gần hết mọi người — nhưng không trùng
+	 *    với người quản nhiều cơ sở mà chỉ đứng làm ở một hai nơi. Với họ, ô tích cần thiết cho
+	 *    vế QUẢN lại kéo theo vế CHẤM: ô xổ cơ sở lúc lưu dài sáu dòng (bấm nhầm là công rơi
+	 *    sang cửa hàng khác), và lưới bảng công của cả sáu cơ sở đều mọc một hàng trống tên họ.
+	 *
+	 * 🔴 CỜ NÀY LÀ **PHỤ THÊM** TRÊN Ô TÍCH, KHÔNG PHẢI MỘT DANH SÁCH RIÊNG. `coso_ql` luôn là
+	 *    tập con của những cơ sở đã tích. Nghĩa là mọi thứ cấp PHẠM VI (thẻ phiên,
+	 *    `co_quyen_coso`, `co_quyen_ho_so`, `ds_coso_hs`) chạy y như cũ, không đổi một dòng —
+	 *    chỉ vế CHẤM CÔNG trừ ra. Làm ngược lại (cột riêng ngoài ô tích) là phải sửa hết mọi
+	 *    câu hỏi "người này ở đâu" trong cả plugin, và mỗi câu bỏ sót là một chỗ mất quyền câm.
+	 *
+	 * ⚠️ Tên nào không có trong ô tích thì BỎ. Cờ sót lại của một cơ sở đã bỏ tích mà vẫn tính
+	 *    thì lượt lưu sau, người ta tích lại cơ sở ấy là nó lặng lẽ không chấm công được.
+	 */
+	public static function ds_coso_ql( $hs ) {
+		$co = array();
+		foreach ( self::ds_coso_hs( $hs ) as $x ) { $co[ self::chu_thuong( $x ) ] = $x; }
+		$ra = array();
+		$goc = isset( $hs['coso_ql'] ) ? (string) $hs['coso_ql'] : '';
+		foreach ( explode( ',', $goc ) as $x ) {
+			$x = self::chuan_coso( $x );
+			if ( '' === $x ) { continue; }
+			$k = self::chu_thuong( $x );
+			if ( ! isset( $co[ $k ] ) || isset( $ra[ $k ] ) ) { continue; }
+			$ra[ $k ] = $co[ $k ];
+		}
+		return array_values( $ra );
+	}
+
+	/**
+	 * CƠ SỞ NGƯỜI NÀY CHẤM CÔNG ĐƯỢC = đã tích, TRỪ mấy cơ sở đặt "chỉ quản lý".
+	 *
+	 * ⚠️ KHÔNG BAO GIỜ RỖNG khi hồ sơ có tích cơ sở: `dat_ds_coso()` và biểu mẫu hồ sơ chối
+	 *    lượt lưu đặt cờ "chỉ quản lý" lên CƠ SỞ CHÍNH. Nhờ vậy `coSoMacDinh` của trạm (đọc
+	 *    `cua_hang`) luôn là một cơ sở chấm được — nếu không, ô xổ trên trạm chọn sẵn một cơ sở
+	 *    không có trong danh sách, và lượt chấm không chọn cơ sở ghi vào một nơi vừa bị loại.
+	 */
+	public static function ds_coso_cham( $hs ) {
+		$bo = array();
+		foreach ( self::ds_coso_ql( $hs ) as $x ) { $bo[ self::chu_thuong( $x ) ] = 1; }
+		$ra = array();
+		foreach ( self::ds_coso_hs( $hs ) as $x ) {
+			if ( isset( $bo[ self::chu_thuong( $x ) ] ) ) { continue; }
+			$ra[] = $x;
+		}
+		return $ra;
+	}
+
+	/** Cơ sở này của hồ sơ ấy đang là "chỉ quản lý — không chấm công" không. */
+	public static function la_chi_quan_ly( $hs, $coso ) {
+		$coso = self::chu_thuong( self::chuan_coso( $coso ) );
+		if ( '' === $coso ) { return false; }
+		foreach ( self::ds_coso_ql( $hs ) as $x ) {
+			if ( self::chu_thuong( $x ) === $coso ) { return true; }
+		}
+		return false;
+	}
+
+	/** Hồ sơ này có CHẤM CÔNG ở cơ sở ấy không — tích rồi và không đặt "chỉ quản lý". */
+	public static function hs_cham_coso( $hs, $coso ) {
+		$coso = self::chu_thuong( self::chuan_coso( $coso ) );
+		if ( '' === $coso ) { return false; }
+		foreach ( self::ds_coso_cham( $hs ) as $x ) {
+			if ( self::chu_thuong( $x ) === $coso ) { return true; }
+		}
+		return false;
+	}
+
 	/** Hồ sơ này có làm ở cơ sở ấy không — so KHÔNG phân biệt hoa thường. */
 	public static function hs_thuoc_coso( $hs, $coso ) {
 		$coso = self::chu_thuong( self::chuan_coso( $coso ) );
@@ -850,9 +926,12 @@ class VHCC_NhanSu {
 	 * @param array  $ds    Danh sách cơ sở (đã tích). Rỗng = thôi làm ở đâu cả.
 	 * @param string $chinh Cơ sở muốn đặt làm CHÍNH (`cua_hang`). Rỗng, hoặc tên không nằm trong
 	 *                      `$ds`, thì giữ nguyên luật cũ: cơ sở đầu danh sách.
-	 * @return array `ok` · `doi`(bool) · `doiChinh`(bool) · `tu` · `den` · `go`, hoặc `error`.
+	 * @param array|null $ds_ql Cơ sở đặt "CHỈ QUẢN LÝ — không chấm công" (xem `ds_coso_ql()`).
+	 *                      `null` = lượt gửi không nói gì về cờ này, giữ nguyên cờ đang có.
+	 * @return array `ok` · `doi`(bool) · `doiChinh`(bool) · `doiQL`(bool) · `tu` · `den` · `go`,
+	 *               hoặc `error`.
 	 */
-	public static function dat_ds_coso( $u, $ma_nv, $ds, $chinh = '' ) {
+	public static function dat_ds_coso( $u, $ma_nv, $ds, $chinh = '', $ds_ql = null ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
 			return array( 'ok' => false, 'error' => 'Đổi cơ sở là chuyển cả công và lương giữa các '
@@ -893,6 +972,42 @@ class VHCC_NhanSu {
 			}
 		}
 
+		/* ---- CỜ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" (xem `ds_coso_ql()`) ----
+		   `null` = lượt gửi không nói gì (đường nạp .csv, bản kéo sheet, lời gọi cũ) -> giữ
+		   nguyên cờ đang có. Cả hai đường đều LỌC LẠI theo danh sách vừa tích: cờ sót lại của
+		   một cơ sở đã bỏ tích mà còn tính thì lượt sau tích lại cơ sở ấy là nó lặng lẽ không
+		   chấm công được. */
+		$co_moi = array();
+		foreach ( $moi as $x_c ) { $co_moi[ self::chu_thuong( $x_c ) ] = $x_c; }
+		$ql_nguon = ( null === $ds_ql ) ? self::ds_coso_ql( $cu_hs ) : (array) $ds_ql;
+		$ql_moi   = array();
+		foreach ( $ql_nguon as $x_q ) {
+			foreach ( explode( ',', (string) $x_q ) as $m_q ) {
+				$m_q = self::chuan_coso( $m_q );
+				if ( '' === $m_q ) { continue; }
+				$k_q = self::chu_thuong( $m_q );
+				if ( ! isset( $co_moi[ $k_q ] ) || isset( $ql_moi[ $k_q ] ) ) { continue; }
+				$ql_moi[ $k_q ] = $co_moi[ $k_q ];
+			}
+		}
+		/* 🔴 CƠ SỞ CHÍNH KHÔNG ĐƯỢC ĐẶT "CHỈ QUẢN LÝ". Cơ sở chính là cơ sở TRẠM CHỌN SẴN (nó đi
+		   vào thẻ phiên rồi thành `coSoMacDinh`), và lượt chấm không kèm ô chọn ghi thẳng vào
+		   đó. Cho phép thì ô xổ chọn sẵn một cơ sở không có trong danh sách, còn lượt chấm im
+		   lặng ghi vào đúng cơ sở vừa bị loại — hỏng cả hai đầu. Chối thẳng, và chỉ ra cách
+		   làm: bấm nút tròn "chính" cho một cơ sở có chấm công. */
+		if ( isset( $moi[0] ) && isset( $ql_moi[ self::chu_thuong( $moi[0] ) ] ) ) {
+			return array( 'ok' => false,
+				'error' => 'Không đặt được "chỉ quản lý" cho ' . $moi[0] . ' vì đó đang là CƠ SỞ '
+					. 'CHÍNH — cơ sở trạm chọn sẵn lúc chấm công. Bấm nút tròn "chính" cho một cơ '
+					. 'sở người này CÓ chấm công, rồi lưu lại.' );
+		}
+		$ql_moi = array_values( $ql_moi );
+		$sx_ql_cu  = array_map( array( __CLASS__, 'chu_thuong' ), self::ds_coso_ql( $cu_hs ) );
+		$sx_ql_moi = array_map( array( __CLASS__, 'chu_thuong' ), $ql_moi );
+		sort( $sx_ql_cu );
+		sort( $sx_ql_moi );
+		$doi_ql = ( $sx_ql_cu !== $sx_ql_moi );
+
 		/* Không đổi gì thì thôi — so theo TẬP HỢP, không theo thứ tự: kéo lại thứ tự tích không
 		   phải là chuyển cơ sở của ai. */
 		$sx_cu = array_map( array( __CLASS__, 'chu_thuong' ), $cu );
@@ -910,28 +1025,40 @@ class VHCC_NhanSu {
 			   thầm đẩy cơ sở chính về phần tử đầu của danh sách nó tình cờ gửi lên. */
 			$ch_cu = isset( $cu[0] ) ? self::chu_thuong( $cu[0] ) : '';
 			$ch_moi = isset( $moi[0] ) ? self::chu_thuong( $moi[0] ) : '';
-			if ( ! $chi_dinh || $ch_cu === $ch_moi ) {
+			$doi_chinh = ( $chi_dinh && $ch_cu !== $ch_moi );
+			/* 🔴 CỜ "CHỈ QUẢN LÝ" ĐỔI CŨNG PHẢI GHI, dù tập hợp cơ sở y nguyên — đây là đường
+			   chính của việc này: không thêm không bớt cơ sở nào, chỉ nói cơ sở nào thôi chấm
+			   công. Thiếu vế `$doi_ql` là tích ô xong bấm Lưu thấy "Không có ô nào đổi". */
+			if ( ! $doi_chinh && ! $doi_ql ) {
 				return array( 'ok' => true, 'doi' => false, 'go' => 0 );
 			}
 			/* Phụ trách CẢ hai đầu — cùng luật với thêm/bỏ cơ sở: cơ sở chính là cơ sở mặc định
 			   của người ta lúc chấm, đổi hộ ở một nơi mình không phụ trách là đổi sau lưng. */
-			foreach ( array( $cu[0], $moi[0] ) as $x_q ) {
+			$soat_q = $doi_chinh ? array( $cu[0], $moi[0] ) : array();
+			/* Cờ "chỉ quản lý" cũng là đụng vào vế chấm công của MỘT cơ sở cụ thể — phải phụ
+			   trách đúng cơ sở bị đụng. Soát cả cơ sở vừa được đặt cờ lẫn cơ sở vừa được bỏ cờ. */
+			foreach ( array_merge( array_diff( $sx_ql_moi, $sx_ql_cu ),
+				array_diff( $sx_ql_cu, $sx_ql_moi ) ) as $x_ql ) {
+				$soat_q[] = $x_ql;
+			}
+			foreach ( $soat_q as $x_q ) {
 				if ( self::co_quyen_coso( $u, $x_q ) ) { continue; }
 				return array( 'ok' => false,
-					'error' => 'Đổi cơ sở chính giữa "' . $cu[0] . '" và "' . $moi[0]
-						. '" — bạn không phụ trách "' . $x_q . '".' );
+					'error' => 'Cơ sở "' . $x_q . '" — bạn không phụ trách nên không đổi được.' );
 			}
 			$dat_c = $moi;
 			$ok_c  = $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array(
 				'cua_hang' => array_shift( $dat_c ),
 				'coso_phu' => implode( ', ', $dat_c ),
+				'coso_ql'  => implode( ', ', $ql_moi ),
 				'cap_nhat' => current_time( 'mysql' ),
 			), array( 'ma_nv' => $ma ) );
 			if ( false === $ok_c ) {
 				return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
 			}
-			return array( 'ok' => true, 'doi' => false, 'doiChinh' => true, 'go' => 0,
-				'tu' => $cu[0], 'den' => $moi[0] );
+			return array( 'ok' => true, 'doi' => false, 'doiChinh' => $doi_chinh,
+				'doiQL' => $doi_ql, 'go' => 0,
+				'tu' => $cu[0], 'den' => $moi[0], 'ql' => $ql_moi );
 		}
 
 		foreach ( array_diff( $sx_moi, $sx_cu ) as $them ) {
@@ -953,6 +1080,7 @@ class VHCC_NhanSu {
 		$ok  = $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array(
 			'cua_hang' => $dat ? array_shift( $dat ) : '',
 			'coso_phu' => implode( ', ', $dat ),
+			'coso_ql'  => implode( ', ', $ql_moi ),
 			'cap_nhat' => current_time( 'mysql' ),
 		), array( 'ma_nv' => $ma ) );
 		if ( false === $ok ) {
@@ -963,8 +1091,8 @@ class VHCC_NhanSu {
 		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'xoa_nguoi' ) ) {
 			$go = (int) VHCC_Cong::xoa_nguoi( $ma );
 		}
-		return array( 'ok' => true, 'doi' => true, 'tu' => implode( ', ', $cu ),
-			'den' => implode( ', ', $moi ), 'go' => $go );
+		return array( 'ok' => true, 'doi' => true, 'doiQL' => $doi_ql, 'tu' => implode( ', ', $cu ),
+			'den' => implode( ', ', $moi ), 'ql' => $ql_moi, 'go' => $go );
 	}
 
 	/**
@@ -1911,7 +2039,8 @@ class VHCC_NhanSu {
 
 		$cho_phep = array( 'ho_ten', 'cua_hang', 'pin_may', 'sdt', 'ngay_sinh', 'gioi_tinh', 'cccd',
 			'dia_chi', 'nguoi_lien_he_khan', 'sdt_khan', 'chuc_vu', 'ngay_vao_lam',
-			'trang_thai_lam_viec', 'loai_hop_dong', 'nhiem_vu', 'coso_phu', 'pin_dang_nhap' );
+			'trang_thai_lam_viec', 'loai_hop_dong', 'nhiem_vu', 'coso_phu', 'coso_ql',
+			'pin_dang_nhap' );
 		if ( self::co_xem_luong( $u ) ) {
 			$cho_phep = array_merge( $cho_phep, self::O_LUONG );
 		}
@@ -1942,6 +2071,8 @@ class VHCC_NhanSu {
 				: ( $cu ? $cu['cua_hang'] : '' ),
 			'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu']
 				: ( $cu && isset( $cu['coso_phu'] ) ? $cu['coso_phu'] : '' ),
+			'coso_ql' => isset( $ghi['coso_ql'] ) ? $ghi['coso_ql']
+				: ( $cu && isset( $cu['coso_ql'] ) ? $cu['coso_ql'] : '' ),
 		) );
 		$loi_pin = self::pin_trung_loi( $ghi, $ma, $cs_soat );
 		if ( '' !== $loi_pin ) { return array( 'ok' => false, 'error' => $loi_pin ); }

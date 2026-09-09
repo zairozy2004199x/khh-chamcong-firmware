@@ -268,6 +268,7 @@ class VHCC_DB {
 			hop_dong_file_id VARCHAR(190) NOT NULL DEFAULT '',
 			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
 			coso_phu TEXT NULL,
+			coso_ql TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			anh_the LONGTEXT NULL,

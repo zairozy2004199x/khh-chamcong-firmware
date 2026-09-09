@@ -845,6 +845,18 @@ function veCoSo(j){
 		   + '</td></tr>';
 	}
 	h += '</tbody></table>';
+	/* 🔴 CƠ SỞ BỊ LOẠI PHẢI NÓI RA, KHÔNG ĐƯỢC BIẾN MẤT LẶNG LẼ. Anh Thắng 09/09/2026 nhờ *"loại
+	   ra khỏi bảng chấm công"* mấy cửa hàng chỉ quản lý — nhưng người bị loại là người mở trang
+	   này ra, và sáu cơ sở còn hai thì họ tưởng hồ sơ bị sửa mất, hoặc hệ thống hỏng. Kể tên ra,
+	   nói rõ vẫn quản lý được, và chỉ chỗ sửa nếu loại nhầm. */
+	var dsq = (j.dsCoSoQL || []);
+	if(dsq.length){
+		h += '<p class="ct" style="margin:8px 0 0;text-align:left">Ngoài ra hồ sơ của anh/chị còn '
+		   + '<b>' + dsq.length + ' cơ sở đặt "chỉ quản lý"</b>: ' + esc(dsq.join(' · '))
+		   + ' — <b>không chấm công</b> ở đó nên không hiện trong bảng trên, nhưng anh/chị '
+		   + '<b>vẫn quản lý nhân viên</b> mấy cơ sở ấy như thường. Loại nhầm thì nhờ quản lý bỏ '
+		   + 'ô <b>chỉ QL</b> của cơ sở đó trong hồ sơ.</p>';
+	}
 	if(ds.length > 1){
 		h += '<p class="ct" style="margin:8px 0 0;text-align:left">Lúc lưu, trang sẽ hỏi anh/chị '
 		   + '<b>đang có mặt ở cơ sở nào</b> — chọn đúng cơ sở đang đứng, đừng chọn theo thói quen.</p>';
@@ -860,10 +872,17 @@ function veCoSo(j){
 	el('oCoSo').innerHTML = h;
 }
 
+/* 🔴 ĐI THEO KHOÁ CỦA `homNay`, KHÔNG THEO `dsCoSo`. Từ 3.63.0 hai danh sách ấy KHÁC nhau:
+   `dsCoSo` chỉ còn cơ sở CHẤM ĐƯỢC (đã trừ cờ "chỉ quản lý"), còn `homNay` máy chủ vẫn tính đủ
+   mọi cơ sở. Duyệt theo `dsCoSo` là lượt đã chấm sáng nay ở một cơ sở vừa bị đặt cờ BIẾN MẤT
+   khỏi bảng này — người ta tưởng mất giờ vào rồi bấm lại, mà lượt thứ hai ngay sau giờ vào là
+   GIỜ RA. Bảng "Hôm nay" phải in đúng những gì máy chủ gửi về. */
 function veHomNay(j){
-	var cs = j.dsCoSo||[], co=false, h='<table><thead><tr><th>Cơ sở</th><th>Hàng</th><th>Vào</th><th>Ra</th></tr></thead><tbody>';
+	var hn = (j && j.homNay) || {}, cs = [], k1;
+	for(k1 in hn){ if(Object.prototype.hasOwnProperty.call(hn, k1)) cs.push(k1); }
+	var co=false, h='<table><thead><tr><th>Cơ sở</th><th>Hàng</th><th>Vào</th><th>Ra</th></tr></thead><tbody>';
 	for(var i=0;i<cs.length;i++){
-		var ds = (j.homNay && j.homNay[cs[i]]) || [];
+		var ds = hn[cs[i]] || [];
 		for(var k=0;k<ds.length;k++){
 			co=true;
 			h += '<tr><td>'+esc(cs[i])+'</td><td>'+esc(ds[k].hauTo||'chính')+'</td>'
