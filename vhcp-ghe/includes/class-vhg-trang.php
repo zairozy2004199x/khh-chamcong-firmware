@@ -8534,21 +8534,35 @@ function noi(){
     QL_CHO_CS = t;
     lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
+  /* Sửa địa điểm: HIỆN Ô NGAY TRÊN HÀNG, sửa cả tên + tỉnh + mã KH một lần rồi Lưu — thay cho 3
+     hộp prompt nối tiếp (anh Thắng 09/09/2026: "hiện ra ô hàng để sửa được 1 lần luôn").
+     Huỷ hay Lưu đều gọi tai()/lam() vẽ lại cả tab nên không lo mất binding của hàng. */
   [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
     b.onclick = function(){
-      var t = prompt(L('Đổi tên địa điểm:','Rename site:'), b.getAttribute('data-csten'));
-      if (t === null) return; t = t.trim(); if (!t) return;
-      var tinh = prompt(L('Tỉnh/TP của địa điểm (để lọc theo địa bàn):','Province/City:'), b.getAttribute('data-cstinh') || '');
-      if (tinh === null) tinh = b.getAttribute('data-cstinh') || '';
-      /* Bấm Huỷ ở ô Mã KH thì GIỮ NGUYÊN mã cũ, không xoá — đổi tên cơ sở không phải là lý do
-         để mất mã khách hàng. Cùng luật với ô Tỉnh ngay trên. */
-      var makh = prompt(L('Mã KH bên sổ kế toán (VD KH00108):','Customer code:'), b.getAttribute('data-csmakh') || '');
-      if (makh === null) makh = b.getAttribute('data-csmakh') || '';
-      /* 🔴 ĐANG LỌC ĐÚNG CƠ SỞ VỪA ĐỔI TÊN THÌ Ô LỌC PHẢI THEO. Ô lọc giữ TÊN chứ không giữ id,
-         nên đổi tên xong là nó trỏ vào một cái tên không còn ai mang: bảng trống trơn dù ghế
-         còn nguyên, và nút Thêm ghế tụt về "(chưa gán)". */
-      if (QL_LOC === b.getAttribute('data-csten')) QL_CHO_CS = t;
-      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim(), ma_kh: makh.trim() });
+      var tr = b.closest('tr'); if (!tr) return;
+      var id = b.getAttribute('data-cssua');
+      var ten0 = b.getAttribute('data-csten') || '', tinh0 = b.getAttribute('data-cstinh') || '', makh0 = b.getAttribute('data-csmakh') || '';
+      tr.innerHTML = '<td colspan="6" style="background:#f1f5f9">'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 2px">'
+        + '<b style="min-width:70px">' + L('Sửa:','Edit:') + '</b>'
+        + '<input id="cse-ten" placeholder="' + L('Tên địa điểm','Site name') + '" style="flex:2;min-width:180px">'
+        + '<input id="cse-tinh" placeholder="' + L('Tỉnh/TP','Province') + '" style="flex:1;min-width:120px">'
+        + '<input id="cse-makh" placeholder="' + L('Mã KH (VD KH00108)','Customer code') + '" style="flex:1;min-width:120px">'
+        + '<button id="cse-luu" class="on">' + L('Lưu','Save') + '</button>'
+        + '<button id="cse-huy">' + L('Huỷ','Cancel') + '</button>'
+        + '</div></td>';
+      var iTen = tr.querySelector('#cse-ten'), iTinh = tr.querySelector('#cse-tinh'), iMakh = tr.querySelector('#cse-makh');
+      iTen.value = ten0; iTinh.value = tinh0; iMakh.value = makh0; iTen.focus(); iTen.select();
+      function luu(){
+        var t = iTen.value.trim(); if (!t) { iTen.focus(); return; }
+        /* Ô lọc giữ TÊN chứ không giữ id — đổi tên xong phải trỏ ô lọc sang tên mới, không thì
+           bảng trống trơn dù ghế còn nguyên. */
+        if (QL_LOC === ten0) QL_CHO_CS = t;
+        lam('coso_luu', { id: id, ten: t, tinh: iTinh.value.trim(), ma_kh: iMakh.value.trim() });
+      }
+      tr.querySelector('#cse-luu').onclick = luu;
+      tr.querySelector('#cse-huy').onclick = function(){ tai(); };
+      [iTen, iTinh, iMakh].forEach(function(el){ el.onkeydown = function(e){ if (e.key === 'Enter') luu(); else if (e.key === 'Escape') tai(); }; });
     };
   });
   /* 🔄 BẬT / TẮT "reset sau mỗi lần thu" cho một cơ sở.
