@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.8.2
+ * Version:           0.9.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -890,17 +890,49 @@ class SAOKE_App {
 		foreach ( $lines as $ln ) { if ( '' === trim( $ln ) ) { continue; } $rows[] = str_getcsv( $ln ); }
 		if ( count( $rows ) < 2 ) { return array( 'moi' => 0, 'trung' => 0, 'message' => 'sheet chưa có dữ liệu' ); }
 		$cChi = -1; $cKq = -1;
+		$col = array( 'nguon' => -1, 'thoiDiem' => -1, 'soTien' => -1, 'maGD' => -1, 'ref' => -1, 'huong' => -1, 'trangThai' => -1, 'soTK' => -1, 'noiDung' => -1, 'diemBan' => -1, 'docDuoc' => -1 );
 		foreach ( (array) $rows[0] as $i => $h ) {
-			$x = self::kd( $h );
-			if ( $cChi < 0 && preg_match( '/chi tiet|payload|detail|raw/', $x ) ) { $cChi = (int) $i; }
-			if ( $cKq < 0 && preg_match( '/ket qua|nguon|result/', $x ) ) { $cKq = (int) $i; }
+			$x = self::kd( $h ); $i = (int) $i;
+			if ( $cChi < 0 && preg_match( '/chi tiet|payload|^raw|payload tho/', $x ) ) { $cChi = $i; }
+			if ( $cKq < 0 && preg_match( '/ket qua|^result/', $x ) ) { $cKq = $i; }
+			if ( $col['nguon'] < 0 && preg_match( '/^nguon$/', $x ) ) { $col['nguon'] = $i; }
+			if ( $col['thoiDiem'] < 0 && preg_match( '/thoi diem/', $x ) ) { $col['thoiDiem'] = $i; }
+			if ( $col['soTien'] < 0 && preg_match( '/so tien/', $x ) ) { $col['soTien'] = $i; }
+			if ( $col['maGD'] < 0 && preg_match( '/ma giao dich|ma gd/', $x ) ) { $col['maGD'] = $i; }
+			if ( $col['ref'] < 0 && preg_match( '/tham chieu|^ref/', $x ) ) { $col['ref'] = $i; }
+			if ( $col['huong'] < 0 && preg_match( '/^huong/', $x ) ) { $col['huong'] = $i; }
+			if ( $col['trangThai'] < 0 && preg_match( '/trang thai/', $x ) ) { $col['trangThai'] = $i; }
+			if ( $col['soTK'] < 0 && preg_match( '/so tk|tai khoan/', $x ) ) { $col['soTK'] = $i; }
+			if ( $col['noiDung'] < 0 && preg_match( '/noi dung/', $x ) ) { $col['noiDung'] = $i; }
+			if ( $col['diemBan'] < 0 && preg_match( '/diem ban|terminal/', $x ) ) { $col['diemBan'] = $i; }
+			if ( $col['docDuoc'] < 0 && preg_match( '/doc duoc/', $x ) ) { $col['docDuoc'] = $i; }
 		}
-		if ( $cChi < 0 ) { foreach ( (array) $rows[1] as $i => $v ) { if ( false !== strpos( (string) $v, '"values"' ) || false !== strpos( (string) $v, '{' ) ) { $cChi = (int) $i; break; } } }
-		if ( $cChi < 0 ) { return new WP_Error( 'col', 'Không tìm ra cột "Chi tiết" (payload {"values":[...]}).', array( 'status' => 400 ) ); }
 		$moi = 0; $trung = 0; $kho = 0;
+		// ── CHẾ ĐỘ CỘT RỜI (tab CongThanhToan) — đủ lịch sử mọi ngày, đọc trực tiếp, không cần parse payload ──
+		if ( $col['thoiDiem'] >= 0 && $col['soTien'] >= 0 && ( $col['maGD'] >= 0 || $col['ref'] >= 0 ) ) {
+			for ( $i = 1; $i < count( $rows ); $i++ ) {
+				$r = $rows[ $i ];
+				$g = function ( $k ) use ( $r, $col ) { return ( $col[ $k ] >= 0 && isset( $r[ $col[ $k ] ] ) ) ? trim( (string) $r[ $col[ $k ] ] ) : ''; };
+				$nguon = strtolower( $g( 'nguon' ) ); if ( ! in_array( $nguon, self::cong_ds(), true ) ) { $nguon = 'vietqr'; }
+				$thoiDiem = self::cong_ngay( $g( 'thoiDiem' ) ); $soTien = self::num( $g( 'soTien' ) );
+				$maGD = $g( 'maGD' ); $ref = $g( 'ref' );
+				if ( '' === $thoiDiem || $soTien <= 0 || ( '' === $maGD && '' === $ref ) ) { continue; }
+				$huong = $g( 'huong' ); if ( '' === $huong ) { $huong = 'Đến'; }
+				$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => $huong,
+					'trangThai' => $g( 'trangThai' ), 'soTK' => $g( 'soTK' ), 'noiDung' => $g( 'noiDung' ), 'diemBan' => $g( 'diemBan' ),
+					'docDuoc' => ( $col['docDuoc'] >= 0 ? ( 'x' === strtolower( $g( 'docDuoc' ) ) ) : true ) );
+				$tx['khoa'] = self::cong_khoa( $nguon, $tx, $maGD . '|' . $ref ); $tx['raw'] = $g( 'noiDung' );
+				if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
+			}
+			update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'CongThanhToan: mới ' . $moi . ', trùng ' . $trung ) );
+			return array( 'moi' => $moi, 'trung' => $trung, 'kho' => 0 );
+		}
+		// ── CHẾ ĐỘ PAYLOAD (tab WebhookLog — cột Chi tiết) ──
+		if ( $cChi < 0 ) { foreach ( (array) $rows[1] as $i => $v ) { if ( false !== strpos( (string) $v, '"values"' ) ) { $cChi = (int) $i; break; } } }
+		if ( $cChi < 0 ) { return new WP_Error( 'col', 'Sheet không có cột rời (Thời điểm/Số tiền/Mã GD) lẫn cột "Chi tiết" (payload). Publish tab CongThanhToan hoặc WebhookLog.', array( 'status' => 400 ) ); }
 		for ( $i = 1; $i < count( $rows ); $i++ ) {
 			$raw = isset( $rows[ $i ][ $cChi ] ) ? (string) $rows[ $i ][ $cChi ] : '';
-			if ( '' === trim( $raw ) || false === strpos( $raw, '"values"' ) ) { continue; } // chỉ payload Tingo (cổng), bỏ dòng log khác
+			if ( '' === trim( $raw ) || false === strpos( $raw, '"values"' ) ) { continue; }
 			$nguon = 'vietqr';
 			if ( $cKq >= 0 && isset( $rows[ $i ][ $cKq ] ) && preg_match( '/\[([a-z0-9]+)\]/i', (string) $rows[ $i ][ $cKq ], $mm ) ) { $gg = strtolower( $mm[1] ); if ( in_array( $gg, self::cong_ds(), true ) ) { $nguon = $gg; } }
 			$list = self::cong_doc_payload( $raw );
@@ -910,7 +942,7 @@ class SAOKE_App {
 				if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
 			}
 		}
-		update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'mới ' . $moi . ', trùng ' . $trung . ( $kho ? ', không đọc ' . $kho : '' ) ) );
+		update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'WebhookLog: mới ' . $moi . ', trùng ' . $trung . ( $kho ? ', không đọc ' . $kho : '' ) ) );
 		return array( 'moi' => $moi, 'trung' => $trung, 'kho' => $kho );
 	}
 	public static function cron_cong_log() {
@@ -1872,7 +1904,12 @@ class SAOKE_App {
 		$tu = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' ); $den = self::vn2ymd( isset( $a[3] ) ? (string) $a[3] : '' );
 		$tuKhoa = self::cong_tukhoa( $nguon ); $anhXa = self::ds_anhxa( $nguon ); $mapTen = self::map_ten_diem();
 		$tc = self::tbl_cong();
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, doc_duoc, raw, nhan_luc FROM $tc WHERE nguon=%s ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $nguon ), ARRAY_A );
+		// Lọc NGÀY bằng SQL trên thoi_diem (đã là Y-m-d H:i:s) — KHÔNG đổi qua dd/mm rồi strtotime
+		// (dd/mm bị đọc nhầm thành mm/dd, làm lệch ngày -> "ngày cũ không có").
+		$wc = array( 'nguon=%s' ); $ac = array( $nguon );
+		if ( $tu )  { $wc[] = 'DATE(thoi_diem)>=%s'; $ac[] = $tu; }
+		if ( $den ) { $wc[] = 'DATE(thoi_diem)<=%s'; $ac[] = $den; }
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
 		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
 		foreach ( (array) $rowsC as $r ) {
@@ -1880,9 +1917,6 @@ class SAOKE_App {
 			if ( '' === $payloadCuoi ) { $payloadCuoi = (string) $r['raw']; }
 			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
-			$ngayY = self::vn2ymd_soft( $thoiDiem );
-			if ( $tu && $ngayY && $ngayY < $tu ) { continue; }
-			if ( $den && $ngayY && $ngayY > $den ) { continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
 			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = strtoupper( (string) $r['diem_ban'] ); }
 			$coSo = self::cong_coso( $tenMay );
