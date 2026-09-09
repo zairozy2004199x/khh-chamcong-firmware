@@ -415,10 +415,38 @@ class VHCP_DonVi {
 	 */
 	public static function vi_sao_khong_dung( $ma_don ) {
 		$d = VHCP_Don::don_row( $ma_don );
-		if ( ! $d ) { return 'Không tìm thấy đơn'; }
-		if ( ! self::duoc_xem( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) ) ) {
-			return 'Không tìm thấy đơn';
-		}
+		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
+		$dv = self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' );
+		if ( ! self::duoc_xem( $dv ) ) { return self::loi_khac_don_vi_( $d, $dv ); }
 		return '';
+	}
+
+	/**
+	 * CÂU TỪ CHỐI CHO ĐƠN THUỘC ĐƠN VỊ KHÁC — nói rõ với CHÍNH CHỦ, giữ kín với người lạ.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI TÁCH LÀM HAI. Cắn thật 09/09/2026: anh Thắng lập đơn xong, màn báo "Đã tạo
+	 *    đơn" rồi lập tức "Không tìm thấy đơn". Bảy chữ ấy khi đó phát ra từ BA chỗ khác hẳn
+	 *    nhau — đơn không có trong bảng · đơn thuộc đơn vị khác · đơn của người khác — nên
+	 *    không ai lần ra được chỗ nào, kể cả người viết ra chúng. Một câu lỗi không phân biệt
+	 *    được ba nguyên nhân thì không phải câu lỗi, nó là một bức tường.
+	 *
+	 * 🔴 NHƯNG KHÔNG ĐƯỢC NÓI HẾT CHO MỌI NGƯỜI. Câu mờ "không tìm thấy" là CỐ Ý: nói thẳng
+	 *    "đơn này của K&H" cho kế toán POSH là biến ô gõ mã đơn thành cái máy dò — gõ thử một
+	 *    loạt mã là biết bên kia có những đơn nào, đúng thứ chốt này sinh ra để bịt.
+	 *
+	 * Chỗ cắt: NGƯỜI LẬP ra đơn thì được nói thẳng. Đơn của chính họ, họ đã biết nó tồn tại và
+	 * biết nó của mảng nào — nói ra không lộ gì mới, mà giấu đi thì đúng là bịt mắt người đang
+	 * cần thấy nhất. Người khác giữ nguyên câu mờ.
+	 */
+	private static function loi_khac_don_vi_( $d, $dv ) {
+		$lap = mb_strtolower( trim( (string) ( isset( $d['nguoi_lap'] ) ? $d['nguoi_lap'] : '' ) ) );
+		$toi = mb_strtolower( trim( (string) VHCP_Auth::nguoi() ) );
+		if ( '' === $lap || $lap !== $toi ) { return 'Không tìm thấy đơn'; }
+		$ds = self::xem_duoc();
+		return 'Đơn này thuộc đơn vị "' . $dv . '", còn tài khoản của anh/chị chỉ xem được: '
+			. ( null === $ds ? '(tất cả)' : implode( ', ', $ds ) ) . '. '
+			. 'Đơn lấy đơn vị từ NGƯỜI LẬP lúc tạo — sửa ô "Đơn vị" của người lập ở Cấu hình → '
+			. 'Người dùng & Phân quyền rồi lập lại đơn, hoặc nhờ Quản lý chuyển đơn sang đơn vị đúng.';
 	}
 }

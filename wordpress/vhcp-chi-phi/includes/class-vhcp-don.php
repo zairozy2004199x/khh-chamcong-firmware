@@ -863,7 +863,7 @@ class VHCP_Don {
 		if ( '' !== $loi_dv ) { return $loi_dv; }
 		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
 		$d = self::don_row( $ma_don );
-		if ( ! $d ) { return 'Không tìm thấy đơn'; }
+		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
 		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
 		$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
 		if ( $cua === '' || $cua === $toi ) { return ''; }
@@ -947,7 +947,7 @@ class VHCP_Don {
 	public static function create_don( $ky, $nguoi_lap ) {
 		global $wpdb;
 		$m = VHCP_Util::uid( 'D' );
-		$wpdb->insert( VHCP_DB::t( 'don' ), array(
+		$ok = $wpdb->insert( VHCP_DB::t( 'don' ), array(
 			'ma_don'     => $m,
 			'ky'         => self::chuan_ky_moi( $ky ),
 			'nguoi_lap'  => (string) $nguoi_lap,
@@ -961,6 +961,18 @@ class VHCP_Don {
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',
 		) );
+		/* 🔴 KHÔNG BÁO "XONG" KHI CHƯA CHẮC ĐÃ GHI ĐƯỢC.
+		   Cắn thật 09/09/2026: màn báo "Đã tạo đơn" rồi ngay sau đó "Không tìm thấy đơn". Bản
+		   trước trả `ok()` vô điều kiện, không hề soi kết quả `insert()` — nên một lượt ghi hỏng
+		   (bảng chưa nới cột, ô quá dài, kết nối rớt) vẫn ra màn xanh, kèm một mã đơn KHÔNG TỒN
+		   TẠI. Người dùng cầm cái mã ấy đi hỏi, còn trong sổ thì chẳng có gì.
+		   Câu lỗi mang theo lời của MySQL: nếu còn hỏng nữa thì nó nói thẳng hỏng ở đâu, thay vì
+		   để người ta đoán tiếp một vòng. */
+		if ( ! $ok ) {
+			$chi_tiet = trim( (string) $wpdb->last_error );
+			return VHCP_Util::err( 'Không ghi được đơn mới vào sổ'
+				. ( '' !== $chi_tiet ? ' — ' . $chi_tiet : '.' ) );
+		}
 		return VHCP_Util::ok( array( 'maDon' => $m ) );
 	}
 
