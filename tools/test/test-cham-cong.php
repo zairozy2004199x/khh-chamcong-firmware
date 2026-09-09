@@ -19431,6 +19431,76 @@ t( 'không ô nào vàng — đúng, vì chưa đọc được báo cáo nào',
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='BC1'" );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LƯỚI THEO CÔNG: NGƯỜI CHƯA CHẤM LẦN NÀO VẪN PHẢI CÓ MỘT HÀNG — 09/09/2026
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"không thấy nhân viên Quyên, đã thêm cơ sở nhưng không có"*.
+ *
+ * 🔴 Dựng BA cảnh mới pin được nguyên nhân, và nó KHÔNG phải chuyện cơ sở phụ như tưởng lúc đầu:
+ *      · cơ sở CHÍNH, không lượt chấm nào -> KHÔNG có hàng
+ *      · cơ sở PHỤ,  CÓ lượt chấm         -> có hàng
+ *      · cơ sở PHỤ,  không lượt chấm nào  -> KHÔNG có hàng   (đúng cảnh chị Quyên)
+ *    Tức là lưới theo CÔNG dựng danh sách người CHỈ từ các lượt chấm của tháng ấy. Ai chưa bấm
+ *    lần nào thì không có hàng, nên KHÔNG CÓ Ô NÀO ĐỂ BẤM CHẤM CÔNG BÙ — mà đó đúng là người
+ *    cần bù nhất. Lưới theo GIỜ đã vá chỗ này từ 26/08; lưới theo công thì chưa.
+ *
+ * ⚠️ Giữ CẢ BA cảnh trong phép thử, đừng rút còn một. Bỏ cảnh B đi thì lần sau ai đó "sửa" bằng
+ *    cách lọc theo `cua_hang` vẫn xanh — mà đó chính là giả thuyết sai em suýt đi theo.
+ */
+$_cs_vp = 'VP_LUOI_CONG';
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $_cs_vp => 'cong' ) );
+teq( 'dựng cảnh: cơ sở này tính THEO CÔNG', 'cong', VHCC_Luong::cach_tinh( $_cs_vp ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LCA', 'ho_ten' => 'A Chính Không Chấm',
+	'cua_hang' => $_cs_vp, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LCB', 'ho_ten' => 'B Phụ Có Chấm',
+	'cua_hang' => 'JP_HCM', 'coso_phu' => $_cs_vp, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $_cs_vp, 'ngay' => '2026-09-03',
+	'ma_nv' => 'LCB', 'hau_to' => '', 'ho_ten' => 'B Phụ Có Chấm',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LCC', 'ho_ten' => 'C Phụ Không Chấm',
+	'cua_hang' => 'JP_HCM', 'coso_phu' => $_cs_vp, 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+/* 🔴 ĐO TRÊN KHỐI LƯỚI, KHÔNG ĐO CẢ TRANG. Dò cả trang là dính khối "chưa có ảnh thẻ" và bảng
+   tổng — em đã đo lỏng đúng kiểu ấy một lần và suýt kết luận sai nguyên nhân. */
+$h_lc = vhcc_web_nhu2( 'ACAD', 'Admin', $_cs_vp,
+	array( 'man' => 'cham', 'ccs' => $_cs_vp, 'cth' => '2026-09' ) );
+/* ⚠️ CẮT ĐÚNG KHỐI LƯỚI, và cắt bằng `</details>` chứ không bằng tên khối đứng sau nó. Bản đầu
+   cắt tới "Tổng giờ làm theo nhân viên" — khối ấy CHỈ vẽ cho cơ sở tính theo GIỜ, nên với cơ sở
+   theo CÔNG thì `strpos` trả false và lát cắt chạy tới hết trang, nuốt luôn khối "chưa có ảnh
+   thẻ". Hậu quả: phép thử "cơ sở chính vẫn có hàng" XANH nhờ cái tên nằm ở khối khác, dù lưới
+   không hề có hàng ấy. Đã bắt được đúng lỗi này khi thử gỡ bản vá ra. */
+$_i_lc = strpos( $h_lc, 'id="luoithang"' );
+$_j_lc = ( false !== $_i_lc ) ? strpos( $h_lc, '</details>', $_i_lc ) : false;
+$_khoi_lc = ( false !== $_i_lc && false !== $_j_lc )
+	? substr( $h_lc, $_i_lc, $_j_lc - $_i_lc ) : '';
+t( 'bốc được khối lưới (kẻo mọi phép dưới đo trên chuỗi rỗng)', strlen( $_khoi_lc ) > 500, null );
+t( 'và đúng là lưới THEO CÔNG', strpos( $_khoi_lc, 'THEO CÔNG' ) !== false, null );
+
+t( '🔴 cơ sở CHÍNH mà chưa chấm lần nào VẪN có hàng',
+	strpos( $_khoi_lc, 'A Chính Không Chấm' ) !== false, null );
+t( 'cơ sở PHỤ có chấm thì có hàng (vốn đã đúng — giữ làm đối chứng)',
+	strpos( $_khoi_lc, 'B Phụ Có Chấm' ) !== false, null );
+t( '🔴 cơ sở PHỤ mà chưa chấm lần nào VẪN có hàng — đúng cảnh chị Quyên',
+	strpos( $_khoi_lc, 'C Phụ Không Chấm' ) !== false, null );
+
+/* Hàng thêm phải BẤM BÙ ĐƯỢC — cả điểm của nó là có ô để bấm. Hàng mà không bấm được thì chỉ là
+   một dòng trang trí. */
+/* 🔴 HÀNG THÊM PHẢI BẤM BÙ ĐƯỢC — cả điểm của nó là CÓ Ô ĐỂ BẤM. Một hàng không bấm được thì
+   chỉ là dòng trang trí, và chuyện "không có chỗ chấm công bù" vẫn y nguyên. */
+t( '🔴 hàng thêm có ô bấm được (đường nhảy tới chấm công bù)',
+	strpos( $_khoi_lc, 'gma=LCA' ) !== false, null );
+t( 'và ô của người ấy đang TRỐNG (dấu chấm), không phải số bịa ra',
+	preg_match( '/gma=LCA[^>]*>·</u', $_khoi_lc ) === 1, null );
+
+/* ⚠️ Công = 0 nên KHÔNG được đụng tới TỔNG. Thêm người vào bảng mà tổng nhảy là thêm công từ hư
+   không. So thẳng tổng TRƯỚC và SAU khi có mấy hàng thêm — đo bằng chính lõi tính, chỗ duy nhất
+   nói được con số ấy. */
+$_tong_lc = VHCC_Luong::vp_bang_cong_va_luong( $_cs_vp, '2026-09' )['tong']['tong'];
+teq( '🔴 tổng công của cơ sở KHÔNG đổi vì mấy hàng thêm', 1.0, round( (float) $_tong_lc, 2 ) );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('LCA','LCB','LCC')" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='LCB'" );
+
 /* ---- DẢI BÁO Ở TRANG QUẢN LÝ NHÂN SỰ ------------------------------------------------
    🔴 Anh Thắng 09/09/2026: *"chỗ hồ sơ này, nếu nv có ảnh hợp lệ chờ lưu hoặc đẩy vào máy thì
    đưa một thông báo nhỏ và link dẫn sang để đẩy"*. Khối lấy ảnh nằm ở màn Bảng công; người đang

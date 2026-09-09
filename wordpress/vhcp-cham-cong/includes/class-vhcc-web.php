@@ -6345,6 +6345,45 @@ class VHCC_Web {
 		$bc_ca = self::bc_ca( (string) $cs_bc, $tt );   // `$cs_bc` giữ chỗ, xem `bc_ca()`
 		self::bao_bc_ca( $bc_ca );
 		$rows = (array) $b['rows'];
+
+		/* 🔴 NGƯỜI CẢ THÁNG KHÔNG CÓ LƯỢT CHẤM NÀO VẪN PHẢI CÓ MỘT HÀNG — 09/09/2026.
+		   Anh Thắng: *"không thấy nhân viên Quyên, đã thêm cơ sở nhưng không có"*.
+		   Dựng lại ba cảnh thì lộ nguyên nhân, và nó KHÔNG phải chuyện cơ sở phụ:
+		     · cơ sở CHÍNH, không lượt chấm nào -> KHÔNG có hàng
+		     · cơ sở PHỤ,  CÓ lượt chấm         -> có hàng
+		     · cơ sở PHỤ,  không lượt chấm nào  -> KHÔNG có hàng   (đúng cảnh chị Quyên)
+		   Tức là: lưới THEO CÔNG dựng danh sách người CHỈ TỪ các lượt chấm công của tháng ấy
+		   (`vp_bang_cong_va_luong` gom theo `doc_thang`). Ai chưa bấm lần nào thì không có hàng,
+		   nên KHÔNG CÓ Ô NÀO ĐỂ BẤM CHẤM CÔNG BÙ — mà đó đúng là người cần bù nhất: người mới,
+		   hoặc cả tháng máy hỏng.
+
+		   🔴 LƯỚI THEO GIỜ ĐÃ VÁ CHỖ NÀY TỪ 26/08/2026 (xem khối cùng tên trong `ve_luoi_gio`),
+		      lưới theo công thì chưa. Cùng một lỗi, vá một bên quên bên kia — và bên quên là bên
+		      của các cơ sở Văn phòng, nơi người ta ít mở hơn nên lâu phát hiện hơn.
+
+		   ⚠️ VÁ Ở ĐÂY, KHÔNG VÁ TRONG `VHCC_Luong`. Hàm ấy là LÕI TÍNH LƯƠNG, dùng ở nhiều nơi và
+		      không nhận `$toi` — nhét phép lọc quyền vào đó là đổi một lõi đang đúng để chữa một
+		      chuyện của màn hình. Ở đây có sẵn `$toi`, và làm y hệt lưới theo giờ.
+		   ⚠️ Hàng thêm mang công = 0 nên KHÔNG đụng tới ô TỔNG của bảng — cộng thêm 0 vẫn là chính
+		      nó. Người ấy hiện ra với một hàng toàn dấu chấm, đúng thứ cần để bấm bù. */
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
+			$da_co = array();
+			foreach ( $rows as $r_c ) { $da_co[ strtoupper( trim( (string) $r_c['ma'] ) ) ] = 1; }
+			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $cs_bc ) as $hs_c ) {
+				$ma_c = trim( (string) $hs_c['ma_nv'] );
+				if ( '' === $ma_c || isset( $da_co[ strtoupper( $ma_c ) ] ) ) { continue; }
+				$rows[] = array(
+					'ma' => $ma_c, 'ten' => trim( (string) $hs_c['ho_ten'] ), 'laKeToan' => false,
+					'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0,
+					'tong' => 0.0, 'soNgayCaLa' => 0, 'soNgayDemThieuGio' => 0,
+					'soNgayDemChuaDuCap' => 0,
+				);
+			}
+			/* Sắp lại theo TÊN cho khớp thứ tự của `vp_bang_cong_va_luong` — nối vào đuôi mà
+			   không sắp thì người mới thêm rơi hết xuống cuối bảng, tách khỏi thứ tự chữ cái. */
+			usort( $rows, function ( $x, $y ) { return strcmp( (string) $x['ten'], (string) $y['ten'] ); } );
+		}
+
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
 		if ( false === $moc ) {
 			echo '<div class="bao loi">Tháng không hợp lệ.</div>';
