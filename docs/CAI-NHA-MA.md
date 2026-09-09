@@ -1,6 +1,6 @@
 # Nhà Ma · Bán vé theo khung giờ — cài & vận hành
 
-*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.2. Một file PHP, cài qua wp-admin như mọi plugin khác.*
+*Plugin `wordpress/vhcp-nha-ma` — bản 1.6.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -101,6 +101,19 @@ Bốn bước, làm **một lần**:
 > Chưa nối thì bỏ qua — mọi thứ khác chạy bình thường, khách vẫn xem thiệp trên web, nhân viên vẫn
 > có nút **Chat Zalo** để gửi tay.
 >
+> 🔴 **Nếu ô "Official Account Callback Url" bên Zalo bị KHOÁ (xám, không dán được).** Gặp ngày
+> 09/09/2026. Không khai được callback thì nút Kết nối vô dụng — nhưng còn đường vòng, và tài liệu
+> Zalo có nói: *"Xác thực và ủy quyền cho Ứng dụng theo 2 cách: 1. giao thức OAuth v4; 2. công cụ
+> **Zalo API Explorer**"*. Cách 2 không cần callback:
+>
+> 1. Vào **Zalo API Explorer** bên developers.zalo.me, chọn OA, lấy tay một bộ token.
+> 2. Chép **refresh token** (không phải access token — cái ấy chết sau 25 giờ).
+> 3. Dán vào ô **Refresh token dán tay** trong *Cài đặt hệ thống* → **LƯU MÀN HÌNH**.
+>
+> Từ đó plugin tự làm mới như thường, không cần callback nữa. Ô ấy **luôn hiện trống** (màn này ai
+> vào cũng chụp màn hình được, nên plugin không in token ra), và **để trống = giữ nguyên** chứ
+> không phải xoá — nếu không thì mỗi lượt bấm LƯU MÀN HÌNH lại tự cắt mất kết nối Zalo.
+
 > 🔎 **Bấm Kết nối mà hỏng thì đọc ở đâu.** Từ bản 1.5.1, trang quay về in **nguyên văn** câu từ
 > chối của Zalo (`error`, `error_description`…) chứ không còn câu chung chung *"thử lại đi"*, và
 > ghi luôn một dòng vào *Tiền Về & Zalo → nhật ký Zalo*. Chụp đúng dòng ấy là đủ để biết thiếu

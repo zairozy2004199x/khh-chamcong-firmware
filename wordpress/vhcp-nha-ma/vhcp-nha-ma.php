@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA (nối bằng một nút, tự làm mới token), trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.5.2
+ * Version:           1.6.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.5.2';
+	const VER  = '1.6.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -1052,8 +1052,24 @@ class NHAMA {
 				$cf[ $k ] = (string) $moi[ $k ];
 			}
 		}
-		foreach ( array( 'zalo_app_id', 'zalo_secret', 'zalo_refresh', 'zalo_tpl' ) as $k ) {
+		foreach ( array( 'zalo_app_id', 'zalo_secret', 'zalo_tpl' ) as $k ) {
 			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = trim( sanitize_text_field( (string) $moi[ $k ] ) ); }
+		}
+		/* ⚠️ REFRESH TOKEN DÁN TAY — đường vòng khi ô "Official Account Callback Url" bên Zalo bị
+		   khoá, không khai được callback nên nút Kết nối không dùng được. Lấy bằng Zalo API
+		   Explorer rồi dán vào đây.
+		   🔴 Ô TRỐNG NGHĨA LÀ "GIỮ NGUYÊN", không phải "xoá". Màn Cài đặt cố tình không in token
+		      ra, nên ô ấy luôn hiện trống; lấy giá trị trống mà ghi đè là mỗi lượt bấm LƯU MÀN
+		      HÌNH lại tự cắt mất kết nối Zalo, mà chẳng ai ngờ tại nút Lưu.
+		   🔴 CÓ TOKEN MỚI THÌ VỨT ACCESS TOKEN CŨ. Access token cũ đẻ ra từ refresh token cũ; giữ
+		      lại là plugin còn tưởng mình đang nối, gửi tiếp bằng thẻ đã chết cho tới lúc hết hạn. */
+		if ( isset( $moi['zalo_refresh'] ) ) {
+			$rf_moi = trim( sanitize_text_field( (string) $moi['zalo_refresh'] ) );
+			if ( '' !== $rf_moi && $rf_moi !== (string) $cf['zalo_refresh'] ) {
+				$cf['zalo_refresh'] = $rf_moi;
+				$cf['zalo_token']   = '';
+				$cf['zalo_het']     = 0;
+			}
 		}
 		foreach ( array( 'so_tk', 'ten_tk' ) as $k ) {
 			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = mb_substr( sanitize_text_field( (string) $moi[ $k ] ), 0, 60 ); }
@@ -2011,6 +2027,11 @@ function manCai(){
     +oCai("ID ứng dụng (developers.zalo.me → Thông tin ứng dụng)","cZaloApp",CFQ.zalo_app_id||"","text")
     +oCai("Khoá bí mật của ứng dụng","cZaloSecret",CFQ.zalo_secret||"","password")
     +oCai("Mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)","cZaloTpl",CFQ.zalo_tpl||"","text")
+    /* 🔴 LUÔN HIỆN TRỐNG, không đổ token cũ ra ô. Màn này ai vào được là chụp màn hình được. */
+    +oCai("Refresh token dán tay (để trống = giữ nguyên)","cZaloRf","","password")
+    +"<p class='q-nho' style='margin:4px 0 0'>Chỉ dùng khi ô <b>Official Account Callback Url</b> bên "
+      +"Zalo bị khoá nên không bấm Kết nối được: vào <b>Zalo API Explorer</b> lấy tay một bộ token, "
+      +"dán <b>refresh token</b> vào đây. Từ đó plugin tự làm mới như thường.</p>"
     +"<div id='zaloTT' class='q-nho' style='margin-top:10px'></div>"
     +"<p class='q-nho'>⚠️ <b>Tin tư vấn (CS)</b> miễn phí nhưng CHỈ tới được người đã nhắn cho OA "
       +"trong 7 ngày — khách mua lần đầu gần như chắc chắn không thoả. Gửi được cho mọi số thì phải "
@@ -2029,7 +2050,7 @@ function manCai(){
   g("btLuuMH").addEventListener("click", function(){
     luuCai({ quet:+g("cQuet").value, ten:g("cTen").value, phu:g("cPhu").value,
       zalo_app_id:g("cZaloApp").value, zalo_secret:g("cZaloSecret").value,
-      zalo_tpl:g("cZaloTpl").value }, g("cPin").value);
+      zalo_tpl:g("cZaloTpl").value, zalo_refresh:g("cZaloRf").value }, g("cPin").value);
   });
   g("btMau").addEventListener("click", function(){
     api("mau").then(napQL).then(veQL).catch(function(e){ alert(e.message); });

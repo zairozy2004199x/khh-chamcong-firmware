@@ -520,6 +520,42 @@ t( 'địa chỉ cấp quyền mang app_id và redirect_uri',
 /* 🔴 `state` chống ai đó dụ trình duyệt của anh nối OA của HỌ vào website của mình. */
 t( 'và mang mã trạng thái state', strpos( $tt['url_noi'], 'state=' ) !== false );
 
+/* ==========================================================================================
+ * REFRESH TOKEN DÁN TAY — đường vòng khi ô "Official Account Callback Url" bên Zalo bị khoá.
+ * ======================================================================================== */
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'zalo_refresh' => 'RF-TAY-1' ) ) );
+t( 'dán tay được refresh token', 'RF-TAY-1' === (string) NHAMA::cf()['zalo_refresh'] );
+t( 'và tình trạng đổi sang ĐÃ NỐI', ! empty( NHAMA::zalo_tinh_trang()['da_noi'] ) );
+
+/* 🔴 Ô TRỐNG = GIỮ NGUYÊN, KHÔNG PHẢI XOÁ. Màn Cài đặt cố tình không in token ra nên ô ấy luôn
+   hiện trống; lấy giá trị trống mà ghi đè là mỗi lượt bấm LƯU MÀN HÌNH lại tự cắt kết nối Zalo,
+   mà chẳng ai ngờ tại nút Lưu. */
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'zalo_refresh' => '', 'ten' => 'Đổi tên' ) ) );
+t( '🔴 lưu với ô refresh TRỐNG thì KHÔNG mất token đang có',
+	'RF-TAY-1' === (string) NHAMA::cf()['zalo_refresh'] );
+t( 'nhưng mấy ô khác trong cùng lượt lưu vẫn ăn', 'Đổi tên' === (string) NHAMA::cf()['ten'] );
+
+/* 🔴 THAY TOKEN MỚI THÌ PHẢI VỨT ACCESS TOKEN CŨ. Access token cũ đẻ ra từ refresh token cũ; giữ
+   lại là plugin còn tưởng mình đang nối, gửi tiếp bằng thẻ đã chết cho tới lúc hết hạn. */
+$cf_gia = NHAMA::cf(); $cf_gia['zalo_token'] = 'AT-CU'; $cf_gia['zalo_het'] = time() + 90000;
+update_option( 'nhama_cf', $cf_gia );
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'zalo_refresh' => 'RF-TAY-2' ) ) );
+t( 'đổi sang refresh token khác thì nhận', 'RF-TAY-2' === (string) NHAMA::cf()['zalo_refresh'] );
+t( '🔴 và VỨT access token cũ đi', '' === (string) NHAMA::cf()['zalo_token'] );
+t( 'hạn cũ cũng xoá theo', 0 === (int) NHAMA::cf()['zalo_het'] );
+
+/* Dán lại ĐÚNG chuỗi đang có (bấm Lưu hai lần) thì không được coi là đổi — vứt access token còn
+   sống đi là tự bắt mình gọi thêm một lượt làm mới không cần thiết. */
+$cf_gia = NHAMA::cf(); $cf_gia['zalo_token'] = 'AT-CON-SONG'; $cf_gia['zalo_het'] = time() + 90000;
+update_option( 'nhama_cf', $cf_gia );
+goi( array( 'viec' => 'cai', 'the' => $the, 'cf' => array( 'zalo_refresh' => 'RF-TAY-2' ) ) );
+t( 'dán lại y chuỗi cũ thì giữ nguyên access token còn sống',
+	'AT-CON-SONG' === (string) NHAMA::cf()['zalo_token'] );
+
+/* Dọn lại cho mấy bài phía sau chạy từ trạng thái CHƯA NỐI. */
+$cf_don = NHAMA::cf(); $cf_don['zalo_refresh'] = ''; $cf_don['zalo_token'] = ''; $cf_don['zalo_het'] = 0;
+update_option( 'nhama_cf', $cf_don );
+
 /* 🔴 NÚT KẾT NỐI PHẢI ĐỨNG YÊN. Màn quản trị nạp lại mỗi 6 giây và mỗi lượt đều đọc tình trạng
    Zalo; nếu mỗi lượt sinh một `state` mới thì cái nút anh đang nhìn mang mã đã chết, bấm vào là
    "state không khớp" — hỏng đúng lúc lần đầu nối, và không ai đoán ra vì sao. */
