@@ -2,8 +2,8 @@
 /**
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
- * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA, trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.4.0
+ * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA (nối bằng một nút, tự làm mới token), trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
+ * Version:           1.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.4.0';
+	const VER  = '1.5.0';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -81,8 +81,13 @@ class NHAMA {
 			'bin'    => '',       // mã ngân hàng Napas (BIDV 970418, Vietcombank 970436, MB 970422…)
 			'so_tk'  => '',       // số tài khoản nhận tiền
 			'ten_tk' => '',       // tên chủ tài khoản, viết HOA không dấu cho khớp app ngân hàng
-			'zalo_token' => '',   // access token của Zalo OA
-			'zalo_tpl'   => '',   // mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)
+			'zalo_app_id'  => '', // ID ứng dụng ở developers.zalo.me
+			'zalo_secret'  => '', // Khoá bí mật của ứng dụng
+			'zalo_refresh' => '', // refresh token — lấy MỘT LẦN bằng nút "Kết nối Zalo OA"
+			'zalo_token'   => '', // access token đang dùng (plugin tự lấy, tự làm mới)
+			'zalo_het'     => 0,  // access token hết hạn lúc nào (giây epoch)
+			'zalo_oa'      => '', // OA id, chỉ để hiện cho biết đang nối với OA nào
+			'zalo_tpl'     => '', // mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)
 			'ten'    => 'GHOST BRIDE VIP',
 			'phu'    => 'Nghi thức phân luồng dành riêng cho Khách Mời Danh Dự',
 		);
@@ -279,11 +284,12 @@ class NHAMA {
 	public static function init() {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?nhama=1', 'top' );
 		add_rewrite_rule( '^nha-ma-tien/?$', 'index.php?nhama_tien=1', 'top' );
+		add_rewrite_rule( '^nha-ma-zalo/?$', 'index.php?nhama_zalo=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ) );
 		if ( get_option( 'nhama_ver' ) !== self::VER ) { self::cai_dat(); flush_rewrite_rules( false ); }
 	}
-	public static function query_vars( $v ) { $v[] = 'nhama'; $v[] = 'nhama_tien'; return $v; }
+	public static function query_vars( $v ) { $v[] = 'nhama'; $v[] = 'nhama_tien'; $v[] = 'nhama_zalo'; return $v; }
 
 	public static function phuc_vu() {
 		/* Cổng tiền xử TRƯỚC trang, và không bao giờ được để WordPress chuyển hướng: bên gửi
@@ -293,6 +299,16 @@ class NHAMA {
 		if ( ! $la_tien && isset( $_SERVER['REQUEST_URI'] ) ) {
 			$d = trim( (string) wp_parse_url( (string) $_SERVER['REQUEST_URI'], PHP_URL_PATH ), '/' );
 			$la_tien = ( 'nha-ma-tien' === $d || substr( $d, -12 ) === '/nha-ma-tien' );
+		}
+		$la_zalo = ( (int) get_query_var( 'nhama_zalo' ) === 1 ) || isset( $_GET['nhama_zalo'] );
+		if ( ! $la_zalo && isset( $_SERVER['REQUEST_URI'] ) ) {
+			$dz = trim( (string) wp_parse_url( (string) $_SERVER['REQUEST_URI'], PHP_URL_PATH ), '/' );
+			$la_zalo = ( 'nha-ma-zalo' === $dz || substr( $dz, -12 ) === '/nha-ma-zalo' );
+		}
+		if ( $la_zalo ) {
+			self::zalo_nhan_ma();
+			if ( ! defined( 'NHAMA_TEST' ) ) { exit; }
+			return;
 		}
 		if ( $la_tien ) {
 			self::cong_tien();
@@ -441,6 +457,163 @@ class NHAMA {
 
 	/**
 	 * ==========================================================================================
+	 * NỐI VỚI ZALO OA — lấy token bằng NÚT BẤM, không bắt ai chạy lệnh curl
+	 * ==========================================================================================
+	 * 🔴 ACCESS TOKEN CỦA ZALO CHỈ SỐNG KHOẢNG MỘT GIỜ. Nên một ô "dán access token vào đây" là
+	 *    thiết kế sai từ gốc: dán xong gửi được vài tin rồi chết, và mỗi giờ lại phải đi lấy token
+	 *    mới — không ai làm được việc đó. Thứ phải cất là REFRESH TOKEN (sống vài tháng), còn
+	 *    access token thì plugin tự đổi lấy khi cần.
+	 *
+	 * 🔴 MỖI LẦN LÀM MỚI, ZALO CẤP LUÔN MỘT REFRESH TOKEN MỚI, và cái cũ hết dùng được. Không lưu
+	 *    đè cái mới là lần sau hỏng — mà hỏng IM LẶNG, chỉ lộ ra khi có khách không nhận được vé.
+	 *
+	 * ⚠️ CHƯA CHẠY THỬ VỚI ZALO THẬT — máy dựng plugin bị chặn ra Internet, không mở nổi cả trang
+	 *    tài liệu của Zalo. Phần dựng địa chỉ, đổi mã, làm mới và lưu token đều có phép thử bằng
+	 *    máy chủ giả; phần nói chuyện thật với Zalo thì chưa. Nhật ký Zalo ghi NGUYÊN VĂN câu trả
+	 *    lời của Zalo để lần đầu nối có hỏng cũng đọc ra ngay hỏng ở đâu.
+	 */
+	const ZALO_OAUTH = 'https://oauth.zaloapp.com/v4/oa/permission';
+	const ZALO_TOKEN = 'https://oauth.zaloapp.com/v4/oa/access_token';
+
+	/** Địa chỉ Zalo trả mã về — khai đúng chuỗi này ở ứng dụng bên developers.zalo.me. */
+	public static function zalo_callback() { return home_url( '/nha-ma-zalo' ); }
+
+	/**
+	 * Địa chỉ bấm vào để cấp quyền. Kèm `state` chống ai đó dụ trình duyệt của anh nối nhầm sang
+	 * ứng dụng của họ.
+	 */
+	public static function zalo_url_noi() {
+		$cf = self::cf();
+		$app = trim( (string) $cf['zalo_app_id'] );
+		if ( '' === $app ) { return ''; }
+		$state = wp_generate_password( 20, false );
+		set_transient( 'nhama_zalo_state', $state, 900 );
+		return self::ZALO_OAUTH . '?' . http_build_query( array(
+			'app_id'       => $app,
+			'redirect_uri' => self::zalo_callback(),
+			'state'        => $state,
+		) );
+	}
+
+	/**
+	 * Một lượt gọi HTTP. TÁCH RA LÀM HÀM RIÊNG để phép thử thay được bằng máy chủ giả — phần nói
+	 * chuyện với Zalo là phần duy nhất ở đây không thể chạy thật trong bài kiểm.
+	 */
+	public static function http( $url, $args ) {
+		if ( defined( 'NHAMA_TEST' ) && isset( $GLOBALS['NHAMA_HTTP'] ) && is_callable( $GLOBALS['NHAMA_HTTP'] ) ) {
+			return call_user_func( $GLOBALS['NHAMA_HTTP'], $url, $args );
+		}
+		return wp_remote_post( $url, $args );
+	}
+
+	/** Đọc thân JSON của một lượt trả lời, chấp cả dạng WP_Error lẫn mảng. */
+	private static function than_tra( $tra ) {
+		if ( is_wp_error( $tra ) ) { return array( 'loi_mang' => $tra->get_error_message() ); }
+		$than = is_array( $tra ) && isset( $tra['body'] ) ? (string) $tra['body'] : '';
+		$j = json_decode( $than, true );
+		return is_array( $j ) ? $j : array( 'khong_doc' => mb_substr( $than, 0, 300 ) );
+	}
+
+	/** Cất bộ token vừa nhận. Trả về câu lỗi, hoặc '' nếu xuôi. */
+	private static function zalo_cat_token( $j ) {
+		if ( empty( $j['access_token'] ) ) {
+			/* Zalo trả HTTP 200 kể cả khi hỏng, lỗi nằm trong thân — đọc mã HTTP là tưởng xong. */
+			return 'Zalo không trả access_token: ' . wp_json_encode( $j );
+		}
+		$cf = self::cf();
+		$cf['zalo_token'] = (string) $j['access_token'];
+		/* Trừ hao 120 giây: token hết hạn đúng lúc đang gửi thì tin ấy mất. */
+		$cf['zalo_het'] = time() + max( 60, (int) ( isset( $j['expires_in'] ) ? $j['expires_in'] : 3600 ) ) - 120;
+		if ( ! empty( $j['refresh_token'] ) ) { $cf['zalo_refresh'] = (string) $j['refresh_token']; }
+		update_option( 'nhama_cf', $cf );
+		return '';
+	}
+
+	/** Zalo gọi về đây kèm `code` sau khi anh bấm cấp quyền. */
+	public static function zalo_nhan_ma() {
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=utf-8' );
+		$ma    = isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '';
+		$state = isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '';
+		$that  = (string) get_transient( 'nhama_zalo_state' );
+		$oa    = isset( $_GET['oa_id'] ) ? sanitize_text_field( wp_unslash( $_GET['oa_id'] ) ) : '';
+
+		if ( '' === $ma ) { self::zalo_man( false, 'Zalo không gửi mã về. Thử bấm Kết nối lại.' ); return; }
+		/* ⚠️ SO `state`. Thiếu chốt này thì ai đó dụ được trình duyệt của anh mở một địa chỉ có
+		   `code` của họ, và OA của họ được nối vào website của anh. */
+		if ( '' === $that || ! hash_equals( $that, $state ) ) {
+			self::zalo_man( false, 'Mã trạng thái không khớp (state) — lượt nối này không phải do anh bắt đầu, hoặc đã quá 15 phút. Bấm Kết nối lại từ màn Cài đặt.' );
+			return;
+		}
+		delete_transient( 'nhama_zalo_state' );
+
+		$cf  = self::cf();
+		$tra = self::http( self::ZALO_TOKEN, array(
+			'timeout' => 20,
+			'headers' => array( 'secret_key' => trim( (string) $cf['zalo_secret'] ),
+				'Content-Type' => 'application/x-www-form-urlencoded' ),
+			'body'    => array( 'code' => $ma, 'app_id' => trim( (string) $cf['zalo_app_id'] ),
+				'grant_type' => 'authorization_code' ),
+		) );
+		$j   = self::than_tra( $tra );
+		$loi = self::zalo_cat_token( $j );
+		if ( '' !== $loi ) { self::nk_zalo( '', 'noi_hong', $loi ); self::zalo_man( false, $loi ); return; }
+		if ( '' !== $oa ) {
+			$cf2 = self::cf(); $cf2['zalo_oa'] = $oa; update_option( 'nhama_cf', $cf2 );
+		}
+		self::nk_zalo( '', 'da_noi', 'Đã nối OA ' . ( $oa ? $oa : '(không rõ id)' ) );
+		self::zalo_man( true, 'Đã nối xong. Từ giờ plugin tự làm mới token, anh không phải làm gì thêm.' );
+	}
+
+	private static function zalo_man( $xuoi, $chu ) {
+		echo '<!doctype html><meta charset="utf-8"><title>Nối Zalo OA</title>'
+			. '<div style="font:16px/1.6 system-ui,Arial;max-width:640px;margin:60px auto;padding:0 16px">'
+			. '<h2>' . ( $xuoi ? '✔ Nối Zalo OA thành công' : '✕ Chưa nối được' ) . '</h2>'
+			. '<p>' . esc_html( $chu ) . '</p>'
+			. '<p><a href="' . esc_url( self::url_ql() ) . '">← Về trang quản trị</a></p></div>';
+	}
+
+	/**
+	 * Access token đang dùng được — hết hạn thì tự làm mới bằng refresh token.
+	 * Trả về '' nếu chưa nối, hoặc làm mới hỏng (và ghi nhật ký nói rõ vì sao).
+	 */
+	public static function zalo_token_song() {
+		$cf = self::cf();
+		if ( (string) $cf['zalo_token'] !== '' && (int) $cf['zalo_het'] > time() ) {
+			return (string) $cf['zalo_token'];
+		}
+		$rf = trim( (string) $cf['zalo_refresh'] );
+		if ( '' === $rf ) { return ''; }
+		$tra = self::http( self::ZALO_TOKEN, array(
+			'timeout' => 20,
+			'headers' => array( 'secret_key' => trim( (string) $cf['zalo_secret'] ),
+				'Content-Type' => 'application/x-www-form-urlencoded' ),
+			'body'    => array( 'refresh_token' => $rf, 'app_id' => trim( (string) $cf['zalo_app_id'] ),
+				'grant_type' => 'refresh_token' ),
+		) );
+		$j   = self::than_tra( $tra );
+		$loi = self::zalo_cat_token( $j );
+		if ( '' !== $loi ) { self::nk_zalo( '', 'lam_moi_hong', $loi ); return ''; }
+		self::nk_zalo( '', 'da_lam_moi', 'Đã làm mới access token.' );
+		return (string) self::cf()['zalo_token'];
+	}
+
+	/** Tình trạng nối Zalo — cho màn Cài đặt hiện ra, không in token ra màn hình. */
+	public static function zalo_tinh_trang() {
+		$cf = self::cf();
+		return array(
+			'co_app'     => '' !== trim( (string) $cf['zalo_app_id'] ) && '' !== trim( (string) $cf['zalo_secret'] ),
+			'da_noi'     => '' !== trim( (string) $cf['zalo_refresh'] ),
+			'oa'         => (string) $cf['zalo_oa'],
+			'con_song'   => ( (string) $cf['zalo_token'] !== '' && (int) $cf['zalo_het'] > time() )
+				? max( 0, (int) $cf['zalo_het'] - time() ) : 0,
+			'callback'   => self::zalo_callback(),
+			'url_noi'    => self::zalo_url_noi(),
+		);
+	}
+
+	/**
+	 * ==========================================================================================
 	 * GỬI MÃ VÉ + QR VÉ VÀO ZALO CHO KHÁCH
 	 * ==========================================================================================
 	 * Anh Thắng 08/09/2026: *"mã vé sẽ gửi vào tin nhắn zalo của khách mã vé và QR vé"*.
@@ -465,9 +638,9 @@ class NHAMA {
 		$don = self::don_theo_ma( $ma );
 		if ( ! $don ) { return false; }
 		$cf  = self::cf();
-		$tok = trim( (string) ( isset( $cf['zalo_token'] ) ? $cf['zalo_token'] : '' ) );
+		$tok = self::zalo_token_song();
 		$sdt = preg_replace( '/[^0-9]/', '', (string) $don['sdt'] );
-		if ( '' === $tok ) { self::nk_zalo( $ma, 'chua_cau_hinh', 'Chưa khai token OA.' ); return false; }
+		if ( '' === $tok ) { self::nk_zalo( $ma, 'chua_cau_hinh', 'Chưa nối Zalo OA (hoặc làm mới token hỏng).' ); return false; }
 		if ( '' === $sdt ) { self::nk_zalo( $ma, 'thieu_sdt', 'Đơn không có số điện thoại.' ); return false; }
 		/* Zalo đòi số dạng 84…, không phải 0… */
 		if ( '0' === substr( $sdt, 0, 1 ) ) { $sdt = '84' . substr( $sdt, 1 ); }
@@ -494,7 +667,7 @@ class NHAMA {
 			$than = array( 'recipient' => array( 'user_id_by_phone' => $sdt ),
 				'message' => array( 'text' => $chu ) );
 		}
-		$tra = wp_remote_post( $url, array(
+		$tra = self::http( $url, array(
 			'timeout' => 15,
 			'headers' => array( 'Content-Type' => 'application/json', 'access_token' => $tok ),
 			'body'    => wp_json_encode( $than ),
@@ -503,8 +676,7 @@ class NHAMA {
 			self::nk_zalo( $ma, 'loi_mang', $tra->get_error_message() );
 			return false;
 		}
-		$than_tra = wp_remote_retrieve_body( $tra );
-		$j = json_decode( $than_tra, true );
+		$j = self::than_tra( $tra );
 		/* Zalo trả HTTP 200 kể cả khi hỏng, lỗi nằm trong `error` — đọc mã HTTP là tưởng gửi xong. */
 		if ( is_array( $j ) && isset( $j['error'] ) && 0 !== (int) $j['error'] ) {
 			self::nk_zalo( $ma, 'zalo_choi', 'Zalo báo lỗi ' . $j['error'] . ': '
@@ -802,6 +974,7 @@ class NHAMA {
 		global $wpdb;
 		$r = $wpdb->get_results( 'SELECT ma,ten,sdt,ngay,gio,sl,tien,tt,ghi,vao_luc,tao FROM '
 			. self::t() . ' ORDER BY id DESC LIMIT 2000', ARRAY_A );
+		$cf['zalo_tt'] = self::zalo_tinh_trang();
 		return array( 'ok' => true, 'don' => $r ? $r : array(), 'cf' => $cf,
 			'khung' => self::ds_khung( $cf ), 'hnay' => current_time( 'Y-m-d' ) );
 	}
@@ -858,7 +1031,7 @@ class NHAMA {
 				$cf[ $k ] = (string) $moi[ $k ];
 			}
 		}
-		foreach ( array( 'zalo_token', 'zalo_tpl' ) as $k ) {
+		foreach ( array( 'zalo_app_id', 'zalo_secret', 'zalo_refresh', 'zalo_tpl' ) as $k ) {
 			if ( isset( $moi[ $k ] ) ) { $cf[ $k ] = trim( sanitize_text_field( (string) $moi[ $k ] ) ); }
 		}
 		foreach ( array( 'so_tk', 'ten_tk' ) as $k ) {
@@ -872,6 +1045,7 @@ class NHAMA {
 		$cf['buoc'] = max( 1, (int) $cf['buoc'] );
 		update_option( 'nhama_cf', $cf );
 		$cf['tk_thu'] = self::tk();
+		$cf['zalo_tt'] = self::zalo_tinh_trang();
 		$pin = isset( $d['pin'] ) ? preg_replace( '/\D/', '', (string) $d['pin'] ) : '';
 		if ( strlen( $pin ) >= 4 ) { self::dat_pin( $pin ); }
 		return array( 'ok' => true, 'cf' => $cf, 'khung' => self::ds_khung( $cf ) );
@@ -1812,9 +1986,11 @@ function manCai(){
     +"<hr style='border:0;border-top:1px solid var(--q-vien);margin:18px 0'>"
     +"<h3 style='margin:0 0 4px;color:var(--q-cam)'>💬 Gửi vé qua Zalo</h3>"
     +"<p class='q-nho' style='margin:0'>Thiệp được duyệt là tự gửi mã vé + đường dẫn QR vé cho khách. "
-      +"Cần <b>Zalo OA</b>. Để trống token thì bỏ qua, mọi thứ khác vẫn chạy.</p>"
-    +oCai("Access token của Zalo OA","cZaloToken",CFQ.zalo_token||"","text")
+      +"Cần <b>Zalo OA</b> + một ứng dụng ở developers.zalo.me. Chưa nối thì bỏ qua, mọi thứ khác vẫn chạy.</p>"
+    +oCai("ID ứng dụng (developers.zalo.me → Thông tin ứng dụng)","cZaloApp",CFQ.zalo_app_id||"","text")
+    +oCai("Khoá bí mật của ứng dụng","cZaloSecret",CFQ.zalo_secret||"","password")
     +oCai("Mã mẫu tin ZNS (để trống = gửi tin tư vấn CS)","cZaloTpl",CFQ.zalo_tpl||"","text")
+    +"<div id='zaloTT' class='q-nho' style='margin-top:10px'></div>"
     +"<p class='q-nho'>⚠️ <b>Tin tư vấn (CS)</b> miễn phí nhưng CHỈ tới được người đã nhắn cho OA "
       +"trong 7 ngày — khách mua lần đầu gần như chắc chắn không thoả. Gửi được cho mọi số thì phải "
       +"dùng <b>ZNS</b>: đăng ký mẫu tin, chờ Zalo duyệt, và mỗi tin tốn phí.</p>"
@@ -1823,7 +1999,7 @@ function manCai(){
     +"<button class='q-nut xam' id='btMau' style='width:100%'>Nạp 12 đơn mẫu (để xem thử)</button>"
     +"<button class='q-nut do' id='btXoa' style='width:100%;margin-top:9px'>Xoá sạch sổ</button></div></div>";
   g("cQuet").value=String(CFQ.quet);
-  veTkThu();
+  veTkThu(); veZalo();
   g("btLuuKD").addEventListener("click", function(){
     luuCai({ gia:+g("cGia").value||0, suc:+g("cSuc").value||1, mo:g("cMo").value, dong:g("cDong").value,
       buoc:+g("cBuoc").value||5, ngayMo:+g("cNgayMo").value||14, denSom:+g("cDenSom").value||0,
@@ -1831,7 +2007,8 @@ function manCai(){
   });
   g("btLuuMH").addEventListener("click", function(){
     luuCai({ quet:+g("cQuet").value, ten:g("cTen").value, phu:g("cPhu").value,
-      zalo_token:g("cZaloToken").value, zalo_tpl:g("cZaloTpl").value }, g("cPin").value);
+      zalo_app_id:g("cZaloApp").value, zalo_secret:g("cZaloSecret").value,
+      zalo_tpl:g("cZaloTpl").value }, g("cPin").value);
   });
   g("btMau").addEventListener("click", function(){
     api("mau").then(napQL).then(veQL).catch(function(e){ alert(e.message); });
@@ -1858,6 +2035,39 @@ function veTkThu(){
     +(t.ten_tk?" · "+esc(t.ten_tk):"")
     +"<br>Soi kỹ số tài khoản: thiếu một chữ số là app ngân hàng chối, mà mã QR thì trông vẫn bình thường.";
 }
+/* ============================================================================================
+ * TÌNH TRẠNG NỐI ZALO
+ * ==========================================================================================
+ * 🔴 KHÔNG IN TOKEN RA MÀN HÌNH, kể cả một phần. Màn này ai vào được là chụp màn hình được, mà
+ *    ảnh chụp thì đi khắp nơi. Chỉ nói ĐÃ NỐI hay CHƯA, và token còn sống bao lâu.
+ * 🔴 IN RA ĐỊA CHỈ CALLBACK để anh dán sang bên Zalo. Thiếu bước ấy là bấm Kết nối xong Zalo báo
+ *    "redirect_uri không hợp lệ", mà câu ấy không nói phải đi khai ở đâu.
+ * ========================================================================================== */
+function veZalo(){
+  var o=g("zaloTT"); if(!o) return;
+  var t=(CFQ.zalo_tt)||{};
+  var h="<div class='q-o' style='word-break:break-all;font-size:12.5px' data-chep='"+esc(t.callback||"")+"'>"
+    +esc(t.callback||"")+"</div>"
+    +"<p class='q-nho' style='margin:6px 0 10px'>↑ Dán chuỗi này vào ô <b>Redirect URI / Callback URL</b> "
+    +"của ứng dụng bên developers.zalo.me trước khi bấm Kết nối.</p>";
+  if (!t.co_app){
+    h+="<div style='color:var(--q-cam)'>⚠️ Chưa khai ID ứng dụng và khoá bí mật — điền hai ô trên rồi "
+      +"bấm <b>LƯU MÀN HÌNH</b>, nút Kết nối mới hiện.</div>";
+  } else if (!t.da_noi){
+    h+="<a class='q-nut xanh' style='display:inline-block;text-decoration:none' href='"+esc(t.url_noi||"")
+      +"'>🔗 KẾT NỐI ZALO OA</a>"
+      +"<p class='q-nho' style='margin-top:8px'>Bấm → Zalo hỏi chọn OA → xong tự quay về đây. Chỉ làm "
+      +"<b>một lần</b>; sau đó plugin tự làm mới token.</p>";
+  } else {
+    h+="<div style='color:var(--q-luc)'>✔ Đã nối"+(t.oa?" với OA <b>"+esc(t.oa)+"</b>":"")+". "
+      +(t.con_song ? "Token còn sống "+Math.round(t.con_song/60)+" phút." : "Token đã hết hạn — plugin tự làm mới ở lần gửi tới.")
+      +"</div>"
+      +"<a class='q-nut xam' style='display:inline-block;text-decoration:none;margin-top:8px' href='"
+      +esc(t.url_noi||"")+"'>Nối lại (đổi OA khác)</a>";
+  }
+  o.innerHTML=h;
+}
+
 function luuCai(phan, pin){
   var moi=Object.assign({}, CFQ, phan);
   api("cai",{cf:moi, pin:pin}).then(function(j){

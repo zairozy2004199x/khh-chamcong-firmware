@@ -492,6 +492,91 @@ t( 'và in ra địa chỉ webhook kèm khoá',
 	strpos( $r['duong'], 'nha-ma-tien' ) !== false && strpos( $r['duong'], 'token=' ) !== false, $r['duong'] );
 t( 'sổ tiền về đòi thẻ, khách không xem được', empty( goi( array( 'viec' => 'tien' ) )['ok'] ) );
 
+// ================================================================== 11. Nối Zalo OA & làm mới token
+/* =============================================================================================
+ * 🔴 ACCESS TOKEN CỦA ZALO SỐNG ~1 GIỜ — nên chỗ đáng canh không phải "gửi được tin không", mà là
+ *    "một giờ sau còn gửi được không".
+ * Máy chủ Zalo được thay bằng máy chủ giả (`$GLOBALS['NHAMA_HTTP']`) — phần nói chuyện thật với
+ * Zalo là phần duy nhất bài này không chạy được.
+ * =========================================================================================== */
+$goi_zalo = array();          // ghi lại mọi lượt gọi để soi
+function zalo_gia( $tra_ve ) {
+	$GLOBALS['NHAMA_HTTP'] = function ( $url, $args ) use ( $tra_ve ) {
+		$GLOBALS['goi_zalo'][] = array( 'url' => $url, 'args' => $args );
+		return array( 'body' => wp_json_encode( $tra_ve ) );
+	};
+}
+goi( array( 'viec' => 'cai', 'the' => $the,
+	'cf' => array( 'zalo_app_id' => '189487077940231327', 'zalo_secret' => 'BIMAT' ) ) );
+
+$tt = NHAMA::zalo_tinh_trang();
+t( 'khai app rồi thì tình trạng báo có app', ! empty( $tt['co_app'] ) );
+t( 'nhưng CHƯA nối', empty( $tt['da_noi'] ) );
+t( 'địa chỉ callback đúng đường /nha-ma-zalo',
+	substr( $tt['callback'], -12 ) === '/nha-ma-zalo', $tt['callback'] );
+t( 'địa chỉ cấp quyền mang app_id và redirect_uri',
+	strpos( $tt['url_noi'], 'app_id=189487077940231327' ) !== false
+	&& strpos( $tt['url_noi'], 'redirect_uri=' ) !== false, $tt['url_noi'] );
+/* 🔴 `state` chống ai đó dụ trình duyệt của anh nối OA của HỌ vào website của mình. */
+t( 'và mang mã trạng thái state', strpos( $tt['url_noi'], 'state=' ) !== false );
+
+/* --- Zalo gọi về với mã: đổi lấy token --- */
+function zalo_ve( $ma, $state, $oa = '' ) {
+	$_GET = array( 'code' => $ma, 'state' => $state );
+	if ( '' !== $oa ) { $_GET['oa_id'] = $oa; }
+	ob_start(); NHAMA::zalo_nhan_ma(); return ob_get_clean();
+}
+$state_that = get_transient( 'nhama_zalo_state' );
+zalo_gia( array( 'access_token' => 'AT-1', 'refresh_token' => 'RT-1', 'expires_in' => 3600 ) );
+$man = zalo_ve( 'CODE-1', 'state-bay-ba' );
+t( '🔴 state không khớp thì CHỐI', strpos( $man, 'không khớp' ) !== false );
+t( 'và KHÔNG cất token nào', '' === (string) NHAMA::cf()['zalo_refresh'] );
+
+$man = zalo_ve( 'CODE-1', $state_that, 'OA123' );
+t( 'state khớp thì nối được', strpos( $man, 'thành công' ) !== false, substr( $man, 0, 200 ) );
+t( 'cất refresh token', 'RT-1' === (string) NHAMA::cf()['zalo_refresh'] );
+t( 'cất access token', 'AT-1' === (string) NHAMA::cf()['zalo_token'] );
+t( 'nhớ luôn OA id để hiện cho biết đang nối với ai', 'OA123' === (string) NHAMA::cf()['zalo_oa'] );
+/* Trừ hao 120 giây: token hết hạn đúng lúc đang gửi thì tin ấy mất. */
+$het = (int) NHAMA::cf()['zalo_het'];
+t( 'hạn token trừ hao ~2 phút', $het > time() + 3400 && $het <= time() + 3481, $het - time() );
+$g = end( $goi_zalo );
+t( 'gọi đúng cửa đổi mã của Zalo', strpos( $g['url'], 'oa/access_token' ) !== false, $g['url'] );
+t( 'khoá bí mật đi trong header, KHÔNG đi trên đường dẫn',
+	'BIMAT' === $g['args']['headers']['secret_key'] && strpos( $g['url'], 'BIMAT' ) === false );
+t( 'gửi đúng kiểu authorization_code', 'authorization_code' === $g['args']['body']['grant_type'] );
+
+/* --- token còn hạn thì KHÔNG gọi lại Zalo --- */
+$truoc_so = count( $goi_zalo );
+t( 'token còn hạn thì dùng lại', 'AT-1' === NHAMA::zalo_token_song() );
+t( 'và không tốn thêm lượt gọi nào', count( $goi_zalo ) === $truoc_so );
+
+/* --- 🔴 HẾT HẠN THÌ TỰ LÀM MỚI, và phải LƯU ĐÈ refresh token mới --- */
+$cf_het = NHAMA::cf(); $cf_het['zalo_het'] = time() - 10; update_option( 'nhama_cf', $cf_het );
+zalo_gia( array( 'access_token' => 'AT-2', 'refresh_token' => 'RT-2', 'expires_in' => 3600 ) );
+t( 'hết hạn thì tự làm mới', 'AT-2' === NHAMA::zalo_token_song() );
+$g = end( $goi_zalo );
+t( 'làm mới bằng refresh_token cũ', 'RT-1' === $g['args']['body']['refresh_token']
+	&& 'refresh_token' === $g['args']['body']['grant_type'], $g['args']['body'] );
+/* 🔴 Zalo cấp refresh token MỚI mỗi lần làm mới, cái cũ hết dùng. Không lưu đè là lần sau hỏng,
+   mà hỏng IM LẶNG — chỉ lộ ra khi có khách không nhận được vé. */
+t( '🔴 LƯU ĐÈ refresh token mới', 'RT-2' === (string) NHAMA::cf()['zalo_refresh'] );
+
+/* --- Zalo chối thì nói ra, không im, và KHÔNG xoá mất refresh cũ --- */
+$cf_het = NHAMA::cf(); $cf_het['zalo_het'] = time() - 10; update_option( 'nhama_cf', $cf_het );
+zalo_gia( array( 'error' => -216, 'message' => 'Refresh token is invalid' ) );
+t( 'làm mới hỏng thì trả rỗng, không nổ', '' === NHAMA::zalo_token_song() );
+$nk = (array) get_option( 'nhama_nk_zalo', array() );
+t( 'và ghi NGUYÊN VĂN câu Zalo nói vào nhật ký',
+	'lam_moi_hong' === $nk[0]['kq'] && strpos( $nk[0]['chu'], '216' ) !== false, $nk[0] );
+t( 'refresh token cũ vẫn còn để thử lại', 'RT-2' === (string) NHAMA::cf()['zalo_refresh'] );
+
+/* --- gửi vé khi chưa nối: im lặng bỏ qua, KHÔNG làm hỏng lượt tiền về --- */
+$cf_x = NHAMA::cf(); $cf_x['zalo_refresh'] = ''; $cf_x['zalo_token'] = ''; update_option( 'nhama_cf', $cf_x );
+t( 'chưa nối thì gửi trả false', false === NHAMA::gui_zalo( $ma_t ) );
+t( 'và thiệp vẫn hợp lệ', 'cho_vao' === NHAMA::don_theo_ma( $ma_t )['tt'] );
+unset( $GLOBALS['NHAMA_HTTP'] );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

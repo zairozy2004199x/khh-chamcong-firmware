@@ -1,6 +1,6 @@
 # Nhà Ma · Bán vé theo khung giờ — cài & vận hành
 
-*Plugin `wordpress/vhcp-nha-ma` — bản 1.4.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
+*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -60,18 +60,40 @@ hằng ấy thắng), hoặc xoá option `nhama_khoa_tien` cho nó sinh lại.
 
 ### 2.3. (Tuỳ chọn) Gửi vé qua Zalo — *Cài đặt hệ thống*
 
-Khai **access token Zalo OA**. Thiệp được duyệt là tự gửi mã vé + đường dẫn mở thiệp (có QR vé).
+Bốn bước, làm **một lần**:
 
-> ⚠️ **Zalo không cho gửi tin cho số bất kỳ.** Hai đường, cả hai đều cần **Official Account**:
+1. **developers.zalo.me** → tạo ứng dụng → lấy **ID ứng dụng** + **Khoá bí mật** (ở *Thông tin ứng
+   dụng*). Ứng dụng phải thêm sản phẩm **Official Account**.
+2. Trong màn *Cài đặt hệ thống* của plugin, điền hai chuỗi ấy → **LƯU MÀN HÌNH**. Màn sẽ in ra một
+   **địa chỉ callback** dạng `https://khmatrix.com/nha-ma-zalo` — **dán chuỗi đó vào ô Redirect
+   URI / Callback URL của ứng dụng bên Zalo**. Bỏ bước này thì bấm Kết nối sẽ bị Zalo chối với câu
+   *"redirect_uri không hợp lệ"*, mà câu ấy không nói phải đi khai ở đâu.
+3. **Liên kết OA với ứng dụng**: bên OA Manager → *Quản lý → Quản lý liên kết* → cấp quyền cho
+   ứng dụng vừa tạo.
+4. Quay lại màn Cài đặt, bấm **🔗 KẾT NỐI ZALO OA** → Zalo hỏi chọn OA → xong tự quay về. Màn sẽ
+   báo *"✔ Đã nối với OA …"*.
+
+> 🔴 **Vì sao không có ô "dán access token".** Access token của Zalo chỉ sống **khoảng một giờ** —
+> dán tay thì gửi được vài tin rồi chết, và mỗi giờ lại phải đi lấy token mới. Thứ plugin cất là
+> **refresh token** (sống vài tháng); access token thì nó tự đổi lấy khi cần.
+>
+> ⚠️ Mỗi lần làm mới, Zalo cấp luôn **refresh token mới** và cái cũ hết dùng — plugin lưu đè ngay.
+> Đây là chỗ hỏng im lặng kinh điển: quên lưu đè thì lần sau gửi hỏng mà không ai biết cho tới khi
+> có khách không nhận được vé.
+
+> ⚠️ **Zalo không cho gửi tin cho số bất kỳ.**
 > - **Tin tư vấn (CS)** — miễn phí, nhưng **chỉ tới được người đã nhắn cho OA trong 7 ngày**.
 >   Khách mua vé lần đầu gần như chắc chắn không thoả.
 > - **ZNS** — gửi được cho mọi số, nhưng phải **đăng ký mẫu tin và chờ Zalo duyệt**, và **mỗi tin
->   tốn phí**. Khai thêm ô *Mã mẫu tin ZNS*.
+>   tốn phí**. Khai mã mẫu vào ô *Mã mẫu tin ZNS*.
 >
-> Chưa có token thì bỏ trống — mọi thứ khác chạy bình thường, khách vẫn xem thiệp trên web.
+> Chưa nối thì bỏ qua — mọi thứ khác chạy bình thường, khách vẫn xem thiệp trên web, nhân viên vẫn
+> có nút **Chat Zalo** để gửi tay.
 >
-> ⚠️ Phần bắn đi **chưa chạy thử với OA thật**. Nhật ký Zalo trong màn *Tiền Về & Zalo* sẽ nói ngay
-> Zalo trả về gì.
+> ⚠️ Phần nói chuyện thật với Zalo **chưa chạy thử** (máy dựng plugin bị chặn ra Internet, không mở
+> nổi cả trang tài liệu Zalo). Phần dựng địa chỉ, đổi mã, làm mới và lưu token đều có phép thử bằng
+> máy chủ giả. Nhật ký Zalo ghi **nguyên văn** câu Zalo trả lời, nên lần đầu nối có hỏng thì gửi em
+> ảnh chụp nhật ký là sửa được ngay.
 
 ---
 
