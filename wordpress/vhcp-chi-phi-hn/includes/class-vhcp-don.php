@@ -171,26 +171,68 @@ class VHCPHN_Don {
 	 *    việc phụ, KHÔNG được làm hỏng việc duyệt đơn.
 	 *
 	 * ⚠️ Gửi theo MÃ NV, mà bảng đơn chỉ giữ TÊN người lập — nên phải tra ngược qua bảng người
-	 *    dùng. Không tra ra thì thôi, đừng đoán: gửi nhầm hộp thư là báo chuyện tiền nong của
-	 *    người này vào chuông người khác.
+	 *    dùng. Không tra ra thì ĐỪNG ĐOÁN: gửi nhầm hộp thư là báo chuyện tiền nong của người
+	 *    này vào chuông người khác. Bỏ chuông thôi, dòng bảng tin vẫn lên (xem trong hàm).
+	 *
+	 * ⚠️ TỪ 08/09/2026 hàm này đẩy HAI câu chữ khác nhau: câu có tiền vào chuông riêng, câu
+	 *    trung tính vào bảng tin. Sửa hàm thì đọc khối cảnh báo ở `VHNB_Bao::viec()` trước.
 	 */
 	private static function bao_noi_bo( $ma_don, $chu ) {
-		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return; }
+		if ( ! class_exists( 'VHNB_Bao' ) ) { return; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return; }
-		$ten = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
-		if ( '' === $ten ) { return; }
+		$ky = trim( (string) $d['ky'] );
+
+		/* ⚠️ TIỀN TỐ BẢNG ĐI VÀO KHOÁ GỘP, và đây KHÔNG phải chuyện làm cho đẹp.
+		   Từ 08/09/2026 mỗi vùng có một bản chi phí riêng (xem `tools/tach-ban-vung.sh`), hai
+		   bản cài chung MỘT website và dùng CHUNG trang nội bộ. Mã đơn thì mỗi bản tự đánh số
+		   từ bảng của mình, nên hai vùng sinh ra mã đơn TRÙNG NHAU là chuyện thường. Khoá gộp
+		   trùng thì tin của đơn vùng này rơi vào đúng dòng của đơn vùng khác — cùng một người
+		   phụ trách hai vùng là đọc chuông thấy việc của vùng bên kia.
+		   `VHCPHN_DB::t('')` trả tiền tố bảng của CHÍNH bản đang chạy, mà mỗi bản một tiền tố
+		   khác nhau, nên hai bên không bao giờ đụng khoá — và script tách bản vùng tự đổi giúp,
+		   không phải nhớ.
+		   ⚠️ ĐỪNG viết tiền tố của bản vùng ra đây dưới dạng chữ: `kiem-tach-ban-vung.php` đòi
+		      bản gốc KHÔNG chứa một chuỗi nào của bản vùng, và nó đếm cả chữ trong chú thích.
+		      Đã đỏ một lần đúng ở dòng này (08/09/2026). */
+		$rieng = VHCPHN_DB::t( '' );
+
+		/* 🔴 DÒNG BẢNG TIN: TRUNG TÍNH, KHÔNG TIỀN KHÔNG TÊN — anh Thắng chốt 08/09/2026.
+		   `$chu` bên dưới mang số tiền (`VHCPHN_Util::tien`), lý do trả lại, và đi vào chuông
+		   RIÊNG của người lập đơn. Bảng tin thì 240 người đọc, nên nó nhận một câu KHÁC, dựng
+		   ở đây từ đúng hai thứ không phải bí mật: kỳ và việc "có cập nhật".
+		   ⚠️ ĐỪNG truyền `$chu` vào chỗ này cho gọn — xem cảnh báo ở `VHNB_Bao::viec()`. */
+		$tin      = 'Đơn chi phí' . ( '' !== $ky ? ' kỳ ' . $ky : '' ) . ' có cập nhật mới';
+		$khoa_tin = $rieng . 'tin_cp:' . $ky;
+
+		/* Gửi theo MÃ NV, mà bảng đơn chỉ giữ TÊN người lập — nên phải tra ngược qua bảng người
+		   dùng. Không tra ra thì để rỗng: `VHNB_Bao` tự bỏ phần chuông, còn DÒNG BẢNG TIN VẪN
+		   LÊN. Giao dịch đã xảy ra thật, không lẽ vì không biết đưa chuông cho ai mà cả công ty
+		   cũng không được biết là kỳ này có việc. */
+		$ten   = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
 		$ma_nv = '';
-		foreach ( VHCPHN_Cfg::get_users() as $u ) {
-			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $ten ) {
-				$ma_nv = trim( (string) ( isset( $u['maDt'] ) ? $u['maDt'] : '' ) );
-				break;
+		if ( '' !== $ten ) {
+			foreach ( VHCPHN_Cfg::get_users() as $u ) {
+				if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $ten ) {
+					$ma_nv = trim( (string) ( isset( $u['maDt'] ) ? $u['maDt'] : '' ) );
+					break;
+				}
 			}
 		}
-		if ( '' === $ma_nv ) { return; }
-		VHNB_Bao::gui( $ma_nv, 'chi_phi',
-			'Đơn ' . (string) $d['ky'] . ' — ' . (string) $chu, '',
-			'cp_don:' . (string) $ma_don, '' );
+
+		$chu_rieng = 'Đơn ' . $ky . ' — ' . (string) $chu;
+		$khoa      = $rieng . 'cp_don:' . (string) $ma_don;
+
+		/* ⚠️ Hai plugin cài ĐỘC LẬP nên bản nội bộ trên máy có thể CŨ HƠN bản chi phí và chưa
+		   có `viec()`. Lùi về `gui()` thì mất dòng bảng tin nhưng chuông vẫn chạy y như trước —
+		   thà thiếu tính năng mới còn hơn lỗi nghiêm trọng "gọi hàm không tồn tại". */
+		if ( method_exists( 'VHNB_Bao', 'viec' ) ) {
+			VHNB_Bao::viec( $ma_nv, 'chi_phi', $chu_rieng, '', $khoa, '', $tin, $khoa_tin );
+			return;
+		}
+		if ( method_exists( 'VHNB_Bao', 'gui' ) && '' !== $ma_nv ) {
+			VHNB_Bao::gui( $ma_nv, 'chi_phi', $chu_rieng, '', $khoa, '' );
+		}
 	}
 
 	/** Mô tả gọn một dòng chi: nội dung + số tiền. Dùng chung cho mọi câu nhật ký. */
@@ -863,7 +905,7 @@ class VHCPHN_Don {
 		if ( '' !== $loi_dv ) { return $loi_dv; }
 		if ( ! VHCPHN_Auth::la_nhan_vien() ) { return ''; }
 		$d = self::don_row( $ma_don );
-		if ( ! $d ) { return 'Không tìm thấy đơn'; }
+		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
 		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
 		$toi = mb_strtolower( trim( VHCPHN_Auth::nguoi() ) );
 		if ( $cua === '' || $cua === $toi ) { return ''; }
@@ -944,10 +986,54 @@ class VHCPHN_Don {
 		return ( null === $ra ) ? $s : $ra;
 	}
 
+	/**
+	 * CỬA LẬP ĐƠN CHO NGƯỜI DÙNG — `createDon` trên giao diện vào đây.
+	 *
+	 * 🔴 KHÔNG LẬP RA MỘT ĐƠN MÀ CHÍNH NGƯỜI LẬP KHÔNG MỞ ĐƯỢC.
+	 *
+	 * Cắn thật 09/09/2026, mất gần một buổi mới lần ra. Tài khoản anh Trần Ngọc Quyền có:
+	 *     cột "Đơn vị"      = trống  -> nhà là K&H  -> đơn lập ra mang đơn vị K&H
+	 *     cột "Xem đơn vị"  = POSH   -> chỉ đọc được sổ POSH
+	 * Nhà một đằng, tầm nhìn một nẻo. Mỗi lượt bấm Tạo đơn đều ghi thành công rồi biến mất ngay
+	 * trước mắt: "Đã tạo đơn" xanh, kế tiếp "Không tìm thấy đơn" đỏ. Đơn vẫn nằm trong sổ, chiếm
+	 * mã, không ai xoá — và người dùng bấm lại, đẻ thêm một cái nữa.
+	 *
+	 * 🔴 CHỐT NẰM Ở ĐÂY, KHÔNG NẰM TRONG `create_don()`.
+	 *    Bản vá đầu đặt thẳng vào `create_don()` và làm gãy `chuyen_don_vi()` — luồng ấy CỐ Ý
+	 *    lập đơn cho mảng bên kia rồi đặt lại đơn vị đích, và người chuyển đương nhiên không xem
+	 *    được sổ bên nhận. `test-flows.php` đỏ ngay, đúng chỗ. Nên tách làm hai tầng: hàm dưới
+	 *    chỉ GHI, cửa này mới hỏi "người bấm có mở lại được không".
+	 *
+	 * ⚠️ KHÔNG tự sửa đơn vị cho khớp. Ghi đại nhà của người gọi vào đơn của người khác là tiền
+	 *    của mảng này chui sang sổ mảng kia — im lặng, và không ai đối chiếu ra. Chối và nói rõ
+	 *    phải sửa ở đâu.
+	 * ⚠️ Ai xem cả (Admin · Quản lý · Kế toán) thì `duoc_xem()` luôn đúng, nên chốt này không
+	 *    đụng tới họ — kể cả khi họ lập đơn hộ người của mảng khác.
+	 */
+	public static function tao_don_moi( $ky, $nguoi_lap ) {
+		$dv = VHCPHN_DonVi::cua_nguoi( $nguoi_lap );
+		if ( ! VHCPHN_DonVi::duoc_xem( $dv ) ) {
+			$ds = VHCPHN_DonVi::xem_duoc();
+			return VHCPHN_Util::err(
+				'Chưa lập được đơn: người lập "' . $nguoi_lap . '" thuộc đơn vị "' . $dv
+				. '", mà tài khoản đang dùng chỉ xem được: '
+				. ( null === $ds ? '(tất cả)' : implode( ', ', $ds ) ) . '. '
+				. 'Lập ra thì đơn biến mất ngay khỏi màn của chính người lập, nên chặn lại ở đây. '
+				. 'Sửa cột "Đơn vị" của người lập ở Cấu hình → Người dùng & Phân quyền cho khớp '
+				. 'với cột "Xem đơn vị", rồi lập lại.' );
+		}
+		return self::create_don( $ky, $nguoi_lap );
+	}
+
+	/**
+	 * GHI một đơn mới vào sổ. Không hỏi quyền — cửa hỏi quyền là `tao_don_moi()` ở trên.
+	 * `chuyen_don_vi()` gọi thẳng vào đây, cố ý.
+	 */
 	public static function create_don( $ky, $nguoi_lap ) {
 		global $wpdb;
+		$dv = VHCPHN_DonVi::cua_nguoi( $nguoi_lap );
 		$m = VHCPHN_Util::uid( 'D' );
-		$wpdb->insert( VHCPHN_DB::t( 'don' ), array(
+		$ok = $wpdb->insert( VHCPHN_DB::t( 'don' ), array(
 			'ma_don'     => $m,
 			'ky'         => self::chuan_ky_moi( $ky ),
 			'nguoi_lap'  => (string) $nguoi_lap,
@@ -956,11 +1042,23 @@ class VHCPHN_Don {
 			   khi đơn ấy chi cho một cơ sở bên kia. Không có ô cho người dùng chọn: một ô chọn
 			   là một chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của bên kia và biến
 			   mất khỏi màn của chính người vừa lập nó. */
-			'don_vi'     => VHCPHN_DonVi::cua_nguoi( $nguoi_lap ),
+			'don_vi'     => $dv,
 			'ngay_tao'   => VHCPHN_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',
 		) );
+		/* 🔴 KHÔNG BÁO "XONG" KHI CHƯA CHẮC ĐÃ GHI ĐƯỢC.
+		   Cắn thật 09/09/2026: màn báo "Đã tạo đơn" rồi ngay sau đó "Không tìm thấy đơn". Bản
+		   trước trả `ok()` vô điều kiện, không hề soi kết quả `insert()` — nên một lượt ghi hỏng
+		   (bảng chưa nới cột, ô quá dài, kết nối rớt) vẫn ra màn xanh, kèm một mã đơn KHÔNG TỒN
+		   TẠI. Người dùng cầm cái mã ấy đi hỏi, còn trong sổ thì chẳng có gì.
+		   Câu lỗi mang theo lời của MySQL: nếu còn hỏng nữa thì nó nói thẳng hỏng ở đâu, thay vì
+		   để người ta đoán tiếp một vòng. */
+		if ( ! $ok ) {
+			$chi_tiet = trim( (string) $wpdb->last_error );
+			return VHCPHN_Util::err( 'Không ghi được đơn mới vào sổ'
+				. ( '' !== $chi_tiet ? ' — ' . $chi_tiet : '.' ) );
+		}
 		return VHCPHN_Util::ok( array( 'maDon' => $m ) );
 	}
 
@@ -1013,6 +1111,10 @@ class VHCPHN_Don {
 		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
 		// Cơ sở đã chốt của đơn (mỗi đơn 1 cơ sở) — giao diện khóa ô chọn theo cái này
 		$don['cosoDon'] = self::coso_cua_don( $ma_don );
+		/* Giao diện cần BIẾT VÌ SAO ô cơ sở đang mở: đơn chưa có dòng nào (sắp chốt), hay đơn
+		   vị này vốn cho ghép nhiều gian (không bao giờ chốt). Hai ca ấy phải nhắc khác nhau —
+		   nhắc "thêm hạng mục đầu tiên là chốt cơ sở" cho đơn POSH là nói sai. */
+		$don['nhieuCoSo'] = VHCPHN_DonVi::don_nhieu_coso( $ma_don );
 
 		$bt_auto = self::chot_bu_tru( $ma_don );
 		if ( (string) $don['trangThai'] === 'Nháp' ) { $don['buTru'] = VHCPHN_Util::num( $bt_auto['so'] ); }
@@ -1482,6 +1584,23 @@ class VHCPHN_Don {
 	 */
 	public static function coso_cua_don( $ma_don ) {
 		global $wpdb;
+		/* 🔴 ĐƠN VỊ CHO GHÉP NHIỀU CƠ SỞ THÌ KHÔNG CHỐT GÌ CẢ — trả rỗng.
+		   Anh Thắng 09/09/2026: *"đối với kvc chọn theo cơ sở để lên đơn, còn đối với [POSH],
+		   1 đơn sẽ nhiều cơ sở cho từng chi phí nhỏ"*, trục phân biệt là ĐƠN VỊ.
+
+		   🔴 MỘT CHỖ NÀY THÁO ĐƯỢC CẢ BỐN CHỐT, vì cả bốn đều hỏi chính nó:
+		     · `get_don()`        -> `cosoDon` rỗng -> giao diện không khoá ô chọn
+		     · `set_tam_ung()`    -> `$cs_don === ''` -> nhận tạm ứng cho cơ sở thứ hai
+		     · `loi_khac_coso()`  -> `$cu === ''` -> dòng chi gắn cơ sở nào cũng được
+		     · nhãn 🏢 trên đầu đơn -> không bày một cơ sở như thể đơn chỉ có nó
+		   Rải bốn chỗ kiểm riêng là bốn chỗ để quên, và chỗ quên nào cũng ra một nửa tính năng:
+		   ô chọn mở mà máy chủ vẫn chối, hoặc ngược lại.
+
+		   ⚠️ TÊN HÀM VẪN ĐÚNG NGHĨA: nó trả "cơ sở đã CHỐT của đơn". Đơn ghép nhiều gian thì
+		      không có gian nào được chốt cả, nên rỗng là câu trả lời thật, không phải lách.
+		      Muốn biết đơn đụng những gian nào thì hỏi `cac_coso_cua_don()` — chốt phân quyền
+		      vẫn đi qua hàm ấy nên người phụ trách gian thứ hai vẫn mở được đơn. */
+		if ( VHCPHN_DonVi::don_nhieu_coso( $ma_don ) ) { return ''; }
 		/* 🔴 MỘT ĐƠN = MỘT CƠ SỞ (anh Thắng 01/09/2026): tạm ứng nhập cho cơ sở nào thì đơn CHỐT
 		   cơ sở đó, để ô nhập hạng mục khóa theo — không còn cảnh xin tạm ứng cơ sở này mà lên chi
 		   phí cơ sở khác. Ưu tiên cơ sở của TẠM ỨNG (thường nhập trước), rồi mới tới dòng chi. */

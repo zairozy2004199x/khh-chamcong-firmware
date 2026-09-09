@@ -171,26 +171,68 @@ class VHCP_Don {
 	 *    việc phụ, KHÔNG được làm hỏng việc duyệt đơn.
 	 *
 	 * ⚠️ Gửi theo MÃ NV, mà bảng đơn chỉ giữ TÊN người lập — nên phải tra ngược qua bảng người
-	 *    dùng. Không tra ra thì thôi, đừng đoán: gửi nhầm hộp thư là báo chuyện tiền nong của
-	 *    người này vào chuông người khác.
+	 *    dùng. Không tra ra thì ĐỪNG ĐOÁN: gửi nhầm hộp thư là báo chuyện tiền nong của người
+	 *    này vào chuông người khác. Bỏ chuông thôi, dòng bảng tin vẫn lên (xem trong hàm).
+	 *
+	 * ⚠️ TỪ 08/09/2026 hàm này đẩy HAI câu chữ khác nhau: câu có tiền vào chuông riêng, câu
+	 *    trung tính vào bảng tin. Sửa hàm thì đọc khối cảnh báo ở `VHNB_Bao::viec()` trước.
 	 */
 	private static function bao_noi_bo( $ma_don, $chu ) {
-		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return; }
+		if ( ! class_exists( 'VHNB_Bao' ) ) { return; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return; }
-		$ten = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
-		if ( '' === $ten ) { return; }
+		$ky = trim( (string) $d['ky'] );
+
+		/* ⚠️ TIỀN TỐ BẢNG ĐI VÀO KHOÁ GỘP, và đây KHÔNG phải chuyện làm cho đẹp.
+		   Từ 08/09/2026 mỗi vùng có một bản chi phí riêng (xem `tools/tach-ban-vung.sh`), hai
+		   bản cài chung MỘT website và dùng CHUNG trang nội bộ. Mã đơn thì mỗi bản tự đánh số
+		   từ bảng của mình, nên hai vùng sinh ra mã đơn TRÙNG NHAU là chuyện thường. Khoá gộp
+		   trùng thì tin của đơn vùng này rơi vào đúng dòng của đơn vùng khác — cùng một người
+		   phụ trách hai vùng là đọc chuông thấy việc của vùng bên kia.
+		   `VHCP_DB::t('')` trả tiền tố bảng của CHÍNH bản đang chạy, mà mỗi bản một tiền tố
+		   khác nhau, nên hai bên không bao giờ đụng khoá — và script tách bản vùng tự đổi giúp,
+		   không phải nhớ.
+		   ⚠️ ĐỪNG viết tiền tố của bản vùng ra đây dưới dạng chữ: `kiem-tach-ban-vung.php` đòi
+		      bản gốc KHÔNG chứa một chuỗi nào của bản vùng, và nó đếm cả chữ trong chú thích.
+		      Đã đỏ một lần đúng ở dòng này (08/09/2026). */
+		$rieng = VHCP_DB::t( '' );
+
+		/* 🔴 DÒNG BẢNG TIN: TRUNG TÍNH, KHÔNG TIỀN KHÔNG TÊN — anh Thắng chốt 08/09/2026.
+		   `$chu` bên dưới mang số tiền (`VHCP_Util::tien`), lý do trả lại, và đi vào chuông
+		   RIÊNG của người lập đơn. Bảng tin thì 240 người đọc, nên nó nhận một câu KHÁC, dựng
+		   ở đây từ đúng hai thứ không phải bí mật: kỳ và việc "có cập nhật".
+		   ⚠️ ĐỪNG truyền `$chu` vào chỗ này cho gọn — xem cảnh báo ở `VHNB_Bao::viec()`. */
+		$tin      = 'Đơn chi phí' . ( '' !== $ky ? ' kỳ ' . $ky : '' ) . ' có cập nhật mới';
+		$khoa_tin = $rieng . 'tin_cp:' . $ky;
+
+		/* Gửi theo MÃ NV, mà bảng đơn chỉ giữ TÊN người lập — nên phải tra ngược qua bảng người
+		   dùng. Không tra ra thì để rỗng: `VHNB_Bao` tự bỏ phần chuông, còn DÒNG BẢNG TIN VẪN
+		   LÊN. Giao dịch đã xảy ra thật, không lẽ vì không biết đưa chuông cho ai mà cả công ty
+		   cũng không được biết là kỳ này có việc. */
+		$ten   = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
 		$ma_nv = '';
-		foreach ( VHCP_Cfg::get_users() as $u ) {
-			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $ten ) {
-				$ma_nv = trim( (string) ( isset( $u['maDt'] ) ? $u['maDt'] : '' ) );
-				break;
+		if ( '' !== $ten ) {
+			foreach ( VHCP_Cfg::get_users() as $u ) {
+				if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $ten ) {
+					$ma_nv = trim( (string) ( isset( $u['maDt'] ) ? $u['maDt'] : '' ) );
+					break;
+				}
 			}
 		}
-		if ( '' === $ma_nv ) { return; }
-		VHNB_Bao::gui( $ma_nv, 'chi_phi',
-			'Đơn ' . (string) $d['ky'] . ' — ' . (string) $chu, '',
-			'cp_don:' . (string) $ma_don, '' );
+
+		$chu_rieng = 'Đơn ' . $ky . ' — ' . (string) $chu;
+		$khoa      = $rieng . 'cp_don:' . (string) $ma_don;
+
+		/* ⚠️ Hai plugin cài ĐỘC LẬP nên bản nội bộ trên máy có thể CŨ HƠN bản chi phí và chưa
+		   có `viec()`. Lùi về `gui()` thì mất dòng bảng tin nhưng chuông vẫn chạy y như trước —
+		   thà thiếu tính năng mới còn hơn lỗi nghiêm trọng "gọi hàm không tồn tại". */
+		if ( method_exists( 'VHNB_Bao', 'viec' ) ) {
+			VHNB_Bao::viec( $ma_nv, 'chi_phi', $chu_rieng, '', $khoa, '', $tin, $khoa_tin );
+			return;
+		}
+		if ( method_exists( 'VHNB_Bao', 'gui' ) && '' !== $ma_nv ) {
+			VHNB_Bao::gui( $ma_nv, 'chi_phi', $chu_rieng, '', $khoa, '' );
+		}
 	}
 
 	/** Mô tả gọn một dòng chi: nội dung + số tiền. Dùng chung cho mọi câu nhật ký. */

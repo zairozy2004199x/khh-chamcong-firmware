@@ -12,10 +12,14 @@
  * phí rồi dựng thông báo. Làm thế thì nội bộ phải BIẾT sơ đồ bảng của hai plugin kia: đổi một
  * cột bên ấy là hỏng bên này, mà không có gì báo; gỡ một plugin ra là trắng cả trang.
  *
- * Nên đảo chiều: hộp thư mở đúng MỘT CỬA NHẬN — `gui()` — và bên nào có tin thì tự gọi vào,
- * kèm sẵn câu chữ của mình. Nội bộ không cần biết "chấm công" hay "chi phí" là cái gì; nó chỉ
- * giữ và bày ra. Bên gửi gác `class_exists` nên chưa cài nội bộ thì lời gọi im lặng trôi qua,
- * không ai vỡ.
+ * Nên đảo chiều: hộp thư mở CỬA NHẬN ở đây và bên nào có tin thì tự gọi vào, kèm sẵn câu chữ
+ * của mình. Nội bộ không cần biết "chấm công" hay "chi phí" là cái gì; nó chỉ giữ và bày ra.
+ * Bên gửi gác `class_exists` nên chưa cài nội bộ thì lời gọi im lặng trôi qua, không ai vỡ.
+ *
+ * Hai cửa, và chọn đúng cửa là quan trọng:
+ *   · `gui()`  — CHỈ chuông riêng của một người. Được mang tiền, tên, giờ công.
+ *   · `viec()` — chuông riêng + MỘT dòng trung tính ở bảng tin cho cả công ty đọc.
+ *                Dùng cho GIAO DỊCH bên chi phí · chấm công · ghế · vé.
  *
  * =============================================================================================
  * 🔴 GỘP THEO `khoa`, KHÔNG ĐẺ MỖI VIỆC MỘT DÒNG
@@ -102,6 +106,51 @@ class VHNB_Bao {
 			'tao_luc'   => current_time( 'mysql' ),
 		) );
 		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * MỘT GIAO DỊCH BÊN NGOÀI → CHUÔNG RIÊNG + MỘT DÒNG Ở BẢNG TIN.
+	 *
+	 * Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì hiện
+	 * thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*.
+	 *
+	 * =========================================================================================
+	 * 🔴 HAI CÂU CHỮ, KHÔNG PHẢI MỘT — VÀ ĐÂY LÀ CHỖ DUY NHẤT ĐÁNG ĐỌC KỸ TRONG HÀM NÀY
+	 * =========================================================================================
+	 * Chuông là hộp thư RIÊNG của đúng một người: `$chu` được phép mang số tiền, giờ công, tên
+	 * người — đó là việc của chính họ. Bảng tin thì 240 người đọc.
+	 *
+	 * Anh Thắng chốt 08/09/2026: bảng tin để **câu trung tính, không tiền không tên**.
+	 *
+	 * Nên `$tin_chung` là một tham số RIÊNG, và **KHÔNG BAO GIỜ** mặc định về `$chu`. Nếu nó
+	 * mặc định về `$chu` thì mỗi nơi gọi quên truyền là cả chuỗi đọc được ai xin bao nhiêu tiền
+	 * và ai bị sửa giờ công — một dòng thiếu sót ở chỗ khác, hậu quả ở đây. Rỗng thì KHÔNG đăng
+	 * gì cả: thà thiếu một dòng bảng tin còn hơn rò một con số.
+	 * `tools/test/kiem-noi-bo.php` chốt đúng việc này, đừng nới ra.
+	 *
+	 * 🔴 CHUÔNG HỎNG THÌ BẢNG TIN VẪN PHẢI LÊN. `gui()` trả false ở mấy ca hợp lệ: không tra ra
+	 *    mã người nhận, hoặc người gây ra chính là người nhận. Bên chi phí thì ca đầu có thật —
+	 *    bảng đơn chỉ giữ TÊN người lập, tra ngược không ra là thường. Giao dịch vẫn đã xảy ra,
+	 *    nên dòng bảng tin không được phụ thuộc vào việc chuông có tìm được chủ hay không.
+	 *
+	 * @param string $ma_nv     mã NV NHẬN chuông. Rỗng thì bỏ chuông, bảng tin vẫn đăng.
+	 * @param string $nguon     'chi_phi' · 'cham_cong' · 'ghe' · 've'.
+	 * @param string $chu       câu cho CHUÔNG RIÊNG — được mang tiền/tên/giờ.
+	 * @param string $duong_dan bấm vào chuông thì đi đâu.
+	 * @param string $khoa      khoá gộp của CHUÔNG.
+	 * @param string $tu_ma_nv  mã NV gây ra việc, để không tự báo cho chính mình.
+	 * @param string $tin_chung câu cho BẢNG TIN — trung tính. Rỗng = không đăng bảng tin.
+	 * @param string $khoa_tin  khoá gộp của BẢNG TIN. Rỗng = mỗi lượt một bài (hiếm khi đúng).
+	 * @return array( 'bao' => id|false, 'tin' => id|false )
+	 */
+	public static function viec( $ma_nv, $nguon, $chu, $duong_dan = '', $khoa = '',
+			$tu_ma_nv = '', $tin_chung = '', $khoa_tin = '' ) {
+		$bao = self::gui( $ma_nv, $nguon, $chu, $duong_dan, $khoa, $tu_ma_nv );
+		$tin = false;
+		if ( '' !== trim( (string) $tin_chung ) ) {
+			$tin = VHNB_Bai::dang_he_thong( $nguon, $tin_chung, $khoa_tin );
+		}
+		return array( 'bao' => $bao, 'tin' => $tin );
 	}
 
 	/* ====================================================================== đọc */

@@ -175,19 +175,37 @@ class VHCC_Bu {
 	 *    KHÔNG được làm hỏng việc bù: bù giờ là việc chính, báo tin là việc phụ.
 	 */
 	private static function bao_nguoi_bi_dong( $u, $ma_nv, $ngay, $viec, $da_ghi ) {
-		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return; }
+		if ( ! class_exists( 'VHNB_Bao' ) ) { return; }
 		$o = array();
 		foreach ( (array) $da_ghi as $k => $v ) {
 			$o[] = ( 'vao' === $k ? 'giờ vào' : 'giờ ra' ) . ' ' . $v;
 		}
-		VHNB_Bao::gui(
-			(string) $ma_nv, 'cham_cong',
-			trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) ) . ' ' . $viec
-				. ' ngày ' . (string) $ngay . ( $o ? ' — ' . implode( ' · ', $o ) : '' ),
-			'',
-			'cc_gio:' . (string) $ngay,
-			trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) )
-		);
+		$chu_rieng = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) ) . ' ' . $viec
+			. ' ngày ' . (string) $ngay . ( $o ? ' — ' . implode( ' · ', $o ) : '' );
+		$tu = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+
+		/* 🔴 DÒNG BẢNG TIN: TRUNG TÍNH, KHÔNG TÊN KHÔNG GIỜ — anh Thắng chốt 08/09/2026.
+		   Câu ở trên mang TÊN người sửa và GIỜ CÔNG cụ thể, và nó đi vào chuông RIÊNG của đúng
+		   người bị động vào giờ — họ phải biết đủ để cãi lại được. Bảng tin thì cả công ty đọc:
+		   ai bị sửa giờ ngày nào là chuyện giữa họ với quản lý, không phải tin cho 240 người.
+		   Nên bảng tin chỉ nói CÓ VIỆC, gộp theo ngày.
+		   ⚠️ ĐỪNG truyền `$chu_rieng` vào chỗ này cho gọn — xem cảnh báo ở `VHNB_Bao::viec()`.
+		   ⚠️ Khoá gộp KHÔNG cần tiền tố bảng như bên chi phí: chấm công chỉ có MỘT bản, không
+		      có bản riêng theo vùng nên không ai đụng khoá của ai. */
+		$tin      = 'Chấm công — giờ công ngày ' . (string) $ngay . ' có cập nhật';
+		$khoa_tin = 'tin_cc:' . (string) $ngay;
+
+		/* ⚠️ Bản nội bộ trên máy có thể CŨ HƠN và chưa có `viec()` — hai plugin cài độc lập.
+		   Lùi về `gui()`: mất dòng bảng tin, chuông vẫn chạy y như trước. */
+		if ( method_exists( 'VHNB_Bao', 'viec' ) ) {
+			VHNB_Bao::viec( (string) $ma_nv, 'cham_cong', $chu_rieng, '', 'cc_gio:' . (string) $ngay,
+				$tu, $tin, $khoa_tin );
+			return;
+		}
+		if ( method_exists( 'VHNB_Bao', 'gui' ) ) {
+			VHNB_Bao::gui( (string) $ma_nv, 'cham_cong', $chu_rieng, '',
+				'cc_gio:' . (string) $ngay, $tu );
+		}
 	}
 
 	/* ===================================================================== sửa đè */

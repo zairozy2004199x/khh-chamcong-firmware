@@ -17,6 +17,17 @@ class VHNB_Bai {
 	/** Mỗi trang bao nhiêu bài. */
 	const MOI_TRANG = 20;
 
+	/** Mã người đăng của bài do HỆ THỐNG dựng — xem `dang_he_thong()`. Không trùng mã NV nào. */
+	const MA_HE_THONG = '__he_thong__';
+
+	/** Tên hiện dưới ô người đăng, theo nguồn. Nguồn lạ thì gọi chung là 'Hệ thống'. */
+	const NGUON_TEN = array(
+		'chi_phi'   => 'Vận hành chi phí',
+		'cham_cong' => 'Chấm công',
+		'ghe'       => 'Ghế massage',
+		've'        => 'Bán vé',
+	);
+
 	/* ==================================================================== đăng */
 
 	/**
@@ -89,6 +100,79 @@ class VHNB_Bai {
 			}
 		}
 		return array( 'ok' => true, 'id' => $id );
+	}
+
+	/**
+	 * ĐĂNG MỘT DÒNG DO HỆ THỐNG DỰNG — không có người đăng nhập nào ở đây.
+	 *
+	 * Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì hiện
+	 * thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*.
+	 *
+	 * 🔴 KHÔNG ĐI QUA `dang()`, VÀ ĐÓ LÀ CỐ Ý. `dang()` đòi `$u['name']` rồi hỏi
+	 *    `VHNB_Quyen::vi_sao_khong()` — đúng cho người thật, nhưng ở đây không có người thật:
+	 *    lượt gọi đến từ plugin chi phí / chấm công / ghế trong lúc ai đó bấm nút bên ấy. Nhét
+	 *    một `$u` giả vào `dang()` để lách chốt quyền là mở sẵn đường cho lần sau ai cũng lách
+	 *    được. Nên tách hàm riêng, ghi thẳng, và KHÔNG nhận `$u` để không ai truyền vào được.
+	 *
+	 * 🔴 DANH TÍNH LÀ MỘT MÃ DÀNH RIÊNG, KHÔNG PHẢI MÃ RỖNG. `duoc_xoa()` có nhánh lui: mã rỗng
+	 *    thì so TÊN. Để `ma_nv` rỗng ở đây là một người chưa có mã, tên trùng nhãn nguồn, xoá
+	 *    được thông báo của hệ thống. Mã `__he_thong__` không trùng mã nhân viên nào nên chỉ
+	 *    Admin xoá được — không phải thêm luật mới, chỉ cần không tự mở lỗ.
+	 *
+	 * 🔴 KHÔNG RUNG CHUÔNG. Bài ở bảng tin thì cả công ty đọc được, và chuông riêng của từng
+	 *    người đã do `VHNB_Bao::gui()` lo — báo cả hai đường là mỗi giao dịch kêu hai lần.
+	 *    Cùng luật với bài chung ở `dang()`: bài chung không báo cho 240 người.
+	 *
+	 * ⚠️ `$khoa` RỖNG = MỖI LƯỢT MỘT BÀI. Chỉ dùng cho việc thật sự chỉ xảy ra một lần; ghế và
+	 *    chấm công thì BẮT BUỘC có khoá, không thì bảng tin thành cột số.
+	 * ⚠️ Gộp thì `tao_luc` ĐƯỢC ĐẨY LÊN MỚI NHẤT — cố ý. Không đẩy thì bài nằm im ở chỗ cũ và
+	 *    giao dịch mới không ai thấy, tức là gộp xong hoá ra bịt luôn tin. Đổi lại, mỗi nguồn
+	 *    chỉ chiếm ĐÚNG MỘT dòng gần đầu bảng tin, không phải vài chục dòng.
+	 *
+	 * @param string $nguon 'chi_phi' · 'cham_cong' · 'ghe' · 've' — chỉ để đặt tên người đăng.
+	 * @param string $chu   câu TRUNG TÍNH, do bên gửi viết. Xem cảnh báo ở `VHNB_Bao::viec()`.
+	 * @param string $khoa  khoá gộp. Bên gửi tự đặt, nên kèm ngày nếu muốn gộp theo ngày.
+	 * @return int|false id bài, hoặc false nếu không ghi được.
+	 */
+	public static function dang_he_thong( $nguon, $chu, $khoa = '' ) {
+		global $wpdb;
+		$chu = self::gon( $chu, 300 );
+		if ( '' === $chu ) { return false; }
+
+		$nguon = trim( (string) $nguon );
+		$ten   = isset( self::NGUON_TEN[ $nguon ] ) ? self::NGUON_TEN[ $nguon ] : 'Hệ thống';
+		$t     = VHNB_DB::t( 'bai' );
+		$khoa  = self::gon( $khoa, 120 );
+
+		if ( '' !== $khoa ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				"SELECT id, so_lan FROM $t WHERE khoa=%s AND ma_nv=%s LIMIT 1",
+				$khoa, self::MA_HE_THONG ), ARRAY_A );
+			if ( $cu ) {
+				$n = (int) $cu['so_lan'] + 1;
+				$wpdb->update( $t, array(
+					'ho_ten'   => $ten,
+					'noi_dung' => $chu . ' · ' . $n . ' lượt',
+					'so_lan'   => $n,
+					'tao_luc'  => current_time( 'mysql' ),
+				), array( 'id' => (int) $cu['id'] ) );
+				return (int) $cu['id'];
+			}
+		}
+
+		$ok = $wpdb->insert( $t, array(
+			'nhom'     => '',
+			'nhom_id'  => 0,
+			'ma_nv'    => self::MA_HE_THONG,
+			'ho_ten'   => $ten,
+			'vai_tro'  => 'Hệ thống',
+			'noi_dung' => $chu,
+			'anh'      => '',
+			'khoa'     => $khoa,
+			'so_lan'   => 1,
+			'tao_luc'  => current_time( 'mysql' ),
+		) );
+		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
 	}
 
 	public static function binh_luan( $u, $bai_id, $noi_dung ) {

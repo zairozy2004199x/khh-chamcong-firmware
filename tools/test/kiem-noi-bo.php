@@ -1706,6 +1706,99 @@ t( '🔴 đã đăng nhập thì không còn khối Quên PIN',
 	false === strpos( $h_vao, 'name="qp_cccd"' ), $h_vao );
 $_COOKIE = array();
 
+/* ========================= GIAO DỊCH BÊN NGOÀI → CHUÔNG + BẢNG TIN =========================
+   Anh Thắng 08/09/2026: *"khi có 1 giao dịch trên vận hành chi phí, chấm công, ghế thì hiện
+   thông báo lên trang nội bộ, cả thông báo và trong bảng tin"*, và chốt bảng tin để **câu
+   trung tính, không tiền không tên**.
+
+   🔴 PHÉP QUAN TRỌNG NHẤT Ở ĐÂY LÀ PHÉP RÒ. Chuông là hộp thư riêng nên được mang số tiền và
+   tên người; bảng tin thì 240 người đọc. Hai câu chữ là HAI tham số riêng, và bài kiểm này
+   chốt rằng câu của chuông KHÔNG BAO GIỜ tự chảy ra bảng tin — kể cả khi nơi gọi quên truyền
+   câu trung tính (lúc đó phải KHÔNG đăng gì, chứ không phải đăng câu có tiền). */
+
+vhnb_dung_bang();
+
+$_ti = VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-08' );
+t( 'hệ thống đăng được một dòng', $_ti > 0, $_ti );
+$_bt = VHNB_Bai::bang_tin();
+teq( 'và nó nằm ở bảng tin CHUNG', 1, count( $_bt ) );
+teq( 'người đăng là tên NGUỒN, không phải một người thật', 'Ghế massage', (string) $_bt[0]['ho_ten'] );
+teq( 'mã người đăng là mã dành riêng', VHNB_Bai::MA_HE_THONG, (string) $_bt[0]['ma_nv'] );
+
+/* ---- gộp theo khoá: ghế một cơ sở sinh vài chục lượt một ngày ---- */
+for ( $i = 0; $i < 4; $i++ ) {
+	VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-08' );
+}
+$_bt2 = VHNB_Bai::bang_tin();
+teq( '🔴 năm lượt cùng khoá GỘP thành MỘT bài, không đẻ năm dòng', 1, count( $_bt2 ) );
+teq( 'và đếm đủ 5 lượt', 5, (int) $_bt2[0]['so_lan'] );
+t( 'con số hiện ra trong câu chữ', false !== strpos( (string) $_bt2[0]['noi_dung'], '5 lượt' ),
+	$_bt2[0]['noi_dung'] );
+
+/* Khoá KHÁC thì là dòng khác — gộp theo ngày nên hôm sau phải là một dòng mới. */
+VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-09' );
+teq( 'khoá khác thì thành dòng mới', 2, count( VHNB_Bai::bang_tin() ) );
+
+/* Khoá rỗng = mỗi lượt một bài. Ít khi đúng, nhưng phải chạy đúng như đã ghi. */
+VHNB_Bai::dang_he_thong( 've', 'Bán vé — có giao dịch mới', '' );
+VHNB_Bai::dang_he_thong( 've', 'Bán vé — có giao dịch mới', '' );
+teq( 'khoá rỗng thì KHÔNG gộp', 4, count( VHNB_Bai::bang_tin() ) );
+
+t( 'câu rỗng thì không đăng gì', false === VHNB_Bai::dang_he_thong( 'ghe', '   ', 'k:1' ) );
+teq( 'nên bảng tin không nhúc nhích', 4, count( VHNB_Bai::bang_tin() ) );
+
+/* ---- ai xoá được bài của hệ thống ---- */
+$_bai_ht = VHNB_Bai::bang_tin()[0];
+t( '🔴 người mã RỖNG trùng tên nguồn cũng KHÔNG xoá được bài hệ thống',
+	! VHNB_Bai::duoc_xoa( array( 'name' => 'Ghế massage', 'role' => 'Nhân viên', 'ma_nv' => '' ), $_bai_ht ) );
+t( 'nhân viên thường không xoá được', ! VHNB_Bai::duoc_xoa( $U_NV, $_bai_ht ) );
+t( 'Admin thì xoá được', VHNB_Bai::duoc_xoa( $U_AD, $_bai_ht ) );
+
+/* ---- một cửa `viec()`: chuông riêng + dòng bảng tin trung tính ---- */
+vhnb_dung_bang();
+
+$_r = VHNB_Bao::viec( 'NV001', 'chi_phi',
+	'Đơn 36 — được Admin sửa tạm ứng 5.000.000đ → 7.000.000đ, Lê Thị B duyệt',
+	'', 'wp_vhcp_cp_don:D1', '',
+	'Đơn chi phí kỳ 36 có cập nhật mới', 'wp_vhcp_tin_cp:36' );
+t( 'chuông vào đúng hộp thư người nhận', false !== $_r['bao'] );
+t( 'và bảng tin có một dòng', $_r['tin'] > 0, $_r );
+teq( 'chuông đếm lên 1', 1, VHNB_Bao::chua_doc( 'NV001' ) );
+
+$_chuong = VHNB_Bao::ds( 'NV001' )[0]['chu'];
+$_tin    = (string) VHNB_Bai::bang_tin()[0]['noi_dung'];
+t( 'chuông RIÊNG vẫn giữ đủ số tiền cho người trong việc',
+	false !== strpos( $_chuong, '7.000.000' ), $_chuong );
+t( '🔴 BẢNG TIN KHÔNG có số tiền', false === strpos( $_tin, '7.000.000' ), $_tin );
+t( '🔴 BẢNG TIN KHÔNG có tên người', false === strpos( $_tin, 'Lê Thị B' ), $_tin );
+
+/* 🔴 CHỐT CHỐNG RÒ: nơi gọi QUÊN truyền câu trung tính thì KHÔNG đăng gì cả.
+   Nếu một ngày `viec()` được sửa cho `$tin_chung` mặc định về `$chu` thì phép này đỏ — và nó
+   phải đỏ, vì lúc ấy cả chuỗi đọc được ai xin bao nhiêu tiền. */
+vhnb_dung_bang();
+$_r2 = VHNB_Bao::viec( 'NV002', 'chi_phi', 'Đơn 37 — cấp tạm ứng 9.000.000đ cho Trần C',
+	'', 'wp_vhcp_cp_don:D2', '' );
+t( 'thiếu câu trung tính thì chuông vẫn chạy', false !== $_r2['bao'] );
+teq( '🔴 nhưng bảng tin TRỐNG, không rò câu có tiền ra', 0, count( VHNB_Bai::bang_tin() ) );
+
+/* 🔴 CHUÔNG KHÔNG TÌM ĐƯỢC CHỦ THÌ BẢNG TIN VẪN PHẢI LÊN.
+   Bên chi phí, bảng đơn chỉ giữ TÊN người lập; tra ngược ra mã NV không được là chuyện thường.
+   Giao dịch vẫn xảy ra thật — để nó im luôn là bịt đúng thứ anh Thắng xin. */
+vhnb_dung_bang();
+$_r3 = VHNB_Bao::viec( '', 'cham_cong', 'câu này không có ai nhận', '', 'k:9', '',
+	'Chấm công — giờ công ngày 2026-09-08 có cập nhật', 'tin_cc:2026-09-08' );
+t( 'không tra ra người nhận thì bỏ chuông', false === $_r3['bao'] );
+teq( '🔴 nhưng bảng tin VẪN có dòng', 1, count( VHNB_Bai::bang_tin() ) );
+
+/* Bài hệ thống KHÔNG rung chuông cho 240 người — chuông riêng đã lo phần đó. */
+vhnb_dung_bang();
+VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — có giao dịch', 'tin_ghe:x' );
+teq( '🔴 bài hệ thống không rung chuông của ai', 0, VHNB_Bao::chua_doc( 'NV001' ) );
+
+/* Và nó không bao giờ lọt vào nhóm kín. */
+teq( 'bài hệ thống thuộc bảng tin chung, không thuộc nhóm nào',
+	0, (int) VHNB_Bai::bang_tin()[0]['nhom_id'] );
+
 /* ================================================================= kết */
 
 echo "\n=== KIỂM TRANG NỘI BỘ ===\n";
