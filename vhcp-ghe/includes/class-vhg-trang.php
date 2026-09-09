@@ -3329,9 +3329,9 @@ td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:v
 .bct th{white-space:nowrap;font-size:10.5px;line-height:1.25}
 .bct .bct-ng{font-size:11.5px}
 .bct td{white-space:nowrap;font-variant-numeric:tabular-nums}
-/* VietQR thực nhận (◆): khớp -> xám nhỏ; lệch với số nhân viên nhập -> đỏ để soi ngay ô đáng ngờ. */
-.bct .bct-lech{color:#dc2626;font-weight:600;font-size:11px}
-.bct .bct-vq{color:var(--muted,#94a3b8);font-size:11px}
+/* VietQR thực nhận = TIỀN VỀ THẬT -> luôn ĐỎ để ai nhìn cũng biết; lệch với số NV nhập -> đỏ đậm. */
+.bct .bct-lech{color:#dc2626;font-weight:700;font-size:11px}
+.bct .bct-vq{color:#dc2626;font-size:11px}
 /* Hàng TỔNG: nền đậm hơn và dính đáy, để cuộn dọc tới đâu vẫn đối chiếu được với nó. */
 .bct tr.bct-tong td{position:sticky;bottom:0;background:#eef2f8;border-top:2px solid var(--line);z-index:1}
 .bct tr.bct-tong td.bct-dinh{z-index:4;background:#eef2f8}
@@ -5897,7 +5897,7 @@ function bctBang(r){
           return '<td class="r">' + cell + '</td>';
         }).join('')
       + '<td class="r"><b>' + (g.tong ? ktVnd(g.tong) : '<span class="mut">–</span>') + '</b>'
-        + ((r.vqCo && r.cot === 'qr' && g.vq) ? ('<br><span class="' + ((g.vqTong||0)!==(g.tong||0)?'bct-lech':'bct-vq') + '">◆ ' + (g.vqTong ? ktVnd(g.vqTong) : '–') + '</span>') : '')
+        + ((r.vqCo && r.cot === 'qr' && g.vq) ? ('<br><span class="' + ((g.vqTong||0)!==(g.tong||0)?'bct-lech':'bct-vq') + '">VietQR ' + (g.vqTong ? ktVnd(g.vqTong) : '–') + '</span>') : '')
         + '</td></tr>';
   }).join('');
   /* Hàng TỔNG ở cuối — ảnh mẫu để trên đầu, nhưng bảng này dài và cuộn dọc, để cuối thì nó
@@ -5912,13 +5912,13 @@ function bctBang(r){
         return '<td class="r">' + c + '</td>';
       }).join('')
     + '<td class="r"><b>' + ktVnd(r.tong) + '</b>'
-      + (vqOn ? ('<br><span class="'+((r.vqTong||0)!==(r.tong||0)?'bct-lech':'bct-vq')+'">◆ '+ktVnd(r.vqTong||0)+'</span>') : '')
+      + (vqOn ? ('<br><span class="'+((r.vqTong||0)!==(r.tong||0)?'bct-lech':'bct-vq')+'">VietQR '+ktVnd(r.vqTong||0)+'</span>') : '')
       + '</td></tr>';
   if (vqOn) {
-    var note = L('◆ = VietQR thực nhận (từ Sao Kê, theo ngày giao dịch). Đỏ = lệch với số nhân viên nhập.',
-                 '◆ = actual VietQR (from Sao Kê, by transaction date). Red = differs from staff-entered.');
-    if (r.vqKhongKhop) { note += ' · ' + L('Chưa quy được cơ sở','Unmatched') + ': ' + ktVnd(r.vqKhongKhop) + ' (' + L('máy chưa gắn cơ sở bên Ghế','link machine to a site in Ghế') + ')'; }
-    chan += '<tr><td colspan="' + (cotGhe?4:3) + '"></td><td colspan="' + ((r.ngay||[]).length+1) + '" class="mut" style="font-weight:400;padding-top:6px">' + esc(note) + '</td></tr>';
+    var note = '<b style="color:#dc2626">VietQR</b> = ' + L('tiền về THẬT từ ngân hàng (Sao Kê, theo ngày giao dịch) — số đỏ đậm là ĐANG LỆCH với số nhân viên nhập.',
+                 'actual bank money (Sao Kê, by transaction date) — bold red means it DIFFERS from staff-entered.');
+    if (r.vqKhongKhop) { note += ' · ' + L('Chưa quy được cơ sở','Unmatched') + ': <b style="color:#dc2626">' + ktVnd(r.vqKhongKhop) + '</b> (' + L('máy chưa gắn cơ sở bên Ghế','link machine to a site in Ghế') + ')'; }
+    chan += '<tr><td colspan="' + (cotGhe?4:3) + '"></td><td colspan="' + ((r.ngay||[]).length+1) + '" class="mut" style="font-weight:400;padding-top:6px">' + note + '</td></tr>';
   }
   t.innerHTML = h + body + chan;
   sc.appendChild(t); wrap.appendChild(sc);
