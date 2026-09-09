@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.3.0
+ * Version:           0.3.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -155,6 +155,17 @@ class SAOKE_App {
 	}
 	private static function loi_pin() { return new WP_Error( 'pin', 'Sai mã PIN hoặc chưa đặt PIN (WP Admin → Sao Kê SePay).', array( 'status' => 401 ) ); }
 
+	/* So khớp Webhook Key chịu được cả dạng mã hoá URL (key có dấu & -> %26) như bản Apps Script. */
+	private static function key_khop( $got, $expect ) {
+		$g = trim( (string) $got ); $e = trim( (string) $expect );
+		if ( '' === $e ) { return false; }
+		if ( hash_equals( $e, $g ) ) { return true; }
+		if ( hash_equals( $e, rawurldecode( $g ) ) ) { return true; } // cổng gửi %26 thay cho &
+		if ( hash_equals( $e, urldecode( $g ) ) ) { return true; }
+		if ( hash_equals( rawurlencode( $e ), $g ) ) { return true; }  // cổng mã hoá cả key
+		return false;
+	}
+
 	// ───────────────────────────── REST ─────────────────────────────
 	public static function routes() {
 		$pub = array( 'permission_callback' => '__return_true' );
@@ -193,7 +204,7 @@ class SAOKE_App {
 	/* ── Webhook: SePay (mặc định) hoặc cổng qua ?src=vietqr|momo|vnpay ── */
 	public static function r_webhook( $req ) {
 		$key = (string) get_option( 'saoke_webhook_key', '' );
-		if ( '' === $key || ! hash_equals( $key, (string) $req->get_param( 'key' ) ) ) {
+		if ( '' === $key || ! self::key_khop( (string) $req->get_param( 'key' ), $key ) ) {
 			return new WP_REST_Response( array( 'success' => false, 'message' => 'sai key' ), 401 );
 		}
 		$src = strtolower( trim( (string) $req->get_param( 'src' ) ) );
