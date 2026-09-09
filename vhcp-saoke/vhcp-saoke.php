@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.8.1
+ * Version:           0.8.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -2136,16 +2136,22 @@ body { margin:0 !important; padding:0 !important; }
 .wp-block-post-content, article, .page, .type-page, .hentry, .is-layout-constrained, .is-layout-flow,
 .alignwide, .alignfull { max-width:none !important; width:auto !important; margin:0 !important; padding:0 !important; }
 html, body { overflow:hidden !important; }
-/* Phủ TRỌN màn bằng fixed — không phụ thuộc layout/căn giữa của theme (tránh lệch phải). */
-.skp-frame { position:fixed !important; inset:0 !important; margin:0 !important; padding:0 !important; width:100vw !important; height:100vh !important; height:100dvh !important; z-index:2147483000 !important; background:#0b1220; }
-.skp-frame iframe { display:block; width:100%; height:100%; border:0; margin:0; }
 </style>
-<div class="skp-frame" id="skpFrame"><iframe title="Sao Kê Ngân Hàng K&amp;H" srcdoc="<?php echo esc_attr( $html ); ?>"></iframe></div>
+<div id="skpMount"></div>
 <script>
-/* Nhiều theme bọc nội dung trong phần tử có transform/filter → biến position:fixed thành bị
-   "nhốt" trong cột nội dung (app co lại ~640px). Đưa khung ra thẳng <body> để phủ đúng viewport. */
-(function(){var f=document.getElementById('skpFrame');if(f&&document.body&&f.parentNode!==document.body){document.body.appendChild(f);}
-document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden';})();
+/* Tạo iframe THẲNG trong <body> rồi mới nạp nội dung 1 lần. KHÔNG dời phần tử đã tải — dời iframe
+   đã render là trình duyệt NẠP LẠI srcdoc (đúng cái gây "tự F5" liên tục). Tạo sẵn trong body cũng
+   thoát luôn ancestor có transform/filter của theme (fix app co ~640px). */
+(function(){
+  if ( window.__skpMounted ) { return; } window.__skpMounted = true;
+  var doc = <?php echo wp_json_encode( $html, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ); ?>;
+  var f = document.createElement('iframe');
+  f.title = 'Sao Kê Ngân Hàng K&H';
+  f.setAttribute('style','position:fixed;inset:0;width:100vw;height:100dvh;border:0;margin:0;z-index:2147483000;background:#0b1220;');
+  document.body.appendChild(f);   // iframe RỖNG, chưa có nội dung
+  f.srcdoc = doc;                 // nạp 1 lần, đã nằm sẵn trong body
+  try { document.documentElement.style.overflow='hidden'; document.body.style.overflow='hidden'; } catch(e){}
+})();
 </script>
 <?php
 		return ob_get_clean();
