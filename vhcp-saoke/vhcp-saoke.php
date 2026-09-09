@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.9.0
+ * Version:           0.10.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1133,9 +1133,14 @@ class SAOKE_App {
 		$mb = trim( (string) $req->get_param( 'maBank' ) );
 		$tu = self::vn2ymd_soft( (string) $req->get_param( 'tuNgay' ) ); $den = self::vn2ymd_soft( (string) $req->get_param( 'denNgay' ) );
 		$tuVN = $tu ? self::ymd2vn_ngay( $tu ) : ''; $denVN = $den ? self::ymd2vn_ngay( $den ) : '';
-		// POSH: nếu Cửa hàng chuẩn là ĐỊA ĐIỂM bên trang Ghế thì gán thẳng, KHÔNG cần mã nộp KH.
-		if ( self::ghe_co() && '' === $mb && self::ghe_la_coso( $tc ) ) {
-			$mb = '';   // để trống — đối soát theo địa điểm ghế, không theo mã KH
+		// POSH: Cửa hàng chuẩn là ĐỊA ĐIỂM bên trang Ghế -> gán thẳng, KHÔNG cần mã nộp KH.
+		// Nếu có nhập "Mã nộp tiền" thì lưu làm MÃ NỘP RIÊNG của cơ sở đó (để lọc sao kê ngân hàng
+		// xem cơ sở đã nộp tiền mặt chưa). Bỏ trống = xoá mã của cơ sở.
+		if ( self::ghe_co() && self::ghe_la_coso( $tc ) ) {
+			$cm = self::coso_ma_map(); $ck = self::chuan_ch( $tc );
+			if ( '' !== $mb ) { $cm[ $ck ] = mb_substr( $mb, 0, 60 ); } else { unset( $cm[ $ck ] ); }
+			update_option( 'saoke_coso_ma', $cm );
+			$mb = '';
 		} else {
 			$suy = self::ax_ma_nop( array( 'maBank' => $mb, 'tenChuan' => $tc ), self::map_ten_diem() );
 			if ( '' === $suy['ma'] ) { return new WP_Error( 'ma', 'Chưa xác định được mã nộp tiền: ' . $suy['vi'] . '. Chọn Cửa hàng chuẩn đúng tên địa điểm (trang Ghế) hoặc điểm nộp, hoặc điền thẳng Mã bank.', array( 'status' => 400 ) ); }
@@ -1509,6 +1514,10 @@ class SAOKE_App {
 		if ( null === $set ) { $set = array(); foreach ( self::ghe_ds_coso() as $c ) { $set[ self::chuan_ch( $c['ten'] ) ] = 1; } }
 		return isset( $set[ self::chuan_ch( $ten ) ] );
 	}
+	/* Mã nộp tiền RIÊNG theo cơ sở (do người dùng chỉnh) — dùng để lọc sao kê ngân hàng xem cơ sở
+	   đó đã nộp tiền mặt chưa. Lưu option saoke_coso_ma: [ chuan_ch(tên cơ sở) => mã ]. */
+	private static function coso_ma_map() { $o = get_option( 'saoke_coso_ma' ); return is_array( $o ) ? $o : array(); }
+	private static function coso_ma( $coso ) { $m = self::coso_ma_map(); $k = self::chuan_ch( $coso ); return isset( $m[ $k ] ) ? (string) $m[ $k ] : ''; }
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
 	private static function ghe_coso_cua_may( $ten_may ) {
 		if ( '' === trim( (string) $ten_may ) ) { return null; }
@@ -1558,6 +1567,13 @@ class SAOKE_App {
 			if ( is_wp_error( $r ) ) { echo '<div class="notice notice-error"><p>Kéo lỗi: ' . esc_html( $r->get_error_message() ) . '</p></div>'; }
 			else { echo '<div class="notice notice-success"><p>Đã kéo cổng từ Nhật ký: <b>' . (int) $r['moi'] . '</b> mới, ' . (int) $r['trung'] . ' trùng' . ( ! empty( $r['kho'] ) ? ( ', ' . (int) $r['kho'] . ' không đọc được' ) : '' ) . '.</p></div>'; }
 		}
+		if ( isset( $_POST['saoke_luu_cosoma'] ) && check_admin_referer( 'saoke_cfg' ) ) {
+			$in = isset( $_POST['cosoma'] ) && is_array( $_POST['cosoma'] ) ? wp_unslash( $_POST['cosoma'] ) : array();
+			$map = array();
+			foreach ( $in as $k => $v ) { $v = trim( sanitize_text_field( (string) $v ) ); $k = sanitize_key( (string) $k ); if ( '' !== $v && '' !== $k ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
+			update_option( 'saoke_coso_ma', $map );
+			echo '<div class="notice notice-success"><p>Đã lưu mã nộp theo cơ sở (' . count( $map ) . ' cơ sở có mã).</p></div>';
+		}
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		$url = esc_url_raw( rest_url( self::NS . '/webhook' ) ) . ( $key ? ( '?key=' . rawurlencode( $key ) ) : '' );
 		$page = get_option( 'saoke_page_id' ) ? get_permalink( (int) get_option( 'saoke_page_id' ) ) : '';
@@ -1579,6 +1595,20 @@ class SAOKE_App {
 			. ( $clast ? ( '<br><b>Lần kéo cuối:</b> ' . esc_html( ( isset( $clast['luc'] ) ? $clast['luc'] : '' ) . ' — ' . ( isset( $clast['kq'] ) ? $clast['kq'] : '' ) ) ) : '' )
 			. '</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button> <button class="button" name="saoke_keo_conglog" value="1">Kéo VietQR từ Nhật ký ngay</button></p></form>';
+		// ── Mã nộp tiền theo cơ sở (POSH) — để lọc sao kê ngân hàng xem cơ sở đã nộp tiền mặt chưa ──
+		if ( self::ghe_co() ) {
+			$cm = self::coso_ma_map(); $dscs = self::ghe_ds_coso();
+			echo '<hr><h2>Mã nộp tiền theo cơ sở</h2>';
+			echo '<p class="description">Mỗi cơ sở một mã (chuỗi nhân viên/kế toán ghi trong nội dung khi <b>nộp tiền mặt</b> vào ngân hàng). Dùng để dò trong Sao kê ngân hàng biết cơ sở đó <b>đã nộp tiền mặt chưa</b>. Sửa được, bỏ trống = chưa dùng. Danh sách cơ sở lấy từ trang Ghế (' . count( $dscs ) . ' cơ sở).</p>';
+			echo '<form method="post">'; wp_nonce_field( 'saoke_cfg' );
+			echo '<table class="widefat striped" style="max-width:860px"><thead><tr><th style="width:45%">Cơ sở</th><th>Tỉnh</th><th>Mã nộp tiền</th></tr></thead><tbody>';
+			foreach ( (array) $dscs as $c ) {
+				$k = self::chuan_ch( $c['ten'] ); $v = isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '';
+				echo '<tr><td><b>' . esc_html( $c['ten'] ) . '</b></td><td class="description">' . esc_html( $c['tinh'] ) . '</td>'
+					. '<td><input name="cosoma[' . esc_attr( $k ) . ']" value="' . esc_attr( $v ) . '" class="code" style="width:240px" placeholder="mã nộp (nếu có)"></td></tr>';
+			}
+			echo '</tbody></table><p><button class="button button-primary" name="saoke_luu_cosoma" value="1">Lưu mã theo cơ sở</button></p></form>';
+		}
 		echo '<p class="description">⚠️ Repo công khai — PIN/khoá lưu trong DB, không nằm trong mã nguồn.</p></div>';
 	}
 
@@ -1932,7 +1962,7 @@ class SAOKE_App {
 			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
 				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
-				'cuaHangChuan' => $cuaHang, 'maBank' => $ghe ? ( '' !== $ghe['maKh'] ? $ghe['maKh'] : $ghe['coso'] ) : $suy['ma'], 'daAnhXa' => $daAnhXa, 'tinh' => $ghe ? $ghe['tinh'] : '' );
+				'cuaHangChuan' => $cuaHang, 'maBank' => $ghe ? ( '' !== self::coso_ma( $ghe['coso'] ) ? self::coso_ma( $ghe['coso'] ) : $ghe['maKh'] ) : $suy['ma'], 'daAnhXa' => $daAnhXa, 'tinh' => $ghe ? $ghe['tinh'] : '' );
 			$congTien += $soTien;
 			if ( count( $cong ) >= 2000 ) { break; }
 		}
