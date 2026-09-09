@@ -19344,54 +19344,55 @@ teq( 'data: mà không phải base64 thì đừng đoán, trả nguyên',
 	'data:image/png,abc', VHCC_MayCong::b64_tron( 'data:image/png,abc' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * CỜ "CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG" — đọc BÁO CÁO CA bên hệ ghế POSH (09/09/2026)
+ * CỜ "CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG" — đọc BÁO CÁO NGÀY bên hệ ghế POSH (09/09/2026)
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * Anh Thắng: *"đối với cơ sở Posh, nếu ai nhập báo cáo ngày đó thì bên chấm công sẽ gắn cờ có đi
- * làm mà quên chấm công, trong ô ngày đó sẽ hiện vàng lên"*, và chốt hai điều:
- *   · nối hai hệ bằng **MÃ NV** — *"mã, bên POSH cần làm lại mã mình sẽ chạy để cho chuẩn 2 bên"*;
- *   · ô vàng **chỉ gắn cờ**, không ăn vào số công.
+ * làm mà quên chấm công, trong ô ngày đó sẽ hiện vàng lên"*, và chốt: ô vàng **chỉ gắn cờ**.
+ *
+ * 🔴 NỐI BẰNG **PIN**, KHÔNG BẰNG TÊN — và KHÔNG phải sửa plugin ghế.
+ *    Bản ghế 2.16.0 trên live có bảng `bc_phien` khoá chính `(pin, ngay)`: hệ báo cáo vốn nhận
+ *    diện người bằng PIN. Mà PIN là thứ dùng chung cả ba hệ, và PIN trùng đã bị chặn ở 3.47.0.
+ *    (Bản đầu của tính năng này nhắm bảng `chot` — chốt CHỈ SỐ GHẾ, không phải "nhập báo cáo" —
+ *    và định thêm cột vào plugin ghế 1.41.0 trong repo trong khi live đã 2.16.0. Xem
+ *    `docs/CANH-BAO-GHE-LECH-BAN.md`.)
  */
-require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-db.php';
-foreach ( array( 'coso', 'may', 'chot' ) as $_tg ) {
-	$wpdb->exec_raw( vhcc_test_ddl( VHG_DB::t( $_tg ), VHG_DB::bang()[ $_tg ] ) );
-}
-$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'chot' ) );
-$wpdb->insert( VHG_DB::t( 'coso' ), array( 'id' => 91, 'ten' => 'TUTU_BT' ) );
-$wpdb->insert( VHG_DB::t( 'may' ), array( 'ma' => 'GHE_BC1', 'coso_id' => 91 ) );
-$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BC1',
-	'ho_ten' => 'Người Chốt Ghế', 'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$_t_bcp = $wpdb->prefix . 'vhg_bc_phien';
+$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $_t_bcp );
+$wpdb->exec_raw( 'CREATE TABLE ' . $_t_bcp
+	. ' (pin TEXT, ngay TEXT, nhan_vien TEXT, trang_thai TEXT)' );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BC1', 'ho_ten' => 'Người Nhập Báo Cáo',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '515151', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( $_t_bcp, array( 'pin' => '515151', 'ngay' => '2026-09-10',
+	'nhan_vien' => 'Người Nhập Báo Cáo', 'trang_thai' => 'da_gui' ) );
+$wpdb->insert( $_t_bcp, array( 'pin' => '515151', 'ngay' => '2026-09-12',
+	'nhan_vien' => 'Người Nhập Báo Cáo', 'trang_thai' => 'chot_som' ) );
+/* PIN không tra ra hồ sơ nào (người khai tay bên ghế) -> bỏ qua, có đếm. */
+$wpdb->insert( $_t_bcp, array( 'pin' => '999111', 'ngay' => '2026-09-11',
+	'nhan_vien' => 'Người Lạ', 'trang_thai' => 'da_gui' ) );
 
-/* Một lượt chốt ban ngày, và một lượt lúc 02:00 — lượt sau thuộc về NGÀY HÔM TRƯỚC. */
-$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
-	'ma_nv' => 'BC1', 'tao_luc' => '2026-09-10 14:20:00' ) );
-$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
-	'ma_nv' => 'BC1', 'tao_luc' => '2026-09-13 02:00:00' ) );
-/* 🔴 DÒNG CŨ KHÔNG CÓ MÃ: phải BỎ QUA, KHÔNG dò theo tên. Dò theo tên là đúng cái khoá vừa bác
-   bỏ — trang nhân sự đang báo bốn hồ sơ trùng tên. Gắn cờ nhầm người còn tệ hơn không gắn: nó
-   nói "người này có đi làm" về một người có thể đang nghỉ. */
-$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
-	'ma_nv' => '', 'tao_luc' => '2026-09-11 15:00:00' ) );
+$_bc = VHCC_BaoCaoCa::theo_thang( '2026-09' );
+t( '🔴 tra ra ngày có nhập báo cáo, theo MÃ NV (nối qua PIN)',
+	isset( $_bc['theo']['BC1'][10] ) && isset( $_bc['theo']['BC1'][12] ), $_bc );
+teq( '🔴 PIN không tra ra hồ sơ nào thì BỎ QUA, có đếm', 1, (int) $_bc['bo_qua'] );
+t( 'tháng khác thì không dính', array() === VHCC_BaoCaoCa::theo_thang( '2026-08' )['theo'] );
 
-$_bc = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
-t( '🔴 đọc được ngày có chốt ghế, theo MÃ NV',
-	isset( $_bc['theo']['BC1'][10] ) && 1 === (int) $_bc['theo']['BC1'][10], $_bc );
-/* 🔴 CA ĐÊM VẮT QUA NỬA ĐÊM. Ca tối POSH đóng lúc 1 giờ sáng; cắt theo mốc nửa đêm thì người
-   làm ca tối bị gắn cờ vào NGÀY HÔM SAU — một ngày họ không hề đi làm — còn ngày họ thật sự làm
-   thì vẫn trống. Sai cả hai đầu, và sai theo cách nhìn rất giống đúng. */
-t( '🔴 chốt lúc 02:00 tính cho NGÀY HÔM TRƯỚC',
-	isset( $_bc['theo']['BC1'][12] ) && ! isset( $_bc['theo']['BC1'][13] ), $_bc );
-teq( '🔴 dòng KHÔNG có mã thì BỎ QUA, không dò theo tên', 1, (int) $_bc['bo_qua'] );
-t( 'và ngày của dòng ấy KHÔNG bị gắn cờ', ! isset( $_bc['theo']['BC1'][11] ), $_bc );
-/* Cơ sở khác thì không dính — phép lọc là cơ sở của cái GHẾ, không phải cơ sở của người. */
-$_bc_khac = VHCC_BaoCaoCa::theo_thang( 'CS_KHONG_CO_GHE', '2026-09' );
-t( 'cơ sở không có ghế thì rỗng, không nổ', array() === $_bc_khac['theo'], $_bc_khac );
+/* 🔴 MỘT PIN RA HAI HỒ SƠ THÌ BỎ HẲN, KHÔNG ĐOÁN. Chặn PIN trùng chỉ có từ 3.47.0; sổ kéo về từ
+   Sheets vẫn còn chỗ trùng sẵn. Chọn đại một trong hai là gắn cờ "có đi làm" lên một người có
+   thể đang nghỉ — sai theo cách không ai kiểm ra được. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BC2', 'ho_ten' => 'Người Trùng PIN',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '515151', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$_bc_tr = VHCC_BaoCaoCa::theo_thang( '2026-09' );
+t( '🔴 PIN trùng hai hồ sơ thì KHÔNG gắn cờ cho ai',
+	! isset( $_bc_tr['theo']['BC1'] ) && ! isset( $_bc_tr['theo']['BC2'] ), $_bc_tr );
+t( 'và đếm chúng vào số bỏ qua', (int) $_bc_tr['bo_qua'] > (int) $_bc['bo_qua'], $_bc_tr );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='BC2'" );
 
-/* ---- trên LƯỚI: ô trống + có báo cáo ca = vàng; ô CÓ chấm công thì KHÔNG đè ---- */
+/* ---- trên LƯỚI: ô trống + có báo cáo = vàng; ô CÓ chấm công thì KHÔNG đè ---- */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
 $h_bc = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
 	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
 t( 'lưới có dựng thật', strpos( $h_bc, 'id="luoithang"' ) !== false, null );
-t( '🔴 ô ngày có báo cáo ca hiện VÀNG',
+t( '🔴 ô ngày có nhập báo cáo hiện VÀNG',
 	strpos( $h_bc, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) !== false, null );
 t( 'câu rê chuột nói rõ là CỜ, công vẫn 0',
 	strpos( $h_bc, 'công vẫn đang là 0' ) !== false, null );
@@ -19400,7 +19401,7 @@ t( 'và chỉ đường sang chấm công bù', strpos( $h_bc, 'chấm công bù
 /* 🔴 NGÀY ĐÃ CÓ CHẤM CÔNG THÌ KHÔNG PHẢI "QUÊN" — cờ chỉ đặt lên ô TRỐNG HẲN. Không có phép này
    thì cờ đè lên cả ngày người ta đã bấm đủ, và cái vàng ấy thành tiếng ồn. */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-09-10',
-	'ma_nv' => 'BC1', 'hau_to' => '', 'ho_ten' => 'Người Chốt Ghế',
+	'ma_nv' => 'BC1', 'hau_to' => '', 'ho_ten' => 'Người Nhập Báo Cáo',
 	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
 $h_bc2 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
 	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
@@ -19411,38 +19412,21 @@ teq( '🔴 nhưng số ô vàng GIẢM đi đúng một — ngày đã chấm th
 	substr_count( $h_bc, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) - 1,
 	substr_count( $h_bc2, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) );
 
-/* 🔴 BẢN GHẾ CŨ KHÔNG CÓ CỘT `ma_nv` THÌ PHẢI NÓI RA, ĐỪNG IM — 09/09/2026.
-   Anh Thắng gửi ảnh wp-admin: bản ghế trên LIVE là **2.16.0**, còn repo này mới tới 1.41.0 — mã
-   của bản đang chạy KHÔNG nằm trong repo. Cột `chot.ma_nv` chỉ có từ 1.42.0 (đợt này thêm).
-   Không có nhánh nói-ra-lý-do thì hậu quả là: lưới KHÔNG BAO GIỜ vàng lên, không một lời giải
-   thích, và người dùng kết luận tính năng hỏng. Dựng lại đúng cảnh ấy bằng cách bỏ hẳn cột đi. */
-$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHG_DB::t( 'chot' ) );
-$wpdb->exec_raw( 'CREATE TABLE ' . VHG_DB::t( 'chot' )
-	. ' (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_may TEXT, nguoi TEXT, tao_luc TEXT)' );
-$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
-	'tao_luc' => '2026-09-10 14:20:00' ) );
-$_bc_cu = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
-t( '🔴 bản ghế thiếu cột ma_nv thì BÁO CỜ `thieu_cot`, không im lặng trả rỗng',
-	! empty( $_bc_cu['thieu_cot'] ), $_bc_cu );
-teq( 'và không gắn cờ cho ai cả', array(), $_bc_cu['theo'] );
+/* 🔴 CÓ PLUGIN GHẾ MÀ THIẾU BẢNG BÁO CÁO = bản ghế cũ hơn bản có trang báo cáo. Phải NÓI RA:
+   lưới không bao giờ vàng lên mà không một lời giải thích thì người dùng kết luận là hỏng. */
+$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $_t_bcp );
+$_bc_ko = VHCC_BaoCaoCa::theo_thang( '2026-09' );
+t( '🔴 thiếu bảng bc_phien thì BÁO CỜ, không im lặng trả rỗng',
+	! empty( $_bc_ko['thieu_bang'] ), $_bc_ko );
 $h_bc3 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
 	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
-t( 'lưới vẫn dựng bình thường, không chết vì thiếu cột',
+t( 'lưới vẫn dựng bình thường, không chết vì thiếu bảng',
 	strpos( $h_bc3, 'id="luoithang"' ) !== false, null );
 t( '🔴 và màn NÓI RA vì sao cờ chưa chạy',
 	strpos( $h_bc3, 'chưa chạy được' ) !== false
-	&& strpos( $h_bc3, 'Mã NV' ) !== false, substr( $h_bc3, -1500 ) );
-t( 'không ô nào vàng — đúng, vì chưa nối được người',
+	&& strpos( $h_bc3, 'bc_phien' ) !== false, substr( $h_bc3, -1500 ) );
+t( 'không ô nào vàng — đúng, vì chưa đọc được báo cáo nào',
 	strpos( $h_bc3, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) === false, null );
-/* ⚠️ Site KHÔNG cài plugin ghế thì không có gì để nói — cờ này vốn không dành cho họ. Dải báo
-   mà hiện ở đó là một câu cảnh báo về một plugin người ta không dùng. */
-$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHG_DB::t( 'chot' ) );
-$_bc_ko = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
-t( '🔴 không có bảng chốt thì KHÔNG báo gì', empty( $_bc_ko['thieu_cot'] ), $_bc_ko );
-$h_bc4 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
-	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
-t( 'và màn KHÔNG hiện dải cảnh báo về một plugin không cài',
-	strpos( $h_bc4, 'chưa chạy được' ) === false, null );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='BC1'" );

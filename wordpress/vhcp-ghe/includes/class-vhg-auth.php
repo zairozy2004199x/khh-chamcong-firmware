@@ -257,12 +257,6 @@ class VHG_Auth {
 					'pin'    => self::pin_sach( isset( $u['pin'] ) ? $u['pin'] : '' ),
 					'vaiTro' => (string) ( isset( $u['vaiTro'] ) ? $u['vaiTro'] : 'Cửa hàng trưởng' ),
 					'coso'   => (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ),
-					/* 🔴 09/09/2026 — TRẢ KÈM `maNV`. Sổ này VỐN ĐÃ có nó: `VHCC_DayGhe::dat()`
-					   bên chấm công ghi `'maNV' => $ma` mỗi lần đẩy người sang. Nhưng hàm này
-					   gạt đi, nên tới lúc chốt ghế thì thứ duy nhất còn lại là HỌ TÊN — và nối
-					   hai hệ bằng tên là nối bằng khoá không duy nhất. Người khai TAY bên này
-					   thì không có mã: rỗng, và rỗng nghĩa là "không nối được", không phải lỗi. */
-					'maNV'   => trim( (string) ( isset( $u['maNV'] ) ? $u['maNV'] : '' ) ),
 				);
 			}
 			return $out;
@@ -288,9 +282,6 @@ class VHG_Auth {
 				'pin'    => isset( $a[1] ) ? self::pin_sach( $a[1] ) : '',
 				'vaiTro' => isset( $a[2] ) ? trim( (string) $a[2] ) : '',
 				'coso'   => isset( $a[3] ) ? trim( (string) $a[3] ) : '',
-				/* Sổ chung của Vận hành chi phí (`CH_NguoiDung`) KHÔNG có cột Mã NV — bốn cột,
-				   hết. Trả rỗng chứ đừng đoán từ tên. */
-				'maNV'   => '',
 			);
 		}
 		return $out;
@@ -318,23 +309,19 @@ class VHG_Auth {
 				return array( 'ok' => false, 'error' => 'Tài khoản ' . $u['ten'] . ' (' . $role
 					. ') không được xem doanh thu ghế.' );
 			}
-			$ma_nv = isset( $u['maNV'] ) ? trim( (string) $u['maNV'] ) : '';
 			return array( 'ok' => true, 'name' => $u['ten'], 'role' => $role, 'coso' => $u['coso'],
-				'maNV' => $ma_nv,
-				'token' => self::phat_token( $u['ten'], $role, $u['coso'], $ma_nv ) );
+				'token' => self::phat_token( $u['ten'], $role, $u['coso'] ) );
 		}
 		self::dem_sai();
 		return array( 'ok' => false, 'error' => 'PIN không đúng hoặc chưa được cấp' );
 	}
 
-	/** ⚠️ `$ma_nv` để CUỐI và có mặc định — mọi lời gọi cũ (bài kiểm, mã khác) vẫn chạy nguyên. */
-	public static function phat_token( $ten, $role, $coso, $ma_nv = '' ) {
+	public static function phat_token( $ten, $role, $coso ) {
 		global $wpdb;
 		$t = VHG_DB::t( 'phien' );
 		$wpdb->query( "DELETE FROM $t WHERE het_han < UTC_TIMESTAMP()" );
 		$tok = bin2hex( random_bytes( 32 ) );
 		$wpdb->insert( $t, array( 'token' => $tok, 'ten' => (string) $ten,
-			'ma_nv' => trim( (string) $ma_nv ),
 			'vai_tro' => (string) $role, 'coso' => (string) $coso,
 			'het_han' => gmdate( 'Y-m-d H:i:s', time() + self::TTL ) ) );
 		return $tok;
@@ -355,8 +342,7 @@ class VHG_Auth {
 			"SELECT * FROM $t WHERE token=%s AND het_han > UTC_TIMESTAMP()", $token ), ARRAY_A );
 		if ( ! $r ) { return null; }
 		if ( ! in_array( (string) $r['vai_tro'], self::vai_tro_vao(), true ) ) { return null; }
-		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'],
-			'ma_nv' => isset( $r['ma_nv'] ) ? trim( (string) $r['ma_nv'] ) : '' );
+		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'] );
 	}
 
 	public static function logout( $token ) {

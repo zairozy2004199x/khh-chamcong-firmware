@@ -82,19 +82,10 @@ class VHG_DB {
 		   ⚠️ Phiên RIÊNG với plugin chấm công, dù dùng chung danh sách người. Hai hệ thống riêng
 		      thì thu hồi phiên bên này không được kéo bên kia xuống theo — mà đây là màn có
 		      DOANH THU, khả năng phải đá một người ra gấp là có thật. */
-		/* 🔴 `ma_nv` — DANH TÍNH DÙNG CHUNG VỚI HỆ CHẤM CÔNG (09/09/2026).
-		   Anh Thắng: *"mã, bên POSH cần làm lại mã mình sẽ chạy để cho chuẩn 2 bên"*.
-		   Sổ người dùng bên này VỐN ĐÃ mang `maNV` (xem `VHCC_DayGhe::dat()` bên chấm công đẩy
-		   sang), nhưng `users()` gạt nó đi và phiên không giữ — nên tới lúc chốt ghế thì thứ duy
-		   nhất còn lại là HỌ TÊN. Nối hai hệ bằng tên là nối bằng một khoá KHÔNG duy nhất: chính
-		   trang nhân sự đang báo bốn hồ sơ trùng tên. Nay mã đi suốt từ lúc đăng nhập.
-		   ⚠️ Để RỖNG được: người khai tay bên này (nguồn "riêng" tự gõ, hay sổ chung của Vận hành
-		      chi phí) không có mã. Rỗng nghĩa là "không nối được", KHÔNG phải lỗi. */
 		$b['phien'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			token CHAR(64) NOT NULL,
 			ten VARCHAR(190) NOT NULL DEFAULT '',
-			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			coso VARCHAR(190) NOT NULL DEFAULT '',
 			het_han DATETIME NOT NULL,
@@ -477,14 +468,10 @@ class VHG_DB {
 		   ⚠️ `chi_so_truoc` CHÉP LẠI chứ không tra ngược mỗi lần đọc. Ghế bị thay cục nhận tiền,
 		      hay ai đó xoá một dòng chốt, thì tra ngược cho ra một con số khác với con số người
 		      đứng đó đã nhìn thấy và đã ký. Sổ phải giữ nguyên cái đã ghi. */
-		/* 🔴 `ma_nv` ghi KÈM `nguoi`, không thay nó. Tên vẫn là thứ người đọc sổ quỹ cần thấy;
-		   mã là thứ MÁY nối sang hệ chấm công. Bỏ tên đi để "gọn" là lúc kiểm quỹ phải tra ngược
-		   một bảng khác mới biết ai — mà lúc ấy người ta đang đứng cãi nhau ở quầy. */
 		$b['chot'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_may VARCHAR(40) NOT NULL DEFAULT '',
 			nguoi VARCHAR(190) NOT NULL DEFAULT '',
-			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
 			chi_so BIGINT(20) NOT NULL DEFAULT 0,
 			chi_so_truoc BIGINT(20) NOT NULL DEFAULT 0,
 			don_vi BIGINT(20) NOT NULL DEFAULT 0,
@@ -505,8 +492,7 @@ class VHG_DB {
 			UNIQUE KEY ma_lan (ma_lan),
 			KEY may (ma_may,id),
 			KEY nguoi (nguoi,nop_id),
-			KEY nop (nop_id),
-			KEY ma_nv (ma_nv,tao_luc)";
+			KEY nop (nop_id)";
 
 		/* ===== 15. NỘP TIỀN VỀ QUỸ =========================================================
 		   Tiền trong tay người thu là tiền của cửa hàng đang nằm ở chỗ không ai nhìn thấy. Bảng

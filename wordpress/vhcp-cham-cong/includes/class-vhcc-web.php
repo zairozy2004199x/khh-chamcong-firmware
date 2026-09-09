@@ -5947,9 +5947,9 @@ class VHCC_Web {
 	 */
 	private static function bc_ca( $cs, $tt ) {
 		if ( ! class_exists( 'VHCC_BaoCaoCa' ) || ! method_exists( 'VHCC_BaoCaoCa', 'theo_thang' ) ) {
-			return array( 'theo' => array(), 'bo_qua' => 0, 'thieu_cot' => false );
+			return array( 'theo' => array(), 'bo_qua' => 0, 'thieu_bang' => false );
 		}
-		return VHCC_BaoCaoCa::theo_thang( $cs, $tt );
+		return VHCC_BaoCaoCa::theo_thang( $tt );
 	}
 
 	/**
@@ -5965,12 +5965,12 @@ class VHCC_Web {
 	 *    nói: cờ này vốn không dành cho họ.
 	 */
 	private static function bao_bc_ca( $bc ) {
-		if ( empty( $bc['thieu_cot'] ) ) { return; }
+		if ( empty( $bc['thieu_bang'] ) ) { return; }
 		echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>Cờ "đi làm mà quên chấm công" '
-			. 'chưa chạy được.</b> Bản <b>Ghế Massage</b> đang cài chưa ghi <b>Mã NV</b> vào sổ '
-			. 'chốt ca, nên không nối được người bên ấy sang hồ sơ bên này. <span class="mo">Cờ '
-			. 'này cần bản ghế có cột <code>ma_nv</code> trong bảng chốt. Cho tới lúc đó lưới vẫn '
-			. 'chạy bình thường, chỉ là không ô nào vàng lên.</span></div>';
+			. 'chưa chạy được.</b> Bản <b>Ghế Massage</b> đang cài chưa có <b>trang báo cáo ngày</b> '
+			. '(bảng <code>bc_phien</code>), nên không biết ai đã nhập báo cáo hôm nào. '
+			. '<span class="mo">Cần bản ghế có trang báo cáo — từ 2.x trở lên. Cho tới lúc đó lưới '
+			. 'vẫn chạy bình thường, chỉ là không ô nào vàng lên.</span></div>';
 	}
 
 	/**
@@ -5988,8 +5988,8 @@ class VHCC_Web {
 			'lop' => ' vang',
 			'chu' => "CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?
 "
-				. 'Ngày này người ấy có ' . $so . ' lượt CHỐT GHẾ bên hệ ghế POSH — chốt ghế thì '
-				. "phải đứng tại cơ sở mới làm được.
+				. "Ngày này người ấy CÓ NHẬP BÁO CÁO doanh thu bên hệ ghế POSH — muốn có số mà "
+				. "nhập thì phải đi thu tận nơi.
 "
 				. "Nhưng bảng chấm công không có lượt nào.
 "
@@ -6126,7 +6126,7 @@ class VHCC_Web {
 		$anh_ds = self::anh_the_ds( array_keys( $ten ) );
 
 		$tong_cs = 0;
-		$bc_ca = self::bc_ca( (string) $b['coSo'], $tt );
+		$bc_ca = self::bc_ca( '', $tt );
 		self::bao_bc_ca( $bc_ca );
 
 		foreach ( $ten as $ma => $ho_ten ) {
@@ -6342,7 +6342,7 @@ class VHCC_Web {
 		$tt   = (string) $b['month'];
 		/* Cơ sở KHÔNG nằm trong `$b` của lưới công (bảng ấy dựng quanh tháng), nên nhận thẳng
 		   từ nơi gọi — nơi ấy vốn đang cầm `$cs`. Đoán ra từ dữ liệu là thêm một chỗ sai được. */
-		$bc_ca = self::bc_ca( (string) $cs_bc, $tt );
+		$bc_ca = self::bc_ca( (string) $cs_bc, $tt );   // `$cs_bc` giữ chỗ, xem `bc_ca()`
 		self::bao_bc_ca( $bc_ca );
 		$rows = (array) $b['rows'];
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );

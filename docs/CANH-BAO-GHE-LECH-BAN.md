@@ -11,39 +11,50 @@ WordPress nói thẳng: *"Bạn đang tải lên một phiên bản cũ của pl
 
 ---
 
-## 1. Sự thật đã kiểm
+## 0. KẾT CỤC: KHÔNG PHẢI SỬA PLUGIN GHẾ NỮA
+
+Anh Thắng chỉ đúng chỗ: mã ghế **2.16.0** nằm ở **cùng repo này**, nhánh
+**`claude/posh-qr-kh1urz`**, thư mục **`vhcp-ghe/` ở GỐC** — không phải `wordpress/vhcp-ghe/`.
+Em dò sai đường dẫn nên tưởng không có.
+
+Và mở ra thì bản 2.16.0 **đã giải sẵn** vấn đề danh tính: bảng `bc_phien` có **khoá chính
+`(pin, ngay)`** — hệ báo cáo vốn nhận diện người bằng **PIN**, mà PIN là thứ dùng chung cả ba hệ.
+
+⇒ **Không phải đụng một dòng nào của plugin ghế.** Thay đổi phía ghế của đợt này đã **lùi lại
+hết** (`wordpress/vhcp-ghe/` về đúng 1.41.0 như cũ). Cờ đọc thẳng `bc_phien` từ phía chấm công.
+
+⚠️ **`wordpress/vhcp-ghe/` trong nhánh này vẫn là bản 1.41.0 cũ và KHÔNG phải nguồn sự thật.**
+Đừng đóng gói nó, đừng merge nó đè lên `claude/posh-qr-kh1urz`. Nguồn thật là `vhcp-ghe/` ở gốc
+nhánh ấy.
+
+---
+
+## 1. Sự thật đã kiểm — và chỗ em dò sót
 
 Dò **mọi nhánh** của repo `khh-chamcong-firmware` và cả kho `Claude` ở máy dựng:
 
 ```
 origin/main                                   (không có plugin ghế)
 origin/claude/rebuild-chi-phi-wordpress-hl2yze  VHG_VERSION 1.41.0
-origin/claude/posh-qr-kh1urz                  (không có)
+origin/claude/posh-qr-kh1urz    wordpress/vhcp-ghe/  (không có)
+origin/claude/posh-qr-kh1urz    vhcp-ghe/            2.16.0   <-- ĐÂY, ở GỐC repo
 origin/claude/tao-cac-wed-nho-n55gu3          (không có)
 origin/claude/chao-em-iiyx5i                  (không có)
 ```
 
-⇒ **Mã của bản ghế đang chạy trên live (2.16.0) KHÔNG nằm trong repo này.** Nó được làm ở đâu đó
-khác — kho khác, hoặc một phiên chưa từng đẩy về đây.
+🔴 **Bài học của chính lần dò này:** em kết luận "không có trong repo" sau khi chỉ hỏi **một đường
+dẫn** (`wordpress/vhcp-ghe/`). Cùng một plugin có thể nằm ở thư mục khác trên nhánh khác. Dò thiếu
+rồi kết luận chắc chắn là cách nhanh nhất để nói sai một điều rất dễ kiểm.
 
 ---
 
 ## 2. Hệ quả — và việc phải làm
 
-🔴 **KHÔNG cài `dist/vhcp-ghe.zip` dựng từ repo này** cho tới khi mã 2.16.0 được đưa về đây và
-thay đổi của đợt này được đắp lại lên nó.
+🔴 **KHÔNG cài `dist/vhcp-ghe.zip` dựng từ repo này** — nó là 1.41.0, cũ hơn live 2.16.0.
 
-Đợt 09/09/2026 có sửa phía ghế (bản 1.42.0 trong repo): cho **Mã NV** đi suốt từ lúc đăng nhập tới
-sổ chốt ca, để bên chấm công gắn được cờ *"đi làm mà quên chấm công"*. Ba tệp:
-
-| Tệp | Sửa gì |
-|---|---|
-| `class-vhg-db.php` | `vhg_phien` + `vhg_chot` thêm cột `ma_nv`, thêm `KEY ma_nv (ma_nv,tao_luc)` |
-| `class-vhg-auth.php` | `users()` trả kèm `maNV` · `phat_token()` nhận `$ma_nv` · `user_by_token()` trả `ma_nv` |
-| `class-vhg-quy.php` + `class-vhg-trang.php` | `chot()` nhận `$ma_nv` (tham số CUỐI, có mặc định) và ghi vào sổ; nơi gọi lấy mã **từ phiên** |
-
-Cả ba đều là thay đổi **cộng thêm**, không đụng logic cũ — đắp lên 2.16.0 nên nhẹ. Nhưng phải đắp
-lên **mã 2.16.0 thật**, không phải merge nhánh này đè lên.
+Bản đầu của đợt này có sửa phía ghế (thêm cột `ma_nv` vào `vhg_chot`). **Đã lùi lại hết**, vì hai
+lẽ: nó nhắm nhầm bảng (`chot` là chốt **chỉ số ghế**, không phải *"nhập báo cáo"*), và bản 2.16.0
+đã có sẵn `bc_phien` khoá theo PIN nên không cần gì thêm.
 
 ---
 
