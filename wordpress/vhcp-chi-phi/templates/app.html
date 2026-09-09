@@ -299,7 +299,7 @@
       <div class="cb">
         <input type="hidden" id="lineId">
         <div class="grid">
-          <div class="fld"><label>Cơ sở *</label><select id="f_coso" onchange="_khoaCoSoHint();renderNhomCp();fillNhom(el('f_nhom')?el('f_nhom').value:'')"></select>
+          <div class="fld" id="fldCoso"><label id="lblCoso">Cơ sở *</label><select id="f_coso" onchange="_cosoDoi()"></select>
             <div id="cosoLock" style="font-size:11px;color:#b45309;margin-top:3px;display:none"></div></div>
           <!-- Trình duyệt vẽ ô type=date theo NGÔN NGỮ CỦA MÁY: máy anh Thắng hiện 08/23/2026
                (tháng trước ngày) trong khi cả app còn lại dùng 23/08/2026. Hai kiểu ngày cạnh
@@ -4573,7 +4573,31 @@
     var k=String(coso||'').trim().toLowerCase();
     return (k && BOOT.cosoPll && BOOT.cosoPll[k]) ? String(BOOT.cosoPll[k]) : '';
   }
-  // Các mã đã khai cho (loại chi phí × cơ sở): ưu tiên mã khai riêng cho cơ sở, rồi tới mảng
+  /** Đơn đang mở có ghép nhiều cơ sở không — cờ do MÁY CHỦ gửi, không đoán lại ở đây. */
+  function _donNhieuCoSo(){ return !!(CUR&&CUR.don&&CUR.don.nhieuCoSo); }
+  /** Mọi MẢNG của những cơ sở người này đang chọn được — dùng khi chưa chốt cơ sở nào. */
+  function _mangPham(){
+    var m={}, pll=BOOT.cosoPll||{};
+    (BOOT.coso||[]).forEach(function(x){
+      var v=String(pll[String(x||'').trim().toLowerCase()]||'').trim().toLowerCase();
+      if(v) m[v]=1;
+    });
+    return Object.keys(m);
+  }
+  /* Các mã đã khai cho (loại chi phí × cơ sở): ưu tiên mã khai riêng cho cơ sở, rồi tới mảng.
+   *
+   * 🔴 ĐƠN GHÉP NHIỀU GIAN THÌ CƠ SỞ CHỌN SAU CÙNG — anh Thắng 09/09/2026: *"phải theo kiểu,
+   *    chọn chi phí, nhập nội dung và chọn cơ sở đó thuộc chi phí nào"*. Nhưng mã tài khoản lại
+   *    khai theo MẢNG của cơ sở, nên chưa có cơ sở là hàm này trả rỗng -> ô Loại chi phí trống
+   *    trơn, và người dùng vẫn bị đẩy ngược về chọn cơ sở trước. Vòng khoá đúng chỗ này.
+   *
+   *    Nới ra: chưa chọn cơ sở thì gom mã của MỌI MẢNG người ấy với tới được. Loại nào có mã ở
+   *    bất kỳ mảng nào cũng hiện ra, chọn xong nội dung rồi mới gắn gian.
+   *
+   * ⚠️ CHỈ NỚI KHI ĐƠN GHÉP NHIỀU GIAN. Đơn KVC vẫn phải chốt cơ sở trước — nới cho nó là ô
+   *    Loại chi phí bày cả mã của mảng khác, và người nhập chọn nhầm thì tiền vào sai tài khoản.
+   * ⚠️ CHỌN CƠ SỞ RỒI THÌ HẸP LẠI ĐÚNG CƠ SỞ ẤY, không giữ danh sách rộng — xem `c`/`mang` dưới.
+   */
   function _tkNoList(loai, coso){
     var k=String(loai||'').trim().toLowerCase();
     var row=(BOOT.tkNoMx||{})[k];
@@ -4581,7 +4605,19 @@
     var c=String(coso||'').trim().toLowerCase();
     if(c && row[c]) return [].concat(row[c]);
     var mang=_mangCua(coso).toLowerCase();
-    return (mang && row[mang]) ? [].concat(row[mang]) : [];
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: viết thành
+       `if(mang && row[mang]) return …;` KHÔNG đổi kết quả — nhánh gom-mọi-mảng bên dưới đã gác
+       `!c`, mà tới được đây với `mang` khác rỗng thì `c` chắc chắn khác rỗng. Giữ dạng này vì
+       nó nói thẳng ra ý "đã chọn gian thì HẸP LẠI đúng gian ấy, không mượn mảng khác". */
+    if(mang) { return row[mang] ? [].concat(row[mang]) : []; }
+    if(!c && _donNhieuCoSo()){
+      var ra=[], da={};
+      _mangPham().forEach(function(mg){
+        [].concat(row[mg]||[]).forEach(function(ma){ var s=String(ma); if(!da[s]){ da[s]=1; ra.push(s); } });
+      });
+      return ra;
+    }
+    return [];
   }
   // TK Nợ của (loại chi phí × mảng): đúng 1 mã thì lấy luôn, 2 mã trở lên thì người nhập phải chỉ rõ
   function _tkNoCua(loai, coso){
@@ -4804,6 +4840,12 @@
     // Chưa chọn cơ sở: mã tài khoản khai theo MẢNG của cơ sở, nên chưa biết cơ sở thì
     // gần như không loại nào đủ điều kiện hiện. Đây là cảnh "mở đơn lần đầu".
     if(!String(coso||'').trim()){
+      /* Đơn ghép nhiều gian: cơ sở là ô CHỌN SAU CÙNG, nên nhắc "chọn cơ sở trước" là bảo người
+         ta làm ngược đúng thứ vừa sửa. Chỉ nhắc khi danh sách thật sự rỗng. */
+      if(_donNhieuCoSo()){
+        if(hien) return {chu:'Chọn loại chi phí và nhập nội dung trước — gian hàng gắn ở ô Cơ sở phía dưới.', mau:'#0f766e'};
+        return {chu:'Chưa loại chi phí nào khai mã cho các mảng của đơn vị này — khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh.', mau:'#dc2626'};
+      }
       return {chu:'⬆ Chọn CƠ SỞ trước — mã tài khoản khai theo mảng kinh doanh của cơ sở.', mau:'#b45309'};
     }
     var mang=_mangCua(coso);
@@ -5206,6 +5248,7 @@
       if(cs){ tu.innerHTML='<option value="'+esc(cs)+'">'+esc(cs)+'</option>'; tu.value=cs; tu.disabled=true; tu.style.background='#f1f5f9'; }
       else { if(window._COSO_OPTS_HTML && tu.options.length<=1){ tu.innerHTML=window._COSO_OPTS_HTML; } tu.disabled=false; tu.style.background=''; }
     }
+    _xepOCoSo();
     _khoaCoSoHint();
   }
   /** Chọn cơ sở ở ô TẠM ỨNG (trên) -> ô nhập hạng mục (dưới) theo luôn cùng cơ sở, để không lệch.
@@ -5232,6 +5275,38 @@
     var v=String(sel.value||'');
     if(v){ note.style.display='block'; note.innerHTML='ℹ️ Thêm hạng mục đầu tiên là đơn chốt cơ sở <b>'+esc(v)+'</b> — cơ sở khác phải tạo đơn mới'; }
     else { note.style.display='none'; }
+  }
+  /* Ô Cơ sở vừa đổi. TÁCH RA THÀNH HÀM RIÊNG vì nay nó phải GIỮ NGUYÊN loại chi phí đang chọn:
+     với đơn ghép nhiều gian, người ta chọn loại TRƯỚC rồi mới gắn gian, nên dựng lại ô loại mà
+     không giữ lựa chọn là xoá đúng thứ họ vừa làm.
+     ⚠️ Ô `f_nhom` chỉ mang TÊN loại; mã tài khoản nằm ở nhãn `lblNhomTk` và được suy lại từ
+        (loại × cơ sở) — nên đổi gian là phải vẽ lại nhãn ấy, xem `showTkNhom()` dưới. */
+  function _cosoDoi(){
+    var cu=String((el('f_nhom')&&el('f_nhom').value)||'');
+    _khoaCoSoHint(); renderNhomCp(); fillNhom(cu);
+    /* Mã tài khoản đổi theo MẢNG của gian vừa chọn, nên phải vẽ lại nhãn TK cạnh ô Loại chi
+       phí. Không vẽ lại là màn còn treo mã của gian trước — người nhập tin vào con số ấy. */
+    showTkNhom();
+  }
+  /* 🔴 ĐƠN GHÉP NHIỀU GIAN: Ô CƠ SỞ XUỐNG CUỐI.
+     Anh Thắng 09/09/2026: *"phải theo kiểu, chọn chi phí, nhập nội dung và chọn cơ sở đó thuộc
+     chi phí nào là được"*. Với KVC thì cơ sở đứng đầu là ĐÚNG — cả đơn là của một gian, chọn
+     gian xong mới ra được mã tài khoản. Với POSH thì ngược hẳn: gian là thuộc tính của TỪNG
+     dòng, hỏi nó trước là bắt người ta quyết cái lẽ ra quyết sau cùng.
+
+     ⚠️ ĐỔI BẰNG `order` CỦA LƯỚI, KHÔNG BÊ THẺ ĐI CHỖ KHÁC. Bê thẻ là mọi `el('f_coso')` vẫn
+        chạy nhưng thứ tự ô trong lưới đổi theo cách khó lần, và bài kiểm đếm ô theo thứ tự
+        khai (`test-cauhinh-xo.js` cùng họ) đỏ vì một lý do không liên quan. `order` chỉ đổi
+        chỗ NHÌN THẤY, còn mã và thứ tự khai giữ nguyên. */
+  function _xepOCoSo(){
+    var fld=el('fldCoso'), lbl=el('lblCoso'); if(!fld) return;
+    if(_donNhieuCoSo()){
+      fld.style.order='99';
+      if(lbl) lbl.textContent='Cơ sở của hạng mục này *';
+    } else {
+      fld.style.order='';
+      if(lbl) lbl.textContent='Cơ sở *';
+    }
   }
   function _fillLoaiCp(selId, cur, coso, curTk, hinhThuc){
     var sel=el(selId); if(!sel) return;

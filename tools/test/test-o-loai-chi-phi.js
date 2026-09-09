@@ -46,11 +46,16 @@ const BOOT = {
 };
 
 const NHOM_CP_CS = '(cơ sở)';
-const nguon = ['_mangCua', '_tkNoList', '_tkNoCua', '_khoaNhom', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+/* ⚠️ THÊM HÀM PHỤ THUỘC THÌ PHẢI KHAI VÀO ĐÂY. Ngày 09/09/2026 `_tkNoList` gọi thêm
+   `_donNhieuCoSo` và `_mangPham` (đơn ghép nhiều gian thì gom mã của mọi mảng), và bài này NỔ
+   `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
+   bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
+   thật. */
+const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tkNoCua', '_khoaNhom', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
-function moi(nhomCp, user) {
-  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'esc', nguon)(
-    BOOT, nhomCp, NHOM_CP_CS, user, v => String(v == null ? '' : v));
+function moi(nhomCp, user, cur) {
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, v => String(v == null ? '' : v));
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };
