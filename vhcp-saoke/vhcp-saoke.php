@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.2.2
+ * Version:           0.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -38,6 +38,11 @@ class SAOKE_App {
 		add_shortcode( 'posh_saoke', array( __CLASS__, 'shortcode' ) );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
+		add_action( 'saoke_cron_sync', array( __CLASS__, 'cron_sync' ) );
+		// Bảo đảm lịch tồn tại nếu đã bật auto-sync (WP-Cron kích khi có traffic).
+		if ( '1' === (string) get_option( 'saoke_autosync', '0' ) && ! wp_next_scheduled( 'saoke_cron_sync' ) ) {
+			wp_schedule_event( time() + 300, 'hourly', 'saoke_cron_sync' );
+		}
 	}
 
 	public static function tbl() { global $wpdb; return $wpdb->prefix . 'saoke_gd'; }
@@ -165,6 +170,7 @@ class SAOKE_App {
 		register_rest_route( self::NS, '/danhmuc-xoa', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_danhmuc_xoa' ) ) + $pub ) );
 		register_rest_route( self::NS, '/cauhinh',  array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_cauhinh' ) ) + $pub ) );
 		register_rest_route( self::NS, '/sync',     array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_sync' ) ) + $pub ) );
+		register_rest_route( self::NS, '/sync-ngay', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_sync_ngay' ) ) + $pub ) );
 		register_rest_route( self::NS, '/doipin',   array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_doipin' ) ) + $pub ) );
 		// ── v0.2: đối soát ──
 		register_rest_route( self::NS, '/diem',      array( array( 'methods' => 'GET',  'callback' => array( __CLASS__, 'r_diem_ds' ) ) + $pub ) );
@@ -177,6 +183,11 @@ class SAOKE_App {
 		register_rest_route( self::NS, '/anhxa-xoa', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_anhxa_xoa' ) ) + $pub ) );
 		register_rest_route( self::NS, '/nap-file-cong', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_nap_file_cong' ) ) + $pub ) );
 		register_rest_route( self::NS, '/tonghop-coso', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_tonghop_coso' ) ) + $pub ) );
+		// ── VietQR chính thức: token + callback (VietQR gọi VÀO server mình) ──
+		register_rest_route( self::NS, '/vqr/api/token_generate', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_token' ) ) + $pub ) );
+		register_rest_route( self::NS, '/vqr/bank/api/transaction-callback', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_callback' ) ) + $pub ) );
+		register_rest_route( self::NS, '/vqr/bank/api/test/transaction-callback', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_callback' ) ) + $pub ) );
+		register_rest_route( self::NS, '/vqr-cfg', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_cfg' ) ) + $pub ) );
 	}
 
 	/* ── Webhook: SePay (mặc định) hoặc cổng qua ?src=vietqr|momo|vnpay ── */
@@ -348,6 +359,87 @@ class SAOKE_App {
 		return array( 'moi' => $moi, 'trung' => $trung, 'chuaDoc' => $kho );
 	}
 
+	// ═══════════════ VietQR CHÍNH THỨC (token_generate + transaction-callback) ═══════════════
+	private static function vqr_secret() { $p = (string) get_option( 'saoke_vqr_pass', '' ); return '' !== $p ? ( $p . '|' . wp_salt( 'auth' ) ) : wp_salt( 'auth' ); }
+	private static function vqr_make_token( $exp ) { $p = 'exp=' . $exp; return rtrim( strtr( base64_encode( $p ), '+/', '-_' ), '=' ) . '.' . hash_hmac( 'sha256', $p, self::vqr_secret() ); }
+	private static function vqr_check_token( $tok ) {
+		$tok = trim( (string) $tok ); $parts = explode( '.', $tok );
+		if ( count( $parts ) !== 2 ) { return false; }
+		$p = base64_decode( strtr( $parts[0], '-_', '+/' ) );
+		if ( ! hash_equals( hash_hmac( 'sha256', $p, self::vqr_secret() ), $parts[1] ) ) { return false; }
+		if ( ! preg_match( '/exp=(\d+)/', (string) $p, $m ) ) { return false; }
+		return time() <= (int) $m[1];
+	}
+	/* Lấy header Authorization dù server strip mất (một số host cần PHP_AUTH_* / REDIRECT_). */
+	private static function auth_header( $req ) {
+		$h = (string) $req->get_header( 'authorization' );
+		if ( '' === $h && isset( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ) { $h = (string) $_SERVER['REDIRECT_HTTP_AUTHORIZATION']; }
+		if ( '' === $h && isset( $_SERVER['HTTP_AUTHORIZATION'] ) ) { $h = (string) $_SERVER['HTTP_AUTHORIZATION']; }
+		return $h;
+	}
+	/* VietQR gọi để lấy token — Basic Auth bằng user/pass mình khai. Trả JWT-like access_token. */
+	public static function r_vqr_token( $req ) {
+		$user = (string) get_option( 'saoke_vqr_user', '' ); $pass = (string) get_option( 'saoke_vqr_pass', '' );
+		if ( '' === $user || '' === $pass ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'chưa khai user/pass VietQR' ), 401 ); }
+		$u = ''; $p = '';
+		$h = self::auth_header( $req );
+		if ( 0 === stripos( $h, 'basic ' ) ) { $dec = base64_decode( trim( substr( $h, 6 ) ) ); if ( false !== strpos( $dec, ':' ) ) { list( $u, $p ) = explode( ':', $dec, 2 ); } }
+		if ( '' === $u && isset( $_SERVER['PHP_AUTH_USER'] ) ) { $u = (string) $_SERVER['PHP_AUTH_USER']; $p = isset( $_SERVER['PHP_AUTH_PW'] ) ? (string) $_SERVER['PHP_AUTH_PW'] : ''; }
+		// Cũng nhận user/pass trong body (một số cấu hình VietQR gửi kèm).
+		if ( '' === $u ) { $b = $req->get_json_params(); if ( is_array( $b ) ) { $u = (string) ( isset( $b['username'] ) ? $b['username'] : '' ); $p = (string) ( isset( $b['password'] ) ? $b['password'] : '' ); } }
+		if ( ! hash_equals( $user, $u ) || ! hash_equals( $pass, $p ) ) { return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'sai username/password' ), 401 ); }
+		$exp = time() + 12 * 3600;
+		return new WP_REST_Response( array( 'access_token' => self::vqr_make_token( $exp ), 'token_type' => 'Bearer', 'expires_in' => 12 * 3600 ), 200 );
+	}
+	/* VietQR gọi mỗi khi có biến động — Bearer token do mình cấp. Lưu vào saoke_cong (nguon=vietqr). */
+	public static function r_vqr_callback( $req ) {
+		$h = self::auth_header( $req ); $bearer = 0 === stripos( $h, 'bearer ' ) ? trim( substr( $h, 7 ) ) : '';
+		if ( '' === $bearer || ! self::vqr_check_token( $bearer ) ) {
+			return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'token không hợp lệ hoặc hết hạn' ), 401 );
+		}
+		$b = $req->get_json_params(); if ( ! is_array( $b ) ) { $b = $req->get_params(); }
+		$raw = $req->get_body(); if ( '' === trim( (string) $raw ) ) { $raw = wp_json_encode( $b ); }
+		$g = function ( $keys, $d = '' ) use ( $b ) { foreach ( (array) $keys as $k ) { if ( isset( $b[ $k ] ) && '' !== $b[ $k ] && ! is_array( $b[ $k ] ) ) { return $b[ $k ]; } } return $d; };
+		$maGD = (string) $g( array( 'transactionid', 'transactionId', 'transaction_id', 'ftCode', 'traceId' ) );
+		$ref  = (string) $g( array( 'referencenumber', 'referenceNumber', 'reference_number', 'orderId', 'orderid' ) );
+		$tt   = strtoupper( (string) $g( array( 'transType', 'transtype', 'type' ), 'C' ) );
+		$huong = ( 'D' === $tt || 'DEBIT' === $tt || 'OUT' === $tt ) ? 'Đi' : 'Đến';
+		$thoi = $g( array( 'transactiontime', 'transactionTime', 'transaction_time', 'time', 'transactionDate' ) );
+		$thoiDiem = self::vqr_ngay( $thoi );
+		$tx = array(
+			'nguon' => 'vietqr',
+			'maGD' => $maGD, 'ref' => $ref,
+			'thoiDiem' => $thoiDiem,
+			'soTien' => self::num( $g( array( 'amount', 'transferAmount', 'amountIn', 'creditAmount' ), 0 ) ),
+			'huong' => $huong, 'trangThai' => (string) $g( array( 'status' ) ),
+			'soTK' => (string) $g( array( 'bankaccount', 'bankAccount', 'accountNumber', 'account_number' ) ),
+			'noiDung' => (string) $g( array( 'content', 'description', 'orderInfo', 'addInfo' ) ),
+			'diemBan' => (string) $g( array( 'terminalCode', 'terminalcode', 'storeName', 'merchantName', 'subTerminalCode' ) ),
+			'raw' => $raw,
+		);
+		$tx['docDuoc'] = ( $tx['soTien'] > 0 && '' !== $tx['thoiDiem'] );
+		$tx['khoa'] = self::cong_khoa( 'vietqr', $tx, $raw );
+		self::luu_cong( $tx );
+		// VietQR chờ đúng envelope này để coi là nhận thành công.
+		return new WP_REST_Response( array( 'error' => false, 'errorReason' => '', 'toControllerCode' => '',
+			'object' => array( 'reftransactionid' => '' !== $maGD ? $maGD : $ref ) ), 200 );
+	}
+	/* Thời điểm VietQR: epoch giây/mili, hoặc ISO/'dd/MM/yyyy…' -> 'dd/MM/yyyy HH:mm:ss' (giờ VN). */
+	private static function vqr_ngay( $v ) {
+		$v = trim( (string) $v ); if ( '' === $v ) { return ''; }
+		if ( ctype_digit( $v ) ) { $n = (int) $v; if ( strlen( $v ) >= 13 ) { $n = (int) round( $n / 1000 ); } return gmdate( 'd/m/Y H:i:s', $n + 7 * 3600 ); }
+		$c = self::cong_ngay( $v ); if ( '' !== $c ) { return $c; }
+		$c = self::cong_ngay_iso( $v ); if ( '' !== $c ) { return $c; }
+		$t = strtotime( $v ); return $t ? gmdate( 'd/m/Y H:i:s', $t + 7 * 3600 ) : '';
+	}
+	public static function r_vqr_cfg( $req ) {
+		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
+		$u = trim( (string) $req->get_param( 'user' ) ); $p = trim( (string) $req->get_param( 'pass' ) );
+		if ( '' !== $u ) { update_option( 'saoke_vqr_user', sanitize_text_field( $u ) ); }
+		if ( '' !== $p ) { update_option( 'saoke_vqr_pass', $p ); }
+		return array( 'ok' => true );
+	}
+
 	public static function r_login( $req ) {
 		return self::pin_ok( $req ) ? array( 'ok' => true ) : self::loi_pin();
 	}
@@ -363,9 +455,20 @@ class SAOKE_App {
 		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		$url = esc_url_raw( rest_url( self::NS . '/webhook' ) ) . ( $key ? ( '?key=' . rawurlencode( $key ) ) : '' );
+		$last = get_option( 'saoke_sync_last', array() );
 		return array( 'ok' => true,
 			'taiKhoan' => self::ds_tk(), 'danhMuc' => self::ds_dm(), 'phapNhanOpts' => self::ds_pn(),
 			'webhookUrl' => $key ? $url : '', 'hasWebhookKey' => $key !== '', 'hasApiToken' => get_option( 'saoke_api_token', '' ) !== '',
+			'autosync' => '1' === (string) get_option( 'saoke_autosync', '0' ),
+			'syncNgay' => (int) get_option( 'saoke_sync_ngay', 3 ),
+			'syncLast' => is_array( $last ) ? $last : array(),
+			'nextSync' => wp_next_scheduled( 'saoke_cron_sync' ) ? gmdate( 'd/m/Y H:i', wp_next_scheduled( 'saoke_cron_sync' ) + 7 * 3600 ) . ' (giờ VN)' : '',
+			// VietQR chính thức
+			'vqrUser' => (string) get_option( 'saoke_vqr_user', '' ),
+			'hasVqrPass' => '' !== (string) get_option( 'saoke_vqr_pass', '' ),
+			'vqrTokenUrl' => esc_url_raw( rest_url( self::NS . '/vqr/api/token_generate' ) ),
+			'vqrCallbackUrl' => esc_url_raw( rest_url( self::NS . '/vqr/bank/api/transaction-callback' ) ),
+			'vqrBaseUrl' => esc_url_raw( rest_url( self::NS ) ),
 		);
 	}
 
@@ -513,7 +616,15 @@ class SAOKE_App {
 		$tok = trim( (string) $req->get_param( 'token' ) ); $key = trim( (string) $req->get_param( 'key' ) );
 		if ( '' !== $tok ) { update_option( 'saoke_api_token', $tok ); }
 		if ( '' !== $key ) { update_option( 'saoke_webhook_key', $key ); }
+		if ( null !== $req->get_param( 'autosync' ) ) { self::dat_lich( '1' === (string) $req->get_param( 'autosync' ) || 1 === $req->get_param( 'autosync' ) ); }
+		$sn = (int) $req->get_param( 'syncNgay' ); if ( $sn >= 1 && $sn <= 31 ) { update_option( 'saoke_sync_ngay', $sn ); }
 		return array( 'ok' => true );
+	}
+	/* Chạy đồng bộ ngay (nút "Đồng bộ ngay" — vá theo lịch tay). */
+	public static function r_sync_ngay( $req ) {
+		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
+		self::cron_sync();
+		return array( 'ok' => true ) + (array) get_option( 'saoke_sync_last', array() );
 	}
 	public static function r_doipin( $req ) {
 		$cu = (string) $req->get_param( 'cu' ); $moi = preg_replace( '/\D+/', '', (string) $req->get_param( 'moi' ) );
@@ -523,16 +634,14 @@ class SAOKE_App {
 		return array( 'ok' => true );
 	}
 
-	/* ── Đồng bộ lịch sử qua SePay Open API ── */
-	public static function r_sync( $req ) {
-		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
+	/* ── Đồng bộ lịch sử qua SePay Open API (dùng chung cho nút tay + cron) ── */
+	public static function dong_bo( $tu_ymd, $den_ymd, $tk ) {
 		$token = (string) get_option( 'saoke_api_token', '' );
 		if ( '' === $token ) { return new WP_Error( 'token', 'Chưa đặt SePay API Token.', array( 'status' => 409 ) ); }
-		$tu = self::vn2ymd( (string) $req->get_param( 'tu' ) ); $den = self::vn2ymd( (string) $req->get_param( 'den' ) );
-		$tk = preg_replace( '/\s+/', '', (string) $req->get_param( 'tk' ) );
+		$tk = preg_replace( '/\s+/', '', (string) $tk );
 		$url = add_query_arg( array_filter( array(
-			'limit' => 5000, 'transaction_date_min' => $tu ? $tu . ' 00:00:00' : '',
-			'transaction_date_max' => $den ? $den . ' 23:59:59' : '', 'account_number' => $tk ?: '',
+			'limit' => 5000, 'transaction_date_min' => $tu_ymd ? $tu_ymd . ' 00:00:00' : '',
+			'transaction_date_max' => $den_ymd ? $den_ymd . ' 23:59:59' : '', 'account_number' => $tk ?: '',
 		) ), 'https://my.sepay.vn/userapi/transactions/list' );
 		$res = wp_remote_get( $url, array( 'timeout' => 40, 'headers' => array( 'Authorization' => 'Bearer ' . $token ) ) );
 		if ( is_wp_error( $res ) ) { return new WP_Error( 'kn', 'Không gọi được SePay: ' . $res->get_error_message(), array( 'status' => 502 ) ); }
@@ -559,7 +668,31 @@ class SAOKE_App {
 			) );
 			if ( $ok ) { $moi++; } else { $trung++; }
 		}
-		return array( 'ok' => true, 'moi' => $moi, 'trung' => $trung );
+		return array( 'moi' => $moi, 'trung' => $trung );
+	}
+	public static function r_sync( $req ) {
+		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
+		$r = self::dong_bo( self::vn2ymd( (string) $req->get_param( 'tu' ) ), self::vn2ymd( (string) $req->get_param( 'den' ) ), (string) $req->get_param( 'tk' ) );
+		if ( is_wp_error( $r ) ) { return $r; }
+		return array( 'ok' => true, 'moi' => $r['moi'], 'trung' => $r['trung'] );
+	}
+
+	/* ── Tự động kéo bù theo lịch (WP-Cron): webhook lo realtime, cron vá phần sót ── */
+	public static function cron_sync() {
+		if ( '' === (string) get_option( 'saoke_api_token', '' ) ) { return; }
+		$ngay = (int) get_option( 'saoke_sync_ngay', 3 ); if ( $ngay < 1 ) { $ngay = 3; }
+		$den = gmdate( 'Y-m-d', current_time( 'timestamp' ) );
+		$tu  = gmdate( 'Y-m-d', current_time( 'timestamp' ) - $ngay * 86400 );
+		$r = self::dong_bo( $tu, $den, '' );
+		$log = is_wp_error( $r ) ? ( 'lỗi: ' . $r->get_error_message() ) : ( 'mới ' . $r['moi'] . ', trùng ' . $r['trung'] );
+		update_option( 'saoke_sync_last', array( 'luc' => current_time( 'mysql' ), 'kq' => $log ) );
+	}
+	/* Bật/tắt lịch tự đồng bộ. */
+	public static function dat_lich( $bat ) {
+		$hook = 'saoke_cron_sync';
+		wp_clear_scheduled_hook( $hook );
+		if ( $bat ) { wp_schedule_event( time() + 300, 'hourly', $hook ); }
+		update_option( 'saoke_autosync', $bat ? '1' : '0' );
 	}
 
 	// ═══════════════ v0.2: ĐIỂM NỘP ═══════════════
@@ -1264,8 +1397,19 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 						<div class="sk-fld"><label>Từ ngày</label><input type="date" id="syncTu"></div>
 						<div class="sk-fld"><label>Đến ngày</label><input type="date" id="syncDen"></div>
 						<div class="sk-fld"><label>Số TK (trống=tất cả)</label><input id="syncTK"></div>
-						<div class="sk-fld"><button class="sk-btn" onclick="skSync()">⬇️ Đồng bộ</button></div>
+						<div class="sk-fld"><button class="sk-btn" onclick="skSync()">⬇️ Đồng bộ tay</button></div>
 					</div>
+				</div>
+				<div class="sk-panel">
+					<h3>Tự động kéo bù theo lịch <span class="sk-mut">(chống sót — webhook lo realtime, cron vá phần rớt)</span></h3>
+					<div class="sk-hint">Mỗi giờ tự gọi SePay Open API kéo lại vài ngày gần nhất, vá giao dịch webhook bị rớt (mất mạng/SePay lỗi/sai key). Trùng thì bỏ qua theo mã SePay nên không đếm 2 lần. Cần đã đặt API Token ở trên.</div>
+					<div class="sk-row" style="align-items:flex-end">
+						<div class="sk-fld"><label><input type="checkbox" id="cfgAuto"> Bật tự động (mỗi giờ)</label></div>
+						<div class="sk-fld"><label>Kéo lại mấy ngày gần nhất</label><input type="number" id="cfgSyncNgay" min="1" max="31" value="3" style="width:90px"></div>
+						<div class="sk-fld"><button class="sk-btn" onclick="skLuuAuto()">Lưu lịch</button></div>
+						<div class="sk-fld"><button class="sk-btn sk-gray" onclick="skSyncNgay()">⚡ Đồng bộ ngay</button></div>
+					</div>
+					<div class="sk-mut" id="cfgSyncTt" style="margin-top:8px"></div>
 				</div>
 				<div class="sk-panel">
 					<h3>Đổi PIN</h3>
@@ -1313,6 +1457,22 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 							</div>
 						</div>
 						<div id="cgCfgFileNote" class="sk-mut" hidden>Cổng này <b>không có webhook</b> — dùng khung "Nạp file kết xuất" bên dưới rồi ánh xạ cửa hàng.</div>
+						<div id="cgCfgVqr" hidden style="border-top:1px dashed var(--line);margin-top:12px;padding-top:12px">
+							<div style="font-weight:700;margin-bottom:6px">🔐 VietQR chính thức (khuyến nghị — chuẩn hơn webhook Tingo)</div>
+							<div class="sk-hint">VietQR gọi VÀO server mình: trước lấy token (Basic Auth user/pass đặt dưới), rồi gọi callback kèm token. Khai vào form "Khai báo thông tin đại lý" của VietQR.</div>
+							<table style="width:100%"><tbody>
+								<tr><td class="sk-mut" style="width:150px">URL kết nối</td><td><code id="vqrBase">—</code></td></tr>
+								<tr><td class="sk-mut">Get Token URL</td><td><code id="vqrTok">—</code> <button class="sk-btn sk-gray" onclick="skCopy('vqrTok')">📋</button></td></tr>
+								<tr><td class="sk-mut">Callback URL</td><td><code id="vqrCb">—</code> <button class="sk-btn sk-gray" onclick="skCopy('vqrCb')">📋</button></td></tr>
+							</tbody></table>
+							<div class="sk-row" style="align-items:flex-end;margin-top:10px">
+								<div class="sk-fld"><label>Username khách hàng</label><input id="vqrUser"></div>
+								<div class="sk-fld"><label>Password khách hàng</label><input id="vqrPass" placeholder="đặt/nhập để đổi"></div>
+								<div class="sk-fld"><button class="sk-btn" onclick="skLuuVqr()">Lưu user/pass</button></div>
+								<div class="sk-fld" style="align-self:flex-end"><span class="sk-mut" id="vqrTt"></span></div>
+							</div>
+							<div class="sk-mut" style="margin-top:6px">Khai đúng user/pass này vào ô "Username/Password khách hàng" trong form VietQR, rồi bấm "Test Get Token" để kiểm tra.</div>
+						</div>
 					</div>
 					<div class="sk-cards" style="grid-template-columns:repeat(4,1fr)">
 						<div class="sk-card"><div class="sk-lbl">Tổng từ cổng</div><div class="sk-val sk-in" id="cgCong">0</div></div>
@@ -1539,7 +1699,17 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 	// Cấu hình
 	function veCfg(){ $('#cfgUrl').textContent=CFG.webhookUrl||'(đặt Webhook API Key rồi lưu)';
 		$('#cfgKey').placeholder=CFG.hasWebhookKey?'(đã đặt — nhập để đổi)':'chưa đặt';
-		$('#cfgToken').placeholder=CFG.hasApiToken?'(đã đặt — nhập để đổi)':'chưa đặt'; }
+		$('#cfgToken').placeholder=CFG.hasApiToken?'(đã đặt — nhập để đổi)':'chưa đặt';
+		if($('#cfgAuto'))$('#cfgAuto').checked=!!CFG.autosync;
+		if($('#cfgSyncNgay'))$('#cfgSyncNgay').value=CFG.syncNgay||3;
+		var tt=''; var sl=CFG.syncLast||{};
+		if(sl.luc)tt='Lần kéo cuối: '+esc(sl.luc)+' — '+esc(sl.kq||'');
+		if(CFG.autosync&&CFG.nextSync)tt+=(tt?' · ':'')+'Lần kế: '+esc(CFG.nextSync);
+		if(!CFG.autosync)tt=(tt?tt+' · ':'')+'Tự động: TẮT';
+		if($('#cfgSyncTt'))$('#cfgSyncTt').innerHTML=tt; }
+	window.skLuuAuto=function(){ post('/cauhinh',{ autosync:$('#cfgAuto').checked?1:0, syncNgay:parseInt($('#cfgSyncNgay').value,10)||3 })
+		.then(function(){ toast('Đã lưu lịch'); napCfg(veCfg); }).catch(function(e){toast(e.message||e,true);}); };
+	window.skSyncNgay=function(){ toast('Đang kéo bù…'); post('/sync-ngay',{}).then(function(r){ toast('Xong: '+esc((r.kq||''))); napCfg(veCfg); }).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuCfg=function(){ post('/cauhinh',{ token:$('#cfgToken').value, key:$('#cfgKey').value })
 		.then(function(){ toast('Đã lưu cấu hình'); $('#cfgKey').value=''; $('#cfgToken').value=''; napCfg(veCfg); }).catch(function(e){toast(e.message||e,true);}); };
 	window.skSync=function(){ if(!$('#syncTu').value||!$('#syncDen').value){toast('Chọn khoảng ngày',true);return;} toast('Đang đồng bộ…');
@@ -1593,6 +1763,15 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 				$('#cgCfgThieuKey').hidden=!d.thieuKey;
 				$('#cgCfgUrl').textContent=d.thieuKey?'(đặt Webhook Key để tạo URL)':(d.webhookUrl||'(chưa có)');
 			}
+			// VietQR chính thức (chỉ hiện cho vietqr)
+			$('#cgCfgVqr').hidden=!coWebhook;
+			if(coWebhook){
+				$('#vqrBase').textContent=CFG.vqrBaseUrl||'—';
+				$('#vqrTok').textContent=CFG.vqrTokenUrl||'—';
+				$('#vqrCb').textContent=CFG.vqrCallbackUrl||'—';
+				$('#vqrUser').value=CFG.vqrUser||'';
+				$('#vqrTt').textContent=CFG.hasVqrPass?'✔ đã đặt password':'⚠️ chưa đặt password';
+			}
 			$('#cgBody').innerHTML=(d.cong||[]).map(function(o){
 				return '<tr><td>'+esc(o.thoiDiem)+'</td><td class="sk-in">'+fmt(o.soTien)+'</td><td>'+esc(o.maGD)+'</td><td>'+esc(o.ref)+'</td><td>'+esc(o.tenMay||o.coSo||'—')+'</td><td style="white-space:normal;max-width:280px">'+esc(o.noiDung)+'</td></tr>';
 			}).join('')||'<tr><td colspan=6 class="sk-mut">Chưa có giao dịch cổng'+(d.congKho?(' ('+d.congKho+' dòng chưa đọc được đủ trường)'):'')+'.</td></tr>';
@@ -1601,6 +1780,8 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 	var CG_URL='';
 	window.skCopyUrl=function(){ if(!CG_URL){toast('Chưa có URL — đặt Webhook Key trước',true);return;} try{ navigator.clipboard.writeText(CG_URL).then(function(){toast('Đã copy URL webhook');},function(){toast(CG_URL);}); }catch(e){ toast(CG_URL); } };
 	window.skDatKey=function(){ var k=($('#cgCfgKey').value||'').trim(); if(!k){toast('Nhập key trước',true);return;} post('/cauhinh',{ key:k }).then(function(){ toast('Đã đặt Webhook Key'); $('#cgCfgKey').value=''; napCfg(function(){ skCong(); }); }).catch(function(e){toast(e.message||e,true);}); };
+	window.skCopy=function(id){ var t=($('#'+id)&&$('#'+id).textContent)||''; if(!t||t==='—'){toast('Chưa có nội dung',true);return;} try{ navigator.clipboard.writeText(t).then(function(){toast('Đã copy');},function(){toast(t);}); }catch(e){ toast(t); } };
+	window.skLuuVqr=function(){ post('/vqr-cfg',{ user:$('#vqrUser').value, pass:$('#vqrPass').value }).then(function(){ toast('Đã lưu user/pass VietQR'); $('#vqrPass').value=''; napCfg(function(){ skCong(); }); }).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuTuKhoa=function(){ post('/cong-tukhoa',{ nguon:$('#cgNguon').value, tuKhoa:$('#cgKw').value }).then(function(){toast('Đã lưu từ khoá'); skCong();}).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuAnhXa=function(){ post('/anhxa',{ nguon:$('#cgNguon').value, tenFile:$('#axTen').value, tenChuan:$('#axChuan').value, maBank:$('#axMa').value, tuNgay:vn($('#axTu').value), denNgay:vn($('#axDen').value) })
 		.then(function(r){ toast('Đã lưu ánh xạ → '+r.maBank+(r.daVa?(' · vá '+r.daVa+' dòng file'):'')); ['axTen','axChuan','axMa','axTu','axDen'].forEach(function(id){$('#'+id).value='';}); }).catch(function(e){toast(e.message||e,true);}); };
@@ -1678,6 +1859,7 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 }
 
 register_activation_hook( __FILE__, function () { SAOKE_App::bao_dam_bang(); SAOKE_App::bao_dam_trang(); flush_rewrite_rules(); } );
+register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'saoke_cron_sync' ); } );
 add_action( 'init', array( 'SAOKE_App', 'init' ), 6 );
 
 endif; // class_exists SAOKE_App
