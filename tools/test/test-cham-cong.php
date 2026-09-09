@@ -19105,6 +19105,133 @@ t( 'và ảnh thẻ KHÔNG đi qua esc_url (nó nuốt data:)',
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv='WM1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='WM1'" );
 
+/* ===================================================================================
+ *  LẤY ẢNH CHẤM CÔNG LÀM ẢNH THẺ — 09/09/2026
+ * -----------------------------------------------------------------------------------
+ *  🔴 Anh Thắng, đứng trước danh sách 29 người chưa có ảnh thẻ ở một cơ sở: *"tài khoản
+ *  có tính năng chấm công online, và có hệ thống nhận diện khuôn mặt, vậy lấy ảnh nhận
+ *  diện chuẩn đặt để đẩy vào đây luôn được không"*.
+ *  Chính mấy người ấy đã tự chụp mặt mình cả chục lần rồi, mỗi lượt chấm công một tấm.
+ * =================================================================================== */
+$up_ac = wp_upload_dir();
+@mkdir( $up_ac['basedir'] . '/vhcc-cham/2026/09', 0777, true );
+/** Dựng một tấm JPEG thật để cả đường rửa ảnh chạy thật, không giả lập nửa vời. */
+function vhcc_tao_jpeg( $duong, $mau ) {
+	$im = imagecreatetruecolor( 300, 300 );
+	imagefill( $im, 0, 0, imagecolorallocate( $im, $mau, 128, 200 ) );
+	imagejpeg( $im, $duong, 85 );
+	imagedestroy( $im );
+}
+$_d_ro  = $up_ac['basedir'] . '/vhcc-cham/2026/09/ac-ro.jpg';
+$_d_mo  = $up_ac['basedir'] . '/vhcc-cham/2026/09/ac-mo.jpg';
+$_d_ho  = $up_ac['basedir'] . '/vhcc-cham/2026/09/ac-cham-ho.jpg';
+vhcc_tao_jpeg( $_d_ro, 40 ); vhcc_tao_jpeg( $_d_mo, 90 ); vhcc_tao_jpeg( $_d_ho, 160 );
+
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'AC1', 'ho_ten' => 'Người Chưa Ảnh',
+	'cua_hang' => 'TUTU_BT', 'anh_the' => '' ) );
+foreach ( array(
+	array( '2026-09-01', 'vhcc-cham/2026/09/ac-mo.jpg' ),
+	array( '2026-09-02', 'vhcc-cham/2026/09/ac-ro.jpg' ),
+	array( '2026-09-03', 'vhcc-cham/2026/09/ac-cham-ho.jpg' ),
+) as $_r ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => $_r[0],
+		'ma_nv' => 'AC1', 'hau_to' => '', 'ho_ten' => 'Người Chưa Ảnh',
+		'anh_vao' => $_r[1], 'anh_ra' => '' ) );
+}
+$wpdb->insert( VHCC_DB::t( 'mat_nhat_ky' ), array( 'ma_nv' => 'AC1', 'ngay' => '2026-09-01',
+	'coso' => 'TUTU_BT', 'd' => 0.4000, 'ket_qua' => 'khop', 'co_gan' => 0 ) );
+$wpdb->insert( VHCC_DB::t( 'mat_nhat_ky' ), array( 'ma_nv' => 'AC1', 'ngay' => '2026-09-02',
+	'coso' => 'TUTU_BT', 'd' => 0.2000, 'ket_qua' => 'khop', 'co_gan' => 0 ) );
+/* 🔴 CHỐT CHỐNG CHẤM HỘ. Hàng này có `d` NHỎ NHẤT — nếu hàm chỉ sắp theo `d` mà không lọc
+   kết luận thì nó thắng, và ta dán mặt người chấm hộ lên hồ sơ nạn nhân, rồi máy chấm công
+   nhận nhầm suốt. Đặt `d` nhỏ nhất chính là để phép thử này có răng. */
+$wpdb->insert( VHCC_DB::t( 'mat_nhat_ky' ), array( 'ma_nv' => 'AC1', 'ngay' => '2026-09-03',
+	'coso' => 'TUTU_BT', 'd' => 0.0500, 'ket_qua' => 'lech', 'co_gan' => 1 ) );
+
+$_a = VHCC_Mat::anh_chuan_cho( 'AC1' );
+teq( '🔴 chọn tấm LỆCH NHỎ NHẤT trong các lượt KHỚP', 'vhcc-cham/2026/09/ac-ro.jpg', $_a['duong'] );
+teq( 'và nói đúng ngày của tấm ấy', '2026-09-02', $_a['ngay'] );
+t( '🔴 KHÔNG lấy lượt bị gắn cờ, dù nó lệch nhỏ nhất',
+	false === strpos( $_a['duong'], 'cham-ho' ), $_a );
+
+/* Tệp bị dọn khỏi ổ đĩa thì lùi sang ứng viên kế, KHÔNG trả rỗng — còn cả chục tấm dùng được
+   mà báo "không có ảnh" là nói sai. */
+@unlink( $_d_ro );
+$_a2 = VHCC_Mat::anh_chuan_cho( 'AC1' );
+teq( '🔴 tấm tốt nhất mất tệp thì lùi sang tấm kế', 'vhcc-cham/2026/09/ac-mo.jpg', $_a2['duong'] );
+vhcc_tao_jpeg( $_d_ro, 40 );
+
+/* ---- đường ghi ---- */
+$r_ac = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC1' );
+t( '🔴 lấy được ảnh chấm công làm ảnh thẻ', ! empty( $r_ac['ok'] ), $r_ac );
+$_hs_ac = vhcc_hs( 'AC1' );
+t( 'ghi ra ĐÚNG dạng data URI ảnh JPEG',
+	0 === strpos( (string) $_hs_ac['anh_the'], 'data:image/jpeg;base64,' ), substr( (string) $_hs_ac['anh_the'], 0, 40 ) );
+t( 'và ảnh có nội dung thật, không rỗng', strlen( (string) $_hs_ac['anh_the'] ) > 500 );
+t( 'câu báo nói rõ lấy ảnh NGÀY NÀO và lệch bao nhiêu',
+	strpos( $r_ac['thong_bao'], '2026-09-02' ) !== false
+	&& strpos( $r_ac['thong_bao'], '0.200' ) !== false, $r_ac );
+
+/* ⚠️ KHÔNG ĐÈ ảnh thẻ đang có: ảnh chụp tử tế tốt hơn hẳn ảnh chấm công tại chỗ, đè lên là
+   thay thứ tốt bằng thứ tạm một cách im lặng. */
+$r_ac2 = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC1' );
+t( '🔴 người ĐÃ có ảnh thẻ thì CHỐI, không đè', empty( $r_ac2['ok'] ), $r_ac2 );
+t( 'và nói rõ vì sao chối', strpos( (string) $r_ac2['error'], 'ĐÃ CÓ ảnh thẻ' ) !== false, $r_ac2 );
+
+/* Chưa có lượt KHỚP nào thì thà không đề xuất — người mới chỉ có đúng một lượt (lượt ấy thành
+   mẫu, chưa có gì để so) mà đề xuất bừa là đưa một tấm chưa ai đối chiếu với cái gì. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'AC2', 'ho_ten' => 'Người Chưa Khớp',
+	'cua_hang' => 'TUTU_BT', 'anh_the' => '' ) );
+$r_ac3 = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC2' );
+t( '🔴 chưa có lượt nào KHỚP thì chối', empty( $r_ac3['ok'] ), $r_ac3 );
+t( 'và chỉ đường sang tải ảnh bằng tay',
+	strpos( (string) $r_ac3['error'], 'bằng tay' ) !== false, $r_ac3 );
+
+/* Gác quyền: cùng cửa hẹp với đường tải tay. Một cửa mới gác nhẹ hơn cửa cũ là cửa cũ vô nghĩa. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+$r_ac4 = VHCC_NhanSu::anh_the_tu_cham(
+	array( 'name' => 'Em NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ), 'AC1' );
+t( '🔴 Nhân viên KHÔNG lấy được', empty( $r_ac4['ok'] ), $r_ac4 );
+t( 'và ảnh thẻ vẫn trắng sau lượt bị chối', '' === (string) vhcc_hs( 'AC1' )['anh_the'] );
+
+/* ---- trên màn Bảng công: ảnh đề xuất phải HIỆN RA, không giấu sau một cú bấm ---- */
+/* ⚠️ Dùng thẻ phiên thay vì đăng nhập bằng PIN: tới cuối tệp này nguồn người dùng đã bị mấy
+   mục trên đổi qua đổi lại mấy lần, mà đăng nhập trượt thì trang chỉ có ô PIN — và mọi phép
+   "không thấy X" bên dưới sẽ xanh mà chẳng chứng minh gì (bẫy xanh giả, đã trả giá ba lần). */
+$h_ac = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( 'vẫn đang soi màn bảng công thật (không phải màn đăng nhập)',
+	strpos( $h_ac, 'name="pin"' ) === false && strpos( $h_ac, 'id="luoithang"' ) !== false,
+	substr( $h_ac, 0, 300 ) );
+t( '🔴 màn hiện ẢNH đề xuất ngay, không giấu sau thẻ gập',
+	strpos( $h_ac, 'vhcc-cham/2026/09/ac-ro.jpg' ) !== false, null );
+t( 'có nút lấy cho từng người', strpos( $h_ac, 'value="anh_the_tu_cham"' ) !== false, null );
+t( 'và nút lấy cho cả cơ sở', strpos( $h_ac, 'value="anh_the_tu_cham_het"' ) !== false, null );
+t( 'nói rõ lệch nhỏ nghĩa là rõ mặt', strpos( $h_ac, 'càng nhỏ càng rõ mặt' ) !== false, null );
+/* ⚠️ Nói ra chốt chống chấm hộ NGAY TRÊN MÀN: người bấm phải biết máy đã lọc cái gì, kẻo họ
+   tưởng nó lấy bừa tấm gần nhất rồi không dám dùng. */
+t( 'và nói rõ chỉ lấy từ lượt đã đối chiếu KHỚP',
+	strpos( $h_ac, 'đối chiếu KHỚP' ) !== false, null );
+
+/* ---- lấy cả cơ sở: số bỏ qua phải kèm LÝ DO từng người ---- */
+vhcc_web_post_nhu( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'viec' => 'anh_the_tu_cham_het', 'atc_coso' => 'TUTU_BT' ) );
+t( '🔴 lấy cả cơ sở thì người CÓ ảnh khớp được ghi thật',
+	0 === strpos( (string) vhcc_hs( 'AC1' )['anh_the'], 'data:image/jpeg' ), null );
+teq( 'còn người chưa có lượt khớp thì vẫn trắng', '', (string) vhcc_hs( 'AC2' )['anh_the'] );
+
+/* 🔴 `ve_bao()` phải IN được danh sách bỏ qua. Trước bản này nhánh `xong` `return` ngay sau
+   dòng xanh, nên "Đã lấy ảnh thẻ cho N người" hiện ra mà phần bỏ qua mất sạch — người đọc
+   tưởng xong hết, trong khi mấy người kia vẫn trắng ảnh và không ai nói vì sao. */
+$src_vb = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 nhánh "xong" của ve_bao có in danh sách bỏ qua',
+	preg_match( "/\\\$b\\['xong'\\][\s\S]{0,900}?boQua/", $src_vb ) === 1, null );
+
+@unlink( $_d_ro ); @unlink( $_d_mo ); @unlink( $_d_ho );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('AC1','AC2')" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='AC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_nhat_ky' ) . " WHERE ma_nv='AC1'" );
+
 vhcc_dung_bang();
 
 

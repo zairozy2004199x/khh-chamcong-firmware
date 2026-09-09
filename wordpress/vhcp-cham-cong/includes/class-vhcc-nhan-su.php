@@ -2054,6 +2054,24 @@ class VHCC_NhanSu {
 		if ( '' === $duong || ! is_readable( $duong ) ) {
 			return array( 'ok' => false, 'anh' => '', 'error' => 'Không đọc được tệp ảnh vừa gửi.' );
 		}
+		return self::rua_anh_tep( $duong );
+	}
+
+	/**
+	 * LÕI RỬA ẢNH — nhận ĐƯỜNG DẪN MỘT TỆP, trả data URI đã thu nhỏ.
+	 *
+	 * 🔴 09/09/2026 — tách ra khỏi `rua_anh_the()` để dùng lại cho ảnh CHẤM CÔNG (anh Thắng:
+	 *    *"lấy ảnh nhận diện chuẩn đặt để đẩy vào đây luôn được không"*). Hai đường vào khác
+	 *    nhau — một là tệp người ta vừa tải lên, một là tệp đã nằm sẵn trong thư mục uploads —
+	 *    nhưng phần rửa phải Y HỆT NHAU: cùng cạnh, cùng chất lượng, cùng trần dung lượng. Chép
+	 *    đoạn này ra làm bản thứ hai là sớm muộn hai đường sinh ra hai cỡ ảnh khác nhau, mà cỡ
+	 *    ảnh thì còn phải chui qua hàng đợi xuống một con ESP32 vài trăm KB bộ nhớ.
+	 */
+	public static function rua_anh_tep( $duong ) {
+		$duong = (string) $duong;
+		if ( '' === $duong || ! is_readable( $duong ) ) {
+			return array( 'ok' => false, 'anh' => '', 'error' => 'Không đọc được tệp ảnh.' );
+		}
 		/* ⚠️ Tin phần đuôi tên tệp là tin người gửi. Hỏi CHÍNH TỆP xem nó là ảnh gì. */
 		$co = @getimagesize( $duong );
 		if ( ! $co || empty( $co['mime'] ) ) {
@@ -2464,6 +2482,64 @@ class VHCC_NhanSu {
 		$day = self::day_ho_so_moi_len_may( $u, $ma, null );
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu ảnh thẻ cho ' . $hs['ho_ten'] . '.'
 			. ( ! empty( $day['ok'] ) ? ' ' . $day['thong_bao'] : '' ) );
+	}
+
+	/**
+	 * LẤY ẢNH CHẤM CÔNG LÀM ẢNH THẺ — cùng cửa hẹp với `luu_anh_the_rieng()`.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng: *"lấy ảnh nhận diện chuẩn đặt để đẩy vào đây luôn được không"*.
+	 *    Tấm nào là "chuẩn" thì `VHCC_Mat::anh_chuan_cho()` quyết (theo khoảng cách `d` nhỏ
+	 *    nhất trong những lượt kết luận 'khop') — xem chú thích ở đó.
+	 *
+	 * ⚠️ KHÔNG GHI ĐÈ ảnh thẻ đang có. Ảnh chấm công là ảnh chụp tại chỗ; ảnh thẻ do người ta
+	 *    chụp tử tế thì tốt hơn hẳn. Đè lên là thay thứ tốt bằng thứ tạm, một cách im lặng.
+	 * ⚠️ Gác quyền Y HỆT đường tải tay: cùng `co_sua_ho_so` + `co_quyen_coso`. Một cửa mới mà
+	 *    gác nhẹ hơn cửa cũ là cửa cũ thành vô nghĩa.
+	 * ⚠️ Lời gọi `VHCC_Mat` gác bằng `class_exists`/`method_exists` NGAY TRONG hàm này (luật
+	 *    `tools/test/kiem-goi-cheo.php`): gỡ lớp nhận diện ra thì đường này tự tắt, không nổ.
+	 */
+	public static function anh_the_tu_cham( $u, $ma_nv ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ mang mã ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $hs['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
+		}
+		if ( '' !== trim( (string) $hs['anh_the'] ) ) {
+			return array( 'ok' => false, 'error' => $hs['ho_ten'] . ' ĐÃ CÓ ảnh thẻ rồi — '
+				. 'không đè lên. Muốn thay thì tải ảnh mới lên trong hồ sơ.' );
+		}
+		if ( ! class_exists( 'VHCC_Mat' ) || ! method_exists( 'VHCC_Mat', 'anh_chuan_cho' )
+			|| ! method_exists( 'VHCC_Mat', 'tep_anh' ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa bật phần đối chiếu khuôn mặt nên không '
+				. 'biết tấm nào là tấm rõ mặt. Tải ảnh thẻ lên bằng tay.' );
+		}
+		$a = VHCC_Mat::anh_chuan_cho( $ma );
+		if ( '' === $a['duong'] ) {
+			return array( 'ok' => false, 'error' => $hs['ho_ten'] . ' chưa có lượt chấm công nào '
+				. 'ĐƯỢC ĐỐI CHIẾU KHỚP với mẫu (hoặc ảnh của mấy lượt ấy đã bị dọn). Chưa có gì '
+				. 'để lấy — tải ảnh thẻ lên bằng tay.' );
+		}
+		$tep = VHCC_Mat::tep_anh( $a['duong'] );
+		if ( '' === $tep ) {
+			return array( 'ok' => false, 'error' => 'Tệp ảnh của lượt ' . $a['ngay'] . ' không còn '
+				. 'đọc được trên máy chủ.' );
+		}
+		$kq = self::rua_anh_tep( $tep );
+		if ( empty( $kq['ok'] ) || '' === $kq['anh'] ) {
+			return array( 'ok' => false, 'error' => isset( $kq['error'] ) ? $kq['error'] : 'Không rửa được ảnh.' );
+		}
+		$ok = $wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'anh_the' => $kq['anh'], 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $ma ) );
+		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }
+		/* Đẩy luôn xuống máy — cùng đường với `luu_anh_the_rieng()`, khỏi bắt bấm thêm lượt nữa. */
+		$day = self::day_ho_so_moi_len_may( $u, $ma, null );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lấy ảnh chấm công ngày ' . $a['ngay']
+			. ' (lệch ' . number_format( (float) $a['d'], 3 ) . ' — càng nhỏ càng rõ mặt) làm ảnh thẻ cho '
+			. $hs['ho_ten'] . '.' . ( ! empty( $day['ok'] ) ? ' ' . $day['thong_bao'] : '' ) );
 	}
 
 	/**

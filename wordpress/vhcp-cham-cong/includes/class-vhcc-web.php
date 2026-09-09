@@ -1628,6 +1628,35 @@ class VHCC_Web {
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
 		}
 
+		/* 🔴 09/09/2026 — LẤY ẢNH CHẤM CÔNG LÀM ẢNH THẺ. Anh Thắng: *"lấy ảnh nhận diện chuẩn
+		   đặt để đẩy vào đây luôn được không"*. Cùng cửa hẹp với `anh_the_thieu`: chỉ đụng đúng
+		   cột `anh_the` của đúng một mã. Hai dạng: một người (`atc_ma`) hoặc cả cơ sở
+		   (`atc_coso`) — cả hai đều đi qua CÙNG một hàm, nên không có đường nào gác lỏng hơn. */
+		if ( 'anh_the_tu_cham' === $viec ) {
+			$ma = isset( $_POST['atc_ma'] ) ? trim( (string) wp_unslash( $_POST['atc_ma'] ) ) : '';
+			$r  = VHCC_NhanSu::anh_the_tu_cham( $toi, $ma );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
+		}
+
+		if ( 'anh_the_tu_cham_het' === $viec ) {
+			$cs = isset( $_POST['atc_coso'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['atc_coso'] ) ) : '';
+			if ( '' === $cs ) { return array( array( 'loi' => 'Thiếu cơ sở.' ) ); }
+			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
+				return array( array( 'loi' => 'Cơ sở ' . $cs . ' không thuộc phạm vi của anh/chị.' ) );
+			}
+			$xong = 0; $bo = array();
+			foreach ( (array) VHCC_NhanSu::thieu_anh_the( $cs ) as $x ) {
+				$r = VHCC_NhanSu::anh_the_tu_cham( $toi, (string) $x['ma_nv'] );
+				if ( ! empty( $r['ok'] ) ) { $xong++; }
+				else { $bo[] = $x['ho_ten'] . ' — ' . $r['error']; }
+			}
+			/* 🔴 SỐ BỎ QUA PHẢI KÈM LÝ DO TỪNG NGƯỜI. "Xong 12/29" mà không nói 17 người kia
+			   vướng gì là một con số không dùng được: người đọc không biết nên chờ thêm vài lượt
+			   chấm công, hay phải đi chụp ảnh tay. */
+			return array( array( 'ok' => true, 'xong' => 'Đã lấy ảnh thẻ cho ' . $xong . ' người.',
+				'boQua' => $bo ) );
+		}
+
 		if ( 'khai_admin' === $viec ) {
 			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới khai được tài khoản Admin khác.' ) );
@@ -3708,9 +3737,67 @@ class VHCC_Web {
 		/* Ảnh thẻ mẫu vẽ MỘT LẦN cho cả danh sách, không lặp lại theo từng người — 29 người là
 		   29 tấm SVG giống hệt nhau nếu vẽ trong vòng lặp, nặng trang mà không thêm gì mới. */
 		echo self::anh_the_mau();
+
+		/* 🔴 09/09/2026 — LẤY THẲNG TỪ ẢNH CHẤM CÔNG. Anh Thắng, đứng trước danh sách 29 người
+		   chưa có ảnh thẻ: *"tài khoản có tính năng chấm công online, và có hệ thống nhận diện
+		   khuôn mặt, vậy lấy ảnh nhận diện chuẩn đặt để đẩy vào đây luôn được không"*.
+		   Anh đúng: chính mấy người ấy đã tự chụp mặt mình cả chục lần rồi, mỗi lượt chấm công
+		   một tấm — mà cột ảnh thẻ vẫn trắng và ai đó phải đi chụp lại từng người.
+		   Tấm nào là "chuẩn" thì `VHCC_Mat::anh_chuan_cho()` quyết theo số đo, không theo ngày
+		   mới nhất — xem chú thích ở đó.
+		   ⚠️ LUÔN XEM TRƯỚC RỒI MỚI LƯU: ảnh hiện ngay cạnh nút, không giấu sau một cú bấm. Máy
+		      chọn giúp, nhưng thứ đi vào hồ sơ thì phải có người nhìn qua. */
+		$de_xuat = array();
+		if ( class_exists( 'VHCC_Mat' ) && method_exists( 'VHCC_Mat', 'anh_chuan_cho' ) ) {
+			foreach ( $ds as $x ) {
+				$a = VHCC_Mat::anh_chuan_cho( (string) $x['ma_nv'] );
+				if ( '' !== $a['duong'] ) { $de_xuat[ (string) $x['ma_nv'] ] = $a; }
+			}
+		}
+		if ( $de_xuat ) {
+			echo '<div class="bao ok" style="margin:10px 0 4px">📷 <b>' . count( $de_xuat ) . ' người '
+				. 'đã có sẵn ảnh mặt rõ</b> trong chính các lượt chấm công online của họ — lấy làm '
+				. 'ảnh thẻ được ngay, khỏi đi chụp lại. <span class="mo">Máy chọn tấm <b>lệch nhỏ '
+				. 'nhất</b> so với mẫu của người đó: lệch nhỏ nghĩa là <b>rõ mặt, nhìn thẳng, '
+				. 'không khẩu trang, không mũ</b>. Chỉ lấy từ lượt đã <b>đối chiếu KHỚP</b> và '
+				. 'không bị gắn cờ — nên không lấy nhầm mặt người chấm hộ. '
+				. '<b>Nhìn ảnh rồi hãy bấm.</b></span>';
+			echo '<form method="post" style="margin-top:8px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="anh_the_tu_cham_het">'
+				. '<input type="hidden" name="atc_coso" value="' . esc_attr( $cs ) . '">'
+				. self::o_loc()
+				. '<button class="chinh">Lấy ảnh thẻ cho cả ' . count( $de_xuat )
+				. ' người</button> <span class="mo">— người nào chưa có ảnh khớp thì bỏ qua, '
+				. 'có nói rõ vì sao.</span></form></div>';
+		}
+
 		echo '<div class="tnv-ds" style="margin-top:8px">';
 		foreach ( $ds as $x ) {
 			$ma = (string) $x['ma_nv'];
+			/* Ảnh đề xuất + nút lấy nằm NGOÀI thẻ gập: cả điểm của nó là nhìn thấy mà không phải
+			   bấm. Đường tải tay vẫn nằm trong thẻ gập như cũ — nó là đường dự phòng. */
+			if ( isset( $de_xuat[ $ma ] ) ) {
+				$a  = $de_xuat[ $ma ];
+				$u_ = self::url_anh_cham( $a['duong'] );
+				echo '<div class="hang" style="gap:10px;align-items:center;margin:10px 0 2px">';
+				echo '<a href="' . esc_url( $u_ ) . '" target="_blank" rel="noopener">'
+					. '<img src="' . esc_url( $u_ ) . '" alt="Ảnh chấm công đề xuất" loading="lazy"'
+					. ' style="width:72px;height:72px;object-fit:cover;border-radius:8px;display:block;'
+					. 'border:2px solid #16a34a"></a>';
+				echo '<div><b>' . esc_html( $x['ho_ten'] ) . '</b> <span class="mo">('
+					. esc_html( $ma ) . ')</span><br><span class="mo">Ảnh chấm công '
+					. esc_html( (string) $a['ngay'] ) . ' · lệch <b>'
+					. esc_html( number_format( (float) $a['d'], 3 ) ) . '</b> — càng nhỏ càng rõ mặt'
+					. '</span></div>';
+				echo '<form method="post" style="margin:0">'
+					. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+					. '<input type="hidden" name="viec" value="anh_the_tu_cham">'
+					. '<input type="hidden" name="atc_ma" value="' . esc_attr( $ma ) . '">'
+					. self::o_loc()
+					. '<button class="them">Dùng ảnh này</button></form>';
+				echo '</div>';
+			}
 			echo '<details><summary>' . esc_html( $x['ho_ten'] . ' (' . $ma . ')' )
 				. ' <span class="mo">— bấm để tải ảnh thẻ</span></summary>';
 			/* ⚠️ KHÔNG tính vector khuôn mặt ở đây, dù `khoi_them_nv()`/`the_sua_ho_so()` (nhánh
@@ -7204,6 +7291,16 @@ class VHCC_Web {
 		}
 		if ( isset( $b['xong'] ) ) {
 			echo '<div class="bao ok">' . esc_html( $b['xong'] ) . '</div>';
+			/* 🔴 DANH SÁCH BỎ QUA PHẢI HIỆN KÈM LÝ DO TỪNG NGƯỜI. Nhánh này trước đây `return`
+			   ngay sau dòng xanh, nên một việc chạy hàng loạt mà trả kèm `boQua` là mất sạch phần
+			   ấy — người đọc thấy "Đã lấy ảnh thẻ cho 12 người" và tưởng xong hết, trong khi 17
+			   người kia vẫn trắng ảnh mà không ai nói vì sao. Đúng cái lỗi im lặng mà `nap_tk` ở
+			   trên đã phải xử riêng; nay nhánh chung cũng biết in nó. */
+			if ( ! empty( $b['boQua'] ) && is_array( $b['boQua'] ) ) {
+				echo '<div class="bao canh"><b>' . count( $b['boQua'] ) . ' người chưa lấy được:</b><ul>';
+				foreach ( $b['boQua'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+				echo '</ul></div>';
+			}
 			return;
 		}
 		/* 🔴 CÓ HẠNG BÁO THỨ BA: việc XONG nhưng một phần bên trong hỏng.

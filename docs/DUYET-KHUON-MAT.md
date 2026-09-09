@@ -75,7 +75,56 @@ gửi thẳng POST được — mà `mat_duyet_het` duyệt sạch cả hàng ch
 
 ---
 
-## 3. Bốn cái bẫy trong đợt này
+## 2c. Lấy ảnh chấm công làm ẢNH THẺ (3.52.0)
+
+Anh Thắng 09/09/2026, đứng trước danh sách **29 người ở một cơ sở chưa có ảnh thẻ**: *"tài khoản
+có tính năng chấm công online, và có hệ thống nhận diện khuôn mặt, vậy lấy ảnh nhận diện chuẩn
+đặt để đẩy vào đây luôn được không"*.
+
+Anh đúng: chính mấy người ấy đã tự chụp mặt mình cả chục lần rồi, mỗi lượt chấm công một tấm —
+mà cột ảnh thẻ vẫn trắng và ai đó phải đi chụp lại từng người.
+
+### Chọn tấm nào — theo SỐ ĐO, không theo ngày mới nhất
+
+Ảnh chấm công là ảnh chụp tại chỗ: có tấm đeo khẩu trang, có tấm đội mũ bảo hiểm, có tấm ngược
+nắng (mở bảng *30 lượt lệch nhất* mà xem — quá nửa là mấy tấm đó). Lấy tấm mới nhất là **gặp gì
+lấy nấy**.
+
+Nhưng hệ thống đã có sẵn một thước đo cho đúng việc này: **khoảng cách `d`** giữa tấm ấy và mẫu
+của người đó. `d` **nhỏ** nghĩa là khuôn mặt hiện rõ và giống hệt mọi lượt khác — tức là **không
+khẩu trang, không mũ, đủ sáng, nhìn thẳng**. Nên chọn tấm `d` nhỏ nhất chính là chọn tấm rõ mặt
+nhất, **mà không cần biết gì về khẩu trang hay mũ**.
+
+### Ba chốt
+
+🔴 **Chỉ lấy lượt kết luận `khop` và KHÔNG bị gắn cờ.** Đây là chốt chống **chấm hộ**: nếu một
+lượt là mặt người khác thì `d` lớn và kết luận là `lech` — lấy đúng tấm ấy làm ảnh thẻ là **dán
+mặt người chấm hộ lên hồ sơ nạn nhân**, rồi từ đó máy chấm công nhận nhầm suốt. Phép thử dựng
+hẳn một hàng `lech` mang `d` **nhỏ nhất** để chốt này có răng.
+
+⚠️ **Không đè ảnh thẻ đang có.** Ảnh chụp tử tế tốt hơn hẳn ảnh chấm công tại chỗ; đè lên là thay
+thứ tốt bằng thứ tạm, một cách im lặng.
+
+⚠️ **Luôn xem trước rồi mới lưu.** Ảnh hiện ngay cạnh nút, không giấu sau một cú bấm. Máy chọn
+giúp, nhưng thứ đi vào hồ sơ thì phải có người nhìn qua.
+
+Không có lượt `khop` nào thì **trả rỗng**, không hạ chuẩn xuống `kho_noi`: người mới chỉ có đúng
+một lượt (lượt ấy thành mẫu, chưa có gì để so) thì thà không đề xuất còn hơn đề xuất một tấm chưa
+ai đối chiếu với cái gì.
+
+### Nằm ở đâu
+
+| Việc | Tệp · hàm |
+|---|---|
+| Chọn tấm chuẩn nhất | `class-vhcc-mat.php` · `anh_chuan_cho()`, `co_tep_anh()`, `tep_anh()` |
+| Ghi vào hồ sơ (cửa hẹp, chỉ cột `anh_the`) | `class-vhcc-nhan-su.php` · `anh_the_tu_cham()` |
+| Lõi rửa ảnh dùng chung | `class-vhcc-nhan-su.php` · `rua_anh_tep()` |
+| Khối đề xuất + nút | `class-vhcc-web.php` · `khoi_thieu_anh()` |
+| Việc POST (một người · cả cơ sở) | `class-vhcc-web.php` · `anh_the_tu_cham`, `anh_the_tu_cham_het` |
+
+---
+
+## 3. Năm cái bẫy trong đợt này
 
 **1. `esc_url()` NUỐT `data:`.** Ảnh thẻ lưu dạng data URI. WordPress chỉ cho qua một danh sách
 giao thức, và `data` không có trong đó — `esc_url('data:image/...')` trả về **chuỗi rỗng**. Ảnh
@@ -96,7 +145,12 @@ thì **rỗng**, bấm Duyệt thì **bị chối** — và câu chối lại n�
 liên quan. Phép thử bắt được vì nó đo **cả hai đầu**: màn có hiện không, *và* trạng thái trong sổ
 có đổi thật không. Nay là **một hằng** `VHCC_Mat::QUYEN`, màn web mượn thẳng.
 
-**4. Ảnh thẻ là LONGTEXT ~60 KB mỗi người.** `VHCC_Mat::ds()` nhận thêm tham số `$kem_anh`; lượt
+**4. `ve_bao()` NUỐT MẤT DANH SÁCH BỎ QUA.** Nhánh `xong` `return` ngay sau dòng xanh, nên một
+việc chạy hàng loạt trả kèm `boQua` là mất sạch phần ấy — người đọc thấy *"Đã lấy ảnh thẻ cho 12
+người"* và tưởng xong hết, trong khi 17 người kia vẫn trắng ảnh mà không ai nói vì sao. Nay nhánh
+chung cũng in nó. **Số bỏ qua phải luôn kèm lý do từng người.**
+
+**5. Ảnh thẻ là LONGTEXT ~60 KB mỗi người.** `VHCC_Mat::ds()` nhận thêm tham số `$kem_anh`; lượt
 chỉ đếm mã (nút *Duyệt tất cả*) gọi với `false`, không kéo về vài megabyte cho một vòng lặp đếm.
 
 ---

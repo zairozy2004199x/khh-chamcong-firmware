@@ -724,6 +724,84 @@ class VHCC_Mat {
 	}
 
 	/**
+	 * TẤM ẢNH CHẤM CÔNG "CHUẨN NHẤT" CỦA MỘT NGƯỜI — để lấy làm ảnh thẻ.
+	 *
+	 * =========================================================================================
+	 * 🔴 09/09/2026 — anh Thắng: *"tài khoản có tính năng chấm công online, và có hệ thống nhận
+	 * diện khuôn mặt, vậy lấy ảnh nhận diện chuẩn đặt để đẩy vào đây luôn được không"*, sau khi
+	 * mở màn Bảng công thấy **29 người ở một cơ sở chưa có ảnh thẻ** — trong khi chính mấy người
+	 * ấy đã tự chụp mặt mình cả chục lần rồi, mỗi lượt chấm công một tấm.
+	 * =========================================================================================
+	 *
+	 * 🔴 CHỌN THEO SỐ ĐO, KHÔNG CHỌN TẤM MỚI NHẤT. Ảnh chấm công là ảnh chụp tại chỗ: có tấm đeo
+	 *    khẩu trang, có tấm đội mũ bảo hiểm, có tấm ngược nắng (xem bảng "30 lượt lệch nhất" —
+	 *    quá nửa là mấy tấm đó). Lấy tấm mới nhất là gặp gì lấy nấy.
+	 *    Nhưng hệ thống đã có sẵn một thước đo cho đúng việc này: **khoảng cách `d`** giữa tấm ấy
+	 *    và mẫu của người đó. `d` NHỎ nghĩa là khuôn mặt hiện rõ và giống hệt mọi lượt khác —
+	 *    tức là **không khẩu trang, không mũ, đủ sáng, nhìn thẳng**. Nên chọn tấm `d` nhỏ nhất
+	 *    chính là chọn tấm rõ mặt nhất, mà không cần biết gì về khẩu trang hay mũ.
+	 *
+	 * ⚠️ CHỈ LẤY LƯỢT KẾT LUẬN 'khop' VÀ KHÔNG BỊ GẮN CỜ. Đây là chốt chống **chấm hộ**: nếu một
+	 *    lượt là mặt người khác thì `d` lớn và kết luận là 'lech' — lấy đúng tấm ấy làm ảnh thẻ
+	 *    là dán mặt người chấm hộ lên hồ sơ nạn nhân, rồi từ đó máy chấm công nhận nhầm suốt.
+	 * ⚠️ KHÔNG có lượt 'khop' nào thì trả rỗng, KHÔNG hạ chuẩn xuống 'kho_noi'. Người mới chỉ có
+	 *    đúng một lượt (lượt ấy thành mẫu, chưa có gì để so) thì thà không đề xuất còn hơn đề
+	 *    xuất một tấm chưa ai đối chiếu với cái gì.
+	 * ⚠️ HÀM NÀY KHÔNG GHI GÌ. Nó chỉ đề xuất; người ta phải NHÌN tấm ảnh rồi mới bấm lưu.
+	 *
+	 * @return array ['duong'=>..., 'ngay'=>..., 'coso'=>..., 'd'=>float] — 'duong' rỗng = không có.
+	 */
+	public static function anh_chuan_cho( $ma_nv ) {
+		global $wpdb;
+		$khong = array( 'duong' => '', 'ngay' => '', 'coso' => '', 'd' => 0.0 );
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return $khong; }
+		$t_nk = VHCC_DB::t( 'mat_nhat_ky' );
+		$t_cc = VHCC_DB::t( 'cham_cong' );
+		if ( ! VHCC_DB::co_bang( $t_nk ) || ! VHCC_DB::co_bang( $t_cc ) ) { return $khong; }
+
+		/* Lấy vài ứng viên chứ không lấy đúng một: tấm `d` nhỏ nhất có thể đã bị dọn khỏi thư
+		   mục uploads (sao lưu, dọn ổ đĩa), mà rơi vào đó rồi trả rỗng thì người dùng thấy
+		   "không có ảnh" trong khi vẫn còn cả chục tấm dùng được. */
+		$ds = VHCC_DB::rows( $wpdb->prepare(
+			"SELECT ngay, coso, d FROM $t_nk WHERE ma_nv=%s AND ket_qua='khop' AND co_gan=0"
+			. ' AND ngay IS NOT NULL ORDER BY d ASC LIMIT 10', $ma ) );
+		foreach ( (array) $ds as $x ) {
+			$h = $wpdb->get_row( $wpdb->prepare(
+				"SELECT anh_vao, anh_ra FROM $t_cc WHERE ma_nv=%s AND ngay=%s AND coso=%s"
+				. " AND (anh_vao <> '' OR anh_ra <> '') ORDER BY id ASC LIMIT 1",
+				$ma, (string) $x['ngay'], (string) $x['coso'] ), ARRAY_A );
+			if ( ! $h ) { continue; }
+			$d = '' !== (string) $h['anh_vao'] ? (string) $h['anh_vao'] : (string) $h['anh_ra'];
+			if ( '' === $d || ! self::co_tep_anh( $d ) ) { continue; }
+			return array( 'duong' => $d, 'ngay' => (string) $x['ngay'],
+				'coso' => (string) $x['coso'], 'd' => (float) $x['d'] );
+		}
+		return $khong;
+	}
+
+	/**
+	 * Tệp ảnh chấm công ấy có còn nằm trên ổ đĩa không.
+	 * ⚠️ Hỏi Ổ ĐĨA chứ không hỏi cơ sở dữ liệu: cột `anh_vao` giữ đường dẫn, nhưng tệp thì bị
+	 *    dọn được (sao lưu, dọn ổ, chuyển host). Đề xuất một tấm không mở ra được là đưa người
+	 *    ta tới một ô ảnh vỡ, rồi họ tưởng tính năng hỏng.
+	 */
+	public static function co_tep_anh( $duong ) {
+		$duong = trim( (string) $duong );
+		if ( '' === $duong ) { return false; }
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) || empty( $u['basedir'] ) ) { return false; }
+		return is_readable( trailingslashit( $u['basedir'] ) . $duong );
+	}
+
+	/** Đường dẫn tuyệt đối của một ảnh chấm công. Rỗng nếu không đọc được. */
+	public static function tep_anh( $duong ) {
+		if ( ! self::co_tep_anh( $duong ) ) { return ''; }
+		$u = wp_upload_dir();
+		return trailingslashit( $u['basedir'] ) . trim( (string) $duong );
+	}
+
+	/**
 	 * Danh sách mẫu, để màn quản trị duyệt / xoá.
 	 *
 	 * @param bool $kem_anh nạp kèm ảnh để duyệt (tấm sinh ra mẫu + ảnh thẻ trong hồ sơ).
