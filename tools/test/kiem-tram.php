@@ -1004,6 +1004,40 @@ t( 'câu HTTP lạ kèm mã lỗi', strpos( $tram_js2, "[HTTP-' + ma + ': ' + vi
 t( 'lỗi mạng của fetch được dịch ra việc phải làm',
 	strpos( $tram_js2, 'Không gửi được lên máy chủ' ) !== false );
 
+/* --- 4. Ô CHỌN CƠ SỞ LÚC LƯU: CHỌN SẴN CƠ SỞ CHÍNH ----------------------------------------
+   Anh Thắng 09/09/2026: *"mặc định chấm công là chọn cơ sở chính phải không"* — đúng, và nay
+   có phép thử canh. Chỉ CHỌN SẴN, không khoá: người ta đổi được trong ô xổ, và lượt chấm ghi
+   vào cơ sở ĐANG CHỌN chứ không ghi vào cơ sở chính. Nếu một bản sau này bỏ chữ `selected` đi
+   thì ô xổ nhảy về phần tử đầu của `dsCoSo` — thường vẫn là cơ sở chính, nên lỗi sẽ CÂM ở đúng
+   những hồ sơ hai cơ sở mà thứ tự khác. */
+t( '🔴 ô chọn cơ sở lúc lưu ĐÁNH DẤU SẴN cơ sở chính',
+	strpos( $tram_js2, "(cs[i]===TOI.coSoMacDinh?' selected':'')" ) !== false );
+/* Và lượt gửi lấy giá trị của Ô, không lấy `coSoMacDinh` — đây mới là vế "đổi được". */
+t( 'lượt gửi lấy cơ sở ĐANG CHỌN trong ô, không lấy cơ sở chính',
+	strpos( $tram_js2, 'var cs = oCS ? oCS.value :' ) !== false );
+/* Một cơ sở thì không vẽ ô xổ — nhưng lượt gửi vẫn phải mang đúng tên cơ sở ấy, không gửi rỗng. */
+t( 'chỉ có một cơ sở thì lượt gửi vẫn mang đúng cơ sở đó',
+	strpos( $tram_js2, "(((TOI&&TOI.dsCoSo)||[])[0] || (TOI&&TOI.coSoMacDinh) || '')" ) !== false );
+/* 🔴 CƠ SỞ CHÍNH LUÔN CÓ MẶT TRONG DANH SÁCH, và đứng đầu — `ds_coso_cua_nv()` nhét
+   `$mac_dinh` vào trước rồi mới tới `cua_hang`/`coso_phu`. Không thế thì chữ `selected` ở trên
+   không khớp option nào và ô xổ lặng lẽ chọn cơ sở khác. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV_MDCS',
+	'ho_ten' => 'Người Chọn Sẵn', 'cua_hang' => 'MD_CHINH', 'coso_phu' => 'MD_PHU',
+	'pin_dang_nhap' => '556644', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn_md = VHCC_Tram::dang_nhap( '556644' );
+$tt_md = VHCC_Online::thong_tin( VHCC_Tram::nguoi( $dn_md['token'] ) );
+t( '🔴 cơ sở chọn sẵn đúng là cơ sở CHÍNH',
+	'MD_CHINH' === (string) $tt_md['coSoMacDinh'], $tt_md['coSoMacDinh'] );
+t( 'và nó đứng ĐẦU danh sách để ô xổ khớp được',
+	'MD_CHINH' === (string) $tt_md['dsCoSo'][0], $tt_md['dsCoSo'] );
+t( 'cơ sở phụ vẫn có trong ô xổ', in_array( 'MD_PHU', $tt_md['dsCoSo'], true ), $tt_md['dsCoSo'] );
+/* 🔴 VÀ CHẤM VÀO CƠ SỞ PHỤ THÌ GHI VÀO CƠ SỞ PHỤ. "Chọn sẵn" không được biến thành "ghi cứng". */
+$r_md = VHCC_Online::cham_cong( VHCC_Tram::nguoi( $dn_md['token'] ), '', null, 'MD_PHU', '' );
+t( '🔴 đổi ô sang cơ sở phụ thì ghi vào cơ sở phụ', ! empty( $r_md['ok'] )
+	&& 'MD_PHU' === (string) $r_md['coSo'], $r_md );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='NV_MDCS'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV_MDCS'" );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
