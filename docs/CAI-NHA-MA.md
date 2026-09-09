@@ -82,11 +82,13 @@ Bốn bước, làm **một lần**:
 4. Quay lại màn Cài đặt, bấm **🔗 KẾT NỐI ZALO OA** → Zalo hỏi chọn OA → xong tự quay về. Màn sẽ
    báo *"✔ Đã nối với OA …"*.
 
-> 🔴 **Vì sao không có ô "dán access token".** Access token của Zalo chỉ sống **khoảng một giờ** —
+> 🔴 **Vì sao không có ô "dán access token".** Access token của Zalo sống **25 giờ** (số của tài
+> liệu Zalo, xem lại 09/09/2026 — bản cũ của hướng dẫn này ghi "khoảng một giờ", sai) —
 > dán tay thì gửi được vài tin rồi chết, và mỗi giờ lại phải đi lấy token mới. Thứ plugin cất là
 > **refresh token** (sống vài tháng); access token thì nó tự đổi lấy khi cần.
 >
-> ⚠️ Mỗi lần làm mới, Zalo cấp luôn **refresh token mới** và cái cũ hết dùng — plugin lưu đè ngay.
+> ⚠️ Refresh token của Zalo **chỉ dùng được ĐÚNG MỘT LẦN** (hạn 3 tháng): mỗi lần làm mới, Zalo
+> cấp luôn refresh token mới và cái cũ chết ngay — plugin lưu đè ngay.
 > Đây là chỗ hỏng im lặng kinh điển: quên lưu đè thì lần sau gửi hỏng mà không ai biết cho tới khi
 > có khách không nhận được vé.
 
