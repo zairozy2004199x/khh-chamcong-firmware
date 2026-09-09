@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.3.2
+ * Version:           0.3.3
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -169,7 +169,7 @@ class SAOKE_App {
 	// ───────────────────────────── REST ─────────────────────────────
 	public static function routes() {
 		$pub = array( 'permission_callback' => '__return_true' );
-		register_rest_route( self::NS, '/webhook', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_webhook' ) ) + $pub ) );
+		register_rest_route( self::NS, '/webhook', array( array( 'methods' => 'GET, POST', 'callback' => array( __CLASS__, 'r_webhook' ) ) + $pub ) );
 		register_rest_route( self::NS, '/login',   array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_login' ) ) + $pub ) );
 		register_rest_route( self::NS, '/config',  array( array( 'methods' => 'GET',  'callback' => array( __CLASS__, 'r_config' ) ) + $pub ) );
 		register_rest_route( self::NS, '/dashboard', array( array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'r_dashboard' ) ) + $pub ) );
@@ -227,6 +227,11 @@ class SAOKE_App {
 		if ( '' === $key || ! self::key_khop( (string) $req->get_param( 'key' ), $key ) ) {
 			self::ghi_log( $src, '✖ SAI KEY (bị chặn)', $raw );
 			return new WP_REST_Response( array( 'success' => false, 'message' => 'sai key' ), 401 );
+		}
+		// Mở URL bằng trình duyệt (GET) = ping thử: key đúng + tới được web thì hiện dòng này trong Nhật ký.
+		if ( 'GET' === $req->get_method() ) {
+			self::ghi_log( $src, '🔎 ping thử (GET từ trình duyệt) — key OK, đường tới web bình thường', '' );
+			return new WP_REST_Response( array( 'success' => true, 'ping' => true, 'message' => 'OK — webhook tới được web (key đúng). Nhật ký đã ghi.' ), 200 );
 		}
 		if ( in_array( $src, self::cong_ds(), true ) ) {
 			$kq = self::cong_nhan_webhook( $src, $req );
