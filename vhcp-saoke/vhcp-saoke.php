@@ -1987,9 +1987,10 @@ body { margin:0 !important; padding:0 !important; }
 .wp-site-blocks, .wp-site-blocks > *, .entry-content, .wp-block-group, main, .site-main, .content-area,
 .wp-block-post-content, article, .page, .type-page, .hentry, .is-layout-constrained, .is-layout-flow,
 .alignwide, .alignfull { max-width:none !important; width:auto !important; margin:0 !important; padding:0 !important; }
-html, body { overflow-x:clip !important; }
-.skp-frame { position:relative; left:50%; right:50%; margin-left:-50vw; margin-right:-50vw; width:100vw; max-width:100vw; }
-.skp-frame iframe { display:block; width:100vw; height:100vh; border:0; }
+html, body { overflow:hidden !important; }
+/* Phủ TRỌN màn bằng fixed — không phụ thuộc layout/căn giữa của theme (tránh lệch phải). */
+.skp-frame { position:fixed !important; inset:0 !important; margin:0 !important; padding:0 !important; width:100vw !important; height:100vh !important; height:100dvh !important; z-index:2147483000 !important; background:#0b1220; }
+.skp-frame iframe { display:block; width:100%; height:100%; border:0; margin:0; }
 </style>
 <div class="skp-frame"><iframe title="Sao Kê Ngân Hàng K&amp;H" srcdoc="<?php echo esc_attr( $html ); ?>"></iframe></div>
 <?php
