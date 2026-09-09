@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.2.1
+ * Version:           0.2.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1299,6 +1299,21 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 						<div class="sk-fld"><button class="sk-btn" onclick="skCong()">🔍 Xem</button></div>
 					</div>
 					<div class="sk-hint" id="cgHint"></div>
+					<div class="sk-panel" id="cgCauHinh">
+						<h3>Cấu hình cổng <span id="cgCfgTen" class="sk-mut"></span></h3>
+						<div id="cgCfgWebhook">
+							<div class="sk-mut" style="margin-bottom:6px">URL webhook (dán vào cổng, Authentication = <b>No Authentication</b>):</div>
+							<div class="sk-row" style="align-items:center">
+								<code id="cgCfgUrl" style="flex:1;min-width:0">(chưa có)</code>
+								<button class="sk-btn sk-gray" onclick="skCopyUrl()">📋 Copy</button>
+							</div>
+							<div id="cgCfgThieuKey" class="sk-row" style="align-items:flex-end;margin-top:10px" hidden>
+								<div class="sk-fld" style="flex:1"><label>Chưa có Webhook Key — đặt tại đây để tạo URL</label><input id="cgCfgKey" placeholder="đặt key bí mật (chữ + số)"></div>
+								<div class="sk-fld"><button class="sk-btn" onclick="skDatKey()">Đặt key</button></div>
+							</div>
+						</div>
+						<div id="cgCfgFileNote" class="sk-mut" hidden>Cổng này <b>không có webhook</b> — dùng khung "Nạp file kết xuất" bên dưới rồi ánh xạ cửa hàng.</div>
+					</div>
 					<div class="sk-cards" style="grid-template-columns:repeat(4,1fr)">
 						<div class="sk-card"><div class="sk-lbl">Tổng từ cổng</div><div class="sk-val sk-in" id="cgCong">0</div></div>
 						<div class="sk-card"><div class="sk-lbl">Cục về bank (khớp từ khoá)</div><div class="sk-val" id="cgBank">0</div></div>
@@ -1568,15 +1583,24 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 			$('#cgCong').textContent=fmt(d.congTien); $('#cgBank').textContent=fmt(d.bankTien);
 			$('#cgChenh').textContent=fmt(d.chenh); $('#cgChenh').className='sk-val '+(d.chenh?(d.chenh>0?'sk-in':'sk-out'):'');
 			$('#cgKieu').textContent=d.kieuDoiSoat; $('#cgKw').value=d.tuKhoa||'';
-			var h='Từ khoá cục về bank: <b>'+esc(d.tuKhoa||'(chưa đặt)')+'</b>. ';
-			if(n==='vietqr'){ h+=d.thieuKey?'⚠️ Chưa đặt Webhook Key (ở WP Admin) nên chưa có URL webhook Việt QR.':'Webhook Việt QR: <code>'+esc(d.webhookUrl)+'</code> — dán vào Tingo/cổng, Authentication = No Authentication.'; }
-			else { h+=n.toUpperCase()+' không có webhook — dùng khung "Nạp file kết xuất" phía dưới + ánh xạ cửa hàng.'; }
-			$('#cgHint').innerHTML=h;
+			$('#cgHint').innerHTML='Từ khoá cục về bank: <b>'+esc(d.tuKhoa||'(chưa đặt)')+'</b> — dùng để nhận ra cục tiền cổng chuyển về ngân hàng.';
+			// Cấu hình cổng
+			$('#cgCfgTen').textContent='· '+esc(d.ten);
+			CG_URL=d.webhookUrl||'';
+			var coWebhook=(n==='vietqr');
+			$('#cgCfgWebhook').hidden=!coWebhook; $('#cgCfgFileNote').hidden=coWebhook;
+			if(coWebhook){
+				$('#cgCfgThieuKey').hidden=!d.thieuKey;
+				$('#cgCfgUrl').textContent=d.thieuKey?'(đặt Webhook Key để tạo URL)':(d.webhookUrl||'(chưa có)');
+			}
 			$('#cgBody').innerHTML=(d.cong||[]).map(function(o){
 				return '<tr><td>'+esc(o.thoiDiem)+'</td><td class="sk-in">'+fmt(o.soTien)+'</td><td>'+esc(o.maGD)+'</td><td>'+esc(o.ref)+'</td><td>'+esc(o.tenMay||o.coSo||'—')+'</td><td style="white-space:normal;max-width:280px">'+esc(o.noiDung)+'</td></tr>';
 			}).join('')||'<tr><td colspan=6 class="sk-mut">Chưa có giao dịch cổng'+(d.congKho?(' ('+d.congKho+' dòng chưa đọc được đủ trường)'):'')+'.</td></tr>';
 		}).catch(function(e){ $('#cgBody').innerHTML='<tr><td colspan=6 style="color:#f0a0a0">❌ '+esc(e.message||e)+'</td></tr>'; });
 	};
+	var CG_URL='';
+	window.skCopyUrl=function(){ if(!CG_URL){toast('Chưa có URL — đặt Webhook Key trước',true);return;} try{ navigator.clipboard.writeText(CG_URL).then(function(){toast('Đã copy URL webhook');},function(){toast(CG_URL);}); }catch(e){ toast(CG_URL); } };
+	window.skDatKey=function(){ var k=($('#cgCfgKey').value||'').trim(); if(!k){toast('Nhập key trước',true);return;} post('/cauhinh',{ key:k }).then(function(){ toast('Đã đặt Webhook Key'); $('#cgCfgKey').value=''; napCfg(function(){ skCong(); }); }).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuTuKhoa=function(){ post('/cong-tukhoa',{ nguon:$('#cgNguon').value, tuKhoa:$('#cgKw').value }).then(function(){toast('Đã lưu từ khoá'); skCong();}).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuAnhXa=function(){ post('/anhxa',{ nguon:$('#cgNguon').value, tenFile:$('#axTen').value, tenChuan:$('#axChuan').value, maBank:$('#axMa').value, tuNgay:vn($('#axTu').value), denNgay:vn($('#axDen').value) })
 		.then(function(r){ toast('Đã lưu ánh xạ → '+r.maBank+(r.daVa?(' · vá '+r.daVa+' dòng file'):'')); ['axTen','axChuan','axMa','axTu','axDen'].forEach(function(id){$('#'+id).value='';}); }).catch(function(e){toast(e.message||e,true);}); };
