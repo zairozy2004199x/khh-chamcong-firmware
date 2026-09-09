@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.10.0
+ * Version:           0.11.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1629,6 +1629,7 @@ class SAOKE_App {
 			'getDoiChieuNop', 'napLaiDanhSachDiem', 'getTongHopCoSo', 'getSaoKeCong', 'getDoiSoatFile',
 			'napFileCong', 'napFileCongTx', 'luuAnhXaCuaHang', 'chuyenGianCuaHang', 'xoaAnhXaCuaHang',
 			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
+			'getCosoMa', 'saveCosoMa',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
 		try {
@@ -1796,6 +1797,18 @@ class SAOKE_App {
 		}
 		foreach ( self::ds_diem() as $d ) { $ds[] = array( 'ma' => $d['ma'], 'ten' => '' !== ( isset( $d['ten'] ) ? $d['ten'] : '' ) ? $d['ten'] : $d['ma'], 'maDiem' => isset( $d['maDiem'] ) ? $d['maDiem'] : '' ); }
 		return array( 'ok' => true, 'ds' => $ds );
+	}
+	// ── Mã nộp tiền theo cơ sở (kế toán tự nhập ở tab Cấu hình) ──
+	public static function rpc_getCosoMa( $a ) {
+		self::can_pin( $a ); $cm = self::coso_ma_map(); $ds = array();
+		foreach ( self::ghe_ds_coso() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
+		return array( 'ok' => true, 'ds' => $ds, 'coGhe' => self::ghe_co() );
+	}
+	public static function rpc_saveCosoMa( $a ) {
+		self::can_pin( $a ); $in = isset( $a[1] ) && is_array( $a[1] ) ? $a[1] : array(); $map = array();
+		foreach ( $in as $k => $v ) { $k = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $k ) ); $v = trim( sanitize_text_field( (string) $v ) ); if ( '' !== $k && '' !== $v ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
+		update_option( 'saoke_coso_ma', $map );
+		return array( 'ok' => true, 'so' => count( $map ) );
 	}
 	public static function rpc_napLaiDanhSachDiem( $a ) {
 		self::can_pin( $a ); $ds = self::ds_diem();

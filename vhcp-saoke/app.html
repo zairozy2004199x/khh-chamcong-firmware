@@ -2257,6 +2257,32 @@ function renderCfg(){
   }
   document.getElementById('cfgWebhookKey').placeholder = CFG.hasWebhookKey ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
   document.getElementById('cfgApiToken').placeholder = CFG.hasApiToken ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
+  renderCosoMa();
+}
+/* Mã nộp tiền theo cơ sở — kế toán tự nhập (không cần vào WP-Admin). Lưu ở plugin, dùng để lọc
+   sao kê ngân hàng biết cơ sở đã nộp tiền mặt chưa. */
+function renderCosoMa(){
+  var host = document.getElementById('v-cfg'); if(!host) return;
+  var box = document.getElementById('cfgCosoMa');
+  if(!box){ box = document.createElement('div'); box.id='cfgCosoMa'; box.style.cssText='margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)'; host.appendChild(box); }
+  box.innerHTML = '<h3 style="margin:0 0 6px">Mã nộp tiền theo cơ sở</h3>'
+    + '<div class="muted" style="margin-bottom:8px">Mỗi cơ sở một mã (chuỗi ghi trong nội dung khi <b>nộp tiền mặt</b> vào ngân hàng) — để dò trong sao kê ngân hàng biết cơ sở <b>đã nộp tiền mặt chưa</b>. Bỏ trống = chưa dùng.</div>'
+    + '<div id="cfgCosoMaBody" class="muted">Đang tải…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    var body = document.getElementById('cfgCosoMaBody'); if(!body) return;
+    if(!r || !r.ok){ body.textContent = (r && r.error) || 'Không tải được'; return; }
+    var ds = r.ds || [];
+    if(!ds.length){ body.textContent = r.coGhe ? 'Chưa có cơ sở nào bên trang Ghế.' : 'Chưa nối được trang Ghế (cùng WordPress).'; return; }
+    body.innerHTML = '<div style="max-height:60vh;overflow:auto"><table><thead><tr><th>Cơ sở</th><th>Tỉnh</th><th>Mã nộp tiền</th></tr></thead><tbody>'
+      + ds.map(function(c){ return '<tr><td><b>'+esc(c.coso)+'</b></td><td class="muted">'+esc(c.tinh||'')+'</td>'
+          + '<td><input data-cm="'+esc(c.key)+'" value="'+esc(c.ma||'')+'" placeholder="mã (nếu có)" style="width:200px"></td></tr>'; }).join('')
+      + '</tbody></table></div><div style="margin-top:10px"><button onclick="luuCosoMa()">Lưu mã theo cơ sở</button></div>';
+  }).withFailureHandler(function(e){ var b=document.getElementById('cfgCosoMaBody'); if(b) b.textContent='Lỗi: '+e.message; }).getCosoMa(PIN);
+}
+function luuCosoMa(){
+  var map = {};
+  [].forEach.call(document.querySelectorAll('#cfgCosoMaBody [data-cm]'), function(i){ var v=(i.value||'').trim(); if(v) map[i.getAttribute('data-cm')] = v; });
+  google.script.run.withSuccessHandler(function(r){ toast('Đã lưu mã cho '+((r&&r.so)||0)+' cơ sở'); }).withFailureHandler(function(e){ toast(e.message, true); }).saveCosoMa(PIN, map);
 }
 function luuCauHinh(){
   var token=document.getElementById('cfgApiToken').value, key=document.getElementById('cfgWebhookKey').value;
