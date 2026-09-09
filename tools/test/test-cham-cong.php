@@ -19369,6 +19369,21 @@ t( '🔴 màn hiện ẢNH đề xuất ngay, không giấu sau thẻ gập',
 	strpos( $h_ac, 'vhcc-cham/2026/09/ac-ro.jpg' ) !== false, null );
 t( 'có nút lấy cho từng người', strpos( $h_ac, 'value="anh_the_tu_cham"' ) !== false, null );
 t( 'và nút lấy cho cả cơ sở', strpos( $h_ac, 'value="anh_the_tu_cham_het"' ) !== false, null );
+/* 🔴 NHÃN NÚT PHẢI NÓI RA HẬU QUẢ, KHÔNG NÓI VỀ TẤM ẢNH. Anh Thắng nhìn nút cũ ("Dùng ảnh này")
+   và phải hỏi *"khúc này là lưu vào hệ thống hay đẩy vào máy chấm công"* — câu hỏi ấy là lời
+   phán xử cho cái nhãn. Hậu quả có HAI nửa, mà nửa thứ hai đi ra ngoài phần mềm: xuống một cái
+   máy ở cửa hàng. Người bấm phải biết trước. */
+t( '🔴 nút từng người nói rõ LÀM GÌ, không chỉ nói về tấm ảnh',
+	strpos( $h_ac, 'Lưu vào hồ sơ &amp; đẩy xuống máy' ) !== false, null );
+t( '🔴 nút cả cơ sở cũng nói rõ hai việc',
+	strpos( $h_ac, 'Lưu &amp; đẩy xuống máy cho cả' ) !== false, null );
+/* ⚠️ Cùng một người KHÔNG được hiện hai dòng nghe như hai việc khác nhau. Dòng gập bên dưới là
+   ĐƯỜNG DỰ PHÒNG cho chính người ấy, nên phải đọc ra là dự phòng. */
+t( '🔴 dòng gập của người ĐÃ có đề xuất đọc ra là đường dự phòng',
+	strpos( $h_ac, 'hoặc tải ảnh KHÁC lên thay tấm trên' ) !== false, null );
+/* Còn người CHƯA có đề xuất thì vẫn giữ nguyên câu cũ — đổi cả hai là mất nghĩa của câu gốc. */
+t( 'người chưa có đề xuất vẫn giữ câu "bấm để tải ảnh thẻ"',
+	strpos( $h_ac, 'bấm để tải ảnh thẻ' ) !== false, null );
 t( 'nói rõ lệch nhỏ nghĩa là rõ mặt', strpos( $h_ac, 'càng nhỏ càng rõ mặt' ) !== false, null );
 /* ⚠️ Nói ra chốt chống chấm hộ NGAY TRÊN MÀN: người bấm phải biết máy đã lọc cái gì, kẻo họ
    tưởng nó lấy bừa tấm gần nhất rồi không dám dùng. */

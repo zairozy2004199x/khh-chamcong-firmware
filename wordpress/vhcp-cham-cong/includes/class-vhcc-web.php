@@ -3771,9 +3771,10 @@ class VHCC_Web {
 				. '<input type="hidden" name="viec" value="anh_the_tu_cham_het">'
 				. '<input type="hidden" name="atc_coso" value="' . esc_attr( $cs ) . '">'
 				. self::o_loc()
-				. '<button class="chinh">Lấy ảnh thẻ cho cả ' . count( $de_xuat )
-				. ' người</button> <span class="mo">— người nào chưa có ảnh khớp thì bỏ qua, '
-				. 'có nói rõ vì sao.</span></form></div>';
+				. '<button class="chinh">Lưu &amp; đẩy xuống máy cho cả ' . count( $de_xuat )
+				. ' người</button> <span class="mo">— lưu ảnh vào hồ sơ <b>và</b> đặt lệnh xuống '
+				. 'máy chấm công, trong một lượt bấm. Người nào chưa có ảnh khớp thì bỏ qua, có '
+				. 'nói rõ vì sao.</span></form></div>';
 		}
 
 		echo '<div class="tnv-ds" style="margin-top:8px">';
@@ -3799,11 +3800,25 @@ class VHCC_Web {
 					. '<input type="hidden" name="viec" value="anh_the_tu_cham">'
 					. '<input type="hidden" name="atc_ma" value="' . esc_attr( $ma ) . '">'
 					. self::o_loc()
-					. '<button class="them">Dùng ảnh này</button></form>';
+					/* 🔴 09/09/2026 — NÚT PHẢI NÓI RA NÓ LÀM GÌ. Anh Thắng nhìn đúng nút này và
+					   hỏi: *"khúc này là lưu vào hệ thống hay đẩy vào máy chấm công"*. Câu hỏi ấy
+					   là lời phán xử cho cái nhãn cũ ("Dùng ảnh này"): nó nói về TẤM ẢNH chứ
+					   không nói về HẬU QUẢ. Mà hậu quả ở đây có hai nửa, và nửa thứ hai đi ra
+					   ngoài phần mềm — xuống một cái máy ở cửa hàng. Người bấm phải biết trước. */
+					. '<button class="them">Lưu vào hồ sơ &amp; đẩy xuống máy</button>'
+					. '<div class="mo" style="font-size:11.5px;margin-top:3px;max-width:180px">'
+					. 'Làm cả hai việc trong một lượt bấm.</div></form>';
 				echo '</div>';
 			}
+			/* ⚠️ KHI ĐÃ CÓ ĐỀ XUẤT thì dòng gập bên dưới phải đọc KHÁC ĐI. Bản trước để nguyên
+			   câu "— bấm để tải ảnh thẻ", nên cùng một người hiện ra HAI DÒNG LIỀN NHAU với hai
+			   nhãn nghe như hai việc khác nhau — anh Thắng nhìn đúng chỗ đó (ảnh 09/09/2026:
+			   "Hà Quang Thắng" đứng hai dòng chồng nhau). Nó là ĐƯỜNG DỰ PHÒNG cho chính người
+			   ấy, nên phải nói ra là dự phòng. */
 			echo '<details><summary>' . esc_html( $x['ho_ten'] . ' (' . $ma . ')' )
-				. ' <span class="mo">— bấm để tải ảnh thẻ</span></summary>';
+				. ' <span class="mo">— ' . ( isset( $de_xuat[ $ma ] )
+					? 'hoặc tải ảnh KHÁC lên thay tấm trên'
+					: 'bấm để tải ảnh thẻ' ) . '</span></summary>';
 			/* ⚠️ KHÔNG tính vector khuôn mặt ở đây, dù `khoi_them_nv()`/`the_sua_ho_so()` (nhánh
 			   tạo mới) có làm việc đó — hai chỗ ấy chỉ hiện cho MỘT VAI (Cửa hàng trưởng không
 			   có `ho_so`, hoặc đúng lúc tạo mới), còn khối này hiện cho CẢ Admin lẫn Cửa hàng
