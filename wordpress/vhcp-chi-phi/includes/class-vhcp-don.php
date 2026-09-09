@@ -944,8 +944,52 @@ class VHCP_Don {
 		return ( null === $ra ) ? $s : $ra;
 	}
 
+	/**
+	 * CỬA LẬP ĐƠN CHO NGƯỜI DÙNG — `createDon` trên giao diện vào đây.
+	 *
+	 * 🔴 KHÔNG LẬP RA MỘT ĐƠN MÀ CHÍNH NGƯỜI LẬP KHÔNG MỞ ĐƯỢC.
+	 *
+	 * Cắn thật 09/09/2026, mất gần một buổi mới lần ra. Tài khoản anh Trần Ngọc Quyền có:
+	 *     cột "Đơn vị"      = trống  -> nhà là K&H  -> đơn lập ra mang đơn vị K&H
+	 *     cột "Xem đơn vị"  = POSH   -> chỉ đọc được sổ POSH
+	 * Nhà một đằng, tầm nhìn một nẻo. Mỗi lượt bấm Tạo đơn đều ghi thành công rồi biến mất ngay
+	 * trước mắt: "Đã tạo đơn" xanh, kế tiếp "Không tìm thấy đơn" đỏ. Đơn vẫn nằm trong sổ, chiếm
+	 * mã, không ai xoá — và người dùng bấm lại, đẻ thêm một cái nữa.
+	 *
+	 * 🔴 CHỐT NẰM Ở ĐÂY, KHÔNG NẰM TRONG `create_don()`.
+	 *    Bản vá đầu đặt thẳng vào `create_don()` và làm gãy `chuyen_don_vi()` — luồng ấy CỐ Ý
+	 *    lập đơn cho mảng bên kia rồi đặt lại đơn vị đích, và người chuyển đương nhiên không xem
+	 *    được sổ bên nhận. `test-flows.php` đỏ ngay, đúng chỗ. Nên tách làm hai tầng: hàm dưới
+	 *    chỉ GHI, cửa này mới hỏi "người bấm có mở lại được không".
+	 *
+	 * ⚠️ KHÔNG tự sửa đơn vị cho khớp. Ghi đại nhà của người gọi vào đơn của người khác là tiền
+	 *    của mảng này chui sang sổ mảng kia — im lặng, và không ai đối chiếu ra. Chối và nói rõ
+	 *    phải sửa ở đâu.
+	 * ⚠️ Ai xem cả (Admin · Quản lý · Kế toán) thì `duoc_xem()` luôn đúng, nên chốt này không
+	 *    đụng tới họ — kể cả khi họ lập đơn hộ người của mảng khác.
+	 */
+	public static function tao_don_moi( $ky, $nguoi_lap ) {
+		$dv = VHCP_DonVi::cua_nguoi( $nguoi_lap );
+		if ( ! VHCP_DonVi::duoc_xem( $dv ) ) {
+			$ds = VHCP_DonVi::xem_duoc();
+			return VHCP_Util::err(
+				'Chưa lập được đơn: người lập "' . $nguoi_lap . '" thuộc đơn vị "' . $dv
+				. '", mà tài khoản đang dùng chỉ xem được: '
+				. ( null === $ds ? '(tất cả)' : implode( ', ', $ds ) ) . '. '
+				. 'Lập ra thì đơn biến mất ngay khỏi màn của chính người lập, nên chặn lại ở đây. '
+				. 'Sửa cột "Đơn vị" của người lập ở Cấu hình → Người dùng & Phân quyền cho khớp '
+				. 'với cột "Xem đơn vị", rồi lập lại.' );
+		}
+		return self::create_don( $ky, $nguoi_lap );
+	}
+
+	/**
+	 * GHI một đơn mới vào sổ. Không hỏi quyền — cửa hỏi quyền là `tao_don_moi()` ở trên.
+	 * `chuyen_don_vi()` gọi thẳng vào đây, cố ý.
+	 */
 	public static function create_don( $ky, $nguoi_lap ) {
 		global $wpdb;
+		$dv = VHCP_DonVi::cua_nguoi( $nguoi_lap );
 		$m = VHCP_Util::uid( 'D' );
 		$ok = $wpdb->insert( VHCP_DB::t( 'don' ), array(
 			'ma_don'     => $m,
@@ -956,7 +1000,7 @@ class VHCP_Don {
 			   khi đơn ấy chi cho một cơ sở bên kia. Không có ô cho người dùng chọn: một ô chọn
 			   là một chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của bên kia và biến
 			   mất khỏi màn của chính người vừa lập nó. */
-			'don_vi'     => VHCP_DonVi::cua_nguoi( $nguoi_lap ),
+			'don_vi'     => $dv,
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',

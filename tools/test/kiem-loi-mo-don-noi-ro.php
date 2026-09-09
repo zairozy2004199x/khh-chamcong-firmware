@@ -134,23 +134,82 @@ class WPDB_GIA {
 	public $cho_ghi = true; public $last_error = ''; public $da_ghi = 0;
 	public function insert( $b, $d ) { if ( ! $this->cho_ghi ) { return false; } $this->da_ghi++; return 1; }
 }
-$i = strpos( $DON, 'public static function create_don(' );
+$i = strpos( $DON, 'public static function tao_don_moi(' );
 $j = strpos( $DON, "\n\t}", $i );
-t( 'bốc được create_don()', false !== $i && $j > $i );
-eval( 'class TD { ' . substr( $DON, $i, $j - $i + 3 )
+t( 'bốc được tao_don_moi()', false !== $i && $j > $i );
+$k = strpos( $DON, 'public static function create_don(' );
+$l = strpos( $DON, "\n\t}", $k );
+t( 'bốc được create_don()', false !== $k && $l > $k );
+eval( 'class TD { ' . substr( $DON, $i, $j - $i + 3 ) . ' ' . substr( $DON, $k, $l - $k + 3 )
 	. ' private static function chuan_ky_moi( $k ) { return $k; } }' );
-class VHCP_DonVi { public static function cua_nguoi( $t ) { return 'POSH'; } }
+class VHCP_DonVi {
+	public static function cua_nguoi( $t ) { return NHA::$cua; }
+	public static function xem_duoc() { return KHO::$xem; }
+	public static function duoc_xem( $dv ) { return DVI::duoc_xem( $dv ); }
+}
 
 global $wpdb;
 $wpdb = new WPDB_GIA();
-$r = TD::create_don( 'T9/2026', 'Trần Ngọc Quyền' );
+$r = TD::tao_don_moi( 'T9/2026', 'Trần Ngọc Quyền' );
 t( 'ghi được → báo xong, kèm mã đơn', ! empty( $r['success'] ) && ! empty( $r['maDon'] ), $r );
 
 $wpdb = new WPDB_GIA(); $wpdb->cho_ghi = false; $wpdb->last_error = "Unknown column 'don_vi'";
-$r = TD::create_don( 'T9/2026', 'Trần Ngọc Quyền' );
+$r = TD::tao_don_moi( 'T9/2026', 'Trần Ngọc Quyền' );
 t( '🔴 GHI HỎNG → KHÔNG được báo xong', empty( $r['success'] ), $r );
 t( '   và KHÔNG trả về mã đơn ma',       empty( $r['maDon'] ), $r );
 t( '   và mang theo lời của MySQL',      false !== mb_strpos( (string) $r['error'], 'Unknown column' ), $r );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 3. 🔴 KHÔNG LẬP RA ĐƠN MÀ CHÍNH NGƯỜI LẬP KHÔNG MỞ ĐƯỢC
+ *
+ * Đây là gốc rễ của cả buổi 09/09/2026: nhà K&H, tầm nhìn POSH -> mỗi lượt bấm Tạo đơn đều ghi
+ * thành công rồi biến mất ngay trước mắt. Đơn vẫn nằm trong sổ, chiếm mã, không ai xoá — và
+ * người dùng bấm lại, đẻ thêm cái nữa.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+class NHA { public static $cua = 'POSH'; }
+$wpdb = new WPDB_GIA();
+KHO::$xem = array( 'POSH' );
+
+/* Ca hỏng: người lập thuộc K&H, tài khoản đang dùng chỉ xem POSH. */
+NHA::$cua = 'K&H';
+$r = TD::tao_don_moi( 'T9/2026', 'Trần Ngọc Quyền' );
+t( '🔴 nhà lệch tầm nhìn → CHỐI, không ghi gì', empty( $r['success'] ) && 0 === $wpdb->da_ghi, $r );
+t( '   câu chối nói tên NGƯỜI LẬP',   false !== mb_strpos( (string) $r['error'], 'Trần Ngọc Quyền' ), $r );
+t( '   nói ĐƠN VỊ của người lập',      false !== mb_strpos( (string) $r['error'], '"K&H"' ), $r );
+t( '   nói mình đang xem được gì',     false !== mb_strpos( (string) $r['error'], 'POSH' ), $r );
+t( '   và chỉ ra chỗ sửa',             false !== mb_strpos( (string) $r['error'], 'Cấu hình' ), $r );
+
+/* Ca lành: nhà khớp tầm nhìn -> ghi bình thường. */
+NHA::$cua = 'POSH';
+$wpdb = new WPDB_GIA();
+$r = TD::tao_don_moi( 'T9/2026', 'Trần Ngọc Quyền' );
+t( 'nhà khớp → lập được', ! empty( $r['success'] ) && 1 === $wpdb->da_ghi, $r );
+
+/* Admin xem cả → không đụng tới, kể cả khi lập hộ người mảng khác. */
+NHA::$cua = 'K&H';
+KHO::$xem = null;
+$wpdb = new WPDB_GIA();
+$r = TD::tao_don_moi( 'T9/2026', 'Người Của K&H' );
+t( '🔴 Admin (xem cả) lập hộ người mảng khác → KHÔNG bị chặn',
+	! empty( $r['success'] ) && 1 === $wpdb->da_ghi, $r );
+
+/* 🔴 Đơn phải mang ĐÚNG nhà của người lập, không phải nhà của người đang bấm. Ghi đại nhà người
+   gọi là tiền của mảng này chui sang sổ mảng kia, im lặng, không ai đối chiếu ra. */
+$than_tao = substr( $DON, $k, $l - $k + 3 );
+t( '🔴 đơn lấy đơn vị từ NGƯỜI LẬP, không phải người đang bấm',
+	false !== strpos( $than_tao, '$dv = VHCP_DonVi::cua_nguoi( $nguoi_lap );' )
+	&& false !== strpos( $than_tao, "'don_vi'     => \$dv," ), '' );
+t( '   và KHÔNG tự sửa đơn vị cho khớp', false === strpos( $than_tao, 'cua_toi()' ), '' );
+/* 🔴 CHỐT PHẢI NẰM Ở CỬA, KHÔNG NẰM TRONG HÀM GHI. `chuyen_don_vi()` gọi thẳng `create_don()`
+   để lập đơn cho mảng bên kia — cố ý, và người chuyển đương nhiên không xem được sổ bên nhận.
+   Nhét chốt vào hàm ghi là gãy đúng luồng ấy; `test-flows.php` đã đỏ một lần vì thế. */
+t( '🔴 hàm GHI không tự hỏi quyền (kẻo gãy luồng chuyển đơn vị)',
+	false === strpos( $than_tao, 'duoc_xem' ), '' );
+t( '   và luồng chuyển đơn vị vẫn gọi thẳng create_don()',
+	false !== strpos( $DON, "\$moi = self::create_don( (string) \$d['ky'], \$nguoi );" ), '' );
+$API = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+t( '🔴 giao diện gọi vào CỬA có chốt, không gọi thẳng hàm ghi',
+	false !== strpos( $API, "'createDon'             => array( 'VHCP_Don', 'tao_don_moi' )," ), '' );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

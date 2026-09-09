@@ -7292,10 +7292,41 @@
           +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
           +'<td style="text-align:center">🔒</td></tr>';
       }
-      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
+      return '<tr'+(_dvLech(u)?' style="background:#fff7ed"':'')+'><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+_dvCanhBao(u)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
   function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     🔴 NHÀ MỘT ĐẰNG, TẦM NHÌN MỘT NẺO — BÁO NGAY TẠI HÀNG.
+
+     Cắn thật 09/09/2026, mất gần một buổi. Tài khoản anh Trần Ngọc Quyền có cột "Đơn vị" để
+     trống (tức K&H) còn cột "Xem đơn vị" là POSH. Hai cột đứng cạnh nhau, tên gần giống, mà
+     ĐỂ TRỐNG thì nhìn y như chưa điền gì — chữ mờ "trống = K&H" không ai đọc ra là "đang
+     tính bằng K&H". Hậu quả rơi xuống một màn khác, vào một ngày khác: nhân viên bấm Tạo đơn,
+     đơn ghi xong rồi biến mất ngay trước mắt vì nó mang đơn vị K&H mà người ấy chỉ đọc POSH.
+
+     Máy chủ nay đã CHẶN lượt tạo đơn ấy (xem `VHCP_Don::create_don`). Nhưng chặn ở đó là chặn
+     khi đã muộn — người gặp câu lỗi là nhân viên, còn người sửa được lại là quản trị. Nên báo
+     thêm ở ĐÂY, đúng chỗ và đúng lúc khai.
+
+     ⚠️ CHỈ BÁO, KHÔNG CHẶN LƯU. Với kế toán/quản lý thì lệch là CHUYỆN BÌNH THƯỜNG và cố ý:
+        anh Thắng 26/08 — *"Kế toán Posh chỉ thấy chi phí Posh"* — nhà họ vẫn có thể là K&H.
+        Chỉ ai LẬP ĐƠN mới chết vì lệch, nên câu báo nói rõ điều kiện ấy thay vì cấm đoán.
+     ══════════════════════════════════════════════════════════════════════════════════════ */
+  function _dvLech(u){
+    var xem=String((u&&u.xemDonVi)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    if(!xem.length) return false;                       // trống = theo mặc định của vai, không lệch
+    var nha=_dvChuan(u&&u.donVi).toLowerCase();
+    return !xem.some(function(x){ return _dvChuan(x).toLowerCase()===nha; });
+  }
+  function _dvCanhBao(u){
+    if(!_dvLech(u)) return '';
+    var nha=_dvChuan(u&&u.donVi);
+    return '<div style="font-size:11px;color:#b45309;margin-top:3px;line-height:1.35">'
+      +'⚠️ Nhà là <b>'+esc(nha)+'</b> nhưng chỉ xem được <b>'+esc(String(u.xemDonVi||''))+'</b>'
+      +' — đơn người này lập sẽ mang đơn vị '+esc(nha)+' và họ KHÔNG mở lại được.'
+      +'</div>';
+  }
   /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */

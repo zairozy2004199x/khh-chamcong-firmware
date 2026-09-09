@@ -244,7 +244,14 @@ function demO(than) {
   return n;
 }
 /* Hàng người dùng dựng bằng những hàm nào, theo đúng thứ tự trong mã. */
-const HANG = (HTML.match(/return '<tr><td>'\+_inp\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
+/* ⚠️ NEO VÀO `_inp(u.ten`, KHÔNG GHIM `'<tr><td>'`. Ngày 09/09/2026 thẻ `<tr>` được thêm thuộc
+   tính (tô nền hàng khai lệch nhà/tầm nhìn) và bài này đỏ với năm dòng "mong undefined" — trông
+   y như mã hỏng, mà thật ra chỉ là cái neo ghim vào một thứ KHÔNG liên quan tới phép đang canh.
+   Phép này canh CHỈ SỐ Ô; thẻ mở hàng trông thế nào thì mặc kệ. */
+/* `[^\n]*?` chứ không phải `[\s\S]*?`: hàng CHỈ ĐỌC (tài khoản bị khoá) cũng mở bằng
+   `return '<tr` ở một dòng trên. Cho phép vắt qua dòng là nó ngoạm luôn cả hàng ấy — 86 ô thay
+   vì 9, và bài kiểm lại đỏ vì chính cái neo của mình. */
+const HANG = (HTML.match(/return '<tr[^\n]*?_inp\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
 t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.slice(0, 60));
 /* ⚠️ CÓ Ô VIẾT THẲNG TRONG HÀNG, không qua hàm dựng — ô PIN là một `<input>` gõ tay ngay
    trong chuỗi. Chỉ quét tên hàm là bỏ sót đúng nó, và mọi cột sau đó lệch một nhịp trong

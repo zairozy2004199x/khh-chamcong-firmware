@@ -223,7 +223,7 @@ class VHCP_API {
 
 			// đơn vận hành
 			'listDons'              => array( 'VHCP_Don', 'list_dons' ),
-			'createDon'             => array( 'VHCP_Don', 'create_don' ),
+			'createDon'             => array( 'VHCP_Don', 'tao_don_moi' ),
 			'getDon'                => array( 'VHCP_Don', 'get_don' ),
 			'setTamUng'             => array( 'VHCP_Don', 'set_tam_ung' ),
 			'setDuPhong'            => array( 'VHCP_Don', 'set_du_phong' ),
