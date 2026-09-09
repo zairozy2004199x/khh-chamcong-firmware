@@ -13000,6 +13000,52 @@ foreach ( array( 'Cổng nhận chấm công từ máy', 'Nhật ký cổng', 'D
 	t( 'màn có khối "' . $wm_k . '"', strpos( $wm_ad, $wm_k ) !== false, $wm_k );
 }
 t( 'máy hiện ra trong danh sách', strpos( $wm_ad, 'WM-1' ) !== false, $wm_ad );
+
+/* 🔴 NHẬT KÝ CỔNG PHẢI Ở CUỐI TRANG — anh Thắng 09/09/2026: *"chỗ này xuống cuối trang"*, kèm
+   ảnh: mấy chục dòng `GOI_THU_DUONG` chắn ngang, mỗi dòng cao bốn hàng vì cột "Lúc" xuống dòng.
+   Nó là thứ đọc KHI CÓ SỰ CỐ, không phải thứ đọc hằng ngày.
+   ⚠️ Đo bằng VỊ TRÍ TƯƠNG ĐỐI với mấy khối phải đứng trên nó, không đo "gần cuối chuỗi": chân
+      trang công ty còn dài hơn cả khối này, nên đo khoảng cách tới cuối là đo nhầm thứ. */
+$_i_nk  = strpos( $wm_ad, 'Nhật ký cổng' );
+$_i_len = strpos( $wm_ad, 'Lệnh đang chờ xuống máy' );
+$_i_fw  = strpos( $wm_ad, 'Cập nhật firmware' );
+t( 'bốc được cả ba khối để so vị trí',
+	false !== $_i_nk && false !== $_i_len && false !== $_i_fw, null );
+t( '🔴 Nhật ký cổng đứng SAU "Lệnh đang chờ xuống máy"', $_i_len < $_i_nk,
+	'lenh=' . var_export( $_i_len, true ) . ' nhatky=' . var_export( $_i_nk, true ) );
+t( '🔴 và SAU cả "Cập nhật firmware" — tức là khối cuối', $_i_fw < $_i_nk,
+	'fw=' . var_export( $_i_fw, true ) . ' nhatky=' . var_export( $_i_nk, true ) );
+
+/* 🔴 CỘT "ẢNH MẶT" Ở BẢNG LỆNH — anh Thắng: *"Danh sách nhân viên đủ ảnh và chờ đẩy vào máy chấm
+   công chỗ nào"*. Hàng đợi vốn CÓ sẵn cột `co_anh` nhưng bảng không hiện, nên vừa bấm "Lấy ảnh
+   thẻ cho cả N người" xong, mở màn này ra chỉ thấy một dãy `add` giống hệt nhau — không phân
+   biệt được lệnh nào mang khuôn mặt và lệnh nào chỉ ghi cái tên. */
+VHCC_May::dat_lenh( 'wm-sn-1', 'add', array( 'ma_nv' => 'WMANH', 'ho_ten' => 'Người Có Ảnh',
+	'cua_hang' => 'TUTU_BT', 'co_anh' => 1, 'anh_b64' => 'data:image/jpeg;base64,QUJD' ) );
+VHCC_May::dat_lenh( 'wm-sn-1', 'add', array( 'ma_nv' => 'WMKHONG', 'ho_ten' => 'Người Không Ảnh',
+	'cua_hang' => 'TUTU_BT', 'co_anh' => 0 ) );
+$wm_anh = vhcc_may_web( 'Admin' );
+t( 'bảng lệnh có cột "Ảnh mặt"', strpos( $wm_anh, '<th>Ảnh mặt</th>' ) !== false, null );
+t( '🔴 lệnh MANG ảnh được đánh dấu "có"',
+	preg_match( '/✔ có/u', $wm_anh ) === 1, null );
+t( '🔴 lệnh KHÔNG mang ảnh được đánh dấu "chưa có"',
+	strpos( $wm_anh, 'chưa có</span>' ) !== false, null );
+t( 'và có dòng đếm bao nhiêu/bao nhiêu lệnh mang ảnh',
+	strpos( $wm_anh, 'lệnh đang chờ có mang' ) !== false, null );
+/* ⚠️ Cả hai người phải có mặt trong bảng — nếu bảng chỉ vẽ một dòng thì hai phép trên vẫn xanh
+   nhờ dòng ấy, mà chẳng chứng minh được nó phân biệt nổi hai loại. */
+t( 'cả hai lệnh cùng có mặt trong bảng',
+	strpos( $wm_anh, 'Người Có Ảnh' ) !== false && strpos( $wm_anh, 'Người Không Ảnh' ) !== false, null );
+/* Lệnh `delete` không bao giờ mang ảnh — để ô trống thay vì in "chưa có", kẻo đọc ra như một
+   thiếu sót cần đi sửa. */
+VHCC_May::dat_lenh( 'wm-sn-1', 'delete', array( 'ma_nv' => 'WMXOA', 'ho_ten' => 'Người Bị Gỡ',
+	'cua_hang' => 'TUTU_BT' ) );
+$wm_xoa = vhcc_may_web( 'Admin' );
+t( 'lệnh xoá thì ô Ảnh mặt để trống, không đọc ra như thiếu sót',
+	preg_match( '#<td><code>delete</code></td><td><span class="mo">—</span></td>#u', $wm_xoa ) === 1,
+	null );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' )
+	. " WHERE ma_nv IN ('WMANH','WMKHONG','WMXOA')" );
 /* ⚠️ Soi Ô CỦA BẢNG, không soi chuỗi '(chưa gán)' trần: ô xổ chọn máy ở ba khối dưới cũng in
    đúng chữ ấy, nên soi trần thì bỏ hẳn nhãn đỏ ở bảng đi phép thử vẫn xanh. */
 t( '🔴 máy chưa gán cơ sở được kêu tên NGAY TRONG BẢNG, và bằng chữ đỏ',
