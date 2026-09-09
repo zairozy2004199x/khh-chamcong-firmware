@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.7.0
+ * Version:           0.7.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -50,10 +50,11 @@ class SAOKE_App {
 			wp_schedule_event( time() + 120, 'saoke_5phut', 'saoke_cron_vqr' );
 		}
 		if ( '1' === (string) get_option( 'saoke_cong_log_auto', '0' ) && '' !== trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) && ! wp_next_scheduled( 'saoke_cron_conglog' ) ) {
-			wp_schedule_event( time() + 150, 'saoke_5phut', 'saoke_cron_conglog' );
+			wp_schedule_event( time() + 60, self::conglog_lich(), 'saoke_cron_conglog' );
 		}
 	}
-	public static function them_lich( $s ) { $s['saoke_5phut'] = array( 'interval' => 300, 'display' => 'Mỗi 5 phút (Sao Kê)' ); return $s; }
+	public static function them_lich( $s ) { $s['saoke_5phut'] = array( 'interval' => 300, 'display' => 'Mỗi 5 phút (Sao Kê)' ); $s['saoke_1phut'] = array( 'interval' => 60, 'display' => 'Mỗi 1 phút (Sao Kê)' ); return $s; }
+	private static function conglog_lich() { return '1' === (string) get_option( 'saoke_cong_log_freq', '5' ) ? 'saoke_1phut' : 'saoke_5phut'; }
 
 	public static function tbl() { global $wpdb; return $wpdb->prefix . 'saoke_gd'; }
 	public static function tbl_cong() { global $wpdb; return $wpdb->prefix . 'saoke_cong'; }
@@ -1449,8 +1450,9 @@ class SAOKE_App {
 				update_option( 'saoke_api_token', sanitize_text_field( wp_unslash( $_POST['token'] ) ) );
 				update_option( 'saoke_cong_log_sheet', esc_url_raw( wp_unslash( $_POST['conglog'] ) ) );
 				update_option( 'saoke_cong_log_auto', isset( $_POST['conglog_auto'] ) ? '1' : '0' );
+				update_option( 'saoke_cong_log_freq', '1' === (string) ( isset( $_POST['conglog_freq'] ) ? $_POST['conglog_freq'] : '5' ) ? '1' : '5' );
 				wp_clear_scheduled_hook( 'saoke_cron_conglog' );
-				if ( isset( $_POST['conglog_auto'] ) && '' !== trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) ) { wp_schedule_event( time() + 60, 'saoke_5phut', 'saoke_cron_conglog' ); }
+				if ( isset( $_POST['conglog_auto'] ) && '' !== trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) ) { wp_schedule_event( time() + 60, self::conglog_lich(), 'saoke_cron_conglog' ); }
 				echo '<div class="notice notice-success"><p>Đã lưu.</p></div>';
 			}
 		}
@@ -1474,8 +1476,10 @@ class SAOKE_App {
 		$clog = (string) get_option( 'saoke_cong_log_sheet', '' );
 		$clast = (array) get_option( 'saoke_cong_log_last', array() );
 		echo '<tr><th>VietQR tạm — link CSV Nhật ký (app cũ)</th><td><input name="conglog" class="regular-text code" value="' . esc_attr( $clog ) . '" placeholder="https://docs.google.com/.../pub?gid=...&single=true&output=csv" style="width:520px">'
-			. ' <label style="margin-left:6px"><input type="checkbox" name="conglog_auto" ' . checked( '1', (string) get_option( 'saoke_cong_log_auto', '0' ), false ) . '> tự kéo mỗi 5′</label>'
+			. ' <label style="margin-left:6px"><input type="checkbox" name="conglog_auto" ' . checked( '1', (string) get_option( 'saoke_cong_log_auto', '0' ), false ) . '> tự kéo</label>'
+			. ' <select name="conglog_freq"><option value="5" ' . selected( '5', (string) get_option( 'saoke_cong_log_freq', '5' ), false ) . '>mỗi 5 phút</option><option value="1" ' . selected( '1', (string) get_option( 'saoke_cong_log_freq', '5' ), false ) . '>mỗi 1 phút</option></select>'
 			. '<br><span class="description">Kéo giao dịch cổng từ sheet <b>Nhật ký</b> của app cũ (cột “Chi tiết” = payload thô Tingo) vào bảng cổng, đối soát với sao kê ngân hàng. Dùng tạm khi VietQR API chưa duyệt. Chống trùng theo mã GD nên kéo lại bao nhiêu lần cũng không cộng đôi.'
+			. '<br><b>Lưu ý băng thông:</b> mỗi lần kéo tải lại TOÀN BỘ CSV (không chỉ dòng mới), nên “mỗi 1 phút” tốn băng thông ~5× so với 5 phút và tăng dần khi sheet to lên. Nên để 1 phút lúc cần bắt kịp, xong hạ về 5 phút. WP-Cron chỉ chạy khi trang có lượt truy cập — muốn đúng nhịp cần cron thật của host.'
 			. ( $clast ? ( '<br><b>Lần kéo cuối:</b> ' . esc_html( ( isset( $clast['luc'] ) ? $clast['luc'] : '' ) . ' — ' . ( isset( $clast['kq'] ) ? $clast['kq'] : '' ) ) ) : '' )
 			. '</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button> <button class="button" name="saoke_keo_conglog" value="1">Kéo VietQR từ Nhật ký ngay</button></p></form>';
