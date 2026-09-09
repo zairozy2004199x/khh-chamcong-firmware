@@ -1992,7 +1992,13 @@ html, body { overflow:hidden !important; }
 .skp-frame { position:fixed !important; inset:0 !important; margin:0 !important; padding:0 !important; width:100vw !important; height:100vh !important; height:100dvh !important; z-index:2147483000 !important; background:#0b1220; }
 .skp-frame iframe { display:block; width:100%; height:100%; border:0; margin:0; }
 </style>
-<div class="skp-frame"><iframe title="Sao Kê Ngân Hàng K&amp;H" srcdoc="<?php echo esc_attr( $html ); ?>"></iframe></div>
+<div class="skp-frame" id="skpFrame"><iframe title="Sao Kê Ngân Hàng K&amp;H" srcdoc="<?php echo esc_attr( $html ); ?>"></iframe></div>
+<script>
+/* Nhiều theme bọc nội dung trong phần tử có transform/filter → biến position:fixed thành bị
+   "nhốt" trong cột nội dung (app co lại ~640px). Đưa khung ra thẳng <body> để phủ đúng viewport. */
+(function(){var f=document.getElementById('skpFrame');if(f&&document.body&&f.parentNode!==document.body){document.body.appendChild(f);}
+document.documentElement.style.overflow='hidden';document.body.style.overflow='hidden';})();
+</script>
 <?php
 		return ob_get_clean();
 	}
