@@ -117,6 +117,19 @@ class VHG_May {
 			self::bao_da_luu_( $ten );
 			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
 		}
+		/* GỘP THEO TÊN CHUẨN HOÁ (bỏ dấu + hoa/thường + khoảng trắng): chặn tạo cơ sở GẦN TRÙNG để
+		   tránh "cơ sở tự tách" ('CGV Pear Plaza' vs 'CGV PEARL PLAZA', thừa/thiếu dấu cách...).
+		   Đã có bản chuẩn hoá giống -> báo để sửa cơ sở cũ, không đẻ thêm bản sao. */
+		$sq = VHG_BaoCao::squash( $ten );
+		if ( '' !== $sq ) {
+			$ds_cs = $wpdb->get_results( "SELECT id, ten FROM $bang", ARRAY_A );
+			foreach ( (array) $ds_cs as $c ) {
+				if ( VHG_BaoCao::squash( (string) $c['ten'] ) === $sq ) {
+					return array( 'ok' => false, 'error' => 'Đã có cơ sở gần giống: "' . $c['ten'] . '". '
+						. 'Nếu đúng là nơi đó, sửa cơ sở cũ (nút ✎) thay vì tạo mới; nếu thật sự cần một cơ sở KHÁC, đặt tên phân biệt rõ hơn.' );
+				}
+			}
+		}
 		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '',
 			'ma_kh' => $co_makh ? $ma_kh : '', 'reset_moi_lan' => $co_reset ? $reset : 0 ) );
 		self::quen_dem_reset_();
@@ -966,9 +979,13 @@ class VHG_May {
 		if ( null !== $coso_id ) { $dat['coso_id'] = (int) $coso_id; }
 		$wpdb->update( $bang, $dat, array( 'ma' => $ma_cu ) );
 		/* Dời hết những gì trỏ tới mã cũ. `thu` để CUỐI: nó là sổ tiền, và nếu có gì hỏng giữa
-		   chừng thì thà sổ tiền còn nguyên mã cũ (đối soát tay được) hơn là hàng chờ mồ côi. */
+		   chừng thì thà sổ tiền còn nguyên mã cũ (đối soát tay được) hơn là hàng chờ mồ côi.
+		   🔴 09/09/2026 — THÊM `bc_dong` + `chot`: đây là 2 bảng `chi_so_truoc()` đọc để tra chỉ số
+		      kỳ trước THEO ma_may. Trước đây đổi mã không dời chúng -> mất lịch sử chỉ số -> chỉ số
+		      kỳ sau tính từ 0, nhảy vọt (anh Thắng: "tạo lại máy chỉ số nhảy sai"). Mã mới chắc chắn
+		      chưa có ghế khác (đã chặn ở trên) nên không lo đụng khoá. */
 		$dem = 0;
-		foreach ( array( 'cho', 'nhip', 'lenh', 'thu' ) as $b ) {
+		foreach ( array( 'cho', 'nhip', 'lenh', 'chot', 'bc_dong', 'thu' ) as $b ) {
 			$dem += (int) $wpdb->query( $wpdb->prepare(
 				'UPDATE ' . VHG_DB::t( $b ) . ' SET ma_may=%s WHERE ma_may=%s', $ma_moi, $ma_cu ) );
 		}
