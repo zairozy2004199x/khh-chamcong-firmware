@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.7.2
+ * Version:           0.8.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1435,6 +1435,46 @@ class SAOKE_App {
 		if ( ! empty( $map_ten[ $k ]['trung'] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" bị nhiều điểm dùng chung — phải điền Mã bank' ); }
 		return array( 'ma' => $map_ten[ $k ]['ma'], 'vi' => '' );
 	}
+
+	// ═══════════════ CẦU NỐI PLUGIN GHẾ (POSH) — VietQR = doanh thu ghế theo địa điểm ═══════════════
+	// Hai plugin chung 1 WordPress/DB nên đọc thẳng bảng của Ghế, không export.
+	private static function ghe_tbl( $n ) { global $wpdb; return $wpdb->prefix . 'vhg_' . $n; }
+	private static function ghe_co() {
+		global $wpdb; static $co = null; if ( null !== $co ) { return $co; }
+		$t = self::ghe_tbl( 'coso' ); $co = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) === $t );
+		return $co;
+	}
+	/* Danh sách địa điểm (cơ sở) bên Ghế: [['ten'=>..,'tinh'=>..,'maKh'=>..], ...]. */
+	private static function ghe_ds_coso() {
+		if ( ! self::ghe_co() ) { return array(); }
+		global $wpdb; static $ds = null; if ( null !== $ds ) { return $ds; }
+		$rows = $wpdb->get_results( 'SELECT ten, tinh, ma_kh FROM ' . self::ghe_tbl( 'coso' ) . ' ORDER BY ten ASC', ARRAY_A );
+		$ds = array(); foreach ( (array) $rows as $r ) { $ds[] = array( 'ten' => (string) $r['ten'], 'tinh' => (string) $r['tinh'], 'maKh' => (string) $r['ma_kh'] ); }
+		return $ds;
+	}
+	/* Bản đồ tên máy -> địa điểm ghế. Khoá = chuan_ch(mã máy) và chuan_ch(tên khai). */
+	private static function ghe_map_may() {
+		if ( ! self::ghe_co() ) { return array(); }
+		global $wpdb; static $map = null; if ( null !== $map ) { return $map; }
+		$sql = 'SELECT m.ma, m.ten_khai, c.ten AS coso, c.ma_kh, c.tinh FROM ' . self::ghe_tbl( 'may' ) . ' m'
+			. ' LEFT JOIN ' . self::ghe_tbl( 'coso' ) . ' c ON c.id = m.coso_id WHERE m.coso_id > 0';
+		$rows = $wpdb->get_results( $sql, ARRAY_A ); $map = array();
+		foreach ( (array) $rows as $r ) {
+			$coso = trim( (string) $r['coso'] ); if ( '' === $coso ) { continue; }
+			$v = array( 'coso' => $coso, 'maKh' => (string) $r['ma_kh'], 'tinh' => (string) $r['tinh'] );
+			foreach ( array( $r['ma'], $r['ten_khai'] ) as $nm ) { $k = self::chuan_ch( (string) $nm ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = $v; } }
+		}
+		return $map;
+	}
+	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
+	private static function ghe_coso_cua_may( $ten_may ) {
+		if ( '' === trim( (string) $ten_may ) ) { return null; }
+		$map = self::ghe_map_may();
+		$k = self::chuan_ch( $ten_may );
+		if ( isset( $map[ $k ] ) ) { return $map[ $k ]; }
+		$kc = self::chuan_ch( self::cong_coso( $ten_may ) );
+		return isset( $map[ $kc ] ) ? $map[ $kc ] : null;
+	}
 	/* map chuan_ch(tên điểm) -> ['ma'=>..,'trung'=>bool] để suy mã từ tên chuẩn. */
 	private static function map_ten_diem() {
 		$map = array();
@@ -1676,6 +1716,11 @@ class SAOKE_App {
 	}
 	public static function rpc_dsCuaHangChuan( $a ) {
 		self::can_pin( $a ); $ds = array();
+		// POSH: ưu tiên danh sách địa điểm bên trang Ghế (VietQR = doanh thu ghế theo địa điểm).
+		if ( self::ghe_co() ) {
+			foreach ( self::ghe_ds_coso() as $c ) { $ds[] = array( 'ma' => $c['ten'], 'ten' => $c['ten'] . ( '' !== $c['tinh'] ? ( ' — ' . $c['tinh'] ) : '' ), 'maDiem' => $c['maKh'] ); }
+			if ( count( $ds ) ) { return array( 'ok' => true, 'ds' => $ds, 'nguon' => 'ghe' ); }
+		}
 		foreach ( self::ds_diem() as $d ) { $ds[] = array( 'ma' => $d['ma'], 'ten' => '' !== ( isset( $d['ten'] ) ? $d['ten'] : '' ) ? $d['ten'] : $d['ma'], 'maDiem' => isset( $d['maDiem'] ) ? $d['maDiem'] : '' ); }
 		return array( 'ok' => true, 'ds' => $ds );
 	}
@@ -1832,12 +1877,16 @@ class SAOKE_App {
 			$coSo = self::cong_coso( $tenMay );
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
+			// POSH: tự lấy địa điểm từ trang Ghế theo tên máy (khỏi ánh xạ tay). Rớt về ánh xạ KH nếu ghế chưa có.
+			$ghe = self::ghe_coso_cua_may( $tenMay );
+			$cuaHang = $ghe ? $ghe['coso'] : ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo );
+			$daAnhXa = $ghe ? true : ( '' !== $suy['ma'] );
 			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $soTien; }
-			elseif ( '' === $suy['ma'] ) { $k = self::chuan_ch( $coSo ); if ( ! isset( $chuaAnhXa[ $k ] ) ) { $chuaAnhXa[ $k ] = array( 'ten' => $coSo, 'soTien' => 0, 'soLan' => 0, 'may' => array(), 'vi' => $suy['vi'] ); } $chuaAnhXa[ $k ]['soTien'] += $soTien; $chuaAnhXa[ $k ]['soLan']++; $chuaAnhXa[ $k ]['may'][ $tenMay ] = 1; }
+			elseif ( ! $daAnhXa ) { $k = self::chuan_ch( $coSo ); if ( ! isset( $chuaAnhXa[ $k ] ) ) { $chuaAnhXa[ $k ] = array( 'ten' => $coSo, 'soTien' => 0, 'soLan' => 0, 'may' => array(), 'vi' => self::ghe_co() ? 'máy chưa có trong trang Ghế — thêm/gắn máy bên Ghế là tự nhận' : $suy['vi'] ); } $chuaAnhXa[ $k ]['soTien'] += $soTien; $chuaAnhXa[ $k ]['soLan']++; $chuaAnhXa[ $k ]['may'][ $tenMay ] = 1; }
 			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
 				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
-				'cuaHangChuan' => $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo, 'maBank' => $suy['ma'], 'daAnhXa' => '' !== $suy['ma'] );
+				'cuaHangChuan' => $cuaHang, 'maBank' => $ghe ? ( '' !== $ghe['maKh'] ? $ghe['maKh'] : $ghe['coso'] ) : $suy['ma'], 'daAnhXa' => $daAnhXa, 'tinh' => $ghe ? $ghe['tinh'] : '' );
 			$congTien += $soTien;
 			if ( count( $cong ) >= 2000 ) { break; }
 		}
