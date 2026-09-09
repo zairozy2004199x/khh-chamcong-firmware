@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA (nối bằng một nút, tự làm mới token), trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.5.0
+ * Version:           1.5.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.5.0';
+	const VER  = '1.5.1';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -486,7 +486,12 @@ class NHAMA {
 		$cf = self::cf();
 		$app = trim( (string) $cf['zalo_app_id'] );
 		if ( '' === $app ) { return ''; }
-		$state = wp_generate_password( 20, false );
+		/* ⚠️ DÙNG LẠI `state` CŨ NẾU CÒN SỐNG. Màn quản trị tự nạp lại mỗi 6 giây, mà mỗi lượt
+		   nạp đều đọc tình trạng Zalo — sinh mã mới mỗi lượt thì cái nút anh đang nhìn mang mã
+		   của 6 giây trước, bấm vào là Zalo trả về "state không khớp" dù anh chẳng làm gì sai.
+		   Còn hạn thì giữ nguyên mã và nới hạn ra, mở màn quản trị bao lâu nút vẫn bấm được. */
+		$state = (string) get_transient( 'nhama_zalo_state' );
+		if ( '' === $state ) { $state = wp_generate_password( 20, false ); }
 		set_transient( 'nhama_zalo_state', $state, 900 );
 		return self::ZALO_OAUTH . '?' . http_build_query( array(
 			'app_id'       => $app,
@@ -538,7 +543,23 @@ class NHAMA {
 		$that  = (string) get_transient( 'nhama_zalo_state' );
 		$oa    = isset( $_GET['oa_id'] ) ? sanitize_text_field( wp_unslash( $_GET['oa_id'] ) ) : '';
 
-		if ( '' === $ma ) { self::zalo_man( false, 'Zalo không gửi mã về. Thử bấm Kết nối lại.' ); return; }
+		if ( '' === $ma ) {
+			/* ⚠️ GIỮ NGUYÊN VĂN CÂU TỪ CHỐI CỦA ZALO. Zalo không gửi `code` thì gần như luôn kèm
+			   lý do trên địa chỉ (`error`, `error_description`, `error_reason`…). Nuốt mất mấy
+			   chữ ấy là anh chỉ còn "thử lại đi" — mà thử mười lần vẫn hỏng đúng chỗ cũ. */
+			$vi = array();
+			foreach ( array( 'error', 'error_code', 'error_reason', 'error_description', 'message' ) as $k ) {
+				if ( isset( $_GET[ $k ] ) && '' !== (string) $_GET[ $k ] ) {
+					$vi[] = $k . '=' . sanitize_text_field( wp_unslash( $_GET[ $k ] ) );
+				}
+			}
+			$chu = $vi
+				? 'Zalo từ chối cấp quyền — nguyên văn: ' . implode( ' · ', $vi )
+				: 'Zalo không gửi mã về (và cũng không nói vì sao). Thử bấm Kết nối lại.';
+			self::nk_zalo( '', 'noi_hong', $chu );
+			self::zalo_man( false, $chu );
+			return;
+		}
 		/* ⚠️ SO `state`. Thiếu chốt này thì ai đó dụ được trình duyệt của anh mở một địa chỉ có
 		   `code` của họ, và OA của họ được nối vào website của anh. */
 		if ( '' === $that || ! hash_equals( $that, $state ) ) {

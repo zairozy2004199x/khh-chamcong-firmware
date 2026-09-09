@@ -520,6 +520,18 @@ t( 'địa chỉ cấp quyền mang app_id và redirect_uri',
 /* 🔴 `state` chống ai đó dụ trình duyệt của anh nối OA của HỌ vào website của mình. */
 t( 'và mang mã trạng thái state', strpos( $tt['url_noi'], 'state=' ) !== false );
 
+/* 🔴 NÚT KẾT NỐI PHẢI ĐỨNG YÊN. Màn quản trị nạp lại mỗi 6 giây và mỗi lượt đều đọc tình trạng
+   Zalo; nếu mỗi lượt sinh một `state` mới thì cái nút anh đang nhìn mang mã đã chết, bấm vào là
+   "state không khớp" — hỏng đúng lúc lần đầu nối, và không ai đoán ra vì sao. */
+$url_1  = NHAMA::zalo_url_noi();
+$st_1   = get_transient( 'nhama_zalo_state' );
+$url_2  = NHAMA::zalo_url_noi();
+t( '🔴 đọc tình trạng nhiều lượt thì địa chỉ nối KHÔNG đổi', $url_1 === $url_2 );
+t( 'và mã state trong kho vẫn là mã cũ', $st_1 === get_transient( 'nhama_zalo_state' ) );
+/* Nhưng hết hạn (hoặc dùng xong) thì phải sinh mã mới, không dùng lại vĩnh viễn. */
+delete_transient( 'nhama_zalo_state' );
+t( 'hết hạn thì sinh mã mới', NHAMA::zalo_url_noi() !== $url_1 );
+
 /* --- Zalo gọi về với mã: đổi lấy token --- */
 function zalo_ve( $ma, $state, $oa = '' ) {
 	$_GET = array( 'code' => $ma, 'state' => $state );
@@ -531,6 +543,19 @@ zalo_gia( array( 'access_token' => 'AT-1', 'refresh_token' => 'RT-1', 'expires_i
 $man = zalo_ve( 'CODE-1', 'state-bay-ba' );
 t( '🔴 state không khớp thì CHỐI', strpos( $man, 'không khớp' ) !== false );
 t( 'và KHÔNG cất token nào', '' === (string) NHAMA::cf()['zalo_refresh'] );
+
+/* 🔴 ZALO TỪ CHỐI THÌ PHẢI ĐỌC ĐƯỢC VÌ SAO. Zalo không gửi `code` thì kèm lý do trên địa chỉ;
+   nuốt mất mấy chữ ấy là anh chỉ còn "thử lại đi", mà thử mười lần vẫn hỏng đúng chỗ cũ. */
+$_GET = array( 'error' => '-201', 'error_description' => 'redirect uri is invalid' );
+ob_start(); NHAMA::zalo_nhan_ma(); $man_loi = ob_get_clean();
+t( '🔴 hiện nguyên văn mã lỗi của Zalo', strpos( $man_loi, '-201' ) !== false, substr( $man_loi, 0, 300 ) );
+t( '🔴 hiện nguyên văn câu giải thích của Zalo',
+	strpos( $man_loi, 'redirect uri is invalid' ) !== false );
+$nk = (array) get_option( 'nhama_nk_zalo', array() );
+t( 'và ghi luôn vào nhật ký Zalo để xem lại sau', isset( $nk[0] ) && 'noi_hong' === $nk[0]['kq'] );
+$_GET = array();
+ob_start(); NHAMA::zalo_nhan_ma(); $man_im = ob_get_clean();
+t( 'Zalo im lặng thì vẫn nói rõ là im lặng', strpos( $man_im, 'không nói vì sao' ) !== false );
 
 $man = zalo_ve( 'CODE-1', $state_that, 'OA123' );
 t( 'state khớp thì nối được', strpos( $man, 'thành công' ) !== false, substr( $man, 0, 200 ) );

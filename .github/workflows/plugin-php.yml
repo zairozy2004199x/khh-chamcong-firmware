@@ -68,6 +68,17 @@ jobs:
       - name: Bộ thử trang cổng
         run: php tools/test/test-trang-chu.php
 
+      # `test-trang-chu.php` dựng một VHNB_Trang GIẢ bằng eval, nên đặt phép thử thanh điều hướng
+      # vào đấy là canh chính cái giả ấy — mãi mãi xanh. Bài này nạp plugin nội bộ THẬT, nên nó
+      # mới là bài canh hai mục vé nhà ma trong Cổng K&H. Ngoài CI thì chỉ là tệp văn bản.
+      - name: Bộ thử cổng nội bộ (nạp plugin thật)
+        run: php tools/test/kiem-noi-bo.php
+
+      # Câu CREATE TABLE sai khe trắng thì dbDelta im lặng bỏ qua, bảng thiếu cột, và chỉ vỡ ra
+      # khi có khách thật ghi vào. Bài này chạy thử mọi câu CREATE TABLE của mọi plugin.
+      - name: Bộ thử sơ đồ bảng (dbDelta)
+        run: php tools/test/kiem-so-do-bang.php
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

@@ -1,6 +1,6 @@
 # Nhà Ma · Bán vé theo khung giờ — cài & vận hành
 
-*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.0. Một file PHP, cài qua wp-admin như mọi plugin khác.*
+*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.1. Một file PHP, cài qua wp-admin như mọi plugin khác.*
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -90,6 +90,12 @@ Bốn bước, làm **một lần**:
 > Chưa nối thì bỏ qua — mọi thứ khác chạy bình thường, khách vẫn xem thiệp trên web, nhân viên vẫn
 > có nút **Chat Zalo** để gửi tay.
 >
+> 🔎 **Bấm Kết nối mà hỏng thì đọc ở đâu.** Từ bản 1.5.1, trang quay về in **nguyên văn** câu từ
+> chối của Zalo (`error`, `error_description`…) chứ không còn câu chung chung *"thử lại đi"*, và
+> ghi luôn một dòng vào *Tiền Về & Zalo → nhật ký Zalo*. Chụp đúng dòng ấy là đủ để biết thiếu
+> bước nào: thiếu bước 2 thì Zalo nói *redirect_uri*, thiếu bước 3 thì Zalo nói ứng dụng chưa
+> được OA cấp quyền.
+
 > ⚠️ Phần nói chuyện thật với Zalo **chưa chạy thử** (máy dựng plugin bị chặn ra Internet, không mở
 > nổi cả trang tài liệu Zalo). Phần dựng địa chỉ, đổi mã, làm mới và lưu token đều có phép thử bằng
 > máy chủ giả. Nhật ký Zalo ghi **nguyên văn** câu Zalo trả lời, nên lần đầu nối có hỏng thì gửi em
