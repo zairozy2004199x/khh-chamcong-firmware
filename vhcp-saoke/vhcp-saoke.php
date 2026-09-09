@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.4.0
+ * Version:           0.5.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -190,6 +190,8 @@ class SAOKE_App {
 		register_rest_route( self::NS, '/sync-ngay', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_sync_ngay' ) ) + $pub ) );
 		register_rest_route( self::NS, '/keo-sheet', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_keo_sheet' ) ) + $pub ) );
 		register_rest_route( self::NS, '/doipin',   array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_doipin' ) ) + $pub ) );
+		// ── Cầu RPC: nhận {fn, args} từ frontend app (shim google.script.run) ──
+		register_rest_route( self::NS, '/rpc', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_rpc' ) ) + $pub ) );
 		// ── v0.2: đối soát ──
 		register_rest_route( self::NS, '/diem',      array( array( 'methods' => 'GET',  'callback' => array( __CLASS__, 'r_diem_ds' ) ) + $pub ) );
 		register_rest_route( self::NS, '/diem-nhap', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_diem_nhap' ) ) + $pub ) );
@@ -1408,6 +1410,545 @@ class SAOKE_App {
 		echo '<tr><th>Webhook URL (khai bên SePay)</th><td><code>' . esc_html( $key ? $url : '(đặt Webhook API Key rồi lưu)' ) . '</code><br><span class="description">SePay → Webhooks → Endpoint URL. Authentication chọn <b>No Authentication</b> (key đã nằm trong URL).</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button></p></form>';
 		echo '<p class="description">⚠️ Repo công khai — PIN/khoá lưu trong DB, không nằm trong mã nguồn.</p></div>';
+	}
+
+	// ═══════════════════════════════════════════════════════════════════════
+	//  CẦU RPC — port 1:1 các hàm Apps Script (Code.gs) sang PHP, đúng shape.
+	//  Frontend gọi google.script.run.fn(pin, ...args) -> shim POST /rpc {fn,args}.
+	// ═══════════════════════════════════════════════════════════════════════
+	private static function pn_opts() { return array( 'K&H cũ (989)', 'K&H mới (705)', 'Smarttrade' ); }
+	private static function loi( $msg ) { throw new Exception( $msg ); }
+	private static function can_pin( $args ) { $pin = isset( $args[0] ) ? (string) $args[0] : ''; if ( ! hash_equals( (string) get_option( 'saoke_pin', '' ), $pin ) || '' === (string) get_option( 'saoke_pin', '' ) ) { self::loi( 'Sai mã PIN' ); } }
+
+	public static function r_rpc( $req ) {
+		$fn   = (string) $req->get_param( 'fn' );
+		$args = $req->get_param( 'args' ); if ( ! is_array( $args ) ) { $args = array(); }
+		$map  = array(
+			'checkPin', 'getConfig', 'saveCauHinh', 'doiPin', 'getDashboard', 'getGiaoDich', 'setNhan',
+			'saveTaiKhoan', 'xoaTaiKhoan', 'saveDanhMuc', 'xoaDanhMuc', 'testWebhookSample', 'syncSepayHistory',
+			'getDoiChieuNop', 'napLaiDanhSachDiem', 'getTongHopCoSo', 'getSaoKeCong', 'getDoiSoatFile',
+			'napFileCong', 'napFileCongTx', 'luuAnhXaCuaHang', 'chuyenGianCuaHang', 'xoaAnhXaCuaHang',
+			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
+		);
+		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
+		try {
+			return call_user_func( array( __CLASS__, 'rpc_' . $fn ), $args );
+		} catch ( Exception $e ) {
+			return array( '__err' => $e->getMessage() );
+		}
+	}
+
+	// ── Lấy toàn bộ giao dịch (GiaoDich) dạng mảng assoc, giống Code.gs ──
+	private static function gd_all() {
+		global $wpdb; $tbl = self::tbl();
+		$rows = $wpdb->get_results( "SELECT sepay_id, ngay_gd, so_tk, ngan_hang, loai, tien, luy_ke, noi_dung, ma_gd, nhan, nguon, tao_luc FROM $tbl ORDER BY ngay_gd ASC, id ASC", ARRAY_A );
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$vao = 'in' === $r['loai'] ? (int) $r['tien'] : 0; $ra = 'out' === $r['loai'] ? (int) $r['tien'] : 0;
+			$out[] = array(
+				'sepayId' => $r['sepay_id'], 'ngayGD' => self::ymd2vn( $r['ngay_gd'] ), 'nganHang' => $r['ngan_hang'],
+				'soTK' => $r['so_tk'], 'vao' => $vao, 'ra' => $ra, 'soDu' => is_null( $r['luy_ke'] ) ? null : (int) $r['luy_ke'],
+				'noiDung' => (string) $r['noi_dung'], 'maGD' => $r['ma_gd'], 'loai' => $vao > 0 ? 'Thu' : 'Chi',
+				'nhan' => $r['nhan'], 'nguon' => $r['nguon'], 'dongBo' => self::ymd2vn( $r['tao_luc'] ),
+			);
+		}
+		return $out;
+	}
+	private static function trong_ky( $ng, $tu, $den ) {
+		$m = self::moc( $ng );
+		if ( $tu && $m < self::moc( $tu ) ) { return false; }
+		if ( $den && $m > self::moc( $den ) + 86399 ) { return false; }
+		return true;
+	}
+	private static function pn_by_tk() { $o = array(); foreach ( self::ds_tk() as $t ) { $o[ $t['soTK'] ] = isset( $t['phapNhan'] ) ? $t['phapNhan'] : ''; } return $o; }
+
+	// ── checkPin / getConfig / saveCauHinh / doiPin ──
+	public static function rpc_checkPin( $a ) { $pin = isset( $a[0] ) ? (string) $a[0] : ''; return array( 'ok' => '' !== (string) get_option( 'saoke_pin', '' ) && hash_equals( (string) get_option( 'saoke_pin', '' ), $pin ) ); }
+	public static function rpc_getConfig( $a ) {
+		$pin = isset( $a[0] ) ? (string) $a[0] : '';
+		$authed = '' !== (string) get_option( 'saoke_pin', '' ) && hash_equals( (string) get_option( 'saoke_pin', '' ), $pin );
+		$cfg = array( 'ok' => true, 'authed' => $authed, 'today' => gmdate( 'd/m/Y', current_time( 'timestamp' ) ) );
+		if ( ! $authed ) { return $cfg; }
+		$key = (string) get_option( 'saoke_webhook_key', '' );
+		$base = esc_url_raw( rest_url( self::NS . '/webhook' ) );
+		$cfg['taiKhoan'] = self::ds_tk();
+		$cfg['danhMuc']  = self::ds_dm();
+		$cfg['phapNhanOpts'] = self::pn_opts();
+		$cfg['hasApiToken']  = '' !== (string) get_option( 'saoke_api_token', '' );
+		$cfg['hasWebhookKey'] = '' !== $key;
+		$cfg['webhookUrl'] = '' !== $key ? ( $base . '?key=' . rawurlencode( $key ) ) : $base;
+		$cfg['keyCanMaHoa'] = (bool) preg_match( '/[^A-Za-z0-9._~-]/', $key );
+		$cfg['moiLink'] = array();
+		if ( '' !== $key ) {
+			$cfg['moiLink'][] = array( 'ten' => 'SePay (sao kê ngân hàng)', 'url' => $cfg['webhookUrl'] );
+			$ten = self::cong_ten();
+			foreach ( self::cong_ds() as $n ) { $cfg['moiLink'][] = array( 'ten' => 'Cổng ' . $ten[ $n ], 'url' => $cfg['webhookUrl'] . '&src=' . $n ); }
+		}
+		// v0.4 kèm theo (không phá app gốc): VietQR sheet + auto-sync để tab Cấu hình web plugin dùng.
+		$cfg['vqrSheet'] = (string) get_option( 'saoke_vqr_sheet', '' );
+		return $cfg;
+	}
+	public static function rpc_saveCauHinh( $a ) {
+		self::can_pin( $a );
+		$token = isset( $a[1] ) ? trim( (string) $a[1] ) : ''; $key = isset( $a[2] ) ? trim( (string) $a[2] ) : '';
+		if ( '' !== $token ) { update_option( 'saoke_api_token', $token ); }
+		if ( '' !== $key ) { update_option( 'saoke_webhook_key', $key ); }
+		return array( 'ok' => true );
+	}
+	public static function rpc_doiPin( $a ) {
+		$cu = isset( $a[0] ) ? (string) $a[0] : ''; $moi = isset( $a[1] ) ? preg_replace( '/\D+/', '', (string) $a[1] ) : '';
+		if ( ! hash_equals( (string) get_option( 'saoke_pin', '' ), $cu ) ) { self::loi( 'Sai mã PIN' ); }
+		if ( ! preg_match( '/^\d{4,8}$/', $moi ) ) { self::loi( 'PIN mới phải 4-8 chữ số' ); }
+		update_option( 'saoke_pin', $moi );
+		return array( 'ok' => true );
+	}
+
+	// ── Tài khoản / Danh mục ──
+	public static function rpc_saveTaiKhoan( $a ) {
+		self::can_pin( $a );
+		$so = preg_replace( '/\s+/', '', isset( $a[1] ) ? (string) $a[1] : '' );
+		if ( '' === $so ) { self::loi( 'Thiếu số TK' ); }
+		$pn = isset( $a[5] ) ? (string) $a[5] : '';
+		if ( '' !== $pn && ! in_array( $pn, self::pn_opts(), true ) ) { self::loi( 'Pháp nhân không hợp lệ' ); }
+		$moi = array( 'soTK' => $so, 'nganHang' => sanitize_text_field( (string) ( isset( $a[2] ) ? $a[2] : '' ) ),
+			'chuTK' => sanitize_text_field( (string) ( isset( $a[3] ) ? $a[3] : '' ) ), 'ghiChu' => sanitize_text_field( (string) ( isset( $a[4] ) ? $a[4] : '' ) ),
+			'phapNhan' => $pn, 'soDuDauKy' => (int) round( self::num( isset( $a[6] ) ? $a[6] : 0 ) ), 'ngayDauKy' => sanitize_text_field( (string) ( isset( $a[7] ) ? $a[7] : '' ) ) );
+		$ds = self::ds_tk(); $thay = false;
+		foreach ( $ds as $k => $v ) { if ( $v['soTK'] === $so ) { $ds[ $k ] = $moi; $thay = true; break; } }
+		if ( ! $thay ) { $ds[] = $moi; }
+		update_option( 'saoke_taikhoan', array_values( $ds ) );
+		return array( 'ok' => true );
+	}
+	public static function rpc_xoaTaiKhoan( $a ) {
+		self::can_pin( $a ); $so = isset( $a[1] ) ? (string) $a[1] : ''; $ra = array();
+		foreach ( self::ds_tk() as $v ) { if ( $v['soTK'] !== $so ) { $ra[] = $v; } }
+		update_option( 'saoke_taikhoan', array_values( $ra ) );
+		return array( 'ok' => true );
+	}
+	public static function rpc_saveDanhMuc( $a ) {
+		self::can_pin( $a );
+		$ten = sanitize_text_field( isset( $a[1] ) ? (string) $a[1] : '' );
+		if ( '' === $ten ) { self::loi( 'Thiếu tên nhóm' ); }
+		$mau = sanitize_hex_color( isset( $a[3] ) ? (string) $a[3] : '' ); if ( ! $mau ) { $mau = '#94a3b8'; }
+		$moi = array( 'ten' => $ten, 'loai' => ( 'Thu' === ( isset( $a[2] ) ? $a[2] : '' ) ? 'Thu' : 'Chi' ), 'mau' => $mau );
+		$ds = self::ds_dm(); $thay = false;
+		foreach ( $ds as $k => $v ) { if ( $v['ten'] === $ten ) { $ds[ $k ] = $moi; $thay = true; break; } }
+		if ( ! $thay ) { $ds[] = $moi; }
+		update_option( 'saoke_danhmuc', array_values( $ds ) );
+		return array( 'ok' => true );
+	}
+	public static function rpc_xoaDanhMuc( $a ) {
+		self::can_pin( $a ); $ten = isset( $a[1] ) ? (string) $a[1] : ''; $ra = array();
+		foreach ( self::ds_dm() as $v ) { if ( $v['ten'] !== $ten ) { $ra[] = $v; } }
+		update_option( 'saoke_danhmuc', array_values( $ra ) );
+		return array( 'ok' => true );
+	}
+	public static function rpc_setNhan( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$wpdb->update( self::tbl(), array( 'nhan' => sanitize_text_field( isset( $a[2] ) ? (string) $a[2] : '' ) ), array( 'sepay_id' => isset( $a[1] ) ? (string) $a[1] : '' ) );
+		return array( 'ok' => true );
+	}
+	public static function rpc_testWebhookSample( $a ) {
+		self::can_pin( $a );
+		$b = json_decode( isset( $a[1] ) ? (string) $a[1] : '', true );
+		if ( ! is_array( $b ) ) { self::loi( 'JSON không hợp lệ' ); }
+		$g = function ( $k, $d = '' ) use ( $b ) { return isset( $b[ $k ] ) ? $b[ $k ] : $d; };
+		$vao = 0; $ra = 0; $amount = self::num( $g( 'transferAmount' ) );
+		if ( 'out' === strtolower( (string) $g( 'transferType', 'in' ) ) ) { $ra = $amount; } else { $vao = $amount; }
+		return array( 'ok' => true, 'mapped' => array(
+			'sepayId' => (string) $g( 'id' ), 'ngayGD' => (string) $g( 'transactionDate' ), 'nganHang' => (string) $g( 'gateway' ),
+			'soTK' => (string) $g( 'accountNumber' ), 'vao' => $vao, 'ra' => $ra, 'soDu' => self::num( $g( 'accumulated' ) ),
+			'noiDung' => (string) $g( 'content' ), 'maGD' => (string) ( '' !== (string) $g( 'referenceCode' ) ? $g( 'referenceCode' ) : $g( 'code' ) ), 'nguon' => 'Webhook',
+		) );
+	}
+	public static function rpc_syncSepayHistory( $a ) {
+		self::can_pin( $a );
+		$r = self::dong_bo( self::vn2ymd( isset( $a[1] ) ? (string) $a[1] : '' ), self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' ), isset( $a[3] ) ? (string) $a[3] : '' );
+		if ( is_wp_error( $r ) ) { self::loi( $r->get_error_message() ); }
+		return array( 'ok' => true, 'moi' => $r['moi'], 'trung' => $r['trung'] );
+	}
+	public static function rpc_luuTuKhoaCong( $a ) {
+		self::can_pin( $a ); $nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) ); $tk = trim( isset( $a[2] ) ? (string) $a[2] : '' );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
+		if ( '' === $tk ) { return array( 'ok' => false, 'error' => 'Từ khoá rỗng thì không lọc được dòng nào trong sao kê' ); }
+		$o = get_option( 'saoke_cong_tukhoa' ); $o = is_array( $o ) ? $o : array(); $o[ $nguon ] = $tk;
+		update_option( 'saoke_cong_tukhoa', $o );
+		return array( 'ok' => true, 'nguon' => $nguon, 'tuKhoa' => $tk );
+	}
+	public static function rpc_luuCotFileCong( $a ) {
+		self::can_pin( $a ); $nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) ); $cot = isset( $a[2] ) && is_array( $a[2] ) ? $a[2] : array();
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ' ); }
+		update_option( 'saoke_cot_' . $nguon, array_map( 'intval', $cot ) );
+		return array( 'ok' => true, 'cot' => $cot );
+	}
+	public static function rpc_luuCotTxCong( $a ) {
+		self::can_pin( $a ); $nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) ); $cot = isset( $a[2] ) && is_array( $a[2] ) ? $a[2] : array();
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ' ); }
+		update_option( 'saoke_cottx_' . $nguon, array_map( 'intval', $cot ) );
+		return array( 'ok' => true, 'cot' => $cot );
+	}
+	public static function rpc_dsCuaHangChuan( $a ) {
+		self::can_pin( $a ); $ds = array();
+		foreach ( self::ds_diem() as $d ) { $ds[] = array( 'ma' => $d['ma'], 'ten' => '' !== ( isset( $d['ten'] ) ? $d['ten'] : '' ) ? $d['ten'] : $d['ma'], 'maDiem' => isset( $d['maDiem'] ) ? $d['maDiem'] : '' ); }
+		return array( 'ok' => true, 'ds' => $ds );
+	}
+	public static function rpc_napLaiDanhSachDiem( $a ) {
+		self::can_pin( $a ); $ds = self::ds_diem();
+		return array( 'ok' => true, 'soDiem' => count( $ds ), 'soHangDoc' => count( $ds ), 'ssId' => '', 'tab' => 'điểm nộp (plugin)', 'nguon' => 'Danh sách điểm trong plugin' );
+	}
+
+	// ── Tổng quan (getDashboard) ──
+	public static function rpc_getDashboard( $a ) {
+		self::can_pin( $a );
+		$gd = self::gd_all();
+		$soDuTK = array(); $phatSinhTK = array(); $thangMap = array(); $nhomChi = array();
+		$tongThuBank = 0; $tongThuCong = 0; $congTheoNguon = array();
+		foreach ( $gd as $r ) {
+			$soTK = $r['soTK']; $vao = $r['vao']; $ra = $r['ra'];
+			$ngTien = $vao > 0 ? self::nguon_tien_dong( $r['noiDung'] ) : '';
+			if ( $vao > 0 ) { if ( '' !== $ngTien ) { $tongThuCong += $vao; $congTheoNguon[ $ngTien ] = ( isset( $congTheoNguon[ $ngTien ] ) ? $congTheoNguon[ $ngTien ] : 0 ) + $vao; } else { $tongThuBank += $vao; } }
+			if ( '' !== $soTK ) {
+				if ( ! is_null( $r['soDu'] ) ) { $soDuTK[ $soTK ] = $r['soDu']; }
+				$phatSinhTK[ $soTK ] = ( isset( $phatSinhTK[ $soTK ] ) ? $phatSinhTK[ $soTK ] : 0 ) + $vao - $ra;
+			}
+			$mm = self::moc( $r['ngayGD'] );
+			if ( $mm ) {
+				$key = gmdate( 'Y-m', $mm );
+				if ( ! isset( $thangMap[ $key ] ) ) { $thangMap[ $key ] = array( 'thang' => $key, 'thu' => 0, 'chi' => 0, 'thuBank' => 0, 'thuCong' => 0 ); }
+				$thangMap[ $key ]['thu'] += $vao; $thangMap[ $key ]['chi'] += $ra;
+				if ( $vao > 0 ) { if ( '' !== $ngTien ) { $thangMap[ $key ]['thuCong'] += $vao; } else { $thangMap[ $key ]['thuBank'] += $vao; } }
+			}
+			if ( $ra > 0 ) { $nk = '' !== $r['nhan'] ? $r['nhan'] : 'Chưa phân loại'; $nhomChi[ $nk ] = ( isset( $nhomChi[ $nk ] ) ? $nhomChi[ $nk ] : 0 ) + $ra; }
+		}
+		$tks = self::ds_tk(); $tk = array(); foreach ( $tks as $t ) { $tk[ $t['soTK'] ] = $t; }
+		$soTKs = array();
+		foreach ( array_keys( $phatSinhTK ) as $k ) { $soTKs[ $k ] = 1; }
+		foreach ( array_keys( $soDuTK ) as $k ) { $soTKs[ $k ] = 1; }
+		foreach ( $tks as $t ) { if ( ! empty( $t['soDuDauKy'] ) ) { $soTKs[ $t['soTK'] ] = 1; } }
+		$tongHop = array();
+		foreach ( array_keys( $soTKs ) as $k ) {
+			$t = isset( $tk[ $k ] ) ? $tk[ $k ] : array(); $dauKy = isset( $t['soDuDauKy'] ) ? (int) $t['soDuDauKy'] : 0;
+			$coTT = array_key_exists( $k, $soDuTK ); $thucTe = $coTT ? $soDuTK[ $k ] : null;
+			$tinh = $dauKy + ( isset( $phatSinhTK[ $k ] ) ? $phatSinhTK[ $k ] : 0 );
+			$tongHop[] = array( 'soTK' => $k, 'nganHang' => isset( $t['nganHang'] ) ? $t['nganHang'] : '', 'chuTK' => isset( $t['chuTK'] ) ? $t['chuTK'] : '',
+				'phapNhan' => isset( $t['phapNhan'] ) ? $t['phapNhan'] : '', 'soDuDauKy' => $dauKy, 'ngayDauKy' => isset( $t['ngayDauKy'] ) ? $t['ngayDauKy'] : '',
+				'soDu' => $coTT ? $thucTe : $tinh, 'soDuTinhToan' => $tinh, 'coSoDuThucTe' => $coTT, 'soDuThucTe' => $thucTe, 'chenhLech' => $coTT ? ( $thucTe - $tinh ) : 0 );
+		}
+		ksort( $thangMap ); $thangArr = array_values( array_slice( $thangMap, -12 ) );
+		$nhomArr = array(); foreach ( $nhomChi as $k => $vv ) { $nhomArr[] = array( 'nhom' => $k, 'tong' => $vv ); }
+		usort( $nhomArr, function ( $x, $y ) { return $y['tong'] - $x['tong']; } );
+		$tongSoDu = 0; $pnMap = array();
+		foreach ( $tongHop as $t ) { $tongSoDu += $t['soDu']; $pk = '' !== $t['phapNhan'] ? $t['phapNhan'] : 'Chưa gán'; $pnMap[ $pk ] = ( isset( $pnMap[ $pk ] ) ? $pnMap[ $pk ] : 0 ) + $t['soDu']; }
+		$theoPN = array(); foreach ( $pnMap as $k => $vv ) { $theoPN[] = array( 'phapNhan' => $k, 'soDu' => $vv ); }
+		usort( $theoPN, function ( $x, $y ) { return $y['soDu'] - $x['soDu']; } );
+		$ten = self::cong_ten(); $ctn = array();
+		foreach ( self::cong_ds() as $n ) { if ( ! empty( $congTheoNguon[ $n ] ) ) { $ctn[] = array( 'nguon' => $n, 'ten' => $ten[ $n ], 'soTien' => $congTheoNguon[ $n ] ); } }
+		return array( 'ok' => true, 'taiKhoan' => $tongHop, 'tongSoDu' => $tongSoDu, 'theoThang' => $thangArr, 'nhomChi' => $nhomArr,
+			'theoPhapNhan' => $theoPN, 'tongThuBank' => $tongThuBank, 'tongThuCong' => $tongThuCong, 'congTheoNguon' => $ctn );
+	}
+
+	// ── Sao kê (getGiaoDich) ──
+	public static function rpc_getGiaoDich( $a ) {
+		self::can_pin( $a );
+		$f = isset( $a[1] ) && is_array( $a[1] ) ? $a[1] : array();
+		$gv = function ( $k ) use ( $f ) { return isset( $f[ $k ] ) ? trim( (string) $f[ $k ] ) : ''; };
+		$pn = self::pn_by_tk();
+		$locNguon = $gv( 'nguonTien' ); $tu = $gv( 'tuNgay' ); $den = $gv( 'denNgay' ); $tuKhoa = mb_strtolower( $gv( 'tuKhoa' ) );
+		$rows = array(); $tongVao = 0; $tongRa = 0; $tongVaoCong = 0; $tongVaoBank = 0; $congTheoNguon = array();
+		$gd = self::gd_all();
+		for ( $i = count( $gd ) - 1; $i >= 0; $i-- ) {
+			$o = $gd[ $i ]; $o['phapNhan'] = isset( $pn[ $o['soTK'] ] ) ? $pn[ $o['soTK'] ] : '';
+			$o['nguonTien'] = $o['vao'] > 0 ? self::nguon_tien_dong( $o['noiDung'] ) : '';
+			$o['laCong'] = '' !== $o['nguonTien'];
+			$ten = self::cong_ten();
+			$o['tenNguonTien'] = $o['vao'] <= 0 ? '' : ( $o['nguonTien'] ? ( 'Cổng ' . ( isset( $ten[ $o['nguonTien'] ] ) ? $ten[ $o['nguonTien'] ] : $o['nguonTien'] ) ) : 'Nộp trực tiếp' );
+			if ( '' !== $gv( 'soTK' ) && $o['soTK'] !== $gv( 'soTK' ) ) { continue; }
+			if ( '' !== $gv( 'loai' ) && $o['loai'] !== $gv( 'loai' ) ) { continue; }
+			if ( '' !== $gv( 'phapNhan' ) && $o['phapNhan'] !== $gv( 'phapNhan' ) ) { continue; }
+			if ( 'CHUA_PHAN_LOAI' === $gv( 'nhan' ) && '' !== $o['nhan'] ) { continue; }
+			if ( '' !== $gv( 'nhan' ) && 'CHUA_PHAN_LOAI' !== $gv( 'nhan' ) && $o['nhan'] !== $gv( 'nhan' ) ) { continue; }
+			if ( '' !== $tuKhoa && false === mb_strpos( mb_strtolower( $o['noiDung'] ), $tuKhoa ) ) { continue; }
+			if ( ! self::trong_ky( $o['ngayGD'], $tu ? self::ymd2vn_ngay( self::vn2ymd( $tu ) ) : '', $den ? self::ymd2vn_ngay( self::vn2ymd( $den ) ) : '' ) ) { continue; }
+			if ( 'bank' === $locNguon && $o['laCong'] ) { continue; }
+			if ( 'cong' === $locNguon && ! $o['laCong'] ) { continue; }
+			if ( '' !== $locNguon && 'bank' !== $locNguon && 'cong' !== $locNguon && $o['nguonTien'] !== $locNguon ) { continue; }
+			$rows[] = $o; $tongVao += $o['vao']; $tongRa += $o['ra'];
+			if ( $o['laCong'] ) { $tongVaoCong += $o['vao']; $congTheoNguon[ $o['nguonTien'] ] = ( isset( $congTheoNguon[ $o['nguonTien'] ] ) ? $congTheoNguon[ $o['nguonTien'] ] : 0 ) + $o['vao']; } else { $tongVaoBank += $o['vao']; }
+			if ( count( $rows ) >= 2000 ) { break; }
+		}
+		$ten = self::cong_ten(); $ctn = array(); $tkc = array();
+		foreach ( self::cong_ds() as $n ) { if ( ! empty( $congTheoNguon[ $n ] ) ) { $ctn[] = array( 'nguon' => $n, 'ten' => $ten[ $n ], 'soTien' => $congTheoNguon[ $n ] ); } $tkc[] = array( 'nguon' => $n, 'ten' => $ten[ $n ], 'tuKhoa' => self::cong_tukhoa( $n ) ); }
+		return array( 'ok' => true, 'rows' => $rows, 'tongVao' => $tongVao, 'tongRa' => $tongRa, 'soDong' => count( $rows ),
+			'tongVaoBank' => $tongVaoBank, 'tongVaoCong' => $tongVaoCong, 'congTheoNguon' => $ctn, 'tuKhoaCong' => $tkc );
+	}
+
+	// ── Cầu nối: dựng WP_REST_Request rồi gọi lại handler v0.2 (DRY, đúng shape đã kiểm) ──
+	private static function req( $params ) {
+		$r = new WP_REST_Request( 'POST', '/' . self::NS . '/rpc' );
+		foreach ( $params as $k => $v ) { $r->set_param( $k, $v ); }
+		return $r;
+	}
+	private static function un_err( $res ) { // lỗi -> ném (về {__err}, hợp với withFailureHandler)
+		if ( is_wp_error( $res ) ) { self::loi( $res->get_error_message() ); }
+		if ( $res instanceof WP_REST_Response ) { $res = $res->get_data(); }
+		return $res;
+	}
+	private static function soft_err( $res ) { // lỗi -> {ok:false,error} (hợp với withSuccessHandler kiểm r.ok)
+		if ( is_wp_error( $res ) ) { return array( 'ok' => false, 'error' => $res->get_error_message() ); }
+		if ( $res instanceof WP_REST_Response ) { $res = $res->get_data(); }
+		return $res;
+	}
+	private static function cot_file_cong( $nguon ) {
+		$o = get_option( 'saoke_cot_' . $nguon ); if ( ! is_array( $o ) ) { $o = array(); }
+		return array( 'ngay' => isset( $o['ngay'] ) ? (int) $o['ngay'] : -1, 'soTien' => isset( $o['soTien'] ) ? (int) $o['soTien'] : -1,
+			'cuaHang' => isset( $o['cuaHang'] ) ? (int) $o['cuaHang'] : 15, 'maCH' => isset( $o['maCH'] ) ? (int) $o['maCH'] : 14 );
+	}
+
+	// ── Đối chiếu nộp tiền (getDoiChieuNop) ──
+	public static function rpc_getDoiChieuNop( $a ) {
+		self::can_pin( $a );
+		$res = self::un_err( self::r_doichieu( self::req( array( 'pin' => $a[0], 'tuNgay' => isset( $a[1] ) ? $a[1] : '', 'denNgay' => isset( $a[2] ) ? $a[2] : '' ) ) ) );
+		if ( ! isset( $res['canhBao'] ) ) { $res['canhBao'] = array( 'trungMa' => array(), 'thieuMa' => array() ); }
+		$res['ssId'] = '';
+		return $res;
+	}
+
+	// ── Tổng hợp doanh thu cơ sở (getTongHopCoSo) ──
+	public static function rpc_getTongHopCoSo( $a ) {
+		self::can_pin( $a );
+		$res = self::un_err( self::r_tonghop_coso( self::req( array( 'pin' => $a[0], 'tuNgay' => isset( $a[1] ) ? $a[1] : '', 'denNgay' => isset( $a[2] ) ? $a[2] : '' ) ) ) );
+		if ( ! isset( $res['canhBao'] ) ) { $res['canhBao'] = array( 'trungMa' => array(), 'thieuMa' => array() ); }
+		return $res;
+	}
+
+	// ── Sao kê 1 cổng (getSaoKeCong) — 2 chiều (cổng ↔ bank) + đối soát, port đủ shape ──
+	public static function rpc_getSaoKeCong( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { self::loi( 'Nguồn không hợp lệ: ' . $nguon ); }
+		$tu = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' ); $den = self::vn2ymd( isset( $a[3] ) ? (string) $a[3] : '' );
+		$tuKhoa = self::cong_tukhoa( $nguon ); $anhXa = self::ds_anhxa( $nguon ); $mapTen = self::map_ten_diem();
+		$tc = self::tbl_cong();
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, doc_duoc, raw, nhan_luc FROM $tc WHERE nguon=%s ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $nguon ), ARRAY_A );
+		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
+		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
+		foreach ( (array) $rowsC as $r ) {
+			$tongMoiNguon++;
+			if ( '' === $payloadCuoi ) { $payloadCuoi = (string) $r['raw']; }
+			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
+			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
+			$ngayY = self::vn2ymd_soft( $thoiDiem );
+			if ( $tu && $ngayY && $ngayY < $tu ) { continue; }
+			if ( $den && $ngayY && $ngayY > $den ) { continue; }
+			if ( 'Đi' === $r['huong'] ) { continue; }
+			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = strtoupper( (string) $r['diem_ban'] ); }
+			$coSo = self::cong_coso( $tenMay );
+			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
+			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
+			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $soTien; }
+			elseif ( '' === $suy['ma'] ) { $k = self::chuan_ch( $coSo ); if ( ! isset( $chuaAnhXa[ $k ] ) ) { $chuaAnhXa[ $k ] = array( 'ten' => $coSo, 'soTien' => 0, 'soLan' => 0, 'may' => array(), 'vi' => $suy['vi'] ); } $chuaAnhXa[ $k ]['soTien'] += $soTien; $chuaAnhXa[ $k ]['soLan']++; $chuaAnhXa[ $k ]['may'][ $tenMay ] = 1; }
+			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
+				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
+				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
+				'cuaHangChuan' => $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo, 'maBank' => $suy['ma'], 'daAnhXa' => '' !== $suy['ma'] );
+			$congTien += $soTien;
+			if ( count( $cong ) >= 2000 ) { break; }
+		}
+		$dsChuaAnhXa = array();
+		foreach ( $chuaAnhXa as $g ) { $may = array_keys( $g['may'] ); sort( $may ); $dsChuaAnhXa[] = array( 'ten' => $g['ten'], 'soTien' => $g['soTien'], 'soLan' => $g['soLan'], 'may' => $may, 'vi' => $g['vi'] ); }
+		usort( $dsChuaAnhXa, function ( $x, $y ) { return $y['soTien'] - $x['soTien']; } );
+		$tbl = self::tbl(); $kw = self::kd( $tuKhoa );
+		$wb = array( "loai='in'" ); $ab = array();
+		if ( $tu )  { $wb[] = 'DATE(ngay_gd)>=%s'; $ab[] = $tu; }
+		if ( $den ) { $wb[] = 'DATE(ngay_gd)<=%s'; $ab[] = $den; }
+		if ( '' !== $tuKhoa ) { $wb[] = 'noi_dung LIKE %s'; $ab[] = '%' . $wpdb->esc_like( $tuKhoa ) . '%'; }
+		$sqlB = "SELECT ngay_gd, ngan_hang, so_tk, tien, noi_dung, ma_gd FROM $tbl WHERE " . implode( ' AND ', $wb ) . " ORDER BY ngay_gd DESC, id DESC LIMIT 3000";
+		$rowsB = $ab ? $wpdb->get_results( $wpdb->prepare( $sqlB, $ab ), ARRAY_A ) : $wpdb->get_results( $sqlB, ARRAY_A );
+		$pn = self::pn_by_tk(); $bank = array(); $bankTien = 0;
+		foreach ( (array) $rowsB as $r ) { if ( '' !== $kw && false === strpos( self::kd( $r['noi_dung'] ), $kw ) ) { continue; }
+			$bank[] = array( 'ngayGD' => self::ymd2vn( $r['ngay_gd'] ), 'nganHang' => $r['ngan_hang'], 'soTK' => $r['so_tk'], 'vao' => (int) $r['tien'], 'noiDung' => $r['noi_dung'], 'maGD' => $r['ma_gd'], 'phapNhan' => isset( $pn[ $r['so_tk'] ] ) ? $pn[ $r['so_tk'] ] : '' );
+			$bankTien += (int) $r['tien']; }
+		$key = (string) get_option( 'saoke_webhook_key', '' );
+		$url = $key ? ( esc_url_raw( rest_url( self::NS . '/webhook' ) ) . '?key=' . rawurlencode( $key ) . '&src=' . $nguon ) : '';
+		$ten = self::cong_ten();
+		return array( 'ok' => true, 'nguon' => $nguon, 'ten' => $ten[ $nguon ], 'tuKhoa' => $tuKhoa, 'tuKhoaMacDinh' => self::cong_tukhoa_mac_dinh()[ $nguon ],
+			'webhookUrl' => $url, 'thieuKey' => '' === $key, 'cong' => $cong, 'congTien' => $congTien, 'congDong' => count( $cong ), 'congTongMoiNguon' => $tongMoiNguon,
+			'congKho' => $congKho, 'khoRows' => $khoRows, 'payloadCuoi' => $payloadCuoi, 'chuaAnhXa' => $dsChuaAnhXa, 'soAnhXa' => count( $anhXa ),
+			'chuaRoMay' => $chuaRoMay, 'chuaRoTien' => $chuaRoTien, 'log' => array(), 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
+			'chenh' => $congTien - $bankTien, 'kieuDoiSoat' => 'vietqr' === $nguon ? '1:1' : 'N:1' );
+	}
+
+	// ── Đối soát file cổng theo tháng (getDoiSoatFile) — MoMo/VNPAY ──
+	public static function rpc_getDoiSoatFile( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { self::loi( 'Nguồn không hợp lệ: ' . $nguon ); }
+		$thang = trim( isset( $a[2] ) ? (string) $a[2] : '' ); if ( '' === $thang ) { $thang = gmdate( 'Y-m', current_time( 'timestamp' ) ); }
+		$nam = (int) substr( $thang, 0, 4 ); $th = (int) substr( $thang, 5, 2 );
+		if ( ! ( $nam > 2000 && $th >= 1 && $th <= 12 ) ) { self::loi( 'Tháng không hợp lệ: ' . $thang ); }
+		$ngayIn = trim( isset( $a[3] ) ? (string) $a[3] : '' );
+		$ngay1 = '' !== $ngayIn ? self::file_ngay( $ngayIn ) : '';
+		if ( '' !== $ngayIn && '' === $ngay1 ) { self::loi( 'Ngày không hợp lệ: ' . $ngayIn ); }
+		if ( $ngay1 && ( substr( $ngay1, 6, 4 ) . '-' . substr( $ngay1, 3, 2 ) ) !== $thang ) { self::loi( 'Ngày ' . $ngay1 . ' không thuộc tháng ' . $thang ); }
+		$anhXa = self::ds_anhxa( $nguon ); $mapTen = self::map_ten_diem();
+		$tf = self::tbl_congfile();
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT ngay, ch_file, ma_bank, so_tien, so_dong FROM $tf WHERE nguon=%s AND thang=%s", $nguon, $thang ), ARRAY_A );
+		$theoCH = array(); $theoNgay = array(); $soNgayCo = array(); $tongFile = 0; $soDongGop = 0; $chuaAnhXa = array();
+		$khongTenCH = array( 'soTien' => 0, 'soDong' => 0, 'ngay' => array() );
+		foreach ( (array) $rows as $r ) {
+			$ngay = (string) $r['ngay']; $chFile = (string) $r['ch_file']; $tien = (int) $r['so_tien'];
+			$theoNgay[ $ngay ] = ( isset( $theoNgay[ $ngay ] ) ? $theoNgay[ $ngay ] : 0 ) + $tien;
+			$soNgayCo[ $ngay ] = ( isset( $soNgayCo[ $ngay ] ) ? $soNgayCo[ $ngay ] : 0 ) + 1;
+			if ( $ngay1 && $ngay !== $ngay1 ) { continue; }
+			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $chFile ) ] ) ? $anhXa[ self::chuan_ch( $chFile ) ] : null, $ngay );
+			$tenChuan = $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $chFile ) : $chFile;
+			$suy = self::ax_ma_nop( $ax, $mapTen );
+			if ( '' === $chFile ) { $khongTenCH['soTien'] += $tien; $khongTenCH['soDong']++; $khongTenCH['ngay'][ $ngay ] = 1; }
+			elseif ( '' === $suy['ma'] ) { if ( ! isset( $chuaAnhXa[ $chFile ] ) ) { $chuaAnhXa[ $chFile ] = array( 'soTien' => 0, 'vi' => $suy['vi'], 'tenChuan' => $ax ? $ax['tenChuan'] : '' ); } $chuaAnhXa[ $chFile ]['soTien'] += $tien; }
+			$k = self::chuan_ch( $chFile ); if ( '' === $k ) { $k = 'khongro'; }
+			if ( ! isset( $theoCH[ $k ] ) ) { $theoCH[ $k ] = array( 'cuaHangFile' => $chFile, 'cuaHangChuan' => $tenChuan, 'maBank' => $suy['ma'], 'daAnhXa' => '' !== $suy['ma'], 'viChuaGan' => '' !== $suy['ma'] ? '' : $suy['vi'], 'soTien' => 0, 'soNgay' => 0, 'ngayCuoi' => '' ); }
+			$theoCH[ $k ]['soTien'] += $tien; $theoCH[ $k ]['soNgay']++;
+			if ( $ngay > $theoCH[ $k ]['ngayCuoi'] ) { $theoCH[ $k ]['ngayCuoi'] = $ngay; }
+			$tongFile += $tien; $soDongGop += (int) $r['so_dong'];
+		}
+		$homNay = gmdate( 'Y-m-d', current_time( 'timestamp' ) ); $soNgayThang = (int) gmdate( 't', mktime( 0, 0, 0, $th, 1, $nam ) );
+		$denNgay = $soNgayThang; if ( $thang === substr( $homNay, 0, 7 ) ) { $denNgay = (int) substr( $homNay, 8, 2 ); }
+		$daCo = array(); $conThieu = array();
+		for ( $d = 1; $d <= $denNgay; $d++ ) { $nx = sprintf( '%02d/%02d/%d', $d, $th, $nam ); if ( isset( $theoNgay[ $nx ] ) ) { $daCo[] = array( 'ngay' => $nx, 'soTien' => $theoNgay[ $nx ] ); } else { $conThieu[] = $nx; } }
+		$tuKhoa = self::cong_tukhoa( $nguon ); $kw = self::kd( $tuKhoa );
+		$tbl = self::tbl(); $pn = self::pn_by_tk(); $bank = array(); $bankTien = 0;
+		$firstY = sprintf( '%04d-%02d-01', $nam, $th ); $lastY = sprintf( '%04d-%02d-%02d', $nam, $th, $soNgayThang );
+		$wb = array( "loai='in'", 'DATE(ngay_gd)>=%s', 'DATE(ngay_gd)<=%s' ); $ab = array( $firstY, $lastY );
+		if ( '' !== $tuKhoa ) { $wb[] = 'noi_dung LIKE %s'; $ab[] = '%' . $wpdb->esc_like( $tuKhoa ) . '%'; }
+		$rowsB = $wpdb->get_results( $wpdb->prepare( "SELECT ngay_gd, ngan_hang, so_tk, tien, noi_dung, ma_gd FROM $tbl WHERE " . implode( ' AND ', $wb ) . " ORDER BY ngay_gd DESC, id DESC LIMIT 5000", $ab ), ARRAY_A );
+		foreach ( (array) $rowsB as $r ) { if ( '' !== $kw && false === strpos( self::kd( $r['noi_dung'] ), $kw ) ) { continue; }
+			$ngayGD = self::ymd2vn( $r['ngay_gd'] ); if ( $ngay1 && substr( $ngayGD, 0, 10 ) !== $ngay1 ) { continue; }
+			$bank[] = array( 'ngayGD' => $ngayGD, 'nganHang' => $r['ngan_hang'], 'soTK' => $r['so_tk'], 'vao' => (int) $r['tien'], 'noiDung' => $r['noi_dung'], 'maGD' => $r['ma_gd'], 'phapNhan' => isset( $pn[ $r['so_tk'] ] ) ? $pn[ $r['so_tk'] ] : '' );
+			$bankTien += (int) $r['tien']; }
+		$dsCH = array_values( $theoCH ); usort( $dsCH, function ( $x, $y ) { return $y['soTien'] - $x['soTien']; } );
+		$dsNgay = array(); $truoc = null;
+		for ( $dd = 1; $dd <= $denNgay; $dd++ ) { $nx2 = sprintf( '%02d/%02d/%d', $dd, $th, $nam ); $coFile = isset( $theoNgay[ $nx2 ] ); $tienNgay = $coFile ? $theoNgay[ $nx2 ] : 0;
+			$dsNgay[] = array( 'ngay' => $nx2, 'coFile' => $coFile, 'soTien' => $tienNgay, 'soCuaHang' => isset( $soNgayCo[ $nx2 ] ) ? $soNgayCo[ $nx2 ] : 0, 'chenhHomTruoc' => ( null === $truoc || ! $coFile ) ? '' : ( $tienNgay - $truoc ) );
+			if ( $coFile ) { $truoc = $tienNgay; } }
+		$chuaAnhXaOut = array(); ksort( $chuaAnhXa );
+		foreach ( $chuaAnhXa as $t => $v ) { $chuaAnhXaOut[] = array( 'ten' => $t, 'soTien' => $v['soTien'], 'vi' => $v['vi'], 'tenChuan' => $v['tenChuan'] ); }
+		$dsAnhXaOut = array(); $ks = array_keys( $anhXa ); sort( $ks ); $soAnhXaCoMa = 0;
+		foreach ( $ks as $k3 ) { $coMa = false; foreach ( $anhXa[ $k3 ] as $x ) { $sm = self::ax_ma_nop( $x, $mapTen ); if ( '' !== $sm['ma'] ) { $coMa = true; }
+			$dsAnhXaOut[] = array( 'tenFile' => $x['tenFile'], 'tenChuan' => $x['tenChuan'], 'maBank' => $sm['ma'], 'maGhi' => $x['maBank'], 'tuNgay' => $x['tuNgay'], 'denNgay' => $x['denNgay'], 'vi' => $sm['vi'] ); } if ( $coMa ) { $soAnhXaCoMa++; } }
+		$khongTenNgay = array_keys( $khongTenCH['ngay'] ); sort( $khongTenNgay );
+		return array( 'ok' => true, 'nguon' => $nguon, 'ten' => self::cong_ten()[ $nguon ], 'thang' => $thang, 'tuKhoa' => $tuKhoa,
+			'cot' => self::cot_file_cong( $nguon ), 'ngayLoc' => $ngay1, 'theoNgay' => $dsNgay, 'tongThang' => array_sum( $theoNgay ),
+			'tongFile' => $tongFile, 'soCuaHang' => count( $dsCH ), 'soDongGop' => $soDongGop, 'theoCuaHang' => $dsCH,
+			'daCoNgay' => $daCo, 'conThieuNgay' => $conThieu, 'soNgayCanCo' => $denNgay, 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
+			'chenh' => $tongFile - $bankTien, 'chuaAnhXa' => $chuaAnhXaOut,
+			'khongTenCH' => array( 'soTien' => $khongTenCH['soTien'], 'soDong' => $khongTenCH['soDong'], 'ngay' => $khongTenNgay ),
+			'soAnhXa' => count( $anhXa ), 'soAnhXaCoMa' => $soAnhXaCoMa, 'dsAnhXa' => $dsAnhXaOut );
+	}
+
+	// ── Nạp file cổng (napFileCong) — MoMo/VNPAY, gộp theo ngày × cửa hàng ──
+	public static function rpc_napFileCong( $a ) {
+		self::can_pin( $a );
+		$res = self::soft_err( self::r_nap_file_cong( self::req( array( 'pin' => $a[0], 'nguon' => isset( $a[1] ) ? $a[1] : '', 'rows' => isset( $a[2] ) ? $a[2] : array(), 'tenFile' => isset( $a[3] ) ? $a[3] : '', 'ghiDe' => ! empty( $a[4] ) ? 1 : 0 ) ) ) );
+		foreach ( array( 'daDon' => 0, 'tienDon' => 0, 'dsDon' => array(), 'ngayMoi' => array(), 'ngayTrung' => array(), 'boQuaDong' => 0 ) as $k => $v ) { if ( ! isset( $res[ $k ] ) ) { $res[ $k ] = $v; } }
+		return $res;
+	}
+
+	// ── Nạp bù giao dịch cổng từ file (napFileCongTx) — Việt QR, vào CongThanhToan ──
+	public static function rpc_napFileCongTx( $a ) {
+		self::can_pin( $a );
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
+		$rows = isset( $a[2] ) && is_array( $a[2] ) ? $a[2] : array();
+		if ( ! count( $rows ) ) { return array( 'ok' => false, 'error' => 'File không có dòng dữ liệu nào' ); }
+		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
+		$tenFile = sanitize_text_field( isset( $a[3] ) ? (string) $a[3] : '' ); $anhXa = self::ds_anhxa( $nguon );
+		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
+		foreach ( $rows as $rr ) { $r = (array) $rr;
+			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
+			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
+			if ( '' === $thoiDiem ) { $khongNgay++; $boQua++; continue; }
+			if ( $soTien <= 0 ) { $khongTien++; $boQua++; continue; }
+			if ( '' === $maGD && '' === $ref ) { $khongMa++; $boQua++; continue; }
+			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => '', 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'docDuoc' => true );
+			$tx['khoa'] = self::cong_khoa( $nguon, $tx, wp_json_encode( $r ) ); $tx['raw'] = 'FILE ' . $tenFile . ' · ' . mb_substr( (string) wp_json_encode( $r ), 0, 1500 );
+			$tenMay = self::cong_ten_may( $noiDung );
+			if ( '' === $tenMay ) { $chuaRoMay++; }
+			elseif ( ! self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $thoiDiem ) ) { $chMoi[ self::cong_coso( $tenMay ) ] = 1; }
+			if ( self::luu_cong( $tx ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; }
+		}
+		$cm = array_keys( $chMoi ); sort( $cm );
+		return array( 'ok' => true, 'nguon' => $nguon, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ), 'themMoi' => $moi, 'trungBoQua' => $trung,
+			'tongTienThem' => $tongMoi, 'boQuaDong' => $boQua, 'khongNgay' => $khongNgay, 'khongTien' => $khongTien, 'khongMa' => $khongMa, 'chuaRoMay' => $chuaRoMay, 'cuaHangMoi' => $cm );
+	}
+
+	// ── Ánh xạ cửa hàng (luuAnhXaCuaHang) ──
+	public static function rpc_luuAnhXaCuaHang( $a ) {
+		self::can_pin( $a );
+		return self::soft_err( self::r_anhxa_luu( self::req( array( 'pin' => $a[0], 'nguon' => isset( $a[1] ) ? $a[1] : '', 'tenFile' => isset( $a[2] ) ? $a[2] : '',
+			'tenChuan' => isset( $a[3] ) ? $a[3] : '', 'maBank' => isset( $a[4] ) ? $a[4] : '', 'tuNgay' => isset( $a[5] ) ? $a[5] : '', 'denNgay' => isset( $a[6] ) ? $a[6] : '' ) ) ) );
+	}
+
+	// ── Xoá ánh xạ (xoaAnhXaCuaHang) ──
+	public static function rpc_xoaAnhXaCuaHang( $a ) {
+		self::can_pin( $a );
+		$res = self::soft_err( self::r_anhxa_xoa( self::req( array( 'pin' => $a[0], 'nguon' => isset( $a[1] ) ? $a[1] : '', 'tenFile' => isset( $a[2] ) ? $a[2] : '', 'tuNgay' => isset( $a[3] ) ? $a[3] : '', 'denNgay' => isset( $a[4] ) ? $a[4] : '' ) ) ) );
+		if ( isset( $res['daXoa'] ) && (int) $res['daXoa'] === 0 ) { return array( 'ok' => false, 'error' => 'Không thấy ánh xạ này — cửa hàng có nhiều dòng (chuyển gian) thì phải chỉ rõ khoảng ngày.' ); }
+		return $res;
+	}
+
+	// ── Chuyển gian sang cơ sở mới (chuyenGianCuaHang) — tự chốt ngày cũ, mở dòng mới ──
+	public static function rpc_chuyenGianCuaHang( $a ) {
+		self::can_pin( $a );
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
+		$tf = trim( isset( $a[2] ) ? (string) $a[2] : '' ); if ( '' === $tf ) { return array( 'ok' => false, 'error' => 'Thiếu tên cửa hàng ở file cổng' ); }
+		$nc = self::file_ngay( isset( $a[3] ) ? $a[3] : '' ); if ( '' === $nc ) { return array( 'ok' => false, 'error' => 'Ngày chuyển giao không hợp lệ: ' . ( isset( $a[3] ) ? $a[3] : '' ) ); }
+		$cu = self::ds_anhxa( $nguon ); $k = self::chuan_ch( $tf ); $ds = isset( $cu[ $k ] ) ? $cu[ $k ] : array();
+		if ( ! count( $ds ) ) { return array( 'ok' => false, 'error' => 'Cửa hàng "' . $tf . '" chưa có ánh xạ nào — gán cơ sở hiện tại trước, rồi mới chuyển gian.' ); }
+		$truoc = self::ax_theo_ngay( $ds, $nc ); if ( ! $truoc ) { return array( 'ok' => false, 'error' => 'Không có ánh xạ nào phủ ngày ' . $nc . ' — kiểm lại khoảng ngày đang khai.' ); }
+		if ( '' !== $truoc['denNgay'] && self::moc( $truoc['denNgay'] ) <= self::moc( $nc ) ) { return array( 'ok' => false, 'error' => 'Ánh xạ hiện hành đã chốt tới ' . $truoc['denNgay'] . ', không cần chuyển ở ngày ' . $nc . '.' ); }
+		$tcMoi = trim( isset( $a[4] ) ? (string) $a[4] : '' ); $mbMoi = trim( isset( $a[5] ) ? (string) $a[5] : '' );
+		if ( '' === $tcMoi && '' === $mbMoi ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở MỚI (tên chuẩn hoặc mã nộp tiền)' ); }
+		$mapTen = self::map_ten_diem();
+		$suyMoi = self::ax_ma_nop( array( 'maBank' => $mbMoi, 'tenChuan' => $tcMoi ), $mapTen );
+		if ( '' === $suyMoi['ma'] ) { return array( 'ok' => false, 'error' => 'Cơ sở mới chưa xác định được mã nộp tiền: ' . $suyMoi['vi'] ); }
+		$maTruoc = self::ax_ma_nop( $truoc, $mapTen ); $maTruoc = $maTruoc['ma'];
+		if ( $suyMoi['ma'] === $maTruoc ) { return array( 'ok' => false, 'error' => 'Cơ sở mới trùng cơ sở đang dùng (' . $suyMoi['ma'] . ') — không có gì để chuyển.' ); }
+		$all = get_option( 'saoke_anhxa' ); $all = is_array( $all ) ? $all : array();
+		foreach ( $all as &$r ) {
+			if ( strtolower( (string) ( isset( $r['nguon'] ) ? $r['nguon'] : '' ) ) === $nguon && self::chuan_ch( isset( $r['tenFile'] ) ? $r['tenFile'] : '' ) === $k
+				&& (string) ( isset( $r['tuNgay'] ) ? $r['tuNgay'] : '' ) === $truoc['tuNgay'] && (string) ( isset( $r['denNgay'] ) ? $r['denNgay'] : '' ) === $truoc['denNgay'] ) { $r['denNgay'] = $nc; break; }
+		}
+		unset( $r ); update_option( 'saoke_anhxa', array_values( $all ) );
+		$tuMoi = gmdate( 'd/m/Y', self::moc( $nc ) + 86400 );
+		$r2 = self::soft_err( self::r_anhxa_luu( self::req( array( 'pin' => $a[0], 'nguon' => $nguon, 'tenFile' => $tf, 'tenChuan' => $tcMoi, 'maBank' => $suyMoi['ma'], 'tuNgay' => $tuMoi, 'denNgay' => $truoc['denNgay'] ) ) ) );
+		if ( empty( $r2['ok'] ) ) { return $r2; }
+		return array( 'ok' => true, 'tenFile' => $tf, 'ngayChuyen' => $nc, 'cuTen' => $truoc['tenChuan'], 'cuDen' => $nc,
+			'moiTen' => '' !== $tcMoi ? $tcMoi : $suyMoi['ma'], 'moiMa' => $suyMoi['ma'], 'moiTu' => $tuMoi, 'daVa' => isset( $r2['daVa'] ) ? $r2['daVa'] : 0 );
+	}
+
+	// ── Xoá dữ liệu file đã nạp của 1 ngày (xoaNgayFileCong) ──
+	public static function rpc_xoaNgayFileCong( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
+		$nx = self::file_ngay( isset( $a[2] ) ? $a[2] : '' ); if ( '' === $nx ) { return array( 'ok' => false, 'error' => 'Ngày không hợp lệ: ' . ( isset( $a[2] ) ? $a[2] : '' ) ); }
+		$tf = self::tbl_congfile();
+		$n = $wpdb->query( $wpdb->prepare( "DELETE FROM $tf WHERE nguon=%s AND ngay=%s", $nguon, $nx ) );
+		return array( 'ok' => true, 'ngay' => $nx, 'soDongXoa' => (int) $n );
+	}
+
+	// ── Gửi thử payload cổng (testWebhookCong) ──
+	public static function rpc_testWebhookCong( $a ) {
+		self::can_pin( $a );
+		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array( 'ok' => false, 'error' => 'Nguồn không hợp lệ: ' . $nguon ); }
+		$raw = trim( isset( $a[2] ) ? (string) $a[2] : '' ); if ( '' === $raw ) { return array( 'ok' => false, 'error' => 'Chưa dán payload' ); }
+		$doc = self::cong_doc_payload( $raw ); $moi = 0; $trung = 0; $kho = 0;
+		foreach ( $doc as $tx ) { $tx['nguon'] = $nguon; $tx['khoa'] = self::cong_khoa( $nguon, $tx, $raw ); $tx['raw'] = $raw;
+			if ( empty( $tx['docDuoc'] ) ) { $kho++; } if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; } }
+		$kq = count( $doc ) ? ( 'đã lưu ' . $moi . ' giao dịch' . ( $trung ? ( ', trùng bỏ qua ' . $trung ) : '' ) . ( $kho ? ( ', ' . $kho . ' dòng CHƯA ĐỌC ĐƯỢC đủ trường' ) : '' ) ) : 'không đọc được giao dịch nào từ payload';
+		return array( 'ok' => true, 'ketQua' => $kq, 'doc' => $doc );
 	}
 
 	// ───────────────────────────── Frontend SPA ─────────────────────────────
