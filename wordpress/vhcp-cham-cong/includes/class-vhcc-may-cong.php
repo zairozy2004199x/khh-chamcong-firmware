@@ -265,7 +265,48 @@ class VHCC_MayCong {
 		if ( '' === $op ) { return array( 'boQua' => true, 'note' => 'Thieu opId.' ); }
 		$anh = $wpdb->get_var( $wpdb->prepare(
 			'SELECT anh_b64 FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE op_id=%s LIMIT 1', $op ) );
-		return array( 'anh' => (string) $anh );
+		return array( 'anh' => self::b64_tron( (string) $anh ) );
+	}
+
+	/**
+	 * CẮT TIỀN TỐ `data:image/jpeg;base64,` TRƯỚC KHI GỬI XUỐNG MÁY.
+	 *
+	 * =========================================================================================
+	 * 🔴 09/09/2026 — ẢNH THẺ CHƯA TỪNG XUỐNG TỚI ĐẦU ĐỌC, VÀ KHÔNG AI BIẾT.
+	 * =========================================================================================
+	 * Anh Thắng hỏi *"vậy firmware máy chấm công Hik và ESP32 hiện cho đẩy xuống được chưa"*.
+	 * Firmware có đủ đường (`fetchPhotoDecoded` → `faceUpload` → ISAPI FaceDataRecord), nhưng
+	 * dựng lại đúng chuỗi byte máy chủ trả về thì lộ ra chỗ gãy:
+	 *
+	 *   · Cột `anh_the` (và `queue.anh_b64` chép thẳng từ nó) giữ **DATA URI**:
+	 *     `data:image/jpeg;base64,/9j/4AAQ…`
+	 *   · Bộ giải mã của firmware bám mốc `anh":"` rồi coi MỌI ký tự sau đó là base64, cho tới
+	 *     dấu `"` đóng chuỗi. Nó KHÔNG biết gì về tiền tố.
+	 *   · Ký tự thứ năm sau mốc là dấu **`:`** — không nằm trong bảng base64 → `err = true` →
+	 *     `fetchPhotoDecoded` trả **-3** → `processOp` trả false.
+	 *
+	 * Hệ quả: người VẪN được ghi vào đầu đọc (lệnh `UserInfo` chạy trước), nhưng **không có
+	 * khuôn mặt** — nên họ vẫn phải ra máy đứng chụp lại, đúng cái việc tính năng này sinh ra để
+	 * bỏ. Máy báo về `HONG photo fetch fail(-3)`, mà dòng ấy chỉ nằm trong nhật ký của lệnh chứ
+	 * không nổi lên đâu cả.
+	 *
+	 * 🔴 SỬA Ở MÁY CHỦ, KHÔNG SỬA FIRMWARE. Hai lý do, cùng một hướng:
+	 *    (1) sửa ở đây là **mọi máy đang chạy ngoài cửa hàng khỏi cần nạp lại firmware**, kể cả
+	 *        mấy lệnh ĐANG nằm sẵn trong hàng đợi lúc này;
+	 *    (2) cắt ở lúc ĐỌC chứ không lúc GHI, để lệnh cũ trong hàng cũng được cứu.
+	 *    Vẫn nên cho firmware biết bỏ qua tiền tố (phòng thân) — nhưng đó là việc nạp lại 26 máy
+	 *    cho một thứ máy chủ đã lo xong, nên xếp vào việc còn treo, không làm cùng lượt này.
+	 *
+	 * ⚠️ Chuỗi KHÔNG có tiền tố thì trả nguyên — máy chấm công đẩy ảnh lượt chấm lên vốn là
+	 *    base64 trơn, cắt bừa là hỏng chính đường đang chạy tốt.
+	 */
+	public static function b64_tron( $s ) {
+		$s = trim( (string) $s );
+		if ( '' === $s ) { return ''; }
+		if ( 0 !== strpos( $s, 'data:' ) ) { return $s; }
+		$i = strpos( $s, 'base64,' );
+		if ( false === $i ) { return $s; }   // `data:` mà không phải base64 -> đừng đoán, trả nguyên
+		return substr( $s, $i + 7 );
 	}
 
 	/** Cờ "dừng tải lại" — thay `/stop/<tên máy>`. */

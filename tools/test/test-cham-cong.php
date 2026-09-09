@@ -19219,6 +19219,84 @@ t( 'ảnh trong lệnh không rỗng', strlen( (string) $_lenh_ac[0]['anh_b64'] 
 t( '🔴 câu báo nói máy tự nhận mặt, khỏi gọi người ra đứng trước đầu đọc',
 	strpos( (string) $r_day['thong_bao'], 'tự nhận khuôn mặt' ) !== false, $r_day );
 
+/* 🔴 TIỀN TỐ `data:image/jpeg;base64,` PHẢI BỊ CẮT TRƯỚC KHI XUỐNG MÁY — 09/09/2026.
+   Anh Thắng hỏi *"firmware máy chấm công Hik và ESP32 hiện cho đẩy xuống được chưa"*. Firmware
+   có đủ đường, nhưng dựng lại đúng chuỗi byte máy chủ trả về thì lộ chỗ gãy: bộ giải mã của nó
+   bám mốc `anh":"` rồi coi MỌI ký tự sau đó là base64. Ký tự thứ năm của data URI là dấu `:` —
+   không nằm trong bảng base64 → `fetchPhotoDecoded` trả -3 → người VẪN vào đầu đọc nhưng KHÔNG
+   có khuôn mặt, và họ vẫn phải ra máy đứng chụp lại.
+   ⚠️ Đo ĐÚNG THỨ MÁY NHẬN (`anh_cua_lenh`), không đo cột trong bảng: cột giữ nguyên data URI là
+      đúng (hồ sơ cần nó để hiện ảnh), chỗ phải sạch là ĐƯỜNG RA. */
+$_lenh_op = (string) $_lenh_ac[0]['op_id'];
+$_ra_may  = VHCC_MayCong::anh_cua_lenh( array( 'opId' => $_lenh_op ) );
+t( '🔴 thứ gửi xuống máy KHÔNG còn tiền tố data:',
+	0 !== strpos( (string) $_ra_may['anh'], 'data:' ), substr( (string) $_ra_may['anh'], 0, 40 ) );
+t( 'và là base64 hợp lệ, giải ra được JPEG thật',
+	0 === strpos( (string) base64_decode( (string) $_ra_may['anh'], true ), "\xFF\xD8\xFF" ),
+	substr( (string) $_ra_may['anh'], 0, 40 ) );
+/* Mô phỏng ĐÚNG bộ giải mã của firmware: bám mốc `anh":"`, mọi ký tự sau đó là base64, dừng ở
+   `"` hoặc `=`. Ký tự lạ = hỏng. Đây là phép thử duy nhất chứng minh được máy đọc nổi. */
+function vhcc_giai_ma_nhu_firmware( $than ) {
+	$moc = 'anh":"';
+	$i   = strpos( $than, $moc );
+	if ( false === $i ) { return array( 'ok' => false, 'ly_do' => 'khong thay moc' ); }
+	$ra = ''; $quad = array();
+	for ( $k = $i + strlen( $moc ); $k < strlen( $than ); $k++ ) {
+		$c = $than[ $k ];
+		if ( '"' === $c || '=' === $c ) { break; }
+		if ( "\r" === $c || "\n" === $c || ' ' === $c || "\t" === $c ) { continue; }
+		$v = strpos( 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/', $c );
+		if ( false === $v ) { return array( 'ok' => false, 'ly_do' => 'ky tu la: ' . $c ); }
+		$quad[] = $v;
+		if ( 4 === count( $quad ) ) {
+			$ra .= chr( ( $quad[0] << 2 ) | ( $quad[1] >> 4 ) )
+				. chr( ( ( $quad[1] & 0xF ) << 4 ) | ( $quad[2] >> 2 ) )
+				. chr( ( ( $quad[2] & 0x3 ) << 6 ) | $quad[3] );
+			$quad = array();
+		}
+	}
+	return array( 'ok' => true, 'byte' => $ra );
+}
+/* `wp_json_encode` là ĐÚNG hàm cổng máy dùng để đáp (xem `VHCC_Nhan::tra()`) — dựng lại thân
+   thật, kể cả chuyện nó escape dấu `/` thành `\/`. */
+$_than_may = wp_json_encode( array_merge( array( 'status' => 'SUCCESS' ), $_ra_may ),
+	JSON_UNESCAPED_SLASHES );
+$_gm = vhcc_giai_ma_nhu_firmware( $_than_may );
+t( '🔴 bộ giải mã của FIRMWARE đọc được, không chết giữa chừng',
+	! empty( $_gm['ok'] ), $_gm );
+t( '🔴 và ra đúng một tấm JPEG (bắt đầu bằng FF D8 FF)',
+	! empty( $_gm['ok'] ) && 0 === strpos( $_gm['byte'], "\xFF\xD8\xFF" ),
+	! empty( $_gm['ok'] ) ? bin2hex( substr( $_gm['byte'], 0, 4 ) ) : $_gm );
+
+/* ĐỐI CHỨNG: chưa cắt tiền tố thì firmware chết ở đúng dấu `:` — nếu phép này cũng xanh thì
+   phép trên chẳng chứng minh được gì. */
+$_than_cu = wp_json_encode( array( 'status' => 'SUCCESS',
+	'anh' => 'data:image/jpeg;base64,' . base64_encode( "\xFF\xD8\xFFhello" ) ),
+	JSON_UNESCAPED_SLASHES );
+$_gm_cu = vhcc_giai_ma_nhu_firmware( $_than_cu );
+t( '🔴 ĐỐI CHỨNG: để nguyên data URI thì firmware CHẾT ở dấu ":"',
+	empty( $_gm_cu['ok'] ) && strpos( (string) $_gm_cu['ly_do'], ':' ) !== false, $_gm_cu );
+
+/* 🔴 LỖI THỨ HAI TRÊN CÙNG ĐƯỜNG ẢNH: `json_encode` mặc định đổi `/` thành `\/`, mà base64 của
+   một tấm JPEG gần như luôn mở đầu bằng `/9j/`. Bộ giải mã viết tay trong firmware không hiểu
+   escape → gặp `\` là chết. Cổng máy phải đáp bằng `JSON_UNESCAPED_SLASHES`. */
+$_src_nhan = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan.php' );
+t( '🔴 cổng máy đáp KHÔNG escape dấu "/"',
+	strpos( $_src_nhan, 'wp_json_encode( $tt, JSON_UNESCAPED_SLASHES )' ) !== false, null );
+/* ĐỐI CHỨNG: escape dấu `/` thì firmware chết ngay ở tấm JPEG thật (base64 mở đầu `/9j/`). */
+$_gm_esc = vhcc_giai_ma_nhu_firmware( wp_json_encode(
+	array( 'status' => 'SUCCESS', 'anh' => base64_encode( "\xFF\xD8\xFF" . str_repeat( "\xFF", 40 ) ) ) ) );
+t( '🔴 ĐỐI CHỨNG: escape dấu "/" thì firmware CHẾT ở dấu "\\"',
+	empty( $_gm_esc['ok'] ) && strpos( (string) $_gm_esc['ly_do'], '\\' ) !== false, $_gm_esc );
+
+/* Ảnh base64 TRƠN (đường máy đẩy ảnh lượt chấm lên) phải giữ NGUYÊN — cắt bừa là hỏng chính
+   đường đang chạy tốt. */
+teq( 'base64 trơn thì giữ nguyên, không cắt gì',
+	'QUJD', VHCC_MayCong::b64_tron( 'QUJD' ) );
+teq( 'chuỗi rỗng vẫn là rỗng', '', VHCC_MayCong::b64_tron( '' ) );
+teq( 'data: mà không phải base64 thì đừng đoán, trả nguyên',
+	'data:image/png,abc', VHCC_MayCong::b64_tron( 'data:image/png,abc' ) );
+
 /* ⚠️ Cơ sở CHƯA gắn máy nào thì vẫn phải LƯU ẢNH, và nói thẳng là chưa có máy — chứ không chối
    cả việc lưu. Ảnh thẻ còn dùng cho chấm công online và cho việc đối chiếu, không chỉ cho máy. */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );

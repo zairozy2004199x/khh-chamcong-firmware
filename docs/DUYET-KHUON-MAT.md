@@ -128,12 +128,46 @@ dùng được.
 ⚠️ Phép thử đo **lệnh thật trong hàng đợi**, không đo câu chữ báo về: câu báo có thể nói *"đã đặt
 lệnh"* trong khi hàng đợi trống, và đó đúng là loại hỏng im lặng không ai phát hiện.
 
+### 🔴 Ảnh CHƯA TỪNG xuống tới đầu đọc — hai lỗi trên cùng một đường (3.54.0)
+
+Anh Thắng hỏi: *"vậy firmware máy chấm công Hik và ESP32 hiện cho đẩy xuống được chưa"*.
+
+Firmware **có đủ đường**: `fetchPhotoDecoded()` → giải mã base64 → `faceUpload()` → ISAPI
+`FDLib/FaceDataRecord`. Nhưng dựng lại **đúng chuỗi byte máy chủ trả về** thì lộ ra **hai chỗ
+gãy, độc lập nhau**, và cả hai đều nằm ở **máy chủ**:
+
+| # | Lỗi | Vì sao chết |
+|---|---|---|
+| 1 | `queue.anh_b64` giữ **data URI** `data:image/jpeg;base64,…` | bộ giải mã bám mốc `anh":"` rồi coi **mọi** ký tự sau đó là base64. Ký tự thứ năm là dấu **`:`** — không có trong bảng base64 |
+| 2 | `json_encode` đổi `/` thành `\/` | base64 của một tấm JPEG gần như luôn mở đầu bằng **`/9j/`** → gặp `\` là ký tự lạ |
+
+Cả hai đều cho cùng một kết cục: `fetchPhotoDecoded` trả **-3** → `processOp` trả false → **người
+VẪN được ghi vào đầu đọc nhưng KHÔNG có khuôn mặt**, nên họ vẫn phải ra máy đứng chụp lại — đúng
+cái việc tính năng này sinh ra để bỏ. Máy báo về `HONG photo fetch fail(-3)`, mà dòng ấy chỉ nằm
+trong nhật ký của lệnh chứ không nổi lên đâu cả.
+
+**Sửa ở máy chủ, không sửa firmware:** `VHCC_MayCong::b64_tron()` cắt tiền tố lúc **ĐỌC** (nên
+mấy lệnh đang nằm sẵn trong hàng đợi cũng được cứu), và `VHCC_Nhan::tra()` đáp bằng
+`JSON_UNESCAPED_SLASHES`. **Mọi máy ngoài cửa hàng khỏi phải nạp lại firmware.**
+
+⚠️ **Phép thử dựng lại NGUYÊN bộ giải mã của firmware** (bám mốc, bảng base64, dừng ở `"`/`=`) và
+chạy nó trên thân JSON thật, chứ không đo từng mảnh — sửa một lỗi mà quên lỗi kia thì ảnh vẫn
+không xuống được, mà đo từng mảnh thì cả hai đều "xanh". Kèm **hai phép đối chứng** chứng minh
+từng lỗi thật sự làm firmware chết.
+
+⚠️ Bẫy kèm theo: bản giả `wp_json_encode()` trong `wp-stub.php` **nuốt mất tham số `$options`**,
+nên cờ `JSON_UNESCAPED_SLASHES` không có tác dụng trong bài kiểm — phép thử xanh mà máy vẫn không
+nhận được ảnh. Cùng loại bẫy với `esc_url` nuốt `data:`. Nay bản giả nhận đủ tham số.
+
 ### Nằm ở đâu
 
 | Việc | Tệp · hàm |
 |---|---|
 | Chọn tấm chuẩn nhất | `class-vhcc-mat.php` · `anh_chuan_cho()`, `co_tep_anh()`, `tep_anh()` |
 | Đẩy xuống máy (ảnh đi kèm lệnh) | `class-vhcc-nhan-su.php` · `day_ho_so_moi_len_may()` → `lenh_may_()` |
+| Cắt tiền tố data URI trước khi gửi máy | `class-vhcc-may-cong.php` · `b64_tron()`, `anh_cua_lenh()` |
+| Cổng máy đáp không escape dấu `/` | `class-vhcc-nhan.php` · `tra()` |
+| Bộ giải mã phía firmware | `esp32_hik_chamcong_full.ino` · `AnhGiaiMa`, `fetchPhotoDecoded()` |
 | Ghi vào hồ sơ (cửa hẹp, chỉ cột `anh_the`) | `class-vhcc-nhan-su.php` · `anh_the_tu_cham()` |
 | Lõi rửa ảnh dùng chung | `class-vhcc-nhan-su.php` · `rua_anh_tep()` |
 | Khối đề xuất + nút | `class-vhcc-web.php` · `khoi_thieu_anh()` |

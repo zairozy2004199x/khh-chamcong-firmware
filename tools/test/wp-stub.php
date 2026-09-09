@@ -66,7 +66,19 @@ function get_transient( $k ) { return array_key_exists( $k, $GLOBALS['VHCP_TR'] 
 function set_transient( $k, $v, $t = 0 ) { $GLOBALS['VHCP_TR'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['VHCP_TR'][ $k ] ); return true; }
 function wp_cache_delete( $k, $g = '' ) { return true; }
-function wp_json_encode( $v ) { return json_encode( $v, JSON_UNESCAPED_UNICODE ); }
+/* 🔴 PHẢI NHẬN THAM SỐ `$options` — Y NHƯ WORDPRESS THẬT.
+ * Bản giả cũ nuốt mất tham số thứ hai, nên `wp_json_encode( $x, JSON_UNESCAPED_SLASHES )` trong
+ * mã thật vẫn ra chuỗi CÓ escape ở bài kiểm. Cổng máy chấm công đáp bằng cờ ấy đúng để bộ giải
+ * mã base64 viết tay trong firmware đọc được (`/9j/` chứ không phải `\/9j\/`) — bản giả dễ dãi
+ * hơn bản thật ở đúng chỗ ấy là phép thử xanh mà máy vẫn không nhận được ảnh.
+ * Cùng loại bẫy với `esc_url` nuốt `data:` — xem chú thích ở đó.
+ *
+ * ⚠️ GIỮ `JSON_UNESCAPED_UNICODE` làm mặc định. WordPress thật KHÔNG bật cờ này, nhưng cả bộ
+ *    thử này đọc chữ Việt trong JSON để soi, và đổi mặc định là sửa hàng chục phép thử cho một
+ *    thứ chẳng liên quan tới lỗi đang xét. Cờ do nơi gọi truyền vào vẫn được cộng thêm đủ. */
+function wp_json_encode( $v, $options = 0, $depth = 512 ) {
+	return json_encode( $v, ( (int) $options ) | JSON_UNESCAPED_UNICODE, (int) $depth );
+}
 function wp_rand( $min = 0, $max = 0 ) { return random_int( $min, $max ); }
 function wp_generate_password( $len = 12, $sp = true, $xsp = false ) {
 	$c = 'abcdefghijklmnopqrstuvwxyz0123456789';
