@@ -404,6 +404,14 @@ class VHCP_Test_WPDB {
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
+		/* 🔴 `SHOW COLUMNS ... LIKE` — plugin dùng câu này để hỏi "bản plugin KIA đã có cột ấy
+		   chưa". Bốn plugin cài độc lập và bản lệch nhau là chuyện thường (09/09/2026: ghế trên
+		   live là 2.16.0 trong khi repo mới tới 1.41.0), nên "cột chưa có" là một nhánh CÓ THẬT
+		   phải thử được — không mô phỏng thì nhánh nói-ra-lý-do ấy không phép thử nào chạm tới.
+		   SQLite trả bảng `pragma_table_info`; chỉ cần đếm có/không nên `SELECT name` là đủ. */
+		if ( preg_match( "/^\s*SHOW\s+COLUMNS\s+FROM\s+([A-Za-z0-9_]+)\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			return "SELECT name FROM pragma_table_info('" . $m[1] . "') WHERE name='" . $m[2] . "'";
+		}
 		$sql = str_ireplace( 'UTC_TIMESTAMP()', "datetime('now')", $sql );
 		if ( stripos( $sql, 'ON DUPLICATE KEY UPDATE' ) !== false ) {
 			$sql = preg_replace( '/\s+ON DUPLICATE KEY UPDATE.*$/is', '', $sql );

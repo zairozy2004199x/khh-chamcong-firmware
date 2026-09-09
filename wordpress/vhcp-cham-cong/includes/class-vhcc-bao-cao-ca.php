@@ -64,11 +64,12 @@ class VHCC_BaoCaoCa {
 	 *
 	 * @param string $coso  tên cơ sở bên chấm công
 	 * @param string $thang 'YYYY-MM'
-	 * @return array [ 'theo' => [ MÃ_NV => [ ngày(int) => số lượt chốt ] ], 'bo_qua' => int ]
+	 * @return array [ 'theo' => [ MÃ_NV => [ ngày(int) => số lượt chốt ] ], 'bo_qua' => int,
+	 *                 'thieu_cot' => bool ]
 	 */
 	public static function theo_thang( $coso, $thang ) {
 		global $wpdb;
-		$rong = array( 'theo' => array(), 'bo_qua' => 0 );
+		$rong = array( 'theo' => array(), 'bo_qua' => 0, 'thieu_cot' => false );
 		$cs = VHCC_NhanSu::chuan_coso( (string) $coso );
 		if ( '' === $cs || ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { return $rong; }
 		/* ⚠️ Gác `method_exists` NGAY TRONG HÀM GỌI, không gác hộ ở một hàm khác (luật
@@ -94,6 +95,20 @@ class VHCC_BaoCaoCa {
 		$tu   = date( 'Y-m-d H:i:s', strtotime( $dau ) - 86400 );
 		$den  = date( 'Y-m-d H:i:s', strtotime( $cuoi ) + 86400 );
 
+		/* 🔴 09/09/2026 — BẢN GHẾ CŨ THÌ NÓI RA, ĐỪNG IM.
+		   Cột `chot.ma_nv` chỉ có từ bản ghế 1.42.0. Site đang chạy một bản khác (anh Thắng
+		   09/09: ảnh wp-admin cho thấy live là **2.16.0**, còn repo này mới có tới 1.41.0 — mã
+		   của bản đang chạy KHÔNG nằm trong repo) thì câu lệnh dưới đây hỏng, `$wpdb` nuốt lỗi,
+		   và cả tính năng im lặng không chạy. Người dùng chỉ thấy lưới không bao giờ vàng lên và
+		   kết luận là em làm hỏng.
+		   Hỏi cột TRƯỚC, và trả cờ `thieu_cot` để màn hình nói được VÌ SAO. */
+		$co_cot = (bool) $wpdb->get_var( $wpdb->prepare(
+			'SHOW COLUMNS FROM ' . $t_chot . ' LIKE %s', 'ma_nv' ) );
+		if ( ! $co_cot ) {
+			$rong['thieu_cot'] = true;
+			return $rong;
+		}
+
 		$ds = VHCC_DB::rows( $wpdb->prepare(
 			"SELECT c.ma_nv, c.nguoi, c.tao_luc FROM $t_chot c"
 			. " JOIN $t_may m ON m.ma = c.ma_may"
@@ -112,7 +127,7 @@ class VHCC_BaoCaoCa {
 			if ( ! isset( $theo[ $ma ] ) ) { $theo[ $ma ] = array(); }
 			$theo[ $ma ][ $d ] = ( isset( $theo[ $ma ][ $d ] ) ? $theo[ $ma ][ $d ] : 0 ) + 1;
 		}
-		return array( 'theo' => $theo, 'bo_qua' => $bo );
+		return array( 'theo' => $theo, 'bo_qua' => $bo, 'thieu_cot' => false );
 	}
 
 	/** Một mốc thời gian thuộc về NGÀY LÀM VIỆC nào — xem `GIO_CAT`. */

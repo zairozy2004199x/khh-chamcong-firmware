@@ -19411,7 +19411,39 @@ teq( '🔴 nhưng số ô vàng GIẢM đi đúng một — ngày đã chấm th
 	substr_count( $h_bc, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) - 1,
 	substr_count( $h_bc2, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) );
 
-$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'chot' ) );
+/* 🔴 BẢN GHẾ CŨ KHÔNG CÓ CỘT `ma_nv` THÌ PHẢI NÓI RA, ĐỪNG IM — 09/09/2026.
+   Anh Thắng gửi ảnh wp-admin: bản ghế trên LIVE là **2.16.0**, còn repo này mới tới 1.41.0 — mã
+   của bản đang chạy KHÔNG nằm trong repo. Cột `chot.ma_nv` chỉ có từ 1.42.0 (đợt này thêm).
+   Không có nhánh nói-ra-lý-do thì hậu quả là: lưới KHÔNG BAO GIỜ vàng lên, không một lời giải
+   thích, và người dùng kết luận tính năng hỏng. Dựng lại đúng cảnh ấy bằng cách bỏ hẳn cột đi. */
+$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHG_DB::t( 'chot' ) );
+$wpdb->exec_raw( 'CREATE TABLE ' . VHG_DB::t( 'chot' )
+	. ' (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_may TEXT, nguoi TEXT, tao_luc TEXT)' );
+$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
+	'tao_luc' => '2026-09-10 14:20:00' ) );
+$_bc_cu = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
+t( '🔴 bản ghế thiếu cột ma_nv thì BÁO CỜ `thieu_cot`, không im lặng trả rỗng',
+	! empty( $_bc_cu['thieu_cot'] ), $_bc_cu );
+teq( 'và không gắn cờ cho ai cả', array(), $_bc_cu['theo'] );
+$h_bc3 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( 'lưới vẫn dựng bình thường, không chết vì thiếu cột',
+	strpos( $h_bc3, 'id="luoithang"' ) !== false, null );
+t( '🔴 và màn NÓI RA vì sao cờ chưa chạy',
+	strpos( $h_bc3, 'chưa chạy được' ) !== false
+	&& strpos( $h_bc3, 'Mã NV' ) !== false, substr( $h_bc3, -1500 ) );
+t( 'không ô nào vàng — đúng, vì chưa nối được người',
+	strpos( $h_bc3, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) === false, null );
+/* ⚠️ Site KHÔNG cài plugin ghế thì không có gì để nói — cờ này vốn không dành cho họ. Dải báo
+   mà hiện ở đó là một câu cảnh báo về một plugin người ta không dùng. */
+$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHG_DB::t( 'chot' ) );
+$_bc_ko = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
+t( '🔴 không có bảng chốt thì KHÔNG báo gì', empty( $_bc_ko['thieu_cot'] ), $_bc_ko );
+$h_bc4 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( 'và màn KHÔNG hiện dải cảnh báo về một plugin không cài',
+	strpos( $h_bc4, 'chưa chạy được' ) === false, null );
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='BC1'" );
 

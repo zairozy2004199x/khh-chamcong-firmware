@@ -5947,9 +5947,30 @@ class VHCC_Web {
 	 */
 	private static function bc_ca( $cs, $tt ) {
 		if ( ! class_exists( 'VHCC_BaoCaoCa' ) || ! method_exists( 'VHCC_BaoCaoCa', 'theo_thang' ) ) {
-			return array( 'theo' => array(), 'bo_qua' => 0 );
+			return array( 'theo' => array(), 'bo_qua' => 0, 'thieu_cot' => false );
 		}
 		return VHCC_BaoCaoCa::theo_thang( $cs, $tt );
+	}
+
+	/**
+	 * DẢI NÓI VÌ SAO CỜ CHƯA CHẠY — vẽ ngay trên lưới.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng gửi ảnh wp-admin: bản ghế trên live là **2.16.0**, còn repo này
+	 *    mới có tới 1.41.0 — mã của bản đang chạy KHÔNG nằm trong repo. Cột `chot.ma_nv` (thứ
+	 *    cờ này dựa vào) chỉ có từ bản ghế 1.42.0 do đợt này thêm.
+	 *    Không có dải này thì hậu quả là: lưới KHÔNG BAO GIỜ vàng lên, không một lời giải thích,
+	 *    và người dùng kết luận tính năng hỏng. Một tính năng tắt vì thiếu điều kiện thì phải
+	 *    NÓI RA điều kiện ấy — im lặng là bắt người ta đi đoán.
+	 * ⚠️ Chỉ vẽ khi bảng chốt CÓ THẬT mà thiếu cột. Site không cài plugin ghế thì không có gì để
+	 *    nói: cờ này vốn không dành cho họ.
+	 */
+	private static function bao_bc_ca( $bc ) {
+		if ( empty( $bc['thieu_cot'] ) ) { return; }
+		echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>Cờ "đi làm mà quên chấm công" '
+			. 'chưa chạy được.</b> Bản <b>Ghế Massage</b> đang cài chưa ghi <b>Mã NV</b> vào sổ '
+			. 'chốt ca, nên không nối được người bên ấy sang hồ sơ bên này. <span class="mo">Cờ '
+			. 'này cần bản ghế có cột <code>ma_nv</code> trong bảng chốt. Cho tới lúc đó lưới vẫn '
+			. 'chạy bình thường, chỉ là không ô nào vàng lên.</span></div>';
 	}
 
 	/**
@@ -6106,6 +6127,7 @@ class VHCC_Web {
 
 		$tong_cs = 0;
 		$bc_ca = self::bc_ca( (string) $b['coSo'], $tt );
+		self::bao_bc_ca( $bc_ca );
 
 		foreach ( $ten as $ma => $ho_ten ) {
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
@@ -6321,6 +6343,7 @@ class VHCC_Web {
 		/* Cơ sở KHÔNG nằm trong `$b` của lưới công (bảng ấy dựng quanh tháng), nên nhận thẳng
 		   từ nơi gọi — nơi ấy vốn đang cầm `$cs`. Đoán ra từ dữ liệu là thêm một chỗ sai được. */
 		$bc_ca = self::bc_ca( (string) $cs_bc, $tt );
+		self::bao_bc_ca( $bc_ca );
 		$rows = (array) $b['rows'];
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
 		if ( false === $moc ) {
