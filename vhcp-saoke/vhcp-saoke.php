@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.3.1
+ * Version:           0.3.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -199,27 +199,53 @@ class SAOKE_App {
 		register_rest_route( self::NS, '/vqr/bank/api/transaction-callback', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_callback' ) ) + $pub ) );
 		register_rest_route( self::NS, '/vqr/bank/api/test/transaction-callback', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_callback' ) ) + $pub ) );
 		register_rest_route( self::NS, '/vqr-cfg', array( array( 'methods' => 'POST', 'callback' => array( __CLASS__, 'r_vqr_cfg' ) ) + $pub ) );
+		register_rest_route( self::NS, '/log', array( array( 'methods' => 'GET', 'callback' => array( __CLASS__, 'r_log' ) ) + $pub ) );
+	}
+	public static function r_log( $req ) {
+		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
+		$l = get_option( 'saoke_weblog' );
+		return array( 'ok' => true, 'log' => is_array( $l ) ? $l : array() );
+	}
+
+	/* Nhật ký webhook: giữ 50 lần gần nhất để anh thấy webhook có nhận được không. */
+	private static function ghi_log( $src, $kq, $raw = '' ) {
+		$log = get_option( 'saoke_weblog' ); if ( ! is_array( $log ) ) { $log = array(); }
+		array_unshift( $log, array(
+			'luc' => current_time( 'mysql' ), 'src' => (string) $src, 'kq' => mb_substr( (string) $kq, 0, 160 ),
+			'ip'  => isset( $_SERVER['REMOTE_ADDR'] ) ? sanitize_text_field( (string) $_SERVER['REMOTE_ADDR'] ) : '',
+			'raw' => mb_substr( (string) $raw, 0, 400 ),
+		) );
+		if ( count( $log ) > 50 ) { $log = array_slice( $log, 0, 50 ); }
+		update_option( 'saoke_weblog', $log, false );
 	}
 
 	/* ── Webhook: SePay (mặc định) hoặc cổng qua ?src=vietqr|momo|vnpay ── */
 	public static function r_webhook( $req ) {
+		$raw = (string) $req->get_body();
+		$src = strtolower( trim( (string) $req->get_param( 'src' ) ) ); if ( '' === $src ) { $src = 'sepay'; }
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		if ( '' === $key || ! self::key_khop( (string) $req->get_param( 'key' ), $key ) ) {
+			self::ghi_log( $src, '✖ SAI KEY (bị chặn)', $raw );
 			return new WP_REST_Response( array( 'success' => false, 'message' => 'sai key' ), 401 );
 		}
-		$src = strtolower( trim( (string) $req->get_param( 'src' ) ) );
-		if ( '' === $src ) { $src = 'sepay'; }
 		if ( in_array( $src, self::cong_ds(), true ) ) {
 			$kq = self::cong_nhan_webhook( $src, $req );
+			$msg = 'mới ' . ( isset( $kq['moi'] ) ? $kq['moi'] : 0 ) . ', trùng ' . ( isset( $kq['trung'] ) ? $kq['trung'] : 0 )
+				. ( ! empty( $kq['chuaDoc'] ) ? ', chưa đọc được ' . $kq['chuaDoc'] : '' ) . ( isset( $kq['message'] ) ? ' — ' . $kq['message'] : '' );
+			self::ghi_log( $src, $msg, $raw );
 			return new WP_REST_Response( array( 'success' => true, 'src' => $src ) + $kq, 200 );
 		}
 		if ( 'sepay' !== $src ) {
+			self::ghi_log( $src, '✖ src không hợp lệ', $raw );
 			return new WP_REST_Response( array( 'success' => false, 'message' => 'src không hợp lệ: ' . $src ), 400 );
 		}
 		$p = $req->get_json_params(); if ( ! is_array( $p ) ) { $p = $req->get_params(); }
 		$g = function ( $k, $d = '' ) use ( $p ) { return isset( $p[ $k ] ) ? $p[ $k ] : $d; };
 		$sid = (string) ( $g( 'id' ) !== '' ? $g( 'id' ) : $g( 'referenceCode' ) );
-		if ( '' === $sid ) { return new WP_REST_Response( array( 'success' => false, 'message' => 'thiếu id' ), 400 ); }
+		if ( '' === $sid ) {
+			self::ghi_log( $src, '⚠ nhận được nhưng thiếu id (có thể là gói test)', $raw );
+			return new WP_REST_Response( array( 'success' => true, 'moi' => 0, 'message' => 'thiếu id (gói test?)' ), 200 );
+		}
 		$loai = ( 'out' === strtolower( (string) $g( 'transferType' ) ) ) ? 'out' : 'in';
 		$ok = self::luu_gd( array(
 			'sepay_id'  => $sid,
@@ -233,6 +259,7 @@ class SAOKE_App {
 			'ma_gd'     => (string) ( $g( 'referenceCode' ) !== '' ? $g( 'referenceCode' ) : $g( 'code' ) ),
 			'nguon'     => 'webhook',
 		) );
+		self::ghi_log( $src, $ok ? ( '✔ đã lưu ' . $sid ) : ( 'trùng, bỏ qua ' . $sid ), $raw );
 		return new WP_REST_Response( array( 'success' => true, 'moi' => $ok ? 1 : 0 ), 200 );
 	}
 
@@ -406,6 +433,7 @@ class SAOKE_App {
 	public static function r_vqr_callback( $req ) {
 		$h = self::auth_header( $req ); $bearer = 0 === stripos( $h, 'bearer ' ) ? trim( substr( $h, 7 ) ) : '';
 		if ( '' === $bearer || ! self::vqr_check_token( $bearer ) ) {
+			self::ghi_log( 'vietqr-official', '✖ token không hợp lệ/hết hạn', (string) $req->get_body() );
 			return new WP_REST_Response( array( 'error' => true, 'errorReason' => 'token không hợp lệ hoặc hết hạn' ), 401 );
 		}
 		$b = $req->get_json_params(); if ( ! is_array( $b ) ) { $b = $req->get_params(); }
@@ -430,7 +458,8 @@ class SAOKE_App {
 		);
 		$tx['docDuoc'] = ( $tx['soTien'] > 0 && '' !== $tx['thoiDiem'] );
 		$tx['khoa'] = self::cong_khoa( 'vietqr', $tx, $raw );
-		self::luu_cong( $tx );
+		$moi = self::luu_cong( $tx );
+		self::ghi_log( 'vietqr-official', $moi ? ( '✔ đã lưu ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua', $raw );
 		// VietQR chờ đúng envelope này để coi là nhận thành công.
 		return new WP_REST_Response( array( 'error' => false, 'errorReason' => '', 'toControllerCode' => '',
 			'object' => array( 'reftransactionid' => '' !== $maGD ? $maGD : $ref ) ), 200 );
@@ -1423,6 +1452,11 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 					<div class="sk-mut" id="cfgSyncTt" style="margin-top:8px"></div>
 				</div>
 				<div class="sk-panel">
+					<h3>Nhật ký webhook <button class="sk-btn sk-gray" onclick="veLog()">🔄 Làm mới</button></h3>
+					<div class="sk-hint">Mỗi lần SePay/cổng bắn vào đều ghi ở đây. <b>Nếu bấm "Test kết nối" bên cổng mà ở đây KHÔNG có dòng mới</b> → request bị hosting/firewall chặn trước khi tới web (không phải lỗi plugin). Có dòng "✔ đã lưu" = nhận thành công.</div>
+					<div class="sk-scroll"><table><thead><tr><th>Lúc</th><th>Nguồn</th><th>Kết quả</th><th>IP gửi</th></tr></thead><tbody id="logBody"></tbody></table></div>
+				</div>
+				<div class="sk-panel">
 					<h3>Đổi PIN</h3>
 					<div class="sk-row">
 						<div class="sk-fld"><label>PIN hiện tại</label><input id="pinCu" type="password"></div>
@@ -1717,7 +1751,13 @@ html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, artic
 		if(sl.luc)tt='Lần kéo cuối: '+esc(sl.luc)+' — '+esc(sl.kq||'');
 		if(CFG.autosync&&CFG.nextSync)tt+=(tt?' · ':'')+'Lần kế: '+esc(CFG.nextSync);
 		if(!CFG.autosync)tt=(tt?tt+' · ':'')+'Tự động: TẮT';
-		if($('#cfgSyncTt'))$('#cfgSyncTt').innerHTML=tt; }
+		if($('#cfgSyncTt'))$('#cfgSyncTt').innerHTML=tt; veLog(); }
+	window.veLog=function(){ get('/log').then(function(d){
+		$('#logBody').innerHTML=(d.log||[]).map(function(x){
+			var cl=/✖/.test(x.kq)?'sk-out':(/✔/.test(x.kq)?'sk-in':'');
+			return '<tr><td>'+esc(x.luc)+'</td><td>'+esc(x.src)+'</td><td class="'+cl+'" style="white-space:normal">'+esc(x.kq)+'</td><td class="sk-mut">'+esc(x.ip)+'</td></tr>';
+		}).join('')||'<tr><td colspan=4 class="sk-mut">Chưa có webhook nào bắn tới. Nếu cổng báo "đã gửi" mà đây trống → bị hosting/firewall chặn trước web.</td></tr>';
+	}).catch(function(e){toast(e.message||e,true);}); };
 	window.skLuuAuto=function(){ post('/cauhinh',{ autosync:$('#cfgAuto').checked?1:0, syncNgay:parseInt($('#cfgSyncNgay').value,10)||3 })
 		.then(function(){ toast('Đã lưu lịch'); napCfg(veCfg); }).catch(function(e){toast(e.message||e,true);}); };
 	window.skSyncNgay=function(){ toast('Đang kéo bù…'); post('/sync-ngay',{}).then(function(r){ toast('Xong: '+esc((r.kq||''))); napCfg(veCfg); }).catch(function(e){toast(e.message||e,true);}); };
