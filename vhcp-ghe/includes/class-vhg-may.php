@@ -44,6 +44,45 @@ class VHG_May {
 	 *    (đổi tên cơ sở, thêm cơ sở lúc gán ghế…) đều không truyền `ma_kh` — nếu coi thiếu tham
 	 *    số là "đặt về rỗng" thì mỗi lần ai đó sửa tên một cơ sở là mã KH của nó bị xoá, im lặng.
 	 */
+	/**
+	 * Đang xử lý cơ sở NHẬN TỪ plugin chi phí hay không — xem `moc_coso_chi_phi()`.
+	 *
+	 * 🔴 CHỐNG NÉM QUA NÉM LẠI. Hai chiều đã nối: lưu bên này báo sang chi phí, lưu bên chi phí
+	 *    báo về đây. Không có cờ này thì một cái tên đi vòng: chi phí -> đây -> chi phí -> đây…
+	 *    Vòng ấy THỰC RA vẫn dừng (mỗi đầu chỉ thêm khi chưa có, nên lượt hai không ghi gì và
+	 *    không báo tiếp), nhưng nó tốn một vòng thừa và, quan trọng hơn, nó dựa vào một thứ ở
+	 *    plugin KHÁC vẫn cư xử đúng. Cắt ngay tại nguồn thì không phải tin vào ai.
+	 */
+	private static $dang_nhan_tu_chi_phi = false;
+
+	/**
+	 * Tai nghe cho móc `vhcp_coso_posh_da_luu` của plugin Vận Hành Chi Phí — xem chỗ đăng ký ở
+	 * `vhcp-ghe.php`. Anh Thắng 09/09/2026: *"chỉ đẩy sang nếu nó là đơn vị posh thôi"*; việc
+	 * lọc đơn vị làm ở BÊN ẤY, vì chỉ bên ấy mới biết cơ sở nào thuộc đơn vị nào.
+	 *
+	 * CHỈ THÊM: `luu_coso()` với id 0 tự nhận ra tên đã có và không đụng gì tới dòng ấy — mã KH,
+	 * tỉnh, cờ reset của cơ sở đang chạy giữ nguyên.
+	 */
+	public static function moc_coso_chi_phi( $ten ) {
+		/* ⚠️ KHÔNG chép lại luật "tên thế nào là hợp lệ" ở đây. `luu_coso()` đã chối tên rỗng và
+		   là nơi DUY NHẤT quyết định chuyện ấy — giữ bản sao ở đây là hai chỗ có thể lệch nhau,
+		   mà lệch thì chỗ nào đúng cũng không ai biết. Phá thử chỉ ra bản sao ấy không canh gì. */
+		self::$dang_nhan_tu_chi_phi = true;
+		try {
+			self::luu_coso( 0, $ten );
+		} catch ( Exception $e ) {
+			self::$dang_nhan_tu_chi_phi = false;
+			throw $e;
+		}
+		self::$dang_nhan_tu_chi_phi = false;
+	}
+
+	/** Báo ra ngoài, trừ khi chính cơ sở này vừa nhận TỪ ngoài vào. */
+	private static function bao_da_luu_( $ten ) {
+		if ( self::$dang_nhan_tu_chi_phi ) { return; }
+		do_action( 'vhg_coso_da_luu', $ten );
+	}
+
 	public static function luu_coso( $id, $ten, $tinh = null, $ma_kh = null, $reset = null ) {
 		global $wpdb;
 		$ten = trim( (string) $ten );
@@ -65,7 +104,7 @@ class VHG_May {
 			if ( $co_reset ) { $data['reset_moi_lan'] = $reset; }
 			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
 			self::quen_dem_reset_();
-			do_action( 'vhg_coso_da_luu', $ten );
+			self::bao_da_luu_( $ten );
 			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
@@ -75,13 +114,13 @@ class VHG_May {
 			if ( $co_makh ) { $data_cu['ma_kh'] = $ma_kh; }
 			if ( $co_reset ) { $data_cu['reset_moi_lan'] = $reset; }
 			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); self::quen_dem_reset_(); }
-			do_action( 'vhg_coso_da_luu', $ten );
+			self::bao_da_luu_( $ten );
 			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
 		}
 		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '',
 			'ma_kh' => $co_makh ? $ma_kh : '', 'reset_moi_lan' => $co_reset ? $reset : 0 ) );
 		self::quen_dem_reset_();
-		do_action( 'vhg_coso_da_luu', $ten );
+		self::bao_da_luu_( $ten );
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 

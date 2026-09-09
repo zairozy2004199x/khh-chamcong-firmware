@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           2.15.1
+ * Version:           2.16.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '2.15.1' );
+define( 'VHG_VERSION', '2.16.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -82,6 +82,17 @@ function vhg_maybe_upgrade() {
 		update_option( 'vhg_flush_rewrite', 1 );
 	}
 }
+
+/* 🔴 CƠ SỞ ĐƠN VỊ POSH BÊN CHI PHÍ -> VÀO THẲNG DANH MỤC CƠ SỞ CỦA GHẾ.
+   Anh Thắng 09/09/2026: *"chỉ đẩy sang nếu nó là đơn vị posh thôi"*. Việc lọc đơn vị nằm BÊN
+   CHI PHÍ vì chỉ bên ấy biết cơ sở nào thuộc đơn vị nào — bên này chỉ nhận cái tên đã lọc.
+
+   Nghe bằng móc chứ không để bên kia gọi thẳng vào đây: hai plugin cài rời nhau, gỡ cái nào thì
+   cái kia vẫn phải chạy. Chưa cài plugin chi phí thì không ai phát, dòng này nằm im.
+
+   Xem `VHG_May::moc_coso_chi_phi()` — nó CHỈ THÊM, và có cờ chặn để cái tên vừa nhận không bị
+   báo ngược trở lại thành một vòng qua lại. */
+add_action( 'vhcp_coso_posh_da_luu', array( 'VHG_May', 'moc_coso_chi_phi' ) );
 
 /* Cổng gài SỚM (ưu tiên 4) — trước lượt nạp lại luật đường dẫn (99). Đường của tiền là đường
    mà một lượt bị chuyển hướng đồng nghĩa MẤT doanh thu; xem class-vhg-cong.php. */
