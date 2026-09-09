@@ -187,9 +187,19 @@ class VHG_Quy {
 	 * @param int    $chi_so  Chỉ số đọc trên màn đếm của máy tiền mặt, NGAY LÚC NÀY.
 	 * @param int    $tien_dem Tiền mặt đếm được thật trong ngăn.
 	 * @param string $nguoi   Ai chốt — lấy từ phiên đăng nhập, KHÔNG nhận từ gói tin.
+	 * @param string $ma_nv   Mã NV của người ấy, cũng LẤY TỪ PHIÊN. Rỗng = không nối được sang
+	 *                        hệ chấm công; đó là chuyện bình thường với người khai tay bên này.
+	 *
+	 * 🔴 09/09/2026 — GHI KÈM MÃ NV. Anh Thắng: *"mã, bên POSH cần làm lại mã mình sẽ chạy để
+	 *    cho chuẩn 2 bên"*. Bên chấm công cần biết "ai có chốt ca ngày đó" để gắn cờ *đi làm mà
+	 *    quên chấm công*; nối bằng HỌ TÊN là nối bằng khoá không duy nhất (trang nhân sự đang
+	 *    báo bốn hồ sơ trùng tên). Mã đi từ phiên xuống thẳng sổ.
+	 * ⚠️ `$ma_nv` để CUỐI và có mặc định — lời gọi cũ vẫn chạy, chỉ là không có mã.
+	 * ⚠️ KHÔNG nhận mã từ gói tin, y như `$nguoi`: nhận từ gói tin là ai cũng khai mình là người
+	 *    khác, mà đây là sổ tiền mặt.
 	 */
 	public static function chot( $ma_may, $chi_so, $tien_dem, $nguoi, $ghi_chu = '', $ma_lan = '',
-		$coso_cua_toi = null ) {
+		$coso_cua_toi = null, $ma_nv = '' ) {
 		global $wpdb;
 
 		/* ══════════════════════════════════════════════════════════════════════════════════
@@ -257,7 +267,7 @@ class VHG_Quy {
 
 		$luc = current_time( 'mysql' );
 		$wpdb->insert( VHG_DB::t( 'chot' ), array(
-			'ma_may' => $m, 'nguoi' => $ai,
+			'ma_may' => $m, 'nguoi' => $ai, 'ma_nv' => trim( (string) $ma_nv ),
 			'chi_so' => $cs, 'chi_so_truoc' => $lan_dau ? 0 : $truoc,
 			/* Chép lại đơn vị ĐANG DÙNG. Khai lại đơn vị sau này không được làm đổi con số của
 			   những lượt đã chốt — sổ phải giữ nguyên cái đã ghi. */

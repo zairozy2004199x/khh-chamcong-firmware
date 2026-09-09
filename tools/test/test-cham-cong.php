@@ -19343,6 +19343,78 @@ teq( 'chuỗi rỗng vẫn là rỗng', '', VHCC_MayCong::b64_tron( '' ) );
 teq( 'data: mà không phải base64 thì đừng đoán, trả nguyên',
 	'data:image/png,abc', VHCC_MayCong::b64_tron( 'data:image/png,abc' ) );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * CỜ "CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG" — đọc BÁO CÁO CA bên hệ ghế POSH (09/09/2026)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"đối với cơ sở Posh, nếu ai nhập báo cáo ngày đó thì bên chấm công sẽ gắn cờ có đi
+ * làm mà quên chấm công, trong ô ngày đó sẽ hiện vàng lên"*, và chốt hai điều:
+ *   · nối hai hệ bằng **MÃ NV** — *"mã, bên POSH cần làm lại mã mình sẽ chạy để cho chuẩn 2 bên"*;
+ *   · ô vàng **chỉ gắn cờ**, không ăn vào số công.
+ */
+require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-db.php';
+foreach ( array( 'coso', 'may', 'chot' ) as $_tg ) {
+	$wpdb->exec_raw( vhcc_test_ddl( VHG_DB::t( $_tg ), VHG_DB::bang()[ $_tg ] ) );
+}
+$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'chot' ) );
+$wpdb->insert( VHG_DB::t( 'coso' ), array( 'id' => 91, 'ten' => 'TUTU_BT' ) );
+$wpdb->insert( VHG_DB::t( 'may' ), array( 'ma' => 'GHE_BC1', 'coso_id' => 91 ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BC1',
+	'ho_ten' => 'Người Chốt Ghế', 'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+/* Một lượt chốt ban ngày, và một lượt lúc 02:00 — lượt sau thuộc về NGÀY HÔM TRƯỚC. */
+$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
+	'ma_nv' => 'BC1', 'tao_luc' => '2026-09-10 14:20:00' ) );
+$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
+	'ma_nv' => 'BC1', 'tao_luc' => '2026-09-13 02:00:00' ) );
+/* 🔴 DÒNG CŨ KHÔNG CÓ MÃ: phải BỎ QUA, KHÔNG dò theo tên. Dò theo tên là đúng cái khoá vừa bác
+   bỏ — trang nhân sự đang báo bốn hồ sơ trùng tên. Gắn cờ nhầm người còn tệ hơn không gắn: nó
+   nói "người này có đi làm" về một người có thể đang nghỉ. */
+$wpdb->insert( VHG_DB::t( 'chot' ), array( 'ma_may' => 'GHE_BC1', 'nguoi' => 'Người Chốt Ghế',
+	'ma_nv' => '', 'tao_luc' => '2026-09-11 15:00:00' ) );
+
+$_bc = VHCC_BaoCaoCa::theo_thang( 'TUTU_BT', '2026-09' );
+t( '🔴 đọc được ngày có chốt ghế, theo MÃ NV',
+	isset( $_bc['theo']['BC1'][10] ) && 1 === (int) $_bc['theo']['BC1'][10], $_bc );
+/* 🔴 CA ĐÊM VẮT QUA NỬA ĐÊM. Ca tối POSH đóng lúc 1 giờ sáng; cắt theo mốc nửa đêm thì người
+   làm ca tối bị gắn cờ vào NGÀY HÔM SAU — một ngày họ không hề đi làm — còn ngày họ thật sự làm
+   thì vẫn trống. Sai cả hai đầu, và sai theo cách nhìn rất giống đúng. */
+t( '🔴 chốt lúc 02:00 tính cho NGÀY HÔM TRƯỚC',
+	isset( $_bc['theo']['BC1'][12] ) && ! isset( $_bc['theo']['BC1'][13] ), $_bc );
+teq( '🔴 dòng KHÔNG có mã thì BỎ QUA, không dò theo tên', 1, (int) $_bc['bo_qua'] );
+t( 'và ngày của dòng ấy KHÔNG bị gắn cờ', ! isset( $_bc['theo']['BC1'][11] ), $_bc );
+/* Cơ sở khác thì không dính — phép lọc là cơ sở của cái GHẾ, không phải cơ sở của người. */
+$_bc_khac = VHCC_BaoCaoCa::theo_thang( 'CS_KHONG_CO_GHE', '2026-09' );
+t( 'cơ sở không có ghế thì rỗng, không nổ', array() === $_bc_khac['theo'], $_bc_khac );
+
+/* ---- trên LƯỚI: ô trống + có báo cáo ca = vàng; ô CÓ chấm công thì KHÔNG đè ---- */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
+$h_bc = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( 'lưới có dựng thật', strpos( $h_bc, 'id="luoithang"' ) !== false, null );
+t( '🔴 ô ngày có báo cáo ca hiện VÀNG',
+	strpos( $h_bc, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) !== false, null );
+t( 'câu rê chuột nói rõ là CỜ, công vẫn 0',
+	strpos( $h_bc, 'công vẫn đang là 0' ) !== false, null );
+t( 'và chỉ đường sang chấm công bù', strpos( $h_bc, 'chấm công bù' ) !== false, null );
+
+/* 🔴 NGÀY ĐÃ CÓ CHẤM CÔNG THÌ KHÔNG PHẢI "QUÊN" — cờ chỉ đặt lên ô TRỐNG HẲN. Không có phép này
+   thì cờ đè lên cả ngày người ta đã bấm đủ, và cái vàng ấy thành tiếng ồn. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-09-10',
+	'ma_nv' => 'BC1', 'hau_to' => '', 'ho_ten' => 'Người Chốt Ghế',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$h_bc2 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( 'lưới vẫn dựng thật sau khi thêm lượt chấm', strpos( $h_bc2, 'id="luoithang"' ) !== false, null );
+t( '🔴 ngày 12 (chỉ có báo cáo, không có chấm công) VẪN còn cờ',
+	strpos( $h_bc2, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) !== false, null );
+teq( '🔴 nhưng số ô vàng GIẢM đi đúng một — ngày đã chấm thì thôi gắn cờ',
+	substr_count( $h_bc, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) - 1,
+	substr_count( $h_bc2, 'CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?' ) );
+
+$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'chot' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='BC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='BC1'" );
+
 /* ---- DẢI BÁO Ở TRANG QUẢN LÝ NHÂN SỰ ------------------------------------------------
    🔴 Anh Thắng 09/09/2026: *"chỗ hồ sơ này, nếu nv có ảnh hợp lệ chờ lưu hoặc đẩy vào máy thì
    đưa một thông báo nhỏ và link dẫn sang để đẩy"*. Khối lấy ảnh nằm ở màn Bảng công; người đang

@@ -309,7 +309,9 @@ class VHG_Trang {
 				/* Mã lượt do ĐIỆN THOẠI sinh — app gửi lại khi sóng yếu thì không ghi hai lần.
 				   Trang web không gửi, và không cần: bấm hai lần trên web là hai lần cố ý. */
 				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '',
-				(string) $ai['coso'] ) );
+				(string) $ai['coso'],
+				/* Mã NV LẤY TỪ PHIÊN, y như tên — không nhận từ gói tin. Đây là sổ tiền mặt. */
+				isset( $ai['ma_nv'] ) ? (string) $ai['ma_nv'] : '' ) );
 			return;
 		}
 

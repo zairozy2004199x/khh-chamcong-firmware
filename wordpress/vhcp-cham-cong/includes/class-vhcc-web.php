@@ -4603,7 +4603,8 @@ class VHCC_Web {
 				. '.</p>';
 		}
 		if ( $la_vp ) {
-			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu, $ky, $toi );
+			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu,
+				$ky, $toi, $cs );
 			echo '</details></div>';   // nhánh về sớm cũng phải đóng, kẻo cả trang lọt vào trong lưới
 			return;
 		}
@@ -5934,6 +5935,50 @@ class VHCC_Web {
 	 *    ca đã xếp (xem `VHCC_Luong::bao_cao_theo_gio`), nên hai số có thể lệch — nói thẳng ra ở
 	 *    chú giải chứ không để người đọc tự phát hiện lúc đối lương.
 	 */
+	/**
+	 * BÁO CÁO CA BÊN HỆ GHẾ — ngày nào ai có chốt. Đọc MỘT lần cho cả lưới.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng: *"đối với cơ sở Posh, nếu ai nhập báo cáo ngày đó thì bên chấm
+	 *    công sẽ gắn cờ có đi làm mà quên chấm công, trong ô ngày đó sẽ hiện vàng lên"*.
+	 * ⚠️ Gọi NGOÀI vòng lặp người × ngày. Gọi trong vòng là 30 ngày × N người lượt đọc cho một
+	 *    thứ không đổi suốt cả bảng.
+	 * ⚠️ Gác `class_exists` cùng hàm với lời gọi (luật `kiem-goi-cheo.php`): site không cài
+	 *    plugin ghế thì lưới vẫn vẽ y như cũ, không nổ.
+	 */
+	private static function bc_ca( $cs, $tt ) {
+		if ( ! class_exists( 'VHCC_BaoCaoCa' ) || ! method_exists( 'VHCC_BaoCaoCa', 'theo_thang' ) ) {
+			return array( 'theo' => array(), 'bo_qua' => 0 );
+		}
+		return VHCC_BaoCaoCa::theo_thang( $cs, $tt );
+	}
+
+	/**
+	 * Ô "có báo cáo ca mà KHÔNG có chấm công" — trả lớp CSS và câu rê chuột.
+	 *
+	 * 🔴 CHỈ GẮN CỜ, KHÔNG ĐỘNG VÀO SỐ. Ô vẫn là dấu `·`, tổng vẫn 0 — anh Thắng chọn *"chỉ gắn
+	 *    cờ để nhìn"*. Một dòng báo cáo tự cộng thành ngày công là tự sinh ra tiền lương mà không
+	 *    ai duyệt; mà báo cáo ca cũng không nói giờ vào / giờ ra, nên có muốn cũng không biết
+	 *    tính mấy công. Sửa thật thì đi qua **chấm công bù** — bấm thẳng vào ô này là mở nó.
+	 */
+	private static function o_bc_ca( $bc, $ma, $i ) {
+		$so = ( isset( $bc['theo'][ $ma ][ $i ] ) ) ? (int) $bc['theo'][ $ma ][ $i ] : 0;
+		if ( $so < 1 ) { return array( 'lop' => '', 'chu' => '' ); }
+		return array(
+			'lop' => ' vang',
+			'chu' => "CÓ ĐI LÀM MÀ QUÊN CHẤM CÔNG?
+"
+				. 'Ngày này người ấy có ' . $so . ' lượt CHỐT GHẾ bên hệ ghế POSH — chốt ghế thì '
+				. "phải đứng tại cơ sở mới làm được.
+"
+				. "Nhưng bảng chấm công không có lượt nào.
+"
+				. "────────────────
+"
+				. 'Đây chỉ là CỜ, công vẫn đang là 0. Đúng là quên bấm thì bấm vào ô này để '
+				. 'chấm công bù; sai thì bỏ qua, cờ không ăn vào lương.',
+		);
+	}
+
 	private static function ve_luoi_gio( $b, $th, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array() ) {
 		if ( empty( $b['ok'] ) ) {
 			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
@@ -6060,6 +6105,8 @@ class VHCC_Web {
 		$anh_ds = self::anh_the_ds( array_keys( $ten ) );
 
 		$tong_cs = 0;
+		$bc_ca = self::bc_ca( (string) $b['coSo'], $tt );
+
 		foreach ( $ten as $ma => $ho_ten ) {
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 			$hts = array_keys( $o[ $ma ] );
@@ -6163,6 +6210,16 @@ class VHCC_Web {
 				   nào của ai. Xem khối "hàng riêng cho từng cơ sở phụ" ngay dưới vòng lặp này. */
 				$lop_o = ( null === $r_chinh && '' === $duoi ) ? 'o' : ( 'oc' . $c_chinh['lop'] );
 				$chu_o = $c_chinh['chu'];
+				/* 🔴 CỜ "quên chấm công" CHỈ ĐẶT LÊN Ô TRỐNG HẲN. Ngày có lượt chấm rồi thì
+				   không phải quên — kể cả ngày thiếu giờ ra (ô ấy đã đỏ vì lý do khác, đè vàng
+				   lên là mất mất cái đỏ). */
+				if ( null === $r_chinh && '' === $duoi ) {
+					$f_bc = self::o_bc_ca( $bc_ca, $ma, $i );
+					if ( '' !== $f_bc['lop'] ) {
+						$lop_o = 'oc' . $f_bc['lop'];
+						$chu_o = $f_bc['chu'];
+					}
+				}
 				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
 					. ( $dang ? ' id="suaday"' : '' )
 					. ( '' !== $chu_o ? ' title="' . esc_attr( $chu_o ) . '"' : '' ) . '>'
@@ -6258,8 +6315,12 @@ class VHCC_Web {
 	}
 
 	/** Lưới người × ngày. Tách hàm để thử được riêng, không phải dựng cả trang. */
-	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array() ) {
+	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array(),
+		$cs_bc = '' ) {
 		$tt   = (string) $b['month'];
+		/* Cơ sở KHÔNG nằm trong `$b` của lưới công (bảng ấy dựng quanh tháng), nên nhận thẳng
+		   từ nơi gọi — nơi ấy vốn đang cầm `$cs`. Đoán ra từ dữ liệu là thêm một chỗ sai được. */
+		$bc_ca = self::bc_ca( (string) $cs_bc, $tt );
 		$rows = (array) $b['rows'];
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
 		if ( false === $moc ) {
@@ -6346,8 +6407,12 @@ class VHCC_Web {
 					   chỉ là ở chỗ khác. */
 					$ngoai = isset( $ck_nguoi[ $i ] )
 						? '' : '';   // cơ sở khác nay có BẢNG RIÊNG — xem `nhan_coso_khac()`
-					echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '"'
-						. ( $dang ? ' id="suaday"' : '' ) . '>'
+					/* 🔴 Cờ "quên chấm công" — xem `o_bc_ca()`. Chỉ ở nhánh ô TRỐNG HẲN này. */
+					$f_bc = self::o_bc_ca( $bc_ca, $ma, $i );
+					echo '<td class="' . ( '' !== $f_bc['lop'] ? 'oc' . $f_bc['lop'] : 'o' )
+						. ( $dang ? ' dang-sua' : '' ) . '"'
+						. ( $dang ? ' id="suaday"' : '' )
+						. ( '' !== $f_bc['chu'] ? ' title="' . esc_attr( $f_bc['chu'] ) . '"' : '' ) . '>'
 						. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu )
 						. $ngoai . '</td>';
 					continue;
