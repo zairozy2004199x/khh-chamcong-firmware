@@ -5816,6 +5816,7 @@ function veKtBcTong(){
     + nut('bctcot', 'tong', BCT_COT, L('Tổng','Total'))
     + nut('bctcot', 'qr', BCT_COT, 'QR')
     + nut('bctcot', 'tien_mat', BCT_COT, L('Tiền mặt','Cash'))
+    + (BCT_COT === 'qr' ? '<span style="margin-left:12px;color:#dc2626;font-weight:800">◆ VIETQR</span><span style="margin-left:6px;color:#dc2626">= ' + L('tiền THỰC về ngân hàng','actual money in bank') + '</span>' : '')
     + '</div>'
     + '<div id="bct-wrap" style="margin-top:12px"></div></div>';
 }
