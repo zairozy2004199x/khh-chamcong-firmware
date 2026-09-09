@@ -1,0 +1,2289 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  /* ===== NỀN TỐI (mặc định) =====
+     MỌI màu phải đi qua biến ở đây. Viết cứng mã màu trong .css hay trong style="" là nền sáng
+     bị sót chỗ đó — chữ tối trên nền tối, không đọc được mà cũng không báo lỗi gì. */
+  :root{--bg:#0b1220;--panel:#111c33;--panel2:#0f172a;--line:#1e293b;--txt:#e2e8f0;--muted:#94a3b8;
+        --accent:#3b82f6;--green:#22c55e;--red:#ef4444;--yellow:#eab308;
+        /* Vàng thương hiệu K&H COM.,LTD — lấy theo logo (chữ + hình quạt lá). */
+        --gold:#bf9000;--gold-nhat:#d9ab24;
+        --oNhap:#0d1526;      /* nền ô nhập + nền <code> */
+        --hover:#0f1a30;      /* nền dòng bảng khi trỏ chuột */
+        --niBg:#16213c;       /* nền mục menu đang chọn / hover */
+        --xam:#334155;        /* nút phụ (button.gray) */
+        --hintBg:#132140; --hintLine:#2c3e63;
+        --codeTxt:#93c5fd;
+        --danop:#0c2b1c; --danopHover:#123a26;   /* dòng đã có tiền: xanh đậm */
+        --vang:var(--vang);       /* chữ cảnh báo / chưa gán */
+        --tim:var(--tim);        /* tiền từ cổng thanh toán */
+        --doNhat:var(--doNhat);     /* chữ lỗi */
+        --logoMo:.055;}
+  /* ===== NỀN SÁNG ===== bật bằng nút 🌗 ở menu, nhớ trong localStorage.
+     Chỉ ĐỔI GIÁ TRỊ BIẾN, không thêm luật riêng — thêm luật riêng là 2 chủ đề lệch nhau dần. */
+  html[data-nen="sang"]{
+        --bg:#f5f7fb;--panel:#ffffff;--panel2:#ffffff;--line:#d9e0ee;--txt:#111c33;--muted:#5b6b85;
+        --accent:#2563eb;--green:#15803d;--red:#dc2626;--yellow:#a16207;
+        --gold:#96731d;--gold-nhat:#bf9000;
+        --oNhap:#ffffff;--hover:#eef2fa;--niBg:#e7eefc;--xam:#64748b;
+        --hintBg:#eff4fe;--hintLine:#c5d5f2;--codeTxt:#1d4ed8;
+        --danop:#e4f7ea;--danopHover:#d0f0da;
+        --vang:#a15c07;--tim:#6d28d9;--doNhat:#b91c1c;
+        --logoMo:.08;}
+  *{box-sizing:border-box;}
+  /* ===== LOGO CHÌM cho trang chủ (Tổng quan) =====
+     Đặt trong #v-dashboard với position:absolute + pointer-events:none nên KHÔNG bao giờ chắn
+     chuột lên bảng/nút. Chỉ hiện ở trang chủ; các tab số liệu để trơn cho dễ đọc. */
+  #v-dashboard{position:relative;}
+  .logoChim{position:absolute;top:36px;left:50%;transform:translateX(-50%);
+            width:min(560px,80vw);z-index:0;opacity:var(--logoMo);pointer-events:none;user-select:none;}
+  .logoChim svg{width:100%;height:auto;display:block;}
+  #v-dashboard>*:not(.logoChim){position:relative;z-index:1;}
+  /* Tiêu đề thương hiệu ở thanh menu: dùng vàng K&H thay vì trắng trơn */
+  .side h1{color:var(--gold);letter-spacing:.3px;}
+  .side .brandPhu{color:var(--muted);font-size:11.5px;letter-spacing:1.4px;
+                  margin:-6px 0 12px;text-transform:uppercase;}
+  /* text-size-adjust: iOS Safari tự phóng to chữ trong khối nhiều chữ, làm vỡ bảng. */
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--txt);
+       -webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  .app{display:flex;min-height:100vh;}
+  .side{width:220px;background:var(--panel2);border-right:1px solid var(--line);padding:16px 0;flex-shrink:0;}
+  .side h1{font-size:15px;padding:0 16px 16px;margin:0;border-bottom:1px solid var(--line);}
+  .ni{padding:11px 16px;cursor:pointer;color:var(--muted);font-size:14px;display:flex;gap:8px;align-items:center;}
+  .ni:hover{background:var(--niBg);color:var(--txt);}
+  .ni.active{background:var(--niBg);color:var(--accent);border-right:3px solid var(--accent);font-weight:600;}
+  .main{flex:1;padding:22px 28px;max-width:1400px;overflow-x:auto;}
+  .view{display:none;} .view.active{display:block;}
+  h2{margin:0 0 18px;font-size:20px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;}
+  .card .lbl{color:var(--muted);font-size:12px;margin-bottom:6px;}
+  .card .val{font-size:22px;font-weight:700;}
+  .card .sub{color:var(--muted);font-size:12px;margin-top:4px;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .fld{display:flex;flex-direction:column;gap:4px;}
+  .fld label{font-size:12px;color:var(--muted);}
+  input,select,textarea,button{background:var(--oNhap);border:1px solid var(--line);color:var(--txt);border-radius:6px;
+    padding:8px 10px;font-size:13px;font-family:inherit;}
+  button{cursor:pointer;background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+  button.gray{background:var(--xam);border-color:var(--xam);}
+  button.danger{background:var(--red);border-color:var(--red);}
+  button:hover{opacity:.9;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap;}
+  th{color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--panel);}
+  tr:hover td{background:var(--hover);}
+  .in{color:var(--green);font-weight:600;} .out{color:var(--red);font-weight:600;}
+  /* Dòng điểm ĐÃ NỘP: bôi xanh cả hàng cho nhìn một cái là thấy. Dùng !important vì
+     `tr:hover td` ở trên cũng đặt background — không có nó thì trỏ chuột vào là mất màu xanh. */
+  tr.danop td{background:var(--danop) !important;}
+  tr.danop td:first-child{border-left:3px solid var(--green);}
+  tr.danop:hover td{background:var(--danopHover) !important;}
+  .tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;color:#fff;}
+  .muted{color:var(--muted);}
+  .pinbox{max-width:320px;margin:120px auto;text-align:center;}
+  .pinbox input{width:100%;text-align:center;font-size:22px;letter-spacing:6px;margin:14px 0;}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--line);
+    padding:12px 18px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);display:none;z-index:999;}
+  .toast.err{border-color:var(--red);color:var(--doNhat);}
+  .toast.ok{border-color:var(--green);color:var(--green);}
+  .hint{background:var(--hintBg);border:1px dashed var(--hintLine);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);margin-bottom:12px;}
+  code{background:var(--oNhap);padding:1px 6px;border-radius:4px;color:var(--codeTxt);word-break:break-all;}
+  /* Khối "Đã nộp": MTD một cột, KVC một cột, nằm cạnh nhau (anh Thắng yêu cầu 13/08).
+     Màn hình hẹp thì tự xếp dọc; mỗi cột tự cuộn ngang để bảng không đẩy vỡ cả trang. */
+  .dc2cot{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  .dc2cot > div{min-width:0;overflow-x:auto;}
+  @media (max-width:1100px){ .dc2cot{grid-template-columns:1fr;} }
+  .niKhoa{margin-top:18px;opacity:.75;}
+
+  /* ===== ĐIỆN THOẠI (13/08/2026 — anh Thắng: "trang có thể mở điện thoại được nữa nhé") =====
+     Thẻ viewport đã khai sẵn ở doGet (addMetaTag). Vấn đề còn lại là bố cục:
+       · menu bên trái rộng cứng 220px -> trên máy 390px ăn hơn nửa màn hình
+       · bảng để white-space:nowrap -> tràn ngang CẢ TRANG, cuộn ngang mới đọc được
+     Cách xử lý: menu thành thanh NGANG cuộn được dính trên đầu; mỗi .panel tự cuộn ngang
+     nên bảng rộng chỉ cuộn TRONG khung của nó, còn trang thì không bao giờ tràn. */
+  @media (max-width:820px){
+    .app{flex-direction:column;}
+    .side{width:100%;border-right:none;border-bottom:1px solid var(--line);padding:8px;
+          display:flex;gap:6px;overflow-x:auto;position:sticky;top:0;z-index:50;
+          -webkit-overflow-scrolling:touch;}
+    .side h1{display:none;}
+    .ni{padding:9px 13px;white-space:nowrap;border-radius:8px;font-size:13px;flex:0 0 auto;}
+    .ni.active{border-right:none;border-bottom:2px solid var(--accent);}
+    .niKhoa{margin-top:0;}
+    /* overflow-x:hidden ở đây là CHỐT: bảng rộng đã cuộn trong .panel rồi, nên trang không
+       còn lý do gì để tràn ngang. Không có dòng này thì chỉ cần một ô dài là lệch cả trang. */
+    .main{padding:14px 12px;overflow-x:hidden;}
+    .panel{padding:12px;overflow-x:auto;}
+    h2{font-size:17px;}
+    .cards{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+    .card{padding:12px;} .card .val{font-size:18px;}
+    th,td{padding:6px 8px;font-size:12px;}
+    /* Ô lọc 2 cái một hàng, nút chiếm trọn bề ngang cho dễ bấm bằng ngón tay. */
+    .row{gap:8px;} .fld{flex:1 1 45%;min-width:0;}
+    .fld input,.fld select,.fld button{width:100%;}
+    /* 3 nút chọn nhanh ngày nằm CÙNG một hàng — mỗi nút một hàng thì phần lọc ăn hết
+       màn hình đầu, phải cuộn mới thấy số liệu. */
+    .dcNhanh{flex:1 1 28%;}
+    .hint{font-size:11.5px;padding:8px 10px;} .hint code{font-size:11px;}
+    .pinbox{margin:60px auto;padding:0 16px;}
+    .toast{left:12px;right:12px;bottom:12px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="pinScreen" class="pinbox">
+  <h2>🔒 Sao Kê Ngân Hàng K&H</h2>
+  <p class="muted">Dữ liệu tài chính — nhập mã PIN quản lý</p>
+  <input id="pinInput" type="password" inputmode="numeric" placeholder="••••••" maxlength="8">
+  <button style="width:100%" onclick="doLogin()">Mở</button>
+</div>
+
+<div class="app" id="appRoot" style="display:none">
+  <div class="side">
+    <h1>Sao Kê Ngân Hàng</h1>
+    <div class="brandPhu">K&amp;H COM.,LTD</div>
+    <div class="ni active" data-v="dashboard" onclick="nav('dashboard')">📊 Tổng quan</div>
+    <div class="ni" data-v="sk" onclick="nav('sk')">🏦 Sao Kê Ngân Hàng</div>
+    <div class="ni" data-v="cvietqr" onclick="nav('cvietqr')">🔷 Sao Kê Việt QR</div>
+    <div class="ni" data-v="cmomo" onclick="nav('cmomo')">🟣 Sao Kê MoMo</div>
+    <div class="ni" data-v="cvnpay" onclick="nav('cvnpay')">🔵 Sao Kê VNPAY</div>
+    <div class="ni" data-v="dc" onclick="nav('dc')">🏪 Đối chiếu nộp tiền</div>
+    <div class="ni" data-v="th" onclick="nav('th')">📊 Tổng hợp doanh thu cơ sở</div>
+    <div class="ni" data-v="tk" onclick="nav('tk')">🏛️ Tài khoản ngân hàng</div>
+    <div class="ni" data-v="cat" onclick="nav('cat')">🏷️ Danh mục chi phí</div>
+    <div class="ni" data-v="cfg" onclick="nav('cfg')">⚙️ Cấu hình</div>
+    <!-- class thay vì style="margin-top" — style inline thắng cả media query, trên điện thoại
+         menu xếp ngang mà cái này vẫn tụt xuống 18px thì lệch hàng. -->
+    <div class="ni niKhoa" id="niNen" onclick="doiNen()">🌗 Nền sáng</div>
+    <div class="ni" id="niLang" onclick="doiNgonNgu()">🌐 English</div>
+    <div class="ni" onclick="khoaLai()">🔒 Khoá lại</div>
+  </div>
+
+  <div class="main">
+    <!-- ===== DASHBOARD ===== -->
+    <div class="view active" id="v-dashboard">
+      <!-- Logo K&H VẼ LẠI bằng SVG (quạt lá + cuống + gạch chân + tên). Vẽ tay chứ không nhúng
+           ảnh: app không ra được mạng nên <img src=…> ngoài là hỏng, còn base64 thì phình file.
+           Đây là bản vẽ lại theo tinh thần logo, KHÔNG phải file gốc. -->
+      <div class="logoChim" aria-hidden="true">
+        <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+          <g fill="var(--gold)">
+            <g transform="translate(200,205)">
+              <!-- 1 cánh lá thuôn, nhân bản + xoay quanh gốc cuống thành hình quạt đối xứng -->
+              <path id="canhKH" d="M0,0 C-6,-34 -13,-64 -26,-92 C-16,-100 -6,-104 0,-105
+                                   C6,-104 16,-100 26,-92 C13,-64 6,-34 0,0 Z"/>
+              <use href="#canhKH" transform="rotate(-68) scale(.68)"/>
+              <use href="#canhKH" transform="rotate(-52) scale(.80)"/>
+              <use href="#canhKH" transform="rotate(-36) scale(.90)"/>
+              <use href="#canhKH" transform="rotate(-19) scale(.97)"/>
+              <use href="#canhKH" transform="rotate(19)  scale(.97)"/>
+              <use href="#canhKH" transform="rotate(36)  scale(.90)"/>
+              <use href="#canhKH" transform="rotate(52)  scale(.80)"/>
+              <use href="#canhKH" transform="rotate(68)  scale(.68)"/>
+              <!-- Cuống: giọt nước thuôn dài xuống dưới -->
+              <path d="M0,-108 C4,-70 7,-40 6,-14 C10,-4 10,10 5,20 L5,54 C5,58 -5,58 -5,54 L-5,20
+                       C-10,10 -10,-4 -6,-14 C-7,-40 -4,-70 0,-108 Z"/>
+            </g>
+            <rect x="72" y="272" width="256" height="2.4" rx="1.2"/>
+          </g>
+          <text x="200" y="298" text-anchor="middle" fill="var(--gold)"
+                font-family="Georgia,'Times New Roman',serif" font-size="30"
+                letter-spacing="2.5">K&amp;H COM.,LTD</text>
+        </svg>
+      </div>
+      <h2>Tổng quan nhiều tài khoản
+        <button id="dashLamMoi" class="gray" onclick="taiDashboard()" style="font-size:13px;padding:4px 10px;margin-left:10px;vertical-align:middle">🔄 Làm mới</button>
+      </h2>
+      <div class="cards" id="dashCards"></div>
+      <div class="panel">
+        <h3 style="margin-top:0">Số dư từng tài khoản</h3>
+        <div class="hint">Chênh lệch ≠ 0 nghĩa là Số dư tính toán (Đầu kỳ + phát sinh) không khớp Số dư thực tế SePay báo — có thể do thiếu giao dịch (webhook lỗi/chưa đồng bộ đủ lịch sử) hoặc Số dư đầu kỳ nhập chưa đúng.</div>
+        <table><thead><tr><th>Số TK</th><th>Ngân hàng</th><th>Chủ TK</th><th>Pháp nhân</th><th>Đầu kỳ</th><th>Số dư thực tế</th><th>Số dư tính toán</th><th>Chênh lệch</th></tr></thead>
+        <tbody id="dashTaiKhoan"></tbody></table>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0">Tổng số dư theo Pháp nhân</h3>
+        <table><thead><tr><th>Pháp nhân</th><th>Tổng số dư</th></tr></thead>
+        <tbody id="dashPhapNhan"></tbody></table>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0">Thu / Chi theo tháng (12 tháng gần nhất)</h3>
+        <div class="hint">Tổng thu = <b>Nộp trực tiếp</b> + <b>Cổng QR</b>. Cục tiền cổng đã nằm trong Tổng thu —
+          đừng cộng thêm số ở tab Sao Kê &lt;cổng&gt;, cộng là nhân đôi.</div>
+        <table><thead><tr><th>Tháng</th><th>Tổng thu</th><th>├ Nộp trực tiếp</th><th>└ Cổng QR</th><th>Tổng chi</th><th>Chênh lệch</th></tr></thead>
+        <tbody id="dashThang"></tbody></table>
+      </div>
+      <div class="panel">
+        <h3 style="margin-top:0">Chi phí theo nhóm nhãn</h3>
+        <table><thead><tr><th>Nhóm</th><th>Tổng chi</th></tr></thead>
+        <tbody id="dashNhom"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== ĐỐI CHIẾU NỘP TIỀN THEO ĐIỂM ===== -->
+    <div class="view" id="v-dc">
+      <h2>Đối chiếu nộp tiền theo gian hàng</h2>
+      <div class="panel row">
+        <div class="fld"><label>Từ ngày</label><input type="date" id="dcTu"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="dcDen"></div>
+        <div class="fld"><button id="dcChay" onclick="taiDoiChieu()">🔍 Đối chiếu</button></div>
+        <div class="fld dcNhanh"><button id="dcHomNay" class="gray" onclick="dcDatNgay(0)">Hôm nay</button></div>
+        <div class="fld dcNhanh"><button id="dcHomQua" class="gray" onclick="dcDatNgay(-1)">Hôm qua</button></div>
+        <div class="fld dcNhanh"><button id="dcThangNay" class="gray" onclick="dcDatThang()">Tháng này</button></div>
+        <div class="fld"><button id="dcNapLai" class="gray" onclick="dcNapLaiDiem()" title="Đọc lại danh sách điểm từ Google Sheet (khi anh vừa thêm/sửa điểm)">🔄 Nạp lại danh sách điểm</button></div>
+      </div>
+      <div class="hint">
+        Mã nộp nằm trong <b>nội dung chuyển khoản</b>, dạng <code>KH705MTDMN0028</code> —
+        <code>705</code>/<code>989</code> = K&amp;H mới/cũ · <code>MTD</code>/<code>KVC</code> = hệ thống ·
+        <code>MB</code>/<code>MN</code> = miền. Trong khoảng ngày đã chọn, điểm có <b>ít nhất 1 giao dịch
+        tiền vào</b> mang mã của mình thì tính là <b>đã nộp</b>. Tiền ra không tính.
+      </div>
+      <div class="cards" id="dcCards"></div>
+      <div id="dcDaNop"></div>
+      <div id="dcCanhBao"></div>
+      <div id="dcNhom"></div>
+      <div class="panel">
+        <h3 style="margin-top:0">Giao dịch tiền vào chưa nhận ra mã <span id="dcSoKhongRo" class="muted"></span></h3>
+        <div class="hint">Nội dung không chứa mã nộp hợp lệ — có thể là lãi ngân hàng, khách trả nợ, hoặc gian hàng ghi thiếu mã.</div>
+        <table><thead><tr><th>Ngày GD</th><th>Số TK</th><th>Nội dung</th><th>Tiền vào</th></tr></thead>
+        <tbody id="dcKhongRo"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== SAO KÊ ===== -->
+    <div class="view" id="v-sk">
+      <h2>Sao Kê Ngân Hàng</h2>
+      <div class="panel row">
+        <div class="fld"><label>Tài khoản</label><select id="fSoTK"><option value="">Tất cả</option></select></div>
+        <div class="fld"><label>Pháp nhân</label><select id="fPhapNhan"><option value="">Tất cả</option></select></div>
+        <div class="fld"><label>Từ ngày</label><input type="date" id="fTu"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="fDen"></div>
+        <div class="fld"><label>Loại</label><select id="fLoai"><option value="">Tất cả</option><option value="Thu">Tiền vào</option><option value="Chi">Tiền ra</option></select></div>
+        <div class="fld"><label>Nguồn tiền vào</label><select id="fNguonTien">
+          <option value="">Tất cả</option>
+          <option value="bank">Nộp trực tiếp (không qua cổng)</option>
+          <option value="cong">Cổng QR (mọi cổng)</option>
+          <option value="vietqr">— Cổng Việt QR</option>
+          <option value="momo">— Cổng MoMo</option>
+          <option value="vnpay">— Cổng VNPAY</option>
+        </select></div>
+        <div class="fld"><label>Nhãn</label><select id="fNhan"><option value="">Tất cả</option><option value="CHUA_PHAN_LOAI">Chưa phân loại</option></select></div>
+        <div class="fld"><label>Từ khóa nội dung</label><input type="text" id="fKw" placeholder="vd: luong, NCC..."></div>
+        <div class="fld"><button onclick="taiSaoKe()">🔍 Lọc</button></div>
+        <div class="fld"><button id="skLamMoi" class="gray" onclick="lamMoiSaoKe()" title="Đọc lại giao dịch mới nhất từ Sheet, xoá hết ô lọc">🔄 Làm mới</button></div>
+        <div class="fld" style="align-self:flex-end"><span id="skCapNhat" class="muted"></span></div>
+      </div>
+      <div class="hint" style="border-left:3px solid var(--doNhat)">
+        ⚠️ <b>Tổng tiền vào ĐÃ BAO GỒM tiền cổng QR.</b> Cục tiền VNPAY / MoMo / Việt QR chuyển về là
+        một dòng tiền vào của ngân hàng, còn tab <b>Sao Kê &lt;cổng&gt;</b> hiện <b>cùng số tiền đó</b>
+        nhìn từ phía cổng. <b>Đừng cộng hai chỗ lại</b> — cộng là nhân đôi doanh thu.
+        Hai thẻ dưới đây tách sẵn: <b>Nộp trực tiếp</b> + <b>Cổng QR</b> = Tổng tiền vào.
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(5,1fr)">
+        <div class="card"><div class="lbl">Tổng tiền vào</div><div class="val in" id="skVao">0</div><div class="lbl">= 2 thẻ bên phải</div></div>
+        <div class="card"><div class="lbl">├ Nộp trực tiếp</div><div class="val in" id="skVaoBank">0</div><div class="lbl">tiền ngân hàng, không qua cổng</div></div>
+        <div class="card"><div class="lbl">└ Cổng QR</div><div class="val" style="color:var(--tim)" id="skVaoCong">0</div><div class="lbl" id="skVaoCongChiTiet"></div></div>
+        <div class="card"><div class="lbl">Tổng tiền ra</div><div class="val out" id="skRa">0</div></div>
+        <div class="card"><div class="lbl">Số dòng</div><div class="val" id="skDong">0</div></div>
+      </div>
+      <div class="panel" style="overflow:auto">
+        <table><thead><tr>
+          <th>Ngày GD</th><th>Ngân hàng</th><th>Số TK</th><th>Pháp nhân</th><th>Nguồn tiền</th><th>Nội dung</th><th>Mã GD</th>
+          <th>Tiền vào</th><th>Tiền ra</th><th>Số dư</th><th>Nhãn phân loại</th><th>Nguồn</th>
+        </tr></thead><tbody id="skBody"></tbody></table>
+      </div>
+      <div class="row" style="justify-content:center;align-items:center">
+        <button class="gray" onclick="skDoiTrang(-1)">‹ Trang trước</button>
+        <span id="skPageLbl" class="muted" style="margin:0 10px">Trang 1</span>
+        <button class="gray" onclick="skDoiTrang(1)">Trang sau ›</button>
+      </div>
+    </div>
+
+    <!-- ===== TỔNG HỢP DOANH THU 1 CƠ SỞ TỪ TẤT CẢ NGUỒN TIỀN ===== -->
+    <div class="view" id="v-th">
+      <h2>Tổng hợp doanh thu theo cơ sở
+        <button class="gray" id="thLamMoi" onclick="thLamMoi()" style="font-size:13px;padding:4px 10px;margin-left:10px;vertical-align:middle">🔄 Làm mới</button>
+      </h2>
+      <div class="hint">Mỗi cơ sở một dòng, tiền tách theo <b>4 nguồn</b>: Nộp trực tiếp · Việt QR · MoMo · VNPAY.
+        Gom về cơ sở bằng <b>mã nộp tiền</b> — phía bank lấy từ nội dung chuyển khoản, phía cổng lấy qua
+        bảng gán mã cửa hàng. Cơ sở nào ở cổng <b>chưa gán mã</b> thì để riêng ở dưới, không nhét bừa.</div>
+      <div class="panel row">
+        <div class="fld"><label>Từ ngày</label><input type="date" id="thTu"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="thDen"></div>
+        <div class="fld" style="align-self:flex-end"><button onclick="taiTongHop()">🔍 Tổng hợp</button></div>
+        <div class="fld" style="align-self:flex-end"><button class="gray" onclick="thDatNgay(0)">Hôm nay</button></div>
+        <div class="fld" style="align-self:flex-end"><button class="gray" onclick="thDatNgay(1)">Hôm qua</button></div>
+        <div class="fld" style="align-self:flex-end"><button class="gray" onclick="thThangNay()">Tháng này</button></div>
+        <div class="fld" style="align-self:flex-end"><span class="muted" id="thCapNhat"></span></div>
+      </div>
+      <div class="cards" style="grid-template-columns:repeat(5,1fr)">
+        <div class="card"><div class="lbl">Tổng gán được về cơ sở</div><div class="val in" id="thTong">0</div><div class="lbl" id="thTongSub"></div></div>
+        <div class="card"><div class="lbl">Nộp trực tiếp</div><div class="val in" id="thNop">0</div><div class="lbl">tiền ngân hàng</div></div>
+        <div class="card"><div class="lbl">Việt QR</div><div class="val" style="color:var(--tim)" id="thVietqr">0</div><div class="lbl">từ cổng</div></div>
+        <div class="card"><div class="lbl">MoMo</div><div class="val" style="color:var(--tim)" id="thMomo">0</div><div class="lbl">từ cổng</div></div>
+        <div class="card"><div class="lbl">VNPAY</div><div class="val" style="color:var(--tim)" id="thVnpay">0</div><div class="lbl">từ cổng</div></div>
+      </div>
+      <div class="panel" id="thCanhBao" style="display:none"></div>
+      <div id="thNhom"></div>
+      <details class="panel" id="thKhongGanWrap" style="display:none">
+        <summary style="cursor:pointer;font-weight:600">⚠️ Tiền CHƯA gán được về cơ sở nào
+          <span class="muted" style="font-weight:400" id="thKhongGanLbl"></span></summary>
+        <div id="thKhongGan" style="margin-top:10px"></div>
+      </details>
+    </div>
+
+    <!-- ===== SAO KÊ CỔNG THANH TOÁN =====
+         3 tab Việt QR / MoMo / VNPAY dùng CHUNG một khuôn, dựng bằng dungViewCong() lúc mở tab.
+         Cố ý KHÔNG chép tay 3 lần: chép tay là sớm muộn lệch nhau, và id trùng thì el() lấy
+         phần tử đầu tiên nên bấm nút không thấy gì mà cũng không báo lỗi (bài học Index.html
+         của Chi phí vận hành). Sinh từ 1 khuôn + tiền tố theo nguồn thì id không thể trùng. -->
+    <div class="view" id="v-cvietqr"></div>
+    <div class="view" id="v-cmomo"></div>
+    <div class="view" id="v-cvnpay"></div>
+
+    <!-- ===== TÀI KHOẢN ===== -->
+    <div class="view" id="v-tk">
+      <h2>Danh mục tài khoản ngân hàng</h2>
+      <div class="hint">Danh mục chỉ để hiển thị tên đẹp (Ngân hàng/Chủ TK) cho số tài khoản do SePay trả về — không dùng để xác thực. Liên kết tài khoản thật thực hiện bên SePay.</div>
+      <div class="hint">
+        <b>Số dư đầu kỳ</b>: nhập số dư thực tế của TK tại đúng thời điểm NGAY TRƯỚC giao dịch sớm nhất đã đồng bộ
+        (xem ở tab Sao kê, lọc theo TK rồi kéo tới dòng cuối). App sẽ tự tính <b>Số dư tính toán</b> = Đầu kỳ + tổng
+        thu − tổng chi các giao dịch đã đồng bộ, so với <b>Số dư thực tế</b> SePay báo — lệch nhau nghĩa là có giao
+        dịch bị thiếu (do webhook lỗi hoặc chưa đồng bộ đủ lịch sử), xem ở tab Tổng quan.
+      </div>
+      <div class="panel row">
+        <div class="fld"><label>Số TK</label><input id="tkSo"></div>
+        <div class="fld"><label>Ngân hàng</label><input id="tkNH" placeholder="Vietcombank..."></div>
+        <div class="fld"><label>Chủ TK</label><input id="tkChu"></div>
+        <div class="fld"><label>Ghi chú</label><input id="tkGhi"></div>
+        <div class="fld"><label>Pháp nhân</label><select id="tkPhapNhan"><option value="">-- chưa gán --</option></select></div>
+        <div class="fld"><label>Số dư đầu kỳ</label><input id="tkDauKy" type="number" step="1" placeholder="0"></div>
+        <div class="fld"><label>Ngày đầu kỳ</label><input id="tkNgayDauKy" type="date"></div>
+        <div class="fld"><button id="tkSaveBtn" onclick="luuTaiKhoan()">+ Lưu</button></div>
+        <div class="fld"><button id="tkCancelBtn" class="gray" onclick="huySuaTaiKhoan()" style="display:none">Hủy sửa</button></div>
+      </div>
+      <div class="panel" style="overflow:auto"><table><thead><tr>
+        <th>Số TK</th><th>Ngân hàng</th><th>Chủ TK</th><th>Ghi chú</th><th>Pháp nhân</th><th>Đầu kỳ</th><th>Ngày đầu kỳ</th><th></th>
+      </tr></thead>
+      <tbody id="tkBody"></tbody></table></div>
+    </div>
+
+    <!-- ===== DANH MỤC CHI PHÍ ===== -->
+    <div class="view" id="v-cat">
+      <h2>Danh mục nhãn phân loại</h2>
+      <div class="panel row">
+        <div class="fld"><label>Tên nhóm</label><input id="catTen" placeholder="vd: Trả nhà cung cấp"></div>
+        <div class="fld"><label>Loại</label><select id="catLoai"><option>Chi</option><option>Thu</option></select></div>
+        <div class="fld"><label>Màu</label><input id="catMau" type="color" value="#3b82f6"></div>
+        <div class="fld"><button onclick="luuDanhMuc()">+ Lưu</button></div>
+      </div>
+      <div class="panel"><table><thead><tr><th>Nhóm</th><th>Loại</th><th>Màu</th><th></th></tr></thead>
+      <tbody id="catBody"></tbody></table></div>
+    </div>
+
+    <!-- ===== CẤU HÌNH ===== -->
+    <div class="view" id="v-cfg">
+      <h2>Cấu hình kết nối SePay</h2>
+
+      <div class="panel">
+        <h3 style="margin-top:0">1. Webhook thời gian thực</h3>
+        <div class="hint">
+          Apps Script không đọc được header nên KHÔNG chọn kiểu xác thực "API Key" của SePay — key đã gắn sẵn
+          trong URL bên dưới. Đặt <b>Webhook API Key</b> ở ô dưới trước, bấm Lưu, rồi copy nguyên URL (đã có <code>?key=...</code>)
+          dán vào SePay → Webhooks → Endpoint URL, Authentication chọn <b>"No Authentication"</b>.
+          <div id="cfgKeyCanhBao" class="hint" style="display:none;border-left:3px solid var(--doNhat)"></div>
+          <div id="cfgMoiLink" style="margin-top:10px"></div>
+          <div style="margin-top:8px">URL: <code id="webhookUrl">(đặt Webhook API Key rồi bấm Lưu để lấy URL đầy đủ)</code></div>
+        </div>
+        <div class="row">
+          <div class="fld" style="flex:1;min-width:280px"><label>Webhook API Key (đặt trùng bên SePay)</label><input id="cfgWebhookKey" placeholder="dán/đặt key bí mật"></div>
+          <div class="fld"><button onclick="luuCauHinh()">Lưu cấu hình</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">2. Kéo lịch sử qua SePay Open API</h3>
+        <div class="row">
+          <div class="fld" style="flex:1;min-width:280px"><label>SePay API Token (Open API)</label><input id="cfgApiToken" placeholder="dán token từ SePay"></div>
+          <div class="fld"><button onclick="luuCauHinh()">Lưu token</button></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="fld"><label>Từ ngày</label><input type="date" id="syncTu"></div>
+          <div class="fld"><label>Đến ngày</label><input type="date" id="syncDen"></div>
+          <div class="fld"><label>Số TK (để trống = tất cả)</label><input id="syncTK"></div>
+          <div class="fld"><button onclick="dongBoLichSu()">⬇️ Đồng bộ ngay</button></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">3. Test webhook mẫu (không ghi vào sheet)</h3>
+        <div class="hint">Dán 1 payload JSON mẫu SePay gửi để xem app map ra field gì — dùng để kiểm tra nếu SePay đổi format.</div>
+        <textarea id="testJson" rows="4" style="width:100%" placeholder='{"id":"123","gateway":"Vietcombank","transactionDate":"2026-08-12 10:00:00","accountNumber":"0123456789","transferType":"in","transferAmount":"500000","accumulated":"1000000","content":"CHUYEN KHOAN"}'></textarea>
+        <div style="margin-top:8px"><button class="gray" onclick="testMau()">Xem kết quả map</button></div>
+        <pre id="testResult" style="white-space:pre-wrap;color:#93c5fd"></pre>
+      </div>
+
+      <div class="panel">
+        <h3 style="margin-top:0">4. Đổi mã PIN quản lý</h3>
+        <div class="row">
+          <div class="fld"><label>PIN hiện tại</label><input id="pinCu" type="password"></div>
+          <div class="fld"><label>PIN mới (4-8 số)</label><input id="pinMoi" type="password"></div>
+          <div class="fld"><button onclick="doiPinNow()">Đổi PIN</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var PIN = '';
+var CFG = null;
+
+function toast(msg, isErr){
+  var t=document.getElementById('toast'); t.textContent=msg; t.className='toast '+(isErr?'err':'ok');
+  t.style.display='block'; setTimeout(function(){t.style.display='none';},3500);
+}
+function fmt(n){ n=Math.round(Number(n)||0); return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* 13/08/2026 — F5 xong phải gõ lại PIN thì không ai muốn làm mới, nên nhớ PIN cho ĐÚNG PHIÊN
+   làm việc: dùng sessionStorage, KHÔNG dùng localStorage.
+   Khác nhau thật sự: sessionStorage mất khi đóng tab/trình duyệt, localStorage nằm lại trên máy
+   mãi. App này để access = ANYONE_ANONYMOUS (ai có link cũng mở được, PIN là cửa duy nhất) và
+   đây là số liệu tiền, nên không để PIN đọng lại trên máy sau khi đóng.
+   Vẫn có nút "Khoá lại" ở cuối menu để xoá ngay khi cần đưa máy cho người khác. */
+var PIN_KHOA = 'saoke_pin';
+function nhoPin(pin){ try{ sessionStorage.setItem(PIN_KHOA, pin); }catch(e){} }
+function quenPin(){ try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }
+function pinDaNho(){ try{ return sessionStorage.getItem(PIN_KHOA) || ''; }catch(e){ return ''; } }
+function khoaLai(){ quenPin(); location.reload(); }
+
+/* ===== NỀN SÁNG / NỀN TỐI =====
+   Nhớ bằng localStorage (không phải sessionStorage như PIN): đây là sở thích hiển thị, không
+   phải bí mật, và đổi mỗi lần mở app thì khỏi phải bấm lại.
+   Đặt data-nen trên <html> chứ không phải <body>: màn hình gõ PIN cũng nằm trong <html> nên
+   đổi ở <body> là màn PIN vẫn tối. */
+var NEN_KHOA = 'saoke_nen';
+function nenDangDung(){ try{ return localStorage.getItem(NEN_KHOA)==='sang' ? 'sang' : 'toi'; }catch(e){ return 'toi'; } }
+function apNen(n){
+  document.documentElement.setAttribute('data-nen', n === 'sang' ? 'sang' : 'toi');
+  var el = document.getElementById('niNen');
+  if (el) el.textContent = n === 'sang' ? '🌙 Nền tối' : '🌗 Nền sáng';
+}
+function doiNen(){
+  var moi = nenDangDung()==='sang' ? 'toi' : 'sang';
+  try{ localStorage.setItem(NEN_KHOA, moi); }catch(e){}
+  apNen(moi);
+}
+apNen(nenDangDung());     // chạy NGAY, trước khi vẽ, để không nháy tối rồi mới sáng
+
+/* ===== TIẾNG ANH =====
+   Anh Thắng: "bổ sung thêm ngôn ngữ tiếng anh cho trang web".
+
+   Cách làm: từ điển vi -> en, chỉ dịch khi văn bản KHỚP TRỌN một khoá. Không dịch một phần
+   câu — dịch nửa câu ra tiếng Anh nửa còn tiếng Việt thì đọc còn tệ hơn để nguyên.
+   Vì thế các đoạn GIẢI THÍCH DÀI (khối .hint có chữ in đậm chen giữa, bị cắt thành nhiều
+   mảnh) hiện GIỮ TIẾNG VIỆT — số liệu, nhãn, cột, nút, menu thì sang tiếng Anh hết.
+
+   Dùng MutationObserver: các tab Việt QR/MoMo/VNPAY và mọi bảng đều dựng bằng JS SAU khi
+   trang mở, nên dịch một lần lúc mở là hụt. Quan sát DOM thì bảng nào vẽ ra cũng được dịch.
+   Đổi về tiếng Việt thì reload — vẽ lại từ nguồn, khỏi phải nhớ đường về của từng chữ. */
+var LANG_KHOA = 'saoke_lang';
+function langDangDung(){ try{ return localStorage.getItem(LANG_KHOA)==='en' ? 'en' : 'vi'; }catch(e){ return 'vi'; } }
+var EN = {
+  // --- menu + tên app ---
+  '📊 Tổng quan':'📊 Overview', '🏦 Sao Kê Ngân Hàng':'🏦 Bank Statement',
+  '🔷 Sao Kê Việt QR':'🔷 VietQR Statement', '🟣 Sao Kê MoMo':'🟣 MoMo Statement',
+  '🔵 Sao Kê VNPAY':'🔵 VNPAY Statement', '🏪 Đối chiếu nộp tiền':'🏪 Cash-in Reconciliation',
+  '📊 Tổng hợp doanh thu cơ sở':'📊 Revenue by Location', '🏛️ Tài khoản ngân hàng':'🏛️ Bank Accounts',
+  '🏷️ Danh mục chi phí':'🏷️ Expense Labels', '⚙️ Cấu hình':'⚙️ Settings',
+  '🔒 Khoá lại':'🔒 Lock', '🔒 Sao Kê Ngân Hàng K&H':'🔒 K&H Bank Statement',
+  'Dữ liệu tài chính — nhập mã PIN quản lý':'Financial data — enter manager PIN', 'Mở':'Unlock',
+  'Sao Kê Ngân Hàng':'Bank Statement', 'Sao Kê Việt QR':'VietQR Statement',
+  'Sao Kê MoMo':'MoMo Statement', 'Sao Kê VNPAY':'VNPAY Statement',
+  // --- tiêu đề trang ---
+  'Tổng quan nhiều tài khoản':'Multi-account overview', 'Số dư từng tài khoản':'Balance by account',
+  'Thu / Chi theo tháng (12 tháng gần nhất)':'Income / Expense by month (last 12 months)',
+  'Chi phí theo nhóm nhãn':'Expenses by label group', 'Tổng số dư theo Pháp nhân':'Total balance by legal entity',
+  'Đối chiếu nộp tiền theo gian hàng':'Cash-in reconciliation by booth',
+  'Tổng hợp doanh thu theo cơ sở':'Revenue by location — all money sources',
+  'Danh mục tài khoản ngân hàng':'Bank account list', 'Danh mục nhãn phân loại':'Classification labels',
+  'Cấu hình kết nối SePay':'SePay connection settings', '⚙️ Cài đặt & công cụ':'⚙️ Settings & tools',
+  'Theo cửa hàng':'By store', '📅 Đối soát theo ngày':'📅 Daily reconciliation',
+  'Cục về ngân hàng trong tháng':'Lump transfers to bank this month', 'Cục về ngân hàng':'Lump transfers to bank',
+  '📜 Nhật ký webhook':'📜 Webhook log', '🧪 Payload thô mới nhất':'🧪 Latest raw payload',
+  '🧪 Thử 1 payload để soi cách đọc':'🧪 Test a payload to inspect parsing',
+  '📥 Nạp bù giao dịch từ file kết xuất':'📥 Backfill transactions from export file',
+  '📤 Tải file kết xuất MoMo':'📤 Upload MoMo export file', '📤 Tải file kết xuất VNPAY':'📤 Upload VNPAY export file',
+  '🏪 Cửa hàng CHƯA ra được mã nộp tiền':'🏪 Stores with NO cash-in code yet',
+  '🏪 Gán mã cửa hàng cho máy Việt QR':'🏪 Map stores for VietQR machines',
+  '⚠️ Tiền CHƯA gán được về cơ sở nào':'⚠️ Money NOT yet assigned to any location',
+  'Giao dịch tiền vào chưa nhận ra mã':'Incoming transactions with no recognised code',
+  'Chưa rõ máy / chưa đọc được':'Unknown machine / unreadable',
+  '✅ Đã nộp — Miền Bắc (0)':'✅ Paid in — North (0)', '✅ Đã nộp — Miền Nam (0)':'✅ Paid in — South (0)',
+  // --- thẻ số liệu ---
+  'Tổng số dư tất cả TK':'Total balance, all accounts', 'Tổng số dư':'Total balance',
+  'Tổng thu':'Total in', 'Tổng chi':'Total out', 'Tổng tiền vào':'Total money in',
+  'Tổng tiền ra':'Total money out', 'Chênh lệch':'Difference',
+  '├ Nộp trực tiếp':'├ Direct cash-in', '└ Cổng QR':'└ QR gateway',
+  'Nộp trực tiếp':'Direct cash-in', 'Nộp trực tiếp (không qua cổng)':'Direct cash-in (not via gateway)',
+  'Cổng QR':'QR gateway', 'Cổng QR (mọi cổng)':'QR gateway (all gateways)',
+  'tiền ngân hàng, không qua cổng':'bank money, not via gateway', 'tiền ngân hàng':'bank money',
+  'từ cổng':'from gateway', 'Từ cổng':'From gateway', 'Từ cổng Việt QR':'From VietQR gateway',
+  'Từ sao kê ngân hàng':'From bank statement', 'Tổng gán được về cơ sở':'Assigned to locations',
+  'Số dòng':'Rows', 'Số dư tính toán':'Computed balance', 'Số dư thực tế':'Actual balance',
+  'Đầu kỳ':'Opening', 'Tổng tiền đã nộp':'Total paid in', 'Đã nộp':'Paid in', 'Chưa nộp':'Not paid in',
+  'Tổng từ file MoMo':'Total from MoMo file', 'Tổng từ file VNPAY':'Total from VNPAY file',
+  'Chênh lệch (cổng − bank)':'Difference (gateway − bank)', 'Chênh lệch (file − bank)':'Difference (file − bank)',
+  'Ngày còn thiếu file':'Days missing a file', 'Giao dịch vào có mã':'Incoming with code',
+  'Thu — nộp trực tiếp':'In — direct cash-in', 'Thu — cổng QR':'In — QR gateway',
+  '4 nguồn':'4 sources', 'cơ sở':'locations',
+  // --- nhãn ô nhập ---
+  'Tài khoản':'Account', 'Pháp nhân':'Legal entity', 'Từ ngày':'From date', 'Đến ngày':'To date',
+  'Loại':'Type', 'Nguồn tiền vào':'Incoming source', 'Nguồn tiền':'Money source',
+  'Từ khóa nội dung':'Content keyword', 'Nhãn phân loại':'Label', 'Số TK':'Acct no.',
+  'Số TK (để trống = tất cả)':'Acct no. (blank = all)', 'Ngân hàng':'Bank', 'Chủ TK':'Account holder',
+  'Ghi chú':'Note', 'Số dư đầu kỳ':'Opening balance', 'Ngày đầu kỳ':'Opening date',
+  'Tên nhóm':'Group name', 'Màu':'Colour', 'Nhãn':'Label', 'Nhóm':'Group',
+  'Tháng đối soát':'Reconciliation month', 'Tháng':'Month', 'Chọn file':'Choose file',
+  'Ghi đè ngày trùng':'Overwrite duplicate days', 'Cột Ngày':'Date column',
+  'Cột Số tiền':'Amount column', 'Cột Cửa hàng':'Store column', 'Cửa hàng':'Store',
+  'Cửa hàng chuẩn':'Standard store', 'Cửa hàng chuẩn (ngân hàng)':'Standard store (bank side)',
+  'Tên ở file cổng':'Name in gateway file', 'Mã nộp tiền':'Cash-in code',
+  'Mã nộp tiền (không bắt buộc)':'Cash-in code (optional)', 'Vì sao chưa được':'Why not yet',
+  'Webhook API Key (đặt trùng bên SePay)':'Webhook API Key (must match SePay)',
+  'PIN hiện tại':'Current PIN', 'PIN mới (4-8 số)':'New PIN (4-8 digits)',
+  'Thời điểm':'Timestamp', 'Thời điểm *':'Timestamp *', 'Số tiền':'Amount', 'Số tiền *':'Amount *',
+  'Mã giao dịch cổng':'Gateway transaction ID', 'Mã giao dịch cổng *':'Gateway transaction ID *',
+  'Mã tham chiếu':'Reference', 'Nội dung':'Content', 'Nội dung (để lấy tên máy)':'Content (to read machine name)',
+  'Trạng thái':'Status', 'Thử payload':'Test payload',
+  'Từ khoá nhận dòng Việt QR trong sao kê ngân hàng':'Keyword to spot VietQR rows in the bank statement',
+  '⚙️ Từ khoá nhận cục MoMo trong sao kê ngân hàng':'⚙️ Keyword to spot MoMo lump rows in the bank statement',
+  '⚙️ Từ khoá nhận cục VNPAY trong sao kê ngân hàng':'⚙️ Keyword to spot VNPAY lump rows in the bank statement',
+  '-- chưa gán --':'-- unassigned --', 'Tất cả':'All', 'Chưa phân loại':'Unclassified',
+  // --- nút ---
+  '🔍 Lọc':'🔍 Filter', '🔄 Làm mới':'🔄 Refresh', 'Hôm nay':'Today', 'Hôm qua':'Yesterday',
+  'Tháng này':'This month', '7 ngày':'7 days', '30 ngày':'30 days', '🔍 Đối chiếu':'🔍 Reconcile',
+  '🔍 Tổng hợp':'🔍 Summarise', '🔍 Xem cả tháng':'🔍 View whole month',
+  '🔄 Nạp lại danh sách điểm':'🔄 Reload location list', '+ Lưu':'+ Save', 'Hủy sửa':'Cancel edit',
+  'Lưu cấu hình':'Save settings', 'Lưu token':'Save token', 'Lưu từ khoá':'Save keyword',
+  'Đổi PIN':'Change PIN', '⬇️ Đồng bộ ngay':'⬇️ Sync now', 'Xem kết quả map':'View parse result',
+  '📥 Nạp vào tháng':'📥 Load into month', '📥 Nạp bù':'📥 Backfill',
+  '‹ Trang trước':'‹ Previous', 'Trang sau ›':'Next ›', '🌗 Nền sáng':'🌗 Light theme',
+  '🌙 Nền tối':'🌙 Dark theme', '↩ Xem cả tháng':'↩ View whole month',
+  '🗑 Xoá dữ liệu ngày này':'🗑 Delete this day’s data', 'xem riêng':'view only this day',
+  // --- tiêu đề cột ---
+  'Ngày GD':'Txn date', 'Mã GD':'Txn ID', 'Tiền vào':'Money in', 'Tiền ra':'Money out',
+  'Số dư':'Balance', 'Nguồn':'Source', 'Số tài khoản':'Account number', 'Ngày':'Date',
+  'Ngày cuối':'Last date', 'Số ngày có':'Days with data', 'Số cửa hàng':'Stores',
+  'So hôm trước':'vs previous day', 'Lượt':'Times', 'Máy':'Machine', 'Các máy đã thấy':'Machines seen',
+  'Cơ sở (từ tên máy)':'Location (from machine name)', 'Số tiền tháng này':'Amount this month',
+  'Kết quả':'Result', 'Mã nộp':'Code', 'Cơ sở':'Location', 'Việt QR':'VietQR', 'Lần cuối':'Last time',
+  'Tổng':'Total', 'Cơ sở ở cổng':'Store at gateway', 'Vì sao chưa gán được':'Why not assigned',
+  // --- câu trạng thái trọn nghĩa ---
+  'Chưa có giao dịch nào':'No transactions yet', 'Chưa có tài khoản nào':'No accounts yet',
+  'Chưa có nhóm nào':'No groups yet', 'Chưa có dữ liệu':'No data',
+  'Không có giao dịch nào trong kỳ.':'No transactions in this period.',
+  'Không có giao dịch khớp bộ lọc':'No transactions match the filter',
+  'Chưa có dữ liệu file trong tháng này.':'No file data for this month.',
+  'Không có cục nào khớp từ khoá trong tháng.':'No lump transfer matches the keyword this month.',
+  'Không có dòng sao kê nào khớp từ khoá trong kỳ.':'No statement row matches the keyword in this period.',
+  'Tháng chưa tới ngày nào.':'The month has no days yet.',
+  'Chưa có điểm nào nộp.':'No location has paid in yet.',
+  'Không có — mọi giao dịch tiền vào đều nhận ra mã.':'None — every incoming transaction has a recognised code.',
+  'Chưa đặt Webhook API Key nên chưa có link nào.':'No Webhook API Key set, so there is no link yet.',
+  'Cần biết':'What you need to know', 'chưa có mã':'no code yet', 'chưa ánh xạ':'not mapped',
+  'chưa rõ máy':'machine unknown', 'chưa có file':'no file', 'Trang 1':'Page 1',
+  '(chưa đặt tên)':'(unnamed)', '· chưa có request nào':'· no request yet'
+};
+var _dichObs = null;
+function _dichNut(n){
+  if(!n) return;
+  if(n.nodeType===3){
+    var t = n.textContent, k = t.trim();
+    if(k && EN[k]) n.textContent = t.replace(k, EN[k]);
+    return;
+  }
+  if(n.nodeType!==1) return;
+  if(n.tagName==='SCRIPT' || n.tagName==='STYLE') return;
+  if(n.placeholder && EN['@'+n.placeholder]) n.placeholder = EN['@'+n.placeholder];
+  if(n.title && EN['#'+n.title]) n.title = EN['#'+n.title];
+  var cs = n.childNodes;
+  for(var i=0;i<cs.length;i++) _dichNut(cs[i]);
+}
+function batDich(){
+  _dichNut(document.body);
+  if(_dichObs) return;
+  // Ngắt quan sát trong lúc TỰ sửa chữ, không thì sửa -> báo -> sửa -> vòng vô tận treo trang.
+  _dichObs = new MutationObserver(function(ms){
+    _dichObs.disconnect();
+    ms.forEach(function(m){
+      if(m.type==='characterData') _dichNut(m.target);
+      else for(var i=0;i<m.addedNodes.length;i++) _dichNut(m.addedNodes[i]);
+    });
+    _dichObs.observe(document.body, {childList:true, subtree:true, characterData:true});
+  });
+  _dichObs.observe(document.body, {childList:true, subtree:true, characterData:true});
+}
+function apNgonNgu(){
+  var el = document.getElementById('niLang');
+  if(el) el.textContent = langDangDung()==='en' ? '🌐 Tiếng Việt' : '🌐 English';
+  if(langDangDung()==='en'){ document.documentElement.setAttribute('lang','en'); batDich(); }
+}
+// Màn hình gõ PIN hiện TRƯỚC vaoApp nên phải dịch ngay từ đây, không thì màn đầu tiên
+// người dùng thấy vẫn là tiếng Việt dù đã chọn English.
+function apNgonNguSom(){ if(langDangDung()==='en'){ document.documentElement.setAttribute('lang','en'); batDich(); } }
+function doiNgonNgu(){
+  var moi = langDangDung()==='en' ? 'vi' : 'en';
+  try{ localStorage.setItem(LANG_KHOA, moi); }catch(e){}
+  location.reload();   // vẽ lại từ nguồn: đường về tiếng Việt luôn đúng, khỏi phải nhớ từng chữ
+}
+
+
+function vaoApp(pin){
+  PIN = pin;
+  document.getElementById('pinScreen').style.display='none';
+  document.getElementById('appRoot').style.display='flex';
+  initApp();
+  apNgonNgu();     // sau khi hiện menu: đặt nhãn nút và bật dịch nếu đang chọn English
+}
+function doLogin(){
+  var pin = document.getElementById('pinInput').value;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r.ok){ toast('Sai mã PIN', true); return; }
+    nhoPin(pin);
+    vaoApp(pin);
+  }).withFailureHandler(function(e){ toast(e.message, true); }).checkPin(pin);
+}
+document.getElementById('pinInput').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+
+// Mở lại trang trong cùng phiên: vẫn HỎI máy chủ xác nhận PIN, không tin suông ô đã nhớ —
+// PIN có thể đã bị đổi ở tab khác, tin suông là mọi lời gọi sau đó đều lỗi "Sai mã PIN".
+(function tuDangNhap(){
+  var pin = pinDaNho();
+  if (!pin) return;
+  google.script.run.withSuccessHandler(function(r){
+    if (r && r.ok) vaoApp(pin);
+    else { quenPin(); toast('PIN đã nhớ không còn đúng, nhập lại giúp em', true); }
+  }).withFailureHandler(function(){ quenPin(); }).checkPin(pin);
+})();
+
+function nav(v){
+  document.querySelectorAll('.view').forEach(function(x){x.classList.remove('active');});
+  document.querySelectorAll('.ni').forEach(function(x){x.classList.remove('active');});
+  document.getElementById('v-'+v).classList.add('active');
+  document.querySelector('.ni[data-v="'+v+'"]').classList.add('active');
+  if(v==='dashboard') taiDashboard();
+  if(v==='sk') taiSaoKe();
+  if(v==='cfg') renderCfg();
+  if(VIEW_CONG[v]) moTabCong(VIEW_CONG[v]);   // tra thẳng bảng, không cắt chuỗi (cfg/cat cũng bắt đầu bằng 'c')
+  if(v==='th'){ if(!document.getElementById('thTu').value) thDatNgay(0); else taiTongHop(); }
+  // Lần đầu mở tab Đối chiếu thì mặc định HÔM NAY (dcDatNgay tự gọi taiDoiChieu),
+  // các lần sau giữ nguyên khoảng ngày anh đang xem, chỉ đọc lại số liệu.
+  if(v==='dc'){ if(!document.getElementById('dcTu').value) dcDatNgay(0); else taiDoiChieu(); }
+}
+
+function initApp(){
+  google.script.run.withSuccessHandler(function(cfg){
+    CFG = cfg;
+    fillSelects();
+    renderTaiKhoan(); renderDanhMuc(); renderCfg();
+    taiDashboard();
+  }).withFailureHandler(function(e){ toast(e.message, true); }).getConfig(PIN);
+}
+
+function fillSelects(){
+  var selTK = document.getElementById('fSoTK'); selTK.innerHTML = '<option value="">Tất cả</option>';
+  (CFG.taiKhoan||[]).forEach(function(t){
+    var label = [t.nganHang, t.chuTK, t.ghiChu].filter(Boolean).join(' - ') || t.soTK;
+    selTK.innerHTML += '<option value="'+esc(t.soTK)+'">'+esc(label)+' ('+esc(t.soTK)+')</option>';
+  });
+  var selNhan = document.getElementById('fNhan'); selNhan.innerHTML = '<option value="">Tất cả</option><option value="CHUA_PHAN_LOAI">Chưa phân loại</option>';
+  (CFG.danhMuc||[]).forEach(function(c){ selNhan.innerHTML += '<option value="'+esc(c.ten)+'">'+esc(c.ten)+'</option>'; });
+  var pnOptsHtml = (CFG.phapNhanOpts||[]).map(function(p){ return '<option value="'+esc(p)+'">'+esc(p)+'</option>'; }).join('');
+  document.getElementById('fPhapNhan').innerHTML = '<option value="">Tất cả</option>' + pnOptsHtml;
+  document.getElementById('tkPhapNhan').innerHTML = '<option value="">-- chưa gán --</option>' + pnOptsHtml;
+}
+
+// ===== DASHBOARD =====
+function taiDashboard(){
+  google.script.run.withSuccessHandler(function(d){
+    // Tách rõ tiền ngân hàng với tiền cổng QR: cục cổng NẰM SẴN trong sao kê, cộng thêm số
+    // ở tab cổng là nhân đôi doanh thu. Thẻ ở đây để không bao giờ đọc lẫn hai thứ.
+    var ctD = (d.congTheoNguon||[]).map(function(x){ return esc(x.ten)+' '+fmt(x.soTien); }).join(' · ');
+    var html = '<div class="card"><div class="lbl">Tổng số dư tất cả TK</div><div class="val">'+fmt(d.tongSoDu)+'</div></div>' +
+      '<div class="card"><div class="lbl">Số tài khoản</div><div class="val">'+(d.taiKhoan||[]).length+'</div></div>' +
+      '<div class="card"><div class="lbl">Thu — nộp trực tiếp</div><div class="val in">'+fmt(d.tongThuBank||0)+'</div>' +
+        '<div class="lbl">tiền ngân hàng, không qua cổng</div></div>' +
+      '<div class="card"><div class="lbl">Thu — cổng QR</div><div class="val" style="color:var(--tim)">'+fmt(d.tongThuCong||0)+'</div>' +
+        '<div class="lbl">'+(ctD||'chưa có dòng nào')+'</div></div>';
+    document.getElementById('dashCards').innerHTML = html;
+    document.getElementById('dashTaiKhoan').innerHTML = (d.taiKhoan||[]).map(function(t){
+      /* 13/08/2026 — PHÂN BIỆT "khớp" với "KHÔNG BIẾT". SePay không gửi số dư luỹ kế cho tiền vào qua
+         tài khoản ảo, nên `coSoDuThucTe=false` nghĩa là KHÔNG CÓ SỐ ĐỂ SO — khác hẳn "chênh lệch 0".
+         Trước đây cả hai đều in ra số 0, đọc lên tưởng đã đối chiếu xong và khớp. Nay hiện dấu — và
+         ghi rõ lý do khi trỏ chuột vào, để không ai đi tìm giao dịch thiếu mà thực ra không thiếu. */
+      var coTT = (t.coSoDuThucTe !== false);   // thiếu cờ (bản cũ) thì cứ coi như có, giữ hành vi cũ
+      var lechCl = (coTT && t.chenhLech) ? (t.chenhLech>0?'in':'out') : '';
+      var oThucTe = coTT ? fmt(t.soDu)
+        : '<span class="muted" title="SePay không gửi số dư cho tài khoản này (tiền vào qua tài khoản ảo). Số đang hiện ở cột bên là Số dư tính toán.">—</span>';
+      var oLech = coTT ? (t.chenhLech?fmt(t.chenhLech):'0')
+        : '<span class="muted" title="Không có Số dư thực tế từ SePay nên không đối chiếu được — đây KHÔNG phải thiếu giao dịch.">—</span>';
+      return '<tr><td>'+esc(t.soTK)+'</td><td>'+esc(t.nganHang)+'</td><td>'+esc(t.chuTK)+'</td><td>'+esc(t.phapNhan||'—')+'</td>' +
+        '<td>'+(t.soDuDauKy?fmt(t.soDuDauKy):'—')+'</td><td>'+oThucTe+'</td><td>'+fmt(t.soDuTinhToan)+'</td>' +
+        '<td class="'+lechCl+'">'+oLech+'</td></tr>';
+    }).join('') || '<tr><td colspan=8 class="muted">Chưa có giao dịch nào</td></tr>';
+    document.getElementById('dashPhapNhan').innerHTML = (d.theoPhapNhan||[]).map(function(p){
+      return '<tr><td>'+esc(p.phapNhan)+'</td><td>'+fmt(p.soDu)+'</td></tr>';
+    }).join('') || '<tr><td colspan=2 class="muted">Chưa có dữ liệu</td></tr>';
+    document.getElementById('dashThang').innerHTML = (d.theoThang||[]).map(function(m){
+      var cl = m.chi>m.thu?'out':'in';
+      return '<tr><td>'+esc(m.thang)+'</td><td class="in">'+fmt(m.thu)+'</td>' +
+        '<td class="in">'+fmt(m.thuBank||0)+'</td><td style="color:var(--tim)">'+fmt(m.thuCong||0)+'</td>' +
+        '<td class="out">'+fmt(m.chi)+'</td><td class="'+cl+'">'+fmt(m.thu-m.chi)+'</td></tr>';
+    }).join('') || '<tr><td colspan=6 class="muted">Chưa có dữ liệu</td></tr>';
+    document.getElementById('dashNhom').innerHTML = (d.nhomChi||[]).map(function(n){
+      return '<tr><td>'+esc(n.nhom)+'</td><td class="out">'+fmt(n.tong)+'</td></tr>';
+    }).join('') || '<tr><td colspan=2 class="muted">Chưa có dữ liệu</td></tr>';
+  }).withFailureHandler(function(e){
+    // Cùng lý do với skBaoLoi: lỗi phải nằm lại trên màn hình, không được chỉ toast rồi tắt.
+    var m = e && e.message ? e.message : String(e);
+    document.getElementById('dashTaiKhoan').innerHTML =
+      '<tr><td colspan=8 style="color:var(--doNhat);white-space:normal">❌ Không tải được tổng quan: ' + esc(m) + '</td></tr>';
+    toast(m, true);
+  }).getDashboard(PIN);
+}
+
+// ===== ĐỐI CHIẾU NỘP TIỀN =====
+/* Tiền tố "dc" cho MỌI id/biến/hàm của màn hình này — app đã có sẵn fTu/fDen/skBody của tab Sao kê,
+   trùng id là el() lấy nhầm phần tử ĐẦU TIÊN, bấm nút không thấy gì mà cũng không báo lỗi. */
+var DC_MO = {};   // khoá nhóm -> đang mở bảng chi tiết hay không
+var DC_KQ = null; // kết quả lần đối chiếu gần nhất, để bật/tắt bảng mà không phải gọi lại máy chủ
+function dcYmd(d){ var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+/* Đổi "13/08/2026 07:23:59" thành số để sắp thứ tự. KHÔNG dùng new Date(chuỗi): dạng dd/MM/yyyy
+   trình duyệt hiểu thành tháng 13 -> Invalid Date, sắp xếp lẫn lộn mà không báo lỗi gì. */
+function dcMoc(s){
+  var m = /^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/.exec(String(s||''));
+  if (!m) return 0;
+  return Number(m[3]+m[2]+m[1]+(m[4]||'00')+(m[5]||'00')+(m[6]||'00'));
+}
+function dcDatNgay(lech){
+  var d = new Date(); d.setDate(d.getDate()+lech);
+  document.getElementById('dcTu').value = dcYmd(d);
+  document.getElementById('dcDen').value = dcYmd(d);
+  taiDoiChieu();
+}
+function dcDatThang(){
+  var n = new Date();
+  document.getElementById('dcTu').value = dcYmd(new Date(n.getFullYear(), n.getMonth(), 1));
+  document.getElementById('dcDen').value = dcYmd(n);
+  taiDoiChieu();
+}
+function dcNapLaiDiem(){
+  var b = document.getElementById('dcNapLai'); b.disabled = true; b.textContent = '⏳ Đang nạp…';
+  google.script.run.withSuccessHandler(function(r){
+    b.disabled = false; b.textContent = '🔄 Nạp lại danh sách điểm';
+    toast('Đã nạp lại: '+r.soDiem+' mã nộp (đọc '+r.soHangDoc+' dòng)');
+    taiDoiChieu();
+  }).withFailureHandler(function(e){
+    b.disabled = false; b.textContent = '🔄 Nạp lại danh sách điểm';
+    dcBaoLoi(e && e.message ? e.message : String(e));
+  }).napLaiDanhSachDiem(PIN);
+}
+// Lỗi phải NẰM LẠI trên màn hình, không chỉ toast rồi tắt (cùng bài học với tab Sao kê).
+function dcBaoLoi(msg){
+  document.getElementById('dcNhom').innerHTML =
+    '<div class="panel" style="color:var(--doNhat);white-space:normal">❌ Không đối chiếu được: '+esc(msg)+'</div>';
+  document.getElementById('dcCards').innerHTML = '';
+  toast(msg, true);
+}
+function taiDoiChieu(){
+  var tu = toVN(document.getElementById('dcTu').value), den = toVN(document.getElementById('dcDen').value);
+  document.getElementById('dcNhom').innerHTML = '<div class="panel muted">Đang đối chiếu…</div>';
+  google.script.run.withSuccessHandler(function(d){
+    try { dcVe(d); } catch(err){ dcBaoLoi('Lỗi khi vẽ: '+(err && err.message ? err.message : err)); }
+  }).withFailureHandler(function(e){ dcBaoLoi(e && e.message ? e.message : String(e)); }).getDoiChieuNop(PIN, tu, den);
+}
+function dcVe(d){
+  DC_KQ = d;
+  var tyLe = d.tongDiem ? Math.round(d.tongDaNop*100/d.tongDiem) : 0;
+  document.getElementById('dcCards').innerHTML =
+    '<div class="card"><div class="lbl">Đã nộp</div><div class="val in">'+d.tongDaNop+' / '+d.tongDiem+'</div><div class="muted">'+tyLe+'%</div></div>' +
+    '<div class="card"><div class="lbl">Chưa nộp</div><div class="val out">'+d.tongChuaNop+'</div></div>' +
+    '<div class="card"><div class="lbl">Tổng tiền đã nộp</div><div class="val">'+fmt(d.tongTienNop)+'</div></div>' +
+    '<div class="card"><div class="lbl">Giao dịch vào có mã</div><div class="val">'+d.soGdCoMa+'</div><div class="muted">tổng vào '+fmt(d.tongVaoTrongKy)+'</div></div>';
+
+  /* Khối "ĐÃ NỘP" đặt NGAY ĐẦU TRANG (13/08/2026 — anh Thắng: một nhóm có tới 53 điểm chưa nộp,
+     để danh sách chưa nộp lên trước thì muốn xem ai đã nộp phải cuộn rất xa).
+     Tách theo MIỀN, trong mỗi miền tách tiếp MTD / KVC (anh Thắng: "chỗ giao dịch đã nộp tách ra
+     MB (MTD và KVC), MN (MTD và KVC) để anh xem, còn ở dưới giữ nguyên").
+     Vì tiêu đề đã nói rõ miền + hệ thống nên BỎ cột "Nhóm" cho khỏi lặp. Mới nộp xếp trên. */
+  var daTheoNhom = {};
+  (d.nhom||[]).forEach(function(g){
+    daTheoNhom[g.khoa] = g.diem.filter(function(x){ return x.daNop; })
+                               .sort(function(a,b){ return dcMoc(b.lanCuoi) - dcMoc(a.lanCuoi); });
+  });
+  /* Bảng gọn hơn bản gộp vì giờ chỉ rộng nửa trang: bỏ cột "Bộ phận" (vẫn còn ở bảng từng nhóm
+     bên dưới) và gộp "Số lần" vào ô Số tiền, chỉ hiện khi nộp NHIỀU HƠN 1 lần. */
+  var hangDaNop = function(x){
+    var ten = esc(x.ten || '(chưa đặt tên)');
+    if ((x.tenPhu||[]).length) ten += ' <span class="muted">(dùng chung: '+esc(x.tenPhu.join(' · '))+')</span>';
+    return '<tr class="danop"><td>'+esc(x.lanCuoi)+'</td><td style="white-space:normal">'+ten+'</td>' +
+      '<td class="muted">'+esc(x.tenPhapNhan||'—')+'</td><td><code>'+esc(x.ma)+'</code></td>' +
+      '<td class="in">'+fmt(x.soTien)+(x.soLan>1?' <span class="muted">('+x.soLan+' lần)</span>':'')+'</td></tr>';
+  };
+  var tongTien = function(ds){ return ds.reduce(function(s,x){ return s + x.soTien; }, 0); };
+  var htmlDaNop = [['MB','Miền Bắc'], ['MN','Miền Nam']].map(function(m){
+    var mtd = daTheoNhom['MTD'+m[0]] || [], kvc = daTheoNhom['KVC'+m[0]] || [];
+    var soM = mtd.length + kvc.length, tienM = tongTien(mtd) + tongTien(kvc);
+    var cot = function(ht, ds){
+      return '<div><h4 style="margin:0 0 6px" class="'+(ds.length?'in':'muted')+'">'+ht+' ('+ds.length+')'
+        + (ds.length ? ' · '+fmt(tongTien(ds)) : '') + '</h4>' +
+        (ds.length
+          ? '<table><thead><tr><th>Lần cuối</th><th>Tên điểm</th><th>Pháp nhân</th><th>Mã nộp</th><th>Số tiền</th></tr></thead><tbody>' +
+            ds.map(hangDaNop).join('') + '</tbody></table>'
+          : '<div class="muted" style="font-size:13px">Chưa có điểm nào nộp.</div>') +
+        '</div>';
+    };
+    return '<div class="panel">' +
+      '<h3 style="margin-top:0" class="'+(soM?'in':'muted')+'">✅ Đã nộp — '+m[1]+' ('+soM+')'
+        + (soM ? ' · '+fmt(tienM) : '') + '</h3>' +
+      '<div class="dc2cot">' + cot('MTD', mtd) + cot('KVC', kvc) + '</div>' +
+    '</div>';
+  }).join('');
+  document.getElementById('dcDaNop').innerHTML =
+    '<div class="hint">Mới nộp xếp trên. Chỉ liệt kê điểm ĐÃ nộp trong khoảng ngày đang xem — '
+    + 'danh sách chưa nộp nằm ở từng nhóm bên dưới.</div>' + htmlDaNop;
+
+  // Cảnh báo về CHÍNH bảng danh sách điểm — không nuốt, vì mấy điểm này không bao giờ đối chiếu được.
+  var cb = '';
+  if ((d.canhBao.thieuMa||[]).length) {
+    cb += '<div class="panel"><h3 style="margin-top:0;color:var(--vang)">⚠️ '+d.canhBao.thieuMa.length+' điểm CHƯA có mã nộp trong bảng danh sách</h3>' +
+      '<div class="hint">Những điểm này không bao giờ đối chiếu được cho tới khi anh điền cột "Nội dung nộp tiền".</div>' +
+      '<table><thead><tr><th>Tên điểm</th><th>Trang tính</th><th>Dòng</th></tr></thead><tbody>' +
+      d.canhBao.thieuMa.map(function(x){ return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.sheet)+'</td><td>'+x.dong+'</td></tr>'; }).join('') +
+      '</tbody></table></div>';
+  }
+  if ((d.canhBao.trungMa||[]).length) {
+    cb += '<div class="panel"><h3 style="margin-top:0;color:var(--vang)">⚠️ '+d.canhBao.trungMa.length+' mã dùng CHUNG cho nhiều điểm</h3>' +
+      '<div class="hint">Nộp 1 lần là app tính XONG cho cả nhóm dùng chung — không tách được ai nộp, ai chưa.</div>' +
+      '<table><thead><tr><th>Mã nộp</th><th>Các điểm dùng chung</th></tr></thead><tbody>' +
+      d.canhBao.trungMa.map(function(x){ return '<tr><td><code>'+esc(x.ma)+'</code></td><td style="white-space:normal">'+esc(x.ten.join(' · '))+'</td></tr>'; }).join('') +
+      '</tbody></table></div>';
+  }
+  if ((d.maLa||[]).length) {
+    cb += '<div class="panel"><h3 style="margin-top:0;color:var(--vang)">⚠️ '+d.maLa.length+' mã có tiền về nhưng KHÔNG có trong danh sách điểm</h3>' +
+      '<div class="hint">Hoặc gian hàng gõ sai số, hoặc điểm mới chưa khai vào bảng danh sách. Tiền này chưa được tính cho điểm nào.</div>' +
+      '<table><thead><tr><th>Mã</th><th>Số lần</th><th>Số tiền</th><th>Lần cuối</th></tr></thead><tbody>' +
+      d.maLa.map(function(x){ return '<tr><td><code>'+esc(x.ma)+'</code></td><td>'+x.soLan+'</td><td class="in">'+fmt(x.soTien)+'</td><td>'+esc(x.lanCuoi)+'</td></tr>'; }).join('') +
+      '</tbody></table></div>';
+  }
+  document.getElementById('dcCanhBao').innerHTML = cb;
+
+  /* Trong từng nhóm: ĐÃ NỘP lên TRƯỚC và bôi xanh, hiện sẵn không cần bấm; CHƯA NỘP xuống dưới
+     và thu gọn được (nhóm 705·MTD·MN có 53 điểm chưa nộp, để mở sẵn là dài mấy trang). */
+  document.getElementById('dcNhom').innerHTML = (d.nhom||[]).map(function(g){
+    var chua = g.diem.filter(function(x){ return !x.daNop; });
+    var da   = g.diem.filter(function(x){ return x.daNop; })
+                     .sort(function(a,b){ return dcMoc(b.lanCuoi) - dcMoc(a.lanCuoi); });
+    var mo = !!DC_MO[g.khoa];
+    var hang = function(x, coTien){
+      var ten = esc(x.ten || '(chưa đặt tên)');
+      if ((x.tenPhu||[]).length) ten += ' <span class="muted">(dùng chung: '+esc(x.tenPhu.join(' · '))+')</span>';
+      return '<tr'+(coTien?' class="danop"':'')+'><td><code>'+esc(x.ma)+'</code></td><td style="white-space:normal">'+ten+'</td>' +
+        '<td class="muted">'+esc(x.tenPhapNhan||'—')+'</td>' +
+        '<td>'+esc(x.maDiem||'—')+'</td><td>'+esc(x.boPhan||'—')+'</td>' +
+        (coTien ? '<td class="in">'+fmt(x.soTien)+'</td><td>'+x.soLan+'</td><td>'+esc(x.lanCuoi)+'</td>' : '') +
+        '</tr>';
+    };
+    var thPN = '<th>Pháp nhân</th>';
+    return '<div class="panel">' +
+      '<h3 style="margin-top:0">'+esc(g.ten)+
+        ' <span class="'+(g.soChuaNop?'out':'in')+'">'+g.soDaNop+'/'+g.tongDiem+'</span>' +
+        ' <span class="muted" style="font-weight:400">· '+fmt(g.tienDaNop)+'</span></h3>' +
+      (g.tongDiem === 0
+        ? '<div class="muted">Không có điểm nào thuộc nhóm này trong bảng danh sách.</div>'
+        : (da.length
+            ? '<h4 class="in" style="margin:6px 0">✅ Đã nộp ('+da.length+') · '+fmt(g.tienDaNop)+'</h4>' +
+              '<table><thead><tr><th>Mã nộp</th><th>Tên điểm</th>'+thPN+'<th>Mã misa</th><th>Bộ phận</th><th>Số tiền</th><th>Số lần</th><th>Lần cuối</th></tr></thead><tbody>' +
+              da.map(function(x){ return hang(x,true); }).join('') + '</tbody></table>'
+            : '<div class="out" style="margin:6px 0">Chưa có điểm nào trong nhóm này nộp.</div>') +
+          (chua.length
+            ? '<div style="margin-top:12px"><button class="gray" onclick="dcMo(\''+g.khoa+'\')">'+(mo?'▾ Ẩn':'▸ Xem')+' '+chua.length+' điểm CHƯA nộp</button></div>' +
+              (mo ? '<table style="margin-top:8px"><thead><tr><th>Mã nộp</th><th>Tên điểm</th>'+thPN+'<th>Mã misa</th><th>Bộ phận</th></tr></thead><tbody>' +
+                    chua.map(function(x){ return hang(x,false); }).join('') + '</tbody></table>' : '')
+            : '<div class="in" style="margin-top:10px">✅ Cả '+g.tongDiem+' điểm đã nộp đủ.</div>')) +
+      '</div>';
+  }).join('');
+
+  document.getElementById('dcSoKhongRo').textContent = '(' + (d.khongRo||[]).length + ')';
+  document.getElementById('dcKhongRo').innerHTML = (d.khongRo||[]).map(function(x){
+    return '<tr><td>'+esc(x.ngayGD)+'</td><td>'+esc(x.soTK)+'</td>' +
+      '<td style="white-space:normal;max-width:420px">'+esc(x.noiDung)+'</td><td class="in">'+fmt(x.vao)+'</td></tr>';
+  }).join('') || '<tr><td colspan=4 class="muted">Không có — mọi giao dịch tiền vào đều nhận ra mã.</td></tr>';
+}
+// Chỉ bật/tắt phần "đã nộp", KHÔNG gọi lại máy chủ.
+function dcMo(khoa){ DC_MO[khoa] = !DC_MO[khoa]; if (DC_KQ) dcVe(DC_KQ); }
+
+// ===== TỔNG HỢP DOANH THU THEO CƠ SỞ (tất cả nguồn tiền) =====
+var TH_MO = {};   // nhóm nào đang xổ ra
+function thDatNgay(luiNgay){
+  var d = new Date(); d.setDate(d.getDate() - luiNgay);
+  var y = d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+  document.getElementById('thTu').value = y; document.getElementById('thDen').value = y;
+  taiTongHop();
+}
+function thThangNay(){
+  var d = new Date(), p2 = function(x){ return ('0'+x).slice(-2); };
+  document.getElementById('thTu').value = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-01';
+  document.getElementById('thDen').value = d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+  taiTongHop();
+}
+function thLamMoi(){ TH_MO = {}; thDatNgay(0); }
+// Lỗi phải NẰM LẠI trên trang — cùng lý do với skBaoLoi.
+function thBaoLoi(msg){
+  var b = document.getElementById('thCanhBao');
+  b.style.display=''; b.innerHTML = '<b style="color:var(--doNhat)">Không tổng hợp được</b><div class="hint">'+esc(msg)+'</div>';
+  document.getElementById('thNhom').innerHTML = '';
+}
+function taiTongHop(){
+  var tu = toVN(document.getElementById('thTu').value), den = toVN(document.getElementById('thDen').value);
+  document.getElementById('thNhom').innerHTML = '<div class="panel muted">Đang tổng hợp…</div>';
+  google.script.run
+    .withSuccessHandler(function(d){ if(!d||!d.ok){ thBaoLoi((d&&d.error)||'Máy chủ trả về rỗng'); return; } thVe(d); })
+    .withFailureHandler(function(e){ thBaoLoi(e && e.message ? e.message : String(e)); })
+    .getTongHopCoSo(PIN, tu, den);
+}
+function thVe(d){
+  document.getElementById('thCapNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+  document.getElementById('thTong').textContent = fmt(d.tongGanDuoc);
+  document.getElementById('thTongSub').textContent = d.soCoTien + ' cơ sở có tiền / ' + d.tongDiem
+    + ' · ' + d.soKhongTien + ' cơ sở chưa có đồng nào';
+  document.getElementById('thNop').textContent = fmt(d.tongNopTrucTiep);
+  ['vietqr','momo','vnpay'].forEach(function(n){
+    var el = document.getElementById('th' + n.charAt(0).toUpperCase() + n.slice(1));
+    if(el) el.textContent = fmt((d.tongTheoCong||{})[n] || 0);
+  });
+
+  // Cảnh báo: nói rõ phần nào KHÔNG gán được về cơ sở, vì đó chính là chỗ số bị hụt
+  var ds = [];
+  if(d.tongKhongRoMaNop) ds.push('<b>'+fmt(d.tongKhongRoMaNop)+'đ</b> tiền vào ngân hàng <b>không có mã nộp</b> trong nội dung — không biết của cơ sở nào.');
+  (d.congChuaGanMa||[]).forEach(function(c){
+    if(c.ds.length) ds.push('Cổng <b>'+esc(c.ten)+'</b>: '+c.ds.length+' cơ sở <b>chưa gán mã nộp tiền</b> ('
+      + fmt(c.ds.reduce(function(s,x){ return s+x.soTien; },0))+'đ) — gán ở tab Sao Kê '+esc(c.ten)+'.');
+    if(c.chuaRoMay) ds.push('Cổng <b>'+esc(c.ten)+'</b>: '+c.chuaRoMay+' giao dịch <b>không rõ máy</b> ('+fmt(c.chuaRoTien)+'đ).');
+  });
+  if((d.maLa||[]).length) ds.push('<b>'+d.maLa.length+' mã nộp có tiền mà KHÔNG có trong danh sách điểm</b>: '
+    + d.maLa.slice(0,8).map(function(x){ return esc(x.ma)+' ('+fmt(x.soTien)+')'; }).join(' · ')
+    + (d.maLa.length>8?' …':'') + ' — gõ sai số hoặc điểm mới chưa khai vào tab Tendinhdanh.');
+  if((d.canhBao&&d.canhBao.trungMa||[]).length) ds.push('<b>'+d.canhBao.trungMa.length+' mã bị nhiều điểm dùng chung</b> trong danh sách điểm — tiền của chúng bị gộp làm một.');
+  if((d.canhBao&&d.canhBao.thieuMa||[]).length) ds.push('<b>'+d.canhBao.thieuMa.length+' điểm chưa có mã nộp</b> trong danh sách — không đối chiếu được.');
+  var b = document.getElementById('thCanhBao');
+  if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• '+ds.join('<br>• ')+'</div>'; }
+  else b.style.display='none';
+
+  // 4 nhóm MTD/KVC × MB/MN — cùng khuôn Đối chiếu nộp tiền
+  document.getElementById('thNhom').innerHTML = (d.nhom||[]).map(function(g,i){
+    var mo = !!TH_MO[g.khoa];
+    var coTien = g.diem.filter(function(x){ return x.coTien; });
+    var khong  = g.diem.filter(function(x){ return !x.coTien; });
+    function hang(x){
+      var ten = esc(x.ten || '(chưa đặt tên)');
+      if((x.tenPhu||[]).length) ten += ' <span class="muted">(dùng chung: '+esc(x.tenPhu.join(' · '))+')</span>';
+      return '<tr'+(x.coTien?' class="danop"':'')+'>'
+        + '<td><code>'+esc(x.ma)+'</code></td>'
+        + '<td style="white-space:normal">'+ten+'</td>'
+        + '<td class="num'+(x.nop?' in':'')+'">'+(x.nop?fmt(x.nop):'—')+'</td>'
+        + '<td class="num"'+(x.vietqr?' style="color:var(--tim)"':'')+'>'+(x.vietqr?fmt(x.vietqr):'—')+'</td>'
+        + '<td class="num"'+(x.momo?' style="color:var(--tim)"':'')+'>'+(x.momo?fmt(x.momo):'—')+'</td>'
+        + '<td class="num"'+(x.vnpay?' style="color:var(--tim)"':'')+'>'+(x.vnpay?fmt(x.vnpay):'—')+'</td>'
+        + '<td class="num money"'+(x.coTien?' style="color:var(--in)"':'')+'>'+(x.tong?fmt(x.tong):'0')+'</td>'
+        + '<td>'+esc(x.lanCuoi||'—')+'</td></tr>';
+    }
+    var th = '<tr><th>Mã nộp</th><th>Cơ sở</th><th class="num">Nộp trực tiếp</th>'
+      + '<th class="num">Việt QR</th><th class="num">MoMo</th><th class="num">VNPAY</th>'
+      + '<th class="num">Tổng</th><th>Lần cuối</th></tr>';
+    return '<div class="panel">'
+      + '<h3 style="margin-top:0">'+(g.tong?'✅':'⬜')+' '+esc(g.ten)+' — '+g.soCoTien+'/'+g.tongDiem
+      +   ' cơ sở có tiền · <span style="color:var(--in)">'+fmt(g.tong)+'</span></h3>'
+      + '<div class="hint">Nộp trực tiếp '+fmt(g.tongNop)+' · Việt QR '+fmt(g.tongVietqr)
+      +   ' · MoMo '+fmt(g.tongMomo)+' · VNPAY '+fmt(g.tongVnpay)+'</div>'
+      + (coTien.length
+          ? '<table><thead>'+th+'</thead><tbody>'+coTien.map(hang).join('')+'</tbody></table>'
+          : '<div class="muted">Chưa cơ sở nào có tiền trong khoảng ngày này.</div>')
+      + (khong.length
+          ? '<div style="margin-top:10px"><a href="javascript:void(0)" onclick="thXo(\''+g.khoa+'\')">'
+            + (mo?'▾':'▸')+' '+khong.length+' cơ sở CHƯA có đồng nào</a>'
+            + '<div style="display:'+(mo?'':'none')+';margin-top:8px">'
+            + '<table><thead>'+th+'</thead><tbody>'+khong.map(hang).join('')+'</tbody></table></div></div>'
+          : '')
+      + '</div>';
+  }).join('');
+
+  // Phần không gán được về cơ sở nào
+  var kg = [], w = document.getElementById('thKhongGanWrap');
+  (d.congChuaGanMa||[]).forEach(function(c){
+    if(c.ds.length) kg.push('<b>Cổng '+esc(c.ten)+' — chưa gán mã nộp tiền</b><table><thead><tr>'
+      + '<th>Cơ sở ở cổng</th><th class="num">Số tiền</th><th>Vì sao chưa gán được</th></tr></thead><tbody>'
+      + c.ds.map(function(x){ return '<tr><td>'+esc(x.ten)+'</td><td class="num in">'+fmt(x.soTien)+'</td>'
+          + '<td style="white-space:normal;max-width:520px;color:var(--vang)">'+esc(x.vi||'—')+'</td></tr>'; }).join('')
+      + '</tbody></table>');
+  });
+  if((d.khongRoMaNop||[]).length) kg.push('<b>Tiền vào ngân hàng không có mã nộp</b> ('+d.khongRoMaNop.length+' dòng)'
+    + '<table><thead><tr><th>Ngày GD</th><th>Số TK</th><th>Nội dung</th><th class="num">Tiền vào</th></tr></thead><tbody>'
+    + d.khongRoMaNop.slice(0,50).map(function(x){ return '<tr><td>'+esc(x.ngayGD)+'</td><td>'+esc(x.soTK)+'</td>'
+        + '<td style="white-space:normal;max-width:420px">'+esc(x.noiDung)+'</td>'
+        + '<td class="num in">'+fmt(x.vao)+'</td></tr>'; }).join('') + '</tbody></table>');
+  if(kg.length){ w.style.display='';
+    document.getElementById('thKhongGanLbl').textContent = '· ' + fmt(d.tongKhongRoMaNop
+      + (d.congChuaGanMa||[]).reduce(function(s,c){ return s + c.ds.reduce(function(a,x){ return a+x.soTien; },0) + (c.chuaRoTien||0); },0));
+    document.getElementById('thKhongGan').innerHTML = kg.join('<div style="height:14px"></div>');
+  } else w.style.display='none';
+}
+function thXo(khoa){ TH_MO[khoa] = !TH_MO[khoa]; taiTongHop(); }
+
+// ===== SAO KÊ CỔNG THANH TOÁN (Việt QR / MoMo / VNPAY) =====
+var CONG_TEN = { vietqr:'Việt QR', momo:'MoMo', vnpay:'VNPAY' };
+var VIEW_CONG = { cvietqr:'vietqr', cmomo:'momo', cvnpay:'vnpay' };
+var CONG_DUNG = {};   // nguồn nào đã dựng khuôn rồi
+
+// Tiền tố id theo nguồn -> id không thể trùng giữa 3 tab.
+function cgId(nguon, ten){ return 'cg_' + nguon + '_' + ten; }
+function cgEl(nguon, ten){ return document.getElementById(cgId(nguon, ten)); }
+
+// Việt QR có webhook -> đối soát realtime. MoMo/VNPAY anh Thắng đã hỏi cổng: KHÔNG cho webhook
+// -> đối soát bằng file kết xuất tải lên hằng ngày, cộng dồn theo tháng. Hai luồng khác nhau
+// nên hai khuôn khác nhau, không nhồi chung rồi để nửa màn hình rỗng vĩnh viễn.
+function cgDungFile(nguon){ return nguon !== 'vietqr'; }
+
+function moTabCong(nguon){
+  if(!CONG_DUNG[nguon]){
+    if(cgDungFile(nguon)) dungViewFile(nguon); else dungViewCong(nguon);
+    CONG_DUNG[nguon] = 1;
+  }
+  if(cgDungFile(nguon)){
+    if(!cgEl(nguon,'thang').value) cgThangNay(nguon); else taiDoiSoatFile(nguon);
+    return;
+  }
+  // Lần đầu: mặc định 7 ngày gần nhất. Sau đó giữ khoảng ngày anh đang xem.
+  if(!cgEl(nguon,'tu').value) cgDatNgay(nguon, 6); else taiSaoKeCong(nguon);
+}
+function dungViewCong(nguon){
+  var ten = CONG_TEN[nguon], id = function(t){ return cgId(nguon,t); };
+  document.getElementById('v-c'+nguon).innerHTML =
+    '<h2>Sao Kê ' + esc(ten) + '</h2>'
+  + '<div class="hint"><b>Từ cổng</b> = từng lần khách quét (webhook) · <b>Từ sao kê ngân hàng</b> = dòng tiền vào khớp từ khoá. '
+  + (nguon==='vietqr'
+      ? 'Việt QR tiền về thẳng từng giao dịch nên đối soát <b>1:1</b>.'
+      : esc(ten) + ' gom nhiều giao dịch rồi chuyển về bank thành <b>một cục</b> nên đối soát <b>N:1</b> — '
+        + 'tổng cổng so với cục về, không so từng dòng.')
+  + '</div>'
+  + '<div class="panel row">'
+  +   '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'"></div>'
+  +   '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'"></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button onclick="taiSaoKeCong(\''+nguon+'\')">🔍 Lọc</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button class="gray" onclick="cgDatNgay(\''+nguon+'\',6)">7 ngày</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button class="gray" onclick="cgDatNgay(\''+nguon+'\',29)">30 ngày</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
+  +     'title="Đặt lại về 7 ngày gần nhất rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><span class="muted" id="'+id('capNhat')+'"></span></div>'
+  + '</div>'
+  + '<div class="cards" style="grid-template-columns:repeat(4,1fr)">'
+  +   '<div class="card"><div class="lbl">Từ cổng ' + esc(ten) + '</div><div class="val in" id="'+id('congTien')+'">0</div><div class="lbl" id="'+id('congDong')+'"></div></div>'
+  +   '<div class="card"><div class="lbl">Từ sao kê ngân hàng</div><div class="val in" id="'+id('bankTien')+'">0</div><div class="lbl" id="'+id('bankDong')+'"></div></div>'
+  +   '<div class="card"><div class="lbl">Chênh lệch (cổng − bank)</div><div class="val" id="'+id('chenh')+'">0</div><div class="lbl" id="'+id('kieu')+'"></div></div>'
+  +   '<div class="card"><div class="lbl">Chưa rõ máy / chưa đọc được</div><div class="val out" id="'+id('kho')+'">0</div><div class="lbl" id="'+id('khoSub')+'"></div></div>'
+  + '</div>'
+  + '<div class="panel" id="'+id('canhBao')+'" style="display:none"></div>'
+  // Mấy khối dưới chỉ dùng lúc CÀI ĐẶT / chữa cháy -> gập lại cho trang gọn, mở khi cần.
+  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">⚙️ Cài đặt & công cụ '
+  +   '<span class="muted" style="font-weight:400">(link webhook · nạp bù từ file · thử payload · từ khoá)</span></summary>'
+  +   '<div style="margin-top:12px">'
+  +     '<b>Link webhook dán vào ' + esc(ten) + '</b>'
+  +     '<div class="hint">App chỉ có <b>một</b> link <code>/exec</code>; phân biệt cổng bằng <code>src=</code> '
+  +     'vì Apps Script không đọc được header. Cả 3 cổng dán chung link này, khác đuôi <code>src</code>.</div>'
+  +     '<div><code id="'+id('url')+'" style="word-break:break-all">(chưa có)</code></div>'
+  +   '</div>'
+  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+  +     '<b>📥 Nạp bù giao dịch từ file kết xuất</b>'
+  +     '<div class="hint">Dùng khi webhook bị gián đoạn — cổng KHÔNG gửi lại. Nạp vào đúng chỗ webhook ghi và '
+  +     'chống trùng bằng <b>mã giao dịch cổng</b>, nên giao dịch đã có sẽ bị bỏ qua, <b>không đếm hai lần</b>.</div>'
+  +     '<div style="margin:6px 0"><input type="file" accept=".xlsx,.csv,.tsv,.txt" id="'+id('txFile')+'" onchange="cgChonFileTx(\''+nguon+'\',this)"></div>'
+  +     '<div id="'+id('txCotWrap')+'" style="display:none">'
+  +       '<div class="row">'
+  +         '<div class="fld"><label>Thời điểm *</label><select id="'+id('txThoiDiem')+'"></select></div>'
+  +         '<div class="fld"><label>Số tiền *</label><select id="'+id('txTien')+'"></select></div>'
+  +         '<div class="fld"><label>Mã giao dịch cổng *</label><select id="'+id('txMa')+'"></select></div>'
+  +         '<div class="fld"><label>Mã tham chiếu</label><select id="'+id('txRef')+'"></select></div>'
+  +         '<div class="fld"><label>Nội dung (để lấy tên máy)</label><select id="'+id('txND')+'"></select></div>'
+  +         '<div class="fld" style="align-self:flex-end"><button onclick="cgNapTx(\''+nguon+'\')">📥 Nạp bù</button></div>'
+  +       '</div>'
+  +       '<div class="hint" id="'+id('txXemTruoc')+'"></div>'
+  +     '</div>'
+  +     '<div id="'+id('txKq')+'" style="margin-top:8px"></div>'
+  +   '</div>'
+  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+  +     '<b>Từ khoá nhận dòng ' + esc(ten) + ' trong sao kê ngân hàng</b>'
+  +     '<div class="hint" id="'+id('tkHint')+'"></div>'
+  +     '<div class="row"><div class="fld"><input id="'+id('tuKhoa')+'" placeholder="vd: VQR"></div>'
+  +     '<div class="fld" style="align-self:flex-end"><button onclick="cgLuuTuKhoa(\''+nguon+'\')">Lưu từ khoá</button></div></div>'
+  +   '</div>'
+  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+  +     '<b>🧪 Thử 1 payload để soi cách đọc</b>'
+  +     '<textarea id="'+id('thu')+'" rows="2" placeholder=\'{"values":[["...","...","50000",...]]}\' '
+  +     'style="width:100%;font:inherit;resize:vertical;margin:6px 0"></textarea>'
+  +     '<button class="gray" onclick="cgThu(\''+nguon+'\')">Thử payload</button> '
+  +     '<span class="muted" id="'+id('thuKq')+'"></span>'
+  +   '</div>'
+  + '</details>'
+  + '<div class="panel" style="overflow:auto">'
+  +   '<h3 style="margin-top:0">Từ cổng ' + esc(ten) + ' <span class="muted" id="'+id('congLbl')+'"></span></h3>'
+  +   '<table><thead><tr><th>Thời điểm</th><th>Máy</th><th>Cửa hàng</th><th>Mã nộp tiền</th>'
+  +   '<th>Mã giao dịch cổng</th><th>Nội dung</th><th>Trạng thái</th><th>Số tiền</th></tr></thead>'
+  +   '<tbody id="'+id('congBody')+'"></tbody></table>'
+  +   '<div class="row" id="'+id('congPager')+'" style="justify-content:center;align-items:center;display:none"></div>'
+  + '</div>'
+  + '<div class="panel" id="'+id('axWrap')+'" style="display:none">'
+  +   '<h3 style="margin-top:0">🏪 Gán mã cửa hàng cho máy ' + esc(ten) + '</h3>'
+  +   '<div class="hint">Khai theo <b>cơ sở</b> nên <b>1 lần dùng cho cả cụm máy</b> (AMTP 02/12/26 cùng một khai báo). '
+  +   'Chỉ cần chọn <b>Cửa hàng chuẩn</b> — app tự suy ra mã nộp tiền, KHÔNG phải gõ mã. '
+  +   'Điền mã chỉ khi tên bị nhiều điểm dùng chung.</div>'
+  +   '<table><thead><tr><th>Cơ sở (từ tên máy)</th><th>Các máy đã thấy</th><th class="num">Lượt</th>'
+  +   '<th class="num">Số tiền</th><th>Cửa hàng chuẩn</th><th>Mã nộp tiền (không bắt buộc)</th>'
+  +   '<th>Vì sao chưa được</th><th></th></tr></thead>'
+  +   '<tbody id="'+id('axBody')+'"></tbody></table>'
+  +   '<datalist id="'+id('dsCH')+'"></datalist><datalist id="'+id('dsMa')+'"></datalist>'
+  + '</div>'
+  // Gập lại: chỉ mở khi cần chẩn đoán. Bỏ cột Payload — cột đó bị bóp hẹp nên xuống dòng
+  // thành hàng cao cả trang; nay để trong tooltip của cột Kết quả.
+  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">📜 Nhật ký webhook '
+  +   '<span class="muted" style="font-weight:400" id="'+id('logLbl')+'"></span></summary>'
+  +   '<div class="hint" style="margin-top:10px">Trống trơn = <b>cổng chưa bắn tới app này</b>. '
+  +   'Có dòng đỏ = <b>bắn tới mà bị chặn</b>. Trỏ chuột vào dòng để xem payload.</div>'
+  +   '<table><thead><tr><th style="width:150px">Thời điểm</th><th>Kết quả</th></tr></thead>'
+  +   '<tbody id="'+id('logBody')+'"></tbody></table>'
+  + '</details>'
+  + '<div class="panel" style="overflow:auto">'
+  +   '<h3 style="margin-top:0">Từ sao kê ngân hàng <span class="muted" id="'+id('bankLbl')+'"></span></h3>'
+  +   '<table><thead><tr><th>Ngày GD</th><th>Ngân hàng</th><th>Số TK</th><th>Pháp nhân</th>'
+  +   '<th>Nội dung</th><th>Mã GD</th><th>Tiền vào</th></tr></thead>'
+  +   '<tbody id="'+id('bankBody')+'"></tbody></table>'
+  +   '<div class="row" id="'+id('bankPager')+'" style="justify-content:center;align-items:center;display:none"></div>'
+  + '</div>'
+  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">🧪 Payload thô mới nhất</summary>'
+  +   '<pre id="'+id('raw')+'" style="white-space:pre-wrap;word-break:break-all;max-height:200px;overflow:auto;margin:10px 0 0">(chưa có)</pre></details>';
+}
+// ---------- Khuôn tab đối soát bằng FILE EXCEL (MoMo / VNPAY) ----------
+function dungViewFile(nguon){
+  var ten = CONG_TEN[nguon], id = function(t){ return cgId(nguon,t); };
+  document.getElementById('v-c'+nguon).innerHTML =
+    '<h2>Sao Kê ' + esc(ten) + '</h2>'
+  + '<div class="hint"><b>' + esc(ten) + ' không cho nhận webhook</b> (anh đã hỏi cổng), nên đối soát bằng '
+  + '<b>file kết xuất</b>. Tải file lên <b>hằng ngày</b>, app cộng dồn theo <b>tháng</b>: '
+  + 'ngày nào <b>đã có thì bỏ qua</b>, ngày nào <b>thiếu thì cộng thêm</b> — nên tải lại file cũ bao nhiêu lần '
+  + 'cũng không nhân đôi tiền. Cửa hàng đọc từ <b>cột P</b>, có bảng ánh xạ để khớp với cửa hàng bên ngân hàng.</div>'
+  + '<div class="panel row">'
+  +   '<div class="fld"><label>Tháng đối soát</label><input type="month" id="'+id('thang')+'" '
+  +     'onchange="cgChonNgay(\''+nguon+'\',\'\')"></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button onclick="cgChonNgay(\''+nguon+'\',\'\')">🔍 Xem cả tháng</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button class="gray" onclick="cgThangNay(\''+nguon+'\')">Tháng này</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
+  +     'title="Về tháng này rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
+  +   '<div class="fld" style="align-self:flex-end"><span class="muted" id="'+id('capNhat')+'"></span></div>'
+  + '</div>'
+  + '<div class="cards" style="grid-template-columns:repeat(4,1fr)">'
+  +   '<div class="card"><div class="lbl">Tổng từ file ' + esc(ten) + '</div><div class="val in" id="'+id('fTong')+'">0</div><div class="lbl" id="'+id('fTongSub')+'"></div></div>'
+  +   '<div class="card"><div class="lbl">Cục về ngân hàng</div><div class="val in" id="'+id('bankTien')+'">0</div><div class="lbl" id="'+id('bankDong')+'"></div></div>'
+  +   '<div class="card"><div class="lbl">Chênh lệch (file − bank)</div><div class="val" id="'+id('chenh')+'">0</div><div class="lbl">cổng trừ phí thì lệch là bình thường</div></div>'
+  +   '<div class="card"><div class="lbl">Ngày còn thiếu file</div><div class="val out" id="'+id('fThieu')+'">0</div><div class="lbl" id="'+id('fThieuSub')+'"></div></div>'
+  + '</div>'
+  + '<div class="panel" id="'+id('canhBao')+'" style="display:none"></div>'
+  + '<div class="panel">'
+  +   '<h3 style="margin-top:0">📤 Tải file kết xuất ' + esc(ten) + '</h3>'
+  +   '<div class="hint">Chọn file <code>.xlsx</code> hoặc <code>.csv</code>. App đọc ngay trên máy anh (không gửi file đi đâu), '
+  +   'rồi anh chốt các cột trước khi nạp — em <b>không đoán</b> bố cục file của cổng.<br>'
+  +   '<b>Cột Mã cửa hàng</b> chỉ dùng khi ô Tên cửa hàng <b>rỗng</b> — MoMo có mã không kèm tên '
+  +   '(<code>85635</code>, <code>85716</code>…), không đọc mã thì mấy khoản đó không gán được về cơ sở nào. '
+  +   'Lúc đó tên hiện là <code>#85635</code> để nhìn là biết đây là mã.</div>'
+  +   '<div style="margin:6px 0"><input type="file" accept=".xlsx,.csv,.tsv,.txt" id="'+id('file')+'" onchange="cgChonFile(\''+nguon+'\',this)"></div>'
+  +   '<div id="'+id('cotWrap')+'" style="display:none">'
+  +     '<div class="row">'
+  +       '<div class="fld"><label>Cột Ngày</label><select id="'+id('cotNgay')+'"></select></div>'
+  +       '<div class="fld"><label>Cột Số tiền</label><select id="'+id('cotTien')+'"></select></div>'
+  +       '<div class="fld"><label>Cột Cửa hàng</label><select id="'+id('cotCH')+'"></select></div>'
+  +       '<div class="fld"><label>Cột Mã cửa hàng (dự phòng)</label><select id="'+id('cotMaCH')+'"></select></div>'
+  +       '<div class="fld" style="align-self:flex-end"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">'
+  +         '<input type="checkbox" id="'+id('ghiDe')+'"> Ghi đè ngày trùng</label></div>'
+  +       '<div class="fld" style="align-self:flex-end"><button onclick="cgNapFile(\''+nguon+'\')">📥 Nạp vào tháng</button></div>'
+  +     '</div>'
+  +     '<div class="hint" id="'+id('xemTruoc')+'"></div>'
+  +   '</div>'
+  +   '<div id="'+id('napKq')+'" style="margin-top:8px"></div>'
+  + '</div>'
+  + '<div class="panel" id="'+id('axWrap')+'" style="display:none">'
+  +   '<h3 style="margin-top:0">🏪 Cửa hàng CHƯA ra được mã nộp tiền</h3>'
+  +   '<div class="hint">Chỉ cần chọn <b>Cửa hàng chuẩn</b> đúng như tên trong danh sách điểm — app tự suy ra '
+  +   'mã nộp tiền, <b>không phải gõ mã</b>. Chỉ điền Mã nộp tiền khi tên bị nhiều điểm dùng chung. '
+  +   'Lưu xong app <b>vá luôn dữ liệu đã nạp trước đó</b>, không phải nạp lại file.</div>'
+  +   '<table><thead><tr><th>Tên ở file cổng</th><th class="num">Số tiền tháng này</th>'
+  +   '<th>Cửa hàng chuẩn (ngân hàng)</th><th>Mã nộp tiền (không bắt buộc)</th>'
+  +   '<th>Vì sao chưa được</th><th></th></tr></thead>'
+  +   '<tbody id="'+id('axBody')+'"></tbody></table>'
+  +   '<datalist id="'+id('dsCH')+'"></datalist><datalist id="'+id('dsMa')+'"></datalist>'
+  + '</div>'
+  + '<details class="panel" id="'+id('qlWrap')+'">'
+  +   '<summary style="cursor:pointer;font-weight:600">🔧 Sửa ánh xạ cửa hàng · chuyển gian sang cơ sở khác '
+  +     '<span class="muted" style="font-weight:400" id="'+id('qlLbl')+'"></span></summary>'
+  +   '<div class="hint" style="margin-top:10px">Gán sai thì <b>sửa ngay ở đây</b> — chọn lại Cửa hàng chuẩn rồi bấm Lưu.<br>'
+  +   '<b>Chuyển gian:</b> gian này từ một ngày nào đó thuộc cơ sở khác thì nhập <b>ngày chuyển giao</b> + '
+  +   'cơ sở mới. App tự chốt: cơ sở cũ tính doanh thu <b>đến hết ngày đó</b>, cơ sở mới bắt đầu <b>từ ngày kế tiếp</b>. '
+  +   'Doanh thu các ngày trước KHÔNG bị tính lại.</div>'
+  +   '<div style="overflow:auto"><table><thead><tr><th>Tên ở file cổng</th><th>Cửa hàng chuẩn</th>'
+  +     '<th>Mã nộp tiền</th><th>Từ ngày</th><th>Đến ngày</th><th></th></tr></thead>'
+  +     '<tbody id="'+id('qlBody')+'"></tbody></table></div>'
+  +   '<div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">'
+  +     '<div class="fld"><label>Chuyển gian — cửa hàng ở cổng</label>'
+  +       '<select id="'+id('cgTen')+'"></select></div>'
+  +     '<div class="fld"><label>Ngày chuyển giao</label><input type="date" id="'+id('cgNgay')+'"></div>'
+  +     '<div class="fld"><label>Cơ sở MỚI (từ ngày kế tiếp)</label>'
+  +       '<input id="'+id('cgMoi')+'" list="'+id('dsCH')+'" placeholder="tên cửa hàng bên ngân hàng"></div>'
+  +     '<div class="fld" style="align-self:flex-end"><button onclick="cgChuyenGian(\''+nguon+'\')">↪ Chuyển gian</button></div>'
+  +   '</div>'
+  +   '<div id="'+id('cgKq')+'" style="margin-top:8px"></div>'
+  + '</details>'
+  + '<div class="panel">'
+  +   '<h3 style="margin-top:0">📅 Đối soát theo ngày <span class="muted" id="'+id('ngayLbl')+'"></span></h3>'
+  +   '<div class="hint">Ô <b>đỏ</b> là ngày <b>chưa có file</b> — đó chính là chỗ số tháng đang thiếu tiền. '
+  +   'Bấm một ô để <b>xem riêng ngày đó</b> (bảng cửa hàng và cục bank bó lại trong ngày). '
+  +   'Muốn xoá dữ liệu một ngày thì chọn ngày đó rồi bấm nút 🗑 — <b>không xoá bằng cú bấm chọn ngày</b>.</div>'
+  +   '<div id="'+id('ngayO')+'" style="display:flex;flex-wrap:wrap;gap:6px"></div>'
+  +   '<div id="'+id('locBar')+'" style="display:none;margin-top:12px" class="row"></div>'
+  +   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Ngày</th>'
+  +     '<th class="num">Số cửa hàng</th><th class="num">Số tiền</th>'
+  +     '<th class="num">So hôm trước</th><th></th></tr></thead>'
+  +     '<tbody id="'+id('ngayBody')+'"></tbody></table></div>'
+  + '</div>'
+  + '<div class="panel" style="overflow:auto">'
+  +   '<h3 style="margin-top:0">Theo cửa hàng <span class="muted" id="'+id('chLbl')+'"></span></h3>'
+  +   '<table><thead><tr><th>Cửa hàng chuẩn</th><th>Tên ở file cổng</th><th>Mã nộp tiền</th>'
+  +   '<th class="num">Số ngày có</th><th>Ngày cuối</th><th class="num">Số tiền</th></tr></thead>'
+  +   '<tbody id="'+id('chBody')+'"></tbody></table>'
+  + '</div>'
+  + '<div class="panel" style="overflow:auto">'
+  +   '<h3 style="margin-top:0">Cục về ngân hàng trong tháng <span class="muted" id="'+id('bankLbl')+'"></span></h3>'
+  +   '<table><thead><tr><th>Ngày GD</th><th>Ngân hàng</th><th>Số TK</th><th>Pháp nhân</th>'
+  +   '<th>Nội dung</th><th class="num">Tiền vào</th></tr></thead>'
+  +   '<tbody id="'+id('bankBody')+'"></tbody></table>'
+  + '</div>'
+  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">⚙️ Từ khoá nhận cục '
+  +   esc(ten) + ' trong sao kê ngân hàng</summary>'
+  +   '<div class="hint" id="'+id('tkHint')+'" style="margin-top:10px"></div>'
+  +   '<div class="row"><div class="fld"><input id="'+id('tuKhoa')+'" placeholder="vd: VNPAY"></div>'
+  +   '<div class="fld" style="align-self:flex-end"><button onclick="cgLuuTuKhoa(\''+nguon+'\')">Lưu từ khoá</button></div></div>'
+  + '</details>';
+}
+function cgThangNay(nguon){
+  var d = new Date();
+  cgEl(nguon,'thang').value = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2);
+  CG_NGAY[nguon] = '';        // đổi tháng thì bỏ lọc ngày, không thì kẹt ngày của tháng cũ
+  taiDoiSoatFile(nguon);
+}
+function taiDoiSoatFile(nguon){
+  var th = cgEl(nguon,'thang').value;
+  cgEl(nguon,'chBody').innerHTML = '<tr><td colspan="6" class="muted">Đang tải…</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(d){ if(!d||!d.ok){ cgBaoLoiFile(nguon,(d&&d.error)||'Máy chủ trả về rỗng'); return; } veDoiSoatFile(nguon,d); })
+    .withFailureHandler(function(e){ cgBaoLoiFile(nguon, e.message); })
+    .getDoiSoatFile(PIN, nguon, th, CG_NGAY[nguon] || '');
+  // Gợi ý cửa hàng chuẩn (đọc tab Tendinhdanh) — lỗi ở đây KHÔNG được kéo cả trang sập
+  google.script.run.withSuccessHandler(function(r){
+    if(!r || !r.ok) return;
+    CG_DSCH[nguon] = r.ds || [];
+    var dl = cgEl(nguon,'dsCH'), dm = cgEl(nguon,'dsMa');
+    if(dl) dl.innerHTML = (r.ds||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
+    if(dm) dm.innerHTML = (r.ds||[]).map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ten)+'</option>'; }).join('');
+  }).withFailureHandler(function(){}).dsCuaHangChuan(PIN);
+}
+function cgBaoLoiFile(nguon, msg){
+  var b = cgEl(nguon,'canhBao');
+  b.style.display=''; b.innerHTML = '<b style="color:var(--doNhat)">Không tải được số liệu đối soát</b><div class="hint">'+esc(msg)+'</div>';
+  cgEl(nguon,'chBody').innerHTML = '<tr><td colspan="6">Lỗi — xem thông báo phía trên.</td></tr>';
+  cgEl(nguon,'bankBody').innerHTML = '<tr><td colspan="6">Lỗi — xem thông báo phía trên.</td></tr>';
+}
+var CG_DSCH = {}, CG_FILE = {};
+function veDoiSoatFile(nguon, d){
+  CG_FILE[nguon] = d;
+  cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+  cgEl(nguon,'fTong').textContent = fmt(d.tongFile);
+  cgEl(nguon,'fTongSub').textContent = d.soCuaHang + ' cửa hàng · ' + d.soDongGop + ' dòng gốc';
+  cgEl(nguon,'bankTien').textContent = fmt(d.bankTien);
+  cgEl(nguon,'bankDong').textContent = d.bankDong + ' cục · từ khoá "' + d.tuKhoa + '"';
+  var ch = cgEl(nguon,'chenh');
+  ch.textContent = fmt(d.chenh); ch.className = 'val ' + (d.chenh === 0 ? 'in' : 'out');
+  cgEl(nguon,'fThieu').textContent = d.conThieuNgay.length;
+  cgEl(nguon,'fThieuSub').textContent = 'trên ' + d.soNgayCanCo + ' ngày cần có';
+  if(!cgEl(nguon,'tuKhoa').value) cgEl(nguon,'tuKhoa').value = d.tuKhoa;
+  cgEl(nguon,'tkHint').innerHTML = 'Đang lọc dòng sao kê có nội dung chứa <b>'+esc(d.tuKhoa)+'</b>.'
+    + (nguon==='momo' ? ' <b style="color:var(--vang)">Riêng MoMo: em chưa thấy dòng MoMo nào trong sao kê của anh nên từ khoá này là PHỎNG ĐOÁN.</b>' : '');
+
+  var ds = [];
+  if(!d.tongFile) ds.push('Tháng này <b>chưa nạp file nào</b>. Tải file kết xuất '+esc(d.ten)+' ở khối bên dưới.');
+  if(d.chuaAnhXa.length) ds.push('<b>'+d.chuaAnhXa.length+' cửa hàng CHƯA ra được mã nộp tiền</b> — khai ở khối 🏪 bên dưới. '
+    + 'Tiền của các cửa hàng này KHÔNG vào được tab Tổng hợp doanh thu cơ sở.');
+  if(d.khongTenCH && d.khongTenCH.soDong) ds.push('<b>'+d.khongTenCH.soDong+' dòng file không đọc ra tên cửa hàng</b> ('
+    + fmt(d.khongTenCH.soTien)+'đ, ngày '+d.khongTenCH.ngay.slice(0,6).map(esc).join(' · ')
+    + (d.khongTenCH.ngay.length>6?' …':'') + ') — không ánh xạ bằng tên được, phải <b>chọn lại cột Cửa hàng</b> rồi nạp lại file các ngày đó.');
+  if(d.soAnhXa && d.soAnhXaCoMa < d.soAnhXa) ds.push('Bảng ánh xạ có <b>'+(d.soAnhXa-d.soAnhXaCoMa)+'/'+d.soAnhXa
+    + ' dòng chưa ra được mã</b> (tên chuẩn gõ khác tên trong danh sách điểm, hoặc điểm chưa khai ở tab Tendinhdanh).');
+  if(d.conThieuNgay.length) ds.push('Còn <b>'+d.conThieuNgay.length+' ngày chưa có file</b>: '
+    + d.conThieuNgay.slice(0,10).map(esc).join(' · ') + (d.conThieuNgay.length>10?' …':'') + '. Số tháng đang thiếu phần này.');
+  if(d.chenh !== 0 && (d.tongFile || d.bankTien)) ds.push('File và bank <b>lệch '+fmt(Math.abs(d.chenh))+'đ</b> — '
+    + (d.chenh > 0 ? 'file nhiều hơn bank: cổng <b>trừ phí</b> trước khi chuyển, hoặc cục cuối tháng về sang tháng sau.'
+                   : 'bank nhiều hơn file: còn ngày chưa nạp file, hoặc cục chứa cả tiền của tháng trước.'));
+  var b = cgEl(nguon,'canhBao');
+  if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• '+ds.join('<br>• ')+'</div>'; }
+  else b.style.display='none';
+
+  // Cửa hàng mới chưa ánh xạ
+  var aw = cgEl(nguon,'axWrap');
+  if(d.chuaAnhXa.length){ aw.style.display='';
+    cgEl(nguon,'axBody').innerHTML = d.chuaAnhXa.map(function(x,i){
+      return '<tr><td>'+esc(x.ten)+'</td><td class="num in">'+fmt(x.soTien)+'</td>'
+        + '<td><input id="'+cgId(nguon,'axTen-'+i)+'" list="'+cgId(nguon,'dsCH')+'" value="'+esc(x.tenChuan||'')+'" placeholder="tên cửa hàng bên ngân hàng" style="width:100%"></td>'
+        + '<td><input id="'+cgId(nguon,'axMa-'+i)+'" list="'+cgId(nguon,'dsMa')+'" placeholder="để trống — tự suy từ tên" style="width:100%"></td>'
+        + '<td style="white-space:normal;max-width:340px;color:var(--vang)">'+esc(x.vi||'')+'</td>'
+        + '<td><button onclick="cgLuuAnhXa(\''+nguon+'\','+i+')">Lưu</button></td></tr>'; }).join('');
+  } else aw.style.display='none';
+
+  // Bảng quản lý ánh xạ: sửa dòng gán sai + thấy các mốc chuyển gian
+  var ax2 = d.dsAnhXa || [];
+  var soChuaMa = ax2.filter(function(x){ return !x.maBank; }).length;
+  cgEl(nguon,'qlLbl').textContent = (ax2.length ? ('· ' + ax2.length + ' dòng') : '· chưa khai dòng nào')
+    + (soChuaMa ? (' · ⚠️ ' + soChuaMa + ' dòng CHƯA ra mã') : '');
+  // MỞ SẴN khi có dòng gán sai (chưa ra mã): khối gập lại thì anh Thắng phải bấm mới thấy,
+  // dễ tưởng app không cho sửa. Còn khi mọi dòng đã đúng thì gập cho gọn trang.
+  if (soChuaMa) cgEl(nguon,'qlWrap').open = true;
+  cgEl(nguon,'qlBody').innerHTML = !ax2.length
+    ? '<tr><td colspan="6" class="muted">Chưa có ánh xạ nào cho cổng này.</td></tr>'
+    : ax2.map(function(x,i){
+        return '<tr><td>'+esc(x.tenFile)+'</td>'
+          + '<td><input id="'+cgId(nguon,'qlTen-'+i)+'" list="'+cgId(nguon,'dsCH')+'" value="'+esc(x.tenChuan||'')+'" style="width:100%"></td>'
+          + '<td>'+(x.maBank ? '<code>'+esc(x.maBank)+'</code>'
+                             : '<span style="color:var(--vang)" title="'+esc(x.vi||'')+'">chưa ra mã</span>')+'</td>'
+          + '<td class="muted">'+esc(x.tuNgay||'từ đầu')+'</td>'
+          + '<td class="muted">'+esc(x.denNgay||'đến nay')+'</td>'
+          + '<td style="white-space:nowrap">'
+          +   '<button onclick="cgSuaAnhXa(\''+nguon+'\','+i+')">Lưu</button> '
+          +   '<button class="danger" onclick="cgXoaAnhXa(\''+nguon+'\','+i+')">Xoá</button></td></tr>';
+      }).join('');
+  // Ô chọn cửa hàng để chuyển gian: chỉ những cửa hàng ĐÃ có ánh xạ mới chuyển gian được
+  var tenDaCo = {}, opt = '';
+  ax2.forEach(function(x){ if(!tenDaCo[x.tenFile]){ tenDaCo[x.tenFile]=1;
+    opt += '<option value="'+esc(x.tenFile)+'">'+esc(x.tenFile)+'</option>'; } });
+  cgEl(nguon,'cgTen').innerHTML = opt || '<option value="">(chưa có cửa hàng nào được ánh xạ)</option>';
+
+  // Lưới ngày: xanh = đã có, đỏ = thiếu, viền = ngày đang xem.
+  // BẤM = CHỌN NGÀY (trước đây bấm là XOÁ luôn dữ liệu ngày đó — một cú lỡ tay là mất
+  // nguyên ngày tiền, tuy có confirm nhưng không ai ngờ ô xanh lại là nút xoá).
+  // (d.theoNgay||[]): một trường thiếu là hàm vẽ VĂNG giữa đường, tab đứng nguyên ở "Đang tải…"
+  // mà không báo gì — đúng kiểu vỡ im lặng đã dặn trong CLAUDE.md.
+  var oNgay = [], dsNgay = d.theoNgay || [];
+  dsNgay.forEach(function(x){
+    var dangXem = d.ngayLoc === x.ngay;
+    oNgay.push('<span class="tag" title="'+esc(x.ngay)+(x.coFile?(' · '+fmt(x.soTien)+'đ'):' — chưa có file')
+      + '" style="cursor:pointer;background:'+(x.coFile?'var(--green)':'var(--red)')+';'
+      + (dangXem?'outline:2px solid var(--txt);outline-offset:1px;font-weight:700;':'')+'" '
+      + 'onclick="cgChonNgay(\''+nguon+'\',\''+(dangXem?'':x.ngay)+'\')">'+esc(x.ngay.substring(0,2))+'</span>'); });
+  cgEl(nguon,'ngayO').innerHTML = oNgay.join('') || '<span class="muted">Tháng chưa tới ngày nào.</span>';
+  cgEl(nguon,'ngayLbl').textContent = '· đã có ' + d.daCoNgay.length + '/' + d.soNgayCanCo + ' ngày'
+    + (d.ngayLoc ? (' · đang xem riêng ngày ' + d.ngayLoc) : ' · đang xem cả tháng');
+
+  // Thanh cho biết đang lọc ngày nào + 2 nút: bỏ lọc, xoá dữ liệu ngày đó
+  var lb = cgEl(nguon,'locBar');
+  if(d.ngayLoc){
+    lb.style.display='';
+    lb.innerHTML = '<b>Đang xem riêng ngày '+esc(d.ngayLoc)+'</b> — '+fmt(d.tongFile)+'đ / cả tháng '
+      + fmt(d.tongThang)+'đ &nbsp; '
+      + '<button class="gray" onclick="cgChonNgay(\''+nguon+'\',\'\')">↩ Xem cả tháng</button> &nbsp; '
+      + '<button class="danger" onclick="cgXoaNgay(\''+nguon+'\',\''+d.ngayLoc+'\')">🗑 Xoá dữ liệu ngày này</button>';
+  } else lb.style.display='none';
+
+  // Bảng ngày-qua-ngày: chính là "đối soát theo ngày"
+  cgEl(nguon,'ngayBody').innerHTML = dsNgay.map(function(x){
+    var ch = x.chenhHomTruoc;
+    return '<tr'+(d.ngayLoc===x.ngay?' class="danop"':'')+'>'
+      + '<td>'+esc(x.ngay)+(x.coFile?'':' <span style="color:var(--doNhat)">chưa có file</span>')+'</td>'
+      + '<td class="num">'+(x.coFile?x.soCuaHang:'—')+'</td>'
+      + '<td class="num'+(x.soTien?' in':'')+'">'+(x.coFile?fmt(x.soTien):'—')+'</td>'
+      + '<td class="num" style="color:'+(ch===''?'var(--muted)':(ch<0?'var(--red)':'var(--green)'))+'">'
+      +   (ch===''?'—':((ch>0?'+':'')+fmt(ch)))+'</td>'
+      + '<td><a href="javascript:void(0)" onclick="cgChonNgay(\''+nguon+'\',\''+x.ngay+'\')">xem riêng</a></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">Tháng chưa tới ngày nào.</td></tr>';
+
+  cgEl(nguon,'chBody').innerHTML = !d.theoCuaHang.length
+    ? '<tr><td colspan="6" class="muted">Chưa có dữ liệu file trong tháng này.</td></tr>'
+    : d.theoCuaHang.map(function(r){
+        return '<tr'+(r.daAnhXa?'':' style="background:rgba(161,92,7,.10)"')+'>'
+          + '<td>'+esc(r.cuaHangChuan)+(r.daAnhXa?'':' <span class="muted">(chưa ánh xạ)</span>')+'</td>'
+          + '<td class="muted">'+esc(r.cuaHangFile)+'</td>'
+          + '<td'+(r.maBank?'':' title="'+esc(r.viChuaGan||'')+'"')+'>'
+          +   (r.maBank ? esc(r.maBank) : '<span style="color:var(--vang)">chưa có mã</span>')+'</td>'
+          + '<td class="num">'+r.soNgay+'</td><td>'+esc(r.ngayCuoi)+'</td>'
+          + '<td class="num in">'+fmt(r.soTien)+'</td></tr>'; }).join('');
+  cgEl(nguon,'chLbl').textContent = d.theoCuaHang.length ? ('· '+d.theoCuaHang.length+' cửa hàng · '+fmt(d.tongFile)+'đ') : '';
+
+  cgEl(nguon,'bankBody').innerHTML = !d.bank.length
+    ? '<tr><td colspan="6" class="muted">Không có cục nào khớp từ khoá trong tháng.</td></tr>'
+    : d.bank.map(function(r){
+        return '<tr><td>'+esc(r.ngayGD)+'</td><td>'+esc(r.nganHang)+'</td><td>'+esc(r.soTK)+'</td>'
+          + '<td>'+esc(r.phapNhan)+'</td><td>'+esc(r.noiDung)+'</td>'
+          + '<td class="num in">'+fmt(r.vao)+'</td></tr>'; }).join('');
+  cgEl(nguon,'bankLbl').textContent = d.bank.length ? ('· '+d.bank.length+' cục · '+fmt(d.bankTien)+'đ') : '';
+
+  // Cột đã lưu lần trước -> điền lại vào ô chọn nếu đang mở
+  if(d.cot && cgEl(nguon,'cotWrap').style.display !== 'none') cgDatCot(nguon, d.cot);
+}
+// Dùng chung cho cả 2 luồng: Việt QR gán theo CƠ SỞ lấy từ tên máy, MoMo/VNPAY gán theo
+// tên cửa hàng trong file. Cùng một bảng AnhXaCuaHang, chỉ khác khoá đầu vào.
+function cgLuuAnhXa(nguon, i){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var x = (d.chuaAnhXa||[])[i]; if(!x) return;
+  var ten = (document.getElementById(cgId(nguon,'axTen-'+i))||{}).value || '';
+  var ma  = (document.getElementById(cgId(nguon,'axMa-'+i))||{}).value || '';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã gán "'+r.tenFile+'" → "'+r.tenChuan+'"'
+      + (r.maBank ? (' · mã '+r.maBank) : '') + (r.daVa ? (' · vá '+r.daVa+' dòng đã nạp') : ''));
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); })
+    .luuAnhXaCuaHang(PIN, nguon, x.ten, ten, ma, '', '');
+}
+// Ngày đang xem của từng cổng. Giữ ở đây (không nhét vào ô input) để nút Làm mới / đổi tháng
+// tự bỏ lọc, khỏi cảnh đổi sang tháng khác mà vẫn kẹt lọc ngày của tháng cũ -> bảng trống.
+var CG_NGAY = {};
+function cgChonNgay(nguon, ngay){ CG_NGAY[nguon] = ngay || ''; taiDoiSoatFile(nguon); }
+// Sửa 1 dòng ánh xạ: gửi lại ĐÚNG khoảng ngày của dòng đó -> máy chủ sửa dòng đó, không thêm mới.
+function cgSuaAnhXa(nguon, i){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var x = (d.dsAnhXa||[])[i]; if(!x) return;
+  var ten = (document.getElementById(cgId(nguon,'qlTen-'+i))||{}).value || '';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã sửa "'+r.tenFile+'" → "'+r.tenChuan+'" · mã '+r.maBank
+      + (r.daVa ? (' · vá '+r.daVa+' dòng đã nạp') : ''));
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); })
+    .luuAnhXaCuaHang(PIN, nguon, x.tenFile, ten, '', x.tuNgay || '', x.denNgay || '');
+}
+function cgXoaAnhXa(nguon, i){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var x = (d.dsAnhXa||[])[i]; if(!x) return;
+  if(!confirm('Xoá ánh xạ "'+x.tenFile+'" ('+(x.tuNgay||'từ đầu')+' → '+(x.denNgay||'đến nay')
+    + ')? Tiền của cửa hàng này sẽ về lại nhóm CHƯA gán.')) return;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã xoá ánh xạ'); cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); })
+    .xoaAnhXaCuaHang(PIN, nguon, x.tenFile, x.tuNgay || '', x.denNgay || '');
+}
+// Chuyển gian: chỉ cần ngày chuyển giao + cơ sở mới, máy chủ tự chốt 2 khoảng ngày.
+function cgChuyenGian(nguon){
+  var ten = cgEl(nguon,'cgTen').value;
+  var ngay = toVN(cgEl(nguon,'cgNgay').value);
+  var moi = cgEl(nguon,'cgMoi').value;
+  var kq = cgEl(nguon,'cgKq');
+  if(!ten){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn cửa hàng</b>'; return; }
+  if(!ngay){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn ngày chuyển giao</b>'; return; }
+  if(!moi){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn cơ sở mới</b>'; return; }
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không chuyển được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+    kq.innerHTML = '<div class="hint">• <b>'+esc(r.tenFile)+'</b>: <b>'+esc(r.cuTen)+'</b> tính đến hết <b>'
+      + esc(r.cuDen)+'</b><br>• từ <b>'+esc(r.moiTu)+'</b> trở đi là <b>'+esc(r.moiTen)+'</b> (mã '+esc(r.moiMa)+')'
+      + (r.daVa ? ('<br>• đã vá '+r.daVa+' dòng đã nạp thuộc khoảng mới') : '')+'</div>';
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không chuyển được:</b> <span class="hint">'+esc(e.message)+'</span>';
+  }).chuyenGianCuaHang(PIN, nguon, ten, ngay, moi, '');
+}
+function cgXoaNgay(nguon, ngay){
+  if(!confirm('Xoá dữ liệu file của ngày '+ngay+'? (nạp lại file ngày đó thì có lại)')) return;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã xoá '+r.soDongXoa+' dòng của ngày '+r.ngay);
+    CG_NGAY[nguon] = '';        // ngày vừa xoá thì không còn gì để xem riêng
+    taiDoiSoatFile(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); }).xoaNgayFileCong(PIN, nguon, ngay);
+}
+
+// ---------- Nạp BÙ giao dịch từ file kết xuất (Việt QR) ----------
+// Khác luồng file của MoMo/VNPAY: ở đây mỗi dòng là MỘT giao dịch, nạp vào đúng sheet mà
+// webhook ghi, chống trùng bằng mã giao dịch cổng -> giao dịch đã về bằng webhook thì bỏ qua.
+var CG_ROWS_TX = {};
+function cgChonFileTx(nguon, input){
+  var f = input.files && input.files[0]; if(!f) return;
+  var kq = cgEl(nguon,'txKq');
+  kq.innerHTML = '<span class="muted">Đang đọc file…</span>';
+  cgReadTable(f).then(function(rows){
+    if(!rows.length) throw new Error('File không có dòng nào');
+    CG_ROWS_TX[nguon] = { rows: rows, tenFile: f.name };
+    cgEl(nguon,'txCotWrap').style.display = '';
+    var head = rows[0] || [];
+    var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
+    ['txThoiDiem','txTien','txMa','txRef','txND'].forEach(function(t){
+      var h = (t === 'txRef' || t === 'txND') ? '<option value="-1">(không có)</option>' : '';
+      for(var c=0;c<soCot;c++){
+        h += '<option value="'+c+'">'+esc(cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,26)) : ''))+'</option>';
+      }
+      cgEl(nguon,t).innerHTML = h;
+    });
+    var doan = cgDoanCotTx(head, soCot, rows);
+    ['txThoiDiem','txTien','txMa','txRef','txND'].forEach(function(t){
+      if(doan[t] >= 0) cgEl(nguon,t).value = String(doan[t]);
+      cgEl(nguon,t).onchange = function(){ cgXemTruocTx(nguon); };
+    });
+    kq.innerHTML = '<span class="muted">Đọc được <b>'+rows.length+'</b> dòng × '+soCot
+      + ' cột từ <b>'+esc(f.name)+'</b>. Em đoán các cột theo dòng tiêu đề — kiểm lại trước khi nạp.</span>';
+    cgXemTruocTx(nguon);
+  }).catch(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không đọc được file:</b> <span class="hint">'+esc(e.message)+'</span>';
+    cgEl(nguon,'txCotWrap').style.display = 'none';
+  });
+  input.value = '';
+}
+// Đoán cột: ưu tiên dòng tiêu đề, không có tiêu đề thì dò theo HÌNH DẠNG dữ liệu ở các dòng đầu.
+function cgDoanCotTx(head, soCot, rows){
+  function boDau(x){ return String(x||'').toLowerCase()
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d'); }
+  function timTieuDe(tu){
+    for(var c=0;c<soCot;c++){ var t = boDau(head[c]);
+      for(var k=0;k<tu.length;k++) if(t.indexOf(tu[k]) >= 0) return c; }
+    return -1;
+  }
+  var o = {
+    txThoiDiem: timTieuDe(['thoi gian','thoi diem','ngay','date','time']),
+    txTien:     timTieuDe(['so tien','amount','gia tri','tien den']),
+    txMa:       timTieuDe(['ma giao dich','ma gd','transaction','ma vietqr','ma vqr']),
+    txRef:      timTieuDe(['tham chieu','reference','ref']),
+    txND:       timTieuDe(['noi dung','nd','content','mo ta'])
+  };
+  // Dò theo hình dạng cho những cột chưa đoán được: quét tối đa 30 dòng đầu
+  var mau = rows.slice(0, 30);
+  function dem(c, kiem){ var n = 0;
+    for(var i=0;i<mau.length;i++){ var v = mau[i][c]; if(v !== undefined && v !== '' && kiem(v)) n++; }
+    return n; }
+  for(var c=0;c<soCot;c++){
+    if(o.txThoiDiem < 0 && dem(c, function(v){ return !!cgThoiDiemO(v); }) >= Math.max(1, mau.length - 2)) o.txThoiDiem = c;
+    if(o.txTien < 0 && dem(c, function(v){ return cgSoO(v) >= 1000; }) >= Math.max(1, mau.length - 2)) o.txTien = c;
+    if(o.txMa < 0 && dem(c, function(v){ return /^VQR[A-Z0-9]+$/i.test(String(v).trim()); }) >= 1) o.txMa = c;
+    if(o.txND < 0 && dem(c, function(v){ return /^VQR\S+\s+\S/i.test(String(v).trim()); }) >= 1) o.txND = c;
+  }
+  return o;
+}
+// Thời điểm GIỮ CẢ GIỜ (khác cgNgayO của luồng gộp-theo-ngày, nó cố tình bỏ giờ).
+// Số sê-ri Excel có phần thập phân = giờ trong ngày.
+function cgThoiDiemO(v){
+  var s = String(v==null?'':v).trim();
+  if(!s) return '';
+  if(/^\d+(\.\d+)?$/.test(s)){
+    var n = Number(s);
+    if(n < 20000 || n > 90000) return '';
+    var ms = Date.UTC(1899,11,30) + Math.round(n*86400000);   // mốc 30/12/1899 (Excel tính 1900 nhuận sai)
+    var d = new Date(ms), p2 = function(x){ return ('0'+x).slice(-2); };
+    return p2(d.getUTCDate())+'/'+p2(d.getUTCMonth()+1)+'/'+d.getUTCFullYear()
+      + ' ' + p2(d.getUTCHours())+':'+p2(d.getUTCMinutes())+':'+p2(d.getUTCSeconds());
+  }
+  var m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})([ T](\d{1,2}):(\d{2})(:(\d{2}))?)?/);
+  if(m){ var p = function(x){ return ('0'+Number(x)).slice(-2); };
+    return p(m[1])+'/'+p(m[2])+'/'+m[3] + (m[4] ? (' '+p(m[5])+':'+m[6]+':'+(m[8]||'00')) : ''); }
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})([ T](\d{2}):(\d{2})(:(\d{2}))?)?/);
+  if(m) return m[3]+'/'+m[2]+'/'+m[1] + (m[4] ? (' '+m[5]+':'+m[6]+':'+(m[8]||'00')) : '');
+  return '';
+}
+function cgLayTx(nguon){
+  var d = CG_ROWS_TX[nguon]; if(!d) return null;
+  var c = { td: Number(cgEl(nguon,'txThoiDiem').value), ti: Number(cgEl(nguon,'txTien').value),
+            ma: Number(cgEl(nguon,'txMa').value), rf: Number(cgEl(nguon,'txRef').value),
+            nd: Number(cgEl(nguon,'txND').value) };
+  var goi = [], mau = [];
+  for(var i=0;i<d.rows.length;i++){
+    var r = d.rows[i];
+    var td = cgThoiDiemO(r[c.td]), ti = cgSoO(r[c.ti]);
+    var ma = String(c.ma >= 0 && r[c.ma] != null ? r[c.ma] : '').trim();
+    var rf = String(c.rf >= 0 && r[c.rf] != null ? r[c.rf] : '').trim();
+    var nd = String(c.nd >= 0 && r[c.nd] != null ? r[c.nd] : '').trim();
+    if(!td || !(ti > 0) || (!ma && !rf)) continue;
+    goi.push([td, ti, ma, rf, nd]);
+    if(mau.length < 3) mau.push(td + ' · ' + fmt(ti) + 'đ · ' + ma + (nd ? (' · ' + nd) : ''));
+  }
+  return { goi: goi, mau: mau, tong: d.rows.length, tenFile: d.tenFile, cot: c };
+}
+function cgXemTruocTx(nguon){
+  var k = cgLayTx(nguon); if(!k) return;
+  cgEl(nguon,'txXemTruoc').innerHTML = k.goi.length
+    ? ('Đọc được <b>'+k.goi.length+'/'+k.tong+'</b> dòng. Ví dụ:<br>' + k.mau.map(esc).join('<br>'))
+    : '<b style="color:var(--doNhat)">Với các cột đang chọn không đọc được dòng nào</b> — dòng phải có đủ '
+      + 'Thời điểm, Số tiền, và Mã giao dịch (hoặc Mã tham chiếu) để chống trùng được với webhook.';
+}
+function cgNapTx(nguon){
+  var k = cgLayTx(nguon), kq = cgEl(nguon,'txKq');
+  if(!k){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn file</b>'; return; }
+  if(!k.goi.length){ kq.innerHTML = '<b style="color:var(--doNhat)">Không có dòng nào đọc được</b> — chọn lại cột.'; return; }
+  kq.innerHTML = '<span class="muted">Đang nạp '+k.goi.length+' giao dịch…</span>';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+    var ph = ['Nạp bù <b>'+r.themMoi+'</b> giao dịch, tổng <b>'+fmt(r.tongTienThem)+'đ</b>'];
+    if(r.trungBoQua) ph.push('<b>'+r.trungBoQua+'</b> giao dịch ĐÃ CÓ (webhook đã ghi) nên bỏ qua — không đếm hai lần');
+    if(r.boQuaDong) ph.push(r.boQuaDong+' dòng bị bỏ (thiếu thời điểm: '+r.khongNgay
+      + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa+')');
+    if(r.chuaRoMay) ph.push(r.chuaRoMay+' giao dịch nội dung không mang tên máy');
+    if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cơ sở chưa gán mã ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
+    kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
+    google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
+      .luuCotTxCong(PIN, nguon, { thoiDiem: k.cot.td, soTien: k.cot.ti, maGD: k.cot.ma,
+                                  ref: k.cot.rf, noiDung: k.cot.nd });
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc(e.message)+'</span>';
+  }).napFileCongTx(PIN, nguon, k.goi, k.tenFile);
+}
+
+// ---------- Đọc file .xlsx / .csv NGAY TRÊN MÁY (không CDN, không gửi file đi đâu) ----------
+var CG_ROWS = {};
+function cgChonFile(nguon, input){
+  var f = input.files && input.files[0]; if(!f) return;
+  var kq = cgEl(nguon,'napKq');
+  kq.innerHTML = '<span class="muted">Đang đọc file…</span>';
+  cgReadTable(f).then(function(rows){
+    CG_ROWS[nguon] = { rows: rows, tenFile: f.name };
+    if(!rows.length) throw new Error('File không có dòng nào');
+    cgEl(nguon,'cotWrap').style.display = '';
+    var head = rows[0] || [];
+    var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
+    ['cotNgay','cotTien','cotCH','cotMaCH'].forEach(function(t){
+      var s = cgEl(nguon,t); if(!s) return;
+      // Riêng cột mã có thêm "(không dùng)" — file nào cột Tên cửa hàng luôn đủ thì khỏi cần
+      var h = (t === 'cotMaCH') ? '<option value="">(không dùng)</option>' : '';
+      for(var c=0;c<soCot;c++){
+        var nhan = cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,28)) : '');
+        h += '<option value="'+c+'">'+esc(nhan)+'</option>';
+      }
+      s.innerHTML = h;
+    });
+    // Đoán cột từ dòng tiêu đề rồi HIỆN RÕ đã đoán gì, anh sửa lại được
+    var doan = cgDoanCot(head, soCot);
+    var luu = (CG_FILE[nguon] && CG_FILE[nguon].cot) || null;
+    var dung = (luu && luu.ngay >= 0 && luu.soTien >= 0) ? luu : doan;
+    cgDatCot(nguon, dung);
+    kq.innerHTML = '<span class="muted">Đọc được <b>'+rows.length+'</b> dòng × '+soCot+' cột từ <b>'
+      + esc(f.name)+'</b>. '+(luu&&luu.ngay>=0 ? 'Dùng lại 3 cột đã lưu lần trước.' : 'Em đoán 3 cột theo dòng tiêu đề — kiểm lại trước khi nạp.')+'</span>';
+    cgXemTruoc(nguon);
+  }).catch(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không đọc được file:</b> <span class="hint">'+esc(e.message)+'</span>';
+    cgEl(nguon,'cotWrap').style.display = 'none';
+  });
+  input.value = '';
+}
+function cgTenCot(i){ var s=''; i=i+1; while(i>0){ var r=(i-1)%26; s=String.fromCharCode(65+r)+s; i=Math.floor((i-1)/26); } return s; }
+function cgDoanCot(head, soCot){
+  function tim(tu){
+    for(var c=0;c<soCot;c++){
+      var t = String(head[c]||'').toLowerCase()
+        .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i')
+        .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d');
+      for(var k=0;k<tu.length;k++) if(t.indexOf(tu[k])>=0) return c;
+    }
+    return -1;
+  }
+  var ngay = tim(['ngay','date','thoi gian','thoi diem','time']);
+  var tien = tim(['so tien','amount','gia tri','thanh toan','net','tien']);
+  var ch   = tim(['ten cua hang','cua hang','store name','store','merchant','diem ban','terminal','chi nhanh']);
+  var maCH = tim(['ma cua hang','ma store','store id','store code','merchant id','ma diem ban']);
+  // Anh Thắng chỉ định CỘT P là cửa hàng -> P thắng phần đoán theo tiêu đề
+  if(soCot > 15) ch = 15;
+  if(maCH < 0 && soCot > 14) maCH = 14;      // O = Mã cửa hàng trong file MoMo
+  return { ngay: ngay, soTien: tien, cuaHang: ch >= 0 ? ch : (soCot>15?15:0), maCH: maCH };
+}
+function cgDatCot(nguon, cot){
+  if(cot.ngay >= 0) cgEl(nguon,'cotNgay').value = String(cot.ngay);
+  if(cot.soTien >= 0) cgEl(nguon,'cotTien').value = String(cot.soTien);
+  if(cot.cuaHang >= 0) cgEl(nguon,'cotCH').value = String(cot.cuaHang);
+  var m = cgEl(nguon,'cotMaCH');
+  if(m) m.value = (cot.maCH >= 0) ? String(cot.maCH) : '';
+  ['cotNgay','cotTien','cotCH','cotMaCH'].forEach(function(t){
+    var e = cgEl(nguon,t); if(e) e.onchange = function(){ cgXemTruoc(nguon); };
+  });
+}
+function cgXemTruoc(nguon){
+  var d = CG_ROWS[nguon]; if(!d) return;
+  var cn = Number(cgEl(nguon,'cotNgay').value), ct = Number(cgEl(nguon,'cotTien').value), cc = Number(cgEl(nguon,'cotCH').value);
+  var vMa = (cgEl(nguon,'cotMaCH')||{}).value, cm = (vMa === '' || vMa == null) ? -1 : Number(vMa);
+  var mau = [], soDoc = 0, dungMa = 0, tienMa = 0, maRieng = {}, trongCaHai = 0, tienTrong = 0;
+  for(var i=0;i<d.rows.length;i++){
+    var r = d.rows[i], ng = cgNgayO(r[cn]), ti = cgSoO(r[ct]);
+    if(!ng || !(ti>0)) continue;
+    soDoc++;
+    var ten = String(r[cc]==null?'':r[cc]).trim();
+    var ma  = cm >= 0 ? String(r[cm]==null?'':r[cm]).trim() : '';
+    if(!ten){
+      if(ma){ dungMa++; tienMa += ti; maRieng['#'+ma] = (maRieng['#'+ma]||0) + ti; }
+      else { trongCaHai++; tienTrong += ti; }
+    }
+    if(mau.length < 3) mau.push(ng + ' · ' + fmt(ti) + 'đ · ' + (ten || (ma ? ('#'+ma) : '(trống)')).substring(0,40));
+  }
+  var ph = [];
+  if(soDoc) ph.push('Với các cột đang chọn: đọc được <b>'+soDoc+'/'+d.rows.length+'</b> dòng. Ví dụ:<br>' + mau.map(esc).join('<br>'));
+  else ph.push('<b style="color:var(--doNhat)">Với các cột đang chọn không đọc được dòng nào</b> — chọn lại cột Ngày / Số tiền.');
+  if(dungMa) ph.push('<b>'+dungMa+' dòng ('+fmt(tienMa)+'đ) không có Tên cửa hàng</b> — lấy theo Mã: '
+    + Object.keys(maRieng).sort().map(function(k){ return esc(k)+' ('+fmt(maRieng[k])+'đ)'; }).join(' · '));
+  if(trongCaHai) ph.push('<b style="color:var(--doNhat)">'+trongCaHai+' dòng ('+fmt(tienTrong)
+    + 'đ) trống CẢ tên lẫn mã</b> — mấy dòng này không gán được về cơ sở nào'
+    + (cm < 0 ? '. Thử chọn <b>Cột Mã cửa hàng</b> ở trên.' : '.'));
+  cgEl(nguon,'xemTruoc').innerHTML = ph.join('<br>');
+}
+// Ô ngày trong Excel là SỐ SÊ-RI (46247.5), phải đổi ở CLIENT rồi gửi CHUỖI về máy chủ:
+// google.script.run không nhận Date, một ô Date lọt vào là vỡ cả lời gọi.
+function cgNgayO(v){
+  var s = String(v==null?'':v).trim();
+  if(!s) return '';
+  if(/^\d+(\.\d+)?$/.test(s)){
+    var n = Number(s);
+    if(n >= 20000 && n <= 90000){          // ~1954 đến ~2146, ngoài khoảng này thì không phải ngày
+      var ms = Date.UTC(1899,11,30) + Math.floor(n)*86400000;   // Excel tính 1900 nhuận sai -> mốc 30/12/1899
+      var dt = new Date(ms);
+      return ('0'+dt.getUTCDate()).slice(-2)+'/'+('0'+(dt.getUTCMonth()+1)).slice(-2)+'/'+dt.getUTCFullYear();
+    }
+    return '';
+  }
+  var m = s.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if(m) return ('0'+m[1]).slice(-2)+'/'+('0'+m[2]).slice(-2)+'/'+m[3];
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(m) return m[3]+'/'+m[2]+'/'+m[1];
+  return '';
+}
+function cgSoO(v){
+  if(typeof v === 'number') return v;
+  var s = String(v==null?'':v).replace(/[^0-9,.\-]/g,'');
+  if(!s) return 0;
+  if(/,\d{1,2}$/.test(s) && s.indexOf('.')>=0) s = s.replace(/\./g,'').replace(',','.');  // 1.234.567,89
+  else s = s.replace(/,/g,'');
+  var n = Number(s); return isNaN(n) ? 0 : n;
+}
+function cgNapFile(nguon){
+  var d = CG_ROWS[nguon];
+  var kq = cgEl(nguon,'napKq');
+  if(!d){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn file</b>'; return; }
+  var cn = Number(cgEl(nguon,'cotNgay').value), ct = Number(cgEl(nguon,'cotTien').value), cc = Number(cgEl(nguon,'cotCH').value);
+  var vMa = (cgEl(nguon,'cotMaCH')||{}).value, cm = (vMa === '' || vMa == null) ? -1 : Number(vMa);
+  // Chỉ gửi 4 cột cần dùng, và ngày đã đổi thành CHUỖI -> payload nhỏ, không có Date nào lọt qua
+  var goi = [];
+  for(var i=0;i<d.rows.length;i++){
+    var r = d.rows[i], ng = cgNgayO(r[cn]);
+    if(!ng) continue;
+    goi.push([ng, cgSoO(r[ct]), String(r[cc]==null?'':r[cc]).trim(),
+              cm >= 0 ? String(r[cm]==null?'':r[cm]).trim() : '']);
+  }
+  if(!goi.length){ kq.innerHTML = '<b style="color:var(--doNhat)">Không có dòng nào đọc được ngày</b> — chọn lại cột Ngày.'; return; }
+  kq.innerHTML = '<span class="muted">Đang nạp '+goi.length+' dòng…</span>';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+    var ph = ['Đã nạp <b>'+r.themMoi+'</b> dòng (ngày × cửa hàng), tổng <b>'+fmt(r.tongTienThem)+'đ</b>'];
+    if(r.daGhiDe) ph.push('ghi đè <b>'+r.daGhiDe+'</b> dòng ngày trùng');
+    if(r.trungBoQua) ph.push('<b>'+r.trungBoQua+'</b> dòng TRÙNG NGÀY đã bỏ qua (tick "Ghi đè ngày trùng" nếu muốn thay số)');
+    if(r.boQuaDong) ph.push(r.boQuaDong+' dòng gốc bị bỏ (thiếu ngày: '+r.khongNgay+' · thiếu số tiền: '+r.khongTien+')');
+    if(r.ngayMoi.length) ph.push('Ngày mới: '+r.ngayMoi.map(esc).join(' · '));
+    if(r.daDon) ph.push('<b>Đã dọn '+r.daDon+' dòng cũ mồ côi</b> ('+fmt(r.tienDon)+'đ) của những ngày vừa ghi đè — '
+      + 'đây là các dòng khoá cũ (ví dụ gộp chung "khongro" trước khi đọc theo Mã cửa hàng); '
+      + '<b>không dọn là tiền bị cộng hai lần</b>. Cụ thể: ' + (r.dsDon||[]).map(esc).join(' · '));
+    if(r.trungBoQua && !cgEl(nguon,'ghiDe').checked) ph.push('<b style="color:var(--vang)">Lưu ý:</b> nếu lần trước '
+      + 'nạp KHÔNG có cột Mã cửa hàng thì mấy ngày trùng vẫn đang gộp chung một dòng "khongro". '
+      + 'Muốn tách theo mã thì tick <b>Ghi đè ngày trùng</b> rồi nạp lại.');
+    if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cửa hàng mới chưa ánh xạ ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
+    kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
+    // Nhớ 3 cột cho lần sau
+    google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
+      .luuCotFileCong(PIN, nguon, { ngay: cn, soTien: ct, cuaHang: cc, maCH: cm });
+    taiDoiSoatFile(nguon);
+  }).withFailureHandler(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc(e.message)+'</span>';
+  }).napFileCong(PIN, nguon, goi, d.tenFile, !!cgEl(nguon,'ghiDe').checked);
+}
+// Bộ đọc .xlsx thuần trình duyệt (dùng lại từ app Ghế massage) — KHÔNG cần thư viện ngoài,
+// nên chạy được cả khi app không ra được mạng.
+function cgReadTable(file){
+  var name = (file.name||'').toLowerCase();
+  if(name.slice(-5) === '.xlsx') return cgReadXlsx(file);
+  return file.text().then(function(t){
+    var dc = (t.indexOf('\t') >= 0) ? '\t' : ',';
+    return t.split(/\r?\n/).filter(function(l){ return l.trim() !== ''; })
+      .map(function(l){ return cgTachDong(l, dc); });
+  });
+}
+function cgTachDong(line, dc){
+  var out = [], cur = '', q = false;
+  for(var i=0;i<line.length;i++){
+    var c = line[i];
+    if(q){ if(c === '"'){ if(line[i+1] === '"'){ cur += '"'; i++; } else q = false; } else cur += c; }
+    else if(c === '"') q = true;
+    else if(c === dc){ out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+function cgU32(dv,o){ return dv.getUint32(o,true); }
+function cgU16(dv,o){ return dv.getUint16(o,true); }
+function cgInflate(bytes){
+  if(typeof DecompressionStream === 'undefined')
+    return Promise.reject(new Error('Trình duyệt này không đọc được .xlsx — lưu file thành .csv rồi tải lên.'));
+  var ds = new DecompressionStream('deflate-raw');
+  return new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer()
+    .then(function(ab){ return new Uint8Array(ab); });
+}
+function cgDecEnt(s){ return String(s).replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>')
+  .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&apos;/g,"'"); }
+function cgColIdx(l){ var n=0; for(var i=0;i<l.length;i++) n=n*26+(l.charCodeAt(i)-64); return n-1; }
+function cgReadXlsx(file){
+  return file.arrayBuffer().then(function(ab){
+    var buf = new Uint8Array(ab), dv = new DataView(ab);
+    var eocd = -1, lim = Math.max(0, buf.length-22-65536);
+    for(var i=buf.length-22;i>=lim;i--){ if(cgU32(dv,i) === 0x06054b50){ eocd = i; break; } }
+    if(eocd < 0) throw new Error('File .xlsx không hợp lệ');
+    var cdCount = cgU16(dv,eocd+10), p = cgU32(dv,eocd+16), entries = {};
+    for(var e=0;e<cdCount;e++){
+      if(cgU32(dv,p) !== 0x02014b50) break;
+      var method = cgU16(dv,p+10), compSize = cgU32(dv,p+20), nLen = cgU16(dv,p+28),
+          xLen = cgU16(dv,p+30), cLen = cgU16(dv,p+32), lho = cgU32(dv,p+42);
+      entries[new TextDecoder().decode(buf.subarray(p+46,p+46+nLen))] = { method:method, compSize:compSize, lho:lho };
+      p += 46+nLen+xLen+cLen;
+    }
+    function extract(fname){
+      var en = entries[fname]; if(!en) return Promise.resolve(null);
+      if(cgU32(dv,en.lho) !== 0x04034b50) return Promise.resolve(null);
+      var nLen = cgU16(dv,en.lho+26), xLen = cgU16(dv,en.lho+28), start = en.lho+30+nLen+xLen;
+      var comp = buf.subarray(start, start+en.compSize);
+      return (en.method === 0 ? Promise.resolve(comp) : cgInflate(comp))
+        .then(function(out){ return new TextDecoder().decode(out); });
+    }
+    var sheetName = 'xl/worksheets/sheet1.xml';
+    if(!entries[sheetName]){ for(var k in entries){ if(/^xl\/worksheets\/.*\.xml$/.test(k)){ sheetName = k; break; } } }
+    return extract('xl/sharedStrings.xml').then(function(ssXml){
+      var sst = [];
+      if(ssXml){ var sm, re = /<si>([\s\S]*?)<\/si>/g;
+        while((sm = re.exec(ssXml))){
+          var ts = sm[1].match(/<t[^>]*>([\s\S]*?)<\/t>/g) || [];
+          sst.push(ts.map(function(t){ return cgDecEnt(t.replace(/<[^>]+>/g,'')); }).join('')); } }
+      return extract(sheetName).then(function(sheetXml){
+        if(!sheetXml) throw new Error('Không thấy sheet nào trong file');
+        return cgParseSheet(sheetXml, sst);
+      });
+    });
+  });
+}
+function cgParseSheet(xml, sst){
+  var rows = [], rowRe = /<row[^>]*>([\s\S]*?)<\/row>/g, m;
+  while((m = rowRe.exec(xml))){
+    var cells = {}, maxc = -1, cRe = /<c\s+r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g, cm;
+    while((cm = cRe.exec(m[1]))){
+      var idx = cgColIdx(cm[1]), attrs = cm[2]||'', inner = cm[3];
+      var tm = attrs.match(/t="([^"]*)"/), t = tm ? tm[1] : 'n', val = '';
+      if(t === 's'){ var vs = (inner.match(/<v>([\s\S]*?)<\/v>/)||[])[1]; if(vs != null) val = sst[Number(vs)] || ''; }
+      else if(t === 'inlineStr'){ val = (inner.match(/<t[^>]*>([\s\S]*?)<\/t>/)||[])[1] || ''; }
+      else { var vv = (inner.match(/<v>([\s\S]*?)<\/v>/)||[])[1];
+             val = (vv != null) ? vv : ((inner.match(/<t[^>]*>([\s\S]*?)<\/t>/)||[])[1] || ''); }
+      cells[idx] = cgDecEnt(String(val)); if(idx > maxc) maxc = idx;
+    }
+    var arr = []; for(var i=0;i<=maxc;i++) arr.push(cells[i] !== undefined ? cells[i] : '');
+    rows.push(arr);
+  }
+  return rows;
+}
+
+function cgDatNgay(nguon, luiNgay){
+  var d = new Date(), t = new Date(d.getTime() - luiNgay*86400000);
+  function ymd(x){ return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2); }
+  cgEl(nguon,'tu').value = ymd(t); cgEl(nguon,'den').value = ymd(d);
+  taiSaoKeCong(nguon);
+}
+// Lỗi phải NẰM LẠI trên trang, không dùng toast biến mất — đúng bài học đã mất cả ngày
+// vì màn hình trống mà không biết là "không có dữ liệu" hay "lời gọi vỡ".
+function cgBaoLoi(nguon, msg){
+  var b = cgEl(nguon,'canhBao');
+  b.style.display=''; b.innerHTML = '<b style="color:var(--doNhat)">Không tải được số liệu</b><div class="hint">'+esc(msg)+'</div>';
+  cgEl(nguon,'congBody').innerHTML = '<tr><td colspan="7">Lỗi — xem thông báo phía trên.</td></tr>';
+  cgEl(nguon,'bankBody').innerHTML = '<tr><td colspan="7">Lỗi — xem thông báo phía trên.</td></tr>';
+}
+function taiSaoKeCong(nguon){
+  var tu = toVN(cgEl(nguon,'tu').value), den = toVN(cgEl(nguon,'den').value);
+  cgEl(nguon,'congBody').innerHTML = '<tr><td colspan="7" class="muted">Đang tải…</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(d){ if(!d||!d.ok){ cgBaoLoi(nguon, (d&&d.error)||'Máy chủ trả về rỗng'); return; } veSaoKeCong(nguon, d); })
+    .withFailureHandler(function(e){ cgBaoLoi(nguon, e.message); })
+    .getSaoKeCong(PIN, nguon, tu, den);
+  // Gợi ý cửa hàng chuẩn + mã nộp tiền (đọc tab Tendinhdanh). Lỗi ở đây KHÔNG kéo cả trang sập.
+  google.script.run.withSuccessHandler(function(r){
+    if(!r || !r.ok) return;
+    CG_DSCH[nguon] = r.ds || [];
+    var dl = cgEl(nguon,'dsCH'), dm = cgEl(nguon,'dsMa');
+    if(dl) dl.innerHTML = (r.ds||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
+    if(dm) dm.innerHTML = (r.ds||[]).map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ten)+'</option>'; }).join('');
+  }).withFailureHandler(function(){}).dsCuaHangChuan(PIN);
+}
+/* ---------- Phân trang cho các bảng của tab cổng (anh Thắng 15/08: "50 giao dịch 1 trang") ----------
+   MỘT chỗ duy nhất giữ luật phân trang, dùng cho CẢ bảng "Từ cổng" lẫn "Từ sao kê ngân hàng".
+   Viết riêng cho mỗi bảng là kiểu "hai chỗ hai luật" — sửa một chỗ quên chỗ kia, và bảng kia
+   lặng lẽ vẫn đổ 2000 dòng như cũ.
+   ⚠️ Đây là cắt trang PHÍA TRÌNH DUYỆT: máy chủ vẫn trả đủ dòng, nên TỔNG TIỀN và các con số
+      thống kê KHÔNG đổi — chỉ nhẹ phần vẽ bảng. Nếu sau này cắt ở máy chủ thì phải sửa lại
+      mọi chỗ đang cộng trên `d.cong` / `d.bank`, không thì mất tiền trong báo cáo. */
+var CG_SO_DONG = 50;
+var CG_TRANG = {};      // trang đang xem: { 'vietqr|cong': 3 }
+var CG_BANG  = {};      // dữ liệu + cách vẽ của từng bảng, để đổi trang khỏi gọi lại máy chủ
+function cgKhoaBang(nguon, bang){ return nguon + '|' + bang; }
+
+/** Nạp dữ liệu mới cho 1 bảng -> LUÔN về trang 1 (dữ liệu đã khác, giữ trang cũ là vô nghĩa). */
+function cgVeBang(nguon, bang, ds, veDong, soCot, khiTrong){
+  CG_BANG[cgKhoaBang(nguon,bang)] = { ds: ds || [], ve: veDong, cot: soCot, trong: khiTrong };
+  CG_TRANG[cgKhoaBang(nguon,bang)] = 1;
+  cgVeTrang(nguon, bang);
+}
+function cgVeTrang(nguon, bang){
+  var k = cgKhoaBang(nguon,bang), c = CG_BANG[k];
+  var tb = cgEl(nguon, bang+'Body'); if(!c || !tb) return;
+  var tong = c.ds.length, soTrang = Math.max(1, Math.ceil(tong / CG_SO_DONG));
+  var t = Math.min(soTrang, Math.max(1, CG_TRANG[k] || 1));
+  CG_TRANG[k] = t;
+  var dau = (t-1) * CG_SO_DONG, cuoi = Math.min(tong, dau + CG_SO_DONG);
+  tb.innerHTML = !tong
+    ? '<tr><td colspan="'+c.cot+'" class="muted">'+c.trong+'</td></tr>'
+    : c.ds.slice(dau, cuoi).map(c.ve).join('');
+  var p = cgEl(nguon, bang+'Pager'); if(!p) return;
+  if(tong <= CG_SO_DONG){ p.style.display='none'; p.innerHTML=''; return; }
+  p.style.display='';
+  p.innerHTML = '<button class="gray"'+(t<=1?' disabled':'')+' onclick="cgDoiTrang(\''+nguon+'\',\''+bang+'\',-1)">‹ Trang trước</button>'
+    + '<span class="muted" style="margin:0 10px">Trang '+t+' / '+soTrang
+    + ' · đang xem dòng '+(dau+1)+'–'+cuoi+' trên '+tong+'</span>'
+    + '<button class="gray"'+(t>=soTrang?' disabled':'')+' onclick="cgDoiTrang(\''+nguon+'\',\''+bang+'\',1)">Trang sau ›</button>';
+}
+function cgDoiTrang(nguon, bang, buoc){
+  var k = cgKhoaBang(nguon,bang);
+  CG_TRANG[k] = (CG_TRANG[k] || 1) + buoc;   // cgVeTrang tự kẹp trong [1, soTrang]
+  cgVeTrang(nguon, bang);
+}
+
+function veSaoKeCong(nguon, d){
+  cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+  cgEl(nguon,'congTien').textContent = fmt(d.congTien);
+  cgEl(nguon,'congDong').textContent = d.congDong + ' giao dịch trong kỳ / ' + d.congTongMoiNguon + ' đã nhận';
+  cgEl(nguon,'bankTien').textContent = fmt(d.bankTien);
+  cgEl(nguon,'bankDong').textContent = d.bankDong + ' dòng khớp từ khoá "' + d.tuKhoa + '"';
+  var ch = cgEl(nguon,'chenh');
+  ch.textContent = fmt(d.chenh);
+  ch.className = 'val ' + (d.chenh === 0 ? 'in' : 'out');
+  cgEl(nguon,'kieu').textContent = 'đối soát ' + d.kieuDoiSoat;
+  cgEl(nguon,'kho').textContent = (d.chuaRoMay||0) + d.congKho;
+  cgEl(nguon,'khoSub').textContent = (d.chuaRoMay||0) + ' chưa rõ máy (' + fmt(d.chuaRoTien||0) + 'đ) · '
+    + d.congKho + ' thiếu trường';
+  cgEl(nguon,'url').textContent = d.webhookUrl || '(chưa có — đặt Webhook API Key ở tab Cấu hình rồi deploy)';
+  cgEl(nguon,'raw').textContent = d.payloadCuoi || '(chưa có payload nào — cổng chưa bắn tới)';
+  if(!cgEl(nguon,'tuKhoa').value) cgEl(nguon,'tuKhoa').value = d.tuKhoa;
+  cgEl(nguon,'tkHint').innerHTML = 'Đang lọc dòng sao kê có nội dung chứa <b>'+esc(d.tuKhoa)+'</b>. Mặc định: <code>'+esc(d.tuKhoaMacDinh)+'</code>.'
+    + (nguon==='momo' ? ' <b style="color:var(--vang)">Riêng MoMo: em chưa thấy dòng MoMo nào trong sao kê của anh nên từ khoá này là PHỎNG ĐOÁN</b> — có dòng thật thì anh sửa lại đúng chữ trong nội dung.' : '');
+
+  // Cảnh báo: nói rõ vì sao rỗng, đừng để anh đoán
+  var ds = [];
+  if(d.thieuKey) ds.push('Chưa đặt <b>Webhook API Key</b> ở tab Cấu hình → chưa có link để dán cho cổng, nên phần "Từ cổng" sẽ luôn rỗng.');
+  else if(!d.congTongMoiNguon) ds.push('Chưa nhận được giao dịch nào từ '+esc(d.ten)+'. Cần dán link webhook ở trên vào cổng '+esc(d.ten)+'. Muốn thử ngay thì dán payload mẫu vào ô "Thử payload".');
+  if(d.congKho) ds.push('<b>'+d.congKho+' dòng chưa đọc được đủ trường</b> (thiếu số tiền hoặc thời điểm). Payload thô đã lưu — gửi em xem để sửa cách đọc, đừng để nó lọt số.');
+  if(!d.bankDong) ds.push('Sao kê ngân hàng không có dòng nào chứa "<b>'+esc(d.tuKhoa)+'</b>" trong kỳ này. Đổi từ khoá hoặc nới khoảng ngày.');
+  // Lệch phải báo dù MỘT BÊN bằng 0 — với Việt QR thì "cổng có, bank chưa có" chính là ca
+  // đáng lo nhất (tiền chưa về / webhook bank rớt), báo chỉ khi cả 2 bên > 0 là bỏ mất nó.
+  if(d.chenh !== 0 && (d.congTien || d.bankTien)) ds.push('Tổng cổng và tổng bank <b>lệch '+fmt(Math.abs(d.chenh))+'đ</b> — '
+    + (d.chenh > 0
+        ? 'cổng nhiều hơn bank: tiền cổng ghi nhận mà <b>chưa thấy về tài khoản</b>. '
+          + (nguon==='vietqr' ? 'Việt QR là 1:1 nên lệch nghĩa là giao dịch chưa về, hoặc webhook SePay rớt, hoặc tiền về tài khoản mà app này chưa theo.'
+                              : 'Cổng gộp thành cục nên cục về thường CHẬM hơn kỳ đang xem — nới khoảng ngày rồi xem lại.')
+        : 'bank nhiều hơn cổng: tài khoản đã nhận mà <b>cổng chưa bắn webhook về</b> (chưa dán link, hoặc kỳ này cổng chưa gửi). '
+          + (nguon==='vietqr' ? '' : 'Cũng có thể do cổng đã trừ phí trước khi chuyển nên số cục nhỏ hơn tổng quét.')));
+  var b = cgEl(nguon,'canhBao');
+  if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• ' + ds.join('<br>• ') + '</div>'; }
+  else b.style.display='none';
+
+  cgVeBang(nguon, 'cong', d.cong || [], function(r){
+        var may = r.tenMay ? esc(r.tenMay) : '<span style="color:var(--gold)">chưa rõ máy</span>';
+        var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
+        return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
+             + '<td>'+esc(r.thoiDiem)+'</td><td>'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
+             + '<td>'+esc(r.maGD)+'</td><td>'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
+             + '<td class="in">'+fmt(r.soTien)+'</td></tr>'; }, 8, 'Không có giao dịch nào trong kỳ.');
+  cgEl(nguon,'congLbl').textContent = d.cong.length ? ('· '+d.cong.length+' dòng · '+fmt(d.congTien)+'đ') : '';
+
+  // Khối gán mã cửa hàng cho máy chưa khai
+  CG_FILE[nguon] = d;
+  var aw = cgEl(nguon,'axWrap'), ds = d.chuaAnhXa || [];
+  if(ds.length){ aw.style.display='';
+    cgEl(nguon,'axBody').innerHTML = ds.map(function(x,i){
+      return '<tr><td><b>'+esc(x.ten)+'</b></td><td class="muted" style="white-space:normal">'+esc((x.may||[]).join(' · '))+'</td>'
+        + '<td class="num">'+x.soLan+'</td><td class="num in">'+fmt(x.soTien)+'</td>'
+        + '<td><input id="'+cgId(nguon,'axTen-'+i)+'" list="'+cgId(nguon,'dsCH')+'" placeholder="tên cửa hàng bên ngân hàng" style="width:100%"></td>'
+        + '<td><input id="'+cgId(nguon,'axMa-'+i)+'" list="'+cgId(nguon,'dsMa')+'" placeholder="để trống — tự suy từ tên" style="width:100%"></td>'
+        + '<td style="white-space:normal;max-width:300px;color:var(--vang)">'+esc(x.vi||'')+'</td>'
+        + '<td><button onclick="cgLuuAnhXa(\''+nguon+'\','+i+')">Gán</button></td></tr>'; }).join('');
+  } else aw.style.display='none';
+
+  // Nhật ký webhook — trống nghĩa là CHƯA CÓ request nào tới app này
+  var lg = d.log || [];
+  cgEl(nguon,'logBody').innerHTML = !lg.length
+    ? '<tr><td colspan="2" class="muted">Chưa có request nào của '+esc(d.ten)+' tới app này — '
+      + 'cổng chưa được dán link, KHÔNG phải app quên cập nhật.</td></tr>'
+    : lg.map(function(x){
+        var loi = /lỗi|sai|không hợp lệ|không đọc được/i.test(x.ketQua);
+        return '<tr title="'+esc(x.chiTiet)+'"><td>'+esc(x.thoiDiem)+'</td>'
+          + '<td'+(loi?' style="color:var(--doNhat)"':'')+' style="white-space:normal">'+esc(x.ketQua)+'</td></tr>'; }).join('');
+  cgEl(nguon,'logLbl').textContent = lg.length ? ('· '+lg.length+' request gần nhất') : '· chưa có request nào';
+
+  cgVeBang(nguon, 'bank', d.bank || [], function(r){
+        return '<tr><td>'+esc(r.ngayGD)+'</td><td>'+esc(r.nganHang)+'</td><td>'+esc(r.soTK)+'</td>'
+             + '<td>'+esc(r.phapNhan)+'</td><td>'+esc(r.noiDung)+'</td><td>'+esc(r.maGD)+'</td>'
+             + '<td class="in">'+fmt(r.vao)+'</td></tr>'; }, 7, 'Không có dòng sao kê nào khớp từ khoá trong kỳ.');
+  cgEl(nguon,'bankLbl').textContent = d.bank.length ? ('· '+d.bank.length+' dòng · '+fmt(d.bankTien)+'đ') : '';
+}
+// Tải lại đúng luồng của tab: Việt QR = webhook, MoMo/VNPAY = file theo tháng.
+// Gọi sai luồng thì hàm vẽ sẽ ghi vào id không tồn tại trên tab đó -> vỡ IM LẶNG.
+function cgTaiLai(nguon){ if(cgDungFile(nguon)) taiDoiSoatFile(nguon); else taiSaoKeCong(nguon); }
+// "Làm mới" = ĐẶT LẠI kỳ về mặc định rồi đọc lại — cùng nghĩa với nút Làm mới ở tab
+// Sao Kê Ngân Hàng, để anh không phải nhớ mỗi tab một kiểu. Khác "Lọc" (giữ kỳ đang chọn).
+function cgLamMoi(nguon){ if(cgDungFile(nguon)) cgThangNay(nguon); else cgDatNgay(nguon, 6); }
+function cgLuuTuKhoa(nguon){
+  var tk = cgEl(nguon,'tuKhoa').value;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
+    toast('Đã lưu từ khoá "'+r.tuKhoa+'"'); cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ toast(e.message, true); }).luuTuKhoaCong(PIN, nguon, tk);
+}
+function cgThu(nguon){
+  var js = cgEl(nguon,'thu').value;
+  var k = cgEl(nguon,'thuKq'); k.textContent = 'Đang thử…';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ k.textContent = (r&&r.error)||'Lỗi'; return; }
+    k.textContent = r.ketQua + ' · đọc ra ' + (r.doc?r.doc.length:0) + ' giao dịch';
+    taiSaoKeCong(nguon);
+  }).withFailureHandler(function(e){ k.textContent = 'Lỗi: '+e.message; }).testWebhookCong(PIN, nguon, js);
+}
+
+// ===== SAO KÊ =====
+function toVN(d){ if(!d) return ''; var p=d.split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : d; }
+var SK_ROWS = [], SK_PAGE = 1, SK_PAGE_SIZE = 20;
+function taiSaoKe(){
+  var filters = {
+    soTK: document.getElementById('fSoTK').value,
+    phapNhan: document.getElementById('fPhapNhan').value,
+    tuNgay: toVN(document.getElementById('fTu').value),
+    denNgay: toVN(document.getElementById('fDen').value),
+    loai: document.getElementById('fLoai').value,
+    nhan: document.getElementById('fNhan').value,
+    nguonTien: document.getElementById('fNguonTien').value,
+    tuKhoa: document.getElementById('fKw').value
+  };
+  document.getElementById('skBody').innerHTML = '<tr><td colspan=12 class="muted">Đang tải…</td></tr>';
+  google.script.run.withSuccessHandler(function(d){
+    try {
+      document.getElementById('skVao').textContent = fmt(d.tongVao);
+      document.getElementById('skVaoBank').textContent = fmt(d.tongVaoBank);
+      document.getElementById('skVaoCong').textContent = fmt(d.tongVaoCong);
+      // Ghi rõ cổng nào bao nhiêu + đang nhận theo từ khoá nào, để không phải đoán vì sao xếp vậy
+      var ct = (d.congTheoNguon||[]).map(function(x){ return esc(x.ten)+' '+fmt(x.soTien); }).join(' · ');
+      var tk = (d.tuKhoaCong||[]).map(function(x){ return esc(x.ten)+'="'+esc(x.tuKhoa)+'"'; }).join(' · ');
+      document.getElementById('skVaoCongChiTiet').innerHTML =
+        (ct || 'chưa có dòng nào') + (tk ? ('<br><span class="muted">nhận theo từ khoá: '+tk+'</span>') : '');
+      document.getElementById('skDong').textContent = d.soDong;
+      SK_ROWS = d.rows || []; SK_PAGE = 1;
+      renderSkPage();
+      var g = new Date();
+      var hai = function(n){ return (n<10?'0':'')+n; };
+      document.getElementById('skCapNhat').textContent =
+        'Cập nhật ' + hai(g.getHours())+':'+hai(g.getMinutes())+':'+hai(g.getSeconds());
+    } catch(err){ skBaoLoi('Lỗi khi vẽ bảng: ' + (err && err.message ? err.message : err)); }
+  }).withFailureHandler(function(e){ skBaoLoi(e && e.message ? e.message : String(e)); }).getGiaoDich(PIN, filters);
+}
+/* ⚠️ 13/08/2026 — lỗi PHẢI Ở LẠI TRÊN MÀN HÌNH.
+   Trước đây lời gọi getGiaoDich thất bại (máy chủ trả về ô ngày, google.script.run không gửi
+   được Date) thì chỉ hiện toast rồi tắt, bảng để trống y như "không có giao dịch". Nhìn ngoài
+   không phân biệt được "không có dữ liệu" với "gọi máy chủ vỡ" -> mất cả buổi đi tìm nhầm chỗ. */
+function skBaoLoi(msg){
+  document.getElementById('skBody').innerHTML =
+    '<tr><td colspan=12 style="color:var(--doNhat);white-space:normal">❌ Không tải được sao kê: ' +
+    esc(msg) + '<br><span class="muted">Chụp lại dòng này gửi cho người làm app — đây là lỗi máy chủ, không phải "chưa có giao dịch".</span></td></tr>';
+  toast(msg, true);
+}
+function renderSkPage(){
+  var catOpts = (CFG.danhMuc||[]).map(function(c){ return '<option value="'+esc(c.ten)+'">'+esc(c.ten)+'</option>'; }).join('');
+  var totalPages = Math.max(1, Math.ceil(SK_ROWS.length / SK_PAGE_SIZE));
+  if (SK_PAGE > totalPages) SK_PAGE = totalPages;
+  var start = (SK_PAGE - 1) * SK_PAGE_SIZE;
+  var pageRows = SK_ROWS.slice(start, start + SK_PAGE_SIZE);
+  document.getElementById('skBody').innerHTML = pageRows.map(function(r){
+    return '<tr>' +
+      '<td>'+esc(r.ngayGD)+'</td><td>'+esc(r.nganHang)+'</td><td>'+esc(r.soTK)+'</td><td>'+esc(r.phapNhan||'—')+'</td>' +
+      // Tách rõ tiền ngân hàng với tiền cổng QR ngay trên từng dòng — lộn hai thứ này là chết
+      '<td>'+(!r.tenNguonTien ? '<span class="muted">—</span>'
+              : (r.laCong ? '<span class="tag" style="background:#7c3aed">'+esc(r.tenNguonTien)+'</span>'
+                          : '<span class="tag" style="background:#15803d">Nộp trực tiếp</span>'))+'</td>' +
+      '<td style="white-space:normal;max-width:280px">'+esc(r.noiDung)+'</td><td>'+esc(r.maGD)+'</td>' +
+      '<td class="in">'+(r.vao?fmt(r.vao):'')+'</td><td class="out">'+(r.ra?fmt(r.ra):'')+'</td>' +
+      // soDu = null nghĩa là SePay KHÔNG gửi số dư luỹ kế (tài khoản ảo) — hiện dấu —, đừng hiện 0 giả
+      '<td>'+(r.soDu==null?'<span class="muted" title="SePay không gửi số dư luỹ kế cho giao dịch này">—</span>':fmt(r.soDu))+'</td>' +
+      '<td><select onchange="ganNhan(\''+esc(r.sepayId)+'\',this.value)"><option value="">-- chọn --</option>'+catOpts.replace('value="'+esc(r.nhan)+'"','value="'+esc(r.nhan)+'" selected')+'</select></td>' +
+      '<td class="muted">'+esc(r.nguon)+'</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan=12 class="muted">Không có giao dịch khớp bộ lọc</td></tr>';
+  document.getElementById('skPageLbl').textContent = 'Trang '+SK_PAGE+' / '+totalPages+' ('+SK_ROWS.length+' giao dịch)';
+}
+/* "Làm mới" khác "Lọc": xoá hết ô lọc rồi đọc lại, để chắc chắn thấy giao dịch mới nhất.
+   Còn giữ nguyên ô lọc mà đọc lại thì đã có nút Lọc — bấm lại là nó gọi máy chủ lần nữa.
+   Giao dịch mới KHÔNG cần bấm gì ở đây mới về: SePay bắn webhook là app ghi thẳng vào Sheet,
+   nút này chỉ để màn hình đọc lại Sheet. */
+function lamMoiSaoKe(){
+  ['fSoTK','fPhapNhan','fTu','fDen','fLoai','fNhan','fNguonTien','fKw'].forEach(function(id){
+    var el = document.getElementById(id); if (el) el.value = '';
+  });
+  taiSaoKe();
+}
+function skDoiTrang(delta){
+  var totalPages = Math.max(1, Math.ceil(SK_ROWS.length / SK_PAGE_SIZE));
+  SK_PAGE = Math.min(totalPages, Math.max(1, SK_PAGE + delta));
+  renderSkPage();
+}
+function ganNhan(sepayId, nhan){
+  google.script.run.withSuccessHandler(function(){ toast('Đã gắn nhãn'); }).withFailureHandler(function(e){ toast(e.message, true); }).setNhan(PIN, sepayId, nhan);
+}
+
+// ===== TÀI KHOẢN =====
+var EDITING_TK = null;
+function toISO(vnDate){ if(!vnDate) return ''; var p=vnDate.split('/'); return p.length===3 ? (p[2]+'-'+p[1]+'-'+p[0]) : ''; }
+function renderTaiKhoan(){
+  document.getElementById('tkBody').innerHTML = (CFG.taiKhoan||[]).map(function(t){
+    return '<tr><td>'+esc(t.soTK)+'</td><td>'+esc(t.nganHang)+'</td><td>'+esc(t.chuTK)+'</td><td>'+esc(t.ghiChu)+'</td><td>'+esc(t.phapNhan||'—')+'</td>' +
+      '<td>'+(t.soDuDauKy?fmt(t.soDuDauKy):'—')+'</td><td>'+esc(t.ngayDauKy||'—')+'</td>' +
+      '<td><button class="gray" onclick="suaTaiKhoan(\''+esc(t.soTK)+'\')">Sửa</button> ' +
+      '<button class="danger" onclick="xoaTK(\''+esc(t.soTK)+'\')">Xóa</button></td></tr>';
+  }).join('') || '<tr><td colspan=8 class="muted">Chưa có tài khoản nào</td></tr>';
+}
+function suaTaiKhoan(soTK){
+  var t = (CFG.taiKhoan||[]).filter(function(x){ return x.soTK===soTK; })[0];
+  if(!t) return;
+  EDITING_TK = soTK;
+  document.getElementById('tkSo').value = t.soTK;
+  document.getElementById('tkSo').readOnly = true;
+  document.getElementById('tkNH').value = t.nganHang;
+  document.getElementById('tkChu').value = t.chuTK;
+  document.getElementById('tkGhi').value = t.ghiChu;
+  document.getElementById('tkPhapNhan').value = t.phapNhan || '';
+  document.getElementById('tkDauKy').value = t.soDuDauKy || '';
+  document.getElementById('tkNgayDauKy').value = toISO(t.ngayDauKy);
+  document.getElementById('tkSaveBtn').textContent = 'Lưu thay đổi';
+  document.getElementById('tkCancelBtn').style.display = '';
+  nav('tk');
+}
+function huySuaTaiKhoan(){
+  EDITING_TK = null;
+  ['tkSo','tkNH','tkChu','tkGhi','tkDauKy','tkNgayDauKy'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('tkPhapNhan').value = '';
+  document.getElementById('tkSo').readOnly = false;
+  document.getElementById('tkSaveBtn').textContent = '+ Lưu';
+  document.getElementById('tkCancelBtn').style.display = 'none';
+}
+function luuTaiKhoan(){
+  var so=document.getElementById('tkSo').value, nh=document.getElementById('tkNH').value,
+      chu=document.getElementById('tkChu').value, ghi=document.getElementById('tkGhi').value,
+      pn=document.getElementById('tkPhapNhan').value, dauKy=document.getElementById('tkDauKy').value,
+      ngayDauKy=toVN(document.getElementById('tkNgayDauKy').value);
+  if(!so){ toast('Nhập số TK', true); return; }
+  google.script.run.withSuccessHandler(function(){ toast('Đã lưu'); huySuaTaiKhoan(); initApp(); })
+    .withFailureHandler(function(e){ toast(e.message, true); }).saveTaiKhoan(PIN, so, nh, chu, ghi, pn, dauKy, ngayDauKy);
+}
+function xoaTK(so){ google.script.run.withSuccessHandler(function(){ toast('Đã xóa'); initApp(); }).withFailureHandler(function(e){ toast(e.message, true); }).xoaTaiKhoan(PIN, so); }
+
+// ===== DANH MỤC CHI PHÍ =====
+function renderDanhMuc(){
+  document.getElementById('catBody').innerHTML = (CFG.danhMuc||[]).map(function(c){
+    return '<tr><td>'+esc(c.ten)+'</td><td>'+esc(c.loai)+'</td><td><span class="tag" style="background:'+esc(c.mau)+'">'+esc(c.mau)+'</span></td>' +
+      '<td><button class="danger" onclick="xoaCat(\''+esc(c.ten)+'\')">Xóa</button></td></tr>';
+  }).join('') || '<tr><td colspan=4 class="muted">Chưa có nhóm nào</td></tr>';
+}
+function luuDanhMuc(){
+  var ten=document.getElementById('catTen').value, loai=document.getElementById('catLoai').value, mau=document.getElementById('catMau').value;
+  if(!ten){ toast('Nhập tên nhóm', true); return; }
+  google.script.run.withSuccessHandler(function(){ toast('Đã lưu'); initApp(); }).withFailureHandler(function(e){ toast(e.message, true); }).saveDanhMuc(PIN, ten, loai, mau);
+}
+function xoaCat(ten){ google.script.run.withSuccessHandler(function(){ toast('Đã xóa'); initApp(); }).withFailureHandler(function(e){ toast(e.message, true); }).xoaDanhMuc(PIN, ten); }
+
+// ===== CẤU HÌNH =====
+function renderCfg(){
+  if(!CFG) return;
+  document.getElementById('webhookUrl').textContent = CFG.webhookUrl || '(chưa deploy)';
+  // Key chứa & % = ? hoặc dấu cách -> cổng gửi lại thành %26… là app chặn hết với lý do
+  // "sai webhook key trong URL". Đã xảy ra thật 13/08: Tingo bắn tới nhưng bị chặn sạch.
+  var cw = document.getElementById('cfgKeyCanhBao');
+  if (cw) {
+    if (CFG.keyCanMaHoa) {
+      cw.style.display = '';
+      cw.innerHTML = '⚠️ <b>Webhook API Key đang chứa ký tự phải mã hoá URL</b> (& % = ? hoặc dấu cách). '
+        + 'App đã <b>chấp nhận cả dạng mã hoá</b> nên webhook vẫn chạy — <b>không cần đổi key</b>. '
+        + 'Nếu muốn cho sạch thì đổi sang key chỉ chữ và số (vd <code>saokenganhangKH2026</code>), '
+        + 'nhưng <b>phải dán lại ĐỦ 4 link dưới đây</b>, thiếu chỗ nào là chỗ đó đứng im.';
+    } else cw.style.display = 'none';
+  }
+  // Đổi key là phải dán lại ở MỌI nơi: SePay và cả 3 cổng dùng chung một key.
+  var ml = document.getElementById('cfgMoiLink');
+  if (ml) {
+    var ds = CFG.moiLink || [];
+    ml.innerHTML = !ds.length ? '<span class="muted">Chưa đặt Webhook API Key nên chưa có link nào.</span>'
+      : '<div class="hint" style="border-left:3px solid var(--vang)"><b>SePay và cả 3 cổng dùng CHUNG một key.</b> '
+        + 'Mỗi lần đổi key phải dán lại <b>tất cả</b> link dưới đây — dán thiếu một chỗ thì chỗ đó vẫn nhận '
+        + 'webhook nhưng bị chặn, và nhìn ngoài chỉ thấy "không có giao dịch mới".</div>'
+        + ds.map(function (x) {
+            return '<div style="margin:6px 0"><b>' + esc(x.ten) + '</b><br>'
+              + '<code style="word-break:break-all">' + esc(x.url) + '</code></div>';
+          }).join('');
+  }
+  document.getElementById('cfgWebhookKey').placeholder = CFG.hasWebhookKey ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
+  document.getElementById('cfgApiToken').placeholder = CFG.hasApiToken ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
+}
+function luuCauHinh(){
+  var token=document.getElementById('cfgApiToken').value, key=document.getElementById('cfgWebhookKey').value;
+  google.script.run.withSuccessHandler(function(){ toast('Đã lưu cấu hình'); initApp(); }).withFailureHandler(function(e){ toast(e.message, true); }).saveCauHinh(PIN, token, key);
+}
+function dongBoLichSu(){
+  var tu=toVN(document.getElementById('syncTu').value), den=toVN(document.getElementById('syncDen').value), tk=document.getElementById('syncTK').value;
+  if(!tu||!den){ toast('Chọn khoảng ngày', true); return; }
+  toast('Đang đồng bộ...');
+  google.script.run.withSuccessHandler(function(r){ toast('Xong: '+r.moi+' giao dịch mới, '+r.trung+' đã có'); taiDashboard(); }).withFailureHandler(function(e){ toast(e.message, true); }).syncSepayHistory(PIN, tu, den, tk);
+}
+function testMau(){
+  var json = document.getElementById('testJson').value;
+  google.script.run.withSuccessHandler(function(r){ document.getElementById('testResult').textContent = JSON.stringify(r.mapped, null, 2); })
+    .withFailureHandler(function(e){ document.getElementById('testResult').textContent = 'Lỗi: '+e.message; }).testWebhookSample(PIN, json);
+}
+function doiPinNow(){
+  var cu=document.getElementById('pinCu').value, moi=document.getElementById('pinMoi').value;
+  // Đổi PIN thì phải cập nhật CẢ ô đã nhớ, không thì F5 lần sau tự đăng nhập bằng PIN CŨ và
+  // mọi lời gọi đều báo "Sai mã PIN".
+  google.script.run.withSuccessHandler(function(){ PIN=moi; nhoPin(moi); toast('Đã đổi PIN'); document.getElementById('pinCu').value=''; document.getElementById('pinMoi').value=''; })
+    .withFailureHandler(function(e){ toast(e.message, true); }).doiPin(cu, moi);
+}
+
+// Cuối cùng: dịch màn hình gõ PIN + đặt nhãn nút ngôn ngữ. Đặt ở CUỐI để chắc chắn body đã có.
+apNgonNguSom();
+document.getElementById('niLang').textContent = langDangDung()==='en' ? '🌐 Tiếng Việt' : '🌐 English';
+</script>
+</body>
+</html>
