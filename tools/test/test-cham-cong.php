@@ -7445,6 +7445,50 @@ $_khoi_luoi = ( false !== $_i_dong ) ? substr( $h_qtc, $_i_luoi, $_i_dong - $_i_
 t( '🔴 bảng lưới THẬT nằm trong khối gập, không chỉ mỗi lời dẫn',
 	strpos( $_khoi_luoi, 'QTC1' ) !== false, substr( $_khoi_luoi, -300 ) );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LƯỚI PHẢI MỞ SẴN, VÀ ĐỨNG TRƯỚC KHỐI "CHƯA CÓ ẢNH THẺ" — 09/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"khi vào bảng công, thì lưới công luôn xổ ra và hiện lên đầu"*, kèm ảnh: cả màn
+ * hình đầu là một dải vàng liệt kê mười mấy người chưa có ảnh thẻ, còn lưới thì nằm tít dưới
+ * đáy VÀ đang gập.
+ *
+ * 🔴 Chú thích trong `the_luoi_thang()` đã viết "LƯỚI thì mở sẵn" từ 01/09/2026, nhưng thẻ
+ *    `<details>` lại không mang `open` — chú thích nói một đằng, mã làm một nẻo, suốt hơn một
+ *    tuần, không có gì báo. Nên phép thử canh ĐÚNG CHỮ `open` trong mã sinh ra, chứ không canh
+ *    bằng lời hứa trong chú thích.
+ */
+t( '🔴 khối Lưới cả tháng MỞ SẴN, không bắt bấm thêm một cú',
+	preg_match( '/id="luoithang"><details open>/', $h_qtc ) === 1,
+	substr( $h_qtc, max( 0, (int) strpos( $h_qtc, 'luoithang' ) - 60 ), 160 ) );
+
+/* 🔴 THỨ TỰ: lưới TRƯỚC khối ảnh thẻ. Khối ảnh thẻ là việc làm MỘT LẦN (tải ảnh cho người mới),
+   còn lưới là thứ mở màn này ra để xem, ngày nào cũng xem. Đặt việc-một-lần chắn trước
+   việc-hằng-ngày thì mỗi lượt vào là một lượt cuộn qua nó.
+   ⚠️ Phép thử này chỉ có nghĩa khi CẢ HAI khối cùng có mặt — nếu khối ảnh thẻ không vẽ (cơ sở
+      không ai thiếu ảnh) thì `strpos` trả false và phép so vị trí thành vô nghĩa. Nên dựng hẳn
+      một người thiếu ảnh rồi mới đo. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QTCNOANH',
+	'ho_ten' => 'Người Chưa Có Ảnh', 'cua_hang' => 'TUTU_BT', 'anh_the' => '' ) );
+$h_tt = vhcc_web( '135791', array(), $g_qtc );
+t( 'vẫn đang soi màn bảng công thật (không phải màn đăng nhập)',
+	strpos( $h_tt, 'name="pin"' ) === false && strpos( $h_tt, 'id="luoithang"' ) !== false, null );
+$_i_anh  = strpos( $h_tt, 'chưa có ảnh thẻ' );
+$_i_luoi2 = strpos( $h_tt, 'id="luoithang"' );
+t( 'khối "chưa có ảnh thẻ" CÓ vẽ (nếu không thì phép dưới vô nghĩa)', false !== $_i_anh, null );
+t( 'và khối Lưới cũng có mặt', false !== $_i_luoi2, null );
+t( '🔴 LƯỚI đứng TRƯỚC khối "chưa có ảnh thẻ"',
+	false !== $_i_anh && false !== $_i_luoi2 && $_i_luoi2 < $_i_anh,
+	'luoi=' . var_export( $_i_luoi2, true ) . ' anh=' . var_export( $_i_anh, true ) );
+/* Đổi chỗ KHÔNG được làm mất khối ảnh thẻ — người mới vẫn phải có đường tải ảnh lên. */
+t( 'khối ảnh thẻ vẫn còn nút tải lên', strpos( $h_tt, 'name="atx_anh"' ) !== false, null );
+t( 'và vẫn gọi đúng tên người thiếu ảnh',
+	strpos( $h_tt, 'Người Chưa Có Ảnh' ) !== false, null );
+/* Cân thẻ lại sau khi đổi chỗ — chuyển một lời gọi ra ngoài nhánh `continue` là chỗ dễ hụt
+   `</details>` nhất, mà hụt thì cả phần dưới lọt vào trong khối gập. */
+teq( '🔴 đổi chỗ xong thẻ <details> vẫn cân',
+	substr_count( $h_tt, '<details' ), substr_count( $h_tt, '</details>' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='QTCNOANH'" );
+
 /* 🔴 CÂN THẺ. Lồng `<details>` trong `<div>` trong `<details>` là chỗ hụt thẻ dễ nhất, và hụt
    một thẻ đóng thì trình duyệt tự vá theo cách của nó: cả phần còn lại của trang lọt vào bên
    trong khối gập, gập cái đó là mất luôn mọi khối phía dưới. Không có gì báo. */

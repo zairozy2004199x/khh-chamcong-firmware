@@ -3942,13 +3942,26 @@ class VHCC_Web {
 			echo '<details' . ( $nhieu_cs ? '' : ' open' ) . '>';
 			echo '<summary class="cs-ten">🏬 <b>' . esc_html( $mot_cs ) . '</b>'
 				. ' <span class="mo">· tháng ' . esc_html( $th ) . '</span></summary>';
-			self::khoi_thieu_anh( $toi, $mot_cs, $ky );
 			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
 			if ( empty( $b['ok'] ) ) {
-				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div></details></div>';
+				/* Bảng hỏng thì khối ảnh thẻ VẪN vẽ — nó không phụ thuộc bảng, và đây đúng là
+				   lúc người ta còn đứng lại trên màn này. */
+				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
+				self::khoi_thieu_anh( $toi, $mot_cs, $ky );
+				echo '</details></div>';
 				continue;
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
+
+			/* 🔴 09/09/2026 — KHỐI "CHƯA CÓ ẢNH THẺ" XUỐNG DƯỚI BẢNG. Anh Thắng: *"khi vào bảng
+			   công, thì lưới công luôn xổ ra và hiện lên đầu"*, kèm ảnh: cả màn hình đầu tiên là
+			   một dải vàng liệt kê mười mấy người chưa có ảnh thẻ, còn lưới thì nằm tít dưới đáy
+			   và đang gập.
+			   Khối ấy đúng là cần có, nhưng nó là VIỆC LÀM MỘT LẦN (tải ảnh cho người mới), còn
+			   lưới là thứ mở màn này ra để xem, ngày nào cũng xem. Đặt việc-một-lần chắn trước
+			   việc-hằng-ngày thì mỗi lượt vào là một lượt cuộn qua nó. Vẫn cùng một ô cơ sở,
+			   không mất đi đâu — chỉ đổi chỗ. */
+			self::khoi_thieu_anh( $toi, $mot_cs, $ky );
 
 			/* 🔴 KHỐI "LƯƠNG" ĐÃ BỎ KHỎI MÀN — anh Thắng 07/09/2026, sau khi đã bỏ 3 cột tiền của
 			   bảng mtd (bản 3.39.0): *"bỏ nguyên lương luôn, anh chưa cần"*. Trước đây gộp vào
@@ -4374,8 +4387,14 @@ class VHCC_Web {
 		/* 🔴 GẬP TỪNG TÍNH NĂNG, và LƯỚI thì mở sẵn — anh Thắng 01/09/2026: *"bấm vào cái nào
 		   hiện cái đó… tức cần xem cái nào thôi"*. Lưới là thứ người ta mở màn Bảng công để xem;
 		   gập cả nó lại thì ai vào cũng phải bấm thêm một cú cho cùng một việc. Mấy khối còn lại
-		   (tổng giờ · nhật ký · in · lương) là thứ soi khi cần, nên gập sẵn. */
-		echo '<div class="the" id="luoithang"><details>';
+		   (tổng giờ · nhật ký · in · lương) là thứ soi khi cần, nên gập sẵn.
+
+		   🔴 09/09/2026 — THIẾU ĐÚNG CHỮ `open`. Anh Thắng: *"khi vào bảng công, thì lưới công
+		   luôn xổ ra và hiện lên đầu"*. Chú thích ngay trên đây đã viết "LƯỚI thì mở sẵn" từ
+		   01/09, nhưng thẻ `<details>` lại không mang `open` — nên suốt từ đó lưới vẫn gập.
+		   Chú thích nói một đằng, mã làm một nẻo, và không có gì báo. Nay có phép thử canh đúng
+		   chữ `open` này, chứ không canh bằng lời hứa trong chú thích. */
+		echo '<div class="the" id="luoithang"><details open>';
 		echo '<summary><b>Lưới cả tháng</b> <span class="mo">— mỗi ô một số, cả tháng của cả cơ '
 			. 'sở trên một màn</span></summary>';
 		if ( $la_vp ) {
