@@ -581,6 +581,11 @@ class VHCC_TrangNS {
 				. ( $cs['go'] ? ' — quyền riêng của họ đã reset về mặc định (' . $cs['go'] . ' ô).'
 					: '. Họ vốn không có quyền riêng nào nên không có gì phải reset.' ) );
 		}
+		if ( ! empty( $cs['doiChinh'] ) ) {
+			$bao[] = array( 'ok' => 'Đã đổi CƠ SỞ CHÍNH cho ' . $cs['doiChinh'] . ' người — họ vẫn '
+				. 'làm ở đủ những cơ sở đang tích, chỉ đổi cơ sở được chọn sẵn lúc chấm công. '
+				. 'Quyền riêng KHÔNG bị reset.' );
+		}
 		foreach ( $cs['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
 		/* 🔴 LỖI VAI TRÒ PHẢI HIỆN RA, KHÔNG ĐƯỢC NUỐT. Mấy chốt trong `dat_vai_tro()` (không
 		   nâng quá bậc mình, không đụng người trên mình, không tự sửa mình) chỉ có tác dụng nếu
@@ -606,7 +611,11 @@ class VHCC_TrangNS {
 		   MỌI hàng đang hiện, nên nó mới là danh sách "hàng nào có gửi cơ sở lên". */
 		$gui = isset( $_POST['cs'] ) ? wp_unslash( $_POST['cs'] ) : array();
 		$co  = isset( $_POST['cs_co'] ) ? wp_unslash( $_POST['cs_co'] ) : array();
-		$ra  = array( 'doi' => 0, 'go' => 0, 'loi' => array() );
+		/* Nút tròn "chính" của từng hàng — xem `o_coso()`. Một giá trị cho mỗi mã, không phải
+		   mảng: mỗi người chỉ có MỘT cơ sở chính. */
+		$ch  = isset( $_POST['cs_chinh'] ) ? wp_unslash( $_POST['cs_chinh'] ) : array();
+		if ( ! is_array( $ch ) ) { $ch = array(); }
+		$ra  = array( 'doi' => 0, 'doiChinh' => 0, 'go' => 0, 'loi' => array() );
 		if ( ! is_array( $gui ) ) { $gui = array(); }
 		if ( ! is_array( $co ) || ! $co ) { return $ra; }
 		foreach ( $co as $ma => $bo_qua ) {
@@ -615,10 +624,21 @@ class VHCC_TrangNS {
 			$v = isset( $gui[ $ma ] ) ? $gui[ $ma ] : array();
 			$ds_cs = array();
 			foreach ( (array) $v as $x ) { $ds_cs[] = sanitize_text_field( (string) $x ); }
-			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs );
+			$c_ch = isset( $ch[ $ma ] ) ? sanitize_text_field( (string) $ch[ $ma ] ) : '';
+			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs, $c_ch );
 			if ( empty( $r['ok'] ) ) {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
+			}
+			/* Đổi cơ sở CHÍNH: đếm riêng và KHÔNG reset quyền (xem `dat_ds_coso`) — nhưng bản
+			   sao bên hệ ghế vẫn phải theo, vì ô `coso` bên ấy được ghép từ `cua_hang` trước
+			   rồi mới tới `coso_phu`, tức là thứ tự vừa đổi. */
+			if ( ! empty( $r['doiChinh'] ) ) {
+				$ra['doiChinh']++;
+				VHCC_DayGhe::dong_bo( $ma_s );
+				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
+					VHCC_DayChiPhi::dong_bo( $ma_s );
+				}
 			}
 			if ( ! empty( $r['doi'] ) ) {
 				$ra['doi']++; $ra['go'] += (int) $r['go'];
@@ -920,6 +940,10 @@ class VHCC_TrangNS {
 			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
 			. 'white-space:nowrap;cursor:pointer}'
 			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--mo)}'
+			/* Một hàng = một cơ sở: ô tích bên trái, nút tròn "chính" dạt sang phải. */
+			. '.o-cs-tich .cs-hang{display:flex;align-items:center;gap:8px;justify-content:space-between}'
+			. '.o-cs-tich .cs-ch{color:var(--mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
+			. '.o-cs-tich .cs-ch:has(input:checked){color:var(--xanh,#0369a1);font-weight:600}'
 			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
 			. '.xoa-hs:hover{color:#fff;background:var(--do);border-color:var(--do)}'
 			/* Nút xoá thật (nhịp hai): đỏ đặc, không lẫn với nút Lưu xanh. */
@@ -2034,12 +2058,32 @@ class VHCC_TrangNS {
 		sort( $ds );
 
 		$ten = 'cs[' . esc_attr( $ma ) . '][]';
-		$h   = '<div class="o-cs-tich">';
+		/* Hàng nào bày ra thì gom trước, VẼ SAU — cột "chính" chỉ có nghĩa khi bày từ hai cơ sở
+		   trở lên, mà số hàng bày ra chỉ biết được sau khi đã lọc xong. */
+		$bay = array();
 		foreach ( $ds as $c ) {
 			$k     = VHCC_NhanSu::chu_thuong( $c );
 			$tich  = isset( $co_dang[ $k ] );
 			$duoc  = VHCC_NhanSu::co_quyen_coso( $toi, $c );
 			if ( ! $duoc && ! $tich ) { continue; }   // không quản, không khai -> không bày ra
+			$bay[] = array( $c, $tich, $duoc );
+		}
+		$chinh   = isset( $dang[0] ) ? $dang[0] : '';
+		$ten_ch  = 'cs_chinh[' . esc_attr( $ma ) . ']';
+		$ve_chinh = count( $bay ) > 1;
+
+		$h = '<div class="o-cs-tich">';
+		/* 🔴 Ô ẨN CHỞ CƠ SỞ CHÍNH ĐANG CÓ, ĐẶT TRƯỚC MỌI NÚT TRÒN. Hai lý do, cả hai đều là mất
+		   dữ liệu im lặng nếu thiếu: (1) nút tròn của cơ sở mình KHÔNG phụ trách bị khoá nên
+		   không gửi gì lên — không chở thì mỗi lượt Lưu là cơ sở chính của người ta nhảy về cơ
+		   sở đầu bảng chữ cái; (2) hàng chỉ có một cơ sở thì không vẽ nút nào cả. PHP lấy giá
+		   trị GỬI SAU cho một tên vô hướng, nên đặt trước = nút tròn bấm được luôn đè lên. */
+		if ( '' !== $chinh ) {
+			$h .= '<input type="hidden" name="' . $ten_ch . '" value="' . esc_attr( $chinh ) . '">';
+		}
+		foreach ( $bay as $b ) {
+			list( $c, $tich, $duoc ) = $b;
+			$h .= '<div class="cs-hang">';
 			$h .= '<label' . ( $duoc ? '' : ' title="Cơ sở bạn không phụ trách — giữ nguyên"' ) . '>'
 				. '<input type="checkbox" name="' . $ten . '" value="' . esc_attr( $c ) . '"'
 				. checked( true, $tich, false ) . ( $duoc ? '' : ' disabled' ) . '>'
@@ -2048,6 +2092,14 @@ class VHCC_TrangNS {
 			if ( ! $duoc && $tich ) {
 				$h .= '<input type="hidden" name="' . $ten . '" value="' . esc_attr( $c ) . '">';
 			}
+			if ( $ve_chinh ) {
+				$la_ch = VHCC_NhanSu::chu_thuong( $c ) === VHCC_NhanSu::chu_thuong( $chinh );
+				$h .= '<label class="cs-ch" title="Cơ sở CHÍNH — cơ sở được chọn sẵn khi người này'
+					. ' mở trang chấm công. Chấm ở cơ sở nào trong danh sách cũng được tính đủ.">'
+					. '<input type="radio" name="' . $ten_ch . '" value="' . esc_attr( $c ) . '"'
+					. checked( true, $la_ch, false ) . ( $duoc ? '' : ' disabled' ) . '>chính</label>';
+			}
+			$h .= '</div>';
 		}
 		/* 🔴 Ô ẨN ĐÁNH DẤU "HÀNG NÀY CÓ GỬI CƠ SỞ". Bỏ tích HẾT thì trình duyệt không gửi phần
 		   tử nào, và nơi xử không phân biệt nổi "người ta bỏ hết" với "hàng này không có trên

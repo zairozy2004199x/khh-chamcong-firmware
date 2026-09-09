@@ -848,6 +848,14 @@ function veCoSo(j){
 	if(ds.length > 1){
 		h += '<p class="ct" style="margin:8px 0 0;text-align:left">Lúc lưu, trang sẽ hỏi anh/chị '
 		   + '<b>đang có mặt ở cơ sở nào</b> — chọn đúng cơ sở đang đứng, đừng chọn theo thói quen.</p>';
+		/* 🔴 NÓI RÕ "CHÍNH" NGHĨA LÀ GÌ. Anh Thắng 09/09/2026: *"làm sao để chuyển đổi cơ sở
+		   chính và cơ sở phụ"* — hai cái nhãn kia đọc lên như thứ bậc, nên người ở hai nơi tưởng
+		   mình chỉ được tính công ở cơ sở "chính", còn cơ sở "phụ" là hạng hai. Không phải: cả
+		   hai được tính đủ, "chính" chỉ là cơ sở CHỌN SẴN trong ô chọn lúc lưu. */
+		h += '<p class="ct" style="margin:4px 0 0;text-align:left"><b>"Cơ sở chính"</b> chỉ là cơ '
+		   + 'sở được <b>chọn sẵn</b> trong ô ấy — chấm ở cơ sở nào trong bảng trên cũng được '
+		   + 'tính công đủ như nhau. Muốn đổi cơ sở chọn sẵn thì nhờ quản lý bấm nút '
+		   + '<b>chính</b> ở ô Cơ sở trong hồ sơ.</p>';
 	}
 	el('oCoSo').innerHTML = h;
 }

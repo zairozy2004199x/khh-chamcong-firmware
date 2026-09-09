@@ -836,10 +836,23 @@ class VHCC_NhanSu {
 	 * ⚠️ RESET QUYỀN RIÊNG khi cơ sở đổi, y như `dat_co_so()` cũ: ngoại lệ khai theo hoàn cảnh ở
 	 *    cơ sở cũ mà theo người sang cơ sở mới thì không ai ở đó biết nó tồn tại.
 	 *
-	 * @param array $ds Danh sách cơ sở (đã tích). Rỗng = thôi làm ở đâu cả.
-	 * @return array `ok` · `doi`(bool) · `tu` · `den` · `go`, hoặc `error`.
+	 * 🔴 CƠ SỞ CHÍNH ĐỔI ĐƯỢC — `$chinh`. Anh Thắng 09/09/2026: *"làm sao để chuyển đổi cơ sở
+	 *    chính và cơ sở phụ"*. Trước bản này KHÔNG có đường nào: lưới ô tích gửi tên cơ sở lên
+	 *    theo THỨ TỰ VẼ (đã `sort()` theo bảng chữ cái), nên `cua_hang` luôn là cơ sở đứng đầu
+	 *    bảng chữ cái, và khối "không đổi gì thì thôi" bên dưới so theo TẬP HỢP nên kéo lại thứ
+	 *    tự cũng không ghi. Người tích `JP_HCM` + `VP_KH-HCM` mãi mãi có `JP_HCM` là cơ sở chính.
+	 *
+	 * ⚠️ ĐỔI CƠ SỞ CHÍNH **KHÔNG** RESET QUYỀN RIÊNG và không phải "chuyển cơ sở". Người ấy vẫn
+	 *    làm ở đủ những cơ sở cũ — chỉ đổi cơ sở nào được CHỌN SẴN lúc chấm công (và cơ sở nào
+	 *    đứng ở cột `cua_hang` cho mấy phép gom theo một tên). Xoá ngoại lệ quyền của họ vì một
+	 *    lượt đổi mặc định là phạt người ta cho một việc không ai coi là chuyển cửa hàng.
+	 *
+	 * @param array  $ds    Danh sách cơ sở (đã tích). Rỗng = thôi làm ở đâu cả.
+	 * @param string $chinh Cơ sở muốn đặt làm CHÍNH (`cua_hang`). Rỗng, hoặc tên không nằm trong
+	 *                      `$ds`, thì giữ nguyên luật cũ: cơ sở đầu danh sách.
+	 * @return array `ok` · `doi`(bool) · `doiChinh`(bool) · `tu` · `den` · `go`, hoặc `error`.
 	 */
-	public static function dat_ds_coso( $u, $ma_nv, $ds ) {
+	public static function dat_ds_coso( $u, $ma_nv, $ds, $chinh = '' ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
 			return array( 'ok' => false, 'error' => 'Đổi cơ sở là chuyển cả công và lương giữa các '
@@ -864,13 +877,62 @@ class VHCC_NhanSu {
 		}
 		$cu = self::ds_coso_hs( $cu_hs );
 
+		/* CƠ SỞ CHÍNH ĐƯỢC CHỈ ĐỊNH thì đưa nó lên ĐẦU `$moi` — cột `cua_hang` bên dưới lấy phần
+		   tử đầu. Tên không có trong danh sách vừa tích thì BỎ QUA, không báo lỗi: bỏ tích một cơ
+		   sở mà quên di cái nút tròn là chuyện thường, và chối cả lượt lưu vì thế là chối oan. */
+		$chinh   = self::chuan_coso( $chinh );
+		$chi_dinh = false;
+		if ( '' !== $chinh ) {
+			$k_ch = self::chu_thuong( $chinh );
+			foreach ( $moi as $i_ch => $x_ch ) {
+				if ( self::chu_thuong( $x_ch ) !== $k_ch ) { continue; }
+				unset( $moi[ $i_ch ] );
+				$moi      = array_merge( array( $x_ch ), array_values( $moi ) );
+				$chi_dinh = true;
+				break;
+			}
+		}
+
 		/* Không đổi gì thì thôi — so theo TẬP HỢP, không theo thứ tự: kéo lại thứ tự tích không
 		   phải là chuyển cơ sở của ai. */
 		$sx_cu = array_map( array( __CLASS__, 'chu_thuong' ), $cu );
 		$sx_moi = array_map( array( __CLASS__, 'chu_thuong' ), $moi );
 		sort( $sx_cu );
 		sort( $sx_moi );
-		if ( $sx_cu === $sx_moi ) { return array( 'ok' => true, 'doi' => false, 'go' => 0 ); }
+		if ( $sx_cu === $sx_moi ) {
+			/* 🔴 TẬP HỢP Y NGUYÊN NHƯNG CƠ SỞ CHÍNH KHÁC = VẪN PHẢI GHI. Đây chính là đường
+			   "chuyển đổi cơ sở chính ↔ cơ sở phụ": không ai bị thêm hay bớt cơ sở nào, chỉ đổi
+			   cái đứng đầu. Trả về sớm ở đây (như trước bản 3.62.0) là nút tròn bấm xong không
+			   ăn, và màn hình báo "Không có ô nào đổi". */
+			/* ⚠️ CHỈ KHI CƠ SỞ CHÍNH ĐƯỢC **CHỈ ĐỊNH** (`$chi_dinh`). Không có `$chinh` thì luật
+			   cũ còn nguyên: *"kéo lại thứ tự tích không phải là chuyển cơ sở của ai"*. Bỏ vế
+			   này là mọi đường ghi không truyền `$chinh` (lượt nạp, đường gọi mới về sau) âm
+			   thầm đẩy cơ sở chính về phần tử đầu của danh sách nó tình cờ gửi lên. */
+			$ch_cu = isset( $cu[0] ) ? self::chu_thuong( $cu[0] ) : '';
+			$ch_moi = isset( $moi[0] ) ? self::chu_thuong( $moi[0] ) : '';
+			if ( ! $chi_dinh || $ch_cu === $ch_moi ) {
+				return array( 'ok' => true, 'doi' => false, 'go' => 0 );
+			}
+			/* Phụ trách CẢ hai đầu — cùng luật với thêm/bỏ cơ sở: cơ sở chính là cơ sở mặc định
+			   của người ta lúc chấm, đổi hộ ở một nơi mình không phụ trách là đổi sau lưng. */
+			foreach ( array( $cu[0], $moi[0] ) as $x_q ) {
+				if ( self::co_quyen_coso( $u, $x_q ) ) { continue; }
+				return array( 'ok' => false,
+					'error' => 'Đổi cơ sở chính giữa "' . $cu[0] . '" và "' . $moi[0]
+						. '" — bạn không phụ trách "' . $x_q . '".' );
+			}
+			$dat_c = $moi;
+			$ok_c  = $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array(
+				'cua_hang' => array_shift( $dat_c ),
+				'coso_phu' => implode( ', ', $dat_c ),
+				'cap_nhat' => current_time( 'mysql' ),
+			), array( 'ma_nv' => $ma ) );
+			if ( false === $ok_c ) {
+				return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
+			}
+			return array( 'ok' => true, 'doi' => false, 'doiChinh' => true, 'go' => 0,
+				'tu' => $cu[0], 'den' => $moi[0] );
+		}
 
 		foreach ( array_diff( $sx_moi, $sx_cu ) as $them ) {
 			if ( ! self::co_quyen_coso( $u, $them ) ) {
@@ -1823,11 +1885,19 @@ class VHCC_NhanSu {
 		// Chốt 3: ĐỔI cửa hàng là chuyển cả công và lương giữa hai cửa hàng -> chỉ Admin/Quản lý.
 		if ( $cu ) {
 			$coso_cu = self::chuan_coso( $cu['cua_hang'] );
+			/* 🔴 ĐỔI THỨ TỰ CHÍNH/PHỤ TRONG **CÙNG** DANH SÁCH KHÔNG PHẢI LÀ CHUYỂN CỬA HÀNG.
+			   Từ 3.62.0 biểu mẫu có nút tròn "cơ sở chính" (anh Thắng 09/09/2026: *"làm sao để
+			   chuyển đổi cơ sở chính và cơ sở phụ"*), và nó ghi vào đúng cột `cua_hang` mà chốt
+			   này canh. Người ấy vẫn làm ở đủ những cơ sở cũ — không có công hay lương nào chạy
+			   sang cửa hàng khác, nên bắt bậc Quản lý ở đây là khoá cái nút vừa thêm với Kế
+			   toán và Cửa hàng trưởng, kèm một câu chối nói về "ô Cơ sở phụ" đã bỏ từ 3.13.0.
+			   Chốt 4 ngay dưới vẫn gác: chỉ sửa được hồ sơ của cơ sở mình phụ trách. */
+			$chi_doi_thu_tu = '' !== $coso_moi && self::hs_thuoc_coso( $cu, $coso_moi );
 			if ( '' !== $coso_moi && strtolower( $coso_cu ) !== strtolower( $coso_moi )
-				&& ! self::co_quan_tri_nv( $u ) ) {
+				&& ! $chi_doi_thu_tu && ! self::co_quan_tri_nv( $u ) ) {
 				return array( 'ok' => false,
 					'error' => 'Đổi cửa hàng của một người là chuyển công và lương giữa hai cửa hàng — '
-						. self::LOI_QT . ' Cần người này làm thêm ở cửa hàng bạn thì khai vào ô Cơ sở phụ.' );
+						. self::LOI_QT . ' Cần người này làm thêm ở cửa hàng bạn thì tích thêm ô cơ sở ấy.' );
 			}
 			/* Chốt 4: chỉ sửa người của cơ sở mình — nhưng tính CẢ cơ sở người ta tích thêm.
 			   Anh Thắng 31/08/2026 chốt: người làm hai nơi thì CẢ HAI cửa hàng sửa được. Hỏi mỗi

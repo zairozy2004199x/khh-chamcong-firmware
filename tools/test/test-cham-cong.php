@@ -19663,6 +19663,185 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_nhat_ky' ) . " WHERE ma_nv='AC1'
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHUYỂN ĐỔI CƠ SỞ CHÍNH ↔ CƠ SỞ PHỤ — 09/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng, trước khối "Cơ sở được chấm công" của trạm (`JP_HCM · cơ sở chính` /
+ * `VP_KH-HCM · cơ sở phụ`): *"làm sao để chuyển đổi cơ sở chính cà cơ sở phụ"*.
+ *
+ * CÂU TRẢ LỜI TRƯỚC BẢN 3.62.0 LÀ: KHÔNG CÓ ĐƯỜNG NÀO. Cả hai lưới ô tích (trang /nhan-su/ và
+ * ô "Cơ sở làm việc" trong hồ sơ) đều gửi tên cơ sở lên theo THỨ TỰ VẼ, mà thứ tự vẽ đã
+ * `sort()`/`ksort()` theo bảng chữ cái; nơi ghi thì lấy phần tử ĐẦU làm `cua_hang`. Thêm nữa
+ * `dat_ds_coso()` so theo TẬP HỢP rồi trả về sớm, nên có kéo lại thứ tự cũng không ghi.
+ * Người tích `JP_HCM` + `VP_KH-HCM` vĩnh viễn có `JP_HCM` là cơ sở chính.
+ *
+ * Mấy phép dưới đây đo ĐỦ ĐƯỜNG: cửa ghi · nút tròn trên hai màn · lượt POST thật · và cái
+ * mà anh Thắng thật sự nhìn thấy (cơ sở chọn sẵn trên trạm) đổi theo.
+ */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CSC1',
+	'ho_ten' => 'Người Hai Cơ Sở', 'cua_hang' => 'JP_HCM', 'coso_phu' => 'VP_KH-HCM',
+	'pin_dang_nhap' => '717273', 'vai_tro' => 'Nhân viên' ) );
+$U_CSC = array( 'name' => 'Admin Đổi CS', 'role' => 'ADMIN', 'coso' => '' );
+
+teq( 'trước khi đổi: cơ sở chính là JP_HCM', 'JP_HCM',
+	VHCC_NhanSu::ds_coso_hs( vhcc_hs( 'CSC1' ) )[0] );
+/* Cái người ta NHÌN THẤY: thẻ phiên (và từ đó `coSoMacDinh` của trạm) lấy `cua_hang`. */
+VHCC_Auth::mo_khoa();
+$csc_pin = VHCC_Tram::tim_pin( '717273' );
+teq( 'và thẻ phiên của họ mang JP_HCM', 'JP_HCM', (string) $csc_pin['coso'] );
+
+/* Quyền riêng của người này — để đo rằng đổi cơ sở CHÍNH không xoá nó. */
+$csc_nl_cu = get_option( VHCC_Cong::O );
+update_option( VHCC_Cong::O, array( 'CSC1' => array( 'cham_cong' => 'mo' ) ) );
+
+$r_csc = VHCC_NhanSu::dat_ds_coso( $U_CSC, 'CSC1',
+	array( 'JP_HCM', 'VP_KH-HCM' ), 'VP_KH-HCM' );
+t( '🔴 chỉ định cơ sở chính là VP_KH-HCM thì cửa ghi NHẬN', ! empty( $r_csc['ok'] )
+	&& ! empty( $r_csc['doiChinh'] ), $r_csc );
+teq( 'và cột cua_hang đổi thật', 'VP_KH-HCM', (string) vhcc_hs( 'CSC1' )['cua_hang'] );
+teq( 'còn cơ sở kia rơi xuống coso_phu', 'JP_HCM', (string) vhcc_hs( 'CSC1' )['coso_phu'] );
+/* 🔴 KHÔNG AI BỊ MẤT CƠ SỞ NÀO. Đây là đổi thứ tự, không phải chuyển cửa hàng. */
+teq( '🔴 vẫn đủ HAI cơ sở, chỉ đổi cái đứng đầu', array( 'VP_KH-HCM', 'JP_HCM' ),
+	VHCC_NhanSu::ds_coso_hs( vhcc_hs( 'CSC1' ) ) );
+t( '🔴 và KHÔNG bị coi là "chuyển cơ sở" (doi = false)', empty( $r_csc['doi'] ), $r_csc );
+/* 🔴 QUYỀN RIÊNG CÒN NGUYÊN. `dat_ds_coso()` xoá sạch ngoại lệ khi người ta CHUYỂN cơ sở —
+   nhánh đổi cơ sở chính mà cũng xoá thì một cú bấm đổi mặc định là phạt oan cả một ô quyền. */
+$csc_nl = get_option( VHCC_Cong::O );
+t( '🔴 đổi cơ sở chính KHÔNG reset quyền riêng',
+	isset( $csc_nl['CSC1']['cham_cong'] ) && 'mo' === $csc_nl['CSC1']['cham_cong'], $csc_nl );
+teq( 'và cửa ghi nói thẳng là không gỡ ô nào', 0, (int) $r_csc['go'] );
+
+/* 🔴 ĐO CÁI ANH THẮNG NHÌN THẤY. Nhãn "cơ sở chính" trên trạm đọc `coSoMacDinh`, mà giá trị
+   ấy đi từ `cua_hang` -> thẻ phiên -> `VHCC_Online::thong_tin()`. Đo mỗi cột trong bảng là đo
+   nửa đường: cột đổi mà ô chọn trên trạm không đổi thì việc này chưa xong. */
+VHCC_Auth::mo_khoa();
+$csc_pin2 = VHCC_Tram::tim_pin( '717273' );
+teq( '🔴 thẻ phiên nay mang VP_KH-HCM', 'VP_KH-HCM', (string) $csc_pin2['coso'] );
+$csc_tt = VHCC_Online::thong_tin( array( 'ma_nv' => 'CSC1', 'ho_ten' => 'Người Hai Cơ Sở',
+	'coso' => $csc_pin2['coso'] ) );
+teq( '🔴 trạm chọn sẵn VP_KH-HCM (nhãn "cơ sở chính" đổi theo)', 'VP_KH-HCM',
+	(string) $csc_tt['coSoMacDinh'] );
+t( '🔴 mà vẫn chấm được ở CẢ HAI cơ sở', in_array( 'JP_HCM', $csc_tt['dsCoSo'], true )
+	&& in_array( 'VP_KH-HCM', $csc_tt['dsCoSo'], true ), $csc_tt['dsCoSo'] );
+
+/* Bấm lại đúng cái đang có = không đổi gì, không ghi gì. */
+$r_csc2 = VHCC_NhanSu::dat_ds_coso( $U_CSC, 'CSC1', array( 'JP_HCM', 'VP_KH-HCM' ), 'VP_KH-HCM' );
+t( 'chỉ định lại đúng cơ sở đang chính thì không đổi gì',
+	! empty( $r_csc2['ok'] ) && empty( $r_csc2['doi'] ) && empty( $r_csc2['doiChinh'] ), $r_csc2 );
+
+/* 🔴 KHÔNG TRUYỀN `$chinh` THÌ THỨ TỰ GỬI LÊN KHÔNG ĐƯỢC TỰ QUYẾT ĐỊNH GÌ. Luật cũ:
+   *"kéo lại thứ tự tích không phải là chuyển cơ sở của ai"*. Bỏ vế này là mọi đường ghi khác
+   (lượt nạp, đường gọi mới về sau) âm thầm đẩy cơ sở chính về phần tử đầu danh sách của nó. */
+$r_csc3 = VHCC_NhanSu::dat_ds_coso( $U_CSC, 'CSC1', array( 'JP_HCM', 'VP_KH-HCM' ) );
+t( '🔴 không chỉ định thì thứ tự danh sách KHÔNG đổi được cơ sở chính',
+	empty( $r_csc3['doiChinh'] ) && 'VP_KH-HCM' === (string) vhcc_hs( 'CSC1' )['cua_hang'], $r_csc3 );
+
+/* Chỉ định một cơ sở KHÔNG có trong danh sách vừa tích (bỏ tích mà quên di nút tròn) — bỏ qua
+   nút tròn, KHÔNG chối cả lượt lưu. */
+$r_csc4 = VHCC_NhanSu::dat_ds_coso( $U_CSC, 'CSC1', array( 'JP_HCM', 'VP_KH-HCM' ), 'ZZ_KHONG_CO' );
+t( 'chỉ định cơ sở không có trong danh sách thì BỎ QUA, không báo lỗi',
+	! empty( $r_csc4['ok'] ) && 'VP_KH-HCM' === (string) vhcc_hs( 'CSC1' )['cua_hang'], $r_csc4 );
+
+/* Thêm cơ sở VÀ chỉ định nó làm chính trong CÙNG một lượt — đây mới là "chuyển cơ sở" thật,
+   nên quyền riêng bị reset (đúng luật cũ). */
+$r_csc5 = VHCC_NhanSu::dat_ds_coso( $U_CSC, 'CSC1',
+	array( 'JP_HCM', 'VP_KH-HCM', 'ZZ_MOI' ), 'ZZ_MOI' );
+t( '🔴 thêm cơ sở và đặt luôn làm chính trong một lượt', ! empty( $r_csc5['ok'] )
+	&& ! empty( $r_csc5['doi'] ) && 'ZZ_MOI' === (string) vhcc_hs( 'CSC1' )['cua_hang'], $r_csc5 );
+$csc_nl2 = get_option( VHCC_Cong::O );
+t( 'và lượt ấy MỚI reset quyền riêng (vì cơ sở thật sự đổi)',
+	! isset( $csc_nl2['CSC1'] ), $csc_nl2 );
+update_option( VHCC_Cong::O, is_array( $csc_nl_cu ) ? $csc_nl_cu : array() );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'cua_hang' => 'JP_HCM', 'coso_phu' => 'VP_KH-HCM' ), array( 'ma_nv' => 'CSC1' ) );
+
+/* ---- NÚT TRÒN PHẢI CÓ THẬT TRÊN MÀN, không chỉ có ở cửa ghi ---- */
+$tok_csc = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'CSCAD' );
+$h_csc = vhcc_hr_ns( $tok_csc );
+t( 'đang soi trang /nhan-su/ thật', strpos( $h_csc, 'name="cs_co[CSC1]"' ) !== false,
+	substr( $h_csc, 0, 300 ) );
+t( '🔴 lưới cơ sở có nút tròn "chính" cho từng cơ sở',
+	strpos( $h_csc, 'name="cs_chinh[CSC1]" value="VP_KH-HCM"' ) !== false, null );
+t( 'và nút của cơ sở đang chính được đánh dấu sẵn',
+	preg_match( '#name="cs_chinh\[CSC1\]" value="JP_HCM"\s+checked#', $h_csc ) === 1, null );
+/* 🔴 Ô ẨN CHỞ CƠ SỞ CHÍNH ĐANG CÓ, ĐẶT TRƯỚC MỌI NÚT TRÒN — hàng của người CHỈ CÓ MỘT cơ sở
+   không vẽ nút nào, không chở thì lượt Lưu đẩy cơ sở chính của họ về đầu bảng chữ cái. */
+t( '🔴 có ô ẩn chở cơ sở chính đang có',
+	strpos( $h_csc, '<input type="hidden" name="cs_chinh[CSC1]" value="JP_HCM">' ) !== false, null );
+$_p_ch = strpos( $h_csc, 'name="cs_chinh[CSC1]" value="JP_HCM">' );
+$_p_ra = strpos( $h_csc, 'type="radio" name="cs_chinh[CSC1]"' );
+t( '🔴 và ô ẩn đứng TRƯỚC nút tròn (PHP lấy giá trị gửi sau)',
+	false !== $_p_ch && false !== $_p_ra && $_p_ch < $_p_ra, array( $_p_ch, $_p_ra ) );
+
+/* ---- LƯỢT POST THẬT trên trang /nhan-su/ ---- */
+$_POST = array(
+	'o'        => array( 'CSC1' => array( 'tram' => '' ) ),
+	'cs_co'    => array( 'CSC1' => '1' ),
+	'cs'       => array( 'CSC1' => array( 'JP_HCM', 'VP_KH-HCM' ) ),
+	'cs_chinh' => array( 'CSC1' => 'VP_KH-HCM' ),
+);
+$bao_csc = VHCC_TrangNS::lam_viec( 'luu_quyen', $U_CSC );
+$_POST = array();
+teq( '🔴 bấm nút tròn rồi Lưu thì cơ sở chính đổi THẬT', 'VP_KH-HCM',
+	(string) vhcc_hs( 'CSC1' )['cua_hang'] );
+t( 'và màn hình nói ra là vừa đổi CƠ SỞ CHÍNH',
+	strpos( (string) wp_json_encode( $bao_csc ), 'CƠ SỞ CHÍNH' ) !== false, $bao_csc );
+/* ⚠️ Câu báo phải nói luôn "vẫn làm ở đủ những cơ sở đang tích" — người bấm vừa đọc chữ
+   "đổi cơ sở" thì lo nhất là mình có vừa gỡ ai khỏi một cửa hàng hay không. */
+t( 'câu báo nói rõ họ KHÔNG bị gỡ khỏi cơ sở nào',
+	strpos( (string) wp_json_encode( $bao_csc ), 'vẫn làm ở đủ' ) !== false, $bao_csc );
+
+/* ---- và cùng một nút ở ô "Cơ sở làm việc" trong hồ sơ ---- */
+$h_hs_csc = vhcc_web_nhu2( 'CSCAD', 'Admin', '', array( 'man' => 'ho_so', 'sua' => 'CSC1' ) );
+t( 'đang soi biểu mẫu hồ sơ thật', strpos( $h_hs_csc, 'name="coso_o[]"' ) !== false,
+	substr( $h_hs_csc, 0, 300 ) );
+t( '🔴 ô "Cơ sở làm việc" cũng có nút tròn "chính"',
+	strpos( $h_hs_csc, 'name="coso_chinh" value="JP_HCM"' ) !== false, null );
+t( 'và nút của cơ sở đang chính được đánh dấu sẵn',
+	preg_match( '#name="coso_chinh" value="VP_KH-HCM"\s+checked#', $h_hs_csc ) === 1, null );
+/* 🔴 PHÉP THỬ PHẢI CHỌN CƠ SỞ MÀ LUẬT CŨ **KHÔNG** CHO. Lưới này `ksort()` theo bảng chữ cái
+   rồi lấy phần tử đầu, nên hỏi `JP_HCM` (đứng trước `VP_KH-HCM`) là hỏi đúng cái luật cũ vẫn
+   trả về — xanh mà chẳng chứng minh gì. Nên: về JP_HCM trước, rồi hỏi VP_KH-HCM. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'cua_hang' => 'JP_HCM', 'coso_phu' => 'VP_KH-HCM' ), array( 'ma_nv' => 'CSC1' ) );
+vhcc_web_post_nhu( 'CSCAD', 'Admin', '', array( 'viec' => 'sua_hs', 'ma_nv' => 'CSC1',
+	'coso_o' => array( 'JP_HCM', 'VP_KH-HCM' ), 'coso_chinh' => 'VP_KH-HCM' ) );
+teq( '🔴 lưu hồ sơ với nút tròn VP_KH-HCM thì cua_hang là VP_KH-HCM', 'VP_KH-HCM',
+	(string) vhcc_hs( 'CSC1' )['cua_hang'] );
+teq( 'và JP_HCM vẫn còn nguyên trong coso_phu', 'JP_HCM',
+	(string) vhcc_hs( 'CSC1' )['coso_phu'] );
+/* Chiều ngược lại cũng phải ăn, và cũng phải chọn cơ sở mà bảng chữ cái KHÔNG trả về: tích
+   thêm `AA_CSC` (đứng đầu bảng) rồi hỏi `JP_HCM`. */
+vhcc_web_post_nhu( 'CSCAD', 'Admin', '', array( 'viec' => 'sua_hs', 'ma_nv' => 'CSC1',
+	'coso_o' => array( 'AA_CSC', 'JP_HCM', 'VP_KH-HCM' ), 'coso_chinh' => 'JP_HCM' ) );
+teq( '🔴 chiều ngược lại cũng ăn (bảng chữ cái sẽ trả AA_CSC)', 'JP_HCM',
+	(string) vhcc_hs( 'CSC1' )['cua_hang'] );
+teq( 'và hai cơ sở kia còn đủ trong coso_phu', array( 'JP_HCM', 'AA_CSC', 'VP_KH-HCM' ),
+	VHCC_NhanSu::ds_coso_hs( vhcc_hs( 'CSC1' ) ) );
+
+/* 🔴 CHỐT "ĐỔI CỬA HÀNG CẦN QUẢN LÝ" KHÔNG ĐƯỢC CHẶN LƯỢT ĐỔI THỨ TỰ. `VHCC_NhanSu::luu_ho_so()`
+   canh cột `cua_hang`, mà nút tròn ghi vào đúng cột ấy — nên vai có `ho_so` nhưng không có
+   `ngoai_coso` (Kế toán trong mấy sổ vai tuỳ chỉnh) sẽ bị chối oan, kèm một câu nhắc "ô Cơ sở
+   phụ" đã bỏ từ 3.13.0. */
+$src_ns_csc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php' );
+t( '🔴 chốt đổi cửa hàng có vế "chỉ đổi thứ tự chính/phụ"',
+	strpos( $src_ns_csc, '$chi_doi_thu_tu' ) !== false, null );
+t( 'và câu chối không còn nhắc ô "Cơ sở phụ" đã bỏ',
+	strpos( $src_ns_csc, 'khai vào ô Cơ sở phụ' ) === false, null );
+
+/* ---- TRẠM PHẢI GIẢI THÍCH "CHÍNH" NGHĨA LÀ GÌ ---- */
+/* Hai cái nhãn ấy đọc lên như thứ bậc, nên người ở hai nơi tưởng cơ sở "phụ" là hạng hai và
+   công ở đó không được tính đủ — đúng nỗi lo đứng sau câu hỏi của anh Thắng. */
+$src_tram_csc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+t( '🔴 trạm nói rõ "cơ sở chính" chỉ là cơ sở CHỌN SẴN',
+	strpos( $src_tram_csc, 'chỉ là cơ ' ) !== false
+	&& strpos( $src_tram_csc, 'chọn sẵn</b>' ) !== false, null );
+t( 'và nói cơ sở nào cũng được tính công đủ như nhau',
+	strpos( $src_tram_csc, 'tính công đủ như nhau' ) !== false, null );
+t( 'và chỉ luôn chỗ đổi', strpos( $src_tram_csc, 'ô Cơ sở trong hồ sơ' ) !== false, null );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='CSC1'" );
+
 vhcc_dung_bang();
 
 

@@ -1918,6 +1918,21 @@ class VHCC_Web {
 					$cp[]     = $m;
 				}
 			}
+			/* 🔴 NÚT TRÒN "chính" QUYẾT ĐỊNH CÁI NÀO VÀO `cua_hang`, không phải thứ tự vẽ.
+			   Trước 3.62.0 chỗ này lấy phần tử ĐẦU của lưới ô tích, mà lưới ấy `ksort()` theo
+			   bảng chữ cái — nên cơ sở chính của người tích `JP_HCM` + `VP_KH-HCM` không có
+			   cách nào rời khỏi `JP_HCM`. Tên gửi lên mà không nằm trong danh sách vừa tích thì
+			   BỎ QUA (bỏ tích một cơ sở nhưng quên di nút tròn), không chối cả lượt lưu. */
+			$c_ch = isset( $_POST['coso_chinh'] )
+				? VHCC_NhanSu::chu_thuong( trim( (string) wp_unslash( $_POST['coso_chinh'] ) ) ) : '';
+			if ( '' !== $c_ch ) {
+				foreach ( $cp as $i_ch => $v_ch ) {
+					if ( VHCC_NhanSu::chu_thuong( $v_ch ) !== $c_ch ) { continue; }
+					unset( $cp[ $i_ch ] );
+					$cp = array_merge( array( $v_ch ), array_values( $cp ) );
+					break;
+				}
+			}
 			$ghi['cua_hang'] = $cp ? array_shift( $cp ) : '';
 			$ghi['coso_phu'] = implode( ', ', $cp );
 		}
@@ -8169,7 +8184,7 @@ class VHCC_Web {
 	 * Cả hai đi cùng một tên `coso_phu_o[]`, nên bộ nhận ở `luu_ho_so()` không cần biết giá trị
 	 * đến từ ô tích hay từ ô gõ.
 	 */
-	private static function o_coso_phu( $dang_co ) {
+	private static function o_coso_phu( $dang_co, $chinh = '' ) {
 		$chon = array();
 		foreach ( explode( ',', (string) $dang_co ) as $x ) {
 			$x = trim( $x );
@@ -8182,23 +8197,53 @@ class VHCC_Web {
 		$ds = self::ds_moi_coso();
 		ksort( $ds );
 
+		/* 🔴 NÚT TRÒN "CHÍNH" — anh Thắng 09/09/2026: *"làm sao để chuyển đổi cơ sở chính và cơ
+		   sở phụ"*. Cột `cua_hang` = cơ sở CHÍNH, và trước bản 3.62.0 nó chỉ là "ô tích đứng
+		   đầu danh sách" — mà danh sách này `ksort()` theo bảng chữ cái, nên đổi thì không có
+		   đường nào ngoài gõ tay lại cả hai cột ở màn wp-admin. Nay chỉ ra được bằng một nút.
+
+		   ⚠️ CHỈ VẼ KHI CÓ TỪ HAI CƠ SỞ TRỞ LÊN. Một cơ sở thì "chính" không có nghĩa gì, mà
+		      thêm một nút tròn vào mỗi dòng là mỗi dòng dài thêm cho một lựa chọn không có thật.
+		   ⚠️ Ô ẨN chở cơ sở chính đang có, ĐẶT TRƯỚC mọi nút tròn: hàng không vẽ nút (một cơ sở,
+		      hoặc cơ sở chính là tên gõ tay chưa có trong danh mục) mà không chở thì lượt Lưu
+		      này đẩy cơ sở chính về cơ sở đầu bảng chữ cái. PHP lấy giá trị GỬI SAU cho một tên
+		      vô hướng, nên nút tròn bấm được luôn đè lên ô ẩn. */
+		$chinh   = VHCC_NhanSu::chuan_coso( $chinh );
+		$k_chinh = VHCC_NhanSu::chu_thuong( $chinh );
+		$ve_ch   = count( $ds ) > 1;
+
 		$h = '<div style="border:1px solid var(--vien);border-radius:8px;padding:8px 10px;'
 			. 'background:var(--the,#fff)">';
+		if ( '' !== $chinh ) {
+			$h .= '<input type="hidden" name="coso_chinh" value="' . esc_attr( $chinh ) . '">';
+		}
 		if ( $ds ) {
 			$h .= '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;max-height:180px;overflow:auto">';
 			foreach ( $ds as $k => $v ) {
+				$h .= '<span style="display:flex;align-items:center;gap:2px;white-space:nowrap">';
 				$h .= '<label style="display:flex;align-items:center;gap:5px;font-size:13px;'
 					. 'font-weight:400;white-space:nowrap">'
 					. '<input type="checkbox" name="coso_o[]" value="' . esc_attr( $v ) . '"'
 					. checked( isset( $chon[ $k ] ), true, false ) . '>'
 					. esc_html( $v ) . '</label>';
+				if ( $ve_ch ) {
+					$h .= '<label title="Đặt ' . esc_attr( $v ) . ' làm CƠ SỞ CHÍNH — cơ sở được'
+						. ' chọn sẵn khi người này mở trang chấm công. Chấm ở cơ sở nào đã tích'
+						. ' cũng được tính đủ." style="display:flex;align-items:center;gap:2px;'
+						. 'font-size:11px;font-weight:400;color:var(--mo)">'
+						. '<input type="radio" name="coso_chinh" value="' . esc_attr( $v ) . '"'
+						. checked( $k === $k_chinh, true, false ) . '>chính</label>';
+				}
+				$h .= '</span>';
 			}
 			$h .= '</div>';
 		}
 		$h .= '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
 			. '<input name="coso_o[]" list="dl_cp" placeholder="cơ sở khác — gõ mã rồi Lưu"'
 			. ' style="flex:1;min-width:190px;font-size:13px">'
-			. '<span class="mo" style="font-size:11.5px">Tích bao nhiêu cơ sở cũng được.</span>'
+			. '<span class="mo" style="font-size:11.5px">Tích bao nhiêu cơ sở cũng được.'
+			. ( $ve_ch ? ' Nút <b>chính</b> = cơ sở chọn sẵn lúc chấm công; cơ sở nào đã tích'
+				. ' cũng chấm được và tính đủ.' : '' ) . '</span>'
 			. '</div></div>';
 		return $h;
 	}
@@ -8526,7 +8571,8 @@ JS;
 						. esc_attr( $g( $c ) ) . '" style="width:100%">';
 				} elseif ( 'cua_hang' === $c ) {
 					/* Lưới gộp: hiện CẢ hai cột, tích cái nào là làm ở đó. */
-					echo self::o_coso_phu( trim( $g( 'cua_hang' ) . ', ' . $g( 'coso_phu' ), ' ,' ) );
+					echo self::o_coso_phu( trim( $g( 'cua_hang' ) . ', ' . $g( 'coso_phu' ), ' ,' ),
+						$g( 'cua_hang' ) );
 				} else {
 					/* Ô gõ CÓ GỢI Ý cho mấy ô hay lệch cách viết. Trạng thái làm việc cố ý vẫn là
 					   ô GÕ chứ không phải ô chọn: luật "đã nghỉ" đọc theo chữ "nghỉ" trong câu

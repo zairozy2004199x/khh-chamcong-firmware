@@ -340,6 +340,64 @@ Phép thử: 8 phép trong `test-cham-cong.php` (đo **cả hai đầu**: cửa 
 trạm có thật sự nhận nhầm người không — đo mỗi cửa ghi thì chốt đặt sai chỗ vẫn xanh) và 20 phép
 trong `kiem-tram.php`.
 
+## 4d. Chuyển đổi cơ sở chính ↔ cơ sở phụ — 3.62.0 (09/09/2026)
+
+Anh Thắng, trước khối **"Cơ sở được chấm công"** trên trạm (`JP_HCM · cơ sở chính` /
+`VP_KH-HCM · cơ sở phụ`): *"làm sao để chuyển đổi cơ sở chính cà cơ sở phụ"*.
+
+### Trả lời ngắn
+
+Ở **ô Cơ sở** (cột *Cơ sở* của trang `/nhan-su/`, hoặc ô *Cơ sở làm việc* trong hồ sơ) nay mỗi cơ
+sở có thêm một **nút tròn `chính`**. Bấm nút tròn của cơ sở muốn đặt làm chính rồi bấm **Lưu** —
+xong. Không cần bỏ tích cơ sở nào, và **không ai bị gỡ khỏi cửa hàng nào**.
+
+Nút tròn chỉ hiện khi người ấy có **từ hai cơ sở trở lên** — một cơ sở thì "chính" không có nghĩa.
+
+### "Cơ sở chính" nghĩa là gì (và không nghĩa là gì)
+
+| Có nghĩa | Không có nghĩa |
+|---|---|
+| Cơ sở được **chọn sẵn** trong ô "đang có mặt ở cơ sở nào" lúc lưu lượt chấm | Không phải "cơ sở duy nhất được tính công" |
+| Cơ sở đứng ở cột `cua_hang` — vài phép gom cần **một** tên thì lấy tên này | Không phải thứ bậc: cơ sở phụ **được tính công đủ như nhau** |
+| Cơ sở đi vào thẻ phiên (`coso`), nên nó là nhãn `cơ sở chính` anh thấy trên trạm | Không quyết định quyền: quyền đi theo **vai**, phạm vi theo **ô tích** |
+
+Trạm nay in thẳng câu ấy dưới bảng cơ sở, vì hai cái nhãn kia đọc lên như thứ bậc và người làm
+hai nơi tưởng công ở cơ sở "phụ" là hạng hai.
+
+### Trước 3.62.0 thì **không có đường nào** — ba lớp cùng chặn
+
+1. Cả hai lưới ô tích gửi tên cơ sở lên theo **thứ tự vẽ**, mà thứ tự vẽ đã `sort()`/`ksort()`
+   theo bảng chữ cái.
+2. Nơi ghi lấy **phần tử đầu** làm `cua_hang`. Nên `JP_HCM` + `VP_KH-HCM` thì cơ sở chính vĩnh
+   viễn là `JP_HCM`.
+3. `VHCC_NhanSu::dat_ds_coso()` so hai danh sách theo **tập hợp** rồi trả về sớm — có kéo lại thứ
+   tự cũng không ghi.
+
+Đường duy nhất còn lại là gõ tay lại cả ô *Cơ sở làm việc* ở màn **wp-admin** (nó giữ nguyên thứ
+tự gõ) — không ai biết, và màn ấy sắp bỏ.
+
+### Ba chốt đi kèm
+
+* **Đổi cơ sở chính KHÔNG reset quyền riêng.** Chuyển cơ sở thật (thêm/bỏ) thì ngoại lệ quyền của
+  người ấy bị xoá về mặc định — đúng luật cũ. Nhưng đổi cái đứng đầu của **cùng một danh sách**
+  thì không: phạt một ô quyền cho một cú bấm đổi mặc định là phạt oan.
+* **Phải phụ trách cả hai đầu.** Đổi cơ sở chính giữa `A` và `B` thì người bấm phải phụ trách cả
+  `A` lẫn `B` — cơ sở chính là cơ sở mặc định của người ta, đổi hộ ở một nơi mình không phụ trách
+  là đổi sau lưng.
+* **Không truyền chỉ định thì thứ tự danh sách không tự quyết định gì.** Luật cũ còn nguyên cho
+  mọi đường ghi khác (lượt nạp .csv, bản kéo sheet): *"kéo lại thứ tự tích không phải là chuyển cơ
+  sở của ai"*.
+
+Và chốt *"đổi cửa hàng cần Quản lý"* trong `VHCC_NhanSu::luu_ho_so()` nay có vế
+`$chi_doi_thu_tu`: đổi thứ tự chính/phụ **trong cùng danh sách cơ sở người ấy đang có** không
+phải là chuyển cửa hàng, nên Kế toán bấm được — không thì cái nút vừa thêm bị khoá với đúng những
+người hay dùng nó, kèm một câu chối nhắc "ô Cơ sở phụ" đã bỏ từ 3.13.0.
+
+Đo bằng 37 phép trong `tools/test/test-cham-cong.php` — kể cả đường thật anh Thắng nhìn thấy:
+`cua_hang` → `VHCC_Tram::tim_pin()` → `VHCC_Online::thong_tin()['coSoMacDinh']`.
+
+---
+
 ---
 
 ## 5. Nằm ở đâu trong mã
