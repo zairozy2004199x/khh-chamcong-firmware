@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.2.0
+ * Version:           0.2.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1125,6 +1125,32 @@ class SAOKE_App {
 	public static function shortcode() {
 		$rest = esc_url_raw( rest_url( self::NS ) );
 		ob_start(); ?>
+<style id="skp-an-theme">
+/* Ẩn header/footer/tiêu đề của theme để trang sao kê chiếm trọn màn */
+.wp-site-blocks > header.wp-block-template-part, .wp-site-blocks > footer.wp-block-template-part,
+header.wp-block-template-part, footer.wp-block-template-part,
+#masthead, #colophon, .site-header, .site-footer, .wp-block-site-title,
+.wp-block-post-title, .entry-header, header.entry-header { display:none !important; }
+#wpadminbar { display:none !important; }
+html { margin-top:0 !important; }
+* html body { margin-top:0 !important; }
+body { margin:0 !important; padding:0 !important; background:#0b1220 !important; }
+/* Ép nội dung tràn full màn — bỏ giới hạn chiều rộng, lề & padding của theme */
+.wp-site-blocks, .wp-site-blocks > *, .entry-content, .wp-block-group, main, .site-main, .content-area,
+.wp-block-post-content, article, .page, .type-page, .hentry,
+.is-layout-constrained, .is-layout-flow, .is-layout-constrained > *,
+.wp-block-post-content > *, .entry-content > *, .alignwide, .alignfull {
+	max-width:none !important; width:auto !important;
+	margin-left:0 !important; margin-right:0 !important;
+	padding-left:0 !important; padding-right:0 !important;
+	margin-top:0 !important; padding-top:0 !important;
+}
+html, body, .wp-site-blocks, .entry-content, .wp-block-post-content, main, article { overflow-x:clip !important; }
+/* Full-bleed: phá khung ra sát mép dù cha căn giữa */
+.skp { position:relative !important; left:50% !important; right:50% !important;
+	margin-left:-50vw !important; margin-right:-50vw !important; width:100vw !important; max-width:100vw !important; }
+.skp .sk-main { max-width:none !important; }
+</style>
 <div class="skp" data-rest="<?php echo esc_attr( $rest ); ?>">
 	<div id="skPin" class="sk-pinbox">
 		<h2>🔒 Sao Kê Ngân Hàng K&amp;H</h2>
