@@ -3,7 +3,7 @@
  * Plugin Name:       Nhà Ma · Bán vé theo khung giờ (Ghost Bride VIP)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé nhà ma theo KHUNG GIỜ, chạy thẳng trên host. Trang khách ở /ban-ve-nha-ma (chọn khung giờ, giữ chỗ, nhận mã QR VietQR để chuyển khoản), cổng nhận tiền tự động từ ngân hàng (SePay/Casso) tự duyệt thiệp, gửi mã vé + QR vé qua Zalo OA (nối bằng một nút, tự làm mới token), trang quản trị ở /ban-ve-nha-ma/#quanly (duyệt tiền, soát vé tại cửa, đối soát, sổ tiền về). Sổ vé nằm trong MySQL của chính website — không Google Sheet, không Firebase. ĐỘC LẬP với plugin bán vé khu vui chơi và plugin ghế.
- * Version:           1.5.1
+ * Version:           1.5.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -42,7 +42,7 @@ class NHAMA {
 
 	const NS   = 'nhama/v1';
 	const BANG = 'nhama_don';
-	const VER  = '1.5.1';
+	const VER  = '1.5.2';
 
 	/** Trạng thái đơn — thứ tự này cũng là vòng đời. */
 	const TT = array(
@@ -2069,8 +2069,16 @@ function veZalo(){
   var t=(CFQ.zalo_tt)||{};
   var h="<div class='q-o' style='word-break:break-all;font-size:12.5px' data-chep='"+esc(t.callback||"")+"'>"
     +esc(t.callback||"")+"</div>"
-    +"<p class='q-nho' style='margin:6px 0 10px'>↑ Dán chuỗi này vào ô <b>Redirect URI / Callback URL</b> "
-    +"của ứng dụng bên developers.zalo.me trước khi bấm Kết nối.</p>";
+    +"<p class='q-nho' style='margin:6px 0 10px'>↑ Dán chuỗi này (bấm để chép, <b>đừng gõ tay</b>) vào ô "
+    +"<b>Redirect URI / Callback URL</b> của ứng dụng bên developers.zalo.me.</p>"
+    +"<p class='q-nho' style='margin:0 0 10px;padding:8px 10px;border-left:3px solid var(--q-cam)'>"
+    +"Bấm Kết nối mà Zalo hiện <b>error_code -14003 · Invalid redirect uri</b> thì Zalo chối ngay từ "
+    +"cửa nó, chưa hề gọi về website — đúng hai lý do:<br>"
+    +"<b>1.</b> Miền <b>chưa xác thực XONG</b>. Điền ô <i>Miền ứng dụng</i> thôi là chưa đủ: phải tải "
+    +"tệp <code>zalo_verifier….html</code> Zalo đưa lên thư mục gốc <code>public_html</code>, mở thử "
+    +"đúng địa chỉ tệp ấy thấy ra chữ, rồi mới bấm <b>Xác thực</b> cho tới khi hiện <i>Đã xác thực</i>.<br>"
+    +"<b>2.</b> Chuỗi trên <b>khớp từng ký tự</b> với ô bên Zalo — thừa dấu <code>/</code> ở cuối, "
+    +"thiếu chữ <code>s</code> trong <code>https</code>, hay có <code>www</code> là chối.</p>";
   if (!t.co_app){
     h+="<div style='color:var(--q-cam)'>⚠️ Chưa khai ID ứng dụng và khoá bí mật — điền hai ô trên rồi "
       +"bấm <b>LƯU MÀN HÌNH</b>, nút Kết nối mới hiện.</div>";

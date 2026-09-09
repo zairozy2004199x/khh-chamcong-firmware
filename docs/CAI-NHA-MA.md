@@ -1,6 +1,6 @@
 # Nhà Ma · Bán vé theo khung giờ — cài & vận hành
 
-*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.1. Một file PHP, cài qua wp-admin như mọi plugin khác.*
+*Plugin `wordpress/vhcp-nha-ma` — bản 1.5.2. Một file PHP, cài qua wp-admin như mọi plugin khác.*
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -65,9 +65,18 @@ Bốn bước, làm **một lần**:
 1. **developers.zalo.me** → tạo ứng dụng → lấy **ID ứng dụng** + **Khoá bí mật** (ở *Thông tin ứng
    dụng*). Ứng dụng phải thêm sản phẩm **Official Account**.
 2. Trong màn *Cài đặt hệ thống* của plugin, điền hai chuỗi ấy → **LƯU MÀN HÌNH**. Màn sẽ in ra một
-   **địa chỉ callback** dạng `https://khmatrix.com/nha-ma-zalo` — **dán chuỗi đó vào ô Redirect
-   URI / Callback URL của ứng dụng bên Zalo**. Bỏ bước này thì bấm Kết nối sẽ bị Zalo chối với câu
-   *"redirect_uri không hợp lệ"*, mà câu ấy không nói phải đi khai ở đâu.
+   **địa chỉ callback** dạng `https://khmatrix.com/nha-ma-zalo` — bấm vào để chép (**đừng gõ tay**)
+   rồi **dán vào ô Redirect URI / Callback URL của ứng dụng bên Zalo**.
+2b. **Xác thực miền cho XONG.** Bên Zalo → *Cài đặt → Xác thực domain*: điền `khmatrix.com`, tải tệp
+   `zalo_verifier….html` Zalo đưa, đẩy lên **thư mục gốc `public_html`** (cùng chỗ với `wp-config.php`,
+   không phải trong `wp-content`), mở thử `https://khmatrix.com/zalo_verifier….html` thấy ra chữ, rồi
+   bấm **Xác thực** cho tới khi trạng thái là **Đã xác thực**.
+
+   > 🔴 Đây là chỗ vấp thật ngày 09/09/2026. Điền ô *Miền ứng dụng* rồi mà chưa xác thực xong thì bấm
+   > Kết nối, Zalo hiện **`error_code -14003 · Invalid redirect uri`** — câu ấy nghe như sai địa chỉ
+   > callback nên người ta đi sửa callback, sửa mãi không ra, trong khi thứ thiếu là *xác thực miền*.
+   > Lý do thứ hai cũng ra đúng câu ấy: chuỗi callback **lệch một ký tự** (thừa `/` cuối, thiếu chữ
+   > `s` trong `https`, hay có `www`).
 3. **Liên kết OA với ứng dụng**: bên OA Manager → *Quản lý → Quản lý liên kết* → cấp quyền cho
    ứng dụng vừa tạo.
 4. Quay lại màn Cài đặt, bấm **🔗 KẾT NỐI ZALO OA** → Zalo hỏi chọn OA → xong tự quay về. Màn sẽ
