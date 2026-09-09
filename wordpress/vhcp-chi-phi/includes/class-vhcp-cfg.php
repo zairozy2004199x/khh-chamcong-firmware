@@ -463,6 +463,37 @@ class VHCP_Cfg {
 			: 'Danh mục đã đủ — không có cơ sở nào bên Ghế còn thiếu.' );
 	}
 
+	/**
+	 * BÁO SANG PLUGIN GHẾ: mấy cơ sở thuộc đơn vị POSH vừa được lưu ở màn Cấu hình.
+	 *
+	 * Anh Thắng 09/09/2026: *"chỉ đẩy sang nếu nó là đơn vị posh thôi"* — chốt sau khi nghe
+	 * rằng đẩy hết cả danh mục sang sẽ nhét đầy ô chọn cơ sở bên ghế bằng những chỗ không bao
+	 * giờ có ghế nào.
+	 *
+	 * 🔴 LỌC THEO ĐƠN VỊ, KHÔNG ĐẨY CẢ BẢNG. Danh mục bên này ôm toàn bộ K&H — khu vui chơi,
+	 *    văn phòng, kỹ thuật, công tác. Chỉ mảng POSH mới là chỗ có ghế.
+	 *
+	 * 🔴 BÁO CHO MỌI DÒNG POSH, KHÔNG CHỈ DÒNG VỪA ĐỔI. Nghe thì thừa, nhưng bên kia CHỈ THÊM
+	 *    khi chưa có nên báo thừa không sinh ra gì. Còn lọc "chỉ dòng mới" thì mọi cơ sở POSH
+	 *    khai TRƯỚC ngày có tính năng này vĩnh viễn không bao giờ sang, mà chẳng có gì báo là
+	 *    chúng thiếu — bấm Lưu lại cũng không cứu được, vì lúc ấy chúng đâu có "vừa đổi". Đổi
+	 *    lại là mỗi lượt lưu tốn thêm một câu tra cho mỗi gian POSH; lưu cấu hình là việc hoạ
+	 *    hoằn, còn một gian mất tích thì im lặng mãi mãi.
+	 *
+	 * ⚠️ KHÔNG PHÁT TỪ `nhan_coso_ngoai()`. Hàm ấy là ĐẦU NHẬN của chiều ngược lại (ghế -> đây);
+	 *    phát ở đó là hai plugin ném qua ném lại một cái tên không dứt. Đầu phát chỉ nằm ở đây,
+	 *    trên đúng đường người ta bấm Lưu.
+	 */
+	private static function bao_coso_posh_( $rows ) {
+		foreach ( (array) $rows as $r ) {
+			$r  = array_values( (array) $r );
+			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			$dv = VHCP_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' );
+			if ( '' === $tn || self::DON_VI_GHE !== $dv ) { continue; }
+			do_action( 'vhcp_coso_posh_da_luu', $tn );
+		}
+	}
+
 	public static function count_rows( $bang ) {
 		global $wpdb;
 		$t = VHCP_DB::t( 'cfg' );
@@ -839,6 +870,7 @@ class VHCP_Cfg {
 				$rows = array_merge( $giu, $rows );
 			}
 			self::write( self::COSO, $rows );
+			self::bao_coso_posh_( $rows );
 		}
 		if ( isset( $cfg['nhom'] ) && is_array( $cfg['nhom'] ) ) {
 			$rows = array();
