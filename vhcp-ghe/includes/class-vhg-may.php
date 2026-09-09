@@ -27,6 +27,17 @@ class VHG_May {
 	}
 
 	/**
+	 * 🔴 BÁO RA NGOÀI BẰNG MÓC `vhg_coso_da_luu` (tên cơ sở). Plugin Vận Hành Chi Phí nghe móc
+	 * này để đưa cơ sở mới sang danh mục của nó — anh Thắng 08/09/2026: *"khi tạo cơ sở mới bên
+	 * ghế, hệ thống tự đẩy cơ sở sang luôn"*.
+	 *
+	 * ⚠️ PHÁT MÓC CHỨ KHÔNG GỌI THẲNG SANG PLUGIN KIA. Hai plugin cài rời nhau; gọi thẳng thì gỡ
+	 *    một cái là cái còn lại chết. Không ai nghe thì `do_action` là lệnh rỗng, không tốn gì.
+	 *
+	 * ⚠️ PHÁT Ở CẢ BA NHÁNH, kể cả nhánh "cơ sở này đã có". Bên kia CHỈ THÊM khi chưa có nên phát
+	 *    thừa là vô hại, mà phát thiếu thì cơ sở ấy im lặng không bao giờ sang — và không có gì
+	 *    báo là nó thiếu. Nhánh "đã có" còn tự vá được lượt đẩy nào lỡ rơi mất trước đó.
+	 *
 	 * @param string|null $ma_kh Mã khách hàng bên sổ kế toán (KH00108…). null = KHÔNG đụng.
 	 *
 	 * ⚠️ `null` KHÁC chuỗi rỗng, và sự khác nhau ấy quan trọng. Mọi chỗ gọi hàm này từ trước
@@ -54,6 +65,7 @@ class VHG_May {
 			if ( $co_reset ) { $data['reset_moi_lan'] = $reset; }
 			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
 			self::quen_dem_reset_();
+			do_action( 'vhg_coso_da_luu', $ten );
 			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
@@ -63,11 +75,13 @@ class VHG_May {
 			if ( $co_makh ) { $data_cu['ma_kh'] = $ma_kh; }
 			if ( $co_reset ) { $data_cu['reset_moi_lan'] = $reset; }
 			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); self::quen_dem_reset_(); }
+			do_action( 'vhg_coso_da_luu', $ten );
 			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
 		}
 		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '',
 			'ma_kh' => $co_makh ? $ma_kh : '', 'reset_moi_lan' => $co_reset ? $reset : 0 ) );
 		self::quen_dem_reset_();
+		do_action( 'vhg_coso_da_luu', $ten );
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 
