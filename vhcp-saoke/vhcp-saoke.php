@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.3.3
+ * Version:           0.3.4
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -434,7 +434,9 @@ class SAOKE_App {
 		$exp = time() + 12 * 3600;
 		return new WP_REST_Response( array( 'access_token' => self::vqr_make_token( $exp ), 'token_type' => 'Bearer', 'expires_in' => 12 * 3600 ), 200 );
 	}
-	/* VietQR gọi mỗi khi có biến động — Bearer token do mình cấp. Lưu vào saoke_cong (nguon=vietqr). */
+	/* VietQR gọi mỗi khi có biến động. VietQR ở TÀI KHOẢN KHÁC với SePay → đây là tiền THẬT
+	   trên tài khoản đó, SePay không thấy → lưu thẳng vào SAO KÊ NGÂN HÀNG (saoke_gd), gộp chung.
+	   Không sợ trùng: khác tài khoản + mã GD riêng (chống trùng theo sepay_id 'vqr-<mã>'). */
 	public static function r_vqr_callback( $req ) {
 		$h = self::auth_header( $req ); $bearer = 0 === stripos( $h, 'bearer ' ) ? trim( substr( $h, 7 ) ) : '';
 		if ( '' === $bearer || ! self::vqr_check_token( $bearer ) ) {
@@ -447,24 +449,23 @@ class SAOKE_App {
 		$maGD = (string) $g( array( 'transactionid', 'transactionId', 'transaction_id', 'ftCode', 'traceId' ) );
 		$ref  = (string) $g( array( 'referencenumber', 'referenceNumber', 'reference_number', 'orderId', 'orderid' ) );
 		$tt   = strtoupper( (string) $g( array( 'transType', 'transtype', 'type' ), 'C' ) );
-		$huong = ( 'D' === $tt || 'DEBIT' === $tt || 'OUT' === $tt ) ? 'Đi' : 'Đến';
-		$thoi = $g( array( 'transactiontime', 'transactionTime', 'transaction_time', 'time', 'transactionDate' ) );
-		$thoiDiem = self::vqr_ngay( $thoi );
-		$tx = array(
-			'nguon' => 'vietqr',
-			'maGD' => $maGD, 'ref' => $ref,
-			'thoiDiem' => $thoiDiem,
-			'soTien' => self::num( $g( array( 'amount', 'transferAmount', 'amountIn', 'creditAmount' ), 0 ) ),
-			'huong' => $huong, 'trangThai' => (string) $g( array( 'status' ) ),
-			'soTK' => (string) $g( array( 'bankaccount', 'bankAccount', 'accountNumber', 'account_number' ) ),
-			'noiDung' => (string) $g( array( 'content', 'description', 'orderInfo', 'addInfo' ) ),
-			'diemBan' => (string) $g( array( 'terminalCode', 'terminalcode', 'storeName', 'merchantName', 'subTerminalCode' ) ),
-			'raw' => $raw,
-		);
-		$tx['docDuoc'] = ( $tx['soTien'] > 0 && '' !== $tx['thoiDiem'] );
-		$tx['khoa'] = self::cong_khoa( 'vietqr', $tx, $raw );
-		$moi = self::luu_cong( $tx );
-		self::ghi_log( 'vietqr-official', $moi ? ( '✔ đã lưu ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua', $raw );
+		$loai = ( 'D' === $tt || 'DEBIT' === $tt || 'OUT' === $tt ) ? 'out' : 'in';
+		$thoiDiem = self::vqr_ngay( $g( array( 'transactiontime', 'transactionTime', 'transaction_time', 'time', 'transactionDate' ) ) );
+		$sid = '' !== $maGD ? ( 'vqr-' . $maGD ) : ( 'vqr-' . $ref );
+		if ( 'vqr-' === $sid ) { $sid = 'vqr-' . substr( md5( (string) $raw ), 0, 20 ); }
+		$moi = self::luu_gd( array(
+			'sepay_id'  => $sid,
+			'ngay_gd'   => self::cong_ngay_mysql( $thoiDiem ),
+			'so_tk'     => (string) $g( array( 'bankaccount', 'bankAccount', 'accountNumber', 'account_number' ) ),
+			'ngan_hang' => (string) $g( array( 'bankName', 'bank_name', 'bankCode' ), 'VietQR' ),
+			'loai'      => $loai,
+			'tien'      => (int) round( self::num( $g( array( 'amount', 'transferAmount', 'amountIn', 'creditAmount' ), 0 ) ) ),
+			'luy_ke'    => null,
+			'noi_dung'  => (string) $g( array( 'content', 'description', 'orderInfo', 'addInfo' ) ),
+			'ma_gd'     => '' !== $ref ? $ref : $maGD,
+			'nguon'     => 'vietqr',
+		) );
+		self::ghi_log( 'vietqr-official', $moi ? ( '✔ đã lưu vào Sao kê NH ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua', $raw );
 		// VietQR chờ đúng envelope này để coi là nhận thành công.
 		return new WP_REST_Response( array( 'error' => false, 'errorReason' => '', 'toControllerCode' => '',
 			'object' => array( 'reftransactionid' => '' !== $maGD ? $maGD : $ref ) ), 200 );
