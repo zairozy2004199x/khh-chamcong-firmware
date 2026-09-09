@@ -113,6 +113,45 @@ class VHCP_DonVi {
 		return $out;
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MỘT ĐƠN = MỘT CƠ SỞ, HAY MỘT ĐƠN NHIỀU CƠ SỞ — TUỲ ĐƠN VỊ.
+	 *
+	 * Anh Thắng 09/09/2026: *"đối với kvc chọn theo cơ sở để lên đơn, còn đối với [POSH], 1 đơn
+	 * sẽ nhiều cơ sở cho từng chi phí nhỏ"*. Chốt trục phân biệt: *"theo trục đơn vị"*.
+	 *
+	 * 🔴 KHÔNG PHẢI DỰNG MỚI — LÀ MỞ LẠI. Bảng tạm ứng khoá theo CẶP `(ma_don, coso)` ngay từ
+	 *    đầu, và màn đơn vẫn trả `tamUng` dạng bảng tra theo cơ sở. Luật "một đơn = một cơ sở"
+	 *    là lớp khoá GẮN THÊM ngày 01/09/2026, đúng lúc ấy đúng cho KVC: tiền giao cho một người
+	 *    ở một gian rồi đối chiếu theo gian đó, nên xin tạm ứng nơi này mà chi nơi khác là sai.
+	 *    Mảng POSH đi ngược lại: một đợt chi rải qua nhiều gian, mỗi dòng nhỏ một gian.
+	 *
+	 * ⚠️ ĐỐI CHIẾU THỪA/THIẾU VẪN TÍNH THEO CẢ ĐƠN, không tách theo gian — anh Thắng chốt
+	 *    *"tính theo 1 đơn"*. Phần cộng tiền sẵn đã cộng hết mọi cơ sở của đơn nên không đụng.
+	 *
+	 * ⚠️ KHAI THÊM ĐƠN VỊ thì đặt khoá `vhcp_dv_nhieu_coso` (danh sách ngăn bằng dấu phẩy).
+	 *    Để mặc định trong hằng chứ không rải chữ "POSH" khắp mã: đổi một chỗ là xong.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Đơn vị nào cho một đơn ghép nhiều cơ sở — mặc định, đổi được bằng khoá cấu hình. */
+	const NHIEU_COSO_MAC_DINH = 'POSH';
+
+	/** Đơn vị này có cho một đơn ghép nhiều cơ sở không. */
+	public static function nhieu_coso( $don_vi ) {
+		$ds = get_option( 'vhcp_dv_nhieu_coso', null );
+		if ( ! is_string( $ds ) || '' === trim( $ds ) ) { $ds = self::NHIEU_COSO_MAC_DINH; }
+		foreach ( explode( ',', $ds ) as $x ) {
+			if ( '' !== trim( $x ) && self::bang( $x, $don_vi ) ) { return true; }
+		}
+		return false;
+	}
+
+	/** Đơn này có được ghép nhiều cơ sở không — tra theo đơn vị ghi trên chính đơn ấy. */
+	public static function don_nhieu_coso( $ma_don ) {
+		$d = VHCP_Don::don_row( $ma_don );
+		if ( ! $d ) { return false; }
+		return self::nhieu_coso( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) );
+	}
+
 	/** Bỏ khoảng trắng thừa; rỗng -> nhà mặc định. KHÔNG hạ chữ thường: tên hiện lên màn. */
 	public static function chuan( $x ) {
 		$x = trim( (string) $x );

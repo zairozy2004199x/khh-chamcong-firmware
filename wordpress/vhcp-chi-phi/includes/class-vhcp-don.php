@@ -1069,6 +1069,10 @@ class VHCP_Don {
 		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
 		// Cơ sở đã chốt của đơn (mỗi đơn 1 cơ sở) — giao diện khóa ô chọn theo cái này
 		$don['cosoDon'] = self::coso_cua_don( $ma_don );
+		/* Giao diện cần BIẾT VÌ SAO ô cơ sở đang mở: đơn chưa có dòng nào (sắp chốt), hay đơn
+		   vị này vốn cho ghép nhiều gian (không bao giờ chốt). Hai ca ấy phải nhắc khác nhau —
+		   nhắc "thêm hạng mục đầu tiên là chốt cơ sở" cho đơn POSH là nói sai. */
+		$don['nhieuCoSo'] = VHCP_DonVi::don_nhieu_coso( $ma_don );
 
 		$bt_auto = self::chot_bu_tru( $ma_don );
 		if ( (string) $don['trangThai'] === 'Nháp' ) { $don['buTru'] = VHCP_Util::num( $bt_auto['so'] ); }
@@ -1538,6 +1542,23 @@ class VHCP_Don {
 	 */
 	public static function coso_cua_don( $ma_don ) {
 		global $wpdb;
+		/* 🔴 ĐƠN VỊ CHO GHÉP NHIỀU CƠ SỞ THÌ KHÔNG CHỐT GÌ CẢ — trả rỗng.
+		   Anh Thắng 09/09/2026: *"đối với kvc chọn theo cơ sở để lên đơn, còn đối với [POSH],
+		   1 đơn sẽ nhiều cơ sở cho từng chi phí nhỏ"*, trục phân biệt là ĐƠN VỊ.
+
+		   🔴 MỘT CHỖ NÀY THÁO ĐƯỢC CẢ BỐN CHỐT, vì cả bốn đều hỏi chính nó:
+		     · `get_don()`        -> `cosoDon` rỗng -> giao diện không khoá ô chọn
+		     · `set_tam_ung()`    -> `$cs_don === ''` -> nhận tạm ứng cho cơ sở thứ hai
+		     · `loi_khac_coso()`  -> `$cu === ''` -> dòng chi gắn cơ sở nào cũng được
+		     · nhãn 🏢 trên đầu đơn -> không bày một cơ sở như thể đơn chỉ có nó
+		   Rải bốn chỗ kiểm riêng là bốn chỗ để quên, và chỗ quên nào cũng ra một nửa tính năng:
+		   ô chọn mở mà máy chủ vẫn chối, hoặc ngược lại.
+
+		   ⚠️ TÊN HÀM VẪN ĐÚNG NGHĨA: nó trả "cơ sở đã CHỐT của đơn". Đơn ghép nhiều gian thì
+		      không có gian nào được chốt cả, nên rỗng là câu trả lời thật, không phải lách.
+		      Muốn biết đơn đụng những gian nào thì hỏi `cac_coso_cua_don()` — chốt phân quyền
+		      vẫn đi qua hàm ấy nên người phụ trách gian thứ hai vẫn mở được đơn. */
+		if ( VHCP_DonVi::don_nhieu_coso( $ma_don ) ) { return ''; }
 		/* 🔴 MỘT ĐƠN = MỘT CƠ SỞ (anh Thắng 01/09/2026): tạm ứng nhập cho cơ sở nào thì đơn CHỐT
 		   cơ sở đó, để ô nhập hạng mục khóa theo — không còn cảnh xin tạm ứng cơ sở này mà lên chi
 		   phí cơ sở khác. Ưu tiên cơ sở của TẠM ỨNG (thường nhập trước), rồi mới tới dòng chi. */

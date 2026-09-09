@@ -5215,9 +5215,20 @@
     if(!sel.disabled && tu.value){ sel.value=tu.value; _khoaCoSoHint(); }
   }
   /** Chưa có dòng nào: nhắc trước là chọn cơ sở nào là đơn chốt luôn cơ sở đó. */
+  /* 🔴 HAI CA "Ô CƠ SỞ ĐANG MỞ" PHẢI NHẮC KHÁC NHAU.
+       · đơn chưa có dòng nào  -> thêm hạng mục đầu là CHỐT cơ sở, cơ sở khác phải tạo đơn mới
+       · đơn vị cho ghép nhiều gian (POSH) -> KHÔNG bao giờ chốt, mỗi dòng một gian tuỳ ý
+     Nhắc câu thứ nhất cho đơn POSH là nói sai với người dùng: họ đọc xong sẽ đi tạo năm cái đơn
+     cho năm gian, đúng thứ anh Thắng vừa bỏ. Cờ `nhieuCoSo` lấy TỪ MÁY CHỦ, không đoán ở đây —
+     luật nằm ở `VHCP_DonVi::nhieu_coso()`, đoán lại là hai nơi khai một luật. */
   function _khoaCoSoHint(){
     var sel=el('f_coso'), note=el('cosoLock'); if(!sel||!note) return;
     if(sel.disabled) return;
+    if(CUR&&CUR.don&&CUR.don.nhieuCoSo){
+      note.style.display='block';
+      note.innerHTML='🏬 Đơn này ghép <b>nhiều cơ sở</b> — mỗi hạng mục chọn gian của riêng nó, và tạm ứng khai theo từng gian. Thừa/thiếu vẫn đối chiếu trên CẢ ĐƠN.';
+      return;
+    }
     var v=String(sel.value||'');
     if(v){ note.style.display='block'; note.innerHTML='ℹ️ Thêm hạng mục đầu tiên là đơn chốt cơ sở <b>'+esc(v)+'</b> — cơ sở khác phải tạo đơn mới'; }
     else { note.style.display='none'; }
