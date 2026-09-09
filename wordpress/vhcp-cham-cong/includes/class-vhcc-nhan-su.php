@@ -2498,7 +2498,7 @@ class VHCC_NhanSu {
 	 * ⚠️ Lời gọi `VHCC_Mat` gác bằng `class_exists`/`method_exists` NGAY TRONG hàm này (luật
 	 *    `tools/test/kiem-goi-cheo.php`): gỡ lớp nhận diện ra thì đường này tự tắt, không nổ.
 	 */
-	public static function anh_the_tu_cham( $u, $ma_nv ) {
+	public static function anh_the_tu_cham( $u, $ma_nv, $day_may = true ) {
 		global $wpdb;
 		$ma = trim( (string) $ma_nv );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
@@ -2535,11 +2535,26 @@ class VHCC_NhanSu {
 			array( 'anh_the' => $kq['anh'], 'cap_nhat' => current_time( 'mysql' ) ),
 			array( 'ma_nv' => $ma ) );
 		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }
-		/* Đẩy luôn xuống máy — cùng đường với `luu_anh_the_rieng()`, khỏi bắt bấm thêm lượt nữa. */
-		$day = self::day_ho_so_moi_len_may( $u, $ma, null );
-		return array( 'ok' => true, 'thong_bao' => 'Đã lấy ảnh chấm công ngày ' . $a['ngay']
-			. ' (lệch ' . number_format( (float) $a['d'], 3 ) . ' — càng nhỏ càng rõ mặt) làm ảnh thẻ cho '
-			. $hs['ho_ten'] . '.' . ( ! empty( $day['ok'] ) ? ' ' . $day['thong_bao'] : '' ) );
+		$cau = 'Đã lấy ảnh chấm công ngày ' . $a['ngay'] . ' (lệch '
+			. number_format( (float) $a['d'], 3 ) . ' — càng nhỏ càng rõ mặt) làm ảnh thẻ cho '
+			. $hs['ho_ten'] . '.';
+
+		/* 🔴 09/09/2026 — HAI VIỆC, HAI NÚT. Anh Thắng: *"nên tách ra 2 phần, vì 1 số cơ sở không
+		   có máy chấm công, việc đẩy sẽ sinh ra lệnh thừa"*.
+		   Lệnh thừa KHÔNG sinh ra thật (`lenh_may_()` không máy nào thì không lệnh nào). Nhưng
+		   gộp hai việc vào một nút vẫn sai ở chỗ khác: lưu ảnh là việc TRONG phần mềm, lùi được
+		   bằng một lượt sửa hồ sơ; đẩy xuống máy là việc ĐI RA NGOÀI, tới một cái máy đang chạy ở
+		   cửa hàng, và gỡ thì phải qua lệnh `delete`. Hai mức hậu quả khác nhau thì phải là hai
+		   quyết định khác nhau — nhất là khi người ta chỉ muốn dọn cho xong cột ảnh thẻ, chưa
+		   muốn động vào máy.
+		   ⚠️ Mặc định VẪN đẩy (`$day_may = true`) để mấy đường gọi cũ không đổi hành vi. */
+		if ( $day_may ) {
+			$day = self::day_ho_so_moi_len_may( $u, $ma, null );
+			if ( ! empty( $day['ok'] ) ) { $cau .= ' ' . $day['thong_bao']; }
+		} else {
+			$cau .= ' CHƯA đẩy xuống máy chấm công — ảnh mới chỉ nằm trong hồ sơ.';
+		}
+		return array( 'ok' => true, 'thong_bao' => $cau );
 	}
 
 	/**

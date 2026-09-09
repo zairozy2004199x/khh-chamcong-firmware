@@ -19343,6 +19343,49 @@ teq( 'chuỗi rỗng vẫn là rỗng', '', VHCC_MayCong::b64_tron( '' ) );
 teq( 'data: mà không phải base64 thì đừng đoán, trả nguyên',
 	'data:image/png,abc', VHCC_MayCong::b64_tron( 'data:image/png,abc' ) );
 
+/* ---- DẢI BÁO Ở TRANG QUẢN LÝ NHÂN SỰ ------------------------------------------------
+   🔴 Anh Thắng 09/09/2026: *"chỗ hồ sơ này, nếu nv có ảnh hợp lệ chờ lưu hoặc đẩy vào máy thì
+   đưa một thông báo nhỏ và link dẫn sang để đẩy"*. Khối lấy ảnh nằm ở màn Bảng công; người đang
+   đứng ở trang Quản lý nhân sự không có gì nói cho biết bên kia có sẵn ảnh dùng được. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+$_cho = VHCC_Mat::cho_lay_anh_theo_coso();
+t( '🔴 đếm được người đang chờ lấy ảnh, theo cơ sở',
+	isset( $_cho['TUTU_BT'] ) && $_cho['TUTU_BT'] >= 1, $_cho );
+/* ⚠️ Người ĐÃ có ảnh thẻ phải rơi ra khỏi danh sách — không thì dải báo cứ đỏ mãi sau khi đã
+   dọn xong, rồi thành tiếng ồn và không ai đọc nữa. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'anh_the' => 'data:image/jpeg;base64,QUJD' ), array( 'ma_nv' => 'AC1' ) );
+$_cho2 = VHCC_Mat::cho_lay_anh_theo_coso();
+t( '🔴 có ảnh thẻ rồi thì thôi đếm',
+	! isset( $_cho2['TUTU_BT'] ) || $_cho2['TUTU_BT'] < $_cho['TUTU_BT'], $_cho2 );
+/* Người ĐÃ NGHỈ cũng không đếm — gọi họ ra chụp lại là việc không có thật. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'anh_the' => '', 'trang_thai_lam_viec' => 'Đã nghỉ việc' ), array( 'ma_nv' => 'AC1' ) );
+$_cho3 = VHCC_Mat::cho_lay_anh_theo_coso();
+t( '🔴 người đã nghỉ thì không đếm',
+	! isset( $_cho3['TUTU_BT'] ) || $_cho3['TUTU_BT'] < $_cho['TUTU_BT'], $_cho3 );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'trang_thai_lam_viec' => 'Đang làm' ), array( 'ma_nv' => 'AC1' ) );
+
+$_h_ns = vhcc_hr_ns( VHCC_Auth::phat_token( 'Sếp NS', 'Admin', '', 'ACAD' ) );
+t( 'trang Quản lý nhân sự có dựng thật (kẻo phép dưới soi trang chối)',
+	strpos( $_h_ns, 'Ai vào được trang nào' ) !== false, substr( $_h_ns, 0, 300 ) );
+t( '🔴 có dải báo "đã có sẵn ảnh khuôn mặt dùng được"',
+	strpos( $_h_ns, 'ĐÃ có sẵn ảnh khuôn mặt dùng được' ) !== false, null );
+t( '🔴 và có ĐƯỜNG DẪN sang đúng màn Bảng công của cơ sở ấy',
+	strpos( $_h_ns, 'man=cham' ) !== false && strpos( $_h_ns, 'ccs=TUTU_BT' ) !== false, null );
+/* ⚠️ Dải báo KHÔNG được kê cơ sở ngoài phạm vi người xem: vừa là chỗ rò tên cơ sở, vừa là mấy
+   đường dẫn bấm vào chỉ nhận câu chối. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'AC9', 'ho_ten' => 'Người Cơ Sở Lạ',
+	'cua_hang' => 'CS_NGOAI_PHAM_VI', 'anh_the' => '', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'mat_nhat_ky' ), array( 'ma_nv' => 'AC9', 'ngay' => '2026-09-02',
+	'coso' => 'CS_NGOAI_PHAM_VI', 'd' => 0.2, 'ket_qua' => 'khop', 'co_gan' => 0 ) );
+$_h_cht = vhcc_hr_ns( VHCC_Auth::phat_token( 'Anh CHT', 'Cửa hàng trưởng', 'TUTU_BT', 'ACCHT' ) );
+t( '🔴 Cửa hàng trưởng KHÔNG thấy cơ sở ngoài phạm vi trong dải báo',
+	strpos( $_h_cht, 'CS_NGOAI_PHAM_VI' ) === false, null );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='AC9'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_nhat_ky' ) . " WHERE ma_nv='AC9'" );
+
 /* ⚠️ Cơ sở CHƯA gắn máy nào thì vẫn phải LƯU ẢNH, và nói thẳng là chưa có máy — chứ không chối
    cả việc lưu. Ảnh thẻ còn dùng cho chấm công online và cho việc đối chiếu, không chỉ cho máy. */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );
@@ -19369,14 +19412,56 @@ t( '🔴 màn hiện ẢNH đề xuất ngay, không giấu sau thẻ gập',
 	strpos( $h_ac, 'vhcc-cham/2026/09/ac-ro.jpg' ) !== false, null );
 t( 'có nút lấy cho từng người', strpos( $h_ac, 'value="anh_the_tu_cham"' ) !== false, null );
 t( 'và nút lấy cho cả cơ sở', strpos( $h_ac, 'value="anh_the_tu_cham_het"' ) !== false, null );
-/* 🔴 NHÃN NÚT PHẢI NÓI RA HẬU QUẢ, KHÔNG NÓI VỀ TẤM ẢNH. Anh Thắng nhìn nút cũ ("Dùng ảnh này")
-   và phải hỏi *"khúc này là lưu vào hệ thống hay đẩy vào máy chấm công"* — câu hỏi ấy là lời
-   phán xử cho cái nhãn. Hậu quả có HAI nửa, mà nửa thứ hai đi ra ngoài phần mềm: xuống một cái
-   máy ở cửa hàng. Người bấm phải biết trước. */
-t( '🔴 nút từng người nói rõ LÀM GÌ, không chỉ nói về tấm ảnh',
-	strpos( $h_ac, 'Lưu vào hồ sơ &amp; đẩy xuống máy' ) !== false, null );
-t( '🔴 nút cả cơ sở cũng nói rõ hai việc',
-	strpos( $h_ac, 'Lưu &amp; đẩy xuống máy cho cả' ) !== false, null );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HAI VIỆC = HAI NÚT, VÀ KHÔNG CÓ MÁY THÌ ĐỪNG HỨA — 09/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"khúc này là lưu vào hệ thống hay đẩy vào máy chấm công"* (nhãn cũ "Dùng ảnh này"
+ * nói về TẤM ẢNH chứ không nói về HẬU QUẢ), rồi *"nên tách ra 2 phần, vì 1 số cơ sở không có máy
+ * chấm công, việc đẩy sẽ sinh ra lệnh thừa"*.
+ * Lưu ảnh là việc TRONG phần mềm, lùi được bằng một lượt sửa hồ sơ; đẩy xuống máy là việc ĐI RA
+ * NGOÀI, tới một cái máy đang chạy ở cửa hàng, gỡ thì phải qua lệnh `delete`. Hai mức hậu quả
+ * khác nhau thì phải là hai quyết định khác nhau.
+ */
+t( 'màn (cơ sở CHƯA có máy) có nút "Chỉ lưu vào hồ sơ"',
+	strpos( $h_ac, 'Chỉ lưu vào hồ sơ' ) !== false, null );
+/* 🔴 Cơ sở KHÔNG có máy thì KHÔNG vẽ nút đẩy. Lệnh thừa không sinh ra thật (đã dựng lại để
+   chắc — xem phép thử "chưa gắn máy nào thì VẪN lưu được"), nhưng một cái nút hứa "đẩy xuống
+   máy" ở nơi không có máy nào thì hoặc người ta tưởng đã đẩy, hoặc ngờ phần mềm hỏng. */
+t( '🔴 cơ sở CHƯA có máy thì KHÔNG vẽ nút đẩy',
+	strpos( $h_ac, 'Lưu &amp; đẩy xuống máy' ) === false, null );
+t( 'và nói thẳng là cơ sở chưa gắn máy nào',
+	strpos( $h_ac, 'chưa gắn máy chấm công nào' ) !== false, null );
+
+/* Gắn máy vào rồi vẽ lại: nay PHẢI có đủ hai nút. Không đo lượt này thì phép "không thấy nút
+   đẩy" ở trên xanh cả khi nút ấy bị xoá hẳn khỏi mã. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC2', 'mac' => '',
+	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử hai nút' ) );
+$h_ac2 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+t( '🔴 cơ sở CÓ máy thì vẽ ĐỦ HAI nút',
+	strpos( $h_ac2, 'Chỉ lưu vào hồ sơ' ) !== false
+	&& strpos( $h_ac2, 'Lưu &amp; đẩy xuống máy' ) !== false, null );
+t( 'và nút đẩy mang ô ẩn atc_day', strpos( $h_ac2, 'name="atc_day" value="1"' ) !== false, null );
+t( 'dải xanh đếm đúng số máy của cơ sở',
+	strpos( $h_ac2, '<b>1 máy chấm công</b>' ) !== false, null );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC2'" );
+
+/* 🔴 CỬA GHI phải tôn trọng cờ ấy, không chỉ cái nút. Nút không vẽ chỉ là không mời; POST thì
+   ai gửi cũng tới — mà mặc định của cửa ghi là KHÔNG đẩy, nên một lượt gửi thiếu ô vẫn an toàn. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC3', 'mac' => '',
+	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử cờ' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+$r_kd = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC1', false );
+t( 'lưu KHÔNG đẩy vẫn ghi ảnh vào hồ sơ', ! empty( $r_kd['ok'] )
+	&& 0 === strpos( (string) vhcc_hs( 'AC1' )['anh_the'], 'data:image/jpeg' ), $r_kd );
+teq( '🔴 nhưng KHÔNG đặt lệnh nào xuống máy', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" ) );
+t( 'và câu báo nói thẳng là CHƯA đẩy',
+	strpos( (string) $r_kd['thong_bao'], 'CHƯA đẩy xuống máy' ) !== false, $r_kd );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC3'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
 /* ⚠️ Cùng một người KHÔNG được hiện hai dòng nghe như hai việc khác nhau. Dòng gập bên dưới là
    ĐƯỜNG DỰ PHÒNG cho chính người ấy, nên phải đọc ra là dự phòng. */
 t( '🔴 dòng gập của người ĐÃ có đề xuất đọc ra là đường dự phòng',
@@ -19389,11 +19474,7 @@ t( 'nói rõ lệch nhỏ nghĩa là rõ mặt', strpos( $h_ac, 'càng nhỏ cà
    tưởng nó lấy bừa tấm gần nhất rồi không dám dùng. */
 t( 'và nói rõ chỉ lấy từ lượt đã đối chiếu KHỚP',
 	strpos( $h_ac, 'đối chiếu KHỚP' ) !== false, null );
-/* Việc đẩy xuống máy phải NÓI RA trên màn: nó là nửa còn lại của cái người ta cần (anh Thắng:
-   *"và ảnh đó đẩy xuống máy chấm công luôn"*). Làm mà không nói thì người dùng vẫn đi gọi từng
-   người ra đứng trước đầu đọc — đúng cái việc vừa bỏ được. */
-t( '🔴 màn nói rõ ảnh đi thẳng xuống máy chấm công',
-	strpos( $h_ac, 'đi thẳng xuống máy chấm công' ) !== false, null );
+
 
 /* ---- lấy cả cơ sở: số bỏ qua phải kèm LÝ DO từng người ---- */
 /* Gắn lại máy: khối trên vừa gỡ nó ra để thử cảnh "cơ sở chưa có máy". Không gắn lại thì phép
@@ -19402,7 +19483,7 @@ t( '🔴 màn nói rõ ảnh đi thẳng xuống máy chấm công',
 $wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC1', 'mac' => '',
 	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử ảnh chấm công' ) );
 vhcc_web_post_nhu( 'ACAD', 'Admin', 'TUTU_BT',
-	array( 'viec' => 'anh_the_tu_cham_het', 'atc_coso' => 'TUTU_BT' ) );
+	array( 'viec' => 'anh_the_tu_cham_het', 'atc_coso' => 'TUTU_BT', 'atc_day' => '1' ) );
 $_lenh_het = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
 t( '🔴 lấy cả cơ sở cũng đẩy lệnh xuống máy, không chỉ ghi hồ sơ',
 	count( $_lenh_het ) >= 1 && '' !== (string) $_lenh_het[0]['anh_b64'], $_lenh_het );

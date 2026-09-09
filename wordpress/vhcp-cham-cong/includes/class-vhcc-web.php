@@ -1634,7 +1634,11 @@ class VHCC_Web {
 		   (`atc_coso`) — cả hai đều đi qua CÙNG một hàm, nên không có đường nào gác lỏng hơn. */
 		if ( 'anh_the_tu_cham' === $viec ) {
 			$ma = isset( $_POST['atc_ma'] ) ? trim( (string) wp_unslash( $_POST['atc_ma'] ) ) : '';
-			$r  = VHCC_NhanSu::anh_the_tu_cham( $toi, $ma );
+			/* ⚠️ MẶC ĐỊNH KHÔNG ĐẨY. Ô ẩn `atc_day` phải nói CÓ thì mới đẩy — cờ mặc định là
+			   "làm việc nhẹ hơn" thì một lượt POST thiếu ô vẫn an toàn. Ngược lại (mặc định đẩy)
+			   là một lượt gửi thiếu ô cũng đi thẳng xuống máy ở cửa hàng. */
+			$day = ! empty( $_POST['atc_day'] );
+			$r   = VHCC_NhanSu::anh_the_tu_cham( $toi, $ma, $day );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
 		}
 
@@ -1644,9 +1648,10 @@ class VHCC_Web {
 			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
 				return array( array( 'loi' => 'Cơ sở ' . $cs . ' không thuộc phạm vi của anh/chị.' ) );
 			}
+			$day  = ! empty( $_POST['atc_day'] );
 			$xong = 0; $bo = array();
 			foreach ( (array) VHCC_NhanSu::thieu_anh_the( $cs ) as $x ) {
-				$r = VHCC_NhanSu::anh_the_tu_cham( $toi, (string) $x['ma_nv'] );
+				$r = VHCC_NhanSu::anh_the_tu_cham( $toi, (string) $x['ma_nv'], $day );
 				if ( ! empty( $r['ok'] ) ) { $xong++; }
 				else { $bo[] = $x['ho_ten'] . ' — ' . $r['error']; }
 			}
@@ -1654,8 +1659,10 @@ class VHCC_Web {
 			   vướng gì là một con số không dùng được: người đọc không biết nên chờ thêm vài lượt
 			   chấm công, hay phải đi chụp ảnh tay. */
 			return array( array( 'ok' => true,
-				'xong' => 'Đã lấy ảnh thẻ cho ' . $xong . ' người, và đặt lệnh đẩy ảnh xuống máy '
-					. 'chấm công của cơ sở (máy nhận trong ~10 giây nếu đang online).',
+				'xong' => 'Đã lưu ảnh thẻ cho ' . $xong . ' người.' . ( $day
+					? ' Và đặt lệnh đẩy ảnh xuống máy chấm công của cơ sở (máy nhận trong ~10 giây '
+						. 'nếu đang online).'
+					: ' CHƯA đẩy xuống máy — ảnh mới chỉ nằm trong hồ sơ.' ),
 				'boQua' => $bo ) );
 		}
 
@@ -3756,25 +3763,47 @@ class VHCC_Web {
 				if ( '' !== $a['duong'] ) { $de_xuat[ (string) $x['ma_nv'] ] = $a; }
 			}
 		}
+		/* 🔴 CƠ SỞ CÓ MÁY KHÔNG — quyết định có VẼ nút đẩy hay không. Anh Thắng: *"1 số cơ sở
+		   không có máy chấm công, việc đẩy sẽ sinh ra lệnh thừa"*. Lệnh thừa không sinh ra thật,
+		   nhưng một cái nút hứa "đẩy xuống máy" ở nơi không có máy nào thì hoặc người ta tưởng đã
+		   đẩy, hoặc ngờ phần mềm hỏng. Không có máy thì đừng hứa. */
+		$so_may = ( class_exists( 'VHCC_May' ) && method_exists( 'VHCC_May', 'so_may_coso' ) )
+			? (int) VHCC_May::so_may_coso( $cs ) : 0;
+
 		if ( $de_xuat ) {
 			echo '<div class="bao ok" style="margin:10px 0 4px">📷 <b>' . count( $de_xuat ) . ' người '
 				. 'đã có sẵn ảnh mặt rõ</b> trong chính các lượt chấm công online của họ — lấy làm '
-				. 'ảnh thẻ được ngay, khỏi đi chụp lại. <b>Ảnh đi thẳng xuống máy chấm công của cơ '
-				. 'sở luôn</b>, nên không phải gọi từng người ra đứng trước đầu đọc. '
+				. 'ảnh thẻ được ngay, khỏi đi chụp lại. '
+				. ( $so_may > 0
+					? 'Cơ sở này có <b>' . $so_may . ' máy chấm công</b>, nên có thêm nút đẩy ảnh '
+						. 'xuống máy luôn. '
+					: '<b>Cơ sở này chưa gắn máy chấm công nào</b>, nên chỉ lưu vào hồ sơ — ảnh vẫn '
+						. 'dùng cho chấm công online và đối chiếu khuôn mặt. ' )
 				. '<span class="mo">Máy chọn tấm <b>lệch nhỏ '
 				. 'nhất</b> so với mẫu của người đó: lệch nhỏ nghĩa là <b>rõ mặt, nhìn thẳng, '
 				. 'không khẩu trang, không mũ</b>. Chỉ lấy từ lượt đã <b>đối chiếu KHỚP</b> và '
 				. 'không bị gắn cờ — nên không lấy nhầm mặt người chấm hộ. '
 				. '<b>Nhìn ảnh rồi hãy bấm.</b></span>';
-			echo '<form method="post" style="margin-top:8px">'
-				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			$o_chung = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 				. '<input type="hidden" name="viec" value="anh_the_tu_cham_het">'
 				. '<input type="hidden" name="atc_coso" value="' . esc_attr( $cs ) . '">'
-				. self::o_loc()
-				. '<button class="chinh">Lưu &amp; đẩy xuống máy cho cả ' . count( $de_xuat )
-				. ' người</button> <span class="mo">— lưu ảnh vào hồ sơ <b>và</b> đặt lệnh xuống '
-				. 'máy chấm công, trong một lượt bấm. Người nào chưa có ảnh khớp thì bỏ qua, có '
-				. 'nói rõ vì sao.</span></form></div>';
+				. self::o_loc();
+			echo '<div class="hang" style="margin-top:8px;align-items:center">';
+			echo '<form method="post" style="margin:0">' . $o_chung
+				. '<button>Chỉ lưu vào hồ sơ — cả ' . count( $de_xuat ) . ' người</button></form>';
+			if ( $so_may > 0 ) {
+				echo '<form method="post" style="margin:0">' . $o_chung
+					. '<input type="hidden" name="atc_day" value="1">'
+					. '<button class="chinh">Lưu &amp; đẩy xuống máy — cả ' . count( $de_xuat )
+					. ' người</button></form>';
+			}
+			echo '</div>';
+			echo '<div class="mo" style="margin-top:5px">Người nào chưa có ảnh khớp thì bỏ qua, có '
+				. 'nói rõ vì sao. '
+				. ( $so_may > 0
+					? 'Chưa muốn động vào máy thì bấm nút <b>Chỉ lưu</b> — đẩy sau lúc nào cũng được.'
+					: 'Khi nào gắn máy cho cơ sở này thì đẩy sau, ảnh đã nằm sẵn trong hồ sơ.' )
+				. '</div></div>';
 		}
 
 		echo '<div class="tnv-ds" style="margin-top:8px">';
@@ -3795,19 +3824,24 @@ class VHCC_Web {
 					. esc_html( (string) $a['ngay'] ) . ' · lệch <b>'
 					. esc_html( number_format( (float) $a['d'], 3 ) ) . '</b> — càng nhỏ càng rõ mặt'
 					. '</span></div>';
-				echo '<form method="post" style="margin:0">'
-					. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				/* 🔴 09/09/2026 — NÚT PHẢI NÓI RA NÓ LÀM GÌ, VÀ HAI VIỆC LÀ HAI NÚT.
+				   Anh Thắng nhìn đúng nút này và hỏi *"khúc này là lưu vào hệ thống hay đẩy vào
+				   máy chấm công"*, rồi chốt *"nên tách ra 2 phần"*. Cả hai đều đúng một gốc: nhãn
+				   cũ ("Dùng ảnh này") nói về TẤM ẢNH chứ không nói về HẬU QUẢ — mà hậu quả có hai
+				   nửa ở hai mức khác hẳn nhau. Lưu ảnh là việc TRONG phần mềm, lùi được bằng một
+				   lượt sửa hồ sơ; đẩy xuống máy là việc ĐI RA NGOÀI, tới một cái máy đang chạy ở
+				   cửa hàng, gỡ thì phải qua lệnh `delete`. Hai mức hậu quả = hai quyết định. */
+				$o_ng = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 					. '<input type="hidden" name="viec" value="anh_the_tu_cham">'
 					. '<input type="hidden" name="atc_ma" value="' . esc_attr( $ma ) . '">'
-					. self::o_loc()
-					/* 🔴 09/09/2026 — NÚT PHẢI NÓI RA NÓ LÀM GÌ. Anh Thắng nhìn đúng nút này và
-					   hỏi: *"khúc này là lưu vào hệ thống hay đẩy vào máy chấm công"*. Câu hỏi ấy
-					   là lời phán xử cho cái nhãn cũ ("Dùng ảnh này"): nó nói về TẤM ẢNH chứ
-					   không nói về HẬU QUẢ. Mà hậu quả ở đây có hai nửa, và nửa thứ hai đi ra
-					   ngoài phần mềm — xuống một cái máy ở cửa hàng. Người bấm phải biết trước. */
-					. '<button class="them">Lưu vào hồ sơ &amp; đẩy xuống máy</button>'
-					. '<div class="mo" style="font-size:11.5px;margin-top:3px;max-width:180px">'
-					. 'Làm cả hai việc trong một lượt bấm.</div></form>';
+					. self::o_loc();
+				echo '<form method="post" style="margin:0">' . $o_ng
+					. '<button>Chỉ lưu vào hồ sơ</button></form>';
+				if ( $so_may > 0 ) {
+					echo '<form method="post" style="margin:0">' . $o_ng
+						. '<input type="hidden" name="atc_day" value="1">'
+						. '<button class="them">Lưu &amp; đẩy xuống máy</button></form>';
+				}
 				echo '</div>';
 			}
 			/* ⚠️ KHI ĐÃ CÓ ĐỀ XUẤT thì dòng gập bên dưới phải đọc KHÁC ĐI. Bản trước để nguyên

@@ -781,6 +781,49 @@ class VHCC_Mat {
 	}
 
 	/**
+	 * AI ĐANG CHỜ LẤY ẢNH THẺ — đếm theo cơ sở, MỘT lượt đọc cho cả chuỗi.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng: *"chỗ hồ sơ này, nếu nv có ảnh hợp lệ chờ lưu hoặc đẩy vào máy
+	 *    thì đưa một thông báo nhỏ và link dẫn sang để đẩy"*.
+	 *    Khối lấy ảnh nằm ở màn Bảng công, mà người mở trang Quản lý nhân sự thì đang nhìn đúng
+	 *    cột hồ sơ — không có gì nói cho họ biết là có sẵn ảnh dùng được ở màn bên.
+	 *
+	 * 🔴 KHÔNG GỌI `anh_chuan_cho()` CHO TỪNG NGƯỜI. Hàm ấy tra tới mười lượt chấm công mỗi
+	 *    người; nhân với hai trăm rưỡi hồ sơ là vài trăm lượt đọc cho MỘT DẢI BÁO. Ở đây chỉ cần
+	 *    biết *có hay không*, và câu ấy trả lời được bằng **một** phép nối bảng: ai chưa có ảnh
+	 *    thẻ mà đã từng có lượt đối chiếu KHỚP. Con số có thể nhỉnh hơn số thật vài người (ảnh
+	 *    của lượt ấy đã bị dọn khỏi ổ đĩa) — chấp nhận được cho một dải báo dẫn đường, vì màn kia
+	 *    mới là nơi nói chính xác từng người.
+	 *
+	 * ⚠️ Bỏ người ĐÃ NGHỈ: lọc bằng `VHCC_NhanSu::da_nghi()` trong PHP chứ không bằng `LIKE` trong
+	 *    SQL — luật "thế nào là đã nghỉ" khai một chỗ, và chép nó thành một mẫu chuỗi trong câu
+	 *    lệnh là dựng bộ luật thứ hai sẽ lệch.
+	 *
+	 * @return array [ 'CƠ_SỞ' => số người ] — đã sắp theo tên cơ sở.
+	 */
+	public static function cho_lay_anh_theo_coso() {
+		global $wpdb;
+		$t_hs = VHCC_DB::t( 'nhan_vien' );
+		$t_nk = VHCC_DB::t( 'mat_nhat_ky' );
+		if ( ! VHCC_DB::co_bang( $t_hs ) || ! VHCC_DB::co_bang( $t_nk ) ) { return array(); }
+		$ds = VHCC_DB::rows(
+			"SELECT DISTINCT n.ma_nv, n.cua_hang, n.trang_thai_lam_viec FROM $t_hs n"
+			. " JOIN $t_nk k ON k.ma_nv = n.ma_nv AND k.ket_qua='khop' AND k.co_gan=0"
+			. " WHERE n.ma_nv <> '' AND (n.anh_the IS NULL OR n.anh_the='')" );
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			if ( VHCC_NhanSu::da_nghi( isset( $x['trang_thai_lam_viec'] ) ? $x['trang_thai_lam_viec'] : '' ) ) {
+				continue;
+			}
+			$cs = VHCC_NhanSu::chuan_coso( (string) $x['cua_hang'] );
+			if ( '' === $cs ) { continue; }   // chưa khai cơ sở -> màn kia cũng không vẽ được
+			$ra[ $cs ] = ( isset( $ra[ $cs ] ) ? $ra[ $cs ] : 0 ) + 1;
+		}
+		ksort( $ra );
+		return $ra;
+	}
+
+	/**
 	 * Tệp ảnh chấm công ấy có còn nằm trên ổ đĩa không.
 	 * ⚠️ Hỏi Ổ ĐĨA chứ không hỏi cơ sở dữ liệu: cột `anh_vao` giữ đường dẫn, nhưng tệp thì bị
 	 *    dọn được (sao lưu, dọn ổ, chuyển host). Đề xuất một tấm không mở ra được là đưa người

@@ -1520,6 +1520,37 @@ class VHCC_TrangNS {
 				. 'sang nhau. Bấm <b>hồ sơ ↗</b> để xem rồi gộp hoặc sửa mã.</div>';
 		}
 
+		/* 🔴 09/09/2026 — DẢI BÁO "CÓ SẴN ẢNH CHỜ LẤY". Anh Thắng: *"chỗ hồ sơ này, nếu nv có
+		   ảnh hợp lệ chờ lưu hoặc đẩy vào máy thì đưa một thông báo nhỏ và link dẫn sang để
+		   đẩy"*. Khối lấy ảnh nằm ở màn Bảng công; người đang đứng ở trang này không có gì nói
+		   cho biết bên kia có sẵn ảnh dùng được.
+		   ⚠️ CHỈ ĐẾM CƠ SỞ NGƯỜI NÀY ĐƯỢC XEM. Dải báo mà kê tên cơ sở ngoài phạm vi thì nó vừa
+		      là một chỗ rò tên cơ sở, vừa là mấy đường dẫn bấm vào chỉ nhận câu chối.
+		   ⚠️ Gác `class_exists`/`method_exists` cùng hàm với lời gọi (luật `kiem-goi-cheo.php`):
+		      gỡ lớp nhận diện khuôn mặt ra thì dải này tự biến mất, không nổ. */
+		if ( class_exists( 'VHCC_Mat' ) && method_exists( 'VHCC_Mat', 'cho_lay_anh_theo_coso' )
+			&& class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
+			$cho_anh = array();
+			foreach ( (array) VHCC_Mat::cho_lay_anh_theo_coso() as $k_cs => $so_ng ) {
+				if ( VHCC_NhanSu::co_quyen_coso( $toi, $k_cs ) ) { $cho_anh[ $k_cs ] = (int) $so_ng; }
+			}
+			if ( $cho_anh ) {
+				$tong_anh = 0;
+				foreach ( $cho_anh as $so_ng ) { $tong_anh += $so_ng; }
+				echo '<div class="bao ok">📷 <b>' . $tong_anh . ' người chưa có ảnh thẻ nhưng ĐÃ có '
+					. 'sẵn ảnh khuôn mặt dùng được</b> trong các lượt chấm công online của chính họ '
+					. '— lấy làm ảnh thẻ được ngay, khỏi gọi ra chụp lại. Mở màn <b>Bảng công</b> của '
+					. 'cơ sở rồi bấm <b>Chỉ lưu vào hồ sơ</b> hoặc <b>Lưu &amp; đẩy xuống máy</b>:';
+				echo '<div class="hang" style="gap:6px;margin-top:6px">';
+				foreach ( $cho_anh as $k_cs => $so_ng ) {
+					echo '<a class="nut" href="' . esc_url( add_query_arg(
+						array( 'man' => 'cham', 'ccs' => $k_cs ), VHCC_Web::url() ) ) . '">'
+						. esc_html( $k_cs ) . ' <b>' . (int) $so_ng . '</b></a>';
+				}
+				echo '</div></div>';
+			}
+		}
+
 		self::o_tim( $toi, $cs, $q, $vai );
 
 		if ( ! $lat ) {
