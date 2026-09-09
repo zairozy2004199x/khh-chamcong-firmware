@@ -40,6 +40,7 @@ class SAOKE_App {
 		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
 		add_action( 'saoke_cron_sync', array( __CLASS__, 'cron_sync' ) );
 		add_action( 'saoke_cron_vqr', array( __CLASS__, 'cron_vqr_sheet' ) );
+		add_action( 'saoke_cron_conglog', array( __CLASS__, 'cron_cong_log' ) );
 		add_filter( 'cron_schedules', array( __CLASS__, 'them_lich' ) );
 		// Bảo đảm lịch tồn tại nếu đã bật auto-sync (WP-Cron kích khi có traffic).
 		if ( '1' === (string) get_option( 'saoke_autosync', '0' ) && ! wp_next_scheduled( 'saoke_cron_sync' ) ) {
@@ -47,6 +48,9 @@ class SAOKE_App {
 		}
 		if ( '' !== trim( (string) get_option( 'saoke_vqr_sheet', '' ) ) && ! wp_next_scheduled( 'saoke_cron_vqr' ) ) {
 			wp_schedule_event( time() + 120, 'saoke_5phut', 'saoke_cron_vqr' );
+		}
+		if ( '1' === (string) get_option( 'saoke_cong_log_auto', '0' ) && '' !== trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) && ! wp_next_scheduled( 'saoke_cron_conglog' ) ) {
+			wp_schedule_event( time() + 150, 'saoke_5phut', 'saoke_cron_conglog' );
 		}
 	}
 	public static function them_lich( $s ) { $s['saoke_5phut'] = array( 'interval' => 300, 'display' => 'Mỗi 5 phút (Sao Kê)' ); return $s; }
@@ -853,6 +857,55 @@ class SAOKE_App {
 		update_option( 'saoke_vqr_sheet_last', array( 'luc' => current_time( 'mysql' ), 'kq' => $log ) );
 	}
 
+	/* TẠM TRƯỚC khi VietQR API duyệt: kéo giao dịch cổng từ sheet NHẬT KÝ của app cũ.
+	   Cột "Chi tiết" chứa payload thô Tingo {"values":[[...]]} — đúng thứ webhook nhận, nên
+	   cong_doc_payload() đọc y hệt. Nạp vào bảng CỔNG (saoke_cong), dedup theo khoá -> không
+	   đếm trùng dù kéo lại nhiều lần hay app cũ vẫn đang nhận thêm. */
+	public static function keo_cong_log_sheet() {
+		$url = trim( (string) get_option( 'saoke_cong_log_sheet', '' ) );
+		if ( '' === $url ) { return new WP_Error( 'url', 'Chưa đặt link CSV Nhật ký (app cũ).', array( 'status' => 409 ) ); }
+		$res = wp_remote_get( $url, array( 'timeout' => 60, 'redirection' => 5, 'headers' => array( 'Accept' => 'text/csv' ) ) );
+		if ( is_wp_error( $res ) ) { return $res; }
+		$code = (int) wp_remote_retrieve_response_code( $res );
+		$body = (string) wp_remote_retrieve_body( $res );
+		if ( 200 !== $code || false !== stripos( substr( $body, 0, 200 ), '<html' ) ) {
+			return new WP_Error( 'sheet', 'Không đọc được CSV (HTTP ' . $code . '). Sheet Nhật ký phải "Xuất bản lên web" dạng CSV.', array( 'status' => 502 ) );
+		}
+		$lines = preg_split( '/\r\n|\r|\n/', $body );
+		$rows = array();
+		foreach ( $lines as $ln ) { if ( '' === trim( $ln ) ) { continue; } $rows[] = str_getcsv( $ln ); }
+		if ( count( $rows ) < 2 ) { return array( 'moi' => 0, 'trung' => 0, 'message' => 'sheet chưa có dữ liệu' ); }
+		$cChi = -1; $cKq = -1;
+		foreach ( (array) $rows[0] as $i => $h ) {
+			$x = self::kd( $h );
+			if ( $cChi < 0 && preg_match( '/chi tiet|payload|detail|raw/', $x ) ) { $cChi = (int) $i; }
+			if ( $cKq < 0 && preg_match( '/ket qua|nguon|result/', $x ) ) { $cKq = (int) $i; }
+		}
+		if ( $cChi < 0 ) { foreach ( (array) $rows[1] as $i => $v ) { if ( false !== strpos( (string) $v, '"values"' ) || false !== strpos( (string) $v, '{' ) ) { $cChi = (int) $i; break; } } }
+		if ( $cChi < 0 ) { return new WP_Error( 'col', 'Không tìm ra cột "Chi tiết" (payload {"values":[...]}).', array( 'status' => 400 ) ); }
+		$moi = 0; $trung = 0; $kho = 0;
+		for ( $i = 1; $i < count( $rows ); $i++ ) {
+			$raw = isset( $rows[ $i ][ $cChi ] ) ? (string) $rows[ $i ][ $cChi ] : '';
+			if ( '' === trim( $raw ) || false === strpos( $raw, '"values"' ) ) { continue; } // chỉ payload Tingo (cổng), bỏ dòng log khác
+			$nguon = 'vietqr';
+			if ( $cKq >= 0 && isset( $rows[ $i ][ $cKq ] ) && preg_match( '/\[([a-z0-9]+)\]/i', (string) $rows[ $i ][ $cKq ], $mm ) ) { $gg = strtolower( $mm[1] ); if ( in_array( $gg, self::cong_ds(), true ) ) { $nguon = $gg; } }
+			$list = self::cong_doc_payload( $raw );
+			if ( ! count( $list ) ) { $kho++; continue; }
+			foreach ( $list as $tx ) {
+				$tx['nguon'] = $nguon; $tx['khoa'] = self::cong_khoa( $nguon, $tx, $raw ); $tx['raw'] = $raw;
+				if ( self::luu_cong( $tx ) ) { $moi++; } else { $trung++; }
+			}
+		}
+		update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => 'mới ' . $moi . ', trùng ' . $trung . ( $kho ? ', không đọc ' . $kho : '' ) ) );
+		return array( 'moi' => $moi, 'trung' => $trung, 'kho' => $kho );
+	}
+	public static function cron_cong_log() {
+		if ( '' === trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) ) { return; }
+		$r = self::keo_cong_log_sheet();
+		$log = is_wp_error( $r ) ? ( 'lỗi: ' . $r->get_error_message() ) : ( 'mới ' . $r['moi'] . ', trùng ' . $r['trung'] );
+		update_option( 'saoke_cong_log_last', array( 'luc' => current_time( 'mysql' ), 'kq' => $log ) );
+	}
+
 	// ═══════════════ v0.2: ĐIỂM NỘP ═══════════════
 	public static function r_diem_ds( $req ) {
 		if ( ! self::pin_ok( $req ) ) { return self::loi_pin(); }
@@ -1394,8 +1447,18 @@ class SAOKE_App {
 				if ( '' !== $pin ) { update_option( 'saoke_pin', $pin ); }
 				update_option( 'saoke_webhook_key', sanitize_text_field( wp_unslash( $_POST['key'] ) ) );
 				update_option( 'saoke_api_token', sanitize_text_field( wp_unslash( $_POST['token'] ) ) );
+				update_option( 'saoke_cong_log_sheet', esc_url_raw( wp_unslash( $_POST['conglog'] ) ) );
+				update_option( 'saoke_cong_log_auto', isset( $_POST['conglog_auto'] ) ? '1' : '0' );
+				wp_clear_scheduled_hook( 'saoke_cron_conglog' );
+				if ( isset( $_POST['conglog_auto'] ) && '' !== trim( (string) get_option( 'saoke_cong_log_sheet', '' ) ) ) { wp_schedule_event( time() + 60, 'saoke_5phut', 'saoke_cron_conglog' ); }
 				echo '<div class="notice notice-success"><p>Đã lưu.</p></div>';
 			}
+		}
+		if ( isset( $_POST['saoke_keo_conglog'] ) && check_admin_referer( 'saoke_cfg' ) ) {
+			update_option( 'saoke_cong_log_sheet', esc_url_raw( wp_unslash( $_POST['conglog'] ) ) );
+			$r = self::keo_cong_log_sheet();
+			if ( is_wp_error( $r ) ) { echo '<div class="notice notice-error"><p>Kéo lỗi: ' . esc_html( $r->get_error_message() ) . '</p></div>'; }
+			else { echo '<div class="notice notice-success"><p>Đã kéo cổng từ Nhật ký: <b>' . (int) $r['moi'] . '</b> mới, ' . (int) $r['trung'] . ' trùng' . ( ! empty( $r['kho'] ) ? ( ', ' . (int) $r['kho'] . ' không đọc được' ) : '' ) . '.</p></div>'; }
 		}
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		$url = esc_url_raw( rest_url( self::NS . '/webhook' ) ) . ( $key ? ( '?key=' . rawurlencode( $key ) ) : '' );
@@ -1408,7 +1471,14 @@ class SAOKE_App {
 		echo '<tr><th>Webhook API Key</th><td><input name="key" class="regular-text code" value="' . esc_attr( $key ) . '" placeholder="đặt key bí mật"></td></tr>';
 		echo '<tr><th>SePay Open API Token</th><td><input name="token" class="regular-text code" value="' . esc_attr( get_option( 'saoke_api_token', '' ) ) . '" placeholder="token từ SePay"></td></tr>';
 		echo '<tr><th>Webhook URL (khai bên SePay)</th><td><code>' . esc_html( $key ? $url : '(đặt Webhook API Key rồi lưu)' ) . '</code><br><span class="description">SePay → Webhooks → Endpoint URL. Authentication chọn <b>No Authentication</b> (key đã nằm trong URL).</span></td></tr>';
-		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button></p></form>';
+		$clog = (string) get_option( 'saoke_cong_log_sheet', '' );
+		$clast = (array) get_option( 'saoke_cong_log_last', array() );
+		echo '<tr><th>VietQR tạm — link CSV Nhật ký (app cũ)</th><td><input name="conglog" class="regular-text code" value="' . esc_attr( $clog ) . '" placeholder="https://docs.google.com/.../pub?gid=...&single=true&output=csv" style="width:520px">'
+			. ' <label style="margin-left:6px"><input type="checkbox" name="conglog_auto" ' . checked( '1', (string) get_option( 'saoke_cong_log_auto', '0' ), false ) . '> tự kéo mỗi 5′</label>'
+			. '<br><span class="description">Kéo giao dịch cổng từ sheet <b>Nhật ký</b> của app cũ (cột “Chi tiết” = payload thô Tingo) vào bảng cổng, đối soát với sao kê ngân hàng. Dùng tạm khi VietQR API chưa duyệt. Chống trùng theo mã GD nên kéo lại bao nhiêu lần cũng không cộng đôi.'
+			. ( $clast ? ( '<br><b>Lần kéo cuối:</b> ' . esc_html( ( isset( $clast['luc'] ) ? $clast['luc'] : '' ) . ' — ' . ( isset( $clast['kq'] ) ? $clast['kq'] : '' ) ) ) : '' )
+			. '</span></td></tr>';
+		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button> <button class="button" name="saoke_keo_conglog" value="1">Kéo VietQR từ Nhật ký ngay</button></p></form>';
 		echo '<p class="description">⚠️ Repo công khai — PIN/khoá lưu trong DB, không nằm trong mã nguồn.</p></div>';
 	}
 
@@ -2005,7 +2075,7 @@ document.documentElement.style.overflow='hidden';document.body.style.overflow='h
 }
 
 register_activation_hook( __FILE__, function () { SAOKE_App::bao_dam_bang(); SAOKE_App::bao_dam_trang(); flush_rewrite_rules(); } );
-register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'saoke_cron_sync' ); wp_clear_scheduled_hook( 'saoke_cron_vqr' ); } );
+register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'saoke_cron_sync' ); wp_clear_scheduled_hook( 'saoke_cron_vqr' ); wp_clear_scheduled_hook( 'saoke_cron_conglog' ); } );
 add_action( 'init', array( 'SAOKE_App', 'init' ), 6 );
 
 endif; // class_exists SAOKE_App
