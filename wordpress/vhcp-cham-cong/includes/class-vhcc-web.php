@@ -1653,7 +1653,9 @@ class VHCC_Web {
 			/* 🔴 SỐ BỎ QUA PHẢI KÈM LÝ DO TỪNG NGƯỜI. "Xong 12/29" mà không nói 17 người kia
 			   vướng gì là một con số không dùng được: người đọc không biết nên chờ thêm vài lượt
 			   chấm công, hay phải đi chụp ảnh tay. */
-			return array( array( 'ok' => true, 'xong' => 'Đã lấy ảnh thẻ cho ' . $xong . ' người.',
+			return array( array( 'ok' => true,
+				'xong' => 'Đã lấy ảnh thẻ cho ' . $xong . ' người, và đặt lệnh đẩy ảnh xuống máy '
+					. 'chấm công của cơ sở (máy nhận trong ~10 giây nếu đang online).',
 				'boQua' => $bo ) );
 		}
 
@@ -3757,7 +3759,9 @@ class VHCC_Web {
 		if ( $de_xuat ) {
 			echo '<div class="bao ok" style="margin:10px 0 4px">📷 <b>' . count( $de_xuat ) . ' người '
 				. 'đã có sẵn ảnh mặt rõ</b> trong chính các lượt chấm công online của họ — lấy làm '
-				. 'ảnh thẻ được ngay, khỏi đi chụp lại. <span class="mo">Máy chọn tấm <b>lệch nhỏ '
+				. 'ảnh thẻ được ngay, khỏi đi chụp lại. <b>Ảnh đi thẳng xuống máy chấm công của cơ '
+				. 'sở luôn</b>, nên không phải gọi từng người ra đứng trước đầu đọc. '
+				. '<span class="mo">Máy chọn tấm <b>lệch nhỏ '
 				. 'nhất</b> so với mẫu của người đó: lệch nhỏ nghĩa là <b>rõ mặt, nhìn thẳng, '
 				. 'không khẩu trang, không mũ</b>. Chỉ lấy từ lượt đã <b>đối chiếu KHỚP</b> và '
 				. 'không bị gắn cờ — nên không lấy nhầm mặt người chấm hộ. '

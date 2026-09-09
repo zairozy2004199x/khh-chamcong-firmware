@@ -19194,6 +19194,44 @@ $r_ac4 = VHCC_NhanSu::anh_the_tu_cham(
 t( '🔴 Nhân viên KHÔNG lấy được', empty( $r_ac4['ok'] ), $r_ac4 );
 t( 'và ảnh thẻ vẫn trắng sau lượt bị chối', '' === (string) vhcc_hs( 'AC1' )['anh_the'] );
 
+/* ---- ĐẨY XUỐNG MÁY CHẤM CÔNG LUÔN ----------------------------------------------------
+   🔴 Anh Thắng 09/09/2026, ngay sau khi chốt việc lấy ảnh: *"và ảnh đó đẩy xuống máy chấm công
+   luôn"*. Cả điểm của việc lấy ảnh là để MÁY nhận được mặt — dừng ở chỗ ghi vào hồ sơ thì vẫn
+   phải gọi từng người ra đứng trước đầu đọc, tức là chưa giải quyết được gì.
+   ⚠️ Đo LỆNH THẬT trong hàng đợi, không đo câu chữ báo về: câu báo có thể nói "đã đặt lệnh"
+      trong khi hàng đợi trống, và đó đúng là loại hỏng im lặng không ai phát hiện. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC1', 'mac' => '',
+	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử ảnh chấm công' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+
+$r_day = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC1' );
+t( 'lấy ảnh chạy được (có máy gắn ở cơ sở)', ! empty( $r_day['ok'] ), $r_day );
+$_lenh_ac = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+t( '🔴 ĐẶT LỆNH xuống máy của cơ sở ngay trong cùng lượt', count( $_lenh_ac ) === 1, $_lenh_ac );
+teq( 'lệnh bật cờ CÓ ảnh', '1', (string) $_lenh_ac[0]['co_anh'] );
+/* Ảnh đi kèm LỆNH chứ không đi kèm hồ sơ — firmware hỏi ảnh bằng `opId` ở lượt gọi riêng, vì
+   ESP32 không đủ bộ nhớ nhận cả JSON lệnh lẫn ảnh trong một lượt. */
+teq( '🔴 và lệnh MANG THEO đúng tấm ảnh vừa ghi vào hồ sơ',
+	(string) vhcc_hs( 'AC1' )['anh_the'], (string) $_lenh_ac[0]['anh_b64'] );
+t( 'ảnh trong lệnh không rỗng', strlen( (string) $_lenh_ac[0]['anh_b64'] ) > 500 );
+t( '🔴 câu báo nói máy tự nhận mặt, khỏi gọi người ra đứng trước đầu đọc',
+	strpos( (string) $r_day['thong_bao'], 'tự nhận khuôn mặt' ) !== false, $r_day );
+
+/* ⚠️ Cơ sở CHƯA gắn máy nào thì vẫn phải LƯU ẢNH, và nói thẳng là chưa có máy — chứ không chối
+   cả việc lưu. Ảnh thẻ còn dùng cho chấm công online và cho việc đối chiếu, không chỉ cho máy. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+$r_koma = VHCC_NhanSu::anh_the_tu_cham( $U_AD, 'AC1' );
+t( '🔴 chưa gắn máy nào thì VẪN lưu được ảnh thẻ', ! empty( $r_koma['ok'] ), $r_koma );
+t( 'và ảnh vào hồ sơ thật',
+	0 === strpos( (string) vhcc_hs( 'AC1' )['anh_the'], 'data:image/jpeg' ), null );
+t( 'nhưng nói thẳng là cơ sở chưa gắn máy',
+	strpos( (string) $r_koma['thong_bao'], 'chưa gắn máy' ) !== false, $r_koma );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_nv' => 'AC1' ) );
+
 /* ---- trên màn Bảng công: ảnh đề xuất phải HIỆN RA, không giấu sau một cú bấm ---- */
 /* ⚠️ Dùng thẻ phiên thay vì đăng nhập bằng PIN: tới cuối tệp này nguồn người dùng đã bị mấy
    mục trên đổi qua đổi lại mấy lần, mà đăng nhập trượt thì trang chỉ có ô PIN — và mọi phép
@@ -19212,10 +19250,23 @@ t( 'nói rõ lệch nhỏ nghĩa là rõ mặt', strpos( $h_ac, 'càng nhỏ cà
    tưởng nó lấy bừa tấm gần nhất rồi không dám dùng. */
 t( 'và nói rõ chỉ lấy từ lượt đã đối chiếu KHỚP',
 	strpos( $h_ac, 'đối chiếu KHỚP' ) !== false, null );
+/* Việc đẩy xuống máy phải NÓI RA trên màn: nó là nửa còn lại của cái người ta cần (anh Thắng:
+   *"và ảnh đó đẩy xuống máy chấm công luôn"*). Làm mà không nói thì người dùng vẫn đi gọi từng
+   người ra đứng trước đầu đọc — đúng cái việc vừa bỏ được. */
+t( '🔴 màn nói rõ ảnh đi thẳng xuống máy chấm công',
+	strpos( $h_ac, 'đi thẳng xuống máy chấm công' ) !== false, null );
 
 /* ---- lấy cả cơ sở: số bỏ qua phải kèm LÝ DO từng người ---- */
+/* Gắn lại máy: khối trên vừa gỡ nó ra để thử cảnh "cơ sở chưa có máy". Không gắn lại thì phép
+   đo lệnh dưới đây trả mảng rỗng vì FIXTURE, chứ không phải vì mã hỏng — đúng loại đỏ giả làm
+   người sau đi sửa nhầm chỗ. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC1', 'mac' => '',
+	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử ảnh chấm công' ) );
 vhcc_web_post_nhu( 'ACAD', 'Admin', 'TUTU_BT',
 	array( 'viec' => 'anh_the_tu_cham_het', 'atc_coso' => 'TUTU_BT' ) );
+$_lenh_het = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+t( '🔴 lấy cả cơ sở cũng đẩy lệnh xuống máy, không chỉ ghi hồ sơ',
+	count( $_lenh_het ) >= 1 && '' !== (string) $_lenh_het[0]['anh_b64'], $_lenh_het );
 t( '🔴 lấy cả cơ sở thì người CÓ ảnh khớp được ghi thật',
 	0 === strpos( (string) vhcc_hs( 'AC1' )['anh_the'], 'data:image/jpeg' ), null );
 teq( 'còn người chưa có lượt khớp thì vẫn trắng', '', (string) vhcc_hs( 'AC2' )['anh_the'] );
@@ -19231,6 +19282,8 @@ t( '🔴 nhánh "xong" của ve_bao có in danh sách bỏ qua',
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('AC1','AC2')" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='AC1'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_nhat_ky' ) . " WHERE ma_nv='AC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='AC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYAC1'" );
 
 vhcc_dung_bang();
 

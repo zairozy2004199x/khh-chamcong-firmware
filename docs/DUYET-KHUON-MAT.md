@@ -112,11 +112,28 @@ Không có lượt `khop` nào thì **trả rỗng**, không hạ chuẩn xuốn
 một lượt (lượt ấy thành mẫu, chưa có gì để so) thì thà không đề xuất còn hơn đề xuất một tấm chưa
 ai đối chiếu với cái gì.
 
+### Và đẩy thẳng xuống máy chấm công (3.53.0)
+
+Anh Thắng, ngay sau đó: *"và ảnh đó đẩy xuống máy chấm công luôn"*. Đúng — cả điểm của việc lấy
+ảnh là để **máy** nhận được mặt; dừng ở chỗ ghi vào hồ sơ thì vẫn phải gọi từng người ra đứng
+trước đầu đọc, tức là chưa giải quyết được gì.
+
+Cùng lượt bấm: ghi vào `nhan_vien.anh_the` **và** đặt lệnh `add` xuống mọi máy của cơ sở, ảnh đi
+kèm lệnh (`anh_b64`). Cùng đường với nút *Tải ảnh thẻ lên* vốn có — không dựng đường thứ hai.
+
+⚠️ **Cơ sở chưa gắn máy nào thì VẪN lưu ảnh**, và nói thẳng là chưa có máy. Ảnh thẻ còn dùng cho
+chấm công online và cho việc đối chiếu, không chỉ cho máy — chối cả việc lưu là mất luôn phần
+dùng được.
+
+⚠️ Phép thử đo **lệnh thật trong hàng đợi**, không đo câu chữ báo về: câu báo có thể nói *"đã đặt
+lệnh"* trong khi hàng đợi trống, và đó đúng là loại hỏng im lặng không ai phát hiện.
+
 ### Nằm ở đâu
 
 | Việc | Tệp · hàm |
 |---|---|
 | Chọn tấm chuẩn nhất | `class-vhcc-mat.php` · `anh_chuan_cho()`, `co_tep_anh()`, `tep_anh()` |
+| Đẩy xuống máy (ảnh đi kèm lệnh) | `class-vhcc-nhan-su.php` · `day_ho_so_moi_len_may()` → `lenh_may_()` |
 | Ghi vào hồ sơ (cửa hẹp, chỉ cột `anh_the`) | `class-vhcc-nhan-su.php` · `anh_the_tu_cham()` |
 | Lõi rửa ảnh dùng chung | `class-vhcc-nhan-su.php` · `rua_anh_tep()` |
 | Khối đề xuất + nút | `class-vhcc-web.php` · `khoi_thieu_anh()` |
