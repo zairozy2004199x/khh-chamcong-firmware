@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.3.4
+ * Version:           0.3.5
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -223,6 +223,7 @@ class SAOKE_App {
 	public static function r_webhook( $req ) {
 		$raw = (string) $req->get_body();
 		$src = strtolower( trim( (string) $req->get_param( 'src' ) ) ); if ( '' === $src ) { $src = 'sepay'; }
+		if ( 'bank' === $src ) { $src = 'sepay'; }
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		if ( '' === $key || ! self::key_khop( (string) $req->get_param( 'key' ), $key ) ) {
 			self::ghi_log( $src, '✖ SAI KEY (bị chặn)', $raw );
@@ -233,39 +234,44 @@ class SAOKE_App {
 			self::ghi_log( $src, '🔎 ping thử (GET từ trình duyệt) — key OK, đường tới web bình thường', '' );
 			return new WP_REST_Response( array( 'success' => true, 'ping' => true, 'message' => 'OK — webhook tới được web (key đúng). Nhật ký đã ghi.' ), 200 );
 		}
-		if ( in_array( $src, self::cong_ds(), true ) ) {
-			$kq = self::cong_nhan_webhook( $src, $req );
-			$msg = 'mới ' . ( isset( $kq['moi'] ) ? $kq['moi'] : 0 ) . ', trùng ' . ( isset( $kq['trung'] ) ? $kq['trung'] : 0 )
-				. ( ! empty( $kq['chuaDoc'] ) ? ', chưa đọc được ' . $kq['chuaDoc'] : '' ) . ( isset( $kq['message'] ) ? ' — ' . $kq['message'] : '' );
-			self::ghi_log( $src, $msg, $raw );
-			return new WP_REST_Response( array( 'success' => true, 'src' => $src ) + $kq, 200 );
-		}
-		if ( 'sepay' !== $src ) {
-			self::ghi_log( $src, '✖ src không hợp lệ', $raw );
-			return new WP_REST_Response( array( 'success' => false, 'message' => 'src không hợp lệ: ' . $src ), 400 );
-		}
+		// Mọi nguồn (SePay/VietQR/…) đều vào SAO KÊ NGÂN HÀNG, gắn nhãn nguồn theo src để phân biệt.
+		// nguồn = src (vietqr/momo/vnpay/…) hoặc 'sepay' khi không khai src. Đọc field LINH HOẠT.
+		$nguon = $src;
 		$p = $req->get_json_params(); if ( ! is_array( $p ) ) { $p = $req->get_params(); }
-		$g = function ( $k, $d = '' ) use ( $p ) { return isset( $p[ $k ] ) ? $p[ $k ] : $d; };
-		$sid = (string) ( $g( 'id' ) !== '' ? $g( 'id' ) : $g( 'referenceCode' ) );
-		if ( '' === $sid ) {
-			self::ghi_log( $src, '⚠ nhận được nhưng thiếu id (có thể là gói test)', $raw );
-			return new WP_REST_Response( array( 'success' => true, 'moi' => 0, 'message' => 'thiếu id (gói test?)' ), 200 );
+		$vao = self::num( self::pick( $p, array( 'amount_in', 'amountIn', 'creditAmount', 'tienVao', 'credit' ), 0 ) );
+		$ra  = self::num( self::pick( $p, array( 'amount_out', 'amountOut', 'debitAmount', 'tienRa', 'debit' ), 0 ) );
+		$amt = self::num( self::pick( $p, array( 'transferAmount', 'amount', 'soTien', 'value', 'transAmount', 'money' ), 0 ) );
+		$tt  = strtoupper( (string) self::pick( $p, array( 'transferType', 'transType', 'type', 'loai', 'direction' ) ) );
+		if ( $vao > 0 ) { $loai = 'in'; $tien = $vao; }
+		elseif ( $ra > 0 ) { $loai = 'out'; $tien = $ra; }
+		else { $loai = in_array( $tt, array( 'OUT', 'D', 'DEBIT', 'CHI', 'RA', '-' ), true ) ? 'out' : 'in'; $tien = abs( $amt ); }
+		$madg = (string) self::pick( $p, array( 'referencenumber', 'referenceNumber', 'reference_number', 'referenceCode', 'code', 'ftCode' ) );
+		$sid  = (string) self::pick( $p, array( 'id', 'transactionid', 'transactionId', 'transaction_id', 'tid', 'traceId', 'maGiaoDich', 'ma_gd' ) );
+		if ( '' === $sid ) { $sid = $madg; }
+		$sotk = (string) self::pick( $p, array( 'accountNumber', 'account_number', 'bankaccount', 'bankAccount', 'accountNo', 'soTK', 'subAccount', 'account' ) );
+		$noidung = (string) self::pick( $p, array( 'content', 'description', 'transaction_content', 'addInfo', 'orderInfo', 'noiDung', 'memo', 'remark' ) );
+		$nganhang = (string) self::pick( $p, array( 'gateway', 'bankName', 'bank_name', 'bankCode', 'bank', 'nganHang' ), '' );
+		$ngay = self::ngay_bd( self::pick( $p, array( 'transactionDate', 'transaction_date', 'transactiontime', 'transactionTime', 'transTime', 'payDate', 'createdAt', 'created_at', 'time', 'ngayGD', 'date' ) ) );
+		$luyke = self::pick( $p, array( 'accumulated', 'balance', 'soDu', 'luyKe' ), '' );
+		if ( $tien <= 0 && '' === $sid ) {
+			self::ghi_log( $src, '⚠ nhận được nhưng thiếu tiền/mã (có thể là gói test)', $raw );
+			return new WP_REST_Response( array( 'success' => true, 'moi' => 0, 'message' => 'gói test / thiếu dữ liệu' ), 200 );
 		}
-		$loai = ( 'out' === strtolower( (string) $g( 'transferType' ) ) ) ? 'out' : 'in';
+		$sid = $nguon . '-' . ( '' !== $sid ? $sid : substr( md5( (string) $raw ), 0, 20 ) ); // tiền tố nguồn tránh đụng mã giữa các nguồn
 		$ok = self::luu_gd( array(
 			'sepay_id'  => $sid,
-			'ngay_gd'   => self::chuan_ngay( (string) $g( 'transactionDate' ) ),
-			'so_tk'     => (string) $g( 'accountNumber' ),
-			'ngan_hang' => (string) $g( 'gateway' ),
+			'ngay_gd'   => $ngay,
+			'so_tk'     => $sotk,
+			'ngan_hang' => '' !== $nganhang ? $nganhang : strtoupper( $nguon ),
 			'loai'      => $loai,
-			'tien'      => (int) round( (float) $g( 'transferAmount', 0 ) ),
-			'luy_ke'    => ( '' !== (string) $g( 'accumulated' ) ) ? (int) round( (float) $g( 'accumulated' ) ) : null,
-			'noi_dung'  => (string) $g( 'content' ),
-			'ma_gd'     => (string) ( $g( 'referenceCode' ) !== '' ? $g( 'referenceCode' ) : $g( 'code' ) ),
-			'nguon'     => 'webhook',
+			'tien'      => (int) round( $tien ),
+			'luy_ke'    => ( '' !== (string) $luyke ) ? (int) round( self::num( $luyke ) ) : null,
+			'noi_dung'  => $noidung,
+			'ma_gd'     => $madg,
+			'nguon'     => mb_substr( $nguon, 0, 10 ),
 		) );
-		self::ghi_log( $src, $ok ? ( '✔ đã lưu ' . $sid ) : ( 'trùng, bỏ qua ' . $sid ), $raw );
-		return new WP_REST_Response( array( 'success' => true, 'moi' => $ok ? 1 : 0 ), 200 );
+		self::ghi_log( $src, $ok ? ( '✔ đã lưu [' . $nguon . '] ' . number_format( $tien ) . 'đ' ) : 'trùng, bỏ qua', $raw );
+		return new WP_REST_Response( array( 'success' => true, 'nguon' => $nguon, 'moi' => $ok ? 1 : 0 ), 200 );
 	}
 
 	private static function luu_gd( $d ) {
@@ -291,6 +297,17 @@ class SAOKE_App {
 	private static function chuan_ngay( $s ) {
 		$s = trim( $s ); if ( '' === $s ) { return ''; }
 		$t = strtotime( $s ); return $t ? gmdate( 'Y-m-d H:i:s', $t ) : '';
+	}
+	/* Lấy giá trị đầu tiên có mặt trong nhiều tên field (SePay/Tingo/VietQR khác tên nhau). */
+	private static function pick( $p, $keys, $d = '' ) {
+		foreach ( (array) $keys as $k ) { if ( isset( $p[ $k ] ) && '' !== $p[ $k ] && ! is_array( $p[ $k ] ) ) { return $p[ $k ]; } }
+		return $d;
+	}
+	/* Ngày biến động: nhận epoch (giây/mili) hoặc chuỗi 'Y-m-d H:i:s' / 'dd/mm/yyyy…' / ISO. */
+	private static function ngay_bd( $v ) {
+		$v = trim( (string) $v ); if ( '' === $v ) { return ''; }
+		if ( ctype_digit( $v ) ) { $n = (int) $v; if ( strlen( $v ) >= 13 ) { $n = (int) round( $n / 1000 ); } return gmdate( 'Y-m-d H:i:s', $n + 7 * 3600 ); }
+		$t = strtotime( $v ); return $t ? gmdate( 'Y-m-d H:i:s', $t ) : '';
 	}
 
 	// ═══════════════ CỔNG THANH TOÁN: webhook + parse ═══════════════
