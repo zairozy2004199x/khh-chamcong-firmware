@@ -1720,7 +1720,7 @@ vhnb_dung_bang();
 
 $_ti = VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-08' );
 t( 'hệ thống đăng được một dòng', $_ti > 0, $_ti );
-$_bt = VHNB_Bai::bang_tin();
+$_bt = VHNB_Bai::bang_tin( '', 1, 0, $U_CHT );
 teq( 'và nó nằm ở bảng tin CHUNG', 1, count( $_bt ) );
 teq( 'người đăng là tên NGUỒN, không phải một người thật', 'Ghế massage', (string) $_bt[0]['ho_ten'] );
 teq( 'mã người đăng là mã dành riêng', VHNB_Bai::MA_HE_THONG, (string) $_bt[0]['ma_nv'] );
@@ -1729,7 +1729,7 @@ teq( 'mã người đăng là mã dành riêng', VHNB_Bai::MA_HE_THONG, (string)
 for ( $i = 0; $i < 4; $i++ ) {
 	VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-08' );
 }
-$_bt2 = VHNB_Bai::bang_tin();
+$_bt2 = VHNB_Bai::bang_tin( '', 1, 0, $U_CHT );
 teq( '🔴 năm lượt cùng khoá GỘP thành MỘT bài, không đẻ năm dòng', 1, count( $_bt2 ) );
 teq( 'và đếm đủ 5 lượt', 5, (int) $_bt2[0]['so_lan'] );
 t( 'con số hiện ra trong câu chữ', false !== strpos( (string) $_bt2[0]['noi_dung'], '5 lượt' ),
@@ -1737,18 +1737,18 @@ t( 'con số hiện ra trong câu chữ', false !== strpos( (string) $_bt2[0]['n
 
 /* Khoá KHÁC thì là dòng khác — gộp theo ngày nên hôm sau phải là một dòng mới. */
 VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:2026-09-09' );
-teq( 'khoá khác thì thành dòng mới', 2, count( VHNB_Bai::bang_tin() ) );
+teq( 'khoá khác thì thành dòng mới', 2, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
 
 /* Khoá rỗng = mỗi lượt một bài. Ít khi đúng, nhưng phải chạy đúng như đã ghi. */
 VHNB_Bai::dang_he_thong( 've', 'Bán vé — có giao dịch mới', '' );
 VHNB_Bai::dang_he_thong( 've', 'Bán vé — có giao dịch mới', '' );
-teq( 'khoá rỗng thì KHÔNG gộp', 4, count( VHNB_Bai::bang_tin() ) );
+teq( 'khoá rỗng thì KHÔNG gộp', 4, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
 
 t( 'câu rỗng thì không đăng gì', false === VHNB_Bai::dang_he_thong( 'ghe', '   ', 'k:1' ) );
-teq( 'nên bảng tin không nhúc nhích', 4, count( VHNB_Bai::bang_tin() ) );
+teq( 'nên bảng tin không nhúc nhích', 4, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
 
 /* ---- ai xoá được bài của hệ thống ---- */
-$_bai_ht = VHNB_Bai::bang_tin()[0];
+$_bai_ht = VHNB_Bai::bang_tin( '', 1, 0, $U_CHT )[0];
 t( '🔴 người mã RỖNG trùng tên nguồn cũng KHÔNG xoá được bài hệ thống',
 	! VHNB_Bai::duoc_xoa( array( 'name' => 'Ghế massage', 'role' => 'Nhân viên', 'ma_nv' => '' ), $_bai_ht ) );
 t( 'nhân viên thường không xoá được', ! VHNB_Bai::duoc_xoa( $U_NV, $_bai_ht ) );
@@ -1766,7 +1766,7 @@ t( 'và bảng tin có một dòng', $_r['tin'] > 0, $_r );
 teq( 'chuông đếm lên 1', 1, VHNB_Bao::chua_doc( 'NV001' ) );
 
 $_chuong = VHNB_Bao::ds( 'NV001' )[0]['chu'];
-$_tin    = (string) VHNB_Bai::bang_tin()[0]['noi_dung'];
+$_tin    = (string) VHNB_Bai::bang_tin( '', 1, 0, $U_CHT )[0]['noi_dung'];
 t( 'chuông RIÊNG vẫn giữ đủ số tiền cho người trong việc',
 	false !== strpos( $_chuong, '7.000.000' ), $_chuong );
 t( '🔴 BẢNG TIN KHÔNG có số tiền', false === strpos( $_tin, '7.000.000' ), $_tin );
@@ -1779,7 +1779,7 @@ vhnb_dung_bang();
 $_r2 = VHNB_Bao::viec( 'NV002', 'chi_phi', 'Đơn 37 — cấp tạm ứng 9.000.000đ cho Trần C',
 	'', 'wp_vhcp_cp_don:D2', '' );
 t( 'thiếu câu trung tính thì chuông vẫn chạy', false !== $_r2['bao'] );
-teq( '🔴 nhưng bảng tin TRỐNG, không rò câu có tiền ra', 0, count( VHNB_Bai::bang_tin() ) );
+teq( '🔴 nhưng bảng tin TRỐNG, không rò câu có tiền ra', 0, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
 
 /* 🔴 CHUÔNG KHÔNG TÌM ĐƯỢC CHỦ THÌ BẢNG TIN VẪN PHẢI LÊN.
    Bên chi phí, bảng đơn chỉ giữ TÊN người lập; tra ngược ra mã NV không được là chuyện thường.
@@ -1788,7 +1788,7 @@ vhnb_dung_bang();
 $_r3 = VHNB_Bao::viec( '', 'cham_cong', 'câu này không có ai nhận', '', 'k:9', '',
 	'Chấm công — giờ công ngày 2026-09-08 có cập nhật', 'tin_cc:2026-09-08' );
 t( 'không tra ra người nhận thì bỏ chuông', false === $_r3['bao'] );
-teq( '🔴 nhưng bảng tin VẪN có dòng', 1, count( VHNB_Bai::bang_tin() ) );
+teq( '🔴 nhưng bảng tin VẪN có dòng', 1, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
 
 /* Bài hệ thống KHÔNG rung chuông cho 240 người — chuông riêng đã lo phần đó. */
 vhnb_dung_bang();
@@ -1797,7 +1797,65 @@ teq( '🔴 bài hệ thống không rung chuông của ai', 0, VHNB_Bao::chua_do
 
 /* Và nó không bao giờ lọt vào nhóm kín. */
 teq( 'bài hệ thống thuộc bảng tin chung, không thuộc nhóm nào',
-	0, (int) VHNB_Bai::bang_tin()[0]['nhom_id'] );
+	0, (int) VHNB_Bai::bang_tin( '', 1, 0, $U_CHT )[0]['nhom_id'] );
+
+/* ============ AI ĐƯỢC XEM THÔNG BÁO GIAO DỊCH ============
+   Anh Thắng 09/09/2026: *"nó sẽ hiện cho cửa hàng trưởng và quản lý trở lên xem chứ ngang hàng
+   hoặc phía dưới sẽ không xem được"*.
+
+   🔴 CHẶN Ở LÕI, KHÔNG Ở MÀN HÌNH. Bảng tin có đường phân trang `?tr=`, mà `binh_luan()` và
+   `tim()` thì nhận thẳng một `bai_id` từ biểu mẫu POST — giấu ở chỗ vẽ là đổi một tham số trên
+   URL là đọc được. Mấy phép dưới đây gọi thẳng vào lõi, không qua trang. */
+
+vhnb_dung_bang();
+
+$_U_QL = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Quản Lý X', 'Quản lý',    '', 'QL777' ) );
+$_U_KT = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Kế Toán Y', 'Kế toán',    '', 'KT777' ) );
+
+$_id_gd = VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — cơ sở FZ_LTVT có giao dịch', 'tin_ghe:bac' );
+$_bai_gd = $wpdb->get_row( 'SELECT * FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_id_gd, ARRAY_A );
+teq( 'bài giao dịch mang bậc Cửa hàng trưởng (2), không phải 0',
+	2, (int) $_bai_gd['bac_can'] );
+
+/* Một bài người thật viết, để chốt rằng lượt này KHÔNG siết bảng tin chung. */
+$_id_thuong = VHNB_Bai::dang( $U_NV, 'Bài của nhân viên, ai cũng đọc được' )['id'];
+
+teq( '🔴 NHÂN VIÊN không thấy dòng giao dịch', 1, count( VHNB_Bai::bang_tin( '', 1, 0, $U_NV ) ) );
+teq( '   và bài họ thấy đúng là bài người thật viết',
+	(int) $_id_thuong, (int) VHNB_Bai::bang_tin( '', 1, 0, $U_NV )[0]['id'] );
+teq( 'Cửa hàng trưởng thấy cả hai', 2, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
+teq( 'Quản lý thấy cả hai',        2, count( VHNB_Bai::bang_tin( '', 1, 0, $_U_QL ) ) );
+teq( 'Kế toán thấy cả hai',        2, count( VHNB_Bai::bang_tin( '', 1, 0, $_U_KT ) ) );
+teq( 'Admin thấy cả hai',          2, count( VHNB_Bai::bang_tin( '', 1, 0, $U_AD ) ) );
+
+/* 🔴 KHÔNG BIẾT AI ĐANG XEM THÌ ĐÓNG, KHÔNG MỞ. Nơi gọi quên truyền người xem là rơi về đây;
+   hỏng kiểu này thì quản lý mất một dòng bảng tin, chứ không phải 240 người đọc được thứ không
+   dành cho họ. Đổi `bac_nguoi()` cho nó trả 5 khi không đo được là phép này đỏ — và phải đỏ. */
+teq( '🔴 không truyền người xem thì CHỈ bài công khai', 1, count( VHNB_Bai::bang_tin() ) );
+
+/* ---- bịt luôn đường đọc lẻ: đoán được id cũng không vào được ---- */
+teq( '🔴 nhân viên đoán id cũng KHÔNG đọc được bài giao dịch',
+	false, VHNB_Bai::doc_duoc( $U_NV, $_id_gd ) );
+teq( 'cửa hàng trưởng thì đọc được', true, VHNB_Bai::doc_duoc( $U_CHT, $_id_gd ) );
+t( '🔴 nên nhân viên KHÔNG bình luận được vào bài ấy',
+	empty( VHNB_Bai::binh_luan( $U_NV, $_id_gd, 'chen vào' )['ok'] ) );
+t( '🔴 và KHÔNG thả tim được',
+	empty( VHNB_Bai::tim( $U_NV, $_id_gd )['ok'] ) );
+t( 'cửa hàng trưởng thì bình luận được',
+	! empty( VHNB_Bai::binh_luan( $U_CHT, $_id_gd, 'đã xem' )['ok'] ) );
+t( 'bài người thật thì nhân viên vẫn bình luận được như cũ',
+	! empty( VHNB_Bai::binh_luan( $U_NV, $_id_thuong, 'ok anh' )['ok'] ) );
+
+/* Bậc do `VHNB_Quyen` giữ, Admin siết được — không gõ cứng số 2 trong lõi. */
+VHNB_Quyen::dat( array( 'tin_gd' => 'QUAN_LY' ) );
+$_id_gd2 = VHNB_Bai::dang_he_thong( 'chi_phi', 'Đơn chi phí kỳ 40 có cập nhật mới', 'tin_cp:40' );
+$_bac2 = (int) $wpdb->get_var( 'SELECT bac_can FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_id_gd2 );
+teq( 'siết lên Quản lý thì bài mới mang bậc 3', 3, $_bac2 );
+teq( '   cửa hàng trưởng không còn thấy bài mới ấy',
+	false, VHNB_Bai::doc_duoc( $U_CHT, $_id_gd2 ) );
+teq( '   nhưng bài CŨ vẫn ở bậc cũ, đổi luật không viết lại quá khứ',
+	true, VHNB_Bai::doc_duoc( $U_CHT, $_id_gd ) );
+VHNB_Quyen::dat( array( 'tin_gd' => 'CUA_HANG_TRUONG' ) );
 
 /* ================================================================= kết */
 

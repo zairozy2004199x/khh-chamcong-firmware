@@ -1380,7 +1380,11 @@ class VHNB_Trang {
 
 	private static function bang_tin( $toi, $nhom, $g ) {
 		$trang = isset( $_GET['tr'] ) ? max( 1, (int) $_GET['tr'] ) : 1;
-		$ds    = VHNB_Bai::bang_tin( $nhom, $trang, $g );
+		/* ⚠️ PHẢI truyền `$toi` — lõi cần biết ai đang xem để lọc bài có bậc (thông báo giao
+		   dịch chỉ từ Cửa hàng trưởng trở lên). Bỏ tham số này là nó rơi về "chỉ bài công
+		   khai" và quản lý mất luôn thông báo, chứ KHÔNG phải nhân viên xem được — hỏng theo
+		   chiều an toàn, nhưng vẫn là hỏng. */
+		$ds    = VHNB_Bai::bang_tin( $nhom, $trang, $g, $toi );
 		if ( ! $ds ) {
 			echo '<div class="the"><p class="mo">Chưa có bài nào'
 				. ( $g > 0 ? ' trong nhóm này' : ( '' !== $nhom ? ' ở ' . esc_html( $nhom ) : '' ) )

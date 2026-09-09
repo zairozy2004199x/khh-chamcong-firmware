@@ -144,6 +144,15 @@ class VHNB_Bai {
 		$t     = VHNB_DB::t( 'bai' );
 		$khoa  = self::gon( $khoa, 120 );
 
+		/* 🔴 CHỈ TỪ CỬA HÀNG TRƯỞNG TRỞ LÊN ĐỌC ĐƯỢC — anh Thắng 09/09/2026: *"nó sẽ hiện cho
+		   cửa hàng trưởng và quản lý trở lên xem chứ ngang hàng hoặc phía dưới sẽ không xem
+		   được"*. Bậc lấy từ `VHNB_Quyen` chứ không gõ số vào đây: Admin đổi được ở màn Cấu
+		   hình, và cả hệ chỉ có MỘT chỗ giữ luật.
+		   ⚠️ Bậc ghi vào TỪNG BÀI lúc đăng, không tra lại lúc đọc. Admin siết bậc lên sau này
+		      thì bài cũ vẫn ở bậc cũ — cố ý: đổi luật không được lặng lẽ viết lại quá khứ, mà
+		      dòng bảng tin thì gộp theo ngày nên hôm sau đã theo bậc mới. */
+		$bac_can = (int) VHNB_Quyen::bac_can( 'tin_gd' );
+
 		if ( '' !== $khoa ) {
 			$cu = $wpdb->get_row( $wpdb->prepare(
 				"SELECT id, so_lan FROM $t WHERE khoa=%s AND ma_nv=%s LIMIT 1",
@@ -170,6 +179,7 @@ class VHNB_Bai {
 			'anh'      => '',
 			'khoa'     => $khoa,
 			'so_lan'   => 1,
+			'bac_can'  => $bac_can,
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
@@ -284,8 +294,10 @@ class VHNB_Bai {
 	 * Bảng tin. Bài GHIM luôn nằm trên, rồi tới bài mới nhất.
 	 *
 	 * @param string $nhom '' = xem tất cả; tên bộ phận = chỉ bài của bộ phận đó (kèm bài chung).
+	 * @param array|null $u NGƯỜI ĐANG XEM — cần để lọc bài có `bac_can`. Không truyền = chỉ
+	 *                      bài công khai; xem khối 🔴 ngay dưới trước khi bỏ tham số này đi.
 	 */
-	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0 ) {
+	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0, $u = null ) {
 		global $wpdb;
 		$t  = VHNB_DB::t( 'bai' );
 		$tr = max( 1, (int) $trang );
@@ -293,13 +305,35 @@ class VHNB_Bai {
 		$nhom = self::chuan_nhom( $nhom );
 		$nhom_id = (int) $nhom_id;
 
+		/* =====================================================================================
+		 * 🔴 LỌC THEO BẬC NGAY TRONG CÂU SQL, KHÔNG LỌC Ở MÀN HÌNH
+		 * =====================================================================================
+		 * Anh Thắng 09/09/2026: thông báo giao dịch *"hiện cho cửa hàng trưởng và quản lý trở
+		 * lên xem chứ ngang hàng hoặc phía dưới sẽ không xem được"*.
+		 *
+		 * Cùng luật với `dang()`: giấu ở màn hình là TRANG TRÍ. Bảng tin còn có đường phân
+		 * trang `?tr=` và mấy đường JSON — lọc ở chỗ vẽ là chỉ cần đổi một tham số trên URL là
+		 * đọc được. Chặn ở đây thì mọi đường đọc đều đi qua.
+		 *
+		 * `bac_can = 0` là bài công khai, tức MỌI bài người thật viết — bảng tin vẫn là trang
+		 * chung của cả công ty, lượt này không siết gì thêm với họ.
+		 * Người xem không đo được bậc thì `bac_nguoi()` trả 0 và chỉ còn thấy bài công khai —
+		 * cố ý đóng, xem khối cảnh báo ở hàm ấy.
+		 *
+		 * ⚠️ Ghép TRỰC TIẾP con số vào câu, KHÔNG lồng thêm một `prepare()` nữa: mảnh câu do
+		 *    `prepare()` sinh ra mà đem nhét vào một `prepare()` khác là bị xử lý hai lần, và
+		 *    `%` trong đó hoá ra thứ khác. `(int)` đã chốt đây là một con số, không phải chữ
+		 *    của người dùng. */
+		$bac     = (int) VHNB_Quyen::bac_nguoi( $u );
+		$loc_bac = ' AND bac_can <= ' . $bac;
+
 		/* 🔴 BÀI CỦA NHÓM TỰ TẠO KHÔNG BAO GIỜ LỌT RA BẢNG TIN CHUNG.
 		   Mọi đường đọc ở dưới đều chặn `nhom_id=0`, trừ đúng đường "đang mở một nhóm". Thiếu
 		   một chỗ là bài trong nhóm kín hiện ra ở màn "Tất cả" của cả công ty — và người viết
 		   không hề biết, vì họ đăng vào nhóm. */
 		if ( $nhom_id > 0 ) {
 			return VHNB_DB::rows( $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=%d ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM $t WHERE nhom_id=%d $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
 				$nhom_id, self::MOI_TRANG, $bo ) );
 		}
 
@@ -307,11 +341,11 @@ class VHNB_Bai {
 		   mất chỉ vì đang lọc bộ phận thì lọc xong là bỏ sót đúng thứ quan trọng nhất. */
 		if ( '' !== $nhom ) {
 			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=%s OR nhom='' ) ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=%s OR nhom='' ) $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
 				$nhom, self::MOI_TRANG, $bo );
 		} else {
 			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM $t WHERE nhom_id=0 $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
 				self::MOI_TRANG, $bo );
 		}
 		return VHNB_DB::rows( $sql );
@@ -370,8 +404,20 @@ class VHNB_Bai {
 	 */
 	public static function doc_duoc( $u, $bai_id ) {
 		global $wpdb;
-		$nid = (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT nhom_id FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $bai_id ) );
+		$b = $wpdb->get_row( $wpdb->prepare(
+			'SELECT nhom_id, bac_can FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d',
+			(int) $bai_id ), ARRAY_A );
+		if ( ! $b ) { return true; }
+
+		/* 🔴 BẬC CHẶN Ở ĐÂY NỮA, KHÔNG CHỈ Ở `bang_tin()`.
+		   `bang_tin()` lọc DANH SÁCH, còn `binh_luan()` và `tim()` nhận thẳng một `bai_id` từ
+		   biểu mẫu POST. Chỉ lọc danh sách thì người không được xem vẫn đoán được id rồi bình
+		   luận vào đúng bài ấy — và câu bình luận của họ hiện ra cho cấp trên đọc, kèm theo
+		   việc lộ rằng bài đó tồn tại. Hàm này là cửa mà cả hai đường kia đều đi qua. */
+		if ( (int) $b['bac_can'] > 0
+			&& (int) VHNB_Quyen::bac_nguoi( $u ) < (int) $b['bac_can'] ) { return false; }
+
+		$nid = (int) $b['nhom_id'];
 		if ( $nid <= 0 ) { return true; }
 		return VHNB_Nhom::duoc_vao( $u, $nid );
 	}

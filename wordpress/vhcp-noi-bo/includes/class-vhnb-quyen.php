@@ -64,6 +64,14 @@ class VHNB_Quyen {
 		'dang' => array( 'nhan' => 'Đăng bài · bình luận · thả tim',  'md' => 'NHAN_VIEN' ),
 		'nhom' => array( 'nhan' => 'Lập nhóm riêng',                  'md' => 'NHAN_VIEN' ),
 		'don'  => array( 'nhan' => 'Ghim bài · xoá bài của người khác', 'md' => 'ADMIN' ),
+		/* Anh Thắng 09/09/2026: *"nó sẽ hiện cho cửa hàng trưởng và quản lý trở lên xem chứ
+		   ngang hàng hoặc phía dưới sẽ không xem được"*. Nên mặc định là Cửa hàng trưởng —
+		   thang này bậc trên làm được việc của bậc dưới, nên "từ CHT trở lên" gồm luôn Quản lý,
+		   Kế toán, Admin.
+		   ⚠️ Việc này KHÁC ba việc trên ở một điểm: ba việc kia là quyền LÀM, còn đây là quyền
+		      ĐỌC. Nên chỗ hỏi nó KHÔNG dùng `duoc()` — xem `bac_nguoi()` ngay dưới. */
+		'tin_gd' => array( 'nhan' => 'Xem thông báo giao dịch (chi phí · chấm công · ghế · vé)',
+			'md' => 'CUA_HANG_TRUONG' ),
 	);
 
 	/** Năm bậc, đúng thang của `VHCC_Vai`. Khai lại TÊN HIỆN ra màn, không khai lại luật. */
@@ -109,6 +117,30 @@ class VHNB_Quyen {
 		if ( ! class_exists( 'VHCC_Vai' ) || ! defined( 'VHCC_Vai::BAC' ) ) { return 1; }
 		$bac = constant( 'VHCC_Vai::BAC' );
 		return isset( $bac[ $ma ] ) ? (int) $bac[ $ma ] : 5;
+	}
+
+	/**
+	 * BẬC CỦA NGƯỜI ĐANG XEM, dạng SỐ 1..5. Trả **0** khi không đo được.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG ĐO ĐƯỢC THÌ TRẢ 0 — NGƯỢC HẲN `duoc()`, VÀ CỐ Ý NGƯỢC
+	 * =========================================================================================
+	 * `duoc()` thiếu `VHCC_Vai` thì CHO QUA, vì nó gác quyền LÀM: chối sạch là cả trang đóng
+	 * cửa với mọi người, kể cả Admin, và không còn ai vào để bật lại (xem đầu tệp).
+	 *
+	 * Hàm này gác quyền ĐỌC một thứ có chủ đích chỉ cho quản lý xem. Cho qua khi không đo được
+	 * nghĩa là gỡ plugin chấm công ra là cả công ty đọc được thông báo giao dịch — hỏng theo
+	 * chiều KHÔNG ai nhìn thấy, vì trang vẫn chạy bình thường và không có gì báo. Nên ở đây
+	 * hỏng thì ĐÓNG: thà quản lý mất một dòng bảng tin còn hơn 240 người đọc thứ không dành
+	 * cho họ. Bậc 0 nhỏ hơn mọi `bac_can` từ 1 trở lên, nên chỉ còn thấy bài công khai.
+	 *
+	 * ⚠️ Vì vậy ĐỪNG viết lại hàm này thành `duoc( $u, 'tin_gd' )` cho gọn — hai hàm khác nhau
+	 *    ở đúng cái nhánh thiếu `VHCC_Vai`, và đó là cả lý do hàm này tồn tại.
+	 */
+	public static function bac_nguoi( $u ) {
+		if ( ! is_array( $u ) || ! $u ) { return 0; }
+		if ( ! class_exists( 'VHCC_Vai' ) || ! method_exists( 'VHCC_Vai', 'bac' ) ) { return 0; }
+		return (int) VHCC_Vai::bac( $u );
 	}
 
 	/* ====================================================================== hỏi quyền */

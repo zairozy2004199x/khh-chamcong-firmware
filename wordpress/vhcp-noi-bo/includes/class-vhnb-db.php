@@ -43,7 +43,16 @@ class VHNB_DB {
 		      Việc gộp do `VHNB_Bai::dang_he_thong()` lo, không nhờ database chốt hộ.
 
 		   ⚠️ Bài người thật để `so_lan = 0`, không phải 1 — nhìn con số là biết ngay hàng nào
-		      do hệ thống dựng, khỏi phải đoán theo `ma_nv`. */
+		      do hệ thống dựng, khỏi phải đoán theo `ma_nv`.
+
+		   ===== `bac_can`: BẬC TỐI THIỂU ĐỌC ĐƯỢC BÀI NÀY =====
+		   Anh Thắng 09/09/2026: *"nó sẽ hiện cho cửa hàng trưởng và quản lý trở lên xem chứ
+		   ngang hàng hoặc phía dưới sẽ không xem được"*.
+
+		   0 = ai cũng đọc, và mọi bài người thật viết đều là 0 — bảng tin vẫn là trang chung
+		   của cả công ty, không siết gì thêm. Chỉ dòng do hệ thống dựng mới mang bậc.
+		   Số ở đây là thang 1..5 của `VHCC_Vai::BAC` (Nhân viên 1 → Admin 5), không phải một
+		   thang riêng: hai thang là sớm muộn lệch nhau, mà lệch thang phân quyền thì im lặng. */
 		$b['bai'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			nhom VARCHAR(60) NOT NULL DEFAULT '',
@@ -58,6 +67,7 @@ class VHNB_DB {
 			so_bl INT NOT NULL DEFAULT 0,
 			khoa VARCHAR(120) NOT NULL DEFAULT '',
 			so_lan INT NOT NULL DEFAULT 0,
+			bac_can TINYINT(1) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			KEY moi (ghim,tao_luc),
