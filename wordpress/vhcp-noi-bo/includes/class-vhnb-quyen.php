@@ -72,6 +72,13 @@ class VHNB_Quyen {
 		      ĐỌC. Nên chỗ hỏi nó KHÔNG dùng `duoc()` — xem `bac_nguoi()` ngay dưới. */
 		'tin_gd' => array( 'nhan' => 'Xem thông báo giao dịch (chi phí · chấm công · ghế · vé)',
 			'md' => 'CUA_HANG_TRUONG' ),
+		/* Anh Thắng 09/09/2026: cửa hàng trưởng chỉ thấy cơ sở MÌNH, Quản lý trở lên thấy TẤT
+		   CẢ. Hai việc chứ không một, vì thang bậc chỉ có MỘT ngưỡng cho mỗi việc: muốn Quản lý
+		   thấy nhiều hơn Cửa hàng trưởng thì phải là hai việc với hai ngưỡng.
+		   ⚠️ Ngưỡng này PHẢI cao hơn hoặc bằng `tin_gd` mới có nghĩa. Khai thấp hơn thì nó vô
+		      hại (người chưa qua `tin_gd` vẫn không đọc được gì), chỉ là vô dụng. */
+		'tin_gd_het' => array( 'nhan' => 'Xem thông báo giao dịch của MỌI cơ sở',
+			'md' => 'QUAN_LY' ),
 	);
 
 	/** Năm bậc, đúng thang của `VHCC_Vai`. Khai lại TÊN HIỆN ra màn, không khai lại luật. */
@@ -141,6 +148,30 @@ class VHNB_Quyen {
 		if ( ! is_array( $u ) || ! $u ) { return 0; }
 		if ( ! class_exists( 'VHCC_Vai' ) || ! method_exists( 'VHCC_Vai', 'bac' ) ) { return 0; }
 		return (int) VHCC_Vai::bac( $u );
+	}
+
+	/**
+	 * CƠ SỞ NGƯỜI NÀY PHỤ TRÁCH, dạng mảng tên. Rỗng = không biết / không thuộc cơ sở nào.
+	 *
+	 * ⚠️ MỘT NGƯỜI CÓ THỂ NHIỀU CƠ SỞ, và thẻ phiên nối chúng bằng dấu phẩy. Tách bằng
+	 *    `VHCC_NhanSu::ds_coso_cua()` — hàm của chính plugin chấm công, nơi đã xử đủ mấy ca
+	 *    khó (chuẩn hoá tên, cắt tên ghép). Tự `explode(',')` ở đây là dựng bản chép tay thứ
+	 *    hai, và hai bản thì sớm muộn lệch nhau ở đúng những ca ấy.
+	 * ⚠️ Thiếu plugin chấm công thì trả RỖNG, không đoán. Rỗng nghĩa là chỉ đọc được dòng
+	 *    không thuộc cơ sở nào — cùng chiều đóng với `bac_nguoi()`.
+	 */
+	public static function coso_nguoi( $u ) {
+		if ( ! is_array( $u ) || ! $u ) { return array(); }
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'ds_coso_cua' ) ) {
+			return array();
+		}
+		$ds = VHCC_NhanSu::ds_coso_cua( $u );
+		return is_array( $ds ) ? $ds : array();
+	}
+
+	/** Người này có được xem thông báo giao dịch của MỌI cơ sở không. */
+	public static function xem_het_coso( $u ) {
+		return self::bac_nguoi( $u ) >= (int) self::bac_can( 'tin_gd_het' );
 	}
 
 	/* ====================================================================== hỏi quyền */

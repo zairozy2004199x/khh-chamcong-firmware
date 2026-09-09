@@ -156,7 +156,7 @@ class VHCC_Bu {
 			self::nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do );
 		}
 
-		if ( $da_ghi ) { self::bao_nguoi_bi_dong( $u, $ma_nv, $ngay, 'bù giờ công', $da_ghi ); }
+		if ( $da_ghi ) { self::bao_nguoi_bi_dong( $u, $ma_nv, $ngay, 'bù giờ công', $da_ghi, $coso ); }
 		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv,
 			'daGhi' => $da_ghi, 'boQua' => $bo_qua );
 	}
@@ -174,7 +174,7 @@ class VHCC_Bu {
 	 *    `tools/test/kiem-goi-cheo.php`. Chưa cài plugin nội bộ thì lời gọi im lặng trôi qua,
 	 *    KHÔNG được làm hỏng việc bù: bù giờ là việc chính, báo tin là việc phụ.
 	 */
-	private static function bao_nguoi_bi_dong( $u, $ma_nv, $ngay, $viec, $da_ghi ) {
+	private static function bao_nguoi_bi_dong( $u, $ma_nv, $ngay, $viec, $da_ghi, $coso = '' ) {
 		if ( ! class_exists( 'VHNB_Bao' ) ) { return; }
 		$o = array();
 		foreach ( (array) $da_ghi as $k => $v ) {
@@ -192,14 +192,18 @@ class VHCC_Bu {
 		   ⚠️ ĐỪNG truyền `$chu_rieng` vào chỗ này cho gọn — xem cảnh báo ở `VHNB_Bao::viec()`.
 		   ⚠️ Khoá gộp KHÔNG cần tiền tố bảng như bên chi phí: chấm công chỉ có MỘT bản, không
 		      có bản riêng theo vùng nên không ai đụng khoá của ai. */
+		/* Gộp theo NGÀY **và** CƠ SỞ: mỗi cửa hàng trưởng chỉ đọc được dòng của cơ sở mình
+		   (anh Thắng 09/09/2026), nên hai cơ sở phải là hai dòng — gộp chung một dòng thì nó
+		   mang được đúng một cơ sở và cơ sở còn lại mất tin. */
+		$cs       = trim( (string) $coso );
 		$tin      = 'Chấm công — giờ công ngày ' . (string) $ngay . ' có cập nhật';
-		$khoa_tin = 'tin_cc:' . (string) $ngay;
+		$khoa_tin = 'tin_cc:' . (string) $ngay . ( '' !== $cs ? ':' . $cs : '' );
 
 		/* ⚠️ Bản nội bộ trên máy có thể CŨ HƠN và chưa có `viec()` — hai plugin cài độc lập.
 		   Lùi về `gui()`: mất dòng bảng tin, chuông vẫn chạy y như trước. */
 		if ( method_exists( 'VHNB_Bao', 'viec' ) ) {
 			VHNB_Bao::viec( (string) $ma_nv, 'cham_cong', $chu_rieng, '', 'cc_gio:' . (string) $ngay,
-				$tu, $tin, $khoa_tin );
+				$tu, $tin, $khoa_tin, $cs );
 			return;
 		}
 		if ( method_exists( 'VHNB_Bao', 'gui' ) ) {

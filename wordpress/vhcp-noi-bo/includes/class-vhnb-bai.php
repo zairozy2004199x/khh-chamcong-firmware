@@ -132,9 +132,11 @@ class VHNB_Bai {
 	 * @param string $nguon 'chi_phi' · 'cham_cong' · 'ghe' · 've' — chỉ để đặt tên người đăng.
 	 * @param string $chu   câu TRUNG TÍNH, do bên gửi viết. Xem cảnh báo ở `VHNB_Bao::viec()`.
 	 * @param string $khoa  khoá gộp. Bên gửi tự đặt, nên kèm ngày nếu muốn gộp theo ngày.
+	 * @param string $co_so cơ sở của giao dịch. Rỗng = không thuộc cơ sở nào (đơn chi phí gồm
+	 *                      nhiều cơ sở), lúc ấy ai qua được bậc là đọc được.
 	 * @return int|false id bài, hoặc false nếu không ghi được.
 	 */
-	public static function dang_he_thong( $nguon, $chu, $khoa = '' ) {
+	public static function dang_he_thong( $nguon, $chu, $khoa = '', $co_so = '' ) {
 		global $wpdb;
 		$chu = self::gon( $chu, 300 );
 		if ( '' === $chu ) { return false; }
@@ -152,6 +154,15 @@ class VHNB_Bai {
 		      thì bài cũ vẫn ở bậc cũ — cố ý: đổi luật không được lặng lẽ viết lại quá khứ, mà
 		      dòng bảng tin thì gộp theo ngày nên hôm sau đã theo bậc mới. */
 		$bac_can = (int) VHNB_Quyen::bac_can( 'tin_gd' );
+		/* Chuẩn hoá bằng ĐÚNG hàm mà bên chấm công dùng để đọc cơ sở của người xem — hai bên
+		   phải ra cùng một chuỗi, không thì chốt so không bao giờ khớp và cửa hàng trưởng
+		   không thấy gì. Thiếu plugin chấm công thì để nguyên, chỉ cắt khoảng trắng. */
+		$co_so = trim( (string) $co_so );
+		if ( '' !== $co_so && class_exists( 'VHCC_NhanSu' )
+			&& method_exists( 'VHCC_NhanSu', 'chuan_coso' ) ) {
+			$co_so = (string) VHCC_NhanSu::chuan_coso( $co_so );
+		}
+		$co_so = self::gon( $co_so, 60 );
 
 		if ( '' !== $khoa ) {
 			$cu = $wpdb->get_row( $wpdb->prepare(
@@ -161,6 +172,7 @@ class VHNB_Bai {
 				$n = (int) $cu['so_lan'] + 1;
 				$wpdb->update( $t, array(
 					'ho_ten'   => $ten,
+					'co_so'    => $co_so,
 					'noi_dung' => $chu . ' · ' . $n . ' lượt',
 					'so_lan'   => $n,
 					'tao_luc'  => current_time( 'mysql' ),
@@ -180,6 +192,7 @@ class VHNB_Bai {
 			'khoa'     => $khoa,
 			'so_lan'   => 1,
 			'bac_can'  => $bac_can,
+			'co_so'    => $co_so,
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		return ( false === $ok ) ? false : (int) $wpdb->insert_id;
@@ -324,31 +337,48 @@ class VHNB_Bai {
 		 *    `prepare()` sinh ra mà đem nhét vào một `prepare()` khác là bị xử lý hai lần, và
 		 *    `%` trong đó hoá ra thứ khác. `(int)` đã chốt đây là một con số, không phải chữ
 		 *    của người dùng. */
-		$bac     = (int) VHNB_Quyen::bac_nguoi( $u );
-		$loc_bac = ' AND bac_can <= ' . $bac;
+		$bac = (int) VHNB_Quyen::bac_nguoi( $u );
+		$loc = ' AND bac_can <= ' . $bac;
+
+		/* ---- CƠ SỞ: cửa hàng trưởng chỉ thấy cơ sở mình, Quản lý trở lên thấy tất cả ----
+		   Anh Thắng 09/09/2026. `co_so = ''` là dòng không thuộc cơ sở nào (đơn chi phí gồm
+		   nhiều cơ sở) — ai qua được `bac_can` là đọc được.
+		   ⚠️ Không đọc ra được cơ sở nào thì CHỈ còn dòng `co_so=''`, không phải thấy hết —
+		      cùng chiều đóng với `bac_nguoi()`. Người mới, người chưa gán cơ sở rơi vào đây.
+		   ⚠️ Tên cơ sở CÓ dấu cách và dấu ngoặc (`(PART TIME )_POSH+JP` là tên thật trong sổ),
+		      nên không lọc theo bộ ký tự được. Mỗi tên đi qua `prepare('%s')` để thành một
+		      hằng đã đóng nháy và đã thoát, rồi mới ghép vào câu — và câu ghép xong KHÔNG đi
+		      qua `prepare()` lần nữa (xem cảnh báo phía trên). */
+		if ( ! VHNB_Quyen::xem_het_coso( $u ) ) {
+			$hang = array();
+			foreach ( VHNB_Quyen::coso_nguoi( $u ) as $x ) {
+				$hang[] = $wpdb->prepare( '%s', $x );
+			}
+			$loc .= $hang
+				? " AND ( co_so = '' OR co_so IN (" . implode( ',', $hang ) . ') )'
+				: " AND co_so = ''";
+		}
+
+		/* LIMIT/OFFSET ghép bằng số đã ép `(int)`, cùng lý do: câu này không còn qua `prepare()`. */
+		$duoi = ' ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT ' . (int) self::MOI_TRANG
+			. ' OFFSET ' . (int) $bo;
 
 		/* 🔴 BÀI CỦA NHÓM TỰ TẠO KHÔNG BAO GIỜ LỌT RA BẢNG TIN CHUNG.
 		   Mọi đường đọc ở dưới đều chặn `nhom_id=0`, trừ đúng đường "đang mở một nhóm". Thiếu
 		   một chỗ là bài trong nhóm kín hiện ra ở màn "Tất cả" của cả công ty — và người viết
 		   không hề biết, vì họ đăng vào nhóm. */
 		if ( $nhom_id > 0 ) {
-			return VHNB_DB::rows( $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=%d $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				$nhom_id, self::MOI_TRANG, $bo ) );
+			return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=" . (int) $nhom_id . $loc . $duoi );
 		}
 
 		/* Chọn một bộ phận thì VẪN thấy bài chung (`nhom=''`): thông báo toàn công ty mà biến
 		   mất chỉ vì đang lọc bộ phận thì lọc xong là bỏ sót đúng thứ quan trọng nhất. */
 		if ( '' !== $nhom ) {
-			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=%s OR nhom='' ) $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				$nhom, self::MOI_TRANG, $bo );
-		} else {
-			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom_id=0 $loc_bac ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
-				self::MOI_TRANG, $bo );
+			$lit = $wpdb->prepare( '%s', $nhom );
+			return VHNB_DB::rows(
+				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=$lit OR nhom='' )" . $loc . $duoi );
 		}
-		return VHNB_DB::rows( $sql );
+		return VHNB_DB::rows( "SELECT * FROM $t WHERE nhom_id=0" . $loc . $duoi );
 	}
 
 	public static function ds_binh_luan( $bai_id ) {
@@ -405,7 +435,7 @@ class VHNB_Bai {
 	public static function doc_duoc( $u, $bai_id ) {
 		global $wpdb;
 		$b = $wpdb->get_row( $wpdb->prepare(
-			'SELECT nhom_id, bac_can FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d',
+			'SELECT nhom_id, bac_can, co_so FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d',
 			(int) $bai_id ), ARRAY_A );
 		if ( ! $b ) { return true; }
 
@@ -416,6 +446,13 @@ class VHNB_Bai {
 		   việc lộ rằng bài đó tồn tại. Hàm này là cửa mà cả hai đường kia đều đi qua. */
 		if ( (int) $b['bac_can'] > 0
 			&& (int) VHNB_Quyen::bac_nguoi( $u ) < (int) $b['bac_can'] ) { return false; }
+
+		/* Và cơ sở, cùng luật với `bang_tin()`: cửa hàng trưởng cơ sở khác cũng là ngang hàng.
+		   ⚠️ So bằng `in_array` chặt (`true`) — cả hai bên đều là chuỗi, mà so lỏng thì
+		      `'0' == ''` và một cơ sở tên `'0'` đọc được mọi dòng. */
+		$cs = trim( (string) $b['co_so'] );
+		if ( '' !== $cs && ! VHNB_Quyen::xem_het_coso( $u )
+			&& ! in_array( $cs, VHNB_Quyen::coso_nguoi( $u ), true ) ) { return false; }
 
 		$nid = (int) $b['nhom_id'];
 		if ( $nid <= 0 ) { return true; }

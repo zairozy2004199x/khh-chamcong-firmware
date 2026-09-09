@@ -141,14 +141,18 @@ class VHNB_Bao {
 	 * @param string $tu_ma_nv  mã NV gây ra việc, để không tự báo cho chính mình.
 	 * @param string $tin_chung câu cho BẢNG TIN — trung tính. Rỗng = không đăng bảng tin.
 	 * @param string $khoa_tin  khoá gộp của BẢNG TIN. Rỗng = mỗi lượt một bài (hiếm khi đúng).
+	 * @param string $co_so     cơ sở của giao dịch. Cửa hàng trưởng chỉ đọc được dòng của cơ sở
+	 *                          mình; Quản lý trở lên đọc hết. Rỗng = không thuộc cơ sở nào, ai
+	 *                          qua được bậc cũng đọc — dùng cho việc trải nhiều cơ sở (đơn chi
+	 *                          phí gồm nhiều cơ sở trong một đơn).
 	 * @return array( 'bao' => id|false, 'tin' => id|false )
 	 */
 	public static function viec( $ma_nv, $nguon, $chu, $duong_dan = '', $khoa = '',
-			$tu_ma_nv = '', $tin_chung = '', $khoa_tin = '' ) {
+			$tu_ma_nv = '', $tin_chung = '', $khoa_tin = '', $co_so = '' ) {
 		$bao = self::gui( $ma_nv, $nguon, $chu, $duong_dan, $khoa, $tu_ma_nv );
 		$tin = false;
 		if ( '' !== trim( (string) $tin_chung ) ) {
-			$tin = VHNB_Bai::dang_he_thong( $nguon, $tin_chung, $khoa_tin );
+			$tin = VHNB_Bai::dang_he_thong( $nguon, $tin_chung, $khoa_tin, $co_so );
 		}
 		return array( 'bao' => $bao, 'tin' => $tin );
 	}

@@ -1857,6 +1857,66 @@ teq( '   nhưng bài CŨ vẫn ở bậc cũ, đổi luật không viết lại 
 	true, VHNB_Bai::doc_duoc( $U_CHT, $_id_gd ) );
 VHNB_Quyen::dat( array( 'tin_gd' => 'CUA_HANG_TRUONG' ) );
 
+/* ============ CƠ SỞ: CHT chỉ thấy cơ sở mình, Quản lý trở lên thấy tất cả ============
+   Anh Thắng 09/09/2026, khi được hỏi lại về Quản lý và Kế toán: cửa hàng trưởng chỉ thấy cơ
+   sở mình. Vì *"ngang hàng thì không xem được"* — mà cửa hàng trưởng cơ sở khác cũng đúng là
+   ngang hàng. */
+
+vhnb_dung_bang();
+
+/* $U_CHT ở cơ sở CS_VIVO (khai ở đầu bài kiểm) — `chuan_coso()` cắt tiền tố nên thành 'VIVO'. */
+$_U_CHT2 = VHCC_Auth::user_by_token(
+	VHCC_Auth::phat_token( 'CHT Cơ Sở Khác', 'Cửa hàng trưởng', 'CS_AEON', 'NV555' ) );
+$_U_CHT_2CS = VHCC_Auth::user_by_token(
+	VHCC_Auth::phat_token( 'CHT Hai Nơi', 'Cửa hàng trưởng', 'CS_VIVO, CS_AEON', 'NV556' ) );
+
+$_id_vivo = VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — có giao dịch', 'tin_ghe:VIVO', 'CS_VIVO' );
+$_id_aeon = VHNB_Bai::dang_he_thong( 'ghe', 'Ghế massage — có giao dịch', 'tin_ghe:AEON', 'CS_AEON' );
+$_id_chung = VHNB_Bai::dang_he_thong( 'chi_phi', 'Đơn chi phí kỳ 36 có cập nhật mới', 'tin_cp:36' );
+
+teq( 'cơ sở lưu đã chuẩn hoá, cắt tiền tố CS_', 'VIVO',
+	(string) $wpdb->get_var( 'SELECT co_so FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_id_vivo ) );
+teq( 'đơn chi phí không thuộc cơ sở nào', '',
+	(string) $wpdb->get_var( 'SELECT co_so FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_id_chung ) );
+
+/* --- cửa hàng trưởng --- */
+$_ds_cht = array();
+foreach ( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) as $b ) { $_ds_cht[] = (int) $b['id']; }
+teq( '🔴 CHT VIVO thấy 2 dòng: cơ sở mình + dòng chung', 2, count( $_ds_cht ) );
+t( '   có dòng VIVO',  in_array( (int) $_id_vivo, $_ds_cht, true ), $_ds_cht );
+t( '   có dòng chung', in_array( (int) $_id_chung, $_ds_cht, true ), $_ds_cht );
+t( '🔴 KHÔNG có dòng của cơ sở AEON', ! in_array( (int) $_id_aeon, $_ds_cht, true ), $_ds_cht );
+
+teq( 'CHT cơ sở khác cũng chỉ thấy 2 dòng', 2, count( VHNB_Bai::bang_tin( '', 1, 0, $_U_CHT2 ) ) );
+t( '   và dòng họ thấy là AEON, không phải VIVO',
+	false !== VHNB_Bai::doc_duoc( $_U_CHT2, $_id_aeon )
+		&& false === VHNB_Bai::doc_duoc( $_U_CHT2, $_id_vivo ) );
+
+/* Người phụ trách HAI cơ sở thì thấy cả hai — thẻ phiên nối bằng dấu phẩy. */
+teq( '🔴 CHT phụ trách hai cơ sở thấy đủ 3 dòng', 3,
+	count( VHNB_Bai::bang_tin( '', 1, 0, $_U_CHT_2CS ) ) );
+
+/* --- Quản lý · Kế toán · Admin: thấy tất cả --- */
+teq( 'Quản lý thấy cả 3', 3, count( VHNB_Bai::bang_tin( '', 1, 0, $_U_QL ) ) );
+teq( 'Kế toán thấy cả 3', 3, count( VHNB_Bai::bang_tin( '', 1, 0, $_U_KT ) ) );
+teq( 'Admin thấy cả 3',   3, count( VHNB_Bai::bang_tin( '', 1, 0, $U_AD ) ) );
+
+/* --- nhân viên vẫn không thấy dòng nào --- */
+teq( 'nhân viên không thấy dòng giao dịch nào', 0, count( VHNB_Bai::bang_tin( '', 1, 0, $U_NV ) ) );
+
+/* --- đường đọc lẻ cũng chặn theo cơ sở --- */
+teq( '🔴 CHT cơ sở khác đoán id cũng không đọc được',
+	false, VHNB_Bai::doc_duoc( $_U_CHT2, $_id_vivo ) );
+t( '🔴 nên cũng không bình luận được',
+	empty( VHNB_Bai::binh_luan( $_U_CHT2, $_id_vivo, 'chen vào' )['ok'] ) );
+teq( 'Quản lý thì đọc được mọi cơ sở', true, VHNB_Bai::doc_duoc( $_U_QL, $_id_vivo ) );
+teq( 'dòng chung thì CHT nào cũng đọc được', true, VHNB_Bai::doc_duoc( $_U_CHT2, $_id_chung ) );
+
+/* Ngưỡng "xem hết cơ sở" cũng khai được: nới xuống CHT thì họ thấy hết. */
+VHNB_Quyen::dat( array( 'tin_gd_het' => 'CUA_HANG_TRUONG' ) );
+teq( 'nới ngưỡng xuống CHT thì CHT thấy cả 3', 3, count( VHNB_Bai::bang_tin( '', 1, 0, $U_CHT ) ) );
+VHNB_Quyen::dat( array( 'tin_gd_het' => 'QUAN_LY' ) );
+
 /* ================================================================= kết */
 
 echo "\n=== KIỂM TRANG NỘI BỘ ===\n";
