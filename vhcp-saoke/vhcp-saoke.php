@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.8.0
+ * Version:           0.8.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1101,10 +1101,14 @@ class SAOKE_App {
 		$mb = trim( (string) $req->get_param( 'maBank' ) );
 		$tu = self::vn2ymd_soft( (string) $req->get_param( 'tuNgay' ) ); $den = self::vn2ymd_soft( (string) $req->get_param( 'denNgay' ) );
 		$tuVN = $tu ? self::ymd2vn_ngay( $tu ) : ''; $denVN = $den ? self::ymd2vn_ngay( $den ) : '';
-		// Suy mã nộp; không ra được thì không lưu dòng vô dụng.
-		$suy = self::ax_ma_nop( array( 'maBank' => $mb, 'tenChuan' => $tc ), self::map_ten_diem() );
-		if ( '' === $suy['ma'] ) { return new WP_Error( 'ma', 'Chưa xác định được mã nộp tiền: ' . $suy['vi'] . '. Chọn Cửa hàng chuẩn đúng tên trong danh sách điểm, hoặc điền thẳng Mã bank.', array( 'status' => 400 ) ); }
-		$mb = $suy['ma'];
+		// POSH: nếu Cửa hàng chuẩn là ĐỊA ĐIỂM bên trang Ghế thì gán thẳng, KHÔNG cần mã nộp KH.
+		if ( self::ghe_co() && '' === $mb && self::ghe_la_coso( $tc ) ) {
+			$mb = '';   // để trống — đối soát theo địa điểm ghế, không theo mã KH
+		} else {
+			$suy = self::ax_ma_nop( array( 'maBank' => $mb, 'tenChuan' => $tc ), self::map_ten_diem() );
+			if ( '' === $suy['ma'] ) { return new WP_Error( 'ma', 'Chưa xác định được mã nộp tiền: ' . $suy['vi'] . '. Chọn Cửa hàng chuẩn đúng tên địa điểm (trang Ghế) hoặc điểm nộp, hoặc điền thẳng Mã bank.', array( 'status' => 400 ) ); }
+			$mb = $suy['ma'];
+		}
 		$all = get_option( 'saoke_anhxa' ); $all = is_array( $all ) ? $all : array();
 		$k = self::chuan_ch( $tf ); $thay = false;
 		foreach ( $all as &$r ) {
@@ -1465,6 +1469,13 @@ class SAOKE_App {
 			foreach ( array( $r['ma'], $r['ten_khai'] ) as $nm ) { $k = self::chuan_ch( (string) $nm ); if ( '' !== $k && ! isset( $map[ $k ] ) ) { $map[ $k ] = $v; } }
 		}
 		return $map;
+	}
+	/* $ten có phải tên 1 địa điểm bên Ghế không (so bỏ dấu/khoảng trắng). */
+	private static function ghe_la_coso( $ten ) {
+		if ( ! self::ghe_co() || '' === trim( (string) $ten ) ) { return false; }
+		static $set = null;
+		if ( null === $set ) { $set = array(); foreach ( self::ghe_ds_coso() as $c ) { $set[ self::chuan_ch( $c['ten'] ) ] = 1; } }
+		return isset( $set[ self::chuan_ch( $ten ) ] );
 	}
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
 	private static function ghe_coso_cua_may( $ten_may ) {
@@ -1877,8 +1888,9 @@ class SAOKE_App {
 			$coSo = self::cong_coso( $tenMay );
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
-			// POSH: tự lấy địa điểm từ trang Ghế theo tên máy (khỏi ánh xạ tay). Rớt về ánh xạ KH nếu ghế chưa có.
+			// POSH: tự lấy địa điểm từ trang Ghế theo tên máy; nếu trượt mà anh đã gán tay tới 1 địa điểm ghế thì dùng nó.
 			$ghe = self::ghe_coso_cua_may( $tenMay );
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) { $ghe = array( 'coso' => $ax['tenChuan'], 'maKh' => '', 'tinh' => '' ); }
 			$cuaHang = $ghe ? $ghe['coso'] : ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo );
 			$daAnhXa = $ghe ? true : ( '' !== $suy['ma'] );
 			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $soTien; }
