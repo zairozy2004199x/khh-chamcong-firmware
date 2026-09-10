@@ -4187,6 +4187,10 @@ function henLai(){
   /* Tab HỖ TRỢ KHÁCH (Hotline) cũng không tự vẽ lại cả trang, cùng lý do 'quan-ly' ở trên: có
      form nhập số lượt kích + tiền hoàn, vẽ lại giữa chừng là xoá số đang gõ dở. */
   if (TAB === 'hl-hotro') return;
+  /* Tab MÃ GIẢM GIÁ: từ 2.26+ có khối "Cấu hình khuyến mãi" và "Trang giới thiệu" (block editor)
+     — vẽ lại cả tab mỗi 30 giây là ĐÓNG khối đang mở, xoá ảnh/chữ đang soạn dở (anh Thắng: "tab
+     cứ F5 liên tục không làm được"). Các con số ở đây không cần realtime — bấm ↻ khi cần. */
+  if (TAB === 'ma') return;
   /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
   if (TAB === 'dieu-khien' && !DK_AUTO) return;
   hen = setTimeout(function(){

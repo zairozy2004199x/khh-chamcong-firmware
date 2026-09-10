@@ -541,6 +541,16 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
   border:1px solid rgba(240,180,41,.45)}
 .kmt-banner b{color:#f0b429;font-size:18px}
 .kmt-sub{font-size:13px;color:#cfc3a6;margin-top:4px;line-height:1.4}
+/* Màn CHÀO toàn màn hình (đập mặt khi khách vào), tự co giãn, cuộn được nếu dài */
+.kmt-splash{position:fixed;inset:0;z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  background:radial-gradient(130% 100% at 50% 0%, #232838 0%, #0c0e15 72%);padding:34px 18px 44px}
+.kmt-splash-in{width:100%;max-width:460px;margin:0 auto;min-height:calc(100vh - 78px);
+  display:flex;flex-direction:column;justify-content:center}
+.kmt-splash-cta{display:block;width:100%;margin:22px 0 0;padding:15px 18px;border:0;border-radius:14px;
+  background:linear-gradient(135deg,#f0b429,#e0952a);color:#241800;font-size:17px;font-weight:800;
+  cursor:pointer;box-shadow:0 8px 24px rgba(240,180,41,.35)}
+.kmt-splash-x{position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer;z-index:1}
 
 .deal{margin:16px 0 4px;padding:13px 16px;border-radius:14px;text-align:center;
   background:linear-gradient(135deg,rgba(240,180,41,.22),rgba(240,180,41,.08));
@@ -1398,6 +1408,22 @@ function veNap(){
 }
 
 // ---------------- trang giới thiệu khuyến mãi (block do quản lý soạn) ----------------
+/* Màn CHÀO toàn màn hình: khách vào /mua-ma là "đập mặt" trang này trước, bấm "Mua ngay" mới lộ
+   trang gói bên dưới. Hiện MỘT lần mỗi lần vào trang (module var), có nút ✕ và nút CTA để tắt. */
+var KMT_SPLASH_SHOWN = false;
+function kmtHienSplash(){
+  if (KMT_SPLASH_SHOWN) return;
+  var bs = (D && D.km_trang) || []; if (!bs.length) return;
+  KMT_SPLASH_SHOWN = true;
+  var ov = document.createElement('div'); ov.className = 'kmt-splash';
+  ov.innerHTML = '<button class="kmt-splash-x" id="kmt-splash-x" aria-label="Đóng">✕</button>'
+    + '<div class="kmt-splash-in">' + veKmTrang()
+    + '<button class="kmt-splash-cta" id="kmt-splash-go">' + L('Mua ngay','Buy now') + ' →</button></div>';
+  document.body.appendChild(ov);
+  function dong(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
+  var g = document.getElementById('kmt-splash-go'); if (g) g.onclick = dong;
+  var x = document.getElementById('kmt-splash-x'); if (x) x.onclick = dong;
+}
 function veKmTrang(){
   var bs = (D && D.km_trang) || []; if (!bs.length) return '';
   var h = '<div class="kmt">';
@@ -1418,9 +1444,10 @@ function veMua(){
   if (DON) return veTraTien();
   if (!D) return L('<div class="card"><p class="mut">Đang tải bảng giá…</p></div>');
 
+  kmtHienSplash();   // màn chào toàn màn hình (nếu quản lý có soạn), khách bấm "Mua ngay" mới xuống đây
   var max = 0;
   D.goi.forEach(function(g){ if (g.giam_pt > max) max = g.giam_pt; });
-  var h = veKmTrang();
+  var h = '';
   var cho = (D.cho_ngay || 0);
   if (max > 0) {
     h += L('<div class="deal"><b>Giảm tới ') + max + '%</b><div>'
