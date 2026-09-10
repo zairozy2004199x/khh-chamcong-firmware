@@ -1598,8 +1598,10 @@ class VHG_KeToan {
 	/* DOANH THU ĐÃ NỘP — đối chiếu tiền mặt nhân viên phải nộp với số ĐÃ NỘP vào ngân hàng (dò mã
 	   nộp của cơ sở trong nội dung sao kê ngân hàng, cùng DB với plugin Sao Kê). Mỗi cơ sở:
 	   doanh thu · tiền mặt (phải nộp) · đã nộp (sao kê) · còn lại. QR về thẳng bank nên KHÔNG tính nộp tay. */
-	public static function danop_saoke( $tu, $den ) {
+	public static function danop_saoke( $tu, $den, $scopeKeys = null ) {
 		global $wpdb;
+		$scoped = is_array( $scopeKeys );
+		$scopeSet = array(); if ( $scoped ) { foreach ( $scopeKeys as $sk ) { $scopeSet[ (string) $sk ] = 1; } }
 		$tu = self::ngay_( $tu ); $den = self::ngay_( $den );
 		if ( '' === $tu || '' === $den ) { return array( 'ok' => false, 'error' => 'Thiếu khoảng ngày.' ); }
 		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
@@ -1615,6 +1617,7 @@ class VHG_KeToan {
 		foreach ( array_keys( $dtByCoso ) as $cs ) { if ( '' !== $cs && ! isset( $tenList[ $cs ] ) ) { $tenList[ $cs ] = self::squash( $cs ); } }
 		$out = array(); $tongDT = 0; $tongTM = 0; $tongNop = 0; $tongConLai = 0; $soChuaMa = 0;
 		foreach ( $tenList as $ten => $sq ) {
+			if ( $scoped && ! isset( $scopeSet[ $sq ] ) ) { continue; }   // nhân viên chỉ thấy cơ sở của mình
 			$ma = isset( $cm[ $sq ] ) ? trim( (string) $cm[ $sq ] ) : '';
 			$daNop = 0; $lanCuoi = '';
 			if ( $coSaoke && '' !== $ma ) {
@@ -1626,12 +1629,22 @@ class VHG_KeToan {
 			$conLai = $tm - $daNop;
 			if ( 0 === $dtv && 0 === $daNop && '' === $ma ) { continue; }
 			if ( '' === $ma ) { $soChuaMa++; }
-			$out[] = array( 'coso' => $ten, 'ma' => $ma, 'doanhThu' => $dtv, 'tienMat' => $tm, 'daNop' => $daNop, 'conLai' => $conLai, 'lanCuoi' => $lanCuoi );
+			$out[] = array( 'coso' => $ten, 'key' => $sq, 'ma' => $ma, 'doanhThu' => $dtv, 'tienMat' => $tm, 'daNop' => $daNop, 'conLai' => $conLai, 'lanCuoi' => $lanCuoi );
 			$tongDT += $dtv; $tongTM += $tm; $tongNop += $daNop; $tongConLai += $conLai;
 		}
 		usort( $out, function ( $a, $b ) { return $b['conLai'] - $a['conLai']; } );
+		// Nhân viên (PIN báo cáo) -> cơ sở phụ trách, để LỌC theo nhân viên (chỉ khi xem toàn quyền).
+		$nhanVien = array();
+		if ( ! $scoped ) {
+			$nvRows = $wpdb->get_results( 'SELECT ten, coso FROM ' . VHG_DB::t( 'bc_pin' ) . " WHERE active=1 AND ten<>'' ORDER BY ten ASC", ARRAY_A );
+			foreach ( (array) $nvRows as $nr ) {
+				$keys = array();
+				foreach ( preg_split( '/[,;\r\n]+/', (string) $nr['coso'] ) as $cs ) { $cs = trim( $cs ); if ( '' !== $cs ) { $keys[] = self::squash( $cs ); } }
+				if ( $keys ) { $nhanVien[] = array( 'ten' => (string) $nr['ten'], 'keys' => array_values( array_unique( $keys ) ) ); }
+			}
+		}
 		return array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'rows' => $out, 'coSaoke' => $coSaoke, 'soChuaMa' => $soChuaMa,
-			'tongDoanhThu' => $tongDT, 'tongTienMat' => $tongTM, 'tongDaNop' => $tongNop, 'tongConLai' => $tongConLai );
+			'nhanVien' => $nhanVien, 'tongDoanhThu' => $tongDT, 'tongTienMat' => $tongTM, 'tongDaNop' => $tongNop, 'tongConLai' => $tongConLai );
 	}
 
 	/* VietQR THỰC NHẬN — lấy từ plugin Sao Kê (bảng wp_saoke_cong, giao dịch cổng VietQR) gom theo
