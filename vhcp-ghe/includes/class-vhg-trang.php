@@ -7641,7 +7641,11 @@ function kmtVe(){
 }
 function kmtVeStage(){
   var st = document.getElementById('kmt-stage'); if (!st || !KMT_DOC) return;
-  var a = kmtAspect(KMT_KHO), maxW = Math.min(340, (st.parentNode.clientWidth||340) - 4), maxH = 520;
+  /* Sân canvas TO cho dễ chỉnh: dùng gần trọn bề rộng khung soạn (tối đa 760px) và ~62% chiều cao
+     màn — poster vẫn giữ đúng tỉ lệ khổ, chỉ phóng khung sửa cho thao tác thoải mái. */
+  var a = kmtAspect(KMT_KHO);
+  var maxW = Math.min((st.parentNode.clientWidth || 360) - 24, 760);
+  var maxH = Math.min((window.innerHeight || 700) * 0.62, 600);
   var sw = Math.min(maxW, maxH * a[0] / a[1]); var sh = sw * a[1] / a[0];
   KMT_SW = sw; KMT_SH = sh;
   st.style.width = sw + 'px'; st.style.height = sh + 'px';
