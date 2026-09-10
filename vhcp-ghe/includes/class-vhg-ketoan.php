@@ -1605,7 +1605,13 @@ class VHG_KeToan {
 		$tu = self::ngay_( $tu ); $den = self::ngay_( $den );
 		if ( '' === $tu || '' === $den ) { return array( 'ok' => false, 'error' => 'Thiếu khoảng ngày.' ); }
 		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
-		$cm = get_option( 'saoke_coso_ma' ); $cm = is_array( $cm ) ? $cm : array();
+		// MÃ NỘP theo cơ sở — do plugin Sao Kê ghi. ⚠️ Sao Kê khoá bằng chuan_ch() = CHỮ THƯỜNG
+		// ('sanbaycantho'), còn Ghế so bằng squash() = CHỮ HOA ('SANBAYCANTHO'). Tra thẳng thì
+		// KHÔNG BAO GIỜ khớp: mọi cơ sở hiện 'chưa đặt mã' và Đã nộp = 0 dù kế toán đã đặt đủ mã.
+		// Quy khoá về đúng dạng của Ghế; nhận cả khoá cũ lẫn khoá mới, không phải sửa bên Sao Kê.
+		$cmRaw = get_option( 'saoke_coso_ma' ); $cmRaw = is_array( $cmRaw ) ? $cmRaw : array();
+		$cm = array();
+		foreach ( $cmRaw as $cmK => $cmV ) { $cmK = self::squash( $cmK ); if ( '' !== $cmK ) { $cm[ $cmK ] = $cmV; } }
 		$dt = $wpdb->get_results( $wpdb->prepare(
 			'SELECT h.coso coso, COALESCE(SUM(d.tong),0) dt, COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'

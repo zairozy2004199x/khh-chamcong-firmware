@@ -1,7 +1,7 @@
 # Bàn giao — Trang Ghế (plugin `vhcp-ghe`)
 
 Hệ thống quản lý ghế massage & doanh thu POSH/K&H, chạy trên WordPress tại **khmatrix.com**.
-Bản đang chạy: **2.20.1**. Repo: <https://github.com/zairozy2004199x/khh-chamcong-firmware>
+Bản đang chạy: **2.20.2**. Repo: <https://github.com/zairozy2004199x/khh-chamcong-firmware>
 (nhánh phát triển `claude/posh-qr-kh1urz`).
 
 > ⚠️ Repo **CÔNG KHAI**. Tuyệt đối không đặt PIN / khoá / token / số tài khoản ngân hàng /
@@ -14,7 +14,7 @@ Bản đang chạy: **2.20.1**. Repo: <https://github.com/zairozy2004199x/khh-ch
 1. WordPress → **Plugins → Add New → Upload Plugin** → chọn `dist/vhcp-ghe.zip` → *Install* →
    nếu hỏi thì **Replace current** → **Activate**.
 2. Sau khi cài đè: bấm **Ctrl + F5** để trình duyệt bỏ bản JS cũ trong cache.
-3. Kiểm tra số bản: mở trang, số phiên bản in thẳng ra (biến `VHG_BAN`) — phải là **2.20.1**.
+3. Kiểm tra số bản: mở trang, số phiên bản in thẳng ra (biến `VHG_BAN`) — phải là **2.20.2**.
    Nếu vẫn thấy số cũ = máy chủ còn giữ bản cũ hoặc chưa kích hoạt lại.
 
 `vhcp-ghe` và `vhcp-saoke` **dùng chung một database** và đọc chéo bảng của nhau, nên cả hai
@@ -58,6 +58,10 @@ plugin phải cùng cài trên một site.
   một người thì bảng và 3 thẻ tổng lọc lại đúng cơ sở người đó phụ trách.
 - **Nhân viên thường**: chỉ thấy cơ sở trong **phạm vi PIN** của mình.
 - Cơ sở **chưa đặt mã** hiện nhãn "chưa đặt mã" → vào Sao Kê đặt mã cho nó.
+- ⚠️ **Bẫy đã vá ở 2.20.2:** Sao Kê lưu mã với khoá **chữ thường** (`chuan_ch()` → `sanbaycantho`),
+  Ghế tra bằng khoá **chữ HOA** (`squash()` → `SANBAYCANTHO`) — không bao giờ khớp, nên **mọi** cơ sở
+  hiện "chưa đặt mã" và *Đã nộp* = 0đ dù kế toán đã đặt đủ mã. Ghế nay quy khoá của option về
+  `squash()` trước khi tra. Thêm chỗ nào đọc `saoke_coso_ma` thì phải quy khoá y như vậy.
 
 ## 6. Liên thông với plugin Sao Kê (`vhcp-saoke`)
 
