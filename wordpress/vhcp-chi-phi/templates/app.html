@@ -623,6 +623,32 @@
       <div id="daXinForm" style="display:none;margin:8px 0 0;padding:10px 14px;border-radius:10px;
            background:#ecfdf5;border:1px solid #6ee7b7"></div>
 
+      <!-- 🔴 GỬI QUYẾT TOÁN THEO ĐƠN — anh Thắng: "khi đơn này đã xong, tích chọn để gửi quyết
+           toán theo đơn". Bước cuối: đối chiếu tiền đã ứng với tiền đã chi rồi kế toán chốt sổ.
+           Tách hẳn khỏi thanh xin tạm ứng ở trên (màu tím, không phải xanh) vì hai việc ngược
+           chiều nhau: một cái xin tiền TRƯỚC, một cái chốt sổ SAU. -->
+      <div id="daQtBar" style="display:none;margin:8px 0 0;padding:10px 14px;border-radius:10px;
+           background:#faf5ff;border:1px solid #d8b4fe;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center">
+        <b style="color:#6b21a8">🧾 Gửi quyết toán</b>
+        <span style="font-size:12.5px;color:#475569">Đã tích <b id="daQtSo">0</b> hạng mục ·
+          tổng <b id="daQtTong" style="color:#6b21a8">0</b>đ</span>
+        <button class="btn b-s" onclick="daTichQtHet(true)">Tích hết</button>
+        <button class="btn b-s" onclick="daTichQtHet(false)">Bỏ tích</button>
+        <button class="btn b-p" id="daQtBtn" onclick="daMoQt()">🧾 Gửi quyết toán cho các hạng mục đã tích</button>
+      </div>
+      <div id="daQtForm" style="display:none;margin:8px 0 0;padding:10px 14px;border-radius:10px;
+           background:#faf5ff;border:1px solid #d8b4fe"></div>
+
+      <div id="daQtBox" style="display:none;margin:10px 0 0">
+        <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px">🧾 Lệnh quyết toán của dự án</div>
+        <div class="tw"><table>
+          <thead><tr><th style="width:64px">Đợt</th><th>Hạng mục trong lệnh</th>
+            <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th>Mốc</th>
+            <th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="daQtBody"></tbody>
+        </table></div>
+      </div>
+
       <!-- Các lệnh tạm ứng đã gửi của chính dự án này — nhân viên nhìn là biết đợt nào tới đâu. -->
       <div id="daLenhBox" style="display:none;margin:10px 0 0">
         <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px">💵 Lệnh tạm ứng của dự án</div>
@@ -4463,7 +4489,9 @@
     /* Thanh tích + bảng lệnh dựng SAU khi bảng đã vẽ: ô tích nằm trong bảng, dựng trước thì
        `querySelectorAll('[data-xtu]')` chưa thấy gì và thanh không bao giờ hiện. */
     daXinBarDoi();
+    daQtBarDoi();
     renderDaLenh(r);
+    renderDaQt(r);
   }
   /* Lưu con số dự phòng. Số âm bị máy chủ chối — làm phần "còn dự phòng" phình ra một cách
      lặng lẽ, mà kế toán căn vào đó để chuẩn bị tiền. */
@@ -4751,31 +4779,11 @@
       +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>';
   }
 
-  /* ── 📤 NHÂN VIÊN GỬI XIN TẠM ỨNG ──────────────────────────────────────────────────── */
-  function hmMoXin(k, maDA, row){
-    /* Lịch đợt — anh Thắng: *"kiểu gửi xin tạm ứng nhiều lần, hoặc 1 lần, nếu 1 lần mà đi tạm
-       ứng nhiều lần thì nv có thể lịch chọn ngày đi tạm ứng lần 1,2,3"*. Để trống hết cũng
-       gửi được: phần đông chỉ xin một lần, bắt gõ lịch là bắt làm thừa. */
-    _hmMo(k, '<b>📤 Gửi xin tạm ứng — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cần đi tạm ứng làm nhiều lần thì gõ ngày (và số tiền) từng lần để kế toán biết đường chuẩn bị. <b>Để trống hết = xin một lần</b>.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
-      +[1,2,3].map(function(i){
-        return '<span style="white-space:nowrap">Lần '+i+': <input type="date" data-xnd="'+k+'_'+i+'" style="font-size:12px">'
-          +' <input type="text" data-xst="'+k+'_'+i+'" placeholder="số tiền" inputmode="numeric" onfocus="tienVao(this)" onblur="tienRa(this)" style="width:110px;font-size:12px;text-align:right"></span>';
-      }).join('')+'</div>'
-      +_hmNutDay(k,'hmGuiXin',maDA,row,'✓ Gửi xin tạm ứng'));
-  }
-  function hmGuiXin(k, maDA, row){
-    var lich=[];
-    for(var i=1;i<=3;i++){
-      var d=document.querySelector('[data-xnd="'+k+'_'+i+'"]');
-      var t=document.querySelector('[data-xst="'+k+'_'+i+'"]');
-      var ngay=d?String(d.value||'').trim():'';
-      if(!ngay) continue;   // không ngày thì kế toán chuẩn bị tiền vào hôm nào?
-      lich.push({ngay:ngay, soTien:_tienSo(t?t.value:'')||0});
-    }
-    hmDat(maDA,row,'xin',{lich:lich},_hmSau(k));
-  }
+  /* ── 📤 XIN TẠM ỨNG ĐÃ CHUYỂN SANG LỆNH CỦA CẢ DỰ ÁN ─────────────────────────────────
+     `hmMoXin()` / `hmGuiXin()` cũ (xin lẻ TỪNG hạng mục) đã bỏ hẳn, không phải để lại cho gọn
+     mắt: máy chủ nay CHỐI đường ấy (`dat_hm` chặn 'xin'), nên để mã chết nằm đó là mời người
+     sau nối lại một cái nút bấm vào chỉ ra câu lỗi. Đường đang chạy là `daMoXinTU()` /
+     `daGuiXinTU()` — tích nhiều hạng mục, gửi MỘT lệnh. */
 
   /* ── 💵 KẾ TOÁN CẤP TẠM ỨNG TỪNG ĐỢT ──────────────────────────────────────────────── */
   function hmMoCap(k, maDA, row, dot){
@@ -4807,19 +4815,23 @@
 
   /* ── 🏢 KẾ TOÁN TÍCH ĐÃ CHI ĐƠN TRẢ THẲNG NCC ──────────────────────────────────────── */
   function hmNccMo(k, maDA, row){
+    /* 🏢 MỘT CHỨNG TỪ LÀ ĐỦ. Anh Thắng: *"chỗ này nhập tối thiểu 1 ảnh là được"*. Kế toán trả
+       thẳng nhà cung cấp thì có khi cầm về uỷ nhiệm chi trước, hoá đơn nhà cung cấp xuất sau
+       vài hôm — bắt đủ cả hai là đơn nằm treo dù tiền đã đi và đã có chứng từ chuyển khoản. */
     _hmMo(k, '<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi.</div>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi. '
+      +'Đính <b>ít nhất một</b> trong hai — có cái nào trước thì đính cái ấy.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)
-      +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
+      +_hmOTep(k,maDA,'hd','Hoá đơn',false,220)+'</div>'
       +_hmNutDay(k,'hmNccChot',maDA,row,'✅ Tích đã chi &amp; khoá đơn'));
   }
   function hmNccChot(k, maDA, row){
-    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — máy chủ cũng chối nếu thiếu. Khoá một con số không có gì
-       đỡ thì lúc đối chiếu không ai gỡ ra được. */
-    var hd=_hmVal('hd',k);
-    if(!hd){ toast('warn','Phải có liên kết hoá đơn mới khoá được đơn'); return; }
-    hmDat(maDA,row,'xong',{hoaDon:hd, unc:_hmVal('unc',k)},_hmSau(k));
+    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — ít nhất một. Máy chủ cũng chối nếu trống cả hai. Khoá một
+       con số không có gì đỡ thì lúc đối chiếu không ai gỡ ra được. */
+    var hd=_hmVal('hd',k), unc=_hmVal('unc',k);
+    if(!hd && !unc){ toast('warn','Đính ít nhất một chứng từ — uỷ nhiệm chi hoặc hoá đơn'); return; }
+    hmDat(maDA,row,'xong',{hoaDon:hd, unc:unc},_hmSau(k));
   }
 
   /* ═══ NÚT TRẠNG THÁI NGAY TRÊN BẢNG DỰ ÁN ═══════════════════════════════════════════════
@@ -4891,6 +4903,18 @@
         +'<input type="checkbox" data-xtu="'+row+'" data-tien="'+(Number(h.tienHM)||0)+'" onchange="daTichDoi()" style="margin:0;cursor:pointer">tích để xin</label>';
     }
     if(tt==='ung')           out+=nut('b-x','hmMoChot','🧾 Chốt xong','Đính hoá đơn rồi chốt là chi thực tế');
+    /* 🔴 ĐÃ CHỐT XONG THÌ TÍCH ĐỂ GỬI QUYẾT TOÁN. Anh Thắng: *"khi đơn này đã xong, tích chọn
+       để gửi quyết toán theo đơn"*.
+       Chốt hoàn thành mới nói "hạng mục này đã có hoá đơn, đây là chi thực tế". Quyết toán là
+       bước sau: đối chiếu tiền đã ứng với tiền đã chi để ra thừa/thiếu rồi kế toán chốt sổ.
+       Không có bước này thì khoản tạm ứng treo mãi trên TK 141 mà không ai tất toán. */
+    if(tt==='xong' && !(h.qtDot>0) && suaDuoc){
+      out+=' <label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:#7c3aed;cursor:pointer;white-space:nowrap"'
+        +' title="Tích rồi bấm «Gửi quyết toán» ở thanh dưới bảng — mấy hạng mục đã tích gộp thành MỘT lệnh quyết toán">'
+        +'<input type="checkbox" data-xqt="'+row+'" data-tien="'+(Number(h.tienHM)||0)+'" onchange="daTichQtDoi()" style="margin:0;cursor:pointer">tích để quyết toán</label>';
+    }
+    if(tt==='xong' && h.qtDot>0)
+      out+=' <span style="font-size:11px;color:#7c3aed;white-space:nowrap" title="Đã nằm trong lệnh quyết toán đợt '+h.qtDot+'">🧾 đã gửi QT đợt '+h.qtDot+'</span>';
     if(tt==='xong'&&laKT)    out+=datNut('b-x','nhap','🔓 Mở lại','Mở lại hạng mục đã chốt');
     return out;
   }
@@ -4978,22 +5002,64 @@
     if(!ds.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
     var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
     var o=el('daXinForm'); if(!o) return;
-    /* Lịch đợt đi nhận tiền — anh Thắng: *"nếu 1 lần mà đi tạm ứng nhiều lần thì nv có thể lịch
-       chọn ngày đi tạm ứng lần 1,2,3"*. Để trống hết cũng gửi được. */
+    /* 🔴 LẦN 1 ĐIỀN SẴN CẢ TỔNG. Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua
+       lần 2, không được nhập lớn hơn"*.
+       Phần đông nhận tiền một lần — bày ba ô trống là bắt họ tự gõ lại con số máy vừa cộng ra,
+       và gõ lại là chỗ gõ lệch. Ai cần chia thì sửa lần 1 nhỏ đi, phần dư TỰ chảy sang lần sau.
+       ⚠️ NGÀY LẦN 1 ĐIỀN SẴN HÔM NAY. Có tiền mà thiếu ngày thì lúc gửi bị chối (xem
+          `daGuiXinTU`) — mở form ra đã đỏ sẵn thì khó chịu. */
+    o.setAttribute('data-tong', String(tong));
+    var homNay=_ngayISO(new Date());
     o.innerHTML='<b>📤 Gửi lệnh tạm ứng — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
       +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cả '+ds.length
       +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần, kế toán cấp một lần kèm '
-      +'<b>một uỷ nhiệm chi</b>. Cần chia tiền ra mấy hôm thì gõ lịch bên dưới — <b>để trống = nhận một lần</b>.</div>'
+      +'<b>một uỷ nhiệm chi</b>. Nhận hết trong một hôm thì để nguyên; cần chia ra thì '
+      +'<b>sửa số tiền lần 1 nhỏ đi</b> — phần còn lại tự nhảy sang lần sau.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
       +[1,2,3].map(function(i){
-        return '<span style="white-space:nowrap">Lần '+i+': <input type="date" data-lnd="'+i+'" style="font-size:12px">'
-          +' <input type="text" data-lst="'+i+'" placeholder="số tiền" inputmode="numeric" onfocus="tienVao(this)" onblur="tienRa(this)" style="width:110px;font-size:12px;text-align:right"></span>';
+        var ro=(i===3);   // lần 3 luôn là PHẦN CÒN LẠI, không có lần 4 để đẩy tiếp
+        return '<span style="white-space:nowrap">Lần '+i+': '
+          +'<input type="date" data-lnd="'+i+'" value="'+(i===1?homNay:'')+'" style="font-size:12px">'
+          +' <input type="text" data-lst="'+i+'" value="'+(i===1?_tienDep(tong):'')+'" placeholder="số tiền"'
+          +' inputmode="numeric"'+(ro?' readonly title="Tự tính — phần còn lại sau lần 1 và lần 2"':'')
+          +' onfocus="'+(ro?'':'tienVao(this)')+'" onblur="'+(ro?'':'tienRa(this);daLichDoi('+i+')')+'"'
+          +' style="width:110px;font-size:12px;text-align:right'+(ro?';background:#f1f5f9;color:#475569':'')+'"></span>';
       }).join('')+'</div>'
+      +'<div id="daLichNhac" style="font-size:11px;color:#b45309;margin-top:4px"></div>'
       +'<div style="margin-top:6px;font-size:12px">Ghi chú cho kế toán: <input type="text" id="daXinGhiChu" placeholder="VD: mua vật tư đợt đầu" style="width:280px;font-size:12px"></div>'
       +'<div style="margin-top:8px"><button class="btn b-g" onclick="daGuiXinTU()">✓ Gửi lệnh tạm ứng</button>'
       +' <button class="btn b-x" onclick="el(\'daXinForm\').style.display=\'none\'">✕ Thôi</button></div>';
     o.style.display='';
     try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  /* ── Chia tiền giữa ba lần nhận ────────────────────────────────────────────────────────
+     Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua lần 2, không được nhập lớn
+     hơn"*.
+     🔴 TỔNG BA LẦN LUÔN BẰNG TỔNG LỆNH. Cho gõ tuỳ ý thì tổng lịch lệch với số tiền của lệnh —
+        kế toán chuẩn bị tiền theo lịch, mà lệnh lại đòi con số khác, và không ai biết bên nào
+        đúng. Nên: gõ quá phần còn lại thì KẸP LẠI và nói ra; gõ ít đi thì phần dư chảy sang
+        lần sau; lần 3 không sửa được vì nó chính là phần còn lại. */
+  function _daLichO(i, cot){ return document.querySelector('[data-l'+(cot==='ngay'?'nd':'st')+'="'+i+'"]'); }
+  function _daLichSo(i){ var o=_daLichO(i,'tien'); return o?(Number(_tienSo(o.value))||0):0; }
+  function _daLichDat(i, v){ var o=_daLichO(i,'tien'); if(o) o.value=(v>0?_tienDep(v):''); }
+  function _daXinTongLenh(){
+    var o=el('daXinForm');
+    return o?(Number(o.getAttribute('data-tong'))||0):0;
+  }
+  function daLichDoi(i){
+    var tong=_daXinTongLenh(); if(tong<=0) return;
+    var truoc=0; for(var j=1;j<i;j++) truoc+=_daLichSo(j);
+    var conLai=Math.max(0, tong-truoc);
+    var v=_daLichSo(i);
+    var nhac=el('daLichNhac');
+    if(v>conLai){
+      v=conLai; _daLichDat(i, v);
+      if(nhac) nhac.textContent='⚠️ Lần '+i+' không được quá '+money(conLai)+'đ — đó là phần còn lại của lệnh. Đã kẹp về đúng số.';
+    } else if(nhac){ nhac.textContent=''; }
+    /* Phần dư chảy sang lần kế; các lần sau nữa dọn trắng, kẻo còn số cũ của lần chia trước. */
+    var du=conLai-v;
+    if(i<3) _daLichDat(i+1, du);
+    for(var k=i+2;k<=3;k++) _daLichDat(k, 0);
   }
   function daGuiXinTU(){
     if(!DA_CUR) return;
@@ -5002,11 +5068,18 @@
     if(!rows.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
     var lich=[];
     for(var i=1;i<=3;i++){
-      var d=document.querySelector('[data-lnd="'+i+'"]');
-      var t=document.querySelector('[data-lst="'+i+'"]');
+      var d=_daLichO(i,'ngay');
       var ngay=d?String(d.value||'').trim():'';
-      if(!ngay) continue;   // không ngày thì kế toán chuẩn bị tiền vào hôm nào?
-      lich.push({ngay:ngay, soTien:_tienSo(t?t.value:'')||0});
+      var so=_daLichSo(i);
+      /* 🔴 CÓ TIỀN MÀ THIẾU NGÀY THÌ CHỐI, KHÔNG BỎ QUA IM LẶNG. Máy chủ bỏ dòng thiếu ngày;
+         nếu màn cũng lặng lẽ bỏ thì người dùng nhìn thấy 3.000.000đ ở lần 2 rồi gửi đi, mà lệnh
+         chỉ ghi nhận lần 1 — kế toán chuẩn bị thiếu tiền và không ai biết vì sao. */
+      if(so>0 && !ngay){
+        toast('warn','Lần '+i+' có '+money(so)+'đ mà chưa chọn ngày — kế toán chuẩn bị tiền vào hôm nào?');
+        return;
+      }
+      if(!ngay) continue;
+      lich.push({ngay:ngay, soTien:so});
     }
     var gc=String((el('daXinGhiChu')&&el('daXinGhiChu').value)||'').trim();
     loading(true);
@@ -5018,6 +5091,98 @@
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .xinTamUngDuAn(DA_CUR.maDA, rows, lich, gc);
+  }
+  /* ═══ GỬI QUYẾT TOÁN THEO ĐƠN ═══════════════════════════════════════════════════════════
+     Anh Thắng: *"khi đơn này đã xong, tích chọn để gửi quyết toán theo đơn"*.
+     Cùng lối với xin tạm ứng: tích nhiều hạng mục → MỘT lệnh. Khác ở chỗ nó chỉ nhận hạng mục
+     ĐÃ CHỐT XONG (đã có hoá đơn, đã khoá), và không có bước cấp tiền — tiền đã đi từ đời tạm
+     ứng rồi; đây là bước đối chiếu và chốt sổ. */
+  function _daOTichQt(){ return Array.prototype.slice.call(document.querySelectorAll('[data-xqt]')); }
+  function daTichQtDoi(){
+    var ds=_daOTichQt().filter(function(o){ return o.checked; });
+    var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
+    if(el('daQtSo'))   el('daQtSo').textContent=String(ds.length);
+    if(el('daQtTong')) el('daQtTong').textContent=money(tong);
+    var b=el('daQtBtn'); if(b) b.disabled=!ds.length;
+  }
+  function daTichQtHet(on){ _daOTichQt().forEach(function(o){ o.checked=!!on; }); daTichQtDoi(); }
+  function daQtBarDoi(){
+    var bar=el('daQtBar'); if(!bar) return;
+    bar.style.display=_daOTichQt().length?'flex':'none';
+    daTichQtDoi();
+  }
+  function daMoQt(){
+    var ds=_daOTichQt().filter(function(o){ return o.checked; });
+    if(!ds.length){ toast('warn','Tích ít nhất một hạng mục đã chốt xong'); return; }
+    var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
+    var o=el('daQtForm'); if(!o) return;
+    o.innerHTML='<b>🧾 Gửi quyết toán — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cả '+ds.length
+      +' hạng mục này đi thành <b>MỘT lệnh quyết toán</b>. Kế toán đối chiếu tiền đã tạm ứng với '
+      +'tiền đã chi rồi <b>chốt sổ</b> — xong thì khoản tạm ứng trên TK 141 mới tất toán.</div>'
+      +'<div style="font-size:12px">Ghi chú cho kế toán: <input type="text" id="daQtGhiChu" placeholder="VD: quyết toán đợt setup tháng 9" style="width:300px;font-size:12px"></div>'
+      +'<div style="margin-top:8px"><button class="btn b-p" onclick="daGuiQt()">✓ Gửi quyết toán</button>'
+      +' <button class="btn b-x" onclick="el(\'daQtForm\').style.display=\'none\'">✕ Thôi</button></div>';
+    o.style.display='';
+    try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  function daGuiQt(){
+    if(!DA_CUR) return;
+    var rows=_daOTichQt().filter(function(o){ return o.checked; })
+      .map(function(o){ return Number(o.getAttribute('data-xqt')); });
+    if(!rows.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
+    var gc=String((el('daQtGhiChu')&&el('daQtGhiChu').value)||'').trim();
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('Gửi quyết toán dự án', DA_CUR.ten, 'đợt '+r.dot.dot+' · '+r.so+' hạng mục · '+money(r.soTien)+'đ');
+      toast('ok','Đã gửi quyết toán đợt '+r.dot.dot+' — '+r.so+' hạng mục, '+money(r.soTien)+'đ');
+      if(el('daQtForm')) el('daQtForm').style.display='none';
+      openDuAn(DA_CUR.maDA); loadDuAn();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .xinQuyetToanDuAn(DA_CUR.maDA, rows, gc);
+  }
+  var QT_NHAN={ xin:['Chờ kế toán chốt sổ','#b45309','#fef3c7'],
+    xong:['✔ Đã quyết toán','#166534','#dcfce7'], tra:['↩ Bị trả lại','#b91c1c','#fee2e2'] };
+  function qtNhan(tt){
+    var n=QT_NHAN[tt]||QT_NHAN.xin;
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
+      +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
+  }
+  function qtDat(maDA,dot,tt,them){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok','Đã đổi lệnh quyết toán đợt '+dot); hmLaiDA();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .datTrangThaiQTDuAn(maDA,dot,tt,them||{});
+  }
+  function qtTra(maDA,dot){
+    var ly=prompt('Trả lệnh quyết toán đợt '+dot+' về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+    if(ly===null) return;
+    qtDat(maDA,dot,'tra',{lyDo:String(ly||'').trim()});
+  }
+  function renderDaQt(r){
+    var box=el('daQtBox'), body=el('daQtBody');
+    if(!box||!body) return;
+    var ds=(r&&r.lenhQT)||[];
+    box.style.display=ds.length?'':'none';
+    var laDuyet=_hmLaDuyet(), ma=esc(String((r&&r.maDA)||''));
+    body.innerHTML=ds.map(function(d){
+      var moc=Object.keys(d.moc||{}).map(function(x){ return esc(x)+': '+esc(d.moc[x]); }).join('<br>');
+      var nut='';
+      if(d.tt!=='xong' && laDuyet){
+        nut+=' <button class="btn b-g" onclick="qtDat(\''+ma+'\','+d.dot+',\'xong\')" title="Đối chiếu xong — chốt sổ lệnh quyết toán này">✔ Chốt sổ</button>'
+          +' <button class="btn b-d" onclick="qtTra(\''+ma+'\','+d.dot+')">↩ Trả</button>';
+      }
+      return '<tr><td><b>Đợt '+d.dot+'</b></td>'
+        +'<td style="font-size:12px">'+(d.tenHM||[]).map(esc).join(' · ')
+        +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
+        +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
+        +'<td>'+qtNhan(d.tt)+'</td>'
+        +'<td style="font-size:10.5px;color:#94a3b8">'+moc+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+    }).join('');
   }
   /* Bảng các lệnh đã gửi của chính dự án đang mở. */
   var LENH_NHAN={ xin:['Chờ duyệt','#b45309','#fef3c7'], duyet:['Chờ cấp tiền','#1d4ed8','#dbeafe'],
@@ -5060,7 +5225,7 @@
     var suaDuoc=!!(DA_CUR.editable||DA_CUR.thiCong||DA_CUR.isCoSo);
     var h=p.hm||{};
     /* Gắn tiền vào ô tích để thanh tổng cộng lên được mà không phải dò ngược bảng. */
-    h={tt:h.tt,dot:h.dot,unc:h.unc,hoaDon:h.hoaDon,lich:h.lich,tienHM:Number(tienHM)||0};
+    h={tt:h.tt,dot:h.dot,unc:h.unc,hoaDon:h.hoaDon,lich:h.lich,qtDot:Number(h.qtDot)||0,tienHM:Number(tienHM)||0};
     return hmNutChung(_hmKeyDA(p.row), DA_CUR.maDA, p.row, p.hinhThuc, h, suaDuoc);
   }
   /* Hàng trống nằm ngay dưới mỗi hạng mục lớn — chỗ mở ô nhập, khỏi phải bày hộp thoại. */

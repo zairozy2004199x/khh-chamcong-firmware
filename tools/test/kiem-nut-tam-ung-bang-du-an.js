@@ -171,9 +171,12 @@ t('🔴 nút trạng thái nằm NGOÀI nhánh canEdit (kế toán không sửa 
   HTML.indexOf("</button>'):'')+addChild+'</td></tr>'") >= 0);
 t('   hàng hạng mục lớn có chỗ mở ô nhập ngay dưới', HTML.indexOf("function hmDongXin(p){") >= 0);
 t('   hàng ấy trải hết bề ngang bảng', /function hmDongXin\(p\)\{ return hmDongForm\(_hmKeyDA\(p\.row\), 13\)/.test(HTML));
-t('🔴 KHÔNG hỏi lịch đợt bằng prompt (gõ ngày trong hộp thoại là mời gõ sai)',
-  HTML.indexOf('function hmMoXin(k, maDA, row){') >= 0 && /data-xnd=/.test(HTML) && /type="date"/.test(HTML));
-t('   ô tiền của lịch đợt có dấu chấm hàng nghìn', /data-xst=[^]{0,200}tienVao\(this\)/.test(HTML));
+/* 🔴 MÃ CHẾT PHẢI BỎ HẲN, không để lại cho gọn mắt: máy chủ nay CHỐI đường xin lẻ từng hạng
+   mục, nên để `hmMoXin` nằm đó là mời người sau nối lại một cái nút bấm vào chỉ ra câu lỗi. */
+t('🔴 đường xin lẻ từng hạng mục đã bỏ HẲN khỏi mã nguồn',
+  HTML.indexOf('function hmMoXin(') < 0 && HTML.indexOf('function hmGuiXin(') < 0);
+t('   và có ghi lại vì sao bỏ, kẻo người sau tưởng quên',
+  /`hmMoXin\(\)` \/ `hmGuiXin\(\)` cũ/.test(HTML));
 /* Vẽ THẬT ba cái ô nhập rồi soi, thay vì dò chuỗi: tên thuộc tính được ghép động
    ('data-hm'+o) nên trong mã nguồn không có chuỗi nào để dò. */
 function veForm(ham, ...them) {
@@ -197,8 +200,10 @@ function veForm(ham, ...them) {
   t('🔴 ô uỷ nhiệm chi và hoá đơn của kế toán là Ô NHẬP, không phải prompt',
     /data-hmunc="P7"/.test(f) && /data-hmhd="P7"/.test(f), f);
   t('   cả hai ô đều có nút chọn tệp', (f.match(/hmDinhTep\(/g) || []).length === 2, f);
-  t('🔴 nói rõ hoá đơn là BẮT BUỘC, uỷ nhiệm chi thì không',
-    /Hoá đơn[^]{0,80}bắt buộc/.test(f) && !/Uỷ nhiệm chi[^]{0,60}bắt buộc/.test(f), f);
+  /* 🏢 Anh Thắng: *"chỗ này nhập tối thiểu 1 ảnh là được"*. Kế toán trả thẳng nhà cung cấp thì
+     có khi cầm về uỷ nhiệm chi trước, hoá đơn nhà cung cấp xuất sau vài hôm. */
+  t('🔴 đơn NCC: KHÔNG bắt buộc riêng cái nào — chỉ cần ít nhất một',
+    !/bắt buộc/.test(f) && /ít nhất một/.test(f), f);
   t('   nút gửi truyền đủ khoá, mã dự án và số dòng',
     /hmNccChot\('P7','DA1',7\)/.test(f), f);
 }
@@ -230,11 +235,18 @@ function veForm(ham, ...them) {
 /* 🔴 KHÔNG CÒN prompt() Ở BẤT KỲ BƯỚC NÀO của chuỗi hạng mục. Anh Thắng đã nói một lần về chỗ
    khác: *"hiện ô tích cho dễ hơn không"* — hộp thoại của trình duyệt chỉ nhận chữ trơn, không
    có nút chọn tệp, không có ô ngày, và dán vào đó là dán mù. */
-{
-  const i = HTML.indexOf('/* ═══ Ô NHẬP INLINE DÙNG CHUNG');
-  const j = HTML.indexOf('function daCapChaHint(');
-  t('🔴 cả khối trạng thái hạng mục KHÔNG còn hỏi bằng prompt', HTML.slice(i, j).indexOf('prompt(') < 0);
-}
+/* 🔴 CHỨNG TỪ, NGÀY, SỐ TIỀN thì KHÔNG hỏi bằng prompt — hộp thoại của trình duyệt chỉ nhận
+   chữ trơn: không có nút chọn tệp, không có ô lịch, không điền sẵn được, và dán vào đó là dán
+   mù. Còn "vì sao trả lại" thì đúng là một câu chữ, prompt hợp với nó — `lenhTra` và `qtTra`
+   dùng chung lối ấy.
+   ⚠️ CANH TỪNG HÀM, không canh cả vùng: canh cả vùng thì thêm bất kỳ chỗ hỏi-một-câu nào cũng
+      làm phép này đỏ oan, rồi người ta nới nó ra và mất luôn chốt thật. */
+['hmMoCap', 'hmGuiCap', 'hmMoChot', 'hmGuiChot', 'hmNccMo', 'hmNccChot', 'hmDinhTep',
+ 'daMoXinTU', 'daGuiXinTU', 'daLichDoi', 'lenhMoCap', 'lenhGuiCap'].forEach(ten => {
+  const i = HTML.indexOf('function ' + ten + '(');
+  t('🔴 ' + ten + '() không hỏi chứng từ / ngày / số tiền bằng prompt',
+    i >= 0 && HTML.slice(i, HTML.indexOf('\n  }', i)).indexOf('prompt(') < 0);
+});
 
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ
@@ -361,34 +373,12 @@ function chayGui(vals) {
     } },
   };
   const f = new Function('moi', `with(moi){ ${boc('_hmSau')}\n${boc('_hmVal')}
-    ${boc('hmGuiXin')}\n${boc('hmGuiCap')}\n${boc('hmGuiChot')}\n${boc('hmNccChot')}
-    return { xin: hmGuiXin, cap: hmGuiCap, chot: hmGuiChot, ncc: hmNccChot }; }`)(moi);
+    ${boc('hmGuiCap')}\n${boc('hmGuiChot')}\n${boc('hmNccChot')}
+    return { cap: hmGuiCap, chot: hmGuiChot, ncc: hmNccChot }; }`)(moi);
   return { NK, f };
 }
-{
-  const { NK, f } = chayGui({});
-  f.xin('P7','DA1',7);
-  t('🔴 không gõ lịch nào → vẫn gửi được (phần đông chỉ xin một lần)',
-    NK.gui && NK.gui.tt === 'xin' && NK.gui.them.lich.length === 0, NK.gui);
-}
-{
-  const { NK, f } = chayGui({ 'xnd:P7_1': '2026-09-15', 'xst:P7_1': '5.000.000',
-                              'xnd:P7_3': '2026-10-01', 'xst:P7_3': '' });
-  f.xin('P7','DA1',7);
-  t('🔴 gõ lịch đợt 1 và đợt 3 → gửi đúng hai đợt, đúng ngày',
-    NK.gui && NK.gui.them.lich.length === 2
-    && NK.gui.them.lich[0].ngay === '2026-09-15'
-    && NK.gui.them.lich[1].ngay === '2026-10-01', NK.gui && NK.gui.them);
-  t('🔴 số tiền BỎ dấu chấm trước khi gửi (gửi "5.000.000" là máy chủ đọc thành 5)',
-    NK.gui && NK.gui.them.lich[0].soTien === '5000000', NK.gui && NK.gui.them);
-  t('   đợt không gõ tiền vẫn nhận (kế toán biết ngày là đủ để xếp lịch)',
-    NK.gui && NK.gui.them.lich[1].soTien === 0, NK.gui && NK.gui.them);
-}
-{
-  const { NK, f } = chayGui({ 'xnd:P7_2': '', 'xst:P7_2': '3000000' });
-  t('🔴 có tiền mà KHÔNG có ngày → bỏ đợt ấy (một đợt không ngày thì chuẩn bị tiền vào hôm nào?)',
-    (f.xin('P7','DA1',7), NK.gui && NK.gui.them.lich.length === 0), NK.gui && NK.gui.them);
-}
+/* Lịch đợt nay là của LỆNH (`daMoXinTU` / `daGuiXinTU`) chứ không của từng hạng mục — bài kiểm
+   nằm ở `kiem-tich-xin-tam-ung.js`. `hmMoXin`/`hmGuiXin` cũ đã bỏ hẳn khỏi mã nguồn. */
 {
   const { NK, f } = chayGui({ 'hmhd:P7': 'https://hd/9' });
   f.chot('P7', 'DA1', 7);
@@ -425,15 +415,22 @@ function chayGui(vals) {
 {
   const { NK, f } = chayGui({ 'hmunc:P7': 'UNC-88', 'hmhd:P7': '   ' });
   f.ncc('P7','DA1',7);
-  t('🔴 THIẾU HOÁ ĐƠN → chối (khoá một con số không có gì đỡ thì lúc đối chiếu không gỡ ra được)',
-    NK.gui === null, NK.gui);
-  t('   và nói rõ vì sao', NK.toast.some(x => /hoá đơn/.test(x[1])), NK.toast);
+  t('🔴 có uỷ nhiệm chi, CHƯA có hoá đơn → vẫn khoá được (hoá đơn NCC xuất sau vài hôm)',
+    NK.gui && NK.gui.tt === 'xong' && NK.gui.them.unc === 'UNC-88', NK.gui);
 }
 {
   const { NK, f } = chayGui({ 'hmunc:P7': '', 'hmhd:P7': 'https://hd/2' });
   f.ncc('P7','DA1',7);
-  t('thiếu uỷ nhiệm chi thì vẫn khoá được (có đơn trả bằng tiền mặt)',
-    NK.gui && NK.gui.tt === 'xong' && NK.gui.them.unc === '', NK.gui);
+  t('có hoá đơn, chưa có uỷ nhiệm chi → cũng khoá được (có đơn trả bằng tiền mặt)',
+    NK.gui && NK.gui.tt === 'xong' && NK.gui.them.hoaDon === 'https://hd/2', NK.gui);
+}
+{
+  const { NK, f } = chayGui({ 'hmunc:P7': '  ', 'hmhd:P7': '   ' });
+  f.ncc('P7','DA1',7);
+  t('🔴 TRỐNG CẢ HAI → chối (khoá một con số không có gì đỡ thì lúc đối chiếu không gỡ ra được)',
+    NK.gui === null, NK.gui);
+  t('   và nói rõ cần ít nhất một',
+    NK.toast.some(x => /ít nhất một chứng từ/.test(x[1])), NK.toast);
 }
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */

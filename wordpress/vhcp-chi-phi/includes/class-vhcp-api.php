@@ -315,6 +315,8 @@ class VHCP_API {
 			'xinTamUngDuAn'         => array( 'VHCP_DuAn', 'xin_tam_ung_dot' ),
 			'datTrangThaiLenhDuAn'  => array( 'VHCP_DuAn', 'dat_tt_dot' ),
 			'listLenhDuAn'          => array( 'VHCP_DuAn', 'list_lenh_da' ),
+			'xinQuyetToanDuAn'      => array( 'VHCP_DuAn', 'xin_quyet_toan_dot' ),
+			'datTrangThaiQTDuAn'    => array( 'VHCP_DuAn', 'dat_tt_qt' ),
 			'datAnhDuAnLine'        => array( 'VHCP_DuAn', 'dat_anh_line' ),
 			'goAnhDuAnLine'         => array( 'VHCP_DuAn', 'go_anh_line' ),
 			'themHoSoDuAnLine'      => array( 'VHCP_DuAn', 'them_ho_so_line' ),

@@ -132,18 +132,42 @@ $d2 = VHCP_DuAn::get_du_an( $ma ); $ncc2 = null;
 foreach ( $d2['lines'] as $l ) { if ( 'Thuê cẩu' === $l['noiDung'] ) { $ncc2 = $l['row']; } }
 t( 'dựng được hạng mục NCC mới', null !== $ncc2, $d2['lines'] );
 vai( 'Kế toán NCC', 'KT NCC' );
-$x = VHCP_DuAn::dat_hm( $ma, $ncc2, 'xong', array( 'unc' => 'UNC-9' ) );
-t( '🔴 đơn NCC: tích khoá mà chưa có hoá đơn → CHỐI (khoá một con số không có gì đỡ)',
+/* 🏢 MỘT CHỨNG TỪ LÀ ĐỦ. Anh Thắng: *"chỗ này nhập tối thiểu 1 ảnh là được"*. Kế toán trả thẳng
+   nhà cung cấp thì có khi cầm về uỷ nhiệm chi trước, hoá đơn nhà cung cấp xuất sau vài hôm —
+   bắt đủ cả hai là đơn nằm treo dù tiền đã đi và đã có chứng từ chuyển khoản. */
+$x = VHCP_DuAn::dat_hm( $ma, $ncc2, 'xong', array() );
+t( '🔴 đơn NCC: TRỐNG CẢ HAI chứng từ → CHỐI (khoá một con số không có gì đỡ)',
 	empty( $x['success'] ), $x );
 teq( '   và đơn KHÔNG bị khoá nửa vời', 'nhap', VHCP_DuAn::hm_cua( $ma, $ncc2 )['tt'] );
-t( '   uỷ nhiệm chi cũng không bị ghi lén khi lệnh đã bị chối',
-	'' === VHCP_DuAn::hm_cua( $ma, $ncc2 )['unc'], VHCP_DuAn::hm_cua( $ma, $ncc2 ) );
+t( '   câu chối nói rõ cần ít nhất một',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'ít nhất một chứng từ' ), $x );
+$x = VHCP_DuAn::dat_hm( $ma, $ncc2, 'xong', array( 'unc' => 'UNC-9' ) );
+t( '🔴 chỉ có uỷ nhiệm chi, CHƯA có hoá đơn → vẫn khoá được', ! empty( $x['success'] ), $x );
+teq( '   uỷ nhiệm chi ghi vào đơn', 'UNC-9', VHCP_DuAn::hm_cua( $ma, $ncc2 )['unc'] );
+teq( '   và hoá đơn vẫn trống', '', VHCP_DuAn::hm_cua( $ma, $ncc2 )['hoaDon'] );
+/* Mở lại rồi thử chiều ngược: chỉ có hoá đơn, chưa có uỷ nhiệm chi. */
+VHCP_DuAn::dat_hm( $ma, $ncc2, 'nhap' );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê xe nâng', 'thucTe' => 800000, 'hinhThuc' => 'Trực tiếp' ) );
+$d3 = VHCP_DuAn::get_du_an( $ma ); $ncc3 = null;
+foreach ( $d3['lines'] as $l ) { if ( 'Thuê xe nâng' === $l['noiDung'] ) { $ncc3 = $l['row']; } }
+$x = VHCP_DuAn::dat_hm( $ma, $ncc3, 'xong', array( 'hoaDon' => 'https://hd/nang' ) );
+t( '🔴 chỉ có hoá đơn, chưa có uỷ nhiệm chi → cũng khoá được (có đơn trả tiền mặt)',
+	! empty( $x['success'] ), $x );
+
+/* ⚠️ ĐƠN TẠM ỨNG THÌ VẪN BẮT HOÁ ĐƠN — nới ở đây là nới nhầm chỗ. Nhân viên cầm tiền đi mua,
+   thứ chứng minh khoản chi là hoá đơn; uỷ nhiệm chi chỉ nói kế toán đã đưa tiền cho họ, không
+   nói họ đã tiêu vào đâu. */
+$x = VHCP_DuAn::dat_hm( $ma, $ung, 'xong', array( 'unc' => 'UNC-X' ) );
+t( '🔴 đơn TẠM ỨNG: có uỷ nhiệm chi mà thiếu hoá đơn → VẪN CHỐI', empty( $x['success'] ), $x );
+t( '   và câu chối vẫn đòi đúng hoá đơn',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'hoá đơn' ), $x );
 $x = VHCP_DuAn::dat_hm( $ma, $ncc2, 'ung', array( 'dot' => 1, 'unc' => 'UNC-10' ) );
 t( 'kế toán cũng đánh dấu "đã chi, chờ khoá" được cho đơn NCC', ! empty( $x['success'] ), $x );
 teq( '   giữ uỷ nhiệm chi', 'UNC-10', VHCP_DuAn::hm_cua( $ma, $ncc2 )['unc'] );
 $x = VHCP_DuAn::dat_hm( $ma, $ncc2, 'xong', array( 'hoaDon' => 'https://hd/cau' ) );
 t( '   rồi khoá lại được, uỷ nhiệm chi vẫn còn nguyên',
 	! empty( $x['success'] ) && 'UNC-10' === VHCP_DuAn::hm_cua( $ma, $ncc2 )['unc'], $x );
+teq( '   và hoá đơn cũng vào', 'https://hd/cau', VHCP_DuAn::hm_cua( $ma, $ncc2 )['hoaDon'] );
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {

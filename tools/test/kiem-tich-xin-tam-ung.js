@@ -51,7 +51,17 @@ function be(oTich, opt) {
     daXinGhiChu: { value: opt.ghiChu || '' },
   };
   NK.O = O;
-  const lich = opt.lich || {};
+  /* Ô lịch là ô THẬT, giữ được giá trị: luật chia tiền ghi ngược vào chính mấy ô này, nên bệ
+     đỡ trả ra một đối tượng mới mỗi lần hỏi là mọi phép chia đều xanh oan. */
+  const O_LICH = {};
+  for (let i = 1; i <= 3; i++) {
+    O_LICH['lnd' + i] = { value: (opt.lich || {})['lnd' + i] || '' };
+    O_LICH['lst' + i] = { value: (opt.lich || {})['lst' + i] || '' };
+  }
+  NK.lich = O_LICH;
+  O.daLichNhac = { textContent: '' };
+  O.daXinForm.getAttribute = k => (k === 'data-tong' ? String(opt.tong || 0) : null);
+  O.daXinForm.setAttribute = (k, v) => { if (k === 'data-tong') opt.tong = Number(v) || 0; };
   const moi = {
     DA_CUR: { maDA: 'DA1', ten: 'Aeon' },
     el: id => O[id] || null,
@@ -60,12 +70,13 @@ function be(oTich, opt) {
     toast: (k, m) => NK.toast.push([k, m]),
     loading: () => {}, _log: () => {}, openDuAn: () => {}, loadDuAn: () => {},
     _tienSo: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' || s === '-' ? '' : String(Number(s)); },
+    _tienDep: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' ? '' : Number(s).toLocaleString('vi-VN'); },
+    _ngayISO: d => '2026-09-11',
     document: { querySelectorAll: sel => (/\[data-xtu\]/.test(sel) ? oTich : []),
       querySelector: sel => {
         const m = sel.match(/data-(lnd|lst)="(\d)"/);
         if (!m) return null;
-        const k = m[1] + m[2];
-        return (k in lich) ? { value: lich[k] } : { value: '' };
+        return O_LICH[m[1] + m[2]] || null;
       } },
     google: { script: { run: {
       withSuccessHandler(f) { this._ok = f; return this; },
@@ -76,7 +87,10 @@ function be(oTich, opt) {
   };
   const src = `${boc('_daOTich')}\n${boc('daTichDoi')}\n${boc('daTichHet')}
     ${boc('daXinBarDoi')}\n${boc('daMoXinTU')}\n${boc('daGuiXinTU')}
-    return { doi: daTichDoi, het: daTichHet, bar: daXinBarDoi, mo: daMoXinTU, gui: daGuiXinTU };`;
+    ${boc('_daLichO')}\n${boc('_daLichSo')}\n${boc('_daLichDat')}
+    ${boc('_daXinTongLenh')}\n${boc('daLichDoi')}
+    return { doi: daTichDoi, het: daTichHet, bar: daXinBarDoi, mo: daMoXinTU, gui: daGuiXinTU,
+             chia: daLichDoi };`;
   return { NK, O, F: new Function('moi', `with(moi){ ${src} }`)(moi) };
 }
 const o = (row, tien, checked) => ({ checked: !!checked, value: '',
@@ -147,8 +161,8 @@ const o = (row, tien, checked) => ({ checked: !!checked, value: '',
   t('   kèm đúng mã dự án', b.NK.gui && b.NK.gui.ma === 'DA1', b.NK.gui);
   t('🔴 lịch giữ hai dòng có ngày, bỏ dòng thiếu ngày',
     b.NK.gui && b.NK.gui.lc.length === 2 && b.NK.gui.lc[0].ngay === '2026-09-12', b.NK.gui && b.NK.gui.lc);
-  t('🔴 số tiền của lịch BỎ dấu chấm trước khi gửi',
-    b.NK.gui && b.NK.gui.lc[0].soTien === '10000000', b.NK.gui && b.NK.gui.lc);
+  t('🔴 số tiền của lịch BỎ dấu chấm trước khi gửi (gửi "10.000.000" là máy chủ đọc thành 10)',
+    b.NK.gui && b.NK.gui.lc[0].soTien === 10000000, b.NK.gui && b.NK.gui.lc);
   t('   và kèm ghi chú', b.NK.gui && b.NK.gui.gc === 'Vật tư đợt đầu', b.NK.gui);
   t('   gửi xong thì đóng ô nhập', b.O.daXinForm.style.display === 'none', b.O.daXinForm.style);
 }
@@ -198,6 +212,80 @@ t('🔴 đính ảnh đi đường RIÊNG, không ghi lại cả dòng qua updat
     NK.tai && NK.tai.cach === 'doc' && NK.gui && NK.gui.ham === 'hoso' && NK.gui.row === 9,
     { tai: NK.tai, gui: NK.gui });
   t('   gửi kèm TÊN TỆP (kho cần tên để giữ đuôi)', NK.tai.d.name === 'bill.jpg', NK.tai.d);
+}
+
+/* ── 2b. 🔴 LẦN 1 LÀ CẢ TỔNG, DƯ THÌ CHẢY SANG LẦN SAU ────────────────────────────────
+ * Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua lần 2, không được nhập lớn
+ * hơn"*.
+ *
+ * 🔴 TỔNG BA LẦN LUÔN BẰNG TỔNG LỆNH. Cho gõ tuỳ ý thì tổng lịch lệch với số tiền của lệnh —
+ *    kế toán chuẩn bị tiền theo lịch, mà lệnh lại đòi con số khác, và không ai biết bên nào
+ *    đúng.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const b = be([o(2, 13000000, true), o(5, 2300000, true)]);
+  b.F.mo();
+  const f = b.O.daXinForm.innerHTML;
+  t('🔴 mở ra là ô tiền lần 1 điền sẵn CẢ TỔNG', /data-lst="1" value="15\.300\.000"/.test(f), f);
+  t('🔴 và ngày lần 1 điền sẵn hôm nay (có tiền mà thiếu ngày thì gửi bị chối)',
+    /data-lnd="1" value="2026-09-11"/.test(f), f);
+  t('   lần 2 và lần 3 để trống', /data-lst="2" value=""/.test(f) && /data-lst="3" value=""/.test(f), f);
+  t('🔴 ô tiền lần 3 KHOÁ — nó luôn là phần còn lại, không có lần 4 để đẩy tiếp',
+    /data-lst="3"[^>]*readonly/.test(f), f);
+  t('   lần 1 và lần 2 vẫn sửa được', !/data-lst="1"[^>]*readonly/.test(f) && !/data-lst="2"[^>]*readonly/.test(f), f);
+  t('   sửa xong là chia lại ngay', /onblur="tienRa\(this\);daLichDoi\(1\)"/.test(f), f);
+}
+{
+  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '5.000.000' } });
+  b.NK.lich.lst1.value = '2.000.000';
+  b.F.chia(1);
+  t('🔴 gõ lần 1 NHỎ HƠN → phần dư tự nhảy sang lần 2',
+    b.NK.lich.lst2.value === '3.000.000', b.NK.lich);
+  t('   lần 3 vẫn trống', b.NK.lich.lst3.value === '', b.NK.lich.lst3);
+  b.NK.lich.lst2.value = '1.000.000';
+  b.F.chia(2);
+  t('🔴 gõ lần 2 nhỏ hơn nữa → phần dư nhảy sang lần 3',
+    b.NK.lich.lst3.value === '2.000.000', b.NK.lich);
+  t('   và tổng ba lần vẫn đúng bằng tổng lệnh',
+    2000000 + 1000000 + 2000000 === 5000000);
+}
+{
+  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '5.000.000' } });
+  b.NK.lich.lst1.value = '9.000.000';
+  b.F.chia(1);
+  t('🔴 gõ LỚN HƠN tổng → kẹp lại đúng tổng, không cho vượt',
+    b.NK.lich.lst1.value === '5.000.000', b.NK.lich.lst1);
+  t('   và nói rõ vì sao bị kẹp', /không được quá 5000000đ/.test(b.O.daLichNhac.textContent), b.O.daLichNhac);
+  t('   lần 2 về trống vì lần 1 đã ăn hết', b.NK.lich.lst2.value === '', b.NK.lich.lst2);
+}
+{
+  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '2.000.000' } });
+  b.NK.lich.lst2.value = '4.000.000';
+  b.F.chia(2);
+  t('🔴 lần 2 gõ quá PHẦN CÒN LẠI (3tr) → kẹp về 3tr, không phải về tổng',
+    b.NK.lich.lst2.value === '3.000.000', b.NK.lich.lst2);
+}
+{
+  /* 🔴 Chia rồi chia lại: lần 1 tăng lên ăn hết thì mấy ô sau phải DỌN TRẮNG, kẻo còn số của
+     lần chia trước nằm đó và tổng lịch vọt quá tổng lệnh. */
+  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '1.000.000' } });
+  b.F.chia(1);
+  b.NK.lich.lst2.value = '1.000.000';
+  b.F.chia(2);
+  t('chia ba lần: 1tr / 1tr / 3tr', b.NK.lich.lst3.value === '3.000.000', b.NK.lich);
+  b.NK.lich.lst1.value = '5.000.000';
+  b.F.chia(1);
+  t('🔴 sửa lần 1 lên cả tổng → lần 2 VÀ lần 3 dọn trắng (còn số cũ là tổng lịch vọt quá lệnh)',
+    b.NK.lich.lst2.value === '' && b.NK.lich.lst3.value === '', b.NK.lich);
+}
+{
+  const b = be([o(2, 5000000, true)], { tong: 5000000,
+    lich: { lnd1: '2026-09-11', lst1: '2.000.000', lst2: '3.000.000' } });
+  b.F.gui();
+  t('🔴 lần 2 CÓ TIỀN mà chưa chọn ngày → CHỐI, không lặng lẽ bỏ (máy chủ bỏ dòng thiếu ngày, '
+    + 'người dùng nhìn thấy 3tr rồi gửi mà lệnh chỉ ghi 2tr)', b.NK.gui === null, b.NK.gui);
+  t('   và nói rõ lần nào, bao nhiêu tiền',
+    b.NK.toast.some(x => /Lần 2 có 3000000đ mà chưa chọn ngày/.test(x[1])), b.NK.toast);
 }
 
 /* ── 4b. 🔴 DUYỆT / CẤP TIỀN NGAY TRONG TRANG DỰ ÁN ───────────────────────────────────
@@ -310,6 +398,93 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   t('xin hết rồi → báo đã gửi xong', /đã gửi xin hết/.test(h), h);
 }
 t('🔴 thẻ này thay chỗ ô "Tổng dự toán" cũ', HTML.indexOf("_tqCardTU(r, hmDT)+") >= 0);
+
+/* ── 4d. 🧾 TÍCH ĐỂ GỬI QUYẾT TOÁN THEO ĐƠN ───────────────────────────────────────────
+ * Anh Thắng: *"khi đơn này đã xong, tích chọn để gửi quyết toán theo đơn"*.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function beQt(oTich, opt) {
+  opt = opt || {};
+  const NK = { gui: null, toast: [] };
+  const O = {
+    daQtSo: { textContent: '' }, daQtTong: { textContent: '' },
+    daQtBtn: { disabled: false }, daQtBar: { style: { display: 'none' } },
+    daQtForm: { style: { display: 'none' }, innerHTML: '', scrollIntoView() {} },
+    daQtGhiChu: { value: opt.ghiChu || '' },
+  };
+  const moi = {
+    DA_CUR: { maDA: 'DA1', ten: 'Aeon' },
+    el: id => O[id] || null,
+    esc: x => String(x == null ? '' : x), money: x => String(x),
+    toast: (k, m) => NK.toast.push([k, m]),
+    loading: () => {}, _log: () => {}, openDuAn: () => {}, loadDuAn: () => {},
+    document: { querySelectorAll: sel => (/\[data-xqt\]/.test(sel) ? oTich : []) },
+    google: { script: { run: {
+      withSuccessHandler(f) { this._ok = f; return this; },
+      withFailureHandler() { return this; },
+      xinQuyetToanDuAn(ma, rows, gc) { NK.gui = { ma, rows, gc };
+        this._ok({ success: true, dot: { dot: 1 }, so: rows.length, soTien: 1 }); },
+    } } },
+  };
+  const src = `${boc('_daOTichQt')}\n${boc('daTichQtDoi')}\n${boc('daTichQtHet')}
+    ${boc('daQtBarDoi')}\n${boc('daMoQt')}\n${boc('daGuiQt')}
+    return { doi: daTichQtDoi, het: daTichQtHet, bar: daQtBarDoi, mo: daMoQt, gui: daGuiQt };`;
+  return { NK, O, F: new Function('moi', `with(moi){ ${src} }`)(moi) };
+}
+const q = (row, tien, checked) => ({ checked: !!checked, value: '',
+  getAttribute: k => (k === 'data-tien' ? String(tien) : String(row)) });
+{
+  const b = beQt([q(2, 2300000, true), q(5, 5000000, true), q(7, 900000, false)]);
+  b.F.doi();
+  t('🔴 tổng quyết toán chỉ cộng hạng mục ĐÃ TÍCH',
+    b.O.daQtTong.textContent === '7300000' && b.O.daQtSo.textContent === '2', b.O);
+  b.F.gui();
+  t('🔴 gửi đi số dòng của các hạng mục đã tích',
+    b.NK.gui && JSON.stringify(b.NK.gui.rows) === '[2,5]', b.NK.gui);
+  t('🔴 KHÔNG gửi số tiền (máy chủ tự cộng lại từ sổ)',
+    b.NK.gui && !/7300000/.test(JSON.stringify(b.NK.gui)), b.NK.gui);
+}
+{
+  const b = beQt([q(2, 100, false)]);
+  b.F.doi();
+  t('🔴 chưa tích gì → nút gửi quyết toán KHOÁ', b.O.daQtBtn.disabled === true, b.O.daQtBtn);
+  b.F.gui();
+  t('   và không gửi gì cả', b.NK.gui === null, b.NK.gui);
+}
+{
+  const b = beQt([]);
+  b.F.bar();
+  t('🔴 chưa hạng mục nào chốt xong → GIẤU thanh quyết toán', b.O.daQtBar.style.display === 'none', b.O.daQtBar.style);
+}
+{
+  const b = beQt([q(2, 2300000, true)]);
+  b.F.bar();
+  t('có hạng mục đã chốt → hiện thanh', b.O.daQtBar.style.display === 'flex', b.O.daQtBar.style);
+  b.F.mo();
+  t('   ô nhập nói rõ đi thành MỘT lệnh quyết toán', /MỘT lệnh quyết toán/.test(b.O.daQtForm.innerHTML), b.O.daQtForm.innerHTML);
+  t('   và có ô ghi chú cho kế toán', /daQtGhiChu/.test(b.O.daQtForm.innerHTML), b.O.daQtForm.innerHTML);
+}
+/* Ô tích quyết toán trên HÀNG — chỉ hiện khi hạng mục đã chốt xong và chưa gửi. */
+{
+  const moi = { CURUSER: { role: 'Nhân viên' },
+    DA_CUR: { maDA: 'DA1', editable: true, thiCong: false, isCoSo: false },
+    esc: x => String(x == null ? '' : x), HM_NHAN: null };
+  const src = `${(() => { const i = HTML.indexOf('var HM_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
+    ${boc('_hmNhanCua')}\n${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}
+    ${boc('hmNhanChung')}\n${boc('hmNutChung')}\n${boc('hmNutDaBang')}\n${boc('_hmKeyDA')}
+    return (hm, tien) => hmNutDaBang({ row: 7, noiDung: 'X', hinhThuc: '', hm: hm }, tien);`;
+  const f = new Function('moi', `with(moi){ ${src} }`)(moi);
+  const xong = f({ tt: 'xong', dot: 1, qtDot: 0 }, 2300000);
+  t('🔴 hạng mục đã CHỐT XONG → hiện ô tích để gửi quyết toán',
+    /data-xqt="7"/.test(xong) && /tích để quyết toán/.test(xong), xong);
+  t('   ô tích mang tiền của hạng mục', /data-xqt="7" data-tien="2300000"/.test(xong), xong);
+  const dagui = f({ tt: 'xong', dot: 1, qtDot: 2 }, 2300000);
+  t('🔴 đã nằm trong lệnh quyết toán → KHÔNG còn ô tích (gửi hai lần là tất toán gấp đôi)',
+    !/data-xqt/.test(dagui), dagui);
+  t('   nhưng cho biết đã gửi đợt mấy', /đã gửi QT đợt 2/.test(dagui), dagui);
+  const chuaXong = f({ tt: 'ung', dot: 1, qtDot: 0 }, 2300000);
+  t('🔴 hạng mục CHƯA chốt hoá đơn → không có ô tích quyết toán', !/data-xqt/.test(chuaXong), chuaXong);
+  t('   mà có nút chốt xong trước đã', /hmMoChot/.test(chuaXong), chuaXong);
+}
 
 /* ── 5. 🔍 RÊ CHUỘT VÀO BILL THÌ PHÓNG TO ─────────────────────────────────────────────── */
 /* Lớp phủ đã có sẵn (`_billZoomInit`) và nghe ở `document` theo thuộc tính `data-bill`; bảng dự
