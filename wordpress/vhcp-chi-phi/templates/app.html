@@ -1046,6 +1046,19 @@
       <div class="empty" id="kyEmpty" style="display:none">Chưa có đơn nào để đổi kỳ.</div>
     </div>
 
+    <div class="card" id="bpCard">
+      <div class="ch"><h2>🗂 Bộ phận</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgBp()">＋ Thêm bộ phận</button><button class="btn b-g" onclick="saveCfgBp()">💾 Lưu bộ phận</button></div></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        Bộ phận quyết định <b>ai thấy loại chi phí nào</b> (cột Bộ phận ở bảng 🧮 Loại chi phí) và
+        <b>vai nào bị bó vào mảng nào</b> (cột Chỉ làm bộ phận ở bảng 🎭 Vai trò). Thêm một bộ phận ở đây là
+        nó tự có mặt trong mọi ô chọn Bộ phận, và nút mới tự hiện ở dòng <b>"Chọn chi phí nào"</b> lúc nhập
+        đơn — ngay khi có loại chi phí đầu tiên mang bộ phận ấy.
+        <br><b style="color:#b45309">⚠️ Đổi TÊN một bộ phận đang dùng thì mọi dòng đang khai tên cũ coi như bỏ trống</b>
+        (= mọi bộ phận). Muốn đổi tên thì thêm dòng mới, khai lại mấy chỗ dùng nó, rồi mới xoá dòng cũ.
+      </div>
+      <div class="tw"><table style="min-width:420px"><thead><tr><th>Tên bộ phận</th><th style="width:44px"></th></tr></thead><tbody id="cfgBpBody"></tbody></table></div>
+    </div>
+
     <div class="card" id="vaiCard">
       <div class="ch"><h2>🎭 Vai trò tự tạo</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgVai()">＋ Thêm vai</button><button class="btn b-g" onclick="saveCfgVai()">💾 Lưu vai trò</button></div></div>
       <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
@@ -6536,8 +6549,19 @@
   /* 'Máy tự động' thêm 08/09/2026 theo anh Thắng: *"thêm vai trò kế toán máy tự động (để chỉ
      thực hiện công việc bên bộ phận máy tự động)"*. Không phải tên mới — bên chấm công nó đã
      là một bộ phận thật từ lâu (`VHCC_Luong::BP_DS`), chỉ bên chi phí là chưa có.
-     ⚠️ Danh sách này phải khớp `VHCP_Cfg::BO_PHAN_DS` bên máy chủ; có phép thử canh hai bên. */
-  var BOPHAN_LIST=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup','Máy tự động'];
+     ⚠️ Bảy tên dưới CHỈ LÀ ĐƯỜNG LUI. Danh sách thật lấy từ máy chủ (`CFG.boPhanDs`), khai ở
+        Cấu hình → 🗂 Bộ phận. Anh Thắng 10/09/2026 muốn thêm mảng cho trang chi phí — trước
+        bản này danh sách gõ cứng ở HAI nơi (đây và `VHCP_Cfg::BO_PHAN_DS`), nên mảng thứ tám
+        nào cũng phải chờ sửa mã, mà hai nơi gõ cứng là hai nơi có thể lệch nhau.
+
+     🔴 ĐƯỜNG LUI VẪN PHẢI CÓ, và phải là ĐÚNG bảy tên ấy. `CFG` chưa nạp xong (mở tab Cấu
+        hình trước khi máy chủ trả về) mà trả mảng rỗng thì ô chọn Bộ phận trắng trơn, người
+        dùng bấm Lưu một cái là xoá sạch cột Bộ phận của mọi dòng — im lặng. */
+  var BOPHAN_MAC_DINH=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup','Máy tự động'];
+  function _bpDs(){
+    var ds=(window.CFG&&CFG.boPhanDs)||(window.BOOT&&BOOT.boPhanDs)||null;
+    return (ds&&ds.length)?ds:BOPHAN_MAC_DINH;
+  }
   // Bộ phận được chọn KHOẢNG NGÀY TỰ DO khi tạo đơn (thay vì bắt buộc gom theo tuần).
   // Nhân viên cơ sở xin tạm ứng cho MỘT TUẦN vận hành nên tuần là đúng và không được nới ra;
   // nhân viên văn phòng lên dự án thì một đợt thi công chẳng nằm gọn trong tuần nào cả.
@@ -6550,13 +6574,14 @@
      Nhân viên cơ sở". */
   var BOPHAN_NHAN={'Cơ sở':'Nhân viên cơ sở','Văn phòng':'Nhân viên văn phòng'};
   function _bpNhan(b){ return BOPHAN_NHAN[b]||b; }
-  function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(BOPHAN_LIST.map(function(b){return [b,_bpNhan(b)];}));
+  function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(_bpDs().map(function(b){return [b,_bpNhan(b)];}));
     v=String(v||''); return '<select style="width:100%">'+o.map(function(p){return '<option value="'+esc(p[0])+'"'+(p[0]===v?' selected':'')+'>'+esc(p[1])+'</option>';}).join('')+'</select>'; }
   function _delBtn(){ return '<td style="text-align:center"><button class="btn b-d" onclick="delCfgRow(this)">✕</button></td>'; }
   function delCfgRow(btn){ var tr=btn.parentNode.parentNode; tr.parentNode.removeChild(tr); }
   function renderCfg(){
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     renderCosoBody();
+    renderCfgBp();
     renderVai();
     lccsCoSoList();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
@@ -7159,6 +7184,45 @@
         loadDsKy(); BOOT=null; boot(function(){});
       } else { toast('err',(r&&r.error)||'Không đổi được'); }
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiMocKy(x.ky, tu, den);
+  }
+  /* 🗂 BỘ PHẬN — khai được, không còn gõ cứng. Anh Thắng 10/09/2026: *"giờ làm thêm mảng cho
+     trang chi phí"*, và cái chặn là danh sách bộ phận gõ cứng ở hai nơi.
+     🔴 CHỈ ADMIN. Bộ phận là thứ bó tầm nhìn của kế toán, ai sửa được là tự nới quyền — máy chủ
+        cũng chối lần nữa, không tin mỗi cái ẩn trên màn. */
+  function renderCfgBp(){
+    if(!el('cfgBpBody')) return;
+    if(el('bpCard')) el('bpCard').style.display=_laAdmin()?'':'none';
+    el('cfgBpBody').innerHTML=_bpDs().map(function(b){
+      return '<tr><td>'+_inp(b,'VD: Bảo trì')+'</td>'+_delBtn()+'</tr>';
+    }).join('');
+  }
+  function addCfgBp(){ el('cfgBpBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Bảo trì')+'</td>'+_delBtn()+'</tr>'); }
+  function saveCfgBp(){
+    var ds=_readRows('cfgBpBody').map(function(r){return String(r[0]||'').trim();}).filter(Boolean);
+    if(!ds.length){ toast('warn','Phải còn ít nhất một bộ phận'); return; }
+    var thay={};
+    for(var i=0;i<ds.length;i++){
+      var k=ds[i].toLowerCase();
+      if(thay[k]){ toast('warn','Trùng tên bộ phận: '+ds[i]); return; }
+      thay[k]=1;
+    }
+    /* 🔴 XOÁ MỘT BỘ PHẬN LÀ MỌI DÒNG KHAI NÓ TỤT VỀ "MỌI BỘ PHẬN" — tức nới quyền, im lặng.
+       Đếm trước rồi hỏi, giống cách khối Vai trò làm với vai bị xoá. */
+    var conLai={}; ds.forEach(function(b){ conLai[b.toLowerCase()]=1; });
+    var mat=[];
+    _bpDs().forEach(function(b){ if(!conLai[b.toLowerCase()]) mat.push(b); });
+    if(mat.length){
+      var dem=0;
+      (CFG.loaiChiPhi||[]).forEach(function(x){ if(mat.indexOf(String(x.boPhan||'').trim())>=0) dem++; });
+      (CFG.vaiTro||[]).forEach(function(x){ if(mat.indexOf(String(x.boPhan||'').trim())>=0) dem++; });
+      if(!confirm('Bỏ bộ phận: '+mat.join(', ')+'\n\n'+dem+' dòng đang khai bộ phận ấy sẽ thành "mọi bộ phận" — tức người mang chúng nhìn thấy sổ của mọi mảng.\n\nTiếp tục?')) return;
+    }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r&&r.success===false){ toast('err',r.error||'Không lưu được'); return; }
+      toast('ok','Đã lưu bộ phận'); loadCfg();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .saveConfig({boPhanDs:ds});
   }
   function renderVai(){
     if(!el('cfgVaiBody')) return;

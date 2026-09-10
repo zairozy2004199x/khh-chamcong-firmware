@@ -18,6 +18,7 @@ class VHCP_Cfg {
 	const USER  = 'CH_NguoiDung';
 	const TKNO  = 'CH_TKNo';
 	const SSO   = 'CH_SSO';
+	const BP    = 'CH_BoPhan';       // BỘ PHẬN — khai được, xem `bo_phan_ds()`
 	const QUYEN = 'CH_Quyen';
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
@@ -43,6 +44,9 @@ class VHCP_Cfg {
 			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa', 'Đơn vị' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
+			/* Bộ phận — trước bản này gõ cứng ở hai nơi (hằng dưới + `BOPHAN_LIST` trong
+			   app.html), nên thêm một mảng là phải sửa mã. Nay khai được ở Cấu hình. */
+			self::BP    => array( 'Bộ phận' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
 			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. "Đơn vị" là NHÀ (đơn
@@ -173,7 +177,40 @@ class VHCP_Cfg {
 	 */
 	const BO_PHAN_DS = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup', 'Máy tự động' );
 
-	/** Tên bộ phận đã chuẩn hoá về đúng chữ trong `BO_PHAN_DS`; không khớp -> '' (= mọi bộ phận). */
+	/**
+	 * BỘ PHẬN ĐANG CÓ — đọc từ bảng cấu hình, KHÔNG còn gõ cứng.
+	 *
+	 * Anh Thắng 10/09/2026 muốn thêm mảng cho trang chi phí. Danh sách trước đây gõ cứng ở HAI
+	 * nơi (hằng trên và `BOPHAN_LIST` trong app.html) nên mảng thứ tám nào cũng phải chờ sửa mã
+	 * — mà hai nơi gõ cứng là hai nơi có thể lệch nhau.
+	 *
+	 * 🔴 ĐỌC THẲNG BẢNG, KHÔNG QUA `cfg_static()`. Hàm ấy gọi `vai_tuy_bien()`, mà hàm ấy gọi
+	 *    `bo_phan_chuan()`, mà hàm ấy gọi hàm này — vòng gọi không đáy, trang trắng ngay lượt
+	 *    tải đầu. Đọc `read()` thì cắt hẳn vòng.
+	 *
+	 * 🔴 RỖNG THÌ NGÃ VỀ DANH SÁCH MẶC ĐỊNH, không trả mảng rỗng. Danh sách rỗng nghĩa là
+	 *    `bo_phan_chuan()` chối MỌI tên -> mọi ô Bộ phận thành trống -> trống nghĩa là "không
+	 *    bó gì", tức mọi kế toán bỗng nhìn thấy sổ của mọi mảng. Hỏng theo hướng NỚI QUYỀN, và
+	 *    im lặng. Bảng chưa gieo (site vừa nâng cấp, lượt tải trước khi `seed_from()` chạy) là
+	 *    ca thật, không phải giả định.
+	 *
+	 * ⚠️ Nhớ trong một lượt chạy: `bo_phan_chuan()` bị gọi trong vòng lặp qua từng vai, từng
+	 *    loại chi phí — mỗi lượt một câu đọc bảng là phí không cần thiết.
+	 */
+	private static $bp_memo = null;
+	public static function bo_phan_ds() {
+		if ( null !== self::$bp_memo ) { return self::$bp_memo; }
+		$ra = array();
+		foreach ( self::read( self::BP ) as $r ) {
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			if ( '' !== $t && ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		if ( ! $ra ) { $ra = self::BO_PHAN_DS; }
+		self::$bp_memo = $ra;
+		return $ra;
+	}
+
+	/** Tên bộ phận đã chuẩn hoá về đúng chữ đang khai; không khớp -> '' (= mọi bộ phận). */
 	public static function bo_phan_chuan( $x ) {
 		$x = trim( (string) $x );
 		if ( '' === $x ) { return ''; }
@@ -184,7 +221,7 @@ class VHCP_Cfg {
 		   Ở đây hậu quả nhẹ hơn nhưng cùng kiểu: khai hoa một chữ là ô ấy coi như để trống,
 		   tức vai không bó gì và người mang nó nhìn thấy sổ của mọi mảng. */
 		$k = mb_strtolower( $x );
-		foreach ( self::BO_PHAN_DS as $b ) {
+		foreach ( self::bo_phan_ds() as $b ) {
 			if ( mb_strtolower( $b ) === $k ) { return $b; }
 		}
 		return '';
@@ -518,6 +555,7 @@ class VHCP_Cfg {
 	private static $memo = null;
 
 	public static function clear_cache() {
+		self::$bp_memo = null;
 		self::$memo = null;
 		wp_cache_delete( 'vhcp_cfgstatic', 'vhcp' );
 		wp_cache_delete( 'vhcp_quyen', 'vhcp' );
@@ -551,6 +589,12 @@ class VHCP_Cfg {
 		if ( ! count( self::rows_of( $all, self::PL ) ) ) {
 			self::append( self::PL, array( 'Thanh toán cá nhân', '141' ) );
 			self::append( self::PL, array( 'Nhà cung cấp', '331' ) );
+			$did = true;
+		}
+		/* Gieo BỘ PHẬN từ danh sách mặc định. Không gieo thì `bo_phan_ds()` ngã về hằng —
+		   vẫn chạy đúng, nhưng màn Cấu hình bày bảng rỗng và người dùng tưởng chưa có gì. */
+		if ( ! count( self::rows_of( $all, self::BP ) ) ) {
+			foreach ( self::BO_PHAN_DS as $b ) { self::append( self::BP, array( $b ) ); }
 			$did = true;
 		}
 		if ( ! count( self::rows_of( $all, self::USER ) ) ) {
@@ -660,6 +704,11 @@ class VHCP_Cfg {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['sso'][] = array( 'email' => $r[0], 'role' => $r[1], 'coso' => $r[2] );
 		}
+		/* 🔴 LẤY TỪ `bo_phan_ds()`, KHÔNG đọc thẳng `rows_of($all, BP)`. Hàm ấy mới có nhánh
+		   "rỗng thì ngã về mặc định" — đọc thẳng là site chưa gieo sẽ gửi xuống màn một danh
+		   sách rỗng, ô chọn Bộ phận trắng trơn, mà máy chủ thì vẫn nhận 7 tên cũ. Hai bên lệch
+		   nhau đúng kiểu bản này sinh ra để bỏ. */
+		$out['boPhanDs'] = self::bo_phan_ds();
 		$out['users'] = array();
 		foreach ( self::rows_of( $all, self::USER ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -733,6 +782,9 @@ class VHCP_Cfg {
 		return array(
 			'vaiGoc'     => self::VAI_GOC,
 			'vaiTro'     => self::vai_tuy_bien(),
+			/* Danh sách BỘ PHẬN — giao diện dựng ô chọn từ đây, không gõ cứng lại. Gõ cứng ở
+			   hai nơi là hai nơi lệch nhau: máy chủ chối một tên mà ô chọn vẫn bày ra nó. */
+			'boPhanDs'   => isset( $s['boPhanDs'] ) ? $s['boPhanDs'] : self::BO_PHAN_DS,
 			/* 🔴 DANH MỤC CƠ SỞ GỬI XUỐNG ĐÃ LỌC THEO ĐƠN VỊ.
 			   Anh Thắng 08/09/2026: *"Mỗi đơn vị tách 1 bảng riêng, để kế toán bộ phận đó tự
 			   nhìn thấy cơ sở của mình và tự thêm sửa mã misa"*. Kế toán POSH mở màn Cấu hình
@@ -996,6 +1048,33 @@ class VHCP_Cfg {
 				$rows[] = array( $t, $b, self::bo_phan_chuan( $g( $x, 'boPhan' ) ) );
 			}
 			self::write( self::VAI, $rows );
+		}
+		if ( isset( $cfg['boPhanDs'] ) && is_array( $cfg['boPhanDs'] ) ) {
+			/* 🔴 CHỈ ADMIN. Bộ phận là thứ bó tầm nhìn của kế toán (xem `vai_tuy_bien()`), nên
+			   ai sửa được bảng này là tự nới hoặc siết quyền người khác. */
+			if ( 'Admin' !== VHCP_Auth::vai_tro() ) {
+				return VHCP_Util::err( 'Chỉ Admin mới thêm/sửa bộ phận được.' );
+			}
+			$rows = array(); $da = array();
+			foreach ( $cfg['boPhanDs'] as $x ) {
+				$t = trim( (string) ( is_array( $x ) ? ( isset( $x['ten'] ) ? $x['ten'] : '' ) : $x ) );
+				if ( '' === $t ) { continue; }
+				/* Trùng tên (bỏ qua hoa thường) thì bỏ dòng sau: `bo_phan_chuan()` trả về tên
+				   ĐẦU TIÊN khớp, nên hai dòng "Setup" và "setup" chỉ có một cái được dùng —
+				   giữ cả hai là bày ra một lựa chọn không bao giờ tới lượt. */
+				$k = mb_strtolower( $t );
+				if ( isset( $da[ $k ] ) ) { continue; }
+				$da[ $k ] = 1;
+				$rows[]   = array( $t );
+			}
+			/* 🔴 KHÔNG CHO LƯU BẢNG RỖNG. Rỗng thì `bo_phan_ds()` ngã về mặc định, nên hệ vẫn
+			   chạy — nhưng người vừa xoá sạch tưởng mình đã bỏ hết bộ phận, trong khi màn vẫn
+			   bày đủ bảy cái. Chối thẳng còn hơn để họ tin vào một thứ không xảy ra. */
+			if ( ! $rows ) {
+				return VHCP_Util::err( 'Phải còn ít nhất một bộ phận. Xoá hết thì hệ tự dùng lại danh sách mặc định, không phải "không có bộ phận nào".' );
+			}
+			self::write( self::BP, $rows );
+			self::$bp_memo = null;
 		}
 		if ( isset( $cfg['sso'] ) && is_array( $cfg['sso'] ) ) {
 			$rows = array();

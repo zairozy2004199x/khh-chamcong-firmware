@@ -40,14 +40,24 @@ global $wpdb;
 t( '🔴 máy chủ biết bộ phận "Máy tự động"',
 	in_array( 'Máy tự động', VHCP_Cfg::BO_PHAN_DS, true ), VHCP_Cfg::BO_PHAN_DS );
 
-/* 🔴 GIAO DIỆN VÀ MÁY CHỦ PHẢI KHỚP TỪNG TÊN. Lệch một chữ thì ô chọn bày ra một bộ phận mà
-   máy chủ coi là không tồn tại — người ta khai xong, lưu xong, và vai ấy KHÔNG bó gì cả. */
+/* 🔴 LUẬT NÀY ĐỔI NGÀY 10/09/2026 — ghi lại vì phép cũ trông vẫn hợp lý.
+   Trước: hai danh sách GÕ CỨNG (hằng máy chủ + `BOPHAN_LIST` trong app.html) phải khớp từng
+   tên, vì lệch một chữ là ô chọn bày ra một bộ phận mà máy chủ coi là không tồn tại.
+   Nay: chỉ còn MỘT nguồn — bảng cấu hình, máy chủ gửi xuống `CFG.boPhanDs`. Không còn hai
+   danh sách để mà lệch, nên phép "khớp từng tên" mất chỗ đứng.
+
+   Thứ CÒN phải canh là hai chuyện khác:
+     · giao diện KHÔNG được gõ cứng lại danh sách (gõ lại là dựng lại đúng cái bẫy vừa bỏ)
+     · đường lui trên màn phải khớp hằng mặc định của máy chủ — hai bên đều dùng nó khi bảng
+       chưa gieo, lệch nhau là lúc ấy hai bên nói hai danh sách khác nhau.
+   Chốt đầy đủ cho bảng cấu hình nằm ở `kiem-bo-phan-khai-duoc.php`. */
 $app = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
-$js  = array();
-if ( preg_match( "/var BOPHAN_LIST=\[([^\]]*)\]/u", $app, $m ) ) {
+t( '🔴 giao diện KHÔNG gõ cứng danh sách bộ phận nữa', false === strpos( $app, 'BOPHAN_LIST' ), '' );
+$js = array();
+if ( preg_match( "/var BOPHAN_MAC_DINH=\[([^\]]*)\]/u", $app, $m ) ) {
 	foreach ( explode( ',', $m[1] ) as $x ) { $js[] = trim( trim( trim( $x ), "'" ) ); }
 }
-teq( 'danh sách bộ phận của giao diện khớp máy chủ từng tên',
+teq( 'đường lui trên màn khớp hằng mặc định của máy chủ từng tên',
 	VHCP_Cfg::BO_PHAN_DS, $js );
 
 /* Chuẩn hoá: nhận đúng tên, còn tên lạ thì trả '' (= không bó) chứ không nhận bừa. */

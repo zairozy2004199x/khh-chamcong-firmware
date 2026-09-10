@@ -106,13 +106,23 @@ la('có đường gộp / đổi tên cơ sở', 'doiTenCoSo(' in src)
 
 # ---------------------------------------------------------------- bộ phận Văn phòng
 print('— bộ phận Văn phòng & kỳ tự do —')
-m3 = re.search(r"var BOPHAN_LIST=\[(.*?)\];", src)
-la('đọc được BOPHAN_LIST', m3 is not None)
+# 🔴 TỪ 10/09/2026 DANH SÁCH BỘ PHẬN KHÔNG CÒN GÕ CỨNG — nó khai ở Cấu hình → 🗂 Bộ phận và
+# máy chủ gửi xuống (`CFG.boPhanDs`). Bảy tên dưới chỉ còn là ĐƯỜNG LUI cho lúc CFG chưa nạp.
+# Bài này nay canh hai chuyện: đường lui còn đủ, và ô chọn ĐỌC TỪ MÁY CHỦ chứ không đọc đường lui.
+m3 = re.search(r"var BOPHAN_MAC_DINH=\[(.*?)\];", src)
+la('đọc được BOPHAN_MAC_DINH (đường lui)', m3 is not None)
 if m3:
     bp = [x.strip().strip("'") for x in m3.group(1).split(',')]
     la('có bộ phận Văn phòng', 'Văn phòng' in bp, str(bp))
     la('vẫn giữ đủ 5 bộ phận cũ',
        all(x in bp for x in ['Cơ sở', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup']), str(bp))
+la('ô chọn Bộ phận dựng từ _bpDs(), không từ danh sách gõ cứng',
+   '_bpDs().map(function(b){return [b,_bpNhan(b)];})' in src)
+la('_bpDs() ưu tiên danh sách máy chủ gửi xuống',
+   'CFG.boPhanDs' in src and 'BOOT.boPhanDs' in src)
+la('🔴 danh sách máy chủ RỖNG thì ngã về đường lui, không trả mảng rỗng',
+   '(ds&&ds.length)?ds:BOPHAN_MAC_DINH' in src)
+la('không còn chỗ nào dùng BOPHAN_LIST gõ cứng', 'BOPHAN_LIST' not in src)
 la('Văn phòng được chọn kỳ tự do', "BP_KY_TU_DO=['Văn phòng']" in src)
 la('modal có ô khoảng ngày', 'ndTuDoBox' in src and 'ndTuNgay' in src and 'ndDenNgay' in src)
 
