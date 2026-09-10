@@ -7650,6 +7650,16 @@ function kmtLuu(){
   });
 }
 
+/* 🔴 PHƠI CÁC HÀM GỌI QUA HANDLER NỘI TUYẾN LÊN window. Toàn bộ JS app nằm trong MỘT IIFE, nên
+   `function foo(){}` là CỤC BỘ — onclick/oninput/ontoggle chạy ở scope window KHÔNG thấy được
+   (đúng lỗi "kmCfgTai is not defined"). Phơi tường minh, các hàm vẫn giữ closure D/goi/L/esc/kdJS.
+   (Function declaration được hoist nên phơi được cả hàm định nghĩa phía dưới như qlTimGhe/daNop*.) */
+window.qlTimGhe = qlTimGhe;
+window.daNopXem = daNopXem; window.daNopLoc = daNopLoc;
+window.kmCfgTai = kmCfgTai; window.kmCfgLoc = kmCfgLoc; window.kmCfgLuu = kmCfgLuu; window.kmCfgThemMa = kmCfgThemMa;
+window.kmtTai = kmtTai; window.kmtThem = kmtThem; window.kmtXoa = kmtXoa; window.kmtLen = kmtLen;
+window.kmtXuong = kmtXuong; window.kmtSet = kmtSet; window.kmtAnh = kmtAnh; window.kmtLuu = kmtLuu;
+
 function veMa(){
   var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
   var h = '<div class="kpis">'
