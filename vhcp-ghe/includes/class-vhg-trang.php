@@ -3720,6 +3720,11 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
+/* Cơ sở đang MỞ khối ghế trong bảng Địa điểm ('' = không mở cái nào).
+   Phải giữ ngoài hàm vẽ: mỗi lần lưu tên ghế / đổi cơ sở / thêm ghế là lam() tải lại rồi
+   ve() dựng lại cả tab — không nhớ thì khối vừa mở đóng sập, người ta mất chỗ đang làm
+   sau MỖI lượt sửa. Nhớ lại thì ve() xong tự mở lại đúng cơ sở đó. */
+var CS_MO = '';
 /* 🔴 CƠ SỞ MUỐN NHẢY Ô LỌC SANG SAU LƯỢT TẢI LẠI KẾ TIẾP — anh Thắng 05/09/2026 hỏi: *"vậy giờ
    muốn tạo cơ sở mới thì sao"*.
 
@@ -3747,41 +3752,93 @@ var app = document.getElementById('app');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
-/* Danh sách ghế XỔ RA NGAY DƯỚI hàng địa điểm — anh Thắng 10/09/2026: "chọn vào tên cơ sở hiện
-   luôn được không, không phải nhảy cuối trang. Bấm tên cơ sở nó xổ ra luôn".
-   Bản trước bấm tên là lọc khối Ghế rồi cuộn xuống — đúng dữ liệu nhưng bắt người ta rời chỗ
-   đang xem, xem xong lại cuộn ngược lên. Đây là XEM NHANH tại chỗ: mã, tên ghế, trạng thái.
-   Việc sửa/đổi cơ sở/điều chuyển vẫn ở khối Ghế — có nút mở sẵn ở cuối khối xổ ra, không nhân
-   đôi bộ điều khiển ra hai nơi rồi lệch nhau.
-   ⚠️ Dựng bằng chuỗi rồi nhét vào DOM, KHÔNG gọi ve(): ve() vẽ lại cả tab là mất chữ đang gõ
-      trong ô tìm địa điểm và mất luôn khối vừa xổ. */
-function csGheHtml(ten){
-  var may = (D && D.may) || [];
-  var chuaGan = (ten === '__none__');
-  var cua = may.filter(function(m){ return chuaGan ? !m.coso : (m.coso === ten); });
-  var hien = cua.filter(function(m){ return !m.an; })
-                .sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); });
-  var soAn = cua.length - hien.length;
-  var h = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">'
-    + '<div class="mut" style="margin-bottom:8px">' + hien.length + ' ' + L('ghế','chairs')
-    + (soAn ? (' · ' + soAn + ' ' + L('đã điều chuyển','moved out')) : '') + '</div>';
-  if (!hien.length){
-    h += '<div class="mut">' + L('Chưa có ghế nào ở đây.','No chairs here yet.') + '</div>';
-  } else {
-    h += '<div style="display:flex;flex-wrap:wrap;gap:6px">'
-      + hien.map(function(m){
-          var tt = m.tt === 'running' ? '▶️' : (m.tt === 'wait_pay' ? '⏳' : (m.song ? '🟢' : '⚪'));
-          return '<span style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;'
-            + 'padding:4px 8px;white-space:nowrap">' + tt + ' <b>' + esc(m.ma) + '</b>'
-            + (m.ten ? ('<span class="mut"> · ' + esc(m.ten) + '</span>') : '') + '</span>';
-        }).join('')
-      + '</div>';
-  }
-  h += '<div class="act" style="margin-top:10px">'
-    + '<button data-csql="' + esc(ten) + '" class="ghost">' + L('Quản lý ghế ở khối Ghế','Manage in Chairs block') + ' ↓</button>'
-    + '</div></div>';
-  return h;
+/* ============================================================================================
+ * KHỐI GHẾ XỔ RA DƯỚI TỪNG ĐỊA ĐIỂM — nơi DUY NHẤT quản lý ghế.
+ *
+ * Anh Thắng 10/09/2026, ba lượt liền: *"bấm tên cơ sở nó xổ ra luôn"* → *"loại bỏ này"* (thẻ
+ * GHẾ) → *"sửa thẳng trong này luôn"*. Nên khối này không phải bản xem nhanh nữa: nó mang
+ * NGUYÊN bộ điều khiển của thẻ GHẾ cũ — thêm ghế, sửa tên, đổi cơ sở, điều chuyển, xoá, chọn
+ * hàng loạt, khối "ghế đã điều chuyển", phân trang.
+ *
+ * ⚠️ KHÔNG viết lại bảng ghế ở đây. Bảng do qlGheRender() vẽ vào #ql-wrap y như cũ — nó vừa vẽ
+ *    vừa tự gán sự kiện, và nó đọc QL_LOC/QL_PG/QL_SEL. Viết bảng thứ hai là hai bảng cùng sửa
+ *    một dữ liệu rồi lệch nhau, mà lệch ở đây nghĩa là ghế rơi vào cơ sở khác.
+ * ⚠️ MỖI LÚC CHỈ MỘT KHỐI MỞ. #ql-wrap và #ma-moi là id, không phải class — hai khối mở cùng lúc
+ *    là hai thẻ trùng id, qlGheRender() vẽ vào cái đầu tiên nó gặp còn người ta đang nhìn cái
+ *    thứ hai. Mở cái mới thì đóng cái cũ, không thương lượng.
+ * ============================================================================================ */
+function qlKhoiHtml(ten){
+  var coso = (D && D.coso) || [];
+  var csId = 0; coso.forEach(function(c){ if (c.ten === ten) csId = c.id; });
+  /* csId = 0 nghĩa là hàng "(chưa gán)": ghế thêm ở đây CỐ Ý không thuộc cơ sở nào, nói thẳng
+     ra trên nhãn nút chứ không lặng lẽ nhét vào một cơ sở. */
+  var nhan = csId ? esc(ten) : L('(chưa gán)','(unassigned)');
+  return '<div class="act" style="flex-wrap:wrap;margin-bottom:6px">'
+    + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
+      + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:160px">'
+    + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế vào','Add chair to') + ' ' + nhan + '</button>'
+    + '<input type="hidden" id="ma-cs" value="' + csId + '">'
+    + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button>'
+    + '</div>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
+        'The code goes into the transfer memo — letters and digits only, no accents or spaces.') + '</p>'
+    + '<div id="ql-wrap"></div>'
+    + '<p class="mut" style="margin:8px 0 0">'
+    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). “Điều chuyển” là ẩn ghế đi — ghế ẩn nằm trong khối “Ghế đã điều chuyển” ở cuối bảng, CHỈ SỐ và doanh thu giữ nguyên, cần lắp lại thì mở khối ấy ra bấm “Đưa về”. “Xoá” chỉ dùng cho ghế gõ nhầm mã: ghế đã có lượt thu thì không xoá được.',
+        'Edit the name inline; change Site to reassign (saves immediately). “Move out” hides a chair — hidden chairs sit in the “Moved-out chairs” block at the bottom with meter and revenue intact; open it and press “Restore” to bring one back. “Delete” is only for mistyped codes: a chair with recorded takings cannot be deleted.')
+    + '</p>';
 }
+
+/* Đóng mọi khối đang mở. Không đặt CS_MO ở đây: csMoKhoi() gọi hàm này TRƯỚC khi mở cái mới. */
+function csDongKhoi(){
+  [].forEach.call(document.querySelectorAll('tr[data-csghe]'), function(x){
+    if (x.parentNode) x.parentNode.removeChild(x);
+  });
+}
+
+/* Mở khối ghế của một địa điểm. Trả false nếu hàng đó không có trên trang (đang ở tab khác, hay
+   cơ sở vừa bị xoá/đổi tên) — chỗ gọi dựa vào đó để xoá CS_MO thay vì mở mãi một cơ sở đã mất. */
+function csMoKhoi(ten){
+  csDongKhoi();
+  var a = null;
+  [].forEach.call(document.querySelectorAll('[data-csxem]'), function(x){
+    if (!a && x.getAttribute('data-csxem') === ten) a = x;
+  });
+  if (!a || !a.closest) return false;
+  var tr = a.closest('tr'); if (!tr || !tr.parentNode) return false;
+  var row = document.createElement('tr');
+  row.setAttribute('data-csghe', ten);
+  row.innerHTML = '<td colspan="6" style="padding:6px 8px 14px">'
+    + '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">'
+    + qlKhoiHtml(ten) + '</div></td>';
+  tr.parentNode.insertBefore(row, tr.nextSibling);
+  /* QL_LOC là thứ qlGheRender() đọc để biết lọc cơ sở nào; CS_MO là thứ ve() đọc để mở lại khối
+     sau mỗi lượt tải lại. Hai biến một nghĩa nên phải đặt cùng lúc, cùng chỗ. */
+  QL_LOC = ten; CS_MO = ten; QL_PG = 0; QL_SEL = {};
+  qlGheRender();
+  qlKhoiWire();
+  return true;
+}
+
+/* Nút trong khối vừa dựng phải gán tay: khối sinh SAU lượt gán sự kiện chung của cả tab. */
+function qlKhoiWire(){
+  var e;
+  if ((e = document.getElementById('ma-them'))) e.onclick = function(){
+    var m = (document.getElementById('ma-moi').value || '').trim();
+    if (!m) { alert(L('Nhập mã ghế.','Enter a chair code.')); return; }
+    if (!/^[A-Za-z0-9]{1,20}$/.test(m)) {
+      alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.',
+        'The code may contain letters and digits only — no accents, no spaces.')); return;
+    }
+    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value });
+  };
+  if ((e = document.getElementById('ma-moi'))) e.onkeydown = function(ev){
+    if (ev.key === 'Enter') { var b = document.getElementById('ma-them'); if (b) b.click(); }
+  };
+  if ((e = document.getElementById('ql-timtrung'))) e.onclick = function(){ qlTimTrung(); };
+}
+
 /* Bỏ dấu + thường hoá để TÌM cho dễ: gõ "binh duong" ra "Bình Dương", "da nang" ra "Đà Nẵng".
    Chỉ dùng cho ô tìm trên giao diện — so khớp dữ liệu vẫn đi bằng squash() bên máy chủ. */
 function kdJS(s){ return String(s==null?'':s).toLowerCase().normalize('NFD')
@@ -4080,7 +4137,9 @@ function tai(im){
     if (QL_CHO_CS){
       var coThat = false;
       (D.coso || []).forEach(function(c){ if (c.ten === QL_CHO_CS) coThat = true; });
-      if (coThat && QL_LOC !== QL_CHO_CS){ QL_LOC = QL_CHO_CS; QL_PG = 0; QL_SEL = {}; }
+      /* Mở luôn khối ghế của cơ sở ấy: từ khi bỏ thẻ GHẾ, "đổi ô lọc" nghĩa là "mở khối của
+         cơ sở này" — đặt QL_LOC không thôi thì không ai thấy gì. */
+      if (coThat){ QL_LOC = QL_CHO_CS; CS_MO = QL_CHO_CS; QL_PG = 0; QL_SEL = {}; }
       QL_CHO_CS = '';
     }
     ve();
@@ -7707,60 +7766,18 @@ function veQuanLy(){
         'Deleting a site does not delete its chairs — they become "unassigned". Revenue is for the selected period.')
     + '</p></div>';
 
-  /* ---- Ghế ---- */
-  /* 🔴 MỘT Ô CƠ SỞ, MỘT NGHĨA — anh Thắng 05/09/2026: *"phần thêm ghế, 2 dữ liệu cách thêm khác
-     nhau, phía trên đang chọn khác, phía dưới khác"*.
-
-     Trước bản này khối Thêm ghế có ô chọn cơ sở RIÊNG, tách hẳn ô "Lọc cơ sở" ngay dưới. Hai ô
-     ấy chỉ khớp nhau đúng lúc trang vừa vẽ; đổi ô lọc thì ô kia đứng yên. Kết quả: người dùng
-     lọc sang GO TRƯỜNG CHINH, gõ mã, bấm Thêm — ghế rơi vào cơ sở CŨ, và vì bảng đang lọc cơ sở
-     mới nên nó KHÔNG hiện ra. Trông y như "thêm không được", nên người ta bấm thêm lần nữa, rồi
-     lần nữa: mỗi lần một ghế ma ở một cơ sở khác.
-
-     Nay chỉ còn MỘT ô — ô lọc. Nó vừa quyết định bảng đang xem cơ sở nào, vừa quyết định ghế mới
-     vào đâu; khối Thêm chỉ NÓI RA cái tên ấy chứ không cho chọn lại. Hai ô không thể lệch nữa vì
-     chỉ có một ô. */
-  var locId = 0;
-  coso.forEach(function(c){ if (c.ten === QL_LOC) locId = c.id; });
-  /* Bộ lọc theo cơ sở — kèm số ghế mỗi cơ sở cho dễ nhìn. */
-  var flt = '<option value="">' + L('Tất cả cơ sở','All sites') + ' (' + may.length + ')</option>'
-    + coso.map(function(c){
-        return '<option value="' + esc(c.ten) + '"' + (QL_LOC === c.ten ? ' selected' : '') + '>'
-          + esc(c.ten) + ' (' + (demGhe[c.ten]||0) + ')</option>'; }).join('')
-    + (chuaGan ? '<option value="__none__"' + (QL_LOC === '__none__' ? ' selected' : '') + '>'
-        + L('(chưa gán)','(unassigned)') + ' (' + chuaGan + ')</option>' : '');
-
-  /* Tên cơ sở ghế mới sẽ vào, đọc thẳng từ ô lọc. Lọc "Tất cả" hoặc "(chưa gán)" thì ghế mới
-     thành CHƯA GÁN — nói thẳng ra, chứ không lặng lẽ nhét vào một cơ sở nào đó. */
-  var themVao = locId ? esc(QL_LOC) : L('(chưa gán)','(unassigned)');
-
-  h += '<div class="card" id="ql-card-ghe"><h2>' + L('Ghế','Chairs') + '</h2>'
-    /* Ô lọc lên TRƯỚC: nó là thứ quyết định cả bảng lẫn chỗ ghế mới vào, nên phải là thứ người
-       ta chọn đầu tiên. */
-    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px"><label class="mut" style="align-self:center">'
-    + L('Cơ sở đang xem','Site') + ':</label>'
-    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select>'
-    /* 🔴 Ô TÍCH "HIỆN GHẾ ĐÃ ĐIỀU CHUYỂN" ĐÃ BỎ — anh Thắng 05/09/2026: *"chỗ phần điều chuyển
-       tức là ẩn nó đi, nằm ở dưới trang, sau này cần lắp lại ta mở nó lên là được"*.
-       Ghế đã điều chuyển nay luôn có mặt, trong khối gập ở CUỐI bảng. Ô tích cũ bắt người ta
-       phải NHỚ là mình từng ẩn một cái ghế mới đi tìm được nó — mà thứ hay phải tìm lại nhất
-       chính là ghế ẩn nhầm, tức là ghế người ta KHÔNG nhớ đã ẩn. */
-    + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button></div>'
-    /* Khối Thêm đứng NGAY TRÊN BẢNG, sau ô lọc — anh Thắng: *"khi lọc cơ sở ghế, có thể thêm xoá
-       sửa được ghế luôn"*. Thêm · sửa tên · đổi cơ sở · xoá nay nằm gọn trong một tầm mắt. */
-    + '<div class="act" style="flex-wrap:wrap;margin-bottom:6px">'
-    + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
-      + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:160px">'
-    + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế vào','Add chair to') + ' ' + themVao + '</button>'
-    + '<input type="hidden" id="ma-cs" value="' + (locId || 0) + '"></div>'
-    + '<p class="mut" style="margin:0 0 10px">'
-    + L('Ghế mới vào đúng cơ sở đang chọn ở ô trên. Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
-        'The new chair goes to the site selected above. The code goes into the transfer memo — letters and digits only.') + '</p>';
-  h += '<div id="ql-wrap"></div>'
-    + '<p class="mut" style="margin:8px 0 0">'
-    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). “Điều chuyển” là ẩn ghế đi — ghế ẩn nằm trong khối “Ghế đã điều chuyển” ở cuối bảng, CHỈ SỐ và doanh thu giữ nguyên, cần lắp lại thì mở khối ấy ra bấm “Đưa về”. “Xoá” chỉ dùng cho ghế gõ nhầm mã: ghế đã có lượt thu thì không xoá được.',
-        'Edit the name inline; change Site to reassign (saves immediately). “Move out” hides a chair — hidden chairs sit in the “Moved-out chairs” block at the bottom with meter and revenue intact; open it and press “Restore” to bring one back. “Delete” is only for mistyped codes: a chair with recorded takings cannot be deleted.')
-    + '</p></div>';
+  /* ---- Ghế: KHÔNG còn thẻ riêng ----
+   * Anh Thắng 10/09/2026: *"loại bỏ này"* (thẻ GHẾ) + *"sửa thẳng trong này luôn"* — toàn bộ
+   * việc quản lý ghế nay nằm trong khối xổ ra của TỪNG địa điểm (bấm tên địa điểm ở bảng trên).
+   *
+   * Vì sao bỏ được: thẻ GHẾ cũ có ô "Cơ sở đang xem" quyết định cả bảng đang xem lẫn chỗ ghế mới
+   * rơi vào. Khối xổ ra đã tự mang đúng một cơ sở, nên cái ô ấy thành thừa — mà một ô lọc thừa
+   * là một ô có thể LỆCH với chỗ người ta đang nhìn, đúng loại lỗi "thêm ghế rơi vào cơ sở cũ"
+   * đã đi sửa ở 05/09. Nay không có ô nào để lệch: khối nào mở thì ghế mới vào đúng cơ sở đó.
+   *
+   * Khối ghế do qlKhoiHtml() dựng và qlGheRender() vẽ vào #ql-wrap — cùng một hàm như trước,
+   * không nhân bản logic ra hai nơi. Xem csMoKhoi().
+   */
   return h;
 }
 
@@ -7840,9 +7857,13 @@ function qlTimNhom(){
 /* Man xem truoc: liet ke nhom trung ten, tich san cac ghe se an, cho sua roi bam An. */
 function qlTimTrung(){
   var box = document.getElementById('ql-wrap'); if (!box) return;
+  /* Chốt an toàn, không phải đường người dùng đi được: từ khi bỏ thẻ GHẾ, nút này chỉ có mặt
+     TRONG khối xổ ra của một địa điểm nên QL_LOC luôn có cơ sở. Giữ lại vì công cụ này ẩn ghế
+     hàng loạt — chạy khi không rõ đang ở cơ sở nào là ẩn loạn cả hệ thống. Sửa lời cho khớp
+     giao diện mới, đừng để một nhánh chết còn chỉ vào cái ô đã không còn. */
   if (QL_LOC === ''){
-    alert(L('Chon 1 co so o o "Loc co so" truoc roi bam. Cong cu chi soi trung ten TRONG co so dang mo — de anh thay ro cai nao that, cai nao sai; khong an loan xa ca he thong.',
-      'Pick a site in the filter first — this only scans within the selected site.'));
+    alert(L('Mo mot dia diem (bam ten no o bang Dia diem) roi bam lai. Cong cu chi soi trung ten TRONG dia diem dang mo.',
+      'Open a site first (click its name in the Sites table), then press again — this only scans within that site.'));
     return;
   }
   var tenCs = QL_LOC === '__none__' ? L('(chưa gán)','(unassigned)') : QL_LOC;
@@ -8581,7 +8602,8 @@ function noi(){
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
   if (document.getElementById('tt-wrap')) ttWire();
-  if (document.getElementById('ql-wrap')) qlGheRender();
+  /* #ql-wrap nay sinh trong khối xổ ra, không có sẵn khi ve() vừa chạy — việc vẽ lại do
+     csMoKhoi() làm khi mở khối (xem chỗ gán [data-csxem]). */
   if (document.getElementById('tm-wrap')) tmRender();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
@@ -8697,44 +8719,27 @@ function noi(){
     QL_CHO_CS = t;
     lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
-  /* Bấm tên địa điểm -> XỔ RA ngay dưới hàng (xem csGheHtml). Bấm lần nữa là đóng; mở cái khác
-     thì cái đang mở tự đóng — hai ba khối mở cùng lúc là bảng dài ra, mất luôn cái lợi "không
-     phải nhảy đi đâu". */
-  var csDong = function(){
-    [].forEach.call(document.querySelectorAll('tr[data-csghe]'), function(x){
-      if (x.parentNode) x.parentNode.removeChild(x);
-    });
-  };
+  /* Bấm tên địa điểm -> mở/đóng khối quản lý ghế của nó (xem csMoKhoi). Bấm lại là đóng; mở
+     cái khác thì cái đang mở tự đóng — hai khối mở cùng lúc là trùng id #ql-wrap. */
   [].forEach.call(document.querySelectorAll('[data-csxem]'), function(a){
     a.onclick = function(e){
       e.preventDefault();
       var ten = a.getAttribute('data-csxem') || '';
-      var tr = a.closest ? a.closest('tr') : null; if (!tr) return;
-      var ke = tr.nextElementSibling;
-      var dangMo = ke && ke.getAttribute('data-csghe') === ten;
-      csDong();
-      if (dangMo) return;                                  // bấm lại = đóng
-      var row = document.createElement('tr');
-      row.setAttribute('data-csghe', ten);
-      row.innerHTML = '<td colspan="6" style="padding:6px 8px 12px">' + csGheHtml(ten) + '</td>';
-      tr.parentNode.insertBefore(row, tr.nextSibling);
-      /* Nút trong khối vừa dựng phải gán tay: khối này sinh SAU lượt gán sự kiện của cả tab. */
-      var b = row.querySelector('[data-csql]');
-      if (b) b.onclick = function(){
-        QL_LOC = b.getAttribute('data-csql') || ''; QL_PG = 0; QL_SEL = {};
-        ve();
-        var card = document.getElementById('ql-card-ghe');
-        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      };
+      if (CS_MO === ten) { CS_MO = ''; csDongKhoi(); return; }
+      csMoKhoi(ten);
     };
   });
+  /* Mở lại khối sau khi ve() dựng lại tab (mỗi lượt lưu tên ghế / thêm ghế / đổi cơ sở đều đi
+     qua lam() -> tải lại -> ve()). Cơ sở đã bị xoá hay đổi tên thì csMoKhoi() trả false, xoá
+     CS_MO cho khỏi cố mở mãi một cái không còn. */
+  if (CS_MO && !csMoKhoi(CS_MO)) CS_MO = '';
 
   /* Ô tìm địa điểm: ẩn/hiện hàng tại chỗ, không vẽ lại bảng (giữ con trỏ trong ô). Đếm số hàng
      còn lại để người gõ biết ngay là "không có" chứ không phải bảng lỗi. */
   if ((_e = document.getElementById('cs-tim'))) {
     var loc = function(){
       var q = kdJS(document.getElementById('cs-tim').value), con = 0;
-      csDong();   // khối xổ ra không có khoá tìm; để lại là một hàng mồ côi giữa bảng đã lọc
+      csDongKhoi();   // khối xổ ra không có khoá tìm; để lại là một hàng mồ côi giữa bảng đã lọc
       [].forEach.call(document.querySelectorAll('#cs-bang tr[data-cstim]'), function(tr){
         var hien = !q || (tr.getAttribute('data-cstim') || '').indexOf(q) >= 0;
         tr.style.display = hien ? '' : 'none';
@@ -8773,7 +8778,7 @@ function noi(){
         var t = iTen.value.trim(); if (!t) { iTen.focus(); return; }
         /* Ô lọc giữ TÊN chứ không giữ id — đổi tên xong phải trỏ ô lọc sang tên mới, không thì
            bảng trống trơn dù ghế còn nguyên. */
-        if (QL_LOC === ten0) QL_CHO_CS = t;
+        if (QL_LOC === ten0 || CS_MO === ten0) QL_CHO_CS = t;
         lam('coso_luu', { id: id, ten: t, tinh: iTinh.value.trim(), ma_kh: iMakh.value.trim() });
       }
       tr.querySelector('#cse-luu').onclick = luu;
@@ -8812,31 +8817,18 @@ function noi(){
          Ở đây đặt thẳng, không cần ý định: máy chủ có chối thì cùng lắm mất bộ lọc — bảng hiện
          đủ ghế, không gán nhầm cái gì. */
       if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }
+      if (CS_MO === nhan) CS_MO = '';   // cơ sở mất thì khối của nó cũng không còn chỗ mà mở
       lam('coso_xoa', { id: b.getAttribute('data-csxoa') });
     };
   });
-  if ((_e = document.getElementById('ma-them'))) _e.onclick = function(){
-    var m = (document.getElementById('ma-moi').value || '').trim();
-    if (!m) { alert(L('Nhập mã ghế.','Enter a chair code.')); return; }
-    if (!/^[A-Za-z0-9]{1,20}$/.test(m)) {
-      alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.',
-        'The code may contain letters and digits only — no accents, no spaces.')); return;
-    }
-    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value });
-  };
+  /* Nút "Thêm ghế" nay nằm trong khối xổ ra -> gán ở qlKhoiWire(), không gán ở đây. */
   [].forEach.call(document.querySelectorAll('[data-csma]'), function(s){
     s.onchange = function(){
       lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value });  // đổi cơ sở, giữ giá
     };
   });
-  if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
-    QL_LOC = this.value; QL_PG = 0; QL_SEL = {};
-    /* 🔴 VẼ LẠI CẢ KHỐI, KHÔNG CHỈ DANH SÁCH. Ô lọc nay quyết định luôn ghế mới vào đâu (xem
-       khối 🔴 ở phần dựng), nên nhãn nút "Thêm ghế vào …" và ô ẩn `ma-cs` phải đổi theo. Vẽ mỗi
-       bảng thì nhãn nói một cơ sở còn ghế rơi vào cơ sở khác — đúng cái lỗi vừa đi sửa. */
-    ve();
-  };
-  if ((_e = document.getElementById('ql-timtrung'))) _e.onclick = function(){ qlTimTrung(); };
+  /* Ô "Cơ sở đang xem" và nút "Ẩn nhanh ghế trùng tên" đã rời khỏi đây cùng thẻ GHẾ:
+     ô lọc bị bỏ hẳn (khối xổ ra tự mang một cơ sở), nút ẩn trùng tên gán ở qlKhoiWire(). */
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
     DK_LOC = this.value; ve();   // lọc lưới ghế tab Điều khiển
   };
