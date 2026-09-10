@@ -518,12 +518,13 @@
         </div>
         <span id="daCreateHint" style="font-size:11px;color:#94a3b8">Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — dự án đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
       </div>
-      <div style="padding:8px 14px 0"><select id="daListFilter" onchange="renderDuAnList()"><option value="Đang làm">⏳ Đang làm</option></select></div>
+      <div style="padding:8px 14px 0"><select id="daListFilter" onchange="DA_TRANG=1;renderDuAnList()"><option value="Đang làm">⏳ Đang làm</option></select></div>
       <div class="tw"><table>
         <thead><tr><th>Tên dự án</th><th>Loại</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th style="text-align:right">Chênh lệch</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
         <tbody id="daListBody"></tbody>
       </table>
-      <div class="empty" id="daListEmpty">Chưa có dự án. Tạo mới ở trên.</div></div>
+      <div class="empty" id="daListEmpty">Chưa có dự án. Tạo mới ở trên.</div>
+      <div id="daListPager" style="display:none;padding:10px 14px;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px"></div></div>
     </div>
 
     <div class="card" id="daDetailCard" style="display:none">
@@ -3867,6 +3868,8 @@
   }
   // ===================== CHI PHÍ KỸ THUẬT (Cơ sở / Setup / Tháo dỡ) =====================
   var DA_CUR=null, DA_ITEMS=[], DA_EDIT_ROW=null, _daPendingLog=null;
+  var DA_CHO_KEO=false;   // vừa tạo dự án -> còn nợ một cú kéo màn hình xuống chỗ nhập
+  var DA_TRANG=1, DA_MOI_TRANG=10;   // anh Thắng 10/09/2026: "Chỉ hiện 10 đơn trên 1 trang"
   function daOnLoai(){ var setup=(el('daLoai').value==='Setup lắp đặt');
     el('daTenLbl').textContent=setup?'Tên gian hàng mới (Setup)':'Chọn cơ sở (Tháo dỡ)';
     el('daTen').placeholder=setup?'Gõ tên gian hàng mới':'Chọn cơ sở có sẵn';
@@ -3885,6 +3888,22 @@
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listDuAn();
   }
   function daBadge(st){ var m={'Đang làm':['st-cap','⏳ Đang làm'],'Chờ kế toán duyệt':['st-cho','📤 Chờ KT duyệt'],'Đã duyệt':['st-duyet','✔ Đã duyệt'],'Đã đóng':['st-nhap','🔒 Đã đóng']}[st]||['st-cap',esc(st||'')]; return '<span class="badge '+m[0]+'">'+m[1]+'</span>'; }
+  /* Thanh chuyển trang. Nói CẢ số dòng đang xem lẫn TỔNG — chỉ hiện "1 / 4" thì người dùng
+     không biết mình đang bỏ sót bao nhiêu dự án phía sau. */
+  function _daVePager(tong, soTrang, dau, dangXem){
+    var b=el('daListPager'); if(!b) return;
+    if(tong<=DA_MOI_TRANG){ b.style.display='none'; b.innerHTML=''; return; }
+    b.style.display='flex';
+    var nut=function(nhan, toi, tat){
+      return '<button class="btn b-x" '+(tat?'disabled style="opacity:.45;cursor:default"':'onclick="daDoiTrang('+toi+')"')+'>'+nhan+'</button>';
+    };
+    b.innerHTML=nut('‹ Trước', DA_TRANG-1, DA_TRANG<=1)
+      +'<span style="color:#334155">Trang <b>'+DA_TRANG+'</b> / '+soTrang+'</span>'
+      +nut('Sau ›', DA_TRANG+1, DA_TRANG>=soTrang)
+      +'<span style="color:#94a3b8">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' dự án</span>';
+  }
+  function daDoiTrang(t){ DA_TRANG=t; renderDuAnList();
+    var b=el('daListBody'); if(b&&b.scrollIntoView){ try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} } }
   function renderDuAnList(){
     var f=(el('daListFilter')&&el('daListFilter').value)||'Đang xử lý';
     var items=(DA_ITEMS||[]).filter(function(x){
@@ -3893,8 +3912,17 @@
       return x.trangThai!=='Đã đóng';   // Đang xử lý
     });
     if(el('daListEmpty')) el('daListEmpty').style.display=items.length?'none':'block';
+    /* 🔴 KẸP SỐ TRANG VÀO KHOẢNG CÓ THẬT. Xoá dòng cuối của trang cuối, hay đổi bộ lọc sang
+       nhóm ít dự án hơn, là số trang đang đứng vượt ra ngoài — bảng trắng trơn mà danh sách
+       vẫn còn dự án, không có gì chỉ cho người dùng biết phải bấm về trang trước. */
+    var soTrang=Math.max(1, Math.ceil(items.length/DA_MOI_TRANG));
+    if(DA_TRANG>soTrang) DA_TRANG=soTrang;
+    if(DA_TRANG<1) DA_TRANG=1;
+    var dau=(DA_TRANG-1)*DA_MOI_TRANG;
+    var trang=items.slice(dau, dau+DA_MOI_TRANG);
+    _daVePager(items.length, soTrang, dau, trang.length);
     var role=(CURUSER&&CURUSER.role)||'', isAdmin=(role==='Admin'||role==='Quản lý');
-    el('daListBody').innerHTML=items.map(function(x){
+    el('daListBody').innerHTML=trang.map(function(x){
       var chenh=Number(x.chenh)||0;
       var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155');
       var chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp');
@@ -3903,6 +3931,9 @@
       return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.loai)+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td>'+daBadge(x.trangThai)+'</td>'+
         '<td style="text-align:center;white-space:nowrap"><button class="btn b-p" onclick="openDuAn(\''+esc(x.maDA)+'\')">Mở</button>'+del+'</td></tr>';
     }).join('');
+    /* Danh sách vừa dài thêm một dòng -> khối chi tiết trôi xuống. Kéo lại cho đúng, và chỉ
+       MỘT lần: để cờ nguyên thì đổi bộ lọc danh sách cũng bị giật xuống dưới. */
+    if(DA_CHO_KEO){ DA_CHO_KEO=false; _daKeoToi(false); }
   }
   function delDuAnUI(maDA, ten){
     if(!confirm('XÓA HẲN dự án "'+ten+'"? Sẽ xóa cả các dòng chi của dự án này — KHÔNG khôi phục được.'))return;
@@ -3915,9 +3946,24 @@
   function createDuAnUI(){
     var loai=el('daLoai').value, ten=el('daTen').value.trim();
     if(!ten){ toast('warn','Nhập tên dự án'); return; }
+    /* 🔴 HỎI LẠI KHI TRÙNG TÊN + TRÙNG LOẠI mà dự án cũ CHƯA đóng. Một gian làm hai đợt thật
+       thì vẫn tạo được (bấm OK) — nên hỏi chứ không chặn. Nhưng phần lớn ca trùng là bấm hai
+       lần vì không thấy gì xảy ra, và dọn hậu quả thì không dọn nổi: hai dòng giống hệt nhau,
+       mỗi dòng đã nhập vài khoản, không ai dám xoá dòng nào. */
+    var trung=(DA_ITEMS||[]).filter(function(x){
+      return String(x.ten||'').trim().toLowerCase()===ten.toLowerCase()
+        && String(x.loai||'')===String(loai) && x.trangThai!=='Đã đóng';
+    });
+    if(trung.length && !confirm('Đã có '+trung.length+' dự án "'+ten+'" cùng loại đang xử lý.\n\n'
+        +'Bấm OK nếu đây thật sự là một đợt thi công KHÁC.\n'
+        +'Bấm Cancel rồi bấm "Mở" ở dòng có sẵn nếu chỉ muốn nhập tiếp vào dự án cũ.')){ return; }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ _log('Tạo dự án KT', r.ten||ten, loai); toast('ok','Đã tạo dự án'); el('daTen').value=''; loadDuAn(); openDuAn(r.maDA); }
+      if(r&&r.success){ _log('Tạo dự án KT', r.ten||ten, loai);
+        toast('ok','Đã tạo dự án — nhập chi phí ngay bên dưới');
+        el('daTen').value=''; loadDuAn();
+        openDuAn(r.maDA, true);   // true = mở xong kéo thẳng tới chỗ nhập
+      }
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn(loai, ten, (CURUSER&&CURUSER.name)||'');
   }
@@ -3926,10 +3972,29 @@
       if(r&&r.success){ loadDuAn(); openDuAn(r.maDA); } else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn('Chi phí cơ sở','',(CURUSER&&CURUSER.name)||'');
   }
-  function openDuAn(maDA){ loading(true);
+  /* Kéo màn hình xuống khối chi tiết dự án.
+     🔴 KHÔNG PHẢI CHUYỆN THẨM MỸ. Khối chi tiết nằm NGAY DƯỚI bảng danh sách; danh sách dài
+        chục dòng thì tạo xong người dùng chẳng thấy gì đổi ngoài một dòng toast ở góc, tưởng
+        chưa được nên bấm "Tạo dự án" lần nữa. Sổ thật đã có "ADV GO! AN LẠC" ba dòng và
+        "FUNZONE VŨNG TÀU" hai dòng đúng vì lẽ đó — không xoá được vì không ai dám chắc dòng
+        nào là dòng thật. */
+  function _daKeoToi(nhapLuon){
+    var c=el('daDetailCard'); if(!c || c.style.display==='none') return;
+    /* Đặt con trỏ sẵn vào ô nhập đầu tiên, nhưng CHẶN trình duyệt tự cuộn theo ô: để nó cuộn
+       thì màn dừng ở giữa form, mất luôn dòng tên dự án ở trên — người dùng không biết mình
+       đang nhập cho dự án nào. Cuộn tới ĐẦU khối, ngay dưới đây, mới là chỗ cần thấy. */
+    if(nhapLuon){ var o=el('da_nd'); if(o){ try{ o.focus({preventScroll:true}); }catch(e){ o.focus(); } } }
+    try{ c.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ c.scrollIntoView(); }
+  }
+  function openDuAn(maDA, nhapLuon){ loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
       DA_CUR=r; renderDuAnDetail(r);
+      /* Danh sách phía trên có thể vẽ lại SAU lời gọi này (createDuAnUI gọi loadDuAn song song),
+         làm khối chi tiết trôi xuống. `DA_CHO_KEO` để renderDuAnList kéo lại lần nữa cho đúng —
+         hẹn giờ mù thì lúc mạng chậm là kéo hụt. */
+      DA_CHO_KEO=!!nhapLuon;
+      _daKeoToi(!!nhapLuon);
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getDuAn(maDA);
   }
   // Bảng KẾ TOÁN CHI TIỀN — chỉ hiện khi dự án đã duyệt tạm ứng (hoặc đã đóng)
