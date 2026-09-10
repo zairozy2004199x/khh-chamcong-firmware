@@ -81,11 +81,13 @@ const nap = (moi, tens) => new Function('moi', `with(moi){ ${tens.map(boc).join(
   t('🔴 và KÉO màn hình tới khối chi tiết', NK.cuon.some(x => x.id === 'daDetailCard'), NK.cuon);
   t('   kéo tới ĐẦU khối (thấy tên dự án), không phải giữa form',
     NK.cuon.every(x => x.block === 'start'), NK.cuon);
-  t('🔴 đặt sẵn con trỏ ở ô nhập nội dung', NK.focus.some(x => x.id === 'da_nd'), NK.focus);
+  /* Ô "Nội dung hạng mục" đã bỏ (anh Thắng 10/09/2026) — con trỏ nay đặt ở ô đầu tiên còn
+     phải điền, là Loại chi phí. */
+  t('🔴 đặt sẵn con trỏ ở ô đầu tiên phải điền', NK.focus.some(x => x.id === 'da_loaicp'), NK.focus);
   /* 🔴 focus KHÔNG được kéo theo ô của nó: kéo thì màn dừng giữa form, mất dòng tên dự án ở
      trên — người dùng không biết mình đang nhập cho dự án nào. */
   t('🔴 con trỏ KHÔNG tự kéo màn theo ô (preventScroll)',
-    NK.focus.filter(x => x.id === 'da_nd').every(x => x.preventScroll), NK.focus);
+    NK.focus.length > 0 && NK.focus.every(x => x.preventScroll), NK.focus);
   t('   ô tên dự án được dọn sạch cho lần sau', moi.el('daTen').value === '', moi.el('daTen').value);
   t('   toast nói rõ nhập ở đâu', NK.toast.some(x => /bên dưới/.test(x[1])), NK.toast);
   t('   vẫn tải lại danh sách', NK.taiLai === 1, NK.taiLai);

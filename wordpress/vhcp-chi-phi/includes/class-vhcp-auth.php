@@ -79,9 +79,11 @@ class VHCP_Auth {
 	public static function xem_duoc_loai( $ten_loai ) {
 		$bo = self::bo_phan_bo();
 		if ( '' === $bo ) { return true; }
-		$bp = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::bo_phan_cua_loai( $ten_loai ) : '';
-		if ( '' === $bp ) { return true; }
-		return mb_strtolower( $bo ) === mb_strtolower( $bp );
+		/* Một loại chi phí có thể thuộc NHIỀU bộ phận (anh Thắng 10/09/2026). So bằng chuỗi
+		   thì loại khai "Kỹ thuật, Setup" không khớp bộ phận nào và biến mất khỏi cả hai màn —
+		   tiền có thật mà không ai nhìn thấy, tệ hơn hẳn việc nó hiện ở cả hai. */
+		if ( ! class_exists( 'VHCP_Cfg' ) ) { return true; }
+		return VHCP_Cfg::loai_thuoc_bo_phan( $ten_loai, $bo );
 	}
 
 	public static function vai_tro() { return self::$vai_tro; }

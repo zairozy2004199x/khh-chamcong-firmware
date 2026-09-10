@@ -1268,8 +1268,49 @@ class VHCP_Cfg {
 	 *    dưới xử đúng như thế.
 	 */
 	public static function bo_phan_cua_loai( $ten_loai ) {
+		$ds = self::bo_phan_ds_cua_loai( $ten_loai );
+		return $ds ? $ds[0] : '';
+	}
+
+	/**
+	 * MỘT LOẠI CHI PHÍ THUỘC ĐƯỢC NHIỀU BỘ PHẬN.
+	 *
+	 * Anh Thắng 10/09/2026: *"Cho phép loại chi phí chọn theo bộ phận, nhiều bộ phận sẽ chọn
+	 * loại chi phí đó cùng tên, chỉ là mỗi cơ sở khác mã thôi"*. Ô Bộ phận giữ nhiều tên,
+	 * ngăn bằng dấu phẩy; dữ liệu cũ chỉ có một tên nên vẫn đọc ra đúng như trước.
+	 *
+	 * 🔴 KHÔNG ĐƯỢC ĐEM CẢ Ô ĐI `bo_phan_chuan()`. Hàm ấy so nguyên chuỗi với danh sách bộ
+	 *    phận, nên "Kỹ thuật, Setup" không khớp tên nào và nó trả về '' — mà '' ở đây nghĩa
+	 *    là "loại này không bó bộ phận nào", tức HIỆN CHO MỌI KẾ TOÁN. Khai thêm một bộ phận
+	 *    thứ hai lại thành nới quyền cho tất cả, và hỏng im lặng: nhìn màn thì thấy nhiều số
+	 *    hơn chứ không thấy lỗi. Phải tách trước, chuẩn hoá TỪNG tên.
+	 *
+	 * ⚠️ Mảng rỗng vẫn giữ nguyên nghĩa cũ: "chưa khai bộ phận" — và loại như thế hiện cho
+	 *    mọi người, vì danh mục dựng từ sổ cũ còn rất nhiều dòng bỏ trống ô này.
+	 */
+	public static function bo_phan_ds_cua_loai( $ten_loai ) {
 		$x = self::loai_tk( $ten_loai );
-		return self::bo_phan_chuan( isset( $x['boPhan'] ) ? $x['boPhan'] : '' );
+		return self::bo_phan_tach( isset( $x['boPhan'] ) ? $x['boPhan'] : '' );
+	}
+
+	/** Tách ô Bộ phận (nhiều tên, ngăn bằng dấu phẩy) thành danh sách tên đã chuẩn hoá. */
+	public static function bo_phan_tach( $x ) {
+		$ra = array();
+		foreach ( preg_split( '/\s*,\s*/u', (string) $x ) as $t ) {
+			$c = self::bo_phan_chuan( $t );
+			if ( '' !== $c && ! in_array( $c, $ra, true ) ) { $ra[] = $c; }
+		}
+		return $ra;
+	}
+
+	/** Loại chi phí này có thuộc bộ phận $bp không. Loại chưa khai bộ phận -> thuộc MỌI bộ phận. */
+	public static function loai_thuoc_bo_phan( $ten_loai, $bp ) {
+		$k = mb_strtolower( trim( (string) $bp ) );
+		if ( '' === $k ) { return true; }
+		$ds = self::bo_phan_ds_cua_loai( $ten_loai );
+		if ( ! $ds ) { return true; }
+		foreach ( $ds as $b ) { if ( mb_strtolower( $b ) === $k ) { return true; } }
+		return false;
 	}
 
 	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). */

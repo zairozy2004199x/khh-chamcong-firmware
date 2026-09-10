@@ -519,7 +519,7 @@ class VHCP_Don {
 			   phá thử đã chỉ ra và đây là đột biến TƯƠNG ĐƯƠNG, không ép cho đỏ được. Giữ vì
 			   nó cắt hẳn số lần tra, không phải vì nó đổi con số. */
 			if ( isset( $da[ $k ] ) ) { continue; }
-			$da[ $k ] = ( '' === VHCP_Cfg::bo_phan_cua_loai( $ten ) );
+			$da[ $k ] = ! VHCP_Cfg::bo_phan_ds_cua_loai( $ten );
 		}
 		$n = 0;
 		foreach ( $da as $chua ) { if ( $chua ) { $n++; } }
@@ -692,7 +692,8 @@ class VHCP_Don {
 				/* Dòng khai ĐÚNG bộ phận đang bó — khác hẳn dòng lọt vì loại của nó chưa khai,
 				   hay vì loại không có trong danh mục. Chỉ dòng như thế mới chứng minh được
 				   đơn này là việc của mình. */
-				if ( VHCP_Cfg::bo_phan_cua_loai( isset( $r['nhom'] ) ? $r['nhom'] : '' ) === $bo_phan_bo ) {
+				$_nhom = isset( $r['nhom'] ) ? $r['nhom'] : '';
+				if ( VHCP_Cfg::bo_phan_ds_cua_loai( $_nhom ) && VHCP_Cfg::loai_thuoc_bo_phan( $_nhom, $bo_phan_bo ) ) {
 					$don_ro[ $m ] = true;
 				}
 			}

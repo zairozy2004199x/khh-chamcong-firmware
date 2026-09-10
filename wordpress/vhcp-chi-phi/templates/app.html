@@ -553,7 +553,6 @@
       <div id="daClosedNote" style="display:none"></div>
       <div id="daLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
-        <div class="fld"><label>Nội dung hạng mục</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:200px"><datalist id="dl_da_nd"></datalist></div>
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
         <div class="fld"><label>Bộ phận / Gian</label><input id="da_gian" placeholder="VD: Gian A" style="width:120px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"></div>
         <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
@@ -1536,9 +1535,11 @@
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
     var co={}, ds=[];
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      var b=String(x.boPhan||'').trim();
-      if(bp && b && b!==bp) return;                    // không phải bộ phận của mình
-      var k=_khoaNhom(b, x.ten);
+      var bds=_bpTach(x.boPhan);                       // loại chi phí thuộc được NHIỀU bộ phận
+      if(bp && bds.length && bds.indexOf(bp)<0) return; // không phải bộ phận của mình
+      /* Gom về nút nào ở "Chọn chi phí nào": ưu tiên chính bộ phận của người đang xem, để
+         loại dùng chung không bị dồn hết vào nút của bộ phận đứng đầu chuỗi. */
+      var k=_khoaNhom((bp && bds.indexOf(bp)>=0)?bp:(bds[0]||''), x.ten);
       if(!co[k]){ co[k]=1; ds.push(k); }
     });
     // "Chi phí cơ sở" luôn đứng đầu nếu có
@@ -2919,8 +2920,10 @@
     // ô Loại chi phí không có sẵn giá trị cũ và người sửa tưởng mất.
     (function(){
       var k=String(l.nhom||'').trim().toLowerCase(), b=null;
-      (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=String(x.boPhan||'').trim(); });
-      if(b===null) (BOOT.nhom||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=String(x.boPhan||'').trim(); });
+      var _toi=String((CURUSER&&CURUSER.boPhan)||'').trim();
+      var _lay=function(v){ var d=_bpTach(v); return (_toi && d.indexOf(_toi)>=0) ? _toi : (d[0]||''); };
+      (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=_lay(x.boPhan); });
+      if(b===null) (BOOT.nhom||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=_lay(x.boPhan); });
       if(b!==null){ NHOM_CP=_khoaNhom(b, l.nhom); renderNhomCp(); }
     })();
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
@@ -3983,7 +3986,7 @@
     /* Đặt con trỏ sẵn vào ô nhập đầu tiên, nhưng CHẶN trình duyệt tự cuộn theo ô: để nó cuộn
        thì màn dừng ở giữa form, mất luôn dòng tên dự án ở trên — người dùng không biết mình
        đang nhập cho dự án nào. Cuộn tới ĐẦU khối, ngay dưới đây, mới là chỗ cần thấy. */
-    if(nhapLuon){ var o=el('da_nd'); if(o){ try{ o.focus({preventScroll:true}); }catch(e){ o.focus(); } } }
+    if(nhapLuon){ var o=el('da_loaicp'); if(o){ try{ o.focus({preventScroll:true}); }catch(e){ o.focus(); } } }
     try{ c.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ c.scrollIntoView(); }
   }
   function openDuAn(maDA, nhapLuon){ loading(true);
@@ -4163,7 +4166,6 @@
     // và bảng "Kế toán chi tiền". Chỉ còn dự toán · thực tế · chênh lệch.
     if(el('daPayPanel')){ el('daPayPanel').style.display='none'; el('daPayPanel').innerHTML=''; }
     renderDaSoChi(r);
-    if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');   // gợi ý hạng mục con đã dùng
     var isCoSo=r.isCoSo, role=(CURUSER&&CURUSER.role)||'';
     var canApprove=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var isAdmin=(role==='Admin'||role==='Quản lý');
@@ -4256,7 +4258,7 @@
   function daAddChild(parentName){
     if(el('da_capCha')) el('da_capCha').value=parentName;
     daCapChaHint();
-    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
+    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_loaicp').focus(); }catch(e){}
     toast('ok','Đang thêm MỤC CON cho: '+parentName+' (điền Chi phí thực tế)');
   }
   // Xuất báo cáo gom theo nhánh -> mở cửa sổ in (Lưu thành PDF) để gửi bộ phận
@@ -4353,19 +4355,25 @@
       }; rd.readAsDataURL(file);
     }; inp.click();
   }
-  function daClearLineForm(){ ['da_nd','da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
+  function daClearLineForm(){ ['da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
   function daCancelEditLine(){ DA_EDIT_ROW=null; daClearLineForm(); if(el('daAddBtn')) el('daAddBtn').textContent='＋ Thêm dòng'; if(el('daCancelEdit')) el('daCancelEdit').style.display='none'; }
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
-    el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
+    el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
     el('da_thucte').value=l.thucTe||''; el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
-    try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
+    try{ el('da_loaicp').scrollIntoView({block:'center'}); el('da_loaicp').focus(); }catch(e){}
   }
   function saveDuAnLineUI(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
-    var nd=el('da_nd').value.trim(); if(!nd){ toast('warn','Nhập nội dung hạng mục'); return; }
+    /* Nội dung dòng LẤY THEO LOẠI CHI PHÍ — anh Thắng 10/09/2026 bỏ ô "Nội dung hạng mục".
+       🔴 VẪN PHẢI CÓ CHỮ. Cột Nội dung là mô tả duy nhất của dòng: nó đi vào PDF gửi bộ phận,
+          vào bản xuất MISA, và là thứ màn "Tìm đơn" dò để chỉ ra DÒNG CHI khớp. Để trống là
+          cả ba chỗ ấy cùng ra dòng trắng, mà lúc đọc lại sổ thì không còn gì để đoán ra. */
+    var nd=_selLoai('da_loaicp').loai || '';
+    nd=String(nd).trim();
+    if(!nd){ toast('warn','Chọn loại chi phí'); return; }
     var thucte=el('da_thucte').value; if(thucte==='') thucte=el('da_tt').value;   // thực tế trống -> = thành tiền
     var rec={ noiDung:nd, gian:el('da_gian').value.trim(), duToan:el('da_dt').value, soLuong:el('da_sl').value, donGia:el('da_dg').value, thucTe:thucte, vat:el('da_vat').value, anh:el('da_anh').value, note:el('da_note').value.trim(), capCha:(el('da_capCha')?el('da_capCha').value:''), hinhThuc:(el('da_httt')?el('da_httt').value:''), hoSo:(el('da_hoso')?el('da_hoso').value:''), loaiCp:_selLoai('da_loaicp').loai, tkNo:_selLoai('da_loaicp').tkNo };
     var editRow=DA_EDIT_ROW; loading(true);
@@ -4875,9 +4883,12 @@
       // có mã thì chọn cũng ra dòng KHÔNG có TK Nợ, tức chưa dùng được.
       if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) return false;
       // Ô "Chọn chi phí nào" ở mục 1 -> chỉ hiện loại của mảng đang chọn
-      if(NHOM_CP && _khoaNhom(x.boPhan, x.ten)!==NHOM_CP) return false;
-      var b=String(x.boPhan||'').trim();
-      if(bp && b && b!==bp) return false;
+      var bpLoai=_bpTach(x.boPhan);
+      if(NHOM_CP && _khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||''), x.ten)!==NHOM_CP) return false;
+      /* Loại chi phí thuộc được NHIỀU bộ phận. So nguyên chuỗi thì loại khai "Kỹ thuật,
+         Setup" không khớp bộ phận nào, và ô chọn Loại chi phí của người ấy TRỐNG TRƠN — đúng
+         cái anh Thắng gặp 10/09/2026. Không khai bộ phận nào thì vẫn dùng chung như cũ. */
+      if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;
       var lt=String(x.loaiTt||'').trim();
       if(loaiTt && lt && lt!=='both' && lt!==loaiTt) return false;
       if(!mang) return true;                                   // chưa khai mảng cho cơ sở -> hiện hết
@@ -5031,10 +5042,10 @@
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
     var nMa=0, nBp=0, nNhom=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      var b=String(x.boPhan||'').trim();
+      var bds=_bpTach(x.boPhan);
       if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length){ nMa++; return; }
-      if(NHOM_CP && _khoaNhom(x.boPhan, x.ten)!==NHOM_CP){ nNhom++; return; }
-      if(bp && b && b!==bp){ nBp++; return; }
+      if(NHOM_CP && _khoaNhom((bp && bds.indexOf(bp)>=0)?bp:(bds[0]||''), x.ten)!==NHOM_CP){ nNhom++; return; }
+      if(bp && bds.length && bds.indexOf(bp)<0){ nBp++; return; }
     });
     var ly=[];
     if(nMa)  ly.push(nMa+' chưa khai mã cho mảng <b>'+esc(mang||'(cơ sở chưa khai mảng)')+'</b>');
@@ -6748,6 +6759,21 @@
   function _bpNhan(b){ return BOPHAN_NHAN[b]||b; }
   function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(_bpDs().map(function(b){return [b,_bpNhan(b)];}));
     v=String(v||''); return '<select style="width:100%">'+o.map(function(p){return '<option value="'+esc(p[0])+'"'+(p[0]===v?' selected':'')+'>'+esc(p[1])+'</option>';}).join('')+'</select>'; }
+  /* Ô Bộ phận CHỌN ĐƯỢC NHIỀU — anh Thắng 10/09/2026: *"Cho phép loại chi phí chọn theo bộ
+     phận, nhiều bộ phận sẽ chọn loại chi phí đó cùng tên, chỉ là mỗi cơ sở khác mã thôi"*.
+     Lưu thành một chuỗi ngăn bằng dấu phẩy; dòng cũ chỉ có một tên nên đọc ra vẫn đúng.
+     🔴 KHÔNG TÍCH GÌ = MỌI BỘ PHẬN, giữ đúng nghĩa cũ của ô trống. Danh mục dựng từ sổ cũ còn
+        rất nhiều dòng bỏ trống ô này; hiểu ngược lại là chúng biến mất khỏi mọi màn. */
+  function _bpTach(v){
+    return String(v==null?'':v).split(',').map(function(x){return x.trim();}).filter(function(x){return x;});
+  }
+  function _bpSelNhieu(v){
+    var da=_bpTach(v).map(function(x){return x.toLowerCase();});
+    return '<select multiple size="3" style="width:100%;min-width:130px" title="Giữ Ctrl (⌘ trên Mac) để chọn nhiều bộ phận. Không chọn gì = mọi bộ phận.">'
+      +_bpDs().map(function(b){
+        return '<option value="'+esc(b)+'"'+(da.indexOf(String(b).toLowerCase())>=0?' selected':'')+'>'+esc(_bpNhan(b))+'</option>';
+      }).join('')+'</select>';
+  }
   function _delBtn(){ return '<td style="text-align:center"><button class="btn b-d" onclick="delCfgRow(this)">✕</button></td>'; }
   function delCfgRow(btn){ var tr=btn.parentNode.parentNode; tr.parentNode.removeChild(tr); }
   function renderCfg(){
@@ -7242,7 +7268,7 @@
     var ten=String(x.ten||'');
     return '<tr><td>'+_inp(ten,'VD: Chi phí lương')+'</td>'
       +'<td>'+_loaiSel(x.loaiTt||'')+'</td>'
-      +'<td>'+_bpSel(x.boPhan||'')+'</td>'
+      +'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'
       +'<td>'+_inp(x.tenMisa||'','trống = dùng tên bên trái')+'</td>'
       +cols.map(function(c){ return '<td>'+_tkInp(mx[ten+'|'+c]||'','—')+'</td>'; }).join('')
       +_delBtn()+'</tr>';
@@ -7385,7 +7411,7 @@
     _bpDs().forEach(function(b){ if(!conLai[b.toLowerCase()]) mat.push(b); });
     if(mat.length){
       var dem=0;
-      (CFG.loaiChiPhi||[]).forEach(function(x){ if(mat.indexOf(String(x.boPhan||'').trim())>=0) dem++; });
+      (CFG.loaiChiPhi||[]).forEach(function(x){ if(_bpTach(x.boPhan).some(function(b){return mat.indexOf(b)>=0;})) dem++; });
       (CFG.vaiTro||[]).forEach(function(x){ if(mat.indexOf(String(x.boPhan||'').trim())>=0) dem++; });
       if(!confirm('Bỏ bộ phận: '+mat.join(', ')+'\n\n'+dem+' dòng đang khai bộ phận ấy sẽ thành "mọi bộ phận" — tức người mang chúng nhìn thấy sổ của mọi mảng.\n\nTiếp tục?')) return;
     }

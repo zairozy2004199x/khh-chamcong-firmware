@@ -51,7 +51,7 @@ const NHOM_CP_CS = '(cơ sở)';
    `ReferenceError` — trông y như mã hỏng chứ không phải bệ đỡ thiếu. Bốc đủ họ hàng, đừng vá
    bằng cách khai một hàm giả ở đây: hàm giả là bài kiểm chạy trên bản dựng lại, không phải mã
    thật. */
-const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tkNoCua', '_khoaNhom', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
+const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
   const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'esc', nguon)(
