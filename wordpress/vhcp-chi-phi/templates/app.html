@@ -554,7 +554,8 @@
       <div id="daLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
-        <div class="fld"><label>Bộ phận / Gian</label><input id="da_gian" placeholder="VD: Gian A" style="width:120px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"></div>
+        <div class="fld"><label>Nội dung</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:190px"><datalist id="dl_da_nd"></datalist></div>
+        <div class="fld" id="daGianBox" style="display:none"><label>Gian / cơ sở</label><input id="da_gian" placeholder="VD: Gian A" title="Gian hoặc cơ sở của DÒNG này. Mã tài khoản khai theo MẢNG của nó. Chỉ hỏi ở dự án 'Chi phí cơ sở (chung)' — dự án Setup/Tháo dỡ thì gian chính là tên dự án." style="width:120px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"></div>
         <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
         <div class="fld"><label>Số lượng</label><input id="da_sl" type="number" min="0" placeholder="0" style="width:75px" oninput="daCalcTT()"></div>
         <div class="fld"><label>Đơn giá</label><input id="da_dg" type="number" min="0" placeholder="0" style="width:110px" oninput="daCalcTT()"></div>
@@ -3851,7 +3852,7 @@
     /* Đặt con trỏ sẵn vào ô nhập đầu tiên, nhưng CHẶN trình duyệt tự cuộn theo ô: để nó cuộn
        thì màn dừng ở giữa form, mất luôn dòng tên dự án ở trên — người dùng không biết mình
        đang nhập cho dự án nào. Cuộn tới ĐẦU khối, ngay dưới đây, mới là chỗ cần thấy. */
-    if(nhapLuon){ var o=el('da_loaicp'); if(o){ try{ o.focus({preventScroll:true}); }catch(e){ o.focus(); } } }
+    if(nhapLuon){ var o=el('da_nd'); if(o){ try{ o.focus({preventScroll:true}); }catch(e){ o.focus(); } } }
     try{ c.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){ c.scrollIntoView(); }
   }
   function openDuAn(maDA, nhapLuon){ loading(true);
@@ -4037,6 +4038,10 @@
     var canEdit=(r.editable||r.thiCong);   // Đang làm (lập dự toán) HOẶC Đã duyệt (thi công: nhập thực tế / thêm mục con & phát sinh)
     // Cơ sở chung: luôn nhập được, không có quy trình duyệt/đóng
     el('daLineForm').style.display=(isCoSo||canEdit)?'flex':'none';
+    /* Ô Gian chỉ hỏi ở dự án "Chi phí cơ sở (chung)" — dự án ấy gom chi phí của NHIỀU cơ sở.
+       Setup / Tháo dỡ thì gian chính là tên dự án, hỏi lại là mời gõ lệch (xem `_daCoso`). */
+    if(el('daGianBox')) el('daGianBox').style.display=isCoSo?'':'none';
+    if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
     el('daRenameBtn').style.display=(!isCoSo && !r.closed)?'inline-block':'none';
     // Dự án chi trực tiếp -> không còn Gửi duyệt / Duyệt / Trả lại
     if(el('daSubmitBtn'))  el('daSubmitBtn').style.display='none';
@@ -4123,7 +4128,7 @@
   function daAddChild(parentName){
     if(el('da_capCha')) el('da_capCha').value=parentName;
     daCapChaHint();
-    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_loaicp').focus(); }catch(e){}
+    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
     toast('ok','Đang thêm MỤC CON cho: '+parentName+' (điền Chi phí thực tế)');
   }
   // Xuất báo cáo gom theo nhánh -> mở cửa sổ in (Lưu thành PDF) để gửi bộ phận
@@ -4220,15 +4225,15 @@
       }; rd.readAsDataURL(file);
     }; inp.click();
   }
-  function daClearLineForm(){ ['da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
+  function daClearLineForm(){ ['da_nd','da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
   function daCancelEditLine(){ DA_EDIT_ROW=null; daClearLineForm(); if(el('daAddBtn')) el('daAddBtn').textContent='＋ Thêm dòng'; if(el('daCancelEdit')) el('daCancelEdit').style.display='none'; }
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
-    el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
+    el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
     el('da_thucte').value=l.thucTe||''; el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
-    try{ el('da_loaicp').scrollIntoView({block:'center'}); el('da_loaicp').focus(); }catch(e){}
+    try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
   }
   function saveDuAnLineUI(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
@@ -4236,9 +4241,13 @@
        🔴 VẪN PHẢI CÓ CHỮ. Cột Nội dung là mô tả duy nhất của dòng: nó đi vào PDF gửi bộ phận,
           vào bản xuất MISA, và là thứ màn "Tìm đơn" dò để chỉ ra DÒNG CHI khớp. Để trống là
           cả ba chỗ ấy cùng ra dòng trắng, mà lúc đọc lại sổ thì không còn gì để đoán ra. */
-    var nd=_selLoai('da_loaicp').loai || '';
-    nd=String(nd).trim();
-    if(!nd){ toast('warn','Chọn loại chi phí'); return; }
+    /* Nội dung dòng: ô Nội dung nếu có gõ, không thì lấy tên loại chi phí.
+       🔴 VẪN PHẢI CÓ CHỮ. Cột Nội dung là mô tả duy nhất của dòng chi: nó đi vào PDF gửi bộ
+          phận, vào bản xuất MISA, và là thứ màn "Tìm đơn" dò để chỉ ra dòng khớp. Để trống là
+          cả ba chỗ ấy cùng ra dòng trắng, mà lúc đọc lại sổ thì không còn gì để đoán ra. */
+    var nd=String((el('da_nd')&&el('da_nd').value)||'').trim();
+    if(!nd){ nd=String(_selLoai('da_loaicp').loai||'').trim(); }
+    if(!nd){ toast('warn','Nhập nội dung hoặc chọn loại chi phí'); return; }
     var thucte=el('da_thucte').value; if(thucte==='') thucte=el('da_tt').value;   // thực tế trống -> = thành tiền
     var rec={ noiDung:nd, gian:el('da_gian').value.trim(), duToan:el('da_dt').value, soLuong:el('da_sl').value, donGia:el('da_dg').value, thucTe:thucte, vat:el('da_vat').value, anh:el('da_anh').value, note:el('da_note').value.trim(), capCha:(el('da_capCha')?el('da_capCha').value:''), hinhThuc:(el('da_httt')?el('da_httt').value:''), hoSo:(el('da_hoso')?el('da_hoso').value:''), loaiCp:_selLoai('da_loaicp').loai, tkNo:_selLoai('da_loaicp').tkNo };
     var editRow=DA_EDIT_ROW; loading(true);
@@ -4672,13 +4681,41 @@
     return [];
   }
   // TK Nợ của (loại chi phí × mảng): đúng 1 mã thì lấy luôn, 2 mã trở lên thì người nhập phải chỉ rõ
+  /* Những mã app biết chắc là TK CÓ. Lấy từ chính dữ liệu đang có, không gõ cứng một khoảng
+     số: 141 (tạm ứng NV) và 331 (phải trả NCC) là hai mã app tự điền theo hình thức chi, cộng
+     với mọi TK Có khai ở ⚙️ Cấu hình → 💳 TK Có theo Phân loại thanh toán và cột TK Có của
+     danh mục loại chi phí. */
+  function _tapTkCo(){
+    var t={'141':1,'331':1};
+    /* Chỉ đọc `BOOT` — máy chủ gửi cả `phanloai` lúc boot, và mỗi lần lưu Cấu hình đều
+       `boot()` lại, nên không cần với sang `CFG` của màn Cấu hình (màn ấy có thể chưa mở). */
+    (BOOT.phanloai||[]).forEach(function(x){
+      var m=String((x&&x.tkCo)||'').trim(); if(m) t[m]=1;
+    });
+    (BOOT.loaiChiPhi||[]).forEach(function(x){
+      var m=String((x&&x.tkCo)||'').trim(); if(m) t[m]=1;
+    });
+    return t;
+  }
   function _tkNoCua(loai, coso){
     var ds=_tkNoList(loai, coso);
     if(ds.length===1) return String(ds[0]);
     if(ds.length>1) return '';
     var k=String(loai||'').trim().toLowerCase();
     var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
-    return (hit&&hit.tkNo)?String(hit.tkNo):'';
+    var ma=(hit&&hit.tkNo)?String(hit.tkNo).trim():'';
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
+       quả — mã rỗng thì `_tapTkCo()['']` là undefined nên vẫn rơi xuống `return ma` = ''. Giữ
+       vì nó chặn một lượt dựng cả tập TK Có cho một ô chắc chắn rỗng. */
+    if(!ma) return '';
+    /* 🔴 ĐƯỜNG LUI KHÔNG ĐƯỢC TRẢ VỀ MỘT TK CÓ. Anh Thắng 10/09/2026: *"loại chi phí nó là tài
+       khoản nợ chứ"* — ô chọn đang hiện "Chi phí tháo dỡ · TK 331", mà 331 là mã PHẢI TRẢ NCC,
+       tức TK Có. Cột `tkNo` cũ của danh mục là tàn dư từ thời chưa có ma trận theo mảng, và
+       trong sổ thật có dòng lỡ điền TK Có vào đó.
+       Để nguyên thì dòng chi ghi Nợ 331 / Có 331 — bản xuất MISA nhận một bút toán vô nghĩa,
+       mà nhìn màn thì thấy "đã có mã" nên không ai ngờ. Thà nói CHƯA GẮN MÃ còn hơn. */
+    if(_tapTkCo()[ma]) return '';
+    return ma;
   }
   /**
    * Dựng các dòng của ô chọn "Loại chi phí" cho 1 cơ sở.
@@ -5418,7 +5455,18 @@
   function mlTkHint(){ _tkHint('ml_tkHint','ml_loaicp','ml_httt', MK_CUR?MK_CUR.coso:''); }
   function blTkHint(){ _tkHint('bl_tkHint','bl_loaicp','bl_httt', BP_CUR?BP_CUR.diaDiem:''); }
   // Cơ sở của từng mảng: kỹ thuật lấy theo GIAN đang nhập, MKT theo đơn, công tác theo địa điểm đợt
-  function _daCoso(){ return String((el('da_gian')&&el('da_gian').value)||'').trim(); }
+  /* Gian của dòng chi đang nhập.
+     🔴 DỰ ÁN SETUP / THÁO DỠ ĐÃ MANG SẴN TÊN GIAN — chính là tên dự án. Bắt gõ lại từng dòng
+        là mời gõ lệch: gõ "Aeon Bình Tân" ở dòng này, "AEON BÌNH TÂN" ở dòng kia, và hai dòng
+        rơi vào hai mảng khác nhau nên ra hai mã tài khoản khác nhau, trong cùng một dự án.
+     ⚠️ TRỪ "Chi phí cơ sở (chung)": dự án ấy gom chi phí của NHIỀU cơ sở, mỗi dòng một nơi,
+        nên vẫn phải hỏi. Đó là lý do ô Gian còn tồn tại chứ không bỏ hẳn. */
+  function _daCoso(){
+    var o=el('da_gian'), box=el('daGianBox');
+    var hienGian=!!(box && box.style.display!=='none');
+    if(hienGian) return String((o&&o.value)||'').trim();
+    return String((DA_CUR&&(DA_CUR.coso||DA_CUR.ten))||'').trim();
+  }
   // Danh mục nằm trong BOOT — vào thẳng tab Kỹ thuật/MKT/Công tác mà chưa boot thì nạp 1 lần
   function _ensureLoaiCp(cb){
     if((BOOT.loaiChiPhi||[]).length) { if(cb) cb(); return; }
