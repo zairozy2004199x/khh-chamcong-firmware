@@ -531,7 +531,8 @@ class VHG_BaoCao {
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
 			'resetCoso' => $reset_cs,
-			'chamCongUrl' => self::cham_cong_url() );
+			'chamCongUrl' => self::cham_cong_url(),
+			'trangChuUrl' => home_url( '/' ) );
 	}
 
 	/**

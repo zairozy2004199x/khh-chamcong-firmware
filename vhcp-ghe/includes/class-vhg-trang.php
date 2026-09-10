@@ -1738,6 +1738,16 @@ class VHG_Trang {
       cc.title='Vào thẳng trang chấm công online để check in / check out';
       top.appendChild(cc);
     }
+    /* Quay lại trang chủ — anh Thắng 10/09/2026: "bổ sung nút quay lại trang chủ". Trước đây
+       lối ra duy nhất của màn báo cáo là "Thoát" (đăng xuất hẳn) — người đứng quầy muốn về
+       trang chính của web thì phải thoát rồi tự gõ địa chỉ. Đây là ĐIỀU HƯỚNG, không phải đăng
+       xuất: đi thẳng, cùng thẻ, không đụng vào phiên PIN (PIN chỉ nằm trong bộ nhớ JS nên rời
+       trang là mất — muốn nhập tiếp thì vào lại, đúng như bấm Thoát). */
+    if (BC.trangChuUrl) {
+      var tc=el('a','bc-btn','🏠 Trang chủ'); tc.href=BC.trangChuUrl;
+      tc.title='Quay lại trang chủ của web';
+      top.appendChild(tc);
+    }
     var out=el('button','bc-btn','Thoát');
     /* Thoát cả hai lớp trong MỘT lượt bấm — anh Thắng 29/08/2026: "2 trang này là 1, tại sao
        thoát 2 lần, kiểm tra lỗi". Xem chú thích đầy đủ ở thoatNgoai()/window.VHG_Trang.thoat
