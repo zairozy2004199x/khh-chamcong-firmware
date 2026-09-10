@@ -5839,6 +5839,9 @@ function daNopVe(){
   var r=DANOP_DATA; if(!r) return;
   var body=document.getElementById('dn-body'); if(!body) return;
   function d(n){ return (Math.round(n||0)).toLocaleString('vi-VN')+'đ'; }
+  /* '2026-09-07' -> '07/09/2026'. Kế toán đọc ngày kiểu Việt, và đây là dòng chữ nhỏ nằm
+     dưới số tiền nên càng phải liếc một cái là hiểu, không bắt dịch từ ISO. */
+  function ngayNgan(v){ var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(v||''); return m? (m[3]+'/'+m[2]+'/'+m[1]) : ''; }
   var rows=r.rows||[], nv=r.nhanVien||[];
   if(DANOP_NV){ var sel=null; nv.forEach(function(x){ if(x.ten===DANOP_NV) sel=x; });
     if(sel){ var kset={}; (sel.keys||[]).forEach(function(k){kset[k]=1;}); rows=rows.filter(function(o){ return kset[o.key]; }); } }
@@ -5853,15 +5856,24 @@ function daNopVe(){
   if(nv.length){ h+='<div class="act" style="margin-bottom:8px"><b>'+L('Nhân viên','Staff')+':</b><select id="dn-nv" onchange="daNopLoc()"><option value="">'+L('Tất cả','All')+'</option>'
     + nv.map(function(x){ return '<option value="'+esc(x.ten)+'"'+(x.ten===DANOP_NV?' selected':'')+'>'+esc(x.ten)+'</option>'; }).join('')+'</select></div>'; }
   if(!rows.length){ body.innerHTML=h+'<div class="mut">'+L('Chưa có dữ liệu trong kỳ.','No data in range.')+'</div>'; return; }
-  h+='<div style="overflow:auto"><table><thead><tr><th>'+L('Cơ sở','Site')+'</th><th>'+L('Mã nộp','Code')+'</th><th class="r">'+L('Tiền mặt','Cash')+'</th><th class="r">'+L('Đã nộp','Deposited')+'</th><th class="r">'+L('Còn lại','Remaining')+'</th><th>'+L('Nộp cuối','Last')+'</th></tr></thead><tbody>';
+  h+='<div style="overflow:auto"><table><thead><tr><th>'+L('Cơ sở','Site')+'</th><th>'+L('Mã nộp','Code')+'</th><th class="r">'+L('Tiền mặt','Cash')+'</th><th class="r">'+L('Đã nộp','Deposited')+'</th><th class="r">'+L('Còn lại','Remaining')+'</th></tr></thead><tbody>';
+  /* Ngày nộp đi LIỀN dưới số tiền thay vì đứng riêng một cột (anh Thắng 10/09/2026) —
+     kế toán soát từng dòng "nộp bao nhiêu, nộp hôm nào" trong một lần nhìn, khỏi rê mắt
+     sang cuối bảng. Gộp được vì cột cũ chỉ có mỗi ngày của lần nộp gần nhất.
+     Nộp nhiều lần trong kỳ thì nói rõ số lần: một con số 2.490.000đ có thể là một lần
+     nộp đủ hay ba lần góp, hai chuyện đó kế toán xử lý khác nhau. */
+  function dongNgay(o){
+    var ng=ngayNgan(o.lanCuoi); if(!ng) return '';
+    var n=o.soLan||0;
+    return '<div class="mut" style="font-weight:400">'+ng+(n>1?(' · '+n+' '+L('lần','times')):'')+'</div>';
+  }
   h+=rows.map(function(o){
     var cl = o.conLai>0 ? ' style="color:#dc2626;font-weight:700"' : (o.conLai<0?' style="color:#b45309"':'');
     return '<tr><td><b>'+esc(o.coso)+'</b></td>'
       +'<td>'+(o.ma?('<code>'+esc(o.ma)+'</code>'):'<span class="mut">'+L('chưa đặt mã','no code')+'</span>')+'</td>'
       +'<td class="r">'+d(o.tienMat)+'</td>'
-      +'<td class="r" style="color:#15803d">'+(o.daNop?d(o.daNop):'<span class="mut">–</span>')+'</td>'
-      +'<td class="r"'+cl+'>'+d(o.conLai)+'</td>'
-      +'<td class="mut">'+esc(o.lanCuoi||'')+'</td></tr>';
+      +'<td class="r" style="color:#15803d">'+(o.daNop?(d(o.daNop)+dongNgay(o)):'<span class="mut">–</span>')+'</td>'
+      +'<td class="r"'+cl+'>'+d(o.conLai)+'</td></tr>';
   }).join('');
   h+='</tbody></table></div>';
   if(!r.coSaoke) h='<div class="mut" style="color:#b45309;margin-bottom:6px">⚠ '+L('Chưa nối được dữ liệu Sao Kê (bảng saoke_gd).','Sao Kê data not linked.')+'</div>'+h;

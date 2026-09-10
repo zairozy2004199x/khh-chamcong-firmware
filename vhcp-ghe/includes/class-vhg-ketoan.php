@@ -1625,17 +1625,17 @@ class VHG_KeToan {
 		foreach ( $tenList as $ten => $sq ) {
 			if ( $scoped && ! isset( $scopeSet[ $sq ] ) ) { continue; }   // nhân viên chỉ thấy cơ sở của mình
 			$ma = isset( $cm[ $sq ] ) ? trim( (string) $cm[ $sq ] ) : '';
-			$daNop = 0; $lanCuoi = '';
+			$daNop = 0; $lanCuoi = ''; $soLan = 0;
 			if ( $coSaoke && '' !== $ma ) {
 				$g = $wpdb->get_results( $wpdb->prepare( "SELECT ngay_gd, tien FROM $sg WHERE loai='in' AND noi_dung LIKE %s AND DATE(ngay_gd) BETWEEN %s AND %s ORDER BY ngay_gd DESC LIMIT 500", '%' . $wpdb->esc_like( $ma ) . '%', $tu, $den ), ARRAY_A );
-				foreach ( (array) $g as $x ) { $daNop += (int) $x['tien']; if ( '' === $lanCuoi ) { $lanCuoi = substr( (string) $x['ngay_gd'], 0, 10 ); } }
+				foreach ( (array) $g as $x ) { $daNop += (int) $x['tien']; $soLan++; if ( '' === $lanCuoi ) { $lanCuoi = substr( (string) $x['ngay_gd'], 0, 10 ); } }
 			}
 			$dtv = isset( $dtByCoso[ $ten ] ) ? $dtByCoso[ $ten ]['dt'] : 0;
 			$tm = isset( $dtByCoso[ $ten ] ) ? $dtByCoso[ $ten ]['tm'] : 0;
 			$conLai = $tm - $daNop;
 			if ( 0 === $dtv && 0 === $daNop && '' === $ma ) { continue; }
 			if ( '' === $ma ) { $soChuaMa++; }
-			$out[] = array( 'coso' => $ten, 'key' => $sq, 'ma' => $ma, 'doanhThu' => $dtv, 'tienMat' => $tm, 'daNop' => $daNop, 'conLai' => $conLai, 'lanCuoi' => $lanCuoi );
+			$out[] = array( 'coso' => $ten, 'key' => $sq, 'ma' => $ma, 'doanhThu' => $dtv, 'tienMat' => $tm, 'daNop' => $daNop, 'conLai' => $conLai, 'lanCuoi' => $lanCuoi, 'soLan' => $soLan );
 			$tongDT += $dtv; $tongTM += $tm; $tongNop += $daNop; $tongConLai += $conLai;
 		}
 		usort( $out, function ( $a, $b ) { return $b['conLai'] - $a['conLai']; } );
