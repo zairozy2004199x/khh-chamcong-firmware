@@ -591,6 +591,24 @@ class VHCP_DuAn {
 		);
 	}
 
+	/**
+	 * Hình thức chi của một hạng mục LỚN — 'Trực tiếp' = kế toán trả thẳng nhà cung cấp.
+	 *
+	 * 🔴 ĐỌC TỪ SỔ, KHÔNG NHẬN TỪ MÀN. Nếu để màn gửi lên "đơn này là Trực tiếp" thì ai cũng
+	 *    gắn cờ ấy được rồi đi thẳng tới bước khoá, bỏ qua cả duyệt lẫn cấp tạm ứng.
+	 */
+	public static function hinh_thuc_hm( $ma_da, $row ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_line' );
+		$v = $wpdb->get_var( $wpdb->prepare( "SELECT hinh_thuc FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, (int) $row ) );
+		return trim( (string) $v );
+	}
+
+	/** Hạng mục do KẾ TOÁN trả thẳng NCC — không đi qua đường tạm ứng của nhân viên. */
+	public static function hm_la_ncc( $ma_da, $row ) {
+		return 'Trực tiếp' === self::hinh_thuc_hm( $ma_da, $row );
+	}
+
 	/** Hạng mục này có đang khoá không (đã chốt là chi thực tế). */
 	public static function hm_khoa( $ma_da, $row ) {
 		$h = self::hm_cua( $ma_da, $row );
@@ -632,6 +650,15 @@ class VHCP_DuAn {
 		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
 		$ke_toan    = in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
 		$cu = self::hm_cua( $ma_da, $row );
+		/* 🏢 ĐƠN KẾ TOÁN TRẢ THẲNG NCC ĐI ĐƯỜNG RIÊNG. Anh Thắng 10/09/2026: *"dù không xin
+		   tạm ứng, nhưng vẫn có phần kế toán đã xác nhận đi đơn nào thì tích vào và khoá đơn
+		   đó cho nhân viên biết và kèm gửi uỷ nhiệm chi cho đơn đó thay vì nhân viên gửi
+		   (người gửi lỡ người kia quên)"*.
+		   Tiền của đơn này không qua tay nhân viên nên chuỗi xin → duyệt → cấp không có nghĩa:
+		   nhân viên chẳng xin gì cả. Kế toán tự tích khi đã chi, đính uỷ nhiệm chi, rồi khoá.
+		   ⚠️ CHỈ NỚI CHO KẾ TOÁN. Nới cho mọi vai thì nhân viên tự khoá đơn của chính mình,
+		      mà khoá là chốt "đây là chi thực tế" — câu ấy phải do người giữ két nói. */
+		$la_ncc = self::hm_la_ncc( $ma_da, $row );
 
 		/* Đã khoá thì mọi đường đều đóng, trừ lối mở lại của kế toán. */
 		if ( 'xong' === $cu['tt'] && 'nhap' !== $tt ) {
@@ -646,14 +673,29 @@ class VHCP_DuAn {
 		if ( 'ung' === $tt && ! $ke_toan ) {
 			return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
 		}
-		if ( 'xin' === $tt && ! in_array( $cu['tt'], array( 'nhap', 'tra' ), true ) ) {
-			return VHCP_Util::err( 'Hạng mục này đã qua bước xin tạm ứng rồi.' );
+		/* 🔴 ĐƠN NCC THÌ CHỈ KẾ TOÁN ĐƯỢC ĐÁNH DẤU ĐÃ CHI / KHOÁ. Với đơn tạm ứng, nhân viên tự
+		   tích hoàn thành là đúng ý anh Thắng (*"tích hoàn thành và bổ sung hoá đơn nó sẽ khoá
+		   đơn đó lại"*) — họ là người cầm tiền đi mua. Đơn NCC thì ngược hẳn: tiền do kế toán
+		   trả, nên chỉ kế toán mới biết đã đi hay chưa. Để nhân viên khoá là họ chốt hộ một
+		   khoản chính họ không trả, mà từ 'nhap' đi thẳng tới 'xong' là qua mặt cả chuỗi. */
+		if ( $la_ncc && in_array( $tt, array( 'xong', 'ung' ), true ) && ! $ke_toan ) {
+			return VHCP_Util::err( 'Hạng mục này kế toán trả thẳng nhà cung cấp — chỉ kế toán xác nhận đã chi và khoá đơn.' );
 		}
-		if ( 'duyet' === $tt && 'xin' !== $cu['tt'] ) {
-			return VHCP_Util::err( 'Chỉ duyệt được hạng mục đang xin tạm ứng.' );
+		if ( $la_ncc && 'xin' === $tt ) {
+			return VHCP_Util::err( 'Hạng mục này kế toán trả thẳng nhà cung cấp — không xin tạm ứng. Kế toán tích xác nhận đã chi.' );
 		}
-		if ( 'ung' === $tt && 'duyet' !== $cu['tt'] ) {
-			return VHCP_Util::err( 'Chỉ cấp tạm ứng cho hạng mục đã duyệt.' );
+		/* Đơn NCC: kế toán đi thẳng tới "đã chi" hoặc "khoá", không cần chuỗi xin → duyệt. */
+		$bo_qua_chuoi = ( $la_ncc && $ke_toan );
+		if ( ! $bo_qua_chuoi ) {
+			if ( 'xin' === $tt && ! in_array( $cu['tt'], array( 'nhap', 'tra' ), true ) ) {
+				return VHCP_Util::err( 'Hạng mục này đã qua bước xin tạm ứng rồi.' );
+			}
+			if ( 'duyet' === $tt && 'xin' !== $cu['tt'] ) {
+				return VHCP_Util::err( 'Chỉ duyệt được hạng mục đang xin tạm ứng.' );
+			}
+			if ( 'ung' === $tt && 'duyet' !== $cu['tt'] ) {
+				return VHCP_Util::err( 'Chỉ cấp tạm ứng cho hạng mục đã duyệt.' );
+			}
 		}
 		/* 🔴 XONG PHẢI CÓ HOÁ ĐƠN. Anh Thắng: *"tích hoàn thành và bổ sung hóa đơn nó sẽ khóa
 		   đơn đó lại"*. Khoá mà chưa có chứng từ là chốt một con số không có gì đỡ. */
@@ -668,6 +710,9 @@ class VHCP_DuAn {
 			if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
 		}
 		if ( isset( $them['hoaDon'] ) ) { $sua['hoaDon'] = $hd; }
+		/* Uỷ nhiệm chi đi kèm cả lúc KHOÁ, không riêng lúc cấp tạm ứng: đơn NCC chỉ có một
+		   bước duy nhất (kế toán tích đã chi + khoá), mà uỷ nhiệm chi chính là chứng từ ấy. */
+		if ( 'xong' === $tt && isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
 		/* Lịch đợt: chỉ nhận lúc XIN (đó là lúc nhân viên biết mình cần tiền hôm nào). Dòng
 		   thiếu ngày thì bỏ — một đợt không ngày thì kế toán chuẩn bị tiền vào hôm nào? */
 		if ( 'xin' === $tt && isset( $them['lich'] ) && is_array( $them['lich'] ) ) {

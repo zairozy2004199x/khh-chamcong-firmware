@@ -137,6 +137,70 @@ t('🔴 đổi bộ lọc trạng thái → nhảy về trang 1 (không giữ tr
   t('   và trỏ đúng mã dự án của dòng ấy', /openDuAn\('DA2'\)/.test(html));
 }
 
+/* ── CỘT SỐ PHẢI THẲNG HÀNG VỚI ĐẦU CỘT ────────────────────────────────────────────────────
+ * Anh Thắng 10/09/2026: *"cột chênh lệch đang lệch nhau"* — đầu cột "Chênh lệch" canh PHẢI mà
+ * ô bên dưới canh TRÁI, nên "⚠️ vượt 22.350.000" nằm dạt sang mé trái, đọc lên tưởng nó thuộc
+ * cột "Thực tế" bên cạnh. Bảng tiền mà nhìn nhầm cột là nhìn nhầm con số.
+ *
+ * ⚠️ SO ĐẦU CỘT VỚI Ô THẬT, không ghim riêng ô nào. Ghim "ô thứ 5 phải có class money" thì
+ *    thêm một cột nữa vào bảng là bài kiểm ghim sai chỗ mà vẫn xanh.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  /* Đầu cột lấy từ THẺ <thead> trong app.html; ô lấy từ HTML mà renderDuAnList() vừa vẽ. */
+  const iTb = HTML.indexOf('id="daListBody"');
+  const iTh = HTML.lastIndexOf('<thead>', iTb);
+  const thead = HTML.slice(iTh, HTML.indexOf('</thead>', iTh));
+  const ths = (thead.match(/<th[^>]*>[^<]*<\/th>/g) || []);
+  t('đọc được đầu cột của bảng danh sách dự án', ths.length >= 5, ths);
+  const phai = ths.map(x => /text-align\s*:\s*right/.test(x));
+  const ten = ths.map(x => x.replace(/<[^>]*>/g, '').trim());
+
+  const b = dungBe(3);
+  b.moi.renderDuAnList();
+  const tr = b.moi.el('daListBody').innerHTML.split('</tr>')[0];
+  const tds = (tr.match(/<td[^>]*>/g) || []);
+  t('đọc được ô của một dòng', tds.length === ths.length, { th: ths.length, td: tds.length });
+  ths.forEach((_, i) => {
+    if (!phai[i]) return;
+    const o = tds[i] || '';
+    t('🔴 cột "' + ten[i] + '" canh phải ở đầu cột thì ô cũng phải canh phải',
+      /class="money"/.test(o) || /text-align\s*:\s*right/.test(o), o);
+  });
+}
+
+{
+  /* Bảng Kỹ thuật ở màn Tổng quan — cùng lỗi, khác chỗ vẽ. Sửa một chỗ mà quên chỗ kia thì
+     người dùng vẫn thấy cột lệch, chỉ là ở màn khác. */
+  const iTb = HTML.indexOf('id="tqKtSetupBody"');
+  const iTh = HTML.lastIndexOf('<thead>', iTb);
+  const thead = HTML.slice(iTh, HTML.indexOf('</thead>', iTh));
+  const ths = (thead.match(/<th[^>]*>[^<]*<\/th>/g) || []);
+  t('đọc được đầu cột của bảng Kỹ thuật (Tổng quan)', ths.length >= 4, ths);
+  const ten = ths.map(x => x.replace(/<[^>]*>/g, '').trim());
+  const NK = {};
+  const moi = {
+    esc: x => String(x == null ? '' : x),
+    money: x => String(x),
+    showPage: () => {}, openDuAn: () => {},
+    _tqCard: () => '',
+    el: id => (NK[id] = NK[id] || { innerHTML: '' }),
+  };
+  const i = HTML.indexOf('function renderKyThuatTongQuan(');
+  const src = HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
+  new Function('moi', `with(moi){ ${src}\n return renderKyThuatTongQuan; }`)(moi)([
+    { maDA: 'DA1', ten: 'TÀU ESTELLA', loai: 'Setup lắp đặt', tongDuToan: 0,
+      tongThucTe: 22350000, chenh: 22350000, trangThai: 'Đang làm' },
+  ]);
+  const tds = ((NK.tqKtSetupBody.innerHTML.split('</tr>')[0]) .match(/<td[^>]*>/g) || []);
+  t('vẽ được một dòng bảng Kỹ thuật', tds.length === ths.length, { th: ths.length, td: tds.length });
+  ths.forEach((x, k) => {
+    if (!/text-align\s*:\s*right/.test(x)) return;
+    const o = tds[k] || '';
+    t('🔴 bảng Kỹ thuật: cột "' + ten[k] + '" canh phải ở đầu cột thì ô cũng phải canh phải',
+      /class="money"/.test(o) || /text-align\s*:\s*right/.test(o), o);
+  });
+}
+
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {
   console.log('\n✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):');

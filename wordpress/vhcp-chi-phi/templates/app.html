@@ -3766,7 +3766,7 @@
       _tqCard('#ecfdf5','#a7f3d0','#065f46','🔧 Chi phí cơ sở (chung)', money(cosoTT)+'đ', 'Xuyên suốt')+
       _tqCard('#f1f5f9','#cbd5e1','#334155','Tổng Kỹ thuật (thực tế)', money(totTT)+'đ', 'Dự toán '+money(totDT)+'đ');
     var row=function(x){ var chenh=Number(x.chenh)||0, c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155'), chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp'), b=(x.trangThai==='Đã đóng')?'🔒':'⏳';
-      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.ten)+'</a></td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td style="text-align:center" title="'+esc(x.trangThai)+'">'+b+'</td></tr>'; };
+      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.ten)+'</a></td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td style="text-align:center" title="'+esc(x.trangThai)+'">'+b+'</td></tr>'; };
     el('tqKtSetupBody').innerHTML=setup.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:10px">Chưa có</td></tr>';
     el('tqKtThaoBody').innerHTML=thao.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:10px">Chưa có</td></tr>';
   }
@@ -3832,7 +3832,7 @@
       var chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp');
       var canDel=(x.loai!=='Chi phí cơ sở') && (x.trangThai==='Đang làm' || isAdmin) && x.trangThai!=='Đã đóng';   // xóa nháp; Admin/QL xóa cả chờ duyệt/đã duyệt
       var del=canDel?' <button class="btn b-d" onclick="delDuAnUI(\''+esc(x.maDA)+'\',\''+esc(x.ten).replace(/'/g,"\\'")+'\')" title="Xóa dự án">🗑</button>':'';
-      return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.loai)+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td>'+daBadge(x.trangThai)+'</td>'+
+      return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.loai)+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td>'+daBadge(x.trangThai)+'</td>'+
         '<td style="text-align:center;white-space:nowrap"><button class="btn b-p" onclick="openDuAn(\''+esc(x.maDA)+'\')">Mở</button>'+del+'</td></tr>';
     }).join('');
     /* Danh sách vừa dài thêm một dòng -> khối chi tiết trôi xuống. Kéo lại cho đúng, và chỉ
@@ -4185,8 +4185,9 @@
          con, nên người dùng phải tự đoán ra luật. Ẩn im lặng là bắt người ta đoán; hiện nút
          rồi nói rõ lý do thì họ biết phải làm gì (gỡ mục con ra trước). */
       var goNut=(canEdit && parents.length>1)
-        ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục này vào một hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
+        ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục LỚN này thành mục con của hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
       addChild+=goNut;
+      addChild+=hmNutDaBang(p);
       if(kids.length){
         var kidTT=kids.reduce(function(s,k){return s+(Number(k.thucTe)||0);},0);
         var dt=Number(p.duToan)||0, ch=kidTT-dt, chTxt, chCol;
@@ -4194,10 +4195,19 @@
         else if(ch>0){ chTxt='⚠️ vượt '+money(ch); chCol='#b91c1c'; }
         else if(ch<0){ chTxt='✓ dư '+money(-ch); chCol='#166534'; }
         else { chTxt='✓ khớp'; chCol='#166534'; }
-        html+='<tr style="background:#eef2ff;font-weight:700"><td>📦 '+esc(p.noiDung)+'</td><td>'+esc(p.gian)+'</td><td class="money">'+money(dt)+'</td><td></td><td></td><td></td><td class="money">'+money(kidTT)+'</td><td>'+htBadge(p.hinhThuc)+'</td><td></td><td></td><td></td><td style="font-size:11px;font-weight:400;color:'+chCol+'">'+chTxt+'</td><td style="text-align:center;white-space:nowrap">'+(canEdit?('<button class="btn b-s" onclick="daEditLine('+p.row+')">✏️</button> <button class="btn b-d" onclick="delDuAnLineUI('+p.row+')">✕</button>'+addChild):'')+'</td></tr>';
-        kids.forEach(function(k){ html+=daLineCells(k,true); });
+        html+='<tr style="background:#eef2ff;font-weight:700"><td>📦 '+esc(p.noiDung)+'</td><td>'+esc(p.gian)+'</td><td class="money">'+money(dt)+'</td><td></td><td></td><td></td><td class="money">'+money(kidTT)+'</td><td>'+htBadge(p.hinhThuc)+'</td><td></td><td></td><td></td><td style="font-size:11px;font-weight:400;color:'+chCol+'">'+chTxt+'</td><td style="text-align:center;white-space:nowrap">'+(canEdit?('<button class="btn b-s" onclick="daEditLine('+p.row+')">✏️</button> <button class="btn b-d" onclick="delDuAnLineUI('+p.row+')">✕</button>'):'')+addChild+'</td></tr>';
+        html+=hmDongXin(p);
+        /* 🔴 NÚT DỜI PHẢI Ở MỤC CON. Anh Thắng 10/09/2026: *"dời là dời mục con, chứ sao lại
+           dời mục lớn"*. Bản trước chỉ đặt nút ở hạng mục lớn (để gộp một hạng mục lỡ gõ
+           thành mục lớn), nên gõ nhầm mục con vào SAI hạng mục lớn thì trên hàng ấy chẳng có
+           đường nào — phải bấm ✏️ rồi mới thấy ô "Thuộc". Hai việc khác nhau, hai nút. */
+        kids.forEach(function(k){
+          var doiNut=canEdit?(' <span data-gop="'+k.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+k.row+')" title="Dời mục con này sang hạng mục lớn khác (hoặc đưa lên thành hạng mục lớn)">↳ đổi mục</button></span>'):'';
+          html+=daLineCells(k,true, doiNut);
+        });
       } else {
         html+=daLineCells(p,false, addChild, true);
+        html+=hmDongXin(p);
       }
       });
       return html;
@@ -4354,19 +4364,20 @@
         +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
     }).join('');
   }
-  function hmDat(maDA,row,tt,them){
+  function hmDat(maDA,row,tt,them,sau){
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      toast('ok','Đã đổi trạng thái hạng mục'); loadDonHM();
+      toast('ok','Đã đổi trạng thái hạng mục');
+      if(typeof sau==='function') sau(); else loadDonHM();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datTrangThaiHangMuc(maDA,row,tt,them||{});
   }
-  function hmCapUng(maDA,row,dot){
+  function hmCapUng(maDA,row,dot,sau){
     var unc=prompt('Cấp tạm ứng đợt '+dot+'.\n\nNhập số uỷ nhiệm chi (để trống cũng được):','');
     if(unc===null) return;
-    hmDat(maDA,row,'ung',{dot:dot,unc:String(unc||'').trim()});
+    hmDat(maDA,row,'ung',{dot:dot,unc:String(unc||'').trim()},sau);
   }
-  function hmChot(maDA,row){
+  function hmChot(maDA,row,sau){
     /* 🔴 HOÁ ĐƠN LÀ BẮT BUỘC — máy chủ cũng chối nếu thiếu. Chốt mà chưa có chứng từ là khoá
        một con số không có gì đỡ. */
     var hd=prompt('Chốt hoàn thành — hạng mục sẽ KHOÁ lại và tính là chi thực tế.\n\n'
@@ -4374,7 +4385,121 @@
     if(hd===null) return;
     hd=String(hd||'').trim();
     if(!hd){ toast('warn','Phải có hoá đơn mới chốt được'); return; }
-    hmDat(maDA,row,'xong',{hoaDon:hd});
+    hmDat(maDA,row,'xong',{hoaDon:hd},sau);
+  }
+
+  /* ═══ NÚT TRẠNG THÁI NGAY TRÊN BẢNG DỰ ÁN ═══════════════════════════════════════════════
+     Anh Thắng 10/09/2026: *"chưa thấy có nút gửi tạm ứng"*. Chuỗi trạng thái vốn đã chạy,
+     nhưng mọi nút lại nằm ở màn Duyệt của KẾ TOÁN — mà bước ĐẦU TIÊN (nhân viên xin tạm ứng)
+     là việc của nhân viên, người chẳng bao giờ mở màn ấy. Nút không có ở đâu thì đơn nằm mãi
+     ở "Đang nhập", và kế toán chờ một cái không ai gửi được.
+     Nút đặt ngay cạnh hạng mục lớn, vì "một đơn" chính là một hạng mục lớn. */
+  function _hmNhanCua(tt, laNcc){
+    /* 🏢 Đơn NCC đọc nhãn khác: nó KHÔNG đi qua tạm ứng, nên "Đang nhập" ở đây có nghĩa là
+       "chờ kế toán xác nhận đã chi", không phải "nhân viên chưa gửi". Dùng chung nhãn là nói
+       sai việc đang chờ ai. */
+    if(laNcc){
+      if(tt==='nhap'||tt==='tra') return ['Chờ kế toán xác nhận đã chi','#b45309','#fef3c7'];
+      if(tt==='ung')  return ['Đã chi — chờ khoá','#0f766e','#ccfbf1'];
+      if(tt==='xong') return ['✔ KT đã chi · đã khoá','#166534','#dcfce7'];
+    }
+    return HM_NHAN[tt]||HM_NHAN.nhap;
+  }
+  function _hmLaKT(){ return ['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0; }
+  function _hmLaDuyet(){ return ['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0; }
+  function hmLaiDA(){ if(DA_CUR){ openDuAn(DA_CUR.maDA); } loadDuAn(); }
+  function hmDatDA(row,tt,them){ if(!DA_CUR) return; hmDat(DA_CUR.maDA,row,tt,them||{},hmLaiDA); }
+  function hmCapUngDA(row,dot){ if(!DA_CUR) return; hmCapUng(DA_CUR.maDA,row,dot,hmLaiDA); }
+  function hmChotDA(row){ if(!DA_CUR) return; hmChot(DA_CUR.maDA,row,hmLaiDA); }
+  function hmNutDaBang(p){
+    if(!DA_CUR) return '';
+    var h=p.hm||{}, tt=h.tt||'nhap';
+    var laNcc=(String(p.hinhThuc||'')==='Trực tiếp');
+    var laKT=_hmLaKT(), laDuyet=_hmLaDuyet();
+    var suaDuoc=!!(DA_CUR.editable||DA_CUR.thiCong||DA_CUR.isCoSo);
+    var n=_hmNhanCua(tt,laNcc);
+    var out=' <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
+      +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
+    if(laNcc){
+      /* 🏢 KẾ TOÁN TỰ TÍCH — anh Thắng 10/09/2026: *"dù không xin tạm ứng, nhưng vẫn có phần
+         kế toán đã xác nhận đi đơn nào thì tích vào và khoá đơn đó cho nhân viên biết và kèm
+         gửi uỷ nhiệm chi cho đơn đó thay vì nhân viên gửi (người gửi lỡ người kia quên)"*.
+         Một bước duy nhất: tích + đính uỷ nhiệm chi + khoá. */
+      if(tt!=='xong'){
+        if(laKT) out+=' <button class="btn b-g" onclick="hmNccMo('+p.row+')" title="Kế toán xác nhận đã trả nhà cung cấp, đính uỷ nhiệm chi rồi khoá đơn">✅ KT đã chi — khoá đơn</button>';
+      } else if(laKT){
+        out+=' <button class="btn b-x" onclick="hmDatDA('+p.row+',\'nhap\')" title="Mở lại đơn đã khoá">🔓 Mở lại</button>';
+      }
+      return out;
+    }
+    if((tt==='nhap'||tt==='tra') && suaDuoc) out+=' <button class="btn b-g" onclick="hmMoXin('+p.row+')" title="Gửi hạng mục này lên xin tạm ứng">📤 Xin tạm ứng</button>';
+    if(tt==='xin'&&laDuyet)  out+=' <button class="btn b-g" onclick="hmDatDA('+p.row+',\'duyet\')">✔ Duyệt</button>';
+    if(tt==='duyet'&&laKT)   out+=' <button class="btn b-g" onclick="hmCapUngDA('+p.row+','+((h.dot||0)+1)+')">💵 Cấp đợt '+((h.dot||0)+1)+'</button>';
+    if((tt==='xin'||tt==='duyet')&&laDuyet) out+=' <button class="btn b-d" onclick="hmDatDA('+p.row+',\'tra\')">↩ Trả</button>';
+    if(tt==='ung')           out+=' <button class="btn b-x" onclick="hmChotDA('+p.row+')" title="Đính hoá đơn rồi chốt là chi thực tế">🧾 Chốt xong</button>';
+    if(tt==='xong'&&laKT)    out+=' <button class="btn b-x" onclick="hmDatDA('+p.row+',\'nhap\')" title="Mở lại hạng mục đã chốt">🔓 Mở lại</button>';
+    return out;
+  }
+  /* Hàng trống nằm ngay dưới mỗi hạng mục lớn — chỗ mở ô nhập, khỏi phải bày hộp thoại. */
+  function hmDongXin(p){ return '<tr data-xin="'+p.row+'" style="display:none"><td colspan="13" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>'; }
+  function _hmO(row){
+    var tr=document.querySelector('[data-xin="'+row+'"]');
+    return tr?{tr:tr, td:tr.querySelector('td')}:null;
+  }
+  function hmDongXinLai(row){ var o=_hmO(row); if(o){ o.td.innerHTML=''; o.tr.style.display='none'; } }
+  function _hmTen(row){
+    var t=''; (DA_CUR&&DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) t=String(x.noiDung||''); });
+    return t;
+  }
+  function hmMoXin(row){
+    var o=_hmO(row); if(!o){ toast('err','Không tìm thấy chỗ mở ô nhập'); return; }
+    /* Lịch đợt — anh Thắng: *"kiểu gửi xin tạm ứng nhiều lần, hoặc 1 lần, nếu 1 lần mà đi tạm
+       ứng nhiều lần thì nv có thể lịch chọn ngày đi tạm ứng lần 1,2,3"*. Để trống hết cũng
+       gửi được: phần đông chỉ xin một lần, bắt gõ lịch là bắt làm thừa. */
+    var h='<b>📤 Gửi xin tạm ứng — '+esc(_hmTen(row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cần đi tạm ứng làm nhiều lần thì gõ ngày (và số tiền) từng lần để kế toán biết đường chuẩn bị. <b>Để trống hết = xin một lần</b>.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
+      +[1,2,3].map(function(i){
+        return '<span style="white-space:nowrap">Lần '+i+': <input type="date" data-xnd="'+row+'_'+i+'" style="font-size:12px">'
+          +' <input type="text" data-xst="'+row+'_'+i+'" placeholder="số tiền" inputmode="numeric" onfocus="tienVao(this)" onblur="tienRa(this)" style="width:110px;font-size:12px;text-align:right"></span>';
+      }).join('')+'</div>'
+      +'<div style="margin-top:8px"><button class="btn b-g" onclick="hmGuiXin('+row+')">✓ Gửi xin tạm ứng</button>'
+      +' <button class="btn b-x" onclick="hmDongXinLai('+row+')">✕ Thôi</button></div>';
+    o.td.innerHTML=h; o.tr.style.display='';
+    try{ o.tr.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  function hmGuiXin(row){
+    var lich=[];
+    for(var i=1;i<=3;i++){
+      var d=document.querySelector('[data-xnd="'+row+'_'+i+'"]');
+      var t=document.querySelector('[data-xst="'+row+'_'+i+'"]');
+      var ngay=d?String(d.value||'').trim():'';
+      if(!ngay) continue;   // không ngày thì kế toán chuẩn bị tiền vào hôm nào?
+      lich.push({ngay:ngay, soTien:_tienSo(t?t.value:'')||0});
+    }
+    hmDatDA(row,'xin',{lich:lich});
+  }
+  function hmNccMo(row){
+    var o=_hmO(row); if(!o){ toast('err','Không tìm thấy chỗ mở ô nhập'); return; }
+    var h='<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
+      +'<span>Uỷ nhiệm chi: <input type="text" data-nunc="'+row+'" placeholder="số UNC / liên kết" style="width:200px;font-size:12px"></span>'
+      +'<span>Hoá đơn <b style="color:#b91c1c">(bắt buộc)</b>: <input type="text" data-nhd="'+row+'" placeholder="liên kết hoá đơn" style="width:220px;font-size:12px"></span>'
+      +'</div>'
+      +'<div style="margin-top:8px"><button class="btn b-g" onclick="hmNccChot('+row+')">✅ Tích đã chi &amp; khoá đơn</button>'
+      +' <button class="btn b-x" onclick="hmDongXinLai('+row+')">✕ Thôi</button></div>';
+    o.td.innerHTML=h; o.tr.style.display='';
+    try{ o.tr.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  function hmNccChot(row){
+    var u=document.querySelector('[data-nunc="'+row+'"]');
+    var d=document.querySelector('[data-nhd="'+row+'"]');
+    var hd=d?String(d.value||'').trim():'';
+    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — máy chủ cũng chối nếu thiếu. Khoá một con số không có gì
+       đỡ thì lúc đối chiếu không ai gỡ ra được. */
+    if(!hd){ toast('warn','Phải có liên kết hoá đơn mới khoá được đơn'); return; }
+    hmDatDA(row,'xong',{hoaDon:hd, unc:(u?String(u.value||'').trim():'')});
   }
   function daCapChaHint(){   // gợi ý + KHÓA dự toán: hạng mục lớn -> điền Dự toán (tạm ứng); mục con/phát sinh -> điền Thực tế
     var v=el('da_capCha')?el('da_capCha').value:'';
@@ -4407,25 +4532,37 @@
     if(!DA_CUR) return;
     var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
     if(!l){ toast('err','Không tìm thấy dòng'); return; }
+    var chaCu=String(l.capCha||'');
+    var laCon=(chaCu!=='' && chaCu!=='(Phát sinh)');
     /* 🔴 HẠNG MỤC ĐANG CÓ CON THÌ KHÔNG GỘP ĐƯỢC — và phải NÓI RA. Gộp nó vào hạng mục khác
        là lồng ba cấp, mà bảng chỉ vẽ hai: mấy dòng con sẽ biến khỏi màn tuy vẫn nằm trong sổ
-       và vẫn cộng vào tổng. */
-    var soCon=(DA_CUR.lines||[]).filter(function(x){
-      return String(x.capCha||'')===String(l.noiDung||'');
-    }).length;
-    if(soCon){
-      toast('warn','"'+l.noiDung+'" đang có '+soCon+' mục con — gỡ hết mục con ra rồi mới gộp được (bảng chỉ vẽ hai cấp)');
-      return;
+       và vẫn cộng vào tổng.
+       ⚠️ Chỉ hỏi câu này với HẠNG MỤC LỚN. Mục con thì theo định nghĩa không có con, hỏi cũng
+          luôn ra 0 — mà hỏi nhầm thì mục con trùng tên một hạng mục lớn sẽ bị chối oan. */
+    if(!laCon){
+      var soCon=(DA_CUR.lines||[]).filter(function(x){
+        return String(x.capCha||'')===String(l.noiDung||'');
+      }).length;
+      if(soCon){
+        toast('warn','"'+l.noiDung+'" đang có '+soCon+' mục con — gỡ hết mục con ra rồi mới gộp được (bảng chỉ vẽ hai cấp)');
+        return;
+      }
     }
+    /* Danh sách đích: mọi HẠNG MỤC LỚN, trừ chính nó và trừ hạng mục lớn nó đang thuộc về
+       (dời vào đúng chỗ đang đứng thì không phải là dời). */
     var cha=(DA_CUR.lines||[]).filter(function(x){
-      return String(x.capCha||'')==='' && x.row!==row;
+      return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')!==chaCu;
     }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
-    if(!cha.length){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
+    if(!cha.length && !laCon){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
     var o=document.querySelector('[data-gop="'+row+'"]');
     if(!o){ toast('err','Không tìm thấy chỗ đặt hộp chọn'); return; }
+    /* Mục con còn một đường nữa: ĐƯA LÊN thành hạng mục lớn. Gõ nhầm theo chiều nào cũng có
+       lối về, khỏi phải xoá dòng rồi nhập lại. */
+    var dsChon=cha.map(function(c){ return '<option value="'+esc(c)+'">↳ '+esc(c)+'</option>'; });
+    if(laCon){ dsChon.push('<option value="__LEN__">⬆ Đưa lên thành hạng mục lớn</option>'); }
     o.innerHTML='<select data-gopsel="'+row+'" style="max-width:170px;font-size:12px">'
-      +cha.map(function(c){ return '<option value="'+esc(c)+'">↳ '+esc(c)+'</option>'; }).join('')
-      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="Gộp vào hạng mục đã chọn">✓</button>'
+      +dsChon.join('')
+      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="'+(laCon?'Dời sang chỗ đã chọn':'Gộp vào hạng mục đã chọn')+'">✓</button>'
       +' <button class="btn b-x" onclick="openDuAn(DA_CUR.maDA)" title="Thôi">✕</button>';
   }
   function daGopChot(row){
@@ -4435,21 +4572,30 @@
     if(!khop){ toast('warn','Chọn hạng mục lớn trước'); return; }
     var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
     if(!l){ toast('err','Không tìm thấy dòng'); return; }
-    /* 🔴 VẪN KIỂM LẠI Ở ĐÂY. Hộp chọn dựng từ danh sách đúng, nhưng giữa lúc chọn và lúc bấm ✓
-       người khác có thể vừa xoá hạng mục ấy — chọn xong mới hỏng thì dòng chui vào một hạng
-       mục không tồn tại, và nó biến khỏi màn tuy tiền vẫn nằm trong sổ. */
-    var conCo=(DA_CUR.lines||[]).some(function(x){
-      return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')===khop;
-    });
-    if(!conCo){ toast('err','Hạng mục "'+khop+'" không còn — tải lại rồi làm lại'); return; }
+    var lenLon=(khop==='__LEN__');
+    if(!lenLon){
+      /* 🔴 VẪN KIỂM LẠI Ở ĐÂY. Hộp chọn dựng từ danh sách đúng, nhưng giữa lúc chọn và lúc bấm ✓
+         người khác có thể vừa xoá hạng mục ấy — chọn xong mới hỏng thì dòng chui vào một hạng
+         mục không tồn tại, và nó biến khỏi màn tuy tiền vẫn nằm trong sổ. */
+      var conCo=(DA_CUR.lines||[]).some(function(x){
+        return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')===khop;
+      });
+      if(!conCo){ toast('err','Hạng mục "'+khop+'" không còn — tải lại rồi làm lại'); return; }
+      /* Đưa một mục con sang hạng mục lớn đang CÓ MỤC CON là chuyện thường; nhưng dời một
+         hạng mục lớn vào chỗ khác thì đã chặn ở trên rồi. */
+    }
+    /* Đưa lên làm hạng mục lớn thì GIỮ hình thức chi đang kế thừa của cha — bỏ trống là nó
+       rơi về mặc định "tạm ứng", tức khoản kế toán trả thẳng NCC lại nhảy sang bảng tạm ứng. */
     var rec={ noiDung:l.noiDung, gian:l.gian, duToan:'', soLuong:l.soLuong, donGia:l.donGia,
-      thucTe:l.thucTe, vat:l.vat, anh:l.anh, note:l.note, capCha:khop, hinhThuc:'',
+      thucTe:l.thucTe, vat:l.vat, anh:l.anh, note:l.note,
+      capCha:(lenLon?'':khop), hinhThuc:(lenLon?(l.hinhThuc||''):''),
       hoSo:l.hoSo, loaiCp:l.loaiCp, tkNo:l.tkNo };
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      _log('Gộp hạng mục dự án', DA_CUR.ten, l.noiDung+' → mục con của '+khop);
-      toast('ok','Đã gộp "'+l.noiDung+'" vào "'+khop+'"');
+      _log('Dời hạng mục dự án', DA_CUR.ten, l.noiDung+' → '+(lenLon?'hạng mục lớn':'mục con của '+khop));
+      toast('ok', lenLon?('Đã đưa "'+l.noiDung+'" lên thành hạng mục lớn')
+                       :('Đã dời "'+l.noiDung+'" vào "'+khop+'"'));
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).updateDuAnLine(DA_CUR.maDA, row, rec);
   }

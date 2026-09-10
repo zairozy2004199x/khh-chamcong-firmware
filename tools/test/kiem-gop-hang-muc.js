@@ -70,7 +70,13 @@ function chay(row, chon, lines) {
     return { mo: daGopVaoMuc, chot: daGopChot }; }`)(moi);
   F.mo(row);
   NK.hoi = NK.oGop ? NK.oGop.innerHTML : '';
-  if (chon !== undefined && chon !== null) { NK.sel = { value: chon }; F.chot(row); }
+  /* 🔴 CHỈ BẤM ✓ KHI HỘP CHỌN ĐÃ THẬT SỰ HIỆN RA. Nút ✓ nằm TRONG cái hộp mà `daGopVaoMuc`
+     vẽ; `daGopVaoMuc` chối thì trên màn chẳng có nút nào để bấm. Gọi thẳng `daGopChot` bất kể
+     là bệ đỡ đi một đường người dùng không đi được — và mọi chốt trong `daGopVaoMuc` sẽ xanh
+     kể cả khi đã bị đục thủng. */
+  if (chon !== undefined && chon !== null && /<select/.test(NK.hoi)) {
+    NK.sel = { value: chon }; F.chot(row);
+  }
   return NK;
 }
 
@@ -95,7 +101,7 @@ function chay(row, chon, lines) {
   t('🔴 hộp CHỌN liệt kê hạng mục lớn (không bắt gõ tay)',
     /<select/.test(NK.hoi || '') && /Xe vận chuyển/.test(NK.hoi || ''), NK.hoi);
   t('   có nút chốt và nút thôi', /daGopChot\(/.test(NK.hoi || '') && /✕/.test(NK.hoi || ''), NK.hoi);
-  t('   báo đã gộp xong', NK.toast.some(x => x[0] === 'ok' && /Đã gộp/.test(x[1])), NK.toast);
+  t('   báo đã dời xong', NK.toast.some(x => x[0] === 'ok' && /Đã dời/.test(x[1])), NK.toast);
 }
 {
   /* 🔴 Giữa lúc chọn và lúc bấm ✓, hạng mục kia có thể vừa bị người khác xoá. */
@@ -146,6 +152,68 @@ function chay(row, chon, lines) {
   t('chỉ có một hạng mục lớn → báo chưa có chỗ để gộp vào',
     NK.gui === null && NK.toast.some(x => /Chưa có hạng mục lớn nào khác/.test(x[1])), NK.toast);
 }
+
+/* ── 2b. 🔴 DỜI MỤC CON SANG HẠNG MỤC LỚN KHÁC ─────────────────────────────────────────
+ * Anh Thắng 10/09/2026: *"dời là dời mục con, chứ sao lại dời mục lơn"*.
+ * Bản trước chỉ đặt nút ở HẠNG MỤC LỚN (gộp một cái lỡ gõ thành mục lớn). Nhưng gõ nhầm theo
+ * chiều kia — mục con chui vào SAI hạng mục lớn — thì trên hàng ấy chẳng có đường nào, phải
+ * bấm ✏️ mới thấy ô "Thuộc". Hai việc khác nhau, phải có hai nút.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+const L3 = [
+  { row: 2, noiDung: 'Xe vận chuyển', capCha: '', duToan: 9000000, thucTe: 0, hinhThuc: 'Trực tiếp' },
+  { row: 3, noiDung: 'Xe 2 tấn 5', capCha: 'Xe vận chuyển', soLuong: 1, donGia: 2000000,
+    thucTe: 2000000, hinhThuc: 'Trực tiếp', gian: 'FZ MN', loaiCp: 'Chi phí tháo dỡ', tkNo: '64125' },
+  { row: 5, noiDung: 'Nhân công', capCha: '', duToan: 4000000, thucTe: 0, hinhThuc: '' },
+];
+{
+  const NK = chay(3, 'Nhân công', L3);
+  t('🔴 DỜI MỤC CON sang hạng mục lớn khác → gửi đúng dòng, đúng cha mới',
+    NK.gui && NK.gui.row === 3 && NK.gui.rec.capCha === 'Nhân công', NK.gui);
+  t('   giữ nguyên tiền và loại chi phí của mục con',
+    NK.gui && NK.gui.rec.thucTe === 2000000 && NK.gui.rec.loaiCp === 'Chi phí tháo dỡ', NK.gui && NK.gui.rec);
+  t('   vẫn không mang dự toán / hình thức chi riêng (mục con theo cha mới)',
+    NK.gui && NK.gui.rec.duToan === '' && NK.gui.rec.hinhThuc === '', NK.gui && NK.gui.rec);
+  t('🔴 danh sách chọn KHÔNG có hạng mục lớn nó ĐANG thuộc về (dời vào chỗ đang đứng thì không phải dời)',
+    !/Xe vận chuyển/.test(NK.hoi || ''), NK.hoi);
+  t('   nhưng có hạng mục lớn khác', /Nhân công/.test(NK.hoi || ''), NK.hoi);
+  t('🔴 mục con có thêm đường ĐƯA LÊN thành hạng mục lớn',
+    /__LEN__/.test(NK.hoi || ''), NK.hoi);
+}
+{
+  /* 🔴 Mục con TRÙNG TÊN một hạng mục lớn khác: phép đếm con của bản cũ hỏi "có dòng nào
+     capCha = tên tôi không" — hỏi ở mục con là hỏi nhầm, và nó bị chối oan. */
+  const L4 = [
+    { row: 2, noiDung: 'Xe vận chuyển', capCha: '', thucTe: 0 },
+    { row: 3, noiDung: 'Nhân công', capCha: 'Xe vận chuyển', thucTe: 500000 },
+    { row: 5, noiDung: 'Nhân công', capCha: '', thucTe: 0 },
+    { row: 6, noiDung: 'Vật tư', capCha: 'Nhân công', thucTe: 300000 },
+    { row: 7, noiDung: 'Vận hành', capCha: '', thucTe: 0 },
+  ];
+  const NK = chay(3, 'Vận hành', L4);
+  t('🔴 mục con trùng tên một hạng mục lớn khác vẫn dời được (không bị chối oan vì "đang có con")',
+    NK.gui && NK.gui.rec.capCha === 'Vận hành', NK.toast);
+}
+{
+  const NK = chay(3, '__LEN__', L3);
+  t('🔴 ĐƯA MỤC CON LÊN thành hạng mục lớn → capCha rỗng',
+    NK.gui && NK.gui.rec.capCha === '', NK.gui && NK.gui.rec);
+  t('🔴 và GIỮ hình thức chi đang kế thừa (bỏ trống là khoản NCC nhảy sang bảng tạm ứng)',
+    NK.gui && NK.gui.rec.hinhThuc === 'Trực tiếp', NK.gui && NK.gui.rec);
+  t('   báo đã đưa lên hạng mục lớn',
+    NK.toast.some(x => x[0] === 'ok' && /hạng mục lớn/.test(x[1])), NK.toast);
+}
+{
+  /* Đưa lên thì KHÔNG kiểm "cha còn tồn tại" — chẳng có cha nào để kiểm. Chốt nhầm ở đây là
+     mục con không bao giờ lên được. */
+  const L5 = [{ row: 3, noiDung: 'Xe 2 tấn 5', capCha: 'Xe vận chuyển', thucTe: 2000000 }];
+  const NK = chay(3, '__LEN__', L5);
+  t('🔴 đưa lên được cả khi hạng mục lớn cũ đã bị xoá', NK.gui && NK.gui.rec.capCha === '', NK.toast);
+}
+t('🔴 nút dời nằm ở HÀNG MỤC CON, không phải ở hạng mục lớn',
+  HTML.indexOf("var doiNut=canEdit?(' <span data-gop=\"'+k.row+'\">") >= 0);
+t('   và nút ấy gọi đúng dòng mục con', HTML.indexOf('daGopVaoMuc('+"'+k.row+'"+')') >= 0);
+t('   hàng mục con nhận được nút phụ', HTML.indexOf('daLineCells(k,true, doiNut)') >= 0);
+t('   rê chuột nói rõ là dời mục con', HTML.indexOf('Dời mục con này sang hạng mục lớn khác') >= 0);
 
 /* ── 3. NÚT TRÊN HÀNG ──────────────────────────────────────────────────────────────────── */
 t('🔴 có nút gộp ngay trên hàng hạng mục lớn', HTML.indexOf('daGopVaoMuc(') >= 0);
