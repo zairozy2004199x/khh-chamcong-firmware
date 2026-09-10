@@ -3747,6 +3747,41 @@ var app = document.getElementById('app');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
+/* Danh sách ghế XỔ RA NGAY DƯỚI hàng địa điểm — anh Thắng 10/09/2026: "chọn vào tên cơ sở hiện
+   luôn được không, không phải nhảy cuối trang. Bấm tên cơ sở nó xổ ra luôn".
+   Bản trước bấm tên là lọc khối Ghế rồi cuộn xuống — đúng dữ liệu nhưng bắt người ta rời chỗ
+   đang xem, xem xong lại cuộn ngược lên. Đây là XEM NHANH tại chỗ: mã, tên ghế, trạng thái.
+   Việc sửa/đổi cơ sở/điều chuyển vẫn ở khối Ghế — có nút mở sẵn ở cuối khối xổ ra, không nhân
+   đôi bộ điều khiển ra hai nơi rồi lệch nhau.
+   ⚠️ Dựng bằng chuỗi rồi nhét vào DOM, KHÔNG gọi ve(): ve() vẽ lại cả tab là mất chữ đang gõ
+      trong ô tìm địa điểm và mất luôn khối vừa xổ. */
+function csGheHtml(ten){
+  var may = (D && D.may) || [];
+  var chuaGan = (ten === '__none__');
+  var cua = may.filter(function(m){ return chuaGan ? !m.coso : (m.coso === ten); });
+  var hien = cua.filter(function(m){ return !m.an; })
+                .sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); });
+  var soAn = cua.length - hien.length;
+  var h = '<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">'
+    + '<div class="mut" style="margin-bottom:8px">' + hien.length + ' ' + L('ghế','chairs')
+    + (soAn ? (' · ' + soAn + ' ' + L('đã điều chuyển','moved out')) : '') + '</div>';
+  if (!hien.length){
+    h += '<div class="mut">' + L('Chưa có ghế nào ở đây.','No chairs here yet.') + '</div>';
+  } else {
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px">'
+      + hien.map(function(m){
+          var tt = m.tt === 'running' ? '▶️' : (m.tt === 'wait_pay' ? '⏳' : (m.song ? '🟢' : '⚪'));
+          return '<span style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;'
+            + 'padding:4px 8px;white-space:nowrap">' + tt + ' <b>' + esc(m.ma) + '</b>'
+            + (m.ten ? ('<span class="mut"> · ' + esc(m.ten) + '</span>') : '') + '</span>';
+        }).join('')
+      + '</div>';
+  }
+  h += '<div class="act" style="margin-top:10px">'
+    + '<button data-csql="' + esc(ten) + '" class="ghost">' + L('Quản lý ghế ở khối Ghế','Manage in Chairs block') + ' ↓</button>'
+    + '</div></div>';
+  return h;
+}
 /* Bỏ dấu + thường hoá để TÌM cho dễ: gõ "binh duong" ra "Bình Dương", "da nang" ra "Đà Nẵng".
    Chỉ dùng cho ô tìm trên giao diện — so khớp dữ liệu vẫn đi bằng squash() bên máy chủ. */
 function kdJS(s){ return String(s==null?'':s).toLowerCase().normalize('NFD')
@@ -8662,17 +8697,35 @@ function noi(){
     QL_CHO_CS = t;
     lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
-  /* Bấm tên địa điểm -> lọc khối Ghế sang đúng cơ sở đó rồi cuộn xuống (anh Thắng 10/09/2026).
-     Đặt QL_LOC giống hệt ô chọn #ql-loc rồi ve() lại cả tab: nhãn nút "Thêm ghế vào …" và ô ẩn
-     mã cơ sở phải đi theo, vẽ mỗi bảng thì ghế mới rơi nhầm cơ sở. Lấy thẻ card SAU ve(), vì
-     ve() dựng lại DOM nên tham chiếu lấy trước đó là thẻ đã bị vứt. */
+  /* Bấm tên địa điểm -> XỔ RA ngay dưới hàng (xem csGheHtml). Bấm lần nữa là đóng; mở cái khác
+     thì cái đang mở tự đóng — hai ba khối mở cùng lúc là bảng dài ra, mất luôn cái lợi "không
+     phải nhảy đi đâu". */
+  var csDong = function(){
+    [].forEach.call(document.querySelectorAll('tr[data-csghe]'), function(x){
+      if (x.parentNode) x.parentNode.removeChild(x);
+    });
+  };
   [].forEach.call(document.querySelectorAll('[data-csxem]'), function(a){
     a.onclick = function(e){
       e.preventDefault();
-      QL_LOC = a.getAttribute('data-csxem') || ''; QL_PG = 0; QL_SEL = {};
-      ve();
-      var card = document.getElementById('ql-card-ghe');
-      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var ten = a.getAttribute('data-csxem') || '';
+      var tr = a.closest ? a.closest('tr') : null; if (!tr) return;
+      var ke = tr.nextElementSibling;
+      var dangMo = ke && ke.getAttribute('data-csghe') === ten;
+      csDong();
+      if (dangMo) return;                                  // bấm lại = đóng
+      var row = document.createElement('tr');
+      row.setAttribute('data-csghe', ten);
+      row.innerHTML = '<td colspan="6" style="padding:6px 8px 12px">' + csGheHtml(ten) + '</td>';
+      tr.parentNode.insertBefore(row, tr.nextSibling);
+      /* Nút trong khối vừa dựng phải gán tay: khối này sinh SAU lượt gán sự kiện của cả tab. */
+      var b = row.querySelector('[data-csql]');
+      if (b) b.onclick = function(){
+        QL_LOC = b.getAttribute('data-csql') || ''; QL_PG = 0; QL_SEL = {};
+        ve();
+        var card = document.getElementById('ql-card-ghe');
+        if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
     };
   });
 
@@ -8681,6 +8734,7 @@ function noi(){
   if ((_e = document.getElementById('cs-tim'))) {
     var loc = function(){
       var q = kdJS(document.getElementById('cs-tim').value), con = 0;
+      csDong();   // khối xổ ra không có khoá tìm; để lại là một hàng mồ côi giữa bảng đã lọc
       [].forEach.call(document.querySelectorAll('#cs-bang tr[data-cstim]'), function(tr){
         var hien = !q || (tr.getAttribute('data-cstim') || '').indexOf(q) >= 0;
         tr.style.display = hien ? '' : 'none';
