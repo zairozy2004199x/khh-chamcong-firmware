@@ -294,59 +294,111 @@ class VHG_Ma {
 	}
 
 	/* ─────────────────────────────────────────────────────────────────────────────────────────
-	 * TRANG GIỚI THIỆU KHUYẾN MÃI (block editor) — hiện ở ĐẦU trang /mua-ma cho khách. Bộ phận
-	 * khác tự soạn trong app: các KHỐI xếp dọc (tiêu đề · đoạn văn · ảnh · banner). Ảnh đã nén ở
-	 * client rồi gửi lên dạng data:URI (app đăng nhập PIN, không có thư viện ảnh WordPress). Chặn
-	 * dung lượng để không phình bảng options: mỗi ảnh ≤ ~400KB, tổng ≤ ~3MB, tối đa 40 khối. */
-	const KMT_LOAI     = array( 'heading', 'text', 'image', 'banner' );
-	const KMT_ANH_MAX  = 420000;   // ~400KB / ảnh (sau nén)
-	const KMT_TONG_MAX = 3000000;  // ~3MB tổng
-	const KMT_KHOI_MAX = 40;
+	 * TRANG GIỚI THIỆU KHUYẾN MÃI — CANVAS TỰ DO KIỂU CANVA (hiện toàn màn khi khách vào /mua-ma).
+	 * BA KHỔ riêng (dọc 9:16 · vuông 1:1 · ngang 16:9); khách dùng thiết bị nào thì ra khổ hợp nhất
+	 * (theo tỉ lệ màn). Mỗi khổ là một canvas: các PHẦN TỬ text/ảnh đặt theo TOẠ ĐỘ % (x,y,w) nên
+	 * poster co theo bề rộng màn mà không vỡ bố cục. Ảnh nén ở client → data:URI (app PIN, không có
+	 * thư viện ảnh WP). Chặn dung lượng: mỗi ảnh ≤ ~400KB, tổng ≤ ~6MB, ≤ 30 phần tử / khổ. */
+	const KMT_KHO      = array( '9x16', '1x1', '16x9' );
+	const KMT_FONT     = array( 'sans', 'serif', 'mono', 'condensed' );
+	const KMT_ANH_MAX  = 420000;
+	const KMT_TONG_MAX = 6000000;
+	const KMT_EL_MAX   = 30;
 
-	public static function km_trang() {
-		$v = get_option( 'vhg_km_trang' );
-		if ( ! is_array( $v ) ) { return array(); }
+	private static function kmt_mau_( $s, $def ) {
+		$s = trim( (string) $s );
+		return preg_match( '/^#[0-9a-fA-F]{3,8}$/', $s ) ? $s : $def;
+	}
+	private static function kmt_num_( $v, $min, $max, $def ) {
+		if ( ! is_numeric( $v ) ) { return $def; }
+		$v = (float) $v;
+		if ( $v < $min ) { $v = $min; }
+		if ( $v > $max ) { $v = $max; }
+		return round( $v, 2 );
+	}
+	/* Lọc danh sách phần tử của MỘT khổ. $tong (tham chiếu) để chặn tổng dung lượng ảnh khi LƯU;
+	   truyền null (đọc) thì không chặn tổng — dữ liệu đã bị chặn lúc lưu. */
+	private static function kmt_els_( $els, &$tong = null ) {
+		if ( ! is_array( $els ) ) { return array(); }
 		$ra = array();
-		foreach ( $v as $b ) {
-			if ( ! is_array( $b ) || empty( $b['t'] ) || ! in_array( (string) $b['t'], self::KMT_LOAI, true ) ) { continue; }
-			$ra[] = array(
-				't' => (string) $b['t'],
-				'v' => isset( $b['v'] ) ? (string) $b['v'] : '',
-				's' => isset( $b['s'] ) ? (string) $b['s'] : '',
+		foreach ( $els as $e ) {
+			if ( count( $ra ) >= self::KMT_EL_MAX ) { break; }
+			if ( ! is_array( $e ) || empty( $e['k'] ) ) { continue; }
+			$k = (string) $e['k'];
+			$base = array(
+				'k'   => $k,
+				'x'   => self::kmt_num_( isset( $e['x'] ) ? $e['x'] : 0, -50, 150, 0 ),
+				'y'   => self::kmt_num_( isset( $e['y'] ) ? $e['y'] : 0, -50, 150, 0 ),
+				'w'   => self::kmt_num_( isset( $e['w'] ) ? $e['w'] : 40, 2, 200, 40 ),
+				'rot' => self::kmt_num_( isset( $e['rot'] ) ? $e['rot'] : 0, -180, 180, 0 ),
 			);
+			if ( 'text' === $k ) {
+				$ff = ( isset( $e['ff'] ) && in_array( (string) $e['ff'], self::KMT_FONT, true ) ) ? (string) $e['ff'] : 'sans';
+				$al = ( isset( $e['al'] ) && in_array( (string) $e['al'], array( 'l', 'c', 'r' ), true ) ) ? (string) $e['al'] : 'c';
+				$ra[] = array_merge( $base, array(
+					't'  => mb_substr( sanitize_textarea_field( (string) ( isset( $e['t'] ) ? $e['t'] : '' ) ), 0, 500 ),
+					'fs' => self::kmt_num_( isset( $e['fs'] ) ? $e['fs'] : 6, 1, 40, 6 ),
+					'ff' => $ff, 'al' => $al,
+					'c'  => self::kmt_mau_( isset( $e['c'] ) ? $e['c'] : '#ffffff', '#ffffff' ),
+					'b'  => empty( $e['b'] ) ? 0 : 1,
+				) );
+			} elseif ( 'image' === $k ) {
+				$src = (string) ( isset( $e['src'] ) ? $e['src'] : '' );
+				if ( 0 === strpos( $src, 'data:image/' ) ) {
+					if ( strlen( $src ) > self::KMT_ANH_MAX ) { continue; }
+					if ( null !== $tong ) {
+						if ( $tong + strlen( $src ) > self::KMT_TONG_MAX ) { continue; }
+						$tong += strlen( $src );
+					}
+				} elseif ( 0 === strpos( $src, 'http' ) ) {
+					$src = esc_url_raw( $src );
+				} else { continue; }
+				if ( '' === $src ) { continue; }
+				$ra[] = array_merge( $base, array(
+					'src' => $src,
+					'ar'  => self::kmt_num_( isset( $e['ar'] ) ? $e['ar'] : 1, 0.05, 20, 1 ),   // cao/rộng
+				) );
+			}
 		}
 		return $ra;
 	}
 
-	public static function luu_km_trang( $blocks ) {
-		if ( ! is_array( $blocks ) ) { $blocks = array(); }
-		$ra = array(); $tong = 0;
-		foreach ( $blocks as $b ) {
-			if ( count( $ra ) >= self::KMT_KHOI_MAX ) { break; }
-			if ( ! is_array( $b ) || empty( $b['t'] ) || ! in_array( (string) $b['t'], self::KMT_LOAI, true ) ) { continue; }
-			$t = (string) $b['t'];
-			if ( 'image' === $t ) {
-				$v = (string) ( isset( $b['v'] ) ? $b['v'] : '' );
-				if ( 0 === strpos( $v, 'data:image/' ) ) {
-					if ( strlen( $v ) > self::KMT_ANH_MAX ) { continue; }          // ảnh chưa nén đủ — bỏ
-				} elseif ( 0 === strpos( $v, 'http' ) ) {
-					$v = esc_url_raw( $v );
-				} else { continue; }
-				if ( '' === $v ) { continue; }
-				if ( $tong + strlen( $v ) > self::KMT_TONG_MAX ) { continue; }      // vượt tổng — bỏ ảnh này
-				$tong += strlen( $v );
-				$ra[] = array( 't' => 'image', 'v' => $v, 's' => '' );
-			} else {
-				$vv = mb_substr( sanitize_textarea_field( (string) ( isset( $b['v'] ) ? $b['v'] : '' ) ), 0, 2000 );
-				$ss = mb_substr( sanitize_textarea_field( (string) ( isset( $b['s'] ) ? $b['s'] : '' ) ), 0, 500 );
-				if ( '' === trim( $vv ) && '' === trim( $ss ) ) { continue; }
-				$tong += strlen( $vv ) + strlen( $ss );
-				$ra[] = array( 't' => $t, 'v' => $vv, 's' => $ss );
+	public static function km_trang() {
+		$v = get_option( 'vhg_km_trang' );
+		$out = array( 'bat' => 1, 'cta' => 'Mua ngay', 'trang' => array() );
+		if ( is_array( $v ) && isset( $v['trang'] ) && is_array( $v['trang'] ) ) {
+			$out['bat'] = empty( $v['bat'] ) ? 0 : 1;
+			$out['cta'] = mb_substr( (string) ( isset( $v['cta'] ) ? $v['cta'] : 'Mua ngay' ), 0, 40 );
+			foreach ( self::KMT_KHO as $kho ) {
+				$t = ( isset( $v['trang'][ $kho ] ) && is_array( $v['trang'][ $kho ] ) ) ? $v['trang'][ $kho ] : array();
+				$out['trang'][ $kho ] = array(
+					'bg'  => self::kmt_mau_( isset( $t['bg'] ) ? $t['bg'] : '#0c0e15', '#0c0e15' ),
+					'els' => self::kmt_els_( isset( $t['els'] ) ? $t['els'] : array() ),
+				);
 			}
+		} else {
+			foreach ( self::KMT_KHO as $kho ) { $out['trang'][ $kho ] = array( 'bg' => '#0c0e15', 'els' => array() ); }
 		}
-		update_option( 'vhg_km_trang', $ra );
-		return array( 'ok' => true, 'so' => count( $ra ),
-			'thong_bao' => 'Đã lưu trang giới thiệu (' . count( $ra ) . ' khối).' );
+		return $out;
+	}
+
+	public static function luu_km_trang( $d ) {
+		if ( ! is_array( $d ) ) { $d = array(); }
+		$tong = 0; $trang = array();
+		$tr_in = ( isset( $d['trang'] ) && is_array( $d['trang'] ) ) ? $d['trang'] : array();
+		foreach ( self::KMT_KHO as $kho ) {
+			$t = ( isset( $tr_in[ $kho ] ) && is_array( $tr_in[ $kho ] ) ) ? $tr_in[ $kho ] : array();
+			$trang[ $kho ] = array(
+				'bg'  => self::kmt_mau_( isset( $t['bg'] ) ? $t['bg'] : '#0c0e15', '#0c0e15' ),
+				'els' => self::kmt_els_( isset( $t['els'] ) ? $t['els'] : array(), $tong ),
+			);
+		}
+		$cta = trim( sanitize_text_field( (string) ( isset( $d['cta'] ) ? $d['cta'] : 'Mua ngay' ) ) );
+		if ( '' === $cta ) { $cta = 'Mua ngay'; }
+		$out = array( 'bat' => empty( $d['bat'] ) ? 0 : 1, 'cta' => mb_substr( $cta, 0, 40 ), 'trang' => $trang );
+		update_option( 'vhg_km_trang', $out );
+		$so = 0; foreach ( $trang as $t ) { $so += count( $t['els'] ); }
+		return array( 'ok' => true, 'so' => $so, 'thong_bao' => 'Đã lưu trang giới thiệu (' . $so . ' phần tử).' );
 	}
 
 	// ===================================================================== cỡ mã QR trên màn ghế

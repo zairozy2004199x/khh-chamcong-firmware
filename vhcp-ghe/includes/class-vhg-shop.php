@@ -531,24 +531,17 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 .hero h1{margin:0 0 6px;font-size:25px;line-height:1.25;letter-spacing:-.01em}
 .hero .sub{color:#a79a7d;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 /* Dải "giảm tới X%" — lý do duy nhất khách dừng lại đọc trang này. Nên nó to, và nó ở trên cùng. */
-/* --- Trang giới thiệu khuyến mãi (block do quản lý soạn), tự co giãn ĐT/máy tính --- */
-.kmt{margin:4px 0 6px}
-.kmt-h{font-size:20px;font-weight:800;color:#fff;margin:14px 0 6px;text-align:center;line-height:1.3}
-.kmt-p{font-size:14px;color:#cfc3a6;margin:6px 0;line-height:1.5;text-align:center}
-.kmt-img{display:block;width:100%;max-width:100%;height:auto;border-radius:14px;margin:10px 0}
-.kmt-banner{margin:12px 0;padding:14px 16px;border-radius:14px;text-align:center;
-  background:linear-gradient(135deg,rgba(240,180,41,.22),rgba(240,180,41,.08));
-  border:1px solid rgba(240,180,41,.45)}
-.kmt-banner b{color:#f0b429;font-size:18px}
-.kmt-sub{font-size:13px;color:#cfc3a6;margin-top:4px;line-height:1.4}
-/* Màn CHÀO toàn màn hình (đập mặt khi khách vào), tự co giãn, cuộn được nếu dài */
-.kmt-splash{position:fixed;inset:0;z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;
-  background:radial-gradient(130% 100% at 50% 0%, #232838 0%, #0c0e15 72%);padding:34px 18px 44px}
-.kmt-splash-in{width:100%;max-width:460px;margin:0 auto;min-height:calc(100vh - 78px);
-  display:flex;flex-direction:column;justify-content:center}
-.kmt-splash-cta{display:block;width:100%;margin:22px 0 0;padding:15px 18px;border:0;border-radius:14px;
+/* --- Trang giới thiệu khuyến mãi: MÀN CHÀO toàn màn hình + POSTER canvas 3 khổ, co theo màn --- */
+.kmt-splash{position:fixed;inset:0;z-index:9999;overflow:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:22px 12px;background:#0a0c12}
+.kmt-poster{position:relative;container-type:size;overflow:hidden;border-radius:14px;flex:0 0 auto;
+  max-width:96vw;box-shadow:0 14px 44px rgba(0,0,0,.55)}
+.kmt-el{position:absolute;line-height:1.2;transform-origin:center center}
+img.kmt-el{height:auto;object-fit:contain;border-radius:6px}
+.kmt-splash-cta{display:block;width:100%;max-width:460px;padding:15px 18px;border:0;border-radius:14px;
   background:linear-gradient(135deg,#f0b429,#e0952a);color:#241800;font-size:17px;font-weight:800;
-  cursor:pointer;box-shadow:0 8px 24px rgba(240,180,41,.35)}
+  cursor:pointer;box-shadow:0 8px 24px rgba(240,180,41,.35);flex:0 0 auto}
 .kmt-splash-x{position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;
   border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer;z-index:1}
 
@@ -1407,36 +1400,61 @@ function veNap(){
   return h;
 }
 
-// ---------------- trang giới thiệu khuyến mãi (block do quản lý soạn) ----------------
-/* Màn CHÀO toàn màn hình: khách vào /mua-ma là "đập mặt" trang này trước, bấm "Mua ngay" mới lộ
-   trang gói bên dưới. Hiện MỘT lần mỗi lần vào trang (module var), có nút ✕ và nút CTA để tắt. */
+// ---------------- trang giới thiệu khuyến mãi — CANVAS 3 khổ (quản lý soạn kiểu Canva) ----------------
+/* Khách vào /mua-ma là "đập mặt" MÀN CHÀO toàn màn hình; bấm nút CTA / ✕ mới lộ trang gói. Ba khổ
+   riêng (dọc·vuông·ngang) — chọn khổ hợp tỉ lệ màn khách. Poster giữ tỉ lệ, co theo màn (dùng cqw
+   cho cỡ chữ nên chữ/ảnh nhỏ đều, không vỡ bố cục). Hiện 1 lần mỗi lần vào trang. */
 var KMT_SPLASH_SHOWN = false;
+function kmtFontCss(ff){
+  return ff === 'serif' ? 'Georgia,\"Times New Roman\",serif'
+    : ff === 'mono' ? '\"Courier New\",monospace'
+    : ff === 'condensed' ? '\"Arial Narrow\",\"Roboto Condensed\",sans-serif'
+    : 'system-ui,-apple-system,Arial,sans-serif';
+}
+function kmtKhoChon(){
+  var w = window.innerWidth || 360, hh = window.innerHeight || 640, r = w / hh;
+  if (r < 0.8) return '9x16';
+  if (r > 1.25) return '16x9';
+  return '1x1';
+}
+function kmtAspect(kho){ return kho === '9x16' ? [9,16] : kho === '16x9' ? [16,9] : [1,1]; }
+function veKmPoster(kho){
+  var cfg = D && D.km_trang; if (!cfg || !cfg.trang) return '';
+  var T = cfg.trang[kho] || { bg:'#0c0e15', els:[] };
+  var a = kmtAspect(kho);
+  var wcss = 'min(96vw, calc(90vh * ' + a[0] + ' / ' + a[1] + '))';
+  var h = '<div class="kmt-poster" style="width:' + wcss + ';aspect-ratio:' + a[0] + '/' + a[1]
+    + ';background:' + esc(T.bg || '#0c0e15') + '">';
+  (T.els || []).forEach(function(e){
+    var st = 'left:' + e.x + '%;top:' + e.y + '%;width:' + e.w + '%;transform:rotate(' + (e.rot || 0) + 'deg)';
+    if (e.k === 'text') {
+      st += ';font-size:' + e.fs + 'cqw;color:' + esc(e.c || '#fff')
+        + ';text-align:' + (e.al === 'l' ? 'left' : e.al === 'r' ? 'right' : 'center')
+        + ';font-weight:' + (e.b ? '800' : '400') + ';font-family:' + kmtFontCss(e.ff);
+      h += '<div class="kmt-el" style="' + st + '">' + esc(e.t || '').replace(/\n/g,'<br>') + '</div>';
+    } else if (e.k === 'image' && e.src) {
+      h += '<img class="kmt-el" style="' + st + '" src="' + esc(e.src) + '">';
+    }
+  });
+  return h + '</div>';
+}
 function kmtHienSplash(){
   if (KMT_SPLASH_SHOWN) return;
-  var bs = (D && D.km_trang) || []; if (!bs.length) return;
+  var cfg = D && D.km_trang;
+  if (!cfg || !cfg.bat || !cfg.trang) return;
+  /* Chọn khổ theo màn; nếu khổ đó chưa thiết kế thì rơi sang khổ nào có nội dung để vẫn hiện. */
+  var uu = [kmtKhoChon(), '9x16', '1x1', '16x9'], kho = null;
+  for (var i = 0; i < uu.length; i++) { var t = cfg.trang[uu[i]]; if (t && (t.els || []).length) { kho = uu[i]; break; } }
+  if (!kho) return;
   KMT_SPLASH_SHOWN = true;
   var ov = document.createElement('div'); ov.className = 'kmt-splash';
   ov.innerHTML = '<button class="kmt-splash-x" id="kmt-splash-x" aria-label="Đóng">✕</button>'
-    + '<div class="kmt-splash-in">' + veKmTrang()
-    + '<button class="kmt-splash-cta" id="kmt-splash-go">' + L('Mua ngay','Buy now') + ' →</button></div>';
+    + veKmPoster(kho)
+    + '<button class="kmt-splash-cta" id="kmt-splash-go">' + esc(cfg.cta || 'Mua ngay') + ' →</button>';
   document.body.appendChild(ov);
   function dong(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
   var g = document.getElementById('kmt-splash-go'); if (g) g.onclick = dong;
   var x = document.getElementById('kmt-splash-x'); if (x) x.onclick = dong;
-}
-function veKmTrang(){
-  var bs = (D && D.km_trang) || []; if (!bs.length) return '';
-  var h = '<div class="kmt">';
-  bs.forEach(function(b){
-    if (b.t === 'heading') { h += '<h2 class="kmt-h">' + esc(b.v || '') + '</h2>'; }
-    else if (b.t === 'text') { h += '<p class="kmt-p">' + esc(b.v || '').replace(/\n/g,'<br>') + '</p>'; }
-    else if (b.t === 'image' && b.v) { h += '<img class="kmt-img" src="' + esc(b.v) + '" alt="">'; }
-    else if (b.t === 'banner') {
-      h += '<div class="kmt-banner"><b>' + esc(b.v || '') + '</b>'
-        + (b.s ? '<div class="kmt-sub">' + esc(b.s || '').replace(/\n/g,'<br>') + '</div>' : '') + '</div>';
-    }
-  });
-  return h + '</div>';
 }
 
 // ------------------------------------------------------------------ mua

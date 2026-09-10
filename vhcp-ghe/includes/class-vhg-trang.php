@@ -7571,130 +7571,197 @@ function kmCfgLuu(){
   });
 }
 
-/* ═══════════════ TRANG GIỚI THIỆU KHUYẾN MÃI — BLOCK EDITOR (trong app) ═══════════════
-   Các khối xếp dọc: tiêu đề · đoạn văn · ảnh · banner. Ảnh NÉN NGAY TRÊN MÁY (canvas → JPEG)
-   rồi lưu data:URI, không cần thư viện ảnh WordPress. Sửa chữ chỉ cập nhật state (không vẽ lại,
-   giữ con trỏ); thêm/xoá/đổi thứ tự mới vẽ lại. */
-var KMT_BLOCKS = null, KMT_LOADED = false, KMT_DRAG = null;
-function kmtTenLoai(t){
-  return t === 'heading' ? L('Tiêu đề','Heading')
-       : t === 'text'    ? L('Đoạn văn','Text')
-       : t === 'image'   ? L('Ảnh','Image')
-       : t === 'banner'  ? L('Banner','Banner') : t;
+/* ═══════════════ TRANG GIỚI THIỆU KHUYẾN MÃI — CANVAS EDITOR KIỂU CANVA (trong app) ═══════════════
+   BA KHỔ riêng (dọc 9:16 · vuông 1:1 · ngang 16:9). Mỗi khổ là canvas: đặt CHỮ/ẢNH theo toạ độ %
+   (x,y,w) — kéo để di chuyển, thanh trên để phóng to/nhỏ, đổi font/màu/đậm/canh lề, xoay. Ảnh nén
+   ngay trên máy (canvas→JPEG) rồi lưu data:URI. Cỡ chữ theo % bề rộng nên poster co theo màn khách.
+   Sửa chữ / xoay / màu chỉ vẽ lại SÂN (giữ con trỏ); thao tác cấu trúc mới vẽ lại cả editor. */
+var KMT_DOC = null, KMT_KHO = '9x16', KMT_SEL = -1, KMT_LOADED = false, KMT_SW = 0, KMT_SH = 0;
+function kmtFontCss(ff){
+  return ff === 'serif' ? 'Georgia,serif'
+    : ff === 'mono' ? '"Courier New",monospace'
+    : ff === 'condensed' ? '"Arial Narrow",sans-serif'
+    : 'system-ui,-apple-system,Arial,sans-serif';
 }
+function kmtAspect(k){ return k === '9x16' ? [9,16] : k === '16x9' ? [16,9] : [1,1]; }
+function kmtEl(){ return (KMT_SEL >= 0 && KMT_DOC && KMT_DOC.trang[KMT_KHO].els[KMT_SEL]) || null; }
 function kmtTai(){
   var box = document.getElementById('kmt-ed'); if (!box) return;
   if (KMT_LOADED) return;
   box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
   goi('kmt_xem', {}, function(r){
-    if (!r || !r.ok) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
-    KMT_BLOCKS = r.blocks || []; KMT_LOADED = true; veKmtEditor();
+    if (!r || !r.ok || !r.blocks || !r.blocks.trang) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
+    KMT_DOC = r.blocks; KMT_LOADED = true; KMT_SEL = -1; kmtVe();
   });
 }
-function veKmtEditor(){
-  var box = document.getElementById('kmt-ed'); if (!box) return;
-  var bs = KMT_BLOCKS || [];
-  var h = '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">'
-    + '<button class="ghost" onclick="kmtThem(\'heading\')">＋ ' + L('Tiêu đề','Heading') + '</button>'
-    + '<button class="ghost" onclick="kmtThem(\'text\')">＋ ' + L('Đoạn văn','Text') + '</button>'
-    + '<button class="ghost" onclick="kmtThem(\'image\')">＋ ' + L('Ảnh','Image') + '</button>'
-    + '<button class="ghost" onclick="kmtThem(\'banner\')">＋ ' + L('Banner','Banner') + '</button></div>';
-  if (!bs.length) { h += '<p class="mut">' + L('Chưa có khối nào — bấm thêm ở trên.','No blocks yet — add above.') + '</p>'; }
-  bs.forEach(function(b, i){
-    h += '<div data-kmt-i="' + i + '" style="border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:8px;margin-bottom:8px">';
-    h += '<div class="act" style="justify-content:space-between;margin-bottom:6px">'
-      + '<b><span class="kmt-grip" draggable="true" title="' + L('Kéo để đổi thứ tự','Drag to reorder')
-      + '" style="cursor:grab;margin-right:6px;user-select:none">⠿</span>' + kmtTenLoai(b.t) + '</b>'
-      + '<span><button class="ghost" onclick="kmtLen(' + i + ')"' + (i === 0 ? ' disabled' : '') + '>↑</button> '
-      + '<button class="ghost" onclick="kmtXuong(' + i + ')"' + (i === bs.length - 1 ? ' disabled' : '') + '>↓</button> '
-      + '<button class="ghost" onclick="kmtXoa(' + i + ')">🗑</button></span></div>';
-    if (b.t === 'heading') {
-      h += '<input type="text" value="' + esc(b.v || '') + '" oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Tiêu đề lớn','Big heading') + '" style="width:100%">';
-    } else if (b.t === 'text') {
-      h += '<textarea oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Nội dung…','Content…') + '" style="width:100%;min-height:70px">' + esc(b.v || '') + '</textarea>';
-    } else if (b.t === 'banner') {
-      h += '<input type="text" value="' + esc(b.v || '') + '" oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Dòng lớn (VD Giảm 20% hôm nay)','Big line') + '" style="width:100%;margin-bottom:6px">'
-        + '<input type="text" value="' + esc(b.s || '') + '" oninput="kmtSet(' + i + ',\'s\',this.value)" placeholder="' + L('Dòng nhỏ','Subtitle') + '" style="width:100%">';
-    } else if (b.t === 'image') {
-      if (b.v) { h += '<img src="' + esc(b.v) + '" style="max-width:100%;border-radius:8px;margin-bottom:6px">'; }
-      h += '<input type="file" accept="image/*" onchange="kmtAnh(' + i + ',this)">';
+function kmtVe(){
+  var box = document.getElementById('kmt-ed'); if (!box || !KMT_DOC) return;
+  var nhan = { '9x16':'📱 '+L('Dọc','Portrait'), '1x1':'⬛ '+L('Vuông','Square'), '16x9':'🖥 '+L('Ngang','Landscape') };
+  var h = '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+  ['9x16','1x1','16x9'].forEach(function(k){ h += '<button class="' + (KMT_KHO===k?'on':'ghost') + '" onclick="kmtDoiKho(\'' + k + '\')">' + nhan[k] + '</button>'; });
+  h += '<span style="flex:1"></span>'
+    + '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" ' + (KMT_DOC.bat?'checked':'') + ' onchange="kmtBat(this.checked)" style="width:auto"> ' + L('Bật màn chào','Splash on') + '</label></div>';
+  h += '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"><b>' + L('Nút','Button') + ':</b>'
+    + '<input type="text" value="' + esc(KMT_DOC.cta || 'Mua ngay') + '" oninput="kmtCta(this.value)" style="max-width:150px" placeholder="Mua ngay">'
+    + '<b style="margin-left:8px">' + L('Nền','BG') + ':</b><input type="color" value="' + esc((KMT_DOC.trang[KMT_KHO].bg||'#0c0e15').slice(0,7)) + '" oninput="kmtNen(this.value)" style="width:44px;padding:0"></div>';
+  h += '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">'
+    + '<button class="ghost" onclick="kmtThemText()">＋ ' + L('Chữ','Text') + '</button>'
+    + '<label class="button ghost" style="cursor:pointer;margin:0">＋ ' + L('Ảnh','Image') + '<input type="file" accept="image/*" onchange="kmtThemAnh(this)" style="display:none"></label>';
+  var e = kmtEl();
+  if (e) {
+    h += '<span style="flex:1"></span>';
+    if (e.k === 'text') {
+      h += '<select onchange="kmtProp(\'ff\',this.value)">' + ['sans','serif','mono','condensed'].map(function(f){ return '<option value="'+f+'"'+(e.ff===f?' selected':'')+'>'+f+'</option>'; }).join('') + '</select>'
+        + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.max(1,(e.fs-0.5)) + ')">A−</button>'
+        + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.min(40,(e.fs+0.5)) + ')">A＋</button>'
+        + '<input type="color" value="' + esc((e.c||'#ffffff').slice(0,7)) + '" oninput="kmtProp(\'c\',this.value)" style="width:38px;padding:0">'
+        + '<button class="' + (e.b?'on':'ghost') + '" onclick="kmtProp(\'b\',' + (e.b?0:1) + ')"><b>B</b></button>'
+        + '<button class="ghost" onclick="kmtProp(\'al\',\'l\')">⬅</button><button class="ghost" onclick="kmtProp(\'al\',\'c\')">▮</button><button class="ghost" onclick="kmtProp(\'al\',\'r\')">➡</button>';
+    } else {
+      h += '<button class="ghost" onclick="kmtProp(\'w\',' + Math.max(5,(e.w-4)) + ')">－</button><button class="ghost" onclick="kmtProp(\'w\',' + Math.min(160,(e.w+4)) + ')">＋</button>';
     }
-    h += '</div>';
-  });
-  h += '<div class="act" style="margin-top:6px"><button class="on" onclick="kmtLuu()">💾 ' + L('Lưu trang','Save page')
-    + '</button><span id="kmt-msg" class="mut" style="align-self:center"></span></div>';
+    h += '<button class="ghost" onclick="kmtLop(1)" title="' + L('Lên trên','Front') + '">⤒</button>'
+      + '<button class="ghost" onclick="kmtLop(-1)" title="' + L('Xuống dưới','Back') + '">⤓</button>'
+      + '<button class="ghost" onclick="kmtXoaEl()">🗑</button>'
+      + '<span style="width:100%;display:flex;align-items:center;gap:6px;margin-top:4px">' + L('Xoay','Rotate')
+      + '<input type="range" min="-45" max="45" value="' + (e.rot||0) + '" oninput="kmtProp(\'rot\',this.value)" style="flex:1"></span>';
+  }
+  h += '</div>';
+  if (e && e.k === 'text') {
+    h += '<textarea oninput="kmtProp(\'t\',this.value)" placeholder="' + L('Nội dung chữ…','Text…') + '" style="width:100%;min-height:50px;margin-bottom:8px">' + esc(e.t||'') + '</textarea>';
+  }
+  h += '<div style="overflow:auto;background:#11141c;border-radius:12px;padding:12px;display:flex;justify-content:center">'
+    + '<div id="kmt-stage" style="position:relative"></div></div>';
+  h += '<div class="act" style="margin-top:8px"><button class="on" onclick="kmtLuu()">💾 ' + L('Lưu 3 khổ','Save all') + '</button>'
+    + '<button class="ghost" onclick="kmtXemThu()">👁 ' + L('Xem thử','Preview') + '</button>'
+    + '<span id="kmt-msg" class="mut" style="align-self:center"></span></div>'
+    + '<p class="mut" style="margin-top:6px">' + L('Kéo phần tử để di chuyển; chạm để chọn rồi chỉnh ở thanh trên. Thiết kế cả 3 khổ để khách dùng máy nào cũng đẹp.','Drag to move; tap to select then edit above. Design all 3 sizes.') + '</p>';
   box.innerHTML = h;
-
-  /* Kéo-thả đổi thứ tự khối (máy tính). Tay cầm ⠿ là nguồn kéo; cả khối là đích thả. Cảm ứng
-     (điện thoại) không có HTML5 drag nên vẫn dùng nút ↑↓ ở trên — hai cách cùng sửa KMT_BLOCKS. */
-  var wraps = box.querySelectorAll('[data-kmt-i]');
-  function xoaVienKmt(){ [].forEach.call(wraps, function(w){ w.style.boxShadow = ''; w.style.opacity = ''; }); }
-  [].forEach.call(wraps, function(w){
-    var grip = w.querySelector('.kmt-grip');
-    if (grip) {
-      grip.addEventListener('dragstart', function(e){
-        KMT_DRAG = +w.getAttribute('data-kmt-i');
-        e.dataTransfer.effectAllowed = 'move';
-        try { e.dataTransfer.setData('text/plain', String(KMT_DRAG)); } catch (_){}
-        w.style.opacity = '.5';
-      });
-      grip.addEventListener('dragend', function(){ KMT_DRAG = null; xoaVienKmt(); });
-    }
-    w.addEventListener('dragover', function(e){ if (KMT_DRAG === null) return; e.preventDefault(); w.style.boxShadow = 'inset 0 3px 0 #2563eb'; });
-    w.addEventListener('dragleave', function(){ w.style.boxShadow = ''; });
-    w.addEventListener('drop', function(e){
-      if (KMT_DRAG === null) return;
-      e.preventDefault(); w.style.boxShadow = '';
-      var from = KMT_DRAG, to = +w.getAttribute('data-kmt-i');
-      KMT_DRAG = null;
-      if (from === to || !KMT_BLOCKS || !KMT_BLOCKS[from]) return;
-      var b = KMT_BLOCKS.splice(from, 1)[0];
-      if (from < to) { to--; }          // đã bỏ 1 phần tử phía trước, chỉ số đích lùi 1
-      KMT_BLOCKS.splice(to, 0, b);
-      veKmtEditor();
-    });
-  });
+  kmtVeStage();
 }
-function kmtThem(t){ (KMT_BLOCKS = KMT_BLOCKS || []).push({ t: t, v: '', s: '' }); veKmtEditor(); }
-function kmtXoa(i){ if (!KMT_BLOCKS) return; if (!confirm(L('Xoá khối này?','Delete this block?'))) return; KMT_BLOCKS.splice(i, 1); veKmtEditor(); }
-function kmtLen(i){ if (!KMT_BLOCKS || i <= 0) return; var t = KMT_BLOCKS[i]; KMT_BLOCKS[i] = KMT_BLOCKS[i - 1]; KMT_BLOCKS[i - 1] = t; veKmtEditor(); }
-function kmtXuong(i){ if (!KMT_BLOCKS || i >= KMT_BLOCKS.length - 1) return; var t = KMT_BLOCKS[i]; KMT_BLOCKS[i] = KMT_BLOCKS[i + 1]; KMT_BLOCKS[i + 1] = t; veKmtEditor(); }
-function kmtSet(i, f, v){ if (KMT_BLOCKS && KMT_BLOCKS[i]) { KMT_BLOCKS[i][f] = v; } }   // KHÔNG vẽ lại — giữ con trỏ
-function kmtAnh(i, input){
+function kmtVeStage(){
+  var st = document.getElementById('kmt-stage'); if (!st || !KMT_DOC) return;
+  var a = kmtAspect(KMT_KHO), maxW = Math.min(340, (st.parentNode.clientWidth||340) - 4), maxH = 520;
+  var sw = Math.min(maxW, maxH * a[0] / a[1]); var sh = sw * a[1] / a[0];
+  KMT_SW = sw; KMT_SH = sh;
+  st.style.width = sw + 'px'; st.style.height = sh + 'px';
+  st.style.background = KMT_DOC.trang[KMT_KHO].bg || '#0c0e15';
+  st.style.borderRadius = '10px'; st.style.overflow = 'hidden';
+  var els = KMT_DOC.trang[KMT_KHO].els || [], h = '';
+  els.forEach(function(e, i){
+    var Lx = e.x/100*sw, Ty = e.y/100*sh, W = e.w/100*sw, sel = (i===KMT_SEL);
+    var s = 'position:absolute;left:'+Lx+'px;top:'+Ty+'px;width:'+W+'px;transform:rotate('+(e.rot||0)+'deg);cursor:move;touch-action:none;user-select:none;'
+      + (sel ? 'outline:2px solid #2563eb;outline-offset:1px;' : '');
+    if (e.k === 'text') {
+      s += 'font-size:'+(e.fs/100*sw)+'px;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;overflow-wrap:break-word';
+      var tx = e.t ? esc(e.t).replace(/\n/g,'<br>') : '<span style="opacity:.4">'+L('(chữ)','(text)')+'</span>';
+      h += '<div class="kmt-eel" data-ei="'+i+'" style="'+s+'">'+tx+'</div>';
+    } else {
+      s += 'height:'+(W*(e.ar||1))+'px';
+      h += '<img class="kmt-eel" data-ei="'+i+'" src="'+esc(e.src)+'" style="'+s+'">';
+    }
+  });
+  st.innerHTML = h;
+  [].forEach.call(st.querySelectorAll('.kmt-eel'), function(el){ el.addEventListener('pointerdown', kmtKeoBat); });
+}
+function kmtKeoBat(ev){
+  var el = ev.currentTarget, i = +el.getAttribute('data-ei');
+  var e = KMT_DOC.trang[KMT_KHO].els[i]; if (!e) return;
+  ev.preventDefault();
+  var x0 = ev.clientX, y0 = ev.clientY, ex = e.x, ey = e.y;
+  try { el.setPointerCapture(ev.pointerId); } catch(_){}
+  function mv(m){
+    var dx = (m.clientX-x0)/KMT_SW*100, dy = (m.clientY-y0)/KMT_SH*100;
+    e.x = Math.max(-40, Math.min(140, ex+dx)); e.y = Math.max(-40, Math.min(140, ey+dy));
+    el.style.left = (e.x/100*KMT_SW)+'px'; el.style.top = (e.y/100*KMT_SH)+'px';
+  }
+  function up(){
+    el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up);
+    KMT_SEL = i; kmtVe();   // chốt chọn + làm mới thanh công cụ cho phần tử này
+  }
+  el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up);
+}
+function kmtProp(f, v){
+  var e = kmtEl(); if (!e) return;
+  if (f === 'fs' || f === 'w' || f === 'rot') { v = parseFloat(v); }
+  if (f === 'b') { v = v ? 1 : 0; }
+  e[f] = v;
+  if (f === 't' || f === 'rot' || f === 'c') { kmtVeStage(); }   // nhẹ: giữ con trỏ ô đang gõ / thanh trượt
+  else { kmtVe(); }
+}
+function kmtThemText(){
+  var els = KMT_DOC.trang[KMT_KHO].els;
+  els.push({ k:'text', x:18, y:42, w:64, rot:0, t:L('Chữ mới','New text'), fs:8, ff:'sans', al:'c', c:'#ffffff', b:1 });
+  KMT_SEL = els.length-1; kmtVe();
+}
+function kmtThemAnh(input){
   var f = input.files && input.files[0]; if (!f) return;
   if (!/^image\//.test(f.type)) { alert(L('Chỉ chọn tệp ảnh.','Images only.')); return; }
   var img = new Image(), url = URL.createObjectURL(f);
   img.onload = function(){
     var mx = 1000, w = img.width, hh = img.height;
-    if (w > mx || hh > mx) { var s = Math.min(mx / w, mx / hh); w = Math.round(w * s); hh = Math.round(hh * s); }
-    var cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
-    cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+    if (w > mx || hh > mx) { var s = Math.min(mx/w, mx/hh); w = Math.round(w*s); hh = Math.round(hh*s); }
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = hh; cv.getContext('2d').drawImage(img,0,0,w,hh);
     var q = 0.82, data = cv.toDataURL('image/jpeg', q);
     while (data.length > 380000 && q > 0.4) { q -= 0.12; data = cv.toDataURL('image/jpeg', q); }
     URL.revokeObjectURL(url);
-    if (data.length > 400000) { alert(L('Ảnh quá lớn sau khi nén — chọn ảnh nhẹ hơn.','Image too large after compression.')); return; }
-    if (KMT_BLOCKS && KMT_BLOCKS[i]) { KMT_BLOCKS[i].v = data; veKmtEditor(); }
+    if (data.length > 400000) { alert(L('Ảnh quá lớn sau khi nén — chọn ảnh nhẹ hơn.','Image too large.')); return; }
+    var els = KMT_DOC.trang[KMT_KHO].els;
+    els.push({ k:'image', x:22, y:28, w:56, rot:0, src:data, ar: hh/w });
+    KMT_SEL = els.length-1; kmtVe();
   };
   img.onerror = function(){ URL.revokeObjectURL(url); alert(L('Không đọc được ảnh.','Cannot read image.')); };
   img.src = url;
 }
+function kmtXoaEl(){
+  if (KMT_SEL < 0) return;
+  KMT_DOC.trang[KMT_KHO].els.splice(KMT_SEL, 1); KMT_SEL = -1; kmtVe();
+}
+function kmtLop(dir){
+  var els = KMT_DOC.trang[KMT_KHO].els, i = KMT_SEL; if (i < 0) return;
+  var e = els.splice(i, 1)[0];
+  if (dir > 0) { els.push(e); KMT_SEL = els.length-1; } else { els.unshift(e); KMT_SEL = 0; }
+  kmtVe();
+}
+function kmtNen(c){ if (KMT_DOC) { KMT_DOC.trang[KMT_KHO].bg = c; kmtVeStage(); } }
+function kmtCta(v){ if (KMT_DOC) { KMT_DOC.cta = v; } }
+function kmtBat(c){ if (KMT_DOC) { KMT_DOC.bat = c ? 1 : 0; } }
+function kmtDoiKho(k){ KMT_KHO = k; KMT_SEL = -1; kmtVe(); }
 function kmtLuu(){
   var msg = document.getElementById('kmt-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
-  goi('kmt_luu', { blocks: KMT_BLOCKS || [] }, function(r){
+  goi('kmt_luu', KMT_DOC || {}, function(r){
     if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
-    if (r && r.ok) { KMT_LOADED = false; kmtTai(); }   // tải lại để thấy đúng những gì máy chủ đã giữ
   });
 }
+function kmtPosterHtml(kho){
+  var T = KMT_DOC.trang[kho] || { bg:'#0c0e15', els:[] }, a = kmtAspect(kho);
+  var wcss = 'min(94vw, calc(86vh * ' + a[0] + ' / ' + a[1] + '))';
+  var h = '<div style="position:relative;container-type:size;overflow:hidden;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.55);width:'+wcss+';aspect-ratio:'+a[0]+'/'+a[1]+';background:'+esc(T.bg||'#0c0e15')+'">';
+  (T.els||[]).forEach(function(e){
+    var st = 'position:absolute;left:'+e.x+'%;top:'+e.y+'%;width:'+e.w+'%;transform:rotate('+(e.rot||0)+'deg)';
+    if (e.k === 'text') { st += ';font-size:'+e.fs+'cqw;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2';
+      h += '<div style="'+st+'">'+esc(e.t||'').replace(/\n/g,'<br>')+'</div>';
+    } else { h += '<img style="'+st+';height:auto" src="'+esc(e.src)+'">'; }
+  });
+  return h + '</div>';
+}
+function kmtXemThu(){
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#0a0c12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px';
+  ov.innerHTML = '<button id="kmt-xt-x" style="position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer">✕</button>'
+    + kmtPosterHtml(KMT_KHO)
+    + '<div style="color:#8b93a7;font-size:13px">' + L('Xem thử khổ','Preview') + ' ' + KMT_KHO + '</div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#kmt-xt-x').onclick = function(){ if (ov.parentNode) ov.parentNode.removeChild(ov); };
+}
 
-/* 🔴 PHƠI CÁC HÀM GỌI QUA HANDLER NỘI TUYẾN LÊN window. Toàn bộ JS app nằm trong MỘT IIFE, nên
-   `function foo(){}` là CỤC BỘ — onclick/oninput/ontoggle chạy ở scope window KHÔNG thấy được
-   (đúng lỗi "kmCfgTai is not defined"). Phơi tường minh, các hàm vẫn giữ closure D/goi/L/esc/kdJS.
-   (Function declaration được hoist nên phơi được cả hàm định nghĩa phía dưới như qlTimGhe/daNop*.) */
+/* 🔴 PHƠI CÁC HÀM GỌI QUA HANDLER NỘI TUYẾN LÊN window (JS app trong IIFE — xem lỗi "not defined"). */
 window.qlTimGhe = qlTimGhe;
 window.daNopXem = daNopXem; window.daNopLoc = daNopLoc;
 window.kmCfgTai = kmCfgTai; window.kmCfgLoc = kmCfgLoc; window.kmCfgLuu = kmCfgLuu; window.kmCfgThemMa = kmCfgThemMa;
-window.kmtTai = kmtTai; window.kmtThem = kmtThem; window.kmtXoa = kmtXoa; window.kmtLen = kmtLen;
-window.kmtXuong = kmtXuong; window.kmtSet = kmtSet; window.kmtAnh = kmtAnh; window.kmtLuu = kmtLuu;
+window.kmtTai = kmtTai; window.kmtDoiKho = kmtDoiKho; window.kmtBat = kmtBat; window.kmtCta = kmtCta; window.kmtNen = kmtNen;
+window.kmtThemText = kmtThemText; window.kmtThemAnh = kmtThemAnh; window.kmtProp = kmtProp; window.kmtLop = kmtLop;
+window.kmtXoaEl = kmtXoaEl; window.kmtLuu = kmtLuu; window.kmtXemThu = kmtXemThu;
 
 function veMa(){
   var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
@@ -7724,8 +7791,8 @@ function veMa(){
     + '<summary style="cursor:pointer;font-weight:700;font-size:16px">🖼️ '
     + L('Trang giới thiệu khuyến mãi (đầu trang Mua mã)','Promo intro page (top of buy page)') + '</summary>'
     + '<p class="mut" style="margin:.4em 0 0">'
-    + L('Soạn trang khách thấy đầu tiên khi vào mua mã: xếp các khối tiêu đề · đoạn văn · ảnh · banner. Tự co giãn điện thoại và máy tính.',
-        'Build the page customers see first: stack heading / text / image / banner blocks. Responsive on phone and desktop.')
+    + L('Thiết kế tự do kiểu Canva màn khách thấy đầu tiên: đặt chữ/ảnh, kéo–phóng–xoay–đổi font. Ba khổ riêng (dọc·vuông·ngang) — khách dùng máy nào ra khổ đó, poster co theo màn.',
+        'Free Canva-style design customers see first: place text/images, drag–resize–rotate–font. Three sizes (portrait·square·landscape) served by device.')
     + '</p><div id="kmt-ed" style="margin-top:8px"></div></details>';
 
   /* ══════════════════════════════════════════════════════════════════════════════════════════
