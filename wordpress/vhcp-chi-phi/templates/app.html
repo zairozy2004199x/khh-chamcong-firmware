@@ -1030,6 +1030,39 @@
       <div id="qtPagerCho"></div>
     </div>
 
+    <!-- 🔴 LỆNH QUYẾT TOÁN THEO DỰ ÁN — anh Thắng: "Khi nv gửi chốt quyết toán, bên tab quyết
+         toán của kế toán cũng sẽ hiện lên đơn đó giống tạm ứng để kế toán theo dõi".
+         Không có bảng này thì nhân viên bấm gửi xong, đơn nằm im trong trang dự án — kế toán
+         chỉ thấy nó nếu tình cờ mở đúng dự án ấy. Mà quyết toán là bước tất toán khoản treo
+         trên TK 141: không ai đi tìm thì nó treo mãi.
+         Đặt ngay dưới bảng "Chờ quyết toán" — cùng một loại việc (đối chiếu rồi chốt sổ), chỉ
+         khác một bên là đơn tuần của cơ sở, một bên là lệnh của dự án. Nhét xuống cuối tab thì
+         kế toán phải cuộn qua ba bảng mới thấy, mà đây là việc đang chờ họ. -->
+    <div class="card" id="qtLenhCard">
+      <div class="ch">
+        <h2>🧾 Quyết toán theo dự án <span style="font-size:11px;font-weight:400;color:#64748b">— nhân viên gửi chốt, kế toán đối chiếu rồi chốt sổ</span>
+          <span class="badge st-cho" id="qtLenhSo">0</span></h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="qtLenhFilter" onchange="renderQtLenh()">
+            <option value="xin">Chờ chốt sổ</option>
+            <option value="xong">Đã quyết toán</option>
+            <option value="tra">Bị trả lại</option>
+            <option value="all">Tất cả</option>
+          </select>
+          <button class="btn b-x" onclick="loadQtLenh()">↻ Tải lại</button>
+        </div>
+      </div>
+      <div class="tw">
+        <table style="min-width:900px">
+          <thead><tr><th>Dự án</th><th>Đợt</th><th>Hạng mục trong lệnh</th><th>Thời gian setup</th>
+            <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="qtLenhBody"></tbody>
+        </table>
+        <div class="empty" id="qtLenhEmpty">Chưa có lệnh quyết toán nào của dự án.</div>
+      </div>
+    </div>
+
+
     <div class="card" id="qtCardXong">
       <!-- 🔴 Ô LỌC TUẦN RIÊNG CHO BẢNG NÀY (anh Thắng 07/09/2026: *"Bổ sung phần đã quyết
            toán lọc theo tuần (tránh lọc trùng với chờ quyết toán)"*).
@@ -5142,6 +5175,66 @@
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .xinQuyetToanDuAn(DA_CUR.maDA, rows, gc);
   }
+  /* ═══ TAB QUYẾT TOÁN CỦA KẾ TOÁN: BẢNG LỆNH QUYẾT TOÁN DỰ ÁN ══════════════════════════
+     Anh Thắng: *"Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên
+     đơn đó giống tạm ứng để kế toán theo dõi"*.
+     Không có bảng này thì nhân viên bấm gửi xong, lệnh nằm im trong trang dự án — kế toán chỉ
+     thấy nó nếu tình cờ mở đúng dự án ấy. Mà quyết toán là bước tất toán khoản treo trên TK
+     141: không ai đi tìm thì nó treo mãi.
+     🔑 Khoá hàng dùng tiền tố 'T' (tab Quyết toán) — khác 'Q' của bảng trong trang dự án, vì
+        hai bảng cùng nằm trong trang, một cái đang ẩn. */
+  var QTLENH_ITEMS=[];
+  function loadQtLenh(){
+    if(!el('qtLenhBody')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      QTLENH_ITEMS=r.items||[]; renderQtLenh();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listLenhDuAn('qt');
+  }
+  function renderQtLenh(){
+    if(!el('qtLenhBody')) return;
+    var f=(el('qtLenhFilter')&&el('qtLenhFilter').value)||'xin';
+    var ds=(QTLENH_ITEMS||[]).filter(function(x){ return f==='all' ? true : x.tt===f; });
+    if(el('qtLenhEmpty')) el('qtLenhEmpty').style.display=ds.length?'none':'block';
+    /* Con số trên huy hiệu đếm việc ĐANG CHỜ, không đếm theo ô lọc: kế toán liếc vào đó để
+       biết còn bao nhiêu phải làm, chứ không phải để biết mình đang lọc thấy mấy dòng. */
+    if(el('qtLenhSo')) el('qtLenhSo').textContent=String((QTLENH_ITEMS||[]).filter(function(x){ return x.tt==='xin'; }).length);
+    var laDuyet=_hmLaDuyet();
+    el('qtLenhBody').innerHTML=ds.map(function(x){
+      var ma=esc(x.maDA), nut='';
+      if(x.tt!=='xong' && laDuyet){
+        nut+=' <button class="btn b-g" onclick="qtDatTab(\''+ma+'\','+x.dot+',\'xong\')" title="Đối chiếu xong — chốt sổ lệnh này">✔ Chốt sổ</button>'
+          +' <button class="btn b-d" onclick="qtTraTab(\''+ma+'\','+x.dot+')">↩ Trả</button>';
+      }
+      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+ma+'\')">'+esc(x.tenDA)+'</a>'
+        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
+        +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
+        +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
+        +'<div style="font-size:10.5px;color:#94a3b8">'+(x.rows||[]).length+' hạng mục</div>'
+        +(x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'')+'</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
+        +'<td class="money"><b>'+money(x.soTien)+'</b></td>'
+        +'<td>'+qtNhan(x.tt)+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+    }).join('');
+  }
+  /* Bấm ở TAB QUYẾT TOÁN thì nạp lại bảng của tab ấy, không nạp lại trang dự án (người ta
+     đang không đứng ở đó, mà `hmLaiDA()` còn gọi `openDuAn` với dự án đang mở — có thể là dự
+     án khác hẳn). */
+  function qtDatTab(maDA,dot,tt,them){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok','Đã đổi lệnh quyết toán đợt '+dot); loadQtLenh();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .datTrangThaiQTDuAn(maDA,dot,tt,them||{});
+  }
+  function qtTraTab(maDA,dot){
+    var ly=prompt('Trả lệnh quyết toán đợt '+dot+' về cho nhân viên.\n\nVì sao trả? (nhân viên đọc câu này)','');
+    if(ly===null) return;
+    qtDatTab(maDA,dot,'tra',{lyDo:String(ly||'').trim()});
+  }
   var QT_NHAN={ xin:['Chờ kế toán chốt sổ','#b45309','#fef3c7'],
     xong:['✔ Đã quyết toán','#166534','#dcfce7'], tra:['↩ Bị trả lại','#b91c1c','#fee2e2'] };
   function qtNhan(tt){
@@ -6847,7 +6940,7 @@
   }
 
   // ===================== QUYẾT TOÁN (danh sách) =====================
-  function loadQT(){ boot(renderQTList); loadLenhTU(); }
+  function loadQT(){ boot(renderQTList); loadLenhTU(); loadQtLenh(); }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
   // Tổng Tạm ứng / Thực chi / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)

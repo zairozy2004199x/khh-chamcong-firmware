@@ -590,8 +590,13 @@ la('bốc được trọn trang Quyết toán', len(_trang_qt) > 1000, len(_tran
 la('🔴 màn kế toán CŨNG có khối lệnh tạm ứng', 'id="lenhTUCardKT"' in _trang_qt)
 la('và nó nằm SAU bảng đơn của màn ấy',
    _trang_qt.index('id="qtBody"') < _trang_qt.index('id="lenhTUBodyKT"'))
-la('🔴 vào tab Quyết toán cũng nạp sổ lệnh',
-   'function loadQT(){ boot(renderQTList); loadLenhTU(); }' in src)
+la('🔴 vào tab Quyết toán cũng nạp sổ lệnh tạm ứng',
+   'loadLenhTU();' in src.split('function loadQT()')[1].split('\n')[0])
+# 🔴 Anh Thắng: "Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên
+#    đơn đó giống tạm ứng để kế toán theo dõi". Không nạp thì bảng trắng trơn, mà lệnh thì có
+#    thật — kế toán tưởng chưa ai gửi.
+la('🔴 và nạp cả lệnh QUYẾT TOÁN của dự án',
+   'loadQtLenh();' in src.split('function loadQT()')[1].split('\n')[0])
 # 🔴 MỘT PHÉP VẼ CHO CẢ HAI CHỖ. Hai bản vẽ riêng là hai chỗ để lệch, rồi hai màn nói hai con
 #    số cho cùng một tờ lệnh — đúng cảnh ảnh 31/08/2026 "2 có số tổng tạm ứng khác nhau".
 la('🔴 hai chỗ bày dùng CHUNG một phép vẽ', 'function _veLenhTU(idBody, idSo, idEmpty){' in src)

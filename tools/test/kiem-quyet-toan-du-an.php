@@ -155,6 +155,42 @@ teq( '🔴 và 3 lệnh quyết toán, tách riêng', 3, count( $dd['lenhQT'] ) 
 t( '   lệnh quyết toán kể tên hạng mục',
 	in_array( 'Thợ bốc vác', $dd['lenhQT'][0]['tenHM'], true ), $dd['lenhQT'][0]['tenHM'] );
 
+/* ═══ 5b. 🔴 KẾ TOÁN THẤY LỆNH QUYẾT TOÁN Ở TAB CỦA MÌNH ═══════════════════════════════
+ * Anh Thắng: *"Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên đơn
+ * đó giống tạm ứng để kế toán theo dõi"*.
+ * Không có đường này thì lệnh nằm im trong trang dự án — kế toán chỉ thấy nó nếu tình cờ mở
+ * đúng dự án ấy, mà quyết toán là bước tất toán khoản treo trên TK 141.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Kế toán cá nhân', 'KT' );
+$ls_qt = VHCP_DuAn::list_lenh_da( 'qt' );
+$cua_qt = array();
+foreach ( $ls_qt['items'] as $i ) { if ( $i['maDA'] === $ma ) { $cua_qt[ $i['dot'] ] = $i; } }
+teq( '🔴 kế toán liệt kê được lệnh QUYẾT TOÁN của mọi dự án', 3, count( $cua_qt ) );
+teq( '   mỗi dòng nói rõ đó là lệnh loại gì', 'qt', $cua_qt[1]['loai'] );
+t( '   kể tên hạng mục trong lệnh',
+	in_array( 'Thợ bốc vác', $cua_qt[1]['tenHM'], true ), $cua_qt[1]['tenHM'] );
+t( '   và số tiền của lệnh', 7300000 == $cua_qt[1]['soTien'], $cua_qt[1]['soTien'] );
+teq( '   kèm trạng thái để lọc "chờ chốt sổ"', 'xin', $cua_qt[3]['tt'] );
+teq( '   lệnh đã chốt cũng còn để tra lại', 'xong', $cua_qt[1]['tt'] );
+t( '   kèm tên dự án và người tạo để kế toán biết đi hỏi ai',
+	'' !== $cua_qt[1]['tenDA'] && isset( $cua_qt[1]['nguoiTao'] ), $cua_qt[1] );
+
+/* 🔴 HAI DANH SÁCH KHÔNG ĐƯỢC LẪN VÀO NHAU. Lệnh tạm ứng lọt vào bảng quyết toán thì kế toán
+   bấm "chốt sổ" lên một khoản chưa ai chi. */
+$ls_tu = VHCP_DuAn::list_lenh_da();
+$cua_tu = array();
+foreach ( $ls_tu['items'] as $i ) { if ( $i['maDA'] === $ma ) { $cua_tu[ $i['dot'] ] = $i; } }
+teq( '🔴 danh sách TẠM ỨNG vẫn ra lệnh tạm ứng', 'tu', $cua_tu[1]['loai'] );
+t( '   và số tiền của nó khác lệnh quyết toán cùng đợt',
+	$cua_tu[1]['soTien'] != $cua_qt[1]['soTien'], array( $cua_tu[1]['soTien'], $cua_qt[1]['soTien'] ) );
+teq( '   trạng thái cũng là của tạm ứng', 'ung', $cua_tu[1]['tt'] );
+/* Gọi với loại lạ thì ngã về TẠM ỨNG — không được ngã về quyết toán, kẻo một lời gọi gõ sai
+   lại bày ra bảng chốt sổ. */
+$ls_la = VHCP_DuAn::list_lenh_da( 'lung tung' );
+$mot = null;
+foreach ( $ls_la['items'] as $i ) { if ( $i['maDA'] === $ma ) { $mot = $i; break; } }
+teq( 'loại lạ → ngã về tạm ứng, không ngã về quyết toán', 'tu', $mot['loai'] );
+
 /* ═══ 6. CỬA API ══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

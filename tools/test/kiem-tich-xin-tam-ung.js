@@ -486,6 +486,72 @@ const q = (row, tien, checked) => ({ checked: !!checked, value: '',
   t('   mà có nút chốt xong trước đã', /hmMoChot/.test(chuaXong), chuaXong);
 }
 
+/* ── 4e. 🔴 TAB QUYẾT TOÁN CỦA KẾ TOÁN CŨNG HIỆN LỆNH ẤY ──────────────────────────────
+ * Anh Thắng: *"Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên đơn
+ * đó giống tạm ứng để kế toán theo dõi"*.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veQtTab(role, loc) {
+  const NK = {};
+  const moi = {
+    CURUSER: { role: role },
+    QTLENH_ITEMS: [
+      { loai: 'qt', maDA: 'DA1', tenDA: 'Aeon', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 1,
+        tt: 'xin', rows: [2, 5], tenHM: ['Thợ bốc vác', 'Xe vận chuyển'], soTien: 7300000,
+        lyDo: '', kyDA: { tu: '', den: '' } },
+      { loai: 'qt', maDA: 'DA2', tenDA: 'Estella', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 1,
+        tt: 'xong', rows: [3], tenHM: ['Vật tư'], soTien: 900000,
+        lyDo: '', kyDA: { tu: '', den: '' } },
+    ],
+    QT_NHAN: null,
+    esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x),
+    showPage: () => {}, openDuAn: () => {}, toast: () => {}, loading: () => {},
+    el: id => (NK[id] = NK[id] || { innerHTML: '', style: {}, textContent: '',
+                                    value: id === 'qtLenhFilter' ? (loc || 'all') : '' }),
+  };
+  const src = `${(() => { const i = HTML.indexOf('var QT_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
+    ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('qtNhan')}\n${boc('_hmNgay')}
+    ${boc('renderQtLenh')}
+    return renderQtLenh;`;
+  new Function('moi', `with(moi){ ${src} }`)(moi)();
+  return NK;
+}
+{
+  const NK = veQtTab('Kế toán cá nhân', 'all');
+  const out = NK.qtLenhBody.innerHTML;
+  t('🔴 kế toán thấy lệnh quyết toán ở tab của mình, kèm tên dự án',
+    /Aeon/.test(out) && /Estella/.test(out), out.slice(0, 300));
+  t('   kể tên hạng mục và số tiền của lệnh',
+    /Thợ bốc vác/.test(out) && /7300000/.test(out), out.slice(0, 500));
+  t('🔴 lệnh chờ chốt → có nút Chốt sổ và Trả',
+    /qtDatTab\('DA1',1,'xong'\)/.test(out) && /qtTraTab\('DA1',1\)/.test(out), out);
+  t('🔴 lệnh ĐÃ chốt sổ → không bày nút nữa (chốt hai lần là tất toán gấp đôi)',
+    !/qtDatTab\('DA2'/.test(out), out);
+  t('   bấm tên dự án là mở thẳng dự án ấy', /openDuAn\('DA1'\)/.test(out), out);
+  t('🔴 huy hiệu đếm việc ĐANG CHỜ, không đếm theo ô lọc',
+    NK.qtLenhSo.textContent === '1', NK.qtLenhSo);
+}
+{
+  const NK = veQtTab('Kế toán cá nhân', 'xin');
+  t('lọc "chờ chốt sổ" chỉ giữ lệnh đang chờ',
+    /Aeon/.test(NK.qtLenhBody.innerHTML) && !/Estella/.test(NK.qtLenhBody.innerHTML), NK.qtLenhBody.innerHTML);
+}
+{
+  const NK = veQtTab('Nhân viên', 'all');
+  t('🔴 nhân viên KHÔNG chốt sổ / trả lại được, dù mở được tab',
+    !/qtDatTab/.test(NK.qtLenhBody.innerHTML) && !/qtTraTab/.test(NK.qtLenhBody.innerHTML), NK.qtLenhBody.innerHTML);
+  t('   nhưng vẫn thấy trạng thái', /Chờ kế toán chốt sổ/.test(NK.qtLenhBody.innerHTML), NK.qtLenhBody.innerHTML);
+}
+t('🔴 tab Quyết toán nạp bảng lệnh quyết toán khi mở',
+  /function loadQT\(\)\{[^\n]*loadQtLenh\(\)/.test(HTML));
+t('   và hỏi máy chủ ĐÚNG loại lệnh (không hỏi nhầm ra lệnh tạm ứng)',
+  /listLenhDuAn\('qt'\)/.test(HTML));
+t('🔴 bấm ở tab Quyết toán thì nạp lại bảng của tab ấy, không nạp lại trang dự án',
+  /function qtDatTab\([^]{0,600}loadQtLenh\(\);/.test(HTML)
+  && !/function qtDatTab\([^]{0,600}hmLaiDA\(\)/.test(HTML));
+t('   bảng nằm ngay dưới "Chờ quyết toán", không nhét cuối tab',
+  HTML.indexOf('id="qtPagerCho"') < HTML.indexOf('id="qtLenhCard"')
+  && HTML.indexOf('id="qtLenhCard"') < HTML.indexOf('id="qtCardXong"'));
+
 /* ── 5. 🔍 RÊ CHUỘT VÀO BILL THÌ PHÓNG TO ─────────────────────────────────────────────── */
 /* Lớp phủ đã có sẵn (`_billZoomInit`) và nghe ở `document` theo thuộc tính `data-bill`; bảng dự
    án trước nay chỉ có thẻ 📷 trơn nên rê chuột chẳng ra gì. */
