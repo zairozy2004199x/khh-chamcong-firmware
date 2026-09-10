@@ -475,6 +475,10 @@ class VHG_Trang {
 					isset( $d['muc'] ) ? $d['muc'] : 'coso', isset( $d['cot'] ) ? $d['cot'] : 'tong' ) );
 				return;
 			}
+			if ( 'kt_danop' === $viec ) {
+				self::tra( VHG_KeToan::danop_saoke( isset( $d['tu'] ) ? $d['tu'] : '', isset( $d['den'] ) ? $d['den'] : '' ) );
+				return;
+			}
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -4148,6 +4152,7 @@ function ve(){
     ]],
     [ L('Kế toán','Accounting'), [
       T(true,     'quy',       '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')),
+      T(QT || KT, 'danop',     '💰 ' + L('Doanh thu đã nộp','Deposited revenue')),
       T(QT || KT, 'kt-duyet',  '📈 ' + L('Duyệt báo cáo','Review reports')),
       T(QT || KT, 'kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')),
       T(QT || KT, 'kt-tien',   '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')),
@@ -4285,6 +4290,7 @@ function ve(){
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-bctong')  { h += veKtBcTong() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'danop')      { h += veDaNop()    + '</div>'; app.innerHTML = h; noi(); daNopTai(); return; }
   if (TAB === 'kt-lichsu')  { h += veKtLichSu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
@@ -5787,6 +5793,48 @@ function veKtLichSu(){
  * TỔNG hay QR hay TIỀN MẶT — nên ở đây là MỘT màn với hai dải nút, không phải ba màn.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 var BCT_TU = '', BCT_DEN = '', BCT_MUC = 'coso', BCT_COT = 'tong', BCT_DATA = null;
+var DANOP_TU='', DANOP_DEN='';
+function veDaNop(){
+  if(!DANOP_TU||!DANOP_DEN){ var n=new Date(); function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);} DANOP_DEN=iso(n); DANOP_TU=iso(new Date(n.getFullYear(),n.getMonth(),1)); }
+  return '<div class="card"><h2>💰 '+L('Doanh thu đã nộp','Deposited revenue')+'</h2>'
+    + '<p class="mut">'+L('Đối chiếu tiền mặt phải nộp với số ĐÃ NỘP vào ngân hàng — dò MÃ NỘP của cơ sở (đặt bên Sao Kê) trong nội dung sao kê ngân hàng. Tiền QR về thẳng bank nên không tính nộp tay.','Compare cash to deposit vs actually deposited (matched by each site code in the bank statement).')+'</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<b>'+L('Từ ngày','From')+':</b><input type="date" id="dn-tu" value="'+esc(DANOP_TU)+'">'
+    + '<b>'+L('Đến ngày','To')+':</b><input type="date" id="dn-den" value="'+esc(DANOP_DEN)+'">'
+    + '<button onclick="daNopXem()" class="on">'+L('Xem','Load')+'</button></div>'
+    + '<div id="dn-cards" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>'
+    + '<div id="dn-body" style="margin-top:8px" class="mut">'+L('Đang tải…','Loading…')+'</div></div>';
+}
+function daNopXem(){ var a=document.getElementById('dn-tu'),b=document.getElementById('dn-den'); if(a)DANOP_TU=a.value; if(b)DANOP_DEN=b.value; daNopTai(); }
+function daNopTai(){
+  var body=document.getElementById('dn-body'); if(body) body.textContent=L('Đang tải…','Loading…');
+  goi('kt_danop',{tu:DANOP_TU,den:DANOP_DEN},function(r){
+    var body=document.getElementById('dn-body'); if(!body) return;
+    if(!r||!r.ok){ body.textContent=(r&&r.error)||'Lỗi'; return; }
+    function d(n){ return (Math.round(n||0)).toLocaleString('vi-VN')+'đ'; }
+    var cards=document.getElementById('dn-cards');
+    if(cards) cards.innerHTML = [
+      [L('Tiền mặt phải nộp','Cash to deposit'), d(r.tongTienMat), ''],
+      [L('Đã nộp (sao kê)','Deposited'), d(r.tongDaNop), '#15803d'],
+      [L('Còn phải nộp','Remaining'), d(r.tongConLai), '#dc2626']
+    ].map(function(c){ return '<div style="flex:1;min-width:150px;border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:10px 12px"><div class="mut" style="font-size:12px">'+c[0]+'</div><div style="font-size:20px;font-weight:800'+(c[2]?(';color:'+c[2]):'')+'">'+c[1]+'</div></div>'; }).join('');
+    var rows=r.rows||[];
+    if(!rows.length){ body.innerHTML='<div class="mut">'+L('Chưa có dữ liệu trong kỳ.','No data in range.')+'</div>'; return; }
+    var h='<div style="overflow:auto"><table><thead><tr><th>'+L('Cơ sở','Site')+'</th><th>'+L('Mã nộp','Code')+'</th><th class="r">'+L('Tiền mặt','Cash')+'</th><th class="r">'+L('Đã nộp','Deposited')+'</th><th class="r">'+L('Còn lại','Remaining')+'</th><th>'+L('Nộp cuối','Last')+'</th></tr></thead><tbody>';
+    h+=rows.map(function(o){
+      var cl = o.conLai>0 ? ' style="color:#dc2626;font-weight:700"' : (o.conLai<0?' style="color:#b45309"':'');
+      return '<tr><td><b>'+esc(o.coso)+'</b></td>'
+        +'<td>'+(o.ma?('<code>'+esc(o.ma)+'</code>'):'<span class="mut">'+L('chưa đặt mã','no code')+'</span>')+'</td>'
+        +'<td class="r">'+d(o.tienMat)+'</td>'
+        +'<td class="r" style="color:#15803d">'+(o.daNop?d(o.daNop):'<span class="mut">–</span>')+'</td>'
+        +'<td class="r"'+cl+'>'+d(o.conLai)+'</td>'
+        +'<td class="mut">'+esc(o.lanCuoi||'')+'</td></tr>';
+    }).join('');
+    h+='</tbody></table></div>';
+    if(!r.coSaoke) h='<div class="mut" style="color:#b45309;margin-bottom:6px">⚠ '+L('Chưa nối được dữ liệu Sao Kê (bảng saoke_gd).','Sao Kê data not linked.')+'</div>'+h;
+    body.innerHTML=h;
+  });
+}
 function veKtBcTong(){
   /* Mặc định: 14 ngày gần nhất. Ảnh mẫu anh gửi là 9→19 và 8/1→8/13 — tức người ta xem theo
      KHOẢNG, không theo trọn tháng, nên hai ô ngày chứ không phải một ô tháng. */

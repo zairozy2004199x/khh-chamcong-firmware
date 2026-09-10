@@ -1595,6 +1595,45 @@ class VHG_KeToan {
 	 */
 	const BCT_MAX_NGAY = 92;
 
+	/* DOANH THU ĐÃ NỘP — đối chiếu tiền mặt nhân viên phải nộp với số ĐÃ NỘP vào ngân hàng (dò mã
+	   nộp của cơ sở trong nội dung sao kê ngân hàng, cùng DB với plugin Sao Kê). Mỗi cơ sở:
+	   doanh thu · tiền mặt (phải nộp) · đã nộp (sao kê) · còn lại. QR về thẳng bank nên KHÔNG tính nộp tay. */
+	public static function danop_saoke( $tu, $den ) {
+		global $wpdb;
+		$tu = self::ngay_( $tu ); $den = self::ngay_( $den );
+		if ( '' === $tu || '' === $den ) { return array( 'ok' => false, 'error' => 'Thiếu khoảng ngày.' ); }
+		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
+		$cm = get_option( 'saoke_coso_ma' ); $cm = is_array( $cm ) ? $cm : array();
+		$dt = $wpdb->get_results( $wpdb->prepare(
+			'SELECT h.coso coso, COALESCE(SUM(d.tong),0) dt, COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE d.ngay BETWEEN %s AND %s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0) GROUP BY h.coso', $tu, $den ), ARRAY_A );
+		$dtByCoso = array(); foreach ( (array) $dt as $r ) { $dtByCoso[ (string) $r['coso'] ] = array( 'dt' => (int) $r['dt'], 'tm' => (int) $r['tm'], 'qr' => (int) $r['qr'] ); }
+		$sg = $wpdb->prefix . 'saoke_gd'; $coSaoke = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $sg ) ) === $sg );
+		$tenList = array();
+		foreach ( (array) VHG_May::ds_coso() as $c ) { $tenList[ (string) $c['ten'] ] = self::squash( (string) $c['ten'] ); }
+		foreach ( array_keys( $dtByCoso ) as $cs ) { if ( '' !== $cs && ! isset( $tenList[ $cs ] ) ) { $tenList[ $cs ] = self::squash( $cs ); } }
+		$out = array(); $tongDT = 0; $tongTM = 0; $tongNop = 0; $tongConLai = 0; $soChuaMa = 0;
+		foreach ( $tenList as $ten => $sq ) {
+			$ma = isset( $cm[ $sq ] ) ? trim( (string) $cm[ $sq ] ) : '';
+			$daNop = 0; $lanCuoi = '';
+			if ( $coSaoke && '' !== $ma ) {
+				$g = $wpdb->get_results( $wpdb->prepare( "SELECT ngay_gd, tien FROM $sg WHERE loai='in' AND noi_dung LIKE %s AND DATE(ngay_gd) BETWEEN %s AND %s ORDER BY ngay_gd DESC LIMIT 500", '%' . $wpdb->esc_like( $ma ) . '%', $tu, $den ), ARRAY_A );
+				foreach ( (array) $g as $x ) { $daNop += (int) $x['tien']; if ( '' === $lanCuoi ) { $lanCuoi = substr( (string) $x['ngay_gd'], 0, 10 ); } }
+			}
+			$dtv = isset( $dtByCoso[ $ten ] ) ? $dtByCoso[ $ten ]['dt'] : 0;
+			$tm = isset( $dtByCoso[ $ten ] ) ? $dtByCoso[ $ten ]['tm'] : 0;
+			$conLai = $tm - $daNop;
+			if ( 0 === $dtv && 0 === $daNop && '' === $ma ) { continue; }
+			if ( '' === $ma ) { $soChuaMa++; }
+			$out[] = array( 'coso' => $ten, 'ma' => $ma, 'doanhThu' => $dtv, 'tienMat' => $tm, 'daNop' => $daNop, 'conLai' => $conLai, 'lanCuoi' => $lanCuoi );
+			$tongDT += $dtv; $tongTM += $tm; $tongNop += $daNop; $tongConLai += $conLai;
+		}
+		usort( $out, function ( $a, $b ) { return $b['conLai'] - $a['conLai']; } );
+		return array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'rows' => $out, 'coSaoke' => $coSaoke, 'soChuaMa' => $soChuaMa,
+			'tongDoanhThu' => $tongDT, 'tongTienMat' => $tongTM, 'tongDaNop' => $tongNop, 'tongConLai' => $tongConLai );
+	}
+
 	/* VietQR THỰC NHẬN — lấy từ plugin Sao Kê (bảng wp_saoke_cong, giao dịch cổng VietQR) gom theo
 	   CƠ SỞ × NGÀY GIAO DỊCH, để đối chiếu với số nhân viên tự nhập. Quy máy -> cơ sở bằng chính bản
 	   đồ máy của Ghế (khớp mã máy / tên khai). Máy Ghế chưa có -> gộp vào 'khongKhop', không đoán bừa. */
