@@ -4072,18 +4072,36 @@
       if(cur){ for(var oi=0;oi<selCap.options.length;oi++){ if(selCap.options[oi].value===cur){ selCap.value=cur; break; } } } }
     // Hình thức chi CHỈ hiện ở hạng mục lớn / phát sinh; mục con theo hình thức của cha -> để trống
     function htBadge(h){ return (String(h||'')==='Trực tiếp')?'<span style="color:#3730a3;font-size:11px;white-space:nowrap" title="Kế toán trả thẳng NCC">🏢 Trực tiếp</span>':'<span style="color:#166534;font-size:11px;white-space:nowrap" title="Kế toán ứng cho NV tự trả">💰 Tạm ứng</span>'; }
-    function daLineCells(l, indent, extraAct){
+    /* `laLon` = hạng mục lớn CHƯA CÓ CON. Anh Thắng 10/09/2026: *"Hạng mục lớn phải viết đậm
+       cùng màu để phân biệt nhau"* — hạng mục lớn có con thì đã tô nền tím + đậm, còn hạng mục
+       lớn chưa có con lại vẽ y hệt một mục con. Nhìn bảng thì "Túi zip" (hạng mục lớn) và
+       "↳ Linh kiện" (mục con của hạng mục khác) trông ngang hàng nhau, mà hai thứ ấy khác hẳn:
+       một cái xin tạm ứng được, một cái không. */
+    function daLineCells(l, indent, extraAct, laLon){
       var img=l.anh?'<a href="'+esc(l.anh)+'" target="_blank">📷</a>':'';
       var acts=(canEdit?('<button class="btn b-s" onclick="daEditLine('+l.row+')" title="Sửa dòng">✏️</button> <button class="btn b-d" onclick="delDuAnLineUI('+l.row+')" title="Xóa dòng">✕</button>'):'')+(extraAct||'');
       var htB=indent?'':htBadge(l.hinhThuc);   // mục con (indent) không hiện hình thức
       var _docs=String(l.hoSo||'').split(/\s+/).filter(Boolean);
       var hoSoCell=_docs.length?_docs.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" title="Hồ sơ '+(i+1)+'">📁</a>';}).join(' '):'';
-      return '<tr'+(indent?' style="background:#fcfdff"':'')+'><td'+(indent?' style="padding-left:26px;color:#475569"':'')+'>'+(indent?'↳ ':'')+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td><td class="money">'+(String(l.capCha||'')===''?money(l.duToan):'')+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td><td class="money">'+money(l.thanhTien)+'</td><td class="money">'+money(l.thucTe)+'</td><td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td><td>'+esc(l.note)+'</td><td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
+      var trS=indent?' style="background:#fcfdff"':(laLon?' style="background:#eef2ff;font-weight:700"':'');
+      var tdS=indent?' style="padding-left:26px;color:#475569"':'';
+      return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td><td class="money">'+(String(l.capCha||'')===''?money(l.duToan):'')+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td><td class="money">'+money(l.thanhTien)+'</td><td class="money">'+money(l.thucTe)+'</td><td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td><td>'+esc(l.note)+'</td><td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
     }
-    var html='';
-    parents.forEach(function(p){
+    function veNhom(ds){
+      var html='';
+      ds.forEach(function(p){
       var kids=childrenBy[p.noiDung]||[];
       var addChild=canEdit?(' <button class="btn b-s" onclick="daAddChild(this.getAttribute(\'data-p\'))" data-p="'+esc(p.noiDung)+'" title="Thêm mục con">＋ con</button>'):'';
+      /* Nút gộp một hạng mục lớn vào hạng mục lớn khác. Anh Thắng 10/09/2026: *"cái xe 3 tấn gõ
+         nhầm, nó là con của xe vận chuyển, muốn chuyển nó thành con của xe vận chuyển"*.
+         Vốn vẫn làm được — bấm ✏️ rồi đổi ô "Thuộc" — nhưng phải nhớ là ô ấy có, mà nhìn hàng
+         thì không có gì gợi ra. Đặt nút ngay cạnh "＋ con" cho thấy đường.
+         ⚠️ CHỈ HIỆN KHI HẠNG MỤC ẤY CHƯA CÓ CON. Gộp một hạng mục đang có con vào hạng mục
+            khác là lồng ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ biến khỏi màn tuy vẫn
+            nằm trong sổ và vẫn cộng vào tổng. */
+      var goNut=(canEdit && parents.length>1 && !(childrenBy[p.noiDung]||[]).length)
+        ? (' <button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục này vào một hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button>') : '';
+      addChild+=goNut;
       if(kids.length){
         var kidTT=kids.reduce(function(s,k){return s+(Number(k.thucTe)||0);},0);
         var dt=Number(p.duToan)||0, ch=kidTT-dt, chTxt, chCol;
@@ -4094,12 +4112,61 @@
         html+='<tr style="background:#eef2ff;font-weight:700"><td>📦 '+esc(p.noiDung)+'</td><td>'+esc(p.gian)+'</td><td class="money">'+money(dt)+'</td><td></td><td></td><td></td><td class="money">'+money(kidTT)+'</td><td>'+htBadge(p.hinhThuc)+'</td><td></td><td></td><td></td><td style="font-size:11px;font-weight:400;color:'+chCol+'">'+chTxt+'</td><td style="text-align:center;white-space:nowrap">'+(canEdit?('<button class="btn b-s" onclick="daEditLine('+p.row+')">✏️</button> <button class="btn b-d" onclick="delDuAnLineUI('+p.row+')">✕</button>'+addChild):'')+'</td></tr>';
         kids.forEach(function(k){ html+=daLineCells(k,true); });
       } else {
-        html+=daLineCells(p,false, addChild);
+        html+=daLineCells(p,false, addChild, true);
       }
-    });
-    if(phatSinh.length){
-      html+='<tr><td colspan="13" style="background:#fff7ed;font-weight:700;color:#b45309;padding:6px 10px">➕ PHÁT SINH — không thuộc hạng mục nào ('+phatSinh.length+')</td></tr>';
-      phatSinh.forEach(function(k){ html+=daLineCells(k,false); });
+      });
+      return html;
+    }
+
+    /* HAI HÌNH THỨC CHI THÌ TÁCH LÀM HAI BẢNG — anh Thắng 10/09/2026: *"Khi trong đơn có 2
+       hình thức chi thì tách ra 2 bảng riêng"*.
+       Hai hình thức đi hai đường kế toán khác nhau: 💰 tạm ứng thì nhân viên tự trả rồi quyết
+       toán (Có 141), 🏢 trực tiếp thì kế toán trả thẳng nhà cung cấp (Có 331). Trộn lẫn thì
+       nhìn cột tiền không biết khoản nào đã ứng cho ai, mà đó chính là câu kế toán cần trả lời.
+       ⚠️ MỘT HÌNH THỨC THÌ VẪN MỘT BẢNG. Bày tiêu đề nhóm cho một nhóm duy nhất là thêm một
+          dòng chữ không nói thêm gì. */
+    function _ht(l){ return (String(l.hinhThuc||'')==='Trực tiếp') ? 'ncc' : 'ung'; }
+    var nhomHt={ung:[],ncc:[]}, psHt={ung:[],ncc:[]};
+    parents.forEach(function(p){ nhomHt[_ht(p)].push(p); });
+    phatSinh.forEach(function(k){ psHt[_ht(k)].push(k); });
+    var coHai=(nhomHt.ung.length||psHt.ung.length) && (nhomHt.ncc.length||psHt.ncc.length);
+    function vePhatSinh(ds){
+      if(!ds.length) return '';
+      return '<tr><td colspan="13" style="background:#fff7ed;font-weight:700;color:#b45309;padding:6px 10px">➕ PHÁT SINH — không thuộc hạng mục nào ('+ds.length+')</td></tr>'
+        + ds.map(function(k){ return daLineCells(k,false); }).join('');
+    }
+    /* Tổng của một bảng = thực tế của MỤC CON (hạng mục lớn có con thì tiền nằm ở con) cộng
+       thực tế của hạng mục không có con, cộng phát sinh. Cộng cả cha lẫn con là đếm hai lần. */
+    function tongNhom(ds, ps){
+      var t=0;
+      ds.forEach(function(p){
+        var kids=childrenBy[p.noiDung]||[];
+        if(kids.length) kids.forEach(function(k){ t+=Number(k.thucTe)||0; });
+        else t+=Number(p.thucTe)||0;
+      });
+      ps.forEach(function(k){ t+=Number(k.thucTe)||0; });
+      return t;
+    }
+    var html='';
+    if(coHai){
+      /* Nhãn nói thẳng ĐỒNG TIỀN ĐI ĐƯỜNG NÀO — anh Thắng 10/09/2026: *"Để thể hiện rõ do ai
+         chi và bên nào chi và tạm ứng. Vì nv tự trả thì kế toán sẽ tạm ứng và chi cho nhân
+         viên. Còn kế toán tự trả nhà cung cấp, thì chỉ lên bảng để tổng chứ, chứ không thay
+         đổi giá trị trong quá trình tạm ứng và quyết toán"*.
+         Đúng như máy chủ đang tính: `thieuTamUng = ttTamUng − canTamUng`, chỉ gom dòng tạm
+         ứng; dòng trả thẳng NCC vào `ttTrucTiep` riêng. Nhãn phải nói ra, không thì người đọc
+         thấy hai con số trong một bảng và tưởng cả hai cùng vào phép thừa/thiếu. */
+      [['ung','💰 NV TỰ TRẢ — kế toán tạm ứng cho nhân viên · VÀO phép tạm ứng & quyết toán (Có 141)','#dcfce7','#166534'],
+       ['ncc','🏢 KẾ TOÁN TRẢ THẲNG NCC — chỉ lên bảng để tổng · KHÔNG vào tạm ứng & quyết toán (Có 331)','#e0e7ff','#3730a3']]
+      .forEach(function(g){
+        var k=g[0];
+        if(!nhomHt[k].length && !psHt[k].length) return;
+        html+='<tr><td colspan="12" style="background:'+g[2]+';color:'+g[3]+';font-weight:800;padding:7px 10px">'+g[1]+'</td>'
+          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+money(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
+        html+=veNhom(nhomHt[k])+vePhatSinh(psHt[k]);
+      });
+    } else {
+      html=veNhom(parents)+vePhatSinh(phatSinh);
     }
     el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#94a3b8;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
   }
@@ -4124,6 +4191,35 @@
       if(isChild){ ht.disabled=true; ht.value=''; ht.style.background='#f1f5f9'; ht.title='Mục con theo hình thức chi của hạng mục lớn — không chọn riêng'; }
       else { ht.disabled=false; ht.style.background=''; ht.title='Hình thức chi (chỉ áp dụng cho hạng mục lớn / phát sinh)'; }
     }
+  }
+  /* Gộp một hạng mục LỚN thành MỤC CON của hạng mục lớn khác — không phải nhập lại dòng. */
+  function daGopVaoMuc(row){
+    if(!DA_CUR) return;
+    var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
+    if(!l){ toast('err','Không tìm thấy dòng'); return; }
+    var cha=(DA_CUR.lines||[]).filter(function(x){
+      return String(x.capCha||'')==='' && x.row!==row;
+    }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
+    if(!cha.length){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
+    var ten=prompt('Gộp "'+l.noiDung+'" thành MỤC CON của hạng mục lớn nào?\n\n'
+      +'(Mục con không giữ dự toán và hình thức chi riêng — hai thứ ấy theo hạng mục lớn.)\n\n'
+      +cha.join('\n'), cha[0]);
+    if(ten===null) return;
+    ten=String(ten).trim(); if(!ten) return;
+    /* Gõ sai tên cha là dòng thành mục con của một hạng mục KHÔNG TỒN TẠI: bảng chỉ vẽ mục con
+       nằm dưới cha của nó, nên dòng ấy biến khỏi màn mà tiền vẫn nằm trong sổ. */
+    var khop=null; cha.forEach(function(c){ if(c.toLowerCase()===ten.toLowerCase()) khop=c; });
+    if(!khop){ toast('err','Không có hạng mục lớn tên "'+ten+'"'); return; }
+    var rec={ noiDung:l.noiDung, gian:l.gian, duToan:'', soLuong:l.soLuong, donGia:l.donGia,
+      thucTe:l.thucTe, vat:l.vat, anh:l.anh, note:l.note, capCha:khop, hinhThuc:'',
+      hoSo:l.hoSo, loaiCp:l.loaiCp, tkNo:l.tkNo };
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('Gộp hạng mục dự án', DA_CUR.ten, l.noiDung+' → mục con của '+khop);
+      toast('ok','Đã gộp "'+l.noiDung+'" vào "'+khop+'"');
+      openDuAn(DA_CUR.maDA); loadDuAn();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).updateDuAnLine(DA_CUR.maDA, row, rec);
   }
   function daAddChild(parentName){
     if(el('da_capCha')) el('da_capCha').value=parentName;
