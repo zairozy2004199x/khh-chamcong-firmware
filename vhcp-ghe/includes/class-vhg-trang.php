@@ -5857,7 +5857,6 @@ function daNopVe(){
   if(!r.coSaoke) h='<div class="mut" style="color:#b45309;margin-bottom:6px">⚠ '+L('Chưa nối được dữ liệu Sao Kê (bảng saoke_gd).','Sao Kê data not linked.')+'</div>'+h;
   body.innerHTML=h;
 }
-}
 function veKtBcTong(){
   /* Mặc định: 14 ngày gần nhất. Ảnh mẫu anh gửi là 9→19 và 8/1→8/13 — tức người ta xem theo
      KHOẢNG, không theo trọn tháng, nên hai ô ngày chứ không phải một ô tháng. */
