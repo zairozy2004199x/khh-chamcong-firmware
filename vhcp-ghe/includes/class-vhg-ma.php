@@ -142,21 +142,47 @@ class VHG_Ma {
 		return $ra;
 	}
 
-	public static function giam_cua( $menh_gia ) {
-		$b = self::bang_giam();
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * GHI ĐÈ KHUYẾN MÃI THEO PHẠM VI — anh Thắng 10/09/2026: "điều chỉnh khuyến mãi theo mã máy,
+	 * theo cơ sở, và giá bán". Ba tầng, CỤ THỂ NHẤT THẮNG:
+	 *     mã máy  (option vhg_km_ma:   [ ma_may   => [ menh_gia => % ] ])
+	 *   → cơ sở   (option vhg_km_coso: [ coso_id  => [ menh_gia => % ] ])
+	 *   → mặc định toàn hệ (option vhg_ma_giam, qua bang_giam()).
+	 * Ô có khai (kể cả 0%) là MỘT lần ghi đè thật — 0% nghĩa "cơ sở/ghế này KHÔNG giảm dù toàn hệ
+	 * có giảm"; ô để trống = kế thừa tầng dưới. Đổi % ở đây làm đổi luôn GIÁ BÁN (gia_ban tính từ
+	 * %), nên đây cũng là cách chỉnh "giá bán theo cơ sở/mã" mà không phá công thức tiền QR. */
+	private static function km_coso() { $v = get_option( 'vhg_km_coso' ); return is_array( $v ) ? $v : array(); }
+	private static function km_ma()   { $v = get_option( 'vhg_km_ma' );   return is_array( $v ) ? $v : array(); }
+
+	public static function giam_cua( $menh_gia, $ma_may = '' ) {
 		$mg = (int) $menh_gia;
+		if ( $mg <= 0 ) { return 0; }
+		$ma_may = trim( (string) $ma_may );
+		if ( '' !== $ma_may ) {
+			// 1) Ghi đè theo MÃ MÁY — cụ thể nhất.
+			$km = self::km_ma();
+			if ( isset( $km[ $ma_may ][ $mg ] ) ) { return max( 0, min( 70, (int) $km[ $ma_may ][ $mg ] ) ); }
+			// 2) Ghi đè theo CƠ SỞ của mã đó.
+			$m = VHG_May::may( $ma_may );
+			if ( $m && ! empty( $m['coso_id'] ) ) {
+				$kc = self::km_coso(); $cid = (int) $m['coso_id'];
+				if ( isset( $kc[ $cid ][ $mg ] ) ) { return max( 0, min( 70, (int) $kc[ $cid ][ $mg ] ) ); }
+			}
+		}
+		// 3) Mặc định toàn hệ.
+		$b = self::bang_giam();
 		return isset( $b[ $mg ] ) ? (int) $b[ $mg ] : 0;
 	}
 
 	/**
-	 * Giá bán của một mệnh giá, sau giảm.
+	 * Giá bán của một mệnh giá, sau giảm — theo phạm vi của $ma_may (rỗng = giá toàn hệ).
 	 * Làm tròn XUỐNG bội số 1.000đ: không ai chuyển khoản 84.150đ, và một con số lẻ trên trang
 	 * bán hàng làm khách dừng lại tự hỏi mình đọc nhầm chỗ nào.
 	 */
-	public static function gia_ban( $menh_gia ) {
+	public static function gia_ban( $menh_gia, $ma_may = '' ) {
 		$mg = (int) $menh_gia;
 		if ( $mg <= 0 ) { return 0; }
-		$g = (int) floor( $mg * ( 100 - self::giam_cua( $mg ) ) / 100 );
+		$g = (int) floor( $mg * ( 100 - self::giam_cua( $mg, $ma_may ) ) / 100 );
 		$g = (int) ( floor( $g / 1000 ) * 1000 );
 		/* Không bao giờ về 0 hay âm, kể cả khi ai đó khai giảm 70% cho mệnh giá 1.000đ. */
 		return max( 1000, $g );
@@ -210,8 +236,8 @@ class VHG_Ma {
 				'ten'      => (string) $g['ten'],
 				'mo_ta'    => (string) $g['mo_ta'],
 				'vip'      => ! empty( $g['vip'] ),
-				'giam_pt'  => self::giam_cua( $mg ),
-				'gia_ban'  => self::gia_ban( $mg ),
+				'giam_pt'  => self::giam_cua( $mg, $ma_may ),
+				'gia_ban'  => self::gia_ban( $mg, $ma_may ),
 				/* Đúng con số ghế đó sẽ chạy — cùng công thức ghế dùng, không tính lại kiểu khác. */
 				'phut'     => VHG_May::phut_goi( $g, (int) $tl['gia'], (int) $tl['phut'] ),
 			);
@@ -369,8 +395,9 @@ class VHG_Ma {
 	 * ⚠️ GIÁ CHỐT Ở ĐÂY, không tính lại lúc tiền về. Đổi bảng giảm giá giữa chừng mà tính lại là
 	 *    khách trả một đằng nhận một nẻo — và bên thiệt luôn là khách, vì họ đã chuyển tiền rồi.
 	 */
-	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong, $cc = '' ) {
+	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong, $cc = '', $ma_may = '' ) {
 		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
 		$sdt = self::sdt_sach( $sdt );
 		if ( ! self::sdt_hop_le( $sdt ) ) {
 			return array( 'ok' => false, 'error' => 'Số điện thoại chưa đúng.' );
@@ -386,7 +413,7 @@ class VHG_Ma {
 		foreach ( self::ds_menh_gia() as $g ) { if ( (int) $g['menh_gia'] === $mg ) { $hop = true; } }
 		if ( ! $hop ) { return array( 'ok' => false, 'error' => 'Mệnh giá này không bán.' ); }
 
-		$gia = self::gia_ban( $mg );
+		$gia = self::gia_ban( $mg, $ma_may );
 		$don = '';
 		$t   = VHG_DB::t( 'don_ma' );
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -405,12 +432,12 @@ class VHG_Ma {
 			   massage 85.000đ là mất khách ngay ở bước đầu, mà thứ nhận lại chỉ là một đường
 			   lấy lại PIN. Ai muốn có đường đó thì khai. */
 			'cc_bam' => self::bam_cc( $cc ),
-			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg ),
+			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg, $ma_may ),
 			'cho_ngay' => $cho, 'so_luong' => $sl, 'phai_tra' => $gia * $sl,
 			'tao_luc' => current_time( 'mysql' ), 'xong_luc' => null ) );
 		return array( 'ok' => true, 'ma_don' => $don, 'phai_tra' => $gia * $sl,
 			'gia_ban' => $gia, 'menh_gia' => $mg, 'so_luong' => $sl,
-			'giam_pt' => self::giam_cua( $mg ), 'cho_ngay' => $cho );
+			'giam_pt' => self::giam_cua( $mg, $ma_may ), 'cho_ngay' => $cho );
 	}
 
 	public static function don( $ma_don ) {

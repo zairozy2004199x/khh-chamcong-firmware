@@ -215,12 +215,16 @@ class VHG_Shop {
 					'error' => 'Cửa hàng đã chuyển sang nạp ví — mời anh/chị dùng mục Nạp ví.' ) );
 				return;
 			}
+			/* 🔴 TRUYỀN MÃ GHẾ VÀO ĐƠN. Giá thật khách trả phải theo đúng phạm vi khuyến mãi của
+			   ghế đó (mã → cơ sở → mặc định), khớp với giá đã hiện ở 'goi'. Không truyền là khách
+			   thấy giá cơ sở/ghế nhưng bị tính giá toàn hệ — trả một đằng thấy một nẻo. */
 			$r = VHG_Ma::dat_don(
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['pin'] ) ? $d['pin'] : '',
 				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
 				isset( $d['so_luong'] ) ? $d['so_luong'] : 1,
-				isset( $d['cc'] ) ? $d['cc'] : '' );
+				isset( $d['cc'] ) ? $d['cc'] : '',
+				self::ghe_tu_dia_chi( $d ) );
 			self::tra_don( $r );
 			return;
 		}
