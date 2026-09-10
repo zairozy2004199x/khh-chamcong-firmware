@@ -4341,17 +4341,14 @@
           +money(tien)+'đ) — nhắc nhân viên đính hoá đơn và tích hoàn thành, kẻo sót.';
       } else { nhac.style.display='none'; nhac.innerHTML=''; }
     }
-    var role=(CURUSER&&CURUSER.role)||'';
-    var laKT=['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
-    var laDuyet=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     el('hmBody').innerHTML=ds.map(function(x){
-      var h=x.hm||{}, tt=h.tt||'nhap', n=HM_NHAN[tt]||HM_NHAN.nhap;
-      var nut='';
-      if(tt==='xin'&&laDuyet) nut+='<button class="btn b-g" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'duyet\')">✔ Duyệt</button> ';
-      if(tt==='duyet'&&laKT)  nut+='<button class="btn b-g" onclick="hmCapUng(\''+esc(x.maDA)+'\','+x.row+','+((h.dot||0)+1)+')">💵 Cấp đợt '+((h.dot||0)+1)+'</button> ';
-      if((tt==='xin'||tt==='duyet')&&laDuyet) nut+='<button class="btn b-d" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'tra\')">↩ Trả</button> ';
-      if(tt==='ung')  nut+='<button class="btn b-x" onclick="hmChot(\''+esc(x.maDA)+'\','+x.row+')" title="Đính hoá đơn rồi chốt là chi thực tế">🧾 Chốt xong</button> ';
-      if(tt==='xong'&&laKT) nut+='<button class="btn b-x" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'nhap\')" title="Mở lại hạng mục đã chốt">🔓 Mở lại</button> ';
+      var h=x.hm||{};
+      /* 🔴 DÙNG CHUNG BỘ NÚT VỚI BẢNG DỰ ÁN. Viết riêng cho màn này là hai nơi gõ cứng, và hai
+         nơi ấy sẽ lệch nhau — chỗ bắt hoá đơn, chỗ quên bắt. Kế toán KHÔNG sửa được dòng dự án
+         nên `suaDuoc` là false: họ duyệt và cấp tiền, còn "xin tạm ứng" là việc của nhân viên
+         bên bảng dự án. */
+      var k=_hmKeyDuyet(x.maDA, x.row);
+      var nut=hmNutChung(k, x.maDA, x.row, x.hinhThuc, h, false, true);
       var lich=(h.lich||[]).length?('<div style="font-size:10.5px;color:#7c3aed">lịch: '+(h.lich||[]).map(function(y){return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
       var unc=h.unc?('<div style="font-size:10.5px;color:#0f766e">UNC '+esc(h.unc)+(h.dot?(' · đợt '+h.dot):'')+'</div>'):'';
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.tenDA)+'</a>'
@@ -4360,8 +4357,9 @@
         +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
         +'<td class="money">'+money(x.duToan)+'</td><td class="money">'+money(x.thucTe)+'</td>'
         +'<td style="font-size:11.5px">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢 Trực tiếp':'💰 Tạm ứng')+'</td>'
-        +'<td><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'+n[1]+';background:'+n[2]+'">'+n[0]+'</span></td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+        +'<td>'+hmNhanChung(x.hinhThuc, h)+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>'
+        +hmDongForm(k, 8);
     }).join('');
   }
   function hmDat(maDA,row,tt,them,sau){
@@ -4372,20 +4370,149 @@
       if(typeof sau==='function') sau(); else loadDonHM();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datTrangThaiHangMuc(maDA,row,tt,them||{});
   }
-  function hmCapUng(maDA,row,dot,sau){
-    var unc=prompt('Cấp tạm ứng đợt '+dot+'.\n\nNhập số uỷ nhiệm chi (để trống cũng được):','');
-    if(unc===null) return;
-    hmDat(maDA,row,'ung',{dot:dot,unc:String(unc||'').trim()},sau);
+  /* ═══ Ô NHẬP INLINE DÙNG CHUNG CHO CẢ HAI MÀN ═══════════════════════════════════════════
+     Cùng một hạng mục xuất hiện ở HAI chỗ: bảng dự án (nhân viên) và bảng Duyệt (kế toán).
+     Viết hai bộ ô nhập cho hai màn là hai nơi gõ cứng, và hai nơi ấy sẽ lệch nhau — chỗ này
+     bắt hoá đơn, chỗ kia quên bắt.
+     🔑 `k` là khoá của hàng ô nhập: 'P<row>' ở bảng dự án, 'D<maDA>_<row>' ở bảng Duyệt.
+        Phải kèm maDA ở màn Duyệt vì hai dự án khác nhau vẫn có thể cùng số dòng. */
+  function _hmKeyDA(row){ return 'P'+row; }
+  function _hmKeyDuyet(maDA,row){ return 'D'+String(maDA).replace(/[^A-Za-z0-9_-]/g,'')+'_'+row; }
+  function _hmSau(k){ return (String(k).charAt(0)==='P') ? hmLaiDA : loadDonHM; }
+  function hmDongForm(k, cot){
+    return '<tr data-hmf="'+k+'" style="display:none"><td colspan="'+cot+'" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>';
   }
-  function hmChot(maDA,row,sau){
+  function _hmO(k){
+    var tr=document.querySelector('[data-hmf="'+k+'"]');
+    return tr?{tr:tr, td:tr.querySelector('td')}:null;
+  }
+  function hmDongLai(k){ var o=_hmO(k); if(o){ o.td.innerHTML=''; o.tr.style.display='none'; } }
+  function _hmMo(k, html){
+    var o=_hmO(k); if(!o){ toast('err','Không tìm thấy chỗ mở ô nhập'); return false; }
+    o.td.innerHTML=html; o.tr.style.display='';
+    try{ o.tr.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+    return true;
+  }
+  /* Tên hạng mục tra từ dữ liệu đang có — KHÔNG nhét vào thuộc tính onclick. Tên do người dùng
+     gõ, có dấu nháy là vỡ luôn cái onclick ấy. */
+  function _hmTen(maDA,row){
+    var t='';
+    (HM_ITEMS||[]).forEach(function(x){ if(String(x.maDA)===String(maDA) && x.row===row) t=String(x.noiDung||''); });
+    if(!t && DA_CUR && String(DA_CUR.maDA)===String(maDA)){
+      (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) t=String(x.noiDung||''); });
+    }
+    return t;
+  }
+  function _hmVal(o,k){
+    var e=document.querySelector('[data-hm'+o+'="'+k+'"]');
+    return e?String(e.value||'').trim():'';
+  }
+  /* 🔴 ĐÍNH TỆP THẬT, không chỉ dán liên kết. Anh Thắng: *"kèm gửi uỷ nhiệm chi cho đơn đó"* —
+     uỷ nhiệm chi và hoá đơn là ẢNH CHỤP / BẢN PDF nằm trong máy kế toán, không phải một địa
+     chỉ web có sẵn để dán. Bắt dán liên kết là bắt họ tự đi tải lên chỗ khác trước. */
+  function hmDinhTep(k, maDA, o){
+    var inp=el('docFile'); if(!inp){ toast('err','Thiếu ô chọn tệp'); return; }
+    inp.value='';
+    inp.onchange=function(){
+      var file=inp.files[0]; if(!file) return; loading(true);
+      var rd=new FileReader();
+      rd.onload=function(e){
+        var b64=e.target.result.split(',')[1];
+        google.script.run.withSuccessHandler(function(res){ loading(false);
+          if(!res||!res.success){ toast('err',(res&&res.error)||'Lỗi tải tệp'); return; }
+          var ov=document.querySelector('[data-hm'+o+'="'+k+'"]');
+          if(ov) ov.value=res.url;
+          var lb=document.querySelector('[data-hm'+o+'lbl="'+k+'"]');
+          if(lb) lb.textContent='✓ '+file.name;
+          toast('ok','Đã đính tệp');
+        }).withFailureHandler(function(er){ loading(false); toast('err',er.message); })
+          .uploadDuAnDoc({base64:b64, type:file.type, name:file.name}, maDA);
+      };
+      rd.readAsDataURL(file);
+    };
+    inp.click();
+  }
+  function _hmOTep(k, maDA, o, nhan, batBuoc, rong){
+    return '<span style="white-space:nowrap">'+nhan
+      +(batBuoc?' <b style="color:#b91c1c">(bắt buộc)</b>':'')+': '
+      +'<input type="text" data-hm'+o+'="'+k+'" placeholder="dán liên kết, hoặc chọn tệp →" style="width:'+rong+'px;font-size:12px">'
+      +' <button class="btn b-s" onclick="hmDinhTep(\''+k+'\',\''+esc(maDA)+'\',\''+o+'\')" title="Chọn tệp trong máy rồi tải lên">📎 Chọn tệp</button>'
+      +' <span data-hm'+o+'lbl="'+k+'" style="font-size:11px;color:#166534"></span></span>';
+  }
+  function _hmNutDay(k, ham, maDA, row, nhan, them){
+    return '<div style="margin-top:8px"><button class="btn b-g" onclick="'+ham+'(\''+k+'\',\''+esc(maDA)+'\','+row+(them===undefined?'':(','+them))+')">'+nhan+'</button>'
+      +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>';
+  }
+
+  /* ── 📤 NHÂN VIÊN GỬI XIN TẠM ỨNG ──────────────────────────────────────────────────── */
+  function hmMoXin(k, maDA, row){
+    /* Lịch đợt — anh Thắng: *"kiểu gửi xin tạm ứng nhiều lần, hoặc 1 lần, nếu 1 lần mà đi tạm
+       ứng nhiều lần thì nv có thể lịch chọn ngày đi tạm ứng lần 1,2,3"*. Để trống hết cũng
+       gửi được: phần đông chỉ xin một lần, bắt gõ lịch là bắt làm thừa. */
+    _hmMo(k, '<b>📤 Gửi xin tạm ứng — '+esc(_hmTen(maDA,row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cần đi tạm ứng làm nhiều lần thì gõ ngày (và số tiền) từng lần để kế toán biết đường chuẩn bị. <b>Để trống hết = xin một lần</b>.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
+      +[1,2,3].map(function(i){
+        return '<span style="white-space:nowrap">Lần '+i+': <input type="date" data-xnd="'+k+'_'+i+'" style="font-size:12px">'
+          +' <input type="text" data-xst="'+k+'_'+i+'" placeholder="số tiền" inputmode="numeric" onfocus="tienVao(this)" onblur="tienRa(this)" style="width:110px;font-size:12px;text-align:right"></span>';
+      }).join('')+'</div>'
+      +_hmNutDay(k,'hmGuiXin',maDA,row,'✓ Gửi xin tạm ứng'));
+  }
+  function hmGuiXin(k, maDA, row){
+    var lich=[];
+    for(var i=1;i<=3;i++){
+      var d=document.querySelector('[data-xnd="'+k+'_'+i+'"]');
+      var t=document.querySelector('[data-xst="'+k+'_'+i+'"]');
+      var ngay=d?String(d.value||'').trim():'';
+      if(!ngay) continue;   // không ngày thì kế toán chuẩn bị tiền vào hôm nào?
+      lich.push({ngay:ngay, soTien:_tienSo(t?t.value:'')||0});
+    }
+    hmDat(maDA,row,'xin',{lich:lich},_hmSau(k));
+  }
+
+  /* ── 💵 KẾ TOÁN CẤP TẠM ỨNG TỪNG ĐỢT ──────────────────────────────────────────────── */
+  function hmMoCap(k, maDA, row, dot){
+    _hmMo(k, '<b>💵 Cấp tạm ứng đợt '+dot+' — '+esc(_hmTen(maDA,row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Đính uỷ nhiệm chi của đợt này để sau còn đối chiếu. Trả tiền mặt thì để trống cũng được.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
+      +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)+'</div>'
+      +_hmNutDay(k,'hmGuiCap',maDA,row,'✓ Cấp đợt '+dot,dot));
+  }
+  function hmGuiCap(k, maDA, row, dot){
+    hmDat(maDA,row,'ung',{dot:dot, unc:_hmVal('unc',k)},_hmSau(k));
+  }
+
+  /* ── 🧾 CHỐT XONG (đơn tạm ứng) ────────────────────────────────────────────────────── */
+  function hmMoChot(k, maDA, row){
+    _hmMo(k, '<b>🧾 Chốt hoàn thành — '+esc(_hmTen(maDA,row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Chốt xong hạng mục sẽ <b>khoá lại</b> và tính là chi thực tế.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
+      +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
+      +_hmNutDay(k,'hmGuiChot',maDA,row,'✓ Chốt &amp; khoá đơn'));
+  }
+  function hmGuiChot(k, maDA, row){
     /* 🔴 HOÁ ĐƠN LÀ BẮT BUỘC — máy chủ cũng chối nếu thiếu. Chốt mà chưa có chứng từ là khoá
        một con số không có gì đỡ. */
-    var hd=prompt('Chốt hoàn thành — hạng mục sẽ KHOÁ lại và tính là chi thực tế.\n\n'
-      +'Dán liên kết hoá đơn (bắt buộc):','');
-    if(hd===null) return;
-    hd=String(hd||'').trim();
+    var hd=_hmVal('hd',k);
     if(!hd){ toast('warn','Phải có hoá đơn mới chốt được'); return; }
-    hmDat(maDA,row,'xong',{hoaDon:hd},sau);
+    hmDat(maDA,row,'xong',{hoaDon:hd},_hmSau(k));
+  }
+
+  /* ── 🏢 KẾ TOÁN TÍCH ĐÃ CHI ĐƠN TRẢ THẲNG NCC ──────────────────────────────────────── */
+  function hmNccMo(k, maDA, row){
+    _hmMo(k, '<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(maDA,row))+'</b>'
+      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi.</div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;align-items:center">'
+      +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)
+      +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
+      +_hmNutDay(k,'hmNccChot',maDA,row,'✅ Tích đã chi &amp; khoá đơn'));
+  }
+  function hmNccChot(k, maDA, row){
+    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — máy chủ cũng chối nếu thiếu. Khoá một con số không có gì
+       đỡ thì lúc đối chiếu không ai gỡ ra được. */
+    var hd=_hmVal('hd',k);
+    if(!hd){ toast('warn','Phải có liên kết hoá đơn mới khoá được đơn'); return; }
+    hmDat(maDA,row,'xong',{hoaDon:hd, unc:_hmVal('unc',k)},_hmSau(k));
   }
 
   /* ═══ NÚT TRẠNG THÁI NGAY TRÊN BẢNG DỰ ÁN ═══════════════════════════════════════════════
@@ -4408,99 +4535,58 @@
   function _hmLaKT(){ return ['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0; }
   function _hmLaDuyet(){ return ['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0; }
   function hmLaiDA(){ if(DA_CUR){ openDuAn(DA_CUR.maDA); } loadDuAn(); }
-  function hmDatDA(row,tt,them){ if(!DA_CUR) return; hmDat(DA_CUR.maDA,row,tt,them||{},hmLaiDA); }
-  function hmCapUngDA(row,dot){ if(!DA_CUR) return; hmCapUng(DA_CUR.maDA,row,dot,hmLaiDA); }
-  function hmChotDA(row){ if(!DA_CUR) return; hmChot(DA_CUR.maDA,row,hmLaiDA); }
-  function hmNutDaBang(p){
-    if(!DA_CUR) return '';
-    var h=p.hm||{}, tt=h.tt||'nhap';
-    var laNcc=(String(p.hinhThuc||'')==='Trực tiếp');
-    var laKT=_hmLaKT(), laDuyet=_hmLaDuyet();
-    var suaDuoc=!!(DA_CUR.editable||DA_CUR.thiCong||DA_CUR.isCoSo);
-    var n=_hmNhanCua(tt,laNcc);
-    var out=' <span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
+  /* Nút của MỘT hạng mục, dùng chung cho hai màn: `k` là khoá hàng ô nhập, `suaDuoc` nói người
+     đang xem có sửa được đơn ấy không (màn Duyệt thì kế toán không sửa dòng, nhưng vẫn duyệt
+     và cấp tiền được — hai chuyện khác nhau). */
+  function hmNhanChung(hinhThuc, h){
+    var n=_hmNhanCua((h&&h.tt)||'nhap', String(hinhThuc||'')==='Trực tiếp');
+    return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
       +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
+  }
+  function hmNutChung(k, maDA, row, hinhThuc, h, suaDuoc, khongNhan){
+    h=h||{};
+    var tt=h.tt||'nhap';
+    var laNcc=(String(hinhThuc||'')==='Trực tiếp');
+    var laKT=_hmLaKT(), laDuyet=_hmLaDuyet();
+    var ma=esc(maDA);
+    /* Màn Duyệt đã có CỘT trạng thái riêng — kẹp thêm nhãn vào ô Thao tác là in hai lần cùng
+       một thứ trên một hàng. */
+    var out=khongNhan?'':(' '+hmNhanChung(hinhThuc,h));
+    function nut(cls,ham,nhan,tip,them){
+      return ' <button class="btn '+cls+'" onclick="'+ham+'(\''+k+'\',\''+ma+'\','+row+(them===undefined?'':(','+them))+')"'
+        +(tip?(' title="'+tip+'"'):'')+'>'+nhan+'</button>';
+    }
+    function datNut(cls,tt2,nhan,tip){
+      return ' <button class="btn '+cls+'" onclick="hmDat(\''+ma+'\','+row+',\''+tt2+'\',{},_hmSau(\''+k+'\'))"'
+        +(tip?(' title="'+tip+'"'):'')+'>'+nhan+'</button>';
+    }
     if(laNcc){
       /* 🏢 KẾ TOÁN TỰ TÍCH — anh Thắng 10/09/2026: *"dù không xin tạm ứng, nhưng vẫn có phần
          kế toán đã xác nhận đi đơn nào thì tích vào và khoá đơn đó cho nhân viên biết và kèm
          gửi uỷ nhiệm chi cho đơn đó thay vì nhân viên gửi (người gửi lỡ người kia quên)"*.
          Một bước duy nhất: tích + đính uỷ nhiệm chi + khoá. */
       if(tt!=='xong'){
-        if(laKT) out+=' <button class="btn b-g" onclick="hmNccMo('+p.row+')" title="Kế toán xác nhận đã trả nhà cung cấp, đính uỷ nhiệm chi rồi khoá đơn">✅ KT đã chi — khoá đơn</button>';
+        if(laKT) out+=nut('b-g','hmNccMo','✅ KT đã chi — khoá đơn','Kế toán xác nhận đã trả nhà cung cấp, đính uỷ nhiệm chi rồi khoá đơn');
       } else if(laKT){
-        out+=' <button class="btn b-x" onclick="hmDatDA('+p.row+',\'nhap\')" title="Mở lại đơn đã khoá">🔓 Mở lại</button>';
+        out+=datNut('b-x','nhap','🔓 Mở lại','Mở lại đơn đã khoá');
       }
       return out;
     }
-    if((tt==='nhap'||tt==='tra') && suaDuoc) out+=' <button class="btn b-g" onclick="hmMoXin('+p.row+')" title="Gửi hạng mục này lên xin tạm ứng">📤 Xin tạm ứng</button>';
-    if(tt==='xin'&&laDuyet)  out+=' <button class="btn b-g" onclick="hmDatDA('+p.row+',\'duyet\')">✔ Duyệt</button>';
-    if(tt==='duyet'&&laKT)   out+=' <button class="btn b-g" onclick="hmCapUngDA('+p.row+','+((h.dot||0)+1)+')">💵 Cấp đợt '+((h.dot||0)+1)+'</button>';
-    if((tt==='xin'||tt==='duyet')&&laDuyet) out+=' <button class="btn b-d" onclick="hmDatDA('+p.row+',\'tra\')">↩ Trả</button>';
-    if(tt==='ung')           out+=' <button class="btn b-x" onclick="hmChotDA('+p.row+')" title="Đính hoá đơn rồi chốt là chi thực tế">🧾 Chốt xong</button>';
-    if(tt==='xong'&&laKT)    out+=' <button class="btn b-x" onclick="hmDatDA('+p.row+',\'nhap\')" title="Mở lại hạng mục đã chốt">🔓 Mở lại</button>';
+    if((tt==='nhap'||tt==='tra') && suaDuoc) out+=nut('b-g','hmMoXin','📤 Xin tạm ứng','Gửi hạng mục này lên xin tạm ứng');
+    if(tt==='xin'&&laDuyet)  out+=datNut('b-g','duyet','✔ Duyệt','');
+    if(tt==='duyet'&&laKT)   out+=nut('b-g','hmMoCap','💵 Cấp đợt '+((h.dot||0)+1),'Đính uỷ nhiệm chi rồi cấp tiền',((h.dot||0)+1));
+    if((tt==='xin'||tt==='duyet')&&laDuyet) out+=datNut('b-d','tra','↩ Trả','');
+    if(tt==='ung')           out+=nut('b-x','hmMoChot','🧾 Chốt xong','Đính hoá đơn rồi chốt là chi thực tế');
+    if(tt==='xong'&&laKT)    out+=datNut('b-x','nhap','🔓 Mở lại','Mở lại hạng mục đã chốt');
     return out;
   }
+  function hmNutDaBang(p){
+    if(!DA_CUR) return '';
+    var suaDuoc=!!(DA_CUR.editable||DA_CUR.thiCong||DA_CUR.isCoSo);
+    return hmNutChung(_hmKeyDA(p.row), DA_CUR.maDA, p.row, p.hinhThuc, p.hm||{}, suaDuoc);
+  }
   /* Hàng trống nằm ngay dưới mỗi hạng mục lớn — chỗ mở ô nhập, khỏi phải bày hộp thoại. */
-  function hmDongXin(p){ return '<tr data-xin="'+p.row+'" style="display:none"><td colspan="13" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>'; }
-  function _hmO(row){
-    var tr=document.querySelector('[data-xin="'+row+'"]');
-    return tr?{tr:tr, td:tr.querySelector('td')}:null;
-  }
-  function hmDongXinLai(row){ var o=_hmO(row); if(o){ o.td.innerHTML=''; o.tr.style.display='none'; } }
-  function _hmTen(row){
-    var t=''; (DA_CUR&&DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) t=String(x.noiDung||''); });
-    return t;
-  }
-  function hmMoXin(row){
-    var o=_hmO(row); if(!o){ toast('err','Không tìm thấy chỗ mở ô nhập'); return; }
-    /* Lịch đợt — anh Thắng: *"kiểu gửi xin tạm ứng nhiều lần, hoặc 1 lần, nếu 1 lần mà đi tạm
-       ứng nhiều lần thì nv có thể lịch chọn ngày đi tạm ứng lần 1,2,3"*. Để trống hết cũng
-       gửi được: phần đông chỉ xin một lần, bắt gõ lịch là bắt làm thừa. */
-    var h='<b>📤 Gửi xin tạm ứng — '+esc(_hmTen(row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cần đi tạm ứng làm nhiều lần thì gõ ngày (và số tiền) từng lần để kế toán biết đường chuẩn bị. <b>Để trống hết = xin một lần</b>.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
-      +[1,2,3].map(function(i){
-        return '<span style="white-space:nowrap">Lần '+i+': <input type="date" data-xnd="'+row+'_'+i+'" style="font-size:12px">'
-          +' <input type="text" data-xst="'+row+'_'+i+'" placeholder="số tiền" inputmode="numeric" onfocus="tienVao(this)" onblur="tienRa(this)" style="width:110px;font-size:12px;text-align:right"></span>';
-      }).join('')+'</div>'
-      +'<div style="margin-top:8px"><button class="btn b-g" onclick="hmGuiXin('+row+')">✓ Gửi xin tạm ứng</button>'
-      +' <button class="btn b-x" onclick="hmDongXinLai('+row+')">✕ Thôi</button></div>';
-    o.td.innerHTML=h; o.tr.style.display='';
-    try{ o.tr.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
-  }
-  function hmGuiXin(row){
-    var lich=[];
-    for(var i=1;i<=3;i++){
-      var d=document.querySelector('[data-xnd="'+row+'_'+i+'"]');
-      var t=document.querySelector('[data-xst="'+row+'_'+i+'"]');
-      var ngay=d?String(d.value||'').trim():'';
-      if(!ngay) continue;   // không ngày thì kế toán chuẩn bị tiền vào hôm nào?
-      lich.push({ngay:ngay, soTien:_tienSo(t?t.value:'')||0});
-    }
-    hmDatDA(row,'xin',{lich:lich});
-  }
-  function hmNccMo(row){
-    var o=_hmO(row); if(!o){ toast('err','Không tìm thấy chỗ mở ô nhập'); return; }
-    var h='<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
-      +'<span>Uỷ nhiệm chi: <input type="text" data-nunc="'+row+'" placeholder="số UNC / liên kết" style="width:200px;font-size:12px"></span>'
-      +'<span>Hoá đơn <b style="color:#b91c1c">(bắt buộc)</b>: <input type="text" data-nhd="'+row+'" placeholder="liên kết hoá đơn" style="width:220px;font-size:12px"></span>'
-      +'</div>'
-      +'<div style="margin-top:8px"><button class="btn b-g" onclick="hmNccChot('+row+')">✅ Tích đã chi &amp; khoá đơn</button>'
-      +' <button class="btn b-x" onclick="hmDongXinLai('+row+')">✕ Thôi</button></div>';
-    o.td.innerHTML=h; o.tr.style.display='';
-    try{ o.tr.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
-  }
-  function hmNccChot(row){
-    var u=document.querySelector('[data-nunc="'+row+'"]');
-    var d=document.querySelector('[data-nhd="'+row+'"]');
-    var hd=d?String(d.value||'').trim():'';
-    /* 🔴 KHOÁ THÌ PHẢI CÓ CHỨNG TỪ — máy chủ cũng chối nếu thiếu. Khoá một con số không có gì
-       đỡ thì lúc đối chiếu không ai gỡ ra được. */
-    if(!hd){ toast('warn','Phải có liên kết hoá đơn mới khoá được đơn'); return; }
-    hmDatDA(row,'xong',{hoaDon:hd, unc:(u?String(u.value||'').trim():'')});
-  }
+  function hmDongXin(p){ return hmDongForm(_hmKeyDA(p.row), 13); }
   function daCapChaHint(){   // gợi ý + KHÓA dự toán: hạng mục lớn -> điền Dự toán (tạm ứng); mục con/phát sinh -> điền Thực tế
     var v=el('da_capCha')?el('da_capCha').value:'';
     var isParent=(v==='');
