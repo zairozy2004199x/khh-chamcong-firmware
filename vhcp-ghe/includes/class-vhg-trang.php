@@ -3747,6 +3747,10 @@ var app = document.getElementById('app');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
+/* Bỏ dấu + thường hoá để TÌM cho dễ: gõ "binh duong" ra "Bình Dương", "da nang" ra "Đà Nẵng".
+   Chỉ dùng cho ô tìm trên giao diện — so khớp dữ liệu vẫn đi bằng squash() bên máy chủ. */
+function kdJS(s){ return String(s==null?'':s).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d'); }
 /* "còn 4 ngày 3 giờ" — câu người đọc là hiểu.
    ⚠️ Nói GIỐNG HỆT ba nơi kia: VHG_Ma::doc_con_cho() bên máy chủ, và docCho() bên trang khách.
       Cùng một khoảng thời gian mà ba nơi nói ba kiểu là nhân viên đọc một đằng, khách đọc một
@@ -7582,24 +7586,51 @@ function veQuanLy(){
     + '</div>';
 
   /* ---- Địa điểm ---- */
+  /* Gợi ý Tỉnh/TP = chính những tỉnh đã nhập ở các địa điểm có sẵn (anh Thắng 10/09/2026:
+     "hiện sẵn tuỳ chọn tỉnh để thêm cho nhanh — tức tỉnh gợi ý nhập lần trước"). Một chuỗi
+     cửa hàng mở thêm điểm thì gần như luôn rơi vào tỉnh đã có, gõ lại tay vừa chậm vừa đẻ ra
+     "TP HCM" / "TP.HCM" / "Hồ Chí Minh" là ba tỉnh khác nhau trong mắt bộ lọc địa bàn.
+     Xếp tỉnh nhiều địa điểm nhất lên trước — đó là tỉnh sắp gõ nhất. Dùng <datalist> nên vẫn
+     GÕ TỰ DO được: tỉnh mới hoàn toàn thì cứ nhập, không bị danh sách khoá lại. */
+  var tinhDem = {};
+  coso.forEach(function(c){ var t = (c.tinh || '').trim(); if (t) tinhDem[t] = (tinhDem[t] || 0) + 1; });
+  var tinhGoiY = Object.keys(tinhDem).sort(function(a, b){
+    return (tinhDem[b] - tinhDem[a]) || a.localeCompare(b, 'vi');
+  }).map(function(t){ return '<option value="' + esc(t) + '">'; }).join('');
+
   h += '<div class="card"><h2>' + L('Địa điểm','Sites') + '</h2>'
+    + '<datalist id="cs-tinh-ds">' + tinhGoiY + '</datalist>'
     + '<div class="act" style="flex-wrap:wrap;margin-bottom:12px">'
     + '<input id="cs-ten" type="text" maxlength="60" placeholder="'
       + L('Tên địa điểm mới','New site name') + '" style="flex:2;min-width:160px">'
-    + '<input id="cs-tinh" type="text" maxlength="60" placeholder="'
+    + '<input id="cs-tinh" type="text" maxlength="60" list="cs-tinh-ds" placeholder="'
       + L('Tỉnh/TP (VD Bình Dương)','Province') + '" style="flex:1;min-width:130px">'
     /* Mã KH bên sổ kế toán (KH00108…) — cột "Mã KH" của báo cáo tổng lấy thẳng từ đây. */
     + '<input id="cs-makh" type="text" maxlength="40" placeholder="'
       + L('Mã KH (VD KH00108)','Customer code') + '" style="flex:1;min-width:120px">'
     + '<button id="cs-them" class="on">＋ ' + L('Thêm địa điểm','Add site') + '</button></div>';
-  h += '<table><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+  /* Ô tìm địa điểm — anh Thắng 10/09/2026: "thêm phần tìm kiếm địa điểm để lọc cho nhanh".
+     73 cơ sở thì cuộn tay là hỏng việc. Lọc NGAY TRONG DOM (ẩn/hiện hàng) chứ không vẽ lại
+     bảng: vẽ lại là mất con trỏ trong ô tìm sau mỗi phím gõ. Dò cả tên, tỉnh và mã KH, bỏ dấu
+     hai đầu nên gõ "binh duong" vẫn ra "Bình Dương". */
+  h += '<div class="act" style="margin-bottom:8px">'
+    + '<input id="cs-tim" type="search" placeholder="🔎 ' + L('Tìm địa điểm, tỉnh hoặc mã KH…','Search site, province or code…')
+      + '" style="flex:1;min-width:200px;max-width:340px">'
+    + '<span id="cs-dem" class="mut" style="align-self:center"></span></div>';
+  h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
     + '</th><th class="r">' + L('Doanh thu','Revenue') + '</th><th class="r hide-sm">' + L('QR','QR')
     + '</th><th class="r hide-sm">' + L('Tiền mặt','Cash') + '</th><th class="r"></th></tr>';
   if (!coso.length) h += '<tr><td colspan="6" class="mut">'
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
-    h += '<tr><td><b>' + esc(c.ten) + '</b>'
+    h += '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
+      /* Bấm thẳng tên địa điểm là ra ghế của nó — anh Thắng 10/09/2026: "thay vì chọn cơ sở sẽ
+         ra ghế, thì bấm vào địa điểm nó sẽ ra ghế luôn". Ô lọc ở khối Ghế vẫn còn (vẫn cần để
+         về "Tất cả" hay xem "chưa gán"); đây chỉ là lối tắt từ chỗ người ta đang nhìn, khỏi
+         phải nhớ tên rồi đi dò lại trong danh sách 73 dòng của ô chọn. */
+      + '<td><b><a href="#" data-csxem="' + esc(c.ten) + '" title="' + L('Xem ghế của địa điểm này','Show this site\u2019s chairs')
+        + '" style="color:#1d4ed8;text-decoration:none;cursor:pointer">' + esc(c.ten) + '</a></b>'
       + (c.tinh ? '<div class="mut">📍 ' + esc(c.tinh) + '</div>' : '')
       + (c.ma_kh ? '<div class="mut">🏷 ' + esc(c.ma_kh) + '</div>'
                  : '<div class="mut" style="opacity:.55">🏷 ' + L('chưa có mã KH','no customer code') + '</div>')
@@ -7627,7 +7658,11 @@ function veQuanLy(){
   });
   if (chuaGan) {
     var rc = dt['(chưa gán)'] || { tong:0, qr:0, tien_mat:0 };
-    h += '<tr><td class="mut">' + L('(chưa gán)','(unassigned)') + '</td>'
+    /* Hàng "(chưa gán)" cũng mang khoá tìm, không thì lọc xong nó vẫn nằm chình ình giữa bảng
+       trống — trông như kết quả khớp. Bấm được luôn để xem đúng đám ghế chưa gán cơ sở. */
+    h += '<tr data-cstim="' + esc(kdJS(L('(chưa gán)','(unassigned)'))) + '">'
+      + '<td class="mut"><a href="#" data-csxem="__none__" style="color:#1d4ed8;text-decoration:none;cursor:pointer">'
+      + L('(chưa gán)','(unassigned)') + '</a></td>'
       + '<td class="r">' + chuaGan + '</td><td class="r">' + tien(rc.tong) + '</td>'
       + '<td class="r hide-sm">' + tien(rc.qr) + '</td><td class="r hide-sm">' + tien(rc.tien_mat)
       + '</td><td></td></tr>';
@@ -7664,7 +7699,7 @@ function veQuanLy(){
      thành CHƯA GÁN — nói thẳng ra, chứ không lặng lẽ nhét vào một cơ sở nào đó. */
   var themVao = locId ? esc(QL_LOC) : L('(chưa gán)','(unassigned)');
 
-  h += '<div class="card"><h2>' + L('Ghế','Chairs') + '</h2>'
+  h += '<div class="card" id="ql-card-ghe"><h2>' + L('Ghế','Chairs') + '</h2>'
     /* Ô lọc lên TRƯỚC: nó là thứ quyết định cả bảng lẫn chỗ ghế mới vào, nên phải là thứ người
        ta chọn đầu tiên. */
     + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px"><label class="mut" style="align-self:center">'
@@ -8627,6 +8662,38 @@ function noi(){
     QL_CHO_CS = t;
     lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
+  /* Bấm tên địa điểm -> lọc khối Ghế sang đúng cơ sở đó rồi cuộn xuống (anh Thắng 10/09/2026).
+     Đặt QL_LOC giống hệt ô chọn #ql-loc rồi ve() lại cả tab: nhãn nút "Thêm ghế vào …" và ô ẩn
+     mã cơ sở phải đi theo, vẽ mỗi bảng thì ghế mới rơi nhầm cơ sở. Lấy thẻ card SAU ve(), vì
+     ve() dựng lại DOM nên tham chiếu lấy trước đó là thẻ đã bị vứt. */
+  [].forEach.call(document.querySelectorAll('[data-csxem]'), function(a){
+    a.onclick = function(e){
+      e.preventDefault();
+      QL_LOC = a.getAttribute('data-csxem') || ''; QL_PG = 0; QL_SEL = {};
+      ve();
+      var card = document.getElementById('ql-card-ghe');
+      if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+  });
+
+  /* Ô tìm địa điểm: ẩn/hiện hàng tại chỗ, không vẽ lại bảng (giữ con trỏ trong ô). Đếm số hàng
+     còn lại để người gõ biết ngay là "không có" chứ không phải bảng lỗi. */
+  if ((_e = document.getElementById('cs-tim'))) {
+    var loc = function(){
+      var q = kdJS(document.getElementById('cs-tim').value), con = 0;
+      [].forEach.call(document.querySelectorAll('#cs-bang tr[data-cstim]'), function(tr){
+        var hien = !q || (tr.getAttribute('data-cstim') || '').indexOf(q) >= 0;
+        tr.style.display = hien ? '' : 'none';
+        if (hien) con++;
+      });
+      var d = document.getElementById('cs-dem');
+      if (d) d.textContent = q ? (con + ' / ' + document.querySelectorAll('#cs-bang tr[data-cstim]').length) : '';
+    };
+    _e.oninput = loc;
+    /* Escape = xoá ô tìm, khỏi phải bôi đen rồi xoá tay. */
+    _e.onkeydown = function(e){ if (e.key === 'Escape') { this.value = ''; loc(); } };
+  }
+
   /* Sửa địa điểm: HIỆN Ô NGAY TRÊN HÀNG, sửa cả tên + tỉnh + mã KH một lần rồi Lưu — thay cho 3
      hộp prompt nối tiếp (anh Thắng 09/09/2026: "hiện ra ô hàng để sửa được 1 lần luôn").
      Huỷ hay Lưu đều gọi tai()/lam() vẽ lại cả tab nên không lo mất binding của hàng. */
@@ -8639,7 +8706,9 @@ function noi(){
         + '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 2px">'
         + '<b style="min-width:70px">' + L('Sửa:','Edit:') + '</b>'
         + '<input id="cse-ten" placeholder="' + L('Tên địa điểm','Site name') + '" style="flex:2;min-width:180px">'
-        + '<input id="cse-tinh" placeholder="' + L('Tỉnh/TP','Province') + '" style="flex:1;min-width:120px">'
+        /* Cùng danh sách gợi ý với ô thêm mới — datalist nằm trong thẻ card của tab, vẫn còn
+           trong DOM khi hàng này dựng lên, nên chỉ cần trỏ list vào là xong. */
+        + '<input id="cse-tinh" list="cs-tinh-ds" placeholder="' + L('Tỉnh/TP','Province') + '" style="flex:1;min-width:120px">'
         + '<input id="cse-makh" placeholder="' + L('Mã KH (VD KH00108)','Customer code') + '" style="flex:1;min-width:120px">'
         + '<button id="cse-luu" class="on">' + L('Lưu','Save') + '</button>'
         + '<button id="cse-huy">' + L('Huỷ','Cancel') + '</button>'
