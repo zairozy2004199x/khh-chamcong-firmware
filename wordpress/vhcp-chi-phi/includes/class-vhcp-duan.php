@@ -279,6 +279,8 @@ class VHCP_DuAn {
 			'tongDuToan'      => $dt + $sc_du_toan,
 			'tongThucTe'      => $tt + $sc_tien,
 			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),
+			/* Con số dự phòng của kế toán + phần đã ứng thật, để màn tính ra "còn dự phòng". */
+			'duToanDA'        => self::get_du_toan_da( $ma_da ),
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
 			'ttTamUng'        => $tt_tu,
@@ -324,6 +326,41 @@ class VHCP_DuAn {
 
 	public static function get_pay( $ma_da ) {
 		return VHCP_Meta::get_json( 'daPay_' . $ma_da, array() );
+	}
+
+	/**
+	 * TỔNG DỰ TOÁN CẢ DỰ ÁN — con số kế toán DỰ PHÒNG tiền.
+	 *
+	 * Anh Thắng 10/09/2026: *"Thêm ô nhập tổng dự toán (nó là con số dự tính tổng dự án để làm
+	 * để kế toán biết dự phòng. Chứ nó chưa phải là con tạm ứng, con số tạm ứng là tổng thực tế
+	 * sau khi lên đơn. Sau khi kế toán tạm ứng lần 1, sẽ trừ này ra để còn biết thừa thiếu"*.
+	 *
+	 * 🔴 KHÁC HẲN "tổng dự toán hạng mục". Hạng mục cộng lên là số đã khai chi tiết; con số này
+	 *    là ước lượng CẢ dự án, gõ một lần lúc mới mở, thường lớn hơn vì còn phần chưa khai.
+	 *    Trộn hai thứ làm một là kế toán dự phòng theo con số chi tiết chưa đủ, rồi thiếu tiền
+	 *    đúng lúc đang thi công.
+	 *
+	 * ⚠️ Cũng KHÔNG phải số tạm ứng. Tạm ứng là tiền THẬT đã chi, ghi ở `confirm_pay()`; con số
+	 *    này chỉ để trừ ra mà biết còn dự phòng bao nhiêu.
+	 */
+	public static function get_du_toan_da( $ma_da ) {
+		return VHCP_Util::num( VHCP_Meta::get( 'daDuToan_' . $ma_da, 0 ) );
+	}
+
+	public static function set_du_toan_da( $ma_da, $so, $nguoi = '' ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$n = VHCP_Util::num( $so );
+		/* 🔴 SỐ ÂM LÀ VÔ NGHĨA, và nó lặng lẽ làm phần "còn dự phòng" phình ra. Chối thẳng. */
+		if ( $n < 0 ) { return VHCP_Util::err( 'Tổng dự toán không được âm.' ); }
+		VHCP_Meta::set( 'daDuToan_' . $ma_da, $n );
+		VHCP_Log::log_action( array(
+			'actor'  => (string) ( '' !== $nguoi ? $nguoi : VHCP_Auth::nguoi() ),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => 'Đặt tổng dự toán dự án',
+			'target' => (string) $ma_da,
+			'detail' => (string) $n,
+		) );
+		return VHCP_Util::ok( array( 'duToanDA' => $n ) );
 	}
 
 	public static function approve_date( $ma_da ) {

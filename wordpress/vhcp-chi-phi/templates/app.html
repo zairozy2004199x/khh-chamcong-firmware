@@ -4022,7 +4022,33 @@
     // luôn phần tách ra dưới mỗi ô — khỏi phải mò.
     var scT=Number(r.tongSoChi||0), scN=(r.soChi||[]).length;
     var hmDT=Number(r.tongDuToan||0)-Number(r.duToanSoChi||0), hmTT=Number(r.tongThucTe||0)-scT;
+    /* THẺ DỰ PHÒNG — anh Thắng 10/09/2026: *"Thêm ô nhập tổng dự toán (nó là con số dự tính
+       tổng dự án để kế toán biết dự phòng. Chứ nó chưa phải là con tạm ứng, con số tạm ứng là
+       tổng thực tế sau khi lên đơn. Sau khi kế toán tạm ứng lần 1, sẽ trừ này ra để còn biết
+       thừa thiếu"*.
+       🔴 BA CON SỐ KHÁC NHAU, ĐỪNG TRỘN:
+         · dự phòng   = ước lượng CẢ dự án, gõ tay một lần lúc mới mở (thẻ này);
+         · dự toán    = cộng từ các hạng mục đã khai (thẻ bên cạnh) — thường nhỏ hơn vì còn
+                        phần chưa khai;
+         · đã tạm ứng = tiền THẬT kế toán đã chi, ghi ở bảng Kế toán chi tiền.
+       Kế toán căn vào "còn dự phòng" để biết phải chuẩn bị thêm bao nhiêu. Lấy nhầm sang con
+       số dự toán hạng mục là dự phòng thiếu, rồi hết tiền đúng lúc đang thi công. */
+    var dpDT=Number(r.duToanDA)||0;
+    var dpUng=Number((((r.payTong||{}).tamUng)||{}).tu)||0;
+    var dpConLai=dpDT-dpUng;
+    var dpSua=(['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0)||canEdit;
     el('daSummary').innerHTML=
+      '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:10px 12px;min-width:230px">'
+        +'<div style="font-size:11.5px;color:#6b21a8;font-weight:700">🧰 Dự phòng cả dự án</div>'
+        +'<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
+        +'<input id="daDpInp" type="number" min="0" value="'+(dpDT||'')+'" placeholder="0"'
+        +(dpSua?'':' readonly')+' style="width:120px;font-size:15px;font-weight:800;color:#6b21a8'+(dpSua?'':';background:#f1f5f9')+'">'
+        +(dpSua?'<button class="btn b-x" onclick="daLuuDuToan()" title="Lưu con số dự phòng">💾</button>':'')
+        +'</div>'
+        +'<div style="font-size:11px;color:#7c3aed">đã tạm ứng '+money(dpUng)+'đ · '
+        +(dpDT>0?('còn dự phòng <b>'+money(dpConLai)+'đ</b>'):'chưa gõ con số dự phòng')+'</div>'
+        +'<div style="font-size:10.5px;color:#a78bfa;margin-top:2px">ước lượng cả dự án — KHÔNG phải số tạm ứng</div>'
+      +'</div>'+
       _tqCard('#eff6ff','#bfdbfe','#1e40af','Tổng dự toán', money(r.tongDuToan)+'đ',
         'hạng mục '+money(hmDT)+'đ + sổ chi phí '+money(r.duToanSoChi||0)+'đ')+
       _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực tế', money(r.tongThucTe)+'đ',
@@ -4169,6 +4195,21 @@
       html=veNhom(parents)+vePhatSinh(phatSinh);
     }
     el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#94a3b8;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
+  }
+  /* Lưu con số dự phòng. Số âm bị máy chủ chối — làm phần "còn dự phòng" phình ra một cách
+     lặng lẽ, mà kế toán căn vào đó để chuẩn bị tiền. */
+  function daLuuDuToan(){
+    if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
+    var v=String((el('daDpInp')&&el('daDpInp').value)||'').trim();
+    var n=Number(v||0);
+    if(!isFinite(n) || n<0){ toast('warn','Tổng dự toán không được âm'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('Đặt dự phòng dự án', DA_CUR.ten, String(n));
+      toast('ok','Đã lưu dự phòng '+money(n)+'đ');
+      openDuAn(DA_CUR.maDA);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datDuToanDuAn(DA_CUR.maDA, n, (CURUSER&&CURUSER.name)||'');
   }
   function daCapChaHint(){   // gợi ý + KHÓA dự toán: hạng mục lớn -> điền Dự toán (tạm ứng); mục con/phát sinh -> điền Thực tế
     var v=el('da_capCha')?el('da_capCha').value:'';

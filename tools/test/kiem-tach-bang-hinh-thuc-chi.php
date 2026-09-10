@@ -118,6 +118,45 @@ t( '   và mang cùng dấu 📦', false !== strpos( $HTML, "(laLon?'📦 ':'')"
 t( '🔴 mục con vẫn thụt vào và KHÔNG bị tô như hạng mục lớn',
 	false !== strpos( $HTML, "var trS=indent?' style=\"background:#fcfdff\"':(laLon?" ), '' );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 5. 🔴 DỰ PHÒNG CẢ DỰ ÁN — BA CON SỐ KHÁC NHAU
+ *
+ * Anh Thắng 10/09/2026: *"Thêm ô nhập tổng dự toán (nó là con số dự tính tổng dự án để kế toán
+ * biết dự phòng. Chứ nó chưa phải là con tạm ứng, con số tạm ứng là tổng thực tế sau khi lên
+ * đơn. Sau khi kế toán tạm ứng lần 1, sẽ trừ này ra để còn biết thừa thiếu"*.
+ *
+ * 🔴 ĐỪNG TRỘN BA THỨ: dự phòng (ước lượng cả dự án, gõ tay) · dự toán (cộng từ hạng mục đã
+ *    khai) · đã tạm ứng (tiền THẬT đã chi). Kế toán căn vào "còn dự phòng" để chuẩn bị tiền;
+ *    lấy nhầm sang dự toán hạng mục là dự phòng thiếu, rồi hết tiền giữa lúc thi công.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( 'chưa gõ dự phòng → 0', 0.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, 50000000, 'KT' );
+t( 'gõ được con số dự phòng', ! empty( $r5['success'] ), $r5 );
+teq( '   đọc lại ra đúng số', 50000000.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$d5 = VHCP_DuAn::get_du_an( $ma );
+teq( '🔴 và gửi xuống màn ở ô RIÊNG, không lẫn vào tổng dự toán hạng mục',
+	50000000.0, $d5['duToanDA'] );
+teq( '   tổng dự toán hạng mục KHÔNG đổi vì gõ dự phòng', 16000000, $d5['tongDuToan'] );
+teq( '   và thừa/thiếu tạm ứng cũng không đổi', -3000000, $d5['thieuTamUng'] );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, -1, 'KT' );
+t( '🔴 chối số âm (âm thì phần "còn dự phòng" phình ra một cách lặng lẽ)',
+	empty( $r5['success'] ), $r5 );
+teq( '   và không ghi đè số cũ', 50000000.0, VHCP_DuAn::get_du_toan_da( $ma ) );
+$r5 = VHCP_DuAn::set_du_toan_da( 'DA-KHONG-CO', 1000, 'KT' );
+t( '   dự án không có thật → chối', empty( $r5['success'] ), $r5 );
+$r5 = VHCP_DuAn::set_du_toan_da( $ma, 0, 'KT' );
+t( '   gõ 0 để xoá thì được (0 khác với âm)', ! empty( $r5['success'] ), $r5 );
+
+t( '🔴 màn có ô nhập dự phòng riêng', false !== strpos( $HTML, "id=\"daDpInp\"" ), '' );
+t( '   và nói rõ nó KHÔNG phải số tạm ứng',
+	false !== mb_strpos( $HTML, 'KHÔNG phải số tạm ứng' ), '' );
+t( '🔴 màn tính "còn dự phòng" = dự phòng − đã tạm ứng',
+	false !== strpos( $HTML, 'var dpConLai=dpDT-dpUng;' )
+	&& false !== strpos( $HTML, 'var dpUng=Number((((r.payTong||{}).tamUng)||{}).tu)||0;' ), '' );
+t( '   chưa gõ thì nói chưa gõ, không bày một con số 0 trông như đã khai',
+	false !== mb_strpos( $HTML, 'chưa gõ con số dự phòng' ), '' );
+t( '   chối số âm ngay ở màn', false !== mb_strpos( $HTML, 'Tổng dự toán không được âm' ), '' );
+
 VHCP_DuAn::delete( $ma );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
