@@ -11,6 +11,10 @@
  *    khai "Kỹ thuật, Setup" không khớp ai cả. Và từ bản bỏ ô "Nội dung hạng mục", ô này trống
  *    nghĩa là KHÔNG NHẬP ĐƯỢC DÒNG NÀO — nội dung dòng lấy theo chính nó.
  *
+ * 🔴 LOẠI ĐÃ KHAI BỘ PHẬN THÌ HIỆN, DÙ CHƯA CÓ MÃ. Anh Thắng 10/09/2026: *"theo kỹ thuật đang
+ *    có 2 loại chi phí, nhưng mới hiện 1 loại thôi"*. Tích bộ phận là việc người ta CỐ Ý làm;
+ *    còn vài trăm dòng rác nạp từ sổ cũ thì bỏ trống ô ấy nên vẫn phải ẩn như trước.
+ *
  * ⚠️ CHẠY THẬT `_bpTach()` và `_loaiCpList()` bốc từ mã nguồn.
  *
  * Chạy: node tools/test/kiem-loai-nhieu-bo-phan.js
@@ -38,13 +42,13 @@ teq('   null / undefined → rỗng, không nổ', [], T(null));
 teq('   thừa dấu phẩy và khoảng trắng → dọn sạch', ['Kỹ thuật', 'Setup'], T(' Kỹ thuật ,, Setup , '));
 
 /* ── 2. LỌC DANH MỤC — CHẠY THẬT ───────────────────────────────────────────────────────── */
-function loc(boPhanNguoiDung, dsLoai) {
+function loc(boPhanNguoiDung, dsLoai, coMa) {
   const moi = {
     CURUSER: { boPhan: boPhanNguoiDung },
     NHOM_CP: '', NHOM_CP_CS: 'Cơ sở',
     BOOT: { loaiChiPhi: dsLoai, tkNoMx: {} },
     _mangCua: () => '',
-    _tkNoCua: () => '6421',          // coi như mọi loại đã khai mã
+    _tkNoCua: (ten) => (coMa && coMa.indexOf(ten) < 0) ? '' : '6421',
     _tkNoList: () => [],
     _donNhieuCoSo: () => false,
     _mangPham: () => [],
@@ -76,6 +80,21 @@ teq('người Kỹ thuật mà danh mục toàn loại của bộ phận khác �
   [], loc('Kỹ thuật', [{ ten: 'Chi phí quảng cáo', boPhan: 'Marketing' }]));
 teq('🔴 khai thêm Kỹ thuật vào chính loại ấy là ô có ngay, không phải đẻ loại trùng tên',
   ['Chi phí quảng cáo'], loc('Kỹ thuật', [{ ten: 'Chi phí quảng cáo', boPhan: 'Marketing, Kỹ thuật' }]));
+
+/* ── 3. 🔴 CHƯA KHAI MÃ VẪN HIỆN, NẾU ĐÃ KHAI BỘ PHẬN ──────────────────────────────────── */
+const DS2 = [
+  { ten: 'Chi phí tháo dỡ', boPhan: 'Kỹ thuật' },   // có mã
+  { ten: 'Chi phí setup',   boPhan: 'Kỹ thuật' },   // CHƯA có mã, nhưng đã tích bộ phận
+  { ten: 'Vật tư và tiếp khách từ 18-26/7', boPhan: '' },   // rác nạp từ sổ cũ, chưa có mã
+];
+teq('🔴 loại đã tích bộ phận thì HIỆN dù chưa khai mã (đúng ca anh Thắng gặp)',
+  ['Chi phí tháo dỡ', 'Chi phí setup'], loc('Kỹ thuật', DS2, ['Chi phí tháo dỡ']));
+teq('🔴 nhưng dòng RÁC từ sổ cũ (không bộ phận, không mã) vẫn bị ẩn — ô chọn không thành vài trăm dòng',
+  ['Chi phí tháo dỡ', 'Chi phí setup'], loc('', DS2, ['Chi phí tháo dỡ']));
+teq('   khai mã cho nó thì hiện, như trước',
+  ['Chi phí tháo dỡ', 'Chi phí setup', 'Vật tư và tiếp khách từ 18-26/7'],
+  loc('', DS2, ['Chi phí tháo dỡ', 'Vật tư và tiếp khách từ 18-26/7']));
+teq('   người bộ phận khác vẫn không thấy loại của Kỹ thuật', [], loc('Marketing', DS2, ['Chi phí tháo dỡ']));
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

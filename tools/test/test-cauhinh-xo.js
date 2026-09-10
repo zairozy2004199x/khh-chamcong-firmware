@@ -244,14 +244,16 @@ function demO(than) {
   return n;
 }
 /* Hàng người dùng dựng bằng những hàm nào, theo đúng thứ tự trong mã. */
-/* ⚠️ NEO VÀO `_inp(u.ten`, KHÔNG GHIM `'<tr><td>'`. Ngày 09/09/2026 thẻ `<tr>` được thêm thuộc
+/* ⚠️ NEO VÀO `esc(u.ten`, KHÔNG GHIM `'<tr><td>'`. (Trước 10/09/2026 neo là `_inp(u.ten`; ô Tên
+   nay khoá lại nên viết thẳng `<input readonly>` chứ không qua `_inp` nữa — neo vào TÊN CỘT thì
+   đổi cách dựng ô không làm bài kiểm đỏ oan.) Ngày 09/09/2026 thẻ `<tr>` được thêm thuộc
    tính (tô nền hàng khai lệch nhà/tầm nhìn) và bài này đỏ với năm dòng "mong undefined" — trông
    y như mã hỏng, mà thật ra chỉ là cái neo ghim vào một thứ KHÔNG liên quan tới phép đang canh.
    Phép này canh CHỈ SỐ Ô; thẻ mở hàng trông thế nào thì mặc kệ. */
 /* `[^\n]*?` chứ không phải `[\s\S]*?`: hàng CHỈ ĐỌC (tài khoản bị khoá) cũng mở bằng
    `return '<tr` ở một dòng trên. Cho phép vắt qua dòng là nó ngoạm luôn cả hàng ấy — 86 ô thay
    vì 9, và bài kiểm lại đỏ vì chính cái neo của mình. */
-const HANG = (HTML.match(/return '<tr[^\n]*?_inp\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
+const HANG = (HTML.match(/return '<tr[^\n]*?esc\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
 t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.slice(0, 60));
 /* ⚠️ CÓ Ô VIẾT THẲNG TRONG HÀNG, không qua hàm dựng — ô PIN là một `<input>` gõ tay ngay
    trong chuỗi. Chỉ quét tên hàm là bỏ sót đúng nó, và mọi cột sau đó lệch một nhịp trong
@@ -295,6 +297,36 @@ COT.forEach(k => {
 
 
 // ---------------------------------------------------------------- kết
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * TÊN VÀ PIN KHOÁ LẠI — LẤY TỪ HỆ THỐNG NHÂN SỰ
+ *
+ * Anh Thắng 10/09/2026: *"Chỗ tên người dùng được lấy từ hệ thống nhân sự, nên bên trang chi
+ * phí không cho sửa tên, sửa dễ sai hệ thống.. Cả mã pin cũng vậy"*.
+ *
+ * 🔴 TÊN LÀ KHOÁ NỐI HAI BÊN. Mọi đơn đã lập mang TÊN người lập, nên gõ lệch một chữ ở đây là
+ *    người ấy mất sạch đơn cũ của mình — không có câu lỗi nào, chỉ là màn của họ trống.
+ *
+ * 🔴 KHOÁ NHƯNG VẪN PHẢI GỬI LÊN. `readonly` giữ nguyên `.value`, nên hàng cũ lưu lại không
+ *    mất tên/PIN. Nếu ai đó đổi sang `disabled` thì trình duyệt BỎ QUA ô ấy — lưu một cái là
+ *    mọi người mất tên và PIN, và họ không đăng nhập được nữa.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+const O_TEN = (HANG.match(/<input value="'\+esc\(u\.ten[^>]*>/) || [])[0] || '';
+const O_PIN = (HANG.match(/<input value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
+t('🔴 ô Tên khoá lại (readonly)', /\breadonly\b/.test(O_TEN), O_TEN);
+t('🔴 ô PIN cũng khoá lại',      /\breadonly\b/.test(O_PIN), O_PIN);
+t('🔴 KHÔNG dùng disabled — disabled thì trình duyệt bỏ qua ô, lưu một cái là mất sạch tên/PIN',
+  !/\bdisabled\b/.test(O_TEN) && !/\bdisabled\b/.test(O_PIN), [O_TEN, O_PIN]);
+t('   và vẫn mang giá trị thật lên (readonly giữ nguyên .value)',
+  /value="'\+esc\(u\.ten/.test(O_TEN) && /value="'\+esc\(u\.pin/.test(O_PIN), [O_TEN, O_PIN]);
+t('🔴 rê chuột vào nói rõ phải sửa ở đâu (khoá mà không nói thì người ta tưởng hỏng)',
+  /title="[^"]*nhân sự/.test(O_TEN) && /title="[^"]*nhân sự/.test(O_PIN), [O_TEN, O_PIN]);
+t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:#f1f5f9/.test(O_TEN), O_TEN);
+t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>') >= 0);
+t('   và có câu giải thích dưới bảng', HTML.indexOf('lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây') >= 0);
+/* Các cột KHÁC vẫn phải sửa được — khoá quá tay thì bảng thành chỉ để ngắm. */
+t('🔴 vai trò · bộ phận · cơ sở · đơn vị vẫn sửa được',
+  !/readonly/.test(thanHam('_roleSel')) && !/readonly/.test(thanHam('_dvInp')), null);
+
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');
   console.error('HỎNG: ' + hong.length);

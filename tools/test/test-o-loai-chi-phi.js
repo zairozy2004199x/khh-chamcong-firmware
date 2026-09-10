@@ -59,10 +59,18 @@ function moi(nhomCp, user, cur) {
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };
+/* Mã của một mục trong danh sách: `list()` trả về dòng danh mục, mã lấy qua chính hàm tra mã
+   của mã nguồn — không tự đoán lại. */
+const _tkCua = (M, x) => M.tkNoCua ? M.tkNoCua(x.ten, '') : '';
 
 // ---------------------------------------------------------------- 1. (a) chưa chọn cơ sở
 let M = moi(NHOM_CP_CS, NV_CS);
-teq('chưa chọn cơ sở -> ô rỗng (mã khai theo mảng của cơ sở)', 0, M.list('', '', '').length);
+/* Từ bản 1.108.0 loại ĐÃ KHAI BỘ PHẬN vẫn hiện dù chưa có mã (anh Thắng: *"theo kỹ thuật đang
+   có 2 loại chi phí, nhưng mới hiện 1 loại thôi"*). Nên chưa chọn cơ sở thì ô KHÔNG còn rỗng —
+   nhưng cũng KHÔNG được bịa ra mã: mã khai theo mảng của cơ sở, chưa biết cơ sở thì chưa có mã,
+   và câu nhắc bên dưới vẫn phải chỉ người ta đi chọn cơ sở. */
+t('chưa chọn cơ sở -> hiện loại đã khai bộ phận, nhưng KHÔNG cái nào có mã',
+  M.list('', '', '').length > 0 && M.list('', '', '').every(x => !_tkCua(M, x)), M.list('', '', ''));
 const vi0 = M.vi('', '', '');
 t('…nhưng PHẢI nói vì sao, không im lặng', /Chọn CƠ SỞ trước/.test(vi0.chu), vi0);
 t('và tô màu cảnh báo chứ không xám nhạt', vi0.mau === '#b45309', vi0);

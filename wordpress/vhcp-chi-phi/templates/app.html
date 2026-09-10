@@ -1079,18 +1079,19 @@
       <!-- 🔴 Ai khai "Xem đơn vị" lạc ra ngoài danh sách thì màn của họ TRẮNG, không câu lỗi
            nào. Bày thẳng lên đầu bảng để người khai thấy ngay, thay vì chờ người kia báo. -->
       <div id="khaiLacBanner" style="display:none;margin:8px 14px 0;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px"></div>
-      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, bấm để tích. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <div style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f1f5f9;color:#334155;font-size:12px">
+        🔒 <b>Tên</b> và <b>PIN</b> lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây — đổi bên trang
+        <b>Chấm công → Nhân sự</b>. Tên là khoá nối hai bên: mọi đơn đã lập mang tên người lập, gõ lệch một chữ
+        là người ấy mất sạch đơn cũ của mình mà không có câu lỗi nào. Các cột còn lại (vai trò · bộ phận · cơ sở ·
+        mã tài khoản · đơn vị) vẫn sửa được ở đây.
+      </div>
+      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th><th style="width:96px">PIN <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, bấm để tích. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
         <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
         <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
         <b>Nhân viên cơ sở</b> → chỉ lên đơn theo <b>Tuần · cơ sở</b> (đơn xin tạm ứng một tuần vận hành).
         <b>Nhân viên văn phòng</b> → vào được <b>cả hai</b>: Tuần · cơ sở <i>và</i> Dự án · gian thi công, và khi tạo đơn được chọn thêm <b>khoảng ngày tự do</b> cho đợt vắt tuần.<br>
         Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
-    </div>
-    <div class="card" id="ssoCard">
-      <div class="ch"><h2>🔗 Đăng nhập từ trang tổng (SSO)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addSsoRow()">＋ Thêm</button><button class="btn b-g" onclick="saveSso()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:560px"><thead><tr><th>Email (ở trang tổng)</th><th>Vai trò Chi Phí</th><th>Cơ sở (cho NV)</th><th style="width:44px"></th></tr></thead><tbody id="ssoBody"></tbody></table></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Người vào từ <b>Vận Hành K&H</b> được ánh xạ vai trò tự động: Admin→Admin · Quản lý→Quản lý · Cửa hàng trưởng→Nhân viên (theo cơ sở) · Kế toán→<b>Kế toán cá nhân</b> (mặc định). Muốn đổi (VD Kế toán → <b>Kế toán NCC</b>) hoặc gán cơ sở riêng: thêm 1 dòng khớp đúng <b>Email</b> — dòng này ưu tiên hơn mặc định.</div>
     </div>
     <div class="card" id="imgMaintCard">
       <div class="ch"><h2>🗂️ Bảo trì ảnh</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
@@ -1120,40 +1121,6 @@
       <div id="ngayHongKq" style="padding:0 14px 12px"></div>
     </div>
 
-    <!-- 🔴 DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT — anh Thắng 31/08/2026: *"tạm ứng 15tr, chi 15tr mà
-         vẫn thiếu"*. Đơn duyệt TRƯỚC bản 1.53.0 giữ con số đã bị trừ bù trừ tuần trước; luật
-         nay đã đổi nhưng con số ấy nằm cứng trong sổ. Bấm "Duyệt lại" từng đơn thì đúng nhưng
-         chậm khi có mấy chục đơn dính. -->
-    <div class="card" id="btCuCard">
-      <div class="ch"><h2>🧹 Dọn bù trừ cũ khỏi số đã duyệt</h2>
-        <div style="display:flex;gap:8px">
-          <button class="btn b-x" onclick="doDoBtCu()">🔍 Dò</button>
-          <button class="btn b-g" id="btCuChot" style="display:none" onclick="doChotBtCu()">✔ Dọn 0 đơn đã chọn</button>
-        </div>
-      </div>
-      <div style="padding:10px 14px;font-size:12px;color:#475569;line-height:1.7">
-        Từ bản <b>1.53.0</b>, thừa/thiếu của tuần trước <b>chỉ là con số báo cáo</b> — không trừ vào tiền
-        tuần sau nữa. Nhưng đơn đã duyệt <b>trước</b> đó vẫn giữ con số đã bị trừ, nên khối Quyết toán
-        so tiền đã chi với con số cũ và báo <b>thiếu</b> dù thực ra không thiếu.
-        <div style="margin-top:6px">Khối này nhặt <b>hai loại</b> đơn:</div>
-        <div style="margin-top:4px;padding:8px 10px;background:#f1f5f9;border-radius:8px">
-          <b>1. Đã duyệt, chưa cấp tiền, còn dính bù trừ</b> — số duyệt <b>đúng bằng</b> tổng xin + bù trừ.
-          Sửa = gỡ phần bù trừ ra, đưa về đúng tổng xin.<br>
-          <b>2. Chưa duyệt mà vẫn mang số duyệt</b> — đơn đang ở <b>Nháp</b> hoặc <b>Chờ duyệt tạm ứng</b>
-          (thường là đơn từng được duyệt rồi bị <b>trả lại</b>). Con số duyệt cũ ấy vẫn đè lên tổng xin ở khối
-          Quyết toán và làm nó báo thiếu. Sửa = <b>xoá hẳn</b> số duyệt, đơn về đúng trạng thái chưa duyệt,
-          chờ quản lý duyệt lại.
-        </div>
-        <div style="margin-top:6px;padding:8px 10px;background:#fef9c3;color:#854d0e;border-radius:8px">
-          ⚠️ Chỉ đụng vào đơn <b>chưa cấp tiền</b>. Với loại 1, chỉ khi số duyệt <b>đúng bằng</b> tổng xin + bù trừ —
-          tức dấu tay rõ ràng của luật cũ; quản lý <b>cố ý</b> duyệt thấp hơn số xin thì <b>không</b> bị đụng tới.
-        </div>
-        Luôn <b>Dò</b> để xem trước — <b>không sửa gì</b> cho tới khi bấm xác nhận.
-        <div style="margin-top:4px"><b>Tích vào từng đơn</b> muốn dọn; đơn không tích thì không đụng tới.
-        Cố ý <b>không</b> có nút "sửa tất cả" — máy chủ cũng chối lượt dọn không kèm mã đơn.</div>
-      </div>
-      <div id="btCuKq" style="padding:0 14px 12px"></div>
-    </div>
 
     <div class="card" id="quyenCard">
       <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
@@ -1191,29 +1158,6 @@
          một khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại — "gian này dùng
          những loại nào?" — và đi chiều kia là phải mở từng loại một, tích lại từng cái.
          Gian ADV GO! AN LẠC vừa mở, ô Loại chi phí lúc nhập đơn chỉ có một dòng: đúng hậu quả. -->
-    <div class="card" id="lccsCard">
-      <div class="ch"><h2>🏷 Loại chi phí theo cơ sở</h2><div style="display:flex;gap:8px">
-        <button class="btn b-x" id="lccsChepBtn" onclick="lccsChep()">⧉ Chép từ gian khác</button>
-        <button class="btn b-g" onclick="lccsLuu()">💾 Lưu cho cơ sở này</button></div></div>
-      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">
-        Chọn một gian → tích những loại chi phí gian đó dùng. Loại nào <b>ăn theo mảng</b> thì đã tích sẵn và ghi rõ —
-        sửa mã ở đây là <b>khai riêng cho gian này</b>, đè lên mã của mảng. Gian mới mở thì bấm <b>⧉ Chép từ gian khác</b> cho nhanh.
-      </div>
-      <div style="padding:4px 14px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <b style="font-size:12px">Cơ sở:</b>
-        <select id="lccsCoSo" style="min-width:280px" onchange="lccsTai()"></select>
-        <span id="lccsMang" style="font-size:12px;color:#64748b"></span>
-        <input type="text" id="lccsTim" placeholder="Lọc loại chi phí…" style="font-size:12px;padding:5px 8px;min-width:200px" oninput="lccsVe()">
-        <button class="btn b-x" onclick="lccsAll(1)">Tích hết</button>
-        <button class="btn b-x" onclick="lccsAll(0)">Bỏ hết</button>
-      </div>
-      <div class="tw"><table style="min-width:720px"><thead><tr>
-        <th style="width:44px">Dùng</th><th>Loại chi phí</th><th style="width:150px">Mã TK Nợ</th>
-        <th style="width:150px">Nguồn</th><th style="width:130px">Bộ phận</th></tr></thead>
-        <tbody id="lccsBody"></tbody></table></div>
-      <div id="lccsInfo" style="padding:4px 14px 12px;font-size:12px;color:#64748b"></div>
-    </div>
-
     <div class="card">
       <div class="ch"><h2>🆕 Khai mã chi phí</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div></div>
       <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Gõ <b>tên gọi chi phí</b> → <b>số tài khoản</b> → <b>tích những cơ sở áp dụng</b>. Xong. Sau đó cơ sở đã tích mà nhập loại chi phí này là tự ra: TK Nợ · tên tài khoản nội bộ · tên xuất MISA.</div>
@@ -2703,90 +2647,11 @@
       if(chot){ _log('Sửa kỳ hỏng hàng loạt','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa kỳ cho '+r.daSua+' đơn'); boot(); }
     }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).suaKyHong(chot?1:0);
   }
-  // ---- DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT (chỉ Admin) ----
-  var BTC=null;
-  function doDoBtCu(){ _chayBtCu(false); }
-  /* 🔴 CHỈ DỌN ĐƠN ĐƯỢC TÍCH. Anh Thắng: *"Cần tích vào dọn đơn chọn thôi, để tránh phát lỗi
-     cho đơn khác"*. Không có nút "sửa tất cả" — máy chủ cũng chối lượt chốt không kèm mã đơn,
-     nên bỏ sót tham số là ra câu chối chứ không phải sửa cả sổ. */
-  function _btCuChon(){
-    var ra=[], ck=document.querySelectorAll('.btcu-ck');
-    for(var i=0;i<ck.length;i++){ if(ck[i].checked) ra.push(ck[i].value); }
-    return ra;
-  }
-  function btCuDoiTich(){
-    var n=_btCuChon().length, nut=el('btCuChot');
-    if(nut){ nut.textContent='✔ Dọn '+n+' đơn đã chọn'; nut.disabled=(n===0); nut.style.opacity=n?'1':'.5'; }
-    var all=el('btCuAll'), ck=document.querySelectorAll('.btcu-ck');
-    if(all) all.checked=(ck.length>0 && n===ck.length);
-  }
-  function btCuTichHet(o){
-    var ck=document.querySelectorAll('.btcu-ck');
-    for(var i=0;i<ck.length;i++){ ck[i].checked=!!o.checked; }
-    btCuDoiTich();
-  }
-  function doChotBtCu(){
-    if(!BTC||!BTC.tong) return;
-    var chon=_btCuChon();
-    if(!chon.length){ toast('warn','Tích vào những đơn cần dọn trước đã'); return; }
-    var _m=0,_b=0, co={};
-    chon.forEach(function(m){ co[m]=1; });
-    (BTC.items||[]).forEach(function(x){ if(co[x.maDon]){ if(x.loai==='mocoi') _m++; else _b++; } });
-    if(!confirm('Dọn '+chon.length+' đơn ĐÃ CHỌN?\n\n'
-      +(_b?('• '+_b+' đơn đã duyệt: gỡ phần bù trừ tuần trước ra khỏi con số duyệt, đưa về đúng tổng xin.\n'):'')
-      +(_m?('• '+_m+' đơn chưa duyệt (Nháp / Chờ duyệt): xoá hẳn con số duyệt còn sót của lần duyệt cũ —\n'
-            +'  đơn quay về đúng trạng thái "chưa duyệt", chờ quản lý duyệt lại.\n'):'')
-      +'\nĐơn KHÔNG tích thì không đụng tới. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
-    _chayBtCu(true, chon);
-  }
-  function _chayBtCu(chot, chon){
-    if(!_laAdmin()){ toast('warn','Chỉ Admin dọn được hàng loạt'); return; }
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      BTC=r; veBtCu();
-      if(chot){ _log('Dọn bù trừ cũ','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa '+r.daSua+' đơn'); boot(); }
-    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).donBuTruCu(chot?1:0, chon||[]);
-  }
-  function veBtCu(){
-    var b=el('btCuKq'); if(!b) return;
-    var nut=el('btCuChot');
-    if(!BTC){ b.innerHTML=''; if(nut) nut.style.display='none'; return; }
-    if(!BTC.tong){
-      b.innerHTML='<div style="padding:10px 12px;background:#dcfce7;color:#166534;border-radius:8px;font-size:12.5px">✓ Không còn đơn nào dính bù trừ cũ.</div>';
-      if(nut) nut.style.display='none'; return;
-    }
-    if(nut) nut.style.display=BTC.daSua?'none':'inline-block';
-    var h='<div style="font-size:12.5px;margin-bottom:6px">Tìm thấy <b>'+BTC.tong+'</b> đơn'
-      +((BTC.soBuTru||0)?(' · '+BTC.soBuTru+' dính bù trừ cũ'):'')
-      +((BTC.soMoCoi||0)?(' · <b style="color:#b45309">'+BTC.soMoCoi+' mang số duyệt mồ côi</b>'):'')
-      +(BTC.daSua?(' · <b style="color:#166534">đã sửa '+BTC.daSua+'</b>'):' — xem trước, chưa sửa gì')+'</div>';
-    h+='<div class="tw"><table style="min-width:820px"><thead><tr>'
-      +'<th style="width:34px;text-align:center"><input type="checkbox" id="btCuAll" onclick="btCuTichHet(this)" title="Chọn / bỏ chọn tất cả"></th>'
-      +'<th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
-      +'<th>Vì sao dính</th>'
-      +'<th style="text-align:right">Đang duyệt</th><th style="text-align:right">Bù trừ dính</th>'
-      +'<th style="text-align:right">Sẽ thành</th></tr></thead><tbody>';
-    BTC.items.forEach(function(x){
-      var mc=(x.loai==='mocoi');
-      h+='<tr'+(x.daSua?' style="background:#f0fdf4"':'')+'>'
-        +'<td style="text-align:center">'+(x.daSua
-            ? '<span style="color:#166534" title="đã dọn">✓</span>'
-            : '<input type="checkbox" class="btcu-ck" value="'+esc(x.maDon)+'" onclick="btCuDoiTich()">')+'</td>'
-        +'<td><b>'+esc(x.maDon)+'</b></td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.nguoi||'')+'</td>'
-        +'<td style="font-size:11.5px">'+(mc
-            ? ('<b style="color:#b45309">Chưa duyệt mà vẫn mang số duyệt</b><br><span style="color:#64748b">đang ở "'+esc(x.trangThai||'')+'" — số sót của lần duyệt cũ đã bị trả lại</span>')
-            : '<span style="color:#64748b">Số duyệt = tổng xin + bù trừ tuần trước (luật trước 1.53.0)</span>')+'</td>'
-        +'<td style="text-align:right">'+money(x.duyet)+'đ</td>'
-        +'<td style="text-align:right;color:#b91c1c">'+(mc?'<span style="color:#94a3b8">—</span>':((x.buTru>0?'+':'−')+money(Math.abs(x.buTru))+'đ'))+'</td>'
-        +'<td style="text-align:right;color:#166534"><b>'+(mc
-            ? ('<span style="color:#b45309">chưa duyệt</span><br><span style="font-weight:400;color:#64748b;font-size:11px">tổng xin '+money(x.moi)+'đ</span>')
-            : (money(x.moi)+'đ'))+'</b></td></tr>';
-    });
-    b.innerHTML=h+'</tbody></table></div>';
-    btCuDoiTich();
-  }
-
+  /* 🧹 "Dọn bù trừ cũ khỏi số đã duyệt" đã BỎ — anh Thắng 10/09/2026: *"Đã xong, loại bỏ"*.
+     Đó là khối dọn MỘT LẦN cho sổ cũ: đơn duyệt trước bản 1.53.0 còn mang phần bù trừ nằm cứng
+     trong số đã duyệt. Dọn xong rồi thì để lại chỉ tổ mời người ta bấm vào một việc không còn
+     gì để làm.
+     ⚠️ Đường máy chủ `donBuTruCu` vẫn còn, phòng khi sổ cũ nào đó lòi ra thêm. */
   function veKyHong(){
     var b=el('kyHongKq'); if(!b) return;
     if(!KYH){ b.innerHTML=''; return; }
@@ -4879,9 +4744,18 @@
       //
       // Mốc là CÓ MÃ hay không, không dựa vào ghi chú "(nạp từ dữ liệu cũ)": bảng ma trận
       // trên giao diện không có cột Ghi chú nên chỉ cần lưu bảng đó một lần là dấu đó bay
-      // hết — lọc theo dấu là lọc theo thứ tự người dùng bấm nút, không đáng tin. Loại chưa
-      // có mã thì chọn cũng ra dòng KHÔNG có TK Nợ, tức chưa dùng được.
-      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) return false;
+      // hết — lọc theo dấu là lọc theo thứ tự người dùng bấm nút, không đáng tin.
+      //
+      // 🔴 TRỪ LOẠI ĐÃ KHAI BỘ PHẬN. Anh Thắng 10/09/2026: *"theo kỹ thuật đang có 2 loại chi
+      //    phí, nhưng mới hiện 1 loại thôi"* — "Chi phí setup" tích đúng bộ phận Kỹ thuật mà
+      //    không hiện, chỉ vì chưa ai điền mã cho mảng của gian đang nhập. Người khai nhìn
+      //    bảng Cấu hình thấy loại của mình nằm đó, nhìn ô chọn thì không thấy, và không có
+      //    gì trên màn nói vì sao.
+      //    Tích bộ phận là việc người ta CỐ Ý làm, khác hẳn vài trăm dòng rác nạp từ sổ cũ —
+      //    những dòng ấy bỏ trống ô Bộ phận nên vẫn bị ẩn như trước. Chọn loại chưa có mã thì
+      //    dòng chi ra TK Nợ rỗng và ô gợi ý ngay bên cạnh đã nói rõ "chưa gắn mã → giữ cách
+      //    cũ Nợ 141", nên không có gì lặng lẽ ở đây cả.
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length && !_bpTach(x.boPhan).length) return false;
       // Ô "Chọn chi phí nào" ở mục 1 -> chỉ hiện loại của mảng đang chọn
       var bpLoai=_bpTach(x.boPhan);
       if(NHOM_CP && _khoaNhom((bp && bpLoai.indexOf(bp)>=0)?bp:(bpLoai[0]||''), x.ten)!==NHOM_CP) return false;
@@ -5069,10 +4943,12 @@
     _fillLoaiCp(selId, ch.loai, coso, ch.tkNo, httId?String((el(httId)&&el(httId).value)||''):'');
   }
   /** Bao nhiêu loại đang bị ẩn vì chưa khai mã — để ghi chú dưới ô chọn. */
+  /* Đếm loại BỊ ẨN vì chưa khai mã. Phải đếm đúng cái bộ lọc đang ẩn, không phải "mọi loại
+     chưa có mã" — loại đã khai bộ phận nay VẪN HIỆN, kể vào đây là câu nhắc nói sai số. */
   function _soLoaiChuaMa(coso){
     var n=0;
     (BOOT.loaiChiPhi||[]).forEach(function(x){
-      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) n++;
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length && !_bpTach(x.boPhan).length) n++;
     });
     return n;
   }
@@ -6797,7 +6673,6 @@
     renderCosoBody();
     renderCfgBp();
     renderVai();
-    lccsCoSoList();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
@@ -6807,17 +6682,15 @@
     if(el('cfgDtBody')) el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
     kcFill();
     renderTkNoMatrix();
-    renderSso();
   }
   // ---- SSO: phân vai trò cho người từ trang tổng (Admin) ----
-  function renderSso(){ if(!el('ssoBody')) return;
-    el('ssoBody').innerHTML=(CFG.sso||[]).map(function(x){ return '<tr><td>'+_inp(x.email,'vd: a@poshvn.com')+'</td><td>'+_roleSel(x.role)+'</td><td>'+_cosoSel(x.coso)+'</td>'+_delBtn()+'</tr>'; }).join('');
-  }
-  function addSsoRow(){ el('ssoBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','vd: a@poshvn.com')+'</td><td>'+_roleSel('Kế toán NCC')+'</td><td>'+_cosoSel('')+'</td>'+_delBtn()+'</tr>'); }
-  function saveSso(){ var data=_readRows('ssoBody').map(function(r){return {email:(r[0]||'').trim().toLowerCase(), role:r[1]||'', coso:r[2]||''};}).filter(function(x){return x.email;});
-    _saveCfg({sso:data},'Đã lưu phân vai trò SSO');
-  }
-  // Bảo trì: dời ảnh cũ về cây Cơ sở/Người tạo đơn (Admin)
+  /* 🔗 "Đăng nhập từ trang tổng (SSO)" đã BỎ khỏi màn — anh Thắng 10/09/2026: *"LOẠI BỎ,
+     THỪA"*. Vai trò đã có đường ánh xạ tự động từ Vận Hành K&H (Admin→Admin · Quản lý→Quản lý
+     · Cửa hàng trưởng→Nhân viên theo cơ sở · Kế toán→Kế toán cá nhân), nên bảng khai tay này
+     chỉ dùng cho ngoại lệ — mà ngoại lệ thì khai ở bảng 👤 Người dùng cũng được.
+     ⚠️ CHỈ BỎ MÀN. Các dòng ngoại lệ đã khai vẫn nằm trong cấu hình và VẪN CÓ HIỆU LỰC — máy
+        chủ đọc `CFG.sso` như cũ. Bỏ dữ liệu là đổi quyền của người đang dùng mà không ai bấm
+        gì cả, nên không đụng tới. */
   function doMigrateImages(){
     if(!confirm('Dời ảnh cũ ở thư mục gốc AnhChiPhi_VanHanh về cây Cơ sở/Người tạo đơn?')) return;
     if(el('imgMaintMsg')) el('imgMaintMsg').textContent='Đang dời…'; loading(true);
@@ -6907,12 +6780,23 @@
     el('kcLoaiList').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
     el('kcBpWrap').innerHTML=_bpSel('', 'Tất cả bộ phận');
     // Chọn theo PHÂN LOẠI LỚN (nhanh); từng cơ sở chỉ mở ra khi cần ngoại lệ
-    var nhom={}, le=[];
+    /* 🔴 LỌC TRÙNG TÊN. Bảng Cơ sở gom từ hai nguồn — khai tay và hút về từ trang Ghế — nên
+       một cơ sở rất dễ có hai dòng. Không lọc thì cùng một tên hiện HAI ô tích: người khai
+       tích một cái rồi tưởng xong, mà mã chỉ áp cho nửa số dòng; hoặc tích cả hai rồi băn
+       khoăn mình có khai đè lên gì không. Cả hai đều là mất thì giờ không cần thiết.
+       Tên coi là một nếu chỉ khác hoa/thường hay khoảng trắng thừa — GIỮ cách viết của dòng
+       ĐẦU, vì đó là dòng người ta khai tay. */
+    var nhom={}, le=[], daCo={};
     (CFG.coso||[]).forEach(function(x){
+      var ten=String(x.ten||'').trim(); if(!ten) return;
+      var k=ten.toLowerCase(); if(daCo[k]) return;
+      daCo[k]=1;
       var m=String(x.phanLoaiLon||'').trim();
-      if(m){ (nhom[m]=nhom[m]||[]).push(String(x.ten)); } else { le.push(String(x.ten)); }
+      if(m){ (nhom[m]=nhom[m]||[]).push(ten); } else { le.push(ten); }
     });
+    le.sort(function(a,b){ return a.localeCompare(b,'vi'); });
     var mangs=Object.keys(nhom).sort();
+    mangs.forEach(function(m){ nhom[m].sort(function(a,b){ return a.localeCompare(b,'vi'); }); });
     var h='<div style="display:flex;flex-wrap:wrap;gap:8px">'+mangs.map(function(m){
       return '<label style="display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">'
         +'<input type="checkbox" data-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(m)
@@ -6984,107 +6868,12 @@
   /* ===================== LOẠI CHI PHÍ THEO CƠ SỞ =====================
      Nhìn từ phía GIAN: gian này dùng những loại nào, mã bao nhiêu.
      Ô của MẢNG là của cả mảng — màn này chỉ đụng ô của chính gian đang chọn. */
-  var LCCS=null;   // {coso, mang, ds:[…]}
-  function lccsCoSoList(){
-    var e=el('lccsCoSo'); if(!e) return;
-    var cu=e.value;
-    e.innerHTML='<option value="">— chọn cơ sở —</option>'+(CFG.coso||[]).map(function(x){
-      var ph=_csPhu(x.ten);
-      return '<option value="'+esc(x.ten)+'"'+(x.ten===cu?' selected':'')+'>'+esc(x.ten)+(ph?(' · '+esc(ph)):'')+'</option>';
-    }).join('');
-  }
-  function lccsTai(){
-    var cs=el('lccsCoSo').value;
-    LCCS=null; el('lccsInfo').textContent='';
-    if(!cs){ el('lccsMang').textContent=''; el('lccsBody').innerHTML=''; return; }
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||r.error){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      LCCS=r;
-      el('lccsMang').innerHTML=r.mang?('mảng <b>'+esc(r.mang)+'</b>'):'<span style="color:#c0392b">chưa khai mảng (Phân loại lớn) cho gian này</span>';
-      lccsVe();
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).loaiCuaCoSo(cs);
-  }
-  function lccsVe(){
-    if(!LCCS){ el('lccsBody').innerHTML=''; return; }
-    var q=_bd(el('lccsTim').value).trim();
-    var n=0;
-    el('lccsBody').innerHTML=LCCS.ds.map(function(x,i){
-      if(q && _bd(x.ten).indexOf(q)<0) return '';
-      n++;
-      var ng=(x.nguon==='coso')?'<span style="color:#0f766e;font-weight:600">riêng gian này</span>'
-            :(x.nguon==='mang')?('<span style="color:#64748b">theo mảng'+(LCCS.mang?(' '+esc(LCCS.mang)):'')+'</span>')
-            :'<span style="color:#94a3b8">chưa dùng</span>';
-      return '<tr data-i="'+i+'">'
-        +'<td style="text-align:center"><input type="checkbox" class="lccsChk"'+(x.nguon?' checked':'')+'></td>'
-        +'<td>'+esc(x.ten)+(x.tenMisa&&x.tenMisa!==x.ten?('<span style="color:#94a3b8;font-size:11px"> · '+esc(x.tenMisa)+'</span>'):'')+'</td>'
-        +'<td>'+_tkInp(x.ma,'VD: 64196')+'</td>'
-        +'<td>'+ng+'</td>'
-        +'<td style="color:#64748b">'+esc(x.boPhan||'—')+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" style="color:#94a3b8;padding:10px">Không có loại nào khớp.</td></tr>';
-    var dung=LCCS.ds.filter(function(x){return !!x.nguon;}).length;
-    el('lccsInfo').innerHTML='Gian này đang dùng <b>'+dung+'</b>/'+LCCS.ds.length+' loại chi phí'
-      +(q?(' · đang lọc, hiện '+n+' dòng'):'');
-  }
-  function lccsAll(on){
-    // Đang lọc thì chỉ áp cho dòng đang thấy — áp cả bảng trong khi màn hình hiện ba dòng là
-    // tích/bỏ một đống loại không hề nhìn thấy.
-    Array.prototype.forEach.call(el('lccsBody').querySelectorAll('tr'),function(tr){
-      var c=tr.querySelector('.lccsChk'); if(c) c.checked=!!on;
-    });
-  }
-  function lccsDoc(){
-    var out=[];
-    Array.prototype.forEach.call(el('lccsBody').querySelectorAll('tr[data-i]'),function(tr){
-      var i=parseInt(tr.getAttribute('data-i'),10);
-      if(isNaN(i)||!LCCS.ds[i]) return;
-      var c=tr.querySelector('.lccsChk'), m=tr.querySelector('input[list]');
-      out.push({ten:LCCS.ds[i].ten, dung:!!(c&&c.checked), ma:(m?m.value:'').trim()});
-    });
-    return out;
-  }
-  function lccsLuu(){
-    if(!LCCS){ toast('warn','Chọn cơ sở trước'); return; }
-    // 🔴 Đang LỌC thì chỉ những dòng ĐANG THẤY được đọc ra — gửi đi là mọi loại bị lọc khỏi
-    //    màn hình biến mất khỏi danh sách và bị coi như "không tích". Chặn ngay.
-    if(el('lccsTim').value.trim()){ toast('warn','Xoá ô lọc trước khi lưu — đang lọc thì không thấy hết dòng'); return; }
-    var ds=lccsDoc();
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      var t=[]; if(r.them)t.push('thêm '+r.them); if(r.doi)t.push('đổi mã '+r.doi); if(r.bo)t.push('bỏ '+r.bo);
-      toast('ok','Đã lưu cho '+LCCS.coso+(t.length?(' — '+t.join(' · ')):' — không có gì đổi'));
-      _log('Loại chi phí theo cơ sở', LCCS.coso, t.join(' · '));
-      if(r.thieuMa&&r.thieuMa.length) toast('warn','Chưa có mã TK, chưa áp được: '+r.thieuMa.join(', '));
-      if(r.khongBo&&r.khongBo.length){
-        alert('Mấy loại này ăn theo MẢNG '+(r.mang||'')+' nên không bỏ riêng cho một gian được:\n\n'
-          +r.khongBo.join('\n')+'\n\nMuốn bỏ thì bỏ ở mảng (thẻ Khai mã chi phí), nhưng bỏ là bỏ cho MỌI gian cùng mảng.');
-      }
-      lccsTai(); boot();
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datLoaiChoCoSo(LCCS.coso, ds);
-  }
-  /** Chép nguyên bộ loại chi phí của một gian khác sang gian đang chọn (chỉ điền lên màn hình,
-      chưa ghi — người ta còn nhìn lại rồi mới bấm Lưu). */
-  function lccsChep(){
-    if(!LCCS){ toast('warn','Chọn cơ sở trước'); return; }
-    var ds=(CFG.coso||[]).map(function(x){return x.ten;}).filter(function(t){return t!==LCCS.coso;});
-    var ng=prompt('Chép bộ loại chi phí TỪ gian nào sang "'+LCCS.coso+'"?\n\n'
-      +'(Chỉ điền lên màn hình — xem lại rồi bấm 💾 Lưu mới ghi.)\n\n'+ds.join('\n'), ds[0]||'');
-    if(ng===null) return;
-    ng=String(ng).trim(); if(!ng) return;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||r.error){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      var m={}; r.ds.forEach(function(x){ if(x.nguon) m[x.ten.toLowerCase()]=x.ma; });
-      LCCS.ds.forEach(function(x){
-        var k=x.ten.toLowerCase();
-        if(m.hasOwnProperty(k)){ x.nguon=x.nguon||'coso'; if(m[k]) x.ma=m[k]; }
-      });
-      el('lccsTim').value='';
-      lccsVe();
-      toast('ok','Đã điền theo gian '+ng+' — xem lại rồi bấm Lưu');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).loaiCuaCoSo(ng);
-  }
+  /* 🏷 "Loại chi phí theo cơ sở" đã BỎ — anh Thắng 10/09/2026: *"loại bỏ không cần thiết, bị
+     trùng"*. Nó làm đúng việc mà thẻ 🆕 Khai mã chi phí đã làm: khai mã riêng cho từng gian
+     (thẻ ấy tích lẻ từng cơ sở rồi gửi trong `cosos`). Ba màn cùng một việc là ba nơi có thể
+     khai lệch nhau, và người dùng phải đoán xem nên vào màn nào.
+     ⚠️ CHỈ BỎ MÀN, KHÔNG BỎ DỮ LIỆU. Hai lời gọi `loaiCuaCoSo` / `datLoaiChoCoSo` vẫn còn ở
+        máy chủ, và mã đã khai riêng cho từng gian vẫn nguyên — sửa được ở thẻ 🆕. */
 
   function khaiChiPhi(){
     var ch=kcChon();
@@ -7716,7 +7505,6 @@
     renderKhaiLac();
     var adm=coCauHinh();
     if(el('userCard')) el('userCard').style.display=adm?'':'none';
-    if(el('ssoCard'))  el('ssoCard').style.display=adm?'':'none';
     if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';
     if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }
     // Sửa ngày hàng loạt là đụng thẳng kỳ hạch toán -> CHỈ Admin (máy chủ chặn lần nữa).
@@ -7764,7 +7552,15 @@
           +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
           +'<td style="text-align:center">🔒</td></tr>';
       }
-      return '<tr'+(_dvLech(u)?' style="background:#fff7ed"':'')+'><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+_dvCanhBao(u)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
+      /* 🔴 TÊN VÀ PIN KHOÁ LẠI — anh Thắng 10/09/2026: *"Chỗ tên người dùng được lấy từ hệ
+         thống nhân sự, nên bên trang chi phí không cho sửa tên, sửa dễ sai hệ thống.. Cả mã
+         pin cũng vậy"*. Tên là KHOÁ nối sang bên chấm công: mọi đơn đã lập mang tên người lập,
+         nên gõ lệch một chữ ở đây là người ấy mất sạch đơn cũ của mình mà chẳng có câu lỗi nào.
+         PIN cũng thế — đổi ở đây thì bên nhân sự vẫn PIN cũ, hai bên lệch và không ai biết
+         phải tin bên nào.
+         ⚠️ Đây là khoá Ở MÀN cho khỏi lỡ tay, không phải chốt máy chủ: giá trị vẫn được gửi
+            lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
+      return '<tr'+(_dvLech(u)?' style="background:#fff7ed"':'')+'><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td><td><input value="'+esc(u.pin||'')+'" readonly title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" inputmode="numeric" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+_dvCanhBao(u)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
   function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
