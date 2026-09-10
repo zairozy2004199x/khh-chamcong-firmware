@@ -245,6 +245,54 @@ class VHG_Ma {
 		return $ra;
 	}
 
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * CẤU HÌNH KHUYẾN MÃI THEO PHẠM VI — CHO APP (bộ phận khác tự setup, không cần vào WP-Admin).
+	 * km_cauhinh() dựng dữ liệu cho màn; luu_km_cauhinh($d) nhận lại và ghi option. Cùng option
+	 * với bảng WP-Admin (vhg_km_coso / vhg_km_ma) nên hai nơi sửa là một. */
+	public static function km_cauhinh() {
+		$coso = array();
+		foreach ( (array) VHG_May::ds_coso() as $c ) {
+			$coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
+				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ) );
+		}
+		$goi = array();
+		foreach ( (array) VHG_May::menh_gia() as $g ) {
+			$goi[] = array( 'tien' => (int) $g['tien'], 'ten' => (string) $g['ten'] );
+		}
+		return array( 'ok' => true, 'coso' => $coso, 'goi' => $goi,
+			'giam_chung' => self::bang_giam(), 'km_coso' => self::km_coso(), 'km_ma' => self::km_ma() );
+	}
+
+	public static function luu_km_cauhinh( $d ) {
+		$kc = array();
+		if ( isset( $d['coso'] ) && is_array( $d['coso'] ) ) {
+			foreach ( $d['coso'] as $cid => $hang ) {
+				$cid = (int) $cid;
+				if ( $cid <= 0 || ! is_array( $hang ) ) { continue; }
+				foreach ( $hang as $mg => $pt ) {
+					$mg = (int) $mg; $pt = trim( (string) $pt );
+					if ( $mg > 0 && '' !== $pt ) { $kc[ $cid ][ $mg ] = max( 0, min( 70, (int) $pt ) ); }
+				}
+			}
+		}
+		update_option( 'vhg_km_coso', $kc );
+		$km = array();
+		if ( isset( $d['ma'] ) && is_array( $d['ma'] ) ) {
+			foreach ( $d['ma'] as $row ) {
+				if ( ! is_array( $row ) ) { continue; }
+				$ma = trim( (string) ( isset( $row['ma'] ) ? $row['ma'] : '' ) );
+				if ( '' === $ma ) { continue; }
+				$pt = ( isset( $row['pt'] ) && is_array( $row['pt'] ) ) ? $row['pt'] : array();
+				foreach ( $pt as $mg => $p ) {
+					$mg = (int) $mg; $p = trim( (string) $p );
+					if ( $mg > 0 && '' !== $p ) { $km[ $ma ][ $mg ] = max( 0, min( 70, (int) $p ) ); }
+				}
+			}
+		}
+		update_option( 'vhg_km_ma', $km );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu khuyến mãi theo cơ sở / mã.' );
+	}
+
 	// ===================================================================== cỡ mã QR trên màn ghế
 
 	/**

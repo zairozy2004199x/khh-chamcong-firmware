@@ -940,6 +940,18 @@ class VHG_Trang {
 			return;
 		}
 
+		/* Cấu hình khuyến mãi theo phạm vi — cho bộ phận khác tự setup ngay trong app (tab Mã giảm
+		   giá vốn đã QT). Gate theo quyền quản trị, không phải Admin-only như ch_. */
+		if ( 'km_xem' === $viec || 'km_luu' === $viec ) {
+			$q = VHG_Auth::quyen_cua( $ai['role'] );
+			if ( empty( $q['quan_tri'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Chỉ quản trị mới chỉnh được khuyến mãi.' ) );
+				return;
+			}
+			self::tra( 'km_xem' === $viec ? VHG_Ma::km_cauhinh() : VHG_Ma::luu_km_cauhinh( $d ) );
+			return;
+		}
+
 		if ( 'quy_toi' === $viec ) {
 			self::tra( array( 'ok' => true, 'cam' => VHG_Quy::dang_cam( (string) $ai['name'] ) ) );
 			return;
@@ -7464,6 +7476,94 @@ function tmRender(){
  * ============================================================================================ */
 var MA_TRA = null;   // kết quả tra theo số điện thoại (null = chưa tra)
 
+/* ═══════════════ CẤU HÌNH KHUYẾN MÃI THEO CƠ SỞ / MÃ (trong app) ═══════════════
+   Bộ phận khác tự setup không cần WordPress. Tải khi mở khối; số chuẩn hoá lại ở máy chủ nên
+   sau khi lưu, mở lại sẽ thấy đúng những gì đã ghi. Ô trống = kế thừa; có số (kể cả 0) = ghi đè. */
+var KM_CFG = null, KM_MA_ROWS = 0;
+function kmCfgTai(){
+  var box = document.getElementById('km-cfg'); if (!box) return;
+  if (KM_CFG) return;   // đã tải, giữ nguyên các ô đang gõ
+  box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
+  goi('km_xem', {}, function(r){
+    if (!r || !r.ok) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
+    KM_CFG = r; kmCfgVe();
+  });
+}
+function kmCfgVe(){
+  var box = document.getElementById('km-cfg'); if (!box || !KM_CFG) return;
+  var goiL = KM_CFG.goi || [], coso = KM_CFG.coso || [], kc = KM_CFG.km_coso || {}, gc = KM_CFG.giam_chung || {};
+  var h = '<div class="mut" style="margin-bottom:6px">' + L('Mức chung','General') + ': '
+    + (goiL.length ? goiL.map(function(g){ return tien(g.tien) + ' → ' + (gc[g.tien] || 0) + '%'; }).join(' · ')
+                   : L('chưa có gói','no packages')) + '</div>';
+  h += '<input id="km-tim" type="search" oninput="kmCfgLoc()" placeholder="🔎 ' + L('Tìm cơ sở…','Find site…')
+     + '" style="width:100%;max-width:300px;margin-bottom:6px">';
+  h += '<div style="overflow:auto"><table id="km-coso-bang"><thead><tr><th>' + L('Cơ sở','Site') + '</th>';
+  goiL.forEach(function(g){ h += '<th class="r">' + tien(g.tien) + '</th>'; });
+  h += '</tr></thead><tbody>';
+  coso.forEach(function(c){
+    h += '<tr data-kmrow="' + esc(kdJS(c.ten + ' ' + (c.tinh || ''))) + '"><td><b>' + esc(c.ten) + '</b></td>';
+    goiL.forEach(function(g){
+      var v = (kc[c.id] && kc[c.id][g.tien] != null) ? kc[c.id][g.tien] : '';
+      h += '<td class="r"><input type="number" min="0" max="70" data-kmc="' + c.id + ':' + g.tien
+        + '" value="' + esc(String(v)) + '" placeholder="—" style="width:56px"></td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<h3 style="margin:12px 0 4px">' + L('Ngoại lệ theo mã ghế','Per-chair exceptions') + '</h3>'
+    + '<p class="mut" style="margin:0 0 4px">' + L('Chỉ khai ghế cần khác cơ sở của nó. Xoá hết % = bỏ ngoại lệ.','Only chairs that differ from their site.') + '</p>';
+  h += '<div style="overflow:auto"><table id="km-ma-bang"><thead><tr><th>' + L('Mã ghế','Code') + '</th>';
+  goiL.forEach(function(g){ h += '<th class="r">' + tien(g.tien) + '</th>'; });
+  h += '</tr></thead><tbody id="km-ma-body"></tbody></table></div>'
+    + '<button onclick="kmCfgThemMa()" class="ghost" style="margin-top:6px">＋ ' + L('Thêm mã','Add code') + '</button>';
+  h += '<div class="act" style="margin-top:10px"><button onclick="kmCfgLuu()" class="on">💾 ' + L('Lưu','Save')
+    + '</button><span id="km-cfg-msg" class="mut" style="align-self:center"></span></div>';
+  box.innerHTML = h;
+  KM_MA_ROWS = 0;
+  var km = KM_CFG.km_ma || {};
+  Object.keys(km).forEach(function(ma){ kmCfgThemMa(ma, km[ma]); });
+  kmCfgThemMa(); kmCfgThemMa();
+}
+function kmCfgThemMa(ma, pt){
+  var body = document.getElementById('km-ma-body'); if (!body || !KM_CFG) return;
+  var goiL = KM_CFG.goi || [], r = KM_MA_ROWS++;
+  var tr = document.createElement('tr');
+  var h = '<td><input type="text" data-kmm-ten="' + r + '" value="' + esc(ma || '') + '" placeholder="AMTP01" style="width:120px"></td>';
+  goiL.forEach(function(g){
+    var v = (pt && pt[g.tien] != null) ? pt[g.tien] : '';
+    h += '<td class="r"><input type="number" min="0" max="70" data-kmm-pt="' + r + ':' + g.tien
+      + '" value="' + esc(String(v)) + '" placeholder="—" style="width:56px"></td>';
+  });
+  tr.innerHTML = h; body.appendChild(tr);
+}
+function kmCfgLoc(){
+  var q = kdJS((document.getElementById('km-tim') || {}).value || '');
+  [].forEach.call(document.querySelectorAll('#km-coso-bang tbody tr'), function(tr){
+    tr.style.display = (!q || (tr.getAttribute('data-kmrow') || '').indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+function kmCfgLuu(){
+  var coso = {};
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmc]'), function(el){
+    var v = (el.value || '').trim(); if (v === '') return;
+    var p = el.getAttribute('data-kmc').split(':'); (coso[p[0]] = coso[p[0]] || {})[p[1]] = v;
+  });
+  var rows = {};
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmm-ten]'), function(el){
+    rows[el.getAttribute('data-kmm-ten')] = { ma: (el.value || '').trim(), pt: {} };
+  });
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmm-pt]'), function(el){
+    var v = (el.value || '').trim(); if (v === '') return;
+    var p = el.getAttribute('data-kmm-pt').split(':'); if (rows[p[0]]) rows[p[0]].pt[p[1]] = v;
+  });
+  var ma = Object.keys(rows).map(function(k){ return rows[k]; }).filter(function(x){ return x.ma; });
+  var msg = document.getElementById('km-cfg-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
+  goi('km_luu', { coso: coso, ma: ma }, function(r){
+    if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
+    if (r && r.ok) { KM_CFG = null; }   // buộc tải lại lần mở sau để thấy số đã chuẩn hoá
+  });
+}
+
 function veMa(){
   var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
   var h = '<div class="kpis">'
@@ -7475,6 +7575,17 @@ function veMa(){
     + kpi(L('ĐANG NỢ KHÁCH','OWED TO CUSTOMERS'), tien(M.no.tong),
         M.no.so_ma + ' ' + L('mã chưa dùng','unused codes'), 'd')
     + '</div>';
+
+  /* Cấu hình khuyến mãi theo cơ sở / mã — NGAY TRONG APP để bộ phận khác tự setup, không cần
+     vào WordPress. Gấp lại (<details>), chỉ tải khi mở (ontoggle) — 74 cơ sở không nên tải mỗi
+     lần vào tab. */
+  h += '<details class="card" ontoggle="if(this.open)kmCfgTai()">'
+    + '<summary style="cursor:pointer;font-weight:700;font-size:16px">🎯 '
+    + L('Cấu hình khuyến mãi theo cơ sở / mã','Promo by site / code') + '</summary>'
+    + '<p class="mut" style="margin:.4em 0 0">'
+    + L('% giảm riêng cho từng cơ sở hoặc từng mã ghế — chỉnh ngay tại đây, không cần vào WordPress. Ô trống = theo mức chung. Cụ thể nhất thắng: mã → cơ sở → chung.',
+        'Per-site or per-chair discount %. Blank = general rate. Most specific wins: code → site → general.')
+    + '</p><div id="km-cfg" style="margin-top:8px"></div></details>';
 
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * VÍ KHÁCH — đứng ngay dưới ô mã, không tách tab.
