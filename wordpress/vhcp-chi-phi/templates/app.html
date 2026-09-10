@@ -2323,12 +2323,24 @@
     if(BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0) return true;
     return canDo('kyTuDo');   // hoặc tích riêng cho vai đó ở bảng Phân quyền
   }
-  /* Người này vào được tab Dự án không — dùng để quyết định có HỎI loại đơn hay không.
-     ⚠️ HỎI ĐÚNG THEO QUYỀN THẬT. Bày nút "Dự án" cho người không vào được tab ấy là họ bấm rồi
-        ăn trang trắng — cùng lý do thanh "LOẠI ĐƠN" đã ẩn theo `vis.duan`. */
+  /* Người này vào được tab Dự án không — một trong hai vế của `_hoiLoaiDon()` dưới kia.
+     ⚠️ ĐỌC CHÍNH CÁI NÚT đã ẩn theo quyền, không suy lại luật. Suy lại là hai nơi cùng giữ một
+        luật phân quyền — mà luật ấy còn cộng thêm từ bảng Phân quyền chỉnh sửa được. */
   function _vaoDuocDuAn(){
     var b=document.querySelector('[data-dcsw="duan"]');
     return !!(b && b.style.display!=='none');
+  }
+  /* Có HỎI loại đơn khi bấm "＋ Tạo đơn mới" không.
+     Hai điều kiện, và phải đủ CẢ HAI:
+       · thuộc bộ phận có hai loại đơn để chọn (`BP_HOI_LOAI_DON`) — anh Thắng chốt là Kỹ thuật;
+       · và vẫn vào được tab Dự án thật.
+     🔴 VẾ THỨ HAI KHÔNG BỎ ĐƯỢC. Bộ phận đúng mà quyền bị gỡ ở bảng Phân quyền thì bày nút
+        "Dự án" ra là họ bấm rồi ăn trang trắng — cùng lý do thanh "LOẠI ĐƠN" đã ẩn theo
+        `vis.duan`. Hỏng theo hướng bày thêm cửa cho người không có quyền là hướng nguy. */
+  function _hoiLoaiDon(){
+    if(!CURUSER) return false;
+    if(BP_HOI_LOAI_DON.indexOf(String(CURUSER.boPhan||'').trim())<0) return false;
+    return _vaoDuocDuAn();
   }
   /* Chọn loại đơn ở bước đầu. 'duan' -> đóng hộp này, chuyển sang tab Dự án để đặt TÊN đợt thi
      công (đơn dự án cần tên, đơn tuần thì không) — không tự tạo bừa một dự án không tên. */
@@ -2349,8 +2361,8 @@
     // Nhân viên cơ sở KHÔNG thấy dòng này — không phải chỉ "không chọn sẵn", mà là không có.
     // Để đó rồi trông chờ người ta đừng bấm là sớm muộn có người bấm.
     var tudo=_kyTuDo();
-    /* Hỏi loại đơn chỉ khi người ấy vào được CẢ HAI. Một loại thì hỏi làm gì. */
-    var hoi=_vaoDuocDuAn();
+    /* Hỏi loại đơn chỉ với bộ phận thật sự có hai loại để chọn. Một loại thì hỏi làm gì. */
+    var hoi=_hoiLoaiDon();
     el('ndLoaiBox').style.display=hoi?'':'none';
     el('ndCoSoBox').style.display=hoi?'none':'';
     if(el('ndBtnTao')) el('ndBtnTao').style.display=hoi?'none':'';
@@ -6657,6 +6669,12 @@
   var BP_KY_TU_DO=['Văn phòng'];
   // Bộ phận vào được tab "Dự án · gian thi công".
   var BP_VAO_DUAN=['Văn phòng','Kỹ thuật'];
+  /* Bộ phận ĐƯỢC HỎI loại đơn lúc tạo. Anh Thắng 10/09/2026: "chỉ áp dụng cho kỹ thuật mới
+     hỏi loại đơn gì" — chỉ Kỹ thuật mới thật sự có hai loại đơn để chọn giữa (đơn dự án
+     theo thời gian, và đơn chi phí cơ sở chung theo tuần). Người ngoài bộ phận ấy chỉ lên
+     một loại, hỏi là bắt họ bấm thêm một cú cho không việc gì.
+     ⚠️ HẸP HƠN `BP_VAO_DUAN`, cố ý: Văn phòng vào được tab Dự án nhưng không bị hỏi. */
+  var BP_HOI_LOAI_DON=['Kỹ thuật'];
   /* Nhãn hiển thị của bộ phận. GIÁ TRỊ LƯU GIỮ NGUYÊN ('Cơ sở', 'Văn phòng') — đổi giá trị là
      mọi dòng người dùng đang khai trỏ vào một bộ phận không còn tồn tại. Chỉ đổi CHỮ HIỆN RA
      cho khớp cách anh Thắng gọi: "Nhân viên thì chia thành 2 bộ phận — Nhân viên văn phòng,

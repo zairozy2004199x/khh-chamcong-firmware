@@ -9,9 +9,17 @@
  *    tab khác mới tạo được. Người mới vào không đoán ra, và lập nhầm loại thì phải xoá đi làm
  *    lại từ đầu — đơn đã lỡ nhập mấy dòng thì mất cả mấy dòng ấy.
  *
- * 🔴 CHỈ HỎI KHI NGƯỜI ẤY VÀO ĐƯỢC CẢ HAI. Bày nút "Dự án" cho người không có quyền vào tab
- *    đó là họ bấm rồi ăn trang trắng — cùng lý do thanh "LOẠI ĐƠN" đã ẩn theo quyền. Và hỏi
- *    một câu chỉ có một đáp án là thêm một cú bấm vô nghĩa cho mọi nhân viên cơ sở.
+ * 🔴 CHỈ BỘ PHẬN KỸ THUẬT MỚI ĐƯỢC HỎI. Anh Thắng 10/09/2026: *"chỉ áp dụng cho kỹ thuật mới
+ *    hỏi loại đơn gì"*. Người ngoài bộ phận ấy chỉ lên một loại đơn — hỏi một câu chỉ có một
+ *    đáp án là thêm một cú bấm vô nghĩa cho mọi nhân viên cơ sở.
+ *
+ * 🔴 VÀ VẪN PHẢI VÀO ĐƯỢC TAB DỰ ÁN. Đúng bộ phận mà quyền bị gỡ ở bảng Phân quyền thì bày nút
+ *    "Dự án" ra là họ bấm rồi ăn trang trắng — cùng lý do thanh "LOẠI ĐƠN" đã ẩn theo quyền.
+ *    Hai vế, và bỏ vế nào cũng hỏng: bỏ vế bộ phận thì Văn phòng bị hỏi oan; bỏ vế quyền thì
+ *    mở thêm một cửa cho người không có quyền — hướng nguy hơn.
+ *
+ * ⚠️ MỤC 2 CHẠY THẬT `_hoiLoaiDon()` bốc từ mã nguồn, không dò chuỗi. Dò chuỗi thì gỡ hẳn một
+ *    vế đi bài kiểm vẫn xanh, miễn là câu chữ còn nguyên ở đâu đó trong tệp.
  *
  * Chạy: node tools/test/kiem-chon-loai-don.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -39,7 +47,7 @@ const boc = ten => {
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
 };
 const nd = boc('newDon');
-t('🔴 hỏi hay không tra theo QUYỀN vào tab Dự án', nd.indexOf('var hoi=_vaoDuocDuAn();') >= 0, nd);
+t('🔴 hỏi hay không tra qua _hoiLoaiDon()', nd.indexOf('var hoi=_hoiLoaiDon();') >= 0, nd);
 t('   không hỏi thì mở thẳng phần đơn cơ sở như cũ',
   nd.indexOf("el('ndCoSoBox').style.display=hoi?'none':'';") >= 0, nd);
 t('🔴 ở bước hỏi thì ẨN nút "Tạo đơn" (bấm lúc chưa chọn loại là tạo nhầm)',
@@ -52,6 +60,45 @@ const vd = boc('_vaoDuocDuAn');
    một luật phân quyền — mà luật ấy còn cộng thêm từ bảng Phân quyền chỉnh sửa. */
 t('🔴 tra theo chính nút LOẠI ĐƠN đã ẩn theo quyền, không đoán lại luật',
   vd.indexOf("querySelector('[data-dcsw=\"duan\"]')") >= 0 && vd.indexOf('BP_VAO_DUAN') < 0, vd);
+
+/* ── 2b. CHẠY THẬT `_hoiLoaiDon()` ─────────────────────────────────────────────────────── */
+const hangBp = /var BP_HOI_LOAI_DON=(\[[^\]]*\]);/.exec(HTML);
+t('🔴 có hằng BP_HOI_LOAI_DON (bộ phận nào được hỏi)', !!hangBp);
+const BP_HOI = hangBp ? JSON.parse(hangBp[1].replace(/'/g, '"')) : [];
+t("🔴 và đúng là Kỹ thuật — chỉ mình nó", JSON.stringify(BP_HOI) === '["Kỹ thuật"]', BP_HOI);
+
+/* Bệ đỡ: CURUSER + cái nút tab Dự án. `_hoiLoaiDon()` gọi `_vaoDuocDuAn()`, nên bốc CẢ HAI ra
+   chạy — thay `_vaoDuocDuAn()` bằng bản giả là bỏ mất đúng vế quan trọng nhất. */
+let NUT = null;   // null = không có nút (không được vào tab Dự án)
+const moiTruong = {
+  BP_HOI_LOAI_DON: BP_HOI,
+  document: { querySelector: () => NUT },
+  CURUSER: null,
+};
+const chay = new Function('moiTruong', `
+  with (moiTruong) {
+    ${boc('_vaoDuocDuAn')}
+    ${boc('_hoiLoaiDon')}
+    return _hoiLoaiDon();
+  }`);
+const hoi = (boPhan, nut) => {
+  moiTruong.CURUSER = boPhan === null ? null : { boPhan: boPhan };
+  NUT = nut;
+  return chay(moiTruong);
+};
+const NUT_HIEN = { style: { display: '' } }, NUT_AN = { style: { display: 'none' } };
+
+t('🔴 Kỹ thuật + vào được tab Dự án → CÓ hỏi', hoi('Kỹ thuật', NUT_HIEN) === true);
+t('🔴 Cơ sở → KHÔNG hỏi (chỉ có một loại đơn)', hoi('Cơ sở', NUT_HIEN) === false);
+t('🔴 Văn phòng vào được tab Dự án nhưng vẫn KHÔNG hỏi',
+  hoi('Văn phòng', NUT_HIEN) === false);
+t('🔴 Kỹ thuật mà quyền vào tab Dự án bị gỡ → KHÔNG hỏi (bấm là ăn trang trắng)',
+  hoi('Kỹ thuật', NUT_AN) === false);
+t('   không có cả nút ấy → cũng KHÔNG hỏi', hoi('Kỹ thuật', null) === false);
+t('chưa đăng nhập → KHÔNG hỏi, và không nổ', hoi(null, NUT_HIEN) === false);
+t('bộ phận để trống → KHÔNG hỏi (rỗng không phải là Kỹ thuật)',
+  hoi('', NUT_HIEN) === false && hoi(undefined, NUT_HIEN) === false);
+t('   thừa khoảng trắng vẫn nhận đúng', hoi('  Kỹ thuật  ', NUT_HIEN) === true);
 
 /* ── 3. CHỌN "DỰ ÁN" ĐI ĐÚNG ĐƯỜNG ─────────────────────────────────────────────────────── */
 const cl = boc('ndChonLoai');
@@ -75,4 +122,4 @@ if (TRUOT.length) {
   TRUOT.forEach(x => console.log('  · ' + x));
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: hỏi loại đơn trước, và chỉ hỏi khi có hai loại để chọn.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: hỏi loại đơn trước, và chỉ hỏi bộ phận Kỹ thuật.');
