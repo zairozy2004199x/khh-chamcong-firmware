@@ -7708,6 +7708,33 @@ function veKichHoat(){
  * TAB QUẢN LÝ GHẾ — địa điểm (thêm/sửa/xoá), ghế (thêm/xoá/chuyển cơ sở), doanh thu theo địa điểm.
  * Dữ liệu lấy sẵn từ so_lieu: D.coso (danh sách), D.may (ghế), D.tong.theo_coso (doanh thu/kỳ).
  * ========================================================================================== */
+/* Dò mã ghế trùng / lồng nhau — anh Thắng 10/09/2026: "check mã xem có máy nào trùng mã không".
+   Khớp giao dịch dùng TOKEN nguyên văn (GHE <mã> <mãlệnh>) + bảng may có UNIQUE KEY ma, nên
+   trùng tuyệt đối gần như không xảy ra — nhưng dữ liệu cũ (trước khi có UNIQUE) có thể lọt, nên
+   vẫn quét cho chắc. "Lồng" = mã này là ĐẦU (tiền tố) của mã kia (8013 ⊂ 80133): token bảo vệ
+   khỏi tự nuốt, nhưng khách gõ thiếu đuôi thì dễ nhầm — cảnh báo nhẹ. Bỏ dòng chờ gán '?<mac>'. */
+function maTrungTim(may){
+  var theoMa = {};
+  (may || []).forEach(function(m){
+    var raw = (m.ma || '').trim();
+    if (!raw || raw.charAt(0) === '?') return;
+    var k = raw.toUpperCase();
+    (theoMa[k] = theoMa[k] || []).push({ ma: raw, coso: m.coso || '', an: !!m.an });
+  });
+  var trung = [];
+  Object.keys(theoMa).forEach(function(k){ if (theoMa[k].length > 1) trung.push({ ma: k, ds: theoMa[k] }); });
+  var keys = Object.keys(theoMa), longg = [];
+  for (var i = 0; i < keys.length; i++) {
+    for (var j = 0; j < keys.length; j++) {
+      if (i === j) continue;
+      if (keys[j].length > keys[i].length && keys[j].indexOf(keys[i]) === 0) {
+        longg.push({ con: keys[i], cha: keys[j] });
+      }
+    }
+  }
+  return { trung: trung, long: longg };
+}
+
 function veQuanLy(){
   var coso = D.coso || [], may = D.may || [];
   var tc = (D.tong && D.tong.theo_coso) || [];
@@ -7725,6 +7752,32 @@ function veQuanLy(){
     + kpi(L('Doanh thu kỳ','Revenue'), tien(D.tong ? D.tong.tong : 0),
         L('kỳ đang xem','selected period'), 'd')
     + '</div>';
+
+  /* ---- Cảnh báo mã trùng / lồng nhau ---- */
+  var _mt = maTrungTim(may);
+  if (_mt.trung.length || _mt.long.length) {
+    h += '<div class="card" style="border:1px solid #f0c0c0;background:#fff5f5">'
+       + '<h2 style="color:#dc2626;margin-top:0">⚠ ' + L('Cảnh báo mã ghế','Chair-code warnings') + '</h2>';
+    if (_mt.trung.length) {
+      h += '<p style="color:#dc2626;font-weight:700;margin:.2em 0">'
+         + L('Trùng mã (nghiêm trọng) — tiền có thể chạy nhầm ghế:','Duplicate codes (critical) — money may go to the wrong chair:')
+         + '</p><ul style="margin:.2em 0 .6em 1.1em">';
+      _mt.trung.forEach(function(t){
+        h += '<li><code>' + esc(t.ma) + '</code> — ' + t.ds.map(function(x){
+          return esc(x.coso || L('(chưa gán)','(unassigned)')) + (x.an ? ' ' + L('(đã ẩn)','(hidden)') : '');
+        }).join(' · ') + '</li>';
+      });
+      h += '</ul>';
+    }
+    if (_mt.long.length) {
+      h += '<p style="color:#b45309;font-weight:600;margin:.2em 0">'
+         + L('Mã lồng nhau (dễ gõ nhầm) — nên đổi để không mã nào là đầu của mã khác:','Nested codes (easy to mistype) — no code should be the start of another:')
+         + '</p><ul style="margin:.2em 0 .4em 1.1em">';
+      _mt.long.forEach(function(p){ h += '<li><code>' + esc(p.con) + '</code> ⊂ <code>' + esc(p.cha) + '</code></li>'; });
+      h += '</ul>';
+    }
+    h += '</div>';
+  }
 
   /* ---- Địa điểm ---- */
   /* Gợi ý Tỉnh/TP = chính những tỉnh đã nhập ở các địa điểm có sẵn (anh Thắng 10/09/2026:
