@@ -34,10 +34,10 @@ $AUTH = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-a
 $DON  = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' );
 $HTML = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/templates/app.html' );
 
-function boc( $src, $neo ) {
+function boc( $src, $neo, $dong = "\n\t}" ) {
 	$a = strpos( $src, $neo );
 	if ( false === $a ) { echo "\n✗ Không bốc được: $neo\n"; exit( 1 ); }
-	return substr( $src, $a, strpos( $src, "\n\t}", $a ) - $a + 3 );
+	return substr( $src, $a, strpos( $src, $dong, $a ) - $a + strlen( $dong ) );
 }
 
 /* Bệ đỡ: danh sách bộ phận thật + bảng loại chi phí giả. `bo_phan_chuan()` bốc từ mã nguồn
@@ -124,12 +124,21 @@ t( '   đếm "loại chưa khai bộ phận" cũng vậy',
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 t( '🔴 ô Bộ phận của bảng loại chi phí cho chọn NHIỀU',
 	false !== strpos( $HTML, "+'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'" ), '' );
-t( '   và là <select multiple> (chỗ đọc bảng đã biết gom nhiều lựa chọn)',
-	false !== strpos( $HTML, "return '<select multiple size=\"3\"" ), '' );
-t( '🔴 chỗ đọc bảng nối các lựa chọn bằng dấu phẩy — đúng dạng máy chủ tách ra',
-	false !== strpos( $HTML, "if(f.tagName==='SELECT'&&f.multiple){ return Array.prototype.map.call(f.selectedOptions,function(o){return o.value;}).join(', '); }" ), '' );
-t( '   nói rõ không chọn gì = mọi bộ phận',
-	false !== mb_strpos( $HTML, 'Không chọn gì = mọi bộ phận' ), '' );
+/* Anh Thắng 10/09/2026: *"chuyển sang dạng tích cho dễ bấm"*. Danh sách nhiều lựa chọn của
+   trình duyệt đòi giữ Ctrl mới chọn thêm được; bấm thường là BỎ hết những cái đang chọn — nên
+   người không biết mẹo ấy vô tình xoá sạch bộ phận của một loại mà không hay, và ô rỗng nghĩa
+   là "không bó gì", tức nới quyền. */
+/* Canh trong THÂN `_bpSelNhieu()`, không quét cả tệp: chỗ khác (ô Cơ sở, ô Xem đơn vị) vẫn
+   giữ khuôn riêng của nó với `<select multiple>` ẩn, nên quét cả tệp là bắt nhầm người khác. */
+$than_bp = boc( $HTML, 'function _bpSelNhieu(', "\n  }" );
+t( '🔴 và là HỘP TÍCH, không phải danh sách phải giữ Ctrl',
+	false !== strpos( $than_bp, '<input type="checkbox" value=' )
+	&& false === strpos( $than_bp, '<select' ), $than_bp );
+t( '🔴 chỗ lưu nối các ô ĐÃ TÍCH bằng dấu phẩy — đúng dạng máy chủ tách ra',
+	false !== strpos( $HTML, "tr.querySelectorAll('[data-bp] input:checked')" )
+	&& false !== strpos( $HTML, "function(c){ return c.value; }).join(', ')" ), '' );
+t( '   nói rõ không tích gì = mọi bộ phận',
+	false !== mb_strpos( $HTML, 'không tích = mọi bộ phận' ), '' );
 t( '🔴 lọc danh mục lúc nhập cũng so theo DANH SÁCH, không so nguyên chuỗi',
 	false !== strpos( $HTML, 'if(bp && bpLoai.length && bpLoai.indexOf(bp)<0) return false;' )
 	&& false === strpos( $HTML, "var b=String(x.boPhan||'').trim();\n      if(bp && b && b!==bp) return false;" ), '' );
