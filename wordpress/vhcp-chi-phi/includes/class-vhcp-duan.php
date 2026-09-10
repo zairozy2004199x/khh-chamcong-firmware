@@ -1259,20 +1259,8 @@ class VHCP_DuAn {
 		$cu  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ), ARRAY_A );
 		if ( ! $cu ) { return VHCP_Util::err( 'Không tìm thấy dòng ' . $row ); }
 
-		/* 🔴 HẠNG MỤC ĐÃ CHỐT LÀ KHOÁ. Đổi chứng từ của một khoản kế toán đã hạch toán là đổi
-		   thứ đỡ cho con số ấy, sau lưng họ. Chốt này áp cho chính dòng, hoặc cho hạng mục lớn
-		   của nó nếu đây là mục con. */
-		$khoa_row = ( trim( (string) $cu['cap_cha'] ) === '' ) ? $row : 0;
-		if ( ! $khoa_row ) {
-			foreach ( self::lines_of( $ma_da ) as $l ) {
-				if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === trim( (string) $cu['cap_cha'] ) ) {
-					$khoa_row = (int) $l['row_no'];
-				}
-			}
-		}
-		if ( $khoa_row && self::hm_khoa( $ma_da, $khoa_row ) ) {
-			return VHCP_Util::err( 'Hạng mục đã chốt là chi thực tế — không đổi chứng từ được nữa.' );
-		}
+		$_c = self::loi_hang_muc_da_chot_( $ma_da, $row, 'đổi chứng từ' );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
 
 		$moi = $url;
 		if ( $cong_them && '' !== $url ) {
@@ -1301,6 +1289,10 @@ class VHCP_DuAn {
 		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
 		if ( $st === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
 		$row = (int) $row;
+		/* ⚠️ SỬA CHẶN NHƯ XOÁ. Anh Thắng nói *"không cho xoá dòng"*, nhưng để hở nút sửa thì gõ
+		   tiền về 0 là xoá trá hình, chỉ khác cái tên. */
+		$_c = self::loi_hang_muc_da_chot_( $ma_da, $row, 'sửa dòng' );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
 		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
 		$t   = VHCP_DB::t( 'da_line' );
 		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
@@ -1315,6 +1307,101 @@ class VHCP_DuAn {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * Dòng này có thuộc một hạng mục ĐÃ CHỐT không — trả câu lỗi, '' nghĩa là đụng được.
+	 *
+	 * 🔴 Anh Thắng: *"Chốt xong bill quyết toán thì không cho xoá dòng"*.
+	 *
+	 *    "Đã chốt" nghĩa là hạng mục đã có hoá đơn và đã khoá là CHI THỰC TẾ; con số ấy có thể
+	 *    đã nằm trong một lệnh quyết toán kế toán đã chốt sổ. Xoá một dòng con của nó là tổng
+	 *    tiền tụt xuống sau lưng kế toán, mà lệnh quyết toán vẫn ghi con số cũ — hai chỗ nói hai
+	 *    số cho cùng một khoản, và không ai biết bên nào đúng.
+	 *
+	 * ⚠️ ÁP CHO CẢ MỤC CON. Khoá mỗi hàng cha là hở hẳn đường sau: mấy dòng con mới là chỗ
+	 *    chứa tiền, xoá chúng thì cha vẫn "đã chốt" mà tổng đã khác.
+	 *
+	 * ⚠️ SỬA CŨNG CHẶN NHƯ XOÁ. Để hở nút sửa thì gõ tiền về 0 là xoá trá hình, chỉ khác cái tên.
+	 */
+	/**
+	 * NHẬT KÝ CỦA MỘT DỰ ÁN — ai chỉnh gì, lúc nào.
+	 *
+	 * Anh Thắng: *"Đầu trang bổ sung tiến trình như này và lịch sử đơn để theo dõi đơn và chỉnh
+	 * sửa"* — đúng khối đã có ở trang đơn tuần, nay dựng cho trang dự án.
+	 *
+	 * 🔴 VẾT CỦA MỘT DỰ ÁN NẰM Ở BA KIỂU KHOÁ, không phải một:
+	 *      `DA_xxx`            — việc của cả dự án (đặt dự toán, đặt kỳ…)
+	 *      `DA_xxx#12`         — việc của một dòng (đính ảnh, đổi trạng thái hạng mục)
+	 *      `DA_xxx · đợt 2`    — việc của một lệnh tạm ứng / quyết toán
+	 *    và màn còn ghi thêm vết theo TÊN dự án (`_log(...)` gửi tên, không gửi mã).
+	 *    Tra thiếu kiểu nào là nhật ký khuyết đúng loại việc ấy — mà người ta mở nhật ký ra
+	 *    chính là để tìm cái mình không nhớ.
+	 *
+	 * ⚠️ KHÔNG DÙNG `LIKE 'DA_xxx%'` TRƠN: mã này có thể là tiền tố của mã khác (`DA_ab` nằm
+	 *    trong `DA_abc`), và thế là nhật ký dự án này lẫn việc của dự án kia.
+	 */
+	public static function nhat_ky_du_an( $ma_da, $limit = 50 ) {
+		global $wpdb;
+		$ma_da = trim( (string) $ma_da );
+		if ( '' === $ma_da ) { return VHCP_Util::ok( array( 'items' => array() ) ); }
+		$limit = (int) $limit;
+		if ( $limit <= 0 || $limit > 300 ) { $limit = 50; }
+		$f   = self::find( $ma_da );
+		$ten = $f ? trim( (string) $f['ten'] ) : '';
+		$t   = VHCP_DB::t( 'log' );
+
+		/* 🔴 SO TIỀN TỐ BẰNG `SUBSTR`, KHÔNG BẰNG `LIKE`. Mã dự án có dấu gạch dưới (`DA_xxx`),
+		   mà `_` trong LIKE là ký tự đại diện — không thoát thì nhật ký dự án này lẫn việc của
+		   dự án kia. Thoát bằng `esc_like` thì lại rơi vào chỗ MySQL và SQLite cư xử KHÁC NHAU:
+		   MySQL mặc định coi `\` là ký tự thoát trong LIKE, SQLite thì không (phải khai
+		   `ESCAPE`). Mã chạy đúng trên máy thật mà sai trên bài kiểm là kiểu hỏng tệ nhất — nó
+		   dạy người ta rằng bài kiểm sai. `SUBSTR` thì hai bên hiểu như nhau. */
+		$dk  = array( 'doi_tuong = %s' ); $th = array( $ma_da );
+		$k1  = $ma_da . '#';
+		$dk[] = 'SUBSTR(doi_tuong,1,%d) = %s'; $th[] = mb_strlen( $k1 ); $th[] = $k1;
+		$k2  = $ma_da . ' · ';
+		$dk[] = 'SUBSTR(doi_tuong,1,%d) = %s'; $th[] = mb_strlen( $k2 ); $th[] = $k2;
+		if ( '' !== $ten ) { $dk[] = 'doi_tuong = %s'; $th[] = $ten; }
+		$th[] = $limit;
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM $t WHERE (" . implode( ' OR ', $dk ) . ") ORDER BY id DESC LIMIT %d",
+			$th ), ARRAY_A );
+
+		$items = array();
+		foreach ( (array) $rows as $r ) {
+			$tg = VHCP_Util::fmt_dt( $r['tg'] );
+			if ( '' !== $tg && VHCP_Util::ngay_vo_ly( substr( $tg, 0, 10 ) ) ) { $tg = ''; }
+			$items[] = array(
+				'tg'       => $tg,
+				'nguoi'    => (string) $r['nguoi'],
+				'vaiTro'   => (string) $r['vai_tro'],
+				'hanhDong' => (string) $r['hanh_dong'],
+				'chiTiet'  => (string) $r['chi_tiet'],
+			);
+		}
+		return VHCP_Util::ok( array( 'items' => $items ) );
+	}
+
+	public static function loi_hang_muc_da_chot_( $ma_da, $row, $viec = 'sửa' ) {
+		global $wpdb;
+		$t   = VHCP_DB::t( 'da_line' );
+		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, (int) $row ) );
+		if ( ! $cur ) { return ''; }   // dòng không có thật thì để lối gọi tự báo
+		$cap = trim( (string) $cur['cap_cha'] );
+		$khoa_row = ( '' === $cap ) ? (int) $row : 0;
+		if ( ! $khoa_row && '(Phát sinh)' !== $cap ) {
+			foreach ( self::lines_of( $ma_da ) as $l ) {
+				if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === $cap ) {
+					$khoa_row = (int) $l['row_no'];
+				}
+			}
+		}
+		if ( ! $khoa_row || ! self::hm_khoa( $ma_da, $khoa_row ) ) { return ''; }
+		$h = self::hm_cua( $ma_da, $khoa_row );
+		return 'Hạng mục đã chốt là chi thực tế — không ' . $viec . ' được nữa'
+			. ( $h['qtDot'] > 0 ? ( ' (đã gửi quyết toán đợt ' . $h['qtDot'] . ')' ) : '' )
+			. '. Kế toán bấm "🔓 Mở lại" thì mới đụng được.';
+	}
+
 	public static function delete_line( $ma_da, $row ) {
 		global $wpdb;
 		$f = self::find( $ma_da );
@@ -1326,6 +1413,8 @@ class VHCP_DuAn {
 		$t   = VHCP_DB::t( 'da_line' );
 		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
 		if ( ! $cur ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
+		$_c = self::loi_hang_muc_da_chot_( $ma_da, $row, 'xoá dòng' );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
 		$nm  = trim( (string) $cur['noi_dung'] );
 		$cap = trim( (string) $cur['cap_cha'] );
 		if ( $cap === '' && $nm !== '' ) { self::relink_children( $ma_da, $nm, '(Phát sinh)' ); }   // xóa hạng mục lớn -> mục con thành phát sinh

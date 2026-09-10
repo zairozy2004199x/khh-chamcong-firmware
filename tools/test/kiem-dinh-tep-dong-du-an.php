@@ -86,6 +86,7 @@ vai( 'Quản lý', 'QL' );  VHCP_DuAn::dat_tt_dot( $ma, 1, 'duyet' );
 vai( 'Kế toán cá nhân', 'KT' ); VHCP_DuAn::dat_tt_dot( $ma, 1, 'ung', array( 'unc' => 'UNC-1' ) );
 VHCP_DuAn::dat_hm( $ma, $cha['row'], 'xong', array( 'hoaDon' => 'https://hd/1' ) );
 t( 'hạng mục lớn đã chốt', VHCP_DuAn::hm_khoa( $ma, $cha['row'] ) );
+vai( 'Admin', 'KT' );
 
 $x = VHCP_DuAn::dat_anh_line( $ma, $cha['row'], 'https://kho/khac.jpg' );
 t( '🔴 hạng mục ĐÃ CHỐT → không đổi chứng từ được nữa', empty( $x['success'] ), $x );
@@ -101,6 +102,103 @@ teq( '   và hồ sơ cũ còn nguyên, không bị đụng nửa vời', 2,
 VHCP_DuAn::dat_hm( $ma, $cha['row'], 'nhap' );
 $x = VHCP_DuAn::dat_anh_line( $ma, $con['row'], 'https://kho/bill-3.jpg' );
 t( 'kế toán mở lại hạng mục thì đính được', ! empty( $x['success'] ), $x );
+
+/* ═══ 3b. 🔴 ĐÃ CHỐT THÌ KHÔNG XOÁ, KHÔNG SỬA DÒNG ════════════════════════════════════
+ * Anh Thắng: *"Chốt xong bill quyết toán thì không cho xoá dòng"*.
+ * "Đã chốt" nghĩa là hạng mục đã có hoá đơn và đã khoá là CHI THỰC TẾ; con số ấy có thể đã nằm
+ * trong một lệnh quyết toán kế toán đã chốt sổ. Xoá một dòng con là tổng tiền tụt xuống sau
+ * lưng kế toán, mà lệnh quyết toán vẫn ghi con số cũ — hai chỗ nói hai số cho cùng một khoản.
+ *
+ * ⚠️ SỬA CHẶN NHƯ XOÁ: để hở nút sửa thì gõ tiền về 0 là xoá trá hình, chỉ khác cái tên.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+VHCP_DuAn::dat_hm( $ma, $cha['row'], 'xong', array( 'hoaDon' => 'https://hd/1' ) );
+t( 'hạng mục lớn đang ở trạng thái đã chốt', VHCP_DuAn::hm_khoa( $ma, $cha['row'] ) );
+
+$x = VHCP_DuAn::delete_line( $ma, $con['row'] );
+t( '🔴 XOÁ MỤC CON của hạng mục đã chốt → CHỐI (mục con mới là chỗ chứa tiền)',
+	empty( $x['success'] ), $x );
+t( '   câu chối nói rõ phải làm gì',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'Mở lại' ), $x );
+t( '   và dòng vẫn còn nguyên', null !== dong( $ma, 'Bóng đèn' ) );
+$x = VHCP_DuAn::delete_line( $ma, $cha['row'] );
+t( '🔴 xoá chính hạng mục lớn đã chốt → CHỐI', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::update_line( $ma, $con['row'], array( 'noiDung' => 'Bóng đèn', 'thucTe' => 0 ) );
+t( '🔴 SỬA tiền về 0 → CHỐI (xoá trá hình, chỉ khác cái tên)', empty( $x['success'] ), $x );
+teq( '   tiền giữ nguyên', 2000000.0, (float) dong( $ma, 'Bóng đèn' )['thucTe'] );
+
+/* Đã gửi quyết toán thì câu chối nói luôn đợt nào — để người ta biết đi hỏi kế toán về cái gì. */
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_quyet_toan_dot( $ma, array( $cha['row'] ) );
+$x = VHCP_DuAn::delete_line( $ma, $con['row'] );
+t( '🔴 đã gửi quyết toán → câu chối nói rõ đợt nào',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'quyết toán đợt 1' ), $x );
+
+/* Mở lại thì xoá / sửa được — đó là đường chính thức. */
+vai( 'Kế toán cá nhân', 'KT' );
+VHCP_DuAn::dat_hm( $ma, $cha['row'], 'nhap' );
+$x = VHCP_DuAn::update_line( $ma, $con['row'], array( 'noiDung' => 'Bóng đèn', 'thucTe' => 2000000 ) );
+t( 'kế toán mở lại thì sửa được', ! empty( $x['success'] ), $x );
+$x = VHCP_DuAn::delete_line( $ma, $con['row'] );
+t( '   và xoá được', ! empty( $x['success'] ), $x );
+
+/* 🔴 HẠNG MỤC KHÁC KHÔNG BỊ VẠ LÂY. Khoá theo cả dự án là nhân viên đứng hình: một hạng mục
+   chốt xong thì mọi hạng mục còn lại cũng hết sửa. */
+vai( 'Admin', 'KT' );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Vật tư khác', 'thucTe' => 700000 ) );
+$khac = dong( $ma, 'Vật tư khác' );
+VHCP_DuAn::dat_hm( $ma, $cha['row'], 'xong', array( 'hoaDon' => 'https://hd/1' ) );
+$x = VHCP_DuAn::update_line( $ma, $khac['row'], array( 'noiDung' => 'Vật tư khác', 'thucTe' => 800000 ) );
+t( '🔴 hạng mục KHÁC (chưa chốt) vẫn sửa bình thường — khoá không vạ lây cả dự án',
+	! empty( $x['success'] ), $x );
+$x = VHCP_DuAn::delete_line( $ma, $khac['row'] );
+t( '   và xoá được', ! empty( $x['success'] ), $x );
+
+/* ═══ 3c. NHẬT KÝ CỦA DỰ ÁN ══════════════════════════════════════════════════════════
+ * Anh Thắng: *"Đầu trang bổ sung tiến trình như này và lịch sử đơn để theo dõi đơn và chỉnh
+ * sửa"*.
+ * 🔴 VẾT NẰM Ở BỐN KIỂU KHOÁ: `DA_x` (cả dự án) · `DA_x#12` (một dòng) · `DA_x · đợt 2` (một
+ *    lệnh) · và TÊN dự án (màn ghi bằng tên). Tra thiếu kiểu nào là nhật ký khuyết đúng loại
+ *    việc ấy — mà người ta mở nhật ký ra chính là để tìm cái mình không nhớ.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+VHCP_Log::log_action( array( 'actor' => 'NV', 'role' => 'Nhân viên',
+	'action' => 'Ghi từ màn', 'target' => 'Gian thử đính tệp', 'detail' => 'vết theo TÊN' ) );
+$lk = VHCP_DuAn::nhat_ky_du_an( $ma );
+$viec = array();
+foreach ( $lk['items'] as $i ) { $viec[] = $i['hanhDong']; }
+t( '🔴 nhật ký gom được vết của CẢ DỰ ÁN (đặt dự toán…)',
+	in_array( 'Đặt tổng dự toán dự án', $viec, true ) || count( $viec ) > 0, $viec );
+t( '🔴 gom được vết của MỘT DÒNG (`DA_x#12`)',
+	in_array( 'Đính ảnh vào dòng dự án', $viec, true ), $viec );
+t( '🔴 gom được vết của MỘT LỆNH (`DA_x · đợt 1`)',
+	in_array( 'Xin tạm ứng cho dự án', $viec, true ), $viec );
+t( '🔴 và vết màn ghi theo TÊN dự án', in_array( 'Ghi từ màn', $viec, true ), $viec );
+t( '   mỗi dòng có người, vai, thời gian',
+	isset( $lk['items'][0]['nguoi'] ) && isset( $lk['items'][0]['vaiTro'] )
+	&& isset( $lk['items'][0]['tg'] ), $lk['items'][0] );
+/* 🔴 KHÔNG LẪN VIỆC CỦA DỰ ÁN KHÁC. Mã dự án chứa dấu gạch dưới — dùng LIKE trơn thì `DA_ab`
+   khớp cả `DA_abc`, và nhật ký hai dự án trộn vào nhau. */
+$r2 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Dự án khác hẳn', 'NV' );
+VHCP_DuAn::set_du_toan_da( $r2['maDA'], 111, 'KT' );
+/* 🔴 DỰNG HẲN MỘT VẾT CÓ MÃ NÀY LÀM TIỀN TỐ. Mã sinh ngẫu nhiên nên trong bài kiểm không tự
+   nhiên có dự án nào là tiền tố của dự án kia — không dựng thì phép dưới xanh oan, và luật
+   "chỉ nhận đúng ba kiểu khoá" có bị nới thành `LIKE 'DA_x%'` cũng không ai biết. */
+VHCP_Log::log_action( array( 'actor' => 'X', 'role' => 'Admin',
+	'action' => 'Việc của MÃ KHÁC', 'target' => $ma . 'ZZZ', 'detail' => 'không được lọt vào' ) );
+$lk2 = VHCP_DuAn::nhat_ky_du_an( $ma );
+$co_la = false; $co_tien_to = false;
+foreach ( $lk2['items'] as $i ) {
+	if ( false !== mb_strpos( $i['chiTiet'], '111' ) ) { $co_la = true; }
+	if ( 'Việc của MÃ KHÁC' === $i['hanhDong'] ) { $co_tien_to = true; }
+}
+t( '🔴 nhật ký dự án này KHÔNG lẫn việc của dự án khác', ! $co_la, $lk2['items'] );
+t( '🔴 và KHÔNG nhận vết của mã chỉ TRÙNG TIỀN TỐ (DA_x vs DA_xZZZ) — tra tiền tố trơn là hai '
+	. 'dự án trộn nhật ký vào nhau', ! $co_tien_to, $lk2['items'] );
+teq( 'mã dự án không có thật → trả danh sách rỗng, không nổ', 0,
+	count( VHCP_DuAn::nhat_ky_du_an( 'DA-KHONG-CO' )['items'] ) );
+teq( 'mã rỗng → cũng rỗng', 0, count( VHCP_DuAn::nhat_ky_du_an( '' )['items'] ) );
+t( "🔴 'getDuAnLog' đã khai vào cửa API", false !== strpos(
+	file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' ),
+	"array( 'VHCP_DuAn', 'nhat_ky_du_an' )" ) );
 
 /* ═══ 4. CA LỆCH ═══════════════════════════════════════════════════════════════════════ */
 $x = VHCP_DuAn::dat_anh_line( $ma, 999, 'https://kho/x.jpg' );

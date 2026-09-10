@@ -648,6 +648,70 @@ t('   bảng nằm ngay dưới "Chờ quyết toán", không nhét cuối tab',
   HTML.indexOf('id="qtPagerCho"') < HTML.indexOf('id="qtLenhCard"')
   && HTML.indexOf('id="qtLenhCard"') < HTML.indexOf('id="qtCardXong"'));
 
+/* ── 4g. 📊 DẢI TIẾN TRÌNH + LỊCH SỬ Ở ĐẦU TRANG DỰ ÁN ────────────────────────────────
+ * Anh Thắng: *"Đầu trang bổ sung tiến trình như này và lịch sử đơn để theo dõi đơn và chỉnh
+ * sửa"*.
+ * 🔴 DỰ ÁN KHÔNG CÓ MỘT TRẠNG THÁI. Đơn tuần đi một đường thẳng nên tô sáng được một ô; dự án
+ *    thì nhiều hạng mục nằm ở nhiều bước CÙNG LÚC. Tô sáng một ô ở đây là nói dối.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veTienTrinh(r) {
+  const NK = {};
+  const moi = {
+    esc: x => String(x == null ? '' : x),
+    DA_BUOC: null,
+    el: id => (NK[id] = NK[id] || { innerHTML: '' }),
+  };
+  const src = `${(() => { const i = HTML.indexOf('var DA_BUOC='); return HTML.slice(i, HTML.indexOf('];', i) + 2); })()}
+    ${boc('_daQtDaChot')}\n${boc('renderDaTienTrinh')}
+    return renderDaTienTrinh;`;
+  new Function('moi', `with(moi){ ${src} }`)(moi)(r);
+  return NK.daTienTrinh.innerHTML;
+}
+{
+  const h = veTienTrinh({ trangThai: 'Đang làm', lenhQT: [{ dot: 1, tt: 'xong' }],
+    lines: [
+      { capCha: '', hm: { tt: 'nhap' } },
+      { capCha: '', hm: { tt: 'nhap' } },
+      { capCha: '', hm: { tt: 'xin' } },
+      { capCha: '', hm: { tt: 'ung' } },
+      { capCha: '', hm: { tt: 'xong', qtDot: 0 } },
+      { capCha: '', hm: { tt: 'xong', qtDot: 1 } },
+      { capCha: 'X', hm: { tt: 'nhap' } },   // mục con — không đếm
+    ] });
+  t('🔴 dải hiện đủ sáu bước', /Nháp/.test(h) && /Chờ duyệt/.test(h) && /Chờ cấp tiền/.test(h)
+    && /Đã cấp tiền/.test(h) && /Đã chốt \(khoá\)/.test(h) && /Đã quyết toán/.test(h), h);
+  t('🔴 mỗi bước đếm SỐ HẠNG MỤC đang ở đó', /Nháp <b>2<\/b>/.test(h), h);
+  t('🔴 CHỈ đếm hạng mục lớn — mục con đi theo cha, đếm cả con là một hạng mục hoá mấy đơn',
+    /6 hạng mục lớn/.test(h), h);
+  t('🔴 hạng mục đã chốt mà lệnh QT ĐÃ CHỐT SỔ thì đứng ở bước cuối, không đếm hai chỗ',
+    /Đã chốt \(khoá\) <b>1<\/b>/.test(h) && /Đã quyết toán <b>1<\/b>/.test(h), h);
+  t('   bước rỗng thì mờ đi, không biến mất', /opacity:\.4/.test(h), h);
+  t('🔴 có huy hiệu KHOÁ khi đã có hạng mục chốt', /KHOÁ SỬA \/ XOÁ 2 HẠNG MỤC/.test(h), h);
+  t('   và nói rõ ai mở lại được', /Mở lại/.test(h), h);
+}
+{
+  const h = veTienTrinh({ trangThai: 'Đã đóng', lenhQT: [],
+    lines: [{ capCha: '', hm: { tt: 'nhap' } }] });
+  t('dự án đã đóng → có huy hiệu riêng', /DỰ ÁN ĐÃ ĐÓNG/.test(h), h);
+  t('   chưa hạng mục nào chốt thì không bày huy hiệu khoá sửa', !/KHOÁ SỬA/.test(h), h);
+}
+{
+  const h = veTienTrinh({ trangThai: 'Đang làm', lenhQT: [],
+    lines: [{ capCha: '', hm: { tt: 'tra' } }] });
+  t('🔴 hạng mục BỊ TRẢ LẠI xếp cùng chỗ với nháp (nó đang chờ nhân viên sửa)',
+    /Nháp <b>1<\/b>/.test(h), h);
+}
+{
+  const h = veTienTrinh({ trangThai: 'Đang làm', lenhQT: [{ dot: 1, tt: 'xin' }],
+    lines: [{ capCha: '', hm: { tt: 'xong', qtDot: 1 } }] });
+  t('🔴 đã GỬI quyết toán nhưng kế toán CHƯA chốt sổ → vẫn ở bước "đã chốt", chưa sang bước cuối',
+    /Đã chốt \(khoá\) <b>1<\/b>/.test(h) && !/Đã quyết toán <b>/.test(h), h);
+}
+t('🔴 trang dự án có chỗ cho dải tiến trình và lịch sử', /id="daTienTrinh"/.test(HTML) && /id="daSuBox"/.test(HTML));
+t('   và nạp lịch sử khi mở dự án', /loadDaSu\(r\.maDA\);/.test(HTML));
+t('🔴 lượt hỏi lịch sử cũ về sau KHÔNG được cướp màn (bấm nhanh hai dự án là hai lượt song song)',
+  /function loadDaSu\([^]{0,1200}if\(seq!==_daSuSeq\) return;/.test(HTML));
+
 /* ── 5. 🔍 RÊ CHUỘT VÀO BILL THÌ PHÓNG TO ─────────────────────────────────────────────── */
 /* Lớp phủ đã có sẵn (`_billZoomInit`) và nghe ở `document` theo thuộc tính `data-bill`; bảng dự
    án trước nay chỉ có thẻ 📷 trơn nên rê chuột chẳng ra gì. */

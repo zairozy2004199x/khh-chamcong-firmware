@@ -575,6 +575,14 @@
         </div>
       </div>
       <div id="daStatusBar" style="display:none;margin:0 14px 8px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600"></div>
+      <!-- 🔴 TIẾN TRÌNH + LỊCH SỬ Ở ĐẦU TRANG — anh Thắng: "Đầu trang bổ sung tiến trình như
+           này và lịch sử đơn để theo dõi đơn và chỉnh sửa". Đúng khối đã có ở trang đơn tuần.
+           Dự án KHÁC đơn tuần ở một chỗ: nó không có MỘT trạng thái, mà nhiều hạng mục ở nhiều
+           bước cùng lúc. Nên dải này đếm SỐ HẠNG MỤC ở từng bước, chứ không tô sáng một ô. -->
+      <div class="don-hang2 db-hang2" style="padding:0 14px 8px">
+        <div id="daTienTrinh" style="flex:1;min-width:280px"></div>
+        <div id="daSuBox" style="display:none"></div>
+      </div>
       <div id="daSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div id="daPayPanel" style="display:none;gap:12px;flex-wrap:wrap;padding:0 14px 12px"></div>
       <div id="daSoChiBox" style="display:none;padding:0 14px 14px">
@@ -4584,6 +4592,8 @@
     daQtBarDoi();
     renderDaLenh(r);
     renderDaQt(r);
+    renderDaTienTrinh(r);
+    loadDaSu(r.maDA);
   }
   /* Lưu con số dự phòng. Số âm bị máy chủ chối — làm phần "còn dự phòng" phình ra một cách
      lặng lẽ, mà kế toán căn vào đó để chuẩn bị tiền. */
@@ -5183,6 +5193,97 @@
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
       .xinTamUngDuAn(DA_CUR.maDA, rows, lich, gc);
+  }
+  /* ═══ TIẾN TRÌNH + LỊCH SỬ Ở ĐẦU TRANG DỰ ÁN ════════════════════════════════════════════
+     Anh Thắng: *"Đầu trang bổ sung tiến trình như này và lịch sử đơn để theo dõi đơn và chỉnh
+     sửa"*.
+
+     🔴 DỰ ÁN KHÔNG CÓ MỘT TRẠNG THÁI. Đơn tuần đi một đường thẳng nên tô sáng được một ô; dự án
+        thì nhiều hạng mục nằm ở nhiều bước CÙNG LÚC — hạng mục này mới nháp, hạng mục kia đã
+        quyết toán xong. Tô sáng một ô ở đây là nói dối. Nên mỗi bước hiện SỐ HẠNG MỤC đang
+        đứng ở đó, bước nào rỗng thì mờ đi. */
+  var DA_BUOC=[
+    ['nhap',  '📝 Nháp',          '#64748b','#f1f5f9'],
+    ['xin',   'Chờ duyệt',        '#b45309','#fef3c7'],
+    ['duyet', 'Chờ cấp tiền',     '#1d4ed8','#dbeafe'],
+    ['ung',   'Đã cấp tiền',      '#0f766e','#ccfbf1'],
+    ['xong',  'Đã chốt (khoá)',   '#166534','#dcfce7'],
+    ['qt',    'Đã quyết toán',    '#6b21a8','#f3e8ff']
+  ];
+  function renderDaTienTrinh(r){
+    var box=el('daTienTrinh'); if(!box) return;
+    var dem={nhap:0,xin:0,duyet:0,ung:0,xong:0,qt:0}, tong=0;
+    /* Đếm theo HẠNG MỤC LỚN — mục con đi theo cha, đếm cả con là một hạng mục hoá ra mấy đơn. */
+    (r.lines||[]).forEach(function(l){
+      if(String(l.capCha||'')!=='') return;
+      var h=l.hm||{}, tt=h.tt||'nhap';
+      tong++;
+      /* Đã chốt mà lệnh quyết toán đã CHỐT SỔ thì nó đứng ở bước cuối, không còn ở "đã chốt".
+         Đếm cả hai chỗ là một hạng mục hiện ra hai lần, tổng lớn hơn số hạng mục thật. */
+      if(tt==='xong' && _daQtDaChot(r, h.qtDot)) dem.qt++;
+      else if(tt==='tra') dem.nhap++;   // bị trả lại thì nó đang chờ nhân viên sửa, cùng chỗ với nháp
+      else if(dem.hasOwnProperty(tt)) dem[tt]++;
+    });
+    var khoa=[];
+    if(String(r.trangThai||'')==='Đã đóng') khoa.push('🔒 DỰ ÁN ĐÃ ĐÓNG');
+    if(dem.xong+dem.qt>0) khoa.push('🔒 KHOÁ SỬA / XOÁ '+(dem.xong+dem.qt)+' HẠNG MỤC ĐÃ CHỐT');
+    box.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">'
+      +DA_BUOC.map(function(b){
+        var n=dem[b[0]]||0, mo=(n===0);
+        return '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;'
+          +'color:'+b[2]+';background:'+b[3]+(mo?';opacity:.4':'')+'">'+b[1]+(n?(' <b>'+n+'</b>'):'')+'</span>';
+      }).join('<span style="color:#cbd5e1">›</span>')
+      +'</div>'
+      +(khoa.length?('<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">'
+        +khoa.map(function(x){ return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2">'+x+'</span>'; }).join('')
+        +'</div>'):'')
+      +'<div style="margin-top:4px;font-size:11px;color:#94a3b8">'+tong+' hạng mục lớn · '
+      +'hạng mục đã chốt thì không sửa / xoá dòng được nữa — kế toán bấm 🔓 Mở lại thì mới đụng được.</div>';
+  }
+  /* Hạng mục này nằm trong một lệnh quyết toán ĐÃ CHỐT SỔ chưa. */
+  function _daQtDaChot(r, dot){
+    if(!dot) return false;
+    var ok=false;
+    ((r&&r.lenhQT)||[]).forEach(function(q){ if(q.dot===dot && q.tt==='xong') ok=true; });
+    return ok;
+  }
+  var _daSuSeq=0;
+  function loadDaSu(maDA){
+    var box=el('daSuBox'); if(!box) return;
+    if(!maDA){ box.style.display='none'; box.innerHTML=''; return; }
+    var seq=++_daSuSeq;
+    box.style.display='';
+    box.innerHTML='<div style="font-size:11.5px;color:#94a3b8">Đang tải lịch sử…</div>';
+    google.script.run.withSuccessHandler(function(r){
+      /* 🔴 LƯỢT CŨ VỀ SAU KHÔNG ĐƯỢC CƯỚP MÀN. Bấm nhanh hai dự án là hai lượt hỏi chạy song
+         song; cái nào về sau thì thắng, mà nó có thể là cái hỏi TRƯỚC — nhật ký của dự án A
+         hiện dưới tên dự án B, không lỗi gì cả. */
+      if(seq!==_daSuSeq) return;
+      var it=(r&&r.items)||[];
+      if(!it.length){
+        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
+          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử dự án</b> — chưa có ai chỉnh gì.</div>';
+        return;
+      }
+      var hien=it.slice(0,3), con=it.length-hien.length;
+      function dong(x){
+        return '<div style="padding:4px 0;border-top:1px dashed #e2e8f0">'
+          +'<div style="font-size:11.5px"><b>'+esc(x.nguoi||'?')+'</b>'
+          +(x.vaiTro?(' <span style="color:#94a3b8">('+esc(x.vaiTro)+')</span>'):'')
+          +' <span style="color:#94a3b8">· '+esc(x.tg||'')+'</span></div>'
+          +'<div style="font-size:11.5px;color:#334155">'+esc(x.hanhDong||'')
+          +(x.chiTiet?(' — '+esc(x.chiTiet)):'')+'</div></div>';
+      }
+      box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;min-width:280px">'
+        +'<div style="font-size:11.5px;font-weight:700;color:#334155">🕘 Lịch sử dự án ('+it.length+')</div>'
+        +hien.map(dong).join('')
+        +(con>0?('<details style="margin-top:4px"><summary style="font-size:11px;color:#64748b;cursor:pointer">xem '+con+' dòng cũ hơn</summary>'
+          +it.slice(3).map(dong).join('')+'</details>'):'')
+        +'</div>';
+    }).withFailureHandler(function(){
+      if(seq!==_daSuSeq) return;
+      box.innerHTML='<div style="font-size:11.5px;color:#b91c1c">Không đọc được lịch sử.</div>';
+    }).getDuAnLog(maDA, 50);
   }
   /* ═══ GỬI QUYẾT TOÁN THEO ĐƠN ═══════════════════════════════════════════════════════════
      Anh Thắng: *"khi đơn này đã xong, tích chọn để gửi quyết toán theo đơn"*.

@@ -199,6 +199,7 @@ class VHCP_API {
 			'logAction'             => array( 'VHCP_Log', 'log_action' ),
 			'getLog'                => array( 'VHCP_Log', 'get_log' ),
 			'getDonLog'             => array( 'VHCP_Don', 'nhat_ky_don' ),
+			'getDuAnLog'            => array( 'VHCP_DuAn', 'nhat_ky_du_an' ),
 			'timDon'                => array( 'VHCP_Don', 'tim_don' ),
 			'dsLoaiChiPhi'          => array( 'VHCP_Don', 'ds_loai_chi_phi' ),
 
