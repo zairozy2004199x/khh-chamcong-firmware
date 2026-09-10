@@ -4036,7 +4036,13 @@
     var dpDT=Number(r.duToanDA)||0;
     var dpUng=Number((((r.payTong||{}).tamUng)||{}).tu)||0;
     var dpConLai=dpDT-dpUng;
-    var dpSua=(['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0)||canEdit;
+    /* 🔴 TỰ TÍNH, KHÔNG MƯỢN `role`/`canEdit`. Hai biến ấy khai bằng `var` ở DƯỚI khối này —
+       lúc chạy tới đây chúng đã được nâng lên nhưng còn `undefined`, nên `indexOf(undefined)`
+       ra -1 và ô dự phòng thành chỉ-đọc với mọi người. Không có câu lỗi nào; anh Thắng chỉ
+       thấy "không gõ được". */
+    var _dpRole=(CURUSER&&CURUSER.role)||'';
+    var dpSua=(['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(_dpRole)>=0)
+      || !!(r.editable||r.thiCong) || !!r.isCoSo;
     el('daSummary').innerHTML=
       '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:10px 12px;min-width:230px">'
         +'<div style="font-size:11.5px;color:#6b21a8;font-weight:700">🧰 Dự phòng cả dự án</div>'
@@ -4126,7 +4132,7 @@
             khác là lồng ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ biến khỏi màn tuy vẫn
             nằm trong sổ và vẫn cộng vào tổng. */
       var goNut=(canEdit && parents.length>1 && !(childrenBy[p.noiDung]||[]).length)
-        ? (' <button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục này vào một hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button>') : '';
+        ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục này vào một hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
       addChild+=goNut;
       if(kids.length){
         var kidTT=kids.reduce(function(s,k){return s+(Number(k.thucTe)||0);},0);
@@ -4233,7 +4239,11 @@
       else { ht.disabled=false; ht.style.background=''; ht.title='Hình thức chi (chỉ áp dụng cho hạng mục lớn / phát sinh)'; }
     }
   }
-  /* Gộp một hạng mục LỚN thành MỤC CON của hạng mục lớn khác — không phải nhập lại dòng. */
+  /* Gộp một hạng mục LỚN thành MỤC CON của hạng mục lớn khác — không phải nhập lại dòng.
+     🔴 HỘP CHỌN, KHÔNG PHẢI GÕ TAY. Anh Thắng 10/09/2026: *"hiện ô tích cho dễ hơn không"* —
+        bản trước hỏi bằng `prompt()`, người ta phải gõ lại đúng tên cha giữa một danh sách dài.
+        Gõ sai một chữ là bị chối (may), gõ trúng tên khác là dòng chui vào nhầm hạng mục (tệ).
+        Chọn từ danh sách thì không có đường nào gõ sai. */
   function daGopVaoMuc(row){
     if(!DA_CUR) return;
     var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
@@ -4242,15 +4252,27 @@
       return String(x.capCha||'')==='' && x.row!==row;
     }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
     if(!cha.length){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
-    var ten=prompt('Gộp "'+l.noiDung+'" thành MỤC CON của hạng mục lớn nào?\n\n'
-      +'(Mục con không giữ dự toán và hình thức chi riêng — hai thứ ấy theo hạng mục lớn.)\n\n'
-      +cha.join('\n'), cha[0]);
-    if(ten===null) return;
-    ten=String(ten).trim(); if(!ten) return;
-    /* Gõ sai tên cha là dòng thành mục con của một hạng mục KHÔNG TỒN TẠI: bảng chỉ vẽ mục con
-       nằm dưới cha của nó, nên dòng ấy biến khỏi màn mà tiền vẫn nằm trong sổ. */
-    var khop=null; cha.forEach(function(c){ if(c.toLowerCase()===ten.toLowerCase()) khop=c; });
-    if(!khop){ toast('err','Không có hạng mục lớn tên "'+ten+'"'); return; }
+    var o=document.querySelector('[data-gop="'+row+'"]');
+    if(!o){ toast('err','Không tìm thấy chỗ đặt hộp chọn'); return; }
+    o.innerHTML='<select data-gopsel="'+row+'" style="max-width:170px;font-size:12px">'
+      +cha.map(function(c){ return '<option value="'+esc(c)+'">↳ '+esc(c)+'</option>'; }).join('')
+      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="Gộp vào hạng mục đã chọn">✓</button>'
+      +' <button class="btn b-x" onclick="openDuAn(DA_CUR.maDA)" title="Thôi">✕</button>';
+  }
+  function daGopChot(row){
+    if(!DA_CUR) return;
+    var sel=document.querySelector('[data-gopsel="'+row+'"]');
+    var khop=sel?String(sel.value||'').trim():'';
+    if(!khop){ toast('warn','Chọn hạng mục lớn trước'); return; }
+    var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
+    if(!l){ toast('err','Không tìm thấy dòng'); return; }
+    /* 🔴 VẪN KIỂM LẠI Ở ĐÂY. Hộp chọn dựng từ danh sách đúng, nhưng giữa lúc chọn và lúc bấm ✓
+       người khác có thể vừa xoá hạng mục ấy — chọn xong mới hỏng thì dòng chui vào một hạng
+       mục không tồn tại, và nó biến khỏi màn tuy tiền vẫn nằm trong sổ. */
+    var conCo=(DA_CUR.lines||[]).some(function(x){
+      return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')===khop;
+    });
+    if(!conCo){ toast('err','Hạng mục "'+khop+'" không còn — tải lại rồi làm lại'); return; }
     var rec={ noiDung:l.noiDung, gian:l.gian, duToan:'', soLuong:l.soLuong, donGia:l.donGia,
       thucTe:l.thucTe, vat:l.vat, anh:l.anh, note:l.note, capCha:khop, hinhThuc:'',
       hoSo:l.hoSo, loaiCp:l.loaiCp, tkNo:l.tkNo };

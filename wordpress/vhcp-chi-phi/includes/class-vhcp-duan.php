@@ -208,6 +208,10 @@ class VHCP_DuAn {
 				'tkCo'      => (string) $r['tk_co'],
 				'maDt'      => (string) $r['ma_dt'],
 			);
+			/* Trạng thái "đơn" của hạng mục lớn — mục con đi theo cha nên không mang riêng. */
+			if ( trim( (string) $r['cap_cha'] ) === '' ) {
+				$lines[ count( $lines ) - 1 ]['hm'] = self::hm_cua( $ma_da, (int) $r['row_no'] );
+			}
 		}
 
 		$child_tt = array(); $parent_ht = array();
@@ -447,6 +451,150 @@ class VHCP_DuAn {
 		else { unset( $p[ $phase ][ $loai ] ); }
 		VHCP_Meta::set_json( 'daPay_' . $ma_da, $p );
 		return VHCP_Util::ok( array( 'pay' => $p ) );
+	}
+
+	// ------------------------------------------------- TRẠNG THÁI TỪNG HẠNG MỤC ("đơn")
+
+	/**
+	 * MỖI HẠNG MỤC LỚN LÀ MỘT "ĐƠN" CÓ ĐƯỜNG ĐI RIÊNG.
+	 *
+	 * Anh Thắng 10/09/2026: *"Nhân viên sẽ lên 10 đơn, xin tạm ứng, quản lý duyệt, kế toán gửi
+	 * tạm ứng và gán ủy nhiệm chi lần 1, nếu đơn nào chính xác và hoàn thành sẽ tích hoàn thành
+	 * và bổ sung hóa đơn nó sẽ khóa đơn đó lại và xác định đơn đó là chi thực tế"*, và *"Sau nv
+	 * lên tiếp 10 đơn, thấy cần nhiều tiền tích vào xin tạm ứng lần 2"*.
+	 *
+	 * Đường đi:  nhap → xin → duyet → ung(đợt N) → xong(KHOÁ)
+	 *                            ↘ tra (trả lại, quay về nhap)
+	 *
+	 * 🔴 KHOÁ LÀ KHOÁ THẬT. "Xong" nghĩa là đã có hoá đơn và đã chốt là chi thực tế; sửa được
+	 *    nữa thì con số kế toán đã hạch toán đổi sau lưng họ. Chỉ Admin/Kế toán mở lại được.
+	 *
+	 * ⚠️ Lưu qua Meta, KHÔNG đổi sơ đồ CSDL — bảng dòng dự án đang có dữ liệu thật của nhiều
+	 *    dự án đang chạy. Khoá là số dòng (`row`), thứ vẫn dùng để sửa/xoá dòng.
+	 */
+	const TT_HM = array( 'nhap', 'xin', 'duyet', 'ung', 'xong', 'tra' );
+
+	public static function get_hm( $ma_da ) {
+		$o = VHCP_Meta::get_json( 'daHM_' . $ma_da, array() );
+		return is_array( $o ) ? $o : array();
+	}
+
+	/** Trạng thái của MỘT hạng mục. Chưa có gì thì là 'nhap' — dự án cũ vẫn đọc được. */
+	public static function hm_cua( $ma_da, $row ) {
+		$o = self::get_hm( $ma_da );
+		$k = (string) (int) $row;
+		$x = isset( $o[ $k ] ) && is_array( $o[ $k ] ) ? $o[ $k ] : array();
+		return array(
+			'tt'     => isset( $x['tt'] ) && in_array( $x['tt'], self::TT_HM, true ) ? $x['tt'] : 'nhap',
+			'dot'    => isset( $x['dot'] ) ? (int) $x['dot'] : 0,
+			'unc'    => isset( $x['unc'] ) ? (string) $x['unc'] : '',
+			'hoaDon' => isset( $x['hoaDon'] ) ? (string) $x['hoaDon'] : '',
+			'moc'    => isset( $x['moc'] ) && is_array( $x['moc'] ) ? $x['moc'] : array(),
+			/* Lịch các đợt đi nhận tiền — anh Thắng 10/09/2026: *"kiểu gửi xin tạm ứng nhiều
+			   lần, hoặc 1 lần, nếu 1 lần mà đi tạm ứng nhiều lần thì nv có thể lịch chọn ngày
+			   đi tạm ứng lần 1,2,3"*. Xin MỘT lần nhưng nhận tiền làm nhiều đợt, mỗi đợt hẹn
+			   một ngày; kế toán nhìn lịch mà chuẩn bị tiền cho đúng hôm. */
+			'lich'   => isset( $x['lich'] ) && is_array( $x['lich'] ) ? array_values( $x['lich'] ) : array(),
+		);
+	}
+
+	/** Hạng mục này có đang khoá không (đã chốt là chi thực tế). */
+	public static function hm_khoa( $ma_da, $row ) {
+		$h = self::hm_cua( $ma_da, $row );
+		return 'xong' === $h['tt'];
+	}
+
+	private static function hm_ghi_( $ma_da, $row, $sua ) {
+		$o = self::get_hm( $ma_da );
+		$k = (string) (int) $row;
+		$cu = self::hm_cua( $ma_da, $row );
+		$moi = array_merge( $cu, $sua );
+		/* Mốc thời gian từng bước — kế toán hỏi "cái này nằm đây bao lâu rồi" thì có chỗ tra. */
+		$moi['moc'] = $cu['moc'];
+		$moi['moc'][ $moi['tt'] ] = VHCP_Util::now()->format( 'd/m/Y H:i' ) . ' · ' . VHCP_Auth::nguoi();
+		$o[ $k ] = $moi;
+		VHCP_Meta::set_json( 'daHM_' . $ma_da, $o );
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::nguoi(),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => 'Đổi trạng thái hạng mục dự án',
+			'target' => (string) $ma_da . '#' . $k,
+			'detail' => $cu['tt'] . ' → ' . $moi['tt'] . ( $moi['dot'] ? ( ' · đợt ' . $moi['dot'] ) : '' ),
+		) );
+		return $moi;
+	}
+
+	/**
+	 * Đổi trạng thái một hạng mục.
+	 *
+	 * 🔴 CHỐT THEO VAI, KHÔNG THEO NÚT TRÊN MÀN. Màn ẩn nút là tiện tay; ai gọi thẳng API vẫn
+	 *    phải bị chặn — nếu không thì nhân viên tự duyệt và tự cấp tạm ứng cho chính mình.
+	 */
+	public static function dat_hm( $ma_da, $row, $tt, $them = array() ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$tt = (string) $tt;
+		if ( ! in_array( $tt, self::TT_HM, true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
+		$them = (array) $them;
+		$vai  = VHCP_Auth::vai_tro();
+		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
+		$ke_toan    = in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
+		$cu = self::hm_cua( $ma_da, $row );
+
+		/* Đã khoá thì mọi đường đều đóng, trừ lối mở lại của kế toán. */
+		if ( 'xong' === $cu['tt'] && 'nhap' !== $tt ) {
+			return VHCP_Util::err( 'Hạng mục đã chốt là chi thực tế — không đổi được nữa.' );
+		}
+		if ( 'xong' === $cu['tt'] && 'nhap' === $tt && ! $ke_toan ) {
+			return VHCP_Util::err( 'Chỉ kế toán mở lại được hạng mục đã chốt.' );
+		}
+		if ( in_array( $tt, array( 'duyet', 'tra' ), true ) && ! $duyet_duoc ) {
+			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
+		}
+		if ( 'ung' === $tt && ! $ke_toan ) {
+			return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
+		}
+		if ( 'xin' === $tt && ! in_array( $cu['tt'], array( 'nhap', 'tra' ), true ) ) {
+			return VHCP_Util::err( 'Hạng mục này đã qua bước xin tạm ứng rồi.' );
+		}
+		if ( 'duyet' === $tt && 'xin' !== $cu['tt'] ) {
+			return VHCP_Util::err( 'Chỉ duyệt được hạng mục đang xin tạm ứng.' );
+		}
+		if ( 'ung' === $tt && 'duyet' !== $cu['tt'] ) {
+			return VHCP_Util::err( 'Chỉ cấp tạm ứng cho hạng mục đã duyệt.' );
+		}
+		/* 🔴 XONG PHẢI CÓ HOÁ ĐƠN. Anh Thắng: *"tích hoàn thành và bổ sung hóa đơn nó sẽ khóa
+		   đơn đó lại"*. Khoá mà chưa có chứng từ là chốt một con số không có gì đỡ. */
+		$hd = isset( $them['hoaDon'] ) ? trim( (string) $them['hoaDon'] ) : $cu['hoaDon'];
+		if ( 'xong' === $tt && '' === $hd ) {
+			return VHCP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
+		}
+
+		$sua = array( 'tt' => $tt );
+		if ( 'ung' === $tt ) {
+			$sua['dot'] = isset( $them['dot'] ) ? max( 1, (int) $them['dot'] ) : ( $cu['dot'] > 0 ? $cu['dot'] : 1 );
+			if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
+		}
+		if ( isset( $them['hoaDon'] ) ) { $sua['hoaDon'] = $hd; }
+		/* Lịch đợt: chỉ nhận lúc XIN (đó là lúc nhân viên biết mình cần tiền hôm nào). Dòng
+		   thiếu ngày thì bỏ — một đợt không ngày thì kế toán chuẩn bị tiền vào hôm nào? */
+		if ( 'xin' === $tt && isset( $them['lich'] ) && is_array( $them['lich'] ) ) {
+			$ds = array(); $lan = 0;
+			foreach ( $them['lich'] as $x ) {
+				$x = (array) $x;
+				$ngay = isset( $x['ngay'] ) ? trim( (string) $x['ngay'] ) : '';
+				if ( '' === $ngay ) { continue; }
+				$lan++;
+				$ds[] = array(
+					'lan'    => $lan,
+					'ngay'   => $ngay,
+					'soTien' => VHCP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 ),
+				);
+			}
+			$sua['lich'] = $ds;
+		}
+		if ( 'nhap' === $tt ) { $sua['dot'] = 0; }
+		$moi = self::hm_ghi_( $ma_da, $row, $sua );
+		return VHCP_Util::ok( array( 'hm' => $moi ) );
 	}
 
 	// ---------------------------------------------------------------- dòng hạng mục

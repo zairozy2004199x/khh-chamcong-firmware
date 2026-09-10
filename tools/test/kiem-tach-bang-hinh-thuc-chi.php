@@ -156,6 +156,14 @@ t( '🔴 màn tính "còn dự phòng" = dự phòng − đã tạm ứng',
 t( '   chưa gõ thì nói chưa gõ, không bày một con số 0 trông như đã khai',
 	false !== mb_strpos( $HTML, 'chưa gõ con số dự phòng' ), '' );
 t( '   chối số âm ngay ở màn', false !== mb_strpos( $HTML, 'Tổng dự toán không được âm' ), '' );
+/* 🔴 Ô phải GÕ ĐƯỢC. Bản đầu mượn `role`/`canEdit` — hai biến khai bằng `var` ở DƯỚI khối ấy,
+   nên lúc chạy tới còn `undefined`, `indexOf(undefined)` ra -1 và ô thành chỉ-đọc với mọi
+   người. Không câu lỗi nào; người dùng chỉ thấy "không gõ được". */
+t( '🔴 quyền sửa ô dự phòng TỰ TÍNH, không mượn biến khai sau nó',
+	false !== strpos( $HTML, "var _dpRole=(CURUSER&&CURUSER.role)||'';" )
+	&& false !== strpos( $HTML, "indexOf(_dpRole)>=0" ), '' );
+t( '   và người đang nhập được dự án thì gõ được',
+	false !== strpos( $HTML, '|| !!(r.editable||r.thiCong) || !!r.isCoSo;' ), '' );
 
 VHCP_DuAn::delete( $ma );
 

@@ -8,6 +8,10 @@
  * Vốn vẫn làm được — bấm ✏️ rồi đổi ô "Thuộc" — nhưng phải NHỚ là ô ấy có, mà nhìn hàng thì
  * không có gì gợi ra. Nay có nút ngay cạnh "＋ con".
  *
+ * 🔴 CHỌN TỪ DANH SÁCH, KHÔNG GÕ TAY. Anh Thắng: *"hiện ô tích cho dễ hơn không"* — bản trước
+ *    hỏi bằng `prompt()`, người ta phải gõ lại đúng tên cha giữa một danh sách dài. Gõ sai một
+ *    chữ là bị chối (may), gõ trúng tên hạng mục khác là dòng chui vào nhầm chỗ (tệ).
+ *
  * 🔴 CHỈ GỘP ĐƯỢC HẠNG MỤC CHƯA CÓ CON. Gộp một hạng mục đang có con vào hạng mục khác là lồng
  *    ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ BIẾN KHỎI MÀN tuy vẫn nằm trong sổ và vẫn
  *    cộng vào tổng. Tiền có thật mà không ai nhìn thấy là kiểu hỏng tệ nhất ở đây.
@@ -41,20 +45,32 @@ const LINES = [
     thucTe: 3000000, vat: 'Có VAT', hinhThuc: 'Trực tiếp', gian: 'FZ MN', anh: 'a.jpg',
     hoSo: 'hs.pdf', loaiCp: 'Chi phí tháo dỡ', tkNo: '64125', note: 'ghi chú' },
 ];
-function chay(row, traLoi, lines) {
-  const NK = { gui: null, toast: [], hoi: null };
+/* Bệ đỡ: DOM đủ cho hộp chọn inline. `daGopVaoMuc` vẽ hộp, `daGopChot` đọc lại và gửi đi —
+   chạy cả hai để soi đúng đường người dùng đi. */
+function chay(row, chon, lines) {
+  const NK = { gui: null, toast: [], oGop: null, sel: null };
+  const KHO = {};
   const moi = {
     DA_CUR: { maDA: 'DA1', ten: 'Aeon', lines: lines || LINES },
     loading: () => {}, toast: (k, m) => NK.toast.push([k, m]), _log: () => {},
-    prompt: (m, d) => { NK.hoi = m; return traLoi; },
+    esc: x => String(x == null ? '' : x),
     openDuAn: () => {}, loadDuAn: () => {},
+    document: { querySelector: sel => {
+      if (sel.indexOf('data-gop=') >= 0) return (NK.oGop = NK.oGop || { innerHTML: '' });
+      if (sel.indexOf('data-gopsel=') >= 0) return NK.sel;
+      return null;
+    } },
     google: { script: { run: {
       withSuccessHandler(f) { this._ok = f; return this; },
       withFailureHandler() { return this; },
       updateDuAnLine(ma, r, rec) { NK.gui = { ma, row: r, rec }; this._ok({ success: true }); },
     } } },
   };
-  new Function('moi', `with(moi){ ${boc('daGopVaoMuc')} daGopVaoMuc(${row}); }`)(moi);
+  const F = new Function('moi', `with(moi){ ${boc('daGopVaoMuc')}\n${boc('daGopChot')}
+    return { mo: daGopVaoMuc, chot: daGopChot }; }`)(moi);
+  F.mo(row);
+  NK.hoi = NK.oGop ? NK.oGop.innerHTML : '';
+  if (chon !== undefined && chon !== null) { NK.sel = { value: chon }; F.chot(row); }
   return NK;
 }
 
@@ -76,14 +92,17 @@ function chay(row, traLoi, lines) {
      bảng cộng dự toán hai lần: một ở cha, một ở dòng con vừa gộp. */
   t('🔴 bỏ dự toán và hình thức chi (mục con theo hạng mục lớn, để lại là cộng hai lần)',
     NK.gui && NK.gui.rec.duToan === '' && NK.gui.rec.hinhThuc === '', NK.gui && NK.gui.rec);
-  t('   câu hỏi liệt kê hạng mục lớn để chọn', /Xe vận chuyển/.test(NK.hoi || ''), NK.hoi);
-  t('   và nói trước là mất dự toán riêng', /dự toán/.test(NK.hoi || ''), NK.hoi);
+  t('🔴 hộp CHỌN liệt kê hạng mục lớn (không bắt gõ tay)',
+    /<select/.test(NK.hoi || '') && /Xe vận chuyển/.test(NK.hoi || ''), NK.hoi);
+  t('   có nút chốt và nút thôi', /daGopChot\(/.test(NK.hoi || '') && /✕/.test(NK.hoi || ''), NK.hoi);
   t('   báo đã gộp xong', NK.toast.some(x => x[0] === 'ok' && /Đã gộp/.test(x[1])), NK.toast);
 }
 {
-  const NK = chay(4, 'xe VẬN chuyển');
-  t('gõ khác hoa/thường vẫn khớp, và lưu theo ĐÚNG tên gốc',
-    NK.gui && NK.gui.rec.capCha === 'Xe vận chuyển', NK.gui && NK.gui.rec);
+  /* 🔴 Giữa lúc chọn và lúc bấm ✓, hạng mục kia có thể vừa bị người khác xoá. */
+  const NK = chay(4, 'Hạng mục vừa bị xoá');
+  t('🔴 hạng mục đã biến mất giữa chừng → CHỐI (không thì dòng chui vào chỗ không tồn tại)',
+    NK.gui === null, NK.gui);
+  t('   và nói rõ phải tải lại', NK.toast.some(x => /không còn/.test(x[1])), NK.toast);
 }
 
 /* ── 2. 🔴 CHỐI NHỮNG CA LÀM MẤT DÒNG KHỎI MÀN ─────────────────────────────────────────── */
@@ -91,7 +110,7 @@ function chay(row, traLoi, lines) {
   const NK = chay(4, 'Xe bồn');
   t('🔴 gõ tên cha không có → CHỐI (không thì dòng biến khỏi màn mà tiền vẫn trong sổ)',
     NK.gui === null, NK.gui);
-  t('   và nói rõ tên nào không có', NK.toast.some(x => /Không có hạng mục lớn tên/.test(x[1])), NK.toast);
+  t('   và nói rõ hạng mục nào không còn', NK.toast.some(x => /không còn/.test(x[1])), NK.toast);
 }
 /* Bỏ trống hay bấm Cancel là "thôi, không gộp nữa" — phải IM LẶNG. Rơi xuống chốt tên cha thì
    người ta nhận một câu lỗi đỏ cho việc mình vừa cố ý huỷ. */
@@ -136,6 +155,9 @@ t('   và chỉ hiện khi có hạng mục lớn khác để gộp vào',
   HTML.indexOf('parents.length>1') >= 0);
 t('   chỉ người sửa được đơn mới thấy nút', HTML.indexOf('var goNut=(canEdit &&') >= 0);
 t('   rê chuột vào nói rõ nút làm gì', HTML.indexOf('dùng khi lỡ gõ nó thành mục lớn') >= 0);
+t('🔴 hàng có chỗ để đặt hộp chọn (data-gop)', HTML.indexOf("' <span data-gop=\"'+p.row+'\">") >= 0);
+t('🔴 KHÔNG còn hỏi bằng prompt (gõ tay giữa danh sách dài là mời gõ nhầm)',
+  HTML.indexOf("prompt('Gộp \"'") < 0);
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

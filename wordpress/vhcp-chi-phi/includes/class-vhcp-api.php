@@ -308,6 +308,7 @@ class VHCP_API {
 			'getDuAn'               => array( 'VHCP_DuAn', 'get_du_an' ),
 			'addDuAnLine'           => array( 'VHCP_DuAn', 'add_line' ),
 			'datDuToanDuAn'         => array( 'VHCP_DuAn', 'set_du_toan_da' ),
+			'datTrangThaiHangMuc'   => array( 'VHCP_DuAn', 'dat_hm' ),
 			'updateDuAnLine'        => array( 'VHCP_DuAn', 'update_line' ),
 			'deleteDuAnLine'        => array( 'VHCP_DuAn', 'delete_line' ),
 			'submitDuAn'            => array( 'VHCP_DuAn', 'submit' ),
