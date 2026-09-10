@@ -942,13 +942,16 @@ class VHG_Trang {
 
 		/* Cấu hình khuyến mãi theo phạm vi — cho bộ phận khác tự setup ngay trong app (tab Mã giảm
 		   giá vốn đã QT). Gate theo quyền quản trị, không phải Admin-only như ch_. */
-		if ( 'km_xem' === $viec || 'km_luu' === $viec ) {
+		if ( 'km_xem' === $viec || 'km_luu' === $viec || 'kmt_xem' === $viec || 'kmt_luu' === $viec ) {
 			$q = VHG_Auth::quyen_cua( $ai['role'] );
 			if ( empty( $q['quan_tri'] ) ) {
 				self::tra( array( 'ok' => false, 'error' => 'Chỉ quản trị mới chỉnh được khuyến mãi.' ) );
 				return;
 			}
-			self::tra( 'km_xem' === $viec ? VHG_Ma::km_cauhinh() : VHG_Ma::luu_km_cauhinh( $d ) );
+			if ( 'km_xem' === $viec ) { self::tra( VHG_Ma::km_cauhinh() ); }
+			elseif ( 'km_luu' === $viec ) { self::tra( VHG_Ma::luu_km_cauhinh( $d ) ); }
+			elseif ( 'kmt_xem' === $viec ) { self::tra( array( 'ok' => true, 'blocks' => VHG_Ma::km_trang() ) ); }
+			else { self::tra( VHG_Ma::luu_km_trang( isset( $d['blocks'] ) ? $d['blocks'] : array() ) ); }
 			return;
 		}
 
@@ -7564,6 +7567,89 @@ function kmCfgLuu(){
   });
 }
 
+/* ═══════════════ TRANG GIỚI THIỆU KHUYẾN MÃI — BLOCK EDITOR (trong app) ═══════════════
+   Các khối xếp dọc: tiêu đề · đoạn văn · ảnh · banner. Ảnh NÉN NGAY TRÊN MÁY (canvas → JPEG)
+   rồi lưu data:URI, không cần thư viện ảnh WordPress. Sửa chữ chỉ cập nhật state (không vẽ lại,
+   giữ con trỏ); thêm/xoá/đổi thứ tự mới vẽ lại. */
+var KMT_BLOCKS = null, KMT_LOADED = false;
+function kmtTenLoai(t){
+  return t === 'heading' ? L('Tiêu đề','Heading')
+       : t === 'text'    ? L('Đoạn văn','Text')
+       : t === 'image'   ? L('Ảnh','Image')
+       : t === 'banner'  ? L('Banner','Banner') : t;
+}
+function kmtTai(){
+  var box = document.getElementById('kmt-ed'); if (!box) return;
+  if (KMT_LOADED) return;
+  box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
+  goi('kmt_xem', {}, function(r){
+    if (!r || !r.ok) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
+    KMT_BLOCKS = r.blocks || []; KMT_LOADED = true; veKmtEditor();
+  });
+}
+function veKmtEditor(){
+  var box = document.getElementById('kmt-ed'); if (!box) return;
+  var bs = KMT_BLOCKS || [];
+  var h = '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">'
+    + '<button class="ghost" onclick="kmtThem(\'heading\')">＋ ' + L('Tiêu đề','Heading') + '</button>'
+    + '<button class="ghost" onclick="kmtThem(\'text\')">＋ ' + L('Đoạn văn','Text') + '</button>'
+    + '<button class="ghost" onclick="kmtThem(\'image\')">＋ ' + L('Ảnh','Image') + '</button>'
+    + '<button class="ghost" onclick="kmtThem(\'banner\')">＋ ' + L('Banner','Banner') + '</button></div>';
+  if (!bs.length) { h += '<p class="mut">' + L('Chưa có khối nào — bấm thêm ở trên.','No blocks yet — add above.') + '</p>'; }
+  bs.forEach(function(b, i){
+    h += '<div style="border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:8px;margin-bottom:8px">';
+    h += '<div class="act" style="justify-content:space-between;margin-bottom:6px"><b>' + kmtTenLoai(b.t) + '</b>'
+      + '<span><button class="ghost" onclick="kmtLen(' + i + ')"' + (i === 0 ? ' disabled' : '') + '>↑</button> '
+      + '<button class="ghost" onclick="kmtXuong(' + i + ')"' + (i === bs.length - 1 ? ' disabled' : '') + '>↓</button> '
+      + '<button class="ghost" onclick="kmtXoa(' + i + ')">🗑</button></span></div>';
+    if (b.t === 'heading') {
+      h += '<input type="text" value="' + esc(b.v || '') + '" oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Tiêu đề lớn','Big heading') + '" style="width:100%">';
+    } else if (b.t === 'text') {
+      h += '<textarea oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Nội dung…','Content…') + '" style="width:100%;min-height:70px">' + esc(b.v || '') + '</textarea>';
+    } else if (b.t === 'banner') {
+      h += '<input type="text" value="' + esc(b.v || '') + '" oninput="kmtSet(' + i + ',\'v\',this.value)" placeholder="' + L('Dòng lớn (VD Giảm 20% hôm nay)','Big line') + '" style="width:100%;margin-bottom:6px">'
+        + '<input type="text" value="' + esc(b.s || '') + '" oninput="kmtSet(' + i + ',\'s\',this.value)" placeholder="' + L('Dòng nhỏ','Subtitle') + '" style="width:100%">';
+    } else if (b.t === 'image') {
+      if (b.v) { h += '<img src="' + esc(b.v) + '" style="max-width:100%;border-radius:8px;margin-bottom:6px">'; }
+      h += '<input type="file" accept="image/*" onchange="kmtAnh(' + i + ',this)">';
+    }
+    h += '</div>';
+  });
+  h += '<div class="act" style="margin-top:6px"><button class="on" onclick="kmtLuu()">💾 ' + L('Lưu trang','Save page')
+    + '</button><span id="kmt-msg" class="mut" style="align-self:center"></span></div>';
+  box.innerHTML = h;
+}
+function kmtThem(t){ (KMT_BLOCKS = KMT_BLOCKS || []).push({ t: t, v: '', s: '' }); veKmtEditor(); }
+function kmtXoa(i){ if (!KMT_BLOCKS) return; if (!confirm(L('Xoá khối này?','Delete this block?'))) return; KMT_BLOCKS.splice(i, 1); veKmtEditor(); }
+function kmtLen(i){ if (!KMT_BLOCKS || i <= 0) return; var t = KMT_BLOCKS[i]; KMT_BLOCKS[i] = KMT_BLOCKS[i - 1]; KMT_BLOCKS[i - 1] = t; veKmtEditor(); }
+function kmtXuong(i){ if (!KMT_BLOCKS || i >= KMT_BLOCKS.length - 1) return; var t = KMT_BLOCKS[i]; KMT_BLOCKS[i] = KMT_BLOCKS[i + 1]; KMT_BLOCKS[i + 1] = t; veKmtEditor(); }
+function kmtSet(i, f, v){ if (KMT_BLOCKS && KMT_BLOCKS[i]) { KMT_BLOCKS[i][f] = v; } }   // KHÔNG vẽ lại — giữ con trỏ
+function kmtAnh(i, input){
+  var f = input.files && input.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { alert(L('Chỉ chọn tệp ảnh.','Images only.')); return; }
+  var img = new Image(), url = URL.createObjectURL(f);
+  img.onload = function(){
+    var mx = 1000, w = img.width, hh = img.height;
+    if (w > mx || hh > mx) { var s = Math.min(mx / w, mx / hh); w = Math.round(w * s); hh = Math.round(hh * s); }
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = hh;
+    cv.getContext('2d').drawImage(img, 0, 0, w, hh);
+    var q = 0.82, data = cv.toDataURL('image/jpeg', q);
+    while (data.length > 380000 && q > 0.4) { q -= 0.12; data = cv.toDataURL('image/jpeg', q); }
+    URL.revokeObjectURL(url);
+    if (data.length > 400000) { alert(L('Ảnh quá lớn sau khi nén — chọn ảnh nhẹ hơn.','Image too large after compression.')); return; }
+    if (KMT_BLOCKS && KMT_BLOCKS[i]) { KMT_BLOCKS[i].v = data; veKmtEditor(); }
+  };
+  img.onerror = function(){ URL.revokeObjectURL(url); alert(L('Không đọc được ảnh.','Cannot read image.')); };
+  img.src = url;
+}
+function kmtLuu(){
+  var msg = document.getElementById('kmt-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
+  goi('kmt_luu', { blocks: KMT_BLOCKS || [] }, function(r){
+    if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
+    if (r && r.ok) { KMT_LOADED = false; kmtTai(); }   // tải lại để thấy đúng những gì máy chủ đã giữ
+  });
+}
+
 function veMa(){
   var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
   var h = '<div class="kpis">'
@@ -7586,6 +7672,15 @@ function veMa(){
     + L('% giảm riêng cho từng cơ sở hoặc từng mã ghế — chỉnh ngay tại đây, không cần vào WordPress. Ô trống = theo mức chung. Cụ thể nhất thắng: mã → cơ sở → chung.',
         'Per-site or per-chair discount %. Blank = general rate. Most specific wins: code → site → general.')
     + '</p><div id="km-cfg" style="margin-top:8px"></div></details>';
+
+  /* Trang giới thiệu khuyến mãi cho khách (block editor) — hiện ở ĐẦU trang /mua-ma. */
+  h += '<details class="card" ontoggle="if(this.open)kmtTai()">'
+    + '<summary style="cursor:pointer;font-weight:700;font-size:16px">🖼️ '
+    + L('Trang giới thiệu khuyến mãi (đầu trang Mua mã)','Promo intro page (top of buy page)') + '</summary>'
+    + '<p class="mut" style="margin:.4em 0 0">'
+    + L('Soạn trang khách thấy đầu tiên khi vào mua mã: xếp các khối tiêu đề · đoạn văn · ảnh · banner. Tự co giãn điện thoại và máy tính.',
+        'Build the page customers see first: stack heading / text / image / banner blocks. Responsive on phone and desktop.')
+    + '</p><div id="kmt-ed" style="margin-top:8px"></div></details>';
 
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * VÍ KHÁCH — đứng ngay dưới ô mã, không tách tab.

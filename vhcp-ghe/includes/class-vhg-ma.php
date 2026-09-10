@@ -293,6 +293,62 @@ class VHG_Ma {
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu khuyến mãi theo cơ sở / mã.' );
 	}
 
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * TRANG GIỚI THIỆU KHUYẾN MÃI (block editor) — hiện ở ĐẦU trang /mua-ma cho khách. Bộ phận
+	 * khác tự soạn trong app: các KHỐI xếp dọc (tiêu đề · đoạn văn · ảnh · banner). Ảnh đã nén ở
+	 * client rồi gửi lên dạng data:URI (app đăng nhập PIN, không có thư viện ảnh WordPress). Chặn
+	 * dung lượng để không phình bảng options: mỗi ảnh ≤ ~400KB, tổng ≤ ~3MB, tối đa 40 khối. */
+	const KMT_LOAI     = array( 'heading', 'text', 'image', 'banner' );
+	const KMT_ANH_MAX  = 420000;   // ~400KB / ảnh (sau nén)
+	const KMT_TONG_MAX = 3000000;  // ~3MB tổng
+	const KMT_KHOI_MAX = 40;
+
+	public static function km_trang() {
+		$v = get_option( 'vhg_km_trang' );
+		if ( ! is_array( $v ) ) { return array(); }
+		$ra = array();
+		foreach ( $v as $b ) {
+			if ( ! is_array( $b ) || empty( $b['t'] ) || ! in_array( (string) $b['t'], self::KMT_LOAI, true ) ) { continue; }
+			$ra[] = array(
+				't' => (string) $b['t'],
+				'v' => isset( $b['v'] ) ? (string) $b['v'] : '',
+				's' => isset( $b['s'] ) ? (string) $b['s'] : '',
+			);
+		}
+		return $ra;
+	}
+
+	public static function luu_km_trang( $blocks ) {
+		if ( ! is_array( $blocks ) ) { $blocks = array(); }
+		$ra = array(); $tong = 0;
+		foreach ( $blocks as $b ) {
+			if ( count( $ra ) >= self::KMT_KHOI_MAX ) { break; }
+			if ( ! is_array( $b ) || empty( $b['t'] ) || ! in_array( (string) $b['t'], self::KMT_LOAI, true ) ) { continue; }
+			$t = (string) $b['t'];
+			if ( 'image' === $t ) {
+				$v = (string) ( isset( $b['v'] ) ? $b['v'] : '' );
+				if ( 0 === strpos( $v, 'data:image/' ) ) {
+					if ( strlen( $v ) > self::KMT_ANH_MAX ) { continue; }          // ảnh chưa nén đủ — bỏ
+				} elseif ( 0 === strpos( $v, 'http' ) ) {
+					$v = esc_url_raw( $v );
+				} else { continue; }
+				if ( '' === $v ) { continue; }
+				if ( $tong + strlen( $v ) > self::KMT_TONG_MAX ) { continue; }      // vượt tổng — bỏ ảnh này
+				$tong += strlen( $v );
+				$ra[] = array( 't' => 'image', 'v' => $v, 's' => '' );
+			} else {
+				$vv = mb_substr( sanitize_textarea_field( (string) ( isset( $b['v'] ) ? $b['v'] : '' ) ), 0, 2000 );
+				$ss = mb_substr( sanitize_textarea_field( (string) ( isset( $b['s'] ) ? $b['s'] : '' ) ), 0, 500 );
+				if ( '' === trim( $vv ) && '' === trim( $ss ) ) { continue; }
+				$tong += strlen( $vv ) + strlen( $ss );
+				$ra[] = array( 't' => $t, 'v' => $vv, 's' => $ss );
+			}
+		}
+		update_option( 'vhg_km_trang', $ra );
+		return array( 'ok' => true, 'so' => count( $ra ),
+			'thong_bao' => 'Đã lưu trang giới thiệu (' . count( $ra ) . ' khối).' );
+	}
+
 	// ===================================================================== cỡ mã QR trên màn ghế
 
 	/**

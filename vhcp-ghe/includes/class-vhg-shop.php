@@ -196,6 +196,8 @@ class VHG_Shop {
 			   tỉ lệ riêng. Chưa biết ghế (màn mua) thì tỉ lệ chung là đúng. */
 			$ghe_ = self::ghe_tu_dia_chi( $d );
 			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia( $ghe_ ),
+				/* Trang giới thiệu khuyến mãi (block do quản lý soạn) — hiện ở đầu tab Mua mã. */
+				'km_trang' => VHG_Ma::km_trang(),
 				'goi_nap' => VHG_Vi::goi_nap(),
 				'ban_ma'  => VHG_Ma::con_ban_ma() ? 1 : 0,
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
@@ -529,6 +531,17 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 .hero h1{margin:0 0 6px;font-size:25px;line-height:1.25;letter-spacing:-.01em}
 .hero .sub{color:#a79a7d;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 /* Dải "giảm tới X%" — lý do duy nhất khách dừng lại đọc trang này. Nên nó to, và nó ở trên cùng. */
+/* --- Trang giới thiệu khuyến mãi (block do quản lý soạn), tự co giãn ĐT/máy tính --- */
+.kmt{margin:4px 0 6px}
+.kmt-h{font-size:20px;font-weight:800;color:#fff;margin:14px 0 6px;text-align:center;line-height:1.3}
+.kmt-p{font-size:14px;color:#cfc3a6;margin:6px 0;line-height:1.5;text-align:center}
+.kmt-img{display:block;width:100%;max-width:100%;height:auto;border-radius:14px;margin:10px 0}
+.kmt-banner{margin:12px 0;padding:14px 16px;border-radius:14px;text-align:center;
+  background:linear-gradient(135deg,rgba(240,180,41,.22),rgba(240,180,41,.08));
+  border:1px solid rgba(240,180,41,.45)}
+.kmt-banner b{color:#f0b429;font-size:18px}
+.kmt-sub{font-size:13px;color:#cfc3a6;margin-top:4px;line-height:1.4}
+
 .deal{margin:16px 0 4px;padding:13px 16px;border-radius:14px;text-align:center;
   background:linear-gradient(135deg,rgba(240,180,41,.22),rgba(240,180,41,.08));
   border:1px solid rgba(240,180,41,.45)}
@@ -1384,6 +1397,22 @@ function veNap(){
   return h;
 }
 
+// ---------------- trang giới thiệu khuyến mãi (block do quản lý soạn) ----------------
+function veKmTrang(){
+  var bs = (D && D.km_trang) || []; if (!bs.length) return '';
+  var h = '<div class="kmt">';
+  bs.forEach(function(b){
+    if (b.t === 'heading') { h += '<h2 class="kmt-h">' + esc(b.v || '') + '</h2>'; }
+    else if (b.t === 'text') { h += '<p class="kmt-p">' + esc(b.v || '').replace(/\n/g,'<br>') + '</p>'; }
+    else if (b.t === 'image' && b.v) { h += '<img class="kmt-img" src="' + esc(b.v) + '" alt="">'; }
+    else if (b.t === 'banner') {
+      h += '<div class="kmt-banner"><b>' + esc(b.v || '') + '</b>'
+        + (b.s ? '<div class="kmt-sub">' + esc(b.s || '').replace(/\n/g,'<br>') + '</div>' : '') + '</div>';
+    }
+  });
+  return h + '</div>';
+}
+
 // ------------------------------------------------------------------ mua
 function veMua(){
   if (DON) return veTraTien();
@@ -1391,7 +1420,7 @@ function veMua(){
 
   var max = 0;
   D.goi.forEach(function(g){ if (g.giam_pt > max) max = g.giam_pt; });
-  var h = '';
+  var h = veKmTrang();
   var cho = (D.cho_ngay || 0);
   if (max > 0) {
     h += L('<div class="deal"><b>Giảm tới ') + max + '%</b><div>'
