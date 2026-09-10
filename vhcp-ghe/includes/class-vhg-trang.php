@@ -3794,8 +3794,8 @@ function qlKhoiHtml(ten){
         'The code goes into the transfer memo — letters and digits only, no accents or spaces.') + '</p>'
     + '<div id="ql-wrap"></div>'
     + '<p class="mut" style="margin:8px 0 0">'
-    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). “Điều chuyển” là ẩn ghế đi — ghế ẩn nằm trong khối “Ghế đã điều chuyển” ở cuối bảng, CHỈ SỐ và doanh thu giữ nguyên, cần lắp lại thì mở khối ấy ra bấm “Đưa về”. “Xoá” chỉ dùng cho ghế gõ nhầm mã: ghế đã có lượt thu thì không xoá được.',
-        'Edit the name inline; change Site to reassign (saves immediately). “Move out” hides a chair — hidden chairs sit in the “Moved-out chairs” block at the bottom with meter and revenue intact; open it and press “Restore” to bring one back. “Delete” is only for mistyped codes: a chair with recorded takings cannot be deleted.')
+    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Cả “Điều chuyển” lẫn “Xoá” đều CHỈ ẨN MỀM — ghế chìm xuống khối “Ghế đã ẩn (điều chuyển / xoá)” ở cuối bảng (hiện mờ), CHỈ SỐ và doanh thu giữ nguyên, bấm “Đưa về” là phục hồi. Không có đường nào làm mất hẳn một ghế khỏi hệ.',
+        'Edit the name inline; change Site to reassign (saves immediately). Both “Move out” and “Delete” only SOFT-HIDE — the chair sinks to the dimmed “Hidden chairs (moved-out / deleted)” block at the bottom, meter and revenue intact; press “Restore” to bring it back. No action ever removes a chair for good.')
     + '</p>';
 }
 
@@ -8082,7 +8082,7 @@ function qlGheRender(){
          bang, nhung voi ghe DANG CHAY thi loi dung la Dieu chuyen (giu chi so va doanh thu).
          May chu choi xoa ghe da co luot thu; nut nay chi de don ca go nham ma luc them. */
       + ' <button data-mxoa="' + esc(m.ma) + '" class="ghost" title="'
-      + L('Chi xoa duoc ghe chua tung co luot thu nao','Only chairs with no recorded takings')
+      + L('An ghe (khong xoa cung) — chim xuong khoi "Ghe da an", chi so & lich su con nguyen, dua ve duoc','Hide chair (soft, never lost) — sinks to the hidden block, restorable')
       + '">🗑</button>'
       + '</td></tr>';
   }
@@ -8099,7 +8099,7 @@ function qlGheRender(){
     h += '<details class="ql-an" style="margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;'
       + 'background:#f8fafc;padding:8px 12px">'
       + '<summary style="cursor:pointer;font-weight:600;color:#475569">📦 '
-      + L('Ghe da dieu chuyen','Moved-out chairs') + ' (' + anDs.length + ')</summary>'
+      + L('Ghe da an (dieu chuyen / xoa)','Hidden chairs (moved-out / deleted)') + ' (' + anDs.length + ')</summary>'
       + '<p class="mut" style="margin:8px 0">'
       + L('Cac ghe nay da an khoi man thu tien cua nhan vien. CHI SO va DOANH THU van con nguyen — bam "Dua ve" la dung lai duoc ngay.',
           'These chairs are hidden from the staff screen. Meter and revenue are intact — press "Restore" to bring one back.')
@@ -8178,11 +8178,11 @@ function qlGheRender(){
   [].forEach.call(box.querySelectorAll('[data-mxoa]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-mxoa');
-      /* Nói đúng thứ sắp xảy ra: máy chủ CHỐI xoá ghế đã có lượt thu, nên câu hỏi này chỉ áp
-         cho ghế trắng sổ. Câu cũ ("doanh thu đã ghi giữ nguyên") là của bản xoá thẳng ngày
-         trước — để lại thì hứa một đằng, máy chủ làm một nẻo. */
-      if (!confirm(L('Xoá hẳn ghế ' + m + ' khỏi danh mục?\nChỉ xoá được ghế CHƯA TỪNG có lượt thu nào — ghế đang chạy thì dùng "Điều chuyển".',
-        'Delete chair ' + m + ' from the list?\nOnly chairs with NO recorded takings can be deleted — use "Move out" for active chairs.'))) return;
+      /* Từ 2.23.0 "Xoá" KHÔNG xoá cứng nữa mà ẨN MỀM (an=1) — ghế rơi xuống khối "Ghế đã điều
+         chuyển" ở cuối bảng, chỉ số/lịch sử còn nguyên, "Đưa về" là phục hồi. Không còn đường
+         nào làm mất một ghế khỏi hệ (đúng vụ "tự nhiên mất máy"). Nói đúng thứ sắp xảy ra. */
+      if (!confirm(L('Ẩn ghế ' + m + ' khỏi danh sách?\nGhế chìm xuống khối "Ghế đã điều chuyển" (mờ) ở cuối bảng — KHÔNG mất dữ liệu, chỉ số & lịch sử còn nguyên. Đưa về lại được bất cứ lúc nào.',
+        'Hide chair ' + m + '?\nIt sinks to the dimmed "Moved-out chairs" block — nothing is lost, meter & history stay. You can bring it back anytime.'))) return;
       lam('may_xoa', { ma: m });
     };
   });

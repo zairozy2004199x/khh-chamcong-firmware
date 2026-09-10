@@ -1120,29 +1120,35 @@ class VHG_May {
 	 *    mà giữ nguyên chỉ số, doanh thu, và đưa về lại được. Xoá chỉ để dọn ca gõ nhầm mã lúc
 	 *    thêm — ghế chưa có lượt nào.
 	 */
+	/**
+	 * XOÁ = ẨN MỀM, KHÔNG XOÁ CỨNG (anh Thắng 10/09/2026: "điều chuyển hay xoá nên để lịch sử máy
+	 * chìm xuống ẩn mờ để check được"). Trước đây xoá cứng ghế chưa-có-lịch-sử → biến mất không dấu
+	 * vết, đúng vụ "hôm nay tự nhiên mất máy 2". Nay mọi trường hợp đều đánh cờ `an=1`: ghế rơi
+	 * xuống khối "Ghế đã điều chuyển" (hiện mờ) ở cuối bảng, chỉ số/doanh thu/log giữ nguyên, bấm
+	 * "Đưa về" là phục hồi. Không còn đường nào làm mất một ghế khỏi hệ.
+	 */
 	public static function xoa_may( $ma ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
 
+		if ( ! $wpdb->get_var( $wpdb->prepare(
+			'SELECT id FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', $ma ) ) ) {
+			return array( 'ok' => false, 'error' => 'Không có ghế nào mang mã ' . $ma . '.' );
+		}
+
 		$so_dong = (int) $wpdb->get_var( $wpdb->prepare(
 			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ma_may=%s', $ma ) );
 		$so_thu  = (int) $wpdb->get_var( $wpdb->prepare(
 			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'thu' ) . ' WHERE ma_may=%s', $ma ) );
-		if ( $so_dong > 0 || $so_thu > 0 ) {
-			$ke = array();
-			if ( $so_dong ) { $ke[] = $so_dong . ' dòng báo cáo'; }
-			if ( $so_thu )  { $ke[] = $so_thu . ' lượt thu'; }
-			return array( 'ok' => false, 'error' => 'Ghế ' . $ma . ' đã có ' . implode( ' và ', $ke )
-				. ' trong sổ — xoá đi thì mấy dòng ấy còn nguyên nhưng không tra ra được ghế nào nữa. '
-				. 'Dùng "Điều chuyển" để ẩn nó khỏi màn thu tiền: chỉ số và doanh thu giữ nguyên, '
-				. 'và đưa về lại được bất cứ lúc nào.' );
-		}
 
-		$xoa = $wpdb->delete( VHG_DB::t( 'may' ), array( 'ma' => $ma ) );
-		if ( ! $xoa ) { return array( 'ok' => false, 'error' => 'Không có ghế nào mang mã ' . $ma . '.' ); }
-		return array( 'ok' => true, 'thong_bao' => 'Đã xoá ghế ' . $ma . ' khỏi danh mục '
-			. '(ghế này chưa từng có lượt thu nào).' );
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => 1 ), array( 'ma' => $ma ) );
+
+		$co_su = ( $so_dong > 0 || $so_thu > 0 );
+		return array( 'ok' => true, 'thong_bao' => 'Đã ẩn ghế ' . $ma . ' — nằm mờ trong khối '
+			. '"Ghế đã điều chuyển" ở cuối bảng, KHÔNG mất dữ liệu'
+			. ( $co_su ? ' (chỉ số và lịch sử còn nguyên)' : '' )
+			. '. Cần dùng lại thì mở khối đó ra bấm "Đưa về".' );
 	}
 
 	/**
