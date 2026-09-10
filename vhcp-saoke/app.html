@@ -154,6 +154,7 @@
     <div class="ni" data-v="cmomo" onclick="nav('cmomo')">🟣 Sao Kê MoMo</div>
     <div class="ni" data-v="cvnpay" onclick="nav('cvnpay')">🔵 Sao Kê VNPAY</div>
     <div class="ni" data-v="dc" onclick="nav('dc')">🏪 Đối chiếu nộp tiền</div>
+    <div class="ni" data-v="tm" onclick="nav('tm')">💵 Nộp tiền mặt (cơ sở)</div>
     <div class="ni" data-v="th" onclick="nav('th')">📊 Tổng hợp doanh thu cơ sở</div>
     <div class="ni" data-v="tk" onclick="nav('tk')">🏛️ Tài khoản ngân hàng</div>
     <div class="ni" data-v="cat" onclick="nav('cat')">🏷️ Danh mục chi phí</div>
@@ -254,6 +255,24 @@
         <table><thead><tr><th>Ngày GD</th><th>Số TK</th><th>Nội dung</th><th>Tiền vào</th></tr></thead>
         <tbody id="dcKhongRo"></tbody></table>
       </div>
+    </div>
+
+    <!-- ===== NỘP TIỀN MẶT THEO CƠ SỞ ===== -->
+    <div class="view" id="v-tm">
+      <h2>Nộp tiền mặt theo cơ sở</h2>
+      <div class="panel row">
+        <div class="fld"><label>Từ ngày</label><input type="date" id="tmTu"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="tmDen"></div>
+        <div class="fld"><button onclick="taiTienMat()">🔍 Xem</button></div>
+        <div class="fld dcNhanh"><button class="gray" onclick="tmDatNgay(0)">Hôm nay</button></div>
+        <div class="fld dcNhanh"><button class="gray" onclick="tmDatNgay(6)">7 ngày</button></div>
+        <div class="fld dcNhanh"><button class="gray" onclick="tmDatThang()">Tháng này</button></div>
+      </div>
+      <div class="hint">Mỗi cơ sở có <b>mã nộp</b> (đặt ở tab Cấu hình). App dò mã đó trong <b>nội dung sao kê ngân hàng</b>:
+        có giao dịch tiền vào chứa mã = <b>đã nộp</b>, không có = <b>chưa nộp</b>. Số tiền là tổng các lần nộp
+        khớp mã (gồm cả doanh thu khu vui chơi nếu nộp chung mã).</div>
+      <div class="cards" id="tmCards"></div>
+      <div id="tmBody"></div>
     </div>
 
     <!-- ===== SAO KÊ ===== -->
@@ -689,6 +708,41 @@ function nav(v){
   // Lần đầu mở tab Đối chiếu thì mặc định HÔM NAY (dcDatNgay tự gọi taiDoiChieu),
   // các lần sau giữ nguyên khoảng ngày anh đang xem, chỉ đọc lại số liệu.
   if(v==='dc'){ if(!document.getElementById('dcTu').value) dcDatNgay(0); else taiDoiChieu(); }
+  if(v==='tm'){ if(!document.getElementById('tmTu').value) tmDatThang(); else taiTienMat(); }
+}
+function tmDatNgay(lech){
+  var d=new Date(); var tu=new Date(d); tu.setDate(tu.getDate()-(lech||0));
+  document.getElementById('tmTu').value=dcYmd(tu); document.getElementById('tmDen').value=dcYmd(d); taiTienMat();
+}
+function tmDatThang(){
+  var n=new Date();
+  document.getElementById('tmTu').value=dcYmd(new Date(n.getFullYear(),n.getMonth(),1));
+  document.getElementById('tmDen').value=dcYmd(n); taiTienMat();
+}
+function taiTienMat(){
+  var tu=toVN(document.getElementById('tmTu').value), den=toVN(document.getElementById('tmDen').value);
+  document.getElementById('tmBody').innerHTML='<div class="muted">Đang dò…</div>';
+  document.getElementById('tmCards').innerHTML='';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ document.getElementById('tmBody').textContent=(r&&r.error)||'Lỗi'; return; }
+    function card(l,v,c){ return '<div class="card"><div class="lbl">'+l+'</div><div class="val'+(c?' '+c:'')+'">'+v+'</div></div>'; }
+    document.getElementById('tmCards').innerHTML =
+       card('Đã nộp', r.soDaNop, 'in') + card('Chưa nộp', r.soChuaNop, '') + card('Chưa đặt mã', r.soChuaMa,'')
+       + '<div class="card"><div class="lbl">Tổng đã nộp</div><div class="val in">'+fmt(r.tongNop)+'</div></div>';
+    var rows=r.rows||[];
+    var h='<div class="panel" style="overflow:auto"><table><thead><tr><th>Cơ sở</th><th>Mã nộp</th><th>Trạng thái</th><th class="in">Số tiền</th><th>Số lần</th><th>Lần cuối</th></tr></thead><tbody>';
+    h+=rows.map(function(o){
+      var tt = !o.coMa ? '<span class="muted">chưa đặt mã</span>'
+             : (o.daNop ? '<span style="color:var(--green);font-weight:700">✔ đã nộp</span>'
+                        : '<span style="color:var(--red);font-weight:700">✖ chưa nộp</span>');
+      return '<tr><td><b>'+esc(o.coso)+'</b>'+(o.tinh?' <span class="muted">'+esc(o.tinh)+'</span>':'')+'</td>'
+        +'<td><code>'+esc(o.ma||'—')+'</code></td><td>'+tt+'</td>'
+        +'<td class="in">'+(o.tong?fmt(o.tong):'<span class="muted">–</span>')+'</td>'
+        +'<td>'+(o.soLan||'')+'</td><td class="muted">'+esc(o.lanCuoi||'')+'</td></tr>';
+    }).join('');
+    h+='</tbody></table></div>';
+    document.getElementById('tmBody').innerHTML=h;
+  }).withFailureHandler(function(e){ document.getElementById('tmBody').textContent='Lỗi: '+e.message; }).getNopTienMat(PIN, tu, den);
 }
 
 function initApp(){

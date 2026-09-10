@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.11.0
+ * Version:           0.12.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1630,6 +1630,7 @@ class SAOKE_App {
 			'napFileCong', 'napFileCongTx', 'luuAnhXaCuaHang', 'chuyenGianCuaHang', 'xoaAnhXaCuaHang',
 			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
 			'getCosoMa', 'saveCosoMa',
+			'getNopTienMat',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
 		try {
@@ -1809,6 +1810,37 @@ class SAOKE_App {
 		foreach ( $in as $k => $v ) { $k = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $k ) ); $v = trim( sanitize_text_field( (string) $v ) ); if ( '' !== $k && '' !== $v ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
 		update_option( 'saoke_coso_ma', $map );
 		return array( 'ok' => true, 'so' => count( $map ) );
+	}
+	// ── Nộp tiền mặt theo cơ sở: dò mã của cơ sở trong nội dung sao kê ngân hàng ──
+	public static function rpc_getNopTienMat( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$tu = self::vn2ymd( isset( $a[1] ) ? (string) $a[1] : '' ); $den = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' );
+		$cm = self::coso_ma_map(); $tbl = self::tbl();
+		$rows = array(); $soDaNop = 0; $soChuaNop = 0; $soChuaMa = 0; $tongNop = 0;
+		foreach ( self::ghe_ds_coso() as $c ) {
+			$ma = isset( $cm[ self::chuan_ch( $c['ten'] ) ] ) ? trim( (string) $cm[ self::chuan_ch( $c['ten'] ) ] ) : '';
+			$o = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'ma' => $ma, 'coMa' => '' !== $ma, 'daNop' => false, 'tong' => 0, 'soLan' => 0, 'lanCuoi' => '' );
+			if ( '' !== $ma ) {
+				$w = array( "loai='in'", 'noi_dung LIKE %s' ); $ar = array( '%' . $wpdb->esc_like( $ma ) . '%' );
+				if ( $tu )  { $w[] = 'DATE(ngay_gd)>=%s'; $ar[] = $tu; }
+				if ( $den ) { $w[] = 'DATE(ngay_gd)<=%s'; $ar[] = $den; }
+				$gd = $wpdb->get_results( $wpdb->prepare( "SELECT ngay_gd, tien FROM $tbl WHERE " . implode( ' AND ', $w ) . " ORDER BY ngay_gd DESC, id DESC LIMIT 500", $ar ), ARRAY_A );
+				foreach ( (array) $gd as $g ) {
+					$o['tong'] += (int) $g['tien']; $o['soLan']++;
+					$vn = self::ymd2vn( $g['ngay_gd'] ); if ( '' === $o['lanCuoi'] || self::moc( $vn ) > self::moc( $o['lanCuoi'] ) ) { $o['lanCuoi'] = $vn; }
+				}
+				$o['daNop'] = $o['soLan'] > 0;
+			}
+			if ( '' === $ma ) { $soChuaMa++; } elseif ( $o['daNop'] ) { $soDaNop++; $tongNop += $o['tong']; } else { $soChuaNop++; }
+			$rows[] = $o;
+		}
+		// Chưa nộp (có mã) lên đầu để soi, rồi đã nộp, cuối là chưa đặt mã.
+		usort( $rows, function ( $x, $y ) {
+			$rank = function ( $r ) { if ( ! $r['coMa'] ) { return 2; } return $r['daNop'] ? 1 : 0; };
+			$rx = $rank( $x ); $ry = $rank( $y ); if ( $rx !== $ry ) { return $rx - $ry; }
+			return strcmp( $x['coso'], $y['coso'] );
+		} );
+		return array( 'ok' => true, 'rows' => $rows, 'soDaNop' => $soDaNop, 'soChuaNop' => $soChuaNop, 'soChuaMa' => $soChuaMa, 'tongNop' => $tongNop );
 	}
 	public static function rpc_napLaiDanhSachDiem( $a ) {
 		self::can_pin( $a ); $ds = self::ds_diem();
