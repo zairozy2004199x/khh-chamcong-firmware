@@ -7571,7 +7571,7 @@ function kmCfgLuu(){
    Các khối xếp dọc: tiêu đề · đoạn văn · ảnh · banner. Ảnh NÉN NGAY TRÊN MÁY (canvas → JPEG)
    rồi lưu data:URI, không cần thư viện ảnh WordPress. Sửa chữ chỉ cập nhật state (không vẽ lại,
    giữ con trỏ); thêm/xoá/đổi thứ tự mới vẽ lại. */
-var KMT_BLOCKS = null, KMT_LOADED = false;
+var KMT_BLOCKS = null, KMT_LOADED = false, KMT_DRAG = null;
 function kmtTenLoai(t){
   return t === 'heading' ? L('Tiêu đề','Heading')
        : t === 'text'    ? L('Đoạn văn','Text')
@@ -7597,8 +7597,10 @@ function veKmtEditor(){
     + '<button class="ghost" onclick="kmtThem(\'banner\')">＋ ' + L('Banner','Banner') + '</button></div>';
   if (!bs.length) { h += '<p class="mut">' + L('Chưa có khối nào — bấm thêm ở trên.','No blocks yet — add above.') + '</p>'; }
   bs.forEach(function(b, i){
-    h += '<div style="border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:8px;margin-bottom:8px">';
-    h += '<div class="act" style="justify-content:space-between;margin-bottom:6px"><b>' + kmtTenLoai(b.t) + '</b>'
+    h += '<div data-kmt-i="' + i + '" style="border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:8px;margin-bottom:8px">';
+    h += '<div class="act" style="justify-content:space-between;margin-bottom:6px">'
+      + '<b><span class="kmt-grip" draggable="true" title="' + L('Kéo để đổi thứ tự','Drag to reorder')
+      + '" style="cursor:grab;margin-right:6px;user-select:none">⠿</span>' + kmtTenLoai(b.t) + '</b>'
       + '<span><button class="ghost" onclick="kmtLen(' + i + ')"' + (i === 0 ? ' disabled' : '') + '>↑</button> '
       + '<button class="ghost" onclick="kmtXuong(' + i + ')"' + (i === bs.length - 1 ? ' disabled' : '') + '>↓</button> '
       + '<button class="ghost" onclick="kmtXoa(' + i + ')">🗑</button></span></div>';
@@ -7618,6 +7620,36 @@ function veKmtEditor(){
   h += '<div class="act" style="margin-top:6px"><button class="on" onclick="kmtLuu()">💾 ' + L('Lưu trang','Save page')
     + '</button><span id="kmt-msg" class="mut" style="align-self:center"></span></div>';
   box.innerHTML = h;
+
+  /* Kéo-thả đổi thứ tự khối (máy tính). Tay cầm ⠿ là nguồn kéo; cả khối là đích thả. Cảm ứng
+     (điện thoại) không có HTML5 drag nên vẫn dùng nút ↑↓ ở trên — hai cách cùng sửa KMT_BLOCKS. */
+  var wraps = box.querySelectorAll('[data-kmt-i]');
+  function xoaVienKmt(){ [].forEach.call(wraps, function(w){ w.style.boxShadow = ''; w.style.opacity = ''; }); }
+  [].forEach.call(wraps, function(w){
+    var grip = w.querySelector('.kmt-grip');
+    if (grip) {
+      grip.addEventListener('dragstart', function(e){
+        KMT_DRAG = +w.getAttribute('data-kmt-i');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', String(KMT_DRAG)); } catch (_){}
+        w.style.opacity = '.5';
+      });
+      grip.addEventListener('dragend', function(){ KMT_DRAG = null; xoaVienKmt(); });
+    }
+    w.addEventListener('dragover', function(e){ if (KMT_DRAG === null) return; e.preventDefault(); w.style.boxShadow = 'inset 0 3px 0 #2563eb'; });
+    w.addEventListener('dragleave', function(){ w.style.boxShadow = ''; });
+    w.addEventListener('drop', function(e){
+      if (KMT_DRAG === null) return;
+      e.preventDefault(); w.style.boxShadow = '';
+      var from = KMT_DRAG, to = +w.getAttribute('data-kmt-i');
+      KMT_DRAG = null;
+      if (from === to || !KMT_BLOCKS || !KMT_BLOCKS[from]) return;
+      var b = KMT_BLOCKS.splice(from, 1)[0];
+      if (from < to) { to--; }          // đã bỏ 1 phần tử phía trước, chỉ số đích lùi 1
+      KMT_BLOCKS.splice(to, 0, b);
+      veKmtEditor();
+    });
+  });
 }
 function kmtThem(t){ (KMT_BLOCKS = KMT_BLOCKS || []).push({ t: t, v: '', s: '' }); veKmtEditor(); }
 function kmtXoa(i){ if (!KMT_BLOCKS) return; if (!confirm(L('Xoá khối này?','Delete this block?'))) return; KMT_BLOCKS.splice(i, 1); veKmtEditor(); }
