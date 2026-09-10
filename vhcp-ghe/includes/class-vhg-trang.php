@@ -7735,6 +7735,33 @@ function maTrungTim(may){
   return { trung: trung, long: longg };
 }
 
+/* Tìm ghế theo mã / tên trên TOÀN BỘ D.may — anh Thắng 10/09/2026: ghế lạc cơ sở ("tự nhiên mất
+   máy") thì phải có chỗ gõ mã ra ngay đang ở đâu. Quét cả ghế đã ẩn (an=1) và ghế chưa gán, dò
+   bỏ dấu qua kdJS. Không vẽ lại tab (giữ con trỏ) — chỉ bơm kết quả vào #ql-ghetim-kq. */
+function qlTimGhe(){
+  var box = document.getElementById('ql-ghetim-kq'); if (!box) return;
+  var inp = document.getElementById('ql-ghetim');
+  var q = kdJS(inp ? inp.value : '');
+  if (!q) { box.innerHTML = ''; return; }
+  var kq = (D.may || []).filter(function(m){
+    if (!m.ma || m.ma.charAt(0) === '?') return false;
+    return kdJS(m.ma).indexOf(q) >= 0 || kdJS(m.ten || '').indexOf(q) >= 0;
+  }).slice(0, 40);
+  if (!kq.length) {
+    box.innerHTML = '<div class="mut" style="padding:6px 0">' + L('Không thấy ghế nào khớp.','No chair matches.') + '</div>';
+    return;
+  }
+  var h = '<table style="margin-top:6px"><tr><th>' + L('Mã','Code') + '</th><th>' + L('Tên','Name')
+    + '</th><th>' + L('Địa điểm','Site') + '</th><th>' + L('Trạng thái','State') + '</th></tr>';
+  kq.forEach(function(m){
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td><td class="mut">' + esc(m.ten || '') + '</td>'
+      + '<td>' + (m.coso ? esc(m.coso) : '<span style="color:#b45309">' + L('(chưa gán)','(unassigned)') + '</span>') + '</td>'
+      + '<td>' + (m.an ? '<span style="color:#dc2626">' + L('đã ẩn','hidden') + '</span>'
+                      : '<span style="color:#15803d">' + L('đang dùng','active') + '</span>') + '</td></tr>';
+  });
+  box.innerHTML = h + '</table>';
+}
+
 function veQuanLy(){
   var coso = D.coso || [], may = D.may || [];
   var tc = (D.tong && D.tong.theo_coso) || [];
@@ -7778,6 +7805,15 @@ function veQuanLy(){
     }
     h += '</div>';
   }
+
+  /* ---- Tìm ghế theo mã / tên (định vị ghế lạc cơ sở / đã ẩn) ---- */
+  h += '<div class="card"><h2>🔎 ' + L('Tìm ghế theo mã / tên','Find a chair by code / name') + '</h2>'
+    + '<p class="mut" style="margin:.2em 0 .5em">'
+    + L('Gõ mã (vd 80132) hoặc tên (vd GO-BL-2) để biết ghế đang ở đâu — kể cả ghế đã ẩn hay lạc sang cơ sở khác.',
+        'Type a code or name to locate a chair anywhere — including hidden or misfiled ones.')
+    + '</p>'
+    + '<input id="ql-ghetim" type="search" oninput="qlTimGhe()" placeholder="80132 / GO-BL-2" style="width:100%;max-width:360px">'
+    + '<div id="ql-ghetim-kq"></div></div>';
 
   /* ---- Địa điểm ---- */
   /* Gợi ý Tỉnh/TP = chính những tỉnh đã nhập ở các địa điểm có sẵn (anh Thắng 10/09/2026:
