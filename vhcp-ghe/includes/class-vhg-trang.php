@@ -3504,6 +3504,15 @@ tr:last-child td{border-bottom:0}
 .canh{background:#fbe6e6;border:1px solid #eeb6b6;border-radius:9px;padding:9px 11px;
   font-size:12px;color:#b23636;margin-top:10px}
 .act input{width:66px;padding:5px 7px}
+/* Ô ngày KHÔNG đi theo luật 66px ở trên — luật đó đặt cho ô nhập số (chỉ số ghế, tiền), còn
+   input[type=date] cần chỗ cho cả dd/mm/yyyy lẫn cái nút lịch: bóp còn 66px là mất phần năm và
+   nút lịch đè lên chữ (anh Thắng 10/09/2026: "chỉnh nó dễ nhìn tí"). */
+.act input[type=date]{width:auto;min-width:142px;padding:6px 9px}
+/* Cụm "nhãn + ô ngày" đóng khung nhạt để hai mốc Từ/Đến tách nhau ra, thay vì bốn thứ dàn hàng
+   cách nhau 5px trông như một dãy liền. */
+.ngay-o{display:inline-flex;align-items:center;gap:7px;background:#f8fafc;border:1px solid #e2e8f0;
+  border-radius:10px;padding:4px 4px 4px 10px}
+.ngay-o>span{font-size:12px;color:var(--mut);white-space:nowrap}
 .act select{font:inherit;border-radius:8px;border:1px solid #c9d3e0;background:#fff;color:var(--ink);padding:6px 8px;max-width:130px}
 .note code{background:#fff;border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:var(--ink)}
 .act button{padding:5px 10px;font-size:12px}
@@ -5916,10 +5925,10 @@ function veDaNop(){
   if(!DANOP_TU||!DANOP_DEN){ var n=new Date(); function iso(d){return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);} DANOP_DEN=iso(n); DANOP_TU=iso(new Date(n.getFullYear(),n.getMonth(),1)); }
   return '<div class="card"><h2>💰 '+L('Doanh thu đã nộp','Deposited revenue')+'</h2>'
     + '<p class="mut">'+L('Đối chiếu tiền mặt phải nộp với số ĐÃ NỘP vào ngân hàng — dò MÃ NỘP của cơ sở (đặt bên Sao Kê) trong nội dung sao kê ngân hàng. Tiền QR về thẳng bank nên không tính nộp tay.','Compare cash to deposit vs actually deposited (matched by each site code in the bank statement).')+'</p>'
-    + '<div class="act" style="flex-wrap:wrap">'
-    + '<b>'+L('Từ ngày','From')+':</b><input type="date" id="dn-tu" value="'+esc(DANOP_TU)+'">'
-    + '<b>'+L('Đến ngày','To')+':</b><input type="date" id="dn-den" value="'+esc(DANOP_DEN)+'">'
-    + '<button onclick="daNopXem()" class="on">'+L('Xem','Load')+'</button></div>'
+    + '<div class="act" style="flex-wrap:wrap;gap:10px;margin-top:10px">'
+    + '<label class="ngay-o"><span>'+L('Từ ngày','From')+'</span><input type="date" id="dn-tu" value="'+esc(DANOP_TU)+'"></label>'
+    + '<label class="ngay-o"><span>'+L('Đến ngày','To')+'</span><input type="date" id="dn-den" value="'+esc(DANOP_DEN)+'"></label>'
+    + '<button onclick="daNopXem()" class="on" style="padding:8px 16px">'+L('Xem','Load')+'</button></div>'
     + '<div id="dn-cards" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px"></div>'
     + '<div id="dn-body" style="margin-top:8px" class="mut">'+L('Đang tải…','Loading…')+'</div></div>';
 }
@@ -5944,16 +5953,17 @@ function daNopVe(){
   if(DANOP_NV){ var sel=null; nv.forEach(function(x){ if(x.ten===DANOP_NV) sel=x; });
     if(sel){ var kset={}; (sel.keys||[]).forEach(function(k){kset[k]=1;}); rows=rows.filter(function(o){ return kset[o.key]; }); } }
   var tTM=0,tNop=0,tCL=0; rows.forEach(function(o){ tTM+=o.tienMat||0; tNop+=o.daNop||0; tCL+=o.conLai||0; });
-  var cards=document.getElementById('dn-cards');
-  if(cards) cards.innerHTML = [
-    [L('Tiền mặt phải nộp','Cash to deposit'), d(tTM), ''],
-    [L('Đã nộp (sao kê)','Deposited'), d(tNop), '#15803d'],
-    [L('Còn phải nộp','Remaining'), d(tCL), '#dc2626']
-  ].map(function(c){ return '<div style="flex:1;min-width:150px;border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:10px 12px"><div class="mut" style="font-size:12px">'+c[0]+'</div><div style="font-size:20px;font-weight:800'+(c[2]?(';color:'+c[2]):'')+'">'+c[1]+'</div></div>'; }).join('');
+  daNopThe(tTM,tNop,tCL);
   var h='';
-  if(nv.length){ h+='<div class="act" style="margin-bottom:8px"><b>'+L('Nhân viên','Staff')+':</b><select id="dn-nv" onchange="daNopLoc()"><option value="">'+L('Tất cả','All')+'</option>'
-    + nv.map(function(x){ return '<option value="'+esc(x.ten)+'"'+(x.ten===DANOP_NV?' selected':'')+'>'+esc(x.ten)+'</option>'; }).join('')+'</select></div>'; }
-  if(!rows.length){ body.innerHTML=h+'<div class="mut">'+L('Chưa có dữ liệu trong kỳ.','No data in range.')+'</div>'; return; }
+  /* Ô lọc: nhân viên (đã có) + ô GÕ TÌM cơ sở (anh Thắng 10/09/2026: "ô gõ tìm kiếm theo cơ
+     sở"). Bảng này liệt kê cả chuỗi nên tìm một cơ sở bằng mắt là việc của người rảnh. */
+  h+='<div class="act" style="margin-bottom:8px;gap:10px;flex-wrap:wrap">';
+  if(nv.length){ h+='<label class="ngay-o"><span>'+L('Nhân viên','Staff')+'</span><select id="dn-nv" onchange="daNopLoc()" style="border:0;background:transparent"><option value="">'+L('Tất cả','All')+'</option>'
+    + nv.map(function(x){ return '<option value="'+esc(x.ten)+'"'+(x.ten===DANOP_NV?' selected':'')+'>'+esc(x.ten)+'</option>'; }).join('')+'</select></label>'; }
+  h+='<input id="dn-tim" type="search" placeholder="🔎 '+L('Tìm cơ sở hoặc mã nộp…','Search site or code…')
+    + '" style="flex:1;min-width:200px;max-width:320px;padding:6px 10px">'
+    + '<span id="dn-dem" class="mut" style="align-self:center"></span></div>';
+  if(!rows.length){ body.innerHTML=h+'<div class="mut">'+L('Chưa có dữ liệu trong kỳ.','No data in range.')+'</div>'; daNopWire(); return; }
   h+='<div style="overflow:auto"><table><thead><tr><th>'+L('Cơ sở','Site')+'</th><th>'+L('Mã nộp','Code')+'</th><th class="r">'+L('Tiền mặt','Cash')+'</th><th class="r">'+L('Đã nộp','Deposited')+'</th><th class="r">'+L('Còn lại','Remaining')+'</th></tr></thead><tbody>';
   /* Ngày nộp đi LIỀN dưới số tiền thay vì đứng riêng một cột (anh Thắng 10/09/2026) —
      kế toán soát từng dòng "nộp bao nhiêu, nộp hôm nào" trong một lần nhìn, khỏi rê mắt
@@ -5967,7 +5977,9 @@ function daNopVe(){
   }
   h+=rows.map(function(o){
     var cl = o.conLai>0 ? ' style="color:#dc2626;font-weight:700"' : (o.conLai<0?' style="color:#b45309"':'');
-    return '<tr><td><b>'+esc(o.coso)+'</b></td>'
+    return '<tr data-dntim="'+esc(kdJS(o.coso+' '+(o.ma||'')))+'"'
+      +' data-tm="'+(o.tienMat||0)+'" data-nop="'+(o.daNop||0)+'" data-cl="'+(o.conLai||0)+'">'
+      +'<td><b>'+esc(o.coso)+'</b></td>'
       +'<td>'+(o.ma?('<code>'+esc(o.ma)+'</code>'):'<span class="mut">'+L('chưa đặt mã','no code')+'</span>')+'</td>'
       +'<td class="r">'+d(o.tienMat)+'</td>'
       +'<td class="r" style="color:#15803d">'+(o.daNop?(d(o.daNop)+dongNgay(o)):'<span class="mut">–</span>')+'</td>'
@@ -5976,6 +5988,41 @@ function daNopVe(){
   h+='</tbody></table></div>';
   if(!r.coSaoke) h='<div class="mut" style="color:#b45309;margin-bottom:6px">⚠ '+L('Chưa nối được dữ liệu Sao Kê (bảng saoke_gd).','Sao Kê data not linked.')+'</div>'+h;
   body.innerHTML=h;
+  daNopWire();
+}
+/* Gán ô tìm — gọi ở CẢ HAI nhánh (có bảng và "chưa có dữ liệu"). Một ô tìm hiện ra mà gõ không
+   phản ứng gì thì người ta tưởng trang treo. */
+function daNopWire(){
+  var t=document.getElementById('dn-tim'); if(!t) return;
+  t.oninput=daNopTim;
+  t.onkeydown=function(e){ if(e.key==='Escape'){ this.value=''; daNopTim(); } };
+}
+/* Ba thẻ tổng — tách riêng vì ô tìm phải tính lại tổng theo đúng những dòng còn hiện, không thì
+   bảng lọc còn 1 cơ sở mà thẻ vẫn nói tổng cả chuỗi: người ta đọc thẻ rồi tưởng đó là của cơ sở
+   đang xem. */
+function daNopThe(tTM,tNop,tCL){
+  var cards=document.getElementById('dn-cards'); if(!cards) return;
+  function d(n){ return (Math.round(n||0)).toLocaleString('vi-VN')+'đ'; }
+  cards.innerHTML = [
+    [L('Tiền mặt phải nộp','Cash to deposit'), d(tTM), ''],
+    [L('Đã nộp (sao kê)','Deposited'), d(tNop), '#15803d'],
+    [L('Còn phải nộp','Remaining'), d(tCL), '#dc2626']
+  ].map(function(c){ return '<div style="flex:1;min-width:150px;border:1px solid var(--line,#dbe3ef);border-radius:10px;padding:10px 12px"><div class="mut" style="font-size:12px">'+c[0]+'</div><div style="font-size:20px;font-weight:800'+(c[2]?(';color:'+c[2]):'')+'">'+c[1]+'</div></div>'; }).join('');
+}
+/* Lọc tại chỗ (ẩn/hiện hàng) chứ không vẽ lại bảng — vẽ lại là mất con trỏ sau mỗi phím gõ.
+   Dò cả tên cơ sở và mã nộp, bỏ dấu nên gõ "van hanh" ra "VẠN HẠNH MALL". */
+function daNopTim(){
+  var el=document.getElementById('dn-tim'); if(!el) return;
+  var q=kdJS(el.value), tr=document.querySelectorAll('#dn-body tr[data-dntim]');
+  var tTM=0,tNop=0,tCL=0,con=0;
+  [].forEach.call(tr,function(x){
+    var hien = !q || (x.getAttribute('data-dntim')||'').indexOf(q)>=0;
+    x.style.display = hien ? '' : 'none';
+    if(hien){ con++; tTM+=+x.getAttribute('data-tm'); tNop+=+x.getAttribute('data-nop'); tCL+=+x.getAttribute('data-cl'); }
+  });
+  daNopThe(tTM,tNop,tCL);
+  var d=document.getElementById('dn-dem');
+  if(d) d.textContent = q ? (con+' / '+tr.length) : '';
 }
 function veKtBcTong(){
   /* Mặc định: 14 ngày gần nhất. Ảnh mẫu anh gửi là 9→19 và 8/1→8/13 — tức người ta xem theo
@@ -5992,8 +6039,8 @@ function veKtBcTong(){
     + '<p class="mut">' + L('Bảng chéo cả chuỗi: mỗi dòng một cơ sở (hoặc một ghế), mỗi ngày một cột, cột Tổng ở cuối. Cơ sở không thu được đồng nào vẫn nằm nguyên một dòng — chỗ nào đang không ra tiền là thứ đáng thấy nhất.',
       'Cross table for the whole chain: one row per site (or chair), one column per day, total at the end. Sites with no revenue still get a row.') + '</p>'
     + '<div class="act" style="flex-wrap:wrap">'
-    + '<b>' + L('Từ ngày','From') + ':</b><input type="date" id="bct-tu" value="' + esc(BCT_TU) + '">'
-    + '<b>' + L('Đến ngày','To') + ':</b><input type="date" id="bct-den" value="' + esc(BCT_DEN) + '">'
+    + '<label class="ngay-o"><span>' + L('Từ ngày','From') + '</span><input type="date" id="bct-tu" value="' + esc(BCT_TU) + '"></label>'
+    + '<label class="ngay-o"><span>' + L('Đến ngày','To') + '</span><input type="date" id="bct-den" value="' + esc(BCT_DEN) + '"></label>'
     + '<button id="bct-xem" class="on">' + L('Xem','Load') + '</button>'
     + '<span style="flex:1"></span>'
     + '<button id="bct-xuat" class="ghost">⬇ ' + L('Xuất .csv','Export .csv') + '</button>'
