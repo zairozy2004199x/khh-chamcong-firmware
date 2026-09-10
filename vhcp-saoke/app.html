@@ -1501,7 +1501,8 @@ function veDoiSoatFile(nguon, d){
     ? '<tr><td colspan="6" class="muted">Không có cục nào khớp từ khoá trong tháng.</td></tr>'
     : d.bank.map(function(r){
         return '<tr><td>'+esc(r.ngayGD)+'</td><td>'+esc(r.nganHang)+'</td><td>'+esc(r.soTK)+'</td>'
-          + '<td>'+esc(r.phapNhan)+'</td><td>'+esc(r.noiDung)+'</td>'
+          + '<td>'+esc(r.phapNhan)+'</td>'
+          + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td>'
           + '<td class="num in">'+fmt(r.vao)+'</td></tr>'; }).join('');
   cgEl(nguon,'bankLbl').textContent = d.bank.length ? ('· '+d.bank.length+' cục · '+fmt(d.bankTien)+'đ') : '';
 
@@ -2078,8 +2079,15 @@ function veSaoKeCong(nguon, d){
         var may = r.tenMay ? esc(r.tenMay) : '<span style="color:var(--gold)">chưa rõ máy</span>';
         var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
         return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
-             + '<td>'+esc(r.thoiDiem)+'</td><td>'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
-             + '<td>'+esc(r.maGD)+'</td><td>'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
+             /* th,td của trang để white-space:nowrap, nên MỘT ô dài là cả bảng trôi ngang và
+                các cột sau bị đẩy ra khỏi màn — trông y như dữ liệu lệch hàng (anh Thắng
+                10/09/2026). Nguyên nhân gốc đã vá bên máy chủ (may_hop_le), nhưng chặn luôn
+                ở đây để không dữ liệu lạ nào phá được bố cục nữa. Dùng đúng luật đã có ở các
+                bảng khác trong file: white-space:normal + max-width. */
+             + '<td>'+esc(r.thoiDiem)+'</td>'
+             + '<td style="white-space:normal;max-width:160px">'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
+             + '<td>'+esc(r.maGD)+'</td>'
+             + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
              + '<td class="in">'+fmt(r.soTien)+'</td></tr>'; }, 8, 'Không có giao dịch nào trong kỳ.');
   cgEl(nguon,'congLbl').textContent = d.cong.length ? ('· '+d.cong.length+' dòng · '+fmt(d.congTien)+'đ') : '';
 
@@ -2109,7 +2117,8 @@ function veSaoKeCong(nguon, d){
 
   cgVeBang(nguon, 'bank', d.bank || [], function(r){
         return '<tr><td>'+esc(r.ngayGD)+'</td><td>'+esc(r.nganHang)+'</td><td>'+esc(r.soTK)+'</td>'
-             + '<td>'+esc(r.phapNhan)+'</td><td>'+esc(r.noiDung)+'</td><td>'+esc(r.maGD)+'</td>'
+             + '<td>'+esc(r.phapNhan)+'</td>'
+             + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.maGD)+'</td>'
              + '<td class="in">'+fmt(r.vao)+'</td></tr>'; }, 7, 'Không có dòng sao kê nào khớp từ khoá trong kỳ.');
   cgEl(nguon,'bankLbl').textContent = d.bank.length ? ('· '+d.bank.length+' dòng · '+fmt(d.bankTien)+'đ') : '';
 }

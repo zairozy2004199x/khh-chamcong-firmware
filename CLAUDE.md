@@ -20,7 +20,8 @@ rm -f dist/vhcp-ghe.zip && zip -qr dist/vhcp-ghe.zip vhcp-ghe -x '*.DS_Store'
 ```
 
 - `vhcp-ghe/` → `dist/vhcp-ghe.zip` (đã có sẵn trong repo, commit kèm mỗi lần sửa)
-- `vhcp-ve/`, `vhcp-saoke/` → **chưa có zip trong repo**, build theo lệnh trên khi cần giao
+- `vhcp-saoke/` → `dist/vhcp-saoke.zip`
+- `vhcp-ve/` → **chưa có zip trong repo**, build theo lệnh trên khi cần giao
 - `dist/vhcp-du-an.zip` → chỉ có zip, **không có mã nguồn trong repo**, không sửa được từ đây
 
 Sau khi build: giải nén ra chỗ tạm rồi `diff -rq` với thư mục nguồn để chắc zip đúng bản.

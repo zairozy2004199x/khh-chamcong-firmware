@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.14.0
+ * Version:           0.14.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1080,7 +1080,7 @@ class SAOKE_App {
 		foreach ( (array) $rowsC as $r ) {
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = strtoupper( (string) $r['diem_ban'] ); }
+			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
 			$cong[] = array( 'thoiDiem' => self::ymd2vn( $r['thoi_diem'] ), 'soTien' => (int) $r['so_tien'],
 				'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'],
 				'noiDung' => $r['noi_dung'], 'tenMay' => $tenMay, 'coSo' => self::cong_coso( $tenMay ) );
@@ -1314,7 +1314,7 @@ class SAOKE_App {
 		foreach ( (array) $rc as $r ) {
 			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; } $tong += $tien;
 			$ngay = self::ymd2vn( $r['thoi_diem'] );
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = strtoupper( (string) $r['diem_ban'] ); }
+			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
 			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $tien; continue; }
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $ngay );
 			$suy = self::ax_ma_nop( $ax, $mapTen );
@@ -1404,7 +1404,35 @@ class SAOKE_App {
 	private static function cong_ten_may( $noi_dung ) {
 		$s = trim( preg_replace( '/^VQR\S*\s+/i', '', trim( (string) $noi_dung ) ) );
 		if ( '' === $s || preg_match( '/^payment\s*for\s*order$/i', $s ) ) { return ''; }
-		return preg_replace( '/\s+/', ' ', strtoupper( $s ) );
+		return self::may_hop_le( $s );
+	}
+
+	/* 🔴 CHỈ NHẬN CHUỖI TRÔNG NHƯ MÃ MÁY, KHÔNG NHẬN CẢ ĐOẠN NỘI DUNG.
+	 *
+	 * Anh Thắng 10/09/2026: *"trang sao kê nó bị lệch dữ liệu"*. Bản trước lấy NGUYÊN nội dung
+	 * làm tên máy hễ nó không mở đầu bằng "VQR", nên một dòng chuyển khoản ngân hàng
+	 * `REM TFR AC:1770260769 O@L_080005_…/CONG TY TNHH GIAI TRI K&H_…` thành một cái "máy" dài
+	 * 175 ký tự. Bảng để `white-space:nowrap` nên ô Máy phình ra đẩy hết cột sau ra khỏi màn —
+	 * đó là chỗ "lệch" người ta thấy. Nhưng hại hơn phần nhìn: `cong_coso()` cắt số cuối chuỗi
+	 * đó ra một "cửa hàng" bịa, rồi tiền của dòng ấy nằm trong danh sách "chưa gán mã" như một
+	 * cơ sở thật — kế toán đi tìm một cửa hàng không tồn tại.
+	 *
+	 * Mã máy thật đều ngắn: `AMTP08`, `AMBT 11`, `GO AC 02`, `VC GP 07`. Cho phép chữ có dấu vì
+	 * đường lùi `diem_ban` mang tên cửa hàng tiếng Việt ("AEON MALL BÌNH TÂN"), nhưng chặn dấu
+	 * câu (`: @ / _#` …) và chuỗi quá dài/quá nhiều từ — dấu hiệu của một câu, không phải một mã.
+	 *
+	 * Không khớp thì trả '' để dòng đó hiện "chưa rõ máy": nói KHÔNG BIẾT là đúng, bịa ra một
+	 * cái máy mới là sai. Tiền vẫn vào tổng cổng và vào `chuaRoTien` để có người soi, không mất
+	 * đồng nào.
+	 */
+	const MAY_DAI_MAX = 40;   // dài hơn thế là một câu, không phải mã máy
+	const MAY_TU_MAX  = 6;    // "LOTTE MART NAM SÀI GÒN" đã là 5 từ
+	private static function may_hop_le( $s ) {
+		$s = preg_replace( '/\s+/', ' ', trim( mb_strtoupper( (string) $s, 'UTF-8' ) ) );
+		if ( '' === $s || mb_strlen( $s, 'UTF-8' ) > self::MAY_DAI_MAX ) { return ''; }
+		if ( ! preg_match( '/^[\p{L}\p{N}]+(?:[ _\-][\p{L}\p{N}]+)*$/u', $s ) ) { return ''; }
+		if ( count( explode( ' ', $s ) ) > self::MAY_TU_MAX ) { return ''; }
+		return $s;
 	}
 	/* Cơ sở = tên máy bỏ số máy cuối: "AMTP 12" -> "AMTP". */
 	private static function cong_coso( $ten_may ) {
@@ -2006,7 +2034,7 @@ class SAOKE_App {
 			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = strtoupper( (string) $r['diem_ban'] ); }
+			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
 			$coSo = self::cong_coso( $tenMay );
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
