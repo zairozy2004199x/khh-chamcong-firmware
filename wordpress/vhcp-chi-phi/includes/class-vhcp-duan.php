@@ -286,12 +286,18 @@ class VHCP_DuAn {
 		$ten_cua = array();
 		foreach ( self::lines_of( $ma_da ) as $r2 ) { $ten_cua[ (int) $r2['row_no'] ] = trim( (string) $r2['noi_dung'] ); }
 		$da_xin = 0; $da_chi = 0;
-		$lenhQT = array();
+		$lenhQT = array(); $qt_gui = 0; $qt_chot = 0;
 		foreach ( self::ds_dot( $ma_da, 'qt' ) as $q ) {
 			$tq = array();
 			foreach ( $q['rows'] as $rw ) { if ( isset( $ten_cua[ $rw ] ) ) { $tq[] = $ten_cua[ $rw ]; } }
 			$q['tenHM'] = $tq;
 			$lenhQT[] = $q;
+			/* 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH. Nó đã quay về cho nhân viên sửa; cộng vào là con số
+			   phình lên bởi lệnh không còn tồn tại, rồi họ gửi lại là cộng thêm lần nữa. */
+			if ( in_array( $q['tt'], array( 'xin', 'xong' ), true ) ) { $qt_gui += $q['soTien']; }
+			/* 🔴 "ĐÃ QUYẾT TOÁN" LÀ ĐÃ CHỐT SỔ, không phải đã gửi. Gửi rồi mà kế toán chưa đối
+			   chiếu thì khoản ấy vẫn treo trên TK 141 — báo là đã quyết toán là báo sai. */
+			if ( 'xong' === $q['tt'] ) { $qt_chot += $q['soTien']; }
 		}
 		foreach ( self::ds_dot( $ma_da ) as $d ) {
 			$tn = array();
@@ -381,6 +387,8 @@ class VHCP_DuAn {
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
 			'lenhQT'          => $lenhQT,
+			'qtDaGui'         => $qt_gui,
+			'qtDaChot'        => $qt_chot,
 			'duKienTU'        => $du_kien,
 			'daXinTU'         => $da_xin,
 			'daChiTU'         => $da_chi,

@@ -1043,11 +1043,14 @@
         <h2>🧾 Quyết toán theo dự án <span style="font-size:11px;font-weight:400;color:#64748b">— nhân viên gửi chốt, kế toán đối chiếu rồi chốt sổ</span>
           <span class="badge st-cho" id="qtLenhSo">0</span></h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-          <select id="qtLenhFilter" onchange="renderQtLenh()">
+          <!-- 🔴 MẶC ĐỊNH LÀ "TẤT CẢ". Anh Thắng: *"Đơn đã duyệt quyết toán sẽ nằm đó luôn"* —
+               lọc sẵn "chờ chốt sổ" thì bấm chốt xong là dòng biến mất khỏi màn, kế toán không
+               còn chỗ tra lại mình vừa chốt cái gì. Ai chỉ muốn xem việc đang chờ thì chọn. -->
+          <select id="qtLenhFilter" onchange="QTLENH_TRANG=1;renderQtLenh()">
+            <option value="all">Tất cả</option>
             <option value="xin">Chờ chốt sổ</option>
             <option value="xong">Đã quyết toán</option>
             <option value="tra">Bị trả lại</option>
-            <option value="all">Tất cả</option>
           </select>
           <button class="btn b-x" onclick="loadQtLenh()">↻ Tải lại</button>
         </div>
@@ -1060,6 +1063,7 @@
         </table>
         <div class="empty" id="qtLenhEmpty">Chưa có lệnh quyết toán nào của dự án.</div>
       </div>
+      <div id="qtLenhPager" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;font-size:12px"></div>
     </div>
 
 
@@ -3885,6 +3889,57 @@
       +' · dự toán '+money(Number(r.tongDuToan)||0)+'đ (hạng mục '+money(hmDT)+'đ)</div>'
       +'</div>';
   }
+  /* Thẻ CÒN TREO — tạm ứng đã chi trừ quyết toán đã chốt sổ. */
+  function _tqCardTreo(r){
+    var chi=Number(r.daChiTU)||0, chot=Number(r.qtDaChot)||0;
+    var treo=chi-chot;
+    /* 🔴 CÒN TREO LÀ CẢNH BÁO, TẤT TOÁN HẾT LÀ YÊN. Tô một màu cho cả hai thì kế toán phải đọc
+       con số mới biết mình đang ổn hay đang nợ sổ. */
+    var c=(treo>0)?['#fee2e2','#fecaca','#b91c1c']
+        :((treo<0)?['#fef3c7','#fde68a','#b45309']:['#dcfce7','#86efac','#166534']);
+    var chan;
+    if(treo>0)      chan='tiền đã đưa ra mà chưa quyết toán xong';
+    /* Chốt sổ NHIỀU HƠN số đã ứng là chuyện có thật — nhân viên bỏ tiền túi mua thêm rồi mới
+       quyết toán. Bày "-2.000.000đ còn treo" thì đọc ra vô nghĩa; phải nói thẳng ai nợ ai. */
+    else if(treo<0) chan='⚠️ quyết toán vượt số đã ứng — công ty còn nợ nhân viên khoản này';
+    else            chan=(chi>0?'✓ đã tất toán hết, không còn treo trên TK 141':'chưa cấp tạm ứng đồng nào');
+    function dong(nhan, so, mau, dam){
+      return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
+        +(dam?'margin-bottom:4px':'margin-top:3px')+'">'
+        +'<span style="font-size:11.5px;color:'+mau+'">'+nhan+'</span>'
+        +'<b style="font-size:'+(dam?'19px':'14px')+';font-weight:800;color:'+mau+';white-space:nowrap">'+money(so)+'đ</b></div>';
+    }
+    return '<div style="flex:1;min-width:250px;background:'+c[0]+';border:1px solid '+c[1]+';border-radius:10px;padding:12px 14px">'
+      +dong((treo<0?'⚠️ Quyết toán vượt số đã ứng':'💳 Còn treo trên TK 141'), Math.abs(treo), c[2], true)
+      +dong('Tạm ứng đã chi', chi, c[2])
+      +dong('− Quyết toán đã chốt', chot, c[2])
+      +'<div style="border-top:1px dashed '+c[1]+';margin-top:6px;padding-top:5px;font-size:11px;color:'+c[2]+';opacity:.85">'
+      +chan+'</div></div>';
+  }
+  /* Thẻ THỰC TẾ — kèm phần đã quyết toán (đã chốt sổ) và phần còn treo. */
+  function _tqCardTT(r, hmTT, scT, scN){
+    var tt=Number(r.tongThucTe)||0, chot=Number(r.qtDaChot)||0, gui=Number(r.qtDaGui)||0;
+    /* Đang chờ kế toán chốt = đã gửi nhưng chưa chốt sổ. Tách riêng khỏi "chưa gửi" vì hai
+       thứ ấy đòi hai hành động khác nhau: một cái chờ kế toán, một cái chờ nhân viên. */
+    var choChot=Math.max(0, gui-chot);
+    var conTreo=tt-gui;
+    function dong(nhan, so, mau, dam){
+      return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
+        +(dam?'margin-bottom:4px':'margin-top:3px')+'">'
+        +'<span style="font-size:11.5px;color:'+mau+'">'+nhan+'</span>'
+        +'<b style="font-size:'+(dam?'19px':'14px')+';font-weight:800;color:'+mau+';white-space:nowrap">'+money(so)+'đ</b></div>';
+    }
+    var chan='';
+    if(choChot>0) chan+='chờ kế toán chốt <b>'+money(choChot)+'đ</b>';
+    if(conTreo>0) chan+=(chan?' · ':'')+'chưa gửi quyết toán <b>'+money(conTreo)+'đ</b>';
+    if(!chan) chan=(tt>0?'✓ đã quyết toán hết':'chưa có chi phí thực tế');
+    return '<div style="flex:1;min-width:250px;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 14px">'
+      +dong('Tổng thực tế', tt, '#9a3412', true)
+      +dong('Tổng thực tế đã quyết toán', chot, '#166534')
+      +'<div style="border-top:1px dashed #fed7aa;margin-top:6px;padding-top:5px;font-size:11px;color:#9a3412;opacity:.85">'
+      +chan+' · hạng mục '+money(hmTT)+'đ + sổ chi phí '+money(scT)+'đ ('+scN+' dòng)</div>'
+      +'</div>';
+  }
   function _tqCard(bg,bd,fg,label,val,sub){
     return '<div style="flex:1;min-width:190px;background:'+bg+';border:1px solid '+bd+';border-radius:10px;padding:12px 14px">'+
       '<div style="font-size:12px;color:'+fg+'">'+label+'</div>'+
@@ -4279,9 +4334,6 @@
     el('daDetailCard').style.display='';
     el('daDetailTitle').textContent='🏗️ '+r.ten+' · '+r.loai;
     el('daOpenSheet').href=r.url||'#';
-    var over=r.chenh>0;
-    var chLabel=over?'⚠️ Vượt dự toán':(r.chenh<0?'✓ Dư (dưới dự toán)':'✓ Khớp dự toán');
-    var chVal=over?(money(r.chenh)+'đ'):(r.chenh<0?(money(-r.chenh)+'đ'):'0đ');
     // Tách 4 ô riêng: mỗi hình thức (💰 Tạm ứng / 🏢 Trực tiếp) có 1 ô DỰ TOÁN (số xin) + 1 ô THỰC TẾ (kèm THIẾU/DƯ để bù/thu lần 2)
     var tdTxt=function(ttChi, thieu){
       if(!(ttChi>0)) return 'chưa có thực tế';
@@ -4346,9 +4398,16 @@
          cả đơn này rốt cuộc phải ứng bao nhiêu · nhân viên đã xin bao nhiêu · đã chi ra bao
          nhiêu. Con số dự toán vẫn còn, nằm ở dòng phụ. */
       _tqCardTU(r, hmDT)+
-      _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực tế', money(r.tongThucTe)+'đ',
-        'hạng mục '+money(hmTT)+'đ + sổ chi phí '+money(scT)+'đ ('+scN+' dòng)')+
-      _tqCard(over?'#fee2e2':'#dcfce7', over?'#fecaca':'#86efac', over?'#b91c1c':'#166534', chLabel, chVal,'thực tế so với dự toán');
+      /* 🔴 THẺ THỰC TẾ NÓI THÊM PHẦN ĐÃ QUYẾT TOÁN. Anh Thắng: *"Tổng thực tế / Tổng thực tế
+         đã quyết toán"*. Một con số "đã chi 22 triệu" không nói được khoản nào đã tất toán
+         khỏi TK 141 và khoản nào còn treo — mà đó chính là câu kế toán phải trả lời cuối kỳ. */
+      _tqCardTT(r, hmTT, scT, scN)+
+      /* 🔴 THẺ THỨ TƯ ĐỔI THÀNH SỐ CÒN TREO TRÊN TK 141. Anh Thắng: *"Tổng tạm ứng đã chi −
+         Quyết toán đã chốt"*.
+         Ô "Vượt dự toán" cũ so thực tế với dự toán, mà phần lớn dự án để dự toán = 0 nên nó
+         luôn báo "vượt" đúng bằng tổng thực tế — một ô đỏ chót không nói được gì. Con số dưới
+         đây mới là câu kế toán cần: tiền đã đưa ra mà CHƯA tất toán còn bao nhiêu. */
+      _tqCardTreo(r);
     // Dự án CHI TRỰC TIẾP: không có bước xin/duyệt tạm ứng nên bỏ 4 ô tạm ứng/trực tiếp
     // và bảng "Kế toán chi tiền". Chỉ còn dự toán · thực tế · chênh lệch.
     if(el('daPayPanel')){ el('daPayPanel').style.display='none'; el('daPayPanel').innerHTML=''; }
@@ -5183,7 +5242,7 @@
      141: không ai đi tìm thì nó treo mãi.
      🔑 Khoá hàng dùng tiền tố 'T' (tab Quyết toán) — khác 'Q' của bảng trong trang dự án, vì
         hai bảng cùng nằm trong trang, một cái đang ẩn. */
-  var QTLENH_ITEMS=[];
+  var QTLENH_ITEMS=[], QTLENH_TRANG=1, QTLENH_MOI_TRANG=10;
   function loadQtLenh(){
     if(!el('qtLenhBody')) return;
     loading(true);
@@ -5192,16 +5251,41 @@
       QTLENH_ITEMS=r.items||[]; renderQtLenh();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listLenhDuAn('qt');
   }
+  function _qtLenhPager(tong, soTrang, dau, dangXem){
+    var b=el('qtLenhPager'); if(!b) return;
+    if(tong<=QTLENH_MOI_TRANG){ b.style.display='none'; b.innerHTML=''; return; }
+    b.style.display='flex';
+    var nut=function(nhan, toi, tat){
+      return '<button class="btn b-x" '+(tat?'disabled style="opacity:.45;cursor:default"':'onclick="qtLenhDoiTrang('+toi+')"')+'>'+nhan+'</button>';
+    };
+    b.innerHTML=nut('‹ Trước', QTLENH_TRANG-1, QTLENH_TRANG<=1)
+      +'<span style="color:#334155">Trang <b>'+QTLENH_TRANG+'</b> / '+soTrang+'</span>'
+      +nut('Sau ›', QTLENH_TRANG+1, QTLENH_TRANG>=soTrang)
+      +'<span style="color:#94a3b8">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' lệnh</span>';
+  }
+  function qtLenhDoiTrang(t){ QTLENH_TRANG=t; renderQtLenh();
+    var b=el('qtLenhBody'); if(b&&b.scrollIntoView){ try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} } }
   function renderQtLenh(){
     if(!el('qtLenhBody')) return;
-    var f=(el('qtLenhFilter')&&el('qtLenhFilter').value)||'xin';
+    var f=(el('qtLenhFilter')&&el('qtLenhFilter').value)||'all';
     var ds=(QTLENH_ITEMS||[]).filter(function(x){ return f==='all' ? true : x.tt===f; });
     if(el('qtLenhEmpty')) el('qtLenhEmpty').style.display=ds.length?'none':'block';
     /* Con số trên huy hiệu đếm việc ĐANG CHỜ, không đếm theo ô lọc: kế toán liếc vào đó để
        biết còn bao nhiêu phải làm, chứ không phải để biết mình đang lọc thấy mấy dòng. */
     if(el('qtLenhSo')) el('qtLenhSo').textContent=String((QTLENH_ITEMS||[]).filter(function(x){ return x.tt==='xin'; }).length);
+    /* 🔴 10 DÒNG MỘT TRANG. Anh Thắng: *"Trang này sẽ 10 đơn cho 1 trang là được"*. Lệnh đã
+       chốt nằm lại mãi nên bảng chỉ dài thêm; không cắt trang thì vài tháng nữa kế toán cuộn
+       mỏi tay mới tới việc đang chờ.
+       ⚠️ KẸP SỐ TRANG. Lọc lại hoặc chốt bớt vài lệnh là danh sách ngắn đi — số trang cũ trỏ ra
+          ngoài, và bảng hiện ra TRẮNG TRƠN dù dữ liệu còn nguyên. */
+    var soTrang=Math.max(1, Math.ceil(ds.length/QTLENH_MOI_TRANG));
+    if(QTLENH_TRANG>soTrang) QTLENH_TRANG=soTrang;
+    if(QTLENH_TRANG<1) QTLENH_TRANG=1;
+    var dau=(QTLENH_TRANG-1)*QTLENH_MOI_TRANG;
+    var trang=ds.slice(dau, dau+QTLENH_MOI_TRANG);
+    _qtLenhPager(ds.length, soTrang, dau, trang.length);
     var laDuyet=_hmLaDuyet();
-    el('qtLenhBody').innerHTML=ds.map(function(x){
+    el('qtLenhBody').innerHTML=trang.map(function(x){
       var ma=esc(x.maDA), nut='';
       if(x.tt!=='xong' && laDuyet){
         nut+=' <button class="btn b-g" onclick="qtDatTab(\''+ma+'\','+x.dot+',\'xong\')" title="Đối chiếu xong — chốt sổ lệnh này">✔ Chốt sổ</button>'

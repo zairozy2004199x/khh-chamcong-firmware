@@ -191,6 +191,31 @@ $mot = null;
 foreach ( $ls_la['items'] as $i ) { if ( $i['maDA'] === $ma ) { $mot = $i; break; } }
 teq( 'loại lạ → ngã về tạm ứng, không ngã về quyết toán', 'tu', $mot['loai'] );
 
+/* ═══ 5c. 🔴 HAI CON SỐ QUYẾT TOÁN CỦA CẢ ĐƠN ═════════════════════════════════════════
+ * Anh Thắng: *"Tổng thực tế / Tổng thực tế đã quyết toán"* và *"Tổng tạm ứng đã chi − Quyết
+ * toán đã chốt"*.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+$dd = VHCP_DuAn::get_du_an( $ma );
+/* Lệnh QT đợt 1 (7.300.000, ĐÃ CHỐT SỔ) + đợt 3 (900.000, đang chờ chốt).
+   Đợt 2 ĐÃ BỊ TRẢ → không tính bên nào. */
+t( '🔴 "đã gửi quyết toán" = lệnh đang chờ chốt + đã chốt, KHÔNG tính lệnh bị trả lại',
+	8200000 == $dd['qtDaGui'], $dd['qtDaGui'] );
+t( '🔴 "đã quyết toán" = CHỈ lệnh đã chốt sổ (gửi rồi mà chưa đối chiếu thì vẫn treo trên 141)',
+	7300000 == $dd['qtDaChot'], $dd['qtDaChot'] );
+t( '   nên hai con số KHÁC nhau (phép này bắt lỗi lấy nhầm cái nọ sang cái kia)',
+	$dd['qtDaGui'] != $dd['qtDaChot'], array( $dd['qtDaGui'], $dd['qtDaChot'] ) );
+/* Ba lệnh tạm ứng đều đã cấp tiền: 2.300.000 + 5.000.000 + 900.000 = 8.200.000. */
+t( 'tạm ứng đã chi = 8.200.000', 8200000 == $dd['daChiTU'], $dd['daChiTU'] );
+t( '🔴 CÒN TREO trên TK 141 = 8.200.000 − 7.300.000 = 900.000',
+	900000 == ( $dd['daChiTU'] - $dd['qtDaChot'] ), array( $dd['daChiTU'], $dd['qtDaChot'] ) );
+
+/* Chốt nốt lệnh đợt 3 → tất toán hết. */
+vai( 'Kế toán cá nhân', 'KT' );
+VHCP_DuAn::dat_tt_qt( $ma, 3, 'xong' );
+$dd = VHCP_DuAn::get_du_an( $ma );
+t( '🔴 chốt nốt lệnh cuối → không còn treo đồng nào',
+	0 == ( $dd['daChiTU'] - $dd['qtDaChot'] ), array( $dd['daChiTU'], $dd['qtDaChot'] ) );
+
 /* ═══ 6. CỬA API ══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

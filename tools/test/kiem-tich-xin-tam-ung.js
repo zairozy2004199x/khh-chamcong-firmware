@@ -399,6 +399,61 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
 }
 t('🔴 thẻ này thay chỗ ô "Tổng dự toán" cũ', HTML.indexOf("_tqCardTU(r, hmDT)+") >= 0);
 
+/* ── 4f. 🧾 THẺ THỰC TẾ + THẺ CÒN TREO TRÊN TK 141 ────────────────────────────────────
+ * Anh Thắng: *"Tổng thực tế / Tổng thực tế đã quyết toán"* và *"Tổng tạm ứng đã chi − Quyết
+ * toán đã chốt"*.
+ * Ô "Vượt dự toán" cũ so thực tế với dự toán, mà phần lớn dự án để dự toán = 0 nên nó luôn báo
+ * "vượt" đúng bằng tổng thực tế — một ô đỏ chót không nói được gì.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veThe(ten, ...tham) {
+  const moi = { money: x => String(x) };
+  return new Function('moi', `with(moi){ ${boc(ten)}\n return ${ten}; }`)(moi)(...tham);
+}
+{
+  const h = veThe('_tqCardTT', { tongThucTe: 22350000, qtDaChot: 7300000, qtDaGui: 9000000 }, 22350000, 0, 0);
+  t('🔴 thẻ thực tế hiện cả "đã quyết toán"',
+    /Tổng thực tế/.test(h) && /Tổng thực tế đã quyết toán/.test(h), h);
+  t('   và đúng hai con số', /22350000/.test(h) && /7300000/.test(h), h);
+  t('🔴 "đã quyết toán" là ĐÃ CHỐT SỔ, không phải đã gửi (gửi rồi mà chưa đối chiếu thì vẫn treo)',
+    !/>9000000đ</.test(h.slice(h.indexOf('Tổng thực tế đã quyết toán'), h.indexOf('Tổng thực tế đã quyết toán') + 220)), h);
+  t('   nói rõ phần đang chờ kế toán chốt và phần chưa gửi',
+    /chờ kế toán chốt <b>1700000đ<\/b>/.test(h) && /chưa gửi quyết toán <b>13350000đ<\/b>/.test(h), h);
+}
+{
+  const h = veThe('_tqCardTT', { tongThucTe: 5000000, qtDaChot: 5000000, qtDaGui: 5000000 }, 0, 0, 0);
+  t('quyết toán hết → báo đã xong', /đã quyết toán hết/.test(h), h);
+}
+{
+  const h = veThe('_tqCardTreo', { daChiTU: 15300000, qtDaChot: 7300000 });
+  t('🔴 thẻ thứ tư = tạm ứng đã chi − quyết toán đã chốt',
+    /Còn treo trên TK 141/.test(h) && />8000000đ</.test(h), h);
+  /* 🔴 CANH CẶP NHÃN–SỐ. Hai con số cùng có mặt mà đổi chỗ cho nhau thì phép "có đủ hai vế"
+     vẫn xanh — và kế toán đọc "tạm ứng đã chi 7,3 triệu" trong khi đã chi 15,3. */
+  const capT = (nhan) => {
+    const i = h.indexOf(nhan);
+    return i < 0 ? '' : (h.slice(i, i + 220).match(/>([\d]+)đ</) || [])[1];
+  };
+  t('   và bày ra cả hai vế của phép trừ, MỖI NHÃN ĐI VỚI ĐÚNG SỐ CỦA NÓ',
+    capT('Tạm ứng đã chi') === '15300000' && capT('Quyết toán đã chốt') === '7300000',
+    [capT('Tạm ứng đã chi'), capT('Quyết toán đã chốt')]);
+  t('   còn treo thì tô đỏ cảnh báo', /#fee2e2/.test(h), h);
+}
+{
+  const h = veThe('_tqCardTreo', { daChiTU: 5000000, qtDaChot: 5000000 });
+  t('🔴 tất toán hết → tô xanh và nói rõ không còn treo',
+    /#dcfce7/.test(h) && /đã tất toán hết/.test(h), h);
+}
+{
+  /* Chốt sổ nhiều hơn số đã ứng là chuyện có thật — nhân viên bỏ tiền túi mua thêm rồi mới
+     quyết toán. Bày "-2.000.000đ còn treo" thì đọc ra vô nghĩa. */
+  const h = veThe('_tqCardTreo', { daChiTU: 5000000, qtDaChot: 7000000 });
+  t('🔴 quyết toán VƯỢT số đã ứng → nói thẳng công ty còn nợ nhân viên, không in số âm',
+    /công ty còn nợ nhân viên/.test(h) && !/-2000000/.test(h), h);
+  t('   và con số bày ra là trị tuyệt đối', />2000000đ</.test(h), h);
+}
+t('🔴 ô "Vượt dự toán" cũ đã bỏ hẳn (dự toán 0 thì nó luôn báo vượt đúng bằng tổng thực tế)',
+  HTML.indexOf("'thực tế so với dự toán'") < 0 && HTML.indexOf('_tqCardTreo(r);') >= 0);
+
 /* ── 4d. 🧾 TÍCH ĐỂ GỬI QUYẾT TOÁN THEO ĐƠN ───────────────────────────────────────────
  * Anh Thắng: *"khi đơn này đã xong, tích chọn để gửi quyết toán theo đơn"*.
  * ───────────────────────────────────────────────────────────────────────────────────────── */
@@ -490,11 +545,12 @@ const q = (row, tien, checked) => ({ checked: !!checked, value: '',
  * Anh Thắng: *"Khi nv gửi chốt quyết toán, bên tab quyết toán của kế toán cũng sẽ hiện lên đơn
  * đó giống tạm ứng để kế toán theo dõi"*.
  * ───────────────────────────────────────────────────────────────────────────────────────── */
-function veQtTab(role, loc) {
+function veQtTab(role, loc, ds, trang) {
   const NK = {};
   const moi = {
     CURUSER: { role: role },
-    QTLENH_ITEMS: [
+    QTLENH_TRANG: trang || 1, QTLENH_MOI_TRANG: 10,
+    QTLENH_ITEMS: ds || [
       { loai: 'qt', maDA: 'DA1', tenDA: 'Aeon', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 1,
         tt: 'xin', rows: [2, 5], tenHM: ['Thợ bốc vác', 'Xe vận chuyển'], soTien: 7300000,
         lyDo: '', kyDA: { tu: '', den: '' } },
@@ -510,9 +566,9 @@ function veQtTab(role, loc) {
   };
   const src = `${(() => { const i = HTML.indexOf('var QT_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('qtNhan')}\n${boc('_hmNgay')}
-    ${boc('renderQtLenh')}
-    return renderQtLenh;`;
-  new Function('moi', `with(moi){ ${src} }`)(moi)();
+    ${boc('_qtLenhPager')}\n${boc('renderQtLenh')}
+    renderQtLenh(); return QTLENH_TRANG;`;
+  NK.trangSau = new Function('moi', `with(moi){ ${src} }`)(moi);
   return NK;
 }
 {
@@ -541,6 +597,46 @@ function veQtTab(role, loc) {
     !/qtDatTab/.test(NK.qtLenhBody.innerHTML) && !/qtTraTab/.test(NK.qtLenhBody.innerHTML), NK.qtLenhBody.innerHTML);
   t('   nhưng vẫn thấy trạng thái', /Chờ kế toán chốt sổ/.test(NK.qtLenhBody.innerHTML), NK.qtLenhBody.innerHTML);
 }
+/* 🔴 ĐƠN ĐÃ CHỐT NẰM LẠI. Anh Thắng: *"Đơn đã duyệt quyết toán sẽ nằm đó luôn"* — lọc sẵn
+   "chờ chốt sổ" thì bấm chốt xong là dòng biến mất khỏi màn, kế toán không còn chỗ tra lại
+   mình vừa chốt cái gì. */
+{
+  const i = HTML.indexOf('id="qtLenhFilter"');
+  const sel = HTML.slice(i, HTML.indexOf('</select>', i));
+  t('🔴 ô lọc mặc định là "Tất cả" (mục đầu tiên), không phải "chờ chốt sổ"',
+    sel.indexOf('value="all"') < sel.indexOf('value="xin"'), sel);
+  t('   và hàm vẽ cũng mặc định "all" khi ô chưa dựng',
+    /var f=\(el\('qtLenhFilter'\)&&el\('qtLenhFilter'\)\.value\)\|\|'all';/.test(HTML));
+}
+/* 🔴 10 DÒNG MỘT TRANG. Anh Thắng: *"Trang này sẽ 10 đơn cho 1 trang là được"*. */
+{
+  const nhieu = [];
+  for (let k = 1; k <= 23; k++) {
+    nhieu.push({ loai: 'qt', maDA: 'DA' + k, tenDA: 'DA' + k, loaiDA: 'Setup lắp đặt',
+      nguoiTao: 'NV', dot: 1, tt: 'xong', rows: [2], tenHM: ['HM' + k], soTien: 1000 * k,
+      lyDo: '', kyDA: { tu: '', den: '' } });
+  }
+  const t1 = veQtTab('Kế toán cá nhân', 'all', nhieu, 1);
+  t('🔴 23 lệnh → trang 1 chỉ vẽ 10 dòng',
+    (t1.qtLenhBody.innerHTML.match(/<tr>/g) || []).length === 10,
+    (t1.qtLenhBody.innerHTML.match(/<tr>/g) || []).length);
+  t('   và là 10 dòng ĐẦU', /DA1</.test(t1.qtLenhBody.innerHTML) && !/DA11</.test(t1.qtLenhBody.innerHTML), t1.qtLenhBody.innerHTML.slice(0, 200));
+  t('   thanh chuyển trang hiện ra, nói rõ đang xem tới đâu',
+    t1.qtLenhPager.style.display === 'flex' && /1–10 trong 23 lệnh/.test(t1.qtLenhPager.innerHTML), t1.qtLenhPager);
+  const t3 = veQtTab('Kế toán cá nhân', 'all', nhieu, 3);
+  t('trang cuối vẽ phần còn lại', (t3.qtLenhBody.innerHTML.match(/<tr>/g) || []).length === 3,
+    (t3.qtLenhBody.innerHTML.match(/<tr>/g) || []).length);
+  /* 🔴 Lọc lại hoặc chốt bớt vài lệnh là danh sách ngắn đi — số trang cũ trỏ ra ngoài, và bảng
+     hiện ra TRẮNG TRƠN dù dữ liệu còn nguyên. */
+  const t9 = veQtTab('Kế toán cá nhân', 'all', nhieu, 9);
+  t('🔴 số trang trỏ ra NGOÀI danh sách → kẹp về trang cuối, không vẽ bảng trắng',
+    t9.trangSau === 3 && (t9.qtLenhBody.innerHTML.match(/<tr>/g) || []).length === 3, t9.trangSau);
+  const t0 = veQtTab('Kế toán cá nhân', 'all', nhieu, 0);
+  t('   số trang 0 cũng kẹp về 1', t0.trangSau === 1, t0.trangSau);
+  const it = veQtTab('Kế toán cá nhân', 'all', nhieu.slice(0, 4), 1);
+  t('ít hơn một trang → giấu thanh chuyển trang', it.qtLenhPager.style.display === 'none', it.qtLenhPager);
+}
+
 t('🔴 tab Quyết toán nạp bảng lệnh quyết toán khi mở',
   /function loadQT\(\)\{[^\n]*loadQtLenh\(\)/.test(HTML));
 t('   và hỏi máy chủ ĐÚNG loại lệnh (không hỏi nhầm ra lệnh tạm ứng)',
