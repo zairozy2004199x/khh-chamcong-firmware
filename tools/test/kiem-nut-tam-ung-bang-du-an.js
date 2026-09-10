@@ -1,24 +1,24 @@
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * NÚT GỬI XIN TẠM ỨNG NGAY TRÊN BẢNG DỰ ÁN — và lối riêng cho đơn kế toán trả thẳng NCC.
+ * BẢNG DỰ ÁN: Ô TÍCH ĐỂ XIN TẠM ỨNG MỘT LẦN, VÀ LỐI RIÊNG CHO ĐƠN KẾ TOÁN TRẢ THẲNG NCC.
  *
- * Anh Thắng 10/09/2026: *"em làm tiếp đi, chưa thấy có nút gửi tạm ứng"*.
+ * Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì nó tổng
+ * tổng tạm ứng cần xin"*, *"cho tích để bấm xin đơn 1 lần cho nhanh"*,
+ * *"đơn nào chưa bấm xin làm nháp"*.
+ *
  * =============================================================================================
- * Chuỗi trạng thái vốn đã chạy (nhap → xin → duyet → ung → xong), nhưng MỌI NÚT lại nằm ở màn
- * Duyệt của KẾ TOÁN — mà bước ĐẦU TIÊN là việc của NHÂN VIÊN, người chẳng bao giờ mở màn ấy.
- * Nút không có ở đâu thì đơn nằm mãi ở "Đang nhập" và kế toán chờ một cái không ai gửi được.
+ * 🔴 MỘT DỰ ÁN LÀ MỘT ĐƠN. Bản trước đặt nút "📤 Xin tạm ứng" trên TỪNG hàng, nên bốn hạng mục
+ *    thành bốn đơn: kế toán bấm bốn lần duyệt, bốn lần cấp tiền, bốn tờ uỷ nhiệm chi. Nay mỗi
+ *    hàng còn nháp mang một Ô TÍCH; tích xong bấm MỘT nút ở thanh dưới bảng → một lệnh.
  *
- * Và: *"trong phần này dù không xin tạm ứng, nhưng vẫn có phần kế toán đã xác nhận đi đơn nào
- * thì tích vào và khóa đơn đó cho nhân viên biết và kèm gửi ủy nhiệm chi cho đơn đó thay vì
- * nhân viên gửi (người gửi lỡ người kia quên)"*.
+ * 🔴 CHƯA BẤM XIN LÀ NHÁP. "Đang nhập" nghe như máy đang bận làm gì; "Nháp" là chữ ai cũng hiểu
+ *    ngay — chưa gửi đi đâu cả, sửa thoải mái.
  *
- * 🔴 ĐƠN 🏢 TRỰC TIẾP ĐI ĐƯỜNG KHÁC HẲN. Tiền không qua tay nhân viên nên "xin tạm ứng" vô
- *    nghĩa: nhân viên chẳng xin gì cả. Bày nút "📤 Xin tạm ứng" ở đó là mời gửi một đơn không
- *    ai cấp được. Kế toán tự tích khi đã chi, đính uỷ nhiệm chi, rồi khoá.
+ * 🔴 ĐƠN 🏢 TRỰC TIẾP KHÔNG CÓ Ô TÍCH. Tiền không qua tay nhân viên nên "xin tạm ứng" vô nghĩa.
  *
  * 🔴 NÚT PHẢI HIỆN CẢ KHI KHÔNG SỬA ĐƯỢC ĐƠN. Kế toán thường không có quyền sửa dòng dự án;
  *    nhét nút trạng thái vào nhánh `canEdit` là giấu mất nút của chính người phải bấm.
  *
- * ⚠️ CHẠY THẬT `hmNutDaBang()` bốc từ mã nguồn — không chép mã vào bài kiểm.
+ * ⚠️ CHẠY THẬT các hàm bốc từ mã nguồn — không chép mã vào bài kiểm.
  *
  * Chạy: node tools/test/kiem-nut-tam-ung-bang-du-an.js
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -61,62 +61,71 @@ function nut(opt) {
     ${boc('_hmKeyDA')}
     return opt.duyet
       ? hmNutChung('D1_7', 'DA1', 7, opt.hinhThuc || '', HM, false, true)
-      : hmNutDaBang({ row: 7, noiDung: 'Xe ba gác', hinhThuc: opt.hinhThuc || '', hm: HM });`;
+      : hmNutDaBang({ row: 7, noiDung: 'Xe ba gác', hinhThuc: opt.hinhThuc || '', hm: HM }, opt.tienHM || 0);`;
   moi.opt = opt;
   moi.HM = { tt: opt.tt || 'nhap', dot: opt.dot || 0 };
   return new Function('moi', `with(moi){ ${src} }`)(moi);
 }
 
-/* ── 1. 🔴 NHÂN VIÊN PHẢI THẤY NÚT GỬI XIN TẠM ỨNG ─────────────────────────────────────── */
+/* ── 1. 🔴 NHÂN VIÊN TÍCH HẠNG MỤC, KHÔNG BẤM NÚT LẺ ───────────────────────────────────── */
 {
   const h = nut({ role: 'Nhân viên', editable: true, tt: 'nhap' });
-  t('🔴 đơn tạm ứng đang nhập → nhân viên THẤY nút gửi xin tạm ứng',
-    /hmMoXin\('P7','DA1',7\)/.test(h) && /Xin tạm ứng/.test(h), h);
-  t('   và thấy đơn đang ở trạng thái nào', /Đang nhập/.test(h), h);
+  t('🔴 hạng mục còn nháp → nhân viên thấy Ô TÍCH để gộp vào lệnh',
+    /<input type="checkbox" data-xtu="7"/.test(h) && /tích để xin/.test(h), h);
+  t('🔴 chưa bấm xin thì nhãn là NHÁP (không phải "đang nhập")', /Nháp/.test(h), h);
+  t('🔴 KHÔNG còn nút xin lẻ trên hàng (bốn hạng mục là bốn đơn thì kế toán bấm hai mươi lượt)',
+    !/hmMoXin/.test(h), h);
   t('   nhưng KHÔNG được tự duyệt cho chính mình', !/'duyet'/.test(h) && !/Duyệt/.test(h), h);
   t('   cũng không tự cấp tạm ứng cho chính mình', !/hmMoCap/.test(h), h);
+  t('🔴 ô tích mang sẵn TIỀN của hạng mục để thanh dưới cộng lên được', /data-tien="/.test(h), h);
+  t('   và báo cho thanh biết mỗi lần tích', /onchange="daTichDoi\(\)"/.test(h), h);
+}
+{
+  const h = nut({ role: 'Nhân viên', editable: true, tt: 'nhap', tienHM: 13000000 });
+  t('🔴 tiền trong ô tích là con số THẬT của hạng mục', /data-tien="13000000"/.test(h), h);
 }
 {
   const h = nut({ role: 'Nhân viên', thiCong: true, tt: 'tra' });
-  t('🔴 đơn BỊ TRẢ LẠI → vẫn gửi lại được (không thì đơn chết cứng ở đó)',
-    /hmMoXin\('P7','DA1',7\)/.test(h), h);
+  t('🔴 hạng mục BỊ TRẢ LẠI → vẫn tích lại được (không thì đơn chết cứng ở đó)',
+    /data-xtu="7"/.test(h), h);
 }
 {
   const h = nut({ role: 'Nhân viên', tt: 'nhap' });
-  t('đơn đã đóng (không sửa được) → không bày nút gửi', !/hmMoXin/.test(h), h);
-  t('   nhưng vẫn cho biết đang ở trạng thái nào', /Đang nhập/.test(h), h);
+  t('đơn đã đóng (không sửa được) → không bày ô tích', !/data-xtu/.test(h), h);
+  t('   nhưng vẫn cho biết đang ở trạng thái nào', /Nháp/.test(h), h);
 }
 {
   const h = nut({ role: 'Nhân viên', isCoSo: true, tt: 'nhap' });
-  t('dự án chi phí cơ sở (luôn nhập được) → cũng gửi được', /hmMoXin/.test(h), h);
+  t('dự án chi phí cơ sở (luôn nhập được) → cũng tích được', /data-xtu/.test(h), h);
 }
 {
   const h = nut({ role: 'Nhân viên', editable: true, tt: 'xin' });
-  t('🔴 đã gửi rồi → KHÔNG bày nút gửi nữa (bấm hai lần là hai đơn cho một việc)',
-    !/hmMoXin/.test(h), h);
+  t('🔴 đã nằm trong một lệnh → KHÔNG còn ô tích (tích lại là xin hai lần cùng một khoản)',
+    !/data-xtu/.test(h), h);
   t('   và nói rõ đang chờ duyệt', /Chờ duyệt/.test(h), h);
 }
 
-/* ── 2. QUẢN LÝ / KẾ TOÁN ─────────────────────────────────────────────────────────────── */
+/* ── 2. QUẢN LÝ / KẾ TOÁN — DUYỆT VÀ CẤP TIỀN ĐI THEO LỆNH, KHÔNG THEO HÀNG ───────────
+ * Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng"*. Bốn hạng mục thành bốn
+ * đơn là bốn lần duyệt, bốn lần cấp tiền, bốn tờ uỷ nhiệm chi — cho một đợt setup.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
 {
   const h = nut({ role: 'Quản lý', tt: 'xin' });
-  t('🔴 quản lý duyệt được, dù KHÔNG sửa được dòng dự án',
-    /hmDat\('DA1',7,'duyet'/.test(h), h);
-  t('   và trả lại được', /hmDat\('DA1',7,'tra'/.test(h), h);
-  t('   nhưng chưa cấp tiền được (đó là việc của kế toán)', !/hmMoCap/.test(h), h);
-}
-{
-  const h = nut({ role: 'Quản lý', tt: 'duyet' });
-  t('🔴 quản lý KHÔNG cấp tạm ứng được', !/hmMoCap/.test(h), h);
+  t('🔴 hàng hạng mục KHÔNG còn nút Duyệt (duyệt là việc của cả lệnh, ở màn Duyệt)',
+    !/Duyệt/.test(h), h);
+  t('   cũng không còn nút Trả', !/Trả/.test(h), h);
+  t('   nhưng vẫn cho biết lệnh đang chờ duyệt', /Chờ duyệt/.test(h), h);
 }
 {
   const h = nut({ role: 'Kế toán cá nhân', tt: 'duyet', dot: 1 });
-  t('🔴 kế toán cấp được ĐỢT KẾ TIẾP (đợt 2 sau khi đã cấp đợt 1)',
-    /hmMoCap\('P7','DA1',7,2\)/.test(h) && /Cấp đợt 2/.test(h), h);
+  t('🔴 hàng hạng mục KHÔNG còn nút Cấp tiền (cấp là cả lệnh, một uỷ nhiệm chi)',
+    !/hmMoCap/.test(h), h);
+  t('   và nói rõ đang chờ cấp tiền', /Chờ cấp tiền/.test(h), h);
 }
 {
   const h = nut({ role: 'Nhân viên', editable: true, tt: 'ung' });
-  t('đã cấp tiền → có nút chốt xong', /hmMoChot\('P7','DA1',7\)/.test(h), h);
+  t('🔴 đã cấp tiền → hàng có nút CHỐT XONG (hoá đơn thì vẫn riêng từng hạng mục)',
+    /hmMoChot\('P7','DA1',7\)/.test(h), h);
 }
 {
   const h = nut({ role: 'Kế toán NCC', tt: 'xong' });
@@ -264,73 +273,76 @@ t('   và tệp đi qua đúng đường tải lên của dự án', /hmDinhTep[
     /unc-88\.pdf/.test(NK.lbl.textContent), NK.lbl);
 }
 
-/* ── 4c. 🔴 MÀN DUYỆT DÙNG CHUNG BỘ NÚT VỚI BẢNG DỰ ÁN ─────────────────────────────────
- * Cùng một hạng mục hiện ở hai màn. Viết hai bộ nút là hai nơi gõ cứng, và hai nơi ấy sẽ lệch
- * nhau — chỗ bắt hoá đơn, chỗ quên bắt; chỗ chỉ kế toán cấp được tiền, chỗ ai cũng cấp được.
- * ─────────────────────────────────────────────────────────────────────────────────────── */
-{
-  const h = nut({ role: 'Kế toán cá nhân', duyet: true, tt: 'duyet', dot: 1 });
-  t('🔴 màn Duyệt: kế toán cấp đợt kế tiếp, qua ĐÚNG hàm mở ô nhập của bảng dự án',
-    /hmMoCap\('D1_7','DA1',7,2\)/.test(h), h);
-  t('🔴 màn Duyệt KHÔNG in lại nhãn trạng thái vào ô Thao tác (đã có cột riêng)',
-    !/border-radius:999px/.test(h), h);
-}
-{
-  const h = nut({ role: 'Kế toán cá nhân', duyet: true, tt: 'ung' });
-  t('màn Duyệt: chốt xong cũng qua ô nhập có nút chọn tệp',
-    /hmMoChot\('D1_7','DA1',7\)/.test(h), h);
-}
-{
-  const h = nut({ role: 'Kế toán NCC', duyet: true, hinhThuc: 'Trực tiếp', tt: 'nhap' });
-  t('🔴 màn Duyệt: đơn NCC cũng tích khoá được ngay tại đây',
-    /hmNccMo\('D1_7','DA1',7\)/.test(h), h);
-}
-{
-  const h = nut({ role: 'Kế toán cá nhân', duyet: true, tt: 'nhap' });
-  t('🔴 màn Duyệt KHÔNG bày nút "xin tạm ứng" (đó là việc của nhân viên bên bảng dự án)',
-    !/hmMoXin/.test(h), h);
-}
-{
-  /* CHẠY THẬT renderDonHM — không ghim chuỗi ở chỗ gọi. Ghim thì đổi thứ tự tham số là bài
-     kiểm vẫn xanh trong khi màn đã bày nhầm nút. */
+/* ── 4c. 🔴 MÀN DUYỆT: MỘT DÒNG LÀ MỘT LỆNH, KHÔNG PHẢI MỘT HẠNG MỤC ───────────────────
+ * Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì nó tổng
+ * tổng tạm ứng cần xin"*. Kế toán nhìn phải thấy MỘT lệnh với MỘT số tiền, rồi cấp một lần kèm
+ * MỘT uỷ nhiệm chi — không phải bốn dòng rời cho một đợt setup.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veLenh(role, loc) {
   const NK = {};
   const moi = {
-    CURUSER: { role: 'Kế toán cá nhân' },
-    HM_ITEMS: [
-      { maDA: 'DA1', tenDA: 'Aeon', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', row: 7,
-        noiDung: 'Vật tư', hinhThuc: '', duToan: 1000, thucTe: 0,
-        hm: { tt: 'nhap', dot: 0, lich: [] }, kyDA: { tu: '', den: '' } },
-      { maDA: 'DA2', tenDA: 'Estella', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', row: 7,
-        noiDung: 'Xe ba gác', hinhThuc: 'Trực tiếp', duToan: 2000, thucTe: 0,
-        hm: { tt: 'nhap', dot: 0, lich: [] }, kyDA: { tu: '', den: '' } },
+    CURUSER: { role: role },
+    LENH_ITEMS: [
+      { maDA: 'DA1', tenDA: 'Aeon', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 1, tt: 'xin',
+        rows: [2, 5], tenHM: ['Mua đồ điện', 'Thợ bốc vác'], soTien: 15300000, unc: '', lyDo: '',
+        lich: [], moc: {}, kyDA: { tu: '', den: '' } },
+      { maDA: 'DA1', tenDA: 'Aeon', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 2, tt: 'duyet',
+        rows: [7], tenHM: ['Đơn linh tinh'], soTien: 50000, unc: '', lyDo: '',
+        lich: [], moc: {}, kyDA: { tu: '', den: '' } },
+      { maDA: 'DA2', tenDA: 'Estella', loaiDA: 'Setup lắp đặt', nguoiTao: 'NV', dot: 1, tt: 'ung',
+        rows: [2], tenHM: ['Xe cẩu'], soTien: 900000, unc: 'UNC-9', lyDo: '',
+        lich: [], moc: {}, kyDA: { tu: '', den: '' } },
     ],
-    DA_CUR: null, HM_NHAN: null,
+    LENH_NHAN: null,
     esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x),
     showPage: () => {}, openDuAn: () => {}, toast: () => {},
-    el: id => (NK[id] = NK[id] || { innerHTML: '', style: {}, value: id === 'hmFilter' ? 'all' : '' }),
+    el: id => (NK[id] = NK[id] || { innerHTML: '', style: {}, value: id === 'lenhFilter' ? (loc || 'all') : '' }),
   };
-  const src = `${bocVar('HM_NHAN')}
-    ${boc('_hmNhanCua')}\n${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}
-    ${boc('hmNhanChung')}\n${boc('hmNutChung')}\n${boc('_hmKeyDuyet')}
-    ${boc('hmDongForm')}\n${boc('_hmNgay')}\n${boc('renderDonHM')}
-    return renderDonHM;`;
+  const src = `${bocVar('LENH_NHAN')}
+    ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
+    ${boc('_lenhKey')}\n${boc('_hmNgay')}\n${boc('renderLenhDA')}
+    return renderLenhDA;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)();
-  const out = NK.hmBody.innerHTML;
-  t('🔴 màn Duyệt KHÔNG bày nút "xin tạm ứng" cho bất kỳ đơn nào (việc của nhân viên)',
-    !/hmMoXin/.test(out), out.slice(0, 400));
-  t('   nhưng đơn NCC vẫn tích khoá được ngay ở đây', /hmNccMo\('DDA2_7','DA2',7\)/.test(out), out);
-  t('🔴 hai dự án cùng số dòng vẫn có hàng ô nhập RIÊNG (khoá kèm mã dự án)',
-    /data-hmf="DDA1_7"/.test(out) && /data-hmf="DDA2_7"/.test(out), out);
-  t('   hàng ô nhập trải hết 8 cột của bảng Duyệt', /data-hmf="DDA1_7"[^]{0,60}colspan="8"/.test(out), out);
+  return NK.lenhBody.innerHTML;
 }
-t('🔴 khoá hàng ô nhập ở màn Duyệt CÓ kèm mã dự án (hai dự án vẫn có thể cùng số dòng)',
-  /_hmKeyDuyet\(maDA,row\)\{ return 'D'\+String\(maDA\)/.test(HTML));
-t('   và bảng Duyệt dựng khoá ấy cho từng hàng',
-  HTML.indexOf('var k=_hmKeyDuyet(x.maDA, x.row);') >= 0);
-t('🔴 hai màn gọi CÙNG một hàm dựng nút',
-  (HTML.match(/hmNutChung\(/g) || []).length >= 3);
-t('   nút "gửi" của mỗi ô nhập biết phải nạp lại màn nào',
-  HTML.indexOf("function _hmSau(k){ return (String(k).charAt(0)==='P') ? hmLaiDA : loadDonHM; }") >= 0);
+{
+  const out = veLenh('Kế toán cá nhân', 'all');
+  t('🔴 một dòng = MỘT LỆNH, có tổng tiền của cả lệnh', /15300000/.test(out), out.slice(0, 300));
+  t('   và kể tên các hạng mục trong lệnh',
+    /Mua đồ điện/.test(out) && /Thợ bốc vác/.test(out), out.slice(0, 400));
+  t('   nói rõ đợt mấy', /Đợt 1/.test(out) && /Đợt 2/.test(out), out.slice(0, 300));
+  t('🔴 lệnh chờ duyệt → kế toán duyệt được CẢ LỆNH một lần',
+    /lenhDat\('DA1',1,'duyet'\)/.test(out), out);
+  t('🔴 lệnh đã duyệt → mở ô nhập uỷ nhiệm chi rồi cấp CẢ LỆNH',
+    /lenhMoCap\('LDA1_2','DA1',2\)/.test(out), out);
+  t('   trả lại được, và trả thì hỏi lý do', /lenhTra\('DA1',1\)/.test(out), out);
+  t('🔴 lệnh đã cấp tiền → không bày nút cấp lại (bấm nhầm là chuyển đi hai lần)',
+    !/lenhMoCap\('LDA2_1'/.test(out), out);
+  t('   và hiện uỷ nhiệm chi đã cấp', /UNC-9/.test(out), out);
+  t('🔴 hai dự án cùng số đợt vẫn có hàng ô nhập RIÊNG (khoá kèm mã dự án)',
+    /data-hmf="LDA1_1"/.test(out) && /data-hmf="LDA2_1"/.test(out), out);
+  t('   hàng ô nhập trải hết 8 cột', /data-hmf="LDA1_1"[^]{0,60}colspan="8"/.test(out), out);
+}
+{
+  const out = veLenh('Nhân viên', 'all');
+  t('🔴 nhân viên KHÔNG duyệt, KHÔNG cấp tiền, KHÔNG trả — dù mở được màn',
+    !/lenhDat\(/.test(out) && !/lenhMoCap/.test(out) && !/lenhTra/.test(out), out);
+}
+{
+  const out = veLenh('Quản lý', 'all');
+  t('🔴 quản lý duyệt và trả được, nhưng KHÔNG cấp tiền',
+    /lenhDat\('DA1',1,'duyet'\)/.test(out) && /lenhTra/.test(out) && !/lenhMoCap/.test(out), out);
+}
+{
+  const out = veLenh('Kế toán cá nhân', 'cho');
+  t('🔴 lọc "cần xử lý" chỉ giữ lệnh chờ duyệt / chờ cấp tiền',
+    /Đợt 1/.test(out) && /Đợt 2/.test(out) && !/UNC-9/.test(out), out);
+}
+t('🔴 màn Duyệt nạp bảng lệnh khi mở', HTML.indexOf('loadLenhDA(); loadDonHM();') >= 0);
+t('   bảng hạng mục nay chỉ lo NHẮC CHỐT hoá đơn, không còn lọc duyệt/cấp',
+  HTML.indexOf('<option value="chuaxong">🔔 Chưa chốt (nhắc nhân viên)</option>') >= 0
+  && HTML.indexOf('<option value="xin">Chờ duyệt tạm ứng</option>') < 0);
+
 
 /* ── 5. GỬI ĐI ─────────────────────────────────────────────────────────────────────────── */
 function chayGui(vals) {

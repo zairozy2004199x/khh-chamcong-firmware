@@ -45,37 +45,39 @@ foreach ( $d['lines'] as $l ) { if ( $l['noiDung'] === 'Mua đồ điện' ) { $
 t( 'dựng được hạng mục thử', null !== $row, $d['lines'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 1. ĐƯỜNG ĐI ĐÚNG
+ * 1. ĐƯỜNG ĐI ĐÚNG — ĐI QUA LỆNH, KHÔNG ĐI LẺ TỪNG HẠNG MỤC
+ *
+ * 🔴 Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng"* — xin / duyệt / cấp tiền
+ *    nay là việc của CẢ LỆNH. Bài kiểm đường lệnh nằm ở `kiem-lenh-tam-ung-du-an.php`; tệp này
+ *    lo phần CÒN LẠI của từng hạng mục: chốt hoá đơn, khoá, và mở lại.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-teq( 'hạng mục mới → đang nhập', 'nhap', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
+teq( 'hạng mục mới → nháp', 'nhap', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
 t( '   dự án cũ (chưa có trạng thái nào) vẫn đọc ra "nhap", không nổ',
 	'nhap' === VHCP_DuAn::hm_cua( $ma, 999 )['tt'] );
 
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'xin', array( 'lich' => array(
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ), array(
 	array( 'ngay' => '12/09/2026', 'soTien' => 4000000 ),
 	array( 'ngay' => '20/09/2026', 'soTien' => 6000000 ),
 	array( 'soTien' => 1000 ),   // thiếu ngày -> bỏ
-) ) );
-t( 'nhân viên xin tạm ứng được', ! empty( $x['success'] ), $x );
-teq( '   trạng thái sang "xin"', 'xin', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
-$h = VHCP_DuAn::hm_cua( $ma, $row );
-teq( '🔴 lịch đi nhận tiền giữ đủ hai đợt có ngày', 2, count( $h['lich'] ) );
-teq( '   đánh số lần theo thứ tự', 1, $h['lich'][0]['lan'] );
-teq( '   giữ đúng ngày hẹn', '20/09/2026', $h['lich'][1]['ngay'] );
-t( '   và số tiền của đợt', 6000000 == $h['lich'][1]['soTien'], $h['lich'][1] );
-t( '🔴 đợt THIẾU NGÀY bị bỏ (kế toán chuẩn bị tiền vào hôm nào?)',
-	2 === count( $h['lich'] ), $h['lich'] );
+) );
+t( 'nhân viên gửi lệnh tạm ứng được', ! empty( $x['success'] ), $x );
+teq( '   hạng mục sang "xin"', 'xin', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
+$L = VHCP_DuAn::dot_cua( $ma, 1 );
+teq( '🔴 lịch đi nhận tiền giữ đủ hai đợt có ngày', 2, count( $L['lich'] ) );
+teq( '   đánh số lần theo thứ tự', 1, $L['lich'][0]['lan'] );
+teq( '   giữ đúng ngày hẹn', '20/09/2026', $L['lich'][1]['ngay'] );
+t( '   và số tiền của đợt', 6000000 == $L['lich'][1]['soTien'], $L['lich'][1] );
 
 vai( 'Quản lý', 'QL' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'duyet' );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'duyet' );
 t( 'quản lý duyệt được', ! empty( $x['success'] ), $x );
 
 vai( 'Kế toán cá nhân', 'KTCN' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'ung', array( 'dot' => 1, 'unc' => 'UNC-001' ) );
-t( 'kế toán cấp tạm ứng đợt 1 được', ! empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'ung', array( 'unc' => 'UNC-001' ) );
+t( 'kế toán cấp tạm ứng được', ! empty( $x['success'] ), $x );
 $h = VHCP_DuAn::hm_cua( $ma, $row );
-teq( '   ghi đúng đợt', 1, $h['dot'] );
+teq( '   hạng mục ghi đúng đợt', 1, $h['dot'] );
 teq( '   và giữ mã uỷ nhiệm chi', 'UNC-001', $h['unc'] );
 t( '   có mốc thời gian từng bước để tra', ! empty( $h['moc']['ung'] ), $h['moc'] );
 
@@ -86,11 +88,11 @@ $x = VHCP_DuAn::dat_hm( $ma, $row, 'xong' );
 t( '🔴 chốt hoàn thành mà chưa có hoá đơn → CHỐI', empty( $x['success'] ), $x );
 teq( '   và trạng thái không đổi', 'ung', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
 $x = VHCP_DuAn::dat_hm( $ma, $row, 'xong', array( 'hoaDon' => 'hd-001.pdf' ) );
-t( 'đính hoá đơn rồi chốt được', ! empty( $x['success'] ), $x );
+t( '🔴 chốt hoá đơn vẫn theo TỪNG HẠNG MỤC (mỗi hạng mục một hoá đơn riêng)', ! empty( $x['success'] ), $x );
 t( '🔴 và hạng mục KHOÁ lại', VHCP_DuAn::hm_khoa( $ma, $row ) );
 
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'xin' );
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ) );
 t( '🔴 đã khoá → nhân viên không xin lại được', empty( $x['success'] ), $x );
 $x = VHCP_DuAn::dat_hm( $ma, $row, 'nhap' );
 t( '🔴 và cũng KHÔNG tự mở khoá được', empty( $x['success'] ), $x );
@@ -106,37 +108,37 @@ teq( '   và đợt được dọn về 0', 0, VHCP_DuAn::hm_cua( $ma, $row )['d
  * 3. 🔴 CHỐT THEO VAI — AI GỌI THẲNG API CŨNG BỊ CHẶN
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 vai( 'Nhân viên', 'NV' );
-VHCP_DuAn::dat_hm( $ma, $row, 'xin' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'duyet' );
-t( '🔴 nhân viên KHÔNG tự duyệt được đơn của mình', empty( $x['success'] ), $x );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'tra' );
+VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ) );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 2, 'duyet' );
+t( '🔴 nhân viên KHÔNG tự duyệt được lệnh của mình', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 2, 'tra' );
 t( '   và không tự trả lại được', empty( $x['success'] ), $x );
 vai( 'Quản lý', 'QL' );
-VHCP_DuAn::dat_hm( $ma, $row, 'duyet' );
+VHCP_DuAn::dat_tt_dot( $ma, 2, 'duyet' );
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'ung', array( 'dot' => 1 ) );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 2, 'ung' );
 t( '🔴 nhân viên KHÔNG tự cấp tạm ứng cho mình (tiền thật ra khỏi két)', empty( $x['success'] ), $x );
 vai( 'Quản lý', 'QL' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'ung', array( 'dot' => 1 ) );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 2, 'ung' );
 t( '   quản lý cũng không — cấp tiền là việc của kế toán', empty( $x['success'] ), $x );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 4. KHÔNG NHẢY CÓC BƯỚC
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 vai( 'Kế toán cá nhân', 'KTCN' );
-VHCP_DuAn::dat_hm( $ma, $row, 'tra' );
-teq( 'trả lại → về "tra"', 'tra', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'ung', array( 'dot' => 2 ) );
-t( '🔴 chưa duyệt mà cấp tạm ứng → CHỐI', empty( $x['success'] ), $x );
+VHCP_DuAn::dat_tt_dot( $ma, 2, 'tra' );
+teq( 'trả lại → hạng mục về "tra"', 'tra', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 2, 'ung' );
+t( '🔴 lệnh đã bị trả mà cấp tạm ứng → CHỐI', empty( $x['success'] ), $x );
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'xin' );
-t( 'bị trả lại thì xin lại được', ! empty( $x['success'] ), $x );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'xin' );
-t( '   nhưng xin hai lần liền thì chối (đã qua bước ấy rồi)', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ) );
+t( 'bị trả lại thì gửi lại được (thành lệnh đợt 3)', ! empty( $x['success'] ) && 3 === $x['dot']['dot'], $x );
 vai( 'Kế toán cá nhân', 'KTCN' );
-$x = VHCP_DuAn::dat_hm( $ma, $row, 'lung tung' );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 3, 'lung tung' );
 t( 'trạng thái lạ → chối', empty( $x['success'] ), $x );
-$x = VHCP_DuAn::dat_hm( 'DA-KHONG-CO', 1, 'xin' );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 99, 'duyet' );
+t( 'lệnh không có thật → chối, không nổ', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::xin_tam_ung_dot( 'DA-KHONG-CO', array( 1 ) );
 t( 'dự án không có thật → chối', empty( $x['success'] ), $x );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -154,6 +156,8 @@ t( '🔴 hạng mục lớn mang trạng thái xuống màn', isset( $cha['hm'][
 t( '🔴 mục con KHÔNG mang trạng thái riêng (nó đi theo cha)', ! isset( $con['hm'] ), $con );
 t( "   API 'datTrangThaiHangMuc' đã khai",
 	false !== strpos( file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' ), "'datTrangThaiHangMuc'" ) );
+t( '🔴 và lệnh của dự án xuống được tới màn (không thì nhân viên không thấy đợt nào tới đâu)',
+	isset( $d['lenh'] ) && is_array( $d['lenh'] ) && count( $d['lenh'] ) >= 1, isset( $d['lenh'] ) ? $d['lenh'] : null );
 
 VHCP_DuAn::delete( $ma );
 

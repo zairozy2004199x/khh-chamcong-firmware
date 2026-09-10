@@ -281,6 +281,17 @@ class VHCP_DuAn {
 			}
 		}
 
+		/* Các LỆNH tạm ứng của dự án — nhân viên nhìn là biết đợt nào tới đâu. */
+		$lenh = array();
+		$ten_cua = array();
+		foreach ( self::lines_of( $ma_da ) as $r2 ) { $ten_cua[ (int) $r2['row_no'] ] = trim( (string) $r2['noi_dung'] ); }
+		foreach ( self::ds_dot( $ma_da ) as $d ) {
+			$tn = array();
+			foreach ( $d['rows'] as $rw ) { if ( isset( $ten_cua[ $rw ] ) ) { $tn[] = $ten_cua[ $rw ]; } }
+			$d['tenHM'] = $tn;
+			$lenh[] = $d;
+		}
+
 		$dt = 0; $tt = 0; $du_tu = 0; $du_tt = 0; $tt_tu = 0; $tt_tt = 0; $tt_vat = 0; $tt_novat = 0;
 		foreach ( $lines as $l ) {
 			$has_child = ( isset( $child_tt[ $l['noiDung'] ] ) && $child_tt[ $l['noiDung'] ] > 0 );
@@ -342,6 +353,7 @@ class VHCP_DuAn {
 			/* Con số dự phòng của kế toán + phần đã ứng thật, để màn tính ra "còn dự phòng". */
 			'duToanDA'        => self::get_du_toan_da( $ma_da ),
 			'kyDA'            => self::get_ky_da( $ma_da ),
+			'lenh'            => $lenh,
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
 			'ttTamUng'        => $tt_tu,
@@ -635,6 +647,256 @@ class VHCP_DuAn {
 		return $moi;
 	}
 
+	/* ═════════════════════════════════════════════════════════════════════════════════════
+	 * LỆNH TẠM ỨNG — NHIỀU HẠNG MỤC GỘP THÀNH MỘT LỆNH, MỘT SỐ TIỀN.
+	 *
+	 * 🔴 Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì
+	 *    nó tổng tổng tạm ứng cần xin"*.
+	 *
+	 *    Bản trước hiểu sai: mỗi hạng mục lớn thành MỘT đơn riêng đi tới kế toán. Bốn hạng mục
+	 *    là bốn lần duyệt, bốn lần cấp tiền, bốn tờ uỷ nhiệm chi — cho một đợt setup. Với mười
+	 *    hạng mục thì thành hai mươi lượt bấm, và tiền đi làm mười lệnh chuyển khoản.
+	 *
+	 *    Đúng ra: MỘT DỰ ÁN LÀ MỘT ĐƠN. Nhân viên tích mấy hạng mục cần tiền, bấm một cái →
+	 *    thành MỘT LỆNH tạm ứng, số tiền là TỔNG các hạng mục ấy. Quản lý duyệt cả lệnh, kế
+	 *    toán cấp cả lệnh kèm MỘT uỷ nhiệm chi. Lần sau cần thêm tiền thì tích tiếp mấy hạng
+	 *    mục khác → lệnh đợt 2. Đúng chữ anh Thắng: *"Sau nv lên tiếp 10 đơn, thấy cần nhiều
+	 *    tiền tích vào xin tạm ứng lần 2"*.
+	 *
+	 * 🔴 SỐ TIỀN CHỐT LÚC GỬI, KHÔNG TÍNH LẠI LÚC ĐỌC. Anh Thắng: *"con số tạm ứng là tổng thực
+	 *    tế sau khi lên đơn"*. Nếu tính lại mỗi lần mở màn thì nhân viên sửa một dòng sau khi
+	 *    gửi là con số quản lý đã duyệt tự đổi sau lưng họ — duyệt 20 triệu, cấp ra 25 triệu.
+	 *
+	 * ⚠️ Lưu qua Meta `daDot_<maDA>`, không đổi sơ đồ CSDL.
+	 * ═════════════════════════════════════════════════════════════════════════════════════ */
+	const TT_DOT = array( 'xin', 'duyet', 'ung', 'tra' );
+
+	public static function get_dot( $ma_da ) {
+		$o = VHCP_Meta::get_json( 'daDot_' . $ma_da, array() );
+		return is_array( $o ) ? $o : array();
+	}
+
+	public static function dot_cua( $ma_da, $dot ) {
+		$o = self::get_dot( $ma_da );
+		$k = (string) (int) $dot;
+		if ( ! isset( $o[ $k ] ) || ! is_array( $o[ $k ] ) ) { return null; }
+		$x = $o[ $k ];
+		return array(
+			'dot'    => (int) $k,
+			'tt'     => isset( $x['tt'] ) && in_array( $x['tt'], self::TT_DOT, true ) ? $x['tt'] : 'xin',
+			'rows'   => isset( $x['rows'] ) && is_array( $x['rows'] ) ? array_values( array_map( 'intval', $x['rows'] ) ) : array(),
+			'soTien' => isset( $x['soTien'] ) ? VHCP_Util::num( $x['soTien'] ) : 0,
+			'unc'    => isset( $x['unc'] ) ? (string) $x['unc'] : '',
+			'lyDo'   => isset( $x['lyDo'] ) ? (string) $x['lyDo'] : '',
+			'lich'   => isset( $x['lich'] ) && is_array( $x['lich'] ) ? array_values( $x['lich'] ) : array(),
+			'moc'    => isset( $x['moc'] ) && is_array( $x['moc'] ) ? $x['moc'] : array(),
+		);
+	}
+
+	/** Mọi lệnh của một dự án, đợt nhỏ trước. */
+	public static function ds_dot( $ma_da ) {
+		$ra = array();
+		foreach ( array_keys( self::get_dot( $ma_da ) ) as $k ) {
+			$d = self::dot_cua( $ma_da, $k );
+			if ( $d ) { $ra[] = $d; }
+		}
+		usort( $ra, function ( $a, $b ) { return $a['dot'] - $b['dot']; } );
+		return $ra;
+	}
+
+	private static function dot_ghi_( $ma_da, $dot, $sua, $viec ) {
+		$o  = self::get_dot( $ma_da );
+		$k  = (string) (int) $dot;
+		$cu = self::dot_cua( $ma_da, $dot );
+		$moi = array_merge( $cu ? $cu : array( 'dot' => (int) $dot, 'tt' => 'xin', 'rows' => array(),
+			'soTien' => 0, 'unc' => '', 'lyDo' => '', 'lich' => array(), 'moc' => array() ), $sua );
+		$moi['moc'] = ( $cu && $cu['moc'] ) ? $cu['moc'] : array();
+		$moi['moc'][ $moi['tt'] ] = VHCP_Util::now()->format( 'd/m/Y H:i' ) . ' · ' . VHCP_Auth::nguoi();
+		$o[ $k ] = $moi;
+		VHCP_Meta::set_json( 'daDot_' . $ma_da, $o );
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::nguoi(),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => (string) $viec,
+			'target' => (string) $ma_da . ' · đợt ' . $k,
+			'detail' => 'trạng thái ' . $moi['tt'] . ' · ' . count( $moi['rows'] ) . ' hạng mục · '
+				. number_format( (float) $moi['soTien'], 0, ',', '.' ) . 'đ'
+				. ( '' !== $moi['unc'] ? ( ' · UNC ' . $moi['unc'] ) : '' )
+				. ( '' !== $moi['lyDo'] ? ( ' — ' . $moi['lyDo'] ) : '' ),
+		) );
+		return $moi;
+	}
+
+	/**
+	 * Tiền của MỘT hạng mục lớn — hạng mục có con thì tiền nằm ở CON, không có con thì ở chính
+	 * nó. Cộng cả hai là đếm hai lần, và đó là con số kế toán chuẩn bị tiền.
+	 */
+	public static function tien_hm( $ma_da, $row ) {
+		$lines = self::lines_of( $ma_da );
+		$nd = ''; $tu_than = 0;
+		foreach ( $lines as $l ) {
+			if ( (int) $l['row_no'] === (int) $row ) {
+				$nd = trim( (string) $l['noi_dung'] );
+				$tu_than = VHCP_Util::num( $l['thuc_te'] );
+			}
+		}
+		if ( '' === $nd ) { return 0; }
+		$con = 0; $co_con = false;
+		foreach ( $lines as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === $nd ) { $co_con = true; $con += VHCP_Util::num( $l['thuc_te'] ); }
+		}
+		return $co_con ? $con : $tu_than;
+	}
+
+	/**
+	 * NHÂN VIÊN TÍCH MẤY HẠNG MỤC → MỘT LỆNH TẠM ỨNG.
+	 *
+	 * 🔴 CHỈ NHẬN HẠNG MỤC LỚN ĐANG Ở 'nhap' HOẶC 'tra'. Hạng mục đã nằm trong một lệnh khác mà
+	 *    lọt vào lệnh này là XIN HAI LẦN CÙNG MỘT KHOẢN — tiền ra khỏi két gấp đôi cho một việc.
+	 *
+	 * 🔴 KHÔNG NHẬN HẠNG MỤC 🏢 TRỰC TIẾP. Tiền ấy kế toán trả thẳng nhà cung cấp, không qua tay
+	 *    nhân viên; gộp nó vào lệnh tạm ứng là xin tiền cho một khoản mình không trả.
+	 */
+	public static function xin_tam_ung_dot( $ma_da, $rows, $lich = array(), $ghi_chu = '' ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$rows = array_values( array_unique( array_map( 'intval', (array) $rows ) ) );
+		if ( ! $rows ) { return VHCP_Util::err( 'Chưa tích hạng mục nào để xin tạm ứng.' ); }
+
+		/* Hạng mục lớn của dự án này, tra một lần — hỏi CSDL trong vòng lặp là mở cửa cho
+		   dòng của dự án khác lọt vào lệnh. */
+		$lon = array();
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( ! self::is_real( $l ) ) { continue; }
+			if ( trim( (string) $l['cap_cha'] ) !== '' ) { continue; }
+			$lon[ (int) $l['row_no'] ] = trim( (string) $l['noi_dung'] );
+		}
+
+		$nhan = array(); $tong = 0;
+		foreach ( $rows as $r ) {
+			if ( ! isset( $lon[ $r ] ) ) {
+				return VHCP_Util::err( 'Dòng ' . $r . ' không phải hạng mục lớn của dự án này.' );
+			}
+			if ( self::hm_la_ncc( $ma_da, $r ) ) {
+				return VHCP_Util::err( '"' . $lon[ $r ] . '" là khoản kế toán trả thẳng nhà cung cấp — không xin tạm ứng.' );
+			}
+			$h = self::hm_cua( $ma_da, $r );
+			if ( ! in_array( $h['tt'], array( 'nhap', 'tra' ), true ) ) {
+				return VHCP_Util::err( '"' . $lon[ $r ] . '" đã nằm trong một lệnh tạm ứng rồi.' );
+			}
+			$nhan[] = $r;
+			$tong  += self::tien_hm( $ma_da, $r );
+		}
+
+		$ds  = self::get_dot( $ma_da );
+		$dot = 0;
+		foreach ( array_keys( $ds ) as $k ) { $dot = max( $dot, (int) $k ); }
+		$dot++;
+
+		/* Lịch đi nhận tiền: dòng thiếu ngày thì bỏ — một đợt không ngày thì kế toán chuẩn bị
+		   tiền vào hôm nào? */
+		$lc = array(); $lan = 0;
+		foreach ( (array) $lich as $x ) {
+			$x = (array) $x;
+			$ngay = isset( $x['ngay'] ) ? trim( (string) $x['ngay'] ) : '';
+			if ( '' === $ngay ) { continue; }
+			$lan++;
+			$lc[] = array( 'lan' => $lan, 'ngay' => $ngay,
+				'soTien' => VHCP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 ) );
+		}
+
+		$moi = self::dot_ghi_( $ma_da, $dot, array(
+			'tt' => 'xin', 'rows' => $nhan, 'soTien' => $tong, 'lich' => $lc,
+			'lyDo' => trim( (string) $ghi_chu ), 'unc' => '',
+		), 'Xin tạm ứng cho dự án' );
+		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'tt' => 'xin', 'dot' => $dot ) ); }
+		return VHCP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
+	}
+
+	/**
+	 * Đổi trạng thái CẢ LỆNH — duyệt / trả lại / cấp tiền. Mọi hạng mục trong lệnh đi theo.
+	 *
+	 * 🔴 CHỐT THEO VAI. Ẩn nút trên màn chỉ là tiện tay; ai gọi thẳng API vẫn phải bị chặn,
+	 *    nếu không thì nhân viên tự duyệt rồi tự cấp tạm ứng cho chính mình.
+	 */
+	public static function dat_tt_dot( $ma_da, $dot, $tt, $them = array() ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$tt = (string) $tt;
+		if ( ! in_array( $tt, self::TT_DOT, true ) ) { return VHCP_Util::err( 'Trạng thái không hợp lệ' ); }
+		$d = self::dot_cua( $ma_da, $dot );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		$them = (array) $them;
+		$vai  = VHCP_Auth::vai_tro();
+		$duyet_duoc = in_array( $vai, array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
+		$ke_toan    = in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true );
+
+		if ( in_array( $tt, array( 'duyet', 'tra' ), true ) && ! $duyet_duoc ) {
+			return VHCP_Util::err( 'Chỉ quản lý hoặc kế toán duyệt / trả lại được.' );
+		}
+		if ( 'ung' === $tt && ! $ke_toan ) { return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' ); }
+		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh đợt ' . $d['dot'] . ' đã cấp tiền rồi.' ); }
+		if ( 'duyet' === $tt && 'xin' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ duyệt được lệnh đang xin tạm ứng.' ); }
+		if ( 'ung' === $tt && 'duyet' !== $d['tt'] ) { return VHCP_Util::err( 'Chỉ cấp tiền cho lệnh đã duyệt.' ); }
+		if ( 'tra' === $tt && ! in_array( $d['tt'], array( 'xin', 'duyet' ), true ) ) {
+			return VHCP_Util::err( 'Lệnh này không ở bước trả lại được.' );
+		}
+
+		$sua = array( 'tt' => $tt );
+		if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
+		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
+		$viec = array( 'duyet' => 'Duyệt lệnh tạm ứng dự án', 'tra' => 'Trả lại lệnh tạm ứng dự án',
+			'ung' => 'Cấp tạm ứng cho dự án', 'xin' => 'Xin tạm ứng cho dự án' );
+		$moi = self::dot_ghi_( $ma_da, $dot, $sua, isset( $viec[ $tt ] ) ? $viec[ $tt ] : 'Đổi lệnh tạm ứng' );
+
+		/* Hạng mục đi theo lệnh. TRẢ LẠI thì về 'nhap' và GỠ số đợt — nếu giữ đợt thì nhân viên
+		   sửa xong tích lại sẽ bị chối "đã nằm trong một lệnh rồi", mà lệnh ấy đã bị trả. */
+		foreach ( $d['rows'] as $r ) {
+			$h = self::hm_cua( $ma_da, $r );
+			if ( 'xong' === $h['tt'] ) { continue; }   // đã chốt hoá đơn thì thôi, không kéo ngược
+			if ( 'tra' === $tt ) { self::hm_ghi_( $ma_da, $r, array( 'tt' => 'tra', 'dot' => 0 ) ); }
+			else { self::hm_ghi_( $ma_da, $r, array( 'tt' => $tt, 'dot' => (int) $d['dot'],
+				'unc' => isset( $sua['unc'] ) ? $sua['unc'] : $h['unc'] ) ); }
+		}
+		return VHCP_Util::ok( array( 'dot' => $moi ) );
+	}
+
+	/**
+	 * MỌI LỆNH TẠM ỨNG CỦA MỌI DỰ ÁN — nuôi bảng Duyệt của kế toán.
+	 *
+	 * ⚠️ Tôn trọng tầm nhìn đơn vị như `list_du_an()`: dự án neo theo NGƯỜI TẠO.
+	 */
+	public static function list_lenh_da() {
+		$out    = array();
+		$dv_xem = VHCP_DonVi::xem_duoc();
+		foreach ( self::all_with_lines() as $r ) {
+			if ( null !== $dv_xem
+				&& ! VHCP_DonVi::duoc_xem( VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
+			$ma_da = (string) $r['ma_da'];
+			$ten_cua = array();
+			foreach ( $r['lines'] as $x ) { $ten_cua[ (int) $x['row_no'] ] = trim( (string) $x['noi_dung'] ); }
+			foreach ( self::ds_dot( $ma_da ) as $d ) {
+				$ten = array();
+				foreach ( $d['rows'] as $rw ) { if ( isset( $ten_cua[ $rw ] ) ) { $ten[] = $ten_cua[ $rw ]; } }
+				$out[] = array(
+					'maDA'     => $ma_da,
+					'tenDA'    => (string) $r['ten'],
+					'loaiDA'   => (string) $r['loai'],
+					'nguoiTao' => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
+					'dot'      => $d['dot'],
+					'tt'       => $d['tt'],
+					'rows'     => $d['rows'],
+					'tenHM'    => $ten,
+					'soTien'   => $d['soTien'],
+					'unc'      => $d['unc'],
+					'lyDo'     => $d['lyDo'],
+					'lich'     => $d['lich'],
+					'moc'      => $d['moc'],
+					'kyDA'     => self::get_ky_da( $ma_da ),
+				);
+			}
+		}
+		return VHCP_Util::ok( array( 'items' => $out ) );
+	}
+
 	/**
 	 * Đổi trạng thái một hạng mục.
 	 *
@@ -683,6 +945,17 @@ class VHCP_DuAn {
 		}
 		if ( $la_ncc && 'xin' === $tt ) {
 			return VHCP_Util::err( 'Hạng mục này kế toán trả thẳng nhà cung cấp — không xin tạm ứng. Kế toán tích xác nhận đã chi.' );
+		}
+		/* 🔴 XIN / DUYỆT / CẤP TIỀN CỦA ĐƠN TẠM ỨNG NAY ĐI THEO LỆNH, KHÔNG THEO TỪNG HẠNG MỤC.
+		   Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì
+		   nó tổng tổng tạm ứng cần xin"*.
+		   Để hở đường cũ là mở ra một lối thứ hai: hạng mục nhảy sang 'xin' mà KHÔNG thuộc lệnh
+		   nào, nên bảng Duyệt của kế toán không bao giờ thấy nó — nhân viên tưởng đã gửi, kế
+		   toán không có gì để duyệt, và không ai biết vì sao.
+		   ⚠️ Đơn 🏢 TRỰC TIẾP thì vẫn đi lối riêng: nó không có lệnh tạm ứng nào cả. */
+		if ( ! $la_ncc && in_array( $tt, array( 'xin', 'duyet', 'ung' ), true ) ) {
+			return VHCP_Util::err( 'Bước này nay đi theo LỆNH tạm ứng của cả dự án — '
+				. 'tích các hạng mục rồi bấm "Xin tạm ứng" một lần.' );
 		}
 		/* Đơn NCC: kế toán đi thẳng tới "đã chi" hoặc "khoá", không cần chuỗi xin → duyệt. */
 		$bo_qua_chuoi = ( $la_ncc && $ke_toan );
@@ -784,6 +1057,80 @@ class VHCP_DuAn {
 		$wpdb->insert( VHCP_DB::t( 'da_line' ), $data );
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCP_Util::ok();
+	}
+
+	/**
+	 * ĐÍNH ẢNH / HỒ SƠ THẲNG VÀO MỘT DÒNG, KHÔNG PHẢI MỞ FORM SỬA.
+	 *
+	 * Anh Thắng: *"cho phép thêm ảnh và đính kèm cả hồ sơ trực tiếp tại trang"*.
+	 *
+	 * Bản trước muốn gắn một cái bill vào dòng thì phải bấm ✏️, cuộn lên đầu bảng, chọn tệp,
+	 * rồi bấm Cập nhật — bốn thao tác cho một tấm ảnh, và trong lúc ấy form đang giữ CẢ DÒNG:
+	 * lỡ bấm nhầm Thêm dòng là ra một dòng trùng.
+	 *
+	 * 🔴 ĐỔI ĐÚNG MỘT Ô, KHÔNG GHI ĐÈ CẢ DÒNG. Dùng `update_line` với một `rec` dựng lại từ màn
+	 *    là mọi ô khác đi qua đường ghi lại — ô nào màn đọc thiếu thì bị xoá trắng, im lặng.
+	 *
+	 * ⚠️ HỒ SƠ THÌ CỘNG THÊM, ẢNH THÌ THAY. Một dòng có nhiều hồ sơ (hợp đồng, biên bản, báo
+	 *    giá) nhưng chỉ một tấm bill; đính hồ sơ thứ hai mà đè mất cái thứ nhất là mất chứng từ.
+	 */
+	public static function dat_anh_line( $ma_da, $row, $url ) {
+		return self::sua_o_line_( $ma_da, $row, 'anh', trim( (string) $url ), false, 'Đính ảnh vào dòng dự án' );
+	}
+
+	public static function them_ho_so_line( $ma_da, $row, $url ) {
+		return self::sua_o_line_( $ma_da, $row, 'ho_so', trim( (string) $url ), true, 'Đính hồ sơ vào dòng dự án' );
+	}
+
+	/** Gỡ ảnh của một dòng (đính nhầm thì phải gỡ được, không thì dòng mang chứng từ của việc khác). */
+	public static function go_anh_line( $ma_da, $row ) {
+		return self::sua_o_line_( $ma_da, $row, 'anh', '', false, 'Gỡ ảnh khỏi dòng dự án' );
+	}
+
+	private static function sua_o_line_( $ma_da, $row, $cot, $url, $cong_them, $viec ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( 'Đã đóng' === $st ) { return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
+		$row = (int) $row;
+		$t   = VHCP_DB::t( 'da_line' );
+		$cu  = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ), ARRAY_A );
+		if ( ! $cu ) { return VHCP_Util::err( 'Không tìm thấy dòng ' . $row ); }
+
+		/* 🔴 HẠNG MỤC ĐÃ CHỐT LÀ KHOÁ. Đổi chứng từ của một khoản kế toán đã hạch toán là đổi
+		   thứ đỡ cho con số ấy, sau lưng họ. Chốt này áp cho chính dòng, hoặc cho hạng mục lớn
+		   của nó nếu đây là mục con. */
+		$khoa_row = ( trim( (string) $cu['cap_cha'] ) === '' ) ? $row : 0;
+		if ( ! $khoa_row ) {
+			foreach ( self::lines_of( $ma_da ) as $l ) {
+				if ( trim( (string) $l['cap_cha'] ) === '' && trim( (string) $l['noi_dung'] ) === trim( (string) $cu['cap_cha'] ) ) {
+					$khoa_row = (int) $l['row_no'];
+				}
+			}
+		}
+		if ( $khoa_row && self::hm_khoa( $ma_da, $khoa_row ) ) {
+			return VHCP_Util::err( 'Hạng mục đã chốt là chi thực tế — không đổi chứng từ được nữa.' );
+		}
+
+		$moi = $url;
+		if ( $cong_them && '' !== $url ) {
+			$co = trim( (string) $cu[ $cot ] );
+			$ds = preg_split( '/\s+/u', $co, -1, PREG_SPLIT_NO_EMPTY );
+			if ( ! in_array( $url, $ds, true ) ) { $ds[] = $url; }
+			$moi = implode( "\n", $ds );
+		}
+		$wpdb->update( $t, array( $cot => $moi ), array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::nguoi(),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => (string) $viec,
+			'target' => (string) $ma_da . '#' . $row,
+			'detail' => trim( (string) $cu['noi_dung'] ) . ( '' !== $url ? ( ' — ' . $url ) : ' — gỡ' ),
+		) );
+		$ra = array( 'row' => $row );
+		$ra[ 'anh' === $cot ? 'anh' : 'hoSo' ] = $moi;
+		return VHCP_Util::ok( $ra );
 	}
 
 	public static function update_line( $ma_da, $row, $rec ) {

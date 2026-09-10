@@ -100,19 +100,26 @@ t( '🔴 kế toán cũng KHÔNG đẩy đơn NCC vào chuỗi xin tạm ứng (
 
 /* ═══ 6. 🔴 ĐƠN TẠM ỨNG VẪN PHẢI ĐI ĐỦ CHUỖI ══════════════════════════════════════════ */
 $x = VHCP_DuAn::dat_hm( $ma, $ung, 'ung', array( 'dot' => 1 ) );
-t( '🔴 đơn TẠM ỨNG: kế toán vẫn KHÔNG cấp tiền khi chưa ai duyệt (lối tắt NCC không được rò sang đây)',
+t( '🔴 đơn TẠM ỨNG: kế toán KHÔNG cấp tiền lẻ cho một hạng mục (lối tắt NCC không được rò sang đây)',
 	empty( $x['success'] ), $x );
 $x = VHCP_DuAn::dat_hm( $ma, $ung, 'duyet' );
-t( '🔴 và vẫn không duyệt được khi chưa ai xin', empty( $x['success'] ), $x );
+t( '🔴 và không duyệt lẻ được', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'ung' );
+t( '🔴 lệnh chưa ai duyệt thì cũng không cấp tiền được', empty( $x['success'] ), $x );
+/* 🔴 Đơn TẠM ỨNG nay đi theo LỆNH của cả dự án (anh Thắng: *"trong 1 đơn mà nhiều lệnh tạm
+   ứng"*) — bài kiểm đường lệnh nằm ở `kiem-lenh-tam-ung-du-an.php`. Ở đây chỉ cần chốt một
+   điều: LỐI TẮT CỦA ĐƠN NCC KHÔNG ĐƯỢC RÒ SANG ĐƠN TẠM ỨNG. */
 vai( 'Nhân viên', 'NV' );
 $x = VHCP_DuAn::dat_hm( $ma, $ung, 'xin' );
-t( 'đơn tạm ứng: nhân viên xin được', ! empty( $x['success'] ), $x );
+t( '🔴 đơn tạm ứng: xin LẺ từng hạng mục bị chặn (phải đi qua lệnh)', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $ung ) );
+t( 'đơn tạm ứng: gửi qua LỆNH thì được', ! empty( $x['success'] ), $x );
 vai( 'Quản lý', 'QL' );
-$x = VHCP_DuAn::dat_hm( $ma, $ung, 'duyet' );
-t( '   quản lý duyệt được', ! empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'duyet' );
+t( '   quản lý duyệt lệnh được', ! empty( $x['success'] ), $x );
 vai( 'Kế toán cá nhân', 'KT CN' );
-$x = VHCP_DuAn::dat_hm( $ma, $ung, 'ung', array( 'dot' => 1, 'unc' => 'UNC-1' ) );
-t( '   kế toán cấp được', ! empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'ung', array( 'unc' => 'UNC-1' ) );
+t( '   kế toán cấp lệnh được', ! empty( $x['success'] ), $x );
 $x = VHCP_DuAn::dat_hm( $ma, $ung, 'xong', array() );
 t( '🔴 đơn tạm ứng: chốt mà THIẾU HOÁ ĐƠN vẫn bị chối', empty( $x['success'] ), $x );
 
