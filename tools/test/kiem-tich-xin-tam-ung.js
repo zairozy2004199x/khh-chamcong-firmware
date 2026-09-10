@@ -200,6 +200,117 @@ t('🔴 đính ảnh đi đường RIÊNG, không ghi lại cả dòng qua updat
   t('   gửi kèm TÊN TỆP (kho cần tên để giữ đuôi)', NK.tai.d.name === 'bill.jpg', NK.tai.d);
 }
 
+/* ── 4b. 🔴 DUYỆT / CẤP TIỀN NGAY TRONG TRANG DỰ ÁN ───────────────────────────────────
+ * Anh Thắng: *"cho nút duyệt trực tiếp trong trang luôn"*.
+ * Kế toán đang mở dự án để soi từng dòng thì bấm ngay tại chỗ, khỏi nhảy sang màn Duyệt rồi
+ * phải tìm lại đúng lệnh ấy giữa danh sách của mọi dự án.
+ *
+ * 🔴 KHOÁ HÀNG Ô NHẬP PHẢI KHÁC MÀN DUYỆT. Hai bảng cùng nằm trong trang (một cái đang ẩn);
+ *    trùng khoá là bấm bên này mở ô nhập bên kia — và người ta gõ uỷ nhiệm chi vào một ô không
+ *    ai nhìn thấy.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veLenhDA(role, lenh) {
+  const NK = {};
+  const moi = {
+    CURUSER: { role: role },
+    LENH_ITEMS: [],
+    LENH_NHAN: null,
+    esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x),
+    el: id => (NK[id] = NK[id] || { innerHTML: '', style: {} }),
+  };
+  const src = `${(() => { const i = HTML.indexOf('var LENH_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
+    ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
+    ${boc('lenhNutChung')}\n${boc('renderDaLenh')}
+    return renderDaLenh;`;
+  new Function('moi', `with(moi){ ${src} }`)(moi)({ maDA: 'DA1', ten: 'Aeon', lenh: lenh });
+  return { html: NK.daLenhBody.innerHTML, box: NK.daLenhBox };
+}
+const L1 = [
+  { dot: 1, tt: 'xin', rows: [2, 5], tenHM: ['Mua đồ điện', 'Thợ bốc vác'], soTien: 15300000,
+    unc: '', lyDo: '', lich: [], moc: { xin: '10/09 · NV' } },
+  { dot: 2, tt: 'duyet', rows: [7], tenHM: ['Đơn linh tinh'], soTien: 50000,
+    unc: '', lyDo: '', lich: [], moc: {} },
+  { dot: 3, tt: 'ung', rows: [9], tenHM: ['Xe cẩu'], soTien: 900000,
+    unc: 'UNC-9', lyDo: '', lich: [], moc: {} },
+];
+{
+  const r = veLenhDA('Kế toán cá nhân', L1);
+  t('🔴 lệnh chờ duyệt → duyệt được NGAY TRONG TRANG dự án',
+    /lenhDat\('DA1',1,'duyet',\{\},_lenhSau\('QDA1_1'\)\)/.test(r.html), r.html.slice(0, 400));
+  t('🔴 lệnh đã duyệt → cấp tiền được ngay tại đây',
+    /lenhMoCap\('QDA1_2','DA1',2\)/.test(r.html), r.html);
+  t('   trả lại được, kèm khoá của trang dự án', /lenhTra\('DA1',1,'QDA1_1'\)/.test(r.html), r.html);
+  t('🔴 khoá hàng ô nhập mang tiền tố Q — KHÁC màn Duyệt (tiền tố L)',
+    /data-hmf="QDA1_1"/.test(r.html) && !/data-hmf="LDA1_1"/.test(r.html), r.html);
+  t('   hàng ô nhập trải hết 7 cột của bảng này', /data-hmf="QDA1_1"[^]{0,60}colspan="7"/.test(r.html), r.html);
+  t('🔴 lệnh đã cấp tiền → không bày nút gì nữa', !/QDA1_3/.test(r.html.replace(/data-hmf="QDA1_3"/, '')), r.html);
+  t('   và bảng hiện ra khi có lệnh', r.box.style.display === '', r.box.style);
+}
+{
+  const r = veLenhDA('Nhân viên', L1);
+  t('🔴 nhân viên mở dự án của mình cũng KHÔNG duyệt / cấp tiền được',
+    !/lenhDat\(/.test(r.html) && !/lenhMoCap/.test(r.html) && !/lenhTra/.test(r.html), r.html);
+  t('   nhưng vẫn thấy đợt nào tới đâu',
+    /Chờ duyệt/.test(r.html) && /Đã cấp tiền/.test(r.html) && /UNC-9/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Quản lý', L1);
+  t('🔴 quản lý duyệt và trả được, nhưng KHÔNG cấp tiền',
+    /lenhDat\('DA1',1,'duyet'/.test(r.html) && /lenhTra/.test(r.html) && !/lenhMoCap/.test(r.html), r.html);
+}
+{
+  const r = veLenhDA('Kế toán cá nhân', []);
+  t('chưa có lệnh nào → giấu cả bảng', r.box.style.display === 'none', r.box.style);
+}
+t('🔴 hai màn dùng CHUNG một hàm dựng nút (viết hai bộ là hai nơi lệch nhau)',
+  (HTML.match(/lenhNutChung\(/g) || []).length >= 3);
+t('   và nạp lại đúng màn đang đứng sau khi bấm',
+  HTML.indexOf("function _lenhSau(k){ return (String(k).charAt(0)==='Q')") >= 0);
+t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn ấy',
+  HTML.indexOf("if(!el('hmBody')) return;") >= 0);
+
+/* ── 4c. 💵 THẺ BA CON SỐ TẠM ỨNG ─────────────────────────────────────────────────────
+ * Anh Thắng: *"chỗ này sẽ hiện (Số tiền đã xin tạm ứng / Số tiền kế toán đã chi tạm ứng)"* và
+ * *"Dự kiến tạm ứng tổng đơn"*.
+ * Ô "Tổng dự toán" cũ đứng đó với con số 0đ suốt vì phần lớn dự án chẳng ai gõ dự toán — một ô
+ * to đùng không nói được gì.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const moi = { money: x => String(x) };
+  const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
+  const h = the({ duKienTU: 25410999, daXinTU: 25299999, daChiTU: 15300000, tongDuToan: 0 }, 0);
+  t('🔴 hiện đủ ba nhãn anh Thắng gọi tên',
+    /Dự kiến tạm ứng tổng đơn/.test(h) && /Số tiền đã xin tạm ứng/.test(h)
+    && /Số tiền kế toán đã chi tạm ứng/.test(h), h);
+  /* 🔴 CANH CẶP NHÃN–SỐ, không canh rời. Ba con số cùng có mặt mà đổi chỗ cho nhau thì phép
+     "có đủ ba số" vẫn xanh — và kế toán đọc "đã chi 25 triệu" trong khi mới chi 15. */
+  const cap = (nhan) => {
+    const i = h.indexOf(nhan);
+    return i < 0 ? '' : (h.slice(i, i + 220).match(/>([\d]+)đ</) || [])[1];
+  };
+  t('🔴 mỗi nhãn đi với ĐÚNG con số của nó', cap('Dự kiến tạm ứng tổng đơn') === '25410999', cap('Dự kiến tạm ứng tổng đơn'));
+  t('   "đã xin" là 25.299.999', cap('Số tiền đã xin tạm ứng') === '25299999', cap('Số tiền đã xin tạm ứng'));
+  t('   "đã chi" là 15.300.000', cap('Số tiền kế toán đã chi tạm ứng') === '15300000', cap('Số tiền kế toán đã chi tạm ứng'));
+  t('🔴 nói rõ còn bao nhiêu chưa gửi xin', /còn <b>111000đ<\/b> chưa gửi xin/.test(h), h);
+  t('   dự toán không mất hẳn, lui xuống dòng phụ', /dự toán 0đ/.test(h), h);
+}
+{
+  const moi = { money: x => String(x) };
+  const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
+  const h = the({ duKienTU: 10000000, daXinTU: 12000000, daChiTU: 0, tongDuToan: 0 }, 0);
+  /* 🔴 Xin nhiều hơn dự kiến là chuyện có thật (phát sinh thêm sau khi gửi). Bày
+     "-2.000.000đ còn phải xin" thì đọc ra vô nghĩa — phải nói thẳng là đã xin vượt. */
+  t('🔴 xin VƯỢT dự kiến → nói thẳng là vượt, không in số âm',
+    /đã xin vượt dự kiến <b>2000000đ<\/b>/.test(h) && !/-2000000/.test(h), h);
+}
+{
+  const moi = { money: x => String(x) };
+  const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
+  const h = the({ duKienTU: 5000000, daXinTU: 5000000, daChiTU: 5000000, tongDuToan: 0 }, 0);
+  t('xin hết rồi → báo đã gửi xong', /đã gửi xin hết/.test(h), h);
+}
+t('🔴 thẻ này thay chỗ ô "Tổng dự toán" cũ', HTML.indexOf("_tqCardTU(r, hmDT)+") >= 0);
+
 /* ── 5. 🔍 RÊ CHUỘT VÀO BILL THÌ PHÓNG TO ─────────────────────────────────────────────── */
 /* Lớp phủ đã có sẵn (`_billZoomInit`) và nghe ở `document` theo thuộc tính `data-bill`; bảng dự
    án trước nay chỉ có thẻ 📷 trơn nên rê chuột chẳng ra gì. */

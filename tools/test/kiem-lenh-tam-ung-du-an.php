@@ -208,6 +208,45 @@ vai( 'Kế toán cá nhân', 'KT' );
 $x = VHCP_DuAn::dat_hm( $ma, $R['Xe ba gác'], 'xong', array( 'hoaDon' => 'https://hd/2', 'unc' => 'UNC-NCC' ) );
 t( '🔴 đơn 🏢 kế toán trả thẳng NCC vẫn tích khoá được như cũ', ! empty( $x['success'] ), $x );
 
+/* ═══ 8b. 🔴 BA CON SỐ TẠM ỨNG CỦA CẢ ĐƠN ══════════════════════════════════════════════
+ * Anh Thắng: *"Dự kiến tạm ứng tổng đơn"*, *"Số tiền đã xin tạm ứng"*,
+ * *"Số tiền kế toán đã chi tạm ứng"*.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+/* Dựng thêm MỘT LỆNH ĐANG CHỜ CẤP TIỀN (đã duyệt, chưa chi). Không có nó thì "đã xin" và
+   "đã chi" chỉ khác nhau bởi lệnh đang 'xin' — mà một lỗi tính cả lệnh 'duyet' vào "đã chi"
+   sẽ không lộ ra. */
+vai( 'Admin', 'KT' );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê giàn giáo', 'thucTe' => 700000 ) );
+$d4 = VHCP_DuAn::get_du_an( $ma ); $gg = null;
+foreach ( $d4['lines'] as $l ) { if ( 'Thuê giàn giáo' === $l['noiDung'] ) { $gg = $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+$xg = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $gg ) );
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $ma, $xg['dot']['dot'], 'duyet' );
+teq( 'có một lệnh đang chờ cấp tiền', 'duyet', VHCP_DuAn::dot_cua( $ma, $xg['dot']['dot'] )['tt'] );
+
+vai( 'Kế toán cá nhân', 'KT' );
+$dd = VHCP_DuAn::get_du_an( $ma );
+/* Hạng mục 💰 lúc này: "Mua đồ điện" 13.000.000 (tiền ở con) + "Thợ bốc vác" 2.300.000
+   + "Đơn linh tinh" 9.999.999 + "Vật tư lẻ" 111.000 (CÒN NHÁP) + "Thuê giàn giáo" 700.000 = 26.110.999.
+   🏢 "Xe ba gác" 2.000.000 KHÔNG tính — tiền ấy kế toán trả thẳng nhà cung cấp.
+   ⚠️ "Vật tư lẻ" cố ý CHƯA gửi lệnh nào: nếu mọi hạng mục đều đã xin thì hai con số bằng nhau,
+      và một lỗi đổi chỗ chúng cho nhau vẫn xanh. */
+t( '🔴 dự kiến tạm ứng = tổng hạng mục 💰, KỂ CẢ cái còn nháp (26.110.999)',
+	26110999 == $dd['duKienTU'], $dd['duKienTU'] );
+t( '🔴 và BỎ khoản 🏢 kế toán trả thẳng NCC (2tr) — tiền ấy không đi đường tạm ứng',
+	28110999 != $dd['duKienTU'], $dd['duKienTU'] );
+/* Lệnh đợt 1 (15,3tr, ĐÃ CẤP) + đợt 3 (9.999.999, đang xin) + đợt 4 (700.000, ĐÃ DUYỆT chưa
+   cấp). Đợt 2 ĐÃ BỊ TRẢ → không tính. */
+t( '🔴 đã xin = lệnh đang xin / đã duyệt / đã cấp — KHÔNG tính lệnh bị trả lại (25.999.999)',
+	25999999 == $dd['daXinTU'], $dd['daXinTU'] );
+t( '   nên nó KHÁC con số dự kiến — còn "Vật tư lẻ" chưa gửi',
+	$dd['duKienTU'] != $dd['daXinTU'], array( $dd['duKienTU'], $dd['daXinTU'] ) );
+t( '🔴 đã chi = CHỈ lệnh kế toán đã cấp tiền (15.300.000) — lệnh mới duyệt chưa tính',
+	15300000 == $dd['daChiTU'], $dd['daChiTU'] );
+t( '   ba con số không cái nào bằng cái nào (phép này bắt lỗi đổi chỗ)',
+	$dd['duKienTU'] != $dd['daChiTU'] && $dd['daXinTU'] != $dd['daChiTU'], $dd );
+
 /* ═══ 9. CỬA API ═══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

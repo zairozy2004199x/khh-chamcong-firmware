@@ -285,11 +285,30 @@ class VHCP_DuAn {
 		$lenh = array();
 		$ten_cua = array();
 		foreach ( self::lines_of( $ma_da ) as $r2 ) { $ten_cua[ (int) $r2['row_no'] ] = trim( (string) $r2['noi_dung'] ); }
+		$da_xin = 0; $da_chi = 0;
 		foreach ( self::ds_dot( $ma_da ) as $d ) {
 			$tn = array();
 			foreach ( $d['rows'] as $rw ) { if ( isset( $ten_cua[ $rw ] ) ) { $tn[] = $ten_cua[ $rw ]; } }
 			$d['tenHM'] = $tn;
 			$lenh[] = $d;
+			/* 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ ĐÃ XIN. Nó đã quay về cho nhân viên sửa; cộng vào
+			   là con số "đã xin" phình lên bởi những lệnh không còn tồn tại, rồi nhân viên gửi
+			   lại là cộng thêm lần nữa. */
+			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) { $da_xin += $d['soTien']; }
+			if ( 'ung' === $d['tt'] ) { $da_chi += $d['soTien']; }
+		}
+
+		/* 🔴 DỰ KIẾN TẠM ỨNG = tổng tiền của mọi hạng mục 💰 NV TỰ TRẢ, kể cả cái còn nháp.
+		   Anh Thắng: *"Dự kiến tạm ứng tổng đơn"* — con số này trả lời "cả đơn này rốt cuộc phải
+		   ứng ra bao nhiêu", để kế toán liệu tiền trước khi nhân viên bấm xin.
+		   ⚠️ BỎ KHOẢN 🏢 TRỰC TIẾP. Tiền ấy kế toán trả thẳng nhà cung cấp, không bao giờ đi qua
+		      đường tạm ứng — gộp vào là báo một con số tạm ứng lớn hơn thực tế phải chuẩn bị. */
+		$du_kien = 0;
+		foreach ( self::lines_of( $ma_da ) as $r3 ) {
+			if ( ! self::is_real( $r3 ) ) { continue; }
+			if ( trim( (string) $r3['cap_cha'] ) !== '' ) { continue; }
+			if ( 'Trực tiếp' === trim( (string) $r3['hinh_thuc'] ) ) { continue; }
+			$du_kien += self::tien_hm( $ma_da, (int) $r3['row_no'] );
 		}
 
 		$dt = 0; $tt = 0; $du_tu = 0; $du_tt = 0; $tt_tu = 0; $tt_tt = 0; $tt_vat = 0; $tt_novat = 0;
@@ -354,6 +373,9 @@ class VHCP_DuAn {
 			'duToanDA'        => self::get_du_toan_da( $ma_da ),
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
+			'duKienTU'        => $du_kien,
+			'daXinTU'         => $da_xin,
+			'daChiTU'         => $da_chi,
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
 			'ttTamUng'        => $tt_tu,

@@ -300,7 +300,7 @@ function veLenh(role, loc) {
   };
   const src = `${bocVar('LENH_NHAN')}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
-    ${boc('_lenhKey')}\n${boc('_hmNgay')}\n${boc('renderLenhDA')}
+    ${boc('_lenhKey')}\n${boc('_hmNgay')}\n${boc('lenhNutChung')}\n${boc('renderLenhDA')}
     return renderLenhDA;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)();
   return NK.lenhBody.innerHTML;
@@ -312,10 +312,10 @@ function veLenh(role, loc) {
     /Mua đồ điện/.test(out) && /Thợ bốc vác/.test(out), out.slice(0, 400));
   t('   nói rõ đợt mấy', /Đợt 1/.test(out) && /Đợt 2/.test(out), out.slice(0, 300));
   t('🔴 lệnh chờ duyệt → kế toán duyệt được CẢ LỆNH một lần',
-    /lenhDat\('DA1',1,'duyet'\)/.test(out), out);
+    /lenhDat\('DA1',1,'duyet',\{\},_lenhSau\('LDA1_1'\)\)/.test(out), out);
   t('🔴 lệnh đã duyệt → mở ô nhập uỷ nhiệm chi rồi cấp CẢ LỆNH',
     /lenhMoCap\('LDA1_2','DA1',2\)/.test(out), out);
-  t('   trả lại được, và trả thì hỏi lý do', /lenhTra\('DA1',1\)/.test(out), out);
+  t('   trả lại được, và trả thì hỏi lý do', /lenhTra\('DA1',1,'LDA1_1'\)/.test(out), out);
   t('🔴 lệnh đã cấp tiền → không bày nút cấp lại (bấm nhầm là chuyển đi hai lần)',
     !/lenhMoCap\('LDA2_1'/.test(out), out);
   t('   và hiện uỷ nhiệm chi đã cấp', /UNC-9/.test(out), out);
@@ -331,7 +331,7 @@ function veLenh(role, loc) {
 {
   const out = veLenh('Quản lý', 'all');
   t('🔴 quản lý duyệt và trả được, nhưng KHÔNG cấp tiền',
-    /lenhDat\('DA1',1,'duyet'\)/.test(out) && /lenhTra/.test(out) && !/lenhMoCap/.test(out), out);
+    /lenhDat\('DA1',1,'duyet',\{\},_lenhSau\('LDA1_1'\)\)/.test(out) && /lenhTra/.test(out) && !/lenhMoCap/.test(out), out);
 }
 {
   const out = veLenh('Kế toán cá nhân', 'cho');
