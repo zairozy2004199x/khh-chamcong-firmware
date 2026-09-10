@@ -123,7 +123,13 @@ la('_bpDs() ưu tiên danh sách máy chủ gửi xuống',
 la('🔴 danh sách máy chủ RỖNG thì ngã về đường lui, không trả mảng rỗng',
    '(ds&&ds.length)?ds:BOPHAN_MAC_DINH' in src)
 la('không còn chỗ nào dùng BOPHAN_LIST gõ cứng', 'BOPHAN_LIST' not in src)
-la('Văn phòng được chọn kỳ tự do', "BP_KY_TU_DO=['Văn phòng']" in src)
+# 🔴 Kỹ thuật cũng được chọn kỳ tự do — anh Thắng, về đơn cơ sở của bộ phận Kỹ thuật:
+#    "quyết toán theo tuần (nhưng không ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)".
+#    Nhân viên CƠ SỞ thì vẫn không: đơn của họ là đơn xin tạm ứng cho MỘT TUẦN vận hành.
+la('Văn phòng và Kỹ thuật được chọn kỳ tự do',
+   "BP_KY_TU_DO=['Văn phòng','Kỹ thuật']" in src)
+la('🔴 nhân viên CƠ SỞ vẫn KHÔNG được chọn kỳ tự do',
+   "'Cơ sở'" not in src.split('BP_KY_TU_DO=[')[1].split(']')[0])
 la('modal có ô khoảng ngày', 'ndTuDoBox' in src and 'ndTuNgay' in src and 'ndDenNgay' in src)
 
 m4 = re.search(r'function submitNewDon\(\)\{(.*?)\n  \}', src, re.S)

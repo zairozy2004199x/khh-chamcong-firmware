@@ -226,6 +226,13 @@
            tiền đã cấp. -->
       <button class="btn b-x" id="btnChuyenKy" style="display:none" onclick="moChuyenKy()"
         title="Đơn chưa quyết toán kịp tuần này — cho nó nhảy sang tuần sau (hoặc tuần chỉ định), tạm ứng đi theo">📅➜ Nhảy sang tuần khác</button>
+      <!-- 🔴 ĐẶT LẠI KHOẢNG NGÀY — anh Thắng, về đơn cơ sở của Kỹ thuật: "quyết toán theo tuần
+           (nhưng không ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)". Khác nút bên
+           trên: nút kia nhảy sang một TUẦN LỊCH có sẵn (việc của kế toán khi đơn trễ hạn), nút
+           này đặt lại KHOẢNG NGÀY tuỳ ý của chính người lập đơn, và chỉ tới lúc gửi quyết
+           toán. -->
+      <button class="btn b-x" id="btnDatKy" style="display:none" onclick="moDatKhoangKy()"
+        title="Đợt việc kéo dài hơn hay ngắn hơn dự tính — chỉnh lại khoảng ngày của đơn. Gửi quyết toán rồi thì khoá.">🗓 Đặt lại khoảng ngày</button>
       <!-- Hai nút XOÁ đứng CUỐI cùng, sau một vạch ngăn trên máy hẹp: chúng là thứ hiếm dùng
            nhất và hại nhất, nên phải là thứ tay chạm tới sau cùng, không phải thứ mắt thấy
            đầu tiên. -->
@@ -257,6 +264,30 @@
            đổi SAU khi quản lý đã duyệt. Không có sổ thì người duyệt nhớ 15 triệu, đơn ghi 12
            triệu, và không có gì phân xử. -->
       <div id="donSuBox" style="display:none"></div>
+  </div>
+
+  <!-- 🗓 ĐẶT LẠI KHOẢNG NGÀY CỦA ĐƠN — hai ô ngày mở ngay trên trang, không hộp thoại.
+       Hộp thoại của trình duyệt chỉ nhận chữ trơn: không có ô lịch, không điền sẵn được khoảng
+       đang có, và người ta phải gõ lại cả hai đầu ngày. -->
+  <div id="datKyBox" class="card" style="display:none;border-left:4px solid #0ea5e9;background:#f0f9ff">
+    <div style="padding:10px 14px">
+      <b>🗓 Đặt lại khoảng ngày của đơn</b>
+      <div style="font-size:11.5px;color:#475569;margin:4px 0 8px">
+        Đợt việc kéo dài hơn hay ngắn hơn dự tính thì nắn lại khoảng ngày ở đây.
+        Kỳ đang là <b id="dkKyCu">—</b>. <b>Gửi quyết toán rồi thì khoá</b> — số đã vào sổ, kỳ là cái ngăn nó nằm.
+        Ngày của từng dòng chi giữ nguyên: ngày mua là chuyện đã xảy ra.
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 16px;align-items:flex-end;font-size:12px">
+        <div class="fld"><label>Từ ngày</label><input type="date" id="dkTu"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="dkDen"></div>
+        <div class="fld" style="flex:1;min-width:200px"><label>Vì sao đổi (vào nhật ký đơn)</label>
+          <input type="text" id="dkLyDo" placeholder="VD: đợt setup kéo thêm 3 hôm"></div>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn b-g" onclick="chotDatKhoangKy()">✓ Lưu khoảng ngày</button>
+        <button class="btn b-x" onclick="dongDatKhoangKy()">✕ Thôi</button>
+      </div>
+    </div>
   </div>
 
   <div class="card" id="donListCard">
@@ -2064,6 +2095,60 @@
       .chuyenDonVi(CUR.don.maDon, chon, dich, nhan);
   }
 
+  /* ============ ĐẶT LẠI KHOẢNG NGÀY CỦA ĐƠN ============
+     🔴 Anh Thắng, về đơn cơ sở của bộ phận Kỹ thuật: *"quyết toán theo tuần (nhưng không ép
+        buộc tuần nào, khi nào gửi quyết toán thì mới chốt)"*.
+
+     Khác `moChuyenKy()` ngay bên dưới: nút kia cho KẾ TOÁN nhảy đơn sang một TUẦN LỊCH có sẵn
+     khi đơn trễ hạn quyết toán. Nút này cho CHÍNH NGƯỜI LẬP ĐƠN nắn lại khoảng ngày tuỳ ý —
+     đợt setup kéo dài thêm ba hôm thì kéo ngày cuối ra ba hôm, không phải nhảy nguyên một tuần.
+
+     🔴 HAI Ô NGÀY, KHÔNG GÕ CHUỖI KỲ. Chuỗi kỳ có khuôn chặt và MÁY CHỦ tự dựng
+        (`VHCP_Don::ky_tu_khoang`); để trình duyệt gửi lên một chuỗi tự do là mở cửa cho khuôn
+        thứ hai lọt vào sổ, rồi lọc theo tuần không bao giờ thấy đơn ấy nữa. */
+  function moDatKhoangKy(){
+    if(!(CUR&&CUR.don)) return;
+    var o=el('datKyBox'); if(!o){ toast('err','Thiếu khối đặt khoảng ngày'); return; }
+    /* Điền sẵn khoảng ngày ĐANG CÓ của đơn — người ta thường chỉ nắn một đầu, bắt gõ lại cả
+       hai là mời gõ lệch cái đầu kia. */
+    var k=_kyKhoang(String(CUR.don.ky||''));
+    el('dkTu').value=k[0]||'';
+    el('dkDen').value=k[1]||'';
+    el('dkKyCu').textContent=String(CUR.don.ky||'(chưa có)');
+    el('dkLyDo').value='';
+    o.style.display='';
+    try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  function dongDatKhoangKy(){ var o=el('datKyBox'); if(o) o.style.display='none'; }
+  /* Đọc ngược khoảng ngày ra khỏi chuỗi kỳ `T9/2026 (7/9-13/9/2026)`.
+     ⚠️ Tháng của ngày ĐẦU có thể nhỏ hơn tháng ngày CUỐI thì cùng năm; lớn hơn thì kỳ vắt qua
+        năm — năm của ngày đầu phải lùi một. Giống hệt `VHCP_Don::khoang_ky()`. */
+  function _kyKhoang(ky){
+    var m=String(ky||'').match(/\((\d{1,2})\/(\d{1,2})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\)/);
+    if(!m) return ['',''];
+    var y2=parseInt(m[5],10), m1=parseInt(m[2],10), m2=parseInt(m[4],10);
+    var y1=(m1>m2)?(y2-1):y2;
+    return [ y1+'-'+_p2(m1)+'-'+_p2(parseInt(m[1],10)),
+             y2+'-'+_p2(m2)+'-'+_p2(parseInt(m[3],10)) ];
+  }
+  function chotDatKhoangKy(){
+    if(!(CUR&&CUR.don)) return;
+    var a=el('dkTu').value, z=el('dkDen').value;
+    if(!a||!z){ toast('warn','Chọn đủ ngày bắt đầu và ngày kết thúc'); return; }
+    if(z<a){ toast('warn','Ngày kết thúc phải sau ngày bắt đầu'); return; }
+    var ly=String(el('dkLyDo').value||'').trim();
+    var m=CUR.don.maDon;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('ĐẶT LẠI KHOẢNG NGÀY', r.maDon, (r.kyCu||'(chưa có)')+' → '+r.kyMoi+(ly?' — '+ly:''));
+      toast('ok','Đơn '+r.maDon+' nay ở kỳ '+r.kyMoi);
+      dongDatKhoangKy();
+      boot(function(){ openDon(r.maDon); });
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .datKhoangKyDon(m, a, z, ly, (CURUSER&&CURUSER.name)||'');
+  }
+
   /* ============ NHẢY ĐƠN SANG TUẦN KHÁC ============
      🔴 Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể
         [quyết toán] đơn đó, vì quyết toán theo tuần. Nên kế toán sẽ gửi lệnh nhảy đơn cho tuần
@@ -2547,6 +2632,15 @@
       if(el('btnChuyenKy')){
         var _ck=!CUR.stChot && (canDo('duyetTU')||canDo('capTU')||_laAdmin());
         el('btnChuyenKy').style.display=_ck?'inline-block':'none';
+      }
+      /* Đặt lại khoảng ngày: cửa quyền là CHÍNH NGƯỜI ĐƯỢC CHỌN KỲ TỰ DO (`_kyTuDo`), không
+         phải quyền kế toán — đây là đơn của họ, và anh Thắng muốn họ tự chốt kỳ lúc gửi quyết
+         toán. Vẫn cùng ranh giới "đã vào sổ": `stChot` thì thôi.
+         🔴 CHỐT THẬT NẰM Ở MÁY CHỦ (`dat_khoang_ky` gọi `vi_sao_khong_sua`) — ẩn nút chỉ là
+            tiện tay. */
+      if(el('btnDatKy')){
+        var _dk=!CUR.stChot && _kyTuDo();
+        el('btnDatKy').style.display=_dk?'inline-block':'none';
       }
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
@@ -7233,7 +7327,14 @@
   // Bộ phận được chọn KHOẢNG NGÀY TỰ DO khi tạo đơn (thay vì bắt buộc gom theo tuần).
   // Nhân viên cơ sở xin tạm ứng cho MỘT TUẦN vận hành nên tuần là đúng và không được nới ra;
   // nhân viên văn phòng lên dự án thì một đợt thi công chẳng nằm gọn trong tuần nào cả.
-  var BP_KY_TU_DO=['Văn phòng'];
+  /* 🔴 KỸ THUẬT CŨNG ĐƯỢC. Anh Thắng, nói về đơn cơ sở của bộ phận Kỹ thuật: *"quyết toán theo
+     tuần (nhưng không ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)"*.
+     Đợt setup rồi tháo dỡ dài ngắn tuỳ nơi, chẳng nằm gọn trong tuần lịch nào. Ép chọn một tuần
+     ngay lúc lập đơn là bắt đoán trước đợt việc kéo tới đâu — đoán sai thì đơn nằm sai tuần, mà
+     tuần là cái ngăn kế toán chốt số. Vẫn quyết toán theo kỳ như cũ, chỉ là kỳ do họ đặt.
+     ⚠️ NHÂN VIÊN CƠ SỞ VẪN KHÔNG. Đơn của họ là đơn xin tạm ứng cho MỘT TUẦN vận hành; nới ra
+        là thừa/thiếu luân chuyển giữa các tuần hết đường tính (anh Thắng chốt 25/08/2026). */
+  var BP_KY_TU_DO=['Văn phòng','Kỹ thuật'];
   // Bộ phận vào được tab "Dự án · gian thi công".
   var BP_VAO_DUAN=['Văn phòng','Kỹ thuật'];
   /* Bộ phận ĐƯỢC HỎI loại đơn lúc tạo. Anh Thắng 10/09/2026: "chỉ áp dụng cho kỹ thuật mới

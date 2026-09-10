@@ -81,6 +81,7 @@ class VHCP_API {
 			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
 			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
 			'chuyenKy',
+			'datKhoangKyDon',
 			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
 			'duyetLaiTamUng',
 		);
@@ -259,6 +260,7 @@ class VHCP_API {
 			'chuyenDonVi'           => array( 'VHCP_Don', 'chuyen_don_vi' ),
 			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
 			'chuyenKy'              => array( 'VHCP_Don', 'chuyen_ky' ),
+			'datKhoangKyDon'        => array( 'VHCP_Don', 'dat_khoang_ky' ),
 			'dsKyQuanh'             => array( 'VHCP_Don', 'ds_ky_quanh_api' ),
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
 			   quản lý chốt lại số, miễn là chưa cấp tiền. */

@@ -3249,6 +3249,84 @@ class VHCP_Don {
 	}
 
 	/**
+	 * Dựng CHUỖI KỲ từ một khoảng ngày — khuôn `T9/2026 (7/9-13/9/2026)`.
+	 *
+	 * 🔴 KHUÔN NÀY LÀ HỢP ĐỒNG, KHÔNG PHẢI CHỮ TRANG TRÍ. Mọi chỗ đọc kỳ (`khoang_ky()`, lọc
+	 *    theo tuần, xuất MISA, báo cáo) đều bám vào nó. Sai một dấu gạch là đơn rơi vào một kỳ
+	 *    không ai lọc ra được — mất đơn trong im lặng.
+	 *
+	 * ⚠️ Tháng và năm lấy theo ngày CUỐI kỳ, giống hệt `_kyRange()` bên trình duyệt. Hai nơi
+	 *    dựng cùng một chuỗi nên phải ra CÙNG một kết quả — có bài kiểm chạy cả hai và so.
+	 *
+	 * @return string '' nếu ngày không đọc được hoặc ngày cuối trước ngày đầu.
+	 */
+	public static function ky_tu_khoang( $tu, $den ) {
+		$a = self::ngay_iso_( $tu );
+		$z = self::ngay_iso_( $den );
+		if ( '' === $a || '' === $z ) { return ''; }
+		if ( $z < $a ) { return ''; }
+		list( $y1, $m1, $d1 ) = array_map( 'intval', explode( '-', $a ) );
+		list( $y2, $m2, $d2 ) = array_map( 'intval', explode( '-', $z ) );
+		return 'T' . $m2 . '/' . $y2 . ' (' . $d1 . '/' . $m1 . '-' . $d2 . '/' . $m2 . '/' . $y2 . ')';
+	}
+
+	/**
+	 * ĐẶT LẠI KHOẢNG NGÀY CỦA ĐƠN — cho tới lúc gửi quyết toán.
+	 *
+	 * 🔴 Anh Thắng, nói về đơn cơ sở của bộ phận Kỹ thuật: *"quyết toán theo tuần (nhưng không
+	 *    ép buộc tuần nào, khi nào gửi quyết toán thì mới chốt)"*.
+	 *
+	 *    Đơn cơ sở của Kỹ thuật không phải một tuần vận hành: họ đi setup rồi tháo dỡ, đợt việc
+	 *    dài ngắn tuỳ nơi. Ép chọn một tuần lịch ngay lúc lập đơn là bắt đoán trước đợt việc
+	 *    kéo tới đâu — đoán sai thì đơn nằm sai tuần, mà tuần là cái ngăn kế toán chốt số.
+	 *
+	 * 🔴 ĐÃ GỬI QUYẾT TOÁN THÌ THÔI. `vi_sao_khong_sua()` chối khi đơn đã quyết toán / đã xuất
+	 *    MISA: số đã vào sổ, mà kỳ là cái ngăn nó nằm — kéo sang khoảng khác là báo cáo của cả
+	 *    hai kỳ cùng sai, và kỳ đã chốt thì không ai mở lại để đối chiếu nữa.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG NGÀY CỦA DÒNG CHI, y như `chuyen_ky()`: ngày mua là chuyện đã xảy ra.
+	 *
+	 * ⚠️ CHUỖI KỲ DO MÁY CHỦ DỰNG. Nhận sẵn một chuỗi từ trình duyệt là mở cửa cho một khuôn
+	 *    thứ hai lọt vào sổ, và mọi phép lọc theo tuần sẽ không thấy đơn ấy nữa.
+	 */
+	public static function dat_khoang_ky( $ma_don, $tu, $den, $ly_do = '', $nguoi = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
+
+		$a = self::ngay_iso_( $tu );
+		$z = self::ngay_iso_( $den );
+		if ( '' === $a || '' === $z ) { return VHCP_Util::err( 'Chọn đủ ngày bắt đầu và ngày kết thúc.' ); }
+		if ( $z < $a ) { return VHCP_Util::err( 'Ngày kết thúc phải sau ngày bắt đầu.' ); }
+		$ky_moi = self::ky_tu_khoang( $a, $z );
+		if ( '' === $ky_moi ) { return VHCP_Util::err( 'Khoảng ngày không dựng ra được kỳ.' ); }
+
+		$ky_cu = trim( (string) $d['ky'] );
+		if ( $ky_moi === $ky_cu ) { return VHCP_Util::err( 'Đơn này đang ở đúng khoảng ngày đó rồi.' ); }
+
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { $nguoi = VHCP_Auth::nguoi(); }
+
+		self::upd_don( $ma_don, array( 'ky' => $ky_moi ) );
+		$ly_do = trim( (string) $ly_do );
+		self::ghi_vet( $ma_don, 'Đặt lại khoảng ngày của đơn',
+			( '' !== $ky_cu ? $ky_cu : '(chưa có)' ) . '  →  ' . $ky_moi
+			. ( '' !== $ly_do ? ' — ' . $ly_do : '' ) );
+
+		return VHCP_Util::ok( array(
+			'maDon' => (string) $ma_don,
+			'kyCu'  => $ky_cu,
+			'kyMoi' => $ky_moi,
+			'tu'    => $a,
+			'den'   => $z,
+		) );
+	}
+
+	/**
 	 * NHẢY ĐƠN SANG TUẦN KHÁC — cả đơn, kèm tạm ứng, sang kỳ mới.
 	 *
 	 * 🔴 Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể
