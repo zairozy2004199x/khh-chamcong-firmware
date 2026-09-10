@@ -321,7 +321,11 @@ class VHCP_Misa {
 				$ma_dt = $tkm['ma_dt'];
 				if ( $tk_no === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $x['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 				if ( ! empty( $tkm['legacy'] ) && ! $is_tt ) {
-					$by_name = ! empty( $pay['tamUng']['tu']['by'] ) ? $pay['tamUng']['tu']['by'] : (string) $r['nguoi_tao'];
+					/* Tạm ứng nay là DANH SÁCH nhiều lần (10/09/2026) — đọc thẳng ['by'] thì với dự
+					   án dùng tính năng mới ra rỗng, và tệp MISA ghi tên người tạo thay vì người
+					   chi. Lấy lần ĐẦU: đó là người ứng đầu tiên, đúng thứ tệp xuất cần. */
+					$_ung    = VHCP_DuAn::pay_ds( $pay, 'tamUng', 'tu' );
+					$by_name = ! empty( $_ung[0]['by'] ) ? $_ung[0]['by'] : (string) $r['nguoi_tao'];
 					$bk      = mb_strtolower( trim( (string) $by_name ) );
 					$ma_dt   = isset( $user_dt[ $bk ] ) ? $user_dt[ $bk ] : '';
 				}

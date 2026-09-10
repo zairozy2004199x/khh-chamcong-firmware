@@ -1276,6 +1276,25 @@
   <div id="newDonModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1800;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(430px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <h3 style="font-size:16px;margin-bottom:14px;color:#0f766e">＋ Tạo đơn mới</h3>
+      <!-- 🔴 HỎI LOẠI ĐƠN TRƯỚC. Anh Thắng 10/09/2026: *"lúc tạo đơn sẽ hỏi luôn là đơn dự án
+           hay đơn chi phí cơ sở chung. tạo 2 lệnh để chọn để ra đơn cho đúng"*.
+           Trước đây nút "＋ Tạo đơn mới" luôn đẻ ra đơn TUẦN · CƠ SỞ, còn đơn dự án phải sang
+           tab khác mới tạo được — người mới vào không đoán ra, và lập nhầm loại thì phải xoá
+           đi làm lại từ đầu.
+           ⚠️ CHỈ HỎI KHI NGƯỜI ẤY VÀO ĐƯỢC CẢ HAI. Ai chỉ có một loại thì hỏi là bày ra một
+              câu chỉ có một đáp án — xem `newDon()`. -->
+      <div id="ndLoaiBox" style="display:none;margin-bottom:14px">
+        <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px">Đơn này là loại nào?</label>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button type="button" class="btn b-x" id="ndLoaiCoSo" onclick="ndChonLoai('coso')" style="text-align:left;padding:10px 12px;line-height:1.4">
+            <b>📋 Chi phí · cơ sở</b><br><span style="font-size:11.5px;color:#64748b">Đơn xin tạm ứng của một gian, gom theo tuần</span>
+          </button>
+          <button type="button" class="btn b-x" id="ndLoaiDuAn" onclick="ndChonLoai('duan')" style="text-align:left;padding:10px 12px;line-height:1.4">
+            <b>🏗 Dự án · gian thi công</b><br><span style="font-size:11.5px;color:#64748b">Đơn của một đợt thi công — thời gian bất kỳ, tạm ứng nhiều lần</span>
+          </button>
+        </div>
+      </div>
+      <div id="ndCoSoBox">
       <div class="fld" style="margin-bottom:12px"><label>Kỳ / tuần (chọn sẵn)</label>
         <select id="ndKy" style="width:100%" onchange="ndKyDoi()"></select></div>
       <!-- Khoảng ngày tự chọn — dùng cho đơn theo DỰ ÁN (nhân viên Văn phòng lên gian).
@@ -1292,9 +1311,10 @@
       </div>
       <div class="fld" style="margin-bottom:16px"><label>Người lập</label>
         <input id="ndNguoiLap" placeholder="Tên NV" style="width:100%"></div>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn b-x" onclick="closeNewDon()">Huỷ</button>
-        <button class="btn b-p" onclick="submitNewDon()">Tạo đơn</button>
+        <button class="btn b-p" id="ndBtnTao" onclick="submitNewDon()">Tạo đơn</button>
       </div>
     </div>
   </div>
@@ -2303,10 +2323,37 @@
     if(BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0) return true;
     return canDo('kyTuDo');   // hoặc tích riêng cho vai đó ở bảng Phân quyền
   }
+  /* Người này vào được tab Dự án không — dùng để quyết định có HỎI loại đơn hay không.
+     ⚠️ HỎI ĐÚNG THEO QUYỀN THẬT. Bày nút "Dự án" cho người không vào được tab ấy là họ bấm rồi
+        ăn trang trắng — cùng lý do thanh "LOẠI ĐƠN" đã ẩn theo `vis.duan`. */
+  function _vaoDuocDuAn(){
+    var b=document.querySelector('[data-dcsw="duan"]');
+    return !!(b && b.style.display!=='none');
+  }
+  /* Chọn loại đơn ở bước đầu. 'duan' -> đóng hộp này, chuyển sang tab Dự án để đặt TÊN đợt thi
+     công (đơn dự án cần tên, đơn tuần thì không) — không tự tạo bừa một dự án không tên. */
+  function ndChonLoai(k){
+    if(k==='duan'){
+      closeNewDon();
+      showPage('duan');
+      setTimeout(function(){ var t=el('daTen'); if(t){ t.focus(); t.scrollIntoView({block:'center'}); } },120);
+      toast('ok','Đặt tên đợt thi công rồi bấm ➕ Tạo dự án');
+      return;
+    }
+    el('ndLoaiBox').style.display='none';
+    el('ndCoSoBox').style.display='';
+    el('ndBtnTao').style.display='';
+    setTimeout(function(){el('ndNguoiLap').focus();},50);
+  }
   function newDon(){
     // Nhân viên cơ sở KHÔNG thấy dòng này — không phải chỉ "không chọn sẵn", mà là không có.
     // Để đó rồi trông chờ người ta đừng bấm là sớm muộn có người bấm.
     var tudo=_kyTuDo();
+    /* Hỏi loại đơn chỉ khi người ấy vào được CẢ HAI. Một loại thì hỏi làm gì. */
+    var hoi=_vaoDuocDuAn();
+    el('ndLoaiBox').style.display=hoi?'':'none';
+    el('ndCoSoBox').style.display=hoi?'none':'';
+    if(el('ndBtnTao')) el('ndBtnTao').style.display=hoi?'none':'';
     el('ndKy').innerHTML=(tudo?'<option value="__tudo__">🗓 Khoảng ngày tự chọn (theo dự án)</option>':'')
       +genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+(o.cur?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
     var h=new Date(), h2=new Date(); h2.setDate(h2.getDate()+6);
@@ -2315,7 +2362,7 @@
     el('ndNguoiLap').value=(CURUSER&&CURUSER.name)||'';
     el('ndNguoiLap').readOnly=!!(CURUSER&&CURUSER.role==='Nhân viên');
     el('newDonModal').style.display='flex';
-    setTimeout(function(){el('ndNguoiLap').focus();},50);
+    if(!hoi) setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
   function closeNewDon(){ el('newDonModal').style.display='none'; }
   /* Date -> 'yyyy-MM-dd' cho ô <input type=date>.
@@ -3906,19 +3953,40 @@
     var canTU=isAdmin||role==='Kế toán cá nhân';   // 💰 Tạm ứng NV tự trả
     var canTT=isAdmin||role==='Kế toán NCC';        // 🏢 Trực tiếp KT trả NCC
     var pay=r.pay||{};
-    function slot(phase,loai){ return (pay[phase]&&pay[phase][loai])||null; }
-    function payRow(phase, loai, label, amount, can, hint){
-      var s=slot(phase,loai), right;
-      if(s&&s.done){
-        right='<span style="color:#166534;font-weight:700">✓ Đã chi '+money(s.amount)+'đ</span>'
-          +'<span style="color:#64748b;font-size:11px;margin-left:6px">'+esc(s.date||'')+(s.by?(' · '+esc(s.by)):'')+'</span>'
-          +(can?(' <button class="btn b-x" style="padding:1px 6px;font-size:11px" onclick="undoDuAnPayUI(\''+phase+'\',\''+loai+'\')" title="Hoàn tác xác nhận">↩</button>'):'');
-      } else if(can){
+    /* 🔴 MỘT (giai đoạn × loại) NAY CÓ NHIỀU LẦN CHI — anh Thắng 10/09/2026: *"Đơn có tạm ứng
+       nhiều lần"*. Dữ liệu cũ là MỘT đối tượng, dữ liệu mới là DANH SÁCH; hàm này nhận cả hai,
+       đúng như `VHCP_DuAn::pay_ds()` bên máy chủ. Đọc thẳng `pay[p][l].amount` là dự án mới ra
+       `undefined` — hỏng ở đúng những dự án vừa dùng tính năng mới. */
+    function slotDs(phase,loai){
+      var v=(pay[phase]&&pay[phase][loai])||null;
+      if(!v) return [];
+      if(Object.prototype.hasOwnProperty.call(v,'amount')) return [v];   // dạng cũ
+      return (v.length?[].slice.call(v):[]).filter(function(x){ return x && Object.prototype.hasOwnProperty.call(x,'amount'); });
+    }
+    /* 🔴 TỔNG LẤY TỪ MÁY CHỦ (`payTong`), không tự cộng lại ở đây. Hai nơi cùng giữ một phép
+       tính là hai nơi lệch nhau — mà đây là phép quyết định số bù/thu. */
+    function tong(phase,loai){ return Number(((r.payTong||{})[phase]||{})[loai]||0); }
+    /* Các lần đã chi, bày thành danh sách kèm nút gỡ từng lần. */
+    function dsRows(phase, loai, can){
+      var ds=slotDs(phase,loai); if(!ds.length) return '';
+      return ds.map(function(x,i){
+        return '<div style="display:flex;justify-content:space-between;gap:8px;padding:3px 0;font-size:12px">'
+          +'<span style="color:#166534">✓ Lần '+(i+1)+' · <b>'+money(x.amount)+'đ</b>'
+          +'<span style="color:#64748b;margin-left:6px">'+esc(x.date||'')+(x.by?(' · '+esc(x.by)):'')+(x.ghiChu?(' · '+esc(x.ghiChu)):'')+'</span></span>'
+          +(can?('<button class="btn b-x" style="padding:0 6px;font-size:11px" onclick="undoDuAnPayUI(\''+phase+'\',\''+loai+'\','+i+')" title="Gỡ lần chi này">✕</button>'):'')
+          +'</div>';
+      }).join('')
+        +(ds.length>1?('<div style="text-align:right;font-size:12px;font-weight:700;color:#166534;padding-top:2px">Tổng đã chi: '+money(tong(phase,loai))+'đ</div>'):'');
+    }
+    /* Một hàng "ghi thêm lần chi": ô số + nút. `goi_y` là số gợi ý còn lại, sửa được. */
+    function payRow(phase, loai, label, can, goi_y, hint){
+      var right;
+      if(can){
         var iid='payInp_'+phase+'_'+loai;
-        right='<input id="'+iid+'" type="number" min="0" value="'+(Number(amount)||0)+'" style="width:150px;text-align:right;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;margin-right:6px" title="Số gợi ý — sửa lại nếu kế toán chi số khác">'
-          +'<button class="btn b-g" onclick="confirmDuAnPayUI(\''+phase+'\',\''+loai+'\')">✅ Xác nhận đã chi</button>';
+        right='<input id="'+iid+'" type="number" min="0" value="'+(Number(goi_y)>0?Number(goi_y):'')+'" placeholder="số tiền" style="width:150px;text-align:right;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;margin-right:6px" title="Số gợi ý — sửa lại nếu kế toán chi số khác">'
+          +'<button class="btn b-g" onclick="confirmDuAnPayUI(\''+phase+'\',\''+loai+'\')">✅ Ghi nhận đã chi</button>';
       } else {
-        right='<span style="color:#94a3b8">⏳ chờ kế toán chi ('+money(amount)+'đ)</span>';
+        right='<span style="color:#94a3b8">⏳ chờ kế toán chi'+(Number(goi_y)>0?(' ('+money(goi_y)+'đ)'):'')+'</span>';
       }
       return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed #e2e8f0">'
         +'<div><b>'+label+'</b>'+(hint?(' <span style="color:#64748b;font-size:11px">'+hint+'</span>'):'')+'</div>'
@@ -3927,19 +3995,31 @@
     function block(title, bg, loai, can, duToanAmt, ttChi, extraInfo){
       var h='<div style="flex:1;min-width:300px;background:'+bg+';border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">'
         +'<div style="font-weight:800;margin-bottom:2px">'+title+(can?'':' <span style="color:#94a3b8;font-size:11px;font-weight:400">(chỉ xem)</span>')+'</div>';
-      h+=payRow('tamUng',loai,'Lần 1 · Tạm ứng',duToanAmt,can,'chi theo dự toán (số xin ứng)');
-      // Lần 2 = thực tế phải trả − ĐÃ CHI lần 1 (chưa chi lần 1 thì lấy dự toán làm mốc)
-      var l1=slot('tamUng',loai), paidL1=(l1&&l1.done)?(Number(l1.amount)||0):(Number(duToanAmt)||0);
-      var need2=(Number(ttChi)||0)-paidL1;   // >0 bù thiếu · <0 thu dư
-      if(ttChi>0 && need2!==0){
-        var l2=(need2>0)?'Lần 2 · Bù THIẾU':'Lần 2 · Thu lại DƯ';
-        var hint2=(need2>0?'chi bù thêm cho đủ thực tế':'thu lại phần dư')
-          +((l1&&l1.done)?(' · thực tế '+money(ttChi)+' − đã ứng '+money(paidL1)):'');
-        h+=payRow('quyetToan',loai,l2,Math.abs(need2),can,hint2);
+
+      /* ── TẠM ỨNG: nhiều lần, cộng dồn ─────────────────────────────────────────────────
+         🔴 GỢI Ý LÀ PHẦN CÒN LẠI, KHÔNG PHẢI CẢ DỰ TOÁN. Điền sẵn cả dự toán khi đã ứng một
+            phần là mời người ta bấm nhầm thành ứng gấp đôi — và số ấy đi thẳng vào sổ. */
+      var daUng=tong('tamUng',loai), conLai=(Number(duToanAmt)||0)-daUng;
+      h+=dsRows('tamUng',loai,can);
+      h+=payRow('tamUng', loai, (daUng>0?'＋ Ứng thêm lần nữa':'Tạm ứng · lần đầu'), can,
+                (conLai>0?conLai:0),
+                daUng>0 ? ('đã ứng '+money(daUng)+' / dự toán '+money(duToanAmt)
+                           +(conLai>0?(' · còn lại '+money(conLai)):(conLai<0?(' · ĐÃ VƯỢT '+money(-conLai)):' · vừa đủ')))
+                        : 'chi theo dự toán (số xin ứng)');
+
+      /* ── QUYẾT TOÁN: bù thiếu / thu dư, tính trên TỔNG đã ứng ────────────────────────── */
+      var daQT=tong('quyetToan',loai);
+      h+=dsRows('quyetToan',loai,can);
+      var moc=(daUng>0?daUng:(Number(duToanAmt)||0));      // chưa ứng lần nào thì lấy dự toán làm mốc
+      var need2=(Number(ttChi)||0)-moc-daQT;               // >0 bù thiếu · <0 thu dư
+      if(ttChi>0 && Math.round(need2)!==0){
+        h+=payRow('quyetToan', loai, (need2>0?'Quyết toán · Bù THIẾU':'Quyết toán · Thu lại DƯ'), can,
+                  Math.abs(need2),
+                  'thực tế '+money(ttChi)+' − đã ứng '+money(daUng)+(daQT?(' − đã bù/thu '+money(daQT)):''));
       } else if(ttChi>0){
-        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#166534;font-size:12px">✓ Thực tế khớp số đã chi — không cần chi lần 2</div>';
+        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#166534;font-size:12px">✓ Thực tế khớp số đã chi — không cần bù/thu thêm</div>';
       } else {
-        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#94a3b8;font-size:12px">⏳ Chưa có thực tế — lần 2 (bù/thu) hiện sau khi thi công</div>';
+        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#94a3b8;font-size:12px">⏳ Chưa có thực tế — phần bù/thu hiện sau khi thi công</div>';
       }
       if(extraInfo) h+=extraInfo;
       return h+'</div>';
@@ -3954,21 +4034,30 @@
     var inp=el('payInp_'+phase+'_'+loai), amount=inp?(Number(inp.value)||0):0;
     if(amount<=0){ toast('warn','Nhập số tiền đã chi (lớn hơn 0)'); if(inp) inp.focus(); return; }
     var by=((CURUSER&&(CURUSER.name||CURUSER.role))||'');
-    var pl=({tamUng:'Lần 1 · Tạm ứng (theo dự toán)',quyetToan:'Lần 2 · Bù thiếu / Thu dư (theo thực tế)'}[phase]||phase);
+    var pl=({tamUng:'Tạm ứng (cộng dồn vào tổng đã ứng)',quyetToan:'Quyết toán · Bù thiếu / Thu dư'}[phase]||phase);
     var ll=({tu:'💰 NV tự trả',tt:'🏢 Trực tiếp NCC'}[loai]||loai);
-    if(!confirm('Xác nhận KẾ TOÁN ĐÃ CHI '+money(amount)+'đ?\n\n'+pl+'\n'+ll)) return;
+    /* 🔴 NÓI RÕ ĐÂY LÀ LẦN THỨ MẤY VÀ TỔNG SẼ THÀNH BAO NHIÊU. Ứng nhiều lần thì câu hỏi
+       "xác nhận đã chi X?" không đủ — người bấm cần thấy nó CỘNG VÀO đâu, không thì lần thứ ba
+       trông y hệt lần đầu và không ai biết mình đang đẩy tổng lên bao nhiêu. */
+    var da=Number((((DA_CUR.payTong||{})[phase]||{})[loai])||0);
+    if(!confirm('Ghi nhận KẾ TOÁN ĐÃ CHI '+money(amount)+'đ?\n\n'+pl+'\n'+ll
+      +(da>0?('\n\nĐã chi trước đó: '+money(da)+'đ → tổng sau lần này: '+money(da+amount)+'đ'):''))) return;
+    var gc=prompt('Ghi chú cho lần chi này (bỏ trống cũng được) — VD: "đợt 2, chuyển khoản"','')||'';
     loading(true);
     google.script.run.withSuccessHandler(function(res){ loading(false);
       if(res&&res.success){ _log('KT chi tiền dự án KT', DA_CUR.ten, phase+'/'+loai+' · '+money(amount)+'đ'); toast('ok','Đã ghi nhận chi tiền'); openDuAn(DA_CUR.maDA); }
       else toast('err',(res&&res.error)||'Lỗi');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).confirmDuAnPay(DA_CUR.maDA, phase, loai, amount, by);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).confirmDuAnPay(DA_CUR.maDA, phase, loai, amount, by, gc);
   }
-  function undoDuAnPayUI(phase, loai){
-    if(!DA_CUR) return; if(!confirm('Hoàn tác xác nhận đã chi này?')) return;
+  /* 🔴 GỠ ĐÚNG LẦN ĐƯỢC BẤM, không gỡ cả ô. Ô này nay chứa nhiều lần ứng — gỡ sạch là mất mấy
+     lần không ai định đụng tới, mà số tổng thì tụt xuống lặng lẽ. */
+  function undoDuAnPayUI(phase, loai, idx){
+    if(!DA_CUR) return;
+    if(!confirm('Gỡ lần chi thứ '+((Number(idx)||0)+1)+' khỏi sổ?\n\nTổng đã chi sẽ giảm đúng số của lần ấy.')) return;
     loading(true);
     google.script.run.withSuccessHandler(function(res){ loading(false);
-      if(res&&res.success){ toast('ok','Đã hoàn tác'); openDuAn(DA_CUR.maDA); } else toast('err',(res&&res.error)||'Lỗi');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).unconfirmDuAnPay(DA_CUR.maDA, phase, loai);
+      if(res&&res.success){ toast('ok','Đã gỡ lần chi'); openDuAn(DA_CUR.maDA); } else toast('err',(res&&res.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).unconfirmDuAnPay(DA_CUR.maDA, phase, loai, idx);
   }
   function renderDuAnDetail(r){
     el('daDetailCard').style.display='';

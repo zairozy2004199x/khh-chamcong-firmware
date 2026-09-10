@@ -252,7 +252,8 @@ class VHCP_DuAn {
 			$sc_du_toan += VHCP_Util::num( $x['duToan'] );
 		}
 
-		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		$st  = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		$pay = self::get_pay( $ma_da );   // đọc MỘT lần, dùng cho cả 'pay' lẫn 'payTong'
 		return VHCP_Util::ok( array(
 			'maDA'            => (string) $ma_da,
 			'ten'             => $f['ten'],
@@ -286,7 +287,15 @@ class VHCP_DuAn {
 			'ttTrucTiepNoVAT' => $tt_novat,
 			'thieuTamUng'     => $tt_tu - $du_tu,
 			'thieuTrucTiep'   => $tt_tt - $du_tt,
-			'pay'             => self::get_pay( $ma_da ),
+			'pay'             => $pay,
+			/* Tổng ĐÃ CHI theo từng phần — màn và bài kiểm đọc số này chứ không tự cộng lại.
+			   Tự cộng ở màn là hai nơi cùng giữ một phép tính, và hai nơi thì lệch. */
+			'payTong'         => array(
+				'tamUng'    => array( 'tu' => self::pay_tong( $pay, 'tamUng', 'tu' ),
+				                      'tt' => self::pay_tong( $pay, 'tamUng', 'tt' ) ),
+				'quyetToan' => array( 'tu' => self::pay_tong( $pay, 'quyetToan', 'tu' ),
+				                      'tt' => self::pay_tong( $pay, 'quyetToan', 'tt' ) ),
+			),
 			'noiDungList'     => self::nd_list( $f['loai'] ),
 		) );
 	}
@@ -321,29 +330,84 @@ class VHCP_DuAn {
 		return (string) VHCP_Meta::get( 'daApp_' . $ma_da, '' );
 	}
 
-	public static function confirm_pay( $ma_da, $phase, $loai, $amount, $nguoi ) {
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * TẠM ỨNG NHIỀU LẦN.
+	 *
+	 * Anh Thắng 10/09/2026, nói về đơn của bộ phận Kỹ thuật: *"Đơn có tạm ứng nhiều lần"*.
+	 *
+	 * 🔴 TRƯỚC BẢN NÀY MỖI (giai đoạn × loại) CHỈ GIỮ MỘT BẢN GHI, và lượt ứng thứ hai ĐÈ MẤT
+	 *    lượt đầu — không báo gì, không hỏi gì. Số "đã ứng" tụt xuống còn đúng lần cuối, nên
+	 *    phần bù/thu ở quyết toán tính trên một con số nhỏ hơn thực tế đã chi. Tiền thật.
+	 *
+	 * 🔴 DỮ LIỆU CŨ LÀ MỘT ĐỐI TƯỢNG, DỮ LIỆU MỚI LÀ MỘT DANH SÁCH. Mọi chỗ đọc phải đi qua
+	 *    `pay_ds()` — nó nhận cả hai dạng. Đọc thẳng `$p[$phase][$loai]['amount']` thì với dự án
+	 *    cũ vẫn ra số đúng, còn dự án mới ra `null`: hỏng đúng ở những dự án vừa dùng tính năng
+	 *    mới, mà mắt nhìn bảng cũ thì thấy bình thường.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Các lần chi của một (giai đoạn × loại), luôn trả về DANH SÁCH — nhận cả dạng cũ. */
+	public static function pay_ds( $p, $phase, $loai ) {
+		$v = ( isset( $p[ $phase ][ $loai ] ) && is_array( $p[ $phase ][ $loai ] ) ) ? $p[ $phase ][ $loai ] : null;
+		if ( ! $v ) { return array(); }
+		/* Dạng CŨ: một đối tượng có khoá 'amount'. Dạng MỚI: danh sách các đối tượng ấy. */
+		if ( array_key_exists( 'amount', $v ) ) { return array( $v ); }
+		$ra = array();
+		foreach ( $v as $x ) { if ( is_array( $x ) && array_key_exists( 'amount', $x ) ) { $ra[] = $x; } }
+		return $ra;
+	}
+
+	/** Tổng đã chi của một (giai đoạn × loại). */
+	public static function pay_tong( $p, $phase, $loai ) {
+		$t = 0;
+		foreach ( self::pay_ds( $p, $phase, $loai ) as $x ) { $t += VHCP_Util::num( isset( $x['amount'] ) ? $x['amount'] : 0 ); }
+		return $t;
+	}
+
+	public static function confirm_pay( $ma_da, $phase, $loai, $amount, $nguoi, $ghi_chu = '' ) {
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		if ( ! in_array( (string) $phase, array( 'tamUng', 'quyetToan' ), true ) ) { return VHCP_Util::err( 'Giai đoạn không hợp lệ' ); }
 		if ( ! in_array( (string) $loai, array( 'tu', 'tt' ), true ) ) { return VHCP_Util::err( 'Loại chi không hợp lệ' ); }
 		$st = (string) $f['trang_thai'];
 		if ( $st !== 'Đã duyệt' && $st !== 'Đã đóng' ) { return VHCP_Util::err( 'Chỉ chi tiền khi dự án đã kế toán duyệt tạm ứng' ); }
-		$p = self::get_pay( $ma_da );
-		if ( ! isset( $p[ $phase ] ) || ! is_array( $p[ $phase ] ) ) { $p[ $phase ] = array(); }
-		$p[ $phase ][ $loai ] = array(
+		/* 🔴 SỐ 0 KHÔNG PHẢI MỘT LẦN CHI. Ghi vào là danh sách có một dòng 0đ — nhìn thì như đã
+		   chi, cộng vào thì không đổi gì, và người đọc sổ mất một lượt đi tìm xem nó là cái gì. */
+		$so = VHCP_Util::num( $amount );
+		if ( $so <= 0 ) { return VHCP_Util::err( 'Số tiền phải lớn hơn 0.' ); }
+
+		$p  = self::get_pay( $ma_da );
+		$ds = self::pay_ds( $p, $phase, $loai );
+		$ds[] = array(
 			'done'   => true,
-			'amount' => VHCP_Util::num( $amount ),
+			'amount' => $so,
 			'date'   => VHCP_Util::now()->format( 'd/m/Y H:i' ),
 			'by'     => (string) $nguoi,
+			'ghiChu' => trim( (string) $ghi_chu ),
 		);
+		if ( ! isset( $p[ $phase ] ) || ! is_array( $p[ $phase ] ) ) { $p[ $phase ] = array(); }
+		$p[ $phase ][ $loai ] = $ds;
 		VHCP_Meta::set_json( 'daPay_' . $ma_da, $p );
 		return VHCP_Util::ok( array( 'pay' => $p ) );
 	}
 
-	public static function unconfirm_pay( $ma_da, $phase, $loai ) {
+	/**
+	 * Bỏ MỘT lần chi. `$idx` là vị trí trong danh sách; để trống thì bỏ lần CUỐI.
+	 *
+	 * ⚠️ BỎ LẦN CUỐI, KHÔNG PHẢI BỎ SẠCH. Bản trước xoá cả ô — nay ô ấy có thể chứa năm lần
+	 *    ứng, nên xoá sạch là mất bốn lần không ai định đụng tới. Hoàn tác là "gỡ cái vừa ghi",
+	 *    đúng nghĩa cái nút ↩ trên màn.
+	 */
+	public static function unconfirm_pay( $ma_da, $phase, $loai, $idx = null ) {
 		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
-		$p = self::get_pay( $ma_da );
-		if ( isset( $p[ $phase ][ $loai ] ) ) { unset( $p[ $phase ][ $loai ] ); }
+		$p  = self::get_pay( $ma_da );
+		$ds = self::pay_ds( $p, $phase, $loai );
+		if ( ! $ds ) { return VHCP_Util::err( 'Chưa có lần chi nào để hoàn tác.' ); }
+		$i = ( null === $idx || '' === $idx ) ? ( count( $ds ) - 1 ) : (int) $idx;
+		if ( $i < 0 || $i >= count( $ds ) ) { return VHCP_Util::err( 'Không có lần chi thứ ' . ( (int) $idx + 1 ) . '.' ); }
+		array_splice( $ds, $i, 1 );
+		if ( ! isset( $p[ $phase ] ) || ! is_array( $p[ $phase ] ) ) { $p[ $phase ] = array(); }
+		if ( $ds ) { $p[ $phase ][ $loai ] = $ds; }
+		else { unset( $p[ $phase ][ $loai ] ); }
 		VHCP_Meta::set_json( 'daPay_' . $ma_da, $p );
 		return VHCP_Util::ok( array( 'pay' => $p ) );
 	}
