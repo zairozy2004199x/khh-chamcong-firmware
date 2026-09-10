@@ -2201,7 +2201,11 @@ function renderSkPage(){
       '<td class="in">'+(r.vao?fmt(r.vao):'')+'</td><td class="out">'+(r.ra?fmt(r.ra):'')+'</td>' +
       // soDu = null nghĩa là SePay KHÔNG gửi số dư luỹ kế (tài khoản ảo) — hiện dấu —, đừng hiện 0 giả
       '<td>'+(r.soDu==null?'<span class="muted" title="SePay không gửi số dư luỹ kế cho giao dịch này">—</span>':fmt(r.soDu))+'</td>' +
-      '<td><select onchange="ganNhan(\''+esc(r.sepayId)+'\',this.value)"><option value="">-- chọn --</option>'+catOpts.replace('value="'+esc(r.nhan)+'"','value="'+esc(r.nhan)+'" selected')+'</select></td>' +
+      // Nhãn: ưu tiên nhãn tay; chưa gán tay mà nội dung chứa mã cơ sở -> TỰ chọn cơ sở đó (badge "tự").
+      (function(){ var sel = r.nhan || r.coSoMa || ''; var tuDong = (!r.nhan && r.coSoMa);
+        return '<td><select onchange="ganNhan(\''+esc(r.sepayId)+'\',this.value)"><option value="">-- chọn --</option>'
+          + catOpts.replace('value="'+esc(sel)+'"','value="'+esc(sel)+'" selected')+'</select>'
+          + (tuDong ? '<div class="muted" style="font-size:11px;color:var(--green)">🅐 tự: '+esc(r.coSoMa)+'</div>' : '')+'</td>'; })() +
       '<td class="muted">'+esc(r.nguon)+'</td>' +
     '</tr>';
   }).join('') || '<tr><td colspan=12 class="muted">Không có giao dịch khớp bộ lọc</td></tr>';

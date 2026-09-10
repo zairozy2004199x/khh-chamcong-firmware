@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.13.1
+ * Version:           0.14.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1906,6 +1906,15 @@ class SAOKE_App {
 		$gv = function ( $k ) use ( $f ) { return isset( $f[ $k ] ) ? trim( (string) $f[ $k ] ) : ''; };
 		$pn = self::pn_by_tk();
 		$locNguon = $gv( 'nguonTien' ); $tu = $gv( 'tuNgay' ); $den = $gv( 'denNgay' ); $tuKhoa = mb_strtolower( $gv( 'tuKhoa' ) );
+		// TỰ PHÂN LOẠI theo mã nộp của cơ sở: nội dung chứa mã nào -> nhãn tự = cơ sở đó.
+		$maToCoso = array(); $maRe = '';
+		if ( self::ghe_co() ) {
+			$cmMap = self::coso_ma_map(); $tenByKey = array();
+			foreach ( self::ghe_ds_coso() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
+			$maList = array();
+			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }
+			if ( $maList ) { $maRe = '/(' . implode( '|', $maList ) . ')/i'; }
+		}
 		$rows = array(); $tongVao = 0; $tongRa = 0; $tongVaoCong = 0; $tongVaoBank = 0; $congTheoNguon = array();
 		$gd = self::gd_all();
 		for ( $i = count( $gd ) - 1; $i >= 0; $i-- ) {
@@ -1914,11 +1923,13 @@ class SAOKE_App {
 			$o['laCong'] = '' !== $o['nguonTien'];
 			$ten = self::cong_ten();
 			$o['tenNguonTien'] = $o['vao'] <= 0 ? '' : ( $o['nguonTien'] ? ( 'Cổng ' . ( isset( $ten[ $o['nguonTien'] ] ) ? $ten[ $o['nguonTien'] ] : $o['nguonTien'] ) ) : 'Nộp trực tiếp' );
+			$o['coSoMa'] = '';
+			if ( '' !== $maRe && preg_match( $maRe, (string) $o['noiDung'], $mm ) ) { $ku = mb_strtoupper( $mm[1] ); if ( isset( $maToCoso[ $ku ] ) ) { $o['coSoMa'] = $maToCoso[ $ku ]; } }
 			if ( '' !== $gv( 'soTK' ) && $o['soTK'] !== $gv( 'soTK' ) ) { continue; }
 			if ( '' !== $gv( 'loai' ) && $o['loai'] !== $gv( 'loai' ) ) { continue; }
 			if ( '' !== $gv( 'phapNhan' ) && $o['phapNhan'] !== $gv( 'phapNhan' ) ) { continue; }
-			if ( 'CHUA_PHAN_LOAI' === $gv( 'nhan' ) && '' !== $o['nhan'] ) { continue; }
-			if ( '' !== $gv( 'nhan' ) && 'CHUA_PHAN_LOAI' !== $gv( 'nhan' ) && $o['nhan'] !== $gv( 'nhan' ) ) { continue; }
+			if ( 'CHUA_PHAN_LOAI' === $gv( 'nhan' ) && ( '' !== $o['nhan'] || '' !== $o['coSoMa'] ) ) { continue; }
+			if ( '' !== $gv( 'nhan' ) && 'CHUA_PHAN_LOAI' !== $gv( 'nhan' ) && $o['nhan'] !== $gv( 'nhan' ) && $o['coSoMa'] !== $gv( 'nhan' ) ) { continue; }
 			if ( '' !== $tuKhoa && false === mb_strpos( mb_strtolower( $o['noiDung'] ), $tuKhoa ) ) { continue; }
 			if ( ! self::trong_ky( $o['ngayGD'], $tu ? self::ymd2vn_ngay( self::vn2ymd( $tu ) ) : '', $den ? self::ymd2vn_ngay( self::vn2ymd( $den ) ) : '' ) ) { continue; }
 			if ( 'bank' === $locNguon && $o['laCong'] ) { continue; }
