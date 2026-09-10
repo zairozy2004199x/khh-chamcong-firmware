@@ -1251,7 +1251,7 @@
     <div class="card">
       <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-d" onclick="doXoaLoaiTuTao()" title="Xóa các loại chi phí chưa khai mã nào — phần lớn là tên hạng mục lỡ nạp vào từ bảng tính cũ. Loại đã khai mã thì GIỮ LẠI. Dòng chi phí cũ không đổi.">🧹 Dọn loại chưa khai mã</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> Mỗi hàng là một loại chi phí; <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. Các cột sau là <b>TK Nợ theo từng mảng</b> — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
 
     <div class="card">
@@ -6708,9 +6708,17 @@
     var ten=TKNAME[ma]||'';
     inp.title = ten ? (ma+' · '+ten) : '';
     inp.style.color = (ma && TKCHART.length && !ten) ? '#dc2626' : '';   // gõ mã không có trong hệ thống TK -> đỏ
-    var tr=inp.parentNode&&inp.parentNode.parentNode;
-    if(!ten||!tr||!tr.parentNode||tr.parentNode.id!=='cfgMxBody') return;
-    // dòng bảng gộp: input[0]=tên loại · input[1]=Tên theo MISA (2 ô Loại/Bộ phận là select)
+    if(!ten) return;
+    /* Gõ mã ở bảng TK Nợ (bảng dưới) thì điền hộ Tên theo MISA cho chính loại ấy ở bảng trên.
+       Hai bảng nay tách rời nên phải dò sang bằng `data-loai` ↔ `data-goc`; bám theo vị trí
+       hàng là sai ngay khi hai bảng khác thứ tự. */
+    var lg=String(inp.getAttribute('data-loai')||'').trim();
+    if(!lg) return;
+    var body=el('cfgMxBody'); if(!body) return;
+    var o=body.querySelector('input[data-goc="'+lg.replace(/"/g,'\\"')+'"]');
+    var tr=o&&o.parentNode&&o.parentNode.parentNode;
+    if(!tr) return;
+    // hàng bảng trên: input[0]=tên loại · input[1]=Tên theo MISA (Loại/Bộ phận là select)
     var f=tr.getElementsByTagName('input'), misa=f[1];
     if(misa && !String(misa.value||'').trim()) misa.value=ten;
   }
@@ -6836,15 +6844,36 @@
     // 141 · trực tiếp NCC → 331), còn mã thì LUÔN theo mảng của cơ sở nên cột dùng chung
     // chỉ gây nhập hai chỗ rồi lệch nhau. Giá trị đã lưu KHÔNG mất: lúc lưu bảng này app
     // lấy lại từ dữ liệu cũ (xem saveCfgTkNoMx).
-    var h='<table style="min-width:'+(746+cols.length*104)+'px"><thead><tr>'
-      +'<th style="text-align:left;min-width:210px">Loại chi phí</th>'
-      +'<th style="width:130px">Loại</th>'
-      +'<th style="width:130px">Bộ phận</th>'
-      +'<th style="width:170px">Tên theo MISA</th>'
-      +cols.map(function(c){return '<th style="width:104px">'+esc(c)+'</th>';}).join('')
+    /* BẢNG TRÊN — thuộc tính của loại chi phí. Bốn cột, vừa một màn, ô Bộ phận đủ rộng để
+       đọc ra tên. */
+    var h='<table style="min-width:700px"><thead><tr>'
+      +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
+      +'<th style="width:140px">Loại</th>'
+      +'<th style="width:190px">Bộ phận</th>'
+      +'<th style="width:190px">Tên theo MISA</th>'
       +'<th style="width:44px"></th></tr></thead><tbody id="cfgMxBody">';
-    h+=rows.map(function(x){ return _mxRowHtml(x, cols, mx); }).join('');
-    box.innerHTML=h+'</tbody></table>';
+    h+=rows.map(function(x){ return _mxRowHtml(x); }).join('');
+    h+='</tbody></table>';
+
+    /* BẢNG DƯỚI — mã TK Nợ, XOAY 90°: mỗi MẢNG KINH DOANH là một HÀNG. Mảng thì hàng chục
+       nên để dọc là cuộn dọc như mọi bảng khác; loại chi phí chỉ chừng mươi cái nên nằm ngang
+       vừa màn. Trước bản này ngược lại, và bảng dài ra ngang cả nghìn điểm ảnh. */
+    h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ của từng mảng kinh doanh</div>'
+      +'<div class="tw"><table style="min-width:'+(220+rows.length*128)+'px"><thead><tr>'
+      +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f8fafc;z-index:1">Mảng kinh doanh</th>'
+      +rows.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
+      +'</tr></thead><tbody id="cfgMxNoBody">'
+      +cols.map(function(c){
+          return '<tr><td style="font-weight:600;position:sticky;left:0;background:#fff;z-index:1">'+esc(c)+'</td>'
+            +rows.map(function(x){
+                var ten=String(x.ten||'');
+                return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
+                  +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" oninput="onPickTk(this)"></td>';
+              }).join('')
+            +'</tr>';
+        }).join('')
+      +'</tbody></table></div>';
+    box.innerHTML=h;
     MX_LOCK=false; toggleMxLock();   // vẽ xong thì khóa lại
   }
   // Mảng kinh doanh = Phân loại lớn của cơ sở -> cho chọn đúng danh sách đang có
@@ -7264,39 +7293,68 @@
     delete plls[''];
     return Object.keys(plls).sort();
   }
-  function _mxRowHtml(x, cols, mx){
+  /* HÀNG CỦA BẢNG THUỘC TÍNH (bảng trên). Mã tài khoản đã tách sang bảng dưới — anh Thắng
+     10/09/2026: *"Sắp xếp theo chiều đứng cho dễ nhìn"*. Trước bản này mỗi mảng kinh doanh là
+     một CỘT, mà mảng thì hàng chục, nên bảng dài ra ngang cả nghìn điểm ảnh: ô Bộ phận bị bóp
+     còn "Nhà▾" đọc không ra, và muốn xem mã của mảng thứ mười lăm thì phải kéo ngang mãi.
+     🔴 `data-goc` giữ TÊN LÚC VẼ. Người dùng sửa tên loại ở bảng trên thì bảng dưới vẫn mang
+        tên cũ; không có mốc này thì lúc lưu không biết cột nào của bảng dưới là loại nào, và
+        mã tài khoản của cả cột bay sạch — im lặng, vì bảng lưu xong vẽ lại trông vẫn bình
+        thường, chỉ là mọi ô mã trống trơn. */
+  function _mxRowHtml(x){
     var ten=String(x.ten||'');
-    return '<tr><td>'+_inp(ten,'VD: Chi phí lương')+'</td>'
+    return '<tr><td><input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" style="width:100%"></td>'
       +'<td>'+_loaiSel(x.loaiTt||'')+'</td>'
       +'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'
       +'<td>'+_inp(x.tenMisa||'','trống = dùng tên bên trái')+'</td>'
-      +cols.map(function(c){ return '<td>'+_tkInp(mx[ten+'|'+c]||'','—')+'</td>'; }).join('')
       +_delBtn()+'</tr>';
   }
   function addCfgLoai(){
     if(MX_LOCK) toggleMxLock();                       // thêm dòng thì mở khóa cho gõ
-    el('cfgMxBody').insertAdjacentHTML('beforeend', _mxRowHtml({}, _mxCols(), {}));
+    el('cfgMxBody').insertAdjacentHTML('beforeend', _mxRowHtml({}));
+    toast('ok','Gõ tên loại rồi bấm 💾 Lưu — cột mã của nó hiện ra ở bảng dưới sau khi lưu');
     Array.prototype.forEach.call(el('cfgMxBody').querySelectorAll('input,select'),function(f){ f.disabled=false; });
   }
   function saveCfgTkNoMx(){
-    var cols=_mxCols();
     var cu={}; (CFG.loaiChiPhi||[]).forEach(function(x){ cu[String(x.ten||'').trim().toLowerCase()]=x; });
-    var dm=[], mx=[], da={};
-    _readRows('cfgMxBody').forEach(function(r){
-      var ten=String(r[0]||'').trim(); if(!ten) return;
+    var dm=[], mx=[], da={}, doiTen={};
+    /* BẢNG TRÊN — thuộc tính. `data-goc` là tên lúc vẽ; đối chiếu với tên đang gõ để biết
+       loại nào vừa đổi tên, rồi mới đọc được mã của nó ở bảng dưới. */
+    Array.prototype.forEach.call(el('cfgMxBody').getElementsByTagName('tr'), function(tr){
+      var f=tr.querySelectorAll('input:not([type=checkbox]),select');
+      if(!f.length) return;
+      var ten=String(f[0].value||'').trim(); if(!ten) return;
       var k=ten.toLowerCase(); if(da[k]) return;      // trùng tên -> giữ dòng đầu
       da[k]=1;
-      var goc=cu[k]||{};
+      var goc0=String(f[0].getAttribute('data-goc')||'').trim();
+      if(goc0) doiTen[goc0.toLowerCase()]=ten;
+      var goc=cu[k]||cu[goc0.toLowerCase()]||{};
+      var bp=(f[2]&&f[2].multiple)
+        ? Array.prototype.map.call(f[2].selectedOptions,function(o){return o.value;}).join(', ')
+        : String((f[2]&&f[2].value)||'');
       // Bảng không còn cột TK Có và "Mọi mảng" -> giữ nguyên giá trị đã lưu, đừng ghi rỗng
       // lên (lưu bảng một lần là xóa sạch mã cũ của mọi loại thì hỏng nặng).
-      dm.push({ ten:ten, loaiTt:r[1]||'', boPhan:r[2]||'', tenMisa:String(r[3]||'').trim(),
+      dm.push({ ten:ten, loaiTt:String((f[1]&&f[1].value)||''), boPhan:bp,
+                tenMisa:String((f[3]&&f[3].value)||'').trim(),
                 tkCo:goc.tkCo||'', tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });
-      cols.forEach(function(c,i){
-        var v=String(r[4+i]||'').trim();
-        if(v) mx.push({nhom:ten, pll:c, tkNo:v});
-      });
     });
+    /* BẢNG DƯỚI — mã TK Nợ, mỗi hàng một mảng. Đọc theo `data-loai`/`data-pll` chứ KHÔNG theo
+       vị trí cột: xoá một loại ở bảng trên là mọi cột sau nó lùi một chỗ, và đọc theo vị trí
+       thì mã của cả bảng gán nhầm sang loại bên cạnh — hỏng im lặng, vì sổ vẫn có mã, chỉ là
+       mã của loại khác. */
+    var noBody=el('cfgMxNoBody');
+    if(noBody){
+      Array.prototype.forEach.call(noBody.querySelectorAll('input'), function(inp){
+        var v=String(inp.value||'').trim(); if(!v) return;
+        var lg=String(inp.getAttribute('data-loai')||'').trim();
+        var pll=String(inp.getAttribute('data-pll')||'').trim();
+        var ten=doiTen[lg.toLowerCase()] || lg;
+        if(!ten || !pll) return;
+        if(!da[ten.toLowerCase()]) return;            // loại đã bị xoá ở bảng trên -> bỏ luôn mã
+        mx.push({nhom:ten, pll:pll, tkNo:v});
+      });
+    }
     _saveCfg({loaiChiPhi:dm, tkNoMatrix:mx},'Đã lưu bảng loại chi phí');
   }
   // Điền mã tài khoản cho dòng CŨ ở MỌI mảng (sổ chi phí · đơn · kỹ thuật · marketing · công tác/setup)
