@@ -803,6 +803,41 @@
         </table>
         <div class="empty" id="duyetEmpty">Không có đơn.</div>
       </div>
+    </div>
+
+    <!-- ===== BẢNG THỨ HAI: ĐƠN THEO DỰ ÁN =====
+         Anh Thắng 10/09/2026: *"Chỗ duyệt tạm ứng và quyết toán của kế toán cũng sẽ hiện 2
+         bảng để kế toán phân biệt đơn theo cơ sở (theo tuần), đơn theo dự án (theo thời gian
+         setup linh động mà nhân viên sẽ nhập vào)"*, và *"kế toán phải biết đơn nào hoàn
+         thành và chưa hoàn thành để nhắc nhân viên chốt sớm để tránh sót và quên"*.
+
+         HAI LOẠI ĐƠN GOM THEO HAI TRỤC KHÁC HẲN NHAU: đơn cơ sở bó theo TUẦN, đơn dự án theo
+         KHOẢNG NGÀY setup do nhân viên gõ. Nhét chung một bảng thì cột "Kỳ/tuần" của nửa số
+         dòng để trống, và kế toán không lọc theo tuần được nữa. -->
+    <div class="card">
+      <div class="ch">
+        <h2>🏗 Đơn theo dự án <span style="font-size:11px;font-weight:400;color:#64748b">— mỗi hạng mục là một đơn, theo thời gian setup</span></h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select id="hmFilter" onchange="renderDonHM()">
+            <option value="cho">Cần xử lý (chờ duyệt / chờ cấp tiền)</option>
+            <option value="xin">Chờ duyệt tạm ứng</option>
+            <option value="duyet">Chờ cấp tạm ứng</option>
+            <option value="ung">Đã cấp — chờ chốt hoàn thành</option>
+            <option value="chuaxong">🔔 Chưa chốt (nhắc nhân viên)</option>
+            <option value="xong">Đã chốt (khoá)</option>
+            <option value="all">Tất cả</option>
+          </select>
+          <button class="btn b-x" onclick="loadDonHM()">↻ Tải lại</button>
+        </div>
+      </div>
+      <div id="hmNhac" style="display:none;margin:0 14px 8px;padding:9px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
+      <div class="tw">
+        <table style="min-width:980px">
+          <thead><tr><th>Dự án</th><th>Hạng mục (đơn)</th><th>Thời gian setup</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="hmBody"></tbody>
+        </table>
+        <div class="empty" id="hmEmpty">Không có đơn dự án nào.</div>
+      </div>
 
       <!-- ===== LỆNH TẠM ỨNG — anh Thắng 07/09/2026 =====
            *"khi quản lý duyệt 1 lần đơn tạm ứng, sẽ tạo 1 lệnh tạm ứng phía dưới cuối trang
@@ -4046,10 +4081,24 @@
     el('daSummary').innerHTML=
       '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:10px 12px;min-width:230px">'
         +'<div style="font-size:11.5px;color:#6b21a8;font-weight:700">🧰 Dự phòng cả dự án</div>'
+        /* Ô tiền có dấu chấm hàng nghìn — anh Thắng 10/09/2026: *"thêm dấu chấm tự động nhìn
+           cho đẹp"*. Dùng lại đúng cặp `tienVao`/`tienRa` của ô tiền trong đơn: bấm vào thì
+           về số trần cho dễ sửa, rời ra thì chấm lại. `type=number` KHÔNG chấm được — trình
+           duyệt chối mọi giá trị có dấu chấm, ô sẽ rỗng trơn. */
         +'<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
-        +'<input id="daDpInp" type="number" min="0" value="'+(dpDT||'')+'" placeholder="0"'
-        +(dpSua?'':' readonly')+' style="width:120px;font-size:15px;font-weight:800;color:#6b21a8'+(dpSua?'':';background:#f1f5f9')+'">'
+        +'<input id="daDpInp" type="text" inputmode="numeric" value="'+(dpDT?money(dpDT):'')+'" placeholder="0"'
+        +' onfocus="tienVao(this)" onblur="tienRa(this)"'
+        +(dpSua?'':' readonly')+' style="width:130px;font-size:15px;font-weight:800;color:#6b21a8'+(dpSua?'':';background:#f1f5f9')+'">'
         +(dpSua?'<button class="btn b-x" onclick="daLuuDuToan()" title="Lưu con số dự phòng">💾</button>':'')
+        +'</div>'
+        /* THỜI GIAN SETUP — *"Bổ sung thêm thời gian setup (Từ ngày đến ngày)"*. Đúng nguyên
+           lý "đơn theo thời gian, không theo tuần" của mảng Kỹ thuật. */
+        +'<div style="display:flex;gap:4px;align-items:center;margin:2px 0 4px;font-size:11px;color:#6b21a8">'
+        +'<span>Setup</span>'
+        +'<input id="daKyTu" type="date" value="'+esc((r.kyDA||{}).tu||'')+'"'+(dpSua?'':' disabled')+' style="font-size:11px;padding:2px 4px">'
+        +'<span>→</span>'
+        +'<input id="daKyDen" type="date" value="'+esc((r.kyDA||{}).den||'')+'"'+(dpSua?'':' disabled')+' style="font-size:11px;padding:2px 4px">'
+        +(dpSua?' <button class="btn b-x" onclick="daLuuKy()" title="Lưu thời gian setup">💾</button>':'')
         +'</div>'
         +'<div style="font-size:11px;color:#7c3aed">đã tạm ứng '+money(dpUng)+'đ · '
         +(dpDT>0?('còn dự phòng <b>'+money(dpConLai)+'đ</b>'):'chưa gõ con số dự phòng')+'</div>'
@@ -4131,7 +4180,11 @@
          ⚠️ CHỈ HIỆN KHI HẠNG MỤC ẤY CHƯA CÓ CON. Gộp một hạng mục đang có con vào hạng mục
             khác là lồng ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ biến khỏi màn tuy vẫn
             nằm trong sổ và vẫn cộng vào tổng. */
-      var goNut=(canEdit && parents.length>1 && !(childrenBy[p.noiDung]||[]).length)
+      /* 🔴 NÚT HIỆN Ở MỌI HẠNG MỤC LỚN, chốt nằm TRONG hàm. Anh Thắng 10/09/2026: *"Sao có đơn
+         chuyển được, có đơn không chuyển được"* — bản trước ẩn nút với hạng mục đang có mục
+         con, nên người dùng phải tự đoán ra luật. Ẩn im lặng là bắt người ta đoán; hiện nút
+         rồi nói rõ lý do thì họ biết phải làm gì (gỡ mục con ra trước). */
+      var goNut=(canEdit && parents.length>1)
         ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục này vào một hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
       addChild+=goNut;
       if(kids.length){
@@ -4206,7 +4259,9 @@
      lặng lẽ, mà kế toán căn vào đó để chuẩn bị tiền. */
   function daLuuDuToan(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
-    var v=String((el('daDpInp')&&el('daDpInp').value)||'').trim();
+    /* Ô nay có dấu chấm — bóc chấm ra trước khi so, không thì "500.000.000" thành NaN và
+       người dùng nhận câu "không được âm" cho một số hoàn toàn hợp lệ. */
+    var v=_tienSo((el('daDpInp')&&el('daDpInp').value)||'');
     var n=Number(v||0);
     if(!isFinite(n) || n<0){ toast('warn','Tổng dự toán không được âm'); return; }
     loading(true);
@@ -4216,6 +4271,110 @@
       toast('ok','Đã lưu dự phòng '+money(n)+'đ');
       openDuAn(DA_CUR.maDA);
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datDuToanDuAn(DA_CUR.maDA, n, (CURUSER&&CURUSER.name)||'');
+  }
+  /* Lưu thời gian setup. Ngày kết thúc trước ngày bắt đầu bị máy chủ chối — khoảng ngày ngược
+     làm mọi phép "dự án này kéo dài bao lâu" ra số âm mà không có gì nói vì sao. */
+  function daLuuKy(){
+    if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
+    var tu=String((el('daKyTu')&&el('daKyTu').value)||'').trim();
+    var den=String((el('daKyDen')&&el('daKyDen').value)||'').trim();
+    if(tu&&den&&den<tu){ toast('warn','Ngày kết thúc không được trước ngày bắt đầu'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('Đặt thời gian setup', DA_CUR.ten, tu+' → '+den);
+      toast('ok','Đã lưu thời gian setup');
+      openDuAn(DA_CUR.maDA);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datKyDuAn(DA_CUR.maDA, tu, den, (CURUSER&&CURUSER.name)||'');
+  }
+  /* ═══ ĐƠN THEO DỰ ÁN Ở MÀN DUYỆT CỦA KẾ TOÁN ═══════════════════════════════════════════
+     Mỗi HẠNG MỤC LỚN là một "đơn": nhap → xin → duyet → ung(đợt N) → xong(KHOÁ), trả lại thì
+     về nhap. Chốt vai nằm ở máy chủ (`VHCP_DuAn::dat_hm`); nút dưới đây chỉ là lối đi cho
+     nhanh, ẩn nút không phải là chốt. */
+  var HM_ITEMS=[];
+  var HM_NHAN={ nhap:['Đang nhập','#64748b','#f1f5f9'], xin:['Chờ duyệt','#b45309','#fef3c7'],
+    duyet:['Chờ cấp tiền','#1d4ed8','#dbeafe'], ung:['Đã cấp — chờ chốt','#0f766e','#ccfbf1'],
+    xong:['✔ Đã chốt (khoá)','#166534','#dcfce7'], tra:['↩ Bị trả lại','#b91c1c','#fee2e2'] };
+  function loadDonHM(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      HM_ITEMS=r.items||[]; renderDonHM();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listDonHangMuc();
+  }
+  function _hmNgay(k){
+    var t=String((k&&k.tu)||''), d=String((k&&k.den)||'');
+    if(!t&&!d) return '<span style="color:#dc2626">chưa gõ</span>';
+    return esc(_dmy(t)||'?')+' → '+esc(_dmy(d)||'?');
+  }
+  function renderDonHM(){
+    var f=(el('hmFilter')&&el('hmFilter').value)||'cho';
+    var ds=(HM_ITEMS||[]).filter(function(x){
+      var tt=((x.hm||{}).tt)||'nhap';
+      if(f==='all') return true;
+      if(f==='cho') return tt==='xin'||tt==='duyet';
+      /* 🔴 "Chưa chốt" là câu hỏi anh Thắng cần trả lời: *"kế toán phải biết đơn nào hoàn
+         thành và chưa hoàn thành để nhắc nhân viên chốt sớm để tránh sót và quên"*. Gồm CẢ
+         hạng mục chưa ai đụng tới — đó chính là loại bị quên. */
+      if(f==='chuaxong') return tt!=='xong';
+      return tt===f;
+    });
+    if(el('hmEmpty')) el('hmEmpty').style.display=ds.length?'none':'block';
+    /* Dòng nhắc: đã cấp tiền mà chưa chốt là tiền đã ra khỏi két và chưa có hoá đơn về. */
+    var daUngChuaChot=(HM_ITEMS||[]).filter(function(x){ return (((x.hm||{}).tt)||'')==='ung'; });
+    var nhac=el('hmNhac');
+    if(nhac){
+      if(daUngChuaChot.length){
+        var tien=daUngChuaChot.reduce(function(a,b){ return a+(Number(b.thucTe)||0); },0);
+        nhac.style.display='block';
+        nhac.innerHTML='🔔 <b>'+daUngChuaChot.length+'</b> hạng mục đã cấp tạm ứng nhưng CHƯA chốt hoàn thành ('
+          +money(tien)+'đ) — nhắc nhân viên đính hoá đơn và tích hoàn thành, kẻo sót.';
+      } else { nhac.style.display='none'; nhac.innerHTML=''; }
+    }
+    var role=(CURUSER&&CURUSER.role)||'';
+    var laKT=['Admin','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
+    var laDuyet=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
+    el('hmBody').innerHTML=ds.map(function(x){
+      var h=x.hm||{}, tt=h.tt||'nhap', n=HM_NHAN[tt]||HM_NHAN.nhap;
+      var nut='';
+      if(tt==='xin'&&laDuyet) nut+='<button class="btn b-g" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'duyet\')">✔ Duyệt</button> ';
+      if(tt==='duyet'&&laKT)  nut+='<button class="btn b-g" onclick="hmCapUng(\''+esc(x.maDA)+'\','+x.row+','+((h.dot||0)+1)+')">💵 Cấp đợt '+((h.dot||0)+1)+'</button> ';
+      if((tt==='xin'||tt==='duyet')&&laDuyet) nut+='<button class="btn b-d" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'tra\')">↩ Trả</button> ';
+      if(tt==='ung')  nut+='<button class="btn b-x" onclick="hmChot(\''+esc(x.maDA)+'\','+x.row+')" title="Đính hoá đơn rồi chốt là chi thực tế">🧾 Chốt xong</button> ';
+      if(tt==='xong'&&laKT) nut+='<button class="btn b-x" onclick="hmDat(\''+esc(x.maDA)+'\','+x.row+',\'nhap\')" title="Mở lại hạng mục đã chốt">🔓 Mở lại</button> ';
+      var lich=(h.lich||[]).length?('<div style="font-size:10.5px;color:#7c3aed">lịch: '+(h.lich||[]).map(function(y){return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
+      var unc=h.unc?('<div style="font-size:10.5px;color:#0f766e">UNC '+esc(h.unc)+(h.dot?(' · đợt '+h.dot):'')+'</div>'):'';
+      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.tenDA)+'</a>'
+        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
+        +'<td>'+esc(x.noiDung)+lich+unc+'</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
+        +'<td class="money">'+money(x.duToan)+'</td><td class="money">'+money(x.thucTe)+'</td>'
+        +'<td style="font-size:11.5px">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢 Trực tiếp':'💰 Tạm ứng')+'</td>'
+        +'<td><span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'+n[1]+';background:'+n[2]+'">'+n[0]+'</span></td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+    }).join('');
+  }
+  function hmDat(maDA,row,tt,them){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok','Đã đổi trạng thái hạng mục'); loadDonHM();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datTrangThaiHangMuc(maDA,row,tt,them||{});
+  }
+  function hmCapUng(maDA,row,dot){
+    var unc=prompt('Cấp tạm ứng đợt '+dot+'.\n\nNhập số uỷ nhiệm chi (để trống cũng được):','');
+    if(unc===null) return;
+    hmDat(maDA,row,'ung',{dot:dot,unc:String(unc||'').trim()});
+  }
+  function hmChot(maDA,row){
+    /* 🔴 HOÁ ĐƠN LÀ BẮT BUỘC — máy chủ cũng chối nếu thiếu. Chốt mà chưa có chứng từ là khoá
+       một con số không có gì đỡ. */
+    var hd=prompt('Chốt hoàn thành — hạng mục sẽ KHOÁ lại và tính là chi thực tế.\n\n'
+      +'Dán liên kết hoá đơn (bắt buộc):','');
+    if(hd===null) return;
+    hd=String(hd||'').trim();
+    if(!hd){ toast('warn','Phải có hoá đơn mới chốt được'); return; }
+    hmDat(maDA,row,'xong',{hoaDon:hd});
   }
   function daCapChaHint(){   // gợi ý + KHÓA dự toán: hạng mục lớn -> điền Dự toán (tạm ứng); mục con/phát sinh -> điền Thực tế
     var v=el('da_capCha')?el('da_capCha').value:'';
@@ -4248,6 +4407,16 @@
     if(!DA_CUR) return;
     var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; });
     if(!l){ toast('err','Không tìm thấy dòng'); return; }
+    /* 🔴 HẠNG MỤC ĐANG CÓ CON THÌ KHÔNG GỘP ĐƯỢC — và phải NÓI RA. Gộp nó vào hạng mục khác
+       là lồng ba cấp, mà bảng chỉ vẽ hai: mấy dòng con sẽ biến khỏi màn tuy vẫn nằm trong sổ
+       và vẫn cộng vào tổng. */
+    var soCon=(DA_CUR.lines||[]).filter(function(x){
+      return String(x.capCha||'')===String(l.noiDung||'');
+    }).length;
+    if(soCon){
+      toast('warn','"'+l.noiDung+'" đang có '+soCon+' mục con — gỡ hết mục con ra rồi mới gộp được (bảng chỉ vẽ hai cấp)');
+      return;
+    }
     var cha=(DA_CUR.lines||[]).filter(function(x){
       return String(x.capCha||'')==='' && x.row!==row;
     }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
@@ -6381,7 +6550,7 @@
     box.style.background=big?'#fef2f2':'#f0fdf4'; box.style.border='1px solid '+(big?'#fecaca':'#86efac'); box.style.color=big?'#b91c1c':'#166534';
     box.innerHTML=(big?'⚠️ ':'💰 ')+'Tạm ứng đang lưu hành (chưa quyết toán): <b>'+money(tong)+'đ</b> · '+lh.length+' đơn';
   }
-  function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }
+  function loadDuyet(){ boot(renderDuyet); loadLenhTU(); loadDonHM(); }
 
   /* ================= SỔ LỆNH TẠM ỨNG =================
      Anh Thắng 07/09/2026: mỗi lượt quản lý bấm duyệt đẻ ra MỘT tờ lệnh, nằm cuối trang này.

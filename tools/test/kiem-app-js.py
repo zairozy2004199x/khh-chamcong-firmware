@@ -569,7 +569,9 @@ la('có câu cho sổ rỗng', 'id="lenhTUEmpty"' in _trang)
 for _c in ['Tổng tạm ứng', 'Số cơ sở', 'Cơ sở · số tiền · đơn']:
     la('cột "%s"' % _c, _c in _trang)
 # Nạp sổ mỗi lần vào tab — không thì duyệt xong phải tải lại trang mới thấy tờ lệnh.
-la('🔴 vào tab Duyệt là nạp sổ lệnh', 'function loadDuyet(){ boot(renderDuyet); loadLenhTU(); }' in src)
+la('🔴 vào tab Duyệt là nạp sổ lệnh', 'loadLenhTU();' in src and 'function loadDuyet(){ boot(renderDuyet);' in src)
+# Bảng "Đơn theo dự án" cũng phải nạp cùng lúc — kế toán mở tab Duyệt là thấy CẢ HAI loại đơn.
+la('🔴 và nạp luôn bảng đơn theo dự án', 'loadDonHM();' in src)
 la('sổ lệnh gọi đúng cửa máy chủ', '.dsLenhTU(' in src)
 
 # --- 🔴 BẢN THỨ HAI CHO KẾ TOÁN (anh Thắng 07/09/2026) ---

@@ -149,8 +149,17 @@ function chay(row, chon, lines) {
 
 /* ── 3. NÚT TRÊN HÀNG ──────────────────────────────────────────────────────────────────── */
 t('🔴 có nút gộp ngay trên hàng hạng mục lớn', HTML.indexOf('daGopVaoMuc(') >= 0);
-t('🔴 nút CHỈ hiện khi hạng mục ấy CHƯA CÓ CON (gộp cái đang có con là lồng ba cấp)',
-  HTML.indexOf("!(childrenBy[p.noiDung]||[]).length") >= 0);
+/* 🔴 NÚT HIỆN Ở MỌI HẠNG MỤC LỚN, chốt nằm TRONG hàm. Anh Thắng: *"Sao có đơn chuyển được,
+   có đơn không chuyển được"* — ẩn nút là bắt người dùng tự đoán ra luật. */
+t('🔴 nút hiện ở MỌI hạng mục lớn (ẩn im lặng thì người dùng phải đoán)',
+  HTML.indexOf("var goNut=(canEdit && parents.length>1)") >= 0);
+{
+  const NK = chay(2, undefined, [LINES[0], LINES[1], LINES[2]]);
+  t('🔴 bấm ở hạng mục ĐANG CÓ CON → nói rõ vì sao không gộp được, không im lặng',
+    NK.toast.some(x => /đang có 1 mục con/.test(x[1])), NK.toast);
+  t('   và chỉ cho biết phải làm gì', NK.toast.some(x => /gỡ hết mục con/.test(x[1])), NK.toast);
+  t('   không mở hộp chọn', !/select/.test(NK.hoi || ''), NK.hoi);
+}
 t('   và chỉ hiện khi có hạng mục lớn khác để gộp vào',
   HTML.indexOf('parents.length>1') >= 0);
 t('   chỉ người sửa được đơn mới thấy nút', HTML.indexOf('var goNut=(canEdit &&') >= 0);

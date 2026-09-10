@@ -165,6 +165,39 @@ t( '🔴 quyền sửa ô dự phòng TỰ TÍNH, không mượn biến khai sau
 t( '   và người đang nhập được dự án thì gõ được',
 	false !== strpos( $HTML, '|| !!(r.editable||r.thiCong) || !!r.isCoSo;' ), '' );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6. THỜI GIAN SETUP · Ô TIỀN CÓ DẤU CHẤM
+ *
+ * Anh Thắng 10/09/2026: *"Bổ sung thêm thời gian setup (Từ ngày đến ngày)"* và *"thêm dấu chấm
+ * tự động nhìn cho đẹp"*.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+teq( 'dự án chưa gõ khoảng ngày → rỗng, không ép', '', VHCP_DuAn::get_ky_da( $ma )['tu'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-09-01', '2026-09-30', 'KT' );
+t( 'gõ được thời gian setup', ! empty( $r6['success'] ), $r6 );
+teq( '   đọc lại đúng ngày bắt đầu', '2026-09-01', VHCP_DuAn::get_ky_da( $ma )['tu'] );
+teq( '   và ngày kết thúc', '2026-09-30', VHCP_DuAn::get_ky_da( $ma )['den'] );
+teq( '   gửi xuống màn cùng dự án', '2026-09-30', VHCP_DuAn::get_du_an( $ma )['kyDA']['den'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-09-30', '2026-09-01', 'KT' );
+t( '🔴 ngày kết thúc TRƯỚC ngày bắt đầu → chối (khoảng ngày ngược thì mọi phép đo ra số âm)',
+	empty( $r6['success'] ), $r6 );
+teq( '   và không ghi đè khoảng ngày cũ', '2026-09-30', VHCP_DuAn::get_ky_da( $ma )['den'] );
+$r6 = VHCP_DuAn::set_ky_da( $ma, '2026-10-01', '', 'KT' );
+t( '   gõ mỗi ngày bắt đầu thì được (chưa biết bao giờ xong là chuyện thường)',
+	! empty( $r6['success'] ), $r6 );
+
+t( '🔴 màn có hai ô ngày setup',
+	false !== strpos( $HTML, 'id="daKyTu"' ) && false !== strpos( $HTML, 'id="daKyDen"' ), '' );
+t( '   và chặn khoảng ngày ngược ngay ở màn',
+	false !== mb_strpos( $HTML, 'Ngày kết thúc không được trước ngày bắt đầu' ), '' );
+/* 🔴 Ô tiền phải là type=text. `type=number` thì trình duyệt chối mọi giá trị có dấu chấm —
+   ô sẽ RỖNG TRƠN, và người dùng tưởng mất số vừa gõ. */
+t( '🔴 ô dự phòng là type=text (type=number thì dấu chấm làm ô rỗng trơn)',
+	false !== strpos( $HTML, 'id="daDpInp" type="text" inputmode="numeric"' ), '' );
+t( '   bấm vào về số trần, rời ra chấm lại (dùng lại cặp có sẵn của ô tiền trong đơn)',
+	false !== strpos( $HTML, 'onfocus="tienVao(this)" onblur="tienRa(this)"' ), '' );
+t( '🔴 lúc lưu thì BÓC DẤU CHẤM ra trước khi so (không thì 500.000.000 thành NaN)',
+	false !== strpos( $HTML, "var v=_tienSo((el('daDpInp')&&el('daDpInp').value)||'');" ), '' );
+
 VHCP_DuAn::delete( $ma );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */

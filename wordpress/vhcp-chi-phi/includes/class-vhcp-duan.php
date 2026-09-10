@@ -111,6 +111,62 @@ class VHCP_DuAn {
 		return VHCP_Util::ok( array( 'maDA' => $ma, 'ten' => $ten, 'loai' => 'Chi phí cơ sở', 'sheet' => '', 'trangThai' => 'Đang làm', 'url' => '' ) );
 	}
 
+	/**
+	 * MỌI "ĐƠN" (hạng mục lớn) CỦA MỌI DỰ ÁN, GOM CHO KẾ TOÁN.
+	 *
+	 * Anh Thắng 10/09/2026: *"Chỗ duyệt tạm ứng và quyết toán của kế toán cũng sẽ hiện 2 bảng
+	 * để kế toán phân biệt đơn theo cơ sở (theo tuần), đơn theo dự án (theo thời gian setup
+	 * linh động mà nhân viên sẽ nhập vào)"*, và *"kế toán phải biết đơn nào hoàn thành và chưa
+	 * hoàn thành để nhắc nhân viên chốt sớm để tránh sót và quên"*.
+	 *
+	 * 🔴 KHÔNG LỌC BỎ HẠNG MỤC ĐANG "nhap". Kế toán cần thấy CẢ những cái chưa ai đụng tới —
+	 *    đó chính là loại bị quên. Lọc sạch cho gọn là giấu đúng thứ họ đi tìm.
+	 *
+	 * ⚠️ Tôn trọng tầm nhìn đơn vị như `list_du_an()`: dự án neo theo NGƯỜI TẠO.
+	 */
+	public static function list_don_hm() {
+		$out    = array();
+		$dv_xem = VHCP_DonVi::xem_duoc();
+		foreach ( self::all_with_lines() as $r ) {
+			if ( null !== $dv_xem
+				&& ! VHCP_DonVi::duoc_xem( VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
+			$ma_da = (string) $r['ma_da'];
+			$hm_all = self::get_hm( $ma_da );
+			/* Tiền của một "đơn": hạng mục có con thì tiền nằm ở CON, không có con thì ở chính
+			   nó. Cộng cả hai là đếm hai lần — và đây là con số kế toán chuẩn bị tiền. */
+			$con = array();
+			foreach ( $r['lines'] as $x ) {
+				$cap = trim( (string) $x['cap_cha'] );
+				if ( '' !== $cap && '(Phát sinh)' !== $cap ) {
+					$con[ $cap ] = ( isset( $con[ $cap ] ) ? $con[ $cap ] : 0 ) + VHCP_Util::num( $x['thuc_te'] );
+				}
+			}
+			foreach ( $r['lines'] as $x ) {
+				if ( ! self::is_real( $x ) ) { continue; }
+				if ( trim( (string) $x['cap_cha'] ) !== '' ) { continue; }   // chỉ hạng mục LỚN
+				$nd  = trim( (string) $x['noi_dung'] );
+				$row = (int) $x['row_no'];
+				$k   = (string) $row;
+				$h   = isset( $hm_all[ $k ] ) ? self::hm_cua( $ma_da, $row ) : self::hm_cua( $ma_da, $row );
+				$out[] = array(
+					'maDA'      => $ma_da,
+					'tenDA'     => (string) $r['ten'],
+					'loaiDA'    => (string) $r['loai'],
+					'nguoiTao'  => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
+					'row'       => $row,
+					'noiDung'   => $nd,
+					'gian'      => trim( (string) $x['gian'] ),
+					'hinhThuc'  => trim( (string) $x['hinh_thuc'] ),
+					'duToan'    => VHCP_Util::num( $x['du_toan'] ),
+					'thucTe'    => ( isset( $con[ $nd ] ) && $con[ $nd ] > 0 ) ? $con[ $nd ] : VHCP_Util::num( $x['thuc_te'] ),
+					'hm'        => $h,
+					'kyDA'      => self::get_ky_da( $ma_da ),
+				);
+			}
+		}
+		return VHCP_Util::ok( array( 'items' => $out ) );
+	}
+
 	public static function list_du_an() {
 		$out = array();
 		$sc_tong = VHCP_SoChi::tong_theo_du_an();   // 1 lệnh DB cho mọi dự án
@@ -285,6 +341,7 @@ class VHCP_DuAn {
 			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),
 			/* Con số dự phòng của kế toán + phần đã ứng thật, để màn tính ra "còn dự phòng". */
 			'duToanDA'        => self::get_du_toan_da( $ma_da ),
+			'kyDA'            => self::get_ky_da( $ma_da ),
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
 			'ttTamUng'        => $tt_tu,
@@ -349,6 +406,42 @@ class VHCP_DuAn {
 	 */
 	public static function get_du_toan_da( $ma_da ) {
 		return VHCP_Util::num( VHCP_Meta::get( 'daDuToan_' . $ma_da, 0 ) );
+	}
+
+	/**
+	 * THỜI GIAN SETUP — anh Thắng 10/09/2026: *"Bổ sung thêm thời gian setup (Từ ngày đến
+	 * ngày)"*, đúng nguyên lý *"Đơn theo thời gian, chứ không theo tuần"* anh nêu từ đầu.
+	 *
+	 * ⚠️ KHÔNG ÉP PHẢI CÓ. Dự án đang chạy dở chưa ai gõ khoảng ngày; bắt buộc là mọi dự án cũ
+	 *    đỏ lên một lỗi mà không ai gây ra.
+	 */
+	public static function get_ky_da( $ma_da ) {
+		$o = VHCP_Meta::get_json( 'daKy_' . $ma_da, array() );
+		return array(
+			'tu'  => isset( $o['tu'] ) ? (string) $o['tu'] : '',
+			'den' => isset( $o['den'] ) ? (string) $o['den'] : '',
+		);
+	}
+
+	public static function set_ky_da( $ma_da, $tu, $den, $nguoi = '' ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$tu  = trim( (string) $tu );
+		$den = trim( (string) $den );
+		/* 🔴 NGÀY KẾT THÚC KHÔNG ĐƯỢC TRƯỚC NGÀY BẮT ĐẦU. Khoảng ngày ngược làm mọi phép "dự án
+		   này kéo dài bao lâu" ra số âm, và không có gì trên màn nói vì sao. So bằng chuỗi
+		   yyyy-mm-dd là đúng thứ tự thời gian, khỏi phải dựng đối tượng ngày. */
+		if ( '' !== $tu && '' !== $den && $den < $tu ) {
+			return VHCP_Util::err( 'Ngày kết thúc không được trước ngày bắt đầu.' );
+		}
+		VHCP_Meta::set_json( 'daKy_' . $ma_da, array( 'tu' => $tu, 'den' => $den ) );
+		VHCP_Log::log_action( array(
+			'actor'  => (string) ( '' !== $nguoi ? $nguoi : VHCP_Auth::nguoi() ),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => 'Đặt thời gian setup dự án',
+			'target' => (string) $ma_da,
+			'detail' => $tu . ' → ' . $den,
+		) );
+		return VHCP_Util::ok( array( 'ky' => array( 'tu' => $tu, 'den' => $den ) ) );
 	}
 
 	public static function set_du_toan_da( $ma_da, $so, $nguoi = '' ) {
