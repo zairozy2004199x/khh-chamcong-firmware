@@ -85,7 +85,15 @@ function luu(oNd, loaiDaChon) {
     } } },
   };
   moi.el('da_nd').value = oNd;
-  new Function('moi', `with(moi){ ${boc('saveDuAnLineUI')} saveDuAnLineUI(); }`)(moi);
+  /* Ô tiền nay giữ chuỗi có dấu chấm nghìn, nên hàm thật đọc chúng qua `_oTien`/`_datTien`.
+     BỐC LUÔN BỐN HÀM ẤY RA CHẠY, không khai hàm giả: giả thì bài kiểm này vẫn xanh kể cả khi
+     phép lọc dấu chấm hỏng, mà hỏng ở đó là đơn giá sai gấp nghìn lần. */
+  const fnTien = ['_tienSo', '_tienDep', '_oTien', '_datTien'].map(function (ten) {
+    const i = HTML.indexOf('  function ' + ten + '(');
+    t('bốc được ' + ten + '()', i >= 0);
+    return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n', i));
+  }).join('\n');
+  new Function('moi', `with(moi){ ${fnTien} ${boc('saveDuAnLineUI')} saveDuAnLineUI(); }`)(moi);
   return NK;
 }
 {

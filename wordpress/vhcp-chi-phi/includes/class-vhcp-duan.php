@@ -113,6 +113,21 @@ class VHCP_DuAn {
 	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	const MK_COSO_CHUNG = 'da_coso_chung';
 
+	/** Tên loại của đơn chi phí cơ sở — thứ phân biệt "đơn" với "dự án" trên mọi màn. */
+	const LOAI_COSO = 'Chi phí cơ sở';
+
+	/**
+	 * Dự án này thật ra là một ĐƠN chi phí cơ sở (theo tuần), không phải dự án Setup/Tháo dỡ.
+	 *
+	 * 🔴 MÀN PHẢI ĐỌC CỜ NÀY, KHÔNG TỰ SO CHUỖI. Anh Thắng 11/09/2026, nhìn khối duyệt lệnh:
+	 *    *"Lệnh tạm ứng theo chi phí kỹ thuật chứ"* và *"Dự án tuần thì nó đâu có thười gian
+	 *    setup"* — hai chỗ chữ gọi sai vì màn không có cách nào biết dòng ấy là đơn hay dự án.
+	 *    Gửi cờ xuống thì đổi tên loại sau này là sửa một chỗ, không phải đi dò chuỗi khắp nơi.
+	 */
+	public static function la_don_coso( $loai ) {
+		return self::LOAI_COSO === trim( (string) $loai );
+	}
+
 	/** Mã đơn chi phí cơ sở CHUNG (sổ xuyên suốt cũ) — '' nghĩa là sổ này không có. */
 	public static function ma_coso_chung() {
 		global $wpdb;
@@ -244,6 +259,7 @@ class VHCP_DuAn {
 					'maDA'      => $ma_da,
 					'tenDA'     => (string) $r['ten'],
 					'loaiDA'    => (string) $r['loai'],
+					'isCoSo'    => self::la_don_coso( $r['loai'] ),
 					'nguoiTao'  => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
 					'row'       => $row,
 					'noiDung'   => $nd,
@@ -504,7 +520,7 @@ class VHCP_DuAn {
 			'loai'            => $f['loai'],
 			'trangThai'       => $st,
 			'url'             => '',
-			'isCoSo'          => ( $f['loai'] === 'Chi phí cơ sở' ),
+			'isCoSo'          => self::la_don_coso( $f['loai'] ),
 			/* Sổ CHUNG xuyên suốt thì không duyệt / không đóng / không xoá; đơn cơ sở theo đợt
 			   đi trọn luồng như mọi dự án khác. Màn đọc cờ này chứ KHÔNG suy từ `isCoSo` — suy
 			   ở màn là khai lại một luật đã nằm ở `la_coso_chung()`, hai nơi rồi sẽ lệch. */
@@ -1173,6 +1189,7 @@ class VHCP_DuAn {
 					'maDA'     => $ma_da,
 					'tenDA'    => (string) $r['ten'],
 					'loaiDA'   => (string) $r['loai'],
+					'isCoSo'   => self::la_don_coso( $r['loai'] ),
 					'nguoiTao' => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
 					'dot'      => $d['dot'],
 					'tt'       => $d['tt'],

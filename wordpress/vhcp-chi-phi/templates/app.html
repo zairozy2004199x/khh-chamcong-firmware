@@ -352,8 +352,8 @@
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
           <div class="fld"><label>Số lượng *</label><input id="f_sl" type="number" min="0" step="any" placeholder="Bắt buộc" oninput="calcTT()"></div>
-          <div class="fld"><label>Đơn giá</label><input id="f_dg" type="number" min="0" step="any" oninput="calcTT()"></div>
-          <div class="fld"><label>Thành tiền</label><input id="f_tt" type="number" min="0" placeholder="tự tính"></div>
+          <div class="fld"><label>Đơn giá</label><input id="f_dg" type="text" inputmode="numeric" data-tien="1" oninput="calcTT()"></div>
+          <div class="fld"><label>Thành tiền</label><input id="f_tt" type="text" inputmode="numeric" data-tien="1" placeholder="tự tính"></div>
           <div class="fld"><label>Thuế %</label><select id="f_thue"><option value="">—</option><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div>
           <div class="fld" style="grid-column:span 2"><label>Ghi chú</label><input id="f_gc" placeholder="VD: Đã nhận hàng"></div>
           <div class="fld"><label>Ảnh chứng từ</label>
@@ -460,15 +460,15 @@
           <div class="fld" style="grid-column:span 2"><label>Nội dung</label><input id="sc_nd" placeholder="Chi cho việc gì"></div>
           <div class="fld"><label>ĐVT</label><input id="sc_dvt" placeholder="cái / kg / lần"></div>
           <div class="fld"><label>Số lượng</label><input id="sc_sl" type="number" step="any" oninput="calcScTT()"></div>
-          <div class="fld"><label>Đơn giá</label><input id="sc_dg" type="number" step="any" oninput="calcScTT()"></div>
-          <div class="fld"><label>Số tiền</label><input id="sc_tt" type="number" step="any"></div>
+          <div class="fld"><label>Đơn giá</label><input id="sc_dg" type="text" inputmode="numeric" data-tien="1" oninput="calcScTT()"></div>
+          <div class="fld"><label>Số tiền</label><input id="sc_tt" type="text" inputmode="numeric" data-tien="1"></div>
         </div>
         <div class="grid" style="margin-top:10px">
           <div class="fld"><label>Thuế suất (%)</label><input id="sc_thue" type="number" step="any" placeholder="0 / 8 / 10"></div>
           <div class="fld"><label>VAT</label><select id="sc_vat"><option value="">—</option><option value="Có VAT">Có VAT</option><option value="Không VAT">Không VAT</option></select></div>
           <div class="fld"><label>Mã dự án / công trình</label><input id="sc_mada" list="dl_mada" placeholder="trống = chi phí cơ sở"></div>
           <div class="fld"><label>Hạng mục lớn</label><input id="sc_hangmuc" placeholder="thuộc hạng mục nào"></div>
-          <div class="fld"><label>Dự toán</label><input id="sc_dutoan" type="number" step="any" placeholder="ngân sách của dòng"></div>
+          <div class="fld"><label>Dự toán</label><input id="sc_dutoan" type="text" inputmode="numeric" data-tien="1" placeholder="ngân sách của dòng"></div>
           <div class="fld" style="grid-column:span 2"><label>Ghi chú</label><input id="sc_gc" placeholder="Ghi chú thêm"></div>
           <datalist id="dl_mada"></datalist>
           <div class="fld"><label>Hóa đơn / ảnh</label>
@@ -637,11 +637,11 @@
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
         <div class="fld"><label>Nội dung</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:190px"><datalist id="dl_da_nd"></datalist></div>
         <div class="fld" id="daGianBox" style="display:none"><label>Gian / cơ sở</label><input id="da_gian" list="dl_gian_da" placeholder="Chọn hoặc gõ gian" title="Gian hoặc cơ sở của DÒNG này — bấm vào để chọn trong danh sách cơ sở, hoặc gõ tên gian mới. Mã tài khoản khai theo MẢNG của nó. Chỉ hỏi ở đơn chi phí cơ sở — dự án Setup/Tháo dỡ thì gian chính là tên dự án." style="width:160px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"><datalist id="dl_gian_da"></datalist></div>
-        <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
+        <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:120px"></div>
         <div class="fld"><label>Số lượng</label><input id="da_sl" type="number" min="0" placeholder="0" style="width:75px" oninput="daCalcTT()"></div>
-        <div class="fld"><label>Đơn giá</label><input id="da_dg" type="number" min="0" placeholder="0" style="width:110px" oninput="daCalcTT()"></div>
-        <div class="fld"><label>Thành tiền</label><input id="da_tt" type="number" placeholder="0" style="width:120px" readonly></div>
-        <div class="fld"><label>Chi phí thực tế</label><input id="da_thucte" type="number" min="0" placeholder="= thành tiền" style="width:130px"></div>
+        <div class="fld"><label>Đơn giá</label><input id="da_dg" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:110px" oninput="daCalcTT()"></div>
+        <div class="fld"><label>Thành tiền</label><input id="da_tt" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:120px" readonly></div>
+        <div class="fld"><label>Chi phí thực tế</label><input id="da_thucte" type="text" inputmode="numeric" data-tien="1" placeholder="= thành tiền" style="width:130px"></div>
         <div class="fld"><label>VAT</label><select id="da_vat" style="width:95px"><option value="">—</option><option value="Có VAT">Có VAT</option><option value="Ko VAT">Ko VAT</option></select></div>
         <div class="fld"><label>Hình thức chi</label><select id="da_httt" style="width:180px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"><option value="">💰 Tạm ứng (NV tự trả)</option><option value="Trực tiếp">🏢 Trực tiếp (KT trả NCC)</option></select></div>
         <button class="btn b-x" id="daImgBtn" onclick="daPickImg()">📎 Đính ảnh</button>
@@ -802,10 +802,10 @@
         <div class="fld"><label>Nội dung</label><input id="bl_nd" placeholder="VD: Thuê nhân công / Ăn uống / Vé xe..." style="min-width:190px"></div>
         <div class="fld"><label>Loại chi phí <span id="bl_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="bl_loaicp" style="width:205px" onchange="blTkHint()"></select></div>
         <div class="fld"><label>SL</label><input id="bl_sl" type="number" min="0" placeholder="0" style="width:70px" oninput="blCalcTT()"></div>
-        <div class="fld"><label>Đơn giá</label><input id="bl_dg" type="number" min="0" placeholder="0" style="width:110px" oninput="blCalcTT()"></div>
-        <div class="fld"><label>Thành tiền</label><input id="bl_tt" type="number" placeholder="0" style="width:120px" readonly></div>
-        <div class="fld"><label>Ngân sách (dự toán)</label><input id="bl_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
-        <div class="fld"><label>Thực chi</label><input id="bl_thucchi" type="number" min="0" placeholder="= thành tiền" style="width:120px"></div>
+        <div class="fld"><label>Đơn giá</label><input id="bl_dg" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:110px" oninput="blCalcTT()"></div>
+        <div class="fld"><label>Thành tiền</label><input id="bl_tt" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:120px" readonly></div>
+        <div class="fld"><label>Ngân sách (dự toán)</label><input id="bl_dt" type="text" inputmode="numeric" data-tien="1" placeholder="0" style="width:120px"></div>
+        <div class="fld"><label>Thực chi</label><input id="bl_thucchi" type="text" inputmode="numeric" data-tien="1" placeholder="= thành tiền" style="width:120px"></div>
         <div class="fld"><label>Hình thức chi</label><select id="bl_httt" style="width:185px" onchange="_reFillLoai('bl_loaicp', BP_CUR?BP_CUR.diaDiem:'', 'bl_httt'); blTkHint();"><option value="">💰 Tạm ứng (NV tự chi)</option><option value="Trực tiếp">🏢 Trực tiếp (KT trả NCC)</option></select></div>
         <div class="fld"><label>VAT</label><select id="bl_vat" style="width:90px"><option value="">—</option><option value="Có VAT">Có VAT</option><option value="Ko VAT">Ko VAT</option></select></div>
         <div class="fld"><label>Ngày</label><input id="bl_ngay" placeholder="dd/mm/yyyy" style="width:105px"></div>
@@ -956,7 +956,7 @@
          đó là câu hỏi khác hẳn: "đơn nào hoàn thành và chưa hoàn thành". -->
     <div class="card">
       <div class="ch">
-        <h2>💵 Lệnh tạm ứng theo dự án <span style="font-size:11px;font-weight:400;color:#64748b">— mỗi lệnh gồm nhiều hạng mục, một số tiền, một uỷ nhiệm chi</span></h2>
+        <h2>💵 Lệnh tạm ứng theo dự án / đơn <span style="font-size:11px;font-weight:400;color:#64748b">— dự án Setup/Tháo dỡ và đơn chi phí cơ sở theo tuần; mỗi lệnh gồm nhiều hạng mục, một số tiền, một uỷ nhiệm chi</span></h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select id="lenhFilter" onchange="renderLenhDA()">
             <option value="cho">Cần xử lý (chờ duyệt / chờ cấp tiền)</option>
@@ -971,18 +971,18 @@
       </div>
       <div class="tw">
         <table style="min-width:980px">
-          <thead><tr><th>Dự án</th><th>Đợt</th><th>Hạng mục trong lệnh</th><th>Thời gian setup</th>
+          <thead><tr><th>Dự án / Đơn</th><th>Đợt</th><th>Hạng mục trong lệnh</th><th>Thời gian</th>
             <th style="text-align:right">Số tiền xin</th><th>Uỷ nhiệm chi</th><th>Trạng thái</th>
             <th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="lenhBody"></tbody>
         </table>
-        <div class="empty" id="lenhEmpty">Chưa có lệnh tạm ứng nào của dự án.</div>
+        <div class="empty" id="lenhEmpty">Chưa có lệnh tạm ứng nào.</div>
       </div>
     </div>
 
     <div class="card">
       <div class="ch">
-        <h2>🏗 Hạng mục dự án — theo dõi chốt hoá đơn <span style="font-size:11px;font-weight:400;color:#64748b">— nhắc nhân viên chốt sớm, tránh sót</span></h2>
+        <h2>🏗 Hạng mục dự án / đơn — theo dõi chốt hoá đơn <span style="font-size:11px;font-weight:400;color:#64748b">— nhắc nhân viên chốt sớm, tránh sót</span></h2>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <!-- Bảng này nay CHỈ lo khâu chốt hoá đơn — duyệt và cấp tiền đã lên bảng Lệnh tạm
                ứng phía trên. Để lại hai mục lọc ấy ở đây là mời kế toán đi tìm nút không có. -->
@@ -999,7 +999,7 @@
       <div id="hmNhac" style="display:none;margin:0 14px 8px;padding:9px 12px;border-radius:8px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:12.5px"></div>
       <div class="tw">
         <table style="min-width:980px">
-          <thead><tr><th>Dự án</th><th>Hạng mục (đơn)</th><th>Thời gian setup</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <thead><tr><th>Dự án / Đơn</th><th>Hạng mục (đơn)</th><th>Thời gian</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực tế</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="hmBody"></tbody>
         </table>
         <div class="empty" id="hmEmpty">Không có đơn dự án nào.</div>
@@ -1107,11 +1107,11 @@
       </div>
       <div class="tw">
         <table style="min-width:900px">
-          <thead><tr><th>Dự án</th><th>Đợt</th><th>Hạng mục trong lệnh</th><th>Thời gian setup</th>
+          <thead><tr><th>Dự án / Đơn</th><th>Đợt</th><th>Hạng mục trong lệnh</th><th>Thời gian</th>
             <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtLenhBody"></tbody>
         </table>
-        <div class="empty" id="qtLenhEmpty">Chưa có lệnh quyết toán nào của dự án.</div>
+        <div class="empty" id="qtLenhEmpty">Chưa có lệnh quyết toán nào.</div>
       </div>
       <div id="qtLenhPager" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;font-size:12px"></div>
     </div>
@@ -1815,7 +1815,7 @@
   }
   function onNoiDung(){
     var p=PRODMAP[el('f_nd').value.trim().toLowerCase()]; if(!p) return;
-    if(!el('f_dg').value && p.gia){ el('f_dg').value=p.gia; calcTT(); }   // cùng giá -> tự điền, sửa được
+    if(!_oTien('f_dg') && p.gia){ _datTien('f_dg', p.gia); calcTT(); }   // cùng giá -> tự điền, sửa được
     if(!el('f_dvt').value && p.dvt) el('f_dvt').value=p.dvt;
   }
 
@@ -1880,6 +1880,7 @@
   window.onload=initApp;
   function initApp(){
     _billZoomInit();
+    _tienGanHet();   // ô tiền hiện dấu chấm nghìn ngay lúc gõ
     // SSO: có danh tính từ trang tổng → tự đăng nhập, bỏ cổng PIN (xác thực lại mỗi lần tải từ token)
     if(typeof SSO_USER!=='undefined' && SSO_USER && SSO_USER.role){
       CURUSER=SSO_USER; el('gate').style.display='none';
@@ -2941,8 +2942,8 @@
   } // đặt 0 (giữ dòng); có thể mở rộng xoá hẳn ở Đợt 2
 
   function calcTT(){
-    var sl=parseFloat(el('f_sl').value)||0, dg=parseFloat(el('f_dg').value)||0;
-    if(sl&&dg) el('f_tt').value=Math.round(sl*dg);
+    var sl=parseFloat(el('f_sl').value)||0, dg=Number(_oTien('f_dg'))||0;
+    if(sl&&dg) _datTien('f_tt', Math.round(sl*dg));
   }
   function attachImg(){
     var inp=el('imgFile'); inp.value='';
@@ -2958,17 +2959,68 @@
   function collectLine(){
     return { coso:el('f_coso').value, ngay:el('f_ngay').value?_dmy(el('f_ngay').value):'', phanLoaiTT:el('f_pltt').value,
       doiTuong:el('f_dt').value.trim(), nhom:el('f_nhom').value, noiDung:el('f_nd').value.trim(), dvt:el('f_dvt').value.trim(),
-      soLuong:el('f_sl').value, donGia:el('f_dg').value, thanhTien:el('f_tt').value, thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value };
+      soLuong:el('f_sl').value, donGia:_oTien('f_dg'), thanhTien:_oTien('f_tt'), thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value };
   }
   /**
-   * Ô NHẬP TIỀN — HIỆN CÓ DẤU CHẤM NGHÌN, ĐÚNG NHƯ MỌI CHỖ KHÁC.
+   * Ô NHẬP TIỀN — HIỆN DẤU CHẤM NGHÌN NGAY LÚC ĐANG GÕ.
    *
-   * `<input type="number">` KHÔNG hiện được "246.000": trình duyệt chỉ nhận số thuần, gán
-   * chuỗi có dấu chấm vào là ô rỗng luôn. Nên phải là type=text + inputmode=numeric.
+   * Anh Thắng 11/09/2026: *"khi gõ vào nó hiện ra 500.000 để dễ hiểu"*. Gõ 500000 rồi đếm số
+   * 0 bằng mắt là cách sai một chữ số mà không ai bắt được — 500.000 với 5.000.000 nhìn như
+   * nhau khi viết liền.
    *
-   * Định dạng lúc RỜI ô, bỏ định dạng lúc VÀO ô: gõ tới đâu chèn dấu chấm tới đó thì con
-   * trỏ nhảy lung tung, sửa một chữ số ở giữa thành cực hình trên điện thoại.
+   * `<input type="number">` KHÔNG hiện được "500.000": trình duyệt chỉ nhận số thuần, gán
+   * chuỗi có dấu chấm vào là ô rỗng luôn. Nên mọi ô tiền là type=text + inputmode=numeric
+   * (điện thoại vẫn bật bàn phím số) + `data-tien="1"`.
+   *
+   * ⚠️ TRƯỚC ĐÂY CHỈ ĐỊNH DẠNG LÚC RỜI Ô, vì chèn dấu chấm giữa chừng làm con trỏ nhảy về
+   *    cuối — sửa một chữ số ở giữa thành cực hình trên điện thoại. Nay định dạng ngay lúc gõ
+   *    nhưng ĐẶT LẠI CON TRỎ THEO SỐ CHỮ SỐ ĐỨNG TRƯỚC NÓ, không theo vị trí ký tự: dấu chấm
+   *    chèn thêm không đẩy con trỏ đi đâu cả. Bỏ phép đếm ấy là quay lại đúng chỗ đau cũ.
+   *
+   * 🔴 GIÁ TRỊ TRONG Ô GIỜ CÓ DẤU CHẤM, NÊN `Number(o.value)` LÀ SAI VÀ SAI IM LẶNG:
+   *    `Number("500.000")` = 500 — JS đọc dấu chấm là dấu thập phân. Đơn giá 500.000 thành
+   *    500đ mà màn hình vẫn hiện đúng, không câu lỗi nào. Mọi chỗ đọc ô tiền PHẢI đi qua
+   *    `_oTien()`, mọi chỗ ghi PHẢI đi qua `_datTien()`. `kiem-o-tien-cham-nghin.js` quét
+   *    `el('<ô tiền>').value` đọc trần và bắt đỏ, kể cả ô thứ mười lăm thêm sau này.
    */
+  /* 🔴 DANH SÁCH Ô TIỀN — MỘT NƠI DUY NHẤT. Bốn màn nhập (sổ chi phí · sửa dòng · dự án ·
+     công tác/Setup) cùng một khuôn; giữ bốn danh sách rời là bốn nơi phải nhớ sửa, mà chỗ
+     quên thì ô ấy đọc trần và ra số sai gấp nghìn lần. Thêm ô mới: khai vào đây VÀ đặt
+     `data-tien="1"` trong HTML. */
+  var O_TIEN=['f_dg','f_tt','sc_dg','sc_tt','sc_dutoan','da_dt','da_dg','da_tt','da_thucte',
+              'bl_dg','bl_tt','bl_dt','bl_thucchi'];
+  /** Đọc một ô tiền ra SỐ TRẦN (chuỗi). '' nếu ô trống. */
+  function _oTien(id){ var o=el(id); return o?_tienSo(o.value):''; }
+  /** Ghi số vào một ô tiền, hiện dạng có dấu chấm. */
+  function _datTien(id,v){ var o=el(id); if(o) o.value=(v===''||v==null)?'':_tienDep(v); }
+  /**
+   * Định dạng NGAY LÚC GÕ, giữ nguyên chỗ con trỏ.
+   *
+   * Cách giữ: đếm xem trước con trỏ có bao nhiêu CHỮ SỐ, định dạng lại, rồi đi từ đầu chuỗi
+   * mới cho tới khi đếm đủ bấy nhiêu chữ số. Dấu chấm chèn thêm nằm ngoài phép đếm nên không
+   * đẩy con trỏ.
+   */
+  function tienGo(o){
+    if(!o) return;
+    var cu=String(o.value||''), vt=0;
+    try{ vt=o.selectionStart==null?cu.length:o.selectionStart; }catch(e){ vt=cu.length; }
+    var truoc=cu.slice(0,vt).replace(/[^0-9]/g,'').length;
+    var moi=_tienDep(cu);
+    if(moi===cu){ return; }
+    o.value=moi;
+    var i=0, dem=0;
+    while(i<moi.length && dem<truoc){ if(/[0-9]/.test(moi.charAt(i))) dem++; i++; }
+    try{ o.setSelectionRange(i,i); }catch(e){}
+  }
+  /** Gắn định dạng cho mọi ô mang `data-tien="1"`. Gọi một lần lúc trang dựng xong. */
+  function _tienGanHet(){
+    var ds=document.querySelectorAll('input[data-tien="1"]');
+    for(var i=0;i<ds.length;i++){
+      /* `input` chứ không phải `keyup`: bắt cả dán chuột lẫn gõ bằng bàn phím ảo. */
+      ds[i].addEventListener('input', function(){ tienGo(this); });
+      ds[i].addEventListener('blur', function(){ this.value=_tienDep(this.value); });
+    }
+  }
   /** 'dd/MM/yyyy' -> 'yyyy-MM-dd' cho <input type="date">; đọc luôn dạng ISO sẵn. */
   function _ymd(v){
     var s=String(v||'').trim();
@@ -3148,7 +3200,7 @@
       if(b!==null){ NHOM_CP=_khoaNhom(b, l.nhom); renderNhomCp(); }
     })();
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
-    el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; el('f_dg').value=l.donGia||''; el('f_tt').value=l.thanhTien||''; el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
+    el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; _datTien('f_dg', l.donGia); _datTien('f_tt', l.thanhTien); el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
     el('f_gc').value=l.ghiChu||''; el('f_anh').value=l.anh||''; el('imgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(l.ngay){var p=String(l.ngay).split('/'); if(p.length===3)el('f_ngay').value=p[2]+'-'+p[1]+'-'+p[0];}
     _veNgayVi();
@@ -3872,12 +3924,12 @@
       return '<tr><td>'+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td><td class="money">'+money(l.thanhTien)+'</td><td class="money">'+money(l.duToan)+'</td><td class="money">'+money(l.thucTe)+'</td><td style="white-space:nowrap">'+ht+'</td><td>'+esc(l.vat)+'</td><td>'+esc(l.ngay)+'</td><td style="text-align:center">'+doc+'</td><td>'+esc(l.note)+'</td><td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
     }).join('');
   }
-  function blCalcTT(){ var sl=Number(el('bl_sl').value)||0, dg=Number(el('bl_dg').value)||0; el('bl_tt').value=sl*dg||''; }
+  function blCalcTT(){ var sl=Number(el('bl_sl').value)||0, dg=Number(_oTien('bl_dg'))||0; _datTien('bl_tt', sl*dg||''); }
   function saveBpLineUI(){
     if(!BP_CUR){ toast('warn','Chưa mở'); return; }
     var nd=el('bl_nd').value.trim(); if(!nd){ toast('warn','Nhập nội dung'); return; }
-    var thuc=el('bl_thucchi').value; if(thuc==='') thuc=el('bl_tt').value;
-    var rec={ noiDung:nd, soLuong:el('bl_sl').value, donGia:el('bl_dg').value, duToan:el('bl_dt').value, thucTe:thuc, hinhThuc:el('bl_httt').value, vat:el('bl_vat').value, ngay:el('bl_ngay').value.trim(), note:el('bl_note').value.trim(), hoSo:el('bl_hoso').value, loaiCp:_selLoai('bl_loaicp').loai, tkNo:_selLoai('bl_loaicp').tkNo };
+    var thuc=_oTien('bl_thucchi'); if(thuc==='') thuc=_oTien('bl_tt');
+    var rec={ noiDung:nd, soLuong:el('bl_sl').value, donGia:_oTien('bl_dg'), duToan:_oTien('bl_dt'), thucTe:thuc, hinhThuc:el('bl_httt').value, vat:el('bl_vat').value, ngay:el('bl_ngay').value.trim(), note:el('bl_note').value.trim(), hoSo:el('bl_hoso').value, loaiCp:_selLoai('bl_loaicp').loai, tkNo:_selLoai('bl_loaicp').tkNo };
     loading(true);
     var done=function(r){loading(false); if(r&&r.success){ _log(BL_EDIT?'Sửa khoản '+BP_CUR.loai:'Thêm khoản '+BP_CUR.loai, BP_CUR.ten, nd); toast('ok','Đã lưu'); blCancelEdit(); openBp(BP_CUR.ma); } else toast('err',(r&&r.error)||'Lỗi'); };
     var fail=function(e){loading(false);toast('err',e.message);};
@@ -3885,7 +3937,7 @@
     else google.script.run.withSuccessHandler(done).withFailureHandler(fail).addBPLine(BP_CUR.ma, rec);
   }
   function blEdit(row){ if(!BP_CUR)return; var l=null; (BP_CUR.lines||[]).forEach(function(x){if(x.row===row)l=x;}); if(!l)return;
-    el('bl_nd').value=l.noiDung||''; el('bl_sl').value=l.soLuong||''; el('bl_dg').value=l.donGia||''; blCalcTT(); el('bl_dt').value=l.duToan||''; el('bl_thucchi').value=l.thucTe||''; el('bl_httt').value=l.hinhThuc||''; el('bl_vat').value=l.vat||''; el('bl_ngay').value=l.ngay||''; el('bl_note').value=l.note||''; el('bl_hoso').value=l.hoSo||''; _blDocLbl(); _fillLoaiCp('bl_loaicp', l.loaiCp||'', BP_CUR?BP_CUR.diaDiem:'', l.tkNo||'', l.hinhThuc||''); blTkHint();
+    el('bl_nd').value=l.noiDung||''; el('bl_sl').value=l.soLuong||''; _datTien('bl_dg', l.donGia); blCalcTT(); _datTien('bl_dt', l.duToan); _datTien('bl_thucchi', l.thucTe); el('bl_httt').value=l.hinhThuc||''; el('bl_vat').value=l.vat||''; el('bl_ngay').value=l.ngay||''; el('bl_note').value=l.note||''; el('bl_hoso').value=l.hoSo||''; _blDocLbl(); _fillLoaiCp('bl_loaicp', l.loaiCp||'', BP_CUR?BP_CUR.diaDiem:'', l.tkNo||'', l.hinhThuc||''); blTkHint();
     BL_EDIT=row; el('blAddBtn').textContent='💾 Cập nhật'; el('blCancelEdit').style.display='inline-block';
     try{ el('bl_nd').scrollIntoView({block:'center'}); el('bl_nd').focus(); }catch(e){}
   }
@@ -4989,10 +5041,16 @@
       HM_ITEMS=r.items||[]; renderDonHM();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listDonHangMuc();
   }
-  function _hmNgay(k){
+  /* KHOẢNG NGÀY CỦA MỘT DÒNG — kèm chữ nói rõ đó là khoảng gì.
+     Anh Thắng 11/09/2026, nhìn một đơn chi phí cơ sở nằm dưới cột "Thời gian setup":
+     *"Dự án tuần thì nó đâu có thười gian setup"*. Đúng: cùng một cặp ngày nhưng với dự án
+     Setup/Tháo dỡ nó là thời gian thi công, còn với đơn chi phí cơ sở nó là TUẦN của đơn.
+     Một tiêu đề cột không nói được hai nghĩa, nên nghĩa đi theo từng hàng. */
+  function _hmNgay(k, isCoSo){
     var t=String((k&&k.tu)||''), d=String((k&&k.den)||'');
     if(!t&&!d) return '<span style="color:#dc2626">chưa gõ</span>';
-    return esc(_dmy(t)||'?')+' → '+esc(_dmy(d)||'?');
+    return esc(_dmy(t)||'?')+' → '+esc(_dmy(d)||'?')
+      +'<div style="font-size:10px;color:#94a3b8;font-weight:600">'+(isCoSo?'tuần của đơn':'thời gian setup')+'</div>';
   }
   function renderDonHM(){
     var f=(el('hmFilter')&&el('hmFilter').value)||'chuaxong';
@@ -5069,7 +5127,7 @@
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')">'+esc(da.tenDA)+'</a>'
         +'<div style="font-size:10.5px;color:#94a3b8">'+esc(da.loaiDA)+' · '+esc(da.nguoiTao||'')+'</div></td>'
         +'<td style="font-size:12px"><b>'+hs.length+'</b> hạng mục</td>'
-        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(da.kyDA)+'</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(da.kyDA, da.isCoSo)+'</td>'
         +'<td class="money">'+money(tongDT)+'</td><td class="money">'+money(tongTT)+'</td>'
         +'<td style="font-size:11.5px;white-space:nowrap">'+ht+'</td>'
         +'<td>'+tomTat+'</td>'
@@ -5128,7 +5186,7 @@
         +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
         +'<div style="font-size:10.5px;color:#94a3b8">'+(x.rows||[]).length+' hạng mục</div>'+lich+gc+'</td>'
-        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA, x.isCoSo)+'</td>'
         +'<td class="money"><b>'+money(x.soTien)+'</b></td>'
         +'<td style="font-size:11.5px;color:#0f766e">'+(x.unc?esc(x.unc):'—')+'</td>'
         +'<td>'+lenhNhan(x.tt)+'</td>'
@@ -5798,7 +5856,7 @@
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
         +'<div style="font-size:10.5px;color:#94a3b8">'+(x.rows||[]).length+' hạng mục</div>'
         +(x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'')+'</td>'
-        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA, x.isCoSo)+'</td>'
         +'<td class="money"><b>'+money(x.soTien)+'</b></td>'
         +'<td>'+qtNhan(x.tt)+'</td>'
         +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
@@ -6088,7 +6146,7 @@
     var win=window.open('','_blank'); if(!win){ toast('warn','Trình duyệt chặn popup — cho phép rồi bấm lại'); return; }
     win.document.open(); win.document.write(html); win.document.close();
   }
-  function daCalcTT(){ var sl=Number(el('da_sl').value)||0, dg=Number(el('da_dg').value)||0; el('da_tt').value=sl*dg||''; }
+  function daCalcTT(){ var sl=Number(el('da_sl').value)||0, dg=Number(_oTien('da_dg'))||0; _datTien('da_tt', sl*dg||''); }
   function daPickImg(){ var inp=el('imgFile'); inp.value=''; inp.onchange=function(){ var file=inp.files[0]; if(!file)return; loading(true);
       var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
         google.script.run.withSuccessHandler(function(res){loading(false);
@@ -6109,8 +6167,8 @@
   function daClearLineForm(){ ['da_nd','da_gian','da_dt','da_sl','da_dg','da_tt','da_thucte','da_note','da_anh'].forEach(function(i){el(i).value='';}); el('da_vat').value=''; if(el('da_httt')) el('da_httt').value=''; if(el('da_capCha')) el('da_capCha').value=''; if(el('da_hoso')) el('da_hoso').value=''; _daDocLbl(); daCapChaHint(); el('daImgBtn').textContent='📎 Đính ảnh'; }
   function daCancelEditLine(){ DA_EDIT_ROW=null; daClearLineForm(); if(el('daAddBtn')) el('daAddBtn').textContent='＋ Thêm dòng'; if(el('daCancelEdit')) el('daCancelEdit').style.display='none'; }
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
-    el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
-    el('da_thucte').value=l.thucTe||''; el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
+    el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; _datTien('da_dt',(l.duToan||l.duToan===0)?l.duToan:''); el('da_sl').value=l.soLuong||''; _datTien('da_dg', l.donGia); daCalcTT();
+    _datTien('da_thucte', l.thucTe); el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
@@ -6129,8 +6187,8 @@
     var nd=String((el('da_nd')&&el('da_nd').value)||'').trim();
     if(!nd){ nd=String(_selLoai('da_loaicp').loai||'').trim(); }
     if(!nd){ toast('warn','Nhập nội dung hoặc chọn loại chi phí'); return; }
-    var thucte=el('da_thucte').value; if(thucte==='') thucte=el('da_tt').value;   // thực tế trống -> = thành tiền
-    var rec={ noiDung:nd, gian:el('da_gian').value.trim(), duToan:el('da_dt').value, soLuong:el('da_sl').value, donGia:el('da_dg').value, thucTe:thucte, vat:el('da_vat').value, anh:el('da_anh').value, note:el('da_note').value.trim(), capCha:(el('da_capCha')?el('da_capCha').value:''), hinhThuc:(el('da_httt')?el('da_httt').value:''), hoSo:(el('da_hoso')?el('da_hoso').value:''), loaiCp:_selLoai('da_loaicp').loai, tkNo:_selLoai('da_loaicp').tkNo };
+    var thucte=_oTien('da_thucte'); if(thucte==='') thucte=_oTien('da_tt');   // thực tế trống -> = thành tiền
+    var rec={ noiDung:nd, gian:el('da_gian').value.trim(), duToan:_oTien('da_dt'), soLuong:el('da_sl').value, donGia:_oTien('da_dg'), thucTe:thucte, vat:el('da_vat').value, anh:el('da_anh').value, note:el('da_note').value.trim(), capCha:(el('da_capCha')?el('da_capCha').value:''), hinhThuc:(el('da_httt')?el('da_httt').value:''), hoSo:(el('da_hoso')?el('da_hoso').value:''), loaiCp:_selLoai('da_loaicp').loai, tkNo:_selLoai('da_loaicp').tkNo };
     var editRow=DA_EDIT_ROW; loading(true);
     var cb=function(r){loading(false);
       if(r&&r.success){ _log(editRow?'Sửa dòng dự án KT':'Thêm dòng dự án KT', DA_CUR.ten, nd+' · dự toán '+money(rec.duToan||0)+' · thực tế '+money(thucte||0)); daCancelEditLine(); openDuAn(DA_CUR.maDA); loadDuAn(); }
@@ -7474,14 +7532,14 @@
     el('sc_tk').value = ten ? ('Nợ '+(no||'?')+' / Có '+tkCo+(mang?('  ·  '+mang):'')) : '';
     el('sc_tk').style.color=no?'#0f766e':'#dc2626';
   }
-  function calcScTT(){ var sl=parseFloat(el('sc_sl').value)||0, dg=parseFloat(el('sc_dg').value)||0; if(sl&&dg) el('sc_tt').value=Math.round(sl*dg); }
+  function calcScTT(){ var sl=parseFloat(el('sc_sl').value)||0, dg=Number(_oTien('sc_dg'))||0; if(sl&&dg) _datTien('sc_tt', Math.round(sl*dg)); }
 
   function collectSoChi(){
     return { ngay:el('sc_ngay').value?_dmy(el('sc_ngay').value):'', coso:el('sc_coso').value, loai:_selLoai('sc_loai').loai, tkNo:_selLoai('sc_loai').tkNo,
       hinhThuc:el('sc_ht').value, doiTuong:el('sc_dt').value.trim(), noiDung:el('sc_nd').value.trim(), dvt:el('sc_dvt').value.trim(),
-      soLuong:el('sc_sl').value, donGia:el('sc_dg').value, soTien:el('sc_tt').value, thueSuat:el('sc_thue').value,
+      soLuong:el('sc_sl').value, donGia:_oTien('sc_dg'), soTien:_oTien('sc_tt'), thueSuat:el('sc_thue').value,
       vat:el('sc_vat').value, ghiChu:el('sc_gc').value.trim(), anh:el('sc_anh').value,
-      maDuAn:el('sc_mada').value.trim(), hangMuc:el('sc_hangmuc').value.trim(), duToan:el('sc_dutoan').value };
+      maDuAn:el('sc_mada').value.trim(), hangMuc:el('sc_hangmuc').value.trim(), duToan:_oTien('sc_dutoan') };
   }
   function resetScForm(){
     ['sc_id','sc_dt','sc_nd','sc_dvt','sc_sl','sc_dg','sc_tt','sc_thue','sc_gc','sc_anh','sc_mada','sc_hangmuc','sc_dutoan'].forEach(function(i){el(i).value='';});
@@ -7513,9 +7571,9 @@
     var p=String(x.ngay||'').split('/'); el('sc_ngay').value=(p.length===3)?(p[2]+'-'+p[1]+'-'+p[0]):'';
     el('sc_coso').value=x.coso; fillScLoai(x.loai, x.tkNo||''); el('sc_ht').value=x.hinhThuc||'Tạm ứng NV';
     el('sc_dt').value=x.doiTuong||''; el('sc_nd').value=x.noiDung||''; el('sc_dvt').value=x.dvt||'';
-    el('sc_sl').value=x.soLuong||''; el('sc_dg').value=x.donGia||''; el('sc_tt').value=x.soTien||'';
+    el('sc_sl').value=x.soLuong||''; _datTien('sc_dg', x.donGia); _datTien('sc_tt', x.soTien);
     el('sc_thue').value=x.thueSuat||''; el('sc_vat').value=x.vat||''; el('sc_gc').value=x.ghiChu||''; el('sc_anh').value=x.anh||'';
-    el('sc_mada').value=x.maDuAn||''; el('sc_hangmuc').value=x.hangMuc||''; el('sc_dutoan').value=x.duToan||'';
+    el('sc_mada').value=x.maDuAn||''; el('sc_hangmuc').value=x.hangMuc||''; _datTien('sc_dutoan', x.duToan);
     el('scImgBtn').textContent=x.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     el('scBtnSave').textContent='💾 Lưu thay đổi'; el('scBtnCancel').classList.remove('hide');
     el('scListTitle').textContent='Đang sửa dòng chi';
