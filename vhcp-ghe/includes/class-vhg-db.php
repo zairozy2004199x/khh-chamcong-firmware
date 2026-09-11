@@ -776,6 +776,9 @@ class VHG_DB {
 			   TIỀN (actual/tien_mat/qr/tong) vẫn BIGINT nguyên đồng — chỉ mỗi cột chỉ số có phần lẻ. */
 			chi_so_truoc DECIMAL(14,2) NULL,
 			chi_so_sau DECIMAL(14,2) NULL,
+			/* 🔒 MỐC TAY — anh Thắng 11/09/2026: kế toán/quản lý sửa TAY chỉ số trước cho một báo cáo
+			   (khi mốc tự-nối lấy nhầm số rác). =1 thì khóa: auto-nối (ap_moc_) KHÔNG đè lên nữa. */
+			moc_tay TINYINT(1) NOT NULL DEFAULT 0,
 			actual BIGINT(20) NOT NULL DEFAULT 0,
 			tien_mat BIGINT(20) NOT NULL DEFAULT 0,
 			qr BIGINT(20) NOT NULL DEFAULT 0,
