@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` | **1.46.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.59.0** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -49,9 +49,10 @@ npx.cmd zmp deploy
 |---|---|---|
 | Bán vé (khách) | `khmatrix.com/mua-ve` | `[posh_ve]` |
 | Quản trị vé (marketing, đăng nhập PIN) | `khmatrix.com/quan-tri-ve` | `[posh_ql]` |
+| Soát vé tại quầy (nhân viên) | `khmatrix.com/soat-ve` · mỗi quầy một link `?cs=MÃCS` | `[posh_soat]` |
 | Quản trị WordPress (admin) | WP Admin → **Vé khu vui chơi** | — |
 
-Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hiện link ngay trong WP Admin.
+Cả 3 trang tự được tạo khi kích hoạt plugin. Trang quản trị hiện link ngay trong WP Admin.
 
 ---
 
@@ -112,6 +113,48 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 - Plugin có **hai** file phải để mắt: `vhcp-ve/vhcp-ve.php` (PHP) và `vhcp-ve/assets/ve.js`
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
+
+### 🏪 Cơ sở bán chạy đo **HAI** con số khác nhau — đừng gộp làm một (từ 1.59.0)
+Màn **🏪 Cơ sở bán chạy** (`/ql/coso-bc`) xếp hạng cửa hàng bằng hai thước đo, và chúng **không**
+thay nhau được:
+
+| Cột | Lấy ở đâu | Trả lời câu hỏi |
+|---|---|---|
+| **Bán tại chỗ** | `pve_ve.coso` — quầy gắn vào đơn lúc khách quét mã tại cửa hàng | cửa hàng **bán** được bao nhiêu |
+| **Đã soát** | `pve_ve.coso_dung` — quầy bấm xác nhận lúc khách vào cửa | cửa hàng **đón** bao nhiêu lượt khách |
+
+Vé mua từ xa rồi vào chơi ở cơ sở X: `coso` trống, `coso_dung` = X. Gộp hai cột lại là mất luôn
+thông tin ấy, mà đó chính là cái cần để biết cơ sở nào đang "ăn" khách của kênh trực tuyến.
+Vì thế **Mua từ xa** đứng thành một dòng riêng (khoá `@xa`), không bị nhét vào cửa hàng nào.
+
+Hai điểm dễ làm hỏng số liệu:
+- **Gộp tên bằng `squash_cs()`** (bỏ dấu + bỏ ký tự lạ + viết hoa) trước khi cộng. Tên cơ sở do
+  người gõ tay vào đơn, nên "FunZone Hà Nội" và "Funzone Ha Noi" là **một** cửa hàng; không bóp
+  tên thì bảng xếp hạng tách đôi doanh thu của họ.
+- **Cơ sở bán 0 vé vẫn phải có trong bảng.** Danh sách dựng từ bảng cơ sở đã khai, rồi mới cộng số
+  vào — chứ không phải `GROUP BY` rồi lấy những gì có. Cửa hàng doanh số 0 biến mất khỏi báo cáo
+  là đúng cái cửa hàng cần nhìn nhất.
+
+### 🔴 Link quét mã theo cửa hàng — tiện, KHÔNG phải bảo mật (từ 1.59.0)
+Mỗi nhân viên mở một đường dẫn riêng: `<trang soát vé>/?cs=MÃCS`. Trang tự tạo khi kích hoạt
+plugin (`bao_dam_trang_soat()`, mặc định `/soat-ve`, nội dung `[posh_soat]`); link lấy sẵn ở màn
+**🏪 Cơ sở bán chạy**, mỗi thẻ cửa hàng có nút **Chép**.
+
+Có `?cs=` thì `soat.js` **khoá** ô chọn quầy, đổi nhãn thành "Quầy (đã khoá theo link)", gỡ nút
+"Đổi quầy", và **ghi đè ca đang lưu trong máy** nếu ca ấy là quầy khác.
+
+⚠️ Khoá này là để nhân viên **khỏi phải chọn**, không phải để chặn ai: sửa `?cs=` trên thanh địa
+chỉ là đổi được quầy. Cửa thật vẫn là **PIN**, và mọi luật vẫn do máy chủ chốt ở `r_soat()`. Giá
+trị thật của nó: nhân viên quầy A không lỡ tay soát vé vào sổ quầy B — lỗi đó rất khó thấy, vì vé
+vẫn "đã dùng", chỉ sai chỗ, và bảng ở trên sẽ ghi nhầm lượt khách suốt cả tháng.
+
+### Tỉ lệ điểm thưởng khai trong web quản trị (từ 1.59.0)
+Trước đây "1 điểm = 1.000đ" nằm cứng trong mã. Từ 1.59.0 nó là tuỳ chọn `pve_tien_moi_diem` (mặc
+định 1000), sửa ở màn **🏅 Hạng thành viên**, và `cong_diem()` đọc qua `tien_moi_diem()`.
+
+⚠️ Đổi tỉ lệ **chỉ áp cho đơn mua sau đó**. Điểm đã cộng cho khách nằm sẵn ở `pve_tv`, không được
+tính lại — tính lại là tự ý sửa hạng của khách đã lên hạng, chuyện đó phải do anh Thắng quyết chứ
+không phải tác dụng phụ của một lần sửa ô số. Màn hình có ghi rõ dòng cảnh báo này.
 
 ### Đơn nạp ví nằm ở bảng RIÊNG — màn Đơn hàng không thấy
 `pve_nap` khác `pve_ve`, nên màn **Đơn hàng & soát vé** không bao giờ liệt kê lệnh nạp. Từ

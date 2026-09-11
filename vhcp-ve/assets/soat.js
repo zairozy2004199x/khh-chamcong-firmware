@@ -33,7 +33,7 @@
 		q('.psoat-dn').hidden = true;
 		q('.psoat-lam').hidden = false;
 		q('.psoat-cs-ten').textContent = '📍 ' + c.cs;
-		q('.psoat-doi').hidden = false;
+		var nd = q('.psoat-doi'); if (nd) { nd.hidden = false; }
 		lanDau = true; daThay = {};
 		lamTuoi();
 		if (hen) clearInterval(hen);
@@ -61,7 +61,8 @@
 		.catch(function(){ btn.disabled = false; btn.textContent = 'Vào ca';
 			err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
 	});
-	q('.psoat-doi').addEventListener('click', function(){
+	var nutDoi = q('.psoat-doi');
+	if (nutDoi) nutDoi.addEventListener('click', function(){
 		if (hen) { clearInterval(hen); hen = null; }
 		q('.psoat-lam').hidden = true; q('.psoat-dn').hidden = false; q('.psoat-doi').hidden = true;
 		q('.psoat-cs-ten').textContent = '';
@@ -180,6 +181,22 @@
 		q('.psoat-cam').textContent = '📷 Quét bằng camera';
 	}
 
+	/* ── Cơ sở KHOÁ theo link ────────────────────────────────────────────────────────────
+	   Mỗi quầy một đường dẫn riêng (?cs=MÃ) nên nhân viên không phải chọn — và không lỡ tay
+	   soát vé vào sổ quầy khác. Lỗi ấy rất khó phát hiện: vé vẫn "đã dùng", chỉ sai chỗ.
+	   ⚠️ Khoá này là để KHỎI PHẢI CHỌN, không phải để bảo mật: ai sửa ?cs= cũng đổi được quầy.
+	   Cửa thật vẫn là PIN, và mọi luật do máy chủ chốt (POSH_Ve::r_soat). */
+	if (D.khoa){
+		var sel = q('.psoat-cs');
+		for (var i = 0; i < sel.options.length; i++){ if (sel.options[i].value === D.khoa) { sel.selectedIndex = i; break; } }
+		sel.disabled = true;
+		var nhan = sel.parentNode.querySelector('label');
+		if (nhan) { nhan.textContent = 'Quầy (đã khoá theo link)'; }
+		q('.psoat-doi').remove();          /* khoá rồi thì không cho đổi quầy nữa */
+	}
+
 	var cu = caDoc();
+	/* Link khoá quầy nào thì vào quầy ấy, kể cả máy này ca trước đứng quầy khác. */
+	if (cu && D.khoa && cu.cs !== D.khoa){ cu.cs = D.khoa; }
 	if (cu){ q('.psoat-cs').value = cu.cs; vaoCa(cu); }
 })();

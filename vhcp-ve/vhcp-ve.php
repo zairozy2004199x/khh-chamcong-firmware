@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.58.0
+ * Version:           1.59.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -420,6 +420,44 @@ class POSH_Ve {
 	}
 
 	/* Bảo đảm có sẵn 1 trang QUẢN TRỊ VÉ (marketing) chứa [posh_ql]. Trả về ID (0 nếu lỗi). */
+	/**
+	 * Trang soát vé `[posh_soat]` — tự dựng như hai trang kia, để không phải dặn ai tạo tay.
+	 */
+	public static function bao_dam_trang_soat() {
+		$pid = (int) get_option( 'pve_soat_page_id' );
+		if ( $pid && ( $p = get_post( $pid ) ) && 'trash' !== $p->post_status ) { return $pid; }
+		global $wpdb;
+		$co = (int) $wpdb->get_var( "SELECT ID FROM {$wpdb->posts} WHERE post_type='page' AND post_status IN ('publish','draft','pending') AND post_content LIKE '%[posh_soat]%' ORDER BY ID ASC LIMIT 1" );
+		if ( $co ) { update_option( 'pve_soat_page_id', $co ); return $co; }
+		$moi = wp_insert_post( array(
+			'post_title'   => 'Soát vé tại quầy',
+			'post_name'    => 'soat-ve',
+			'post_content' => '[posh_soat]',
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+		) );
+		if ( $moi && ! is_wp_error( $moi ) ) { update_option( 'pve_soat_page_id', (int) $moi ); return (int) $moi; }
+		return 0;
+	}
+
+	/**
+	 * Link quét mã RIÊNG CHO TỪNG CƠ SỞ — anh Thắng 11/09/2026: *"mỗi nhân viên quét tương ứng
+	 * với 1 cửa hàng"*.
+	 *
+	 * ⚠️ Khoá cơ sở bằng link là để nhân viên KHỎI PHẢI CHỌN, không phải để bảo mật: ai sửa
+	 * `?cs=` trên thanh địa chỉ cũng đổi được quầy. Cửa thật vẫn là PIN, và máy chủ vẫn tự chốt
+	 * mọi luật ở POSH_Ve::r_soat(). Giá trị của nó là nhân viên quầy A không bao giờ lỡ tay soát
+	 * vé vào sổ quầy B — lỗi ấy rất khó phát hiện vì vé vẫn "đã dùng", chỉ sai chỗ.
+	 */
+	public static function link_soat( $ma_cs = '' ) {
+		$pid = self::bao_dam_trang_soat();
+		if ( ! $pid ) { return ''; }
+		$u = get_permalink( $pid );
+		if ( ! $u ) { return ''; }
+		$ma_cs = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $ma_cs ) );
+		return '' === $ma_cs ? $u : add_query_arg( 'cs', $ma_cs, $u );
+	}
+
 	public static function bao_dam_trang_ql() {
 		$pid = (int) get_option( 'pve_ql_page_id' );
 		if ( $pid && ( $p = get_post( $pid ) ) && 'trash' !== $p->post_status ) { return $pid; }
@@ -738,12 +776,24 @@ class POSH_Ve {
 			'con_thieu' => $ke ? max( 0, $ke['moc'] - (int) $diem ) : 0,
 		);
 	}
-	/* Cộng điểm cho 1 số điện thoại (1 điểm = 1.000đ). */
+	/**
+	 * MỘT ĐIỂM ĐỔI ĐƯỢC BAO NHIÊU TIỀN — khai ở khu quản trị, đừng gõ cứng.
+	 *
+	 * ⚠️ Đổi con số này KHÔNG tính lại điểm cũ. Điểm đã cộng là điểm đã cộng; tính lại theo tỉ lệ
+	 * mới là khách đang ở hạng Vàng bỗng tụt về Bạc mà chẳng làm gì sai. Muốn đổi sâu thì sửa
+	 * luôn điểm mốc của các hạng cho khớp.
+	 */
+	public static function tien_moi_diem() {
+		$n = (int) get_option( 'pve_tien_moi_diem', 1000 );
+		return $n > 0 ? $n : 1000;
+	}
+
+	/* Cộng điểm cho 1 số điện thoại. Tỉ lệ do quản trị khai — xem tien_moi_diem(). */
 	public static function cong_diem( $sdt, $ten, $so_tien ) {
 		$sdt = preg_replace( '/[^0-9+]/', '', (string) $sdt );
 		if ( '' === $sdt ) { return; }
 		global $wpdb; $tv = self::tbl_tv();
-		$diem = (int) floor( (int) $so_tien / 1000 );
+		$diem = (int) floor( (int) $so_tien / self::tien_moi_diem() );
 		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem, tong_chi, so_don FROM $tv WHERE sdt=%s", $sdt ), ARRAY_A );
 		if ( $cu ) {
 			$wpdb->update( $tv, array(
@@ -792,6 +842,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
+		register_rest_route( self::NS, '/ql/coso-bc', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_coso_bc' ) ) );
 		register_rest_route( self::NS, '/ql/nap-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_ds' ) ) );
 		register_rest_route( self::NS, '/ql/nap-soi', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_soi' ) ) );
 		register_rest_route( self::NS, '/ql/nap-xn', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_xn' ) ) );
@@ -1687,6 +1738,76 @@ class POSH_Ve {
 	 * bao giờ thấy chúng. Trong lúc luồng SePay chưa thông thì đây là chỗ DUY NHẤT để quản trị
 	 * nhìn thấy khách đã tạo lệnh nạp nào và xác nhận tay.
 	 */
+	/**
+	 * XẾP HẠNG CƠ SỞ — anh Thắng 11/09/2026: *"thêm tab cửa hàng bán tốt nhất"*.
+	 *
+	 * ⚠️ ĐO BẰNG HAI THƯỚC, KHÔNG PHẢI MỘT. Phần lớn vé bán từ xa (khách mua ở nhà, cột `coso`
+	 * rỗng) nên nếu chỉ đếm "bán ở cơ sở nào" thì mọi cơ sở đều gần bằng 0 và bảng xếp hạng nói
+	 * dối. Hai con số khác nhau, cần cả hai:
+	 *   · BÁN   — khách quét tem QR tại quầy rồi mua (cột `coso`): đo sức bán tại chỗ.
+	 *   · SOÁT  — vé thật sự dùng ở đâu (cột `coso_dung`): đo lượng khách qua cửa.
+	 * Một cơ sở bán ít mà soát nhiều nghĩa là khách mua online rồi tới đó chơi — vẫn là cơ sở
+	 * đông khách, cắt bớt là quyết định sai.
+	 *
+	 * Dòng "Mua từ xa" giữ riêng, không nhập vào cơ sở nào: gán bừa cho một cơ sở là bịa số.
+	 */
+	public static function r_ql_coso_bc( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb; $tbl = self::tbl();
+		$ky  = sanitize_key( (string) $req->get_param( 'ky' ) );
+		$now = (int) current_time( 'timestamp' );
+		$tu  = '';
+		if ( 'tuan' === $ky )      { $tu = gmdate( 'Y-m-d 00:00:00', strtotime( '-6 day', $now ) ); }
+		elseif ( 'thang' === $ky ) { $tu = gmdate( 'Y-m-d 00:00:00', strtotime( '-29 day', $now ) ); }
+
+		$paid = "trang_thai IN ('da_tt','da_dung')";
+		$sql  = "SELECT coso, COUNT(*) AS sl, COALESCE(SUM(so_tien),0) AS dt FROM $tbl WHERE $paid";
+		$a    = array();
+		if ( '' !== $tu ) { $sql .= ' AND tao_luc >= %s'; $a[] = $tu; }
+		$sql .= ' GROUP BY coso';
+		$ban  = $a ? $wpdb->get_results( $wpdb->prepare( $sql, $a ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+
+		$sql2 = "SELECT coso_dung, COUNT(*) AS sl FROM $tbl WHERE trang_thai='da_dung'";
+		$a2   = array();
+		if ( '' !== $tu ) { $sql2 .= ' AND dung_luc >= %s'; $a2[] = $tu; }
+		$sql2 .= ' GROUP BY coso_dung';
+		$soat = $a2 ? $wpdb->get_results( $wpdb->prepare( $sql2, $a2 ), ARRAY_A ) : $wpdb->get_results( $sql2, ARRAY_A );
+
+		/* Gom theo TÊN đã bóp (bỏ dấu, bỏ khoảng trắng, viết hoa): tên khai tay ở hai chỗ khác
+		   nhau — "FunZone Hà Nội" và "Funzone Ha Noi" — mà để thành hai dòng là bảng xếp hạng
+		   chia đôi doanh thu của cùng một cơ sở. */
+		$m = array();
+		$them = function ( $ten, $k, $v ) use ( &$m ) {
+			$ten = trim( (string) $ten );
+			$key = '' === $ten ? '@xa' : self::squash_cs( $ten );
+			if ( ! isset( $m[ $key ] ) ) {
+				$m[ $key ] = array( 'ten' => ( '' === $ten ? 'Mua từ xa' : $ten ), 'sl' => 0, 'dt' => 0, 'soat' => 0, 'tu_xa' => ( '' === $ten ) );
+			}
+			$m[ $key ][ $k ] += (int) $v;
+		};
+		/* Cơ sở đã khai mà chưa bán được vé nào vẫn phải có mặt — biết chỗ nào ế cũng quan trọng
+		   như biết chỗ nào chạy. */
+		$link = array();
+		foreach ( self::ds_coso() as $c ) {
+			$them( $c['ten'], 'sl', 0 );
+			$link[ self::squash_cs( $c['ten'] ) ] = self::link_soat( $c['ma'] );
+		}
+		foreach ( (array) $ban as $r )  { $them( $r['coso'], 'sl', $r['sl'] ); $them( $r['coso'], 'dt', $r['dt'] ); }
+		foreach ( (array) $soat as $r ) { $them( $r['coso_dung'], 'soat', $r['sl'] ); }
+
+		/* Kèm luôn link quét mã của từng quầy — chỗ người ta nhìn cơ sở cũng là chỗ cần gửi link
+		   cho nhân viên quầy đó; bắt đi tìm ở màn khác là sẽ quên. */
+		foreach ( $m as $k => $v ) { $m[ $k ]['link'] = isset( $link[ $k ] ) ? $link[ $k ] : ''; }
+		$ds = array_values( $m );
+		usort( $ds, function ( $x, $y ) {
+			if ( $x['dt'] !== $y['dt'] ) { return $y['dt'] - $x['dt']; }
+			return $y['soat'] - $x['soat'];
+		} );
+		$tong_dt = 0; $tong_soat = 0;
+		foreach ( $ds as $r ) { $tong_dt += (int) $r['dt']; $tong_soat += (int) $r['soat']; }
+		return array( 'ok' => true, 'coso' => $ds, 'tong_dt' => $tong_dt, 'tong_soat' => $tong_soat, 'ky' => $ky );
+	}
+
 	public static function r_ql_nap_ds( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
 		global $wpdb;
@@ -2833,7 +2954,7 @@ class POSH_Ve {
 	/* ── Marketing quản lý HẠNG THÀNH VIÊN từ web (PIN) ── */
 	public static function r_ql_hang_ds( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
-		return array( 'ok' => true, 'ds' => self::ds_hang() );
+		return array( 'ok' => true, 'ds' => self::ds_hang(), 'tien_moi_diem' => self::tien_moi_diem() );
 	}
 	public static function r_ql_hang_luu( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
@@ -2848,7 +2969,11 @@ class POSH_Ve {
 		if ( ! $ra ) { return new WP_Error( 'trong', 'Cần ít nhất 1 hạng.', array( 'status' => 400 ) ); }
 		usort( $ra, function ( $a, $b ) { return $a['moc'] - $b['moc']; } );
 		update_option( 'pve_hang', array_values( $ra ) );
-		return array( 'ok' => true, 'ds' => self::ds_hang() );
+		/* Tỉ lệ quy đổi lưu cùng lượt: hạng và tỉ lệ đi với nhau, sửa một nửa rồi quên nửa kia là
+		   mốc điểm không còn nghĩa gì. Bỏ trống thì giữ nguyên. */
+		$tmd = (int) preg_replace( '/\D+/', '', (string) $req->get_param( 'tien_moi_diem' ) );
+		if ( $tmd > 0 ) { update_option( 'pve_tien_moi_diem', $tmd ); }
+		return array( 'ok' => true, 'ds' => self::ds_hang(), 'tien_moi_diem' => self::tien_moi_diem() );
 	}
 
 	/* ── Danh sách khách hàng đã mua vé (từ bảng thành viên pve_tv) ── */
@@ -3690,10 +3815,16 @@ class POSH_Ve {
 	 * không phải gõ lại. PIN không đi vào mã nguồn (repo công khai) — xem CLAUDE.md mục 4.
 	 */
 	public static function shortcode_soat( $atts ) {
+		$atts = shortcode_atts( array( 'cs' => '' ), $atts, 'posh_soat' );
 		$rest = esc_url_raw( rest_url( self::NS ) );
 		$cs   = self::ds_coso();
+		/* Cơ sở khoá theo link (?cs=MÃ) hoặc theo thuộc tính shortcode. Link tiện hơn: một trang
+		   duy nhất, mỗi quầy một đường dẫn — xem chú thích ở link_soat(). */
+		$ma_khoa = isset( $_GET['cs'] ) ? (string) $_GET['cs'] : (string) $atts['cs'];   // phpcs:ignore WordPress.Security.NonceVerification
+		$khoa    = self::coso_theo_ma( $ma_khoa );
+		$khoa_ten = $khoa ? (string) $khoa['ten'] : '';
 		wp_enqueue_script( 'posh-soat', plugins_url( 'assets/soat.js', __FILE__ ), array(), self::phien_ban(), true );
-		wp_localize_script( 'posh-soat', 'PSOAT', array( 'rest' => $rest, 'cs' => $cs, 'ban' => self::phien_ban() ) );
+		wp_localize_script( 'posh-soat', 'PSOAT', array( 'rest' => $rest, 'cs' => $cs, 'ban' => self::phien_ban(), 'khoa' => $khoa_ten ) );
 		ob_start();
 		?>
 		<div class="psoat">
@@ -3840,6 +3971,7 @@ class POSH_Ve {
 					<button class="pql-tab" data-tab="dm">🗂️ Phân loại vé</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn hàng &amp; soát vé</button>
 					<button class="pql-tab" data-tab="nap">💸 Đơn nạp ví</button>
+					<button class="pql-tab" data-tab="cs">🏪 Cơ sở bán chạy</button>
 					<div class="pql-side-g">Khách hàng</div>
 					<button class="pql-tab" data-tab="kh">👥 Danh sách khách</button>
 					<div class="pql-side-g">Loyalty</div>
@@ -3921,6 +4053,19 @@ class POSH_Ve {
 
 				<?php /* Lệnh nạp ví nằm ở bảng RIÊNG, màn Đơn hàng & soát vé không thấy — xem chú thích
 						 ở POSH_Ve::r_ql_nap_ds(). Đây là chỗ duy nhất quản trị nhìn thấy chúng. */ ?>
+				<?php /* Xếp hạng cơ sở. Đo bằng HAI thước — xem chú thích ở POSH_Ve::r_ql_coso_bc(). */ ?>
+				<div class="pql-pane" data-pane="cs" hidden>
+					<div class="pql-bar"><b>Cơ sở bán chạy</b></div>
+					<div class="pql-seg" data-seg="csky">
+						<button class="on" data-ky="tatca">Tất cả</button><button data-ky="tuan">7 ngày</button><button data-ky="thang">30 ngày</button>
+					</div>
+					<p style="color:var(--mut);font-size:12px;margin:10px 0 12px">
+						<b>Bán tại chỗ</b> = khách quét tem QR ở quầy rồi mua. <b>Đã soát</b> = vé thật sự dùng ở cơ sở đó.
+						Hai con số khác nhau: cơ sở bán ít mà soát nhiều là khách mua online rồi tới đó chơi — vẫn đông khách.
+					</p>
+					<div class="pql-cslist"></div>
+				</div><!-- /pane cs -->
+
 				<div class="pql-pane" data-pane="nap" hidden>
 					<div class="pql-bar"><b>Đơn nạp ví</b></div>
 					<div class="pql-hrow">
@@ -4061,7 +4206,14 @@ class POSH_Ve {
 
 				<div class="pql-pane" data-pane="hang" hidden>
 					<div class="pql-bar"><b>Hạng thành viên (theo điểm)</b><button class="pql-hang-them">+ Thêm hạng</button></div>
-					<p class="tp-empty-s" style="color:var(--mut);font-size:12px;margin:0 0 10px">1 điểm = 1.000đ chi tiêu. Khách đạt đủ điểm mốc sẽ lên hạng. Sửa xong bấm <b>Lưu hạng</b>.</p>
+					<div class="pql-hrow" style="align-items:flex-end">
+						<div style="flex:1"><label>Cứ bao nhiêu tiền chi tiêu thì được 1 điểm?</label>
+							<input class="h-tmd" type="number" min="1" placeholder="1000"></div>
+					</div>
+					<p class="tp-empty-s" style="color:var(--mut);font-size:12px;margin:6px 0 12px">
+						Ví dụ <b>1000</b> = tiêu 1.000đ được 1 điểm. Khách đạt đủ điểm mốc sẽ lên hạng.
+						<b>Đổi tỉ lệ KHÔNG tính lại điểm cũ</b> — điểm đã cộng giữ nguyên, nếu không thì khách
+						đang hạng Vàng bỗng tụt về Bạc mà chẳng làm gì sai. Sửa xong bấm <b>Lưu hạng</b>.</p>
 					<div class="pql-hanglist"></div>
 					<div class="pql-acts"><button class="pql-hang-luu">Lưu hạng</button></div>
 					<div class="pql-hangmsg"></div>
@@ -4256,6 +4408,25 @@ class POSH_Ve {
 		.pql-bdg{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
 		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#166534; }
 		.pql-bdg.da_dung{ background:rgba(59,130,246,.14); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#b91c1c; }
+		.pql-cs{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:12px 14px; margin-bottom:9px; }
+		.pql-cs.xa{ background:var(--sf2); border-style:dashed; }
+		.pql-cs-top{ display:flex; align-items:center; gap:10px; }
+		.pql-cs-top b{ flex:1; min-width:0; font-size:14.5px; }
+		.pql-cs-h{ flex:none; width:24px; height:24px; border-radius:50%; background:var(--gr); color:#1a1204;
+			font-weight:800; font-size:12px; display:flex; align-items:center; justify-content:center; }
+		.pql-cs.xa .pql-cs-h{ background:#e7e2d3; color:#8b8576; }
+		.pql-cs-dt{ font-weight:800; color:var(--g2); font-size:15px; white-space:nowrap; }
+		.pql-cs-thanh{ height:6px; background:#ece7d8; border-radius:999px; overflow:hidden; margin:9px 0 8px; }
+		.pql-cs-thanh i{ display:block; height:100%; background:var(--gr); }
+		.pql-cs-so{ display:flex; flex-wrap:wrap; gap:14px; color:var(--mut); font-size:12.5px; }
+		.pql-cs-so b{ color:var(--tx); }
+		.pql-cs-lk{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:10px;
+			padding-top:10px; border-top:1px dashed var(--bd); }
+		.pql-cs-lk span{ color:var(--mut); font-size:12px; flex:0 0 auto; }
+		.pql-cs-lk input{ flex:1 1 220px; min-width:0; border:1px solid #ddd6c4; background:var(--sf2);
+			color:var(--tx); border-radius:8px; padding:7px 10px; font-size:12px; }
+		.pql-cs-chep{ flex:0 0 auto; border:1px solid var(--bd); background:var(--sf2); color:var(--tx);
+			border-radius:8px; padding:7px 12px; font-size:12px; font-weight:700; cursor:pointer; }
 		.pql-pg{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; }
 		.pql-pg button{ border:1px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:9px;
 			padding:8px 14px; font-weight:700; font-size:13px; cursor:pointer; }
@@ -4345,7 +4516,7 @@ class POSH_Ve {
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
 		      PANE=name; tuLamTuoi();
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='nap') napNap(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='cs') napCs(); if(name==='nap') napNap(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -4514,6 +4685,45 @@ class POSH_Ve {
 		  var TK_NH_DA = false;
 		  /* ── Đơn nạp ví ─────────────────────────────────────────────────────────────────── */
 		  var NAP_TT={cho:'Chờ tiền về',xong:'Đã cộng ví'};
+		  /* ── Cơ sở bán chạy ─────────────────────────────────────────────────────────────── */
+		  var CS_KY='tatca';
+		  function napCs(){
+		    $('.pql-cslist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
+		    get('/ql/coso-bc?ky='+encodeURIComponent(CS_KY)).then(function(d){
+		      var ds=d.coso||[];
+		      if(!ds.length){ $('.pql-cslist').innerHTML='<p style="color:#6f6a5d">Chưa có cơ sở nào.</p>'; return; }
+		      var max=0; ds.forEach(function(r){ if(r.dt>max) max=r.dt; });
+		      $('.pql-cslist').innerHTML=ds.map(function(r,i){
+		        /* Thanh dài theo doanh thu so với cơ sở đứng đầu — nhìn phát thấy chênh lệch, khỏi
+		           phải so từng con số. */
+		        var w = max>0 ? Math.round(r.dt*100/max) : 0;
+		        var hang = r.tu_xa ? '—' : (i+1);
+		        return '<div class="pql-cs'+(r.tu_xa?' xa':'')+'">'
+		          +'<div class="pql-cs-top"><span class="pql-cs-h">'+hang+'</span>'
+		          +'<b>'+esc(r.ten)+'</b><span class="pql-cs-dt">'+VND(r.dt)+'</span></div>'
+		          +'<div class="pql-cs-thanh"><i style="width:'+w+'%"></i></div>'
+		          +'<div class="pql-cs-so"><span>🎟️ Bán tại chỗ: <b>'+r.sl+'</b></span>'
+		          +'<span>✅ Đã soát: <b>'+r.soat+'</b></span></div>'
+		          +(r.link?('<div class="pql-cs-lk"><span>Link quét mã cho nhân viên quầy này:</span>'
+		            +'<input readonly value="'+esc(r.link)+'"><button class="pql-cs-chep" data-lk="'+esc(r.link)+'">Chép</button></div>'):'')
+		          +'</div>';
+		      }).join('')
+		      +'<div class="pql-pg-tong">Tổng doanh thu '+VND(d.tong_dt||0)+' · đã soát '+(d.tong_soat||0)+' vé</div>';
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-cs-chep'),function(b){
+		        b.addEventListener('click',function(){
+		          try{ navigator.clipboard.writeText(b.getAttribute('data-lk')); b.textContent='Đã chép ✓';
+		            setTimeout(function(){ b.textContent='Chép'; },1500); }catch(e){}
+		        });
+		      });
+		    }).catch(function(e){ $('.pql-cslist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  Array.prototype.forEach.call(root.querySelectorAll('.pql-seg[data-seg="csky"] button'),function(b){
+		    b.addEventListener('click',function(){
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-seg[data-seg="csky"] button'),function(x){x.classList.remove('on');});
+		      b.classList.add('on'); CS_KY=b.getAttribute('data-ky'); napCs();
+		    });
+		  });
+
 		  var TRANG_NAP=1;
 		  function napNap(trang){
 		    if(trang) TRANG_NAP=trang;
@@ -4814,7 +5024,7 @@ class POSH_Ve {
 		  // ── Hạng thành viên ──
 		  function napHang(){
 		    $('.pql-hanglist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>'; $('.pql-hangmsg').textContent='';
-		    get('/ql/hang-ds').then(function(d){ hangVe(d.ds||[]); }).catch(function(e){ $('.pql-hanglist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		    get('/ql/hang-ds').then(function(d){ hangVe(d.ds||[]); $('.h-tmd').value=d.tien_moi_diem||1000; }).catch(function(e){ $('.pql-hanglist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
 		  function hangRow(ten,moc){
 		    return '<div class="pql-hrow"><input class="h-ten" placeholder="Tên hạng" value="'+esc(ten||'')+'">'
@@ -4832,7 +5042,7 @@ class POSH_Ve {
 		    });
 		    if(!ds.length){ $('.pql-hangmsg').style.color='#f0a0a0'; $('.pql-hangmsg').textContent='Cần ít nhất 1 hạng.'; return; }
 		    var b=$('.pql-hang-luu'); b.disabled=true; b.textContent='Đang lưu…';
-		    post('/ql/hang-luu',{ds:ds}).then(function(d){ hangVe(d.ds||[]); $('.pql-hangmsg').style.color='#7ee2a8'; $('.pql-hangmsg').textContent='Đã lưu ✓'; })
+		    post('/ql/hang-luu',{tien_moi_diem:Number($('.h-tmd').value||1000), ds:ds}).then(function(d){ hangVe(d.ds||[]); $('.pql-hangmsg').style.color='#166534'; $('.pql-hangmsg').textContent='Đã lưu ✓'; })
 		      .catch(function(e){ $('.pql-hangmsg').style.color='#f0a0a0'; $('.pql-hangmsg').textContent=String(e.message||e); })
 		      .then(function(){ b.disabled=false; b.textContent='Lưu hạng'; });
 		  });
@@ -5579,7 +5789,7 @@ class POSH_Ve {
 	}
 }
 
-register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); POSH_Ve::bao_dam_trang_ql(); flush_rewrite_rules(); } );
+register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); POSH_Ve::bao_dam_trang_ql(); POSH_Ve::bao_dam_trang_soat(); flush_rewrite_rules(); } );
 register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'pve_do_saoke' ); } );
 add_action( 'init', array( 'POSH_Ve', 'init' ), 6 );
 
