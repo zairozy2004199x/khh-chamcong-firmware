@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.40.0
+ * Version:           1.41.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -256,6 +256,22 @@ class POSH_Ve {
 				'bk' => max( 50, min( 5000, (int) ( isset( $x['bk'] ) && $x['bk'] ? $x['bk'] : 400 ) ) ) );
 		}
 		return $ra;
+	}
+
+	/* Ảnh cho từng DANH MỤC vé (tên nhóm -> URL). Quản trị khai ở màn admin; bỏ trống thì lấy
+	   ảnh của vé đầu tiên trong nhóm — dải danh mục có hình ngay từ đầu, không bắt ai đi khai
+	   thêm một vòng nữa mới thấy được thành quả. */
+	public static function ds_nhom_anh() {
+		$v = get_option( 'pve_nhom_anh' );
+		return is_array( $v ) ? $v : array();
+	}
+
+	/* Ảnh đại diện của một danh mục: ảnh khai riêng -> ảnh vé đầu tiên có ảnh -> rỗng. */
+	public static function anh_nhom( $ten_nhom, $ds_ve ) {
+		$m = self::ds_nhom_anh();
+		if ( ! empty( $m[ $ten_nhom ] ) ) { return (string) $m[ $ten_nhom ]; }
+		foreach ( (array) $ds_ve as $g ) { if ( ! empty( $g['anh'] ) ) { return (string) $g['anh']; } }
+		return '';
 	}
 
 	/* Mã cơ sở dùng trong đường dẫn tem QR: bỏ dấu, chỉ chữ và số, tối đa 12 ký tự.
@@ -1460,11 +1476,24 @@ class POSH_Ve {
 				</div>
 				<?php endif; ?>
 				<?php if ( $co_tab_nhom ) : ?>
-				<div class="pve-tabr">
-					<span class="pve-tabl">🎟️ Loại vé</span>
-					<button type="button" class="pve-tab on" data-loc="nhom" data-v="">Tất cả</button>
-					<?php foreach ( array_keys( $nhom ) as $tn ) : ?>
-						<button type="button" class="pve-tab" data-loc="nhom" data-v="<?php echo esc_attr( $tn ); ?>"><?php echo esc_html( $tn ); ?></button>
+				<?php /* Dải danh mục có ẢNH — theo mẫu anh Thắng gửi 11/09/2026 (dải danh mục trong
+				   Zalo Mini App): logo vuông + tên dưới, cuộn ngang, cái đang chọn gạch chân vàng.
+				   Chữ không thôi thì năm danh mục nhìn như nhau; cái logo mới là thứ khách nhận ra
+				   từ xa ("cái hình gấu tuyết" chứ không phải "chữ Snow Fun"). */ ?>
+				<div class="pve-dm">
+					<button type="button" class="pve-dmi on" data-loc="nhom" data-v="">
+						<span class="pve-dmi-anh pve-dmi-all">🎟️</span>
+						<span class="pve-dmi-ten">Tất cả</span>
+					</button>
+					<?php foreach ( $nhom as $tn => $ds_tn ) : $anh_dm = self::anh_nhom( $tn, $ds_tn ); ?>
+						<button type="button" class="pve-dmi" data-loc="nhom" data-v="<?php echo esc_attr( $tn ); ?>">
+							<span class="pve-dmi-anh">
+								<?php if ( $anh_dm ) : ?>
+									<img src="<?php echo esc_url( $anh_dm ); ?>" alt="<?php echo esc_attr( $tn ); ?>" loading="lazy">
+								<?php else : ?>🎫<?php endif; ?>
+							</span>
+							<span class="pve-dmi-ten"><?php echo esc_html( $tn ); ?></span>
+						</button>
 					<?php endforeach; ?>
 				</div>
 				<?php endif; ?>
@@ -1644,7 +1673,7 @@ class POSH_Ve {
 				try { sessionStorage.setItem('posh_kvuc', PVE_KV); } catch(e){}
 			}
 			(function(){
-				var tabs = [].slice.call(document.querySelectorAll('.pve-tab'));
+				var tabs = [].slice.call(document.querySelectorAll('.pve-tab, .pve-dmi'));
 				if (!tabs.length) return;
 				/* Đếm ngay trên nhãn: "Combo (1)" cho biết bấm vào có gì, khỏi bấm thử từng tab. */
 				tabs.forEach(function(t){
@@ -1652,7 +1681,9 @@ class POSH_Ve {
 					if (!v) return;
 					var n = document.querySelectorAll('.pve-card[data-' + (loc === 'kv' ? 'kv' : 'nhom') + '="' + v.replace(/"/g,'\\"') + '"]').length;
 					if (loc === 'kv') { n += document.querySelectorAll('.pve-card:not([data-kv]), .pve-card[data-kv=""]').length; }
-					if (n) t.innerHTML = t.textContent + ' <span class="pve-tab-n">' + n + '</span>';
+					/* Số chỉ gắn cho nút chữ. Nút danh mục có ảnh thì tên đã sát đáy ô, nhét thêm
+					   con số vào là chữ xuống hai dòng, dải cao vống lên mà chẳng rõ hơn. */
+					if (n && t.classList.contains('pve-tab')) { t.innerHTML = t.textContent + ' <span class="pve-tab-n">' + n + '</span>'; }
 				});
 				tabs.forEach(function(t){
 					t.addEventListener('click', function(){
@@ -1952,6 +1983,21 @@ class POSH_Ve {
 		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
 		.pve-tab.on .pve-tab-n{ opacity:.75; }
 		.pve-tab-trong{ color:var(--mut); font-size:14px; padding:6px 2px; }
+		/* Dải danh mục có ảnh (mẫu Zalo Mini App): cuộn ngang, mỗi ô ảnh vuông + tên dưới. */
+		.pve-dm{ display:flex; gap:14px; overflow-x:auto; padding:4px 2px 6px; scrollbar-width:none; }
+		.pve-dm::-webkit-scrollbar{ display:none; }
+		.pve-dmi{ flex:0 0 auto; width:84px; background:none; border:none; padding:6px 0 8px; cursor:pointer;
+			display:flex; flex-direction:column; align-items:center; gap:7px; border-bottom:3px solid transparent; }
+		.pve-dmi-anh{ width:60px; height:60px; border-radius:14px; overflow:hidden; background:var(--sf2);
+			border:1px solid var(--bd); display:flex; align-items:center; justify-content:center; font-size:26px;
+			transition:border-color .15s, transform .15s; }
+		.pve-dmi-anh img{ width:100%; height:100%; object-fit:cover; display:block; }
+		.pve-dmi-ten{ font-size:12px; line-height:1.3; color:var(--mut); text-align:center;
+			display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+		.pve-dmi:hover .pve-dmi-anh{ transform:translateY(-2px); }
+		.pve-dmi.on{ border-bottom-color:var(--g); }
+		.pve-dmi.on .pve-dmi-anh{ border-color:var(--g); }
+		.pve-dmi.on .pve-dmi-ten{ color:var(--tx); font-weight:700; }
 		.pve-empty{ color:var(--mut); }
 		/* Section + lưới vé */
 		.pve-sec{ margin-bottom:40px; }
@@ -2765,6 +2811,18 @@ class POSH_Ve {
 			update_option( 'pve_hang', $moi );
 			echo '<div class="notice notice-success"><p>Đã lưu hạng thành viên.</p></div>';
 		}
+		if ( isset( $_POST['pve_nhom_anh_luu'] ) && check_admin_referer( 'pve_nhom_anh' ) ) {
+			$tens = isset( $_POST['dm_ten'] ) ? (array) $_POST['dm_ten'] : array();
+			$anhs = isset( $_POST['dm_anh'] ) ? (array) $_POST['dm_anh'] : array();
+			$moi = array();
+			foreach ( $tens as $i => $t ) {
+				$t = sanitize_text_field( wp_unslash( $t ) );
+				$a = esc_url_raw( wp_unslash( isset( $anhs[ $i ] ) ? $anhs[ $i ] : '' ) );
+				if ( '' !== trim( $t ) && '' !== $a ) { $moi[ $t ] = $a; }
+			}
+			update_option( 'pve_nhom_anh', $moi );
+			echo '<div class="notice notice-success"><p>Đã lưu ảnh danh mục.</p></div>';
+		}
 		if ( isset( $_POST['pve_coso_luu'] ) && check_admin_referer( 'pve_coso' ) ) {
 			$tens = isset( $_POST['cs_ten'] ) ? (array) $_POST['cs_ten'] : array();
 			$lats = isset( $_POST['cs_lat'] ) ? (array) $_POST['cs_lat'] : array();
@@ -3085,6 +3143,39 @@ class POSH_Ve {
 		}
 
 		/* ── Cơ sở & toạ độ (gợi ý theo định vị) ── */
+		/* ── Ảnh danh mục (dải chọn vé ở trang khách) ── */
+		echo '<hr><h2>Ảnh danh mục vé</h2>';
+		echo '<p class="description">Dải danh mục ở trang bán vé hiện <b>ảnh + tên</b> cho khách bấm. '
+			. 'Bỏ trống thì tự lấy ảnh của vé đầu tiên trong danh mục — khai ở đây khi muốn dùng <b>logo riêng</b> cho danh mục đó. '
+			. 'Danh mục chính là ô “Nhóm” của từng vé.</p>';
+		$dm_anh = self::ds_nhom_anh();
+		$dm_ten = array();
+		foreach ( self::ds_tatca() as $g ) {
+			$n = trim( (string) $g['nhom'] ) !== '' ? $g['nhom'] : 'Vé';
+			if ( ! in_array( $n, $dm_ten, true ) ) { $dm_ten[] = $n; }
+		}
+		foreach ( array_keys( $dm_anh ) as $n ) { if ( ! in_array( $n, $dm_ten, true ) ) { $dm_ten[] = $n; } }
+		if ( ! $dm_ten ) {
+			echo '<p class="description"><i>Chưa có vé nào nên chưa có danh mục. Thêm vé trước, ô “Nhóm” của vé chính là danh mục.</i></p>';
+		} else {
+			echo '<form method="post">'; wp_nonce_field( 'pve_nhom_anh' );
+			echo '<table class="widefat striped" style="max-width:860px"><thead><tr><th style="width:220px">Danh mục</th>'
+				. '<th>Ảnh (URL)</th><th style="width:210px">Xem trước</th></tr></thead><tbody>';
+			foreach ( $dm_ten as $i => $n ) {
+				$a = isset( $dm_anh[ $n ] ) ? (string) $dm_anh[ $n ] : '';
+				echo '<tr><td><b>' . esc_html( $n ) . '</b><input type="hidden" name="dm_ten[]" value="' . esc_attr( $n ) . '"></td>'
+					. '<td><input type="text" name="dm_anh[]" id="dm-anh-' . (int) $i . '" class="large-text code" value="' . esc_attr( $a ) . '" placeholder="để trống = lấy ảnh vé đầu tiên"> '
+					. '<button type="button" class="button pve-dm-chon" data-o="dm-anh-' . (int) $i . '" data-x="dm-xem-' . (int) $i . '">Chọn ảnh</button></td>'
+					. '<td><img id="dm-xem-' . (int) $i . '" src="' . esc_url( $a ) . '" style="' . ( $a ? '' : 'display:none;' ) . 'height:64px;width:64px;object-fit:cover;border-radius:10px"></td></tr>';
+			}
+			echo '</tbody></table><p><button class="button button-primary" name="pve_nhom_anh_luu" value="1">Lưu ảnh danh mục</button></p></form>';
+			/* Bộ chọn ảnh dùng chung cho mọi dòng — một trình chọn, nhận id ô đích từ data-o. */
+			echo '<script>jQuery(function($){var f;$(".pve-dm-chon").on("click",function(e){e.preventDefault();var b=$(this);'
+				. 'f=wp.media({title:"Chọn ảnh danh mục",library:{type:"image"},multiple:false});'
+				. 'f.on("select",function(){var a=f.state().get("selection").first().toJSON();'
+				. '$("#"+b.data("o")).val(a.url);$("#"+b.data("x")).attr("src",a.url).show();});f.open();});});</script>';
+		}
+
 		echo '<hr><h2>Cơ sở · toạ độ · giảm giá tại chỗ</h2>';
 		echo '<p class="description">Tên cơ sở phải khớp <b>đúng</b> với ô “Khu vực / Cơ sở” của vé. Toạ độ lấy từ Google Maps: chuột phải điểm cần → bấm cặp số để copy (dạng <code>10.776,106.700</code>).<br>'
 			. '<b>% giảm</b> chỉ áp khi khách quét tem QR của cơ sở <i>và</i> điện thoại báo đang trong <b>bán kính</b> đó. Mua từ xa = giá gốc. '
