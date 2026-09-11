@@ -131,6 +131,18 @@ nguyên số lượt đã dùng** của mã cùng tên.
 Sổ cái `pve_vi_gd` ghi từng lượt cộng/trừ kèm số dư sau. Đừng bỏ: khách kêu "mất tiền" mà chỉ có
 mỗi một con số thì không đối chiếu được gì.
 
+### Mã ưu đãi theo CỬA HÀNG
+Mỗi mã có ô **Cơ sở áp dụng** (WP Admin → Vé khu vui chơi → Ví tiền). Để trống = dùng mọi nơi;
+chọn một cơ sở thì mã **chỉ ăn khi khách đang đứng tại đó** — máy chủ tự kiểm bằng toạ độ
+(`POSH_Ve::cs_dang_dung`), không tin theo tham số trang khách gửi lên, nếu không thì ai cũng gõ
+được mã của quầy đông khách nhất mà chẳng cần tới.
+
+⚠️ Cơ sở phải đã khai **toạ độ + bán kính**, không thì mã không bao giờ ăn.
+⚠️ `cs_dang_dung()` **không** gọi `giam_tai_cho()`: hàm ấy trả false cho cơ sở chưa khai % giảm,
+mà "đang đứng ở đâu" với "cơ sở ấy có giảm giá vé không" là hai câu hỏi khác nhau.
+Tên cơ sở so bằng `squash_cs()` (bỏ dấu, bỏ khoảng trắng, về hoa) — khai tay thì "Funzone Hà Nội"
+và "FUNZONE HÀ NỘI" phải là một.
+
 ### ⚠️ Popup có BỐN bước dùng chung một khung — đừng đặt trùng tên lớp
 Ví vé · nạp ví · giỏ · đặt lẻ · mã QR nằm cùng `.pve-mask`. `qs()` lấy **thẻ đầu tiên trong cả
 popup**, nên thêm bước mới mà trùng tên lớp là nó **cướp** lượt tra của bước cũ — im lặng, không
@@ -138,6 +150,11 @@ lỗi. Đã dính ở 1.48.0: bước Giỏ có nút `.pve-go` đứng trước 
 thanh toán" đi lạc sang nút của Giỏ và **bấm Đặt vé không ra gì** (vá ở 1.48.1). Nay bước đặt lẻ
 tra bằng `qf()`, bước nạp bằng `qf2()` — đều buộc phạm vi. Nút "Trả bằng ví" cố tình **không** mang
 lớp `.pve-go` mà dùng `.pve-go2`.
+
+Dính **lần thứ ba** ở 1.49.0: dòng "chưa khai gói nạp" dùng lại lớp `.pve-nap-tt` của dòng tổng
+kết, mà khối gói nạp đứng trước — `napTong()` tưởng đó là dòng tổng kết và **xoá trắng** nó. Kết
+quả: cài mới, mở Nạp ví ra trống trơn, không nói gì (vá ở 1.49.1, lớp riêng `.pve-nap-trong`).
+Bản thử khi ấy chỉ chạy cảnh **đã khai gói** nên không thấy — nay có thêm cảnh cài mới.
 
 ### Vòng đời một tấm vé (từ 1.48.0)
 ```

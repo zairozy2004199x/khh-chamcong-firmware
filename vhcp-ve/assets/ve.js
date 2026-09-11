@@ -245,8 +245,18 @@ boc('ví tiền', function(){ viTienTai(); });
 function moNap(){
 	qf2('.pve-nap-sd').innerHTML = 'Số dư hiện tại: <b>' + tien(VI.so_du) + '</b>';
 	var box = qf2('.pve-nap-goi'); box.innerHTML = '';
-	if (!VI.goi.length){
-		box.innerHTML = '<div class="pve-nap-tt no">Chưa khai gói nạp nào. Nhờ quản trị vào WP Admin → Vé khu vui chơi → Ví tiền.</div>';
+	/* 🔴 LỚP RIÊNG CHO DÒNG NÀY — ĐỪNG DÙNG LẠI .pve-nap-tt.
+	   Dòng tổng kết cũng mang lớp .pve-nap-tt và qf2() lấy thẻ ĐẦU TIÊN trong bước; khối gói nạp
+	   đứng trước nó, nên napTong() tưởng dòng báo này là dòng tổng kết và XOÁ TRẮNG nó. Kết quả:
+	   chưa khai gói nạp thì popup trống trơn, không nói gì, bấm Tạo mã chỉ báo "Chọn một mệnh
+	   giá" — đúng cái anh Thắng gặp 11/09/2026. Cùng họ với lỗi nút Đặt vé ở 1.48.0. */
+	var trong = !VI.goi.length;
+	qf2('.pve-nap-lb').hidden = trong;
+	qf2('.pve-nap-code-h').hidden = trong;
+	qf2('.pve-nap-go').hidden = trong;
+	if (trong){
+		box.innerHTML = '<div class="pve-nap-trong">Chưa khai mệnh giá nạp nào.<br>'
+			+ 'Nhờ quản trị vào <b>WP Admin → Vé khu vui chơi → Ví tiền</b> khai gói nạp rồi lưu lại.</div>';
 	}
 	VI.goi.forEach(function(g, i){
 		var e = document.createElement('div'); e.className = 'pve-nap-i' + (i === 0 ? ' on' : '');
@@ -283,8 +293,14 @@ boc('nạp ví', function(){
 		var code = qf2('.pve-nap-code').value.trim();
 		var o = qf2('.pve-nap-tt');
 		if (!code){ NAP.code = ''; NAP.tang = 0; napTong(); return; }
+		/* Mã ưu đãi tính theo mệnh giá (có mã chỉ áp dụng từ 200k trở lên), nên chưa chọn mệnh
+		   giá thì không kiểm được. Nói ra, đừng gọi máy chủ rồi im lặng. */
+		if (!NAP.menh_gia){ o.className = 'pve-nap-tt no'; o.textContent = 'Chọn mệnh giá nạp trước, rồi mới kiểm được mã.'; return; }
 		fetch(REST + '/vi/thu-ma', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-			body: JSON.stringify({ code: code, menh_gia: NAP.menh_gia }) })
+			/* Gửi kèm mã cửa hàng + toạ độ: mã ưu đãi có thể khai riêng cho một quầy, và máy chủ
+			   tự kiểm khách có đứng ở đó thật không (POSH_Ve::cs_dang_dung). */
+			body: JSON.stringify({ code: code, menh_gia: NAP.menh_gia,
+				cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
 		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
 		.then(function(x){
 			if (!x.ok || x.d.ok === false){
@@ -305,7 +321,8 @@ boc('nạp ví', function(){
 		if (!NAP.menh_gia){ err.textContent = 'Chọn một mệnh giá.'; err.hidden = false; return; }
 		err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
 		fetch(REST + '/vi/nap', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-			body: JSON.stringify({ menh_gia: NAP.menh_gia, code: NAP.code }) })
+			body: JSON.stringify({ menh_gia: NAP.menh_gia, code: NAP.code,
+				cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
 		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
 		.then(function(x){
 			btn.disabled = false; btn.textContent = 'Tạo mã chuyển khoản';

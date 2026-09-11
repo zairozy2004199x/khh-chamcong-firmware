@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.49.0
+ * Version:           1.49.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1186,6 +1186,10 @@ class POSH_Ve {
 				'han'      => trim( (string) ( isset( $c['han'] ) ? $c['han'] : '' ) ),
 				'gioi_han' => max( 0, (int) ( isset( $c['gioi_han'] ) ? $c['gioi_han'] : 0 ) ),
 				'da_dung'  => max( 0, (int) ( isset( $c['da_dung'] ) ? $c['da_dung'] : 0 ) ),
+				/* '' = dùng ở mọi nơi. Khai tên cơ sở thì mã CHỈ ăn khi khách đang đứng tại đúng
+				   cơ sở ấy — mỗi cửa hàng một mã riêng, vừa là chương trình riêng của quầy, vừa
+				   biết mã nào kéo được khách nạp tiền. */
+				'coso'     => trim( (string) ( isset( $c['coso'] ) ? $c['coso'] : '' ) ),
 			);
 		}
 		return $ra;
@@ -1200,7 +1204,25 @@ class POSH_Ve {
 	 *
 	 * @return array{ok:bool, tang:int, loi:string, code:string}
 	 */
-	public static function tinh_uu_dai( $code, $menh_gia ) {
+	/**
+	 * Khách ĐANG ĐỨNG ở cơ sở nào — do máy chủ tự chốt, không tin lời trang khách khai.
+	 *
+	 * Dùng lại đúng cửa kiểm của giá tại quầy (giam_tai_cho): phải có mã tem cửa hàng VÀ toạ độ
+	 * nằm trong bán kính. Tin theo tham số `cs` trang gửi lên là ai cũng gõ được mã của quầy
+	 * đông khách nhất mà chẳng cần tới đó.
+	 */
+	private static function cs_dang_dung( $req ) {
+		$c = self::coso_theo_ma( $req->get_param( 'cs' ) );
+		if ( ! $c || ! $c['lat'] || ! $c['lng'] ) { return ''; }
+		$lat = (float) $req->get_param( 'lat' ); $lng = (float) $req->get_param( 'lng' );
+		if ( ! $lat || ! $lng || abs( $lat ) > 90 || abs( $lng ) > 180 ) { return ''; }
+		/* ⚠️ KHÔNG gọi giam_tai_cho() ở đây. Hàm ấy trả false cho cơ sở chưa khai % giảm — mà
+		   "đang đứng ở đâu" với "cơ sở ấy có giảm giá vé không" là hai câu hỏi khác nhau. Dùng
+		   chung thì mã riêng của một quầy không khai % giảm sẽ không bao giờ ăn. */
+		return ( self::kc_met( $lat, $lng, $c['lat'], $c['lng'] ) <= $c['bk'] ) ? (string) $c['ten'] : '';
+	}
+
+	public static function tinh_uu_dai( $code, $menh_gia, $cs_dang = '' ) {
 		$code = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $code ) );
 		if ( '' === $code ) { return array( 'ok' => true, 'tang' => 0, 'loi' => '', 'code' => '' ); }
 		foreach ( self::ds_ma_uu_dai() as $c ) {
@@ -1213,6 +1235,14 @@ class POSH_Ve {
 				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
 					'loi' => 'Mã "' . $code . '" chỉ áp dụng khi nạp từ ' . number_format_i18n( $c['toi_thieu'] ) . 'đ trở lên.' );
 			}
+			/* Mã của một cửa hàng: chỉ ăn khi khách đang Ở ĐÓ. `$cs_dang` do máy chủ tự chốt từ
+			   toạ độ (POSH_Ve::giam_tai_cho), không lấy theo lời khách khai — nếu không thì ai
+			   cũng gõ được mã của quầy đông khách nhất. */
+			if ( '' !== $c['coso'] && self::squash_cs( $c['coso'] ) !== self::squash_cs( $cs_dang ) ) {
+				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
+					'loi' => 'Mã "' . $code . '" chỉ dùng được tại ' . $c['coso']
+						. '. Tới quầy, quét mã QR dán tại cửa hàng rồi bật vị trí để áp mã.' );
+			}
 			if ( $c['gioi_han'] > 0 && $c['da_dung'] >= $c['gioi_han'] ) {
 				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
 					'loi' => 'Mã "' . $code . '" đã hết lượt sử dụng.' );
@@ -1223,6 +1253,14 @@ class POSH_Ve {
 			return array( 'ok' => true, 'tang' => max( 0, $tang ), 'loi' => '', 'code' => $code );
 		}
 		return array( 'ok' => false, 'tang' => 0, 'code' => $code, 'loi' => 'Không có mã ưu đãi "' . $code . '".' );
+	}
+
+	/* So tên cơ sở: bỏ dấu, bỏ khoảng trắng, về chữ hoa. Khai tay trong ô cấu hình thì "Funzone
+	   Hà Nội" và "FUNZONE HÀ NỘI" phải là một — so thẳng chuỗi là mã không bao giờ ăn mà chẳng ai
+	   hiểu vì sao. */
+	private static function squash_cs( $s ) {
+		$s = function_exists( 'remove_accents' ) ? remove_accents( (string) $s ) : (string) $s;
+		return strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', $s ) );
 	}
 
 	/* Đếm lượt đã dùng của một mã — gọi lúc tiền về, không phải lúc tạo lệnh nạp: tạo lệnh rồi
@@ -1272,7 +1310,7 @@ class POSH_Ve {
 	/* Thử một mã ưu đãi trước khi tạo lệnh nạp — để khách biết được tặng bao nhiêu rồi mới quyết. */
 	public static function r_vi_thu_ma( $req ) {
 		$mg = (int) $req->get_param( 'menh_gia' );
-		$kq = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg );
+		$kq = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg, self::cs_dang_dung( $req ) );
 		if ( ! $kq['ok'] ) { return new WP_Error( 'code', $kq['loi'], array( 'status' => 400 ) ); }
 		return array( 'ok' => true, 'tang' => (int) $kq['tang'], 'code' => $kq['code'] );
 	}
@@ -1295,7 +1333,7 @@ class POSH_Ve {
 		foreach ( self::ds_goi_nap() as $g ) { if ( (int) $g['nap'] === $mg ) { $goi = $g; break; } }
 		if ( ! $goi ) { return new WP_Error( 'goi', 'Mệnh giá không hợp lệ.', array( 'status' => 400 ) ); }
 
-		$uu = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg );
+		$uu = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg, self::cs_dang_dung( $req ) );
 		if ( ! $uu['ok'] ) { return new WP_Error( 'code', $uu['loi'], array( 'status' => 400 ) ); }
 		$tang = (int) $goi['tang'] + (int) $uu['tang'];
 
@@ -2699,7 +2737,7 @@ class POSH_Ve {
 					<div class="pve-m-ten2">💰 Nạp ví</div>
 					<div class="pve-nap-sd">Số dư hiện tại: <b>—</b></div>
 					<div class="pve-nap-goi"></div>
-					<label class="pve-lb">Mã ưu đãi (nếu có)</label>
+					<label class="pve-lb pve-nap-lb">Mã ưu đãi (nếu có)</label>
 					<div class="pve-nap-code-h">
 						<input class="pve-in pve-nap-code" placeholder="VD: HE2026" autocapitalize="characters" autocomplete="off">
 						<button type="button" class="pve-nap-thu">Kiểm tra</button>
@@ -2972,9 +3010,15 @@ class POSH_Ve {
 		.pve-nap-i.on{ border-color:var(--g); background:rgba(212,175,55,.14); }
 		.pve-nap-i b{ display:block; font-size:15px; color:#1b1810; }
 		.pve-nap-i small{ color:#166534; font-weight:700; font-size:12px; }
+		/* [hidden] phải thắng display:block/flex — không thì `el.hidden = true` chẳng giấu được gì.
+		   Cùng bẫy với .pve-mask[hidden] ở trên. */
+		.pve-lb[hidden], .pve-nap-code-h[hidden], .pve-go[hidden], .pve-nap-trong[hidden]{ display:none !important; }
 		.pve-nap-code-h{ display:flex; gap:8px; }
 		.pve-nap-code{ flex:1; text-transform:uppercase; }
 		.pve-nap-thu{ flex:none; border:1px solid var(--bd); background:var(--sf2); color:var(--tx); border-radius:10px; padding:0 14px; font-weight:700; cursor:pointer; }
+		.pve-nap-trong{ grid-column:1/-1; border:1px dashed var(--bd); border-radius:12px; padding:14px;
+			color:var(--mut); font-size:13px; line-height:1.6; text-align:center; background:var(--sf2); }
+		.pve-nap-trong b{ color:var(--g2); }
 		.pve-nap-tt{ margin-top:10px; font-size:13px; }
 		.pve-nap-tt.ok{ color:#166534; font-weight:700; } .pve-nap-tt.no{ color:#b91c1c; }
 		.pve-vitien{ display:inline-flex; align-items:center; gap:8px; }
@@ -4055,6 +4099,7 @@ class POSH_Ve {
 					'toi_thieu' => (int) preg_replace( '/\D+/', '', (string) $lay( 'c_toi_thieu', $i ) ),
 					'han'       => preg_replace( '/[^0-9-]/', '', (string) $lay( 'c_han', $i ) ),
 					'gioi_han'  => (int) preg_replace( '/\D+/', '', (string) $lay( 'c_gioi_han', $i ) ),
+					'coso'      => sanitize_text_field( wp_unslash( (string) $lay( 'c_coso', $i ) ) ),
 					'da_dung'   => isset( $cu[ $m ] ) ? $cu[ $m ] : 0,
 				);
 			}
@@ -4318,10 +4363,15 @@ class POSH_Ve {
 		$code = self::ds_ma_uu_dai();
 		$code[] = array( 'code' => '', 'kieu' => 'pt', 'gia_tri' => 0, 'toi_thieu' => 0, 'han' => '', 'gioi_han' => 0, 'da_dung' => 0 );
 		echo '<h3 style="margin-bottom:4px">Mã ưu đãi khi nạp</h3>';
-		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Kiểu</th><th>Giá trị</th><th>Nạp tối thiểu (đ)</th><th>Hạn (YYYY-MM-DD)</th><th>Giới hạn lượt</th><th>Đã dùng</th></tr></thead><tbody>';
+		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Cơ sở áp dụng</th><th>Kiểu</th><th>Giá trị</th><th>Nạp tối thiểu (đ)</th><th>Hạn (YYYY-MM-DD)</th><th>Giới hạn lượt</th><th>Đã dùng</th></tr></thead><tbody>';
 		foreach ( $code as $c ) {
 			echo '<tr>'
 				. '<td><input name="c_ma[]" value="' . esc_attr( $c['code'] ) . '" placeholder="HE2026" style="width:110px;text-transform:uppercase"></td>'
+				. '<td><select name="c_coso[]"><option value="">Mọi cơ sở</option>';
+			foreach ( self::ds_coso() as $cs0 ) {
+				echo '<option value="' . esc_attr( $cs0['ten'] ) . '"' . selected( $c['coso'], $cs0['ten'], false ) . '>' . esc_html( $cs0['ten'] ) . '</option>';
+			}
+			echo '</select></td>'
 				. '<td><select name="c_kieu[]"><option value="pt"' . selected( $c['kieu'], 'pt', false ) . '>% tặng thêm</option>'
 				. '<option value="tien"' . selected( $c['kieu'], 'tien', false ) . '>Số tiền tặng</option></select></td>'
 				. '<td><input type="number" name="c_gia_tri[]" value="' . ( $c['gia_tri'] ? (int) $c['gia_tri'] : '' ) . '" placeholder="10" style="width:90px"></td>'
@@ -4334,6 +4384,9 @@ class POSH_Ve {
 		echo '<p class="description"><b>% tặng thêm</b>: giá trị 10 = nạp 200.000đ được tặng 20.000đ (làm tròn xuống hàng nghìn). '
 			. '<b>Số tiền tặng</b>: giá trị 20000 = tặng thẳng 20.000đ. '
 			. 'Số lượt chỉ tăng khi <b>tiền thật sự về</b>, không tăng lúc khách mới bấm tạo mã — nếu không thì mã hết sạch vì những người không chuyển tiền.</p>';
+		echo '<p class="description"><b>Cơ sở áp dụng</b>: chọn một cơ sở thì mã chỉ ăn khi khách <b>đang đứng tại đó</b> — '
+			. 'máy chủ tự kiểm bằng toạ độ, không tin theo lời trang khách khai, nên không ai gõ được mã của quầy khác. '
+			. 'Cơ sở phải đã khai <b>toạ độ và bán kính</b> ở mục Tài khoản/Cơ sở, nếu không thì mã không bao giờ ăn.</p>';
 		echo '<p><button class="button button-primary" name="pve_vi" value="1">Lưu ví tiền</button></p></form><hr>';
 
 		echo '<h2>Cổng thanh toán (Momo · VNPay)</h2>';
