@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.48.0
+ * Version:           1.48.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -627,6 +627,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
+		register_rest_route( self::NS, '/ql/do-saoke', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_do_saoke' ) ) );
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
 		register_rest_route( self::NS, '/ql/donhang', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_donhang' ) ) );
 		register_rest_route( self::NS, '/ql/capnhat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_capnhat' ) ) );
@@ -935,6 +936,29 @@ class POSH_Ve {
 		$wpdb->update( $tbl, array( 'trang_thai' => 'da_dung', 'coso_dung' => $cs, 'dung_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
 		return array( 'ok' => true, 'ma_ve' => $ma, 'goi_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
 			'ten_khach' => $r['ten_khach'], 'coso_dung' => $cs );
+	}
+
+	/**
+	 * Dò lại TẤT CẢ vé đang chờ. Dùng cho hai chỗ:
+	 *  · WP-Cron 5 phút một lần — khách chuyển khoản xong ĐÓNG TAB là không còn ai hỏi trạng
+	 *    thái nữa, mà vé vẫn phải tự xanh; không có cron thì nó chờ tới lúc ai đó mở đúng vé ấy.
+	 *  · Nút "Dò lại sao kê" ở khu quản trị — để không phải ngồi đợi cron khi đang đứng bán hàng.
+	 */
+	public static function do_lai_saoke( $gioi_han = 200 ) {
+		global $wpdb; $tbl = self::tbl();
+		$cho = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_ve, so_tien, noi_dung FROM $tbl WHERE trang_thai='cho' ORDER BY id DESC LIMIT %d", (int) $gioi_han ), ARRAY_A );
+		$n = 0;
+		foreach ( (array) $cho as $c ) {
+			if ( self::tu_khop( $c['ma_ve'], (int) $c['so_tien'], $c['noi_dung'] ) ) { $n++; }
+		}
+		return $n;
+	}
+	public static function r_ql_do_saoke( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$n = self::do_lai_saoke();
+		return array( 'ok' => true, 'so' => $n,
+			'noi' => $n ? ( 'Đã xác nhận ' . $n . ' vé từ sao kê.' ) : 'Không có vé chờ nào thấy tiền về.' );
 	}
 
 	// ───────────────────────────── Cổng thanh toán ─────────────────────────────
@@ -1628,6 +1652,45 @@ class POSH_Ve {
 			$them( 'Thử ghi một đơn', (bool) $ghi,
 				$ghi ? 'Ghi được và đã xoá đơn nháp' : 'KHÔNG ghi được',
 				$ghi ? '' : ( '' !== $loi ? ( 'MySQL nói: ' . $loi ) : 'MySQL không nói lý do.' ) );
+		}
+
+		/* 5. ĐƯỜNG TỰ XÁC NHẬN CHUYỂN KHOẢN — chỗ hay đứt nhất, mà đứt thì im lặng.
+		   Bốn câu hỏi tách bạch: có plugin Sao Kê chưa · bảng dựng chưa · đã nhận đồng nào chưa ·
+		   và với những vé đang chờ, có giao dịch nào khớp mà chưa được đánh dấu không. Gộp cả bốn
+		   vào một dòng "chưa xác nhận" là lại ngồi đoán như mấy hôm trước. */
+		$co_sk = class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'tbl' );
+		$them( 'Plugin Sao Kê', $co_sk, $co_sk ? 'Đã cài và bật' : 'CHƯA có',
+			$co_sk ? '' : 'Chuyển khoản VietQR sẽ KHÔNG bao giờ tự xác nhận. Cài plugin Sao Kê trên cùng site này.' );
+		if ( $co_sk ) {
+			$tsk = SAOKE_App::tbl();
+			$co_tsk = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tsk ) ) === $tsk );
+			$them( 'Bảng sao kê', $co_tsk, $co_tsk ? $tsk : 'CHƯA dựng',
+				$co_tsk ? '' : 'Mở trang Sao Kê một lần để plugin tự dựng bảng.' );
+			if ( $co_tsk ) {
+				$sl_in = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tsk WHERE loai='in'" );
+				$them( 'Giao dịch tiền VÀO đã nhận', $sl_in > 0, $sl_in . ' giao dịch',
+					$sl_in ? '' : 'Chưa nhận được đồng nào từ SePay. Kiểm webhook trong plugin Sao Kê (mục Kết nối).' );
+
+				/* Với từng vé đang chờ: có dòng sao kê nào chứa đúng nội dung không. Đây là câu
+				   trả lời thẳng cho "đã chuyển tiền rồi mà vé vẫn chờ". */
+				$cho = $wpdb->get_results( "SELECT ma_ve, so_tien, noi_dung FROM $tbl WHERE trang_thai='cho' ORDER BY id DESC LIMIT 20", ARRAY_A );
+				$khop = 0; $lech = array();
+				foreach ( (array) $cho as $c ) {
+					$co_nd = (int) $wpdb->get_var( $wpdb->prepare(
+						"SELECT COUNT(*) FROM $tsk WHERE loai='in' AND noi_dung LIKE %s", '%' . $wpdb->esc_like( $c['noi_dung'] ) . '%' ) );
+					if ( ! $co_nd ) { continue; }
+					$du = (int) $wpdb->get_var( $wpdb->prepare(
+						"SELECT COUNT(*) FROM $tsk WHERE loai='in' AND tien >= %d AND noi_dung LIKE %s",
+						(int) $c['so_tien'], '%' . $wpdb->esc_like( $c['noi_dung'] ) . '%' ) );
+					if ( $du ) { $khop++; } else { $lech[] = $c['ma_ve'] . ' (tiền về THIẾU so với ' . number_format_i18n( $c['so_tien'] ) . 'đ)'; }
+				}
+				if ( $cho ) {
+					$them( 'Vé đang chờ đã có tiền về', 0 === count( $lech ),
+						$khop . '/' . count( $cho ) . ' vé chờ đã thấy tiền về'
+							. ( $khop ? ' — bấm "Dò lại sao kê" để đánh dấu' : '' ),
+						$lech ? ( 'Tiền về không đủ: ' . implode( '; ', $lech ) ) : '' );
+				}
+			}
 		}
 
 		$hong = 0;
@@ -2915,8 +2978,13 @@ class POSH_Ve {
 		</div>
 
 		<style>
+		/* 🔴 max-width PHẢI CÓ !important. Khối CSS "ẩn theme" ngay trên đầu shortcode này đặt
+		   `max-width:none !important` cho mọi con trực tiếp của .entry-content — mà .pql chính là
+		   một trong số đó. Không có !important ở đây thì luật kia thắng, trang quản trị giãn hết
+		   bề ngang màn hình: trên máy tính mỗi thẻ đơn kéo dài cả mét, hai nút Xác nhận/Huỷ to
+		   bằng nửa màn hình. Đúng cái anh Thắng chụp ngày 11/09/2026. */
 		.pql{ --g:#d4af37; --g2:#e7cd7a; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c;
-			box-sizing:border-box; width:100%; max-width:900px; margin:0 auto; min-height:100vh;
+			box-sizing:border-box; width:100%; max-width:900px !important; margin:0 auto !important; min-height:100vh;
 			padding:24px 16px 56px; color:var(--tx);
 			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 		.pql *{ box-sizing:border-box; }
@@ -3045,7 +3113,7 @@ class POSH_Ve {
 		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#7ee2a8; }
 		.pql-bdg.da_dung{ background:rgba(59,130,246,.2); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#f0a0a0; }
 		.pql-don-act{ display:flex; gap:6px; margin-top:10px; }
-		.pql-don-act button{ flex:1; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
+		.pql-don-act button{ flex:0 1 200px; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
 		.pql-don-act .go{ background:rgba(34,197,94,.9); color:#04210f; border:none; } .pql-don-act .use{ background:rgba(59,130,246,.9); color:#04122b; border:none; } .pql-don-act .no{ background:rgba(239,68,68,.85); color:#fff; border:none; }
 		@media(max-width:560px){ .pql-2{ flex-direction:column; gap:0; } }
 		</style>

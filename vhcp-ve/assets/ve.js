@@ -118,6 +118,14 @@ try { document.body.appendChild(mask); } catch(e){}  // đưa popup ra body đ�
 var mFor = null, timer = null;
 function tien(n){ try{ return (Number(n)||0).toLocaleString('vi-VN')+'đ'; }catch(e){ return n+'đ'; } }
 function qs(s){ return mask.querySelector(s); }
+/* 🔴 qs() LẤY THẺ ĐẦU TIÊN TRONG CẢ POPUP, KHÔNG PHẢI TRONG BƯỚC ĐANG MỞ.
+   Popup có bốn bước (ví / giỏ / đặt lẻ / mã QR) nằm cùng một khung. Thêm bước mới mà đặt trùng
+   tên lớp là nó CƯỚP mất lượt tra của bước cũ — im lặng, không lỗi. Đúng chuyện 11/09/2026:
+   bước Giỏ có nút `.pve-go .pve-g-go`, mà nó đứng TRƯỚC bước đặt lẻ trong trang, nên
+   qs('.pve-go') trả về nút của Giỏ; việc gắn cho nút "Tạo mã thanh toán" của bước đặt lẻ đi lạc
+   sang nút khác và bấm vào nó không ra gì — trong khi mua qua Giỏ thì vẫn chạy.
+   Nên mọi thứ thuộc bước ĐẶT LẺ tra bằng qf() (có buộc phạm vi), đừng dùng qs() nữa. */
+function qf(s){ return mask.querySelector('.pve-step-form ' + s); }
 function qsa(s){ return Array.prototype.slice.call(mask.querySelectorAll(s)); }
 /* Ba bước dùng chung một khung popup: giỏ / form đặt lẻ / mã QR. Duyệt theo data-step thay vì
    gọi tên từng khối — thêm bước thứ tư sau này khỏi phải sửa hàm này. */
@@ -132,9 +140,9 @@ function loadQR(cb){
 }
 function moModal(card){
 	mFor = card;
-	qs('.pve-m-ten').textContent = card.dataset.ten;
-	qs('.pve-m-gia').textContent = tien(card.dataset.gia);
-	qs('.pve-err').hidden = true; qs('.pve-f-ten').value=''; qs('.pve-f-sdt').value='';
+	qf('.pve-m-ten').textContent = card.dataset.ten;
+	qf('.pve-m-gia').textContent = tien(card.dataset.gia);
+	qf('.pve-err').hidden = true; qf('.pve-f-ten').value=''; qf('.pve-f-sdt').value='';
 	zaloVaoForm();   /* xoá ô xong mới điền, không thì điền rồi lại bị xoá ngay */
 	show('form'); mask.hidden = false;
 }
@@ -357,16 +365,16 @@ boc('nhớ người mua', function(){
 });
 /* Gọi mỗi lần mở popup: popup có thể mở trước lúc /zalo/toi kịp trả lời. */
 function zaloVaoForm(){
-	var chip = qs('.pve-zme');
+	var chip = qf('.pve-zme');
 	if (!ZME) { if (chip) chip.hidden = true; return; }
-	dienZalo(qs('.pve-f-ten'), ZME.ten);
-	dienZalo(qs('.pve-f-sdt'), ZME.sdt);
+	dienZalo(qf('.pve-f-ten'), ZME.ten);
+	dienZalo(qf('.pve-f-sdt'), ZME.sdt);
 	/* Chỉ khoe nhãn Zalo khi đúng là đăng nhập Zalo. Nhớ từ máy thì điền im lặng — dán tên tài
 	   khoản Zalo lên một thông tin gõ tay là nói sai nguồn gốc của nó. */
 	if (chip && !ZME.dangnhap) { chip.hidden = true; }
 	else if (chip){
-		qs('.pve-zme-t').textContent = ZME.ten || ('Zalo ' + (ZME.id || ''));
-		var a = qs('.pve-zme-a');
+		qf('.pve-zme-t').textContent = ZME.ten || ('Zalo ' + (ZME.id || ''));
+		var a = qf('.pve-zme-a');
 		if (a && ZME.anh) { a.src = ZME.anh; a.hidden = false; }
 		chip.hidden = false;
 	}
@@ -655,9 +663,9 @@ function dongBo(){
 mask.querySelector('.pve-x').addEventListener('click', dong);
 mask.addEventListener('click', function(e){ if(e.target===mask) dong(); });
 
-qs('.pve-go').addEventListener('click', function(){
-	var ten = qs('.pve-f-ten').value.trim(), sdt = qs('.pve-f-sdt').value.trim();
-	var err = qs('.pve-err');
+qf('.pve-go').addEventListener('click', function(){
+	var ten = qf('.pve-f-ten').value.trim(), sdt = qf('.pve-f-sdt').value.trim();
+	var err = qf('.pve-err');
 	if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
 	err.hidden = true; this.disabled = true; this.textContent='Đang tạo…';
 	var btn = this;
