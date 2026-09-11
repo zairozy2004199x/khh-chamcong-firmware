@@ -488,6 +488,7 @@ class VHG_KeToan {
 		$list = is_array( $targets ) ? $targets : array();
 		if ( ! count( $list ) ) { return array( 'ok' => false, 'message' => 'Chưa chọn ghế nào.' ); }
 		$now = current_time( 'mysql' ); $moved = 0; $locked = 0;
+		$reports = array(); // report_id đã đụng tới → dọn header rỗng ở cuối
 		foreach ( $list as $t ) {
 			$rid = (string) ( isset( $t['report_id'] ) ? $t['report_id'] : '' );
 			$ma  = (string) ( isset( $t['ma_may'] ) ? $t['ma_may'] : '' );
@@ -502,17 +503,43 @@ class VHG_KeToan {
 				'ly_do' => mb_substr( $why, 0, 250 ), 'boi' => (string) $boi, 'tao_luc' => $now ) );
 			$wpdb->delete( VHG_DB::t( 'bc_dong' ), array( 'id' => (int) $d['id'] ) );
 			$moved++;
+			$reports[ $rid ] = true;
 		}
-		return array( 'ok' => true, 'moved' => $moved, 'skippedLocked' => $locked,
-			'message' => 'Đã chuyển ' . $moved . ' ghế vào thùng rác.' . ( $locked ? ( ' Bỏ ' . $locked . ' ghế ngày đang khoá.' ) : '' ) );
+		/* 🔴 XOÁ HẲN HEADER KHI BÁO CÁO ĐÃ HẾT GHẾ — anh Thắng 11/09/2026: "xóa thì xóa luôn thông
+		   báo này ... xóa hẳn". Ẩn ở khâu hiện (ds_24h) chưa đủ với anh; báo cáo rỗng phải biến mất
+		   khỏi CSDL. Vẫn HOÀN TÁC ĐƯỢC: chụp trọn header vào thùng rác dưới dạng dòng đặc biệt
+		   ma_may='__HEADER__' (rac_hoan tự dựng header lại trước khi trả ghế về — xem phuc_hoi_header_).
+		   ⚠️ CHỈ DỌN KHI KHÔNG CÒN VƯỚNG TIỀN: nop_id>0 (đã đẩy lượt nộp cho kế toán) hoặc đã đính
+		      bill thì GIỮ header, tránh bỏ mồ côi một lượt nộp/bill trong quỹ; các ca này vốn đã bị
+		      ẩn khỏi màn nhờ bộ lọc "0 ghế" nên không phiền mắt. */
+		$purged = 0;
+		foreach ( array_keys( $reports ) as $rid ) {
+			$con = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s', $rid ) );
+			if ( $con > 0 ) { continue; }
+			$hdr = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1', $rid ), ARRAY_A );
+			if ( ! $hdr ) { continue; }
+			if ( (int) $hdr['nop_id'] > 0 || ! empty( $hdr['bill_luc'] ) ) { continue; }
+			$wpdb->insert( VHG_DB::t( 'bc_rac' ), array(
+				'report_id' => $rid, 'ma_may' => '__HEADER__', 'ngay' => $hdr['ngay'],
+				'coso' => $hdr['coso'], 'snapshot' => wp_json_encode( $hdr ),
+				'ly_do' => mb_substr( $why, 0, 250 ), 'boi' => (string) $boi, 'tao_luc' => $now ) );
+			$wpdb->delete( VHG_DB::t( 'bc' ), array( 'id' => (int) $hdr['id'] ) );
+			$purged++;
+		}
+		return array( 'ok' => true, 'moved' => $moved, 'skippedLocked' => $locked, 'purgedHeaders' => $purged,
+			'message' => 'Đã chuyển ' . $moved . ' ghế vào thùng rác.'
+				. ( $purged ? ( ' Xoá ' . $purged . ' báo cáo rỗng.' ) : '' )
+				. ( $locked ? ( ' Bỏ ' . $locked . ' ghế ngày đang khoá.' ) : '' ) );
 	}
 
 	public static function rac_ds( $gh = 100 ) {
 		global $wpdb;
 		$gh = max( 1, min( 500, (int) $gh ) );
+		/* Dòng '__HEADER__' là ảnh chụp header nội bộ (xem xoa()) — không phải một cái ghế, không
+		   bày ra danh sách thùng rác; nó tự được dựng lại khi hoàn tác một ghế bất kỳ của báo cáo. */
 		$r = $wpdb->get_results( $wpdb->prepare(
 			'SELECT id, report_id, ma_may, ngay, coso, ly_do, boi, tao_luc FROM ' . VHG_DB::t( 'bc_rac' )
-			. ' WHERE hoan_luc IS NULL ORDER BY id DESC LIMIT %d', $gh ), ARRAY_A );
+			. " WHERE hoan_luc IS NULL AND ma_may<>'__HEADER__' ORDER BY id DESC LIMIT %d", $gh ), ARRAY_A );
 		$ra = array();
 		foreach ( (array) $r as $x ) { $ra[] = array( 'id' => (int) $x['id'], 'reportId' => $x['report_id'],
 			'chairCode' => $x['ma_may'], 'ngay' => self::ngay_( $x['ngay'] ), 'coso' => $x['coso'],
@@ -532,8 +559,12 @@ class VHG_KeToan {
 			$snap = json_decode( (string) $x['snapshot'], true );
 			if ( ! is_array( $snap ) ) { $bo++; continue; }
 			unset( $snap['id'] );
-			/* Còn báo cáo gốc? report_id vẫn có trong `bc`? Nếu bc header đã mất thì vẫn insert dòng —
-			   nhưng thường header còn (chỉ xoá dòng ghế). Trùng (report_id,ma_may) thì bỏ qua. */
+			/* 🔴 DỰNG LẠI HEADER TRƯỚC KHI TRẢ GHẾ. Nếu báo cáo từng bị xoá HẾT ghế thì header `bc`
+			   đã bị dọn (xem xoa()); trả ghế về mà không có header thì nó thành dòng mồ côi — cả
+			   ds_24h lẫn KeToan::ds đều duyệt theo header nên ghế ấy vô hình. Phục hồi header từ ảnh
+			   chụp '__HEADER__' trước, rồi mới insert dòng ghế. */
+			self::phuc_hoi_header_( (string) ( isset( $snap['report_id'] ) ? $snap['report_id'] : '' ) );
+			/* Còn báo cáo gốc? report_id vẫn có trong `bc`? Trùng (report_id,ma_may) thì bỏ qua. */
 			$co = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s',
 				$snap['report_id'], $snap['ma_may'] ) );
 			if ( $co ) { $bo++; continue; }
@@ -543,6 +574,26 @@ class VHG_KeToan {
 		}
 		return array( 'ok' => true, 'restored' => $n, 'bad' => $bo,
 			'message' => 'Đã hoàn tác ' . $n . ' ghế.' . ( $bo ? ( ' Bỏ ' . $bo . ' (đã có dòng hoặc lỗi).' ) : '' ) );
+	}
+
+	/**
+	 * Dựng lại header `bc` đã bị dọn khi xoá cả báo cáo (xem xoa()). Chỉ chạy khi header thật sự
+	 * mất; có sẵn thì thôi. Lấy ảnh chụp '__HEADER__' mới nhất còn trong thùng rác của report_id.
+	 */
+	private static function phuc_hoi_header_( $rid ) {
+		global $wpdb;
+		$rid = (string) $rid;
+		if ( '' === $rid ) { return; }
+		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1', $rid ) );
+		if ( $co ) { return; }
+		$hr = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_rac' ) . " WHERE report_id=%s AND ma_may='__HEADER__' AND hoan_luc IS NULL ORDER BY id DESC LIMIT 1", $rid ), ARRAY_A );
+		if ( ! $hr ) { return; }
+		$hs = json_decode( (string) $hr['snapshot'], true );
+		if ( ! is_array( $hs ) ) { return; }
+		unset( $hs['id'] );
+		$wpdb->insert( VHG_DB::t( 'bc' ), $hs );
+		$wpdb->update( VHG_DB::t( 'bc_rac' ), array( 'hoan_luc' => current_time( 'mysql' ) ), array( 'id' => (int) $hr['id'] ) );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ ĐỔI NGÀY BÁO CÁO
