@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.53.0
+ * Version:           1.54.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -733,6 +733,8 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
+		register_rest_route( self::NS, '/ql/nap-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_ds' ) ) );
+		register_rest_route( self::NS, '/ql/nap-xn', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_xn' ) ) );
 		register_rest_route( self::NS, '/ql/vi-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_ds' ) ) );
 		register_rest_route( self::NS, '/ql/vi-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_luu' ) ) );
 		register_rest_route( self::NS, '/ql/do-saoke', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_do_saoke' ) ) );
@@ -1472,21 +1474,94 @@ class POSH_Ve {
 	 * thứ hai không đổi được dòng nào và không cộng gì thêm. Đọc-rồi-ghi ở đây là nhân đôi tiền.
 	 */
 	public static function tu_khop_nap( $ma ) {
-		global $wpdb; $t = self::tbl_nap();
-		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE ma=%s", $ma ), ARRAY_A );
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::tbl_nap() . ' WHERE ma=%s', $ma ), ARRAY_A );
 		if ( ! $r || 'cho' !== $r['trang_thai'] ) { return false; }
 		if ( ! self::co_tien_ve( (int) $r['so_tien'], $r['noi_dung'] ) ) { return false; }
+		return self::nap_xong( $r, 'Nạp ví' );
+	}
+
+	/**
+	 * Chốt một lệnh nạp: đổi trạng thái rồi cộng ví. Dùng chung cho hai lối — tự khớp sổ phụ và
+	 * quản trị xác nhận tay.
+	 *
+	 * 🔴 VIỆC ĐỔI TRẠNG THÁI PHẢI Ở ĐÂY, KHÔNG Ở NƠI GỌI. Hai lối cùng chạy được (cron dò đúng
+	 * lúc quản trị bấm tay) và trang khách còn hỏi 5 giây một lượt. Đổi bằng MỘT câu UPDATE có
+	 * điều kiện `trang_thai='cho'` thì lượt thứ hai không đổi được dòng nào và không cộng thêm
+	 * đồng nào. Tách ra hai nơi tự làm là có ngày cộng ví hai lần.
+	 */
+	private static function nap_xong( $r, $ghi_chu ) {
+		global $wpdb;
 		$n = $wpdb->query( $wpdb->prepare(
-			"UPDATE $t SET trang_thai='xong', tt_luc=%s WHERE ma=%s AND trang_thai='cho'",
-			current_time( 'mysql' ), $ma ) );
+			'UPDATE ' . self::tbl_nap() . " SET trang_thai='xong', tt_luc=%s WHERE ma=%s AND trang_thai='cho'",
+			current_time( 'mysql' ), $r['ma'] ) );
 		if ( ! $n ) { return false; }                       // lượt khác vừa cộng rồi
-		self::vi_cong( $r['chu'], (int) $r['so_tien'], 'nap', $ma, 'Nạp ví' );
+		self::vi_cong( $r['chu'], (int) $r['so_tien'], 'nap', $r['ma'], $ghi_chu );
 		if ( (int) $r['tang'] > 0 ) {
-			self::vi_cong( $r['chu'], (int) $r['tang'], 'tang', $ma,
+			self::vi_cong( $r['chu'], (int) $r['tang'], 'tang', $r['ma'],
 				'Tặng thêm' . ( $r['code'] ? ' (mã ' . $r['code'] . ')' : '' ) );
 		}
 		if ( $r['code'] ) { self::uu_dai_ghi_luot( $r['code'] ); }
 		return true;
+	}
+
+	/**
+	 * Danh sách lệnh nạp ví cho khu quản trị — anh Thắng 11/09/2026: *"đơn nộp tiền vẫn không
+	 * thấy đơn chờ thanh toán"*.
+	 *
+	 * Lệnh nạp nằm ở bảng RIÊNG (pve_nap), không phải bảng vé, nên màn Đơn hàng & soát vé không
+	 * bao giờ thấy chúng. Trong lúc luồng SePay chưa thông thì đây là chỗ DUY NHẤT để quản trị
+	 * nhìn thấy khách đã tạo lệnh nạp nào và xác nhận tay.
+	 */
+	public static function r_ql_nap_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb;
+		$loc = sanitize_key( (string) $req->get_param( 'loc' ) );
+		$tim = trim( (string) $req->get_param( 'tim' ) );
+		$w = array( '1=1' ); $a = array();
+		if ( in_array( $loc, array( 'cho', 'xong' ), true ) ) { $w[] = 'n.trang_thai=%s'; $a[] = $loc; }
+		if ( '' !== $tim ) {
+			$w[] = '(n.ma LIKE %s OR n.chu LIKE %s OR v.ten LIKE %s OR v.sdt LIKE %s)';
+			$k = '%' . $wpdb->esc_like( $tim ) . '%';
+			$a = array_merge( $a, array( $k, $k, $k, $k ) );
+		}
+		$sql = 'SELECT n.*, v.ten AS ten_chu, v.sdt AS sdt_chu FROM ' . self::tbl_nap() . ' n'
+			. ' LEFT JOIN ' . self::tbl_vi() . ' v ON v.chu = n.chu'
+			. ' WHERE ' . implode( ' AND ', $w ) . ' ORDER BY n.id DESC LIMIT 100';
+		$rows = $a ? $wpdb->get_results( $wpdb->prepare( $sql, $a ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $r ) {
+			$ra[] = array( 'ma' => $r['ma'], 'so_tien' => (int) $r['so_tien'], 'tang' => (int) $r['tang'],
+				'code' => $r['code'], 'noi_dung' => $r['noi_dung'], 'trang_thai' => $r['trang_thai'],
+				'ten' => (string) $r['ten_chu'], 'sdt' => (string) $r['sdt_chu'], 'chu' => $r['chu'],
+				'tao_luc' => $r['tao_luc'], 'tt_luc' => $r['tt_luc'] );
+		}
+		return array( 'ok' => true, 'nap' => $ra );
+	}
+
+	/**
+	 * Quản trị xác nhận TAY một lệnh nạp (đã nhìn thấy tiền trong app ngân hàng).
+	 *
+	 * ⚠️ Vẫn thử khớp sổ phụ TRƯỚC. Khớp được thì ghi chú là "tự khớp" chứ không phải "xác nhận
+	 * tay" — sau này soi lại sổ cái còn biết đồng nào máy tự nhận, đồng nào người gật.
+	 */
+	public static function r_ql_nap_xn( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma' ) ) );
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::tbl_nap() . ' WHERE ma=%s', $ma ), ARRAY_A );
+		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy lệnh nạp.', array( 'status' => 404 ) ); }
+		if ( 'cho' !== $r['trang_thai'] ) {
+			return new WP_Error( 'roi', 'Lệnh nạp này đã cộng ví rồi.', array( 'status' => 409 ) );
+		}
+		if ( self::co_tien_ve( (int) $r['so_tien'], $r['noi_dung'] ) ) {
+			self::nap_xong( $r, 'Nạp ví' );
+			return array( 'ok' => true, 'ma' => $ma, 'cach' => 'tu_khop', 'so_du' => self::vi_so_du( $r['chu'] ) );
+		}
+		if ( ! self::nap_xong( $r, 'Nạp ví (quản trị xác nhận tay)' ) ) {
+			return new WP_Error( 'roi', 'Lệnh nạp vừa được cộng ở lượt khác.', array( 'status' => 409 ) );
+		}
+		return array( 'ok' => true, 'ma' => $ma, 'cach' => 'tay', 'so_du' => self::vi_so_du( $r['chu'] ) );
 	}
 
 	public static function r_vi_nap_tt( $req ) {
@@ -3459,6 +3534,7 @@ class POSH_Ve {
 					<button class="pql-tab" data-tab="ve">🎟️ Vé</button>
 					<button class="pql-tab" data-tab="dm">🗂️ Phân loại vé</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn hàng &amp; soát vé</button>
+					<button class="pql-tab" data-tab="nap">💸 Đơn nạp ví</button>
 					<div class="pql-side-g">Khách hàng</div>
 					<button class="pql-tab" data-tab="kh">👥 Danh sách khách</button>
 					<div class="pql-side-g">Loyalty</div>
@@ -3537,6 +3613,22 @@ class POSH_Ve {
 						<div class="pql-dmmsg"></div>
 					</div>
 				</div><!-- /pane dm -->
+
+				<?php /* Lệnh nạp ví nằm ở bảng RIÊNG, màn Đơn hàng & soát vé không thấy — xem chú thích
+						 ở POSH_Ve::r_ql_nap_ds(). Đây là chỗ duy nhất quản trị nhìn thấy chúng. */ ?>
+				<div class="pql-pane" data-pane="nap" hidden>
+					<div class="pql-bar"><b>Đơn nạp ví</b></div>
+					<div class="pql-hrow">
+						<select class="pql-nap-loc"><option value="">Tất cả</option><option value="cho">Chờ tiền về</option><option value="xong">Đã cộng ví</option></select>
+						<input class="pql-nap-tim" placeholder="Tìm mã nạp / tên / SĐT" style="flex:1">
+						<button class="pql-them pql-nap-loc-go">Lọc</button>
+					</div>
+					<p style="color:var(--mut);font-size:12px;margin:6px 0 12px">
+						Tiền về là hệ thống tự cộng ví. Chỉ bấm <b>Xác nhận đã nhận tiền</b> khi anh đã
+						<b>nhìn thấy tiền trong app ngân hàng</b> — bấm nhầm là cộng tiền cho một lệnh chưa trả.
+					</p>
+					<div class="pql-naplist"></div>
+				</div><!-- /pane nap -->
 
 				<div class="pql-pane" data-pane="vi" hidden>
 					<div class="pql-bar"><b>Ví tiền — mệnh giá nạp</b><button class="pql-vi-luu">Lưu</button></div>
@@ -3915,7 +4007,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='nap') napNap(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -4020,6 +4112,39 @@ class POSH_Ve {
 
 		  /* ═══ TÀI KHOẢN NHẬN TIỀN ═══════════════════════════════════════════════════════ */
 		  var TK_NH_DA = false;
+		  /* ── Đơn nạp ví ─────────────────────────────────────────────────────────────────── */
+		  var NAP_TT={cho:'Chờ tiền về',xong:'Đã cộng ví'};
+		  function napNap(){
+		    $('.pql-naplist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
+		    var q='?loc='+encodeURIComponent($('.pql-nap-loc').value)+'&tim='+encodeURIComponent($('.pql-nap-tim').value);
+		    get('/ql/nap-ds'+q).then(function(d){
+		      var ds=d.nap||[];
+		      if(!ds.length){ $('.pql-naplist').innerHTML='<p style="color:#6f6a5d">Chưa có lệnh nạp nào.</p>'; return; }
+		      $('.pql-naplist').innerHTML=ds.map(rowNap).join('');
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-nap-xn'),function(b){
+		        b.addEventListener('click',function(){
+		          if(!confirm('Xác nhận ĐÃ NHẬN TIỀN cho lệnh '+b.getAttribute('data-ma')+'?\nChỉ bấm khi đã thấy tiền trong app ngân hàng.')) return;
+		          b.disabled=true; b.textContent='Đang cộng…';
+		          post('/ql/nap-xn',{ma:b.getAttribute('data-ma')}).then(function(){ napNap(); })
+		            .catch(function(e){ b.disabled=false; b.textContent='Xác nhận đã nhận tiền'; alert(e.message||e); });
+		        });
+		      });
+		    }).catch(function(e){ $('.pql-naplist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function rowNap(r){
+		    var nhan=NAP_TT[r.trang_thai]||r.trang_thai;
+		    var act = (r.trang_thai==='cho')
+		      ? '<div class="pql-don-act"><button class="go pql-nap-xn" data-ma="'+esc(r.ma)+'">Xác nhận đã nhận tiền</button></div>' : '';
+		    return '<div class="pql-don"><div class="pql-don-top"><span class="pql-don-ma">'+esc(r.ma)+'</span>'
+		      +'<span class="pql-bdg '+(r.trang_thai==='xong'?'da_tt':'cho')+'">'+esc(nhan)+'</span></div>'
+		      +'<div class="pql-don-sub">Nạp '+VND(r.so_tien)+(r.tang?(' + tặng '+VND(r.tang)):'')
+		      +(r.code?(' · mã '+esc(r.code)):'')+'</div>'
+		      +'<div class="pql-don-sub">'+esc(r.ten||'(chưa rõ tên)')+(r.sdt?(' · '+esc(r.sdt)):'')+'</div>'
+		      +'<div class="pql-don-sub">Nội dung CK: <b>'+esc(r.noi_dung)+'</b></div>'+act+'</div>';
+		  }
+		  var nlg=$('.pql-nap-loc-go'); if(nlg) nlg.addEventListener('click',napNap);
+		  var nti=$('.pql-nap-tim'); if(nti) nti.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); napNap(); } });
+
 		  /* ── Ví tiền: gói nạp + mã ưu đãi ────────────────────────────────────────────────
 		     Cùng đọc/ghi một cặp option với màn WP Admin — hai kho dữ liệu là sớm muộn hai màn
 		     nói hai con số khác nhau và không biết tin màn nào. */

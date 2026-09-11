@@ -113,6 +113,17 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
 
+### Đơn nạp ví nằm ở bảng RIÊNG — màn Đơn hàng không thấy
+`pve_nap` khác `pve_ve`, nên màn **Đơn hàng & soát vé** không bao giờ liệt kê lệnh nạp. Từ
+**1.54.0** có màn riêng **💸 Đơn nạp ví**: lọc theo trạng thái, tìm theo mã/tên/SĐT, và **xác nhận
+tay** khi luồng SePay chưa thông.
+
+⚠️ Xác nhận tay vẫn **thử khớp sổ phụ trước**; khớp được thì sổ cái ghi "Nạp ví", không khớp mới
+ghi "quản trị xác nhận tay" — sau này soi lại còn biết đồng nào máy tự nhận, đồng nào người gật.
+Việc đổi trạng thái nằm trong `nap_xong()` bằng **một** câu `UPDATE … WHERE trang_thai='cho'`:
+cron, trang khách và quản trị có thể chạy cùng lúc, tách ra hai nơi tự làm là có ngày cộng ví hai
+lần.
+
 ### 🔴 VÍ TIỀN — ba luật không được đổi (từ 1.49.0)
 1. **Chủ ví là tài khoản Zalo**, không phải số điện thoại. Số điện thoại không phải bí mật: tra ví
    theo số là ai gõ số người khác cũng tiêu được tiền của họ.
