@@ -49,7 +49,7 @@ define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
       chép tay nên nó TRÔI khỏi danh sách thật của plugin — phép thử ở mục "nạp đủ lớp" dưới
       canh đúng chuyện đó. Thêm lớp mới mà quên đây là lỗi "Class not found" giữa lúc chạy, và
       nó chỉ lộ ra ở đúng phép thử chạm tới lớp đó. */
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qrve', 'tep', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';

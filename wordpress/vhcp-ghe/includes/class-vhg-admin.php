@@ -1318,13 +1318,123 @@ class VHG_Admin {
 
 	// ======================================================================= 3. CỔNG & NHẬT KÝ
 
+	/** Bảng vừa đọc từ tệp, giữ giữa bước xem trước và bước nhập. */
+	private static $xem_bang = null;
+	private static $xem_kieu = '';
+
+	/**
+	 * Khối tải tệp sao kê + xem trước.
+	 *
+	 * ⚠️ Bảng xem trước KHÔNG được giữ trong phiên hay ô ẩn. Giữ trong phiên là hai người khai
+	 *    cùng lúc thì người này nhập nhầm tệp của người kia; nhét 2.000 dòng vào ô ẩn là gói gửi
+	 *    lên vượt `max_input_vars` và mất sạch không báo gì. Nên tải lại tệp ở bước nhập — đúng
+	 *    cái tệp ấy, người khai vừa chọn xong nên còn nguyên trên máy họ.
+	 */
+	private static function ve_tai_tep() {
+		echo '<h2>Tải tệp sao kê lên (.xlsx / .csv)</h2>';
+		echo '<p>Anh Thắng 11/09/2026: <em>"tải sao kê trên VietQR, hệ thống tự đối chiếu để xác định '
+			. 'giao dịch đó của cơ sở nào"</em>. Tệp sao kê có cột <strong>Mã cửa hàng</strong> / '
+			. '<strong>Mã điểm bán</strong> — đó chính là thứ nói giao dịch "PaymentForOrder" thuộc cơ sở '
+			. 'nào, mà webhook không có. Nhập lại đúng tệp đó <strong>không cộng đôi</strong>.</p>';
+		echo '<form method="post" enctype="multipart/form-data" style="margin-bottom:8px">';
+		wp_nonce_field( 'vhg' );
+		echo '<input type="file" name="tep" accept=".xlsx,.csv,.tsv,.txt" required /> ';
+		echo '<button class="button button-primary" name="vhg" value="xem_tep">① Xem trước</button>';
+		echo '<p class="description">Bước ① chỉ ĐỌC tệp, chưa ghi gì vào sổ. Soát xong mới bấm nhập ở bước ②.</p>';
+		echo '</form>';
+
+		$bang = self::$xem_bang;
+		if ( ! is_array( $bang ) || count( $bang ) < 1 ) { return; }
+
+		/* Nhận ra cột nào — nói thẳng ra, đừng để người khai đoán. */
+		$h = $bang[0];
+		$mong = array(
+			'Mã tham chiếu' => array( 'mã tham chiếu', 'tham chiếu', 'reference' ),
+			'Số tiền'       => array( 'số tiền đến', 'tiền đến', 'số tiền' ),
+			'Mã điểm bán'   => array( 'mã điểm bán', 'điểm bán', 'voice box' ),
+			'Mã cửa hàng'   => array( 'mã cửa hàng', 'cửa hàng' ),
+			'Nội dung'      => array( 'nội dung' ),
+			'Thời gian'     => array( 'thời gian tạo', 'thời gian tt', 'thời gian' ),
+		);
+		echo '<h3>① Đã nhận ra cột nào</h3><table class="widefat striped" style="max-width:720px"><tbody>';
+		$thieu_bat_buoc = false;
+		foreach ( $mong as $ten => $tu ) {
+			$i = VHG_Nhap::cot( $h, $tu );
+			$batbuoc = ( 'Mã tham chiếu' === $ten || 'Số tiền' === $ten );
+			if ( $batbuoc && $i < 0 ) { $thieu_bat_buoc = true; }
+			echo '<tr><td style="width:170px"><strong>' . esc_html( $ten ) . '</strong>'
+				. ( $batbuoc ? ' <span style="color:#b32d2e">(bắt buộc)</span>' : '' ) . '</td><td>'
+				. ( $i >= 0
+					? ( '✅ cột ' . ( $i + 1 ) . ' — <code>' . esc_html( (string) $h[ $i ] ) . '</code>' )
+					: '<span style="color:' . ( $batbuoc ? '#b32d2e' : '#8a6d3b' ) . '">'
+						. ( $batbuoc ? '❌ KHÔNG THẤY' : '— không có (bỏ qua được)' ) . '</span>' )
+				. '</td></tr>';
+		}
+		echo '</tbody></table>';
+
+		if ( $thieu_bat_buoc ) {
+			echo '<div class="notice notice-error inline"><p><strong>Thiếu cột bắt buộc nên chưa nhập được.</strong> '
+				. 'Thường là do dòng đầu của tệp không phải dòng tiêu đề (một số bản xuất để tên công ty ở dòng 1) '
+				. '— xoá những dòng thừa phía trên rồi tải lại.</p></div>';
+		}
+
+		/* Năm dòng đầu — đủ để thấy cột có lệch không, mà không đổ cả 2.000 dòng ra màn. */
+		echo '<h3>Năm dòng đầu của tệp</h3><div style="overflow:auto"><table class="widefat striped"><thead><tr>';
+		foreach ( $h as $k => $c ) { echo '<th>' . ( $k + 1 ) . '. ' . esc_html( (string) $c ) . '</th>'; }
+		echo '</tr></thead><tbody>';
+		for ( $r = 1; $r < min( 6, count( $bang ) ); $r++ ) {
+			echo '<tr>';
+			foreach ( $h as $k => $bo ) {
+				echo '<td>' . esc_html( isset( $bang[ $r ][ $k ] ) ? (string) $bang[ $r ][ $k ] : '' ) . '</td>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+
+		if ( $thieu_bat_buoc ) { return; }
+		echo '<h3>② Chọn lại đúng tệp vừa xem rồi bấm nhập</h3>';
+		echo '<form method="post" enctype="multipart/form-data">';
+		wp_nonce_field( 'vhg' );
+		echo '<input type="file" name="tep" accept=".xlsx,.csv,.tsv,.txt" required /> ';
+		echo '<button class="button button-primary" name="vhg" value="nhap_tep_gd">Nhập giao dịch</button> ';
+		echo '<button class="button" name="vhg" value="nhap_tep_bd">Nhập làm bản đồ máy</button>';
+		echo '</form>';
+	}
+
 	public static function trang_cong() {
 		self::gac();
 		$bao = array();
 		if ( isset( $_POST['vhg'] ) ) {
 			check_admin_referer( 'vhg' );
 			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
-			if ( 'nhap_gd' === $viec ) {
+			if ( 'xem_tep' === $viec || 'nhap_tep_gd' === $viec || 'nhap_tep_bd' === $viec ) {
+				/* 🔴 XEM TRƯỚC LÀ BƯỚC BẮT BUỘC, KHÔNG PHẢI TIỆN NGHI.
+				 *
+				 * Sao kê 2.000 dòng nhập một phát là 2.000 dòng tiền vào sổ. Nhận nhầm cột — tên
+				 * cột khác một chữ, tệp xuất ra ngăn bằng dấu chấm phẩy, hàng tiêu đề nằm ở dòng
+				 * 2 vì dòng 1 là tên công ty — thì tiền gán sai cơ sở HÀNG LOẠT, mà `ref` là
+				 * UNIQUE nên nhập lại bản đúng cũng không sửa được những dòng đã vào.
+				 *
+				 * Nên: tải lên thì BÀY RA đã nhận ra cột nào, ở đâu, kèm năm dòng đầu. Người khai
+				 * nhìn một cái là biết đúng hay sai, rồi mới bấm nhập. */
+				$doc = VHG_Tep::doc( isset( $_FILES['tep'] ) ? $_FILES['tep'] : null );
+				if ( empty( $doc['ok'] ) ) {
+					$bao[] = array( 'ok' => false, 'error' => $doc['error'] );
+				} else {
+					$bang = $doc['bang'];
+					if ( 'xem_tep' === $viec ) {
+						self::$xem_bang = $bang;
+						self::$xem_kieu = isset( $doc['kieu'] ) ? $doc['kieu'] : '';
+						$bao[] = array( 'ok' => true, 'thong_bao' => 'Đọc được ' . max( 0, count( $bang ) - 1 )
+							. ' dòng dữ liệu từ tệp (' . strtoupper( self::$xem_kieu ) . '). '
+							. 'SOÁT BẢNG DƯỚI RỒI MỚI BẤM NHẬP — nhập rồi thì không lùi được.' );
+					} elseif ( 'nhap_tep_gd' === $viec ) {
+						$bao[] = VHG_Nhap::nhap_giao_dich( $bang );
+					} else {
+						$bao[] = VHG_Nhap::nhap_ban_do( $bang );
+					}
+				}
+			} elseif ( 'nhap_gd' === $viec ) {
 				$bao[] = VHG_Nhap::nhap_giao_dich( VHG_Nhap::bang_tu_van_ban( wp_unslash( $_POST['bang'] ) ) );
 			} elseif ( 'nhap_bd' === $viec ) {
 				$bao[] = VHG_Nhap::nhap_ban_do( VHG_Nhap::bang_tu_van_ban( wp_unslash( $_POST['bang'] ) ) );
@@ -1366,6 +1476,9 @@ class VHG_Admin {
 		echo '<p><strong>Nội dung chuyển khoản nên có dạng <code>GHE&lt;mã máy&gt; &lt;mã lượt&gt;</code></strong> '
 			. '(VD <code>GHE3 T1ABC</code>) để tự khớp đúng ghế. Không khớp thì tiền <strong>vẫn vào sổ</strong>, '
 			. 'chỉ là chưa gắn được máy — đối soát tay sau, không mất.</p>';
+
+		/* ---- Tải tệp sao kê ---- */
+		self::ve_tai_tep();
 
 		/* ---- Nhập bảng ---- */
 		echo '<h2>Nhập bảng giao dịch từ Tingo / VietQR</h2>';
