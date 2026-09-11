@@ -303,6 +303,9 @@ class VHCP_DuAn {
 				'tongDuToan' => $dt + $sc['duToan'],
 				'tongThucTe' => $tt + $sc['tien'],
 				'soDongSoChi' => $sc['n'],
+				/* Số dòng CÓ THẬT của dự án — màn cần con số này để biết sổ chung có rỗng
+				   không mà bày nút 🗑. Đếm ở đây vì `$lines` đã đọc sẵn, khỏi thêm lệnh DB. */
+				'soDong'     => (int) count( array_filter( $lines, array( __CLASS__, 'is_real' ) ) ),
 				'chenh'      => ( $tt + $sc['tien'] ) - ( $dt + $sc['duToan'] ),
 				/* Sổ CHUNG xuyên suốt vs đơn cơ sở theo đợt — danh sách phải phân biệt được để
 				   đừng bày nút 🗑 lên cái không xoá nổi. */
@@ -1614,12 +1617,42 @@ class VHCP_DuAn {
 		global $wpdb;
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
-		if ( self::la_coso_chung( $ma_da ) ) { return VHCP_Util::err( 'Không xoá sổ Chi phí cơ sở CHUNG' ); }
+		/* SỔ CHI PHÍ CƠ SỞ CHUNG: chỉ xoá được KHI RỖNG — anh Thắng 11/09/2026: *"xoá đơn này
+		   cho anh"*, chỉ vào dòng sổ chung đang 0đ / 0 dòng.
+
+		   🔴 KHÔNG BỎ HẲN CHỐT. Sổ chung của những nơi đã chạy lâu mang dòng chi ĐÃ XUẤT MISA;
+		      xoá là mất chứng từ kế toán, không khôi phục được. Rỗng thì không có gì để mất,
+		      mà để lại một dòng 0đ nằm giữa danh sách thì lần nào lọc cũng phải lướt qua nó.
+
+		   ⚠️ ĐẾM CẢ DÒNG Ở SỔ CHI PHÍ. Dự án có thể không còn dòng nào trong bảng của nó mà
+		      vẫn đang gánh các dòng chi mang mã ấy bên sổ chi phí — nhìn bảng hạng mục thì
+		      tưởng rỗng. */
+		$la_chung = self::la_coso_chung( $ma_da );
+		if ( $la_chung ) {
+			$n_dong = 0;
+			foreach ( self::lines_of( $ma_da ) as $r ) { if ( self::is_real( $r ) ) { $n_dong++; } }
+			$n_sc = count( VHCP_SoChi::theo_du_an( (string) $ma_da ) );
+			if ( ! $n_sc ) { $n_sc = count( VHCP_SoChi::theo_du_an( (string) $f['ten'] ) ); }
+			if ( $n_dong || $n_sc ) {
+				return VHCP_Util::err( 'Sổ Chi phí cơ sở CHUNG còn ' . ( $n_dong + $n_sc )
+					. ' dòng chi — không xoá được. Dòng ở đây có thể đã xuất MISA; xoá hết dòng trước rồi mới xoá sổ.' );
+			}
+		}
 		if ( (string) $f['trang_thai'] === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng — Admin "Mở lại" trước khi xóa' ); }
 		$wpdb->delete( VHCP_DB::t( 'da_line' ), array( 'ma_da' => (string) $ma_da ) );
 		$wpdb->delete( VHCP_DB::t( 'da_index' ), array( 'ma_da' => (string) $ma_da ) );
 		VHCP_Meta::del( 'daPay_' . $ma_da );
 		VHCP_Meta::del( 'daApp_' . $ma_da );
+		VHCP_Meta::del( 'daKy_' . $ma_da );
+		/* XOÁ SỔ CHUNG THÌ GHIM LẠI VẾT TRỐNG.
+		   ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
+		      quả hôm nay — vết ghim cũ vẫn trỏ tới mã vừa xoá, mà `ma_coso_chung()` thấy
+		      `find()` trả null nên đã trả '' rồi. Giữ vì nó CHỐT trạng thái "sổ này không có sổ
+		      chung" thay vì để mỗi lượt gọi đi tra một mã đã chết; và ngày nào vết ghim bị dọn
+		      (đổi khoá meta, khôi phục từ bản lưu) thì `ma_coso_chung()` ngã về "dự án loại
+		      'Chi phí cơ sở' CŨ NHẤT" — tức một ĐƠN THEO TUẦN của nhân viên — và đơn ấy lặng lẽ
+		      thành sổ chung: không đóng, không xoá, không đổi tên được, không báo gì. */
+		if ( $la_chung ) { VHCP_Meta::set( self::MK_COSO_CHUNG, '-' ); }
 		return VHCP_Util::ok();
 	}
 

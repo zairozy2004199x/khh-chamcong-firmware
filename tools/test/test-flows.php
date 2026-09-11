@@ -1361,7 +1361,11 @@ teq( 'MISA kỹ thuật: 64125 cho tạm ứng', 9000000, isset( $tkco['64125'] 
 $c1 = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', '', 'Kỹ thuật viên' );
 $c2 = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', '', 'Người khác' );
 teq( 'chi phí cơ sở chung chỉ 1 bản', $c1['maDA'], $c2['maDA'] );
-t( 'không xóa được chi phí cơ sở chung', empty( VHCP_DuAn::delete( $c1['maDA'] )['success'] ) );
+/* 🔴 SỔ CHUNG CÒN DÒNG THÌ KHÔNG XOÁ — dòng trong đó có thể đã xuất MISA.
+   Rỗng thì xoá được (anh Thắng 11/09/2026: *"xoá đơn này cho anh"*, chỉ vào dòng sổ chung 0đ);
+   bài riêng cho ca ấy ở `kiem-don-coso-nhieu-gian.php`. */
+VHCP_DuAn::add_line( $c1['maDA'], array( 'noiDung' => 'Khoản cũ', 'gian' => 'Gian X', 'thucTe' => 500000 ) );
+t( 'sổ chi phí cơ sở chung CÒN DÒNG thì không xoá được', empty( VHCP_DuAn::delete( $c1['maDA'] )['success'] ) );
 t( 'không đổi tên chi phí cơ sở chung', empty( VHCP_DuAn::rename_du_an( $c1['maDA'], 'X' )['success'] ) );
 
 // ---------------------------------------------------------------- 7. marketing

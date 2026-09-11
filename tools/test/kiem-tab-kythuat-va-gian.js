@@ -305,6 +305,50 @@ t('   ngược lại cũng vậy', NC2.don === 'none' && NC2.duan === '', NC2);
 const NC3 = beNutChuyen(null);
 t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'none' && NC3.duan === 'none', NC3);
 
+/* ── 6. MÀU NỔI CHO HAI LOẠI CHI PHÍ + NÚT QUAY LẠI + BỎ NÚT SỔ CHUNG ──────────────────
+   Anh Thắng 11/09/2026: *"Kỹ thuật sẽ tập trung vào 2 chi phí này, nên cần cho hiện màu nổi
+   để nhân viên rõ hơn"*, *"Nút này là quay lại là được"*, *"bỏ tab nhập này cho anh"*. */
+{
+  const KHO = {};
+  const moi = {
+    DA_NHOM: '', QUYEN_TAB: { don: 1, duan: 1 }, DA_TUAN: [],
+    el: id => (KHO[id] = KHO[id] || { _id: id, className: 'btn b-x', innerHTML: '',
+      style: { display: '', background: '', borderColor: '', color: '', fontWeight: '' } }),
+    esc: x => String(x == null ? '' : x),
+    daNapTuan: () => {}, daOnLoai: () => {},
+  };
+  const chon = new Function('moi', 'N', `with(moi){ ${boc('daChonNhom')}\n daChonNhom(N);
+    return { cs: el('daNhomCs').style, da: el('daNhomDa').style,
+             csC: el('daNhomCs').className, daC: el('daNhomDa').className }; }`);
+  const M0 = chon(moi, '');
+  t('🔴 chưa chọn gì: hai nút vẫn có MÀU RIÊNG, không phải hai nút xám như nhau',
+    M0.cs.background !== '' && M0.da.background !== '' && M0.cs.background !== M0.da.background,
+    [M0.cs.background, M0.da.background]);
+  t('   và chữ mang đúng màu của loại ấy, in đậm',
+    M0.cs.color === M0.cs.borderColor && M0.cs.fontWeight === '700', [M0.cs.color, M0.cs.borderColor]);
+  const M1 = chon(moi, 'coso');
+  t('🔴 chọn rồi: nút ấy tô ĐẶC — nền đậm, chữ trắng',
+    M1.cs.background === M1.cs.borderColor && M1.cs.color === '#fff', M1.cs);
+  t('   nút kia vẫn màu nhạt của nó, không bị tô theo',
+    M1.da.background !== M1.da.borderColor && M1.da.color === M1.da.borderColor, M1.da);
+  t('   và className vẫn đổi theo (CSS chung còn đọc nó)',
+    M1.csC.indexOf('b-p') >= 0 && M1.daC.indexOf('b-p') < 0, [M1.csC, M1.daC]);
+  const M2 = chon(moi, 'duan');
+  t('   đổi sang loại kia thì màu đổi theo, loại cũ trả về nhạt',
+    M2.da.color === '#fff' && M2.cs.color !== '#fff', [M2.cs.color, M2.da.color]);
+}
+t('🔴 nút chuyển hai trang nay là "Quay lại", không phải "Sang…"',
+  HTML.indexOf('← Quay lại đơn tuần của cơ sở') >= 0
+  && HTML.indexOf('← Quay lại chi phí Kỹ thuật') >= 0 && HTML.indexOf('⇄ Sang') < 0);
+/* 🔴 Nút "Mở sổ chung (cũ)" đã bỏ — nhưng sổ chung KHÔNG mất: nó vẫn nằm trong danh sách
+   (cột Loại ghi "· sổ chung") và bấm Mở ở dòng ấy là vào được. */
+/* ⚠️ CANH NÚT THẬT, KHÔNG CANH CHỮ TRONG CHÚ THÍCH. Chú thích nói vì sao đã bỏ cũng chứa đúng
+   mấy chữ ấy — canh chuỗi trần là đỏ oan, rồi lần sau ai đó sẽ xoá chú thích cho bài kiểm xanh
+   (mất luôn lý do), hoặc bỏ hẳn phép này. */
+t('🔴 bỏ hẳn nút "Mở sổ chung (cũ)"', HTML.indexOf('onclick="openCoSoChung()"') < 0);
+t('   và hàm chết của nó cũng dọn theo', HTML.indexOf('function openCoSoChung(') < 0);
+t('   nhưng danh sách vẫn đánh dấu dòng sổ chung', HTML.indexOf('· sổ chung') >= 0);
+
 /* Cặp nút LOẠI ĐƠN cũ phải biến mất khỏi trang — còn sót là còn chỗ để lộn. */
 t('🔴 không còn cặp nút bật/tắt "LOẠI ĐƠN" trong trang', HTML.indexOf('data-dcsw=') < 0);
 t('   thay bằng nút chuyển một chiều, mặc định ẩn',

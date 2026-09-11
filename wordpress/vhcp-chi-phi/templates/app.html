@@ -176,7 +176,7 @@
          lại giữa hai danh sách thì để đúng MỘT nút, chỉ hiện khi người này vào được cả hai. -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
       <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Đơn tuần của cơ sở</b> — xin tạm ứng cho một tuần vận hành. Bấm <b>＋ Tạo đơn mới</b> rồi chọn loại đơn; loại chi phí, mã tài khoản và xuất MISA dùng chung với chi phí Kỹ thuật. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
-      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">⇄ Sang chi phí Kỹ thuật</button>
+      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">← Quay lại chi phí Kỹ thuật</button>
     </div>
   </div>
   <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
@@ -537,7 +537,11 @@
   <div style="padding-top:2px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
       <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Chi phí Kỹ thuật</b> — bấm <b>➕ Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN). Xem chốt ở khối tạo đơn bên dưới.</span>
-      <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none">⇄ Sang đơn tuần của cơ sở</button>
+      <!-- 🔴 "QUAY LẠI", KHÔNG PHẢI "SANG" — anh Thắng 11/09/2026: *"Nút này là quay lại là
+           được"*. Người ta tới trang bên kia bằng lối "📅 Đơn tuần của cơ sở" trong hộp chọn
+           loại đơn, nên đường về đúng là ĐI NGƯỢC LẠI. Chữ "Sang…" nghe như một lối đi mới,
+           lại thành hai lối cho cùng một việc. -->
+      <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none">← Quay lại đơn tuần của cơ sở</button>
     </div>
   </div>
     <div class="card">
@@ -554,7 +558,6 @@
              không phải một danh sách phải xổ ra mới đọc được. -->
         <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
-          <button class="btn b-x" onclick="openCoSoChung()" title="Sổ chi phí cơ sở chung xuyên suốt của bản cũ — vẫn xem và nhập được, nhưng không đóng / không quyết toán theo tuần">🔧 Mở sổ chung (cũ)</button>
           <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px">Bấm <b>Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN).</span>
         </div>
         <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
@@ -563,14 +566,25 @@
                lại nguyên hàng "Đơn này là gì?" thì trông như lựa chọn vừa rồi không được ghi
                nhận, và họ bấm lại một lần nữa. Nay tới đây có sẵn loại thì hàng hỏi ẩn đi, chỉ
                còn một dòng nói đang lập loại gì — kèm nút đổi lại cho ai bấm nhầm. -->
-          <div id="daTaoHoi" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:12px;color:#334155;font-weight:700">Đơn này là gì?</span>
-            <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')">🏢 Chi phí cơ sở</button>
-            <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')">🏗 Chi phí dự án</button>
+          <!-- 🔴 HAI LOẠI CHI PHÍ CỦA KỸ THUẬT PHẢI NỔI HẲN — anh Thắng 11/09/2026: *"Kỹ thuật
+               sẽ tập trung vào 2 chi phí này, nên cần cho hiện màu nổi để nhân viên rõ hơn"*.
+               Trước đây hai nút xám nhạt giống hệt nhau, nằm lẫn với nút Đóng; người mới vào
+               phải đọc từng chữ mới biết chọn cái nào. Nay mỗi loại một MÀU riêng và một dòng
+               phụ đề nói gom theo gì — nhìn là nhận ra, khỏi đọc. -->
+          <div id="daTaoHoi" style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap">
+            <span style="font-size:12px;color:#334155;font-weight:700;align-self:center">Đơn này là gì?</span>
+            <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')" style="text-align:left;padding:9px 14px;line-height:1.35">
+              <b style="font-size:13px">🏢 Chi phí cơ sở</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Một đơn gom NHIỀU gian · theo TUẦN</span>
+            </button>
+            <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')" style="text-align:left;padding:9px 14px;line-height:1.35">
+              <b style="font-size:13px">🏗 Chi phí dự án</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Setup / Tháo dỡ một GIAN</span>
+            </button>
             <!-- Lối thứ ba: đơn TUẦN của nhân viên cơ sở. Chỉ hiện cho người vào được cả hai —
                  cùng một câu hỏi "đơn này là gì", hỏi ở đâu cũng ra đủ lựa chọn. -->
-            <button class="btn b-x" id="daNhomTuan" onclick="daSangDonTuan()" style="display:none">📅 Đơn tuần của cơ sở</button>
-            <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
+            <button class="btn b-x" id="daNhomTuan" onclick="daSangDonTuan()" style="display:none;text-align:left;padding:9px 14px;line-height:1.35">
+              <b style="font-size:13px">📅 Đơn tuần của cơ sở</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Nhân viên cơ sở lên · theo TUẦN</span>
+            </button>
+            <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto;align-self:center">✖ Đóng</button>
           </div>
           <div id="daDangLap" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="font-size:12px;color:#334155">Đang lập: <b id="daDangLapTen" style="color:#0f766e"></b></span>
@@ -4232,8 +4246,21 @@
     if(el('daTuanBox'))    el('daTuanBox').style.display   =cs?'':'none';
     /* Tô đậm nút đang chọn — hai nút cạnh nhau mà không cái nào đổi mặt thì bấm xong người
        dùng không biết mình vừa chọn cái nào, nhất là khi phần chi tiết trượt xuống dưới. */
-    var to=function(id,on){ var b=el(id); if(b) b.className='btn '+(on?'b-p':'b-x'); };
-    to('daNhomCs', cs); to('daNhomDa', da);
+    /* Mỗi loại một MÀU RIÊNG, giữ màu ấy cả lúc chưa chọn — để nhìn là phân biệt được, không
+       phải hai nút xám như nhau. Chọn rồi thì tô đặc: nền đậm, chữ trắng.
+       🔴 ĐỔI CẢ `className` LẪN MÀU. `className` là thứ các bài kiểm và CSS chung đang đọc;
+          đổi mỗi màu thì nút "đang chọn" mất viền/nền chuẩn của lớp `b-p`. */
+    var to=function(id,on,dam,nhat){
+      var b=el(id); if(!b) return;
+      b.className='btn '+(on?'b-p':'b-x');
+      b.style.background  = on?dam:nhat;
+      b.style.borderColor = dam;
+      b.style.color       = on?'#fff':dam;
+      b.style.fontWeight  = '700';
+    };
+    to('daNhomCs',   cs, '#0f766e', '#ecfdf5');   // 🏢 cơ sở — xanh lá
+    to('daNhomDa',   da, '#1d4ed8', '#eff6ff');   // 🏗 dự án — xanh dương
+    to('daNhomTuan', false, '#7c3aed', '#f5f3ff'); // 📅 đơn tuần — tím (bấm là sang tab khác)
     /* Dòng "Đang lập" nói tên loại đang chọn — chỉ thấy được khi hàng hỏi đã ẩn, nhưng đặt tên
        ở đây để một nơi duy nhất giữ cặp (nhóm → tên). */
     var tenLoai=cs?'🏢 Chi phí cơ sở · Kỹ thuật':(da?'🏗 Chi phí dự án · Kỹ thuật':'');
@@ -4345,8 +4372,14 @@
       var chenh=Number(x.chenh)||0;
       var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155');
       var chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp');
-      /* Chỉ SỔ CHUNG mới không xoá được; đơn chi phí cơ sở theo đợt xoá như mọi dự án. */
-      var canDel=(!x.cosoChung) && (x.trangThai==='Đang làm' || isAdmin) && x.trangThai!=='Đã đóng';   // xóa nháp; Admin/QL xóa cả chờ duyệt/đã duyệt
+      /* Đơn chi phí cơ sở theo đợt xoá như mọi dự án. SỔ CHUNG thì chỉ xoá được KHI RỖNG —
+         anh Thắng 11/09/2026, chỉ vào dòng sổ chung 0đ: *"xoá đơn này cho anh"*.
+         🔴 ĐẾM CẢ DÒNG Ở SỔ CHI PHÍ, KHÔNG CHỈ NHÌN SỐ TIỀN. Một dòng nội dung 0đ vẫn là dòng,
+            và dòng mang mã dự án nằm bên sổ chi phí thì bảng hạng mục không thấy — nhìn 0đ mà
+            kết luận rỗng là bày nút xoá lên thứ đang gánh chứng từ đã xuất MISA.
+            Máy chủ kiểm lại lần nữa trong `delete()`; đây chỉ là chuyện bày nút. */
+      var soDongDA=(Number(x.soDong)||0)+(Number(x.soDongSoChi)||0);
+      var canDel=(!x.cosoChung || soDongDA===0) && (x.trangThai==='Đang làm' || isAdmin) && x.trangThai!=='Đã đóng';   // xóa nháp; Admin/QL xóa cả chờ duyệt/đã duyệt
       var del=canDel?' <button class="btn b-d" onclick="delDuAnUI(\''+esc(x.maDA)+'\',\''+esc(x.ten).replace(/'/g,"\\'")+'\')" title="Xóa dự án">🗑</button>':'';
       /* Một đơn cơ sở rải qua mấy gian — nói ngay ở cột Loại, khỏi phải mở đơn ra đếm. */
       var loaiTxt=esc(x.loai)+(x.cosoChung?' <span style="font-size:10px;color:#64748b">· sổ chung</span>'
@@ -4427,11 +4460,17 @@
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn(loai, ten, (CURUSER&&CURUSER.name)||'', tu, den);
   }
-  function openCoSoChung(){ loading(true);   // sổ chi phí cơ sở CHUNG xuyên suốt của bản cũ
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ loadDuAn(); openDuAn(r.maDA); } else toast('err',(r&&r.error)||'Lỗi');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn('Chi phí cơ sở','',(CURUSER&&CURUSER.name)||'');
-  }
+  /* 🔴 NÚT "🔧 Mở sổ chung (cũ)" ĐÃ BỎ — anh Thắng 11/09/2026: *"bỏ tab nhập này cho anh"*.
+     Chi phí cơ sở nay đi theo TUẦN, mỗi đợt một đơn; bày thêm một lối vào sổ xuyên suốt của
+     bản cũ chỉ tổ có người nhập nhầm vào đó rồi không chốt được.
+
+     ⚠️ SỔ CŨ KHÔNG MẤT, VÀ KHÔNG ĐƯỢC MẤT. Dữ liệu trong đó đã xuất MISA. Nó vẫn nằm trong
+        DANH SÁCH ngay bên dưới (dòng "Chi phí cơ sở (Kỹ thuật · chung)", cột Loại ghi rõ
+        "· sổ chung") và bấm **Mở** ở dòng ấy là vào xem/nhập như cũ — nên bỏ nút này không
+        cắt mất lối vào nào.
+     ⚠️ Phía máy chủ giữ NGUYÊN `ensure_co_so_chung()` và `ma_coso_chung()`: chúng là thứ phân
+        biệt sổ chung với đơn theo đợt (`la_coso_chung()`), bỏ đi là mọi chốt "sổ chung không
+        đóng / không xoá" mất hiệu lực. */
   /* Kéo màn hình xuống khối chi tiết dự án.
      🔴 KHÔNG PHẢI CHUYỆN THẨM MỸ. Khối chi tiết nằm NGAY DƯỚI bảng danh sách; danh sách dài
         chục dòng thì tạo xong người dùng chẳng thấy gì đổi ngoài một dòng toast ở góc, tưởng

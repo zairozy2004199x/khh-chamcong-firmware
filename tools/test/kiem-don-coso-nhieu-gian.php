@@ -99,11 +99,58 @@ teq( '   và kỳ để trống, không tự bịa ngày', '', VHCP_DuAn::get_du
 t( '🔴 sổ chung KHÔNG đổi tên', empty( VHCP_DuAn::rename_du_an( $CH, 'Tên khác' )['success'] ) );
 t( '🔴 sổ chung KHÔNG gửi duyệt',  empty( VHCP_DuAn::submit( $CH )['success'] ) );
 t( '🔴 sổ chung KHÔNG đóng',       empty( VHCP_DuAn::close( $CH )['success'] ) );
-t( '🔴 sổ chung KHÔNG xoá',        empty( VHCP_DuAn::delete( $CH )['success'] ) );
+/* 🔴 SỔ CHUNG CÒN DÒNG THÌ KHÔNG XOÁ. Dòng trong đó có thể đã xuất MISA — xoá là mất chứng
+   từ kế toán, không khôi phục được. */
+VHCP_DuAn::add_line( $CH, array( 'noiDung' => 'Khoản cũ nạp từ sổ', 'gian' => 'Gian X', 'thucTe' => 900000 ) );
+$_x = VHCP_DuAn::delete( $CH );
+t( '🔴 sổ chung CÒN DÒNG: KHÔNG xoá', empty( $_x['success'] ), $_x );
+t( '   và câu chối nói rõ còn mấy dòng',
+	isset( $_x['error'] ) && false !== mb_strpos( $_x['error'], 'dòng chi' ), $_x );
 t( '   và sổ chung vẫn còn nguyên sau bốn lần bị chối', null !== VHCP_DuAn::find( $CH ) );
 
 t( '🔴 đơn theo đợt ĐỔI TÊN được', ! empty( VHCP_DuAn::rename_du_an( $D1, 'Chi phí cơ sở T9-2026 (sửa)' )['success'] ) );
 teq( '   tên đổi thật trong sổ', 'Chi phí cơ sở T9-2026 (sửa)', (string) VHCP_DuAn::find( $D1 )['ten'] );
+
+/* ═══ 4b. 🔴 SỔ CHUNG RỖNG THÌ XOÁ ĐƯỢC ════════════════════════════════════════════════
+ * Anh Thắng 11/09/2026, chỉ vào dòng sổ chung đang 0đ / 0 dòng: *"xoá đơn này cho anh"*.
+ * Rỗng thì không có gì để mất; để lại một dòng 0đ nằm giữa danh sách thì lần nào lọc cũng
+ * phải lướt qua nó.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+$_ds_ch = VHCP_DuAn::get_du_an( $CH );
+foreach ( $_ds_ch['lines'] as $_l ) { VHCP_DuAn::delete_line( $CH, $_l['row'] ); }
+t( '   dọn sạch dòng của sổ chung', 0 === count( VHCP_DuAn::get_du_an( $CH )['lines'] ) );
+
+/* 🔴 CÒN DÒNG BÊN SỔ CHI PHÍ THÌ VẪN LÀ CÒN. Bảng hạng mục của dự án rỗng trơn mà dòng chi
+   mang mã dự án ấy vẫn nằm bên sổ chi phí — nhìn màn thì tưởng rỗng, xoá là mất chứng từ. */
+VHCP_SoChi::add( array( 'loai' => 'Chi phí cơ sở', 'noiDung' => 'Dòng cũ bên sổ chi phí',
+	'soTien' => 1200000, 'maDuAn' => $CH, 'coso' => 'Gian X' ), 'KT' );
+$_y = VHCP_DuAn::delete( $CH );
+t( '🔴 hạng mục rỗng nhưng CÒN dòng ở sổ chi phí: vẫn KHÔNG xoá', empty( $_y['success'] ), $_y );
+$_tim = function ( $ma, $khoa ) {
+	foreach ( VHCP_DuAn::list_du_an()['items'] as $x ) { if ( $x['maDA'] === $ma ) { return (int) $x[ $khoa ]; } }
+	return -1;
+};
+teq( '   list_du_an đếm đúng số dòng sổ chi phí ấy', 1, $_tim( $CH, 'soDongSoChi' ) );
+teq( '   còn số dòng của chính dự án thì bằng 0', 0, $_tim( $CH, 'soDong' ) );
+/* Dọn nốt dòng sổ chi phí để phần dưới xoá được. */
+foreach ( VHCP_SoChi::theo_du_an( $CH ) as $_r ) { VHCP_SoChi::delete( $_r['id'] ); }
+t( '   dọn sạch cả dòng sổ chi phí', 0 === count( VHCP_SoChi::theo_du_an( $CH ) ) );
+t( '🔴 sổ chung RỖNG: xoá được', ! empty( VHCP_DuAn::delete( $CH )['success'] ) );
+t( '   và biến mất thật khỏi sổ', null === VHCP_DuAn::find( $CH ) );
+/* 🔴 XOÁ XONG PHẢI GHIM VẾT TRỐNG. Không ghim thì `ma_coso_chung()` ngã về "dự án loại
+   'Chi phí cơ sở' CŨ NHẤT" — tức một ĐƠN THEO TUẦN của nhân viên — và đơn ấy lặng lẽ thành
+   sổ chung: không đóng, không xoá, không đổi tên được, không báo gì. */
+teq( '🔴 xoá xong thì sổ này KHÔNG còn sổ chung nào', '', VHCP_DuAn::ma_coso_chung() );
+teq( '🔴 và đơn theo tuần KHÔNG bị hoá thành sổ chung', false, VHCP_DuAn::la_coso_chung( $D1 ) );
+/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng ghim vết trống '-' trong
+   `delete()` KHÔNG đổi kết quả ở đây — vết ghim cũ vẫn trỏ tới mã vừa xoá, mà `ma_coso_chung()`
+   thấy `find()` trả null nên đã trả '' rồi. Giữ dòng ghim vì nó chốt lại trạng thái "sổ này
+   không có sổ chung", thay vì để mỗi lượt gọi đi tra một mã đã chết. */
+t( '   đơn theo tuần vẫn đóng được như thường', ! empty( VHCP_DuAn::close( $D1 )['success'] ) );
+VHCP_DuAn::reopen( $D1 );
+/* Dựng lại sổ chung cho các mục sau dùng tiếp. */
+$CH = VHCP_DuAn::ensure_co_so_chung( 'KT' )['maDA'];
+t( '   mở lại thì dựng được sổ chung mới', true === VHCP_DuAn::la_coso_chung( $CH ) );
 
 /* ═══ 5. 🔴 MỘT ĐƠN NHIỀU GIAN: GOM THEO GIAN, TỔNG PHẢI KHỚP ═════════════════════════════ */
 VHCP_DuAn::add_line( $D1, array( 'noiDung' => 'Sửa điện', 'gian' => 'Gian A', 'duToan' => 5000000, 'thucTe' => 900000 ) );
@@ -169,6 +216,10 @@ teq( '🔴 danh sách đếm đúng 3 gian có tên của đơn (rổ trống kh
 	3, isset( $by[ $D1 ] ) ? (int) $by[ $D1 ]['soCoSo'] : -1 );
 teq( '   danh sách đánh dấu sổ chung', true, isset( $by[ $CH ] ) ? $by[ $CH ]['cosoChung'] : null );
 teq( '   và KHÔNG đánh dấu đơn theo đợt', false, isset( $by[ $D1 ] ) ? $by[ $D1 ]['cosoChung'] : null );
+/* 🔴 `soDong` là con số màn đọc để biết sổ chung có rỗng không mà bày nút 🗑. Trả cứng 0 thì
+   nút xoá hiện trên cả sổ chung đang gánh dữ liệu. */
+teq( '🔴 soDong đếm đúng số dòng CÓ THẬT của đơn (1 cha + 2 con + 3 khoản)', 6, isset( $by[ $D1 ] ) ? (int) $by[ $D1 ]['soDong'] : -1 );
+teq( '   sổ chung rỗng thì soDong = 0', 0, isset( $by[ $CH ] ) ? (int) $by[ $CH ]['soDong'] : -1 );
 
 /* ═══ 7. ĐƠN THEO ĐỢT ĐÓNG / MỞ LẠI / XOÁ ĐƯỢC ══════════════════════════════════════════ */
 t( '🔴 đơn theo đợt ĐÓNG được', ! empty( VHCP_DuAn::close( $D1 )['success'] ) );
@@ -183,6 +234,10 @@ t( '   xoá đơn theo đợt KHÔNG đụng sổ chung', null !== VHCP_DuAn::fi
  * Đây là ca của mọi sổ đang chạy ngoài thật: sổ chung có từ trước, khoá ghim thì chưa. Luật
  * tra ngã về phải trùng ĐÚNG thứ `ensure_co_so_chung()` vẫn chọn trước bản này, nếu không thì
  * cài bản mới lên là sổ chung của anh Thắng đổi chủ. */
+/* Dọn các đơn theo tuần đã dựng ở những mục trên, để trong sổ chỉ còn ĐÚNG sổ chung — đúng
+   hình dạng của một sổ cũ chưa từng lập đơn theo đợt, tức bối cảnh mà luật ngã-về phục vụ. */
+VHCP_DuAn::delete( $DT );
+VHCP_DuAn::delete( $rk['maDA'] );
 VHCP_Meta::del( VHCP_DuAn::MK_COSO_CHUNG );
 teq( '🔴 mất vết ghim: ngã về dự án "Chi phí cơ sở" CŨ NHẤT, đúng sổ chung sẵn có',
 	$CH, VHCP_DuAn::ma_coso_chung() );
