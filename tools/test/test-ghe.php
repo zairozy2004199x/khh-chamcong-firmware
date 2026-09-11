@@ -49,7 +49,7 @@ define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
       chép tay nên nó TRÔI khỏi danh sách thật của plugin — phép thử ở mục "nạp đủ lớp" dưới
       canh đúng chuyện đó. Thêm lớp mới mà quên đây là lỗi "Class not found" giữa lúc chạy, và
       nó chỉ lộ ra ở đúng phép thử chạm tới lớp đó. */
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qrve', 'tep', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qrve', 'tep', 'nhap', 'saoke', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -223,7 +223,7 @@ function vhg_tong() {
 
 // ============================================================ 1. Sơ đồ bảng
 $so_do = VHG_DB::bang();
-teq( 'sơ đồ có đủ 16 bảng', 16, dem( $so_do ) );
+teq( 'sơ đồ có đủ 17 bảng', 17, dem( $so_do ) );
 /* 🔴 Các bảng TIỀN phải có mặt, gọi đúng tên. Con số ở trên đổi theo mỗi lần thêm bảng, nên nó
       không nói được BẢNG NÀO thiếu — mà thiếu đúng bảng tiền thì plugin cài xong vẫn chạy, chỉ
       là mọi lượt nạp ném lỗi vào đúng lúc khách vừa chuyển khoản. */

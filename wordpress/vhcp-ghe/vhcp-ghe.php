@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.43.0
+ * Version:           1.44.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.43.0' );
+define( 'VHG_VERSION', '1.44.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -55,6 +55,7 @@ require_once VHG_DIR . 'includes/class-vhg-chan.php';
 require_once VHG_DIR . 'includes/class-vhg-qrve.php';
 require_once VHG_DIR . 'includes/class-vhg-tep.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';
+require_once VHG_DIR . 'includes/class-vhg-saoke.php';
 require_once VHG_DIR . 'includes/class-vhg-cong.php';
 require_once VHG_DIR . 'includes/class-vhg-auth.php';
 require_once VHG_DIR . 'includes/class-vhg-trang.php';

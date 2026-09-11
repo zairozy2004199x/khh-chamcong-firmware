@@ -46,6 +46,44 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY ten (ten)";
 
+		/* ===== 1b. SAO KÊ NGÂN HÀNG — SỔ RIÊNG, KHÔNG ĐỤNG SỔ TIỀN ==========================
+		   Anh Thắng 11/09/2026: *"Đẩy sao kê sang trang sao kê ngân hàng, nó tự lọc chứ"*, và
+		   ngay sau đó chốt thẳng: *"không nên đẩy vào trang ghế bằng file sao kê, sau nó sẽ
+		   rối"*.
+
+		   🔴 VÌ SAO PHẢI LÀ BẢNG RIÊNG, KHÔNG PHẢI THÊM DÒNG VÀO `thu`.
+		      Bảng `thu` là SỔ TIỀN: mỗi dòng ở đó là một lượt doanh thu có thật, đã đối chiếu,
+		      và nó nuôi mọi con số báo cáo lẫn phép tính tiền trên tay người thu. Sao kê ngân
+		      hàng thì có cả tiền ra, phí, lãi, tiền của mảng khác chuyển nhầm — đổ thẳng vào
+		      `thu` là doanh thu ghế phình lên bằng những khoản không phải của nó, mà `ref` là
+		      UNIQUE nên xoá đi rồi thì chính giao dịch ấy sau này webhook bắn lại cũng không
+		      vào được nữa. Hỏng hai lần bằng một thao tác.
+
+		      Nên: sao kê nằm ở sổ riêng, chỉ để ĐỐI CHIẾU — trả lời câu "ngân hàng có dòng này,
+		      sổ ghế có chưa". Không dòng nào tự chảy sang `thu`.
+
+		   ⚠️ `ref` UNIQUE ở đây cũng vì lý do quen thuộc: đổ lại đúng tệp ấy không cộng đôi.
+		      Sao kê tải về thường chồng lấn ngày với lần trước — đó là cách người ta dùng, không
+		      phải sai sót. */
+		$b['sao_ke'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ref VARCHAR(120) NOT NULL,
+			luc DATETIME NOT NULL,
+			so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			tien_ra TINYINT(1) NOT NULL DEFAULT 0,
+			noi_dung VARCHAR(255) NOT NULL DEFAULT '',
+			doi_ung VARCHAR(190) NOT NULL DEFAULT '',
+			tai_khoan VARCHAR(60) NOT NULL DEFAULT '',
+			nhan VARCHAR(20) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			ten_tep VARCHAR(190) NOT NULL DEFAULT '',
+			nhap_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ref (ref),
+			KEY luc (luc),
+			KEY nhan (nhan,luc),
+			KEY tien_ra (tien_ra,luc)";
+
 		/* ===== 2. MÁY (GHẾ) ================================================================
 		   `ma` là mã ghế dùng trong nội dung chuyển khoản: "GHE<ma> <code>". Nên nó phải NGẮN và
 		   KHÔNG dấu — người ta gõ tay nội dung CK khi quét QR bằng app ngân hàng.

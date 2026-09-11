@@ -277,6 +277,7 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Đối soát doanh thu', 'Đối soát doanh thu', self::CAP, 'vhg', array( __CLASS__, 'trang_thu' ) );
 		add_submenu_page( 'vhg', 'Máy & cơ sở', 'Máy & cơ sở', self::CAP, 'vhg-may', array( __CLASS__, 'trang_may' ) );
 		add_submenu_page( 'vhg', 'Nhận tiền & nhật ký', 'Nhận tiền & nhật ký', self::CAP, 'vhg-cong', array( __CLASS__, 'trang_cong' ) );
+		add_submenu_page( 'vhg', 'Sao kê ngân hàng', 'Sao kê ngân hàng', self::CAP, 'vhg-saoke', array( __CLASS__, 'trang_sao_ke' ) );
 		add_submenu_page( 'vhg', 'Trang ngoài & PIN', 'Trang ngoài & PIN', self::CAP, 'vhg-trang', array( __CLASS__, 'trang_ngoai' ) );
 		add_submenu_page( 'vhg', 'Tem QR dán ghế', 'Tem QR dán ghế', self::CAP, 'vhg-tem', array( __CLASS__, 'trang_tem' ) );
 	}
@@ -1314,6 +1315,176 @@ class VHG_Admin {
 			. '<p class="description">Tên máy như Tingo/VietQR ghi trong sao kê. Khai đúng thì doanh thu nhập '
 			. 'từ Excel tự gộp vào đúng máy này.</p></td></tr>';
 		echo '</table><p><button class="button button-primary" name="vhg" value="may">Lưu máy</button></p></form></div>';
+	}
+
+	// ======================================================================= 2b. SAO KÊ NGÂN HÀNG
+
+	/**
+	 * MÀN SAO KÊ NGÂN HÀNG — SỔ RIÊNG, CHỈ ĐỂ ĐỐI CHIẾU.
+	 *
+	 * Anh Thắng 11/09/2026: *"Đẩy sao kê sang trang sao kê ngân hàng, nó tự lọc chứ"*, rồi chốt
+	 * ngay: *"KHÔNG nên đẩy vào trang ghế bằng file sao kê, sau nó sẽ rối"*.
+	 *
+	 * 🔴 MÀN NÀY KHÔNG GHI MỘT DÒNG NÀO VÀO SỔ TIỀN. Nó trả lời đúng một câu: *ngân hàng có
+	 *    dòng này, sổ ghế đã có chưa*. Thấy thiếu thì xử bằng đường vốn có (webhook bắn lại,
+	 *    hoặc nhập bảng của CỔNG ở màn "Nhận tiền") — không phải bằng cách đổ sao kê vào sổ.
+	 *    Xem khối 🔴 đầu `class-vhg-saoke.php` để biết vì sao đổ thẳng là hỏng hai lần.
+	 */
+	public static function trang_sao_ke() {
+		self::gac();
+		$bao = array();
+		if ( isset( $_POST['vhg'] ) ) {
+			check_admin_referer( 'vhg' );
+			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
+			if ( 'sk_xem' === $viec || 'sk_nhap' === $viec ) {
+				$doc = VHG_Tep::doc( isset( $_FILES['tep'] ) ? $_FILES['tep'] : null );
+				if ( empty( $doc['ok'] ) ) {
+					$bao[] = array( 'ok' => false, 'error' => $doc['error'] );
+				} elseif ( 'sk_xem' === $viec ) {
+					self::$xem_bang = $doc['bang'];
+					self::$xem_kieu = isset( $doc['kieu'] ) ? $doc['kieu'] : '';
+					$bao[] = array( 'ok' => true, 'thong_bao' => 'Đọc được '
+						. max( 0, count( $doc['bang'] ) - 1 ) . ' dòng từ tệp ('
+						. strtoupper( self::$xem_kieu ) . '). Soát bảng dưới rồi mới bấm nhập.' );
+				} else {
+					$ten = isset( $_FILES['tep']['name'] ) ? sanitize_file_name( $_FILES['tep']['name'] ) : '';
+					$bao[] = VHG_SaoKe::nhap( $doc['bang'], $ten );
+				}
+			} elseif ( 'sk_xoa' === $viec ) {
+				$bao[] = VHG_SaoKe::xoa_het();
+			}
+		}
+
+		$nhan = isset( $_GET['nhan'] ) ? sanitize_text_field( wp_unslash( $_GET['nhan'] ) ) : '';
+		$tim  = isset( $_GET['tim'] ) ? sanitize_text_field( wp_unslash( $_GET['tim'] ) ) : '';
+
+		echo '<div class="wrap"><h1>Sao kê ngân hàng</h1>';
+		self::ve_bao( $bao );
+		echo '<div class="notice notice-info inline"><p><strong>Sổ này tách hẳn sổ tiền của ghế.</strong> '
+			. 'Đổ sao kê lên đây chỉ để LỌC và ĐỐI CHIẾU — không dòng nào chảy sang sổ ghế. '
+			. 'Doanh thu ghế vẫn chỉ vào sổ bằng webhook như đang chạy.</p></div>';
+
+		/* ---- Tải tệp ---- */
+		echo '<h2>Đổ sao kê lên (.xlsx / .csv)</h2>';
+		echo '<form method="post" enctype="multipart/form-data" style="margin-bottom:8px">';
+		wp_nonce_field( 'vhg' );
+		echo '<input type="file" name="tep" accept=".xlsx,.csv,.tsv,.txt" required /> ';
+		echo '<button class="button button-primary" name="vhg" value="sk_xem">① Xem trước</button> ';
+		echo '<button class="button" name="vhg" value="sk_nhap">② Nhập vào sổ sao kê</button>';
+		echo '<p class="description">Đổ lại đúng tệp đó <strong>không cộng đôi</strong> — sổ chặn theo mã '
+			. 'tham chiếu. Sao kê hai lần tải chồng lấn ngày là chuyện bình thường, cứ đổ.</p>';
+		echo '</form>';
+		self::ve_xem_truoc_sao_ke();
+
+		/* ---- Tóm tắt ---- */
+		$tt = VHG_SaoKe::tom_tat();
+		echo '<h2>Đang có trong sổ sao kê</h2><p>';
+		echo '<strong>' . (int) $tt['tong'] . '</strong> dòng · tiền vào <strong>'
+			. esc_html( self::tien( (int) $tt['tien'] ) ) . '</strong> — ';
+		$phan = array();
+		foreach ( VHG_SaoKe::NHAN as $k => $ten ) { $phan[] = esc_html( $ten ) . ' ' . (int) $tt[ $k ]; }
+		echo implode( ' · ', $phan ) . '</p>';
+
+		/* ---- 🔴 Câu đáng tiền nhất: ngân hàng có mà sổ ghế chưa có ---- */
+		$thieu = VHG_SaoKe::thieu_o_so_ghe( 100 );
+		echo '<h2>🔴 Ngân hàng có — sổ ghế CHƯA có (' . count( $thieu ) . ')</h2>';
+		echo '<p><em>Đây là những lượt tiền mang dấu hiệu của ghế nhưng không tìm thấy trong sổ tiền. '
+			. 'Thường là webhook chết một buổi. Vá bằng đường vốn có — nhập bảng của CỔNG ở màn '
+			. '"Nhận tiền &amp; nhật ký" — chứ đừng đổ sao kê ngân hàng vào sổ.</em></p>';
+		if ( ! $thieu ) {
+			echo '<div class="notice notice-success inline"><p>Không thiếu dòng nào. Sổ ghế khớp với sao kê.</p></div>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>Thời điểm</th><th>Mã tham chiếu</th>'
+				. '<th>Máy</th><th>Nội dung</th><th style="text-align:right">Số tiền</th></tr></thead><tbody>';
+			foreach ( $thieu as $r ) {
+				echo '<tr><td>' . esc_html( self::gio( $r['luc'] ) ) . '</td>'
+					. '<td><code>' . esc_html( $r['ref'] ) . '</code></td>'
+					. '<td>' . esc_html( '' !== $r['ma_may'] ? $r['ma_may'] : '—' ) . '</td>'
+					. '<td>' . esc_html( $r['noi_dung'] ) . '</td>'
+					. '<td style="text-align:right">' . esc_html( self::tien( (int) $r['so_tien'] ) ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		/* ---- Danh sách + bộ lọc ---- */
+		echo '<h2>Toàn bộ sổ sao kê</h2>';
+		echo '<form method="get" style="margin-bottom:8px"><input type="hidden" name="page" value="vhg-saoke" />';
+		echo '<select name="nhan"><option value="">— Mọi loại —</option>';
+		foreach ( VHG_SaoKe::NHAN as $k => $ten ) {
+			echo '<option value="' . esc_attr( $k ) . '"' . selected( $nhan, $k, false ) . '>'
+				. esc_html( $ten ) . '</option>';
+		}
+		echo '</select> ';
+		echo '<input type="search" name="tim" value="' . esc_attr( $tim ) . '" placeholder="tìm nội dung / mã / người gửi" /> ';
+		echo '<button class="button">Lọc</button></form>';
+
+		$ds = VHG_SaoKe::ds( $nhan, $tim, 300 );
+		echo '<table class="widefat striped"><thead><tr><th>Thời điểm</th><th>Loại</th><th>Máy</th>'
+			. '<th>Nội dung</th><th>Người gửi</th><th style="text-align:right">Số tiền</th>'
+			. '<th>Sổ ghế</th></tr></thead><tbody>';
+		if ( ! $ds ) { echo '<tr><td colspan="7"><em>Chưa có dòng nào — đổ tệp sao kê lên ở trên.</em></td></tr>'; }
+		foreach ( $ds as $r ) {
+			$n = (string) $r['nhan'];
+			echo '<tr' . ( (int) $r['tien_ra'] ? ' style="opacity:.6"' : '' ) . '>'
+				. '<td style="white-space:nowrap">' . esc_html( self::gio( $r['luc'] ) ) . '</td>'
+				. '<td style="white-space:nowrap">' . esc_html( isset( VHG_SaoKe::NHAN[ $n ] ) ? VHG_SaoKe::NHAN[ $n ] : $n ) . '</td>'
+				. '<td>' . esc_html( '' !== $r['ma_may'] ? $r['ma_may'] : '—' ) . '</td>'
+				. '<td>' . esc_html( $r['noi_dung'] ) . '</td>'
+				. '<td>' . esc_html( $r['doi_ung'] ) . '</td>'
+				. '<td style="text-align:right;white-space:nowrap">' . ( (int) $r['tien_ra'] ? '−' : '' )
+				. esc_html( self::tien( (int) $r['so_tien'] ) ) . '</td>'
+				/* Chỉ hỏi "có trong sổ chưa" với dòng CỦA GHẾ. Tiền của mảng khác thì sổ ghế
+				   vốn không có, tô đỏ nó lên là mỗi lần mở màn lại thấy một rừng cảnh báo giả. */
+				. '<td>' . ( ( 'ghe' === $n || 'ma' === $n )
+					? ( (int) $r['trong_so'] ? '<span style="color:#1a7f37">✅ đã có</span>'
+						: '<span style="color:#b32d2e">❌ chưa có</span>' )
+					: '<span style="color:#8c8f94">—</span>' ) . '</td></tr>';
+		}
+		echo '</tbody></table>';
+
+		echo '<form method="post" style="margin-top:14px" onsubmit="return confirm('
+			. "'Dọn sạch sổ sao kê? Sổ tiền của ghế KHÔNG bị đụng tới.'" . ');">';
+		wp_nonce_field( 'vhg' );
+		echo '<button class="button" name="vhg" value="sk_xoa">🧹 Dọn sạch sổ sao kê</button>';
+		echo '<span class="description" style="margin-left:8px">Chỉ xoá sổ sao kê. Sổ tiền của ghế nằm ở '
+			. 'bảng khác, không đụng tới.</span></form>';
+		echo '</div>';
+	}
+
+	/** Bảng xem trước của màn sao kê — cùng lối với khối ở màn Nhận tiền. */
+	private static function ve_xem_truoc_sao_ke() {
+		$bang = self::$xem_bang;
+		if ( ! is_array( $bang ) || ! $bang ) { return; }
+		$h = $bang[0];
+		$mong = array(
+			'Mã tham chiếu' => array( 'mã tham chiếu', 'số tham chiếu', 'tham chiếu', 'reference', 'mã gd', 'mã giao dịch' ),
+			'Ngày giao dịch'=> array( 'ngày giao dịch', 'thời gian', 'ngày ghi sổ', 'ngày' ),
+			'Ghi có'        => array( 'ghi có', 'tiền vào', 'phát sinh có', 'credit' ),
+			'Ghi nợ'        => array( 'ghi nợ', 'tiền ra', 'phát sinh nợ', 'debit' ),
+			'Số tiền'       => array( 'số tiền' ),
+			'Nội dung'      => array( 'nội dung', 'diễn giải', 'mô tả', 'description' ),
+		);
+		echo '<h3>Đã nhận ra cột nào</h3><table class="widefat striped" style="max-width:760px"><tbody>';
+		foreach ( $mong as $ten => $tu ) {
+			$i = VHG_Nhap::cot( $h, $tu );
+			echo '<tr><td style="width:180px"><strong>' . esc_html( $ten ) . '</strong></td><td>'
+				. ( $i >= 0 ? ( '✅ cột ' . ( $i + 1 ) . ' — <code>' . esc_html( (string) $h[ $i ] ) . '</code>' )
+					: '<span style="color:#8a6d3b">— không có</span>' ) . '</td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description"><strong>Mã tham chiếu là cột bắt buộc</strong> — nó chặn nhập trùng. '
+			. 'Tiền thì cần một trong ba: Ghi có / Ghi nợ / Số tiền.</p>';
+		echo '<h3>Năm dòng đầu</h3><div style="overflow:auto"><table class="widefat striped"><thead><tr>';
+		foreach ( $h as $k => $c ) { echo '<th>' . ( $k + 1 ) . '. ' . esc_html( (string) $c ) . '</th>'; }
+		echo '</tr></thead><tbody>';
+		for ( $r = 1; $r < min( 6, count( $bang ) ); $r++ ) {
+			echo '<tr>';
+			foreach ( $h as $k => $bo ) {
+				echo '<td>' . esc_html( isset( $bang[ $r ][ $k ] ) ? (string) $bang[ $r ][ $k ] : '' ) . '</td>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	// ======================================================================= 3. CỔNG & NHẬT KÝ
