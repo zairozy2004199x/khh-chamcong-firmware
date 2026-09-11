@@ -138,7 +138,16 @@ const nap = (moi, tens) => new Function('moi', `with(moi){ ${tens.map(boc).join(
   t('khối chi tiết đang đóng → không kéo, không nổ', NK.cuon.length === 0 && NK.focus.length === 0);
 }
 
-/* ── 3. 🔴 CHẶN NHÂN BẢN DỰ ÁN ─────────────────────────────────────────────────────────── */
+/* ── 3. 🔴 TRÙNG TÊN THÌ CỨ TẠO, KHÔNG HỎI LẠI ─────────────────────────────────────────
+   Anh Thắng 11/09/2026: *"Sẽ có nhiều dự án mà, nên cứ tạo đơn mới, không phải hỏi"*.
+
+   ⚠️ Chốt cũ (hộp confirm) sinh ra vì tạo xong màn hình không đổi gì ngoài một dòng toast ở
+      góc, nên người ta bấm lại — sổ thật có "ADV GO! AN LẠC" ba dòng vì thế. Từ bản 1.126 tạo
+      xong là MỞ THẲNG đơn vừa tạo và kéo tới chỗ nhập, nên lý do ấy đã hết.
+
+   🔴 NHƯNG VẪN PHẢI NHẮC. Bỏ luôn cả lời nhắc thì bấm nhầm hai lần là hai dòng giống hệt nhau
+      nằm đó, mỗi dòng đã nhập vài khoản, không ai dám xoá dòng nào. Nhắc SAU khi đã tạo và
+      không chặn gì. */
 const dungTrung = () => {
   const be = dungBe();
   be.moi.DA_ITEMS = [{ maDA: 'DA1', ten: 'ADV GO! AN LẠC', loai: 'Setup lắp đặt', trangThai: 'Đang làm' }];
@@ -147,38 +156,43 @@ const dungTrung = () => {
   be.gõ = (ten, loai) => { be.moi.el('daTen').value = ten; be.moi.el('daLoai').value = loai || 'Setup lắp đặt'; };
   return be;
 };
+/* Câu toast của lượt tạo — nhánh thành công chỉ đẩy đúng một câu. */
+const cauToast = NK => (NK.toast.map(x => x[1]).join(' | '));
 {
-  const b = dungTrung(); b.moi._dongY = false;
+  const b = dungTrung();
   b.gõ('ADV GO! AN LẠC'); b.F.createDuAnUI();
-  t('🔴 trùng tên + trùng loại → HỎI LẠI', b.NK.confirm.length === 1, b.NK.confirm);
-  t('🔴 bấm Cancel thì KHÔNG tạo gì cả', b.NK.tao === null, b.NK.tao);
-  t('   câu hỏi chỉ đường sang dòng có sẵn', /Mở/.test(b.NK.confirm[0] || ''), b.NK.confirm);
+  t('🔴 trùng tên + trùng loại: KHÔNG hỏi lại', b.NK.confirm.length === 0, b.NK.confirm);
+  t('🔴 và TẠO LUÔN — một gian làm nhiều đợt là chuyện thường ngày', b.NK.tao !== null, b.NK.tao);
+  t('🔴 nhưng có NHẮC là đang trùng, kèm số đơn cùng tên chưa đóng',
+    /đang có 1 đơn cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
+  t('   nhắc bằng màu cảnh báo, không phải màu "xong xuôi"',
+    b.NK.toast.some(x => x[0] === 'warn'), b.NK.toast);
 }
 {
-  const b = dungTrung(); b.moi._dongY = true;
+  const b = dungTrung();
   b.gõ('adv go! an lạc');   // khác hoa thường, vẫn là một
   b.F.createDuAnUI();
-  t('🔴 khác hoa/thường vẫn tính là trùng', b.NK.confirm.length === 1, b.NK.confirm);
-  t('   nhưng bấm OK thì vẫn tạo được (một gian làm hai đợt là chuyện thật)',
-    b.NK.tao !== null, b.NK.tao);
+  t('🔴 khác hoa/thường vẫn tính là trùng khi đếm để nhắc',
+    b.NK.tao !== null && /đang có 1 đơn cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
 }
 {
   const b = dungTrung();
   b.gõ('ADV GO! AN LẠC', 'Tháo dỡ'); b.F.createDuAnUI();
-  t('🔴 cùng tên nhưng KHÁC loại → không hỏi (Setup rồi Tháo dỡ là hai đợt thật)',
-    b.NK.confirm.length === 0 && b.NK.tao !== null, b.NK);
+  t('🔴 cùng tên nhưng KHÁC loại → không nhắc (Setup rồi Tháo dỡ là hai đợt thật)',
+    b.NK.tao !== null && !/cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
 }
 {
   const b = dungTrung();
   b.moi.DA_ITEMS[0].trangThai = 'Đã đóng';
   b.gõ('ADV GO! AN LẠC'); b.F.createDuAnUI();
-  t('🔴 dự án cũ ĐÃ ĐÓNG → không hỏi (đợt cũ xong rồi, đợt mới là đợt mới)',
-    b.NK.confirm.length === 0 && b.NK.tao !== null, b.NK);
+  t('🔴 đơn cũ ĐÃ ĐÓNG → không nhắc (đợt cũ xong rồi, đợt mới là đợt mới)',
+    b.NK.tao !== null && !/cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
 }
 {
   const b = dungTrung();
   b.gõ('SNOW NHÀ TUYẾT TÂN PHÚ'); b.F.createDuAnUI();
-  t('tên chưa có → tạo thẳng, không hỏi', b.NK.confirm.length === 0 && b.NK.tao !== null, b.NK);
+  t('tên chưa có → tạo thẳng, không nhắc gì',
+    b.NK.confirm.length === 0 && b.NK.tao !== null && !/cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
 }
 {
   const b = dungTrung();
@@ -192,4 +206,4 @@ if (TRUOT.length) {
   TRUOT.forEach(x => console.log('  · ' + x));
   process.exit(1);
 }
-console.log('\n✓ SẠCH — ' + DAT + ' phép: tạo xong vào thẳng chỗ nhập, và không đẻ ra dự án trùng.');
+console.log('\n✓ SẠCH — ' + DAT + ' phép: tạo xong vào thẳng chỗ nhập; trùng tên thì tạo luôn, chỉ nhắc.');

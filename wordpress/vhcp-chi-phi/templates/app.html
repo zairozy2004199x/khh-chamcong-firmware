@@ -4378,17 +4378,25 @@
       return String(x.ten||'').trim().toLowerCase()===ten.toLowerCase()
         && String(x.loai||'')===String(loai) && x.trangThai!=='Đã đóng' && !x.cosoChung;
     });
-    if(trung.length && !confirm(laCS
-        ? ('Đã có '+trung.length+' đơn chi phí cơ sở cho tuần '+nhanTuan+' đang mở.\n\n'
-           +'Bấm OK nếu thật sự cần thêm một đơn nữa cho tuần này.\n'
-           +'Bấm Cancel rồi bấm "Mở" ở dòng có sẵn nếu chỉ muốn nhập tiếp vào đơn cũ.')
-        : ('Đã có '+trung.length+' dự án "'+ten+'" cùng loại đang xử lý.\n\n'
-           +'Bấm OK nếu đây thật sự là một đợt thi công KHÁC.\n'
-           +'Bấm Cancel rồi bấm "Mở" ở dòng có sẵn nếu chỉ muốn nhập tiếp vào dự án cũ.'))){ return; }
+    /* 🔴 TRÙNG TÊN THÌ CỨ TẠO, KHÔNG HỎI LẠI — anh Thắng 11/09/2026: *"Sẽ có nhiều dự án mà,
+       nên cứ tạo đơn mới, không phải hỏi"*. Một gian làm nhiều đợt là chuyện thường ngày;
+       chặn giữa đường bằng một hộp thoại là bắt người ta trả lời câu họ đã biết.
+
+       ⚠️ CHỐT CŨ SINH RA CÓ LÝ DO, VÀ LÝ DO ẤY ĐÃ HẾT. Trước đây tạo xong màn hình không đổi
+          gì ngoài một dòng toast ở góc, nên người ta bấm lại — sổ thật có "ADV GO! AN LẠC" ba
+          dòng vì thế. Từ bản 1.126 tạo xong là MỞ THẲNG đơn vừa tạo và kéo tới chỗ nhập, nên
+          không còn cảnh bấm mù nữa.
+
+       Vẫn NHẮC, nhưng nhắc sau khi đã tạo và không chặn gì: lỡ bấm nhầm thì còn thấy mà xoá. */
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.success){ _log(laCS?'Lập đơn chi phí cơ sở':'Tạo dự án KT', r.ten||ten, laCS?nhanTuan:loai);
-        toast('ok', laCS?'Đã lập đơn — nhập chi phí từng gian ngay bên dưới':'Đã tạo dự án — nhập chi phí ngay bên dưới');
+        var nhac=trung.length
+          ? (' · lưu ý: đang có '+trung.length+' đơn cùng tên chưa đóng')
+          : '';
+        toast(trung.length?'warn':'ok',
+          (laCS?'Đã lập đơn — nhập chi phí từng gian ngay bên dưới'
+               :'Đã tạo đơn — nhập chi phí ngay bên dưới')+nhac);
         if(!laCS) el('daTen').value='';
         daDongTao();   // lập xong thì thu khối tạo lại, khỏi che mất đơn vừa mở
         loadDuAn();
