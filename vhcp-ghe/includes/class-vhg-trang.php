@@ -5659,13 +5659,29 @@ function ktdDetail(o,box,xong){
     var bBo=ktEl('button','ghost',L('Bỏ duyệt cả','Unconfirm all'));
     var bKhoa=ktEl('button','ghost', r.locked?L('Mở ngày','Unlock day'):L('Khoá ngày','Lock day'));
     var bDoi=ktEl('button','ghost',L('Đổi ngày','Change date'));
+    /* "Admin và kế toán có quyền xoá cả báo cáo đó nếu nó sai" — anh Thắng. Nút gom TẤT CẢ ghế của
+       báo cáo (report_id+ma_may) rồi gọi kt_xoa một lần. Vẫn là XOÁ MỀM: mọi ghế chuyển xuống thùng
+       rác (bc_rac), hoàn tác được ở tab Thùng rác — không phá dữ liệu vĩnh viễn. Tab Duyệt này đã
+       chặn chỉ QT||KT vào được nên nút mặc nhiên chỉ hiện cho admin/kế toán. */
+    var bXoaCa=ktEl('button','ghost',L('🗑 Xoá cả báo cáo','Delete report'));
+    bXoaCa.style.color='var(--red)';
     var m=ktEl('span','mut');
-    bar.appendChild(bDuyet); bar.appendChild(bBo); bar.appendChild(bKhoa); bar.appendChild(bDoi); bar.appendChild(m);
+    bar.appendChild(bDuyet); bar.appendChild(bBo); bar.appendChild(bKhoa); bar.appendChild(bDoi); bar.appendChild(bXoaCa); bar.appendChild(m);
     box.appendChild(bar);
     function reload(){ box.dataset.built=''; ktdDetail(o,box); ktdLoad(); }
     bDuyet.onclick=function(){ ktAct('kt_duyet_ngay',{coso:o.coso,ngay:o.ngay,on:1},m,reload); };
     bBo.onclick=function(){ ktAct('kt_duyet_ngay',{coso:o.coso,ngay:o.ngay,on:0},m,reload); };
     bKhoa.onclick=function(){ ktAct('kt_khoa',{ngay:o.ngay,coso:o.coso,on:r.locked?0:1},m,reload); };
+    bXoaCa.onclick=function(){
+      var ds=(r.rows||[]).filter(function(c){ return c.reportId && c.chairCode; })
+        .map(function(c){ return {report_id:c.reportId,ma_may:c.chairCode}; });
+      if(!ds.length){ alert(L('Báo cáo trống, không có ghế để xoá.','Empty report.')); return; }
+      if(!confirm(L('⚠ XOÁ CẢ báo cáo '+o.coso+' ('+o.ngay+') — '+ds.length+' ghế?\n\nCả báo cáo sẽ chuyển vào Thùng rác (hoàn tác được).',
+        'Delete WHOLE report '+o.coso+' ('+o.ngay+') — '+ds.length+' chairs? (recoverable in Trash)'))) return;
+      var ly=prompt(L('Lý do xoá cả báo cáo:','Reason:')); if(ly===null) return;
+      if(!ly.trim()){ alert(L('Phải ghi lý do xoá.','Reason required.')); return; }
+      ktAct('kt_xoa',{targets:ds,ly_do:ly},m,reload);
+    };
     bDoi.onclick=function(){
       var nm=prompt(L('Đổi NGÀY báo cáo '+o.coso+' ('+o.ngay+') sang ngày mới (yyyy-mm-dd):',
         'New date for '+o.coso+' ('+o.ngay+') yyyy-mm-dd:'), o.ngay); if(nm===null) return;
