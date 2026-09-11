@@ -207,7 +207,9 @@ function beGop(quyen) {
     daMoTao: n => { NK.moTao = true; NK.moTaoNhom = n; },
     daChonNhom: n => NK.nhom.push(n),
     daDongTao: () => { NK.dongTao = true; },
-    newDon: () => { NK.tuan++; },
+    /* 🔴 GHI LẠI THAM SỐ. `newDon(daChonTuan)` mang cờ "đã chọn rồi"; quên truyền là hộp bên
+       kia hỏi "Đơn này là loại nào?" thêm lần nữa — đúng thứ anh Thắng gặp. */
+    newDon: c => { NK.tuan++; NK.tuanCo = c; },
     /* Hàm thật gọi setTimeout rồi mới chuyển — chạy thẳng để bài kiểm khỏi phải chờ. */
     setTimeout: fn => fn(),
   };
@@ -250,6 +252,38 @@ const GX4 = beGop({ don: 1, duan: 1 });
 GX4.sangTuan();
 t('🔴 từ khối tạo của tab Kỹ thuật chọn "Đơn tuần của cơ sở": sang tab đơn và MỞ THẲNG hộp tạo',
   GX4.NK.dongTao === true && GX4.NK.trang.join(',') === 'don' && GX4.NK.tuan === 1, GX4.NK);
+t('🔴 và báo cho hộp ấy biết ĐÃ CHỌN RỒI — không thì nó hỏi loại thêm lần nữa',
+  GX4.NK.tuanCo === true, GX4.NK.tuanCo);
+
+/* Chạy THẬT `newDon()` phần quyết định có hỏi hay không. */
+function beNewDon(daChonTuan, bp) {
+  const KHO = {};
+  const moi = {
+    CURUSER: { boPhan: bp === undefined ? 'Kỹ thuật' : bp, name: 'KT', role: 'Nhân viên' },
+    QUYEN_TAB: { don: 1, duan: 1 },
+    BP_HOI_LOAI_DON: ['Kỹ thuật'],
+    el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '', innerHTML: '',
+      readOnly: false, focus() {} }),
+    esc: x => String(x == null ? '' : x),
+    _kyTuDo: () => false,
+    genKyOptions: () => [{ val: 'T9/2026', label: 'T9/2026', cur: true }],
+    _ngayISO: () => '2026-09-11',
+    ndKyDoi: () => {},
+    setTimeout: fn => fn(),
+  };
+  const src = `${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
+    newDon(C); return null;`;
+  new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
+  return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display };
+}
+const ND1 = beNewDon(undefined);
+t('bấm "＋ Tạo đơn mới" thẳng: CÓ hỏi loại (Kỹ thuật lên được hai loại)',
+  ND1.hoi === '' && ND1.coso === 'none', ND1);
+const ND2 = beNewDon(true);
+t('🔴 tới đây vì đã chọn "Đơn tuần của cơ sở": KHÔNG hỏi lại, vào thẳng phần kỳ',
+  ND2.hoi === 'none' && ND2.coso === '', ND2);
+const ND3 = beNewDon(undefined, 'Cơ sở');
+t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
 
 /* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút. */
 function beNutChuyen(vis) {

@@ -221,7 +221,9 @@ if m9:
     la('vai khác Nhân viên vẫn được kỳ tự do', "!=='Nhân viên') return true" in t9)
     la('Nhân viên phải nằm trong BP_KY_TU_DO', 'BP_KY_TU_DO.indexOf(' in t9)
 
-m10 = re.search(r'function newDon\(\)\{(.*?)\n  \}', src, re.S)
+# `newDon(daChonTuan)` nhận cờ "đã chọn loại ở bên kia rồi" từ 11/09/2026 — anh Thắng:
+# *"Bấm Đơn tuần của cơ sở vẫn hiện hỏi lần 2"*. Khuôn dò phải nhận cả bản có tham số.
+m10 = re.search(r'function newDon\([^)]*\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy newDon()', m10 is not None)
 if m10:
     t10 = m10.group(1)

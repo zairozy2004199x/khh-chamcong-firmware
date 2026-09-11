@@ -204,6 +204,12 @@ gì?"* thì trông như lựa chọn vừa rồi không được ghi nhận, và
 **"Đang lập: …"** kèm nút **↺ Đổi loại** cho ai bấm nhầm. Đóng khối là trả hàng hỏi về chỗ cũ
 ngay — không thì lần sau mở ra vẫn là dòng "Đang lập", không còn nút nào để chọn loại.
 
+⚠️ **Chiều về cũng vậy.** Bản 1.129.0 vá đúng chiều đi (tab đơn → tab Kỹ thuật) nhưng bỏ sót
+chiều ngược: chọn **📅 Đơn tuần của cơ sở** ở khối tạo bên tab Kỹ thuật thì hộp *"＋ Tạo đơn
+mới"* bên kia mở lên và hỏi *"Đơn này là loại nào?"* thêm lần nữa — đúng câu vừa trả lời xong.
+Nay `daSangDonTuan()` truyền cờ sang `newDon(true)`, và `newDon` chỉ hỏi khi
+`_hoiLoaiDon() && !daChonTuan`.
+
 🔴 **Không tự đẻ ra đơn khi chọn loại.** Đơn dự án cần TÊN gian, đơn cơ sở cần TUẦN; tạo bừa là
 ra một đơn không ai đặt, rồi phải xoá đi làm lại.
 

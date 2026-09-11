@@ -54,7 +54,11 @@ const boc = ten => {
   return i < 0 ? '' : HTML.slice(i, HTML.indexOf('\n  }', i) + 4);
 };
 const nd = boc('newDon');
-t('🔴 hỏi hay không tra qua _hoiLoaiDon()', nd.indexOf('var hoi=_hoiLoaiDon();') >= 0, nd);
+/* 🔴 Hỏi hay không: `_hoiLoaiDon()` VÀ chưa chọn ở bên kia. Vế thứ hai thêm 11/09/2026 —
+   anh Thắng: *"Bấm Đơn tuần của cơ sở vẫn hiện hỏi lần 2"*. Hành vi đầy đủ chạy thật ở
+   `kiem-tab-kythuat-va-gian.js`. */
+t('🔴 hỏi hay không tra qua _hoiLoaiDon()', /var hoi=_hoiLoaiDon\(\)/.test(nd), nd);
+t('   và bỏ qua khi người dùng đã chọn loại ở bên kia', nd.indexOf('daChonTuan') >= 0, nd);
 t('   không hỏi thì mở thẳng phần đơn cơ sở như cũ',
   nd.indexOf("el('ndCoSoBox').style.display=hoi?'none':'';") >= 0, nd);
 t('🔴 ở bước hỏi thì ẨN nút "Tạo đơn" (bấm lúc chưa chọn loại là tạo nhầm)',

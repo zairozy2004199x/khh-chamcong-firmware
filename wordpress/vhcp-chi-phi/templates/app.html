@@ -2629,12 +2629,22 @@
     el('ndBtnTao').style.display='';
     setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
-  function newDon(){
+  /**
+   * Mở hộp "＋ Tạo đơn mới".
+   *
+   * `daChonTuan` = người dùng ĐÃ chọn "📅 Đơn tuần của cơ sở" ở khối tạo bên tab Kỹ thuật.
+   *
+   * 🔴 CHỌN RỒI THÌ ĐỪNG HỎI LẠI — anh Thắng 11/09/2026: *"Bấm Đơn tuần của cơ sở vẫn hiện hỏi
+   *    lần 2"*. Bản trước vá đúng chiều đi (tab đơn → tab Kỹ thuật) mà bỏ sót chiều về: mở hộp
+   *    này lên là nó hỏi "Đơn này là loại nào?" thêm lần nữa, đúng cái vừa trả lời xong.
+   */
+  function newDon(daChonTuan){
     // Nhân viên cơ sở KHÔNG thấy dòng này — không phải chỉ "không chọn sẵn", mà là không có.
     // Để đó rồi trông chờ người ta đừng bấm là sớm muộn có người bấm.
     var tudo=_kyTuDo();
-    /* Hỏi loại đơn chỉ với bộ phận thật sự có hai loại để chọn. Một loại thì hỏi làm gì. */
-    var hoi=_hoiLoaiDon();
+    /* Hỏi loại đơn chỉ với bộ phận thật sự có hai loại để chọn. Một loại thì hỏi làm gì —
+       và người vừa chọn xong ở bên kia cũng vậy. */
+    var hoi=_hoiLoaiDon() && !daChonTuan;
     /* Bày đúng những loại người này lên được. Một nút cho một loại họ không vào nổi là mời họ
        bấm rồi ăn trang trắng — đúng thứ cặp nút LOẠI ĐƠN cũ vẫn làm. */
     if(el('ndLoaiDaCoSo')) el('ndLoaiDaCoSo').style.display=_tabDuoc('duan')?'':'none';
@@ -4192,7 +4202,8 @@
   function daSangDonTuan(){
     daDongTao();
     showPage('don');
-    setTimeout(function(){ try{ newDon(); }catch(e){} },140);
+    /* Truyền cờ "đã chọn rồi" — không thì hộp bên kia hỏi lại đúng câu vừa trả lời. */
+    setTimeout(function(){ try{ newDon(true); }catch(e){} },140);
   }
   function daDongTao(){
     if(el('daTaoBox')) el('daTaoBox').style.display='none';
