@@ -119,7 +119,11 @@ var mFor = null, timer = null;
 function tien(n){ try{ return (Number(n)||0).toLocaleString('vi-VN')+'đ'; }catch(e){ return n+'đ'; } }
 function qs(s){ return mask.querySelector(s); }
 function qsa(s){ return Array.prototype.slice.call(mask.querySelectorAll(s)); }
-function show(step){ qs('.pve-step-form').hidden = (step!=='form'); qs('.pve-step-qr').hidden = (step!=='qr'); }
+/* Ba bước dùng chung một khung popup: giỏ / form đặt lẻ / mã QR. Duyệt theo data-step thay vì
+   gọi tên từng khối — thêm bước thứ tư sau này khỏi phải sửa hàm này. */
+function show(step){
+	qsa('.pve-step').forEach(function(o){ o.hidden = (o.getAttribute('data-step') !== step); });
+}
 function loadQR(cb){
 	if (window.QRCode){ cb(); return; }
 	var s=document.createElement('script');
@@ -177,6 +181,173 @@ function nhoKhach(ten, sdt){
 	if (ten) ZME.ten = ZME.ten || ten;
 	if (sdt) ZME.sdt = sdt;
 }
+/* ═══ VÍ VÉ ════════════════════════════════════════════════════════════════════════════════
+   Mua xong thì mã vé vào ví ngay trên máy, kèm QR để nhân viên quét ở cửa.
+
+   Danh sách mã nằm ở máy khách; máy chủ chỉ làm tươi trạng thái và dựng QR (POSH_Ve::r_vi).
+   Lý do không tra theo số điện thoại nằm ở chú thích hàm ấy — số điện thoại không phải bí mật,
+   mà mã vé chính là thứ đưa ra cổng để vào cửa. */
+var VKHO = 'posh_ve_vi';
+function viDoc(){
+	try { var d = JSON.parse(localStorage.getItem(VKHO) || '[]'); return Array.isArray(d) ? d : []; }
+	catch (e) { return []; }
+}
+function viThem(ma){
+	if (!ma) return;
+	var d = viDoc();
+	if (d.indexOf(ma) === -1) { d.unshift(ma); }
+	try { localStorage.setItem(VKHO, JSON.stringify(d.slice(0, 100))); } catch (e) {}
+	viNut(viDoc().length);
+}
+function viNut(n){
+	var nut = document.getElementById('pve-vi-nut'); if (!nut) return;
+	nut.hidden = !n;
+	var o = nut.querySelector('.pve-vi-n'); if (o) o.textContent = n;
+}
+var VE_NHAN = { cho: '⏳ Chờ thanh toán', da_tt: '✅ Sẵn sàng vào cửa', da_dung: '🎟️ Đã sử dụng', huy: '✖ Đã huỷ' };
+function moVi(){
+	var ds = qs('.pve-vi-ds'), tr = qs('.pve-vi-trong');
+	ds.innerHTML = ''; tr.hidden = false; tr.textContent = 'Đang tải ví…';
+	show('vi'); mask.hidden = false;
+	fetch(REST + '/ve/vi', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+		body: JSON.stringify({ ma: viDoc() }) })
+	.then(function(r){ return r.json(); })
+	.then(function(d){
+		var v = (d && d.ve) || [];
+		if (!v.length){ tr.textContent = 'Chưa có vé nào trên máy này.'; return; }
+		tr.hidden = true;
+		v.forEach(function(x){
+			var el = document.createElement('div'); el.className = 'pve-vi-the';
+			var phu = x.trang_thai === 'da_dung'
+				? ('Đã dùng' + (x.coso_dung ? ' tại ' + esc(x.coso_dung) : ''))
+				: (x.coso ? ('Mua tại ' + esc(x.coso)) : 'Mua từ xa — dùng được ở mọi cơ sở');
+			el.innerHTML = '<div class="pve-vi-top"><span class="pve-vi-goi">' + esc(x.goi_ten) + '</span>'
+				+ '<span class="pve-badge ' + esc(x.trang_thai) + '">' + (VE_NHAN[x.trang_thai] || esc(x.trang_thai)) + '</span></div>'
+				+ '<div class="pve-vi-ma">' + esc(x.ma_ve) + '</div>'
+				/* Vé đã dùng/đã huỷ thì KHÔNG vẽ QR nữa: đưa ra một mã không vào được cửa chỉ
+				   khiến khách với nhân viên cãi nhau ngay tại quầy. */
+				+ (x.trang_thai === 'da_tt' && x.qr_svg ? '<div class="pve-vi-qr">' + x.qr_svg + '</div>' : '')
+				+ '<div class="pve-vi-phu">' + tien(x.so_tien) + ' · ' + phu + '</div>';
+			ds.appendChild(el);
+		});
+	})
+	.catch(function(){ tr.textContent = 'Không tải được ví — kiểm tra mạng rồi thử lại.'; });
+}
+
+/* ═══ GIỎ VÉ ════════════════════════════════════════════════════════════════════════════════
+   Khách mua cho cả nhà thì đặt lẻ từng vé là từng ấy lượt chuyển khoản, từng ấy nội dung phải
+   gõ đúng — và nếu gõ sai một cái thì đơn ấy không tự khớp. Giỏ gộp cả nhóm thành MỘT mã.
+
+   Giỏ chỉ giữ { id vé: số lượng }. Tên, giá, khu vực đọc lại từ thẻ vé trong trang mỗi lần vẽ:
+   chép giá vào giỏ rồi khách để đó vài hôm là giá trong giỏ nói một đằng, giá thật một nẻo. Vé
+   đã bị xoá khỏi trang thì tự rụng khỏi giỏ.
+
+   ⚠️ Giá ở đây CHỈ ĐỂ HIỆN. Máy chủ tính lại toàn bộ ở POSH_Ve::r_dat_gio(). */
+var GKHO = 'posh_ve_gio';
+var GIO = {};
+function gioDoc(){
+	try { var d = JSON.parse(localStorage.getItem(GKHO) || '{}'); return (d && typeof d === 'object') ? d : {}; }
+	catch (e) { return {}; }
+}
+function gioGhi(){ try { localStorage.setItem(GKHO, JSON.stringify(GIO)); } catch (e) {} }
+function theVe(id){ return document.querySelector('.pve-card[data-id="' + String(id).replace(/"/g,'') + '"]'); }
+function gioSo(){ var n = 0; for (var k in GIO) { if (theVe(k)) n += GIO[k]; } return n; }
+function gioThem(id, sl){
+	id = String(id); if (!theVe(id)) return;
+	GIO[id] = Math.max(0, (GIO[id] || 0) + (sl === undefined ? 1 : sl));
+	if (!GIO[id]) delete GIO[id];
+	gioGhi(); gioNut(); gioVe();
+}
+function gioNut(){
+	var nut = document.getElementById('pve-gio-nut'); if (!nut) return;
+	var n = gioSo();
+	nut.hidden = !n;
+	var o = nut.querySelector('.pve-gio-n'); if (o) o.textContent = n;
+	/* Thẻ vé đã có trong giỏ thì nút ＋ đổi màu — khỏi phải mở giỏ ra mới biết đã thêm chưa. */
+	qsaAll('.pve-card').forEach(function(c){
+		var b = c.querySelector('.pve-them'); if (!b) return;
+		var co = !!GIO[c.getAttribute('data-id')];
+		b.classList.toggle('da', co);
+		b.textContent = co ? ('✓' + GIO[c.getAttribute('data-id')]) : '＋';
+	});
+}
+function qsaAll(sel){ return [].slice.call(document.querySelectorAll(sel)); }
+/* Vẽ lại danh sách trong popup giỏ. Gọi cả lúc popup đang đóng cũng không sao. */
+function gioVe(){
+	var ds = qs('.pve-gio-ds'); if (!ds) return;
+	ds.innerHTML = '';
+	var tong = 0, co = 0;
+	for (var id in GIO) {
+		var card = theVe(id);
+		if (!card) { delete GIO[id]; continue; }   /* vé đã gỡ khỏi trang -> rụng khỏi giỏ */
+		var sl = GIO[id], don = giaSauGiam(card.getAttribute('data-gia'));
+		tong += don * sl; co++;
+		var h = document.createElement('div'); h.className = 'pve-gio-h';
+		h.innerHTML = '<div class="pve-gio-ten">' + esc(card.getAttribute('data-ten'))
+			+ '<small>' + tien(don) + (PVE.giam ? (' (-' + PVE.giam + '%)') : '') + '</small></div>'
+			+ '<div class="pve-gio-sl"><button type="button" data-b="tru">−</button><b>' + sl
+			+ '</b><button type="button" data-b="cong">+</button></div>'
+			+ '<button type="button" class="pve-gio-bo" title="Bỏ khỏi giỏ">✕</button>';
+		h.querySelector('[data-b="tru"]').onclick = function(i){ return function(){ gioThem(i, -1); }; }(id);
+		h.querySelector('[data-b="cong"]').onclick = function(i){ return function(){ gioThem(i, 1); }; }(id);
+		h.querySelector('.pve-gio-bo').onclick = function(i){ return function(){ delete GIO[i]; gioGhi(); gioNut(); gioVe(); }; }(id);
+		ds.appendChild(h);
+	}
+	var t = qs('.pve-gio-tien'); if (t) t.textContent = tien(tong);
+	var tr = qs('.pve-gio-trong'); if (tr) tr.hidden = !!co;
+	var go = qs('.pve-g-go'); if (go) go.disabled = !co;
+}
+function moGio(){
+	gioVe();
+	var chip = qs('.pve-zme-g');
+	if (ZME && ZME.dangnhap && chip){
+		chip.querySelector('.pve-zme-t').textContent = ZME.ten || ('Zalo ' + (ZME.id || ''));
+		var a = chip.querySelector('.pve-zme-a'); if (a && ZME.anh) { a.src = ZME.anh; a.hidden = false; }
+		chip.hidden = false;
+	} else if (chip) { chip.hidden = true; }
+	if (ZME){ dienZalo(qs('.pve-g-ten'), ZME.ten); dienZalo(qs('.pve-g-sdt'), ZME.sdt); }
+	qs('.pve-g-err').hidden = true;
+	show('gio'); mask.hidden = false;
+}
+/* Bắt bằng uỷ quyền trên document — cùng lý do với nút Đặt vé: thẻ vé bị lọc ẩn/hiện, vẽ lại,
+   hay khối này chạy trước lúc thẻ vào DOM thì gắn từng nút là chết lặng. */
+document.addEventListener('click', function(ev){
+	var t = ev.target; if (!t || !t.closest) return;
+	var them = t.closest('.pve-them');
+	if (them){ var c = them.closest('.pve-card'); if (c){ ev.preventDefault(); gioThem(c.getAttribute('data-id'), 1); } return; }
+	if (t.closest('#pve-gio-nut')){ ev.preventDefault(); moGio(); }
+	if (t.closest('#pve-vi-nut')){ ev.preventDefault(); moVi(); }
+});
+boc('ví vé', function(){ viNut(viDoc().length); });
+boc('giỏ vé', function(){
+	GIO = gioDoc();
+	gioNut(); gioVe();
+	var go = qs('.pve-g-go'); if (!go) return;
+	go.addEventListener('click', function(){
+		var ten = qs('.pve-g-ten').value.trim(), sdt = qs('.pve-g-sdt').value.trim();
+		var err = qs('.pve-g-err'), items = [];
+		for (var id in GIO) { if (theVe(id)) items.push({ id: Number(id), sl: GIO[id] }); }
+		if (!items.length){ err.textContent = 'Giỏ đang trống.'; err.hidden = false; return; }
+		if (!ten || !sdt){ err.textContent = 'Nhập tên và số điện thoại.'; err.hidden = false; return; }
+		err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
+		fetch(REST + '/ve/dat-gio', { method:'POST', headers:{'Content-Type':'application/json'},
+			body: JSON.stringify({ items: items, ten: ten, sdt: sdt,
+				cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
+		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+		.then(function(o){
+			btn.disabled = false; btn.textContent = 'Tạo mã thanh toán';
+			if (!o.ok || o.d.ok === false){ err.textContent = (o.d && (o.d.message || o.d.code)) || 'Lỗi tạo vé.'; err.hidden = false; return; }
+			nhoKhach(ten, sdt);
+			/* Đặt xong mới dọn giỏ. Dọn trước rồi máy chủ chối (hết vé, chưa khai tài khoản
+			   nhận tiền) là khách mất sạch giỏ vừa chọn mà chẳng được vé nào. */
+			GIO = {}; gioGhi(); gioNut(); gioVe();
+			hienQR(o.d);
+		})
+		.catch(function(){ btn.disabled = false; btn.textContent = 'Tạo mã thanh toán';
+			err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
+	});
+});
+
 boc('nhớ người mua', function(){
 	var k = khachDaLuu(); if (!k) return;
 	if (!ZME) { ZME = { dangnhap: false, ten: k.ten, sdt: k.sdt }; }
@@ -422,6 +593,9 @@ function dongBo(){
 	var qf = document.querySelector('.pve-qf'); if(!qf) return;
 	var selVe = qf.querySelector('.pve-qf-ve');
 	var selCs = qf.querySelector('.pve-qf-cs');
+	/* Khung đặt nhanh có mà thiếu ô chọn vé (trang dựng bằng mẫu khác, hoặc ai đó gỡ bớt) thì
+	   bỏ cả khối này — chứ không ném lỗi giữa chừng làm chết phần script còn lại. */
+	if (!selVe) return;
 	var cards = [].slice.call(document.querySelectorAll('.pve-card')).map(function(c){
 		return { id:c.getAttribute('data-id'), ten:c.getAttribute('data-ten'), gia:c.getAttribute('data-gia'), kv:c.getAttribute('data-kv')||'', het:c.classList.contains('pve-het') };
 	});
@@ -504,6 +678,7 @@ qs('.pve-go').addEventListener('click', function(){
 });
 
 function hienQR(v){
+	viThem(v.ma_ve);   /* mọi lối đặt vé đều đi qua đây -> ví không sót mã nào */
 	mask.hidden = false;   // mở popup (dùng cho cả form đặt nhanh)
 	qs('.pve-r-mave').textContent = v.ma_ve;
 	qs('.pve-r-goi').textContent  = v.goi_ten;

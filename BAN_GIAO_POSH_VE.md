@@ -42,6 +42,9 @@ npx.cmd zmp deploy
 
 ## 4. Các trang & đường dẫn
 
+> Shortcode: `[posh_ve]` trang bán vé · `[posh_ql]` quản trị vé · **`[posh_soat]` màn hình soát vé tại quầy** (nhân viên chọn cơ sở + gõ PIN một lần, máy nhớ cho cả ca).
+
+
 | Trang | Đường dẫn | Shortcode |
 |---|---|---|
 | Bán vé (khách) | `khmatrix.com/mua-ve` | `[posh_ve]` |
@@ -109,6 +112,38 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 - Plugin có **hai** file phải để mắt: `vhcp-ve/vhcp-ve.php` (PHP) và `vhcp-ve/assets/ve.js`
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
+
+### Vòng đời một tấm vé (từ 1.48.0)
+```
+khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
+                                  |
+              Sao Kê nhận tiền vào -> POSH_Ve::tu_khop() -> trạng thái da_tt
+                                  |
+        ví vé của khách (mã + QR)  |  màn hình [posh_soat] ở quầy kêu chuông
+                                  \-> nhân viên quét -> r_soat() -> da_dung + coso_dung
+```
+
+### ⚠️ Chuyển khoản VietQR trước đây KHÔNG BAO GIỜ tự xác nhận
+Vé chỉ chuyển sang "đã thanh toán" qua hai lối: IPN của Momo/VNPay, hoặc quản trị bấm tay. Khách
+quét mã VietQR chuyển tiền xong thì vé nằm mãi ở *"Chờ thanh toán"* — tiền đã vào tài khoản mà hệ
+thống không biết, nhân viên soát vé cũng không dám cho vào.
+
+`POSH_Ve::tu_khop()` bắc cầu sang plugin Sao Kê: tìm giao dịch **tiền vào** có nội dung chứa đúng
+chuỗi in trên mã QR (`VE` + mã vé) và số tiền không thiếu. Nội dung ấy là duy nhất cho từng vé nên
+một lượt chuyển khoản không thể khớp cho hai vé. Gọi ngay trong lúc trang khách hỏi trạng thái
+(mỗi 5 giây) → tiền vào là vé xanh gần như tức thì. **Cần cài plugin Sao Kê trên cùng site.**
+
+### 🔴 Quyết định cho vào cửa nằm ở MÁY CHỦ
+Màn hình `[posh_soat]` chỉ gửi mã lên và in lại câu trả lời. Mọi luật — đã trả tiền chưa, đã dùng
+rồi chưa, dùng ở đâu — kiểm trong `POSH_Ve::r_soat()`. Để trang tự kết luận thì sửa vài dòng trong
+trình duyệt là vé nào cũng "hợp lệ". Vé mua từ xa (`coso` rỗng) hiện ở **mọi** cơ sở — khách mua
+trước ở nhà rồi tới cơ sở nào cũng vào được; đổi luật ấy là vé mua trước không dùng được ở đâu cả.
+
+### 🔴 Ví vé nằm Ở MÁY KHÁCH, máy chủ chỉ làm tươi
+Trang gửi lên danh sách mã vé mà **chính máy ấy** đã mua (localStorage), máy chủ trả trạng thái mới
+nhất. Đừng đổi thành "tra vé theo số điện thoại": số điện thoại không phải bí mật, ai gõ số người
+khác cũng xem được vé của họ — mà mã vé chính là thứ đưa ra cổng để vào cửa. Đăng nhập Zalo thì
+máy chủ **gộp thêm** vé mua bằng tài khoản ấy trên máy khác (danh tính do cookie đã ký xác nhận).
 
 ### ⚠️ Mã QR chuyển khoản dựng Ở MÁY CHỦ — đừng quay lại kiểu tải thư viện từ CDN
 Trước 1.47.0 trang khách tải `qrcodejs` từ `cdnjs.cloudflare.com` rồi mới vẽ. Trên site thật nó
