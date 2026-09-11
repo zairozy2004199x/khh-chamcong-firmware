@@ -31,7 +31,8 @@
  *    Nếu để trống mà hiểu thành cấm hết thì ngay giây phút bản này lên, mọi kế toán đang chạy
  *    đều mù: 240 người dùng, không ai có ô đó, và không ai hiểu vì sao đơn biến mất. Một bản
  *    nâng cấp không được phép làm gãy thứ đang chạy để chờ người ta đi khai lại từng dòng.
- *    Mặc định: Admin · Kế toán · Quản lý -> XEM CẢ; còn lại -> chỉ nhà mình.
+ *    Mặc định: Admin · Kế toán · Quản lý -> XEM CẢ; ai ở NHÀ MẸ (K&H) -> XEM CẢ bất kể vai
+ *    (xem khối 🔴 ở `DON_VI_ME_MAC_DINH`); còn lại -> chỉ nhà mình.
  *    Muốn siết kế toán POSH lại thì khai thẳng "POSH" vào ô đó — một dòng, cố ý, thấy được.
  */
 
@@ -51,6 +52,47 @@ class VHCP_DonVi {
 	 *    trơn, không câu lỗi nào, không ai đoán ra vì sao.
 	 */
 	const VAI_XEM_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐƠN VỊ MẸ — NHÀ NÀY NHÌN CẢ HỆ.
+	 *
+	 * Anh Thắng 11/09/2026, sau khi mở màn Cấu hình thấy bảng "🏢 Mã đơn vị theo Cơ sở" trắng
+	 * trơn và tưởng mất dữ liệu: *"thấy rồi, do để đơn vị K&H nên không thấy. Để K&H là xem
+	 * được tất cả đơn vị"*.
+	 *
+	 * 🔴 K&H KHÔNG NGANG HÀNG VỚI POSH VÀ KVC. Ba cái tên nằm chung một cột nên trông như ba
+	 *    anh em, nhưng K&H là nhà mẹ: POSH và KVC là hai mảng tách ra từ đó. Bó nhân viên K&H
+	 *    lại chỉ thấy K&H là bó chính người phải nhìn toàn cục — còn chiều ngược lại (POSH
+	 *    không thấy K&H) thì vẫn đúng và vẫn giữ.
+	 *
+	 * ⚠️ CHỈ ÁP KHI Ô "Xem đơn vị" ĐỂ TRỐNG. Khai thẳng "K&H" vào ô ấy vẫn là bó lại đúng K&H
+	 *    — đó là đường siết một người nhà mẹ lại, và `kiem-tach-don-vi-posh.php` đang dựa vào
+	 *    nó. Ô khai tay luôn thắng luật mặc định, y như với vai.
+	 *
+	 * ⚠️ HỆ QUẢ PHẢI BIẾT: `chuan('')` đưa ô trống về đúng nhà mẹ, nên NGƯỜI CHƯA KHAI ĐƠN VỊ
+	 *    cũng nhìn cả hệ. Đó là hành vi thời chưa tách đơn vị, nên không có gì đang chạy bị
+	 *    gãy — nhưng người POSH/KVC mà quên khai ô Đơn vị thì thấy cả sổ K&H. Khai đủ cột
+	 *    "Đơn vị" ở Cấu hình → Người dùng là việc bắt buộc, không phải tuỳ chọn.
+	 *
+	 * Đổi tên nhà mẹ (hay tắt hẳn luật này) bằng khoá `vhcp_dv_me`; để trống khoá = tắt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Nhà mẹ mặc định. Tách hẳn khỏi `MAC_DINH` dù nay trùng giá trị: hai câu hỏi khác nhau
+	 *  ("ô trống rơi về đâu" với "ai nhìn cả hệ"), gộp lại là ngày đổi một cái kéo theo cái kia. */
+	const DON_VI_ME_MAC_DINH = 'K&H';
+
+	/** Tên nhà mẹ đang đặt. '' = không có nhà mẹ, mọi đơn vị ngang hàng. */
+	public static function don_vi_me() {
+		$x = get_option( 'vhcp_dv_me', null );
+		if ( ! is_string( $x ) ) { return self::DON_VI_ME_MAC_DINH; }
+		return trim( $x );
+	}
+
+	/** Nhà này có phải nhà mẹ không. */
+	public static function la_don_vi_me( $don_vi ) {
+		$me = self::don_vi_me();
+		return ( '' !== $me ) && self::bang( $me, $don_vi );
+	}
 
 	/* ====================================================================== danh sách */
 
@@ -209,7 +251,10 @@ class VHCP_DonVi {
 		}
 		/* Ô để trống -> theo mặc định của VAI GỐC (vai tự tạo đã quy về gốc ở cửa vào). */
 		if ( in_array( VHCP_Auth::vai_tro(), self::VAI_XEM_CA, true ) ) { return null; }
-		return array( self::cua_toi() );
+		/* ... hoặc theo NHÀ: nhà mẹ nhìn cả hệ, bất kể vai. Xem khối 🔴 ở `DON_VI_ME_MAC_DINH`. */
+		$nha = self::cua_toi();
+		if ( self::la_don_vi_me( $nha ) ) { return null; }
+		return array( $nha );
 	}
 
 	/** Người đang gọi có được đọc đơn vị này không. */

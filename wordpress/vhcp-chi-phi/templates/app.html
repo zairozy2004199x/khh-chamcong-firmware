@@ -8991,6 +8991,23 @@
       if(!dvGr[d]){dvGr[d]=[];dvOrd.push(d);} dvGr[d].push(x);
     });
     dvOrd.sort();
+    /* 🔴 BẢNG RỖNG PHẢI NÓI VÌ SAO RỖNG. Cắn thật 11/09/2026: anh Thắng mở màn Cấu hình, bảng
+       "🏢 Mã đơn vị theo Cơ sở" trắng trơn, và câu đầu tiên là *"mã đơn vị theo cơ sở bị ẩn
+       mất rồi"* — tưởng mất dữ liệu. Không mất gì: tài khoản lúc ấy bị bó theo Đơn vị nên
+       máy chủ lọc sạch, mà màn thì không hé một chữ. Một bảng trắng có hai nghĩa hoàn toàn
+       khác nhau (chưa khai ai · khai rồi nhưng không được xem) và người dùng không có cách
+       nào phân biệt. Nói thẳng nghĩa thứ hai ra. */
+    if(!dvOrd.length){
+      var _bo=(BOOT.xemDonVi&&BOOT.xemDonVi.length)?BOOT.xemDonVi.join(', '):'';
+      el('cfgCosoBody').innerHTML='<tr><td colspan="8" style="padding:14px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.6">'
+        +(_bo
+          ? '⚠️ <b>Không phải mất dữ liệu.</b> Tài khoản này chỉ xem được đơn vị <b>'+esc(_bo)+'</b>, mà chưa cơ sở nào trong danh mục khai đơn vị ấy — nên bảng rỗng. Cơ sở của đơn vị khác vẫn còn nguyên, chỉ là không hiện ở đây. Sửa ô <b>Xem đơn vị</b> của người này ở khối 👤 Người dùng &amp; Phân quyền bên dưới, hoặc khai đúng ô Đơn vị cho từng cơ sở.'
+          : '📭 Chưa khai cơ sở nào. Bấm <b>+ Thêm cơ sở</b> hoặc <b>🚛 Hút cơ sở từ Ghế</b> để bắt đầu.')
+        +'</td></tr>';
+      _csLock(true);
+      doCoSoLa();
+      return;
+    }
     el('cfgCosoBody').innerHTML=dvOrd.map(function(d){
       var gr={}, ord=[];
       dvGr[d].forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
