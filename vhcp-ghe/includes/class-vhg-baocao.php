@@ -1182,6 +1182,13 @@ class VHG_BaoCao {
 					'SELECT trang_thai FROM ' . VHG_DB::t( 'nop' ) . ' WHERE id=%d LIMIT 1', $nop_id ), ARRAY_A );
 				$nop_tt = ( $n && 'cho' !== (string) $n['trang_thai'] ) ? 'da_nhan' : 'cho_xac_nhan';
 			}
+			/* 🔴 BÁO CÁO ĐÃ XOÁ HẾT GHẾ THÌ THÔI HIỆN — anh Thắng 11/09/2026: "xóa thì xóa luôn thông
+			   báo này". Kế toán xoá cả báo cáo (VHG_KeToan::xoa) chuyển mọi ghế xuống thùng rác nên
+			   không còn dòng nào; header `bc` vẫn nằm đó (để hoàn tác được), nhưng bày một thẻ "0 ghế
+			   · 0đ" trơ ra thì rối mắt. Bỏ qua ở khâu HIỆN, không xoá header — hoàn tác một ghế bất
+			   kỳ ở thùng rác là báo cáo hiện lại ngay. Tab Duyệt (VHG_KeToan::ds) vốn đã lọc kiểu này
+			   nên hai màn khớp nhau. */
+			if ( ! count( $ghe ) ) { continue; }
 			/* Tiền mặt PHẢI NỘP của báo cáo này — QR đã về tài khoản công ty rồi, không ai cầm.
 			   Đây là con số cái bill phải khớp, nên nó phải ra tới màn hình. */
 			$tien_mat = 0; foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; }
@@ -1379,8 +1386,15 @@ class VHG_BaoCao {
 			'qr' => array_key_exists( 'qr', $patch ) ? (int) $patch['qr'] : (int) $d['qr'],
 			'dieu_chinh' => null !== $thuc_thu ? $thuc_thu : 0,
 			'ghi_chu' => $ghi_chu_goc );
-		$truoc = self::chi_so_truoc( $ma, $h['ngay'] );
-		$r['chi_so_truoc'] = ( null !== $truoc ) ? $truoc : self::songuyen_( $d['chi_so_truoc'] );
+		/* 🔴 GIỮ NGUYÊN CHỈ SỐ TRƯỚC ĐÃ LƯU — KHÔNG tự tính lại khi Sửa. Anh Thắng 11/09/2026: gửi
+		   báo cáo lần đầu quên ảnh, lần 2 vào Sửa CHỈ để bổ sung ảnh, thì "chỉ số thực thu bị xoá
+		   mất, dẫn đến báo sai chỉ số". Nguồn: bản cũ gọi lại `chi_so_truoc($ma,$ngay)` với mặc định
+		   $toi=false — chỉ tìm mốc của NGÀY TRƯỚC. Ghế thu 2 lần trong ngày (lan≥2) vì thế bị lấy
+		   nhầm mốc của ngày hôm trước thay vì chỉ số sau của lần thu ĐẦU cùng ngày → actual =
+		   (sau−trước)×đơn_vị lệch hẳn, có khi âm (xem AM-TP-4: 4590→459). Mốc "chỉ số trước" đã được
+		   chốt ĐÚNG ngay lúc GỬI (luu() tính có xét $toi); một lượt Sửa (thêm ảnh, đổi QR, ghi đè
+		   thực thu) không có cớ gì phải suy lại nó. Giữ đúng số đã lưu là hết lệch. */
+		$r['chi_so_truoc'] = self::songuyen_( $d['chi_so_truoc'] );
 		self::tinh_( $r );
 		if ( null !== $r['chi_so_truoc'] && null !== $r['chi_so_sau'] && $r['chi_so_sau'] < $r['chi_so_truoc'] ) {
 			return array( 'ok' => false, 'message' => 'Chỉ số sau nhỏ hơn chỉ số trước — gửi đề nghị đổi chỉ số nếu vừa thay máy.' );
