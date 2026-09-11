@@ -930,41 +930,70 @@ qf('.pve-go').addEventListener('click', function(){
    tìm đường quay lại. Muốn rời hẳn thì đã có nút riêng.
 
    Dựng riêng chứ không thêm một bước vào popup: nó phải nằm TRÊN mọi thứ, kể cả popup đang mở. */
-function xongVi(v){
-	var o = document.createElement('div');
-	o.className = 'pve-xong';
-	o.innerHTML = '<div class="pve-xong-in">'
+/* Màn HOÀN THÀNH dùng chung cho hai việc đã xong hẳn: trả vé bằng ví, và nạp tiền vào ví.
+   Cùng một hình hài vì với khách đó là cùng một cảm giác — xong rồi, về thôi.
+   `o` = { tieu, phu, ma, mota, du, nut_chinh, mo_vi } */
+function manXong(o){
+	var e = document.createElement('div');
+	e.className = 'pve-xong';
+	e.innerHTML = '<div class="pve-xong-in">'
 		+ '<div class="pve-xong-v">✅</div>'
-		+ '<div class="pve-xong-h">Thanh toán thành công</div>'
-		+ '<div class="pve-xong-p">Đã trừ ví — vé sẵn sàng vào cửa</div>'
-		+ '<div class="pve-xong-ma">' + esc(v.ma_ve) + '</div>'
-		+ '<div class="pve-xong-tien">' + esc(v.goi_ten || '') + ' · ' + tien(v.so_tien) + '</div>'
-		+ '<div class="pve-xong-du">Ví còn ' + tien(v.so_du || 0) + '</div>'
+		+ '<div class="pve-xong-h">' + esc(o.tieu) + '</div>'
+		+ '<div class="pve-xong-p">' + esc(o.phu) + '</div>'
+		+ '<div class="pve-xong-ma">' + esc(o.ma || '') + '</div>'
+		+ '<div class="pve-xong-tien">' + esc(o.mota || '') + '</div>'
+		+ (o.du !== undefined ? '<div class="pve-xong-du">Ví còn ' + tien(o.du) + '</div>' : '')
 		+ '<div class="pve-xong-nut">'
-			+ '<button type="button" class="pve-xong-ve">🎫 Xem vé của tôi</button>'
+			+ '<button type="button" class="pve-xong-ve">' + esc(o.nut_chinh) + '</button>'
 			+ '<button type="button" class="pve-xong-chu">Về trang mua vé</button>'
 		+ '</div>'
 		+ '<div class="pve-xong-dem">Tự về sau <b>5</b> giây</div></div>';
-	document.body.appendChild(o);
-	/* Đóng popup đặt vé NGAY, không đợi lúc tắt màn này: khách chạm nhầm ra sau lại thấy khung
-	   đặt vé cũ với nút "Tạo mã thanh toán" — tưởng chưa xong rồi bấm lần nữa. */
-	try { mask.hidden = true; if (timer) { clearInterval(timer); timer = null; } } catch (e) {}
+	document.body.appendChild(e);
+	/* Đóng popup bên dưới NGAY, không đợi lúc tắt màn này: khách chạm nhầm ra sau lại thấy khung
+	   cũ với mã QR chuyển khoản — tưởng chưa xong rồi trả lần nữa. */
+	try { mask.hidden = true; if (timer) { clearInterval(timer); timer = null; } } catch (x) {}
 
-	function dong(mo_vi){
+	function dong(theo_nut){
 		if (hen) { clearInterval(hen); hen = null; }
-		o.remove();
-		if (mo_vi) { moVi(); }
-		else { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); } }
+		e.remove();
+		if (theo_nut && o.mo_vi) { moVi(); return; }
+		try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (x) { window.scrollTo(0, 0); }
 	}
-	o.querySelector('.pve-xong-ve').onclick = function(){ dong(true); };
-	o.querySelector('.pve-xong-chu').onclick = function(){ dong(false); };
+	e.querySelector('.pve-xong-ve').onclick  = function(){ dong(true); };
+	e.querySelector('.pve-xong-chu').onclick = function(){ dong(false); };
 
-	var con = 5, dem = o.querySelector('.pve-xong-dem b');
+	var con = 5, dem = e.querySelector('.pve-xong-dem b');
 	var hen = setInterval(function(){
 		con--;
 		if (dem) { dem.textContent = con; }
 		if (con <= 0) { dong(false); }
 	}, 1000);
+}
+
+/* Trả vé bằng ví xong. */
+function xongVi(v){
+	manXong({
+		tieu: 'Thanh toán thành công',
+		phu: 'Đã trừ ví — vé sẵn sàng vào cửa',
+		ma: v.ma_ve,
+		mota: (v.goi_ten || '') + ' · ' + tien(v.so_tien),
+		du: v.so_du || 0,
+		nut_chinh: '🎫 Xem vé của tôi',
+		mo_vi: true
+	});
+}
+
+/* Nạp ví xong — tiền đã vào. */
+function xongNap(v, so_du){
+	manXong({
+		tieu: 'Nạp ví thành công',
+		phu: 'Tiền đã vào ví, dùng mua vé được ngay',
+		ma: v.ma_ve,
+		mota: v.goi_ten || '',
+		du: so_du,
+		nut_chinh: '🎟️ Mua vé ngay',
+		mo_vi: false
+	});
 }
 
 function hienQR(v){
@@ -1035,6 +1064,9 @@ function hienQR(v){
 					badge.className='pve-badge da_tt'; badge.textContent='✅ Đã vào ví';
 					VI.so_du = d.so_du || VI.so_du; viTienVe();
 					clearInterval(timer); timer=null;
+					/* Tiền đã vào ví là XONG HẲN — đừng để khách ngồi nhìn mã QR chuyển khoản mà
+					   không biết còn phải làm gì. Báo hoàn thành rồi tự đưa về trang mua vé. */
+					xongNap(v, VI.so_du);
 				}
 				return;
 			}

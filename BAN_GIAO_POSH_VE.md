@@ -206,7 +206,24 @@ Trang hỏi 5 giây một lượt bằng **cùng một địa chỉ**. Trình du
 ở trang khách, `get()` ở khu quản trị, vòng làm tươi của trang soát vé) đều thêm `cache:'no-store'`
 **và** một tham số đổi theo lượt để địa chỉ không lặp lại.
 
-### Lịch sử một tấm vé
+### Ba màn tự làm tươi, đừng bắt ai bấm F5
+| Màn | Nhịp | Vì sao |
+|---|---|---|
+| Trang khách (mã QR) | 5 giây | chờ tiền về |
+| Trang soát vé ở quầy | 10 giây | vé mới trả tiền phải đẩy về quầy |
+| Khu quản trị: **Đơn hàng**, **Đơn nạp ví** | 15 giây | trạng thái đổi do việc xảy ra **ở nơi khác** — khách chuyển khoản, nhân viên soát vé, cron dò sổ phụ |
+
+Khu quản trị chỉ chạy khi **đúng tab đang mở và cửa sổ đang hiện** — máy để đó cả ngày mà cứ 15
+giây gọi một lượt là nhọc máy chủ vô ích. Quay lại tab thì làm tươi **ngay**, không đợi hết nhịp.
+
+### Xong hẳn thì phải BÁO XONG
+Hai việc kết thúc hẳn — trả vé bằng ví, và nạp tiền vào ví — dùng chung một màn hoàn thành
+(`manXong()`): phủ kín màn hình, đóng luôn popup bên dưới, tự về đầu trang mua vé sau 5 giây.
+
+Trước đó lượt nạp chỉ đổi cái nhãn nhỏ thành "Đã vào ví" rồi để khách ngồi nhìn mã QR chuyển
+khoản — không ai biết còn phải làm gì nữa.
+
+### Lịch sử một tấm vé & một lệnh nạp
 Thẻ đơn trong khu quản trị hiện ba mốc: **🛒 đặt** (lúc nào, tại cơ sở nào hay mua từ xa) · **💰
 trả tiền** · **🎟️ đã soát** (lúc nào, ở cơ sở nào). Thiếu ba mốc này thì lúc khách khiếu nại *"tôi
 chưa dùng mà báo đã dùng"* không có gì để đối chiếu ngoài một chữ "Đã dùng". Chỉ in mốc **đã có** —

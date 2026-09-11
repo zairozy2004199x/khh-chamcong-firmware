@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.56.0
+ * Version:           1.57.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -4226,8 +4226,30 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
+		      PANE=name; tuLamTuoi();
 		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='nap') napNap(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
+		  });
+
+		  /* ── TỰ LÀM TƯƠI HAI MÀN ĐỘNG ────────────────────────────────────────────────────
+		     Đơn hàng và Đơn nạp ví đổi trạng thái do việc xảy ra Ở NƠI KHÁC: khách chuyển khoản,
+		     nhân viên soát vé ở quầy, cron dò sổ phụ. Chỉ nạp lúc mở tab thì quản trị ngồi nhìn
+		     một danh sách đã cũ mà không biết, phải bấm Lọc hoặc F5 mới thấy (11/09/2026).
+
+		     Chỉ chạy khi tab ĐANG MỞ và cửa sổ đang hiện: máy để đó cả ngày mà cứ 15 giây gọi
+		     một lượt là nhọc máy chủ vô ích. */
+		  var PANE='bc', HEN_TUOI=null;
+		  function tuLamTuoi(){
+		    if(HEN_TUOI){ clearInterval(HEN_TUOI); HEN_TUOI=null; }
+		    if(PANE!=='nap' && PANE!=='don') return;
+		    HEN_TUOI=setInterval(function(){
+		      if(document.hidden) return;
+		      if(PANE==='nap') napNap(); else if(PANE==='don') napDon();
+		    },15000);
+		  }
+		  document.addEventListener('visibilitychange',function(){
+		    /* Quay lại tab sau một lúc thì làm tươi NGAY, đừng bắt đợi hết nhịp 15 giây. */
+		    if(!document.hidden){ if(PANE==='nap') napNap(); else if(PANE==='don') napDon(); }
 		  });
 
 		  // Báo cáo
@@ -4393,7 +4415,17 @@ class POSH_Ve {
 		      +'<div class="pql-don-sub">Nạp '+VND(r.so_tien)+(r.tang?(' + tặng '+VND(r.tang)):'')
 		      +(r.code?(' · mã '+esc(r.code)):'')+'</div>'
 		      +'<div class="pql-don-sub">'+esc(r.ten||'(chưa rõ tên)')+(r.sdt?(' · '+esc(r.sdt)):'')+'</div>'
-		      +'<div class="pql-don-sub">Nội dung CK: <b>'+esc(r.noi_dung)+'</b></div>'+act+'</div>';
+		      +'<div class="pql-don-sub">Nội dung CK: <b>'+esc(r.noi_dung)+'</b></div>'
+		      +lichSuNap(r)+act+'</div>';
+		  }
+		  /* Lịch sử một lệnh nạp: tạo lúc nào, cộng ví lúc nào. Cùng lý do với lịch sử vé — khách
+		     hỏi "tôi nạp hôm kia sao chưa thấy" thì phải có mốc để đối chiếu. */
+		  function lichSuNap(r){
+		    var d=[];
+		    if(r.tao_luc) d.push('🧾 Tạo '+gio(r.tao_luc));
+		    if(r.tt_luc)  d.push('💰 Cộng ví '+gio(r.tt_luc));
+		    if(!d.length) return '';
+		    return '<div class="pql-ls">'+d.map(function(x){return '<span>'+x+'</span>';}).join('')+'</div>';
 		  }
 		  var nlg=$('.pql-nap-loc-go'); if(nlg) nlg.addEventListener('click',napNap);
 		  var nti=$('.pql-nap-tim'); if(nti) nti.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); napNap(); } });
