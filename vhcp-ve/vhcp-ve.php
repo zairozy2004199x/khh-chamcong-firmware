@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.43.2
+ * Version:           1.44.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -280,6 +280,68 @@ class POSH_Ve {
 		return $ra;
 	}
 
+	/**
+	 * Chân trang: khối thông tin công ty + dòng số bản các plugin đang bật.
+	 * Anh Thắng 11/09/2026: *"bổ sung thông tin này vào cuối trang"* + *"cả phiên bản vào để
+	 * biết phiên bản bao nhiêu"*.
+	 *
+	 * ⚠️ THÔNG TIN CÔNG TY LẤY TỪ PLUGIN GHẾ (VHG_Chan), không chép lại sang đây. Mã số thuế,
+	 *    địa chỉ, người đại diện mà nằm hai nơi thì đổi một nơi là hai trang nói hai kiểu — và
+	 *    thứ sai lệch ở đây đi thẳng lên hoá đơn. Gác class_exists đúng luật gọi chéo: thiếu
+	 *    plugin Ghế thì bỏ khối công ty, vẫn còn dòng số bản.
+	 */
+	public static function chan_trang_html() {
+		$h = '';
+		if ( class_exists( 'VHG_Chan' ) && method_exists( 'VHG_Chan', 'html' ) ) {
+			$khoi = VHG_Chan::html();
+			if ( '' !== $khoi ) { $h .= '<style>' . VHG_Chan::css() . '</style>' . $khoi; }
+		}
+		$ban = self::dong_phien_ban();
+		if ( '' === $ban ) { $ban = 'Vé ' . self::phien_ban(); }   // ít nhất phải biết bản của trang này
+		$h .= '<div class="pve-ban">© ' . esc_html( gmdate( 'Y' ) ) . ' '
+			. esc_html( self::ten_cty_ngan() ) . '. Toàn bộ bản quyền thuộc công ty. '
+			. '<span class="pve-ban-s">' . esc_html( $ban ) . '</span></div>';
+		return $h;
+	}
+
+	/**
+	 * "Vé 1.43.2 · Ghế 2.34.2 · Chấm công 3.63.0 …" — đọc THẲNG từ header của các plugin đang
+	 * bật, không viết cứng. Viết cứng thì mỗi lần nâng cấp một plugin là dòng này nói dối, mà
+	 * nói dối ở đúng chỗ người ta dùng để kiểm "đã lên bản mới chưa" thì tệ hơn không có.
+	 *
+	 * Nhớ 1 giờ: mỗi lượt đọc là mở header vài tệp trên đĩa, trang bán vé thì tải liên tục.
+	 */
+	/* Tên công ty cho dòng bản quyền — mượn của plugin Ghế, không gõ cứng. */
+	public static function ten_cty_ngan() {
+		if ( class_exists( 'VHG_Chan' ) && method_exists( 'VHG_Chan', 'thong_tin' ) ) {
+			$t = VHG_Chan::thong_tin();
+			if ( ! empty( $t['ten'] ) ) { return (string) $t['ten']; }
+		}
+		$x = trim( (string) get_option( 'pve_ft_ten', '' ) );
+		return '' !== $x ? $x : get_bloginfo( 'name' );
+	}
+
+	public static function dong_phien_ban() {
+		$nho = get_transient( 'pve_dong_ban' );
+		if ( is_string( $nho ) ) { return $nho; }
+		$ra = array();
+		if ( function_exists( 'wp_get_active_and_valid_plugins' ) ) {
+			foreach ( wp_get_active_and_valid_plugins() as $tep ) {
+				$duong = str_replace( '\\', '/', (string) $tep );
+				if ( false === strpos( $duong, '/vhcp-' ) ) { continue; }   // chỉ plugin của nhà
+				$d = get_file_data( $tep, array( 'n' => 'Plugin Name', 'v' => 'Version' ) );
+				if ( empty( $d['v'] ) ) { continue; }
+				$ten = trim( preg_replace( '/\s*\(K&H\)\s*$/u', '', (string) $d['n'] ) );
+				if ( '' === $ten ) { $ten = basename( dirname( $duong ) ); }
+				$ra[] = $ten . ' ' . $d['v'];
+			}
+		}
+		sort( $ra, SORT_NATURAL | SORT_FLAG_CASE );
+		$dong = $ra ? implode( ' · ', $ra ) : '';
+		set_transient( 'pve_dong_ban', $dong, HOUR_IN_SECONDS );
+		return $dong;
+	}
+
 	/* ═══ DANH MỤC VÉ ═══════════════════════════════════════════════════════════════════════
 	 * Anh Thắng 11/09/2026: *"muốn tạo phân loại"* ngay trong màn quản trị marketing, thay vì gõ
 	 * tay ô "Nhóm" cho từng vé.
@@ -549,6 +611,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/dm-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_xoa' ) ) );
 		register_rest_route( self::NS, '/ql/tk-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_tk_ds' ) ) );
 		register_rest_route( self::NS, '/ql/tk-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_tk_luu' ) ) );
+		register_rest_route( self::NS, '/ql/soi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_soi' ) ) );
 		register_rest_route( self::NS, '/ql/hang-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_ds' ) ) );
 		register_rest_route( self::NS, '/ql/hang-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_luu' ) ) );
 		register_rest_route( self::NS, '/ql/khach', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_khach' ) ) );
@@ -1289,6 +1352,69 @@ class POSH_Ve {
 			'ten_nh' => $b['ten_nh'], 'rieng' => 1 );
 	}
 
+	/**
+	 * 🩺 SOI HỆ THỐNG — vì sao khách không mua được vé.
+	 *
+	 * Ba lượt liền anh Thắng báo "đặt vé chưa được" mà em phải ĐOÁN nguyên nhân: thiếu tài khoản
+	 * nhận tiền? bảng thiếu cột? hết vé? Mỗi lượt đoán là một vòng cài lại. Hàm này đi hết các
+	 * điều kiện của một lượt mua và nói thẳng cái nào hỏng — kể cả THỬ GHI MỘT ĐƠN NHÁP rồi xoá,
+	 * chép nguyên văn lỗi của MySQL. Không còn gì để đoán nữa.
+	 */
+	public static function r_ql_soi( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		global $wpdb;
+		$muc = array();
+		$them = function ( $ten, $ok, $noi, $chua = '' ) use ( &$muc ) {
+			$muc[] = array( 'ten' => $ten, 'ok' => $ok ? 1 : 0, 'noi' => $noi, 'chua' => $chua );
+		};
+
+		/* 1. Bảng vé và ba cột của bản 1.38.0 */
+		$tbl = self::tbl();
+		$co_bang = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) === $tbl );
+		$them( 'Bảng vé', $co_bang, $co_bang ? $tbl : 'Không thấy bảng ' . $tbl,
+			$co_bang ? '' : 'Tắt rồi bật lại plugin để nó tạo bảng.' );
+		if ( $co_bang ) {
+			$cot = (array) $wpdb->get_col( "SHOW COLUMNS FROM $tbl" );
+			$thieu = array_values( array_diff( array( 'coso', 'giam', 'gia_goc' ), $cot ) );
+			$them( 'Cột của bản 1.38.0', ! $thieu,
+				$thieu ? ( 'THIẾU: ' . implode( ', ', $thieu ) ) : 'đủ coso, giam, gia_goc',
+				$thieu ? 'Cài lại plugin bản mới nhất; nó tự thêm cột lúc tải trang.' : '' );
+		}
+
+		/* 2. Tài khoản nhận tiền — thiếu là r_dat trả lỗi ngay, không tạo được mã QR */
+		$b = self::bank();
+		$co_tk = ( '' !== $b['so_tk'] && '' !== $b['bin'] );
+		$them( 'Tài khoản nhận tiền', $co_tk,
+			$co_tk ? ( $b['ten_nh'] . ' · ' . $b['so_tk'] . ' · ' . $b['ten_tk'] ) : 'Chưa khai',
+			$co_tk ? '' : 'Vào mục 🏦 Tài khoản nhận tiền, điền rồi Lưu.' );
+
+		/* 3. Có vé nào đang bán không */
+		$dsv = self::ds();
+		$them( 'Vé đang mở bán', count( $dsv ) > 0, count( $dsv ) . ' vé',
+			count( $dsv ) ? '' : 'Tạo vé ở mục Vé, nhớ tích "Cho hiện bán".' );
+
+		/* 4. THỬ GHI MỘT ĐƠN NHÁP rồi xoá — chỗ này mới bắt được lỗi thật của MySQL */
+		if ( $co_bang ) {
+			$ma = 'ZZTEST' . wp_generate_password( 6, false, false );
+			$wpdb->hide_errors();
+			$ghi = $wpdb->insert( $tbl, array(
+				'ma_ve' => $ma, 'dv_ten' => 'THU HE THONG', 'so_tien' => 1000,
+				'ten_khach' => 'THU', 'sdt' => '0', 'noi_dung' => 'VE' . $ma,
+				'nguon' => 'web', 'coso' => '', 'giam' => 0, 'gia_goc' => 1000,
+				'trang_thai' => 'huy', 'tao_luc' => current_time( 'mysql' ),
+			) );
+			$loi = (string) $wpdb->last_error;
+			if ( $ghi ) { $wpdb->delete( $tbl, array( 'ma_ve' => $ma ) ); }
+			$them( 'Thử ghi một đơn', (bool) $ghi,
+				$ghi ? 'Ghi được và đã xoá đơn nháp' : 'KHÔNG ghi được',
+				$ghi ? '' : ( '' !== $loi ? ( 'MySQL nói: ' . $loi ) : 'MySQL không nói lý do.' ) );
+		}
+
+		$hong = 0;
+		foreach ( $muc as $m ) { if ( ! $m['ok'] ) { $hong++; } }
+		return array( 'ok' => true, 'muc' => $muc, 'hong' => $hong, 'ban' => self::phien_ban() );
+	}
+
 	public static function r_ql_dangnhap( $req ) {
 		if ( self::pin_chan() ) { return new WP_Error( 'nhip', 'Thử lại sau giây lát.', array( 'status' => 429 ) ); }
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
@@ -1769,12 +1895,55 @@ class POSH_Ve {
 			$ft_nbu = get_option( 'pve_ft_nb_url', '' );
 			$ft_nbt = get_option( 'pve_ft_nb_ten', 'Trang nội bộ' );
 		?>
+		<?php
+		/* ── Ưu đãi & tin tức trên TRANG WEB ──────────────────────────────────────────────
+		   Anh Thắng 11/09/2026: "thiếu trang tin tức ưu đãi". Ưu đãi vốn chỉ hiện trên Zalo
+		   Mini App — khai ở màn quản trị rồi mà mở web không thấy đâu, nên trông như khai hụt.
+		   Cùng một kho `pve_uudai`, chỉ thêm chỗ hiện: khai một lần, hai nơi cùng thấy. */
+		$uu_ds = self::ds_uudai();
+		?>
+		<?php if ( $uu_ds ) : ?>
+		<div class="pve-sec pve-uu" data-loc-bo="1">
+			<div class="pve-sec-h">🎁 Ưu đãi đang có</div>
+			<div class="pve-grid">
+				<?php foreach ( $uu_ds as $u ) : ?>
+				<div class="pve-card pve-uucard">
+					<div class="pve-img">
+						<?php if ( $u['anh'] ) : ?>
+							<img src="<?php echo esc_url( $u['anh'] ); ?>" alt="<?php echo esc_attr( $u['ten'] ); ?>" loading="lazy">
+						<?php else : ?><span class="pve-noimg">🎁</span><?php endif; ?>
+					</div>
+					<div class="pve-body">
+						<div class="pve-ten"><?php echo esc_html( $u['ten'] ); ?></div>
+						<?php if ( '' !== trim( (string) $u['mo_ta'] ) ) : ?><div class="pve-mota"><?php echo esc_html( $u['mo_ta'] ); ?></div><?php endif; ?>
+						<div class="pve-uu-meta">
+							<?php if ( '' !== trim( (string) $u['han'] ) ) : ?><span>⏳ HSD <?php echo esc_html( $u['han'] ); ?></span><?php endif; ?>
+							<?php /* Ưu đãi có điều kiện hạng thì NÓI RA ngay trên thẻ: để khách tới quầy mới
+							   biết mình không đủ hạng là một lần mất vui, và nhân viên hứng trọn. */ ?>
+							<?php if ( '' !== trim( (string) $u['hang'] ) ) : ?><span>🏅 Từ hạng <?php echo esc_html( $u['hang'] ); ?></span><?php endif; ?>
+						</div>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<?php endif; ?>
+
+		<?php
+		/* Khối công ty đầy đủ (MST, người đại diện, chi nhánh…) lấy từ plugin Ghế. Có nó thì
+		   KHÔNG in lại ba dòng tên/địa chỉ/điện thoại khai riêng bên dưới — cùng một công ty mà
+		   nói hai lần, hai nguồn, là sớm muộn hai chỗ lệch nhau. */
+		$chan_cty = self::chan_trang_html();
+		?>
 		<div class="pve-ft">
-			<?php if ( $ft_ten ) : ?><div class="pve-ft-ten"><?php echo esc_html( $ft_ten ); ?></div><?php endif; ?>
-			<?php if ( $ft_dc ) : ?><div class="pve-ft-l">📍 <?php echo esc_html( $ft_dc ); ?></div><?php endif; ?>
-			<?php if ( $ft_lh ) : ?><div class="pve-ft-l">☎️ <?php echo esc_html( $ft_lh ); ?></div><?php endif; ?>
+			<?php if ( '' !== $chan_cty ) : ?>
+				<?php echo $chan_cty; // phpcs:ignore WordPress.Security.EscapeOutput — HTML đã dựng sẵn, đã escape từng trường ?>
+			<?php else : ?>
+				<?php if ( $ft_ten ) : ?><div class="pve-ft-ten"><?php echo esc_html( $ft_ten ); ?></div><?php endif; ?>
+				<?php if ( $ft_dc ) : ?><div class="pve-ft-l">📍 <?php echo esc_html( $ft_dc ); ?></div><?php endif; ?>
+				<?php if ( $ft_lh ) : ?><div class="pve-ft-l">☎️ <?php echo esc_html( $ft_lh ); ?></div><?php endif; ?>
+			<?php endif; ?>
 			<?php if ( $ft_nbu ) : ?><div class="pve-ft-nb"><a href="<?php echo esc_url( $ft_nbu ); ?>"><?php echo esc_html( $ft_nbt ? $ft_nbt : 'Trang nội bộ' ); ?> →</a></div><?php endif; ?>
-			<div class="pve-ft-ver">Phiên bản <?php echo esc_html( self::phien_ban() ); ?></div>
 		</div>
 		</div>
 
@@ -1871,6 +2040,9 @@ class POSH_Ve {
 				if (nhom !== undefined && nhom !== null) PVE_NHOM = nhom;
 				var hien = 0;
 				[].slice.call(document.querySelectorAll('.pve-sec')).forEach(function(sec){
+					/* Khối Ưu đãi cũng là .pve-sec nhưng KHÔNG phải vé — lọc theo tab danh mục thì
+					   nó biến mất, mà nó có liên quan gì tới "Combo" hay "Vé lẻ" đâu. */
+					if (sec.getAttribute('data-loc-bo')) return;
 					var n = 0;
 					[].slice.call(sec.querySelectorAll('.pve-card')).forEach(function(c){
 						var k = c.getAttribute('data-kv') || '', g = c.getAttribute('data-nhom') || '';
@@ -2201,6 +2373,11 @@ class POSH_Ve {
 		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
 		.pve-tab.on .pve-tab-n{ opacity:.75; }
 		.pve-tab-trong{ color:var(--mut); font-size:14px; padding:6px 2px; }
+		.pve-ban{ margin-top:14px; color:var(--mut); font-size:12px; line-height:1.7; }
+		.pve-uucard{ cursor:default; }
+		.pve-uucard:hover{ transform:none; }
+		.pve-uu-meta{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; color:var(--mut); font-size:12px; }
+		.pve-ban-s{ opacity:.62; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:11px; }
 		/* Dải danh mục có ảnh (mẫu Zalo Mini App): cuộn ngang, mỗi ô ảnh vuông + tên dưới. */
 		.pve-dm{ display:flex; gap:14px; overflow-x:auto; padding:4px 2px 6px; scrollbar-width:none; }
 		.pve-dm::-webkit-scrollbar{ display:none; }
@@ -2412,6 +2589,7 @@ class POSH_Ve {
 					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
 					<div class="pql-side-g">Cấu hình</div>
 					<button class="pql-tab" data-tab="tk">🏦 Tài khoản nhận tiền</button>
+					<button class="pql-tab" data-tab="soi">🩺 Kiểm tra hệ thống</button>
 				</aside>
 				<div class="pql-main">
 
@@ -2500,6 +2678,15 @@ class POSH_Ve {
 					<div class="pql-acts"><button class="pql-tk-luu">Lưu tài khoản</button></div>
 					<div class="pql-tkmsg"></div>
 				</div><!-- /pane tk -->
+
+				<div class="pql-pane" data-pane="soi" hidden>
+					<div class="pql-bar"><b>Kiểm tra hệ thống</b><button class="pql-soi-lai">Kiểm lại</button></div>
+					<p style="color:var(--mut);font-size:12px;margin:0 0 12px">
+						Đi hết các điều kiện của một lượt khách mua vé và chỉ ra cái nào hỏng.
+						Bước cuối <b>thử ghi một đơn nháp rồi xoá</b> — nếu ghi không được thì chép nguyên văn câu MySQL trả lời.
+					</p>
+					<div class="pql-soilist"><p style="color:#9b978c">Đang kiểm…</p></div>
+				</div><!-- /pane soi -->
 
 				<div class="pql-pane" data-pane="bc">
 					<div class="pql-bcf">
@@ -2613,6 +2800,16 @@ class POSH_Ve {
 		.pql-gh{ display:flex; align-items:center; gap:10px; margin:18px 0 8px; padding-bottom:6px;
 			border-bottom:1px solid var(--bd); }
 		.pql-gh:first-child{ margin-top:4px; }
+		/* Màn soi hệ thống */
+		.pql-soi-tong{ padding:12px 14px; border-radius:10px; margin-bottom:12px; font-size:14px; }
+		.pql-soi-tong.tot{ background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.4); color:#bbf7d0; }
+		.pql-soi-tong.xau{ background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); color:#fecaca; }
+		.pql-soi-m{ display:flex; gap:10px; padding:11px 12px; border:1px solid var(--bd); border-radius:10px;
+			background:var(--sf); margin-bottom:8px; }
+		.pql-soi-i{ font-size:16px; line-height:1.4; }
+		.pql-soi-t{ color:var(--tx); font-weight:700; font-size:14px; }
+		.pql-soi-n{ color:var(--mut); font-size:12.5px; margin-top:2px; word-break:break-word; }
+		.pql-soi-c{ color:#fde68a; font-size:12.5px; margin-top:4px; }
 		.pql-gh img{ width:28px; height:28px; border-radius:7px; object-fit:cover; }
 		.pql-gh .noimg{ width:28px; height:28px; border-radius:7px; background:var(--sf2); display:flex;
 			align-items:center; justify-content:center; font-size:15px; }
@@ -2768,7 +2965,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='tk') napTk(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -2850,6 +3047,27 @@ class POSH_Ve {
 
 		  // ── Ưu đãi ──
 		  var uuHangLoaded=false;
+		  /* ═══ SOI HỆ THỐNG ═══════════════════════════════════════════════════════════════ */
+		  function napSoi(){
+		    $('.pql-soilist').innerHTML='<p style="color:#9b978c">Đang kiểm…</p>';
+		    get('/ql/soi').then(function(d){
+		      var h = '<div class="pql-soi-tong '+(d.hong?'xau':'tot')+'">'
+		        + (d.hong ? ('⚠️ '+d.hong+' chỗ đang hỏng — khách chưa mua được vé.')
+		                  : '✅ Mọi thứ sẵn sàng — khách mua vé được.')
+		        + ' <span style="opacity:.6">Bản vé '+esc(d.ban||'')+'</span></div>';
+		      h += (d.muc||[]).map(function(m){
+		        return '<div class="pql-soi-m">'
+		          + '<span class="pql-soi-i">'+(m.ok?'✅':'❌')+'</span>'
+		          + '<div><div class="pql-soi-t">'+esc(m.ten)+'</div>'
+		          + '<div class="pql-soi-n">'+esc(m.noi)+'</div>'
+		          + (m.chua ? '<div class="pql-soi-c">→ '+esc(m.chua)+'</div>' : '')
+		          + '</div></div>';
+		      }).join('');
+		      $('.pql-soilist').innerHTML = h;
+		    }).catch(function(e){ $('.pql-soilist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  $('.pql-soi-lai').addEventListener('click', napSoi);
+
 		  /* ═══ TÀI KHOẢN NHẬN TIỀN ═══════════════════════════════════════════════════════ */
 		  var TK_NH_DA = false;
 		  function napTk(){
