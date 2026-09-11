@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.43.1
+ * Version:           1.43.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@ if ( ! class_exists( 'POSH_Ve' ) ) :
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '5';
+	const VER_TBL = '6';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -158,6 +158,21 @@ class POSH_Ve {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 		$tbl = self::tbl(); $col = $wpdb->get_charset_collate();
+		/**
+		 * 🔴 TUYỆT ĐỐI KHÔNG VIẾT CHÚ THÍCH BÊN TRONG CÂU CREATE TABLE.
+		 *
+		 * dbDelta() không phải trình phân tích SQL: nó cắt phần thân theo dấu phẩy cuối dòng rồi
+		 * lấy TỪ ĐẦU TIÊN của mỗi mẩu làm tên cột. Một khối `/* … *\/` nằm giữa sẽ dính liền với
+		 * dòng cột ngay sau nó, thành một "cột" tên `/*` — lệnh ALTER hỏng, CỘT THẬT KHÔNG ĐƯỢC
+		 * TẠO, mà hàm vẫn chạy tiếp và vẫn đánh dấu đã nâng cấp nên không bao giờ thử lại.
+		 *
+		 * Đúng lỗi đã gây ra ở 1.38.0: ba cột coso/giam/gia_goc không có thật, mọi lượt đặt vé
+		 * insert hỏng — khách bấm Mua vé mà không đơn nào vào sổ. Chú thích để HẾT ở đây.
+		 *
+		 * Ba cột thêm ở 1.38.0: `coso` = mua tại cửa hàng nào (rỗng = mua từ xa, giá gốc),
+		 * `giam` = % đã giảm, `gia_goc` = giá trước giảm. Ghi cả ba để sau này tách được phần
+		 * giảm ra khỏi phần khách mua vé rẻ khi đối chiếu doanh thu từng cơ sở.
+		 */
 		dbDelta( "CREATE TABLE $tbl (
 			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
 			ma_ve VARCHAR(24) NOT NULL,
@@ -170,9 +185,6 @@ class POSH_Ve {
 			nguon VARCHAR(10) NOT NULL DEFAULT 'web',
 			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
 			da_cong_diem TINYINT NOT NULL DEFAULT 0,
-			/* Mua TAI cua hang nao (rong = mua tu xa, gia goc) + muc giam da ap + gia truoc giam.
-			   Ghi ca ba vi sau nay doi chieu doanh thu tung co so nho giam gia: chi co so tien
-			   cuoi thi khong tach noi phan giam ra khoi phan khach mua ve re. */
 			coso VARCHAR(60) NOT NULL DEFAULT '',
 			giam TINYINT NOT NULL DEFAULT 0,
 			gia_goc INT NOT NULL DEFAULT 0,
@@ -192,6 +204,16 @@ class POSH_Ve {
 			sua_luc DATETIME NULL,
 			PRIMARY KEY (id), UNIQUE KEY sdt (sdt), KEY diem (diem)
 		) $col;" );
+		/* 🔴 CHỈ ĐÁNH DẤU ĐÃ NÂNG CẤP KHI CỘT CÓ THẬT.
+		   Bản trước đánh dấu vô điều kiện: dbDelta nuốt lỗi, cột không được tạo, mà lần sau hàm
+		   này thấy "đã nâng cấp" nên thoát ngay — hỏng một lần là hỏng vĩnh viễn, chỉ chữa được
+		   bằng cách sửa tay trong CSDL. Nay thiếu cột thì KHÔNG đánh dấu, lượt tải trang sau tự
+		   thử lại, và ai đó sửa được nguyên nhân là nó tự lành. */
+		$cot = $wpdb->get_col( "SHOW COLUMNS FROM $tbl" );
+		$can = array( 'coso', 'giam', 'gia_goc' );
+		foreach ( $can as $c ) {
+			if ( ! in_array( $c, (array) $cot, true ) ) { return; }
+		}
 		update_option( 'pve_tbl', self::VER_TBL );
 	}
 
@@ -581,7 +603,7 @@ class POSH_Ve {
 		$goc = (int) $goi['gia'];
 		$tien = self::gia_sau_giam( $goc, $g0['ok'] ? $g0['giam'] : 0 );
 		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve;
-		$wpdb->insert( self::tbl(), array(
+		$ok_ghi = $wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
@@ -590,6 +612,12 @@ class POSH_Ve {
 			'gia_goc' => $goc,
 			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
+		/* 🔴 KIỂM KẾT QUẢ GHI SỔ. Bản trước bỏ qua giá trị trả về: bảng thiếu một cột là insert
+		   hỏng, mà hàm vẫn trả về ok kèm mã QR — khách quét, chuyển tiền, còn đơn thì không có
+		   trong sổ. Thà báo lỗi ngay lúc bấm còn hơn nhận tiền của một đơn không tồn tại. */
+		if ( ! $ok_ghi ) {
+			return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
+		}
 		self::giam_ton( $goi['id'], 1 );
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
@@ -634,7 +662,7 @@ class POSH_Ve {
 
 		global $wpdb;
 		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve; $tomtat = implode( ', ', $mota );
-		$wpdb->insert( self::tbl(), array(
+		$ok_ghi = $wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => mb_substr( $tomtat, 0, 120 ), 'so_tien' => $tong,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ),
@@ -643,6 +671,10 @@ class POSH_Ve {
 			'giam' => $pc, 'gia_goc' => $tong_goc,
 			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
+		/* Cùng lý do với r_dat: insert hỏng mà vẫn trả QR là nhận tiền cho đơn không tồn tại. */
+		if ( ! $ok_ghi ) {
+			return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
+		}
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
