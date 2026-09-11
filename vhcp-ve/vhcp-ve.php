@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.43.0
+ * Version:           1.43.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -2393,16 +2393,20 @@ class POSH_Ve {
 				<div class="pql-form" hidden>
 					<div class="pql-h pql-form-h">Tạo vé mới</div>
 					<input type="hidden" class="f-id" value="0">
-					<label>Tên vé *</label><input class="f-ten" placeholder="VD Vé vào cửa">
-					<div class="pql-2">
-						<div><label>Giá bán (đ) *</label><input class="f-gia" type="number" inputmode="numeric" placeholder="50000"></div>
-						<div><label>Giá gốc (đ)</label><input class="f-goc" type="number" inputmode="numeric" placeholder="để trống nếu không giảm"></div>
-					</div>
+					<?php /* Phân loại LÊN ĐẦU (anh Thắng 11/09/2026): chọn vé thuộc nhóm nào là việc
+					   nghĩ trước, tên và giá nghĩ sau. Để nó nằm giữa form thì người ta gõ xong
+					   hết mới nhớ ra chưa chọn nhóm, mà bỏ trống là vé rơi vào nhóm "Vé" mặc định
+					   — lọt xuống một danh mục không ai để ý. */ ?>
 					<div class="pql-2">
 						<div><label>Phân loại</label><input class="f-nhom" list="pql-dm" placeholder="Vé lẻ / Combo"><datalist id="pql-dm"></datalist></div>
 						<div><label>Khu vực / Cơ sở</label><input class="f-kv" list="pql-kv" placeholder="để trống = mọi nơi"></div>
 					</div>
 					<datalist id="pql-kv"><?php foreach ( $kvucs as $kv ) : ?><option value="<?php echo esc_attr( $kv ); ?>"></option><?php endforeach; ?></datalist>
+					<label>Tên vé *</label><input class="f-ten" placeholder="VD Vé vào cửa">
+					<div class="pql-2">
+						<div><label>Giá bán (đ) *</label><input class="f-gia" type="number" inputmode="numeric" placeholder="50000"></div>
+						<div><label>Giá gốc (đ)</label><input class="f-goc" type="number" inputmode="numeric" placeholder="để trống nếu không giảm"></div>
+					</div>
 					<div class="pql-2">
 						<div><label>Số lượng vé</label><input class="f-sl" type="number" inputmode="numeric" placeholder="trống = không giới hạn"></div>
 						<div><label>Thời lượng</label><input class="f-tl" placeholder="60 phút / Cả ngày"></div>
