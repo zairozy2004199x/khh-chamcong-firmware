@@ -388,6 +388,10 @@ class VHG_BaoCao {
 		   tồn tại — mà nếu vẫn chạy thì nó kéo `chi_so_truoc` của mọi hàng CŨ (có từ trước khi
 		   bật cờ) về 0, tức tính lại tiền của những kỳ đã chốt xong. Không được. */
 		if ( self::may_reset_moi_lan( $ma ) ) { return; }
+		/* 🔒 MỐC TAY — kế toán/quản lý đã sửa tay chỉ số trước của đúng hàng này thì auto-nối KHÔNG
+		   đè lên (anh Thắng 11/09/2026). Không có cột này thì mọi lần chèn/sửa ngày trước lại kéo mốc
+		   tay về số auto, đúng cái "tự ý nhảy số" mà kế toán vừa sửa xong. */
+		if ( ! empty( $r['moc_tay'] ) ) { return; }
 		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'] );   // mốc sống (ngày < ngày hàng này)
 		if ( null === $moi ) { return; }
 		$truoc_cu = self::so_chiso_( $r['chi_so_truoc'] );

@@ -5822,7 +5822,9 @@ function ktdRow(o,c,m,reload,locked){
     tdN.appendChild(noB);
   }
   tr.appendChild(tdN);
-  tr.appendChild(td(c.meterBefore==null?'—':csKt(c.meterBefore),1));
+  var tdTruoc=td((c.meterBefore==null?'—':csKt(c.meterBefore))+(c.mocTay?' 🔒':''),1);
+  if(c.mocTay){ tdTruoc.title='Chỉ số trước đã sửa tay — hệ không tự nối lại nữa.'; tdTruoc.style.color='#a21caf'; }
+  tr.appendChild(tdTruoc);
   /* 🔴 CHỈ SỐ SAU TÔ ĐỎ KHI LỆCH — anh Thắng 11/09/2026 "lệch thì hiện đỏ". Bắt theo hai dấu:
      ghi chú bắt đầu bằng ⚠ (chỉ số bất thường, do luu()/sua_dong gắn), HOẶC sau < trước. Giúp kế
      toán soi ngay ô chỉ số nhảy loạn (vd 686) giữa bảng. Chỉ tô, không đụng số liệu. */
@@ -5871,6 +5873,13 @@ function ktdSuaRow(o,c,tr,m,reload){
   var td=tr.lastChild; td.textContent='';
   var wrap=ktEl('div'); wrap.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center';
   function inb(ph,val){ var i=document.createElement('input'); i.type='text'; i.inputMode='numeric'; i.placeholder=ph; i.style.cssText='width:70px'; i.value=(val==null?'':val); return i; }
+  /* 🔒 SỬA TAY CHỈ SỐ TRƯỚC (kế toán/quản lý) — anh Thắng 11/09/2026. Khi mốc tự-nối lấy nhầm số
+     rác, gõ đè chỉ số trước đúng vào đây; để TRỐNG rồi Lưu = trả về cho hệ tự nối lại. Chỉ gửi
+     meterBefore khi có CHẠM vào ô này (dirty) — sửa mấy ô khác không vô tình khóa/đổi mốc. */
+  var iTr=inb('trước',csKt(c.meterBefore)); iTr.inputMode='decimal';
+  iTr.title='Sửa tay CHỈ SỐ TRƯỚC. Để trống rồi Lưu = trả về hệ tự nối.'+(c.mocTay?' (Đang khóa mốc tay)':'');
+  if(c.mocTay){ iTr.style.borderColor='#c026d3'; }   // tím: đang là mốc tay
+  var trDirty=false; iTr.addEventListener('input',function(){ trDirty=true; });
   var iAf=inb('sau',csKt(c.meterAfter)), iQr=inb('QR',c.qr), iAd=inb('±',c.adjust);
   iAf.inputMode='decimal'; iAf.title='Chỉ số máy — nhận tiền lẻ thì gõ dạng 551,5';   // chỉ số lẻ: nạp dạng phẩy
   var iNo=document.createElement('input'); iNo.type='text'; iNo.placeholder='ghi chú'; iNo.style.width='110px'; iNo.value=c.note||'';
@@ -5882,7 +5891,9 @@ function ktdSuaRow(o,c,tr,m,reload){
      không còn tính theo chỉ số. */
   var iTt=document.createElement('input'); iTt.type='text'; iTt.inputMode='numeric'; iTt.placeholder='Thực thu'; iTt.style.cssText='width:90px;border-color:#e08a3c';
   var bL=ktEl('button','on',L('Lưu','Save')); bL.style.cssText='padding:4px 8px;font-size:12px';
-  wrap.appendChild(iAf); wrap.appendChild(iQr); wrap.appendChild(iAd); wrap.appendChild(iNo);
+  wrap.appendChild(ktEl('span','mut',L('trước','before')+':')); wrap.appendChild(iTr);
+  wrap.appendChild(ktEl('span','mut','→ '+L('sau','after')+':')); wrap.appendChild(iAf);
+  wrap.appendChild(iQr); wrap.appendChild(iAd); wrap.appendChild(iNo);
   wrap.appendChild(ktEl('span','mut','Thực thu (nếu chỉ số sai):')); wrap.appendChild(iTt);
   wrap.appendChild(bL);
   td.appendChild(wrap);
@@ -5894,6 +5905,9 @@ function ktdSuaRow(o,c,tr,m,reload){
       if(s===''||s==='.') return ''; var n=parseFloat(s); return isNaN(n)?'':Math.round(n*100)/100; }
     var patch={ meterAfter:mv(iAf.value), qr:sn(iQr.value), adjust:sn(iAd.value), note:(iNo.value||'').trim() };
     if(''!==(iTt.value||'').trim()) patch.actualOverride=sn(iTt.value);
+    /* Chỉ gửi meterBefore khi kế toán CÓ chạm ô "trước": non-empty = khóa mốc tay, empty = gỡ khóa
+       trả về tự nối. Không chạm = không đụng mốc (giữ nguyên khóa/auto như đang có). */
+    if(trDirty){ patch.meterBefore = (iTr.value||'').trim()===''?'':mv(iTr.value); }
     ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);
   };
 }

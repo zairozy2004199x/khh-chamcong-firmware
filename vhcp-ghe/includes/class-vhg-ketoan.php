@@ -238,6 +238,7 @@ class VHG_KeToan {
 				'paid' => (int) $r['nop_so_tien'], 'payStatus' => (string) $r['nop_trang_thai'],
 				'payMethod' => (string) $r['nop_hinhthuc'],
 				'confirmed' => (int) $r['kt_duyet'] ? 1 : 0,
+				'mocTay' => (int) $r['moc_tay'] ? 1 : 0,   // chỉ số trước đã sửa tay (khóa auto-nối)
 				/* Lịch sử sửa số của chính ghế này — hiện nhỏ ngay cạnh nút Sửa (anh Thắng
 				   01/09/2026). Đọc từ `bc_undo`, xem `lich_su_sua()`. */
 				'lichSu' => self::lich_su_sua( (string) $r['report_id'], (string) $r['ma_may'], $r ),
@@ -340,9 +341,29 @@ class VHG_KeToan {
 		$qr = array_key_exists( 'qr', $patch ) ? (int) $patch['qr'] : (int) $d['qr'];
 		$adj = array_key_exists( 'adjust', $patch ) ? (int) $patch['adjust'] : (int) $d['dieu_chinh'];
 		$note = array_key_exists( 'note', $patch ) ? mb_substr( trim( (string) $patch['note'] ), 0, 250 ) : (string) $d['ghi_chu'];
-		/* Ép chỉ số trước từ dòng thời gian dùng chung (không tin số cũ nếu có mốc mới hơn). */
-		$truoc = VHG_BaoCao::chi_so_truoc( $ma, $h['ngay'] );
-		$before = ( null !== $truoc ) ? $truoc : VHG_BaoCao::so_chiso_( $d['chi_so_truoc'] );
+		/* 🔒 SỬA TAY CHỈ SỐ TRƯỚC — anh Thắng 11/09/2026. Khi mốc tự-nối lấy nhầm số rác (Bạc Liêu),
+		   kế toán/quản lý gõ đè chỉ số trước ĐÚNG cho riêng báo cáo này; đánh dấu moc_tay=1 để
+		   auto-nối (ap_moc_) không kéo về số auto nữa ("tự ý nhảy số"). Ba nhánh:
+		     · patch có meterBefore, KHÁC rỗng  → dùng số gõ tay, KHÓA mốc (moc_tay=1)
+		     · patch có meterBefore, RỖNG        → gỡ khóa, để hệ tự nối lại như thường (moc_tay=0)
+		     · patch KHÔNG có meterBefore         → giữ nguyên: đã khóa thì dùng số đã lưu, chưa khóa
+		                                            thì ép theo dòng thời gian dùng chung như cũ. */
+		$khoa_moc = ! empty( $d['moc_tay'] );
+		if ( array_key_exists( 'meterBefore', $patch ) ) {
+			if ( '' === trim( (string) $patch['meterBefore'] ) ) {
+				$truoc  = VHG_BaoCao::chi_so_truoc( $ma, $h['ngay'] );
+				$before = ( null !== $truoc ) ? $truoc : VHG_BaoCao::so_chiso_( $d['chi_so_truoc'] );
+				$khoa_moc = false;
+			} else {
+				$before = VHG_BaoCao::so_chiso_( $patch['meterBefore'] );
+				$khoa_moc = true;
+			}
+		} elseif ( $khoa_moc ) {
+			$before = VHG_BaoCao::so_chiso_( $d['chi_so_truoc'] );   // giữ mốc tay đã khóa, đừng ép lại
+		} else {
+			$truoc = VHG_BaoCao::chi_so_truoc( $ma, $h['ngay'] );
+			$before = ( null !== $truoc ) ? $truoc : VHG_BaoCao::so_chiso_( $d['chi_so_truoc'] );
+		}
 		/* 🔴 KHÔNG CHẶN "chỉ số sau nhỏ hơn trước" Ở ĐÂY — anh Thắng 28/08: "Đối với tài khoản
 		   kế toán và quản lý, hotline có quyền sửa báo cáo mà không lý do máy lỗi". Hàm này chỉ
 		   tới được từ tab Duyệt báo cáo (`kt_sua`, chốt quyền QT||KT ở đầu api() — xem "TRANG KẾ
@@ -378,7 +399,8 @@ class VHG_KeToan {
 			'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'] ) ), $boi );
 
 		$data_up = array( 'chi_so_truoc' => $before, 'chi_so_sau' => $after, 'actual' => $actual,
-			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note );
+			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note,
+			'moc_tay' => $khoa_moc ? 1 : 0 );
 		/* 🔴 "NỘP" (nop_so_tien) BỊ KẸT SỐ CŨ NẾU KHÔNG SỬA THEO — cùng lỗi và cùng cách vá như
 		   VHG_BaoCao::sua_dong() (màn nhân viên sửa 24h): anh Thắng 29/08/2026 phát hiện ở đúng
 		   màn kế toán này, ghế VP-PQ-16 Tiền mặt ghi đè xuống 830.000đ nhưng cột "Nộp" vẫn đứng ở
