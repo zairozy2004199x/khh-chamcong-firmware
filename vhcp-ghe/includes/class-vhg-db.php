@@ -99,6 +99,22 @@ class VHG_DB {
 				$wpdb->query( "ALTER TABLE $bc ADD COLUMN $cot $kieu" );
 			}
 		}
+
+		/* `bc_dong.moc_tay` (v2.37.1) — kế toán/quản lý sửa TAY chỉ số trước. Ở 2.36/2.37 cột này
+		   khai TRONG chuỗi SQL kèm chú thích chen giữa nên dbDelta BỎ QUA, cột không lên → mọi lượt
+		   kt_sua (luôn ghi moc_tay) âm thầm hỏng: "gõ số mới nó tự về cũ". Thêm tay cho chắc. */
+		$bcd = self::t( 'bc_dong' );
+		if ( ! $wpdb->get_var( "SHOW COLUMNS FROM $bcd LIKE 'moc_tay'" ) ) {
+			$wpdb->query( "ALTER TABLE $bcd ADD COLUMN moc_tay TINYINT(1) NOT NULL DEFAULT 0" );
+		}
+		/* chi_so_truoc/sau về DECIMAL(14,2) — chỉ số lẻ 551,5 (máy nhận tiền lẻ). Cùng lý do: chú
+		   thích chen giữa có thể làm dbDelta lỡ đổi kiểu; ép lại tay nếu còn không phải DECIMAL. */
+		foreach ( array( 'chi_so_truoc', 'chi_so_sau' ) as $ct ) {
+			$r = $wpdb->get_row( "SHOW COLUMNS FROM $bcd LIKE '" . $ct . "'", ARRAY_A );
+			if ( $r && false === stripos( (string) $r['Type'], 'decimal' ) ) {
+				$wpdb->query( "ALTER TABLE $bcd MODIFY COLUMN $ct DECIMAL(14,2) NULL" );
+			}
+		}
 	}
 
 	public static function bang() {
@@ -764,6 +780,13 @@ class VHG_DB {
 			KEY nhan_vien_nop (nhan_vien,nop_id),
 			KEY nop (nop_id)";
 
+		/* ⚠️ KHÔNG viết chú thích BÊN TRONG chuỗi SQL dưới (xem cảnh báo cuối tệp): dbDelta là bộ
+		   phân tích theo DÒNG, gặp dòng chú thích chen giữa là bỏ nhận cột kế tiếp — chính vì thế cột
+		   moc_tay thêm ở 2.36/2.37 KHÔNG được tạo, và mọi lượt kt_sua (luôn ghi moc_tay) âm thầm
+		   hỏng → "gõ số mới nó tự về cũ". Vá ở 2.37.1: bỏ chú thích khỏi chuỗi.
+		   · chi_so_truoc/sau = DECIMAL(14,2): chỉ số có phần lẻ (máy nhận tiền lẻ, 551,5); TIỀN vẫn
+		     BIGINT nguyên đồng.
+		   · moc_tay = kế toán/quản lý sửa TAY chỉ số trước (=1 thì auto-nối không đè lên). */
 		$b['bc_dong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			report_id VARCHAR(40) NOT NULL,
@@ -771,13 +794,8 @@ class VHG_DB {
 			ten VARCHAR(190) NOT NULL DEFAULT '',
 			ngay DATE NOT NULL,
 			lan SMALLINT NOT NULL DEFAULT 1,
-			/* 🔴 CHỈ SỐ CÓ THỂ LẺ — anh Thắng 11/09/2026: máy nhận tiền lẻ nên chỉ số dạng 551,5.
-			   DECIMAL(14,2) thay BIGINT; giá trị nguyên cũ (551) tự thành 551.00, không mất mát.
-			   TIỀN (actual/tien_mat/qr/tong) vẫn BIGINT nguyên đồng — chỉ mỗi cột chỉ số có phần lẻ. */
 			chi_so_truoc DECIMAL(14,2) NULL,
 			chi_so_sau DECIMAL(14,2) NULL,
-			/* 🔒 MỐC TAY — anh Thắng 11/09/2026: kế toán/quản lý sửa TAY chỉ số trước cho một báo cáo
-			   (khi mốc tự-nối lấy nhầm số rác). =1 thì khóa: auto-nối (ap_moc_) KHÔNG đè lên nữa. */
 			moc_tay TINYINT(1) NOT NULL DEFAULT 0,
 			actual BIGINT(20) NOT NULL DEFAULT 0,
 			tien_mat BIGINT(20) NOT NULL DEFAULT 0,

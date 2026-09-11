@@ -417,7 +417,15 @@ class VHG_KeToan {
 			&& (int) $d['nop_so_tien'] === (int) $d['tien_mat'] ) {
 			$data_up['nop_so_tien'] = $cash;
 		}
-		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
+		/* 🔴 CHỐT LỖI DB — KHÔNG BÁO "XONG" KHI UPDATE HỎNG. Anh Thắng 11/09/2026: sửa xong "nó tự
+		   về cũ" — gốc là cột moc_tay chưa lên (dbDelta bỏ vì chú thích trong chuỗi SQL) nên
+		   $wpdb->update trả FALSE mà hàm vẫn return ok=true → màn tải lại thấy số cũ, tưởng không
+		   cho sửa. Nay chặn: update lỗi thì nói thẳng, đừng giả vờ thành công. */
+		$kq = $wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
+		if ( false === $kq ) {
+			return array( 'ok' => false, 'message' => 'Lưu không được (CSDL): '
+				. ( $wpdb->last_error ? $wpdb->last_error : 'không rõ' ) . '. Nhờ Admin cài lại bản mới nhất (2.37.1+).' );
+		}
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
 		VHG_BaoCao::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số → ngày kế tiếp tự nối lại chỉ số trước
 		return array( 'ok' => true, 'message' => 'Đã sửa ghế ' . $ma . '.',
