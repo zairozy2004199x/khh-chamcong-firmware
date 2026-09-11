@@ -232,6 +232,36 @@ in "chưa dùng" cho mọi vé chưa soát là làm loãng chỗ người ta đa
 ⚠️ Giờ hiển thị cắt bằng chuỗi, **không dựng `Date`**: chuỗi máy chủ trả về là giờ địa phương đã
 quy đổi sẵn, đưa vào `Date` là trình duyệt hiểu thành UTC rồi lệch thêm 7 tiếng.
 
+### 🔴 ĐƠN CHỈ ĐƯỢC TẠO SAU KHI KHÁCH CHỌN CÁCH TRẢ (từ 1.58.0)
+Trước đó nút **MUA VÉ NGAY** ở khung đặt nhanh vừa chọn vé, vừa tạo đơn, vừa nhảy thẳng vào màn
+mã QR chuyển khoản — khách chưa kịp nói muốn trả bằng gì thì đơn đã nằm trong sổ và **tồn kho đã
+bị trừ**. Anh Thắng: *"Mua ngay là chọn nhanh, chứ thanh toán cũng phải rõ ràng, chọn ví hoặc
+chuyển khoản"*.
+
+Ba lối mua (đặt nhanh · thẻ vé · giỏ) đều dừng ở bước **Chọn cách thanh toán** (`moTraTien()`).
+Bấm một trong hai nút mới gọi máy chủ. Nút ví bị khoá thì **nói rõ vì sao** (chưa đăng nhập Zalo,
+hay thiếu bao nhiêu tiền) — "không bấm được" mà không giải thích là khách tưởng hỏng.
+
+⚠️ Hai nút "Trả bằng ví" rời rạc ở bước đặt lẻ và bước giỏ **đã bỏ**: một chỗ quyết, một chỗ sửa.
+
+### 🔴 TỒN KHO TRỪ LÚC TẠO ĐƠN → PHẢI DỌN ĐƠN QUÁ HẠN
+Trừ tồn ngay lúc tạo đơn là bắt buộc (hai người không cùng mua tấm vé cuối), nhưng khách bấm Mua
+rồi bỏ đi thì số vé ấy **mất luôn**: sổ ghi "còn 0 vé" trong khi chẳng ai mua. Bán một buổi là hết
+sạch vé ảo.
+
+`don_het_han()` chạy trong cron 5 phút: đơn `cho` quá **2 giờ** (option `pve_gio_het_han`) thì huỷ
+và **trả lại tồn**. Trước khi huỷ vẫn **dò sổ phụ một lần nữa** — khách chuyển tiền phút chót,
+webhook về chậm, mà ta huỷ mất thì họ trả tiền xong không có vé.
+
+⚠️ Mỗi dòng vé lưu `chi_tiet` chứa **id loại vé**, nếu không thì huỷ xong không biết trả tồn cho
+vé nào. Đơn tạo trước 1.57.1 không có nên không trả được — không đoán bừa, trả nhầm loại còn tệ
+hơn không trả.
+
+### Phân trang 10 dòng
+Mỗi vé giờ là một dòng riêng nên danh sách dài ra rất nhanh. Đơn hàng và Đơn nạp ví phân trang
+**10 dòng**, và `TRANG_DON`/`TRANG_NAP` giữ trang đang xem để vòng tự-làm-tươi 15 giây **không kéo
+về trang 1** — đang xem trang 3 mà nhảy về đầu là không đọc nổi.
+
 ### 🔴 MỖI VÉ MỘT MÃ RIÊNG (từ 1.55.0)
 Trước đó cả giỏ ghi thành **một** dòng, **một** mã: đơn *"1x Vé vào cửa, 1x Vé 1 giờ, 1x Vé cả
 ngày, 1x Vé Vào Cửa"* chỉ có đúng một mã QR. Nhân viên quét một lần là **cả bốn vé** thành đã dùng

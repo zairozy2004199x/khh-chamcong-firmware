@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.57.0
+ * Version:           1.58.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -179,6 +179,63 @@ class POSH_Ve {
 		);
 	}
 	/* Trừ tồn kho (n vé) cho dịch vụ có giới hạn. Bỏ qua nếu không giới hạn (-1). */
+	/* Trả lại tồn kho khi một vé bị huỷ/hết hạn. Cùng bảng, ngược dấu. */
+	private static function tra_ton( $id, $n ) {
+		$ds = self::ds_tatca(); $thay = false;
+		foreach ( $ds as $k => $v ) {
+			if ( (int) $v['id'] === (int) $id && $v['so_luong'] >= 0 ) {
+				$ds[ $k ]['so_luong'] = (int) $v['so_luong'] + (int) $n;
+				$thay = true; break;
+			}
+		}
+		if ( $thay ) { self::luu_ds( $ds ); }
+	}
+
+	/**
+	 * DỌN ĐƠN CHỜ QUÁ LÂU — anh Thắng 11/09/2026: *"chưa bấm thanh toán nó đã tự vào lệnh"*.
+	 *
+	 * 🔴 TỒN KHO BỊ TRỪ NGAY LÚC TẠO ĐƠN, không phải lúc trả tiền. Phải làm vậy để hai người
+	 * không cùng mua tấm vé cuối. Nhưng khách bấm Mua rồi bỏ đi thì số vé ấy **mất luôn**: sổ
+	 * ghi "còn 0 vé" trong khi thực tế chẳng ai mua. Bán một buổi là hết sạch vé ảo.
+	 *
+	 * Nên đơn chờ quá hạn thì huỷ và TRẢ LẠI tồn. Mặc định 2 giờ — đủ rộng cho người chuyển khoản
+	 * chậm, đủ chặt để không khoá kho cả ngày.
+	 *
+	 * ⚠️ Chỉ huỷ đơn còn 'cho'. Và dò sổ phụ MỘT LẦN NỮA trước khi huỷ: khách chuyển tiền ở phút
+	 * cuối, webhook về chậm, mà ta huỷ mất thì họ trả tiền xong không có vé.
+	 */
+	public static function don_het_han( $gio = 0 ) {
+		$gio = (int) $gio > 0 ? (int) $gio : (int) get_option( 'pve_gio_het_han', 2 );
+		if ( $gio < 1 ) { return 0; }
+		global $wpdb; $tbl = self::tbl();
+		$moc = gmdate( 'Y-m-d H:i:s', (int) current_time( 'timestamp' ) - $gio * HOUR_IN_SECONDS );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_ve, ma_don, chi_tiet, noi_dung, so_tien FROM $tbl
+			  WHERE trang_thai='cho' AND tao_luc < %s ORDER BY id ASC LIMIT 200", $moc ), ARRAY_A );
+		$n = 0;
+		foreach ( (array) $rows as $r ) {
+			$d = self::don_theo_ma( '' !== (string) $r['ma_don'] ? $r['ma_don'] : $r['ma_ve'] );
+			/* Tiền về phút chót thì nhận vé, đừng huỷ. */
+			if ( $d && self::co_tien_ve( (int) $d['so_tien'], $d['noi_dung'] ) ) {
+				if ( $d['la_don'] ) { self::danh_dau_tt_don( $d['ma'] ); } else { self::danh_dau_tt( $d['ma'] ); }
+				continue;
+			}
+			$wpdb->update( $tbl, array( 'trang_thai' => 'huy' ), array( 'ma_ve' => $r['ma_ve'], 'trang_thai' => 'cho' ) );
+			/* Trả tồn theo ĐÚNG loại vé của dòng này. Từ 1.55.0 mỗi dòng là một vé nên trả 1;
+			   đơn cũ (một dòng cả giỏ) thì đọc chi_tiet ra mà trả cho đủ. */
+			/* Trả tồn theo chi_tiet của chính dòng ấy. Đơn tạo trước 1.57.1 không có chi_tiet
+			   thì chịu — không đoán bừa, trả nhầm loại vé còn tệ hơn không trả. */
+			$ct = json_decode( (string) $r['chi_tiet'], true );
+			if ( is_array( $ct ) ) {
+				foreach ( $ct as $m ) {
+					if ( isset( $m['id'] ) ) { self::tra_ton( (int) $m['id'], max( 1, (int) ( isset( $m['sl'] ) ? $m['sl'] : 1 ) ) ); }
+				}
+			}
+			$n++;
+		}
+		return $n;
+	}
+
 	private static function giam_ton( $id, $n ) {
 		$ds = self::ds_tatca(); $thay = false;
 		foreach ( $ds as $k => $v ) {
@@ -709,6 +766,7 @@ class POSH_Ve {
 	public static function cron_do_saoke() {
 		self::do_lai_saoke();
 		self::do_lai_nap();
+		self::don_het_han();
 	}
 
 	public static function dang_ky() {
@@ -815,6 +873,7 @@ class POSH_Ve {
 		$ok_ghi = $wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
+			'chi_tiet' => wp_json_encode( array( array( 'id' => (int) $goi['id'], 'ten' => $goi['ten'], 'gia' => $tien, 'sl' => 1 ) ) ),
 			'noi_dung' => $noidung, 'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
 			'zalo_id' => self::zalo_id_hien(),
 			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
@@ -914,6 +973,10 @@ class POSH_Ve {
 					'dv_ten'  => mb_substr( (string) $m['ten'], 0, 120 ),
 					'so_tien' => (int) $m['gia'],
 					'gia_goc' => (int) $m['gia_goc'],
+					/* Nhớ ID loại vé ngay trong dòng: huỷ đơn quá hạn thì phải TRẢ LẠI tồn kho,
+					   mà không có id thì không biết trả cho vé nào. Ghi 1 vé/dòng cho khớp với
+					   luật "mỗi vé một mã". */
+					'chi_tiet' => wp_json_encode( array( array( 'id' => (int) $m['id'], 'ten' => $m['ten'], 'gia' => (int) $m['gia'], 'sl' => 1 ) ) ),
 				) ) );
 				/* Cùng lý do với r_dat: ghi hỏng mà vẫn trả QR là nhận tiền cho vé không tồn tại.
 				   Hỏng giữa chừng thì DỌN các dòng đã ghi của đơn này — để lại nửa đơn là khách
@@ -1636,10 +1699,15 @@ class POSH_Ve {
 			$k = '%' . $wpdb->esc_like( $tim ) . '%';
 			$a = array_merge( $a, array( $k, $k, $k, $k ) );
 		}
+		$W = ' WHERE ' . implode( ' AND ', $w );
+		$mtrang = 10;
+		$trang  = max( 1, (int) $req->get_param( 'trang' ) );
+		$dsql   = 'SELECT COUNT(*) FROM ' . self::tbl_nap() . ' n LEFT JOIN ' . self::tbl_vi() . ' v ON v.chu = n.chu' . $W;
+		$tong   = (int) ( $a ? $wpdb->get_var( $wpdb->prepare( $dsql, $a ) ) : $wpdb->get_var( $dsql ) );
 		$sql = 'SELECT n.*, v.ten AS ten_chu, v.sdt AS sdt_chu FROM ' . self::tbl_nap() . ' n'
 			. ' LEFT JOIN ' . self::tbl_vi() . ' v ON v.chu = n.chu'
-			. ' WHERE ' . implode( ' AND ', $w ) . ' ORDER BY n.id DESC LIMIT 100';
-		$rows = $a ? $wpdb->get_results( $wpdb->prepare( $sql, $a ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+			. $W . ' ORDER BY n.id DESC LIMIT %d OFFSET %d';
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, array_merge( $a, array( $mtrang, ( $trang - 1 ) * $mtrang ) ) ), ARRAY_A );
 		$ra = array();
 		foreach ( (array) $rows as $r ) {
 			$ra[] = array( 'ma' => $r['ma'], 'so_tien' => (int) $r['so_tien'], 'tang' => (int) $r['tang'],
@@ -1647,7 +1715,8 @@ class POSH_Ve {
 				'ten' => (string) $r['ten_chu'], 'sdt' => (string) $r['sdt_chu'], 'chu' => $r['chu'],
 				'tao_luc' => $r['tao_luc'], 'tt_luc' => $r['tt_luc'] );
 		}
-		return array( 'ok' => true, 'nap' => $ra );
+		return array( 'ok' => true, 'nap' => $ra, 'tong' => $tong, 'trang' => $trang,
+			'so_trang' => max( 1, (int) ceil( $tong / $mtrang ) ) );
 	}
 
 	/**
@@ -2629,10 +2698,18 @@ class POSH_Ve {
 			// cho phép lọc theo kênh: loc=zalo / loc=web
 			$where[] = ( 'zalo' === $loc ? "nguon='zalo'" : "nguon<>'zalo'" );
 		}
-		$sql = "SELECT ma_ve, ma_don, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc, tt_luc, coso, coso_dung, dung_luc FROM $tbl";
-		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
-		$sql .= ' ORDER BY id DESC LIMIT 60';
-		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+		$W = $where ? ( ' WHERE ' . implode( ' AND ', $where ) ) : '';
+		/* Phân trang 10 dòng — anh Thắng 11/09/2026: "hiện 10 mã 1 trang". Mỗi vé giờ là một
+		   dòng riêng (từ 1.55.0) nên danh sách dài ra rất nhanh; đổ 60 dòng một lúc là phải cuộn
+		   mãi mới tới nút bấm. */
+		$mtrang = 10;
+		$trang  = max( 1, (int) $req->get_param( 'trang' ) );
+		$dsql   = "SELECT COUNT(*) FROM $tbl" . $W;
+		$tong   = (int) ( $args ? $wpdb->get_var( $wpdb->prepare( $dsql, $args ) ) : $wpdb->get_var( $dsql ) );
+		$sql    = "SELECT ma_ve, ma_don, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc, tt_luc, coso, coso_dung, dung_luc FROM $tbl"
+			. $W . ' ORDER BY id DESC LIMIT %d OFFSET %d';
+		$a2   = array_merge( $args, array( $mtrang, ( $trang - 1 ) * $mtrang ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $a2 ), ARRAY_A );
 		$ds = array();
 		foreach ( (array) $rows as $r ) {
 			$ds[] = array( 'ma_ve' => $r['ma_ve'], 'ma_don' => $r['ma_don'], 'dv_ten' => $r['dv_ten'],
@@ -2645,7 +2722,8 @@ class POSH_Ve {
 				'tt_luc' => $r['tt_luc'], 'coso' => $r['coso'],
 				'coso_dung' => $r['coso_dung'], 'dung_luc' => $r['dung_luc'] );
 		}
-		return array( 'ok' => true, 'don' => $ds );
+		return array( 'ok' => true, 'don' => $ds, 'tong' => $tong, 'trang' => $trang,
+			'so_trang' => max( 1, (int) ceil( $tong / $mtrang ) ) );
 	}
 	public static function r_ql_capnhat( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
@@ -3144,6 +3222,19 @@ class POSH_Ve {
 						 danh sách mã thì nằm ở máy khách — xem chú thích ở r_vi(). */ ?>
 				<?php /* Nạp ví. Mệnh giá do máy chủ khai (POSH_Ve::ds_goi_nap) — trang không cho gõ số
 						 tuỳ ý, xem chú thích ở r_vi_nap(). */ ?>
+				<?php /* BƯỚC CHỌN CÁCH TRẢ — anh Thắng 11/09/2026: "Mua ngay là chọn nhanh, chứ thanh
+						 toán cũng phải rõ ràng, chọn ví hoặc chuyển khoản". Đơn CHỈ được tạo sau khi khách
+						 bấm một trong hai nút này. */ ?>
+				<div class="pve-step pve-step-tt" data-step="tt" hidden>
+					<div class="pve-m-ten3">Chọn cách thanh toán</div>
+					<div class="pve-tt-tom"></div>
+					<button type="button" class="pve-tt-vi">
+						<b>💰 Trả bằng ví</b><small></small></button>
+					<button type="button" class="pve-tt-ck">
+						<b>🏦 Chuyển khoản QR</b><small>Quét mã bằng app ngân hàng</small></button>
+					<div class="pve-err pve-tt-err" hidden></div>
+					<button type="button" class="pve-tt-quay">← Quay lại</button>
+				</div>
 				<div class="pve-step pve-step-nap" data-step="nap" hidden>
 					<div class="pve-m-ten2">💰 Nạp ví</div>
 					<div class="pve-nap-sd">Số dư hiện tại: <b>—</b></div>
@@ -3174,7 +3265,6 @@ class POSH_Ve {
 					<input class="pve-in pve-g-ten" placeholder="Tên người mua" autocomplete="name">
 					<label class="pve-lb">Số điện thoại</label>
 					<input class="pve-in pve-g-sdt" inputmode="tel" placeholder="Số Zalo/điện thoại" autocomplete="tel">
-					<button type="button" class="pve-go2 pve-g-vi" hidden>Trả bằng ví</button>
 					<button type="button" class="pve-go pve-g-go">Tạo mã thanh toán</button>
 					<div class="pve-err pve-g-err" hidden></div>
 					<p class="pve-note">Cả giỏ gộp thành MỘT mã chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
@@ -3188,7 +3278,6 @@ class POSH_Ve {
 					<input class="pve-in pve-f-ten" placeholder="Tên người mua" autocomplete="name">
 					<label class="pve-lb">Số điện thoại</label>
 					<input class="pve-in pve-f-sdt" placeholder="Số Zalo/điện thoại" inputmode="tel" autocomplete="tel">
-					<button type="button" class="pve-go2 pve-f-vi" hidden>Trả bằng ví</button>
 					<button type="button" class="pve-go">Tạo mã thanh toán</button>
 					<div class="pve-err" hidden></div>
 					<p class="pve-note">Bấm để tạo vé và hiện mã QR chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
@@ -3452,6 +3541,18 @@ class POSH_Ve {
 		.pve-go2[hidden]{ display:none; }
 		.pve-go2:hover{ background:rgba(212,175,55,.12); }
 		.pve-m-ten2{ font-weight:800; font-size:18px; color:#1b1810; }
+		.pve-m-ten3{ font-weight:800; font-size:18px; color:#1b1810; margin-bottom:4px; }
+		.pve-tt-tom{ color:var(--mut); font-size:13.5px; line-height:1.6; margin-bottom:16px; }
+		.pve-tt-tom b{ color:var(--g2); font-size:19px; }
+		.pve-tt-vi, .pve-tt-ck{ display:block; width:100%; text-align:left; border:1.5px solid var(--bd);
+			background:var(--sf2); color:var(--tx); border-radius:14px; padding:14px 16px; margin-bottom:10px; cursor:pointer; }
+		.pve-tt-vi b, .pve-tt-ck b{ display:block; font-size:16px; }
+		.pve-tt-vi small, .pve-tt-ck small{ display:block; color:var(--mut); font-size:12.5px; margin-top:3px; }
+		.pve-tt-vi:hover, .pve-tt-ck:hover{ border-color:var(--g); background:rgba(212,175,55,.10); }
+		.pve-tt-vi[disabled]{ opacity:.55; cursor:not-allowed; }
+		.pve-tt-vi[disabled]:hover{ border-color:var(--bd); background:var(--sf2); }
+		.pve-tt-quay{ width:100%; border:none; background:transparent; color:var(--mut); font-size:13px;
+			padding:10px; cursor:pointer; margin-top:2px; }
 		.pve-nap-sd{ color:var(--mut); font-size:13px; margin:2px 0 12px; } .pve-nap-sd b{ color:var(--g2); font-size:16px; }
 		.pve-nap-goi{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 		.pve-nap-i{ border:1.5px solid #ddd6c4; background:var(--sf2); border-radius:12px; padding:11px 8px; cursor:pointer; text-align:center; }
@@ -4009,7 +4110,18 @@ class POSH_Ve {
 		.pql input, .pql textarea, .pql-card input{ width:100%; border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 12px; font-size:15px; }
 		.pql input::placeholder,.pql textarea::placeholder{ color:#6f6b61; }
 		.pql input:focus,.pql textarea:focus{ outline:none; border-color:var(--g); }
-		.pql-dn,.pql-luu,.pql-them{ border:none; background:var(--gr); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
+		/* Mọi nút LƯU đều là nút chính — gom vào một luật. Trước đây chỉ .pql-luu được tô, còn
+		   .pql-tk-luu, .pql-hang-luu, .pql-uu-luu, .pql-dm-luu, .pql-vi-luu thì trơ viền mảnh như
+		   một đường kẻ: cùng một việc mà mỗi màn một kiểu, người dùng không biết đâu là nút chính. */
+		.pql-dn,.pql-luu,.pql-them,.pql-tk-luu,.pql-hang-luu,.pql-uu-luu,.pql-dm-luu,.pql-vi-luu{
+			border:none; background:var(--gr); color:#1a1204; font-weight:800; border-radius:10px;
+			padding:12px; cursor:pointer; font-size:15px; }
+		/* Ô chọn phải giống ô nhập: native select nhỏ xíu bên cạnh một ô nhập cao 44px trông như
+		   quên chưa làm xong. */
+		.pql select{ width:100%; box-sizing:border-box; border:1px solid #ddd6c4; background:var(--sf2);
+			color:var(--tx); border-radius:10px; padding:11px 12px; font-size:15px; }
+		.pql-soi-lai{ border:1px solid var(--bd); background:var(--sf2); color:var(--tx); border-radius:9px;
+			padding:8px 14px; font-weight:700; font-size:13px; cursor:pointer; }
 		.pql-dn{ width:100%; margin-top:12px; }
 		/* Tiêu đề phân loại trong danh sách vé */
 		.pql-gh{ display:flex; align-items:center; gap:10px; margin:18px 0 8px; padding-bottom:6px;
@@ -4144,6 +4256,12 @@ class POSH_Ve {
 		.pql-bdg{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
 		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#166534; }
 		.pql-bdg.da_dung{ background:rgba(59,130,246,.14); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#b91c1c; }
+		.pql-pg{ display:flex; align-items:center; justify-content:center; gap:12px; margin-top:14px; }
+		.pql-pg button{ border:1px solid var(--bd); background:var(--sf); color:var(--tx); border-radius:9px;
+			padding:8px 14px; font-weight:700; font-size:13px; cursor:pointer; }
+		.pql-pg button[disabled]{ opacity:.4; cursor:not-allowed; }
+		.pql-pg span{ color:var(--mut); font-size:12.5px; }
+		.pql-pg-tong{ text-align:center; color:var(--mut); font-size:12px; margin-top:12px; }
 		.pql-ls{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
 		.pql-ls span{ background:var(--sf2); border:1px solid var(--bd); border-radius:999px;
 			padding:3px 10px; font-size:11.5px; color:var(--mut); white-space:nowrap; }
@@ -4296,14 +4414,36 @@ class POSH_Ve {
 		  }
 
 		  // Đơn & soát
-		  function napDon(){
+		  /* Phân trang 10 dòng. `TRANG_DON` giữ trang đang xem để vòng TỰ LÀM TƯƠI không kéo
+		     quản trị về trang 1 mỗi 15 giây — đang xem trang 3 mà nhảy về đầu là không đọc nổi. */
+		  var TRANG_DON=1;
+		  function napDon(trang){
+		    if(trang) TRANG_DON=trang;
 		    var loc=$('.pql-loc').value, tim=$('.pql-tim').value.trim();
 		    $('.pql-donlist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
-		    var u=new URL(REST+'/ql/donhang'); u.searchParams.set('pin',PIN); if(loc)u.searchParams.set('loc',loc); if(tim)u.searchParams.set('tim',tim);
-		    fetch(u.toString()).then(function(r){return r.json();}).then(function(d){
-		      if(!d||d.ok===false) throw new Error(d&&(d.message||d.code)||'Lỗi');
-		      $('.pql-donlist').innerHTML=(d.don||[]).map(rowDon).join('')||'<p style="color:#6f6a5d">Không có đơn.</p>';
+		    get('/ql/donhang?loc='+encodeURIComponent(loc)+'&tim='+encodeURIComponent(tim)+'&trang='+TRANG_DON)
+		    .then(function(d){
+		      $('.pql-donlist').innerHTML=((d.don||[]).map(rowDon).join('')||'<p style="color:#6f6a5d">Không có đơn.</p>')
+		        + phanTrang(d,'don');
+		      noiTrang('don');
 		    }).catch(function(e){ $('.pql-donlist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  /* Thanh chuyển trang dùng chung cho Đơn hàng và Đơn nạp ví. */
+		  function phanTrang(d, loai){
+		    var st=d.so_trang||1, tr=d.trang||1;
+		    if(st<2) return '<div class="pql-pg-tong">Tổng '+(d.tong||0)+'</div>';
+		    return '<div class="pql-pg" data-loai="'+loai+'">'
+		      +'<button data-di="'+(tr-1)+'"'+(tr<=1?' disabled':'')+'>← Trước</button>'
+		      +'<span>Trang '+tr+'/'+st+' · tổng '+(d.tong||0)+'</span>'
+		      +'<button data-di="'+(tr+1)+'"'+(tr>=st?' disabled':'')+'>Sau →</button></div>';
+		  }
+		  function noiTrang(loai){
+		    Array.prototype.forEach.call(root.querySelectorAll('.pql-pg[data-loai="'+loai+'"] button'),function(b){
+		      b.addEventListener('click',function(){
+		        var di=Number(b.getAttribute('data-di'))||1;
+		        if(loai==='don') napDon(di); else napNap(di);
+		      });
+		    });
 		  }
 		  function rowDon(r){
 		    var src=r.nguon==='zalo'?'📱 Zalo':'🌐 Web';
@@ -4374,13 +4514,16 @@ class POSH_Ve {
 		  var TK_NH_DA = false;
 		  /* ── Đơn nạp ví ─────────────────────────────────────────────────────────────────── */
 		  var NAP_TT={cho:'Chờ tiền về',xong:'Đã cộng ví'};
-		  function napNap(){
+		  var TRANG_NAP=1;
+		  function napNap(trang){
+		    if(trang) TRANG_NAP=trang;
 		    $('.pql-naplist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
-		    var q='?loc='+encodeURIComponent($('.pql-nap-loc').value)+'&tim='+encodeURIComponent($('.pql-nap-tim').value);
+		    var q='?loc='+encodeURIComponent($('.pql-nap-loc').value)+'&tim='+encodeURIComponent($('.pql-nap-tim').value)+'&trang='+TRANG_NAP;
 		    get('/ql/nap-ds'+q).then(function(d){
 		      var ds=d.nap||[];
 		      if(!ds.length){ $('.pql-naplist').innerHTML='<p style="color:#6f6a5d">Chưa có lệnh nạp nào.</p>'; return; }
-		      $('.pql-naplist').innerHTML=ds.map(rowNap).join('');
+		      $('.pql-naplist').innerHTML=ds.map(rowNap).join('')+phanTrang(d,'nap');
+		      noiTrang('nap');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-nap-soi'),function(b){
 		        b.addEventListener('click',function(){
 		          var ma=b.getAttribute('data-ma');

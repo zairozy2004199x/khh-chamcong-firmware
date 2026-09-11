@@ -238,19 +238,9 @@ function viTienVe(){
 	   thiếu là bắt khách bấm một nút để nhận lời từ chối. */
 	napNutVi();
 }
-function napNutVi(){
-	var f = qf('.pve-f-vi'), g = mask.querySelector('.pve-step-gio .pve-g-vi');
-	if (f){
-		var gia = mFor ? giaSauGiam(mFor.dataset.gia) : 0;
-		var du = VI.dangnhap && gia > 0 && VI.so_du >= gia;
-		f.hidden = !du; if (du) f.textContent = 'Trả bằng ví (còn ' + tien(VI.so_du) + ')';
-	}
-	if (g){
-		var t = gioTong();
-		var du2 = VI.dangnhap && t > 0 && VI.so_du >= t;
-		g.hidden = !du2; if (du2) g.textContent = 'Trả bằng ví (còn ' + tien(VI.so_du) + ')';
-	}
-}
+/* Từ 1.58.0 việc chọn ví hay chuyển khoản dồn về bước "Chọn cách thanh toán" (moTraTien), nên
+   không còn nút "Trả bằng ví" rời rạc ở hai bước mua nữa — một chỗ quyết, một chỗ sửa. */
+function napNutVi(){}
 function viTienTai(){
 	return layMoi(REST + '/vi/toi')
 		.then(function(r){ return r.json(); })
@@ -351,49 +341,12 @@ boc('nạp ví', function(){
 			err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
 	};
 
-	/* Trả bằng ví — hai chỗ, cùng một việc. */
-	var fv = qf('.pve-f-vi');
-	if (fv) fv.onclick = function(){ traVi('le', this); };
-	var gv = mask.querySelector('.pve-step-gio .pve-g-vi');
-	if (gv) gv.onclick = function(){ traVi('gio', this); };
 });
 
 function gioTong(){
 	var t = 0;
 	for (var id in GIO){ var c = theVe(id); if (c) t += giaSauGiam(c.getAttribute('data-gia')) * GIO[id]; }
 	return t;
-}
-function traVi(kieu, btn){
-	var le = ('le' === kieu);
-	var ten = (le ? qf('.pve-f-ten') : qs('.pve-step-gio .pve-g-ten')).value.trim();
-	var sdt = (le ? qf('.pve-f-sdt') : qs('.pve-step-gio .pve-g-sdt')).value.trim();
-	var err = le ? qf('.pve-err') : qs('.pve-step-gio .pve-g-err');
-	if (!ten || !sdt){ err.textContent = 'Nhập tên và số điện thoại.'; err.hidden = false; return; }
-	err.hidden = true; btn.disabled = true; var chu = btn.textContent; btn.textContent = 'Đang trừ ví…';
-	var than = { ten: ten, sdt: sdt, tt: 'vi',
-		cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') };
-	var duong;
-	if (le){ than.id = Number(mFor.dataset.id); duong = '/ve/dat'; }
-	else {
-		than.items = []; for (var id in GIO){ if (theVe(id)) than.items.push({ id: Number(id), sl: GIO[id] }); }
-		duong = '/ve/dat-gio';
-	}
-	fetch(REST + duong, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-		body: JSON.stringify(than) })
-	.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
-	.then(function(o){
-		btn.disabled = false; btn.textContent = chu;
-		if (!o.ok || o.d.ok === false){ err.textContent = (o.d && (o.d.message || o.d.code)) || 'Không trả được bằng ví.'; err.hidden = false; return; }
-		nhoKhach(ten, sdt);
-		VI.so_du = o.d.so_du || 0;
-		if (!le){ GIO = {}; gioGhi(); gioNut(); gioVe(); }
-		viTienVe();
-		viThem(o.d.ma_ve);
-		/* Trả bằng ví là XONG — không còn gì để chờ, nên đừng đưa khách vào màn mã QR chuyển
-		   khoản nữa. Báo thành công tràn màn hình rồi trả họ về trang mua vé. */
-		xongVi(o.d);
-	})
-	.catch(function(){ btn.disabled = false; btn.textContent = chu; err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
 }
 
 /* ═══ VÍ VÉ ════════════════════════════════════════════════════════════════════════════════
@@ -571,22 +524,18 @@ boc('giỏ vé', function(){
 		for (var id in GIO) { if (theVe(id)) items.push({ id: Number(id), sl: GIO[id] }); }
 		if (!items.length){ err.textContent = 'Giỏ đang trống.'; err.hidden = false; return; }
 		if (!ten || !sdt){ err.textContent = 'Nhập tên và số điện thoại.'; err.hidden = false; return; }
-		err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
-		fetch(REST + '/ve/dat-gio', { method:'POST', headers:{'Content-Type':'application/json'},
-			body: JSON.stringify({ items: items, ten: ten, sdt: sdt,
-				cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
-		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
-		.then(function(o){
-			btn.disabled = false; btn.textContent = 'Tạo mã thanh toán';
-			if (!o.ok || o.d.ok === false){ err.textContent = (o.d && (o.d.message || o.d.code)) || 'Lỗi tạo vé.'; err.hidden = false; return; }
-			nhoKhach(ten, sdt);
-			/* Đặt xong mới dọn giỏ. Dọn trước rồi máy chủ chối (hết vé, chưa khai tài khoản
-			   nhận tiền) là khách mất sạch giỏ vừa chọn mà chẳng được vé nào. */
-			GIO = {}; gioGhi(); gioNut(); gioVe();
-			hienQR(o.d);
-		})
-		.catch(function(){ btn.disabled = false; btn.textContent = 'Tạo mã thanh toán';
-			err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
+		err.hidden = true;
+		var ten_gio = [];
+		for (var j = 0; j < items.length; j++) { var c = theVe(items[j].id); if (c) ten_gio.push(items[j].sl + 'x ' + c.getAttribute('data-ten')); }
+		moTraTien({
+			duong: '/ve/dat-gio',
+			than: { items: items, ten: ten, sdt: sdt },
+			mota: ten_gio.join(', '),
+			tong: gioTong(),
+			/* Đặt xong mới dọn giỏ. Dọn trước rồi máy chủ chối (hết vé, chưa khai tài khoản nhận
+			   tiền) là khách mất sạch giỏ vừa chọn mà chẳng được vé nào. */
+			sau_khi_xong: function(){ GIO = {}; gioGhi(); gioNut(); gioVe(); }
+		});
 	});
 });
 
@@ -869,18 +818,16 @@ function dongBo(){
 		var err = qf.querySelector('.pve-qf-err');
 		if(!id){ err.textContent='Vui lòng chọn loại vé.'; err.hidden=false; return; }
 		if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
-		err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
-		fetch(REST+'/ve/dat-gio', { method:'POST', headers:{'Content-Type':'application/json'},
-			/* Gửi kèm mã cửa hàng + toạ độ để máy chủ TỰ kiểm lại rồi mới chốt giá. */
-			body: JSON.stringify({ items:[{ id:id, sl:sl }], ten:ten, sdt:sdt,
-				cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
-		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
-		.then(function(o){ btn.disabled=false; btn.textContent='Mua vé ngay';
-			if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
-			nhoKhach(ten, sdt);
-			hienQR(o.d);
-		})
-		.catch(function(){ btn.disabled=false; btn.textContent='Mua vé ngay'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
+		err.hidden = true;
+		/* "MUA VÉ NGAY" chỉ là CHỌN NHANH. Đơn chưa được tạo ở đây — sang bước chọn cách trả. */
+		var the = theVe(id);
+		var don_gia = the ? giaSauGiam(the.getAttribute('data-gia')) : 0;
+		moTraTien({
+			duong: '/ve/dat-gio',
+			than: { items: [{ id: id, sl: sl }], ten: ten, sdt: sdt },
+			mota: sl + 'x ' + (the ? the.getAttribute('data-ten') : 'vé'),
+			tong: don_gia * sl
+		});
 	});
 })();
 
@@ -904,22 +851,13 @@ qf('.pve-go').addEventListener('click', function(){
 	var ten = qf('.pve-f-ten').value.trim(), sdt = qf('.pve-f-sdt').value.trim();
 	var err = qf('.pve-err');
 	if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
-	err.hidden = true; this.disabled = true; this.textContent='Đang tạo…';
-	var btn = this;
-	fetch(REST+'/ve/dat', { method:'POST', headers:{'Content-Type':'application/json'},
-		/* Mã cửa hàng + toạ độ phải gửi ở ĐÂY NỮA, không chỉ ở form đặt nhanh: máy chủ chốt giảm
-		   giá tại quầy từ ba giá trị này (POSH_Ve::giam_tai_cho). Thiếu chúng thì khách đứng ngay
-		   quầy, băng trên đầu trang báo "đã giảm 10%", mà bấm Đặt vé ở thẻ vé vẫn ra giá gốc. */
-		body: JSON.stringify({ id: Number(mFor.dataset.id), ten: ten, sdt: sdt,
-			cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
-	.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
-	.then(function(o){
-		btn.disabled=false; btn.textContent='Tạo mã thanh toán';
-		if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
-		nhoKhach(ten, sdt);
-		hienQR(o.d);
-	})
-	.catch(function(){ btn.disabled=false; btn.textContent='Tạo mã thanh toán'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
+	err.hidden = true;
+	moTraTien({
+		duong: '/ve/dat',
+		than: { id: Number(mFor.dataset.id), ten: ten, sdt: sdt },
+		mota: mFor.dataset.ten,
+		tong: giaSauGiam(mFor.dataset.gia)
+	});
 });
 
 /* ═══ BÁO THÀNH CÔNG KHI TRẢ BẰNG VÍ ═══════════════════════════════════════════════════════
@@ -933,6 +871,62 @@ qf('.pve-go').addEventListener('click', function(){
 /* Màn HOÀN THÀNH dùng chung cho hai việc đã xong hẳn: trả vé bằng ví, và nạp tiền vào ví.
    Cùng một hình hài vì với khách đó là cùng một cảm giác — xong rồi, về thôi.
    `o` = { tieu, phu, ma, mota, du, nut_chinh, mo_vi } */
+/* ═══ MỘT CỬA DUY NHẤT ĐỂ TẠO ĐƠN ══════════════════════════════════════════════════════════
+   🔴 ĐƠN CHỈ ĐƯỢC TẠO SAU KHI KHÁCH CHỌN CÁCH TRẢ. Trước đây nút "MUA VÉ NGAY" ở khung đặt
+   nhanh vừa chọn vé vừa tạo đơn vừa nhảy thẳng vào màn mã QR chuyển khoản — khách chưa kịp nói
+   muốn trả bằng gì thì đơn đã nằm trong sổ, tồn kho đã bị trừ. Anh Thắng 11/09/2026: *"Mua ngay
+   là chọn nhanh, chứ thanh toán cũng phải rõ ràng, chọn ví hoặc chuyển khoản"*.
+
+   Nay ba lối mua (đặt nhanh · thẻ vé · giỏ) đều dừng ở đây, hiện tóm tắt + hai cách trả. Bấm
+   cách nào mới gọi máy chủ.
+
+   cfg = { duong, than, mota, tong, sau_khi_xong } */
+function moTraTien(cfg){
+	var tom = qt('.pve-tt-tom');
+	tom.innerHTML = esc(cfg.mota) + '<br><b>' + tien(cfg.tong) + '</b>';
+	qt('.pve-tt-err').hidden = true;
+
+	var nutVi = qt('.pve-tt-vi'), nho = nutVi.querySelector('small');
+	var du = VI.dangnhap && VI.so_du >= cfg.tong;
+	nutVi.disabled = !du;
+	/* Nói RÕ vì sao không trả ví được — "không bấm được" mà không giải thích là khách tưởng hỏng. */
+	nho.textContent = !VI.dangnhap ? 'Đăng nhập Zalo để dùng ví'
+		: (du ? ('Ví còn ' + tien(VI.so_du)) : ('Ví còn ' + tien(VI.so_du) + ' — không đủ, cần thêm ' + tien(cfg.tong - VI.so_du)));
+
+	nutVi.onclick = function(){ if (!nutVi.disabled) { goiDat(cfg, true, nutVi); } };
+	qt('.pve-tt-ck').onclick = function(){ goiDat(cfg, false, qt('.pve-tt-ck')); };
+	qt('.pve-tt-quay').onclick = function(){ mask.hidden = true; };
+
+	show('tt'); mask.hidden = false;
+}
+function qt(s){ return mask.querySelector('.pve-step-tt ' + s); }
+
+function goiDat(cfg, bang_vi, nut){
+	var err = qt('.pve-tt-err');
+	var than = {};
+	for (var k in cfg.than) { than[k] = cfg.than[k]; }
+	if (bang_vi) { than.tt = 'vi'; }
+	than.cs = (PVE.cs ? PVE.cs.ma : ''); than.lat = (PVE.pos ? PVE.pos.lat : ''); than.lng = (PVE.pos ? PVE.pos.lng : '');
+	err.hidden = true; nut.disabled = true; var chu = nut.innerHTML; nut.innerHTML = '<b>Đang xử lý…</b>';
+	fetch(REST + cfg.duong, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
+		body: JSON.stringify(than) })
+	.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
+	.then(function(o){
+		nut.disabled = false; nut.innerHTML = chu;
+		if (!o.ok || o.d.ok === false){ err.textContent = (o.d && (o.d.message || o.d.code)) || 'Lỗi tạo vé.'; err.hidden = false; return; }
+		nhoKhach(than.ten, than.sdt);
+		if (cfg.sau_khi_xong) { cfg.sau_khi_xong(o.d); }
+		if (bang_vi){
+			VI.so_du = o.d.so_du || 0; viTienVe(); viThem(o.d.ma_ve);
+			xongVi(o.d);
+		} else {
+			hienQR(o.d);
+		}
+	})
+	.catch(function(){ nut.disabled = false; nut.innerHTML = chu;
+		err.textContent = 'Lỗi kết nối máy chủ.'; err.hidden = false; });
+}
+
 function manXong(o){
 	var e = document.createElement('div');
 	e.className = 'pve-xong';
@@ -1024,6 +1018,14 @@ function hienQR(v){
 	});
 	show('qr');
 	var badge = qq('.pve-badge');
+	/* 🔴 ĐẶT LẠI NHÃN CHO ĐƠN MỚI. Khung mã QR dùng chung cho mọi lượt, mà nhãn trạng thái là
+	   thẻ CÓ SẴN trong trang — không đặt lại thì nó giữ nguyên chữ của đơn trước. Đặt vé tiếp
+	   sau một lượt nạp ví là mã mới, số tiền mới, nhưng nhãn vẫn "✅ Đã vào ví": khách tưởng đã
+	   trả xong rồi đóng trang, còn vé thì nằm ở "chờ thanh toán" mãi. Đúng chuyện 11/09/2026.
+	   Cũng dọn luôn dòng báo của cổng thanh toán lượt trước, cùng lý do. */
+	badge.className = 'pve-badge ' + (daTra ? 'da_tt' : 'cho');
+	badge.textContent = daTra ? '✅ Đã thanh toán' : '⏳ Chờ thanh toán';
+	var msgCu = qq('.pve-cong-msg'); if (msgCu) { msgCu.textContent = ''; msgCu.hidden = true; }
 	qq('.pve-copy').onclick = function(){ try{ navigator.clipboard.writeText(v.noi_dung); }catch(e){} };
 
 	// Chọn phương thức: QR (mặc định) / Momo / VNPay. Momo-VNPay mở cổng ở tab mới.
