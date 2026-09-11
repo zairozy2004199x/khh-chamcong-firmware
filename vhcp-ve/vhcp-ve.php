@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.50.2
+ * Version:           1.51.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -95,6 +95,36 @@ class POSH_Ve {
 	 * loại chuỗi VietQR này. Gác class_exists đúng luật gọi chéo: thiếu plugin Ghế thì trả rỗng
 	 * và trang tự lùi về cách cũ, chứ không vỡ.
 	 */
+	/**
+	 * TIỀN TỐ BẮT BUỘC TRONG NỘI DUNG CHUYỂN KHOẢN (SePay).
+	 *
+	 * 🔴 ĐÂY LÀ MẮT XÍCH IM LẶNG NHẤT CỦA CẢ HỆ THỐNG. Với VietinBank tài khoản cá nhân / hộ
+	 * kinh doanh, SePay **bắt buộc** nội dung chuyển khoản phải chứa `SEVQR` mới định tuyến được
+	 * giao dịch. Thiếu nó thì tiền VẪN vào tài khoản, ngân hàng VẪN báo thành công, nhưng SePay
+	 * KHÔNG BAO GIỜ THẤY — không webhook, vé không tự xác nhận, và trong sổ sao kê của mình không
+	 * có lấy một dòng nào để đi tìm. Chính là chuyện "chuyển tiền rồi mà vé vẫn chờ".
+	 *
+	 * Dùng CHUNG option `vhg_tien_to_nd` với plugin Ghế: hai plugin cùng chạy qua một tài khoản
+	 * SePay, khai hai nơi là sớm muộn một bên quên và hỏng đúng kiểu im lặng này. Chưa cài Ghế
+	 * thì lùi về option riêng `pve_tien_to_nd`.
+	 */
+	public static function tien_to_nd() {
+		$t = trim( (string) get_option( 'vhg_tien_to_nd', '' ) );
+		if ( '' === $t ) { $t = trim( (string) get_option( 'pve_tien_to_nd', '' ) ); }
+		return $t;
+	}
+
+	/**
+	 * Nội dung chuyển khoản: "<tiền tố> VE<mã vé>" / "<tiền tố> NAP<mã nạp>".
+	 *
+	 * ⚠️ VietQR chỉ cho 25 ký tự ở ô nội dung; dài hơn là ngân hàng tự cắt, cắt ở đâu thì tuỳ
+	 * ngân hàng — mà cắt mất mã là đối soát mù. "SEVQR VEK7M2PQAB" mới 16 ký tự nên còn dư.
+	 */
+	public static function nd_ck( $tien_to_viec, $ma ) {
+		$t = self::tien_to_nd();
+		return ( '' !== $t ? $t . ' ' : '' ) . $tien_to_viec . strtoupper( trim( (string) $ma ) );
+	}
+
 	public static function qr_svg( $chuoi, $px = 220 ) {
 		$chuoi = (string) $chuoi;
 		if ( '' === $chuoi ) { return ''; }
@@ -777,7 +807,7 @@ class POSH_Ve {
 		$g0  = self::giam_tai_cho( $req->get_param( 'cs' ), $req->get_param( 'lat' ), $req->get_param( 'lng' ) );
 		$goc = (int) $goi['gia'];
 		$tien = self::gia_sau_giam( $goc, $g0['ok'] ? $g0['giam'] : 0 );
-		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve;
+		$ma_ve = self::ma_ve_moi(); $noidung = self::nd_ck( 'VE', $ma_ve );
 		$ok_ghi = $wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
@@ -840,7 +870,7 @@ class POSH_Ve {
 		if ( $tong < 1000 ) { return new WP_Error( 'gio', 'Giỏ hàng không hợp lệ.', array( 'status' => 400 ) ); }
 
 		global $wpdb;
-		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve; $tomtat = implode( ', ', $mota );
+		$ma_ve = self::ma_ve_moi(); $noidung = self::nd_ck( 'VE', $ma_ve ); $tomtat = implode( ', ', $mota );
 		$ok_ghi = $wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => mb_substr( $tomtat, 0, 120 ), 'so_tien' => $tong,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
@@ -1419,7 +1449,7 @@ class POSH_Ve {
 		$tang = (int) $goi['tang'] + (int) $uu['tang'];
 
 		global $wpdb;
-		$ma = self::ma_nap_moi(); $nd = 'NAP' . $ma;
+		$ma = self::ma_nap_moi(); $nd = self::nd_ck( 'NAP', $ma );
 		$ghi = $wpdb->insert( self::tbl_nap(), array(
 			'ma' => $ma, 'chu' => $chu, 'so_tien' => $mg, 'tang' => $tang, 'code' => $uu['code'],
 			'noi_dung' => $nd, 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ) ) );
@@ -2179,6 +2209,17 @@ class POSH_Ve {
 		   Bốn câu hỏi tách bạch: có plugin Sao Kê chưa · bảng dựng chưa · đã nhận đồng nào chưa ·
 		   và với những vé đang chờ, có giao dịch nào khớp mà chưa được đánh dấu không. Gộp cả bốn
 		   vào một dòng "chưa xác nhận" là lại ngồi đoán như mấy hôm trước. */
+		/* Tiền tố SePay — xem chú thích ở tien_to_nd(). Đặt TRƯỚC các mục sao kê vì thiếu nó thì
+		   mọi mục dưới đều xanh mà vẫn không có giao dịch nào về. */
+		$tt_nd = self::tien_to_nd();
+		$them( 'Tiền tố nội dung chuyển khoản', '' !== $tt_nd,
+			'' !== $tt_nd ? ( '"' . $tt_nd . '" — nội dung mẫu: ' . self::nd_ck( 'VE', 'K7M2PQAB' ) ) : 'CHƯA KHAI',
+			'' !== $tt_nd ? '' : 'Với VietinBank cá nhân/hộ kinh doanh, SePay BẮT BUỘC nội dung chuyển khoản '
+				. 'chứa SEVQR mới định tuyến được giao dịch. Thiếu nó thì tiền vẫn vào tài khoản và ngân hàng '
+				. 'vẫn báo thành công, nhưng SePay KHÔNG BAO GIỜ THẤY — không webhook, vé không tự xác nhận, '
+				. 'sổ sao kê không có một dòng nào. Khai ở Ghế Massage → Máy & cơ sở → "Tiền tố nội dung '
+				. 'chuyển khoản", hoặc ở WP Admin → Vé khu vui chơi → Tài khoản nhận tiền.' );
+
 		$co_sk = class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'tbl' );
 		$them( 'Plugin Sao Kê', $co_sk, $co_sk ? 'Đã cài và bật' : 'CHƯA có',
 			$co_sk ? '' : 'Chuyển khoản VietQR sẽ KHÔNG bao giờ tự xác nhận. Cài plugin Sao Kê trên cùng site này.' );
@@ -4273,6 +4314,12 @@ class POSH_Ve {
 			update_option( 'pve_bin', preg_replace( '/\D+/', '', (string) $_POST['bin'] ) );
 			update_option( 'pve_so_tk', sanitize_text_field( wp_unslash( $_POST['so_tk'] ) ) );
 			update_option( 'pve_ten_tk', sanitize_text_field( wp_unslash( $_POST['ten_tk'] ) ) );
+			if ( isset( $_POST['tien_to_nd'] ) ) {
+				$tt = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) wp_unslash( $_POST['tien_to_nd'] ) ) );
+				/* Ghi vào option CHUNG với plugin Ghế khi có Ghế — hai plugin cùng một tài khoản
+				   SePay, khai hai nơi là sớm muộn một bên quên. */
+				update_option( class_exists( 'VHG_May' ) ? 'vhg_tien_to_nd' : 'pve_tien_to_nd', $tt );
+			}
 			echo '<div class="notice notice-success"><p>Đã lưu tài khoản.</p></div>';
 		}
 		if ( isset( $_POST['pve_vi'] ) && check_admin_referer( 'pve_vi' ) ) {
@@ -4542,6 +4589,21 @@ class POSH_Ve {
 		echo '<tr><th>Số tài khoản</th><td><input name="so_tk" class="regular-text code" value="' . esc_attr( get_option( 'pve_so_tk', '' ) ) . '"></td></tr>';
 		echo '<tr><th>BIN ngân hàng</th><td><input name="bin" class="regular-text code" value="' . esc_attr( get_option( 'pve_bin', '' ) ) . '" placeholder="VD 970415 = VietinBank"></td></tr>';
 		echo '<tr><th>Chủ tài khoản</th><td><input name="ten_tk" class="regular-text" value="' . esc_attr( get_option( 'pve_ten_tk', '' ) ) . '"></td></tr>';
+		$tt_nd = self::tien_to_nd();
+		echo '<tr><th>Tiền tố nội dung CK</th><td>'
+			. '<input name="tien_to_nd" class="regular-text" style="max-width:160px" value="' . esc_attr( $tt_nd ) . '" placeholder="VD: SEVQR"> '
+			. ( '' !== $tt_nd
+				? '<b>Nội dung mẫu:</b> <code>' . esc_html( self::nd_ck( 'VE', 'K7M2PQAB' ) ) . '</code>'
+				: '<b style="color:#b91c1c">Chưa khai</b>' )
+			. '<p class="description">🔴 <b>Mắt xích im lặng nhất của cả hệ thống.</b> Với VietinBank tài khoản '
+			. 'cá nhân / hộ kinh doanh, SePay <b>bắt buộc</b> nội dung chuyển khoản phải chứa <code>SEVQR</code> '
+			. 'mới định tuyến được giao dịch. Thiếu nó thì <b>tiền vẫn vào tài khoản, ngân hàng vẫn báo thành '
+			. 'công, nhưng SePay không bao giờ thấy</b> — không webhook, vé không tự xác nhận, sổ sao kê không '
+			. 'có một dòng nào để đi tìm. Xem dòng chữ đỏ ở trang SePay → <b>Tạo QR</b>.<br>'
+			. ( class_exists( 'VHG_May' )
+				? 'Ô này dùng chung với plugin Ghế (<code>vhg_tien_to_nd</code>) — sửa ở đây là cả hai cùng đổi.'
+				: 'Chưa cài plugin Ghế nên lưu riêng cho plugin vé.' )
+			. '</p></td></tr>';
 		echo '</table><p class="description">Để trống cả 3 ô = tự dùng lại tài khoản đã khai ở plugin ghế. Đang dùng: <b>'
 			. ( $b['so_tk'] ? esc_html( $b['so_tk'] . ' · ' . $b['ten_nh'] . ' · ' . $b['ten_tk'] ) : 'CHƯA CÓ — khách sẽ không tạo được QR' ) . '</b></p>';
 		echo '<p><button class="button button-primary" name="pve_bank" value="1">Lưu tài khoản</button></p></form><hr>';

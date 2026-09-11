@@ -183,6 +183,23 @@ khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
                                   \-> nhân viên quét -> r_soat() -> da_dung + coso_dung
 ```
 
+### 🔴 TIỀN TỐ `SEVQR` — mắt xích im lặng nhất
+Với **VietinBank tài khoản cá nhân / hộ kinh doanh**, SePay **bắt buộc** nội dung chuyển khoản
+phải chứa `SEVQR` mới định tuyến được giao dịch. Thiếu nó thì **tiền vẫn vào tài khoản, ngân hàng
+vẫn báo thành công, nhưng SePay không bao giờ thấy** — không webhook, vé không tự xác nhận, và sổ
+sao kê **không có lấy một dòng nào** để đi tìm.
+
+Từ **1.51.0** nội dung là `<tiền tố> VE<mã vé>` / `<tiền tố> NAP<mã nạp>`, dựng bằng
+`POSH_Ve::nd_ck()`. Tiền tố đọc từ option **dùng chung với plugin Ghế** (`vhg_tien_to_nd`) — hai
+plugin chạy qua một tài khoản SePay, khai hai nơi là sớm muộn một bên quên và hỏng đúng kiểu im
+lặng này. Chưa cài Ghế thì lùi về `pve_tien_to_nd`.
+
+⚠️ VietQR chỉ cho **25 ký tự** ở ô nội dung; dài hơn là ngân hàng tự cắt, cắt ở đâu tuỳ ngân hàng —
+cắt mất mã là đối soát mù. `SEVQR VEK7M2PQAB` mới 16 ký tự nên còn dư.
+
+⚠️ **Vé tạo TRƯỚC 1.51.0 không có tiền tố** → SePay chưa từng thấy chúng, không có gì để dò lại.
+Những vé ấy phải xác nhận tay ở Đơn hàng & soát vé.
+
 ### 🔴 NGÂN HÀNG KHÔNG TRẢ LẠI NGUYÊN VĂN NỘI DUNG CHUYỂN KHOẢN
 Nội dung về tay ta thường là `CT DEN:0123 VE HTTMEXEQ` hoặc `VE-HTTMEXEQ` — ngân hàng chèn thêm
 khoảng trắng, dấu gạch, chữ của chính nó. So chuỗi cứng là **trượt, mà trượt im lặng**: tiền vào
