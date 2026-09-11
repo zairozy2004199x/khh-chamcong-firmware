@@ -538,21 +538,35 @@
       <div class="ch"><h2>🔧 Chi phí Kỹ thuật</h2>
         <button class="btn b-x" onclick="loadDuAn()">↻ Tải lại</button></div>
       <div class="cb" style="padding:12px 14px">
-        <!-- 🔴 MỘT LỐI TẠO ĐƠN, KHÔNG PHẢI HAI — anh Thắng 11/09/2026: *"1. Tạo dự án / Tạo đơn.
-             2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí Cơ Sở. 3. Nếu chi phí cơ sở
-             thì chọn Tuần. 4. Nếu chi phí Setup / Tháo dỡ thì chọn gian"*.
-             Bản trước bày hai khối tạo cạnh nhau, mỗi khối một nút — người lập đơn phải tự đoán
-             mình thuộc khối nào. Nay chọn LOẠI trước, ô thứ hai tự đổi theo loại ấy. -->
-        <div style="font-size:12px;color:#64748b;margin-bottom:8px">Chọn <b>loại đơn</b> rồi điền ô bên cạnh: <b>Chi phí cơ sở</b> chọn <b>TUẦN</b> (một đơn gom nhiều gian) · <b>Setup</b> / <b>Tháo dỡ</b> chọn <b>GIAN</b> (mỗi lần một dự án riêng).</div>
-        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <div class="fld"><label>Loại đơn</label>
-            <select id="daLoai" onchange="daOnLoai()" style="min-width:250px"><option value="Setup lắp đặt">🆕 Chi phí Setup lắp đặt gian hàng</option><option value="Tháo dỡ">🧹 Chi phí Tháo dỡ</option><option value="Chi phí cơ sở">🏢 Chi phí cơ sở (1 đơn nhiều gian)</option></select></div>
-          <div class="fld" id="daTenBox"><label id="daTenLbl">Tên gian hàng mới (Setup)</label><input id="daTen" list="dl_coso_da" placeholder="Gõ tên gian hàng mới" style="min-width:280px"><datalist id="dl_coso_da"></datalist></div>
-          <div class="fld" id="daTuanBox" style="display:none"><label>Tuần</label><select id="daTuan" style="min-width:280px"></select></div>
-          <button class="btn b-p" onclick="createDuAnUI()">➕ Tạo đơn</button>
+        <!-- 🔴 BẤM "TẠO ĐƠN" RỒI MỚI HỎI LOẠI — anh Thắng 11/09/2026: *"Đối với kỹ thuật 2 cái
+             này gộp lại, khi bấm tạo đơn nó mới xổ ra để chọn chi phí cơ sở hay chi phí dự án"*,
+             và về ô xổ ba mục của bản trước: *"nên hiện cái cuối cùng này là sai"*.
+
+             Bày sẵn một ô xổ ba mục thì lúc nào cũng có MỘT mục đang được chọn — người mở trang
+             ra đã thấy "Chi phí cơ sở" nằm đó như thể mình đã chọn rồi, trong khi chưa chọn gì.
+             Nay mặc định chỉ có đúng một nút; bấm vào mới hỏi, và hỏi bằng hai nút rõ mặt chứ
+             không phải một danh sách phải xổ ra mới đọc được. -->
+        <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
           <button class="btn b-x" onclick="openCoSoChung()" title="Sổ chi phí cơ sở chung xuyên suốt của bản cũ — vẫn xem và nhập được, nhưng không đóng / không quyết toán theo tuần">🔧 Mở sổ chung (cũ)</button>
+          <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px">Bấm <b>Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN).</span>
         </div>
-        <span id="daCreateHint" style="font-size:11px;color:#94a3b8">Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Chi phí cơ sở = chọn TUẦN, rồi mỗi dòng ghi gian của nó. Xong bấm "🔒 Đóng dự án" — đơn đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
+        <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px;color:#334155;font-weight:700">Đơn này là gì?</span>
+            <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')">🏢 Chi phí cơ sở</button>
+            <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')">🏗 Chi phí dự án</button>
+            <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
+          </div>
+          <div id="daTaoChiTiet" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap;padding-top:10px">
+            <div class="fld" id="daLoaiBox" style="display:none"><label>Loại dự án</label>
+              <select id="daLoai" onchange="daOnLoai()" style="min-width:250px"><option value="Setup lắp đặt">🆕 Chi phí Setup lắp đặt gian hàng</option><option value="Tháo dỡ">🧹 Chi phí Tháo dỡ</option></select></div>
+            <div class="fld" id="daTenBox" style="display:none"><label id="daTenLbl">Tên gian hàng mới (Setup)</label><input id="daTen" list="dl_coso_da" placeholder="Gõ tên gian hàng mới" style="min-width:280px"><datalist id="dl_coso_da"></datalist></div>
+            <div class="fld" id="daTuanBox" style="display:none"><label>Tuần</label><select id="daTuan" style="min-width:280px"></select></div>
+            <button class="btn b-p" onclick="createDuAnUI()">➕ Lập đơn</button>
+          </div>
+          <span id="daCreateHint" style="display:block;font-size:11px;color:#94a3b8;padding-top:8px">Chi phí cơ sở = chọn TUẦN, rồi mỗi dòng ghi gian của nó. Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — đơn đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
+        </div>
       </div>
       <div style="padding:8px 14px 0"><select id="daListFilter" onchange="DA_TRANG=1;renderDuAnList()"><option value="Đang làm">⏳ Đang làm</option></select></div>
       <div class="tw"><table>
@@ -4081,14 +4095,51 @@
   var DA_CUR=null, DA_ITEMS=[], DA_EDIT_ROW=null, _daPendingLog=null;
   var DA_CHO_KEO=false;   // vừa tạo dự án -> còn nợ một cú kéo màn hình xuống chỗ nhập
   var DA_TRANG=1, DA_MOI_TRANG=10;   // anh Thắng 10/09/2026: "Chỉ hiện 10 đơn trên 1 trang"
-  /* Ô thứ hai đổi theo LOẠI ĐƠN — anh Thắng: *"Nếu chi phí cơ sở thì chọn Tuần. Nếu chi phí
-     Setup / Tháo dỡ thì chọn gian"*. */
-  function daOnLoai(){ var v=el('daLoai').value, laCS=(v==='Chi phí cơ sở'), setup=(v==='Setup lắp đặt');
-    if(el('daTenBox'))  el('daTenBox').style.display =laCS?'none':'';
-    if(el('daTuanBox')) el('daTuanBox').style.display=laCS?'':'none';
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+     BẤM "TẠO ĐƠN" RỒI MỚI HỎI ĐÂY LÀ ĐƠN GÌ.
+
+     Anh Thắng: *"khi bấm tạo đơn nó mới xổ ra để chọn chi phí cơ sở hay chi phí dự án"*, và về
+     ô xổ ba mục của bản trước: *"nên hiện cái cuối cùng này là sai"*.
+
+     🔴 KHÔNG CÓ LOẠI NÀO ĐƯỢC CHỌN SẴN. Một ô <select> luôn có một mục đang chọn, nên nó nói
+        dối: người chưa chọn gì vẫn thấy "Chi phí cơ sở" nằm sẵn, bấm Tạo là ra đơn sai loại mà
+        không ai gõ nhầm chữ nào. Ở đây `DA_NHOM` rỗng cho tới khi người dùng bấm một trong hai
+        nút, và `createDuAnUI()` chối lập đơn khi nó còn rỗng.
+     ══════════════════════════════════════════════════════════════════════════════════════ */
+  var DA_NHOM='';   // '' = chưa chọn · 'coso' = chi phí cơ sở (theo tuần) · 'duan' = Setup/Tháo dỡ
+  function daMoTao(){
+    if(el('daTaoNut')) el('daTaoNut').style.display='none';
+    if(el('daTaoBox')) el('daTaoBox').style.display='block';
+    daChonNhom('');   // mở ra là trắng, chưa chọn gì
+  }
+  function daDongTao(){
+    if(el('daTaoBox')) el('daTaoBox').style.display='none';
+    if(el('daTaoNut')) el('daTaoNut').style.display='flex';
+    DA_NHOM='';
+  }
+  function daChonNhom(n){
+    DA_NHOM=(n==='coso'||n==='duan')?n:'';
+    var cs=(DA_NHOM==='coso'), da=(DA_NHOM==='duan');
+    if(el('daTaoChiTiet')) el('daTaoChiTiet').style.display=DA_NHOM?'flex':'none';
+    if(el('daLoaiBox'))    el('daLoaiBox').style.display   =da?'':'none';
+    if(el('daTenBox'))     el('daTenBox').style.display    =da?'':'none';
+    if(el('daTuanBox'))    el('daTuanBox').style.display   =cs?'':'none';
+    /* Tô đậm nút đang chọn — hai nút cạnh nhau mà không cái nào đổi mặt thì bấm xong người
+       dùng không biết mình vừa chọn cái nào, nhất là khi phần chi tiết trượt xuống dưới. */
+    var to=function(id,on){ var b=el(id); if(b) b.className='btn '+(on?'b-p':'b-x'); };
+    to('daNhomCs', cs); to('daNhomDa', da);
+    if(cs) daNapTuan(); else if(da) daOnLoai();
+  }
+  /* Loại đơn ĐANG chọn — '' nghĩa là người dùng chưa chọn gì. */
+  function _daLoaiChon(){
+    if(DA_NHOM==='coso') return 'Chi phí cơ sở';
+    if(DA_NHOM==='duan') return (el('daLoai')&&el('daLoai').value)||'';
+    return '';
+  }
+  /* Nhánh dự án: nhãn ô gian đổi theo Setup / Tháo dỡ. */
+  function daOnLoai(){ var setup=((el('daLoai')&&el('daLoai').value)==='Setup lắp đặt');
     el('daTenLbl').textContent=setup?'Tên gian hàng mới (Setup)':'Chọn cơ sở (Tháo dỡ)';
     el('daTen').placeholder=setup?'Gõ tên gian hàng mới':'Chọn cơ sở có sẵn';
-    if(laCS) daNapTuan();
   }
   /* Tên đơn của một tuần.
      🔴 KHÔNG DÙNG DẤU "/" — `VHCP_Util::san()` thay mọi ký tự cấm tên sheet (`[ ] * ? / \ :`)
@@ -4202,7 +4253,8 @@
         nổi: hai dòng giống hệt nhau, mỗi dòng đã nhập vài khoản, không ai dám xoá dòng nào.
         Sổ thật đã có "ADV GO! AN LẠC" ba dòng và "FUNZONE VŨNG TÀU" hai dòng đúng vì lẽ đó. */
   function createDuAnUI(){
-    var loai=el('daLoai').value, laCS=(loai==='Chi phí cơ sở');
+    var loai=_daLoaiChon(), laCS=(loai==='Chi phí cơ sở');
+    if(!loai){ toast('warn','Chọn: Chi phí cơ sở hay Chi phí dự án'); return; }
     var ten='', tu='', den='', nhanTuan='';
     if(laCS){
       var sel=el('daTuan'), tuan=DA_TUAN[Number(sel&&sel.value)];
@@ -4228,6 +4280,7 @@
       if(r&&r.success){ _log(laCS?'Lập đơn chi phí cơ sở':'Tạo dự án KT', r.ten||ten, laCS?nhanTuan:loai);
         toast('ok', laCS?'Đã lập đơn — nhập chi phí từng gian ngay bên dưới':'Đã tạo dự án — nhập chi phí ngay bên dưới');
         if(!laCS) el('daTen').value='';
+        daDongTao();   // lập xong thì thu khối tạo lại, khỏi che mất đơn vừa mở
         loadDuAn();
         openDuAn(r.maDA, true);   // true = mở xong kéo thẳng tới chỗ nhập
       }

@@ -122,12 +122,15 @@ t('🔴 tên gian có thẻ HTML bị rào, không chạy được', !/<script>/
 /* ── 5. MỘT LỐI TẠO ĐƠN CHO CẢ BA LOẠI ───────────────────────────────────────────────────
    Anh Thắng: *"1. Tạo dự án / Tạo đơn. 2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí
    Cơ Sở. 3. Nếu chi phí cơ sở thì chọn Tuần. 4. Nếu Setup / Tháo dỡ thì chọn gian"*. */
-function beTao(loai) {
+function beTao() {
   const NK = { goi: null, toast: [], confirm: [], mo: [] };
   const KHO = {};
-  const O = id => ({ _id: id, style: { display: '' }, value: '', textContent: '', innerHTML: '', placeholder: '' });
+  /* ⚠️ Ô <select> THẬT LUÔN CÓ MỘT GIÁ TRỊ — mục đầu. Để `daLoai` rỗng trong bệ đỡ là dựng
+     một cái không có thật, và chốt "chưa chọn loại thì chối" sẽ xanh oan vì rỗng-gặp-rỗng. */
+  const O = id => ({ _id: id, style: { display: '' }, value: id === 'daLoai' ? 'Setup lắp đặt' : '',
+    textContent: '', innerHTML: '', placeholder: '', className: 'btn b-x' });
   const moi = {
-    DA_ITEMS: [], DA_TUAN: [], DA_CUR: null, DA_CHO_KEO: false,
+    DA_ITEMS: [], DA_TUAN: [], DA_NHOM: '', DA_CUR: null, DA_CHO_KEO: false,
     CURUSER: { name: 'KT', role: 'Nhân viên' },
     el: id => (KHO[id] = KHO[id] || O(id)),
     esc: x => String(x == null ? '' : x),
@@ -146,24 +149,67 @@ function beTao(loai) {
   };
   const src = `${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
     ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
+    ${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}
     ${boc('createDuAnUI')}
-    el('daLoai').value = LOAI; daOnLoai(); return { moi: moi, NK: NK, chay: createDuAnUI,
+    return { moi: moi, NK: NK, chay: createDuAnUI, moTao: daMoTao, dongTao: daDongTao,
+      chonNhom: daChonNhom, loaiChon: _daLoaiChon,
       tuanDs: _daTuanDs, tenTuan: _daTenTuan, mondayOf: _mondayOf };`;
-  moi.moi = moi; moi.NK = NK; moi.LOAI = loai;
+  moi.moi = moi; moi.NK = NK;
   return new Function('moi', `with(moi){ ${src} }`)(moi);
 }
 
-const CS = beTao('Chi phí cơ sở');
-t('🔴 chọn "Chi phí cơ sở": ẩn ô GIAN, hiện ô TUẦN',
-  CS.moi.el('daTenBox').style.display === 'none' && CS.moi.el('daTuanBox').style.display === '',
-  [CS.moi.el('daTenBox').style.display, CS.moi.el('daTuanBox').style.display]);
-t('   ô tuần được nạp sẵn danh sách', /<option value="0"/.test(CS.moi.el('daTuan').innerHTML), CS.moi.el('daTuan').innerHTML.slice(0, 120));
+/* 🔴 MẶC ĐỊNH KHÔNG BÀY GÌ CẢ — anh Thắng: *"khi bấm tạo đơn nó mới xổ ra"*, và về ô xổ ba
+   mục: *"nên hiện cái cuối cùng này là sai"*. */
+const T0 = beTao();
+t('🔴 chưa bấm Tạo đơn: KHÔNG loại nào được chọn sẵn', T0.loaiChon() === '', T0.loaiChon());
+T0.chay();
+t('🔴 chưa chọn loại mà bấm Lập đơn: KHÔNG gọi máy chủ', T0.NK.goi === null, T0.NK.goi);
+/* 🔴 CANH NỘI DUNG, KHÔNG CANH "CÓ TOAST". Nhánh nào cũng có toast — chối vì chưa chọn tuần
+   cũng có. Câu phải nói về việc chưa chọn LOẠI, kẻo mã ngã về một loại nào đó rồi chối ở bước
+   sau, và người dùng đọc "Chọn tuần" trong khi lỗi thật là chưa chọn cơ sở hay dự án. */
+t('   và câu báo nói về việc chưa chọn CƠ SỞ hay DỰ ÁN',
+  T0.NK.toast.length > 0 && /cơ sở/i.test(T0.NK.toast[0][1]) && /dự án/i.test(T0.NK.toast[0][1]), T0.NK.toast);
 
-const SU = beTao('Setup lắp đặt');
-t('🔴 chọn "Setup": hiện ô GIAN, ẩn ô TUẦN',
-  SU.moi.el('daTenBox').style.display === '' && SU.moi.el('daTuanBox').style.display === 'none',
-  [SU.moi.el('daTenBox').style.display, SU.moi.el('daTuanBox').style.display]);
-t('   nhãn ô đổi theo Setup / Tháo dỡ', SU.moi.el('daTenLbl').textContent.indexOf('Setup') >= 0, SU.moi.el('daTenLbl').textContent);
+/* 🔴 NHÓM LẠ KHÔNG ĐƯỢC NHẬN. `daChonNhom` nhận chuỗi từ thuộc tính onclick; nhận bừa thì một
+   ngày ai đó gõ sai tên nhóm là khối chi tiết mở ra với cả ba ô cùng ẩn, không báo gì. */
+const TX = beTao(); TX.moTao(); TX.chonNhom('linh-tinh');
+t('🔴 nhóm lạ bị bỏ, coi như chưa chọn', TX.loaiChon() === '', TX.loaiChon());
+t('   và phần chi tiết vẫn ẩn', TX.moi.el('daTaoChiTiet').style.display === 'none', TX.moi.el('daTaoChiTiet').style.display);
+
+const TM = beTao();
+TM.moTao();
+t('bấm Tạo đơn: nút thu lại, khối chọn xổ ra',
+  TM.moi.el('daTaoNut').style.display === 'none' && TM.moi.el('daTaoBox').style.display === 'block',
+  [TM.moi.el('daTaoNut').style.display, TM.moi.el('daTaoBox').style.display]);
+t('🔴 xổ ra rồi vẫn CHƯA chọn gì — phần chi tiết còn ẩn',
+  TM.moi.el('daTaoChiTiet').style.display === 'none' && TM.loaiChon() === '',
+  [TM.moi.el('daTaoChiTiet').style.display, TM.loaiChon()]);
+
+/* ── Chọn 🏢 Chi phí cơ sở ─────────────────────────────────────────────────────────────── */
+const CS = beTao(); CS.moTao(); CS.chonNhom('coso');
+t('🔴 chọn "Chi phí cơ sở": hiện ô TUẦN, ẩn ô GIAN và ô Loại dự án',
+  CS.moi.el('daTuanBox').style.display === '' && CS.moi.el('daTenBox').style.display === 'none'
+  && CS.moi.el('daLoaiBox').style.display === 'none',
+  [CS.moi.el('daTuanBox').style.display, CS.moi.el('daTenBox').style.display, CS.moi.el('daLoaiBox').style.display]);
+t('   loại đơn đang chọn là "Chi phí cơ sở"', CS.loaiChon() === 'Chi phí cơ sở', CS.loaiChon());
+t('   ô tuần được nạp sẵn danh sách', /<option value="0"/.test(CS.moi.el('daTuan').innerHTML), CS.moi.el('daTuan').innerHTML.slice(0, 120));
+t('   nút đang chọn được tô đậm, nút kia thì không',
+  CS.moi.el('daNhomCs').className.indexOf('b-p') >= 0 && CS.moi.el('daNhomDa').className.indexOf('b-p') < 0,
+  [CS.moi.el('daNhomCs').className, CS.moi.el('daNhomDa').className]);
+
+/* ── Chọn 🏗 Chi phí dự án ─────────────────────────────────────────────────────────────── */
+const DA = beTao(); DA.moTao(); DA.chonNhom('duan');
+t('🔴 chọn "Chi phí dự án": hiện ô Loại dự án + ô GIAN, ẩn ô TUẦN',
+  DA.moi.el('daLoaiBox').style.display === '' && DA.moi.el('daTenBox').style.display === ''
+  && DA.moi.el('daTuanBox').style.display === 'none',
+  [DA.moi.el('daLoaiBox').style.display, DA.moi.el('daTenBox').style.display, DA.moi.el('daTuanBox').style.display]);
+t('   nhãn ô gian nói rõ Setup hay Tháo dỡ', DA.moi.el('daTenLbl').textContent.length > 0, DA.moi.el('daTenLbl').textContent);
+/* Ô Loại dự án đang mang một giá trị thật — nếu `daDongTao()` quên xoá `DA_NHOM` thì
+   `loaiChon()` vẫn trả 'Tháo dỡ' sau khi đóng, và lần mở sau đã có sẵn một loại. */
+DA.moi.el('daLoai').value = 'Tháo dỡ';
+t('   đóng khối tạo thì nút Tạo đơn hiện lại và quên loại đã chọn',
+  (function () { DA.dongTao(); return DA.moi.el('daTaoNut').style.display === 'flex'
+    && DA.moi.el('daTaoBox').style.display === 'none' && DA.loaiChon() === ''; })(), DA.loaiChon());
 
 /* 🔴 TÊN ĐƠN KHÔNG ĐƯỢC CÓ "/" — VHCP_Util::san() thay nó bằng khoảng trắng, tên về tới sổ
    là gãy, và hai tuần khác nhau có thể ra cùng một tên. */
@@ -197,25 +243,31 @@ t('🔴 gửi KHOẢNG NGÀY của tuần đã chọn, không để rỗng',
   !!G && G.tu === ds[0].tu && G.den === ds[0].den, G);
 t('   tên đơn là tên tuần, không phải chữ người gõ', !!G && G.ten === ds[0].ten, G);
 t('   tạo xong mở thẳng đơn và kéo tới chỗ nhập', CS.NK.mo.length === 1 && CS.NK.mo[0][1] === true, CS.NK.mo);
+t('   và thu khối tạo lại, khỏi che mất đơn vừa mở',
+  CS.moi.el('daTaoBox').style.display === 'none' && CS.moi.el('daTaoNut').style.display === 'flex',
+  [CS.moi.el('daTaoBox').style.display, CS.moi.el('daTaoNut').style.display]);
 
 /* Chưa chọn tuần thì chối, KHÔNG gửi gì lên máy chủ. */
-const CS2 = beTao('Chi phí cơ sở');
+const CS2 = beTao(); CS2.moTao(); CS2.chonNhom('coso');
 CS2.moi.el('daTuan').value = '';
 CS2.moi.DA_TUAN = [];
 CS2.chay();
 t('🔴 chưa chọn tuần: KHÔNG gọi máy chủ', CS2.NK.goi === null, CS2.NK.goi);
 t('   và nói cho người dùng biết', CS2.NK.toast.length > 0, CS2.NK.toast);
 
-/* Setup vẫn đi đường cũ: gửi TÊN GIAN, không kèm tuần. */
-const SU2 = beTao('Setup lắp đặt');
+/* Nhánh dự án vẫn đi đường cũ: gửi TÊN GIAN, không kèm tuần. */
+const SU2 = beTao(); SU2.moTao(); SU2.chonNhom('duan');
+SU2.moi.el('daLoai').value = 'Setup lắp đặt';
 SU2.moi.el('daTen').value = 'Gian AEON Tân Phú';
 SU2.chay();
-t('Setup: gửi tên gian đã gõ', !!SU2.NK.goi && SU2.NK.goi.ten === 'Gian AEON Tân Phú', SU2.NK.goi);
-t('   Setup KHÔNG kèm khoảng ngày tuần', !!SU2.NK.goi && !SU2.NK.goi.tu && !SU2.NK.goi.den, SU2.NK.goi);
-const SU3 = beTao('Setup lắp đặt');
+t('dự án: gửi tên gian đã gõ', !!SU2.NK.goi && SU2.NK.goi.ten === 'Gian AEON Tân Phú', SU2.NK.goi);
+t('   gửi đúng loại Setup lắp đặt', !!SU2.NK.goi && SU2.NK.goi.l === 'Setup lắp đặt', SU2.NK.goi);
+t('   dự án KHÔNG kèm khoảng ngày tuần', !!SU2.NK.goi && !SU2.NK.goi.tu && !SU2.NK.goi.den, SU2.NK.goi);
+const SU3 = beTao(); SU3.moTao(); SU3.chonNhom('duan');
+SU3.moi.el('daLoai').value = 'Tháo dỡ';   // đã chọn loại rồi, chỉ thiếu TÊN
 SU3.moi.el('daTen').value = '';
 SU3.chay();
-t('   Setup bỏ trống tên: không gọi máy chủ', SU3.NK.goi === null, SU3.NK.goi);
+t('   dự án bỏ trống tên: không gọi máy chủ', SU3.NK.goi === null, SU3.NK.goi);
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════ */
 console.log('');

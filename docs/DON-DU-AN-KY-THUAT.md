@@ -158,15 +158,22 @@ Trước bản 1.124.0, chi phí cơ sở của Kỹ thuật là **một sổ ch
 mọi khoản dồn vào một chỗ. Chỗ ấy không đóng được, nên cũng không xin tạm ứng hay quyết toán theo
 đợt được — đúng thứ vừa dựng xong cho đơn dự án.
 
-Nay ở tab **🏗 Dự án · gian thi công** chỉ còn **một lối tạo đơn** (anh Thắng 11/09/2026: *"1. Tạo
-dự án / Tạo đơn. 2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí Cơ Sở. 3. Nếu chi phí cơ
-sở thì chọn Tuần. 4. Nếu chi phí Setup / Tháo dỡ thì chọn gian"*):
+Nay ở tab **🏗 Dự án · gian thi công** chỉ còn **một nút ➕ Tạo đơn**. Anh Thắng 11/09/2026:
+*"Đối với kỹ thuật 2 cái này gộp lại, khi bấm tạo đơn nó mới xổ ra để chọn chi phí cơ sở hay chi
+phí dự án"*. Bấm nút ấy mới xổ ra câu hỏi **"Đơn này là gì?"** với hai nút:
 
-| Chọn **Loại đơn** | Ô bên cạnh hỏi gì |
+| Bấm | Rồi hỏi tiếp |
 |---|---|
-| 🆕 Chi phí Setup lắp đặt gian hàng | **GIAN** — gõ tên gian mới |
-| 🧹 Chi phí Tháo dỡ | **GIAN** — chọn cơ sở có sẵn |
-| 🏢 Chi phí cơ sở (1 đơn nhiều gian) | **TUẦN** — chọn trong 8 tuần gần đây |
+| 🏢 **Chi phí cơ sở** | **TUẦN** — chọn trong 8 tuần gần đây |
+| 🏗 **Chi phí dự án** | **Loại** (Setup / Tháo dỡ) rồi **GIAN** |
+
+🔴 **Không loại nào được chọn sẵn.** Bản trước bày một ô `<select>` ba mục ngay trên trang; anh
+Thắng bảo *"nên hiện cái cuối cùng này là sai"* — và đúng: một ô `<select>` **luôn** có một mục
+đang chọn, nên nó nói dối. Người chưa chọn gì vẫn thấy "Chi phí cơ sở" nằm sẵn, bấm Tạo là ra đơn
+sai loại mà không ai gõ nhầm chữ nào. Nay chưa bấm một trong hai nút thì không có loại nào, và
+bấm **Lập đơn** lúc ấy bị chối kèm câu nói rõ phải chọn cơ sở hay dự án.
+
+Lập xong, khối tạo tự thu lại để không che mất đơn vừa mở.
 
 Mỗi tuần là **một đơn**, trong đơn ấy **mỗi dòng ghi gian của nó** ở ô *Gian / cơ sở* — một đơn
 gom nhiều gian, đúng như đơn bên POSH. Từ đó đơn đi trọn luồng đã mô tả ở trên: tích hạng mục →
