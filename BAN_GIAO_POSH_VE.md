@@ -183,6 +183,19 @@ khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
                                   \-> nhân viên quét -> r_soat() -> da_dung + coso_dung
 ```
 
+### 🔴 SITE NÀY CÓ **HAI** CỔNG NHẬN TIỀN — vé chỉ đọc một
+| Cổng | Của plugin | Ghi vào |
+|---|---|---|
+| `/ghe-tien` | Ghế | sổ thu của Ghế, phân loại theo `GHE<ghế>` / `MUA<đơn>` |
+| `/wp-json/saoke/v1/webhook` | Sao Kê | **sổ sao kê ngân hàng** |
+
+**Vé đối soát bằng sổ sao kê.** Nếu bên SePay chỉ khai cổng của Ghế thì tiền vé về vẫn đúng tài
+khoản, Ghế vẫn nhận gói, nhưng nội dung `SEVQR VE<mã>` không khớp luật nào của Ghế nên nằm lại đó
+— còn sổ sao kê **trống**, vé chờ mãi. Không ai thấy lỗi vì **chẳng bên nào sai cả**.
+
+→ Bên SePay phải khai **cả hai** webhook. Màn Kiểm tra hệ thống (từ 1.52.0) có mục *"Cổng Sao Kê
+đã nhận gói từ SePay"*: nếu đỏ, nó in sẵn đường dẫn cần dán vào SePay.
+
 ### 🔴 TIỀN TỐ `SEVQR` — mắt xích im lặng nhất
 Với **VietinBank tài khoản cá nhân / hộ kinh doanh**, SePay **bắt buộc** nội dung chuyển khoản
 phải chứa `SEVQR` mới định tuyến được giao dịch. Thiếu nó thì **tiền vẫn vào tài khoản, ngân hàng

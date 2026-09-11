@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.51.0
+ * Version:           1.52.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -2220,6 +2220,37 @@ class POSH_Ve {
 				. 'sổ sao kê không có một dòng nào. Khai ở Ghế Massage → Máy & cơ sở → "Tiền tố nội dung '
 				. 'chuyển khoản", hoặc ở WP Admin → Vé khu vui chơi → Tài khoản nhận tiền.' );
 
+		/**
+		 * 🔴 SEPAY ĐANG BẮN VỀ ĐÂU? Đây là câu hỏi mà cả tuần không ai trả lời được.
+		 *
+		 * Site này có HAI cổng nhận tiền, và chúng ghi vào HAI cuốn sổ khác nhau:
+		 *   · `/ghe-tien`  (plugin Ghế) — phân loại theo nội dung `GHE<ghế>` hoặc `MUA<đơn>`,
+		 *                   ghi vào sổ thu của Ghế.
+		 *   · `/wp-json/saoke/v1/webhook` (plugin Sao Kê) — ghi vào sổ sao kê ngân hàng.
+		 *
+		 * Vé đối soát bằng SỔ SAO KÊ. Nếu bên SePay chỉ khai cổng của Ghế thì tiền vé về vẫn
+		 * đúng tài khoản, Ghế vẫn nhận gói, nhưng nội dung "SEVQR VE<mã>" không khớp luật nào
+		 * của Ghế nên nó nằm lại đó — còn sổ sao kê thì TRỐNG, và vé chờ mãi. Không ai thấy lỗi
+		 * vì chẳng bên nào sai cả.
+		 *
+		 * Nên in thẳng đường dẫn cần dán vào SePay, kèm tình trạng đã nhận gói nào chưa.
+		 */
+		$log = get_option( 'saoke_weblog' );
+		$log = is_array( $log ) ? $log : array();
+		$wh_key = (string) get_option( 'saoke_webhook_key', '' );
+		$wh_url = function_exists( 'rest_url' ) ? ( esc_url_raw( rest_url( 'saoke/v1/webhook' ) ) . ( '' !== $wh_key ? '?key=' . rawurlencode( $wh_key ) : '' ) ) : '';
+		$lan_cuoi = '';
+		foreach ( $log as $d ) { if ( ! empty( $d['luc'] ) ) { $lan_cuoi = (string) $d['luc']; break; } }
+		$them( 'Cổng Sao Kê đã nhận gói từ SePay', '' !== $lan_cuoi,
+			'' !== $lan_cuoi
+				? ( count( $log ) . ' lượt, gần nhất ' . mysql2date( 'H:i d/m/Y', $lan_cuoi ) )
+				: 'CHƯA nhận gói nào',
+			'' !== $lan_cuoi ? '' :
+				'SePay có thể đang chỉ bắn về cổng của plugin Ghế (/ghe-tien) — cổng đó KHÔNG ghi vào sổ '
+				. 'sao kê mà vé dùng để đối soát. Vào SePay → Webhook, THÊM một webhook nữa trỏ vào: '
+				. $wh_url . ' — mở đường dẫn đó bằng trình duyệt trước, phải ra một dòng xác nhận thì '
+				. 'mới chắc hosting không chặn.' );
+
 		$co_sk = class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'tbl' );
 		$them( 'Plugin Sao Kê', $co_sk, $co_sk ? 'Đã cài và bật' : 'CHƯA có',
 			$co_sk ? '' : 'Chuyển khoản VietQR sẽ KHÔNG bao giờ tự xác nhận. Cài plugin Sao Kê trên cùng site này.' );
@@ -3555,9 +3586,9 @@ class POSH_Ve {
 					<div class="pql-h2">Tổng doanh thu 7 ngày</div>
 					<div class="pql-chart"><canvas id="pql-canvas"></canvas></div>
 					<div class="pql-h2">Bán theo kênh</div>
-					<table class="pql-tbl"><thead><tr><th>Kênh</th><th>Vé</th><th>Doanh thu</th></tr></thead>
+					<div class="pql-tblwrap"><table class="pql-tbl"><thead><tr><th>Kênh</th><th>Vé</th><th>Doanh thu</th></tr></thead>
 						<tbody><tr><td>📱 Zalo Mini App</td><td data-k="ve_zalo">—</td><td data-k="dt_zalo">—</td></tr>
-						<tr><td>🌐 Website</td><td data-k="ve_web">—</td><td data-k="dt_web">—</td></tr></tbody></table>
+						<tr><td>🌐 Website</td><td data-k="ve_web">—</td><td data-k="dt_web">—</td></tr></tbody></table></div>
 					<div class="pql-h2">Vé bán chạy</div>
 					<div class="pql-topban"></div>
 				</div><!-- /pane bc -->
@@ -3650,7 +3681,9 @@ class POSH_Ve {
 		   Cùng luật với trang khách: `--g2` là màu CHỮ vàng (phải đậm), nút vàng dùng `--gr`. */
 		.pql{ --g:#b8912a; --g2:#8a6d1b; --gr:linear-gradient(135deg,#e7cd7a,#d4af37);
 			--sf:#ffffff; --sf2:#f4f1e8; --bd:rgba(160,125,20,.26); --tx:#23201a; --mut:#6f6a5d;
-			box-sizing:border-box; width:100%; max-width:900px !important; margin:0 auto !important; min-height:100vh;
+			/* Rộng theo màn hình chứ đừng neo cứng: trên máy tính 1900px mà khoá 900px thì bảng
+			   khách bị bóp vào giữa, hai bên trống hoác — mà đây là màn người ta ngồi làm cả ngày. */
+			box-sizing:border-box; width:100%; max-width:1320px !important; margin:0 auto !important; min-height:100vh;
 			padding:24px 16px 56px; color:var(--tx);
 			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 		.pql *{ box-sizing:border-box; }
@@ -3741,7 +3774,13 @@ class POSH_Ve {
 			background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:12px; }
 		.pql-side-g{ font-size:11px; font-weight:800; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; margin:10px 8px 4px; }
 		.pql-side-g:first-child{ margin-top:2px; }
-		.pql-main{ flex:1; min-width:0; }
+		.pql-main{ flex:1; min-width:0; max-width:100%; }
+		/* Bảng nhiều cột CUỘN NGANG TRONG KHUNG CỦA NÓ, ở mọi khổ màn hình — không để nó kéo giãn
+		   cả trang. Thiếu `min-width:0` ở khối cha thì con flex không chịu co, và cái bảng 560px
+		   đẩy toàn trang rộng ra 560px trên điện thoại 390px: cả trang trượt ngang, thanh bên cũng
+		   lệch theo. Đây là bẫy quen của flexbox, không phải lỗi của bảng. */
+		.pql-layout{ min-width:0; }
+		.pql-khwrap, .pql-tblwrap{ width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 		.pql-tab{ width:100%; text-align:left; border:none; background:transparent; color:var(--tx); border-radius:10px; padding:11px 12px; font-weight:700; font-size:14px; cursor:pointer; }
 		.pql-tab:hover{ background:var(--sf2); }
 		.pql-tab.on{ background:var(--gr); color:#1a1204; }
@@ -3788,6 +3827,25 @@ class POSH_Ve {
 		.pql-don-act button{ flex:0 1 200px; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
 		.pql-don-act .go{ background:#16a34a; color:#fff; border:none; } .pql-don-act .use{ background:#2563eb; color:#fff; border:none; } .pql-don-act .no{ background:#dc2626; color:#fff; border:none; }
 		@media(max-width:560px){ .pql-2{ flex-direction:column; gap:0; } }
+		/* ── Điện thoại ─────────────────────────────────────────────────────────────────── */
+		@media(max-width:720px){
+			.pql{ padding:14px 10px 48px; }
+			/* Bốn ô KPI trên một hàng ở màn 360px là mỗi ô rộng 80px, số tiền xuống ba dòng. */
+			.pql-kpi{ grid-template-columns:repeat(2,1fr); }
+			.pql-2col{ grid-template-columns:1fr; }
+			/* Bảng có 6 cột thì trên điện thoại phải CUỘN NGANG được, đừng ép co chữ lại: bóp
+			   nhỏ thì tên khách xuống bốn dòng mà vẫn không đọc nổi số. */
+			.pql-khwrap .pql-tbl, .pql-tblwrap .pql-tbl{ min-width:560px; }
+			.pql-hrow{ flex-wrap:wrap; }
+			.pql-hrow input, .pql-hrow select{ flex:1 1 130px; min-width:0; }
+			.pql-bar{ flex-wrap:wrap; gap:8px; }
+			.pql-acts{ flex-wrap:wrap; }
+			.pql-acts button{ flex:1 1 140px; }
+		}
+		@media(max-width:420px){
+			.pql-kpi{ grid-template-columns:1fr 1fr; }
+			.pql-tab{ flex:1 0 46%; }
+		}
 		</style>
 
 		<script>
