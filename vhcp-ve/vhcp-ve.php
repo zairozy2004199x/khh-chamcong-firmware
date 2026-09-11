@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.44.1
+ * Version:           1.44.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -300,7 +300,7 @@ class POSH_Ve {
 		if ( '' === $ban ) { $ban = 'Vé ' . self::phien_ban(); }   // ít nhất phải biết bản của trang này
 		$h .= '<div class="pve-ban">© ' . esc_html( gmdate( 'Y' ) ) . ' '
 			. esc_html( self::ten_cty_ngan() ) . '. Toàn bộ bản quyền thuộc công ty. '
-			. '<span class="pve-ban-s">' . esc_html( $ban ) . '</span></div>';
+			. '<span class="pve-ban-s">' . esc_html( $ban ) . '</span> <span class="pve-ban-s pve-ban-js">JS ?</span></div>';
 		return $h;
 	}
 
@@ -322,8 +322,10 @@ class POSH_Ve {
 	}
 
 	public static function dong_phien_ban() {
-		$nho = get_transient( 'pve_dong_ban' );
-		if ( is_string( $nho ) ) { return $nho; }
+		/* ⚠️ KHÔNG nhớ đệm dòng này nữa. Dòng số bản chính là thứ người ta nhìn để biết
+		   "trang đã lên bản mới chưa" — đem nhớ đệm 1 giờ thì ngay sau khi cài đè nó vẫn khoe số
+		   cũ, và ta lại đi tìm lỗi ở chỗ không có lỗi. Đọc header vài tệp là rẻ hơn nhiều so với
+		   một buổi dò nhầm hướng. */
 		$ra = array();
 		if ( function_exists( 'wp_get_active_and_valid_plugins' ) ) {
 			foreach ( wp_get_active_and_valid_plugins() as $tep ) {
@@ -337,9 +339,7 @@ class POSH_Ve {
 			}
 		}
 		sort( $ra, SORT_NATURAL | SORT_FLAG_CASE );
-		$dong = $ra ? implode( ' · ', $ra ) : '';
-		set_transient( 'pve_dong_ban', $dong, HOUR_IN_SECONDS );
-		return $dong;
+		return $ra ? implode( ' · ', $ra ) : '';
 	}
 
 	/* ═══ DANH MỤC VÉ ═══════════════════════════════════════════════════════════════════════
@@ -2044,6 +2044,17 @@ class POSH_Ve {
 					if (window.__pveLoi && window.__pveLoi.length) { bang(window.__pveLoi.join('\n')); }
 				});
 			})();
+			/* Số bản do CHÍNH khối script này khai. So với số bản PHP in ở chân trang: hai số
+			   lệch nhau (hoặc chỗ này trống) nghĩa là trình duyệt đang chạy HTML cũ trong cache —
+			   đúng cái bẫy đã ghi trong tài liệu bàn giao của site này (SpeedyCache). Không có nó
+			   thì "bấm không ra gì" và "trang cũ" nhìn giống hệt nhau. */
+			var PVE_BAN_JS = <?php echo wp_json_encode( self::phien_ban() ); ?>;
+			try {
+				document.addEventListener('DOMContentLoaded', function(){
+					var o = document.querySelector('.pve-ban-js');
+					if (o) { o.textContent = 'JS ' + PVE_BAN_JS; }
+				});
+			} catch (e) {}
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
 			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
 			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở POSH_Ve::giam_tai_cho()
@@ -2087,8 +2098,16 @@ class POSH_Ve {
 			 * Nay việc bán hàng gắn TRƯỚC, và mỗi tính năng thêm sau đều bọc try/catch riêng
 			 * (xem boc()). Trang trưng bày có thể hỏng; đường mua vé thì không.
 			 */
-			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
-				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
+			/* Bắt bằng UỶ QUYỀN trên document thay vì gắn vào từng nút: thẻ vé bị vẽ lại, bị lọc
+			   ẩn/hiện, hay khối script chạy trước lúc thẻ vào DOM — cách này vẫn ăn. Gắn từng nút
+			   thì chỉ cần một trong mấy tình huống đó là nút chết lặng, đúng thứ vừa mất ba lượt
+			   để tìm. */
+			document.addEventListener('click', function(ev){
+				var b = ev.target && ev.target.closest ? ev.target.closest('.pve-buy') : null;
+				if (!b || b.disabled) return;
+				var card = b.closest('.pve-card'); if (!card) return;
+				ev.preventDefault();
+				moModal(card);
 			});
 
 			/* Bọc một tính năng phụ: hỏng thì ghi ra console + báo cho khối bắt lỗi, KHÔNG kéo
