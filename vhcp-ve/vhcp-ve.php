@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.44.0
+ * Version:           1.44.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1947,7 +1947,20 @@ class POSH_Ve {
 		</div>
 		</div>
 
-		<?php if ( $kvucs ) : ?>
+		<?php
+		/* 🔴 MÀN CHÀO MỪNG CHỈ CÒN KHI KHÔNG CÓ THANH TAB.
+		 *
+		 * Anh Thắng 11/09/2026: "bấm không đặt vé được". Dựng lại được bằng trình duyệt: lớp phủ
+		 * này position:fixed z-index:100000, khi hiện thì NÓ CHE NÚT ĐẶT VÉ — bấm vào nút là
+		 * trúng lớp phủ, không ra gì và không báo gì. Nó hiện mỗi khi chưa có khu nào lưu trong
+		 * sessionStorage; mà thanh tab thêm ở 1.40.0 lưu khu RỖNG mỗi lần bấm "Tất cả", nên lần
+		 * tải sau lớp phủ lại bật lên. Hai tính năng đúng riêng lẻ, ghép vào thì chặn mất lối mua.
+		 *
+		 * Thanh tab làm đúng việc của màn này (chọn khu) mà không che gì cả, nên có tab thì bỏ
+		 * hẳn lớp phủ. Giữ lại cho trường hợp chỉ có một khu — khi đó thanh tab khu không dựng.
+		 */
+		?>
+		<?php if ( $kvucs && ! $co_tab_kv ) : ?>
 		<div class="pve-wel" hidden>
 			<div class="pve-wel-box">
 				<div class="pve-wel-h">Chào mừng bạn! Vui lòng chọn khu vực</div>
@@ -2003,6 +2016,34 @@ class POSH_Ve {
 
 		<script>
 		(function(){
+			/* 🔴 LỖI JS PHẢI HIỆN RA. Ba lượt "bấm không ra gì" vừa rồi mất cả buổi vì lỗi nằm im
+			   trong console — mà không ai mở console khi đang đứng bán hàng. Nay lỗi nào chặn
+			   trang thì in thành một băng đỏ ngay trên đầu, chép được, gửi được. */
+			(function(){
+				function bang(txt){
+					try {
+						var d = document.getElementById('pve-loi-js');
+						if (!d) {
+							d = document.createElement('div'); d.id = 'pve-loi-js';
+							d.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:#7f1d1d;'
+								+ 'color:#fff;font:12px/1.5 ui-monospace,Menlo,monospace;padding:8px 12px;'
+								+ 'white-space:pre-wrap;word-break:break-word;max-height:40vh;overflow:auto';
+							(document.body || document.documentElement).appendChild(d);
+						}
+						d.textContent = (d.textContent ? d.textContent + '\n' : '⚠️ Lỗi trang bán vé (chụp màn hình gửi kỹ thuật):\n') + txt;
+					} catch (e) {}
+				}
+				window.addEventListener('error', function(ev){
+					bang((ev.message || 'lỗi') + '  @ ' + (ev.filename || '') + ':' + (ev.lineno || '?'));
+				});
+				window.addEventListener('unhandledrejection', function(ev){
+					var r = ev && ev.reason; bang('Promise: ' + ((r && r.message) || r));
+				});
+				/* Lỗi bị boc() nuốt cũng phải hiện — nó không chặn trang nhưng vẫn là hỏng. */
+				window.addEventListener('load', function(){
+					if (window.__pveLoi && window.__pveLoi.length) { bang(window.__pveLoi.join('\n')); }
+				});
+			})();
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
 			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
 			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở POSH_Ve::giam_tai_cho()
@@ -2035,6 +2076,31 @@ class POSH_Ve {
 			   và ô chọn cơ sở ở khung đặt vé nhanh. Ba chỗ mà ba hàm lọc riêng thì sớm muộn bấm
 			   một chỗ, hai chỗ kia nói khác — nên tất cả gọi chung pveLoc(). */
 			var PVE_KV = '', PVE_NHOM = '';
+			/* 🔴 GẮN NÚT ĐẶT VÉ TRƯỚC, TRƯỚC MỌI TÍNH NĂNG KHÁC.
+			 *
+			 * Anh Thắng 11/09/2026: "bấm không đặt vé được" — trong khi màn Kiểm tra hệ thống
+			 * xanh hết, tức máy chủ sạch. Chỗ gắn sự kiện cho nút nằm gần CUỐI khối script, sau
+			 * một loạt tính năng thêm sau (tem cửa hàng, định vị, thanh tab, dải danh mục…).
+			 * Một lỗi lúc chạy ở BẤT KỲ đoạn nào phía trên là cả phần còn lại không chạy, nút Đặt
+			 * vé không bao giờ được gắn — bấm không ra gì, không báo gì.
+			 *
+			 * Nay việc bán hàng gắn TRƯỚC, và mỗi tính năng thêm sau đều bọc try/catch riêng
+			 * (xem boc()). Trang trưng bày có thể hỏng; đường mua vé thì không.
+			 */
+			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
+				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
+			});
+
+			/* Bọc một tính năng phụ: hỏng thì ghi ra console + báo cho khối bắt lỗi, KHÔNG kéo
+			   theo phần còn lại của trang. */
+			function boc(ten, fn){
+				try { fn(); }
+				catch (e) {
+					try { console.error('[posh-ve] ' + ten + ':', e); } catch (x) {}
+					try { window.__pveLoi = (window.__pveLoi || []).concat(ten + ': ' + (e && e.message || e)); } catch (x) {}
+				}
+			}
+
 			function pveLoc(kv, nhom){
 				if (kv !== undefined && kv !== null) PVE_KV = kv;
 				if (nhom !== undefined && nhom !== null) PVE_NHOM = nhom;
@@ -2060,9 +2126,12 @@ class POSH_Ve {
 				   mà bấm Mua vé ngay lại ra vé của khu khác. */
 				var selCs = document.querySelector('.pve-qf-cs');
 				if (selCs && selCs.value !== PVE_KV){ selCs.value = PVE_KV; try{ selCs.dispatchEvent(new Event('change')); }catch(e){} }
-				try { sessionStorage.setItem('posh_kvuc', PVE_KV); } catch(e){}
+				/* Lưu cả cờ "đã chọn rồi": bấm "Tất cả" là một lựa chọn HỢP LỆ, không phải chưa
+				   chọn. Thiếu cờ này thì màn chào mừng (nếu còn dựng) coi như chưa ai chọn gì và
+				   bật lớp phủ lên che cả trang. */
+				try { sessionStorage.setItem('posh_kvuc', PVE_KV); sessionStorage.setItem('posh_kvuc_da', '1'); } catch(e){}
 			}
-			(function(){
+			boc('thanh tab lọc', function(){
 				var tabs = [].slice.call(document.querySelectorAll('.pve-tab, .pve-dmi'));
 				if (!tabs.length) return;
 				/* Đếm ngay trên nhãn: "Combo (1)" cho biết bấm vào có gì, khỏi bấm thử từng tab. */
@@ -2088,7 +2157,7 @@ class POSH_Ve {
 					var t0 = tabs.filter(function(x){ return x.getAttribute('data-loc')==='kv' && x.getAttribute('data-v')===kv0; })[0];
 					if (t0) t0.click();
 				}
-			})();
+			});
 
 			// ----- Màn chào mừng: chọn khu vực rồi lọc vé -----
 			var wel = document.querySelector('.pve-wel');
@@ -2113,9 +2182,11 @@ class POSH_Ve {
 				kvBtns.forEach(function(b){ b.onclick = function(){ chon(b.getAttribute('data-kv')); }; });
 				okBtn.onclick = function(){ wel.hidden = true; try{ sessionStorage.setItem(KVKEY, kvChon); }catch(e){} locKV(kvChon); };
 				if (bar){ var d = bar.querySelector('.pve-kvbar-doi'); if (d) d.onclick = function(e){ e.preventDefault(); wel.hidden = false; }; }
-				var daChon = ''; try{ daChon = sessionStorage.getItem(KVKEY) || ''; }catch(e){}
+				var daChon = '', daHoi = '';
+				try{ daChon = sessionStorage.getItem(KVKEY) || ''; daHoi = sessionStorage.getItem('posh_kvuc_da') || ''; }catch(e){}
 				var hopLe = kvBtns.some(function(b){ return b.getAttribute('data-kv') === daChon; });
-				if (daChon && hopLe) { chon(daChon); locKV(daChon); wel.hidden = true; }
+				if (daHoi && !daChon) { wel.hidden = true; }              // đã chọn "Tất cả" -> đừng hỏi lại
+				else if (daChon && hopLe) { chon(daChon); locKV(daChon); wel.hidden = true; }
 				else { chon(kvChon); wel.hidden = false; }
 			}
 
@@ -2127,7 +2198,7 @@ class POSH_Ve {
 			   Hỏi vị trí CHỈ khi có ?cs= — tự dưng hỏi GPS lúc khách mới vào xem giá là cách nhanh
 			   nhất để họ bấm Chặn, và trình duyệt nhớ lựa chọn ấy cho cả những lần sau. */
 			var PVE = { cs:null, pos:null, giam:0, kc:-1, vi:'' };
-			(function(){
+			boc('tem cửa hàng & định vị', function(){
 				var ma = '';
 				try { ma = (new URLSearchParams(location.search)).get('cs') || ''; } catch(e){}
 				ma = String(ma).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
@@ -2143,7 +2214,7 @@ class POSH_Ve {
 					if (PVE.kc <= PVE.cs.bk) { PVE.giam = PVE.cs.giam; } else { PVE.vi='o_xa'; }
 					xongVT();
 				}, function(){ PVE.vi='tu_choi'; xongVT(); }, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
-			})();
+			});
 			function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 			/* Haversine — cùng công thức với POSH_Ve::kc_met() bên máy chủ. Hai bên lệch nhau thì
 			   trang hứa giảm mà máy chủ không cho, khách đã bấm mua rồi mới thấy giá khác. */
@@ -2267,9 +2338,7 @@ class POSH_Ve {
 				setInterval(function(){ go(i + 1); }, 4000);
 			})();
 
-			document.querySelectorAll('.pve-card .pve-buy').forEach(function(b){
-				b.addEventListener('click', function(){ moModal(b.closest('.pve-card')); });
-			});
+			/* (Nút Đặt vé đã được gắn ở ngay đầu khối — xem "GẮN NÚT ĐẶT VÉ TRƯỚC".) */
 			mask.querySelector('.pve-x').addEventListener('click', dong);
 			mask.addEventListener('click', function(e){ if(e.target===mask) dong(); });
 
@@ -2424,7 +2493,9 @@ class POSH_Ve {
 		.pve-het{ opacity:.6; } .pve-het .pve-con{ color:#e07a7a; }
 		/* Popup mua vé */
 		.pve-mask[hidden], .pve-wel[hidden]{ display:none !important; }   /* [hidden] phải thắng display:flex */
-		.pve-mask{ position:fixed; inset:0; background:rgba(4,5,8,.72); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:99999; }
+		/* Hộp đặt vé phải nằm TRÊN mọi lớp phủ khác (màn chào mừng z-index 100000): thấp hơn là
+		   bấm mở được mà hộp bị chôn bên dưới, nhìn y như không có chuyện gì xảy ra. */
+		.pve-mask{ position:fixed; inset:0; background:rgba(4,5,8,.72); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100001; }
 		.pve-modal{ background:var(--sf); border:1px solid var(--bd); border-radius:18px; padding:22px; width:100%; max-width:390px; max-height:90vh; overflow:auto; position:relative; box-shadow:0 30px 80px rgba(0,0,0,.6); }
 		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:var(--mut); cursor:pointer; }
 		.pve-m-ten{ font-weight:800; font-size:18px; color:#fff; }
