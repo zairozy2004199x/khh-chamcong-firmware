@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.59.0
+ * Version:           1.60.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -490,6 +490,13 @@ class POSH_Ve {
 			$ma = self::ma_coso( isset( $x['ma'] ) ? $x['ma'] : '' );
 			if ( '' === $ma ) { $ma = self::ma_coso( $ten ); }
 			$ra[] = array( 'ten' => $ten, 'ma' => $ma,
+				/* Tỉnh/thành chỉ để GOM NHÓM trên bảng giá ngoài trang bán vé (mẫu anh Thắng gửi
+				   11/09/2026: chip xanh "Hồ Chí Minh" rồi mới tới các cơ sở). Bỏ trống thì cơ sở
+				   rơi vào nhóm "Cơ sở khác" chứ không biến mất — khai thiếu một ô không được phép
+				   làm mất một cửa hàng khỏi trang bán vé. */
+				'tinh' => trim( (string) ( isset( $x['tinh'] ) ? $x['tinh'] : '' ) ),
+				/* Ảnh bảng giá treo tại quầy: bấm "Xem giá vé" là phóng to đúng tấm này. */
+				'anh_gia' => esc_url_raw( (string) ( isset( $x['anh_gia'] ) ? $x['anh_gia'] : '' ) ),
 				'lat' => (float) ( isset( $x['lat'] ) ? $x['lat'] : 0 ),
 				'lng' => (float) ( isset( $x['lng'] ) ? $x['lng'] : 0 ),
 				/* % giảm khi khách quét tem QR ĐANG ĐỨNG tại cơ sở này. 0 = không giảm. */
@@ -3086,7 +3093,53 @@ class POSH_Ve {
 		</style>
 		<?php endif; ?>
 		<div class="pve-page">
-		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(255,253,246,.80),rgba(250,247,238,.92)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
+		<?php
+		/* ── Thanh trên cùng + bảng giá theo cơ sở ────────────────────────────────────────
+		   Anh Thắng 11/09/2026 gửi 5 ảnh trang Jump Arena làm mẫu: thanh trắng có hotline và
+		   hai nút gọi hành động, rồi bảng giá gom theo tỉnh/thành, mỗi cơ sở một dòng với
+		   khoảng giá và hai nút "Xem giá vé" / "Đặt vé".
+
+		   ⚠️ KHOẢNG GIÁ TÍNH TỪ VÉ ĐANG BÁN, không gõ tay. Gõ tay thì đổi giá vé ở màn quản
+		   trị xong ngoài trang vẫn treo giá cũ — khách đọc một đằng, tới quầy trả một nẻo, và
+		   người hứng là nhân viên. Cơ sở chưa có vé nào khai đúng tên vẫn hiện, ghi "Liên hệ":
+		   giấu cửa hàng đi thì khách tưởng đã đóng cửa. */
+		$hotline  = trim( (string) get_option( 'pve_hotline', '' ) );
+		$hotline2 = trim( (string) get_option( 'pve_hotline2', '' ) );
+		$mail_ht  = trim( (string) get_option( 'pve_email', '' ) );
+		$so_goi   = function ( $s ) { return preg_replace( '/[^0-9+]/', '', (string) $s ); };
+		$cs_ds    = self::ds_coso();
+		$gia_cs   = array();
+		foreach ( self::ds() as $g ) {
+			$kv = trim( (string) $g['khu_vuc'] );
+			if ( '' === $kv ) { continue; }
+			$k = self::squash_cs( $kv );
+			if ( ! isset( $gia_cs[ $k ] ) ) { $gia_cs[ $k ] = array( 'min' => (int) $g['gia'], 'max' => (int) $g['gia'] ); }
+			$gia_cs[ $k ]['min'] = min( $gia_cs[ $k ]['min'], (int) $g['gia'] );
+			$gia_cs[ $k ]['max'] = max( $gia_cs[ $k ]['max'], (int) $g['gia'] );
+		}
+		$cs_tinh = array();
+		foreach ( $cs_ds as $c ) {
+			$t = '' !== $c['tinh'] ? $c['tinh'] : 'Cơ sở khác';
+			$cs_tinh[ $t ][] = $c;
+		}
+		?>
+		<div class="pve-top">
+			<div class="pve-top-in">
+				<a class="pve-brand" href="#pve-ds">
+					<span class="pve-brand-t"><?php echo esc_html( self::ten_cty_ngan() ); ?></span>
+					<span class="pve-brand-p">Khu vui chơi</span>
+				</a>
+				<div class="pve-top-cta">
+					<a class="pve-nut-cam" href="#pve-qf">Đặt vé ngay</a>
+					<?php if ( $cs_ds ) : ?><a class="pve-nut-nv" href="#pve-bg">Địa điểm</a><?php endif; ?>
+				</div>
+				<div class="pve-top-hl">
+					<?php if ( $hotline ) : ?><span class="pve-hl"><i>CSKH &amp; đặt vé</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline ) ); ?>"><?php echo esc_html( $hotline ); ?></a></span><?php endif; ?>
+					<?php if ( $hotline2 ) : ?><span class="pve-hl"><i>Tư vấn đoàn / sự kiện</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline2 ) ); ?>"><?php echo esc_html( $hotline2 ); ?></a></span><?php endif; ?>
+				</div>
+			</div>
+		</div>
+		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(10,20,52,.60),rgba(10,20,52,.74)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
 			<div class="pve-hero-in">
 				<h1 class="pve-hero-t"><?php echo esc_html( $atts['hero'] ); ?></h1>
 				<?php if ( $atts['hero_phu'] ) : ?><p class="pve-hero-p"><?php echo esc_html( $atts['hero_phu'] ); ?></p><?php endif; ?>
@@ -3119,7 +3172,7 @@ class POSH_Ve {
 				<?php endif; ?>
 			</div>
 
-			<div class="pve-qf">
+			<div class="pve-qf" id="pve-qf">
 				<div class="pve-qf-h">🎟️ Đặt vé nhanh</div>
 				<div class="pve-qf-grid">
 					<input class="pve-qf-ten" placeholder="Họ và tên" autocomplete="name" value="<?php echo esc_attr( $ten_dn ); ?>">
@@ -3137,6 +3190,33 @@ class POSH_Ve {
 				<div class="pve-qf-err" hidden></div>
 				<div class="pve-qf-note">Hoặc chọn loại vé ở danh mục bên dưới ↓</div>
 			</div>
+			<?php if ( $cs_ds ) : ?>
+			<div class="pve-bg" id="pve-bg">
+				<h2 class="pve-bg-h">Bảng giá &amp; địa điểm</h2>
+				<p class="pve-bg-p">Chọn cơ sở gần bạn — giá vé lấy thẳng từ bảng giá đang bán, không phải bảng in sẵn.</p>
+				<?php foreach ( $cs_tinh as $ten_tinh => $ds_tinh ) : ?>
+					<div class="pve-bg-tinh"><span class="pve-chip"><?php echo esc_html( $ten_tinh ); ?></span></div>
+					<?php foreach ( $ds_tinh as $c ) :
+						$kk  = self::squash_cs( $c['ten'] );
+						$khg = isset( $gia_cs[ $kk ] ) ? $gia_cs[ $kk ] : null; ?>
+						<div class="pve-bg-r">
+							<div class="pve-bg-ten"><?php echo esc_html( $c['ten'] ); ?>
+								<?php if ( (int) $c['giam'] > 0 ) : ?><em class="pve-bg-giam">−<?php echo (int) $c['giam']; ?>% khi quét tem tại quầy</em><?php endif; ?>
+							</div>
+							<div class="pve-bg-gia">
+								<?php if ( $khg ) : ?>
+									<?php echo esc_html( number_format_i18n( $khg['min'] ) ); ?>đ<?php if ( $khg['max'] > $khg['min'] ) : ?> – <?php echo esc_html( number_format_i18n( $khg['max'] ) ); ?>đ<?php endif; ?>
+								<?php else : ?><span class="pve-bg-lh">Liên hệ</span><?php endif; ?>
+							</div>
+							<div class="pve-bg-nut">
+								<button type="button" class="pve-bg-xem" data-cs="<?php echo esc_attr( $c['ten'] ); ?>" data-anh="<?php echo esc_attr( $c['anh_gia'] ); ?>">Xem giá vé</button>
+								<button type="button" class="pve-bg-dat" data-cs="<?php echo esc_attr( $c['ten'] ); ?>">Đặt vé</button>
+							</div>
+						</div>
+					<?php endforeach; ?>
+				<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
 			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
 			<?php
 			/* Thanh lọc — anh Thắng 11/09/2026: "tạo tab phân loại các loại vé, các loại khu đang có".
@@ -3277,7 +3357,18 @@ class POSH_Ve {
 		   nói hai lần, hai nguồn, là sớm muộn hai chỗ lệch nhau. */
 		$chan_cty = self::chan_trang_html();
 		?>
-		<div class="pve-ft">
+		<div class="pve-ft" id="pve-lh">
+			<?php
+			/* Cột hỗ trợ tách riêng khối công ty: số điện thoại là thứ khách tìm khi đang đứng
+			   trước quầy, chôn nó trong đoạn thông tin pháp nhân là bắt người ta đọc cả đoạn. */
+			?>
+			<?php if ( $hotline || $hotline2 || $mail_ht ) : ?>
+			<div class="pve-ft-hl">
+				<?php if ( $hotline ) : ?><div class="pve-ft-hli"><i>CSKH &amp; đặt vé</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline ) ); ?>"><?php echo esc_html( $hotline ); ?></a></div><?php endif; ?>
+				<?php if ( $hotline2 ) : ?><div class="pve-ft-hli"><i>Tư vấn đoàn / sự kiện</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline2 ) ); ?>"><?php echo esc_html( $hotline2 ); ?></a></div><?php endif; ?>
+				<?php if ( $mail_ht ) : ?><div class="pve-ft-hli"><i>Email hỗ trợ</i><a href="mailto:<?php echo esc_attr( $mail_ht ); ?>"><?php echo esc_html( $mail_ht ); ?></a></div><?php endif; ?>
+			</div>
+			<?php endif; ?>
 			<?php if ( '' !== $chan_cty ) : ?>
 				<?php echo $chan_cty; // phpcs:ignore WordPress.Security.EscapeOutput — HTML đã dựng sẵn, đã escape từng trường ?>
 			<?php else : ?>
@@ -3334,6 +3425,13 @@ class POSH_Ve {
 		<?php /* Nút giỏ do MÁY CHỦ dựng, cùng lý do với nút 🩺: thấy nút = bản mới đã sống. JS chỉ
 				 gắn việc và cập nhật con số. Ẩn sẵn, có vé trong giỏ mới hiện. */ ?>
 		<button type="button" id="pve-gio-nut" class="pve-gio-nut" hidden>🛒 <span class="pve-gio-n">0</span></button>
+		<?php /* Hộp phóng to ảnh bảng giá treo tại quầy. Dựng sẵn ở máy chủ, JS chỉ mở/đóng. */ ?>
+		<div class="pve-lb" id="pve-lb" hidden>
+			<div class="pve-lb-in">
+				<div class="pve-lb-h"><b class="pve-lb-ten"></b><button type="button" class="pve-lb-x" aria-label="Đóng">✕</button></div>
+				<img class="pve-lb-anh" src="" alt="Bảng giá">
+			</div>
+		</div>
 		<button type="button" id="pve-vi-nut" class="pve-vi-nut" hidden>🎫 <span class="pve-vi-n">0</span></button>
 
 		<div class="pve-mask" hidden>
@@ -3466,30 +3564,30 @@ class POSH_Ve {
 		   1. Bộ biến phải khai Ở CẢ `.pve-mask, .pve-wel` bên dưới — hai khối ấy bị JS đưa ra
 		      thẳng <body>, ra khỏi .pve-page là mất biến (xem chú thích tại chỗ).
 		   2. `--g2` là màu CHỮ vàng, phải đủ đậm để đọc trên nền trắng. Nút vàng KHÔNG dùng
-		      --g2 nữa mà dùng `--gr` (dải vàng sáng + chữ #1a1204) — trước đây nút và chữ dùng
+		      --g2 nữa mà dùng `--gr` (dải vàng sáng + chữ #ffffff) — trước đây nút và chữ dùng
 		      chung một màu, nên hễ làm chữ đọc được thì nút xỉn, làm nút đẹp thì chữ mờ tịt. */
-		.pve-page{ --g:#b8912a; --g2:#8a6d1b; --gr:linear-gradient(135deg,#e7cd7a,#d4af37);
-			--bg:#f7f5ef; --sf:#ffffff; --sf2:#f4f1e8; --bd:rgba(160,125,20,.26);
-			--tx:#23201a; --mut:#6f6a5d; width:100vw; margin-left:calc(50% - 50vw); background:var(--bg); color:var(--tx);
+		.pve-page{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
+			--bg:#f1f4fa; --sf:#ffffff; --sf2:#eaeff8; --bd:rgba(20,40,107,.16);
+			--tx:#1a2340; --mut:#6b7386; width:100vw; margin-left:calc(50% - 50vw); background:var(--bg); color:var(--tx);
 			overflow:hidden; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-		.pve-page ::selection{ background:var(--g); color:#1b1810; }
+		.pve-page ::selection{ background:var(--g); color:#14286b; }
 		/* Hero */
-		.pve-hero{ position:relative; background:radial-gradient(1200px 500px at 50% -10%,rgba(212,175,55,.30),transparent 60%),#fbf9f3;
+		.pve-hero{ position:relative; background:radial-gradient(900px 420px at 50% 0%,rgba(243,111,33,.45),transparent 62%),linear-gradient(160deg,#14286b,#0a1538);
 			background-size:cover; background-position:center; padding:84px 20px 78px; text-align:center; border-bottom:1px solid var(--bd); }
 		.pve-hero::after{ content:""; position:absolute; left:0; right:0; bottom:0; height:1px; background:linear-gradient(90deg,transparent,var(--g),transparent); opacity:.6; }
 		.pve-hero-in{ max-width:820px; margin:0 auto; position:relative; }
-		.pve-hero-t{ color:#1b1810; font-family:Georgia,"Times New Roman",serif; font-size:clamp(30px,5.4vw,52px); font-weight:700;
+		.pve-hero-t{ color:#fff; font-size:clamp(28px,5.4vw,50px); font-weight:900; text-transform:uppercase;
 			margin:0 0 16px; line-height:1.12; letter-spacing:.5px; }
 		.pve-hero-t::after{ content:""; display:block; width:64px; height:2px; margin:18px auto 0; background:linear-gradient(90deg,transparent,var(--g),transparent); }
-		.pve-hero-p{ color:#5d574a; font-size:clamp(14px,2.3vw,18px); margin:0 0 26px; letter-spacing:.3px; }
-		.pve-hero-btn{ display:inline-block; background:var(--gr); color:#1a1204; font-weight:800;
+		.pve-hero-p{ color:rgba(255,255,255,.86); font-size:clamp(14px,2.3vw,18px); margin:0 0 26px; letter-spacing:.3px; }
+		.pve-hero-btn{ display:inline-block; background:var(--gr); color:#ffffff; font-weight:800;
 			font-size:15px; letter-spacing:.5px; padding:14px 34px; border-radius:999px; text-decoration:none; text-transform:uppercase;
-			box-shadow:0 10px 30px rgba(212,175,55,.28); }
-		.pve-hero-btn:hover{ filter:brightness(1.06); color:#1a1204; }
+			box-shadow:0 10px 30px rgba(243,111,33,.28); }
+		.pve-hero-btn:hover{ filter:brightness(1.06); color:#ffffff; }
 		/* --ft-le: đúng bằng padding ngang của khung, để chân trang kéo ra sát mép khung thay vì
 		   nằm thụt vào thành một hộp lửng lơ. */
 		.pve-wrap{ --ft-le:16px; max-width:1080px; margin:0 auto; padding:34px 16px 44px; }
-		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; color:#1b1810; }
+		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; color:#14286b; }
 		/* Thanh lọc: hai hàng, cuộn ngang được trên điện thoại thay vì xuống dòng lung tung. */
 		.pve-tabs{ margin:0 0 22px; display:flex; flex-direction:column; gap:8px; }
 		.pve-tabr{ display:flex; gap:8px; align-items:center; overflow-x:auto; padding-bottom:2px;
@@ -3501,11 +3599,11 @@ class POSH_Ve {
 			transition:background .15s,border-color .15s,color .15s; }
 		.pve-tab:hover{ background:rgba(255,255,255,.09); }
 		.pve-tab.on{ background:var(--gr); border-color:transparent;
-			color:#1a1204; font-weight:800; }
+			color:#ffffff; font-weight:800; }
 		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
 		.pve-tab.on .pve-tab-n{ opacity:.75; }
 		.pve-tab-trong{ color:var(--mut); font-size:14px; padding:6px 2px; }
-		.pve-ban{ margin-top:14px; color:#8b8576; font-size:11px; line-height:1.6; max-width:760px;
+		.pve-ban{ margin-top:14px; color:#8790a6; font-size:11px; line-height:1.6; max-width:760px;
 			margin-left:auto; margin-right:auto; }
 		.pve-ban-s{ white-space:nowrap; }
 		.pve-uucard{ cursor:default; }
@@ -3530,30 +3628,30 @@ class POSH_Ve {
 		.pve-empty{ color:var(--mut); }
 		/* Section + lưới vé */
 		.pve-sec{ margin-bottom:40px; }
-		.pve-sec-h{ font-family:Georgia,"Times New Roman",serif; font-size:24px; font-weight:700; color:#1b1810; margin:0 0 18px;
+		.pve-sec-h{ font-size:21px; font-weight:900; text-transform:uppercase; letter-spacing:.3px; color:#14286b; margin:0 0 18px;
 			padding-bottom:10px; border-bottom:1px solid var(--bd); position:relative; }
 		.pve-sec-h::after{ content:""; position:absolute; left:0; bottom:-1px; width:54px; height:2px; background:var(--g); }
 		.pve-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:18px; }
 		.pve-card{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
 			transition:transform .18s ease,box-shadow .18s ease,border-color .18s; }
-		.pve-card:hover{ transform:translateY(-4px); border-color:rgba(212,175,55,.5); box-shadow:0 14px 32px rgba(60,50,20,.18); }
+		.pve-card:hover{ transform:translateY(-4px); border-color:rgba(243,111,33,.5); box-shadow:0 14px 32px rgba(60,50,20,.18); }
 		.pve-img{ position:relative; aspect-ratio:4/3; background:#0f1116; }
 		.pve-img img{ width:100%; height:100%; object-fit:cover; }
 		.pve-img::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(11,12,16,.65)); }
 		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; opacity:.5; }
-		.pve-sale{ position:absolute; top:10px; left:10px; z-index:2; background:var(--gr); color:#1a1204;
+		.pve-sale{ position:absolute; top:10px; left:10px; z-index:2; background:var(--gr); color:#ffffff;
 			font-weight:800; font-size:12px; padding:4px 11px; border-radius:999px; }
 		.pve-body{ padding:14px 14px 15px; display:flex; flex-direction:column; gap:6px; flex:1; }
-		.pve-ten{ font-weight:700; font-size:16px; color:#1b1810; line-height:1.3; }
+		.pve-ten{ font-weight:700; font-size:16px; color:#14286b; line-height:1.3; }
 		.pve-tl{ color:var(--mut); font-size:12px; }
 		.pve-mota{ color:var(--mut); font-size:12px; line-height:1.45; }
 		.pve-foot{ display:flex; justify-content:space-between; align-items:flex-end; margin-top:auto; padding-top:10px; }
 		.pve-gia{ font-size:19px; font-weight:800; color:var(--g2); }
-		.pve-goc{ font-size:12px; color:#8b8576; text-decoration:line-through; margin-left:6px; }
+		.pve-goc{ font-size:12px; color:#8790a6; text-decoration:line-through; margin-left:6px; }
 		.pve-buy{ border:1px solid var(--g); background:transparent; color:var(--g2); font-weight:700; font-size:13px; letter-spacing:.3px;
 			padding:9px 16px; border-radius:999px; cursor:pointer; transition:.15s; }
-		.pve-buy:hover{ background:var(--gr); color:#1a1204; }
-		.pve-buy[disabled]{ border-color:#3a3a3a; color:#8b8576; background:transparent; cursor:not-allowed; }
+		.pve-buy:hover{ background:var(--gr); color:#ffffff; }
+		.pve-buy[disabled]{ border-color:#3a3a3a; color:#8790a6; background:transparent; cursor:not-allowed; }
 		.pve-con{ font-size:12px; color:var(--mut); font-weight:600; }
 		.pve-het{ opacity:.6; } .pve-het .pve-con{ color:#e07a7a; }
 		/* Popup mua vé */
@@ -3564,8 +3662,11 @@ class POSH_Ve {
 		   giá trị" và color tụt về kế thừa — tức màu chữ mặc định của theme, ĐEN trên nền đen.
 		   Đúng lỗi 11/09/2026 "nếu chữ đen": gõ tên vào ô mà không đọc được mình vừa gõ gì.
 		   Đổi màu ở .pve-page thì đổi cả ở đây. */
-		.pve-mask, .pve-wel{ --g:#b8912a; --g2:#8a6d1b; --gr:linear-gradient(135deg,#e7cd7a,#d4af37);
-			--bg:#f7f5ef; --sf:#ffffff; --sf2:#f4f1e8; --bd:rgba(160,125,20,.26); --tx:#23201a; --mut:#6f6a5d; }
+		/* .pve-lb (hộp phóng to bảng giá) nằm NGOÀI .pve-page — cùng cái bẫy đã ghi ở trên:
+		   ra khỏi .pve-page là mất bộ biến, `color:var(--nv)` thành không hợp lệ và chữ tụt về
+		   màu kế thừa của theme. Khai lại ở đây, đừng bỏ nó khỏi danh sách này. */
+		.pve-mask, .pve-wel, .pve-lb{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
+			--bg:#f1f4fa; --sf:#ffffff; --sf2:#eaeff8; --bd:rgba(20,40,107,.16); --tx:#1a2340; --mut:#6b7386; }
 		/* Và chốt thẳng màu chữ ô nhập: nhiều theme đặt color/-webkit-text-fill-color cho input với
 		   độ ưu tiên cao hơn, biến có đúng vẫn bị đè. Ô nhập thì phải đọc được, không thương lượng. */
 		.pve-in, .pve-qf-grid input, .pve-qf-grid select{ color:#23201a !important; -webkit-text-fill-color:#23201a !important; }
@@ -3573,43 +3674,43 @@ class POSH_Ve {
 		.pve-mask[hidden], .pve-wel[hidden]{ display:none !important; }   /* [hidden] phải thắng display:flex */
 		/* Hộp đặt vé phải nằm TRÊN mọi lớp phủ khác (màn chào mừng z-index 100000): thấp hơn là
 		   bấm mở được mà hộp bị chôn bên dưới, nhìn y như không có chuyện gì xảy ra. */
-		.pve-mask{ position:fixed; inset:0; background:rgba(32,28,18,.45); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100001; }
+		.pve-mask{ position:fixed; inset:0; background:rgba(12,22,52,.55); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100001; }
 		.pve-modal{ background:var(--sf); border:1px solid var(--bd); border-radius:18px; padding:22px; width:100%; max-width:390px; max-height:90vh; overflow:auto; position:relative; box-shadow:0 24px 60px rgba(60,50,20,.28); }
 		.pve-x{ position:absolute; top:10px; right:12px; border:none; background:none; font-size:26px; line-height:1; color:var(--mut); cursor:pointer; }
-		.pve-m-ten{ font-weight:800; font-size:18px; color:#1b1810; }
+		.pve-m-ten{ font-weight:800; font-size:18px; color:#14286b; }
 		.pve-m-gia{ font-weight:800; font-size:21px; color:var(--g2); margin:2px 0 14px; }
 		.pve-lb{ display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; font-weight:600; }
 		.pve-in{ width:100%; box-sizing:border-box; border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 13px; font-size:15px; }
 		.pve-zme{ display:flex; align-items:center; gap:8px; margin:2px 0 10px; padding:8px 10px; border-radius:10px;
-			background:rgba(212,175,55,.1); border:1px solid var(--bd); color:var(--g2); font-size:12.5px; }
+			background:rgba(243,111,33,.1); border:1px solid var(--bd); color:var(--g2); font-size:12.5px; }
 		.pve-zme[hidden]{ display:none; }
 		.pve-zme img{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
-		.pve-zme b{ color:#1b1810; }
-		.pve-in::placeholder{ color:#8b8576; }
+		.pve-zme b{ color:#14286b; }
+		.pve-in::placeholder{ color:#8790a6; }
 		.pve-in:focus{ outline:none; border-color:var(--g); }
 		/* ── Giỏ vé ─────────────────────────────────────────────────────────────────────── */
 		.pve-them{ border:1px solid var(--bd); background:var(--sf2); color:var(--g2); font-weight:800; font-size:15px;
 			line-height:1; padding:8px 11px; border-radius:9px; cursor:pointer; flex:none; }
-		.pve-them:hover{ border-color:var(--g); background:rgba(212,175,55,.14); }
-		.pve-them.da{ background:var(--gr); color:#1a1204; border-color:var(--g); }
+		.pve-them:hover{ border-color:var(--g); background:rgba(243,111,33,.14); }
+		.pve-them.da{ background:var(--gr); color:#ffffff; border-color:var(--g); }
 		/* Nút giỏ nổi. Đứng trên nút 🩺 (nút soi ở bottom:12px) để hai nút không chồng lên nhau. */
 		.pve-gio-nut{ position:fixed; right:12px; bottom:70px; z-index:100002; display:flex; align-items:center; gap:7px;
 			padding:11px 16px; border:none; border-radius:999px; cursor:pointer; font-size:15px; font-weight:800;
-			background:var(--gr); color:#1a1204; box-shadow:0 8px 22px rgba(60,50,20,.22); }
+			background:var(--gr); color:#ffffff; box-shadow:0 8px 22px rgba(60,50,20,.22); }
 		.pve-gio-nut[hidden]{ display:none; }
 		.pve-gio-n{ background:#3a2c07; color:#f3dc9a; border-radius:999px; min-width:21px; padding:1px 6px; font-size:13px; text-align:center; }
 		.pve-vi-nut{ position:fixed; right:12px; bottom:126px; z-index:100002; display:flex; align-items:center; gap:7px;
 			padding:11px 16px; border:1px solid var(--g); border-radius:999px; cursor:pointer; font-size:15px; font-weight:800;
-			background:#fff; color:#8a6d1b; box-shadow:0 8px 22px rgba(60,50,20,.22); }
+			background:#fff; color:#14286b; box-shadow:0 8px 22px rgba(60,50,20,.22); }
 		.pve-vi-nut[hidden]{ display:none; }
-		.pve-vi-n{ background:#8a6d1b; color:#fff; border-radius:999px; min-width:21px; padding:1px 6px; font-size:13px; text-align:center; }
+		.pve-vi-n{ background:#14286b; color:#fff; border-radius:999px; min-width:21px; padding:1px 6px; font-size:13px; text-align:center; }
 		.pve-vi-the{ border:1px solid var(--bd); border-radius:14px; padding:12px; margin:12px 0; background:var(--sf2); }
 		.pve-vi-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
 		.pve-vi-goi{ font-weight:700; color:var(--tx); font-size:14px; }
 		.pve-vi-ma{ font:800 19px/1.2 ui-monospace,Menlo,monospace; color:var(--g2); letter-spacing:1.5px; margin:6px 0 2px; }
 		.pve-vi-qr{ position:relative; background:#fff; border-radius:12px; padding:10px; width:max-content;
 			max-width:100%; margin:10px auto 4px; cursor:pointer; }
-		.pve-vi-qr .pve-vi-to{ display:block; text-align:center; font-size:11px; color:#8b8576; margin-top:6px; }
+		.pve-vi-qr .pve-vi-to{ display:block; text-align:center; font-size:11px; color:#8790a6; margin-top:6px; }
 		/* Vé đã dùng / đã huỷ: vẫn cho quét để tra, nhưng phải nhìn ra ngay là không dùng được. */
 		.pve-vi-qr.mo svg{ opacity:.26; }
 		.pve-vi-qr.mo .pve-vi-dau{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
@@ -3657,23 +3758,23 @@ class POSH_Ve {
 		.pve-gio-tong{ display:flex; justify-content:space-between; align-items:center; margin-top:12px;
 			padding-top:12px; border-top:1px solid var(--bd); font-size:14px; color:var(--mut); }
 		.pve-gio-tien{ font-size:20px; font-weight:800; color:var(--g2); }
-		.pve-go{ width:100%; margin-top:16px; border:none; background:var(--gr); color:#1a1204; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
+		.pve-go{ width:100%; margin-top:16px; border:none; background:var(--gr); color:#ffffff; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
 		/* Nút trả bằng ví: KHÔNG đặt lớp .pve-go. Popup có bốn bước dùng chung khung, mà JS tra
 		   '.pve-step-form .pve-go' — thêm một .pve-go thứ hai vào cùng bước là lại đúng cái bẫy đã
 		   làm chết nút Đặt vé ở 1.48.0. */
 		.pve-go2{ width:100%; margin-top:14px; border:1.5px solid var(--g); background:transparent; color:var(--g2);
 			font-weight:800; font-size:15px; padding:12px; border-radius:12px; cursor:pointer; }
 		.pve-go2[hidden]{ display:none; }
-		.pve-go2:hover{ background:rgba(212,175,55,.12); }
-		.pve-m-ten2{ font-weight:800; font-size:18px; color:#1b1810; }
-		.pve-m-ten3{ font-weight:800; font-size:18px; color:#1b1810; margin-bottom:4px; }
+		.pve-go2:hover{ background:rgba(243,111,33,.12); }
+		.pve-m-ten2{ font-weight:800; font-size:18px; color:#14286b; }
+		.pve-m-ten3{ font-weight:800; font-size:18px; color:#14286b; margin-bottom:4px; }
 		.pve-tt-tom{ color:var(--mut); font-size:13.5px; line-height:1.6; margin-bottom:16px; }
 		.pve-tt-tom b{ color:var(--g2); font-size:19px; }
 		.pve-tt-vi, .pve-tt-ck{ display:block; width:100%; text-align:left; border:1.5px solid var(--bd);
 			background:var(--sf2); color:var(--tx); border-radius:14px; padding:14px 16px; margin-bottom:10px; cursor:pointer; }
 		.pve-tt-vi b, .pve-tt-ck b{ display:block; font-size:16px; }
 		.pve-tt-vi small, .pve-tt-ck small{ display:block; color:var(--mut); font-size:12.5px; margin-top:3px; }
-		.pve-tt-vi:hover, .pve-tt-ck:hover{ border-color:var(--g); background:rgba(212,175,55,.10); }
+		.pve-tt-vi:hover, .pve-tt-ck:hover{ border-color:var(--g); background:rgba(243,111,33,.10); }
 		.pve-tt-vi[disabled]{ opacity:.55; cursor:not-allowed; }
 		.pve-tt-vi[disabled]:hover{ border-color:var(--bd); background:var(--sf2); }
 		.pve-tt-quay{ width:100%; border:none; background:transparent; color:var(--mut); font-size:13px;
@@ -3681,8 +3782,8 @@ class POSH_Ve {
 		.pve-nap-sd{ color:var(--mut); font-size:13px; margin:2px 0 12px; } .pve-nap-sd b{ color:var(--g2); font-size:16px; }
 		.pve-nap-goi{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 		.pve-nap-i{ border:1.5px solid #ddd6c4; background:var(--sf2); border-radius:12px; padding:11px 8px; cursor:pointer; text-align:center; }
-		.pve-nap-i.on{ border-color:var(--g); background:rgba(212,175,55,.14); }
-		.pve-nap-i b{ display:block; font-size:15px; color:#1b1810; }
+		.pve-nap-i.on{ border-color:var(--g); background:rgba(243,111,33,.14); }
+		.pve-nap-i b{ display:block; font-size:15px; color:#14286b; }
 		.pve-nap-i small{ color:#166534; font-weight:700; font-size:12px; }
 		/* [hidden] phải thắng display:block/flex — không thì `el.hidden = true` chẳng giấu được gì.
 		   Cùng bẫy với .pve-mask[hidden] ở trên. */
@@ -3709,31 +3810,31 @@ class POSH_Ve {
 		.pve-cong{ display:flex; gap:8px; margin:4px 0 14px; }
 		.pve-cong-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:1.5px solid #ddd6c4; background:var(--sf2); border-radius:12px; font-size:12px; font-weight:700; color:var(--tx); cursor:pointer; }
 		.pve-cong-i span{ font-size:22px; }
-		.pve-cong-i.on{ border-color:var(--g); background:rgba(212,175,55,.12); color:var(--g2); }
-		.pve-cong-msg{ background:rgba(212,175,55,.1); border:1px solid var(--bd); color:var(--g2); border-radius:10px; padding:12px; font-size:13px; margin-bottom:12px; text-align:center; }
+		.pve-cong-i.on{ border-color:var(--g); background:rgba(243,111,33,.12); color:var(--g2); }
+		.pve-cong-msg{ background:rgba(243,111,33,.1); border:1px solid var(--bd); color:var(--g2); border-radius:10px; padding:12px; font-size:13px; margin-bottom:12px; text-align:center; }
 		.pve-cong-msg a{ color:var(--g2); font-weight:800; }
 		.pve-qr{ display:flex; justify-content:center; margin:6px auto 14px; background:#fff; padding:14px; border-radius:14px; width:max-content; max-width:100%; }
 		.pve-qr img,.pve-qr canvas{ display:block; }
 		.pve-badge{ display:inline-block; font-weight:800; padding:6px 14px; border-radius:999px; font-size:14px; margin-bottom:12px; }
 		/* Màu trạng thái phải đọc được TRÊN NỀN SÁNG: bản nền tối dùng chữ xanh/đỏ nhạt, bê nguyên
 		   sang nền trắng là gần như vô hình. */
-		.pve-badge.cho{ background:rgba(212,175,55,.18); color:#7a5f12; }
+		.pve-badge.cho{ background:rgba(243,111,33,.18); color:#7a5f12; }
 		.pve-badge.da_tt{ background:rgba(34,197,94,.16); color:#166534; }
 		.pve-badge.da_dung{ background:rgba(59,130,246,.14); color:#1d4ed8; }
 		.pve-badge.huy{ background:rgba(239,68,68,.14); color:#991b1b; }
 		.pve-kv{ display:flex; justify-content:space-between; gap:10px; font-size:14px; padding:7px 0; border-bottom:1px dashed #e2dcca; color:var(--mut); }
 		.pve-kv b{ color:var(--tx); text-align:right; word-break:break-all; }
-		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#8b8576; font-size:11px; font-style:normal; }
+		.pve-copy{ cursor:pointer; } .pve-copy em{ color:#8790a6; font-size:11px; font-style:normal; }
 		/* Màn chào mừng chọn khu vực */
-		.pve-wel{ position:fixed; inset:0; background:rgba(32,28,18,.5); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100000; }
+		.pve-wel{ position:fixed; inset:0; background:rgba(12,22,52,.55); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:16px; z-index:100000; }
 		.pve-wel-box{ background:var(--sf); border:1px solid var(--bd); border-radius:18px; padding:30px 24px; width:100%; max-width:460px; text-align:center; box-shadow:0 24px 60px rgba(60,50,20,.28); }
-		.pve-wel-h{ font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:700; color:#1b1810; margin-bottom:20px; }
+		.pve-wel-h{ font-family:Georgia,"Times New Roman",serif; font-size:22px; font-weight:700; color:#14286b; margin-bottom:20px; }
 		.pve-wel-list{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:22px; }
 		.pve-wel-kv{ border:1.5px solid #ddd6c4; background:var(--sf2); color:var(--tx); font-weight:700; font-size:15px; padding:15px 10px; border-radius:12px; cursor:pointer; transition:.15s; }
 		.pve-wel-kv:hover{ border-color:var(--g); }
-		.pve-wel-kv.on{ border-color:var(--g); background:rgba(212,175,55,.14); color:var(--g2); }
-		.pve-wel-ok{ width:100%; border:none; background:var(--gr); color:#1a1204; font-weight:800; font-size:16px; padding:14px; border-radius:12px; cursor:pointer; }
-		.pve-wel-ok:disabled{ background:#e7e2d3; color:#8b8576; cursor:not-allowed; }
+		.pve-wel-kv.on{ border-color:var(--g); background:rgba(243,111,33,.14); color:var(--g2); }
+		.pve-wel-ok{ width:100%; border:none; background:var(--gr); color:#ffffff; font-weight:800; font-size:16px; padding:14px; border-radius:12px; cursor:pointer; }
+		.pve-wel-ok:disabled{ background:#e7e2d3; color:#8790a6; cursor:not-allowed; }
 		.pve-wel-note{ color:var(--mut); font-size:12px; margin-top:12px; }
 		.pve-kvbar{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 14px; margin-bottom:16px; font-size:14px; color:var(--mut); }
 		.pve-kvbar b{ color:var(--tx); }
@@ -3744,7 +3845,7 @@ class POSH_Ve {
 		.pve-auth a{ color:var(--g2); font-weight:700; text-decoration:none; }
 		.pve-auth-btn{ background:#0068ff; color:#fff !important; padding:8px 16px; border-radius:999px; }
 		.pve-auth-r{ display:inline-flex; align-items:center; gap:14px; }
-		.pve-auth-ql{ background:var(--gr); color:#1a1204 !important; font-weight:800; padding:7px 15px; border-radius:999px; }
+		.pve-auth-ql{ background:var(--gr); color:#ffffff !important; font-weight:800; padding:7px 15px; border-radius:999px; }
 		/* Banner carousel */
 		.pve-bn{ position:relative; margin-bottom:22px; border-radius:16px; overflow:hidden; border:1px solid var(--bd); }
 		.pve-bn-track{ display:flex; transition:transform .4s ease; }
@@ -3760,30 +3861,31 @@ class POSH_Ve {
 		   ⚠️ ĐỪNG sửa VHG_Chan để cho hợp chỗ này: nó dùng chung với trang Ghế, sửa bên ấy là
 		   hỏng trang Ghế. Đè màu TẠI ĐÂY, trong phạm vi .pve-ft. */
 		.pve-ft{ margin:28px calc(0px - var(--ft-le)) 0; padding:30px 16px calc(28px + env(safe-area-inset-bottom));
-			background:#efeade; border-top:1px solid var(--bd); color:var(--mut); text-align:center; font-size:13px; line-height:1.8; }
-		.pve-ft .vhg-chan{ margin-top:0; border-top:none; color:#5d574a; }
-		.pve-ft .vhg-chan .vhg-ten{ color:#1b1810; }
-		.pve-ft .vhg-chan .vhg-qt{ color:#6f6a5d; }
-		.pve-ft .vhg-chan .vhg-cd span, .pve-ft .vhg-chan .vhg-cn{ color:#6f6a5d; }
-		.pve-ft .vhg-chan a{ color:#8a6d1b; }
-		.pve-ft .vhg-ban-quyen{ border-top-color:rgba(60,50,20,.14); color:#6f6a5d; }
+			background:#eaeff8; border-top:1px solid var(--bd); color:var(--mut); text-align:center; font-size:13px; line-height:1.8; }
+		.pve-ft .vhg-chan{ margin-top:0; border-top:none; color:#4a5470; }
+		.pve-ft .vhg-chan .vhg-ten{ color:#14286b; }
+		.pve-ft .vhg-chan .vhg-qt{ color:#6b7386; }
+		.pve-ft .vhg-chan .vhg-cd span, .pve-ft .vhg-chan .vhg-cn{ color:#6b7386; }
+		.pve-ft .vhg-chan a{ color:#14286b; }
+		.pve-ft .vhg-ban-quyen{ border-top-color:rgba(60,50,20,.14); color:#6b7386; }
 		/* Khối công ty căn TRÁI cho dễ đọc, đừng để thừa hưởng text-align:center của .pve-ft —
 		   ba cột thông tin căn giữa thì mắt không biết bắt đầu từ đâu. */
 		.pve-ft .vhg-chan-in{ text-align:left; }
-		.pve-ft-ten{ font-family:Georgia,"Times New Roman",serif; font-weight:700; color:#1b1810; font-size:16px; letter-spacing:.3px; }
+		.pve-ft-ten{ font-weight:900; text-transform:uppercase; color:#14286b; font-size:16px; letter-spacing:.3px; }
 		.pve-ft-l{ color:var(--mut); }
 		.pve-ft-nb a{ color:var(--g2); font-weight:700; text-decoration:none; }
 		.pve-ft-ver{ color:#5f5c54; font-size:12px; margin-top:8px; }
 		/* Form đặt vé nhanh */
-		.pve-qf{ background:linear-gradient(180deg,#ffffff,#f6f2e6); border:1px solid var(--bd); border-radius:16px; padding:18px; margin:0 0 24px; box-shadow:0 12px 30px rgba(60,50,20,.10); }
-		.pve-qf-h{ font-family:Georgia,"Times New Roman",serif; font-weight:700; font-size:19px; color:#1b1810; margin-bottom:14px; }
+		.pve-qf{ background:#fff; border:1px solid var(--bd); border-radius:16px; padding:18px; margin:0 0 24px; box-shadow:0 12px 30px rgba(60,50,20,.10); }
+		.pve-qf-h{ font-weight:900; font-size:17px; color:#fff; background:var(--nv); text-transform:uppercase; letter-spacing:.4px;
+			margin:-18px -18px 16px; padding:13px 18px; border-radius:16px 16px 0 0; text-align:center; }
 		.pve-qf-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 		.pve-qf-grid input, .pve-qf-grid select{ width:100%; box-sizing:border-box; border:1px solid #ddd6c4; border-radius:10px; padding:11px 12px; font-size:14px; background:var(--sf2); color:var(--tx); }
 		.pve-qf-grid input::placeholder{ color:#8b8576; }
 		.pve-qf-grid input:focus, .pve-qf-grid select:focus{ outline:none; border-color:var(--g); }
 		.pve-qf-ve{ grid-column:1 / -1; }
 		.pve-qf-sl{ max-width:100%; }
-		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:var(--gr); color:#1a1204; font-weight:800; font-size:16px; letter-spacing:.3px; padding:13px; border-radius:12px; cursor:pointer; text-transform:uppercase; }
+		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:var(--gr); color:#ffffff; font-weight:800; font-size:16px; letter-spacing:.3px; padding:13px; border-radius:12px; cursor:pointer; text-transform:uppercase; }
 		.pve-qf-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
 		.pve-qf-note{ color:var(--mut); font-size:12px; text-align:center; margin-top:10px; }
 		/* Băng trạng thái cửa hàng: nằm ngay trên khung đặt vé, vì nó nói giá đang là giá nào. */
@@ -3792,6 +3894,81 @@ class POSH_Ve {
 		.pve-csbar-cho{background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.40);color:#fde68a}
 		.pve-csbar-kc{opacity:.75;font-size:12px}
 		@media(max-width:520px){ .pve-qf-grid{ grid-template-columns:1fr; } }
+
+		/* ═══ GIAO DIỆN MẪU JUMP ARENA (anh Thắng 11/09/2026) ═══════════════════════════════
+		   Tông xanh navy + cam trên nền trắng. Toàn bộ màu vẫn đi qua bộ biến ở đầu khối này,
+		   nên đổi tông lần sau chỉ sửa một chỗ — đừng gõ mã màu trực tiếp vào mấy lớp dưới. */
+		.pve-top{ position:sticky; top:0; z-index:60; background:#fff; border-bottom:1px solid var(--bd);
+			box-shadow:0 2px 14px rgba(20,40,107,.07); }
+		.pve-top-in{ max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; align-items:center;
+			gap:14px; flex-wrap:wrap; }
+		.pve-brand{ display:flex; flex-direction:column; text-decoration:none; line-height:1.1; flex:0 0 auto; }
+		.pve-brand-t{ color:var(--nv); font-weight:900; font-size:20px; letter-spacing:.4px; text-transform:uppercase; }
+		.pve-brand-p{ color:var(--cam); font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; }
+		.pve-top-cta{ display:flex; gap:10px; flex:1 1 auto; min-width:0; }
+		.pve-nut-cam,.pve-nut-nv{ display:inline-block; text-decoration:none; font-weight:800; font-size:14px;
+			padding:11px 24px; border-radius:999px; white-space:nowrap; text-transform:uppercase; letter-spacing:.3px; }
+		.pve-nut-cam{ background:var(--gr); color:#fff; box-shadow:0 8px 20px rgba(243,111,33,.28); }
+		.pve-nut-nv{ background:var(--nv); color:#fff; }
+		.pve-nut-cam:hover,.pve-nut-nv:hover{ filter:brightness(1.07); color:#fff; }
+		.pve-top-hl{ display:flex; gap:18px; flex:0 0 auto; flex-wrap:wrap; }
+		.pve-hl{ display:flex; flex-direction:column; font-size:12px; color:var(--mut); line-height:1.25; }
+		.pve-hl i{ font-style:normal; }
+		.pve-hl a{ color:var(--cam); font-weight:800; font-size:15px; text-decoration:none; }
+		@media(max-width:760px){
+			.pve-top-in{ gap:10px; }
+			.pve-top-cta{ order:3; width:100%; }
+			.pve-nut-cam,.pve-nut-nv{ flex:1 1 0; text-align:center; padding:11px 10px; }
+			.pve-top-hl{ margin-left:auto; }
+			.pve-hl a{ font-size:14px; }
+		}
+
+		/* ── Bảng giá theo cơ sở ─────────────────────────────────────────────────────────
+		   Mỗi cơ sở MỘT DÒNG, không phải thẻ: khách so giá giữa các cơ sở theo cột, mà thẻ
+		   thì mỗi con số nằm một chỗ khác nhau, muốn so phải quét mắt cả trang. */
+		.pve-bg{ background:var(--sf); border:1px solid var(--bd); border-radius:16px;
+			padding:22px 20px 8px; margin:0 0 26px; }
+		.pve-bg-h{ margin:0 0 4px; color:var(--nv); font-size:22px; font-weight:900; text-transform:uppercase; letter-spacing:.4px; }
+		.pve-bg-p{ margin:0 0 16px; color:var(--mut); font-size:13px; }
+		.pve-bg-tinh{ margin:18px 0 8px; }
+		.pve-chip{ display:inline-block; background:#16a34a; color:#fff; font-size:12px; font-weight:700;
+			padding:3px 10px; border-radius:4px; }
+		.pve-bg-r{ display:flex; align-items:center; gap:14px; padding:13px 2px; border-bottom:1px solid rgba(20,40,107,.10); flex-wrap:wrap; }
+		.pve-bg-ten{ flex:1 1 240px; min-width:0; color:var(--nv); font-weight:800; font-size:15px;
+			text-transform:uppercase; letter-spacing:.2px; }
+		.pve-bg-giam{ display:block; font-style:normal; text-transform:none; letter-spacing:0;
+			color:var(--cam); font-size:12px; font-weight:700; margin-top:3px; }
+		.pve-bg-gia{ flex:0 0 auto; color:var(--nv); font-weight:800; font-size:15px; text-align:right; min-width:150px; }
+		.pve-bg-lh{ color:var(--mut); font-weight:600; }
+		.pve-bg-nut{ flex:0 0 auto; display:flex; gap:10px; }
+		.pve-bg-xem,.pve-bg-dat{ border:none; cursor:pointer; font-weight:800; font-size:13px; color:#fff;
+			padding:11px 18px; border-radius:6px; text-transform:uppercase; letter-spacing:.3px; }
+		.pve-bg-xem{ background:var(--nv); } .pve-bg-dat{ background:var(--cam); }
+		.pve-bg-xem:hover,.pve-bg-dat:hover{ filter:brightness(1.1); }
+		@media(max-width:620px){
+			.pve-bg{ padding:18px 14px 6px; }
+			.pve-bg-gia{ text-align:left; min-width:0; flex:1 1 auto; }
+			.pve-bg-nut{ width:100%; } .pve-bg-xem,.pve-bg-dat{ flex:1 1 0; }
+		}
+
+		/* Hộp phóng to ảnh bảng giá. [hidden] phải có !important: display:flex ở dòng trên
+		   thắng [hidden] mặc định — đúng cái bẫy đã dính ở popup mua vé (xem BÀN GIAO). */
+		.pve-lb{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; position:fixed; inset:0; z-index:100002; background:rgba(12,22,52,.72);
+			display:flex; align-items:center; justify-content:center; padding:16px; }
+		.pve-lb[hidden]{ display:none !important; }
+		.pve-lb-in{ background:#fff; border-radius:14px; max-width:980px; width:100%; max-height:92vh;
+			overflow:auto; padding:12px; }
+		.pve-lb-h{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 4px 10px; }
+		.pve-lb-h b{ color:var(--nv); font-size:16px; text-transform:uppercase; }
+		.pve-lb-x{ border:none; background:var(--sf2); color:var(--nv); width:34px; height:34px;
+			border-radius:50%; font-size:16px; cursor:pointer; font-weight:800; }
+		.pve-lb-anh{ display:block; width:100%; height:auto; border-radius:8px; }
+
+		/* Cột hotline ở chân trang */
+		.pve-ft-hl{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; margin:0 0 18px; }
+		.pve-ft-hli{ display:flex; flex-direction:column; border-left:3px solid var(--cam); padding-left:10px; text-align:left; }
+		.pve-ft-hli i{ font-style:normal; font-size:12px; color:var(--mut); }
+		.pve-ft-hli a{ color:var(--cam); font-weight:800; font-size:15px; text-decoration:none; }
 		</style>
 		<?php
 		return ob_get_clean();
@@ -5278,6 +5455,8 @@ class POSH_Ve {
 			$lngs = isset( $_POST['cs_lng'] ) ? (array) $_POST['cs_lng'] : array();
 			$mas  = isset( $_POST['cs_ma'] ) ? (array) $_POST['cs_ma'] : array();
 			$gis  = isset( $_POST['cs_giam'] ) ? (array) $_POST['cs_giam'] : array();
+			$tinhs = isset( $_POST['cs_tinh'] ) ? (array) $_POST['cs_tinh'] : array();
+			$agia  = isset( $_POST['cs_anhgia'] ) ? (array) $_POST['cs_anhgia'] : array();
 			$bks  = isset( $_POST['cs_bk'] ) ? (array) $_POST['cs_bk'] : array();
 			$moi = array(); $da_dung_ma = array();
 			foreach ( $tens as $i => $t ) {
@@ -5291,6 +5470,8 @@ class POSH_Ve {
 				while ( '' === $ma || isset( $da_dung_ma[ $ma ] ) ) { $ma = substr( $goc_ma, 0, 10 ) . $k; $k++; }
 				$da_dung_ma[ $ma ] = 1;
 				$moi[] = array( 'ten' => $t, 'ma' => $ma,
+					'tinh' => sanitize_text_field( isset( $tinhs[ $i ] ) ? wp_unslash( $tinhs[ $i ] ) : '' ),
+					'anh_gia' => esc_url_raw( isset( $agia[ $i ] ) ? wp_unslash( $agia[ $i ] ) : '' ),
 					'lat' => (float) ( isset( $lats[ $i ] ) ? str_replace( ',', '.', (string) $lats[ $i ] ) : 0 ),
 					'lng' => (float) ( isset( $lngs[ $i ] ) ? str_replace( ',', '.', (string) $lngs[ $i ] ) : 0 ),
 					'giam' => (int) ( isset( $gis[ $i ] ) ? $gis[ $i ] : 0 ),
@@ -5307,6 +5488,9 @@ class POSH_Ve {
 			update_option( 'pve_ft_ten', sanitize_text_field( wp_unslash( $_POST['ft_ten'] ) ) );
 			update_option( 'pve_ft_dc', sanitize_text_field( wp_unslash( $_POST['ft_dc'] ) ) );
 			update_option( 'pve_ft_lh', sanitize_text_field( wp_unslash( $_POST['ft_lh'] ) ) );
+			update_option( 'pve_hotline', sanitize_text_field( wp_unslash( isset( $_POST['hotline'] ) ? $_POST['hotline'] : '' ) ) );
+			update_option( 'pve_hotline2', sanitize_text_field( wp_unslash( isset( $_POST['hotline2'] ) ? $_POST['hotline2'] : '' ) ) );
+			update_option( 'pve_email', sanitize_text_field( wp_unslash( isset( $_POST['ft_email'] ) ? $_POST['ft_email'] : '' ) ) );
 			update_option( 'pve_ft_nb_url', esc_url_raw( wp_unslash( $_POST['ft_nb_url'] ) ) );
 			update_option( 'pve_ft_nb_ten', sanitize_text_field( wp_unslash( $_POST['ft_nb_ten'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu chân trang.</p></div>';
@@ -5690,17 +5874,22 @@ class POSH_Ve {
 		echo '<hr><h2>Cơ sở · toạ độ · giảm giá tại chỗ</h2>';
 		echo '<p class="description">Tên cơ sở phải khớp <b>đúng</b> với ô “Khu vực / Cơ sở” của vé. Toạ độ lấy từ Google Maps: chuột phải điểm cần → bấm cặp số để copy (dạng <code>10.776,106.700</code>).<br>'
 			. '<b>% giảm</b> chỉ áp khi khách quét tem QR của cơ sở <i>và</i> điện thoại báo đang trong <b>bán kính</b> đó. Mua từ xa = giá gốc. '
-			. 'Bán kính mặc định 400m — GPS trong trung tâm thương mại sai vài trăm mét là thường, siết quá nhỏ thì khách đứng ngay quầy vẫn bị từ chối giảm.</p>';
+			. 'Bán kính mặc định 400m — GPS trong trung tâm thương mại sai vài trăm mét là thường, siết quá nhỏ thì khách đứng ngay quầy vẫn bị từ chối giảm.<br>'
+			. '<b>Tỉnh / Thành</b> chỉ dùng để gom nhóm trên bảng giá ngoài trang bán vé; bỏ trống thì cơ sở nằm ở nhóm “Cơ sở khác”, không bị mất. '
+			. '<b>Ảnh bảng giá</b> là tấm bảng giá treo tại quầy — khách bấm “Xem giá vé” là phóng to đúng tấm đó; bỏ trống thì nút ấy lọc thẳng danh sách vé của cơ sở.</p>';
 		$coso = self::ds_coso();
 		echo '<form method="post">'; wp_nonce_field( 'pve_coso' );
-		echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Tên cơ sở / khu vực</th>'
+		echo '<table class="widefat striped" style="max-width:1360px"><thead><tr><th>Tên cơ sở / khu vực</th>'
+			. '<th style="width:130px">Tỉnh / Thành</th><th style="width:210px">Ảnh bảng giá (URL)</th>'
 			. '<th style="width:120px">Mã (tem QR)</th><th style="width:130px">Vĩ độ (lat)</th><th style="width:130px">Kinh độ (lng)</th>'
 			. '<th style="width:90px">% giảm</th><th style="width:110px">Bán kính (m)</th><th style="width:220px">Tem QR dán tại quầy</th></tr></thead><tbody>';
-		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'ma' => '', 'lat' => '', 'lng' => '', 'giam' => 0, 'bk' => 0 ); }
+		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'ma' => '', 'tinh' => '', 'anh_gia' => '', 'lat' => '', 'lng' => '', 'giam' => 0, 'bk' => 0 ); }
 		foreach ( $rows_cs as $c ) {
 			$lat = ( is_numeric( $c['lat'] ) && $c['lat'] ) ? $c['lat'] : '';
 			$lng = ( is_numeric( $c['lng'] ) && $c['lng'] ) ? $c['lng'] : '';
 			echo '<tr><td><input name="cs_ten[]" class="regular-text" value="' . esc_attr( $c['ten'] ) . '" placeholder="VD Aeon Long Biên"></td>'
+				. '<td><input name="cs_tinh[]" class="regular-text" style="width:120px" value="' . esc_attr( isset( $c['tinh'] ) ? $c['tinh'] : '' ) . '" placeholder="Hà Nội"></td>'
+				. '<td><input name="cs_anhgia[]" class="regular-text" style="width:200px" value="' . esc_attr( isset( $c['anh_gia'] ) ? $c['anh_gia'] : '' ) . '" placeholder="https://…/bang-gia.jpg"></td>'
 				. '<td><input name="cs_ma[]" class="regular-text code" style="width:110px" value="' . esc_attr( isset( $c['ma'] ) ? $c['ma'] : '' ) . '" placeholder="tự sinh"></td>'
 				. '<td><input name="cs_lat[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lat ) . '" placeholder="10.7769"></td>'
 				. '<td><input name="cs_lng[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lng ) . '" placeholder="106.7009"></td>'
@@ -5745,6 +5934,9 @@ class POSH_Ve {
 		echo '<tr><th>Tên công ty</th><td><input name="ft_ten" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_ten', 'K&H COM., LTD' ) ) . '"></td></tr>';
 		echo '<tr><th>Địa chỉ</th><td><input name="ft_dc" class="large-text" value="' . esc_attr( get_option( 'pve_ft_dc', '' ) ) . '"></td></tr>';
 		echo '<tr><th>Liên hệ (ĐT / Email)</th><td><input name="ft_lh" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_lh', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Hotline đặt vé</th><td><input name="hotline" class="regular-text" value="' . esc_attr( get_option( 'pve_hotline', '' ) ) . '" placeholder="1900 xxx xxx"> <span class="description">Hiện ở thanh trên cùng + chân trang bán vé.</span></td></tr>';
+		echo '<tr><th>Hotline thứ hai</th><td><input name="hotline2" class="regular-text" value="' . esc_attr( get_option( 'pve_hotline2', '' ) ) . '" placeholder="VD tư vấn đoàn / sự kiện"></td></tr>';
+		echo '<tr><th>Email hỗ trợ</th><td><input name="ft_email" class="regular-text" value="' . esc_attr( get_option( 'pve_email', '' ) ) . '"></td></tr>';
 		echo '<tr><th>Link trang nội bộ</th><td><input name="ft_nb_url" class="large-text code" value="' . esc_attr( get_option( 'pve_ft_nb_url', admin_url( 'admin.php?page=posh-ve' ) ) ) . '"> <span class="description">VD trang quản lý nội bộ.</span></td></tr>';
 		echo '<tr><th>Chữ hiển thị link</th><td><input name="ft_nb_ten" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_nb_ten', 'Trang nội bộ' ) ) . '"></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_ft_luu" value="1">Lưu chân trang</button></p></form>';

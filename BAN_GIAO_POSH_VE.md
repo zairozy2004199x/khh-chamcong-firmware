@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.59.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.60.0** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -58,7 +58,7 @@ Cả 3 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 
 ## 5. Tính năng đã hoàn thành
 
-### Trang bán vé `[posh_ve]` (giao diện tối/vàng gold, full màn)
+### Trang bán vé `[posh_ve]` (giao diện navy + cam, nền sáng, full màn)
 - Hero, banner, màn chọn khu vực, form đặt vé nhanh.
 - Danh sách vé theo nhóm, tích điểm/hạng thành viên, gợi ý vé theo định vị GPS.
 - **Đăng nhập Zalo (OAuth)** — đồng bộ tài khoản với app; admin thấy nút **🔧 Quản trị vé**.
@@ -113,6 +113,43 @@ Cả 3 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 - Plugin có **hai** file phải để mắt: `vhcp-ve/vhcp-ve.php` (PHP) và `vhcp-ve/assets/ve.js`
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
+
+### 🎨 Giao diện trang bán vé — navy + cam (từ 1.60.0)
+Anh Thắng 11/09/2026 gửi 5 ảnh trang Jump Arena làm mẫu. Trang bán vé đổi tông từ vàng gold sang
+**xanh navy `#14286b` + cam `#f36f21` trên nền trắng**, thêm thanh trên cùng và bảng giá theo cơ sở.
+
+**Đổi tông phải sửa đúng MỘT chỗ.** Toàn bộ màu đi qua bộ biến khai ở `.pve-page` (`--nv`, `--cam`,
+`--gr`, `--bg`, `--sf`, `--bd`, `--tx`, `--mut`). Gõ thẳng mã màu vào từng lớp là lần sau đổi tông
+phải rà cả nghìn dòng, mà sót một dòng thì nó nằm chình ình giữa trang.
+
+⚠️ **Ba khối nằm NGOÀI `.pve-page`** — `.pve-mask`, `.pve-wel` và **`.pve-lb`** (hộp phóng to bảng
+giá) đều bị JS/máy chủ đặt ra ngoài khung trang, nên **phải khai lại bộ biến cho cả ba**. Quên một
+cái là `color:var(--nv)` thành "không hợp lệ lúc tính giá trị" → chữ tụt về màu kế thừa của theme
+(xem mục popup bên dưới — đúng lỗi chữ đen trên nền đen hồi 1.46.0).
+
+**Bảng giá & địa điểm** (`#pve-bg`): cơ sở gom theo **tỉnh/thành** (chip xanh lá), mỗi cơ sở một
+DÒNG chứ không phải thẻ — khách so giá giữa các cơ sở theo cột, còn thẻ thì mỗi con số một chỗ,
+muốn so phải quét mắt cả trang.
+
+| Cột | Nguồn |
+|---|---|
+| Khoảng giá | **min–max của vé đang bán** khai đúng tên khu vực ấy, không gõ tay |
+| Tỉnh / Thành | ô mới ở WP Admin → Cơ sở. Bỏ trống = nhóm "Cơ sở khác", **không** biến mất |
+| Ảnh bảng giá | ô mới ở WP Admin → Cơ sở (URL ảnh bảng giá treo tại quầy) |
+
+Giá **không** được gõ tay: gõ tay thì sửa giá ở màn quản trị xong ngoài trang vẫn treo giá cũ,
+khách đọc một đằng tới quầy trả một nẻo, và người hứng là nhân viên quầy.
+
+Hai nút mỗi dòng:
+- **Xem giá vé** → có ảnh bảng giá thì phóng to đúng tấm ấy; **chưa khai ảnh thì lọc thẳng danh
+  sách vé của cơ sở** rồi cuộn xuống — thà đưa khách tới chỗ có giá thật còn hơn mở một hộp trống.
+- **Đặt vé** → chọn sẵn cơ sở ở khung đặt vé nhanh. Cơ sở **chưa có vé khai riêng** thì vẫn ghi
+  tên cơ sở vào đơn (cơ sở là chỗ khách tới chơi, không phải bộ lọc — thiếu bước này là vé của họ
+  vào sổ "mua từ xa") và **mở lại bộ lọc về "Tất cả"**, vì giữ khu chọn lần trước là khách vừa bấm
+  cơ sở này lại đang nhìn danh sách vé của cơ sở khác.
+
+**Hotline** khai ở WP Admin → Chân trang (`pve_hotline`, `pve_hotline2`, `pve_email`), hiện cả ở
+thanh trên cùng lẫn chân trang. Không khai thì khối ấy tự ẩn, không để lại ô trống.
 
 ### 🏪 Cơ sở bán chạy đo **HAI** con số khác nhau — đừng gộp làm một (từ 1.59.0)
 Màn **🏪 Cơ sở bán chạy** (`/ql/coso-bc`) xếp hạng cửa hàng bằng hai thước đo, và chúng **không**

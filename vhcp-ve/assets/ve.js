@@ -1077,4 +1077,71 @@ function hienQR(v){
 		}).catch(function(){});
 	}, 5000);
 }
+
+/* ───── Bảng giá theo cơ sở (mẫu anh Thắng gửi 11/09/2026) ─────────────────────────────────
+   "Xem giá vé"  → phóng to ảnh bảng giá treo tại quầy; cơ sở chưa khai ảnh thì lọc luôn vé
+                   của cơ sở ấy và cuộn xuống — thà đưa khách tới chỗ có giá thật còn hơn mở
+                   một hộp trống rồi để họ tự đoán.
+   "Đặt vé"      → chọn sẵn cơ sở ở khung đặt vé nhanh rồi cuộn lên. Chỉ lọc khi CÓ vé khai
+                   đúng khu ấy: lọc theo một khu không vé nào thuộc về là xoá trắng danh sách,
+                   khách tưởng hết vé.                                                        */
+function lbMo(ten, anh){
+	var lb = document.getElementById('pve-lb'); if (!lb) return false;
+	var img = lb.querySelector('.pve-lb-anh'), nh = lb.querySelector('.pve-lb-ten');
+	if (!img) return false;
+	img.src = anh; if (nh) nh.textContent = ten || 'Bảng giá';
+	lb.hidden = false; return true;
+}
+function lbDong(){ var lb = document.getElementById('pve-lb'); if (lb) lb.hidden = true; }
+function coVeKhu(kv){
+	if (!kv) return false;
+	try { return !!document.querySelector('.pve-card[data-kv="' + kv.replace(/"/g,'\\"') + '"]'); }
+	catch(e){ return false; }
+}
+function bgChonKhu(kv){
+	if (coVeKhu(kv)){
+		var tab = null, ds = [].slice.call(document.querySelectorAll('.pve-tab[data-loc="kv"]'));
+		for (var i = 0; i < ds.length; i++) { if (ds[i].getAttribute('data-v') === kv) { tab = ds[i]; break; } }
+		if (tab) tab.click(); else pveLoc(kv, null);
+		return true;
+	}
+	/* Không có vé riêng cho khu này thì vẫn ghi cơ sở vào đơn — cơ sở là chỗ khách tới chơi,
+	   không phải bộ lọc. Thiếu bước này là vé bán cho cơ sở ấy vào sổ "mua từ xa".
+	   Đồng thời MỞ LẠI bộ lọc về "Tất cả": giữ nguyên khu chọn lần trước thì khách vừa bấm
+	   cơ sở này lại đang nhìn đúng danh sách vé của cơ sở khác. */
+	var tatca = document.querySelector('.pve-tab[data-loc="kv"][data-v=""]');
+	if (tatca) tatca.click(); else if (typeof pveLoc === 'function') pveLoc('', null);
+	var sel = document.querySelector('.pve-qf-cs');
+	if (sel){ for (var j = 0; j < sel.options.length; j++) { if (sel.options[j].value === kv) { sel.value = kv; return true; } } }
+	return false;
+}
+boc('bảng giá cơ sở', function(){
+	document.addEventListener('click', function(ev){
+		var t = ev.target; if (!t || !t.closest) return;
+		var xem = t.closest('.pve-bg-xem');
+		if (xem){
+			ev.preventDefault();
+			var anh = xem.getAttribute('data-anh') || '', cs = xem.getAttribute('data-cs') || '';
+			if (anh && lbMo(cs, anh)) return;
+			bgChonKhu(cs);
+			var ds = document.getElementById('pve-ds');
+			if (ds) ds.scrollIntoView({ behavior:'smooth', block:'start' });
+			return;
+		}
+		var dat = t.closest('.pve-bg-dat');
+		if (dat){
+			ev.preventDefault();
+			bgChonKhu(dat.getAttribute('data-cs') || '');
+			var qf = document.getElementById('pve-qf');
+			if (qf){
+				qf.scrollIntoView({ behavior:'smooth', block:'center' });
+				var ve = qf.querySelector('.pve-qf-ve'); if (ve) try { ve.focus({ preventScroll:true }); } catch(e){ }
+			}
+			return;
+		}
+		if (t.closest('.pve-lb-x') || t.id === 'pve-lb'){ ev.preventDefault(); lbDong(); }
+	});
+	document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') lbDong(); });
+});
+
 })();
