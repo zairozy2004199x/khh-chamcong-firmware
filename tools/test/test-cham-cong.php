@@ -20083,6 +20083,186 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('QL
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('QL1','QLNV','QLKH')" );
 update_option( 'vhcc_nguon_nguoidung', $_nguon_cu_ql );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 "BÊN KIA CÓ, BÊN NÀY KHÔNG THẤY" — ĐỐI CHIẾU VỚI APP GỐC — 11/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng gửi hai ảnh cạnh nhau: Dashboard của app gốc trên script.google.com báo *"THÁNG
+ * 09/2026 — ĐÃ CHẤM 5/30 NGÀY"*, còn lưới bảng công của web thì hàng người ấy toàn dấu chấm —
+ * *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+ *
+ * 🔴 CHUYỆN NÀY XẢY RA ĐƯỢC VÌ CÓ HAI CUỐN SỔ: app gốc ghi vào Google Sheet, lưới đọc MySQL.
+ *    Lượt chấm chỉ sang được bằng ba đường (chép song song mỗi phút — mà nó CHỈ chép lượt đi
+ *    qua `doPost`, tức lượt MÁY đẩy · kéo tay theo tháng · chấm thẳng trên trạm mới). Thiếu cả
+ *    ba thì bên kia có mà bên này không, IM LẶNG — không màn nào nói ra.
+ *
+ * 🔴 NÊN PHÉP THỬ NÀY ĐO CÁI DỤNG CỤ ĐO. Ba loại chênh lệch có ba cách sửa khác hẳn nhau, và
+ *    gộp chúng thành một con số "lệch N ngày" là đưa người ta đi sửa nhầm hướng:
+ *      · app có – web không   -> bấm Nạp về;
+ *      · web có – app không   -> lượt chấm trên TRẠM mới, BÌNH THƯỜNG, đừng "sửa";
+ *      · mã bên app không có hồ sơ bên này -> nạp về xong VẪN không hiện trong lưới.
+ */
+$_cs_dc = 'DC_CS';
+$GLOBALS['VHCP_OPT']['vhcc_exec_url'] = 'https://script.google.com/macros/s/CC/exec';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DC1', 'ho_ten' => 'Người Đối Chiếu',
+	'cua_hang' => $_cs_dc, 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Bên WordPress: ngày 01 khớp · ngày 07 CHỈ có ở đây (lượt chấm trên trạm mới) · ngày 08 lệch giờ. */
+foreach ( array(
+	array( '2026-09-01', 8 * 3600, 17 * 3600 ),
+	array( '2026-09-07', 8 * 3600, 17 * 3600 ),
+	array( '2026-09-08', 9 * 3600, 17 * 3600 ),
+) as $x_dc ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $_cs_dc, 'ngay' => $x_dc[0],
+		'ma_nv' => 'DC1', 'hau_to' => '', 'ho_ten' => 'Người Đối Chiếu',
+		'gio_vao_giay' => $x_dc[1], 'gio_ra_giay' => $x_dc[2], 'nguon' => 'may' ) );
+}
+/* Bên app gốc: ngày 01 khớp · ngày 04 CHỈ bên đó · ngày 08 lệch giờ vào · và một MÃ LẠ. */
+$GLOBALS['VHD_POST'] = array( '/exec' => array( 'code' => 200, 'body' => json_encode( array(
+	'ok' => true, 'data' => array( 'ok' => true, 'rows' => array(
+		array( 'ma' => 'DC1', 'ten' => 'Người Đối Chiếu', 'ngay' => array(
+			array( 'date' => '2026-09-01', 'vao' => '08:00:00', 'ra' => '17:00:00' ),
+			array( 'date' => '2026-09-04', 'vao' => '08:05:00', 'ra' => '17:10:00' ),
+			array( 'date' => '2026-09-08', 'vao' => '08:00:00', 'ra' => '17:00:00' ),
+		) ),
+		array( 'ma' => 'DCLA', 'ten' => 'Người Chưa Có Hồ Sơ', 'ngay' => array(
+			array( 'date' => '2026-09-02', 'vao' => '08:00:00', 'ra' => '17:00:00' ),
+		) ),
+	) ) ) ) ) );
+
+$r_dc = VHCC_Keo::doi_chieu_thang( $_cs_dc, '2026-09' );
+t( 'đối chiếu chạy được', ! empty( $r_dc['ok'] ), $r_dc );
+$n_dc = array();
+foreach ( (array) $r_dc['nguoi'] as $x ) { $n_dc[ $x['ma'] ] = $x; }
+teq( '🔴 bắt đúng ngày app gốc CÓ mà bảng công KHÔNG', array( '2026-09-04' ),
+	$n_dc['DC1']['thieu_wp'] );
+teq( '🔴 và ngày CHỈ có bên bảng công (lượt chấm trên trạm mới) kể riêng',
+	array( '2026-09-07' ), $n_dc['DC1']['thieu_app'] );
+teq( '🔴 ngày hai bên cùng có mà giờ khác nhau thì là LỆCH, không phải thiếu',
+	array( '2026-09-08' ), $n_dc['DC1']['lech'] );
+/* 🔴 Vế ít ai nghĩ tới, và là vế làm người ta bấm Nạp về rồi tưởng hỏng: mã bên app không có hồ
+   sơ bên này. Nạp về thì giờ vẫn vào kho, nhưng lưới dựng hàng theo SỔ NHÂN SỰ nên người ấy vẫn
+   không hiện — màn hình báo "đã nạp N lượt" mà lưới không đổi gì. */
+t( '🔴 mã bên app không có hồ sơ ở đây được kể riêng',
+	count( (array) $r_dc['ma_la'] ) === 1
+	&& strpos( $r_dc['ma_la'][0], 'DCLA' ) === 0, $r_dc['ma_la'] );
+t( 'và người ấy vẫn nằm trong bảng chênh lệch',
+	isset( $n_dc['DCLA'] ) && array( '2026-09-02' ) === $n_dc['DCLA']['thieu_wp'], $r_dc['nguoi'] );
+teq( 'tổng đếm đúng: 2 ngày thiếu bên này', 2, (int) $r_dc['thieu_wp'] );
+teq( 'và 1 ngày chỉ có bên này', 1, (int) $r_dc['thieu_app'] );
+teq( 'và 1 ngày lệch giờ', 1, (int) $r_dc['lech'] );
+/* Ngày khớp hoàn toàn KHÔNG được kể vào đâu cả — kể vào là mỗi lượt đối chiếu ra một bảng dài
+   bằng cả tháng, và người đọc thôi đọc. */
+t( 'ngày khớp hoàn toàn không bị kể là chênh lệch',
+	! in_array( '2026-09-01', $n_dc['DC1']['thieu_wp'], true )
+	&& ! in_array( '2026-09-01', $n_dc['DC1']['lech'], true ), $n_dc['DC1'] );
+
+/* 🔴 THIẾU HẲN MỘT GIỜ LÀ "THIẾU", KHÔNG PHẢI "LỆCH". Nửa ngày công chưa sang thì sửa bằng đúng
+   nút Nạp về — xếp nó vào cột "lệch giờ" là người ta đi tìm ai gõ sai giờ. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DC1' AND ngay='2026-09-08'" );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $_cs_dc, 'ngay' => '2026-09-08',
+	'ma_nv' => 'DC1', 'hau_to' => '', 'ho_ten' => 'Người Đối Chiếu',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => null, 'nguon' => 'may' ) );
+$r_dc2 = VHCC_Keo::doi_chieu_thang( $_cs_dc, '2026-09' );
+$n_dc2 = array();
+foreach ( (array) $r_dc2['nguoi'] as $x ) { $n_dc2[ $x['ma'] ] = $x; }
+t( '🔴 bên này có giờ vào mà THIẾU giờ ra thì xếp vào "thiếu", không vào "lệch"',
+	in_array( '2026-09-08', $n_dc2['DC1']['thieu_wp'], true )
+	&& ! in_array( '2026-09-08', $n_dc2['DC1']['lech'], true ), $n_dc2['DC1'] );
+
+/* App gốc không có sheet của cơ sở ấy: KHÔNG phải lỗi kết nối, và phải nói khác đi — gọi sang
+   được, bên đó trả lời là không có bảng nào tên ấy (thường do tên cơ sở bên kia viết khác). */
+$GLOBALS['VHD_POST'] = array( '/exec' => array( 'code' => 200, 'body' => json_encode( array(
+	'ok' => true, 'data' => array( 'ok' => true, 'khongCoSheet' => true ) ) ) ) );
+$r_ks = VHCC_Keo::doi_chieu_thang( $_cs_dc, '2026-09' );
+t( 'app gốc không có sheet thì vẫn ok, và nói rõ là không có sheet',
+	! empty( $r_ks['ok'] ) && ! empty( $r_ks['khong_co_sheet'] ), $r_ks );
+
+/* ---- KHỐI TRÊN MÀN, và lượt POST thật ---- */
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $_cs_dc => 'cong' ) );
+$h_dc = vhcc_web_nhu2( 'ACAD', 'Admin', $_cs_dc,
+	array( 'man' => 'cham', 'ccs' => $_cs_dc, 'cth' => '2026-09' ) );
+t( 'đang soi màn Bảng công thật', strpos( $h_dc, 'id="luoithang"' ) !== false, null );
+t( '🔴 màn Bảng công có khối "Đối chiếu với app gốc"',
+	strpos( $h_dc, 'Đối chiếu với app gốc' ) !== false, null );
+t( 'có đủ HAI nút, và nút ghi đứng riêng',
+	strpos( $h_dc, 'value="doi_chieu_app"' ) !== false
+	&& strpos( $h_dc, 'value="nap_app"' ) !== false, null );
+/* 🔴 KHỐI PHẢI NÓI RA VÌ SAO CHUYỆN NÀY XẢY RA ĐƯỢC. Một cái nút không kèm lời giải thì lần sau
+   gặp lại vẫn phải đi hỏi. */
+t( 'và nói thẳng là có HAI cuốn sổ, kèm ba đường bắc cầu',
+	strpos( $h_dc, 'hai cuốn sổ' ) !== false
+	&& strpos( $h_dc, 'chỉ chép lượt do MÁY chấm công đẩy lên' ) !== false, null );
+
+/* Một lượt POST thật, rồi lượt GET ngay sau đó phải VẼ ĐƯỢC kết quả (mẫu POST → chuyển hướng →
+   GET, kết quả đi qua transient khoá theo THẺ PHIÊN — nên hai lượt phải dùng CHUNG một thẻ). */
+/* ⚠️ TRONG BÀI KIỂM, `VHCC_Web::ve()` KHÔNG `exit` (cố ý — `exit` ở đó là giết luôn bài kiểm),
+   nên lượt POST chạy tiếp xuống `trang_chinh()` và VẼ LUÔN kết quả vừa cất. Tức là trang cần soi
+   là đầu ra của CHÍNH lượt POST, không phải lượt GET sau nó. Soi nhầm lượt thì mọi phép dưới đây
+   đo trên một trang không bao giờ chứa kết quả — xanh hay đỏ đều vì lý do sai. */
+function vhcc_dc_post_get( $tok, $post, $get ) {
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	$_POST   = array_merge( array( 'ky' => VHCC_Web::chu_ky( $tok ) ), $post );
+	$_GET    = $get;
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_GET = array(); $_COOKIE = array();
+	return $h;
+}
+$GLOBALS['VHD_POST'] = array( '/exec' => array( 'code' => 200, 'body' => json_encode( array(
+	'ok' => true, 'data' => array( 'ok' => true, 'rows' => array(
+		array( 'ma' => 'DC1', 'ten' => 'Người Đối Chiếu', 'ngay' => array(
+			array( 'date' => '2026-09-04', 'vao' => '08:05:00', 'ra' => '17:10:00' ),
+		) ),
+	) ) ) ) ) );
+$tok_dc = VHCC_Auth::phat_token( 'Người Thử', 'Admin', $_cs_dc, 'DCAD' );
+$h_kq = vhcc_dc_post_get( $tok_dc,
+	array( 'viec' => 'doi_chieu_app', 'dc_coso' => $_cs_dc, 'dc_thang' => '2026-09' ),
+	array( 'man' => 'cham', 'ccs' => $_cs_dc, 'cth' => '2026-09' ) );
+t( '🔴 bấm Đối chiếu thì lượt sau VẼ RA kết quả',
+	strpos( $h_kq, 'Chênh lệch từng người' ) !== false, substr( $h_kq, 0, 900 ) );
+t( 'và nói đúng số ngày app gốc có mà đây không',
+	strpos( $h_kq, '<b>1 ngày</b> app gốc CÓ mà bảng công KHÔNG có' ) !== false, null );
+/* 🔴 ĐỐI CHIẾU KHÔNG ĐƯỢC GHI GÌ. Nút "cho biết" mà ghi thật là mất quyền quyết định của người
+   bấm — và họ sẽ không bao giờ dám bấm nút nào nữa. */
+teq( '🔴 lượt Đối chiếu KHÔNG ghi một hàng nào vào bảng công', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+		. " WHERE ma_nv='DC1' AND ngay='2026-09-04'" ) );
+
+/* Còn nút Nạp về thì ghi thật — và ghi ĐÚNG giờ bên app gốc. */
+$h_nap = vhcc_dc_post_get( $tok_dc,
+	array( 'viec' => 'nap_app', 'dc_coso' => $_cs_dc, 'dc_thang' => '2026-09' ),
+	array( 'man' => 'cham', 'ccs' => $_cs_dc, 'cth' => '2026-09' ) );
+$hang_nap = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ma_nv='DC1' AND ngay='2026-09-04'" );
+t( '🔴 bấm Nạp về thì ngày thiếu vào bảng công thật', count( $hang_nap ) === 1
+	&& (int) $hang_nap[0]['gio_vao_giay'] === 8 * 3600 + 5 * 60, $hang_nap );
+t( 'và màn hình báo đã nạp', strpos( $h_nap, 'Đã nạp từ app gốc về bảng công' ) !== false, null );
+/* 🔴 NẠP XONG PHẢI ĐỐI CHIẾU LẠI NGAY. Bắt người ta bấm thêm một nút nữa để biết kết quả của
+   nút vừa bấm là để họ đoán — mà đoán sai ở đây là tưởng đã đủ công cả tháng. */
+t( '🔴 và đối chiếu LẠI ngay trong cùng lượt, nói được là hết chênh lệch',
+	strpos( $h_nap, 'không ngày nào app gốc có mà bảng công thiếu' ) !== false,
+	substr( $h_nap, 0, 900 ) );
+
+/* Bậc: Cửa hàng trưởng xem bảng công thì được, nhưng đường dữ liệu giữa hai hệ thì không. */
+$h_cht_dc = vhcc_web_nhu2( 'DCCHT', 'Cửa hàng trưởng', $_cs_dc,
+	array( 'man' => 'cham', 'ccs' => $_cs_dc, 'cth' => '2026-09' ) );
+t( '🔴 Cửa hàng trưởng KHÔNG thấy khối đối chiếu',
+	strpos( $h_cht_dc, 'Đối chiếu với app gốc' ) === false, null );
+/* 🔴 VÀ CHỐT PHẢI Ở CỬA GHI, KHÔNG CHỈ Ở CHỖ VẼ NÚT. Nút không vẽ chỉ là không mời; POST thì ai
+   gửi cũng tới. Đo bằng một lượt POST THẬT của Cửa hàng trưởng, rồi đếm lại bảng công. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DC1' AND ngay='2026-09-04'" );
+$tok_cht_dc = VHCC_Auth::phat_token( 'Anh CHT', 'Cửa hàng trưởng', $_cs_dc, 'DCCHT' );
+$h_cht_post = vhcc_dc_post_get( $tok_cht_dc,
+	array( 'viec' => 'nap_app', 'dc_coso' => $_cs_dc, 'dc_thang' => '2026-09' ),
+	array( 'man' => 'cham', 'ccs' => $_cs_dc, 'cth' => '2026-09' ) );
+teq( '🔴 Cửa hàng trưởng gửi thẳng POST thì KHÔNG ghi được gì', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+		. " WHERE ma_nv='DC1' AND ngay='2026-09-04'" ) );
+t( 'và màn hình nói ra là bị chối', strpos( $h_cht_post, 'Không xong' ) !== false,
+	substr( $h_cht_post, -1200 ) );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DC1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='DC1'" );
+$GLOBALS['VHD_POST'] = array();
+
 vhcc_dung_bang();
 
 

@@ -460,6 +460,60 @@ thiếu nó thì một bản vá lỡ tay bỏ sạch hàng trống vẫn xanh.
 
 ---
 
+## 4f. "Bên app gốc có, bên bảng công không thấy" — 3.64.0 (11/09/2026)
+
+Anh Thắng gửi hai ảnh cạnh nhau: **Dashboard của app gốc** trên `script.google.com` báo
+*"THÁNG 09/2026 — ĐÃ CHẤM 5/30 NGÀY"*, còn **lưới bảng công** của web thì hàng người ấy toàn dấu
+chấm — *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+
+### Vì sao chuyện này xảy ra được: **hai cuốn sổ**
+
+| Nơi | Ghi vào đâu |
+|---|---|
+| App chấm công cũ (`script.google.com`) | **Google Sheet** |
+| Lưới bảng công của web | **MySQL của WordPress** |
+
+Lượt chấm chỉ sang được bằng **đúng ba đường**:
+
+1. **`GhiSongSongWP`** — hàng đợi + lịch mỗi phút bên app gốc. ⚠️ Nó **chỉ chép lượt đi qua
+   `doPost`**, tức lượt **MÁY chấm công** đẩy lên. Người chấm bằng **trang web của app gốc** thì
+   không có gì để chép.
+2. **Kéo tay theo tháng** — `VHCC_Keo::keo_thang()`; trước 3.64.0 chỉ có ở wp-admin.
+3. **Chấm thẳng trên trạm mới** `/cham-cong/` — ghi luôn vào MySQL, không qua sheet.
+
+Thiếu cả ba thì bên kia có mà bên này không, **im lặng** — không màn nào nói ra.
+
+### Nay: khối **Đối chiếu với app gốc** ngay trong màn Bảng công
+
+Cuối màn Bảng công (đúng chỗ nhìn ra vấn đề), theo **cơ sở + tháng đang xem**, bậc **Quản lý trở
+lên**:
+
+* **Đối chiếu** — chỉ đọc, không ghi gì. Hỏi app gốc rồi đặt cạnh bảng công.
+* **Nạp về những ngày còn thiếu** — ghi thật, nhưng đi qua `VHCC_Nhan::ghi_gio()` nên **giờ đã có
+  ở đây KHÔNG bị đè**, và bấm lại lượt nữa cũng không sinh thêm hàng nào. Nạp xong **tự đối chiếu
+  lại ngay** — bắt người ta bấm thêm một nút để biết kết quả của nút vừa bấm là để họ đoán.
+
+### Ba loại chênh lệch, ba cách sửa — nên không gộp thành một con số
+
+| Loại | Nghĩa là gì | Làm gì |
+|---|---|---|
+| **App gốc có – ở đây KHÔNG** | lượt chấm chưa sang | bấm **Nạp về** |
+| **Chỉ có ở đây** | chấm trên **trạm mới** (ghi thẳng MySQL, không qua sheet) | **bình thường**, đừng "sửa" |
+| **Lệch giờ** | hai bên cùng có, giờ khác nhau | xem lại từng ngày |
+| **Mã bên app không có hồ sơ ở đây** | nạp về xong **vẫn không hiện trong lưới** (lưới dựng hàng theo sổ nhân sự) | lập hồ sơ đúng Mã NV đó **rồi** hãy nạp |
+
+Vế cuối là vế dễ mất nhất: không kể riêng ra thì màn hình báo *"đã nạp N lượt"* mà lưới không đổi
+gì, và người đọc tưởng phần mềm hỏng.
+
+Một chốt nhỏ nhưng đáng nhớ: **thiếu hẳn một giờ** (bên app có giờ ra, bên này chỉ có giờ vào) xếp
+vào **"thiếu"**, không vào "lệch" — nó là nửa ngày công chưa sang và sửa bằng đúng nút *Nạp về*;
+xếp nhầm là người ta đi tìm ai gõ sai giờ.
+
+25 phép thử trong `tools/test/test-cham-cong.php`, chạy trên bộ giả lập gọi mạng — kể cả chốt
+*"Đối chiếu KHÔNG ghi một hàng nào"* và *"Cửa hàng trưởng gửi thẳng POST cũng không ghi được"*.
+
+---
+
 ---
 
 ## 5. Nằm ở đâu trong mã

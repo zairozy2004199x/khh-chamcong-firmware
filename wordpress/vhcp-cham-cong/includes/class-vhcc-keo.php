@@ -251,6 +251,158 @@ class VHCC_Keo {
 		return array( 'ok' => true, 'nguoi' => $nguoi, 'luot' => $luot, 'bo' => $bo );
 	}
 
+	/**
+	 * ĐỐI CHIẾU MỘT CƠ SỞ MỘT THÁNG: app gốc (sheet) có gì mà WordPress không có, và ngược lại.
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, hai ảnh cạnh nhau — Dashboard của app gốc trên script.google.com
+	 *    báo *"ĐÃ CHẤM 5/30 NGÀY"*, còn lưới bảng công của web thì hàng người ấy toàn dấu chấm:
+	 *    *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+	 *
+	 * 🔴 VÌ SAO CHUYỆN NÀY XẢY RA ĐƯỢC — HAI CUỐN SỔ. App gốc ghi vào **Google Sheet**; lưới bảng
+	 *    công đọc **MySQL của WordPress**. Lượt chấm chỉ sang được bằng đúng ba đường:
+	 *      1. `GhiSongSongWP` — hàng đợi + lịch mỗi phút, và nó chỉ chép lượt nào đi qua `doPost`
+	 *         của app gốc (tức là lượt MÁY đẩy lên). Người chấm bằng trang web của app gốc
+	 *         KHÔNG đi qua `doPost`, nên không có gì để chép.
+	 *      2. Kéo tay theo tháng (hàm `keo_thang()` — wp-admin, và nút ở khối này).
+	 *      3. Chấm thẳng trên trạm mới `/cham-cong/` — ghi luôn vào MySQL, không qua sheet.
+	 *    Thiếu cả ba thì bên kia có mà bên này không, im lặng, và không màn nào nói ra.
+	 *
+	 * 🔴 ĐO CHỨ ĐỪNG ĐOÁN. Trước khối này, câu trả lời cho "vì sao thiếu" chỉ có thể là phỏng
+	 *    đoán — mà ba nguyên nhân trên cần ba cách sửa khác hẳn nhau. Hàm này hỏi thẳng cả hai
+	 *    bên rồi đặt cạnh nhau, kể cả vế ít ai nghĩ tới: MÃ bên app không có hồ sơ bên này (khi
+	 *    ấy kéo về xong người đó vẫn không hiện trong lưới, vì lưới dựng hàng theo hồ sơ).
+	 *
+	 * ⚠️ KHÔNG GHI GÌ CẢ. Đây là phép đo. Ghi là việc của `keo_thang( …, false )`.
+	 *
+	 * @param string $coso  tên cơ sở (không tiền tố `CS_`).
+	 * @param string $thang dạng `yyyy-MM` (khuôn của màn Bảng công; đổi sang `MM-yyyy` khi gọi app).
+	 */
+	public static function doi_chieu_thang( $coso, $thang ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $coso || ! preg_match( '/^(\d{4})-(\d{2})$/', (string) $thang, $m_th ) ) {
+			return array( 'ok' => false, 'error' => 'Thiếu cơ sở hoặc tháng không đúng khuôn yyyy-MM.' );
+		}
+		$thang_app = $m_th[2] . '-' . $m_th[1];
+
+		$r = VHCC_CauNoi::goi( 'ccXuatChamCong', array( VHCC_May::pin(), $coso, $thang_app ) );
+		if ( empty( $r['ok'] ) ) {
+			return array( 'ok' => false, 'error' => isset( $r['error'] ) ? $r['error']
+				: 'Không gọi được app gốc.' );
+		}
+		$d = (array) $r['data'];
+		if ( empty( $d['ok'] ) ) {
+			return array( 'ok' => false, 'error' => isset( $d['error'] ) ? $d['error']
+				: 'App gốc chối: có thể chưa dán bản CauNoiChamCong.gs mới (hàm ccXuatChamCong).' );
+		}
+		if ( ! empty( $d['khongCoSheet'] ) ) {
+			return array( 'ok' => true, 'khong_co_sheet' => true, 'nguoi' => array(),
+				'thieu_wp' => 0, 'thieu_app' => 0, 'lech' => 0, 'ma_la' => array() );
+		}
+
+		/* ---- bên APP ---- */
+		$app = array();   // [ma][ngay] = ['vao'=>giây|null, 'ra'=>giây|null]
+		$ten_app = array();
+		foreach ( (array) ( isset( $d['rows'] ) ? $d['rows'] : array() ) as $ng ) {
+			$ng = (array) $ng;
+			list( $ma, $ht_bo ) = VHCC_Nhan::tach_hau_to(
+				trim( (string) ( isset( $ng['ma'] ) ? $ng['ma'] : '' ) ) );
+			if ( '' === $ma ) { continue; }
+			$ten_app[ $ma ] = trim( (string) ( isset( $ng['ten'] ) ? $ng['ten'] : '' ) );
+			foreach ( (array) ( isset( $ng['ngay'] ) ? $ng['ngay'] : array() ) as $o ) {
+				$o = (array) $o;
+				$ngay = trim( (string) ( isset( $o['date'] ) ? $o['date'] : '' ) );
+				if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) { continue; }
+				if ( 0 !== strpos( $ngay, $thang . '-' ) ) { continue; }
+				foreach ( array( 'vao', 'ra' ) as $k ) {
+					$gio = trim( (string) ( isset( $o[ $k ] ) ? $o[ $k ] : '' ) );
+					if ( '' === $gio ) { continue; }
+					$giay = VHCC_DB::giay( $gio );
+					if ( null === $giay ) { continue; }
+					if ( ! isset( $app[ $ma ][ $ngay ] ) ) {
+						$app[ $ma ][ $ngay ] = array( 'vao' => null, 'ra' => null );
+					}
+					$app[ $ma ][ $ngay ][ $k ] = (int) $giay;
+				}
+			}
+		}
+
+		/* ---- bên WORDPRESS ---- */
+		$wp = array();
+		$ten_wp = array();
+		$rows_wp = VHCC_DB::rows( $wpdb->prepare(
+			'SELECT ma_nv, ho_ten, ngay, gio_vao_giay, gio_ra_giay FROM '
+			. VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s AND ngay LIKE %s',
+			$coso, $wpdb->esc_like( $thang . '-' ) . '%' ) );
+		foreach ( (array) $rows_wp as $x ) {
+			$ma = trim( (string) $x['ma_nv'] );
+			if ( '' === $ma ) { continue; }
+			$ngay = (string) $x['ngay'];
+			$ten_wp[ $ma ] = trim( (string) $x['ho_ten'] );
+			/* Cùng một ngày có thể có nhiều HÀNG (hậu tố TT/TG/…): gộp lại thành "ngày này có
+			   giờ vào / giờ ra hay chưa" — đúng mức mà bên app so được, vì sheet không có hậu tố. */
+			if ( ! isset( $wp[ $ma ][ $ngay ] ) ) {
+				$wp[ $ma ][ $ngay ] = array( 'vao' => null, 'ra' => null );
+			}
+			foreach ( array( 'vao' => 'gio_vao_giay', 'ra' => 'gio_ra_giay' ) as $k => $cot ) {
+				if ( null === $x[ $cot ] || '' === $x[ $cot ] ) { continue; }
+				if ( null === $wp[ $ma ][ $ngay ][ $k ] ) { $wp[ $ma ][ $ngay ][ $k ] = (int) $x[ $cot ]; }
+			}
+		}
+
+		/* ---- đặt cạnh nhau ---- */
+		$nguoi = array();
+		$t_wp = 0; $t_app = 0; $t_lech = 0;
+		$ma_het = array_unique( array_merge( array_keys( $app ), array_keys( $wp ) ) );
+		sort( $ma_het );
+		foreach ( $ma_het as $ma ) {
+			$hs  = VHCC_NhanSu::ho_so( $ma );
+			$mot = array(
+				'ma'        => $ma,
+				'ten'       => $hs ? trim( (string) $hs['ho_ten'] )
+					: ( isset( $ten_app[ $ma ] ) && '' !== $ten_app[ $ma ] ? $ten_app[ $ma ]
+						: ( isset( $ten_wp[ $ma ] ) ? $ten_wp[ $ma ] : '' ) ),
+				'co_ho_so'  => (bool) $hs,
+				'thieu_wp'  => array(),   // app có, WordPress không
+				'thieu_app' => array(),   // WordPress có, app không
+				'lech'      => array(),   // hai bên cùng có nhưng giờ khác nhau
+			);
+			$ngay_het = array_unique( array_merge(
+				array_keys( isset( $app[ $ma ] ) ? $app[ $ma ] : array() ),
+				array_keys( isset( $wp[ $ma ] ) ? $wp[ $ma ] : array() ) ) );
+			sort( $ngay_het );
+			foreach ( $ngay_het as $ngay ) {
+				$a = isset( $app[ $ma ][ $ngay ] ) ? $app[ $ma ][ $ngay ] : null;
+				$w = isset( $wp[ $ma ][ $ngay ] ) ? $wp[ $ma ][ $ngay ] : null;
+				if ( $a && ! $w ) { $mot['thieu_wp'][] = $ngay; $t_wp++; continue; }
+				if ( $w && ! $a ) { $mot['thieu_app'][] = $ngay; $t_app++; continue; }
+				if ( ! $a || ! $w ) { continue; }
+				/* Cùng ngày: thiếu HẲN một giờ bên này mà bên kia có thì cũng là "thiếu", không
+				   phải "lệch" — nó là một nửa ngày công chưa sang, và sửa bằng đúng nút Nạp về. */
+				$thieu_nua = ( null !== $a['vao'] && null === $w['vao'] )
+					|| ( null !== $a['ra'] && null === $w['ra'] );
+				if ( $thieu_nua ) { $mot['thieu_wp'][] = $ngay; $t_wp++; continue; }
+				if ( $a['vao'] !== $w['vao'] || $a['ra'] !== $w['ra'] ) {
+					$mot['lech'][] = $ngay;
+					$t_lech++;
+				}
+			}
+			if ( $mot['thieu_wp'] || $mot['thieu_app'] || $mot['lech'] || ! $mot['co_ho_so'] ) {
+				$nguoi[] = $mot;
+			}
+		}
+		/* 🔴 MÃ BÊN APP MÀ BÊN NÀY KHÔNG CÓ HỒ SƠ — kể riêng ra. Kéo về xong người ấy VẪN không
+		   hiện trong lưới (lưới dựng hàng theo sổ nhân sự), nên nếu chỉ đếm "đã kéo N lượt" thì
+		   nhìn như xong mà màn hình không đổi gì. */
+		$ma_la = array();
+		foreach ( $nguoi as $x ) {
+			if ( ! $x['co_ho_so'] ) { $ma_la[] = $x['ma'] . ( '' !== $x['ten'] ? ' (' . $x['ten'] . ')' : '' ); }
+		}
+		return array( 'ok' => true, 'nguoi' => $nguoi, 'thieu_wp' => $t_wp,
+			'thieu_app' => $t_app, 'lech' => $t_lech, 'ma_la' => $ma_la,
+			'so_app' => count( $app ), 'so_wp' => count( $wp ) );
+	}
+
 	/* ================================================================ SỔ PHÂN QUYỀN */
 
 	/**

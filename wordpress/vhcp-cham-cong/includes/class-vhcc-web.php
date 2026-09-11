@@ -848,7 +848,12 @@ class VHCC_Web {
 	   đi xin đúng cái quyền mà họ không cần. Phần gác thật nằm trong
 	   `VHCC_NhanSu::them_nv_cua_hang()`, hỏi đúng đầu việc `them_nv`. */
 	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh',
-		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra' );
+		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra',
+		/* Đối chiếu / nạp về từ app gốc: việc của màn Bảng công, KHÔNG phải việc hồ sơ. Người
+		   cần nó nhất là Quản lý (bậc 3) — mà `co_ho_so` đòi bậc 4, nên để ngoài danh sách này
+		   là chối đúng người cần dùng, bằng một câu nói về màn Hồ sơ họ không hề đụng tới. Hai
+		   việc này tự hỏi `ngoai_coso` + `co_quyen_coso` ngay dòng đầu — chặt hơn, không lỏng hơn. */
+		'doi_chieu_app', 'nap_app' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -1480,6 +1485,66 @@ class VHCC_Web {
 					. implode( ' · ', $r['bo_qua'] ) );
 			}
 			return $bao_g;
+		}
+
+		/**
+		 * ĐỐI CHIẾU / NẠP VỀ TỪ APP GỐC — xem `VHCC_Keo::doi_chieu_thang()`.
+		 *
+		 * 🔴 Anh Thắng 11/09/2026: *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+		 *    Hai cuốn sổ (Sheet của app gốc / MySQL của web), và ba đường bắc cầu — thiếu cả ba
+		 *    thì bên kia có mà bên này không, im lặng.
+		 *
+		 * ⚠️ HAI VIỆC, HAI MỨC HẬU QUẢ. `doi_chieu_app` chỉ ĐỌC, không ghi gì; `nap_app` ghi
+		 *    thật vào bảng công. Gộp làm một nút là người ta bấm "cho biết" rồi ghi mất.
+		 */
+		if ( 'doi_chieu_app' === $viec || 'nap_app' === $viec ) {
+			if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) {
+				return array( array( 'loi' => VHCC_Vai::loi( $toi, 'ngoai_coso',
+					'Đối chiếu với app gốc' ) ) );
+			}
+			$cs_dc = isset( $_POST['dc_coso'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['dc_coso'] ) ) : '';
+			$th_dc = isset( $_POST['dc_thang'] ) ? sanitize_text_field( wp_unslash( $_POST['dc_thang'] ) ) : '';
+			if ( '' === $cs_dc || ! preg_match( '/^\d{4}-\d{2}$/', $th_dc ) ) {
+				return array( array( 'loi' => 'Thiếu cơ sở hoặc tháng.' ) );
+			}
+			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_dc ) ) {
+				return array( array( 'loi' => 'Bạn không phụ trách cơ sở "' . $cs_dc . '".' ) );
+			}
+			if ( 'nap_app' === $viec ) {
+				/* `keo_thang()` đi qua `VHCC_Nhan::ghi_gio()` — luật "chỉ nới, không thu hẹp" của
+				   nó giữ nguyên: giờ đã có bên này KHÔNG bị đè, kéo lại lần hai cũng không sinh
+				   thêm gì. Nên nút này an toàn để bấm lại. */
+				$r_nap = VHCC_Keo::keo_thang( $cs_dc, substr( $th_dc, 5, 2 ) . '-' . substr( $th_dc, 0, 4 ), false );
+				if ( empty( $r_nap['ok'] ) ) {
+					return array( array( 'loi' => isset( $r_nap['error'] ) ? $r_nap['error'] : 'Không kéo được.' ) );
+				}
+				if ( ! empty( $r_nap['khong_co_sheet'] ) ) {
+					return array( array( 'canh' => 'App gốc KHÔNG có sheet chấm công cho ' . $cs_dc
+						. ' tháng ' . $th_dc . ' — không có gì để nạp. Kiểm lại tên cơ sở bên app gốc.' ) );
+				}
+				$bao_nap = array( array( 'xong' => 'Đã nạp từ app gốc về bảng công: ' . (int) $r_nap['nguoi']
+					. ' người · ' . (int) $r_nap['luot'] . ' lượt giờ vào/ra của ' . $cs_dc . ' tháng '
+					. $th_dc . '. Giờ đã có bên này KHÔNG bị đè — bấm lại lượt nữa cũng không sinh thêm.' ) );
+				/* Đối chiếu LẠI ngay sau khi nạp: nút này sinh ra để làm hết chênh lệch, nên phải
+				   nói được là còn hay hết. Bắt người ta bấm thêm một nút để biết kết quả của nút
+				   vừa bấm là để họ đoán. */
+				$r_lai = VHCC_Keo::doi_chieu_thang( $cs_dc, $th_dc );
+				if ( ! empty( $r_lai['ok'] ) ) {
+					$r_lai['viec'] = 'doi_chieu_app';
+					$r_lai['coSo'] = $cs_dc;
+					$r_lai['thang'] = $th_dc;
+					$bao_nap[] = $r_lai;
+				}
+				return $bao_nap;
+			}
+			$r_dc = VHCC_Keo::doi_chieu_thang( $cs_dc, $th_dc );
+			if ( empty( $r_dc['ok'] ) ) {
+				return array( array( 'loi' => isset( $r_dc['error'] ) ? $r_dc['error'] : 'Không đối chiếu được.' ) );
+			}
+			$r_dc['viec']  = 'doi_chieu_app';
+			$r_dc['coSo']  = $cs_dc;
+			$r_dc['thang'] = $th_dc;
+			return array( $r_dc );
 		}
 
 		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
@@ -4158,8 +4223,70 @@ class VHCC_Web {
 			      gọi lại đúng dòng dưới đây, không phải dựng lại từ đầu. `VHCC_Luong` (lõi tính
 			      tiền) cũng không đụng: tính lương qua nơi khác (nếu có) vẫn ra đúng số. */
 			self::the_khoi_in( $toi, $mot_cs, $th );
+			self::the_doi_chieu_app( $toi, $mot_cs, $th, $ky );
 			echo '</details></div>';
 		}
+	}
+
+	/**
+	 * KHỐI ĐỐI CHIẾU VỚI APP GỐC — "bên kia có, bên này không" thì ĐO chứ đừng đoán.
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, hai ảnh cạnh nhau: Dashboard của app gốc trên script.google.com
+	 *    báo *"ĐÃ CHẤM 5/30 NGÀY"*, còn lưới bảng công thì hàng người ấy toàn dấu chấm —
+	 *    *"Bên trang chấm công lại có, bên bảng anh không thấy"*.
+	 *
+	 * 🔴 CHUYỆN NÀY XẢY RA ĐƯỢC VÌ CÓ HAI CUỐN SỔ: app gốc ghi vào Google Sheet, lưới này đọc
+	 *    MySQL. Lượt chấm chỉ sang được bằng ba đường — `GhiSongSongWP` (chỉ chép lượt đi qua
+	 *    `doPost`, tức lượt MÁY đẩy), kéo tay theo tháng (nút dưới đây), và chấm thẳng trên trạm
+	 *    mới. Thiếu cả ba thì bên kia có mà bên này không, IM LẶNG.
+	 *
+	 * ⚠️ NÚT "ĐỐI CHIẾU" KHÔNG GHI GÌ. Nó đi hỏi app gốc rồi đặt cạnh bảng công. Ghi là việc của
+	 *    nút thứ hai, và nút ấy đứng riêng, màu riêng.
+	 *
+	 * ⚠️ Bậc Quản lý trở lên: lượt bấm gọi ra ngoài internet sang Apps Script và có thể GHI vào
+	 *    bảng công của cả một tháng. Cửa hàng trưởng xem bảng công thì được, đụng vào đường dữ
+	 *    liệu giữa hai hệ thì không.
+	 */
+	private static function the_doi_chieu_app( $toi, $cs, $th, $ky ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		/* Chưa nối được sang app gốc thì đừng vẽ nút — bấm vào chỉ nhận một câu lỗi kỹ thuật.
+		   Nói thẳng là chưa nối, và nói luôn nối ở đâu. */
+		$co_noi = class_exists( 'VHCC_CauNoi' ) && method_exists( 'VHCC_CauNoi', 'url' )
+			&& '' !== VHCC_CauNoi::url();
+
+		echo '<div class="the"><details>';
+		echo '<summary><b>Đối chiếu với app gốc</b> — "bên kia có mà đây không thấy" thì bấm vào đây'
+			. '</summary>';
+		echo '<p class="mo">Có <b>hai cuốn sổ</b>: app chấm công cũ trên <code>script.google.com</code> '
+			. 'ghi vào <b>Google Sheet</b>, còn lưới ở trên đọc <b>cơ sở dữ liệu của web</b>. '
+			. 'Lượt chấm chỉ sang được đây bằng ba đường: <b>(1)</b> bản chép song song mỗi phút bên '
+			. 'app gốc — và nó <b>chỉ chép lượt do MÁY chấm công đẩy lên</b>, người chấm bằng trang '
+			. 'web của app gốc thì không có gì để chép; <b>(2)</b> nút <b>Nạp về</b> dưới đây; '
+			. '<b>(3)</b> chấm thẳng trên trạm mới <code>/cham-cong/</code> (ghi luôn vào đây).</p>';
+		if ( ! $co_noi ) {
+			echo '<div class="bao canh"><b>Chưa nối được sang app gốc.</b> Khai địa chỉ <code>/exec</code> '
+				. 'ở <b>wp-admin → Chấm công → Cài đặt</b> rồi quay lại đây.</div></details></div>';
+			return;
+		}
+		$o_chung = '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="dc_coso" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="dc_thang" value="' . esc_attr( $th ) . '">'
+			. self::o_loc();
+		echo '<div class="hang" style="margin-top:8px;align-items:center">';
+		echo '<form method="post" style="margin:0">' . $o_chung
+			. '<input type="hidden" name="viec" value="doi_chieu_app">'
+			. '<button class="chinh">Đối chiếu ' . esc_html( $cs ) . ' tháng ' . esc_html( $th )
+			. '</button></form>';
+		echo '<form method="post" style="margin:0">' . $o_chung
+			. '<input type="hidden" name="viec" value="nap_app">'
+			. '<button>Nạp về những ngày còn thiếu</button></form>';
+		echo '</div>';
+		echo '<div class="mo" style="margin-top:5px"><b>Đối chiếu</b> chỉ đọc, không ghi gì. '
+			. '<b>Nạp về</b> ghi thật vào bảng công — nhưng <b>giờ đã có ở đây KHÔNG bị đè</b>, '
+			. 'và bấm lại lượt nữa cũng không sinh thêm hàng nào.</div>';
+		echo '</details></div>';
 	}
 
 	/**
@@ -7502,6 +7629,10 @@ class VHCC_Web {
 			self::ve_bao_cong( $b );
 			return;
 		}
+		if ( isset( $b['viec'] ) && 'doi_chieu_app' === $b['viec'] ) {
+			self::ve_bao_doi_chieu( $b );
+			return;
+		}
 		if ( isset( $b['viec'] ) && ( 'nap_csv' === $b['viec'] || 'xem_csv' === $b['viec'] ) ) {
 			self::ve_bao_csv( $b, 'xem_csv' === $b['viec'] );
 			return;
@@ -7569,6 +7700,71 @@ class VHCC_Web {
 	 *    đoán bố cục từ hàng tiêu đề, nên cách duy nhất để biết nó đoán đúng là nhìn bốn con số
 	 *    ấy có khớp với tệp đang cầm trên tay không. "Nạp xong" thì lúc đọc sai cũng in ra y hệt.
 	 */
+	/**
+	 * KẾT QUẢ ĐỐI CHIẾU VỚI APP GỐC — đặt hai bên cạnh nhau, kể cả vế ít ai nghĩ tới.
+	 *
+	 * ⚠️ BA LOẠI CHÊNH LỆCH, BA CÁCH SỬA KHÁC HẲN NHAU, nên không gộp chung một con số:
+	 *      · app có – web không  -> bấm "Nạp về" là xong;
+	 *      · web có – app không  -> lượt chấm ở TRẠM mới (ghi thẳng MySQL, không qua sheet) —
+	 *        bình thường, KHÔNG phải lỗi, và tuyệt đối đừng "sửa" bằng cách xoá;
+	 *      · mã bên app không có hồ sơ bên này -> nạp về xong VẪN không hiện trong lưới, vì
+	 *        lưới dựng hàng theo sổ nhân sự. Không kể riêng ra thì nhìn như đã xong.
+	 */
+	private static function ve_bao_doi_chieu( $b ) {
+		$cs = isset( $b['coSo'] ) ? (string) $b['coSo'] : '';
+		$th = isset( $b['thang'] ) ? (string) $b['thang'] : '';
+		if ( ! empty( $b['khong_co_sheet'] ) ) {
+			echo '<div class="bao canh"><b>App gốc không có sheet chấm công cho ' . esc_html( $cs )
+				. ' tháng ' . esc_html( $th ) . '.</b><br><span class="mo">Không phải lỗi kết nối — '
+				. 'gọi sang được, bên đó trả lời là không có bảng nào tên ấy. Thường là tên cơ sở '
+				. 'bên app gốc viết khác.</span></div>';
+			return;
+		}
+		$t_wp  = (int) $b['thieu_wp'];
+		$t_app = (int) $b['thieu_app'];
+		$t_lech = (int) $b['lech'];
+		echo '<div class="bao ' . ( $t_wp ? 'loi' : 'ok' ) . '"><b>Đối chiếu ' . esc_html( $cs )
+			. ' tháng ' . esc_html( $th ) . ':</b> '
+			. ( $t_wp
+				? '<b>' . $t_wp . ' ngày</b> app gốc CÓ mà bảng công KHÔNG có.'
+				: 'không ngày nào app gốc có mà bảng công thiếu.' )
+			. ' · ' . $t_app . ' ngày chỉ có bên bảng công · ' . $t_lech . ' ngày lệch giờ.'
+			. '<br><span class="mo">Bên app gốc ' . (int) $b['so_app'] . ' người có công, bên bảng công '
+			. (int) $b['so_wp'] . ' người.</span></div>';
+		if ( ! empty( $b['ma_la'] ) ) {
+			echo '<div class="bao loi"><b>' . count( (array) $b['ma_la'] ) . ' mã bên app gốc KHÔNG có '
+				. 'hồ sơ ở đây:</b> ' . esc_html( implode( ' · ', array_slice( (array) $b['ma_la'], 0, 20 ) ) )
+				. '<br><span class="mo">Nạp về thì giờ vẫn vào kho, nhưng mấy người này <b>vẫn không '
+				. 'hiện trong lưới</b> — lưới dựng hàng theo sổ nhân sự. Lập hồ sơ cho họ (đúng Mã NV '
+				. 'này) rồi hãy nạp.</span></div>';
+		}
+		if ( ! $t_wp && ! $t_app && ! $t_lech ) { return; }
+
+		echo '<div class="the"><h2>Chênh lệch từng người</h2>';
+		echo '<p class="mo">Cột <b>app gốc có – ở đây không</b> là phần bấm <b>Nạp về</b> sẽ lấy. '
+			. 'Cột <b>chỉ có ở đây</b> thường là lượt chấm trên <b>trạm mới</b> (ghi thẳng vào đây, '
+			. 'không đi qua sheet) — bình thường, đừng xoá.</p>';
+		echo '<div class="cuon"><table><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>App gốc có – ở đây KHÔNG</th><th>Chỉ có ở đây</th><th>Lệch giờ</th>'
+			. '</tr></thead><tbody>';
+		foreach ( array_slice( (array) $b['nguoi'], 0, 200 ) as $x ) {
+			$ngay_gon = function ( $ds ) {
+				$r = array();
+				foreach ( (array) $ds as $n ) { $r[] = substr( (string) $n, 8, 2 ); }
+				return $r ? implode( ' ', $r ) : '—';
+			};
+			echo '<tr><td><code>' . esc_html( $x['ma'] ) . '</code>'
+				. ( empty( $x['co_ho_so'] ) ? ' <span class="mo">(chưa có hồ sơ)</span>' : '' ) . '</td>'
+				. '<td>' . esc_html( $x['ten'] ) . '</td>'
+				. '<td>' . ( $x['thieu_wp'] ? '<b>' . esc_html( $ngay_gon( $x['thieu_wp'] ) ) . '</b>' : '—' ) . '</td>'
+				. '<td>' . esc_html( $ngay_gon( $x['thieu_app'] ) ) . '</td>'
+				. '<td>' . esc_html( $ngay_gon( $x['lech'] ) ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo">Số trong ô là <b>ngày trong tháng</b>.</p>';
+		echo '</div>';
+	}
+
 	private static function ve_bao_cong( $b ) {
 		if ( empty( $b['ok'] ) ) {
 			echo '<div class="bao loi"><b>Không đọc được tệp.</b> ' . esc_html( $b['error'] ) . '</div>';
