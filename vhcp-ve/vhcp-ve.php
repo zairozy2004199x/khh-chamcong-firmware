@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.38.0
+ * Version:           1.39.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -933,7 +933,37 @@ class POSH_Ve {
 	}
 
 	// ───────────────────────────── Bảo vệ khu quản lý bằng PIN ─────────────────────────────
+
+	/**
+	 * Ai được vào khu quản trị KHÔNG CẦN PIN — anh Thắng 11/09/2026: *"đăng nhập bằng zalo quản
+	 * trị thì không cần mã pin"*.
+	 *
+	 * Hai cửa, cả hai đều đã được xác thực trước khi tới đây:
+	 *  · `wp`   — đang đăng nhập WordPress với quyền quản trị site. Người này sửa được cả plugin
+	 *             lẫn cơ sở dữ liệu từ wp-admin, bắt gõ thêm PIN không chặn thêm được gì.
+	 *  · `zalo` — cookie `pve_zuser` do chính plugin ký (HMAC bằng muối của site), và Zalo ID nằm
+	 *             trong danh sách quản trị.
+	 *
+	 * 🔴 BẮT BUỘC CÓ DANH SÁCH ID. `la_admin_zalo()` trả TRUE cho mọi người khi ô "Zalo ID quản
+	 *    trị" bỏ trống — chủ ý của nó là "ai đăng nhập cũng THẤY nút Quản trị, trang vẫn khoá
+	 *    PIN". Đem đúng hàm ấy ra làm CỬA VÀO mà quên điều kiện này thì mọi khách từng đăng nhập
+	 *    Zalo trên trang bán vé đều bước thẳng vào khu quản trị. Nên: trống = không ai được bỏ
+	 *    qua PIN, dù đã đăng nhập.
+	 *
+	 * @return string '' = phải gõ PIN · 'wp' · 'zalo'
+	 */
+	public static function quan_tri_khong_pin() {
+		if ( function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) ) { return 'wp'; }
+		$ds = trim( (string) get_option( 'pve_zalo_admin_ids', '' ) );
+		if ( '' === $ds ) { return ''; }                            // xem khối 🔴 ở trên
+		$zu = self::zalo_user();
+		return ( $zu && self::la_admin_zalo( $zu ) ) ? 'zalo' : '';
+	}
+
 	private static function pin_hople( $req ) {
+		/* Kiểm ở MỌI route /ql/* vì khu này không phát thẻ phiên: PIN đi kèm từng lượt gọi. Đặt
+		   cửa mới ngay đây là mọi route được bảo vệ như nhau, khỏi sót một route nào đó. */
+		if ( '' !== self::quan_tri_khong_pin() ) { return true; }
 		$pin_luu = (string) get_option( 'pve_pin', '' );
 		if ( '' === $pin_luu ) { return false; }                    // chưa khai PIN => khoá hẳn khu quản lý
 		$pin = (string) $req->get_param( 'pin' );
@@ -1852,6 +1882,11 @@ class POSH_Ve {
 		$atts   = shortcode_atts( array( 'an_theme' => '1' ), $atts, 'posh_ql' );
 		$rest   = esc_url_raw( rest_url( self::NS ) );
 		$co_pin = '' !== (string) get_option( 'pve_pin', '' );
+		/* Vào thẳng nếu là quản trị WordPress hoặc Zalo trong danh sách quản trị. Tính ở máy chủ
+		   rồi mới in trang — hỏi bằng một lượt gọi REST thì trang nháy qua ô PIN rồi mới nhảy vào,
+		   trông như vừa bị đăng xuất. */
+		$khong_pin = self::quan_tri_khong_pin();
+		$zu_ql     = self::zalo_user();
 		$kvucs  = array();
 		foreach ( self::ds_tatca() as $g ) { $kv = trim( (string) $g['khu_vuc'] ); if ( '' !== $kv && ! in_array( $kv, $kvucs, true ) ) { $kvucs[] = $kv; } }
 		ob_start();
@@ -1871,18 +1906,25 @@ class POSH_Ve {
 		}
 		</style>
 		<?php endif; ?>
-		<div class="pql" data-rest="<?php echo esc_attr( $rest ); ?>">
+		<div class="pql" data-rest="<?php echo esc_attr( $rest ); ?>" data-nonce="<?php echo esc_attr( wp_create_nonce( 'wp_rest' ) ); ?>">
 			<div class="pql-top"><div class="pql-brand">🎟️ Quản trị vé — Marketing</div><button class="pql-out" hidden>Đăng xuất</button></div>
 
 			<div class="pql-login">
 				<div class="pql-card">
 					<div class="pql-h">Đăng nhập</div>
-					<?php if ( ! $co_pin ) : ?>
+					<?php if ( $khong_pin ) : ?>
+						<p class="pql-ok">✅ Đang vào bằng <?php echo 'zalo' === $khong_pin ? 'tài khoản <b>Zalo quản trị</b>' : 'tài khoản <b>quản trị WordPress</b>'; ?><?php
+							if ( 'zalo' === $khong_pin && $zu_ql && ! empty( $zu_ql['name'] ) ) { echo ' — ' . esc_html( $zu_ql['name'] ); }
+						?> · không cần mã PIN.</p>
+						<div class="pql-msg">Đang mở khu quản trị…</div>
+					<?php elseif ( ! $co_pin ) : ?>
 						<p class="pql-err">Chưa đặt mã PIN. Nhờ quản trị vào <b>WP Admin → Vé khu vui chơi → Khu quản lý (PIN)</b> đặt trước.</p>
 					<?php else : ?>
 						<input class="pql-pin" type="password" inputmode="numeric" placeholder="Nhập mã PIN" autocomplete="off">
 						<button class="pql-dn">Vào quản trị</button>
 						<div class="pql-msg"></div>
+						<?php /* Lối vào thứ hai cho người quản trị đã khai Zalo ID — khỏi phải nhớ PIN. */ ?>
+						<a class="pql-zalo" href="<?php echo esc_url( add_query_arg( 'pve_zalo', 'login', home_url( '/' ) ) ); ?>">Đăng nhập bằng Zalo quản trị</a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -2050,6 +2092,10 @@ class POSH_Ve {
 		.pql input:focus,.pql textarea:focus{ outline:none; border-color:var(--g); }
 		.pql-dn,.pql-luu,.pql-them{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
 		.pql-dn{ width:100%; margin-top:12px; }
+		.pql-ok{ color:#86efac; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35);
+			border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; line-height:1.5; }
+		.pql-zalo{ display:block; text-align:center; margin-top:10px; padding:10px; border-radius:10px;
+			background:#0068ff; color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
 		.pql-msg,.pql-err{ color:#f0a0a0; font-size:13px; margin-top:10px; text-align:center; }
 		.pql-msg2{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
@@ -2148,16 +2194,31 @@ class POSH_Ve {
 		(function(){
 		  var root = document.querySelector('.pql'); if(!root) return;
 		  var REST = root.getAttribute('data-rest'), PIN='';
+		  /* ⚠️ Gọi REST từ trình duyệt thì WordPress CHỈ nhận ra người đang đăng nhập khi có nonce.
+		     Thiếu nó, current_user_can('manage_options') trong quan_tri_khong_pin() luôn trả false
+		     -> quản trị WordPress mở được màn hình nhưng mọi lượt gọi trả 401, trông như hỏng
+		     ngẫu nhiên. Lối vào bằng Zalo không cần nonce (plugin tự đọc cookie đã ký của nó). */
+		  var NONCE = root.getAttribute('data-nonce') || '';
+		  function hdr(extra){ var h = extra || {}; if (NONCE) h['X-WP-Nonce'] = NONCE; return h; }
 		  var $=function(s){return root.querySelector(s);};
 		  var VND=function(n){try{return (n||0).toLocaleString('vi-VN')+'đ';}catch(e){return (n||0)+'đ';}};
 		  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
 		  function post(path,body){ body=body||{}; body.pin=PIN;
-		    return fetch(REST+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+		    return fetch(REST+path,{method:'POST',credentials:'same-origin',headers:hdr({'Content-Type':'application/json'}),body:JSON.stringify(body)})
 		      .then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
 		  function get(path){ var u=new URL(REST+path); u.searchParams.set('pin',PIN);
-		    return fetch(u.toString()).then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
+		    return fetch(u.toString(),{credentials:'same-origin',headers:hdr()}).then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
 
 		  // Đăng nhập
+		  /* Máy chủ đã nhận ra quản trị (Zalo/WordPress) -> mở thẳng, PIN để rỗng. Mọi route /ql/*
+		     vẫn tự kiểm lại quyền ở máy chủ mỗi lượt gọi, nên bỏ qua màn PIN ở đây không nới lỏng
+		     gì: đặt PQL_AUTO=true bằng tay trong trình duyệt chỉ khiến các lượt gọi trả 401. */
+		  var PQL_AUTO = <?php echo $khong_pin ? 'true' : 'false'; ?>;
+		  if (PQL_AUTO) {
+		    PIN='';
+		    $('.pql-login').hidden=true; $('.pql-app').hidden=false; $('.pql-out').hidden=false;
+		    napBaoCao();
+		  }
 		  var dn=$('.pql-dn');
 		  if(dn){
 		    var go=function(){ var v=($('.pql-pin').value||'').trim(); if(!v)return; $('.pql-msg').textContent='Đang kiểm tra…'; PIN=v;
@@ -2166,7 +2227,12 @@ class POSH_Ve {
 		    dn.addEventListener('click',go);
 		    $('.pql-pin').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
 		  }
-		  $('.pql-out').addEventListener('click',function(){ PIN=''; $('.pql-app').hidden=true; $('.pql-login').hidden=false; $('.pql-out').hidden=true; if($('.pql-pin')){$('.pql-pin').value='';$('.pql-msg').textContent='';} });
+		  $('.pql-out').addEventListener('click',function(){ PIN=''; $('.pql-app').hidden=true; $('.pql-login').hidden=false; $('.pql-out').hidden=true; if($('.pql-pin')){$('.pql-pin').value='';$('.pql-msg').textContent='';}
+		    /* Vào bằng Zalo/WordPress thì "Thoát" chỉ đóng khu quản trị, tải lại trang là vào tiếp —
+		       quyền nằm ở phiên đăng nhập chứ không ở màn này. Nói thẳng ra, không để người ta
+		       tưởng đã thoát hẳn rồi đưa máy cho người khác. */
+		    if (PQL_AUTO && $('.pql-msg')) { $('.pql-msg').textContent='Đã đóng khu quản trị. Bạn vẫn đang đăng nhập quản trị — tải lại trang là vào tiếp; muốn thoát hẳn thì đăng xuất Zalo/WordPress.'; }
+		  });
 
 		  // Tabs: Vé / Báo cáo / Đơn & soát
 		  Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(t){
@@ -2859,6 +2925,8 @@ class POSH_Ve {
 			. ( $zv ? 'Đang có: kiểm tra <a href="' . esc_url( home_url( '/zalo_verifier' . $zv . '.html' ) ) . '" target="_blank">file xác thực</a>.' : '' )
 			. ' Xong thì bấm <b>Xác thực</b> trên Zalo (chọn cách <i>meta</i> hoặc <i>file</i> đều được).</span></td></tr>';
 		echo '<tr><th>Zalo ID quản trị</th><td><input name="zalo_admin_ids" class="large-text code" value="' . esc_attr( (string) get_option( 'pve_zalo_admin_ids', '' ) ) . '" placeholder="VD 123456789, 987654321">'
+			. '<p class="description"><b>Từ bản 1.39.0 đây là CỬA VÀO khu quản trị:</b> Zalo ID khai ở đây đăng nhập Zalo xong là vào thẳng, <b>không cần mã PIN</b>. '
+			. 'Để <b>trống</b> = không ai được bỏ qua PIN (và mọi người đã đăng nhập đều thấy nút Quản trị như trước). Khai nhầm một ID lạ là trao khu quản trị cho người đó.</p>'
 			. '<br><span class="description">Các Zalo ID được hiện nút <b>“🔧 Quản trị vé”</b> trên web sau khi đăng nhập Zalo (cách nhau dấu phẩy). Để <b>trống</b> = mọi người đăng nhập Zalo đều thấy nút (trang vẫn khoá bằng PIN). Mẹo lấy ID: đăng nhập Zalo trên web, nút quản trị sẽ hiện — hoặc xem trong <i>Đơn vé</i>.</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_zalo_luu" value="1">Lưu cấu hình Zalo</button></p></form>';
 
