@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.49.1
+ * Version:           1.50.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -703,6 +703,8 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
+		register_rest_route( self::NS, '/ql/vi-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_ds' ) ) );
+		register_rest_route( self::NS, '/ql/vi-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_luu' ) ) );
 		register_rest_route( self::NS, '/ql/do-saoke', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_do_saoke' ) ) );
 		register_rest_route( self::NS, '/ql/baocao', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_baocao' ) ) );
 		register_rest_route( self::NS, '/ql/donhang', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_donhang' ) ) );
@@ -1046,6 +1048,52 @@ class POSH_Ve {
 		}
 		return $n;
 	}
+	/**
+	 * Cấu hình ví tiền cho khu quản trị — anh Thắng 11/09/2026: *"tất cả cho về web quản lý"*.
+	 *
+	 * Cùng đọc/ghi một cặp option với màn WP Admin, không nhân bản kho dữ liệu: hai kho là sớm
+	 * muộn hai màn nói hai con số khác nhau và không biết tin màn nào.
+	 */
+	public static function r_ql_vi_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$cs = array();
+		foreach ( self::ds_coso() as $c ) { $cs[] = $c['ten']; }
+		return array( 'ok' => true, 'goi' => self::ds_goi_nap(), 'code' => self::ds_ma_uu_dai(), 'coso' => $cs );
+	}
+
+	public static function r_ql_vi_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$goi = array();
+		foreach ( (array) $req->get_param( 'goi' ) as $g ) {
+			$nap = (int) ( isset( $g['nap'] ) ? $g['nap'] : 0 );
+			if ( $nap < 1000 ) { continue; }
+			$goi[] = array( 'nap' => $nap, 'tang' => max( 0, (int) ( isset( $g['tang'] ) ? $g['tang'] : 0 ) ) );
+		}
+		update_option( 'pve_vi_goi', $goi );
+
+		/* GIỮ SỐ LƯỢT ĐÃ DÙNG của mã cũ cùng tên — lưu lại cấu hình mà đếm về 0 là mã giới hạn
+		   100 lượt bỗng dùng được thêm 100 lượt nữa. */
+		$cu = array();
+		foreach ( self::ds_ma_uu_dai() as $c ) { $cu[ $c['code'] ] = (int) $c['da_dung']; }
+		$code = array();
+		foreach ( (array) $req->get_param( 'code' ) as $c ) {
+			$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( isset( $c['code'] ) ? $c['code'] : '' ) ) );
+			if ( '' === $m ) { continue; }
+			$code[] = array(
+				'code'      => $m,
+				'kieu'      => ( isset( $c['kieu'] ) && 'tien' === $c['kieu'] ) ? 'tien' : 'pt',
+				'gia_tri'   => max( 0, (int) ( isset( $c['gia_tri'] ) ? $c['gia_tri'] : 0 ) ),
+				'toi_thieu' => max( 0, (int) ( isset( $c['toi_thieu'] ) ? $c['toi_thieu'] : 0 ) ),
+				'han'       => preg_replace( '/[^0-9-]/', '', (string) ( isset( $c['han'] ) ? $c['han'] : '' ) ),
+				'gioi_han'  => max( 0, (int) ( isset( $c['gioi_han'] ) ? $c['gioi_han'] : 0 ) ),
+				'coso'      => sanitize_text_field( (string) ( isset( $c['coso'] ) ? $c['coso'] : '' ) ),
+				'da_dung'   => isset( $cu[ $m ] ) ? $cu[ $m ] : 0,
+			);
+		}
+		update_option( 'pve_vi_code', $code );
+		return array( 'ok' => true, 'goi' => count( $goi ), 'code' => count( $code ) );
+	}
+
 	public static function r_ql_do_saoke( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
 		$n = self::do_lai_saoke();
@@ -3276,6 +3324,7 @@ class POSH_Ve {
 					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
 					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
 					<div class="pql-side-g">Cấu hình</div>
+					<button class="pql-tab" data-tab="vi">💰 Ví tiền &amp; mã ưu đãi</button>
 					<button class="pql-tab" data-tab="tk">🏦 Tài khoản nhận tiền</button>
 					<button class="pql-tab" data-tab="soi">🩺 Kiểm tra hệ thống</button>
 				</aside>
@@ -3347,6 +3396,28 @@ class POSH_Ve {
 						<div class="pql-dmmsg"></div>
 					</div>
 				</div><!-- /pane dm -->
+
+				<div class="pql-pane" data-pane="vi" hidden>
+					<div class="pql-bar"><b>Ví tiền &amp; mã ưu đãi</b><button class="pql-vi-luu">Lưu ví tiền</button></div>
+					<p style="color:var(--mut);font-size:12px;margin:0 0 12px">
+						Khách nạp trước vào ví rồi dùng dần. <b>Mệnh giá phải có trong bảng này</b> — trang không nhận
+						số khách tự gõ, vì phần tặng thêm đi theo gói. Ví đi theo tài khoản <b>Zalo</b>.
+					</p>
+					<div class="pql-h2">Gói nạp</div>
+					<div class="pql-vi-goi"></div>
+					<button class="pql-them pql-vi-themgoi" style="margin-top:8px">+ Thêm mệnh giá</button>
+					<div class="pql-h2">Mã ưu đãi khi nạp</div>
+					<div class="pql-vi-code"></div>
+					<button class="pql-them pql-vi-themcode" style="margin-top:8px">+ Thêm mã</button>
+					<p style="color:var(--mut);font-size:12px;margin:12px 0 0">
+						<b>% tặng thêm</b>: 10 = nạp 200.000đ được tặng 20.000đ (làm tròn xuống hàng nghìn).
+						<b>Số tiền tặng</b>: 20000 = tặng thẳng 20.000đ.<br>
+						<b>Cơ sở</b>: chọn một cơ sở thì mã chỉ ăn khi khách <b>đang đứng tại đó</b> — máy chủ tự kiểm
+						bằng toạ độ, nên không ai gõ được mã của quầy khác. Cơ sở phải đã khai <b>toạ độ và bán kính</b>.<br>
+						Số lượt chỉ tăng <b>khi tiền thật sự về</b>, không tăng lúc khách mới bấm tạo mã.
+					</p>
+					<div class="pql-vimsg"></div>
+				</div><!-- /pane vi -->
 
 				<div class="pql-pane" data-pane="tk" hidden>
 					<div class="pql-bar"><b>Tài khoản nhận tiền</b></div>
@@ -3539,6 +3610,12 @@ class POSH_Ve {
 		.pql-form,.pql-uuform{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
 		.pql-uumsg{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-hrow{ display:flex; gap:8px; margin-bottom:8px; align-items:center; }
+		/* Hàng mã ưu đãi có nhiều ô: cho xuống dòng trên điện thoại thay vì ép bẹp hết lại. */
+		.pql-hrow-code{ flex-wrap:wrap; padding:10px; border:1px solid var(--bd); border-radius:12px; background:var(--sf); }
+		.pql-hrow-code input, .pql-hrow-code select{ flex:1 1 120px; min-width:0; }
+		.pql-xoa{ flex:none; border:1px solid rgba(239,68,68,.4); background:transparent; color:#b91c1c;
+			border-radius:9px; width:34px; height:34px; font-size:15px; cursor:pointer; }
+		.pql-dadung{ flex:none; color:var(--mut); font-size:12px; white-space:nowrap; }
 		.pql-hrow .h-ten{ flex:1; } .pql-hrow .h-moc{ flex:0 0 140px; }
 		.pql-hrow input{ border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
 		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#b91c1c; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
@@ -3664,7 +3741,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -3769,6 +3846,67 @@ class POSH_Ve {
 
 		  /* ═══ TÀI KHOẢN NHẬN TIỀN ═══════════════════════════════════════════════════════ */
 		  var TK_NH_DA = false;
+		  /* ── Ví tiền: gói nạp + mã ưu đãi ────────────────────────────────────────────────
+		     Cùng đọc/ghi một cặp option với màn WP Admin — hai kho dữ liệu là sớm muộn hai màn
+		     nói hai con số khác nhau và không biết tin màn nào. */
+		  var VI_CS=[];
+		  function napVi(){
+		    $('.pql-vimsg').textContent='';
+		    get('/ql/vi-ds').then(function(d){
+		      VI_CS=d.coso||[];
+		      var g=d.goi||[]; if(!g.length) g=[{nap:'',tang:''}];
+		      $('.pql-vi-goi').innerHTML=''; g.forEach(veGoi);
+		      var c=d.code||[]; if(!c.length) c=[{}];
+		      $('.pql-vi-code').innerHTML=''; c.forEach(veCode);
+		    }).catch(function(e){ $('.pql-vimsg').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function veGoi(g){
+		    var r=document.createElement('div'); r.className='pql-hrow';
+		    r.innerHTML='<input class="g-nap" type="number" placeholder="Mệnh giá nạp (đ)" value="'+(g.nap||'')+'">'
+		      +'<input class="g-tang" type="number" placeholder="Tặng thêm (đ)" value="'+(g.tang||'')+'">'
+		      +'<button class="pql-xoa" title="Xoá">✕</button>';
+		    r.querySelector('.pql-xoa').onclick=function(){ r.remove(); };
+		    $('.pql-vi-goi').appendChild(r);
+		  }
+		  function veCode(c){
+		    var r=document.createElement('div'); r.className='pql-hrow pql-hrow-code';
+		    var op='<option value="">Mọi cơ sở</option>';
+		    VI_CS.forEach(function(t){ op+='<option value="'+esc(t)+'"'+((c.coso===t)?' selected':'')+'>'+esc(t)+'</option>'; });
+		    r.innerHTML='<input class="c-ma" placeholder="MÃ" style="text-transform:uppercase;max-width:110px" value="'+esc(c.code||'')+'">'
+		      +'<select class="c-coso">'+op+'</select>'
+		      +'<select class="c-kieu"><option value="pt"'+((c.kieu!=='tien')?' selected':'')+'>% tặng</option>'
+		      +'<option value="tien"'+((c.kieu==='tien')?' selected':'')+'>Tiền tặng</option></select>'
+		      +'<input class="c-gt" type="number" placeholder="Giá trị" style="max-width:100px" value="'+(c.gia_tri||'')+'">'
+		      +'<input class="c-tt" type="number" placeholder="Nạp tối thiểu" style="max-width:130px" value="'+(c.toi_thieu||'')+'">'
+		      +'<input class="c-han" placeholder="Hạn YYYY-MM-DD" style="max-width:140px" value="'+esc(c.han||'')+'">'
+		      +'<input class="c-gh" type="number" placeholder="Giới hạn lượt" style="max-width:120px" value="'+(c.gioi_han||'')+'">'
+		      +'<span class="pql-dadung" title="Số lượt đã dùng">đã dùng '+(c.da_dung||0)+'</span>'
+		      +'<button class="pql-xoa" title="Xoá">✕</button>';
+		    r.querySelector('.pql-xoa').onclick=function(){ r.remove(); };
+		    $('.pql-vi-code').appendChild(r);
+		  }
+		  var bg=$('.pql-vi-themgoi'); if(bg) bg.addEventListener('click',function(){ veGoi({}); });
+		  var bc2=$('.pql-vi-themcode'); if(bc2) bc2.addEventListener('click',function(){ veCode({}); });
+		  var bl=$('.pql-vi-luu');
+		  if(bl) bl.addEventListener('click',function(){
+		    var goi=[], code=[];
+		    Array.prototype.forEach.call(root.querySelectorAll('.pql-vi-goi .pql-hrow'),function(r){
+		      goi.push({ nap:Number(r.querySelector('.g-nap').value||0), tang:Number(r.querySelector('.g-tang').value||0) });
+		    });
+		    Array.prototype.forEach.call(root.querySelectorAll('.pql-vi-code .pql-hrow'),function(r){
+		      code.push({ code:r.querySelector('.c-ma').value, coso:r.querySelector('.c-coso').value,
+		        kieu:r.querySelector('.c-kieu').value, gia_tri:Number(r.querySelector('.c-gt').value||0),
+		        toi_thieu:Number(r.querySelector('.c-tt').value||0), han:r.querySelector('.c-han').value,
+		        gioi_han:Number(r.querySelector('.c-gh').value||0) });
+		    });
+		    $('.pql-vimsg').style.color='#6f6a5d'; $('.pql-vimsg').textContent='Đang lưu…';
+		    post('/ql/vi-luu',{goi:goi,code:code}).then(function(d){
+		      $('.pql-vimsg').style.color='#166534';
+		      $('.pql-vimsg').textContent='Đã lưu: '+d.goi+' gói nạp, '+d.code+' mã ưu đãi.';
+		      napVi();   /* vẽ lại để thấy dòng trống đã bị bỏ và số lượt đã dùng giữ nguyên */
+		    }).catch(function(e){ $('.pql-vimsg').style.color='#b91c1c'; $('.pql-vimsg').textContent=e.message||e; });
+		  });
+
 		  function napTk(){
 		    $('.pql-tkmsg').textContent='';
 		    get('/ql/tk-ds').then(function(d){
