@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` | **1.37.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` | **1.45.0** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -106,7 +106,31 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 ---
 
 ## 8. Quy ước phát triển tiếp
-- Sửa 1 file plugin duy nhất: `vhcp-ve/vhcp-ve.php`. Luôn `php -l` trước khi đóng gói.
+- Plugin có **hai** file phải để mắt: `vhcp-ve/vhcp-ve.php` (PHP) và `vhcp-ve/assets/ve.js`
+  (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
+  trước khi đóng gói.
+
+### ⚠️ Việc chạy máy của trang khách nằm ở TỆP NGOÀI — đừng nhét lại vào trang
+Từ bản **1.45.0**, gần 450 dòng JS của `[posh_ve]` chuyển từ khối `<script>` nhúng trong đầu ra
+shortcode sang `vhcp-ve/assets/ve.js`, nạp bằng `wp_enqueue_script()`, dữ liệu máy chủ đi qua
+`wp_localize_script()` → `window.PVE_DATA` (`rest`, `ban`, `cs`).
+
+Vì sao: ngày 11/09/2026 khách "bấm không mua được" mấy lượt liền. Màn Kiểm tra hệ thống xanh hết
+(bảng đủ cột, tài khoản nhận tiền đủ, thử ghi vé thành công) → máy chủ sạch. Nút 🩺 do máy chủ
+dựng thì HIỆN → PHP bản mới đã sống. Nhưng bấm nút không ra bảng, mà bảng ấy do chính khối script
+nhúng gắn → **khối script nhúng không hề chạy**: bị plugin gộp/nén JS, tường lửa lọc thẻ script,
+hoặc `wp_kses` của trình dựng trang nuốt mất. Hỏng kiểu ấy im lặng — không lỗi, không báo.
+
+Ba dấu hiệu đọc được ngay, không cần mở console:
+| Nhìn ở đâu | "chưa chạy" nghĩa là | "JS 1.45.0 ✓" nghĩa là |
+|---|---|---|
+| Chân trang, cạnh dòng bản quyền | `ve.js` không nạp được (404 / bị chặn) | tệp ngoài đã chạy |
+| Chữ nhỏ trên nút 🩺 (chỉ admin, hoặc thêm `?soi=1`) | như trên | như trên |
+| Bảng 🩺 dòng "Script trong trang" | thẻ `<script>` nhúng bị nuốt | script nhúng vẫn sống |
+
+`ve.js` có đường dự phòng: mất `PVE_DATA` thì tự đoán địa chỉ REST từ trang đang mở và bỏ phần
+giảm giá tại quầy — **nút mua vé vẫn sống**. Đừng bỏ đường dự phòng ấy đi.
+
 - Tăng số **Version** trong header plugin mỗi lần sửa (để biết bản nào đang chạy).
 - App Zalo: sửa trong `zalo-mini-app/src/`, `npx tsc --noEmit` để kiểm lỗi, rồi `zmp deploy`.
 - Commit + push lên nhánh `claude/posh-qr-kh1urz`.
