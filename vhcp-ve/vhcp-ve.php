@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.37.0
+ * Version:           1.38.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@ if ( ! class_exists( 'POSH_Ve' ) ) :
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '4';
+	const VER_TBL = '5';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -170,6 +170,12 @@ class POSH_Ve {
 			nguon VARCHAR(10) NOT NULL DEFAULT 'web',
 			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
 			da_cong_diem TINYINT NOT NULL DEFAULT 0,
+			/* Mua TAI cua hang nao (rong = mua tu xa, gia goc) + muc giam da ap + gia truoc giam.
+			   Ghi ca ba vi sau nay doi chieu doanh thu tung co so nho giam gia: chi co so tien
+			   cuoi thi khong tach noi phan giam ra khoi phan khach mua ve re. */
+			coso VARCHAR(60) NOT NULL DEFAULT '',
+			giam TINYINT NOT NULL DEFAULT 0,
+			gia_goc INT NOT NULL DEFAULT 0,
 			tao_luc DATETIME NOT NULL,
 			tt_luc DATETIME NULL,
 			PRIMARY KEY (id), UNIQUE KEY ma_ve (ma_ve), KEY trang_thai (trang_thai)
@@ -237,11 +243,108 @@ class POSH_Ve {
 		foreach ( $c as $x ) {
 			$ten = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
-			$ra[] = array( 'ten' => $ten,
+			$ma = self::ma_coso( isset( $x['ma'] ) ? $x['ma'] : '' );
+			if ( '' === $ma ) { $ma = self::ma_coso( $ten ); }
+			$ra[] = array( 'ten' => $ten, 'ma' => $ma,
 				'lat' => (float) ( isset( $x['lat'] ) ? $x['lat'] : 0 ),
-				'lng' => (float) ( isset( $x['lng'] ) ? $x['lng'] : 0 ) );
+				'lng' => (float) ( isset( $x['lng'] ) ? $x['lng'] : 0 ),
+				/* % giảm khi khách quét tem QR ĐANG ĐỨNG tại cơ sở này. 0 = không giảm. */
+				'giam' => max( 0, min( 90, (int) ( isset( $x['giam'] ) ? $x['giam'] : 0 ) ) ),
+				/* Bán kính nhận là "đang ở đây" (mét). Đừng để quá nhỏ: GPS điện thoại trong nhà,
+				   trong trung tâm thương mại, sai vài trăm mét là chuyện thường — siết 50m thì
+				   khách đứng ngay quầy vẫn bị từ chối giảm, mà lỗi ấy nhân viên không giải thích được. */
+				'bk' => max( 50, min( 5000, (int) ( isset( $x['bk'] ) && $x['bk'] ? $x['bk'] : 400 ) ) ) );
 		}
 		return $ra;
+	}
+
+	/* Mã cơ sở dùng trong đường dẫn tem QR: bỏ dấu, chỉ chữ và số, tối đa 12 ký tự.
+	   Sinh từ tên nếu chưa khai, nên tem cũ vẫn chạy khi quản trị chưa đụng tới ô mã. */
+	public static function ma_coso( $s ) {
+		$s = strtoupper( remove_accents( (string) $s ) );
+		return substr( preg_replace( '/[^A-Z0-9]/', '', $s ), 0, 12 );
+	}
+
+	public static function coso_theo_ma( $ma ) {
+		$ma = self::ma_coso( $ma ); if ( '' === $ma ) { return null; }
+		foreach ( self::ds_coso() as $c ) { if ( $c['ma'] === $ma ) { return $c; } }
+		return null;
+	}
+
+	/* Khoảng cách hai điểm trên mặt đất, mét (haversine). */
+	public static function kc_met( $la1, $ln1, $la2, $ln2 ) {
+		$R = 6371000.0; $p = M_PI / 180;
+		$a = 0.5 - cos( ( $la2 - $la1 ) * $p ) / 2
+			+ cos( $la1 * $p ) * cos( $la2 * $p ) * ( 1 - cos( ( $ln2 - $ln1 ) * $p ) ) / 2;
+		return (int) round( 2 * $R * asin( sqrt( max( 0, $a ) ) ) );
+	}
+
+	/**
+	 * 🔴 CỬA DUY NHẤT QUYẾT ĐỊNH CÓ GIẢM GIÁ HAY KHÔNG — và nó nằm ở MÁY CHỦ.
+	 *
+	 * Trang khách cũng tính khoảng cách để hiện nhãn, nhưng đó chỉ là phần nhìn. Giá thật phải
+	 * chốt ở đây: mọi thứ trình duyệt gửi lên (kể cả toạ độ) đều là thứ người ta sửa được bằng
+	 * công cụ có sẵn trong trình duyệt. Tin trang khách nghĩa là ai cũng mua được giá giảm từ nhà.
+	 *
+	 * Vẫn còn một lỗ không bịt được bằng mã: điện thoại giả toạ độ GPS. Chấp nhận — mức giảm là
+	 * khuyến mãi, không phải tiền mặt, và chặn kỹ hơn thì phải có màn hình đổi mã ở quầy (đắt hơn
+	 * nhiều so với thứ nó bảo vệ). Ghi ra đây để người sau khỏi tưởng đã kín.
+	 *
+	 * @return array ma, ten, giam (%), ok (bool), vi (lý do khi không giảm), kc (mét, -1 = không rõ)
+	 */
+	public static function giam_tai_cho( $ma, $lat, $lng ) {
+		$ra = array( 'ma' => '', 'ten' => '', 'giam' => 0, 'ok' => false, 'vi' => '', 'kc' => -1 );
+		$c  = self::coso_theo_ma( $ma );
+		if ( ! $c ) { $ra['vi'] = 'khong_co_coso'; return $ra; }
+		$ra['ma'] = $c['ma']; $ra['ten'] = $c['ten'];
+		if ( $c['giam'] <= 0 )                { $ra['vi'] = 'coso_khong_giam'; return $ra; }
+		if ( ! $c['lat'] || ! $c['lng'] )     { $ra['vi'] = 'coso_chua_khai_toado'; return $ra; }
+		$lat = (float) $lat; $lng = (float) $lng;
+		if ( ! $lat || ! $lng || abs( $lat ) > 90 || abs( $lng ) > 180 ) { $ra['vi'] = 'khong_co_vi_tri'; return $ra; }
+		$kc = self::kc_met( $lat, $lng, $c['lat'], $c['lng'] );
+		$ra['kc'] = $kc;
+		if ( $kc > $c['bk'] ) { $ra['vi'] = 'o_xa'; return $ra; }
+		$ra['giam'] = $c['giam']; $ra['ok'] = true;
+		return $ra;
+	}
+
+	/* Đường dẫn tem QR dán tại quầy của một cơ sở. */
+	public static function link_tem( $ma ) {
+		$pid = (int) get_option( 'pve_page_id' );
+		$goc = $pid ? get_permalink( $pid ) : home_url( '/mua-ve/' );
+		return add_query_arg( 'cs', self::ma_coso( $ma ), $goc );
+	}
+
+	/**
+	 * Tem QR để in dán quầy. Vẽ bằng bộ dựng QR của plugin Ghế nếu có.
+	 *
+	 * ⚠️ GÁC `class_exists` NGAY TẠI ĐÂY, đúng luật gọi chéo của cả hệ: hai plugin cài độc lập
+	 *    nhau, không được giả định plugin Ghế có mặt. Thiếu nó thì vẫn in ra ĐƯỜNG DẪN để quản
+	 *    trị tự tạo QR bằng công cụ ngoài — mất tấm hình còn hơn mất cả tính năng.
+	 * ⚠️ Ma trận rỗng = KHÔNG in tem (xem chú thích ở VHG_QRVe::ma_tran): một tấm tem dán lên
+	 *    tường mà không quét được thì tệ hơn hẳn chưa dán tem nào.
+	 */
+	public static function tem_qr_html( $ma, $ten = '' ) {
+		$ma = self::ma_coso( $ma ); if ( '' === $ma ) { return '<span class="description">Lưu để sinh mã</span>'; }
+		$url = self::link_tem( $ma );
+		$svg = '';
+		if ( class_exists( 'VHG_QRVe' ) && method_exists( 'VHG_QRVe', 'ma_tran' ) ) {
+			$mt = VHG_QRVe::ma_tran( $url, 'M' );
+			if ( is_array( $mt ) && count( $mt ) ) { $svg = VHG_QRVe::svg( $mt, 150 ); }
+		}
+		$ra = $svg ? ( '<div>' . $svg . '</div>' )
+			: '<div class="description" style="color:#b45309">Chưa vẽ được mã (cần plugin Ghế Massage) — dùng đường dẫn dưới đây.</div>';
+		$ra .= '<div style="word-break:break-all"><a href="' . esc_url( $url ) . '" target="_blank" rel="noopener"><code>'
+			. esc_html( $url ) . '</code></a></div>';
+		if ( $svg ) { $ra .= '<div class="description">In ra, dán tại quầy ' . esc_html( $ten ) . '.</div>'; }
+		return $ra;
+	}
+
+	/* Giá sau giảm, làm tròn xuống bội 1.000đ — giá lẻ tới đồng trên tem vé trông như lỗi tính. */
+	public static function gia_sau_giam( $gia, $pc ) {
+		$gia = (int) $gia; $pc = (int) $pc;
+		if ( $pc <= 0 ) { return $gia; }
+		return max( 0, (int) ( floor( $gia * ( 100 - $pc ) / 100 / 1000 ) * 1000 ) );
 	}
 	public static function ds_hang() {
 		$h = get_option( 'pve_hang' );
@@ -369,17 +472,25 @@ class POSH_Ve {
 		if ( ! self::nhip_ok() ) { return new WP_Error( 'nhip', 'Thao tác quá nhanh, thử lại sau giây lát.', array( 'status' => 429 ) ); }
 
 		global $wpdb;
-		$ma_ve = self::ma_ve_moi(); $tien = (int) $goi['gia']; $noidung = 'VE' . $ma_ve;
+		/* Giảm giá TẠI CHỖ: máy chủ tự kiểm lại, không lấy giá trang khách gửi lên. */
+		$g0  = self::giam_tai_cho( $req->get_param( 'cs' ), $req->get_param( 'lat' ), $req->get_param( 'lng' ) );
+		$goc = (int) $goi['gia'];
+		$tien = self::gia_sau_giam( $goc, $g0['ok'] ? $g0['giam'] : 0 );
+		$ma_ve = self::ma_ve_moi(); $noidung = 'VE' . $ma_ve;
 		$wpdb->insert( self::tbl(), array(
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
+			'giam' => $g0['ok'] ? (int) $g0['giam'] : 0,
+			'gia_goc' => $goc,
 			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
 		self::giam_ton( $goi['id'], 1 );
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
 			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho',
+			'gia_goc' => $goc, 'giam' => $g0['ok'] ? (int) $g0['giam'] : 0, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 	/* Đặt nhiều vé trong 1 giỏ -> 1 đơn, 1 mã QR tổng. items = [{id, sl}, ...] */
@@ -393,7 +504,10 @@ class POSH_Ve {
 		if ( '' === $b['so_tk'] || '' === $b['bin'] ) { return new WP_Error( 'tk', 'Chưa cấu hình tài khoản nhận tiền.', array( 'status' => 409 ) ); }
 		if ( ! self::nhip_ok() ) { return new WP_Error( 'nhip', 'Thao tác quá nhanh, thử lại sau giây lát.', array( 'status' => 429 ) ); }
 
-		$tong = 0; $mota = array(); $ct = array(); $can = array();
+		/* Cùng một cửa kiểm với r_dat — giảm giá chốt ở máy chủ, không tin giá trang khách gửi. */
+		$g0 = self::giam_tai_cho( $req->get_param( 'cs' ), $req->get_param( 'lat' ), $req->get_param( 'lng' ) );
+		$pc = $g0['ok'] ? (int) $g0['giam'] : 0;
+		$tong = 0; $tong_goc = 0; $mota = array(); $ct = array(); $can = array();
 		foreach ( $items as $it ) {
 			$id = (int) ( isset( $it['id'] ) ? $it['id'] : 0 );
 			$sl = max( 1, (int) ( isset( $it['sl'] ) ? $it['sl'] : 1 ) );
@@ -403,9 +517,14 @@ class POSH_Ve {
 			if ( $g['so_luong'] >= 0 && $g['so_luong'] < $can[ $id ] ) {
 				return new WP_Error( 'het', 'Vé "' . $g['ten'] . '" không đủ số lượng.', array( 'status' => 409 ) );
 			}
-			$tong  += (int) $g['gia'] * $sl;
+			/* Giảm trên GIÁ TỪNG VÉ rồi mới nhân số lượng — giảm trên tổng rồi chia ngược lại
+			   thì đơn giá trên tem lệch vài đồng với tổng, và kế toán sẽ đi tìm chỗ lệch ấy. */
+			$don_goc = (int) $g['gia'];
+			$don     = self::gia_sau_giam( $don_goc, $pc );
+			$tong     += $don * $sl;
+			$tong_goc += $don_goc * $sl;
 			$mota[] = $sl . 'x ' . $g['ten'];
-			$ct[]   = array( 'id' => $id, 'ten' => $g['ten'], 'gia' => (int) $g['gia'], 'sl' => $sl );
+			$ct[]   = array( 'id' => $id, 'ten' => $g['ten'], 'gia' => $don, 'gia_goc' => $don_goc, 'sl' => $sl );
 		}
 		if ( $tong < 1000 ) { return new WP_Error( 'gio', 'Giỏ hàng không hợp lệ.', array( 'status' => 400 ) ); }
 
@@ -416,12 +535,15 @@ class POSH_Ve {
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ),
 			'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
+			'giam' => $pc, 'gia_goc' => $tong_goc,
 			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
 		) );
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
 			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho', 'chi_tiet' => $ct,
+			'gia_goc' => $tong_goc, 'giam' => $pc, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 	public static function r_trangthai( $req ) {
@@ -1312,6 +1434,10 @@ class POSH_Ve {
 		<script>
 		(function(){
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
+			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
+			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở VHCP_Ve::giam_tai_cho()
+			   mỗi lượt đặt; sửa mấy con số này trong trình duyệt không mua rẻ được đồng nào. */
+			var PVE_CS = <?php echo wp_json_encode( self::ds_coso() ); ?>;
 			var mask = document.querySelector('.pve-mask');
 			try { document.body.appendChild(mask); } catch(e){}  // đưa popup ra body để nền mờ phủ kín (khỏi lỗi theme bọc transform)
 			var mFor = null, timer = null;
@@ -1367,6 +1493,95 @@ class POSH_Ve {
 				else { chon(kvChon); wel.hidden = false; }
 			}
 
+			/* ═══ ĐANG Ở CỬA HÀNG NÀO — nền của luật giá ═══════════════════════════════════
+			   Khách quét tem QR dán tại quầy -> vào trang với ?cs=<mã cơ sở>. Trang hỏi vị trí,
+			   trong bán kính thì hiện giá giảm; ngoài bán kính hoặc khách không cho vị trí thì
+			   giá gốc và NÓI RÕ VÌ SAO. Im lặng tính giá gốc là kiểu khiến khách đứng ngay quầy
+			   cãi nhau với nhân viên về một con số không ai giải thích được.
+			   Hỏi vị trí CHỈ khi có ?cs= — tự dưng hỏi GPS lúc khách mới vào xem giá là cách nhanh
+			   nhất để họ bấm Chặn, và trình duyệt nhớ lựa chọn ấy cho cả những lần sau. */
+			var PVE = { cs:null, pos:null, giam:0, kc:-1, vi:'' };
+			(function(){
+				var ma = '';
+				try { ma = (new URLSearchParams(location.search)).get('cs') || ''; } catch(e){}
+				ma = String(ma).toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);
+				if (!ma) return;
+				for (var i=0;i<PVE_CS.length;i++){ if (PVE_CS[i].ma === ma) { PVE.cs = PVE_CS[i]; break; } }
+				if (!PVE.cs) { bangCS('Không nhận ra mã cửa hàng trên tem — mua vé vẫn bình thường, giá gốc.', 'cho'); return; }
+				if (!PVE.cs.giam) { bangCS('Bạn đang xem vé của <b>'+esc(PVE.cs.ten)+'</b>.', 'ok'); dongBo(); return; }
+				bangCS('Đang kiểm vị trí để áp giảm <b>'+PVE.cs.giam+'%</b> tại <b>'+esc(PVE.cs.ten)+'</b>…', 'cho');
+				if (!navigator.geolocation) { PVE.vi='may_khong_ho_tro'; xongVT(); return; }
+				navigator.geolocation.getCurrentPosition(function(p){
+					PVE.pos = { lat:p.coords.latitude, lng:p.coords.longitude };
+					PVE.kc = kcMet(PVE.pos.lat, PVE.pos.lng, PVE.cs.lat, PVE.cs.lng);
+					if (PVE.kc <= PVE.cs.bk) { PVE.giam = PVE.cs.giam; } else { PVE.vi='o_xa'; }
+					xongVT();
+				}, function(){ PVE.vi='tu_choi'; xongVT(); }, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
+			})();
+			function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+			/* Haversine — cùng công thức với VHCP_Ve::kc_met() bên máy chủ. Hai bên lệch nhau thì
+			   trang hứa giảm mà máy chủ không cho, khách đã bấm mua rồi mới thấy giá khác. */
+			function kcMet(la1,ln1,la2,ln2){
+				var R=6371000, p=Math.PI/180;
+				var a=0.5-Math.cos((la2-la1)*p)/2+Math.cos(la1*p)*Math.cos(la2*p)*(1-Math.cos((ln2-ln1)*p))/2;
+				return Math.round(2*R*Math.asin(Math.sqrt(Math.max(0,a))));
+			}
+			function giaSauGiam(gia){
+				gia = Number(gia)||0;
+				if (!PVE.giam) return gia;
+				return Math.max(0, Math.floor(gia * (100 - PVE.giam) / 100 / 1000) * 1000);
+			}
+			function bangCS(html, loai){
+				var b = document.querySelector('.pve-csbar');
+				if (!b){ b = document.createElement('div'); b.className='pve-csbar';
+					var qf = document.querySelector('.pve-qf'); if (!qf) return; qf.parentNode.insertBefore(b, qf); }
+				b.className = 'pve-csbar pve-csbar-'+(loai||'cho');
+				b.innerHTML = html;
+			}
+			function xongVT(){
+				var c = PVE.cs;
+				if (PVE.giam > 0){
+					bangCS('✅ Đang ở <b>'+esc(c.ten)+'</b> — giá đã giảm <b>'+PVE.giam+'%</b>'
+						+ (PVE.kc>=0 ? ' <span class="pve-csbar-kc">(cách '+PVE.kc+'m)</span>' : ''), 'ok');
+				} else {
+					var vi = PVE.vi==='tu_choi' ? 'bạn chưa cho phép xem vị trí'
+						: (PVE.vi==='o_xa' ? ('bạn đang cách cửa hàng '+PVE.kc+'m, ngoài bán kính '+c.bk+'m')
+						: 'máy không xác định được vị trí');
+					bangCS('ℹ️ Vé <b>'+esc(c.ten)+'</b> đang tính <b>giá gốc</b> — '+vi
+						+ '. Tới quầy và bật vị trí thì được giảm <b>'+c.giam+'%</b>.', 'cho');
+				}
+				dongBo();
+			}
+			/* Chọn sẵn cơ sở của tem, và sắp cơ sở gần nhất lên đầu ô chọn. */
+			function dongBo(){
+				var sel = document.querySelector('.pve-qf-cs');
+				if (sel && PVE.cs){
+					for (var i=0;i<sel.options.length;i++){
+						if (sel.options[i].value === PVE.cs.ten){ sel.selectedIndex = i; break; }
+					}
+					try { sel.dispatchEvent(new Event('change')); } catch(e){}
+				}
+				if (sel && PVE.pos){
+					var giu = sel.value, ds = [].slice.call(sel.options).slice(1);
+					ds.forEach(function(o){
+						var cs=null; for (var i=0;i<PVE_CS.length;i++){ if (PVE_CS[i].ten===o.value) cs=PVE_CS[i]; }
+						o.__kc = (cs && cs.lat && cs.lng) ? kcMet(PVE.pos.lat, PVE.pos.lng, cs.lat, cs.lng) : 1e12;
+					});
+					ds.sort(function(a,b){ return a.__kc - b.__kc; });
+					ds.forEach(function(o,i){
+						if (o.__kc < 1e11 && !/·/.test(o.textContent)){
+							o.textContent = o.textContent + ' · ' + (o.__kc<1000 ? (o.__kc+'m') : ((o.__kc/1000).toFixed(1)+'km'))
+								+ (i===0 ? ' (gần bạn nhất)' : '');
+						}
+						sel.appendChild(o);
+					});
+					sel.value = giu;
+				}
+				/* Biết vị trí rồi mới biết có giảm hay không -> phải vẽ lại ô chọn vé, không thì
+				   nó còn treo giá gốc trong khi băng trên đã nói "đã giảm 10%". */
+				try { if (window.pveFillVe) window.pveFillVe(); } catch(e){}
+			}
+
 			// ----- Đặt vé nhanh (form trên hero) -----
 			(function(){
 				var qf = document.querySelector('.pve-qf'); if(!qf) return;
@@ -1381,10 +1596,16 @@ class POSH_Ve {
 					cards.forEach(function(c){
 						if (c.het) return;
 						if (cs && c.kv && c.kv !== cs) return;
-						var o = document.createElement('option'); o.value = c.id; o.textContent = c.ten + ' — ' + tien(c.gia); selVe.appendChild(o);
+						var o = document.createElement('option'); o.value = c.id;
+						/* Giá hiện đúng thứ khách sẽ trả: đang trong bán kính thì hiện giá đã giảm.
+						   Cùng luật làm tròn với VHCP_Ve::gia_sau_giam() — lệch một nghìn là khách
+						   thấy một giá ở ô chọn, một giá khác trên mã QR chuyển khoản. */
+						o.textContent = c.ten + ' — ' + tien(giaSauGiam(c.gia)) + (PVE.giam ? (' (-' + PVE.giam + '%)') : '');
+						selVe.appendChild(o);
 					});
 				}
 				if (selCs){ var kv0=''; try{ kv0 = sessionStorage.getItem('posh_kvuc')||''; }catch(e){} if(kv0){ selCs.value = kv0; } selCs.addEventListener('change', fillVe); }
+				window.pveFillVe = fillVe;   // để khối định vị gọi vẽ lại khi đã biết có giảm hay không
 				fillVe();
 				qf.querySelector('.pve-qf-go').addEventListener('click', function(){
 					var ten = qf.querySelector('.pve-qf-ten').value.trim();
@@ -1396,7 +1617,9 @@ class POSH_Ve {
 					if(!ten || !sdt){ err.textContent='Nhập tên và số điện thoại.'; err.hidden=false; return; }
 					err.hidden = true; var btn = this; btn.disabled = true; btn.textContent = 'Đang tạo…';
 					fetch(REST+'/ve/dat-gio', { method:'POST', headers:{'Content-Type':'application/json'},
-						body: JSON.stringify({ items:[{ id:id, sl:sl }], ten:ten, sdt:sdt }) })
+						/* Gửi kèm mã cửa hàng + toạ độ để máy chủ TỰ kiểm lại rồi mới chốt giá. */
+						body: JSON.stringify({ items:[{ id:id, sl:sl }], ten:ten, sdt:sdt,
+							cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
 					.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
 					.then(function(o){ btn.disabled=false; btn.textContent='Mua vé ngay';
 						if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
@@ -1611,6 +1834,11 @@ class POSH_Ve {
 		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; font-size:16px; letter-spacing:.3px; padding:13px; border-radius:12px; cursor:pointer; text-transform:uppercase; }
 		.pve-qf-err{ color:#f0a0a0; font-size:13px; margin-top:10px; }
 		.pve-qf-note{ color:var(--mut); font-size:12px; text-align:center; margin-top:10px; }
+		/* Băng trạng thái cửa hàng: nằm ngay trên khung đặt vé, vì nó nói giá đang là giá nào. */
+		.pve-csbar{margin:0 auto 10px;max-width:1080px;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5}
+		.pve-csbar-ok{background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.45);color:#bbf7d0}
+		.pve-csbar-cho{background:rgba(234,179,8,.12);border:1px solid rgba(234,179,8,.40);color:#fde68a}
+		.pve-csbar-kc{opacity:.75;font-size:12px}
 		@media(max-width:520px){ .pve-qf-grid{ grid-template-columns:1fr; } }
 		</style>
 		<?php
@@ -2269,13 +2497,25 @@ class POSH_Ve {
 			$tens = isset( $_POST['cs_ten'] ) ? (array) $_POST['cs_ten'] : array();
 			$lats = isset( $_POST['cs_lat'] ) ? (array) $_POST['cs_lat'] : array();
 			$lngs = isset( $_POST['cs_lng'] ) ? (array) $_POST['cs_lng'] : array();
-			$moi = array();
+			$mas  = isset( $_POST['cs_ma'] ) ? (array) $_POST['cs_ma'] : array();
+			$gis  = isset( $_POST['cs_giam'] ) ? (array) $_POST['cs_giam'] : array();
+			$bks  = isset( $_POST['cs_bk'] ) ? (array) $_POST['cs_bk'] : array();
+			$moi = array(); $da_dung_ma = array();
 			foreach ( $tens as $i => $t ) {
 				$t = sanitize_text_field( wp_unslash( $t ) );
 				if ( '' === trim( $t ) ) { continue; }
-				$moi[] = array( 'ten' => $t,
+				$ma = self::ma_coso( isset( $mas[ $i ] ) ? wp_unslash( $mas[ $i ] ) : '' );
+				if ( '' === $ma ) { $ma = self::ma_coso( $t ); }
+				/* Hai cơ sở trùng mã là hai tem QR chỉ về một chỗ — cơ sở kia bán cả ngày mà sổ
+				   ghi doanh thu cho cơ sở khác. Thà thêm số vào đuôi còn hơn để trùng im lặng. */
+				$goc_ma = $ma; $k = 2;
+				while ( '' === $ma || isset( $da_dung_ma[ $ma ] ) ) { $ma = substr( $goc_ma, 0, 10 ) . $k; $k++; }
+				$da_dung_ma[ $ma ] = 1;
+				$moi[] = array( 'ten' => $t, 'ma' => $ma,
 					'lat' => (float) ( isset( $lats[ $i ] ) ? str_replace( ',', '.', (string) $lats[ $i ] ) : 0 ),
-					'lng' => (float) ( isset( $lngs[ $i ] ) ? str_replace( ',', '.', (string) $lngs[ $i ] ) : 0 ) );
+					'lng' => (float) ( isset( $lngs[ $i ] ) ? str_replace( ',', '.', (string) $lngs[ $i ] ) : 0 ),
+					'giam' => (int) ( isset( $gis[ $i ] ) ? $gis[ $i ] : 0 ),
+					'bk' => (int) ( isset( $bks[ $i ] ) ? $bks[ $i ] : 0 ) );
 			}
 			update_option( 'pve_coso', $moi );
 			echo '<div class="notice notice-success"><p>Đã lưu cơ sở &amp; toạ độ.</p></div>';
@@ -2573,20 +2813,28 @@ class POSH_Ve {
 		}
 
 		/* ── Cơ sở & toạ độ (gợi ý theo định vị) ── */
-		echo '<hr><h2>Cơ sở &amp; toạ độ (gợi ý vé theo định vị)</h2>';
-		echo '<p class="description">Tên cơ sở phải khớp <b>đúng</b> với ô “Khu vực / Cơ sở” của vé. Toạ độ lấy từ Google Maps: chuột phải điểm cần → bấm cặp số để copy (dạng <code>10.776,106.700</code>).</p>';
+		echo '<hr><h2>Cơ sở · toạ độ · giảm giá tại chỗ</h2>';
+		echo '<p class="description">Tên cơ sở phải khớp <b>đúng</b> với ô “Khu vực / Cơ sở” của vé. Toạ độ lấy từ Google Maps: chuột phải điểm cần → bấm cặp số để copy (dạng <code>10.776,106.700</code>).<br>'
+			. '<b>% giảm</b> chỉ áp khi khách quét tem QR của cơ sở <i>và</i> điện thoại báo đang trong <b>bán kính</b> đó. Mua từ xa = giá gốc. '
+			. 'Bán kính mặc định 400m — GPS trong trung tâm thương mại sai vài trăm mét là thường, siết quá nhỏ thì khách đứng ngay quầy vẫn bị từ chối giảm.</p>';
 		$coso = self::ds_coso();
 		echo '<form method="post">'; wp_nonce_field( 'pve_coso' );
-		echo '<table class="widefat striped" style="max-width:720px"><thead><tr><th>Tên cơ sở / khu vực</th><th style="width:170px">Vĩ độ (lat)</th><th style="width:170px">Kinh độ (lng)</th></tr></thead><tbody>';
-		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'lat' => '', 'lng' => '' ); }
+		echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Tên cơ sở / khu vực</th>'
+			. '<th style="width:120px">Mã (tem QR)</th><th style="width:130px">Vĩ độ (lat)</th><th style="width:130px">Kinh độ (lng)</th>'
+			. '<th style="width:90px">% giảm</th><th style="width:110px">Bán kính (m)</th><th style="width:220px">Tem QR dán tại quầy</th></tr></thead><tbody>';
+		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'ma' => '', 'lat' => '', 'lng' => '', 'giam' => 0, 'bk' => 0 ); }
 		foreach ( $rows_cs as $c ) {
 			$lat = ( is_numeric( $c['lat'] ) && $c['lat'] ) ? $c['lat'] : '';
 			$lng = ( is_numeric( $c['lng'] ) && $c['lng'] ) ? $c['lng'] : '';
-			echo '<tr><td><input name="cs_ten[]" class="regular-text" value="' . esc_attr( $c['ten'] ) . '" placeholder="VD Hà Nội / Hồ Chí Minh"></td>'
-				. '<td><input name="cs_lat[]" class="regular-text code" value="' . esc_attr( $lat ) . '" placeholder="10.7769"></td>'
-				. '<td><input name="cs_lng[]" class="regular-text code" value="' . esc_attr( $lng ) . '" placeholder="106.7009"></td></tr>';
+			echo '<tr><td><input name="cs_ten[]" class="regular-text" value="' . esc_attr( $c['ten'] ) . '" placeholder="VD Aeon Long Biên"></td>'
+				. '<td><input name="cs_ma[]" class="regular-text code" style="width:110px" value="' . esc_attr( isset( $c['ma'] ) ? $c['ma'] : '' ) . '" placeholder="tự sinh"></td>'
+				. '<td><input name="cs_lat[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lat ) . '" placeholder="10.7769"></td>'
+				. '<td><input name="cs_lng[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lng ) . '" placeholder="106.7009"></td>'
+				. '<td><input name="cs_giam[]" type="number" min="0" max="90" style="width:70px" value="' . esc_attr( (int) ( isset( $c['giam'] ) ? $c['giam'] : 0 ) ) . '"></td>'
+				. '<td><input name="cs_bk[]" type="number" min="50" max="5000" step="50" style="width:90px" value="' . esc_attr( (int) ( isset( $c['bk'] ) && $c['bk'] ? $c['bk'] : 400 ) ) . '"></td>'
+				. '<td>' . self::tem_qr_html( isset( $c['ma'] ) ? $c['ma'] : '', $c['ten'] ) . '</td></tr>';
 		}
-		echo '</tbody></table><p><button class="button button-primary" name="pve_coso_luu" value="1">Lưu cơ sở</button> <span class="description">Bỏ trống tên = xoá dòng đó.</span></p></form>';
+		echo '</tbody></table><p><button class="button button-primary" name="pve_coso_luu" value="1">Lưu cơ sở</button> <span class="description">Bỏ trống tên = xoá dòng đó. Lưu xong tem QR mới hiện.</span></p></form>';
 
 		/* ── PIN khu quản lý (Zalo) ── */
 		echo '<hr><h2>Khu quản lý trên Zalo (Báo cáo / Đơn / Soát vé)</h2>';
