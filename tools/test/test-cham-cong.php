@@ -7315,7 +7315,36 @@ t( 'màn này vẫn KHÔNG có ô nhập giờ nào — chỉ đọc, y như tr�
 
 /* Cả màn quản trị này vẫn phải KHÔNG có lấy một dòng script — luật chung, không dính gì tới
    việc bỏ ba khối. */
-t( 'màn quản trị KHÔNG dùng JavaScript', stripos( $h_qtc, '<script' ) === false, $h_qtc );
+/**
+ * 🔴 LUẬT "MÀN QUẢN TRỊ KHÔNG SCRIPT" — NAY CÓ ĐÚNG MỘT NGOẠI LỆ, VÀ NÓ PHẢI KÝ TÊN.
+ *
+ * Anh Thắng 11/09/2026: *"gõ có hiện ra : luôn được không"* — dấu hai chấm tự hiện lúc gõ thì
+ * bắt buộc phải có JavaScript, và anh chốt mở ngoại lệ đúng cho việc ấy.
+ *
+ * Nhưng "mở một ngoại lệ" mà đổi phép thử thành `true` là mở toang: khối thứ hai chui vào sau
+ * chẳng ai hay. Nên phép thử KHÔNG nới thành "được có script", mà thành "mọi khối script phải
+ * mang dấu `/*vhcc-gio24*​/`" — tức là đúng cái khối mặt nạ ô giờ, không phải cái gì khác.
+ *
+ * @return array những khối script LẠ (không phải mặt nạ ô giờ) — rỗng là sạch.
+ */
+function vhcc_script_la( $h ) {
+	if ( ! preg_match_all( '#<script\b[^>]*>.*?</script>#is', (string) $h, $m ) ) { return array(); }
+	$ra = array();
+	foreach ( $m[0] as $x ) {
+		if ( false !== strpos( $x, '/*vhcc-gio24*/' ) ) { continue; }
+		$ra[] = substr( $x, 0, 160 );
+	}
+	return $ra;
+}
+/** Số khối mặt nạ ô giờ trên trang — phải là 0 hoặc 1, không bao giờ nhiều hơn. */
+function vhcc_so_js_gio( $h ) {
+	return substr_count( (string) $h, '/*vhcc-gio24*/' );
+}
+
+t( 'màn quản trị KHÔNG có khối JavaScript LẠ nào', array() === vhcc_script_la( $h_qtc ),
+	vhcc_script_la( $h_qtc ) );
+t( 'và khối mặt nạ ô giờ (nếu có) chỉ in ĐÚNG MỘT LẦN', vhcc_so_js_gio( $h_qtc ) <= 1,
+	vhcc_so_js_gio( $h_qtc ) );
 
 /* ---- 🔴 CƠ SỞ TÍNH THEO CÔNG THÌ BỎ BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" ----
  * Anh Thắng 29/08/2026: *"cơ sở nào tính công theo giờ mới hiện, còn tính theo công thì bỏ đi
@@ -7376,7 +7405,8 @@ t( 'lọc theo mã NV KHÔNG phân biệt hoa thường',
 /* ---- nút 🚩: điền sẵn bằng ĐƯỜNG LIÊN KẾT, không bằng JavaScript ---- */
 /* Cả màn quản trị này không có lấy một dòng script. Thêm một dòng vào đây là mở ra một thứ chỉ
    chạy khi trình duyệt chịu chạy, mà lại KHÔNG thử được bằng bộ thử PHP. */
-t( 'màn quản trị KHÔNG có thẻ <script> nào', stripos( $h_qtc, '<script' ) === false, $h_qtc );
+t( 'màn quản trị KHÔNG có thẻ <script> nào ngoài khối mặt nạ ô giờ',
+	array() === vhcc_script_la( $h_qtc ), vhcc_script_la( $h_qtc ) );
 /* ⚠️ Danh sách này phải RỘNG, không chỉ mấy cái hay gặp. Em suýt nhét `onfocus="this.select()"`
    vào ô copy đường link cho tiện — `onfocus` không có trong danh sách cũ nên phép thử vẫn xanh.
    Một thuộc tính JS lẻ là cái khe để dòng thứ hai chui vào sau. */
@@ -8520,8 +8550,8 @@ t( '<img> xem trước ẩn sẵn bằng CSS (display:none), chỉ hiện lúc :
 t( 'ảnh nổi LÊN TRÊN ô (bottom:100%), không sang ngang — tránh khung .cuon cuộn ngang cắt mất',
 	strpos( $h_qtc, '.manhcc a img{display:none;position:absolute;z-index:30;bottom:100%' ) !== false,
 	$h_qtc );
-t( 'màn vẫn KHÔNG có thẻ <script> nào dù vừa thêm ảnh xem trước rê chuột',
-	stripos( $h_anh_vp, '<script' ) === false, $h_anh_vp );
+t( 'màn vẫn KHÔNG có thẻ <script> LẠ nào dù vừa thêm ảnh xem trước rê chuột',
+	array() === vhcc_script_la( $h_anh_vp ), vhcc_script_la( $h_anh_vp ) );
 teq( 'url_anh_cham() trả rỗng cho đường dẫn rỗng — không tự bịa ra URL',
 	'', vhcc_goi_rieng( 'VHCC_Web', 'url_anh_cham', array( '' ) ) );
 
@@ -8706,8 +8736,9 @@ t( '🔴 ô của hàng -CD mang mã KÈM hậu tố',
 	preg_match( '/sgm=[A-Za-z0-9_]+-CD/', $h_gio ) === 1
 	|| preg_match( '/gma=[A-Za-z0-9_]+-CD/', $h_gio ) === 1, $h_gio );
 /* Đường bấm là LIÊN KẾT, không phải script — cả màn này không có lấy một dòng script. */
-t( 'ô bấm được KHÔNG dùng JavaScript',
-	stripos( $h_gio, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_gio ), $h_gio );
+t( 'ô bấm được KHÔNG dùng JavaScript (khối lạ = 0, và không thuộc tính on*)',
+	array() === vhcc_script_la( $h_gio ) && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_gio ),
+	vhcc_script_la( $h_gio ) );
 t( 'và chú thích nói rõ là quên bấm lúc về',
 	strpos( $h_gio, 'quên bấm lúc về' ) !== false, $h_gio );
 /* 🔴 HÀNG -CD NAY LÀ DÒNG PHỤ TRONG Ô, cùng luật với lưới CÔNG.
@@ -8830,7 +8861,13 @@ t( 'có ô nhập tên ca', strpos( $h_ch_gio, 'name="ca_ten[0]"' ) !== false, $
 t( 'và ô giờ cuối tuần riêng', strpos( $h_ch_gio, 'name="ca_tuw[0]"' ) !== false, $h_ch_gio );
 /* Luôn thừa hai dòng trống để thêm ca mà KHÔNG cần JavaScript — cả màn này không có script. */
 t( 'thừa sẵn dòng trống để thêm ca', strpos( $h_ch_gio, 'name="ca_ten[4]"' ) !== false, $h_ch_gio );
-t( 'khối khai ca KHÔNG dùng JavaScript', stripos( $h_ch_gio, '<script' ) === false, $h_ch_gio );
+/* ⚠️ Khối này CÓ khối mặt nạ ô giờ (bốn ô giờ khai ca) — ngoại lệ duy nhất, anh Thắng chốt
+   11/09/2026. Mọi khối script khác vẫn bị chặn. */
+t( 'khối khai ca KHÔNG kéo theo JavaScript LẠ nào', array() === vhcc_script_la( $h_ch_gio ),
+	vhcc_script_la( $h_ch_gio ) );
+t( 'và hai dòng trống để thêm ca vẫn là HTML thuần, không phải nút chạy bằng script',
+	strpos( $h_ch_gio, 'name="ca_ten[4]"' ) !== false
+	&& ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_ch_gio ), null );
 
 /* Lưu ca THẬT rồi xem bảng đổi theo. */
 $_POST = array( 'viec' => 'ca', 'ccs' => $CS_GIO,
@@ -14871,7 +14908,8 @@ t( '🔴 lưới cả tháng KHÔNG khai lớp stt',
 	&& strpos( $h_ls, '<table class="cc stt"' ) === false, substr( $h_ls, 0, 300 ) );
 
 /* 🔴 KHÔNG một dòng script — cùng luật với cả màn quản trị. */
-t( 'khung mới không kéo theo script nào', stripos( $h_hr, '<script' ) === false );
+t( 'khung mới không kéo theo script LẠ nào', array() === vhcc_script_la( $h_hr ),
+	vhcc_script_la( $h_hr ) );
 t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_hr ) === 0 );
 
 vhcc_dung_bang();
@@ -17971,8 +18009,13 @@ t( '🔴 bấm "Vẽ hết" thì dựng đủ cả 8 cơ sở',
 	strpos( $h_het, 'HTT1' ) !== false && strpos( $h_het, 'HTT8' ) !== false, null );
 t( 'và thôi hiện khối "còn lại"', strpos( $h_het, 'Đang dựng sẵn' ) === false, null );
 
-/* Màn quản trị KHÔNG có script — luật chung, nhánh "hiện hết" không được phá lệ dù vẽ nhiều bảng. */
-t( '🔴 màn "hiện hết" vẫn không có thẻ script nào', stripos( $h_2cs, '<script' ) === false );
+/* Màn quản trị KHÔNG có script LẠ — luật chung, nhánh "hiện hết" không được phá lệ dù vẽ nhiều
+   bảng. Khối mặt nạ ô giờ là ngoại lệ DUY NHẤT, và dù màn này dựng tám cơ sở (tức là rất nhiều
+   ô giờ) thì nó vẫn chỉ được in ĐÚNG MỘT LẦN. */
+t( '🔴 màn "hiện hết" vẫn không có thẻ script LẠ nào', array() === vhcc_script_la( $h_2cs ),
+	vhcc_script_la( $h_2cs ) );
+t( '🔴 và khối mặt nạ ô giờ chỉ in một lần dù màn dựng tám cơ sở',
+	vhcc_so_js_gio( $h_2cs ) <= 1, vhcc_so_js_gio( $h_2cs ) );
 t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_2cs ) === 0, $h_2cs );
 
 /* =============================================================================================
@@ -20287,6 +20330,18 @@ teq( 'có giây thì cắt giây', '13:37', VHCC_DB::gio_24( '13:37:45' ) );
 teq( '🔴 gõ liền bốn số', '13:37', VHCC_DB::gio_24( '1337' ) );
 teq( '🔴 gõ liền ba số', '09:37', VHCC_DB::gio_24( '937' ) );
 teq( 'gõ liền có số 0 đầu', '08:30', VHCC_DB::gio_24( '0830' ) );
+/* 🔴 SÁU SỐ CŨNG NHẬN — anh Thắng gõ đúng `130522` vào ô ngay hôm nhận bản trước. Sáu số là
+   giờ-phút-giây, đúng dạng ô "Giờ vào" của sổ cũ, nên tay quen gõ vậy. Giây bị bỏ (ô này chỉ
+   dùng tới phút), nhưng bỏ giây khác hẳn CHỐI cả chuỗi: chối là người ta gõ lại ba lần rồi
+   tưởng ô hỏng. */
+teq( '🔴 gõ liền sáu số (giờ-phút-giây) thì lấy giờ:phút', '13:05', VHCC_DB::gio_24( '130522' ) );
+teq( 'sáu số toàn 0 phút 0 giây', '09:00', VHCC_DB::gio_24( '090000' ) );
+teq( 'có dấu, có giây cũng thế', '13:05', VHCC_DB::gio_24( '13:05:22' ) );
+/* NĂM số thì CHỐI: không đoán được cắt ở đâu (1:30:52 hay 13:05:2?). Đoán bừa ở đây là ghi sai
+   giờ công mà người gõ không thấy gì lạ. */
+teq( '🔴 năm số thì chối, không đoán bừa', false, VHCC_DB::gio_24( '13052' ) );
+teq( 'sáu số mà giờ quá 23 cũng chối', false, VHCC_DB::gio_24( '240000' ) );
+teq( 'sáu số mà phút quá 59 cũng chối', false, VHCC_DB::gio_24( '136000' ) );
 teq( 'dấu chấm cũng được', '13:37', VHCC_DB::gio_24( '13.37' ) );
 teq( 'chữ h cũng được', '13:37', VHCC_DB::gio_24( '13h37' ) );
 teq( 'dấu cách cũng được', '13:37', VHCC_DB::gio_24( '13 37' ) );
@@ -20321,6 +20376,39 @@ t( '🔴 nhãn nói rõ (24h)', strpos( $h_24, 'Giờ vào <span class="mo" styl
 /* `pattern` chặn ngay lúc bấm, khỏi mất công gửi đi rồi mới biết sai. */
 t( 'có pattern chặn tại chỗ', strpos( $h_24, 'pattern="([01]?[0-9]|2[0-3])' ) !== false, null );
 t( 'và câu giải thích hiện khi gõ sai', strpos( $h_24, 'Gõ liền cũng được: 0830, 1337.' ) !== false, null );
+
+/* ---- DẤU ":" TỰ HIỆN LÚC GÕ — khối script DUY NHẤT của màn quản trị ----
+ * Anh Thắng 11/09/2026, ảnh ô đang gõ dở `130522`: *"gõ có hiện ra : luôn được không"*. Muốn
+ * thế thì phải có JavaScript, và anh chốt mở ngoại lệ đúng cho việc này — màn quản trị xưa nay
+ * KHÔNG một dòng script (luật đã từng được giữ kể cả khi phải bỏ một tính năng khác).
+ *
+ * 🔴 NÊN PHÉP THỬ KHÔNG NỚI THÀNH "được có script". Nó đổi thành: mọi khối script trên màn phải
+ *    MANG DẤU của khối mặt nạ ô giờ. Khối thứ hai chui vào sau là đỏ ngay — xem `vhcc_script_la()`.
+ */
+t( '🔴 ô giờ có mang dấu để khối script nhận ra',
+	strpos( $h_24, 'data-gio24="1"' ) !== false, null );
+teq( '🔴 khối mặt nạ in ĐÚNG MỘT LẦN, dù màn có nhiều ô giờ', 1, vhcc_so_js_gio( $h_24 ) );
+teq( 'và không khối script LẠ nào đi kèm', array(), vhcc_script_la( $h_24 ) );
+t( 'màn vẫn không có thuộc tính on...= nào',
+	! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_24 ), null );
+/* 🔴 KHỐI PHẢI LÀ THỨ KHÔNG-CHẠY-CŨNG-KHÔNG-SAO. Trình duyệt chặn script thì ô vẫn gõ được và
+   vẫn lưu được, vì luật đọc giờ nằm ở MÁY CHỦ. Đo bằng cách soi đúng ba tính chất khiến nó vô
+   hại: chỉ nghe sự kiện `input`, chỉ đụng ô mang dấu `data-gio24`, và chỉ sửa khi con trỏ đang
+   ở CUỐI chuỗi (đặt lại `value` là con trỏ nhảy về cuối — sửa giữa chuỗi mà bị nhảy thì mỗi
+   lần sửa một số phải rê chuột lại một lần). */
+$src_js24 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 khối chỉ nghe sự kiện input, không đụng nút Lưu hay biểu mẫu',
+	strpos( $src_js24, 'document.addEventListener("input",soat,true);' ) !== false
+	&& strpos( $src_js24, 'addEventListener("submit"' ) === false, null );
+t( '🔴 và chỉ đụng ô mang dấu data-gio24',
+	strpos( $src_js24, 'o.getAttribute("data-gio24")===null){return;}' ) !== false, null );
+t( '🔴 chỉ sửa khi con trỏ ở CUỐI chuỗi (kẻo sửa giữa chuỗi là con trỏ nhảy)',
+	strpos( $src_js24, 'o.selectionStart!==o.value.length' ) !== false, null );
+/* Cắt HH:MM ở hai số đầu — và CỐ Ý không đoán kiểu ba số như máy chủ: lúc gõ thì `93` mới là
+   hai phím đầu của `0937` hay của `9337`, không biết được. Kiểu ba số vẫn còn ở máy chủ cho
+   lượt dán vào và cho máy không chạy script (phép thử `gio_24('937')` ở trên canh việc đó). */
+t( 'cắt dấu hai chấm sau HAI số đầu', strpos( $src_js24, 's.slice(0,2)+":"+s.slice(2)' ) !== false, null );
+t( 'và nhận tới sáu số (giờ-phút-giây)', strpos( $src_js24, 'slice(0,6)' ) !== false, null );
 
 /* ---- CỬA GHI: gõ sai phải CHỐI, không được lặng lẽ bỏ ô đó ---- */
 $U_BU = array( 'name' => 'Admin Bù', 'role' => 'ADMIN', 'coso' => '' );

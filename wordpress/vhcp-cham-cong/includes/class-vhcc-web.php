@@ -253,8 +253,15 @@ class VHCC_Web {
 	 * ⚠️ HẾT BỘ NHỚ THÌ `catch` KHÔNG BẮT ĐƯỢC — cái đó là một loại chết khác. Nhưng lỗi do MÃ
 	 *    (gọi hàm không có, sai kiểu, chia cho 0) thì bắt hết, và đó là loại hay gặp nhất.
 	 */
+	/**
+	 * ⚠️ CỜ "đã in khối script ô giờ" ĐẶT LẠI NGAY DÒNG ĐẦU. Trên máy chủ thật mỗi lượt là một
+	 *    tiến trình mới nên cờ tự sạch — nhưng BỘ THỬ dựng nhiều trang trong CÙNG một tiến
+	 *    trình, và lượt thứ hai trở đi sẽ thiếu khối script mà không phép thử nào thấy được (nó
+	 *    chỉ "thiếu" chứ không "sai"). Một dòng, và hai thế giới chạy giống nhau.
+	 */
 	public static function phuc_vu() {
 		try {
+			self::$da_in_js_gio = false;
 			self::phuc_vu_that();
 		} catch ( \Throwable $e ) {
 			self::trang_hong( $e );
@@ -5440,12 +5447,62 @@ class VHCC_Web {
 	 *    thành mất trắng một giờ công mà màn hình vẫn báo Đã lưu.
 	 */
 	private static function o_gio_24( $id, $ten, $gia_tri ) {
-		return '<input id="' . esc_attr( $id ) . '" name="' . esc_attr( $ten ) . '" type="text"'
-			. ' inputmode="numeric" autocomplete="off" maxlength="8" placeholder="13:37"'
-			. ' pattern="([01]?[0-9]|2[0-3])[:.hH ]?[0-5][0-9](:[0-5][0-9])?"'
+		$h = '<input id="' . esc_attr( $id ) . '" name="' . esc_attr( $ten ) . '" type="text"'
+			. ' data-gio24="1" inputmode="numeric" autocomplete="off" maxlength="8" placeholder="13:37"'
+			. ' pattern="([01]?[0-9]|2[0-3])[:.hH ]?[0-5][0-9]([:.hH ]?[0-5][0-9])?"'
 			. ' title="Giờ theo kiểu 24 giờ: 08:30 · 13:37 · 22:05. Gõ liền cũng được: 0830, 1337."'
 			. ' style="width:92px;text-align:center;font-variant-numeric:tabular-nums"'
 			. ( '' !== $gia_tri ? ' value="' . esc_attr( $gia_tri ) . '"' : '' ) . '>';
+		/* Khối script CHỈ in ra MỘT LẦN, và chỉ khi màn thật sự có ô giờ. Màn nào không có ô giờ
+		   thì vẫn sạch trơn đúng như luật cũ — xem `js_o_gio_24()`. */
+		if ( ! self::$da_in_js_gio ) {
+			self::$da_in_js_gio = true;
+			$h = self::js_o_gio_24() . $h;
+		}
+		return $h;
+	}
+
+	/** Đã in khối script của ô giờ chưa — mỗi lượt dựng trang chỉ in một lần. */
+	private static $da_in_js_gio = false;
+
+	/**
+	 * DẤU HAI CHẤM TỰ HIỆN RA LÚC GÕ — khối script DUY NHẤT của màn quản trị.
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, ảnh ô đang gõ dở `130522`: *"gõ có hiện ra : luôn được không"*.
+	 *
+	 * 🔴 ĐÂY LÀ NGOẠI LỆ CÓ CHỦ Ý CHO MỘT LUẬT ĐÃ GIỮ RẤT LÂU. Màn quản trị xưa nay KHÔNG có lấy
+	 *    một dòng script (bốn phép thử canh), và luật ấy đã từng được giữ kể cả khi phải bỏ một
+	 *    tính năng khác (tính dãy đặc trưng khuôn mặt ngay lúc chọn ảnh — xem `khoi_thieu_anh()`).
+	 *    Anh Thắng chốt mở ngoại lệ đúng cho việc này, 11/09/2026.
+	 *
+	 * 🔴 NÊN NÓ PHẢI LÀ THỨ KHÔNG-CHẠY-CŨNG-KHÔNG-SAO. Trình duyệt chặn script, máy cũ, mạng
+	 *    cắt giữa chừng — ô vẫn gõ được y như trước và vẫn lưu được, vì luật đọc giờ nằm ở MÁY
+	 *    CHỦ (`VHCC_DB::gio_24()`), không nằm ở đây. Khối này chỉ chèn dấu `:` cho đỡ mỏi tay.
+	 *    Đây là điều kiện để ngoại lệ này không trở thành cái khe cho khối script thứ hai:
+	 *    phép thử nay cho phép ĐÚNG một khối, và nó phải mang đúng dấu nhận dạng dưới đây.
+	 *
+	 * ⚠️ CHỈ SỬA KHI CON TRỎ ĐANG Ở CUỐI CHUỖI. Đặt lại `value` là con trỏ nhảy về cuối — người
+	 *    đang sửa chữ số ở GIỮA mà bị nhảy thì mỗi lần sửa một số phải rê chuột lại một lần.
+	 *
+	 * ⚠️ CẮT Ở 2 SỐ ĐẦU, KHÔNG ĐOÁN KIỂU 3 SỐ. Máy chủ nhận `937` = 09:37 (ba số = H:MM), nhưng
+	 *    lúc GÕ thì `93` mới là hai phím đầu của `0937` hay của `9337` — không biết được. Nên
+	 *    khối này luôn cắt `HH:MM`, và kiểu ba số vẫn còn nguyên ở máy chủ cho lượt dán vào hoặc
+	 *    cho máy không chạy script.
+	 */
+	private static function js_o_gio_24() {
+		return '<script>/*vhcc-gio24*/(function(){'
+			. '"use strict";'
+			. 'function so(v){return String(v).replace(/[^0-9]/g,"").slice(0,6);}'
+			. 'function dat(v){var s=so(v);'
+				. 'if(s.length>4){return s.slice(0,2)+":"+s.slice(2,4)+":"+s.slice(4);}'
+				. 'if(s.length>2){return s.slice(0,2)+":"+s.slice(2);}'
+				. 'return s;}'
+			. 'function soat(e){var o=e&&e.target;'
+				. 'if(!o||!o.getAttribute||o.getAttribute("data-gio24")===null){return;}'
+				. 'try{if(o.selectionStart!==o.value.length){return;}}catch(x){}'
+				. 'var m=dat(o.value);if(m!==o.value){o.value=m;}}'
+			. 'document.addEventListener("input",soat,true);'
+			. '})();</script>';
 	}
 
 	/** Giờ đang có -> giá trị điền vào ô giờ. Không có giờ -> chuỗi rỗng. */

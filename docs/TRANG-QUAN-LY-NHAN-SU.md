@@ -556,6 +556,36 @@ Cùng loại: `VHCC_Ca::lam_sach()` lặng lẽ bỏ mọi dòng ca đọc khôn
 ca bị bỏ**, và màn hình in ra — thiếu một ca thì giờ công của cả ca ấy rơi ra ngoài mọi ca, và
 không ai biết cho tới kỳ lương.
 
+### Dấu `:` tự hiện lúc gõ — 3.66.0, và là **ngoại lệ script duy nhất**
+
+Anh Thắng, ảnh ô đang gõ dở `130522`: *"gõ có hiện ra : luôn được không"*.
+
+Được, nhưng phải có JavaScript — mà màn quản trị xưa nay **không một dòng script**, luật ấy từng
+được giữ kể cả khi phải bỏ một tính năng khác (tính dãy đặc trưng khuôn mặt ngay lúc chọn ảnh).
+Anh Thắng chốt mở ngoại lệ đúng cho việc này, 11/09/2026.
+
+Ba điều kiện làm cho ngoại lệ này không trở thành cái khe cho khối thứ hai:
+
+1. **Không chạy cũng không sao.** Trình duyệt chặn script, máy cũ, mạng cắt giữa chừng — ô vẫn gõ
+   được và vẫn lưu được, vì luật đọc giờ nằm ở **máy chủ** (`VHCC_DB::gio_24()`). Khối này chỉ
+   chèn dấu `:` cho đỡ mỏi tay.
+2. **In đúng một lần, chỉ khi màn thật sự có ô giờ.** Màn dựng tám cơ sở cũng chỉ một khối; màn
+   không có ô giờ thì sạch trơn như cũ.
+3. **Phép thử không nới thành "được có script"** — nó đổi thành *"mọi khối script phải mang dấu
+   `/*vhcc-gio24*​/`"* (`vhcc_script_la()`). Nhét một khối lạ vào là **7 phép đỏ**.
+
+Khối chỉ nghe sự kiện `input`, chỉ đụng ô mang `data-gio24`, và **chỉ sửa khi con trỏ đang ở cuối
+chuỗi** — đặt lại `value` là con trỏ nhảy về cuối, nên sửa giữa chuỗi mà bị nhảy thì mỗi lần sửa
+một số phải rê chuột lại một lần.
+
+⚠️ Khối cắt `HH:MM` ở **hai số đầu**, cố ý **không** đoán kiểu ba số như máy chủ: lúc đang gõ thì
+`93` mới là hai phím đầu của `0937` hay của `9337` — không biết được. Kiểu ba số vẫn còn nguyên ở
+máy chủ, cho lượt dán vào và cho máy không chạy script.
+
+Và `gio_24()` nay nhận **cả sáu số**: `130522` → 13:05 (giây bị bỏ, vì ô này chỉ dùng tới phút).
+Sáu số là dạng ô "Giờ vào" của sổ cũ nên tay quen gõ vậy — chối cả chuỗi là người ta gõ lại ba
+lần rồi tưởng ô hỏng.
+
 39 phép thử trong `tools/test/test-cham-cong.php`.
 
 ---

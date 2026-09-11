@@ -181,12 +181,18 @@ class VHCC_DB {
 			return sprintf( '%02d:%02d', $h, $p );
 		}
 		/* Gõ liền: `1337` -> 13:37, `937` -> 9:37. Đây là kiểu gõ nhanh nhất trên bàn phím số,
-		   và là lý do chính người ta muốn bỏ ô 12 giờ. */
-		if ( preg_match( '/^(\d{3,4})$/', $c, $m ) ) {
+		   và là lý do chính người ta muốn bỏ ô 12 giờ.
+		   ⚠️ NHẬN CẢ SÁU SỐ (`130522` -> 13:05) — anh Thắng gõ đúng chuỗi ấy vào ô ngay hôm
+		      nhận bản 3.65.0. Sáu số là giờ-phút-giây, đúng dạng ô "Giờ vào" của sổ cũ, nên tay
+		      quen gõ vậy. Giây bị bỏ (bảng công chỉ dùng tới phút ở ô này) — nhưng bỏ giây khác
+		      hẳn CHỐI cả chuỗi: chối là người ta gõ lại ba lần rồi tưởng ô hỏng. */
+		if ( preg_match( '/^(\d{3,6})$/', $c, $m ) ) {
 			$so = $m[1];
-			$h  = (int) substr( $so, 0, strlen( $so ) - 2 );
-			$p  = (int) substr( $so, -2 );
-			if ( $h > 23 || $p > 59 ) { return false; }
+			if ( 5 === strlen( $so ) ) { return false; }   // 5 số thì không đoán được cắt ở đâu
+			$g  = ( 6 === strlen( $so ) ) ? (int) substr( $so, 4, 2 ) : 0;
+			$p  = (int) substr( $so, ( 6 === strlen( $so ) ) ? 2 : -2, 2 );
+			$h  = (int) substr( $so, 0, ( 6 === strlen( $so ) ) ? 2 : strlen( $so ) - 2 );
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
 			return sprintf( '%02d:%02d', $h, $p );
 		}
 		return false;
