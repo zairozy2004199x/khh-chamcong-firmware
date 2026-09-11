@@ -582,6 +582,12 @@
               <select id="daLoai" onchange="daOnLoai()" style="min-width:250px"><option value="Setup lắp đặt">🆕 Chi phí Setup lắp đặt gian hàng</option><option value="Tháo dỡ">🧹 Chi phí Tháo dỡ</option></select></div>
             <div class="fld" id="daTenBox" style="display:none"><label id="daTenLbl">Tên gian hàng mới (Setup)</label><input id="daTen" list="dl_coso_da" placeholder="Gõ tên gian hàng mới" style="min-width:280px"><datalist id="dl_coso_da"></datalist></div>
             <div class="fld" id="daTuanBox" style="display:none"><label>Tuần</label><select id="daTuan" style="min-width:280px"></select></div>
+            <!-- 🔴 NỘI DUNG ĐƠN — anh Thắng 11/09/2026: *"bổ sung thêm nội dung phía sau cho rõ
+                 đơn ( có thể là cải tạo hay gì đó ) để nhân viên nhập vào"*.
+                 Một gian làm nhiều đợt thì tên gian không phân biệt nổi đợt nào với đợt nào;
+                 thêm mấy chữ ở đây là danh sách đọc ra ngay "FUNFEST SC VIVO — Cải tạo quầy".
+                 Để TRỐNG vẫn lập được: không phải đợt nào cũng cần nói thêm. -->
+            <div class="fld" id="daNdBox"><label>Nội dung đơn <span style="font-weight:400;color:#94a3b8">(không bắt buộc)</span></label><input id="daNoiDung" list="dl_da_nd_don" placeholder="VD: Cải tạo quầy, sửa mái…" style="min-width:230px"><datalist id="dl_da_nd_don"><option value="Cải tạo"><option value="Sửa chữa"><option value="Bảo trì"><option value="Nâng cấp"><option value="Di dời"></datalist></div>
             <button class="btn b-p" onclick="createDuAnUI()">➕ Lập đơn</button>
           </div>
           <span id="daCreateHint" style="display:block;font-size:11px;color:#94a3b8;padding-top:8px">Chi phí cơ sở = chọn TUẦN, rồi mỗi dòng ghi gian của nó. Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — đơn đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
@@ -4374,6 +4380,17 @@
       ten=el('daTen').value.trim();
       if(!ten){ toast('warn','Nhập tên dự án'); return; }
     }
+    /* Nội dung đơn ghép vào SAU tên, ngăn bằng " — ". Ghép ở đây chứ không thêm cột mới: mọi
+       chỗ đang hiện tên đơn (danh sách, nhật ký, PDF, xuất MISA) ăn theo ngay, khỏi sửa. */
+    var _nd=String((el('daNoiDung')&&el('daNoiDung').value)||'').trim();
+    if(_nd) ten=ten+' — '+_nd;
+    /* 🔴 CHẶN TRƯỚC KHI GỬI, VÌ MÁY CHỦ CẮT LẶNG LẼ. `VHCP_Util::san()` cắt tên ở TEN_TOI_DA ký
+       tự — gửi dài hơn thì đơn vẫn tạo được nhưng tên cụt giữa chừng, và không có gì nói vì
+       sao. Thà chối ngay và chỉ đúng chỗ phải rút gọn. */
+    if(ten.length>TEN_TOI_DA){
+      toast('warn','Tên đơn dài '+ten.length+'/'+TEN_TOI_DA+' ký tự — rút gọn phần "Nội dung đơn"');
+      return;
+    }
     var trung=(DA_ITEMS||[]).filter(function(x){
       return String(x.ten||'').trim().toLowerCase()===ten.toLowerCase()
         && String(x.loai||'')===String(loai) && x.trangThai!=='Đã đóng' && !x.cosoChung;
@@ -4398,6 +4415,7 @@
           (laCS?'Đã lập đơn — nhập chi phí từng gian ngay bên dưới'
                :'Đã tạo đơn — nhập chi phí ngay bên dưới')+nhac);
         if(!laCS) el('daTen').value='';
+        if(el('daNoiDung')) el('daNoiDung').value='';   // dọn cho lần lập sau, khỏi dính nội dung cũ
         daDongTao();   // lập xong thì thu khối tạo lại, khỏi che mất đơn vừa mở
         loadDuAn();
         openDuAn(r.maDA, true);   // true = mở xong kéo thẳng tới chỗ nhập
@@ -8542,6 +8560,11 @@
         thêm ở `applyPerms()` chạy SAU chốt này. Một người vừa làm kỹ thuật vừa phụ đơn cơ sở
         là chuyện có thật, chặn cứng là chặn nhầm họ mà không có đường gỡ. */
   var BP_KHONG_DON_COSO=['Kỹ thuật'];
+  /* Tên đơn dài tối đa bao nhiêu ký tự.
+     🔴 PHẢI BẰNG ĐÚNG SỐ TRONG `VHCP_Util::san()`. Máy chủ cắt lặng lẽ ở đó; hai nơi lệch nhau
+        thì hoặc màn chối oan một cái tên hợp lệ, hoặc để lọt một cái tên rồi bị cắt cụt mà
+        không ai biết. Có bài kiểm đọc cả hai tệp rồi so số. */
+  var TEN_TOI_DA=60;
   /** Bộ phận này có lên đơn tuần của cơ sở không. Không khai bộ phận -> vẫn lên, như cũ. */
   function _vaoDonCoSo(bp){
     bp=String(bp||'').trim();

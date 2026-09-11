@@ -44,7 +44,7 @@ function dungBe() {
   });
   const KHO = {};
   const moi = {
-    DA_CUR: null, DA_ITEMS: [], DA_CHO_KEO: false,
+    DA_CUR: null, DA_ITEMS: [], DA_CHO_KEO: false, TEN_TOI_DA: 60,
     CURUSER: { name: 'KT', role: 'Nhân viên', boPhan: 'Kỹ thuật' },
     el: id => (KHO[id] = KHO[id] || O(id)),
     loading: () => {},
@@ -194,6 +194,62 @@ const cauToast = NK => (NK.toast.map(x => x[1]).join(' | '));
   t('tên chưa có → tạo thẳng, không nhắc gì',
     b.NK.confirm.length === 0 && b.NK.tao !== null && !/cùng tên/.test(cauToast(b.NK)), cauToast(b.NK));
 }
+
+/* ── 3b. NỘI DUNG ĐƠN GHÉP VÀO SAU TÊN ─────────────────────────────────────────────────
+   Anh Thắng 11/09/2026: *"bổ sung thêm nội dung phía sau cho rõ đơn ( có thể là cải tạo hay gì
+   đó ) để nhân viên nhập vào"*. Một gian làm nhiều đợt thì tên gian không phân biệt nổi đợt
+   nào với đợt nào. */
+{
+  const b = dungTrung();
+  b.gõ('FUNFEST SC VIVO'); b.moi.el('daNoiDung').value = ' Cải tạo quầy ';
+  b.F.createDuAnUI();
+  t('🔴 nội dung ghép vào SAU tên, ngăn bằng " — "',
+    b.NK.tao && b.NK.tao.ten === 'FUNFEST SC VIVO — Cải tạo quầy', b.NK.tao);
+  t('   ô nội dung được dọn cho lần lập sau', b.moi.el('daNoiDung').value === '', b.moi.el('daNoiDung').value);
+}
+{
+  const b = dungTrung();
+  b.gõ('FUNFEST SC VIVO'); b.moi.el('daNoiDung').value = '   ';
+  b.F.createDuAnUI();
+  t('   bỏ trống nội dung: tên giữ nguyên, không dính dấu gạch thừa',
+    b.NK.tao && b.NK.tao.ten === 'FUNFEST SC VIVO', b.NK.tao);
+}
+/* 🔴 CHẶN TRƯỚC KHI GỬI. `VHCP_Util::san()` cắt tên ở 60 ký tự — gửi dài hơn thì đơn vẫn tạo
+   được nhưng tên CỤT giữa chừng, và không có gì nói vì sao. */
+{
+  const b = dungTrung();
+  b.gõ('FUNFEST SC VIVO');
+  b.moi.el('daNoiDung').value = 'Cải tạo toàn bộ quầy bar và khu vực bếp phía sau gian hàng';
+  b.F.createDuAnUI();
+  t('🔴 tên + nội dung quá 60 ký tự: KHÔNG gửi lên máy chủ', b.NK.tao === null, b.NK.tao);
+  t('   và câu báo chỉ đúng chỗ phải rút gọn (ô Nội dung đơn)',
+    b.NK.toast.some(x => /Nội dung đơn/.test(x[1])), b.NK.toast);
+  t('   báo luôn dài bao nhiêu trên bao nhiêu', b.NK.toast.some(x => /\/60/.test(x[1])), b.NK.toast);
+}
+{
+  const b = dungTrung();
+  /* Đúng 60 ký tự — mốc phải LỌT, không phải chối. Lệch một là chối oan cái tên hợp lệ. */
+  const ten60 = 'A'.repeat(60);
+  b.gõ(ten60); b.moi.el('daNoiDung').value = '';
+  b.F.createDuAnUI();
+  t('🔴 đúng 60 ký tự thì LỌT (mốc là "quá 60", không phải "từ 60")',
+    b.NK.tao && b.NK.tao.ten.length === 60, b.NK.tao && b.NK.tao.ten.length);
+}
+
+/* 🔴 MỘT HẰNG SỐ, HAI NƠI GIỮ. Màn chặn ở `TEN_TOI_DA`, máy chủ cắt ở `VHCP_Util::san()`.
+   Lệch nhau thì hoặc màn chối oan một cái tên hợp lệ, hoặc để lọt một cái tên rồi bị cắt cụt
+   mà không ai biết. Đọc CẢ HAI TỆP rồi so số. */
+{
+  const mJs = /var TEN_TOI_DA=(\d+);/.exec(HTML);
+  t('tìm thấy TEN_TOI_DA trong app.html', !!mJs);
+  const PHP = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-util.php'), 'utf8');
+  const iSan = PHP.indexOf('public static function san(');
+  const mPhp = /mb_substr\(\s*\$s,\s*0,\s*(\d+)\s*\)/.exec(PHP.slice(iSan, iSan + 600));
+  t('tìm thấy chỗ cắt trong VHCP_Util::san()', !!mPhp);
+  t('🔴 hai nơi cùng một con số',
+    !!mJs && !!mPhp && mJs[1] === mPhp[1], [mJs && mJs[1], mPhp && mPhp[1]]);
+}
+
 {
   const b = dungTrung();
   b.gõ('   '); b.F.createDuAnUI();

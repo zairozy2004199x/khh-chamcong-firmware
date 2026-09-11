@@ -132,7 +132,7 @@ function beTao() {
   const moi = {
     DA_ITEMS: [], DA_TUAN: [], DA_NHOM: '', DA_CUR: null, DA_CHO_KEO: false,
     /* Người này vào được cả hai loại đơn -> lối "Đơn tuần của cơ sở" trong khối tạo có hiện. */
-    QUYEN_TAB: { don: 1, duan: 1 },
+    QUYEN_TAB: { don: 1, duan: 1 }, TEN_TOI_DA: 60,
     CURUSER: { name: 'KT', role: 'Nhân viên' },
     el: id => (KHO[id] = KHO[id] || O(id)),
     esc: x => String(x == null ? '' : x),
