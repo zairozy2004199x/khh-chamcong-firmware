@@ -184,6 +184,37 @@ kết, mà khối gói nạp đứng trước — `napTong()` tưởng đó là 
 quả: cài mới, mở Nạp ví ra trống trơn, không nói gì (vá ở 1.49.1, lớp riêng `.pve-nap-trong`).
 Bản thử khi ấy chỉ chạy cảnh **đã khai gói** nên không thấy — nay có thêm cảnh cài mới.
 
+### 🔴 MỖI VÉ MỘT MÃ RIÊNG (từ 1.55.0)
+Trước đó cả giỏ ghi thành **một** dòng, **một** mã: đơn *"1x Vé vào cửa, 1x Vé 1 giờ, 1x Vé cả
+ngày, 1x Vé Vào Cửa"* chỉ có đúng một mã QR. Nhân viên quét một lần là **cả bốn vé** thành đã dùng
+— bốn người đi cùng thì chỉ một người vào được; mà đưa cùng một mã cho bốn người thì không có cách
+nào biết vé nào đã dùng.
+
+Nay **mỗi đơn vị vé là một dòng, một mã, soát riêng một lượt**. Cả nhóm dùng chung `ma_don` và
+chung `noi_dung` chuyển khoản — khách vẫn chỉ chuyển **một** lần, tiền về là cả nhóm cùng xanh.
+
+⚠️ `so_tien` mỗi dòng là **đơn giá**, không phải tổng đơn — ghi tổng vào từng dòng là doanh thu
+nhân lên gấp số vé.
+⚠️ Mọi chỗ đối soát phải so với **tổng của cả đơn** (`don_theo_ma()`), không phải đơn giá một vé:
+so với đơn giá là thấy "đủ tiền" ngay cả khi khách mới trả một phần. Áp dụng ở `r_trangthai`,
+`do_lai_saoke` (gom theo `noi_dung`) và `r_soat`.
+⚠️ Trạng thái chung của đơn lấy theo **mẫu số thấp nhất**: còn một vé chưa trả tiền thì cả đơn vẫn
+là "chờ".
+⚠️ Ghi hỏng giữa chừng thì **dọn sạch các dòng đã ghi của đơn** — để lại nửa đơn là khách trả đủ
+tiền mà chỉ nhận được vài vé.
+
+### Trả bằng ví: báo thành công tràn màn hình
+Trả bằng ví là xong, không còn gì để chờ — nên **không** đưa khách vào màn mã QR chuyển khoản nữa
+(`xongVi()`). Màn báo thành công phủ kín, đóng luôn popup bên dưới, rồi tự về đầu trang mua vé sau
+5 giây.
+
+"Về trang chủ" ở đây là **về đầu trang mua vé**, không nhảy sang trang chủ website: khách vừa mua
+xong thường mua tiếp hoặc mở ví xem vé.
+
+⚠️ `[hidden]` **phải thắng** `display:flex` cho `.pve-qr/.pve-cong/.pve-bank` — đã dính **ba lần**:
+`el.hidden = true` không giấu được phần tử có `display` đặt sẵn. Trả bằng ví rồi mà mã QR chuyển
+khoản vẫn nằm đó là mời khách trả lần thứ hai.
+
 ### Vòng đời một tấm vé (từ 1.48.0)
 ```
 khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản

@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.54.1
+ * Version:           1.55.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@ if ( ! class_exists( 'POSH_Ve' ) ) :
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '9';
+	const VER_TBL = '10';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -259,11 +259,12 @@ class POSH_Ve {
 			giam TINYINT NOT NULL DEFAULT 0,
 			gia_goc INT NOT NULL DEFAULT 0,
 			zalo_id VARCHAR(32) NOT NULL DEFAULT '',
+			ma_don VARCHAR(24) NOT NULL DEFAULT '',
 			coso_dung VARCHAR(60) NOT NULL DEFAULT '',
 			dung_luc DATETIME NULL,
 			tao_luc DATETIME NOT NULL,
 			tt_luc DATETIME NULL,
-			PRIMARY KEY (id), UNIQUE KEY ma_ve (ma_ve), KEY trang_thai (trang_thai)
+			PRIMARY KEY (id), UNIQUE KEY ma_ve (ma_ve), KEY trang_thai (trang_thai), KEY ma_don (ma_don)
 		) $col;" );
 		$tv = self::tbl_tv();
 		dbDelta( "CREATE TABLE $tv (
@@ -331,7 +332,7 @@ class POSH_Ve {
 		) $col;" );
 
 		$cot = $wpdb->get_col( "SHOW COLUMNS FROM $tbl" );
-		$can = array( 'coso', 'giam', 'gia_goc', 'zalo_id', 'coso_dung' );
+		$can = array( 'coso', 'giam', 'gia_goc', 'zalo_id', 'coso_dung', 'ma_don' );
 		foreach ( $can as $c ) {
 			if ( ! in_array( $c, (array) $cot, true ) ) { return; }
 		}
@@ -873,26 +874,63 @@ class POSH_Ve {
 		if ( $tong < 1000 ) { return new WP_Error( 'gio', 'Giỏ hàng không hợp lệ.', array( 'status' => 400 ) ); }
 
 		global $wpdb;
-		$ma_ve = self::ma_ve_moi(); $noidung = self::nd_ck( 'VE', $ma_ve ); $tomtat = implode( ', ', $mota );
-		$ok_ghi = $wpdb->insert( self::tbl(), array(
-			'ma_ve' => $ma_ve, 'dv_ten' => mb_substr( $tomtat, 0, 120 ), 'so_tien' => $tong,
-			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
-			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ),
-			'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
-			'zalo_id' => self::zalo_id_hien(),
-			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
-			'giam' => $pc, 'gia_goc' => $tong_goc,
-			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
-		) );
-		/* Cùng lý do với r_dat: insert hỏng mà vẫn trả QR là nhận tiền cho đơn không tồn tại. */
-		if ( ! $ok_ghi ) {
-			return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
+		/**
+		 * 🔴 MỖI VÉ MỘT DÒNG, MỘT MÃ RIÊNG — anh Thắng 11/09/2026: *"mỗi vé 1 mã, để tránh dùng
+		 * nhầm, hoặc chỉ dùng 1 lượt"*.
+		 *
+		 * Bản trước ghi CẢ GIỎ thành MỘT dòng, một mã: đơn "1x Vé vào cửa, 1x Vé 1 giờ, 1x Vé cả
+		 * ngày, 1x Vé Vào Cửa" chỉ có đúng một mã QR. Nhân viên quét một lần là cả bốn vé thành
+		 * đã dùng — bốn người đi cùng thì chỉ một người vào được. Ngược lại, đưa cùng một mã cho
+		 * bốn người thì không có cách nào biết vé nào đã dùng.
+		 *
+		 * Nay mỗi ĐƠN VỊ vé là một dòng riêng, mã riêng, soát riêng một lượt. Cả nhóm dùng CHUNG
+		 * `ma_don` và CHUNG `noi_dung` chuyển khoản — khách vẫn chỉ chuyển MỘT lần, tiền về là cả
+		 * nhóm cùng xanh (xem tu_khop_don).
+		 *
+		 * ⚠️ `so_tien` của mỗi dòng là ĐƠN GIÁ, không phải tổng đơn. Ghi tổng vào từng dòng là
+		 * doanh thu nhân lên gấp số vé.
+		 */
+		$ma_don  = self::ma_ve_moi();
+		$noidung = self::nd_ck( 'VE', $ma_don );
+		$tomtat  = implode( ', ', $mota );
+		$chung   = array(
+			'ten_khach'  => mb_substr( $ten, 0, 80 ),
+			'sdt'        => mb_substr( $sdt, 0, 20 ),
+			'noi_dung'   => $noidung,
+			'ma_don'     => $ma_don,
+			'nguon'      => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'zalo_id'    => self::zalo_id_hien(),
+			'coso'       => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
+			'giam'       => $pc,
+			'trang_thai' => 'cho',
+			'tao_luc'    => current_time( 'mysql' ),
+		);
+		$ma_ds = array();
+		foreach ( $ct as $m ) {
+			for ( $i = 0; $i < (int) $m['sl']; $i++ ) {
+				$mv = self::ma_ve_moi();
+				$ok_ghi = $wpdb->insert( self::tbl(), array_merge( $chung, array(
+					'ma_ve'   => $mv,
+					'dv_ten'  => mb_substr( (string) $m['ten'], 0, 120 ),
+					'so_tien' => (int) $m['gia'],
+					'gia_goc' => (int) $m['gia_goc'],
+				) ) );
+				/* Cùng lý do với r_dat: ghi hỏng mà vẫn trả QR là nhận tiền cho vé không tồn tại.
+				   Hỏng giữa chừng thì DỌN các dòng đã ghi của đơn này — để lại nửa đơn là khách
+				   trả đủ tiền mà chỉ nhận được vài vé. */
+				if ( ! $ok_ghi ) {
+					$wpdb->delete( self::tbl(), array( 'ma_don' => $ma_don ) );
+					return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
+				}
+				$ma_ds[] = $mv;
+			}
 		}
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
-		$vi = self::tra_bang_vi( $req, $ma_ve, $tong, $tomtat );
+		$vi = self::tra_bang_vi( $req, $ma_don, $tong, $tomtat, true );
 		if ( is_wp_error( $vi ) ) { return $vi; }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
-		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
+		return array( 'ok' => true, 'ma_ve' => $ma_don, 'ma_don' => $ma_don, 've_ds' => $ma_ds,
+			'so_ve' => count( $ma_ds ), 'so_tien' => $tong, 'goi_ten' => $tomtat,
 			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ),
 			'trang_thai' => $vi ? 'da_tt' : 'cho', 'tra_vi' => $vi ? 1 : 0, 'so_du' => self::vi_so_du( self::vi_chu() ),
 			'chi_tiet' => $ct,
@@ -900,18 +938,21 @@ class POSH_Ve {
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
 	public static function r_trangthai( $req ) {
-		global $wpdb;
 		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma_ve' ) ) );
 		if ( '' === $ma ) { return new WP_Error( 'ma', 'Thiếu mã vé.', array( 'status' => 400 ) ); }
-		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT ma_ve, dv_ten, so_tien, noi_dung, trang_thai, tao_luc, tt_luc FROM ' . self::tbl() . ' WHERE ma_ve=%s', $ma ), ARRAY_A );
-		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
-		/* Còn chờ thì soi sổ phụ xem tiền vào chưa — xem chú thích ở tu_khop(). */
-		if ( 'cho' === $r['trang_thai'] && self::tu_khop( $r['ma_ve'], (int) $r['so_tien'], $r['noi_dung'] ) ) {
-			$r['trang_thai'] = 'da_tt';
-			$r['tt_luc']     = current_time( 'mysql' );
+		/* Mã gửi lên có thể là MÃ VÉ lẻ hoặc MÃ ĐƠN của một giỏ nhiều vé — don_theo_ma() lo cả
+		   hai. Tra thẳng theo ma_ve như bản trước thì giỏ hàng poll mãi không thấy gì (mã đơn
+		   không phải mã vé nào cả), và khách ngồi nhìn "Chờ thanh toán" dù tiền đã về. */
+		$d = self::don_theo_ma( $ma );
+		if ( ! $d ) { return new WP_Error( 'khong_co', 'Không tìm thấy vé.', array( 'status' => 404 ) ); }
+		if ( 'cho' === $d['trang_thai'] && self::co_tien_ve( (int) $d['so_tien'], $d['noi_dung'] ) ) {
+			if ( $d['la_don'] ) { self::danh_dau_tt_don( $ma ); } else { self::danh_dau_tt( $ma ); }
+			$d['trang_thai'] = 'da_tt';
+			$d['tt_luc']     = current_time( 'mysql' );
 		}
-		return array( 'ok' => true, 'ma_ve' => $r['ma_ve'], 'goi_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
-			'trang_thai' => $r['trang_thai'], 'tao_luc' => $r['tao_luc'], 'tt_luc' => $r['tt_luc'] );
+		return array( 'ok' => true, 'ma_ve' => $ma, 'goi_ten' => $d['goi_ten'], 'so_tien' => (int) $d['so_tien'],
+			'so_ve' => (int) $d['so_ve'], 'trang_thai' => $d['trang_thai'],
+			'tao_luc' => $d['tao_luc'], 'tt_luc' => $d['tt_luc'] );
 	}
 
 	/**
@@ -1089,9 +1130,13 @@ class POSH_Ve {
 		if ( 'da_tt' !== $r['trang_thai'] ) {
 			/* Còn chờ thì soi sổ phụ một lần nữa: khách vừa chuyển khoản ngay tại quầy là chuyện
 			   thường, bắt họ đứng đợi vòng hỏi trạng thái sau mới vào được thì vô lý. */
-			if ( ! self::tu_khop( $r['ma_ve'], (int) $r['so_tien'], $r['noi_dung'] ) ) {
+			/* So với TỔNG của cả đơn, không phải đơn giá vé này: giỏ 4 vé chỉ chuyển một lần cho
+			   tổng, lấy đơn giá ra so là thấy "đủ tiền" ngay cả khi khách mới trả một phần. */
+			$d = self::don_theo_ma( '' !== (string) $r['ma_don'] ? $r['ma_don'] : $r['ma_ve'] );
+			if ( ! $d || ! self::co_tien_ve( (int) $d['so_tien'], $d['noi_dung'] ) ) {
 				return new WP_Error( 'chua_tt', 'Vé CHƯA THANH TOÁN — chưa thấy tiền về.', array( 'status' => 409 ) );
 			}
+			if ( '' !== (string) $r['ma_don'] ) { self::danh_dau_tt_don( $r['ma_don'] ); } else { self::danh_dau_tt( $r['ma_ve'] ); }
 		}
 		$wpdb->update( $tbl, array( 'trang_thai' => 'da_dung', 'coso_dung' => $cs, 'dung_luc' => current_time( 'mysql' ) ), array( 'ma_ve' => $ma ) );
 		return array( 'ok' => true, 'ma_ve' => $ma, 'goi_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
@@ -1106,11 +1151,17 @@ class POSH_Ve {
 	 */
 	public static function do_lai_saoke( $gioi_han = 200 ) {
 		global $wpdb; $tbl = self::tbl();
-		$cho = $wpdb->get_results( $wpdb->prepare(
-			"SELECT ma_ve, so_tien, noi_dung FROM $tbl WHERE trang_thai='cho' ORDER BY id DESC LIMIT %d", (int) $gioi_han ), ARRAY_A );
+		/* Gom theo NỘI DUNG CHUYỂN KHOẢN, không dò từng vé: một giỏ 4 vé dùng chung một nội dung
+		   và khách chỉ chuyển một lần cho TỔNG. Dò từng vé là so tiền về với đơn giá — thấy "đủ"
+		   ngay cả khi khách mới trả một phần. */
+		$don = $wpdb->get_results( $wpdb->prepare(
+			"SELECT noi_dung, SUM(so_tien) AS tong, MIN(ma_ve) AS mv, MAX(ma_don) AS md
+			   FROM $tbl WHERE trang_thai='cho' GROUP BY noi_dung ORDER BY MAX(id) DESC LIMIT %d",
+			(int) $gioi_han ), ARRAY_A );
 		$n = 0;
-		foreach ( (array) $cho as $c ) {
-			if ( self::tu_khop( $c['ma_ve'], (int) $c['so_tien'], $c['noi_dung'] ) ) { $n++; }
+		foreach ( (array) $don as $c ) {
+			if ( ! self::co_tien_ve( (int) $c['tong'], $c['noi_dung'] ) ) { continue; }
+			$n += ( '' !== (string) $c['md'] ) ? self::danh_dau_tt_don( $c['md'] ) : ( self::danh_dau_tt( $c['mv'] ) ? 1 : 0 );
 		}
 		return $n;
 	}
@@ -1179,7 +1230,7 @@ class POSH_Ve {
 	 *
 	 * @return WP_Error|bool true = đã trừ ví · false = khách không chọn trả bằng ví
 	 */
-	private static function tra_bang_vi( $req, $ma_ve, $so_tien, $mo_ta ) {
+	private static function tra_bang_vi( $req, $ma_ve, $so_tien, $mo_ta, $la_don = false ) {
 		if ( 'vi' !== (string) $req->get_param( 'tt' ) ) { return false; }
 		$chu = self::vi_chu();
 		if ( '' === $chu ) { return new WP_Error( 'dn', 'Đăng nhập Zalo để trả bằng ví.', array( 'status' => 401 ) ); }
@@ -1188,8 +1239,67 @@ class POSH_Ve {
 			return new WP_Error( 'vi_thieu', 'Ví không đủ tiền — còn ' . number_format_i18n( $du )
 				. 'đ, cần ' . number_format_i18n( (int) $so_tien ) . 'đ. Nạp thêm rồi thử lại.', array( 'status' => 409 ) );
 		}
-		self::danh_dau_tt( $ma_ve );
+		if ( $la_don ) { self::danh_dau_tt_don( $ma_ve ); } else { self::danh_dau_tt( $ma_ve ); }
 		return true;
+	}
+
+	/**
+	 * Đánh dấu ĐÃ THANH TOÁN cho MỌI vé của một đơn (giỏ hàng).
+	 *
+	 * Khách chỉ chuyển MỘT lần cho cả giỏ, nên tiền về là cả nhóm cùng xanh. Cộng điểm đi theo
+	 * từng vé với ĐƠN GIÁ của nó — danh_dau_tt() tự lo, ở đây chỉ gọi cho từng dòng.
+	 */
+	public static function danh_dau_tt_don( $ma_don ) {
+		global $wpdb;
+		$ds = $wpdb->get_col( $wpdb->prepare(
+			'SELECT ma_ve FROM ' . self::tbl() . ' WHERE ma_don=%s', $ma_don ) );
+		$n = 0;
+		foreach ( (array) $ds as $m ) { if ( self::danh_dau_tt( $m ) ) { $n++; } }
+		return $n;
+	}
+
+	/**
+	 * Một mã có thể là MÃ VÉ lẻ hoặc MÃ ĐƠN (giỏ nhiều vé). Trả về tình trạng chung.
+	 *
+	 * ⚠️ Số tiền phải là TỔNG của cả đơn, không phải đơn giá một vé: khách chuyển một lần cho cả
+	 * giỏ, so với đơn giá là thấy "đủ tiền" ngay cả khi họ mới trả một phần.
+	 *
+	 * @return array|null { ma, la_don, so_tien, noi_dung, trang_thai, so_ve, goi_ten, tao_luc, tt_luc }
+	 */
+	public static function don_theo_ma( $ma ) {
+		global $wpdb; $tbl = self::tbl();
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_ve, ma_don, dv_ten, so_tien, noi_dung, trang_thai, tao_luc, tt_luc
+			   FROM $tbl WHERE ma_don=%s ORDER BY id ASC", $ma ), ARRAY_A );
+		$la_don = (bool) $rows;
+		if ( ! $la_don ) {
+			$rows = $wpdb->get_results( $wpdb->prepare(
+				"SELECT ma_ve, ma_don, dv_ten, so_tien, noi_dung, trang_thai, tao_luc, tt_luc
+				   FROM $tbl WHERE ma_ve=%s", $ma ), ARRAY_A );
+		}
+		if ( ! $rows ) { return null; }
+		$tong = 0; $ten = array(); $cho = 0; $dung = 0; $huy = 0;
+		foreach ( $rows as $r ) {
+			$tong += (int) $r['so_tien'];
+			$ten[] = $r['dv_ten'];
+			if ( 'cho' === $r['trang_thai'] ) { $cho++; }
+			elseif ( 'da_dung' === $r['trang_thai'] ) { $dung++; }
+			elseif ( 'huy' === $r['trang_thai'] ) { $huy++; }
+		}
+		/* Trạng thái CHUNG lấy theo mẫu số thấp nhất: còn một vé chưa trả tiền thì cả đơn vẫn là
+		   "chờ" — không thể nói đơn đã thanh toán khi tiền mới về một phần. */
+		$tt = $cho ? 'cho' : ( $huy === count( $rows ) ? 'huy' : ( $dung === count( $rows ) ? 'da_dung' : 'da_tt' ) );
+		return array(
+			'ma'         => $ma,
+			'la_don'     => $la_don,
+			'so_ve'      => count( $rows ),
+			'so_tien'    => $tong,
+			'noi_dung'   => $rows[0]['noi_dung'],
+			'goi_ten'    => implode( ', ', array_slice( $ten, 0, 6 ) ) . ( count( $ten ) > 6 ? '…' : '' ),
+			'trang_thai' => $tt,
+			'tao_luc'    => $rows[0]['tao_luc'],
+			'tt_luc'     => $rows[0]['tt_luc'],
+		);
 	}
 
 	// ═════════════════════════════ VÍ TIỀN ═════════════════════════════
@@ -3286,6 +3396,22 @@ class POSH_Ve {
 			font-weight:800; font-size:14px; color:#7f1d1d; background:rgba(255,255,255,.35); border-radius:12px; }
 		/* Phóng to hết màn: nền tối cho mã nổi, nhưng KHUNG MÃ PHẢI TRẮNG — máy quét đọc theo
 		   tương phản, đảo màu là nhiều máy chịu. */
+		/* Màn báo thành công khi trả bằng ví — tràn màn hình, rồi tự về trang mua vé. */
+		.pve-xong{ position:fixed; inset:0; z-index:2147483100; background:linear-gradient(160deg,#15803d,#166534);
+			display:flex; align-items:center; justify-content:center; padding:22px; color:#fff; text-align:center; }
+		.pve-xong-in{ max-width:420px; width:100%; }
+		.pve-xong-v{ font-size:66px; line-height:1; margin-bottom:10px; }
+		.pve-xong-h{ font-size:24px; font-weight:800; margin-bottom:6px; }
+		.pve-xong-p{ font-size:15px; opacity:.92; }
+		.pve-xong-ma{ font:800 26px/1.2 ui-monospace,Menlo,monospace; letter-spacing:3px; margin:16px 0 4px; }
+		.pve-xong-tien{ font-size:15px; opacity:.92; }
+		.pve-xong-du{ margin-top:14px; font-size:14px; background:rgba(255,255,255,.16); border-radius:999px;
+			display:inline-block; padding:7px 16px; }
+		.pve-xong-nut{ display:flex; gap:10px; margin-top:22px; }
+		.pve-xong-nut button{ flex:1; border:none; border-radius:12px; padding:13px; font-size:15px; font-weight:800; cursor:pointer; }
+		.pve-xong-ve{ background:#fff; color:#14532d; }
+		.pve-xong-chu{ background:rgba(255,255,255,.18); color:#fff; }
+		.pve-xong-dem{ margin-top:14px; font-size:12.5px; opacity:.85; }
 		.pve-qrto{ position:fixed; inset:0; z-index:2147483000; background:rgba(12,10,4,.92);
 			display:flex; align-items:center; justify-content:center; padding:18px; cursor:pointer; }
 		.pve-qrto-in{ text-align:center; max-width:460px; width:100%; }
@@ -3344,6 +3470,10 @@ class POSH_Ve {
 			padding:4px 10px; border-radius:999px; cursor:pointer; }
 		.pve-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
 		.pve-note{ color:var(--mut); font-size:12px; line-height:1.5; margin-top:12px; }
+		/* 🔴 [hidden] PHẢI THẮNG display:flex. Đây là lần thứ ba dính: `el.hidden = true` không giấu
+		   được phần tử có display:flex/block đặt sẵn. Trả bằng ví rồi mà mã QR chuyển khoản vẫn
+		   nằm đó là mời khách trả lần thứ hai (11/09/2026). */
+		.pve-cong[hidden], .pve-qr[hidden], .pve-bank[hidden]{ display:none !important; }
 		.pve-cong{ display:flex; gap:8px; margin:4px 0 14px; }
 		.pve-cong-i{ flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 4px; border:1.5px solid #ddd6c4; background:var(--sf2); border-radius:12px; font-size:12px; font-weight:700; color:var(--tx); cursor:pointer; }
 		.pve-cong-i span{ font-size:22px; }
