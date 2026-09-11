@@ -1312,11 +1312,14 @@ class VHG_Admin {
 			. '<p class="description">Chỉ chữ và số, không dấu, không khoảng trắng. Mã này đi vào nội dung '
 			. 'chuyển khoản khách gõ tay (<code>GHE&lt;mã&gt; &lt;mã lượt&gt;</code>) — có dấu là khách gõ sai '
 			. 'và ghế không chạy. Khai lại đúng mã cũ = sửa máy đó.</p></td></tr>';
-		echo '<tr><th>Cơ sở</th><td><select name="coso_id"><option value="0">— chưa gán —</option>';
+		echo '<tr><th>Cơ sở</th><td><select name="coso_id"><option value="0">— giữ nguyên / chưa gán —</option>';
 		foreach ( $coso as $c ) {
 			echo '<option value="' . (int) $c['id'] . '">' . esc_html( $c['ten'] ) . '</option>';
 		}
-		echo '</select></td></tr>';
+		echo '</select><p class="description">Khi <b>SỬA</b> máy đã có (gõ lại đúng mã cũ), để nguyên '
+			. '“— giữ nguyên / chưa gán —” thì cơ sở đang gán <b>KHÔNG bị đổi</b> — chỉ chọn cơ sở khi '
+			. 'muốn gán/đổi. (Trước đây để trống là vô tình đưa ghế về “chưa gán” và ghế biến mất khỏi '
+			. 'màn nhập của nhân viên — nay đã chặn.)</p></td></tr>';
 		/* 🔴 Ô MAC — anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Đúng, và dòng
 		   khai tay không có MAC là dòng KHÔNG GẮN VỚI GHẾ NÀO: ghế cắm điện lên sẽ đẻ ra một
 		   dòng thứ hai, và dòng đang chạy thật là dòng kia.

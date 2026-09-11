@@ -1074,6 +1074,14 @@ class VHG_May {
 			$cu_mac = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE mac=%s LIMIT 1", $hang['mac'] ) );
 			if ( $cu_mac ) { $co = $cu_mac; }
 		}
+		/* 🔴 CƠ SỞ RỖNG (0) KHI SỬA MÁY ĐÃ CÓ = ĐỪNG GHI ĐÈ — cùng một lẽ với MAC ở trên, và là gốc
+		   của lỗi "tự nhiên mất máy Bạc Liêu" (anh Thắng). Form "Thêm/sửa máy" bên wp-admin là form
+		   TRẮNG: gõ lại đúng mã cũ = sửa máy đó, nhưng ô Cơ sở luôn mặc định "— chưa gán —". Ai mở
+		   form để sửa giá/số tài khoản mà không chọn lại cơ sở thì coso_id bị đặt về 0 → ghế thành
+		   "chưa gán" → rơi khỏi phạm vi PIN (trong_pham_vi) và biến mất khỏi màn nhập của nhân viên
+		   lẫn nhóm cơ sở trong bảng. Đổi cơ sở CÓ CHỦ Ý đi qua đường riêng (dat_coso/dat_coso_lo);
+		   ở đây 0 nghĩa là "không đụng tới", giữ nguyên cơ sở đang có. Máy MỚI (insert) vẫn cho 0. */
+		if ( $co && 0 === (int) $hang['coso_id'] ) { unset( $hang['coso_id'] ); }
 		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
 		else { $wpdb->insert( $bang, $hang ); }
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
