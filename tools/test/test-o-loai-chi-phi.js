@@ -54,8 +54,10 @@ const NHOM_CP_CS = '(cơ sở)';
 const nguon = ['_mangCua', '_donNhieuCoSo', '_mangPham', '_tkNoList', '_tapTkCo', '_tkNoCua', '_khoaNhom', '_bpTach', '_loaiCpList', '_loaiCpVi'].map(layHam).join('\n')
   + '\n  return { list:_loaiCpList, vi:_loaiCpVi, dat:function(n,u){ NHOM_CP=n; CURUSER=u; } };';
 function moi(nhomCp, user, cur) {
-  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'esc', nguon)(
-    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, v => String(v == null ? '' : v));
+  /* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` — xem chốt ở app.html. Bài này kiểm
+     ô loại chi phí của ĐƠN TUẦN, nên dựng đúng bối cảnh: đang ở tab đơn, chưa mở dự án nào. */
+  const M = new Function('BOOT', 'NHOM_CP', 'NHOM_CP_CS', 'CURUSER', 'CUR', 'CUR_PAGE', 'DA_CUR', 'esc', nguon)(
+    BOOT, nhomCp, NHOM_CP_CS, user, cur || { don: { nhieuCoSo: false } }, 'don', null, v => String(v == null ? '' : v));
   return M;
 }
 const NV_CS = { boPhan: 'Cơ sở' };

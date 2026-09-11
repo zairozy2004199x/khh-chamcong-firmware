@@ -51,7 +51,10 @@ const BOOT = {
 let CUR = null;
 const src = boc('_donNhieuCoSo') + boc('_mangPham') + boc('_mangCua') + boc('_tkNoList') + boc('_tkNoCua')
   + '; return { l: _tkNoList, c: _tkNoCua, m: _mangPham, dn: _donNhieuCoSo };';
-const mk = CURv => new Function('BOOT', 'CUR', src)(BOOT, CURv);
+/* ⚠️ `_donNhieuCoSo` nay hỏi thêm `CUR_PAGE` / `DA_CUR` (đơn chi phí cơ sở của Kỹ thuật cũng là
+   đơn nhiều gian). Bài này kiểm ĐƠN TUẦN, nên dựng đúng bối cảnh ấy: đang ở tab đơn, chưa mở
+   dự án nào. Khai thiếu là bài kiểm nổ ReferenceError, trông như mã hỏng. */
+const mk = CURv => new Function('BOOT', 'CUR', 'CUR_PAGE', 'DA_CUR', src)(BOOT, CURv, 'don', null);
 
 const KVC  = mk({ don: { nhieuCoSo: false } });
 const POSH = mk({ don: { nhieuCoSo: true  } });

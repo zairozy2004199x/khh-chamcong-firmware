@@ -617,7 +617,7 @@
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
         <div class="fld"><label>Nội dung</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:190px"><datalist id="dl_da_nd"></datalist></div>
-        <div class="fld" id="daGianBox" style="display:none"><label>Gian / cơ sở</label><input id="da_gian" placeholder="VD: Gian A" title="Gian hoặc cơ sở của DÒNG này. Mã tài khoản khai theo MẢNG của nó. Chỉ hỏi ở dự án 'Chi phí cơ sở (chung)' — dự án Setup/Tháo dỡ thì gian chính là tên dự án." style="width:120px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"></div>
+        <div class="fld" id="daGianBox" style="display:none"><label>Gian / cơ sở</label><input id="da_gian" list="dl_gian_da" placeholder="Chọn hoặc gõ gian" title="Gian hoặc cơ sở của DÒNG này — bấm vào để chọn trong danh sách cơ sở, hoặc gõ tên gian mới. Mã tài khoản khai theo MẢNG của nó. Chỉ hỏi ở đơn chi phí cơ sở — dự án Setup/Tháo dỡ thì gian chính là tên dự án." style="width:160px" onchange="_reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint();"><datalist id="dl_gian_da"></datalist></div>
         <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
         <div class="fld"><label>Số lượng</label><input id="da_sl" type="number" min="0" placeholder="0" style="width:75px" oninput="daCalcTT()"></div>
         <div class="fld"><label>Đơn giá</label><input id="da_dg" type="number" min="0" placeholder="0" style="width:110px" oninput="daCalcTT()"></div>
@@ -1934,7 +1934,16 @@
       else el('pinErr').textContent=(r&&r.error)||'Lỗi';
     }).withFailureHandler(function(e){loading(false); el('pinErr').textContent=e.message;}).changePin(CURUSER.name, o, n);
   }
-  function defaultPageFor(role){ return role==='Nhân viên'?'don':'tongquan'; }   // trang chủ = Tổng quan dòng tiền (trừ Nhân viên vào thẳng Nhập đơn)
+  var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
+  /* Chưa có bảng quyền (gọi trước applyPerms) thì coi như được — không thì màn trắng trơn. */
+  function _tabDuoc(p){ return !QUYEN_TAB || !!QUYEN_TAB[p]; }
+  // trang chủ = Tổng quan dòng tiền (trừ Nhân viên vào thẳng Nhập đơn).
+  // 🔴 Nhân viên Kỹ thuật không có tab đơn tuần -> vào thẳng tab Kỹ thuật, kẻo mở app ra là
+  //    một trang bị ẩn: hàng tab không có nút nào sáng, và họ tưởng app hỏng.
+  function defaultPageFor(role){
+    if(role!=='Nhân viên') return 'tongquan';
+    return _tabDuoc('don')?'don':(_tabDuoc('duan')?'duan':'tongquan');
+  }
   function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
@@ -1968,7 +1977,9 @@
       if(bp){ vis.duan=(BP_VAO_DUAN.indexOf(bp)>=0)?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
       // 3 tab Marketing/Công tác/Setup đã bỏ, nên NV của mấy bộ phận đó phải vào được
       // tab Đơn chi phí — không thì họ không còn chỗ nào để nhập.
-      vis.don=1; vis.sochi=1;
+      // 🔴 TRỪ KỸ THUẬT: đơn tuần là đơn của nhân viên CƠ SỞ. Kỹ thuật đã có lối riêng ở
+      //    🔧 Chi phí Kỹ thuật, nên bày thêm đơn tuần chỉ tổ lên nhầm chỗ.
+      vis.don=_vaoDonCoSo(bp)?1:0; vis.sochi=1;
     }
     /* CỘNG THÊM quyền khai ở bảng Phân quyền (thẻ 🔑 Phân quyền chỉnh sửa).
        CỘNG chứ không THAY luật bộ phận: đổi thẳng là nhân viên Kỹ thuật mất tab Dự án ngay lúc
@@ -1982,6 +1993,14 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="duan"]'),function(b){
       b.style.display=vis.duan?'':'none';
     });
+    /* Nút "📅 Chi phí · cơ sở" ẩn theo đúng luật ấy — để nó sáng cho người không được vào là
+       mời họ bấm sang một trang vừa bị ẩn khỏi hàng tab. */
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="don"]'),function(b){
+      b.style.display=vis.don?'':'none';
+    });
+    /* Giữ lại bảng quyền để `defaultPageFor()` và `showDonChi()` khỏi ném người dùng vào đúng
+       cái tab vừa ẩn — nhớ tab lần trước bằng localStorage nên chuyện này xảy ra thật. */
+    QUYEN_TAB=vis;
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     // ADMIN CŨNG LÊN ĐƠN ĐƯỢC — để chạy thử trọn luồng (lên đơn → xin tạm ứng → cấp →
     // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
@@ -3545,7 +3564,14 @@
   // ===================== TAB =====================
   var DONCHI_MODE='don';
   try{ var _dc=localStorage.getItem('vhcp_donchi'); if(_dc==='don'||_dc==='duan') DONCHI_MODE=_dc; }catch(e){}
-  function showDonChi(){ showPage(DONCHI_MODE); }
+  /* Tab gộp "📋 Đơn chi phí" mở lại đúng loại lần trước — nhưng KẸP vào loại còn được xem.
+     Nhớ bằng localStorage nên người Kỹ thuật từng đứng ở "Chi phí · cơ sở" sẽ bị đưa về đúng
+     cái vừa bị ẩn, và không có gì trên màn nói vì sao trang trống. */
+  function showDonChi(){
+    var p=DONCHI_MODE;
+    if(!_tabDuoc(p)) p=(p==='don')?'duan':'don';
+    showPage(_tabDuoc(p)?p:'tongquan');
+  }
 
   function showPage(p){
     CUR_PAGE=p;
@@ -4173,11 +4199,21 @@
     /* Giữ lựa chọn cũ nếu còn hợp lệ; mặc định TUẦN NÀY (mục đầu). */
     if(cu&&DA_TUAN[Number(cu)]) sel.value=cu;
   }
+  /* Đổ danh sách cơ sở vào CẢ HAI ô gợi ý: ô tên dự án (Tháo dỡ) và ô Gian của từng dòng chi.
+     🔴 Anh Thắng 11/09/2026: *"gian cơ sở không hiện lên"*. Ô Gian trước đây là ô gõ tay trơn,
+        nên mỗi người gõ một kiểu ("Gian A" / "GIAN A" / "gian a") — mà mã tài khoản tra theo
+        MẢNG của gian, nên ba cách gõ ấy ra ba mã khác nhau trong cùng một đơn.
+     ⚠️ VẪN LÀ <input> chứ không phải <select>: gian mới chưa có trong danh mục cơ sở thì phải
+        gõ được, nếu không đơn Setup gian mới không nhập nổi dòng nào. */
+  function _daNapCoSoDs(coso){
+    var h=(coso||[]).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
+    ['dl_coso_da','dl_gian_da'].forEach(function(id){ var d=el(id); if(d) d.innerHTML=h; });
+  }
   function loadDuAn(){ _ensureLoaiCp(function(){ _reFillLoai('da_loaicp', _daCoso(), 'da_httt'); daTkHint(); }); loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
       DA_ITEMS=r.items||[];
-      if(el('dl_coso_da')) el('dl_coso_da').innerHTML=(r.coso||[]).map(function(c){return '<option value="'+esc(c)+'">';}).join('');
+      _daNapCoSoDs(r.coso);
       // bộ lọc: NV thấy "Đang xử lý"; kế toán/quản lý/admin xem thêm "Chờ duyệt" & "Đã đóng"
       var canClosed=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf((CURUSER&&CURUSER.role)||'')>=0;
       if(el('daListFilter')){ var cur=el('daListFilter').value;
@@ -6339,8 +6375,27 @@
     var k=String(coso||'').trim().toLowerCase();
     return (k && BOOT.cosoPll && BOOT.cosoPll[k]) ? String(BOOT.cosoPll[k]) : '';
   }
-  /** Đơn đang mở có ghép nhiều cơ sở không — cờ do MÁY CHỦ gửi, không đoán lại ở đây. */
-  function _donNhieuCoSo(){ return !!(CUR&&CUR.don&&CUR.don.nhieuCoSo); }
+  /**
+   * Đơn đang mở có ghép nhiều cơ sở không — cờ do MÁY CHỦ gửi, không đoán lại ở đây.
+   *
+   * 🔴 ĐƠN CHI PHÍ CƠ SỞ CỦA KỸ THUẬT CŨNG LÀ MỘT ĐƠN NHIỀU GIAN. Anh Thắng 11/09/2026:
+   *    *"bổ sung loại chi phí ( chi phí cơ sở )"* — ô Loại chi phí của đơn ấy chỉ xổ ra hai
+   *    dòng tháo dỡ / setup.
+   *
+   *    Gốc nằm ở `_tkNoList()`: mã tài khoản tra theo MẢNG của gian, mà lúc mới mở form ô Gian
+   *    còn trống nên không có mảng nào — và nhánh "chưa chọn gian thì gom mã của MỌI mảng" lại
+   *    gác sau đúng cờ này. Đơn Kỹ thuật không bật cờ nên rơi ra ngoài: loại nào khai mã theo
+   *    ma trận (chính là "Chi phí cơ sở": 64166 ở FARM, 64126 ở FZ) đều bị coi là chưa có mã và
+   *    bị ẩn khỏi ô chọn. Chọn gian xong thì nó hiện — nên nhìn như lúc có lúc không.
+   *
+   * ⚠️ Rào bằng `CUR_PAGE` để chốt này chỉ có hiệu lực khi đang đứng ở trang dự án. `DA_CUR`
+   *    sống suốt phiên; không rào thì mở một đơn cơ sở Kỹ thuật rồi quay về đơn tuần là trang
+   *    đơn tuần cũng tưởng mình ghép nhiều gian, và ô Cơ sở của nó nhảy xuống cuối form.
+   */
+  function _donNhieuCoSo(){
+    if(CUR&&CUR.don&&CUR.don.nhieuCoSo) return true;
+    return !!(CUR_PAGE==='duan' && DA_CUR && DA_CUR.isCoSo);
+  }
   /** Mọi MẢNG của những cơ sở người này đang chọn được — dùng khi chưa chốt cơ sở nào. */
   function _mangPham(){
     var m={}, pll=BOOT.cosoPll||{};
@@ -8388,6 +8443,18 @@
   var BP_KY_TU_DO=['Văn phòng','Kỹ thuật'];
   // Bộ phận vào được tab "Dự án · gian thi công".
   var BP_VAO_DUAN=['Văn phòng','Kỹ thuật'];
+  /* 🔴 BỘ PHẬN KHÔNG LÊN ĐƠN TUẦN CỦA CƠ SỞ — anh Thắng 11/09/2026, chỉ vào màn "1) Nhập hạng
+     mục xin tạm ứng" của đơn tuần: *"này của nhân viên cơ sở, không phải của kỹ thuật, ẩn đi"*,
+     rồi chỉ vào khối 🔧 Chi phí Kỹ thuật: *"Đây mới chính là chi phí do kỹ thuật lên"*.
+     ⚠️ Vẫn MỞ LẠI ĐƯỢC bằng ô `donCoSo` ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa: luật cộng
+        thêm ở `applyPerms()` chạy SAU chốt này. Một người vừa làm kỹ thuật vừa phụ đơn cơ sở
+        là chuyện có thật, chặn cứng là chặn nhầm họ mà không có đường gỡ. */
+  var BP_KHONG_DON_COSO=['Kỹ thuật'];
+  /** Bộ phận này có lên đơn tuần của cơ sở không. Không khai bộ phận -> vẫn lên, như cũ. */
+  function _vaoDonCoSo(bp){
+    bp=String(bp||'').trim();
+    return !(bp && BP_KHONG_DON_COSO.indexOf(bp)>=0);
+  }
   /* Bộ phận ĐƯỢC HỎI loại đơn lúc tạo. Anh Thắng 10/09/2026: "chỉ áp dụng cho kỹ thuật mới
      hỏi loại đơn gì" — chỉ Kỹ thuật mới thật sự có hai loại đơn để chọn giữa (đơn dự án
      theo thời gian, và đơn chi phí cơ sở chung theo tuần). Người ngoài bộ phận ấy chỉ lên

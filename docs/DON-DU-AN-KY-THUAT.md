@@ -175,6 +175,42 @@ bấm **Lập đơn** lúc ấy bị chối kèm câu nói rõ phải chọn cơ
 
 Lập xong, khối tạo tự thu lại để không che mất đơn vừa mở.
 
+### Kỹ thuật không thấy tab đơn tuần của cơ sở
+
+Anh Thắng 11/09/2026, chỉ vào màn *"1) Nhập hạng mục xin tạm ứng"* của đơn tuần: *"này của nhân
+viên cơ sở, không phải của kỹ thuật, ẩn đi"*, rồi chỉ vào khối 🔧 Chi phí Kỹ thuật: *"Đây mới
+chính là chi phí do kỹ thuật lên"*.
+
+Nhân viên bộ phận **Kỹ thuật** nay không còn tab **📅 Chi phí · cơ sở** (`BP_KHONG_DON_COSO`), và
+đăng nhập vào thẳng tab Kỹ thuật. Vẫn **mở lại được** bằng ô `donCoSo` ở ⚙️ Cấu hình → 🔑 Phân
+quyền chỉnh sửa — một người vừa làm kỹ thuật vừa phụ đơn cơ sở là chuyện có thật.
+
+⚠️ Ẩn tab thì phải đổi **cả trang mặc định**, và kẹp **tab gộp 📋 Đơn chi phí** (nó nhớ loại lần
+trước bằng `localStorage`) — không thì người Kỹ thuật mở app ra trúng đúng trang vừa bị ẩn, hàng
+tab không nút nào sáng, và họ tưởng app hỏng.
+
+### Ô Gian và ô Loại chi phí
+
+Ô **Gian / cơ sở** của từng dòng nay **xổ ra danh sách cơ sở** (`dl_gian_da`) thay vì ô gõ tay
+trơn. Vẫn là `<input>` chứ không phải `<select>` — gian mới chưa có trong danh mục thì phải gõ
+được. Nhưng phải gợi ý: mã tài khoản tra theo **mảng** của gian, nên "Gian A" / "GIAN A" / "gian a"
+ra ba mã khác nhau trong cùng một đơn.
+
+🔴 **Đơn chi phí cơ sở của Kỹ thuật cũng là "đơn nhiều gian".** Đây là gốc của chuyện *"bổ sung
+loại chi phí ( chi phí cơ sở )"*: ô Loại chi phí chỉ xổ ra tháo dỡ / setup. Mã tài khoản tra theo
+mảng của gian, mà lúc mới mở form ô Gian còn trống — và nhánh "chưa chọn gian thì gom mã của MỌI
+mảng" trong `_tkNoList()` lại gác sau cờ `_donNhieuCoSo()`. Đơn Kỹ thuật không bật cờ ấy nên mọi
+loại khai mã theo **ma trận** (đúng là "Chi phí cơ sở": 64166 ở FARM, 64126 ở FZ) bị coi là chưa
+có mã và bị ẩn. Chọn gian xong thì nó hiện lại — nên nhìn như lúc có lúc không.
+
+⚠️ Cờ ấy rào bằng `CUR_PAGE==='duan'`: `DA_CUR` sống suốt phiên, không rào thì mở một đơn cơ sở
+Kỹ thuật rồi quay về đơn tuần là trang đơn tuần cũng tưởng mình ghép nhiều gian, và ô Cơ sở của
+nó nhảy xuống cuối form.
+
+Kèm theo, loại **"Chi phí cơ sở"** được mở thêm cho bộ phận Kỹ thuật (seed `seeded_coso_kythuat_v1`)
+— **cộng thêm** vào cột Bộ phận, không ghi đè, và **để yên** khi cột ấy đang trống (trống = dùng
+chung cho mọi bộ phận, điền vào là bó nó lại).
+
 Mỗi tuần là **một đơn**, trong đơn ấy **mỗi dòng ghi gian của nó** ở ô *Gian / cơ sở* — một đơn
 gom nhiều gian, đúng như đơn bên POSH. Từ đó đơn đi trọn luồng đã mô tả ở trên: tích hạng mục →
 xin tạm ứng → kế toán duyệt & cấp tiền → gửi quyết toán → kế toán chốt sổ → đóng đơn.
@@ -264,6 +300,8 @@ kiểm sai.
 | `kiem-khuon-ky-hai-noi.js` | chuỗi kỳ dựng ở hai nơi phải ra cùng kết quả |
 | `kiem-gop-hang-muc.js` | dời mục con sang hạng mục lớn khác |
 | `kiem-don-coso-nhieu-gian.php` | đơn chi phí cơ sở: sổ chung vs đơn theo đợt, gom theo gian |
-| `kiem-don-coso-man.js` | màn đơn cơ sở: bốn nút quy trình, bảng theo từng gian |
+| `kiem-don-coso-man.js` | màn đơn cơ sở: bốn nút quy trình, bảng theo từng gian, luồng tạo đơn |
+| `kiem-tab-kythuat-va-gian.js` | ẩn tab đơn tuần với Kỹ thuật · ô Gian xổ danh sách · ô Loại chi phí |
+| `kiem-loai-coso-ky-thuat.php` | loại "Chi phí cơ sở" mở thêm cho bộ phận Kỹ thuật |
 
 Chạy PHP **theo lô** (~12 tệp một lượt) — chạy hết một lần làm tiến trình hết bộ nhớ.

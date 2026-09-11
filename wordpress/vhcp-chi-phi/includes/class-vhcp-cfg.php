@@ -620,6 +620,35 @@ class VHCP_Cfg {
 			VHCP_Meta::set( 'seeded_thaodo_setup_v2', '1' );
 		}
 
+		/* LOẠI "Chi phí cơ sở" MỞ THÊM CHO BỘ PHẬN KỸ THUẬT — anh Thắng 11/09/2026:
+		   *"bổ sung loại chi phí ( chi phí cơ sở )"*, sau khi ô Loại chi phí của đơn Kỹ thuật
+		   chỉ xổ ra đúng hai loại tháo dỡ / setup.
+
+		   Kỹ thuật nay lên được ĐƠN CHI PHÍ CƠ SỞ (một đơn nhiều gian), mà loại chi phí đúng
+		   cho nó lại đang khai riêng cho bộ phận khác, nên ô chọn của họ không có dòng nào
+		   dùng được — và không có gì trên màn nói vì sao.
+
+		   🔴 CỘNG THÊM BỘ PHẬN, KHÔNG THAY. Ghi đè cột ấy thành "Kỹ thuật" là cắt loại này khỏi
+		      chính những người đang dùng nó hằng tuần.
+		   ⚠️ LOẠI CHƯA KHAI BỘ PHẬN NÀO THÌ ĐỂ YÊN: bỏ trống nghĩa là DÙNG CHUNG cho mọi bộ
+		      phận (xem `loai_thuoc_bo_phan()`), nên điền "Kỹ thuật" vào là BÓ nó lại — đúng
+		      ngược điều đang cần. */
+		if ( ! VHCP_Meta::get( 'seeded_coso_kythuat_v1' ) ) {
+			$did  = true;
+			$rows = self::read( self::LOAI );
+			foreach ( $rows as $i => $r ) {
+				$r = array_values( (array) $r );
+				if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) !== mb_strtolower( 'Chi phí cơ sở' ) ) { continue; }
+				$bp = self::bo_phan_tach( isset( $r[4] ) ? $r[4] : '' );
+				if ( count( $bp ) && ! in_array( 'Kỹ thuật', $bp, true ) ) {
+					$bp[] = 'Kỹ thuật';
+					self::set_cell( self::LOAI, $i, 4, implode( ', ', $bp ) );
+				}
+				break;
+			}
+			VHCP_Meta::set( 'seeded_coso_kythuat_v1', '1' );
+		}
+
 		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — dựng sẵn một lần (anh Thắng 08/09/2026).
 		   Dựng sẵn chứ không bắt khai tay: vai này chỉ đúng khi cột Bộ phận của nó mang đúng
 		   chữ "Máy tự động"; khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy
