@@ -163,22 +163,10 @@
   </div>
 
   <div id="page-don">
-  <div class="wrap" style="padding-top:10px">
-    <!-- 🔴 MỘT LỐI, KHÔNG PHẢI HAI NÚT BẬT/TẮT — anh Thắng 11/09/2026: *"Chọn chi phí tuần,
-         mà hiện bảng chi phí dự án"*, rồi: *"nên anh mới cần gộp nó lại thành 1, chọn xong tự
-         hỏi ra đơn gì tránh lộn"*.
-
-         Cặp nút "Chi phí · cơ sở / Dự án · gian thi công" trông như một bộ CHỌN LOẠI ĐƠN, nên
-         người ta bấm nó để chọn loại đơn mình sắp lập — trong khi nó chỉ đổi TRANG đang xem.
-         Bấm xong thấy màn khác hẳn thứ mình định lập, và không có gì nói vì sao.
-
-         Nay việc chọn loại nằm đúng chỗ của nó: bấm nút Tạo đơn rồi mới hỏi. Còn chuyển qua
-         lại giữa hai danh sách thì để đúng MỘT nút, chỉ hiện khi người này vào được cả hai. -->
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Đơn tuần của cơ sở</b> — xin tạm ứng cho một tuần vận hành. Bấm <b>＋ Tạo đơn mới</b> rồi chọn loại đơn; loại chi phí, mã tài khoản và xuất MISA dùng chung với chi phí Kỹ thuật. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
-      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">← Quay lại chi phí Kỹ thuật</button>
-    </div>
-  </div>
+    <!-- 🔴 DẢI NHẮC Ở ĐẦU TRANG ĐÃ BỎ — anh Thắng 11/09/2026: *"gom thành 1 trang được không,
+         nhìn rối quá"*. Mỗi trang một dải chữ xám dài ba dòng, chỉ để nói một việc người dùng
+         làm mỗi ngày; nó đẩy bảng đơn xuống dưới màn và không ai đọc quá lần thứ hai. Nút
+         chuyển sang loại đơn kia chuyển vào đúng hàng nút bên dưới, chỗ tay người ta đang ở. -->
   <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
        hình: nhập xong hạng mục ở giữa trang thì thanh đã cuộn mất, nhân viên tưởng app
        không có chỗ gửi. -->
@@ -198,6 +186,7 @@
       <div class="fld"><label>Đơn</label>
         <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
       <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
+      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">← Quay lại chi phí Kỹ thuật</button>
       <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
       <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
       <div class="db-day"></div>
@@ -534,16 +523,6 @@
 
   <!-- ============ TRANG: DỰ ÁN THÁO DỠ / LẮP ĐẶT ============ -->
   <div id="page-duan" class="wrap" style="display:none">
-  <div style="padding-top:2px">
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Chi phí Kỹ thuật</b> — bấm <b>➕ Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN). Xem chốt ở khối tạo đơn bên dưới.</span>
-      <!-- 🔴 "QUAY LẠI", KHÔNG PHẢI "SANG" — anh Thắng 11/09/2026: *"Nút này là quay lại là
-           được"*. Người ta tới trang bên kia bằng lối "📅 Đơn tuần của cơ sở" trong hộp chọn
-           loại đơn, nên đường về đúng là ĐI NGƯỢC LẠI. Chữ "Sang…" nghe như một lối đi mới,
-           lại thành hai lối cho cùng một việc. -->
-      <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none">← Quay lại đơn tuần của cơ sở</button>
-    </div>
-  </div>
     <div class="card">
       <div class="ch"><h2>🔧 Chi phí Kỹ thuật</h2>
         <button class="btn b-x" onclick="loadDuAn()">↻ Tải lại</button></div>
@@ -558,7 +537,8 @@
              không phải một danh sách phải xổ ra mới đọc được. -->
         <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
-          <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px">Bấm <b>Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN).</span>
+          <span style="font-size:11px;color:#94a3b8">Bấm <b>Tạo đơn</b> rồi chọn <b>🏢 cơ sở</b> (theo TUẦN) hay <b>🏗 dự án</b> (theo GIAN).</span>
+          <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none;margin-left:auto">← Quay lại đơn tuần của cơ sở</button>
         </div>
         <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
           <!-- 🔴 HỎI ĐÚNG MỘT LẦN — anh Thắng 11/09/2026: *"Sao lại hỏi lần 2"*.
@@ -4254,6 +4234,11 @@
       var b=el(id); if(!b) return;
       b.className='btn '+(on?'b-p':'b-x');
       b.style.background  = on?dam:nhat;
+      /* 🔴 PHẢI ĐẶT CẢ ĐỘ DÀY VÀ KIỂU VIỀN — anh Thắng 11/09/2026: *"thêm cái viền cho nó dễ
+         nhìn"*. Lớp `.btn` dùng chung khai `border:none`, nên đặt mỗi `borderColor` là đặt màu
+         cho một cái viền không tồn tại: mã trông như đã tô viền mà trên màn chẳng thấy gì. */
+      b.style.borderWidth = '2px';
+      b.style.borderStyle = 'solid';
       b.style.borderColor = dam;
       b.style.color       = on?'#fff':dam;
       b.style.fontWeight  = '700';

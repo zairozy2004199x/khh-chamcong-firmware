@@ -313,7 +313,8 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
   const moi = {
     DA_NHOM: '', QUYEN_TAB: { don: 1, duan: 1 }, DA_TUAN: [],
     el: id => (KHO[id] = KHO[id] || { _id: id, className: 'btn b-x', innerHTML: '',
-      style: { display: '', background: '', borderColor: '', color: '', fontWeight: '' } }),
+      style: { display: '', background: '', borderColor: '', borderWidth: '', borderStyle: '',
+               color: '', fontWeight: '' } }),
     esc: x => String(x == null ? '' : x),
     daNapTuan: () => {}, daOnLoai: () => {},
   };
@@ -326,6 +327,15 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
     [M0.cs.background, M0.da.background]);
   t('   và chữ mang đúng màu của loại ấy, in đậm',
     M0.cs.color === M0.cs.borderColor && M0.cs.fontWeight === '700', [M0.cs.color, M0.cs.borderColor]);
+  /* 🔴 `.btn` dùng chung khai `border:none`. Đặt mỗi màu viền là tô màu cho cái viền không có —
+     mã trông như đã làm mà trên màn chẳng thấy gì. */
+  /* ⚠️ CANH ĐỘ DÀY > 0, KHÔNG CANH "KHÁC RỖNG". `borderWidth:'0'` cũng khác rỗng — viền vẫn
+     vô hình mà phép vẫn xanh. */
+  const dayVien = v => parseFloat(String(v || '0')) > 0;
+  t('🔴 viền có ĐỘ DÀY thật (> 0) và KIỂU thật, không chỉ có màu',
+    dayVien(M0.cs.borderWidth) && M0.cs.borderStyle === 'solid'
+    && dayVien(M0.da.borderWidth) && M0.da.borderStyle === 'solid',
+    [M0.cs.borderWidth, M0.cs.borderStyle]);
   const M1 = chon(moi, 'coso');
   t('🔴 chọn rồi: nút ấy tô ĐẶC — nền đậm, chữ trắng',
     M1.cs.background === M1.cs.borderColor && M1.cs.color === '#fff', M1.cs);
