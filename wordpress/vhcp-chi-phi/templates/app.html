@@ -4674,26 +4674,81 @@
           +money(tien)+'đ) — nhắc nhân viên đính hoá đơn và tích hoàn thành, kẻo sót.';
       } else { nhac.style.display='none'; nhac.innerHTML=''; }
     }
-    el('hmBody').innerHTML=ds.map(function(x){
-      var h=x.hm||{};
-      /* 🔴 DÙNG CHUNG BỘ NÚT VỚI BẢNG DỰ ÁN. Viết riêng cho màn này là hai nơi gõ cứng, và hai
-         nơi ấy sẽ lệch nhau — chỗ bắt hoá đơn, chỗ quên bắt. Kế toán KHÔNG sửa được dòng dự án
-         nên `suaDuoc` là false: họ duyệt và cấp tiền, còn "xin tạm ứng" là việc của nhân viên
-         bên bảng dự án. */
-      var k=_hmKeyDuyet(x.maDA, x.row);
-      var nut=hmNutChung(k, x.maDA, x.row, x.hinhThuc, h, false, true);
-      var lich=(h.lich||[]).length?('<div style="font-size:10.5px;color:#7c3aed">lịch: '+(h.lich||[]).map(function(y){return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
-      var unc=h.unc?('<div style="font-size:10.5px;color:#0f766e">UNC '+esc(h.unc)+(h.dot?(' · đợt '+h.dot):'')+'</div>'):'';
-      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.tenDA)+'</a>'
-        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
-        +'<td>'+esc(x.noiDung)+lich+unc+'</td>'
-        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA)+'</td>'
-        +'<td class="money">'+money(x.duToan)+'</td><td class="money">'+money(x.thucTe)+'</td>'
-        +'<td style="font-size:11.5px">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢 Trực tiếp':'💰 Tạm ứng')+'</td>'
-        +'<td>'+hmNhanChung(x.hinhThuc, h)+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>'
-        +hmDongForm(k, 8);
+    /* 🔴 MỘT DỰ ÁN MỘT DÒNG. Anh Thắng 11/09/2026: *"2 đơn này là 1, chỉ hiện 1 đơn, nếu có
+       thay đổi trạng thái thì hiện thông tin phía dưới thôi"*.
+       Bảng này vốn liệt kê TỪNG HẠNG MỤC thành một dòng, nên một dự án bốn hạng mục chiếm bốn
+       dòng lặp lại y hệt tên dự án, loại, người tạo, thời gian setup — kế toán đọc bốn lần mới
+       biết đó vẫn là một đơn. Nay gom về một dòng cho cả dự án; trạng thái từng hạng mục nằm ở
+       hàng phụ ngay dưới, đúng chỗ người ta nhìn xuống khi cần chi tiết. */
+    var nhomDA=[], chiMuc={};
+    ds.forEach(function(x){
+      if(!chiMuc[x.maDA]){ chiMuc[x.maDA]={da:x, hm:[]}; nhomDA.push(x.maDA); }
+      chiMuc[x.maDA].hm.push(x);
+    });
+    el('hmBody').innerHTML=nhomDA.map(function(ma){
+      var g=chiMuc[ma], da=g.da, hs=g.hm;
+      var tongDT=hs.reduce(function(a,b){ return a+(Number(b.duToan)||0); },0);
+      var tongTT=hs.reduce(function(a,b){ return a+(Number(b.thucTe)||0); },0);
+      /* Hình thức chi: cả nhóm cùng một kiểu thì nói thẳng; trộn thì nói là trộn, đừng lấy
+         kiểu của hạng mục đầu tiên rồi bảo đó là của cả đơn. */
+      var coUng=false, coNcc=false;
+      hs.forEach(function(x){ if(String(x.hinhThuc||'')==='Trực tiếp') coNcc=true; else coUng=true; });
+      var ht=(coUng&&coNcc)?'💰🏢 Cả hai':(coNcc?'🏢 Trực tiếp':'💰 Tạm ứng');
+      var chuaChot=hs.filter(function(x){ return (((x.hm||{}).tt)||'nhap')!=='xong'; }).length;
+      var tomTat=chuaChot
+        ? ('<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#b45309;background:#fef3c7">'+chuaChot+' chưa chốt</span>')
+        : '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:#166534;background:#dcfce7">✔ chốt hết</span>';
+
+      /* Hàng phụ: từng hạng mục một dòng nhỏ — tên · hình thức · trạng thái · chứng từ · nút. */
+      var chiTiet=hs.map(function(x){
+        var h=x.hm||{};
+        var k=_hmKeyDuyet(x.maDA, x.row);
+        /* 🔴 DÙNG CHUNG BỘ NÚT VỚI BẢNG DỰ ÁN. Viết riêng cho màn này là hai nơi gõ cứng, và
+           hai nơi ấy sẽ lệch nhau — chỗ bắt hoá đơn, chỗ quên bắt. Kế toán KHÔNG sửa được dòng
+           dự án nên `suaDuoc` là false. */
+        var nut=hmNutChung(k, x.maDA, x.row, x.hinhThuc, h, false, true);
+        var lich=(h.lich||[]).length?('<span style="color:#7c3aed;margin-left:8px">lịch: '
+          +(h.lich||[]).map(function(y){ return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</span>'):'';
+        return '<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:4px 0;border-top:1px dashed #e2e8f0;font-size:12px">'
+          +'<span style="min-width:150px"><b>'+esc(x.noiDung)+'</b></span>'
+          +'<span style="font-size:11px;color:#64748b;white-space:nowrap">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢':'💰')+' '+money(x.thucTe)+'đ</span>'
+          +hmNhanChung(x.hinhThuc, h)
+          +_uncGon(h.unc, h.dot)
+          +(h.hoaDon?('<a href="'+esc(h.hoaDon)+'" target="_blank" data-bill="'+esc(h.hoaDon)+'" style="font-size:11px;color:#0f766e;white-space:nowrap" title="Hoá đơn">🧾 hoá đơn</a>'):'')
+          +lich
+          +'<span style="flex:1"></span>'
+          +(nut||'')
+          +'</div>';
+      }).join('');
+
+      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')">'+esc(da.tenDA)+'</a>'
+        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(da.loaiDA)+' · '+esc(da.nguoiTao||'')+'</div></td>'
+        +'<td style="font-size:12px"><b>'+hs.length+'</b> hạng mục</td>'
+        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(da.kyDA)+'</td>'
+        +'<td class="money">'+money(tongDT)+'</td><td class="money">'+money(tongTT)+'</td>'
+        +'<td style="font-size:11.5px;white-space:nowrap">'+ht+'</td>'
+        +'<td>'+tomTat+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'
+        /* Anh Thắng 11/09/2026: *"Bổ sung nút mở"* — kế toán nhìn thấy đơn đang vướng thì mở
+           thẳng dự án ra xem, khỏi tự đi tìm nó ở tab Dự án giữa mấy chục cái. */
+        +'<button class="btn b-p" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')" title="Mở trang dự án này">📂 Mở</button>'
+        +'</td></tr>'
+        +'<tr><td colspan="8" style="background:#fbfdff;padding:2px 14px 8px">'+chiTiet+'</td></tr>'
+        /* Hàng ô nhập của TỪNG hạng mục, nằm sau hàng chi tiết — nút "Chốt xong" mở nó ra. */
+        +hs.map(function(x){ return hmDongForm(_hmKeyDuyet(x.maDA, x.row), 8); }).join('');
     }).join('');
+  }
+  /* Uỷ nhiệm chi hay là một ĐỊA CHỈ TỆP dài cả dòng (kế toán đính ảnh chụp). In thẳng ra thì nó
+     đẩy mọi thứ khác văng khỏi màn — anh Thắng gửi ảnh đúng cảnh ấy. Là liên kết thì rút thành
+     một chữ bấm được; là số UNC gõ tay thì in nguyên, vì số ấy ngắn và chính nó mới là thông tin. */
+  function _uncGon(unc, dot){
+    var u=String(unc||'').trim();
+    if(!u) return '';
+    var d=dot?(' · đợt '+dot):'';
+    if(/^https?:\/\//i.test(u)){
+      return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" style="font-size:11px;color:#0f766e;white-space:nowrap" title="'+esc(u)+'">📎 UNC'+esc(d)+'</a>';
+    }
+    return '<span style="font-size:11px;color:#0f766e;white-space:nowrap">UNC '+esc(u)+esc(d)+'</span>';
   }
   /* ═══ MÀN DUYỆT: BẢNG LỆNH TẠM ỨNG CỦA DỰ ÁN ════════════════════════════════════════════
      Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì nó

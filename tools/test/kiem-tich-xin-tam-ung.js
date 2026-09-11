@@ -712,6 +712,91 @@ t('   và nạp lịch sử khi mở dự án', /loadDaSu\(r\.maDA\);/.test(HTML
 t('🔴 lượt hỏi lịch sử cũ về sau KHÔNG được cướp màn (bấm nhanh hai dự án là hai lượt song song)',
   /function loadDaSu\([^]{0,1200}if\(seq!==_daSuSeq\) return;/.test(HTML));
 
+/* ── 4h. 🔴 BẢNG HẠNG MỤC GOM MỘT DỰ ÁN MỘT DÒNG ─────────────────────────────────────
+ * Anh Thắng 11/09/2026: *"2 đơn này là 1, chỉ hiện 1 đơn, nếu có thay đổi trạng thái thì hiện
+ * thông tin phía dưới thôi"* và *"Bổ sung nút mở"*.
+ *
+ * Bảng vốn liệt kê TỪNG HẠNG MỤC thành một dòng, nên một dự án bốn hạng mục chiếm bốn dòng lặp
+ * lại y hệt tên dự án, loại, người tạo, thời gian setup — kế toán đọc bốn lần mới biết đó vẫn
+ * là một đơn.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+function veDonHM(role, loc, items) {
+  const NK = {};
+  const moi = {
+    CURUSER: { role: role },
+    HM_ITEMS: items,
+    HM_NHAN: null,
+    esc: x => String(x == null ? '' : x), money: x => String(x), _dmy: x => String(x),
+    showPage: () => {}, openDuAn: () => {}, toast: () => {},
+    el: id => (NK[id] = NK[id] || { innerHTML: '', style: {},
+                                    value: id === 'hmFilter' ? (loc || 'all') : '' }),
+  };
+  const src = `${(() => { const i = HTML.indexOf('var HM_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
+    ${boc('_hmNhanCua')}\n${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}
+    ${boc('hmNhanChung')}\n${boc('hmNutChung')}\n${boc('_hmKeyDuyet')}
+    ${boc('hmDongForm')}\n${boc('_hmNgay')}\n${boc('_uncGon')}\n${boc('renderDonHM')}
+    return renderDonHM;`;
+  new Function('moi', `with(moi){ ${src} }`)(moi)();
+  return NK;
+}
+const HM2 = [
+  { maDA: 'DA1', tenDA: 'TÀU ESTELLA', loaiDA: 'Setup lắp đặt', nguoiTao: 'Nguyễn Hữu Thọ',
+    row: 2, noiDung: 'Mua đồ điện', gian: '', hinhThuc: '', duToan: 0, thucTe: 13000000,
+    hm: { tt: 'nhap', dot: 0, unc: '', hoaDon: '', lich: [] }, kyDA: { tu: '', den: '' } },
+  { maDA: 'DA1', tenDA: 'TÀU ESTELLA', loaiDA: 'Setup lắp đặt', nguoiTao: 'Nguyễn Hữu Thọ',
+    row: 5, noiDung: 'Xe vận chuyển', gian: '', hinhThuc: '', duToan: 0, thucTe: 5000000,
+    hm: { tt: 'ung', dot: 2, unc: 'https://khmatrix.com/wp-content/uploads/vhcp/HoSo_DuAn/DA_x_zzz.jpg', hoaDon: '', lich: [] },
+    kyDA: { tu: '', den: '' } },
+  { maDA: 'DA2', tenDA: 'Aeon Bình Tân', loaiDA: 'Tháo dỡ', nguoiTao: 'NV B',
+    row: 3, noiDung: 'Xe ba gác', gian: '', hinhThuc: 'Trực tiếp', duToan: 0, thucTe: 2000000,
+    hm: { tt: 'xong', dot: 1, unc: 'UNC-88', hoaDon: 'https://kho/hd.pdf', lich: [] },
+    kyDA: { tu: '', den: '' } },
+];
+{
+  const NK = veDonHM('Kế toán cá nhân', 'all', HM2);
+  const out = NK.hmBody.innerHTML;
+  /* Hàng chính của mỗi dự án là hàng có nút Mở. Đếm nó thay vì đếm <tr>, vì còn hàng chi tiết
+     và hàng ô nhập. */
+  t('🔴 hai hạng mục CÙNG dự án gom về MỘT hàng chính',
+    (out.match(/📂 Mở/g) || []).length === 2, (out.match(/📂 Mở/g) || []).length);
+  t('   tên dự án chỉ in một lần cho cả nhóm',
+    (out.match(/TÀU ESTELLA/g) || []).length === 1, (out.match(/TÀU ESTELLA/g) || []).length);
+  t('🔴 hàng chính cộng TỔNG tiền của cả nhóm (13.000.000 + 5.000.000)',
+    />18000000</.test(out), out.slice(0, 600));
+  t('   và nói rõ có mấy hạng mục', /<b>2<\/b> hạng mục/.test(out), out.slice(0, 600));
+  t('🔴 có nút Mở, trỏ đúng dự án', /openDuAn\('DA1'\)/.test(out) && /openDuAn\('DA2'\)/.test(out), out);
+  t('🔴 trạng thái từng hạng mục nằm ở HÀNG PHỤ bên dưới',
+    /Mua đồ điện/.test(out) && /Xe vận chuyển/.test(out) && /colspan="8"/.test(out), out);
+  t('   hàng chính tóm tắt còn mấy hạng mục chưa chốt', /2 chưa chốt/.test(out), out);
+  t('   dự án đã chốt hết thì báo chốt hết', /✔ chốt hết/.test(out), out);
+  t('🔴 nút thao tác của TỪNG hạng mục vẫn còn ở hàng phụ',
+    /hmMoChot\('DDA1_5','DA1',5\)/.test(out), out);
+  t('   và mỗi hạng mục vẫn có hàng ô nhập riêng',
+    /data-hmf="DDA1_2"/.test(out) && /data-hmf="DDA1_5"/.test(out), out);
+}
+{
+  /* 🔴 Hình thức chi của cả nhóm: trộn thì phải nói là trộn, đừng lấy kiểu của hạng mục đầu
+     tiên rồi bảo đó là của cả đơn. */
+  const tron = HM2.slice(0, 2).concat([Object.assign({}, HM2[2], { maDA: 'DA1', tenDA: 'TÀU ESTELLA', row: 9 })]);
+  const NK = veDonHM('Kế toán cá nhân', 'all', tron);
+  t('🔴 nhóm có cả 💰 lẫn 🏢 → nói là CẢ HAI, không lấy kiểu của hạng mục đầu',
+    /Cả hai/.test(NK.hmBody.innerHTML), NK.hmBody.innerHTML.slice(0, 800));
+}
+/* 🔴 Uỷ nhiệm chi hay là một ĐỊA CHỈ TỆP dài cả dòng — in thẳng thì nó đẩy mọi thứ khác văng
+   khỏi màn (anh Thắng gửi ảnh đúng cảnh ấy). */
+{
+  const moi = { esc: x => String(x == null ? '' : x) };
+  const f = new Function('moi', `with(moi){ ${boc('_uncGon')}\n return _uncGon; }`)(moi);
+  const dai = f('https://khmatrix.com/wp-content/uploads/vhcp/HoSo_DuAn/DA_rat_dai.jpg', 2);
+  t('🔴 UNC là liên kết → rút thành một chữ bấm được, KHÔNG in cả địa chỉ',
+    /📎 UNC · đợt 2/.test(dai) && dai.indexOf('>https://') < 0, dai);
+  t('   và rê chuột vào vẫn xem được ảnh', /data-bill=/.test(dai), dai);
+  const so = f('UNC-88', 1);
+  t('🔴 UNC là SỐ gõ tay → in nguyên (số ấy ngắn, và chính nó mới là thông tin)',
+    /UNC-88/.test(so) && !/📎/.test(so), so);
+  t('rỗng thì không bày gì', f('', 0) === '', f('', 0));
+}
+
 /* ── 5. 🔍 RÊ CHUỘT VÀO BILL THÌ PHÓNG TO ─────────────────────────────────────────────── */
 /* Lớp phủ đã có sẵn (`_billZoomInit`) và nghe ở `document` theo thuộc tính `data-bill`; bảng dự
    án trước nay chỉ có thẻ 📷 trơn nên rê chuột chẳng ra gì. */
