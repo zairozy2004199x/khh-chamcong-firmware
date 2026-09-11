@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.50.0
+ * Version:           1.50.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -3324,7 +3324,7 @@ class POSH_Ve {
 					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
 					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
 					<div class="pql-side-g">Cấu hình</div>
-					<button class="pql-tab" data-tab="vi">💰 Ví tiền &amp; mã ưu đãi</button>
+					<button class="pql-tab" data-tab="vi">💰 Ví tiền (mệnh giá nạp)</button>
 					<button class="pql-tab" data-tab="tk">🏦 Tài khoản nhận tiền</button>
 					<button class="pql-tab" data-tab="soi">🩺 Kiểm tra hệ thống</button>
 				</aside>
@@ -3398,24 +3398,15 @@ class POSH_Ve {
 				</div><!-- /pane dm -->
 
 				<div class="pql-pane" data-pane="vi" hidden>
-					<div class="pql-bar"><b>Ví tiền &amp; mã ưu đãi</b><button class="pql-vi-luu">Lưu ví tiền</button></div>
+					<div class="pql-bar"><b>Ví tiền — mệnh giá nạp</b><button class="pql-vi-luu">Lưu</button></div>
 					<p style="color:var(--mut);font-size:12px;margin:0 0 12px">
 						Khách nạp trước vào ví rồi dùng dần. <b>Mệnh giá phải có trong bảng này</b> — trang không nhận
-						số khách tự gõ, vì phần tặng thêm đi theo gói. Ví đi theo tài khoản <b>Zalo</b>.
+						số khách tự gõ, vì phần tặng thêm đi theo gói. Ví đi theo tài khoản <b>Zalo</b>.<br>
+						<b>Mã ưu đãi khi nạp</b> khai ở mục <b>🎁 Ưu đãi</b> — mọi khuyến mãi nằm chung một chỗ.
 					</p>
 					<div class="pql-h2">Gói nạp</div>
 					<div class="pql-vi-goi"></div>
 					<button class="pql-them pql-vi-themgoi" style="margin-top:8px">+ Thêm mệnh giá</button>
-					<div class="pql-h2">Mã ưu đãi khi nạp</div>
-					<div class="pql-vi-code"></div>
-					<button class="pql-them pql-vi-themcode" style="margin-top:8px">+ Thêm mã</button>
-					<p style="color:var(--mut);font-size:12px;margin:12px 0 0">
-						<b>% tặng thêm</b>: 10 = nạp 200.000đ được tặng 20.000đ (làm tròn xuống hàng nghìn).
-						<b>Số tiền tặng</b>: 20000 = tặng thẳng 20.000đ.<br>
-						<b>Cơ sở</b>: chọn một cơ sở thì mã chỉ ăn khi khách <b>đang đứng tại đó</b> — máy chủ tự kiểm
-						bằng toạ độ, nên không ai gõ được mã của quầy khác. Cơ sở phải đã khai <b>toạ độ và bán kính</b>.<br>
-						Số lượt chỉ tăng <b>khi tiền thật sự về</b>, không tăng lúc khách mới bấm tạo mã.
-					</p>
 					<div class="pql-vimsg"></div>
 				</div><!-- /pane vi -->
 
@@ -3513,6 +3504,21 @@ class POSH_Ve {
 						<div class="pql-acts"><button class="pql-uu-luu">Lưu ưu đãi</button><button class="pql-uu-huy">Huỷ</button></div>
 						<div class="pql-uumsg"></div>
 					</div>
+
+					<?php /* Mã ưu đãi khi nạp ví nằm CHUNG màn này — anh Thắng 11/09/2026: "gộp luôn".
+							 Khai khuyến mãi ở hai nơi là sớm muộn chạy một chương trình mà quên nửa kia. */ ?>
+					<div class="pql-bar" style="margin-top:26px"><b>Mã ưu đãi khi nạp ví</b><button class="pql-vi-luu">Lưu mã</button></div>
+					<div class="pql-vi-code"></div>
+					<button class="pql-them pql-vi-themcode" style="margin-top:8px">+ Thêm mã</button>
+					<p style="color:var(--mut);font-size:12px;margin:12px 0 0">
+						<b>% tặng thêm</b>: 10 = nạp 200.000đ được tặng 20.000đ (làm tròn xuống hàng nghìn).
+						<b>Số tiền tặng</b>: 20000 = tặng thẳng 20.000đ.<br>
+						<b>Cơ sở</b>: chọn một cơ sở thì mã chỉ ăn khi khách <b>đang đứng tại đó</b> — máy chủ tự kiểm
+						bằng toạ độ, nên không ai gõ được mã của quầy khác. Cơ sở phải đã khai <b>toạ độ và bán kính</b>.<br>
+						Số lượt chỉ tăng <b>khi tiền thật sự về</b>, không tăng lúc khách mới bấm tạo mã.<br>
+						Mệnh giá nạp khai ở mục <b>💰 Ví tiền</b>.
+					</p>
+					<div class="pql-vimsg"></div>
 				</div><!-- /pane uu -->
 
 				<div class="pql-pane" data-pane="hang" hidden>
@@ -3741,7 +3747,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='vi') napVi(); if(name==='tk') napTk(); if(name==='soi') napSoi(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu'){ napUu(); napVi(); } if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -3851,14 +3857,22 @@ class POSH_Ve {
 		     nói hai con số khác nhau và không biết tin màn nào. */
 		  var VI_CS=[];
 		  function napVi(){
-		    $('.pql-vimsg').textContent='';
+		    viBao('', '');
 		    get('/ql/vi-ds').then(function(d){
 		      VI_CS=d.coso||[];
 		      var g=d.goi||[]; if(!g.length) g=[{nap:'',tang:''}];
 		      $('.pql-vi-goi').innerHTML=''; g.forEach(veGoi);
 		      var c=d.code||[]; if(!c.length) c=[{}];
 		      $('.pql-vi-code').innerHTML=''; c.forEach(veCode);
-		    }).catch(function(e){ $('.pql-vimsg').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		    }).catch(function(e){ viBao(e.message||e, '#b91c1c'); });
+		  }
+		  /* Khối mã ưu đãi nằm ở màn Ưu đãi, khối mệnh giá ở màn Ví tiền — hai nút Lưu, hai chỗ
+		     báo. $() chỉ trả thẻ ĐẦU TIÊN, nên phải ghi ra TẤT CẢ: bấm Lưu ở màn này mà câu báo
+		     hiện ở màn kia thì người ta tưởng bấm không ăn rồi bấm lại. */
+		  function viBao(txt, mau){
+		    Array.prototype.forEach.call(root.querySelectorAll('.pql-vimsg'),function(o){
+		      o.textContent = txt; if (mau) o.style.color = mau;
+		    });
 		  }
 		  function veGoi(g){
 		    var r=document.createElement('div'); r.className='pql-hrow';
@@ -3886,9 +3900,10 @@ class POSH_Ve {
 		    $('.pql-vi-code').appendChild(r);
 		  }
 		  var bg=$('.pql-vi-themgoi'); if(bg) bg.addEventListener('click',function(){ veGoi({}); });
-		  var bc2=$('.pql-vi-themcode'); if(bc2) bc2.addEventListener('click',function(){ veCode({}); });
-		  var bl=$('.pql-vi-luu');
-		  if(bl) bl.addEventListener('click',function(){
+		  Array.prototype.forEach.call(root.querySelectorAll('.pql-vi-themcode'),function(b2){
+		    b2.addEventListener('click',function(){ veCode({}); }); });
+		  Array.prototype.forEach.call(root.querySelectorAll('.pql-vi-luu'),function(bl){
+		  bl.addEventListener('click',function(){
 		    var goi=[], code=[];
 		    Array.prototype.forEach.call(root.querySelectorAll('.pql-vi-goi .pql-hrow'),function(r){
 		      goi.push({ nap:Number(r.querySelector('.g-nap').value||0), tang:Number(r.querySelector('.g-tang').value||0) });
@@ -3899,12 +3914,12 @@ class POSH_Ve {
 		        toi_thieu:Number(r.querySelector('.c-tt').value||0), han:r.querySelector('.c-han').value,
 		        gioi_han:Number(r.querySelector('.c-gh').value||0) });
 		    });
-		    $('.pql-vimsg').style.color='#6f6a5d'; $('.pql-vimsg').textContent='Đang lưu…';
+		    viBao('Đang lưu…', '#6f6a5d');
 		    post('/ql/vi-luu',{goi:goi,code:code}).then(function(d){
-		      $('.pql-vimsg').style.color='#166534';
-		      $('.pql-vimsg').textContent='Đã lưu: '+d.goi+' gói nạp, '+d.code+' mã ưu đãi.';
+		      viBao('Đã lưu: '+d.goi+' mệnh giá nạp, '+d.code+' mã ưu đãi.', '#166534');
 		      napVi();   /* vẽ lại để thấy dòng trống đã bị bỏ và số lượt đã dùng giữ nguyên */
-		    }).catch(function(e){ $('.pql-vimsg').style.color='#b91c1c'; $('.pql-vimsg').textContent=e.message||e; });
+		    }).catch(function(e){ viBao(e.message||e, '#b91c1c'); });
+		  });
 		  });
 
 		  function napTk(){

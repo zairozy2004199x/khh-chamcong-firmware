@@ -131,10 +131,22 @@ nguyên số lượt đã dùng** của mã cùng tên.
 Sổ cái `pve_vi_gd` ghi từng lượt cộng/trừ kèm số dư sau. Đừng bỏ: khách kêu "mất tiền" mà chỉ có
 mỗi một con số thì không đối chiếu được gì.
 
-### Khai ví tiền ở ĐÂU
-Từ **1.50.0** có màn **💰 Ví tiền & mã ưu đãi** ngay trong khu quản trị `[posh_ql]` (mục Cấu hình).
-Màn WP Admin cũ vẫn còn và **đọc/ghi cùng một cặp option** (`pve_vi_goi`, `pve_vi_code`) — đừng
-tách thành hai kho dữ liệu, hai màn sẽ nói hai con số khác nhau và không biết tin màn nào.
+### Khai khuyến mãi ở ĐÂU
+Từ **1.50.1**, trong khu quản trị `[posh_ql]`:
+
+| Khai gì | Ở màn |
+|---|---|
+| Tin ưu đãi hiện trên Zalo | 🎁 **Ưu đãi** |
+| **Mã ưu đãi khi nạp ví** | 🎁 **Ưu đãi** (khối dưới) |
+| Mệnh giá nạp ví | 💰 **Ví tiền** |
+
+Mọi khuyến mãi nằm chung một màn — khai ở hai nơi là sớm muộn chạy một chương trình mà quên nửa
+kia. Màn WP Admin cũ vẫn còn và **đọc/ghi cùng một cặp option** (`pve_vi_goi`, `pve_vi_code`) —
+đừng tách thành hai kho dữ liệu, hai màn sẽ nói hai con số khác nhau và không biết tin màn nào.
+
+⚠️ Nút Lưu và chỗ báo kết quả của khối mã nay có ở **cả hai màn**. `$()` trong khu quản trị chỉ
+trả thẻ **đầu tiên**, nên phải gắn/ghi cho tất cả (`viBao()`): bấm Lưu ở màn này mà câu báo hiện ở
+màn kia thì người ta tưởng bấm không ăn rồi bấm lại.
 
 ### Mã ưu đãi theo CỬA HÀNG
 Mỗi mã có ô **Cơ sở áp dụng** (WP Admin → Vé khu vui chơi → Ví tiền). Để trống = dùng mọi nơi;
