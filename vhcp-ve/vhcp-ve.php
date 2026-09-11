@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.41.0
+ * Version:           1.42.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -258,6 +258,79 @@ class POSH_Ve {
 		return $ra;
 	}
 
+	/* ═══ DANH MỤC VÉ ═══════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 11/09/2026: *"muốn tạo phân loại"* ngay trong màn quản trị marketing, thay vì gõ
+	 * tay ô "Nhóm" cho từng vé.
+	 *
+	 * ⚠️ DANH TÍNH CỦA DANH MỤC LÀ CÁI TÊN. Vé vẫn lưu tên nhóm dưới dạng chữ (`nhom`) như từ
+	 *    trước — cố ý, để không phải chuyển đổi dữ liệu cũ và để vé gõ tay một tên mới vẫn chạy.
+	 *    Hệ quả: ĐỔI TÊN DANH MỤC PHẢI SỬA LUÔN MỌI VÉ ĐANG MANG TÊN CŨ, không thì vé rơi ra
+	 *    một danh mục vô hình. Xem doi_ten_dm().
+	 * ⚠️ Danh sách trả về GỘP hai nguồn: danh mục đã khai + tên nhóm bắt gặp trên vé. Chỉ đọc
+	 *    bảng đã khai thì danh mục cũ (gõ tay trước khi có màn này) biến mất khỏi dải chọn.
+	 */
+	public static function ds_dm() {
+		$luu = get_option( 'pve_dm' ); $luu = is_array( $luu ) ? $luu : array();
+		$ra = array(); $co = array();
+		foreach ( $luu as $d ) {
+			$t = trim( (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) );
+			if ( '' === $t || isset( $co[ $t ] ) ) { continue; }
+			$co[ $t ] = 1;
+			$ra[] = array( 'ten' => $t, 'anh' => (string) ( isset( $d['anh'] ) ? $d['anh'] : '' ), 'khai' => 1, 'so_ve' => 0 );
+		}
+		foreach ( self::ds_tatca() as $g ) {
+			$t = trim( (string) $g['nhom'] ); if ( '' === $t ) { $t = 'Vé'; }
+			if ( ! isset( $co[ $t ] ) ) { $co[ $t ] = 1; $ra[] = array( 'ten' => $t, 'anh' => '', 'khai' => 0, 'so_ve' => 0 ); }
+		}
+		/* Đếm vé từng danh mục — quản trị cần biết xoá cái này thì bao nhiêu vé phải dọn. */
+		foreach ( $ra as $i => $d ) {
+			$n = 0;
+			foreach ( self::ds_tatca() as $g ) {
+				$t = trim( (string) $g['nhom'] ); if ( '' === $t ) { $t = 'Vé'; }
+				if ( $t === $d['ten'] ) { $n++; }
+			}
+			$ra[ $i ]['so_ve'] = $n;
+			if ( '' === $ra[ $i ]['anh'] ) { $ra[ $i ]['anh'] = self::anh_nhom( $d['ten'], array() ); }
+		}
+		return $ra;
+	}
+
+	public static function luu_dm( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $d ) {
+			$t = trim( (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) );
+			if ( '' === $t ) { continue; }
+			$ra[] = array( 'ten' => mb_substr( $t, 0, 60 ), 'anh' => esc_url_raw( (string) ( isset( $d['anh'] ) ? $d['anh'] : '' ) ) );
+		}
+		update_option( 'pve_dm', array_values( $ra ) );
+	}
+
+	/* Đổi tên danh mục: sửa bảng danh mục VÀ mọi vé đang mang tên cũ, trong một lượt. */
+	public static function doi_ten_dm( $cu, $moi ) {
+		$cu = trim( (string) $cu ); $moi = trim( (string) $moi );
+		if ( '' === $cu || '' === $moi || $cu === $moi ) { return; }
+		$ds = self::ds_tatca(); $doi = false;
+		foreach ( $ds as $i => $g ) {
+			$t = trim( (string) $g['nhom'] ); if ( '' === $t ) { $t = 'Vé'; }
+			if ( $t === $cu ) { $ds[ $i ]['nhom'] = $moi; $doi = true; }
+		}
+		if ( $doi ) { self::luu_ds( $ds ); }
+		$m = self::ds_nhom_anh();
+		if ( isset( $m[ $cu ] ) ) { $m[ $moi ] = $m[ $cu ]; unset( $m[ $cu ] ); update_option( 'pve_nhom_anh', $m ); }
+	}
+
+	/* Chuyển hết vé của một danh mục sang danh mục khác (dùng khi xoá). */
+	public static function chuyen_ve_dm( $tu, $sang ) {
+		$tu = trim( (string) $tu ); $sang = trim( (string) $sang );
+		if ( '' === $sang ) { $sang = 'Vé'; }
+		$ds = self::ds_tatca(); $doi = false;
+		foreach ( $ds as $i => $g ) {
+			$t = trim( (string) $g['nhom'] ); if ( '' === $t ) { $t = 'Vé'; }
+			if ( $t === $tu ) { $ds[ $i ]['nhom'] = $sang; $doi = true; }
+		}
+		if ( $doi ) { self::luu_ds( $ds ); }
+	}
+
 	/* Ảnh cho từng DANH MỤC vé (tên nhóm -> URL). Quản trị khai ở màn admin; bỏ trống thì lấy
 	   ảnh của vé đầu tiên trong nhóm — dải danh mục có hình ngay từ đầu, không bắt ai đi khai
 	   thêm một vòng nữa mới thấy được thành quả. */
@@ -268,7 +341,17 @@ class POSH_Ve {
 
 	/* Ảnh đại diện của một danh mục: ảnh khai riêng -> ảnh vé đầu tiên có ảnh -> rỗng. */
 	public static function anh_nhom( $ten_nhom, $ds_ve ) {
-		$m = self::ds_nhom_anh();
+		/* ⚠️ Đọc THẲNG option pve_dm, không gọi ds_dm() — ds_dm() gọi ngược lại hàm này để điền
+		   ảnh, hai bên gọi nhau là đệ quy vô tận, trang trắng. */
+		$dm = get_option( 'pve_dm' );
+		if ( is_array( $dm ) ) {
+			foreach ( $dm as $d ) {
+				if ( isset( $d['ten'] ) && trim( (string) $d['ten'] ) === $ten_nhom && ! empty( $d['anh'] ) ) {
+					return (string) $d['anh'];
+				}
+			}
+		}
+		$m = self::ds_nhom_anh();   // bảng cũ khai ở wp-admin, vẫn dùng được
 		if ( ! empty( $m[ $ten_nhom ] ) ) { return (string) $m[ $ten_nhom ]; }
 		foreach ( (array) $ds_ve as $g ) { if ( ! empty( $g['anh'] ) ) { return (string) $g['anh']; } }
 		return '';
@@ -439,6 +522,9 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/uu-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_ds' ) ) );
 		register_rest_route( self::NS, '/ql/uu-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_luu' ) ) );
 		register_rest_route( self::NS, '/ql/uu-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_uu_xoa' ) ) );
+		register_rest_route( self::NS, '/ql/dm-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_ds' ) ) );
+		register_rest_route( self::NS, '/ql/dm-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_luu' ) ) );
+		register_rest_route( self::NS, '/ql/dm-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_xoa' ) ) );
 		register_rest_route( self::NS, '/ql/hang-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_ds' ) ) );
 		register_rest_route( self::NS, '/ql/hang-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_luu' ) ) );
 		register_rest_route( self::NS, '/ql/khach', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_khach' ) ) );
@@ -1084,6 +1170,52 @@ class POSH_Ve {
 		set_transient( $k, 1, 1 ); return false;
 	}
 	private static function loi_pin() { return new WP_Error( 'pin', 'Sai mã PIN hoặc chưa cấu hình.', array( 'status' => 401 ) ); }
+	public static function r_ql_dm_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		return array( 'ok' => true, 'ds' => self::ds_dm() );
+	}
+
+	public static function r_ql_dm_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$ten   = trim( sanitize_text_field( (string) $req->get_param( 'ten' ) ) );
+		$ten_cu = trim( sanitize_text_field( (string) $req->get_param( 'ten_cu' ) ) );
+		$anh   = esc_url_raw( (string) $req->get_param( 'anh' ) );
+		if ( '' === $ten ) { return new WP_Error( 'ten', 'Cần tên danh mục.', array( 'status' => 400 ) ); }
+		$ten = mb_substr( $ten, 0, 60 );
+		$ds = self::ds_dm();
+		/* Trùng tên với một danh mục KHÁC là hai dòng cùng tên trong dải chọn, và vé của cái này
+		   đột nhiên đếm sang cái kia — chặn ngay chứ không gộp âm thầm. */
+		foreach ( $ds as $d ) {
+			if ( $d['ten'] === $ten && $ten !== $ten_cu ) {
+				return new WP_Error( 'trung', 'Đã có danh mục tên "' . $ten . '".', array( 'status' => 409 ) );
+			}
+		}
+		if ( '' !== $ten_cu && $ten_cu !== $ten ) { self::doi_ten_dm( $ten_cu, $ten ); }
+		$moi = array(); $co = false;
+		foreach ( self::ds_dm() as $d ) {
+			if ( $d['ten'] === $ten ) { $co = true; $moi[] = array( 'ten' => $ten, 'anh' => $anh ); }
+			elseif ( $d['khai'] ) { $moi[] = array( 'ten' => $d['ten'], 'anh' => $d['anh'] ); }
+		}
+		if ( ! $co ) { $moi[] = array( 'ten' => $ten, 'anh' => $anh ); }
+		self::luu_dm( $moi );
+		return array( 'ok' => true, 'ds' => self::ds_dm() );
+	}
+
+	public static function r_ql_dm_xoa( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$ten  = trim( sanitize_text_field( (string) $req->get_param( 'ten' ) ) );
+		$sang = trim( sanitize_text_field( (string) $req->get_param( 'sang' ) ) );
+		if ( '' === $ten ) { return new WP_Error( 'ten', 'Thiếu tên danh mục.', array( 'status' => 400 ) ); }
+		/* Vé của danh mục bị xoá phải có chỗ đi — không thì chúng rơi vào một danh mục vô hình,
+		   biến mất khỏi dải chọn mà vẫn nằm trong kho, tức là bán không ai thấy. */
+		self::chuyen_ve_dm( $ten, '' !== $sang ? $sang : 'Vé' );
+		$moi = array();
+		foreach ( self::ds_dm() as $d ) { if ( $d['khai'] && $d['ten'] !== $ten ) { $moi[] = array( 'ten' => $d['ten'], 'anh' => $d['anh'] ); } }
+		self::luu_dm( $moi );
+		$m = self::ds_nhom_anh(); if ( isset( $m[ $ten ] ) ) { unset( $m[ $ten ] ); update_option( 'pve_nhom_anh', $m ); }
+		return array( 'ok' => true, 'ds' => self::ds_dm() );
+	}
+
 	public static function r_ql_dangnhap( $req ) {
 		if ( self::pin_chan() ) { return new WP_Error( 'nhip', 'Thử lại sau giây lát.', array( 'status' => 429 ) ); }
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
@@ -1371,6 +1503,19 @@ class POSH_Ve {
 			$nhom[ $k ][] = $g;
 			$kv = trim( (string) $g['khu_vuc'] );
 			if ( '' !== $kv && ! in_array( $kv, $kvucs, true ) ) { $kvucs[] = $kv; }
+		}
+		/* Dải danh mục xếp theo THỨ TỰ TRONG MÀN PHÂN LOẠI, không theo thứ tự vé lọt vào. Marketing
+		   xếp lại danh mục là để đổi cái khách nhìn thấy trước — xếp theo vé thì thêm một vé là
+		   thứ tự nhảy lung tung. Danh mục chưa khai vẫn giữ, xếp xuống cuối. */
+		$dm_luu = get_option( 'pve_dm' );
+		if ( is_array( $dm_luu ) && $dm_luu ) {
+			$sap = array();
+			foreach ( $dm_luu as $d ) {
+				$t = trim( (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) );
+				if ( '' !== $t && isset( $nhom[ $t ] ) ) { $sap[ $t ] = $nhom[ $t ]; }
+			}
+			foreach ( $nhom as $t => $v ) { if ( ! isset( $sap[ $t ] ) ) { $sap[ $t ] = $v; } }
+			$nhom = $sap;
 		}
 
 		ob_start();
@@ -2185,6 +2330,7 @@ class POSH_Ve {
 					<div class="pql-side-g">Bán vé</div>
 					<button class="pql-tab on" data-tab="bc">📊 Tổng quan</button>
 					<button class="pql-tab" data-tab="ve">🎟️ Vé</button>
+					<button class="pql-tab" data-tab="dm">🗂️ Phân loại vé</button>
 					<button class="pql-tab" data-tab="don">🧾 Đơn hàng &amp; soát vé</button>
 					<div class="pql-side-g">Khách hàng</div>
 					<button class="pql-tab" data-tab="kh">👥 Danh sách khách</button>
@@ -2210,7 +2356,7 @@ class POSH_Ve {
 						<div><label>Giá gốc (đ)</label><input class="f-goc" type="number" inputmode="numeric" placeholder="để trống nếu không giảm"></div>
 					</div>
 					<div class="pql-2">
-						<div><label>Nhóm</label><input class="f-nhom" placeholder="Vé lẻ / Combo"></div>
+						<div><label>Phân loại</label><input class="f-nhom" list="pql-dm" placeholder="Vé lẻ / Combo"><datalist id="pql-dm"></datalist></div>
 						<div><label>Khu vực / Cơ sở</label><input class="f-kv" list="pql-kv" placeholder="để trống = mọi nơi"></div>
 					</div>
 					<datalist id="pql-kv"><?php foreach ( $kvucs as $kv ) : ?><option value="<?php echo esc_attr( $kv ); ?>"></option><?php endforeach; ?></datalist>
@@ -2233,6 +2379,29 @@ class POSH_Ve {
 					<div class="pql-msg2"></div>
 				</div>
 				</div><!-- /pane ve -->
+
+				<div class="pql-pane" data-pane="dm" hidden>
+					<div class="pql-bar"><b>Phân loại vé (danh mục)</b><button class="pql-dm-them">+ Tạo phân loại</button></div>
+					<p style="color:var(--mut);font-size:12px;margin:0 0 10px">
+						Danh mục là dải <b>ảnh + tên</b> khách bấm để chọn loại vé ở trang bán.
+						Đổi tên ở đây thì <b>mọi vé đang thuộc danh mục đó đổi theo</b>, không phải sửa từng vé.
+					</p>
+					<div class="pql-dmlist"></div>
+					<div class="pql-dmform" hidden>
+						<div class="pql-h pql-dmform-h">Tạo phân loại</div>
+						<input type="hidden" class="d-cu" value="">
+						<label>Tên phân loại *</label><input class="d-ten" placeholder="VD Vé lẻ / Combo / Khu tuyết">
+						<label>Ảnh đại diện</label>
+						<div class="pql-anh">
+							<img class="d-xem" alt="" hidden>
+							<input class="d-anh" placeholder="Dán link ảnh, hoặc tải ảnh lên →">
+							<label class="pql-upl">Tải ảnh<input class="d-file" type="file" accept="image/*" hidden></label>
+						</div>
+						<p style="color:var(--mut);font-size:12px;margin:6px 0 0">Bỏ trống ảnh thì dải chọn tự lấy ảnh của vé đầu tiên trong danh mục.</p>
+						<div class="pql-acts"><button class="pql-dm-luu">Lưu phân loại</button><button class="pql-dm-huy">Huỷ</button></div>
+						<div class="pql-dmmsg"></div>
+					</div>
+				</div><!-- /pane dm -->
 
 				<div class="pql-pane" data-pane="bc">
 					<div class="pql-bcf">
@@ -2492,7 +2661,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -2574,6 +2743,79 @@ class POSH_Ve {
 
 		  // ── Ưu đãi ──
 		  var uuHangLoaded=false;
+		  /* ═══ PHÂN LOẠI VÉ ═══════════════════════════════════════════════════════════════
+		     Danh tính của danh mục là CÁI TÊN (vé lưu tên nhóm dưới dạng chữ), nên màn sửa phải
+		     gửi kèm tên cũ để máy chủ đổi luôn mọi vé đang mang tên đó. Gửi thiếu tên cũ thì
+		     thành "tạo thêm một danh mục mới", còn đám vé cũ ở lại danh mục cũ — chia đôi im lặng. */
+		  var DM = [];
+		  function napDm(){
+		    $('.pql-dmlist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    get('/ql/dm-ds').then(function(d){ dmVe(d.ds||[]); })
+		      .catch(function(e){ $('.pql-dmlist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		  }
+		  function dmVe(ds){
+		    DM = ds;
+		    /* Ô "Phân loại" ở form vé gợi ý từ chính danh sách này — gõ tay tên mới vẫn được,
+		       nhưng đỡ đẻ ra "Combo" và "combo " là hai danh mục khác nhau. */
+		    var dl=document.getElementById('pql-dm');
+		    if(dl) dl.innerHTML = ds.map(function(d){ return '<option value="'+esc(d.ten)+'">'; }).join('');
+		    $('.pql-dmlist').innerHTML = ds.length ? ds.map(dmRow).join('')
+		      : '<p style="color:#9b978c">Chưa có phân loại nào. Bấm “+ Tạo phân loại”.</p>';
+		  }
+		  function dmRow(d){
+		    var img = d.anh ? '<img src="'+esc(d.anh)+'">' : '<span class="noimg">🗂️</span>';
+		    var sub = d.so_ve + ' vé' + (d.khai ? '' : ' · <i>chưa khai, đang lấy từ vé</i>')
+		            + (d.anh ? '' : ' · chưa có ảnh riêng');
+		    return '<div class="pql-row">'+img+'<div class="pql-row-mid"><div class="pql-row-ten">'+esc(d.ten)+'</div>'
+		      +'<div class="pql-row-sub">'+sub+'</div></div>'
+		      +'<div class="pql-row-btn"><button data-dsua=\''+esc(JSON.stringify(d))+'\'>Sửa</button>'
+		      +'<button class="del" data-dxoa="'+esc(d.ten)+'" data-sove="'+d.so_ve+'">Xoá</button></div></div>';
+		  }
+		  function dmForm(d){
+		    d=d||{}; $('.pql-dmform-h').textContent = d.ten ? 'Sửa phân loại' : 'Tạo phân loại';
+		    $('.d-cu').value = d.ten||''; $('.d-ten').value = d.ten||''; $('.d-anh').value = d.anh||'';
+		    var xem=$('.d-xem'); if(d.anh){xem.src=d.anh;xem.hidden=false;}else{xem.hidden=true;}
+		    $('.pql-dmmsg').textContent='';
+		    $('.pql-dmform').hidden=false; $('.d-ten').focus(); $('.pql-dmform').scrollIntoView({behavior:'smooth',block:'center'});
+		  }
+		  $('.pql-dm-them').addEventListener('click',function(){ dmForm(null); });
+		  $('.pql-dm-huy').addEventListener('click',function(){ $('.pql-dmform').hidden=true; });
+		  $('.d-file').addEventListener('change',function(){
+		    var f=this.files&&this.files[0]; if(!f)return; var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
+		    $('.pql-dmmsg').style.color='#9b978c'; $('.pql-dmmsg').textContent='Đang tải ảnh…';
+		    fetch(REST+'/ql/ve-anh',{method:'POST',credentials:'same-origin',headers:hdr(),body:fd}).then(function(r){return r.json();}).then(function(d){
+		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
+		      $('.d-anh').value=d.url; var xem=$('.d-xem'); xem.src=d.url; xem.hidden=false; $('.pql-dmmsg').textContent='Đã tải ảnh ✓';
+		    }).catch(function(e){ $('.pql-dmmsg').style.color='#f0a0a0'; $('.pql-dmmsg').textContent=String(e.message||e); });
+		  });
+		  $('.d-anh').addEventListener('change',function(){ var xem=$('.d-xem'); if(this.value){xem.src=this.value;xem.hidden=false;}else{xem.hidden=true;} });
+		  $('.pql-dm-luu').addEventListener('click',function(){
+		    var ten=$('.d-ten').value.trim();
+		    if(!ten){ $('.pql-dmmsg').style.color='#f0a0a0'; $('.pql-dmmsg').textContent='Cần tên phân loại.'; return; }
+		    var cu=$('.d-cu').value;
+		    if(cu && cu!==ten && !confirm('Đổi tên "'+cu+'" thành "'+ten+'"?\n\nMọi vé đang thuộc phân loại này sẽ đổi theo.')) return;
+		    $('.pql-dmmsg').style.color='#9b978c'; $('.pql-dmmsg').textContent='Đang lưu…';
+		    post('/ql/dm-luu',{ ten:ten, ten_cu:cu, anh:$('.d-anh').value.trim() }).then(function(d){
+		      $('.pql-dmform').hidden=true; dmVe(d.ds||[]); napDs();
+		    }).catch(function(e){ $('.pql-dmmsg').style.color='#f0a0a0'; $('.pql-dmmsg').textContent=String(e.message||e); });
+		  });
+		  root.addEventListener('click',function(e){
+		    var s=e.target.closest('[data-dsua]'); if(s){ try{ dmForm(JSON.parse(s.getAttribute('data-dsua'))); }catch(err){} return; }
+		    var x=e.target.closest('[data-dxoa]'); if(!x) return;
+		    var ten=x.getAttribute('data-dxoa'), n=+x.getAttribute('data-sove')||0;
+		    /* Có vé thì BẮT chọn chỗ chuyển sang, không cho xoá trắng: vé mất danh mục là vé nằm
+		       trong kho mà không dải nào hiện ra — bán không ai thấy. */
+		    var sang='';
+		    if(n>0){
+		      var ds=DM.filter(function(d){ return d.ten!==ten; }).map(function(d){ return d.ten; });
+		      sang = prompt('Phân loại "'+ten+'" đang có '+n+' vé.\nChuyển số vé đó sang phân loại nào?\n\nĐang có: '+(ds.join(', ')||'(chưa có cái nào)'), ds[0]||'Vé');
+		      if(sang===null) return;
+		      sang = String(sang).trim(); if(!sang) sang='Vé';
+		    } else if(!confirm('Xoá phân loại "'+ten+'"?')) { return; }
+		    post('/ql/dm-xoa',{ ten:ten, sang:sang }).then(function(d){ dmVe(d.ds||[]); napDs(); })
+		      .catch(function(err){ alert(String(err.message||err)); });
+		  });
+
 		  function napUu(){
 		    $('.pql-uulist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
 		    get('/ql/uu-ds').then(function(d){
