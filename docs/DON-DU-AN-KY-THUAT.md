@@ -175,6 +175,45 @@ bấm **Lập đơn** lúc ấy bị chối kèm câu nói rõ phải chọn cơ
 
 Lập xong, khối tạo tự thu lại để không che mất đơn vừa mở.
 
+### Một lối vào, hỏi loại đơn đúng lúc
+
+Anh Thắng 11/09/2026: *"Chọn chi phí tuần, mà hiện bảng chi phí dự án"*, rồi *"nên anh mới cần
+gộp nó lại thành 1, chọn xong tự hỏi ra đơn gì tránh lộn"*.
+
+Cặp nút **LOẠI ĐƠN** ở đầu trang (📅 Chi phí · cơ sở / 🏗 Dự án · gian thi công) trông như một bộ
+**chọn loại đơn**, nên người ta bấm nó để chọn loại đơn mình sắp lập — trong khi nó chỉ đổi
+**trang đang xem**. Bấm xong thấy màn khác hẳn thứ mình định lập, và không có gì nói vì sao. Đã
+bỏ hẳn.
+
+Nay việc chọn loại nằm đúng chỗ của nó — lúc bấm tạo đơn — và **hỏi ở đâu cũng ra đủ ba lối**:
+
+| Lối | Sang đâu | Hỏi tiếp |
+|---|---|---|
+| 📅 **Đơn tuần của cơ sở** | trang đơn tuần | kỳ/tuần + người lập |
+| 🏢 **Chi phí cơ sở · Kỹ thuật** | tab Kỹ thuật, mở sẵn nhánh cơ sở | **TUẦN** |
+| 🏗 **Chi phí dự án · Kỹ thuật** | tab Kỹ thuật, mở sẵn nhánh dự án | loại + **GIAN** |
+
+🔴 **Tên phải tự phân biệt được.** Hai trong ba đều mang chữ *"cơ sở"* — đúng chỗ bị lộn — nên
+mỗi dòng nói rõ **ai lên** và **gom theo gì**. Có bài kiểm canh đủ ba tên và canh không tên nào
+là tiền tố của tên nào.
+
+🔴 **Không tự đẻ ra đơn khi chọn loại.** Đơn dự án cần TÊN gian, đơn cơ sở cần TUẦN; tạo bừa là
+ra một đơn không ai đặt, rồi phải xoá đi làm lại.
+
+Chuyển qua lại giữa hai danh sách thì để đúng **một nút một chiều** (`data-dcsw-di`), chỉ hiện
+khi người ấy thật sự vào được cả hai.
+
+⚠️ `_vaoDuocDuAn()` trước đây dò `style.display` của nút trong thanh vừa bỏ. Dò một nút không
+còn tồn tại thì hàm luôn trả `false` — hộp *"Đơn này là loại nào?"* tắt hẳn, không báo gì. Nay
+nó tra thẳng bảng quyền `QUYEN_TAB`.
+
+### Chữ trên màn gọi đúng thứ đang mở
+
+Đơn chi phí cơ sở mở ra mà mọi nhãn đều là *"dự án"* — **Đóng dự án**, **Xoá dự án**, *Dự phòng
+cả dự án*, *Lịch sử dự án*, khoảng ngày ghi *Setup* — thì người dùng đọc màn và tin rằng mình
+đang đứng ở đơn dự án. Bộ máy bên dưới dùng chung là đúng; **chữ thì không**. Nay các nhãn ấy
+đổi theo `isCoSo`, và dải tiến trình đếm *"khoản chi"* thay cho *"hạng mục lớn"*.
+
 ### Kỹ thuật không thấy tab đơn tuần của cơ sở
 
 Anh Thắng 11/09/2026, chỉ vào màn *"1) Nhập hạng mục xin tạm ứng"* của đơn tuần: *"này của nhân

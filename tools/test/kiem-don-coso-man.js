@@ -131,6 +131,8 @@ function beTao() {
     textContent: '', innerHTML: '', placeholder: '', className: 'btn b-x' });
   const moi = {
     DA_ITEMS: [], DA_TUAN: [], DA_NHOM: '', DA_CUR: null, DA_CHO_KEO: false,
+    /* Người này vào được cả hai loại đơn -> lối "Đơn tuần của cơ sở" trong khối tạo có hiện. */
+    QUYEN_TAB: { don: 1, duan: 1 },
     CURUSER: { name: 'KT', role: 'Nhân viên' },
     el: id => (KHO[id] = KHO[id] || O(id)),
     esc: x => String(x == null ? '' : x),
@@ -149,7 +151,7 @@ function beTao() {
   };
   const src = `${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
     ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
-    ${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}
+    ${boc('_tabDuoc')}\n${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}
     ${boc('createDuAnUI')}
     return { moi: moi, NK: NK, chay: createDuAnUI, moTao: daMoTao, dongTao: daDongTao,
       chonNhom: daChonNhom, loaiChon: _daLoaiChon,
@@ -178,6 +180,14 @@ t('   và phần chi tiết vẫn ẩn', TX.moi.el('daTaoChiTiet').style.display
 
 const TM = beTao();
 TM.moTao();
+/* 🔴 LỐI "Đơn tuần của cơ sở" CHỈ BÀY CHO NGƯỜI VÀO ĐƯỢC TAB ẤY. Bày cho người Kỹ thuật —
+   vốn đã bị ẩn tab đơn tuần — là mời họ bấm sang một trang không có. */
+const TQ = beTao(); TQ.moi.QUYEN_TAB = { don: 0, duan: 1 }; TQ.moTao();
+t('🔴 không vào được tab đơn tuần: khối tạo KHÔNG bày lối sang đơn tuần',
+  TQ.moi.el('daNhomTuan').style.display === 'none', TQ.moi.el('daNhomTuan').style.display);
+const TQ2 = beTao(); TQ2.moi.QUYEN_TAB = { don: 1, duan: 1 }; TQ2.moTao();
+t('   vào được cả hai thì có bày', TQ2.moi.el('daNhomTuan').style.display === '', TQ2.moi.el('daNhomTuan').style.display);
+
 t('bấm Tạo đơn: nút thu lại, khối chọn xổ ra',
   TM.moi.el('daTaoNut').style.display === 'none' && TM.moi.el('daTaoBox').style.display === 'block',
   [TM.moi.el('daTaoNut').style.display, TM.moi.el('daTaoBox').style.display]);

@@ -205,10 +205,14 @@ if m8:
     la('Kỹ thuật vẫn vào được tab Dự án', 'Kỹ thuật' in vd, str(vd))
     la('Cơ sở KHÔNG vào tab Dự án', 'Cơ sở' not in vd, str(vd))
 la('quyền tab Dự án tra theo BP_VAO_DUAN', 'BP_VAO_DUAN.indexOf(bp)>=0' in src)
-# Nút "Dự án · gian thi công" nằm TRONG trang chứ không trên hàng tab -> phải ẩn riêng,
+# Nút chuyển giữa hai loại đơn nằm TRONG trang chứ không trên hàng tab -> phải ẩn riêng,
 # không thì người không có quyền bấm vào rồi ăn trang trắng.
-la('ẩn nút GOM THEO khi không có quyền',
-   '[data-dcsw="duan"]' in src and 'b.style.display=vis.duan' in src)
+# 🔴 CẶP NÚT "LOẠI ĐƠN" CŨ ĐÃ BỎ (anh Thắng 11/09/2026: *"gộp nó lại thành 1, chọn xong tự hỏi
+#    ra đơn gì tránh lộn"*) — nó trông như bộ chọn LOẠI ĐƠN nhưng chỉ đổi TRANG. Nay là một nút
+#    chuyển một chiều `data-dcsw-di`, vẽ bằng `_veNutChuyenDon(vis)`.
+la('không còn cặp nút bật/tắt LOẠI ĐƠN', '[data-dcsw="duan"]' not in src)
+la('ẩn nút chuyển loại đơn khi không có quyền',
+   '[data-dcsw-di]' in src and "vis[b.getAttribute('data-dcsw-di')]" in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)
@@ -247,8 +251,13 @@ print('— loại đơn: nhãn và phân quyền —')
 # Kiểm NHÃN HIỆN RA (nằm giữa hai thẻ), không phải chữ trong chú thích — bản đầu bắt cả
 # chú thích nên đỏ oan.
 la('bỏ nhãn GOM THEO', '>GOM THEO<' not in src)
-la('có nhãn LOẠI ĐƠN', '>LOẠI ĐƠN<' in src)
-la('nút đổi thành Chi phí · cơ sở', 'Chi phí · cơ sở' in src)
+# 🔴 NHÃN "LOẠI ĐƠN" CŨNG ĐÃ BỎ cùng cặp nút của nó (anh Thắng 11/09/2026: *"gộp nó lại thành 1,
+#    chọn xong tự hỏi ra đơn gì tránh lộn"*). Cặp nút ấy trông như bộ CHỌN LOẠI ĐƠN nhưng chỉ
+#    đổi TRANG đang xem — bấm xong thấy màn khác hẳn thứ mình định lập. Việc chọn loại nay nằm
+#    ở hộp "Đơn này là loại nào?" lúc bấm tạo đơn.
+la('bỏ nhãn LOẠI ĐƠN của cặp nút cũ', '>LOẠI ĐƠN<' not in src)
+la('hộp chọn loại đơn có đủ ba lối',
+   'id="ndLoaiCoSo"' in src and 'id="ndLoaiDaCoSo"' in src and 'id="ndLoaiDuAn"' in src)
 # 🔴 CỘNG THÊM chứ không THAY luật bộ phận: thay thẳng là nhân viên Kỹ thuật mất tab Dự án
 #    ngay lúc cài đè, trước khi kịp tích lại ở bảng phân quyền.
 la('quyền Dự án cộng thêm từ ma trận', "if(canDo('donDuAn')) vis.duan=1;" in src)

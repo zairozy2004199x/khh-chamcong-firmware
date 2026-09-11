@@ -184,6 +184,98 @@ t('🔴 quay về tab đơn tuần: cờ nhiều-gian TẮT, dù DA_CUR còn tre
 const POSH = beLoai({ page: 'don', CUR: { don: { nhieuCoSo: true } }, DA_CUR: null });
 t('   đơn tuần POSH vẫn là đơn nhiều cơ sở như cũ', POSH.nhieu() === true, POSH.nhieu());
 
+/* ── 5. 🔴 GỘP HAI LỐI THÀNH MỘT: CHỌN LOẠI RỒI TỰ VÀO ĐÚNG CHỖ ─────────────────────────
+   Anh Thắng: *"Chọn chi phí tuần, mà hiện bảng chi phí dự án"* → *"nên anh mới cần gộp nó lại
+   thành 1, chọn xong tự hỏi ra đơn gì tránh lộn"*.
+
+   Cặp nút "Chi phí · cơ sở / Dự án · gian thi công" trông như bộ chọn LOẠI ĐƠN nhưng chỉ đổi
+   TRANG. Bỏ cặp ấy đi thì phải lo hai chuyện: hộp "đơn này là gì" ở đâu cũng đủ lựa chọn, và
+   chọn xong tự sang đúng trang + mở đúng nhánh. */
+function beGop(quyen) {
+  const NK = { trang: [], nhom: [], toast: [], dong: 0, tuan: 0 };
+  const KHO = {};
+  const moi = {
+    QUYEN_TAB: quyen,
+    el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '',
+      focus() { NK.focus = id; }, scrollIntoView() {} }),
+    showPage: p => NK.trang.push(p),
+    closeNewDon: () => { NK.dong++; },
+    toast: (k, m) => NK.toast.push(m),
+    daMoTao: () => { NK.moTao = true; },
+    daChonNhom: n => NK.nhom.push(n),
+    daDongTao: () => { NK.dongTao = true; },
+    newDon: () => { NK.tuan++; },
+    /* Hàm thật gọi setTimeout rồi mới chuyển — chạy thẳng để bài kiểm khỏi phải chờ. */
+    setTimeout: fn => fn(),
+  };
+  const src = `${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('ndChonLoai')}\n${boc('daSangDonTuan')}
+    return { chon: ndChonLoai, sangTuan: daSangDonTuan, vaoDuAn: _vaoDuocDuAn };`;
+  const R = new Function('moi', `with(moi){ ${src} }`)(moi);
+  R.NK = NK; R.el = moi.el;
+  return R;
+}
+
+const CA2 = beGop({ don: 1, duan: 1 });
+t('🔴 hỏi loại đơn hay không nay tra BẢNG QUYỀN, không dò nút trong thanh vừa bỏ',
+  CA2.vaoDuAn() === true, CA2.vaoDuAn());
+const CHIDON = beGop({ don: 1, duan: 0 });
+t('   không vào được tab Kỹ thuật thì không hỏi', CHIDON.vaoDuAn() === false, CHIDON.vaoDuAn());
+
+const GX1 = beGop({ don: 1, duan: 1 });
+GX1.chon('dacoso');
+t('🔴 chọn "Chi phí cơ sở · Kỹ thuật": đóng hộp, sang tab Kỹ thuật, mở đúng nhánh cơ sở',
+  GX1.NK.dong === 1 && GX1.NK.trang.join(',') === 'duan' && GX1.NK.moTao === true
+  && GX1.NK.nhom.join(',') === 'coso', GX1.NK);
+t('   và đặt con trỏ vào ô TUẦN', GX1.NK.focus === 'daTuan', GX1.NK.focus);
+t('   câu nhắc nói đúng việc phải làm tiếp (chọn tuần)', /TUẦN/i.test(GX1.NK.toast.join('|')), GX1.NK.toast);
+
+const GX2 = beGop({ don: 1, duan: 1 });
+GX2.chon('duan');
+t('🔴 chọn "Chi phí dự án": mở nhánh dự án, con trỏ vào ô TÊN GIAN',
+  GX2.NK.nhom.join(',') === 'duan' && GX2.NK.focus === 'daTen', GX2.NK);
+t('   hai nhánh Kỹ thuật KHÔNG tự đẻ ra đơn — đơn cần tên hoặc tuần, tạo bừa là phải xoá đi làm lại',
+  GX2.NK.tuan === 0 && GX1.NK.tuan === 0, [GX1.NK.tuan, GX2.NK.tuan]);
+
+const GX3 = beGop({ don: 1, duan: 1 });
+GX3.chon('coso');
+t('   chọn "Đơn tuần của cơ sở": ở lại hộp tạo đơn tuần, KHÔNG chuyển trang',
+  GX3.NK.trang.length === 0 && GX3.NK.dong === 0, GX3.NK);
+
+const GX4 = beGop({ don: 1, duan: 1 });
+GX4.sangTuan();
+t('🔴 từ khối tạo của tab Kỹ thuật chọn "Đơn tuần của cơ sở": sang tab đơn và MỞ THẲNG hộp tạo',
+  GX4.NK.dongTao === true && GX4.NK.trang.join(',') === 'don' && GX4.NK.tuan === 1, GX4.NK);
+
+/* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút. */
+function beNutChuyen(vis) {
+  const nut = [{ di: 'don', style: { display: 'x' } }, { di: 'duan', style: { display: 'x' } }];
+  const moi = {
+    document: { querySelectorAll: sel => (sel === '[data-dcsw-di]' ? nut : []) },
+    Array: Array,
+  };
+  new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
+    nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });
+    _veNutChuyenDon(V); }`).call(null, Object.assign(moi, { nut }), vis);
+  return { don: nut[0].style.display, duan: nut[1].style.display };
+}
+const NC = beNutChuyen({ don: 1, duan: 0 });
+t('🔴 chỉ vào được đơn tuần: hiện nút sang đơn tuần, ẨN nút sang Kỹ thuật',
+  NC.don === '' && NC.duan === 'none', NC);
+const NC2 = beNutChuyen({ don: 0, duan: 1 });
+t('   ngược lại cũng vậy', NC2.don === 'none' && NC2.duan === '', NC2);
+const NC3 = beNutChuyen(null);
+t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'none' && NC3.duan === 'none', NC3);
+
+/* Cặp nút LOẠI ĐƠN cũ phải biến mất khỏi trang — còn sót là còn chỗ để lộn. */
+t('🔴 không còn cặp nút bật/tắt "LOẠI ĐƠN" trong trang', HTML.indexOf('data-dcsw=') < 0);
+t('   thay bằng nút chuyển một chiều, mặc định ẩn',
+  (HTML.match(/data-dcsw-di="/g) || []).length === 2, (HTML.match(/data-dcsw-di="/g) || []).length);
+/* 🔴 CANH CẢ DẤU NHÁY ĐÓNG. Dò `indexOf('ndLoaiDaCoSo')` thì một id dài hơn ("ndLoaiDaCoSoXyz")
+   vẫn khớp vì nó là TIỀN TỐ — đục id đi mà phép vẫn xanh. */
+t('   và hộp "Đơn này là loại nào?" có đủ ba lối',
+  HTML.indexOf('id="ndLoaiCoSo"') >= 0 && HTML.indexOf('id="ndLoaiDaCoSo"') >= 0
+  && HTML.indexOf('id="ndLoaiDuAn"') >= 0);
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════ */
 console.log('');
 if (TRUOT.length) {

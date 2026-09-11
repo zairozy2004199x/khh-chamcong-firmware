@@ -33,8 +33,15 @@ const HTML = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/templates/ap
 
 /* ── 1. HAI LỰA CHỌN, NÓI RÕ KHÁC NHAU CHỖ NÀO ─────────────────────────────────────────── */
 t('🔴 có bước chọn loại đơn', HTML.indexOf('id="ndLoaiBox"') >= 0);
-t('   nút Chi phí · cơ sở', HTML.indexOf("ndChonLoai('coso')") >= 0 && HTML.indexOf('📋 Chi phí · cơ sở') >= 0);
-t('   nút Dự án · gian thi công', HTML.indexOf("ndChonLoai('duan')") >= 0 && HTML.indexOf('🏗 Dự án · gian thi công') >= 0);
+/* 🔴 BA LỐI, VÀ TÊN PHẢI TỰ PHÂN BIỆT ĐƯỢC. Hai trong ba đều mang chữ "cơ sở" (đơn tuần của
+   nhân viên cơ sở · chi phí cơ sở của Kỹ thuật) — đúng chỗ anh Thắng 11/09/2026 bị lộn, nên
+   mỗi dòng phải nói rõ AI LÊN và GOM THEO GÌ. */
+t('   lối Đơn tuần của cơ sở', HTML.indexOf("ndChonLoai('coso')") >= 0 && HTML.indexOf('📅 Đơn tuần của cơ sở') >= 0);
+t('   lối Chi phí cơ sở · Kỹ thuật', HTML.indexOf("ndChonLoai('dacoso')") >= 0 && HTML.indexOf('🏢 Chi phí cơ sở · Kỹ thuật') >= 0);
+t('   lối Chi phí dự án · Kỹ thuật', HTML.indexOf("ndChonLoai('duan')") >= 0 && HTML.indexOf('🏗 Chi phí dự án · Kỹ thuật') >= 0);
+t('🔴 ba tên khác hẳn nhau, không cái nào là tiền tố của cái kia',
+  ['📅 Đơn tuần của cơ sở', '🏢 Chi phí cơ sở · Kỹ thuật', '🏗 Chi phí dự án · Kỹ thuật']
+    .every((a, i, ds) => ds.every((b, j) => i === j || (a.indexOf(b) < 0 && b.indexOf(a) < 0))));
 /* Hai nhãn phải nói ra ĐIỂM KHÁC, không chỉ tên. Ai chưa quen thì tên đơn không giúp gì. */
 t('🔴 nhãn nói rõ đơn cơ sở gom theo TUẦN', HTML.indexOf('gom theo tuần') >= 0);
 t('🔴 nhãn nói rõ đơn dự án theo THỜI GIAN BẤT KỲ và ứng nhiều lần',
@@ -56,10 +63,13 @@ t('   và không nhảy con trỏ vào ô Người lập khi đang hỏi loại'
   nd.indexOf("if(!hoi) setTimeout") >= 0, nd);
 
 const vd = boc('_vaoDuocDuAn');
-/* 🔴 Đọc CHÍNH cái nút đã bị ẩn theo quyền, không tự suy lại luật. Suy lại là hai nơi cùng giữ
-   một luật phân quyền — mà luật ấy còn cộng thêm từ bảng Phân quyền chỉnh sửa. */
-t('🔴 tra theo chính nút LOẠI ĐƠN đã ẩn theo quyền, không đoán lại luật',
-  vd.indexOf("querySelector('[data-dcsw=\"duan\"]')") >= 0 && vd.indexOf('BP_VAO_DUAN') < 0, vd);
+/* 🔴 Đọc CHÍNH bảng quyền mà `applyPerms()` vừa dựng, không tự suy lại luật. Suy lại là hai nơi
+   cùng giữ một luật phân quyền — mà luật ấy còn cộng thêm từ bảng Phân quyền chỉnh sửa.
+   ⚠️ Bản trước dò `style.display` của nút trong thanh "LOẠI ĐƠN"; thanh ấy nay đã bỏ, và dò
+      một nút không còn tồn tại thì hàm luôn trả false — hộp hỏi loại tắt hẳn, không báo gì. */
+t('🔴 tra theo BẢNG QUYỀN, không dò DOM và không đoán lại luật bộ phận',
+  vd.indexOf("_tabDuoc('duan')") >= 0 && vd.indexOf('querySelector') < 0
+  && vd.indexOf('BP_VAO_DUAN') < 0, vd);
 
 /* ── 2b. CHẠY THẬT `_hoiLoaiDon()` ─────────────────────────────────────────────────────── */
 const hangBp = /var BP_HOI_LOAI_DON=(\[[^\]]*\]);/.exec(HTML);
@@ -69,24 +79,27 @@ t("🔴 và đúng là Kỹ thuật — chỉ mình nó", JSON.stringify(BP_HOI)
 
 /* Bệ đỡ: CURUSER + cái nút tab Dự án. `_hoiLoaiDon()` gọi `_vaoDuocDuAn()`, nên bốc CẢ HAI ra
    chạy — thay `_vaoDuocDuAn()` bằng bản giả là bỏ mất đúng vế quan trọng nhất. */
-let NUT = null;   // null = không có nút (không được vào tab Dự án)
+/* ⚠️ `_vaoDuocDuAn()` nay TRA BẢNG QUYỀN chứ không dò nút trong thanh "LOẠI ĐƠN" — thanh ấy đã
+   bỏ (anh Thắng 11/09/2026: *"gộp nó lại thành 1"*), và dò một nút không còn tồn tại thì hàm
+   luôn trả false: hộp "Đơn này là loại nào?" tắt hẳn mà không báo gì. Bệ đỡ đổi theo. */
 const moiTruong = {
   BP_HOI_LOAI_DON: BP_HOI,
-  document: { querySelector: () => NUT },
+  QUYEN_TAB: null,
   CURUSER: null,
 };
 const chay = new Function('moiTruong', `
   with (moiTruong) {
+    ${boc('_tabDuoc')}
     ${boc('_vaoDuocDuAn')}
     ${boc('_hoiLoaiDon')}
     return _hoiLoaiDon();
   }`);
 const hoi = (boPhan, nut) => {
   moiTruong.CURUSER = boPhan === null ? null : { boPhan: boPhan };
-  NUT = nut;
+  moiTruong.QUYEN_TAB = nut;
   return chay(moiTruong);
 };
-const NUT_HIEN = { style: { display: '' } }, NUT_AN = { style: { display: 'none' } };
+const NUT_HIEN = { don: 1, duan: 1 }, NUT_AN = { don: 1, duan: 0 };
 
 t('🔴 Kỹ thuật + vào được tab Dự án → CÓ hỏi', hoi('Kỹ thuật', NUT_HIEN) === true);
 t('🔴 Cơ sở → KHÔNG hỏi (chỉ có một loại đơn)', hoi('Cơ sở', NUT_HIEN) === false);
@@ -94,7 +107,9 @@ t('🔴 Văn phòng vào được tab Dự án nhưng vẫn KHÔNG hỏi',
   hoi('Văn phòng', NUT_HIEN) === false);
 t('🔴 Kỹ thuật mà quyền vào tab Dự án bị gỡ → KHÔNG hỏi (bấm là ăn trang trắng)',
   hoi('Kỹ thuật', NUT_AN) === false);
-t('   không có cả nút ấy → cũng KHÔNG hỏi', hoi('Kỹ thuật', null) === false);
+/* ⚠️ CHƯA CÓ BẢNG QUYỀN thì `_tabDuoc()` trả về ĐƯỢC (gọi trước applyPerms thì đừng khoá màn),
+   nên ca này vẫn hỏi — đúng, vì lúc ấy chưa biết gì để mà cấm. */
+t('   chưa có bảng quyền → vẫn hỏi, không tự khoá màn', hoi('Kỹ thuật', null) === true);
 t('chưa đăng nhập → KHÔNG hỏi, và không nổ', hoi(null, NUT_HIEN) === false);
 t('bộ phận để trống → KHÔNG hỏi (rỗng không phải là Kỹ thuật)',
   hoi('', NUT_HIEN) === false && hoi(undefined, NUT_HIEN) === false);
@@ -106,8 +121,12 @@ t('🔴 chọn Dự án → đóng hộp, sang tab Dự án', cl.indexOf("closeN
 /* 🔴 KHÔNG tự tạo một dự án không tên. Đơn dự án cần TÊN đợt thi công; tạo bừa rồi bắt đổi tên
    sau là để lại một dòng "(chưa đặt tên)" trong danh sách mà không ai dám xoá. */
 t('🔴 KHÔNG tự gọi createDuAn — đưa người dùng tới ô đặt tên',
-  cl.indexOf('createDuAn(') < 0 && cl.indexOf("el('daTen')") >= 0, cl);
-t('   và nói rõ bước tiếp theo', cl.indexOf('Đặt tên đợt thi công') >= 0, cl);
+  cl.indexOf('createDuAn(') < 0 && cl.indexOf("'daTen'") >= 0, cl);
+t('   và nói rõ bước tiếp theo', /Đặt tên gian/.test(cl), cl);
+/* Lối thứ ba: chi phí cơ sở của Kỹ thuật — cùng sang tab Kỹ thuật nhưng mở nhánh khác và hỏi
+   TUẦN chứ không hỏi tên gian. Hành vi đầy đủ có bài kiểm riêng ở kiem-tab-kythuat-va-gian.js. */
+t('🔴 có lối riêng cho chi phí cơ sở Kỹ thuật', cl.indexOf("'dacoso'") >= 0, cl);
+t('   và nó hỏi TUẦN, không hỏi tên gian', /daTuan/.test(cl), cl);
 t('chọn Chi phí cơ sở → hiện phần kỳ/người lập và nút Tạo đơn',
   cl.indexOf("el('ndCoSoBox').style.display='';") >= 0 && cl.indexOf("el('ndBtnTao').style.display='';") >= 0, cl);
 

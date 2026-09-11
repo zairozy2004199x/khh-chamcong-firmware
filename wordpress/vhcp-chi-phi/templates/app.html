@@ -164,11 +164,19 @@
 
   <div id="page-don">
   <div class="wrap" style="padding-top:10px">
+    <!-- 🔴 MỘT LỐI, KHÔNG PHẢI HAI NÚT BẬT/TẮT — anh Thắng 11/09/2026: *"Chọn chi phí tuần,
+         mà hiện bảng chi phí dự án"*, rồi: *"nên anh mới cần gộp nó lại thành 1, chọn xong tự
+         hỏi ra đơn gì tránh lộn"*.
+
+         Cặp nút "Chi phí · cơ sở / Dự án · gian thi công" trông như một bộ CHỌN LOẠI ĐƠN, nên
+         người ta bấm nó để chọn loại đơn mình sắp lập — trong khi nó chỉ đổi TRANG đang xem.
+         Bấm xong thấy màn khác hẳn thứ mình định lập, và không có gì nói vì sao.
+
+         Nay việc chọn loại nằm đúng chỗ của nó: bấm nút Tạo đơn rồi mới hỏi. Còn chuyển qua
+         lại giữa hai danh sách thì để đúng MỘT nút, chỉ hiện khi người này vào được cả hai. -->
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:12px;color:#64748b;font-weight:700">LOẠI ĐƠN</span>
-      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Chi phí · cơ sở</button>
-      <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px"><b>Hai loại đơn</b>, không phải hai cách gom: <b>Chi phí · cơ sở</b> là đơn xin tạm ứng của một gian (bó theo tuần), <b>Dự án · gian thi công</b> là đơn của một đợt thi công (thời gian bất kỳ). Loại chi phí, mã tài khoản, xuất MISA dùng chung. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Đơn tuần của cơ sở</b> — xin tạm ứng cho một tuần vận hành. Bấm <b>＋ Tạo đơn mới</b> rồi chọn loại đơn; loại chi phí, mã tài khoản và xuất MISA dùng chung với chi phí Kỹ thuật. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
+      <button class="btn b-x" data-dcsw-di="duan" onclick="showPage('duan')" style="display:none">⇄ Sang chi phí Kỹ thuật</button>
     </div>
   </div>
   <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
@@ -528,10 +536,8 @@
   <div id="page-duan" class="wrap" style="display:none">
   <div style="padding-top:2px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:12px;color:#64748b;font-weight:700">LOẠI ĐƠN</span>
-      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Chi phí · cơ sở</button>
-      <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px"><b>Hai loại đơn</b>, không phải hai cách gom: <b>Chi phí · cơ sở</b> là đơn xin tạm ứng của một gian (bó theo tuần), <b>Dự án · gian thi công</b> là đơn của một đợt thi công (thời gian bất kỳ). Loại chi phí, mã tài khoản, xuất MISA dùng chung. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px"><b>Chi phí Kỹ thuật</b> — bấm <b>➕ Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN). Xem chốt ở khối tạo đơn bên dưới.</span>
+      <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none">⇄ Sang đơn tuần của cơ sở</button>
     </div>
   </div>
     <div class="card">
@@ -556,6 +562,9 @@
             <span style="font-size:12px;color:#334155;font-weight:700">Đơn này là gì?</span>
             <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')">🏢 Chi phí cơ sở</button>
             <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')">🏗 Chi phí dự án</button>
+            <!-- Lối thứ ba: đơn TUẦN của nhân viên cơ sở. Chỉ hiện cho người vào được cả hai —
+                 cùng một câu hỏi "đơn này là gì", hỏi ở đâu cũng ra đủ lựa chọn. -->
+            <button class="btn b-x" id="daNhomTuan" onclick="daSangDonTuan()" style="display:none">📅 Đơn tuần của cơ sở</button>
             <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
           </div>
           <div id="daTaoChiTiet" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap;padding-top:10px">
@@ -1450,11 +1459,17 @@
       <div id="ndLoaiBox" style="display:none;margin-bottom:14px">
         <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px">Đơn này là loại nào?</label>
         <div style="display:flex;flex-direction:column;gap:8px">
+          <!-- 🔴 TÊN PHẢI TỰ PHÂN BIỆT ĐƯỢC. Ba loại này có tới hai loại mang chữ "cơ sở"
+               (đơn tuần của nhân viên cơ sở · đơn chi phí cơ sở của Kỹ thuật) — đúng chỗ anh
+               Thắng bị lộn. Nên mỗi dòng nói rõ AI LÊN và GOM THEO GÌ. -->
           <button type="button" class="btn b-x" id="ndLoaiCoSo" onclick="ndChonLoai('coso')" style="text-align:left;padding:10px 12px;line-height:1.4">
-            <b>📋 Chi phí · cơ sở</b><br><span style="font-size:11.5px;color:#64748b">Đơn xin tạm ứng của một gian, gom theo tuần</span>
+            <b>📅 Đơn tuần của cơ sở</b><br><span style="font-size:11.5px;color:#64748b">Nhân viên cơ sở lên — xin tạm ứng cho một tuần vận hành</span>
+          </button>
+          <button type="button" class="btn b-x" id="ndLoaiDaCoSo" onclick="ndChonLoai('dacoso')" style="text-align:left;padding:10px 12px;line-height:1.4">
+            <b>🏢 Chi phí cơ sở · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">Một đơn gom NHIỀU gian, chọn theo TUẦN</span>
           </button>
           <button type="button" class="btn b-x" id="ndLoaiDuAn" onclick="ndChonLoai('duan')" style="text-align:left;padding:10px 12px;line-height:1.4">
-            <b>🏗 Dự án · gian thi công</b><br><span style="font-size:11.5px;color:#64748b">Đơn của một đợt thi công — thời gian bất kỳ, tạm ứng nhiều lần</span>
+            <b>🏗 Chi phí dự án · Kỹ thuật</b><br><span style="font-size:11.5px;color:#64748b">Setup / Tháo dỡ một GIAN — thời gian bất kỳ, tạm ứng nhiều lần</span>
           </button>
         </div>
       </div>
@@ -1934,6 +1949,13 @@
       else el('pinErr').textContent=(r&&r.error)||'Lỗi';
     }).withFailureHandler(function(e){loading(false); el('pinErr').textContent=e.message;}).changePin(CURUSER.name, o, n);
   }
+  /* Nút chuyển sang loại đơn KIA chỉ hiện khi người này thật sự vào được cả hai — để nó sáng
+     cho người không có quyền là mời họ bấm sang một trang vừa bị ẩn khỏi hàng tab. */
+  function _veNutChuyenDon(vis){
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw-di]'),function(b){
+      b.style.display=(vis&&vis[b.getAttribute('data-dcsw-di')])?'':'none';
+    });
+  }
   var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
   /* Chưa có bảng quyền (gọi trước applyPerms) thì coi như được — không thì màn trắng trơn. */
   function _tabDuoc(p){ return !QUYEN_TAB || !!QUYEN_TAB[p]; }
@@ -1990,14 +2012,7 @@
     ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
     // Thanh "LOẠI ĐƠN" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
     // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
-    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="duan"]'),function(b){
-      b.style.display=vis.duan?'':'none';
-    });
-    /* Nút "📅 Chi phí · cơ sở" ẩn theo đúng luật ấy — để nó sáng cho người không được vào là
-       mời họ bấm sang một trang vừa bị ẩn khỏi hàng tab. */
-    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="don"]'),function(b){
-      b.style.display=vis.don?'':'none';
-    });
+    _veNutChuyenDon(vis);
     /* Giữ lại bảng quyền để `defaultPageFor()` và `showDonChi()` khỏi ném người dùng vào đúng
        cái tab vừa ẩn — nhớ tab lần trước bằng localStorage nên chuyện này xảy ra thật. */
     QUYEN_TAB=vis;
@@ -2565,10 +2580,10 @@
   /* Người này vào được tab Dự án không — một trong hai vế của `_hoiLoaiDon()` dưới kia.
      ⚠️ ĐỌC CHÍNH CÁI NÚT đã ẩn theo quyền, không suy lại luật. Suy lại là hai nơi cùng giữ một
         luật phân quyền — mà luật ấy còn cộng thêm từ bảng Phân quyền chỉnh sửa được. */
-  function _vaoDuocDuAn(){
-    var b=document.querySelector('[data-dcsw="duan"]');
-    return !!(b && b.style.display!=='none');
-  }
+  /* 🔴 HỎI BẢNG QUYỀN, KHÔNG DÒ DOM. Bản trước đọc `style.display` của nút "Dự án · gian thi
+     công" trong thanh LOẠI ĐƠN — thanh ấy nay đã bỏ, và dò một nút không còn tồn tại thì hàm
+     này lúc nào cũng trả `false`: hộp "Đơn này là loại nào?" tắt hẳn, không báo gì. */
+  function _vaoDuocDuAn(){ return _tabDuoc('duan'); }
   /* Có HỎI loại đơn khi bấm "＋ Tạo đơn mới" không.
      Hai điều kiện, và phải đủ CẢ HAI:
        · thuộc bộ phận có hai loại đơn để chọn (`BP_HOI_LOAI_DON`) — anh Thắng chốt là Kỹ thuật;
@@ -2584,11 +2599,19 @@
   /* Chọn loại đơn ở bước đầu. 'duan' -> đóng hộp này, chuyển sang tab Dự án để đặt TÊN đợt thi
      công (đơn dự án cần tên, đơn tuần thì không) — không tự tạo bừa một dự án không tên. */
   function ndChonLoai(k){
-    if(k==='duan'){
+    /* Hai loại của Kỹ thuật sang tab Kỹ thuật rồi MỞ SẴN đúng nhánh trong khối tạo đơn.
+       🔴 KHÔNG tự đẻ ra đơn ở đây: đơn dự án cần TÊN gian, đơn cơ sở cần TUẦN — tạo bừa là ra
+          một đơn không ai đặt, rồi phải xoá đi làm lại. */
+    if(k==='duan'||k==='dacoso'){
+      var laCS=(k==='dacoso');
       closeNewDon();
       showPage('duan');
-      setTimeout(function(){ var t=el('daTen'); if(t){ t.focus(); t.scrollIntoView({block:'center'}); } },120);
-      toast('ok','Đặt tên đợt thi công rồi bấm ➕ Tạo dự án');
+      setTimeout(function(){
+        try{ daMoTao(); daChonNhom(laCS?'coso':'duan'); }catch(e){}
+        var t=el(laCS?'daTuan':'daTen');
+        if(t){ try{ t.focus({preventScroll:true}); }catch(e){ t.focus(); } t.scrollIntoView({block:'center'}); }
+      },140);
+      toast('ok', laCS?'Chọn TUẦN rồi bấm ➕ Lập đơn':'Đặt tên gian rồi bấm ➕ Lập đơn');
       return;
     }
     el('ndLoaiBox').style.display='none';
@@ -2602,6 +2625,11 @@
     var tudo=_kyTuDo();
     /* Hỏi loại đơn chỉ với bộ phận thật sự có hai loại để chọn. Một loại thì hỏi làm gì. */
     var hoi=_hoiLoaiDon();
+    /* Bày đúng những loại người này lên được. Một nút cho một loại họ không vào nổi là mời họ
+       bấm rồi ăn trang trắng — đúng thứ cặp nút LOẠI ĐƠN cũ vẫn làm. */
+    if(el('ndLoaiDaCoSo')) el('ndLoaiDaCoSo').style.display=_tabDuoc('duan')?'':'none';
+    if(el('ndLoaiDuAn'))   el('ndLoaiDuAn').style.display  =_tabDuoc('duan')?'':'none';
+    if(el('ndLoaiCoSo'))   el('ndLoaiCoSo').style.display  =_tabDuoc('don')?'':'none';
     el('ndLoaiBox').style.display=hoi?'':'none';
     el('ndCoSoBox').style.display=hoi?'none':'';
     if(el('ndBtnTao')) el('ndBtnTao').style.display=hoi?'none':'';
@@ -3607,9 +3635,6 @@
     var tbd=el('tab-donchi');
     if(tbd) tbd.className='btn '+((p==='don'||p==='duan')?'b-p':'b-x');
     if(p==='don'||p==='duan'){ DONCHI_MODE=p; try{ localStorage.setItem('vhcp_donchi',p); }catch(e){} }
-    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw]'),function(b){
-      b.className='btn '+((b.getAttribute('data-dcsw')===p)?'b-p':'b-x');
-    });
     /* Dải nhắc bộ phận nằm NGOÀI mọi trang con nên phải vẽ lại theo mỗi lượt đổi tab: số đơn
        "chưa rõ bộ phận" trên đó đếm từ BOOT, mà BOOT được nạp lại ở nhiều nhịp khác nhau. */
     try{ renderBpBanner(); }catch(e){}
@@ -4136,7 +4161,16 @@
   function daMoTao(){
     if(el('daTaoNut')) el('daTaoNut').style.display='none';
     if(el('daTaoBox')) el('daTaoBox').style.display='block';
+    /* Lối sang đơn tuần chỉ bày cho người vào được tab ấy. */
+    if(el('daNhomTuan')) el('daNhomTuan').style.display=_tabDuoc('don')?'':'none';
     daChonNhom('');   // mở ra là trắng, chưa chọn gì
+  }
+  /* Chọn "Đơn tuần của cơ sở" ở khối tạo của tab Kỹ thuật -> sang tab đơn rồi mở thẳng hộp
+     tạo đơn tuần. Không để người dùng tự đi tìm nút bên kia: đi tìm là lại lộn. */
+  function daSangDonTuan(){
+    daDongTao();
+    showPage('don');
+    setTimeout(function(){ try{ newDon(); }catch(e){} },140);
   }
   function daDongTao(){
     if(el('daTaoBox')) el('daTaoBox').style.display='none';
@@ -4385,6 +4419,13 @@
         cái bị quên đúng là nút Xoá, và nó hiện trên thứ không xoá nổi.
      🔴 SỔ CHUNG ≠ ĐƠN CƠ SỞ. Chỉ sổ chung xuyên suốt mới bất động; đơn cơ sở theo đợt đóng /
         mở lại / xoá / đổi tên như mọi dự án. Cờ `cosoChung` lấy TỪ MÁY CHỦ. */
+  /* CHỮ TRÊN MÀN PHẢI GỌI ĐÚNG THỨ ĐANG MỞ.
+     🔴 Anh Thắng 11/09/2026: *"Chọn chi phí tuần, mà hiện bảng chi phí dự án"*. Đơn chi phí cơ
+        sở mở ra mà mọi nhãn đều là "dự án" — "Đóng dự án", "Xoá dự án", "Dự phòng cả dự án",
+        "Lịch sử dự án", khoảng ngày ghi "Setup" — thì người dùng đọc màn và tin rằng mình đang
+        đứng ở đơn dự án. Bộ máy bên dưới dùng chung là đúng; chữ thì không được dùng chung. */
+  function _daTuDon(r){ return (r&&r.isCoSo)?'đơn':'dự án'; }
+  function _daTuDonHoa(r){ return (r&&r.isCoSo)?'Đơn':'Dự án'; }
   function daNutQuyTrinh(r, isAdmin){
     var chung=!!(r&&r.cosoChung), dong=!!(r&&r.closed);
     return {
@@ -4572,7 +4613,7 @@
       || !!(r.editable||r.thiCong) || !!r.isCoSo;
     el('daSummary').innerHTML=
       '<div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:10px 12px;min-width:230px">'
-        +'<div style="font-size:11.5px;color:#6b21a8;font-weight:700">🧰 Dự phòng cả dự án</div>'
+        +'<div style="font-size:11.5px;color:#6b21a8;font-weight:700">🧰 Dự phòng cả '+_daTuDon(r)+'</div>'
         /* Ô tiền có dấu chấm hàng nghìn — anh Thắng 10/09/2026: *"thêm dấu chấm tự động nhìn
            cho đẹp"*. Dùng lại đúng cặp `tienVao`/`tienRa` của ô tiền trong đơn: bấm vào thì
            về số trần cho dễ sửa, rời ra thì chấm lại. `type=number` KHÔNG chấm được — trình
@@ -4586,7 +4627,7 @@
         /* THỜI GIAN SETUP — *"Bổ sung thêm thời gian setup (Từ ngày đến ngày)"*. Đúng nguyên
            lý "đơn theo thời gian, không theo tuần" của mảng Kỹ thuật. */
         +'<div style="display:flex;gap:4px;align-items:center;margin:2px 0 4px;font-size:11px;color:#6b21a8">'
-        +'<span>Setup</span>'
+        +'<span>'+(r.isCoSo?'Tuần':'Setup')+'</span>'
         +'<input id="daKyTu" type="date" value="'+esc((r.kyDA||{}).tu||'')+'"'+(dpSua?'':' disabled')+' style="font-size:11px;padding:2px 4px">'
         +'<span>→</span>'
         +'<input id="daKyDen" type="date" value="'+esc((r.kyDA||{}).den||'')+'"'+(dpSua?'':' disabled')+' style="font-size:11px;padding:2px 4px">'
@@ -4632,6 +4673,9 @@
     if(el('daGianBox')) el('daGianBox').style.display=isCoSo?'':'none';
     if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
     var _nq=daNutQuyTrinh(r, isAdmin);
+    var _tuD=_daTuDon(r);
+    if(el('daCloseBtn'))  el('daCloseBtn').textContent ='🔒 Đóng '+_tuD;
+    if(el('daDeleteBtn')) el('daDeleteBtn').textContent='🗑 Xoá '+_tuD;
     el('daRenameBtn').style.display=_nq.doiTen?'inline-block':'none';
     // Dự án chi trực tiếp -> không còn Gửi duyệt / Duyệt / Trả lại
     if(el('daSubmitBtn'))  el('daSubmitBtn').style.display='none';
@@ -5497,8 +5541,8 @@
       +(khoa.length?('<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">'
         +khoa.map(function(x){ return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2">'+x+'</span>'; }).join('')
         +'</div>'):'')
-      +'<div style="margin-top:4px;font-size:11px;color:#94a3b8">'+tong+' hạng mục lớn · '
-      +'hạng mục đã chốt thì không sửa / xoá dòng được nữa — kế toán bấm 🔓 Mở lại thì mới đụng được.</div>';
+      +'<div style="margin-top:4px;font-size:11px;color:#94a3b8">'+tong+(r.isCoSo?' khoản chi · khoản':' hạng mục lớn · hạng mục')
+      +' đã chốt thì không sửa / xoá dòng được nữa — kế toán bấm 🔓 Mở lại thì mới đụng được.</div>';
   }
   /* Hạng mục này nằm trong một lệnh quyết toán ĐÃ CHỐT SỔ chưa. */
   function _daQtDaChot(r, dot){
@@ -5522,7 +5566,7 @@
       var it=(r&&r.items)||[];
       if(!it.length){
         box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
-          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử dự án</b> — chưa có ai chỉnh gì.</div>';
+          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử '+_daTuDon(DA_CUR)+'</b> — chưa có ai chỉnh gì.</div>';
         return;
       }
       var hien=it.slice(0,3), con=it.length-hien.length;
@@ -5535,7 +5579,7 @@
           +(x.chiTiet?(' — '+esc(x.chiTiet)):'')+'</div></div>';
       }
       box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;min-width:280px">'
-        +'<div style="font-size:11.5px;font-weight:700;color:#334155">🕘 Lịch sử dự án ('+it.length+')</div>'
+        +'<div style="font-size:11.5px;font-weight:700;color:#334155">🕘 Lịch sử '+_daTuDon(DA_CUR)+' ('+it.length+')</div>'
         +hien.map(dong).join('')
         +(con>0?('<details style="margin-top:4px"><summary style="font-size:11px;color:#64748b;cursor:pointer">xem '+con+' dòng cũ hơn</summary>'
           +it.slice(3).map(dong).join('')+'</details>'):'')
