@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.42.0
+ * Version:           1.43.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -525,6 +525,8 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ql/dm-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_ds' ) ) );
 		register_rest_route( self::NS, '/ql/dm-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_luu' ) ) );
 		register_rest_route( self::NS, '/ql/dm-xoa', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dm_xoa' ) ) );
+		register_rest_route( self::NS, '/ql/tk-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_tk_ds' ) ) );
+		register_rest_route( self::NS, '/ql/tk-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_tk_luu' ) ) );
 		register_rest_route( self::NS, '/ql/hang-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_ds' ) ) );
 		register_rest_route( self::NS, '/ql/hang-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_hang_luu' ) ) );
 		register_rest_route( self::NS, '/ql/khach', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_khach' ) ) );
@@ -1214,6 +1216,45 @@ class POSH_Ve {
 		self::luu_dm( $moi );
 		$m = self::ds_nhom_anh(); if ( isset( $m[ $ten ] ) ) { unset( $m[ $ten ] ); update_option( 'pve_nhom_anh', $m ); }
 		return array( 'ok' => true, 'ds' => self::ds_dm() );
+	}
+
+	/* Tài khoản nhận tiền — anh Thắng 11/09/2026: "bổ sung cấu hình tài khoản nhận tiền" ngay
+	   trong màn marketing, khỏi phải nhờ người có quyền wp-admin. */
+	public static function r_ql_tk_ds( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$b = self::bank();
+		/* Nói rõ số đang dùng là của CHÍNH plugin vé hay đang mượn của plugin Ghế: người sửa cần
+		   biết mình đang sửa cái gì, không thì gõ vào đây mà tưởng đang đổi cho cả hai bên. */
+		$rieng = '' !== trim( (string) get_option( 'pve_so_tk', '' ) );
+		return array( 'ok' => true, 'bin' => $b['bin'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'],
+			'ten_nh' => $b['ten_nh'], 'rieng' => $rieng ? 1 : 0, 'nh' => self::NGAN_HANG );
+	}
+
+	public static function r_ql_tk_luu( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$bin = preg_replace( '/\D+/', '', (string) $req->get_param( 'bin' ) );
+		$tk  = preg_replace( '/[^0-9A-Za-z]/', '', (string) $req->get_param( 'so_tk' ) );
+		$ten = trim( sanitize_text_field( (string) $req->get_param( 'ten_tk' ) ) );
+		/* 🔴 Sai số tài khoản thì mã QR vẫn in ra bình thường, khách vẫn quét được, tiền mới đi
+		   sai chỗ — hỏng ở đây không có dấu hiệu nào cho tới khi có người mất tiền. Nên chặn ngay
+		   mấy lỗi thấy được: BIN phải nằm trong danh sách ngân hàng, số TK đủ dài, tên chủ TK
+		   viết HOA không dấu (app ngân hàng đối chiếu tên, có dấu là báo sai). */
+		if ( '' !== $bin && ! isset( self::NGAN_HANG[ $bin ] ) ) {
+			return new WP_Error( 'bin', 'Mã ngân hàng (BIN) không có trong danh sách.', array( 'status' => 400 ) );
+		}
+		if ( '' !== $tk && strlen( $tk ) < 6 ) {
+			return new WP_Error( 'tk', 'Số tài khoản trông quá ngắn — soi lại kẻo tiền về nhầm chỗ.', array( 'status' => 400 ) );
+		}
+		/* mb_strtoupper chứ không strtoupper: nếu remove_accents() bỏ sót một chữ tiếng Việt thì
+		   strtoupper (tính theo byte) để nguyên chữ thường, tên gửi sang ngân hàng lệch một ký
+		   tự — đúng loại lỗi chỉ lộ ra lúc khách chuyển tiền. */
+		$ten = mb_strtoupper( remove_accents( $ten ), 'UTF-8' );
+		update_option( 'pve_bin', $bin );
+		update_option( 'pve_so_tk', $tk );
+		update_option( 'pve_ten_tk', $ten );
+		$b = self::bank();
+		return array( 'ok' => true, 'bin' => $b['bin'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'],
+			'ten_nh' => $b['ten_nh'], 'rieng' => 1 );
 	}
 
 	public static function r_ql_dangnhap( $req ) {
@@ -2337,6 +2378,8 @@ class POSH_Ve {
 					<div class="pql-side-g">Loyalty</div>
 					<button class="pql-tab" data-tab="uu">🎁 Ưu đãi</button>
 					<button class="pql-tab" data-tab="hang">🏅 Hạng thành viên</button>
+					<div class="pql-side-g">Cấu hình</div>
+					<button class="pql-tab" data-tab="tk">🏦 Tài khoản nhận tiền</button>
 				</aside>
 				<div class="pql-main">
 
@@ -2402,6 +2445,25 @@ class POSH_Ve {
 						<div class="pql-dmmsg"></div>
 					</div>
 				</div><!-- /pane dm -->
+
+				<div class="pql-pane" data-pane="tk" hidden>
+					<div class="pql-bar"><b>Tài khoản nhận tiền</b></div>
+					<p style="color:var(--mut);font-size:12px;margin:0 0 12px">
+						Số tài khoản này đi thẳng vào <b>mã QR trên thiệp vé</b> của khách.
+						Gõ sai thì mã QR vẫn in ra bình thường, khách vẫn quét được — <b>tiền mới đi sai chỗ</b>.
+						Sửa xong hãy <b>chuyển thử 1.000đ</b> bằng app ngân hàng thật trước khi mở bán.
+					</p>
+					<div class="pql-tkmuon" style="display:none"></div>
+					<div class="pql-2">
+						<div><label>Ngân hàng *</label><select class="t-bin"><option value="">— Chọn ngân hàng —</option></select></div>
+						<div><label>Số tài khoản *</label><input class="t-tk" inputmode="numeric" placeholder="VD 8888815678"></div>
+					</div>
+					<label>Chủ tài khoản *</label>
+					<input class="t-ten" placeholder="VD NGUYEN VAN A">
+					<p style="color:var(--mut);font-size:12px;margin:6px 0 0">Viết <b>HOA, không dấu</b> — app ngân hàng đối chiếu tên, có dấu là báo sai. Lưu xong hệ thống tự viết hoa bỏ dấu giúp.</p>
+					<div class="pql-acts"><button class="pql-tk-luu">Lưu tài khoản</button></div>
+					<div class="pql-tkmsg"></div>
+				</div><!-- /pane tk -->
 
 				<div class="pql-pane" data-pane="bc">
 					<div class="pql-bcf">
@@ -2511,6 +2573,15 @@ class POSH_Ve {
 		.pql input:focus,.pql textarea:focus{ outline:none; border-color:var(--g); }
 		.pql-dn,.pql-luu,.pql-them{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
 		.pql-dn{ width:100%; margin-top:12px; }
+		/* Tiêu đề phân loại trong danh sách vé */
+		.pql-gh{ display:flex; align-items:center; gap:10px; margin:18px 0 8px; padding-bottom:6px;
+			border-bottom:1px solid var(--bd); }
+		.pql-gh:first-child{ margin-top:4px; }
+		.pql-gh img{ width:28px; height:28px; border-radius:7px; object-fit:cover; }
+		.pql-gh .noimg{ width:28px; height:28px; border-radius:7px; background:var(--sf2); display:flex;
+			align-items:center; justify-content:center; font-size:15px; }
+		.pql-gh b{ color:var(--tx); font-size:15px; }
+		.pql-gh span{ color:var(--mut); font-size:12px; }
 		.pql-ok{ color:#86efac; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35);
 			border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; line-height:1.5; }
 		.pql-err-chi{ margin-top:6px; font-size:12px; opacity:.9; word-break:break-all; }
@@ -2661,7 +2732,7 @@ class POSH_Ve {
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-tab'),function(x){x.classList.remove('on');}); t.classList.add('on');
 		      var name=t.getAttribute('data-tab');
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-pane'),function(p){ p.hidden = p.getAttribute('data-pane')!==name; });
-		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
+		      if(name==='ve') napDs(); if(name==='dm') napDm(); if(name==='tk') napTk(); if(name==='bc') napBaoCao(); if(name==='don') napDon(); if(name==='uu') napUu(); if(name==='hang') napHang(); if(name==='kh') napKhach();
 		    });
 		  });
 
@@ -2743,6 +2814,40 @@ class POSH_Ve {
 
 		  // ── Ưu đãi ──
 		  var uuHangLoaded=false;
+		  /* ═══ TÀI KHOẢN NHẬN TIỀN ═══════════════════════════════════════════════════════ */
+		  var TK_NH_DA = false;
+		  function napTk(){
+		    $('.pql-tkmsg').textContent='';
+		    get('/ql/tk-ds').then(function(d){
+		      if(!TK_NH_DA){
+		        var sel=$('.t-bin'), nh=d.nh||{};
+		        Object.keys(nh).forEach(function(bin){ var o=document.createElement('option'); o.value=bin; o.textContent=nh[bin]+' — '+bin; sel.appendChild(o); });
+		        TK_NH_DA=true;
+		      }
+		      $('.t-bin').value=d.bin||''; $('.t-tk').value=d.so_tk||''; $('.t-ten').value=d.ten_tk||'';
+		      /* Chưa khai riêng = đang MƯỢN tài khoản của plugin Ghế. Nói ra, không thì người ta
+		         thấy ô có sẵn số rồi tưởng đã cấu hình xong cho vé. */
+		      var m=$('.pql-tkmuon');
+		      if(!d.rieng && d.so_tk){
+		        m.style.display=''; m.className='pql-err';
+		        m.innerHTML='⚠️ Vé đang <b>mượn tài khoản của plugin Ghế Massage</b>. Bấm <b>Lưu tài khoản</b> để chốt riêng cho vé — về sau bên Ghế đổi số thì vé không đổi theo.';
+		      } else if(!d.so_tk){
+		        m.style.display=''; m.className='pql-err';
+		        m.innerHTML='⚠️ <b>Chưa có tài khoản nhận tiền</b> — khách đặt vé sẽ báo lỗi, không tạo được mã QR.';
+		      } else { m.style.display='none'; }
+		    }).catch(function(e){ $('.pql-tkmsg').style.color='#f0a0a0'; $('.pql-tkmsg').textContent=String(e.message||e); });
+		  }
+		  $('.pql-tk-luu').addEventListener('click',function(){
+		    var bin=$('.t-bin').value, tk=$('.t-tk').value.trim(), ten=$('.t-ten').value.trim();
+		    if(!bin||!tk||!ten){ $('.pql-tkmsg').style.color='#f0a0a0'; $('.pql-tkmsg').textContent='Điền đủ ngân hàng, số tài khoản và chủ tài khoản.'; return; }
+		    $('.pql-tkmsg').style.color='#9b978c'; $('.pql-tkmsg').textContent='Đang lưu…';
+		    post('/ql/tk-luu',{bin:bin,so_tk:tk,ten_tk:ten}).then(function(d){
+		      $('.t-ten').value=d.ten_tk||ten; $('.pql-tkmuon').style.display='none';
+		      $('.pql-tkmsg').style.color='#86efac';
+		      $('.pql-tkmsg').textContent='Đã lưu: '+(d.ten_nh||'')+' · '+d.so_tk+' · '+d.ten_tk+'. Nhớ chuyển thử 1.000đ trước khi mở bán.';
+		    }).catch(function(e){ $('.pql-tkmsg').style.color='#f0a0a0'; $('.pql-tkmsg').textContent=String(e.message||e); });
+		  });
+
 		  /* ═══ PHÂN LOẠI VÉ ═══════════════════════════════════════════════════════════════
 		     Danh tính của danh mục là CÁI TÊN (vé lưu tên nhóm dưới dạng chữ), nên màn sửa phải
 		     gửi kèm tên cũ để máy chủ đổi luôn mọi vé đang mang tên đó. Gửi thiếu tên cũ thì
@@ -2906,12 +3011,33 @@ class POSH_Ve {
 		  });
 
 		  // Danh sách vé
+		  /* Danh sách vé XẾP THEO PHÂN LOẠI — anh Thắng 11/09/2026: "vé cũng tách ra theo phân loại".
+		     Một danh sách phẳng thì mở ra là phải đọc hết mới biết Combo có mấy vé; xếp theo phân
+		     loại thì thấy ngay đúng cái khách cũng thấy trên dải chọn.
+		     ⚠️ Thứ tự nhóm lấy từ /ql/dm-ds — CÙNG một thứ tự với dải bên trang khách. Xếp kiểu
+		        khác ở đây là marketing sửa theo màn này rồi ra trang khách thấy một trật tự lạ. */
 		  function napDs(){
 		    $('.pql-list').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
-		    get('/ql/ve-ds').then(function(d){
-		      var ds=d.ds||[];
-		      $('.pql-list').innerHTML = ds.length ? ds.map(row).join('') : '<p style="color:#9b978c">Chưa có vé nào. Bấm “+ Tạo vé mới”.</p>';
-		    }).catch(function(e){ $('.pql-list').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		    Promise.all([ get('/ql/ve-ds'), get('/ql/dm-ds').catch(function(){ return { ds: [] }; }) ])
+		      .then(function(r){
+		        var ds = r[0].ds || [], dm = (r[1] && r[1].ds) || [];
+		        if (!ds.length){ $('.pql-list').innerHTML='<p style="color:#9b978c">Chưa có vé nào. Bấm “+ Tạo vé mới”.</p>'; return; }
+		        var gom = {}, thutu = [];
+		        dm.forEach(function(d){ gom[d.ten] = { anh:d.anh, ve:[] }; thutu.push(d.ten); });
+		        ds.forEach(function(v){
+		          var k = (v.nhom||'').trim() || 'Vé';
+		          if (!gom[k]) { gom[k] = { anh:'', ve:[] }; thutu.push(k); }   // vé mang tên nhóm chưa khai
+		          gom[k].ve.push(v);
+		        });
+		        var h = '';
+		        thutu.forEach(function(k){
+		          var g = gom[k]; if (!g.ve.length) return;   // phân loại rỗng: quản ở màn Phân loại, không bày ở đây
+		          var anh = g.anh ? '<img src="'+esc(g.anh)+'" alt="">' : '<span class="noimg">🗂️</span>';
+		          h += '<div class="pql-gh">'+anh+'<b>'+esc(k)+'</b><span>'+g.ve.length+' vé</span></div>'
+		             + g.ve.map(row).join('');
+		        });
+		        $('.pql-list').innerHTML = h;
+		      }).catch(function(e){ $('.pql-list').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
 		  function row(v){
 		    var img = v.anh ? '<img src="'+esc(v.anh)+'" alt="">' : '<span class="noimg">🎟️</span>';
@@ -2919,7 +3045,9 @@ class POSH_Ve {
 		    var sl  = (v.so_luong<0) ? '∞' : (v.so_luong>0 ? v.so_luong+' vé' : 'Hết');
 		    var tag = v.hien ? '<span class="pql-tag on">Đang bán</span>' : '<span class="pql-tag off">Ẩn</span>';
 		    return '<div class="pql-row">'+img+'<div class="pql-row-mid"><div class="pql-row-ten">'+esc(v.ten)+tag+'</div>'
-		      +'<div class="pql-row-sub"><span class="pql-row-gia">'+VND(v.gia)+'</span>'+goc+' · '+esc(v.nhom||'—')+(v.khu_vuc?' · 📍'+esc(v.khu_vuc):'')+' · Còn '+sl+'</div></div>'
+		      /* Không in lại tên phân loại ở đây: tiêu đề nhóm ngay phía trên đã nói rồi, nhắc
+		         lại từng dòng chỉ làm loãng chỗ đáng đọc (giá, khu, số vé còn). */
+		      +'<div class="pql-row-sub"><span class="pql-row-gia">'+VND(v.gia)+'</span>'+goc+(v.khu_vuc?' · 📍'+esc(v.khu_vuc):'')+' · Còn '+sl+'</div></div>'
 		      +'<div class="pql-row-btn"><button data-sua=\''+esc(JSON.stringify(v))+'\'>Sửa</button><button class="del" data-xoa="'+v.id+'" data-ten="'+esc(v.ten)+'">Xoá</button></div></div>';
 		  }
 
