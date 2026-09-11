@@ -149,6 +149,48 @@ không gom lại được nữa. Có bài kiểm chạy **thật cả hai** rồ
 
 ---
 
+## Đơn chi phí cơ sở — một đơn nhiều gian
+
+Anh Thắng 11/09/2026: *"tiếp tới chi phí kỹ thuật cơ sở, sẽ giống kiểu chi phí bên POSH, 1 đơn
+nhiều cơ sở chung 1 đơn"*.
+
+Trước bản 1.124.0, chi phí cơ sở của Kỹ thuật là **một sổ chung xuyên suốt**: mọi gian, mọi tháng,
+mọi khoản dồn vào một chỗ. Chỗ ấy không đóng được, nên cũng không xin tạm ứng hay quyết toán theo
+đợt được — đúng thứ vừa dựng xong cho đơn dự án.
+
+Nay ở tab **🏗 Dự án · gian thi công** có khối xanh **"🏢 Đơn chi phí cơ sở — đợt mới"**: gõ tên
+đợt (`Chi phí cơ sở T9-2026`) rồi bấm **➕ Lập đơn chi phí cơ sở**. Mỗi đợt là **một đơn**, trong
+đơn ấy **mỗi dòng ghi gian của nó** ở ô *Gian / cơ sở* — một đơn gom nhiều gian, đúng như đơn bên
+POSH. Từ đó đơn đi trọn luồng đã mô tả ở trên: tích hạng mục → xin tạm ứng → kế toán duyệt & cấp
+tiền → gửi quyết toán → kế toán chốt sổ → đóng đơn.
+
+Trang đơn có thêm bảng **🏢 Chi phí theo từng cơ sở**: mỗi gian một dòng, kèm dự toán · thực tế ·
+chênh lệch, và dòng tổng.
+
+🔴 **Sổ chung cũ vẫn còn nguyên** — nút **🔧 Mở sổ chung (cũ)**. Dữ liệu trong đó đã xuất MISA;
+đóng hay xoá nó là khoá mất lối vào của những dòng ấy. Nó là thứ duy nhất **không đổi tên, không
+gửi duyệt, không đóng, không xoá**.
+
+🔴 **Phân biệt bằng một vết ghim, không bằng loại.** Cả hai cùng loại `Chi phí cơ sở` — loại là
+thứ quyết mã tài khoản và bộ lọc xuất MISA, đổi loại của đơn mới là đổi luôn cách hạch toán mọi
+dòng trong nó. Sổ chung là đơn được ghim ở khoá `da_coso_chung`, và khi chưa có vết ghim thì luật
+tra ngã về **dự án loại `Chi phí cơ sở` cũ nhất** — đúng thứ bản cũ vẫn chọn, nên cài bản mới lên
+sổ đang chạy không đổi chủ sổ chung.
+
+🔴 **Sổ chưa từng có sổ chung thì ghim vết trống `-`.** Không có vết ấy thì đơn theo đợt *đầu
+tiên* lại chính là dự án `Chi phí cơ sở` cũ nhất, và lần tra sau ghim nhầm nó làm sổ chung: đơn
+của nhân viên lặng lẽ bất động, không đóng được, không báo gì.
+
+🔴 **Mục con thừa hưởng gian của hạng mục cha.** Nhân viên gõ gian ở hạng mục lớn rồi thôi; không
+thừa hưởng thì tiền thật rơi hết vào rổ *"chưa ghi gian"* — đúng chỗ nó nằm trong sổ, sai chỗ
+người ta đi tìm.
+
+🔴 **Tổng các gian phải bằng tổng đơn.** Hạng mục có mục con thì tiền nằm ở **con**; gom theo gian
+mà cộng cả cha lẫn con là gian nào cũng phình lên. Bảng theo gian lấy số **từ máy chủ**, không
+cộng lại ở màn — cộng lại là khai luật ấy lần thứ hai, và lần thứ hai bao giờ cũng lệch.
+
+---
+
 ## Đính chứng từ
 
 Cột **Ảnh** và **Hồ sơ** có nút 📎 ngay trên từng dòng — chọn tệp là xong, khỏi mở form sửa. Rê
@@ -195,5 +237,7 @@ kiểm sai.
 | `kiem-dat-khoang-ky-man.js` | đặt lại khoảng ngày (màn) |
 | `kiem-khuon-ky-hai-noi.js` | chuỗi kỳ dựng ở hai nơi phải ra cùng kết quả |
 | `kiem-gop-hang-muc.js` | dời mục con sang hạng mục lớn khác |
+| `kiem-don-coso-nhieu-gian.php` | đơn chi phí cơ sở: sổ chung vs đơn theo đợt, gom theo gian |
+| `kiem-don-coso-man.js` | màn đơn cơ sở: bốn nút quy trình, bảng theo từng gian |
 
 Chạy PHP **theo lô** (~12 tệp một lượt) — chạy hết một lần làm tiến trình hết bộ nhớ.

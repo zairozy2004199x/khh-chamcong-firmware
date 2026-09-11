@@ -538,10 +538,19 @@
       <div class="ch"><h2>🔧 Chi phí Kỹ thuật</h2>
         <button class="btn b-x" onclick="loadDuAn()">↻ Tải lại</button></div>
       <div class="cb" style="padding:12px 14px">
-        <div style="font-size:12px;color:#64748b;margin-bottom:8px">Chọn danh mục lớn: <b>Chi phí cơ sở</b> (chung, xuyên suốt — 1 danh mục) · <b>Setup</b> / <b>Tháo dỡ</b> (mỗi lần một dự án riêng).</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px">Chọn danh mục lớn: <b>Chi phí cơ sở</b> (mỗi đợt một đơn, một đơn gom nhiều gian) · <b>Setup</b> / <b>Tháo dỡ</b> (mỗi lần một dự án riêng).</div>
+        <!-- 🔴 MỘT ĐỢT LÀ MỘT ĐƠN, MỘT ĐƠN NHIỀU CƠ SỞ — anh Thắng 11/09/2026: *"tiếp tới chi
+             phí kỹ thuật cơ sở, sẽ giống kiểu chi phí bên POSH, 1 đơn nhiều cơ sở chung 1 đơn"*.
+             Sổ CHUNG cũ vẫn còn nguyên (dữ liệu đã nằm đó, đã xuất MISA) — nhưng nó xuyên suốt
+             nên không chốt được, không xin tạm ứng / quyết toán theo đợt được. Đơn theo đợt thì
+             đi trọn luồng giống hệt đơn dự án. -->
+        <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;padding:9px 11px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;margin-bottom:10px">
+          <div class="fld"><label>🏢 Đơn chi phí cơ sở — đợt mới</label><input id="daCsTen" placeholder="VD: Chi phí cơ sở T9-2026" style="min-width:270px"></div>
+          <button class="btn b-p" onclick="createDonCoSoUI()">➕ Lập đơn chi phí cơ sở</button>
+          <span style="font-size:11px;color:#15803d;flex:1;min-width:230px"><b>Một đơn gom nhiều gian</b> — mỗi dòng chọn gian của nó ở ô "Gian / cơ sở". Xin tạm ứng, quyết toán, đóng đơn y như đơn dự án.</span>
+          <button class="btn b-x" onclick="openCoSoChung()" title="Sổ chi phí cơ sở chung xuyên suốt của bản cũ — vẫn xem và nhập được, nhưng không đóng / không quyết toán theo đợt">🔧 Mở sổ chung (cũ)</button>
+        </div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-          <button class="btn b-g" onclick="openCoSoChung()">🔧 Mở Chi phí cơ sở (chung)</button>
-          <span style="color:#cbd5e1">|</span>
           <div class="fld"><label>Tạo mới (Setup / Tháo dỡ)</label>
             <select id="daLoai" onchange="daOnLoai()" style="min-width:230px"><option value="Setup lắp đặt">Chi phí Setup lắp đặt gian hàng</option><option value="Tháo dỡ">Chi phí Tháo dỡ</option></select></div>
           <div class="fld"><label id="daTenLbl">Tên gian hàng mới (Setup)</label><input id="daTen" list="dl_coso_da" placeholder="Gõ tên gian hàng mới" style="min-width:280px"><datalist id="dl_coso_da"></datalist></div>
@@ -585,6 +594,10 @@
       </div>
       <div id="daSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div id="daPayPanel" style="display:none;gap:12px;flex-wrap:wrap;padding:0 14px 12px"></div>
+      <!-- 🔴 MỘT ĐƠN NHIỀU CƠ SỞ -> PHẢI THẤY TỪNG CƠ SỞ. Tổng cả đơn thì đã có ở trên; thứ
+           kế toán không có là "gian nào bao nhiêu" — mà chính con số ấy đi vào mã tài khoản
+           theo mảng, và cũng là thứ quản lý gian hỏi lại khi nhận báo cáo. -->
+      <div id="daTheoCoSoBox" style="display:none;padding:0 14px 12px"></div>
       <div id="daSoChiBox" style="display:none;padding:0 14px 14px">
         <div style="font-weight:800;color:#6b21a8;margin-bottom:6px">💵 Dòng chi từ sổ chi phí <span style="font-weight:400;font-size:11px;color:#64748b">— các dòng mang mã dự án này; sửa ở tab 💵 Sổ chi phí</span></div>
         <div class="tw"><table style="min-width:820px"><thead><tr><th style="width:90px">Ngày</th><th>Nội dung</th><th style="width:150px">Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:150px">Hạng mục lớn</th><th style="text-align:right;width:130px">Dự toán</th><th style="text-align:right;width:130px">Thực chi</th></tr></thead><tbody id="daSoChiBody"></tbody></table></div>
@@ -4128,9 +4141,13 @@
       var chenh=Number(x.chenh)||0;
       var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155');
       var chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp');
-      var canDel=(x.loai!=='Chi phí cơ sở') && (x.trangThai==='Đang làm' || isAdmin) && x.trangThai!=='Đã đóng';   // xóa nháp; Admin/QL xóa cả chờ duyệt/đã duyệt
+      /* Chỉ SỔ CHUNG mới không xoá được; đơn chi phí cơ sở theo đợt xoá như mọi dự án. */
+      var canDel=(!x.cosoChung) && (x.trangThai==='Đang làm' || isAdmin) && x.trangThai!=='Đã đóng';   // xóa nháp; Admin/QL xóa cả chờ duyệt/đã duyệt
       var del=canDel?' <button class="btn b-d" onclick="delDuAnUI(\''+esc(x.maDA)+'\',\''+esc(x.ten).replace(/'/g,"\\'")+'\')" title="Xóa dự án">🗑</button>':'';
-      return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.loai)+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td>'+daBadge(x.trangThai)+'</td>'+
+      /* Một đơn cơ sở rải qua mấy gian — nói ngay ở cột Loại, khỏi phải mở đơn ra đếm. */
+      var loaiTxt=esc(x.loai)+(x.cosoChung?' <span style="font-size:10px;color:#64748b">· sổ chung</span>'
+        :((Number(x.soCoSo)||0)>0?' <span style="font-size:10px;color:#15803d">· '+(Number(x.soCoSo)||0)+' gian</span>':''));
+      return '<tr><td>'+esc(x.ten)+'</td><td>'+loaiTxt+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td>'+daBadge(x.trangThai)+'</td>'+
         '<td style="text-align:center;white-space:nowrap"><button class="btn b-p" onclick="openDuAn(\''+esc(x.maDA)+'\')">Mở</button>'+del+'</td></tr>';
     }).join('');
     /* Danh sách vừa dài thêm một dòng -> khối chi tiết trôi xuống. Kéo lại cho đúng, và chỉ
@@ -4169,7 +4186,27 @@
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn(loai, ten, (CURUSER&&CURUSER.name)||'');
   }
-  function openCoSoChung(){ loading(true);   // Chi phí cơ sở = một mục chung xuyên suốt (tạo nếu chưa có)
+  /* Lập MỘT đơn chi phí cơ sở cho một đợt. Hỏi lại khi trùng tên y như createDuAnUI — cùng
+     một cách hỏng: bấm hai lần vì không thấy gì xảy ra, rồi không ai dám xoá dòng nào. */
+  function createDonCoSoUI(){
+    var o=el('daCsTen'), ten=String((o&&o.value)||'').trim();
+    if(!ten){ toast('warn','Nhập tên đợt, VD "Chi phí cơ sở T9-2026"'); return; }
+    var trung=(DA_ITEMS||[]).filter(function(x){
+      return String(x.loai||'')==='Chi phí cơ sở' && !x.cosoChung
+        && String(x.ten||'').trim().toLowerCase()===ten.toLowerCase() && x.trangThai!=='Đã đóng';
+    });
+    if(trung.length && !confirm('Đã có '+trung.length+' đơn chi phí cơ sở "'+ten+'" đang mở.\n\n'
+        +'Bấm OK nếu đây thật sự là một ĐỢT KHÁC.\n'
+        +'Bấm Cancel rồi bấm "Mở" ở dòng có sẵn nếu chỉ muốn nhập tiếp vào đơn cũ.')){ return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ _log('Lập đơn chi phí cơ sở', r.ten||ten, '');
+        toast('ok','Đã lập đơn — nhập chi phí từng gian ngay bên dưới');
+        if(o) o.value=''; loadDuAn(); openDuAn(r.maDA, true);
+      } else toast('err',(r&&r.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn('Chi phí cơ sở', ten, (CURUSER&&CURUSER.name)||'');
+  }
+  function openCoSoChung(){ loading(true);   // sổ chi phí cơ sở CHUNG xuyên suốt của bản cũ
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.success){ loadDuAn(); openDuAn(r.maDA); } else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn('Chi phí cơ sở','',(CURUSER&&CURUSER.name)||'');
@@ -4225,6 +4262,49 @@
       '<td class="money">'+money(r.tongSoChi||0)+'</td></tr>';
   }
 
+  /* Bốn nút quy trình của trang dự án: ai thấy cái gì.
+     🔴 MỘT NƠI KHAI LUẬT. Bốn nút cùng hỏi đúng hai câu — "có phải SỔ CHUNG không" và "đóng
+        chưa" — nên rải điều kiện ra bốn dòng là sửa ba dòng rồi quên dòng thứ tư; lần trước
+        cái bị quên đúng là nút Xoá, và nó hiện trên thứ không xoá nổi.
+     🔴 SỔ CHUNG ≠ ĐƠN CƠ SỞ. Chỉ sổ chung xuyên suốt mới bất động; đơn cơ sở theo đợt đóng /
+        mở lại / xoá / đổi tên như mọi dự án. Cờ `cosoChung` lấy TỪ MÁY CHỦ. */
+  function daNutQuyTrinh(r, isAdmin){
+    var chung=!!(r&&r.cosoChung), dong=!!(r&&r.closed);
+    return {
+      doiTen: !chung && !dong,
+      dong:   !chung && !dong,
+      moLai:  !chung && dong && !!isAdmin,
+      xoa:    !chung && !dong && !!((r&&r.editable) || isAdmin)
+    };
+  }
+  /* Bảng "chi phí theo từng gian" của một đơn chi phí cơ sở.
+     🔴 SỐ LẤY TỪ MÁY CHỦ (`theoCoSo`), KHÔNG CỘNG LẠI Ở ĐÂY. Cộng lại ở màn là khai lần thứ hai
+        cái luật "hạng mục có mục con thì tiền nằm ở con" — và lần thứ hai bao giờ cũng lệch,
+        rồi tổng các gian không khớp tổng đơn mà không ai biết bên nào sai. */
+  function renderDaTheoCoSo(r){
+    var box=el('daTheoCoSoBox'); if(!box) return;
+    var ds=(r&&r.theoCoSo)||[];
+    if(!r||!r.isCoSo||!ds.length){ box.style.display='none'; box.innerHTML=''; return; }
+    var tDT=0,tTT=0;
+    var body=ds.map(function(x){
+      var dt=Number(x.duToan)||0, tt=Number(x.thucTe)||0; tDT+=dt; tTT+=tt;
+      var ch=tt-dt, c=ch>0?'#b91c1c':(ch<0?'#15803d':'#334155');
+      var ten=String(x.coso||'').trim();
+      return '<tr><td>'+(ten?('🏢 '+esc(ten)):'<span style="color:#b45309">⚠️ chưa ghi gian</span>')+'</td>'
+        +'<td style="text-align:right;color:#64748b">'+(Number(x.soDong)||0)+'</td>'
+        +'<td class="money">'+money(dt)+'</td><td class="money">'+money(tt)+'</td>'
+        +'<td class="money" style="color:'+c+';white-space:nowrap">'+(ch>0?('⚠️ vượt '+money(ch)):(ch<0?('✓ dư '+money(-ch)):'✓ khớp'))+'</td></tr>';
+    }).join('');
+    box.style.display='block';
+    box.innerHTML='<div style="font-weight:800;color:#15803d;margin-bottom:6px">🏢 Chi phí theo từng cơ sở '
+      +'<span style="font-weight:400;font-size:11px;color:#64748b">— một đơn gom nhiều gian; gian của mục con lấy theo hạng mục cha</span></div>'
+      +'<div class="tw"><table style="min-width:620px"><thead><tr><th>Gian / cơ sở</th><th style="text-align:right;width:60px">Dòng</th>'
+      +'<th style="text-align:right;width:140px">Dự toán</th><th style="text-align:right;width:140px">Thực tế</th>'
+      +'<th style="text-align:right;width:150px">Chênh lệch</th></tr></thead><tbody>'+body
+      +'<tr style="font-weight:700;background:#f0fdf4"><td colspan="2">TỔNG '+ds.length+' GIAN</td>'
+      +'<td class="money">'+money(tDT)+'</td><td class="money">'+money(tTT)+'</td><td></td></tr>'
+      +'</tbody></table></div>';
+  }
   function renderDuAnPay(r){
     var box=el('daPayPanel'); if(!box) return;
     if(r.isCoSo || !(r.approved||r.closed)){ box.style.display='none'; box.innerHTML=''; return; }
@@ -4421,6 +4501,10 @@
     if(el('daPayPanel')){ el('daPayPanel').style.display='none'; el('daPayPanel').innerHTML=''; }
     renderDaSoChi(r);
     var isCoSo=r.isCoSo, role=(CURUSER&&CURUSER.role)||'';
+    /* 🔴 "CHI PHÍ CƠ SỞ" NAY LÀ HAI THỨ KHÁC NHAU: sổ CHUNG xuyên suốt của bản cũ (không đóng,
+       không xoá, không đổi tên) và ĐƠN theo đợt (đi trọn luồng như dự án). Cờ lấy TỪ MÁY CHỦ
+       (`la_coso_chung()`), không suy lại ở đây — suy lại là hai nơi khai một luật. */
+    var chungCS=!!r.cosoChung;
     var canApprove=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
     var isAdmin=(role==='Admin'||role==='Quản lý');
     var canEdit=(r.editable||r.thiCong);   // Đang làm (lập dự toán) HOẶC Đã duyệt (thi công: nhập thực tế / thêm mục con & phát sinh)
@@ -4430,21 +4514,25 @@
        Setup / Tháo dỡ thì gian chính là tên dự án, hỏi lại là mời gõ lệch (xem `_daCoso`). */
     if(el('daGianBox')) el('daGianBox').style.display=isCoSo?'':'none';
     if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
-    el('daRenameBtn').style.display=(!isCoSo && !r.closed)?'inline-block':'none';
+    var _nq=daNutQuyTrinh(r, isAdmin);
+    el('daRenameBtn').style.display=_nq.doiTen?'inline-block':'none';
     // Dự án chi trực tiếp -> không còn Gửi duyệt / Duyệt / Trả lại
     if(el('daSubmitBtn'))  el('daSubmitBtn').style.display='none';
     if(el('daApproveBtn')) el('daApproveBtn').style.display='none';
     if(el('daReturnBtn'))  el('daReturnBtn').style.display='none';
-    el('daCloseBtn').style.display=(!isCoSo && !r.closed)?'inline-block':'none';
-    el('daReopenBtn').style.display=(!isCoSo && r.closed && isAdmin)?'inline-block':'none';
-    el('daDeleteBtn').style.display=(!isCoSo && !r.closed && (r.editable || isAdmin))?'inline-block':'none';
+    el('daCloseBtn').style.display=_nq.dong?'inline-block':'none';
+    el('daReopenBtn').style.display=_nq.moLai?'inline-block':'none';
+    el('daDeleteBtn').style.display=_nq.xoa?'inline-block':'none';
     if(el('daGianBtn')) el('daGianBtn').style.display=canApprove?'inline-block':'none';   // báo cáo tổng gian: Admin/Kế toán/Quản lý
     var sb=el('daStatusBar');
-    if(sb){ if(isCoSo){ sb.style.display='none'; }
+    if(sb){ if(chungCS){ sb.style.display='none'; }
       else { var mp=(r.trangThai==='Đã đóng')
                ? ['#f1f5f9','#475569','🔒 Đã đóng — khóa, chỉ xem']
-               : ['#dcfce7','#166534','🔨 Đang thi công — nhập dự toán & chi phí thực tế, thêm mục con & phát sinh. Xong bấm "Đóng dự án". (Dự án chi trực tiếp, không qua bước duyệt tạm ứng.)'];
+               : (isCoSo
+                  ? ['#f0fdf4','#15803d','🏢 Đơn chi phí cơ sở — MỘT đơn gom NHIỀU gian: mỗi dòng ghi gian của nó ở ô "Gian / cơ sở". Xin tạm ứng, quyết toán rồi bấm "Đóng dự án" như đơn dự án.']
+                  : ['#dcfce7','#166534','🔨 Đang thi công — nhập dự toán & chi phí thực tế, thêm mục con & phát sinh. Xong bấm "Đóng dự án". (Dự án chi trực tiếp, không qua bước duyệt tạm ứng.)']);
         sb.style.display='block'; sb.style.background=mp[0]; sb.style.color=mp[1]; sb.textContent=mp[2]; } }
+    renderDaTheoCoSo(r);
     daCancelEditLine();   // mở dự án khác -> thoát chế độ sửa dòng
     // Phân cấp: hạng mục lớn (capCha='') · mục con (capCha=tên cha) · phát sinh (capCha='(Phát sinh)')
     var L=r.lines||[];
