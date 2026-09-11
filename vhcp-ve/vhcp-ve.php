@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.44.2
+ * Version:           1.44.3
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -2055,6 +2055,51 @@ class POSH_Ve {
 					if (o) { o.textContent = 'JS ' + PVE_BAN_JS; }
 				});
 			} catch (e) {}
+			/* ═══ SOI TẠI CHỖ: mở /mua-ve/?soi=1 rồi bấm nút 🩺 góc phải ═════════════════════
+			 * Đã bốn lượt "bấm không ra gì" mà em phải đoán từ xa: lỗi JS? cache? lớp phủ? Cái
+			 * thiếu là TRẠNG THÁI THẬT trong trình duyệt của người đang bấm. Khối này hỏi thẳng
+			 * trình duyệt: ai đang nằm trên nút Đặt vé, có mấy nút, lớp phủ nào đang bật, số bản
+			 * JS là bao nhiêu — rồi in ra một bảng chụp màn hình gửi được.
+			 * Chỉ chạy khi có ?soi=1 nên khách thường không bao giờ thấy.
+			 */
+			try { if ((location.search || '').indexOf('soi=1') >= 0) {
+				var nut = document.createElement('button');
+				nut.textContent = '🩺 Soi trang';
+				nut.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;'
+					+ 'border-radius:10px;border:none;background:#d4af37;color:#1a1204;font-weight:800;cursor:pointer';
+				nut.onclick = function(){
+					var d = [];
+					d.push('JS bản: ' + (typeof PVE_BAN_JS !== 'undefined' ? PVE_BAN_JS : '(không có — TRANG CŨ TRONG CACHE)'));
+					var bs = document.querySelectorAll('.pve-buy');
+					d.push('Số nút "Đặt vé": ' + bs.length);
+					if (bs.length) {
+						var r = bs[0].getBoundingClientRect();
+						bs[0].scrollIntoView({block:'center'});
+						r = bs[0].getBoundingClientRect();
+						var tren = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
+						var mo = tren ? (tren.tagName + (tren.className ? '.' + String(tren.className).split(' ').join('.') : '')) : '(không thấy)';
+						d.push('Thứ NẰM TRÊN nút: ' + mo);
+						d.push('  -> ' + (tren && tren.closest && tren.closest('.pve-buy') ? 'ĐÚNG là nút, bấm phải ăn' : 'CÓ THỨ KHÁC CHE NÚT'));
+					}
+					['.pve-wel', '.pve-mask'].forEach(function(sel){
+						var e = document.querySelector(sel);
+						if (!e) { d.push(sel + ': không có trên trang'); return; }
+						var cs = getComputedStyle(e);
+						d.push(sel + ': display=' + cs.display + ' z=' + cs.zIndex + ' hidden=' + e.hasAttribute('hidden'));
+					});
+					var body = getComputedStyle(document.body);
+					d.push('body: overflow=' + body.overflow + ' pointer-events=' + body.pointerEvents);
+					d.push('Lỗi JS đã nuốt: ' + ((window.__pveLoi && window.__pveLoi.join(' | ')) || '(không có)'));
+					var h = document.createElement('pre');
+					h.style.cssText = 'position:fixed;inset:8px;z-index:2147483647;background:#0b0c10;color:#e8e8ea;'
+						+ 'border:2px solid #d4af37;border-radius:12px;padding:14px;overflow:auto;white-space:pre-wrap;'
+						+ 'font:12px/1.6 ui-monospace,Menlo,monospace';
+					h.textContent = d.join('\n') + '\n\n(bấm vào bảng này để đóng)';
+					h.onclick = function(){ h.remove(); };
+					document.body.appendChild(h);
+				};
+				document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(nut); });
+			} } catch (e) {}
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
 			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
 			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở POSH_Ve::giam_tai_cho()
