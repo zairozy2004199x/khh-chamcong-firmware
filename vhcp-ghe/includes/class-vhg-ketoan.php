@@ -389,6 +389,13 @@ class VHG_KeToan {
 			   một cột lại hành xử khác nhau tuỳ sửa ở màn nào. Cùng một phép dọn cho cả hai. */
 			$note = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $note ) );
 			$note = trim( $note . ( '' !== $note ? ' · ' : '' ) . 'Thực thu ghi đè: ' . number_format( $cash, 0, ',', '.' ) . 'đ' );
+		} elseif ( ! empty( $patch['giu_ghi_de'] ) && false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) ) {
+			/* 🔒 SỬA THẲNG Ô CHỈ SỐ (inline) MÀ GIỮ THỰC THU CŨ — anh Thắng 11/09/2026 "sửa ngay ô".
+			   Ghế đang có "Thực thu ghi đè" (như GO-BL-2 = 50.000) mà kế toán chỉ nắn lại chỉ số
+			   trước/sau ngay trên bảng (không gõ Thực thu mới) thì GIỮ NGUYÊN số thực thu đã khai —
+			   nếu để rơi về công thức (sau−trước)×đơn_vị thì số tiền đúng vừa khai bị xoá mất. Giữ
+			   cash = tien_mat cũ và giữ nguyên ghi chú (đã có sẵn dấu "Thực thu ghi đè: …đ"). */
+			$cash = (int) $d['tien_mat'];
 		}
 		$tong = $cash + $qr;
 
