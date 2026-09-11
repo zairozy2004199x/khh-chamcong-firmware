@@ -234,6 +234,41 @@ if ( preg_match( '/Chưa có đơn vị[^;]{0,200}?;/u', $src, $m ) ) {
 	t( 'bốc được câu lỗi "Chưa có đơn vị"', false );
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 8. BA ĐƠN VỊ CÙNG LÚC — anh Thắng 11/09/2026: *"tách anh thêm 1 đơn vị KVC đi"*
+ *
+ * 🔴 HAI ĐƠN VỊ CHẠY ĐƯỢC KHÔNG CÓ NGHĨA LÀ BA CŨNG THẾ. Mọi phép tách trước đây đều là
+ *    "của tôi vs của bên kia" — đúng cả khi mã lẫn lộn "không phải K&H" với "là POSH". Có đơn
+ *    vị thứ ba thì hai câu ấy khác nhau, và chỗ nào lẫn sẽ để kế toán KVC đọc được sổ POSH.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* Dựng đủ BA đơn vị: K&H (mặc định) · POSH · KVC. */
+VHCP_Cfg::append( VHCP_Cfg::COSO, array( 'POSH Gò Vấp', 'POSHGV', 'POSH MN', 'POSH Go Vap', '', 'POSH' ) );
+VHCP_Cfg::append( VHCP_Cfg::COSO, array( 'KVC Aeon Tân Phú', 'KVCATP', 'KVC MN', 'KVC Aeon Tan Phu', '', 'KVC' ) );
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'KT Khu Vui Chơi', '1357', 'Kế toán cá nhân', '', '', '', 'Cơ sở', 'KVC', 'KVC' ) );
+VHCP_Cfg::clear_cache();
+
+$ds3 = VHCP_DonVi::ds();
+t( '🔴 khai cơ sở cho KVC là KVC hiện ra ngay, không phải sửa mã', in_array( 'KVC', $ds3, true ), $ds3 );
+t( '   và KHÔNG đá K&H hay POSH ra khỏi danh sách',
+	in_array( 'K&H', $ds3, true ) && in_array( 'POSH', $ds3, true ), $ds3 );
+teq( '   cơ sở KVC tra ra đúng đơn vị KVC', 'KVC', VHCP_DonVi::cua_coso( 'KVC Aeon Tân Phú' ) );
+
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT Khu Vui Chơi' );
+teq( '🔴 kế toán KVC đọc được KVC', true, VHCP_DonVi::duoc_xem( 'KVC' ) );
+teq( '🔴 nhưng KHÔNG đọc được K&H', false, VHCP_DonVi::duoc_xem( 'K&H' ) );
+teq( '🔴 và KHÔNG đọc được POSH — "không phải nhà mình" ≠ "là POSH"',
+	false, VHCP_DonVi::duoc_xem( 'POSH' ) );
+
+teq( '   KVC lên đơn theo TUẦN, một đơn một cơ sở (không phải kiểu POSH)',
+	false, VHCP_DonVi::nhieu_coso( 'KVC' ) );
+teq( '   POSH vẫn là một đơn nhiều cơ sở như cũ', true, VHCP_DonVi::nhieu_coso( 'POSH' ) );
+
+/* 🔴 NHÃN TRÊN MÀN KHÔNG ĐƯỢC LIỆT KÊ CỨNG TÊN ĐƠN VỊ. Nhãn cũ ghi "(K&H · POSH)"; khai thêm
+   đơn vị thứ ba là nhãn ấy nói sai ngay, mà chẳng ai nhớ ra để sửa. */
+$app = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 nhãn ô Đơn vị không liệt kê cứng "K&H · POSH"',
+	false === mb_strpos( $app, 'Đơn vị (K&amp;H · POSH)' ) );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $truot ) {
 	echo "\n✗ TRƯỢT " . count( $truot ) . " phép (đạt $dat):\n";

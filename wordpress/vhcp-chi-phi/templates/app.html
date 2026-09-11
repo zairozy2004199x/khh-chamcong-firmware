@@ -1393,7 +1393,7 @@
     <div class="card">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây, gắn sẵn đơn vị POSH. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px">Đơn vị (K&amp;H · POSH)</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Bên nào nhìn thấy chi phí của cơ sở này. Ô NHẬP kèm gợi ý — gõ tên đơn vị MỚI vào là khai xong, không phải sửa mã. Để trống = K&amp;H.">Đơn vị</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
       <datalist id="dl_donvi"></datalist>
     </div>
@@ -1582,7 +1582,11 @@
       <div class="fld" style="margin-bottom:10px"><label>Tên thường gọi</label><input id="ncTen" placeholder="VD: FARM PHAN THIẾT"></div>
       <div class="fld" style="margin-bottom:10px"><label>Tên theo MISA</label><input id="ncMisa" placeholder="VD: FARM MN Lotte Phan Thiết"></div>
       <div class="fld" style="margin-bottom:10px"><label>Mã đơn vị (MISA)</label><input id="ncMa" placeholder="VD: FLMPT"></div>
-      <div class="fld" style="margin-bottom:10px"><label>Đơn vị (K&amp;H · POSH) — bên nào nhìn thấy chi phí của gian này</label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
+      <div class="fld" style="margin-bottom:10px"><!-- 🔴 KHÔNG LIỆT KÊ CỨNG TÊN ĐƠN VỊ Ở NHÃN. Nhãn cũ ghi "(K&H · POSH)" — khai thêm
+             đơn vị thứ ba (anh Thắng 11/09/2026: *"tách anh thêm 1 đơn vị KVC đi"*) là nhãn ấy
+             nói sai ngay, mà chẳng ai nhớ ra để sửa. Danh sách thật nằm ở ô gợi ý bên dưới,
+             dựng từ chính dữ liệu (`VHCP_DonVi::ds()`). -->
+        <label>Đơn vị — bên nào nhìn thấy chi phí của gian này <span style="font-weight:400;color:#94a3b8">(gõ tên mới để mở thêm đơn vị)</span></label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
       <div class="fld" style="margin-bottom:16px"><label>Phân loại lớn</label><input id="ncPll" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn b-x" onclick="closeCfgCoso()">Huỷ</button>
