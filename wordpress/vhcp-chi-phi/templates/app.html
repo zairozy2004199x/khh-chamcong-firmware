@@ -2657,6 +2657,7 @@
     if(el('ndLoaiDaCoSo')) el('ndLoaiDaCoSo').style.display=_tabDuoc('duan')?'':'none';
     if(el('ndLoaiDuAn'))   el('ndLoaiDuAn').style.display  =_tabDuoc('duan')?'':'none';
     if(el('ndLoaiCoSo'))   el('ndLoaiCoSo').style.display  =_tabDuoc('don')?'':'none';
+    _apTenNhom();
     el('ndLoaiBox').style.display=hoi?'':'none';
     el('ndCoSoBox').style.display=hoi?'none':'';
     if(el('ndBtnTao')) el('ndBtnTao').style.display=hoi?'none':'';
@@ -4239,7 +4240,77 @@
   /* Mở khối tạo đơn.
      `nhomSan` = loại người dùng ĐÃ chọn ở hộp "＋ Tạo đơn mới" bên tab đơn. Có sẵn thì đừng hỏi
      lại — xem chốt 🔴 "HỎI ĐÚNG MỘT LẦN" ở phần HTML. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * TÊN GỌI HAI LOẠI ĐƠN ĐỔI THEO BỘ PHẬN — CHỈ ĐỔI CHỮ, KHÔNG ĐỔI DỮ LIỆU.
+   *
+   * Anh Thắng 11/09/2026: *"Chi phí bên bộ phận marketing cũng tương tự như vậy, nhưng từ ngữ
+   * tên nó khác thôi"*, rồi chỉ đúng hai nút:
+   *   *"Đổi tên đối với marketing tên nó khác Chi Phí Marketing Cơ Sở"*
+   *   *"Chi Phí Bán Vé Sớm, Khai Trương, Sự Kiện"*
+   *
+   * 🔴 LOẠI LƯU TRONG SỔ KHÔNG ĐỔI. Cột `loai` của dự án vẫn là 'Chi phí cơ sở' / 'Setup lắp
+   *    đặt' / 'Tháo dỡ' — nó quyết định MÃ TÀI KHOẢN, bộ lọc bản xuất MISA, và cả phép
+   *    `la_don_coso()` mà ba màn đang đọc. Đổi chữ lưu xuống là đổi hạch toán của cả sổ cũ
+   *    lẫn sổ mới, chỉ vì một cái nhãn trên màn. Chỗ này thuần là nhãn.
+   *
+   * 🔴 GÕ CỨNG "· Kỹ thuật" LÀ SAI VỚI NGƯỜI MARKETING. Đuôi ấy đang nằm cứng trong HTML và
+   *    trong dòng "Đang lập" — người Marketing mở ra thấy đơn của mình mang tên bộ phận khác.
+   *    Nên đuôi lấy từ chính bộ phận của người đang đăng nhập.
+   *
+   * ⚠️ THÊM BỘ PHẬN THÌ KHAI VÀO ĐÂY, MỘT CHỖ. Bốn nút ở hai màn cùng đọc bảng này; rải chữ
+   *    vào từng nút là bốn nơi phải nhớ sửa, mà nơi quên sẽ nói tên của bộ phận khác.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var TEN_LOAI_BP={
+    'Marketing':{
+      coso:{ten:'🏢 Chi Phí Marketing Cơ Sở',                     phu:'Một đơn gom NHIỀU gian · theo TUẦN'},
+      duan:{ten:'🎪 Chi Phí Bán Vé Sớm, Khai Trương, Sự Kiện',     phu:'Một GIAN · thời gian bất kỳ'}
+    }
+  };
+  /** Tên + phụ đề của một nhóm ('coso' | 'duan') theo bộ phận người đang đăng nhập. */
+  function _tenNhom(nhom){
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var r=TEN_LOAI_BP[bp];
+    if(r&&r[nhom]) return r[nhom];
+    return (nhom==='coso')
+      ? {ten:'🏢 Chi phí cơ sở', phu:'Một đơn gom NHIỀU gian · theo TUẦN'}
+      : {ten:'🏗 Chi phí dự án',  phu:'Setup / Tháo dỡ một GIAN'};
+  }
+  /**
+   * Tên kèm đuôi bộ phận — dùng ở hộp "＋ Tạo đơn mới" và dòng "Đang lập".
+   *
+   * ⚠️ KHÔNG DÁN ĐUÔI KHI TÊN ĐÃ MANG SẴN TÊN BỘ PHẬN. "Chi Phí Marketing Cơ Sở · Marketing"
+   *    là thừa một lần, và cái thừa ấy làm nút dài thêm đúng chỗ màn hẹp nhất.
+   */
+  function _tenNhomBp(nhom){
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var t=_tenNhom(nhom).ten;
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
+       quả — `indexOf('')` luôn trả 0, nên vế dưới cũng trả về `t` cho bộ phận rỗng. Giữ vì nó
+       nói thẳng ra ý "chưa khai bộ phận thì không có đuôi để dán", và cắt hẳn hai phép hạ chữ
+       thường cho phần lớn tài khoản. */
+    if(!bp) return t;
+    if(t.toLowerCase().indexOf(bp.toLowerCase())>=0) return t;
+    return t+' · '+bp;
+  }
+  /** Đặt chữ cho bốn nút chọn loại ở hai màn. Gọi lại mỗi lần mở hộp: bộ phận đổi là chữ đổi. */
+  function _apTenNhom(){
+    var g=function(id, nhom, kemBp){
+      var b=el(id); if(!b) return;
+      var phu=b.querySelector('span');
+      var dam=b.querySelector('b');
+      if(dam) dam.textContent=kemBp?_tenNhomBp(nhom):_tenNhom(nhom).ten;
+      if(phu) phu.textContent=_tenNhom(nhom).phu;
+    };
+    /* Hộp "＋ Tạo đơn mới" bày CẢ BA loại cạnh nhau, trong đó hai loại đầu đều mang chữ "cơ
+       sở" — nên ở đó tên phải kèm bộ phận để tách hẳn ra. Trong tab của chính bộ phận ấy thì
+       khỏi: đứng trong nhà rồi, nhắc tên nhà nữa là thừa. */
+    g('daNhomCs', 'coso', false);
+    g('daNhomDa', 'duan', false);
+    g('ndLoaiDaCoSo', 'coso', true);
+    g('ndLoaiDuAn',   'duan', true);
+  }
   function daMoTao(nhomSan){
+    _apTenNhom();
     if(el('daTaoNut')) el('daTaoNut').style.display='none';
     if(el('daTaoBox')) el('daTaoBox').style.display='block';
     /* Lối sang đơn tuần chỉ bày cho người vào được tab ấy. */
@@ -4302,7 +4373,7 @@
     to('daNhomTuan', false, '#7c3aed', '#f5f3ff'); // 📅 đơn tuần — tím (bấm là sang tab khác)
     /* Dòng "Đang lập" nói tên loại đang chọn — chỉ thấy được khi hàng hỏi đã ẩn, nhưng đặt tên
        ở đây để một nơi duy nhất giữ cặp (nhóm → tên). */
-    var tenLoai=cs?'🏢 Chi phí cơ sở · Kỹ thuật':(da?'🏗 Chi phí dự án · Kỹ thuật':'');
+    var tenLoai=cs?_tenNhomBp('coso'):(da?_tenNhomBp('duan'):'');
     if(el('daDangLapTen')) el('daDangLapTen').textContent=tenLoai;
     if(cs) daNapTuan(); else if(da) daOnLoai();
   }

@@ -127,8 +127,11 @@ function beTao() {
   const KHO = {};
   /* ⚠️ Ô <select> THẬT LUÔN CÓ MỘT GIÁ TRỊ — mục đầu. Để `daLoai` rỗng trong bệ đỡ là dựng
      một cái không có thật, và chốt "chưa chọn loại thì chối" sẽ xanh oan vì rỗng-gặp-rỗng. */
+  /* `querySelector` trả null: ô giả không có phần tử con. `_apTenNhom()` bỏ qua đúng như nó
+     bỏ qua một nút chưa dựng xong trên màn thật — không giả mạo hành vi nào. */
   const O = id => ({ _id: id, style: { display: '' }, value: id === 'daLoai' ? 'Setup lắp đặt' : '',
-    textContent: '', innerHTML: '', placeholder: '', className: 'btn b-x' });
+    textContent: '', innerHTML: '', placeholder: '', className: 'btn b-x',
+    querySelector: () => null });
   const moi = {
     DA_ITEMS: [], DA_TUAN: [], DA_NHOM: '', DA_CUR: null, DA_CHO_KEO: false,
     /* Người này vào được cả hai loại đơn -> lối "Đơn tuần của cơ sở" trong khối tạo có hiện. */
@@ -149,7 +152,12 @@ function beTao() {
         this._ok({ success: true, maDA: 'DA9', ten }); },
     } } },
   };
-  const src = `${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
+  /* `daMoTao()` gọi `_apTenNhom()` (đặt chữ cho nút theo bộ phận). Bốc luôn cả chuỗi hàm thật
+     chứ đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm, mà nó đang đụng vào
+     đúng hai nút bài kiểm này soi. */
+  const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
+  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+    ${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
     ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
     ${boc('_tabDuoc')}\n${boc('_daHienHoi')}\n${boc('daDoiLoai')}
     ${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}

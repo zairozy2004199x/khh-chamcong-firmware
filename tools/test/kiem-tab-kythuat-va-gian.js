@@ -263,7 +263,7 @@ function beNewDon(daChonTuan, bp) {
     QUYEN_TAB: { don: 1, duan: 1 },
     BP_HOI_LOAI_DON: ['Kỹ thuật'],
     el: id => (KHO[id] = KHO[id] || { _id: id, style: { display: '' }, value: '', innerHTML: '',
-      readOnly: false, focus() {} }),
+      readOnly: false, focus() {}, querySelector: () => null }),
     esc: x => String(x == null ? '' : x),
     _kyTuDo: () => false,
     genKyOptions: () => [{ val: 'T9/2026', label: 'T9/2026', cur: true }],
@@ -271,7 +271,11 @@ function beNewDon(daChonTuan, bp) {
     ndKyDoi: () => {},
     setTimeout: fn => fn(),
   };
-  const src = `${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
+  /* `newDon()` gọi `_apTenNhom()` (đặt chữ cho ba nút chọn loại theo bộ phận) — bốc cả chuỗi
+     hàm thật vào, đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm. */
+  const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
+  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+    ${boc('_tabDuoc')}\n${boc('_vaoDuocDuAn')}\n${boc('_hoiLoaiDon')}\n${boc('newDon')}
     newDon(C); return null;`;
   new Function('moi', 'C', `with(moi){ ${src} }`)(moi, daChonTuan);
   return { hoi: KHO['ndLoaiBox'].style.display, coso: KHO['ndCoSoBox'].style.display };
@@ -312,13 +316,17 @@ t('   chưa có bảng quyền thì ẩn cả hai, không nổ', NC3.don === 'no
   const KHO = {};
   const moi = {
     DA_NHOM: '', QUYEN_TAB: { don: 1, duan: 1 }, DA_TUAN: [],
-    el: id => (KHO[id] = KHO[id] || { _id: id, className: 'btn b-x', innerHTML: '',
+    CURUSER: { boPhan: 'Kỹ thuật' },
+    el: id => (KHO[id] = KHO[id] || { _id: id, className: 'btn b-x', innerHTML: '', textContent: '',
       style: { display: '', background: '', borderColor: '', borderWidth: '', borderStyle: '',
-               color: '', fontWeight: '' } }),
+               color: '', fontWeight: '' }, querySelector: () => null }),
     esc: x => String(x == null ? '' : x),
     daNapTuan: () => {}, daOnLoai: () => {},
   };
-  const chon = new Function('moi', 'N', `with(moi){ ${boc('daChonNhom')}\n daChonNhom(N);
+  /* `daChonNhom()` đặt dòng "Đang lập" bằng `_tenNhomBp()` — bốc cả hàm thật, đừng khai rỗng. */
+  const bangTen2 = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
+  const chon = new Function('moi', 'N', `with(moi){ ${bangTen2}
+    ${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('daChonNhom')}\n daChonNhom(N);
     return { cs: el('daNhomCs').style, da: el('daNhomDa').style,
              csC: el('daNhomCs').className, daC: el('daNhomDa').className }; }`);
   const M0 = chon(moi, '');
