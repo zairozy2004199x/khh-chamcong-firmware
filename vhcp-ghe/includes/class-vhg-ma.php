@@ -303,6 +303,8 @@ class VHG_Ma {
 	/* Font: cơ bản + bộ trang trí (Google Fonts) — 'anton'/'bungee' kiểu 2D đậm, 'bungee3d' bóng
 	   nổi & 'bungeeinline' viền rỗng là kiểu "3D để ghép", 'pacifico' viết tay. */
 	const KMT_FONT     = array( 'sans', 'serif', 'mono', 'condensed', 'anton', 'bungee', 'bungee3d', 'bungeeinline', 'pacifico' );
+	/* Hiệu ứng chữ (CSS, áp lên mọi font): 3d nổi · neon · viền · đổ bóng · vàng kim · gradient. */
+	const KMT_HIEU     = array( '', '3d', 'glow', 'vien', 'bong', 'vang', 'gradient' );
 	const KMT_ANH_MAX  = 420000;
 	const KMT_TONG_MAX = 6000000;
 	const KMT_EL_MAX   = 30;
@@ -337,10 +339,11 @@ class VHG_Ma {
 			if ( 'text' === $k ) {
 				$ff = ( isset( $e['ff'] ) && in_array( (string) $e['ff'], self::KMT_FONT, true ) ) ? (string) $e['ff'] : 'sans';
 				$al = ( isset( $e['al'] ) && in_array( (string) $e['al'], array( 'l', 'c', 'r' ), true ) ) ? (string) $e['al'] : 'c';
+				$hieu = ( isset( $e['hieu'] ) && in_array( (string) $e['hieu'], self::KMT_HIEU, true ) ) ? (string) $e['hieu'] : '';
 				$ra[] = array_merge( $base, array(
 					't'  => mb_substr( sanitize_textarea_field( (string) ( isset( $e['t'] ) ? $e['t'] : '' ) ), 0, 500 ),
 					'fs' => self::kmt_num_( isset( $e['fs'] ) ? $e['fs'] : 6, 1, 40, 6 ),
-					'ff' => $ff, 'al' => $al,
+					'ff' => $ff, 'al' => $al, 'hieu' => $hieu,
 					'c'  => self::kmt_mau_( isset( $e['c'] ) ? $e['c'] : '#ffffff', '#ffffff' ),
 					'b'  => empty( $e['b'] ) ? 0 : 1,
 				) );

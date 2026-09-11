@@ -7588,6 +7588,20 @@ function kmtFontCss(ff){
 }
 var KMT_FONTS = [['sans','Thường'],['serif','Serif'],['condensed','Hẹp'],['anton','Đậm'],
   ['bungee','Khối'],['bungee3d','3D bóng'],['bungeeinline','3D viền'],['pacifico','Viết tay'],['mono','Mono']];
+var KMT_HIEU = [['','Không hiệu ứng'],['3d','3D nổi'],['glow','Neon'],['vien','Viền'],['bong','Đổ bóng'],['vang','Vàng kim'],['gradient','Gradient']];
+/* Hiệu ứng chữ (CSS, áp SAU màu nền tảng nên ghi đè được). Viền dùng .055em để co theo cỡ chữ. */
+function kmtHieuCss(e){
+  var c = e.c || '#fff';
+  switch (e.hieu) {
+    case '3d':       return 'text-shadow:1px 1px 0 rgba(0,0,0,.5),2px 2px 0 rgba(0,0,0,.45),3px 3px 0 rgba(0,0,0,.4),4px 4px 0 rgba(0,0,0,.3),6px 6px 10px rgba(0,0,0,.45)';
+    case 'glow':     return 'text-shadow:0 0 6px '+c+',0 0 14px '+c+',0 0 26px '+c;
+    case 'vien':     return '-webkit-text-stroke:.055em '+c+';color:transparent';
+    case 'bong':     return 'text-shadow:0 4px 10px rgba(0,0,0,.55)';
+    case 'vang':     return 'background:linear-gradient(180deg,#fff6c0,#f5c542 42%,#b57611);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))';
+    case 'gradient': return 'background:linear-gradient(90deg,#ff5e62,#ff9966,#ffd452);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))';
+    default:         return '';
+  }
+}
 function kmtAspect(k){ return k === '9x16' ? [9,16] : k === '16x9' ? [16,9] : [1,1]; }
 function kmtEl(){ return (KMT_SEL >= 0 && KMT_DOC && KMT_DOC.trang[KMT_KHO].els[KMT_SEL]) || null; }
 function kmtTai(){
@@ -7621,7 +7635,8 @@ function kmtVe(){
         + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.min(40,(e.fs+0.5)) + ')">A＋</button>'
         + '<input type="color" value="' + esc((e.c||'#ffffff').slice(0,7)) + '" oninput="kmtProp(\'c\',this.value)" style="width:38px;padding:0">'
         + '<button class="' + (e.b?'on':'ghost') + '" onclick="kmtProp(\'b\',' + (e.b?0:1) + ')"><b>B</b></button>'
-        + '<button class="ghost" onclick="kmtProp(\'al\',\'l\')">⬅</button><button class="ghost" onclick="kmtProp(\'al\',\'c\')">▮</button><button class="ghost" onclick="kmtProp(\'al\',\'r\')">➡</button>';
+        + '<button class="ghost" onclick="kmtProp(\'al\',\'l\')">⬅</button><button class="ghost" onclick="kmtProp(\'al\',\'c\')">▮</button><button class="ghost" onclick="kmtProp(\'al\',\'r\')">➡</button>'
+        + '<select onchange="kmtProp(\'hieu\',this.value)" title="' + L('Hiệu ứng chữ','Text effect') + '">' + KMT_HIEU.map(function(x){ return '<option value="'+x[0]+'"'+((e.hieu||'')===x[0]?' selected':'')+'>✨ '+x[1]+'</option>'; }).join('') + '</select>';
     } else {
       h += '<button class="ghost" onclick="kmtProp(\'w\',' + Math.max(5,(e.w-4)) + ')">－</button><button class="ghost" onclick="kmtProp(\'w\',' + Math.min(160,(e.w+4)) + ')">＋</button>';
     }
@@ -7662,7 +7677,7 @@ function kmtVeStage(){
     var s = 'position:absolute;left:'+Lx+'px;top:'+Ty+'px;width:'+W+'px;transform:rotate('+(e.rot||0)+'deg);cursor:move;touch-action:none;user-select:none;'
       + (sel ? 'outline:2px solid #2563eb;outline-offset:1px;' : '');
     if (e.k === 'text') {
-      s += 'font-size:'+(e.fs/100*sw)+'px;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;overflow-wrap:break-word';
+      s += 'font-size:'+(e.fs/100*sw)+'px;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;overflow-wrap:break-word;'+kmtHieuCss(e);
       var tx = e.t ? esc(e.t).replace(/\n/g,'<br>') : '<span style="opacity:.4">'+L('(chữ)','(text)')+'</span>';
       h += '<div class="kmt-eel" data-ei="'+i+'" style="'+s+'">'+tx+'</div>';
     } else {
@@ -7748,7 +7763,7 @@ function kmtPosterHtml(kho){
   var h = '<div style="position:relative;container-type:size;overflow:hidden;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.55);width:'+wcss+';aspect-ratio:'+a[0]+'/'+a[1]+';background:'+esc(T.bg||'#0c0e15')+'">';
   (T.els||[]).forEach(function(e){
     var st = 'position:absolute;left:'+e.x+'%;top:'+e.y+'%;width:'+e.w+'%;transform:rotate('+(e.rot||0)+'deg)';
-    if (e.k === 'text') { st += ';font-size:'+e.fs+'cqw;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2';
+    if (e.k === 'text') { st += ';font-size:'+e.fs+'cqw;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;'+kmtHieuCss(e);
       h += '<div style="'+st+'">'+esc(e.t||'').replace(/\n/g,'<br>')+'</div>';
     } else { h += '<img style="'+st+';height:auto" src="'+esc(e.src)+'">'; }
   });
