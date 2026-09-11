@@ -5309,6 +5309,10 @@ function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
    trong tab Duyệt; TIỀN vẫn dùng ktVnd (số nguyên). */
 function csKt(n){ if(n==null||n==='') return ''; var x=Number(n); if(isNaN(x)) return String(n);
   return x.toLocaleString('vi-VN',{maximumFractionDigits:2}); }
+/* Đọc chỉ số người gõ → Number (phẩy=thập phân, chấm=ngăn nghìn — khớp so_chiso_ bên PHP). */
+function csMv(s){ s=String(s==null?'':s).replace(/\./g,'').replace(',', '.').replace(/[^0-9.]/g,'');
+  var i=s.indexOf('.'); if(i>=0){ s=s.slice(0,i+1)+s.slice(i+1).replace(/\./g,''); }
+  if(s===''||s==='.') return ''; var n=parseFloat(s); return isNaN(n)?'':Math.round(n*100)/100; }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
    VHCC_Ketoan::dong_moi_/dien_o_ nhận thẳng r0.images, không tải lại lên WP như luu_anh_()).
    Link "…/file/d/<id>/view" là trang xem của Drive, KHÔNG PHẢI ảnh — nhét thẳng vào <img> ra
@@ -5822,17 +5826,42 @@ function ktdRow(o,c,m,reload,locked){
     tdN.appendChild(noB);
   }
   tr.appendChild(tdN);
-  var tdTruoc=td((c.meterBefore==null?'—':csKt(c.meterBefore))+(c.mocTay?' 🔒':''),1);
-  if(c.mocTay){ tdTruoc.title='Chỉ số trước đã sửa tay — hệ không tự nối lại nữa.'; tdTruoc.style.color='#a21caf'; }
-  tr.appendChild(tdTruoc);
-  /* 🔴 CHỈ SỐ SAU TÔ ĐỎ KHI LỆCH — anh Thắng 11/09/2026 "lệch thì hiện đỏ". Bắt theo hai dấu:
-     ghi chú bắt đầu bằng ⚠ (chỉ số bất thường, do luu()/sua_dong gắn), HOẶC sau < trước. Giúp kế
-     toán soi ngay ô chỉ số nhảy loạn (vd 686) giữa bảng. Chỉ tô, không đụng số liệu. */
+  /* 🔴 SỬA THẲNG Ô CHỈ SỐ NGAY TRÊN BẢNG — anh Thắng 11/09/2026: *"hiện sửa ngay ô luôn ... sửa
+     thì đúng vị trí sửa luôn"*. TRƯỚC và SAU là ô nhập luôn (kế toán/quản lý); Enter hoặc bấm ra
+     ngoài là lưu (kt_sua). Sửa SAU → ngày sau tự nối theo (noi_tiep). Sửa TRƯỚC → khóa mốc tay 🔒,
+     hệ không tự nối đè lại. giu_ghi_de:1 → giữ nguyên Thực thu đã khai khi chỉ nắn chỉ số. Báo cáo
+     đã KHOÁ NGÀY thì về lại chữ tĩnh, không cho sửa. */
+  function oChiSo(val, laTruoc, doRed){
+    var tdc=ktEl('td'); tdc.style.textAlign='right';
+    if(locked){
+      tdc.textContent=(val==null?'—':csKt(val))+(laTruoc&&c.mocTay?' 🔒':'');
+      if(doRed){ tdc.style.color='var(--red)'; tdc.style.fontWeight='800'; }
+      return tdc;
+    }
+    var i=document.createElement('input'); i.type='text'; i.inputMode='decimal';
+    i.value=(val==null?'':csKt(val));
+    i.style.cssText='width:66px;text-align:right;font-variant-numeric:tabular-nums';
+    i.title=laTruoc?'Sửa CHỈ SỐ TRƯỚC — Enter/bấm ra ngoài để lưu. Sửa xong khóa 🔒 (hệ không tự nối lại).'
+                   :'Sửa CHỈ SỐ SAU — Enter/bấm ra ngoài để lưu. Ngày sau tự nối theo.';
+    if(laTruoc&&c.mocTay) i.style.borderColor='#c026d3';
+    if(doRed){ i.style.color='#b91c1c'; i.style.fontWeight='800'; i.style.borderColor='#ef4444'; }
+    var cu=String(i.value).trim();
+    i.addEventListener('change',function(){
+      var v=String(i.value).trim(); if(v===cu) return; cu=v;
+      var patch=laTruoc?{meterBefore:(v===''?'':csMv(v)),giu_ghi_de:1}
+                       :{meterAfter:(v===''?'':csMv(v)),giu_ghi_de:1};
+      ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);
+    });
+    i.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); i.blur(); } });
+    tdc.appendChild(i);
+    if(laTruoc&&c.mocTay){ var lk=ktEl('span',null,'🔒'); lk.style.marginLeft='2px'; lk.title='Đang khóa mốc tay'; tdc.appendChild(lk); }
+    return tdc;
+  }
+  /* Lệch = ghi chú ⚠ (bất thường) HOẶC sau<trước — tô đỏ ô SAU cho kế toán soi (anh Thắng). */
   var lechSau = /^⚠/.test(c.note||'') ||
     (c.meterBefore!=null && c.meterAfter!=null && Number(c.meterAfter) < Number(c.meterBefore));
-  var tdSau=td(c.meterAfter==null?'—':csKt(c.meterAfter),1);
-  if(lechSau){ tdSau.style.color='var(--red)'; tdSau.style.fontWeight='800'; tdSau.title='Chỉ số lệch — kiểm lại.'; }
-  tr.appendChild(tdSau);
+  tr.appendChild(oChiSo(c.meterBefore, true, false));
+  tr.appendChild(oChiSo(c.meterAfter, false, lechSau));
   tr.appendChild(td(ktVnd(c.actual),1));
   /* Số "Tiền mặt" TỰ NÓ cũng tô đỏ + đậm khi đang bị ghi đè — không chỉ dòng ghi chú nhỏ bên trên,
      vì cột số mới là chỗ kế toán nhìn thẳng vào khi soát tiền, dễ lướt qua đúng chỗ đang sai lệch
