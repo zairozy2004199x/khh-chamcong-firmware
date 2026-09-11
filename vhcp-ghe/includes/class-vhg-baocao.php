@@ -390,11 +390,12 @@ class VHG_BaoCao {
 		if ( self::may_reset_moi_lan( $ma ) ) { return; }
 		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'] );   // mốc sống (ngày < ngày hàng này)
 		if ( null === $moi ) { return; }
-		if ( (int) $r['chi_so_truoc'] === (int) $moi ) { return; }   // không đổi
-		$sau     = (int) $r['chi_so_sau'];
+		$truoc_cu = self::so_chiso_( $r['chi_so_truoc'] );
+		if ( null !== $truoc_cu && abs( (float) $truoc_cu - (float) $moi ) < 0.005 ) { return; }   // không đổi
+		$sau     = self::so_chiso_( $r['chi_so_sau'] );
 		$ghi_de  = ( false !== mb_strpos( (string) $r['ghi_chu'], 'Thực thu ghi đè' ) );
-		$hoa_bt  = ( $sau < (int) $moi );
-		$co      = '↺ Chỉ số trước tự nối lại ' . (int) $r['chi_so_truoc'] . '→' . (int) $moi
+		$hoa_bt  = ( null !== $sau && $sau < (float) $moi );
+		$co      = '↺ Chỉ số trước tự nối lại ' . self::cs_hien_( $truoc_cu ) . '→' . self::cs_hien_( $moi )
 			. ' (chèn/sửa ngày trước đó) — kế toán kiểm Thực thu';
 		if ( $ghi_de || $hoa_bt ) {
 			$note = trim( (string) $r['ghi_chu'] );
@@ -402,10 +403,10 @@ class VHG_BaoCao {
 				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
 			}
 			$wpdb->update( VHG_DB::t( 'bc_dong' ),
-				array( 'chi_so_truoc' => (int) $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
+				array( 'chi_so_truoc' => $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
 			return;
 		}
-		$rr = array( 'chi_so_truoc' => (int) $moi, 'chi_so_sau' => $sau,
+		$rr = array( 'chi_so_truoc' => $moi, 'chi_so_sau' => $sau,
 			'qr' => (int) $r['qr'], 'dieu_chinh' => (int) $r['dieu_chinh'] );
 		self::tinh_( $rr );
 		if ( $rr['tien_mat'] < 0 ) {   // nối xong hoá âm → giữ tiền cũ, ghim ghi chú
@@ -414,11 +415,11 @@ class VHG_BaoCao {
 				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
 			}
 			$wpdb->update( VHG_DB::t( 'bc_dong' ),
-				array( 'chi_so_truoc' => (int) $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
+				array( 'chi_so_truoc' => $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
 			return;
 		}
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
-			'chi_so_truoc' => (int) $moi, 'actual' => $rr['actual'],
+			'chi_so_truoc' => $moi, 'actual' => $rr['actual'],
 			'tien_mat' => $rr['tien_mat'], 'tong' => $rr['tong'] ), array( 'id' => (int) $r['id'] ) );
 	}
 
@@ -463,10 +464,46 @@ class VHG_BaoCao {
 		return preg_match( '/^(\d{4})-(\d{2})-(\d{2})/', $s, $m ) ? $m[0] : '';
 	}
 	private static function songuyen_( $v ) { return ( '' === $v || null === $v ) ? null : (int) $v; }
+	/**
+	 * CHỈ SỐ MÁY — CHO PHÉP THẬP PHÂN. Anh Thắng 11/09/2026: *"một số máy nhận tiền lẻ, nên chỉ số
+	 * sẽ dạng 551.5, cần thêm dấu , để nhập chỉ số"*. Nhận "551,5" hoặc "551.5" hoặc "551"; rỗng/
+	 * null → null. Làm tròn 2 chữ số thập phân.
+	 * ⚠️ KHÁC HẲN songuyen_() — hàm đó dành cho TIỀN (luôn số nguyên đồng). Chỉ số qua đây, tiền
+	 *    vẫn qua songuyen_/ (int). Đừng lẫn: dấu phẩy trong ô tiền là ngăn nghìn, trong ô chỉ số là
+	 *    dấu thập phân. Money = (sau−trước)×đơn_vị được làm tròn về đồng nguyên ở tinh_().
+	 */
+	public static function so_chiso_( $v ) {
+		if ( '' === $v || null === $v ) { return null; }
+		/* Số thật (frontend đã parse rồi gửi JSON number) — giữ nguyên, chỉ làm tròn 2 số lẻ. */
+		if ( is_int( $v ) || is_float( $v ) ) { return round( (float) $v, 2 ); }
+		$s = trim( (string) $v );
+		if ( '' === $s ) { return null; }
+		/* 🔴 CHUỖI SỐ SẠCH = DẤU CHẤM LÀ THẬP PHÂN CHUẨN SQL. Cột DECIMAL(14,2) trả về dạng
+		   "609.00"/"551.50", và mọi số gửi dạng chuỗi cũng sạch. Phải bắt case này TRƯỚC, nếu không
+		   luật "chấm = ngăn nghìn" bên dưới biến "609.00" thành 60900 — sai chỉ số mỗi lần đọc DB. */
+		if ( is_numeric( $s ) ) { return round( (float) $s, 2 ); }
+		/* Chuỗi NGƯỜI GÕ (CSV nhập tay) — quy ước Việt, khớp meterVal bên trình duyệt: DẤU PHẨY =
+		   thập phân, DẤU CHẤM = ngăn nghìn. "551,5"→551.5 · "4.590,5"→4590.5. */
+		$neg = ( '-' === $s[0] );
+		$s = str_replace( '.', '', $s );
+		$s = str_replace( ',', '.', $s );
+		$s = preg_replace( '/[^0-9.]/', '', $s );
+		$dot = strpos( $s, '.' );
+		if ( false !== $dot ) { $s = substr( $s, 0, $dot + 1 ) . str_replace( '.', '', substr( $s, $dot + 1 ) ); }
+		if ( '' === $s || '.' === $s ) { return null; }
+		$n = round( (float) $s, 2 );
+		return $neg ? -$n : $n;
+	}
+	/** Hiện chỉ số cho người đọc (ghi chú/thông báo): bỏ số 0 thừa ở đuôi, dấu phẩy thập phân kiểu
+	 *  Việt, không ngăn nghìn (chỉ số vốn nhỏ). 551.5 → "551,5"; 551 → "551". */
+	public static function cs_hien_( $v ) {
+		if ( null === $v || '' === $v ) { return ''; }
+		return rtrim( rtrim( number_format( (float) $v, 2, ',', '' ), '0' ), ',' );
+	}
 	private static function tinh_( &$r ) {
 		$dv = self::don_vi();
-		$before = self::songuyen_( isset( $r['chi_so_truoc'] ) ? $r['chi_so_truoc'] : null );
-		$after  = self::songuyen_( isset( $r['chi_so_sau'] ) ? $r['chi_so_sau'] : null );
+		$before = self::so_chiso_( isset( $r['chi_so_truoc'] ) ? $r['chi_so_truoc'] : null );
+		$after  = self::so_chiso_( isset( $r['chi_so_sau'] ) ? $r['chi_so_sau'] : null );
 		$qr = (int) ( isset( $r['qr'] ) ? $r['qr'] : 0 );
 		/* 🔴 `dieu_chinh` KHÔNG CÒN CỘNG VÀO TIỀN MẶT — anh Thắng 29/08/2026: "cột này là cột
 		   thực thu" + "khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột này". Cột trước
@@ -479,7 +516,9 @@ class VHG_BaoCao {
 		   luu() đổ số này vào $r['kich_tien'] TRƯỚC khi gọi tinh_(); không có lượt kích nào (đa
 		   số trường hợp) thì mặc định 0, công thức y hệt trước giờ. */
 		$kich_tien = (int) ( isset( $r['kich_tien'] ) ? $r['kich_tien'] : 0 );
-		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv - $kich_tien;
+		/* Chỉ số có thể lẻ (551,5) nhưng TIỀN luôn về đồng nguyên — làm tròn ngay tại đây, một chỗ
+		   duy nhất, để không con số lẻ nào lọt xuống cột tiền. */
+		$actual = ( null === $before || null === $after ) ? 0 : (int) round( ( $after - $before ) * $dv - $kich_tien );
 		$r['chi_so_truoc'] = $before; $r['chi_so_sau'] = $after;
 		$r['qr'] = $qr; $r['dieu_chinh'] = $adj;
 		$r['kich_tien'] = $kich_tien;
@@ -736,7 +775,7 @@ class VHG_BaoCao {
 			/* Mỗi lượt gửi LUÔN là một lần thu mới (xem khối 🔴 ở dưới) → mốc lấy CẢ chỉ số sau của
 			   các lần thu trước trong CHÍNH ngày đó (toi=true), để nối tiếp lần gần nhất. */
 			$truoc_ht = self::chi_so_truoc( $ma, $ngay, true );
-			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::songuyen_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
+			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::so_chiso_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
 			/* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy
 			   lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo (nó sẽ báo
 			   về cho kế toán để check doanh thu)". Trước đây CHẶN CỨNG luôn — đúng cho máy thật
@@ -768,7 +807,7 @@ class VHG_BaoCao {
 					. ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) );
 			}
 			$r = array( 'ma_may' => $ma, 'ten' => (string) ( isset( $r0['chairName'] ) ? $r0['chairName'] : $ma ),
-				'ngay' => $ngay, 'chi_so_truoc' => $before, 'chi_so_sau' => (int) $after,
+				'ngay' => $ngay, 'chi_so_truoc' => $before, 'chi_so_sau' => self::so_chiso_( $after ),
 				'qr' => (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 ),
 				'dieu_chinh' => (int) ( isset( $r0['adjust'] ) ? $r0['adjust'] : 0 ),
 				'kich_tien' => $kx['tien'],
@@ -808,7 +847,7 @@ class VHG_BaoCao {
 			   ⚠️ VẪN PHẢI CÓ THỰC THU. "Nhập thực thu là 0" — số 0 ấy là lời khai của nhân viên
 			      rằng ca này không thu được đồng tiền mặt nào; bỏ trống thì tiền mặt rơi về công
 			      thức và ghi số ÂM vào sổ. Không có số khai thì không có gì để ghi nhận. */
-			$dung_yen = ( null !== $r['chi_so_truoc'] && (int) $r['chi_so_sau'] === (int) $r['chi_so_truoc'] );
+			$dung_yen = ( null !== $r['chi_so_truoc'] && abs( (float) $r['chi_so_sau'] - (float) $r['chi_so_truoc'] ) < 0.005 );
 			$may_dung_co_qr = ( $dung_yen && (int) $r['qr'] > 0 && $r['tien_mat'] < 0 );
 			/* 🔴 "THỰC THU" GHI ĐÈ CHO MỌI HÀNG, KHÔNG CHỈ HÀNG BẤT THƯỜNG. Anh Thắng 29/08/2026:
 			   "cột này là cột thực thu" + "khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột
@@ -834,7 +873,7 @@ class VHG_BaoCao {
 			/* Cảnh báo đi VÀO GHI CHÚ, để kế toán mở báo cáo ra là thấy — "chỉ cảnh báo" nghĩa
 			   là không chặn tay nhân viên, không phải là im lặng với người soát sổ. */
 			if ( $may_dung_co_qr && null !== $thuc_thu ) {
-				$r['ghi_chu'] = mb_substr( trim( '⚠ MÁY ĐỨNG YÊN (' . (int) $r['chi_so_sau']
+				$r['ghi_chu'] = mb_substr( trim( '⚠ MÁY ĐỨNG YÊN (' . self::cs_hien_( $r['chi_so_sau'] )
 					. ') mà có QR ' . number_format( (int) $r['qr'], 0, ',', '.' ) . 'đ'
 					. ( '' !== $r['ghi_chu'] ? ' · ' . $r['ghi_chu'] : '' ) ), 0, 250 );
 			}
@@ -1167,7 +1206,7 @@ class VHG_BaoCao {
 				$anh_raw = (string) ( isset( $d['anh'] ) ? $d['anh'] : '' );
 				if ( '' !== $anh_raw ) { $tmp = json_decode( $anh_raw, true ); if ( is_array( $tmp ) ) { $anh_ds = array_values( array_filter( $tmp ) ); } }
 				$ghe[] = array( 'chairCode' => $d['ma_may'], 'chairName' => $d['ten'],
-					'meterBefore' => self::songuyen_( $d['chi_so_truoc'] ), 'meterAfter' => self::songuyen_( $d['chi_so_sau'] ),
+					'meterBefore' => self::so_chiso_( $d['chi_so_truoc'] ), 'meterAfter' => self::so_chiso_( $d['chi_so_sau'] ),
 					'actual' => (int) $d['actual'], 'cash' => (int) $d['tien_mat'], 'qr' => (int) $d['qr'],
 					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'], 'anh' => $anh_ds );
 			}
@@ -1182,6 +1221,13 @@ class VHG_BaoCao {
 					'SELECT trang_thai FROM ' . VHG_DB::t( 'nop' ) . ' WHERE id=%d LIMIT 1', $nop_id ), ARRAY_A );
 				$nop_tt = ( $n && 'cho' !== (string) $n['trang_thai'] ) ? 'da_nhan' : 'cho_xac_nhan';
 			}
+			/* 🔴 BÁO CÁO ĐÃ XOÁ HẾT GHẾ THÌ THÔI HIỆN — anh Thắng 11/09/2026: "xóa thì xóa luôn thông
+			   báo này". Kế toán xoá cả báo cáo (VHG_KeToan::xoa) chuyển mọi ghế xuống thùng rác nên
+			   không còn dòng nào; header `bc` vẫn nằm đó (để hoàn tác được), nhưng bày một thẻ "0 ghế
+			   · 0đ" trơ ra thì rối mắt. Bỏ qua ở khâu HIỆN, không xoá header — hoàn tác một ghế bất
+			   kỳ ở thùng rác là báo cáo hiện lại ngay. Tab Duyệt (VHG_KeToan::ds) vốn đã lọc kiểu này
+			   nên hai màn khớp nhau. */
+			if ( ! count( $ghe ) ) { continue; }
 			/* Tiền mặt PHẢI NỘP của báo cáo này — QR đã về tài khoản công ty rồi, không ai cầm.
 			   Đây là con số cái bill phải khớp, nên nó phải ra tới màn hình. */
 			$tien_mat = 0; foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; }
@@ -1379,8 +1425,15 @@ class VHG_BaoCao {
 			'qr' => array_key_exists( 'qr', $patch ) ? (int) $patch['qr'] : (int) $d['qr'],
 			'dieu_chinh' => null !== $thuc_thu ? $thuc_thu : 0,
 			'ghi_chu' => $ghi_chu_goc );
-		$truoc = self::chi_so_truoc( $ma, $h['ngay'] );
-		$r['chi_so_truoc'] = ( null !== $truoc ) ? $truoc : self::songuyen_( $d['chi_so_truoc'] );
+		/* 🔴 GIỮ NGUYÊN CHỈ SỐ TRƯỚC ĐÃ LƯU — KHÔNG tự tính lại khi Sửa. Anh Thắng 11/09/2026: gửi
+		   báo cáo lần đầu quên ảnh, lần 2 vào Sửa CHỈ để bổ sung ảnh, thì "chỉ số thực thu bị xoá
+		   mất, dẫn đến báo sai chỉ số". Nguồn: bản cũ gọi lại `chi_so_truoc($ma,$ngay)` với mặc định
+		   $toi=false — chỉ tìm mốc của NGÀY TRƯỚC. Ghế thu 2 lần trong ngày (lan≥2) vì thế bị lấy
+		   nhầm mốc của ngày hôm trước thay vì chỉ số sau của lần thu ĐẦU cùng ngày → actual =
+		   (sau−trước)×đơn_vị lệch hẳn, có khi âm (xem AM-TP-4: 4590→459). Mốc "chỉ số trước" đã được
+		   chốt ĐÚNG ngay lúc GỬI (luu() tính có xét $toi); một lượt Sửa (thêm ảnh, đổi QR, ghi đè
+		   thực thu) không có cớ gì phải suy lại nó. Giữ đúng số đã lưu là hết lệch. */
+		$r['chi_so_truoc'] = self::so_chiso_( $d['chi_so_truoc'] );
 		self::tinh_( $r );
 		if ( null !== $r['chi_so_truoc'] && null !== $r['chi_so_sau'] && $r['chi_so_sau'] < $r['chi_so_truoc'] ) {
 			return array( 'ok' => false, 'message' => 'Chỉ số sau nhỏ hơn chỉ số trước — gửi đề nghị đổi chỉ số nếu vừa thay máy.' );

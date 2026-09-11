@@ -621,11 +621,14 @@ class VHG_Trang {
 			self::tra( $r ); return;
 		}
 		if ( 'may_them' === $viec ) {
-			/* Thêm/lưu ghế: mã + địa điểm (giá/thời lượng để trống = dùng ô chung). */
-			$r = VHG_May::luu_may( array(
-				'ma'      => isset( $d['ma'] ) ? $d['ma'] : '',
-				'coso_id' => isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0,
-			) );
+			/* THÊM MỚI — CHẶN TRÙNG MÃ (anh Thắng 11/09/2026). Trước đây đi qua luu_may() nên gõ nhầm
+			   một mã đã có sẽ ÂM THẦM kéo ghế đó sang cơ sở đang mở + xoá tên (payload không có
+			   ten_khai) → "bên Bạc Liêu mọc ghế vd VHM không tên". Nay dùng them_may(): trùng mã thì
+			   từ chối, chỉ đường đi tìm ghế cũ. */
+			$r = VHG_May::them_may(
+				isset( $d['ma'] ) ? $d['ma'] : '',
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0
+			);
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' thêm ghế: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
@@ -1550,6 +1553,10 @@ class VHG_Trang {
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
   function money(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+  /* Chỉ số máy — có thể LẺ (551,5) vì máy nhận tiền lẻ. Hiện dấu phẩy thập phân kiểu Việt, tối đa
+     2 số lẻ, tự bỏ số 0 thừa. Rỗng/null → '—' xử lý ở nơi gọi, đây trả chuỗi số. */
+  function csFmt(n){ if(n==null||n==='') return ''; var x=Number(n); if(isNaN(x)) return String(n);
+    return x.toLocaleString('vi-VN',{maximumFractionDigits:2}); }
   /* 'yyyy-mm-dd[...]' -> 'dd/mm/yy' (ngày đọc mốc chỉ số trước). Chuỗi lạ thì trả nguyên. */
   function ddmmyy_(s){ s=String(s||''); return s.length>=10 ? (s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4)) : s; }
   /* 'yyyy-mm-dd' -> 'dd/mm' cho câu nhắc. Người thu tiền đọc ngày kiểu Việt; in nguyên chuỗi ISO
@@ -1560,7 +1567,12 @@ class VHG_Trang {
   }
   function snum(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var d=s.replace(/[^0-9]/g,'');
     if(!d) return 0; return (neg?-1:1)*parseInt(d,10); }
-  function meterVal(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
+  /* Chỉ số máy CHO PHÉP THẬP PHÂN. Quy ước Việt: DẤU PHẨY = thập phân, DẤU CHẤM = ngăn nghìn.
+     "551,5"→551.5 · "4.590"→4590 · "4.590,5"→4590.5. Trả Number (có thể lẻ) hoặc '' nếu trống.
+     ⚠️ Phải khớp Y HỆT VHG_BaoCao::so_chiso_() bên PHP — hai bên lệch quy ước là sai tiền. */
+  function meterVal(s){ s=String(s==null?'':s).replace(/\./g,'').replace(',', '.').replace(/[^0-9.]/g,'');
+    var i=s.indexOf('.'); if(i>=0){ s=s.slice(0,i+1)+s.slice(i+1).replace(/\./g,''); }
+    if(s===''||s==='.') return ''; var n=parseFloat(s); return isNaN(n)?'':Math.round(n*100)/100; }
   function coThu(s){ return /[0-9]/.test(String(s==null?'':s)); }
 
   /* 🔴 CÂU LỖI PHẢI NÓI RA THỨ MÁY CHỦ THẬT SỰ TRẢ VỀ.
@@ -2063,12 +2075,12 @@ class VHG_Trang {
     // chỉ số trước (+ ngày đọc mốc, giống bản điện thoại — anh Thắng 07/09/2026)
     var tdB=el('td');
     if(coBefore){
-      var sp=el('span','bc-ro'); sp.textContent=money(before); tdB.appendChild(sp);
+      var sp=el('span','bc-ro'); sp.textContent=csFmt(before); tdB.appendChild(sp);
       var nd=LASTD[g.ma];
       if(nd){ var sd=el('div','bc-mut'); sd.style.cssText='font-size:11px;font-weight:600;margin-top:2px';
         sd.textContent='ngày '+ddmmyy_(nd); tdB.appendChild(sd); }
     }
-    else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
+    else { var ib=inp('before','Nhập lần đầu (vd 551,5)'); ib.inputMode='decimal'; tdB.appendChild(ib); }
     tr.appendChild(tdB);
     /* 🔴 GỢI Ý TRẦN NGAY TẠI Ô — anh Thắng 05/09/2026: *"nếu nhập giữa ngày, thì chỉ số sau sẽ
        hiện chữ gợi ý của ngày sau đó, để tránh nhập nhầm lần 2. như kiểu ngày 2 cũng nhập và
@@ -2083,14 +2095,15 @@ class VHG_Trang {
        người ta ở trong ô. Dòng nói rõ ngày nào nằm ngay dưới, cho ai muốn kiểm lại. */
     var ke = KE[g.ma];
     var tdA = el('td');
-    var iA  = inp('after', ke ? ('phải nhỏ hơn ' + money(ke.cs)) : 'Chỉ số sau');
+    var iA  = inp('after', ke ? ('phải nhỏ hơn ' + csFmt(ke.cs)) : 'Chỉ số sau (vd 551,5)');
+    iA.inputMode='decimal';   // máy nhận tiền lẻ → bàn phím có dấu phẩy thập phân
     tdA.appendChild(iA);
     if (ke) {
       tr.dataset.keCs   = String(ke.cs);
       tr.dataset.keNgay = String(ke.ngay || '');
       var dk = el('div','bc-ke');
       dk.style.cssText = 'font-size:11px;color:#64748b;line-height:1.25;margin-top:2px';
-      dk.textContent = 'Ngày ' + nhanNgayVn(ke.ngay) + ' đã có ' + money(ke.cs);
+      dk.textContent = 'Ngày ' + nhanNgayVn(ke.ngay) + ' đã có ' + csFmt(ke.cs);
       tdA.appendChild(dk);
     }
     tr.appendChild(tdA);
@@ -2499,6 +2512,25 @@ class VHG_Trang {
     var aEl=$('bc-amt'); var amtRaw=aEl?(aEl.value||'').trim():'';   // gọn: không có ô số tiền → nộp đủ
     var nEl=$('bc-paynote');
     var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:nEl?(nEl.value||'').trim():'' };
+    /* 🔴 CHỐT THIẾU ẢNH — anh Thắng 11/09/2026: "sao thiếu ảnh lại báo gửi thành công được".
+       Ảnh là bằng chứng chỉ số; trước đây bước Gửi không đòi ảnh nên thiếu vẫn "thành công".
+       Nay đếm ghế CHƯA CÓ ẢNH NÀO (dò .files hoặc _bulkFile, cùng cách gomAnhTungGhe_) rồi HỎI
+       trước khi gửi — không lặng lẽ cho qua. Đồng ý (bổ sung sau) thì mới gửi. */
+    var thieuAnh=[];
+    rows.forEach(function(r){
+      var tr=document.querySelector('#bc-rows tr[data-ma="'+String(r.chairCode).replace(/"/g,'\\"')+'"]');
+      var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
+      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile);
+      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile);
+      if(!c&&!v) thieuAnh.push(r.chairName||r.chairCode);
+    });
+    if(thieuAnh.length){
+      var dsTh=thieuAnh.slice(0,8).join(', ')+(thieuAnh.length>8?'…':'');
+      if(!confirm('⚠ '+thieuAnh.length+' ghế CHƯA CÓ ẢNH ('+dsTh+').\n'
+        +'Ảnh chỉ số/vệ sinh là bằng chứng — gửi thiếu ảnh thì kế toán sẽ trả lại.\n\nVẫn gửi báo cáo?')){
+        msg.textContent='Đã dừng — chọn ảnh cho các ghế còn thiếu rồi Gửi lại.'; msg.className='bc-msg bc-err'; return;
+      }
+    }
     if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
     msg.textContent='Đang đọc ảnh…';
     gomAnhTungGhe_(rows,function(){
@@ -2902,7 +2934,7 @@ class VHG_Trang {
   function theGheSua(rp,c){
     var card=el('div'); card.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:9px;margin-top:6px';
     card.appendChild(el('b',null,c.chairName||c.chairCode));
-    card.appendChild(el('div','bc-mut','Chỉ số trước: '+((c.meterBefore==null||c.meterBefore==='')?'—':money(c.meterBefore))+' (khoá)'));
+    card.appendChild(el('div','bc-mut','Chỉ số trước: '+((c.meterBefore==null||c.meterBefore==='')?'—':csFmt(c.meterBefore))+' (khoá)'));
     /* 🔴 HIỆN LẠI TIỀN MẶT ĐỦ + THỰC THU NGAY TẠI ĐÂY — anh Thắng 29/08/2026: "chỗ báo cáo 24h
        vẫn sẽ hiện số tiền thực thu và chỉ số tiền mặt đủ như lúc nhập gửi báo cáo". Trước đây
        màn Sửa 24h chỉ có mấy ô nhập trần, không thấy lại con số tiền mặt sẽ ra bao nhiêu — sửa
@@ -2917,7 +2949,10 @@ class VHG_Trang {
        phải `1fr` trần) để input bên trong co lại đúng cột thay vì đẩy tràn hàng trên máy hẹp. */
     var g=el('div'); g.style.cssText='display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px';
     function f(lbl,cls,val){ var w=el('label','bc-f'); w.appendChild(el('span',null,lbl)); var i=inp(cls,''); i.value=(val==null?'':val); w.appendChild(i); return w; }
-    var fAfter=f('Chỉ số sau','e-after',c.meterAfter), fQr=f('QR','e-qr',c.qr), fAdj=f('Thực thu tiền mặt','e-adjust',c.adjust);
+    /* Nạp sẵn chỉ số sau ở dạng DẤU PHẨY (csFmt) chứ không phải số thô "551.5" — vì meterVal coi
+       dấu chấm là ngăn nghìn, để "551.5" thì lưu lại thành 5515. Tiền (QR/Thực thu) giữ số thô. */
+    var fAfter=f('Chỉ số sau','e-after',csFmt(c.meterAfter)), fQr=f('QR','e-qr',c.qr), fAdj=f('Thực thu tiền mặt','e-adjust',c.adjust);
+    fAfter.querySelector('input').inputMode='decimal';   // chỉ số máy có thể lẻ (551,5)
     g.appendChild(fAfter); g.appendChild(fQr); g.appendChild(fAdj);
     g.appendChild(f('Ghi chú','e-note',c.note));
     card.appendChild(g);
@@ -4194,6 +4229,12 @@ function henLai(){
      — vẽ lại cả tab mỗi 30 giây là ĐÓNG khối đang mở, xoá ảnh/chữ đang soạn dở (anh Thắng: "tab
      cứ F5 liên tục không làm được"). Các con số ở đây không cần realtime — bấm ↻ khi cần. */
   if (TAB === 'ma') return;
+  /* Tab BÁO CÁO DOANH THU: ĐANG NHẬP là mất ẢNH. Chỉ số gõ vào có lưu nháp (localStorage) nên
+     sống qua lượt vẽ lại; nhưng ẢNH chọn (File/_bulkFile trong bộ nhớ) KHÔNG lưu nháp được →
+     vẽ lại 30 giây là xoá sạch ảnh vừa chọn, gửi xong "thành công" mà báo cáo THIẾU ẢNH (anh
+     Thắng 11/09/2026: "chọn ảnh hàng loạt, báo thành công mà xem lại không thấy ảnh"). Muốn số
+     mới thì bấm ↻; còn khi đang soạn thì không tự vẽ lại. */
+  if (TAB === 'bc-doanhthu') return;
   /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
   if (TAB === 'dieu-khien' && !DK_AUTO) return;
   hen = setTimeout(function(){
@@ -5248,6 +5289,10 @@ var KTD_NV = '';         // anh Thắng 29/08/2026: "lọc báo cáo theo nhân 
 var KTD_NGAY = '';
 var KTU_TRANG = 1;       // anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang".
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+/* Chỉ số máy có thể LẺ (551,5) — hiện dấu phẩy thập phân, tối đa 2 số lẻ. Dùng cho cột chỉ số
+   trong tab Duyệt; TIỀN vẫn dùng ktVnd (số nguyên). */
+function csKt(n){ if(n==null||n==='') return ''; var x=Number(n); if(isNaN(x)) return String(n);
+  return x.toLocaleString('vi-VN',{maximumFractionDigits:2}); }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
    VHCC_Ketoan::dong_moi_/dien_o_ nhận thẳng r0.images, không tải lại lên WP như luu_anh_()).
    Link "…/file/d/<id>/view" là trang xem của Drive, KHÔNG PHẢI ảnh — nhét thẳng vào <img> ra
@@ -5634,13 +5679,29 @@ function ktdDetail(o,box,xong){
     var bBo=ktEl('button','ghost',L('Bỏ duyệt cả','Unconfirm all'));
     var bKhoa=ktEl('button','ghost', r.locked?L('Mở ngày','Unlock day'):L('Khoá ngày','Lock day'));
     var bDoi=ktEl('button','ghost',L('Đổi ngày','Change date'));
+    /* "Admin và kế toán có quyền xoá cả báo cáo đó nếu nó sai" — anh Thắng. Nút gom TẤT CẢ ghế của
+       báo cáo (report_id+ma_may) rồi gọi kt_xoa một lần. Vẫn là XOÁ MỀM: mọi ghế chuyển xuống thùng
+       rác (bc_rac), hoàn tác được ở tab Thùng rác — không phá dữ liệu vĩnh viễn. Tab Duyệt này đã
+       chặn chỉ QT||KT vào được nên nút mặc nhiên chỉ hiện cho admin/kế toán. */
+    var bXoaCa=ktEl('button','ghost',L('🗑 Xoá cả báo cáo','Delete report'));
+    bXoaCa.style.color='var(--red)';
     var m=ktEl('span','mut');
-    bar.appendChild(bDuyet); bar.appendChild(bBo); bar.appendChild(bKhoa); bar.appendChild(bDoi); bar.appendChild(m);
+    bar.appendChild(bDuyet); bar.appendChild(bBo); bar.appendChild(bKhoa); bar.appendChild(bDoi); bar.appendChild(bXoaCa); bar.appendChild(m);
     box.appendChild(bar);
     function reload(){ box.dataset.built=''; ktdDetail(o,box); ktdLoad(); }
     bDuyet.onclick=function(){ ktAct('kt_duyet_ngay',{coso:o.coso,ngay:o.ngay,on:1},m,reload); };
     bBo.onclick=function(){ ktAct('kt_duyet_ngay',{coso:o.coso,ngay:o.ngay,on:0},m,reload); };
     bKhoa.onclick=function(){ ktAct('kt_khoa',{ngay:o.ngay,coso:o.coso,on:r.locked?0:1},m,reload); };
+    bXoaCa.onclick=function(){
+      var ds=(r.rows||[]).filter(function(c){ return c.reportId && c.chairCode; })
+        .map(function(c){ return {report_id:c.reportId,ma_may:c.chairCode}; });
+      if(!ds.length){ alert(L('Báo cáo trống, không có ghế để xoá.','Empty report.')); return; }
+      if(!confirm(L('⚠ XOÁ CẢ báo cáo '+o.coso+' ('+o.ngay+') — '+ds.length+' ghế?\n\nCả báo cáo sẽ chuyển vào Thùng rác (hoàn tác được).',
+        'Delete WHOLE report '+o.coso+' ('+o.ngay+') — '+ds.length+' chairs? (recoverable in Trash)'))) return;
+      var ly=prompt(L('Lý do xoá cả báo cáo:','Reason:')); if(ly===null) return;
+      if(!ly.trim()){ alert(L('Phải ghi lý do xoá.','Reason required.')); return; }
+      ktAct('kt_xoa',{targets:ds,ly_do:ly},m,reload);
+    };
     bDoi.onclick=function(){
       var nm=prompt(L('Đổi NGÀY báo cáo '+o.coso+' ('+o.ngay+') sang ngày mới (yyyy-mm-dd):',
         'New date for '+o.coso+' ('+o.ngay+') yyyy-mm-dd:'), o.ngay); if(nm===null) return;
@@ -5745,8 +5806,8 @@ function ktdRow(o,c,m,reload,locked){
     tdN.appendChild(noB);
   }
   tr.appendChild(tdN);
-  tr.appendChild(td(c.meterBefore==null?'—':ktVnd(c.meterBefore),1));
-  tr.appendChild(td(c.meterAfter==null?'—':ktVnd(c.meterAfter),1));
+  tr.appendChild(td(c.meterBefore==null?'—':csKt(c.meterBefore),1));
+  tr.appendChild(td(c.meterAfter==null?'—':csKt(c.meterAfter),1));
   tr.appendChild(td(ktVnd(c.actual),1));
   /* Số "Tiền mặt" TỰ NÓ cũng tô đỏ + đậm khi đang bị ghi đè — không chỉ dòng ghi chú nhỏ bên trên,
      vì cột số mới là chỗ kế toán nhìn thẳng vào khi soát tiền, dễ lướt qua đúng chỗ đang sai lệch
@@ -5787,7 +5848,8 @@ function ktdSuaRow(o,c,tr,m,reload){
   var td=tr.lastChild; td.textContent='';
   var wrap=ktEl('div'); wrap.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center';
   function inb(ph,val){ var i=document.createElement('input'); i.type='text'; i.inputMode='numeric'; i.placeholder=ph; i.style.cssText='width:70px'; i.value=(val==null?'':val); return i; }
-  var iAf=inb('sau',c.meterAfter), iQr=inb('QR',c.qr), iAd=inb('±',c.adjust);
+  var iAf=inb('sau',csKt(c.meterAfter)), iQr=inb('QR',c.qr), iAd=inb('±',c.adjust);
+  iAf.inputMode='decimal'; iAf.title='Chỉ số máy — nhận tiền lẻ thì gõ dạng 551,5';   // chỉ số lẻ: nạp dạng phẩy
   var iNo=document.createElement('input'); iNo.type='text'; iNo.placeholder='ghi chú'; iNo.style.width='110px'; iNo.value=c.note||'';
   /* Ô "Thực thu" ghi đè — anh Thắng: "thiếu nhập chỉ số thực thu cho chỉ số máy". Bỏ chặn cứng
      ở 1.59.2 chỉ mở khoá cho LƯU được, nhưng chưa cho kế toán cách nào SỬA ĐÚNG số tiền mặt khi
@@ -5803,7 +5865,10 @@ function ktdSuaRow(o,c,tr,m,reload){
   td.appendChild(wrap);
   bL.onclick=function(){
     function sn(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var dd=s.replace(/[^0-9]/g,''); return dd===''?0:(neg?-1:1)*parseInt(dd,10); }
-    function mv(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
+    /* Chỉ số máy CHO PHÉP THẬP PHÂN (551,5) — phẩy = thập phân, chấm = ngăn nghìn (khớp PHP). */
+    function mv(s){ s=String(s==null?'':s).replace(/\./g,'').replace(',', '.').replace(/[^0-9.]/g,'');
+      var i=s.indexOf('.'); if(i>=0){ s=s.slice(0,i+1)+s.slice(i+1).replace(/\./g,''); }
+      if(s===''||s==='.') return ''; var n=parseFloat(s); return isNaN(n)?'':Math.round(n*100)/100; }
     var patch={ meterAfter:mv(iAf.value), qr:sn(iQr.value), adjust:sn(iAd.value), note:(iNo.value||'').trim() };
     if(''!==(iTt.value||'').trim()) patch.actualOverride=sn(iTt.value);
     ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);

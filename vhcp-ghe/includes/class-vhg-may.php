@@ -1074,9 +1074,53 @@ class VHG_May {
 			$cu_mac = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE mac=%s LIMIT 1", $hang['mac'] ) );
 			if ( $cu_mac ) { $co = $cu_mac; }
 		}
+		/* 🔴 CƠ SỞ RỖNG (0) KHI SỬA MÁY ĐÃ CÓ = ĐỪNG GHI ĐÈ — cùng một lẽ với MAC ở trên, và là gốc
+		   của lỗi "tự nhiên mất máy Bạc Liêu" (anh Thắng). Form "Thêm/sửa máy" bên wp-admin là form
+		   TRẮNG: gõ lại đúng mã cũ = sửa máy đó, nhưng ô Cơ sở luôn mặc định "— chưa gán —". Ai mở
+		   form để sửa giá/số tài khoản mà không chọn lại cơ sở thì coso_id bị đặt về 0 → ghế thành
+		   "chưa gán" → rơi khỏi phạm vi PIN (trong_pham_vi) và biến mất khỏi màn nhập của nhân viên
+		   lẫn nhóm cơ sở trong bảng. Đổi cơ sở CÓ CHỦ Ý đi qua đường riêng (dat_coso/dat_coso_lo);
+		   ở đây 0 nghĩa là "không đụng tới", giữ nguyên cơ sở đang có. Máy MỚI (insert) vẫn cho 0. */
+		if ( $co && 0 === (int) $hang['coso_id'] ) { unset( $hang['coso_id'] ); }
 		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
 		else { $wpdb->insert( $bang, $hang ); }
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
+	}
+
+	/**
+	 * THÊM GHẾ MỚI — CHẶN TRÙNG MÃ. Anh Thắng 11/09/2026: *"nếu trùng mã thì không cho tạo"*.
+	 *
+	 * 🔴 KHÁC luu_may(): luu_may coi "gõ lại đúng mã cũ = SỬA máy đó" (dùng cho form cấu hình
+	 *    giá/tài khoản). Nhưng nút "Thêm ghế vào <cơ sở>" bên trang quản lý là THÊM MỚI — nếu nó
+	 *    cũng đi qua luu_may thì gõ nhầm một mã đã có (VD ghế VHM 80134) sẽ ÂM THẦM kéo ghế đó sang
+	 *    cơ sở đang mở và xoá trắng tên/cấu hình của nó (payload thêm ghế không có ten_khai). Đúng
+	 *    vụ "tự nhiên bên Bạc Liêu mọc ra mấy ghế 'vd VHM' không tên" — thực ra là ghế VHM bị nhầm
+	 *    mã, kéo qua, mất tên. Mỗi mã chỉ một ghế (UNIQUE KEY ma), nên thêm mà trùng = từ chối,
+	 *    chỉ đường đi tìm ghế cũ thay vì tạo lại.
+	 */
+	public static function them_may( $ma, $coso_id ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		if ( ! preg_match( '/^[A-Za-z0-9]{1,20}$/', $ma ) ) {
+			return array( 'ok' => false, 'error' => 'Mã chỉ gồm chữ và số, không dấu, không khoảng trắng '
+				. '(mã đi vào nội dung chuyển khoản khách gõ tay).' );
+		}
+		$bang = VHG_DB::t( 'may' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT m.an, c.ten AS coso_ten FROM $bang m LEFT JOIN " . VHG_DB::t( 'coso' )
+			. ' c ON c.id = m.coso_id WHERE m.ma=%s LIMIT 1', $ma ), ARRAY_A );
+		if ( $cu ) {
+			$noi = trim( (string) $cu['coso_ten'] );
+			$noi = ( '' !== $noi ) ? ( 'cơ sở "' . $noi . '"' ) : 'trạng thái chưa gán cơ sở';
+			$an  = ! empty( $cu['an'] ) ? ' (đang ẩn — đã điều chuyển)' : '';
+			return array( 'ok' => false, 'trung' => 1,
+				'error' => 'Mã ' . $ma . ' ĐÃ CÓ ghế ở ' . $noi . $an . '. Mỗi mã chỉ MỘT ghế nên không '
+					. 'tạo trùng được. Nếu muốn chuyển ghế đó về đây: tìm nó ở ô "Tìm ghế" (gõ mã), rồi '
+					. 'đổi Địa điểm (hoặc bấm "Đưa về" nếu đang ẩn) — đừng tạo lại mã.' );
+		}
+		$wpdb->insert( $bang, array( 'ma' => $ma, 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ghế ' . $ma . '.' );
 	}
 
 	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
