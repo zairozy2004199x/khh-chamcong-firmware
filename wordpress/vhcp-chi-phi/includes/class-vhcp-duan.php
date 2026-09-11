@@ -64,15 +64,15 @@ class VHCP_DuAn {
 
 	// ---------------------------------------------------------------- tạo / danh sách
 
-	public static function create_du_an( $loai, $ten, $nguoi ) {
+	public static function create_du_an( $loai, $ten, $nguoi, $tu = '', $den = '' ) {
 		global $wpdb;
 		$loai = trim( (string) $loai );
 		if ( $loai === 'Chi phí cơ sở' ) {
-			/* Tên rỗng = mở lại sổ CHUNG cũ (nút "🔧 Mở Chi phí cơ sở (chung)" vẫn gọi đúng
-			   như trước). Có tên = lập MỘT ĐƠN chi phí cơ sở theo đợt — xem chốt ở khối
-			   "MỘT ĐỢT LÀ MỘT ĐƠN" bên dưới. */
+			/* Tên rỗng = mở lại sổ CHUNG cũ (nút "🔧 Mở sổ chung (cũ)" vẫn gọi đúng như trước).
+			   Có tên = lập MỘT ĐƠN chi phí cơ sở cho một TUẦN — xem chốt ở khối "MỘT ĐỢT LÀ
+			   MỘT ĐƠN" bên dưới. */
 			$ten_cs = VHCP_Util::san( $ten );
-			return ( '' === $ten_cs ) ? self::ensure_co_so_chung( $nguoi ) : self::tao_don_coso( $ten_cs, $nguoi );
+			return ( '' === $ten_cs ) ? self::ensure_co_so_chung( $nguoi ) : self::tao_don_coso( $ten_cs, $nguoi, $tu, $den );
 		}
 		$ten = VHCP_Util::san( $ten );
 		if ( ! in_array( $loai, array( 'Tháo dỡ', 'Setup lắp đặt' ), true ) ) { return VHCP_Util::err( 'Loại không hợp lệ' ); }
@@ -133,11 +133,25 @@ class VHCP_DuAn {
 		return ( $ma_da === self::ma_coso_chung() );
 	}
 
-	/** Lập MỘT đơn chi phí cơ sở theo đợt — đơn này gom nhiều gian, mỗi dòng một gian. */
-	public static function tao_don_coso( $ten, $nguoi ) {
+	/**
+	 * Lập MỘT đơn chi phí cơ sở cho một TUẦN — đơn này gom nhiều gian, mỗi dòng một gian.
+	 *
+	 * 🔴 KHOẢNG NGÀY ĐI CÙNG LỜI GỌI TẠO, KHÔNG PHẢI LỜI GỌI THỨ HAI. Tạo đơn xong rồi mới gọi
+	 *    tiếp `set_ky_da()` là hai lượt mạng cho một việc: lượt sau hỏng (rớt mạng, đóng tab)
+	 *    thì đơn nằm đó KHÔNG có tuần, màn vẫn báo "đã tạo", và không ai biết thiếu.
+	 *
+	 * 🔴 KIỂM KHOẢNG NGÀY TRƯỚC KHI THÊM DÒNG. Kiểm sau là ngày ngược thì đơn đã sinh ra rồi,
+	 *    chối cũng muộn — người dùng thấy lỗi mà trong sổ vẫn mọc thêm một đơn rác.
+	 */
+	public static function tao_don_coso( $ten, $nguoi, $tu = '', $den = '' ) {
 		global $wpdb;
 		$ten = VHCP_Util::san( $ten );
 		if ( '' === $ten ) { return VHCP_Util::err( 'Nhập tên đợt chi phí cơ sở' ); }
+		$tu  = trim( (string) $tu );
+		$den = trim( (string) $den );
+		if ( '' !== $tu && '' !== $den && $den < $tu ) {
+			return VHCP_Util::err( 'Ngày kết thúc không được trước ngày bắt đầu.' );
+		}
 		/* Ghim trạng thái "đơn chung" TRƯỚC khi thêm đơn mới — xem chốt ⚠️ ở trên. */
 		if ( '' === self::ma_coso_chung() ) { VHCP_Meta::set( self::MK_COSO_CHUNG, '-' ); }
 		$ma = VHCP_Util::uid( 'DA' );
@@ -149,14 +163,15 @@ class VHCP_DuAn {
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'nguoi_tao'  => (string) $nguoi,
 		) );
+		if ( '' !== $tu || '' !== $den ) { VHCP_Meta::set_json( 'daKy_' . $ma, array( 'tu' => $tu, 'den' => $den ) ); }
 		VHCP_Log::log_action( array(
 			'actor'  => (string) ( '' !== $nguoi ? $nguoi : VHCP_Auth::nguoi() ),
 			'role'   => VHCP_Auth::vai_tro(),
 			'action' => 'Lập đơn chi phí cơ sở',
 			'target' => $ma,
-			'detail' => $ten,
+			'detail' => $ten . ( ( '' !== $tu || '' !== $den ) ? ( ' · ' . $tu . ' → ' . $den ) : '' ),
 		) );
-		return VHCP_Util::ok( array( 'maDA' => $ma, 'ten' => $ten, 'loai' => 'Chi phí cơ sở', 'sheet' => '', 'trangThai' => 'Đang làm', 'url' => '' ) );
+		return VHCP_Util::ok( array( 'maDA' => $ma, 'ten' => $ten, 'loai' => 'Chi phí cơ sở', 'sheet' => '', 'trangThai' => 'Đang làm', 'url' => '', 'kyDA' => array( 'tu' => $tu, 'den' => $den ) ) );
 	}
 
 	/** ensureCoSoChung(): chi phí cơ sở kỹ thuật = 1 "sheet" CHUNG duy nhất, xuyên suốt. */

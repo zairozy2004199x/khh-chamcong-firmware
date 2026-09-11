@@ -119,6 +119,104 @@ t('   tổng dự toán = 6.800.000',
 const X = chay({ isCoSo: true, theoCoSo: [{ coso: '<script>x</script>', duToan: 0, thucTe: 1, soDong: 1 }] }).innerHTML;
 t('🔴 tên gian có thẻ HTML bị rào, không chạy được', !/<script>/.test(X), X.slice(0, 200));
 
+/* ── 5. MỘT LỐI TẠO ĐƠN CHO CẢ BA LOẠI ───────────────────────────────────────────────────
+   Anh Thắng: *"1. Tạo dự án / Tạo đơn. 2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí
+   Cơ Sở. 3. Nếu chi phí cơ sở thì chọn Tuần. 4. Nếu Setup / Tháo dỡ thì chọn gian"*. */
+function beTao(loai) {
+  const NK = { goi: null, toast: [], confirm: [], mo: [] };
+  const KHO = {};
+  const O = id => ({ _id: id, style: { display: '' }, value: '', textContent: '', innerHTML: '', placeholder: '' });
+  const moi = {
+    DA_ITEMS: [], DA_TUAN: [], DA_CUR: null, DA_CHO_KEO: false,
+    CURUSER: { name: 'KT', role: 'Nhân viên' },
+    el: id => (KHO[id] = KHO[id] || O(id)),
+    esc: x => String(x == null ? '' : x),
+    loading: () => {}, _log: () => {},
+    toast: (k, m) => NK.toast.push([k, m]),
+    confirm: m => { NK.confirm.push(m); return true; },
+    loadDuAn: () => {}, openDuAn: (ma, n) => NK.mo.push([ma, n]),
+    google: { script: { run: {
+      withSuccessHandler(f) { this._ok = f; return this; },
+      withFailureHandler() { return this; },
+      /* Ghi ĐỦ năm tham số — thiếu tu/den là đơn lập ra không có tuần, và đó là chính cái
+         cần bắt. */
+      createDuAn(l, ten, nguoi, tu, den) { NK.goi = { l, ten, nguoi, tu, den };
+        this._ok({ success: true, maDA: 'DA9', ten }); },
+    } } },
+  };
+  const src = `${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
+    ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
+    ${boc('createDuAnUI')}
+    el('daLoai').value = LOAI; daOnLoai(); return { moi: moi, NK: NK, chay: createDuAnUI,
+      tuanDs: _daTuanDs, tenTuan: _daTenTuan, mondayOf: _mondayOf };`;
+  moi.moi = moi; moi.NK = NK; moi.LOAI = loai;
+  return new Function('moi', `with(moi){ ${src} }`)(moi);
+}
+
+const CS = beTao('Chi phí cơ sở');
+t('🔴 chọn "Chi phí cơ sở": ẩn ô GIAN, hiện ô TUẦN',
+  CS.moi.el('daTenBox').style.display === 'none' && CS.moi.el('daTuanBox').style.display === '',
+  [CS.moi.el('daTenBox').style.display, CS.moi.el('daTuanBox').style.display]);
+t('   ô tuần được nạp sẵn danh sách', /<option value="0"/.test(CS.moi.el('daTuan').innerHTML), CS.moi.el('daTuan').innerHTML.slice(0, 120));
+
+const SU = beTao('Setup lắp đặt');
+t('🔴 chọn "Setup": hiện ô GIAN, ẩn ô TUẦN',
+  SU.moi.el('daTenBox').style.display === '' && SU.moi.el('daTuanBox').style.display === 'none',
+  [SU.moi.el('daTenBox').style.display, SU.moi.el('daTuanBox').style.display]);
+t('   nhãn ô đổi theo Setup / Tháo dỡ', SU.moi.el('daTenLbl').textContent.indexOf('Setup') >= 0, SU.moi.el('daTenLbl').textContent);
+
+/* 🔴 TÊN ĐƠN KHÔNG ĐƯỢC CÓ "/" — VHCP_Util::san() thay nó bằng khoảng trắng, tên về tới sổ
+   là gãy, và hai tuần khác nhau có thể ra cùng một tên. */
+const t1 = CS.tenTuan(new Date(2026, 8, 7), new Date(2026, 8, 13));
+const t2 = CS.tenTuan(new Date(2026, 8, 14), new Date(2026, 8, 20));
+t('🔴 tên đơn tuần KHÔNG chứa ký tự bị san() băm ( [ ] * ? / \\ : )', !/[\[\]*?/\\:]/.test(t1), t1);
+t('   hai tuần khác nhau ra hai tên khác nhau', t1 !== t2, [t1, t2]);
+t('   tên mang đủ ngày đầu, ngày cuối và năm', /07\.09/.test(t1) && /13\.09/.test(t1) && /2026/.test(t1), t1);
+t('   tên dưới 60 ký tự (san() cắt ở 60)', t1.length <= 60, t1.length);
+
+const ds = CS.tuanDs(8);
+t('danh sách có đúng 8 tuần', ds.length === 8, ds.length);
+const thuHaiNay = (function () { const m = CS.mondayOf(new Date());
+  return m.getFullYear() + '-' + ('0' + (m.getMonth() + 1)).slice(-2) + '-' + ('0' + m.getDate()).slice(-2); })();
+t('🔴 mục đầu là TUẦN NÀY (thứ Hai của hôm nay)', ds[0].tu === thuHaiNay, [ds[0].tu, thuHaiNay]);
+t('🔴 mỗi mục là một tuần TRÒN: ngày cuối = ngày đầu + 6',
+  ds.every(x => (Date.parse(x.den) - Date.parse(x.tu)) / 86400000 === 6), ds.map(x => [x.tu, x.den]));
+t('🔴 các tuần lùi dần, không trùng nhau',
+  ds.every((x, i) => i === 0 || (Date.parse(ds[i - 1].tu) - Date.parse(x.tu)) / 86400000 === 7), ds.map(x => x.tu));
+t('   khoảng ngày là chuỗi ISO đọc được, không rỗng',
+  ds.every(x => /^\d{4}-\d{2}-\d{2}$/.test(x.tu) && /^\d{4}-\d{2}-\d{2}$/.test(x.den)), ds[0]);
+
+/* 🔴 LẬP ĐƠN PHẢI GỬI CẢ KHOẢNG NGÀY. Gửi thiếu thì đơn nằm đó không có tuần, màn vẫn báo
+   "đã tạo", và không ai biết thiếu cho tới lúc đi tìm đơn của tuần ấy. */
+CS.moi.el('daTuan').value = '0';
+CS.chay();
+const G = CS.NK.goi;
+t('lập đơn chi phí cơ sở: có gọi máy chủ', !!G, CS.NK.toast);
+t('🔴 gửi đúng loại "Chi phí cơ sở"', !!G && G.l === 'Chi phí cơ sở', G);
+t('🔴 gửi KHOẢNG NGÀY của tuần đã chọn, không để rỗng',
+  !!G && G.tu === ds[0].tu && G.den === ds[0].den, G);
+t('   tên đơn là tên tuần, không phải chữ người gõ', !!G && G.ten === ds[0].ten, G);
+t('   tạo xong mở thẳng đơn và kéo tới chỗ nhập', CS.NK.mo.length === 1 && CS.NK.mo[0][1] === true, CS.NK.mo);
+
+/* Chưa chọn tuần thì chối, KHÔNG gửi gì lên máy chủ. */
+const CS2 = beTao('Chi phí cơ sở');
+CS2.moi.el('daTuan').value = '';
+CS2.moi.DA_TUAN = [];
+CS2.chay();
+t('🔴 chưa chọn tuần: KHÔNG gọi máy chủ', CS2.NK.goi === null, CS2.NK.goi);
+t('   và nói cho người dùng biết', CS2.NK.toast.length > 0, CS2.NK.toast);
+
+/* Setup vẫn đi đường cũ: gửi TÊN GIAN, không kèm tuần. */
+const SU2 = beTao('Setup lắp đặt');
+SU2.moi.el('daTen').value = 'Gian AEON Tân Phú';
+SU2.chay();
+t('Setup: gửi tên gian đã gõ', !!SU2.NK.goi && SU2.NK.goi.ten === 'Gian AEON Tân Phú', SU2.NK.goi);
+t('   Setup KHÔNG kèm khoảng ngày tuần', !!SU2.NK.goi && !SU2.NK.goi.tu && !SU2.NK.goi.den, SU2.NK.goi);
+const SU3 = beTao('Setup lắp đặt');
+SU3.moi.el('daTen').value = '';
+SU3.chay();
+t('   Setup bỏ trống tên: không gọi máy chủ', SU3.NK.goi === null, SU3.NK.goi);
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════ */
 console.log('');
 if (TRUOT.length) {

@@ -158,11 +158,30 @@ Trước bản 1.124.0, chi phí cơ sở của Kỹ thuật là **một sổ ch
 mọi khoản dồn vào một chỗ. Chỗ ấy không đóng được, nên cũng không xin tạm ứng hay quyết toán theo
 đợt được — đúng thứ vừa dựng xong cho đơn dự án.
 
-Nay ở tab **🏗 Dự án · gian thi công** có khối xanh **"🏢 Đơn chi phí cơ sở — đợt mới"**: gõ tên
-đợt (`Chi phí cơ sở T9-2026`) rồi bấm **➕ Lập đơn chi phí cơ sở**. Mỗi đợt là **một đơn**, trong
-đơn ấy **mỗi dòng ghi gian của nó** ở ô *Gian / cơ sở* — một đơn gom nhiều gian, đúng như đơn bên
-POSH. Từ đó đơn đi trọn luồng đã mô tả ở trên: tích hạng mục → xin tạm ứng → kế toán duyệt & cấp
-tiền → gửi quyết toán → kế toán chốt sổ → đóng đơn.
+Nay ở tab **🏗 Dự án · gian thi công** chỉ còn **một lối tạo đơn** (anh Thắng 11/09/2026: *"1. Tạo
+dự án / Tạo đơn. 2. Chọn: Chi Phí Setup / Chi Phí Tháo Dỡ hoặc Chi Phí Cơ Sở. 3. Nếu chi phí cơ
+sở thì chọn Tuần. 4. Nếu chi phí Setup / Tháo dỡ thì chọn gian"*):
+
+| Chọn **Loại đơn** | Ô bên cạnh hỏi gì |
+|---|---|
+| 🆕 Chi phí Setup lắp đặt gian hàng | **GIAN** — gõ tên gian mới |
+| 🧹 Chi phí Tháo dỡ | **GIAN** — chọn cơ sở có sẵn |
+| 🏢 Chi phí cơ sở (1 đơn nhiều gian) | **TUẦN** — chọn trong 8 tuần gần đây |
+
+Mỗi tuần là **một đơn**, trong đơn ấy **mỗi dòng ghi gian của nó** ở ô *Gian / cơ sở* — một đơn
+gom nhiều gian, đúng như đơn bên POSH. Từ đó đơn đi trọn luồng đã mô tả ở trên: tích hạng mục →
+xin tạm ứng → kế toán duyệt & cấp tiền → gửi quyết toán → kế toán chốt sổ → đóng đơn.
+
+🔴 **Tuần đi cùng lời gọi tạo, không phải lời gọi thứ hai.** Tạo đơn xong rồi mới gọi tiếp
+`datKyDuAn` là hai lượt mạng cho một việc: lượt sau hỏng (rớt mạng, đóng tab) thì đơn nằm đó
+**không có tuần**, màn vẫn báo "đã tạo", và không ai biết thiếu cho tới lúc đi tìm đơn của tuần
+ấy. Khoảng ngày cũng được kiểm **trước** khi thêm dòng — kiểm sau là ngày ngược thì đơn rác đã
+sinh ra rồi, chối cũng muộn.
+
+🔴 **Tên đơn không chứa dấu `/`.** `VHCP_Util::san()` thay mọi ký tự cấm tên sheet
+(`[ ] * ? / \ :`) bằng khoảng trắng — di sản từ thời mỗi dự án là một tab Google Sheet. Nên tên
+tuần dùng dấu chấm (`Chi phí cơ sở tuần 07.09-13.09.2026`), còn khoảng ngày **thật** lưu riêng ở
+kỳ của đơn (`kyDA`) — đó mới là thứ màn và bộ lọc đọc.
 
 Trang đơn có thêm bảng **🏢 Chi phí theo từng cơ sở**: mỗi gian một dòng, kèm dự toán · thực tế ·
 chênh lệch, và dòng tổng.

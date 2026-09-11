@@ -74,6 +74,27 @@ teq( '   tên rỗng qua create_du_an cũng về đúng sổ chung ấy', $CH,
 teq( '   mã dự án lạ không phải sổ chung', false, VHCP_DuAn::la_coso_chung( 'DA-khong-co-that' ) );
 teq( '   mã rỗng không phải sổ chung', false, VHCP_DuAn::la_coso_chung( '' ) );
 
+/* ═══ 3b. 🔴 TUẦN ĐI CÙNG LỜI GỌI TẠO, KHÔNG PHẢI LỜI GỌI THỨ HAI ════════════════════════
+ * Anh Thắng: *"Nếu chi phí cơ sở thì chọn Tuần"*. Tạo xong rồi mới gọi tiếp `set_ky_da()` là
+ * hai lượt mạng cho một việc — lượt sau hỏng thì đơn nằm đó KHÔNG có tuần, màn vẫn báo đã tạo. */
+$rt = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', 'Chi phí cơ sở tuần 07.09-13.09.2026', 'NV', '2026-09-07', '2026-09-13' );
+t( 'lập đơn kèm tuần trong MỘT lời gọi', ! empty( $rt['success'] ), $rt );
+$DT = $rt['maDA'];
+$kt = VHCP_DuAn::get_du_an( $DT )['kyDA'];
+teq( '🔴 khoảng ngày lưu thật, đọc lại đúng ngày đầu tuần', '2026-09-07', $kt['tu'] );
+teq( '   và đúng ngày cuối tuần', '2026-09-13', $kt['den'] );
+t( '   đơn kèm tuần vẫn KHÔNG phải sổ chung', false === VHCP_DuAn::la_coso_chung( $DT ) );
+
+$truoc = count( VHCP_DuAn::list_du_an()['items'] );
+$rn = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', 'Tuần ngược', 'NV', '2026-09-13', '2026-09-07' );
+t( '🔴 ngày kết thúc trước ngày bắt đầu: CHỐI', empty( $rn['success'] ), $rn );
+teq( '🔴 và KHÔNG đẻ ra đơn rác — kiểm sau khi thêm dòng thì chối cũng muộn',
+	$truoc, count( VHCP_DuAn::list_du_an()['items'] ) );
+
+$rk = VHCP_DuAn::create_du_an( 'Chi phí cơ sở', 'Đơn không tuần', 'NV' );
+t( 'không truyền tuần vẫn lập được đơn (không ép)', ! empty( $rk['success'] ), $rk );
+teq( '   và kỳ để trống, không tự bịa ngày', '', VHCP_DuAn::get_du_an( $rk['maDA'] )['kyDA']['tu'] );
+
 /* ═══ 4. 🔴 BỐN CHỐT: SỔ CHUNG BẤT ĐỘNG, ĐƠN THEO ĐỢT ĐI TRỌN LUỒNG ═══════════════════════ */
 t( '🔴 sổ chung KHÔNG đổi tên', empty( VHCP_DuAn::rename_du_an( $CH, 'Tên khác' )['success'] ) );
 t( '🔴 sổ chung KHÔNG gửi duyệt',  empty( VHCP_DuAn::submit( $CH )['success'] ) );
