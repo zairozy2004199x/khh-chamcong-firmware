@@ -197,6 +197,13 @@ Nay việc chọn loại nằm đúng chỗ của nó — lúc bấm tạo đơn
 mỗi dòng nói rõ **ai lên** và **gom theo gì**. Có bài kiểm canh đủ ba tên và canh không tên nào
 là tiền tố của tên nào.
 
+🔴 **Hỏi đúng một lần.** Anh Thắng 11/09/2026: *"Sao lại hỏi lần 2"*. Chọn loại ở hộp
+*"＋ Tạo đơn mới"* rồi sang tab Kỹ thuật mà khối tạo bên ấy vẫn bày nguyên hàng *"Đơn này là
+gì?"* thì trông như lựa chọn vừa rồi không được ghi nhận, và người ta bấm lại lần nữa. Nay loại
+đi **cùng lời gọi** mở khối tạo (`daMoTao('coso'|'duan')`): hàng hỏi ẩn, chỉ còn dòng
+**"Đang lập: …"** kèm nút **↺ Đổi loại** cho ai bấm nhầm. Đóng khối là trả hàng hỏi về chỗ cũ
+ngay — không thì lần sau mở ra vẫn là dòng "Đang lập", không còn nút nào để chọn loại.
+
 🔴 **Không tự đẻ ra đơn khi chọn loại.** Đơn dự án cần TÊN gian, đơn cơ sở cần TUẦN; tạo bừa là
 ra một đơn không ai đặt, rồi phải xoá đi làm lại.
 

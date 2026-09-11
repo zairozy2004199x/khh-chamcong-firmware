@@ -151,10 +151,11 @@ function beTao() {
   };
   const src = `${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
     ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
-    ${boc('_tabDuoc')}\n${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}
+    ${boc('_tabDuoc')}\n${boc('_daHienHoi')}\n${boc('daDoiLoai')}
+    ${boc('daMoTao')}\n${boc('daDongTao')}\n${boc('daChonNhom')}\n${boc('_daLoaiChon')}
     ${boc('createDuAnUI')}
     return { moi: moi, NK: NK, chay: createDuAnUI, moTao: daMoTao, dongTao: daDongTao,
-      chonNhom: daChonNhom, loaiChon: _daLoaiChon,
+      chonNhom: daChonNhom, loaiChon: _daLoaiChon, doiLoai: daDoiLoai,
       tuanDs: _daTuanDs, tenTuan: _daTenTuan, mondayOf: _mondayOf };`;
   moi.moi = moi; moi.NK = NK;
   return new Function('moi', `with(moi){ ${src} }`)(moi);
@@ -188,9 +189,57 @@ t('🔴 không vào được tab đơn tuần: khối tạo KHÔNG bày lối sa
 const TQ2 = beTao(); TQ2.moi.QUYEN_TAB = { don: 1, duan: 1 }; TQ2.moTao();
 t('   vào được cả hai thì có bày', TQ2.moi.el('daNhomTuan').style.display === '', TQ2.moi.el('daNhomTuan').style.display);
 
+/* ── 🔴 HỎI ĐÚNG MỘT LẦN — anh Thắng: *"Sao lại hỏi lần 2"* ─────────────────────────────
+   Người dùng đã chọn loại ở hộp "＋ Tạo đơn mới" bên tab đơn rồi mới sang đây. Bày lại nguyên
+   hàng "Đơn này là gì?" thì trông như lựa chọn vừa rồi không được ghi nhận. */
+const SAN = beTao(); SAN.moTao('coso');
+t('🔴 tới đây đã có sẵn loại: ẨN hàng "Đơn này là gì?"',
+  SAN.moi.el('daTaoHoi').style.display === 'none', SAN.moi.el('daTaoHoi').style.display);
+t('   thay bằng dòng "Đang lập: …"', SAN.moi.el('daDangLap').style.display === 'flex', SAN.moi.el('daDangLap').style.display);
+t('🔴 và dòng ấy nói ĐÚNG loại đang lập, không phải loại kia',
+  /cơ sở/i.test(SAN.moi.el('daDangLapTen').textContent)
+  && !/dự án/i.test(SAN.moi.el('daDangLapTen').textContent), SAN.moi.el('daDangLapTen').textContent);
+t('   loại đã được chọn thật, không chỉ là chữ trên màn', SAN.loaiChon() === 'Chi phí cơ sở', SAN.loaiChon());
+t('   phần chi tiết mở sẵn: hiện ô TUẦN',
+  SAN.moi.el('daTuanBox').style.display === '' && SAN.moi.el('daTenBox').style.display === 'none',
+  [SAN.moi.el('daTuanBox').style.display, SAN.moi.el('daTenBox').style.display]);
+
+const SAN2 = beTao(); SAN2.moTao('duan');
+t('   nhánh dự án cũng vậy — dòng "Đang lập" nói dự án',
+  /dự án/i.test(SAN2.moi.el('daDangLapTen').textContent)
+  && SAN2.moi.el('daTaoHoi').style.display === 'none', SAN2.moi.el('daDangLapTen').textContent);
+
+SAN.doiLoai();
+t('🔴 bấm "Đổi loại": hàng hỏi hiện lại và QUÊN loại cũ — không thì nút Lập đơn vẫn lập loại kia',
+  SAN.moi.el('daTaoHoi').style.display === 'flex' && SAN.loaiChon() === '', SAN.loaiChon());
+
+/* ⚠️ Đóng lúc đang ở dạng "Đang lập: …" mà không trả lại thì lần sau mở ra vẫn là dòng ấy —
+   không còn nút nào để chọn loại. Canh NGAY SAU khi đóng: canh sau lần mở lại thì chính lần mở
+   ấy đã dựng lại hàng hỏi, nên đục `daDongTao()` vẫn xanh. */
+const SAN3 = beTao(); SAN3.moTao('coso'); SAN3.dongTao();
+t('🔴 đóng khối tạo: trả hàng hỏi về chỗ cũ ngay, khỏi treo trạng thái "Đang lập" cho lần sau',
+  SAN3.moi.el('daTaoHoi').style.display === 'flex'
+  && SAN3.moi.el('daDangLap').style.display === 'none' && SAN3.loaiChon() === '',
+  [SAN3.moi.el('daTaoHoi').style.display, SAN3.moi.el('daDangLap').style.display]);
+SAN3.moTao();
+t('   mở lại bằng nút Tạo đơn: vẫn là hàng hỏi, chưa chọn gì',
+  SAN3.moi.el('daTaoHoi').style.display === 'flex' && SAN3.loaiChon() === '', SAN3.loaiChon());
+
+/* Nhóm lạ truyền vào thì coi như không có sẵn — vẫn phải hỏi.
+   🔴 CANH CẢ HAI NỬA. Chỉ canh "hàng hỏi hiện" thì mã để dòng "Đang lập" hiện cùng lúc vẫn
+      xanh — mà bày cả hai là hỏi một đằng, báo một nẻo. */
+const SAN4 = beTao(); SAN4.moTao('linh-tinh');
+t('   nhóm lạ truyền vào: vẫn hỏi như thường',
+  SAN4.moi.el('daTaoHoi').style.display === 'flex'
+  && SAN4.moi.el('daDangLap').style.display === 'none' && SAN4.loaiChon() === '',
+  [SAN4.moi.el('daTaoHoi').style.display, SAN4.moi.el('daDangLap').style.display]);
+
 t('bấm Tạo đơn: nút thu lại, khối chọn xổ ra',
   TM.moi.el('daTaoNut').style.display === 'none' && TM.moi.el('daTaoBox').style.display === 'block',
   [TM.moi.el('daTaoNut').style.display, TM.moi.el('daTaoBox').style.display]);
+t('   và bày hàng hỏi, KHÔNG bày dòng "Đang lập"',
+  TM.moi.el('daTaoHoi').style.display === 'flex' && TM.moi.el('daDangLap').style.display === 'none',
+  [TM.moi.el('daTaoHoi').style.display, TM.moi.el('daDangLap').style.display]);
 t('🔴 xổ ra rồi vẫn CHƯA chọn gì — phần chi tiết còn ẩn',
   TM.moi.el('daTaoChiTiet').style.display === 'none' && TM.loaiChon() === '',
   [TM.moi.el('daTaoChiTiet').style.display, TM.loaiChon()]);

@@ -71,7 +71,7 @@ const nap = (moi, tens) => new Function('moi', `with(moi){ ${tens.map(boc).join(
 /* ── 1. TẠO XONG LÀ MỞ, VÀ MỞ ĐÚNG DỰ ÁN VỪA TẠO ───────────────────────────────────────── */
 {
   const { moi, NK, KHO } = dungBe();
-  const F = nap(moi, ['_daKeoToi', 'openDuAn', '_daLoaiChon', 'daDongTao', 'createDuAnUI']);
+  const F = nap(moi, ['_daKeoToi', 'openDuAn', '_daLoaiChon', '_daHienHoi', 'daDongTao', 'createDuAnUI']);
   KHO['daTen'] = KHO['daTen'] || moi.el('daTen'); moi.el('daTen').value = ' Aeon Bình Tân ';
   /* Nhánh 🏗 Chi phí dự án: người dùng đã bấm nút nhóm ấy rồi mới tới đây (xem
      `daChonNhom()` — bài kiểm riêng của nó ở `kiem-don-coso-man.js`). */
@@ -142,7 +142,7 @@ const nap = (moi, tens) => new Function('moi', `with(moi){ ${tens.map(boc).join(
 const dungTrung = () => {
   const be = dungBe();
   be.moi.DA_ITEMS = [{ maDA: 'DA1', ten: 'ADV GO! AN LẠC', loai: 'Setup lắp đặt', trangThai: 'Đang làm' }];
-  be.F = nap(be.moi, ['_daKeoToi', 'openDuAn', '_daLoaiChon', 'daDongTao', 'createDuAnUI']);
+  be.F = nap(be.moi, ['_daKeoToi', 'openDuAn', '_daLoaiChon', '_daHienHoi', 'daDongTao', 'createDuAnUI']);
   be.moi.DA_NHOM = 'duan';   // đã bấm nút 🏗 Chi phí dự án
   be.gõ = (ten, loai) => { be.moi.el('daTen').value = ten; be.moi.el('daLoai').value = loai || 'Setup lắp đặt'; };
   return be;

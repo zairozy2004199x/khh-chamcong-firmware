@@ -201,7 +201,10 @@ function beGop(quyen) {
     showPage: p => NK.trang.push(p),
     closeNewDon: () => { NK.dong++; },
     toast: (k, m) => NK.toast.push(m),
-    daMoTao: () => { NK.moTao = true; },
+    /* 🔴 GHI LẠI THAM SỐ. `daMoTao(nhomSan)` nhận loại đã chọn ở hộp trước; quên truyền là khối
+       tạo hỏi lại "Đơn này là gì?" lần thứ hai — đúng thứ anh Thắng gặp. Bệ đỡ chỉ ghi
+       `moTao = true` thì đục chỗ truyền tham số vẫn xanh. */
+    daMoTao: n => { NK.moTao = true; NK.moTaoNhom = n; },
     daChonNhom: n => NK.nhom.push(n),
     daDongTao: () => { NK.dongTao = true; },
     newDon: () => { NK.tuan++; },
@@ -225,14 +228,16 @@ const GX1 = beGop({ don: 1, duan: 1 });
 GX1.chon('dacoso');
 t('🔴 chọn "Chi phí cơ sở · Kỹ thuật": đóng hộp, sang tab Kỹ thuật, mở đúng nhánh cơ sở',
   GX1.NK.dong === 1 && GX1.NK.trang.join(',') === 'duan' && GX1.NK.moTao === true
-  && GX1.NK.nhom.join(',') === 'coso', GX1.NK);
+  && GX1.NK.moTaoNhom === 'coso', GX1.NK);
+t('🔴 loại đi CÙNG lời gọi mở khối tạo — không thì khối ấy hỏi lại lần thứ hai',
+  GX1.NK.moTaoNhom === 'coso' && GX1.NK.nhom.length === 0, GX1.NK);
 t('   và đặt con trỏ vào ô TUẦN', GX1.NK.focus === 'daTuan', GX1.NK.focus);
 t('   câu nhắc nói đúng việc phải làm tiếp (chọn tuần)', /TUẦN/i.test(GX1.NK.toast.join('|')), GX1.NK.toast);
 
 const GX2 = beGop({ don: 1, duan: 1 });
 GX2.chon('duan');
 t('🔴 chọn "Chi phí dự án": mở nhánh dự án, con trỏ vào ô TÊN GIAN',
-  GX2.NK.nhom.join(',') === 'duan' && GX2.NK.focus === 'daTen', GX2.NK);
+  GX2.NK.moTaoNhom === 'duan' && GX2.NK.focus === 'daTen', GX2.NK);
 t('   hai nhánh Kỹ thuật KHÔNG tự đẻ ra đơn — đơn cần tên hoặc tuần, tạo bừa là phải xoá đi làm lại',
   GX2.NK.tuan === 0 && GX1.NK.tuan === 0, [GX1.NK.tuan, GX2.NK.tuan]);
 

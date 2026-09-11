@@ -558,13 +558,23 @@
           <span style="font-size:11px;color:#94a3b8;flex:1;min-width:240px">Bấm <b>Tạo đơn</b> rồi chọn: <b>🏢 Chi phí cơ sở</b> (một đơn gom nhiều gian, theo TUẦN) hay <b>🏗 Chi phí dự án</b> (Setup / Tháo dỡ, theo GIAN).</span>
         </div>
         <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <!-- 🔴 HỎI ĐÚNG MỘT LẦN — anh Thắng 11/09/2026: *"Sao lại hỏi lần 2"*.
+               Người dùng đã chọn loại ở hộp "＋ Tạo đơn mới" bên tab đơn rồi mới sang đây; bày
+               lại nguyên hàng "Đơn này là gì?" thì trông như lựa chọn vừa rồi không được ghi
+               nhận, và họ bấm lại một lần nữa. Nay tới đây có sẵn loại thì hàng hỏi ẩn đi, chỉ
+               còn một dòng nói đang lập loại gì — kèm nút đổi lại cho ai bấm nhầm. -->
+          <div id="daTaoHoi" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <span style="font-size:12px;color:#334155;font-weight:700">Đơn này là gì?</span>
             <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')">🏢 Chi phí cơ sở</button>
             <button class="btn b-x" id="daNhomDa" onclick="daChonNhom('duan')">🏗 Chi phí dự án</button>
             <!-- Lối thứ ba: đơn TUẦN của nhân viên cơ sở. Chỉ hiện cho người vào được cả hai —
                  cùng một câu hỏi "đơn này là gì", hỏi ở đâu cũng ra đủ lựa chọn. -->
             <button class="btn b-x" id="daNhomTuan" onclick="daSangDonTuan()" style="display:none">📅 Đơn tuần của cơ sở</button>
+            <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
+          </div>
+          <div id="daDangLap" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
+            <span style="font-size:12px;color:#334155">Đang lập: <b id="daDangLapTen" style="color:#0f766e"></b></span>
+            <button class="btn b-x" onclick="daDoiLoai()" title="Chọn lại loại đơn">↺ Đổi loại</button>
             <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
           </div>
           <div id="daTaoChiTiet" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap;padding-top:10px">
@@ -2607,7 +2617,7 @@
       closeNewDon();
       showPage('duan');
       setTimeout(function(){
-        try{ daMoTao(); daChonNhom(laCS?'coso':'duan'); }catch(e){}
+        try{ daMoTao(laCS?'coso':'duan'); }catch(e){}
         var t=el(laCS?'daTuan':'daTen');
         if(t){ try{ t.focus({preventScroll:true}); }catch(e){ t.focus(); } t.scrollIntoView({block:'center'}); }
       },140);
@@ -4158,13 +4168,25 @@
         nút, và `createDuAnUI()` chối lập đơn khi nó còn rỗng.
      ══════════════════════════════════════════════════════════════════════════════════════ */
   var DA_NHOM='';   // '' = chưa chọn · 'coso' = chi phí cơ sở (theo tuần) · 'duan' = Setup/Tháo dỡ
-  function daMoTao(){
+  /* Mở khối tạo đơn.
+     `nhomSan` = loại người dùng ĐÃ chọn ở hộp "＋ Tạo đơn mới" bên tab đơn. Có sẵn thì đừng hỏi
+     lại — xem chốt 🔴 "HỎI ĐÚNG MỘT LẦN" ở phần HTML. */
+  function daMoTao(nhomSan){
     if(el('daTaoNut')) el('daTaoNut').style.display='none';
     if(el('daTaoBox')) el('daTaoBox').style.display='block';
     /* Lối sang đơn tuần chỉ bày cho người vào được tab ấy. */
     if(el('daNhomTuan')) el('daNhomTuan').style.display=_tabDuoc('don')?'':'none';
-    daChonNhom('');   // mở ra là trắng, chưa chọn gì
+    var san=(nhomSan==='coso'||nhomSan==='duan')?nhomSan:'';
+    _daHienHoi(!san);
+    daChonNhom(san);   // không truyền gì thì mở ra trắng, chưa chọn gì
   }
+  /* Hàng "Đơn này là gì?" và dòng "Đang lập: …" luôn ngược nhau — đúng một cái hiện. */
+  function _daHienHoi(hien){
+    if(el('daTaoHoi'))   el('daTaoHoi').style.display  =hien?'flex':'none';
+    if(el('daDangLap'))  el('daDangLap').style.display =hien?'none':'flex';
+  }
+  /* Bấm nhầm loại thì quay lại câu hỏi — không phải đóng khối rồi mở lại từ đầu. */
+  function daDoiLoai(){ _daHienHoi(true); daChonNhom(''); }
   /* Chọn "Đơn tuần của cơ sở" ở khối tạo của tab Kỹ thuật -> sang tab đơn rồi mở thẳng hộp
      tạo đơn tuần. Không để người dùng tự đi tìm nút bên kia: đi tìm là lại lộn. */
   function daSangDonTuan(){
@@ -4175,6 +4197,9 @@
   function daDongTao(){
     if(el('daTaoBox')) el('daTaoBox').style.display='none';
     if(el('daTaoNut')) el('daTaoNut').style.display='flex';
+    /* ⚠️ TRẢ HÀNG HỎI VỀ CHỖ CŨ. Đóng lúc đang ở dạng "Đang lập: …" mà không trả lại thì lần
+       sau bấm "➕ Tạo đơn" mở ra vẫn là dòng ấy — không còn nút nào để chọn loại. */
+    _daHienHoi(true);
     DA_NHOM='';
   }
   function daChonNhom(n){
@@ -4188,6 +4213,10 @@
        dùng không biết mình vừa chọn cái nào, nhất là khi phần chi tiết trượt xuống dưới. */
     var to=function(id,on){ var b=el(id); if(b) b.className='btn '+(on?'b-p':'b-x'); };
     to('daNhomCs', cs); to('daNhomDa', da);
+    /* Dòng "Đang lập" nói tên loại đang chọn — chỉ thấy được khi hàng hỏi đã ẩn, nhưng đặt tên
+       ở đây để một nơi duy nhất giữ cặp (nhóm → tên). */
+    var tenLoai=cs?'🏢 Chi phí cơ sở · Kỹ thuật':(da?'🏗 Chi phí dự án · Kỹ thuật':'');
+    if(el('daDangLapTen')) el('daDangLapTen').textContent=tenLoai;
     if(cs) daNapTuan(); else if(da) daOnLoai();
   }
   /* Loại đơn ĐANG chọn — '' nghĩa là người dùng chưa chọn gì. */
