@@ -241,6 +241,25 @@ quyền chỉnh sửa — một người vừa làm kỹ thuật vừa phụ đ�
 trước bằng `localStorage`) — không thì người Kỹ thuật mở app ra trúng đúng trang vừa bị ẩn, hàng
 tab không nút nào sáng, và họ tưởng app hỏng.
 
+### Ô Gian chỉ bày gian của đơn vị mình
+
+Anh Thắng 11/09/2026: *"Thêm đơn vị KVC để tách ra được không. Vì để bên K&H vẫn thấy bên
+Posh"*, kèm ảnh ô **Gian / cơ sở** của đơn Kỹ thuật xổ ra cả *"POSH MN CGV VINCOM LANDMARK"*.
+
+Gốc **không** phải thiếu đơn vị KVC, mà là ba màn nhập (Kỹ thuật · Marketing · Công tác/Setup)
+lấy **thẳng toàn bộ danh mục cơ sở**, không qua lớp tách đơn vị. Cả bộ máy `VHCP_DonVi` dựng
+công phu (nhà của người · tầm nhìn của vai · đơn vị của từng cơ sở) trở nên vô nghĩa ngay tại ô
+người ta gõ hằng ngày — chọn nhầm một gian của bên kia là dòng chi rơi sang sổ của họ.
+
+Nay cả ba màn đi qua `VHCP_DonVi::coso_xem_duoc()`.
+
+⚠️ Hàm ấy trả `null` nghĩa là **xem cả** (Admin · Quản lý · Kế toán) — lúc ấy phải bày **đủ**,
+không phải bày rỗng. Hiểu nhầm `null` thành "không có gì" là ô chọn trống trơn với chính những
+người phải soát cả hệ.
+
+⚠️ Người kỹ thuật làm cho **cả hai bên** vẫn chọn được: tích thêm ở ô **Xem đơn vị** (⚙️ Cấu hình
+→ bảng Người dùng) là gian của bên ấy hiện ra.
+
 ### Ô Gian và ô Loại chi phí
 
 Ô **Gian / cơ sở** của từng dòng nay **xổ ra danh sách cơ sở** (`dl_gian_da`) thay vì ô gõ tay
@@ -355,5 +374,6 @@ kiểm sai.
 | `kiem-don-coso-man.js` | màn đơn cơ sở: bốn nút quy trình, bảng theo từng gian, luồng tạo đơn |
 | `kiem-tab-kythuat-va-gian.js` | ẩn tab đơn tuần với Kỹ thuật · ô Gian xổ danh sách · ô Loại chi phí |
 | `kiem-loai-coso-ky-thuat.php` | loại "Chi phí cơ sở" mở thêm cho bộ phận Kỹ thuật |
+| `kiem-o-gian-theo-don-vi.php` | ô chọn cơ sở lọc theo đơn vị ở cả ba màn nhập |
 
 Chạy PHP **theo lô** (~12 tệp một lượt) — chạy hết một lần làm tiến trình hết bộ nhớ.
