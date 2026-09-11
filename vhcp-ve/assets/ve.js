@@ -158,13 +158,42 @@ boc('thông tin Zalo', function(){
 		.catch(function(){});   /* mất mạng thì thôi, khách gõ tay — không được chặn mua vé */
 });
 function dienZalo(o, v){ if (o && !o.value && v) { o.value = v; } }
+
+/* ═══ NHỚ NGƯỜI MUA NGAY TRÊN MÁY ═══════════════════════════════════════════════════════════
+   Zalo web không đưa số điện thoại, mà máy chủ chỉ tra được số từ vé ĐÃ đặt — nên ngay sau lượt
+   đặt đầu tiên, trong cùng phiên, ô số vẫn trống (thông tin Zalo đã lấy về từ lúc mở trang, có
+   tải lại đâu mà biết). Đúng cái anh Thắng thấy: đặt xong một vé, mở vé thứ hai vẫn phải gõ lại.
+
+   Nên nhớ luôn tại máy: đặt được vé thì ghi tên + số vào localStorage và cập nhật ngay bộ nhớ
+   trong phiên. Cách này còn chạy cho cả khách KHÔNG đăng nhập Zalo. */
+var KHO = 'posh_ve_kh';
+function khachDaLuu(){
+	try { return JSON.parse(localStorage.getItem(KHO) || 'null') || null; } catch (e) { return null; }
+}
+function nhoKhach(ten, sdt){
+	if (!ten && !sdt) return;
+	try { localStorage.setItem(KHO, JSON.stringify({ ten: ten || '', sdt: sdt || '' })); } catch (e) {}
+	if (!ZME) { ZME = { dangnhap: false }; }
+	if (ten) ZME.ten = ZME.ten || ten;
+	if (sdt) ZME.sdt = sdt;
+}
+boc('nhớ người mua', function(){
+	var k = khachDaLuu(); if (!k) return;
+	if (!ZME) { ZME = { dangnhap: false, ten: k.ten, sdt: k.sdt }; }
+	else { ZME.ten = ZME.ten || k.ten; ZME.sdt = ZME.sdt || k.sdt; }
+	dienZalo(document.querySelector('.pve-qf-ten'), k.ten);
+	dienZalo(document.querySelector('.pve-qf-sdt'), k.sdt);
+});
 /* Gọi mỗi lần mở popup: popup có thể mở trước lúc /zalo/toi kịp trả lời. */
 function zaloVaoForm(){
 	var chip = qs('.pve-zme');
 	if (!ZME) { if (chip) chip.hidden = true; return; }
 	dienZalo(qs('.pve-f-ten'), ZME.ten);
 	dienZalo(qs('.pve-f-sdt'), ZME.sdt);
-	if (chip){
+	/* Chỉ khoe nhãn Zalo khi đúng là đăng nhập Zalo. Nhớ từ máy thì điền im lặng — dán tên tài
+	   khoản Zalo lên một thông tin gõ tay là nói sai nguồn gốc của nó. */
+	if (chip && !ZME.dangnhap) { chip.hidden = true; }
+	else if (chip){
 		qs('.pve-zme-t').textContent = ZME.ten || ('Zalo ' + (ZME.id || ''));
 		var a = qs('.pve-zme-a');
 		if (a && ZME.anh) { a.src = ZME.anh; a.hidden = false; }
@@ -429,6 +458,7 @@ function dongBo(){
 		.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
 		.then(function(o){ btn.disabled=false; btn.textContent='Mua vé ngay';
 			if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
+			nhoKhach(ten, sdt);
 			hienQR(o.d);
 		})
 		.catch(function(){ btn.disabled=false; btn.textContent='Mua vé ngay'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
@@ -458,11 +488,16 @@ qs('.pve-go').addEventListener('click', function(){
 	err.hidden = true; this.disabled = true; this.textContent='Đang tạo…';
 	var btn = this;
 	fetch(REST+'/ve/dat', { method:'POST', headers:{'Content-Type':'application/json'},
-		body: JSON.stringify({ id: Number(mFor.dataset.id), ten: ten, sdt: sdt }) })
+		/* Mã cửa hàng + toạ độ phải gửi ở ĐÂY NỮA, không chỉ ở form đặt nhanh: máy chủ chốt giảm
+		   giá tại quầy từ ba giá trị này (POSH_Ve::giam_tai_cho). Thiếu chúng thì khách đứng ngay
+		   quầy, băng trên đầu trang báo "đã giảm 10%", mà bấm Đặt vé ở thẻ vé vẫn ra giá gốc. */
+		body: JSON.stringify({ id: Number(mFor.dataset.id), ten: ten, sdt: sdt,
+			cs: (PVE.cs ? PVE.cs.ma : ''), lat: (PVE.pos ? PVE.pos.lat : ''), lng: (PVE.pos ? PVE.pos.lng : '') }) })
 	.then(function(r){ return r.json().then(function(d){ return { ok:r.ok, d:d }; }); })
 	.then(function(o){
 		btn.disabled=false; btn.textContent='Tạo mã thanh toán';
 		if(!o.ok || o.d.ok===false){ err.textContent = (o.d && (o.d.message||o.d.code)) || 'Lỗi tạo vé.'; err.hidden=false; return; }
+		nhoKhach(ten, sdt);
 		hienQR(o.d);
 	})
 	.catch(function(){ btn.disabled=false; btn.textContent='Tạo mã thanh toán'; err.textContent='Lỗi kết nối máy chủ.'; err.hidden=false; });
@@ -478,7 +513,11 @@ function hienQR(v){
 	qs('.pve-r-ctk').textContent  = (v.bank&&v.bank.ten_tk)||'';
 	qs('.pve-r-nd').textContent   = v.noi_dung;
 	var box = qs('.pve-qr'); box.innerHTML='';
-	loadQR(function(loi){
+	/* Máy chủ dựng sẵn mã QR thì dùng luôn — không gọi mạng ngoài, không chờ. Chỉ khi máy chủ
+	   không dựng được (thiếu plugin Ghế) mới lùi về thư viện trên CDN như cũ. Xem chú thích ở
+	   POSH_Ve::qr_svg(): CDN chết là khách phải gõ tay số tài khoản. */
+	if (v.qr_svg) { box.innerHTML = v.qr_svg; }
+	else loadQR(function(loi){
 		if(loi){ box.textContent='(Không tải được mã QR — dùng nội dung CK bên dưới)'; return; }
 		new QRCode(box, { text: v.qr, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 	});

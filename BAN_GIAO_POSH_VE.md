@@ -110,6 +110,17 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
 
+### ⚠️ Mã QR chuyển khoản dựng Ở MÁY CHỦ — đừng quay lại kiểu tải thư viện từ CDN
+Trước 1.47.0 trang khách tải `qrcodejs` từ `cdnjs.cloudflare.com` rồi mới vẽ. Trên site thật nó
+ra đúng câu dự phòng *"(Không tải được mã QR — dùng nội dung CK bên dưới)"*: khách đang cầm điện
+thoại định quét thì phải tự gõ số tài khoản và nội dung — gõ sai một ký tự trong nội dung là tiền
+vào mà đơn không tự khớp.
+
+Nay `POSH_Ve::qr_svg()` dựng sẵn SVG bằng `VHG_QRVe` của plugin Ghế và trả kèm trong `qr_svg`.
+Đã đối chiếu **khớp từng ô** với thư viện chuẩn (`python-qrcode`, version 6 / ECC M / chế độ
+alphanumeric) cho đúng loại chuỗi VietQR này. Thiếu plugin Ghế thì trả rỗng và trang tự lùi về
+cách cũ — nên **Ghế và Vé phải cùng cài trên một site**.
+
 ### ⚠️ Đăng nhập Zalo trên web KHÔNG cho số điện thoại
 OAuth v4 chỉ trả `id`, `name`, `picture`. Số điện thoại chỉ lấy được trong **Zalo Mini App**
 (`getPhoneNumber` → `POSH_Ve::r_zalo_sdt()`). Nên từ **1.46.0** mỗi vé ghi thêm cột `zalo_id`, và
@@ -118,6 +129,12 @@ OAuth v4 chỉ trả `id`, `name`, `picture`. Số điện thoại chỉ lấy �
 phải dựng thêm kho dữ liệu nào để nhớ.
 
 Trang chỉ điền vào ô **đang trống**: khách mua hộ người khác mà bị ghi đè tên là vé xuất sai tên.
+
+Từ **1.47.0** trang còn nhớ tên + SĐT ngay trên máy khách (`localStorage` khoá `posh_ve_kh`) sau
+mỗi lượt đặt được vé: máy chủ chỉ tra được số từ vé **đã** đặt, mà thông tin Zalo lấy về từ lúc
+mở trang — không nhớ tại máy thì đặt xong vé thứ nhất, mở vé thứ hai trong cùng phiên vẫn phải gõ
+lại. Cách này chạy cho cả khách không đăng nhập Zalo. Nhãn "Mua bằng tài khoản Zalo" **chỉ** hiện
+khi đúng là đăng nhập Zalo — dán nhãn ấy lên thông tin gõ tay là nói sai nguồn gốc của nó.
 
 ### ⚠️ Popup bị chuyển ra ngoài `.pve-page` — biến màu phải khai lại
 `.pve-mask` và `.pve-wel` được JS `appendChild` thẳng vào `<body>` (để nền mờ phủ kín, khỏi vướng

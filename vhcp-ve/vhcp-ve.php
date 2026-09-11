@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.46.0
+ * Version:           1.47.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -69,6 +69,31 @@ class POSH_Ve {
 			for ( $b = 0; $b < 8; $b++ ) { $crc = ( $crc & 0x8000 ) ? ( ( $crc << 1 ) ^ 0x1021 ) : ( $crc << 1 ); $crc &= 0xFFFF; } }
 		return substr( '000' . strtoupper( dechex( $crc ) ), -4 );
 	}
+	/**
+	 * Mã QR chuyển khoản, dựng SẴN THÀNH SVG Ở MÁY CHỦ.
+	 *
+	 * ⚠️ ĐỪNG QUAY LẠI KIỂU TẢI THƯ VIỆN QR TỪ CDN. Trang khách trước đây gọi qrcodejs từ
+	 * cdnjs.cloudflare.com rồi mới vẽ. Ngày 11/09/2026 trên site thật nó ra đúng câu dự phòng
+	 * "(Không tải được mã QR — dùng nội dung CK bên dưới)": CDN không tới được. Khách đang cầm
+	 * điện thoại định quét thì phải tự gõ tay số tài khoản và nội dung — gõ sai một ký tự trong
+	 * nội dung là tiền vào mà đơn không tự khớp.
+	 *
+	 * Dựng ở máy chủ thì không phụ thuộc mạng ngoài, không phụ thuộc cả plugin chặn/gộp JS. Bộ
+	 * dựng mượn của plugin Ghế (VHG_QRVe) — đã đối chiếu khớp từng ô với thư viện chuẩn cho đúng
+	 * loại chuỗi VietQR này. Gác class_exists đúng luật gọi chéo: thiếu plugin Ghế thì trả rỗng
+	 * và trang tự lùi về cách cũ, chứ không vỡ.
+	 */
+	public static function qr_svg( $chuoi, $px = 220 ) {
+		$chuoi = (string) $chuoi;
+		if ( '' === $chuoi ) { return ''; }
+		if ( ! class_exists( 'VHG_QRVe' ) || ! method_exists( 'VHG_QRVe', 'ma_tran' ) ) { return ''; }
+		$mt = VHG_QRVe::ma_tran( $chuoi, 'M' );
+		/* Ma trận rỗng = không dựng được. Trả rỗng để nơi gọi biết mà nói ra, đừng bịa một tấm
+		   tem gần đúng: mã quét không ra còn tệ hơn không có mã. */
+		if ( ! is_array( $mt ) || ! count( $mt ) ) { return ''; }
+		return VHG_QRVe::svg( $mt, (int) $px );
+	}
+
 	public static function vietqr( $bin, $so_tk, $so_tien, $noi_dung ) {
 		$s  = self::tlv( '00', '01' ) . self::tlv( '01', $so_tien ? '12' : '11' );
 		$ben = self::tlv( '00', (string) $bin ) . self::tlv( '01', (string) $so_tk );
@@ -687,7 +712,7 @@ class POSH_Ve {
 		self::giam_ton( $goi['id'], 1 );
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
-			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho',
+			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ), 'trang_thai' => 'cho',
 			'gia_goc' => $goc, 'giam' => $g0['ok'] ? (int) $g0['giam'] : 0, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
@@ -745,7 +770,7 @@ class POSH_Ve {
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
-			'noi_dung' => $noidung, 'qr' => $qr, 'trang_thai' => 'cho', 'chi_tiet' => $ct,
+			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ), 'trang_thai' => 'cho', 'chi_tiet' => $ct,
 			'gia_goc' => $tong_goc, 'giam' => $pc, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
