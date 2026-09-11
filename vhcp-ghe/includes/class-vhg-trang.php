@@ -2499,6 +2499,25 @@ class VHG_Trang {
     var aEl=$('bc-amt'); var amtRaw=aEl?(aEl.value||'').trim():'';   // gọn: không có ô số tiền → nộp đủ
     var nEl=$('bc-paynote');
     var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:nEl?(nEl.value||'').trim():'' };
+    /* 🔴 CHỐT THIẾU ẢNH — anh Thắng 11/09/2026: "sao thiếu ảnh lại báo gửi thành công được".
+       Ảnh là bằng chứng chỉ số; trước đây bước Gửi không đòi ảnh nên thiếu vẫn "thành công".
+       Nay đếm ghế CHƯA CÓ ẢNH NÀO (dò .files hoặc _bulkFile, cùng cách gomAnhTungGhe_) rồi HỎI
+       trước khi gửi — không lặng lẽ cho qua. Đồng ý (bổ sung sau) thì mới gửi. */
+    var thieuAnh=[];
+    rows.forEach(function(r){
+      var tr=document.querySelector('#bc-rows tr[data-ma="'+String(r.chairCode).replace(/"/g,'\\"')+'"]');
+      var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
+      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile);
+      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile);
+      if(!c&&!v) thieuAnh.push(r.chairName||r.chairCode);
+    });
+    if(thieuAnh.length){
+      var dsTh=thieuAnh.slice(0,8).join(', ')+(thieuAnh.length>8?'…':'');
+      if(!confirm('⚠ '+thieuAnh.length+' ghế CHƯA CÓ ẢNH ('+dsTh+').\n'
+        +'Ảnh chỉ số/vệ sinh là bằng chứng — gửi thiếu ảnh thì kế toán sẽ trả lại.\n\nVẫn gửi báo cáo?')){
+        msg.textContent='Đã dừng — chọn ảnh cho các ghế còn thiếu rồi Gửi lại.'; msg.className='bc-msg bc-err'; return;
+      }
+    }
     if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
     msg.textContent='Đang đọc ảnh…';
     gomAnhTungGhe_(rows,function(){
