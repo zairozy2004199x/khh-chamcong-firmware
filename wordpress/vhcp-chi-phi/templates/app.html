@@ -5157,21 +5157,47 @@
           +'</div>';
       }).join('');
 
-      return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')">'+esc(da.tenDA)+'</a>'
+      /* ══════════════════════════════════════════════════════════════════════════════════
+       * MỖI ĐƠN MỘT KHUNG.
+       *
+       * Anh Thắng 11/09/2026: *"Của đơn nào thì đóng khung cho rõ ràng lại"*.
+       *
+       * Một đơn ở bảng này chiếm ÍT NHẤT ba hàng: hàng đơn · hàng liệt kê hạng mục · và mỗi
+       * hạng mục thêm một hàng ô nhập (ẩn tới khi bấm). Bốn đơn là mười mấy hàng nối đuôi
+       * nhau, phân cách bằng đúng một đường kẻ mờ như mọi đường kẻ khác — nhìn xuống giữa
+       * bảng thì không biết hàng "Cáp màn hình" đang thuộc đơn nào, mà ba đơn ở đây lại
+       * trùng tên nhau (cùng là "Chi phí cơ sở tuần 07.09-13.09.2026").
+       *
+       * ⚠️ HÀNG Ô NHẬP PHẢI NẰM TRONG KHUNG. Nó ẩn lúc bình thường, nhưng bấm "Chốt xong" là
+       *    nó bung ra — rơi ra ngoài khung thì đúng lúc người ta thao tác lại mất mạch.
+       *    Nên đáy khung là một hàng riêng đặt SAU tất cả hàng ô nhập.
+       *
+       * Màu gáy trái nói luôn đây là đơn hay dự án, cùng bảng màu với ba nút chọn loại lúc
+       * tạo: đơn chi phí cơ sở xanh ngọc · dự án Setup/Tháo dỡ xanh dương.
+       * ══════════════════════════════════════════════════════════════════════════════════ */
+      var mauGay=da.isCoSo?'#0f766e':'#1d4ed8';
+      var vT=';border-top:2px solid #cbd5e1';
+      var vL=';border-left:4px solid '+mauGay;
+      var vR=';border-right:2px solid #cbd5e1';
+      return '<tr><td style="'+vT.slice(1)+vL+'"><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')">'+esc(da.tenDA)+'</a>'
         +'<div style="font-size:10.5px;color:#94a3b8">'+esc(da.loaiDA)+' · '+esc(da.nguoiTao||'')+'</div></td>'
-        +'<td style="font-size:12px"><b>'+hs.length+'</b> hạng mục</td>'
-        +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(da.kyDA, da.isCoSo)+'</td>'
-        +'<td class="money">'+money(tongDT)+'</td><td class="money">'+money(tongTT)+'</td>'
-        +'<td style="font-size:11.5px;white-space:nowrap">'+ht+'</td>'
-        +'<td>'+tomTat+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'
+        +'<td style="font-size:12px'+vT+'"><b>'+hs.length+'</b> hạng mục</td>'
+        +'<td style="white-space:nowrap;font-size:12px'+vT+'">'+_hmNgay(da.kyDA, da.isCoSo)+'</td>'
+        +'<td class="money" style="'+vT.slice(1)+'">'+money(tongDT)+'</td><td class="money" style="'+vT.slice(1)+'">'+money(tongTT)+'</td>'
+        +'<td style="font-size:11.5px;white-space:nowrap'+vT+'">'+ht+'</td>'
+        +'<td style="'+vT.slice(1)+'">'+tomTat+'</td>'
+        +'<td style="text-align:center;white-space:nowrap'+vT+vR+'">'
         /* Anh Thắng 11/09/2026: *"Bổ sung nút mở"* — kế toán nhìn thấy đơn đang vướng thì mở
            thẳng dự án ra xem, khỏi tự đi tìm nó ở tab Dự án giữa mấy chục cái. */
         +'<button class="btn b-p" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')" title="Mở trang dự án này">📂 Mở</button>'
         +'</td></tr>'
-        +'<tr><td colspan="8" style="background:#fbfdff;padding:2px 14px 8px">'+chiTiet+'</td></tr>'
+        +'<tr><td colspan="8" style="background:#fbfdff;padding:2px 14px 8px'+vL+vR+'">'+chiTiet+'</td></tr>'
         /* Hàng ô nhập của TỪNG hạng mục, nằm sau hàng chi tiết — nút "Chốt xong" mở nó ra. */
-        +hs.map(function(x){ return hmDongForm(_hmKeyDuyet(x.maDA, x.row), 8); }).join('');
+        +hs.map(function(x){ return hmDongForm(_hmKeyDuyet(x.maDA, x.row), 8, vR); }).join('')
+        /* Đáy khung + khoảng hở sang đơn sau. Một hàng mảnh chứ không phải viền dưới của hàng
+           trên: hàng ô nhập nằm giữa hai thứ ấy và bung ra bất cứ lúc nào. */
+        +'<tr><td colspan="8" style="height:5px;padding:0'+vL+vR+';border-bottom:2px solid #cbd5e1"></td></tr>'
+        +'<tr><td colspan="8" style="height:12px;padding:0;border:0"></td></tr>';
     }).join('');
   }
   /* Uỷ nhiệm chi hay là một ĐỊA CHỈ TỆP dài cả dòng (kế toán đính ảnh chụp). In thẳng ra thì nó
@@ -5307,8 +5333,10 @@
   function _hmKeyDA(row){ return 'P'+row; }
   function _hmKeyDuyet(maDA,row){ return 'D'+String(maDA).replace(/[^A-Za-z0-9_-]/g,'')+'_'+row; }
   function _hmSau(k){ return (String(k).charAt(0)==='P') ? hmLaiDA : loadDonHM; }
-  function hmDongForm(k, cot){
-    return '<tr data-hmf="'+k+'" style="display:none"><td colspan="'+cot+'" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>';
+  /* `vien` = mảnh style viền hai bên, để hàng ô nhập nằm GỌN trong khung của đơn khi bảng có
+     đóng khung (xem `_hmKhung`). Bỏ trống thì hàng vẽ y như trước — bảng dự án vẫn dùng thế. */
+  function hmDongForm(k, cot, vien){
+    return '<tr data-hmf="'+k+'" style="display:none"><td colspan="'+cot+'" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a'+(vien||'')+'"></td></tr>';
   }
   function _hmO(k){
     var tr=document.querySelector('[data-hmf="'+k+'"]');
