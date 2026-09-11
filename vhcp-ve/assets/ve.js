@@ -400,6 +400,20 @@ function viNut(n){
 	var o = nut.querySelector('.pve-vi-n'); if (o) o.textContent = n;
 }
 var VE_NHAN = { cho: '⏳ Chờ thanh toán', da_tt: '✅ Sẵn sàng vào cửa', da_dung: '🎟️ Đã sử dụng', huy: '✖ Đã huỷ' };
+/* Phóng to mã QR ra hết màn hình. Dựng riêng chứ không nhét thêm một bước vào popup: nó phải
+   nằm TRÊN popup (khách đang mở ví), và đóng bằng một chạm ở bất kỳ đâu. */
+function phongTo(x){
+	var o = document.createElement('div');
+	o.className = 'pve-qrto';
+	o.innerHTML = '<div class="pve-qrto-in">'
+		+ '<div class="pve-qrto-goi">' + esc(x.goi_ten) + '</div>'
+		+ '<div class="pve-qrto-qr">' + (x.qr_svg || '') + '</div>'
+		+ '<div class="pve-qrto-ma">' + esc(x.ma_ve) + '</div>'
+		+ '<div class="pve-qrto-tt">' + (VE_NHAN[x.trang_thai] || '') + '</div>'
+		+ '<div class="pve-qrto-dong">Chạm để đóng</div></div>';
+	o.onclick = function(){ o.remove(); };
+	document.body.appendChild(o);
+}
 function moVi(){
 	var ds = qs('.pve-vi-ds'), tr = qs('.pve-vi-trong');
 	ds.innerHTML = ''; tr.hidden = false; tr.textContent = 'Đang tải ví…';
@@ -419,10 +433,22 @@ function moVi(){
 			el.innerHTML = '<div class="pve-vi-top"><span class="pve-vi-goi">' + esc(x.goi_ten) + '</span>'
 				+ '<span class="pve-badge ' + esc(x.trang_thai) + '">' + (VE_NHAN[x.trang_thai] || esc(x.trang_thai)) + '</span></div>'
 				+ '<div class="pve-vi-ma">' + esc(x.ma_ve) + '</div>'
-				/* Vé đã dùng/đã huỷ thì KHÔNG vẽ QR nữa: đưa ra một mã không vào được cửa chỉ
-				   khiến khách với nhân viên cãi nhau ngay tại quầy. */
-				+ (x.trang_thai === 'da_tt' && x.qr_svg ? '<div class="pve-vi-qr">' + x.qr_svg + '</div>' : '')
+				/* VỪA MÃ CHỮ VỪA MÃ QR, cho mọi trạng thái. Nhân viên quét là ra ngay vé còn dùng
+				   được hay đã soát rồi ở đâu — đó mới là thứ gỡ được tranh cãi tại quầy.
+				   ⚠️ Vé đã dùng / đã huỷ thì QR phải LÀM MỜ và dán nhãn đè lên: đưa ra một mã
+				   trông y như vé thật mà không vào được cửa còn dễ cãi nhau hơn. */
+				+ (x.qr_svg
+					? '<div class="pve-vi-qr' + (x.trang_thai === 'da_tt' ? '' : ' mo') + '" data-ma="' + esc(x.ma_ve) + '">'
+						+ x.qr_svg
+						+ (x.trang_thai === 'da_tt' ? '<span class="pve-vi-to">Chạm để phóng to</span>'
+							: '<span class="pve-vi-dau">' + (VE_NHAN[x.trang_thai] || '') + '</span>')
+					+ '</div>'
+					: '')
 				+ '<div class="pve-vi-phu">' + tien(x.so_tien) + ' · ' + phu + '</div>';
+			/* Chạm vào ô QR là phóng to hết màn — quầy đông, màn hình nghiêng, đèn kém thì tấm
+			   QR 190px trong danh sách quét mãi không ăn. */
+			var oqr = el.querySelector('.pve-vi-qr');
+			if (oqr) { oqr.onclick = function(){ phongTo(x); }; }
 			ds.appendChild(el);
 		});
 	})

@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.52.0
+ * Version:           1.53.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -3134,7 +3134,24 @@ class POSH_Ve {
 		.pve-vi-top{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
 		.pve-vi-goi{ font-weight:700; color:var(--tx); font-size:14px; }
 		.pve-vi-ma{ font:800 19px/1.2 ui-monospace,Menlo,monospace; color:var(--g2); letter-spacing:1.5px; margin:6px 0 2px; }
-		.pve-vi-qr{ background:#fff; border-radius:12px; padding:10px; width:max-content; max-width:100%; margin:10px auto 4px; }
+		.pve-vi-qr{ position:relative; background:#fff; border-radius:12px; padding:10px; width:max-content;
+			max-width:100%; margin:10px auto 4px; cursor:pointer; }
+		.pve-vi-qr .pve-vi-to{ display:block; text-align:center; font-size:11px; color:#8b8576; margin-top:6px; }
+		/* Vé đã dùng / đã huỷ: vẫn cho quét để tra, nhưng phải nhìn ra ngay là không dùng được. */
+		.pve-vi-qr.mo svg{ opacity:.26; }
+		.pve-vi-qr.mo .pve-vi-dau{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+			font-weight:800; font-size:14px; color:#7f1d1d; background:rgba(255,255,255,.35); border-radius:12px; }
+		/* Phóng to hết màn: nền tối cho mã nổi, nhưng KHUNG MÃ PHẢI TRẮNG — máy quét đọc theo
+		   tương phản, đảo màu là nhiều máy chịu. */
+		.pve-qrto{ position:fixed; inset:0; z-index:2147483000; background:rgba(12,10,4,.92);
+			display:flex; align-items:center; justify-content:center; padding:18px; cursor:pointer; }
+		.pve-qrto-in{ text-align:center; max-width:460px; width:100%; }
+		.pve-qrto-goi{ color:#f3ead2; font-weight:700; font-size:16px; margin-bottom:12px; }
+		.pve-qrto-qr{ background:#fff; border-radius:16px; padding:16px; width:max-content; max-width:100%; margin:0 auto; }
+		.pve-qrto-qr svg{ display:block; width:min(76vw,360px); height:auto; }
+		.pve-qrto-ma{ font:800 24px/1.2 ui-monospace,Menlo,monospace; color:#f3dc9a; letter-spacing:3px; margin-top:14px; }
+		.pve-qrto-tt{ color:#cfc6ae; font-size:13px; margin-top:6px; }
+		.pve-qrto-dong{ color:#8f8878; font-size:12px; margin-top:16px; }
 		.pve-vi-qr svg{ display:block; }
 		.pve-vi-phu{ color:var(--mut); font-size:12px; text-align:center; }
 		.pve-vi-trong{ color:var(--mut); font-size:13px; padding:16px 0; text-align:center; }

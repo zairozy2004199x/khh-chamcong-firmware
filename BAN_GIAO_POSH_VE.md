@@ -260,6 +260,17 @@ rồi chưa, dùng ở đâu — kiểm trong `POSH_Ve::r_soat()`. Để trang t
 trình duyệt là vé nào cũng "hợp lệ". Vé mua từ xa (`coso` rỗng) hiện ở **mọi** cơ sở — khách mua
 trước ở nhà rồi tới cơ sở nào cũng vào được; đổi luật ấy là vé mua trước không dùng được ở đâu cả.
 
+### Ví vé: vừa mã chữ vừa mã QR, chạm để phóng to
+Mỗi vé hiện **cả mã chữ lẫn mã QR**, ở **mọi trạng thái** — nhân viên quét là ra ngay vé còn dùng
+được hay đã soát rồi ở đâu, đó mới là thứ gỡ được tranh cãi tại quầy.
+
+⚠️ Vé **đã dùng / đã huỷ** thì QR phải **làm mờ + dán nhãn đè lên**: đưa ra một mã trông y như vé
+thật mà không vào được cửa còn dễ cãi nhau hơn là không có mã.
+
+Chạm vào ô QR → phóng to hết màn hình (`phongTo()`). Quầy đông, màn hình nghiêng, đèn kém thì tấm
+QR 190px trong danh sách quét mãi không ăn. Nền tối cho mã nổi, nhưng **khung mã phải trắng** —
+máy quét đọc theo tương phản, đảo màu là nhiều máy chịu.
+
 ### 🔴 Ví vé nằm Ở MÁY KHÁCH, máy chủ chỉ làm tươi
 Trang gửi lên danh sách mã vé mà **chính máy ấy** đã mua (localStorage), máy chủ trả trạng thái mới
 nhất. Đừng đổi thành "tra vé theo số điện thoại": số điện thoại không phải bí mật, ai gõ số người
