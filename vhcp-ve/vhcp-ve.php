@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.44.3
+ * Version:           1.44.4
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1895,8 +1895,11 @@ class POSH_Ve {
 			$ft_nbu = get_option( 'pve_ft_nb_url', '' );
 			$ft_nbt = get_option( 'pve_ft_nb_ten', 'Trang nội bộ' );
 		?>
+		<div class="pve-wrap">
 		<?php
-		/* ── Ưu đãi & tin tức trên TRANG WEB ──────────────────────────────────────────────
+		/* ⚠️ Bọc trong .pve-wrap: khối này trước nằm NGOÀI khung bọc nội dung nên nó tràn sát
+		   mép trái màn hình trong khi mọi khối khác căn giữa (ảnh anh Thắng 11/09/2026).
+		   ── Ưu đãi & tin tức trên TRANG WEB ──────────────────────────────────────────────
 		   Anh Thắng 11/09/2026: "thiếu trang tin tức ưu đãi". Ưu đãi vốn chỉ hiện trên Zalo
 		   Mini App — khai ở màn quản trị rồi mà mở web không thấy đâu, nên trông như khai hụt.
 		   Cùng một kho `pve_uudai`, chỉ thêm chỗ hiện: khai một lần, hai nơi cùng thấy. */
@@ -1945,6 +1948,7 @@ class POSH_Ve {
 			<?php endif; ?>
 			<?php if ( $ft_nbu ) : ?><div class="pve-ft-nb"><a href="<?php echo esc_url( $ft_nbu ); ?>"><?php echo esc_html( $ft_nbt ? $ft_nbt : 'Trang nội bộ' ); ?> →</a></div><?php endif; ?>
 		</div>
+		</div><!-- /pve-wrap (ưu đãi + chân trang) -->
 		</div>
 
 		<?php
@@ -1973,6 +1977,19 @@ class POSH_Ve {
 				<div class="pve-wel-note">Chọn khu vực để xem đúng vé đang mở bán tại đó.</div>
 			</div>
 		</div>
+		<?php endif; ?>
+
+		<?php
+		/* 🩺 Nút soi trang: dựng TỪ MÁY CHỦ cho người đang đăng nhập quản trị WordPress, hoặc khi
+		   mở kèm ?soi=1. Trước đây nút do JS tạo — mà chính JS mới là thứ đang nghi không chạy,
+		   nên "không thấy nút" vừa có thể là chưa cài bản mới, vừa có thể là JS chết, không phân
+		   biệt được. Dựng từ máy chủ thì: THẤY nút = PHP mới đã sống trên site; bấm nút mà không
+		   ra bảng = JS không chạy. Hai câu trả lời khác nhau, tách bạch. */
+		$soi_hien = ( function_exists( 'current_user_can' ) && current_user_can( 'manage_options' ) )
+			|| ( isset( $_GET['soi'] ) && '1' === (string) $_GET['soi'] );   // phpcs:ignore WordPress.Security.NonceVerification
+		?>
+		<?php if ( $soi_hien ) : ?>
+		<button type="button" id="pve-soi-nut" style="position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;border-radius:10px;border:none;background:#d4af37;color:#1a1204;font-weight:800;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.5)">🩺 Soi trang</button>
 		<?php endif; ?>
 
 		<div class="pve-mask" hidden>
@@ -2055,28 +2072,22 @@ class POSH_Ve {
 					if (o) { o.textContent = 'JS ' + PVE_BAN_JS; }
 				});
 			} catch (e) {}
-			/* ═══ SOI TẠI CHỖ: mở /mua-ve/?soi=1 rồi bấm nút 🩺 góc phải ═════════════════════
-			 * Đã bốn lượt "bấm không ra gì" mà em phải đoán từ xa: lỗi JS? cache? lớp phủ? Cái
-			 * thiếu là TRẠNG THÁI THẬT trong trình duyệt của người đang bấm. Khối này hỏi thẳng
-			 * trình duyệt: ai đang nằm trên nút Đặt vé, có mấy nút, lớp phủ nào đang bật, số bản
-			 * JS là bao nhiêu — rồi in ra một bảng chụp màn hình gửi được.
-			 * Chỉ chạy khi có ?soi=1 nên khách thường không bao giờ thấy.
+			/* ═══ SOI TẠI CHỖ ═════════════════════════════════════════════════════════════════
+			 * Nút 🩺 do MÁY CHỦ dựng (#pve-soi-nut) — xem chú thích ở chỗ dựng nút. Khối này chỉ
+			 * gắn việc cho nó. Nhờ tách vậy mà hai câu hỏi tách bạch được: thấy nút = PHP mới đã
+			 * sống; bấm nút không ra bảng = JS không chạy.
 			 */
-			try { if ((location.search || '').indexOf('soi=1') >= 0) {
-				var nut = document.createElement('button');
-				nut.textContent = '🩺 Soi trang';
-				nut.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:2147483647;padding:10px 14px;'
-					+ 'border-radius:10px;border:none;background:#d4af37;color:#1a1204;font-weight:800;cursor:pointer';
-				nut.onclick = function(){
+			try {
+				var nutSoi = document.getElementById('pve-soi-nut');
+				if (nutSoi) nutSoi.onclick = function(){
 					var d = [];
 					d.push('JS bản: ' + (typeof PVE_BAN_JS !== 'undefined' ? PVE_BAN_JS : '(không có — TRANG CŨ TRONG CACHE)'));
 					var bs = document.querySelectorAll('.pve-buy');
 					d.push('Số nút "Đặt vé": ' + bs.length);
 					if (bs.length) {
+						bs[0].scrollIntoView({ block: 'center' });
 						var r = bs[0].getBoundingClientRect();
-						bs[0].scrollIntoView({block:'center'});
-						r = bs[0].getBoundingClientRect();
-						var tren = document.elementFromPoint(r.left + r.width/2, r.top + r.height/2);
+						var tren = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
 						var mo = tren ? (tren.tagName + (tren.className ? '.' + String(tren.className).split(' ').join('.') : '')) : '(không thấy)';
 						d.push('Thứ NẰM TRÊN nút: ' + mo);
 						d.push('  -> ' + (tren && tren.closest && tren.closest('.pve-buy') ? 'ĐÚNG là nút, bấm phải ăn' : 'CÓ THỨ KHÁC CHE NÚT'));
@@ -2098,8 +2109,7 @@ class POSH_Ve {
 					h.onclick = function(){ h.remove(); };
 					document.body.appendChild(h);
 				};
-				document.addEventListener('DOMContentLoaded', function(){ document.body.appendChild(nut); });
-			} } catch (e) {}
+			} catch (e) {}
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
 			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
 			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở POSH_Ve::giam_tai_cho()
