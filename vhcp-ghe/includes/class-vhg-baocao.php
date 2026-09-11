@@ -392,35 +392,26 @@ class VHG_BaoCao {
 		if ( null === $moi ) { return; }
 		$truoc_cu = self::so_chiso_( $r['chi_so_truoc'] );
 		if ( null !== $truoc_cu && abs( (float) $truoc_cu - (float) $moi ) < 0.005 ) { return; }   // không đổi
-		$sau     = self::so_chiso_( $r['chi_so_sau'] );
-		$ghi_de  = ( false !== mb_strpos( (string) $r['ghi_chu'], 'Thực thu ghi đè' ) );
-		$hoa_bt  = ( null !== $sau && $sau < (float) $moi );
-		$co      = '↺ Chỉ số trước tự nối lại ' . self::cs_hien_( $truoc_cu ) . '→' . self::cs_hien_( $moi )
-			. ' (chèn/sửa ngày trước đó) — kế toán kiểm Thực thu';
-		if ( $ghi_de || $hoa_bt ) {
-			$note = trim( (string) $r['ghi_chu'] );
-			if ( false === mb_strpos( $note, '↺ Chỉ số trước tự nối lại' ) ) {
-				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
-			}
-			$wpdb->update( VHG_DB::t( 'bc_dong' ),
-				array( 'chi_so_truoc' => $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
-			return;
+		/* 🔴 CHỈ ĐỔI CHỈ SỐ TRƯỚC — TIỀN NGÀY SAU KHÓA CỨNG, KHÔNG TỰ TÍNH LẠI. Anh Thắng 11/09/2026:
+		   *"nếu có sửa ngày trước, số tiền ngày sau tự khóa cứng tránh sai, trừ khi nhập thực thu để
+		   ra số mới"*.
+		   Nối lại mốc là việc của CHỈ SỐ (cho liền mạch, đối chiếu). Còn TIỀN của báo cáo đã nộp thì
+		   ĐÃ CHỐT lúc gửi — theo công thức với chỉ số trước tại thời điểm đó, hoặc theo Thực thu nhân
+		   viên khai. Tự cộng/trừ lại theo mốc mới đúng là cái "cộng trừ sai / nhảy lung tung" mà anh
+		   Thắng gặp: nhập sai chỉ số ĐẦU nhưng đã khai đúng chỉ số SAU + Thực thu, xong có báo cáo
+		   chèn trước ngày, mốc chạy lại và kéo tiền ngày sau sai theo.
+		   → Bản trước còn một nhánh tự tính lại tiền (khi không ghi đè và nối xong không âm). Bỏ hẳn
+		     nhánh đó: MỌI trường hợp chỉ cập nhật chi_so_truoc + ghim ghi chú, GIỮ NGUYÊN
+		     actual/tien_mat/tong. Muốn ra số mới thì kế toán/nhân viên vào Sửa nhập Thực thu (đường
+		     sua_dong()/VHG_KeToan::sua() — nơi CÓ CHỦ Ý mới đổi tiền). */
+		$note = trim( (string) $r['ghi_chu'] );
+		$co   = '↺ Chỉ số trước tự nối lại ' . self::cs_hien_( $truoc_cu ) . '→' . self::cs_hien_( $moi )
+			. ' (chèn/sửa ngày trước đó) — TIỀN GIỮ NGUYÊN, sửa Thực thu nếu cần đổi';
+		if ( false === mb_strpos( $note, '↺ Chỉ số trước tự nối lại' ) ) {
+			$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
 		}
-		$rr = array( 'chi_so_truoc' => $moi, 'chi_so_sau' => $sau,
-			'qr' => (int) $r['qr'], 'dieu_chinh' => (int) $r['dieu_chinh'] );
-		self::tinh_( $rr );
-		if ( $rr['tien_mat'] < 0 ) {   // nối xong hoá âm → giữ tiền cũ, ghim ghi chú
-			$note = trim( (string) $r['ghi_chu'] );
-			if ( false === mb_strpos( $note, '↺ Chỉ số trước tự nối lại' ) ) {
-				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
-			}
-			$wpdb->update( VHG_DB::t( 'bc_dong' ),
-				array( 'chi_so_truoc' => $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
-			return;
-		}
-		$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
-			'chi_so_truoc' => $moi, 'actual' => $rr['actual'],
-			'tien_mat' => $rr['tien_mat'], 'tong' => $rr['tong'] ), array( 'id' => (int) $r['id'] ) );
+		$wpdb->update( VHG_DB::t( 'bc_dong' ),
+			array( 'chi_so_truoc' => $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ kích ghế từ xa (trừ chùa)
