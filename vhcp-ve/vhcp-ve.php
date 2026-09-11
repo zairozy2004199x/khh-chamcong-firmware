@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.60.0
+ * Version:           1.61.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -67,6 +67,7 @@ class POSH_Ve {
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
 		add_shortcode( 'posh_ql', array( __CLASS__, 'shortcode_ql' ) );
 		add_shortcode( 'posh_soat', array( __CLASS__, 'shortcode_soat' ) );
+		add_shortcode( 'posh_gt', array( __CLASS__, 'shortcode_gt' ) );
 		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'zalo_web_login' ) );
 		add_action( 'wp_head', array( __CLASS__, 'zalo_verify_meta' ) );
@@ -175,6 +176,14 @@ class POSH_Ve {
 			'anh'        => esc_url_raw( (string) ( isset( $v['anh'] ) ? $v['anh'] : '' ) ),
 			'thoi_luong' => trim( (string) ( isset( $v['thoi_luong'] ) ? $v['thoi_luong'] : '' ) ),
 			'so_luong'   => isset( $v['so_luong'] ) && '' !== $v['so_luong'] ? (int) $v['so_luong'] : -1,   // -1 = không giới hạn; >=0 = số vé còn
+			/* Ba tab "Chi tiết vé" — anh Thắng 11/09/2026: *"Chi tiết vé sẽ hiện các trường
+			   thông tin về vé. Trường thông tin nhân viên sẽ nhập vào tab cho từng vé"*.
+			   Bỏ trống ô nào thì tab ấy lấy BẢN CHUNG khai ở WP Admin (xem nq_chung()): nội quy
+			   sân chơi giống nhau ở mọi vé, bắt gõ lại cho từng vé là sớm muộn mỗi vé một kiểu,
+			   mà lúc có chuyện thì tờ nội quy nào mới là tờ đang có hiệu lực? */
+			'nq_ve'      => trim( (string) ( isset( $v['nq_ve'] ) ? $v['nq_ve'] : '' ) ),
+			'nq_san'     => trim( (string) ( isset( $v['nq_san'] ) ? $v['nq_san'] : '' ) ),
+			'cs_tt'      => trim( (string) ( isset( $v['cs_tt'] ) ? $v['cs_tt'] : '' ) ),
 			'hien'       => empty( $v['hien'] ) ? 0 : 1,
 		);
 	}
@@ -260,6 +269,25 @@ class POSH_Ve {
 			$ra[] = $m;
 		}
 		return $ra ? $ra : self::VE_MAC_DINH;
+	}
+	/**
+	 * Nội dung ba tab "Chi tiết vé". Vé khai riêng thì lấy của vé, không thì lấy bản chung
+	 * khai một lần ở WP Admin. Trả về mảng [ [nhan, noi_dung], … ], đã bỏ tab rỗng: một tab
+	 * mở ra trống rỗng còn tệ hơn không có tab, vì khách tưởng trang hỏng.
+	 */
+	public static function tab_chi_tiet( $v ) {
+		$bang = array(
+			array( 'Nội quy sử dụng vé', isset( $v['nq_ve'] ) ? $v['nq_ve'] : '',  (string) get_option( 'pve_nq_ve', '' ) ),
+			array( 'Nội quy sân chơi',   isset( $v['nq_san'] ) ? $v['nq_san'] : '', (string) get_option( 'pve_nq_san', '' ) ),
+			array( 'Chính sách thanh toán', isset( $v['cs_tt'] ) ? $v['cs_tt'] : '', (string) get_option( 'pve_cs_tt', '' ) ),
+		);
+		$ra = array();
+		foreach ( $bang as $b ) {
+			$noi = '' !== trim( (string) $b[1] ) ? $b[1] : $b[2];
+			if ( '' === trim( (string) $noi ) ) { continue; }
+			$ra[] = array( 'nhan' => $b[0], 'noi' => $noi );
+		}
+		return $ra;
 	}
 	private static function ds() { $r = array(); foreach ( self::ds_tatca() as $v ) { if ( $v['hien'] ) { $r[] = $v; } } return $r; }
 	private static function theo_id( $id ) { foreach ( self::ds() as $v ) { if ( (int) $v['id'] === (int) $id ) { return $v; } } return null; }
@@ -478,6 +506,32 @@ class POSH_Ve {
 		$pid = self::bao_dam_trang_ql();
 		return $pid ? get_permalink( $pid ) : '';
 	}
+	public static function url_trang_ve() {
+		$pid = self::bao_dam_trang();
+		return $pid ? get_permalink( $pid ) : '';
+	}
+	/* Trang giới thiệu [posh_gt] — tự tạo như trang bán vé / trang soát vé, cùng một luật:
+	   tìm trang đã có shortcode trước rồi mới tạo mới, để cài lại plugin không đẻ trang trùng. */
+	public static function bao_dam_trang_gt() {
+		$pid = (int) get_option( 'pve_gt_page_id' );
+		if ( $pid && ( $p = get_post( $pid ) ) && 'trash' !== $p->post_status ) { return $pid; }
+		global $wpdb;
+		$co = (int) $wpdb->get_var( "SELECT ID FROM {$wpdb->posts} WHERE post_type='page' AND post_status IN ('publish','draft','pending') AND post_content LIKE '%[posh_gt]%' ORDER BY ID ASC LIMIT 1" );
+		if ( $co ) { update_option( 'pve_gt_page_id', $co ); return $co; }
+		$moi = wp_insert_post( array(
+			'post_title'   => 'Giới thiệu',
+			'post_name'    => 'gioi-thieu',
+			'post_content' => '[posh_gt]',
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+		) );
+		if ( $moi && ! is_wp_error( $moi ) ) { update_option( 'pve_gt_page_id', (int) $moi ); return (int) $moi; }
+		return 0;
+	}
+	public static function url_trang_gt() {
+		$pid = self::bao_dam_trang_gt();
+		return $pid ? get_permalink( $pid ) : '';
+	}
 
 	// ───────────────────────────── Điểm & hạng thành viên (1 điểm = 1.000đ) ─────────────────────────────
 	/* Cơ sở + toạ độ (để app gợi ý khu vực theo định vị). ten khớp với "khu_vuc" của vé. */
@@ -497,6 +551,9 @@ class POSH_Ve {
 				'tinh' => trim( (string) ( isset( $x['tinh'] ) ? $x['tinh'] : '' ) ),
 				/* Ảnh bảng giá treo tại quầy: bấm "Xem giá vé" là phóng to đúng tấm này. */
 				'anh_gia' => esc_url_raw( (string) ( isset( $x['anh_gia'] ) ? $x['anh_gia'] : '' ) ),
+				/* Ảnh mặt tiền cửa hàng — dùng ở trang giới thiệu. Khác ảnh bảng giá: một cái để
+				   khách NHẬN RA chỗ cần tới, một cái để khách ĐỌC giá. */
+				'anh_cs' => esc_url_raw( (string) ( isset( $x['anh_cs'] ) ? $x['anh_cs'] : '' ) ),
 				'lat' => (float) ( isset( $x['lat'] ) ? $x['lat'] : 0 ),
 				'lng' => (float) ( isset( $x['lng'] ) ? $x['lng'] : 0 ),
 				/* % giảm khi khách quét tem QR ĐANG ĐỨNG tại cơ sở này. 0 = không giảm. */
@@ -3103,6 +3160,13 @@ class POSH_Ve {
 		   trị xong ngoài trang vẫn treo giá cũ — khách đọc một đằng, tới quầy trả một nẻo, và
 		   người hứng là nhân viên. Cơ sở chưa có vé nào khai đúng tên vẫn hiện, ghi "Liên hệ":
 		   giấu cửa hàng đi thì khách tưởng đã đóng cửa. */
+		/* HAI logo, hai vai trò khác nhau — đừng gộp:
+		     · logo CỬA HÀNG (Fun Zone City) đứng đầu trang bán vé, vì khách mua vé của cửa hàng;
+		     · logo CÔNG TY (K&H COM., LTD) đứng ở chân trang cạnh khối pháp nhân, vì đó là bên
+		       xuất hoá đơn. Đổi chỗ hai cái là trang bán vé mang tên pháp nhân mà khách không
+		       nhận ra, còn hoá đơn lại mang tên thương hiệu vui chơi. */
+		$logo_cs  = trim( (string) get_option( 'pve_logo_cs', '' ) );
+		$logo_cty = trim( (string) get_option( 'pve_logo_cty', '' ) );
 		$hotline  = trim( (string) get_option( 'pve_hotline', '' ) );
 		$hotline2 = trim( (string) get_option( 'pve_hotline2', '' ) );
 		$mail_ht  = trim( (string) get_option( 'pve_email', '' ) );
@@ -3126,17 +3190,71 @@ class POSH_Ve {
 		<div class="pve-top">
 			<div class="pve-top-in">
 				<a class="pve-brand" href="#pve-ds">
-					<span class="pve-brand-t"><?php echo esc_html( self::ten_cty_ngan() ); ?></span>
-					<span class="pve-brand-p">Khu vui chơi</span>
+					<?php if ( $logo_cs ) : ?>
+						<img class="pve-brand-logo" src="<?php echo esc_url( $logo_cs ); ?>" alt="<?php echo esc_attr( self::ten_cty_ngan() ); ?>">
+					<?php else : ?>
+						<span class="pve-brand-t"><?php echo esc_html( self::ten_cty_ngan() ); ?></span>
+						<span class="pve-brand-p">Khu vui chơi</span>
+					<?php endif; ?>
 				</a>
 				<div class="pve-top-cta">
 					<a class="pve-nut-cam" href="#pve-qf">Đặt vé ngay</a>
 					<?php if ( $cs_ds ) : ?><a class="pve-nut-nv" href="#pve-bg">Địa điểm</a><?php endif; ?>
+					<?php $u_gt = self::url_trang_gt(); ?>
+					<?php if ( $u_gt ) : ?><a class="pve-nut-tr" href="<?php echo esc_url( $u_gt ); ?>">Giới thiệu</a><?php endif; ?>
 				</div>
 				<div class="pve-top-hl">
 					<?php if ( $hotline ) : ?><span class="pve-hl"><i>CSKH &amp; đặt vé</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline ) ); ?>"><?php echo esc_html( $hotline ); ?></a></span><?php endif; ?>
 					<?php if ( $hotline2 ) : ?><span class="pve-hl"><i>Tư vấn đoàn / sự kiện</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline2 ) ); ?>"><?php echo esc_html( $hotline2 ); ?></a></span><?php endif; ?>
 				</div>
+			</div>
+		</div>
+			<?php
+			/* Thanh lọc — anh Thắng 11/09/2026: "tạo tab phân loại các loại vé, các loại khu đang có".
+			   Hai hàng vì đây là hai câu hỏi khác nhau: "chơi ở đâu" và "mua loại gì". Gộp một hàng
+			   thì mỗi lần thêm một khu là hàng dài thêm, và người ta không biết mình đang lọc theo
+			   chiều nào. Hàng KHU chỉ hiện khi thật sự có nhiều hơn một khu — một khu mà bày tab
+			   chọn khu là bắt người ta bấm một cái không đổi gì. */
+			$co_tab_kv   = count( $kvucs ) > 1;
+			$co_tab_nhom = count( $nhom ) > 1;
+			?>
+		<div class="pve-nav">
+			<div class="pve-nav-in">
+			<?php if ( $co_tab_kv || $co_tab_nhom ) : ?>
+			<div class="pve-tabs">
+				<?php if ( $co_tab_kv ) : ?>
+				<div class="pve-tabr">
+					<span class="pve-tabl">📍 Khu</span>
+					<button type="button" class="pve-tab on" data-loc="kv" data-v="">Tất cả</button>
+					<?php foreach ( $kvucs as $kv ) : ?>
+						<button type="button" class="pve-tab" data-loc="kv" data-v="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></button>
+					<?php endforeach; ?>
+				</div>
+				<?php endif; ?>
+				<?php if ( $co_tab_nhom ) : ?>
+				<?php /* Dải danh mục có ẢNH — theo mẫu anh Thắng gửi 11/09/2026 (dải danh mục trong
+				   Zalo Mini App): logo vuông + tên dưới, cuộn ngang, cái đang chọn gạch chân vàng.
+				   Chữ không thôi thì năm danh mục nhìn như nhau; cái logo mới là thứ khách nhận ra
+				   từ xa ("cái hình gấu tuyết" chứ không phải "chữ Snow Fun"). */ ?>
+				<div class="pve-dm">
+					<button type="button" class="pve-dmi on" data-loc="nhom" data-v="">
+						<span class="pve-dmi-anh pve-dmi-all">🎟️</span>
+						<span class="pve-dmi-ten">Tất cả</span>
+					</button>
+					<?php foreach ( $nhom as $tn => $ds_tn ) : $anh_dm = self::anh_nhom( $tn, $ds_tn ); ?>
+						<button type="button" class="pve-dmi" data-loc="nhom" data-v="<?php echo esc_attr( $tn ); ?>">
+							<span class="pve-dmi-anh">
+								<?php if ( $anh_dm ) : ?>
+									<img src="<?php echo esc_url( $anh_dm ); ?>" alt="<?php echo esc_attr( $tn ); ?>" loading="lazy">
+								<?php else : ?>🎫<?php endif; ?>
+							</span>
+							<span class="pve-dmi-ten"><?php echo esc_html( $tn ); ?></span>
+						</button>
+					<?php endforeach; ?>
+				</div>
+				<?php endif; ?>
+			</div>
+			<?php endif; ?>
 			</div>
 		</div>
 		<div class="pve-hero"<?php echo $atts['anh_nen'] ? ' style="background-image:linear-gradient(rgba(10,20,52,.60),rgba(10,20,52,.74)),url(' . esc_url( $atts['anh_nen'] ) . ')"' : ''; ?>>
@@ -3172,7 +3290,17 @@ class POSH_Ve {
 				<?php endif; ?>
 			</div>
 
-			<div class="pve-qf" id="pve-qf">
+			<?php /* Anh Thắng 11/09/2026: *"Nên hiện gọn thành chữ mua vé ngay thôi, khi khách
+			   bấm mua vé mới hiện ra"*. Khung điền nằm mở sẵn chiếm gần nửa màn đầu tiên, đẩy
+			   bảng giá và danh sách vé xuống dưới nếp gấp — mà việc đầu tiên khách làm là NHÌN
+			   giá, không phải gõ tên mình.
+
+			   Nút và khung đều do MÁY CHỦ dựng, JS chỉ bật/tắt: dựng khung bằng JS thì lúc tệp
+			   ve.js chưa chạy (bị chặn, mạng hỏng) là trang không còn lối mua nào. */ ?>
+			<div id="pve-qf-cho"></div>
+			<div class="pve-qf pve-qf-gon" id="pve-qf">
+				<button type="button" class="pve-qf-mo">🎟️ Mua vé ngay</button>
+				<div class="pve-qf-than" hidden>
 				<div class="pve-qf-h">🎟️ Đặt vé nhanh</div>
 				<div class="pve-qf-grid">
 					<input class="pve-qf-ten" placeholder="Họ và tên" autocomplete="name" value="<?php echo esc_attr( $ten_dn ); ?>">
@@ -3189,6 +3317,7 @@ class POSH_Ve {
 				<button type="button" class="pve-qf-go">Mua vé ngay</button>
 				<div class="pve-qf-err" hidden></div>
 				<div class="pve-qf-note">Hoặc chọn loại vé ở danh mục bên dưới ↓</div>
+				</div>
 			</div>
 			<?php if ( $cs_ds ) : ?>
 			<div class="pve-bg" id="pve-bg">
@@ -3218,54 +3347,10 @@ class POSH_Ve {
 			</div>
 			<?php endif; ?>
 			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
-			<?php
-			/* Thanh lọc — anh Thắng 11/09/2026: "tạo tab phân loại các loại vé, các loại khu đang có".
-			   Hai hàng vì đây là hai câu hỏi khác nhau: "chơi ở đâu" và "mua loại gì". Gộp một hàng
-			   thì mỗi lần thêm một khu là hàng dài thêm, và người ta không biết mình đang lọc theo
-			   chiều nào. Hàng KHU chỉ hiện khi thật sự có nhiều hơn một khu — một khu mà bày tab
-			   chọn khu là bắt người ta bấm một cái không đổi gì. */
-			$co_tab_kv   = count( $kvucs ) > 1;
-			$co_tab_nhom = count( $nhom ) > 1;
-			?>
-			<?php if ( $co_tab_kv || $co_tab_nhom ) : ?>
-			<div class="pve-tabs">
-				<?php if ( $co_tab_kv ) : ?>
-				<div class="pve-tabr">
-					<span class="pve-tabl">📍 Khu</span>
-					<button type="button" class="pve-tab on" data-loc="kv" data-v="">Tất cả</button>
-					<?php foreach ( $kvucs as $kv ) : ?>
-						<button type="button" class="pve-tab" data-loc="kv" data-v="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></button>
-					<?php endforeach; ?>
-				</div>
-				<?php endif; ?>
-				<?php if ( $co_tab_nhom ) : ?>
-				<?php /* Dải danh mục có ẢNH — theo mẫu anh Thắng gửi 11/09/2026 (dải danh mục trong
-				   Zalo Mini App): logo vuông + tên dưới, cuộn ngang, cái đang chọn gạch chân vàng.
-				   Chữ không thôi thì năm danh mục nhìn như nhau; cái logo mới là thứ khách nhận ra
-				   từ xa ("cái hình gấu tuyết" chứ không phải "chữ Snow Fun"). */ ?>
-				<div class="pve-dm">
-					<button type="button" class="pve-dmi on" data-loc="nhom" data-v="">
-						<span class="pve-dmi-anh pve-dmi-all">🎟️</span>
-						<span class="pve-dmi-ten">Tất cả</span>
-					</button>
-					<?php foreach ( $nhom as $tn => $ds_tn ) : $anh_dm = self::anh_nhom( $tn, $ds_tn ); ?>
-						<button type="button" class="pve-dmi" data-loc="nhom" data-v="<?php echo esc_attr( $tn ); ?>">
-							<span class="pve-dmi-anh">
-								<?php if ( $anh_dm ) : ?>
-									<img src="<?php echo esc_url( $anh_dm ); ?>" alt="<?php echo esc_attr( $tn ); ?>" loading="lazy">
-								<?php else : ?>🎫<?php endif; ?>
-							</span>
-							<span class="pve-dmi-ten"><?php echo esc_html( $tn ); ?></span>
-						</button>
-					<?php endforeach; ?>
-				</div>
-				<?php endif; ?>
-				<div class="pve-tab-trong" hidden>Không có vé nào khớp bộ lọc này.</div>
-			</div>
-			<?php endif; ?>
 			<?php if ( empty( $nhom ) ) : ?>
 				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
 			<?php endif; ?>
+			<div class="pve-tab-trong" hidden>Không có vé nào khớp bộ lọc này.</div>
 			<?php foreach ( $nhom as $ten_nhom => $ds ) : ?>
 				<div class="pve-sec">
 					<div class="pve-sec-h"><?php echo esc_html( $ten_nhom ); ?></div>
@@ -3291,6 +3376,18 @@ class POSH_Ve {
 									<?php if ( $g['thoi_luong'] ) : ?><div class="pve-tl">⏱ <?php echo esc_html( $g['thoi_luong'] ); ?></div><?php endif; ?>
 									<?php if ( $g['mo_ta'] ) : ?><div class="pve-mota"><?php echo esc_html( $g['mo_ta'] ); ?></div><?php endif; ?>
 									<?php if ( $g['so_luong'] >= 0 ) : ?><div class="pve-con"><?php echo $het ? 'Hết vé' : 'Còn ' . (int) $g['so_luong'] . ' vé'; ?></div><?php endif; ?>
+									<?php $tabs_ve = self::tab_chi_tiet( $g ); ?>
+									<?php if ( $tabs_ve ) : ?>
+										<button type="button" class="pve-ct-mo">Chi tiết ›</button>
+										<?php /* Nội dung tab dựng SẴN trong thẻ (ẩn), JS chỉ bê sang khung xem. Nhét
+										   vào data-… thì nội quy dài vài trăm chữ nằm hết trong thuộc tính HTML,
+										   xuống dòng và dấu nháy là hỏng cả thẻ. */ ?>
+										<div class="pve-ct-kho" hidden>
+											<?php foreach ( $tabs_ve as $ti => $tb ) : ?>
+												<div class="pve-ct-pha" data-nhan="<?php echo esc_attr( $tb['nhan'] ); ?>"><?php echo nl2br( esc_html( $tb['noi'] ) ); ?></div>
+											<?php endforeach; ?>
+										</div>
+									<?php endif; ?>
 									<div class="pve-foot">
 										<div class="pve-gia-wrap">
 											<span class="pve-gia"><?php echo esc_html( number_format_i18n( $g['gia'] ) ); ?>đ</span>
@@ -3357,18 +3454,88 @@ class POSH_Ve {
 		   nói hai lần, hai nguồn, là sớm muộn hai chỗ lệch nhau. */
 		$chan_cty = self::chan_trang_html();
 		?>
+		<?php
+		/* ── BÀI VIẾT CUỐI TRANG ──────────────────────────────────────────────────────────
+		   Anh Thắng 11/09/2026: *"Cuối trang sẽ là bài viết giới thiệu thông tin"*.
+
+		   ⚠️ LẤY THẲNG BÀI VIẾT CỦA WORDPRESS, không dựng kho bài riêng trong plugin. Kho riêng
+		      nghĩa là một chỗ soạn thảo nữa, một chỗ nữa để quên cập nhật, và bài viết thì không
+		      lên được Google vì nó không phải một trang thật. Viết ở Bài viết → Thêm mới là
+		      trang bán vé tự có, bấm vào ra đúng bài đó. */
+		$bv_so = (int) get_option( 'pve_bv_so', 3 );
+		$bv_ds = $bv_so > 0 ? get_posts( array( 'numberposts' => $bv_so, 'post_status' => 'publish' ) ) : array();
+		?>
+		<?php if ( $bv_ds ) : ?>
+		<div class="pve-bv" id="pve-bv">
+			<h2 class="pve-bv-h"><?php echo esc_html( trim( (string) get_option( 'pve_bv_h', '' ) ) !== '' ? get_option( 'pve_bv_h' ) : 'Bài viết' ); ?></h2>
+			<div class="pve-bv-ds">
+				<?php foreach ( $bv_ds as $bv ) : $anh_bv = get_the_post_thumbnail_url( $bv, 'medium_large' ); ?>
+				<a class="pve-bv-i" href="<?php echo esc_url( get_permalink( $bv ) ); ?>">
+					<span class="pve-bv-anh"><?php if ( $anh_bv ) : ?><img src="<?php echo esc_url( $anh_bv ); ?>" alt="<?php echo esc_attr( get_the_title( $bv ) ); ?>" loading="lazy"><?php else : ?>📰<?php endif; ?></span>
+					<span class="pve-bv-t"><?php echo esc_html( get_the_title( $bv ) ); ?></span>
+					<span class="pve-bv-x">Xem chi tiết ›</span>
+				</a>
+				<?php endforeach; ?>
+			</div>
+		</div>
+		<?php endif; ?>
+		<?php
+		/* Cột liên kết chân trang: khai ở WP Admin, mỗi dòng "Tên|URL". Cột nào trống thì bỏ
+		   hẳn — một tiêu đề cột không có mục nào bên dưới trông như trang hỏng. */
+		$ft_cot = array();
+		for ( $ci = 1; $ci <= 3; $ci++ ) {
+			$h_c = trim( (string) get_option( 'pve_ft_cot' . $ci . '_h', '' ) );
+			$d_c = array();
+			foreach ( preg_split( '/\r\n|\r|\n/', (string) get_option( 'pve_ft_cot' . $ci, '' ) ) as $dong ) {
+				$dong = trim( $dong );
+				if ( '' === $dong ) { continue; }
+				$pp = explode( '|', $dong, 2 );
+				$d_c[] = array( 'ten' => trim( $pp[0] ), 'url' => isset( $pp[1] ) ? trim( $pp[1] ) : '' );
+			}
+			if ( $d_c ) { $ft_cot[] = array( 'h' => $h_c, 'ds' => $d_c ); }
+		}
+		$mxh = array(
+			array( 'Facebook', 'f', (string) get_option( 'pve_mxh_fb', '' ) ),
+			array( 'YouTube', '▶', (string) get_option( 'pve_mxh_yt', '' ) ),
+			array( 'Instagram', '◎', (string) get_option( 'pve_mxh_ig', '' ) ),
+			array( 'TikTok', '♪', (string) get_option( 'pve_mxh_tt', '' ) ),
+		);
+		$co_mxh = false;
+		foreach ( $mxh as $m ) { if ( '' !== $m[2] ) { $co_mxh = true; break; } }
+		?>
 		<div class="pve-ft" id="pve-lh">
+			<?php if ( $ft_cot || $hotline || $hotline2 || $mail_ht || $co_mxh ) : ?>
+			<div class="pve-ft-cot">
+				<?php foreach ( $ft_cot as $cot ) : ?>
+				<div class="pve-ft-c">
+					<?php if ( $cot['h'] ) : ?><div class="pve-ft-ch"><?php echo esc_html( $cot['h'] ); ?></div><?php endif; ?>
+					<?php foreach ( $cot['ds'] as $mi ) : ?>
+						<?php if ( $mi['url'] ) : ?>
+							<a href="<?php echo esc_url( $mi['url'] ); ?>"><?php echo esc_html( $mi['ten'] ); ?></a>
+						<?php else : ?><span><?php echo esc_html( $mi['ten'] ); ?></span><?php endif; ?>
+					<?php endforeach; ?>
+				</div>
+				<?php endforeach; ?>
+				<div class="pve-ft-c">
+					<div class="pve-ft-ch">Hỗ trợ từ chúng tôi</div>
+					<?php if ( $hotline ) : ?><div class="pve-ft-hli"><i>CSKH &amp; đặt vé</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline ) ); ?>"><?php echo esc_html( $hotline ); ?></a></div><?php endif; ?>
+					<?php if ( $hotline2 ) : ?><div class="pve-ft-hli"><i>Tư vấn đoàn / sự kiện</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline2 ) ); ?>"><?php echo esc_html( $hotline2 ); ?></a></div><?php endif; ?>
+					<?php if ( $mail_ht ) : ?><div class="pve-ft-hli"><i>Email hỗ trợ</i><a href="mailto:<?php echo esc_attr( $mail_ht ); ?>"><?php echo esc_html( $mail_ht ); ?></a></div><?php endif; ?>
+					<?php if ( $co_mxh ) : ?>
+					<div class="pve-ft-mxh">
+						<?php foreach ( $mxh as $m ) : if ( '' === $m[2] ) { continue; } ?>
+							<a href="<?php echo esc_url( $m[2] ); ?>" title="<?php echo esc_attr( $m[0] ); ?>" aria-label="<?php echo esc_attr( $m[0] ); ?>" target="_blank" rel="noopener"><?php echo esc_html( $m[1] ); ?></a>
+						<?php endforeach; ?>
+					</div>
+					<?php endif; ?>
+				</div>
+			</div>
+			<?php endif; ?>
+			<?php if ( $logo_cty ) : ?><img class="pve-ft-logo" src="<?php echo esc_url( $logo_cty ); ?>" alt="<?php echo esc_attr( self::ten_cty_ngan() ); ?>"><?php endif; ?>
 			<?php
 			/* Cột hỗ trợ tách riêng khối công ty: số điện thoại là thứ khách tìm khi đang đứng
 			   trước quầy, chôn nó trong đoạn thông tin pháp nhân là bắt người ta đọc cả đoạn. */
 			?>
-			<?php if ( $hotline || $hotline2 || $mail_ht ) : ?>
-			<div class="pve-ft-hl">
-				<?php if ( $hotline ) : ?><div class="pve-ft-hli"><i>CSKH &amp; đặt vé</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline ) ); ?>"><?php echo esc_html( $hotline ); ?></a></div><?php endif; ?>
-				<?php if ( $hotline2 ) : ?><div class="pve-ft-hli"><i>Tư vấn đoàn / sự kiện</i><a href="tel:<?php echo esc_attr( $so_goi( $hotline2 ) ); ?>"><?php echo esc_html( $hotline2 ); ?></a></div><?php endif; ?>
-				<?php if ( $mail_ht ) : ?><div class="pve-ft-hli"><i>Email hỗ trợ</i><a href="mailto:<?php echo esc_attr( $mail_ht ); ?>"><?php echo esc_html( $mail_ht ); ?></a></div><?php endif; ?>
-			</div>
-			<?php endif; ?>
 			<?php if ( '' !== $chan_cty ) : ?>
 				<?php echo $chan_cty; // phpcs:ignore WordPress.Security.EscapeOutput — HTML đã dựng sẵn, đã escape từng trường ?>
 			<?php else : ?>
@@ -3425,6 +3592,33 @@ class POSH_Ve {
 		<?php /* Nút giỏ do MÁY CHỦ dựng, cùng lý do với nút 🩺: thấy nút = bản mới đã sống. JS chỉ
 				 gắn việc và cập nhật con số. Ẩn sẵn, có vé trong giỏ mới hiện. */ ?>
 		<button type="button" id="pve-gio-nut" class="pve-gio-nut" hidden>🛒 <span class="pve-gio-n">0</span></button>
+		<?php /* ── MÀN ĐẶT VÉ TRÀN TRANG ────────────────────────────────────────────────────
+		   Anh Thắng 11/09/2026: *"Bấm mua vé thì ra trang và hiện thông tin để đặt vé"*.
+
+		   ⚠️ KHÔNG dựng lại một khung đặt vé thứ hai ở đây. JS CHUYỂN NGUYÊN khối #pve-qf vào
+		      ô trống dưới đây rồi trả về chỗ cũ (#pve-qf-cho) khi đóng — một khung, hai nơi
+		      đứng. Chép ra thành hai khung là hai bộ ô nhập, hai chỗ phải sửa, và sớm muộn một
+		      bên thiếu mất luật kiểm mà bên kia có. */ ?>
+		<?php /* Khung "Chi tiết vé": tiêu đề + các tab, nội dung do JS bê từ thẻ vé sang. */ ?>
+		<div class="pve-ct" id="pve-ct" hidden>
+			<div class="pve-ct-in">
+				<div class="pve-ct-h"><b class="pve-ct-ten"></b><button type="button" class="pve-ct-x" aria-label="Đóng">✕</button></div>
+				<div class="pve-ct-tabs"></div>
+				<div class="pve-ct-noi"></div>
+			</div>
+		</div>
+		<div class="pve-dat" id="pve-dat" hidden>
+			<div class="pve-dat-in">
+				<div class="pve-dat-h"><b>Đặt vé</b><button type="button" class="pve-dat-x" aria-label="Đóng">✕</button></div>
+				<div class="pve-dat-cot">
+					<div class="pve-dat-form" id="pve-dat-form"></div>
+					<aside class="pve-dat-tt">
+						<div class="pve-dat-tt-h">Thông tin đặt hàng</div>
+						<div class="pve-dat-tt-b">Vui lòng chọn vé!</div>
+					</aside>
+				</div>
+			</div>
+		</div>
 		<?php /* Hộp phóng to ảnh bảng giá treo tại quầy. Dựng sẵn ở máy chủ, JS chỉ mở/đóng. */ ?>
 		<div class="pve-lb" id="pve-lb" hidden>
 			<div class="pve-lb-in">
@@ -3594,10 +3788,13 @@ class POSH_Ve {
 			scrollbar-width:none; }
 		.pve-tabr::-webkit-scrollbar{ display:none; }
 		.pve-tabl{ color:var(--mut); font-size:13px; white-space:nowrap; flex:0 0 auto; min-width:64px; }
-		.pve-tab{ flex:0 0 auto; border:1px solid var(--bd); background:rgba(255,255,255,.04); color:#e8e8ea;
+		/* Nút tab: chữ phải là màu ĐẬM trên nền trắng. Màu #e8e8ea còn sót từ đời nền tối —
+		   trên nền sáng nó gần như tàng hình, mà thanh lọc tàng hình thì khách không biết trang
+		   đang lọc theo gì. */
+		.pve-tab{ flex:0 0 auto; border:1px solid var(--bd); background:#fff; color:var(--nv); font-weight:700;
 			border-radius:999px; padding:8px 14px; font-size:14px; cursor:pointer; white-space:nowrap;
 			transition:background .15s,border-color .15s,color .15s; }
-		.pve-tab:hover{ background:rgba(255,255,255,.09); }
+		.pve-tab:hover{ background:var(--sf2); }
 		.pve-tab.on{ background:var(--gr); border-color:transparent;
 			color:#ffffff; font-weight:800; }
 		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
@@ -3635,10 +3832,11 @@ class POSH_Ve {
 		.pve-card{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; overflow:hidden; display:flex; flex-direction:column;
 			transition:transform .18s ease,box-shadow .18s ease,border-color .18s; }
 		.pve-card:hover{ transform:translateY(-4px); border-color:rgba(243,111,33,.5); box-shadow:0 14px 32px rgba(60,50,20,.18); }
-		.pve-img{ position:relative; aspect-ratio:4/3; background:#0f1116; }
+		/* Nền ô ảnh phải SÁNG: #0f1116 là màu còn sót từ đời giao diện tối — ảnh vé nào nền
+		   trắng thì không thấy viền, nhưng vé chưa có ảnh thì cả ô đen kịt giữa trang sáng. */
+		.pve-img{ position:relative; aspect-ratio:4/3; background:var(--sf2); }
 		.pve-img img{ width:100%; height:100%; object-fit:cover; }
-		.pve-img::after{ content:""; position:absolute; inset:0; background:linear-gradient(180deg,transparent 55%,rgba(11,12,16,.65)); }
-		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; opacity:.5; }
+		.pve-noimg{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:44px; opacity:.65; }
 		.pve-sale{ position:absolute; top:10px; left:10px; z-index:2; background:var(--gr); color:#ffffff;
 			font-weight:800; font-size:12px; padding:4px 11px; border-radius:999px; }
 		.pve-body{ padding:14px 14px 15px; display:flex; flex-direction:column; gap:6px; flex:1; }
@@ -3665,7 +3863,7 @@ class POSH_Ve {
 		/* .pve-lb (hộp phóng to bảng giá) nằm NGOÀI .pve-page — cùng cái bẫy đã ghi ở trên:
 		   ra khỏi .pve-page là mất bộ biến, `color:var(--nv)` thành không hợp lệ và chữ tụt về
 		   màu kế thừa của theme. Khai lại ở đây, đừng bỏ nó khỏi danh sách này. */
-		.pve-mask, .pve-wel, .pve-lb{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
+		.pve-mask, .pve-wel, .pve-lb, .pve-dat, .pve-ct{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
 			--bg:#f1f4fa; --sf:#ffffff; --sf2:#eaeff8; --bd:rgba(20,40,107,.16); --tx:#1a2340; --mut:#6b7386; }
 		/* Và chốt thẳng màu chữ ô nhập: nhiều theme đặt color/-webkit-text-fill-color cho input với
 		   độ ưu tiên cao hơn, biến có đúng vẫn bị đè. Ô nhập thì phải đọc được, không thương lượng. */
@@ -3876,6 +4074,10 @@ class POSH_Ve {
 		.pve-ft-nb a{ color:var(--g2); font-weight:700; text-decoration:none; }
 		.pve-ft-ver{ color:#5f5c54; font-size:12px; margin-top:8px; }
 		/* Form đặt vé nhanh */
+		.pve-qf-mo{ width:100%; border:none; background:var(--gr); color:#fff; font-weight:900; font-size:17px;
+			letter-spacing:.4px; padding:16px; border-radius:14px; cursor:pointer; text-transform:uppercase;
+			box-shadow:0 10px 26px rgba(243,111,33,.26); }
+		.pve-qf-mo:hover{ filter:brightness(1.06); }
 		.pve-qf{ background:#fff; border:1px solid var(--bd); border-radius:16px; padding:18px; margin:0 0 24px; box-shadow:0 12px 30px rgba(60,50,20,.10); }
 		.pve-qf-h{ font-weight:900; font-size:17px; color:#fff; background:var(--nv); text-transform:uppercase; letter-spacing:.4px;
 			margin:-18px -18px 16px; padding:13px 18px; border-radius:16px 16px 0 0; text-align:center; }
@@ -3888,6 +4090,13 @@ class POSH_Ve {
 		.pve-qf-go{ width:100%; margin-top:12px; border:none; background:var(--gr); color:#ffffff; font-weight:800; font-size:16px; letter-spacing:.3px; padding:13px; border-radius:12px; cursor:pointer; text-transform:uppercase; }
 		.pve-qf-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
 		.pve-qf-note{ color:var(--mut); font-size:12px; text-align:center; margin-top:10px; }
+		/* Dạng gọn: chỉ còn một nút. Bấm mới mở khung điền. KHAI SAU .pve-qf để thắng nó —
+		   cùng độ ưu tiên thì luật đứng sau mới có hiệu lực, đặt trước là cái khung trắng vẫn
+		   còn nguyên và nút nằm lọt thỏm trong đó. */
+		.pve-qf-gon{ padding:0; background:transparent; border:none; box-shadow:none; }
+		.pve-qf-gon.mo{ padding:18px; background:#fff; border:1px solid var(--bd); box-shadow:0 12px 30px rgba(20,40,107,.10); }
+		.pve-qf-mo[hidden]{ display:none !important; }
+		.pve-qf-than[hidden]{ display:none !important; }
 		/* Băng trạng thái cửa hàng: nằm ngay trên khung đặt vé, vì nó nói giá đang là giá nào. */
 		.pve-csbar{margin:0 auto 10px;max-width:1080px;padding:10px 14px;border-radius:12px;font-size:14px;line-height:1.5}
 		.pve-csbar-ok{background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.45);color:#bbf7d0}
@@ -3903,6 +4112,9 @@ class POSH_Ve {
 		.pve-top-in{ max-width:1180px; margin:0 auto; padding:10px 16px; display:flex; align-items:center;
 			gap:14px; flex-wrap:wrap; }
 		.pve-brand{ display:flex; flex-direction:column; text-decoration:none; line-height:1.1; flex:0 0 auto; }
+		.pve-brand-logo{ display:block; height:44px; width:auto; max-width:230px; object-fit:contain; }
+		@media(max-width:760px){ .pve-brand-logo{ height:34px; max-width:170px; } }
+		.pve-ft-logo{ display:block; height:70px; width:auto; margin:0 auto 14px; object-fit:contain; }
 		.pve-brand-t{ color:var(--nv); font-weight:900; font-size:20px; letter-spacing:.4px; text-transform:uppercase; }
 		.pve-brand-p{ color:var(--cam); font-size:11px; font-weight:700; letter-spacing:2px; text-transform:uppercase; }
 		.pve-top-cta{ display:flex; gap:10px; flex:1 1 auto; min-width:0; }
@@ -3910,6 +4122,10 @@ class POSH_Ve {
 			padding:11px 24px; border-radius:999px; white-space:nowrap; text-transform:uppercase; letter-spacing:.3px; }
 		.pve-nut-cam{ background:var(--gr); color:#fff; box-shadow:0 8px 20px rgba(243,111,33,.28); }
 		.pve-nut-nv{ background:var(--nv); color:#fff; }
+		.pve-nut-tr{ display:inline-block; text-decoration:none; font-weight:800; font-size:14px; padding:11px 20px;
+			border-radius:999px; white-space:nowrap; text-transform:uppercase; letter-spacing:.3px;
+			background:var(--sf2); color:var(--nv); }
+		.pve-nut-tr:hover{ background:var(--bd); color:var(--nv); }
 		.pve-nut-cam:hover,.pve-nut-nv:hover{ filter:brightness(1.07); color:#fff; }
 		.pve-top-hl{ display:flex; gap:18px; flex:0 0 auto; flex-wrap:wrap; }
 		.pve-hl{ display:flex; flex-direction:column; font-size:12px; color:var(--mut); line-height:1.25; }
@@ -3922,6 +4138,17 @@ class POSH_Ve {
 			.pve-top-hl{ margin-left:auto; }
 			.pve-hl a{ font-size:14px; }
 		}
+
+		/* ── Thanh danh mục trên ĐẦU TRANG ───────────────────────────────────────────────
+		   Anh Thắng 11/09/2026: *"Đẩy các tab lên đầu trang như này"* (ảnh thanh menu ngang).
+		   Thanh này KHÔNG dính theo cuộn: thanh trên cùng đã dính rồi, thêm một thanh dính nữa
+		   là trên điện thoại hai thanh ăn gần một phần ba màn hình, còn lại chỗ nào cho vé.
+		   Dòng "Không có vé nào khớp" ở lại CẠNH DANH SÁCH, không lên đây — báo rỗng mà đặt xa
+		   chỗ đang rỗng thì người ta không nối được hai việc với nhau. */
+		.pve-nav{ background:#fff; border-bottom:1px solid var(--bd); }
+		.pve-nav-in{ max-width:1180px; margin:0 auto; padding:8px 16px 4px; }
+		.pve-nav .pve-tabs{ margin:0; }
+		.pve-nav .pve-dm{ padding-bottom:2px; }
 
 		/* ── Bảng giá theo cơ sở ─────────────────────────────────────────────────────────
 		   Mỗi cơ sở MỘT DÒNG, không phải thẻ: khách so giá giữa các cơ sở theo cột, mà thẻ
@@ -3951,6 +4178,80 @@ class POSH_Ve {
 			.pve-bg-nut{ width:100%; } .pve-bg-xem,.pve-bg-dat{ flex:1 1 0; }
 		}
 
+		/* ── Chi tiết vé: nút trên thẻ + khung tab ──────────────────────────────────────── */
+		.pve-ct-mo{ align-self:flex-start; border:none; background:none; color:var(--nv); font-weight:800;
+			font-size:13px; cursor:pointer; padding:0 0 6px; text-decoration:underline; }
+		.pve-ct-kho{ display:none; }
+		.pve-ct{ position:fixed; inset:0; z-index:100002; background:rgba(12,22,52,.72); overflow:auto;
+			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--tx);
+			display:flex; align-items:flex-start; justify-content:center; padding:20px 14px 40px; }
+		.pve-ct[hidden]{ display:none !important; }
+		.pve-ct-in{ background:var(--sf); border-radius:16px; max-width:860px; width:100%; overflow:hidden; }
+		.pve-ct-h{ background:var(--nv); color:#fff; display:flex; align-items:center; justify-content:space-between;
+			gap:12px; padding:14px 18px; }
+		.pve-ct-h b{ font-size:16px; font-weight:900; text-transform:uppercase; }
+		.pve-ct-x{ border:none; background:rgba(255,255,255,.18); color:#fff; width:32px; height:32px;
+			border-radius:50%; font-size:15px; font-weight:800; cursor:pointer; }
+		.pve-ct-tabs{ display:flex; gap:2px; overflow-x:auto; background:var(--sf2); scrollbar-width:none; }
+		.pve-ct-tabs::-webkit-scrollbar{ display:none; }
+		.pve-ct-tabs button{ flex:0 0 auto; border:none; background:none; color:var(--mut); font-weight:700;
+			font-size:13px; padding:13px 16px; cursor:pointer; text-transform:uppercase; letter-spacing:.2px;
+			border-bottom:3px solid transparent; white-space:nowrap; }
+		.pve-ct-tabs button.on{ background:var(--sf); color:var(--nv); border-bottom-color:var(--cam); }
+		.pve-ct-noi{ padding:18px; font-size:14px; line-height:1.85; color:var(--tx); }
+
+		/* ── Bài viết cuối trang ───────────────────────────────────────────────────────── */
+		.pve-bv{ margin:26px 0 6px; }
+		.pve-bv-h{ margin:0 0 14px; color:var(--nv); font-size:21px; font-weight:900; text-transform:uppercase; letter-spacing:.4px; }
+		.pve-bv-ds{ display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; }
+		.pve-bv-i{ display:flex; flex-direction:column; background:var(--sf); border:1px solid var(--bd);
+			border-radius:14px; overflow:hidden; text-decoration:none; color:var(--tx); }
+		.pve-bv-i:hover{ box-shadow:0 12px 28px rgba(20,40,107,.12); }
+		.pve-bv-anh{ display:flex; align-items:center; justify-content:center; aspect-ratio:16/9; background:var(--sf2); font-size:30px; overflow:hidden; }
+		.pve-bv-anh img{ width:100%; height:100%; object-fit:cover; display:block; }
+		.pve-bv-t{ padding:12px 14px 6px; font-weight:800; font-size:14px; line-height:1.4; color:var(--nv); }
+		.pve-bv-x{ padding:0 14px 14px; color:var(--cam); font-size:13px; font-weight:700; }
+
+		/* ── Cột chân trang ────────────────────────────────────────────────────────────── */
+		.pve-ft-cot{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:22px;
+			text-align:left; max-width:1000px; margin:0 auto 24px; padding-bottom:20px; border-bottom:1px solid var(--bd); }
+		.pve-ft-c{ min-width:0; }
+		.pve-ft-ch{ color:var(--nv); font-weight:900; font-size:13px; text-transform:uppercase;
+			letter-spacing:.5px; margin-bottom:10px; }
+		.pve-ft-c a, .pve-ft-c span{ display:block; color:var(--mut); text-decoration:none; padding:3px 0; font-size:13px; }
+		.pve-ft-c a:hover{ color:var(--cam); }
+		.pve-ft-mxh{ display:flex; gap:10px; margin-top:14px; }
+		.pve-ft-mxh a{ display:flex; align-items:center; justify-content:center; width:34px; height:34px;
+			border-radius:50%; background:var(--gr); color:#fff; font-weight:900; font-size:15px; padding:0; }
+
+		/* ── Màn đặt vé tràn trang ─────────────────────────────────────────────────────── */
+		.pve-dat{ position:fixed; inset:0; z-index:99000;   /* THẤP hơn .pve-mask (100001): bước chọn
+			cách trả phải nằm trên màn đặt vé, không thì khách bấm MUA VÉ xong tưởng không có gì xảy ra. */
+			 background:var(--bg); overflow:auto;
+			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; color:var(--tx); }
+		.pve-dat[hidden]{ display:none !important; }
+		.pve-dat-in{ max-width:1080px; margin:0 auto; padding:0 16px 40px; }
+		.pve-dat-h{ position:sticky; top:0; background:var(--nv); color:#fff; display:flex; align-items:center;
+			justify-content:space-between; gap:12px; margin:0 -16px 20px; padding:14px 18px; }
+		.pve-dat-h b{ font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:.5px; }
+		.pve-dat-x{ border:none; background:rgba(255,255,255,.18); color:#fff; width:34px; height:34px;
+			border-radius:50%; font-size:16px; font-weight:800; cursor:pointer; }
+		.pve-dat-cot{ display:grid; grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); gap:18px; align-items:start; }
+		.pve-dat-tt{ background:var(--sf); border:1px solid var(--bd); border-radius:16px; overflow:hidden; }
+		.pve-dat-tt-h{ background:var(--nv); color:#fff; font-weight:900; text-transform:uppercase;
+			letter-spacing:.4px; font-size:14px; padding:13px 16px; text-align:center; }
+		.pve-dat-tt-b{ padding:16px; font-size:14px; color:var(--mut); line-height:1.9; }
+		.pve-dat-tt-b .d{ display:flex; justify-content:space-between; gap:10px; }
+		.pve-dat-tt-b .d b{ color:var(--tx); }
+		.pve-dat-tt-b .tong{ border-top:1px solid var(--bd); margin-top:10px; padding-top:10px; font-size:16px; }
+		.pve-dat-tt-b .tong b{ color:var(--cam); font-size:19px; }
+		/* Trong màn này khung đặt vé luôn mở, không cần nút gọn nữa. */
+		.pve-dat .pve-qf{ margin:0; }
+		/* Trong màn đặt vé KHÔNG có danh sách vé bên dưới, nên câu "chọn ở danh mục bên dưới"
+		   chỉ tổ làm khách cuộn tìm một thứ không có ở đó. */
+		.pve-dat .pve-qf-note{ display:none; }
+		@media(max-width:860px){ .pve-dat-cot{ grid-template-columns:1fr; } }
+
 		/* Hộp phóng to ảnh bảng giá. [hidden] phải có !important: display:flex ở dòng trên
 		   thắng [hidden] mặc định — đúng cái bẫy đã dính ở popup mua vé (xem BÀN GIAO). */
 		.pve-lb{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; position:fixed; inset:0; z-index:100002; background:rgba(12,22,52,.72);
@@ -3969,6 +4270,134 @@ class POSH_Ve {
 		.pve-ft-hli{ display:flex; flex-direction:column; border-left:3px solid var(--cam); padding-left:10px; text-align:left; }
 		.pve-ft-hli i{ font-style:normal; font-size:12px; color:var(--mut); }
 		.pve-ft-hli a{ color:var(--cam); font-weight:800; font-size:15px; text-decoration:none; }
+		</style>
+		<?php
+		/* ── TÔNG MÀU ─────────────────────────────────────────────────────────────────────
+		   Mặc định đi theo LOGO CỬA HÀNG (xanh ngọc – hồng sen – vàng của Fun Zone City):
+		   trang bán vé mà lệch tông với tấm biển ngoài cửa thì khách không chắc có vào đúng
+		   chỗ không. Vẫn giữ được tông navy–cam của bản 1.60.0 bằng MỘT ô chọn ở WP Admin —
+		   cả trang lấy màu từ bộ biến, nên đổi tông là đổi đúng khối dưới đây, không phải đi
+		   sửa từng lớp.
+
+		   ⚠️ Đè cho CẢ .pve-mask/.pve-wel/.pve-lb: ba khối ấy nằm ngoài .pve-page, bỏ sót một
+		      cái là popup vẫn một tông, trang một tông. */
+		$tong = get_option( 'pve_tong', 'shop' );
+		if ( 'navy' !== $tong ) : ?>
+		<style id="pve-tong-shop">
+		.pve-page, .pve-mask, .pve-wel, .pve-lb, .pve-dat, .pve-ct{
+			--g:#ec008c; --g2:#0090c8; --nv:#0090c8; --nv2:#00719e; --cam:#ec008c; --vang:#ffd200;
+			--gr:linear-gradient(135deg,#ff56b4,#ec008c);
+			--bg:#f1fafe; --sf:#ffffff; --sf2:#e6f5fd; --bd:rgba(0,144,200,.22);
+			--tx:#123141; --mut:#5e7888; }
+		.pve-hero{ background:radial-gradient(900px 420px at 50% 0%,rgba(236,0,140,.42),transparent 62%),linear-gradient(160deg,#00a9e0,#00719e); }
+		.pve-nut-nv{ background:var(--nv); }
+		/* Vàng của logo dùng làm điểm nhấn nhỏ: gạch dưới tiêu đề hero, không dùng làm nền
+		   mảng lớn — vàng trên trắng là tổ hợp khó đọc nhất trong ba màu của logo. */
+		.pve-hero-t::after{ background:linear-gradient(90deg,transparent,var(--vang),transparent); }
+		</style>
+		<?php endif; ?>
+		<?php
+		return ob_get_clean();
+	}
+
+	/**
+	 * [posh_gt] — TRANG GIỚI THIỆU về các khu vui chơi.
+	 * Anh Thắng 11/09/2026: *"Trang giới thiệu về các khu vui chơi"* (kèm ảnh mẫu: bìa + slogan,
+	 * đoạn giới thiệu, bốn giá trị, mốc lịch sử, ảnh các trung tâm).
+	 *
+	 * ⚠️ Ảnh các cơ sở lấy từ ĐÚNG DANH SÁCH CƠ SỞ đang bán vé (ds_coso), không phải một danh
+	 *    sách khác khai riêng cho trang này. Hai danh sách thì mở thêm một cửa hàng là trang
+	 *    giới thiệu vẫn khoe đủ cửa hàng cũ, còn trang bán vé đã có cửa hàng mới — khách đọc
+	 *    trang giới thiệu rồi đi tới chỗ không còn nữa.
+	 */
+	public static function shortcode_gt( $atts ) {
+		$anh    = trim( (string) get_option( 'pve_gt_anh', '' ) );
+		$slogan = trim( (string) get_option( 'pve_gt_slogan', '' ) );
+		$mo_ta  = trim( (string) get_option( 'pve_gt_mo', '' ) );
+		$dong   = function ( $ten ) {
+			$ra = array();
+			foreach ( preg_split( '/\r\n|\r|\n/', (string) get_option( $ten, '' ) ) as $d ) {
+				$d = trim( $d );
+				if ( '' === $d ) { continue; }
+				$pp = explode( '|', $d, 2 );
+				$ra[] = array( trim( $pp[0] ), isset( $pp[1] ) ? trim( $pp[1] ) : '' );
+			}
+			return $ra;
+		};
+		$gia_tri = $dong( 'pve_gt_gt' );
+		$moc     = $dong( 'pve_gt_moc' );
+		$coso    = self::ds_coso();
+		ob_start();
+		?>
+		<div class="pve-page pve-gt">
+		<div class="pve-gt-bia"<?php echo $anh ? ' style="background-image:linear-gradient(rgba(10,20,52,.45),rgba(10,20,52,.65)),url(' . esc_url( $anh ) . ')"' : ''; ?>>
+			<div class="pve-gt-bia-in"><h1><?php echo esc_html( '' !== $slogan ? $slogan : 'Khu vui chơi của chúng tôi' ); ?></h1></div>
+		</div>
+		<div class="pve-wrap">
+			<?php if ( '' !== $mo_ta ) : ?><p class="pve-gt-mo"><?php echo nl2br( esc_html( $mo_ta ) ); ?></p><?php endif; ?>
+			<?php if ( $gia_tri ) : ?>
+			<h2 class="pve-gt-h">Tinh thần của chúng tôi</h2>
+			<div class="pve-gt-gt">
+				<?php foreach ( $gia_tri as $gt1 ) : ?>
+				<div class="pve-gt-gti"><span class="pve-gt-ic"><?php echo esc_html( '' !== $gt1[0] ? $gt1[0] : '★' ); ?></span><p><?php echo esc_html( $gt1[1] ); ?></p></div>
+				<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
+			<?php if ( $moc ) : ?>
+			<h2 class="pve-gt-h">Chặng đường</h2>
+			<div class="pve-gt-moc">
+				<?php foreach ( $moc as $m1 ) : ?>
+				<div class="pve-gt-mi"><b><?php echo esc_html( $m1[0] ); ?></b><span><?php echo esc_html( $m1[1] ); ?></span></div>
+				<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
+			<?php if ( $coso ) : ?>
+			<h2 class="pve-gt-h">Các cơ sở</h2>
+			<div class="pve-gt-cs">
+				<?php foreach ( $coso as $c ) : ?>
+				<div class="pve-gt-ci">
+					<span class="pve-gt-canh"><?php if ( $c['anh_cs'] ) : ?><img src="<?php echo esc_url( $c['anh_cs'] ); ?>" alt="<?php echo esc_attr( $c['ten'] ); ?>" loading="lazy"><?php else : ?>🏬<?php endif; ?></span>
+					<span class="pve-gt-cten"><?php echo esc_html( $c['ten'] ); ?><?php if ( '' !== $c['tinh'] ) : ?> <em><?php echo esc_html( $c['tinh'] ); ?></em><?php endif; ?></span>
+				</div>
+				<?php endforeach; ?>
+			</div>
+			<?php endif; ?>
+			<?php $u_ve = self::url_trang_ve(); ?>
+			<?php if ( $u_ve ) : ?><p class="pve-gt-nut"><a class="pve-nut-cam" href="<?php echo esc_url( $u_ve ); ?>">Đặt vé ngay</a></p><?php endif; ?>
+		</div>
+		</div>
+		<style>
+		.pve-gt{ --g:#ec008c; --g2:#0090c8; --nv:#0090c8; --cam:#ec008c; --vang:#ffd200;
+			--gr:linear-gradient(135deg,#ff56b4,#ec008c); --bg:#f1fafe; --sf:#fff; --sf2:#e6f5fd;
+			--bd:rgba(0,144,200,.22); --tx:#123141; --mut:#5e7888;
+			background:var(--bg); color:var(--tx); font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+		.pve-gt-bia{ background:linear-gradient(160deg,#00a9e0,#00719e); background-size:cover; background-position:center;
+			padding:90px 20px; text-align:center; }
+		.pve-gt-bia-in h1{ color:#fff; font-size:clamp(24px,5vw,44px); font-weight:900; text-transform:uppercase;
+			margin:0; line-height:1.2; text-shadow:0 4px 18px rgba(0,0,0,.35); }
+		.pve-gt-mo{ max-width:760px; margin:0 auto 8px; text-align:center; font-size:16px; line-height:1.9; color:var(--tx); }
+		.pve-gt-h{ text-align:center; color:var(--nv); font-size:20px; font-weight:900; text-transform:uppercase;
+			letter-spacing:.4px; margin:34px 0 18px; }
+		.pve-gt-gt{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:18px; }
+		.pve-gt-gti{ text-align:center; }
+		.pve-gt-ic{ display:flex; align-items:center; justify-content:center; width:78px; height:78px; margin:0 auto 12px;
+			border-radius:50%; background:var(--gr); color:#fff; font-size:34px; }
+		.pve-gt-gti p{ margin:0; font-size:14px; line-height:1.7; color:var(--mut); }
+		.pve-gt-moc{ display:flex; gap:14px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none; }
+		.pve-gt-moc::-webkit-scrollbar{ display:none; }
+		.pve-gt-mi{ flex:0 0 auto; min-width:190px; max-width:260px; background:var(--sf); border:1px solid var(--bd);
+			border-top:4px solid var(--cam); border-radius:12px; padding:14px; }
+		.pve-gt-mi b{ display:block; color:var(--nv); font-size:19px; font-weight:900; margin-bottom:6px; }
+		.pve-gt-mi span{ font-size:13px; line-height:1.7; color:var(--mut); }
+		.pve-gt-cs{ display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:16px; }
+		.pve-gt-ci{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
+		.pve-gt-canh{ display:flex; align-items:center; justify-content:center; aspect-ratio:4/3; background:var(--sf2); font-size:34px; overflow:hidden; }
+		.pve-gt-canh img{ width:100%; height:100%; object-fit:cover; display:block; }
+		.pve-gt-cten{ padding:12px 14px; font-weight:800; color:var(--nv); font-size:14px; }
+		.pve-gt-cten em{ display:block; font-style:normal; font-weight:600; color:var(--mut); font-size:12px; margin-top:3px; }
+		.pve-gt-nut{ text-align:center; margin:34px 0 10px; }
+		.pve-gt .pve-nut-cam{ display:inline-block; background:var(--gr); color:#fff; font-weight:900; text-transform:uppercase;
+			text-decoration:none; padding:14px 34px; border-radius:999px; letter-spacing:.4px; }
 		</style>
 		<?php
 		return ob_get_clean();
@@ -5394,6 +5823,9 @@ class POSH_Ve {
 				'anh' => esc_url_raw( wp_unslash( $_POST['anh'] ) ),
 				'thoi_luong' => sanitize_text_field( wp_unslash( $_POST['thoi_luong'] ) ),
 				'so_luong' => ( ! isset( $_POST['so_luong'] ) || '' === trim( (string) $_POST['so_luong'] ) ) ? -1 : max( 0, (int) preg_replace( '/\D+/', '', (string) $_POST['so_luong'] ) ),
+				'nq_ve'  => sanitize_textarea_field( wp_unslash( isset( $_POST['nq_ve'] ) ? $_POST['nq_ve'] : '' ) ),
+				'nq_san' => sanitize_textarea_field( wp_unslash( isset( $_POST['nq_san'] ) ? $_POST['nq_san'] : '' ) ),
+				'cs_tt'  => sanitize_textarea_field( wp_unslash( isset( $_POST['cs_tt'] ) ? $_POST['cs_tt'] : '' ) ),
 				'hien' => empty( $_POST['hien'] ) ? 0 : 1 );
 			$ds = self::ds_tatca(); $thay = false;
 			if ( $id > 0 ) { foreach ( $ds as $k => $v ) { if ( (int) $v['id'] === $id ) { $ds[ $k ] = $moi; $thay = true; break; } } }
@@ -5457,6 +5889,7 @@ class POSH_Ve {
 			$gis  = isset( $_POST['cs_giam'] ) ? (array) $_POST['cs_giam'] : array();
 			$tinhs = isset( $_POST['cs_tinh'] ) ? (array) $_POST['cs_tinh'] : array();
 			$agia  = isset( $_POST['cs_anhgia'] ) ? (array) $_POST['cs_anhgia'] : array();
+			$acs   = isset( $_POST['cs_anhcs'] ) ? (array) $_POST['cs_anhcs'] : array();
 			$bks  = isset( $_POST['cs_bk'] ) ? (array) $_POST['cs_bk'] : array();
 			$moi = array(); $da_dung_ma = array();
 			foreach ( $tens as $i => $t ) {
@@ -5472,6 +5905,7 @@ class POSH_Ve {
 				$moi[] = array( 'ten' => $t, 'ma' => $ma,
 					'tinh' => sanitize_text_field( isset( $tinhs[ $i ] ) ? wp_unslash( $tinhs[ $i ] ) : '' ),
 					'anh_gia' => esc_url_raw( isset( $agia[ $i ] ) ? wp_unslash( $agia[ $i ] ) : '' ),
+					'anh_cs' => esc_url_raw( isset( $acs[ $i ] ) ? wp_unslash( $acs[ $i ] ) : '' ),
 					'lat' => (float) ( isset( $lats[ $i ] ) ? str_replace( ',', '.', (string) $lats[ $i ] ) : 0 ),
 					'lng' => (float) ( isset( $lngs[ $i ] ) ? str_replace( ',', '.', (string) $lngs[ $i ] ) : 0 ),
 					'giam' => (int) ( isset( $gis[ $i ] ) ? $gis[ $i ] : 0 ),
@@ -5493,6 +5927,26 @@ class POSH_Ve {
 			update_option( 'pve_email', sanitize_text_field( wp_unslash( isset( $_POST['ft_email'] ) ? $_POST['ft_email'] : '' ) ) );
 			update_option( 'pve_ft_nb_url', esc_url_raw( wp_unslash( $_POST['ft_nb_url'] ) ) );
 			update_option( 'pve_ft_nb_ten', sanitize_text_field( wp_unslash( $_POST['ft_nb_ten'] ) ) );
+			update_option( 'pve_logo_cs', esc_url_raw( wp_unslash( isset( $_POST['logo_cs'] ) ? $_POST['logo_cs'] : '' ) ) );
+			update_option( 'pve_logo_cty', esc_url_raw( wp_unslash( isset( $_POST['logo_cty'] ) ? $_POST['logo_cty'] : '' ) ) );
+			update_option( 'pve_tong', 'navy' === ( isset( $_POST['tong'] ) ? $_POST['tong'] : '' ) ? 'navy' : 'shop' );
+			for ( $ci = 1; $ci <= 3; $ci++ ) {
+				update_option( 'pve_ft_cot' . $ci . '_h', sanitize_text_field( wp_unslash( isset( $_POST[ 'ft_cot' . $ci . '_h' ] ) ? $_POST[ 'ft_cot' . $ci . '_h' ] : '' ) ) );
+				update_option( 'pve_ft_cot' . $ci, sanitize_textarea_field( wp_unslash( isset( $_POST[ 'ft_cot' . $ci ] ) ? $_POST[ 'ft_cot' . $ci ] : '' ) ) );
+			}
+			foreach ( array( 'fb', 'yt', 'ig', 'tt' ) as $mx ) {
+				update_option( 'pve_mxh_' . $mx, esc_url_raw( wp_unslash( isset( $_POST[ 'mxh_' . $mx ] ) ? $_POST[ 'mxh_' . $mx ] : '' ) ) );
+			}
+			update_option( 'pve_nq_ve', sanitize_textarea_field( wp_unslash( isset( $_POST['nq_ve_chung'] ) ? $_POST['nq_ve_chung'] : '' ) ) );
+			update_option( 'pve_nq_san', sanitize_textarea_field( wp_unslash( isset( $_POST['nq_san_chung'] ) ? $_POST['nq_san_chung'] : '' ) ) );
+			update_option( 'pve_cs_tt', sanitize_textarea_field( wp_unslash( isset( $_POST['cs_tt_chung'] ) ? $_POST['cs_tt_chung'] : '' ) ) );
+			update_option( 'pve_bv_so', max( 0, min( 12, (int) ( isset( $_POST['bv_so'] ) ? $_POST['bv_so'] : 3 ) ) ) );
+			update_option( 'pve_bv_h', sanitize_text_field( wp_unslash( isset( $_POST['bv_h'] ) ? $_POST['bv_h'] : '' ) ) );
+			update_option( 'pve_gt_anh', esc_url_raw( wp_unslash( isset( $_POST['gt_anh'] ) ? $_POST['gt_anh'] : '' ) ) );
+			update_option( 'pve_gt_slogan', sanitize_text_field( wp_unslash( isset( $_POST['gt_slogan'] ) ? $_POST['gt_slogan'] : '' ) ) );
+			update_option( 'pve_gt_mo', sanitize_textarea_field( wp_unslash( isset( $_POST['gt_mo'] ) ? $_POST['gt_mo'] : '' ) ) );
+			update_option( 'pve_gt_gt', sanitize_textarea_field( wp_unslash( isset( $_POST['gt_gt'] ) ? $_POST['gt_gt'] : '' ) ) );
+			update_option( 'pve_gt_moc', sanitize_textarea_field( wp_unslash( isset( $_POST['gt_moc'] ) ? $_POST['gt_moc'] : '' ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu chân trang.</p></div>';
 		}
 		if ( isset( $_POST['pve_zalo_luu'] ) && check_admin_referer( 'pve_zalo' ) ) {
@@ -5727,6 +6181,10 @@ class POSH_Ve {
 		echo '<tr><th>Số lượng vé</th><td><input name="so_luong" type="number" min="0" step="1" value="' . esc_attr( $sua && $sua['so_luong'] >= 0 ? $sua['so_luong'] : '' ) . '"> <span class="description">số vé còn bán — để <b>trống</b> = không giới hạn. Mỗi vé bán (web/Zalo) tự trừ 1.</span></td></tr>';
 		echo '<tr><th>Thời lượng</th><td><input name="thoi_luong" class="regular-text" placeholder="VD 60 phút / Cả ngày" value="' . esc_attr( $sua ? $sua['thoi_luong'] : '' ) . '"></td></tr>';
 		echo '<tr><th>Mô tả</th><td><textarea name="mo_ta" rows="3" class="large-text">' . esc_textarea( $sua ? $sua['mo_ta'] : '' ) . '</textarea></td></tr>';
+		echo '<tr><th>Chi tiết vé<br><span class="description">3 tab khách xem</span></th><td>'
+			. '<p><b>Nội quy sử dụng vé</b><br><textarea name="nq_ve" rows="3" class="large-text" placeholder="Bỏ trống = dùng bản chung khai ở cuối trang này">' . esc_textarea( $sua && isset( $sua['nq_ve'] ) ? $sua['nq_ve'] : '' ) . '</textarea></p>'
+			. '<p><b>Nội quy sân chơi</b><br><textarea name="nq_san" rows="3" class="large-text" placeholder="Bỏ trống = dùng bản chung">' . esc_textarea( $sua && isset( $sua['nq_san'] ) ? $sua['nq_san'] : '' ) . '</textarea></p>'
+			. '<p><b>Chính sách thanh toán</b><br><textarea name="cs_tt" rows="3" class="large-text" placeholder="Bỏ trống = dùng bản chung">' . esc_textarea( $sua && isset( $sua['cs_tt'] ) ? $sua['cs_tt'] : '' ) . '</textarea></p></td></tr>';
 		echo '<tr><th>Ảnh</th><td><input type="text" name="anh" id="pve-anh" class="large-text code" value="' . esc_attr( $sua ? $sua['anh'] : '' ) . '"><br>'
 			. '<button type="button" class="button" id="pve-chon" style="margin-top:6px">Chọn ảnh từ thư viện</button> '
 			. '<img id="pve-xem" src="' . esc_url( $sua ? $sua['anh'] : '' ) . '" style="' . ( $sua && $sua['anh'] ? '' : 'display:none;' ) . 'height:80px;border-radius:8px;margin-left:10px;vertical-align:middle"></td></tr>';
@@ -5880,16 +6338,17 @@ class POSH_Ve {
 		$coso = self::ds_coso();
 		echo '<form method="post">'; wp_nonce_field( 'pve_coso' );
 		echo '<table class="widefat striped" style="max-width:1360px"><thead><tr><th>Tên cơ sở / khu vực</th>'
-			. '<th style="width:130px">Tỉnh / Thành</th><th style="width:210px">Ảnh bảng giá (URL)</th>'
+			. '<th style="width:130px">Tỉnh / Thành</th><th style="width:190px">Ảnh bảng giá (URL)</th><th style="width:190px">Ảnh cửa hàng (URL)</th>'
 			. '<th style="width:120px">Mã (tem QR)</th><th style="width:130px">Vĩ độ (lat)</th><th style="width:130px">Kinh độ (lng)</th>'
 			. '<th style="width:90px">% giảm</th><th style="width:110px">Bán kính (m)</th><th style="width:220px">Tem QR dán tại quầy</th></tr></thead><tbody>';
-		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'ma' => '', 'tinh' => '', 'anh_gia' => '', 'lat' => '', 'lng' => '', 'giam' => 0, 'bk' => 0 ); }
+		$rows_cs = $coso; for ( $i = count( $rows_cs ); $i < 8; $i++ ) { $rows_cs[] = array( 'ten' => '', 'ma' => '', 'tinh' => '', 'anh_gia' => '', 'anh_cs' => '', 'lat' => '', 'lng' => '', 'giam' => 0, 'bk' => 0 ); }
 		foreach ( $rows_cs as $c ) {
 			$lat = ( is_numeric( $c['lat'] ) && $c['lat'] ) ? $c['lat'] : '';
 			$lng = ( is_numeric( $c['lng'] ) && $c['lng'] ) ? $c['lng'] : '';
 			echo '<tr><td><input name="cs_ten[]" class="regular-text" value="' . esc_attr( $c['ten'] ) . '" placeholder="VD Aeon Long Biên"></td>'
 				. '<td><input name="cs_tinh[]" class="regular-text" style="width:120px" value="' . esc_attr( isset( $c['tinh'] ) ? $c['tinh'] : '' ) . '" placeholder="Hà Nội"></td>'
-				. '<td><input name="cs_anhgia[]" class="regular-text" style="width:200px" value="' . esc_attr( isset( $c['anh_gia'] ) ? $c['anh_gia'] : '' ) . '" placeholder="https://…/bang-gia.jpg"></td>'
+				. '<td><input name="cs_anhgia[]" class="regular-text" style="width:180px" value="' . esc_attr( isset( $c['anh_gia'] ) ? $c['anh_gia'] : '' ) . '" placeholder="https://…/bang-gia.jpg"></td>'
+				. '<td><input name="cs_anhcs[]" class="regular-text" style="width:180px" value="' . esc_attr( isset( $c['anh_cs'] ) ? $c['anh_cs'] : '' ) . '" placeholder="https://…/mat-tien.jpg"></td>'
 				. '<td><input name="cs_ma[]" class="regular-text code" style="width:110px" value="' . esc_attr( isset( $c['ma'] ) ? $c['ma'] : '' ) . '" placeholder="tự sinh"></td>'
 				. '<td><input name="cs_lat[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lat ) . '" placeholder="10.7769"></td>'
 				. '<td><input name="cs_lng[]" class="regular-text code" style="width:120px" value="' . esc_attr( $lng ) . '" placeholder="106.7009"></td>'
@@ -5939,7 +6398,56 @@ class POSH_Ve {
 		echo '<tr><th>Email hỗ trợ</th><td><input name="ft_email" class="regular-text" value="' . esc_attr( get_option( 'pve_email', '' ) ) . '"></td></tr>';
 		echo '<tr><th>Link trang nội bộ</th><td><input name="ft_nb_url" class="large-text code" value="' . esc_attr( get_option( 'pve_ft_nb_url', admin_url( 'admin.php?page=posh-ve' ) ) ) . '"> <span class="description">VD trang quản lý nội bộ.</span></td></tr>';
 		echo '<tr><th>Chữ hiển thị link</th><td><input name="ft_nb_ten" class="regular-text" value="' . esc_attr( get_option( 'pve_ft_nb_ten', 'Trang nội bộ' ) ) . '"></td></tr>';
+		echo '<tr><th>Logo cửa hàng</th><td><input type="text" name="logo_cs" id="pve-logocs" class="large-text code" value="' . esc_attr( get_option( 'pve_logo_cs', '' ) ) . '"><br>'
+			. '<button type="button" class="button" id="pve-chon-logocs" style="margin-top:6px">Chọn ảnh</button> '
+			. '<img id="pve-xem-logocs" src="' . esc_url( get_option( 'pve_logo_cs', '' ) ) . '" style="' . ( get_option( 'pve_logo_cs', '' ) ? '' : 'display:none;' ) . 'height:46px;margin-left:10px;vertical-align:middle">'
+			. '<p class="description">Đứng ở <b>đầu trang bán vé</b> (logo thương hiệu vui chơi, VD Fun Zone City). Bỏ trống thì hiện tên công ty bằng chữ.</p></td></tr>';
+		echo '<tr><th>Logo công ty</th><td><input type="text" name="logo_cty" id="pve-logocty" class="large-text code" value="' . esc_attr( get_option( 'pve_logo_cty', '' ) ) . '"><br>'
+			. '<button type="button" class="button" id="pve-chon-logocty" style="margin-top:6px">Chọn ảnh</button> '
+			. '<img id="pve-xem-logocty" src="' . esc_url( get_option( 'pve_logo_cty', '' ) ) . '" style="' . ( get_option( 'pve_logo_cty', '' ) ? '' : 'display:none;' ) . 'height:46px;margin-left:10px;vertical-align:middle">'
+			. '<p class="description">Đứng ở <b>chân trang</b>, cạnh khối pháp nhân (K&amp;H COM., LTD).</p></td></tr>';
+		$tong_now = get_option( 'pve_tong', 'shop' );
+		echo '<tr><th>Tông màu trang bán vé</th><td><select name="tong">'
+			. '<option value="shop"' . selected( $tong_now, 'shop', false ) . '>Theo logo cửa hàng (xanh ngọc – hồng sen)</option>'
+			. '<option value="navy"' . selected( $tong_now, 'navy', false ) . '>Navy – cam</option></select>'
+			. '<p class="description">Đổi tông áp cho cả trang bán vé lẫn các popup.</p></td></tr>';
+		for ( $ci = 1; $ci <= 3; $ci++ ) {
+			echo '<tr><th>Cột chân trang ' . (int) $ci . '</th><td>'
+				. '<input name="ft_cot' . (int) $ci . '_h" class="regular-text" placeholder="Tiêu đề cột" value="' . esc_attr( get_option( 'pve_ft_cot' . $ci . '_h', '' ) ) . '"><br>'
+				. '<textarea name="ft_cot' . (int) $ci . '" rows="4" class="large-text" placeholder="Mỗi dòng một mục: Tên|https://…">' . esc_textarea( get_option( 'pve_ft_cot' . $ci, '' ) ) . '</textarea>'
+				. ( 1 === $ci ? '<p class="description">Mỗi dòng một liên kết, ngăn bằng dấu <code>|</code>. Dòng không có <code>|</code> vẫn hiện, chỉ là chữ thường.</p>' : '' )
+				. '</td></tr>';
+		}
+		echo '<tr><th>Mạng xã hội</th><td>'
+			. '<input name="mxh_fb" class="regular-text code" placeholder="Facebook URL" value="' . esc_attr( get_option( 'pve_mxh_fb', '' ) ) . '"><br>'
+			. '<input name="mxh_yt" class="regular-text code" placeholder="YouTube URL" value="' . esc_attr( get_option( 'pve_mxh_yt', '' ) ) . '"><br>'
+			. '<input name="mxh_ig" class="regular-text code" placeholder="Instagram URL" value="' . esc_attr( get_option( 'pve_mxh_ig', '' ) ) . '"><br>'
+			. '<input name="mxh_tt" class="regular-text code" placeholder="TikTok URL" value="' . esc_attr( get_option( 'pve_mxh_tt', '' ) ) . '"></td></tr>';
+		echo '<tr><th>Bài viết cuối trang</th><td>'
+			. '<input name="bv_h" class="regular-text" placeholder="Tiêu đề khối (mặc định: Bài viết)" value="' . esc_attr( get_option( 'pve_bv_h', '' ) ) . '"> '
+			. '<input name="bv_so" type="number" min="0" max="12" style="width:80px" value="' . esc_attr( (int) get_option( 'pve_bv_so', 3 ) ) . '">'
+			. '<p class="description">Lấy <b>bài viết mới nhất của WordPress</b>, không phải kho bài riêng — viết bài ở Bài viết → Thêm mới là trang bán vé tự có. Đặt <b>0</b> để ẩn khối này.</p></td></tr>';
+		echo '<tr><th>Chi tiết vé — bản chung</th><td>'
+			. '<p class="description">Vé nào bỏ trống ô tương ứng thì lấy bản chung này. Sửa ở đây là sửa cho mọi vé chưa khai riêng.</p>'
+			. '<p><b>Nội quy sử dụng vé</b><br><textarea name="nq_ve_chung" rows="3" class="large-text">' . esc_textarea( get_option( 'pve_nq_ve', '' ) ) . '</textarea></p>'
+			. '<p><b>Nội quy sân chơi</b><br><textarea name="nq_san_chung" rows="4" class="large-text">' . esc_textarea( get_option( 'pve_nq_san', '' ) ) . '</textarea></p>'
+			. '<p><b>Chính sách thanh toán</b><br><textarea name="cs_tt_chung" rows="3" class="large-text">' . esc_textarea( get_option( 'pve_cs_tt', '' ) ) . '</textarea></p></td></tr>';
+		$u_gt_ad = self::url_trang_gt();
+		echo '<tr><th>Trang giới thiệu<br><span class="description">' . ( $u_gt_ad ? '<a href="' . esc_url( $u_gt_ad ) . '" target="_blank">mở trang</a>' : 'chưa tạo' ) . '</span></th><td>'
+			. '<p><input type="text" name="gt_anh" id="pve-gtanh" class="large-text code" value="' . esc_attr( get_option( 'pve_gt_anh', '' ) ) . '" placeholder="Ảnh bìa (URL)"> '
+			. '<button type="button" class="button" id="pve-chon-gtanh">Chọn ảnh</button></p>'
+			. '<p><input name="gt_slogan" class="large-text" value="' . esc_attr( get_option( 'pve_gt_slogan', '' ) ) . '" placeholder="Câu slogan trên ảnh bìa"></p>'
+			. '<p><b>Đoạn giới thiệu</b><br><textarea name="gt_mo" rows="4" class="large-text">' . esc_textarea( get_option( 'pve_gt_mo', '' ) ) . '</textarea></p>'
+			. '<p><b>Tinh thần / giá trị</b> — mỗi dòng: <code>emoji|nội dung</code><br><textarea name="gt_gt" rows="4" class="large-text" placeholder="🤸|Vận động mỗi ngày">' . esc_textarea( get_option( 'pve_gt_gt', '' ) ) . '</textarea></p>'
+			. '<p><b>Chặng đường</b> — mỗi dòng: <code>năm|nội dung</code><br><textarea name="gt_moc" rows="4" class="large-text" placeholder="2024|Mở cơ sở đầu tiên">' . esc_textarea( get_option( 'pve_gt_moc', '' ) ) . '</textarea></p>'
+			. '<p class="description">Ảnh từng cơ sở lấy ở cột <b>Ảnh cửa hàng</b> của bảng Cơ sở phía trên — không khai lại ở đây, để mở thêm cửa hàng là trang giới thiệu tự có.</p></td></tr>';
 		echo '</table><p><button class="button button-primary" name="pve_ft_luu" value="1">Lưu chân trang</button></p></form>';
+		echo '<script>jQuery(function($){function pick(nut,o,x){var f;$(nut).on("click",function(e){e.preventDefault();'
+			. 'if(f){f.open();return;}f=wp.media({title:"Chọn ảnh",multiple:false,library:{type:"image"}});'
+			. 'f.on("select",function(){var a=f.state().get("selection").first().toJSON();$(o).val(a.url);$(x).attr("src",a.url).show();});f.open();});}'
+			. 'pick("#pve-chon-logocs","#pve-logocs","#pve-xem-logocs");pick("#pve-chon-logocty","#pve-logocty","#pve-xem-logocty");'
+			. 'pick("#pve-chon-gtanh","#pve-gtanh","#pve-xem-gtanh");});</script>'
+			. '<img id="pve-xem-gtanh" style="display:none">';
 
 		/* ── Ưu đãi (hiện trên Zalo) ── */
 		echo '<hr><h2>Ưu đãi (hiện trên Zalo)</h2>';
@@ -5981,7 +6489,7 @@ class POSH_Ve {
 	}
 }
 
-register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); POSH_Ve::bao_dam_trang_ql(); POSH_Ve::bao_dam_trang_soat(); flush_rewrite_rules(); } );
+register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); POSH_Ve::bao_dam_trang_ql(); POSH_Ve::bao_dam_trang_soat(); POSH_Ve::bao_dam_trang_gt(); flush_rewrite_rules(); } );
 register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'pve_do_saoke' ); } );
 add_action( 'init', array( 'POSH_Ve', 'init' ), 6 );
 

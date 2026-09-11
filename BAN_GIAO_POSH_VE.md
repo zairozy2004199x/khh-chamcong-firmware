@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.60.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.61.0** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -42,17 +42,18 @@ npx.cmd zmp deploy
 
 ## 4. Các trang & đường dẫn
 
-> Shortcode: `[posh_ve]` trang bán vé · `[posh_ql]` quản trị vé · **`[posh_soat]` màn hình soát vé tại quầy** (nhân viên chọn cơ sở + gõ PIN một lần, máy nhớ cho cả ca).
+> Shortcode: `[posh_ve]` trang bán vé · `[posh_ql]` quản trị vé · `[posh_gt]` trang giới thiệu · **`[posh_soat]` màn hình soát vé tại quầy** (nhân viên chọn cơ sở + gõ PIN một lần, máy nhớ cho cả ca).
 
 
 | Trang | Đường dẫn | Shortcode |
 |---|---|---|
 | Bán vé (khách) | `khmatrix.com/mua-ve` | `[posh_ve]` |
 | Quản trị vé (marketing, đăng nhập PIN) | `khmatrix.com/quan-tri-ve` | `[posh_ql]` |
+| Giới thiệu khu vui chơi | `khmatrix.com/gioi-thieu` | `[posh_gt]` |
 | Soát vé tại quầy (nhân viên) | `khmatrix.com/soat-ve` · mỗi quầy một link `?cs=MÃCS` | `[posh_soat]` |
 | Quản trị WordPress (admin) | WP Admin → **Vé khu vui chơi** | — |
 
-Cả 3 trang tự được tạo khi kích hoạt plugin. Trang quản trị hiện link ngay trong WP Admin.
+Cả 4 trang tự được tạo khi kích hoạt plugin. Trang quản trị hiện link ngay trong WP Admin.
 
 ---
 
@@ -150,6 +151,57 @@ Hai nút mỗi dòng:
 
 **Hotline** khai ở WP Admin → Chân trang (`pve_hotline`, `pve_hotline2`, `pve_email`), hiện cả ở
 thanh trên cùng lẫn chân trang. Không khai thì khối ấy tự ẩn, không để lại ô trống.
+
+### 🖼️ Hai logo, hai vai trò — đừng đổi chỗ (từ 1.61.0)
+| Logo | Khai ở | Đứng ở | Vì sao |
+|---|---|---|---|
+| **Cửa hàng** (Fun Zone City) | WP Admin → Chân trang → *Logo cửa hàng* | đầu trang bán vé | khách mua vé của **cửa hàng**, họ nhận ra tấm biển ngoài cửa |
+| **Công ty** (K&H COM., LTD) | …→ *Logo công ty* | chân trang, cạnh khối pháp nhân | đây là bên **xuất hoá đơn** |
+
+Đổi chỗ hai cái là trang bán vé mang tên pháp nhân khách không nhận ra, còn hoá đơn lại mang tên
+thương hiệu vui chơi. Bỏ trống logo cửa hàng thì đầu trang hiện tên công ty bằng chữ, không vỡ.
+
+**Tông màu** có ô chọn ở cùng màn: *Theo logo cửa hàng* (xanh ngọc `#0090c8` – hồng sen `#ec008c`,
+mặc định) hoặc *Navy – cam*. Cả trang lấy màu từ bộ biến nên đổi tông là đổi **một** khối CSS —
+xem mục giao diện ở trên, và nhớ khai lại biến cho mọi khối nằm ngoài `.pve-page`.
+
+### 🎟️ Khung đặt vé gọn lại + màn đặt vé tràn trang (từ 1.61.0)
+Anh Thắng: *"Nên hiện gọn thành chữ mua vé ngay thôi, khi khách bấm mua vé mới hiện ra"* và
+*"Bấm mua vé thì ra trang và hiện thông tin để đặt vé"*.
+
+Ngoài trang chỉ còn **một nút "Mua vé ngay"**; bấm vào mở **màn đặt vé tràn trang**: khung điền bên
+trái, ô **Thông tin đặt hàng** bên phải (cơ sở, vé, đơn giá, số lượng, tạm tính — cập nhật ngay khi
+khách đổi lựa chọn).
+
+⚠️ Màn đặt vé **KHÔNG dựng khung thứ hai**: JS *chuyển* nguyên khối `#pve-qf` vào màn rồi trả về
+chỗ cũ (`#pve-qf-cho`) khi đóng. Khối "Đặt vé nhanh" giữ tham chiếu tới các ô bên trong `#pve-qf`
+từ lúc tải trang — chép ra khung thứ hai là khách điền một đằng, đơn đi một nẻo.
+
+⚠️ `z-index` màn đặt vé là **99000, thấp hơn `.pve-mask` (100001)**: bước chọn cách trả phải nằm
+trên, không thì bấm MUA VÉ xong màn hình không đổi gì và khách bấm lại lần nữa.
+
+### 📋 Chi tiết vé — ba tab nhân viên tự nhập (từ 1.61.0)
+Mỗi thẻ vé có nút **Chi tiết ›** mở khung ba tab: *Nội quy sử dụng vé · Nội quy sân chơi · Chính
+sách thanh toán*. Nhập ở WP Admin → sửa vé; **bỏ trống ô nào thì lấy bản chung** khai một lần ở
+WP Admin → Chân trang → *Chi tiết vé — bản chung*.
+
+Vì sao có bản chung: nội quy sân chơi giống nhau ở mọi vé. Bắt gõ lại cho từng vé là sớm muộn mỗi
+vé một kiểu — và lúc có chuyện thì không ai biết tờ nội quy nào đang có hiệu lực.
+
+⚠️ Nội dung ba tab dựng **sẵn trong thẻ vé** (khối ẩn `.pve-ct-kho`), JS chỉ bê sang khung xem:
+không gọi thêm lượt mạng nào, và không nhét cả trăm chữ vào thuộc tính `data-…` (xuống dòng với
+dấu nháy là hỏng cả thẻ HTML).
+
+### 📰 Bài viết cuối trang & 🏛️ trang giới thiệu (từ 1.61.0)
+- **Bài viết** cuối trang bán vé lấy **thẳng bài viết của WordPress** (số lượng khai ở WP Admin,
+  đặt 0 để ẩn). Không dựng kho bài riêng trong plugin: kho riêng là thêm một chỗ soạn thảo để
+  quên cập nhật, và bài không lên được Google vì nó không phải một trang thật.
+- **`[posh_gt]` — trang giới thiệu**, tự tạo khi kích hoạt (`/gioi-thieu`): ảnh bìa + slogan, đoạn
+  giới thiệu, các giá trị (`emoji|nội dung`), chặng đường (`năm|nội dung`), và **ảnh các cơ sở lấy
+  từ đúng bảng Cơ sở đang bán vé** — không phải một danh sách khai riêng, để mở thêm cửa hàng là
+  trang giới thiệu tự có, khỏi cảnh khách đọc trang giới thiệu rồi tới chỗ không còn nữa.
+- **Chân trang** gom thành cột: 3 cột liên kết khai ở WP Admin (mỗi dòng `Tên|URL`) + cột hỗ trợ
+  (hotline, email, mạng xã hội). Cột trống thì bỏ hẳn, không để lại tiêu đề cụt.
 
 ### 🏪 Cơ sở bán chạy đo **HAI** con số khác nhau — đừng gộp làm một (từ 1.59.0)
 Màn **🏪 Cơ sở bán chạy** (`/ql/coso-bc`) xếp hạng cửa hàng bằng hai thước đo, và chúng **không**

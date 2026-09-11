@@ -1132,6 +1132,14 @@ boc('bảng giá cơ sở', function(){
 		if (dat){
 			ev.preventDefault();
 			bgChonKhu(dat.getAttribute('data-cs') || '');
+			/* Khung đặt vé giờ nằm gọn sau một nút, nên cuộn tới nó thôi là khách nhìn thấy…
+			   đúng cái nút vừa bấm. Mở thẳng màn đặt vé. */
+			if (typeof datMo === 'function' && datMo()){
+				var qf0 = document.getElementById('pve-qf');
+				var ve0 = qf0 && qf0.querySelector('.pve-qf-ve');
+				if (ve0) try { ve0.focus({ preventScroll:true }); } catch(e){ }
+				return;
+			}
 			var qf = document.getElementById('pve-qf');
 			if (qf){
 				qf.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -1142,6 +1150,134 @@ boc('bảng giá cơ sở', function(){
 		if (t.closest('.pve-lb-x') || t.id === 'pve-lb'){ ev.preventDefault(); lbDong(); }
 	});
 	document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') lbDong(); });
+});
+
+
+/* ───── Khung đặt vé: gọn ở trang, mở ra thành MÀN ĐẶT VÉ tràn trang ───────────────────────
+   Anh Thắng 11/09/2026: *"Nên hiện gọn thành chữ mua vé ngay thôi, khi khách bấm mua vé mới
+   hiện ra"* và *"Bấm mua vé thì ra trang và hiện thông tin để đặt vé"*.
+
+   ⚠️ CHUYỂN nguyên khối #pve-qf vào màn đặt vé rồi trả về chỗ cũ, KHÔNG dựng khung thứ hai:
+      khối xử lý "Đặt vé nhanh" giữ sẵn tham chiếu tới các ô bên trong #pve-qf từ lúc tải
+      trang. Chép ra một khung khác là nút MUA VÉ bấm vào đọc ô của khung cũ — người ta điền
+      một đằng, đơn đi một nẻo.                                                               */
+function datMo(){
+	var qf = document.getElementById('pve-qf'), man = document.getElementById('pve-dat');
+	if (!qf || !man) return false;
+	var o = document.getElementById('pve-dat-form'); if (!o) return false;
+	if (qf.parentNode !== o) o.appendChild(qf);
+	var than = qf.querySelector('.pve-qf-than'), nut = qf.querySelector('.pve-qf-mo');
+	if (than) than.hidden = false;
+	if (nut) nut.hidden = true;
+	qf.classList.add('mo');
+	man.hidden = false;
+	try { document.body.style.overflow = 'hidden'; } catch(e){}
+	datTom();
+	return true;
+}
+function datDong(){
+	var qf = document.getElementById('pve-qf'), man = document.getElementById('pve-dat');
+	var cho = document.getElementById('pve-qf-cho');
+	if (man) man.hidden = true;
+	try { document.body.style.overflow = ''; } catch(e){}
+	if (qf && cho && cho.parentNode) cho.parentNode.insertBefore(qf, cho.nextSibling);
+	if (qf){
+		var than = qf.querySelector('.pve-qf-than'), nut = qf.querySelector('.pve-qf-mo');
+		if (than) than.hidden = true;
+		if (nut) nut.hidden = false;
+		qf.classList.remove('mo');
+	}
+}
+/* Ô "Thông tin đặt hàng": đọc thẳng từ ô chọn vé đang mở, không giữ bản sao giá riêng —
+   giá đã giảm tại quầy do giaSauGiam() tính, hai nơi tự tính là hai con số. */
+function datTom(){
+	var o = document.querySelector('.pve-dat-tt-b'); if (!o) return;
+	var qf = document.getElementById('pve-qf'); if (!qf) return;
+	var sel = qf.querySelector('.pve-qf-ve'), slo = qf.querySelector('.pve-qf-sl');
+	var cso = qf.querySelector('.pve-qf-cs');
+	var id = sel ? Number(sel.value || 0) : 0;
+	if (!id){ o.innerHTML = 'Vui lòng chọn vé!'; return; }
+	var the = theVe(id);
+	var sl  = Math.max(1, Number(slo && slo.value || 1));
+	var don = the ? giaSauGiam(the.getAttribute('data-gia')) : 0;
+	var h = '';
+	if (cso && cso.value) h += '<div class="d"><span>Cơ sở</span><b>' + esc(cso.value) + '</b></div>';
+	h += '<div class="d"><span>Vé</span><b>' + esc(the ? the.getAttribute('data-ten') : '') + '</b></div>'
+	   + '<div class="d"><span>Đơn giá</span><b>' + tien(don) + '</b></div>'
+	   + '<div class="d"><span>Số lượng</span><b>' + sl + '</b></div>'
+	   + '<div class="d tong"><span>Tạm tính</span><b>' + tien(don * sl) + '</b></div>';
+	o.innerHTML = h;
+}
+boc('màn đặt vé', function(){
+	var man = document.getElementById('pve-dat');
+	document.addEventListener('click', function(ev){
+		var t = ev.target; if (!t || !t.closest) return;
+		if (t.closest('.pve-qf-mo')){ ev.preventDefault(); datMo(); return; }
+		if (t.closest('.pve-dat-x')){ ev.preventDefault(); datDong(); return; }
+		/* Bấm MUA VÉ mà popup chọn cách trả đã mở = đặt xong phần chọn -> đóng màn đặt vé, để
+		   trả tiền xong khách quay về đúng trang chứ không phải cái khung vừa điền. Popup chưa
+		   mở nghĩa là còn thiếu thông tin: giữ nguyên màn, dòng báo lỗi nằm ngay trong đó. */
+		if (t.closest('.pve-qf-go')){
+			setTimeout(function(){
+				var m = document.querySelector('.pve-mask');
+				if (m && !m.hidden) datDong();
+			}, 0);
+			return;
+		}
+		/* Nút "Đặt vé ngay" trên thanh đầu trang trỏ tới #pve-qf — mà #pve-qf giờ chỉ còn một
+		   nút, nhảy tới đó rồi vẫn phải bấm thêm một lần. Mở luôn cho xong. */
+		var a = t.closest('a[href="#pve-qf"]');
+		if (a){ ev.preventDefault(); datMo(); }
+	});
+	document.addEventListener('keydown', function(ev){
+		if (ev.key === 'Escape' && man && !man.hidden) datDong();
+	});
+	/* Cập nhật ô tóm tắt mỗi lần khách đổi vé / số lượng / cơ sở. */
+	['change','input'].forEach(function(e){
+		document.addEventListener(e, function(ev){
+			if (!man || man.hidden) return;
+			var t = ev.target;
+			if (t && t.closest && t.closest('#pve-qf')) datTom();
+		});
+	});
+});
+
+
+/* ───── Chi tiết vé: các tab thông tin nhân viên nhập cho từng vé ──────────────────────────
+   Nội dung đã nằm sẵn trong thẻ vé (khối .pve-ct-kho ẩn). Ở đây chỉ bê sang khung xem và
+   đổi tab — KHÔNG gọi máy chủ: khách bấm Chi tiết là muốn đọc ngay, mà một lượt gọi mạng
+   nữa thì trên 3G nó quay vòng vài giây rồi mới ra chữ.                                     */
+function ctMo(card){
+	var khung = document.getElementById('pve-ct'); if (!khung || !card) return;
+	var kho = card.querySelector('.pve-ct-kho'); if (!kho) return;
+	var pha = [].slice.call(kho.querySelectorAll('.pve-ct-pha'));
+	if (!pha.length) return;
+	var ten = khung.querySelector('.pve-ct-ten');
+	if (ten) ten.textContent = card.getAttribute('data-ten') || 'Chi tiết vé';
+	var oTab = khung.querySelector('.pve-ct-tabs'), oNoi = khung.querySelector('.pve-ct-noi');
+	oTab.innerHTML = ''; oNoi.innerHTML = '';
+	pha.forEach(function(x, i){
+		var b = document.createElement('button');
+		b.type = 'button'; b.textContent = x.getAttribute('data-nhan') || ('Mục ' + (i + 1));
+		if (!i) b.className = 'on';
+		b.onclick = function(){
+			[].slice.call(oTab.children).forEach(function(y){ y.classList.toggle('on', y === b); });
+			oNoi.innerHTML = x.innerHTML;
+		};
+		oTab.appendChild(b);
+	});
+	oNoi.innerHTML = pha[0].innerHTML;
+	khung.hidden = false;
+}
+function ctDong(){ var k = document.getElementById('pve-ct'); if (k) k.hidden = true; }
+boc('chi tiết vé', function(){
+	document.addEventListener('click', function(ev){
+		var t = ev.target; if (!t || !t.closest) return;
+		var mo = t.closest('.pve-ct-mo');
+		if (mo){ ev.preventDefault(); ctMo(mo.closest('.pve-card')); return; }
+		if (t.closest('.pve-ct-x') || t.id === 'pve-ct'){ ev.preventDefault(); ctDong(); }
+	});
+	document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') ctDong(); });
 });
 
 })();
