@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.48.1
+ * Version:           1.49.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@ if ( ! class_exists( 'POSH_Ve' ) ) :
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '8';
+	const VER_TBL = '9';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -51,6 +51,17 @@ class POSH_Ve {
 		self::bao_dam_bang();
 		self::bao_dam_trang_ql();   // tự tạo sẵn trang quản trị vé cho marketing (chạy 1 lần)
 		add_action( 'rest_api_init', array( __CLASS__, 'dang_ky' ) );
+		/* Dò sổ phụ định kỳ. Trang khách hỏi trạng thái 5 giây một lượt là đủ nhanh KHI còn mở —
+		   nhưng khách chuyển khoản xong thường đóng tab luôn, và không ai ngồi canh hộ. Không có
+		   lịch này thì vé (và lệnh nạp ví) nằm chờ tới lúc tình cờ có người mở đúng nó. */
+		add_action( 'pve_do_saoke', array( __CLASS__, 'cron_do_saoke' ) );
+		if ( ! wp_next_scheduled( 'pve_do_saoke' ) ) {
+			wp_schedule_event( time() + 120, 'pve_5p', 'pve_do_saoke' );
+		}
+		add_filter( 'cron_schedules', function ( $ds ) {
+			$ds['pve_5p'] = array( 'interval' => 300, 'display' => 'Mỗi 5 phút (vé)' );
+			return $ds;
+		} );
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_shortcode( 'posh_ve', array( __CLASS__, 'shortcode' ) );
@@ -179,6 +190,9 @@ class POSH_Ve {
 	// ───────────────────────────── Bảng vé ─────────────────────────────
 	public static function tbl() { global $wpdb; return $wpdb->prefix . 'pve_ve'; }
 	public static function tbl_tv() { global $wpdb; return $wpdb->prefix . 'pve_tv'; }
+	public static function tbl_vi() { global $wpdb; return $wpdb->prefix . 'pve_vi'; }
+	public static function tbl_vi_gd() { global $wpdb; return $wpdb->prefix . 'pve_vi_gd'; }
+	public static function tbl_nap() { global $wpdb; return $wpdb->prefix . 'pve_nap'; }
 	public static function bao_dam_bang() {
 		if ( get_option( 'pve_tbl' ) === self::VER_TBL ) { return; }
 		global $wpdb;
@@ -238,10 +252,63 @@ class POSH_Ve {
 		   này thấy "đã nâng cấp" nên thoát ngay — hỏng một lần là hỏng vĩnh viễn, chỉ chữa được
 		   bằng cách sửa tay trong CSDL. Nay thiếu cột thì KHÔNG đánh dấu, lượt tải trang sau tự
 		   thử lại, và ai đó sửa được nguyên nhân là nó tự lành. */
+		/* ── VÍ TIỀN ──────────────────────────────────────────────────────────────────────
+		   Ba bảng, mỗi bảng một việc, đừng gộp:
+		    · pve_vi     = số dư hiện tại, mỗi chủ ví một dòng.
+		    · pve_vi_gd  = SỔ CÁI từng lượt cộng/trừ, có số dư sau mỗi lượt. Không có sổ này thì
+		                   khách kêu "mất tiền" là không có gì để đối chiếu, chỉ còn một con số.
+		    · pve_nap    = lệnh nạp đang chờ tiền về; mã nạp là nội dung chuyển khoản.
+		   ⚠️ Nhắc lại luật ở trên: KHÔNG chú thích bên trong câu CREATE TABLE. */
+		$tvi = self::tbl_vi();
+		dbDelta( "CREATE TABLE $tvi (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			chu VARCHAR(48) NOT NULL,
+			ten VARCHAR(80) NOT NULL DEFAULT '',
+			sdt VARCHAR(20) NOT NULL DEFAULT '',
+			so_du BIGINT NOT NULL DEFAULT 0,
+			tong_nap BIGINT NOT NULL DEFAULT 0,
+			tong_tang BIGINT NOT NULL DEFAULT 0,
+			tong_tieu BIGINT NOT NULL DEFAULT 0,
+			tao_luc DATETIME NOT NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY (id), UNIQUE KEY chu (chu)
+		) $col;" );
+		$tgd = self::tbl_vi_gd();
+		dbDelta( "CREATE TABLE $tgd (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			chu VARCHAR(48) NOT NULL,
+			loai VARCHAR(8) NOT NULL DEFAULT 'nap',
+			so_tien BIGINT NOT NULL DEFAULT 0,
+			sau BIGINT NOT NULL DEFAULT 0,
+			ma VARCHAR(24) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(140) NOT NULL DEFAULT '',
+			tao_luc DATETIME NOT NULL,
+			PRIMARY KEY (id), KEY chu (chu), KEY ma (ma)
+		) $col;" );
+		$tnp = self::tbl_nap();
+		dbDelta( "CREATE TABLE $tnp (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			ma VARCHAR(24) NOT NULL,
+			chu VARCHAR(48) NOT NULL,
+			so_tien INT NOT NULL DEFAULT 0,
+			tang INT NOT NULL DEFAULT 0,
+			code VARCHAR(24) NOT NULL DEFAULT '',
+			noi_dung VARCHAR(40) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			tao_luc DATETIME NOT NULL,
+			tt_luc DATETIME NULL,
+			PRIMARY KEY (id), UNIQUE KEY ma (ma), KEY chu (chu), KEY trang_thai (trang_thai)
+		) $col;" );
+
 		$cot = $wpdb->get_col( "SHOW COLUMNS FROM $tbl" );
 		$can = array( 'coso', 'giam', 'gia_goc', 'zalo_id', 'coso_dung' );
 		foreach ( $can as $c ) {
 			if ( ! in_array( $c, (array) $cot, true ) ) { return; }
+		}
+		/* Ba bảng ví cũng phải dựng được thì mới coi là xong — cùng lý do với các cột ở trên:
+		   đánh dấu sớm là hỏng vĩnh viễn, khách nạp tiền vào một cái bảng không tồn tại. */
+		foreach ( array( $tvi, $tgd, $tnp ) as $t ) {
+			if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return; }
 		}
 		update_option( 'pve_tbl', self::VER_TBL );
 	}
@@ -608,6 +675,11 @@ class POSH_Ve {
 	}
 
 	// ───────────────────────────── REST ─────────────────────────────
+	public static function cron_do_saoke() {
+		self::do_lai_saoke();
+		self::do_lai_nap();
+	}
+
 	public static function dang_ky() {
 		register_rest_route( self::NS, '/ve/goi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_goi' ) ) );
 		register_rest_route( self::NS, '/ve/dat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_dat' ) ) );
@@ -619,6 +691,10 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/ve/vi', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vi' ) ) );
 		register_rest_route( self::NS, '/ve/cho-soat', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_cho_soat' ) ) );
 		register_rest_route( self::NS, '/ve/soat', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_soat' ) ) );
+		register_rest_route( self::NS, '/vi/toi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vi_toi' ) ) );
+		register_rest_route( self::NS, '/vi/thu-ma', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vi_thu_ma' ) ) );
+		register_rest_route( self::NS, '/vi/nap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vi_nap' ) ) );
+		register_rest_route( self::NS, '/vi/nap-tt', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_vi_nap_tt' ) ) );
 		register_rest_route( self::NS, '/tin', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tin' ) ) );
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
 		register_rest_route( self::NS, '/uudai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_uudai' ) ) );
@@ -717,9 +793,12 @@ class POSH_Ve {
 			return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
 		}
 		self::giam_ton( $goi['id'], 1 );
+		$vi = self::tra_bang_vi( $req, $ma_ve, $tien, $goi['ten'] );
+		if ( is_wp_error( $vi ) ) { return $vi; }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tien, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tien, 'goi_ten' => $goi['ten'],
-			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ), 'trang_thai' => 'cho',
+			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ),
+			'trang_thai' => $vi ? 'da_tt' : 'cho', 'tra_vi' => $vi ? 1 : 0, 'so_du' => self::vi_so_du( self::vi_chu() ),
 			'gia_goc' => $goc, 'giam' => $g0['ok'] ? (int) $g0['giam'] : 0, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
@@ -775,9 +854,13 @@ class POSH_Ve {
 			return new WP_Error( 'ghi', 'Không ghi được đơn vào sổ vé. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) );
 		}
 		foreach ( $can as $id => $sl ) { self::giam_ton( $id, $sl ); }
+		$vi = self::tra_bang_vi( $req, $ma_ve, $tong, $tomtat );
+		if ( is_wp_error( $vi ) ) { return $vi; }
 		$qr = self::vietqr( $b['bin'], $b['so_tk'], $tong, $noidung );
 		return array( 'ok' => true, 'ma_ve' => $ma_ve, 'so_tien' => $tong, 'goi_ten' => $tomtat,
-			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ), 'trang_thai' => 'cho', 'chi_tiet' => $ct,
+			'noi_dung' => $noidung, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ),
+			'trang_thai' => $vi ? 'da_tt' : 'cho', 'tra_vi' => $vi ? 1 : 0, 'so_du' => self::vi_so_du( self::vi_chu() ),
+			'chi_tiet' => $ct,
 			'gia_goc' => $tong_goc, 'giam' => $pc, 'coso' => $g0['ok'] ? $g0['ten'] : '',
 			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
 	}
@@ -815,6 +898,17 @@ class POSH_Ve {
 	 * được như cũ.
 	 */
 	public static function tu_khop( $ma_ve, $so_tien, $noi_dung ) {
+		if ( ! self::co_tien_ve( $so_tien, $noi_dung ) ) { return false; }
+		return self::danh_dau_tt( $ma_ve );
+	}
+
+	/**
+	 * Sổ phụ đã có lượt tiền VÀO nào mang đúng nội dung này, đủ số tiền chưa?
+	 *
+	 * Dùng chung cho vé (tu_khop) và nạp ví (tu_khop_nap) — hai chỗ cùng một câu hỏi, viết hai
+	 * lần là sớm muộn sửa một bên quên bên kia.
+	 */
+	public static function co_tien_ve( $so_tien, $noi_dung ) {
 		if ( ! class_exists( 'SAOKE_App' ) || ! method_exists( 'SAOKE_App', 'tbl' ) ) { return false; }
 		$nd = trim( (string) $noi_dung );
 		if ( '' === $nd ) { return false; }
@@ -823,11 +917,9 @@ class POSH_Ve {
 		/* Bảng Sao Kê có thể chưa dựng (mới cài, chưa nhận giao dịch nào). Hỏi thẳng là lỗi SQL
 		   ngay trong lượt trang khách hỏi trạng thái — hỏng chỗ không đáng hỏng. */
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) !== $tbl ) { return false; }
-		$co = $wpdb->get_var( $wpdb->prepare(
+		return (bool) $wpdb->get_var( $wpdb->prepare(
 			"SELECT id FROM $tbl WHERE loai='in' AND tien >= %d AND noi_dung LIKE %s ORDER BY id DESC LIMIT 1",
 			(int) $so_tien, '%' . $wpdb->esc_like( $nd ) . '%' ) );
-		if ( ! $co ) { return false; }
-		return self::danh_dau_tt( $ma_ve );
 	}
 
 	/**
@@ -959,6 +1051,316 @@ class POSH_Ve {
 		$n = self::do_lai_saoke();
 		return array( 'ok' => true, 'so' => $n,
 			'noi' => $n ? ( 'Đã xác nhận ' . $n . ' vé từ sao kê.' ) : 'Không có vé chờ nào thấy tiền về.' );
+	}
+
+	/**
+	 * Khách chọn trả bằng ví: trừ tiền và đánh dấu vé đã thanh toán ngay.
+	 *
+	 * 🔴 GỌI SAU KHI ĐƠN ĐÃ VÀO SỔ, KHÔNG PHẢI TRƯỚC. Trừ tiền trước rồi mới ghi đơn, mà ghi đơn
+	 * hỏng, là tiền mất còn vé thì không có. Thứ tự này thì lỗi tệ nhất là đơn nằm ở "chờ thanh
+	 * toán" — khách vẫn chuyển khoản được, quản trị vẫn xác nhận tay được.
+	 *
+	 * Thiếu tiền thì BÁO LỖI, đừng lặng lẽ lùi về chuyển khoản: khách bấm "trả bằng ví" là đang
+	 * tin rằng ví đủ; để họ tự phát hiện ở màn hình QR là kiểu bất ngờ không ai thích.
+	 *
+	 * @return WP_Error|bool true = đã trừ ví · false = khách không chọn trả bằng ví
+	 */
+	private static function tra_bang_vi( $req, $ma_ve, $so_tien, $mo_ta ) {
+		if ( 'vi' !== (string) $req->get_param( 'tt' ) ) { return false; }
+		$chu = self::vi_chu();
+		if ( '' === $chu ) { return new WP_Error( 'dn', 'Đăng nhập Zalo để trả bằng ví.', array( 'status' => 401 ) ); }
+		$du = self::vi_so_du( $chu );
+		if ( ! self::vi_tru( $chu, (int) $so_tien, $ma_ve, 'Mua vé: ' . $mo_ta ) ) {
+			return new WP_Error( 'vi_thieu', 'Ví không đủ tiền — còn ' . number_format_i18n( $du )
+				. 'đ, cần ' . number_format_i18n( (int) $so_tien ) . 'đ. Nạp thêm rồi thử lại.', array( 'status' => 409 ) );
+		}
+		self::danh_dau_tt( $ma_ve );
+		return true;
+	}
+
+	// ═════════════════════════════ VÍ TIỀN ═════════════════════════════
+
+	/**
+	 * CHỦ VÍ LÀ TÀI KHOẢN ZALO ĐÃ ĐĂNG NHẬP — không phải số điện thoại.
+	 *
+	 * 🔴 ĐỪNG ĐỔI SANG TRA THEO SỐ ĐIỆN THOẠI. Ví vé (mã + QR) đã chốt luật này rồi, nhưng ở ví
+	 * TIỀN thì hậu quả nặng hơn hẳn: số điện thoại không phải bí mật, ai gõ số người khác cũng
+	 * tiêu được tiền của họ. Danh tính Zalo do cookie đã ký bằng muối của site xác nhận, khách
+	 * không tự khai được.
+	 */
+	public static function vi_chu() {
+		return self::zalo_id_hien();
+	}
+
+	/* Đọc ví (tự tạo dòng nếu chưa có). Trả mảng, hoặc null khi chưa đăng nhập. */
+	public static function vi_lay( $chu ) {
+		$chu = trim( (string) $chu );
+		if ( '' === $chu ) { return null; }
+		global $wpdb; $t = self::tbl_vi();
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE chu=%s", $chu ), ARRAY_A );
+		if ( $r ) { return $r; }
+		$zu = self::zalo_user();
+		$wpdb->insert( $t, array(
+			'chu' => $chu, 'ten' => $zu && ! empty( $zu['name'] ) ? mb_substr( $zu['name'], 0, 80 ) : '',
+			'sdt' => '', 'so_du' => 0, 'tao_luc' => current_time( 'mysql' ) ) );
+		return $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE chu=%s", $chu ), ARRAY_A );
+	}
+
+	public static function vi_so_du( $chu ) {
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare( 'SELECT so_du FROM ' . self::tbl_vi() . ' WHERE chu=%s', $chu ) );
+	}
+
+	/* Ghi một dòng sổ cái. Số dư SAU mỗi lượt ghi luôn — để đối chiếu được khi có tranh cãi. */
+	private static function vi_ghi_so( $chu, $loai, $so_tien, $sau, $ma = '', $ghi_chu = '' ) {
+		global $wpdb;
+		$wpdb->insert( self::tbl_vi_gd(), array(
+			'chu' => $chu, 'loai' => $loai, 'so_tien' => (int) $so_tien, 'sau' => (int) $sau,
+			'ma' => mb_substr( (string) $ma, 0, 24 ), 'ghi_chu' => mb_substr( (string) $ghi_chu, 0, 140 ),
+			'tao_luc' => current_time( 'mysql' ) ) );
+	}
+
+	/**
+	 * Cộng tiền vào ví. `$loai` = nap (tiền khách chuyển) | tang (khuyến mãi) | hoan (trả lại).
+	 * Tách `nap` với `tang` vì kế toán cần biết bao nhiêu là tiền thật, bao nhiêu là tiền tặng —
+	 * gộp một cục thì doanh thu và chi phí khuyến mãi lẫn vào nhau, không gỡ ra được nữa.
+	 */
+	public static function vi_cong( $chu, $so_tien, $loai = 'nap', $ma = '', $ghi_chu = '' ) {
+		$so_tien = (int) $so_tien;
+		if ( '' === (string) $chu || $so_tien <= 0 ) { return false; }
+		global $wpdb; $t = self::tbl_vi();
+		self::vi_lay( $chu );
+		$cot = ( 'tang' === $loai ) ? 'tong_tang' : ( 'nap' === $loai ? 'tong_nap' : '' );
+		$sql = "UPDATE $t SET so_du = so_du + %d" . ( $cot ? ", $cot = $cot + %d" : '' ) . ', sua_luc = %s WHERE chu = %s';
+		$args = $cot ? array( $so_tien, $so_tien, current_time( 'mysql' ), $chu )
+					: array( $so_tien, current_time( 'mysql' ), $chu );
+		$wpdb->query( $wpdb->prepare( $sql, $args ) );
+		self::vi_ghi_so( $chu, $loai, $so_tien, self::vi_so_du( $chu ), $ma, $ghi_chu );
+		return true;
+	}
+
+	/**
+	 * Trừ tiền mua vé.
+	 *
+	 * 🔴 TRỪ BẰNG MỘT CÂU UPDATE CÓ ĐIỀU KIỆN `so_du >= %d`, KHÔNG "đọc rồi mới ghi".
+	 * Đọc số dư, kiểm đủ, rồi ghi lại là hai lượt bấm gần nhau (hai tab, hoặc bấm hai lần vì
+	 * mạng chậm) cùng đọc thấy đủ tiền rồi cùng trừ — tiêu 100k hai lần từ một ví 100k. Để
+	 * MySQL tự quyết trong một câu thì lượt thứ hai không đổi được dòng nào, và ta biết ngay.
+	 */
+	public static function vi_tru( $chu, $so_tien, $ma = '', $ghi_chu = '' ) {
+		$so_tien = (int) $so_tien;
+		if ( '' === (string) $chu || $so_tien <= 0 ) { return false; }
+		global $wpdb; $t = self::tbl_vi();
+		$n = $wpdb->query( $wpdb->prepare(
+			"UPDATE $t SET so_du = so_du - %d, tong_tieu = tong_tieu + %d, sua_luc = %s WHERE chu = %s AND so_du >= %d",
+			$so_tien, $so_tien, current_time( 'mysql' ), $chu, $so_tien ) );
+		if ( ! $n ) { return false; }
+		self::vi_ghi_so( $chu, 'tieu', -$so_tien, self::vi_so_du( $chu ), $ma, $ghi_chu );
+		return true;
+	}
+
+	/* ── Gói nạp & mã ưu đãi (khai ở khu quản trị) ─────────────────────────────────────── */
+
+	public static function ds_goi_nap() {
+		$d = get_option( 'pve_vi_goi' );
+		$ra = array();
+		foreach ( (array) ( is_array( $d ) ? $d : array() ) as $g ) {
+			$nap = (int) ( isset( $g['nap'] ) ? $g['nap'] : 0 );
+			if ( $nap < 1000 ) { continue; }
+			$ra[] = array( 'nap' => $nap, 'tang' => max( 0, (int) ( isset( $g['tang'] ) ? $g['tang'] : 0 ) ) );
+		}
+		return $ra;
+	}
+
+	public static function ds_ma_uu_dai() {
+		$d = get_option( 'pve_vi_code' );
+		$ra = array();
+		foreach ( (array) ( is_array( $d ) ? $d : array() ) as $c ) {
+			$ma = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( isset( $c['code'] ) ? $c['code'] : '' ) ) );
+			if ( '' === $ma ) { continue; }
+			$ra[] = array(
+				'code'     => $ma,
+				'kieu'     => ( isset( $c['kieu'] ) && 'tien' === $c['kieu'] ) ? 'tien' : 'pt',
+				'gia_tri'  => max( 0, (int) ( isset( $c['gia_tri'] ) ? $c['gia_tri'] : 0 ) ),
+				'toi_thieu' => max( 0, (int) ( isset( $c['toi_thieu'] ) ? $c['toi_thieu'] : 0 ) ),
+				'han'      => trim( (string) ( isset( $c['han'] ) ? $c['han'] : '' ) ),
+				'gioi_han' => max( 0, (int) ( isset( $c['gioi_han'] ) ? $c['gioi_han'] : 0 ) ),
+				'da_dung'  => max( 0, (int) ( isset( $c['da_dung'] ) ? $c['da_dung'] : 0 ) ),
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * Tính tiền tặng của một mã ưu đãi cho mệnh giá đang nạp.
+	 *
+	 * ⚠️ MỖI LÝ DO TỪ CHỐI MỘT CÂU RIÊNG. "Mã không dùng được" là câu khiến khách gõ lại năm lần
+	 * rồi gọi điện cho cửa hàng. Hết hạn, chưa đủ mệnh giá tối thiểu, hết lượt — ba chuyện khác
+	 * nhau, và hai trong ba khách tự xử lý được nếu biết.
+	 *
+	 * @return array{ok:bool, tang:int, loi:string, code:string}
+	 */
+	public static function tinh_uu_dai( $code, $menh_gia ) {
+		$code = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $code ) );
+		if ( '' === $code ) { return array( 'ok' => true, 'tang' => 0, 'loi' => '', 'code' => '' ); }
+		foreach ( self::ds_ma_uu_dai() as $c ) {
+			if ( $c['code'] !== $code ) { continue; }
+			if ( '' !== $c['han'] && current_time( 'Y-m-d' ) > $c['han'] ) {
+				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
+					'loi' => 'Mã "' . $code . '" đã hết hạn ngày ' . mysql2date( 'd/m/Y', $c['han'] ) . '.' );
+			}
+			if ( $c['toi_thieu'] > 0 && (int) $menh_gia < $c['toi_thieu'] ) {
+				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
+					'loi' => 'Mã "' . $code . '" chỉ áp dụng khi nạp từ ' . number_format_i18n( $c['toi_thieu'] ) . 'đ trở lên.' );
+			}
+			if ( $c['gioi_han'] > 0 && $c['da_dung'] >= $c['gioi_han'] ) {
+				return array( 'ok' => false, 'tang' => 0, 'code' => $code,
+					'loi' => 'Mã "' . $code . '" đã hết lượt sử dụng.' );
+			}
+			$tang = ( 'tien' === $c['kieu'] )
+				? $c['gia_tri']
+				: (int) floor( (int) $menh_gia * $c['gia_tri'] / 100 / 1000 ) * 1000;
+			return array( 'ok' => true, 'tang' => max( 0, $tang ), 'loi' => '', 'code' => $code );
+		}
+		return array( 'ok' => false, 'tang' => 0, 'code' => $code, 'loi' => 'Không có mã ưu đãi "' . $code . '".' );
+	}
+
+	/* Đếm lượt đã dùng của một mã — gọi lúc tiền về, không phải lúc tạo lệnh nạp: tạo lệnh rồi
+	   không chuyển tiền mà đã trừ lượt thì mã hết sạch vì những người không mua. */
+	private static function uu_dai_ghi_luot( $code ) {
+		$code = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $code ) );
+		if ( '' === $code ) { return; }
+		$d = get_option( 'pve_vi_code' );
+		if ( ! is_array( $d ) ) { return; }
+		foreach ( $d as $i => $c ) {
+			$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) ( isset( $c['code'] ) ? $c['code'] : '' ) ) );
+			if ( $m === $code ) { $d[ $i ]['da_dung'] = 1 + (int) ( isset( $c['da_dung'] ) ? $c['da_dung'] : 0 ); break; }
+		}
+		update_option( 'pve_vi_code', $d );
+	}
+
+	private static function ma_nap_moi() {
+		global $wpdb; $bang = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+		for ( $lan = 0; $lan < 12; $lan++ ) {
+			$s = ''; for ( $i = 0; $i < 8; $i++ ) { $s .= $bang[ random_int( 0, strlen( $bang ) - 1 ) ]; }
+			if ( ! $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . self::tbl_nap() . ' WHERE ma=%s', $s ) ) ) { return $s; }
+		}
+		return 'N' . substr( (string) time(), -7 );
+	}
+
+	/* Ví của khách đang mở trang: số dư, các gói nạp đang mở, và sổ cái gần đây. */
+	public static function r_vi_toi( $req ) {
+		$chu = self::vi_chu();
+		if ( '' === $chu ) {
+			/* Chưa đăng nhập thì vẫn trả gói nạp — để trang mời đăng nhập kèm bảng giá, chứ
+			   không phải một ô trống chẳng nói gì. */
+			return array( 'ok' => true, 'dangnhap' => false, 'goi' => self::ds_goi_nap() );
+		}
+		$v = self::vi_lay( $chu );
+		global $wpdb;
+		$gd = $wpdb->get_results( $wpdb->prepare(
+			'SELECT loai, so_tien, sau, ma, ghi_chu, tao_luc FROM ' . self::tbl_vi_gd() . ' WHERE chu=%s ORDER BY id DESC LIMIT 30', $chu ), ARRAY_A );
+		return array( 'ok' => true, 'dangnhap' => true,
+			'so_du' => (int) $v['so_du'], 'ten' => $v['ten'],
+			'tong_nap' => (int) $v['tong_nap'], 'tong_tang' => (int) $v['tong_tang'], 'tong_tieu' => (int) $v['tong_tieu'],
+			'goi' => self::ds_goi_nap(), 'gd' => array_map( function ( $r ) {
+				return array( 'loai' => $r['loai'], 'so_tien' => (int) $r['so_tien'], 'sau' => (int) $r['sau'],
+					'ma' => $r['ma'], 'ghi_chu' => $r['ghi_chu'], 'tao_luc' => $r['tao_luc'] );
+			}, (array) $gd ) );
+	}
+
+	/* Thử một mã ưu đãi trước khi tạo lệnh nạp — để khách biết được tặng bao nhiêu rồi mới quyết. */
+	public static function r_vi_thu_ma( $req ) {
+		$mg = (int) $req->get_param( 'menh_gia' );
+		$kq = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg );
+		if ( ! $kq['ok'] ) { return new WP_Error( 'code', $kq['loi'], array( 'status' => 400 ) ); }
+		return array( 'ok' => true, 'tang' => (int) $kq['tang'], 'code' => $kq['code'] );
+	}
+
+	/**
+	 * Tạo lệnh nạp: trả mã QR chuyển khoản. Tiền về mới cộng ví (xem r_vi_nap_tt / tu_khop_nap).
+	 *
+	 * ⚠️ MỆNH GIÁ PHẢI LÀ MỘT GÓI CÓ THẬT, không nhận số khách tự gõ. Nhận số tuỳ ý thì phần
+	 * "tặng thêm" của gói không còn cơ sở nào để tra, và ai cũng nạp được 1.000đ để lấy quà.
+	 */
+	public static function r_vi_nap( $req ) {
+		$chu = self::vi_chu();
+		if ( '' === $chu ) { return new WP_Error( 'dn', 'Đăng nhập Zalo để dùng ví.', array( 'status' => 401 ) ); }
+		$b = self::bank();
+		if ( '' === $b['so_tk'] || '' === $b['bin'] ) { return new WP_Error( 'tk', 'Chưa cấu hình tài khoản nhận tiền.', array( 'status' => 409 ) ); }
+		if ( ! self::nhip_ok() ) { return new WP_Error( 'nhip', 'Thao tác quá nhanh, thử lại sau giây lát.', array( 'status' => 429 ) ); }
+
+		$mg   = (int) $req->get_param( 'menh_gia' );
+		$goi  = null;
+		foreach ( self::ds_goi_nap() as $g ) { if ( (int) $g['nap'] === $mg ) { $goi = $g; break; } }
+		if ( ! $goi ) { return new WP_Error( 'goi', 'Mệnh giá không hợp lệ.', array( 'status' => 400 ) ); }
+
+		$uu = self::tinh_uu_dai( (string) $req->get_param( 'code' ), $mg );
+		if ( ! $uu['ok'] ) { return new WP_Error( 'code', $uu['loi'], array( 'status' => 400 ) ); }
+		$tang = (int) $goi['tang'] + (int) $uu['tang'];
+
+		global $wpdb;
+		$ma = self::ma_nap_moi(); $nd = 'NAP' . $ma;
+		$ghi = $wpdb->insert( self::tbl_nap(), array(
+			'ma' => $ma, 'chu' => $chu, 'so_tien' => $mg, 'tang' => $tang, 'code' => $uu['code'],
+			'noi_dung' => $nd, 'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ) ) );
+		/* Cùng lý do với đặt vé: không ghi được lệnh nạp mà vẫn trả mã QR là nhận tiền cho một
+		   lệnh không tồn tại — tiền vào tài khoản, ví khách vẫn 0đ, không ai truy ra được. */
+		if ( ! $ghi ) { return new WP_Error( 'ghi', 'Không ghi được lệnh nạp. Báo quản trị kiểm bảng dữ liệu.', array( 'status' => 500 ) ); }
+
+		$qr = self::vietqr( $b['bin'], $b['so_tk'], $mg, $nd );
+		return array( 'ok' => true, 'ma' => $ma, 'so_tien' => $mg, 'tang' => $tang, 'nhan' => $mg + $tang,
+			'code' => $uu['code'], 'noi_dung' => $nd, 'qr' => $qr, 'qr_svg' => self::qr_svg( $qr ),
+			'trang_thai' => 'cho',
+			'bank' => array( 'ten_nh' => $b['ten_nh'], 'so_tk' => $b['so_tk'], 'ten_tk' => $b['ten_tk'] ) );
+	}
+
+	/**
+	 * Tiền của một lệnh nạp về chưa. Cùng cơ chế với vé: soi sổ phụ của plugin Sao Kê.
+	 *
+	 * 🔴 CỘNG VÍ ĐÚNG MỘT LẦN. Trang hỏi 5 giây một lượt, lại còn mở hai tab được — nên việc
+	 * chuyển trạng thái phải do MySQL quyết trong MỘT câu có điều kiện `trang_thai='cho'`. Lượt
+	 * thứ hai không đổi được dòng nào và không cộng gì thêm. Đọc-rồi-ghi ở đây là nhân đôi tiền.
+	 */
+	public static function tu_khop_nap( $ma ) {
+		global $wpdb; $t = self::tbl_nap();
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE ma=%s", $ma ), ARRAY_A );
+		if ( ! $r || 'cho' !== $r['trang_thai'] ) { return false; }
+		if ( ! self::co_tien_ve( (int) $r['so_tien'], $r['noi_dung'] ) ) { return false; }
+		$n = $wpdb->query( $wpdb->prepare(
+			"UPDATE $t SET trang_thai='xong', tt_luc=%s WHERE ma=%s AND trang_thai='cho'",
+			current_time( 'mysql' ), $ma ) );
+		if ( ! $n ) { return false; }                       // lượt khác vừa cộng rồi
+		self::vi_cong( $r['chu'], (int) $r['so_tien'], 'nap', $ma, 'Nạp ví' );
+		if ( (int) $r['tang'] > 0 ) {
+			self::vi_cong( $r['chu'], (int) $r['tang'], 'tang', $ma,
+				'Tặng thêm' . ( $r['code'] ? ' (mã ' . $r['code'] . ')' : '' ) );
+		}
+		if ( $r['code'] ) { self::uu_dai_ghi_luot( $r['code'] ); }
+		return true;
+	}
+
+	public static function r_vi_nap_tt( $req ) {
+		$chu = self::vi_chu();
+		if ( '' === $chu ) { return new WP_Error( 'dn', 'Đăng nhập Zalo để dùng ví.', array( 'status' => 401 ) ); }
+		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma' ) ) );
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::tbl_nap() . ' WHERE ma=%s', $ma ), ARRAY_A );
+		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy lệnh nạp.', array( 'status' => 404 ) ); }
+		/* Chỉ chủ ví được hỏi lệnh nạp của mình — mã nạp ngắn, dò được. */
+		if ( (string) $r['chu'] !== $chu ) { return new WP_Error( 'quyen', 'Lệnh nạp không thuộc ví này.', array( 'status' => 403 ) ); }
+		if ( 'cho' === $r['trang_thai'] && self::tu_khop_nap( $ma ) ) { $r['trang_thai'] = 'xong'; }
+		return array( 'ok' => true, 'ma' => $ma, 'trang_thai' => $r['trang_thai'], 'so_du' => self::vi_so_du( $chu ) );
+	}
+
+	/* Dò lại mọi lệnh nạp đang chờ — cho cron, cùng lý do với vé: khách đóng tab là hết ai hỏi. */
+	public static function do_lai_nap( $gioi_han = 200 ) {
+		global $wpdb;
+		$ds = $wpdb->get_col( $wpdb->prepare(
+			'SELECT ma FROM ' . self::tbl_nap() . " WHERE trang_thai='cho' ORDER BY id DESC LIMIT %d", (int) $gioi_han ) );
+		$n = 0;
+		foreach ( (array) $ds as $m ) { if ( self::tu_khop_nap( $m ) ) { $n++; } }
+		return $n;
 	}
 
 	// ───────────────────────────── Cổng thanh toán ─────────────────────────────
@@ -2051,6 +2453,8 @@ class POSH_Ve {
 			<div class="pve-auth">
 				<?php if ( $zu ) : ?>
 					<span>👋 Xin chào, <b><?php echo esc_html( $ten_dn ? $ten_dn : 'bạn' ); ?></b></span>
+					<span class="pve-vitien" hidden>💰 Ví <b class="pve-vitien-sd">—</b>
+						<button type="button" class="pve-vitien-nap">Nạp tiền</button></span>
 					<span class="pve-auth-r">
 						<?php if ( self::la_admin_zalo( $zu ) && ( $ql = self::url_trang_ql() ) ) : ?>
 							<a class="pve-auth-ql" href="<?php echo esc_url( $ql ); ?>">🔧 Quản trị vé</a>
@@ -2289,6 +2693,22 @@ class POSH_Ve {
 						 (giỏ / form / QR) chỉ là ba khối .pve-step, show() bật đúng một khối. */ ?>
 				<?php /* Ví vé: mã + QR của vé đã mua. Dữ liệu do máy chủ làm tươi (POSH_Ve::r_vi),
 						 danh sách mã thì nằm ở máy khách — xem chú thích ở r_vi(). */ ?>
+				<?php /* Nạp ví. Mệnh giá do máy chủ khai (POSH_Ve::ds_goi_nap) — trang không cho gõ số
+						 tuỳ ý, xem chú thích ở r_vi_nap(). */ ?>
+				<div class="pve-step pve-step-nap" data-step="nap" hidden>
+					<div class="pve-m-ten2">💰 Nạp ví</div>
+					<div class="pve-nap-sd">Số dư hiện tại: <b>—</b></div>
+					<div class="pve-nap-goi"></div>
+					<label class="pve-lb">Mã ưu đãi (nếu có)</label>
+					<div class="pve-nap-code-h">
+						<input class="pve-in pve-nap-code" placeholder="VD: HE2026" autocapitalize="characters" autocomplete="off">
+						<button type="button" class="pve-nap-thu">Kiểm tra</button>
+					</div>
+					<div class="pve-nap-tt"></div>
+					<button type="button" class="pve-go pve-nap-go">Tạo mã chuyển khoản</button>
+					<div class="pve-err pve-nap-err" hidden></div>
+					<p class="pve-note">Tiền vào ví ngay khi hệ thống nhận được chuyển khoản. Giữ đúng <b>nội dung</b> để tự khớp.</p>
+				</div>
 				<div class="pve-step pve-step-vi" data-step="vi" hidden>
 					<div class="pve-m-ten">🎫 Vé của tôi</div>
 					<div class="pve-vi-ds"></div>
@@ -2305,6 +2725,7 @@ class POSH_Ve {
 					<input class="pve-in pve-g-ten" placeholder="Tên người mua" autocomplete="name">
 					<label class="pve-lb">Số điện thoại</label>
 					<input class="pve-in pve-g-sdt" inputmode="tel" placeholder="Số Zalo/điện thoại" autocomplete="tel">
+					<button type="button" class="pve-go2 pve-g-vi" hidden>Trả bằng ví</button>
 					<button type="button" class="pve-go pve-g-go">Tạo mã thanh toán</button>
 					<div class="pve-err pve-g-err" hidden></div>
 					<p class="pve-note">Cả giỏ gộp thành MỘT mã chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
@@ -2318,6 +2739,7 @@ class POSH_Ve {
 					<input class="pve-in pve-f-ten" placeholder="Tên người mua" autocomplete="name">
 					<label class="pve-lb">Số điện thoại</label>
 					<input class="pve-in pve-f-sdt" placeholder="Số Zalo/điện thoại" inputmode="tel" autocomplete="tel">
+					<button type="button" class="pve-go2 pve-f-vi" hidden>Trả bằng ví</button>
 					<button type="button" class="pve-go">Tạo mã thanh toán</button>
 					<div class="pve-err" hidden></div>
 					<p class="pve-note">Bấm để tạo vé và hiện mã QR chuyển khoản. Vé được xác nhận sau khi nhận đủ tiền.</p>
@@ -2536,6 +2958,30 @@ class POSH_Ve {
 			padding-top:12px; border-top:1px solid var(--bd); font-size:14px; color:var(--mut); }
 		.pve-gio-tien{ font-size:20px; font-weight:800; color:var(--g2); }
 		.pve-go{ width:100%; margin-top:16px; border:none; background:var(--gr); color:#1a1204; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
+		/* Nút trả bằng ví: KHÔNG đặt lớp .pve-go. Popup có bốn bước dùng chung khung, mà JS tra
+		   '.pve-step-form .pve-go' — thêm một .pve-go thứ hai vào cùng bước là lại đúng cái bẫy đã
+		   làm chết nút Đặt vé ở 1.48.0. */
+		.pve-go2{ width:100%; margin-top:14px; border:1.5px solid var(--g); background:transparent; color:var(--g2);
+			font-weight:800; font-size:15px; padding:12px; border-radius:12px; cursor:pointer; }
+		.pve-go2[hidden]{ display:none; }
+		.pve-go2:hover{ background:rgba(212,175,55,.12); }
+		.pve-m-ten2{ font-weight:800; font-size:18px; color:#1b1810; }
+		.pve-nap-sd{ color:var(--mut); font-size:13px; margin:2px 0 12px; } .pve-nap-sd b{ color:var(--g2); font-size:16px; }
+		.pve-nap-goi{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+		.pve-nap-i{ border:1.5px solid #ddd6c4; background:var(--sf2); border-radius:12px; padding:11px 8px; cursor:pointer; text-align:center; }
+		.pve-nap-i.on{ border-color:var(--g); background:rgba(212,175,55,.14); }
+		.pve-nap-i b{ display:block; font-size:15px; color:#1b1810; }
+		.pve-nap-i small{ color:#166534; font-weight:700; font-size:12px; }
+		.pve-nap-code-h{ display:flex; gap:8px; }
+		.pve-nap-code{ flex:1; text-transform:uppercase; }
+		.pve-nap-thu{ flex:none; border:1px solid var(--bd); background:var(--sf2); color:var(--tx); border-radius:10px; padding:0 14px; font-weight:700; cursor:pointer; }
+		.pve-nap-tt{ margin-top:10px; font-size:13px; }
+		.pve-nap-tt.ok{ color:#166534; font-weight:700; } .pve-nap-tt.no{ color:#b91c1c; }
+		.pve-vitien{ display:inline-flex; align-items:center; gap:8px; }
+		.pve-vitien[hidden]{ display:none; }
+		.pve-vitien b{ color:var(--g2); }
+		.pve-vitien-nap{ border:1px solid var(--g); background:transparent; color:var(--g2); font-weight:700; font-size:12px;
+			padding:4px 10px; border-radius:999px; cursor:pointer; }
 		.pve-err{ color:#b91c1c; font-size:13px; margin-top:10px; }
 		.pve-note{ color:var(--mut); font-size:12px; line-height:1.5; margin-top:12px; }
 		.pve-cong{ display:flex; gap:8px; margin:4px 0 14px; }
@@ -2883,7 +3329,7 @@ class POSH_Ve {
 						Đi hết các điều kiện của một lượt khách mua vé và chỉ ra cái nào hỏng.
 						Bước cuối <b>thử ghi một đơn nháp rồi xoá</b> — nếu ghi không được thì chép nguyên văn câu MySQL trả lời.
 					</p>
-					<div class="pql-soilist"><p style="color:#9b978c">Đang kiểm…</p></div>
+					<div class="pql-soilist"><p style="color:#6f6a5d">Đang kiểm…</p></div>
 				</div><!-- /pane soi -->
 
 				<div class="pql-pane" data-pane="bc">
@@ -2983,21 +3429,27 @@ class POSH_Ve {
 		   một trong số đó. Không có !important ở đây thì luật kia thắng, trang quản trị giãn hết
 		   bề ngang màn hình: trên máy tính mỗi thẻ đơn kéo dài cả mét, hai nút Xác nhận/Huỷ to
 		   bằng nửa màn hình. Đúng cái anh Thắng chụp ngày 11/09/2026. */
-		.pql{ --g:#d4af37; --g2:#e7cd7a; --sf:#15171e; --sf2:#1c1f28; --bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c;
+		/* ═══ BỘ MÀU KHU QUẢN TRỊ — NỀN SÁNG ═══════════════════════════════════════════════
+		   Đi theo trang khách (đổi ở 1.48.0). Để trang khách sáng mà khu quản trị tối thì nền
+		   trắng của theme lòi ra quanh một khối đen, chữ tiêu đề màu sáng nằm trên nền sáng ấy
+		   và gần như không đọc được — đúng cái anh Thắng chụp.
+		   Cùng luật với trang khách: `--g2` là màu CHỮ vàng (phải đậm), nút vàng dùng `--gr`. */
+		.pql{ --g:#b8912a; --g2:#8a6d1b; --gr:linear-gradient(135deg,#e7cd7a,#d4af37);
+			--sf:#ffffff; --sf2:#f4f1e8; --bd:rgba(160,125,20,.26); --tx:#23201a; --mut:#6f6a5d;
 			box-sizing:border-box; width:100%; max-width:900px !important; margin:0 auto !important; min-height:100vh;
 			padding:24px 16px 56px; color:var(--tx);
 			font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
 		.pql *{ box-sizing:border-box; }
 		.pql-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-		.pql-brand{ font-size:18px; font-weight:800; color:#fff; }
+		.pql-brand{ font-size:18px; font-weight:800; color:#1b1810; }
 		.pql-out{ border:1px solid var(--bd); background:transparent; color:var(--g2); border-radius:8px; padding:6px 12px; cursor:pointer; font-weight:700; }
 		.pql-card{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:20px; max-width:360px; margin:10px auto; }
-		.pql-h{ font-size:16px; font-weight:800; color:#fff; margin-bottom:12px; }
+		.pql-h{ font-size:16px; font-weight:800; color:#1b1810; margin-bottom:12px; }
 		.pql label{ display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; font-weight:600; }
-		.pql input, .pql textarea, .pql-card input{ width:100%; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 12px; font-size:15px; }
+		.pql input, .pql textarea, .pql-card input{ width:100%; border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 12px; font-size:15px; }
 		.pql input::placeholder,.pql textarea::placeholder{ color:#6f6b61; }
 		.pql input:focus,.pql textarea:focus{ outline:none; border-color:var(--g); }
-		.pql-dn,.pql-luu,.pql-them{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
+		.pql-dn,.pql-luu,.pql-them{ border:none; background:var(--gr); color:#1a1204; font-weight:800; border-radius:10px; padding:12px; cursor:pointer; font-size:15px; }
 		.pql-dn{ width:100%; margin-top:12px; }
 		/* Tiêu đề phân loại trong danh sách vé */
 		.pql-gh{ display:flex; align-items:center; gap:10px; margin:18px 0 8px; padding-bottom:6px;
@@ -3006,13 +3458,13 @@ class POSH_Ve {
 		/* Màn soi hệ thống */
 		.pql-soi-tong{ padding:12px 14px; border-radius:10px; margin-bottom:12px; font-size:14px; }
 		.pql-soi-tong.tot{ background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.4); color:#bbf7d0; }
-		.pql-soi-tong.xau{ background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); color:#fecaca; }
+		.pql-soi-tong.xau{ background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); color:#991b1b; }
 		.pql-soi-m{ display:flex; gap:10px; padding:11px 12px; border:1px solid var(--bd); border-radius:10px;
 			background:var(--sf); margin-bottom:8px; }
 		.pql-soi-i{ font-size:16px; line-height:1.4; }
 		.pql-soi-t{ color:var(--tx); font-weight:700; font-size:14px; }
 		.pql-soi-n{ color:var(--mut); font-size:12.5px; margin-top:2px; word-break:break-word; }
-		.pql-soi-c{ color:#fde68a; font-size:12.5px; margin-top:4px; }
+		.pql-soi-c{ color:#7a5f12; font-size:12.5px; margin-top:4px; }
 		.pql-gh img{ width:28px; height:28px; border-radius:7px; object-fit:cover; }
 		.pql-gh .noimg{ width:28px; height:28px; border-radius:7px; background:var(--sf2); display:flex;
 			align-items:center; justify-content:center; font-size:15px; }
@@ -3021,43 +3473,43 @@ class POSH_Ve {
 		.pql-ok{ color:#86efac; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35);
 			border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; line-height:1.5; }
 		.pql-err-chi{ margin-top:6px; font-size:12px; opacity:.9; word-break:break-all; }
-		.pql-err-chi code{ background:rgba(255,255,255,.08); padding:1px 5px; border-radius:5px; }
+		.pql-err-chi code{ background:rgba(60,50,20,.10); padding:1px 5px; border-radius:5px; }
 		.pql-zalo{ display:block; text-align:center; margin-top:10px; padding:10px; border-radius:10px;
 			background:#0068ff; color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
-		.pql-msg,.pql-err{ color:#f0a0a0; font-size:13px; margin-top:10px; text-align:center; }
+		.pql-msg,.pql-err{ color:#b91c1c; font-size:13px; margin-top:10px; text-align:center; }
 		.pql-msg2{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-bar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-		.pql-bar b{ color:#fff; font-size:16px; }
+		.pql-bar b{ color:#1b1810; font-size:16px; }
 		.pql-them{ padding:9px 16px; }
 		.pql-row{ display:flex; gap:12px; align-items:center; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 12px; margin-bottom:8px; }
 		.pql-row img,.pql-row .noimg{ width:52px; height:52px; border-radius:8px; object-fit:cover; background:var(--sf2); display:flex; align-items:center; justify-content:center; font-size:22px; flex:0 0 auto; }
 		.pql-row-mid{ flex:1; min-width:0; }
-		.pql-row-ten{ font-weight:700; color:#fff; }
+		.pql-row-ten{ font-weight:700; color:#1b1810; }
 		.pql-row-sub{ font-size:12px; color:var(--mut); margin-top:2px; }
 		.pql-row-gia{ color:var(--g2); font-weight:800; }
 		.pql-tag{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:var(--sf2); color:var(--mut); margin-left:6px; }
-		.pql-tag.on{ background:rgba(34,197,94,.18); color:#7ee2a8; } .pql-tag.off{ background:rgba(239,68,68,.16); color:#f0a0a0; }
+		.pql-tag.on{ background:rgba(34,197,94,.18); color:#166534; } .pql-tag.off{ background:rgba(239,68,68,.16); color:#b91c1c; }
 		.pql-row-btn{ display:flex; flex-direction:column; gap:6px; flex:0 0 auto; }
 		.pql-row-btn button{ border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer; }
-		.pql-row-btn .del{ color:#f0a0a0; border-color:rgba(239,68,68,.3); }
+		.pql-row-btn .del{ color:#b91c1c; border-color:rgba(239,68,68,.3); }
 		.pql-form,.pql-uuform{ background:var(--sf); border:1px solid var(--bd); border-radius:14px; padding:18px; margin-top:8px; }
 		.pql-uumsg{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-hrow{ display:flex; gap:8px; margin-bottom:8px; align-items:center; }
 		.pql-hrow .h-ten{ flex:1; } .pql-hrow .h-moc{ flex:0 0 140px; }
-		.pql-hrow input{ border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
-		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#f0a0a0; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
+		.pql-hrow input{ border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#b91c1c; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
 		.pql-hangmsg{ font-size:13px; margin-top:10px; text-align:center; }
 		.pql-khtop{ display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
-		.pql-khtim{ flex:1; min-width:150px; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
-		.pql-khsx{ border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
-		.pql-khloc{ border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; border-radius:10px; padding:10px 16px; cursor:pointer; }
+		.pql-khtim{ flex:1; min-width:150px; border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-khsx{ border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-khloc{ border:none; background:var(--gr); color:#1a1204; font-weight:800; border-radius:10px; padding:10px 16px; cursor:pointer; }
 		.pql-khtong{ font-size:13px; color:var(--mut); margin-bottom:10px; } .pql-khtong b{ color:var(--g2); }
 		.pql-khwrap{ overflow-x:auto; } .pql-khtbl{ min-width:520px; }
 		.pql-2{ display:flex; gap:12px; } .pql-2 > div{ flex:1; }
 		.pql-anh{ display:flex; gap:10px; align-items:center; }
 		.pql-anh .f-anh{ flex:1; }
 		.pql-anh img{ width:52px; height:52px; border-radius:8px; object-fit:cover; }
-		.pql-upl{ background:var(--sf2); border:1px solid #33363f; border-radius:10px; padding:11px 14px; cursor:pointer; white-space:nowrap; font-size:14px; margin:0 !important; color:var(--tx) !important; }
+		.pql-upl{ background:var(--sf2); border:1px solid #ddd6c4; border-radius:10px; padding:11px 14px; cursor:pointer; white-space:nowrap; font-size:14px; margin:0 !important; color:var(--tx) !important; }
 		.pql-ck{ display:flex; align-items:center; gap:8px; margin-top:12px; color:var(--tx) !important; }
 		.pql-ck input{ width:auto; }
 		.pql-acts{ display:flex; gap:10px; margin-top:16px; }
@@ -3072,7 +3524,7 @@ class POSH_Ve {
 		.pql-main{ flex:1; min-width:0; }
 		.pql-tab{ width:100%; text-align:left; border:none; background:transparent; color:var(--tx); border-radius:10px; padding:11px 12px; font-weight:700; font-size:14px; cursor:pointer; }
 		.pql-tab:hover{ background:var(--sf2); }
-		.pql-tab.on{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; }
+		.pql-tab.on{ background:var(--gr); color:#1a1204; }
 		@media(max-width:640px){
 			.pql-layout{ flex-direction:column; }
 			.pql-side{ flex:1 1 auto; width:100%; position:static; flex-direction:row; flex-wrap:wrap; }
@@ -3082,24 +3534,24 @@ class POSH_Ve {
 		.pql-bcf{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
 		.pql-seg{ display:inline-flex; border:1px solid var(--bd); border-radius:10px; overflow:hidden; }
 		.pql-seg button{ border:none; background:var(--sf); color:var(--tx); padding:9px 16px; font-weight:700; font-size:13px; cursor:pointer; }
-		.pql-seg button.on{ background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; }
-		.pql-bcve{ flex:1; min-width:160px; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
+		.pql-seg button.on{ background:var(--gr); color:#1a1204; }
+		.pql-bcve{ flex:1; min-width:160px; border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
 		.pql-kpi{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:12px; }
-		.pql-kpi-i{ background:linear-gradient(180deg,var(--sf),#111319); border:1px solid var(--bd); border-radius:12px; padding:14px; text-align:center; }
+		.pql-kpi-i{ background:linear-gradient(180deg,#ffffff,#f6f2e6); border:1px solid var(--bd); border-radius:12px; padding:14px; text-align:center; }
 		.pql-kpi-i span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
-		.pql-kpi-i b{ font-size:19px; color:#fff; } .pql-kpi-i .pql-green{ color:#7ee2a8; }
+		.pql-kpi-i b{ font-size:19px; color:#1b1810; } .pql-kpi-i .pql-green{ color:#166534; }
 		.pql-chart{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; height:220px; }
 		.pql-topban{ display:flex; flex-direction:column; gap:8px; }
 		.pql-toprow{ display:flex; align-items:center; gap:12px; background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:10px 12px; }
 		.pql-toprow img,.pql-toprow .noimg{ width:48px; height:48px; border-radius:8px; object-fit:cover; background:var(--sf2); display:flex; align-items:center; justify-content:center; font-size:20px; flex:0 0 auto; }
-		.pql-topmid{ flex:1; min-width:0; } .pql-topten{ font-weight:700; color:#fff; font-size:14px; } .pql-topsub{ font-size:12px; color:var(--mut); }
+		.pql-topmid{ flex:1; min-width:0; } .pql-topten{ font-weight:700; color:#1b1810; font-size:14px; } .pql-topsub{ font-size:12px; color:var(--mut); }
 		.pql-topdt{ color:var(--g2); font-weight:800; white-space:nowrap; }
 		@media(max-width:560px){ .pql-kpi{ grid-template-columns:1fr 1fr; } }
 		.pql-cards{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:6px; }
 		.pql-stat{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:14px; }
 		.pql-stat span{ display:block; font-size:12px; color:var(--mut); margin-bottom:6px; }
 		.pql-stat b{ font-size:18px; color:var(--g2); }
-		.pql-h2{ font-size:14px; font-weight:800; color:#fff; margin:18px 0 8px; }
+		.pql-h2{ font-size:14px; font-weight:800; color:#1b1810; margin:18px 0 8px; }
 		.pql-tbl{ width:100%; border-collapse:collapse; background:var(--sf); border:1px solid var(--bd); border-radius:12px; overflow:hidden; font-size:13px; }
 		.pql-tbl th,.pql-tbl td{ padding:9px 10px; text-align:left; border-bottom:1px solid rgba(212,175,55,.1); color:var(--tx); }
 		.pql-tbl th{ background:var(--sf2); font-size:12px; color:var(--mut); }
@@ -3107,14 +3559,14 @@ class POSH_Ve {
 		.pql-filter .pql-loc{ width:auto; flex:0 0 130px; } .pql-filter .pql-tim{ flex:1; min-width:140px; } .pql-filter .pql-loc-btn{ width:auto; flex:0 0 70px; padding:11px; }
 		.pql-don{ background:var(--sf); border:1px solid var(--bd); border-radius:12px; padding:12px; margin-bottom:8px; }
 		.pql-don-top{ display:flex; justify-content:space-between; align-items:center; }
-		.pql-don-ma{ font-weight:800; font-family:monospace; color:#fff; }
+		.pql-don-ma{ font-weight:800; font-family:monospace; color:#1b1810; }
 		.pql-don-sub{ font-size:12px; color:var(--mut); margin-top:3px; }
 		.pql-bdg{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
-		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#7ee2a8; }
-		.pql-bdg.da_dung{ background:rgba(59,130,246,.2); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#f0a0a0; }
+		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#166534; }
+		.pql-bdg.da_dung{ background:rgba(59,130,246,.14); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#b91c1c; }
 		.pql-don-act{ display:flex; gap:6px; margin-top:10px; }
 		.pql-don-act button{ flex:0 1 200px; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
-		.pql-don-act .go{ background:rgba(34,197,94,.9); color:#04210f; border:none; } .pql-don-act .use{ background:rgba(59,130,246,.9); color:#04122b; border:none; } .pql-don-act .no{ background:rgba(239,68,68,.85); color:#fff; border:none; }
+		.pql-don-act .go{ background:#16a34a; color:#fff; border:none; } .pql-don-act .use{ background:#2563eb; color:#fff; border:none; } .pql-don-act .no{ background:#dc2626; color:#fff; border:none; }
 		@media(max-width:560px){ .pql-2{ flex-direction:column; gap:0; } }
 		</style>
 
@@ -3181,7 +3633,7 @@ class POSH_Ve {
 		      if(!window.Chart){ setTimeout(draw,150); return; }
 		      if(chart){ chart.destroy(); }
 		      chart=new Chart(c,{type:'line',data:{labels:lb,datasets:[{label:'Doanh thu',data:dl,borderColor:'#d4af37',backgroundColor:'rgba(212,175,55,.12)',fill:true,tension:.35,pointRadius:3,borderWidth:2}]},
-		        options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#9b978c'},grid:{color:'rgba(255,255,255,.05)'}},y:{beginAtZero:true,ticks:{color:'#9b978c',callback:function(v){return Number(v).toLocaleString('vi-VN');}},grid:{color:'rgba(255,255,255,.05)'}}}}});
+		        options:{maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6f6a5d'},grid:{color:'rgba(60,50,20,.10)'}},y:{beginAtZero:true,ticks:{color:'#6f6a5d',callback:function(v){return Number(v).toLocaleString('vi-VN');}},grid:{color:'rgba(60,50,20,.10)'}}}}});
 		    }
 		    if(!window.Chart && !document.getElementById('pql-chartjs')){
 		      var s=document.createElement('script'); s.id='pql-chartjs'; s.src='https://cdn.jsdelivr.net/npm/chart.js@4'; document.head.appendChild(s);
@@ -3211,18 +3663,18 @@ class POSH_Ve {
 		        var img=r.anh?'<img src="'+esc(r.anh)+'">':'<span class="noimg">🎟️</span>';
 		        return '<div class="pql-toprow">'+img+'<div class="pql-topmid"><div class="pql-topten">'+esc(r.ten)+'</div>'
 		          +'<div class="pql-topsub">Bán '+r.sl+' đơn</div></div><div class="pql-topdt">'+VND(r.dt)+'</div></div>';
-		      }).join('')||'<p style="color:#9b978c">Chưa có dữ liệu bán.</p>';
+		      }).join('')||'<p style="color:#6f6a5d">Chưa có dữ liệu bán.</p>';
 		    }).catch(function(e){ alert(e.message||e); });
 		  }
 
 		  // Đơn & soát
 		  function napDon(){
 		    var loc=$('.pql-loc').value, tim=$('.pql-tim').value.trim();
-		    $('.pql-donlist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    $('.pql-donlist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
 		    var u=new URL(REST+'/ql/donhang'); u.searchParams.set('pin',PIN); if(loc)u.searchParams.set('loc',loc); if(tim)u.searchParams.set('tim',tim);
 		    fetch(u.toString()).then(function(r){return r.json();}).then(function(d){
 		      if(!d||d.ok===false) throw new Error(d&&(d.message||d.code)||'Lỗi');
-		      $('.pql-donlist').innerHTML=(d.don||[]).map(rowDon).join('')||'<p style="color:#9b978c">Không có đơn.</p>';
+		      $('.pql-donlist').innerHTML=(d.don||[]).map(rowDon).join('')||'<p style="color:#6f6a5d">Không có đơn.</p>';
 		    }).catch(function(e){ $('.pql-donlist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
 		  function rowDon(r){
@@ -3252,7 +3704,7 @@ class POSH_Ve {
 		  var uuHangLoaded=false;
 		  /* ═══ SOI HỆ THỐNG ═══════════════════════════════════════════════════════════════ */
 		  function napSoi(){
-		    $('.pql-soilist').innerHTML='<p style="color:#9b978c">Đang kiểm…</p>';
+		    $('.pql-soilist').innerHTML='<p style="color:#6f6a5d">Đang kiểm…</p>';
 		    get('/ql/soi').then(function(d){
 		      var h = '<div class="pql-soi-tong '+(d.hong?'xau':'tot')+'">'
 		        + (d.hong ? ('⚠️ '+d.hong+' chỗ đang hỏng — khách chưa mua được vé.')
@@ -3297,7 +3749,7 @@ class POSH_Ve {
 		  $('.pql-tk-luu').addEventListener('click',function(){
 		    var bin=$('.t-bin').value, tk=$('.t-tk').value.trim(), ten=$('.t-ten').value.trim();
 		    if(!bin||!tk||!ten){ $('.pql-tkmsg').style.color='#f0a0a0'; $('.pql-tkmsg').textContent='Điền đủ ngân hàng, số tài khoản và chủ tài khoản.'; return; }
-		    $('.pql-tkmsg').style.color='#9b978c'; $('.pql-tkmsg').textContent='Đang lưu…';
+		    $('.pql-tkmsg').style.color='#6f6a5d'; $('.pql-tkmsg').textContent='Đang lưu…';
 		    post('/ql/tk-luu',{bin:bin,so_tk:tk,ten_tk:ten}).then(function(d){
 		      $('.t-ten').value=d.ten_tk||ten; $('.pql-tkmuon').style.display='none';
 		      $('.pql-tkmsg').style.color='#86efac';
@@ -3311,7 +3763,7 @@ class POSH_Ve {
 		     thành "tạo thêm một danh mục mới", còn đám vé cũ ở lại danh mục cũ — chia đôi im lặng. */
 		  var DM = [];
 		  function napDm(){
-		    $('.pql-dmlist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    $('.pql-dmlist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
 		    get('/ql/dm-ds').then(function(d){ dmVe(d.ds||[]); })
 		      .catch(function(e){ $('.pql-dmlist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
@@ -3322,7 +3774,7 @@ class POSH_Ve {
 		    var dl=document.getElementById('pql-dm');
 		    if(dl) dl.innerHTML = ds.map(function(d){ return '<option value="'+esc(d.ten)+'">'; }).join('');
 		    $('.pql-dmlist').innerHTML = ds.length ? ds.map(dmRow).join('')
-		      : '<p style="color:#9b978c">Chưa có phân loại nào. Bấm “+ Tạo phân loại”.</p>';
+		      : '<p style="color:#6f6a5d">Chưa có phân loại nào. Bấm “+ Tạo phân loại”.</p>';
 		  }
 		  function dmRow(d){
 		    var img = d.anh ? '<img src="'+esc(d.anh)+'">' : '<span class="noimg">🗂️</span>';
@@ -3344,7 +3796,7 @@ class POSH_Ve {
 		  $('.pql-dm-huy').addEventListener('click',function(){ $('.pql-dmform').hidden=true; });
 		  $('.d-file').addEventListener('change',function(){
 		    var f=this.files&&this.files[0]; if(!f)return; var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
-		    $('.pql-dmmsg').style.color='#9b978c'; $('.pql-dmmsg').textContent='Đang tải ảnh…';
+		    $('.pql-dmmsg').style.color='#6f6a5d'; $('.pql-dmmsg').textContent='Đang tải ảnh…';
 		    fetch(REST+'/ql/ve-anh',{method:'POST',credentials:'same-origin',headers:hdr(),body:fd}).then(function(r){return r.json();}).then(function(d){
 		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
 		      $('.d-anh').value=d.url; var xem=$('.d-xem'); xem.src=d.url; xem.hidden=false; $('.pql-dmmsg').textContent='Đã tải ảnh ✓';
@@ -3356,7 +3808,7 @@ class POSH_Ve {
 		    if(!ten){ $('.pql-dmmsg').style.color='#f0a0a0'; $('.pql-dmmsg').textContent='Cần tên phân loại.'; return; }
 		    var cu=$('.d-cu').value;
 		    if(cu && cu!==ten && !confirm('Đổi tên "'+cu+'" thành "'+ten+'"?\n\nMọi vé đang thuộc phân loại này sẽ đổi theo.')) return;
-		    $('.pql-dmmsg').style.color='#9b978c'; $('.pql-dmmsg').textContent='Đang lưu…';
+		    $('.pql-dmmsg').style.color='#6f6a5d'; $('.pql-dmmsg').textContent='Đang lưu…';
 		    post('/ql/dm-luu',{ ten:ten, ten_cu:cu, anh:$('.d-anh').value.trim() }).then(function(d){
 		      $('.pql-dmform').hidden=true; dmVe(d.ds||[]); napDs();
 		    }).catch(function(e){ $('.pql-dmmsg').style.color='#f0a0a0'; $('.pql-dmmsg').textContent=String(e.message||e); });
@@ -3379,11 +3831,11 @@ class POSH_Ve {
 		  });
 
 		  function napUu(){
-		    $('.pql-uulist').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    $('.pql-uulist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
 		    get('/ql/uu-ds').then(function(d){
 		      if(!uuHangLoaded){ var sel=$('.u-hang'); (d.ds_hang||[]).forEach(function(h){ var o=document.createElement('option'); o.value=h; o.textContent='Từ hạng '+h; sel.appendChild(o); }); uuHangLoaded=true; }
 		      var ds=d.ds||[];
-		      $('.pql-uulist').innerHTML = ds.length ? ds.map(uuRow).join('') : '<p style="color:#9b978c">Chưa có ưu đãi. Bấm “+ Tạo ưu đãi”.</p>';
+		      $('.pql-uulist').innerHTML = ds.length ? ds.map(uuRow).join('') : '<p style="color:#6f6a5d">Chưa có ưu đãi. Bấm “+ Tạo ưu đãi”.</p>';
 		    }).catch(function(e){ $('.pql-uulist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
 		  function uuRow(v){
@@ -3408,7 +3860,7 @@ class POSH_Ve {
 		  });
 		  $('.u-file').addEventListener('change',function(){
 		    var f=this.files&&this.files[0]; if(!f)return; var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
-		    $('.pql-uumsg').style.color='#9b978c'; $('.pql-uumsg').textContent='Đang tải ảnh…';
+		    $('.pql-uumsg').style.color='#6f6a5d'; $('.pql-uumsg').textContent='Đang tải ảnh…';
 		    fetch(REST+'/ql/ve-anh',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
 		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
 		      $('.u-anh').value=d.url; var xem=$('.u-xem'); xem.src=d.url; xem.hidden=false; $('.pql-uumsg').textContent='Đã tải ảnh ✓';
@@ -3427,14 +3879,14 @@ class POSH_Ve {
 		  // ── Khách hàng ──
 		  function napKhach(){
 		    var tim=$('.pql-khtim').value.trim(), sx=$('.pql-khsx').value;
-		    $('.pql-khlist').innerHTML='<tr><td colspan="6" style="color:#9b978c">Đang tải…</td></tr>';
+		    $('.pql-khlist').innerHTML='<tr><td colspan="6" style="color:#6f6a5d">Đang tải…</td></tr>';
 		    var u='/ql/khach?sx='+encodeURIComponent(sx)+(tim?'&tim='+encodeURIComponent(tim):'');
 		    get(u).then(function(d){
 		      $('.pql-khtong').innerHTML='Tổng <b>'+(d.tong_kh||0)+'</b> khách · Tổng chi <b>'+VND(d.tong_chi)+'</b>';
 		      $('.pql-khlist').innerHTML=(d.ds||[]).map(function(k){
 		        return '<tr><td><b>'+esc(k.ten||'—')+'</b></td><td>'+esc(k.sdt)+'</td><td>'+(k.diem||0)+'</td>'
 		          +'<td><span class="pql-tag on">'+esc(k.hang)+'</span></td><td>'+(k.so_don||0)+'</td><td>'+VND(k.tong_chi)+'</td></tr>';
-		      }).join('')||'<tr><td colspan="6" style="color:#9b978c">Chưa có khách nào.</td></tr>';
+		      }).join('')||'<tr><td colspan="6" style="color:#6f6a5d">Chưa có khách nào.</td></tr>';
 		    }).catch(function(e){ $('.pql-khlist').innerHTML='<tr><td colspan="6" class="pql-err">'+esc(e.message||e)+'</td></tr>'; });
 		  }
 		  $('.pql-khloc').addEventListener('click',napKhach);
@@ -3443,7 +3895,7 @@ class POSH_Ve {
 
 		  // ── Hạng thành viên ──
 		  function napHang(){
-		    $('.pql-hanglist').innerHTML='<p style="color:#9b978c">Đang tải…</p>'; $('.pql-hangmsg').textContent='';
+		    $('.pql-hanglist').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>'; $('.pql-hangmsg').textContent='';
 		    get('/ql/hang-ds').then(function(d){ hangVe(d.ds||[]); }).catch(function(e){ $('.pql-hanglist').innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
 		  }
 		  function hangRow(ten,moc){
@@ -3474,11 +3926,11 @@ class POSH_Ve {
 		     ⚠️ Thứ tự nhóm lấy từ /ql/dm-ds — CÙNG một thứ tự với dải bên trang khách. Xếp kiểu
 		        khác ở đây là marketing sửa theo màn này rồi ra trang khách thấy một trật tự lạ. */
 		  function napDs(){
-		    $('.pql-list').innerHTML='<p style="color:#9b978c">Đang tải…</p>';
+		    $('.pql-list').innerHTML='<p style="color:#6f6a5d">Đang tải…</p>';
 		    Promise.all([ get('/ql/ve-ds'), get('/ql/dm-ds').catch(function(){ return { ds: [] }; }) ])
 		      .then(function(r){
 		        var ds = r[0].ds || [], dm = (r[1] && r[1].ds) || [];
-		        if (!ds.length){ $('.pql-list').innerHTML='<p style="color:#9b978c">Chưa có vé nào. Bấm “+ Tạo vé mới”.</p>'; return; }
+		        if (!ds.length){ $('.pql-list').innerHTML='<p style="color:#6f6a5d">Chưa có vé nào. Bấm “+ Tạo vé mới”.</p>'; return; }
 		        var gom = {}, thutu = [];
 		        dm.forEach(function(d){ gom[d.ten] = { anh:d.anh, ve:[] }; thutu.push(d.ten); });
 		        ds.forEach(function(v){
@@ -3498,7 +3950,7 @@ class POSH_Ve {
 		  }
 		  function row(v){
 		    var img = v.anh ? '<img src="'+esc(v.anh)+'" alt="">' : '<span class="noimg">🎟️</span>';
-		    var goc = (v.gia_goc>v.gia) ? ' <s style="color:#6f6b61">'+VND(v.gia_goc)+'</s>' : '';
+		    var goc = (v.gia_goc>v.gia) ? ' <s style="color:#8b8576">'+VND(v.gia_goc)+'</s>' : '';
 		    var sl  = (v.so_luong<0) ? '∞' : (v.so_luong>0 ? v.so_luong+' vé' : 'Hết');
 		    var tag = v.hien ? '<span class="pql-tag on">Đang bán</span>' : '<span class="pql-tag off">Ẩn</span>';
 		    return '<div class="pql-row">'+img+'<div class="pql-row-mid"><div class="pql-row-ten">'+esc(v.ten)+tag+'</div>'
@@ -3534,7 +3986,7 @@ class POSH_Ve {
 		  $('.f-file').addEventListener('change',function(){
 		    var f=this.files&&this.files[0]; if(!f)return;
 		    var fd=new FormData(); fd.append('file',f); fd.append('pin',PIN);
-		    $('.pql-msg2').style.color='#9b978c'; $('.pql-msg2').textContent='Đang tải ảnh…';
+		    $('.pql-msg2').style.color='#6f6a5d'; $('.pql-msg2').textContent='Đang tải ảnh…';
 		    fetch(REST+'/ql/ve-anh',{method:'POST',body:fd}).then(function(r){return r.json();}).then(function(d){
 		      if(!d||d.ok===false||!d.url) throw new Error(d&&(d.message||d.code)||'Lỗi tải ảnh');
 		      $('.f-anh').value=d.url; var xem=$('.f-xem'); xem.src=d.url; xem.hidden=false; $('.pql-msg2').textContent='Đã tải ảnh ✓';
@@ -3573,6 +4025,41 @@ class POSH_Ve {
 			update_option( 'pve_so_tk', sanitize_text_field( wp_unslash( $_POST['so_tk'] ) ) );
 			update_option( 'pve_ten_tk', sanitize_text_field( wp_unslash( $_POST['ten_tk'] ) ) );
 			echo '<div class="notice notice-success"><p>Đã lưu tài khoản.</p></div>';
+		}
+		if ( isset( $_POST['pve_vi'] ) && check_admin_referer( 'pve_vi' ) ) {
+			/* Gói nạp: mỗi dòng "mệnh giá | tặng thêm". Bỏ dòng trống, bỏ mệnh giá dưới 1.000đ. */
+			$goi = array();
+			$g_nap = isset( $_POST['goi_nap'] ) ? (array) $_POST['goi_nap'] : array();
+			$g_tang = isset( $_POST['goi_tang'] ) ? (array) $_POST['goi_tang'] : array();
+			foreach ( $g_nap as $i => $v ) {
+				$nap = (int) preg_replace( '/\D+/', '', (string) $v );
+				if ( $nap < 1000 ) { continue; }
+				$goi[] = array( 'nap' => $nap, 'tang' => (int) preg_replace( '/\D+/', '', (string) ( isset( $g_tang[ $i ] ) ? $g_tang[ $i ] : 0 ) ) );
+			}
+			update_option( 'pve_vi_goi', $goi );
+
+			/* Mã ưu đãi. GIỮ LẠI SỐ LƯỢT ĐÃ DÙNG của mã cũ cùng tên: lưu lại cấu hình mà đếm về
+			   0 là mã giới hạn 100 lượt bỗng dùng được thêm 100 lượt nữa. */
+			$cu = array();
+			foreach ( self::ds_ma_uu_dai() as $c ) { $cu[ $c['code'] ] = (int) $c['da_dung']; }
+			$code = array();
+			$c_ma = isset( $_POST['c_ma'] ) ? (array) $_POST['c_ma'] : array();
+			foreach ( $c_ma as $i => $v ) {
+				$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $v ) );
+				if ( '' === $m ) { continue; }
+				$lay = function ( $ten, $i ) { $a = isset( $_POST[ $ten ] ) ? (array) $_POST[ $ten ] : array(); return isset( $a[ $i ] ) ? $a[ $i ] : ''; };
+				$code[] = array(
+					'code'      => $m,
+					'kieu'      => ( 'tien' === (string) $lay( 'c_kieu', $i ) ) ? 'tien' : 'pt',
+					'gia_tri'   => (int) preg_replace( '/\D+/', '', (string) $lay( 'c_gia_tri', $i ) ),
+					'toi_thieu' => (int) preg_replace( '/\D+/', '', (string) $lay( 'c_toi_thieu', $i ) ),
+					'han'       => preg_replace( '/[^0-9-]/', '', (string) $lay( 'c_han', $i ) ),
+					'gioi_han'  => (int) preg_replace( '/\D+/', '', (string) $lay( 'c_gioi_han', $i ) ),
+					'da_dung'   => isset( $cu[ $m ] ) ? $cu[ $m ] : 0,
+				);
+			}
+			update_option( 'pve_vi_code', $code );
+			echo '<div class="notice notice-success"><p>Đã lưu ví tiền: ' . count( $goi ) . ' gói nạp, ' . count( $code ) . ' mã ưu đãi.</p></div>';
 		}
 		if ( isset( $_POST['pve_cong'] ) && check_admin_referer( 'pve_cong' ) ) {
 			update_option( 'pve_momo_partner', sanitize_text_field( wp_unslash( $_POST['momo_partner'] ) ) );
@@ -3810,6 +4297,45 @@ class POSH_Ve {
 		echo '<p><button class="button button-primary" name="pve_bank" value="1">Lưu tài khoản</button></p></form><hr>';
 
 		/* Cổng thanh toán Momo / VNPay (khoá bí mật lưu ở đây, KHÔNG nằm trong mã nguồn) */
+		/* ── Ví tiền: gói nạp + mã ưu đãi ─────────────────────────────────────────────── */
+		echo '<h2>Ví tiền — gói nạp &amp; mã ưu đãi</h2>';
+		echo '<p class="description">Khách nạp trước vào ví rồi dùng dần. <b>Mệnh giá phải có trong bảng này</b> — trang không nhận số khách tự gõ, vì "tặng thêm" đi theo gói. Ví dùng danh tính <b>Zalo</b>: khách phải đăng nhập Zalo mới có ví.</p>';
+		echo '<form method="post">';
+		wp_nonce_field( 'pve_vi' );
+		$goi = self::ds_goi_nap();
+		if ( ! $goi ) { $goi = array( array( 'nap' => 100000, 'tang' => 0 ) ); }
+		$goi[] = array( 'nap' => 0, 'tang' => 0 );   // một dòng trống để thêm mới
+		echo '<h3 style="margin-bottom:4px">Gói nạp</h3>';
+		echo '<table class="widefat striped" style="max-width:560px"><thead><tr><th>Mệnh giá nạp (đ)</th><th>Tặng thêm (đ)</th><th>Khách nhận</th></tr></thead><tbody>';
+		foreach ( $goi as $g ) {
+			echo '<tr><td><input type="number" name="goi_nap[]" value="' . ( $g['nap'] ? (int) $g['nap'] : '' ) . '" placeholder="vd 200000" style="width:100%"></td>'
+				. '<td><input type="number" name="goi_tang[]" value="' . ( $g['tang'] ? (int) $g['tang'] : '' ) . '" placeholder="0" style="width:100%"></td>'
+				. '<td><b>' . esc_html( number_format_i18n( (int) $g['nap'] + (int) $g['tang'] ) ) . 'đ</b></td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description">Xoá mệnh giá là gói đó biến mất. Lưu xong trang tự thêm một dòng trống mới.</p>';
+
+		$code = self::ds_ma_uu_dai();
+		$code[] = array( 'code' => '', 'kieu' => 'pt', 'gia_tri' => 0, 'toi_thieu' => 0, 'han' => '', 'gioi_han' => 0, 'da_dung' => 0 );
+		echo '<h3 style="margin-bottom:4px">Mã ưu đãi khi nạp</h3>';
+		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Kiểu</th><th>Giá trị</th><th>Nạp tối thiểu (đ)</th><th>Hạn (YYYY-MM-DD)</th><th>Giới hạn lượt</th><th>Đã dùng</th></tr></thead><tbody>';
+		foreach ( $code as $c ) {
+			echo '<tr>'
+				. '<td><input name="c_ma[]" value="' . esc_attr( $c['code'] ) . '" placeholder="HE2026" style="width:110px;text-transform:uppercase"></td>'
+				. '<td><select name="c_kieu[]"><option value="pt"' . selected( $c['kieu'], 'pt', false ) . '>% tặng thêm</option>'
+				. '<option value="tien"' . selected( $c['kieu'], 'tien', false ) . '>Số tiền tặng</option></select></td>'
+				. '<td><input type="number" name="c_gia_tri[]" value="' . ( $c['gia_tri'] ? (int) $c['gia_tri'] : '' ) . '" placeholder="10" style="width:90px"></td>'
+				. '<td><input type="number" name="c_toi_thieu[]" value="' . ( $c['toi_thieu'] ? (int) $c['toi_thieu'] : '' ) . '" placeholder="0" style="width:120px"></td>'
+				. '<td><input name="c_han[]" value="' . esc_attr( $c['han'] ) . '" placeholder="để trống = không hạn" style="width:150px"></td>'
+				. '<td><input type="number" name="c_gioi_han[]" value="' . ( $c['gioi_han'] ? (int) $c['gioi_han'] : '' ) . '" placeholder="0 = không giới hạn" style="width:110px"></td>'
+				. '<td>' . (int) $c['da_dung'] . '</td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description"><b>% tặng thêm</b>: giá trị 10 = nạp 200.000đ được tặng 20.000đ (làm tròn xuống hàng nghìn). '
+			. '<b>Số tiền tặng</b>: giá trị 20000 = tặng thẳng 20.000đ. '
+			. 'Số lượt chỉ tăng khi <b>tiền thật sự về</b>, không tăng lúc khách mới bấm tạo mã — nếu không thì mã hết sạch vì những người không chuyển tiền.</p>';
+		echo '<p><button class="button button-primary" name="pve_vi" value="1">Lưu ví tiền</button></p></form><hr>';
+
 		echo '<h2>Cổng thanh toán (Momo · VNPay)</h2>';
 		echo '<p class="description">Để trống = ẩn cổng đó, khách chỉ quét QR ngân hàng. Khai khoá lấy trong trang quản trị đối tác của Momo/VNPay. '
 			. '<b>Không</b> ghi khoá vào mã nguồn.</p>';
@@ -4106,6 +4632,7 @@ class POSH_Ve {
 }
 
 register_activation_hook( __FILE__, function () { POSH_Ve::bao_dam_bang(); POSH_Ve::bao_dam_trang(); POSH_Ve::bao_dam_trang_ql(); flush_rewrite_rules(); } );
+register_deactivation_hook( __FILE__, function () { wp_clear_scheduled_hook( 'pve_do_saoke' ); } );
 add_action( 'init', array( 'POSH_Ve', 'init' ), 6 );
 
 endif; // class_exists( 'POSH_Ve' )

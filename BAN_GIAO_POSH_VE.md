@@ -113,6 +113,32 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
 
+### 🔴 VÍ TIỀN — ba luật không được đổi (từ 1.49.0)
+1. **Chủ ví là tài khoản Zalo**, không phải số điện thoại. Số điện thoại không phải bí mật: tra ví
+   theo số là ai gõ số người khác cũng tiêu được tiền của họ.
+2. **Trừ tiền bằng MỘT câu `UPDATE … WHERE so_du >= %d`** (`POSH_Ve::vi_tru`), không "đọc rồi mới
+   ghi". Đọc-kiểm-ghi là hai lượt bấm gần nhau (hai tab, hoặc bấm lại vì mạng chậm) cùng thấy đủ
+   tiền rồi cùng trừ — tiêu 100k hai lần từ một ví 100k.
+3. **Cộng ví cũng chỉ một lần**: `tu_khop_nap()` chuyển trạng thái bằng
+   `UPDATE … WHERE ma=%s AND trang_thai='cho'`; lượt thứ hai không đổi được dòng nào nên không
+   cộng thêm. Trang hỏi 5 giây một lượt và mở được hai tab.
+
+Mệnh giá nạp **phải có trong bảng gói** (WP Admin → Vé khu vui chơi → Ví tiền); trang không nhận
+số khách tự gõ, vì "tặng thêm" đi theo gói. Số lượt của mã ưu đãi chỉ tăng **khi tiền thật sự về**
+— tăng lúc tạo mã thì mã hết sạch vì những người không chuyển tiền. Lưu lại cấu hình mã **giữ
+nguyên số lượt đã dùng** của mã cùng tên.
+
+Sổ cái `pve_vi_gd` ghi từng lượt cộng/trừ kèm số dư sau. Đừng bỏ: khách kêu "mất tiền" mà chỉ có
+mỗi một con số thì không đối chiếu được gì.
+
+### ⚠️ Popup có BỐN bước dùng chung một khung — đừng đặt trùng tên lớp
+Ví vé · nạp ví · giỏ · đặt lẻ · mã QR nằm cùng `.pve-mask`. `qs()` lấy **thẻ đầu tiên trong cả
+popup**, nên thêm bước mới mà trùng tên lớp là nó **cướp** lượt tra của bước cũ — im lặng, không
+lỗi. Đã dính ở 1.48.0: bước Giỏ có nút `.pve-go` đứng trước bước đặt lẻ, việc gắn cho nút "Tạo mã
+thanh toán" đi lạc sang nút của Giỏ và **bấm Đặt vé không ra gì** (vá ở 1.48.1). Nay bước đặt lẻ
+tra bằng `qf()`, bước nạp bằng `qf2()` — đều buộc phạm vi. Nút "Trả bằng ví" cố tình **không** mang
+lớp `.pve-go` mà dùng `.pve-go2`.
+
 ### Vòng đời một tấm vé (từ 1.48.0)
 ```
 khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
