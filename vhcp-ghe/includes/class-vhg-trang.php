@@ -7492,7 +7492,7 @@ var MA_TRA = null;   // kết quả tra theo số điện thoại (null = chưa 
 var KM_CFG = null, KM_MA_ROWS = 0;
 function kmCfgTai(){
   var box = document.getElementById('km-cfg'); if (!box) return;
-  if (KM_CFG) return;   // đã tải, giữ nguyên các ô đang gõ
+  if (KM_CFG) { kmCfgVe(); return; }   // đã tải → vẽ lại NGAY (mở lại sau khi tab re-render không bị rỗng)
   box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
   goi('km_xem', {}, function(r){
     if (!r || !r.ok) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
@@ -7606,11 +7606,14 @@ function kmtAspect(k){ return k === '9x16' ? [9,16] : k === '16x9' ? [16,9] : [1
 function kmtEl(){ return (KMT_SEL >= 0 && KMT_DOC && KMT_DOC.trang[KMT_KHO].els[KMT_SEL]) || null; }
 function kmtTai(){
   var box = document.getElementById('kmt-ed'); if (!box) return;
-  if (KMT_LOADED) return;
+  /* Đã có dữ liệu (kể cả bản đang soạn dở) → VẼ LẠI NGAY, không tải lại. Bẫy cũ: giữ cờ "đã
+     tải" rồi return, nên sau khi tab vẽ lại (đóng <details>) mở ra là RỖNG — "bấm lúc ra lúc
+     không". Nay mở lại luôn dựng lại từ KMT_DOC nên thiết kế không mất. */
+  if (KMT_DOC) { kmtVe(); return; }
   box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
   goi('kmt_xem', {}, function(r){
     if (!r || !r.ok || !r.blocks || !r.blocks.trang) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
-    KMT_DOC = r.blocks; KMT_LOADED = true; KMT_SEL = -1; kmtVe();
+    KMT_DOC = r.blocks; KMT_SEL = -1; kmtVe();
   });
 }
 function kmtVe(){
@@ -7755,7 +7758,7 @@ function kmtLuu(){
   var msg = document.getElementById('kmt-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
   goi('kmt_luu', KMT_DOC || {}, function(r){
     if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
-  });
+  });   // KHÔNG tải lại — giữ nguyên canvas đang soạn, tránh nhảy màn.
 }
 function kmtPosterHtml(kho){
   var T = KMT_DOC.trang[kho] || { bg:'#0c0e15', els:[] }, a = kmtAspect(kho);
