@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.14.1
+ * Version:           0.15.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1602,6 +1602,14 @@ class SAOKE_App {
 			update_option( 'saoke_coso_ma', $map );
 			echo '<div class="notice notice-success"><p>Đã lưu mã nộp theo cơ sở (' . count( $map ) . ' cơ sở có mã).</p></div>';
 		}
+		if ( isset( $_POST['saoke_luu_vqr'] ) && check_admin_referer( 'saoke_cfg' ) ) {
+			$u = trim( sanitize_text_field( wp_unslash( $_POST['vqr_user'] ) ) );
+			update_option( 'saoke_vqr_user', $u );
+			// Mật khẩu: chỉ ghi đè khi nhập mới (bỏ trống = giữ nguyên, không hiện ra màn cho an toàn).
+			$p = (string) wp_unslash( $_POST['vqr_pass'] );
+			if ( '' !== trim( $p ) ) { update_option( 'saoke_vqr_pass', $p ); }
+			echo '<div class="notice notice-success"><p>Đã lưu thông tin VietQR chính thức.</p></div>';
+		}
 		$key = (string) get_option( 'saoke_webhook_key', '' );
 		$url = esc_url_raw( rest_url( self::NS . '/webhook' ) ) . ( $key ? ( '?key=' . rawurlencode( $key ) ) : '' );
 		$page = get_option( 'saoke_page_id' ) ? get_permalink( (int) get_option( 'saoke_page_id' ) ) : '';
@@ -1637,6 +1645,22 @@ class SAOKE_App {
 			}
 			echo '</tbody></table><p><button class="button button-primary" name="saoke_luu_cosoma" value="1">Lưu mã theo cơ sở</button></p></form>';
 		}
+		// ── VietQR CHÍNH THỨC (API Service của cổng — token_generate + transaction-callback) ──
+		$tokUrl  = esc_url_raw( rest_url( self::NS . '/vqr/api/token_generate' ) );
+		$cbUrl   = esc_url_raw( rest_url( self::NS . '/vqr/bank/api/transaction-callback' ) );
+		$cbTest  = esc_url_raw( rest_url( self::NS . '/vqr/bank/api/test/transaction-callback' ) );
+		$vqrUser = (string) get_option( 'saoke_vqr_user', '' );
+		$hasPass = '' !== (string) get_option( 'saoke_vqr_pass', '' );
+		echo '<hr><h2>VietQR chính thức (API Service)</h2>';
+		echo '<p class="description">Cổng gọi <b>VÀO</b> server mình: trước tiên lấy token qua <b>Token URL</b> (Basic Auth bằng username/password dưới đây), sau đó bắn giao dịch về <b>Callback URL</b> kèm <code>Authorization: Bearer &lt;token&gt;</code>. Giao dịch nhận được lưu thẳng vào Sao kê ngân hàng (nguồn <code>vietqr</code>), chống trùng theo mã GD. Dùng cho môi trường UAT lẫn thật.</p>';
+		echo '<form method="post"><table class="form-table">'; wp_nonce_field( 'saoke_cfg' );
+		echo '<tr><th>Username (khai với cổng)</th><td><input name="vqr_user" class="regular-text code" value="' . esc_attr( $vqrUser ) . '" placeholder="username cấp cho cổng gọi token"></td></tr>';
+		echo '<tr><th>Password</th><td><input type="password" name="vqr_pass" class="regular-text code" autocomplete="new-password" placeholder="' . ( $hasPass ? 'đã đặt — nhập để đổi' : 'chưa đặt' ) . '"> <span class="description">Bỏ trống = giữ nguyên. Không hiện lại ra màn hình.</span></td></tr>';
+		echo '<tr><th>Token URL</th><td><code>' . esc_html( $tokUrl ) . '</code><br><span class="description">POST · Basic Auth = username/password ở trên · trả <code>access_token</code> (Bearer, hạn 12h).</span></td></tr>';
+		echo '<tr><th>Callback URL (thật)</th><td><code>' . esc_html( $cbUrl ) . '</code></td></tr>';
+		echo '<tr><th>Callback URL (test/UAT)</th><td><code>' . esc_html( $cbTest ) . '</code><br><span class="description">Dán URL này (hoặc URL thật) vào cổng rồi bấm <b>Test Callback</b>. Cùng một trình xử lý.</span></td></tr>';
+		echo '</table><p><button class="button button-primary" name="saoke_luu_vqr" value="1">Lưu VietQR chính thức</button></p></form>';
+		echo '<p class="description">Sau khi Test Callback: mở trang Sao kê → mục <b>Nhật ký</b>/log <code>vietqr-official</code> để xem cổng đã gọi tới chưa và giao dịch đã vào <b>Sao kê ngân hàng</b> chưa.</p>';
 		echo '<p class="description">⚠️ Repo công khai — PIN/khoá lưu trong DB, không nằm trong mã nguồn.</p></div>';
 	}
 

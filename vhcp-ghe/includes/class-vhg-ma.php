@@ -142,21 +142,47 @@ class VHG_Ma {
 		return $ra;
 	}
 
-	public static function giam_cua( $menh_gia ) {
-		$b = self::bang_giam();
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * GHI ĐÈ KHUYẾN MÃI THEO PHẠM VI — anh Thắng 10/09/2026: "điều chỉnh khuyến mãi theo mã máy,
+	 * theo cơ sở, và giá bán". Ba tầng, CỤ THỂ NHẤT THẮNG:
+	 *     mã máy  (option vhg_km_ma:   [ ma_may   => [ menh_gia => % ] ])
+	 *   → cơ sở   (option vhg_km_coso: [ coso_id  => [ menh_gia => % ] ])
+	 *   → mặc định toàn hệ (option vhg_ma_giam, qua bang_giam()).
+	 * Ô có khai (kể cả 0%) là MỘT lần ghi đè thật — 0% nghĩa "cơ sở/ghế này KHÔNG giảm dù toàn hệ
+	 * có giảm"; ô để trống = kế thừa tầng dưới. Đổi % ở đây làm đổi luôn GIÁ BÁN (gia_ban tính từ
+	 * %), nên đây cũng là cách chỉnh "giá bán theo cơ sở/mã" mà không phá công thức tiền QR. */
+	private static function km_coso() { $v = get_option( 'vhg_km_coso' ); return is_array( $v ) ? $v : array(); }
+	private static function km_ma()   { $v = get_option( 'vhg_km_ma' );   return is_array( $v ) ? $v : array(); }
+
+	public static function giam_cua( $menh_gia, $ma_may = '' ) {
 		$mg = (int) $menh_gia;
+		if ( $mg <= 0 ) { return 0; }
+		$ma_may = trim( (string) $ma_may );
+		if ( '' !== $ma_may ) {
+			// 1) Ghi đè theo MÃ MÁY — cụ thể nhất.
+			$km = self::km_ma();
+			if ( isset( $km[ $ma_may ][ $mg ] ) ) { return max( 0, min( 70, (int) $km[ $ma_may ][ $mg ] ) ); }
+			// 2) Ghi đè theo CƠ SỞ của mã đó.
+			$m = VHG_May::may( $ma_may );
+			if ( $m && ! empty( $m['coso_id'] ) ) {
+				$kc = self::km_coso(); $cid = (int) $m['coso_id'];
+				if ( isset( $kc[ $cid ][ $mg ] ) ) { return max( 0, min( 70, (int) $kc[ $cid ][ $mg ] ) ); }
+			}
+		}
+		// 3) Mặc định toàn hệ.
+		$b = self::bang_giam();
 		return isset( $b[ $mg ] ) ? (int) $b[ $mg ] : 0;
 	}
 
 	/**
-	 * Giá bán của một mệnh giá, sau giảm.
+	 * Giá bán của một mệnh giá, sau giảm — theo phạm vi của $ma_may (rỗng = giá toàn hệ).
 	 * Làm tròn XUỐNG bội số 1.000đ: không ai chuyển khoản 84.150đ, và một con số lẻ trên trang
 	 * bán hàng làm khách dừng lại tự hỏi mình đọc nhầm chỗ nào.
 	 */
-	public static function gia_ban( $menh_gia ) {
+	public static function gia_ban( $menh_gia, $ma_may = '' ) {
 		$mg = (int) $menh_gia;
 		if ( $mg <= 0 ) { return 0; }
-		$g = (int) floor( $mg * ( 100 - self::giam_cua( $mg ) ) / 100 );
+		$g = (int) floor( $mg * ( 100 - self::giam_cua( $mg, $ma_may ) ) / 100 );
 		$g = (int) ( floor( $g / 1000 ) * 1000 );
 		/* Không bao giờ về 0 hay âm, kể cả khi ai đó khai giảm 70% cho mệnh giá 1.000đ. */
 		return max( 1000, $g );
@@ -210,13 +236,174 @@ class VHG_Ma {
 				'ten'      => (string) $g['ten'],
 				'mo_ta'    => (string) $g['mo_ta'],
 				'vip'      => ! empty( $g['vip'] ),
-				'giam_pt'  => self::giam_cua( $mg ),
-				'gia_ban'  => self::gia_ban( $mg ),
+				'giam_pt'  => self::giam_cua( $mg, $ma_may ),
+				'gia_ban'  => self::gia_ban( $mg, $ma_may ),
 				/* Đúng con số ghế đó sẽ chạy — cùng công thức ghế dùng, không tính lại kiểu khác. */
 				'phut'     => VHG_May::phut_goi( $g, (int) $tl['gia'], (int) $tl['phut'] ),
 			);
 		}
 		return $ra;
+	}
+
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * CẤU HÌNH KHUYẾN MÃI THEO PHẠM VI — CHO APP (bộ phận khác tự setup, không cần vào WP-Admin).
+	 * km_cauhinh() dựng dữ liệu cho màn; luu_km_cauhinh($d) nhận lại và ghi option. Cùng option
+	 * với bảng WP-Admin (vhg_km_coso / vhg_km_ma) nên hai nơi sửa là một. */
+	public static function km_cauhinh() {
+		$coso = array();
+		foreach ( (array) VHG_May::ds_coso() as $c ) {
+			$coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
+				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ) );
+		}
+		$goi = array();
+		foreach ( (array) VHG_May::menh_gia() as $g ) {
+			$goi[] = array( 'tien' => (int) $g['tien'], 'ten' => (string) $g['ten'] );
+		}
+		return array( 'ok' => true, 'coso' => $coso, 'goi' => $goi,
+			'giam_chung' => self::bang_giam(), 'km_coso' => self::km_coso(), 'km_ma' => self::km_ma() );
+	}
+
+	public static function luu_km_cauhinh( $d ) {
+		$kc = array();
+		if ( isset( $d['coso'] ) && is_array( $d['coso'] ) ) {
+			foreach ( $d['coso'] as $cid => $hang ) {
+				$cid = (int) $cid;
+				if ( $cid <= 0 || ! is_array( $hang ) ) { continue; }
+				foreach ( $hang as $mg => $pt ) {
+					$mg = (int) $mg; $pt = trim( (string) $pt );
+					if ( $mg > 0 && '' !== $pt ) { $kc[ $cid ][ $mg ] = max( 0, min( 70, (int) $pt ) ); }
+				}
+			}
+		}
+		update_option( 'vhg_km_coso', $kc );
+		$km = array();
+		if ( isset( $d['ma'] ) && is_array( $d['ma'] ) ) {
+			foreach ( $d['ma'] as $row ) {
+				if ( ! is_array( $row ) ) { continue; }
+				$ma = trim( (string) ( isset( $row['ma'] ) ? $row['ma'] : '' ) );
+				if ( '' === $ma ) { continue; }
+				$pt = ( isset( $row['pt'] ) && is_array( $row['pt'] ) ) ? $row['pt'] : array();
+				foreach ( $pt as $mg => $p ) {
+					$mg = (int) $mg; $p = trim( (string) $p );
+					if ( $mg > 0 && '' !== $p ) { $km[ $ma ][ $mg ] = max( 0, min( 70, (int) $p ) ); }
+				}
+			}
+		}
+		update_option( 'vhg_km_ma', $km );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu khuyến mãi theo cơ sở / mã.' );
+	}
+
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * TRANG GIỚI THIỆU KHUYẾN MÃI — CANVAS TỰ DO KIỂU CANVA (hiện toàn màn khi khách vào /mua-ma).
+	 * BA KHỔ riêng (dọc 9:16 · vuông 1:1 · ngang 16:9); khách dùng thiết bị nào thì ra khổ hợp nhất
+	 * (theo tỉ lệ màn). Mỗi khổ là một canvas: các PHẦN TỬ text/ảnh đặt theo TOẠ ĐỘ % (x,y,w) nên
+	 * poster co theo bề rộng màn mà không vỡ bố cục. Ảnh nén ở client → data:URI (app PIN, không có
+	 * thư viện ảnh WP). Chặn dung lượng: mỗi ảnh ≤ ~400KB, tổng ≤ ~6MB, ≤ 30 phần tử / khổ. */
+	const KMT_KHO      = array( '9x16', '1x1', '16x9' );
+	/* Font: chỉ dùng font CÓ TIẾNG VIỆT (Google Fonts) — Anton/Bungee bỏ vì thiếu dấu tiếng Việt,
+	   chữ có dấu tự rơi về font thường. Kiểu "3D/nổi" nay do HIỆU ỨNG (KMT_HIEU) lo, áp lên mọi font. */
+	const KMT_FONT     = array( 'sans', 'serif', 'mono', 'oswald', 'bevn', 'baloo', 'lobster', 'dancing' );
+	/* Hiệu ứng chữ (CSS, áp lên mọi font): 3d nổi · neon · viền · đổ bóng · vàng kim · gradient. */
+	const KMT_HIEU     = array( '', '3d', 'glow', 'vien', 'bong', 'vang', 'gradient' );
+	const KMT_ANH_MAX  = 420000;
+	const KMT_TONG_MAX = 6000000;
+	const KMT_EL_MAX   = 30;
+
+	private static function kmt_mau_( $s, $def ) {
+		$s = trim( (string) $s );
+		return preg_match( '/^#[0-9a-fA-F]{3,8}$/', $s ) ? $s : $def;
+	}
+	private static function kmt_num_( $v, $min, $max, $def ) {
+		if ( ! is_numeric( $v ) ) { return $def; }
+		$v = (float) $v;
+		if ( $v < $min ) { $v = $min; }
+		if ( $v > $max ) { $v = $max; }
+		return round( $v, 2 );
+	}
+	/* Lọc danh sách phần tử của MỘT khổ. $tong (tham chiếu) để chặn tổng dung lượng ảnh khi LƯU;
+	   truyền null (đọc) thì không chặn tổng — dữ liệu đã bị chặn lúc lưu. */
+	private static function kmt_els_( $els, &$tong = null ) {
+		if ( ! is_array( $els ) ) { return array(); }
+		$ra = array();
+		foreach ( $els as $e ) {
+			if ( count( $ra ) >= self::KMT_EL_MAX ) { break; }
+			if ( ! is_array( $e ) || empty( $e['k'] ) ) { continue; }
+			$k = (string) $e['k'];
+			$base = array(
+				'k'   => $k,
+				'x'   => self::kmt_num_( isset( $e['x'] ) ? $e['x'] : 0, -50, 150, 0 ),
+				'y'   => self::kmt_num_( isset( $e['y'] ) ? $e['y'] : 0, -50, 150, 0 ),
+				'w'   => self::kmt_num_( isset( $e['w'] ) ? $e['w'] : 40, 2, 200, 40 ),
+				'rot' => self::kmt_num_( isset( $e['rot'] ) ? $e['rot'] : 0, -180, 180, 0 ),
+			);
+			if ( 'text' === $k ) {
+				$ff = ( isset( $e['ff'] ) && in_array( (string) $e['ff'], self::KMT_FONT, true ) ) ? (string) $e['ff'] : 'sans';
+				$al = ( isset( $e['al'] ) && in_array( (string) $e['al'], array( 'l', 'c', 'r' ), true ) ) ? (string) $e['al'] : 'c';
+				$hieu = ( isset( $e['hieu'] ) && in_array( (string) $e['hieu'], self::KMT_HIEU, true ) ) ? (string) $e['hieu'] : '';
+				$ra[] = array_merge( $base, array(
+					't'  => mb_substr( sanitize_textarea_field( (string) ( isset( $e['t'] ) ? $e['t'] : '' ) ), 0, 500 ),
+					'fs' => self::kmt_num_( isset( $e['fs'] ) ? $e['fs'] : 6, 1, 40, 6 ),
+					'ff' => $ff, 'al' => $al, 'hieu' => $hieu,
+					'c'  => self::kmt_mau_( isset( $e['c'] ) ? $e['c'] : '#ffffff', '#ffffff' ),
+					'b'  => empty( $e['b'] ) ? 0 : 1,
+				) );
+			} elseif ( 'image' === $k ) {
+				$src = (string) ( isset( $e['src'] ) ? $e['src'] : '' );
+				if ( 0 === strpos( $src, 'data:image/' ) ) {
+					if ( strlen( $src ) > self::KMT_ANH_MAX ) { continue; }
+					if ( null !== $tong ) {
+						if ( $tong + strlen( $src ) > self::KMT_TONG_MAX ) { continue; }
+						$tong += strlen( $src );
+					}
+				} elseif ( 0 === strpos( $src, 'http' ) ) {
+					$src = esc_url_raw( $src );
+				} else { continue; }
+				if ( '' === $src ) { continue; }
+				$ra[] = array_merge( $base, array(
+					'src' => $src,
+					'ar'  => self::kmt_num_( isset( $e['ar'] ) ? $e['ar'] : 1, 0.05, 20, 1 ),   // cao/rộng
+				) );
+			}
+		}
+		return $ra;
+	}
+
+	public static function km_trang() {
+		$v = get_option( 'vhg_km_trang' );
+		$out = array( 'bat' => 1, 'cta' => 'Mua ngay', 'trang' => array() );
+		if ( is_array( $v ) && isset( $v['trang'] ) && is_array( $v['trang'] ) ) {
+			$out['bat'] = empty( $v['bat'] ) ? 0 : 1;
+			$out['cta'] = mb_substr( (string) ( isset( $v['cta'] ) ? $v['cta'] : 'Mua ngay' ), 0, 40 );
+			foreach ( self::KMT_KHO as $kho ) {
+				$t = ( isset( $v['trang'][ $kho ] ) && is_array( $v['trang'][ $kho ] ) ) ? $v['trang'][ $kho ] : array();
+				$out['trang'][ $kho ] = array(
+					'bg'  => self::kmt_mau_( isset( $t['bg'] ) ? $t['bg'] : '#0c0e15', '#0c0e15' ),
+					'els' => self::kmt_els_( isset( $t['els'] ) ? $t['els'] : array() ),
+				);
+			}
+		} else {
+			foreach ( self::KMT_KHO as $kho ) { $out['trang'][ $kho ] = array( 'bg' => '#0c0e15', 'els' => array() ); }
+		}
+		return $out;
+	}
+
+	public static function luu_km_trang( $d ) {
+		if ( ! is_array( $d ) ) { $d = array(); }
+		$tong = 0; $trang = array();
+		$tr_in = ( isset( $d['trang'] ) && is_array( $d['trang'] ) ) ? $d['trang'] : array();
+		foreach ( self::KMT_KHO as $kho ) {
+			$t = ( isset( $tr_in[ $kho ] ) && is_array( $tr_in[ $kho ] ) ) ? $tr_in[ $kho ] : array();
+			$trang[ $kho ] = array(
+				'bg'  => self::kmt_mau_( isset( $t['bg'] ) ? $t['bg'] : '#0c0e15', '#0c0e15' ),
+				'els' => self::kmt_els_( isset( $t['els'] ) ? $t['els'] : array(), $tong ),
+			);
+		}
+		$cta = trim( sanitize_text_field( (string) ( isset( $d['cta'] ) ? $d['cta'] : 'Mua ngay' ) ) );
+		if ( '' === $cta ) { $cta = 'Mua ngay'; }
+		$out = array( 'bat' => empty( $d['bat'] ) ? 0 : 1, 'cta' => mb_substr( $cta, 0, 40 ), 'trang' => $trang );
+		update_option( 'vhg_km_trang', $out );
+		$so = 0; foreach ( $trang as $t ) { $so += count( $t['els'] ); }
+		return array( 'ok' => true, 'so' => $so, 'thong_bao' => 'Đã lưu trang giới thiệu (' . $so . ' phần tử).' );
 	}
 
 	// ===================================================================== cỡ mã QR trên màn ghế
@@ -369,8 +556,9 @@ class VHG_Ma {
 	 * ⚠️ GIÁ CHỐT Ở ĐÂY, không tính lại lúc tiền về. Đổi bảng giảm giá giữa chừng mà tính lại là
 	 *    khách trả một đằng nhận một nẻo — và bên thiệt luôn là khách, vì họ đã chuyển tiền rồi.
 	 */
-	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong, $cc = '' ) {
+	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong, $cc = '', $ma_may = '' ) {
 		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
 		$sdt = self::sdt_sach( $sdt );
 		if ( ! self::sdt_hop_le( $sdt ) ) {
 			return array( 'ok' => false, 'error' => 'Số điện thoại chưa đúng.' );
@@ -386,7 +574,7 @@ class VHG_Ma {
 		foreach ( self::ds_menh_gia() as $g ) { if ( (int) $g['menh_gia'] === $mg ) { $hop = true; } }
 		if ( ! $hop ) { return array( 'ok' => false, 'error' => 'Mệnh giá này không bán.' ); }
 
-		$gia = self::gia_ban( $mg );
+		$gia = self::gia_ban( $mg, $ma_may );
 		$don = '';
 		$t   = VHG_DB::t( 'don_ma' );
 		for ( $lan = 0; $lan < 12; $lan++ ) {
@@ -405,12 +593,12 @@ class VHG_Ma {
 			   massage 85.000đ là mất khách ngay ở bước đầu, mà thứ nhận lại chỉ là một đường
 			   lấy lại PIN. Ai muốn có đường đó thì khai. */
 			'cc_bam' => self::bam_cc( $cc ),
-			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg ),
+			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg, $ma_may ),
 			'cho_ngay' => $cho, 'so_luong' => $sl, 'phai_tra' => $gia * $sl,
 			'tao_luc' => current_time( 'mysql' ), 'xong_luc' => null ) );
 		return array( 'ok' => true, 'ma_don' => $don, 'phai_tra' => $gia * $sl,
 			'gia_ban' => $gia, 'menh_gia' => $mg, 'so_luong' => $sl,
-			'giam_pt' => self::giam_cua( $mg ), 'cho_ngay' => $cho );
+			'giam_pt' => self::giam_cua( $mg, $ma_may ), 'cho_ngay' => $cho );
 	}
 
 	public static function don( $ma_don ) {

@@ -940,6 +940,21 @@ class VHG_Trang {
 			return;
 		}
 
+		/* Cấu hình khuyến mãi theo phạm vi — cho bộ phận khác tự setup ngay trong app (tab Mã giảm
+		   giá vốn đã QT). Gate theo quyền quản trị, không phải Admin-only như ch_. */
+		if ( 'km_xem' === $viec || 'km_luu' === $viec || 'kmt_xem' === $viec || 'kmt_luu' === $viec ) {
+			$q = VHG_Auth::quyen_cua( $ai['role'] );
+			if ( empty( $q['quan_tri'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Chỉ quản trị mới chỉnh được khuyến mãi.' ) );
+				return;
+			}
+			if ( 'km_xem' === $viec ) { self::tra( VHG_Ma::km_cauhinh() ); }
+			elseif ( 'km_luu' === $viec ) { self::tra( VHG_Ma::luu_km_cauhinh( $d ) ); }
+			elseif ( 'kmt_xem' === $viec ) { self::tra( array( 'ok' => true, 'blocks' => VHG_Ma::km_trang() ) ); }
+			else { self::tra( VHG_Ma::luu_km_trang( isset( $d['blocks'] ) ? $d['blocks'] : array() ) ); }
+			return;
+		}
+
 		if ( 'quy_toi' === $viec ) {
 			self::tra( array( 'ok' => true, 'cam' => VHG_Quy::dang_cam( (string) $ai['name'] ) ) );
 			return;
@@ -1478,6 +1493,9 @@ class VHG_Trang {
 			. '<title>' . esc_html( self::TEN_HE_THONG ) . '</title>'
 			/* Người đứng quầy lưu trang này vào màn hình chính điện thoại. */
 			. '<meta name="theme-color" content="#12141f">'
+			/* Font trang trí cho editor khuyến mãi (2D/3D để ghép): Anton, Bungee (+Shade/Inline), Pacifico. */
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Baloo+2:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Oswald:wght@600;700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Lobsterfamily=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Dancing+Script:wght@700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapdisplay=swap">'
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien_nen . '>'
 			. '<div id="app"></div>'
 			. '<script>window.VHG_API=' . wp_json_encode( $api ) . ';'
@@ -3794,8 +3812,8 @@ function qlKhoiHtml(ten){
         'The code goes into the transfer memo — letters and digits only, no accents or spaces.') + '</p>'
     + '<div id="ql-wrap"></div>'
     + '<p class="mut" style="margin:8px 0 0">'
-    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). “Điều chuyển” là ẩn ghế đi — ghế ẩn nằm trong khối “Ghế đã điều chuyển” ở cuối bảng, CHỈ SỐ và doanh thu giữ nguyên, cần lắp lại thì mở khối ấy ra bấm “Đưa về”. “Xoá” chỉ dùng cho ghế gõ nhầm mã: ghế đã có lượt thu thì không xoá được.',
-        'Edit the name inline; change Site to reassign (saves immediately). “Move out” hides a chair — hidden chairs sit in the “Moved-out chairs” block at the bottom with meter and revenue intact; open it and press “Restore” to bring one back. “Delete” is only for mistyped codes: a chair with recorded takings cannot be deleted.')
+    + L('Sửa tên ngay trong ô Tên ghế; đổi ô Địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Cả “Điều chuyển” lẫn “Xoá” đều CHỈ ẨN MỀM — ghế chìm xuống khối “Ghế đã ẩn (điều chuyển / xoá)” ở cuối bảng (hiện mờ), CHỈ SỐ và doanh thu giữ nguyên, bấm “Đưa về” là phục hồi. Không có đường nào làm mất hẳn một ghế khỏi hệ.',
+        'Edit the name inline; change Site to reassign (saves immediately). Both “Move out” and “Delete” only SOFT-HIDE — the chair sinks to the dimmed “Hidden chairs (moved-out / deleted)” block at the bottom, meter and revenue intact; press “Restore” to bring it back. No action ever removes a chair for good.')
     + '</p>';
 }
 
@@ -4172,6 +4190,10 @@ function henLai(){
   /* Tab HỖ TRỢ KHÁCH (Hotline) cũng không tự vẽ lại cả trang, cùng lý do 'quan-ly' ở trên: có
      form nhập số lượt kích + tiền hoàn, vẽ lại giữa chừng là xoá số đang gõ dở. */
   if (TAB === 'hl-hotro') return;
+  /* Tab MÃ GIẢM GIÁ: từ 2.26+ có khối "Cấu hình khuyến mãi" và "Trang giới thiệu" (block editor)
+     — vẽ lại cả tab mỗi 30 giây là ĐÓNG khối đang mở, xoá ảnh/chữ đang soạn dở (anh Thắng: "tab
+     cứ F5 liên tục không làm được"). Các con số ở đây không cần realtime — bấm ↻ khi cần. */
+  if (TAB === 'ma') return;
   /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
   if (TAB === 'dieu-khien' && !DK_AUTO) return;
   hen = setTimeout(function(){
@@ -7464,6 +7486,310 @@ function tmRender(){
  * ============================================================================================ */
 var MA_TRA = null;   // kết quả tra theo số điện thoại (null = chưa tra)
 
+/* ═══════════════ CẤU HÌNH KHUYẾN MÃI THEO CƠ SỞ / MÃ (trong app) ═══════════════
+   Bộ phận khác tự setup không cần WordPress. Tải khi mở khối; số chuẩn hoá lại ở máy chủ nên
+   sau khi lưu, mở lại sẽ thấy đúng những gì đã ghi. Ô trống = kế thừa; có số (kể cả 0) = ghi đè. */
+var KM_CFG = null, KM_MA_ROWS = 0;
+function kmCfgTai(){
+  var box = document.getElementById('km-cfg'); if (!box) return;
+  if (KM_CFG) { kmCfgVe(); return; }   // đã tải → vẽ lại NGAY (mở lại sau khi tab re-render không bị rỗng)
+  box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
+  goi('km_xem', {}, function(r){
+    if (!r || !r.ok) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
+    KM_CFG = r; kmCfgVe();
+  });
+}
+function kmCfgVe(){
+  var box = document.getElementById('km-cfg'); if (!box || !KM_CFG) return;
+  var goiL = KM_CFG.goi || [], coso = KM_CFG.coso || [], kc = KM_CFG.km_coso || {}, gc = KM_CFG.giam_chung || {};
+  var h = '<div class="mut" style="margin-bottom:6px">' + L('Mức chung','General') + ': '
+    + (goiL.length ? goiL.map(function(g){ return tien(g.tien) + ' → ' + (gc[g.tien] || 0) + '%'; }).join(' · ')
+                   : L('chưa có gói','no packages')) + '</div>';
+  h += '<input id="km-tim" type="search" oninput="kmCfgLoc()" placeholder="🔎 ' + L('Tìm cơ sở…','Find site…')
+     + '" style="width:100%;max-width:300px;margin-bottom:6px">';
+  h += '<div style="overflow:auto"><table id="km-coso-bang"><thead><tr><th>' + L('Cơ sở','Site') + '</th>';
+  goiL.forEach(function(g){ h += '<th class="r">' + tien(g.tien) + '</th>'; });
+  h += '</tr></thead><tbody>';
+  coso.forEach(function(c){
+    h += '<tr data-kmrow="' + esc(kdJS(c.ten + ' ' + (c.tinh || ''))) + '"><td><b>' + esc(c.ten) + '</b></td>';
+    goiL.forEach(function(g){
+      var v = (kc[c.id] && kc[c.id][g.tien] != null) ? kc[c.id][g.tien] : '';
+      h += '<td class="r"><input type="number" min="0" max="70" data-kmc="' + c.id + ':' + g.tien
+        + '" value="' + esc(String(v)) + '" placeholder="—" style="width:56px"></td>';
+    });
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  h += '<h3 style="margin:12px 0 4px">' + L('Ngoại lệ theo mã ghế','Per-chair exceptions') + '</h3>'
+    + '<p class="mut" style="margin:0 0 4px">' + L('Chỉ khai ghế cần khác cơ sở của nó. Xoá hết % = bỏ ngoại lệ.','Only chairs that differ from their site.') + '</p>';
+  h += '<div style="overflow:auto"><table id="km-ma-bang"><thead><tr><th>' + L('Mã ghế','Code') + '</th>';
+  goiL.forEach(function(g){ h += '<th class="r">' + tien(g.tien) + '</th>'; });
+  h += '</tr></thead><tbody id="km-ma-body"></tbody></table></div>'
+    + '<button onclick="kmCfgThemMa()" class="ghost" style="margin-top:6px">＋ ' + L('Thêm mã','Add code') + '</button>';
+  h += '<div class="act" style="margin-top:10px"><button onclick="kmCfgLuu()" class="on">💾 ' + L('Lưu','Save')
+    + '</button><span id="km-cfg-msg" class="mut" style="align-self:center"></span></div>';
+  box.innerHTML = h;
+  KM_MA_ROWS = 0;
+  var km = KM_CFG.km_ma || {};
+  Object.keys(km).forEach(function(ma){ kmCfgThemMa(ma, km[ma]); });
+  kmCfgThemMa(); kmCfgThemMa();
+}
+function kmCfgThemMa(ma, pt){
+  var body = document.getElementById('km-ma-body'); if (!body || !KM_CFG) return;
+  var goiL = KM_CFG.goi || [], r = KM_MA_ROWS++;
+  var tr = document.createElement('tr');
+  var h = '<td><input type="text" data-kmm-ten="' + r + '" value="' + esc(ma || '') + '" placeholder="AMTP01" style="width:120px"></td>';
+  goiL.forEach(function(g){
+    var v = (pt && pt[g.tien] != null) ? pt[g.tien] : '';
+    h += '<td class="r"><input type="number" min="0" max="70" data-kmm-pt="' + r + ':' + g.tien
+      + '" value="' + esc(String(v)) + '" placeholder="—" style="width:56px"></td>';
+  });
+  tr.innerHTML = h; body.appendChild(tr);
+}
+function kmCfgLoc(){
+  var q = kdJS((document.getElementById('km-tim') || {}).value || '');
+  [].forEach.call(document.querySelectorAll('#km-coso-bang tbody tr'), function(tr){
+    tr.style.display = (!q || (tr.getAttribute('data-kmrow') || '').indexOf(q) >= 0) ? '' : 'none';
+  });
+}
+function kmCfgLuu(){
+  var coso = {};
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmc]'), function(el){
+    var v = (el.value || '').trim(); if (v === '') return;
+    var p = el.getAttribute('data-kmc').split(':'); (coso[p[0]] = coso[p[0]] || {})[p[1]] = v;
+  });
+  var rows = {};
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmm-ten]'), function(el){
+    rows[el.getAttribute('data-kmm-ten')] = { ma: (el.value || '').trim(), pt: {} };
+  });
+  [].forEach.call(document.querySelectorAll('#km-cfg [data-kmm-pt]'), function(el){
+    var v = (el.value || '').trim(); if (v === '') return;
+    var p = el.getAttribute('data-kmm-pt').split(':'); if (rows[p[0]]) rows[p[0]].pt[p[1]] = v;
+  });
+  var ma = Object.keys(rows).map(function(k){ return rows[k]; }).filter(function(x){ return x.ma; });
+  var msg = document.getElementById('km-cfg-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
+  goi('km_luu', { coso: coso, ma: ma }, function(r){
+    if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
+    if (r && r.ok) { KM_CFG = null; }   // buộc tải lại lần mở sau để thấy số đã chuẩn hoá
+  });
+}
+
+/* ═══════════════ TRANG GIỚI THIỆU KHUYẾN MÃI — CANVAS EDITOR KIỂU CANVA (trong app) ═══════════════
+   BA KHỔ riêng (dọc 9:16 · vuông 1:1 · ngang 16:9). Mỗi khổ là canvas: đặt CHỮ/ẢNH theo toạ độ %
+   (x,y,w) — kéo để di chuyển, thanh trên để phóng to/nhỏ, đổi font/màu/đậm/canh lề, xoay. Ảnh nén
+   ngay trên máy (canvas→JPEG) rồi lưu data:URI. Cỡ chữ theo % bề rộng nên poster co theo màn khách.
+   Sửa chữ / xoay / màu chỉ vẽ lại SÂN (giữ con trỏ); thao tác cấu trúc mới vẽ lại cả editor. */
+var KMT_DOC = null, KMT_KHO = '9x16', KMT_SEL = -1, KMT_LOADED = false, KMT_SW = 0, KMT_SH = 0;
+function kmtFontCss(ff){
+  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace',
+    oswald:'"Oswald",sans-serif', bevn:'"Be Vietnam Pro",sans-serif', baloo:'"Baloo 2",cursive',
+    lobster:'"Lobster",cursive', dancing:'"Dancing Script",cursive' };
+  return M[ff] || 'system-ui,-apple-system,Arial,sans-serif';
+}
+var KMT_FONTS = [['sans','Thường'],['bevn','Đậm'],['oswald','Hẹp'],['baloo','Tròn'],
+  ['lobster','Chữ ký'],['dancing','Viết tay'],['serif','Serif'],['mono','Mono']];
+var KMT_HIEU = [['','Không hiệu ứng'],['3d','3D nổi'],['glow','Neon'],['vien','Viền'],['bong','Đổ bóng'],['vang','Vàng kim'],['gradient','Gradient']];
+/* Hiệu ứng chữ (CSS, áp SAU màu nền tảng nên ghi đè được). Viền dùng .055em để co theo cỡ chữ. */
+function kmtHieuCss(e){
+  var c = e.c || '#fff';
+  switch (e.hieu) {
+    case '3d':       return 'text-shadow:0 -1px 0 rgba(255,255,255,.4),2px 2px 0 rgba(0,0,0,.75),4px 4px 0 rgba(0,0,0,.6),6px 8px 10px rgba(0,0,0,.5)';
+    case 'glow':     return 'text-shadow:0 0 6px '+c+',0 0 14px '+c+',0 0 26px '+c;
+    case 'vien':     return '-webkit-text-stroke:.055em '+c+';color:transparent';
+    case 'bong':     return 'text-shadow:1px 1px 1px rgba(255,255,255,.25),2px 4px 7px rgba(0,0,0,.65)';
+    case 'vang':     return 'background:linear-gradient(180deg,#fff6c0,#f5c542 42%,#b57611);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))';
+    case 'gradient': return 'background:linear-gradient(90deg,#ff5e62,#ff9966,#ffd452);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))';
+    default:         return '';
+  }
+}
+function kmtAspect(k){ return k === '9x16' ? [9,16] : k === '16x9' ? [16,9] : [1,1]; }
+function kmtEl(){ return (KMT_SEL >= 0 && KMT_DOC && KMT_DOC.trang[KMT_KHO].els[KMT_SEL]) || null; }
+function kmtTai(){
+  var box = document.getElementById('kmt-ed'); if (!box) return;
+  /* Đã có dữ liệu (kể cả bản đang soạn dở) → VẼ LẠI NGAY, không tải lại. Bẫy cũ: giữ cờ "đã
+     tải" rồi return, nên sau khi tab vẽ lại (đóng <details>) mở ra là RỖNG — "bấm lúc ra lúc
+     không". Nay mở lại luôn dựng lại từ KMT_DOC nên thiết kế không mất. */
+  if (KMT_DOC) { kmtVe(); return; }
+  box.innerHTML = '<span class="mut">' + L('Đang tải…','Loading…') + '</span>';
+  goi('kmt_xem', {}, function(r){
+    if (!r || !r.ok || !r.blocks || !r.blocks.trang) { box.innerHTML = '<span class="err">' + ((r && r.error) || 'Lỗi') + '</span>'; return; }
+    KMT_DOC = r.blocks; KMT_SEL = -1; kmtVe();
+  });
+}
+function kmtVe(){
+  var box = document.getElementById('kmt-ed'); if (!box || !KMT_DOC) return;
+  var nhan = { '9x16':'📱 '+L('Dọc','Portrait'), '1x1':'⬛ '+L('Vuông','Square'), '16x9':'🖥 '+L('Ngang','Landscape') };
+  var h = '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">';
+  ['9x16','1x1','16x9'].forEach(function(k){ h += '<button class="' + (KMT_KHO===k?'on':'ghost') + '" onclick="kmtDoiKho(\'' + k + '\')">' + nhan[k] + '</button>'; });
+  h += '<span style="flex:1"></span>'
+    + '<label style="display:flex;align-items:center;gap:4px"><input type="checkbox" ' + (KMT_DOC.bat?'checked':'') + ' onchange="kmtBat(this.checked)" style="width:auto"> ' + L('Bật màn chào','Splash on') + '</label></div>';
+  h += '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px"><b>' + L('Nút','Button') + ':</b>'
+    + '<input type="text" value="' + esc(KMT_DOC.cta || 'Mua ngay') + '" oninput="kmtCta(this.value)" style="max-width:150px" placeholder="Mua ngay">'
+    + '<b style="margin-left:8px">' + L('Nền','BG') + ':</b><input type="color" value="' + esc((KMT_DOC.trang[KMT_KHO].bg||'#0c0e15').slice(0,7)) + '" oninput="kmtNen(this.value)" style="width:44px;padding:0"></div>';
+  h += '<div class="act" style="flex-wrap:wrap;gap:6px;margin-bottom:8px">'
+    + '<button class="ghost" onclick="kmtThemText()">＋ ' + L('Chữ','Text') + '</button>'
+    + '<label class="button ghost" style="cursor:pointer;margin:0">＋ ' + L('Ảnh','Image') + '<input type="file" accept="image/*" onchange="kmtThemAnh(this)" style="display:none"></label>';
+  var e = kmtEl();
+  if (e) {
+    h += '<span style="flex:1"></span>';
+    if (e.k === 'text') {
+      h += '<select onchange="kmtProp(\'ff\',this.value)">' + KMT_FONTS.map(function(f){ return '<option value="'+f[0]+'"'+(e.ff===f[0]?' selected':'')+'>'+f[1]+'</option>'; }).join('') + '</select>'
+        + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.max(1,(e.fs-0.5)) + ')">A−</button>'
+        + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.min(40,(e.fs+0.5)) + ')">A＋</button>'
+        + '<input type="color" value="' + esc((e.c||'#ffffff').slice(0,7)) + '" oninput="kmtProp(\'c\',this.value)" style="width:38px;padding:0">'
+        + '<button class="' + (e.b?'on':'ghost') + '" onclick="kmtProp(\'b\',' + (e.b?0:1) + ')"><b>B</b></button>'
+        + '<button class="ghost" onclick="kmtProp(\'al\',\'l\')">⬅</button><button class="ghost" onclick="kmtProp(\'al\',\'c\')">▮</button><button class="ghost" onclick="kmtProp(\'al\',\'r\')">➡</button>'
+        + '<select onchange="kmtProp(\'hieu\',this.value)" title="' + L('Hiệu ứng chữ','Text effect') + '">' + KMT_HIEU.map(function(x){ return '<option value="'+x[0]+'"'+((e.hieu||'')===x[0]?' selected':'')+'>✨ '+x[1]+'</option>'; }).join('') + '</select>';
+    } else {
+      h += '<button class="ghost" onclick="kmtProp(\'w\',' + Math.max(5,(e.w-4)) + ')">－</button><button class="ghost" onclick="kmtProp(\'w\',' + Math.min(160,(e.w+4)) + ')">＋</button>';
+    }
+    h += '<button class="ghost" onclick="kmtLop(1)" title="' + L('Lên trên','Front') + '">⤒</button>'
+      + '<button class="ghost" onclick="kmtLop(-1)" title="' + L('Xuống dưới','Back') + '">⤓</button>'
+      + '<button class="ghost" onclick="kmtXoaEl()">🗑</button>'
+      + '<span style="width:100%;display:flex;align-items:center;gap:6px;margin-top:4px">' + L('Xoay','Rotate')
+      + '<input type="range" min="-45" max="45" value="' + (e.rot||0) + '" oninput="kmtProp(\'rot\',this.value)" style="flex:1"></span>';
+  }
+  h += '</div>';
+  if (e && e.k === 'text') {
+    h += '<textarea oninput="kmtProp(\'t\',this.value)" placeholder="' + L('Nội dung chữ…','Text…') + '" style="width:100%;min-height:50px;margin-bottom:8px">' + esc(e.t||'') + '</textarea>';
+  }
+  h += '<div style="overflow:auto;background:#11141c;border-radius:12px;padding:12px;display:flex;justify-content:center">'
+    + '<div id="kmt-stage" style="position:relative"></div></div>';
+  h += '<div class="act" style="margin-top:8px"><button class="on" onclick="kmtLuu()">💾 ' + L('Lưu 3 khổ','Save all') + '</button>'
+    + '<button class="ghost" onclick="kmtXemThu()">👁 ' + L('Xem thử','Preview') + '</button>'
+    + '<span id="kmt-msg" class="mut" style="align-self:center"></span></div>'
+    + '<p class="mut" style="margin-top:6px">' + L('Kéo phần tử để di chuyển; chạm để chọn rồi chỉnh ở thanh trên. Thiết kế cả 3 khổ để khách dùng máy nào cũng đẹp.','Drag to move; tap to select then edit above. Design all 3 sizes.') + '</p>';
+  box.innerHTML = h;
+  kmtVeStage();
+}
+function kmtVeStage(){
+  var st = document.getElementById('kmt-stage'); if (!st || !KMT_DOC) return;
+  /* Sân canvas TO cho dễ chỉnh: dùng gần trọn bề rộng khung soạn (tối đa 760px) và ~62% chiều cao
+     màn — poster vẫn giữ đúng tỉ lệ khổ, chỉ phóng khung sửa cho thao tác thoải mái. */
+  var a = kmtAspect(KMT_KHO);
+  var maxW = Math.min((st.parentNode.clientWidth || 360) - 24, 900);
+  var maxH = Math.min((window.innerHeight || 700) * 0.74, 760);
+  var sw = Math.min(maxW, maxH * a[0] / a[1]); var sh = sw * a[1] / a[0];
+  KMT_SW = sw; KMT_SH = sh;
+  st.style.width = sw + 'px'; st.style.height = sh + 'px';
+  st.style.background = KMT_DOC.trang[KMT_KHO].bg || '#0c0e15';
+  st.style.borderRadius = '10px'; st.style.overflow = 'hidden';
+  var els = KMT_DOC.trang[KMT_KHO].els || [], h = '';
+  els.forEach(function(e, i){
+    var Lx = e.x/100*sw, Ty = e.y/100*sh, W = e.w/100*sw, sel = (i===KMT_SEL);
+    var s = 'position:absolute;left:'+Lx+'px;top:'+Ty+'px;width:'+W+'px;transform:rotate('+(e.rot||0)+'deg);cursor:move;touch-action:none;user-select:none;'
+      + (sel ? 'outline:2px solid #2563eb;outline-offset:1px;' : '');
+    if (e.k === 'text') {
+      s += 'font-size:'+(e.fs/100*sw)+'px;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;overflow-wrap:break-word;'+kmtHieuCss(e);
+      var tx = e.t ? esc(e.t).replace(/\n/g,'<br>') : '<span style="opacity:.4">'+L('(chữ)','(text)')+'</span>';
+      h += '<div class="kmt-eel" data-ei="'+i+'" style="'+s+'">'+tx+'</div>';
+    } else {
+      s += 'height:'+(W*(e.ar||1))+'px';
+      h += '<img class="kmt-eel" data-ei="'+i+'" src="'+esc(e.src)+'" style="'+s+'">';
+    }
+  });
+  st.innerHTML = h;
+  [].forEach.call(st.querySelectorAll('.kmt-eel'), function(el){ el.addEventListener('pointerdown', kmtKeoBat); });
+}
+function kmtKeoBat(ev){
+  var el = ev.currentTarget, i = +el.getAttribute('data-ei');
+  var e = KMT_DOC.trang[KMT_KHO].els[i]; if (!e) return;
+  ev.preventDefault();
+  var x0 = ev.clientX, y0 = ev.clientY, ex = e.x, ey = e.y;
+  try { el.setPointerCapture(ev.pointerId); } catch(_){}
+  function mv(m){
+    var dx = (m.clientX-x0)/KMT_SW*100, dy = (m.clientY-y0)/KMT_SH*100;
+    e.x = Math.max(-40, Math.min(140, ex+dx)); e.y = Math.max(-40, Math.min(140, ey+dy));
+    el.style.left = (e.x/100*KMT_SW)+'px'; el.style.top = (e.y/100*KMT_SH)+'px';
+  }
+  function up(){
+    el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up);
+    KMT_SEL = i; kmtVe();   // chốt chọn + làm mới thanh công cụ cho phần tử này
+  }
+  el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up);
+}
+function kmtProp(f, v){
+  var e = kmtEl(); if (!e) return;
+  if (f === 'fs' || f === 'w' || f === 'rot') { v = parseFloat(v); }
+  if (f === 'b') { v = v ? 1 : 0; }
+  e[f] = v;
+  if (f === 't' || f === 'rot' || f === 'c') { kmtVeStage(); }   // nhẹ: giữ con trỏ ô đang gõ / thanh trượt
+  else { kmtVe(); }
+}
+function kmtThemText(){
+  var els = KMT_DOC.trang[KMT_KHO].els;
+  els.push({ k:'text', x:18, y:42, w:64, rot:0, t:L('Chữ mới','New text'), fs:8, ff:'sans', al:'c', c:'#ffffff', b:1 });
+  KMT_SEL = els.length-1; kmtVe();
+}
+function kmtThemAnh(input){
+  var f = input.files && input.files[0]; if (!f) return;
+  if (!/^image\//.test(f.type)) { alert(L('Chỉ chọn tệp ảnh.','Images only.')); return; }
+  var img = new Image(), url = URL.createObjectURL(f);
+  img.onload = function(){
+    var mx = 1000, w = img.width, hh = img.height;
+    if (w > mx || hh > mx) { var s = Math.min(mx/w, mx/hh); w = Math.round(w*s); hh = Math.round(hh*s); }
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = hh; cv.getContext('2d').drawImage(img,0,0,w,hh);
+    var q = 0.82, data = cv.toDataURL('image/jpeg', q);
+    while (data.length > 380000 && q > 0.4) { q -= 0.12; data = cv.toDataURL('image/jpeg', q); }
+    URL.revokeObjectURL(url);
+    if (data.length > 400000) { alert(L('Ảnh quá lớn sau khi nén — chọn ảnh nhẹ hơn.','Image too large.')); return; }
+    var els = KMT_DOC.trang[KMT_KHO].els;
+    els.push({ k:'image', x:22, y:28, w:56, rot:0, src:data, ar: hh/w });
+    KMT_SEL = els.length-1; kmtVe();
+  };
+  img.onerror = function(){ URL.revokeObjectURL(url); alert(L('Không đọc được ảnh.','Cannot read image.')); };
+  img.src = url;
+}
+function kmtXoaEl(){
+  if (KMT_SEL < 0) return;
+  KMT_DOC.trang[KMT_KHO].els.splice(KMT_SEL, 1); KMT_SEL = -1; kmtVe();
+}
+function kmtLop(dir){
+  var els = KMT_DOC.trang[KMT_KHO].els, i = KMT_SEL; if (i < 0) return;
+  var e = els.splice(i, 1)[0];
+  if (dir > 0) { els.push(e); KMT_SEL = els.length-1; } else { els.unshift(e); KMT_SEL = 0; }
+  kmtVe();
+}
+function kmtNen(c){ if (KMT_DOC) { KMT_DOC.trang[KMT_KHO].bg = c; kmtVeStage(); } }
+function kmtCta(v){ if (KMT_DOC) { KMT_DOC.cta = v; } }
+function kmtBat(c){ if (KMT_DOC) { KMT_DOC.bat = c ? 1 : 0; } }
+function kmtDoiKho(k){ KMT_KHO = k; KMT_SEL = -1; kmtVe(); }
+function kmtLuu(){
+  var msg = document.getElementById('kmt-msg'); if (msg) msg.textContent = L('Đang lưu…','Saving…');
+  goi('kmt_luu', KMT_DOC || {}, function(r){
+    if (msg) msg.textContent = (r && r.ok) ? (r.thong_bao || L('Đã lưu.','Saved.')) : ((r && r.error) || L('Lỗi','Error'));
+  });   // KHÔNG tải lại — giữ nguyên canvas đang soạn, tránh nhảy màn.
+}
+function kmtPosterHtml(kho){
+  var T = KMT_DOC.trang[kho] || { bg:'#0c0e15', els:[] }, a = kmtAspect(kho);
+  var wcss = 'min(94vw, calc(86vh * ' + a[0] + ' / ' + a[1] + '))';
+  var h = '<div style="position:relative;container-type:size;overflow:hidden;border-radius:14px;box-shadow:0 14px 44px rgba(0,0,0,.55);width:'+wcss+';aspect-ratio:'+a[0]+'/'+a[1]+';background:'+esc(T.bg||'#0c0e15')+'">';
+  (T.els||[]).forEach(function(e){
+    var st = 'position:absolute;left:'+e.x+'%;top:'+e.y+'%;width:'+e.w+'%;transform:rotate('+(e.rot||0)+'deg)';
+    if (e.k === 'text') { st += ';font-size:'+e.fs+'cqw;color:'+esc(e.c||'#fff')+';text-align:'+(e.al==='l'?'left':e.al==='r'?'right':'center')+';font-weight:'+(e.b?'800':'400')+';font-family:'+kmtFontCss(e.ff)+';line-height:1.2;'+kmtHieuCss(e);
+      h += '<div style="'+st+'">'+esc(e.t||'').replace(/\n/g,'<br>')+'</div>';
+    } else { h += '<img style="'+st+';height:auto" src="'+esc(e.src)+'">'; }
+  });
+  return h + '</div>';
+}
+function kmtXemThu(){
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;z-index:100000;background:#0a0c12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px';
+  ov.innerHTML = '<button id="kmt-xt-x" style="position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer">✕</button>'
+    + kmtPosterHtml(KMT_KHO)
+    + '<div style="color:#8b93a7;font-size:13px">' + L('Xem thử khổ','Preview') + ' ' + KMT_KHO + '</div>';
+  document.body.appendChild(ov);
+  ov.querySelector('#kmt-xt-x').onclick = function(){ if (ov.parentNode) ov.parentNode.removeChild(ov); };
+}
+
+/* 🔴 PHƠI CÁC HÀM GỌI QUA HANDLER NỘI TUYẾN LÊN window (JS app trong IIFE — xem lỗi "not defined"). */
+window.qlTimGhe = qlTimGhe;
+window.daNopXem = daNopXem; window.daNopLoc = daNopLoc;
+window.kmCfgTai = kmCfgTai; window.kmCfgLoc = kmCfgLoc; window.kmCfgLuu = kmCfgLuu; window.kmCfgThemMa = kmCfgThemMa;
+window.kmtTai = kmtTai; window.kmtDoiKho = kmtDoiKho; window.kmtBat = kmtBat; window.kmtCta = kmtCta; window.kmtNen = kmtNen;
+window.kmtThemText = kmtThemText; window.kmtThemAnh = kmtThemAnh; window.kmtProp = kmtProp; window.kmtLop = kmtLop;
+window.kmtXoaEl = kmtXoaEl; window.kmtLuu = kmtLuu; window.kmtXemThu = kmtXemThu;
+
 function veMa(){
   var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
   var h = '<div class="kpis">'
@@ -7475,6 +7801,26 @@ function veMa(){
     + kpi(L('ĐANG NỢ KHÁCH','OWED TO CUSTOMERS'), tien(M.no.tong),
         M.no.so_ma + ' ' + L('mã chưa dùng','unused codes'), 'd')
     + '</div>';
+
+  /* Cấu hình khuyến mãi theo cơ sở / mã — NGAY TRONG APP để bộ phận khác tự setup, không cần
+     vào WordPress. Gấp lại (<details>), chỉ tải khi mở (ontoggle) — 74 cơ sở không nên tải mỗi
+     lần vào tab. */
+  h += '<details class="card" ontoggle="if(this.open)kmCfgTai()">'
+    + '<summary style="cursor:pointer;font-weight:700;font-size:16px">🎯 '
+    + L('Cấu hình khuyến mãi theo cơ sở / mã','Promo by site / code') + '</summary>'
+    + '<p class="mut" style="margin:.4em 0 0">'
+    + L('% giảm riêng cho từng cơ sở hoặc từng mã ghế — chỉnh ngay tại đây, không cần vào WordPress. Ô trống = theo mức chung. Cụ thể nhất thắng: mã → cơ sở → chung.',
+        'Per-site or per-chair discount %. Blank = general rate. Most specific wins: code → site → general.')
+    + '</p><div id="km-cfg" style="margin-top:8px"></div></details>';
+
+  /* Trang giới thiệu khuyến mãi cho khách (block editor) — hiện ở ĐẦU trang /mua-ma. */
+  h += '<details class="card" ontoggle="if(this.open)kmtTai()">'
+    + '<summary style="cursor:pointer;font-weight:700;font-size:16px">🖼️ '
+    + L('Trang giới thiệu khuyến mãi (đầu trang Mua mã)','Promo intro page (top of buy page)') + '</summary>'
+    + '<p class="mut" style="margin:.4em 0 0">'
+    + L('Thiết kế tự do kiểu Canva màn khách thấy đầu tiên: đặt chữ/ảnh, kéo–phóng–xoay–đổi font. Ba khổ riêng (dọc·vuông·ngang) — khách dùng máy nào ra khổ đó, poster co theo màn.',
+        'Free Canva-style design customers see first: place text/images, drag–resize–rotate–font. Three sizes (portrait·square·landscape) served by device.')
+    + '</p><div id="kmt-ed" style="margin-top:8px"></div></details>';
 
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * VÍ KHÁCH — đứng ngay dưới ô mã, không tách tab.
@@ -7708,6 +8054,60 @@ function veKichHoat(){
  * TAB QUẢN LÝ GHẾ — địa điểm (thêm/sửa/xoá), ghế (thêm/xoá/chuyển cơ sở), doanh thu theo địa điểm.
  * Dữ liệu lấy sẵn từ so_lieu: D.coso (danh sách), D.may (ghế), D.tong.theo_coso (doanh thu/kỳ).
  * ========================================================================================== */
+/* Dò mã ghế trùng / lồng nhau — anh Thắng 10/09/2026: "check mã xem có máy nào trùng mã không".
+   Khớp giao dịch dùng TOKEN nguyên văn (GHE <mã> <mãlệnh>) + bảng may có UNIQUE KEY ma, nên
+   trùng tuyệt đối gần như không xảy ra — nhưng dữ liệu cũ (trước khi có UNIQUE) có thể lọt, nên
+   vẫn quét cho chắc. "Lồng" = mã này là ĐẦU (tiền tố) của mã kia (8013 ⊂ 80133): token bảo vệ
+   khỏi tự nuốt, nhưng khách gõ thiếu đuôi thì dễ nhầm — cảnh báo nhẹ. Bỏ dòng chờ gán '?<mac>'. */
+function maTrungTim(may){
+  var theoMa = {};
+  (may || []).forEach(function(m){
+    var raw = (m.ma || '').trim();
+    if (!raw || raw.charAt(0) === '?') return;
+    var k = raw.toUpperCase();
+    (theoMa[k] = theoMa[k] || []).push({ ma: raw, coso: m.coso || '', an: !!m.an });
+  });
+  var trung = [];
+  Object.keys(theoMa).forEach(function(k){ if (theoMa[k].length > 1) trung.push({ ma: k, ds: theoMa[k] }); });
+  var keys = Object.keys(theoMa), longg = [];
+  for (var i = 0; i < keys.length; i++) {
+    for (var j = 0; j < keys.length; j++) {
+      if (i === j) continue;
+      if (keys[j].length > keys[i].length && keys[j].indexOf(keys[i]) === 0) {
+        longg.push({ con: keys[i], cha: keys[j] });
+      }
+    }
+  }
+  return { trung: trung, long: longg };
+}
+
+/* Tìm ghế theo mã / tên trên TOÀN BỘ D.may — anh Thắng 10/09/2026: ghế lạc cơ sở ("tự nhiên mất
+   máy") thì phải có chỗ gõ mã ra ngay đang ở đâu. Quét cả ghế đã ẩn (an=1) và ghế chưa gán, dò
+   bỏ dấu qua kdJS. Không vẽ lại tab (giữ con trỏ) — chỉ bơm kết quả vào #ql-ghetim-kq. */
+function qlTimGhe(){
+  var box = document.getElementById('ql-ghetim-kq'); if (!box) return;
+  var inp = document.getElementById('ql-ghetim');
+  var q = kdJS(inp ? inp.value : '');
+  if (!q) { box.innerHTML = ''; return; }
+  var kq = (D.may || []).filter(function(m){
+    if (!m.ma || m.ma.charAt(0) === '?') return false;
+    return kdJS(m.ma).indexOf(q) >= 0 || kdJS(m.ten || '').indexOf(q) >= 0;
+  }).slice(0, 40);
+  if (!kq.length) {
+    box.innerHTML = '<div class="mut" style="padding:6px 0">' + L('Không thấy ghế nào khớp.','No chair matches.') + '</div>';
+    return;
+  }
+  var h = '<table style="margin-top:6px"><tr><th>' + L('Mã','Code') + '</th><th>' + L('Tên','Name')
+    + '</th><th>' + L('Địa điểm','Site') + '</th><th>' + L('Trạng thái','State') + '</th></tr>';
+  kq.forEach(function(m){
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td><td class="mut">' + esc(m.ten || '') + '</td>'
+      + '<td>' + (m.coso ? esc(m.coso) : '<span style="color:#b45309">' + L('(chưa gán)','(unassigned)') + '</span>') + '</td>'
+      + '<td>' + (m.an ? '<span style="color:#dc2626">' + L('đã ẩn','hidden') + '</span>'
+                      : '<span style="color:#15803d">' + L('đang dùng','active') + '</span>') + '</td></tr>';
+  });
+  box.innerHTML = h + '</table>';
+}
+
 function veQuanLy(){
   var coso = D.coso || [], may = D.may || [];
   var tc = (D.tong && D.tong.theo_coso) || [];
@@ -7725,6 +8125,41 @@ function veQuanLy(){
     + kpi(L('Doanh thu kỳ','Revenue'), tien(D.tong ? D.tong.tong : 0),
         L('kỳ đang xem','selected period'), 'd')
     + '</div>';
+
+  /* ---- Cảnh báo mã trùng / lồng nhau ---- */
+  var _mt = maTrungTim(may);
+  if (_mt.trung.length || _mt.long.length) {
+    h += '<div class="card" style="border:1px solid #f0c0c0;background:#fff5f5">'
+       + '<h2 style="color:#dc2626;margin-top:0">⚠ ' + L('Cảnh báo mã ghế','Chair-code warnings') + '</h2>';
+    if (_mt.trung.length) {
+      h += '<p style="color:#dc2626;font-weight:700;margin:.2em 0">'
+         + L('Trùng mã (nghiêm trọng) — tiền có thể chạy nhầm ghế:','Duplicate codes (critical) — money may go to the wrong chair:')
+         + '</p><ul style="margin:.2em 0 .6em 1.1em">';
+      _mt.trung.forEach(function(t){
+        h += '<li><code>' + esc(t.ma) + '</code> — ' + t.ds.map(function(x){
+          return esc(x.coso || L('(chưa gán)','(unassigned)')) + (x.an ? ' ' + L('(đã ẩn)','(hidden)') : '');
+        }).join(' · ') + '</li>';
+      });
+      h += '</ul>';
+    }
+    if (_mt.long.length) {
+      h += '<p style="color:#b45309;font-weight:600;margin:.2em 0">'
+         + L('Mã lồng nhau (dễ gõ nhầm) — nên đổi để không mã nào là đầu của mã khác:','Nested codes (easy to mistype) — no code should be the start of another:')
+         + '</p><ul style="margin:.2em 0 .4em 1.1em">';
+      _mt.long.forEach(function(p){ h += '<li><code>' + esc(p.con) + '</code> ⊂ <code>' + esc(p.cha) + '</code></li>'; });
+      h += '</ul>';
+    }
+    h += '</div>';
+  }
+
+  /* ---- Tìm ghế theo mã / tên (định vị ghế lạc cơ sở / đã ẩn) ---- */
+  h += '<div class="card"><h2>🔎 ' + L('Tìm ghế theo mã / tên','Find a chair by code / name') + '</h2>'
+    + '<p class="mut" style="margin:.2em 0 .5em">'
+    + L('Gõ mã (vd 80132) hoặc tên (vd GO-BL-2) để biết ghế đang ở đâu — kể cả ghế đã ẩn hay lạc sang cơ sở khác.',
+        'Type a code or name to locate a chair anywhere — including hidden or misfiled ones.')
+    + '</p>'
+    + '<input id="ql-ghetim" type="search" oninput="qlTimGhe()" placeholder="80132 / GO-BL-2" style="width:100%;max-width:360px">'
+    + '<div id="ql-ghetim-kq"></div></div>';
 
   /* ---- Địa điểm ---- */
   /* Gợi ý Tỉnh/TP = chính những tỉnh đã nhập ở các địa điểm có sẵn (anh Thắng 10/09/2026:
@@ -8029,7 +8464,7 @@ function qlGheRender(){
          bang, nhung voi ghe DANG CHAY thi loi dung la Dieu chuyen (giu chi so va doanh thu).
          May chu choi xoa ghe da co luot thu; nut nay chi de don ca go nham ma luc them. */
       + ' <button data-mxoa="' + esc(m.ma) + '" class="ghost" title="'
-      + L('Chi xoa duoc ghe chua tung co luot thu nao','Only chairs with no recorded takings')
+      + L('An ghe (khong xoa cung) — chim xuong khoi "Ghe da an", chi so & lich su con nguyen, dua ve duoc','Hide chair (soft, never lost) — sinks to the hidden block, restorable')
       + '">🗑</button>'
       + '</td></tr>';
   }
@@ -8046,7 +8481,7 @@ function qlGheRender(){
     h += '<details class="ql-an" style="margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;'
       + 'background:#f8fafc;padding:8px 12px">'
       + '<summary style="cursor:pointer;font-weight:600;color:#475569">📦 '
-      + L('Ghe da dieu chuyen','Moved-out chairs') + ' (' + anDs.length + ')</summary>'
+      + L('Ghe da an (dieu chuyen / xoa)','Hidden chairs (moved-out / deleted)') + ' (' + anDs.length + ')</summary>'
       + '<p class="mut" style="margin:8px 0">'
       + L('Cac ghe nay da an khoi man thu tien cua nhan vien. CHI SO va DOANH THU van con nguyen — bam "Dua ve" la dung lai duoc ngay.',
           'These chairs are hidden from the staff screen. Meter and revenue are intact — press "Restore" to bring one back.')
@@ -8125,11 +8560,11 @@ function qlGheRender(){
   [].forEach.call(box.querySelectorAll('[data-mxoa]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-mxoa');
-      /* Nói đúng thứ sắp xảy ra: máy chủ CHỐI xoá ghế đã có lượt thu, nên câu hỏi này chỉ áp
-         cho ghế trắng sổ. Câu cũ ("doanh thu đã ghi giữ nguyên") là của bản xoá thẳng ngày
-         trước — để lại thì hứa một đằng, máy chủ làm một nẻo. */
-      if (!confirm(L('Xoá hẳn ghế ' + m + ' khỏi danh mục?\nChỉ xoá được ghế CHƯA TỪNG có lượt thu nào — ghế đang chạy thì dùng "Điều chuyển".',
-        'Delete chair ' + m + ' from the list?\nOnly chairs with NO recorded takings can be deleted — use "Move out" for active chairs.'))) return;
+      /* Từ 2.23.0 "Xoá" KHÔNG xoá cứng nữa mà ẨN MỀM (an=1) — ghế rơi xuống khối "Ghế đã điều
+         chuyển" ở cuối bảng, chỉ số/lịch sử còn nguyên, "Đưa về" là phục hồi. Không còn đường
+         nào làm mất một ghế khỏi hệ (đúng vụ "tự nhiên mất máy"). Nói đúng thứ sắp xảy ra. */
+      if (!confirm(L('Ẩn ghế ' + m + ' khỏi danh sách?\nGhế chìm xuống khối "Ghế đã điều chuyển" (mờ) ở cuối bảng — KHÔNG mất dữ liệu, chỉ số & lịch sử còn nguyên. Đưa về lại được bất cứ lúc nào.',
+        'Hide chair ' + m + '?\nIt sinks to the dimmed "Moved-out chairs" block — nothing is lost, meter & history stay. You can bring it back anytime.'))) return;
       lam('may_xoa', { ma: m });
     };
   });

@@ -196,6 +196,8 @@ class VHG_Shop {
 			   tỉ lệ riêng. Chưa biết ghế (màn mua) thì tỉ lệ chung là đúng. */
 			$ghe_ = self::ghe_tu_dia_chi( $d );
 			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia( $ghe_ ),
+				/* Trang giới thiệu khuyến mãi (block do quản lý soạn) — hiện ở đầu tab Mua mã. */
+				'km_trang' => VHG_Ma::km_trang(),
 				'goi_nap' => VHG_Vi::goi_nap(),
 				'ban_ma'  => VHG_Ma::con_ban_ma() ? 1 : 0,
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
@@ -215,12 +217,16 @@ class VHG_Shop {
 					'error' => 'Cửa hàng đã chuyển sang nạp ví — mời anh/chị dùng mục Nạp ví.' ) );
 				return;
 			}
+			/* 🔴 TRUYỀN MÃ GHẾ VÀO ĐƠN. Giá thật khách trả phải theo đúng phạm vi khuyến mãi của
+			   ghế đó (mã → cơ sở → mặc định), khớp với giá đã hiện ở 'goi'. Không truyền là khách
+			   thấy giá cơ sở/ghế nhưng bị tính giá toàn hệ — trả một đằng thấy một nẻo. */
 			$r = VHG_Ma::dat_don(
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['pin'] ) ? $d['pin'] : '',
 				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
 				isset( $d['so_luong'] ) ? $d['so_luong'] : 1,
-				isset( $d['cc'] ) ? $d['cc'] : '' );
+				isset( $d['cc'] ) ? $d['cc'] : '',
+				self::ghe_tu_dia_chi( $d ) );
 			self::tra_don( $r );
 			return;
 		}
@@ -525,6 +531,20 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 .hero h1{margin:0 0 6px;font-size:25px;line-height:1.25;letter-spacing:-.01em}
 .hero .sub{color:#a79a7d;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 /* Dải "giảm tới X%" — lý do duy nhất khách dừng lại đọc trang này. Nên nó to, và nó ở trên cùng. */
+/* --- Trang giới thiệu khuyến mãi: MÀN CHÀO toàn màn hình + POSTER canvas 3 khổ, co theo màn --- */
+.kmt-splash{position:fixed;inset:0;z-index:9999;overflow:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:22px 12px;background:#0a0c12}
+.kmt-poster{position:relative;container-type:size;overflow:hidden;border-radius:14px;flex:0 0 auto;
+  max-width:96vw;box-shadow:0 14px 44px rgba(0,0,0,.55)}
+.kmt-el{position:absolute;line-height:1.2;transform-origin:center center}
+img.kmt-el{height:auto;object-fit:contain;border-radius:6px}
+.kmt-splash-cta{display:block;width:100%;max-width:460px;padding:15px 18px;border:0;border-radius:14px;
+  background:linear-gradient(135deg,#f0b429,#e0952a);color:#241800;font-size:17px;font-weight:800;
+  cursor:pointer;box-shadow:0 8px 24px rgba(240,180,41,.35);flex:0 0 auto}
+.kmt-splash-x{position:fixed;top:14px;right:16px;width:40px;height:40px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.22);background:rgba(0,0,0,.4);color:#fff;font-size:16px;cursor:pointer;z-index:1}
+
 .deal{margin:16px 0 4px;padding:13px 16px;border-radius:14px;text-align:center;
   background:linear-gradient(135deg,rgba(240,180,41,.22),rgba(240,180,41,.08));
   border:1px solid rgba(240,180,41,.45)}
@@ -1380,11 +1400,82 @@ function veNap(){
   return h;
 }
 
+// ---------------- trang giới thiệu khuyến mãi — CANVAS 3 khổ (quản lý soạn kiểu Canva) ----------------
+/* Khách vào /mua-ma là "đập mặt" MÀN CHÀO toàn màn hình; bấm nút CTA / ✕ mới lộ trang gói. Ba khổ
+   riêng (dọc·vuông·ngang) — chọn khổ hợp tỉ lệ màn khách. Poster giữ tỉ lệ, co theo màn (dùng cqw
+   cho cỡ chữ nên chữ/ảnh nhỏ đều, không vỡ bố cục). Hiện 1 lần mỗi lần vào trang. */
+var KMT_SPLASH_SHOWN = false;
+function kmtFontCss(ff){
+  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace',
+    oswald:'"Oswald",sans-serif', bevn:'"Be Vietnam Pro",sans-serif', baloo:'"Baloo 2",cursive',
+    lobster:'"Lobster",cursive', dancing:'"Dancing Script",cursive' };
+  return M[ff] || 'system-ui,-apple-system,Arial,sans-serif';
+}
+function kmtHieuCss(e){
+  var c = e.c || '#fff';
+  switch (e.hieu) {
+    case '3d':       return 'text-shadow:0 -1px 0 rgba(255,255,255,.4),2px 2px 0 rgba(0,0,0,.75),4px 4px 0 rgba(0,0,0,.6),6px 8px 10px rgba(0,0,0,.5)';
+    case 'glow':     return 'text-shadow:0 0 6px '+c+',0 0 14px '+c+',0 0 26px '+c;
+    case 'vien':     return '-webkit-text-stroke:.055em '+c+';color:transparent';
+    case 'bong':     return 'text-shadow:1px 1px 1px rgba(255,255,255,.25),2px 4px 7px rgba(0,0,0,.65)';
+    case 'vang':     return 'background:linear-gradient(180deg,#fff6c0,#f5c542 42%,#b57611);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))';
+    case 'gradient': return 'background:linear-gradient(90deg,#ff5e62,#ff9966,#ffd452);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))';
+    default:         return '';
+  }
+}
+function kmtKhoChon(){
+  var w = window.innerWidth || 360, hh = window.innerHeight || 640, r = w / hh;
+  if (r < 0.8) return '9x16';
+  if (r > 1.25) return '16x9';
+  return '1x1';
+}
+function kmtAspect(kho){ return kho === '9x16' ? [9,16] : kho === '16x9' ? [16,9] : [1,1]; }
+function veKmPoster(kho){
+  var cfg = D && D.km_trang; if (!cfg || !cfg.trang) return '';
+  var T = cfg.trang[kho] || { bg:'#0c0e15', els:[] };
+  var a = kmtAspect(kho);
+  var wcss = 'min(96vw, calc(90vh * ' + a[0] + ' / ' + a[1] + '))';
+  var h = '<div class="kmt-poster" style="width:' + wcss + ';aspect-ratio:' + a[0] + '/' + a[1]
+    + ';background:' + esc(T.bg || '#0c0e15') + '">';
+  (T.els || []).forEach(function(e){
+    var st = 'left:' + e.x + '%;top:' + e.y + '%;width:' + e.w + '%;transform:rotate(' + (e.rot || 0) + 'deg)';
+    if (e.k === 'text') {
+      st += ';font-size:' + e.fs + 'cqw;color:' + esc(e.c || '#fff')
+        + ';text-align:' + (e.al === 'l' ? 'left' : e.al === 'r' ? 'right' : 'center')
+        + ';font-weight:' + (e.b ? '800' : '400') + ';font-family:' + kmtFontCss(e.ff)
+        + ';' + kmtHieuCss(e);
+      h += '<div class="kmt-el" style="' + st + '">' + esc(e.t || '').replace(/\n/g,'<br>') + '</div>';
+    } else if (e.k === 'image' && e.src) {
+      h += '<img class="kmt-el" style="' + st + '" src="' + esc(e.src) + '">';
+    }
+  });
+  return h + '</div>';
+}
+function kmtHienSplash(){
+  if (KMT_SPLASH_SHOWN) return;
+  var cfg = D && D.km_trang;
+  if (!cfg || !cfg.bat || !cfg.trang) return;
+  /* Chọn khổ theo màn; nếu khổ đó chưa thiết kế thì rơi sang khổ nào có nội dung để vẫn hiện. */
+  var uu = [kmtKhoChon(), '9x16', '1x1', '16x9'], kho = null;
+  for (var i = 0; i < uu.length; i++) { var t = cfg.trang[uu[i]]; if (t && (t.els || []).length) { kho = uu[i]; break; } }
+  if (!kho) return;
+  KMT_SPLASH_SHOWN = true;
+  var ov = document.createElement('div'); ov.className = 'kmt-splash';
+  ov.innerHTML = '<button class="kmt-splash-x" id="kmt-splash-x" aria-label="Đóng">✕</button>'
+    + veKmPoster(kho)
+    + '<button class="kmt-splash-cta" id="kmt-splash-go">' + esc(cfg.cta || 'Mua ngay') + ' →</button>';
+  document.body.appendChild(ov);
+  function dong(){ if (ov.parentNode) ov.parentNode.removeChild(ov); }
+  var g = document.getElementById('kmt-splash-go'); if (g) g.onclick = dong;
+  var x = document.getElementById('kmt-splash-x'); if (x) x.onclick = dong;
+}
+
 // ------------------------------------------------------------------ mua
 function veMua(){
   if (DON) return veTraTien();
   if (!D) return L('<div class="card"><p class="mut">Đang tải bảng giá…</p></div>');
 
+  kmtHienSplash();   // màn chào toàn màn hình (nếu quản lý có soạn), khách bấm "Mua ngay" mới xuống đây
   var max = 0;
   D.goi.forEach(function(g){ if (g.giam_pt > max) max = g.giam_pt; });
   var h = '';
@@ -2208,6 +2299,9 @@ JS;
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>Mua mã giảm giá — ' . esc_html( VHG_Trang::TEN_NGAN ) . '</title>'
 			. '<meta name="theme-color" content="#12141f">'
+			/* Font trang trí cho trang khuyến mãi (2D/3D): Anton, Bungee (+Shade/Inline), Pacifico. */
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Baloo+2:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Oswald:wght@600;700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Lobsterfamily=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Dancing+Script:wght@700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapdisplay=swap">'
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien . '>'
 			. '<div id="app"></div>'
 			/* ══════════════════════════════════════════════════════════════════════════════

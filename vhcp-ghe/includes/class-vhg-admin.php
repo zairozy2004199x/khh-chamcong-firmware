@@ -1608,6 +1608,36 @@ class VHG_Admin {
 				unset( $ds[ (int) $_POST['i'] ] );
 				update_option( 'vhg_nguoidung', array_values( $ds ) );
 				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã xoá.' );
+			} elseif ( 'km_coso' === $viec ) {
+				/* Ghi đè % giảm theo CƠ SỞ: [ coso_id => [ menh_gia => % ] ]. Ô trống = không ghi đè
+				   (kế thừa mức chung); có gõ (kể cả 0) = ghi đè thật. Thay TOÀN BỘ option từ form. */
+				$kc = array();
+				foreach ( (array) ( isset( $_POST['kmcoso'] ) ? $_POST['kmcoso'] : array() ) as $cid => $hang ) {
+					$cid = (int) $cid;
+					if ( $cid <= 0 || ! is_array( $hang ) ) { continue; }
+					foreach ( $hang as $mg => $pt ) {
+						$mg = (int) $mg; $pt = trim( (string) $pt );
+						if ( $mg > 0 && '' !== $pt ) { $kc[ $cid ][ $mg ] = max( 0, min( 70, (int) $pt ) ); }
+					}
+				}
+				update_option( 'vhg_km_coso', $kc );
+				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã lưu khuyến mãi theo cơ sở.' );
+			} elseif ( 'km_ma' === $viec ) {
+				/* Ghi đè % giảm theo MÃ MÁY (ngoại lệ, cụ thể hơn cơ sở): [ ma => [ menh_gia => % ] ].
+				   Mã trống hoặc không ô % nào = bỏ ngoại lệ đó. Thay TOÀN BỘ option từ form. */
+				$km  = array();
+				$mas = isset( $_POST['kmma_ma'] ) ? (array) $_POST['kmma_ma'] : array();
+				$pts = isset( $_POST['kmma_pt'] ) ? (array) $_POST['kmma_pt'] : array();
+				foreach ( $mas as $i => $ma ) {
+					$ma = trim( sanitize_text_field( wp_unslash( (string) $ma ) ) );
+					if ( '' === $ma || ! isset( $pts[ $i ] ) || ! is_array( $pts[ $i ] ) ) { continue; }
+					foreach ( $pts[ $i ] as $mg => $pt ) {
+						$mg = (int) $mg; $pt = trim( (string) $pt );
+						if ( $mg > 0 && '' !== $pt ) { $km[ $ma ][ $mg ] = max( 0, min( 70, (int) $pt ) ); }
+					}
+				}
+				update_option( 'vhg_km_ma', $km );
+				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã lưu khuyến mãi theo mã máy.' );
 			}
 		}
 
@@ -1792,6 +1822,55 @@ class VHG_Admin {
 			. 'đường tự mở lại ngoài cơ sở dữ liệu.</p></td></tr>';
 
 		echo '</table><p><button class="button button-primary" name="vhg" value="luu_trang">Lưu</button></p></form>';
+
+		/* ===== KHUYẾN MÃI THEO PHẠM VI (cơ sở / mã máy) ===================================
+		   Ghi đè % giảm ở khối "Giảm giá khi mua mã trước" cho từng cơ sở hoặc từng ghế. Cụ thể
+		   hơn thắng: mã → cơ sở → chung. % đổi thì giá bán đổi theo, và giá khách trả (QR) khớp
+		   đúng phạm vi của ghế khách quét (xem VHG_Ma::giam_cua/gia_ban). */
+		$mgs = VHG_May::menh_gia();
+		$kc  = get_option( 'vhg_km_coso' ); if ( ! is_array( $kc ) ) { $kc = array(); }
+		echo '<hr><h2>Khuyến mãi theo CƠ SỞ</h2>';
+		echo '<p class="description">Mỗi cơ sở có thể có <b>% giảm riêng</b> cho từng gói. <b>Ô trống = theo mức chung</b> ở khối “Giảm giá khi mua mã trước”. Điền số (kể cả <b>0</b> = cơ sở này KHÔNG giảm) là ghi đè riêng. Khách quét tem ở ghế của cơ sở nào thì trả đúng giá của cơ sở đó.</p>';
+		echo '<form method="post">'; wp_nonce_field( 'vhg' );
+		echo '<table class="widefat striped" style="max-width:820px"><thead><tr><th>Cơ sở</th>';
+		foreach ( $mgs as $g_ ) { echo '<th>' . esc_html( self::tien( (int) $g_['tien'] ) ) . '</th>'; }
+		echo '</tr></thead><tbody>';
+		foreach ( VHG_May::ds_coso() as $c ) {
+			$cid = (int) $c['id'];
+			echo '<tr><td><b>' . esc_html( $c['ten'] ) . '</b></td>';
+			foreach ( $mgs as $g_ ) {
+				$mg_ = (int) $g_['tien'];
+				$v   = isset( $kc[ $cid ][ $mg_ ] ) ? (int) $kc[ $cid ][ $mg_ ] : '';
+				echo '<td><input type="number" min="0" max="70" name="kmcoso[' . $cid . '][' . $mg_ . ']" value="'
+					. esc_attr( '' === $v ? '' : $v ) . '" style="width:64px" placeholder="—" /></td>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table><p><button class="button button-primary" name="vhg" value="km_coso">Lưu khuyến mãi theo cơ sở</button></p></form>';
+
+		$km = get_option( 'vhg_km_ma' ); if ( ! is_array( $km ) ) { $km = array(); }
+		echo '<h2>Khuyến mãi theo MÃ MÁY (ngoại lệ)</h2>';
+		echo '<p class="description">Chỉ khai ghế cần KHÁC cơ sở của nó (cụ thể hơn nên thắng cả cơ sở lẫn mức chung). Ô trống = theo cơ sở/chung. Mỗi dòng một mã ghế; xoá hết % của một mã = bỏ ngoại lệ đó. Ba dòng trống ở cuối để thêm mới.</p>';
+		echo '<form method="post">'; wp_nonce_field( 'vhg' );
+		echo '<table class="widefat striped" style="max-width:820px"><thead><tr><th>Mã ghế</th>';
+		foreach ( $mgs as $g_ ) { echo '<th>' . esc_html( self::tien( (int) $g_['tien'] ) ) . '</th>'; }
+		echo '</tr></thead><tbody>';
+		$dsMa = array_keys( $km );
+		$dsMa[] = ''; $dsMa[] = ''; $dsMa[] = '';
+		$ri = 0;
+		foreach ( $dsMa as $ma ) {
+			echo '<tr><td><input type="text" name="kmma_ma[' . $ri . ']" value="' . esc_attr( (string) $ma )
+				. '" placeholder="VD AMTP01" style="width:130px" /></td>';
+			foreach ( $mgs as $g_ ) {
+				$mg_ = (int) $g_['tien'];
+				$v   = ( '' !== $ma && isset( $km[ $ma ][ $mg_ ] ) ) ? (int) $km[ $ma ][ $mg_ ] : '';
+				echo '<td><input type="number" min="0" max="70" name="kmma_pt[' . $ri . '][' . $mg_ . ']" value="'
+					. esc_attr( '' === $v ? '' : $v ) . '" style="width:64px" placeholder="—" /></td>';
+			}
+			echo '</tr>';
+			$ri++;
+		}
+		echo '</tbody></table><p><button class="button button-primary" name="vhg" value="km_ma">Lưu khuyến mãi theo mã</button></p></form>';
 
 		/* ---- Ai vào được, PIN dài mấy số ---- */
 		$u = VHG_Auth::users();
