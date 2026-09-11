@@ -4848,6 +4848,39 @@
     var parents=L.filter(function(l){return String(l.capCha||'')==='';});
     var phatSinh=L.filter(function(l){return String(l.capCha||'')==='(Phát sinh)';});
     var childrenBy={}; L.forEach(function(l){ var c=String(l.capCha||''); if(c && c!=='(Phát sinh)') (childrenBy[c]=childrenBy[c]||[]).push(l); });
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * CÙNG GIAN THÌ NẰM SÁT NHAU.
+     *
+     * Anh Thắng 11/09/2026, nhìn bảng dòng chi của một đơn cơ sở có FUNFEST SC VIVO ở dòng 2
+     * và dòng 4, cách nhau một gian khác: *"Sắp cũng gian thì sát nhau"*.
+     *
+     * Đơn chi phí cơ sở gom nhiều gian vào một đơn, nhập tới đâu thêm tới đó nên các gian cài
+     * răng lược. Muốn cộng nhẩm tiền của một gian là phải rà cả bảng và nhớ trong đầu — đúng
+     * việc máy làm hộ được.
+     *
+     * 🔴 GOM THEO THỨ TỰ GIAN XUẤT HIỆN LẦN ĐẦU, KHÔNG SẮP THEO BẢNG CHỮ CÁI. Sắp A→Z là xáo
+     *    lại toàn bộ bảng người ta vừa nhập, và lần mở sau thứ tự lại khác lần trước. Gom theo
+     *    lần xuất hiện đầu thì bảng giữ nguyên dáng cũ, chỉ có dòng lạc đàn được kéo về cụm
+     *    của nó.
+     *
+     * ⚠️ CHỈ GOM TRONG CÙNG MỘT CẤP. Mục con phải nằm ngay dưới cha của nó — kéo nó đi theo
+     *    gian là bảng gãy quan hệ cha/con, mà tiền của hạng mục lớn lại tính bằng tổng con.
+     *    Nên gom riêng: hạng mục lớn với nhau, phát sinh với nhau, con trong cùng một cha.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    function _daGomGian(ds){
+      var thu={}, oid=[];
+      (ds||[]).forEach(function(l){
+        var g=String((l&&l.gian)||'').trim();
+        if(!thu[g]){ thu[g]=[]; oid.push(g); }
+        thu[g].push(l);
+      });
+      var ra=[];
+      oid.forEach(function(g){ thu[g].forEach(function(l){ ra.push(l); }); });
+      return ra;
+    }
+    parents=_daGomGian(parents);
+    phatSinh=_daGomGian(phatSinh);
+    Object.keys(childrenBy).forEach(function(c){ childrenBy[c]=_daGomGian(childrenBy[c]); });
     // Đổ danh sách hạng mục lớn vào bộ chọn "Thuộc" (giữ lựa chọn hiện tại nếu còn hợp lệ)
     var selCap=el('da_capCha');
     if(selCap){ var cur=selCap.value;
