@@ -131,9 +131,46 @@ function moModal(card){
 	qs('.pve-m-ten').textContent = card.dataset.ten;
 	qs('.pve-m-gia').textContent = tien(card.dataset.gia);
 	qs('.pve-err').hidden = true; qs('.pve-f-ten').value=''; qs('.pve-f-sdt').value='';
+	zaloVaoForm();   /* xoá ô xong mới điền, không thì điền rồi lại bị xoá ngay */
 	show('form'); mask.hidden = false;
 }
 function dong(){ mask.hidden = true; if(timer){ clearInterval(timer); timer=null; } }
+
+/* ═══ THÔNG TIN ZALO ═══════════════════════════════════════════════════════════════════════
+   Khách đã bấm "Đăng nhập Zalo" thì đừng bắt gõ lại tên với số điện thoại.
+
+   ⚠️ Đăng nhập Zalo TRÊN WEB không cho số điện thoại — OAuth v4 chỉ trả id + tên + ảnh. Số chỉ
+   lấy được trong Zalo Mini App. Nên máy chủ lấy SĐT từ vé gần nhất của chính Zalo ID này: lần
+   đầu khách vẫn phải gõ, từ lần hai là có sẵn.
+
+   Chỉ điền vào ô ĐANG TRỐNG. Khách mua hộ người khác mà mình nhảy vào ghi đè tên họ vừa gõ thì
+   vé xuất sai tên, và họ không hiểu vì sao. */
+var ZME = null;
+boc('thông tin Zalo', function(){
+	fetch(REST + '/zalo/toi', { credentials: 'same-origin' })
+		.then(function(r){ return r.json(); })
+		.then(function(d){
+			if (!d || !d.dangnhap) return;
+			ZME = d;
+			dienZalo(document.querySelector('.pve-qf-ten'), d.ten);
+			dienZalo(document.querySelector('.pve-qf-sdt'), d.sdt);
+		})
+		.catch(function(){});   /* mất mạng thì thôi, khách gõ tay — không được chặn mua vé */
+});
+function dienZalo(o, v){ if (o && !o.value && v) { o.value = v; } }
+/* Gọi mỗi lần mở popup: popup có thể mở trước lúc /zalo/toi kịp trả lời. */
+function zaloVaoForm(){
+	var chip = qs('.pve-zme');
+	if (!ZME) { if (chip) chip.hidden = true; return; }
+	dienZalo(qs('.pve-f-ten'), ZME.ten);
+	dienZalo(qs('.pve-f-sdt'), ZME.sdt);
+	if (chip){
+		qs('.pve-zme-t').textContent = ZME.ten || ('Zalo ' + (ZME.id || ''));
+		var a = qs('.pve-zme-a');
+		if (a && ZME.anh) { a.src = ZME.anh; a.hidden = false; }
+		chip.hidden = false;
+	}
+}
 
 /* ═══ MỘT ĐƯỜNG LỌC DUY NHẤT ═══════════════════════════════════════════════════
    Trang có ba chỗ cùng nói về "đang xem khu nào": thanh tab, màn chào mừng chọn khu,

@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` | **1.45.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` | **1.46.0** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -109,6 +109,23 @@ Cả 2 trang tự được tạo khi kích hoạt plugin. Trang quản trị hi�
 - Plugin có **hai** file phải để mắt: `vhcp-ve/vhcp-ve.php` (PHP) và `vhcp-ve/assets/ve.js`
   (toàn bộ việc chạy máy của trang khách). Luôn `php -l` file PHP **và** `node --check` file JS
   trước khi đóng gói.
+
+### ⚠️ Đăng nhập Zalo trên web KHÔNG cho số điện thoại
+OAuth v4 chỉ trả `id`, `name`, `picture`. Số điện thoại chỉ lấy được trong **Zalo Mini App**
+(`getPhoneNumber` → `POSH_Ve::r_zalo_sdt()`). Nên từ **1.46.0** mỗi vé ghi thêm cột `zalo_id`, và
+`GET /wp-json/posh/v1/zalo/toi` trả về tên + ảnh + **SĐT của vé gần nhất cùng Zalo ID** để trang
+điền sẵn hai ô Họ tên / Số điện thoại. Lần đầu khách vẫn phải gõ, từ lần hai là có sẵn — không
+phải dựng thêm kho dữ liệu nào để nhớ.
+
+Trang chỉ điền vào ô **đang trống**: khách mua hộ người khác mà bị ghi đè tên là vé xuất sai tên.
+
+### ⚠️ Popup bị chuyển ra ngoài `.pve-page` — biến màu phải khai lại
+`.pve-mask` và `.pve-wel` được JS `appendChild` thẳng vào `<body>` (để nền mờ phủ kín, khỏi vướng
+theme bọc `transform`). Ra khỏi `.pve-page` là mất bộ biến `--tx/--sf/--g…` khai ở đó, mà
+`color:var(--tx)` khi `--tx` không tồn tại **không phải** là bỏ qua — cả dòng thành "không hợp lệ
+lúc tính giá trị", `color` tụt về kế thừa, tức màu mặc định của theme: **chữ đen trên nền đen**
+(lỗi 11/09/2026, vá ở 1.46.0). Bộ biến được khai lại cho `.pve-mask, .pve-wel`; đổi màu ở
+`.pve-page` thì phải đổi cả ở đó.
 
 ### ⚠️ Việc chạy máy của trang khách nằm ở TỆP NGOÀI — đừng nhét lại vào trang
 Từ bản **1.45.0**, gần 450 dòng JS của `[posh_ve]` chuyển từ khối `<script>` nhúng trong đầu ra

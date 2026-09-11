@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.45.0
+ * Version:           1.46.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@ if ( ! class_exists( 'POSH_Ve' ) ) :
 class POSH_Ve {
 
 	const NS      = 'posh/v1';
-	const VER_TBL = '6';
+	const VER_TBL = '7';
 
 	/* Hạng thành viên mặc định (điểm mốc). 1 điểm = 1.000đ chi tiêu. Sửa trong admin. */
 	const HANG_MAC_DINH = array(
@@ -188,6 +188,7 @@ class POSH_Ve {
 			coso VARCHAR(60) NOT NULL DEFAULT '',
 			giam TINYINT NOT NULL DEFAULT 0,
 			gia_goc INT NOT NULL DEFAULT 0,
+			zalo_id VARCHAR(32) NOT NULL DEFAULT '',
 			tao_luc DATETIME NOT NULL,
 			tt_luc DATETIME NULL,
 			PRIMARY KEY (id), UNIQUE KEY ma_ve (ma_ve), KEY trang_thai (trang_thai)
@@ -210,7 +211,7 @@ class POSH_Ve {
 		   bằng cách sửa tay trong CSDL. Nay thiếu cột thì KHÔNG đánh dấu, lượt tải trang sau tự
 		   thử lại, và ai đó sửa được nguyên nhân là nó tự lành. */
 		$cot = $wpdb->get_col( "SHOW COLUMNS FROM $tbl" );
-		$can = array( 'coso', 'giam', 'gia_goc' );
+		$can = array( 'coso', 'giam', 'gia_goc', 'zalo_id' );
 		foreach ( $can as $c ) {
 			if ( ! in_array( $c, (array) $cot, true ) ) { return; }
 		}
@@ -591,6 +592,7 @@ class POSH_Ve {
 		register_rest_route( self::NS, '/tv', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_tv' ) ) );
 		register_rest_route( self::NS, '/uudai', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_uudai' ) ) );
 		register_rest_route( self::NS, '/zalo/sdt', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_sdt' ) ) );
+		register_rest_route( self::NS, '/zalo/toi', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_toi' ) ) );
 		register_rest_route( self::NS, '/zalo/cb', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_zalo_cb' ) ) );
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
@@ -670,6 +672,7 @@ class POSH_Ve {
 			'ma_ve' => $ma_ve, 'dv_ten' => $goi['ten'], 'so_tien' => $tien,
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'zalo_id' => self::zalo_id_hien(),
 			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
 			'giam' => $g0['ok'] ? (int) $g0['giam'] : 0,
 			'gia_goc' => $goc,
@@ -730,6 +733,7 @@ class POSH_Ve {
 			'ten_khach' => mb_substr( $ten, 0, 80 ), 'sdt' => mb_substr( $sdt, 0, 20 ),
 			'noi_dung' => $noidung, 'chi_tiet' => wp_json_encode( $ct ),
 			'nguon' => ( 'zalo' === $req->get_param( 'nguon' ) ? 'zalo' : 'web' ),
+			'zalo_id' => self::zalo_id_hien(),
 			'coso' => $g0['ok'] ? mb_substr( $g0['ten'], 0, 60 ) : '',
 			'giam' => $pc, 'gia_goc' => $tong_goc,
 			'trang_thai' => 'cho', 'tao_luc' => current_time( 'mysql' ),
@@ -1162,8 +1166,12 @@ class POSH_Ve {
 		$u  = json_decode( $thanMe, true );
 		$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
 		$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
+		/* Ảnh đại diện Zalo trả về lồng trong picture.data.url. Đã xin trường `picture` rồi thì
+		   giữ lại luôn — có ảnh thì khách nhìn phát biết mình đang mua bằng tài khoản nào. */
+		$anh = '';
+		if ( isset( $u['picture']['data']['url'] ) ) { $anh = esc_url_raw( (string) $u['picture']['data']['url'] ); }
 		if ( '' === $id ) { self::ve_kem_loi( $back, 'khong_lay_duoc_id', $thanMe ); }
-		$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
+		$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm, 'anh' => $anh ) ) );
 		$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
 		setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
 		/* Vào được rồi thì nói ai đang vào — và kèm ID để quản trị chép vào ô "Zalo ID quản trị".
@@ -1212,6 +1220,40 @@ class POSH_Ve {
 		$d = json_decode( base64_decode( $val ), true );
 		return is_array( $d ) ? $d : null;
 	}
+	/* Zalo ID của khách đang mở trang ('' nếu chưa đăng nhập) — ghi kèm mỗi vé để sau này tra
+	   "vé của tôi" và để nhớ SĐT khách đã dùng lần trước. */
+	public static function zalo_id_hien() {
+		$zu = self::zalo_user();
+		return ( $zu && ! empty( $zu['id'] ) ) ? preg_replace( '/\D+/', '', (string) $zu['id'] ) : '';
+	}
+
+	/**
+	 * Thông tin khách đang đăng nhập Zalo, cho trang khách điền sẵn ô Họ tên / Số điện thoại.
+	 *
+	 * ⚠️ ĐĂNG NHẬP ZALO TRÊN WEB KHÔNG CHO SỐ ĐIỆN THOẠI. OAuth v4 chỉ trả id + name + picture;
+	 * số điện thoại chỉ lấy được trong Zalo Mini App (getPhoneNumber -> POSH_Ve::r_zalo_sdt()).
+	 * Nên ở đây SĐT lấy từ chính lịch sử mua: vé gần nhất của Zalo ID này. Lần đầu khách vẫn phải
+	 * gõ, từ lần hai trở đi thì có sẵn — và không phải bịa ra một kho dữ liệu riêng để nhớ.
+	 */
+	public static function r_zalo_toi() {
+		$zu = self::zalo_user();
+		if ( ! $zu || empty( $zu['id'] ) ) { return array( 'ok' => true, 'dangnhap' => false ); }
+		global $wpdb;
+		$zid = self::zalo_id_hien();
+		$sdt = '';
+		$cot = $wpdb->get_col( 'SHOW COLUMNS FROM ' . self::tbl() );
+		/* Bảng chưa kịp nâng cấp cột zalo_id thì bỏ phần nhớ SĐT, ĐỪNG chạy câu SQL hỏng: mất
+		   điền sẵn là phiền, mà lỗi 500 ở đây thì trang khách trắng luôn phần thông tin Zalo. */
+		if ( in_array( 'zalo_id', (array) $cot, true ) ) {
+			$sdt = (string) $wpdb->get_var( $wpdb->prepare(
+				'SELECT sdt FROM ' . self::tbl() . " WHERE zalo_id=%s AND sdt<>'' ORDER BY id DESC LIMIT 1", $zid ) );
+		}
+		return array( 'ok' => true, 'dangnhap' => true, 'id' => $zid,
+			'ten' => isset( $zu['name'] ) ? (string) $zu['name'] : '',
+			'anh' => isset( $zu['anh'] ) ? (string) $zu['anh'] : '',
+			'sdt' => $sdt );
+	}
+
 	/* Zalo user đã đăng nhập có phải admin? Danh sách ID admin khai ở admin (cách nhau dấu phẩy).
 	   Để TRỐNG = mọi người đã đăng nhập đều thấy nút Quản trị (trang vẫn khoá PIN). */
 	public static function la_admin_zalo( $zu ) {
@@ -1999,6 +2041,8 @@ class POSH_Ve {
 				<div class="pve-step pve-step-form">
 					<div class="pve-m-ten"></div>
 					<div class="pve-m-gia"></div>
+					<?php /* Điền bằng JS sau khi hỏi /zalo/toi — xem khối "THÔNG TIN ZALO" trong assets/ve.js. */ ?>
+					<div class="pve-zme" hidden><img class="pve-zme-a" alt="" hidden><span>Mua bằng tài khoản Zalo <b class="pve-zme-t"></b></span></div>
 					<label class="pve-lb">Họ tên</label>
 					<input class="pve-in pve-f-ten" placeholder="Tên người mua" autocomplete="name">
 					<label class="pve-lb">Số điện thoại</label>
@@ -2144,6 +2188,19 @@ class POSH_Ve {
 		.pve-con{ font-size:12px; color:var(--mut); font-weight:600; }
 		.pve-het{ opacity:.6; } .pve-het .pve-con{ color:#e07a7a; }
 		/* Popup mua vé */
+		/* 🔴 KHAI LẠI BỘ MÀU CHO POPUP — ĐỪNG BỎ.
+		   .pve-mask và .pve-wel bị JS chuyển ra thẳng <body> (để nền mờ phủ kín, khỏi vướng theme
+		   bọc transform). Ra khỏi .pve-page là mất luôn mấy biến màu khai ở đó, mà `color:var(--tx)`
+		   khi --tx không tồn tại thì KHÔNG phải là bỏ qua: cả dòng thành "không hợp lệ lúc tính
+		   giá trị" và color tụt về kế thừa — tức màu chữ mặc định của theme, ĐEN trên nền đen.
+		   Đúng lỗi 11/09/2026 "nếu chữ đen": gõ tên vào ô mà không đọc được mình vừa gõ gì.
+		   Đổi màu ở .pve-page thì đổi cả ở đây. */
+		.pve-mask, .pve-wel{ --g:#d4af37; --g2:#e7cd7a; --bg:#0b0c10; --sf:#15171e; --sf2:#1c1f28;
+			--bd:rgba(212,175,55,.22); --tx:#ece9e1; --mut:#9b978c; }
+		/* Và chốt thẳng màu chữ ô nhập: nhiều theme đặt color/-webkit-text-fill-color cho input với
+		   độ ưu tiên cao hơn, biến có đúng vẫn bị đè. Ô nhập thì phải đọc được, không thương lượng. */
+		.pve-in, .pve-qf-grid input, .pve-qf-grid select{ color:#ece9e1 !important; -webkit-text-fill-color:#ece9e1 !important; }
+		.pve-in:-webkit-autofill{ -webkit-text-fill-color:#ece9e1 !important; -webkit-box-shadow:0 0 0 1000px #1c1f28 inset; }
 		.pve-mask[hidden], .pve-wel[hidden]{ display:none !important; }   /* [hidden] phải thắng display:flex */
 		/* Hộp đặt vé phải nằm TRÊN mọi lớp phủ khác (màn chào mừng z-index 100000): thấp hơn là
 		   bấm mở được mà hộp bị chôn bên dưới, nhìn y như không có chuyện gì xảy ra. */
@@ -2154,6 +2211,11 @@ class POSH_Ve {
 		.pve-m-gia{ font-weight:800; font-size:21px; color:var(--g2); margin:2px 0 14px; }
 		.pve-lb{ display:block; font-size:13px; color:var(--mut); margin:10px 0 4px; font-weight:600; }
 		.pve-in{ width:100%; box-sizing:border-box; border:1px solid #33363f; background:var(--sf2); color:var(--tx); border-radius:10px; padding:11px 13px; font-size:15px; }
+		.pve-zme{ display:flex; align-items:center; gap:8px; margin:2px 0 10px; padding:8px 10px; border-radius:10px;
+			background:rgba(212,175,55,.1); border:1px solid var(--bd); color:var(--g2); font-size:12.5px; }
+		.pve-zme[hidden]{ display:none; }
+		.pve-zme img{ width:26px; height:26px; border-radius:50%; object-fit:cover; flex:none; }
+		.pve-zme b{ color:#fff; }
 		.pve-in::placeholder{ color:#6f6b61; }
 		.pve-in:focus{ outline:none; border-color:var(--g); }
 		.pve-go{ width:100%; margin-top:16px; border:none; background:linear-gradient(135deg,var(--g2),var(--g)); color:#1a1204; font-weight:800; font-size:16px; padding:13px; border-radius:12px; cursor:pointer; }
