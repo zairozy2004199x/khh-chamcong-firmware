@@ -138,6 +138,23 @@ function qs(s){ return mask.querySelector(s); }
    sang nút khác và bấm vào nó không ra gì — trong khi mua qua Giỏ thì vẫn chạy.
    Nên mọi thứ thuộc bước ĐẶT LẺ tra bằng qf() (có buộc phạm vi), đừng dùng qs() nữa. */
 function qf(s){ return mask.querySelector('.pve-step-form ' + s); }
+/* Cùng luật cho bước MÃ QR. Lần thứ tư dính bẫy này (11/09/2026): ví vé vẽ mỗi vé một
+   `<span class="pve-badge">`, mà bước ví đứng TRƯỚC bước mã QR — nên qs('.pve-badge') trả về
+   nhãn của một tấm vé trong ví, và việc đổi "Chờ thanh toán" -> "Đã thanh toán" đi lạc sang đó.
+   Khách nhìn màn chuyển khoản thấy đứng im mãi, dù tiền đã vào và quản trị đã cộng ví. */
+function qq(s){ return mask.querySelector('.pve-step-qr ' + s); }
+/* ═══ HỎI MÁY CHỦ, KHÔNG LẤY BẢN CŨ TRONG ĐỆM ══════════════════════════════════════════════
+   🔴 Trang hỏi trạng thái 5 giây một lượt bằng CÙNG MỘT ĐỊA CHỈ. Trình duyệt — và nhất là lớp
+   nhớ đệm của site (SpeedyCache) — hoàn toàn có thể trả lại y nguyên câu trả lời cũ mà không
+   hỏi máy chủ. Khi ấy tiền đã về, máy chủ đã đổi trạng thái, mà màn hình khách đứng im: phải
+   F5 mới thấy. Đúng chuyện 11/09/2026.
+   Hai lớp chặn: `cache:'no-store'` và thêm một tham số đổi theo từng lượt để địa chỉ không
+   bao giờ lặp lại. */
+function layMoi(url){
+	var u = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+	return fetch(u, { credentials: 'same-origin', cache: 'no-store' });
+}
+function qqa(s){ return Array.prototype.slice.call(mask.querySelectorAll('.pve-step-qr ' + s)); }
 function qsa(s){ return Array.prototype.slice.call(mask.querySelectorAll(s)); }
 /* Ba bước dùng chung một khung popup: giỏ / form đặt lẻ / mã QR. Duyệt theo data-step thay vì
    gọi tên từng khối — thêm bước thứ tư sau này khỏi phải sửa hàm này. */
@@ -172,7 +189,7 @@ function dong(){ mask.hidden = true; if(timer){ clearInterval(timer); timer=null
    vé xuất sai tên, và họ không hiểu vì sao. */
 var ZME = null;
 boc('thông tin Zalo', function(){
-	fetch(REST + '/zalo/toi', { credentials: 'same-origin' })
+	layMoi(REST + '/zalo/toi')
 		.then(function(r){ return r.json(); })
 		.then(function(d){
 			if (!d || !d.dangnhap) return;
@@ -235,7 +252,7 @@ function napNutVi(){
 	}
 }
 function viTienTai(){
-	return fetch(REST + '/vi/toi', { credentials:'same-origin' })
+	return layMoi(REST + '/vi/toi')
 		.then(function(r){ return r.json(); })
 		.then(function(d){ if (d){ VI = { dangnhap: !!d.dangnhap, so_du: d.so_du || 0, goi: d.goi || [] }; } viTienVe(); })
 		.catch(function(){});
@@ -955,15 +972,15 @@ function hienQR(v){
 	   KHÔNG phải vé — bỏ nó vào ví vé là khách thấy một tấm "vé" không vào cửa được. */
 	if (!v.la_nap) { viThem(v.ma_ve); }
 	mask.hidden = false;   // mở popup (dùng cho cả form đặt nhanh)
-	qs('.pve-r-mave').textContent = v.ma_ve;
-	qs('.pve-r-goi').textContent  = v.goi_ten;
-	qs('.pve-r-tien').textContent = tien(v.so_tien);
-	qs('.pve-r-nh').textContent   = (v.bank&&v.bank.ten_nh)||'';
-	qs('.pve-r-stk').textContent  = (v.bank&&v.bank.so_tk)||'';
-	qs('.pve-r-ctk').textContent  = (v.bank&&v.bank.ten_tk)||'';
-	qs('.pve-r-nd').textContent   = v.noi_dung;
+	qq('.pve-r-mave').textContent = v.ma_ve;
+	qq('.pve-r-goi').textContent  = v.goi_ten;
+	qq('.pve-r-tien').textContent = tien(v.so_tien);
+	qq('.pve-r-nh').textContent   = (v.bank&&v.bank.ten_nh)||'';
+	qq('.pve-r-stk').textContent  = (v.bank&&v.bank.so_tk)||'';
+	qq('.pve-r-ctk').textContent  = (v.bank&&v.bank.ten_tk)||'';
+	qq('.pve-r-nd').textContent   = v.noi_dung;
 	var daTra = ('da_tt' === v.trang_thai);
-	var box = qs('.pve-qr'); box.innerHTML='';
+	var box = qq('.pve-qr'); box.innerHTML='';
 	/* Trả bằng ví xong thì tiền đã trừ, vé đã xanh — bày mã QR chuyển khoản ra nữa là mời khách
 	   trả lần thứ hai. Giấu cả khối số tài khoản đi. */
 	box.hidden = daTra;
@@ -977,13 +994,13 @@ function hienQR(v){
 		new QRCode(box, { text: v.qr, width: 220, height: 220, correctLevel: QRCode.CorrectLevel.M });
 	});
 	show('qr');
-	var badge = qs('.pve-badge');
-	qs('.pve-copy').onclick = function(){ try{ navigator.clipboard.writeText(v.noi_dung); }catch(e){} };
+	var badge = qq('.pve-badge');
+	qq('.pve-copy').onclick = function(){ try{ navigator.clipboard.writeText(v.noi_dung); }catch(e){} };
 
 	// Chọn phương thức: QR (mặc định) / Momo / VNPay. Momo-VNPay mở cổng ở tab mới.
-	var msg = qs('.pve-cong-msg'), bank = qs('.pve-bank');
+	var msg = qq('.pve-cong-msg'), bank = qq('.pve-bank');
 	function datCong(cong, btn){
-		qsa('.pve-cong-i').forEach(function(b){ b.classList.toggle('on', b===btn); });
+		qqa('.pve-cong-i').forEach(function(b){ b.classList.toggle('on', b===btn); });
 		if(cong==='qr'){ box.hidden=false; bank.hidden=false; msg.hidden=true; return; }
 		box.hidden=true; bank.hidden=true; msg.hidden=false; msg.textContent='Đang mở cổng '+(cong==='momo'?'Momo':'VNPay')+'…';
 		fetch(REST+'/ve/thanhtoan', { method:'POST', headers:{'Content-Type':'application/json'},
@@ -1002,8 +1019,8 @@ function hienQR(v){
 		if (timer) { clearInterval(timer); timer = null; }
 		return;
 	}
-	qsa('.pve-cong-i').forEach(function(b){ b.onclick=function(){ datCong(b.getAttribute('data-cong'), b); }; });
-	datCong('qr', qs('.pve-cong-i[data-cong="qr"]'));
+	qqa('.pve-cong-i').forEach(function(b){ b.onclick=function(){ datCong(b.getAttribute('data-cong'), b); }; });
+	datCong('qr', qq('.pve-cong-i[data-cong="qr"]'));
 	if(timer) clearInterval(timer);
 	/* Lệnh nạp hỏi đường khác: /vi/nap-tt cộng ví ngay khi thấy tiền về, /ve/trangthai thì đánh
 	   dấu vé. Hai việc khác nhau, đừng hỏi nhầm đường — hỏi nhầm là tiền về mà ví vẫn 0đ. */
@@ -1011,7 +1028,7 @@ function hienQR(v){
 		var duong = v.la_nap
 			? (REST + '/vi/nap-tt?ma=' + encodeURIComponent(v.ma_ve))
 			: (REST + '/ve/trangthai?ma_ve=' + encodeURIComponent(v.ma_ve));
-		fetch(duong, { credentials:'same-origin' }).then(function(r){return r.json();}).then(function(d){
+		layMoi(duong).then(function(r){return r.json();}).then(function(d){
 			if (!d) return;
 			if (v.la_nap){
 				if (d.trang_thai === 'xong'){

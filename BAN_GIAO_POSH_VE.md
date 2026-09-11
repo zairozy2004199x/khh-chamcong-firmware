@@ -184,6 +184,37 @@ kết, mà khối gói nạp đứng trước — `napTong()` tưởng đó là 
 quả: cài mới, mở Nạp ví ra trống trơn, không nói gì (vá ở 1.49.1, lớp riêng `.pve-nap-trong`).
 Bản thử khi ấy chỉ chạy cảnh **đã khai gói** nên không thấy — nay có thêm cảnh cài mới.
 
+### 🔴 BỐN LẦN DÍNH: `qs()` LẤY THẺ ĐẦU TIÊN TRONG CẢ POPUP
+Popup có **năm** bước dùng chung một khung (ví vé · nạp ví · giỏ · đặt lẻ · mã QR). `qs()` tra
+trong cả popup, nên bước nào đặt trùng tên lớp là **cướp** lượt tra của bước khác — im lặng.
+
+| Lần | Lớp bị cướp | Hậu quả |
+|---|---|---|
+| 1.48.0 | `.pve-go` (bước Giỏ) | nút "Tạo mã thanh toán" của bước đặt lẻ không được gắn việc |
+| 1.49.0 | `.pve-nap-tt` | dòng "chưa khai gói nạp" bị xoá trắng |
+| 1.55.0 | `.pve-qr` + `[hidden]` | trả bằng ví rồi mã QR vẫn hiện |
+| 1.55.1 | **`.pve-badge`** (ví vé) | **"Chờ thanh toán" không bao giờ đổi** |
+
+Nay mỗi bước có hàm tra riêng buộc phạm vi: `qf()` bước đặt lẻ · `qf2()` bước nạp · `qq()/qqa()`
+bước mã QR. **Thêm bước mới thì thêm hàm mới, đừng dùng `qs()`.**
+Bản thử phải mở **ví vé trước rồi mới mua** — chỉ khi đó `.pve-badge` mới tồn tại và bẫy mới lộ.
+
+### 🔴 KHÔNG LẤY BẢN CŨ TRONG ĐỆM KHI HỎI TRẠNG THÁI
+Trang hỏi 5 giây một lượt bằng **cùng một địa chỉ**. Trình duyệt — và nhất là lớp nhớ đệm của site
+(SpeedyCache) — hoàn toàn có thể trả lại câu trả lời cũ mà không hỏi máy chủ: tiền đã về, máy chủ
+đã đổi trạng thái, mà màn hình đứng im, **phải F5 mới thấy**. Mọi lượt hỏi trạng thái (`layMoi()`
+ở trang khách, `get()` ở khu quản trị, vòng làm tươi của trang soát vé) đều thêm `cache:'no-store'`
+**và** một tham số đổi theo lượt để địa chỉ không lặp lại.
+
+### Lịch sử một tấm vé
+Thẻ đơn trong khu quản trị hiện ba mốc: **🛒 đặt** (lúc nào, tại cơ sở nào hay mua từ xa) · **💰
+trả tiền** · **🎟️ đã soát** (lúc nào, ở cơ sở nào). Thiếu ba mốc này thì lúc khách khiếu nại *"tôi
+chưa dùng mà báo đã dùng"* không có gì để đối chiếu ngoài một chữ "Đã dùng". Chỉ in mốc **đã có** —
+in "chưa dùng" cho mọi vé chưa soát là làm loãng chỗ người ta đang tìm.
+
+⚠️ Giờ hiển thị cắt bằng chuỗi, **không dựng `Date`**: chuỗi máy chủ trả về là giờ địa phương đã
+quy đổi sẵn, đưa vào `Date` là trình duyệt hiểu thành UTC rồi lệch thêm 7 tiếng.
+
 ### 🔴 MỖI VÉ MỘT MÃ RIÊNG (từ 1.55.0)
 Trước đó cả giỏ ghi thành **một** dòng, **một** mã: đơn *"1x Vé vào cửa, 1x Vé 1 giờ, 1x Vé cả
 ngày, 1x Vé Vào Cửa"* chỉ có đúng một mã QR. Nhân viên quét một lần là **cả bốn vé** thành đã dùng

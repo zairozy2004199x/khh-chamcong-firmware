@@ -70,8 +70,12 @@
 	/* ── Danh sách vé chờ vào cửa ─────────────────────────────────────────────────────────── */
 	function lamTuoi(){
 		if (!CA) return;
-		fetch(D.rest + '/ve/cho-soat?coso=' + encodeURIComponent(CA.cs) + '&pin=' + encodeURIComponent(CA.pin),
-			{ credentials: 'same-origin' })
+		/* Thêm tham số đổi theo lượt + no-store: màn này hỏi 10 giây một lượt bằng cùng một địa
+		   chỉ, để trình duyệt hay lớp nhớ đệm của site trả lại bản cũ là vé mới không bao giờ
+		   hiện ra ở quầy. */
+		fetch(D.rest + '/ve/cho-soat?coso=' + encodeURIComponent(CA.cs) + '&pin=' + encodeURIComponent(CA.pin)
+				+ '&_=' + Date.now(),
+			{ credentials: 'same-origin', cache: 'no-store' })
 		.then(function(r){ return r.json(); })
 		.then(function(d){ if (d && d.ve) ve(d.ve); })
 		.catch(function(){});   /* mất mạng một nhịp thì thôi, vòng sau lấy lại */

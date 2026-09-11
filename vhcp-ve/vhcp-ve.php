@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.55.0
+ * Version:           1.56.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -2629,15 +2629,21 @@ class POSH_Ve {
 			// cho phép lọc theo kênh: loc=zalo / loc=web
 			$where[] = ( 'zalo' === $loc ? "nguon='zalo'" : "nguon<>'zalo'" );
 		}
-		$sql = "SELECT ma_ve, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc FROM $tbl";
+		$sql = "SELECT ma_ve, ma_don, dv_ten, so_tien, ten_khach, sdt, trang_thai, nguon, tao_luc, tt_luc, coso, coso_dung, dung_luc FROM $tbl";
 		if ( $where ) { $sql .= ' WHERE ' . implode( ' AND ', $where ); }
 		$sql .= ' ORDER BY id DESC LIMIT 60';
 		$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
 		$ds = array();
 		foreach ( (array) $rows as $r ) {
-			$ds[] = array( 'ma_ve' => $r['ma_ve'], 'dv_ten' => $r['dv_ten'], 'so_tien' => (int) $r['so_tien'],
+			$ds[] = array( 'ma_ve' => $r['ma_ve'], 'ma_don' => $r['ma_don'], 'dv_ten' => $r['dv_ten'],
+				'so_tien' => (int) $r['so_tien'],
 				'ten_khach' => $r['ten_khach'], 'sdt' => $r['sdt'], 'trang_thai' => $r['trang_thai'],
-				'nguon' => $r['nguon'], 'tao_luc' => $r['tao_luc'] );
+				'nguon' => $r['nguon'], 'tao_luc' => $r['tao_luc'],
+				/* Lịch sử của một tấm vé: mua lúc nào · trả tiền lúc nào · soát lúc nào, ở đâu.
+				   Thiếu ba mốc này thì lúc khách khiếu nại "tôi chưa dùng mà báo đã dùng" không
+				   có gì để đối chiếu ngoài một chữ "Đã dùng". */
+				'tt_luc' => $r['tt_luc'], 'coso' => $r['coso'],
+				'coso_dung' => $r['coso_dung'], 'dung_luc' => $r['dung_luc'] );
 		}
 		return array( 'ok' => true, 'don' => $ds );
 	}
@@ -4138,6 +4144,9 @@ class POSH_Ve {
 		.pql-bdg{ font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; }
 		.pql-bdg.cho{ background:rgba(212,175,55,.15); color:var(--g2); } .pql-bdg.da_tt{ background:rgba(34,197,94,.18); color:#166534; }
 		.pql-bdg.da_dung{ background:rgba(59,130,246,.14); color:#93c5fd; } .pql-bdg.huy{ background:rgba(239,68,68,.16); color:#b91c1c; }
+		.pql-ls{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+		.pql-ls span{ background:var(--sf2); border:1px solid var(--bd); border-radius:999px;
+			padding:3px 10px; font-size:11.5px; color:var(--mut); white-space:nowrap; }
 		.pql-don-act{ display:flex; gap:6px; margin-top:10px; }
 		.pql-don-act button{ flex:0 1 200px; border:1px solid var(--bd); background:transparent; color:var(--tx); border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
 		.pql-don-act .go{ background:#16a34a; color:#fff; border:none; } .pql-don-act .use{ background:#2563eb; color:#fff; border:none; } .pql-don-act .no{ background:#dc2626; color:#fff; border:none; }
@@ -4180,7 +4189,11 @@ class POSH_Ve {
 		    return fetch(REST+path,{method:'POST',credentials:'same-origin',headers:hdr({'Content-Type':'application/json'}),body:JSON.stringify(body)})
 		      .then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
 		  function get(path){ var u=new URL(REST+path); u.searchParams.set('pin',PIN);
-		    return fetch(u.toString(),{credentials:'same-origin',headers:hdr()}).then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
+		    /* Đổi tham số mỗi lượt + no-store. Danh sách đơn/nạp được tải lại ngay sau khi bấm
+		       xác nhận, bằng CÙNG một địa chỉ — trình duyệt hay lớp nhớ đệm của site trả lại bản
+		       cũ là màn hình đứng im, phải F5 mới thấy (11/09/2026). */
+		    u.searchParams.set('_',Date.now());
+		    return fetch(u.toString(),{credentials:'same-origin',cache:'no-store',headers:hdr()}).then(function(r){return r.json().then(function(d){if(!r.ok||d.ok===false)throw new Error(d&&(d.message||d.code)||'Lỗi');return d;});}); }
 
 		  // Đăng nhập
 		  /* Máy chủ đã nhận ra quản trị (Zalo/WordPress) -> mở thẳng, PIN để rỗng. Mọi route /ql/*
@@ -4279,8 +4292,27 @@ class POSH_Ve {
 		    act+='</div>';
 		    return '<div class="pql-don"><div class="pql-don-top"><span class="pql-don-ma">'+esc(r.ma_ve)+'</span>'
 		      +'<span class="pql-bdg '+r.trang_thai+'">'+(NHAN[r.trang_thai]||r.trang_thai)+'</span></div>'
-		      +'<div class="pql-don-sub">'+esc(r.dv_ten)+' · '+VND(r.so_tien)+'</div>'
-		      +'<div class="pql-don-sub">'+esc(r.ten_khach||'')+' · '+esc(r.sdt||'')+' · '+src+'</div>'+act+'</div>';
+		      +'<div class="pql-don-sub">'+esc(r.dv_ten)+' · '+VND(r.so_tien)
+		      +(r.ma_don?(' · đơn '+esc(r.ma_don)):'')+'</div>'
+		      +'<div class="pql-don-sub">'+esc(r.ten_khach||'')+' · '+esc(r.sdt||'')+' · '+src+'</div>'
+		      +lichSu(r)+act+'</div>';
+		  }
+		  /* Ba mốc của một tấm vé, xếp theo thứ tự xảy ra. Chỉ in mốc ĐÃ có — in "chưa dùng" cho
+		     mọi vé chưa soát là làm loãng chỗ người ta đang tìm. */
+		  function lichSu(r){
+		    var d=[];
+		    if(r.tao_luc)  d.push('🛒 Đặt '+gio(r.tao_luc)+(r.coso?(' · '+esc(r.coso)):' · mua từ xa'));
+		    if(r.tt_luc)   d.push('💰 Trả tiền '+gio(r.tt_luc));
+		    if(r.dung_luc) d.push('🎟️ Đã soát '+gio(r.dung_luc)+(r.coso_dung?(' · '+esc(r.coso_dung)):''));
+		    if(!d.length) return '';
+		    return '<div class="pql-ls">'+d.map(function(x){return '<span>'+x+'</span>';}).join('')+'</div>';
+		  }
+		  /* "2026-09-11 14:05:00" -> "14:05 11/09". Cắt bằng tay chứ không dựng Date: chuỗi máy
+		     chủ trả về là GIỜ ĐỊA PHƯƠNG đã quy đổi sẵn, đưa vào Date là trình duyệt hiểu thành
+		     UTC rồi lệch thêm 7 tiếng. */
+		  function gio(s){
+		    var m=String(s||'').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+		    return m ? (m[4]+':'+m[5]+' '+m[3]+'/'+m[2]) : esc(s||'');
 		  }
 		  $('.pql-loc-btn').addEventListener('click',napDon);
 		  $('.pql-loc').addEventListener('change',napDon);
