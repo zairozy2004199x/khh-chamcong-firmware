@@ -701,7 +701,11 @@ class VHCP_Cfg {
 			// thống tài khoản và xuất MISA ra sai. Rửa ngay lúc ĐỌC nên dòng đã nạp lệch tự
 			// về đúng, khỏi phải sửa tay từng ô.
 			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => VHCP_Util::ma_so( $r[1] ), 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '',
-				'donVi' => VHCP_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' ) );
+				'donVi' => VHCP_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' ),
+				/* TỈNH / THÀNH — anh Thắng 11/09/2026: *"thêm cột phân loại theo tỉnh"*.
+				   ⚠️ KHÔNG qua `chuan()` như cột Đơn vị: để trống là CHƯA KHAI, không phải
+				      "về tỉnh mặc định" — gán bừa một tỉnh là báo cáo theo vùng sai ngay. */
+				'tinh' => trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) ) );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -897,13 +901,16 @@ class VHCP_Cfg {
 			   cột) gửi lên bảng cơ sở không có ô ấy, mà ghi đè bằng rỗng là MỌI cơ sở POSH
 			   lặng lẽ về K&H — tức kế toán K&H nhìn thấy toàn bộ chi phí của POSH, đúng thứ
 			   đang phải tách. Không có ô thì giữ nguyên ô đang lưu. */
-			$dv_cu = array();
+			/* Cột TỈNH cũng vậy — thêm sau, nên mọi bản giao diện cũ và mọi tệp .csv cũ đều
+			   không có ô ấy. Ghi đè bằng rỗng là xoá sạch phân loại vùng vừa khai cả buổi. */
+			$dv_cu = array(); $tinh_cu = array();
 			foreach ( self::read( self::COSO ) as $r0 ) {
 				$r0 = array_values( (array) $r0 );
 				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
 				if ( $t0 === '' ) { continue; }
 				if ( isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
 				if ( isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $dv_cu[ $t0 ] = (string) $r0[5]; }
+				if ( isset( $r0[6] ) && trim( (string) $r0[6] ) !== '' ) { $tinh_cu[ $t0 ] = (string) $r0[6]; }
 			}
 			foreach ( $cfg['coso'] as $x ) {
 				$x  = (array) $x;
@@ -918,7 +925,12 @@ class VHCP_Cfg {
 					$k1 = mb_strtolower( trim( $tn ) );
 					if ( isset( $dv_cu[ $k1 ] ) ) { $dv = $dv_cu[ $k1 ]; }
 				}
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv );
+				$tinh = $g( $x, 'tinh' );
+				if ( $tinh === '' && ! array_key_exists( 'tinh', $x ) ) {
+					$k2 = mb_strtolower( trim( $tn ) );
+					if ( isset( $tinh_cu[ $k2 ] ) ) { $tinh = $tinh_cu[ $k2 ]; }
+				}
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc, $dv, $tinh );
 			}
 
 			/* ══════════════════════════════════════════════════════════════════════════════
