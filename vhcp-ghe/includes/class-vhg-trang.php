@@ -4194,6 +4194,12 @@ function henLai(){
      — vẽ lại cả tab mỗi 30 giây là ĐÓNG khối đang mở, xoá ảnh/chữ đang soạn dở (anh Thắng: "tab
      cứ F5 liên tục không làm được"). Các con số ở đây không cần realtime — bấm ↻ khi cần. */
   if (TAB === 'ma') return;
+  /* Tab BÁO CÁO DOANH THU: ĐANG NHẬP là mất ẢNH. Chỉ số gõ vào có lưu nháp (localStorage) nên
+     sống qua lượt vẽ lại; nhưng ẢNH chọn (File/_bulkFile trong bộ nhớ) KHÔNG lưu nháp được →
+     vẽ lại 30 giây là xoá sạch ảnh vừa chọn, gửi xong "thành công" mà báo cáo THIẾU ẢNH (anh
+     Thắng 11/09/2026: "chọn ảnh hàng loạt, báo thành công mà xem lại không thấy ảnh"). Muốn số
+     mới thì bấm ↻; còn khi đang soạn thì không tự vẽ lại. */
+  if (TAB === 'bc-doanhthu') return;
   /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
   if (TAB === 'dieu-khien' && !DK_AUTO) return;
   hen = setTimeout(function(){
