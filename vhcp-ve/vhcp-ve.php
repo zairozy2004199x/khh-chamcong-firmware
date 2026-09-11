@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.54.0
+ * Version:           1.54.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -734,6 +734,7 @@ class POSH_Ve {
 		// Khu quản lý (nhân viên) — bảo vệ bằng PIN khai ở admin (không hardcode).
 		register_rest_route( self::NS, '/ql/dangnhap', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_dangnhap' ) ) );
 		register_rest_route( self::NS, '/ql/nap-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_ds' ) ) );
+		register_rest_route( self::NS, '/ql/nap-soi', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_soi' ) ) );
 		register_rest_route( self::NS, '/ql/nap-xn', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_nap_xn' ) ) );
 		register_rest_route( self::NS, '/ql/vi-ds', array( 'methods' => 'GET', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_ds' ) ) );
 		register_rest_route( self::NS, '/ql/vi-luu', array( 'methods' => 'POST', 'permission_callback' => '__return_true', 'callback' => array( __CLASS__, 'r_ql_vi_luu' ) ) );
@@ -1545,6 +1546,73 @@ class POSH_Ve {
 	 * ⚠️ Vẫn thử khớp sổ phụ TRƯỚC. Khớp được thì ghi chú là "tự khớp" chứ không phải "xác nhận
 	 * tay" — sau này soi lại sổ cái còn biết đồng nào máy tự nhận, đồng nào người gật.
 	 */
+	/**
+	 * SOI MỘT LỆNH NẠP: vì sao chưa tự cộng ví.
+	 *
+	 * 🔴 VIẾT RA TỪNG MẮT XÍCH, ĐỪNG TRẢ VỀ "chưa khớp". Đường tiền đi qua bốn chặng và mỗi chặng
+	 * hỏng theo một kiểu im lặng khác nhau: chưa khai tiền tố (SePay không định tuyến) · chưa cài
+	 * Sao Kê · SePay không bắn về cổng Sao Kê · nội dung về không chứa mã. Bốn nguyên nhân, bốn
+	 * cách chữa — gộp thành một câu là lại ngồi đoán như mấy hôm nay.
+	 */
+	public static function r_ql_nap_soi( $req ) {
+		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
+		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma' ) ) );
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . self::tbl_nap() . ' WHERE ma=%s', $ma ), ARRAY_A );
+		if ( ! $r ) { return new WP_Error( 'khong_co', 'Không tìm thấy lệnh nạp.', array( 'status' => 404 ) ); }
+
+		$muc = array();
+		$them = function ( $ten, $ok, $noi, $chua = '' ) use ( &$muc ) {
+			$muc[] = array( 'ten' => $ten, 'ok' => $ok ? 1 : 0, 'noi' => $noi, 'chua' => $chua );
+		};
+
+		$tt = self::tien_to_nd();
+		$them( 'Tiền tố trong nội dung', '' !== $tt,
+			'' !== $tt ? $tt : 'CHƯA KHAI',
+			'' !== $tt ? '' : 'VietinBank cá nhân/hộ kinh doanh: thiếu SEVQR thì SePay không định tuyến giao dịch, '
+				. 'tiền vẫn vào tài khoản mà SePay không bao giờ thấy.' );
+		$them( 'Nội dung lệnh này', true, $r['noi_dung'],
+			'Khách phải chuyển đúng nội dung này. Sai một ký tự là không khớp được.' );
+
+		$co_sk = class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'tbl' );
+		$them( 'Plugin Sao Kê', $co_sk, $co_sk ? 'Đã cài và bật' : 'CHƯA có / đang tắt',
+			$co_sk ? '' : 'Không có sổ sao kê thì không có gì để đối chiếu. Bật lại plugin Sao Kê.' );
+
+		if ( $co_sk ) {
+			$tsk = SAOKE_App::tbl();
+			$co_tbl = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tsk ) ) === $tsk );
+			$them( 'Bảng sao kê', $co_tbl, $co_tbl ? 'có' : 'CHƯA dựng', $co_tbl ? '' : 'Mở trang Sao Kê một lần.' );
+			if ( $co_tbl ) {
+				$n30 = (int) $wpdb->get_var( $wpdb->prepare(
+					"SELECT COUNT(*) FROM $tsk WHERE loai='in' AND ngay_gd >= %s",
+					gmdate( 'Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS ) ) );
+				$them( 'Giao dịch tiền VÀO 30 ngày', $n30 > 0, $n30 . ' dòng',
+					$n30 ? '' : 'Sổ sao kê chưa nhận đồng nào. SePay có thể đang chỉ bắn về cổng /ghe-tien của '
+						. 'plugin Ghế — từ Ghế 2.38.0 cổng đó tự đẩy sang đây, nên hãy CẬP NHẬT plugin Ghế, '
+						. 'hoặc thêm webhook trỏ vào cổng Sao Kê.' );
+
+				/* Có dòng nào mang mã này không — dùng ĐÚNG hàm máy chủ dùng khi tự khớp. */
+				$khop_du  = self::co_tien_ve( (int) $r['so_tien'], $r['noi_dung'] );
+				$khop_tho = self::co_tien_ve( 0, $r['noi_dung'] );
+				$them( 'Có giao dịch mang mã này', $khop_du,
+					$khop_du ? 'CÓ, và đủ tiền' : ( $khop_tho ? 'Có, nhưng TIỀN VỀ THIẾU so với ' . number_format_i18n( (int) $r['so_tien'] ) . 'đ' : 'KHÔNG' ),
+					$khop_du ? '' : ( $khop_tho ? 'Khách chuyển thiếu. Xác nhận tay nếu anh chấp nhận.' 
+						: 'Chưa thấy dòng tiền nào mang mã này. Xem 5 dòng gần nhất bên dưới để biết nội dung ngân hàng trả về ra sao.' ) );
+
+				$gan = $wpdb->get_results( $wpdb->prepare(
+					"SELECT ngay_gd, tien, noi_dung FROM $tsk WHERE loai='in' ORDER BY id DESC LIMIT 5" ), ARRAY_A );
+				$ds = array();
+				foreach ( (array) $gan as $g ) {
+					$ds[] = mysql2date( 'H:i d/m', $g['ngay_gd'] ) . ' · ' . number_format_i18n( (int) $g['tien'] ) . 'đ · '
+						. mb_substr( (string) $g['noi_dung'], 0, 60 );
+				}
+				$them( '5 giao dịch tiền vào gần nhất', (bool) $ds,
+					$ds ? implode( ' | ', $ds ) : 'không có dòng nào', '' );
+			}
+		}
+		return array( 'ok' => true, 'ma' => $ma, 'trang_thai' => $r['trang_thai'], 'muc' => $muc );
+	}
+
 	public static function r_ql_nap_xn( $req ) {
 		if ( ! self::pin_hople( $req ) ) { return self::loi_pin(); }
 		$ma = preg_replace( '/[^A-Z0-9]/', '', strtoupper( (string) $req->get_param( 'ma' ) ) );
@@ -3857,6 +3925,14 @@ class POSH_Ve {
 		.pql-xoa{ flex:none; border:1px solid rgba(239,68,68,.4); background:transparent; color:#b91c1c;
 			border-radius:9px; width:34px; height:34px; font-size:15px; cursor:pointer; }
 		.pql-dadung{ flex:none; color:var(--mut); font-size:12px; white-space:nowrap; }
+		.pql-nap-soi{ flex:0 1 200px; border:1px solid var(--bd); background:var(--sf2); color:var(--tx);
+			border-radius:8px; padding:8px 4px; font-size:12px; font-weight:700; cursor:pointer; }
+		.pql-nap-kq{ margin-top:10px; }
+		.pql-soi-d{ border-left:3px solid #16a34a; background:var(--sf2); border-radius:8px;
+			padding:8px 10px; margin-bottom:6px; font-size:12.5px; line-height:1.55; word-break:break-word; }
+		.pql-soi-d.xau{ border-left-color:#dc2626; }
+		.pql-soi-d b{ display:block; margin-bottom:2px; }
+		.pql-soi-c{ color:var(--mut); margin-top:3px; }
 		.pql-hrow .h-ten{ flex:1; } .pql-hrow .h-moc{ flex:0 0 140px; }
 		.pql-hrow input{ border:1px solid #ddd6c4; background:var(--sf2); color:var(--tx); border-radius:10px; padding:10px 12px; font-size:14px; }
 		.pql-hrow .h-del{ flex:0 0 auto; border:1px solid rgba(239,68,68,.3); background:transparent; color:#b91c1c; border-radius:8px; padding:9px 12px; cursor:pointer; font-weight:800; }
@@ -4121,6 +4197,19 @@ class POSH_Ve {
 		      var ds=d.nap||[];
 		      if(!ds.length){ $('.pql-naplist').innerHTML='<p style="color:#6f6a5d">Chưa có lệnh nạp nào.</p>'; return; }
 		      $('.pql-naplist').innerHTML=ds.map(rowNap).join('');
+		      Array.prototype.forEach.call(root.querySelectorAll('.pql-nap-soi'),function(b){
+		        b.addEventListener('click',function(){
+		          var ma=b.getAttribute('data-ma');
+		          var o=root.querySelector('.pql-nap-kq[data-kq="'+ma+'"]');
+		          o.hidden=false; o.innerHTML='<p style="color:#6f6a5d">Đang soi…</p>';
+		          post('/ql/nap-soi',{ma:ma}).then(function(d){
+		            o.innerHTML=(d.muc||[]).map(function(m){
+		              return '<div class="pql-soi-d'+(m.ok?'':' xau')+'"><b>'+(m.ok?'✅':'⚠️')+' '+esc(m.ten)+'</b>'
+		                +'<div>'+esc(m.noi)+'</div>'+(m.chua?('<div class="pql-soi-c">'+esc(m.chua)+'</div>'):'')+'</div>';
+		            }).join('');
+		          }).catch(function(e){ o.innerHTML='<p class="pql-err">'+esc(e.message||e)+'</p>'; });
+		        });
+		      });
 		      Array.prototype.forEach.call(root.querySelectorAll('.pql-nap-xn'),function(b){
 		        b.addEventListener('click',function(){
 		          if(!confirm('Xác nhận ĐÃ NHẬN TIỀN cho lệnh '+b.getAttribute('data-ma')+'?\nChỉ bấm khi đã thấy tiền trong app ngân hàng.')) return;
@@ -4134,7 +4223,9 @@ class POSH_Ve {
 		  function rowNap(r){
 		    var nhan=NAP_TT[r.trang_thai]||r.trang_thai;
 		    var act = (r.trang_thai==='cho')
-		      ? '<div class="pql-don-act"><button class="go pql-nap-xn" data-ma="'+esc(r.ma)+'">Xác nhận đã nhận tiền</button></div>' : '';
+		      ? '<div class="pql-don-act"><button class="pql-nap-soi" data-ma="'+esc(r.ma)+'">🩺 Vì sao chưa vào?</button>'
+		        +'<button class="go pql-nap-xn" data-ma="'+esc(r.ma)+'">Xác nhận đã nhận tiền</button></div>'
+		        +'<div class="pql-nap-kq" data-kq="'+esc(r.ma)+'" hidden></div>' : '';
 		    return '<div class="pql-don"><div class="pql-don-top"><span class="pql-don-ma">'+esc(r.ma)+'</span>'
 		      +'<span class="pql-bdg '+(r.trang_thai==='xong'?'da_tt':'cho')+'">'+esc(nhan)+'</span></div>'
 		      +'<div class="pql-don-sub">Nạp '+VND(r.so_tien)+(r.tang?(' + tặng '+VND(r.tang)):'')
