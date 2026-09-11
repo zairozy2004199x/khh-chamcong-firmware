@@ -193,8 +193,19 @@ khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
 khoản, Ghế vẫn nhận gói, nhưng nội dung `SEVQR VE<mã>` không khớp luật nào của Ghế nên nằm lại đó
 — còn sổ sao kê **trống**, vé chờ mãi. Không ai thấy lỗi vì **chẳng bên nào sai cả**.
 
-→ Bên SePay phải khai **cả hai** webhook. Màn Kiểm tra hệ thống (từ 1.52.0) có mục *"Cổng Sao Kê
-đã nhận gói từ SePay"*: nếu đỏ, nó in sẵn đường dẫn cần dán vào SePay.
+**Từ Ghế 2.38.0 + Sao Kê 0.16.0 có CẦU NỐI**: cổng `/ghe-tien` nhận xong đẩy luôn mọi giao dịch
+sang sổ sao kê (`SAOKE_App::nhan_gd`). Khai một webhook là đủ, cả hai plugin cùng thấy.
+
+🔴 **Chống trùng là bắt buộc, không phải tuỳ chọn.** Khai cả hai webhook bên SePay là cùng một
+giao dịch tới hai đường. Hai đường phải quy về **cùng một `sepay_id`**: cổng Sao Kê chống trùng
+theo `id` của gói, còn `VHG_Doc::tach()` lại ưu tiên `referenceCode` khi dựng `ref` — gói SePay có
+**cả hai** trường, nên nếu không chỉnh thì một giao dịch vào sổ hai lần với hai khoá khác nhau.
+Cầu nối lấy `id` của gói khi gói chỉ có một giao dịch; gói nhiều dòng (Tingo/VietQR dạng bảng)
+không có `id` chung nên mới dùng `ref` từng dòng. **Đếm gấp đôi khó thấy hơn hẳn đếm thiếu**: sổ
+vẫn khớp với chính nó, chỉ lệch với ngân hàng.
+
+Màn Kiểm tra hệ thống (từ vé 1.52.0) có mục *"Cổng Sao Kê đã nhận gói từ SePay"*: nếu đỏ, nó in
+sẵn đường dẫn cần dán vào SePay.
 
 ### 🔴 TIỀN TỐ `SEVQR` — mắt xích im lặng nhất
 Với **VietinBank tài khoản cá nhân / hộ kinh doanh**, SePay **bắt buộc** nội dung chuyển khoản

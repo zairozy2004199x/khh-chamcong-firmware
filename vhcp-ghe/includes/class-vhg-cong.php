@@ -163,6 +163,49 @@ class VHG_Cong {
 					isset( $ev['tk_ao'] ) ? $ev['tk_ao'] : '' );
 			}
 			$r = VHG_Thu::nhan( $nguon, $ev );
+
+			/* ═══ CẦU NỐI SANG SỔ SAO KÊ ═══════════════════════════════════════════════════
+			 * Site có HAI cổng nhận tiền, mà bên SePay thường chỉ khai MỘT — cổng này. Cổng này
+			 * ghi vào sổ thu của Ghế; còn plugin vé đối soát bằng SỔ SAO KÊ của plugin Sao Kê.
+			 * Không có cầu nối thì tiền vé về đúng tài khoản, cổng này vẫn nhận gói, nhưng nội
+			 * dung "SEVQR VE<mã>" không khớp luật nào của Ghế nên nằm lại đây — sổ sao kê trống,
+			 * vé chờ mãi. Không bên nào sai cả, nên không ai tìm ra (11/09/2026).
+			 *
+			 * Đẩy sang MỌI giao dịch, không lọc theo nội dung: sổ sao kê là bản sao kê ngân hàng,
+			 * nó phải có đủ mọi dòng tiền — lọc bớt ở đây là sau này đối soát thiếu mà không biết
+			 * thiếu ở đâu.
+			 *
+			 * Chống trùng nằm bên SAOKE_App::nhan_gd (theo mã giao dịch). Khai cả hai webhook
+			 * bên SePay vẫn chỉ ra một dòng.
+			 *
+			 * Gác class_exists đúng luật gọi chéo: chưa cài Sao Kê thì bỏ qua, cổng vẫn chạy.
+			 */
+			if ( class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'nhan_gd' ) ) {
+				/* 🔴 PHẢI DÙNG ĐÚNG KHOÁ MÀ CỔNG SAO KÊ DÙNG, KHÔNG THÌ ĐẾM TIỀN HAI LẦN.
+				 * Cổng Sao Kê chống trùng theo `id` của gói; còn VHG_Doc::tach() lại ưu tiên
+				 * `referenceCode` khi dựng `ref`. Gói SePay có CẢ HAI trường — nên nếu khai cả
+				 * hai webhook, cùng một giao dịch vào sổ hai lần với hai khoá khác nhau. Đếm
+				 * gấp đôi khó thấy hơn hẳn đếm thiếu: sổ vẫn khớp với chính nó, chỉ lệch với
+				 * ngân hàng.
+				 * Gói có đúng một giao dịch thì lấy `id` của gói cho khớp; gói nhiều dòng
+				 * (Tingo/VietQR dạng bảng) không có `id` chung nên mới dùng `ref` từng dòng. */
+				$khoa = '';
+				if ( 1 === count( $ds ) ) {
+					foreach ( array( 'id', 'transactionid', 'transactionId', 'transaction_id', 'tid' ) as $k ) {
+						if ( isset( $goi[ $k ] ) && '' !== (string) $goi[ $k ] ) { $khoa = (string) $goi[ $k ]; break; }
+					}
+				}
+				if ( '' === $khoa ) { $khoa = isset( $ev['ref'] ) ? $ev['ref'] : ''; }
+				SAOKE_App::nhan_gd( array(
+					'nguon'    => $nguon,
+					'ma_gd'    => $khoa,
+					'tien'     => isset( $ev['so_tien'] ) ? $ev['so_tien'] : 0,
+					'loai'     => ! empty( $ev['tien_ra'] ) ? 'out' : 'in',
+					'noi_dung' => isset( $ev['noi_dung'] ) ? $ev['noi_dung'] : '',
+					'so_tk'    => isset( $ev['tk_nhan'] ) ? $ev['tk_nhan'] : '',
+					'ngay_gd'  => isset( $ev['luc'] ) ? $ev['luc'] : '',
+				) );
+			}
 			VHG_Nhat_Ky::ghi( array(
 				'nguon'    => $nguon,
 				'so_tien'  => isset( $ev['so_tien'] ) ? $ev['so_tien'] : 0,

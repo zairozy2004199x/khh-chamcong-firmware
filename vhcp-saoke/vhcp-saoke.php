@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.15.1
+ * Version:           0.16.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -312,6 +312,45 @@ class SAOKE_App {
 		) );
 		self::ghi_log( $src, $ok ? ( '✔ đã lưu [' . $nguon . '] ' . number_format( $tien ) . 'đ' ) : 'trùng, bỏ qua', $raw );
 		return new WP_REST_Response( array( 'success' => true, 'nguon' => $nguon, 'moi' => $ok ? 1 : 0 ), 200 );
+	}
+
+	/**
+	 * CỬA NHẬN CHO PLUGIN KHÁC ĐẨY GIAO DỊCH SANG (cầu nối từ cổng /ghe-tien của plugin Ghế).
+	 *
+	 * 🔴 VÌ SAO CẦN: site này có HAI cổng nhận tiền. SePay thường chỉ được khai MỘT — cổng của
+	 * Ghế (`/ghe-tien`). Cổng ấy ghi vào sổ thu của Ghế, còn sổ sao kê ngân hàng thì trống; mà
+	 * plugin vé đối soát bằng SỔ SAO KÊ. Hậu quả: tiền về đúng tài khoản, Ghế vẫn nhận gói, mà
+	 * vé chờ mãi — không bên nào sai cả nên không ai tìm ra.
+	 *
+	 * Nay cổng nào nhận cũng đổ về đây, một cuốn sổ duy nhất, khỏi phải nhớ khai hai webhook.
+	 *
+	 * ⚠️ CHỐNG TRÙNG LÀ BẮT BUỘC, không phải tuỳ chọn. Khai cả hai webhook bên SePay là cùng một
+	 * giao dịch tới hai đường. `luu_gd()` bỏ qua khi trùng `sepay_id`, nên hai đường phải quy về
+	 * CÙNG một `sepay_id`: cùng tiền tố nguồn + cùng mã giao dịch của ngân hàng. Sai chỗ này là
+	 * doanh thu đếm gấp đôi, mà đếm gấp đôi thì khó thấy hơn hẳn thiếu.
+	 *
+	 * @return bool true = đã ghi dòng mới · false = trùng, hoặc dữ liệu không dùng được.
+	 */
+	public static function nhan_gd( $d ) {
+		if ( ! is_array( $d ) ) { return false; }
+		$tien = (int) round( self::num( isset( $d['tien'] ) ? $d['tien'] : 0 ) );
+		$sid  = trim( (string) ( isset( $d['ma_gd'] ) ? $d['ma_gd'] : '' ) );
+		if ( $tien <= 0 && '' === $sid ) { return false; }
+		$nguon = preg_replace( '/[^a-z0-9_-]/', '', strtolower( (string) ( isset( $d['nguon'] ) ? $d['nguon'] : 'sepay' ) ) );
+		if ( '' === $nguon ) { $nguon = 'sepay'; }
+		if ( '' === $sid ) { $sid = substr( md5( $nguon . '|' . $tien . '|' . ( isset( $d['noi_dung'] ) ? $d['noi_dung'] : '' ) . '|' . ( isset( $d['ngay_gd'] ) ? $d['ngay_gd'] : '' ) ), 0, 20 ); }
+		return self::luu_gd( array(
+			'sepay_id'  => $nguon . '-' . $sid,
+			'ngay_gd'   => (string) ( isset( $d['ngay_gd'] ) ? $d['ngay_gd'] : '' ),
+			'so_tk'     => (string) ( isset( $d['so_tk'] ) ? $d['so_tk'] : '' ),
+			'ngan_hang' => (string) ( isset( $d['ngan_hang'] ) && '' !== $d['ngan_hang'] ? $d['ngan_hang'] : strtoupper( $nguon ) ),
+			'loai'      => ( isset( $d['loai'] ) && 'out' === $d['loai'] ) ? 'out' : 'in',
+			'tien'      => $tien,
+			'luy_ke'    => null,
+			'noi_dung'  => (string) ( isset( $d['noi_dung'] ) ? $d['noi_dung'] : '' ),
+			'ma_gd'     => (string) ( isset( $d['ma_gd'] ) ? $d['ma_gd'] : '' ),
+			'nguon'     => mb_substr( $nguon, 0, 10 ),
+		) );
 	}
 
 	private static function luu_gd( $d ) {
