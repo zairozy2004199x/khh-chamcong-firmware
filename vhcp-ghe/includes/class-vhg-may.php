@@ -1087,6 +1087,42 @@ class VHG_May {
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
 	}
 
+	/**
+	 * THÊM GHẾ MỚI — CHẶN TRÙNG MÃ. Anh Thắng 11/09/2026: *"nếu trùng mã thì không cho tạo"*.
+	 *
+	 * 🔴 KHÁC luu_may(): luu_may coi "gõ lại đúng mã cũ = SỬA máy đó" (dùng cho form cấu hình
+	 *    giá/tài khoản). Nhưng nút "Thêm ghế vào <cơ sở>" bên trang quản lý là THÊM MỚI — nếu nó
+	 *    cũng đi qua luu_may thì gõ nhầm một mã đã có (VD ghế VHM 80134) sẽ ÂM THẦM kéo ghế đó sang
+	 *    cơ sở đang mở và xoá trắng tên/cấu hình của nó (payload thêm ghế không có ten_khai). Đúng
+	 *    vụ "tự nhiên bên Bạc Liêu mọc ra mấy ghế 'vd VHM' không tên" — thực ra là ghế VHM bị nhầm
+	 *    mã, kéo qua, mất tên. Mỗi mã chỉ một ghế (UNIQUE KEY ma), nên thêm mà trùng = từ chối,
+	 *    chỉ đường đi tìm ghế cũ thay vì tạo lại.
+	 */
+	public static function them_may( $ma, $coso_id ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		if ( ! preg_match( '/^[A-Za-z0-9]{1,20}$/', $ma ) ) {
+			return array( 'ok' => false, 'error' => 'Mã chỉ gồm chữ và số, không dấu, không khoảng trắng '
+				. '(mã đi vào nội dung chuyển khoản khách gõ tay).' );
+		}
+		$bang = VHG_DB::t( 'may' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT m.an, c.ten AS coso_ten FROM $bang m LEFT JOIN " . VHG_DB::t( 'coso' )
+			. ' c ON c.id = m.coso_id WHERE m.ma=%s LIMIT 1', $ma ), ARRAY_A );
+		if ( $cu ) {
+			$noi = trim( (string) $cu['coso_ten'] );
+			$noi = ( '' !== $noi ) ? ( 'cơ sở "' . $noi . '"' ) : 'trạng thái chưa gán cơ sở';
+			$an  = ! empty( $cu['an'] ) ? ' (đang ẩn — đã điều chuyển)' : '';
+			return array( 'ok' => false, 'trung' => 1,
+				'error' => 'Mã ' . $ma . ' ĐÃ CÓ ghế ở ' . $noi . $an . '. Mỗi mã chỉ MỘT ghế nên không '
+					. 'tạo trùng được. Nếu muốn chuyển ghế đó về đây: tìm nó ở ô "Tìm ghế" (gõ mã), rồi '
+					. 'đổi Địa điểm (hoặc bấm "Đưa về" nếu đang ẩn) — đừng tạo lại mã.' );
+		}
+		$wpdb->insert( $bang, array( 'ma' => $ma, 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ghế ' . $ma . '.' );
+	}
+
 	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
 	 *  (gan_ma trả về sớm khi mã không đổi nên không dùng để đổi mỗi cơ sở được.) */
 	/** Đặt/đổi TÊN ghế (ten_khai — tên trên sao kê). CHỈ đụng cột tên, không đụng giá/tài khoản

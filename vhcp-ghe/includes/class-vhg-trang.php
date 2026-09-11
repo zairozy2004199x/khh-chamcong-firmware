@@ -621,11 +621,14 @@ class VHG_Trang {
 			self::tra( $r ); return;
 		}
 		if ( 'may_them' === $viec ) {
-			/* Thêm/lưu ghế: mã + địa điểm (giá/thời lượng để trống = dùng ô chung). */
-			$r = VHG_May::luu_may( array(
-				'ma'      => isset( $d['ma'] ) ? $d['ma'] : '',
-				'coso_id' => isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0,
-			) );
+			/* THÊM MỚI — CHẶN TRÙNG MÃ (anh Thắng 11/09/2026). Trước đây đi qua luu_may() nên gõ nhầm
+			   một mã đã có sẽ ÂM THẦM kéo ghế đó sang cơ sở đang mở + xoá tên (payload không có
+			   ten_khai) → "bên Bạc Liêu mọc ghế vd VHM không tên". Nay dùng them_may(): trùng mã thì
+			   từ chối, chỉ đường đi tìm ghế cũ. */
+			$r = VHG_May::them_may(
+				isset( $d['ma'] ) ? $d['ma'] : '',
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0
+			);
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' thêm ghế: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
