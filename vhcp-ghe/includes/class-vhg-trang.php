@@ -1671,6 +1671,13 @@ class VHG_Trang {
       '.bc-t td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}',
       '.bc-t input{width:100%;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}',
       '.bc-t input.note{text-align:left;min-width:120px}',
+      /* 🔴 SỐ LỆCH TÔ ĐỎ NGAY TRÊN Ô — anh Thắng 11/09/2026: *"lệch thì cảnh báo, và hiện đỏ"*.
+         Chỉ số sau đi ngược (sau<trước), trùng/lớn hơn chỉ số ngày kế, hoặc công thức ra âm thì
+         CHÍNH con số đỏ lên: chữ đỏ + viền đỏ + nền hồng, để mắt bắt ngay ô sai giữa bảng số. Đây
+         chỉ là TÔ ĐỎ CHO RÕ — KHÔNG chặn gửi (khung cảnh báo vẫn giữ đúng luật đỏ=chặn / vàng=nhắc
+         như cũ; ô số đỏ đứng riêng, không đổi nghĩa hai khung đó). */
+      '.bc-t input.bc-lech{color:#b91c1c;font-weight:800;border:1.6px solid #ef4444;'
+        + 'background:#fef2f2;border-radius:7px}',
       /* Chế độ Gọn: cột đã ít (7 thay vì 10) nhưng vẫn nên bớt đệm + bớt min-width từng ô cho vừa
          khít điện thoại phổ thông (~360-390px ngang) mà không phải cuộn — 2 nút "Chọn ảnh" vốn đã
          hẹp sẵn, chỉ input chỉ số/QR cần thu nhỏ. */
@@ -2337,6 +2344,15 @@ class VHG_Trang {
       _hienWarn(false);
       if(w) w.classList.remove('bc-nhac');
       if(w) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
+    }
+    /* 🔴 TÔ ĐỎ CHÍNH Ô "CHỈ SỐ SAU" KHI LỆCH — anh Thắng 11/09/2026. Lệch = chỉ số đi ngược
+       (sau<trước), HOẶC trùng/lớn hơn chỉ số ngày kế tiếp (nhacKe — đúng cái gây "nhảy lung tung"),
+       HOẶC công thức ra âm mà KHÔNG phải ca máy đứng yên. Máy-đứng-yên-có-QR là ca bình thường nên
+       KHÔNG tô đỏ (giữ khung vàng). Chỉ tô, không chặn. */
+    var iAf=tr.querySelector('.after');
+    if(iAf){
+      var lech = chiSoNguoc || (nhacKe!=='') || (rawCash<0 && !mayDungCoQR);
+      iAf.classList.toggle('bc-lech', !!lech);
     }
   }
 
@@ -5807,7 +5823,14 @@ function ktdRow(o,c,m,reload,locked){
   }
   tr.appendChild(tdN);
   tr.appendChild(td(c.meterBefore==null?'—':csKt(c.meterBefore),1));
-  tr.appendChild(td(c.meterAfter==null?'—':csKt(c.meterAfter),1));
+  /* 🔴 CHỈ SỐ SAU TÔ ĐỎ KHI LỆCH — anh Thắng 11/09/2026 "lệch thì hiện đỏ". Bắt theo hai dấu:
+     ghi chú bắt đầu bằng ⚠ (chỉ số bất thường, do luu()/sua_dong gắn), HOẶC sau < trước. Giúp kế
+     toán soi ngay ô chỉ số nhảy loạn (vd 686) giữa bảng. Chỉ tô, không đụng số liệu. */
+  var lechSau = /^⚠/.test(c.note||'') ||
+    (c.meterBefore!=null && c.meterAfter!=null && Number(c.meterAfter) < Number(c.meterBefore));
+  var tdSau=td(c.meterAfter==null?'—':csKt(c.meterAfter),1);
+  if(lechSau){ tdSau.style.color='var(--red)'; tdSau.style.fontWeight='800'; tdSau.title='Chỉ số lệch — kiểm lại.'; }
+  tr.appendChild(tdSau);
   tr.appendChild(td(ktVnd(c.actual),1));
   /* Số "Tiền mặt" TỰ NÓ cũng tô đỏ + đậm khi đang bị ghi đè — không chỉ dòng ghi chú nhỏ bên trên,
      vì cột số mới là chỗ kế toán nhìn thẳng vào khi soát tiền, dễ lướt qua đúng chỗ đang sai lệch
