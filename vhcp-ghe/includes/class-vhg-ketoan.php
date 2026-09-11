@@ -232,7 +232,7 @@ class VHG_KeToan {
 			$rid = (string) $r['report_id'];
 			$anh = trim( (string) $r['anh'] );
 			$ghe[] = array( 'reportId' => $r['report_id'], 'chairCode' => $r['ma_may'], 'chairName' => $r['ten'],
-				'meterBefore' => self::songuyen_( $r['chi_so_truoc'] ), 'meterAfter' => self::songuyen_( $r['chi_so_sau'] ),
+				'meterBefore' => VHG_BaoCao::so_chiso_( $r['chi_so_truoc'] ), 'meterAfter' => VHG_BaoCao::so_chiso_( $r['chi_so_sau'] ),
 				'actual' => (int) $r['actual'], 'cash' => (int) $r['tien_mat'], 'qr' => (int) $r['qr'],
 				'adjust' => (int) $r['dieu_chinh'], 'total' => (int) $r['tong'], 'note' => (string) $r['ghi_chu'],
 				'paid' => (int) $r['nop_so_tien'], 'payStatus' => (string) $r['nop_trang_thai'],
@@ -336,13 +336,13 @@ class VHG_KeToan {
 		$patch = is_array( $patch ) ? $patch : array();
 
 		$dv = self::don_vi();
-		$after = array_key_exists( 'meterAfter', $patch ) ? self::songuyen_( $patch['meterAfter'] ) : self::songuyen_( $d['chi_so_sau'] );
+		$after = array_key_exists( 'meterAfter', $patch ) ? VHG_BaoCao::so_chiso_( $patch['meterAfter'] ) : VHG_BaoCao::so_chiso_( $d['chi_so_sau'] );
 		$qr = array_key_exists( 'qr', $patch ) ? (int) $patch['qr'] : (int) $d['qr'];
 		$adj = array_key_exists( 'adjust', $patch ) ? (int) $patch['adjust'] : (int) $d['dieu_chinh'];
 		$note = array_key_exists( 'note', $patch ) ? mb_substr( trim( (string) $patch['note'] ), 0, 250 ) : (string) $d['ghi_chu'];
 		/* Ép chỉ số trước từ dòng thời gian dùng chung (không tin số cũ nếu có mốc mới hơn). */
 		$truoc = VHG_BaoCao::chi_so_truoc( $ma, $h['ngay'] );
-		$before = ( null !== $truoc ) ? $truoc : self::songuyen_( $d['chi_so_truoc'] );
+		$before = ( null !== $truoc ) ? $truoc : VHG_BaoCao::so_chiso_( $d['chi_so_truoc'] );
 		/* 🔴 KHÔNG CHẶN "chỉ số sau nhỏ hơn trước" Ở ĐÂY — anh Thắng 28/08: "Đối với tài khoản
 		   kế toán và quản lý, hotline có quyền sửa báo cáo mà không lý do máy lỗi". Hàm này chỉ
 		   tới được từ tab Duyệt báo cáo (`kt_sua`, chốt quyền QT||KT ở đầu api() — xem "TRANG KẾ
@@ -351,7 +351,8 @@ class VHG_KeToan {
 		   tiền tự nộp báo cáo (VHG_BaoCao::luu()) là bắt người đang sửa lỗi phải tự khai lỗi của
 		   người khác. Chốt an toàn đó vẫn còn nguyên vẹn ở luu() cho đường nộp gốc; ở đây chỉ bỏ
 		   CHẶN CỨNG, không đụng gì bên kia. */
-		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv;
+		/* Chỉ số có thể lẻ (551,5) — tiền vẫn về đồng nguyên, làm tròn ngay khi tính actual. */
+		$actual = ( null === $before || null === $after ) ? 0 : (int) round( ( $after - $before ) * $dv );
 		$cash = $actual - $qr + $adj;
 		/* THỰC THU GHI ĐÈ — anh Thắng: "thiếu nhập chỉ số thực thu cho chỉ số máy". Bỏ chặn cứng
 		   ở trên chỉ mở khoá LƯU được, nhưng chỉ số sai vẫn kéo tiền mặt tính theo công thức ra
@@ -1531,8 +1532,8 @@ class VHG_KeToan {
 			}
 			$G = &$th[ $m ]['ghe'][ $ma ];
 			$G['tong'] += $tg; $G['tien_mat'] += $tm; $G['qr'] += $qr; $G['so_ngay']++;
-			if ( null !== $r['chi_so_truoc'] && null === $G['cs_dau'] ) { $G['cs_dau'] = (int) $r['chi_so_truoc']; }
-			if ( null !== $r['chi_so_sau'] ) { $G['cs_cuoi'] = (int) $r['chi_so_sau']; }   // ORDER ngay ASC → dòng cuối có chỉ số thắng
+			if ( null !== $r['chi_so_truoc'] && null === $G['cs_dau'] ) { $G['cs_dau'] = VHG_BaoCao::so_chiso_( $r['chi_so_truoc'] ); }
+			if ( null !== $r['chi_so_sau'] ) { $G['cs_cuoi'] = VHG_BaoCao::so_chiso_( $r['chi_so_sau'] ); }   // ORDER ngay ASC → dòng cuối có chỉ số thắng
 			unset( $G );
 			if ( ! isset( $th[ $m ]['ngay'][ $ng ] ) ) { $th[ $m ]['ngay'][ $ng ] = array( 'ngay' => $ng, 'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'ghe' => array() ); }
 			$N = &$th[ $m ]['ngay'][ $ng ];
@@ -1605,7 +1606,7 @@ class VHG_KeToan {
 			   *"thêm bảng này theo tiền QR"*) mà không phải gọi máy chủ lần nữa — cùng một truy
 			   vấn, cùng một bộ ngày/ghế, nên hai bảng không bao giờ lệch nhau. */
 			$o_theo_ngay[ $ng ][ $ma ] = array(
-				'cs' => null !== $r['chi_so_sau'] ? (int) $r['chi_so_sau'] : null,
+				'cs' => null !== $r['chi_so_sau'] ? VHG_BaoCao::so_chiso_( $r['chi_so_sau'] ) : null,
 				'actual' => (int) $r['actual'],
 				'qr' => (int) $r['qr'],
 			);
@@ -1947,8 +1948,8 @@ class VHG_KeToan {
 
 	/** Dựng đầy đủ 1 dòng bc_dong từ 1 dòng CSV (tiền chép nguyên). '_np' kèm để header cộng. */
 	private static function dong_moi_( $rid, $ngay, $ma, $r0, $duyet, $nay ) {
-		$before = self::songuyen_( isset( $r0['before'] ) ? $r0['before'] : '' );
-		$after  = self::songuyen_( isset( $r0['after'] ) ? $r0['after'] : '' );
+		$before = VHG_BaoCao::so_chiso_( isset( $r0['before'] ) ? $r0['before'] : '' );
+		$after  = VHG_BaoCao::so_chiso_( isset( $r0['after'] ) ? $r0['after'] : '' );
 		$tm     = (int) ( isset( $r0['cash'] ) ? $r0['cash'] : 0 );
 		$np     = self::nop_tu_csv_( $r0, $tm );
 		$anh    = array();
@@ -1986,8 +1987,8 @@ class VHG_KeToan {
 	 */
 	private static function dien_o_( $ex, $r0 ) {
 		$upd = array();
-		$before = self::songuyen_( isset( $r0['before'] ) ? $r0['before'] : '' );
-		$after  = self::songuyen_( isset( $r0['after'] ) ? $r0['after'] : '' );
+		$before = VHG_BaoCao::so_chiso_( isset( $r0['before'] ) ? $r0['before'] : '' );
+		$after  = VHG_BaoCao::so_chiso_( isset( $r0['after'] ) ? $r0['after'] : '' );
 		$tm     = (int) ( isset( $r0['cash'] ) ? $r0['cash'] : 0 );
 		$co_so  = ( null !== $ex['chi_so_sau'] && '' !== (string) $ex['chi_so_sau'] );
 		if ( ! $co_so ) {   // ghế chưa có chỉ số → cho điền số liệu

@@ -771,8 +771,11 @@ class VHG_DB {
 			ten VARCHAR(190) NOT NULL DEFAULT '',
 			ngay DATE NOT NULL,
 			lan SMALLINT NOT NULL DEFAULT 1,
-			chi_so_truoc BIGINT(20) NULL,
-			chi_so_sau BIGINT(20) NULL,
+			/* 🔴 CHỈ SỐ CÓ THỂ LẺ — anh Thắng 11/09/2026: máy nhận tiền lẻ nên chỉ số dạng 551,5.
+			   DECIMAL(14,2) thay BIGINT; giá trị nguyên cũ (551) tự thành 551.00, không mất mát.
+			   TIỀN (actual/tien_mat/qr/tong) vẫn BIGINT nguyên đồng — chỉ mỗi cột chỉ số có phần lẻ. */
+			chi_so_truoc DECIMAL(14,2) NULL,
+			chi_so_sau DECIMAL(14,2) NULL,
 			actual BIGINT(20) NOT NULL DEFAULT 0,
 			tien_mat BIGINT(20) NOT NULL DEFAULT 0,
 			qr BIGINT(20) NOT NULL DEFAULT 0,
