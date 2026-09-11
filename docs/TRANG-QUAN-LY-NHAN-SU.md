@@ -514,6 +514,52 @@ xếp nhầm là người ta đi tìm ai gõ sai giờ.
 
 ---
 
+## 4g. Ô gõ giờ: 24 giờ, bỏ `type="time"` — 3.65.0 (11/09/2026)
+
+Anh Thắng, ảnh hàng **Chấm công bù** với hai ô `01:37 CH` / `09:01 CH`: *"chuyển này sang 24h cho
+dễ gõ"*.
+
+### Vì sao không sửa được bằng một thuộc tính
+
+`<input type="time">` hiện **12 giờ hay 24 giờ là do ngôn ngữ của TRÌNH DUYỆT**, không phải do
+trang: Chrome không đọc thuộc tính `lang` cho ô giờ, Firefox và Safari theo hệ điều hành. Đứng từ
+máy chủ **không ép được**. Muốn chắc thì phải tự cầm lấy ô.
+
+### Nay: ô gõ thường, 24 giờ, và **gõ liền cũng được**
+
+| Gõ | Ra |
+|---|---|
+| `13:37` · `13.37` · `13h37` · `13 37` | 13:37 |
+| **`1337`** · **`937`** · `0830` | 13:37 · 09:37 · 08:30 |
+| `8:30` | 08:30 |
+| `24:00` · `13:60` · `tám rưỡi` · **`01:37 CH`** | **chối** |
+
+Dạng 12 giờ **cố ý không nhận**: đoán `01:37` là 1 giờ sáng hay 1 giờ chiều là đoán một ca làm
+việc — sai một lần là lệch tám tiếng công, và không ai nhìn ra.
+
+Áp cho **cả sáu ô giờ** của màn: Giờ vào / Giờ ra (bù + sửa) và bốn ô khai ca. Để lẫn hai kiểu ô
+trên một màn là mỗi lần gõ phải nhớ ô nào kiểu nào.
+
+### Bỏ `type="time"` là bỏ luôn phần trình duyệt chặn gõ bậy
+
+Nên phải thay bằng **đủ hai lớp**:
+
+* `pattern` + `title` ngay trên ô — chặn tại chỗ, khỏi mất công gửi đi rồi mới biết sai;
+* chốt ở **cửa ghi** (`VHCC_Bu::ghi()` / `sua()` / `VHCC_Ca::luu()`) — POST gửi tay cũng phải qua.
+
+Lớp thứ hai mới là lớp quan trọng, vì `giay()` trả `null` cho **cả ô trống lẫn gõ bậy**. Trước bản
+này `sua()` đã tách hai chuyện ấy (đã từng vá), còn `ghi()` thì **chưa**: gõ nhầm `8h3o` ở ô giờ
+vào là nó bù **mỗi giờ ra**, màn hình báo *"Đã bù giờ ra 17:00"*, và người bù tưởng xong cả hai.
+Phép thử mới dựng đúng cảnh ấy và đếm lại bảng — gỡ miếng vá ra là nó đỏ thật.
+
+Cùng loại: `VHCC_Ca::lam_sach()` lặng lẽ bỏ mọi dòng ca đọc không được giờ. Nay `luu()` **kể tên
+ca bị bỏ**, và màn hình in ra — thiếu một ca thì giờ công của cả ca ấy rơi ra ngoài mọi ca, và
+không ai biết cho tới kỳ lương.
+
+39 phép thử trong `tools/test/test-cham-cong.php`.
+
+---
+
 ---
 
 ## 5. Nằm ở đâu trong mã

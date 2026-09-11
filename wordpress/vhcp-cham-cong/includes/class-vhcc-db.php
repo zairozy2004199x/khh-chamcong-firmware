@@ -146,6 +146,52 @@ class VHCC_DB {
 		return (int) $m[1] * 3600 + (int) $m[2] * 60 + ( isset( $m[3] ) ? (int) $m[3] : 0 );
 	}
 
+	/**
+	 * GÕ GIỜ KIỂU 24 GIỜ, DỄ DÃI VỚI NGƯỜI GÕ — trả về `'HH:MM'`, `''` (ô trống) hoặc `false` (sai).
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, ảnh hàng "Chấm công bù" với hai ô `01:37 CH` / `09:01 CH`:
+	 *    *"chuyển này sang 24h cho dễ gõ"*.
+	 *
+	 *    Hai ô ấy là `<input type="time">`. Dạng hiện ra (12 giờ kèm SA/CH hay 24 giờ) do
+	 *    **ngôn ngữ của trình duyệt** quyết định, KHÔNG phải do trang — Chrome không đọc thuộc
+	 *    tính `lang` cho ô giờ, Firefox và Safari theo hệ điều hành. Nghĩa là đứng từ máy chủ
+	 *    KHÔNG có cách nào ép nó về 24 giờ. Muốn chắc thì phải tự cầm lấy ô: ô gõ thường, mình
+	 *    định dạng, mình soát.
+	 *
+	 * 🔴 CẦM LẤY Ô THÌ PHẢI CẦM LUÔN PHẦN SOÁT. `type="time"` xưa nay gánh việc chặn gõ bậy;
+	 *    bỏ nó đi mà không thay bằng gì là mở đúng cái lỗi câm mà `VHCC_Bu::sua()` đã phải vá
+	 *    một lần: `giay()` trả `null` cho cả "ô trống" lẫn "gõ bậy", nên gõ nhầm là mất trắng
+	 *    một giờ công mà màn hình vẫn báo Đã lưu. Hàm này trả BA giá trị khác nhau để nơi gọi
+	 *    phân biệt được, và `false` không bao giờ được coi như "ô trống".
+	 *
+	 * Nhận: `13:37` · `13:37:00` · `1:37` · `1337` · `137` · `13.37` · `13h37` · `13 37`.
+	 * Chối: quá 23 giờ, quá 59 phút, và mọi thứ còn lại (kể cả `01:37 CH` — dạng 12 giờ cố ý
+	 * KHÔNG nhận, vì đoán SA hay CH là đoán một ca làm việc).
+	 */
+	public static function gio_24( $chu ) {
+		$c = trim( (string) $chu );
+		if ( '' === $c ) { return ''; }
+		$c = str_replace( array( '．', '：', 'h', 'H', '.', ' ' ), ':', $c );
+		$c = preg_replace( '/:+/', ':', $c );
+		$c = trim( $c, ':' );
+		if ( preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $c, $m ) ) {
+			$h = (int) $m[1];
+			$p = (int) $m[2];
+			if ( $h > 23 || $p > 59 ) { return false; }
+			return sprintf( '%02d:%02d', $h, $p );
+		}
+		/* Gõ liền: `1337` -> 13:37, `937` -> 9:37. Đây là kiểu gõ nhanh nhất trên bàn phím số,
+		   và là lý do chính người ta muốn bỏ ô 12 giờ. */
+		if ( preg_match( '/^(\d{3,4})$/', $c, $m ) ) {
+			$so = $m[1];
+			$h  = (int) substr( $so, 0, strlen( $so ) - 2 );
+			$p  = (int) substr( $so, -2 );
+			if ( $h > 23 || $p > 59 ) { return false; }
+			return sprintf( '%02d:%02d', $h, $p );
+		}
+		return false;
+	}
+
 	/** Ngược lại, đủ giây: 5400 -> '01:30:00'. Đây là dạng ô Giờ vào / Giờ ra của sheet. */
 	public static function hhmmss( $giay ) {
 		if ( $giay === null || $giay === '' ) { return ''; }

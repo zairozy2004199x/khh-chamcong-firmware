@@ -1395,9 +1395,15 @@ class VHCC_Web {
 			}
 			$r = VHCC_Ca::luu( $toi, isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '', $ds_ca );
 			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
-			return array( array( 'xong' => $r['so_ca']
+			$bao_ca = array( array( 'xong' => $r['so_ca']
 				? 'Đã khai ' . $r['so_ca'] . ' ca cho ' . $r['coSo'] . '. Giờ công tách lại theo ca mới ngay.'
 				: 'Đã bỏ khai ca riêng của ' . $r['coSo'] . ' — quay về dùng ca chung.' ) );
+			/* Ca bị bỏ vì đọc không được giờ thì phải KỂ TÊN — xem chú thích trong `VHCC_Ca::luu()`. */
+			if ( ! empty( $r['bo_qua'] ) ) {
+				$bao_ca[] = array( 'canh' => 'KHÔNG nhận ' . count( $r['bo_qua'] ) . ' ca: '
+					. implode( ' · ', $r['bo_qua'] ) . '. Mấy ca này CHƯA được khai — sửa lại rồi lưu lần nữa.' );
+			}
+			return $bao_ca;
 		}
 
 		/* ---------------------------------------------------------------------------------
@@ -5417,7 +5423,32 @@ class VHCC_Web {
 			: ' · ' . ( isset( $ten[ $hau_to ] ) ? $ten[ $hau_to ] : $hau_to ) . ' (-' . $hau_to . ')' );
 	}
 
-	/** Giờ đang có -> giá trị điền vào ô `type="time"`. Không có giờ -> chuỗi rỗng. */
+	/**
+	 * MỘT Ô GÕ GIỜ — 24 GIỜ, KHÔNG CÒN `type="time"`.
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, ảnh hàng "Chấm công bù" với hai ô `01:37 CH` / `09:01 CH`:
+	 *    *"chuyển này sang 24h cho dễ gõ"*.
+	 *
+	 *    `<input type="time">` hiện 12 giờ hay 24 giờ là do **ngôn ngữ của trình duyệt**, không
+	 *    phải do trang: Chrome không đọc thuộc tính `lang` cho ô giờ, Firefox và Safari theo hệ
+	 *    điều hành. Đứng từ máy chủ KHÔNG ép được. Nên đổi sang ô gõ thường — mình định dạng,
+	 *    mình soát — và nhận luôn kiểu gõ nhanh bốn số liền (`1337`), là kiểu gõ nhanh nhất.
+	 *
+	 * ⚠️ BỎ `type="time"` LÀ BỎ LUÔN PHẦN TRÌNH DUYỆT CHẶN GÕ BẬY, nên phải thay bằng đủ hai
+	 *    lớp: `pattern` ở đây (chặn ngay lúc bấm, không mất công gửi đi) và chốt ở CỬA GHI
+	 *    (`VHCC_Bu::ghi()`/`sua()` — POST gửi tay cũng phải qua). Thiếu lớp thứ hai là gõ nhầm
+	 *    thành mất trắng một giờ công mà màn hình vẫn báo Đã lưu.
+	 */
+	private static function o_gio_24( $id, $ten, $gia_tri ) {
+		return '<input id="' . esc_attr( $id ) . '" name="' . esc_attr( $ten ) . '" type="text"'
+			. ' inputmode="numeric" autocomplete="off" maxlength="8" placeholder="13:37"'
+			. ' pattern="([01]?[0-9]|2[0-3])[:.hH ]?[0-5][0-9](:[0-5][0-9])?"'
+			. ' title="Giờ theo kiểu 24 giờ: 08:30 · 13:37 · 22:05. Gõ liền cũng được: 0830, 1337."'
+			. ' style="width:92px;text-align:center;font-variant-numeric:tabular-nums"'
+			. ( '' !== $gia_tri ? ' value="' . esc_attr( $gia_tri ) . '"' : '' ) . '>';
+	}
+
+	/** Giờ đang có -> giá trị điền vào ô giờ. Không có giờ -> chuỗi rỗng. */
 	private static function gio_o( $v ) {
 		$v = trim( (string) $v );
 		return preg_match( '/^\d{2}:\d{2}/', $v ) ? substr( $v, 0, 5 ) : '';
@@ -5447,12 +5478,12 @@ class VHCC_Web {
 		$id  = 'iv_' . preg_replace( '/[^A-Za-z0-9]+/', '_', ( $co_gio ? 'sg' : 'bu' ) . '_' . $khoa );
 		$gv  = $co_gio ? self::gio_o( $vao_cu ) : '';
 		$gr  = $co_gio ? self::gio_o( $ra_cu ) : '';
-		$h   = '<div><label for="' . esc_attr( $id . '_v' ) . '">Giờ vào</label>'
-			. '<input id="' . esc_attr( $id . '_v' ) . '" name="' . esc_attr( $tv ) . '" type="time"'
-			. ( '' !== $gv ? ' value="' . esc_attr( $gv ) . '"' : '' ) . '></div>';
-		$h  .= '<div><label for="' . esc_attr( $id . '_r' ) . '">Giờ ra</label>'
-			. '<input id="' . esc_attr( $id . '_r' ) . '" name="' . esc_attr( $tr ) . '" type="time"'
-			. ( '' !== $gr ? ' value="' . esc_attr( $gr ) . '"' : '' ) . '></div>';
+		$h   = '<div><label for="' . esc_attr( $id . '_v' ) . '">Giờ vào <span class="mo"'
+			. ' style="font-weight:400">(24h)</span></label>'
+			. self::o_gio_24( $id . '_v', $tv, $gv ) . '</div>';
+		$h  .= '<div><label for="' . esc_attr( $id . '_r' ) . '">Giờ ra <span class="mo"'
+			. ' style="font-weight:400">(24h)</span></label>'
+			. self::o_gio_24( $id . '_r', $tr, $gr ) . '</div>';
 		if ( $co_gio ) {
 			$h .= '<input type="hidden" name="sg_cu' . esc_attr( $o ) . '" value="'
 				. esc_attr( $gv . '|' . $gr ) . '">';
@@ -6084,9 +6115,12 @@ class VHCC_Web {
 			echo '<tr>';
 			echo '<td><input name="ca_ten[' . (int) $i . ']" value="' . esc_attr( $c['ten'] )
 				. '" placeholder="VD: Ca 1" style="width:130px"></td>';
+			/* Bốn ô giờ cũng là ô gõ 24 giờ, cùng một hàm với hai ô Giờ vào / Giờ ra — xem
+			   `o_gio_24()`. Để lẫn hai kiểu ô trên cùng một màn là mỗi lần gõ phải nhớ ô nào
+			   kiểu nào. */
 			foreach ( array( 'ca_tu' => 'tu', 'ca_den' => 'den', 'ca_tuw' => 'tuW', 'ca_denw' => 'denW' ) as $o => $k ) {
-				echo '<td><input type="time" name="' . $o . '[' . (int) $i . ']" value="'
-					. esc_attr( $c[ $k ] ) . '"></td>';
+				echo '<td>' . self::o_gio_24( 'oca_' . $o . '_' . (int) $i,
+					$o . '[' . (int) $i . ']', (string) $c[ $k ] ) . '</td>';
 			}
 			echo '</tr>';
 		}

@@ -112,6 +112,19 @@ class VHCC_Bu {
 					. '"quên bấm lúc về, có camera".' );
 		}
 
+		/* 🔴 GÕ SAI DẠNG PHẢI BÁO LỖI, KHÔNG ĐƯỢC IM LẶNG THÀNH "không bù ô đó".
+		   `giay()` trả `null` cho cả ô TRỐNG lẫn gõ BẬY. Trước 3.65.0 hai ô giờ là
+		   `type="time"` nên trình duyệt chặn sẵn; nay là ô gõ thường, nên gõ nhầm "8h3o" mà
+		   không chốt ở đây là bù MỖI giờ ra, màn hình báo "Đã bù giờ ra 17:00" — và người bù
+		   tưởng xong cả hai. `sua()` đã phải vá đúng chỗ này một lần rồi. */
+		foreach ( array( 'vao' => 'Giờ vào', 'ra' => 'Giờ ra' ) as $o_g => $ten_g ) {
+			$tho = isset( $dat[ $o_g ] ) ? (string) $dat[ $o_g ] : '';
+			if ( '' === trim( $tho ) ) { continue; }
+			if ( false === VHCC_DB::gio_24( $tho ) ) {
+				return array( 'ok' => false, 'error' => $ten_g . ' không đúng dạng: "' . trim( $tho )
+					. '". Gõ theo 24 giờ — 08:30 hoặc gõ liền 0830; 1 giờ 37 chiều là 13:37.' );
+			}
+		}
 		$vao = self::giay( isset( $dat['vao'] ) ? $dat['vao'] : '' );
 		$ra  = self::giay( isset( $dat['ra'] ) ? $dat['ra'] : '' );
 		if ( null === $vao && null === $ra ) {
@@ -267,7 +280,8 @@ class VHCC_Bu {
 		} elseif ( '' !== trim( (string) ( isset( $dat['vao'] ) ? $dat['vao'] : '' ) ) ) {
 			$vao_moi = self::giay( $dat['vao'] );
 			if ( null === $vao_moi ) {
-				return array( 'ok' => false, 'error' => 'Giờ vào không đúng dạng — gõ kiểu 08:30.' );
+				return array( 'ok' => false, 'error' => 'Giờ vào không đúng dạng: "'
+					. trim( (string) $dat['vao'] ) . '". Gõ theo 24 giờ — 08:30 hoặc gõ liền 0830.' );
 			}
 		}
 		$ra_moi = $ra_cu;
@@ -276,7 +290,8 @@ class VHCC_Bu {
 		} elseif ( '' !== trim( (string) ( isset( $dat['ra'] ) ? $dat['ra'] : '' ) ) ) {
 			$ra_moi = self::giay( $dat['ra'] );
 			if ( null === $ra_moi ) {
-				return array( 'ok' => false, 'error' => 'Giờ ra không đúng dạng — gõ kiểu 17:00.' );
+				return array( 'ok' => false, 'error' => 'Giờ ra không đúng dạng: "'
+					. trim( (string) $dat['ra'] ) . '". Gõ theo 24 giờ — 17:00 hoặc gõ liền 1700.' );
 			}
 		}
 
@@ -499,15 +514,18 @@ class VHCC_Bu {
 	}
 
 	/** 'HH:mm' hoặc 'HH:mm:ss' -> số giây. Rỗng/sai -> null (KHÔNG phải 0: 0 là 00:00:00). */
+	/**
+	 * Chuỗi giờ -> giây trong ngày. `null` cho CẢ ô trống lẫn gõ sai — nơi gọi phải tự tách hai
+	 * chuyện ấy ra (xem `VHCC_DB::gio_24()` và hai chốt trong `ghi()`/`sua()`).
+	 *
+	 * ⚠️ Đi qua `VHCC_DB::gio_24()` từ 3.65.0, nên nhận luôn kiểu gõ nhanh `1337` / `13h37`.
+	 *    Hai ô giờ trên màn nay là ô gõ thường (không còn `type="time"`), và người gõ nhanh
+	 *    nhất là người gõ bốn số liền.
+	 */
 	public static function giay( $chu ) {
-		$chu = trim( (string) $chu );
-		if ( '' === $chu ) { return null; }
-		if ( ! preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $chu, $m ) ) { return null; }
-		$h = (int) $m[1];
-		$p = (int) $m[2];
-		$g = isset( $m[3] ) ? (int) $m[3] : 0;
-		if ( $h > 23 || $p > 59 || $g > 59 ) { return null; }
-		return $h * 3600 + $p * 60 + $g;
+		$c = VHCC_DB::gio_24( $chu );
+		if ( '' === $c || false === $c ) { return null; }
+		return VHCC_DB::giay( $c );
 	}
 
 	private static function hang( $coso, $ngay, $ma_nv ) {

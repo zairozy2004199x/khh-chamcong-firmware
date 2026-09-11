@@ -20263,6 +20263,141 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DC1'" 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='DC1'" );
 $GLOBALS['VHD_POST'] = array();
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Ô GÕ GIỜ: 24 GIỜ, KHÔNG CÒN `type="time"` — 11/09/2026
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng, ảnh hàng "Chấm công bù" với hai ô `01:37 CH` / `09:01 CH`: *"chuyển này sang 24h
+ * cho dễ gõ"*.
+ *
+ * 🔴 KHÔNG ÉP ĐƯỢC TỪ MÁY CHỦ. `<input type="time">` hiện 12 giờ hay 24 giờ là do NGÔN NGỮ CỦA
+ *    TRÌNH DUYỆT: Chrome không đọc thuộc tính `lang` cho ô giờ, Firefox và Safari theo hệ điều
+ *    hành. Nên muốn chắc thì phải tự cầm lấy ô — ô gõ thường, mình định dạng, mình soát.
+ *
+ * 🔴 VÀ CẦM LẤY Ô THÌ PHẢI CẦM LUÔN PHẦN SOÁT. `type="time"` xưa nay gánh việc chặn gõ bậy; bỏ
+ *    nó mà không thay bằng gì là mở lại đúng cái lỗi câm `VHCC_Bu::sua()` đã phải vá một lần —
+ *    `giay()` trả `null` cho CẢ ô trống lẫn gõ bậy, nên gõ nhầm là mất trắng một giờ công mà
+ *    màn hình vẫn báo Đã lưu. Nửa dưới khối này đo đúng chỗ đó.
+ */
+teq( 'ô trống trả rỗng', '', VHCC_DB::gio_24( '' ) );
+teq( 'dạng chuẩn giữ nguyên', '13:37', VHCC_DB::gio_24( '13:37' ) );
+teq( 'một chữ số giờ thì đệm 0', '08:30', VHCC_DB::gio_24( '8:30' ) );
+teq( 'có giây thì cắt giây', '13:37', VHCC_DB::gio_24( '13:37:45' ) );
+/* 🔴 GÕ LIỀN BỐN SỐ — đây mới là cái làm cho nó "dễ gõ": bàn phím số, không phải với tay tìm
+   dấu hai chấm, không phải bấm SA/CH. */
+teq( '🔴 gõ liền bốn số', '13:37', VHCC_DB::gio_24( '1337' ) );
+teq( '🔴 gõ liền ba số', '09:37', VHCC_DB::gio_24( '937' ) );
+teq( 'gõ liền có số 0 đầu', '08:30', VHCC_DB::gio_24( '0830' ) );
+teq( 'dấu chấm cũng được', '13:37', VHCC_DB::gio_24( '13.37' ) );
+teq( 'chữ h cũng được', '13:37', VHCC_DB::gio_24( '13h37' ) );
+teq( 'dấu cách cũng được', '13:37', VHCC_DB::gio_24( '13 37' ) );
+teq( 'khoảng trắng hai đầu không tính', '13:37', VHCC_DB::gio_24( '  13:37  ' ) );
+/* Chối thì phải chối HẲN (false), không được trả rỗng — rỗng là "ô trống", và hai chuyện ấy
+   dẫn tới hai hành vi khác nhau ở cửa ghi. */
+teq( '🔴 quá 23 giờ thì CHỐI', false, VHCC_DB::gio_24( '24:00' ) );
+teq( 'quá 59 phút cũng chối', false, VHCC_DB::gio_24( '13:60' ) );
+teq( 'gõ bậy thì chối', false, VHCC_DB::gio_24( 'tám rưỡi' ) );
+teq( 'thiếu phút thì chối', false, VHCC_DB::gio_24( '13' ) );
+/* 🔴 DẠNG 12 GIỜ CỐ Ý KHÔNG NHẬN. Đoán "01:37" là 1 giờ sáng hay 1 giờ chiều là đoán một ca
+   làm việc — sai một lần là lệch tám tiếng công, và không ai nhìn ra. */
+teq( '🔴 dạng 12 giờ (01:37 CH) KHÔNG được đoán bừa', false, VHCC_DB::gio_24( '01:37 CH' ) );
+teq( 'kể cả PM tiếng Anh', false, VHCC_DB::gio_24( '1:37 PM' ) );
+
+/* ---- trên MÀN: không còn ô type="time" nào ---- */
+$_cs_24 = 'G24_CS';
+VHCC_Luong::dat_cach_tinh( $U_AD, array( $_cs_24 => 'cong' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'G24', 'ho_ten' => 'Người Gõ Giờ',
+	'cua_hang' => $_cs_24, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$h_24 = vhcc_web_nhu2( 'ACAD', 'Admin', $_cs_24, array( 'man' => 'cham', 'ccs' => $_cs_24,
+	'cth' => '2026-09', 'gnd' => '2026-09-02', 'gma' => 'G24' ) );
+t( 'hàng "Chấm công bù" có mở ra thật (kẻo mọi phép dưới đo trên trang không có ô nào)',
+	strpos( $h_24, 'name="bu_vao"' ) !== false, null );
+t( '🔴 ô giờ KHÔNG còn là type="time" nữa',
+	strpos( $h_24, 'type="time"' ) === false, null );
+t( 'mà là ô gõ với bàn phím số', strpos( $h_24, 'inputmode="numeric"' ) !== false, null );
+t( 'có gợi ý mẫu 24 giờ ngay trong ô', strpos( $h_24, 'placeholder="13:37"' ) !== false, null );
+/* Nhãn phải nói ra là 24h — người gõ nhìn nhãn trước khi nhìn ô. */
+t( '🔴 nhãn nói rõ (24h)', strpos( $h_24, 'Giờ vào <span class="mo" style="font-weight:400">(24h)</span>' ) !== false,
+	null );
+/* `pattern` chặn ngay lúc bấm, khỏi mất công gửi đi rồi mới biết sai. */
+t( 'có pattern chặn tại chỗ', strpos( $h_24, 'pattern="([01]?[0-9]|2[0-3])' ) !== false, null );
+t( 'và câu giải thích hiện khi gõ sai', strpos( $h_24, 'Gõ liền cũng được: 0830, 1337.' ) !== false, null );
+
+/* ---- CỬA GHI: gõ sai phải CHỐI, không được lặng lẽ bỏ ô đó ---- */
+$U_BU = array( 'name' => 'Admin Bù', 'role' => 'ADMIN', 'coso' => '' );
+$_bu_nen = array( 'coso' => $_cs_24, 'ngay' => '2026-09-02', 'ma_nv' => 'G24',
+	'ly_do' => 'máy hỏng sáng nay, có camera' );
+$r_sai = VHCC_Bu::ghi( $U_BU, array_merge( $_bu_nen, array( 'vao' => '8h3o', 'ra' => '17:00' ) ) );
+t( '🔴 gõ sai giờ vào thì CHỐI cả lượt', empty( $r_sai['ok'] ), $r_sai );
+t( 'và câu chối nhắc lại đúng cái vừa gõ',
+	strpos( (string) $r_sai['error'], '8h3o' ) !== false, $r_sai );
+t( 'kèm cách gõ đúng', strpos( (string) $r_sai['error'], '13:37' ) !== false, $r_sai );
+/* 🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA KHỐI. Trước khi vá, `giay()` trả `null` cho ô gõ bậy y
+   như ô trống, nên lượt trên sẽ BÙ MỖI GIỜ RA và màn hình báo "Đã bù giờ ra 17:00" — người bù
+   tưởng xong cả hai, và giờ vào biến mất không dấu vết. */
+teq( '🔴 và KHÔNG ghi nửa vời (giờ ra cũng không được bù)', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+		. " WHERE ma_nv='G24' AND ngay='2026-09-02'" ) );
+
+/* Gõ liền phải chạy thật tới tận bảng — không thì "dễ gõ" chỉ là lời hứa ở lớp giao diện. */
+$r_lien = VHCC_Bu::ghi( $U_BU, array_merge( $_bu_nen, array( 'vao' => '0830', 'ra' => '1700' ) ) );
+t( '🔴 gõ liền 0830 / 1700 thì bù được', ! empty( $r_lien['ok'] ), $r_lien );
+$hang_24 = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ma_nv='G24' AND ngay='2026-09-02'" );
+t( '🔴 và vào bảng đúng 08:30 – 17:00', count( $hang_24 ) === 1
+	&& 8 * 3600 + 30 * 60 === (int) $hang_24[0]['gio_vao_giay']
+	&& 17 * 3600 === (int) $hang_24[0]['gio_ra_giay'], $hang_24 );
+
+/* Sửa giờ cũng cùng một luật, và câu chối cũng nhắc lại cái vừa gõ. */
+$r_sg = VHCC_Bu::sua( $U_BU, array( 'coso' => $_cs_24, 'ngay' => '2026-09-02', 'ma_nv' => 'G24',
+	'vao' => '25:00', 'ly_do' => 'sửa lại cho đúng camera' ) );
+t( '🔴 sửa giờ gõ 25:00 cũng bị chối', empty( $r_sg['ok'] ), $r_sg );
+t( 'và cũng nhắc lại cái vừa gõ', strpos( (string) $r_sg['error'], '25:00' ) !== false, $r_sg );
+$r_sg2 = VHCC_Bu::sua( $U_BU, array( 'coso' => $_cs_24, 'ngay' => '2026-09-02', 'ma_nv' => 'G24',
+	'vao' => '0915', 'ly_do' => 'sửa lại cho đúng camera' ) );
+t( 'còn gõ liền thì sửa được', ! empty( $r_sg2['ok'] ), $r_sg2 );
+teq( 'và ghi đúng 09:15', 9 * 3600 + 15 * 60,
+	(int) VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
+		. " WHERE ma_nv='G24' AND ngay='2026-09-02'" )[0]['gio_vao_giay'] );
+
+/* ---- KHAI CA: cùng một ô, và ca bị bỏ phải KỂ TÊN ---- */
+/* ⚠️ Khối khai ca nằm ở màn **Cấu hình**, không phải màn Bảng công — soi nhầm màn thì phép
+   "không còn type=time" xanh vì trang không có ô nào, chứ không phải vì đã sửa.
+   ⚠️ Và cơ sở phải nằm trong DANH MỤC (`ds_coso()`: đã khai bộ phận, hoặc đã gắn máy) — không
+      thì ô chọn cơ sở của màn ấy không có nó, `$cs` về rỗng và cả khối không được vẽ. Gắn một
+      máy cho xong: đúng một trong hai cách khai có thật.
+   ⚠️ Và cơ sở phải tính THEO GIỜ: khối khai ca cố ý không vẽ cho cơ sở tính theo công (nó
+      không dùng tới khung ca). Nên dựng một cơ sở riêng chứ đừng đổi cách tính của cơ sở trên —
+      đổi là mấy phép lưới ở khối khác đo trên một cơ sở khác hẳn. */
+$_cs_24g = 'G24_GIO';
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYG24', 'mac' => '',
+	'cua_hang' => $_cs_24g, 'ten_tu_khai' => 'Máy thử ô giờ' ) );
+$h_ca24 = vhcc_web_nhu2( 'ACAD', 'Admin', $_cs_24g, array( 'man' => 'cau_hinh', 'ccs' => $_cs_24g,
+	'khaica' => '1' ) );
+t( 'khối khai ca có mặt', strpos( $h_ca24, 'name="ca_ten[0]"' ) !== false, null );
+t( '🔴 bốn ô giờ khai ca cũng là ô 24 giờ, không còn type="time"',
+	strpos( $h_ca24, 'type="time"' ) === false
+	&& strpos( $h_ca24, 'name="ca_tu[0]"' ) !== false, null );
+$r_ca24 = VHCC_Ca::luu( $U_AD, $_cs_24g, array(
+	array( 'ten' => 'Ca sáng', 'tu' => '0800', 'den' => '1200' ),
+	array( 'ten' => 'Ca chiều', 'tu' => 'mười hai', 'den' => '17:00' ),
+) );
+teq( '🔴 ca gõ liền 0800/1200 nhận được, ca gõ bậy thì không', 1, (int) $r_ca24['so_ca'] );
+/* 🔴 VÀ CA BỊ BỎ PHẢI KỂ TÊN. `lam_sach()` lặng lẽ bỏ mọi dòng đọc không được — với ô gõ thường
+   thì gõ nhầm một ô là mất nguyên một ca, mà màn hình vẫn báo "Đã khai 1 ca". Thiếu một ca là
+   giờ công của cả ca ấy rơi ra ngoài mọi ca, và không ai biết cho tới kỳ lương. */
+t( '🔴 và ca bị bỏ được KỂ TÊN ra', ! empty( $r_ca24['bo_qua'] )
+	&& strpos( $r_ca24['bo_qua'][0], 'Ca chiều' ) === 0, $r_ca24 );
+$h_ca_bao = vhcc_web_post_nhu( 'ACAD', 'Admin', $_cs_24g, array( 'viec' => 'ca', 'ccs' => $_cs_24g,
+	'ca_ten' => array( 'Ca sáng', 'Ca lỗi' ), 'ca_tu' => array( '0800', 'xx' ),
+	'ca_den' => array( '1200', '17:00' ), 'ca_tuw' => array( '', '' ), 'ca_denw' => array( '', '' ) ) );
+t( '🔴 màn hình cũng nói ra ca nào không nhận',
+	strpos( $h_ca_bao, 'KHÔNG nhận 1 ca' ) !== false
+	&& strpos( $h_ca_bao, 'Ca lỗi' ) !== false, substr( $h_ca_bao, 0, 1500 ) );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='G24'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='G24'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYG24'" );
+
 vhcc_dung_bang();
 
 
