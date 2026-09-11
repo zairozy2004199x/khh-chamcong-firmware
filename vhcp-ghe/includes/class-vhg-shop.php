@@ -1406,18 +1406,18 @@ function veNap(){
    cho cỡ chữ nên chữ/ảnh nhỏ đều, không vỡ bố cục). Hiện 1 lần mỗi lần vào trang. */
 var KMT_SPLASH_SHOWN = false;
 function kmtFontCss(ff){
-  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace', condensed:'"Arial Narrow",sans-serif',
-    anton:'"Anton",sans-serif', bungee:'"Bungee",cursive', bungee3d:'"Bungee Shade",cursive',
-    bungeeinline:'"Bungee Inline",cursive', pacifico:'"Pacifico",cursive' };
+  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace',
+    oswald:'"Oswald",sans-serif', bevn:'"Be Vietnam Pro",sans-serif', baloo:'"Baloo 2",cursive',
+    lobster:'"Lobster",cursive', dancing:'"Dancing Script",cursive' };
   return M[ff] || 'system-ui,-apple-system,Arial,sans-serif';
 }
 function kmtHieuCss(e){
   var c = e.c || '#fff';
   switch (e.hieu) {
-    case '3d':       return 'text-shadow:1px 1px 0 rgba(0,0,0,.5),2px 2px 0 rgba(0,0,0,.45),3px 3px 0 rgba(0,0,0,.4),4px 4px 0 rgba(0,0,0,.3),6px 6px 10px rgba(0,0,0,.45)';
+    case '3d':       return 'text-shadow:0 -1px 0 rgba(255,255,255,.4),2px 2px 0 rgba(0,0,0,.75),4px 4px 0 rgba(0,0,0,.6),6px 8px 10px rgba(0,0,0,.5)';
     case 'glow':     return 'text-shadow:0 0 6px '+c+',0 0 14px '+c+',0 0 26px '+c;
     case 'vien':     return '-webkit-text-stroke:.055em '+c+';color:transparent';
-    case 'bong':     return 'text-shadow:0 4px 10px rgba(0,0,0,.55)';
+    case 'bong':     return 'text-shadow:1px 1px 1px rgba(255,255,255,.25),2px 4px 7px rgba(0,0,0,.65)';
     case 'vang':     return 'background:linear-gradient(180deg,#fff6c0,#f5c542 42%,#b57611);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))';
     case 'gradient': return 'background:linear-gradient(90deg,#ff5e62,#ff9966,#ffd452);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))';
     default:         return '';
@@ -2301,7 +2301,7 @@ JS;
 			. '<meta name="theme-color" content="#12141f">'
 			/* Font trang trí cho trang khuyến mãi (2D/3D): Anton, Bungee (+Shade/Inline), Pacifico. */
 			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
-			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swap">'
+			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Baloo+2:wght@700;800family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Oswald:wght@600;700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Lobsterfamily=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapfamily=Dancing+Script:wght@700family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swapdisplay=swap">'
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien . '>'
 			. '<div id="app"></div>'
 			/* ══════════════════════════════════════════════════════════════════════════════
