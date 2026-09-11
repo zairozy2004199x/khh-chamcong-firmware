@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.39.0
+ * Version:           1.39.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -821,6 +821,64 @@ class POSH_Ve {
 	}
 
 	// ───────────────────────────── Đăng nhập Zalo trên web (OAuth v4) ─────────────────────────────
+
+	/**
+	 * 🔴 HỎNG PHẢI NÓI RA. Bản trước mọi lối thất bại đều `wp_safe_redirect($back); exit;` —
+	 * không một chữ nào. Bấm "Đăng nhập bằng Zalo" rồi quay về đúng màn hình cũ, y như chưa
+	 * bấm: anh Thắng 11/09/2026 *"bấm zalo để vào quản trị nhưng không phản hồi"*. Thiếu khoá
+	 * bí mật, Zalo chối redirect_uri, phiên hết hạn, graph.zalo.me lỗi — bốn nguyên nhân khác
+	 * hẳn nhau mà giao diện giống hệt nhau, nên không ai biết phải đi sửa cái gì.
+	 *
+	 * Nay mỗi lối về mang theo `pve_zl_loi` (mã lý do) và `pve_zl_chi` (NGUYÊN VĂN câu Zalo trả
+	 * lời, nếu có); trang in thẳng ra. Đúng bài học đã ghi ở plugin nhà ma bản 1.5.1.
+	 */
+	private static function ve_kem_loi( $back, $ma, $chi = '' ) {
+		$u = add_query_arg( 'pve_zl_loi', rawurlencode( $ma ), $back ? $back : home_url( '/' ) );
+		if ( '' !== $chi ) { $u = add_query_arg( 'pve_zl_chi', rawurlencode( mb_substr( $chi, 0, 300 ) ), $u ); }
+		wp_safe_redirect( $u ); exit;
+	}
+
+	/* Địa chỉ trang đang mở (bỏ mấy tham số thông báo để bấm lại không cộng dồn). */
+	public static function url_hien_tai() {
+		$u = home_url( add_query_arg( array() ) );
+		return remove_query_arg( array( 'pve_zl_loi', 'pve_zl_chi', 'pve_zl_ok' ), $u );
+	}
+
+	/* Mã lý do -> câu tiếng Việt. Kèm nguyên văn câu Zalo trả lời ở dòng dưới (nếu có). */
+	public static function loi_zalo_html() {
+		if ( empty( $_GET['pve_zl_loi'] ) ) { return ''; }
+		$ma = sanitize_key( wp_unslash( $_GET['pve_zl_loi'] ) );
+		$chi = isset( $_GET['pve_zl_chi'] ) ? sanitize_text_field( wp_unslash( $_GET['pve_zl_chi'] ) ) : '';
+		$noi = array(
+			'chua_cau_hinh'     => 'Chưa khai <b>Zalo App ID</b> hoặc <b>Khoá bí mật</b> — vào WP Admin → Vé khu vui chơi → phần Zalo.',
+			'zalo_choi'         => 'Zalo từ chối lượt đăng nhập.',
+			'het_han'           => 'Phiên đăng nhập đã hết hạn (quá 10 phút) hoặc mở lại link cũ — bấm lại từ đầu.',
+			'khong_co_code'     => 'Zalo quay về nhưng không kèm mã uỷ quyền.',
+			'khong_goi_duoc'    => 'Máy chủ web không gọi ra được Zalo (mạng hoặc tường lửa hosting chặn).',
+			'doi_token_hong'    => 'Đổi mã uỷ quyền lấy token không thành.',
+			'khong_lay_duoc_id' => 'Lấy được token nhưng không đọc được hồ sơ Zalo.',
+		);
+		$cau = isset( $noi[ $ma ] ) ? $noi[ $ma ] : 'Đăng nhập Zalo không thành.';
+		$h = '<div class="pql-err">⚠️ ' . $cau;
+		if ( '' !== $chi ) { $h .= '<div class="pql-err-chi">Zalo trả lời: <code>' . esc_html( $chi ) . '</code></div>'; }
+		return $h . '</div>';
+	}
+
+	/* Đăng nhập Zalo xong nhưng ID chưa nằm trong danh sách quản trị -> nói rõ và đưa ID ra cho
+	   người ta chép. Không có chỗ nào khác cho người dùng biết Zalo ID của chính mình. */
+	public static function zalo_chua_trong_ds_html() {
+		$zu = self::zalo_user(); if ( ! $zu || empty( $zu['id'] ) ) { return ''; }
+		if ( '' !== self::quan_tri_khong_pin() ) { return ''; }
+		$ds = trim( (string) get_option( 'pve_zalo_admin_ids', '' ) );
+		$h  = '<div class="pql-err">⚠️ Đã đăng nhập Zalo'
+			. ( ! empty( $zu['name'] ) ? ( ' (<b>' . esc_html( $zu['name'] ) . '</b>)' ) : '' )
+			. ' nhưng tài khoản này <b>chưa được cấp quyền quản trị</b>.'
+			. '<div class="pql-err-chi">Zalo ID của bạn: <code>' . esc_html( $zu['id'] ) . '</code> — chép số này vào '
+			. '<b>WP Admin → Vé khu vui chơi → Zalo ID quản trị</b>'
+			. ( '' === $ds ? ' (ô đang để trống nên chưa ai được bỏ qua PIN).' : '.' ) . '</div></div>';
+		return $h;
+	}
+
 	public static function zalo_web_login() {
 		if ( ! isset( $_GET['pve_zalo'] ) ) { return; }
 		$act    = sanitize_key( $_GET['pve_zalo'] );
@@ -829,11 +887,20 @@ class POSH_Ve {
 		$cb     = esc_url_raw( rest_url( self::NS . '/zalo/cb' ) );   // callback sạch, không có dấu ?
 
 		if ( 'login' === $act ) {
-			if ( '' === $appid ) { wp_die( 'Chưa cấu hình Zalo App ID (vào admin Vé khu vui chơi).' ); }
+			/* Chỗ quay về: ưu tiên tham số `back` do chính trang gắn vào, rồi mới tới referer.
+			   Referer không phải lúc nào cũng có (trình duyệt chặn, mở từ tab mới) — mất nó thì
+			   quản trị bấm từ /quan-tri-ve lại rơi về trang chủ, trông như "vào không được". */
+			$back = isset( $_GET['back'] ) ? esc_url_raw( wp_unslash( $_GET['back'] ) ) : '';
+			$back = wp_validate_redirect( $back, '' );
+			if ( '' === $back ) { $back = wp_get_referer(); }
+			if ( ! $back ) { $back = home_url( '/' ); }
+			/* Kiểm CẢ HAI khoá ngay đây. Thiếu secret thì bản cũ vẫn đẩy sang Zalo bình thường
+			   rồi chết lặng ở bước đổi token — sai một chỗ, báo ở chỗ khác. */
+			if ( '' === $appid || '' === $secret ) { self::ve_kem_loi( $back, 'chua_cau_hinh' ); }
 			$verifier  = wp_generate_password( 64, false );
 			$challenge = rtrim( strtr( base64_encode( hash( 'sha256', $verifier, true ) ), '+/', '-_' ), '=' );
 			$state     = wp_generate_password( 24, false );
-			set_transient( 'pve_zl_' . $state, array( 'v' => $verifier, 'r' => wp_get_referer() ), 600 );
+			set_transient( 'pve_zl_' . $state, array( 'v' => $verifier, 'r' => $back ), 600 );
 			wp_redirect( 'https://oauth.zaloapp.com/v4/permission?app_id=' . rawurlencode( $appid )
 				. '&redirect_uri=' . rawurlencode( $cb ) . '&code_challenge=' . $challenge . '&state=' . $state );
 			exit;
@@ -841,7 +908,8 @@ class POSH_Ve {
 		if ( 'cb' === $act ) {   // tương thích callback cũ ?pve_zalo=cb
 			self::xong_dang_nhap(
 				isset( $_GET['code'] ) ? sanitize_text_field( wp_unslash( $_GET['code'] ) ) : '',
-				isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : ''
+				isset( $_GET['state'] ) ? sanitize_text_field( wp_unslash( $_GET['state'] ) ) : '',
+				self::loi_tu_zalo()
 			);
 		}
 		if ( 'logout' === $act ) {
@@ -851,35 +919,58 @@ class POSH_Ve {
 	}
 	/* Callback sạch (REST): oauth.zaloapp.com quay về đây với code+state. */
 	public static function r_zalo_cb( $req ) {
-		self::xong_dang_nhap( (string) $req->get_param( 'code' ), (string) $req->get_param( 'state' ) );
+		self::xong_dang_nhap( (string) $req->get_param( 'code' ), (string) $req->get_param( 'state' ), self::loi_tu_zalo() );
+	}
+
+	/* Zalo chối thì nó quay về KHÔNG có `code`, chỉ có error/error_description. Bản cũ chỉ nhìn
+	   `code` nên lời chối ấy rơi xuống đất — đây chính là ca "-14003 Invalid redirect uri" mà
+	   bên nhà ma mất hai ngày đi dò. Gom nguyên văn để in ra. */
+	private static function loi_tu_zalo() {
+		$ra = array();
+		foreach ( array( 'error', 'error_code', 'error_reason', 'error_description', 'message' ) as $k ) {
+			if ( isset( $_GET[ $k ] ) && '' !== trim( (string) $_GET[ $k ] ) ) {
+				$ra[] = $k . '=' . sanitize_text_field( wp_unslash( $_GET[ $k ] ) );
+			}
+		}
+		return implode( ' · ', $ra );
 	}
 	/* Đổi code -> access_token -> lấy tên -> đặt cookie -> quay lại trang bán. */
-	private static function xong_dang_nhap( $code, $state ) {
+	private static function xong_dang_nhap( $code, $state, $loi_zalo = '' ) {
 		$appid  = (string) get_option( 'pve_zalo_appid', '' );
 		$secret = (string) get_option( 'pve_zalo_secret', '' );
 		$code   = preg_replace( '/[^A-Za-z0-9._-]/', '', (string) $code );
 		$state  = preg_replace( '/[^A-Za-z0-9]/', '', (string) $state );
 		$data   = get_transient( 'pve_zl_' . $state );
 		$back   = ( $data && ! empty( $data['r'] ) ) ? $data['r'] : home_url( '/' );
-		if ( ! $data || '' === $code || '' === $secret ) { wp_safe_redirect( $back ); exit; }
+		if ( '' !== $loi_zalo )  { self::ve_kem_loi( $back, 'zalo_choi', $loi_zalo ); }
+		if ( ! $data )           { self::ve_kem_loi( $back, 'het_han' ); }
+		if ( '' === $code )      { self::ve_kem_loi( $back, 'khong_co_code' ); }
+		if ( '' === $secret )    { self::ve_kem_loi( $back, 'chua_cau_hinh' ); }
 		delete_transient( 'pve_zl_' . $state );
 		$res = wp_remote_post( 'https://oauth.zaloapp.com/v4/access_token', array( 'timeout' => 12,
 			'headers' => array( 'secret_key' => $secret, 'Content-Type' => 'application/x-www-form-urlencoded' ),
 			'body'    => array( 'app_id' => $appid, 'code' => $code, 'grant_type' => 'authorization_code', 'code_verifier' => $data['v'] ) ) );
-		$tok = json_decode( (string) wp_remote_retrieve_body( $res ), true );
-		$at  = isset( $tok['access_token'] ) ? $tok['access_token'] : '';
-		if ( '' !== $at ) {
-			$me = wp_remote_get( 'https://graph.zalo.me/v2.0/me?fields=id,name,picture', array( 'timeout' => 12, 'headers' => array( 'access_token' => $at ) ) );
-			$u  = json_decode( (string) wp_remote_retrieve_body( $me ), true );
-			$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
-			$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
-			if ( '' !== $id ) {
-				$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
-				$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
-				setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
-			}
-		}
-		wp_safe_redirect( $back ); exit;
+		if ( is_wp_error( $res ) ) { self::ve_kem_loi( $back, 'khong_goi_duoc', $res->get_error_message() ); }
+		$than = (string) wp_remote_retrieve_body( $res );
+		$tok  = json_decode( $than, true );
+		$at   = isset( $tok['access_token'] ) ? $tok['access_token'] : '';
+		/* Đổi code lấy token hỏng -> chép NGUYÊN VĂN thân trả lời của Zalo. Câu ấy nói thẳng
+		   thiếu bước nào (redirect_uri, app chưa được OA cấp quyền…), đoán mò thì mất cả ngày. */
+		if ( '' === $at ) { self::ve_kem_loi( $back, 'doi_token_hong', $than ); }
+		$me = wp_remote_get( 'https://graph.zalo.me/v2.0/me?fields=id,name,picture', array( 'timeout' => 12, 'headers' => array( 'access_token' => $at ) ) );
+		if ( is_wp_error( $me ) ) { self::ve_kem_loi( $back, 'khong_goi_duoc', $me->get_error_message() ); }
+		$thanMe = (string) wp_remote_retrieve_body( $me );
+		$u  = json_decode( $thanMe, true );
+		$id = isset( $u['id'] ) ? preg_replace( '/\D+/', '', (string) $u['id'] ) : '';
+		$nm = isset( $u['name'] ) ? sanitize_text_field( $u['name'] ) : '';
+		if ( '' === $id ) { self::ve_kem_loi( $back, 'khong_lay_duoc_id', $thanMe ); }
+		$val = base64_encode( wp_json_encode( array( 'id' => $id, 'name' => $nm ) ) );
+		$sig = hash_hmac( 'sha256', $val, wp_salt( 'auth' ) );
+		setcookie( 'pve_zuser', $val . '.' . $sig, time() + 30 * DAY_IN_SECONDS, '/' );
+		/* Vào được rồi thì nói ai đang vào — và kèm ID để quản trị chép vào ô "Zalo ID quản trị".
+		   Không có chỗ nào khác trên đời cho người ta biết Zalo ID của chính mình. */
+		$u2 = add_query_arg( 'pve_zl_ok', rawurlencode( $id ), $back );
+		wp_safe_redirect( $u2 ); exit;
 	}
 	/* Mã xác thực domain Zalo (bỏ tiền tố nếu có). */
 	private static function zalo_verify_token() {
@@ -1325,7 +1416,7 @@ class POSH_Ve {
 					</span>
 				<?php else : ?>
 					<span>Đăng nhập để đồng bộ vé với Zalo</span>
-					<a class="pve-auth-btn" href="<?php echo esc_url( home_url( '/?pve_zalo=login' ) ); ?>">Đăng nhập bằng Zalo</a>
+					<a class="pve-auth-btn" href="<?php echo esc_url( add_query_arg( array( 'pve_zalo' => 'login', 'back' => rawurlencode( self::url_hien_tai() ) ), home_url( '/' ) ) ); ?>">Đăng nhập bằng Zalo</a>
 				<?php endif; ?>
 			</div>
 
@@ -1465,7 +1556,7 @@ class POSH_Ve {
 		(function(){
 			var REST = <?php echo wp_json_encode( $rest ); ?>;
 			/* Cơ sở kèm toạ độ / % giảm / bán kính — để trang tự sắp cơ sở gần nhất lên trước và
-			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở VHCP_Ve::giam_tai_cho()
+			   hiện nhãn giảm giá. ⚠️ Chỉ để HIỆN. Giá thật do máy chủ chốt lại ở POSH_Ve::giam_tai_cho()
 			   mỗi lượt đặt; sửa mấy con số này trong trình duyệt không mua rẻ được đồng nào. */
 			var PVE_CS = <?php echo wp_json_encode( self::ds_coso() ); ?>;
 			var mask = document.querySelector('.pve-mask');
@@ -1549,7 +1640,7 @@ class POSH_Ve {
 				}, function(){ PVE.vi='tu_choi'; xongVT(); }, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
 			})();
 			function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-			/* Haversine — cùng công thức với VHCP_Ve::kc_met() bên máy chủ. Hai bên lệch nhau thì
+			/* Haversine — cùng công thức với POSH_Ve::kc_met() bên máy chủ. Hai bên lệch nhau thì
 			   trang hứa giảm mà máy chủ không cho, khách đã bấm mua rồi mới thấy giá khác. */
 			function kcMet(la1,ln1,la2,ln2){
 				var R=6371000, p=Math.PI/180;
@@ -1628,7 +1719,7 @@ class POSH_Ve {
 						if (cs && c.kv && c.kv !== cs) return;
 						var o = document.createElement('option'); o.value = c.id;
 						/* Giá hiện đúng thứ khách sẽ trả: đang trong bán kính thì hiện giá đã giảm.
-						   Cùng luật làm tròn với VHCP_Ve::gia_sau_giam() — lệch một nghìn là khách
+						   Cùng luật làm tròn với POSH_Ve::gia_sau_giam() — lệch một nghìn là khách
 						   thấy một giá ở ô chọn, một giá khác trên mã QR chuyển khoản. */
 						o.textContent = c.ten + ' — ' + tien(giaSauGiam(c.gia)) + (PVE.giam ? (' (-' + PVE.giam + '%)') : '');
 						selVe.appendChild(o);
@@ -1917,14 +2008,28 @@ class POSH_Ve {
 							if ( 'zalo' === $khong_pin && $zu_ql && ! empty( $zu_ql['name'] ) ) { echo ' — ' . esc_html( $zu_ql['name'] ); }
 						?> · không cần mã PIN.</p>
 						<div class="pql-msg">Đang mở khu quản trị…</div>
-					<?php elseif ( ! $co_pin ) : ?>
-						<p class="pql-err">Chưa đặt mã PIN. Nhờ quản trị vào <b>WP Admin → Vé khu vui chơi → Khu quản lý (PIN)</b> đặt trước.</p>
 					<?php else : ?>
-						<input class="pql-pin" type="password" inputmode="numeric" placeholder="Nhập mã PIN" autocomplete="off">
-						<button class="pql-dn">Vào quản trị</button>
-						<div class="pql-msg"></div>
-						<?php /* Lối vào thứ hai cho người quản trị đã khai Zalo ID — khỏi phải nhớ PIN. */ ?>
-						<a class="pql-zalo" href="<?php echo esc_url( add_query_arg( 'pve_zalo', 'login', home_url( '/' ) ) ); ?>">Đăng nhập bằng Zalo quản trị</a>
+						<?php
+						/* Nói ra vì sao chưa vào được: lời chối của Zalo, hoặc đã đăng nhập rồi mà
+						   ID chưa nằm trong danh sách quản trị. Im lặng ở đây chính là lỗi "bấm
+						   zalo nhưng không phản hồi". */
+						echo self::loi_zalo_html();          // phpcs:ignore WordPress.Security.EscapeOutput
+						echo self::zalo_chua_trong_ds_html(); // phpcs:ignore WordPress.Security.EscapeOutput
+						?>
+						<?php if ( ! $co_pin ) : ?>
+							<p class="pql-err">Chưa đặt mã PIN. Nhờ quản trị vào <b>WP Admin → Vé khu vui chơi → Khu quản lý (PIN)</b> đặt trước.</p>
+						<?php else : ?>
+							<input class="pql-pin" type="password" inputmode="numeric" placeholder="Nhập mã PIN" autocomplete="off">
+							<button class="pql-dn">Vào quản trị</button>
+							<div class="pql-msg"></div>
+						<?php endif; ?>
+						<?php
+						/* Lối vào thứ hai cho quản trị đã khai Zalo ID — khỏi phải nhớ PIN.
+						   Gắn `back` = chính trang này: referer không phải lúc nào cũng có, thiếu nó
+						   thì đăng nhập xong rơi về trang chủ, trông như vào không được. */
+						$url_zl = add_query_arg( array( 'pve_zalo' => 'login', 'back' => rawurlencode( self::url_hien_tai() ) ), home_url( '/' ) );
+						?>
+						<a class="pql-zalo" href="<?php echo esc_url( $url_zl ); ?>">Đăng nhập bằng Zalo quản trị</a>
 					<?php endif; ?>
 				</div>
 			</div>
@@ -2094,6 +2199,8 @@ class POSH_Ve {
 		.pql-dn{ width:100%; margin-top:12px; }
 		.pql-ok{ color:#86efac; background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.35);
 			border-radius:10px; padding:10px 12px; margin:0 0 10px; font-size:14px; line-height:1.5; }
+		.pql-err-chi{ margin-top:6px; font-size:12px; opacity:.9; word-break:break-all; }
+		.pql-err-chi code{ background:rgba(255,255,255,.08); padding:1px 5px; border-radius:5px; }
 		.pql-zalo{ display:block; text-align:center; margin-top:10px; padding:10px; border-radius:10px;
 			background:#0068ff; color:#fff; text-decoration:none; font-weight:700; font-size:14px; }
 		.pql-msg,.pql-err{ color:#f0a0a0; font-size:13px; margin-top:10px; text-align:center; }
