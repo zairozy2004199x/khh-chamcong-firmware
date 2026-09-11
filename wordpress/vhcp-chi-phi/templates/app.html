@@ -6685,10 +6685,38 @@
     if(TKNAME && TKNAME[ma]) return TKNAME[ma];
     return (BOOT.tenTk && BOOT.tenTk[ma]) ? BOOT.tenTk[ma] : '';
   }
+  /**
+   * 🔴 CHƯA CHỌN GIAN THÌ ĐỪNG BẮT NHÂN VIÊN CHỌN MÃ TÀI KHOẢN.
+   *
+   * Anh Thắng 11/09/2026, nhìn ô Loại chi phí của đơn cơ sở xổ ra bốn dòng cùng tên "Chi phí
+   * cơ sở" khác mã (64196 · 64166 · 64126 · 64106):
+   *   *"mã tk nó đi theo cơ sở mà, chọn này nhân viên đâu biết tài khoản nào."*
+   *
+   * Đúng — và mã ấy KHÔNG phải thứ nhân viên biết. Nó là hàm của (loại × mảng của gian), khai
+   * ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh. Bốn dòng kia chẳng qua là bốn mảng
+   * khác nhau của cùng một loại: FARM một mã, FZ một mã, EVENT một mã...
+   *
+   * Trên ĐƠN GHÉP NHIỀU GIAN, thứ tự nhập là chọn loại -> gõ nội dung -> RỒI mới gắn gian, nên
+   * lúc mở ô chọn chưa có gian nào để tra. `_tkNoList()` khi ấy gom mã của mọi mảng lại (để
+   * loại không bị ẩn mất), và chỗ này thấy "nhiều mã" thì tách thành nhiều dòng — hóa ra bắt
+   * người nhập đoán trước một câu chỉ trả lời được sau khi họ chọn gian.
+   *
+   * Nên: chưa có gian thì bày MỘT dòng cho mỗi loại, mã để trống. Máy chủ tự tra theo gian lúc
+   * lưu (`VHCP_Cfg::resolve_tk()` -> `tkno_loai( $loai, $coso )`), mà nó tra bằng chính bảng
+   * cấu hình chứ không đoán — mã sai không có đường lọt vào.
+   *
+   * ⚠️ CHỌN GIAN RỒI MÀ VẪN CÒN HAI MÃ thì PHẢI hỏi: lúc ấy hai mã cùng nằm trong đúng một
+   *    mảng, máy không chọn hộ được, và người nhập thì đã nhìn thấy gian nên trả lời được.
+   */
   function _loaiCpOpts(coso, cur, curTk, hinhThuc){
     var out=[];
+    var chuaGian=(String(coso||'').trim()==='');
     _loaiCpList(coso, hinhThuc).forEach(function(x){
       var ds=_tkNoList(x.ten, coso);
+      if(chuaGian && ds.length>1){
+        out.push({ten:x.ten, tk:'', nhan:x.ten+'  ·  (mã tài khoản theo gian)'});
+        return;
+      }
       if(ds.length>1){
         ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
         return;
@@ -7400,6 +7428,15 @@
     if(!no && _tkNoList(ten,coso).length>1) no='';
     var co=(hit&&hit.tkCo)?hit.tkCo:(tt?'331':'141');
     var mang=_mangCua(coso);
+    /* 🔴 CHƯA CHỌN GIAN THÌ KHÔNG PHẢI LỖI — ĐỪNG BÁO ĐỎ. Mã tài khoản đi theo gian, mà trên
+       đơn ghép nhiều gian thì gian chọn sau cùng. Bày "Nợ ?" màu đỏ lúc ấy là dọa người nhập
+       về một thứ họ chưa tới lượt làm, và tệ hơn: nó khiến người ta đi tìm mã để chọn tay —
+       đúng việc không nên làm. Nói rõ mã sẽ tự có, màu trung tính. */
+    if(!no && String(coso||'').trim()==='' ){
+      lb.textContent='· Nợ (theo gian) / Có '+co;
+      lb.style.color='#94a3b8';
+      return;
+    }
     lb.textContent='· Nợ '+(no||'?')+' / Có '+co+(mang?(' · '+mang):'');
     lb.style.color=no?'#0f766e':'#dc2626';
   }
