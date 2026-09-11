@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.39.1
+ * Version:           1.40.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -1439,6 +1439,38 @@ class POSH_Ve {
 				<div class="pve-qf-note">Hoặc chọn loại vé ở danh mục bên dưới ↓</div>
 			</div>
 			<?php if ( '' !== trim( (string) $atts['tieu_de'] ) ) : ?><h2 class="pve-title"><?php echo esc_html( $atts['tieu_de'] ); ?></h2><?php endif; ?>
+			<?php
+			/* Thanh lọc — anh Thắng 11/09/2026: "tạo tab phân loại các loại vé, các loại khu đang có".
+			   Hai hàng vì đây là hai câu hỏi khác nhau: "chơi ở đâu" và "mua loại gì". Gộp một hàng
+			   thì mỗi lần thêm một khu là hàng dài thêm, và người ta không biết mình đang lọc theo
+			   chiều nào. Hàng KHU chỉ hiện khi thật sự có nhiều hơn một khu — một khu mà bày tab
+			   chọn khu là bắt người ta bấm một cái không đổi gì. */
+			$co_tab_kv   = count( $kvucs ) > 1;
+			$co_tab_nhom = count( $nhom ) > 1;
+			?>
+			<?php if ( $co_tab_kv || $co_tab_nhom ) : ?>
+			<div class="pve-tabs">
+				<?php if ( $co_tab_kv ) : ?>
+				<div class="pve-tabr">
+					<span class="pve-tabl">📍 Khu</span>
+					<button type="button" class="pve-tab on" data-loc="kv" data-v="">Tất cả</button>
+					<?php foreach ( $kvucs as $kv ) : ?>
+						<button type="button" class="pve-tab" data-loc="kv" data-v="<?php echo esc_attr( $kv ); ?>"><?php echo esc_html( $kv ); ?></button>
+					<?php endforeach; ?>
+				</div>
+				<?php endif; ?>
+				<?php if ( $co_tab_nhom ) : ?>
+				<div class="pve-tabr">
+					<span class="pve-tabl">🎟️ Loại vé</span>
+					<button type="button" class="pve-tab on" data-loc="nhom" data-v="">Tất cả</button>
+					<?php foreach ( array_keys( $nhom ) as $tn ) : ?>
+						<button type="button" class="pve-tab" data-loc="nhom" data-v="<?php echo esc_attr( $tn ); ?>"><?php echo esc_html( $tn ); ?></button>
+					<?php endforeach; ?>
+				</div>
+				<?php endif; ?>
+				<div class="pve-tab-trong" hidden>Không có vé nào khớp bộ lọc này.</div>
+			</div>
+			<?php endif; ?>
 			<?php if ( empty( $nhom ) ) : ?>
 				<p class="pve-empty">Chưa có vé nào đang mở bán.</p>
 			<?php endif; ?>
@@ -1453,6 +1485,7 @@ class POSH_Ve {
 							<div class="pve-card<?php echo $het ? ' pve-het' : ''; ?>"
 								data-id="<?php echo (int) $g['id']; ?>"
 								data-kv="<?php echo esc_attr( trim( (string) $g['khu_vuc'] ) ); ?>"
+								data-nhom="<?php echo esc_attr( $ten_nhom ); ?>"
 								data-ten="<?php echo esc_attr( $g['ten'] ); ?>"
 								data-gia="<?php echo (int) $g['gia']; ?>">
 								<div class="pve-img">
@@ -1581,6 +1614,61 @@ class POSH_Ve {
 			}
 			function dong(){ mask.hidden = true; if(timer){ clearInterval(timer); timer=null; } }
 
+			/* ═══ MỘT ĐƯỜNG LỌC DUY NHẤT ═══════════════════════════════════════════════════
+			   Trang có ba chỗ cùng nói về "đang xem khu nào": thanh tab, màn chào mừng chọn khu,
+			   và ô chọn cơ sở ở khung đặt vé nhanh. Ba chỗ mà ba hàm lọc riêng thì sớm muộn bấm
+			   một chỗ, hai chỗ kia nói khác — nên tất cả gọi chung pveLoc(). */
+			var PVE_KV = '', PVE_NHOM = '';
+			function pveLoc(kv, nhom){
+				if (kv !== undefined && kv !== null) PVE_KV = kv;
+				if (nhom !== undefined && nhom !== null) PVE_NHOM = nhom;
+				var hien = 0;
+				[].slice.call(document.querySelectorAll('.pve-sec')).forEach(function(sec){
+					var n = 0;
+					[].slice.call(sec.querySelectorAll('.pve-card')).forEach(function(c){
+						var k = c.getAttribute('data-kv') || '', g = c.getAttribute('data-nhom') || '';
+						/* Vé không khai khu = bán ở MỌI khu -> luôn hiện. Đây là luật cũ của trang,
+						   giữ nguyên: đổi nó là hàng loạt vé chung bỗng biến mất khỏi mọi khu. */
+						var ok = (!PVE_KV || !k || k === PVE_KV) && (!PVE_NHOM || g === PVE_NHOM);
+						c.style.display = ok ? '' : 'none'; if (ok) n++;
+					});
+					sec.style.display = n ? '' : 'none';
+					hien += n;
+				});
+				var trong = document.querySelector('.pve-tab-trong');
+				if (trong) trong.hidden = !!hien;
+				/* Ô chọn cơ sở ở khung đặt vé nhanh đi theo tab khu, không thì người ta lọc khu này
+				   mà bấm Mua vé ngay lại ra vé của khu khác. */
+				var selCs = document.querySelector('.pve-qf-cs');
+				if (selCs && selCs.value !== PVE_KV){ selCs.value = PVE_KV; try{ selCs.dispatchEvent(new Event('change')); }catch(e){} }
+				try { sessionStorage.setItem('posh_kvuc', PVE_KV); } catch(e){}
+			}
+			(function(){
+				var tabs = [].slice.call(document.querySelectorAll('.pve-tab'));
+				if (!tabs.length) return;
+				/* Đếm ngay trên nhãn: "Combo (1)" cho biết bấm vào có gì, khỏi bấm thử từng tab. */
+				tabs.forEach(function(t){
+					var loc = t.getAttribute('data-loc'), v = t.getAttribute('data-v');
+					if (!v) return;
+					var n = document.querySelectorAll('.pve-card[data-' + (loc === 'kv' ? 'kv' : 'nhom') + '="' + v.replace(/"/g,'\\"') + '"]').length;
+					if (loc === 'kv') { n += document.querySelectorAll('.pve-card:not([data-kv]), .pve-card[data-kv=""]').length; }
+					if (n) t.innerHTML = t.textContent + ' <span class="pve-tab-n">' + n + '</span>';
+				});
+				tabs.forEach(function(t){
+					t.addEventListener('click', function(){
+						var loc = t.getAttribute('data-loc'), v = t.getAttribute('data-v');
+						tabs.forEach(function(x){ if (x.getAttribute('data-loc') === loc) x.classList.toggle('on', x === t); });
+						if (loc === 'kv') pveLoc(v, null); else pveLoc(null, v);
+					});
+				});
+				/* Khu đã chọn từ lần trước (hoặc từ tem QR cửa hàng) -> bật sẵn đúng tab. */
+				var kv0 = ''; try { kv0 = sessionStorage.getItem('posh_kvuc') || ''; } catch(e){}
+				if (kv0){
+					var t0 = tabs.filter(function(x){ return x.getAttribute('data-loc')==='kv' && x.getAttribute('data-v')===kv0; })[0];
+					if (t0) t0.click();
+				}
+			})();
+
 			// ----- Màn chào mừng: chọn khu vực rồi lọc vé -----
 			var wel = document.querySelector('.pve-wel');
 			if (wel) {
@@ -1595,14 +1683,10 @@ class POSH_Ve {
 					kvBtns.forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-kv') === kv); });
 				}
 				function locKV(kv){
-					[].slice.call(document.querySelectorAll('.pve-sec')).forEach(function(s){
-						var vis = 0;
-						[].slice.call(s.querySelectorAll('.pve-card')).forEach(function(c){
-							var k = c.getAttribute('data-kv') || '', ok = (!k || k === kv);
-							c.style.display = ok ? '' : 'none'; if (ok) vis++;
-						});
-						s.style.display = vis ? '' : 'none';
-					});
+					/* Gọi chung pveLoc() thay vì tự lọc lấy — xem khối "MỘT ĐƯỜNG LỌC DUY NHẤT". */
+					pveLoc(kv, null);
+					var tb = [].slice.call(document.querySelectorAll('.pve-tab[data-loc="kv"]'));
+					tb.forEach(function(x){ x.classList.toggle('on', (x.getAttribute('data-v')||'') === kv); });
 					if (bar){ var t = bar.querySelector('.pve-kvbar-ten'); if (t) t.textContent = kv; bar.hidden = false; }
 				}
 				kvBtns.forEach(function(b){ b.onclick = function(){ chon(b.getAttribute('data-kv')); }; });
@@ -1853,6 +1937,21 @@ class POSH_Ve {
 		.pve-hero-btn:hover{ filter:brightness(1.06); color:#1a1204; }
 		.pve-wrap{ max-width:1080px; margin:0 auto; padding:34px 16px 44px; }
 		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; color:#fff; }
+		/* Thanh lọc: hai hàng, cuộn ngang được trên điện thoại thay vì xuống dòng lung tung. */
+		.pve-tabs{ margin:0 0 22px; display:flex; flex-direction:column; gap:8px; }
+		.pve-tabr{ display:flex; gap:8px; align-items:center; overflow-x:auto; padding-bottom:2px;
+			scrollbar-width:none; }
+		.pve-tabr::-webkit-scrollbar{ display:none; }
+		.pve-tabl{ color:var(--mut); font-size:13px; white-space:nowrap; flex:0 0 auto; min-width:64px; }
+		.pve-tab{ flex:0 0 auto; border:1px solid var(--bd); background:rgba(255,255,255,.04); color:#e8e8ea;
+			border-radius:999px; padding:8px 14px; font-size:14px; cursor:pointer; white-space:nowrap;
+			transition:background .15s,border-color .15s,color .15s; }
+		.pve-tab:hover{ background:rgba(255,255,255,.09); }
+		.pve-tab.on{ background:linear-gradient(135deg,var(--g2),var(--g)); border-color:transparent;
+			color:#1a1204; font-weight:800; }
+		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
+		.pve-tab.on .pve-tab-n{ opacity:.75; }
+		.pve-tab-trong{ color:var(--mut); font-size:14px; padding:6px 2px; }
 		.pve-empty{ color:var(--mut); }
 		/* Section + lưới vé */
 		.pve-sec{ margin-bottom:40px; }
