@@ -300,7 +300,9 @@ class VHG_Ma {
 	 * poster co theo bề rộng màn mà không vỡ bố cục. Ảnh nén ở client → data:URI (app PIN, không có
 	 * thư viện ảnh WP). Chặn dung lượng: mỗi ảnh ≤ ~400KB, tổng ≤ ~6MB, ≤ 30 phần tử / khổ. */
 	const KMT_KHO      = array( '9x16', '1x1', '16x9' );
-	const KMT_FONT     = array( 'sans', 'serif', 'mono', 'condensed' );
+	/* Font: cơ bản + bộ trang trí (Google Fonts) — 'anton'/'bungee' kiểu 2D đậm, 'bungee3d' bóng
+	   nổi & 'bungeeinline' viền rỗng là kiểu "3D để ghép", 'pacifico' viết tay. */
+	const KMT_FONT     = array( 'sans', 'serif', 'mono', 'condensed', 'anton', 'bungee', 'bungee3d', 'bungeeinline', 'pacifico' );
 	const KMT_ANH_MAX  = 420000;
 	const KMT_TONG_MAX = 6000000;
 	const KMT_EL_MAX   = 30;

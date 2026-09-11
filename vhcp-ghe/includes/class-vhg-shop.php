@@ -1406,10 +1406,10 @@ function veNap(){
    cho cỡ chữ nên chữ/ảnh nhỏ đều, không vỡ bố cục). Hiện 1 lần mỗi lần vào trang. */
 var KMT_SPLASH_SHOWN = false;
 function kmtFontCss(ff){
-  return ff === 'serif' ? 'Georgia,\"Times New Roman\",serif'
-    : ff === 'mono' ? '\"Courier New\",monospace'
-    : ff === 'condensed' ? '\"Arial Narrow\",\"Roboto Condensed\",sans-serif'
-    : 'system-ui,-apple-system,Arial,sans-serif';
+  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace', condensed:'"Arial Narrow",sans-serif',
+    anton:'"Anton",sans-serif', bungee:'"Bungee",cursive', bungee3d:'"Bungee Shade",cursive',
+    bungeeinline:'"Bungee Inline",cursive', pacifico:'"Pacifico",cursive' };
+  return M[ff] || 'system-ui,-apple-system,Arial,sans-serif';
 }
 function kmtKhoChon(){
   var w = window.innerWidth || 360, hh = window.innerHeight || 640, r = w / hh;
@@ -2286,6 +2286,9 @@ JS;
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>Mua mã giảm giá — ' . esc_html( VHG_Trang::TEN_NGAN ) . '</title>'
 			. '<meta name="theme-color" content="#12141f">'
+			/* Font trang trí cho trang khuyến mãi (2D/3D): Anton, Bungee (+Shade/Inline), Pacifico. */
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swap">'
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien . '>'
 			. '<div id="app"></div>'
 			/* ══════════════════════════════════════════════════════════════════════════════

@@ -1493,6 +1493,9 @@ class VHG_Trang {
 			. '<title>' . esc_html( self::TEN_HE_THONG ) . '</title>'
 			/* Người đứng quầy lưu trang này vào màn hình chính điện thoại. */
 			. '<meta name="theme-color" content="#12141f">'
+			/* Font trang trí cho editor khuyến mãi (2D/3D để ghép): Anton, Bungee (+Shade/Inline), Pacifico. */
+			. '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+			. '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Bungee&family=Bungee+Inline&family=Bungee+Shade&family=Pacifico&display=swap">'
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien_nen . '>'
 			. '<div id="app"></div>'
 			. '<script>window.VHG_API=' . wp_json_encode( $api ) . ';'
@@ -7578,11 +7581,13 @@ function kmCfgLuu(){
    Sửa chữ / xoay / màu chỉ vẽ lại SÂN (giữ con trỏ); thao tác cấu trúc mới vẽ lại cả editor. */
 var KMT_DOC = null, KMT_KHO = '9x16', KMT_SEL = -1, KMT_LOADED = false, KMT_SW = 0, KMT_SH = 0;
 function kmtFontCss(ff){
-  return ff === 'serif' ? 'Georgia,serif'
-    : ff === 'mono' ? '"Courier New",monospace'
-    : ff === 'condensed' ? '"Arial Narrow",sans-serif'
-    : 'system-ui,-apple-system,Arial,sans-serif';
+  var M = { serif:'Georgia,serif', mono:'"Courier New",monospace', condensed:'"Arial Narrow",sans-serif',
+    anton:'"Anton",sans-serif', bungee:'"Bungee",cursive', bungee3d:'"Bungee Shade",cursive',
+    bungeeinline:'"Bungee Inline",cursive', pacifico:'"Pacifico",cursive' };
+  return M[ff] || 'system-ui,-apple-system,Arial,sans-serif';
 }
+var KMT_FONTS = [['sans','Thường'],['serif','Serif'],['condensed','Hẹp'],['anton','Đậm'],
+  ['bungee','Khối'],['bungee3d','3D bóng'],['bungeeinline','3D viền'],['pacifico','Viết tay'],['mono','Mono']];
 function kmtAspect(k){ return k === '9x16' ? [9,16] : k === '16x9' ? [16,9] : [1,1]; }
 function kmtEl(){ return (KMT_SEL >= 0 && KMT_DOC && KMT_DOC.trang[KMT_KHO].els[KMT_SEL]) || null; }
 function kmtTai(){
@@ -7611,7 +7616,7 @@ function kmtVe(){
   if (e) {
     h += '<span style="flex:1"></span>';
     if (e.k === 'text') {
-      h += '<select onchange="kmtProp(\'ff\',this.value)">' + ['sans','serif','mono','condensed'].map(function(f){ return '<option value="'+f+'"'+(e.ff===f?' selected':'')+'>'+f+'</option>'; }).join('') + '</select>'
+      h += '<select onchange="kmtProp(\'ff\',this.value)">' + KMT_FONTS.map(function(f){ return '<option value="'+f[0]+'"'+(e.ff===f[0]?' selected':'')+'>'+f[1]+'</option>'; }).join('') + '</select>'
         + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.max(1,(e.fs-0.5)) + ')">A−</button>'
         + '<button class="ghost" onclick="kmtProp(\'fs\',' + Math.min(40,(e.fs+0.5)) + ')">A＋</button>'
         + '<input type="color" value="' + esc((e.c||'#ffffff').slice(0,7)) + '" oninput="kmtProp(\'c\',this.value)" style="width:38px;padding:0">'
@@ -7644,8 +7649,8 @@ function kmtVeStage(){
   /* Sân canvas TO cho dễ chỉnh: dùng gần trọn bề rộng khung soạn (tối đa 760px) và ~62% chiều cao
      màn — poster vẫn giữ đúng tỉ lệ khổ, chỉ phóng khung sửa cho thao tác thoải mái. */
   var a = kmtAspect(KMT_KHO);
-  var maxW = Math.min((st.parentNode.clientWidth || 360) - 24, 760);
-  var maxH = Math.min((window.innerHeight || 700) * 0.62, 600);
+  var maxW = Math.min((st.parentNode.clientWidth || 360) - 24, 900);
+  var maxH = Math.min((window.innerHeight || 700) * 0.74, 760);
   var sw = Math.min(maxW, maxH * a[0] / a[1]); var sh = sw * a[1] / a[0];
   KMT_SW = sw; KMT_SH = sh;
   st.style.width = sw + 'px'; st.style.height = sh + 'px';
