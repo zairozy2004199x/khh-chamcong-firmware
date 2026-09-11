@@ -183,6 +183,26 @@ khách bấm ＋ -> giỏ -> đặt -> QR chuyển khoản
                                   \-> nhân viên quét -> r_soat() -> da_dung + coso_dung
 ```
 
+### 🔴 NGÂN HÀNG KHÔNG TRẢ LẠI NGUYÊN VĂN NỘI DUNG CHUYỂN KHOẢN
+Nội dung về tay ta thường là `CT DEN:0123 VE HTTMEXEQ` hoặc `VE-HTTMEXEQ` — ngân hàng chèn thêm
+khoảng trắng, dấu gạch, chữ của chính nó. So chuỗi cứng là **trượt, mà trượt im lặng**: tiền vào
+tài khoản rồi mà vé vẫn "chờ thanh toán".
+
+`co_tien_ve()` so hai lượt: lượt 1 so thẳng (rẻ), lượt 2 **bóp chuỗi** — bỏ hết ký tự không phải
+chữ-số, viết hoa, rồi mới tìm. Cùng cách plugin Ghế đã chạy được với đơn `MUA<mã>`
+(`VHG_Doc::don_mua`). Mã 8 ký tự ngẫu nhiên nên bóp xong vẫn không đụng nhầm đơn khác. Lượt 2 chỉ
+quét giao dịch **30 ngày gần đây, đủ tiền, tối đa 500 dòng** — nó chạy trong lượt trang khách hỏi
+trạng thái, không được phép quét cả sổ.
+
+⚠️ Màn Kiểm tra hệ thống gọi **đúng hàm ấy**, không viết câu SQL riêng: viết riêng là màn kiểm nói
+một đằng, máy chủ làm một nẻo, rồi ta tin nhầm màn kiểm.
+
+### 🔴 SePay gửi khoá webhook ở BA kiểu
+Bảng cấu hình webhook của SePay cho chọn: không xác thực (khoá trong URL `?key=`), **API Key**
+(header `Authorization: Apikey <khoá>`), hoặc Basic Auth. `vhcp-saoke` trước 0.15.1 **chỉ** đọc
+`?key=` — chọn kiểu API Key là mọi lượt bắn về bị chặn 401, Nhật ký ghi "SAI KEY", trong khi bên
+SePay nhìn vẫn thấy "đã gửi". Nay nhận cả ba, và câu log nói rõ khoá tới bằng đường nào.
+
 ### ⚠️ Chuyển khoản VietQR trước đây KHÔNG BAO GIỜ tự xác nhận
 Vé chỉ chuyển sang "đã thanh toán" qua hai lối: IPN của Momo/VNPay, hoặc quản trị bấm tay. Khách
 quét mã VietQR chuyển tiền xong thì vé nằm mãi ở *"Chờ thanh toán"* — tiền đã vào tài khoản mà hệ

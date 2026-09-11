@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.50.1
+ * Version:           1.50.2
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -919,9 +919,42 @@ class POSH_Ve {
 		/* Bảng Sao Kê có thể chưa dựng (mới cài, chưa nhận giao dịch nào). Hỏi thẳng là lỗi SQL
 		   ngay trong lượt trang khách hỏi trạng thái — hỏng chỗ không đáng hỏng. */
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) !== $tbl ) { return false; }
-		return (bool) $wpdb->get_var( $wpdb->prepare(
+
+		/* Lượt 1: so thẳng, rẻ nhất — ăn cho phần lớn giao dịch. */
+		$co = $wpdb->get_var( $wpdb->prepare(
 			"SELECT id FROM $tbl WHERE loai='in' AND tien >= %d AND noi_dung LIKE %s ORDER BY id DESC LIMIT 1",
 			(int) $so_tien, '%' . $wpdb->esc_like( $nd ) . '%' ) );
+		if ( $co ) { return true; }
+
+		/**
+		 * Lượt 2: SO SAU KHI BÓP CHUỖI.
+		 *
+		 * 🔴 NGÂN HÀNG KHÔNG TRẢ LẠI NGUYÊN VĂN NỘI DUNG KHÁCH GÕ. Chỗ này là lý do "đã chuyển
+		 * tiền rồi mà vé vẫn chờ": nội dung về tay ta thường là
+		 * `CT DEN:0123 VE HTTMEXEQ` hay `VE-HTTMEXEQ` — chèn thêm khoảng trắng, dấu gạch, chữ
+		 * của ngân hàng. So chuỗi cứng như lượt 1 là trượt, mà trượt IM LẶNG.
+		 *
+		 * Bỏ hết ký tự không phải chữ-số ở cả hai phía rồi mới tìm — cùng cách plugin Ghế đã
+		 * chạy được với đơn `MUA<mã>` (xem VHG_Doc::don_mua). Mã vé 8 ký tự ngẫu nhiên nên bóp
+		 * chuỗi xong vẫn không thể đụng nhầm đơn khác.
+		 *
+		 * Chỉ quét giao dịch gần đây và đủ tiền, có chặn số dòng: đây là việc chạy trong lượt
+		 * trang khách hỏi trạng thái, không được phép quét cả sổ.
+		 */
+		$dich = self::bop( $nd );
+		if ( '' === $dich ) { return false; }
+		$rows = $wpdb->get_col( $wpdb->prepare(
+			"SELECT noi_dung FROM $tbl WHERE loai='in' AND tien >= %d AND ngay_gd >= %s ORDER BY id DESC LIMIT 500",
+			(int) $so_tien, gmdate( 'Y-m-d H:i:s', time() - 30 * DAY_IN_SECONDS ) ) );
+		foreach ( (array) $rows as $r ) {
+			if ( false !== strpos( self::bop( $r ), $dich ) ) { return true; }
+		}
+		return false;
+	}
+
+	/* Bỏ mọi ký tự không phải chữ-số và viết hoa — dùng để so nội dung chuyển khoản. */
+	private static function bop( $s ) {
+		return strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $s ) );
 	}
 
 	/**
@@ -2163,14 +2196,13 @@ class POSH_Ve {
 				   trả lời thẳng cho "đã chuyển tiền rồi mà vé vẫn chờ". */
 				$cho = $wpdb->get_results( "SELECT ma_ve, so_tien, noi_dung FROM $tbl WHERE trang_thai='cho' ORDER BY id DESC LIMIT 20", ARRAY_A );
 				$khop = 0; $lech = array();
+				/* Dùng ĐÚNG hàm mà máy chủ dùng khi tự khớp (co_tien_ve) — viết lại câu SQL riêng ở
+				   đây là màn kiểm tra nói một đằng, máy chủ làm một nẻo, và ta tin nhầm màn kiểm. */
 				foreach ( (array) $cho as $c ) {
-					$co_nd = (int) $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM $tsk WHERE loai='in' AND noi_dung LIKE %s", '%' . $wpdb->esc_like( $c['noi_dung'] ) . '%' ) );
-					if ( ! $co_nd ) { continue; }
-					$du = (int) $wpdb->get_var( $wpdb->prepare(
-						"SELECT COUNT(*) FROM $tsk WHERE loai='in' AND tien >= %d AND noi_dung LIKE %s",
-						(int) $c['so_tien'], '%' . $wpdb->esc_like( $c['noi_dung'] ) . '%' ) );
-					if ( $du ) { $khop++; } else { $lech[] = $c['ma_ve'] . ' (tiền về THIẾU so với ' . number_format_i18n( $c['so_tien'] ) . 'đ)'; }
+					if ( self::co_tien_ve( (int) $c['so_tien'], $c['noi_dung'] ) ) { $khop++; continue; }
+					if ( self::co_tien_ve( 0, $c['noi_dung'] ) ) {
+						$lech[] = $c['ma_ve'] . ' (thấy tiền về nhưng THIẾU so với ' . number_format_i18n( $c['so_tien'] ) . 'đ)';
+					}
 				}
 				if ( $cho ) {
 					$them( 'Vé đang chờ đã có tiền về', 0 === count( $lech ),
@@ -2909,7 +2941,9 @@ class POSH_Ve {
 			font-size:15px; letter-spacing:.5px; padding:14px 34px; border-radius:999px; text-decoration:none; text-transform:uppercase;
 			box-shadow:0 10px 30px rgba(212,175,55,.28); }
 		.pve-hero-btn:hover{ filter:brightness(1.06); color:#1a1204; }
-		.pve-wrap{ max-width:1080px; margin:0 auto; padding:34px 16px 44px; }
+		/* --ft-le: đúng bằng padding ngang của khung, để chân trang kéo ra sát mép khung thay vì
+		   nằm thụt vào thành một hộp lửng lơ. */
+		.pve-wrap{ --ft-le:16px; max-width:1080px; margin:0 auto; padding:34px 16px 44px; }
 		.pve-title{ font-size:22px; font-weight:800; margin:6px 0 14px; color:#1b1810; }
 		/* Thanh lọc: hai hàng, cuộn ngang được trên điện thoại thay vì xuống dòng lung tung. */
 		.pve-tabs{ margin:0 0 22px; display:flex; flex-direction:column; gap:8px; }
@@ -2926,7 +2960,9 @@ class POSH_Ve {
 		.pve-tab-n{ opacity:.65; font-size:12px; margin-left:2px; }
 		.pve-tab.on .pve-tab-n{ opacity:.75; }
 		.pve-tab-trong{ color:var(--mut); font-size:14px; padding:6px 2px; }
-		.pve-ban{ margin-top:14px; color:var(--mut); font-size:12px; line-height:1.7; }
+		.pve-ban{ margin-top:14px; color:#8b8576; font-size:11px; line-height:1.6; max-width:760px;
+			margin-left:auto; margin-right:auto; }
+		.pve-ban-s{ white-space:nowrap; }
 		.pve-uucard{ cursor:default; }
 		.pve-uucard:hover{ transform:none; }
 		.pve-uu-meta{ display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px; color:var(--mut); font-size:12px; }
@@ -3123,7 +3159,23 @@ class POSH_Ve {
 		.pve-bn-dots span{ width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,.5); cursor:pointer; }
 		.pve-bn-dots span.on{ background:var(--g2); width:20px; border-radius:999px; }
 		/* Chân trang */
-		.pve-ft{ margin-top:24px; padding:30px 16px calc(28px + env(safe-area-inset-bottom)); background:#08090c; border-top:1px solid var(--bd); color:var(--mut); text-align:center; font-size:13px; line-height:1.8; }
+		/* ═══ CHÂN TRANG ══════════════════════════════════════════════════════════════════
+		   Khối công ty do plugin Ghế dựng (VHG_Chan) và Ghế vẫn đang nền TỐI — chữ be/vàng nhạt
+		   trên nền đen. Bê nguyên sang trang vé nền sáng là một hộp đen nằm giữa trang trắng,
+		   chữ trong đó thì gần như không đọc được.
+		   ⚠️ ĐỪNG sửa VHG_Chan để cho hợp chỗ này: nó dùng chung với trang Ghế, sửa bên ấy là
+		   hỏng trang Ghế. Đè màu TẠI ĐÂY, trong phạm vi .pve-ft. */
+		.pve-ft{ margin:28px calc(0px - var(--ft-le)) 0; padding:30px 16px calc(28px + env(safe-area-inset-bottom));
+			background:#efeade; border-top:1px solid var(--bd); color:var(--mut); text-align:center; font-size:13px; line-height:1.8; }
+		.pve-ft .vhg-chan{ margin-top:0; border-top:none; color:#5d574a; }
+		.pve-ft .vhg-chan .vhg-ten{ color:#1b1810; }
+		.pve-ft .vhg-chan .vhg-qt{ color:#6f6a5d; }
+		.pve-ft .vhg-chan .vhg-cd span, .pve-ft .vhg-chan .vhg-cn{ color:#6f6a5d; }
+		.pve-ft .vhg-chan a{ color:#8a6d1b; }
+		.pve-ft .vhg-ban-quyen{ border-top-color:rgba(60,50,20,.14); color:#6f6a5d; }
+		/* Khối công ty căn TRÁI cho dễ đọc, đừng để thừa hưởng text-align:center của .pve-ft —
+		   ba cột thông tin căn giữa thì mắt không biết bắt đầu từ đâu. */
+		.pve-ft .vhg-chan-in{ text-align:left; }
 		.pve-ft-ten{ font-family:Georgia,"Times New Roman",serif; font-weight:700; color:#1b1810; font-size:16px; letter-spacing:.3px; }
 		.pve-ft-l{ color:var(--mut); }
 		.pve-ft-nb a{ color:var(--g2); font-weight:700; text-decoration:none; }

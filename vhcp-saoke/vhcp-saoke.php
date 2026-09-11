@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.15.0
+ * Version:           0.15.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -239,9 +239,35 @@ class SAOKE_App {
 		$src = strtolower( trim( (string) $req->get_param( 'src' ) ) ); if ( '' === $src ) { $src = 'sepay'; }
 		if ( 'bank' === $src ) { $src = 'sepay'; }
 		$key = (string) get_option( 'saoke_webhook_key', '' );
-		if ( '' === $key || ! self::key_khop( (string) $req->get_param( 'key' ), $key ) ) {
-			self::ghi_log( $src, '✖ SAI KEY (bị chặn)', $raw );
-			return new WP_REST_Response( array( 'success' => false, 'message' => 'sai key' ), 401 );
+		/* 🔴 NHẬN KEY Ở CẢ BA CHỖ. Trong bảng cấu hình webhook của SePay có ba kiểu xác thực:
+		 * không xác thực (khoá nằm trong URL, `?key=`), **API Key** (gửi header
+		 * `Authorization: Apikey <khoá>`), và Basic Auth. Bản trước CHỈ đọc `?key=` — chọn kiểu
+		 * API Key bên SePay là mọi lượt bắn về đều bị chặn 401, Nhật ký ghi "SAI KEY", trong khi
+		 * bên SePay nhìn vẫn thấy "đã gửi". Tiền vào tài khoản mà vé không bao giờ tự xác nhận,
+		 * đúng chuyện anh Thắng gặp — mà hai đầu đều tưởng mình đúng.
+		 * Nhận cả ba để khai kiểu nào cũng chạy, khỏi phải nhớ đã chọn kiểu gì.
+		 */
+		$key_gui = (string) $req->get_param( 'key' );
+		if ( '' === $key_gui ) {
+			$h = self::auth_header( $req );
+			if ( preg_match( '/^\s*(apikey|bearer|token)\s+(.+)$/i', $h, $m ) ) { $key_gui = trim( $m[2] ); }
+			elseif ( 0 === stripos( $h, 'basic ' ) ) {
+				$dec = base64_decode( trim( substr( $h, 6 ) ) );
+				/* Basic Auth: khoá có thể nằm ở phần user hoặc phần password, tuỳ người khai. */
+				if ( false !== strpos( $dec, ':' ) ) {
+					list( $bu, $bp ) = explode( ':', $dec, 2 );
+					$key_gui = self::key_khop( $bp, $key ) ? $bp : $bu;
+				}
+			}
+		}
+		if ( '' === $key_gui ) { $key_gui = (string) $req->get_header( 'x-api-key' ); }
+		if ( '' === $key || ! self::key_khop( $key_gui, $key ) ) {
+			/* Nói rõ khoá tới bằng đường nào: "sai key" chung chung thì không biết nên sửa ở ô
+			   URL hay ở ô API Key bên SePay. */
+			$duong = ( '' !== (string) $req->get_param( 'key' ) ) ? 'trong URL (?key=)'
+				: ( '' !== self::auth_header( $req ) ? 'ở header Authorization' : 'KHÔNG gửi khoá nào' );
+			self::ghi_log( $src, '✖ SAI KEY (bị chặn) — khoá ' . $duong, $raw );
+			return new WP_REST_Response( array( 'success' => false, 'message' => 'sai key (' . $duong . ')' ), 401 );
 		}
 		// Mở URL bằng trình duyệt (GET) = ping thử: key đúng + tới được web thì hiện dòng này trong Nhật ký.
 		if ( 'GET' === $req->get_method() ) {
