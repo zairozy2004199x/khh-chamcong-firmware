@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.16.0
+ * Version:           0.17.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -20,7 +20,7 @@ if ( ! class_exists( 'SAOKE_App' ) ) :
 class SAOKE_App {
 
 	const NS      = 'saoke/v1';
-	const VER_TBL = '2';
+	const VER_TBL = '3';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -100,12 +100,13 @@ class SAOKE_App {
 			so_tk VARCHAR(60) NOT NULL DEFAULT '',
 			noi_dung TEXT NULL,
 			diem_ban VARCHAR(120) NOT NULL DEFAULT '',
+			ma_ch VARCHAR(40) NOT NULL DEFAULT '',
 			doc_duoc TINYINT NOT NULL DEFAULT 0,
 			raw TEXT NULL,
 			nhan_luc DATETIME NOT NULL,
 			PRIMARY KEY (id),
 			UNIQUE KEY khoa (khoa),
-			KEY nguon (nguon), KEY thoi_diem (thoi_diem)
+			KEY nguon (nguon), KEY thoi_diem (thoi_diem), KEY ma_ch (ma_ch)
 		) $col;" );
 
 		/* Đối soát MoMo/VNPAY bằng file kết xuất — gộp theo ngày × cửa hàng (1 dòng/ngày/CH). */
@@ -477,23 +478,48 @@ class SAOKE_App {
 		$ma = '' !== $tx['maGD'] ? $tx['maGD'] : $tx['ref'];
 		return $nguon . '|' . ( '' !== $ma ? $ma : ( 'RAW-' . substr( md5( (string) $raw ), 0, 16 ) ) );
 	}
-	private static function luu_cong( $row ) {
+	/**
+	 * @param array  $row dòng giao dịch cổng.
+	 * @param string $kq  (ra) `moi` · `va` (đã có, vừa vá thêm ô trống) · `trung` (đã có, không đổi gì).
+	 * @return bool true CHỈ khi thêm dòng mới — nơi gọi đếm tiền dựa vào đúng điều đó.
+	 */
+	private static function luu_cong( $row, &$kq = null ) {
 		global $wpdb; $tbl = self::tbl_cong();
-		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A );
+		$kq = 'trung';
+		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A );
 		if ( $cu ) {
-			// Dòng đã có: nếu trước đây chưa vớt được tên máy mà nay parser có -> vá vào, khỏi xoá làm lại.
+			/* Dòng đã có: nếu trước đây chưa vớt được tên máy mà nay parser có -> vá vào, khỏi xoá làm lại.
+			 *
+			 * 🔴 VÀ ĐÂY LÀ CẢ ĐIỂM CỦA VIỆC NẠP SAO KÊ VIỆT QR (anh Thắng 12/09/2026): *"một số giao
+			 *    dịch nội dung không rõ ràng, mà webhook gửi về thì thiếu thông tin… tải thẳng sao kê
+			 *    của bên VietQR, nó có đủ các trường để xác định giao dịch đó là của máy nào"*.
+			 *    Dòng `PaymentForOrder` webhook đã ghi từ lâu — nạp lại file KHÔNG thêm dòng nào (đúng,
+			 *    kẻo đếm tiền hai lần) nhưng PHẢI vá `ma_ch` vào dòng cũ. Không vá thì file có đủ dữ
+			 *    liệu mà màn hình vẫn "chưa rõ máy", và người nạp không hiểu vì sao nạp xong y như cũ.
+			 *
+			 * ⚠️ CHỈ VÁ Ô ĐANG TRỐNG, không đè ô đã có. File nạp lại lần hai, hay một file cũ hơn, thì
+			 *    không được phép đổi máy của một dòng đã xác định — đó là sửa lịch sử tiền. */
+			$va = array();
 			if ( '' === trim( (string) $cu['diem_ban'] ) && '' !== trim( (string) $row['diemBan'] ) ) {
-				$wpdb->update( $tbl, array( 'diem_ban' => mb_substr( (string) $row['diemBan'], 0, 120 ) ), array( 'id' => (int) $cu['id'] ) );
+				$va['diem_ban'] = mb_substr( (string) $row['diemBan'], 0, 120 );
 			}
+			$ma_ch_moi = isset( $row['maCH'] ) ? trim( (string) $row['maCH'] ) : '';
+			if ( '' === trim( (string) $cu['ma_ch'] ) && '' !== $ma_ch_moi ) {
+				$va['ma_ch'] = mb_substr( $ma_ch_moi, 0, 40 );
+			}
+			if ( $va ) { $wpdb->update( $tbl, $va, array( 'id' => (int) $cu['id'] ) ); $kq = 'va'; }
 			return false;
 		}
+		$kq = 'moi';
 		$wpdb->insert( $tbl, array(
 			'nguon' => $row['nguon'], 'khoa' => mb_substr( $row['khoa'], 0, 120 ),
 			'ma_gd' => mb_substr( (string) $row['maGD'], 0, 80 ), 'ref' => mb_substr( (string) $row['ref'], 0, 80 ),
 			'thoi_diem' => self::cong_ngay_mysql( $row['thoiDiem'] ), 'so_tien' => (int) round( $row['soTien'] ),
 			'huong' => $row['huong'], 'trang_thai' => mb_substr( (string) $row['trangThai'], 0, 30 ),
 			'so_tk' => mb_substr( (string) $row['soTK'], 0, 60 ), 'noi_dung' => (string) $row['noiDung'],
-			'diem_ban' => mb_substr( (string) $row['diemBan'], 0, 120 ), 'doc_duoc' => $row['docDuoc'] ? 1 : 0,
+			'diem_ban' => mb_substr( (string) $row['diemBan'], 0, 120 ),
+			'ma_ch' => mb_substr( (string) ( isset( $row['maCH'] ) ? $row['maCH'] : '' ), 0, 40 ),
+			'doc_duoc' => $row['docDuoc'] ? 1 : 0,
 			'raw' => mb_substr( (string) $row['raw'], 0, 2000 ), 'nhan_luc' => current_time( 'mysql' ),
 		) );
 		return true;
@@ -1140,15 +1166,16 @@ class SAOKE_App {
 		$wa = array( 'nguon=%s' ); $aa = array( $nguon );
 		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
 		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, ma_gd, ref, huong, trang_thai, so_tk, noi_dung, diem_ban, doc_duoc FROM $tc WHERE " . implode( ' AND ', $wa ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 3000", $aa ), ARRAY_A );
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, ma_gd, ref, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, doc_duoc FROM $tc WHERE " . implode( ' AND ', $wa ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 3000", $aa ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0;
 		foreach ( (array) $rowsC as $r ) {
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
 			$cong[] = array( 'thoiDiem' => self::ymd2vn( $r['thoi_diem'] ), 'soTien' => (int) $r['so_tien'],
 				'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'],
-				'noiDung' => $r['noi_dung'], 'tenMay' => $tenMay, 'coSo' => self::cong_coso( $tenMay ) );
+				'noiDung' => $r['noi_dung'], 'maCH' => isset( $r['ma_ch'] ) ? (string) $r['ma_ch'] : '',
+				'tenMay' => $tenMay, 'coSo' => self::cong_coso( $tenMay ) );
 			$congTien += (int) $r['so_tien'];
 		}
 		// (B) Từ sao kê ngân hàng — dòng tiền vào khớp từ khoá cổng
@@ -1375,11 +1402,11 @@ class SAOKE_App {
 		$wa = array( 'nguon=%s', 'doc_duoc=1', "huong<>'Đi'" ); $aa = array( $nguon );
 		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
 		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
-		$rc = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, noi_dung, diem_ban FROM $tc WHERE " . implode( ' AND ', $wa ), $aa ), ARRAY_A );
+		$rc = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch FROM $tc WHERE " . implode( ' AND ', $wa ), $aa ), ARRAY_A );
 		foreach ( (array) $rc as $r ) {
 			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; } $tong += $tien;
 			$ngay = self::ymd2vn( $r['thoi_diem'] );
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
 			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $tien; continue; }
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $ngay );
 			$suy = self::ax_ma_nop( $ax, $mapTen );
@@ -1499,6 +1526,68 @@ class SAOKE_App {
 		if ( count( explode( ' ', $s ) ) > self::MAY_TU_MAX ) { return ''; }
 		return $s;
 	}
+	/* ════════════════════════════════════════════════════════════════════════════════════════
+	 * BẢN ĐỒ CỬA HÀNG VIỆT QR — "mã cửa hàng" của cổng là thứ DUY NHẤT luôn có.
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 12/09/2026, hai ảnh cạnh nhau — bảng của mình đầy dòng *"chưa rõ máy"* với nội
+	 *    dung `VQR2637642208V7L PaymentForOrder`, còn cổng Việt QR xuất ra thì mỗi giao dịch có
+	 *    thêm **Mã cửa hàng** và **Mã điểm bán**: *"một số giao dịch nội dung không rõ ràng, mà
+	 *    webhook gửi về thì thiếu thông tin, vậy để xác nhận giao dịch đó của ai, thì mình sẽ tải
+	 *    thẳng sao kê của bên VietQR. Nó có đủ các trường để xác định giao dịch đó là của máy này."*
+	 *
+	 * 🔴 VÌ SAO KHÔNG SỬA ĐƯỢC BẰNG CÁCH ĐỌC KHÉO HƠN. Nội dung `PaymentForOrder` là chuỗi do CỔNG
+	 *    tự đặt khi khách quét QR tĩnh — trong đó KHÔNG có tên máy, không có gì để vớt. Mọi cách
+	 *    "đoán thông minh" ở đây đều là bịa. Dữ liệu thật nằm ở một trường mà webhook không gửi.
+	 *
+	 * 🔴 HAI BẢNG, MỘT KHOÁ NỐI. Cổng xuất ra hai bảng khác nhau:
+	 *      · *Giao dịch thanh toán* — mỗi dòng có `Mã đơn hàng` (VPB…, chính là `ma_gd` bên mình),
+	 *        `Mã cửa hàng` (10 ký tự) và `Mã điểm bán`;
+	 *      · *Danh sách cửa hàng*   — `Mã cửa hàng` → `Tên cửa hàng` (ĐÚNG LÀ TÊN MÁY: "LM-NSG 01")
+	 *        và `Mã điểm bán` → `Tên điểm bán` (cơ sở: "Posh Lotte Nam Sài Gòn").
+	 *    Khoá nối là **Mã cửa hàng**. ⚠️ KHÔNG phải "Mã điểm bán": hai bảng ghi mã điểm bán theo
+	 *    hai kiểu khác nhau (`VVB635365` ở bảng giao dịch, `MC1754018340421` ở bảng cửa hàng), nối
+	 *    theo nó là nối trượt mà không báo gì.
+	 *
+	 * ⚠️ LƯU BẰNG OPTION, KHÔNG DỰNG BẢNG. Đây là một bản đồ vài trăm dòng, đọc mỗi lần vẽ màn và
+	 *    gần như không bao giờ đổi — cùng hình dạng với `saoke_anhxa` / `saoke_diem` đang có. Dựng
+	 *    thêm một bảng là thêm một thứ phải nâng cấp, phải sao lưu, phải nhớ.
+	 */
+	private static function vqr_ds_ch() { $v = get_option( 'saoke_vqr_ch' ); return is_array( $v ) ? $v : array(); }
+
+	/** Chuẩn hoá mã cửa hàng của cổng: hoa, bỏ khoảng trắng. Mã là chuỗi máy sinh, so phải khít. */
+	private static function vqr_ma_ch( $s ) {
+		return preg_replace( '/\s+/', '', mb_strtoupper( trim( (string) $s ), 'UTF-8' ) );
+	}
+
+	/** Mã cửa hàng -> TÊN MÁY (tên cửa hàng bên cổng). '' nếu chưa có trong bản đồ. */
+	private static function vqr_may_theo_ma( $ma_ch ) {
+		$k = self::vqr_ma_ch( $ma_ch );
+		if ( '' === $k ) { return ''; }
+		$ds = self::vqr_ds_ch();
+		return isset( $ds[ $k ]['ten'] ) ? (string) $ds[ $k ]['ten'] : '';
+	}
+
+	/**
+	 * TÊN MÁY CỦA MỘT DÒNG CỔNG — MỘT chỗ duy nhất quyết định, ba màn cùng gọi.
+	 *
+	 * ⚠️ Trước 0.17.0 luật này được CHÉP ở hai nơi (bảng Sao Kê cổng và phép gom tiền theo mã nộp).
+	 *    Hai bản chép của một luật thì sớm muộn lệch nhau, và lệch ở đây nghĩa là cùng một giao
+	 *    dịch, màn này tính cho máy A còn màn kia bỏ vào "chưa rõ".
+	 *
+	 * Thứ tự có chủ ý:
+	 *   1. TÊN TRONG NỘI DUNG — khách quét QR của đúng máy ấy, chắc nhất.
+	 *   2. BẢN ĐỒ theo mã cửa hàng — do cổng xuất ra, cũng là dữ liệu của cổng, chỉ thiếu ở webhook.
+	 *   3. `diem_ban` — đường lùi cũ, thường là tên cửa hàng tiếng Việt.
+	 *   4. '' = "chưa rõ máy". Nói KHÔNG BIẾT vẫn đúng hơn bịa ra một cái máy.
+	 */
+	private static function cong_may_dong( $noi_dung, $ma_ch = '', $diem_ban = '' ) {
+		$ten = self::cong_ten_may( $noi_dung );
+		if ( '' !== $ten ) { return $ten; }
+		$ten = self::vqr_may_theo_ma( $ma_ch );
+		if ( '' !== $ten ) { return $ten; }
+		return self::may_hop_le( (string) $diem_ban );
+	}
+
 	/* Cơ sở = tên máy bỏ số máy cuối: "AMTP 12" -> "AMTP". */
 	private static function cong_coso( $ten_may ) {
 		$s = trim( (string) $ten_may );
@@ -1747,6 +1836,7 @@ class SAOKE_App {
 			'napFileCong', 'napFileCongTx', 'luuAnhXaCuaHang', 'chuyenGianCuaHang', 'xoaAnhXaCuaHang',
 			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
 			'getCosoMa', 'saveCosoMa',
+			'napDsCuaHangVqr', 'getDsCuaHangVqr', 'xoaDsCuaHangVqr',
 			'getNopTienMat',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
@@ -2250,22 +2340,97 @@ class SAOKE_App {
 		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
 		$tenFile = sanitize_text_field( isset( $a[3] ) ? (string) $a[3] : '' ); $anhXa = self::ds_anhxa( $nguon );
 		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
+		$vaMay = 0; $maChFile = array();
 		foreach ( $rows as $rr ) { $r = (array) $rr;
 			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
 			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
+			/* Hai cột của bản kết xuất Việt QR mà webhook KHÔNG gửi — xem `vqr_ds_ch()`. Cột cũ
+			   (5 cột) vẫn nạp được y như trước: thiếu thì là chuỗi rỗng, không ai phải chọn lại. */
+			$maCH = self::vqr_ma_ch( isset( $r[5] ) ? $r[5] : '' );
+			$maDiem = trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) );
 			if ( '' === $thoiDiem ) { $khongNgay++; $boQua++; continue; }
 			if ( $soTien <= 0 ) { $khongTien++; $boQua++; continue; }
 			if ( '' === $maGD && '' === $ref ) { $khongMa++; $boQua++; continue; }
-			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => '', 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'docDuoc' => true );
+			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => '', 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'maCH' => $maCH, 'docDuoc' => true );
 			$tx['khoa'] = self::cong_khoa( $nguon, $tx, wp_json_encode( $r ) ); $tx['raw'] = 'FILE ' . $tenFile . ' · ' . mb_substr( (string) wp_json_encode( $r ), 0, 1500 );
-			$tenMay = self::cong_ten_may( $noiDung );
+			if ( '' !== $maCH ) { $maChFile[ $maCH ] = ( isset( $maChFile[ $maCH ] ) ? $maChFile[ $maCH ] : 0 ) + 1; }
+			$tenMay = self::cong_may_dong( $noiDung, $maCH, '' );
 			if ( '' === $tenMay ) { $chuaRoMay++; }
 			elseif ( ! self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $thoiDiem ) ) { $chMoi[ self::cong_coso( $tenMay ) ] = 1; }
-			if ( self::luu_cong( $tx ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; }
+			$kqLuu = '';
+			if ( self::luu_cong( $tx, $kqLuu ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
 		}
 		$cm = array_keys( $chMoi ); sort( $cm );
+		/* 🔴 MÃ CỬA HÀNG CÓ TRONG FILE MÀ CHƯA CÓ TRONG BẢN ĐỒ thì phải kể tên ra. Nạp xong thấy
+		   "đã vá 0 dòng" mà không biết vì sao là bỏ cuộc; biết là "12 mã chưa có trong bản đồ" thì
+		   đi nạp bảng Danh sách cửa hàng là xong. */
+		$dsCH = self::vqr_ds_ch(); $thieuBD = array();
+		foreach ( array_keys( $maChFile ) as $mc ) { if ( ! isset( $dsCH[ $mc ] ) ) { $thieuBD[] = $mc; } }
+		sort( $thieuBD );
 		return array( 'ok' => true, 'nguon' => $nguon, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ), 'themMoi' => $moi, 'trungBoQua' => $trung,
-			'tongTienThem' => $tongMoi, 'boQuaDong' => $boQua, 'khongNgay' => $khongNgay, 'khongTien' => $khongTien, 'khongMa' => $khongMa, 'chuaRoMay' => $chuaRoMay, 'cuaHangMoi' => $cm );
+			'tongTienThem' => $tongMoi, 'boQuaDong' => $boQua, 'khongNgay' => $khongNgay, 'khongTien' => $khongTien, 'khongMa' => $khongMa, 'chuaRoMay' => $chuaRoMay, 'cuaHangMoi' => $cm,
+			'vaMay' => $vaMay, 'soMaCH' => count( $maChFile ), 'thieuBanDo' => array_slice( $thieuBD, 0, 30 ), 'soThieuBanDo' => count( $thieuBD ) );
+	}
+
+	/**
+	 * ── NẠP "DANH SÁCH CỬA HÀNG" CỦA VIỆT QR (napDsCuaHangVqr) ──
+	 *
+	 * Bảng cổng xuất ra: `Mã cửa hàng` · `Tên cửa hàng` · `Mã điểm bán` · `Tên điểm bán`.
+	 * "Tên cửa hàng" bên cổng CHÍNH LÀ tên máy bên mình ("LM-NSG 01"), "Tên điểm bán" là cơ sở.
+	 *
+	 * ⚠️ NẠP LẠI LÀ GỘP, KHÔNG PHẢI XOÁ HẾT RỒI GHI. Cổng cho tải từng trang, và người ta hay nạp
+	 *    làm nhiều lượt; xoá hết mỗi lượt là lượt sau đá mất lượt trước mà không câu nào báo.
+	 *    Muốn dọn sạch thì có nút Xoá riêng, một hành động cố ý.
+	 */
+	public static function rpc_napDsCuaHangVqr( $a ) {
+		self::can_pin( $a );
+		$rows = isset( $a[1] ) && is_array( $a[1] ) ? $a[1] : array();
+		if ( ! count( $rows ) ) { return array( 'ok' => false, 'error' => 'File không có dòng dữ liệu nào' ); }
+		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
+		$tenFile = sanitize_text_field( isset( $a[2] ) ? (string) $a[2] : '' );
+		$ds = self::vqr_ds_ch();
+		$moi = 0; $sua = 0; $yNguyen = 0; $boQua = 0; $luc = current_time( 'mysql' );
+		foreach ( $rows as $rr ) {
+			$r = (array) $rr;
+			$ma = self::vqr_ma_ch( isset( $r[0] ) ? $r[0] : '' );
+			$ten = trim( preg_replace( '/\s+/', ' ', (string) ( isset( $r[1] ) ? $r[1] : '' ) ) );
+			$maD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) );
+			$tenD = trim( preg_replace( '/\s+/', ' ', (string) ( isset( $r[3] ) ? $r[3] : '' ) ) );
+			/* Thiếu MÃ hoặc thiếu TÊN thì dòng ấy vô dụng: bản đồ này chỉ có một việc là mã -> tên. */
+			if ( '' === $ma || '' === $ten ) { $boQua++; continue; }
+			$cu = isset( $ds[ $ma ] ) ? $ds[ $ma ] : null;
+			$moiDong = array( 'ten' => mb_substr( $ten, 0, 120 ), 'maDiem' => mb_substr( $maD, 0, 60 ),
+				'tenDiem' => mb_substr( $tenD, 0, 160 ), 'luc' => $luc, 'file' => mb_substr( $tenFile, 0, 120 ) );
+			if ( ! $cu ) { $ds[ $ma ] = $moiDong; $moi++; continue; }
+			if ( (string) $cu['ten'] === $moiDong['ten']
+				&& (string) ( isset( $cu['tenDiem'] ) ? $cu['tenDiem'] : '' ) === $moiDong['tenDiem'] ) { $yNguyen++; continue; }
+			$ds[ $ma ] = $moiDong; $sua++;
+		}
+		update_option( 'saoke_vqr_ch', $ds, false );
+		return array( 'ok' => true, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ),
+			'themMoi' => $moi, 'daSua' => $sua, 'yNguyen' => $yNguyen, 'boQua' => $boQua, 'tong' => count( $ds ) );
+	}
+
+	/** Bản đồ đang có, dạng mảng phẳng để vẽ bảng. */
+	public static function rpc_getDsCuaHangVqr( $a ) {
+		self::can_pin( $a );
+		$ds = self::vqr_ds_ch(); $out = array();
+		foreach ( $ds as $ma => $v ) {
+			$out[] = array( 'maCH' => (string) $ma, 'ten' => (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ),
+				'maDiem' => (string) ( isset( $v['maDiem'] ) ? $v['maDiem'] : '' ),
+				'tenDiem' => (string) ( isset( $v['tenDiem'] ) ? $v['tenDiem'] : '' ),
+				'luc' => (string) ( isset( $v['luc'] ) ? $v['luc'] : '' ) );
+		}
+		usort( $out, function ( $x, $y ) { return strcmp( $x['ten'], $y['ten'] ); } );
+		return array( 'ok' => true, 'rows' => $out, 'tong' => count( $out ) );
+	}
+
+	/** Xoá SẠCH bản đồ — hành động cố ý, không dính vào lượt nạp. */
+	public static function rpc_xoaDsCuaHangVqr( $a ) {
+		self::can_pin( $a );
+		$n = count( self::vqr_ds_ch() );
+		update_option( 'saoke_vqr_ch', array(), false );
+		return array( 'ok' => true, 'daXoa' => $n );
 	}
 
 	// ── Ánh xạ cửa hàng (luuAnhXaCuaHang) ──

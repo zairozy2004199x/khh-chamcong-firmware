@@ -63,3 +63,32 @@ Bên Ghế đọc dữ liệu khoá-theo-tên của Sao Kê (ví dụ option `sa
 qua `squash()` trước khi tra**, đừng tra thẳng — tra thẳng không bao giờ khớp và hỏng *im lặng*:
 bảng vẫn hiện, chỉ là mọi cơ sở đều "chưa đặt mã" và số tiền bằng 0 (lỗi 2.20.1, vá ở 2.20.2).
 Đừng sửa `squash()` để cho khớp: nó đang dùng chung cho phạm vi PIN nhân viên và đối chiếu VietQR.
+
+## 6. Sao Kê: "chưa rõ máy" và mã cửa hàng Việt QR (0.17.0)
+
+Giao dịch khách quét **QR tĩnh** có nội dung `PaymentForOrder` — trong đó **không có tên máy**, và
+webhook của cổng cũng không gửi kèm trường nào chỉ ra máy. Không có cách "đọc khéo" nào cứu được;
+dữ liệu thật nằm ở một trường mà webhook không gửi.
+
+Bản kết xuất của cổng thì có. Hai bảng, một khoá nối:
+
+| Bảng cổng xuất ra | Cột dùng tới |
+|---|---|
+| **Giao dịch thanh toán** | `Mã đơn hàng` (= `ma_gd` bên mình) · **`Mã cửa hàng`** · `Mã điểm bán` |
+| **Danh sách cửa hàng** | **`Mã cửa hàng`** → `Tên cửa hàng` (**chính là tên máy**) · `Tên điểm bán` (cơ sở) |
+
+⚠️ Khoá nối là **Mã cửa hàng**, KHÔNG phải Mã điểm bán: hai bảng ghi mã điểm bán theo hai kiểu
+khác nhau (`VVB635365` ở bảng giao dịch, `MC1754018340421` ở bảng cửa hàng) — nối theo nó là nối
+trượt mà không báo gì.
+
+Đường đi: nạp **Danh sách cửa hàng** một lần (lưu ở option `saoke_vqr_ch`) → mỗi lần nạp bù
+**Giao dịch thanh toán** nhớ chọn cột *Mã cửa hàng* → `luu_cong()` **vá** `ma_ch` vào đúng dòng
+webhook đã ghi (không thêm dòng, không đếm tiền hai lần) → `cong_may_dong()` đọc ra tên máy.
+
+🔴 Hai cái bẫy đắt nhất, đều nằm ở phép **đoán cột**:
+* `Mã đơn hàng` phải đứng trước `Mã giao dịch` — chọn nhầm sang `Mã tham chiếu` thì khoá chống
+  trùng khác hẳn, mọi dòng thành "mới", **tiền đếm hai lần**.
+* `Mã cửa hàng` phải dò trước `Tên cửa hàng` — chuỗi "cua hang" nằm trong cả hai tiêu đề.
+
+Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (42 phép, chạy lớp thật với `$wpdb` giả). Đây là
+bộ thử **đầu tiên** của `vhcp-saoke`; `chay-het.sh` nay cũng soát cú pháp thư mục ấy.

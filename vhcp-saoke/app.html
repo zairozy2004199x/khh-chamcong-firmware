@@ -1181,12 +1181,37 @@ function dungViewCong(nguon){
   +         '<div class="fld"><label>Mã giao dịch cổng *</label><select id="'+id('txMa')+'"></select></div>'
   +         '<div class="fld"><label>Mã tham chiếu</label><select id="'+id('txRef')+'"></select></div>'
   +         '<div class="fld"><label>Nội dung (để lấy tên máy)</label><select id="'+id('txND')+'"></select></div>'
+  +         '<div class="fld"><label>Mã cửa hàng</label><select id="'+id('txMaCH')+'"></select></div>'
+  +         '<div class="fld"><label>Mã điểm bán</label><select id="'+id('txMaDiem')+'"></select></div>'
   +         '<div class="fld" style="align-self:flex-end"><button onclick="cgNapTx(\''+nguon+'\')">📥 Nạp bù</button></div>'
   +       '</div>'
   +       '<div class="hint" id="'+id('txXemTruoc')+'"></div>'
   +     '</div>'
   +     '<div id="'+id('txKq')+'" style="margin-top:8px"></div>'
   +   '</div>'
+  +   (nguon !== 'vietqr' ? '' :
+      '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
+  +     '<b>🏪 Bản đồ cửa hàng Việt QR — để dòng "chưa rõ máy" biết mình của máy nào</b>'
+  +     '<div class="hint">Giao dịch khách quét QR tĩnh có nội dung <code>PaymentForOrder</code> — '
+  +     '<b>trong đó không có tên máy</b>, và webhook cũng không gửi kèm. Nhưng bản kết xuất của cổng '
+  +     'thì có: bảng <b>Giao dịch thanh toán</b> mang cột <b>Mã cửa hàng</b>, còn bảng <b>Danh sách '
+  +     'cửa hàng</b> cho biết mã ấy là máy nào. Nạp bảng Danh sách cửa hàng vào đây <b>một lần</b>, '
+  +     'rồi mỗi lần nạp bù giao dịch (khối trên, nhớ chọn cột <b>Mã cửa hàng</b>) là máy tự điền — '
+  +     'kể cả cho những dòng webhook đã ghi từ lâu.</div>'
+  +     '<div style="margin:6px 0"><input type="file" accept=".xlsx,.csv,.tsv,.txt" id="'+id('bdFile')+'" onchange="cgChonFileBD(\''+nguon+'\',this)"></div>'
+  +     '<div id="'+id('bdCotWrap')+'" style="display:none">'
+  +       '<div class="row">'
+  +         '<div class="fld"><label>Mã cửa hàng *</label><select id="'+id('bdMa')+'"></select></div>'
+  +         '<div class="fld"><label>Tên cửa hàng (= tên máy) *</label><select id="'+id('bdTen')+'"></select></div>'
+  +         '<div class="fld"><label>Mã điểm bán</label><select id="'+id('bdMaD')+'"></select></div>'
+  +         '<div class="fld"><label>Tên điểm bán (cơ sở)</label><select id="'+id('bdTenD')+'"></select></div>'
+  +         '<div class="fld" style="align-self:flex-end"><button onclick="cgNapBD(\''+nguon+'\')">📥 Nạp bản đồ</button></div>'
+  +       '</div>'
+  +       '<div class="hint" id="'+id('bdXemTruoc')+'"></div>'
+  +     '</div>'
+  +     '<div id="'+id('bdKq')+'" style="margin-top:8px"></div>'
+  +     '<div id="'+id('bdDs')+'" style="margin-top:8px"></div>'
+  +   '</div>')
   +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
   +     '<b>Từ khoá nhận dòng ' + esc(ten) + ' trong sao kê ngân hàng</b>'
   +     '<div class="hint" id="'+id('tkHint')+'"></div>'
@@ -1595,15 +1620,15 @@ function cgChonFileTx(nguon, input){
     cgEl(nguon,'txCotWrap').style.display = '';
     var head = rows[0] || [];
     var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
-    ['txThoiDiem','txTien','txMa','txRef','txND'].forEach(function(t){
-      var h = (t === 'txRef' || t === 'txND') ? '<option value="-1">(không có)</option>' : '';
+    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem'].forEach(function(t){
+      var h = (t === 'txThoiDiem' || t === 'txTien' || t === 'txMa') ? '' : '<option value="-1">(không có)</option>';
       for(var c=0;c<soCot;c++){
         h += '<option value="'+c+'">'+esc(cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,26)) : ''))+'</option>';
       }
       cgEl(nguon,t).innerHTML = h;
     });
     var doan = cgDoanCotTx(head, soCot, rows);
-    ['txThoiDiem','txTien','txMa','txRef','txND'].forEach(function(t){
+    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem'].forEach(function(t){
       if(doan[t] >= 0) cgEl(nguon,t).value = String(doan[t]);
       cgEl(nguon,t).onchange = function(){ cgXemTruocTx(nguon); };
     });
@@ -1629,9 +1654,14 @@ function cgDoanCotTx(head, soCot, rows){
   var o = {
     txThoiDiem: timTieuDe(['thoi gian','thoi diem','ngay','date','time']),
     txTien:     timTieuDe(['so tien','amount','gia tri','tien den']),
-    txMa:       timTieuDe(['ma giao dich','ma gd','transaction','ma vietqr','ma vqr']),
+    /* 🔴 "MÃ ĐƠN HÀNG" ĐỨNG TRƯỚC. Bảng kết xuất Việt QR có CẢ "Mã tham chiếu" lẫn "Mã đơn hàng",
+       mà cái webhook ghi vào ô Mã giao dịch cổng là "Mã đơn hàng" (VPB…). Chọn nhầm sang Mã tham
+       chiếu thì khoá chống trùng khác hẳn: mọi dòng thành "mới", tiền bị ĐẾM HAI LẦN. */
+    txMa:       timTieuDe(['ma don hang','ma giao dich','ma gd','transaction','ma vietqr','ma vqr']),
     txRef:      timTieuDe(['tham chieu','reference','ref']),
-    txND:       timTieuDe(['noi dung','nd','content','mo ta'])
+    txND:       timTieuDe(['noi dung','nd','content','mo ta']),
+    txMaCH:     timTieuDe(['ma cua hang','ma ch','store code','ma ch cong']),
+    txMaDiem:   timTieuDe(['ma diem ban','diem ban','merchant'])
   };
   // Dò theo hình dạng cho những cột chưa đoán được: quét tối đa 30 dòng đầu
   var mau = rows.slice(0, 30);
@@ -1668,9 +1698,10 @@ function cgThoiDiemO(v){
 }
 function cgLayTx(nguon){
   var d = CG_ROWS_TX[nguon]; if(!d) return null;
+  function soCot(t){ var o = cgEl(nguon,t); return o ? Number(o.value) : -1; }
   var c = { td: Number(cgEl(nguon,'txThoiDiem').value), ti: Number(cgEl(nguon,'txTien').value),
             ma: Number(cgEl(nguon,'txMa').value), rf: Number(cgEl(nguon,'txRef').value),
-            nd: Number(cgEl(nguon,'txND').value) };
+            nd: Number(cgEl(nguon,'txND').value), mch: soCot('txMaCH'), mdi: soCot('txMaDiem') };
   var goi = [], mau = [];
   for(var i=0;i<d.rows.length;i++){
     var r = d.rows[i];
@@ -1678,9 +1709,12 @@ function cgLayTx(nguon){
     var ma = String(c.ma >= 0 && r[c.ma] != null ? r[c.ma] : '').trim();
     var rf = String(c.rf >= 0 && r[c.rf] != null ? r[c.rf] : '').trim();
     var nd = String(c.nd >= 0 && r[c.nd] != null ? r[c.nd] : '').trim();
+    var mch = String(c.mch >= 0 && r[c.mch] != null ? r[c.mch] : '').trim();
+    var mdi = String(c.mdi >= 0 && r[c.mdi] != null ? r[c.mdi] : '').trim();
     if(!td || !(ti > 0) || (!ma && !rf)) continue;
-    goi.push([td, ti, ma, rf, nd]);
-    if(mau.length < 3) mau.push(td + ' · ' + fmt(ti) + 'đ · ' + ma + (nd ? (' · ' + nd) : ''));
+    goi.push([td, ti, ma, rf, nd, mch, mdi]);
+    if(mau.length < 3) mau.push(td + ' · ' + fmt(ti) + 'đ · ' + ma + (nd ? (' · ' + nd) : '')
+      + (mch ? (' · CH ' + mch) : ''));
   }
   return { goi: goi, mau: mau, tong: d.rows.length, tenFile: d.tenFile, cot: c };
 }
@@ -1699,7 +1733,11 @@ function cgNapTx(nguon){
   google.script.run.withSuccessHandler(function(r){
     if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
     var ph = ['Nạp bù <b>'+r.themMoi+'</b> giao dịch, tổng <b>'+fmt(r.tongTienThem)+'đ</b>'];
-    if(r.trungBoQua) ph.push('<b>'+r.trungBoQua+'</b> giao dịch ĐÃ CÓ (webhook đã ghi) nên bỏ qua — không đếm hai lần');
+    if(r.trungBoQua) ph.push('<b>'+r.trungBoQua+'</b> giao dịch ĐÃ CÓ (webhook đã ghi) nên bỏ qua — không đếm hai lần'
+      + (r.vaMay ? (', trong đó <b style="color:var(--xanhLa,#15803d)">'+r.vaMay+'</b> dòng vừa được ĐIỀN MÃ CỬA HÀNG') : ''));
+    if(r.soThieuBanDo) ph.push('<b style="color:var(--vang)">'+r.soThieuBanDo+' mã cửa hàng chưa có trong bản đồ</b> — '
+      + 'nạp bảng <b>Danh sách cửa hàng</b> ở khối dưới rồi nạp lại file này: '
+      + r.thieuBanDo.map(esc).join(' · ') + (r.soThieuBanDo > r.thieuBanDo.length ? ' …' : ''));
     if(r.boQuaDong) ph.push(r.boQuaDong+' dòng bị bỏ (thiếu thời điểm: '+r.khongNgay
       + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa+')');
     if(r.chuaRoMay) ph.push(r.chuaRoMay+' giao dịch nội dung không mang tên máy');
@@ -1707,11 +1745,134 @@ function cgNapTx(nguon){
     kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
     google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
       .luuCotTxCong(PIN, nguon, { thoiDiem: k.cot.td, soTien: k.cot.ti, maGD: k.cot.ma,
-                                  ref: k.cot.rf, noiDung: k.cot.nd });
+                                  ref: k.cot.rf, noiDung: k.cot.nd, maCH: k.cot.mch, maDiem: k.cot.mdi });
     cgTaiLai(nguon);
   }).withFailureHandler(function(e){
     kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc(e.message)+'</span>';
   }).napFileCongTx(PIN, nguon, k.goi, k.tenFile);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * BẢN ĐỒ CỬA HÀNG VIỆT QR — mã cửa hàng của cổng ➜ tên máy.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 12/09/2026: *"một số giao dịch nội dung không rõ ràng, mà webhook gửi về thì thiếu
+ * thông tin… tải thẳng sao kê của bên VietQR, nó có đủ các trường để xác định giao dịch đó là
+ * của máy này."* Bảng "Danh sách cửa hàng" của cổng chính là bản đồ ấy.
+ */
+var CG_ROWS_BD = {};
+function cgChonFileBD(nguon, input){
+  var f = input.files && input.files[0]; if(!f) return;
+  var kq = cgEl(nguon,'bdKq');
+  kq.innerHTML = '<span class="muted">Đang đọc file…</span>';
+  cgReadTable(f).then(function(rows){
+    if(!rows.length) throw new Error('File không có dòng nào');
+    CG_ROWS_BD[nguon] = { rows: rows, tenFile: f.name };
+    cgEl(nguon,'bdCotWrap').style.display = '';
+    var head = rows[0] || [];
+    var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
+    ['bdMa','bdTen','bdMaD','bdTenD'].forEach(function(t){
+      var h = (t === 'bdMa' || t === 'bdTen') ? '' : '<option value="-1">(không có)</option>';
+      for(var c=0;c<soCot;c++){
+        h += '<option value="'+c+'">'+esc(cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,26)) : ''))+'</option>';
+      }
+      cgEl(nguon,t).innerHTML = h;
+    });
+    var doan = cgDoanCotBD(head, soCot);
+    ['bdMa','bdTen','bdMaD','bdTenD'].forEach(function(t){
+      if(doan[t] >= 0) cgEl(nguon,t).value = String(doan[t]);
+      cgEl(nguon,t).onchange = function(){ cgXemTruocBD(nguon); };
+    });
+    kq.innerHTML = '<span class="muted">Đọc được <b>'+rows.length+'</b> dòng × '+soCot
+      + ' cột từ <b>'+esc(f.name)+'</b>. Em đoán cột theo dòng tiêu đề — kiểm lại trước khi nạp.</span>';
+    cgXemTruocBD(nguon);
+  }).catch(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không đọc được file:</b> <span class="hint">'+esc(e.message)+'</span>';
+    cgEl(nguon,'bdCotWrap').style.display = 'none';
+  });
+  input.value = '';
+}
+function cgDoanCotBD(head, soCot){
+  function boDau(x){ return String(x||'').toLowerCase()
+    .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i')
+    .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d'); }
+  function tim(tu){
+    for(var c=0;c<soCot;c++){ var t = boDau(head[c]);
+      for(var k=0;k<tu.length;k++) if(t.indexOf(tu[k]) >= 0) return c; }
+    return -1;
+  }
+  /* ⚠️ "ma cua hang" phải dò TRƯỚC "ten cua hang": chuỗi con "cua hang" có trong cả hai tiêu đề,
+     dò ngược là hai ô cùng trỏ về một cột và bản đồ thành mã→mã. */
+  return { bdMa: tim(['ma cua hang','ma ch','store code']), bdTen: tim(['ten cua hang','ten ch','store name']),
+           bdMaD: tim(['ma diem ban','ma diem']), bdTenD: tim(['ten diem ban','ten diem']) };
+}
+function cgLayBD(nguon){
+  var d = CG_ROWS_BD[nguon]; if(!d) return null;
+  var c = { ma: Number(cgEl(nguon,'bdMa').value), ten: Number(cgEl(nguon,'bdTen').value),
+            maD: Number(cgEl(nguon,'bdMaD').value), tenD: Number(cgEl(nguon,'bdTenD').value) };
+  var goi = [], mau = [];
+  for(var i=0;i<d.rows.length;i++){
+    var r = d.rows[i];
+    var ma = String(c.ma >= 0 && r[c.ma] != null ? r[c.ma] : '').trim();
+    var ten = String(c.ten >= 0 && r[c.ten] != null ? r[c.ten] : '').trim();
+    var maD = String(c.maD >= 0 && r[c.maD] != null ? r[c.maD] : '').trim();
+    var tenD = String(c.tenD >= 0 && r[c.tenD] != null ? r[c.tenD] : '').trim();
+    if(!ma || !ten) continue;
+    goi.push([ma, ten, maD, tenD]);
+    if(mau.length < 3) mau.push(ma + ' → ' + ten + (tenD ? (' · ' + tenD) : ''));
+  }
+  return { goi: goi, mau: mau, tong: d.rows.length, tenFile: d.tenFile, cot: c };
+}
+function cgXemTruocBD(nguon){
+  var k = cgLayBD(nguon); if(!k) return;
+  cgEl(nguon,'bdXemTruoc').innerHTML = k.goi.length
+    ? ('Đọc được <b>'+k.goi.length+'/'+k.tong+'</b> dòng. Ví dụ:<br>' + k.mau.map(esc).join('<br>'))
+    : '<b style="color:var(--doNhat)">Với các cột đang chọn không đọc được dòng nào</b> — dòng phải có '
+      + 'đủ <b>Mã cửa hàng</b> và <b>Tên cửa hàng</b>.';
+}
+function cgNapBD(nguon){
+  var k = cgLayBD(nguon), kq = cgEl(nguon,'bdKq');
+  if(!k){ kq.innerHTML = '<b style="color:var(--doNhat)">Chưa chọn file</b>'; return; }
+  if(!k.goi.length){ kq.innerHTML = '<b style="color:var(--doNhat)">Không có dòng nào đọc được</b> — chọn lại cột.'; return; }
+  kq.innerHTML = '<span class="muted">Đang nạp '+k.goi.length+' cửa hàng…</span>';
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok){ kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+    var ph = ['Thêm <b>'+r.themMoi+'</b> · sửa <b>'+r.daSua+'</b> · y nguyên '+r.yNguyen
+      + (r.boQua ? (' · bỏ '+r.boQua+' dòng thiếu mã hoặc thiếu tên') : '')];
+    ph.push('Bản đồ đang có <b>'+r.tong+'</b> cửa hàng.');
+    ph.push('Giờ vào khối <b>Nạp bù giao dịch từ file</b> ở trên, nạp bảng <b>Giao dịch thanh toán</b> '
+      + 'và nhớ chọn cột <b>Mã cửa hàng</b> — những dòng "chưa rõ máy" sẽ được điền máy.');
+    kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
+    cgTaiBD(nguon);
+  }).withFailureHandler(function(e){
+    kq.innerHTML = '<b style="color:var(--doNhat)">Không nạp được:</b> <span class="hint">'+esc(e.message)+'</span>';
+  }).napDsCuaHangVqr(PIN, k.goi, k.tenFile);
+}
+function cgTaiBD(nguon){
+  var o = cgEl(nguon,'bdDs'); if(!o) return;
+  google.script.run.withSuccessHandler(function(r){
+    if(!r||!r.ok||!r.rows.length){ o.innerHTML = '<span class="muted">Bản đồ đang trống.</span>'; return; }
+    var h = '<details><summary style="cursor:pointer">Bản đồ đang có <b>'+r.tong+'</b> cửa hàng '
+      + '<span class="muted">(bấm để xem)</span></summary>'
+      + '<table class="tbl" style="margin-top:6px"><thead><tr><th>Mã cửa hàng</th><th>Tên máy</th>'
+      + '<th>Điểm bán (cơ sở)</th></tr></thead><tbody>';
+    for(var i=0;i<r.rows.length && i<500;i++){
+      h += '<tr><td><code>'+esc(r.rows[i].maCH)+'</code></td><td>'+esc(r.rows[i].ten)+'</td><td>'
+        + esc(r.rows[i].tenDiem||'—')+'</td></tr>';
+    }
+    h += '</tbody></table>'
+      + (r.rows.length > 500 ? '<div class="hint">Chỉ hiện 500 dòng đầu.</div>' : '')
+      + '<div style="margin-top:6px"><button class="gray" onclick="cgXoaBD(\''+nguon+'\')">🗑 Xoá sạch bản đồ</button></div>'
+      + '</details>';
+    o.innerHTML = h;
+  }).withFailureHandler(function(){ o.innerHTML = ''; }).getDsCuaHangVqr(PIN);
+}
+function cgXoaBD(nguon){
+  if(!confirm('Xoá SẠCH bản đồ cửa hàng Việt QR?\n\nDòng giao dịch đã điền máy thì GIỮ NGUYÊN — '
+    + 'xoá bản đồ chỉ làm những lần nạp SAU không tra được tên máy nữa.')) return;
+  google.script.run.withSuccessHandler(function(r){
+    cgEl(nguon,'bdKq').innerHTML = '<div class="hint">Đã xoá '+((r&&r.daXoa)||0)+' dòng bản đồ.</div>';
+    cgTaiBD(nguon);
+  }).withFailureHandler(function(){}).xoaDsCuaHangVqr(PIN);
 }
 
 // ---------- Đọc file .xlsx / .csv NGAY TRÊN MÁY (không CDN, không gửi file đi đâu) ----------
@@ -2076,7 +2237,14 @@ function veSaoKeCong(nguon, d){
   else b.style.display='none';
 
   cgVeBang(nguon, 'cong', d.cong || [], function(r){
-        var may = r.tenMay ? esc(r.tenMay) : '<span style="color:var(--gold)">chưa rõ máy</span>';
+        /* 🔴 "Chưa rõ máy" một mình là một câu bí. Có mã cửa hàng mà chưa rõ máy = thiếu BẢN ĐỒ
+           (nạp bảng Danh sách cửa hàng là xong); không có mã cửa hàng = dòng này webhook ghi và
+           chưa nạp bù sao kê của cổng. Hai cảnh ấy sửa bằng hai việc khác nhau, nên phải phân
+           biệt được ngay trên dòng — kẻo người đọc bấm quanh không biết làm gì tiếp. */
+        var may = r.tenMay ? esc(r.tenMay)
+          : ('<span style="color:var(--gold)">chưa rõ máy</span>'
+             + (r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
+                          +'</code> — chưa có trong bản đồ</div>') : ''));
         var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
         return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
              /* th,td của trang để white-space:nowrap, nên MỘT ô dài là cả bảng trôi ngang và
@@ -2124,7 +2292,12 @@ function veSaoKeCong(nguon, d){
 }
 // Tải lại đúng luồng của tab: Việt QR = webhook, MoMo/VNPAY = file theo tháng.
 // Gọi sai luồng thì hàm vẽ sẽ ghi vào id không tồn tại trên tab đó -> vỡ IM LẶNG.
-function cgTaiLai(nguon){ if(cgDungFile(nguon)) taiDoiSoatFile(nguon); else taiSaoKeCong(nguon); }
+function cgTaiLai(nguon){
+  if(cgDungFile(nguon)) taiDoiSoatFile(nguon); else taiSaoKeCong(nguon);
+  /* Bản đồ cửa hàng chỉ có ở Việt QR. Nạp kèm mỗi lượt tải màn để khối "Cài đặt & công cụ"
+     luôn nói đúng bản đồ đang có — không thì phải nhớ bấm một nút nữa mới thấy. */
+  if(nguon === 'vietqr' && typeof cgTaiBD === 'function') cgTaiBD(nguon);
+}
 // "Làm mới" = ĐẶT LẠI kỳ về mặc định rồi đọc lại — cùng nghĩa với nút Làm mới ở tab
 // Sao Kê Ngân Hàng, để anh không phải nhớ mỗi tab một kiểu. Khác "Lọc" (giữ kỳ đang chọn).
 function cgLamMoi(nguon){ if(cgDungFile(nguon)) cgThangNay(nguon); else cgDatNgay(nguon, 6); }
