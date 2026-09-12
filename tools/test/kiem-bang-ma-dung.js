@@ -95,6 +95,13 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso) {
   const moi = {
     CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso },
     MX_LOCK: true, TKNAME: {}, TKCHART: [],
+    /* 🔴 CHẾ ĐỘ SẮP MẢNG (12/09/2026) phải có trong bệ đỡ, kể cả khi bài này không canh nó:
+       `renderTkNoMatrix()` đọc `MX_SAP` để dựng dải nút, thiếu là hàm chết ngay dòng ấy và
+       MỌI phép bên dưới đỏ vì một lý do chẳng liên quan gì tới bảng mã.
+       Để 'mang' — đúng mặc định, và là chế độ mà phần lớn phép của bài này giả định. Luật sắp
+       xếp có bài riêng canh: `kiem-sap-mang-theo-tk.js`. */
+    MX_SAP: 'mang',
+    mxDatSap: () => {},
     el: id => (KHO[id] = KHO[id] || O(id)),
     esc: x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     toast: (k, m) => NK.toast.push([k, m]),
@@ -116,7 +123,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
-    ${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }

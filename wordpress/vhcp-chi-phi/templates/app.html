@@ -9112,6 +9112,59 @@
     if(b){ b.textContent=MX_LOCK?'🔒 Đang khóa — bấm để mở':'🔓 Đang mở — bấm để khóa'; b.className='btn '+(MX_LOCK?'b-x':'b-p'); }
     Array.prototype.forEach.call(el('cfgTkNoMx').querySelectorAll('input,select,button'),function(f){ f.disabled=MX_LOCK; });
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * HAI CÁCH SẮP MẢNG KINH DOANH — anh Thắng 12/09/2026: *"Chỗ mảng kinh doanh, tạo cho anh 2
+   * cách sắp xếp: sắp xếp theo số tk 641-6411-6412, 642-6421-6422-6423 · Sắp xếp theo mảng"*.
+   *
+   * 🔴 SO CHUỖI, KHÔNG SO SỐ — và đây là chỗ duy nhất dễ làm sai cả khối này.
+   *    Xếp theo CÂY tài khoản thì 6411 phải đứng TRƯỚC 642, vì nó là con của 641. Mà so bằng
+   *    giá trị số thì 642 < 6411 nên 642 nhảy lên trước, cắt đôi cây 641 — đúng thứ anh Thắng
+   *    bảo là không muốn. So chuỗi thì ra đúng ngay: "641" < "6411" < "6412" < "642" < "6421",
+   *    vì chuỗi ngắn hơn mà là tiền tố thì đứng trước. Cây tài khoản Việt Nam vốn mã hoá quan
+   *    hệ cha–con vào chính con số nên không cần biết gì thêm.
+   *
+   * 🔴 MỘT MẢNG CÓ NHIỀU MÃ (mỗi loại chi phí một mã), nên phải chọn ra MỘT mã làm mốc xếp.
+   *    Lấy mã NHỎ NHẤT của hàng: nó là mã "gốc" của mảng ấy trong sổ, và là thứ kế toán dò
+   *    theo. Bày luật này ra ngay trên bảng — người xem thấy TUTU lên trước EVENT mà không
+   *    biết vì sao thì sẽ tưởng bảng xếp lung tung.
+   *
+   * ⚠️ MẢNG CHƯA KHAI MÃ NÀO XUỐNG CUỐI, không lên đầu. Chuỗi rỗng so ra nhỏ nhất nên nếu
+   *    không chặn thì mấy mảng chưa khai chiếm sạch mấy hàng đầu — đúng chỗ người ta nhìn
+   *    trước nhất, mà lại là mấy hàng trống rỗng.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var MX_SAP = (function(){ try{ return localStorage.getItem('vhcp_mx_sap')||'mang'; }catch(e){ return 'mang'; } })();
+  function mxDatSap(v){
+    MX_SAP=v;
+    try{ localStorage.setItem('vhcp_mx_sap', v); }catch(e){}
+    renderTkNoMatrix();
+  }
+  /** Mã nhỏ nhất của một mảng, theo thứ tự CÂY. '' nếu mảng ấy chưa khai mã nào. */
+  function _mxMaGoc(mang, rows, mx){
+    var nho='';
+    rows.forEach(function(x){
+      var o=String(mx[String(x.ten||'')+'|'+mang]||'');
+      /* Một ô khai được NHIỀU mã, cách nhau bởi "|" (VD "64196 | 64197") — tách ra rồi mới so,
+         không thì cả chuỗi "64196 | 64197" đem đi so như một mã và xếp sai chỗ. */
+      o.split('|').forEach(function(m){
+        m=String(m||'').trim().replace(/\.0+$/,'');   // đuôi ".0" của bảng tính
+        if(!m) return;
+        if(nho==='' || m<nho) nho=m;
+      });
+    });
+    return nho;
+  }
+  function _mxSapCols(cols, rows, mx){
+    if(MX_SAP!=='tk') return cols.slice().sort();      // theo mảng: A→Z, như cũ
+    return cols.slice().sort(function(a,b){
+      var ma=_mxMaGoc(a,rows,mx), mb=_mxMaGoc(b,rows,mx);
+      /* Chưa khai mã thì xuống cuối — chuỗi rỗng vốn so ra nhỏ nhất, để nguyên là nó chiếm
+         mấy hàng đầu. */
+      if(ma==='' && mb!=='') return 1;
+      if(mb==='' && ma!=='') return -1;
+      if(ma!==mb) return ma<mb?-1:1;
+      return a<b?-1:(a>b?1:0);                          // cùng mã gốc -> A→Z cho ổn định
+    });
+  }
   function renderTkNoMatrix(){
     var box=el('cfgTkNoMx'); if(!box) return;
     var cols=_mxCols();
@@ -9146,17 +9199,30 @@
        vừa màn. Trước bản này ngược lại, và bảng dài ra ngang cả nghìn điểm ảnh.
        MỖI ĐƠN VỊ MỘT BẢNG RIÊNG, và chỉ hiện đơn vị người này xem được. */
     var nhom=_mxNhomDv().filter(function(g){ return _xemDuocDv(g.dv); });
+    if(nhom.length){
+      var _n=function(v,ten){ return '<button type="button" class="btn '+(MX_SAP===v?'b-p':'b-x')+'"'
+        +' onclick="mxDatSap(\''+v+'\')" style="padding:3px 10px;font-size:11.5px">'+ten+'</button>'; };
+      h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 2px">'
+        +'<b style="font-size:12px;color:#334155">Sắp mảng kinh doanh:</b>'
+        +_n('mang','🔤 Theo mảng (A→Z)')+_n('tk','🔢 Theo số tài khoản')
+        +'<span style="font-size:11px;color:#94a3b8">'
+        +(MX_SAP==='tk'
+          ? 'Xếp theo <b>mã nhỏ nhất</b> của mỗi mảng, đi theo cây: 641 → 6411 → 6412 → 642 → 6421. Mảng chưa khai mã nào nằm cuối.'
+          : 'Xếp theo tên mảng. Bấm <b>Theo số tài khoản</b> để dò theo sổ cái.')
+        +'</span></div>';
+    }
     if(!nhom.length){
       h+='<div style="color:#94a3b8;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
     }
     nhom.forEach(function(g){
       h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span>'
-        +' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng</span></div>'
+        +' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · xếp theo '
+        +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span></div>'
         +'<div class="tw"><table style="min-width:'+(220+rows.length*128)+'px"><thead><tr>'
         +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f8fafc;z-index:1">Mảng kinh doanh</th>'
         +rows.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
         +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
-        +g.cols.map(function(c){
+        +_mxSapCols(g.cols, rows, mx).map(function(c){
             return '<tr><td style="font-weight:600;position:sticky;left:0;background:#fff;z-index:1">'+esc(c)+'</td>'
               +rows.map(function(x){
                   var ten=String(x.ten||'');
