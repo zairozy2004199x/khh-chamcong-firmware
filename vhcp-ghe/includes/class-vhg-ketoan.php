@@ -1396,6 +1396,47 @@ class VHG_KeToan {
 	 * CHỨNG TỪ MISA — CHỈ ghế ĐÃ DUYỆT. Tiền mặt 1 dòng, QR 1 dòng (bản chỉ-tiền-mặt bỏ dòng QR).
 	 * Trả AoA (mảng dòng) + meta; client dựng CSV tải về. Số chứng từ: 1 số/1 ngày (tuỳ chọn).
 	 */
+	/* ══════════════════════════════ XUẤT MISA THEO NGÀY — ĐÁNH DẤU ĐÃ XUẤT ══════════════════════
+	   Anh Thắng 12/09/2026: tách 2 bảng "ngày chưa xuất" (trên) / "ngày đã xuất" (dưới); kế toán bấm
+	   Xuất một ngày → ra file → ngày đó chuyển xuống "đã xuất". CHỈ đếm ghế ĐÃ DUYỆT (kt_duyet=1) —
+	   "cơ sở nào đã duyệt mới sang tab xuất MISA". Trạng thái đã-xuất lưu ở option (map ngày→lúc);
+	   chỉ giữ ngày đã xuất nên không phình. */
+	private static function misa_xuat_map() {
+		$m = get_option( 'vhg_misa_xuat' ); return is_array( $m ) ? $m : array();
+	}
+	public static function misa_ngay_ds( $thang ) {
+		global $wpdb;
+		$thg  = self::thang_( $thang );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.ngay, COUNT(DISTINCT h.coso_key) so_coso, COUNT(*) so_ghe,'
+			. ' COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr, COALESCE(SUM(d.tong),0) tong'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE d.kt_duyet=1 AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)'
+			. ' AND DATE_FORMAT(d.ngay,%s)=%s GROUP BY d.ngay ORDER BY d.ngay ASC', '%Y-%m', $thg ), ARRAY_A );
+		$map = self::misa_xuat_map();
+		$ra  = array();
+		foreach ( (array) $rows as $r ) {
+			$ng = self::ngay_( $r['ngay'] );
+			$ra[] = array( 'ngay' => $ng, 'soCoSo' => (int) $r['so_coso'], 'soGhe' => (int) $r['so_ghe'],
+				'tienMat' => (int) $r['tm'], 'qr' => (int) $r['qr'], 'tong' => (int) $r['tong'],
+				'daXuat' => isset( $map[ $ng ] ) ? 1 : 0, 'xuatLuc' => isset( $map[ $ng ] ) ? (string) $map[ $ng ] : '' );
+		}
+		return array( 'ok' => true, 'thang' => $thg, 'rows' => $ra );
+	}
+	public static function misa_danh_xuat( $ngay ) {
+		$ng = self::ngay_( $ngay );
+		if ( '' === $ng ) { return array( 'ok' => false, 'error' => 'Ngày không hợp lệ.' ); }
+		$map = self::misa_xuat_map(); $map[ $ng ] = current_time( 'mysql' );
+		update_option( 'vhg_misa_xuat', $map );
+		return array( 'ok' => true, 'ngay' => $ng );
+	}
+	public static function misa_bo_xuat( $ngay ) {
+		$ng = self::ngay_( $ngay );
+		$map = self::misa_xuat_map();
+		if ( isset( $map[ $ng ] ) ) { unset( $map[ $ng ] ); update_option( 'vhg_misa_xuat', $map ); }
+		return array( 'ok' => true, 'ngay' => $ng );
+	}
+
 	public static function misa_chungtu( $from, $to, $thang, $chi_tien_mat, $so_ct_dau ) {
 		global $wpdb;
 		$f = self::ngay_( $from ); $t = self::ngay_( $to );

@@ -492,6 +492,9 @@ class VHG_Trang {
 			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
+			if ( 'kt_misa_ngay_ds' === $viec )   { self::tra( VHG_KeToan::misa_ngay_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_misa_danh_xuat' === $viec ) { self::tra( VHG_KeToan::misa_danh_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
+			if ( 'kt_misa_bo_xuat' === $viec )   { self::tra( VHG_KeToan::misa_bo_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
 			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '', isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
@@ -7190,6 +7193,15 @@ function veKtXuat(){
     + '<label class="mut"><input type="checkbox" id="ktx-chitm"> ' + L('chỉ tiền mặt','cash only') + '</label>'
     + '<button id="ktx-misa" class="on">' + L('Tải chứng từ','Download') + '</button>'
     + '<span id="ktx-misa-msg" class="mut"></span></div></div>'
+    /* 2 bảng theo NGÀY: chưa xuất (trên) / đã xuất (dưới) — anh Thắng 12/09/2026. Chỉ ngày có ghế
+       ĐÃ DUYỆT. Bấm Xuất một ngày → tải file (dùng Số CT đầu / chỉ tiền mặt của khối trên) → ngày
+       chuyển xuống "đã xuất". */
+    + '<div class="card"><h2>' + L('Xuất chứng từ theo NGÀY (đánh dấu đã xuất)','Export by DAY (mark exported)') + '</h2>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<label class="mut">' + L('Tháng','Month') + ' <input type="month" id="ktx-nx-thang" value="' + thg + '" style="max-width:150px"></label>'
+    + '<button id="ktx-nx-load" class="ghost">' + L('Xem','Load') + '</button>'
+    + '<span class="mut">' + L('Dùng "Số CT đầu" và "chỉ tiền mặt" ở khối trên.','Uses First voucher / cash-only above.') + '</span></div>'
+    + '<div id="ktx-nx-wrap" style="margin-top:10px"></div></div>'
     + '<div class="card"><h2>' + L('Báo cáo ngày (DAILY SALES)','Daily sales report') + '</h2>'
     + '<p class="mut">' + L('Chéo: mỗi dòng một cơ sở, mỗi cột một ngày. Cần Unit ID (bên dưới).',
       'Cross-tab: branch × day. Needs Unit IDs below.') + '</p>'
@@ -7240,7 +7252,52 @@ function ktxInit(){
     var m=document.getElementById('ktx-seed-msg');
     ktAct('kt_ma_misa_seed',{},m,function(){ ktxMaMisa(); });
   };
+  var bNx=document.getElementById('ktx-nx-load');
+  if(bNx) bNx.onclick=ktxNgayXuat;
+  ktxNgayXuat();
   ktxMaMisa();
+}
+/* 2 bảng xuất theo NGÀY: chưa xuất (trên) / đã xuất (dưới). Anh Thắng 12/09/2026. */
+function ktxNgayXuat(){
+  var box=document.getElementById('ktx-nx-wrap'); if(!box) return;
+  var thg=(document.getElementById('ktx-nx-thang')||{}).value||thangHomNay();
+  box.innerHTML='<span class="mut">'+L('Đang tải…','Loading…')+'</span>';
+  goi('kt_misa_ngay_ds',{thang:thg},function(r){
+    if(!r||!r.ok){ box.innerHTML='<span class="mut err">'+((r&&r.error)||'Lỗi.')+'</span>'; return; }
+    var rows=r.rows||[], chua=rows.filter(function(x){return !x.daXuat;}), da=rows.filter(function(x){return x.daXuat;});
+    function ddmy(s){ var p=String(s||'').split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):s; }
+    function bang(list,daXuat){
+      if(!list.length) return '<p class="mut">'+(daXuat?L('Chưa có ngày nào đã xuất.','None exported yet.'):L('Không còn ngày nào chưa xuất.','Nothing left to export.'))+'</p>';
+      var h='<div class="table-scroll"><table style="min-width:560px"><tr><th>'+L('Ngày','Date')+'</th><th class="r">'+L('Cơ sở','Sites')+'</th><th class="r">'+L('Ghế','Chairs')+'</th><th class="r">'+L('Tổng','Total')+'</th>'+(daXuat?'<th>'+L('Đã xuất lúc','Exported at')+'</th>':'')+'<th></th></tr>';
+      list.forEach(function(x){
+        h+='<tr><td><b>'+ddmy(x.ngay)+'</b></td><td class="r">'+x.soCoSo+'</td><td class="r">'+x.soGhe+'</td><td class="r">'+ktVnd(x.tong)+'đ</td>'
+          +(daXuat?'<td class="mut">'+esc(String(x.xuatLuc||'').slice(0,16))+'</td>':'')
+          +'<td class="r" style="white-space:nowrap">'
+          +(daXuat
+            ? '<button data-nxtai="'+esc(x.ngay)+'" class="ghost">'+L('Tải lại','Re-download')+'</button> <button data-nxbo="'+esc(x.ngay)+'" class="ghost">'+L('Bỏ đánh dấu','Unmark')+'</button>'
+            : '<button data-nxxuat="'+esc(x.ngay)+'" class="on">'+L('Xuất','Export')+'</button>')
+          +'</td></tr>';
+      });
+      return h+'</table></div>';
+    }
+    box.innerHTML='<h3 style="margin:.2em 0">'+L('CHƯA xuất','NOT exported')+' ('+chua.length+')</h3>'+bang(chua,false)
+      +'<h3 style="margin:1em 0 .2em">'+L('ĐÃ xuất','Exported')+' ('+da.length+')</h3>'+bang(da,true);
+    function taiNgay(ng,mark){
+      var soct=(document.getElementById('ktx-soct')||{}).value||'';
+      var ctm=(document.getElementById('ktx-chitm')||{}).checked?1:0;
+      goi('kt_misa',{from:ng,to:ng,thang:'',chi_tien_mat:ctm,so_ct_dau:soct},function(rr){
+        if(!rr||!rr.ok){ alert((rr&&rr.error)||'Lỗi xuất.'); return; }
+        if(rr.rows<=0){ alert(L('Ngày này không có ghế đã duyệt.','No confirmed chairs that day.')); return; }
+        ktCsvTaiVe(rr.aoa,rr.fileName);
+        if(mark){ goi('kt_misa_danh_xuat',{ngay:ng},function(){ ktxNgayXuat(); }); }
+      });
+    }
+    [].forEach.call(box.querySelectorAll('[data-nxxuat]'),function(b){ b.onclick=function(){ taiNgay(b.getAttribute('data-nxxuat'),true); }; });
+    [].forEach.call(box.querySelectorAll('[data-nxtai]'),function(b){ b.onclick=function(){ taiNgay(b.getAttribute('data-nxtai'),false); }; });
+    [].forEach.call(box.querySelectorAll('[data-nxbo]'),function(b){ b.onclick=function(){
+      if(!confirm(L('Bỏ đánh dấu đã xuất cho ngày này?','Unmark this day as exported?'))) return;
+      goi('kt_misa_bo_xuat',{ngay:b.getAttribute('data-nxbo')},function(){ ktxNgayXuat(); }); }; });
+  });
 }
 function ktxMaMisa(){
   var box=document.getElementById('ktx-manop-wrap'); if(!box) return; box.textContent='';
