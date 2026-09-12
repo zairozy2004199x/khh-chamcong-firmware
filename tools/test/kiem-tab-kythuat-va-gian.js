@@ -289,12 +289,21 @@ t('🔴 tới đây vì đã chọn "Đơn tuần của cơ sở": KHÔNG hỏi 
 const ND3 = beNewDon(undefined, 'Cơ sở');
 t('   nhân viên cơ sở vốn chỉ có một loại: cũng không hỏi', ND3.hoi === 'none' && ND3.coso === '', ND3);
 
-/* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút. */
-function beNutChuyen(vis) {
+/* Nút chuyển một chiều: chạy THẬT hàm vẽ nó, với một trang giả có đủ hai nút.
+   ⚠️ Từ 12/09/2026 hàm ấy gác HAI lớp — lớp hai xét vai + bộ phận (anh Thắng: *"Đối với nhân
+      viên cơ sở ẩn nút này đi"*). Bệ đỡ mặc định ở đây là ADMIN, để mấy phép cũ dưới chỉ đo
+      đúng lớp `vis` như ý ban đầu của chúng; ca nhân viên có bài riêng
+      `kiem-xem-nhu-va-nut-chuyen.js`. */
+function beNutChuyen(vis, ai) {
+  ai = ai || { role: 'Admin', roleGoc: 'Admin', boPhan: '' };
   const nut = [{ di: 'don', style: { display: 'x' } }, { di: 'duan', style: { display: 'x' } }];
   const moi = {
     document: { querySelectorAll: sel => (sel === '[data-dcsw-di]' ? nut : []) },
     Array: Array,
+    CURUSER: ai,
+    BP_VAO_DUAN: ['Văn phòng', 'Kỹ thuật'],
+    _vaiGoc: () => String(ai.roleGoc || ai.role || ''),
+    _vaoDonCoSo: bp => !(bp && ['Kỹ thuật'].indexOf(bp) >= 0),
   };
   new Function('moi', 'V', `with(moi){ ${boc('_veNutChuyenDon')}
     nut.forEach(function(b){ b.getAttribute=function(){ return b.di; }; });

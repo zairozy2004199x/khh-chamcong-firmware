@@ -211,8 +211,15 @@ la('quyền tab Dự án tra theo BP_VAO_DUAN', 'BP_VAO_DUAN.indexOf(bp)>=0' in 
 #    ra đơn gì tránh lộn"*) — nó trông như bộ chọn LOẠI ĐƠN nhưng chỉ đổi TRANG. Nay là một nút
 #    chuyển một chiều `data-dcsw-di`, vẽ bằng `_veNutChuyenDon(vis)`.
 la('không còn cặp nút bật/tắt LOẠI ĐƠN', '[data-dcsw="duan"]' not in src)
-la('ẩn nút chuyển loại đơn khi không có quyền',
-   '[data-dcsw-di]' in src and "vis[b.getAttribute('data-dcsw-di')]" in src)
+# 🔴 TỪ 12/09/2026 GÁC HAI LỚP. Anh Thắng, chỉ vào nút "← Quay lại chi phí Kỹ thuật" trên màn
+#    đơn tuần: *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*. Lớp `vis` một mình
+#    không đủ: nó chỉ hạ xuống 0 khi ô Bộ phận CÓ khai, mà phần lớn tài khoản nhân viên cơ sở
+#    để trống ô ấy.
+la('ẩn nút chuyển loại đơn khi không có quyền (lớp 1: vis)',
+   '[data-dcsw-di]' in src and 'vis[di]' in src)
+la('lớp 2: nhân viên chưa khai bộ phận cũng ẩn',
+   "bp!==''" in src and 'BP_VAO_DUAN.indexOf(bp)' in src)
+la('và lớp 2 chỉ siết nhân viên', "la_nv=(_vaiGoc()==='Nhân viên')" in src)
 
 m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _kyTuDo()', m9 is not None)

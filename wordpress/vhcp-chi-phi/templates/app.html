@@ -29,6 +29,17 @@
       <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
     </div>
   </div>
+  <!-- 🔴 XEM NHƯ — chỉ Admin, và chỉ đổi MÀN HÌNH. Xem chốt dài ở `_glDat()`. -->
+  <div id="giaLapBar" style="display:none;background:#fef3c7;border-bottom:2px solid #f59e0b;
+       padding:7px 14px;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px">
+    <b style="color:#92400e">👁 Xem như</b>
+    <select id="glVai" onchange="glDoi()" style="font-size:12px"></select>
+    <select id="glBp"  onchange="glDoi()" style="font-size:12px"></select>
+    <span id="glDangXem" style="color:#92400e;font-weight:700"></span>
+    <button class="btn b-x" onclick="glThoat()" style="padding:3px 10px;font-size:11.5px">✖ Thôi, về tài khoản của tôi</button>
+    <span style="color:#92400e;opacity:.85">Chỉ đổi những gì MÀN HÌNH bày ra. Máy chủ vẫn biết anh là Admin —
+      bấm làm gì thì vẫn chạy bằng quyền Admin, nên đừng dùng chỗ này để thử xem ai chặn được ai.</span>
+  </div>
 
   <div class="bar" id="tabbar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
@@ -1966,11 +1977,41 @@
       else el('pinErr').textContent=(r&&r.error)||'Lỗi';
     }).withFailureHandler(function(e){loading(false); el('pinErr').textContent=e.message;}).changePin(CURUSER.name, o, n);
   }
-  /* Nút chuyển sang loại đơn KIA chỉ hiện khi người này thật sự vào được cả hai — để nó sáng
-     cho người không có quyền là mời họ bấm sang một trang vừa bị ẩn khỏi hàng tab. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * NÚT ĐI SANG LOẠI ĐƠN KIA — HAI LỚP GÁC, KHÔNG PHẢI MỘT.
+   *
+   * Anh Thắng 12/09/2026, chỉ vào nút "← Quay lại chi phí Kỹ thuật" trên màn đơn tuần:
+   * *"Đối với nhân viên cơ sở ẩn nút này đi, tránh nhập nhầm"*.
+   *
+   * 🔴 GÁC THEO `vis` KHÔNG ĐỦ, VÀ ĐÂY LÀ CHỖ HỞ THẬT.
+   *    `vis.duan` cho nhân viên chỉ bị hạ xuống 0 khi ô Bộ phận có khai gì đó (`if(bp)` ở
+   *    `applyPerms()`). Người để ô ấy trống — "— Tất cả —", đúng như phần lớn tài khoản nhân
+   *    viên cơ sở đang khai — thì `vis.duan` giữ nguyên 1, và cái nút sáng lên mời họ sang
+   *    một màn không phải việc của mình. Bấm vào là lập nhầm một đơn kỹ thuật.
+   *
+   * 🔴 NÚT CHỈ LÀ LỐI TẮT, ẨN NÓ KHÔNG CẮT QUYỀN AI. Ai thật sự vào được tab Kỹ thuật thì vẫn
+   *    bấm thẳng tab ấy như thường. Nên lớp gác thứ hai ở đây chặt tay được: thà một người
+   *    kiêm hai mảng phải bấm thêm một nhịp, còn hơn một người cơ sở lập nhầm đơn.
+   *
+   * ⚠️ BỘ PHẬN TRỐNG = CHƯA CHẮC, VÀ CHƯA CHẮC THÌ ẨN. Ngược với luật của TAB (trống thì mở
+   *    cho rộng, kẻo người mới cài vào là màn trắng) — vì hai thứ hỏng theo hai kiểu khác
+   *    nhau: tab ẩn nhầm là người ta kêu ngay, còn nút bày nhầm thì lặng lẽ đẻ ra đơn sai.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
   function _veNutChuyenDon(vis){
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var la_nv=(_vaiGoc()==='Nhân viên');
+    /* Lớp 2 chỉ siết NHÂN VIÊN. Admin / Quản lý / Kế toán vốn đi lại cả hai mảng, và họ là
+       người soát chứ không phải người nhập — bày lối tắt cho họ là đúng. */
+    /* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ vế `bp!==''` KHÔNG đổi kết
+       quả — `BP_VAO_DUAN` không chứa chuỗi rỗng nên `indexOf('')` trả −1. Giữ vế ấy vì nó nói
+       thẳng ra luật "chưa khai bộ phận thì ẩn", và vì ngày nào ai đó lỡ thêm '' vào danh sách
+       thì đây là lớp chặn còn lại. */
+    var duocDuAn=!la_nv || ( bp!=='' && BP_VAO_DUAN.indexOf(bp)>=0 );
+    var duocCoSo=!la_nv || ( bp!=='' && _vaoDonCoSo(bp) );
     Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw-di]'),function(b){
-      b.style.display=(vis&&vis[b.getAttribute('data-dcsw-di')])?'':'none';
+      var di=b.getAttribute('data-dcsw-di');
+      var mo=!!(vis&&vis[di]) && ( di==='duan' ? duocDuAn : ( di==='don' ? duocCoSo : true ) );
+      b.style.display=mo?'':'none';
     });
   }
   var QUYEN_TAB=null;   // bảng tab được xem, do applyPerms() đặt
@@ -1983,7 +2024,91 @@
     if(role!=='Nhân viên') return 'tongquan';
     return _tabDuoc('don')?'don':(_tabDuoc('duan')?'duan':'tongquan');
   }
-  function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * 👁 XEM NHƯ — THỬ MÀN CỦA NGƯỜI KHÁC MÀ KHÔNG PHẢI ĐĂNG XUẤT.
+   *
+   * Anh Thắng 12/09/2026: *"Giờ anh cần test, làm sao để chọn chế độ nhân viên giả lập nhiều
+   * bộ phận để test, thay vì cứ đăng xuất ra vào"*.
+   *
+   * 🔴 CHỈ ĐỔI MÀN HÌNH, KHÔNG ĐỔI QUYỀN. Đây là chốt quan trọng nhất của cả khối, và nó phải
+   *    được NÓI RA ngay trên màn chứ không chỉ nằm trong mã:
+   *      · Máy chủ vẫn nhận ra tài khoản thật (Admin) ở mọi lượt gọi — mọi phép gác quyền bên
+   *        ấy vẫn chạy theo Admin.
+   *      · Nên chỗ này trả lời được câu *"nhân viên cơ sở MỞ RA thì thấy gì"*, mà KHÔNG trả
+   *        lời được câu *"nhân viên cơ sở BẤM thì có bị chặn không"*.
+   *    Không nói rõ hai câu ấy khác nhau là người thử thấy mình xoá được đơn dưới lốt nhân
+   *    viên, rồi đi báo một lỗ hổng không có thật — hoặc tệ hơn, tin rằng một chốt đang chạy
+   *    trong khi nó chưa từng được thử.
+   *
+   * 🔴 CHỈ ADMIN. Cho Quản lý dùng là mở đường xem màn của vai cao hơn mình.
+   *
+   * ⚠️ KHÔNG ĐỤNG `CURUSER` GỐC. Giữ bản sao rồi trả lại nguyên vẹn lúc thoát — sửa thẳng vào
+   *    đó là sau một lượt thử, tài khoản thật của người đang đăng nhập mang vai của người
+   *    được thử, và mọi thứ sau đó đều lệch mà không ai biết vì sao.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var GL_GOC=null;   // bản sao CURUSER thật; khác null = đang xem như người khác
+
+  /** Đang xem như người khác không. */
+  function glDangBat(){ return !!GL_GOC; }
+
+  /** Dựng hai ô chọn + hiện/ẩn dải. Gọi sau khi đã biết mình là ai. */
+  function glDung(){
+    var bar=el('giaLapBar'); if(!bar) return;
+    var laAdmin=((GL_GOC||CURUSER||{}).role==='Admin');
+    bar.style.display=laAdmin?'flex':'none';
+    if(!laAdmin) return;
+    var sv=el('glVai');
+    if(sv && !sv.options.length){
+      sv.innerHTML='<option value="">— vai: như tôi —</option>'
+        +['Admin'].concat(VAI_GOC).map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
+    }
+    var sb=el('glBp');
+    if(sb){
+      /* Danh sách bộ phận lấy từ máy chủ (`BOOT.boPhanDs`) — gõ cứng ở đây là hai nơi lệch
+         nhau, mà lệch nghĩa là thử một bộ phận không tồn tại rồi kết luận nhầm. */
+      var ds=(BOOT&&BOOT.boPhanDs)||[];
+      var cu=sb.value;
+      sb.innerHTML='<option value="">— bộ phận: như tôi —</option>'
+        +'<option value="__trong__">(để TRỐNG — chưa khai bộ phận)</option>'
+        +ds.map(function(v){ return '<option value="'+esc(v)+'">'+esc(v)+'</option>'; }).join('');
+      if(cu){ for(var i=0;i<sb.options.length;i++){ if(sb.options[i].value===cu){ sb.value=cu; break; } } }
+    }
+  }
+
+  /** Đặt vai + bộ phận đang xem thử rồi vẽ lại cả màn. */
+  function _glDat(vai, bp){
+    if(!GL_GOC){ GL_GOC=JSON.parse(JSON.stringify(CURUSER||{})); }
+    var u=JSON.parse(JSON.stringify(GL_GOC));
+    if(vai){ u.role=vai; u.roleGoc=vai; }
+    if(bp==='__trong__'){ u.boPhan=''; }
+    else if(bp){ u.boPhan=bp; }
+    CURUSER=u;
+    var nhan=(vai||GL_GOC.role)+( (bp==='__trong__') ? ' · (không bộ phận)' : (bp?(' · '+bp):'') );
+    var d=el('glDangXem'); if(d) d.textContent='→ đang xem như: '+nhan;
+    applyPerms();
+    showPage(defaultPageFor(CURUSER.role));
+  }
+
+  function glDoi(){
+    var vai=String((el('glVai')&&el('glVai').value)||'');
+    var bp =String((el('glBp')&&el('glBp').value)||'');
+    if(!vai && !bp){ glThoat(); return; }
+    _glDat(vai, bp);
+  }
+
+  /** Trả lại tài khoản thật, nguyên vẹn. */
+  function glThoat(){
+    if(!GL_GOC) return;
+    CURUSER=GL_GOC; GL_GOC=null;
+    if(el('glVai')) el('glVai').value='';
+    if(el('glBp'))  el('glBp').value='';
+    var d=el('glDangXem'); if(d) d.textContent='';
+    applyPerms();
+    showPage(defaultPageFor(CURUSER.role));
+    toast('ok','Đã về tài khoản của anh/chị');
+  }
+
+  function onLoggedIn(){ applyPerms(); glDung(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
     // TAB ĐÃ NGHỈ. Chi phí của Marketing / Công tác / Setup nay nhập ngay trong đơn chi
@@ -2038,7 +2163,13 @@
     // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
     // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
     var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý'||role==='Admin')?'inline-block':'none';
-    el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
+    /* Đang xem như người khác thì chip phải nói THẲNG ra, và nói cả tên thật. Chip lặng lẽ
+       đổi tên vai là vài phút sau người thử quên mất mình đang đội lốt ai, rồi kết luận nhầm
+       về màn hình của chính mình. */
+    el('userChip').innerHTML=( glDangBat()
+        ? ('👁 <b>xem như</b> ' + esc(role) + ( CURUSER.boPhan ? (' · ' + esc(CURUSER.boPhan)) : ' · (không bộ phận)' )
+           + ' <span style="opacity:.8">— thật ra: ' + esc(GL_GOC.name) + '</span>')
+        : ('👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'')) );
   }
   /**
    * SẮP ĐƠN: kỳ MỚI NHẤT lên đầu, trong cùng một kỳ thì theo cơ sở rồi người lập.
@@ -2526,6 +2657,9 @@
     loading(true);
     google.script.run.withSuccessHandler(function(b){
       BOOT=b||BOOT; loading(false); _applyTabPerms();   // mở tab theo phân quyền vừa nạp
+      /* Ô chọn bộ phận của dải 👁 Xem như lấy từ `BOOT.boPhanDs`, mà `BOOT` chỉ có SAU lượt
+         này — dựng ở `onLoggedIn()` là dựng lúc danh sách còn rỗng. */
+      glDung();
       var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;
