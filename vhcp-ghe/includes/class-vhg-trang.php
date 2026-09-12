@@ -1541,6 +1541,13 @@ class VHG_Trang {
 (function(){
   var API = window.VHG_API || '';
   var PIN='', BC=null, NGAY='', LOC='', LAST={}, LASTD={}, KE={}, KICHXA={}, GUI_DANG=false;
+  /* NVLOC = bộ lọc "nhân viên đang chọn ở ô trên" → dùng chung cho CẢ ô cơ sở LẪN danh sách
+     "Báo cáo trong 24h — sửa được". null = không lọc (tất cả); object {csNorm:true,…} = chỉ những
+     cơ sở người đó phụ trách. Anh Thắng 12/09/2026: "chọn tên ở trên thì lịch sử cũng chỉ hiện
+     của bạn đó thôi". Chuẩn hoá tên cơ sở (bỏ dấu/khoảng trắng/hoa-thường) để khớp bất kể cách gõ. */
+  var NVLOC=null;
+  function bcCsNorm_(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^a-z0-9]/gi,'').toUpperCase(); }
   /* 🔴 CHẾ ĐỘ "GỌN" ĐÃ BỎ HẲN — anh Thắng 31/08/2026: *"bỏ tính năng rút gọn, rút gọn nó làm
      mất cột nhập liệu"*.
      Ý ban đầu (27/08) là màn điện thoại thì bớt cột cho đỡ chật. Nhưng thứ bị bớt lại chính là
@@ -1826,8 +1833,7 @@ class VHG_Trang {
        đúng phạm vi từng người. Chỉ hiện khi PIN toàn quyền (BC.nhanSu do boot() gửi kèm). Khớp tên
        cơ sở bằng chuẩn hoá (bỏ dấu/khoảng trắng/hoa-thường) để cột `coso` hồ sơ lệch chính tả với
        tên cơ sở thật vẫn ra đúng. */
-    function csNorm_(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'')
-      .replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^a-z0-9]/gi,'').toUpperCase(); }
+    var csNorm_=bcCsNorm_;   // dùng chung bộ chuẩn hoá ở đầu module (xem NVLOC/bcCsNorm_)
     var sL=el('select');
     function napCoSo_(ds){
       sL.innerHTML=''; sL.appendChild(new Option('— Chọn cơ sở —',''));
@@ -1845,10 +1851,13 @@ class VHG_Trang {
         });
       sNV.onchange=function(){
         var found=null; (BC.nhanSu||[]).forEach(function(x){ if(x.ten===sNV.value) found=x; });
-        if(!found || found.toan){ napCoSo_(BC.coso); LOC=''; return; }   // toàn quyền → hiện tất cả cơ sở
+        if(!found || found.toan){ napCoSo_(BC.coso); LOC=''; NVLOC=null; loadRecent(); return; }   // toàn quyền → tất cả
         var canon={}; (BC.coso||[]).forEach(function(c){ canon[csNorm_(c)]=c; });
         var ds=(found.coso||[]).map(function(c){ return canon[csNorm_(c)]||c; });
         napCoSo_(ds); LOC='';
+        /* Lọc luôn danh sách "Báo cáo trong 24h — sửa được" theo đúng cơ sở người này phụ trách. */
+        NVLOC={}; (found.coso||[]).forEach(function(c){ NVLOC[csNorm_(c)]=true; });
+        loadRecent();
       };
       fNV.appendChild(sNV); r1.appendChild(fNV);
     }
@@ -2009,6 +2018,7 @@ class VHG_Trang {
 
     app.appendChild(wrap);
     refreshPhien();
+    NVLOC=null;   // mở lại màn báo cáo → ô nhân viên về "Tất cả", lịch sử 24h không dính lọc cũ
     { loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veLichSuCa(); veHoiDap(); }
     if(LOC && (BC.coso||[]).indexOf(LOC)>=0){ sL.value=LOC; selectLoc(LOC); }
     else if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
@@ -2785,7 +2795,15 @@ class VHG_Trang {
     var pager=el('div'); box.appendChild(pager);
     goi('bc_recent',{},function(r){
       var ds=(r&&r.ds)||[];
-      if(!ds.length){ wrapl.appendChild(el('div','bc-mut','Chưa có báo cáo nào trong 24 giờ qua.')); return; }
+      /* Lọc theo nhân viên đang chọn ở ô trên (NVLOC) — chỉ giữ báo cáo của cơ sở người đó phụ
+         trách. NVLOC=null → giữ nguyên tất cả. Anh Thắng 12/09/2026. */
+      if(NVLOC){ ds=ds.filter(function(rp){ return NVLOC[bcCsNorm_(rp.locName||'')]; }); }
+      if(!ds.length){
+        wrapl.appendChild(el('div','bc-mut', NVLOC
+          ? 'Nhân viên này chưa có báo cáo nào trong 24 giờ qua.'
+          : 'Chưa có báo cáo nào trong 24 giờ qua.'));
+        return;
+      }
       /* 🔎 LỌC THEO NGÀY — anh Thắng 12/09/2026: "lọc phần báo cáo sửa lại, tìm theo ngày nhập".
          Chỉ liệt kê những ngày THẬT SỰ có báo cáo (kèm số báo cáo), mới nhất trước; chọn "Tất cả"
          là về như cũ. Lọc phía trình duyệt trên đúng tập bc_recent đã tải, không gọi lại máy chủ. */
