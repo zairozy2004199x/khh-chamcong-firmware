@@ -863,6 +863,24 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY loc (coso_key,ngay,trang_thai)";
 
+		/* Ghế đang lỗi cần bảo trì — nhân viên tích lúc thu tiền (bc-app), ghi nội dung; đẩy sang tab
+		   "Ghế cần bảo trì" bên quản trị để kỹ thuật xử lý. Anh Thắng 12/09/2026. trang_thai: cho|xong. */
+		$b['bao_tri'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tao_luc DATETIME NULL,
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			noi_dung VARCHAR(500) NOT NULL DEFAULT '',
+			nguoi VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho',
+			xong_luc DATETIME NULL,
+			xong_boi VARCHAR(190) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY tt (trang_thai),
+			KEY may (ma_may)";
+
 		/* PIN nhân viên báo cáo — DANH TÍNH RIÊNG, KHÔNG dùng token /ghe. Mỗi PIN: tên + danh sách
 		   cơ sở (`coso`, nhiều mục ngăn bởi , hoặc ;) + ghế riêng (`ghe`) nếu cần vượt cơ sở.
 		   Đăng nhập báo cáo = nhập PIN. Về sau nối `pin` này sang PIN chấm công K&H là một mối

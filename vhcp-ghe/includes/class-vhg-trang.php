@@ -321,6 +321,14 @@ class VHG_Trang {
 					current_user_can( 'manage_options' ) ) );
 				return;
 			}
+			/* Nhân viên báo ghế lỗi cần bảo trì (màn thu tiền) → đẩy sang tab quản trị. */
+			if ( 'bc_baotri' === $viec ) {
+				self::tra( VHG_BaoCao::bao_tri(
+					isset( $d['ma'] ) ? $d['ma'] : '',
+					isset( $d['coso'] ) ? $d['coso'] : '',
+					isset( $d['noi_dung'] ) ? $d['noi_dung'] : '', $pin ) );
+				return;
+			}
 			/* Đính bill chuyển khoản + xác nhận đã nộp — khoá báo cáo và mở lượt nộp cho kế
 			   toán. Xem VHG_BaoCao::nop_bill(). */
 			if ( 'bc_nop_bill' === $viec ) {
@@ -679,6 +687,13 @@ class VHG_Trang {
 			}
 			self::tra( $r ); return;
 		}
+			if ( 'baotri_ds' === $viec ) {
+				self::tra( array( 'ok' => true, 'ds' => VHG_May::bao_tri_ds( isset( $d['trang_thai'] ) ? (string) $d['trang_thai'] : '' ) ) );
+				return;
+			}
+			if ( 'baotri_xong' === $viec ) { self::tra( VHG_May::bao_tri_xong( isset( $d['id'] ) ? (int) $d['id'] : 0, $ai['name'] ) ); return; }
+			if ( 'baotri_mo' === $viec )   { self::tra( VHG_May::bao_tri_mo( isset( $d['id'] ) ? (int) $d['id'] : 0 ) ); return; }
+			if ( 'baotri_xoa' === $viec )  { self::tra( VHG_May::bao_tri_xoa( isset( $d['id'] ) ? (int) $d['id'] : 0 ) ); return; }
 
 			/* DIEU CHUYEN GHE — danh dau DA DON/DIEU CHUYEN (an), KHONG xoa: chi so, doanh thu, log
 			   deu giu nguyen. Tich nhieu ghe an di mot luot (`may_an_lo`) hoac mot ghe (`may_an`).
@@ -2224,6 +2239,20 @@ class VHG_Trang {
     var tdN=el('td');
     var tenHien=(g.ten&&String(g.ten)!==String(g.ma)) ? (g.ten+' ('+g.ma+')') : g.ma;
     tdN.appendChild(el('b',null,tenHien));
+    /* 🔧 BÁO GHẾ LỖI CẦN BẢO TRÌ — anh Thắng 12/09/2026: nhân viên khi thu thấy ghế lỗi thì tích
+       vào, ghi nội dung; lệnh đẩy sang tab "Ghế cần bảo trì" bên quản trị (bc_baotri → bao_tri). */
+    var bBt=el('button','bc-btn','🔧 Báo lỗi'); bBt.type='button';
+    bBt.style.cssText='margin-left:8px;font-size:11px;padding:2px 8px;background:#fff7ed;color:#b45309;border:1px solid #fdba74;border-radius:8px';
+    bBt.onclick=function(){
+      var nd=prompt('Ghế '+tenHien+' đang lỗi gì? Ghi nội dung cần bảo trì:'); if(nd===null) return;
+      nd=(nd||'').trim(); if(!nd){ alert('Ghi nội dung cần bảo trì.'); return; }
+      bBt.disabled=true; bBt.textContent='Đang gửi…';
+      goi('bc_baotri',{ma:g.ma,coso:g.coso||'',noi_dung:nd},function(r){
+        if(!r||!r.ok){ bBt.disabled=false; bBt.textContent='🔧 Báo lỗi'; alert((r&&r.error)||'Không gửi được.'); return; }
+        bBt.textContent='✓ Đã báo lỗi'; bBt.style.background='#dcfce7'; bBt.style.color='#15803d'; bBt.style.borderColor='#86efac';
+      });
+    };
+    tdN.appendChild(bBt);
     /* Ghi chú "đã trừ lượt kích ghế từ xa" — RIÊNG với .bc-warn (ô đó dành cho lý do/thực thu
        khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
@@ -4771,6 +4800,7 @@ function ve(){
       T(QT, 'gan-ma',      '🔖 ' + L('Gắn mã máy','Assign codes')),
       T(QT, 'nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')),
       T(QT, 'bc-pin',      '📋 ' + L('PIN báo cáo','Report PINs')),
+      T(QT, 'bao-tri',     '🔧 ' + L('Ghế cần bảo trì','Chairs to fix')),
       T(GK, 'dieu-khien',  '🎛 ' + L('Điều khiển ghế','Chair control')),
       T(GK, 'ghe-loi',     '🚨 ' + L('Ghế lỗi','Faulty chairs')),
       T(GK, 'hl-hotro',    '📞 ' + L('Hỗ trợ khách','Customer support')),
@@ -4891,6 +4921,7 @@ function ve(){
   if (TAB === 'bc-doanhthu'){ h += veBcDoanhThu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'bao-tri')    { h += veBaoTri()   + '</div>'; app.innerHTML = h; noi(); baoTriTai(); return; }
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-bctong')  { h += veKtBcTong() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -5518,6 +5549,49 @@ var CH = null;   // số liệu cấu hình vừa tải
  * ============================================================================================ */
 var BCP = null;     // danh sách PIN báo cáo vừa tải
 var BCP_NS = [];    // danh sách nhân viên từ nhân sự (để chọn nhanh)
+/* ══════════════════════════════ TAB GHẾ CẦN BẢO TRÌ — anh Thắng 12/09/2026 ═══════════════════
+   Nguồn: nhân viên bấm "🔧 Báo lỗi" ở màn thu tiền → bao_tri (trang_thai 'cho'). Kỹ thuật xử lý
+   xong bấm "Đã sửa xong". Hai khối: Đang chờ sửa (trên) · Đã sửa (dưới). */
+function veBaoTri(){
+  return '<div class="card"><h2>🔧 '+L('Ghế cần bảo trì','Chairs needing maintenance')+'</h2>'
+    +'<p class="mut">'+L('Nhân viên báo ngay ở màn thu tiền (nút "Báo lỗi" cạnh tên ghế). Xử lý xong bấm "Đã sửa xong".','Reported by staff at the collection screen.')+'</p>'
+    +'<div class="act"><button id="bt-lam" class="ghost">'+L('Làm mới','Refresh')+'</button><span id="bt-msg" class="mut"></span></div>'
+    +'<div id="bt-wrap" style="margin-top:10px"></div></div>';
+}
+function baoTriTai(){
+  var b=document.getElementById('bt-lam'); if(b) b.onclick=baoTriTai;
+  var box=document.getElementById('bt-wrap'); if(!box) return;
+  box.innerHTML='<span class="mut">'+L('Đang tải…','Loading…')+'</span>';
+  goi('baotri_ds',{},function(r){ baoTriVe((r&&r.ds)||[]); });
+}
+function baoTriVe(ds){
+  var box=document.getElementById('bt-wrap'); if(!box) return;
+  var cho=ds.filter(function(x){return x.trang_thai!=='xong';});
+  var xong=ds.filter(function(x){return x.trang_thai==='xong';});
+  function ddmy(s){ s=String(s||''); return s?(s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(0,4)+(s.length>10?(' '+s.slice(11,16)):'')):''; }
+  function bang(list,la_xong){
+    if(!list.length) return '<p class="mut">'+(la_xong?L('Chưa có.','None.'):L('Không có ghế nào đang chờ sửa. 🎉','Nothing pending.'))+'</p>';
+    var h='<div class="table-scroll"><table style="min-width:720px"><tr><th>'+L('Lúc','Time')+'</th><th>'+L('Cơ sở','Site')+'</th><th>'+L('Ghế','Chair')+'</th><th>'+L('Nội dung lỗi','Issue')+'</th><th>'+L('Người báo','By')+'</th><th></th></tr>';
+    list.forEach(function(x){
+      var ten=(x.ten&&x.ten!==x.ma_may)?(esc(x.ten)+' ('+esc(x.ma_may)+')'):esc(x.ma_may);
+      h+='<tr'+(la_xong?' style="opacity:.6"':'')+'><td class="mut">'+ddmy(x.tao_luc)+'</td><td>'+esc(x.coso||'')+'</td><td><b>'+ten+'</b></td>'
+        +'<td>'+esc(x.noi_dung||'')+(la_xong&&x.xong_luc?('<br><span class="mut">✓ '+L('xong','done')+' '+ddmy(x.xong_luc)+(x.xong_boi?(' · '+esc(x.xong_boi)):'')+'</span>'):'')+'</td>'
+        +'<td class="mut">'+esc(x.nguoi||'')+'</td>'
+        +'<td class="r" style="white-space:nowrap">'
+        +(la_xong
+          ? '<button data-btmo="'+x.id+'" class="ghost">'+L('Mở lại','Reopen')+'</button> <button data-btxoa="'+x.id+'" class="ghost">'+L('Xoá','Del')+'</button>'
+          : '<button data-btxong="'+x.id+'" class="on">'+L('Đã sửa xong','Fixed')+'</button> <button data-btxoa="'+x.id+'" class="ghost">'+L('Xoá','Del')+'</button>')
+        +'</td></tr>';
+    });
+    return h+'</table></div>';
+  }
+  box.innerHTML='<h3 style="margin:.2em 0;color:#b45309">'+L('Đang chờ sửa','Pending')+' ('+cho.length+')</h3>'+bang(cho,false)
+    +'<h3 style="margin:1em 0 .2em">'+L('Đã sửa','Fixed')+' ('+xong.length+')</h3>'+bang(xong,true);
+  var m=document.getElementById('bt-msg');
+  [].forEach.call(box.querySelectorAll('[data-btxong]'),function(b){ b.onclick=function(){ ktAct('baotri_xong',{id:b.getAttribute('data-btxong')},m,baoTriTai); }; });
+  [].forEach.call(box.querySelectorAll('[data-btmo]'),function(b){ b.onclick=function(){ ktAct('baotri_mo',{id:b.getAttribute('data-btmo')},m,baoTriTai); }; });
+  [].forEach.call(box.querySelectorAll('[data-btxoa]'),function(b){ b.onclick=function(){ if(!confirm(L('Xoá dòng này?','Delete this row?'))) return; ktAct('baotri_xoa',{id:b.getAttribute('data-btxoa')},m,baoTriTai); }; });
+}
 function veBcPin(){
   if (!BCP) {
     goi('bc_pin_ds', {}, function(r){

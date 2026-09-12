@@ -231,6 +231,37 @@ class VHG_BaoCao {
 		return implode( '|', $ds );
 	}
 
+	/**
+	 * BÁO GHẾ ĐANG LỖI CẦN BẢO TRÌ — nhân viên tích ở màn thu tiền (bc-app), ghi nội dung; đẩy sang
+	 * tab "Ghế cần bảo trì" bên quản trị. Anh Thắng 12/09/2026. PIN-gated (đường bc-app).
+	 * Gộp thay vì đẻ trùng: nếu ghế còn một báo 'cho' CHƯA xong thì cập nhật nội dung + giờ.
+	 */
+	public static function bao_tri( $ma, $coso, $noi_dung, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
+		$ma = trim( (string) $ma ); $noi_dung = trim( (string) $noi_dung );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		if ( '' === $noi_dung ) { return array( 'ok' => false, 'error' => 'Ghi nội dung cần bảo trì.' ); }
+		$m = $wpdb->get_row( $wpdb->prepare(
+			'SELECT ten_khai FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', $ma ), ARRAY_A );
+		$ten  = ( $m && '' !== (string) $m['ten_khai'] ) ? (string) $m['ten_khai'] : $ma;
+		$coso = (string) $coso;
+		$nd   = mb_substr( $noi_dung, 0, 500 );
+		$tbl  = VHG_DB::t( 'bao_tri' );
+		$cu = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM $tbl WHERE ma_may=%s AND trang_thai='cho' ORDER BY id DESC LIMIT 1", $ma ) );
+		if ( $cu > 0 ) {
+			$wpdb->update( $tbl, array( 'noi_dung' => $nd, 'coso' => $coso, 'coso_key' => self::squash( $coso ),
+				'ten' => $ten, 'nguoi' => (string) $q['ten'], 'tao_luc' => current_time( 'mysql' ) ), array( 'id' => $cu ) );
+			return array( 'ok' => true, 'thongBao' => 'Đã cập nhật báo bảo trì ghế ' . $ten . '.' );
+		}
+		$wpdb->insert( $tbl, array( 'tao_luc' => current_time( 'mysql' ), 'ma_may' => $ma, 'ten' => $ten,
+			'coso' => $coso, 'coso_key' => self::squash( $coso ), 'noi_dung' => $nd,
+			'nguoi' => (string) $q['ten'], 'trang_thai' => 'cho' ) );
+		return array( 'ok' => true, 'thongBao' => 'Đã báo bảo trì ghế ' . $ten . ' — đã đẩy sang tab Ghế cần bảo trì.' );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ CHỈ SỐ (dùng chung)
 
 	/**

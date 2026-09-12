@@ -1340,6 +1340,37 @@ class VHG_May {
 			'thong_bao' => 'Đã đổi cơ sở cho ' . count( $sach ) . ' ghế.' );
 	}
 
+	/* ══════════════════════════════ GHẾ CẦN BẢO TRÌ (đọc/đóng/xoá) — quản trị ══════════════════
+	   Nguồn: nhân viên báo ở màn thu tiền (VHG_BaoCao::bao_tri). Anh Thắng 12/09/2026. */
+	public static function bao_tri_ds( $trang_thai = '' ) {
+		global $wpdb; $t = VHG_DB::t( 'bao_tri' );
+		$tt = trim( (string) $trang_thai );
+		if ( 'cho' === $tt || 'xong' === $tt ) {
+			return VHG_DB::rows( $wpdb->prepare(
+				"SELECT * FROM $t WHERE trang_thai=%s ORDER BY id DESC LIMIT 300", $tt ) );
+		}
+		return VHG_DB::rows( "SELECT * FROM $t ORDER BY CASE trang_thai WHEN 'cho' THEN 0 ELSE 1 END, id DESC LIMIT 300" );
+	}
+	public static function bao_tri_xong( $id, $boi ) {
+		global $wpdb; $id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu id.' ); }
+		$wpdb->update( VHG_DB::t( 'bao_tri' ), array( 'trang_thai' => 'xong',
+			'xong_luc' => current_time( 'mysql' ), 'xong_boi' => (string) $boi ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã đánh dấu ghế đã sửa xong.' );
+	}
+	public static function bao_tri_mo( $id ) {
+		global $wpdb; $id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu id.' ); }
+		$wpdb->update( VHG_DB::t( 'bao_tri' ), array( 'trang_thai' => 'cho', 'xong_luc' => null, 'xong_boi' => '' ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã mở lại (còn lỗi).' );
+	}
+	public static function bao_tri_xoa( $id ) {
+		global $wpdb; $id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu id.' ); }
+		$wpdb->delete( VHG_DB::t( 'bao_tri' ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá dòng báo bảo trì.' );
+	}
+
 	public static function dat_an( $ma, $an ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
