@@ -7784,10 +7784,20 @@ function veQuy(){
               : '')
           + '</div>';
       });
+      /* 🔗 Đối chiếu Sao Kê: chỉ lượt CÓ BILL mới có n.ck (xem VHG_Quy::nop_cho). co=1 → tìm thấy
+         khoản tiền vào KHỚP SỐ TIỀN trên sao kê (xanh, kèm giờ + ngân hàng, rê xem nội dung); co=0
+         → chưa thấy (vàng, nhắc kiểm). Đây là GỢI Ý, kế toán vẫn tự bấm "Đã nhận". */
+      var ck = '';
+      if (n.ck) {
+        ck = n.ck.co
+          ? '<br><span style="color:#15803d;font-weight:700;font-size:11px" title="'+esc(n.ck.nd||'')+'">✓ '
+            + L('Đã về TK','In bank') + (n.ck.luc?(' · '+esc(String(n.ck.luc).slice(0,16))):'') + (n.ck.bank?(' · '+esc(n.ck.bank)):'') + '</span>'
+          : '<br><span style="color:#b45309;font-weight:700;font-size:11px">⚠ ' + L('Chưa thấy trên sao kê','Not on bank statement yet') + '</span>';
+      }
       h += '<tr><td>' + esc(n.tao_luc) + '</td><td><b>' + esc(n.nguoi) + '</b>'
         + (n.ghi_chu ? '<br><span class="mut">' + esc(n.ghi_chu) + '</span>' : '') + bill + '</td>'
         + '<td class="r"><b>' + tien(n.so_tien) + '</b><br><span class="mut">'
-        + n.so_dong + ' ' + L('lượt','entries') + '</span></td>'
+        + n.so_dong + ' ' + L('lượt','entries') + '</span>' + ck + '</td>'
         + '<td class="r">';
       if (q.quyen_nhan) {
         h += '<div class="act" style="justify-content:flex-end">'

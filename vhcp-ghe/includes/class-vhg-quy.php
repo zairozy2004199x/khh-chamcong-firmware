@@ -1065,19 +1065,43 @@ class VHG_Quy {
 		   sẽ bấm "Đã nhận" mà không xem bill, và cái bill ấy thành ra vô nghĩa.
 		   Đây cũng là nơi bấm MỞ KHOÁ khi bill sai (xem VHG_BaoCao::mo_khoa_bill). */
 		$tb = VHG_DB::t( 'bc' );
+		/* 🔗 ĐỐI CHIẾU SAO KÊ NGÂN HÀNG — anh Thắng 12/09/2026: "lượt chờ nộp xác nhận của cơ sở sẽ
+		   đối chiếu với trang Sao Kê để hiện lệnh đã chuyển khoản hay chưa". Cùng một DB (xem CLAUDE.md
+		   §5), bảng `{prefix}saoke_gd` của plugin Sao Kê giữ mọi khoản TIỀN VÀO (loai='in'). Chỉ đối
+		   chiếu lượt CÓ BILL CHUYỂN KHOẢN (tiền mặt thì không có gì để soi). Khớp theo SỐ TIỀN + khoảng
+		   ngày (từ ngày báo cáo −1) → đây là GỢI Ý cho kế toán nhìn, vẫn bấm "Đã nhận" tay; trả kèm
+		   giờ + nội dung + ngân hàng của dòng khớp để mắt kiểm lại (số tiền trùng nhau vẫn có thể là
+		   lượt khác). KHÔNG khớp theo tên cơ sở: nội dung ngân hàng là chữ tự do, dễ trượt (§5). */
+		$tsk = $wpdb->prefix . 'saoke_gd';
+		$co_saoke = ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tsk ) ) === $tsk );
 		foreach ( $ds as $i => $n ) {
 			$ds[ $i ]['bill'] = array();
 			$hs = $wpdb->get_results( $wpdb->prepare(
 				"SELECT report_id, coso, ngay, bill_anh, bill_luc, bill_ghichu
 				 FROM $tb WHERE nop_id=%d AND bill_luc IS NOT NULL ORDER BY id ASC", (int) $n['id'] ), ARRAY_A );
+			$min_ngay = '';
 			foreach ( (array) $hs as $h ) {
 				$anh = array();
 				$raw = (string) $h['bill_anh'];
 				if ( '' !== $raw ) { $tmp = json_decode( $raw, true ); if ( is_array( $tmp ) ) { $anh = array_values( array_filter( $tmp ) ); } }
+				$ng = (string) $h['ngay'];
+				if ( '' !== $ng && ( '' === $min_ngay || $ng < $min_ngay ) ) { $min_ngay = $ng; }
 				$ds[ $i ]['bill'][] = array(
 					'reportId' => (string) $h['report_id'], 'coso' => (string) $h['coso'],
-					'ngay' => (string) $h['ngay'], 'anh' => $anh,
+					'ngay' => $ng, 'anh' => $anh,
 					'luc' => (string) $h['bill_luc'], 'ghiChu' => (string) $h['bill_ghichu'] );
+			}
+			if ( $co_saoke && count( $ds[ $i ]['bill'] ) ) {
+				$tu = ( '' !== $min_ngay )
+					? gmdate( 'Y-m-d 00:00:00', strtotime( $min_ngay . ' -1 day' ) )
+					: gmdate( 'Y-m-d 00:00:00', strtotime( (string) $n['tao_luc'] . ' -3 day' ) );
+				$m = $wpdb->get_row( $wpdb->prepare(
+					"SELECT ngay_gd, noi_dung, ngan_hang FROM $tsk WHERE loai='in' AND tien=%d AND ngay_gd >= %s ORDER BY ngay_gd DESC LIMIT 1",
+					(int) $n['so_tien'], $tu ), ARRAY_A );
+				$ds[ $i ]['ck'] = $m
+					? array( 'co' => 1, 'luc' => (string) $m['ngay_gd'],
+						'nd' => (string) $m['noi_dung'], 'bank' => (string) $m['ngan_hang'] )
+					: array( 'co' => 0 );
 			}
 		}
 		return $ds;
