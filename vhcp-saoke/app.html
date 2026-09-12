@@ -2359,12 +2359,29 @@ function veSaoKeCong(nguon, d){
               mã cửa hàng ngay trong gói (kể cả ô toàn chữ như `RJFSHCSXE9` mà bản cũ vứt im
               lặng), nên dòng mới thường tự ra máy. Còn bảo người ta "xuất file mới rồi nạp lại"
               là sai việc — họ đi làm một việc không cần thiết rồi tưởng app hỏng khi vẫn y cũ. */
-        var may = r.tenMay ? esc(r.tenMay)
-          : ('<span style="color:var(--gold)">chưa rõ máy</span>'
+        /* 🖐️ GÁN MÁY THỦ CÔNG — anh Thắng 12/09/2026: "một số giao dịch dò không ra, muốn gán thủ
+           công". Ô nhập + nút ngay trên dòng: dòng "chưa rõ máy" thì gõ tên máy rồi Gán; dòng đã
+           gán tay thì cho Đổi / Bỏ. Máy chủ ghi vào cột may_tay của đúng dòng (khoá theo `khoa`),
+           cong_may_dong() đọc trước mọi suy đoán nên ra máy ngay và tiền về đúng cơ sở. */
+        var ganCtrl = '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
+          + '<input class="skgm-inp" value="'+esc(r.mayTay||'')+'" placeholder="Gõ tên máy" '
+          +   'style="width:120px;font-size:11px;padding:3px 6px;border:1px solid var(--line);border-radius:6px">'
+          + '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
+          +   'onclick="skGanMayTay(this)" style="font-size:11px;padding:3px 8px;cursor:pointer">'+(r.mayTay?'Đổi':'Gán máy')+'</button>'
+          + (r.mayTay ? '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
+              +   'onclick="skGanMayTay(this,1)" style="font-size:11px;padding:3px 8px;cursor:pointer">Bỏ</button>' : '')
+          + '</div>';
+        var may;
+        if (r.tenMay) {
+          may = esc(r.tenMay) + (r.mayTay ? ' <span class="muted" style="font-size:10px">(gán tay)</span>' + ganCtrl : '');
+        } else {
+          may = '<span style="color:var(--gold)">chưa rõ máy</span>'
              + (r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
                              +'</code> — chưa có trong bản đồ, nạp Danh sách cửa hàng</div>')
                 : r.moiHonNap ? '<div class="muted" style="font-size:11px">gói webhook không kèm mã cửa hàng — nạp bù từ file cổng</div>'
-                : '<div class="muted" style="font-size:11px">dòng cũ, chưa nạp bù từ file cổng</div>'));
+                : '<div class="muted" style="font-size:11px">dòng cũ, chưa nạp bù từ file cổng</div>')
+             + ganCtrl;
+        }
         var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
         return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
              /* th,td của trang để white-space:nowrap, nên MỘT ô dài là cả bảng trôi ngang và
@@ -2373,7 +2390,7 @@ function veSaoKeCong(nguon, d){
                 ở đây để không dữ liệu lạ nào phá được bố cục nữa. Dùng đúng luật đã có ở các
                 bảng khác trong file: white-space:normal + max-width. */
              + '<td>'+esc(r.thoiDiem)+'</td>'
-             + '<td style="white-space:normal;max-width:160px">'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
+             + '<td style="white-space:normal;max-width:210px">'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
              + '<td>'+esc(r.maGD)+'</td>'
              + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
              + '<td class="in">'+fmt(r.soTien)+'</td></tr>'; }, 8, 'Không có giao dịch nào trong kỳ.');
@@ -2420,6 +2437,22 @@ function cgMoCongCu(nguon){
   var o = cgEl(nguon, nguon === 'vietqr' ? 'bdFile' : 'txFile') || d;
   try { o.scrollIntoView({ behavior:'smooth', block:'center' }); } catch(e) { o.scrollIntoView(); }
   try { o.focus({ preventScroll:true }); } catch(e) {}
+}
+/* Gán/đổi/bỏ MÁY THỦ CÔNG cho một giao dịch cổng (nút trên từng dòng bảng "Từ cổng").
+   xoa=1 → bỏ gán (gửi tên rỗng). Đọc PIN + tải lại đúng nguồn như các nút khác. */
+function skGanMayTay(btn, xoa){
+  var wrap=btn.parentNode, inp=wrap.querySelector('.skgm-inp');
+  var khoa=btn.getAttribute('data-khoa'), nguon=btn.getAttribute('data-nguon');
+  var ten = xoa ? '' : (inp ? inp.value.trim() : '');
+  if(!xoa && !ten){ toast('Gõ tên máy trước khi Gán.', true); if(inp) inp.focus(); return; }
+  btn.disabled=true;
+  google.script.run.withSuccessHandler(function(r){
+    btn.disabled=false;
+    if(!r||!r.ok){ toast((r&&(r.error||r.__err))||'Lỗi gán máy', true); return; }
+    toast(xoa?'Đã bỏ gán máy — về "chưa rõ máy".':('Đã gán máy: '+(r.mayTay||ten)));
+    cgTaiLai(nguon);
+  }).withFailureHandler(function(e){ btn.disabled=false; toast((e&&e.message)||'Lỗi gán máy', true); })
+    .ganMayTay(PIN, khoa, ten);
 }
 function cgTaiLai(nguon){
   if(cgDungFile(nguon)) taiDoiSoatFile(nguon); else taiSaoKeCong(nguon);

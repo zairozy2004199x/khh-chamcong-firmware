@@ -33,16 +33,19 @@ t( 'nạp được lớp SAOKE_App', class_exists( 'SAOKE_App' ) );
  */
 t( '🔴 bảng saoke_cong có cột ma_ch', false !== strpos( $SRC, "ma_ch VARCHAR(40) NOT NULL DEFAULT ''" ) );
 t( 'và có KEY để tra cho nhanh', false !== strpos( $SRC, 'KEY ma_ch (ma_ch)' ) );
-/* ⚠️ SỐ NÀY PHẢI TĂNG MỖI LẦN ĐỔI CẤU TRÚC BẢNG, và bài thử phải đi theo. 0.20.0 thêm
-   `KEY ref (ref)` cho đường dò trùng chéo nguồn -> lên '4'. Ghim số cứng ở đây là cố ý: quên
-   tăng thì bài đỏ, chứ không phải site cũ âm thầm thiếu chỉ mục. */
-t( "🔴 VER_TBL đã tăng (không tăng thì site cũ KHÔNG có cột)",
-	false !== strpos( $SRC, "const VER_TBL = '4';" ), 'VER_TBL' );
-/* Hai câu SELECT đọc bảng cổng đều phải lấy cột ấy — thiếu một câu là màn ấy vẫn "chưa rõ máy". */
-t( '🔴 câu SELECT của bảng Sao Kê cổng có lấy ma_ch',
-	false !== strpos( $SRC, 'so_tk, noi_dung, diem_ban, ma_ch, doc_duoc' ) );
-t( '🔴 câu SELECT của phép gom tiền theo mã nộp cũng lấy ma_ch',
-	false !== strpos( $SRC, 'SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch FROM' ) );
+/* ⚠️ SỐ NÀY PHẢI TĂNG MỖI LẦN ĐỔI CẤU TRÚC BẢNG, và bài thử đi theo. GỘP: 0.20.0 thêm
+   `KEY ref (ref)` (dò trùng chéo nguồn) và 0.21.0 thêm cột `may_tay` (gán máy thủ công) — hai thay
+   đổi vào chung một nhánh nên đẩy VER_TBL lên '5', để site đã chạy bản '4' trung gian cũng migrate
+   lại đủ CẢ HAI (khoá ref lẫn cột may_tay). Ghim số cứng ở đây là cố ý: quên tăng thì bài đỏ. */
+t( '🔴 bảng saoke_cong có cột may_tay (gán máy thủ công)', false !== strpos( $SRC, "may_tay VARCHAR(60) NOT NULL DEFAULT ''" ) );
+t( '🔴 bảng saoke_cong có KEY ref (dò trùng chéo nguồn)', false !== strpos( $SRC, 'KEY ref (ref)' ) );
+t( "🔴 VER_TBL đã tăng (không tăng thì site cũ KHÔNG có cột/khoá mới)",
+	false !== strpos( $SRC, "const VER_TBL = '5';" ), 'VER_TBL' );
+/* Ba câu SELECT đọc bảng cổng đều phải lấy ma_ch LẪN may_tay — thiếu một là màn ấy vẫn "chưa rõ máy". */
+t( '🔴 câu SELECT của bảng Sao Kê cổng có lấy ma_ch + may_tay',
+	false !== strpos( $SRC, 'so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc' ) );
+t( '🔴 câu SELECT của phép gom tiền theo mã nộp cũng lấy ma_ch + may_tay',
+	false !== strpos( $SRC, 'SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch, may_tay FROM' ) );
 /* Và luật suy ra máy chỉ được viết MỘT chỗ. Bản trước chép hai lần; hai bản chép của một luật
    thì sớm muộn lệch, mà lệch ở đây là cùng một giao dịch màn này tính máy A, màn kia bỏ vào
    "chưa rõ". */
@@ -65,8 +68,8 @@ teq( '🔴 may_hop_le() chỉ được gọi từ HAI chỗ (cong_ten_may + cong
 teq( 'và bốn nơi cần biết máy đều gọi đúng hàm chung ấy', 4,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 /* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
-t( '🔴 rpc_getSaoKeCong lấy cột ma_ch trong câu SELECT',
-	false !== strpos( $SRC, 'noi_dung, diem_ban, ma_ch, doc_duoc, raw, nhan_luc' ) );
+t( '🔴 rpc_getSaoKeCong lấy cột ma_ch + may_tay trong câu SELECT',
+	false !== strpos( $SRC, 'noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, raw, nhan_luc' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. CHUẨN HOÁ MÃ CỬA HÀNG — mã là chuỗi máy sinh, so phải khít
@@ -123,6 +126,17 @@ teq( '🔴 4) mã lạ chưa có trong bản đồ thì vẫn "chưa rõ máy", 
 /* Nội dung THẮNG bản đồ: khách quét đúng QR của máy ấy là chắc nhất. */
 teq( 'nội dung thắng bản đồ khi cả hai cùng có', 'AMBD 12',
 	goi( 'cong_may_dong', array( 'VQR26376 AMBD 12', 'EZFY9HCIR0', '' ) ) );
+/* 🖐️ GÁN TAY (may_tay, tham số 4) THẮNG MỌI SUY ĐOÁN — anh Thắng 12/09/2026: giao dịch dò không
+   ra, admin chỉ định tay. Kể cả khi nội dung/mã cửa hàng suy ra được máy khác, gán tay vẫn thắng. */
+teq( '🖐️ 0) gán tay thắng khi chưa rõ máy (QR tĩnh)', 'LM-PT 05',
+	goi( 'cong_may_dong', array( 'VQR2637 PaymentForOrder', '', '', 'LM-PT 05' ) ) );
+teq( '🖐️ 0b) gán tay thắng cả nội dung lẫn bản đồ', 'GÁN TAY',
+	goi( 'cong_may_dong', array( 'VQR26376 AMBD 12', 'EZFY9HCIR0', '', 'GÁN TAY' ) ) );
+teq( '🖐️ 0c) gán tay để trống thì về suy đoán như cũ', 'AMBD 12',
+	goi( 'cong_may_dong', array( 'VQR263764167LJRO AMBD 12', '', '', '' ) ) );
+/* Cổng RPC gán tay phải nằm trong allow-list của /rpc, kèm hàm xử lý. */
+t( '🖐️ ganMayTay có trong allow-list /rpc', false !== strpos( $SRC, "'ganMayTay'" ) );
+t( '🖐️ có hàm rpc_ganMayTay', false !== strpos( $SRC, 'function rpc_ganMayTay(' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5. NẠP FILE VÀO DÒNG WEBHOOK ĐÃ CÓ — VÁ, KHÔNG THÊM DÒNG

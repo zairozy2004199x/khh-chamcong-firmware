@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.20.0
+ * Version:           0.21.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -20,12 +20,12 @@ if ( ! class_exists( 'SAOKE_App' ) ) :
 class SAOKE_App {
 
 	const NS      = 'saoke/v1';
-	const VER_TBL = '4';
+	const VER_TBL = '5';
 	/* 🔴 SỐ BẢN ĐỌC THẲNG TỪ MÃ, và trang IN NÓ RA. Anh Thắng 12/09/2026: *"Anh chưa thấy chỗ
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.20.0';
+	const VER = '0.21.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -106,6 +106,7 @@ class SAOKE_App {
 			noi_dung TEXT NULL,
 			diem_ban VARCHAR(120) NOT NULL DEFAULT '',
 			ma_ch VARCHAR(40) NOT NULL DEFAULT '',
+			may_tay VARCHAR(60) NOT NULL DEFAULT '',
 			doc_duoc TINYINT NOT NULL DEFAULT 0,
 			raw TEXT NULL,
 			nhan_luc DATETIME NOT NULL,
@@ -1320,12 +1321,12 @@ class SAOKE_App {
 		$wa = array( 'nguon=%s' ); $aa = array( $nguon );
 		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
 		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, ma_gd, ref, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, doc_duoc FROM $tc WHERE " . implode( ' AND ', $wa ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 3000", $aa ), ARRAY_A );
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, ma_gd, ref, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc FROM $tc WHERE " . implode( ' AND ', $wa ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 3000", $aa ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0;
 		foreach ( (array) $rowsC as $r ) {
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
-			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'], isset( $r['may_tay'] ) ? $r['may_tay'] : '' );
 			$cong[] = array( 'thoiDiem' => self::ymd2vn( $r['thoi_diem'] ), 'soTien' => (int) $r['so_tien'],
 				'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'],
 				'noiDung' => $r['noi_dung'], 'maCH' => isset( $r['ma_ch'] ) ? (string) $r['ma_ch'] : '',
@@ -1556,11 +1557,11 @@ class SAOKE_App {
 		$wa = array( 'nguon=%s', 'doc_duoc=1', "huong<>'Đi'" ); $aa = array( $nguon );
 		if ( $tu )  { $wa[] = 'DATE(thoi_diem)>=%s'; $aa[] = $tu; }
 		if ( $den ) { $wa[] = 'DATE(thoi_diem)<=%s'; $aa[] = $den; }
-		$rc = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch FROM $tc WHERE " . implode( ' AND ', $wa ), $aa ), ARRAY_A );
+		$rc = $wpdb->get_results( $wpdb->prepare( "SELECT thoi_diem, so_tien, noi_dung, diem_ban, ma_ch, may_tay FROM $tc WHERE " . implode( ' AND ', $wa ), $aa ), ARRAY_A );
 		foreach ( (array) $rc as $r ) {
 			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; } $tong += $tien;
 			$ngay = self::ymd2vn( $r['thoi_diem'] );
-			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'], isset( $r['may_tay'] ) ? $r['may_tay'] : '' );
 			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $tien; continue; }
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $ngay );
 			$suy = self::ax_ma_nop( $ax, $mapTen );
@@ -1763,7 +1764,14 @@ class SAOKE_App {
 	 *   3. `diem_ban` — đường lùi cũ, thường là tên cửa hàng tiếng Việt.
 	 *   4. '' = "chưa rõ máy". Nói KHÔNG BIẾT vẫn đúng hơn bịa ra một cái máy.
 	 */
-	private static function cong_may_dong( $noi_dung, $ma_ch = '', $diem_ban = '' ) {
+	private static function cong_may_dong( $noi_dung, $ma_ch = '', $diem_ban = '', $may_tay = '' ) {
+		/* 0. GÁN TAY THẮNG MỌI SUY ĐOÁN — anh Thắng 12/09/2026: "một số giao dịch dò không ra, muốn
+		   gán thủ công". Giao dịch QR tĩnh (PaymentForOrder) không có tên máy trong nội dung LẪN mã
+		   cửa hàng, không cách nào suy ra; admin chỉ định tay thì phải THẮNG. Số đã được làm sạch ở
+		   rpc_ganMayTay() lúc ghi nên trả thẳng, không qua may_hop_le() (giữ đúng "may_hop_le gọi 2
+		   chỗ"); admin có quyền đặt tên không theo khuôn máy tự động. */
+		$mt = trim( (string) $may_tay );
+		if ( '' !== $mt ) { return $mt; }
 		$ten = self::cong_ten_may( $noi_dung );
 		if ( '' !== $ten ) { return $ten; }
 		$ten = self::vqr_may_theo_ma( $ma_ch );
@@ -2020,7 +2028,7 @@ class SAOKE_App {
 			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
 			'getCosoMa', 'saveCosoMa',
 			'napDsCuaHangVqr', 'getDsCuaHangVqr', 'xoaDsCuaHangVqr',
-			'getNopTienMat',
+			'getNopTienMat', 'ganMayTay',
 		);
 		if ( ! in_array( $fn, $map, true ) ) { return array( '__err' => 'Hàm không hợp lệ: ' . $fn ); }
 		try {
@@ -2202,6 +2210,25 @@ class SAOKE_App {
 		foreach ( $in as $k => $v ) { $k = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $k ) ); $v = trim( sanitize_text_field( (string) $v ) ); if ( '' !== $k && '' !== $v ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
 		update_option( 'saoke_coso_ma', $map );
 		return array( 'ok' => true, 'so' => count( $map ) );
+	}
+	/* ── GÁN MÁY THỦ CÔNG cho MỘT giao dịch cổng ──────────────────────────────────────────────
+	 * Anh Thắng 12/09/2026: *"một số giao dịch dò không ra, muốn gán thủ công thì sao"*. Giao dịch
+	 * QR tĩnh (PaymentForOrder) không mang tên máy trong nội dung lẫn mã cửa hàng → không suy được;
+	 * admin gõ tên máy tay, ghi vào cột `may_tay` của ĐÚNG dòng (khoá theo `khoa` duy nhất).
+	 * `cong_may_dong()` đọc `may_tay` TRƯỚC mọi suy đoán nên dòng ra máy ngay, và tiền theo về đúng
+	 * cơ sở ở phép gom. Gõ trống = BỎ gán (trở lại "chưa rõ máy"). args: [pin, khoa, tenMay].
+	 */
+	public static function rpc_ganMayTay( $a ) {
+		self::can_pin( $a ); global $wpdb;
+		$khoa = isset( $a[1] ) ? trim( (string) $a[1] ) : '';
+		$ten  = isset( $a[2] ) ? trim( sanitize_text_field( (string) $a[2] ) ) : '';
+		if ( '' === $khoa ) { self::loi( 'Thiếu khoá giao dịch.' ); }
+		$ten = mb_substr( preg_replace( '/\s+/', ' ', $ten ), 0, 60 );
+		$tc  = self::tbl_cong();
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM $tc WHERE khoa=%s", $khoa ), ARRAY_A );
+		if ( ! $row ) { self::loi( 'Không thấy giao dịch (khoá không khớp).' ); }
+		$wpdb->update( $tc, array( 'may_tay' => $ten ), array( 'id' => (int) $row['id'] ) );
+		return array( 'ok' => true, 'mayTay' => $ten );
 	}
 	// ── Nộp tiền mặt theo cơ sở: dò mã của cơ sở trong nội dung sao kê ngân hàng ──
 	public static function rpc_getNopTienMat( $a ) {
@@ -2387,7 +2414,7 @@ class SAOKE_App {
 		$wc = array( 'nguon=%s' ); $ac = array( $nguon );
 		if ( $tu )  { $wc[] = 'DATE(thoi_diem)>=%s'; $ac[] = $tu; }
 		if ( $den ) { $wc[] = 'DATE(thoi_diem)<=%s'; $ac[] = $den; }
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, may_tay, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
 		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
 		/* Mốc "lần nạp file gần nhất phủ tới thời điểm nào" — xem `rpc_napFileCongTx()`. */
@@ -2409,7 +2436,7 @@ class SAOKE_App {
 			   ⚠️ Bài học ghi lại cho người sau: đếm "luật chỉ còn một chỗ" bằng cách đếm MỘT
 			      chuỗi là đếm hụt. Bộ thử nay đếm MỌI lời gọi `cong_ten_may()` ngoài thân
 			      `cong_may_dong()` và bắt nó phải bằng 0. */
-			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'], isset( $r['may_tay'] ) ? $r['may_tay'] : '' );
 			$coSo = self::cong_coso( $tenMay );
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
@@ -2426,6 +2453,7 @@ class SAOKE_App {
 			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
 				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
+				'mayTay' => isset( $r['may_tay'] ) ? (string) $r['may_tay'] : '',
 				'maCH' => isset( $r['ma_ch'] ) ? (string) $r['ma_ch'] : '',
 				/* Dòng phát sinh SAU lần nạp file gần nhất thì "chưa rõ máy" là chuyện đương
 				   nhiên — file không thể chứa nó. Nói ra để khỏi tưởng bản vá hỏng. */
