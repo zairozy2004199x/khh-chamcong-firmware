@@ -2153,8 +2153,12 @@ class VHG_Trang {
     var coBefore = (before!==null && before!==undefined && before!=='');
     tr.dataset.lock = coBefore ? '1':'0';
     tr.dataset.before = coBefore ? String(before) : '';
-    // tên
-    var tdN=el('td'); tdN.appendChild(el('b',null,g.ten||g.ma));
+    /* TÊN GHẾ (MÃ GHẾ) — anh Thắng 12/09/2026: "cho hiện mã ghế, Tên ghế (mã ghế)". Tên hiển thị
+       (ten_khai) có thể khác mã ghế; bấm "Hiện lại" thấy "tên ghế khác" là vì trước chỉ in tên. Nay
+       in cả hai để nhìn là biết đúng ghế. Tên trùng mã thì khỏi lặp "(mã)". */
+    var tdN=el('td');
+    var tenHien=(g.ten&&String(g.ten)!==String(g.ma)) ? (g.ten+' ('+g.ma+')') : g.ma;
+    tdN.appendChild(el('b',null,tenHien));
     /* Ghi chú "đã trừ lượt kích ghế từ xa" — RIÊNG với .bc-warn (ô đó dành cho lý do/thực thu
        khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
