@@ -148,3 +148,54 @@ nói dối, và lần **Làm mới** sau đó nhảy về kỳ cũ, mất khoả
 
 Bài thử đếm **chỗ gọi**, không chỉ kiểm hàm — đúng bài học 0.18.0 ở §6: luật đúng mà một bản sao
 không được vá thì màn hình vẫn sai.
+
+## 8. Sao Kê: giao dịch MỚI tự biết máy (0.20.0)
+
+0.18.1 chỉ chữa được dòng CŨ, và chỉ khi tải file kết xuất về nạp. Bản này đóng nốt đường cho
+tiền mới. Bốn lỗ hổng, cả bốn đều câm:
+
+1. **`cong_doc_obj()` không hề đọc mã cửa hàng.** Không có lấy một khoá nào trong danh sách.
+   Cổng gửi mã về cũng bị vứt ngay tại cửa.
+2. **Ô mã toàn chữ bị vứt im lặng.** Mã cửa hàng thật của Việt QR là `RJFSHCSXE9` — toàn chữ
+   cái. `cong_doc_hang()` phân loại ô theo hình dạng: cần *cả chữ lẫn số* mới vào mã giao dịch,
+   cần *khoảng trắng* mới vào nội dung/điểm bán. Ô toàn chữ rơi khỏi **mọi** nhánh. Đây là chỗ
+   anh Thắng gọi là *"có vấn đề gì đó làm mất dữ liệu cửa hàng"* — dữ liệu có trong gói webhook
+   mà không bao giờ tới được bảng.
+3. **`cong_nhan_webhook()` là mã chết.** Hàm duy nhất đổ webhook vào bảng cổng, định nghĩa một
+   lần, **không nơi nào gọi**. `r_webhook` và `r_vqr_callback` chỉ ghi vào sao kê ngân hàng. Tức
+   là sau lần nạp file gần nhất, giao dịch mới không phải "chưa rõ máy" mà **không có** trên màn
+   hình cổng. ⚠️ Mã chết không bao giờ đỏ — chỉ phép **đếm chỗ gọi** mới thấy.
+4. **Bật (3) lên thì lòi ra nguy cơ đếm đôi:** webhook và file dựng khoá từ hai giá trị có thể
+   khác nhau. Đếm thiếu ai cũng thấy; đếm gấp đôi không ai thấy.
+
+### Cửa cuối: dò mã mà KHÔNG cần biết cổng đặt tên trường là gì
+
+`vqr_ma_tu_payload()` lấy **mọi** giá trị vô hướng trong payload rồi hỏi bản đồ "giá trị này có
+phải một mã tôi đã biết không". Không đoán tên trường, nên cổng đổi tên trường cũng không gãy —
+và không còn phải đợi ai gửi cho một gói payload thật mới vá được.
+
+Bốn chốt, mỗi chốt một assert trong `tools/test/kiem-saoke-webhook-may.php`:
+
+- **Dài ≥ 4 ký tự** — mã hai ba ký tự thì một con số vu vơ cũng khớp.
+- **Phải có chữ cái** — nếu không, một *số tiền* toàn số trùng một mã toàn số là gán nhầm tiền
+  sang máy khác. Cùng loại lỗi câm mà `may_hop_le()` từng dính qua cửa đoán cột (§6).
+- **Dò theo TỪNG DÒNG** với dạng `{"values":[[…]]}` — một gói có thể chứa nhiều cửa hàng; dò
+  trên cả gói là tiền máy này chui sang máy kia mà bảng nhìn vẫn đầy đủ.
+- **Ưu tiên mã cửa hàng hơn mã điểm bán** — mã điểm có thể dùng chung giữa vài cửa hàng.
+
+`vqr_may_theo_ma()` tra khoá chính trước, rồi tới mã điểm bán: cổng gửi cái nào thì tuỳ giao
+dịch, bản đồ `store_export` có cả hai cột nên không phải đoán.
+
+### Chống đếm đôi khi một giao dịch về bằng hai đường
+
+`cong_dong_trung()`: cùng nguồn **và** cùng số tiền **và** trùng `ref` hoặc `ma_gd`. Ba điều
+kiện cùng lúc, không được nới — chỉ so mã thôi thì hai giao dịch khác nhau vô tình trùng mã sẽ
+bị gộp làm một, **mất hẳn** một khoản, còn tệ hơn đếm đúp. `VER_TBL` lên `'4'` cho `KEY ref`.
+
+### Bệ đỡ bài thử
+
+`tools/test/lib/be-saoke.php` dùng chung cho mọi bài thử sao kê. Nằm trong `lib/` là cố ý:
+`chay-het.sh` quét `tools/test/*.php` không đệ quy. ⚠️ `prepare()` giả phải ăn chỗ giữ **theo
+đúng thứ tự xuất hiện** — bản đầu thay "%s đầu tiên" rồi "%d đầu tiên" cho mỗi tham số, gặp câu
+có cả hai là tham số số nhảy vào ăn ô `%s` phía sau, bài đỏ ở chỗ mã nguồn không hề sai. Lỗi ở
+bệ đỡ là loại tốn thời gian nhất: nó đổ tội cho đúng thứ mình đang thử.

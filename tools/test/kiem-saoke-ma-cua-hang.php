@@ -17,95 +17,12 @@
  * Chạy: php tools/test/kiem-saoke-ma-cua-hang.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 
-$DAT = 0; $TRUOT = array();
-function t( $ten, $ok, $them = null ) {
-	global $DAT, $TRUOT;
-	if ( $ok ) { $DAT++; return; }
-	$TRUOT[] = $ten . ( null !== $them ? ( "\n      → " . ( is_scalar( $them ) ? $them : var_export( $them, true ) ) ) : '' );
-}
-function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, true ) . ')', $mong === $thuc, $thuc ); }
-
-$GOC = dirname( dirname( __DIR__ ) );
-$SRC = file_get_contents( $GOC . '/vhcp-saoke/vhcp-saoke.php' );
-$APP = file_get_contents( $GOC . '/vhcp-saoke/app.html' );
-
-/* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 0. BỆ ĐỠ WORDPRESS GIẢ — đủ để nạp lớp, không hơn.
- * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-define( 'ABSPATH', $GOC . '/' );
-define( 'ARRAY_A', 'ARRAY_A' );
-define( 'OBJECT', 'OBJECT' );
-$GLOBALS['OPT'] = array();
-function get_option( $k, $m = false ) { return array_key_exists( $k, $GLOBALS['OPT'] ) ? $GLOBALS['OPT'][ $k ] : $m; }
-function update_option( $k, $v, $a = null ) { $GLOBALS['OPT'][ $k ] = $v; return true; }
-function delete_option( $k ) { unset( $GLOBALS['OPT'][ $k ] ); return true; }
-function add_option( $k, $v ) { if ( ! isset( $GLOBALS['OPT'][ $k ] ) ) { $GLOBALS['OPT'][ $k ] = $v; } }
-function add_action() {} function add_filter() {} function add_shortcode() {}
-function register_activation_hook() {} function register_deactivation_hook() {}
-function register_rest_route() {} function wp_next_scheduled() { return false; }
-function wp_schedule_event() {} function wp_clear_scheduled_hook() {} function flush_rewrite_rules() {}
-function current_time( $f ) { return 'mysql' === $f ? '2026-09-12 10:00:00' : time(); }
-function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
-function wp_json_encode( $v, $o = 0 ) { return json_encode( $v, $o | JSON_UNESCAPED_UNICODE ); }
-function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
-function esc_attr( $s ) { return esc_html( $s ); }
-function esc_url( $s ) { return (string) $s; }
-function is_wp_error( $x ) { return $x instanceof WP_Error; }
-function __( $s ) { return $s; }
-function admin_url( $s = '' ) { return '/wp-admin/' . $s; }
-function wp_remote_get() { return new WP_Error( 'off', 'không ra mạng trong bài thử' ); }
-function wp_remote_post() { return new WP_Error( 'off', 'không ra mạng trong bài thử' ); }
-function wp_remote_retrieve_body() { return ''; }
-function wp_remote_retrieve_response_code() { return 0; }
-class WP_Error { public $c; public $m; public function __construct( $c = '', $m = '', $d = array() ) { $this->c = $c; $this->m = $m; } public function get_error_message() { return $this->m; } }
-
-/** $wpdb giả: chỉ đủ cho `luu_cong()` — get_row theo khoá, insert, update. */
-class FakeWpdb {
-	public $prefix = 'wp_';
-	public $hang = array();          // bảng saoke_cong trong bộ nhớ
-	public $so_insert = 0; public $so_update = 0;
-	public function get_charset_collate() { return ''; }
-	public function prepare( $sql, ...$a ) {
-		if ( 1 === count( $a ) && is_array( $a[0] ) ) { $a = $a[0]; }
-		foreach ( $a as $v ) {
-			$sql = preg_replace( '/%s/', "'" . str_replace( "'", "''", (string) $v ) . "'", $sql, 1 );
-			$sql = preg_replace( '/%d/', (string) (int) $v, $sql, 1 );
-		}
-		return $sql;
-	}
-	public function get_row( $sql, $out = null ) {
-		if ( ! preg_match( "/khoa='([^']*)'/", $sql, $m ) ) { return null; }
-		foreach ( $this->hang as $h ) { if ( (string) $h['khoa'] === $m[1] ) { return $h; } }
-		return null;
-	}
-	public function get_var( $sql ) { return null; }
-	public function get_results( $sql, $out = null ) { return array(); }
-	public function insert( $tbl, $data ) {
-		$data['id'] = count( $this->hang ) + 1;
-		$this->hang[] = $data; $this->so_insert++; return 1;
-	}
-	public function update( $tbl, $data, $where ) {
-		foreach ( $this->hang as $i => $h ) {
-			if ( (int) $h['id'] === (int) $where['id'] ) {
-				$this->hang[ $i ] = array_merge( $h, $data ); $this->so_update++; return 1;
-			}
-		}
-		return 0;
-	}
-	public function query( $sql ) { return 0; }
-	public function esc_like( $s ) { return $s; }
-}
-$GLOBALS['wpdb'] = new FakeWpdb();
+/* Bệ đỡ WordPress giả + t()/teq()/goi()/ket_luan() nằm chung một chỗ cho mọi bài thử sao kê —
+   chép lại bệ đỡ ở bài thứ hai là hai bản sẽ lệch nhau lúc nào không hay. */
+require_once __DIR__ . '/lib/be-saoke.php';
 
 require_once $GOC . '/vhcp-saoke/vhcp-saoke.php';
 t( 'nạp được lớp SAOKE_App', class_exists( 'SAOKE_App' ) );
-
-/** Gọi hàm private/protected cho việc thử — chạy lõi thật, không chép luật. */
-function goi( $ten, $args = array() ) {
-	$m = new ReflectionMethod( 'SAOKE_App', $ten );
-	$m->setAccessible( true );
-	return $m->invokeArgs( null, $args );
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 1. CỘT `ma_ch` PHẢI CÓ THẬT, VÀ PHIÊN BẢN BẢNG PHẢI TĂNG
@@ -116,8 +33,11 @@ function goi( $ten, $args = array() ) {
  */
 t( '🔴 bảng saoke_cong có cột ma_ch', false !== strpos( $SRC, "ma_ch VARCHAR(40) NOT NULL DEFAULT ''" ) );
 t( 'và có KEY để tra cho nhanh', false !== strpos( $SRC, 'KEY ma_ch (ma_ch)' ) );
+/* ⚠️ SỐ NÀY PHẢI TĂNG MỖI LẦN ĐỔI CẤU TRÚC BẢNG, và bài thử phải đi theo. 0.20.0 thêm
+   `KEY ref (ref)` cho đường dò trùng chéo nguồn -> lên '4'. Ghim số cứng ở đây là cố ý: quên
+   tăng thì bài đỏ, chứ không phải site cũ âm thầm thiếu chỉ mục. */
 t( "🔴 VER_TBL đã tăng (không tăng thì site cũ KHÔNG có cột)",
-	false !== strpos( $SRC, "const VER_TBL = '3';" ), 'VER_TBL' );
+	false !== strpos( $SRC, "const VER_TBL = '4';" ), 'VER_TBL' );
 /* Hai câu SELECT đọc bảng cổng đều phải lấy cột ấy — thiếu một câu là màn ấy vẫn "chưa rõ máy". */
 t( '🔴 câu SELECT của bảng Sao Kê cổng có lấy ma_ch',
 	false !== strpos( $SRC, 'so_tk, noi_dung, diem_ban, ma_ch, doc_duoc' ) );

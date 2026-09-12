@@ -2351,15 +2351,20 @@ function veSaoKeCong(nguon, d){
            chưa nạp bù sao kê của cổng. Hai cảnh ấy sửa bằng hai việc khác nhau, nên phải phân
            biệt được ngay trên dòng — kẻo người đọc bấm quanh không biết làm gì tiếp. */
         /* Ba cảnh "chưa rõ máy", ba việc phải làm khác nhau — nói ra ngay trên dòng:
-             · mới hơn lần nạp file gần nhất -> xuất file mới rồi nạp lại;
              · có mã cửa hàng mà chưa ra máy -> thiếu BẢN ĐỒ, nạp Danh sách cửa hàng;
-             · không có mã              -> dòng này chưa được nạp bù từ file cổng bao giờ. */
+             · dòng CŨ, không mã             -> nạp bù từ file cổng (từ 0.20.0 chỉ còn dòng cũ);
+             · dòng MỚI mà vẫn không mã      -> cổng không gửi mã trong gói ấy, phải nạp file.
+
+           ⚠️ TỪ 0.20.0 CÂU "mới hơn lần nạp file" KHÔNG CÒN ĐÚNG MẶC ĐỊNH. Webhook nay đọc được
+              mã cửa hàng ngay trong gói (kể cả ô toàn chữ như `RJFSHCSXE9` mà bản cũ vứt im
+              lặng), nên dòng mới thường tự ra máy. Còn bảo người ta "xuất file mới rồi nạp lại"
+              là sai việc — họ đi làm một việc không cần thiết rồi tưởng app hỏng khi vẫn y cũ. */
         var may = r.tenMay ? esc(r.tenMay)
           : ('<span style="color:var(--gold)">chưa rõ máy</span>'
-             + (r.moiHonNap ? '<div class="muted" style="font-size:11px">mới hơn lần nạp file gần nhất — xuất file mới rồi nạp lại</div>'
-                : r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
-                             +'</code> — chưa có trong bản đồ</div>')
-                : '<div class="muted" style="font-size:11px">chưa nạp bù từ file cổng</div>'));
+             + (r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
+                             +'</code> — chưa có trong bản đồ, nạp Danh sách cửa hàng</div>')
+                : r.moiHonNap ? '<div class="muted" style="font-size:11px">gói webhook không kèm mã cửa hàng — nạp bù từ file cổng</div>'
+                : '<div class="muted" style="font-size:11px">dòng cũ, chưa nạp bù từ file cổng</div>'));
         var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
         return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
              /* th,td của trang để white-space:nowrap, nên MỘT ô dài là cả bảng trôi ngang và

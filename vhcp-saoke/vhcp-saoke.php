@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.19.0
+ * Version:           0.20.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -20,12 +20,12 @@ if ( ! class_exists( 'SAOKE_App' ) ) :
 class SAOKE_App {
 
 	const NS      = 'saoke/v1';
-	const VER_TBL = '3';
+	const VER_TBL = '4';
 	/* 🔴 SỐ BẢN ĐỌC THẲNG TỪ MÃ, và trang IN NÓ RA. Anh Thắng 12/09/2026: *"Anh chưa thấy chỗ
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.19.0';
+	const VER = '0.20.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -111,7 +111,7 @@ class SAOKE_App {
 			nhan_luc DATETIME NOT NULL,
 			PRIMARY KEY (id),
 			UNIQUE KEY khoa (khoa),
-			KEY nguon (nguon), KEY thoi_diem (thoi_diem), KEY ma_ch (ma_ch)
+			KEY nguon (nguon), KEY thoi_diem (thoi_diem), KEY ma_ch (ma_ch), KEY ref (ref)
 		) $col;" );
 
 		/* Đối soát MoMo/VNPAY bằng file kết xuất — gộp theo ngày × cửa hàng (1 dòng/ngày/CH). */
@@ -316,7 +316,14 @@ class SAOKE_App {
 			'ma_gd'     => $madg,
 			'nguon'     => mb_substr( $nguon, 0, 10 ),
 		) );
-		self::ghi_log( $src, $ok ? ( '✔ đã lưu [' . $nguon . '] ' . number_format( $tien ) . 'đ' ) : 'trùng, bỏ qua', $raw );
+		/* src=vietqr/momo/vnpay thì giao dịch này là của MỘT CỔNG -> ghi thêm vào bảng cổng để màn
+		   hình cổng thấy ngay, không phải đợi nạp file. src=sepay (tiền về thẳng bank) thì không. */
+		$themCong = '';
+		if ( in_array( $nguon, self::cong_ds(), true ) ) {
+			$kqCong = self::cong_nhan_webhook( $nguon, $req );
+			$themCong = ( isset( $kqCong['moi'] ) && $kqCong['moi'] > 0 ) ? ( ' · bảng cổng +' . (int) $kqCong['moi'] ) : ' · bảng cổng: đã có';
+		}
+		self::ghi_log( $src, ( $ok ? ( '✔ đã lưu [' . $nguon . '] ' . number_format( $tien ) . 'đ' ) : 'trùng, bỏ qua' ) . $themCong, $raw );
 		return new WP_REST_Response( array( 'success' => true, 'nguon' => $nguon, 'moi' => $ok ? 1 : 0 ), 200 );
 	}
 
@@ -418,17 +425,107 @@ class SAOKE_App {
 		$body = json_decode( (string) $raw, true );
 		if ( ! is_array( $body ) ) { return array(); }
 		$out = array();
-		if ( isset( $body['values'] ) && is_array( $body['values'] ) && isset( $body['values'][0] ) && is_array( $body['values'][0] ) ) {
-			foreach ( $body['values'] as $row ) { $tx = self::cong_doc_hang( $row ); if ( $tx ) { $out[] = $tx; } }
+		/* 🔴 CỬA CUỐI — DÒ MÃ MÀ KHÔNG CẦN BIẾT TÊN TRƯỜNG.
+		 *
+		 * Dạng Tingo `{"values":[[…]]}` là MẢNG CỘT KHÔNG TÊN, và bộ đọc ô (`cong_doc_hang`) phân
+		 * loại từng ô theo hình dạng: có chữ + có số + không khoảng trắng -> mã giao dịch; có
+		 * khoảng trắng -> nội dung hoặc điểm bán… Ô `RJFSHCSXE9` (mã cửa hàng thật của Việt QR)
+		 * TOÀN CHỮ, không số, không khoảng trắng — rơi khỏi mọi nhánh và bị VỨT IM LẶNG. Dữ liệu
+		 * cửa hàng có trong gói webhook mà không bao giờ tới được bảng. Đây chính là chỗ mất.
+		 *
+		 * ⚠️ DÒ THEO TỪNG DÒNG, KHÔNG DÒ TRÊN CẢ GÓI. Một gói `values` có thể chứa nhiều giao dịch
+		 *    của nhiều cửa hàng; dò trên cả gói là gán mã của cửa hàng đầu tiên cho tất cả — tiền
+		 *    của máy này chui sang máy khác, mà bảng nhìn vẫn "đầy đủ" nên không ai nghi. */
+		$laValues = isset( $body['values'] ) && is_array( $body['values'] ) && isset( $body['values'][0] ) && is_array( $body['values'][0] );
+		if ( $laValues ) {
+			foreach ( $body['values'] as $row ) {
+				$tx = self::cong_doc_hang( $row );
+				if ( ! $tx ) { continue; }
+				if ( '' === trim( (string) $tx['maCH'] ) ) { $tx['maCH'] = self::vqr_ma_tu_payload( $row ); }
+				$out[] = $tx;
+			}
 			return $out;
 		}
 		$o = self::cong_doc_obj( $body );
-		return $o ? array( $o ) : array();
+		if ( ! $o ) { return $out; }
+		if ( '' === trim( (string) ( isset( $o['maCH'] ) ? $o['maCH'] : '' ) ) ) { $o['maCH'] = self::vqr_ma_tu_payload( $body ); }
+		$out[] = $o;
+		return $out;
+	}
+
+	/**
+	 * MỌI MÃ ĐÃ BIẾT -> TÊN MÁY. Gộp cả mã cửa hàng (khoá của bản đồ) lẫn mã điểm bán.
+	 *
+	 * Cổng gửi về khi thì mã cửa hàng, khi thì mã điểm bán, tuỳ loại giao dịch. Bản đồ anh Thắng
+	 * nạp từ `store_export` có cả hai cột nên nhận được cả hai, khỏi phải đoán cổng gửi cái nào.
+	 */
+	private static function vqr_ma_tat_ca() {
+		$ban = array();
+		foreach ( self::vqr_ds_ch() as $ma => $v ) {
+			$ten = isset( $v['ten'] ) ? trim( (string) $v['ten'] ) : '';
+			if ( '' === $ten ) { continue; }
+			$k = self::vqr_ma_ch( $ma );
+			if ( '' !== $k ) { $ban[ $k ] = $ten; }
+			$kd = self::vqr_ma_ch( isset( $v['maDiem'] ) ? $v['maDiem'] : '' );
+			/* Mã cửa hàng thắng mã điểm khi trùng: nó là khoá chính của bản đồ. */
+			if ( '' !== $kd && ! isset( $ban[ $kd ] ) ) { $ban[ $kd ] = $ten; }
+		}
+		return $ban;
+	}
+
+	/** Gom mọi giá trị vô hướng trong payload (đệ quy) — để dò mã mà không cần biết tên trường. */
+	private static function payload_gia_tri( $p, &$ra, $sau = 0 ) {
+		if ( $sau > 6 || ! is_array( $p ) ) { return; }
+		foreach ( $p as $v ) {
+			if ( count( $ra ) > 500 ) { return; }   // payload dị dạng không được kéo cả trang đứng
+			if ( is_array( $v ) ) { self::payload_gia_tri( $v, $ra, $sau + 1 ); }
+			elseif ( is_scalar( $v ) ) { $ra[] = (string) $v; }
+		}
+	}
+
+	/**
+	 * TÌM MÃ CỬA HÀNG TRONG PAYLOAD MÀ **KHÔNG CẦN BIẾT CỔNG ĐẶT TÊN TRƯỜNG LÀ GÌ**.
+	 *
+	 * 🔴 VÌ SAO PHẢI LÀM KIỂU NÀY. Danh sách khoá ở `cong_doc_obj()` là phỏng đoán: cổng đổi tên
+	 *    trường, hay dùng một tên chưa ai nghĩ ra, là lại "chưa rõ máy" và lại phải đợi người ta
+	 *    gửi cho một gói payload thật mới biết mà vá. Đường này không đoán: nó lấy MỌI giá trị
+	 *    trong payload rồi hỏi bản đồ "giá trị này có phải một mã tôi đã biết không". Trúng thì
+	 *    chắc chắn trúng, vì chỉ nhận đúng những mã anh Thắng đã nạp từ `store_export`.
+	 *
+	 * ⚠️ HAI CHỐT CHỐNG NHẬN BỪA, cả hai đều có bài thử canh:
+	 *     · Phải DÀI ÍT NHẤT 4 ký tự — mã hai ba ký tự thì một con số vu vơ cũng khớp.
+	 *     · Phải CÓ CHỮ CÁI — nếu không, một SỐ TIỀN hay mã giao dịch toàn số trùng với một mã
+	 *       toàn số trong bản đồ là gán nhầm tiền sang máy khác. Đúng loại lỗi câm mà
+	 *       `may_hop_le()` đã bị một lần qua cửa đoán cột.
+	 *
+	 * @return string mã cửa hàng (đã chuẩn hoá), hoặc '' nếu không chắc. Trả MÃ chứ không trả tên
+	 *         máy: tên máy vẫn do `cong_may_dong()` một mình quyết, giữ đúng một luật một chỗ.
+	 */
+	private static function vqr_ma_tu_payload( $body ) {
+		if ( ! is_array( $body ) ) { return ''; }
+		$ban = self::vqr_ma_tat_ca();
+		if ( ! count( $ban ) ) { return ''; }
+		$vals = array(); self::payload_gia_tri( $body, $vals );
+		$chinh = self::vqr_ds_ch();
+		/* HAI LƯỢT, ưu tiên MÃ CỬA HÀNG. Một dòng kết xuất có cả `Mã điểm bán` lẫn `Mã cửa hàng`,
+		   và mã điểm thường đứng trước. Lấy cái gặp trước là ghi mã điểm vào ô mã cửa hàng: vẫn
+		   ra đúng máy hôm nay, nhưng ô dữ liệu sai nghĩa — và mã điểm có thể dùng chung giữa vài
+		   cửa hàng, nên một ngày nào đó nó ra đúng cái máy khác. Mã cửa hàng là khoá chính. */
+		foreach ( array( true, false ) as $chiKhoaChinh ) {
+			foreach ( $vals as $v ) {
+				$k = self::vqr_ma_ch( $v );
+				if ( mb_strlen( $k, 'UTF-8' ) < 4 ) { continue; }
+				if ( ! preg_match( '/\p{L}/u', $k ) ) { continue; }
+				if ( $chiKhoaChinh ) { if ( isset( $chinh[ $k ] ) ) { return $k; } }
+				elseif ( isset( $ban[ $k ] ) ) { return $k; }
+			}
+		}
+		return '';
 	}
 	/* Tingo: mảng cột không tên. Đọc theo ĐẶC ĐIỂM ô (thứ tự cột phụ thuộc cấu hình Tingo). */
 	private static function cong_doc_hang( $row ) {
 		if ( ! is_array( $row ) || ! count( $row ) ) { return null; }
-		$o = array( 'soTien' => 0, 'maGD' => '', 'ref' => '', 'thoiDiem' => '', 'noiDung' => '', 'soTK' => '', 'huong' => '', 'trangThai' => '', 'diemBan' => '' );
+		$o = array( 'soTien' => 0, 'maGD' => '', 'ref' => '', 'thoiDiem' => '', 'noiDung' => '', 'soTK' => '', 'huong' => '', 'trangThai' => '', 'diemBan' => '', 'maCH' => '' );
 		foreach ( $row as $cell ) {
 			$c = trim( (string) $cell );
 			if ( '' === $c || '-' === $c ) { continue; }
@@ -471,6 +568,15 @@ class SAOKE_App {
 			'soTK' => trim( (string) self::cong_lay( $srcs, array( 'accountNumber', 'accountNo', 'soTK', 'creditAccount' ) ) ),
 			'trangThai' => trim( (string) self::cong_lay( $srcs, array( 'status', 'resultCode', 'vnp_ResponseCode', 'trangThai' ) ) ),
 			'diemBan' => trim( (string) self::cong_lay( $srcs, array( 'storeId', 'storeName', 'terminalId', 'terminalName', 'posId', 'merchantName', 'storeLabel', 'diemBan' ) ) ),
+			/* 🔴 Ô NÀY TRƯỚC 0.20.0 KHÔNG HỀ ĐƯỢC ĐỌC. Cả bộ đọc payload không có lấy một khoá nào
+			   cho MÃ CỬA HÀNG, nên cổng có gửi mã về thì cũng bị vứt ngay tại cửa — rồi màn hình
+			   báo "chưa rõ máy" và người ta đi tải file kết xuất về nạp bù, cho đúng cái dữ liệu
+			   vừa ném đi. Danh sách khoá để rộng: mỗi cổng gọi một kiểu.
+			   ⚠️ KHÔNG cướp `storeId`/`storeName` của `diemBan` ở trên — hai ô khác nghĩa, và
+			      `diemBan` là đường lùi đã chạy đúng lâu nay. */
+			'maCH' => trim( (string) self::cong_lay( $srcs, array( 'storeCode', 'store_code', 'storeCd', 'shopCode', 'shop_code',
+				'merchantCode', 'merchant_code', 'merchantId', 'merchant_id', 'posCode', 'pos_code',
+				'terminalCode', 'terminal_code', 'terminalCd', 'maCH', 'maCuaHang', 'ma_cua_hang' ) ) ),
 			'huong' => 'Đến',
 		);
 		$tho = self::cong_lay( $srcs, array( 'transactionDate', 'transTime', 'payDate', 'vnp_PayDate', 'createdAt', 'created_at', 'time', 'thoiDiem' ) );
@@ -488,10 +594,42 @@ class SAOKE_App {
 	 * @param string $kq  (ra) `moi` · `va` (đã có, vừa vá thêm ô trống) · `trung` (đã có, không đổi gì).
 	 * @return bool true CHỈ khi thêm dòng mới — nơi gọi đếm tiền dựa vào đúng điều đó.
 	 */
+	/**
+	 * Dòng đã có của CÙNG giao dịch nhưng mang khoá khác (webhook vs file kết xuất).
+	 *
+	 * ⚠️ BA ĐIỀU KIỆN CÙNG LÚC, không được nới: cùng nguồn, cùng SỐ TIỀN, và trùng một trong hai
+	 *    mã (`ref` hoặc `ma_gd`). Chỉ so mã thôi thì hai giao dịch khác nhau vô tình mang mã giống
+	 *    nhau sẽ bị gộp làm một — mất hẳn một khoản tiền, còn tệ hơn đếm đúp.
+	 *
+	 * @return array|null dòng cũ (id, diem_ban, ma_ch) hoặc null.
+	 */
+	private static function cong_dong_trung( $row ) {
+		global $wpdb; $tbl = self::tbl_cong();
+		$tien = (int) round( isset( $row['soTien'] ) ? $row['soTien'] : 0 );
+		if ( $tien <= 0 ) { return null; }
+		$nguon = (string) ( isset( $row['nguon'] ) ? $row['nguon'] : '' );
+		if ( '' === $nguon ) { return null; }
+		foreach ( array( 'ref', 'maGD' ) as $f ) {
+			$v = isset( $row[ $f ] ) ? trim( (string) $row[ $f ] ) : '';
+			if ( '' === $v ) { continue; }
+			$r = $wpdb->get_row( $wpdb->prepare(
+				"SELECT id, diem_ban, ma_ch FROM $tbl WHERE nguon=%s AND so_tien=%d AND ( ref=%s OR ma_gd=%s ) LIMIT 1",
+				$nguon, $tien, $v, $v ), ARRAY_A );
+			if ( $r ) { return $r; }
+		}
+		return null;
+	}
 	private static function luu_cong( $row, &$kq = null ) {
 		global $wpdb; $tbl = self::tbl_cong();
 		$kq = 'trung';
 		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT id, diem_ban, ma_ch FROM $tbl WHERE khoa=%s", $row['khoa'] ), ARRAY_A );
+		/* 🔴 CÙNG MỘT GIAO DỊCH, HAI ĐƯỜNG VỀ, HAI CÁI KHOÁ KHÁC NHAU.
+		 *    Khoá dựng từ `maGD` (rồi mới tới `ref`). Webhook sống lấy `maGD` = mã giao dịch của
+		 *    ngân hàng; file kết xuất lấy từ cột "Mã đơn hàng". Hai giá trị ấy KHÔNG chắc bằng
+		 *    nhau — mà khoá khác nhau thì `luu_cong()` coi là hai giao dịch và cộng tiền HAI LẦN.
+		 *    Đếm thiếu thì ai cũng thấy; đếm gấp đôi thì không ai thấy. Nên trước khi chèn mới,
+		 *    dò thêm một vòng theo MÃ THAM CHIẾU của cùng nguồn, cùng số tiền. */
+		if ( ! $cu ) { $cu = self::cong_dong_trung( $row ); }
 		if ( $cu ) {
 			/* Dòng đã có: nếu trước đây chưa vớt được tên máy mà nay parser có -> vá vào, khỏi xoá làm lại.
 			 *
@@ -532,7 +670,7 @@ class SAOKE_App {
 	private static function cong_nhan_webhook( $nguon, $req ) {
 		$raw = $req->get_body(); if ( '' === trim( (string) $raw ) ) { $raw = wp_json_encode( $req->get_json_params() ); }
 		$list = self::cong_doc_payload( $raw );
-		if ( ! count( $list ) ) { return array( 'moi' => 0, 'message' => 'không đọc được giao dịch từ payload' ); }
+		if ( ! count( $list ) ) { return array( 'moi' => 0, 'trung' => 0, 'chuaDoc' => 0, 'message' => 'không đọc được giao dịch từ payload' ); }
 		$moi = 0; $trung = 0; $kho = 0;
 		foreach ( $list as $tx ) {
 			$tx['nguon'] = $nguon; $tx['khoa'] = self::cong_khoa( $nguon, $tx, $raw ); $tx['raw'] = $raw;
@@ -605,7 +743,18 @@ class SAOKE_App {
 			'ma_gd'     => '' !== $ref ? $ref : $maGD,
 			'nguon'     => 'vietqr',
 		) );
-		self::ghi_log( 'vietqr-official', $moi ? ( '✔ đã lưu vào Sao kê NH ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua', $raw );
+		/* 🔴 TRƯỚC 0.20.0 CỬA NÀY CHỈ GHI VÀO SAO KÊ NGÂN HÀNG. Bảng CỔNG (`saoke_cong`) — cái vẽ
+		 *    ra màn hình "Sao Kê Việt QR", cái chia tiền theo từng máy — KHÔNG hề nhận dòng nào từ
+		 *    webhook sống: hàm `cong_nhan_webhook()` có mà chưa một nơi nào gọi. Nó chỉ đầy lên khi
+		 *    nạp file kết xuất hoặc kéo từ Sheet. Nghĩa là sau lần nạp file gần nhất, mọi giao dịch
+		 *    mới KHÔNG phải "chưa rõ máy" — mà KHÔNG CÓ trên màn hình. Nay tiền về là vào thẳng.
+		 *
+		 * ⚠️ Chèn đúp là không thể: `luu_cong()` dò trùng theo khoá, và từ 0.20.0 dò thêm theo mã
+		 *    tham chiếu + số tiền, nên nạp lại file kết xuất của cùng kỳ vẫn ra "0 dòng mới". */
+		$kqCong = self::cong_nhan_webhook( 'vietqr', $req );
+		$ghiCong = ( isset( $kqCong['moi'] ) && $kqCong['moi'] > 0 )
+			? ( ' · bảng cổng +' . (int) $kqCong['moi'] ) : ' · bảng cổng: đã có';
+		self::ghi_log( 'vietqr-official', ( $moi ? ( '✔ đã lưu vào Sao kê NH ' . ( '' !== $maGD ? $maGD : $ref ) ) : 'trùng, bỏ qua' ) . $ghiCong, $raw );
 		// VietQR chờ đúng envelope này để coi là nhận thành công.
 		return new WP_REST_Response( array( 'error' => false, 'errorReason' => '', 'toControllerCode' => '',
 			'object' => array( 'reftransactionid' => '' !== $maGD ? $maGD : $ref ) ), 200 );
@@ -1591,7 +1740,14 @@ class SAOKE_App {
 		$k = self::vqr_ma_ch( $ma_ch );
 		if ( '' === $k ) { return ''; }
 		$ds = self::vqr_ds_ch();
-		return isset( $ds[ $k ]['ten'] ) ? (string) $ds[ $k ]['ten'] : '';
+		if ( isset( $ds[ $k ]['ten'] ) ) { return (string) $ds[ $k ]['ten']; }
+		/* 🔴 CỔNG KHÔNG PHẢI LÚC NÀO CŨNG GỬI MÃ CỬA HÀNG. Bản kết xuất giao dịch có HAI cột mã —
+		   `Mã cửa hàng` (vd `RJFSHCSXE9`) và `Mã điểm bán` (vd `VVB851980`) — và tuỳ giao dịch,
+		   cái có mặt là cái nào thì không đoán trước được. Bản đồ `store_export` có cả hai cột,
+		   nên tra hụt ở khoá chính thì còn một đường nữa; không có đường này thì dò ra mã điểm
+		   rồi vẫn trả về "chưa rõ máy" — công cốc. */
+		$ban = self::vqr_ma_tat_ca();
+		return isset( $ban[ $k ] ) ? (string) $ban[ $k ] : '';
 	}
 
 	/**
