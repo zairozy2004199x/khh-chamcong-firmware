@@ -4138,6 +4138,16 @@ var TEN_HT = window.VHG_TEN || 'POSH Massage';
    soát là mỗi lượt bấm mất thêm một cú bấm nữa. */
 var TAB = 'doi-soat';
 try { TAB = localStorage.getItem('vhg_tab') || 'doi-soat'; } catch(e) {}
+/* 🔙 ĐIỀU HƯỚNG LỊCH SỬ — anh Thắng 12/09/2026: "bấm quay lại thì nó nhảy ra trang trắng". SPA
+   đổi tab bằng JS, KHÔNG ghi mốc lịch sử nên Back rời hẳn trang. Nay mỗi lần đổi tab ghi #tab vào
+   lịch sử (xem chỗ bấm tab bên dưới); Back/Forward đọc lại #tab và vẽ đúng tab đó thay vì ra ngoài.
+   Có #tab trên URL (Back hoặc chia sẻ link) thì ưu tiên nó. */
+try { var _h0=(location.hash||'').replace(/^#/,''); if(_h0) TAB=_h0; } catch(e){}
+try { if(window.history && history.replaceState) history.replaceState({vhgTab:TAB},'','#'+TAB); } catch(e){}
+window.addEventListener('popstate', function(ev){
+  var t=(ev&&ev.state&&ev.state.vhgTab) || (location.hash||'').replace(/^#/,'') || TAB;
+  if (t && t!==TAB){ TAB=t; try{localStorage.setItem('vhg_tab',TAB);}catch(e){} try{ ve(); }catch(e){} }
+});
 
 /* ============================================================================================
  * HAI NGÔN NGỮ.
@@ -9848,8 +9858,12 @@ function noi(){
   if (kyTh) kyTh.onchange = function(){ if (/^\d{4}-\d{2}$/.test(kyTh.value)) { KY = kyTh.value; tai(); } };
   [].forEach.call(document.querySelectorAll('[data-tab]'), function(b){
     b.onclick = function(){
-      TAB = b.getAttribute('data-tab');
+      var t = b.getAttribute('data-tab');
+      if (t === TAB) return;   // cùng tab: khỏi thêm mốc lịch sử thừa
+      TAB = t;
       try { localStorage.setItem('vhg_tab', TAB); } catch(e) {}
+      /* Ghi mốc lịch sử để Back quay về tab trước (không ra trang trắng) — xem popstate ở đầu module. */
+      try { if(window.history && history.pushState) history.pushState({vhgTab:TAB},'','#'+TAB); } catch(e) {}
       /* Vẽ lại từ dữ liệu ĐANG CÓ, không gọi lại máy chủ: đổi tab không phải đổi dữ liệu, và
          trên 4G mỗi lượt gọi thừa là một lần chờ. */
       ve();
