@@ -500,7 +500,7 @@ class VHG_Trang {
 			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
-			if ( 'kt_misa_ngay_ds' === $viec )   { self::tra( VHG_KeToan::misa_ngay_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_misa_ngay_ds' === $viec )   { self::tra( VHG_KeToan::misa_ngay_ds( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '' ) ); return; }
 			if ( 'kt_misa_danh_xuat' === $viec ) { self::tra( VHG_KeToan::misa_danh_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_misa_bo_xuat' === $viec )   { self::tra( VHG_KeToan::misa_bo_xuat( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
@@ -7273,8 +7273,10 @@ function veKtXuat(){
     + '<div class="card"><h2>' + L('Xuất chứng từ theo NGÀY (đánh dấu đã xuất)','Export by DAY (mark exported)') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap">'
     + '<label class="mut">' + L('Tháng','Month') + ' <input type="month" id="ktx-nx-thang" value="' + thg + '" style="max-width:150px"></label>'
+    + '<span class="mut">' + L('hoặc từ','or from') + ' <input type="date" id="ktx-nx-tu" style="max-width:150px"></span>'
+    + '<span class="mut">' + L('đến','to') + ' <input type="date" id="ktx-nx-den" style="max-width:150px"></span>'
     + '<button id="ktx-nx-load" class="ghost">' + L('Xem','Load') + '</button>'
-    + '<span class="mut">' + L('Dùng "Số CT đầu" và "chỉ tiền mặt" ở khối trên.','Uses First voucher / cash-only above.') + '</span></div>'
+    + '<span class="mut">' + L('Điền Từ/Đến thì lọc theo khoảng; để trống thì theo Tháng. Dùng "Số CT đầu"/"chỉ tiền mặt" ở khối trên.','From/To range overrides Month. Uses First voucher / cash-only above.') + '</span></div>'
     + '<div id="ktx-nx-wrap" style="margin-top:10px"></div></div>'
     + '<div class="card"><h2>' + L('Báo cáo ngày (DAILY SALES)','Daily sales report') + '</h2>'
     + '<p class="mut">' + L('Chéo: mỗi dòng một cơ sở, mỗi cột một ngày. Cần Unit ID (bên dưới).',
@@ -7338,8 +7340,10 @@ function ktxInit(){
 function ktxNgayXuat(){
   var box=document.getElementById('ktx-nx-wrap'); if(!box) return;
   var thg=(document.getElementById('ktx-nx-thang')||{}).value||thangHomNay();
+  var tu=(document.getElementById('ktx-nx-tu')||{}).value||'';
+  var den=(document.getElementById('ktx-nx-den')||{}).value||'';
   box.innerHTML='<span class="mut">'+L('Đang tải…','Loading…')+'</span>';
-  goi('kt_misa_ngay_ds',{thang:thg},function(r){
+  goi('kt_misa_ngay_ds',{thang:thg,from:tu,to:den},function(r){
     if(!r||!r.ok){ box.innerHTML='<span class="mut err">'+((r&&r.error)||'Lỗi.')+'</span>'; return; }
     var rows=r.rows||[], chua=rows.filter(function(x){return !x.daXuat;}), da=rows.filter(function(x){return x.daXuat;});
     function ddmy(s){ var p=String(s||'').split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):s; }

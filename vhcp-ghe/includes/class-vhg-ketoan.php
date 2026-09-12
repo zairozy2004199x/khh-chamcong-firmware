@@ -1404,15 +1404,21 @@ class VHG_KeToan {
 	private static function misa_xuat_map() {
 		$m = get_option( 'vhg_misa_xuat' ); return is_array( $m ) ? $m : array();
 	}
-	public static function misa_ngay_ds( $thang ) {
+	public static function misa_ngay_ds( $thang, $from = '', $to = '' ) {
 		global $wpdb;
-		$thg  = self::thang_( $thang );
-		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT d.ngay, COUNT(DISTINCT h.coso_key) so_coso, COUNT(*) so_ghe,'
+		$thg = self::thang_( $thang );
+		$f   = self::ngay_( $from ); $t = self::ngay_( $to );
+		$sql = 'SELECT d.ngay, COUNT(DISTINCT h.coso_key) so_coso, COUNT(*) so_ghe,'
 			. ' COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr, COALESCE(SUM(d.tong),0) tong'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE d.kt_duyet=1 AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)'
-			. ' AND DATE_FORMAT(d.ngay,%s)=%s GROUP BY d.ngay ORDER BY d.ngay ASC', '%Y-%m', $thg ), ARRAY_A );
+			. ' WHERE d.kt_duyet=1 AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
+		/* Từ/Đến ưu tiên khi có đủ 2 đầu (anh Thắng 12/09/2026: "nhiều ngày quá, chọn theo khoảng");
+		   không thì lọc theo tháng như cũ. */
+		if ( '' !== $f && '' !== $t ) {
+			$rows = $wpdb->get_results( $wpdb->prepare( $sql . ' AND d.ngay BETWEEN %s AND %s GROUP BY d.ngay ORDER BY d.ngay ASC', $f, $t ), ARRAY_A );
+		} else {
+			$rows = $wpdb->get_results( $wpdb->prepare( $sql . ' AND DATE_FORMAT(d.ngay,%s)=%s GROUP BY d.ngay ORDER BY d.ngay ASC', '%Y-%m', $thg ), ARRAY_A );
+		}
 		$map = self::misa_xuat_map();
 		$ra  = array();
 		foreach ( (array) $rows as $r ) {
