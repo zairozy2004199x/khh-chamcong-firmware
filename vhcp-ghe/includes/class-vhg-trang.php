@@ -7284,10 +7284,13 @@ function veKtXuat(){
     + '<label class="mut"><input type="checkbox" id="ktx-bn-duyet"> ' + L('chỉ đã duyệt','confirmed only') + '</label>'
     + '<button id="ktx-bn" class="on">' + L('Tải báo cáo ngày','Download') + '</button>'
     + '<span id="ktx-bn-msg" class="mut"></span></div></div>'
-    + '<div class="card"><h2>' + L('Unit ID MISA (theo cơ sở)','MISA Unit IDs') + '</h2>'
-    + '<div class="act"><button id="ktx-seed" class="ghost">' + L('Mồi từ danh mục ghế','Seed from chairs') + '</button>'
+    /* Bảng Unit ID dài (mỗi cơ sở 1 dòng) — anh Thắng 12/09/2026: "thêm nút thu nhỏ cho gọn".
+       Dùng <details> gập sẵn: bấm tiêu đề để mở/thu, không cần JS. */
+    + '<div class="card"><details><summary style="cursor:pointer;font-weight:700;font-size:1.05em;list-style:none">▸ '
+    + L('Unit ID MISA (theo cơ sở)','MISA Unit IDs') + ' <span class="mut" style="font-weight:400">— ' + L('bấm để mở/thu nhỏ','click to expand/collapse') + '</span></summary>'
+    + '<div class="act" style="margin-top:10px"><button id="ktx-seed" class="ghost">' + L('Mồi từ danh mục ghế','Seed from chairs') + '</button>'
     + '<span id="ktx-seed-msg" class="mut"></span></div>'
-    + '<div id="ktx-manop-wrap" style="margin-top:10px"></div></div>'
+    + '<div id="ktx-manop-wrap" style="margin-top:10px"></div></details></div>'
     + '<div class="card"><h2>🧪 ' + L('Kiểm tra nhanh (self-test)','Self-test') + '</h2>'
     + '<div class="act"><button id="ktx-test" class="ghost">' + L('Chạy kiểm tra','Run') + '</button>'
     + '<span id="ktx-test-msg" class="mut"></span></div><div id="ktx-test-kq" style="margin-top:8px"></div></div>';
