@@ -260,7 +260,10 @@ class VHG_Trang {
 				@set_time_limit( 180 );
 			}
 			if ( 'bc_boot' === $viec ) {
-				self::tra( VHG_BaoCao::boot( $pin ) ); return;
+				/* Admin THẬT = đang đăng nhập WordPress (anh Thắng cài/sửa plugin qua WP nên luôn có
+				   phiên admin). Chỉ họ mới thấy hàng ghế ĐỎ (đã dọn/lạc) — PIN toàn quyền của nhân
+				   viên KHÔNG còn tính là admin (xem boot()). */
+				self::tra( VHG_BaoCao::boot( $pin, current_user_can( 'manage_options' ) ) ); return;
 			}
 			if ( 'bc_lastmeters' === $viec ) {
 				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
@@ -314,7 +317,8 @@ class VHG_Trang {
 			if ( 'bc_hien_ghe' === $viec ) {
 				self::tra( VHG_BaoCao::hien_ghe(
 					isset( $d['ma'] ) ? $d['ma'] : '',
-					isset( $d['coso'] ) ? $d['coso'] : '', $pin ) );
+					isset( $d['coso'] ) ? $d['coso'] : '', $pin,
+					current_user_can( 'manage_options' ) ) );
 				return;
 			}
 			/* Đính bill chuyển khoản + xác nhận đã nộp — khoá báo cáo và mở lượt nộp cho kế

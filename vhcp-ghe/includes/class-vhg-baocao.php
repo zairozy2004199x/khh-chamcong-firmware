@@ -221,18 +221,19 @@ class VHG_BaoCao {
 	 * `ds_ghe()` bày ra: gỡ `an` + (với ghế "lạc") gán ghế về ĐÚNG cơ sở của báo cáo gần đây, từ đó
 	 * nó lọt lại vào danh sách nhân viên thấy.
 	 *
-	 * 🔴 CHỈ TOÀN QUYỀN. Hàng đỏ chỉ hiện cho PIN toàn quyền ($hien_an qua đường PIN = toàn quyền),
-	 *    nên chốt cửa đúng nhóm ấy — PIN phạm vi hẹp gọi thẳng endpoint cũng bị chối.
+	 * 🔴 CHỈ ADMIN THẬT. Hàng đỏ chỉ hiện cho admin (đăng nhập WordPress / vai trò quản trị), nên
+	 *    chốt cửa đúng nhóm ấy: $la_admin do router tính bằng current_user_can('manage_options').
+	 *    KHÔNG chốt bằng phạm vi PIN — nhân viên cầm PIN toàn quyền không phải admin.
 	 *
 	 * ⚠️ GÁN CƠ SỞ QUA squash(). Tên cơ sở ở hàng đỏ lấy từ `bc.coso` (đóng băng ở báo cáo) có thể
 	 *    lệch dấu/hoa với `coso.ten` sống; so thẳng chuỗi là trượt. squash() (bỏ dấu + HOA + bỏ ký
 	 *    tự lạ) là chuẩn dùng chung của trang này để quy hai cách viết về một.
 	 */
-	public static function hien_ghe( $ma, $coso, $pin ) {
+	public static function hien_ghe( $ma, $coso, $pin, $la_admin = false ) {
 		$q = self::pin_info( $pin );
 		if ( ! $q ) { return array( 'ok' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
-		if ( ! ( empty( $q['coso_key'] ) && empty( $q['ghe'] ) ) ) {
-			return array( 'ok' => false, 'error' => 'Chỉ tài khoản toàn quyền mới hiện lại được ghế.' );
+		if ( ! $la_admin ) {
+			return array( 'ok' => false, 'error' => 'Chỉ admin mới hiện lại được ghế.' );
 		}
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
@@ -676,9 +677,15 @@ class VHG_BaoCao {
 		global $wpdb;
 		$q = self::pin_info( $pin );
 		if ( ! $q ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
-		/* PIN toàn quyền (không giới hạn cơ sở/ghế) cũng coi như admin cho việc HIỆN máy đã dọn. */
 		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
-		$hien_an    = $la_admin || $toan_quyen;   // admin/toàn quyền → hiện máy 'an' (đỏ); nhân viên → ẩn
+		/* 🔴 HÀNG ĐỎ (máy 'đã dọn' + ghế 'lạc') CHỈ HIỆN CHO ADMIN THẬT ($la_admin) — anh Thắng
+		   12/09/2026: "Đã bảo ghế ẩn không hiện vào tài khoản nhân viên mà… chưa ẩn cho tài khoản
+		   nhân viên". PIN TOÀN QUYỀN KHÔNG còn tính là admin: nhiều nhân viên (vd DƯƠNG TRUNG TÍN)
+		   cầm PIN không giới hạn cơ sở để thu nhiều chỗ — họ vẫn là nhân viên, không được thấy hàng
+		   đỏ. Admin thật = đang ĐĂNG NHẬP WordPress (current_user_can) truyền vào từ router bc_boot,
+		   hoặc vai trò quản trị/chốt doanh số qua /ghe (boot_tu_ai). $toan_quyen giữ lại chỉ để bật
+		   ô chọn nhân viên (nhanSu), KHÔNG dùng cho việc hiện hàng đỏ nữa. */
+		$hien_an    = $la_admin;
 		$ghe = self::ds_ghe( $q, $hien_an );
 		$cs = array();
 		foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
