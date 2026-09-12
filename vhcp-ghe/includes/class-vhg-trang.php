@@ -8871,6 +8871,31 @@ function qlTimTrung(){
 function qlGheRender(){
   var box = document.getElementById('ql-wrap'); if (!box) return;
   var may = (D && D.may) || [], coso = (D && D.coso) || [];
+  /* ⚠️ MÃ GHẾ TRÙNG — anh Thắng 12/09/2026: "khả năng trùng mã ghế… hiện cho anh mã đó đang trùng
+     cơ sở nào, để anh đổi mã không trùng". Cả hệ khoá theo `ma` (tiền bc_dong.ma_may, đổi cơ sở,
+     hiện lại ghế…) nên HAI ghế cùng mã ở hai cơ sở là một lệnh kéo nhầm cả hai — chính là gốc
+     "ghế nhảy/mất cơ sở liên tục". Gom trên TOÀN BỘ D.may (cả ẩn lẫn hiện: mã trùng vẫn hại kể cả
+     khi một cái đã ẩn). */
+  var maDem = {}, maCoso = {};
+  may.forEach(function(m){
+    var k = String(m.ma);
+    maDem[k] = (maDem[k] || 0) + 1;
+    (maCoso[k] = maCoso[k] || []).push((m.coso || L('(chưa gán)','(unassigned)')) + (m.an ? L(' [đã ẩn]',' [hidden]') : ''));
+  });
+  function maTrungHtml_(ma){
+    if ((maDem[String(ma)] || 0) < 2) return '';
+    return '<div style="color:#b91c1c;font-weight:700;font-size:11px;margin-top:3px">⚠ '
+      + L('Mã TRÙNG ở: ','Duplicate code at: ') + esc(maCoso[String(ma)].join(', '))
+      + ' — ' + L('đổi mã để khỏi lẫn cơ sở','rename to stop sites mixing') + '</div>';
+  }
+  var trungList = [];
+  Object.keys(maDem).forEach(function(k){ if (maDem[k] > 1) trungList.push(k + ' (' + maCoso[k].join(', ') + ')'); });
+  var canhTrung = trungList.length
+    ? '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:10px;margin-bottom:10px;color:#b91c1c;font-weight:600">⚠ '
+      + L('Có MÃ GHẾ TRÙNG (cùng một mã ở nhiều cơ sở). Vì hệ thống khoá theo mã, mỗi lệnh theo mã sẽ kéo nhầm cả hai ghế — đây là lý do ghế bị nhảy/mất cơ sở. Bấm ✎ đổi một trong hai mã cho khác nhau:',
+          'Duplicate chair codes (same code at several sites). The system keys on code, so any code-based action drags both chairs — this is why chairs jump/lose their site. Click ✎ to rename one:')
+      + '<br>' + esc(trungList.join('  ·  ')) + '</div>'
+    : '';
   /* Cung mot bo loc co so cho ca hai phan — bang chinh va khoi ghe da dieu chuyen. Hai bo loc
      khac nhau la mot ghe an o co so nay lai hien duoi bang cua co so kia. */
   function thuocLoc(m){
@@ -8907,7 +8932,7 @@ function qlGheRender(){
       + '<button id="ql-boc" class="ghost">' + L('Bo chon','Clear') + '</button></div>';
   }
 
-  var h = bulk + '<table><tr>'
+  var h = canhTrung + bulk + '<table><tr>'
     + '<th style="width:26px"><input type="checkbox" id="ql-cp"' + (trangDu ? ' checked' : '') + '></th>'
     + '<th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name') + '</th><th>' + L('Dia diem','Site')
     + '</th><th class="r hide-sm">' + L('Trang thai','Status') + '</th><th class="r"></th></tr>';
@@ -8923,7 +8948,8 @@ function qlGheRender(){
     h += '<tr>'
       + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
       + '<td><b>' + esc(m.ma) + '</b> <button data-mma="' + esc(m.ma) + '" class="ghost" '
-      + 'style="padding:1px 6px;font-size:11px" title="' + L('Đổi mã ghế (giữ toàn bộ lịch sử)','Change chair code (history preserved)') + '">✎</button></td>'
+      + 'style="padding:1px 6px;font-size:11px" title="' + L('Đổi mã ghế (giữ toàn bộ lịch sử)','Change chair code (history preserved)') + '">✎</button>'
+      + maTrungHtml_(m.ma) + '</td>'
       + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
       + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
