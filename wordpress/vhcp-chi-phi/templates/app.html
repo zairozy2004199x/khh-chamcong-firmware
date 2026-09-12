@@ -1391,7 +1391,7 @@
       </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
-    <div class="card">
+    <div class="card" id="qrCard">
       <div class="ch"><h2>🏦 Tài khoản nhận tiền (QR chuyển khoản)</h2><button class="btn b-g" onclick="saveCfgQR()">💾 Lưu</button></div>
       <div class="cb" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
         <div class="fld"><label>Số tài khoản</label><input id="cfgQrStk" placeholder="VD: 0123456789"></div>
@@ -1400,7 +1400,7 @@
       </div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
-    <div class="card">
+    <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây, gắn sẵn đơn vị POSH. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Bên nào nhìn thấy chi phí của cơ sở này. Ô NHẬP kèm gợi ý — gõ tên đơn vị MỚI vào là khai xong, không phải sửa mã. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Tỉnh / thành của gian này — để gom và lọc theo vùng. Ô NHẬP kèm gợi ý: gõ tên tỉnh mới vào là có. Để trống = chưa khai.">Tỉnh / Thành</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
@@ -1414,7 +1414,7 @@
          một khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại — "gian này dùng
          những loại nào?" — và đi chiều kia là phải mở từng loại một, tích lại từng cái.
          Gian ADV GO! AN LẠC vừa mở, ô Loại chi phí lúc nhập đơn chỉ có một dòng: đúng hậu quả. -->
-    <div class="card">
+    <div class="card" id="khaiMaCard">
       <div class="ch"><h2>🆕 Khai mã chi phí</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div></div>
       <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Gõ <b>tên gọi chi phí</b> → <b>số tài khoản</b> → <b>tích những cơ sở áp dụng</b>. Xong. Sau đó cơ sở đã tích mà nhập loại chi phí này là tự ra: TK Nợ · tên tài khoản nội bộ · tên xuất MISA.</div>
       <div class="row" style="padding:4px 14px 0">
@@ -1436,25 +1436,25 @@
       <datalist id="kcLoaiList"></datalist>
     </div>
 
-    <div class="card">
+    <div class="card" id="heTkCard">
       <div class="ch"><h2>🏦 Hệ thống tài khoản của kế toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
       <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">App chỉ cần bảng này để <b>biết một mã có tên là gì</b> (chi phí hay doanh thu đều nạp được) — nó <b>không</b> quyết định mảng, mảng lấy theo cơ sở. Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
       <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
     </div>
 
-    <div class="card">
+    <div class="card" id="mangTkCard">
       <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản <span style="font-size:11px;font-weight:400;color:#94a3b8">(tùy chọn — chỉ cần khi ghép hàng loạt)</span></h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doMangTk()" title="Đọc hệ thống tài khoản, tự điền Nhóm TK + Từ khóa cho từng mảng">🔎 Dò từ hệ thống tài khoản</button><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:760px"><thead><tr><th>Mảng kinh doanh <div style="font-weight:400;font-size:10px;color:#94a3b8">= Phân loại lớn của cơ sở</div></th><th style="width:130px">Nhóm TK</th><th style="width:200px">Từ khóa trong tên TK</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgMangBody"></tbody></table></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khỏi khai tay: nạp hệ thống tài khoản rồi bấm <b>🔎 Dò từ hệ thống tài khoản</b> — app thấy tài khoản cha nào có tài khoản con thì lấy số hiệu làm <b>Nhóm TK</b> (VD <b>6412</b>) và bỏ chữ "Chi phí" khỏi tên cha làm <b>Từ khóa</b> (VD <b>Funzone</b>), rồi ghép sẵn vào <b>Mảng</b> nếu tên phân loại lớn của cơ sở khớp được. Dòng nào cột <b>Mảng</b> còn trống là app không dám đoán — anh chọn tay rồi <b>💾 Lưu</b>. Xong bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên tài khoản để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã đã sửa tay và loại tự thêm <b>không bị đụng</b>.</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="loaiMxCard">
       <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-d" onclick="doXoaLoaiTuTao()" title="Xóa các loại chi phí chưa khai mã nào — phần lớn là tên hạng mục lỡ nạp vào từ bảng tính cũ. Loại đã khai mã thì GIỮ LẠI. Dòng chi phí cũ không đổi.">🧹 Dọn loại chưa khai mã</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
 
-    <div class="card">
+    <div class="card" id="tkCoCard">
       <div class="ch"><h2>💳 TK Có theo Phân loại thanh toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgPl()">＋ Thêm</button><button class="btn b-g" onclick="saveCfgPl()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:520px"><thead><tr><th>Phân loại TT</th><th style="width:120px">TK Có</th><th style="width:44px"></th></tr></thead><tbody id="cfgPlBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Mặc định: Thanh toán cá nhân → <b>141</b> (tạm ứng) · Nhà cung cấp → <b>331</b> (phải trả NCC). Sửa theo TK bạn đi bên MISA.</div>
@@ -8908,6 +8908,90 @@
     if(mo) card.classList.remove('dong'); else card.classList.add('dong');
     try{ localStorage.setItem(_xoKey(card), mo?'1':'0'); }catch(e){}
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * MÀN CẤU HÌNH XẾP THÀNH NHÓM — anh Thắng 12/09/2026: *"giờ sắp xếp và phân loại trong cấu
+   * hình trước để anh xem"*.
+   *
+   * Mười bốn khối nằm liền một mạch theo thứ tự chúng được viết ra qua từng bản vá, nên đứng
+   * cạnh nhau toàn thứ chẳng liên quan: mốc tuần › bộ phận › vai trò › người dùng › bảo trì
+   * ảnh › sửa ngày hỏng › phân quyền. Muốn khai xong một việc thì phải cuộn qua bốn việc khác.
+   *
+   * 🔴 SẮP BẰNG JS, KHÔNG CẮT DÁN HTML. Mỗi khối là vài chục tới vài trăm dòng, nhiều khối có
+   *    chú thích dài và mã gắn với đúng vị trí ấy. Dời bằng tay là một lượt sửa khổng lồ mà
+   *    mắt không soát nổi, và lỡ tay nuốt mất một thẻ đóng thì cả trang hỏng. Ở đây HTML không
+   *    đổi một ký tự nào — chỉ `appendChild` lại theo thứ tự, nên muốn quay về như cũ thì xoá
+   *    đúng hàm này.
+   *
+   * 🔴 KHỐI KHÔNG KHAI NHÓM KHÔNG ĐƯỢC BIẾN MẤT. Ai đó thêm một thẻ mới mà quên khai vào bảng
+   *    dưới thì nó rơi vào nhóm "Khác" ở cuối — vẫn thấy, vẫn dùng được. Lọc bỏ những khối
+   *    không nhận ra là kiểu hỏng tệ nhất của một hàm sắp xếp: dữ liệu còn nguyên trên máy
+   *    chủ, chỉ là không còn chỗ nào mở ra được.
+   *
+   * ⚠️ CHẠY SAU MỖI LƯỢT `renderCfg()`, vì vài khối bị ẩn/hiện theo vai (kyCard · quyenCard ·
+   *    ngayHongCard) — xếp một lần lúc dựng trang thì khối hiện sau sẽ nằm lạc chỗ.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var CH_NHOM=[
+    { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard'],
+      mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào.' },
+    { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
+      mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
+    { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard','mangTkCard'],
+      mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
+    { ten:'💵 Tiền & kỳ',                 id:['qrCard','kyCard'],
+      mo:'Tài khoản nhận tiền, và mốc tuần của đơn.' },
+    { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard','imgMaintCard'],
+      mo:'Chỉ dùng khi thật sự cần. Mỗi nút ở đây sửa hàng loạt dòng đã có.' }
+  ];
+  function xepCauHinh(){
+    var box=el('page-cauhinh'); if(!box) return;
+    var da={};
+    CH_NHOM.forEach(function(g){ g.id.forEach(function(i){ da[i]=1; }); });
+    /* Khối lạ = có class card mà không khai nhóm. Gom lại cho vào "Khác" ở cuối. */
+    /* Quét khối lạ ở CẢ HAI chỗ: ngoài khung (lượt xếp đầu) và trong khung (những lượt sau,
+       khi chúng đã được dời vào). Chỉ quét một chỗ là lượt thứ hai đánh rơi chúng. */
+    var la=[];
+    ['#page-cauhinh > .card', '#chNhomWrap > .card'].forEach(function(sel){
+      Array.prototype.forEach.call(document.querySelectorAll(sel),function(c){
+        if((!c.id || !da[c.id]) && la.indexOf(c)<0) la.push(c);
+      });
+    });
+    /* 🔴 DÙNG LẠI KHUNG CŨ, TUYỆT ĐỐI KHÔNG GỠ NÓ ĐI.
+       Cắn thật ngay lượt viết đầu (12/09/2026), bài kiểm đỏ đúng chỗ: bản đầu gỡ khung rồi
+       dựng khung mới. Nhưng sau lượt xếp thứ nhất thì MỌI KHỐI đã nằm TRONG khung ấy — gỡ
+       khung là chúng rời khỏi cây DOM, `el()` không tìm lại được, và lượt xếp thứ hai append
+       một đống `null`: màn Cấu hình TRẮNG TRƠN.
+       Mà `renderCfg()` chạy lại sau mỗi lượt Lưu, nên lỗi này chắc chắn xảy ra — chỉ là xảy
+       ra ở lượt thứ hai, tức sau khi người dùng vừa bấm Lưu và đang yên tâm nhất.
+       Nay chỉ gỡ mấy DẢI TIÊU ĐỀ (con không phải .card) rồi xếp lại các khối vào đúng khung
+       cũ; `appendChild` tự dời chỗ, không nhân bản. */
+    var wrap=el('chNhomWrap');
+    if(!wrap){ wrap=document.createElement('div'); wrap.id='chNhomWrap'; box.appendChild(wrap); }
+    Array.prototype.slice.call(wrap.children||[]).forEach(function(c){
+      if(!c.classList || !c.classList.contains('card')) wrap.removeChild(c);
+    });
+
+    function dai(g){
+      var d=document.createElement('div');
+      d.style.cssText='margin:22px 0 8px;padding:7px 12px;border-radius:9px;background:#f1f5f9;'
+        +'border-left:4px solid #0f766e';
+      d.innerHTML='<b style="font-size:13px;color:#0f766e">'+esc(g.ten)+'</b>'
+        +'<div style="font-size:11.5px;color:#64748b;margin-top:1px">'+esc(g.mo)+'</div>';
+      return d;
+    }
+    CH_NHOM.forEach(function(g){
+      var con=g.id.map(function(i){ return el(i); }).filter(Boolean);
+      /* Nhóm mà mọi khối đều đang ẩn (theo vai) thì đừng bày dải tiêu đề trống — người xem sẽ
+         tưởng khối bị mất. Ẩn/hiện do `renderCfg()` quyết, nên phải soi lúc xếp. */
+      var hien=con.filter(function(c){ return c.style.display!=='none'; });
+      if(!hien.length){ con.forEach(function(c){ wrap.appendChild(c); }); return; }
+      wrap.appendChild(dai(g));
+      con.forEach(function(c){ wrap.appendChild(c); });
+    });
+    if(la.length){
+      wrap.appendChild(dai({ ten:'📦 Khác', mo:'Khối chưa xếp vào nhóm nào — xem CH_NHOM trong app.html.' }));
+      la.forEach(function(c){ wrap.appendChild(c); });
+    }
+  }
   function xoTatCa(mo){
     var pg=el('page-cauhinh'); if(!pg) return;
     Array.prototype.forEach.call(pg.querySelectorAll('.card.xo'),function(c){ _xoDat(c,!!mo); });
@@ -9087,6 +9171,11 @@
     if(el('cfgDtBody')) el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
     kcFill();
     renderTkNoMatrix();
+    /* 🔴 XẾP NHÓM SAU CÙNG. Mấy khối bị ẩn/hiện theo vai (kyCard · quyenCard · ngayHongCard)
+       do chính `renderCfg()` quyết định ở trên, nên xếp trước là dải tiêu đề của một nhóm
+       toàn khối ẩn vẫn hiện ra — trông như mất khối. Gọi ở đây thì luôn xếp trên trạng thái
+       vừa dựng xong. */
+    xepCauHinh();
   }
   // ---- SSO: phân vai trò cho người từ trang tổng (Admin) ----
   /* 🔗 "Đăng nhập từ trang tổng (SSO)" đã BỎ khỏi màn — anh Thắng 10/09/2026: *"LOẠI BỎ,
