@@ -2238,7 +2238,9 @@ class VHG_Trang {
     function hien_(){
       if(big|| !img.src) return;
       big=el('img'); big.src=img.src;
-      big.style.cssText='position:fixed;z-index:99999;max-width:min(82vw,440px);max-height:82vh;'
+      /* z-index PHẢI trên #bc-app (100000) — nếu không lớp phóng to nằm SAU màn báo cáo nên "rê
+         vào không thấy gì" (anh Thắng 12/09). */
+      big.style.cssText='position:fixed;z-index:1000001;max-width:min(82vw,440px);max-height:82vh;'
         +'border:2px solid #fff;border-radius:10px;box-shadow:0 12px 44px rgba(0,0,0,.38);'
         +'pointer-events:none;background:#fff';
       document.body.appendChild(big); dat_();
