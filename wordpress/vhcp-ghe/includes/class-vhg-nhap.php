@@ -204,6 +204,106 @@ class VHG_Nhap {
 	 * Áp lại bản đồ cho những giao dịch CHƯA có tên máy.
 	 * Dùng sau khi khai/sửa bản đồ — khỏi phải nhập lại cả file Excel.
 	 */
+	/**
+	 * VÁ TÊN MÁY CHO NHỮNG DÒNG ĐÃ Ở TRONG SỔ MÀ CHƯA RÕ MÁY — KHÔNG THÊM DÒNG NÀO.
+	 *
+	 * =========================================================================================
+	 * Anh Thắng 11/09/2026: *"anh lọc trực tiếp từ trang sao kê chứ, chỗ sao kê QR — tải sao kê
+	 * lọc, tải lên sẽ lọc cái bảng kê không tên"*.
+	 *
+	 * Đây là việc KHÁC HẲN `nhap_giao_dich()`, dù cùng đọc một tệp:
+	 *   · `nhap_giao_dich()` THÊM giao dịch vào sổ — đường vá cho những ngày webhook chết;
+	 *   · hàm này KHÔNG thêm gì, chỉ điền cái TÊN còn thiếu vào những dòng đã nằm sẵn trong sổ.
+	 *
+	 * 🔴 VÌ SAO PHẢI TÁCH LÀM HAI ĐƯỜNG, KHÔNG GỘP CHO GỌN.
+	 *    Anh Thắng 11/09/2026: *"không nên đẩy vào trang ghế bằng file sao kê, sau nó sẽ rối"*.
+	 *    Tệp sao kê thường trùm một khoảng ngày rộng hơn chỗ đang thiếu; đổ cả tệp vào sổ chỉ
+	 *    để lấy vài cái tên là kéo theo hàng trăm dòng không ai kiểm — mà `ref` là UNIQUE nên
+	 *    xoá đi rồi thì đúng giao dịch ấy webhook bắn lại cũng không vào được nữa.
+	 *
+	 *    Đường này an toàn theo đúng nghĩa: nó chỉ chạy `UPDATE` trên những dòng CÓ SẴN, và
+	 *    không có lệnh `insert` nào — `kiem-va-ten-tu-sao-ke.php` canh cả bằng phép quét mã.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG DÒNG ĐÃ RÕ MÁY. Dòng nào đã có `ma_may` (khớp mẫu GHE…) hoặc đã có
+	 *    `ten_khai` thì để yên: tên trong sổ có thể do người khai gán tay ở bảng "chưa rõ ghế",
+	 *    mà người khai luôn đúng hơn phép đoán từ một tệp tải về.
+	 *
+	 * @return array ok + số dòng đã vá / không thấy trong sổ / vốn đã rõ.
+	 */
+	public static function va_ten_tu_bang( $bang ) {
+		global $wpdb;
+		if ( ! is_array( $bang ) || count( $bang ) < 2 ) {
+			return array( 'ok' => false, 'error' => 'Cần cả dòng TIÊU ĐỀ và ít nhất một dòng dữ liệu.' );
+		}
+		$h = $bang[0];
+		$i_ref = self::cot( $h, array( 'mã tham chiếu', 'tham chiếu', 'reference' ) );
+		$i_vvb = self::cot( $h, array( 'mã điểm bán', 'điểm bán', 'voice box' ) );
+		$i_ch  = self::cot( $h, array( 'mã cửa hàng', 'cửa hàng' ) );
+		$i_nd  = self::cot( $h, array( 'nội dung' ) );
+		if ( $i_ref < 0 ) {
+			return array( 'ok' => false, 'error' => 'Không thấy cột "Mã tham chiếu" trong dòng tiêu đề. '
+				. 'Đó là thứ duy nhất nối được dòng trong tệp với dòng trong sổ — thiếu nó thì không '
+				. 'vá cho dòng nào được cả.' );
+		}
+		if ( $i_vvb < 0 && $i_ch < 0 && $i_nd < 0 ) {
+			return array( 'ok' => false, 'error' => 'Tệp không có cột nào nói được máy nào '
+				. '("Mã điểm bán" / "Mã cửa hàng" / "Nội dung") — không có gì để vá.' );
+		}
+
+		$lay = function ( $d, $i ) { return ( $i >= 0 && isset( $d[ $i ] ) ) ? trim( (string) $d[ $i ] ) : ''; };
+
+		/* --- Vòng 1: HỌC. Dòng nào có tên máy trong nội dung thì dạy cho bản đồ, để vòng sau
+		       tra được cho những dòng chỉ có mã cửa hàng. Y như `nhap_giao_dich()`. --- */
+		$hoc = 0;
+		for ( $r = 1; $r < count( $bang ); $r++ ) {
+			$d   = $bang[ $r ];
+			$ten = VHG_Doc::ten_may( $lay( $d, $i_nd ) );
+			if ( '' === $ten ) { continue; }
+			$vvb = $lay( $d, $i_vvb ); $ma_ch = $lay( $d, $i_ch );
+			if ( '' !== $vvb && self::dat( $vvb, $ten, true, $vvb, $ma_ch ) ) { $hoc++; }
+			if ( '' !== $ma_ch ) { self::dat( $ma_ch, $ten, true, $vvb, $ma_ch ); }
+		}
+
+		/* --- Vòng 2: VÁ. Chỉ `UPDATE`, không `insert`. --- */
+		$t = VHG_DB::t( 'thu' );
+		$va = 0; $khong_thay = 0; $da_ro = 0; $chiu = 0;
+		for ( $r = 1; $r < count( $bang ); $r++ ) {
+			$d   = $bang[ $r ];
+			$ref = $lay( $d, $i_ref );
+			if ( '' === $ref ) { continue; }
+
+			$hit = VHG_DB::rows( $wpdb->prepare( "SELECT id, ma_may, ten_khai FROM $t WHERE ref=%s LIMIT 1", $ref ) );
+			if ( ! $hit ) { $khong_thay++; continue; }
+			$cu = $hit[0];
+			/* ⚠️ Dòng đã rõ thì ĐỂ YÊN — xem khối ⚠️ ở đầu hàm. */
+			if ( '' !== trim( (string) $cu['ma_may'] ) || '' !== trim( (string) $cu['ten_khai'] ) ) {
+				$da_ro++; continue;
+			}
+
+			$nd  = $lay( $d, $i_nd );
+			$vvb = $lay( $d, $i_vvb ); $ma_ch = $lay( $d, $i_ch );
+			$ten = VHG_Doc::ten_may( $nd );
+			if ( '' === $ten && '' !== $vvb )   { $ten = self::tra( $vvb ); }
+			if ( '' === $ten && '' !== $ma_ch ) { $ten = self::tra( $ma_ch ); }
+			if ( '' === $ten ) { $chiu++; continue; }
+
+			/* Ghi kèm cả hai mã: lần "Áp lại bản đồ" sau này còn tra được, và người đọc sổ thấy
+			   được cái tên ấy suy từ đâu ra. */
+			$wpdb->update( $t, array( 'ten_khai' => $ten,
+				'vvb'   => '' !== $vvb ? strtoupper( $vvb ) : '',
+				'ma_ch' => '' !== $ma_ch ? strtoupper( $ma_ch ) : '' ), array( 'id' => (int) $cu['id'] ) );
+			$va++;
+		}
+
+		return array( 'ok' => true, 'va' => $va, 'khongThay' => $khong_thay, 'daRo' => $da_ro,
+			'chiu' => $chiu, 'hoc' => $hoc,
+			'thong_bao' => 'Vá tên máy cho ' . $va . ' giao dịch đang chưa rõ · học thêm ' . $hoc
+				. ' máy vào bản đồ. Trong tệp: ' . $da_ro . ' dòng vốn đã rõ · ' . $chiu
+				. ' dòng tệp cũng không nói được máy nào · ' . $khong_thay . ' dòng không có trong sổ '
+				. '(đó là bình thường — sao kê trùm khoảng ngày rộng hơn). '
+				. 'KHÔNG thêm dòng nào vào sổ tiền.' );
+	}
+
 	public static function ap_lai_ban_do() {
 		global $wpdb;
 		$bang = VHG_DB::t( 'thu' );

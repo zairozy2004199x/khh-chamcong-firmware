@@ -1563,12 +1563,24 @@ class VHG_Admin {
 		echo '</tbody></table></div>';
 
 		if ( $thieu_bat_buoc ) { return; }
-		echo '<h3>② Chọn lại đúng tệp vừa xem rồi bấm nhập</h3>';
+		echo '<h3>② Chọn lại đúng tệp vừa xem rồi bấm một trong ba việc</h3>';
 		echo '<form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'vhg' );
-		echo '<input type="file" name="tep" accept=".xlsx,.csv,.tsv,.txt" required /> ';
-		echo '<button class="button button-primary" name="vhg" value="nhap_tep_gd">Nhập giao dịch</button> ';
-		echo '<button class="button" name="vhg" value="nhap_tep_bd">Nhập làm bản đồ máy</button>';
+		echo '<input type="file" name="tep" accept=".xlsx,.csv,.tsv,.txt" required /><br /><br />';
+		/* 🔴 VIỆC AN TOÀN NHẤT ĐỨNG TRƯỚC VÀ TÔ ĐẬM.
+		   Anh Thắng 11/09/2026: *"tải lên sẽ lọc cái bảng kê không tên"* — thứ anh cần hằng ngày
+		   là VÁ TÊN, không phải thêm dòng. Đặt nút "Nhập giao dịch" lên đầu là mời người ta bấm
+		   nhầm vào việc nặng nhất: đổ cả tệp vào sổ tiền chỉ để lấy vài cái tên. */
+		echo '<button class="button button-primary" name="vhg" value="va_ten_tep">'
+			. '🩹 Vá tên máy cho dòng chưa rõ — KHÔNG thêm dòng nào</button>';
+		echo '<p class="description" style="margin:6px 0 14px">Đọc tệp, tra theo <b>mã tham chiếu</b>, rồi '
+			. 'chỉ điền cái TÊN còn thiếu vào những dòng <b>đã nằm sẵn trong sổ</b>. Dòng nào đã rõ máy thì '
+			. 'để yên. <b>Không thêm giao dịch nào</b> — đây là việc anh cần khi bảng "Tiền đã vào mà chưa rõ '
+			. 'ghế" ở màn Đối soát còn dài.</p>';
+		echo '<button class="button" name="vhg" value="nhap_tep_bd">Nhập làm bản đồ máy</button> ';
+		echo '<button class="button" name="vhg" value="nhap_tep_gd">Nhập giao dịch (THÊM dòng vào sổ tiền)</button>';
+		echo '<p class="description">Nút cuối <b>thêm dòng mới</b> vào sổ tiền — chỉ dùng khi webhook chết một '
+			. 'buổi và sổ thiếu hẳn giao dịch. Còn nếu tiền đã vào sổ mà chỉ thiếu tên máy thì bấm nút đầu.</p>';
 		echo '</form>';
 	}
 
@@ -1578,7 +1590,8 @@ class VHG_Admin {
 		if ( isset( $_POST['vhg'] ) ) {
 			check_admin_referer( 'vhg' );
 			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
-			if ( 'xem_tep' === $viec || 'nhap_tep_gd' === $viec || 'nhap_tep_bd' === $viec ) {
+			if ( 'xem_tep' === $viec || 'nhap_tep_gd' === $viec || 'nhap_tep_bd' === $viec
+				|| 'va_ten_tep' === $viec ) {
 				/* 🔴 XEM TRƯỚC LÀ BƯỚC BẮT BUỘC, KHÔNG PHẢI TIỆN NGHI.
 				 *
 				 * Sao kê 2.000 dòng nhập một phát là 2.000 dòng tiền vào sổ. Nhận nhầm cột — tên
@@ -1601,6 +1614,8 @@ class VHG_Admin {
 							. 'SOÁT BẢNG DƯỚI RỒI MỚI BẤM NHẬP — nhập rồi thì không lùi được.' );
 					} elseif ( 'nhap_tep_gd' === $viec ) {
 						$bao[] = VHG_Nhap::nhap_giao_dich( $bang );
+					} elseif ( 'va_ten_tep' === $viec ) {
+						$bao[] = VHG_Nhap::va_ten_tu_bang( $bang );
 					} else {
 						$bao[] = VHG_Nhap::nhap_ban_do( $bang );
 					}
