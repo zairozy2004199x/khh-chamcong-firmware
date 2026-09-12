@@ -154,10 +154,19 @@ class VHG_May {
 		$id = (int) $id;
 		$so = (int) $wpdb->get_var( $wpdb->prepare(
 			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'may' ) . ' WHERE coso_id=%d', $id ) );
-		$wpdb->update( VHG_DB::t( 'may' ), array( 'coso_id' => 0 ), array( 'coso_id' => $id ) );
+		/* 🔴 KHÔNG XOÁ CƠ SỞ CÒN GHẾ — anh Thắng 12/09/2026: *"không ẩn số ghế tự nhiên, rồi tìm
+		   lại không thấy… tình trạng bị liên tục"*. Bản trước đặt `coso_id=0` cho CẢ LOẠT ghế rồi xoá
+		   luôn dòng cơ sở: mỗi ghế mất tên cơ sở → rơi khỏi mọi phạm vi PIN (ds_ghe/trong_pham_vi),
+		   biến mất khỏi màn nhập THEO CỤM; tệ hơn, tên cơ sở bị xoá nên không còn tra ngược được. Đây
+		   là NGUYÊN NHÂN gốc "cả loạt VHM biến mất một lúc ở một cơ sở". Nay chặn thẳng: phải điều
+		   chuyển hết ghế sang cơ sở khác (nút "Đổi cơ sở"/"Điều chuyển") rồi mới xoá được cơ sở rỗng. */
+		if ( $so > 0 ) {
+			return array( 'ok' => false, 'error' => 'Cơ sở còn ' . $so . ' ghế — KHÔNG xoá được (xoá là '
+				. 'cả loạt ghế mất khỏi màn nhập). Hãy "Đổi cơ sở" chuyển hết ghế sang nơi khác trước, '
+				. 'rồi xoá cơ sở rỗng.' );
+		}
 		$wpdb->delete( VHG_DB::t( 'coso' ), array( 'id' => $id ) );
-		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cơ sở.'
-			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cơ sở (rỗng, không còn ghế).' );
 	}
 
 	/**
@@ -1154,6 +1163,11 @@ class VHG_May {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		/* 🔴 KHÔNG cho đổi về coso_id=0 — ghế thành "chưa gán" là rơi khỏi màn nhập, đúng vụ "ghế
+		   tự nhiên mất". Ô cơ sở còn ở "— chưa gán —" thì router gửi 0; chặn ngay tại đây. */
+		if ( (int) $coso_id <= 0 ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở đích — không đổi (để tránh ghế thành "chưa gán", mất khỏi màn nhập).' );
+		}
 		$wpdb->update( VHG_DB::t( 'may' ),
 			array( 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ),
 			array( 'ma' => $ma ) );
@@ -1250,6 +1264,11 @@ class VHG_May {
 			if ( '' !== $m && ! in_array( $m, $sach, true ) ) { $sach[] = $m; }
 		}
 		if ( ! $sach ) { return array( 'ok' => false, 'error' => 'Chưa chọn ghế nào.' ); }
+		/* 🔴 CHẶN coso_id=0 — xem dat_coso(). Đổi lô mà ô cơ sở để trống là orphan CẢ CỤM ghế một
+		   lượt (router mặc định 0). Đây là một trong ba đường làm "cả loạt ghế mất một lúc". */
+		if ( (int) $coso_id <= 0 ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở đích — không đổi lô (để tránh cả cụm ghế thành "chưa gán", mất khỏi màn nhập).' );
+		}
 		$bang = VHG_DB::t( 'may' );
 		$cho  = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
 		$wpdb->query( $wpdb->prepare(

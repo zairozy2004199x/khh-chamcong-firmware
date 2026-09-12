@@ -254,6 +254,25 @@ class VHG_BaoCao {
 			. ( null !== $cid && '' !== $coso ? ' ở ' . $coso : '' ) . '.' );
 	}
 
+	/**
+	 * VÂN TAY MỘT BỘ HÀNG BÁO CÁO — dùng để phát hiện lượt Gửi TRÙNG (xem luu()). Chuẩn hoá mỗi ghế
+	 * thành "mã · chỉ số sau · QR · tổng", sắp xếp rồi nối — nên thứ tự ghế không ảnh hưởng. Ăn được
+	 * cả hàng đang dựng trong luu() lẫn hàng đọc từ `bc_dong` (cùng khoá `ma_may/chi_so_sau/qr/tong`).
+	 * chi_so_sau ép về (float) để '551,5' và '551.5' và 551.50 ra cùng một dấu; null/rỗng → 'x'.
+	 */
+	private static function van_tay_bo_( $rows ) {
+		$ds = array();
+		foreach ( (array) $rows as $r ) {
+			$cs = ( isset( $r['chi_so_sau'] ) && null !== $r['chi_so_sau'] && '' !== $r['chi_so_sau'] )
+				? (string) (float) $r['chi_so_sau'] : 'x';
+			$ds[] = (string) ( isset( $r['ma_may'] ) ? $r['ma_may'] : '' ) . ':' . $cs
+				. ':' . (int) ( isset( $r['qr'] ) ? $r['qr'] : 0 )
+				. ':' . (int) ( isset( $r['tong'] ) ? $r['tong'] : 0 );
+		}
+		sort( $ds );
+		return implode( '|', $ds );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ CHỈ SỐ (dùng chung)
 
 	/**
@@ -1044,6 +1063,33 @@ class VHG_BaoCao {
 		if ( ! count( $rows ) ) { return array( 'ok' => false, 'message' => 'Chưa nhập chỉ số sau cho ghế nào.' ); }
 
 		$ck = self::squash( $coso );
+		/* 🔴 CHỐNG GỬI TRÙNG (double-click / "tưởng lỗi nên gửi lại") — anh Thắng 12/09/2026: "vấn
+		   đề trùng lặp ở đâu, sai số ở đâu". Mỗi lượt Gửi tạo `lan` mới là CỐ Ý (thu lần nữa, chèn
+		   giữa); nhưng gửi lại Y HỆT trong vài giây thì QR và "Thực thu ghi đè" — hai số ghi verbatim,
+		   KHÔNG tự triệt tiêu như tiền tính theo chỉ số (lần sau nối tiếp chỉ số lần trước nên delta
+		   = 0) — bị đếm HAI LẦN vào tổng (doanh_thu_thang_theo_may SUM theo ma_may). Chặn đúng ca ấy:
+		   cùng cơ sở+ngày+nhân viên, cùng bộ (ghế·chỉ số sau·QR·tổng), lần trước mới ghi < 120 giây
+		   → coi là bấm trùng, trả lại báo cáo cũ, KHÔNG chèn lần hai. KHÔNG đụng "thu lần nữa" thật:
+		   lần đó chỉ số/số tiền khác, hoặc cách nhau > 120 giây. */
+		$van_tay = self::van_tay_bo_( $rows );
+		$cu_hd = $wpdb->get_row( $wpdb->prepare(
+			'SELECT report_id, tao_luc, nhan_vien FROM ' . VHG_DB::t( 'bc' )
+			. ' WHERE coso_key=%s AND ngay=%s ORDER BY lan DESC LIMIT 1', $ck, $ngay ), ARRAY_A );
+		if ( $cu_hd && trim( (string) $cu_hd['nhan_vien'] ) === trim( (string) $q['ten'] ) ) {
+			$tuoi = current_time( 'timestamp' ) - (int) strtotime( (string) $cu_hd['tao_luc'] );
+			if ( $tuoi >= 0 && $tuoi < 120 ) {
+				$cu_rows = $wpdb->get_results( $wpdb->prepare(
+					'SELECT ma_may, chi_so_sau, qr, tong FROM ' . VHG_DB::t( 'bc_dong' )
+					. ' WHERE report_id=%s', (string) $cu_hd['report_id'] ), ARRAY_A );
+				if ( self::van_tay_bo_( $cu_rows ) === $van_tay ) {
+					return array( 'ok' => true, 'reportId' => (string) $cu_hd['report_id'],
+						'rows' => count( $rows ), 'updated' => false, 'boGhe' => array(),
+						'dongYeuCau' => 0, 'phien' => null, 'trung' => true,
+						'message' => 'Báo cáo này vừa gửi xong ' . $tuoi . ' giây trước — bỏ qua lượt gửi TRÙNG '
+							. 'để không đếm tiền hai lần. (Muốn thu thêm lần nữa với số khác thì cứ nhập số mới.)' );
+				}
+			}
+		}
 		/* 🔴 MỖI LẦN GỬI = MỘT LẦN THU MỚI, KHÔNG BAO GIỜ ĐÈ LÊN LẦN CŨ.
 		   Anh Thắng 29/08/2026: *"không nên bấm + thu lần nữa, mà sẽ tự hiểu và chèn vào giữa,
 		   nghĩa là chọn ngày đó thì doanh thu ngày đó thôi"*. Bản 1.63.0 bắt bấm nút "➕ Thu lần
