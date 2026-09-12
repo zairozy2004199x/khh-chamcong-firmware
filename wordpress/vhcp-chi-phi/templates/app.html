@@ -9155,6 +9155,36 @@
       }).join('')
       +'</div>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * Ô TÍCH ĐƠN VỊ CHO LOẠI CHI PHÍ — anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí
+   * Khác, Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*.
+   *
+   * 🔴 KHÔNG TÍCH GÌ = MỌI NHÀ, giữ đúng nghĩa ô trống — y như cột Bộ phận. Danh mục dựng từ
+   *    sổ cũ nên gần như mọi dòng còn bỏ trống ô này; hiểu ngược lại là ngày bản này lên, MỌI
+   *    bảng mã trắng trơn và không ai đoán ra vì sao.
+   *
+   * ⚠️ Dùng lại đúng khuôn hộp tích của cột Bộ phận, kể cả `data-dv` để `_readRows()` đọc ra
+   *    một chuỗi ngăn phẩy. Bịa một khuôn khác là thêm một chỗ phải nhớ khi sửa cả hai.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  function _dvSelNhieu(v){
+    var da=String(v==null?'':v).split(',').map(function(x){return x.trim().toLowerCase();}).filter(Boolean);
+    var ds=(BOOT.donVi||['K&H']);
+    return '<div data-dv-nhieu style="display:flex;flex-wrap:wrap;gap:2px 10px;padding:2px 0" title="Không tích gì = mọi đơn vị đều dùng loại này.">'
+      +ds.map(function(d){
+        var c=da.indexOf(String(d).toLowerCase())>=0;
+        return '<label style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;white-space:nowrap;cursor:pointer">'
+          +'<input type="checkbox" value="'+esc(d)+'"'+(c?' checked':'')+' style="margin:0;cursor:pointer">'
+          +esc(d)+'</label>';
+      }).join('')
+      +'</div>';
+  }
+  /** Loại chi phí này có dùng cho đơn vị ấy không. Trống = mọi nhà. */
+  function _loaiChoDv(x, dv){
+    var v=String((x&&x.donVi)||'').trim();
+    if(!v) return true;
+    var k=String(dv||'').trim().toLowerCase();
+    return v.split(',').some(function(d){ return d.trim().toLowerCase()===k; });
+  }
   function _delBtn(){ return '<td style="text-align:center"><button class="btn b-d" onclick="delCfgRow(this)">✕</button></td>'; }
   function delCfgRow(btn){ var tr=btn.parentNode.parentNode; tr.parentNode.removeChild(tr); }
   function renderCfg(){
@@ -9327,10 +9357,11 @@
     // lấy lại từ dữ liệu cũ (xem saveCfgTkNoMx).
     /* BẢNG TRÊN — thuộc tính của loại chi phí. Bốn cột, vừa một màn, ô Bộ phận đủ rộng để
        đọc ra tên. */
-    var h='<table style="min-width:700px"><thead><tr>'
+    var h='<table style="min-width:870px"><thead><tr>'
       +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
       +'<th style="width:140px">Loại</th>'
       +'<th style="width:320px">Bộ phận <span style="font-weight:400;color:#94a3b8">(không tích = mọi bộ phận)</span></th>'
+      +'<th style="width:170px">Đơn vị <span style="font-weight:400;color:#94a3b8">(không tích = mọi nhà)</span></th>'
       +'<th style="width:190px">Tên theo MISA</th>'
       +'<th style="width:44px"></th></tr></thead><tbody id="cfgMxBody">';
     h+=rows.map(function(x){ return _mxRowHtml(x); }).join('');
@@ -9360,15 +9391,26 @@
       h+='<div style="color:#94a3b8;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
     }
     nhom.forEach(function(g){
+      /* 🔴 MỖI NHÀ MỘT BỘ CỘT. Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác,
+         Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*. Bảng 81 mảng của POSH trước nay bày cả
+         chín cột của KVC, toàn dấu "—" — kéo ngang mãi không hết mà chẳng có gì để điền.
+         ⚠️ Loại CHƯA khai đơn vị vẫn hiện ở mọi nhà (xem `_loaiChoDv`), nên bản này KHÔNG làm
+            mất cột nào của ai cho tới khi có người tích. */
+      var rws=rows.filter(function(x){ return _loaiChoDv(x, g.dv); });
+      if(!rws.length){
+        h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span></div>'
+          +'<div style="color:#94a3b8;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
+        return;
+      }
       h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span>'
-        +' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · xếp theo '
+        +' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
         +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span></div>'
-        +'<div class="tw"><table style="min-width:'+(220+rows.length*128)+'px"><thead><tr>'
+        +'<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
         +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f8fafc;z-index:1">Mảng kinh doanh</th>'
-        +rows.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
+        +rws.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
         +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
-        +_mxSapCols(g.cols, rows, mx).map(function(c){
-            var _t=_mangTong(c), _d=_mangTongDoan(c, rows, mx);
+        +_mxSapCols(g.cols, rws, mx).map(function(c){
+            var _t=_mangTong(c), _d=_mangTongDoan(c, rws, mx);
             return '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'
               +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#0f766e;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
               +'<input value="'+esc(_t)+'" data-mang-tong="'+esc(c)+'" list="tkChartList"'
@@ -9376,7 +9418,7 @@
               +' title="Số tổng của cả mảng — VD TUTU MN là 6410, các ô bên phải là 64106 · 64105…&#10;Để trống cũng không sao: nó chỉ dùng để bày trong ngoặc và để xếp theo số tài khoản."'
               +' style="width:100%;margin-top:3px;font-size:11.5px;font-family:Consolas,monospace">'
               +'</td>'
-              +rows.map(function(x){
+              +rws.map(function(x){
                   var ten=String(x.ten||'');
                   return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
                     +' data-loai="'+esc(ten)+'" data-pll="'+esc(c)+'" oninput="onPickTk(this)"></td>';
@@ -9793,6 +9835,7 @@
     return '<tr><td><input value="'+esc(ten)+'" data-goc="'+esc(ten)+'" placeholder="VD: Chi phí lương" style="width:100%"></td>'
       +'<td>'+_loaiSel(x.loaiTt||'').replace('<select','<select data-o="loaiTt"')+'</td>'
       +'<td>'+_bpSelNhieu(x.boPhan||'')+'</td>'
+      +'<td>'+_dvSelNhieu(x.donVi||'')+'</td>'
       +'<td><input value="'+esc(x.tenMisa||'')+'" data-o="misa" placeholder="trống = dùng tên bên trái" style="width:100%"></td>'
       +_delBtn()+'</tr>';
   }
@@ -9823,9 +9866,11 @@
       var oMisa=tr.querySelector('input[data-o="misa"]');
       var bp=Array.prototype.map.call(tr.querySelectorAll('[data-bp] input:checked'),
                 function(c){ return c.value; }).join(', ');
+      var dvL=Array.prototype.map.call(tr.querySelectorAll('[data-dv-nhieu] input:checked'),
+                function(c){ return c.value; }).join(', ');
       // Bảng không còn cột TK Có và "Mọi mảng" -> giữ nguyên giá trị đã lưu, đừng ghi rỗng
       // lên (lưu bảng một lần là xóa sạch mã cũ của mọi loại thì hỏng nặng).
-      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), boPhan:bp,
+      dm.push({ ten:ten, loaiTt:String((oLoai&&oLoai.value)||''), boPhan:bp, donVi:dvL,
                 tenMisa:String((oMisa&&oMisa.value)||'').trim(),
                 tkCo:goc.tkCo||'', tkNo:goc.tkNo||'',
                 maDt:goc.maDt||'', note:goc.note||'' });
@@ -9834,15 +9879,24 @@
        vị trí cột: xoá một loại ở bảng trên là mọi cột sau nó lùi một chỗ, và đọc theo vị trí
        thì mã của cả bảng gán nhầm sang loại bên cạnh — hỏng im lặng, vì sổ vẫn có mã, chỉ là
        mã của loại khác. */
-    var hienMang={};
+    /* 🔴 GHI NHỚ TỪNG Ô CÓ MẶT TRÊN MÀN, không chỉ từng MẢNG. Từ 12/09/2026 mỗi nhà chỉ bày
+       cột của loại thuộc nhà mình, nên một mảng ĐANG HIỆN vẫn có những loại KHÔNG có ô nào.
+       Xét theo mảng như trước là mã của mấy loại ấy bay sạch ngay lượt Lưu đầu tiên — im lặng,
+       và chỉ lộ ra khi ai đó tích lại ô Đơn vị rồi thấy bảng trống trơn. */
+    var hienMang={}, hienO={};
     Array.prototype.forEach.call(document.querySelectorAll('.mxNoBody input'), function(inp){
       var lg=String(inp.getAttribute('data-loai')||'').trim();
       var pll=String(inp.getAttribute('data-pll')||'').trim();
       if(!pll) return;
       hienMang[pll]=1;
-      var v=String(inp.value||'').trim(); if(!v) return;
       var ten=doiTen[lg.toLowerCase()] || lg;
       if(!ten) return;
+      /* 🔴 ĐÁNH DẤU Ô CÓ MẶT TRƯỚC KHI XÉT Ô TRỐNG. `hienO` trả lời câu "ô này CÓ trên màn
+         không", không phải "ô này có mã không". Đánh dấu sau khi lọc `!v` thì ô người ta vừa
+         XOÁ TRẮNG không được đánh dấu, và vòng khôi phục bên dưới lôi mã cũ về — không ai xoá
+         nổi một mã gõ nhầm. */
+      hienO[ten.toLowerCase()+'|'+pll.toLowerCase()]=1;
+      var v=String(inp.value||'').trim(); if(!v) return;
       if(!da[ten.toLowerCase()]) return;            // loại đã bị xoá ở bảng trên -> bỏ luôn mã
       mx.push({nhom:ten, pll:pll, tkNo:v});
     });
@@ -9851,11 +9905,20 @@
        im lặng, và bên bị mất không hề đụng vào màn này. Cùng lẽ ấy với mảng bị lọc khỏi tầm
        nhìn vì bất kỳ lý do nào khác. */
     var loaiCon={}; dm.forEach(function(x){ loaiCon[String(x.ten||'').toLowerCase()]=1; });
+    /* ⚠️ ĐÃ BỎ một bảng `loaiCoO` đếm "loại nào có ô ở đâu đó trên màn". Nó tính trên TOÀN màn
+       nên sai đúng ca cần nhất: loại chỉ có cột ở khối POSH mà mảng thuộc K&H đang hiện thì nó
+       vẫn báo "có ô", và mã của cặp ấy bị xoá. Cặp {loại, mảng} là đơn vị đúng — đó là `hienO`. */
     (CFG.tkNoMatrix||[]).forEach(function(x){
       var pll=String(x.pll||'').trim(), nhom=String(x.nhom||'').trim(), v=String(x.tkNo||'').trim();
       if(!pll || !nhom || !v) return;
-      if(hienMang[pll]) return;                     // mảng đang hiện -> lấy theo ô trên màn
+      /* 🔴 ĐỔI TÊN TRƯỚC RỒI MỚI TRA. `hienO` đánh dấu bằng tên MỚI (lúc đọc ô trên màn đã
+         qua `doiTen`), còn `$nhom` ở đây là tên CŨ trong sổ. Tra bằng tên cũ thì không khớp,
+         và mã vừa đọc từ màn bị push LẦN NỮA ở đây — sổ có hai dòng cùng {loại, mảng}. Bài
+         kiểm đỏ đúng chỗ, ngay lượt viết đầu. */
       var ten=doiTen[nhom.toLowerCase()] || nhom;
+      /* Ô ấy CÓ trên màn -> lấy theo màn, kể cả khi người ta vừa xoá trắng nó.
+         Không có ô nào -> loại này không dùng ở nhà ấy, giữ nguyên mã đã lưu. */
+      if(hienO[ten.toLowerCase()+'|'+pll.toLowerCase()]) return;
       if(!loaiCon[ten.toLowerCase()]) return;       // loại đã bị xoá -> mã của nó đi theo
       mx.push({nhom:ten, pll:pll, tkNo:v});
     });

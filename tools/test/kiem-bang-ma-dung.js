@@ -52,14 +52,18 @@ function docHangTren(html) {
     const body = tr.slice(0, tr.indexOf('</tr>') + 1);
     const tags = body.match(/<input[^>]*>|<select[\s\S]*?<\/select>/g) || [];
     if (!tags.length) return;
-    const o = { ten: null, loai: null, misa: null, bp: [] };
+    const o = { ten: null, loai: null, misa: null, bp: [], dv: [] };
+    /* Ô tích ĐƠN VỊ (12/09/2026) nằm trong `<div data-dv-nhieu>`, ô tích Bộ phận trong
+       `<div data-bp>`. Cắt theo vùng rồi mới gom, không thì hai bộ lẫn vào nhau và phép
+       "đọc nhầm ô Bộ phận thành Đơn vị" không bao giờ đỏ. */
+    const vungDv = (body.match(/<div data-dv-nhieu[\s\S]*?<\/div>/) || [''])[0];
     tags.forEach(tag => {
       const at = a => { const x = tag.match(new RegExp(a + '="([^"]*)"')); return x ? x[1] : null; };
       if (tag.slice(0, 6) === '<input') {
         const f = { value: at('value') || '', checked: /\schecked/.test(tag), getAttribute: at };
         if (at('data-goc') !== null) o.ten = f;
         else if (at('data-o') === 'misa') o.misa = f;
-        else if (at('type') === 'checkbox') o.bp.push(f);
+        else if (at('type') === 'checkbox') (vungDv.indexOf(tag) >= 0 ? o.dv : o.bp).push(f);
       } else if (at('data-o') === 'loaiTt') {
         const m = tag.match(/<option value="([^"]*)"[^>]*selected/);
         o.loai = { value: m ? m[1] : '' };
@@ -72,8 +76,12 @@ function docHangTren(html) {
     /* Bộ chọn phải đúng CẢ HAI vế: khoanh vùng `[data-bp]` và lọc `:checked`. Bỏ vế nào cũng
        là lỗi thật — thiếu vế đầu thì quét nhầm ô khác trong hàng, thiếu vế sau thì loại nào
        cũng thành "mọi bộ phận" — nên bệ đỡ không được cho qua bộ chọn thiếu vế. */
-    o.querySelectorAll = sel => (sel.indexOf('[data-bp]') >= 0 && sel.indexOf(':checked') >= 0)
-      ? o.bp.filter(c => c.checked) : [];
+    o.querySelectorAll = sel => {
+      if (sel.indexOf(':checked') < 0) return [];
+      if (sel.indexOf('[data-bp]') >= 0) return o.bp.filter(c => c.checked);
+      if (sel.indexOf('[data-dv-nhieu]') >= 0) return o.dv.filter(c => c.checked);
+      return [];
+    };
     rows.push(o);
   });
   return rows;
@@ -136,7 +144,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
-    ${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_dvSelNhieu')}\n${boc('_loaiChoDv')}\n${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }
@@ -349,6 +357,108 @@ function veRoiLuu(sua, xemDonVi) {
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 mảng chỉ còn trong bảng mã vẫn hiện (giấu đi là mã còn trong sổ mà không ai sửa được)',
     h.indexOf('(chưa rõ đơn vị)') >= 0 && h.indexOf('value="64111"') >= 0, h.match(/data-dv="[^"]*"/g));
+}
+
+/* ── 2a. MỖI NHÀ MỘT BỘ CỘT LOẠI CHI PHÍ ───────────────────────────────────────────────
+ * Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác, Chi Phí Chung, Chi Phí Cơ Sở,
+ * Chi Phí Setup"*. Bảng 81 mảng của POSH trước nay bày cả chín cột của KVC, toàn dấu "—".
+ *
+ * 🔴 CHƯA TÍCH Ô ĐƠN VỊ = MỌI NHÀ, y như luật của cột Bộ phận. Danh mục dựng từ sổ cũ nên gần
+ *    như mọi dòng còn bỏ trống ô này — hiểu ngược lại là ngày bản này lên, MỌI bảng mã trắng
+ *    trơn và không ai đoán ra vì sao.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const LOAI2 = [
+    { ten: 'Chi phí cơ sở', boPhan: 'Cơ sở', donVi: '' },          // chưa tích -> mọi nhà
+    { ten: 'Chi phí setup', boPhan: 'Setup', donVi: 'K&H' },        // riêng K&H
+    { ten: 'Chi phí rạp',   boPhan: '',      donVi: 'POSH' },       // riêng POSH
+  ];
+  const b = dungBe(LOAI2, MX, COSO, MANG_TK);
+  b.moi.BOOT.xemDonVi = null;
+  b.F.ve();
+  const h = b.moi.el('cfgTkNoMx').innerHTML;
+  const khoi = t => { const i = h.indexOf('data-dv="' + t + '"'); const j = h.indexOf('</table>', i);
+                      return i < 0 ? '' : h.slice(h.lastIndexOf('<thead', i) < i ? h.lastIndexOf('🔢 TK Nợ', i) : i, j); };
+  const kKH = khoi('K&amp;H'), kPO = khoi('POSH');
+  t('🔴 khối K&H có cột riêng của nó', kKH.indexOf('>Chi phí setup</th>') >= 0, kKH.slice(0, 400));
+  t('🔴 khối K&H KHÔNG có cột của POSH', kKH.indexOf('>Chi phí rạp</th>') < 0, kKH.slice(0, 400));
+  t('🔴 khối POSH có cột riêng của nó', kPO.indexOf('>Chi phí rạp</th>') >= 0, kPO.slice(0, 400));
+  t('🔴 khối POSH KHÔNG có cột của K&H', kPO.indexOf('>Chi phí setup</th>') < 0, kPO.slice(0, 400));
+  t('🔴 loại CHƯA tích đơn vị hiện ở CẢ HAI nhà',
+    kKH.indexOf('>Chi phí cơ sở</th>') >= 0 && kPO.indexOf('>Chi phí cơ sở</th>') >= 0);
+  t('   bảng thuộc tính có ô tích Đơn vị', h.indexOf('data-dv-nhieu') >= 0 && h.indexOf('>Đơn vị <span') >= 0, h.slice(0, 700));
+  /* ⚠️ Cắt TRỌN khối ô tích rồi mới soi, đừng lấy một cửa sổ đếm ký tự — mỗi nhãn dài hơn
+     trăm ký tự nên cửa sổ 400 chưa tới được nhà thứ hai, và phép đỏ vì chính cái cửa sổ. */
+  const oTichDv = (h.match(/<div data-dv-nhieu[\s\S]*?<\/div>/) || [''])[0];
+  t('   ô tích bày đúng những nhà đang có',
+    oTichDv.indexOf('value="K&amp;H"') >= 0 && oTichDv.indexOf('value="POSH"') >= 0, oTichDv.slice(0, 300));
+  t('   và tích sẵn nhà đã khai', /value="K&amp;H" checked/.test(h), (h.match(/<input type="checkbox" value="[^"]*"[^>]*>/g) || []).slice(0, 6));
+}
+/* 🔴 MÃ CỦA CỘT BỊ ẨN KHÔNG ĐƯỢC MẤT. Một mảng ĐANG HIỆN vẫn có những loại không có ô nào ở
+   khối ấy (khác nhà). Xét theo MẢNG như bản cũ là mã của chúng bay sạch ngay lượt Lưu đầu —
+   im lặng, và chỉ lộ ra khi ai đó tích lại ô Đơn vị rồi thấy bảng trống trơn. */
+{
+  const LOAI3 = [
+    { ten: 'Chi phí cơ sở', boPhan: 'Cơ sở', donVi: 'K&H' },
+    { ten: 'Chi phí setup', boPhan: 'Setup', donVi: 'POSH' },   // không có cột nào ở khối K&H
+  ];
+  const MX3 = [
+    { nhom: 'Chi phí cơ sở', pll: 'Funzone', tkNo: '64126' },
+    { nhom: 'Chi phí setup', pll: 'Funzone', tkNo: '2413' },     // mảng Funzone ĐANG hiện
+  ];
+  const b = dungBe(LOAI3, MX3, COSO, MANG_TK);
+  b.moi.BOOT.xemDonVi = ['K&H'];
+  b.F.ve();
+  const h = b.moi.el('cfgTkNoMx').innerHTML;
+  const tren = docHangTren(h.slice(h.indexOf('id="cfgMxBody"'), h.indexOf('mxNoBody')));
+  const oMa = docOMa(h.slice(h.indexOf('mxNoBody')));
+  b.moi.el('cfgMxBody').getElementsByTagName = () => tren;
+  b.NK.oMa = oMa;
+  b.F.luu();
+  const g = {}; (b.NK.luu.tkNoMatrix || []).forEach(x => { g[x.nhom + '|' + x.pll] = x.tkNo; });
+  teq('🔴 mã của cột KHÁC NHÀ (không có ô trên màn) vẫn còn', '2413', g['Chi phí setup|Funzone']);
+  teq('   mã của cột đang hiện vẫn đúng', '64126', g['Chi phí cơ sở|Funzone']);
+  teq('   và không nhân đôi dòng nào', (b.NK.luu.tkNoMatrix || []).length,
+    Object.keys(g).length);
+  /* 🔴 Ô TRỐNG PHẢI XOÁ ĐƯỢC, kể cả khi màn chỉ bày cột của một nhà. `hienO` trả lời "ô này
+     CÓ trên màn không", không phải "ô này có mã không" — đánh dấu sau khi lọc ô trống thì mã
+     người ta vừa xoá bị lôi về, và không ai xoá nổi một mã gõ nhầm. */
+  const b2 = dungBe(LOAI3, MX3, COSO, MANG_TK);
+  b2.moi.BOOT.xemDonVi = ['K&H'];
+  b2.F.ve();
+  const h2 = b2.moi.el('cfgTkNoMx').innerHTML;
+  const tren2 = docHangTren(h2.slice(h2.indexOf('id="cfgMxBody"'), h2.indexOf('mxNoBody')));
+  const oMa2 = docOMa(h2.slice(h2.indexOf('mxNoBody')));
+  oMa2.forEach(o => { if (!o.__tong && o.getAttribute('data-loai') === 'Chi phí cơ sở') o.value = ''; });
+  b2.moi.el('cfgMxBody').getElementsByTagName = () => tren2;
+  b2.NK.oMa = oMa2;
+  b2.F.luu();
+  const g2 = {}; (b2.NK.luu.tkNoMatrix || []).forEach(x => { g2[x.nhom + '|' + x.pll] = x.tkNo; });
+  t('🔴 xoá trắng ô trên màn thì mã ấy mất thật', !g2['Chi phí cơ sở|Funzone'], g2);
+  teq('   nhưng mã của cột khác nhà vẫn còn nguyên', '2413', g2['Chi phí setup|Funzone']);
+}
+/* Cột "Đơn vị" vừa tích phải đi được xuống sổ — tích xong bấm Lưu mà không gửi thì lượt vẽ
+   sau ô lại trống, và người khai tưởng mình bấm hụt. */
+{
+  /* Tích POSH cho "Chi phí setup" rồi Lưu — gói phải mang đúng giá trị ấy. Bản đầu chỉ canh
+     "có khoá donVi không", mà khoá ấy luôn có (dù rỗng), nên phép rỗng ruột: phá thử "lưu
+     không gửi cột Đơn vị" sống sót. */
+  const p = veRoiLuu((tren) => {
+    tren.forEach(tr => {
+      if (tr.ten && tr.ten.value === 'Chi phí setup') tr.dv.forEach(c => { if (c.value === 'POSH') c.checked = true; });
+    });
+  });
+  const m = {}; (p.loaiChiPhi || []).forEach(x => { m[x.ten] = x; });
+  teq('🔴 tích Đơn vị rồi Lưu thì giá trị ấy đi xuống sổ', 'POSH', (m['Chi phí setup'] || {}).donVi);
+  teq('   loại không tích gì vẫn rỗng = mọi nhà', '', (m['Chi phí cơ sở'] || {}).donVi);
+  /* 🔴 KHÔNG ĐƯỢC ĐỌC NHẦM Ô TÍCH BỘ PHẬN. Hai bộ ô tích nằm cùng một hàng; lấy nhầm là cột
+     Đơn vị mang tên bộ phận, và loại ấy biến mất khỏi mọi bảng vì không khớp nhà nào. */
+  t('🔴 cột Đơn vị KHÔNG dính tên bộ phận',
+    String((m['Chi phí cơ sở'] || {}).donVi || '').indexOf('Cơ sở') < 0
+    && String((m['Chi phí setup'] || {}).donVi || '').indexOf('Setup') < 0,
+    [(m['Chi phí cơ sở'] || {}).donVi, (m['Chi phí setup'] || {}).donVi]);
+  t('   còn cột Bộ phận vẫn đúng của nó',
+    String((m['Chi phí setup'] || {}).boPhan || '').indexOf('Setup') >= 0, (m['Chi phí setup'] || {}).boPhan);
 }
 
 /* ── 2b. MÃ TỔNG CỦA MẢNG — LƯU LÀ GỘP, KHÔNG PHẢI GHI ĐÈ ──────────────────────────────

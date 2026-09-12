@@ -713,7 +713,12 @@ class VHCP_Cfg {
 		}
 		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '' );
+			/* Cột 9 `donVi` thêm 12/09/2026 — anh Thắng: *"Đối với POSH sẽ có cột Chi Phí Khác,
+			   Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*. Mỗi nhà một bộ loại chi phí riêng;
+			   bảng 81 mảng của POSH trước nay phải bày cả chín cột của KVC, toàn dấu "—".
+			   ⚠️ `isset()` cho cột mới: mọi dòng cũ chỉ có 8 cột, đọc thẳng `$r[8]` là cảnh báo
+			      PHP ở MỌI lượt nạp cấu hình. Rỗng = mọi đơn vị, giữ đúng hành vi cũ. */
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '', 'donVi' => isset( $r[8] ) ? $r[8] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -990,7 +995,7 @@ class VHCP_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $note_cu[ $k0 ] ) ) { $nt = $note_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ), $g( $x, 'donVi' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -1452,6 +1457,40 @@ class VHCP_Cfg {
 	 * rồi mới tới mã cố định khai ở danh mục. Không có thì trả '' để chỗ gọi BÁO THIẾU
 	 * — không đoán, để không âm thầm hạch toán sai.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * LOẠI CHI PHÍ NÀY CÓ DÙNG CHO ĐƠN VỊ ẤY KHÔNG.
+	 *
+	 * Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác, Chi Phí Chung, Chi Phí Cơ
+	 * Sở, Chi Phí Setup"*. Mỗi nhà một bộ loại chi phí riêng — bảng 81 mảng của POSH trước nay
+	 * phải bày cả chín cột của KVC, toàn dấu "—", kéo ngang mãi không hết.
+	 *
+	 * 🔴 CHƯA KHAI ĐƠN VỊ THÌ CHO QUA, y như luật của cột Bộ phận. Danh mục dựng từ sổ cũ nên
+	 *    gần như mọi dòng còn bỏ trống ô này; hiểu ngược lại là ngày bản này lên, MỌI bảng mã
+	 *    trắng trơn và không ai đoán ra vì sao.
+	 *
+	 * ⚠️ MỘT LOẠI DÙNG CHO NHIỀU NHÀ được — ngăn nhau bằng dấu phẩy, y như cột Bộ phận. "Chi
+	 *    phí Setup" là loại chung, POSH lẫn KVC đều xài.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	public static function loai_thuoc_don_vi( $ten_loai, $don_vi ) {
+		$k = mb_strtolower( trim( (string) $ten_loai ) );
+		if ( '' === $k ) { return true; }
+		foreach ( self::cfg_static_raw_loai() as $x ) {
+			if ( mb_strtolower( trim( (string) $x['ten'] ) ) !== $k ) { continue; }
+			$dv = trim( (string) ( isset( $x['donVi'] ) ? $x['donVi'] : '' ) );
+			if ( '' === $dv ) { return true; }               // chưa khai -> mọi nhà
+			foreach ( explode( ',', $dv ) as $d ) {
+				if ( '' !== trim( $d ) && VHCP_DonVi::bang( $d, $don_vi ) ) { return true; }
+			}
+			return false;
+		}
+		return true;                                        // loại lạ -> không chặn
+	}
+	/** Danh mục loại chi phí, dạng thô — tách riêng cho `loai_thuoc_don_vi()` khỏi vòng vo. */
+	private static function cfg_static_raw_loai() {
+		$c = self::get_config();
+		return (array) ( isset( $c['loaiChiPhi'] ) ? $c['loaiChiPhi'] : array() );
+	}
+
 	public static function tkno_loai( $nhom, $coso = '' ) {
 		$ds = self::ten_nhom_thu( $nhom );
 		foreach ( $ds as $ten ) {
