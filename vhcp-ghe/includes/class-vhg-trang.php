@@ -1829,9 +1829,18 @@ class VHG_Trang {
     function csNorm_(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'')
       .replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^a-z0-9]/gi,'').toUpperCase(); }
     var sL=el('select');
+    /* ds = null/không truyền → hiện TẤT CẢ cơ sở-có-ghế (BC.coso). ds = mảng (kể cả RỖNG) → dùng
+       đúng mảng đó. Phân biệt rõ hai ca: nhân viên được chọn nhưng KHÔNG có cơ sở-có-ghế nào thì
+       ds=[] và ô chỉ còn một dòng nhắc, KHÔNG rơi về "hiện tất cả" như bản trước. */
     function napCoSo_(ds){
-      sL.innerHTML=''; sL.appendChild(new Option('— Chọn cơ sở —',''));
-      (ds&&ds.length?ds:(BC.coso||[])).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
+      var list = (ds==null) ? (BC.coso||[]) : ds;
+      sL.innerHTML='';
+      if(ds!=null && !list.length){
+        var o=new Option('— Nhân viên này không có cơ sở có ghế —',''); o.disabled=true; sL.appendChild(o);
+        return;
+      }
+      sL.appendChild(new Option('— Chọn cơ sở —',''));
+      list.forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
     }
     if(BC.nhanSu && BC.nhanSu.length){
       var fNV=el('label','bc-f'); fNV.appendChild(el('span',null,'Nhân viên (lọc cơ sở)'));
@@ -1841,8 +1850,11 @@ class VHG_Trang {
       sNV.onchange=function(){
         var found=null; (BC.nhanSu||[]).forEach(function(x){ if(x.ten===sNV.value) found=x; });
         if(!found){ napCoSo_(BC.coso); LOC=''; return; }
+        /* CHỈ giữ cơ sở CÓ trong danh sách cơ sở-có-ghế (BC.coso). Bỏ hẳn `||c` cũ: nó để lọt cơ
+           sở hành chính (văn phòng VP_*, kho SETUP_*) của hồ sơ nhân sự vào ô chọn dù không có ghế
+           — anh Thắng 12/09/2026. Máy chủ đã lọc ở ds_nhan_su_(); đây là chốt chặn cho payload cũ. */
         var canon={}; (BC.coso||[]).forEach(function(c){ canon[csNorm_(c)]=c; });
-        var ds=(found.coso||[]).map(function(c){ return canon[csNorm_(c)]||c; });
+        var ds=[]; (found.coso||[]).forEach(function(c){ var k=canon[csNorm_(c)]; if(k) ds.push(k); });
         napCoSo_(ds); LOC='';
       };
       fNV.appendChild(sNV); r1.appendChild(fNV);

@@ -540,17 +540,34 @@ class VHG_BaoCao {
 
 	// ══════════════════════════════════════════════════════════════════ ĐĂNG NHẬP / BOOTSTRAP
 
-	/** Danh sách [{ten, coso[]}] mọi nhân viên có gán cơ sở — cho ô "chọn nhân viên → lọc cơ sở"
-	 *  của admin/kế toán. Tên cơ sở lấy nguyên văn cột `coso` hồ sơ (trình duyệt tự chuẩn hoá khớp). */
+	/** Danh sách [{ten, coso[]}] nhân viên — cho ô "chọn nhân viên → lọc cơ sở" của admin/kế toán.
+	 *
+	 * 🔴 CHỈ GIỮ CƠ SỞ CÓ GHẾ. Anh Thắng 12/09/2026: *"nhân viên bên Posh mà, sao lại cơ sở văn
+	 *    phòng trong này ... cơ sở nhập báo cáo Posh chứ"*. Cột `coso` hồ sơ nhân sự gộp cả cơ sở
+	 *    HÀNH CHÍNH (văn phòng VP_*, kho SETUP_*) lẫn cơ sở có ghế. Màn này là BÁO CÁO DOANH THU
+	 *    GHẾ — cơ sở không có ghế thì không có gì để nhập, lọt vào ô chọn chỉ gây nhiễu (chọn xong
+	 *    bảng ghế trống). Quy khoá qua `squash()` để khớp với danh sách cơ sở-có-ghế (tên trong hồ
+	 *    sơ hay lệch hoa-thường/khoảng trắng so với tên cơ sở thật). Nhân viên chỉ toàn cơ sở hành
+	 *    chính → rụng khỏi danh sách hẳn (không phải người của mảng ghế). */
 	public static function ds_nhan_su_() {
 		$out = array();
 		if ( ! class_exists( 'VHG_Auth' ) ) { return $out; }
 		$us = VHG_Auth::users();
 		if ( is_wp_error( $us ) ) { return $out; }
+		/* Tập cơ sở CÓ GHẾ (bỏ ghế đã dọn `an`, cùng luật với ds_ghe): khoá = squash(tên cơ sở). */
+		$co_ghe = array();
+		foreach ( VHG_May::ds_may() as $m ) {
+			if ( ! empty( $m['an'] ) ) { continue; }
+			$ten_cs = trim( (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ) );
+			if ( '' !== $ten_cs ) { $co_ghe[ self::squash( $ten_cs ) ] = true; }
+		}
 		foreach ( (array) $us as $u ) {
 			$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
-			$cs = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
+			$cs = array();
+			foreach ( self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' ) as $c ) {
+				if ( isset( $co_ghe[ self::squash( $c ) ] ) ) { $cs[] = $c; }
+			}
 			if ( ! count( $cs ) ) { continue; }
 			$out[] = array( 'ten' => $ten, 'coso' => $cs );
 		}
