@@ -504,16 +504,18 @@ function toast(msg, isErr){
 function fmt(n){ n=Math.round(Number(n)||0); return String(n).replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-/* 13/08/2026 — F5 xong phải gõ lại PIN thì không ai muốn làm mới, nên nhớ PIN cho ĐÚNG PHIÊN
-   làm việc: dùng sessionStorage, KHÔNG dùng localStorage.
-   Khác nhau thật sự: sessionStorage mất khi đóng tab/trình duyệt, localStorage nằm lại trên máy
-   mãi. App này để access = ANYONE_ANONYMOUS (ai có link cũng mở được, PIN là cửa duy nhất) và
-   đây là số liệu tiền, nên không để PIN đọng lại trên máy sau khi đóng.
-   Vẫn có nút "Khoá lại" ở cuối menu để xoá ngay khi cần đưa máy cho người khác. */
+/* 12/09/2026 — anh Thắng: "tự lưu PIN lần trước để tự vào luôn". NHỚ PIN LÂU DÀI = localStorage
+   (nằm lại trên máy kể cả khi đóng/mở lại trình duyệt) → lần sau mở là tự đăng nhập, khỏi gõ.
+   ⚠️ ĐÁNH ĐỔI đã biết: app này access = ANYONE_ANONYMOUS (ai có link cũng mở, PIN là cửa duy
+   nhất) và là số liệu tiền — nên AI CẦM MÁY NÀY đều vào thẳng được, không hỏi PIN. Đây là lựa
+   chọn của chủ (13/08/2026 vốn cố tình dùng sessionStorage cho an toàn; nay đổi theo yêu cầu).
+   Chốt an toàn: nút "🔒 Khoá lại" ở cuối menu xoá PIN đã nhớ ngay khi cần đưa máy cho người khác;
+   và tuDangNhap() vẫn HỎI máy chủ xác nhận PIN mỗi lần (PIN đổi thì tự quên, bắt nhập lại). */
 var PIN_KHOA = 'saoke_pin';
-function nhoPin(pin){ try{ sessionStorage.setItem(PIN_KHOA, pin); }catch(e){} }
-function quenPin(){ try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }
-function pinDaNho(){ try{ return sessionStorage.getItem(PIN_KHOA) || ''; }catch(e){ return ''; } }
+function nhoPin(pin){ try{ localStorage.setItem(PIN_KHOA, pin); }catch(e){}
+  try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }   // dọn chỗ cũ (bản trước dùng session)
+function quenPin(){ try{ localStorage.removeItem(PIN_KHOA); }catch(e){} try{ sessionStorage.removeItem(PIN_KHOA); }catch(e){} }
+function pinDaNho(){ try{ return localStorage.getItem(PIN_KHOA) || sessionStorage.getItem(PIN_KHOA) || ''; }catch(e){ return ''; } }
 function khoaLai(){ quenPin(); location.reload(); }
 
 /* ===== NỀN SÁNG / NỀN TỐI =====
