@@ -2846,6 +2846,20 @@ class VHG_Trang {
           var tieu=el('div'); tieu.style.cssText='font-weight:800;font-size:13px;letter-spacing:.3px;'
             +'text-transform:uppercase;color:#334155;border-left:3px solid #6366f1;padding-left:8px';
           tieu.textContent='🏬 '+cs+' · '+theoCs[cs].length+' báo cáo';
+          /* 📷 ĐỦ ẢNH MÁY? — anh Thắng 12/09/2026: "cơ sở nào báo đủ ảnh thì hiện đã gửi đủ ảnh máy".
+             Mỗi ghế cần 2 ảnh (chỉ số + vệ sinh). Cơ sở "đủ ảnh" khi MỌI ghế của MỌI báo cáo trong
+             nhóm đều có ≥2 ảnh; thiếu thì nói rõ thiếu mấy ghế để biết đường nhắc bổ sung. */
+          var tongGhe=0, thieuGhe=0;
+          theoCs[cs].forEach(function(rp){ (rp.chairs||[]).forEach(function(g){
+            tongGhe++; if(((g.anh||[]).length)<2) thieuGhe++; }); });
+          var badge=el('span');
+          badge.style.cssText='margin-left:8px;font-size:11px;font-weight:700;padding:2px 8px;'
+            +'border-radius:999px;white-space:nowrap;text-transform:none;letter-spacing:0';
+          if(tongGhe>0 && thieuGhe===0){ badge.textContent='✅ đã gửi đủ ảnh máy';
+            badge.style.color='#166534'; badge.style.background='#dcfce7'; }
+          else { badge.textContent='📷 thiếu ảnh '+thieuGhe+'/'+tongGhe+' ghế';
+            badge.style.color='#b45309'; badge.style.background='#fef3c7'; }
+          tieu.appendChild(badge);
           nhom.appendChild(tieu);
           theoCs[cs].forEach(function(rp){ nhom.appendChild(recentItem(rp)); });
           wrapl.appendChild(nhom);
