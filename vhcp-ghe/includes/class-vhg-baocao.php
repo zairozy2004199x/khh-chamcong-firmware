@@ -1473,6 +1473,11 @@ class VHG_BaoCao {
 		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
 		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy dòng cần sửa.' ); }
 		$patch = is_array( $patch ) ? $patch : array();
+		/* 🔴 KHÔNG CHO XOÁ TRẮNG CHỈ SỐ SAU — vá R3 (12/09/2026): meterAfter rỗng → chi_so_sau NULL,
+		   actual về 0, mất số âm thầm. Chặn thẳng. */
+		if ( array_key_exists( 'meterAfter', $patch ) && '' === trim( (string) $patch['meterAfter'] ) ) {
+			return array( 'ok' => false, 'message' => 'Chỉ số sau không được để trống — nhập số đúng rồi lưu lại.' );
+		}
 		/* 🔴 "THỰC THU" QUA MÀN SỬA 24H CŨNG GHI ĐÈ, GIỐNG HỆT LÚC GỬI ĐẦU. Anh Thắng 29/08/2026:
 		   đổi cột "Tăng/Giảm" (cộng dồn) thành "Thực thu" (ghi đè) — sửa ở đây phải cùng luật,
 		   không thì cùng một cột lại xử khác nhau tuỳ màn sửa ở đâu.

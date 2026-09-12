@@ -335,6 +335,12 @@ class VHG_KeToan {
 		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
 		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy dòng ghế.' ); }
 		$patch = is_array( $patch ) ? $patch : array();
+		/* 🔴 KHÔNG CHO XOÁ TRẮNG CHỈ SỐ SAU — vá R3 (12/09/2026). Nếu patch có `meterAfter` nhưng
+		   rỗng thì so_chiso_('') = null → chi_so_sau lưu NULL, actual về 0, mất số âm thầm. Ô "sau"
+		   để trống là nhầm/lỗi, không phải ý định — chặn thẳng thay vì ghi đè mất chỉ số. */
+		if ( array_key_exists( 'meterAfter', $patch ) && '' === trim( (string) $patch['meterAfter'] ) ) {
+			return array( 'ok' => false, 'message' => 'Chỉ số sau không được để trống — nhập số đúng rồi lưu lại.' );
+		}
 
 		$dv = self::don_vi();
 		$after = array_key_exists( 'meterAfter', $patch ) ? VHG_BaoCao::so_chiso_( $patch['meterAfter'] ) : VHG_BaoCao::so_chiso_( $d['chi_so_sau'] );
@@ -374,28 +380,31 @@ class VHG_KeToan {
 		   CHẶN CỨNG, không đụng gì bên kia. */
 		/* Chỉ số có thể lẻ (551,5) — tiền vẫn về đồng nguyên, làm tròn ngay khi tính actual. */
 		$actual = ( null === $before || null === $after ) ? 0 : (int) round( ( $after - $before ) * $dv );
-		$cash = $actual - $qr + $adj;
-		/* THỰC THU GHI ĐÈ — anh Thắng: "thiếu nhập chỉ số thực thu cho chỉ số máy". Bỏ chặn cứng
-		   ở trên chỉ mở khoá LƯU được, nhưng chỉ số sai vẫn kéo tiền mặt tính theo công thức ra
-		   số âm/khổng lồ y nguyên nếu không có cách ghi thẳng số thật. Có patch.actualOverride
-		   thì THAY HẲN cash bằng số đó — QR giữ nguyên (điện tử, không phụ thuộc chỉ số máy). */
+		/* 🔴 TIỀN MẶT: CÔNG THỨC THUẦN actual−QR, KHÔNG cộng `dieu_chinh` — vá R1 (12/09/2026).
+		   Bản cũ để `$cash = actual − QR + $adj`, mà với dòng "Thực thu ghi đè" thì `dieu_chinh`
+		   CHÍNH LÀ số ghi đè (không phải khoản cộng thêm). Kế toán sửa QR/ghi chú/chỉ số của một
+		   dòng ghi đè mà KHÔNG gõ lại Thực thu → rơi vào nhánh cộng dồn → tiền = actual−QR+ghi_đè,
+		   SAI ÂM THẦM (tổng vẫn tự khớp nên đối chiếu không bắt). Mô hình tiền (giống tinh_() của
+		   đường nhân viên): tiền = Thực thu ghi đè nếu có, ngược lại = actual − QR. Không bao giờ
+		   cộng dieu_chinh vào tiền nữa. */
+		$co_de_cu = ( false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) );
 		if ( array_key_exists( 'actualOverride', $patch ) && '' !== trim( (string) $patch['actualOverride'] ) ) {
+			/* Kế toán gõ Thực thu MỚI → ghi đè hẳn; lưu vào dieu_chinh cho khớp hiển thị. QR giữ
+			   nguyên (điện tử, không theo chỉ số máy). Dọn dấu ghi đè cũ trước khi gắn dấu mới
+			   (tránh "Thực thu ghi đè: 100.000đ · Thực thu ghi đè: 220.000đ" chồng nhau). */
 			$cash = (int) $patch['actualOverride'];
-			/* 🔴 DỌN DẤU GHI ĐÈ CŨ TRƯỚC KHI GẮN DẤU MỚI. Anh Thắng 01/09/2026 gửi ảnh ghế
-			   GO-TDM-1: *"Thực thu ghi đè: 100.000đ · Thực thu ghi đè: 220.000đ"* — sửa hai lần
-			   là hai dấu chồng lên nhau, sửa năm lần thì ghi chú thành một dải vô nghĩa, và
-			   người đọc không biết số nào đang có hiệu lực. `VHG_BaoCao::sua_dong()` (màn nhân
-			   viên 24h) vốn đã dọn đúng như thế từ đầu; đường KẾ TOÁN này thì quên — nên cùng
-			   một cột lại hành xử khác nhau tuỳ sửa ở màn nào. Cùng một phép dọn cho cả hai. */
+			$adj  = $cash;
 			$note = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $note ) );
 			$note = trim( $note . ( '' !== $note ? ' · ' : '' ) . 'Thực thu ghi đè: ' . number_format( $cash, 0, ',', '.' ) . 'đ' );
-		} elseif ( ! empty( $patch['giu_ghi_de'] ) && false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) ) {
-			/* 🔒 SỬA THẲNG Ô CHỈ SỐ (inline) MÀ GIỮ THỰC THU CŨ — anh Thắng 11/09/2026 "sửa ngay ô".
-			   Ghế đang có "Thực thu ghi đè" (như GO-BL-2 = 50.000) mà kế toán chỉ nắn lại chỉ số
-			   trước/sau ngay trên bảng (không gõ Thực thu mới) thì GIỮ NGUYÊN số thực thu đã khai —
-			   nếu để rơi về công thức (sau−trước)×đơn_vị thì số tiền đúng vừa khai bị xoá mất. Giữ
-			   cash = tien_mat cũ và giữ nguyên ghi chú (đã có sẵn dấu "Thực thu ghi đè: …đ"). */
+		} elseif ( $co_de_cu ) {
+			/* 🔒 DÒNG ĐANG CÓ "Thực thu ghi đè" mà kế toán KHÔNG gõ Thực thu mới (chỉ nắn QR/chỉ số/
+			   ghi chú) → GIỮ NGUYÊN số ghi đè đã lưu, không rơi về công thức. Bao trùm luôn ca inline
+			   giu_ghi_de cũ. Giữ dấu "Thực thu ghi đè: …đ" sẵn trong ghi chú. */
 			$cash = (int) $d['tien_mat'];
+			$adj  = (int) $d['dieu_chinh'];
+		} else {
+			$cash = $actual - $qr;   // dòng thường: công thức thuần, dieu_chinh về 0
+			$adj  = 0;
 		}
 		$tong = $cash + $qr;
 
@@ -527,6 +536,7 @@ class VHG_KeToan {
 		if ( ! count( $list ) ) { return array( 'ok' => false, 'message' => 'Chưa chọn ghế nào.' ); }
 		$now = current_time( 'mysql' ); $moved = 0; $locked = 0;
 		$reports = array(); // report_id đã đụng tới → dọn header rỗng ở cuối
+		$noi_lai = array(); // (ma|ngày) vừa xoá → nối lại mốc cho NGÀY SAU (vá R2 12/09/2026)
 		foreach ( $list as $t ) {
 			$rid = (string) ( isset( $t['report_id'] ) ? $t['report_id'] : '' );
 			$ma  = (string) ( isset( $t['ma_may'] ) ? $t['ma_may'] : '' );
@@ -542,7 +552,13 @@ class VHG_KeToan {
 			$wpdb->delete( VHG_DB::t( 'bc_dong' ), array( 'id' => (int) $d['id'] ) );
 			$moved++;
 			$reports[ $rid ] = true;
+			$noi_lai[ $ma . '|' . $d['ngay'] ] = array( $ma, (string) $d['ngay'] );
 		}
+		/* 🔴 NỐI LẠI MỐC CHO NGÀY SAU — vá R2 (12/09/2026). Xoá một dòng giữa dòng thời gian mà không
+		   nối lại thì `chi_so_truoc` của ngày kế tiếp vẫn trỏ vào dòng vừa xoá (mốc mồ côi), sau này
+		   tính lại là nhảy số. noi_tiep() chỉ đổi chi_so_truoc theo timeline SỐNG (đã bỏ dòng xoá),
+		   KHÔNG đụng tiền (tiền ngày sau đã chốt) — an toàn. */
+		foreach ( $noi_lai as $rc ) { VHG_BaoCao::noi_tiep( $rc[0], $rc[1] ); }
 		/* 🔴 XOÁ HẲN HEADER KHI BÁO CÁO ĐÃ HẾT GHẾ — anh Thắng 11/09/2026: "xóa thì xóa luôn thông
 		   báo này ... xóa hẳn". Ẩn ở khâu hiện (ds_24h) chưa đủ với anh; báo cáo rỗng phải biến mất
 		   khỏi CSDL. Vẫn HOÀN TÁC ĐƯỢC: chụp trọn header vào thùng rác dưới dạng dòng đặc biệt
@@ -608,6 +624,11 @@ class VHG_KeToan {
 			if ( $co ) { $bo++; continue; }
 			$wpdb->insert( VHG_DB::t( 'bc_dong' ), $snap );
 			$wpdb->update( VHG_DB::t( 'bc_rac' ), array( 'hoan_luc' => current_time( 'mysql' ) ), array( 'id' => $id ) );
+			/* 🔴 NỐI LẠI MỐC khi TRẢ GHẾ VỀ — vá R2 (12/09/2026): dòng vừa quay lại phải có chi_so_truoc
+			   đúng theo timeline sống (noi_hang), và ngày SAU nó cũng nối lại theo nó (noi_tiep). Chỉ
+			   đổi chi_so_truoc, không đụng tiền. */
+			VHG_BaoCao::noi_hang( (string) $snap['ma_may'], (string) $snap['ngay'] );
+			VHG_BaoCao::noi_tiep( (string) $snap['ma_may'], (string) $snap['ngay'] );
 			$n++;
 		}
 		return array( 'ok' => true, 'restored' => $n, 'bad' => $bo,

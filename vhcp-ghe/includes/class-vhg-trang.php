@@ -1120,8 +1120,14 @@ class VHG_Trang {
 		}
 		$ds_coso = array();
 		foreach ( VHG_May::ds_coso() as $c ) {
+			/* 🔴 PHẢI GỬI KÈM `ma_kh` VÀ `reset_moi_lan` — anh Thắng 12/09/2026: lưu mã KH xong vẫn
+			   hiện "chưa có mã KH". Gốc: payload này chỉ gửi id/ten/tinh, nên tab Địa điểm (đọc
+			   c.ma_kh, c.reset_moi_lan) không bao giờ thấy dù CSDL đã lưu đúng. Cùng lỗi làm nút 🔄
+			   "reset mỗi lần thu" luôn trông như đang TẮT. */
 			$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
-				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ) );
+				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ),
+				'ma_kh' => (string) ( isset( $c['ma_kh'] ) ? $c['ma_kh'] : '' ),
+				'reset_moi_lan' => (int) ( isset( $c['reset_moi_lan'] ) ? $c['reset_moi_lan'] : 0 ) );
 		}
 		/* NHẬT KÝ BẬT TỪ XA — gửi kèm trong chính lượt số liệu, không thêm lượt gọi. Mỗi lần bấm
 		   Bật là CHO KHÔNG một lượt: cuối tháng nhìn "ghế chạy 180 lượt, thu 140" thì 40 lượt kia
