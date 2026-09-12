@@ -165,31 +165,43 @@ class VHG_BaoCao {
 				'coso' => $coso,
 				'an'   => $an ? 1 : 0,
 			);
-			$da_co[ (string) $m['ma'] ] = true;
+			$da_co[ (string) $m['ma'] . '|' . self::squash( $coso ) ] = true;   // khoá theo GHẾ + CƠ SỞ
 		}
 		/* 🔴 GHẾ "LẠC" — CÓ BÁO CÁO GẦN ĐÂY Ở CƠ SỞ MÀ KHÔNG CÒN KHỚP DANH MỤC MÁY. Anh Thắng
 		   12/09/2026: VHM-1 "báo cáo hôm qua thì có" mà màn nhập không thấy — vì `may.coso_id` của
 		   nó đã đổi/mất gán nên không match cơ sở nữa (Duyệt vẫn thấy do đọc coso_key ĐÓNG BĂNG ở
 		   báo cáo). "Bất cứ giá nào cũng không được ẩn": bơm lại theo ĐÚNG cơ sở của báo cáo gần đây
 		   để luôn còn đường nhập tiếp; tô đỏ, nhắc kiểm tra. Bó trong 45 ngày để không kéo cả kho
-		   ghế cũ. Chỉ bơm mã CHƯA có trong danh sách máy sống (ghế còn khớp cơ sở đã nằm ở trên). */
-		$tu_lac = gmdate( 'Y-m-d', current_time( 'timestamp' ) - 45 * 86400 );
-		$ls = $wpdb->get_results( $wpdb->prepare(
-			'SELECT d.ma_may AS ma, MAX(d.ten) AS ten, h.coso AS coso FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
-			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE h.ngay >= %s GROUP BY d.ma_may, h.coso', $tu_lac ), ARRAY_A );
-		foreach ( (array) $ls as $r ) {
-			$ma = (string) ( isset( $r['ma'] ) ? $r['ma'] : '' );
-			if ( '' === $ma || isset( $da_co[ $ma ] ) ) { continue; }
-			$coso = (string) ( isset( $r['coso'] ) ? $r['coso'] : '' );
-			if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
-			$ra[] = array(
-				'ma'   => $ma,
-				'ten'  => (string) ( '' !== (string) $r['ten'] ? $r['ten'] : $ma ),
-				'coso' => $coso,
-				'an'   => 1, 'lac' => 1,
-			);
-			$da_co[ $ma ] = true;
+		   ghế cũ. Chỉ bơm CẶP (mã ghế · cơ sở) CHƯA có ở trên — ghế còn khớp cơ sở đã nằm trong bảng.
+
+		   ⚠️ CHỈ HIỆN CHO ADMIN ($hien_an) — anh Thắng 12/09/2026: "Đã bảo ghế ẩn không hiện vào tài
+		   khoản nhân viên mà… chỉ hiện cho admin, và admin bấm vào ghế đó nó sẽ hiện lại cho nhân
+		   viên". Nhân viên KHÔNG được thấy hàng đỏ này (rối bàn thu tiền); admin bấm vào → `hien_ghe()`
+		   gỡ cờ ẩn + gán ghế về đúng cơ sở của báo cáo, từ đó nhân viên mới thấy lại. */
+		if ( $hien_an ) {
+			$tu_lac = gmdate( 'Y-m-d', current_time( 'timestamp' ) - 45 * 86400 );
+			$ls = $wpdb->get_results( $wpdb->prepare(
+				'SELECT d.ma_may AS ma, MAX(d.ten) AS ten, h.coso AS coso FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+				. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+				. ' WHERE h.ngay >= %s GROUP BY d.ma_may, h.coso', $tu_lac ), ARRAY_A );
+			foreach ( (array) $ls as $r ) {
+				$ma = (string) ( isset( $r['ma'] ) ? $r['ma'] : '' );
+				if ( '' === $ma ) { continue; }
+				$coso = (string) ( isset( $r['coso'] ) ? $r['coso'] : '' );
+				/* ⚠️ Khoá CÙNG DẠNG với vòng máy sống ở trên: GHẾ|squash(CƠ SỞ). Đổi sang khoá này mà
+				   để vòng lạc tra khoá cũ (chỉ theo mã) là hai đầu lệch — mọi ghế đều "đã có", vòng
+				   lạc câm hẳn, VHM-1 lại biến mất. */
+				$k = $ma . '|' . self::squash( $coso );
+				if ( isset( $da_co[ $k ] ) ) { continue; }
+				if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
+				$ra[] = array(
+					'ma'   => $ma,
+					'ten'  => (string) ( '' !== (string) $r['ten'] ? $r['ten'] : $ma ),
+					'coso' => $coso,
+					'an'   => 1, 'lac' => 1,
+				);
+				$da_co[ $k ] = true;
+			}
 		}
 		/* Xếp theo cơ sở → MÁY ĐÃ DỌN XUỐNG CUỐI (anh Thắng 12/09/2026: "máy đã dọn cho vào cuối")
 		   → rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10, VHM-2).
@@ -201,6 +213,44 @@ class VHG_BaoCao {
 				?: strnatcasecmp( (string) $a['ten'], (string) $b['ten'] );
 		} );
 		return $ra;
+	}
+
+	/**
+	 * HIỆN LẠI MỘT GHẾ ĐỎ (đã dọn / lạc cơ sở) CHO NHÂN VIÊN — anh Thắng 12/09/2026: *"chỉ hiện
+	 * cho admin, và admin bấm vào ghế đó nó sẽ hiện lại cho nhân viên"*. Đây là lối GỠ cờ đỏ mà
+	 * `ds_ghe()` bày ra: gỡ `an` + (với ghế "lạc") gán ghế về ĐÚNG cơ sở của báo cáo gần đây, từ đó
+	 * nó lọt lại vào danh sách nhân viên thấy.
+	 *
+	 * 🔴 CHỈ TOÀN QUYỀN. Hàng đỏ chỉ hiện cho PIN toàn quyền ($hien_an qua đường PIN = toàn quyền),
+	 *    nên chốt cửa đúng nhóm ấy — PIN phạm vi hẹp gọi thẳng endpoint cũng bị chối.
+	 *
+	 * ⚠️ GÁN CƠ SỞ QUA squash(). Tên cơ sở ở hàng đỏ lấy từ `bc.coso` (đóng băng ở báo cáo) có thể
+	 *    lệch dấu/hoa với `coso.ten` sống; so thẳng chuỗi là trượt. squash() (bỏ dấu + HOA + bỏ ký
+	 *    tự lạ) là chuẩn dùng chung của trang này để quy hai cách viết về một.
+	 */
+	public static function hien_ghe( $ma, $coso, $pin ) {
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
+		if ( ! ( empty( $q['coso_key'] ) && empty( $q['ghe'] ) ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ tài khoản toàn quyền mới hiện lại được ghế.' );
+		}
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		$coso = (string) $coso;
+		$cid  = null;
+		if ( '' !== $coso ) {
+			$muc = self::squash( $coso );
+			foreach ( VHG_May::ds_coso() as $c ) {
+				if ( self::squash( (string) $c['ten'] ) === $muc ) { $cid = (int) $c['id']; break; }
+			}
+		}
+		/* Gán cơ sở TRƯỚC (đưa ghế 'lạc' về đúng chỗ), rồi gỡ cờ ẩn. Không tìm được cơ sở khớp thì
+		   vẫn gỡ ẩn để ít nhất ghế 'đã dọn' quay lại — ghế 'lạc' hiếm khi rơi vào đây vì cơ sở của
+		   báo cáo gần như luôn có trong danh mục. */
+		if ( null !== $cid ) { VHG_May::dat_coso( $ma, $cid ); }
+		VHG_May::dat_an( $ma, 0 );
+		return array( 'ok' => true, 'thongBao' => 'Đã hiện lại ghế ' . $ma . ' cho nhân viên'
+			. ( null !== $cid && '' !== $coso ? ' ở ' . $coso : '' ) . '.' );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ CHỈ SỐ (dùng chung)

@@ -309,6 +309,14 @@ class VHG_Trang {
 					isset( $d['patch'] ) ? $d['patch'] : array(), $pin ) );
 				return;
 			}
+			/* Admin bấm hàng ghế ĐỎ (đã dọn / lạc cơ sở) ở màn nhập → hiện lại cho nhân viên. Guard
+			   toàn quyền nằm trong hien_ghe(); nhân viên vốn không nhận được hàng đỏ nên không có nút. */
+			if ( 'bc_hien_ghe' === $viec ) {
+				self::tra( VHG_BaoCao::hien_ghe(
+					isset( $d['ma'] ) ? $d['ma'] : '',
+					isset( $d['coso'] ) ? $d['coso'] : '', $pin ) );
+				return;
+			}
 			/* Đính bill chuyển khoản + xác nhận đã nộp — khoá báo cáo và mở lượt nộp cho kế
 			   toán. Xem VHG_BaoCao::nop_bill(). */
 			if ( 'bc_nop_bill' === $viec ) {
@@ -2151,6 +2159,26 @@ class VHG_Trang {
         ? '⚠ Máy có báo cáo gần đây ở cơ sở này nhưng đã đổi/mất gán cơ sở — kiểm tra & gắn lại'
         : '⚠ Máy đã dọn/điều chuyển — kiểm tra trước khi nhập';
       tdN.appendChild(anBadge);
+      /* HÀNG ĐỎ CHỈ HIỆN CHO ADMIN (ds_ghe gác $hien_an, nhân viên không nhận) → cho admin bấm
+         "Hiện lại" ngay tại chỗ: anh Thắng 12/09/2026 "admin bấm vào ghế đó nó sẽ hiện lại cho
+         nhân viên". Endpoint bc_hien_ghe gỡ cờ ẩn + gán ghế 'lạc' về đúng cơ sở của báo cáo. */
+      var bHien=el('button','bc-btn','↩ Hiện lại cho nhân viên');
+      bHien.style.cssText='margin-top:5px;font-size:11px;font-weight:700;padding:3px 9px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px';
+      bHien.onclick=function(){
+        if(!confirm('Hiện lại ghế '+(g.ma)+(g.coso?(' ở '+g.coso):'')+' cho nhân viên?\n'
+          +'Ghế sẽ được gỡ cờ ẩn'+(g.lac?' và gán về cơ sở này':'')+', từ đó nhân viên thấy lại ở màn nhập.')) return;
+        bHien.disabled=true; bHien.textContent='Đang hiện…';
+        goi('bc_hien_ghe',{ma:g.ma,coso:g.coso||''},function(r){
+          if(!r||!r.ok){ bHien.disabled=false; bHien.textContent='↩ Hiện lại cho nhân viên';
+            alert((r&&r.error)||'Không hiện lại được ghế.'); return; }
+          /* Làm mới danh sách ghế (đổi cờ an/coso) rồi vẽ lại cơ sở đang xem để hàng rớt khỏi đỏ. */
+          goi('bc_boot',{pin:PIN},function(rb){
+            if(rb&&rb.ok&&rb.pinOk){ BC=rb; }
+            if(LOC) selectLoc(LOC);
+          });
+        });
+      };
+      tdN.appendChild(bHien);
       tr.style.background='#fef2f2';
     }
     tr.appendChild(tdN);
