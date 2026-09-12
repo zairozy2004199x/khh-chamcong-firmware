@@ -245,6 +245,33 @@ t( "🔴 đoán cột bản đồ: 'ma cua hang' dò trước 'ten cua hang'",
 t( 'ô "chưa rõ máy" nói luôn là đã có mã CH hay chưa (hai cảnh, hai cách sửa)',
 	false !== strpos( $APP, 'chưa có trong bản đồ' ) );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 7. TÌM ĐƯỢC THÌ MỚI DÙNG ĐƯỢC
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng, ngay sau khi có bản đầu: *"Anh chưa thấy chỗ thêm file"* — đúng, khối nạp file nằm
+ * trong thẻ ⚙️ đang GẬP KÍN, trong khi màn hình báo 593 dòng chưa rõ máy. Một việc cần làm mà
+ * không tự chỉ đường tới chỗ làm nó thì coi như chưa làm xong.
+ */
+t( '🔴 khối "Cần biết" chỉ đường tới chỗ nạp file khi còn dòng chưa rõ máy',
+	false !== strpos( $APP, "cgMoCongCu(\\''+nguon+'\\')" )
+	&& false !== strpos( $APP, 'giao dịch chưa rõ máy' ) );
+t( 'có hàm mở thẻ gập và cuộn tới đúng ô chọn file', false !== strpos( $APP, 'function cgMoCongCu(' ) );
+t( 'thẻ ⚙️ có id để mở được bằng mã', false !== strpos( $APP, "id('congCu')" ) );
+/* Tên khối phải KỂ RA thứ vừa thêm — người đọc lướt qua dòng ấy là biết có nên mở hay không. */
+t( 'và tên thẻ ⚙️ nhắc tới "bản đồ cửa hàng"',
+	false !== strpos( $APP, "· <b>bản đồ cửa hàng</b>" ) );
+
+/* 🔴 SỐ BẢN PHẢI IN RA MÀN. Câu đầu tiên khi một tính năng "không thấy đâu" là *bản đang chạy
+ *    có nó chưa* — mà trang không in số bản thì không ai đáp được ngoài cách mở wp-admin. */
+t( 'máy chủ gửi số bản cho trang', false !== strpos( $SRC, "'ok' => true, 'ver' => self::VER," ) );
+t( 'và trang in nó ra cạnh tên công ty', false !== strpos( $APP, "'· v' + cfg.ver" ) );
+/* Hai chỗ khai số bản (header plugin + hằng VER) phải BẰNG NHAU — lệch thì trang khoe một đằng,
+   WordPress hiện một nẻo, và người đi kiểm bản nào đang chạy sẽ tin nhầm. */
+preg_match( '/^ \* Version:\s+([0-9.]+)/m', $SRC, $mv );
+preg_match( "/const VER = '([0-9.]+)';/", $SRC, $mc );
+teq( '🔴 số bản ở header và hằng VER bằng nhau',
+	isset( $mv[1] ) ? $mv[1] : 'thiếu-header', isset( $mc[1] ) ? $mc[1] : 'thiếu-hằng' );
+
 echo "\n";
 if ( $TRUOT ) {
 	echo 'TRƯỢT ' . count( $TRUOT ) . ":\n";

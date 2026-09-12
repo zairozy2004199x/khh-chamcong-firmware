@@ -90,5 +90,11 @@ webhook đã ghi (không thêm dòng, không đếm tiền hai lần) → `cong_
   trùng khác hẳn, mọi dòng thành "mới", **tiền đếm hai lần**.
 * `Mã cửa hàng` phải dò trước `Tên cửa hàng` — chuỗi "cua hang" nằm trong cả hai tiêu đề.
 
-Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (42 phép, chạy lớp thật với `$wpdb` giả). Đây là
+**Chỗ nạp file nằm trong thẻ gập ⚙️** — 0.17.1 thêm một dòng trong khối *Cần biết* tự chỉ đường
+xuống đó khi còn giao dịch "chưa rõ máy" (gập kín một việc chưa làm là cách chắc chắn nhất để nó
+không bao giờ được làm), và **in số bản ra cạnh tên công ty** ở cột trái — để câu *"bản mới lên
+chưa"* trả lời được bằng mắt. ⚠️ Số bản khai **hai chỗ**: header `Version:` và hằng `VER`; bộ thử
+canh chúng bằng nhau.
+
+Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (49 phép, chạy lớp thật với `$wpdb` giả). Đây là
 bộ thử **đầu tiên** của `vhcp-saoke`; `chay-het.sh` nay cũng soát cú pháp thư mục ấy.

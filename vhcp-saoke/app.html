@@ -147,7 +147,7 @@
 <div class="app" id="appRoot" style="display:none">
   <div class="side">
     <h1>Sao Kê Ngân Hàng</h1>
-    <div class="brandPhu">K&amp;H COM.,LTD</div>
+    <div class="brandPhu">K&amp;H COM.,LTD <span id="skVer"></span></div>
     <div class="ni active" data-v="dashboard" onclick="nav('dashboard')">📊 Tổng quan</div>
     <div class="ni" data-v="sk" onclick="nav('sk')">🏦 Sao Kê Ngân Hàng</div>
     <div class="ni" data-v="cvietqr" onclick="nav('cvietqr')">🔷 Sao Kê Việt QR</div>
@@ -748,6 +748,10 @@ function taiTienMat(){
 function initApp(){
   google.script.run.withSuccessHandler(function(cfg){
     CFG = cfg;
+    /* Số bản hiện ngay dưới tên công ty — để câu "bản mới lên chưa" trả lời được bằng mắt,
+       không phải mở wp-admin. Bản cũ không gửi `ver` thì ô này im lặng, không vẽ chữ "undefined". */
+    try { var ov = document.getElementById('skVer');
+          if (ov && cfg && cfg.ver) ov.textContent = '· v' + cfg.ver; } catch(e){}
     fillSelects();
     renderTaiKhoan(); renderDanhMuc(); renderCfg();
     taiDashboard();
@@ -1161,8 +1165,9 @@ function dungViewCong(nguon){
   + '</div>'
   + '<div class="panel" id="'+id('canhBao')+'" style="display:none"></div>'
   // Mấy khối dưới chỉ dùng lúc CÀI ĐẶT / chữa cháy -> gập lại cho trang gọn, mở khi cần.
-  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">⚙️ Cài đặt & công cụ '
-  +   '<span class="muted" style="font-weight:400">(link webhook · nạp bù từ file · thử payload · từ khoá)</span></summary>'
+  + '<details class="panel" id="'+id('congCu')+'"><summary style="cursor:pointer;font-weight:600">⚙️ Cài đặt & công cụ '
+  +   '<span class="muted" style="font-weight:400">(link webhook · <b>nạp bù từ file</b>'
+  +   (nguon === 'vietqr' ? ' · <b>bản đồ cửa hàng</b>' : '') + ' · thử payload · từ khoá)</span></summary>'
   +   '<div style="margin-top:12px">'
   +     '<b>Link webhook dán vào ' + esc(ten) + '</b>'
   +     '<div class="hint">App chỉ có <b>một</b> link <code>/exec</code>; phân biệt cổng bằng <code>src=</code> '
@@ -2232,6 +2237,17 @@ function veSaoKeCong(nguon, d){
                               : 'Cổng gộp thành cục nên cục về thường CHẬM hơn kỳ đang xem — nới khoảng ngày rồi xem lại.')
         : 'bank nhiều hơn cổng: tài khoản đã nhận mà <b>cổng chưa bắn webhook về</b> (chưa dán link, hoặc kỳ này cổng chưa gửi). '
           + (nguon==='vietqr' ? '' : 'Cũng có thể do cổng đã trừ phí trước khi chuyển nên số cục nhỏ hơn tổng quét.')));
+  /* 🔴 KHỐI NẠP FILE NẰM TRONG THẺ GẬP, VÀ THẾ LÀ KHÔNG AI THẤY. Anh Thắng 12/09/2026, ngay sau
+     khi có bản 0.17.0: *"Anh chưa thấy chỗ thêm file"* — đúng, nó nằm trong ⚙️ đang gập kín, mà
+     màn hình thì đang báo 593 dòng chưa rõ máy. Việc CẦN LÀM phải tự chỉ đường tới chỗ làm nó;
+     gập kín một việc chưa làm là cách chắc chắn nhất để nó không bao giờ được làm. */
+  if(nguon === 'vietqr' && d.chuaRoMay)
+    ds.push('<b>'+d.chuaRoMay+' giao dịch chưa rõ máy</b> ('+fmt(d.chuaRoTien||0)+'đ) — nội dung '
+      + '<code>PaymentForOrder</code> không mang tên máy và webhook cũng không gửi kèm. '
+      + '<b>Bản kết xuất của cổng thì có</b>: nạp <b>Danh sách cửa hàng</b> một lần, rồi nạp '
+      + '<b>Giao dịch thanh toán</b> (nhớ chọn cột <b>Mã cửa hàng</b>) là máy tự điền vào cả những '
+      + 'dòng cũ. <button class="gray" style="margin-left:4px" onclick="cgMoCongCu(\''+nguon+'\')">'
+      + '📥 Mở chỗ nạp file ↓</button>');
   var b = cgEl(nguon,'canhBao');
   if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• ' + ds.join('<br>• ') + '</div>'; }
   else b.style.display='none';
@@ -2292,6 +2308,15 @@ function veSaoKeCong(nguon, d){
 }
 // Tải lại đúng luồng của tab: Việt QR = webhook, MoMo/VNPAY = file theo tháng.
 // Gọi sai luồng thì hàm vẽ sẽ ghi vào id không tồn tại trên tab đó -> vỡ IM LẶNG.
+/* Mở thẻ ⚙️ rồi cuộn thẳng tới khối bản đồ (Việt QR) hoặc khối nạp bù giao dịch. Chỉ mở, KHÔNG
+   tự đóng: người ta vừa bấm là đang định làm việc ở đó. */
+function cgMoCongCu(nguon){
+  var d = cgEl(nguon,'congCu'); if(!d) return;
+  d.open = true;
+  var o = cgEl(nguon, nguon === 'vietqr' ? 'bdFile' : 'txFile') || d;
+  try { o.scrollIntoView({ behavior:'smooth', block:'center' }); } catch(e) { o.scrollIntoView(); }
+  try { o.focus({ preventScroll:true }); } catch(e) {}
+}
 function cgTaiLai(nguon){
   if(cgDungFile(nguon)) taiDoiSoatFile(nguon); else taiSaoKeCong(nguon);
   /* Bản đồ cửa hàng chỉ có ở Việt QR. Nạp kèm mỗi lượt tải màn để khối "Cài đặt & công cụ"
