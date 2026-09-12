@@ -87,6 +87,12 @@
   .muted{color:var(--muted);}
   .pinbox{max-width:320px;margin:120px auto;text-align:center;}
   .pinbox input{width:100%;text-align:center;font-size:22px;letter-spacing:6px;margin:14px 0;}
+  .skFooter{margin-top:28px;padding:18px 4px 40px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;line-height:1.7;}
+  .skFooter .skF-grid{display:flex;flex-wrap:wrap;gap:24px;}
+  .skFooter .skF-grid>div{flex:1;min-width:220px;}
+  .skFooter .skF-ten{color:var(--txt);font-weight:700;font-size:13.5px;}
+  .skFooter .skF-en{font-style:italic;margin-bottom:4px;}
+  .skFooter .skF-cr{margin-top:14px;opacity:.75;}
   .toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--line);
     padding:12px 18px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.4);display:none;z-index:999;}
   .toast.err{border-color:var(--red);color:var(--doNhat);}
@@ -458,6 +464,30 @@
         </div>
       </div>
     </div>
+
+    <!-- Thông tin công ty ở cuối trang — anh Thắng 12/09/2026. Thông tin PHÁP LÝ CÔNG KHAI (MST,
+         địa chỉ, điện thoại), không phải bí mật; hiện dưới mọi tab. -->
+    <footer class="skFooter">
+      <div class="skF-grid">
+        <div>
+          <div class="skF-ten">CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H</div>
+          <div class="skF-en">K&amp;H SERVICES AND ENTERTAINMENT COMPANY LIMITED</div>
+          <div>Mã số thuế / Tax code: <b>0106924989</b></div>
+          <div>Người đại diện / Legal rep.: Nguyễn Văn Kiên</div>
+          <div>Hoạt động từ / Since: 05/08/2015</div>
+        </div>
+        <div>
+          <div>Địa chỉ / Address: Thôn Mai Nội, Xã Sóc Sơn, Thành phố Hà Nội, Việt Nam</div>
+          <div>Điện thoại / Phone: 0435961469</div>
+          <div>Cơ quan quản lý thuế: Thuế cơ sở 18 thành phố Hà Nội</div>
+        </div>
+        <div>
+          <div>Chi nhánh / Branches:</div>
+          <div>Đà Nẵng · Hải Phòng · Bình Dương · Thành phố Hồ Chí Minh · Sense City Hồ Chí Minh · Nha Trang</div>
+        </div>
+      </div>
+      <div class="skF-cr">© 2026 CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H. Toàn bộ bản quyền thuộc công ty. / All rights reserved.</div>
+    </footer>
   </div>
 </div>
 
@@ -680,14 +710,16 @@ function vaoApp(pin){
   /* 🔙 ĐIỀU HƯỚNG LỊCH SỬ — Back/Forward quay về tab trước thay vì ra trang trắng (anh Thắng
      12/09/2026, giống bên Ghế). Vào có #tab thì mở đúng tab đó; popstate đọc lại #tab. */
   try {
-    var _hv=(location.hash||'').replace(/^#/,'');
+    var H=skTopWin();
+    var _hv=((H.location.hash||'')+'').replace(/^#/,'');
     if(_hv && document.getElementById('v-'+_hv)) nav(_hv, true);
-    if(window.history && history.replaceState){
-      var _cur=(document.querySelector('.ni.active')||{}).getAttribute?document.querySelector('.ni.active').getAttribute('data-v'):'';
-      history.replaceState({skView:_cur||'dashboard'},'','#'+(_cur||'dashboard'));
+    if(H.history && H.history.replaceState){
+      var _a=document.querySelector('.ni.active');
+      var _cur=(_a && _a.getAttribute) ? _a.getAttribute('data-v') : '';
+      H.history.replaceState({skView:_cur||'dashboard'},'','#'+(_cur||'dashboard'));
     }
-    if(!window.__skPop){ window.__skPop=1; window.addEventListener('popstate', function(ev){
-      var t=(ev&&ev.state&&ev.state.skView) || (location.hash||'').replace(/^#/,'') || 'dashboard';
+    if(!H.__skPop){ H.__skPop=1; H.addEventListener('popstate', function(ev){
+      var t=(ev&&ev.state&&ev.state.skView) || ((H.location.hash||'')+'').replace(/^#/,'') || 'dashboard';
       nav(t, true);
     }); }
   } catch(e){}
@@ -713,6 +745,14 @@ document.getElementById('pinInput').addEventListener('keydown', function(e){ if(
   }).withFailureHandler(function(){ quenPin(); }).checkPin(pin);
 })();
 
+/* 🔙 App chạy trong IFRAME (srcdoc, cùng nguồn) — lịch sử phải ghi lên CỬA SỔ CHA thì nút Back của
+   trình duyệt mới bắt được; ghi vào history của iframe thì Back nhảy ra trang trắng (anh Thắng
+   12/09/2026: "trang sao kê chưa được"). Cùng nguồn nên đọc window.parent an toàn; nếu chặn thì lui
+   về chính iframe. */
+function skTopWin(){
+  try { if(window.parent && window.parent!==window && window.parent.history && window.parent.location){ var _=window.parent.location.hash; return window.parent; } } catch(e){}
+  return window;
+}
 function nav(v, khongDay){
   /* Chốt v hợp lệ (phòng #hash lạ khi bấm Back). */
   if(!document.getElementById('v-'+v)) v='dashboard';
@@ -720,9 +760,9 @@ function nav(v, khongDay){
   document.querySelectorAll('.ni').forEach(function(x){x.classList.remove('active');});
   document.getElementById('v-'+v).classList.add('active');
   var _ni=document.querySelector('.ni[data-v="'+v+'"]'); if(_ni) _ni.classList.add('active');
-  /* 🔙 Ghi mốc lịch sử để bấm Back quay về tab trước, không nhảy ra trang trắng — anh Thắng
-     12/09/2026. khongDay=true khi chính popstate gọi lại (khỏi đẩy thêm mốc). */
-  if(!khongDay){ try{ if(window.history&&history.pushState) history.pushState({skView:v},'','#'+v); }catch(e){} }
+  /* 🔙 Ghi mốc lịch sử (lên cửa sổ CHA) để bấm Back quay về tab trước, không nhảy ra trang trắng.
+     khongDay=true khi chính popstate gọi lại (khỏi đẩy thêm mốc). */
+  if(!khongDay){ try{ var H=skTopWin(); if(H.history&&H.history.pushState) H.history.pushState({skView:v},'','#'+v); }catch(e){} }
   if(v==='dashboard') taiDashboard();
   if(v==='sk') taiSaoKe();
   if(v==='cfg') renderCfg();

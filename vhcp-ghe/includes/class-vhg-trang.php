@@ -140,6 +140,16 @@ class VHG_Trang {
 		return is_string( $t ) ? $t : '';
 	}
 
+	/* URL trang Sao Kê (plugin vhcp-saoke) — tìm trang publish chứa shortcode [posh_saoke]. Rỗng nếu
+	   chưa cài Sao Kê. Anh Thắng 12/09/2026: "cho đường dẫn trang sao kê vào tab kế toán bên ghế". */
+	private static function sao_ke_url() {
+		global $wpdb;
+		$id = (int) $wpdb->get_var(
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type='page' AND post_status='publish'"
+			. " AND post_content LIKE '%[posh_saoke]%' ORDER BY ID ASC LIMIT 1" );
+		return $id ? (string) get_permalink( $id ) : '';
+	}
+
 	/** Đã in JSON ra chưa — để cái chốt chết máy khỏi in lần thứ hai. */
 	private static $da_tra = false;
 
@@ -1211,6 +1221,7 @@ class VHG_Trang {
 		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai, 'tong' => $t,
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
 			'choGan' => $cho_gan, 'coso' => $ds_coso,
+			'saoKeUrl' => self::sao_ke_url(),   // link sang trang Sao Kê (nếu có) cho menu Kế toán
 			'bat' => array( 'ky' => $bat_ky, 'thang' => $bat_thang,
 				'ngay' => $bat_ngay, 'may' => $bat_may, 'ds' => $bat_ds ),
 			/* Tab Thu tiền: tách hai đường tiền mặt (ghế nuốt / người thu) — xem khối giải thích
@@ -4802,7 +4813,9 @@ function ve(){
       T(QT || KT, 'kt-xuat',   '📤 ' + L('Xuất MISA','Export MISA')),
       T(QT || KT, 'kt-bctong', '📊 ' + L('Báo cáo tổng','Master report')),
       T(QT || KT, 'kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')),
-      T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data'))
+      T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data')),
+      /* LINK ra trang Sao Kê (plugin riêng) — mở tab mới; chỉ hiện khi đã cài Sao Kê. */
+      T((QT || KT) && D && D.saoKeUrl, 'link-saoke', '🏦 ' + L('Sao Kê ngân hàng','Bank statements'))
     ]],
     [ L('Kỹ thuật','Technical'), [
       T(QT, 'kich-hoat',   '⚡ ' + L('Kích hoạt ghế','Chair activation')),
@@ -4825,6 +4838,13 @@ function ve(){
     if (!items.length) return;                       // nhóm rỗng -> ẩn tiêu đề
     navHtml += '<div class="nav-grp">' + g[0] + '</div>';
     items.forEach(function(x){
+      /* Mục LINK (ra plugin khác) — render thẻ <a> mở tab mới, KHÔNG đưa vào TABS (không phải tab
+         nội bộ, không dính luật chọn tab). */
+      if (x[0] === 'link-saoke') {
+        navHtml += '<a href="' + esc(D.saoKeUrl) + '" target="_blank" rel="noopener" '
+          + 'style="display:block;text-decoration:none">' + '<button style="width:100%;text-align:left">↗ ' + x[1] + '</button></a>';
+        return;
+      }
       TABS.push(x);
       navHtml += '<button data-tab="' + x[0] + '"' + (TAB===x[0]?' class="on"':'') + '>' + x[1] + '</button>';
     });
