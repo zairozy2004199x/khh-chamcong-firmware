@@ -1390,10 +1390,11 @@ class VHG_BaoCao {
 			if ( ! count( $ghe ) ) { continue; }
 			/* Tiền mặt PHẢI NỘP của báo cáo này — QR đã về tài khoản công ty rồi, không ai cầm.
 			   Đây là con số cái bill phải khớp, nên nó phải ra tới màn hình. */
-			$tien_mat = 0; foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; }
+			$tien_mat = 0; $qr_tong = 0;
+			foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; $qr_tong += (int) $d['qr']; }
 			$ra[] = array( 'reportId' => $h['report_id'], 'date' => self::ngay_( $h['ngay'] ),
 				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe,
-				'cash' => $tien_mat, 'nopTt' => $nop_tt,
+				'cash' => $tien_mat, 'qr' => $qr_tong, 'nopTt' => $nop_tt,
 				'khoa' => self::khoa_bill_( $h ) ? 1 : 0,
 				'billAnh' => self::bill_anh_( $h ),
 				'billLuc' => (string) ( isset( $h['bill_luc'] ) ? $h['bill_luc'] : '' ),

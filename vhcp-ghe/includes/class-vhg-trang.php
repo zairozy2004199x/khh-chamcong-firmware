@@ -1724,6 +1724,8 @@ class VHG_Trang {
          QR / Thực thu; ô Ghi chú (note) giữ rộng để gõ lý do. */
       '.bc-t input.after,.bc-t input.qr,.bc-t input.adjust{max-width:96px;min-width:60px}',
       '.bc-t input.note{text-align:left;min-width:120px}',
+      '.bc-lydo-b{font-size:11px;padding:2px 8px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc;color:#334155;cursor:pointer;line-height:1.4}',
+      '.bc-lydo-b:hover{background:#e2e8f0}',
       /* 🔴 SỐ LỆCH TÔ ĐỎ NGAY TRÊN Ô — anh Thắng 11/09/2026: *"lệch thì cảnh báo, và hiện đỏ"*.
          Chỉ số sau đi ngược (sau<trước), trùng/lớn hơn chỉ số ngày kế, hoặc công thức ra âm thì
          CHÍNH con số đỏ lên: chữ đỏ + viền đỏ + nền hồng, để mắt bắt ngay ô sai giữa bảng số. Đây
@@ -1751,6 +1753,7 @@ class VHG_Trang {
         + ".bc-t.full td:nth-child(6)::before{content:'QR'}"
         + ".bc-t.full td:nth-child(7)::before{content:'Thực thu tiền mặt'}"
         + ".bc-t.full td:nth-child(8)::before{content:'Ghi chú'}"
+        + ".bc-t.full td:nth-child(8){display:block}"
         + ".bc-t.full td:nth-child(9)::before{content:'📷 Ảnh chỉ số'}"
         + ".bc-t.full td:nth-child(10)::before{content:'🧹 Ảnh vệ sinh'}"
         + ".bc-t.full input{width:100%;max-width:none;min-width:0}"
@@ -2274,7 +2277,7 @@ class VHG_Trang {
          nhiêu", và người soát cũng không biết số vừa gõ lệch khỏi công thức bao xa.
          `calc()` thay gợi ý này mỗi lần tính lại — xem chỗ đặt `.placeholder` trong đó. */
       tr.appendChild(cell(inp('adjust','')));
-      tr.appendChild(cell(inp('note','Lý do…',true)));
+      tr.appendChild(cellNote_());
     }
     /* Ảnh chỉ số + vệ sinh LUÔN hiện, kể cả chế độ Gọn (điện thoại): nhân viên chụp ảnh ngay tại
        ghế bằng điện thoại, ẩn đi ở chế độ gọn là mất luôn đường đính ảnh — nên để cuối hàng ở cả
@@ -2470,6 +2473,25 @@ class VHG_Trang {
   function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
   function cell(c){ var td=el('td'); td.appendChild(c); return td; }
   function cellRo(cls,cash){ var td=el('td'); var s=el('span','bc-ro'+(cash?' bc-cash':'')); s.className='bc-ro'+(cash?' bc-cash':''); s.classList.add(cls); s.textContent='0'; td.appendChild(s); return td; }
+  /* Ô GHI CHÚ + 4 NÚT LÝ DO NHANH — anh Thắng 12/09/2026: tích sẵn lý do cho nhanh. Bấm nút là
+     điền thẳng vào ô; "Khác…" xoá trống để gõ tay. Vẫn là ô .note như cũ (collect/bcDocNhap không
+     đổi); phát 'input' để bộ tính tiền + lưu nháp cập nhật (xem addEventListener('input') ở dưới). */
+  var LYDO_NHANH=['Reset chỉ số (hết pin)','QR đếm sai chỉ số','Hệ thống lỗi'];
+  function cellNote_(){
+    var td=el('td'); td.className='bc-note-td';
+    var iN=inp('note','Lý do…',true);
+    var chips=el('div'); chips.style.cssText='display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px';
+    LYDO_NHANH.forEach(function(t){
+      var b=el('button','bc-lydo-b',t); b.type='button';
+      b.onclick=function(){ iN.value=t; iN.dispatchEvent(new Event('input',{bubbles:true})); };
+      chips.appendChild(b);
+    });
+    var bk=el('button','bc-lydo-b','Khác…'); bk.type='button';
+    bk.onclick=function(){ iN.value=''; iN.focus(); iN.dispatchEvent(new Event('input',{bubbles:true})); };
+    chips.appendChild(bk);
+    td.appendChild(chips); td.appendChild(iN);
+    return td;
+  }
 
   function beforeOf(tr){ if(tr.dataset.lock==='1'){ var v=tr.dataset.before; return v===''?'':Number(v); } return meterVal(tr.querySelector('.before').value); }
 
@@ -3146,7 +3168,10 @@ class VHG_Trang {
     var trai=el('div'); trai.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap';
     /* Tên cơ sở đã nằm ở tiêu đề nhóm ngay trên (xem loadRecent) — nhắc lại ở đây là ba lần một
        cái tên trên cùng một màn hình. */
-    trai.appendChild(el('b',null,rp.date+' · '+rp.rows+' ghế · '+money(rp.total)+'đ'));
+    /* Hiện TIỀN MẶT (thực thu) + QR — anh Thắng 12/09/2026: "chỗ này phải ghi Thực thu tiền mặt và
+       chỉ số QR; tổng theo chỉ số là sai". Số theo chỉ số (rp.total) không phản ánh đúng tiền thu
+       thật (có ghi đè thực thu / QR), nên bày thẳng hai con số thật: Tiền mặt phải nộp + QR. */
+    trai.appendChild(el('b',null, rp.date+' · '+rp.rows+' ghế · TM '+money(rp.cash)+'đ · QR '+money(rp.qr||0)+'đ'));
     trai.appendChild(huyHieuNop_(rp));
     head.appendChild(trai);
     var body=el('div'); body.style.display='none'; body.style.marginTop='8px';
