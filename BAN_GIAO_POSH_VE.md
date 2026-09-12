@@ -13,7 +13,7 @@ Hệ thống gồm **2 phần dùng chung một backend** (dữ liệu vé/đơn
 
 | Thành phần | Vị trí | Phiên bản cuối |
 |---|---|---|
-| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.61.0** |
+| Plugin bán vé | `vhcp-ve/vhcp-ve.php` + `vhcp-ve/assets/ve.js` + `vhcp-ve/assets/soat.js` | **1.61.1** |
 | Zalo Mini App | `zalo-mini-app/` | deploy qua `zmp` |
 | Mini App ID (Zalo) | — | **1014095630057742680** |
 
@@ -315,6 +315,31 @@ Dính **lần thứ ba** ở 1.49.0: dòng "chưa khai gói nạp" dùng lại l
 kết, mà khối gói nạp đứng trước — `napTong()` tưởng đó là dòng tổng kết và **xoá trắng** nó. Kết
 quả: cài mới, mở Nạp ví ra trống trơn, không nói gì (vá ở 1.49.1, lớp riêng `.pve-nap-trong`).
 Bản thử khi ấy chỉ chạy cảnh **đã khai gói** nên không thấy — nay có thêm cảnh cài mới.
+
+### 🔴🔴 ĐẶT TRÙNG TÊN LỚP CSS = CẢ TRANG KHÔNG BẤM ĐƯỢC (1.61.1)
+Lần nặng nhất trong họ lỗi trùng tên, và nó **không** phải chuyện `qs()`.
+
+Bản 1.61.0 đặt tên `.pve-lb` cho **hộp phóng to ảnh bảng giá** — nhưng `.pve-lb` đã là tên của
+**nhãn ô nhập** trong popup từ lâu (`<label class="pve-lb">Họ tên</label>`). Luật mới khai sau nên
+thắng: **mọi cái nhãn** trong popup biến thành `position:fixed; inset:0; z-index:100002` — tức một
+tấm kính trong suốt phủ kín màn hình, nằm trên mọi thứ. Bấm đâu cũng trúng cái nhãn. Không lỗi
+JS, không cảnh báo, chỉ là "bấm vào mua không được".
+
+Nút 🩺 chỉ đúng thủ phạm trong một dòng — **giữ lấy dòng ấy**:
+```
+Thứ NẰM TRÊN nút: LABEL.pve-lb.pve-nap-lb
+   -> CÓ THỨ KHÁC CHE NÚT
+```
+
+Ba luật rút ra:
+1. **Đặt tên lớp mới thì `grep` tên đó trước.** Một lệnh `grep -n "pve-abc" vhcp-ve.php` là đủ.
+   Tên cũ nằm rải trong CSS lẫn HTML, trí nhớ không thay được lệnh tìm.
+2. **Khối phủ toàn màn phải có tên không ai nhầm được.** Nay là `.pve-anhto` (ảnh to). Một lớp
+   `position:fixed; inset:0` mà trùng tên với thứ khác thì hậu quả luôn là chặn cả trang, chứ
+   không phải lệch vài pixel.
+3. **Thử phải thử đúng chỗ khách bấm**: harness cũ chỉ dựng riêng khối bảng giá nên không có cái
+   nhãn nào, bẫy không lộ. Bản thử nay dựng **cả popup** rồi đo `elementFromPoint` ngay giữa nút
+   "Đặt vé" — thứ nằm trên nút phải chính là nút.
 
 ### 🔴 BỐN LẦN DÍNH: `qs()` LẤY THẺ ĐẦU TIÊN TRONG CẢ POPUP
 Popup có **năm** bước dùng chung một khung (ví vé · nạp ví · giỏ · đặt lẻ · mã QR). `qs()` tra

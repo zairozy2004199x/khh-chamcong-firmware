@@ -1085,14 +1085,14 @@ function hienQR(v){
    "Đặt vé"      → chọn sẵn cơ sở ở khung đặt vé nhanh rồi cuộn lên. Chỉ lọc khi CÓ vé khai
                    đúng khu ấy: lọc theo một khu không vé nào thuộc về là xoá trắng danh sách,
                    khách tưởng hết vé.                                                        */
-function lbMo(ten, anh){
-	var lb = document.getElementById('pve-lb'); if (!lb) return false;
-	var img = lb.querySelector('.pve-lb-anh'), nh = lb.querySelector('.pve-lb-ten');
+function anhToMo(ten, anh){
+	var lb = document.getElementById('pve-anhto'); if (!lb) return false;
+	var img = lb.querySelector('.pve-anhto-anh'), nh = lb.querySelector('.pve-anhto-ten');
 	if (!img) return false;
 	img.src = anh; if (nh) nh.textContent = ten || 'Bảng giá';
 	lb.hidden = false; return true;
 }
-function lbDong(){ var lb = document.getElementById('pve-lb'); if (lb) lb.hidden = true; }
+function anhToDong(){ var lb = document.getElementById('pve-anhto'); if (lb) lb.hidden = true; }
 function coVeKhu(kv){
 	if (!kv) return false;
 	try { return !!document.querySelector('.pve-card[data-kv="' + kv.replace(/"/g,'\\"') + '"]'); }
@@ -1122,7 +1122,7 @@ boc('bảng giá cơ sở', function(){
 		if (xem){
 			ev.preventDefault();
 			var anh = xem.getAttribute('data-anh') || '', cs = xem.getAttribute('data-cs') || '';
-			if (anh && lbMo(cs, anh)) return;
+			if (anh && anhToMo(cs, anh)) return;
 			bgChonKhu(cs);
 			var ds = document.getElementById('pve-ds');
 			if (ds) ds.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -1147,9 +1147,9 @@ boc('bảng giá cơ sở', function(){
 			}
 			return;
 		}
-		if (t.closest('.pve-lb-x') || t.id === 'pve-lb'){ ev.preventDefault(); lbDong(); }
+		if (t.closest('.pve-anhto-x') || t.id === 'pve-anhto'){ ev.preventDefault(); anhToDong(); }
 	});
-	document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') lbDong(); });
+	document.addEventListener('keydown', function(ev){ if (ev.key === 'Escape') anhToDong(); });
 });
 
 

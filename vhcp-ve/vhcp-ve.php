@@ -3,7 +3,7 @@
  * Plugin Name:       POSH · Bán vé (Zalo Mini App)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Bán vé/dịch vụ khu vui chơi trả trước qua Zalo Mini App. Quản lý dịch vụ (ảnh/giá/mô tả), nhận đơn từ Zalo, dựng VietQR. ĐỘC LẬP với plugin ghế massage.
- * Version:           1.61.0
+ * Version:           1.61.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -3620,10 +3620,10 @@ class POSH_Ve {
 			</div>
 		</div>
 		<?php /* Hộp phóng to ảnh bảng giá treo tại quầy. Dựng sẵn ở máy chủ, JS chỉ mở/đóng. */ ?>
-		<div class="pve-lb" id="pve-lb" hidden>
-			<div class="pve-lb-in">
-				<div class="pve-lb-h"><b class="pve-lb-ten"></b><button type="button" class="pve-lb-x" aria-label="Đóng">✕</button></div>
-				<img class="pve-lb-anh" src="" alt="Bảng giá">
+		<div class="pve-anhto" id="pve-anhto" hidden>
+			<div class="pve-anhto-in">
+				<div class="pve-anhto-h"><b class="pve-anhto-ten"></b><button type="button" class="pve-anhto-x" aria-label="Đóng">✕</button></div>
+				<img class="pve-anhto-anh" src="" alt="Bảng giá">
 			</div>
 		</div>
 		<button type="button" id="pve-vi-nut" class="pve-vi-nut" hidden>🎫 <span class="pve-vi-n">0</span></button>
@@ -3860,10 +3860,10 @@ class POSH_Ve {
 		   giá trị" và color tụt về kế thừa — tức màu chữ mặc định của theme, ĐEN trên nền đen.
 		   Đúng lỗi 11/09/2026 "nếu chữ đen": gõ tên vào ô mà không đọc được mình vừa gõ gì.
 		   Đổi màu ở .pve-page thì đổi cả ở đây. */
-		/* .pve-lb (hộp phóng to bảng giá) nằm NGOÀI .pve-page — cùng cái bẫy đã ghi ở trên:
+		/* .pve-anhto (hộp phóng to bảng giá) nằm NGOÀI .pve-page — cùng cái bẫy đã ghi ở trên:
 		   ra khỏi .pve-page là mất bộ biến, `color:var(--nv)` thành không hợp lệ và chữ tụt về
 		   màu kế thừa của theme. Khai lại ở đây, đừng bỏ nó khỏi danh sách này. */
-		.pve-mask, .pve-wel, .pve-lb, .pve-dat, .pve-ct{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
+		.pve-mask, .pve-wel, .pve-anhto, .pve-dat, .pve-ct{ --g:#f36f21; --g2:#14286b; --nv:#14286b; --nv2:#0e1c4d; --cam:#f36f21; --gr:linear-gradient(135deg,#ff8b3d,#f0601a);
 			--bg:#f1f4fa; --sf:#ffffff; --sf2:#eaeff8; --bd:rgba(20,40,107,.16); --tx:#1a2340; --mut:#6b7386; }
 		/* Và chốt thẳng màu chữ ô nhập: nhiều theme đặt color/-webkit-text-fill-color cho input với
 		   độ ưu tiên cao hơn, biến có đúng vẫn bị đè. Ô nhập thì phải đọc được, không thương lượng. */
@@ -4254,16 +4254,16 @@ class POSH_Ve {
 
 		/* Hộp phóng to ảnh bảng giá. [hidden] phải có !important: display:flex ở dòng trên
 		   thắng [hidden] mặc định — đúng cái bẫy đã dính ở popup mua vé (xem BÀN GIAO). */
-		.pve-lb{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; position:fixed; inset:0; z-index:100002; background:rgba(12,22,52,.72);
+		.pve-anhto{ font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; position:fixed; inset:0; z-index:100002; background:rgba(12,22,52,.72);
 			display:flex; align-items:center; justify-content:center; padding:16px; }
-		.pve-lb[hidden]{ display:none !important; }
-		.pve-lb-in{ background:#fff; border-radius:14px; max-width:980px; width:100%; max-height:92vh;
+		.pve-anhto[hidden]{ display:none !important; }
+		.pve-anhto-in{ background:#fff; border-radius:14px; max-width:980px; width:100%; max-height:92vh;
 			overflow:auto; padding:12px; }
-		.pve-lb-h{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 4px 10px; }
-		.pve-lb-h b{ color:var(--nv); font-size:16px; text-transform:uppercase; }
-		.pve-lb-x{ border:none; background:var(--sf2); color:var(--nv); width:34px; height:34px;
+		.pve-anhto-h{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding:4px 4px 10px; }
+		.pve-anhto-h b{ color:var(--nv); font-size:16px; text-transform:uppercase; }
+		.pve-anhto-x{ border:none; background:var(--sf2); color:var(--nv); width:34px; height:34px;
 			border-radius:50%; font-size:16px; cursor:pointer; font-weight:800; }
-		.pve-lb-anh{ display:block; width:100%; height:auto; border-radius:8px; }
+		.pve-anhto-anh{ display:block; width:100%; height:auto; border-radius:8px; }
 
 		/* Cột hotline ở chân trang */
 		.pve-ft-hl{ display:flex; gap:26px; flex-wrap:wrap; justify-content:center; margin:0 0 18px; }
@@ -4279,12 +4279,12 @@ class POSH_Ve {
 		   cả trang lấy màu từ bộ biến, nên đổi tông là đổi đúng khối dưới đây, không phải đi
 		   sửa từng lớp.
 
-		   ⚠️ Đè cho CẢ .pve-mask/.pve-wel/.pve-lb: ba khối ấy nằm ngoài .pve-page, bỏ sót một
+		   ⚠️ Đè cho CẢ .pve-mask/.pve-wel/.pve-anhto: ba khối ấy nằm ngoài .pve-page, bỏ sót một
 		      cái là popup vẫn một tông, trang một tông. */
 		$tong = get_option( 'pve_tong', 'shop' );
 		if ( 'navy' !== $tong ) : ?>
 		<style id="pve-tong-shop">
-		.pve-page, .pve-mask, .pve-wel, .pve-lb, .pve-dat, .pve-ct{
+		.pve-page, .pve-mask, .pve-wel, .pve-anhto, .pve-dat, .pve-ct{
 			--g:#ec008c; --g2:#0090c8; --nv:#0090c8; --nv2:#00719e; --cam:#ec008c; --vang:#ffd200;
 			--gr:linear-gradient(135deg,#ff56b4,#ec008c);
 			--bg:#f1fafe; --sf:#ffffff; --sf2:#e6f5fd; --bd:rgba(0,144,200,.22);
