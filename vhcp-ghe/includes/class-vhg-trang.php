@@ -8585,14 +8585,19 @@ function veQuanLy(){
   var tc = (D.tong && D.tong.theo_coso) || [];
   var dt = {};                         // doanh thu theo TÊN cơ sở
   tc.forEach(function(c){ dt[c.coso] = c; });
-  var demGhe = {}, chuaGan = 0;        // đếm ghế theo cơ sở
+  /* ĐẾM CHỈ GHẾ ĐANG HOẠT ĐỘNG — anh Thắng 12/09/2026: "bộ lọc đếm số lượng ghế chỉ đếm ghế đang
+     hoạt động, không đếm ghế đã ẩn/điều chuyển". Ghế an=1 (đã dọn/điều chuyển) nằm ở khối riêng
+     "Ghế đã ẩn", KHÔNG tính vào số ghế của cơ sở. */
+  var demGhe = {}, chuaGan = 0, soGheHD = 0;   // đếm ghế SỐNG theo cơ sở
   may.forEach(function(m){
+    if (m.an) return;
+    soGheHD++;
     if (!m.coso) { chuaGan++; } else { demGhe[m.coso] = (demGhe[m.coso]||0) + 1; }
   });
 
   var h = '<div class="kpis">'
     + kpi(L('Địa điểm','Sites'), String(coso.length), L('cơ sở','locations'), 'a')
-    + kpi(L('Tổng ghế','Chairs'), String(may.length),
+    + kpi(L('Tổng ghế','Chairs'), String(soGheHD),
         (chuaGan ? chuaGan + ' ' + L('chưa gán','unassigned') : L('đã gán hết','all assigned')), 'b')
     + kpi(L('Doanh thu kỳ','Revenue'), tien(D.tong ? D.tong.tong : 0),
         L('kỳ đang xem','selected period'), 'd')
@@ -8937,7 +8942,13 @@ function qlGheRender(){
     if (QL_LOC === '__none__') return !m.coso;
     return m.coso === QL_LOC;
   }
-  function xepMa(a,b){ return String(a.ma).localeCompare(String(b.ma)); }
+  /* Sắp theo TÊN GHẾ (tự nhiên: VHM-1, VHM-2, … VHM-10), KHÔNG theo mã — anh Thắng 12/09/2026:
+     "sắp xếp ghế thì theo tên ghế, không theo mã". Ghế không có tên thì lui về mã. numeric:true để
+     "-2" đứng trước "-10". */
+  function xepMa(a,b){
+    return String(a.ten||a.ma).localeCompare(String(b.ten||b.ma), undefined, {numeric:true})
+      || String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true});
+  }
   var list = may.filter(function(m){ return !m.an && thuocLoc(m); }).sort(xepMa);
   /* 🔴 GHE DA DIEU CHUYEN NAM O DUOI TRANG, KHONG BIEN MAT — anh Thang 05/09/2026: *"cho phan
      dieu chuyen tuc la an no di, nam o duoi trang, sau nay can lap lai ta mo no len la duoc"*.
