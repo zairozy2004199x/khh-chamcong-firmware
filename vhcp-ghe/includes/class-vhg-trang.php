@@ -2850,6 +2850,22 @@ class VHG_Trang {
   }
 
   // ---------------- BÁO CÁO 24H — SỬA ----------------
+  /* Huy hiệu "đủ/thiếu ảnh máy" của một nhóm cơ sở — ĐỦ = mọi ghế của mọi báo cáo trong nhóm có
+     ≥1 ảnh (anh Thắng 12/09: "đã có ảnh sao vẫn báo thiếu" → không đòi đủ 2). Tách riêng để LƯU
+     xong ảnh một ghế thì gọi lại cập nhật ngay tại chỗ, khỏi tải lại cả khối. */
+  var HUY_HIEU_ANH=[];
+  function veHuyHieuAnh_(badge, reports){
+    var tongGhe=0, thieuGhe=0;
+    (reports||[]).forEach(function(rp){ (rp.chairs||[]).forEach(function(g){
+      /* `_coAnh` = ghế vừa được LƯU thêm ảnh trong phiên này (server chưa trả URL mới về, nhưng
+         chắc chắn đã có ảnh) — để huy hiệu chuyển xanh ngay, không đợi tải lại. */
+      tongGhe++; if(!((g.anh&&g.anh.length)||g._coAnh)) thieuGhe++; }); });
+    if(tongGhe>0 && thieuGhe===0){ badge.textContent='✅ đã gửi đủ ảnh máy';
+      badge.style.color='#166534'; badge.style.background='#dcfce7'; }
+    else { badge.textContent='📷 thiếu ảnh '+thieuGhe+'/'+tongGhe+' ghế';
+      badge.style.color='#b45309'; badge.style.background='#fef3c7'; }
+  }
+  function capNhatHuyHieuAnh_(){ HUY_HIEU_ANH.forEach(function(x){ veHuyHieuAnh_(x.badge,x.reports); }); }
   /* 🔴 CHIA TRANG 10 BÁO CÁO/TRANG — anh Thắng 30/08/2026: "Chỗ này sửa hiện 10 báo cáo 1 trang
      thôi nhé". Trước đây `ds` (toàn bộ báo cáo trong 24h thuộc phạm vi PIN) đổ thẳng ra hết một
      lượt — cơ sở đông máy dồn vào một khung cuộn dài cả màn hình, khó dò ra báo cáo cần sửa.
@@ -2892,6 +2908,7 @@ class VHG_Trang {
       selNgay.onchange=function(){ locNgay=selNgay.value; trang=1; ve(); };
       function ve(){
         wrapl.textContent='';
+        HUY_HIEU_ANH=[];   // vẽ lại trang → đăng ký lại các huy hiệu ảnh cho lượt này
         var dsL = locNgay ? ds.filter(function(rp){ return (rp.date||'')===locNgay; }) : ds;
         soTrang = Math.max(1, Math.ceil(dsL.length/TRANG));
         if(!dsL.length){ wrapl.appendChild(el('div','bc-mut','Không có báo cáo nào cho ngày này.')); pager.textContent=''; return; }
@@ -2915,20 +2932,14 @@ class VHG_Trang {
           var tieu=el('div'); tieu.style.cssText='font-weight:800;font-size:13px;letter-spacing:.3px;'
             +'text-transform:uppercase;color:#334155;border-left:3px solid #6366f1;padding-left:8px';
           tieu.textContent='🏬 '+cs+' · '+theoCs[cs].length+' báo cáo';
-          /* 📷 ĐỦ ẢNH MÁY? — anh Thắng 12/09/2026: "cơ sở nào báo đủ ảnh thì hiện đã gửi đủ ảnh máy".
-             ĐỦ = mỗi ghế có ÍT NHẤT 1 ẢNH (12/09: "đã có ảnh sao vẫn báo thiếu" — nhân viên hay chỉ
-             đính 1 ảnh/ghế, đòi đủ 2 là báo thiếu oan). Cơ sở đủ khi MỌI ghế của MỌI báo cáo trong
-             nhóm đều có ≥1 ảnh; thiếu thì nói rõ mấy ghế CHƯA có ảnh nào để biết đường nhắc. */
-          var tongGhe=0, thieuGhe=0;
-          theoCs[cs].forEach(function(rp){ (rp.chairs||[]).forEach(function(g){
-            tongGhe++; if(!((g.anh||[]).length)) thieuGhe++; }); });
+          /* 📷 ĐỦ ẢNH MÁY? — xem veHuyHieuAnh_(). Đăng ký vào HUY_HIEU_ANH để LƯU XONG ẢNH của một
+             ghế thì huy hiệu tự cập nhật ngay, khỏi tải lại cả khối (anh Thắng 12/09: "sao hệ thống
+             không cập nhật liền"). */
           var badge=el('span');
           badge.style.cssText='margin-left:8px;font-size:11px;font-weight:700;padding:2px 8px;'
             +'border-radius:999px;white-space:nowrap;text-transform:none;letter-spacing:0';
-          if(tongGhe>0 && thieuGhe===0){ badge.textContent='✅ đã gửi đủ ảnh máy';
-            badge.style.color='#166534'; badge.style.background='#dcfce7'; }
-          else { badge.textContent='📷 thiếu ảnh '+thieuGhe+'/'+tongGhe+' ghế';
-            badge.style.color='#b45309'; badge.style.background='#fef3c7'; }
+          veHuyHieuAnh_(badge, theoCs[cs]);
+          HUY_HIEU_ANH.push({ badge:badge, reports:theoCs[cs] });
           tieu.appendChild(badge);
           nhom.appendChild(tieu);
           theoCs[cs].forEach(function(rp){ nhom.appendChild(recentItem(rp)); });
@@ -3149,6 +3160,20 @@ class VHG_Trang {
         pQr=anhPicker_('e-anh-qr','🧾 Ảnh QR');
     anhWrap.appendChild(pChiso); anhWrap.appendChild(pVesinh); anhWrap.appendChild(pQr);
     card.appendChild(anhWrap);
+    /* 🖼️ HIỆN ẢNH ĐÃ GỬI để soi lại (rê/chạm phóng to) — anh Thắng 12/09: "vẫn không xem được ảnh".
+       Trước đây chỉ ghi 'Đã có N ảnh từ lúc gửi' bằng CHỮ, không có ảnh để xem. Nay bày thumbnail
+       của từng ảnh đã lưu; bấm mở tab mới xem cỡ thật, rê/chạm phóng to tại chỗ. */
+    if((c.anh||[]).length){
+      var anhCuWrap=el('div'); anhCuWrap.style.cssText='display:flex;gap:6px;flex-wrap:wrap;margin-top:8px';
+      var lbCu=el('div','bc-mut'); lbCu.style.cssText='width:100%;font-weight:700'; lbCu.textContent='Ảnh đã gửi (rê chuột / chạm để xem to):';
+      anhCuWrap.appendChild(lbCu);
+      (c.anh||[]).forEach(function(u){
+        var im=el('img'); im.src=u;
+        im.style.cssText='width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid #e2e8f0;display:block';
+        hoverZoom_(im); anhCuWrap.appendChild(im);
+      });
+      card.appendChild(anhCuWrap);
+    }
     var ttAnh=el('div','bc-mut'); card.appendChild(ttAnh);
     function coAnh_(fi){ return !!((fi.files&&fi.files.length)||fi._bulkFile); }   // .files hoặc _bulkFile (iOS)
     function capNhatAnh(){
@@ -3204,7 +3229,8 @@ class VHG_Trang {
           c.meterAfter=patch.meterAfter!==undefined?patch.meterAfter:c.meterAfter;
           c.qr=patch.qr!==undefined?patch.qr:c.qr; c.adjust=patch.adjust!==undefined?patch.adjust:c.adjust;
           c.note=patch.note!==undefined?patch.note:c.note;
-          if(patch.images){ anhCu+=Object.keys(patch.images).length; capNhatAnh(); }
+          if(patch.images){ anhCu+=Object.keys(patch.images).length; capNhatAnh();
+            c._coAnh=true; capNhatHuyHieuAnh_(); }   // ghế này giờ có ảnh → huy hiệu cơ sở xanh ngay
           loadUnpaid();
         });
       }
