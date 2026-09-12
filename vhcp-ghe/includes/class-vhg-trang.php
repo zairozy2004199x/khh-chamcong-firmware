@@ -1677,6 +1677,9 @@ class VHG_Trang {
       '.bc-t th{background:#0f172a;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:10px;text-align:left;white-space:nowrap}',
       '.bc-t td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}',
       '.bc-t input{width:100%;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}',
+      /* Ô số ngắn lại ~50% cho gọn (anh Thắng 12/09/2026: "giảm chiều dài ô 50%") — Chỉ số sau /
+         QR / Thực thu; ô Ghi chú (note) giữ rộng để gõ lý do. */
+      '.bc-t input.after,.bc-t input.qr,.bc-t input.adjust{max-width:96px;min-width:60px}',
       '.bc-t input.note{text-align:left;min-width:120px}',
       /* 🔴 SỐ LỆCH TÔ ĐỎ NGAY TRÊN Ô — anh Thắng 11/09/2026: *"lệch thì cảnh báo, và hiện đỏ"*.
          Chỉ số sau đi ngược (sau<trước), trùng/lớn hơn chỉ số ngày kế, hoặc công thức ra âm thì
@@ -2036,6 +2039,10 @@ class VHG_Trang {
   // ---------------- BẢNG GHẾ ----------------
   function selectLoc(loc){
     var body=$('bc-rows'); if(!body) return;
+    /* Đổi CƠ SỞ thì xoá bản đồ ảnh (ảnh theo từng cơ sở); vẽ lại cùng cơ sở (lastmeters về, đổi
+       ngày) thì GIỮ để anhLoatKhoiPhuc_ gắn lại ảnh vừa chọn — xem ANH_LOAT. */
+    if(ANH_LOAT.__coso && ANH_LOAT.__coso!==loc){ ANH_LOAT={}; }
+    ANH_LOAT.__coso=loc;
     var ghe=(BC.ghe||[]).filter(function(g){ return String(g.coso||'').trim()===String(loc).trim(); });
     var lk=$('bc-lock');
     if(lk){ if(khoaNgay(loc,NGAY)){ lk.textContent='Cơ sở '+loc+' ngày '+NGAY+' đang KHOÁ — nhờ kế toán mở.'; lk.style.display=''; } else lk.style.display='none'; }
@@ -2210,6 +2217,7 @@ class VHG_Trang {
     var w=el('div','bc-warn'); w.style.display='none'; td2.appendChild(w);
     tr2.appendChild(td2); tr._warn=w; tr._warnRow=tr2;
     calc(tr);
+    anhLoatKhoiPhuc_(tr, g.ma);   // 🗂️ gắn lại ảnh đã chọn (nếu có) sau khi vẽ lại hàng
     /* Trả về cả hai hàng — nơi gọi tự gắn vào bảng theo đúng thứ tự. */
     tr._pair = tr2;
     return tr;
@@ -2233,6 +2241,31 @@ class VHG_Trang {
      phủ lên trên) và tự vẽ MỘT NÚT CHỮ VIỆT CỐ ĐỊNH — "Chọn ảnh" — giống hệt nhau trên mọi máy,
      mọi trình duyệt, bất kể ngôn ngữ hệ thống của người dùng. */
   var CEL_ANH_DEM = 0;
+  /* 🗂️ NGUỒN SỰ THẬT CỦA ẢNH TỪNG GHẾ Ở MÀN NHẬP — anh Thắng 12/09/2026: "gửi ảnh hàng loạt nó
+     báo lỗi (5 ghế chưa có ảnh)". Trước đây ảnh chọn (chọn tay hoặc chia hàng loạt) chỉ nằm trên
+     chính ô <input> (.files / thuộc tính _bulkFile). Mỗi lần bảng ghế VẼ LẠI (bc_lastmeters về,
+     đổi ngày…) là các <input> bị dựng mới → mất sạch ảnh vừa chọn, nên lúc Gửi lại kêu "chưa có
+     ảnh". Nay giữ File trong MỘT bản đồ theo MÃ GHẾ, sống qua mọi lần vẽ lại; ô nhập chỉ là chỗ
+     bấm chọn, còn File thật nằm ở đây. `__coso` để đổi cơ sở thì xoá (ảnh theo từng cơ sở). */
+  var ANH_LOAT={};
+  function anhLoatSet_(input,file){
+    var tr=input&&input.closest?input.closest('tr'):null; var ma=tr?tr.dataset.ma:'';
+    if(!ma) return; var kind=input.classList.contains('anh-vesinh')?'vesinh':'chiso';
+    ANH_LOAT[ma]=ANH_LOAT[ma]||{}; if(file) ANH_LOAT[ma][kind]=file; else if(ANH_LOAT[ma]) delete ANH_LOAT[ma][kind];
+  }
+  function anhLoatGet_(ma,kind){ return (ANH_LOAT[ma]&&ANH_LOAT[ma][kind])||null; }
+  /* Gắn lại preview + _bulkFile cho các ô ảnh của một hàng vừa dựng, lấy từ bản đồ (sau khi vẽ lại). */
+  function anhLoatKhoiPhuc_(tr,ma){
+    if(!ANH_LOAT[ma]) return;
+    [['chiso','.anh-chiso'],['vesinh','.anh-vesinh']].forEach(function(x){
+      var f=ANH_LOAT[ma][x[0]]; if(!f) return;
+      var inp2=tr.querySelector(x[1]); if(!inp2) return;
+      inp2._bulkFile=f;
+      var pv=inp2.parentNode&&inp2.parentNode.querySelector('img');
+      if(pv){ try{ if(pv.dataset.url) URL.revokeObjectURL(pv.dataset.url); }catch(e){}
+        var u=URL.createObjectURL(f); pv.src=u; pv.dataset.url=u; pv.style.display='inline-block'; }
+    });
+  }
   /* 🔍 RÊ CHUỘT / CHẠM VÀO ẢNH NHỎ → HIỆN BẢN TO ĐỂ SOI — anh Thắng 12/09/2026: "thêm ảnh thì rê
      ảnh nó phóng to lên để xem gán ảnh đúng chưa". Ảnh preview chỉ 36px, nhìn không rõ gán đúng ô
      chưa. Dựng một lớp nổi cố định cạnh ảnh; điện thoại không có rê chuột nên CHẠM để bật/tắt. */
@@ -2278,6 +2311,7 @@ class VHG_Trang {
       var f=i.files&&i.files[0];
       if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
       else { prev.style.display='none'; delete prev.dataset.url; }
+      anhLoatSet_(i, f||null);   // chọn tay cũng vào bản đồ → sống qua lần vẽ lại
     });
     hoverZoom_(prev);
     td.appendChild(i); td.appendChild(lab); td.appendChild(prev);
@@ -2298,6 +2332,7 @@ class VHG_Trang {
     for(var i=0;i<n;i++){
       var f=files[i], t=targets[i];
       t._bulkFile=f;                                   // fallback cho iOS
+      anhLoatSet_(t,f);                                // 🗂️ nguồn sự thật: sống qua lần vẽ lại
       try{ var dt=new DataTransfer(); dt.items.add(f); t.files=dt.files; }catch(e){}
       var td=t.parentNode, img=td&&td.querySelector('img');
       if(img){ try{ if(img.dataset.url) URL.revokeObjectURL(img.dataset.url); }catch(e){}
@@ -2532,9 +2567,9 @@ class VHG_Trang {
     rows.forEach(function(r){
       var tr=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
       var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
-      /* Ưu tiên ảnh chọn tay (.files); nếu không set được (iOS, chọn hàng loạt) thì lấy _bulkFile. */
-      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile)||null;
-      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile)||null;
+      /* Ưu tiên ảnh chọn tay (.files); rồi _bulkFile; rồi bản đồ ANH_LOAT (sống qua lần vẽ lại). */
+      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile)||anhLoatGet_(r.chairCode,'chiso')||null;
+      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile)||anhLoatGet_(r.chairCode,'vesinh')||null;
       if(c||v) can.push({ r:r, c:c, v:v });
     });
     if(!can.length) return cb();
@@ -2666,8 +2701,8 @@ class VHG_Trang {
     rows.forEach(function(r){
       var tr=document.querySelector('#bc-rows tr[data-ma="'+String(r.chairCode).replace(/"/g,'\\"')+'"]');
       var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
-      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile);
-      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile);
+      var c=(fC&&fC.files&&fC.files[0])||(fC&&fC._bulkFile)||anhLoatGet_(r.chairCode,'chiso');
+      var v=(fV&&fV.files&&fV.files[0])||(fV&&fV._bulkFile)||anhLoatGet_(r.chairCode,'vesinh');
       if(!c&&!v) thieuAnh.push(r.chairName||r.chairCode);
     });
     if(thieuAnh.length){
@@ -2692,6 +2727,7 @@ class VHG_Trang {
           if(!r||!r.ok){ msg.textContent=((r&&r.message)||(r&&r.error)||'Gửi không thành công.')+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-err'; return; }
           msg.textContent=(r.message||('Đã gửi báo cáo '+LOC+'.'))+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-ok';
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
+          ANH_LOAT={};   // gửi xong → xoá bản đồ ảnh, khỏi đính lại ảnh cũ cho báo cáo sau
           document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; try{ delete i._bulkFile; }catch(e){ i._bulkFile=null; } });
           document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });
           var iP=$('bc-proofs'); if(iP) iP.value='';

@@ -144,22 +144,24 @@ class VHG_BaoCao {
 	 * 🔴 DUY NHẤT chỗ lọc cờ `may.an` (ghế đã dọn/điều chuyển — anh Thắng 29/08/2026). Trang quản
 	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
 	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
-	public static function ds_ghe( $q ) {
+	public static function ds_ghe( $q, $hien_an = false ) {
 		$ra = array();
 		foreach ( VHG_May::ds_may() as $m ) {
-			/* 🔴 KHÔNG BAO GIỜ ẨN MÁY KHỎI MÀN NHẬP — anh Thắng 12/09/2026: *"bất cứ giá nào cũng
-			   không được ẩn, nếu sai thì cảnh báo đỏ"*. Trước đây cờ `an` (nút "Xoá"/checkbox "đã
-			   dọn" ở admin) làm máy BIẾN MẤT khỏi màn nhập trong khi Duyệt vẫn thấy (đọc từ báo cáo
-			   đã lưu) — nhân viên không gõ được chỉ số MỚI cho máy đó, mất doanh thu mà không ai hay.
-			   Nay VẪN trả máy `an=1` về, gắn cờ `an` để màn nhập tô ĐỎ + nhắc "đã dọn/điều chuyển —
-			   kiểm tra", chứ không loại bỏ. Thà thừa một dòng đỏ còn hơn thiếu một máy. */
+			/* 🔴 MÁY ĐÃ "DỌN/ĐIỀU CHUYỂN" (`an`=1) — anh Thắng 12/09/2026:
+			   · ADMIN/quản lý/kế toán ($hien_an) → VẪN HIỆN, tô ĐỎ để phát hiện & sửa nhầm ("bất cứ
+			     giá nào cũng không được ẩn, nếu sai thì cảnh báo đỏ"). Nút "Xoá"/checkbox "đã dọn"
+			     ở admin đặt an=1 làm máy sống biến mất khỏi màn nhập — mất chỉ số mà không ai hay.
+			   · NHÂN VIÊN (mặc định) → ẩn như cũ ("với nhân viên không cần hiện"): máy đã dọn thật
+			     thì đừng bày ra bàn thu tiền cho rối. An toàn nằm ở chỗ ADMIN thấy đỏ và gỡ cờ. */
+			$an   = ! empty( $m['an'] );
+			if ( $an && ! $hien_an ) { continue; }
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
 				'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
 				'coso' => $coso,
-				'an'   => ! empty( $m['an'] ) ? 1 : 0,
+				'an'   => $an ? 1 : 0,
 			);
 		}
 		/* Xếp theo cơ sở rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1,
@@ -591,11 +593,14 @@ class VHG_BaoCao {
 		return $out;
 	}
 
-	public static function boot( $pin ) {
+	public static function boot( $pin, $la_admin = false ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
 		if ( ! $q ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
-		$ghe = self::ds_ghe( $q );
+		/* PIN toàn quyền (không giới hạn cơ sở/ghế) cũng coi như admin cho việc HIỆN máy đã dọn. */
+		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
+		$hien_an    = $la_admin || $toan_quyen;   // admin/toàn quyền → hiện máy 'an' (đỏ); nhân viên → ẩn
+		$ghe = self::ds_ghe( $q, $hien_an );
 		$cs = array();
 		foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
 		$khoa = $wpdb->get_results( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc_khoa' ), ARRAY_A );
@@ -616,7 +621,6 @@ class VHG_BaoCao {
 		   ra cơ sở bạn quản lý, cho dễ test". Gửi khi PIN TOÀN QUYỀN (đường PIN thuần); còn admin
 		   đăng nhập qua /ghe thì gắn theo VAI TRÒ ở boot_tu_ai() — vì PIN admin có thể LIỆT KÊ đủ
 		   cơ sở chứ không để trống, cổng "toàn quyền" ở đây không bắt được. */
-		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
 		$nhan_su = $toan_quyen ? self::ds_nhan_su_() : array();
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
@@ -729,18 +733,21 @@ class VHG_BaoCao {
 				'error' => 'Chưa có PIN trong hồ sơ nhân sự — nhờ Admin cấp PIN rồi vào lại.',
 				'viSao' => $vi_sao );
 		}
-		$r = self::boot( $pin );
+		/* Xác định ADMIN/quản lý/kế toán TRƯỚC khi boot để truyền cờ $la_admin — quyết định có HIỆN
+		   máy 'đã dọn' (đỏ) ở màn nhập hay không (anh Thắng 12/09/2026: admin hiện, nhân viên ẩn). */
+		$adm = false;
+		if ( class_exists( 'VHG_Auth' ) ) {
+			$qq  = VHG_Auth::quyen_cua( isset( $ai['role'] ) ? $ai['role'] : '' );
+			$adm = ( ! empty( $qq['quan_tri'] ) || ! empty( $qq['chot_doanh_so'] ) );
+		}
+		$r = self::boot( $pin, $adm );
 		if ( ! empty( $r['ok'] ) ) {
 			$r['pin'] = $pin;
 			/* 👤 ADMIN/QUẢN LÝ/KẾ TOÁN đăng nhập qua /ghe → gắn danh sách nhân viên để chọn-lọc cơ sở
-			   (dù PIN có liệt kê đủ cơ sở chứ không "toàn quyền"). Anh Thắng 12/09/2026: "bàn này là
-			   admin, sẽ sửa lỗi của nhân viên khác nên cần hiện tên + cơ sở của họ". */
-			if ( class_exists( 'VHG_Auth' ) ) {
-				$qq = VHG_Auth::quyen_cua( isset( $ai['role'] ) ? $ai['role'] : '' );
-				if ( ! empty( $qq['quan_tri'] ) || ! empty( $qq['chot_doanh_so'] ) ) {
-					$r['nhanSu'] = self::ds_nhan_su_();
-					$r['toanQuyen'] = 1;
-				}
+			   (dù PIN có liệt kê đủ cơ sở chứ không "toàn quyền"). */
+			if ( $adm ) {
+				$r['nhanSu'] = self::ds_nhan_su_();
+				$r['toanQuyen'] = 1;
 			}
 		} else { $r['viSao'] = $vi_sao . '; boot_that_bai'; }
 		return $r;
