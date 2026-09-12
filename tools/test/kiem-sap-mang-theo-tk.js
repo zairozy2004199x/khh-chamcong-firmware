@@ -123,6 +123,34 @@ teq('   và không lẫn với mã 64120', '6412',
 teq('mảng chưa khai gì trả mã gốc rỗng', '', A.maGoc('M', [{ ten: 'L' }], {}));
 teq('danh sách rỗng thì không nổ', [], A.sap([], ROWS, MX));
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 4. 🔴 HAI NÚT PHẢI BẤM ĐƯỢC — CÁI KHÓA CỦA BẢNG MÃ KHÔNG ĐƯỢC NUỐT CHÚNG
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Cắn thật 12/09/2026, ngay bản đầu: anh Thắng bấm "Theo số tài khoản" mà bảng không nhúc
+ * nhích. Luật sắp xếp đúng cả — 18 phép ở trên đều xanh — nhưng `toggleMxLock()` quét
+ * `button` trong cả khối `cfgTkNoMx` và disable sạch, kể cả hai nút mới. Mà
+ * `renderTkNoMatrix()` gọi khóa NGAY SAU khi vẽ, nên chúng chết từ lượt dựng đầu tiên: nút
+ * trông vẫn bình thường, bấm thì không có gì xảy ra, không một câu lỗi.
+ *
+ * 🔴 BÀI HỌC CHO CẢ TỆP NÀY: canh cái hàm chạy đúng là CHƯA ĐỦ khi người dùng không với tới
+ *    được nó. Hai phép dưới soi đường đi từ ngón tay tới hàm, không soi hàm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+const iKhoa = HTML.indexOf('function toggleMxLock(');
+t('bốc được toggleMxLock()', iKhoa >= 0);
+const KHOA = HTML.slice(iKhoa, HTML.indexOf('\n  }', iKhoa));
+t('🔴 cái khóa CHỪA những nút chỉ đổi cách bày', /:not\(\[data-khong-khoa\]\)/.test(KHOA), KHOA);
+/* Và hai nút ấy phải thật sự mang dấu — chừa trong hàm khóa mà quên gắn dấu thì vẫn chết.
+   ⚠️ BẮT ĐÚNG THẺ `<button …>`, ĐỪNG QUÉT MỘT CỬA SỔ QUANH NÓ. Ngay trên chỗ dựng nút có một
+      chú thích giải thích vì sao cần `data-khong-khoa` — quét rộng là trúng chú thích ấy, và
+      phép xanh kể cả khi cái dấu đã bị gỡ khỏi nút. Đã mắc đúng lượt phá thử 12/09/2026. */
+const NUT = (HTML.match(/<button[^>]*onclick="mxDatSap\(/) || [''])[0];
+t('bốc được chỗ dựng hai nút sắp xếp', NUT.length > 10, NUT);
+t('🔴 hai nút sắp xếp có mang dấu data-khong-khoa', /data-khong-khoa/.test(NUT), NUT);
+/* Đối chứng: ô NHẬP MÃ thì vẫn phải bị khóa — chừa nhầm là mở toang bảng mã cho lỡ tay sửa. */
+const iVe = HTML.indexOf('data-loai="');
+const O_MA = HTML.slice(Math.max(0, iVe - 200), iVe + 200);
+t('🔴 ô nhập mã KHÔNG được mang dấu ấy (vẫn phải khóa)', !/data-khong-khoa/.test(O_MA), O_MA.slice(0, 200));
+
 /* ─────────────────────────────────────────────────────────────────────────────────────── */
 console.log('');
 if (TRUOT.length) {

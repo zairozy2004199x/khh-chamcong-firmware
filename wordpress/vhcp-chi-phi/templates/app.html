@@ -9199,7 +9199,17 @@
     MX_LOCK=!MX_LOCK;
     var b=el('mxLockBtn');
     if(b){ b.textContent=MX_LOCK?'🔒 Đang khóa — bấm để mở':'🔓 Đang mở — bấm để khóa'; b.className='btn '+(MX_LOCK?'b-x':'b-p'); }
-    Array.prototype.forEach.call(el('cfgTkNoMx').querySelectorAll('input,select,button'),function(f){ f.disabled=MX_LOCK; });
+    /* 🔴 KHÓA Ô NHẬP, ĐỪNG KHÓA NÚT CHỈ ĐỔI CÁCH NHÌN.
+       Cắn thật 12/09/2026: anh Thắng bấm "Theo số tài khoản" mà bảng không nhúc nhích. Vòng
+       này quét `button` trong cả khối nên nuốt luôn hai nút sắp xếp vừa thêm ở 1.149.0 — và
+       `renderTkNoMatrix()` khóa lại NGAY SAU khi vẽ, nên chúng chết từ lượt dựng đầu tiên.
+       Nút trông vẫn bình thường, bấm thì không có gì xảy ra, không một câu lỗi.
+       Cái khóa này sinh ra để chống lỡ tay SỬA MÃ TÀI KHOẢN. Nút đổi cách xếp không ghi gì
+       xuống sổ, nên khóa nó chỉ có hại. `data-khong-khoa` là lối ra chung: nút nào về sau chỉ
+       đổi cách bày cũng gắn thuộc tính ấy. */
+    Array.prototype.forEach.call(
+      el('cfgTkNoMx').querySelectorAll('input:not([data-khong-khoa]),select:not([data-khong-khoa]),button:not([data-khong-khoa])'),
+      function(f){ f.disabled=MX_LOCK; });
   }
   /* ══════════════════════════════════════════════════════════════════════════════════════
    * HAI CÁCH SẮP MẢNG KINH DOANH — anh Thắng 12/09/2026: *"Chỗ mảng kinh doanh, tạo cho anh 2
@@ -9289,7 +9299,10 @@
        MỖI ĐƠN VỊ MỘT BẢNG RIÊNG, và chỉ hiện đơn vị người này xem được. */
     var nhom=_mxNhomDv().filter(function(g){ return _xemDuocDv(g.dv); });
     if(nhom.length){
-      var _n=function(v,ten){ return '<button type="button" class="btn '+(MX_SAP===v?'b-p':'b-x')+'"'
+      /* `data-khong-khoa`: hai nút này chỉ đổi CÁCH BÀY, không ghi gì xuống sổ — nên cái khóa
+         "🔒 Đang khóa" của bảng mã phải chừa chúng ra. Thiếu nó là nút chết ngay từ lượt vẽ
+         đầu, bấm không ăn mà chẳng có câu lỗi nào. */
+      var _n=function(v,ten){ return '<button type="button" data-khong-khoa="1" class="btn '+(MX_SAP===v?'b-p':'b-x')+'"'
         +' onclick="mxDatSap(\''+v+'\')" style="padding:3px 10px;font-size:11.5px">'+ten+'</button>'; };
       h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 2px">'
         +'<b style="font-size:12px;color:#334155">Sắp mảng kinh doanh:</b>'
