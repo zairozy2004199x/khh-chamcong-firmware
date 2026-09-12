@@ -7808,11 +7808,25 @@
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listSoChi(opt);
   }
 
-  function _scKeepSel(id, list, cur, allLabel){
+  function _scKeepSel(id, list, cur, allLabel, nhan){
     var v=cur||el(id).value||'all';
-    el(id).innerHTML='<option value="all">'+allLabel+'</option>'+list.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
+    el(id).innerHTML='<option value="all">'+allLabel+'</option>'+list.map(function(x){
+      return '<option value="'+esc(x)+'">'+esc(nhan?nhan(x):x)+'</option>'; }).join('');
     el(id).value=(list.indexOf(v)>=0)?v:'all';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * MÃ TK TRONG Ô LỌC — NÓI RÕ CÁI NÀO GỘP CẢ CÂY.
+   *
+   * Anh Thắng 12/09/2026: *"cần tìm mã 641 bao nhiêu, thì hệ thống sẽ cộng 6411, 6412,
+   * 6413"*. Máy chủ đã cộng như thế (`VHCP_Cfg::tk_thuoc_cay`), nhưng nếu ô xổ bày "641" trơ
+   * trọi cạnh "6411" thì người chọn không tài nào biết hai dòng ấy khác nhau ở chỗ nào — và
+   * khi thấy số của 641 lớn hơn hẳn thì sẽ tưởng dữ liệu trùng.
+   *
+   * 🔴 MÃ CHA KHÔNG CÓ DÒNG NÀO GHI NÓ. Trong sổ chỉ có 6411/6412; "641" là mã máy chủ suy ra
+   *    (`tkChaList`) để người ta có cái mà chọn. Nên nhãn phải nói thẳng nó là tổng, không
+   *    thì nó trông như một mã bị bỏ trống. */
+  var SC_TK_CHA={};
+  function _tkNhan(x){ return SC_TK_CHA[x] ? (x+'  ·  gồm cả cây con') : x; }
 
   function renderSoChi(r){
     var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
@@ -7828,7 +7842,8 @@
     _scKeepSel('scfKy',   r.kyList||[],   null, 'Tất cả kỳ');
     _scKeepSel('scfCoso', cosoOpts,       null, 'Tất cả cơ sở');
     _scKeepSel('scfLoai', r.loaiList||[], null, 'Tất cả loại chi phí');
-    _scKeepSel('scfTk',   r.tkNoList||[], null, 'Tất cả mã TK');
+    SC_TK_CHA={}; (r.tkChaList||[]).forEach(function(x){ SC_TK_CHA[x]=1; });
+    _scKeepSel('scfTk',   r.tkNoList||[], null, 'Tất cả mã TK', _tkNhan);
     _scKeepSel('scfDuAn', (r.duAnList||[]).concat(['(khong)']), null, 'Tất cả dự án');
     if(el('dl_mada')) el('dl_mada').innerHTML=(r.duAnList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
 

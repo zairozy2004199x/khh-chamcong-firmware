@@ -1470,6 +1470,81 @@ class VHCP_Cfg {
 	 * Loại mã đó chỉ được nằm ở cột TK Có. Rơi vào cột TK Nợ là hạch toán sai
 	 * (bút toán ra "Nợ 141 · Có 141" — đúng thứ anh Thắng thấy trên bảng xuất).
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MÃ TÀI KHOẢN LÀ MỘT CÂY — LỌC CHA PHẢI ĂN CẢ CON.
+	 *
+	 * Anh Thắng 12/09/2026: *"cần tìm mã 641 bao nhiêu, thì hệ thống sẽ cộng 6411, 6412,
+	 * 6413. Cơ chế nó vậy"*.
+	 *
+	 * 🔴 KHÔNG CẦN BẢNG CHA–CON. Hệ tài khoản Việt Nam đã mã hoá sẵn quan hệ ấy vào chính con
+	 *    số: 641 › 6415 › 64151. Nên "thuộc cây 641" chỉ là "bắt đầu bằng 641". Dựng thêm một
+	 *    bảng khai cha–con là thêm một nơi phải khai đúng, và khai lệch thì tiền cộng sai mà
+	 *    không ai nhìn ra.
+	 *
+	 * 🔴 DỌN ĐUÔI `.0` TRƯỚC KHI SO. Bảng tính trả "141.0" cho mã 141; so thẳng thì `'141.0'`
+	 *    không bắt đầu bằng `'1411'` mà lại bắt đầu bằng `'141'` — nửa đúng nửa sai tuỳ mã,
+	 *    đúng kiểu lỗi không ai truy ra. `VHCP_Util::ma_so()` là chỗ dọn duy nhất.
+	 *
+	 * ⚠️ CHỈ ĂN THEO ĐỐT, KHÔNG ĂN GIỮA CHỪNG. "64" KHÔNG được coi là cha của "6415" ở đây —
+	 *    nghe thì hợp lý, nhưng hệ thống tài khoản không có tài khoản "64", nên cho nó khớp là
+	 *    mở đường cho những mã nửa vời do gõ thiếu số. Cha phải là một mã CÓ THẬT: người dùng
+	 *    chọn từ ô xổ, và ô ấy chỉ bày mã dựng từ sổ (xem `tk_cha_ds()`).
+	 *
+	 * @param string $tk  Mã trên dòng chi.
+	 * @param string $loc Mã người dùng đang lọc.
+	 * @return bool
+	 */
+	public static function tk_thuoc_cay( $tk, $loc ) {
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ `ma_so()` ở VẾ TRÁI
+		   KHÔNG đổi kết quả ca nào — đuôi ".0" nằm ở CUỐI chuỗi, mà phép so tiền tố chỉ nhìn
+		   phần ĐẦU, nên "6411.0" vẫn khớp cây "641" y như "6411". Giữ nó vì hai lẽ: nó nói
+		   thẳng ra luật "dọn rồi mới so", và nó cứu vế `$a === $b` cùng những đuôi khác ".0"
+		   mà bảng tính có thể đẻ ra sau này. VẾ PHẢI thì KHÔNG tương đương — bỏ là lọc
+		   "141.0" mất sạch dòng 1411, và bài kiểm đỏ ngay. */
+		$a = VHCP_Util::ma_so( $tk );
+		$b = VHCP_Util::ma_so( $loc );
+		if ( '' === $a || '' === $b ) { return false; }
+		if ( $a === $b ) { return true; }
+		return 0 === strpos( $a, $b );
+	}
+
+	/**
+	 * MỌI MÃ CHA suy ra được từ một rổ mã có thật — để ô lọc bày cả `641` chứ không chỉ `6415`.
+	 *
+	 * 🔴 CHỈ SINH CHA TỪ 3 CHỮ SỐ TRỞ LÊN. Tài khoản cấp 1 của hệ Việt Nam là 3 chữ số; cắt
+	 *    ngắn hơn ra "64" hay "6" là bịa ra những mã không tồn tại, và chúng sẽ nằm trong ô xổ
+	 *    như thể có thật.
+	 *
+	 * ⚠️ KHÔNG trả lại chính những mã đã có trong rổ — nơi gọi tự gộp hai danh sách. Trộn sẵn ở
+	 *    đây là nơi gọi không còn phân biệt được đâu là mã thật, đâu là mã cha suy ra, mà màn
+	 *    cần biết điều đó để ghi chú "gồm cả cây con".
+	 *
+	 * @param array $ds Danh sách mã có thật.
+	 * @return array Mã cha, đã sắp, không trùng, không lẫn mã đã có trong $ds.
+	 */
+	public static function tk_cha_ds( $ds ) {
+		$co  = array();
+		foreach ( (array) $ds as $x ) {
+			$x = VHCP_Util::ma_so( $x );
+			if ( '' !== $x ) { $co[ $x ] = 1; }
+		}
+		/* 🔴 ÉP LẠI CHUỖI Ở MỌI LƯỢT `array_keys()`. PHP tự đổi khoá mảng toàn số thành int,
+		   nên "641" chui ra thành 641 — `ctype_digit(641)` cảnh báo, và `in_array('641', $ds,
+		   true)` ở nơi gọi trả false vì lệch kiểu. Đã cắn đúng lượt viết đầu, bài kiểm đỏ. */
+		$ra = array();
+		foreach ( array_keys( $co ) as $ma ) {
+			$ma = (string) $ma;
+			if ( ! ctype_digit( $ma ) ) { continue; }   // mã có chữ thì không phải cây số
+			for ( $n = 3; $n < strlen( $ma ); $n++ ) {
+				$cha = substr( $ma, 0, $n );
+				if ( ! isset( $co[ $cha ] ) ) { $ra[ $cha ] = 1; }
+			}
+		}
+		$out = array_map( 'strval', array_keys( $ra ) );
+		sort( $out, SORT_NATURAL );
+		return $out;
+	}
+
 	public static function la_tk_ben_tra( $tk ) {
 		$s = trim( (string) $tk );
 		return ( $s !== '' && ( strpos( $s, '141' ) === 0 || strpos( $s, '331' ) === 0 ) );

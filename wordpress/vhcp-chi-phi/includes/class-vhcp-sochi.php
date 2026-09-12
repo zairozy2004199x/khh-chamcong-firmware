@@ -261,7 +261,11 @@ class VHCP_SoChi {
 			if ( $f_ky !== 'all' && (string) $r['ky'] !== $f_ky ) { continue; }
 			if ( $f_cs !== 'all' && (string) $r['coso'] !== $f_cs ) { continue; }
 			if ( $f_loai !== 'all' && (string) $r['loai'] !== $f_loai ) { continue; }
-			if ( $f_tk !== 'all' && (string) $r['tk_no'] !== $f_tk ) { continue; }
+			/* 🔴 LỌC MÃ TK ĂN CẢ CÂY CON — anh Thắng 12/09/2026: *"cần tìm mã 641 bao nhiêu,
+			   thì hệ thống sẽ cộng 6411, 6412, 6413"*. So bằng đúng thì chọn 641 chỉ ra những
+			   dòng ghi chằn chặn 641, mà phần lớn tiền lại nằm ở các mã con — người xem đọc ra
+			   một con số nhỏ hơn nhiều sự thật và không có gì nói cho họ biết. */
+			if ( $f_tk !== 'all' && ! VHCP_Cfg::tk_thuoc_cay( $r['tk_no'], $f_tk ) ) { continue; }
 			if ( $f_da !== 'all' ) {
 				if ( $f_da === '(khong)' ) { if ( $mda !== '' ) { continue; } }
 				elseif ( $mda !== $f_da ) { continue; }
@@ -325,6 +329,11 @@ class VHCP_SoChi {
 		$loai_list = array_keys( $loai_set );
 		sort( $loai_list );
 		$tk_list = array_map( 'strval', array_keys( $tk_set ) );   // mã toàn số -> ép lại chuỗi
+		/* Ô xổ phải bày cả MÃ CHA, không thì người ta không có cách nào chọn "641" — trong sổ
+		   chỉ có 6411/6412, còn 641 thì không dòng nào ghi. Đánh dấu riêng để màn ghi chú được
+		   là chọn nó sẽ cộng cả cây con. */
+		$tk_cha  = VHCP_Cfg::tk_cha_ds( $tk_list );
+		$tk_list = array_merge( $tk_list, $tk_cha );
 		sort( $tk_list, SORT_NATURAL );
 		$da_list = array_map( 'strval', array_keys( $da_set ) );
 		sort( $da_list, SORT_NATURAL );
@@ -348,6 +357,7 @@ class VHCP_SoChi {
 			'kyList'     => array_values( $ky_list ),
 			'loaiList'   => array_values( $loai_list ),
 			'tkNoList'   => array_values( $tk_list ),
+			'tkChaList'  => array_values( $tk_cha ),
 			'duAnList'   => array_values( $da_list ),
 			'danhMuc'    => $dm,
 			'coso'       => $coso,
