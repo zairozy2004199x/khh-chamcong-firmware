@@ -540,24 +540,47 @@ class VHG_BaoCao {
 
 	// ══════════════════════════════════════════════════════════════════ ĐĂNG NHẬP / BOOTSTRAP
 
-	/** Danh sách [{ten, coso[]}] mọi nhân viên có gán cơ sở — cho ô "chọn nhân viên → lọc cơ sở"
-	 *  của admin/kế toán. Tên cơ sở lấy nguyên văn cột `coso` hồ sơ (trình duyệt tự chuẩn hoá khớp).
+	/** Danh sách [{ten, coso[], toan}] nhân viên → CƠ SỞ HỌ PHỤ TRÁCH — cho ô "chọn nhân viên →
+	 *  lọc cơ sở" của admin/kế toán.
 	 *
-	 *  ⚠️ 12/09/2026: đã THỬ lọc chỉ cơ sở-có-ghế ở đây (2.40.0) — HỎNG: `squash()` khớp cột `coso`
-	 *     hồ sơ với `may.coso_ten` rớt gần hết nhân viên (chỉ còn 1), nên danh sách "mất nhân viên
-	 *     hết". Hoàn nguyên: trả nguyên danh sách. Việc ẩn cơ sở HÀNH CHÍNH (VP_*, SETUP_*) khỏi ô
-	 *     này còn treo — cần cách nhận diện chắc chắn (cờ ở danh mục cơ sở), không suy từ "có ghế".*/
+	 *  🔴 "CƠ SỞ PHỤ TRÁCH", KHÔNG PHẢI "NƠI CHẤM CÔNG". Anh Thắng 12/09/2026: *"cơ sở là nơi bạn
+	 *     quản lý, chứ không phải nơi chấm công"*. Cột `coso` trong HỒ SƠ NHÂN SỰ là NƠI CHẤM CÔNG
+	 *     của người đó (quản lý vùng thì để đúng một văn phòng, ví dụ POSH_HCM) — KHÁC với danh sách
+	 *     cơ sở họ phụ trách. Bản 2.39–2.40 lấy nhầm cột này nên chọn quản lý ra mỗi văn phòng.
+	 *
+	 *  → LẤY ĐÚNG NGUỒN, THEO ĐÚNG THỨ TỰ CỦA `pin_info()`:
+	 *      (1) có hàng `bc_pin` cho PIN → phạm vi PHỤ TRÁCH do Admin khai (lưới "Cơ sở phụ trách");
+	 *          `coso` rỗng ⇒ TOÀN QUYỀN (quản lý cả chuỗi) → cờ `toan`, trình duyệt hiểu là hiện tất.
+	 *      (2) không có ngoại lệ → lùi về cột hồ sơ (nơi chấm công) — cửa hàng trưởng thường trùng
+	 *          nơi chấm công với cơ sở mình đứng nên vẫn đúng; quản lý vùng cần Admin khai bc_pin.
+	 *     Đây LÀ chính phạm vi mà người đó thấy khi tự đăng nhập, nên "chọn tên → ra cơ sở" khớp y
+	 *     hệt màn của họ, không đoán. */
 	public static function ds_nhan_su_() {
 		$out = array();
 		if ( ! class_exists( 'VHG_Auth' ) ) { return $out; }
 		$us = VHG_Auth::users();
 		if ( is_wp_error( $us ) ) { return $out; }
+		/* Bản đồ PIN(chuẩn hoá) → hàng ngoại lệ bc_pin. Quét một lần thay vì hỏi CSDL từng nhân viên. */
+		$bcpin = array();
+		foreach ( VHG_DB::rows( 'SELECT pin, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $r ) {
+			$k = self::pin_chuan_( isset( $r['pin'] ) ? $r['pin'] : '' );
+			if ( '' !== $k ) { $bcpin[ $k ] = $r; }
+		}
 		foreach ( (array) $us as $u ) {
 			$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
-			$cs = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
-			if ( ! count( $cs ) ) { continue; }
-			$out[] = array( 'ten' => $ten, 'coso' => $cs );
+			$pin_c = self::pin_chuan_( isset( $u['pin'] ) ? $u['pin'] : '' );
+			$toan  = false;
+			if ( '' !== $pin_c && isset( $bcpin[ $pin_c ] ) ) {
+				$row = $bcpin[ $pin_c ];
+				if ( 1 !== (int) $row['active'] ) { continue; }   // Admin khoá PIN này khỏi báo cáo
+				$cs   = self::tach_( isset( $row['coso'] ) ? $row['coso'] : '' );
+				$toan = ( ! count( $cs ) && '' === trim( (string) ( isset( $row['ghe'] ) ? $row['ghe'] : '' ) ) );
+			} else {
+				$cs = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
+			}
+			if ( ! $toan && ! count( $cs ) ) { continue; }        // không phụ trách cơ sở nào → bỏ khỏi ô chọn
+			$out[] = array( 'ten' => $ten, 'coso' => $cs, 'toan' => $toan ? 1 : 0 );
 		}
 		return $out;
 	}

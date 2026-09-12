@@ -1837,10 +1837,15 @@ class VHG_Trang {
       var fNV=el('label','bc-f'); fNV.appendChild(el('span',null,'Nhân viên (lọc cơ sở)'));
       var sNV=el('select'); sNV.appendChild(new Option('— Tất cả nhân viên ('+((BC.coso||[]).length)+' cơ sở) —',''));
       BC.nhanSu.slice().sort(function(a,b){ return String(a.ten).localeCompare(String(b.ten)); })
-        .forEach(function(nv){ sNV.appendChild(new Option(nv.ten+' ('+((nv.coso||[]).length)+' cơ sở)', nv.ten)); });
+        .forEach(function(nv){
+          /* nv.coso = CƠ SỞ PHỤ TRÁCH (bc_pin) chứ không phải nơi chấm công — xem ds_nhan_su_().
+             nv.toan=1 → quản lý toàn chuỗi (bc_pin để trống cơ sở), hiện "toàn bộ" thay vì "0 cơ sở". */
+          var nhan = nv.toan ? ' (toàn bộ)' : ' ('+((nv.coso||[]).length)+' cơ sở)';
+          sNV.appendChild(new Option(nv.ten+nhan, nv.ten));
+        });
       sNV.onchange=function(){
         var found=null; (BC.nhanSu||[]).forEach(function(x){ if(x.ten===sNV.value) found=x; });
-        if(!found){ napCoSo_(BC.coso); LOC=''; return; }
+        if(!found || found.toan){ napCoSo_(BC.coso); LOC=''; return; }   // toàn quyền → hiện tất cả cơ sở
         var canon={}; (BC.coso||[]).forEach(function(c){ canon[csNorm_(c)]=c; });
         var ds=(found.coso||[]).map(function(c){ return canon[csNorm_(c)]||c; });
         napCoSo_(ds); LOC='';
