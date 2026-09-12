@@ -27,6 +27,19 @@
 require_once __DIR__ . '/wp-stub.php';
 $goc = dirname( dirname( __DIR__ ) );
 vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
+
+/* 🔴 ĐỔI TÊN NHÀ MẸ SANG MỘT TÊN KHÔNG DÙNG TRONG BÀI. Bài này kiểm đúng một việc: HAI MẢNG
+   NGANG HÀNG không nhìn thấy sổ của nhau. Mà từ 11/09/2026 K&H là nhà mẹ và nhìn cả hệ, nên
+   để nguyên thì mọi phép "K&H không thấy POSH" đỏ hết — không phải vì tách hỏng, mà vì bài
+   đang lấy chính cái tên được miễn trừ làm một trong hai mảng.
+
+   ⚠️ ĐỔI TÊN, KHÔNG TẮT HẲN. Tắt (`''`) thì K&H và POSH ngang hàng thật, nhưng "Sếp" cũng mất
+      luôn đường nhìn cả hệ — mà từ 12/09/2026 vai Admin KHÔNG còn tự nới tầm nhìn nữa
+      (`VAI_XEM_CA` đã bỏ), nên Sếp phải là NGƯỜI NHÀ MẸ mới xem được cả hai bên. Đặt nhà mẹ
+      là 'TỔNG' và cho Sếp nhà ấy là đủ cả hai vế.
+
+   Luật nhà mẹ có bài riêng canh: `kiem-don-vi-me-xem-ca.php`. */
+update_option( 'vhcp_dv_me', 'TỔNG' );
 vhcp_test_dat_gio( '2026-09-08 09:00:00' );
 
 $dat = 0; $truot = array();
@@ -61,7 +74,7 @@ VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	/* cột: tên · pin · vai · cơ sở · tk có · mã đt · bộ phận · ĐƠN VỊ · XEM ĐƠN VỊ */
 	array( 'KT K&H',  '111111', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
 	array( 'KT POSH', '222222', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
-	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'K&H',  '' ),   // trống = xem cả
+	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'TỔNG', '' ),   // trống = xem cả
 ) );
 
 function lam( $ten, $vai = 'Kế toán cá nhân' ) { VHCP_Auth::dat_vai_tro( $vai, $ten ); }
@@ -267,7 +280,7 @@ VHCP_Cfg::write( VHCP_Cfg::COSO, array(
 VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	array( 'KT K&H',  '111111', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
 	array( 'KT POSH', '222222', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
-	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'K&H',  '' ),
+	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'TỔNG', '' ),
 	array( 'NV POSH', '444444', 'Nhân viên', CS_POSH, '', '', '', 'POSH', '' ),
 ) );
 VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH', CS_POSH );
@@ -353,12 +366,16 @@ t( 'và vẫn thấy gian của mình',                        in_array( CS_KH, 
  *    nhầm sang tên CƠ SỞ ("POSH SÀI GÒN") — thì tên ấy không khớp đơn vị nào, người đó KHÔNG
  *    XEM ĐƯỢC GÌ, màn trắng trơn và không câu lỗi nào. Người khai thì tin là đã khai xong.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* 🔴 SOI CỘT "ĐƠN VỊ" (đổi 12/09/2026 cùng lượt gộp hai cột làm một). Cột thứ 8 là NHÀ —
+   nay là cột duy nhất quyết định cả "đơn mình lập rơi về đâu" lẫn "đọc được sổ nào", nên gõ
+   lạc ở đây hỏng nặng gấp đôi lúc trước. Cột 9 (`xemDonVi`) vẫn ghi được vào sổ nhưng không
+   còn ai đọc tới; mấy dòng dưới cố tình để giá trị cũ ở đó để canh đúng điều ấy. */
 VHCP_Cfg::write( VHCP_Cfg::USER, array(
-	array( 'Đúng',    '111111', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
-	array( 'Gõ lạc',  '222222', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POS' ),
-	array( 'Nhầm CS', '333333', 'Kế toán cá nhân', '', '', '', '', 'POSH', CS_POSH ),
-	array( 'Bỏ trống','444444', 'Kế toán cá nhân', '', '', '', '', 'POSH', '' ),
-	array( 'Hai bên', '555555', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H, POSH' ),
+	array( 'Đúng',    '111111', 'Kế toán cá nhân', '', '', '', '', 'POSH',   'POSH' ),
+	array( 'Gõ lạc',  '222222', 'Kế toán cá nhân', '', '', '', '', 'POS',    '' ),
+	array( 'Nhầm CS', '333333', 'Kế toán cá nhân', '', '', '', '', CS_POSH,  '' ),
+	array( 'Bỏ trống','444444', 'Kế toán cá nhân', '', '', '', '', '',       '' ),
+	array( 'Hai bên', '555555', 'Kế toán cá nhân', '', '', '', '', 'K&H',    'K&H, POSH' ),
 ) );
 $lac = array();
 foreach ( VHCP_DonVi::ai_khai_lac() as $x ) { $lac[ $x['ten'] ] = $x['lac']; }
@@ -368,10 +385,8 @@ teq( 'và nói rõ họ đang khai cái gì',           'POS', $lac['Gõ lạc']
 /* 🔴 Nhầm sang tên CƠ SỞ là ca dễ mắc nhất: hai ô nằm cạnh nhau trên cùng một bảng. */
 t( '🔴 bắt được cả người khai nhầm tên CƠ SỞ', isset( $lac['Nhầm CS'] ), array_keys( $lac ) );
 t( 'người khai đúng thì KHÔNG bị báo',         ! isset( $lac['Đúng'] ),  array_keys( $lac ) );
-t( 'bỏ trống là hợp lệ (theo mặc định của vai), không báo',
+t( 'bỏ trống là hợp lệ (rơi về nhà mặc định), không báo',
 	! isset( $lac['Bỏ trống'] ), array_keys( $lac ) );
-t( 'khai nhiều đơn vị cách nhau dấu phẩy cũng không báo',
-	! isset( $lac['Hai bên'] ), array_keys( $lac ) );
 
 /* Và hai người kia đúng là KHÔNG xem được gì — đó mới là hậu quả thật, không chỉ là cái nhãn. */
 lam( 'Gõ lạc' );
@@ -380,15 +395,17 @@ teq( 'kể cả nhà của chính mình',                  false, VHCP_DonVi::du
 lam( 'Đúng' );
 teq( 'người khai đúng thì xem được POSH', true,  VHCP_DonVi::duoc_xem( 'POSH' ) );
 teq( 'và không xem được K&H',             false, VHCP_DonVi::duoc_xem( 'K&H' ) );
+/* 🔴 Ô "Xem đơn vị" cũ KHÔNG còn nới cho ai. "Hai bên" khai `xemDonVi = 'K&H, POSH'` y như
+   trước bản này, nhưng nhà là K&H nên chỉ đọc K&H — và luật nhà mẹ thì bài này đã tắt. */
 lam( 'Hai bên' );
-teq( 'khai hai đơn vị thì xem được cả hai · K&H',  true, VHCP_DonVi::duoc_xem( 'K&H' ) );
-teq( 'khai hai đơn vị thì xem được cả hai · POSH', true, VHCP_DonVi::duoc_xem( 'POSH' ) );
+teq( '🔴 ô "Xem đơn vị" cũ không còn mở thêm nhà nào · K&H',  true,  VHCP_DonVi::duoc_xem( 'K&H' ) );
+teq( '🔴 ...và POSH thì KHÔNG, dù ô cũ có ghi',              false, VHCP_DonVi::duoc_xem( 'POSH' ) );
 
 /* ⚠️ KHÔNG TỰ RỬA tên lạ. Đơn vị mới có thể vừa khai cho một người mà chưa ai/đơn nào mang nó,
    nên `ds()` chưa thấy. Rửa là xoá mất phân quyền vừa đặt — và tệ hơn, không bao giờ tạo được
    đơn vị mới. Chỉ BÁO, để người khai tự quyết. */
 $van_con = '';
-foreach ( VHCP_Cfg::get_users() as $u ) { if ( 'Gõ lạc' === $u['ten'] ) { $van_con = (string) $u['xemDonVi']; } }
+foreach ( VHCP_Cfg::get_users() as $u ) { if ( 'Gõ lạc' === $u['ten'] ) { $van_con = (string) $u['donVi']; } }
 teq( '⚠️ giá trị lạ vẫn được giữ nguyên, không bị lặng lẽ xoá', 'POS', $van_con );
 
 /* Danh sách ấy phải xuống tới màn, không thì cảnh báo chẳng bao giờ hiện. */
@@ -415,7 +432,7 @@ VHCP_Cfg::write( VHCP_Cfg::COSO, array(
 VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	array( 'KT K&H',  '111111', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
 	array( 'KT POSH', '222222', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
-	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'K&H',  '' ),
+	array( 'Sếp',     '333333', 'Admin',           '', '', '', '', 'TỔNG', '' ),
 ) );
 /* ⚠️ `sort()` của PHP xếp chuỗi UTF-8 theo BYTE, nên "TÀU ESTELLA" và "POSH ĐÀ NẴNG" ra thứ
    tự không giống cách người Việt đọc. Bài này không kiểm thứ tự — nó kiểm CÓ NHỮNG GÌ. Xếp

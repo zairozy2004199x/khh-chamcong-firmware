@@ -845,38 +845,32 @@ class VHCP_Don {
 			);
 		}
 		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * NHÂN VIÊN THẤY: ĐƠN CỦA MÌNH, CỘNG ĐƠN CỦA CƠ SỞ MÌNH PHỤ TRÁCH.
+		 * AI THẤY ĐƠN NÀO — theo cơ cấu anh Thắng vạch 12/09/2026.
 		 * ═══════════════════════════════════════════════════════════════════════════════════
 		 * Chặn ở đây, tức ở NGUỒN: mọi màn (danh sách đơn · duyệt tạm ứng · quyết toán ·
 		 * thừa/thiếu · báo cáo) đều lấy từ đây, nên không màn nào lỡ để lộ đơn ngoài phạm vi.
 		 * Lọc trên giao diện thì dữ liệu vẫn đã gửi xuống máy người ta rồi.
+		 *
+		 * 🔴 QUẢN LÝ CŨNG BỊ BÓ THEO CƠ SỞ (mới 12/09/2026): *"Quản Lý — chỉ xem, nhập dữ liệu
+		 *    được bộ phận cơ sở mình quản lý"*. Trước bản này chỉ Nhân viên bị bó, nên một
+		 *    quản lý khai đúng ba cơ sở của mình vẫn đọc được sổ của mọi cơ sở khác.
 		 *
 		 * 🔴 CƠ SỞ PHỤ TRÁCH MỚI ĐƯỢC TÍNH VÀO PHẠM VI. Anh Thắng 30/08/2026: *"Nhân viên được
 		 *    cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*. Trước đây ô khai cơ sở ở màn Cấu
 		 *    hình chỉ được nhét vào thẻ phiên rồi thôi — không chỗ nào ở máy chủ đọc tới, nên
 		 *    khai ba cơ sở hay ba mươi cũng như nhau: danh sách vẫn chỉ lọc theo NGƯỜI LẬP.
 		 *
-		 * ⚠️ VẪN GIỮ VẾ "ĐƠN CỦA MÌNH". Bỏ nó đi là người chưa khai cơ sở nào (hoặc lập đơn cho
-		 *    một cơ sở vừa bị gỡ khỏi danh sách phụ trách) mất luôn chính đơn mình đang làm dở.
-		 *
-		 * ⚠️ CHƯA KHAI CƠ SỞ NÀO thì `coso_ds()` rỗng, và mọi thứ rơi về đúng hành vi cũ — chỉ
-		 *    đơn của mình. KHÔNG được hiểu "rỗng" thành "tất cả": người quên khai sẽ đọc được
-		 *    đơn của cả công ty mà không ai nhận ra.
+		 * ⚠️ LUẬT ĐẦY ĐỦ nằm trong `VHCP_Auth::don_trong_tam()` — kể cả chỗ hai vai hiểu ô Cơ
+		 *    sở RỖNG theo hai nghĩa ngược nhau. Để nó ở Auth vì `VHCP_Duan` và `VHCP_Bp` cũng
+		 *    phải hỏi đúng câu ấy; chép luật ra ba nơi là sớm muộn ba nơi lệch.
 		 *
 		 * ⚠️ MỘT ĐƠN CÓ THỂ MANG NHIỀU CƠ SỞ (`$x['coso']` là chuỗi "A, B" gom từ các dòng chi).
 		 *    Chỉ cần MỘT trong số đó nằm trong phạm vi là thấy được — đơn ghép nhiều cơ sở thì
 		 *    người phụ trách một trong các cơ sở ấy vẫn phải theo dõi được phần của mình.
 		 */
-		if ( VHCP_Auth::la_nhan_vien() ) {
-			$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
-			$out = array_values( array_filter( $out, function ( $x ) use ( $toi ) {
-				if ( mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi ) { return true; }
-				foreach ( explode( ',', (string) $x['coso'] ) as $cs ) {
-					if ( VHCP_Auth::trong_coso( $cs ) ) { return true; }
-				}
-				return false;
-			} ) );
-		}
+		$out = array_values( array_filter( $out, function ( $x ) {
+			return VHCP_Auth::don_trong_tam( (string) $x['nguoiLap'], (string) $x['coso'] );
+		} ) );
 		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
 		   sách đơn · duyệt tạm ứng · quyết toán · thừa/thiếu · báo cáo · xuất MISA) đều múc
 		   từ `list_dons()`. Chặn ở đây là chặn hết một lượt; chặn ở từng màn là sớm muộn sót
@@ -904,7 +898,12 @@ class VHCP_Don {
 		   thứ hai thì cái thứ nhất chỉ là lớp sơn. */
 		$loi_dv = VHCP_DonVi::vi_sao_khong_dung( $ma_don );
 		if ( '' !== $loi_dv ) { return $loi_dv; }
-		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
+		/* 🔴 QUẢN LÝ CŨNG PHẢI ĐI TIẾP (12/09/2026). Anh Thắng: *"Quản Lý — chỉ xem, NHẬP DỮ
+		   LIỆU được bộ phận cơ sở mình quản lý"*. Trước bản này dòng thoát sớm ở đây bỏ qua
+		   mọi vai không phải Nhân viên, nên quản lý khai đúng ba cơ sở của mình vẫn sửa được
+		   đơn của cơ sở bất kỳ. Nay cả hai vai đi xuống cùng một chốt; Admin và Kế toán vẫn
+		   thoát — `don_trong_tam()` trả `true` ngay cho họ. */
+		if ( ! VHCP_Auth::la_nhan_vien() && 'Quản lý' !== VHCP_Auth::vai_tro() ) { return ''; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
 		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
@@ -915,10 +914,9 @@ class VHCP_Don {
 		   lại bị chối "đơn của người khác" thì tính năng coi như không có — và người dùng sẽ
 		   tưởng hệ thống hỏng chứ không nghĩ là hai chốt khai khác nhau.
 		   Phạm vi: đơn có ÍT NHẤT MỘT dòng chi thuộc cơ sở mình phụ trách. Dùng chính
-		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu. */
-		foreach ( self::cac_coso_cua_don( $ma_don ) as $cs ) {
-			if ( VHCP_Auth::trong_coso( $cs ) ) { return ''; }
-		}
+		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu, và hỏi
+		   đúng cái hàm mà danh sách đang hỏi (`don_trong_tam`) để hai bên không thể lệch. */
+		if ( VHCP_Auth::don_trong_tam( (string) $d['nguoi_lap'], implode( ', ', self::cac_coso_cua_don( $ma_don ) ) ) ) { return ''; }
 		return 'Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách.';
 	}
 

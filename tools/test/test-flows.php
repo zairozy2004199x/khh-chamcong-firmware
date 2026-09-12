@@ -1136,7 +1136,12 @@ $sum = 0;
 foreach ( $ex['rows'] as $rw ) { $sum += $rw[7]; }
 teq( 'MISA: tổng tiền = 1.750.000', 1750000, $sum );
 $r0 = $ex['rows'][0];
-teq( 'MISA: TK Có theo người duyệt tạm ứng', '3341', $r0[6] );
+/* 🔴 ĐỔI 12/09/2026 — anh Thắng: *"Bỏ cột tài khoản có"*. TK Có không còn tra theo NGƯỜI DUYỆT
+   nữa (cột ấy đã bỏ khỏi bảng Người dùng, nên giữ bảng tra lại là một giá trị ẩn trong sổ cũ
+   vẫn lặng lẽ chi phối bút toán mà không ai xem hay sửa được). Nay TK Có đi theo HÌNH THỨC CHI
+   — 141 khi cá nhân ứng tiền, 331 khi trả thẳng NCC — tức theo đồng tiền chứ không theo người
+   ký. Dòng này là chi cá nhân nên phải ra 141, dù người duyệt vẫn khai `tkCo = 3341`. */
+teq( '🔴 MISA: TK Có theo HÌNH THỨC CHI, không theo người duyệt', '141', $r0[6] );
 teq( 'MISA: mã đối tượng theo người duyệt', 'NV_QL', $r0[8] );
 t( 'MISA: diễn giải có kỳ + tên người duyệt', strpos( $r0[3], 'Trần Quản Lý' ) !== false, $r0[3] );
 $tk_no = array();
@@ -1196,9 +1201,9 @@ teq( 'MISA lọc NCC: chưa duyệt NCC thì không xuất', 0, VHCP_Misa::expor
 t( 'kế toán NCC duyệt độc lập', ! empty( VHCP_Don::xac_nhan_quyet_toan_ncc( $ma_ncc, 'Phạm KT NCC' )['success'] ) );
 $exn = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' );
 teq( 'MISA lọc NCC: 1 dòng', 1, $exn['count'] );
-// App cũ: TK Có LUÔN ưu tiên TK Có của người duyệt tạm ứng, chỉ khi người đó chưa
-// cấu hình TK Có thì mới rơi về TK Có của phân loại (141 cá nhân / 331 NCC).
-teq( 'MISA lọc NCC: TK Có = TK Có người duyệt (ưu tiên hơn 331)', '3341', $exn['rows'][0][6] );
+// App cũ: TK Có LUÔN ưu tiên TK Có của người duyệt tạm ứng. Bỏ 12/09/2026 (xem khối trên) —
+// nay dòng trả thẳng nhà cung cấp ra đúng 331, bất kể người duyệt khai gì.
+teq( '🔴 MISA lọc NCC: TK Có = 331 theo hình thức chi', '331', $exn['rows'][0][6] );
 teq( 'MISA lọc NCC: TK Nợ theo ma trận', '1561', $exn['rows'][0][5] );
 teq( 'MISA lọc cá nhân: 3 dòng', 3, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'cn' )['count'] );
 
@@ -4081,6 +4086,9 @@ VHCP_Cfg::write( VHCP_Cfg::USER, array(
 	array( 'KT POSH',      '2004', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
 	array( 'QL POSH',      '2005', 'Quản lý',  '', '', '', '', 'POSH', 'POSH' ),
 	array( 'KT Chỉ K&H',   '2006', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
+	/* Nhà thứ ba, để giữ CHIỀU ĐÓNG sau khi K&H thành nhà mẹ: tên cũ "KT Chỉ K&H" nay đọc
+	   được cả hệ (nhà mẹ), nên phải có một người thật sự bị bó mới soi được vế ấy. */
+	array( 'KT KVC',       '2007', 'Kế toán cá nhân', '', '', '', '', 'KVC',  '' ),
 ) );
 
 teq( 'nhà của người khai POSH', 'POSH', VHCP_DonVi::cua_nguoi( 'NV POSH' ) );
@@ -4128,8 +4136,13 @@ t( '🔴 kế toán POSH thấy đơn POSH',      in_array( $_mp, $_ds_ktp, true
 t( '🔴 kế toán POSH KHÔNG thấy đơn K&H', ! in_array( $_mk, $_ds_ktp, true ), $_ds_ktp );
 
 $_ds_ktk = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT Chỉ K&H' );
-t( 'kế toán chỉ-K&H thấy đơn K&H (kể cả đơn cũ ô rỗng)', in_array( $_mk, $_ds_ktk, true ), $_ds_ktk );
-t( 'kế toán chỉ-K&H KHÔNG thấy đơn POSH', ! in_array( $_mp, $_ds_ktk, true ), $_ds_ktk );
+t( 'kế toán nhà K&H thấy đơn K&H (kể cả đơn cũ ô rỗng)', in_array( $_mk, $_ds_ktk, true ), $_ds_ktk );
+/* 🔴 ĐỔI CHIỀU CÓ CHỦ Ý (12/09/2026): K&H là NHÀ MẸ nên đọc cả hệ — kể cả sổ POSH. Chiều đóng
+   chuyển sang canh bằng "KT KVC" ngay dưới, là một nhà con thật sự bị bó. */
+t( '🔴 và vì K&H là nhà mẹ nên thấy CẢ đơn POSH', in_array( $_mp, $_ds_ktk, true ), $_ds_ktk );
+$_ds_kvc = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT KVC' );
+t( '🔴 kế toán nhà KVC KHÔNG thấy đơn K&H',  ! in_array( $_mk, $_ds_kvc, true ), $_ds_kvc );
+t( '🔴 kế toán nhà KVC KHÔNG thấy đơn POSH', ! in_array( $_mp, $_ds_kvc, true ), $_ds_kvc );
 
 /* Kế toán cá nhân KHÔNG khai ô "Xem đơn vị" -> nhìn chung cả hai. Đây là bản nâng cấp cho một
    hệ đang chạy: 240 người, không ai có ô đó, nên "để trống" phải là "như cũ", không phải "mù". */
@@ -4286,7 +4299,12 @@ $_tim_k = VHCP_Don::tim_don( 'Đèn' );
 $_ma_k = array();
 foreach ( $_tim_k['items'] as $x ) { $_ma_k[] = $x['maDon']; }
 t( '🔴 ô tìm vẫn ra đơn cũ có ô đơn vị RỖNG', in_array( $_mk, $_ma_k, true ), $_ma_k );
-t( 'và không ra đơn POSH', ! in_array( $_mp, $_ma_k, true ), $_ma_k );
+/* Nhà mẹ thì ra cả hai; chiều đóng của ô tìm canh bằng kế toán POSH ngay dưới. */
+t( 'nhà mẹ K&H thì ô tìm ra cả đơn POSH', in_array( $_mp, $_ma_k, true ), $_ma_k );
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT KVC' );
+$_ma_kvc = array();
+foreach ( VHCP_Don::tim_don( 'Đèn' )['items'] as $x ) { $_ma_kvc[] = $x['maDon']; }
+t( '🔴 ô tìm của kế toán KVC không ra đơn của nhà khác', ! in_array( $_mk, $_ma_kvc, true ) && ! in_array( $_mp, $_ma_kvc, true ), $_ma_kvc );
 
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH' );
 $_tim_p = VHCP_Don::tim_don( 'Đèn' );

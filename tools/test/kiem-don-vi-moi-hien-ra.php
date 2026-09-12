@@ -104,17 +104,19 @@ $wpdb->insert( VHCP_DB::t( 'don' ), array(
 $wpdb->insert( VHCP_DB::t( 'chiphi' ), array(
 	'id' => 'CP2', 'ma_don' => 'D_KH', 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi khác', 'thanh_tien' => 1000 ) );
 
-/* Cột bảng người dùng: Tên · PIN · Vai trò · Cơ sở · TK Có · Mã ĐT · Bộ phận · Đơn vị · XEM ĐƠN VỊ */
+/* Cột bảng người dùng: Tên · PIN · Vai trò · Cơ sở · TK Có · Mã ĐT · Bộ phận · Đơn vị · (cột 9
+   cũ "Xem đơn vị" — từ 12/09/2026 không còn ai đọc tới, để lại cho dữ liệu cũ khỏi gãy). */
 VHCP_Cfg::write( VHCP_Cfg::USER, array(
-	array( 'KT POSH', '1111', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
-	array( 'KT KH',   '2222', 'Kế toán cá nhân', '', '', '', '', '',     VHCP_DonVi::MAC_DINH ),
+	array( 'KT POSH', '1111', 'Kế toán cá nhân', '', '', '', '', 'POSH', '' ),
+	array( 'KT KH',   '2222', 'Kế toán cá nhân', '', '', '', '', '',     '' ),
 ) );
 VHCP_Cfg::clear_cache();
 
-/* 🔴 Ô "Xem đơn vị" vừa khai KHÔNG được bị coi là khai lạc. `ai_khai_lac()` đối chiếu với
-   chính `ds()`; nếu `ds()` không thấy POSH thì màn dựng hẳn một dải cảnh báo đỏ nói người khai
-   đúng là đang khai sai. */
-teq( '🔴 khai "Xem đơn vị: POSH" KHÔNG bị báo là khai lạc', array(), VHCP_DonVi::ai_khai_lac() );
+/* 🔴 ĐƠN VỊ VỪA KHAI KHÔNG ĐƯỢC BỊ COI LÀ KHAI LẠC. `ai_khai_lac()` đối chiếu cột "Đơn vị" với
+   những NƠI KHAI đơn vị (danh mục cơ sở · nhà mặc định · nhà mẹ); POSH vừa khai ở danh mục cơ
+   sở nên phải qua. Không thì màn dựng hẳn một dải cảnh báo đỏ nói người khai đúng là đang khai
+   sai — và họ sẽ đi sửa cho tới khi nó hết đỏ, tức sửa thành sai thật. */
+teq( '🔴 khai "Đơn vị: POSH" KHÔNG bị báo là khai lạc', array(), VHCP_DonVi::ai_khai_lac() );
 
 function don_mas() {
 	$a = array();
@@ -124,8 +126,18 @@ function don_mas() {
 }
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH', '' );
 teq( '🔴 kế toán được tích POSH chỉ thấy đơn POSH', array( 'D_POSH' ), don_mas() );
+/* 🔴 K&H LÀ NHÀ MẸ nên thấy cả hai — chiều MỞ, có từ 1.138.0 (anh Thắng: *"Để K&H là xem được
+   tất cả đơn vị"*). Chiều ĐÓNG (POSH không thấy K&H) mới là chiều phải giữ, và phép ngay trên
+   đã canh nó. */
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT KH', '' );
-teq( '🔴 kế toán bên K&H chỉ thấy đơn K&H — hai bên không nhìn thấy nhau', array( 'D_KH' ), don_mas() );
+teq( '🔴 kế toán nhà mẹ K&H thấy cả hai bên', array( 'D_KH', 'D_POSH' ), don_mas() );
+
+/* Và chiều đóng phải đúng cả với một nhà thứ ba, không riêng POSH — kẻo luật chỉ tình cờ đúng
+   với đúng một cái tên đã có sẵn trong bài. */
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'KT KVC', '3333', 'Kế toán cá nhân', '', '', '', '', 'KVC', '' ) );
+VHCP_Cfg::clear_cache();
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT KVC', '' );
+teq( '🔴 kế toán nhà KVC không thấy đơn nào của K&H hay POSH', array(), don_mas() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5. GỠ CƠ SỞ POSH ĐI THÌ POSH VẪN CÒN — VÌ ĐƠN CŨ VẪN MANG NÓ

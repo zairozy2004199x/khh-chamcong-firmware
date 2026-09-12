@@ -1326,8 +1326,9 @@
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
            đủ chỗ mọi cột; hẹp hơn thì trượt ngang chứ không bóp. -->
-      <!-- 🔴 Ai khai "Xem đơn vị" lạc ra ngoài danh sách thì màn của họ TRẮNG, không câu lỗi
-           nào. Bày thẳng lên đầu bảng để người khai thấy ngay, thay vì chờ người kia báo. -->
+      <!-- 🔴 Ai khai "Đơn vị" lạc ra ngoài danh sách thì màn của họ TRẮNG, không câu lỗi nào —
+           và đơn họ lập cũng không ai mở lại được. Bày thẳng lên đầu bảng để người khai thấy
+           ngay, thay vì chờ người kia báo. -->
       <div id="khaiLacBanner" style="display:none;margin:8px 14px 0;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px"></div>
       <div style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f1f5f9;color:#334155;font-size:12px">
         🔒 <b>Tên</b> và <b>PIN</b> lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây — đổi bên trang
@@ -1335,10 +1336,14 @@
         là người ấy mất sạch đơn cũ của mình mà không có câu lỗi nào. Các cột còn lại (vai trò · bộ phận · cơ sở ·
         mã tài khoản · đơn vị) vẫn sửa được ở đây.
       </div>
-      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th><th style="width:96px">PIN <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, bấm để tích. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <!-- 🔴 MỖI VAI TRÒ MỘT BẢNG — anh Thắng 12/09/2026: *"Sắp xếp bảng nhân sự theo vai trò,
+           mỗi vai trò 1 bảng"*. JS dựng toàn bộ vào đây; xem `renderUsers()`. -->
+      <div id="cfgUserNhom"></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
-        <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
-        <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
+        <b>Vai trò</b> quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (duyệt · soát, trong phạm vi cơ sở mình phụ trách) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (cửa hàng trưởng trở xuống — chỉ cơ sở mình quản lý).<br>
+        <b>Cơ sở</b> quyết định XEM ĐƯỢC TỚI ĐÂU: <b>Nhân viên</b> để trống ô ấy thì chỉ còn đơn do chính mình lập; <b>Quản lý</b> để trống thì trông cả đơn vị.<br>
+        <b>Đơn vị</b> quyết định ĐỌC ĐƯỢC SỔ NHÀ NÀO: để trống = <b>K&amp;H</b>, và K&amp;H là nhà mẹ nên đọc cả hệ. Nhà khác chỉ đọc đúng nhà mình.<br>
+        <b>Bộ phận / Loại NV</b> quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
         <b>Nhân viên cơ sở</b> → chỉ lên đơn theo <b>Tuần · cơ sở</b> (đơn xin tạm ứng một tuần vận hành).
         <b>Nhân viên văn phòng</b> → vào được <b>cả hai</b>: Tuần · cơ sở <i>và</i> Dự án · gian thi công, và khi tạo đơn được chọn thêm <b>khoảng ngày tự do</b> cho đợt vắt tuần.<br>
         Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
@@ -9414,7 +9419,7 @@
       var _bo=(BOOT.xemDonVi&&BOOT.xemDonVi.length)?BOOT.xemDonVi.join(', '):'';
       el('cfgCosoBody').innerHTML='<tr><td colspan="8" style="padding:14px 12px;background:#fffbeb;border-left:4px solid #f59e0b;color:#92400e;line-height:1.6">'
         +(_bo
-          ? '⚠️ <b>Không phải mất dữ liệu.</b> Tài khoản này chỉ xem được đơn vị <b>'+esc(_bo)+'</b>, mà chưa cơ sở nào trong danh mục khai đơn vị ấy — nên bảng rỗng. Cơ sở của đơn vị khác vẫn còn nguyên, chỉ là không hiện ở đây. Sửa ô <b>Xem đơn vị</b> của người này ở khối 👤 Người dùng &amp; Phân quyền bên dưới, hoặc khai đúng ô Đơn vị cho từng cơ sở.'
+          ? '⚠️ <b>Không phải mất dữ liệu.</b> Tài khoản này chỉ xem được đơn vị <b>'+esc(_bo)+'</b>, mà chưa cơ sở nào trong danh mục khai đơn vị ấy — nên bảng rỗng. Cơ sở của đơn vị khác vẫn còn nguyên, chỉ là không hiện ở đây. Sửa ô <b>Đơn vị</b> của người này ở khối 👤 Người dùng &amp; Phân quyền bên dưới, hoặc khai đúng ô Đơn vị cho từng cơ sở.'
           : '📭 Chưa khai cơ sở nào. Bấm <b>+ Thêm cơ sở</b> hoặc <b>🚛 Hút cơ sở từ Ghế</b> để bắt đầu.')
         +'</td></tr>';
       _csLock(true);
@@ -9907,10 +9912,11 @@
     var ds=(BOOT&&BOOT.khaiLac)||[];
     if(!ds.length){ b.style.display='none'; return; }
     b.style.display='';
-    b.innerHTML='⚠️ <b>'+ds.length+' tài khoản khai "Xem đơn vị" không khớp đơn vị nào</b> — '
-      +'mấy người này mở app ra sẽ <b>không thấy đơn nào cả</b>, và không có câu lỗi nào báo cho họ biết vì sao.<br>'
+    b.innerHTML='⚠️ <b>'+ds.length+' tài khoản khai "Đơn vị" không khớp đơn vị nào</b> — '
+      +'mấy người này mở app ra sẽ <b>không thấy đơn nào cả</b>, và <b>đơn họ lập cũng không ai mở lại được</b>. '
+      +'Không có câu lỗi nào báo cho họ biết vì sao.<br>'
       +ds.map(function(x){ return '· <b>'+esc(x.ten)+'</b> đang khai: <code>'+esc(x.lac)+'</code>'; }).join('<br>')
-      +'<br><span style="color:#7f1d1d">Bấm vào ô <b>Xem đơn vị</b> của họ rồi tích lại cho đúng, hoặc bỏ hết tích để về mặc định của vai.</span>';
+      +'<br><span style="color:#7f1d1d">Sửa ô <b>Đơn vị</b> của họ cho khớp danh mục, hoặc xoá trắng để về <b>K&amp;H</b>.</span>';
   }
   function renderUsers(){
     renderKhaiLac();
@@ -9920,15 +9926,15 @@
     if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }
     // Sửa ngày hàng loạt là đụng thẳng kỳ hạch toán -> CHỈ Admin (máy chủ chặn lần nữa).
     if(el('ngayHongCard')) el('ngayHongCard').style.display=_laAdmin()?'':'none';
-    if(!el('cfgUserBody')) return;
+    if(!el('cfgUserNhom')) return;
     if(el('btnKhoiPhucUser')) el('btnKhoiPhucUser').style.display=_laAdmin()?'':'none';
     // 🔴 TẢI HỎNG THÌ NÓI LÀ TẢI HỎNG, và KHÓA nút Lưu lại. Vẽ bảng trắng rồi để nút Lưu sáng
     //    là mời người ta ghi đè cái rỗng lên danh sách thật — đúng đường tai nạn 25/08/2026.
     if(CFGUSERS_LOI){
-      el('cfgUserBody').innerHTML='<tr><td colspan="8" style="background:#fdecea;color:#c0392b;padding:12px">'
+      el('cfgUserNhom').innerHTML='<div style="margin:8px 14px;padding:12px;border-radius:8px;background:#fdecea;color:#c0392b">'
         +'<b>Chưa tải được danh sách người dùng</b> — '+esc(CFGUSERS_LOI)+'.<br>'
         +'Dữ liệu cũ <b>vẫn còn nguyên</b> trên máy chủ. Tải lại trang rồi thử lại; '
-        +'nút Lưu đang khóa để không ghi đè bảng rỗng lên danh sách thật.</td></tr>';
+        +'nút Lưu đang khóa để không ghi đè bảng rỗng lên danh sách thật.</div>';
       if(el('btnLuuUser')){ el('btnLuuUser').disabled=true; el('btnLuuUser').style.opacity='.5'; }
       if(el('btnThemUser')){ el('btnThemUser').disabled=true; el('btnThemUser').style.opacity='.5'; }
       return;
@@ -9948,64 +9954,106 @@
     //    Đó chính là "hệ thống phân quyền cho từng nhân viên bị mất" ngày 25/08/2026: dữ liệu
     //    còn nguyên trên máy chủ, chỉ là màn hình không vẽ ra được. Đổi tên biến là xong.
     var laAdminNay=(CURUSER&&CURUSER.role==='Admin');
-    el('cfgUserBody').innerHTML=(CFGUSERS||[]).map(function(u){
-      var khoa=(!laAdminNay && String(u.vaiTro||'')==='Admin');
-      if(khoa){
-        return '<tr style="background:#f8fafc;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
-          +'<td><input value="'+esc(u.ten||'')+'" style="width:100%" disabled></td>'
-          +'<td><input value="••••" style="width:100%" disabled></td>'
-          +'<td><input value="Admin" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.boPhan||'— Tất cả —')+'" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.coso||'Tất cả cơ sở')+'" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.tkCo||'')+'" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.maDt||'')+'" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.donVi||'K&H')+'" style="width:100%" disabled></td>'
-          +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
-          +'<td style="text-align:center">🔒</td></tr>';
-      }
-      /* 🔴 TÊN VÀ PIN KHOÁ LẠI — anh Thắng 10/09/2026: *"Chỗ tên người dùng được lấy từ hệ
-         thống nhân sự, nên bên trang chi phí không cho sửa tên, sửa dễ sai hệ thống.. Cả mã
-         pin cũng vậy"*. Tên là KHOÁ nối sang bên chấm công: mọi đơn đã lập mang tên người lập,
-         nên gõ lệch một chữ ở đây là người ấy mất sạch đơn cũ của mình mà chẳng có câu lỗi nào.
-         PIN cũng thế — đổi ở đây thì bên nhân sự vẫn PIN cũ, hai bên lệch và không ai biết
-         phải tin bên nào.
-         ⚠️ Đây là khoá Ở MÀN cho khỏi lỡ tay, không phải chốt máy chủ: giá trị vẫn được gửi
-            lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
-      return '<tr'+(_dvLech(u)?' style="background:#fff7ed"':'')+'><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td><td><input value="'+esc(u.pin||'')+'" readonly title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" inputmode="numeric" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+_dvCanhBao(u)+'</td><td>'+_xemDvSel(u.xemDonVi)+'</td>'+_delBtn()+'</tr>';
+    var nhom=_uNhom(CFGUSERS||[]);
+    el('cfgUserNhom').innerHTML=nhom.map(function(g,i){
+      return '<div style="margin:10px 14px 0">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
+        +  '<b style="font-size:12.5px;color:#0f766e">'+esc(_uNhan(g.vai))+'</b>'
+        +  '<span style="font-size:11px;color:#94a3b8">'+g.ds.length+' người</span>'
+        +'</div>'
+        +'<div class="tw"><table style="min-width:1090px">'+U_THEAD
+        +'<tbody id="cfgUserBody'+i+'" data-user-body="1">'
+        +  g.ds.map(function(u){ return _uHang(u, laAdminNay); }).join('')
+        +'</tbody></table></div></div>';
     }).join('');
   }
-  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_xemDvSel('')+'</td>'+_delBtn()+'</tr>'); }
   /* ══════════════════════════════════════════════════════════════════════════════════════
-     🔴 NHÀ MỘT ĐẰNG, TẦM NHÌN MỘT NẺO — BÁO NGAY TẠI HÀNG.
-
-     Cắn thật 09/09/2026, mất gần một buổi. Tài khoản anh Trần Ngọc Quyền có cột "Đơn vị" để
-     trống (tức K&H) còn cột "Xem đơn vị" là POSH. Hai cột đứng cạnh nhau, tên gần giống, mà
-     ĐỂ TRỐNG thì nhìn y như chưa điền gì — chữ mờ "trống = K&H" không ai đọc ra là "đang
-     tính bằng K&H". Hậu quả rơi xuống một màn khác, vào một ngày khác: nhân viên bấm Tạo đơn,
-     đơn ghi xong rồi biến mất ngay trước mắt vì nó mang đơn vị K&H mà người ấy chỉ đọc POSH.
-
-     Máy chủ nay đã CHẶN lượt tạo đơn ấy (xem `VHCP_Don::create_don`). Nhưng chặn ở đó là chặn
-     khi đã muộn — người gặp câu lỗi là nhân viên, còn người sửa được lại là quản trị. Nên báo
-     thêm ở ĐÂY, đúng chỗ và đúng lúc khai.
-
-     ⚠️ CHỈ BÁO, KHÔNG CHẶN LƯU. Với kế toán/quản lý thì lệch là CHUYỆN BÌNH THƯỜNG và cố ý:
-        anh Thắng 26/08 — *"Kế toán Posh chỉ thấy chi phí Posh"* — nhà họ vẫn có thể là K&H.
-        Chỉ ai LẬP ĐƠN mới chết vì lệch, nên câu báo nói rõ điều kiện ấy thay vì cấm đoán.
-     ══════════════════════════════════════════════════════════════════════════════════════ */
-  function _dvLech(u){
-    var xem=String((u&&u.xemDonVi)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    if(!xem.length) return false;                       // trống = theo mặc định của vai, không lệch
-    var nha=_dvChuan(u&&u.donVi).toLowerCase();
-    return !xem.some(function(x){ return _dvChuan(x).toLowerCase()===nha; });
+   * MỖI VAI TRÒ MỘT BẢNG — anh Thắng 12/09/2026: *"Sắp xếp bảng nhân sự theo vai trò, mỗi vai
+   * trò 1 bảng"*.
+   *
+   * 🔴 THỨ TỰ CỐ ĐỊNH, KHÔNG PHẢI THỨ TỰ GẶP. Xếp theo thứ bậc (Admin trên cùng, Nhân viên
+   *    dưới cùng) để bảng đọc như sơ đồ tổ chức. Sắp theo thứ tự gặp thì thêm một người là cả
+   *    trang xáo lại, và người đang dò dở mất dấu.
+   *
+   * 🔴 VAI LẠ PHẢI CÓ BẢNG RIÊNG, KHÔNG ĐƯỢC IM LẶNG BỎ QUA. Vai tự tạo ("Nhân viên cơ sở",
+   *    "Kế toán máy tự động"…) và vai gõ sai đều rơi vào đây. Bỏ sót một nhóm là mất người
+   *    khỏi màn — mà `saveCfgUsers()` gom TỪ MÀN, nên mất khỏi màn là lượt Lưu kế tiếp XOÁ
+   *    LUÔN họ khỏi sổ. Đây là chỗ nguy nhất của cả khối này.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var U_VAI_XEP=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
+  var U_NHAN={'Admin':'👑 Admin','Quản lý':'🧭 Quản lý','Kế toán cá nhân':'🧾 Kế toán cá nhân',
+              'Kế toán NCC':'🏷 Kế toán NCC','Nhân viên':'👤 Nhân viên'};
+  function _uNhan(v){ return U_NHAN[v]||('🔖 '+v); }
+  function _uNhom(ds){
+    var m={}, thu=[];
+    U_VAI_XEP.forEach(function(v){ m[v]=[]; thu.push(v); });
+    (ds||[]).forEach(function(u){
+      var v=String((u&&u.vaiTro)||'').trim()||'Nhân viên';
+      if(!m[v]){ m[v]=[]; thu.push(v); }     // vai tự tạo / gõ sai -> bảng riêng ở cuối
+      m[v].push(u);
+    });
+    /* Vai gốc không có ai thì bỏ hẳn bảng đi, khỏi bày năm cái khung rỗng. Vai tự tạo thì
+       luôn có ít nhất một người (chính người sinh ra nó ở vòng trên). */
+    return thu.filter(function(v){ return m[v].length; }).map(function(v){ return {vai:v, ds:m[v]}; });
   }
-  function _dvCanhBao(u){
-    if(!_dvLech(u)) return '';
-    var nha=_dvChuan(u&&u.donVi);
-    return '<div style="font-size:11px;color:#b45309;margin-top:3px;line-height:1.35">'
-      +'⚠️ Nhà là <b>'+esc(nha)+'</b> nhưng chỉ xem được <b>'+esc(String(u.xemDonVi||''))+'</b>'
-      +' — đơn người này lập sẽ mang đơn vị '+esc(nha)+' và họ KHÔNG mở lại được.'
-      +'</div>';
+  var U_THEAD='<thead><tr>'
+    +'<th style="width:190px">Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
+    +'<th style="width:96px">PIN <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
+    +'<th style="width:132px">Vai trò</th>'
+    +'<th style="width:150px">Bộ phận / Loại NV</th>'
+    +'<th style="min-width:220px" title="Nhân viên để trống = chỉ thấy đơn do chính mình lập. Quản lý để trống = trông cả đơn vị.">Cơ sở phụ trách</th>'
+    +'<th style="width:126px">Mã đối tượng (khi là người duyệt)</th>'
+    +'<th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này, và họ đọc được đúng sổ nhà này. Để trống = K&amp;H, mà K&amp;H là nhà mẹ nên đọc cả hệ.">Đơn vị</th>'
+    +'<th style="width:44px"></th></tr></thead>';
+  /* 🔴 MỘT CHỖ DỰNG HÀNG DUY NHẤT. Trước đây hàng thường và hàng Admin-khoá viết rời nhau,
+     nên bỏ một cột phải nhớ sửa cả hai — quên một chỗ là số ô hai loại hàng lệch nhau, và
+     `_readRows()` đọc theo THỨ TỰ Ô nên mọi giá trị của hàng ấy trượt sang cột bên cạnh.
+     `test-cauhinh-xo.js` đếm ô thật của từng cột rồi so với chỉ số `saveCfgUsers` đang dùng. */
+  function _uHang(u, laAdminNay){
+    var khoa=(!laAdminNay && String(u.vaiTro||'')==='Admin');
+    if(khoa){
+      return '<tr style="background:#f8fafc;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
+        +'<td><input value="'+esc(u.ten||'')+'" style="width:100%" disabled></td>'
+        +'<td><input value="••••" style="width:100%" disabled></td>'
+        +'<td><input value="Admin" style="width:100%" disabled></td>'
+        +'<td><input value="'+esc(u.boPhan||'— Tất cả —')+'" style="width:100%" disabled></td>'
+        +'<td><input value="'+esc(u.coso||'Tất cả cơ sở')+'" style="width:100%" disabled></td>'
+        +'<td><input value="'+esc(u.maDt||'')+'" style="width:100%" disabled></td>'
+        +'<td><input value="'+esc(u.donVi||'K&H')+'" style="width:100%" disabled></td>'
+        +'<td style="text-align:center">🔒</td></tr>';
+    }
+    /* 🔴 TÊN VÀ PIN KHOÁ LẠI — anh Thắng 10/09/2026: *"Chỗ tên người dùng được lấy từ hệ
+       thống nhân sự, nên bên trang chi phí không cho sửa tên, sửa dễ sai hệ thống.. Cả mã
+       pin cũng vậy"*. Tên là KHOÁ nối sang bên chấm công: mọi đơn đã lập mang tên người lập,
+       nên gõ lệch một chữ ở đây là người ấy mất sạch đơn cũ của mình mà chẳng có câu lỗi nào.
+       PIN cũng thế — đổi ở đây thì bên nhân sự vẫn PIN cũ, hai bên lệch và không ai biết
+       phải tin bên nào.
+       ⚠️ Đây là khoá Ở MÀN cho khỏi lỡ tay, không phải chốt máy chủ: giá trị vẫn được gửi
+          lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
+    return '<tr><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+      +'<td><input value="'+esc(u.pin||'')+'" readonly title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" inputmode="numeric" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+      +'<td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
+      +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
   }
+  /* Thêm người vào bảng NHÂN VIÊN (vai mặc định của hàng mới). Chưa có bảng ấy — cả công ty
+     toàn quản lý và kế toán — thì vẽ lại cả khối cho nó hiện ra rồi mới chèn. */
+  function addCfgUser(){
+    var tb=_uBody('Nhân viên');
+    if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
+    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
+    tb.lastChild.scrollIntoView({block:'center'});
+  }
+  /** tbody của một vai, hoặc null nếu vai ấy chưa có bảng nào. */
+  function _uBody(vai){
+    var ds=_uNhom(CFGUSERS||[]);
+    for(var i=0;i<ds.length;i++){ if(ds[i].vai===vai) return el('cfgUserBody'+i); }
+    return null;
+  }
+  /* 🔴 ĐÃ BỎ `_dvLech()` / `_dvCanhBao()` (12/09/2026). Chúng báo khi cột "Đơn vị" và cột
+     "Xem đơn vị" khai lệch nhau — cắn thật 09/09/2026, tài khoản anh Trần Ngọc Quyền. Nay chỉ
+     còn MỘT cột (anh Thắng: *"Đơn vị với xem đơn vị là 1"*) nên không có gì lệch được nữa, và
+     một hàm canh cái không thể xảy ra thì chỉ tổ làm người đọc sau tưởng luật vẫn còn hai cột.
+     Chỗ khai lạc vẫn được soi, bằng `ai_khai_lac()` ở máy chủ và dải đỏ `khaiLacBanner`. */
   /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
      phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
      thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
@@ -10025,40 +10073,36 @@
     var sel=[]; Array.prototype.forEach.call(w.querySelectorAll('select option'),function(op){ if(op.selected) sel.push(op.value); });
     w.parentNode.innerHTML=_cosoSel(sel.join(', '), o.value);
   }
-  /* ══════════════════════════════════════════════════════════════════════════════════════════
-     Ô "XEM ĐƠN VỊ" — HỘP TÍCH, KHÔNG GÕ TAY.
-     Anh Thắng 08/09/2026: *"Làm phần phân quyền ai xem được"*.
-
-     🔴 Ô này trước là ô gõ tự do, ngăn nhau bằng dấu phẩy. Gõ sai một chữ — "POS", hay nhầm
-        sang tên cơ sở "POSH HCM" — thì tên ấy không khớp đơn vị nào, người đó KHÔNG XEM ĐƯỢC
-        GÌ, và màn của họ trắng trơn mà không câu lỗi nào. Người khai thì tin là đã khai xong.
-
-     Dùng lại đúng khuôn hộp tích của ô Cơ sở: `<select multiple>` ẩn để `_readRows()` đọc như
-     cũ, người dùng chỉ thấy một nút tóm tắt rồi bấm ra tích.
-
-     ⚠️ GIỮ LẠI GIÁ TRỊ LẠ đang lưu, đừng lặng lẽ vứt. Đơn vị có thể vừa được khai cho một
-        người mà chưa ai/đơn nào mang nó, nên `BOOT.donVi` chưa có. Vứt là xoá mất phân quyền
-        người ta vừa đặt. Bày ra kèm dấu ⚠ để nhìn là biết nó chưa khớp gì. */
-  function _xemDvSel(v){
-    var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    var arr=(BOOT.donVi||['K&H']).slice();
-    sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
-    var la={}; sel.forEach(function(s){ if((BOOT.donVi||[]).indexOf(s)<0) la[s]=1; });
-    var nhan=sel.length?(sel.join(', ')+(Object.keys(la).length?' ⚠':'')):'— theo mặc định của vai —';
-    return '<div class="csw">'
-      + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
-      + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(nhan)+'</button>'
-      + '<div class="cs-pop" style="display:none">'
-      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
-      +   '<div class="cs-list">'+arr.map(function(c,i){
-              var xau=la[c]?' <span style="color:#b91c1c;font-size:11px">⚠ không khớp đơn vị nào</span>':'';
-              return '<label data-tim="'+esc(_bd(c))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'
-                +(sel.indexOf(c)>=0?' checked':'')+'><span>'+esc(c)+xau+'</span></label>';
-            }).join('')+'</div>'
-      +   '<div style="padding:6px 8px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8">Không tích gì = theo mặc định của vai (Admin · Quản lý · Kế toán xem cả hệ, còn lại chỉ nhà mình).</div>'
-      + '</div></div>';
+  /* 🔴 ĐÃ BỎ `_xemDvSel()` (12/09/2026) — ô "Xem đơn vị" không còn trên màn. Nhà của một
+     người nay quyết định cả hai việc: đơn họ lập rơi về đâu, và họ đọc được sổ nào. Xem khối
+     dài ở `VHCP_DonVi::xem_duoc()` để biết vì sao gộp. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * GOM TỪ MỌI BẢNG, KHÔNG PHẢI MỘT.
+   *
+   * Từ 12/09/2026 bảng người dùng tách làm nhiều bảng, mỗi vai một cái. Đọc sót một bảng là
+   * những người trong đó KHÔNG nằm trong gói gửi lên — mà lượt Lưu ghi đè cả danh sách, nên
+   * sót nghĩa là XOÁ. Vì vậy quét theo thuộc tính `data-user-body` chứ không theo một id cố
+   * định: thêm vai mới thì bảng mới tự vào gói, không phải nhớ sửa thêm chỗ nào.
+   *
+   * 🔴 HAI CỘT ĐÃ BỎ, CHỈ SỐ DỊCH THEO — anh Thắng 12/09/2026: *"Bỏ cột tài khoản có"* và
+   *    *"Đơn vị với xem đơn vị là 1"*. `_readRows()` đọc theo THỨ TỰ Ô trong hàng, nên bỏ ô
+   *    mà quên dời chỉ số là mọi giá trị trượt sang cột bên cạnh — mã đối tượng chui vào ô
+   *    đơn vị, đơn vị chui đi đâu không rõ, và không có câu lỗi nào.
+   *    `tools/test/test-cauhinh-xo.js` đếm ô THẬT của từng cột rồi so với bảng chỉ số dưới
+   *    đây; thêm hay bớt một ô là nó đỏ ngay, kèm tên cột bị lệch.
+   *
+   * ⚠️ `tkCo` và `xemDonVi` vẫn gửi lên dưới dạng chuỗi RỖNG, cố ý: máy chủ ghi theo đúng số
+   *    cột của sổ, nên bỏ hẳn khỏi gói là hai cột ấy dồn lên và sổ lệch cột. Giá trị cũ trong
+   *    sổ bị xoá trắng — đúng ý "bỏ cột", và không còn chỗ nào đọc tới chúng nữa.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  function _uMoiHang(){
+    var ra=[];
+    Array.prototype.forEach.call(document.querySelectorAll('[data-user-body]'),function(tb){
+      ra=ra.concat(_readRows(tb.id));
+    });
+    return ra;
   }
-  function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||'', donVi:(r[7]||'').trim(), xemDonVi:(r[8]||'').trim()};}).filter(function(x){return x.ten;});
+  function saveCfgUsers(){ var data=_uMoiHang().map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:'', maDt:r[5]||'', donVi:(r[6]||'').trim(), xemDonVi:''};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
     // 🔴 LƯU DANH SÁCH RỖNG = XÓA HẾT TÀI KHOẢN. Không cho đi qua bằng một cú bấm.
     //    Máy chủ chặn lần nữa; đây chỉ là để hỏi cho tử tế trước khi tới đó.

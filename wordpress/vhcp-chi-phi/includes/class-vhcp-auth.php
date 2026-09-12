@@ -131,6 +131,50 @@ class VHCP_Auth {
 		return ( self::$vai_tro === 'Nhân viên' && trim( self::$nguoi ) !== '' );
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MỘT ĐƠN CÓ NẰM TRONG TẦM NHÌN CỦA NGƯỜI ĐANG GỌI KHÔNG.
+	 *
+	 * Anh Thắng 12/09/2026 vạch cơ cấu:
+	 *   · *"Cửa hàng trưởng trở xuống — chỉ xem được cơ sở mình quản lý"*
+	 *   · *"Quản Lý — chỉ xem, nhập dữ liệu được bộ phận cơ sở mình quản lý"*
+	 *
+	 * 🔴 HAI VAI, HAI CÁCH HIỂU Ô CƠ SỞ RỖNG. Đây là chỗ dễ làm sai nhất, nên nói thẳng:
+	 *      · NHÂN VIÊN bỏ trống ô Cơ sở  -> BÓ CHẶT, chỉ còn đơn do chính họ lập. Hiểu ngược
+	 *        ("rỗng = tất cả") là người quên khai đọc được sổ cả công ty mà không ai nhận ra.
+	 *      · QUẢN LÝ bỏ trống ô Cơ sở    -> MỞ, cả nhà. Vì với vai này "Tất cả cơ sở" là một
+	 *        lựa chọn CÓ CHỦ Ý và đang dùng thật (chị Phương Hòa khai đúng như vậy) — bó lại
+	 *        là sáng hôm sau quản lý mở màn ra thấy trắng.
+	 *    Cùng một ô trống, hai nghĩa ngược nhau, vì hai vai khai nó theo hai ý khác nhau.
+	 *
+	 * 🔴 CHỈ TRẢ LỜI "CÓ ĐƯỢC ĐỌC KHÔNG". Chốt đơn vị nằm chỗ khác (`VHCP_DonVi::duoc_xem`),
+	 *    chốt bộ phận ở `xem_duoc_loai()`, chốt sửa ở `loi_khong_phai_don_minh()`. Gộp cả vào
+	 *    đây là một hàm trả lời bốn câu, và sửa một câu thì ba câu kia lệch theo.
+	 *
+	 * ⚠️ VẪN GIỮ VẾ "ĐƠN CỦA MÌNH" cho cả hai vai. Bỏ đi là người lập đơn cho một cơ sở vừa
+	 *    bị gỡ khỏi danh sách phụ trách mất luôn chính cái đơn mình đang làm dở.
+	 *
+	 * @param string $nguoi_lap Tên người lập đơn.
+	 * @param string $coso      Chuỗi cơ sở của đơn — có thể là "A, B" gom từ nhiều dòng chi.
+	 *                          Chỉ cần MỘT cơ sở nằm trong tầm là đọc được.
+	 * @return bool
+	 */
+	public static function don_trong_tam( $nguoi_lap, $coso ) {
+		$la_nv = self::la_nhan_vien();
+		$la_ql = ( self::$vai_tro === 'Quản lý' );
+		if ( ! $la_nv && ! $la_ql ) { return true; }   // Admin · Kế toán: không bó theo cơ sở
+
+		$ds = self::coso_ds();
+		/* Quản lý chưa khai cơ sở nào = trông cả nhà. Nhân viên thì KHÔNG được nới như vậy. */
+		if ( $la_ql && ! $ds ) { return true; }
+
+		$toi = mb_strtolower( trim( (string) self::nguoi() ) );
+		if ( '' !== $toi && mb_strtolower( trim( (string) $nguoi_lap ) ) === $toi ) { return true; }
+		foreach ( explode( ',', (string) $coso ) as $cs ) {
+			if ( self::trong_coso( $cs ) ) { return true; }
+		}
+		return false;
+	}
+
 	/** login(pin) */
 	public static function login( $pin ) {
 		$pin = trim( (string) $pin );

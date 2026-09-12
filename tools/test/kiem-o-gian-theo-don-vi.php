@@ -37,8 +37,14 @@ VHCP_Cfg::seed();
 VHCP_Cfg::append( VHCP_Cfg::COSO, array( 'KVC AEON TÂN PHÚ', 'KVCATP', 'KVC MN', 'KVC Aeon Tan Phu', '', 'KVC' ) );
 VHCP_Cfg::append( VHCP_Cfg::COSO, array( 'POSH MN CGV VINCOM LANDMARK', 'POSHVCL', 'POSH MN', 'POSH VCL', '', 'POSH' ) );
 VHCP_Cfg::append( VHCP_Cfg::COSO, array( 'FUNZONE VŨNG TÀU', 'FZVT', 'FZ MN', 'Funzone Vung Tau', '', '' ) );   // trống = K&H
-VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV Kỹ thuật KVC', '2468', 'Nhân viên', '', '', '', 'Kỹ thuật', 'KVC', 'KVC' ) );
-VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV Kỹ thuật K&H', '1234', 'Nhân viên', '', '', '', 'Kỹ thuật', 'K&H', 'K&H' ) );
+/* 🔴 "K&H" KHÔNG DÙNG LÀM MỘT MẢNG NGANG HÀNG NỮA. Từ 1.138.0 nó là NHÀ MẸ và nhìn cả hệ, nên
+   phép "K&H không thấy gian POSH" đỏ không phải vì lọc hỏng mà vì bài chọn nhầm cái tên được
+   miễn trừ. Thay bằng POSH — hai mảng con ngang hàng, đúng thứ cần soi. Nhà mẹ có bài riêng:
+   `kiem-don-vi-me-xem-ca.php`. */
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV Kỹ thuật KVC',  '2468', 'Nhân viên', '', '', '', 'Kỹ thuật', 'KVC',  '' ) );
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV Kỹ thuật POSH', '1234', 'Nhân viên', '', '', '', 'Kỹ thuật', 'POSH', '' ) );
+/* Người nhà mẹ — để canh chiều MỞ ở khối 4. */
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV Kỹ thuật K&H',  '5678', 'Nhân viên', '', '', '', 'Kỹ thuật', 'K&H',  '' ) );
 VHCP_Cfg::clear_cache();
 
 /** Danh sách cơ sở mà một màn trả về cho người đang đăng nhập. */
@@ -64,19 +70,23 @@ foreach ( $MAN as $ten => $ham ) {
 	t( "   $ten · KVC KHÔNG thấy gian K&H", ! in_array( 'FUNZONE VŨNG TÀU', $cs, true ), $cs );
 }
 
-/* ═══ 2. NHÂN VIÊN K&H: THẤY GIAN K&H, KHÔNG THẤY POSH LẪN KVC ═════════════════════════ */
-vai( 'Nhân viên', 'NV Kỹ thuật K&H' );
+/* ═══ 2. NHÂN VIÊN POSH: THẤY GIAN POSH, KHÔNG THẤY K&H LẪN KVC ════════════════════════ */
+vai( 'Nhân viên', 'NV Kỹ thuật POSH' );
 foreach ( $MAN as $ten => $ham ) {
 	$cs = cs_cua( $ham );
-	t( "🔴 $ten · K&H thấy gian của mình", in_array( 'FUNZONE VŨNG TÀU', $cs, true ), $cs );
-	t( "🔴 $ten · K&H KHÔNG thấy gian POSH", ! in_array( 'POSH MN CGV VINCOM LANDMARK', $cs, true ), $cs );
-	t( "   $ten · K&H KHÔNG thấy gian KVC (đã tách)", ! in_array( 'KVC AEON TÂN PHÚ', $cs, true ), $cs );
+	t( "🔴 $ten · POSH thấy gian của mình", in_array( 'POSH MN CGV VINCOM LANDMARK', $cs, true ), $cs );
+	t( "🔴 $ten · POSH KHÔNG thấy gian K&H", ! in_array( 'FUNZONE VŨNG TÀU', $cs, true ), $cs );
+	t( "   $ten · POSH KHÔNG thấy gian KVC (đã tách)", ! in_array( 'KVC AEON TÂN PHÚ', $cs, true ), $cs );
 }
 
-/* ═══ 3. ⚠️ VAI XEM CẢ THÌ PHẢI BÀY ĐỦ, KHÔNG PHẢI BÀY RỖNG ═══════════════════════════ */
+/* ═══ 3. ⚠️ AI XEM CẢ THÌ PHẢI BÀY ĐỦ, KHÔNG PHẢI BÀY RỖNG ════════════════════════════
+   Ba cái tên dưới không có trong bảng người dùng, nên nhà của họ rơi về mặc định K&H — tức
+   nhà mẹ, tức xem cả. (Từ 12/09/2026 chính cái NHÀ ấy cho xem cả, không phải cái VAI: hằng
+   `VAI_XEM_CA` đã bỏ. Phép này vẫn canh đúng thứ cần canh — `null` phải được hiểu là XEM CẢ
+   chứ không phải "không có gì".) */
 foreach ( array( 'Admin', 'Quản lý', 'Kế toán cá nhân' ) as $v ) {
 	vai( $v, $v );
-	teq( "   vai '$v' xem cả hệ (coso_xem_duoc trả null)", null, VHCP_DonVi::coso_xem_duoc() );
+	teq( "   '$v' (nhà mặc định K&H) xem cả hệ (coso_xem_duoc trả null)", null, VHCP_DonVi::coso_xem_duoc() );
 	foreach ( $MAN as $ten => $ham ) {
 		$cs = cs_cua( $ham );
 		t( "🔴 $ten · '$v' thấy ĐỦ cả ba bên, không bị bày rỗng",
@@ -86,14 +96,21 @@ foreach ( array( 'Admin', 'Quản lý', 'Kế toán cá nhân' ) as $v ) {
 	}
 }
 
-/* ═══ 4. TÍCH THÊM "XEM ĐƠN VỊ" THÌ THẤY THÊM — ĐƯỜNG GỠ KHI KỸ THUẬT LÀM CHO CẢ HAI BÊN ═══ */
-VHCP_Cfg::append( VHCP_Cfg::USER, array( 'NV KT hai bên', '9999', 'Nhân viên', '', '', '', 'Kỹ thuật', 'K&H', 'K&H, POSH' ) );
-VHCP_Cfg::clear_cache();
-vai( 'Nhân viên', 'NV KT hai bên' );
+/* ═══ 4. ĐƯỜNG GỠ KHI KỸ THUẬT LÀM CHO CẢ HAI BÊN: ĐỂ NHÀ LÀ NHÀ MẸ ════════════════════
+   Trước 12/09/2026 đường gỡ là tích thêm vào ô "Xem đơn vị". Ô ấy đã bỏ (anh Thắng: *"Đơn vị
+   với xem đơn vị là 1"*), nên nay chỉ còn một cách và cách ấy rõ hơn hẳn: cho người làm cả hệ
+   nhà K&H. Phép dưới canh đúng chỗ đó — kèm chiều đóng để "nhà mẹ" không lặng lẽ biến thành
+   "ai cũng xem cả". */
+vai( 'Nhân viên', 'NV Kỹ thuật K&H' );
 $cs = cs_cua( $MAN['Kỹ thuật (listDuAn)'] );
-t( '🔴 tích "Xem đơn vị" cả hai thì thấy gian của cả hai — người kỹ thuật làm cho cả hai bên vẫn chọn được',
-	in_array( 'FUNZONE VŨNG TÀU', $cs, true ) && in_array( 'POSH MN CGV VINCOM LANDMARK', $cs, true ), $cs );
-t( '   nhưng vẫn KHÔNG thấy KVC (không tích)', ! in_array( 'KVC AEON TÂN PHÚ', $cs, true ), $cs );
+t( '🔴 người nhà mẹ K&H thấy gian của cả ba bên — kỹ thuật làm cho cả hệ vẫn chọn được',
+	in_array( 'FUNZONE VŨNG TÀU', $cs, true )
+	&& in_array( 'POSH MN CGV VINCOM LANDMARK', $cs, true )
+	&& in_array( 'KVC AEON TÂN PHÚ', $cs, true ), $cs );
+vai( 'Nhân viên', 'NV Kỹ thuật KVC' );
+$cs = cs_cua( $MAN['Kỹ thuật (listDuAn)'] );
+t( '🔴 còn người nhà KVC thì vẫn chỉ thấy KVC — nhà mẹ không nới cho người khác',
+	! in_array( 'FUNZONE VŨNG TÀU', $cs, true ), $cs );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════ */
 echo "\n";

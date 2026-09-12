@@ -15,8 +15,10 @@
  *    sạch việc tách đơn vị đã dựng suốt hai tuần — nên phần lớn bài kiểm dưới đây canh đúng
  *    chiều ĐÓNG: POSH và KVC vẫn không thấy gì của nhau, cũng không thấy K&H.
  *
- * ⚠️ Ô "Xem đơn vị" KHAI TAY VẪN THẮNG. Khai thẳng "K&H" vào ô ấy là bó người nhà mẹ lại đúng
- *    K&H — đường siết duy nhất, và `kiem-tach-don-vi-posh.php` đang dựa vào nó.
+ * 🔴 ĐÃ BỎ Ô "XEM ĐƠN VỊ" VÀ LUẬT VAI (12/09/2026). Anh Thắng: *"Đơn vị với xem đơn vị là 1,
+ *    đã thuộc đơn vị đó, thì toàn quyền xem của mình"*. Trước đây có BA đường cùng trả lời câu
+ *    "được đọc sổ nhà nào" — cột Đơn vị, cột Xem đơn vị, và hằng VAI_XEM_CA — nên lệch nhau là
+ *    chuyện sớm muộn. Nay chỉ còn cột Đơn vị; phần dưới canh đúng điều đó.
  *
  * Chạy: php tools/test/kiem-don-vi-me-xem-ca.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
@@ -99,12 +101,15 @@ teq( '🔴 KVC KHÔNG thấy gian K&H',  false, VHCP_DonVi::xem_duoc_coso( CS_KH
 teq( '🔴 KVC KHÔNG thấy gian POSH', false, VHCP_DonVi::xem_duoc_coso( CS_POSH ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 4. Ô "XEM ĐƠN VỊ" KHAI TAY VẪN THẮNG — đường siết một người nhà mẹ lại
- * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+ * 4. Ô "XEM ĐƠN VỊ" KHÔNG CÒN AI ĐỌC TỚI — chỉ cột "Đơn vị" nói chuyện
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * "NV K&H Bó" khai `xemDonVi = 'K&H'` y như trước, nhưng nhà vẫn là K&H nên nay xem cả hệ.
+ * Phép dưới canh đúng chỗ ấy: giá trị cũ CÒN NGUYÊN trong sổ mà KHÔNG còn tác dụng gì — bỏ
+ * quên một chỗ đọc nó là luật lại tách làm hai, đúng kiểu hỏng vừa dọn xong. */
 vai( 'NV K&H Bó' );
-teq( '🔴 khai thẳng "K&H" vào ô Xem đơn vị thì BÓ LẠI, không xem cả', array( 'K&H' ), VHCP_DonVi::xem_duoc() );
-teq( '   thấy gian K&H',            true,  VHCP_DonVi::xem_duoc_coso( CS_KH ) );
-teq( '🔴 KHÔNG thấy gian POSH nữa', false, VHCP_DonVi::xem_duoc_coso( CS_POSH ) );
+teq( '🔴 ô "Xem đơn vị" cũ KHÔNG còn bó ai lại nữa', null, VHCP_DonVi::xem_duoc() );
+teq( '   thấy gian K&H',  true, VHCP_DonVi::xem_duoc_coso( CS_KH ) );
+teq( '   thấy cả gian POSH (vì nhà là K&H)', true, VHCP_DonVi::xem_duoc_coso( CS_POSH ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 5. TẮT / ĐỔI NHÀ MẸ BẰNG KHOÁ CẤU HÌNH — không phải sửa mã
@@ -127,12 +132,26 @@ teq( '   người chưa khai cũng chỉ còn K&H', array( 'K&H' ), VHCP_DonVi::
 update_option( 'vhcp_dv_me', 'K&H' );   // trả lại như cũ cho phần sau (nếu có)
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 6. VAI XEM CẢ VẪN CHẠY ĐỘC LẬP — nhà POSH mà vai Admin thì vẫn xem cả
- * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+ * 6. VAI KHÔNG CÒN NỚI TẦM NHÌN — Admin nhà POSH chỉ đọc sổ POSH
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐẢO CHIỀU SO VỚI BẢN TRƯỚC, và đảo có chủ ý. Hằng `VAI_XEM_CA` đã bị bỏ: vai trả lời câu
+ *    "được LÀM GÌ" (bảng Phân quyền Hành động × Vai trò), còn "đọc được sổ NHÀ NÀO" thì chỉ
+ *    cột Đơn vị nói. Admin muốn nhìn cả hệ thì để nhà là K&H — đúng như mọi tài khoản đang
+ *    khai. Giữ phép này để lần sau ai đó định "cho Admin xem cả cho tiện" thì thấy nó đỏ và
+ *    đọc được lý do ngay tại đây. */
 VHCP_Cfg::append( VHCP_Cfg::USER, array( 'Sếp POSH', '666666', 'Admin', '', '', '', '', 'POSH', '' ) );
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'Sếp K&H',  '777777', 'Admin', '', '', '', '', 'K&H',  '' ) );
 VHCP_Cfg::clear_cache();
 vai( 'Sếp POSH', 'Admin' );
-teq( '🔴 Admin nhà POSH vẫn xem cả (luật vai không bị luật nhà nuốt mất)', null, VHCP_DonVi::xem_duoc() );
+teq( '🔴 Admin nhà POSH CHỈ đọc sổ POSH (vai không nới tầm nhìn nữa)', array( 'POSH' ), VHCP_DonVi::xem_duoc() );
+teq( '   nên không thấy gian K&H', false, VHCP_DonVi::xem_duoc_coso( CS_KH ) );
+vai( 'Sếp K&H', 'Admin' );
+teq( '🔴 Admin nhà K&H vẫn xem cả hệ — vì NHÀ, không vì vai', null, VHCP_DonVi::xem_duoc() );
+/* Kế toán cũng thế: trước đây `VAI_XEM_CA` cho họ xem cả bất kể nhà. */
+VHCP_Cfg::append( VHCP_Cfg::USER, array( 'KT KVC', '888888', 'Kế toán cá nhân', '', '', '', '', 'KVC', '' ) );
+VHCP_Cfg::clear_cache();
+vai( 'KT KVC', 'Kế toán cá nhân' );
+teq( '🔴 Kế toán nhà KVC chỉ đọc sổ KVC', array( 'KVC' ), VHCP_DonVi::xem_duoc() );
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 echo "\n";

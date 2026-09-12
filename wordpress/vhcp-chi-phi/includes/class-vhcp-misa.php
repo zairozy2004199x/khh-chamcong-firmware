@@ -100,11 +100,16 @@ class VHCP_Misa {
 			$m_loai[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = (string) $x['tkNo'];
 		}
 
-		$m_co_user = array(); $m_dt_user = array(); $role_by = array();
+		/* 🔴 ĐÃ BỎ BẢNG TRA "TK CÓ THEO NGƯỜI DUYỆT" (12/09/2026) — anh Thắng: *"Bỏ cột tài
+		   khoản có"*. Cột ấy không còn trên màn Người dùng nên không còn chỗ nào khai; giữ
+		   bảng tra lại là một giá trị ẩn trong sổ cũ vẫn lặng lẽ chi phối bút toán MISA mà
+		   không ai xem hay sửa được nữa — đúng kiểu hỏng tệ nhất.
+		   TK Có nay tra theo HÌNH THỨC CHI (141 tạm ứng cá nhân / 331 trả thẳng NCC), là thứ
+		   đi theo đồng tiền chứ không theo người ký. */
+		$m_dt_user = array(); $role_by = array();
 		foreach ( VHCP_Cfg::get_users() as $u ) {
 			if ( $u['ten'] === '' ) { continue; }
 			$k = mb_strtolower( trim( $u['ten'] ) );
-			$m_co_user[ $k ] = $u['tkCo'];
 			$m_dt_user[ $k ] = $u['maDt'];
 			$role_by[ $k ]   = $u['vaiTro'];
 		}
@@ -182,11 +187,10 @@ class VHCP_Misa {
 			if ( $tk_no === '' && ! empty( $m_loai[ $nhom_k ] ) )                        { $tk_no = $m_loai[ $nhom_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) )                         { $tk_no = $m_no_mx[ $mx_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no[ $nhom ] ) && ! VHCP_Cfg::la_tk_ben_tra( $m_no[ $nhom ] ) ) { $tk_no = $m_no[ $nhom ]; }
-			// TK Có = ai ứng tiền, không phải "chi phí gì": vẫn ưu tiên TK Có của người duyệt
-			// tạm ứng như cũ, rồi tới mã gắn trên dòng, rồi tới TK Có của phân loại.
+			// TK Có = BÊN TRẢ TIỀN, không phải "chi phí gì". Mã gắn trên dòng trước (chụp đúng
+			// lúc nhập, theo hình thức chi của chính dòng ấy), rồi tới TK Có của phân loại.
 			$tk_co = '';
-			if ( ! empty( $m_co_user[ $duyet_key ] ) ) { $tk_co = $m_co_user[ $duyet_key ]; }
-			elseif ( trim( (string) ( isset( $r['tk_co'] ) ? $r['tk_co'] : '' ) ) !== '' ) { $tk_co = trim( (string) $r['tk_co'] ); }
+			if ( trim( (string) ( isset( $r['tk_co'] ) ? $r['tk_co'] : '' ) ) !== '' ) { $tk_co = trim( (string) $r['tk_co'] ); }
 			elseif ( ! empty( $m_co[ $co_key ] ) )     { $tk_co = $m_co[ $co_key ]; }
 			$ma_dv = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ma_dt = '';
@@ -194,7 +198,10 @@ class VHCP_Misa {
 			elseif ( ! empty( $m_dt[ mb_strtolower( $dt ) ] ) )      { $ma_dt = $m_dt[ mb_strtolower( $dt ) ]; }
 
 			if ( ! $tk_no ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . VHCP_Cfg::bo_duoi_nhom( $nhom ) . ( $pll !== '' ? ' (mảng ' . $pll . ')' : '' ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
-			if ( ! $tk_co ) { $warn[ 'Thiếu TK Có cho người duyệt: ' . ( $d['nguoiDuyet'] !== '' ? $d['nguoiDuyet'] : '(trống)' ) ] = 1; }
+			/* Câu báo phải chỉ đúng CHỖ KHAI. Trước đây nó nói "thiếu TK Có cho người duyệt X"
+			   và người ta đi sửa bảng Người dùng — nay cột ấy không còn, nên chỉ thẳng sang
+			   bảng Phân loại thanh toán, là nơi duy nhất còn khai được. */
+			if ( ! $tk_co ) { $warn[ 'Thiếu TK Có cho hình thức chi: ' . ( '' !== trim( (string) $co_key ) ? $co_key : '(trống)' ) . ' — khai ở ⚙️ Cấu hình → Phân loại thanh toán' ] = 1; }
 			if ( ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso ] = 1; }
 
 			$ngay = VHCP_Util::fmt( $r['ngay'] );

@@ -264,7 +264,7 @@ t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.sli
    "số ô dựng ra bằng đúng số cột dữ liệu", mà `_readRows()` đọc theo CHỈ SỐ nên lệch một ô là
    mọi cột sau đó đọc trượt sang cột bên cạnh. Sửa bằng cách dạy nó tên hàm mới, KHÔNG phải
    bằng cách nới con số cho qua. */
-const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp|_xemDvSel)\(|<(input|select)\b([^>]*)>/g)]
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
   .filter(m => {
     if (m[1]) return true;
     if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
@@ -272,9 +272,14 @@ const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp|_xemDvSel)\
     return true;
   })
   .map(m => m[1] || ('<' + m[2] + '>'));
-t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8, GOI);
+t('hàng người dùng dựng đủ ô cho mọi cột (≥7)', GOI.length >= 7, GOI);
 
-const COT = ['ten', 'pin', 'vaiTro', 'boPhan', 'coso', 'tkCo', 'maDt', 'donVi', 'xemDonVi'];
+/* 🔴 HAI CỘT ĐÃ BỎ 12/09/2026 — anh Thắng: *"Bỏ cột tài khoản có"* và *"Đơn vị với xem đơn vị
+   là 1"*. `tkCo` và `xemDonVi` không còn ô nào trên màn, nên cũng không còn chỉ số; chúng vẫn
+   được gửi lên dưới dạng chuỗi RỖNG CỨNG để máy chủ ghi đúng số cột của sổ.
+   ⚠️ Phép dưới cùng canh đúng chỗ ấy: hai khoá đó phải là hằng '' trong `saveCfgUsers`, KHÔNG
+      được là `r[n]` — lỡ ai đó trả lại chỉ số cho chúng là mọi cột sau lại trượt một nhịp. */
+const COT = ['ten', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
 teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
 const CHI_SO = {};
 let dem = 0;
@@ -289,11 +294,21 @@ const SAVE = thanHam('saveCfgUsers');
 const DUNG = {};
 for (const m of SAVE.matchAll(/(\w+):\((?:r\[(\d+)\])\|\|''\)/g)) { DUNG[m[1]] = Number(m[2]); }
 for (const m of SAVE.matchAll(/(\w+):r\[(\d+)\]\|\|''/g))          { DUNG[m[1]] = Number(m[2]); }
-t('đọc được chỉ số saveCfgUsers đang dùng', Object.keys(DUNG).length >= 7, DUNG);
+t('đọc được chỉ số saveCfgUsers đang dùng', Object.keys(DUNG).length >= 6, DUNG);
 COT.forEach(k => {
   if (!(k in DUNG)) return;
   teq('cột "' + k + '" — chỉ số saveCfgUsers khớp số ô thật', CHI_SO[k], DUNG[k]);
 });
+t('🔴 "tkCo" không còn chỉ số ô nào — cột đã bỏ',     !('tkCo' in DUNG), DUNG);
+t('🔴 "xemDonVi" không còn chỉ số ô nào — cột đã bỏ', !('xemDonVi' in DUNG), DUNG);
+t('   nhưng vẫn gửi lên dưới dạng rỗng, khỏi lệch cột sổ',
+  /tkCo:''/.test(SAVE) && /xemDonVi:''/.test(SAVE), SAVE.slice(0, 200));
+
+/* 🔴 GOM TỪ MỌI BẢNG. Bảng người dùng tách theo vai trò (12/09/2026), nên `saveCfgUsers` phải
+   quét hết các tbody chứ không đọc một id cố định. Sót một bảng = những người trong đó không
+   nằm trong gói gửi lên, mà lượt Lưu ghi đè cả danh sách — tức XOÁ họ khỏi sổ, im lặng. */
+t('🔴 lưu người dùng gom từ MỌI bảng vai trò, không phải một id cố định',
+  /_uMoiHang\(\)/.test(SAVE) && /data-user-body/.test(thanHam('_uMoiHang')), SAVE.slice(0, 120));
 
 
 // ---------------------------------------------------------------- kết

@@ -66,7 +66,7 @@ const CS = [
 const boPosh = chay([], ['POSH']);
 t('🔴 nói thẳng "Không phải mất dữ liệu"', boPosh.html.indexOf('Không phải mất dữ liệu') >= 0, boPosh.html);
 t('🔴 gọi đúng tên đơn vị đang bó (POSH)', boPosh.html.indexOf('POSH') >= 0, boPosh.html);
-t('   chỉ đường đi sửa (ô "Xem đơn vị")',  boPosh.html.indexOf('Xem đơn vị') >= 0, boPosh.html);
+t('   chỉ đường đi sửa (ô "Đơn vị")',  boPosh.html.indexOf('<b>Đơn vị</b>') >= 0, boPosh.html);
 t('🔴 KHÔNG bày nhầm câu "chưa khai cơ sở nào"', boPosh.html.indexOf('Chưa khai cơ sở nào') < 0, boPosh.html);
 t('   vẫn khoá bảng lại như thường lệ',  boPosh.nk.khoa > 0, boPosh.nk);
 t('   vẫn dò cơ sở lạ như thường lệ',    boPosh.nk.doLa > 0, boPosh.nk);

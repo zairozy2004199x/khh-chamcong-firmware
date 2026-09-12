@@ -87,7 +87,11 @@ if m:
     la('renderUsers KHÔNG khai var _laAdmin', 'var _laAdmin' not in than,
        'khai lại là bảng người dùng trắng trở lại')
     la('renderUsers vẫn dùng hàm _laAdmin()', '_laAdmin()' in than)
-    la('renderUsers có vẽ cfgUserBody', "el('cfgUserBody').innerHTML" in than)
+    # Từ 12/09/2026 bảng tách theo vai trò, dựng vào một khối chung rồi mới sinh từng tbody.
+    # Cái phải canh vẫn là "renderUsers CÓ VẼ RA gì đó" — vì đúng lỗi 25/08/2026 là hàm chết
+    # giữa chừng và bảng không bao giờ được vẽ.
+    la('renderUsers có vẽ bảng người dùng', "el('cfgUserNhom').innerHTML" in than)
+    la('   và sinh tbody cho từng vai', "cfgUserBody'+i" in than)
 
 # ---------------------------------------------------------------- chốt chặn xóa trắng
 print('— chốt chặn lưu danh sách rỗng —')
@@ -483,10 +487,13 @@ for _b, _goi in [('Duyệt tạm ứng', "el('duyetBody').innerHTML=_tachDonVi("
     la('bảng "%s" dùng _tachDonVi' % _b, _goi in src)
 la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in css)
 
-# Cấu hình: hai cột Đơn vị / Xem đơn vị — hai việc khác nhau, không gộp.
+# Cấu hình: MỘT cột Đơn vị. Anh Thắng 12/09/2026: *"Đơn vị với xem đơn vị là 1, đã thuộc đơn
+# vị đó, thì toàn quyền xem của mình"*. Cột "Xem đơn vị" và cột "TK Có" đã bỏ; chi tiết và các
+# phép canh chỉ số ô nằm ở tools/test/kiem-gop-cot-don-vi.js + test-cauhinh-xo.js.
 la('bảng người dùng có cột Đơn vị', '>Đơn vị</th>' in src)
-la('và cột Xem đơn vị', '>Xem đơn vị</th>' in src)
-la('lưu người dùng gửi kèm cả hai ô', 'donVi:(r[7]' in src and 'xemDonVi:(r[8]' in src)
+la('🔴 KHÔNG còn cột Xem đơn vị', '>Xem đơn vị</th>' not in src)
+la('🔴 KHÔNG còn cột TK Có', 'TK Có (khi là người duyệt)' not in src)
+la('lưu người dùng gom từ MỌI bảng vai trò', '_uMoiHang()' in src and 'data-user-body' in src)
 # Ô Đơn vị là ô NHẬP kèm gợi ý, không phải ô xổ đóng: chi nhánh mới phải khai được ngay.
 la('ô Đơn vị nhập được tự do (có datalist gợi ý)',
    'function _dvInp(' in src and 'list="dl_donvi"' in src)
