@@ -1519,6 +1519,11 @@ class VHG_BaoCao {
 			$u = self::luu_anh_( array( 'dataUrl' => $imgs_p['vesinh'], 'name' => 'vesinh.jpg' ), $rid, $ma . '-sua-vesinh-' . time() );
 			if ( '' !== $u ) { $anh_moi[] = $u; }
 		}
+		/* Ảnh QR bổ sung (anh Thắng 12/09/2026) — đính kèm như chỉ số/vệ sinh vào cùng mảng `anh`. */
+		if ( ! empty( $imgs_p['qr'] ) ) {
+			$u = self::luu_anh_( array( 'dataUrl' => $imgs_p['qr'], 'name' => 'qr.jpg' ), $rid, $ma . '-sua-qr-' . time() );
+			if ( '' !== $u ) { $anh_moi[] = $u; }
+		}
 		$anh_tong = array_merge( $anh_hien, $anh_moi );
 		if ( ! count( $anh_tong ) ) {
 			return array( 'ok' => false, 'message' => 'Ghế này chưa có ảnh nào — cần đính ít nhất 1 ảnh (chỉ số hoặc vệ sinh) mới lưu được.' );

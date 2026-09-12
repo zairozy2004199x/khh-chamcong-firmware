@@ -2222,6 +2222,33 @@ class VHG_Trang {
      phủ lên trên) và tự vẽ MỘT NÚT CHỮ VIỆT CỐ ĐỊNH — "Chọn ảnh" — giống hệt nhau trên mọi máy,
      mọi trình duyệt, bất kể ngôn ngữ hệ thống của người dùng. */
   var CEL_ANH_DEM = 0;
+  /* 🔍 RÊ CHUỘT / CHẠM VÀO ẢNH NHỎ → HIỆN BẢN TO ĐỂ SOI — anh Thắng 12/09/2026: "thêm ảnh thì rê
+     ảnh nó phóng to lên để xem gán ảnh đúng chưa". Ảnh preview chỉ 36px, nhìn không rõ gán đúng ô
+     chưa. Dựng một lớp nổi cố định cạnh ảnh; điện thoại không có rê chuột nên CHẠM để bật/tắt. */
+  function hoverZoom_(img){
+    img.style.cursor='zoom-in';
+    var big=null;
+    function dat_(){
+      if(!big) return;
+      var r=img.getBoundingClientRect(), bw=big.offsetWidth||320, bh=big.offsetHeight||320;
+      var x=r.right+10; if(x+bw>window.innerWidth) x=Math.max(6, r.left-bw-10);
+      var y=r.top;      if(y+bh>window.innerHeight) y=Math.max(6, window.innerHeight-bh-6);
+      big.style.left=x+'px'; big.style.top=y+'px';
+    }
+    function hien_(){
+      if(big|| !img.src) return;
+      big=el('img'); big.src=img.src;
+      big.style.cssText='position:fixed;z-index:99999;max-width:min(82vw,440px);max-height:82vh;'
+        +'border:2px solid #fff;border-radius:10px;box-shadow:0 12px 44px rgba(0,0,0,.38);'
+        +'pointer-events:none;background:#fff';
+      document.body.appendChild(big); dat_();
+    }
+    function an_(){ if(big){ try{ big.remove(); }catch(e){} big=null; } }
+    img.addEventListener('mouseenter',hien_);
+    img.addEventListener('mousemove',dat_);
+    img.addEventListener('mouseleave',an_);
+    img.addEventListener('click',function(){ if(big) an_(); else hien_(); });   // điện thoại: chạm bật/tắt
+  }
   function celAnh(cls){
     var td=el('td');
     var id='canh'+(++CEL_ANH_DEM);
@@ -2239,6 +2266,7 @@ class VHG_Trang {
       if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
       else { prev.style.display='none'; delete prev.dataset.url; }
     });
+    hoverZoom_(prev);
     td.appendChild(i); td.appendChild(lab); td.appendChild(prev);
     return td;
   }
@@ -3078,6 +3106,7 @@ class VHG_Trang {
       if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
       else { prev.style.display='none'; delete prev.dataset.url; }
     });
+    hoverZoom_(prev);
     wrap.appendChild(i); wrap.appendChild(lab); wrap.appendChild(prev);
     wrap.fileInput=i;
     return wrap;
@@ -3113,13 +3142,17 @@ class VHG_Trang {
        chốt lại lần nữa ở server (sua_dong()) phòng khi JS bị chặn/lỗi thời. */
     var anhCu=(c.anh&&c.anh.length)?c.anh.length:0;
     var anhWrap=el('div'); anhWrap.style.cssText='display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;align-items:flex-start';
-    var pChiso=anhPicker_('e-anh-chiso','📷 Ảnh chỉ số'), pVesinh=anhPicker_('e-anh-vesinh','🧹 Ảnh vệ sinh');
-    anhWrap.appendChild(pChiso); anhWrap.appendChild(pVesinh);
+    /* Ô "Ảnh QR" bổ sung — anh Thắng 12/09/2026: "thêm ô bổ sung thêm ảnh QR". Đính kèm ảnh bill/QR
+       của riêng ghế này (ngoài ảnh chỉ số/vệ sinh). KHÔNG nằm trong "chia ảnh hàng loạt" (bulk chỉ
+       chia chỉ số + vệ sinh, 2 ảnh/ghế) — QR chọn tay từng ghế. Cũng tính là "có ảnh". */
+    var pChiso=anhPicker_('e-anh-chiso','📷 Ảnh chỉ số'), pVesinh=anhPicker_('e-anh-vesinh','🧹 Ảnh vệ sinh'),
+        pQr=anhPicker_('e-anh-qr','🧾 Ảnh QR');
+    anhWrap.appendChild(pChiso); anhWrap.appendChild(pVesinh); anhWrap.appendChild(pQr);
     card.appendChild(anhWrap);
     var ttAnh=el('div','bc-mut'); card.appendChild(ttAnh);
     function coAnh_(fi){ return !!((fi.files&&fi.files.length)||fi._bulkFile); }   // .files hoặc _bulkFile (iOS)
     function capNhatAnh(){
-      var moi=(coAnh_(pChiso.fileInput)?1:0)+(coAnh_(pVesinh.fileInput)?1:0);
+      var moi=(coAnh_(pChiso.fileInput)?1:0)+(coAnh_(pVesinh.fileInput)?1:0)+(coAnh_(pQr.fileInput)?1:0);
       if(anhCu) ttAnh.textContent='Đã có '+anhCu+' ảnh từ lúc gửi.'+(moi?(' +'+moi+' ảnh mới sẽ đính thêm.'):'');
       else ttAnh.textContent=moi?('Sẽ đính '+moi+' ảnh mới khi Lưu.'):'⚠ Ghế này chưa có ảnh nào — chọn ít nhất 1 ảnh (chỉ số hoặc vệ sinh) mới lưu được.';
       ttAnh.className='bc-mut'+((!anhCu&&!moi)?' bc-err':'');
@@ -3127,6 +3160,7 @@ class VHG_Trang {
     capNhatAnh();
     pChiso.fileInput.addEventListener('change',capNhatAnh);
     pVesinh.fileInput.addEventListener('change',capNhatAnh);
+    pQr.fileInput.addEventListener('change',capNhatAnh);
     var dv=Number(BC.don_vi)||10000;
     function capNhatXem(){
       var before=(c.meterBefore==null||c.meterBefore==='')?'':Number(c.meterBefore);
@@ -3158,7 +3192,8 @@ class VHG_Trang {
       if(String(c.adjust==null?'':c.adjust)!==String(ad==null?'':ad)) patch.adjust=ad;
       if(String(c.note||'')!==nt) patch.note=nt;
       var fChiso=(pChiso.fileInput.files&&pChiso.fileInput.files[0])||pChiso.fileInput._bulkFile, fVesinh=(pVesinh.fileInput.files&&pVesinh.fileInput.files[0])||pVesinh.fileInput._bulkFile;
-      if(!anhCu && !fChiso && !fVesinh){ m.textContent='Ghế này chưa có ảnh — chọn ít nhất 1 ảnh (chỉ số hoặc vệ sinh) rồi bấm Lưu.'; m.className='bc-mut bc-err'; return; }
+      var fQr=(pQr.fileInput.files&&pQr.fileInput.files[0])||pQr.fileInput._bulkFile;
+      if(!anhCu && !fChiso && !fVesinh && !fQr){ m.textContent='Ghế này chưa có ảnh — chọn ít nhất 1 ảnh (chỉ số / vệ sinh / QR) rồi bấm Lưu.'; m.className='bc-mut bc-err'; return; }
       function guiLuu_(){
         if(!Object.keys(patch).length){ m.textContent='Không có gì đổi.'; s.disabled=false; return; }
         m.textContent='Đang lưu…';
@@ -3174,12 +3209,13 @@ class VHG_Trang {
         });
       }
       s.disabled=true;
-      if(fChiso||fVesinh){
+      if(fChiso||fVesinh||fQr){
         m.textContent='Đang nén ảnh…';
-        var images={}; var can=(fChiso?1:0)+(fVesinh?1:0); var xong=0;
+        var images={}; var can=(fChiso?1:0)+(fVesinh?1:0)+(fQr?1:0); var xong=0;
         function motXong(){ if(++xong===can){ if(Object.keys(images).length) patch.images=images; guiLuu_(); } }
         if(fChiso) nenAnh_(fChiso,function(du){ if(du) images.chiso=du; motXong(); });
         if(fVesinh) nenAnh_(fVesinh,function(du){ if(du) images.vesinh=du; motXong(); });
+        if(fQr) nenAnh_(fQr,function(du){ if(du) images.qr=du; motXong(); });
       } else {
         guiLuu_();
       }
