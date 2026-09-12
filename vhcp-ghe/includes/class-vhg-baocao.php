@@ -164,11 +164,13 @@ class VHG_BaoCao {
 				'an'   => $an ? 1 : 0,
 			);
 		}
-		/* Xếp theo cơ sở rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1,
-		   VHM-10, VHM-2). `strnatcasecmp` hiểu số trong tên nên "-2" đứng trước "-10"; sắp ở NGUỒN
-		   để cả bảng nhập chỉ số lẫn ô xổ ghế đều cùng thứ tự, khỏi mỗi màn một kiểu. */
+		/* Xếp theo cơ sở → MÁY ĐÃ DỌN XUỐNG CUỐI (anh Thắng 12/09/2026: "máy đã dọn cho vào cuối")
+		   → rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10, VHM-2).
+		   `strnatcasecmp` hiểu số trong tên nên "-2" đứng trước "-10"; sắp ở NGUỒN để cả bảng nhập
+		   chỉ số lẫn ô xổ ghế đều cùng thứ tự, khỏi mỗi màn một kiểu. */
 		usort( $ra, function( $a, $b ) {
 			return strnatcasecmp( (string) $a['coso'], (string) $b['coso'] )
+				?: ( ( (int) $a['an'] ) - ( (int) $b['an'] ) )
 				?: strnatcasecmp( (string) $a['ten'], (string) $b['ten'] );
 		} );
 		return $ra;
