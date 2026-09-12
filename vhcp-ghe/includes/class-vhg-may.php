@@ -1143,6 +1143,68 @@ class VHG_May {
 			. ( '' !== $ten_khai ? ( ' (' . $ten_khai . ')' ) : '' ) . '.' );
 	}
 
+	/**
+	 * NHÂN BẢN GHẾ SANG MÃ MỚI — GIỮ CHỈ SỐ (không nhảy về 0). Anh Thắng 12/09/2026: *"2 cơ sở chung
+	 * 1 mã, chuyển mã này thì mất mã kia… nhập mã mới nó tự nhân bản ra để giữ lại chỉ số, chứ xoá
+	 * tạo nó nhảy chỉ số hết"*.
+	 *
+	 * Cách gỡ trùng mã AN TOÀN: giữ NGUYÊN ghế/mã cũ (cho cơ sở kia), tạo GHẾ MỚI với mã khác cho cơ
+	 * sở này, và ĐẶT MỐC CHỈ SỐ (`moc_chiso`) của ghế mới = chỉ số MỚI NHẤT của ghế nguồn. Nhờ mốc
+	 * này, báo cáo đầu tiên của mã mới nối tiếp đúng số máy đang chạy thay vì bắt đầu từ 0
+	 * (xem chi_so_truoc_ct_: không có bc_dong/chot thì lấy moc_chiso).
+	 *
+	 * ⚠️ KHÔNG chép MAC (một MAC = một thiết bị thật; nhân đôi MAC là hai ghế tranh nhau một máy).
+	 * ⚠️ KHÔNG đụng lịch sử cũ: doanh thu/chỉ số cũ vẫn nằm dưới mã nguồn — mã mới bắt đầu SẠCH từ
+	 *    mốc, nên không kéo nhầm tiền của ai. Đây chính là chỗ khác "xoá tạo": xoá tạo mất mốc → về 0.
+	 */
+	public static function nhan_ban( $ma_nguon, $ma_moi, $coso_id = 0, $ten = '' ) {
+		global $wpdb;
+		$ma_nguon = trim( (string) $ma_nguon );
+		$ma_moi   = trim( (string) $ma_moi );
+		if ( '' === $ma_nguon || '' === $ma_moi ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế nguồn hoặc mã mới.' ); }
+		if ( $ma_moi === $ma_nguon ) { return array( 'ok' => false, 'error' => 'Mã mới phải KHÁC mã nguồn.' ); }
+		if ( ! preg_match( '/^[A-Za-z0-9]{1,20}$/', $ma_moi ) ) {
+			return array( 'ok' => false, 'error' => 'Mã mới chỉ gồm chữ và số, không dấu, không khoảng trắng.' );
+		}
+		$bang  = VHG_DB::t( 'may' );
+		$nguon = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ma=%s LIMIT 1", $ma_nguon ), ARRAY_A );
+		if ( ! $nguon ) { return array( 'ok' => false, 'error' => 'Không tìm thấy ghế nguồn ' . $ma_nguon . '.' ); }
+		if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma_moi ) ) ) {
+			return array( 'ok' => false, 'trung' => 1, 'error' => 'Mã ' . $ma_moi . ' ĐÃ CÓ ghế — chọn mã khác.' );
+		}
+		$coso_id = (int) $coso_id;
+		if ( $coso_id <= 0 ) { $coso_id = (int) $nguon['coso_id']; }
+		if ( $coso_id <= 0 ) { return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở đích cho mã mới.' ); }
+		/* Chỉ số MỚI NHẤT của ghế nguồn (đọc cả lượt thu trong hôm nay: $toi=true, mốc = ngày mai). */
+		$moc = null;
+		if ( class_exists( 'VHG_BaoCao' ) ) {
+			$mai = gmdate( 'Y-m-d', current_time( 'timestamp' ) + 86400 );
+			$moc = VHG_BaoCao::chi_so_truoc( $ma_nguon, $mai, true );
+		}
+		$ten  = VHG_Doc::chuan_ten( '' !== (string) $ten ? $ten : (string) ( isset( $nguon['ten_khai'] ) ? $nguon['ten_khai'] : '' ) );
+		$hang = array(
+			'ma'       => $ma_moi,
+			'coso_id'  => $coso_id,
+			'ten_khai' => $ten,
+			'gia'      => (int) ( isset( $nguon['gia'] ) ? $nguon['gia'] : 0 ),
+			'phut'     => (int) ( isset( $nguon['phut'] ) ? $nguon['phut'] : 0 ),
+			'so_tk'    => (string) ( isset( $nguon['so_tk'] ) ? $nguon['so_tk'] : '' ),
+			'ten_tk'   => (string) ( isset( $nguon['ten_tk'] ) ? $nguon['ten_tk'] : '' ),
+			'bank_bin' => (string) ( isset( $nguon['bank_bin'] ) ? $nguon['bank_bin'] : '' ),
+			'cap_nhat' => current_time( 'mysql' ),
+		);
+		if ( null !== $moc ) {
+			$hang['moc_chiso']      = (int) $moc;
+			$hang['moc_chiso_ngay'] = current_time( 'Y-m-d' );
+		}
+		$wpdb->insert( $bang, $hang );
+		return array( 'ok' => true, 'thong_bao' => 'Đã nhân bản ghế ' . $ma_nguon . ' → mã mới ' . $ma_moi
+			. ( null !== $moc
+				? ( ' (giữ chỉ số ' . number_format( (int) $moc, 0, ',', '.' ) . ').' )
+				: ' (ghế nguồn chưa có chỉ số nào để giữ).' )
+			. ' Ghế/mã cũ giữ nguyên cho cơ sở kia.' );
+	}
+
 	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
 	 *  (gan_ma trả về sớm khi mã không đổi nên không dùng để đổi mỗi cơ sở được.) */
 	/** Đặt/đổi TÊN ghế (ten_khai — tên trên sao kê). CHỈ đụng cột tên, không đụng giá/tài khoản

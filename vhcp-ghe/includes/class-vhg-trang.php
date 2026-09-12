@@ -661,6 +661,21 @@ class VHG_Trang {
 				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
 			self::tra( $r ); return;
 		}
+		if ( 'may_nhanban' === $viec ) {
+			/* Nhân bản ghế sang mã mới, GIỮ chỉ số (gỡ trùng mã an toàn) — anh Thắng 12/09/2026. */
+			$r = VHG_May::nhan_ban(
+				isset( $d['ma_nguon'] ) ? (string) $d['ma_nguon'] : '',
+				isset( $d['ma_moi'] ) ? (string) $d['ma_moi'] : '',
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0,
+				isset( $d['ten'] ) ? (string) $d['ten'] : ''
+			);
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' nhân bản ghế ' . (string) ( isset( $d['ma_nguon'] ) ? $d['ma_nguon'] : '' )
+					. ' → ' . (string) ( isset( $d['ma_moi'] ) ? $d['ma_moi'] : '' ) ) );
+			}
+			self::tra( $r ); return;
+		}
 
 			/* DIEU CHUYEN GHE — danh dau DA DON/DIEU CHUYEN (an), KHONG xoa: chi so, doanh thu, log
 			   deu giu nguyen. Tich nhieu ghe an di mot luot (`may_an_lo`) hoac mot ghe (`may_an`).
@@ -8592,6 +8607,26 @@ function veQuanLy(){
   _mt.trung.forEach(function(t){ t.ds.forEach(function(x){
     var k = x.coso || ''; if (k) { (cosoTrungMa[k] = cosoTrungMa[k] || []).push(t.ma); }
   }); });
+  /* MÃ GHẾ THEO TỪNG CƠ SỞ — anh Thắng 12/09/2026: "chỗ quản lý ghế, thay vì để doanh thu thì tập
+     trung quản lý ghế, cột Doanh thu sẽ hiện các mã ghế của cơ sở đó". Gom mã ghế SỐNG (bỏ ghế ẩn —
+     có khối riêng ở dưới) theo cơ sở; mã TRÙNG tô đỏ để nhìn là biết cần đổi. */
+  var maTheoCoso = {}, maChuaGan = [], maTrungSet = {};
+  _mt.trung.forEach(function(t){ maTrungSet[String(t.ma)] = true; });
+  may.forEach(function(m){
+    if (m.an) return;
+    if (m.coso) { (maTheoCoso[m.coso] = maTheoCoso[m.coso] || []).push(m.ma); }
+    else { maChuaGan.push(m.ma); }
+  });
+  function dsMaHtml_(list){
+    if (!list || !list.length) return '<span class="mut">—</span>';
+    return list.slice().sort(function(a,b){ return String(a).localeCompare(String(b), undefined, {numeric:true}); })
+      .map(function(ma){
+        var d = maTrungSet[String(ma)];
+        return '<code style="font-size:11px;padding:1px 4px;border-radius:4px;background:#f1f5f9;'
+          + (d ? 'color:#dc2626;font-weight:800;background:#fee2e2' : '') + '"'
+          + (d ? ' title="' + L('Mã TRÙNG — cần đổi','Duplicate code — rename') + '"' : '') + '>' + esc(ma) + '</code>';
+      }).join(' ');
+  }
   if (_mt.trung.length || _mt.long.length) {
     h += '<div class="card" style="border:1px solid #f0c0c0;background:#fff5f5">'
        + '<h2 style="color:#dc2626;margin-top:0">⚠ ' + L('Cảnh báo mã ghế','Chair-code warnings') + '</h2>';
@@ -8658,9 +8693,8 @@ function veQuanLy(){
       + '" style="flex:1;min-width:200px;max-width:340px">'
     + '<span id="cs-dem" class="mut" style="align-self:center"></span></div>';
   h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
-    + '</th><th class="r">' + L('Doanh thu','Revenue') + '</th><th class="r hide-sm">' + L('QR','QR')
-    + '</th><th class="r hide-sm">' + L('Tiền mặt','Cash') + '</th><th class="r"></th></tr>';
-  if (!coso.length) h += '<tr><td colspan="6" class="mut">'
+    + '</th><th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
+  if (!coso.length) h += '<tr><td colspan="4" class="mut">'
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
@@ -8685,11 +8719,7 @@ function veQuanLy(){
           + esc(cosoTrungMa[c.ten].filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', ')) + '</div>' : '')
       + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
-      + '<td class="r"><b>' + tien(r.tong) + '</b>'
-      + (r.nguon_bc ? ' <span class="pill p-wait" title="' + L('Chưa có webhook — lấy từ báo cáo doanh thu','No webhook — from revenue reports') + '">' + L('báo cáo','report') + '</span>' : '')
-      + '</td>'
-      + '<td class="r hide-sm">' + tien(r.qr) + '</td>'
-      + '<td class="r hide-sm">' + tien(r.tien_mat) + '</td>'
+      + '<td style="line-height:1.9">' + dsMaHtml_(maTheoCoso[c.ten]) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
       + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'')
         + '" data-csmakh="' + esc(c.ma_kh||'') + '">✎</button> '
@@ -8707,9 +8737,9 @@ function veQuanLy(){
     h += '<tr data-cstim="' + esc(kdJS(L('(chưa gán)','(unassigned)'))) + '">'
       + '<td class="mut"><a href="#" data-csxem="__none__" style="color:#1d4ed8;text-decoration:none;cursor:pointer">'
       + L('(chưa gán)','(unassigned)') + '</a></td>'
-      + '<td class="r">' + chuaGan + '</td><td class="r">' + tien(rc.tong) + '</td>'
-      + '<td class="r hide-sm">' + tien(rc.qr) + '</td><td class="r hide-sm">' + tien(rc.tien_mat)
-      + '</td><td></td></tr>';
+      + '<td class="r">' + chuaGan + '</td>'
+      + '<td style="line-height:1.9">' + dsMaHtml_(maChuaGan) + '</td>'
+      + '<td></td></tr>';
   }
   h += '</table><p class="mut" style="margin:8px 0 0">'
     + L('Xoá địa điểm KHÔNG xoá ghế — ghế thành "chưa gán". Doanh thu theo kỳ đang chọn ở đầu trang.',
@@ -8948,6 +8978,8 @@ function qlGheRender(){
       + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
       + '<td><b>' + esc(m.ma) + '</b> <button data-mma="' + esc(m.ma) + '" class="ghost" '
       + 'style="padding:1px 6px;font-size:11px" title="' + L('Đổi mã ghế (giữ toàn bộ lịch sử)','Change chair code (history preserved)') + '">✎</button>'
+      + ' <button data-mnb="' + esc(m.ma) + '" class="ghost" style="padding:1px 6px;font-size:11px" title="'
+      + L('Nhân bản sang mã mới, GIỮ chỉ số (gỡ trùng mã: giữ mã cũ cho cơ sở kia)','Clone to a new code, keep the reading') + '">⎘</button>'
       + maTrungHtml_(m.ma) + '</td>'
       + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
       + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
@@ -9043,6 +9075,25 @@ function qlGheRender(){
         alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.','Letters and digits only, no accents or spaces.')); return;
       }
       lam('gan_ma', { ma_cu: cu, ma_moi: moi });
+    };
+  });
+  /* ⎘ NHÂN BẢN sang mã mới, GIỮ chỉ số — gỡ trùng mã: tạo ghế mới với mã khác cho cơ sở này, giữ
+     nguyên ghế/mã cũ cho cơ sở kia; chỉ số nối tiếp máy đang chạy (không nhảy về 0). Anh Thắng
+     12/09/2026: "nhập mã mới nó tự nhân bản ra để giữ lại chỉ số, chứ xoá tạo nó nhảy chỉ số hết". */
+  [].forEach.call(box.querySelectorAll('[data-mnb]'), function(b){
+    b.onclick = function(){
+      var ng = b.getAttribute('data-mnb');
+      var moi = prompt(L('NHÂN BẢN ghế "' + ng + '" sang MÃ MỚI (chỉ chữ và số, không dấu, không khoảng trắng).\n'
+        + 'Ghế mới GIỮ chỉ số hiện tại (không về 0); ghế/mã cũ giữ nguyên cho cơ sở kia.',
+        'Clone chair "' + ng + '" to a NEW code (letters/digits only). The new chair keeps the current reading.'), '');
+      if (moi === null) return;
+      moi = (moi || '').trim();
+      if (!moi) return;
+      if (moi === ng) { alert(L('Mã mới phải KHÁC mã cũ.','New code must differ.')); return; }
+      if (!/^[A-Za-z0-9]{1,20}$/.test(moi)) {
+        alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.','Letters and digits only, no accents or spaces.')); return;
+      }
+      lam('may_nhanban', { ma_nguon: ng, ma_moi: moi });
     };
   });
   [].forEach.call(box.querySelectorAll('[data-man]'), function(b){
