@@ -627,7 +627,8 @@ class VHG_Trang {
 			   từ chối, chỉ đường đi tìm ghế cũ. */
 			$r = VHG_May::them_may(
 				isset( $d['ma'] ) ? $d['ma'] : '',
-				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0,
+				isset( $d['ten'] ) ? $d['ten'] : ''
 			);
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
@@ -4129,7 +4130,10 @@ function qlKhoiHtml(ten){
   var nhan = csId ? esc(ten) : L('(chưa gán)','(unassigned)');
   return '<div class="act" style="flex-wrap:wrap;margin-bottom:6px">'
     + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
-      + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:160px">'
+      + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:140px">'
+    /* Tên ghế (tuỳ chọn) ngay lúc thêm — anh Thắng 12/09/2026: "thêm ghế thì thêm cả mã và tên". */
+    + '<input id="ma-ten" type="text" maxlength="60" placeholder="'
+      + L('Tên ghế (tuỳ chọn, vd AEON TP 2)','Chair name (optional)') + '" style="flex:2;min-width:140px">'
     + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế vào','Add chair to') + ' ' + nhan + '</button>'
     + '<input type="hidden" id="ma-cs" value="' + csId + '">'
     + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button>'
@@ -4185,7 +4189,9 @@ function qlKhoiWire(){
       alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.',
         'The code may contain letters and digits only — no accents, no spaces.')); return;
     }
-    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value });
+    var tenEl = document.getElementById('ma-ten');
+    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value,
+      ten: tenEl ? (tenEl.value || '').trim() : '' });
   };
   if ((e = document.getElementById('ma-moi'))) e.onkeydown = function(ev){
     if (ev.key === 'Enter') { var b = document.getElementById('ma-them'); if (b) b.click(); }
@@ -8860,7 +8866,8 @@ function qlGheRender(){
        de bai kiem nao do do chuoi bao rang tinh nang con song. */
     h += '<tr>'
       + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
-      + '<td><b>' + esc(m.ma) + '</b></td>'
+      + '<td><b>' + esc(m.ma) + '</b> <button data-mma="' + esc(m.ma) + '" class="ghost" '
+      + 'style="padding:1px 6px;font-size:11px" title="' + L('Đổi mã ghế (giữ toàn bộ lịch sử)','Change chair code (history preserved)') + '">✎</button></td>'
       + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
       + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
@@ -8938,6 +8945,23 @@ function qlGheRender(){
     t.onchange = function(){
       if (t.value === t.getAttribute('data-goc')) return;
       lam('may_ten', { ma: t.getAttribute('data-ten'), ten: t.value });
+    };
+  });
+  /* ✎ ĐỔI MÃ GHẾ (admin) — anh Thắng 12/09/2026. gan_ma() dời TOÀN BỘ lịch sử sang mã mới (đã
+     hoàn thiện cascade), nên đổi mã không mất chỉ số/doanh thu. Hỏi lại vì mã đi vào nội dung
+     chuyển khoản khách gõ — đổi là khách phải gõ mã mới. */
+  [].forEach.call(box.querySelectorAll('[data-mma]'), function(b){
+    b.onclick = function(){
+      var cu = b.getAttribute('data-mma');
+      var moi = prompt(L('Đổi MÃ ghế "' + cu + '" thành mã mới (chỉ chữ và số, không dấu, không khoảng trắng).\n'
+        + 'Toàn bộ lịch sử/chỉ số sẽ theo sang mã mới.','New code for chair "' + cu + '" (letters/digits only):'), cu);
+      if (moi === null) return;
+      moi = (moi || '').trim();
+      if (!moi || moi === cu) return;
+      if (!/^[A-Za-z0-9]{1,20}$/.test(moi)) {
+        alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.','Letters and digits only, no accents or spaces.')); return;
+      }
+      lam('gan_ma', { ma_cu: cu, ma_moi: moi });
     };
   });
   [].forEach.call(box.querySelectorAll('[data-man]'), function(b){

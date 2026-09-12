@@ -984,11 +984,19 @@ class VHG_May {
 		      kỳ trước THEO ma_may. Trước đây đổi mã không dời chúng -> mất lịch sử chỉ số -> chỉ số
 		      kỳ sau tính từ 0, nhảy vọt (anh Thắng: "tạo lại máy chỉ số nhảy sai"). Mã mới chắc chắn
 		      chưa có ghế khác (đã chặn ở trên) nên không lo đụng khoá. */
+		/* 🔴 12/09/2026 — DỜI ĐỦ MỌI BẢNG CÓ `ma_may`, không chỉ 6 bảng cũ. Trước đây thiếu
+		   `chot_tien, bat_tat, nhat_ky, vi_so, bc_denghi, bc_rac` (và `ma.dung_may` tên cột khác):
+		   đổi mã xong mấy bảng ấy còn trỏ mã CŨ → lịch sử/đề nghị/thùng rác/ví mồ côi, tra theo mã
+		   mới không thấy. Mã mới đã chắc chắn chưa ai dùng (chặn ở trên) nên không đụng khoá UNIQUE. */
 		$dem = 0;
-		foreach ( array( 'cho', 'nhip', 'lenh', 'chot', 'bc_dong', 'thu' ) as $b ) {
+		foreach ( array( 'cho', 'nhip', 'lenh', 'chot', 'bc_dong', 'chot_tien', 'bat_tat',
+				'nhat_ky', 'vi_so', 'bc_denghi', 'bc_rac', 'thu' ) as $b ) {
 			$dem += (int) $wpdb->query( $wpdb->prepare(
 				'UPDATE ' . VHG_DB::t( $b ) . ' SET ma_may=%s WHERE ma_may=%s', $ma_moi, $ma_cu ) );
 		}
+		/* Bảng mã trả trước dùng cột `dung_may` (ghế đã tiêu mã), không phải `ma_may`. */
+		$dem += (int) $wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHG_DB::t( 'ma' ) . ' SET dung_may=%s WHERE dung_may=%s', $ma_moi, $ma_cu ) );
 		return array( 'ok' => true, 'thong_bao' => 'Đã gán mã ' . $ma_moi . ' cho ghế ' . $ma_cu
 			. ' và dời ' . $dem . ' dòng lịch sử sang mã mới.' );
 	}
@@ -1098,7 +1106,7 @@ class VHG_May {
 	 *    mã, kéo qua, mất tên. Mỗi mã chỉ một ghế (UNIQUE KEY ma), nên thêm mà trùng = từ chối,
 	 *    chỉ đường đi tìm ghế cũ thay vì tạo lại.
 	 */
-	public static function them_may( $ma, $coso_id ) {
+	public static function them_may( $ma, $coso_id, $ten_khai = '' ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
@@ -1119,8 +1127,11 @@ class VHG_May {
 					. 'tạo trùng được. Nếu muốn chuyển ghế đó về đây: tìm nó ở ô "Tìm ghế" (gõ mã), rồi '
 					. 'đổi Địa điểm (hoặc bấm "Đưa về" nếu đang ẩn) — đừng tạo lại mã.' );
 		}
-		$wpdb->insert( $bang, array( 'ma' => $ma, 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ) );
-		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ghế ' . $ma . '.' );
+		$ten_khai = VHG_Doc::chuan_ten( (string) $ten_khai );   // tên ghế (tuỳ chọn) — anh Thắng 12/09/2026
+		$wpdb->insert( $bang, array( 'ma' => $ma, 'coso_id' => (int) $coso_id,
+			'ten_khai' => $ten_khai, 'cap_nhat' => current_time( 'mysql' ) ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ghế ' . $ma
+			. ( '' !== $ten_khai ? ( ' (' . $ten_khai . ')' ) : '' ) . '.' );
 	}
 
 	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
