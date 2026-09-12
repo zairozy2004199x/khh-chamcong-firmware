@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.17.1
+ * Version:           0.18.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.17.1';
+	const VER = '0.18.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1561,7 +1561,29 @@ class SAOKE_App {
 
 	/** Chuẩn hoá mã cửa hàng của cổng: hoa, bỏ khoảng trắng. Mã là chuỗi máy sinh, so phải khít. */
 	private static function vqr_ma_ch( $s ) {
-		return preg_replace( '/\s+/', '', mb_strtoupper( trim( (string) $s ), 'UTF-8' ) );
+		$k = preg_replace( '/\s+/', '', mb_strtoupper( trim( (string) $s ), 'UTF-8' ) );
+		/* ⚠️ Ô RỖNG CỦA FILE KẾT XUẤT LÀ DẤU GẠCH NGANG, không phải ô trắng — trong file thật
+		   của anh Thắng, dòng "Vãng lai" có `Mã cửa hàng` = `-`. Không chặn thì `-` thành một
+		   "mã" hợp lệ: nó nằm trong danh sách "mã chưa có trong bản đồ" đời đời, và người đọc đi
+		   tìm một cửa hàng tên `-`. Không có lấy một chữ hay số thì coi như KHÔNG CÓ mã. */
+		return preg_match( '/[\p{L}\p{N}]/u', $k ) ? $k : '';
+	}
+
+	/**
+	 * Trạng thái trong file kết xuất có nghĩa XẤU không (thất bại · huỷ · hoàn · chờ).
+	 *
+	 * ⚠️ BẮT NGHĨA XẤU, KHÔNG BẮT NGHĨA TỐT. Cổng đổi "Thành công" sang "Success" (hay thêm dấu,
+	 *    đổi hoa thường) là chuyện của họ; nếu em đòi khớp đúng chữ tốt thì một hôm cổng đổi chữ
+	 *    là CẢ FILE bị bỏ sạch, và màn hình chỉ nói "0 dòng nạp được". Bắt nghĩa xấu thì sai sót
+	 *    tệ nhất là nhận thừa một dòng — thấy được ở ô chênh lệch, sửa được.
+	 */
+	private static function cong_tt_hong( $tt ) {
+		$k = self::kd( $tt );   // bỏ dấu + chữ thường
+		foreach ( array( 'that bai', 'khong thanh cong', 'huy', 'tu choi', 'hoan tien', 'hoan tra',
+			'cho xu ly', 'dang xu ly', 'fail', 'cancel', 'refund', 'reject', 'pending', 'error' ) as $x ) {
+			if ( false !== strpos( $k, $x ) ) { return true; }
+		}
+		return false;
 	}
 
 	/** Mã cửa hàng -> TÊN MÁY (tên cửa hàng bên cổng). '' nếu chưa có trong bản đồ. */
@@ -2345,7 +2367,7 @@ class SAOKE_App {
 		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
 		$tenFile = sanitize_text_field( isset( $a[3] ) ? (string) $a[3] : '' ); $anhXa = self::ds_anhxa( $nguon );
 		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
-		$vaMay = 0; $maChFile = array();
+		$vaMay = 0; $maChFile = array(); $khongThanhCong = 0;
 		foreach ( $rows as $rr ) { $r = (array) $rr;
 			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
 			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
@@ -2353,10 +2375,17 @@ class SAOKE_App {
 			   (5 cột) vẫn nạp được y như trước: thiếu thì là chuỗi rỗng, không ai phải chọn lại. */
 			$maCH = self::vqr_ma_ch( isset( $r[5] ) ? $r[5] : '' );
 			$maDiem = trim( (string) ( isset( $r[6] ) ? $r[6] : '' ) );
+			$ttFile = trim( (string) ( isset( $r[7] ) ? $r[7] : '' ) );
+			/* 🔴 DÒNG KHÔNG THÀNH CÔNG KHÔNG PHẢI LÀ TIỀN. Bản kết xuất có cột Trạng thái, mà
+			   cửa nạp trước đây không đọc nó: một file có dòng hỏng/hoàn là ghi thẳng vào bảng
+			   như doanh thu, rồi nó nằm im trong tổng "Từ cổng" — chỉ lộ ra ở ô "Chênh lệch
+			   (cổng − bank)" dưới dạng một con số không ai giải thích nổi.
+			   ⚠️ Cột này KHÔNG bắt buộc: để "(không có)" thì giữ nguyên nếp cũ, nhận hết. */
+			if ( '' !== $ttFile && self::cong_tt_hong( $ttFile ) ) { $khongThanhCong++; $boQua++; continue; }
 			if ( '' === $thoiDiem ) { $khongNgay++; $boQua++; continue; }
 			if ( $soTien <= 0 ) { $khongTien++; $boQua++; continue; }
 			if ( '' === $maGD && '' === $ref ) { $khongMa++; $boQua++; continue; }
-			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => '', 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'maCH' => $maCH, 'docDuoc' => true );
+			$tx = array( 'nguon' => $nguon, 'maGD' => $maGD, 'ref' => $ref, 'thoiDiem' => $thoiDiem, 'soTien' => $soTien, 'huong' => 'Đến', 'trangThai' => mb_substr( $ttFile, 0, 30 ), 'soTK' => '', 'noiDung' => $noiDung, 'diemBan' => '', 'maCH' => $maCH, 'docDuoc' => true );
 			$tx['khoa'] = self::cong_khoa( $nguon, $tx, wp_json_encode( $r ) ); $tx['raw'] = 'FILE ' . $tenFile . ' · ' . mb_substr( (string) wp_json_encode( $r ), 0, 1500 );
 			if ( '' !== $maCH ) { $maChFile[ $maCH ] = ( isset( $maChFile[ $maCH ] ) ? $maChFile[ $maCH ] : 0 ) + 1; }
 			$tenMay = self::cong_may_dong( $noiDung, $maCH, '' );
@@ -2374,7 +2403,8 @@ class SAOKE_App {
 		sort( $thieuBD );
 		return array( 'ok' => true, 'nguon' => $nguon, 'tenFile' => $tenFile, 'soDongFile' => count( $rows ), 'themMoi' => $moi, 'trungBoQua' => $trung,
 			'tongTienThem' => $tongMoi, 'boQuaDong' => $boQua, 'khongNgay' => $khongNgay, 'khongTien' => $khongTien, 'khongMa' => $khongMa, 'chuaRoMay' => $chuaRoMay, 'cuaHangMoi' => $cm,
-			'vaMay' => $vaMay, 'soMaCH' => count( $maChFile ), 'thieuBanDo' => array_slice( $thieuBD, 0, 30 ), 'soThieuBanDo' => count( $thieuBD ) );
+			'vaMay' => $vaMay, 'soMaCH' => count( $maChFile ), 'thieuBanDo' => array_slice( $thieuBD, 0, 30 ), 'soThieuBanDo' => count( $thieuBD ),
+			'khongThanhCong' => $khongThanhCong );
 	}
 
 	/**

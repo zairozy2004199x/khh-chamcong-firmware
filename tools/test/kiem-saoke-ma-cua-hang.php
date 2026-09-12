@@ -246,6 +246,59 @@ t( 'ô "chưa rõ máy" nói luôn là đã có mã CH hay chưa (hai cảnh, ha
 	false !== strpos( $APP, 'chưa có trong bản đồ' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6b. HAI THỨ CHỈ LỘ RA KHI CHẠY TRÊN FILE THẬT (anh Thắng gửi 12/09/2026)
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* 🔴 Ô RỖNG CỦA FILE KẾT XUẤT LÀ DẤU GẠCH NGANG. Dòng "Vãng lai" trong file thật có
+   `Mã cửa hàng` = `-`. Không chặn thì `-` thành một "mã" hợp lệ, nằm trong danh sách "mã chưa
+   có trong bản đồ" đời đời, và người đọc đi tìm một cửa hàng tên `-`. */
+teq( '🔴 mã cửa hàng "-" coi như KHÔNG CÓ', '', goi( 'vqr_ma_ch', array( '-' ) ) );
+teq( 'mấy dấu gạch cũng thế', '', goi( 'vqr_ma_ch', array( ' — ' ) ) );
+teq( 'nhưng mã thật thì giữ nguyên', 'M4QMOQLG7Y', goi( 'vqr_ma_ch', array( 'M4QMOQLG7Y' ) ) );
+
+/* 🔴 DÒNG KHÔNG THÀNH CÔNG KHÔNG PHẢI LÀ TIỀN. File thật hôm nay toàn "Thành công", nhưng cửa
+   nạp không đọc cột Trạng thái thì một file có dòng hỏng/hoàn sẽ vào bảng như doanh thu, rồi
+   nằm im trong tổng "Từ cổng" — chỉ lộ ra ở ô "Chênh lệch (cổng − bank)" dưới dạng một con số
+   không ai giải thích nổi.
+   ⚠️ Bắt NGHĨA XẤU chứ không bắt nghĩa tốt: cổng đổi "Thành công" thành "Success" là bản dịch,
+      còn đòi khớp đúng chữ tốt thì hôm nào họ đổi chữ là CẢ FILE bị bỏ sạch. */
+teq( 'trạng thái thật trong file = nhận', false, goi( 'cong_tt_hong', array( 'Thành công' ) ) );
+teq( 'bản tiếng Anh cũng nhận', false, goi( 'cong_tt_hong', array( 'Success' ) ) );
+teq( '🔴 thất bại thì BỎ', true, goi( 'cong_tt_hong', array( 'Thất bại' ) ) );
+teq( 'huỷ thì bỏ', true, goi( 'cong_tt_hong', array( 'Đã huỷ' ) ) );
+teq( 'hoàn tiền thì bỏ', true, goi( 'cong_tt_hong', array( 'Hoàn tiền' ) ) );
+teq( 'chờ xử lý thì bỏ', true, goi( 'cong_tt_hong', array( 'Đang xử lý' ) ) );
+teq( 'FAILED cũng bỏ', true, goi( 'cong_tt_hong', array( 'FAILED' ) ) );
+
+/* Chạy NGUYÊN cửa nạp file trên mấy dòng đúng hình dạng file thật. */
+$db->hang = array(); $db->so_insert = 0;
+$r_nap = SAOKE_App::rpc_napFileCongTx( array( '1234', 'vietqr', array(
+	array( '12-09-2026 15:26:09', '20000', 'VPBfnWDdWQUB4', '0552rdiA-8C3tbvkQN',
+		'VQR263777080WFB3 AMBT 03', 'M4QMOQLG7Y', 'VVB701528', 'Thành công' ),
+	array( '12-09-2026 15:10:46', '20000', 'VPBTc41kIOX3Y', '0999aaaa-8C3xxx',
+		'VQR263776CE4LJBR PaymentForOrder', 'EZFY9HCIR0', 'VVB279793', 'Thành công' ),
+	array( '12-09-2026 15:00:00', '50000', 'VPBhongroi000', '0111bbbb-8C3yyy',
+		'VQR263776XXXX PaymentForOrder', 'JGFM5XAXD6', 'VVB383929', 'Thất bại' ),
+	array( '12-09-2026 14:00:00', '20000', 'VPBvanglai000', '0222cccc-8C3zzz',
+		'VQR263776YYYY PaymentForOrder', '-', '-', 'Thành công' ),
+), 'transactions_12-09-2026.xlsx' ) );
+t( 'cửa nạp file chạy được', ! empty( $r_nap['ok'] ), $r_nap );
+teq( '🔴 dòng "Thất bại" bị bỏ, không vào bảng', 1, (int) $r_nap['khongThanhCong'] );
+teq( 'ba dòng còn lại vào bảng', 3, (int) $r_nap['themMoi'] );
+teq( 'và tổng tiền chỉ cộng ba dòng ấy', 60000, (int) $r_nap['tongTienThem'] );
+/* Dòng `-` không được đếm là "mã chưa có trong bản đồ" — nó đâu phải mã. Còn `M4QMOQLG7Y` thì
+   ĐÚNG là thiếu thật (bản đồ trong bài này chỉ có mấy mã ở mục 3), nên phải kể tên đúng nó. */
+teq( '🔴 danh sách "mã thiếu bản đồ" chỉ có mã THẬT, không có dấu "-"',
+	array( 'M4QMOQLG7Y' ), $r_nap['thieuBanDo'] );
+teq( 'và chỉ đếm 2 mã cửa hàng thật', 2, (int) $r_nap['soMaCH'] );
+/* Dòng PaymentForOrder vừa nạp phải tra ra máy ngay. */
+$dong_pfo = null;
+foreach ( $db->hang as $h ) { if ( 'VPBTc41kIOX3Y' === (string) $h['ma_gd'] ) { $dong_pfo = $h; } }
+teq( '🔴 dòng PaymentForOrder tra ra đúng máy', 'LM-NSG 01',
+	goi( 'cong_may_dong', array( $dong_pfo['noi_dung'], $dong_pfo['ma_ch'], $dong_pfo['diem_ban'] ) ) );
+/* Và trạng thái được giữ lại để còn soi — trước đây cửa nạp ghi rỗng. */
+teq( 'trạng thái từ file được giữ lại', 'Thành công', (string) $dong_pfo['trang_thai'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 7. TÌM ĐƯỢC THÌ MỚI DÙNG ĐƯỢC
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * Anh Thắng, ngay sau khi có bản đầu: *"Anh chưa thấy chỗ thêm file"* — đúng, khối nạp file nằm

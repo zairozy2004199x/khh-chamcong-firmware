@@ -1188,6 +1188,8 @@ function dungViewCong(nguon){
   +         '<div class="fld"><label>Nội dung (để lấy tên máy)</label><select id="'+id('txND')+'"></select></div>'
   +         '<div class="fld"><label>Mã cửa hàng</label><select id="'+id('txMaCH')+'"></select></div>'
   +         '<div class="fld"><label>Mã điểm bán</label><select id="'+id('txMaDiem')+'"></select></div>'
+  +         '<div class="fld"><label>Trạng thái</label><select id="'+id('txTT')+'"></select>'
+  +           '<div class="hint">Chọn cột này thì dòng KHÔNG thành công bị bỏ, không tính tiền.</div></div>'
   +         '<div class="fld" style="align-self:flex-end"><button onclick="cgNapTx(\''+nguon+'\')">📥 Nạp bù</button></div>'
   +       '</div>'
   +       '<div class="hint" id="'+id('txXemTruoc')+'"></div>'
@@ -1625,7 +1627,7 @@ function cgChonFileTx(nguon, input){
     cgEl(nguon,'txCotWrap').style.display = '';
     var head = rows[0] || [];
     var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
-    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem'].forEach(function(t){
+    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem','txTT'].forEach(function(t){
       var h = (t === 'txThoiDiem' || t === 'txTien' || t === 'txMa') ? '' : '<option value="-1">(không có)</option>';
       for(var c=0;c<soCot;c++){
         h += '<option value="'+c+'">'+esc(cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,26)) : ''))+'</option>';
@@ -1633,7 +1635,7 @@ function cgChonFileTx(nguon, input){
       cgEl(nguon,t).innerHTML = h;
     });
     var doan = cgDoanCotTx(head, soCot, rows);
-    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem'].forEach(function(t){
+    ['txThoiDiem','txTien','txMa','txRef','txND','txMaCH','txMaDiem','txTT'].forEach(function(t){
       if(doan[t] >= 0) cgEl(nguon,t).value = String(doan[t]);
       cgEl(nguon,t).onchange = function(){ cgXemTruocTx(nguon); };
     });
@@ -1651,9 +1653,21 @@ function cgDoanCotTx(head, soCot, rows){
   function boDau(x){ return String(x||'').toLowerCase()
     .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i')
     .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d'); }
+  /* 🔴 KHỚP NGUYÊN TỪ TRƯỚC — bản cũ dò chuỗi con thô, và file THẬT của cổng làm nó sai ngay:
+     tiêu đề cột tiền là "Số tiền đến (VND)", mà từ khoá của cột Nội dung có chữ 'nd' — '(vnd)'
+     chứa 'nd', nên Nội dung bị đoán thành CỘT TIỀN. Hậu quả không dừng ở chọn nhầm ô: mọi dòng
+     có "nội dung" = "20000", `may_hop_le()` thấy chuỗi ấy hợp lệ (một từ, ngắn, toàn chữ số) và
+     đẻ ra một cái MÁY TÊN LÀ "20000" nuốt hết tiền của kỳ. Đúng loại lỗi câm mà chú thích của
+     `may_hop_le()` đã cảnh báo — nhưng nó vào bằng cửa khác: cửa đoán cột.
+     Nên: vòng 1 khớp nguyên từ (' nd ' không ăn vào ' vnd '), vòng 2 mới nới ra chuỗi con và
+     CHỈ cho từ khoá đủ dài (>= 4 ký tự) — từ khoá ngắn dò chuỗi con là dính bừa. */
   function timTieuDe(tu){
-    for(var c=0;c<soCot;c++){ var t = boDau(head[c]);
-      for(var k=0;k<tu.length;k++) if(t.indexOf(tu[k]) >= 0) return c; }
+    for(var c=0;c<soCot;c++){
+      var t = ' ' + boDau(head[c]).replace(/[^a-z0-9]+/g,' ').trim() + ' ';
+      for(var k=0;k<tu.length;k++) if(t.indexOf(' ' + tu[k] + ' ') >= 0) return c;
+    }
+    for(var c2=0;c2<soCot;c2++){ var t2 = boDau(head[c2]);
+      for(var k2=0;k2<tu.length;k2++) if(tu[k2].length >= 4 && t2.indexOf(tu[k2]) >= 0) return c2; }
     return -1;
   }
   var o = {
@@ -1666,7 +1680,8 @@ function cgDoanCotTx(head, soCot, rows){
     txRef:      timTieuDe(['tham chieu','reference','ref']),
     txND:       timTieuDe(['noi dung','nd','content','mo ta']),
     txMaCH:     timTieuDe(['ma cua hang','ma ch','store code','ma ch cong']),
-    txMaDiem:   timTieuDe(['ma diem ban','diem ban','merchant'])
+    txMaDiem:   timTieuDe(['ma diem ban','diem ban','merchant']),
+    txTT:       timTieuDe(['trang thai','status'])
   };
   // Dò theo hình dạng cho những cột chưa đoán được: quét tối đa 30 dòng đầu
   var mau = rows.slice(0, 30);
@@ -1706,7 +1721,8 @@ function cgLayTx(nguon){
   function soCot(t){ var o = cgEl(nguon,t); return o ? Number(o.value) : -1; }
   var c = { td: Number(cgEl(nguon,'txThoiDiem').value), ti: Number(cgEl(nguon,'txTien').value),
             ma: Number(cgEl(nguon,'txMa').value), rf: Number(cgEl(nguon,'txRef').value),
-            nd: Number(cgEl(nguon,'txND').value), mch: soCot('txMaCH'), mdi: soCot('txMaDiem') };
+            nd: Number(cgEl(nguon,'txND').value), mch: soCot('txMaCH'), mdi: soCot('txMaDiem'),
+            tt: soCot('txTT') };
   var goi = [], mau = [];
   for(var i=0;i<d.rows.length;i++){
     var r = d.rows[i];
@@ -1716,8 +1732,9 @@ function cgLayTx(nguon){
     var nd = String(c.nd >= 0 && r[c.nd] != null ? r[c.nd] : '').trim();
     var mch = String(c.mch >= 0 && r[c.mch] != null ? r[c.mch] : '').trim();
     var mdi = String(c.mdi >= 0 && r[c.mdi] != null ? r[c.mdi] : '').trim();
+    var tt  = String(c.tt  >= 0 && r[c.tt]  != null ? r[c.tt]  : '').trim();
     if(!td || !(ti > 0) || (!ma && !rf)) continue;
-    goi.push([td, ti, ma, rf, nd, mch, mdi]);
+    goi.push([td, ti, ma, rf, nd, mch, mdi, tt]);
     if(mau.length < 3) mau.push(td + ' · ' + fmt(ti) + 'đ · ' + ma + (nd ? (' · ' + nd) : '')
       + (mch ? (' · CH ' + mch) : ''));
   }
@@ -1744,7 +1761,8 @@ function cgNapTx(nguon){
       + 'nạp bảng <b>Danh sách cửa hàng</b> ở khối dưới rồi nạp lại file này: '
       + r.thieuBanDo.map(esc).join(' · ') + (r.soThieuBanDo > r.thieuBanDo.length ? ' …' : ''));
     if(r.boQuaDong) ph.push(r.boQuaDong+' dòng bị bỏ (thiếu thời điểm: '+r.khongNgay
-      + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa+')');
+      + ' · thiếu số tiền: '+r.khongTien+' · thiếu mã giao dịch: '+r.khongMa
+      + (r.khongThanhCong ? (' · <b>không thành công: '+r.khongThanhCong+'</b>') : '')+')');
     if(r.chuaRoMay) ph.push(r.chuaRoMay+' giao dịch nội dung không mang tên máy');
     if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cơ sở chưa gán mã ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
     kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
@@ -1800,9 +1818,14 @@ function cgDoanCotBD(head, soCot){
   function boDau(x){ return String(x||'').toLowerCase()
     .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e').replace(/[ìíịỉĩ]/g,'i')
     .replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o').replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d'); }
+  /* Cùng luật với `timTieuDe` của khối giao dịch — xem chú thích dài ở đó. */
   function tim(tu){
-    for(var c=0;c<soCot;c++){ var t = boDau(head[c]);
-      for(var k=0;k<tu.length;k++) if(t.indexOf(tu[k]) >= 0) return c; }
+    for(var c=0;c<soCot;c++){
+      var t = ' ' + boDau(head[c]).replace(/[^a-z0-9]+/g,' ').trim() + ' ';
+      for(var k=0;k<tu.length;k++) if(t.indexOf(' ' + tu[k] + ' ') >= 0) return c;
+    }
+    for(var c2=0;c2<soCot;c2++){ var t2 = boDau(head[c2]);
+      for(var k2=0;k2<tu.length;k2++) if(tu[k2].length >= 4 && t2.indexOf(tu[k2]) >= 0) return c2; }
     return -1;
   }
   /* ⚠️ "ma cua hang" phải dò TRƯỚC "ten cua hang": chuỗi con "cua hang" có trong cả hai tiêu đề,

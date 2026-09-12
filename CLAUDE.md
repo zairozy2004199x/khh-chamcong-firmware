@@ -85,10 +85,19 @@ trượt mà không báo gì.
 **Giao dịch thanh toán** nhớ chọn cột *Mã cửa hàng* → `luu_cong()` **vá** `ma_ch` vào đúng dòng
 webhook đã ghi (không thêm dòng, không đếm tiền hai lần) → `cong_may_dong()` đọc ra tên máy.
 
-🔴 Hai cái bẫy đắt nhất, đều nằm ở phép **đoán cột**:
-* `Mã đơn hàng` phải đứng trước `Mã giao dịch` — chọn nhầm sang `Mã tham chiếu` thì khoá chống
-  trùng khác hẳn, mọi dòng thành "mới", **tiền đếm hai lần**.
-* `Mã cửa hàng` phải dò trước `Tên cửa hàng` — chuỗi "cua hang" nằm trong cả hai tiêu đề.
+🔴 Ba cái bẫy, cả ba chỉ lộ ra khi chạy trên **file thật** (0.18.0 — anh Thắng gửi file
+12/09/2026):
+* **Đoán cột phải khớp NGUYÊN TỪ.** Tiêu đề tiền là `Số tiền đến (VND)`; từ khoá của cột Nội
+  dung có `nd`, mà `(vnd)` chứa `nd` → bộ đoán cũ trỏ Nội dung vào **cột tiền**, và
+  `may_hop_le('20000')` đẻ ra một cái **máy tên "20000"** nuốt hết tiền của kỳ.
+* **`Mã đơn hàng`, không phải `Mã tham chiếu`** — khoá chống trùng bên mình là mã đơn hàng; chọn
+  nhầm là mọi dòng thành "mới", **tiền đếm hai lần**.
+* **Ô rỗng của file là dấu `-`**, không phải ô trắng (dòng "Vãng lai"). Không chặn thì `-` thành
+  một "mã cửa hàng" nằm trong danh sách thiếu bản đồ đời đời.
+
+Và **cột Trạng thái**: cửa nạp nay bỏ dòng có nghĩa xấu (thất bại/huỷ/hoàn/chờ). Bắt **nghĩa
+xấu** chứ không bắt nghĩa tốt — cổng đổi "Thành công" thành "Success" là bản dịch, còn đòi khớp
+đúng chữ tốt thì hôm nào họ đổi chữ là cả file bị bỏ sạch.
 
 **Chỗ nạp file nằm trong thẻ gập ⚙️** — 0.17.1 thêm một dòng trong khối *Cần biết* tự chỉ đường
 xuống đó khi còn giao dịch "chưa rõ máy" (gập kín một việc chưa làm là cách chắc chắn nhất để nó
@@ -96,5 +105,10 @@ không bao giờ được làm), và **in số bản ra cạnh tên công ty** �
 chưa"* trả lời được bằng mắt. ⚠️ Số bản khai **hai chỗ**: header `Version:` và hằng `VER`; bộ thử
 canh chúng bằng nhau.
 
-Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (49 phép, chạy lớp thật với `$wpdb` giả). Đây là
-bộ thử **đầu tiên** của `vhcp-saoke`; `chay-het.sh` nay cũng soát cú pháp thư mục ấy.
+Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (67 phép, chạy lớp thật với `$wpdb` giả) và
+`tools/test/kiem-saoke-doan-cot.js` (15 phép, chạy chính hàm đoán cột trong `app.html` trên
+**tiêu đề thật** của hai file kết xuất). Đây là hai bộ thử **đầu tiên** của `vhcp-saoke`;
+`chay-het.sh` nay cũng soát cú pháp thư mục ấy.
+
+Đo trên hai file thật (478 giao dịch · 532 cửa hàng): **180 dòng "chưa rõ máy" → 0**, nạp lại
+lần hai thì **0 dòng mới, 0đ thêm**.
