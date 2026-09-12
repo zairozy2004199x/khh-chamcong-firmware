@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.18.0
+ * Version:           0.18.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.18.0';
+	const VER = '0.18.1';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -2231,16 +2231,29 @@ class SAOKE_App {
 		$wc = array( 'nguon=%s' ); $ac = array( $nguon );
 		if ( $tu )  { $wc[] = 'DATE(thoi_diem)>=%s'; $ac[] = $tu; }
 		if ( $den ) { $wc[] = 'DATE(thoi_diem)<=%s'; $ac[] = $den; }
-		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
+		$rowsC = $wpdb->get_results( $wpdb->prepare( "SELECT khoa, ma_gd, ref, thoi_diem, so_tien, huong, trang_thai, so_tk, noi_dung, diem_ban, ma_ch, doc_duoc, raw, nhan_luc FROM $tc WHERE " . implode( ' AND ', $wc ) . " ORDER BY thoi_diem DESC, id DESC LIMIT 5000", $ac ), ARRAY_A );
 		$cong = array(); $congTien = 0; $congKho = 0; $khoRows = array(); $tongMoiNguon = 0; $payloadCuoi = '';
 		$chuaAnhXa = array(); $chuaRoMay = 0; $chuaRoTien = 0;
+		/* Mốc "lần nạp file gần nhất phủ tới thời điểm nào" — xem `rpc_napFileCongTx()`. */
+		$nap = get_option( 'saoke_cong_nap_' . $nguon ); $nap = is_array( $nap ) ? $nap : array();
+		$napDen = isset( $nap['den'] ) ? (string) $nap['den'] : '';
+		$chuaRoMoi = 0;
 		foreach ( (array) $rowsC as $r ) {
 			$tongMoiNguon++;
 			if ( '' === $payloadCuoi ) { $payloadCuoi = (string) $r['raw']; }
 			$thoiDiem = self::ymd2vn( $r['thoi_diem'] );
 			if ( (int) $r['doc_duoc'] !== 1 ) { $congKho++; if ( count( $khoRows ) < 20 ) { $khoRows[] = array( 'khoa' => $r['khoa'], 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'raw' => mb_substr( (string) $r['raw'], 0, 400 ) ); } continue; }
 			if ( 'Đi' === $r['huong'] ) { continue; }
-			$tenMay = self::cong_ten_may( $r['noi_dung'] ); if ( '' === $tenMay ) { $tenMay = self::may_hop_le( (string) $r['diem_ban'] ); }
+			/* 🔴 BẢN SAO THỨ BA CỦA LUẬT SUY RA MÁY — và là bản MÀN HÌNH THẬT SỰ ĐỌC.
+			   0.17.0 gom luật vào `cong_may_dong()` và sửa hai nơi, nhưng SÓT đúng chỗ này: hàm
+			   `r_saoke_cong()` (đường REST) và `rpc_getSaoKeCong()` (đường app gọi) là HAI bản
+			   viết riêng cho cùng một màn. Sửa bản không ai gọi thì bộ thử xanh, file nạp đúng,
+			   cột `ma_ch` có dữ liệu — mà màn hình vẫn "chưa rõ máy". Anh Thắng: *"vẫn chưa lọc
+			   hết"*, và anh đúng: không dòng nào lọc được cả.
+			   ⚠️ Bài học ghi lại cho người sau: đếm "luật chỉ còn một chỗ" bằng cách đếm MỘT
+			      chuỗi là đếm hụt. Bộ thử nay đếm MỌI lời gọi `cong_ten_may()` ngoài thân
+			      `cong_may_dong()` và bắt nó phải bằng 0. */
+			$tenMay = self::cong_may_dong( $r['noi_dung'], isset( $r['ma_ch'] ) ? $r['ma_ch'] : '', $r['diem_ban'] );
 			$coSo = self::cong_coso( $tenMay );
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( $coSo ) ] ) ? $anhXa[ self::chuan_ch( $coSo ) ] : null ), $thoiDiem );
 			$suy = self::ax_ma_nop( $ax, $mapTen ); $soTien = (int) $r['so_tien'];
@@ -2249,11 +2262,18 @@ class SAOKE_App {
 			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) { $ghe = array( 'coso' => $ax['tenChuan'], 'maKh' => '', 'tinh' => '' ); }
 			$cuaHang = $ghe ? $ghe['coso'] : ( $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $coSo ) : $coSo );
 			$daAnhXa = $ghe ? true : ( '' !== $suy['ma'] );
-			if ( '' === $tenMay ) { $chuaRoMay++; $chuaRoTien += $soTien; }
+			if ( '' === $tenMay ) {
+				$chuaRoMay++; $chuaRoTien += $soTien;
+				if ( '' !== $napDen && (string) $r['thoi_diem'] > $napDen ) { $chuaRoMoi++; }
+			}
 			elseif ( ! $daAnhXa ) { $k = self::chuan_ch( $coSo ); if ( ! isset( $chuaAnhXa[ $k ] ) ) { $chuaAnhXa[ $k ] = array( 'ten' => $coSo, 'soTien' => 0, 'soLan' => 0, 'may' => array(), 'vi' => self::ghe_co() ? 'máy chưa có trong trang Ghế — thêm/gắn máy bên Ghế là tự nhận' : $suy['vi'] ); } $chuaAnhXa[ $k ]['soTien'] += $soTien; $chuaAnhXa[ $k ]['soLan']++; $chuaAnhXa[ $k ]['may'][ $tenMay ] = 1; }
 			$cong[] = array( 'khoa' => $r['khoa'], 'maGD' => $r['ma_gd'], 'ref' => $r['ref'], 'thoiDiem' => $thoiDiem, 'soTien' => $soTien,
 				'huong' => $r['huong'], 'trangThai' => $r['trang_thai'], 'soTK' => $r['so_tk'], 'noiDung' => $r['noi_dung'], 'diemBan' => $r['diem_ban'],
 				'docDuoc' => true, 'nhanLuc' => self::ymd2vn( $r['nhan_luc'] ), 'tenMay' => $tenMay, 'coSo' => $coSo,
+				'maCH' => isset( $r['ma_ch'] ) ? (string) $r['ma_ch'] : '',
+				/* Dòng phát sinh SAU lần nạp file gần nhất thì "chưa rõ máy" là chuyện đương
+				   nhiên — file không thể chứa nó. Nói ra để khỏi tưởng bản vá hỏng. */
+				'moiHonNap' => ( '' !== $napDen && (string) $r['thoi_diem'] > $napDen ),
 				'cuaHangChuan' => $cuaHang, 'maBank' => $ghe ? ( '' !== self::coso_ma( $ghe['coso'] ) ? self::coso_ma( $ghe['coso'] ) : $ghe['maKh'] ) : $suy['ma'], 'daAnhXa' => $daAnhXa, 'tinh' => $ghe ? $ghe['tinh'] : '' );
 			$congTien += $soTien;
 			if ( count( $cong ) >= 2000 ) { break; }
@@ -2278,7 +2298,9 @@ class SAOKE_App {
 		return array( 'ok' => true, 'nguon' => $nguon, 'ten' => $ten[ $nguon ], 'tuKhoa' => $tuKhoa, 'tuKhoaMacDinh' => self::cong_tukhoa_mac_dinh()[ $nguon ],
 			'webhookUrl' => $url, 'thieuKey' => '' === $key, 'cong' => $cong, 'congTien' => $congTien, 'congDong' => count( $cong ), 'congTongMoiNguon' => $tongMoiNguon,
 			'congKho' => $congKho, 'khoRows' => $khoRows, 'payloadCuoi' => $payloadCuoi, 'chuaAnhXa' => $dsChuaAnhXa, 'soAnhXa' => count( $anhXa ),
-			'chuaRoMay' => $chuaRoMay, 'chuaRoTien' => $chuaRoTien, 'log' => array(), 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
+			'chuaRoMay' => $chuaRoMay, 'chuaRoTien' => $chuaRoTien, 'chuaRoMoi' => $chuaRoMoi,
+			'napLan' => $nap,
+			'log' => array(), 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
 			'chenh' => $congTien - $bankTien, 'kieuDoiSoat' => 'vietqr' === $nguon ? '1:1' : 'N:1' );
 	}
 
@@ -2367,7 +2389,7 @@ class SAOKE_App {
 		if ( count( $rows ) > 20000 ) { return array( 'ok' => false, 'error' => 'File quá lớn (' . count( $rows ) . ' dòng), tách nhỏ giúp em' ); }
 		$tenFile = sanitize_text_field( isset( $a[3] ) ? (string) $a[3] : '' ); $anhXa = self::ds_anhxa( $nguon );
 		$moi = 0; $trung = 0; $boQua = 0; $khongNgay = 0; $khongTien = 0; $khongMa = 0; $tongMoi = 0; $chMoi = array(); $chuaRoMay = 0;
-		$vaMay = 0; $maChFile = array(); $khongThanhCong = 0;
+		$vaMay = 0; $maChFile = array(); $khongThanhCong = 0; $denNhat = '';
 		foreach ( $rows as $rr ) { $r = (array) $rr;
 			$thoiDiem = self::cong_ngay( isset( $r[0] ) ? $r[0] : '' ); $soTien = self::num( isset( $r[1] ) ? $r[1] : 0 );
 			$maGD = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) ); $ref = trim( (string) ( isset( $r[3] ) ? $r[3] : '' ) ); $noiDung = trim( (string) ( isset( $r[4] ) ? $r[4] : '' ) );
@@ -2391,8 +2413,27 @@ class SAOKE_App {
 			$tenMay = self::cong_may_dong( $noiDung, $maCH, '' );
 			if ( '' === $tenMay ) { $chuaRoMay++; }
 			elseif ( ! self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ] : ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ), $thoiDiem ) ) { $chMoi[ self::cong_coso( $tenMay ) ] = 1; }
+			$mysql = self::cong_ngay_mysql( $thoiDiem );
+			if ( $mysql && $mysql > $denNhat ) { $denNhat = $mysql; }
 			$kqLuu = '';
 			if ( self::luu_cong( $tx, $kqLuu ) ) { $moi++; $tongMoi += $soTien; } else { $trung++; if ( 'va' === $kqLuu ) { $vaMay++; } }
+		}
+		/* 🔴 GHI LẠI LẦN NẠP NÀY PHỦ TỚI ĐÂU. Anh Thắng 12/09/2026: *"vẫn chưa lọc hết"* — chỉ vào
+		   hai dòng 15:28 và 15:29, trong khi file anh xuất lúc 15:26 dừng ở 15:26:09. File không
+		   thể chứa chúng, nên không có gì để vá; nhưng màn hình thì không nói điều đó ra, và
+		   nhìn vào chỉ thấy "vẫn còn". Nhớ mốc này để mỗi dòng "chưa rõ máy" tự phân biệt được
+		   "chưa nạp tới" với "nạp rồi mà vẫn không có mã". */
+		if ( '' !== $denNhat ) {
+			/* ⚠️ CHỈ TIẾN, KHÔNG LÙI. Nạp một file CŨ hơn (bù tháng trước) mà kéo mốc lùi thì mọi
+			   dòng mới lại mang nhãn "mới hơn lần nạp" — sai, và sai theo hướng làm người ta đi
+			   xuất lại file một cách vô ích. */
+			$cu_nap = get_option( 'saoke_cong_nap_' . $nguon );
+			$cu_den = ( is_array( $cu_nap ) && isset( $cu_nap['den'] ) ) ? (string) $cu_nap['den'] : '';
+			if ( $denNhat > $cu_den ) {
+				update_option( 'saoke_cong_nap_' . $nguon, array(
+					'luc' => current_time( 'mysql' ), 'den' => $denNhat,
+					'tenFile' => $tenFile, 'soDong' => count( $rows ) ), false );
+			}
 		}
 		$cm = array_keys( $chMoi ); sort( $cm );
 		/* 🔴 MÃ CỬA HÀNG CÓ TRONG FILE MÀ CHƯA CÓ TRONG BẢN ĐỒ thì phải kể tên ra. Nạp xong thấy

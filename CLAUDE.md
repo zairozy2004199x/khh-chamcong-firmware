@@ -112,3 +112,15 @@ Bộ thử: `tools/test/kiem-saoke-ma-cua-hang.php` (67 phép, chạy lớp th�
 
 Đo trên hai file thật (478 giao dịch · 532 cửa hàng): **180 dòng "chưa rõ máy" → 0**, nạp lại
 lần hai thì **0 dòng mới, 0đ thêm**.
+
+🔴 **BÀI HỌC ĐẮT NHẤT (0.18.1): luật suy ra máy có BA bản sao, không phải hai.** `r_saoke_cong()`
+(đường REST) và `rpc_getSaoKeCong()` (đường app thật sự gọi) là hai hàm viết riêng cho **cùng một
+màn**. 0.17.0 gom luật vào `cong_may_dong()` và sửa hai nơi, sót đúng cái hàm màn hình gọi — nên
+bộ thử xanh, file nạp đúng, cột `ma_ch` có dữ liệu, mà màn hình **vẫn "chưa rõ máy"**.
+Phép thử cũ đếm **một chuỗi ký tự** để khẳng định "luật chỉ còn một chỗ" — bản sao thứ ba viết
+bằng chuỗi khác nên không bị đếm. Nay đếm theo **lời gọi**: `cong_ten_may()` đúng **1**,
+`may_hop_le()` đúng **2**, `cong_may_dong()` đúng **4**. Chép lại luật ở nơi thứ năm là bài đỏ.
+
+Và mỗi lượt nạp file ghi lại mốc **"phủ tới thời điểm nào"** (`saoke_cong_nap_<nguồn>`, chỉ tiến
+không lùi), để dòng "chưa rõ máy" **mới hơn lần nạp** tự nói ra điều đó thay vì trông như bản vá
+hỏng.

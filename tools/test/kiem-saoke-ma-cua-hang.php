@@ -126,12 +126,27 @@ t( '🔴 câu SELECT của phép gom tiền theo mã nộp cũng lấy ma_ch',
 /* Và luật suy ra máy chỉ được viết MỘT chỗ. Bản trước chép hai lần; hai bản chép của một luật
    thì sớm muộn lệch, mà lệch ở đây là cùng một giao dịch màn này tính máy A, màn kia bỏ vào
    "chưa rõ". */
-teq( '🔴 luật suy ra máy chỉ còn MỘT chỗ viết', 1,
-	substr_count( $SRC, "\$ten = self::cong_ten_may( \$noi_dung );" ) );
-/* Ba nơi gọi: bảng Sao Kê cổng · phép gom tiền theo mã nộp · lượt nạp file (đếm "chưa rõ máy").
-   Ba nơi, MỘT luật — đó mới là điều đáng canh. */
-teq( 'và ba nơi cần biết máy đều gọi đúng hàm chung ấy', 3,
+/* 🔴 PHÉP NÀY TỪNG ĐẾM HỤT, VÀ CÁI GIÁ LÀ CẢ TÍNH NĂNG KHÔNG CHẠY.
+ *    0.17.0 gom luật vào `cong_may_dong()` rồi sửa HAI nơi, và phép thử đếm đúng MỘT chuỗi ký
+ *    tự để khẳng định "luật chỉ còn một chỗ". Nhưng còn một bản sao thứ BA trong
+ *    `rpc_getSaoKeCong()` — đúng cái hàm màn hình gọi — viết bằng chuỗi khác nên không bị đếm.
+ *    Kết quả: bộ thử xanh, file nạp đúng, cột `ma_ch` có dữ liệu, mà màn hình vẫn "chưa rõ máy".
+ *    Anh Thắng: *"vẫn chưa lọc hết"* — và anh đúng, không dòng nào lọc được cả.
+ *
+ *    Nay đếm theo LỜI GỌI, không theo một câu văn: `cong_ten_may()` chỉ được gọi từ ĐÚNG một
+ *    chỗ (trong thân `cong_may_dong`), `may_hop_le()` đúng hai chỗ (trong `cong_ten_may` và
+ *    trong `cong_may_dong`). Ai chép lại luật ở nơi thứ tư là con số này nhảy, và bài đỏ. */
+teq( '🔴 cong_ten_may() chỉ được gọi từ MỘT chỗ (trong cong_may_dong)', 1,
+	substr_count( $SRC, 'self::cong_ten_may(' ) );
+teq( '🔴 may_hop_le() chỉ được gọi từ HAI chỗ (cong_ten_may + cong_may_dong)', 2,
+	substr_count( $SRC, 'self::may_hop_le(' ) );
+/* Bốn nơi cần biết máy: bảng Sao Kê cổng (REST) · bảng Sao Kê cổng (đường app gọi) · phép gom
+   tiền theo mã nộp · lượt nạp file. Bốn nơi, MỘT luật. */
+teq( 'và bốn nơi cần biết máy đều gọi đúng hàm chung ấy', 4,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
+/* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
+t( '🔴 rpc_getSaoKeCong lấy cột ma_ch trong câu SELECT',
+	false !== strpos( $SRC, 'noi_dung, diem_ban, ma_ch, doc_duoc, raw, nhan_luc' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. CHUẨN HOÁ MÃ CỬA HÀNG — mã là chuỗi máy sinh, so phải khít
@@ -297,6 +312,32 @@ teq( '🔴 dòng PaymentForOrder tra ra đúng máy', 'LM-NSG 01',
 	goi( 'cong_may_dong', array( $dong_pfo['noi_dung'], $dong_pfo['ma_ch'], $dong_pfo['diem_ban'] ) ) );
 /* Và trạng thái được giữ lại để còn soi — trước đây cửa nạp ghi rỗng. */
 teq( 'trạng thái từ file được giữ lại', 'Thành công', (string) $dong_pfo['trang_thai'] );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 6c. "VẪN CHƯA LỌC HẾT" — DÒNG MỚI HƠN LẦN NẠP FILE
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng chỉ vào hai dòng 15:28:22 và 15:29:19, trong khi file anh xuất lúc 15:26 dừng ở
+ * 15:26:09 — file KHÔNG THỂ chứa chúng. Nhưng màn hình không nói điều đó ra, nên nhìn vào chỉ
+ * thấy "vẫn còn", và tưởng bản vá hỏng. Nay mỗi lượt nạp ghi lại mốc "phủ tới đâu".
+ */
+$GLOBALS['OPT']['saoke_cong_nap_vietqr'] = null;
+$db->hang = array();
+SAOKE_App::rpc_napFileCongTx( array( '1234', 'vietqr', array(
+	array( '12-09-2026 15:26:09', '20000', 'VPBaaa', '', 'VQR1 AMBT 03', 'M4QMOQLG7Y', '', 'Thành công' ),
+	array( '12-09-2026 09:00:00', '20000', 'VPBbbb', '', 'VQR2 AMBT 04', 'EZFY9HCIR0', '', 'Thành công' ),
+), 'transactions.xlsx' ) );
+$moc = get_option( 'saoke_cong_nap_vietqr' );
+t( '🔴 lượt nạp ghi lại mốc "phủ tới thời điểm nào"', is_array( $moc ) && ! empty( $moc['den'] ), $moc );
+teq( 'và mốc ấy là giao dịch MỚI NHẤT trong file', '2026-09-12 15:26:09', (string) $moc['den'] );
+teq( 'kèm tên file để còn biết đã nạp cái nào', 'transactions.xlsx', (string) $moc['tenFile'] );
+/* 🔴 MỐC CHỈ TIẾN, KHÔNG LÙI. Nạp bù một file CŨ (tháng trước) mà kéo mốc lùi thì mọi dòng mới
+   lại mang nhãn "mới hơn lần nạp" — sai, và sai theo hướng bắt người ta đi xuất lại file vô ích. */
+SAOKE_App::rpc_napFileCongTx( array( '1234', 'vietqr', array(
+	array( '01-08-2026 10:00:00', '20000', 'VPBcu001', '', 'VQR3 AMBT 05', 'EZFY9HCIR0', '', 'Thành công' ),
+), 'thang-8-cu.xlsx' ) );
+$moc2 = get_option( 'saoke_cong_nap_vietqr' );
+teq( '🔴 nạp file CŨ hơn KHÔNG kéo mốc lùi', '2026-09-12 15:26:09', (string) $moc2['den'] );
+teq( 'và tên file cũng giữ của lần phủ xa nhất', 'transactions.xlsx', (string) $moc2['tenFile'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 7. TÌM ĐƯỢC THÌ MỚI DÙNG ĐƯỢC
