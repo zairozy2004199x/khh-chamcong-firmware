@@ -2128,6 +2128,15 @@ class VHG_Trang {
        khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
     tdN.appendChild(kx);
+    /* 🔴 MÁY ĐÃ "DỌN/ĐIỀU CHUYỂN" (an=1) VẪN HIỆN, TÔ ĐỎ — anh Thắng 12/09/2026: "bất cứ giá nào
+       cũng không được ẩn, nếu sai thì cảnh báo đỏ". Trước đây máy này bị loại khỏi màn nhập (xem
+       ds_ghe), nhân viên mất đường gõ chỉ số. Nay hiện kèm nhắc đỏ để kiểm tra, vẫn gõ được. */
+    if(g.an){
+      var anBadge=el('div'); anBadge.style.cssText='font-size:11px;color:#b91c1c;font-weight:800;margin-top:3px';
+      anBadge.textContent='⚠ Máy đã dọn/điều chuyển — kiểm tra trước khi nhập';
+      tdN.appendChild(anBadge);
+      tr.style.background='#fef2f2';
+    }
     tr.appendChild(tdN);
     // chỉ số trước (+ ngày đọc mốc, giống bản điện thoại — anh Thắng 07/09/2026)
     var tdB=el('td');

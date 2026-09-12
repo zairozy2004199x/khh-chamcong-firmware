@@ -147,13 +147,19 @@ class VHG_BaoCao {
 	public static function ds_ghe( $q ) {
 		$ra = array();
 		foreach ( VHG_May::ds_may() as $m ) {
-			if ( ! empty( $m['an'] ) ) { continue; }
+			/* 🔴 KHÔNG BAO GIỜ ẨN MÁY KHỎI MÀN NHẬP — anh Thắng 12/09/2026: *"bất cứ giá nào cũng
+			   không được ẩn, nếu sai thì cảnh báo đỏ"*. Trước đây cờ `an` (nút "Xoá"/checkbox "đã
+			   dọn" ở admin) làm máy BIẾN MẤT khỏi màn nhập trong khi Duyệt vẫn thấy (đọc từ báo cáo
+			   đã lưu) — nhân viên không gõ được chỉ số MỚI cho máy đó, mất doanh thu mà không ai hay.
+			   Nay VẪN trả máy `an=1` về, gắn cờ `an` để màn nhập tô ĐỎ + nhắc "đã dọn/điều chuyển —
+			   kiểm tra", chứ không loại bỏ. Thà thừa một dòng đỏ còn hơn thiếu một máy. */
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
 				'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
 				'coso' => $coso,
+				'an'   => ! empty( $m['an'] ) ? 1 : 0,
 			);
 		}
 		/* Xếp theo cơ sở rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1,
