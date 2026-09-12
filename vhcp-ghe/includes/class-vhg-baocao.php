@@ -561,10 +561,28 @@ class VHG_BaoCao {
 			$t = trim( (string) $r['ten'] );
 			if ( '' !== $t && isset( $cs[ $t ] ) ) { $reset_cs[] = $t; }
 		}
+		/* 👤 DANH SÁCH NHÂN VIÊN → CƠ SỞ HỌ QUẢN LÝ — anh Thắng 12/09/2026: "chọn tên nhân viên để
+		   ra cơ sở bạn quản lý, cho dễ test". CHỈ gửi khi PIN đang đăng nhập là TOÀN QUYỀN (admin —
+		   không giới hạn cơ sở lẫn ghế); nhân viên thường không thấy ai khác. Mỗi người: tên + danh
+		   sách cơ sở (tách từ cột `coso` hồ sơ). Trình duyệt dùng để lọc ô "Cơ sở" theo người chọn. */
+		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
+		$nhan_su = array();
+		if ( $toan_quyen && class_exists( 'VHG_Auth' ) ) {
+			$us = VHG_Auth::users();
+			if ( ! is_wp_error( $us ) ) {
+				foreach ( (array) $us as $u ) {
+					$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
+					if ( '' === $ten ) { continue; }
+					$cs_nv = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
+					if ( ! count( $cs_nv ) ) { continue; }   // không gán cơ sở thì bỏ (không giúp gì cho việc chọn)
+					$nhan_su[] = array( 'ten' => $ten, 'coso' => $cs_nv );
+				}
+			}
+		}
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
-			'resetCoso' => $reset_cs,
+			'resetCoso' => $reset_cs, 'toanQuyen' => $toan_quyen ? 1 : 0, 'nhanSu' => $nhan_su,
 			'chamCongUrl' => self::cham_cong_url(),
 			'trangChuUrl' => home_url( '/' ) );
 	}

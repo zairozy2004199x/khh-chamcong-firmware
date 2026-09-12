@@ -1806,6 +1806,15 @@ class VHG_Trang {
     // chọn ngày + cơ sở
     var c1=el('div','bc-card');
     c1.appendChild(el('h3','bc-h','Báo cáo doanh thu theo cơ sở'));
+    /* 👤 HIỆN TÊN NHÂN VIÊN + SỐ CƠ SỞ NGAY CHỖ CHỌN — anh Thắng 12/09/2026: "hiện tên nhân viên
+       để chọn đúng cơ sở của bạn đó cho dễ test". PIN nào đang đăng nhập báo cáo thì rõ tên +
+       phạm vi bao nhiêu cơ sở, khỏi phải nhìn góc trên hay đoán. */
+    if(BC.staff){
+      var who=el('div');
+      who.style.cssText='margin:4px 0 2px;font-weight:800;color:var(--tim,#4f46e5)';
+      who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở';
+      c1.appendChild(who);
+    }
     c1.appendChild(el('div','bc-mut',
       'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
     var r1=el('div','bc-row'); r1.style.marginTop='12px';
@@ -1813,9 +1822,33 @@ class VHG_Trang {
     var iN=el('input'); iN.type='date'; iN.value=NGAY; iN.max=BC.today||'';
     iN.onchange=function(){ NGAY=iN.value; if(LOC) selectLoc(LOC); refreshPhien(); };
     fN.appendChild(iN); r1.appendChild(fN);
+    /* 👤 CHỌN NHÂN VIÊN → LỌC CƠ SỞ NGƯỜI ĐÓ QUẢN LÝ — anh Thắng 12/09/2026, cho admin dễ test
+       đúng phạm vi từng người. Chỉ hiện khi PIN toàn quyền (BC.nhanSu do boot() gửi kèm). Khớp tên
+       cơ sở bằng chuẩn hoá (bỏ dấu/khoảng trắng/hoa-thường) để cột `coso` hồ sơ lệch chính tả với
+       tên cơ sở thật vẫn ra đúng. */
+    function csNorm_(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^a-z0-9]/gi,'').toUpperCase(); }
+    var sL=el('select');
+    function napCoSo_(ds){
+      sL.innerHTML=''; sL.appendChild(new Option('— Chọn cơ sở —',''));
+      (ds&&ds.length?ds:(BC.coso||[])).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
+    }
+    if(BC.nhanSu && BC.nhanSu.length){
+      var fNV=el('label','bc-f'); fNV.appendChild(el('span',null,'Nhân viên (lọc cơ sở)'));
+      var sNV=el('select'); sNV.appendChild(new Option('— Tất cả nhân viên ('+((BC.coso||[]).length)+' cơ sở) —',''));
+      BC.nhanSu.slice().sort(function(a,b){ return String(a.ten).localeCompare(String(b.ten)); })
+        .forEach(function(nv){ sNV.appendChild(new Option(nv.ten+' ('+((nv.coso||[]).length)+' cơ sở)', nv.ten)); });
+      sNV.onchange=function(){
+        var found=null; (BC.nhanSu||[]).forEach(function(x){ if(x.ten===sNV.value) found=x; });
+        if(!found){ napCoSo_(BC.coso); LOC=''; return; }
+        var canon={}; (BC.coso||[]).forEach(function(c){ canon[csNorm_(c)]=c; });
+        var ds=(found.coso||[]).map(function(c){ return canon[csNorm_(c)]||c; });
+        napCoSo_(ds); LOC='';
+      };
+      fNV.appendChild(sNV); r1.appendChild(fNV);
+    }
     var fL=el('label','bc-f'); fL.appendChild(el('span',null,'Cơ sở'));
-    var sL=el('select'); sL.appendChild(new Option('— Chọn cơ sở —',''));
-    (BC.coso||[]).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
+    napCoSo_(BC.coso);
     sL.onchange=function(){ LOC=sL.value; if(LOC) selectLoc(LOC); };
     fL.appendChild(sL); r1.appendChild(fL);
     c1.appendChild(r1);
