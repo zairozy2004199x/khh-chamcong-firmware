@@ -281,8 +281,9 @@
       <div class="panel row">
         <div class="fld"><label>Tài khoản</label><select id="fSoTK"><option value="">Tất cả</option></select></div>
         <div class="fld"><label>Pháp nhân</label><select id="fPhapNhan"><option value="">Tất cả</option></select></div>
-        <div class="fld"><label>Từ ngày</label><input type="date" id="fTu"></div>
-        <div class="fld"><label>Đến ngày</label><input type="date" id="fDen"></div>
+        <div class="fld"><label>Từ ngày</label><input type="date" id="fTu" onchange="skBoKy()"></div>
+        <div class="fld"><label>Đến ngày</label><input type="date" id="fDen" onchange="skBoKy()"></div>
+        <div class="fld"><label>Kỳ</label><select id="fKy" onchange="skDatKy()"></select></div>
         <div class="fld"><label>Loại</label><select id="fLoai"><option value="">Tất cả</option><option value="Thu">Tiền vào</option><option value="Chi">Tiền ra</option></select></div>
         <div class="fld"><label>Nguồn tiền vào</label><select id="fNguonTien">
           <option value="">Tất cả</option>
@@ -568,6 +569,8 @@ var EN = {
   // --- nhãn ô nhập ---
   'Tài khoản':'Account', 'Pháp nhân':'Legal entity', 'Từ ngày':'From date', 'Đến ngày':'To date',
   'Loại':'Type', 'Nguồn tiền vào':'Incoming source', 'Nguồn tiền':'Money source',
+  'Kỳ':'Period', 'Tự chọn ngày':'Custom dates', 'Tuần này':'This week', 'Tuần trước':'Last week',
+  'Tháng trước':'Last month',
   'Từ khóa nội dung':'Content keyword', 'Nhãn phân loại':'Label', 'Số TK':'Acct no.',
   'Số TK (để trống = tất cả)':'Acct no. (blank = all)', 'Ngân hàng':'Bank', 'Chủ TK':'Account holder',
   'Ghi chú':'Note', 'Số dư đầu kỳ':'Opening balance', 'Ngày đầu kỳ':'Opening date',
@@ -672,6 +675,7 @@ function vaoApp(pin){
   document.getElementById('pinScreen').style.display='none';
   document.getElementById('appRoot').style.display='flex';
   initApp();
+  dungOKyTinh();   // trước apNgonNgu: để nhãn kỳ cũng được dịch cùng lượt
   apNgonNgu();     // sau khi hiện menu: đặt nhãn nút và bật dịch nếu đang chọn English
 }
 function doLogin(){
@@ -829,6 +833,56 @@ function taiDashboard(){
 var DC_MO = {};   // khoá nhóm -> đang mở bảng chi tiết hay không
 var DC_KQ = null; // kết quả lần đối chiếu gần nhất, để bật/tắt bảng mà không phải gọi lại máy chủ
 function dcYmd(d){ var p=function(n){return (n<10?'0':'')+n;}; return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+/* ── KỲ LỊCH: tuần / tháng ─────────────────────────────────────────────────────────────────────
+   Anh Thắng 12/09/2026: "Cho thêm tính năng lọc theo tuần hoặc tháng."
+
+   Đây là kỳ THEO LỊCH, khác hẳn "7 ngày / 30 ngày" đã có (cửa sổ trượt lùi từ hôm nay). Hỏi
+   "tuần này bán được bao nhiêu" thì phải là Thứ Hai tới nay, không phải 7 ngày gần nhất.
+
+   ⚠️ BA CÁI BẪY, đều đã chôn sẵn assert trong tools/test/kiem-saoke-ky-lich.js:
+    1. Tuần bắt đầu THỨ HAI. getDay() của JS trả 0 = Chủ nhật, lấy thẳng là lệch một ngày và
+       Chủ nhật bị đẩy sang tuần sau — (getDay()+6)%7 mới cho 0 = Thứ Hai.
+    2. Cuối tháng và giao năm. new Date(y, m, 0) = ngày CUỐI của tháng m-1, tự lo 28/29/30/31;
+       new Date(y, -1, 1) tự lùi về tháng 12 năm trước. Đừng tự cộng trừ số ngày.
+    3. Kỳ ĐANG CHẠY thì cắt ở hôm nay. "Tháng này" ngày 12 mà điền đến 30 thì ô Đến ngày hiện
+       một ngày chưa xảy ra — nhìn như app lấy sai dữ liệu. Kỳ đã qua không bị cắt.            */
+function khoangLich(ky, moc){
+  var n = moc ? new Date(moc.getTime()) : new Date();
+  var homNay = new Date(n.getFullYear(), n.getMonth(), n.getDate());   // bỏ giờ phút
+  var tu, den;
+  if(ky === 'tuanNay' || ky === 'tuanTruoc'){
+    var thu = (homNay.getDay() + 6) % 7;                               // 0 = Thứ Hai
+    var lui = thu + (ky === 'tuanTruoc' ? 7 : 0);
+    tu  = new Date(homNay.getFullYear(), homNay.getMonth(), homNay.getDate() - lui);
+    den = new Date(tu.getFullYear(), tu.getMonth(), tu.getDate() + 6);
+  } else if(ky === 'thangNay' || ky === 'thangTruoc'){
+    var luiTh = (ky === 'thangTruoc' ? 1 : 0);
+    tu  = new Date(homNay.getFullYear(), homNay.getMonth() - luiTh, 1);
+    den = new Date(homNay.getFullYear(), homNay.getMonth() - luiTh + 1, 0);
+  } else {
+    var so = parseInt(ky, 10);                                          // '7' / '30' = cửa sổ trượt
+    if(!(so > 0)) return null;
+    tu  = new Date(homNay.getFullYear(), homNay.getMonth(), homNay.getDate() - (so - 1));
+    den = homNay;
+  }
+  if(den.getTime() > homNay.getTime()) den = homNay;                    // kỳ đang chạy: không vượt hôm nay
+  return { tu: dcYmd(tu), den: dcYmd(den) };
+}
+/* Danh sách kỳ dùng chung cho mọi thanh lọc — sửa một chỗ, mọi màn hình theo. */
+var KY_LICH = [['','Tự chọn ngày'],['tuanNay','Tuần này'],['tuanTruoc','Tuần trước'],
+               ['thangNay','Tháng này'],['thangTruoc','Tháng trước'],['7','7 ngày'],['30','30 ngày']];
+function optKy(){ return KY_LICH.map(function(x){ return '<option value="'+x[0]+'">'+x[1]+'</option>'; }).join(''); }
+function oKy(id, khiDoi){
+  return '<div class="fld"><label>Kỳ</label><select id="'+id+'" onchange="'+khiDoi+'">'+optKy()+'</select></div>';
+}
+/* Ô Kỳ nào nằm sẵn trong HTML tĩnh (fKy) thì đổ option ở đây — cùng một nguồn KY_LICH với
+   ô dựng bằng JS, chứ chép tay hai danh sách là kiểu gì cũng lệch nhau sau vài bản. */
+function dungOKyTinh(){
+  ['fKy'].forEach(function(id){
+    var o = document.getElementById(id);
+    if(o && !o.options.length) o.innerHTML = optKy();
+  });
+}
 /* Đổi "13/08/2026 07:23:59" thành số để sắp thứ tự. KHÔNG dùng new Date(chuỗi): dạng dd/MM/yyyy
    trình duyệt hiểu thành tháng 13 -> Invalid Date, sắp xếp lẫn lộn mà không báo lỗi gì. */
 function dcMoc(s){
@@ -1148,11 +1202,10 @@ function dungViewCong(nguon){
         + 'tổng cổng so với cục về, không so từng dòng.')
   + '</div>'
   + '<div class="panel row">'
-  +   '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'"></div>'
-  +   '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'"></div>'
+  +   '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
+  +   '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
+  +   oKy(id('ky'), 'cgDatKy(\''+nguon+'\')')
   +   '<div class="fld" style="align-self:flex-end"><button onclick="taiSaoKeCong(\''+nguon+'\')">🔍 Lọc</button></div>'
-  +   '<div class="fld" style="align-self:flex-end"><button class="gray" onclick="cgDatNgay(\''+nguon+'\',6)">7 ngày</button></div>'
-  +   '<div class="fld" style="align-self:flex-end"><button class="gray" onclick="cgDatNgay(\''+nguon+'\',29)">30 ngày</button></div>'
   +   '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
   +     'title="Đặt lại về 7 ngày gần nhất rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
   +   '<div class="fld" style="align-self:flex-end"><span class="muted" id="'+id('capNhat')+'"></span></div>'
@@ -2155,11 +2208,20 @@ function cgParseSheet(xml, sst){
 }
 
 function cgDatNgay(nguon, luiNgay){
-  var d = new Date(), t = new Date(d.getTime() - luiNgay*86400000);
-  function ymd(x){ return x.getFullYear()+'-'+('0'+(x.getMonth()+1)).slice(-2)+'-'+('0'+x.getDate()).slice(-2); }
-  cgEl(nguon,'tu').value = ymd(t); cgEl(nguon,'den').value = ymd(d);
+  cgDoiKhoang(nguon, String(luiNgay + 1));      // 6 -> '7 ngày', 29 -> '30 ngày'
+}
+/* Ô "Kỳ" đổi -> điền Từ/Đến rồi lọc luôn. "Tự chọn ngày" thì không đụng gì, để anh tự gõ. */
+function cgDatKy(nguon){ cgDoiKhoang(nguon, cgEl(nguon,'ky').value); }
+function cgDoiKhoang(nguon, ky){
+  var k = khoangLich(ky);
+  if(!k) return;
+  var o = cgEl(nguon,'ky'); if(o) o.value = ky;
+  cgEl(nguon,'tu').value = k.tu; cgEl(nguon,'den').value = k.den;
   taiSaoKeCong(nguon);
 }
+/* Gõ tay ngày thì nhả nhãn kỳ ra. Để nguyên "Tuần này" trong khi ô ngày đã khác là nói dối,
+   và lần bấm "Làm mới" sau đó sẽ nhảy về tuần, mất khoảng anh vừa gõ. */
+function cgBoKy(nguon){ var o = cgEl(nguon,'ky'); if(o) o.value = ''; }
 // Lỗi phải NẰM LẠI trên trang, không dùng toast biến mất — đúng bài học đã mất cả ngày
 // vì màn hình trống mà không biết là "không có dữ liệu" hay "lời gọi vỡ".
 function cgBaoLoi(nguon, msg){
@@ -2383,6 +2445,13 @@ function cgThu(nguon){
 // ===== SAO KÊ =====
 function toVN(d){ if(!d) return ''; var p=d.split('-'); return p.length===3 ? (p[2]+'/'+p[1]+'/'+p[0]) : d; }
 var SK_ROWS = [], SK_PAGE = 1, SK_PAGE_SIZE = 20;
+function skDatKy(){
+  var k = khoangLich(document.getElementById('fKy').value);
+  if(!k) return;
+  document.getElementById('fTu').value = k.tu; document.getElementById('fDen').value = k.den;
+  taiSaoKe();
+}
+function skBoKy(){ document.getElementById('fKy').value = ''; }
 function taiSaoKe(){
   var filters = {
     soTK: document.getElementById('fSoTK').value,
@@ -2460,7 +2529,7 @@ function renderSkPage(){
    Giao dịch mới KHÔNG cần bấm gì ở đây mới về: SePay bắn webhook là app ghi thẳng vào Sheet,
    nút này chỉ để màn hình đọc lại Sheet. */
 function lamMoiSaoKe(){
-  ['fSoTK','fPhapNhan','fTu','fDen','fLoai','fNhan','fNguonTien','fKw'].forEach(function(id){
+  ['fSoTK','fPhapNhan','fTu','fDen','fLoai','fNhan','fNguonTien','fKw','fKy'].forEach(function(id){
     var el = document.getElementById(id); if (el) el.value = '';
   });
   taiSaoKe();

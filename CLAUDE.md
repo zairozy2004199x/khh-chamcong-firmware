@@ -124,3 +124,27 @@ bằng chuỗi khác nên không bị đếm. Nay đếm theo **lời gọi**: `
 Và mỗi lượt nạp file ghi lại mốc **"phủ tới thời điểm nào"** (`saoke_cong_nap_<nguồn>`, chỉ tiến
 không lùi), để dòng "chưa rõ máy" **mới hơn lần nạp** tự nói ra điều đó thay vì trông như bản vá
 hỏng.
+
+## 7. Sao Kê: lọc theo kỳ lịch — tuần / tháng (0.19.0)
+
+Thanh lọc có ô **Kỳ**: Tuần này · Tuần trước · Tháng này · Tháng trước · 7 ngày · 30 ngày.
+Mọi phép tính đi qua **một** hàm `khoangLich(ky, moc)` trong `app.html`; hai nút 7/30 ngày cũ
+giờ cũng gọi vào đó, không còn đường tính ngày riêng.
+
+Khác nhau phải giữ: **kỳ lịch** (tuần/tháng) neo vào mốc lịch, **7/30 ngày** là cửa sổ trượt
+lùi từ hôm nay. "Tuần này" vào Thứ Tư ≠ "7 ngày".
+
+Ba chỗ dễ sai, đã chôn assert trong `tools/test/kiem-saoke-ky-lich.js`:
+
+1. **Tuần bắt đầu Thứ Hai.** `getDay()` trả 0 cho Chủ nhật; lấy thẳng thì Chủ nhật bị đẩy
+   thành đầu tuần, mất sáu ngày. Phải `(getDay()+6)%7`.
+2. **Cuối tháng và giao năm.** Dùng `new Date(y, m, 0)` (ngày cuối tháng trước) và để JS tự lùi
+   tháng — đừng cộng trừ số ngày, tháng 2 và mốc 01/01 sai ngay.
+3. **Kỳ đang chạy cắt ở hôm nay.** "Tháng này" ngày 12 mà điền Đến ngày 30 thì ô ngày hiện một
+   ngày chưa xảy ra. Kỳ **đã qua** thì không cắt — cắt cả "Tuần trước" là mất số liệu âm thầm.
+
+Gõ tay ô Từ/Đến phải nhả nhãn kỳ về "Tự chọn ngày" (`cgBoKy` / `skBoKy`). Để nguyên nhãn là app
+nói dối, và lần **Làm mới** sau đó nhảy về kỳ cũ, mất khoảng ngày vừa gõ.
+
+Bài thử đếm **chỗ gọi**, không chỉ kiểm hàm — đúng bài học 0.18.0 ở §6: luật đúng mà một bản sao
+không được vá thì màn hình vẫn sai.
