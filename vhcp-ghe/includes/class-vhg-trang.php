@@ -2269,6 +2269,47 @@ class VHG_Trang {
     if(res){ res.textContent=t2; res.className='bc-mut'; }
     input.value='';                                    // cho phép chọn lại lần nữa
   }
+  /* Bản "chọn ảnh hàng loạt" cho MÀN SỬA BÁO CÁO 24H — anh Thắng 12/09/2026: "bổ sung gửi ảnh
+     hàng loạt cho chỗ sửa báo cáo 24h (nhân viên đang báo lỗi không gửi được)". Khác bản chính ở
+     chỗ ô ảnh nằm trong CARD từng ghế (`.e-anh-chiso/.e-anh-vesinh`) chứ không phải bảng `#bc-rows`,
+     nên nhận `body` của đúng báo cáo đang mở. Cùng thứ tự DOM (mỗi ghế: chỉ số rồi vệ sinh) nên gán
+     tuần tự file[i]→ô thứ i là khớp. Bắn 'change' để bộ đếm "Sẽ đính…" và preview từng ghế tự cập
+     nhật (anhPicker_/capNhatAnh nay đọc cả `_bulkFile` cho iOS). */
+  function chiaAnhLoat24h(input,res,body){
+    var files=Array.prototype.slice.call(input.files||[]);
+    var targets=body?[].slice.call(body.querySelectorAll('.e-anh-chiso, .e-anh-vesinh')):[];
+    if(!files.length){ if(res) res.textContent=''; return; }
+    if(!targets.length){ if(res){ res.textContent='⚠️ Chưa mở ghế nào để gán ảnh.'; res.className='bc-mut bc-err'; } input.value=''; return; }
+    var n=Math.min(files.length,targets.length);
+    for(var i=0;i<n;i++){
+      var f=files[i], t=targets[i];
+      t._bulkFile=f;                                   // fallback cho iOS
+      try{ var dt=new DataTransfer(); dt.items.add(f); t.files=dt.files; }catch(e){}
+      try{ t.dispatchEvent(new Event('change')); }catch(e){}   // cập nhật preview + bộ đếm của ghế
+    }
+    var soGhe=Math.ceil(n/2);
+    var t2='✅ Đã gán '+n+' ảnh cho '+soGhe+' ghế đầu.';
+    if(files.length>targets.length) t2+=' Dư '+(files.length-targets.length)+' ảnh (nhiều hơn số ô).';
+    else if(n%2===1) t2+=' Ảnh cuối là CHỈ SỐ — ghế cuối còn thiếu ảnh VỆ SINH.';
+    if(res){ res.textContent=t2; res.className='bc-mut'; }
+    input.value='';
+  }
+  /* Nút "Chọn ảnh hàng loạt" đặt ở đầu khối Sửa của một báo cáo 24h — dựng SAU khi đã có các card
+     ghế (để querySelectorAll thấy đủ ô). Chia ảnh vào chính `body` truyền vào. */
+  function bulkChooser24h_(body){
+    var wrap=el('div'); wrap.style.cssText='margin:2px 0 8px;display:flex;flex-direction:column;gap:5px';
+    var id='e-anh-loat'+(++CEL_ANH_DEM);
+    var i=el('input'); i.type='file'; i.accept='image/*'; i.multiple=true; i.id=id;
+    i.style.cssText='position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0';
+    var lbl=el('label',null,'📷 Chọn ảnh hàng loạt (tự chia theo ghế)'); lbl.setAttribute('for',id);
+    lbl.style.cssText='display:inline-block;align-self:flex-start;cursor:pointer;font:inherit;font-weight:700;'
+      +'font-size:13px;padding:8px 14px;border-radius:9px;border:1px solid #cbd5e1;background:#f1f5f9;color:#0f172a';
+    var hint=el('div','bc-mut'); hint.textContent='Thứ tự: ảnh 1 → CHỈ SỐ ghế 1, ảnh 2 → VỆ SINH ghế 1, ảnh 3 → CHỈ SỐ ghế 2… (2 ảnh mỗi ghế). Chọn lộn có thể sửa từng ô bên dưới.';
+    var kq=el('div','bc-mut'); kq.style.fontWeight='700';
+    i.addEventListener('change',function(){ chiaAnhLoat24h(i,kq,body); });
+    wrap.appendChild(i); wrap.appendChild(lbl); wrap.appendChild(hint); wrap.appendChild(kq);
+    return wrap;
+  }
   function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
   function cell(c){ var td=el('td'); td.appendChild(c); return td; }
   function cellRo(cls,cash){ var td=el('td'); var s=el('span','bc-ro'+(cash?' bc-cash':'')); s.className='bc-ro'+(cash?' bc-cash':''); s.classList.add(cls); s.textContent='0'; td.appendChild(s); return td; }
@@ -2914,6 +2955,9 @@ class VHG_Trang {
         body.style.display=''; b.textContent='Đóng';
         if(body.dataset.built==='1') return; body.dataset.built='1';
         (rp.chairs||[]).forEach(function(c){ body.appendChild(theGheSua(rp,c)); });
+        /* Ô "Chọn ảnh hàng loạt" cho cả báo cáo — chèn LÊN ĐẦU sau khi đã dựng xong các card ghế
+           (để nó thấy đủ ô .e-anh-chiso/.e-anh-vesinh mà chia). Anh Thắng 12/09/2026. */
+        if(rp.chairs && rp.chairs.length) body.insertBefore(bulkChooser24h_(body), body.firstChild);
       };
     }
     d.appendChild(head); d.appendChild(body);
@@ -3029,7 +3073,8 @@ class VHG_Trang {
     var prev=el('img'); prev.style.cssText='display:none;width:36px;height:36px;object-fit:cover;border-radius:6px;margin-top:2px';
     i.addEventListener('change',function(){
       if(prev.dataset.url){ try{ URL.revokeObjectURL(prev.dataset.url); }catch(e){} }
-      var f=i.files&&i.files[0];
+      /* Đọc cả `_bulkFile` (iOS không cho set .files khi "Chọn ảnh hàng loạt") — xem chiaAnhLoat24h. */
+      var f=(i.files&&i.files[0])||i._bulkFile;
       if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
       else { prev.style.display='none'; delete prev.dataset.url; }
     });
@@ -3072,8 +3117,9 @@ class VHG_Trang {
     anhWrap.appendChild(pChiso); anhWrap.appendChild(pVesinh);
     card.appendChild(anhWrap);
     var ttAnh=el('div','bc-mut'); card.appendChild(ttAnh);
+    function coAnh_(fi){ return !!((fi.files&&fi.files.length)||fi._bulkFile); }   // .files hoặc _bulkFile (iOS)
     function capNhatAnh(){
-      var moi=(pChiso.fileInput.files&&pChiso.fileInput.files.length?1:0)+(pVesinh.fileInput.files&&pVesinh.fileInput.files.length?1:0);
+      var moi=(coAnh_(pChiso.fileInput)?1:0)+(coAnh_(pVesinh.fileInput)?1:0);
       if(anhCu) ttAnh.textContent='Đã có '+anhCu+' ảnh từ lúc gửi.'+(moi?(' +'+moi+' ảnh mới sẽ đính thêm.'):'');
       else ttAnh.textContent=moi?('Sẽ đính '+moi+' ảnh mới khi Lưu.'):'⚠ Ghế này chưa có ảnh nào — chọn ít nhất 1 ảnh (chỉ số hoặc vệ sinh) mới lưu được.';
       ttAnh.className='bc-mut'+((!anhCu&&!moi)?' bc-err':'');
@@ -3111,7 +3157,7 @@ class VHG_Trang {
       if(Number(c.qr||0)!==qr) patch.qr=qr;
       if(String(c.adjust==null?'':c.adjust)!==String(ad==null?'':ad)) patch.adjust=ad;
       if(String(c.note||'')!==nt) patch.note=nt;
-      var fChiso=pChiso.fileInput.files&&pChiso.fileInput.files[0], fVesinh=pVesinh.fileInput.files&&pVesinh.fileInput.files[0];
+      var fChiso=(pChiso.fileInput.files&&pChiso.fileInput.files[0])||pChiso.fileInput._bulkFile, fVesinh=(pVesinh.fileInput.files&&pVesinh.fileInput.files[0])||pVesinh.fileInput._bulkFile;
       if(!anhCu && !fChiso && !fVesinh){ m.textContent='Ghế này chưa có ảnh — chọn ít nhất 1 ảnh (chỉ số hoặc vệ sinh) rồi bấm Lưu.'; m.className='bc-mut bc-err'; return; }
       function guiLuu_(){
         if(!Object.keys(patch).length){ m.textContent='Không có gì đổi.'; s.disabled=false; return; }
