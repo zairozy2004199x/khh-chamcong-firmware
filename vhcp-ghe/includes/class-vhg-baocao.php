@@ -145,7 +145,9 @@ class VHG_BaoCao {
 	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
 	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
 	public static function ds_ghe( $q, $hien_an = false ) {
+		global $wpdb;
 		$ra = array();
+		$da_co = array();   // mã ghế đã có trong danh sách → khỏi bơm trùng từ lịch sử
 		foreach ( VHG_May::ds_may() as $m ) {
 			/* 🔴 MÁY ĐÃ "DỌN/ĐIỀU CHUYỂN" (`an`=1) — anh Thắng 12/09/2026:
 			   · ADMIN/quản lý/kế toán ($hien_an) → VẪN HIỆN, tô ĐỎ để phát hiện & sửa nhầm ("bất cứ
@@ -163,6 +165,31 @@ class VHG_BaoCao {
 				'coso' => $coso,
 				'an'   => $an ? 1 : 0,
 			);
+			$da_co[ (string) $m['ma'] ] = true;
+		}
+		/* 🔴 GHẾ "LẠC" — CÓ BÁO CÁO GẦN ĐÂY Ở CƠ SỞ MÀ KHÔNG CÒN KHỚP DANH MỤC MÁY. Anh Thắng
+		   12/09/2026: VHM-1 "báo cáo hôm qua thì có" mà màn nhập không thấy — vì `may.coso_id` của
+		   nó đã đổi/mất gán nên không match cơ sở nữa (Duyệt vẫn thấy do đọc coso_key ĐÓNG BĂNG ở
+		   báo cáo). "Bất cứ giá nào cũng không được ẩn": bơm lại theo ĐÚNG cơ sở của báo cáo gần đây
+		   để luôn còn đường nhập tiếp; tô đỏ, nhắc kiểm tra. Bó trong 45 ngày để không kéo cả kho
+		   ghế cũ. Chỉ bơm mã CHƯA có trong danh sách máy sống (ghế còn khớp cơ sở đã nằm ở trên). */
+		$tu_lac = gmdate( 'Y-m-d', current_time( 'timestamp' ) - 45 * 86400 );
+		$ls = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.ma_may AS ma, MAX(d.ten) AS ten, h.coso AS coso FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE h.ngay >= %s GROUP BY d.ma_may, h.coso', $tu_lac ), ARRAY_A );
+		foreach ( (array) $ls as $r ) {
+			$ma = (string) ( isset( $r['ma'] ) ? $r['ma'] : '' );
+			if ( '' === $ma || isset( $da_co[ $ma ] ) ) { continue; }
+			$coso = (string) ( isset( $r['coso'] ) ? $r['coso'] : '' );
+			if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
+			$ra[] = array(
+				'ma'   => $ma,
+				'ten'  => (string) ( '' !== (string) $r['ten'] ? $r['ten'] : $ma ),
+				'coso' => $coso,
+				'an'   => 1, 'lac' => 1,
+			);
+			$da_co[ $ma ] = true;
 		}
 		/* Xếp theo cơ sở → MÁY ĐÃ DỌN XUỐNG CUỐI (anh Thắng 12/09/2026: "máy đã dọn cho vào cuối")
 		   → rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10, VHM-2).

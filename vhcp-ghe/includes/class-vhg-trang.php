@@ -2146,7 +2146,9 @@ class VHG_Trang {
        ds_ghe), nhân viên mất đường gõ chỉ số. Nay hiện kèm nhắc đỏ để kiểm tra, vẫn gõ được. */
     if(g.an){
       var anBadge=el('div'); anBadge.style.cssText='font-size:11px;color:#b91c1c;font-weight:800;margin-top:3px';
-      anBadge.textContent='⚠ Máy đã dọn/điều chuyển — kiểm tra trước khi nhập';
+      anBadge.textContent = g.lac
+        ? '⚠ Máy có báo cáo gần đây ở cơ sở này nhưng đã đổi/mất gán cơ sở — kiểm tra & gắn lại'
+        : '⚠ Máy đã dọn/điều chuyển — kiểm tra trước khi nhập';
       tdN.appendChild(anBadge);
       tr.style.background='#fef2f2';
     }
