@@ -81,19 +81,25 @@ function docHangTren(html) {
 /* Mọi ô mã của MỌI bảng đơn vị đang hiện. */
 function docOMa(html) {
   const ra = [];
-  (html.match(/<input[^>]*data-loai="[^"]*"[^>]*>/g) || []).forEach(tag => {
+  const lay = (re, tong) => (html.match(re) || []).forEach(tag => {
     const at = a => { const x = tag.match(new RegExp(a + '="([^"]*)"')); return x ? x[1] : null; };
-    ra.push({ value: at('value') || '', getAttribute: at });
+    ra.push({ value: at('value') || '', getAttribute: at, __tong: tong });
   });
+  lay(/<input[^>]*data-loai="[^"]*"[^>]*>/g, false);
+  /* Ô MÃ TỔNG của mảng (12/09/2026) — cùng nằm trong `.mxNoBody` nhưng là bộ chọn khác. */
+  lay(/<input[^>]*data-mang-tong="[^"]*"[^>]*>/g, true);
   return ra;
 }
-function dungBe(loaiChiPhi, tkNoMatrix, coso) {
+function dungBe(loaiChiPhi, tkNoMatrix, coso, mangTk) {
   const KHO = {};
   const O = id => ({ _id: id, innerHTML: '', style: {}, textContent: '', className: '',
     getElementsByTagName: () => [], querySelectorAll: () => [], querySelector: () => null });
   const NK = { luu: null, toast: [] };
   const moi = {
-    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso },
+    /* `mangTk` = bảng "Mảng kinh doanh → nhóm tài khoản", nay chính là chỗ ở của MÃ TỔNG
+       (anh Thắng 12/09/2026: *"TUTU MN (6410)"*). Bệ đỡ phải có nó, không thì `_mangTong()`
+       nổ ngay dòng đầu và cả bài đỏ vì một lý do chẳng liên quan tới bảng mã. */
+    CFG: { loaiChiPhi: loaiChiPhi, tkNoMatrix: tkNoMatrix, coso: coso, mangTk: (mangTk || []) },
     MX_LOCK: true, TKNAME: {}, TKCHART: [],
     /* 🔴 CHẾ ĐỘ SẮP MẢNG (12/09/2026) phải có trong bệ đỡ, kể cả khi bài này không canh nó:
        `renderTkNoMatrix()` đọc `MX_SAP` để dựng dải nút, thiếu là hàm chết ngay dòng ấy và
@@ -114,7 +120,14 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso) {
     _dvChuan: v => String(v == null ? '' : v).trim() || 'K&H',
     /* Trả ô CHỈ KHI bộ chọn thật sự trỏ vào bảng mã. Trả bừa là đục hỏng bộ chọn trong mã
        thật mà bài kiểm vẫn xanh — bệ đỡ dễ dãi thì phép nào đi qua nó cũng vô nghĩa. */
-    document: { querySelectorAll: sel => /\.mxNoBody\b/.test(sel) ? (NK.oMa || []) : [] },
+    /* Hai bộ chọn khác nhau trên cùng một bảng: `.mxNoBody input` (mọi ô, kể cả ô mã tổng)
+       và `.mxNoBody input[data-mang-tong]` (chỉ ô mã tổng). Trả chung một rổ là phép lưu mã
+       đọc nhầm ô mã tổng thành mã của một loại chi phí — hỏng im lặng. */
+    document: { querySelectorAll: sel => {
+      if (!/\.mxNoBody\b/.test(sel)) return [];
+      const het = NK.oMa || [];
+      return /data-mang-tong/.test(sel) ? het.filter(o => o.__tong) : het.filter(o => !o.__tong);
+    } },
     NK, KHO,
   };
   /* `boc('_loaiSel')` kết thúc trên cùng một dòng nên lát cắt nuốt luôn mấy hàm đứng sau, kể
@@ -123,7 +136,7 @@ function dungBe(loaiChiPhi, tkNoMatrix, coso) {
   moi.window = moi;
   const F = new Function('moi', `with(moi){
     ${boc('_bpTach')}\n${boc('_bpSelNhieu')}\n${boc('_inp')}\n${boc('_loaiSel')}
-    ${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
+    ${boc('_mangTong')}\n${boc('_mangTongDoan')}\n${boc('_mxMaGoc')}\n${boc('_mxSapCols')}\n${boc('_mxCols')}\n${boc('_mxNhomDv')}\n${boc('_xemDuocDv')}\n${boc('_mxRowHtml')}\n${boc('renderTkNoMatrix')}\n${boc('saveCfgTkNoMx')}
     return { ve: renderTkNoMatrix, luu: saveCfgTkNoMx }; }`)(moi);
   return { moi, NK, KHO, F };
 }
@@ -144,10 +157,17 @@ const COSO = [
   { ten: 'FARM NT',   phanLoaiLon: 'Farm',    donVi: 'K&H' },
   { ten: 'CGV BÌNH DƯƠNG', phanLoaiLon: 'Rạp', donVi: 'POSH' },
 ];
+/* MÃ TỔNG của mảng — bảng "Mảng kinh doanh → nhóm tài khoản". "Rạp" thuộc POSH nên KHÔNG hiện
+   trên màn của người K&H; nó có mặt ở đây để canh chuyện lưu không được xoá nó. Hai cột
+   `tuKhoa`/`note` cũng vậy: lưu mã tổng mà làm mất chúng là mất dữ liệu người ta đã khai. */
+const MANG_TK = [
+  { pll: 'Funzone', nhomTk: '6412', tuKhoa: 'Funzone', note: 'ghi chú FZ' },
+  { pll: 'Rạp',     nhomTk: '6415', tuKhoa: 'Rạp',     note: 'của POSH' },
+];
 
 /* ── 1. HAI BẢNG, VÀ MẢNG XẾP DỌC ──────────────────────────────────────────────────────── */
 {
-  const b = dungBe(LOAI, MX, COSO);
+  const b = dungBe(LOAI, MX, COSO, MANG_TK);
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 có bảng thuộc tính (cfgMxBody)', h.indexOf('id="cfgMxBody"') >= 0);
@@ -156,8 +176,22 @@ const COSO = [
     h.indexOf('<div data-bp') >= 0 && h.indexOf('type="checkbox" value="Kỹ thuật" checked') >= 0
     && h.indexOf('<select multiple') < 0, h.slice(0, 600));
   t('   nói rõ không tích gì = mọi bộ phận', h.indexOf('không tích = mọi bộ phận') >= 0);
+  /* Cột đầu nay bọc tên mảng trong một `<div>` để nhét thêm ô MÃ TỔNG xuống dưới (anh Thắng
+     12/09/2026: *"TUTU MN (6410)"*), nên đừng canh `>Funzone</td>` nữa — canh tên có mặt ở
+     cột đầu là đủ, còn thẻ bọc là chuyện trình bày. */
   t('🔴 bảng mã: MỖI MẢNG MỘT HÀNG — tên mảng nằm ở cột đầu',
-    h.indexOf('>Mảng kinh doanh</th>') >= 0 && h.indexOf('>Funzone</td>') >= 0 && h.indexOf('>Farm</td>') >= 0, h.slice(0, 300));
+    h.indexOf('>Mảng kinh doanh</th>') >= 0 && />Funzone[ <]/.test(h) && />Farm[ <]/.test(h), h.slice(0, 300));
+/* Mảng ĐÃ khai mã tổng thì bày nó trong ngoặc ngay cạnh tên — anh Thắng: *"mở ngoặc ra"*. */
+  t('🔴 mảng đã khai mã tổng bày số ấy trong ngoặc cạnh tên', />Funzone <span[^>]*>\(6412\)</.test(h),
+    (h.match(/>Funzone[^<]*<[^>]*>[^<]*</) || [''])[0]);
+  t('   mảng chưa khai thì chỉ có tên, không ngoặc rỗng', !/>Farm <span[^>]*>\(\)</.test(h));
+  /* Ô trống phải GỢI Ý con số đoán được — Farm khai 64166 ở cột đầu nên đoán ra 6416. */
+  t('🔴 ô mã tổng còn trống gợi ý sẵn con số đoán được',
+    /data-mang-tong="Farm"[^>]*placeholder="mã tổng\? VD 6416"/.test(h)
+    || /placeholder="mã tổng\? VD 6416"[^>]*data-mang-tong="Farm"/.test(h),
+    (h.match(/<input[^>]*data-mang-tong="Farm"[^>]*>/) || [''])[0]);
+  t('🔴 mỗi mảng có ô khai MÃ TỔNG',
+    h.indexOf('data-mang-tong="Funzone"') >= 0 && h.indexOf('data-mang-tong="Farm"') >= 0, h.slice(0, 400));
   t('🔴 và loại chi phí thành CỘT của bảng ấy',
     h.indexOf('<th style="width:128px">Chi phí cơ sở</th>') >= 0, h.slice(0, 400));
   t('   bảng thuộc tính KHÔNG còn cột mảng nào (đó là chỗ nó phình ngang)',
@@ -185,7 +219,7 @@ const COSO = [
 
 /* ── 2. VẼ RỒI LƯU LẠI — KHÔNG ĐƯỢC MẤT GÌ ─────────────────────────────────────────────── */
 function veRoiLuu(sua, xemDonVi) {
-  const b = dungBe(LOAI, MX, COSO);
+  const b = dungBe(LOAI, MX, COSO, MANG_TK);
   if (xemDonVi !== undefined) b.moi.BOOT.xemDonVi = xemDonVi;
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
@@ -245,7 +279,7 @@ function veRoiLuu(sua, xemDonVi) {
 
 /* ── 3. 🔴 TÁCH MẢNG THEO ĐƠN VỊ ───────────────────────────────────────────────────────── */
 {
-  const b = dungBe(LOAI, MX, COSO);
+  const b = dungBe(LOAI, MX, COSO, MANG_TK);
   b.F.ve();
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 K&H và POSH là HAI bảng riêng', /data-dv="K&amp;H"/.test(h) && /data-dv="POSH"/.test(h), h.match(/data-dv="[^"]*"/g));
@@ -315,6 +349,48 @@ function veRoiLuu(sua, xemDonVi) {
   const h = b.moi.el('cfgTkNoMx').innerHTML;
   t('🔴 mảng chỉ còn trong bảng mã vẫn hiện (giấu đi là mã còn trong sổ mà không ai sửa được)',
     h.indexOf('(chưa rõ đơn vị)') >= 0 && h.indexOf('value="64111"') >= 0, h.match(/data-dv="[^"]*"/g));
+}
+
+/* ── 2b. MÃ TỔNG CỦA MẢNG — LƯU LÀ GỘP, KHÔNG PHẢI GHI ĐÈ ──────────────────────────────
+ * Anh Thắng 12/09/2026: *"Chỗ mảng mình sẽ mở ngoặc ra. Tức kiểu nó là số tổng"*.
+ *
+ * 🔴 ĐÂY LÀ CHỖ NGUY NHẤT CỦA CẢ BẢN VÁ. Mã tổng ghi vào cột "Nhóm TK" của bảng `mangTk` —
+ *    bảng ấy còn hai cột nữa (Từ khóa · Ghi chú) và còn dòng của những mảng KHÔNG hiện trên
+ *    màn này. Người K&H chỉ thấy bảng K&H; gửi đúng những gì đọc được là dòng "Rạp" của POSH
+ *    bay sạch chỉ vì bên K&H bấm Lưu một cái — im lặng, và bên bị mất không hề đụng vào màn.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const p = veRoiLuu((tren, oMa) => {
+    oMa.forEach(o => { if (o.__tong && o.getAttribute('data-mang-tong') === 'Farm') o.value = '6416'; });
+  });
+  const m = {}; (p.mangTk || []).forEach(x => { m[x.pll] = x; });
+  t('🔴 gửi kèm bảng mangTk', !!p.mangTk, Object.keys(p || {}));
+  teq('🔴 mã tổng vừa gõ cho Farm được ghi', '6416', (m['Farm'] || {}).nhomTk);
+  teq('   mã tổng cũ của Funzone giữ nguyên', '6412', (m['Funzone'] || {}).nhomTk);
+  t('🔴 dòng "Rạp" của POSH KHÔNG bị xoá dù không hiện trên màn K&H', !!m['Rạp'], Object.keys(m));
+  teq('   và giữ nguyên mã tổng của nó', '6415', (m['Rạp'] || {}).nhomTk);
+  teq('🔴 cột Từ khóa không bị thổi bay', 'Funzone', (m['Funzone'] || {}).tuKhoa);
+  teq('   cột Ghi chú cũng vậy', 'ghi chú FZ', (m['Funzone'] || {}).note);
+  teq('   và của mảng ngoài tầm nhìn', 'của POSH', (m['Rạp'] || {}).note);
+}
+/* ⚠️ Ô ĐỂ TRỐNG = XOÁ mã tổng của đúng mảng ấy. Giữ lại giá trị cũ khi ô trống thì không ai
+   xoá được một mã tổng gõ nhầm — mà gõ nhầm ở đây kéo lệch cả thứ tự bảng. */
+{
+  const p = veRoiLuu((tren, oMa) => {
+    oMa.forEach(o => { if (o.__tong && o.getAttribute('data-mang-tong') === 'Funzone') o.value = ''; });
+  });
+  const m = {}; (p.mangTk || []).forEach(x => { m[x.pll] = x; });
+  teq('🔴 xoá trắng ô mã tổng thì mã ấy mất thật', '', (m['Funzone'] || {}).nhomTk);
+  teq('   nhưng dòng vẫn còn, kèm Từ khóa', 'Funzone', (m['Funzone'] || {}).tuKhoa);
+  teq('   và mảng ngoài tầm nhìn không hề gì', '6415', (m['Rạp'] || {}).nhomTk);
+}
+/* Ô mã tổng KHÔNG được lẫn vào mã của loại chi phí — hai bộ chọn khác nhau trên cùng bảng. */
+{
+  const p = veRoiLuu((tren, oMa) => {
+    oMa.forEach(o => { if (o.__tong) o.value = '9999'; });
+  });
+  const lan = (p.tkNoMatrix || []).filter(x => String(x.tkNo) === '9999');
+  teq('🔴 mã tổng KHÔNG chui vào bảng mã của loại chi phí', 0, lan.length);
 }
 
 /* ── 3. LỜI CHÚ THÍCH NÓI ĐÚNG BỐ CỤC MỚI ──────────────────────────────────────────────── */

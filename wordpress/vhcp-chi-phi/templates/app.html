@@ -9237,6 +9237,45 @@
     try{ localStorage.setItem('vhcp_mx_sap', v); }catch(e){}
     renderTkNoMatrix();
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * MÃ TỔNG CỦA MỘT MẢNG — anh Thắng 12/09/2026: *"Chỗ mảng mình sẽ mở ngoặc ra. Tức kiểu nó
+   * là số tổng. VD TUTU MN (6410) Cơ sở 64106…"*, *"Còn FZ MN (6412)"*.
+   *
+   * 🔴 KHÔNG ĐẺ THÊM BẢNG. Mã tổng đã có sẵn chỗ ở: cột "Nhóm TK" của bảng 🧭 Mảng kinh doanh
+   *    → nhóm tài khoản. Trước nay nó chỉ dùng để ghép hàng loạt nên nằm khuất; nay kéo lên
+   *    ngay cạnh tên mảng cho khai tại chỗ. Đẻ một bảng thứ hai cho cùng một con số là hai nơi
+   *    khai, và hai nơi thì sớm muộn lệch nhau.
+   *
+   * 🔴 GỢI Ý, KHÔNG TỰ GHI. Máy chỉ bày con số đoán được vào chỗ chữ mờ; ô vẫn trống cho tới
+   *    khi anh gõ. Tự điền là một con số máy đoán nằm lẫn giữa những con số người khai, và về
+   *    sau không ai phân biệt được cái nào đáng tin.
+   *
+   * ⚠️ ĐOÁN THEO CỘT TRÁI NHẤT CÓ MÃ 5 CHỮ SỐ, không theo "mã hay gặp nhất". Anh Thắng:
+   *    *"đối với loại chi phí setup và tháo dỡ thì nó là chi phí CHUNG nên không theo quy
+   *    luật"* — đúng vậy: 64125 nằm ở cả FZ, FARM lẫn EVENT. Đếm số lần thì mã chung ấy thắng
+   *    ở những mảng khai ít ô, và EVENT FZ MN (chỉ 3 ô: 64196 · 64125 · 64125) đoán ra 6412
+   *    thay vì 6419. Cột trái nhất là "Chi phí cơ sở" — mã riêng của mảng — nên tránh được.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  function _mangTong(mang){
+    var m=String(mang||'').trim().toLowerCase();
+    var ra='';
+    (CFG.mangTk||[]).forEach(function(x){
+      if(ra) return;
+      if(String(x.pll||'').trim().toLowerCase()===m) ra=String(x.nhomTk||'').trim();
+    });
+    return ra;
+  }
+  /** Con số đoán được cho ô còn trống. '' nếu không đoán nổi. */
+  function _mangTongDoan(mang, rows, mx){
+    for(var i=0;i<rows.length;i++){
+      var o=String(mx[String(rows[i].ten||'')+'|'+mang]||'');
+      var m=o.split('|')[0].trim().replace(/\.0+$/,'');
+      /* Chỉ mã 5 chữ số mới cắt ra cấp mảng được. Mã 4 số (6320 · 6322) là hệ khác — cắt nó
+         ra "632" là một cấp chẳng nói lên mảng nào. */
+      if(/^\d{5}$/.test(m)) return m.slice(0,4);
+    }
+    return '';
+  }
   /** Mã nhỏ nhất của một mảng, theo thứ tự CÂY. '' nếu mảng ấy chưa khai mã nào. */
   function _mxMaGoc(mang, rows, mx){
     var nho='';
@@ -9255,7 +9294,11 @@
   function _mxSapCols(cols, rows, mx){
     if(MX_SAP!=='tk') return cols.slice().sort();      // theo mảng: A→Z, như cũ
     return cols.slice().sort(function(a,b){
-      var ma=_mxMaGoc(a,rows,mx), mb=_mxMaGoc(b,rows,mx);
+      /* 🔴 MÃ TỔNG THẮNG, vì nó là con số anh Thắng khai cho chính mảng ấy. Mã nhỏ nhất chỉ
+         là đường lui cho mảng chưa khai tổng — và nó chính là chỗ đẩy EVENT FZ MN xuống cuối
+         (mảng ấy bỏ trống mấy ô NVL nên mã nhỏ nhất là 64125 của chi phí chung, không phải
+         6329 như ba mảng EVENT kia). Khai tổng 6419 là nó về đúng chỗ với anh em nó. */
+      var ma=_mangTong(a)||_mxMaGoc(a,rows,mx), mb=_mangTong(b)||_mxMaGoc(b,rows,mx);
       /* Chưa khai mã thì xuống cuối — chuỗi rỗng vốn so ra nhỏ nhất, để nguyên là nó chiếm
          mấy hàng đầu. */
       if(ma==='' && mb!=='') return 1;
@@ -9325,7 +9368,14 @@
         +rows.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
         +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
         +_mxSapCols(g.cols, rows, mx).map(function(c){
-            return '<tr><td style="font-weight:600;position:sticky;left:0;background:#fff;z-index:1">'+esc(c)+'</td>'
+            var _t=_mangTong(c), _d=_mangTongDoan(c, rows, mx);
+            return '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'
+              +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#0f766e;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
+              +'<input value="'+esc(_t)+'" data-mang-tong="'+esc(c)+'" list="tkChartList"'
+              +' placeholder="'+(_d?('mã tổng? VD '+esc(_d)):'mã tổng của mảng')+'"'
+              +' title="Số tổng của cả mảng — VD TUTU MN là 6410, các ô bên phải là 64106 · 64105…&#10;Để trống cũng không sao: nó chỉ dùng để bày trong ngoặc và để xếp theo số tài khoản."'
+              +' style="width:100%;margin-top:3px;font-size:11.5px;font-family:Consolas,monospace">'
+              +'</td>'
               +rows.map(function(x){
                   var ten=String(x.ten||'');
                   return '<td><input list="tkChartList" value="'+esc(mx[ten+'|'+c]||'')+'" placeholder="—" style="width:100%"'
@@ -9809,7 +9859,40 @@
       if(!loaiCon[ten.toLowerCase()]) return;       // loại đã bị xoá -> mã của nó đi theo
       mx.push({nhom:ten, pll:pll, tkNo:v});
     });
-    _saveCfg({loaiChiPhi:dm, tkNoMatrix:mx},'Đã lưu bảng loại chi phí');
+    /* ══════════════════════════════════════════════════════════════════════════════════
+     * MÃ TỔNG CỦA MẢNG — ghi vào cột "Nhóm TK" của bảng `mangTk`, là chỗ nó vốn ở.
+     *
+     * 🔴 GỘP, KHÔNG GHI ĐÈ CẢ BẢNG. `mangTk` còn hai cột nữa (Từ khóa · Ghi chú) và còn dòng
+     *    của những mảng KHÔNG hiện trên màn này — người POSH chỉ thấy bảng POSH. Gửi đúng
+     *    những gì đọc được là mọi thứ ngoài tầm nhìn bay sạch chỉ vì bên kia bấm Lưu một cái,
+     *    im lặng. Cùng lẽ với khối giữ mã ở trên.
+     *
+     * ⚠️ Ô ĐỂ TRỐNG = XOÁ mã tổng của đúng mảng ấy, và chỉ mảng ấy. Giữ lại giá trị cũ khi ô
+     *    trống thì không ai xoá được một mã tổng gõ nhầm — mà gõ nhầm ở đây kéo theo cả thứ tự
+     *    bảng khi xếp theo số tài khoản. */
+    var tongMoi={}, coTren={};
+    Array.prototype.forEach.call(document.querySelectorAll('.mxNoBody input[data-mang-tong]'), function(inp){
+      var pll=String(inp.getAttribute('data-mang-tong')||'').trim(); if(!pll) return;
+      coTren[pll.toLowerCase()]=1;
+      tongMoi[pll.toLowerCase()]=String(inp.value||'').trim();
+    });
+    var mangTk=[], daMang={};
+    (CFG.mangTk||[]).forEach(function(x){
+      var pll=String(x.pll||'').trim(); if(!pll) return;
+      var k=pll.toLowerCase(); daMang[k]=1;
+      mangTk.push({ pll:pll,
+        nhomTk: coTren[k] ? tongMoi[k] : String(x.nhomTk||''),
+        tuKhoa: String(x.tuKhoa||''), note: String(x.note||'') });
+    });
+    /* Mảng vừa khai mã tổng lần đầu thì chưa có dòng nào trong `mangTk` — thêm mới. */
+    Object.keys(coTren).forEach(function(k){
+      if(daMang[k] || !tongMoi[k]) return;
+      var ten=''; Array.prototype.forEach.call(document.querySelectorAll('.mxNoBody input[data-mang-tong]'), function(inp){
+        if(!ten && String(inp.getAttribute('data-mang-tong')||'').trim().toLowerCase()===k) ten=String(inp.getAttribute('data-mang-tong')||'').trim();
+      });
+      if(ten) mangTk.push({ pll:ten, nhomTk:tongMoi[k], tuKhoa:'', note:'' });
+    });
+    _saveCfg({loaiChiPhi:dm, tkNoMatrix:mx, mangTk:mangTk},'Đã lưu bảng loại chi phí');
   }
   // Điền mã tài khoản cho dòng CŨ ở MỌI mảng (sổ chi phí · đơn · kỹ thuật · marketing · công tác/setup)
   function ganMaTK(){

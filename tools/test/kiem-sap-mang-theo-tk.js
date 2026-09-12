@@ -37,14 +37,14 @@ function boc(ten) {
 }
 /* `MX_SAP` là biến ngoài hàm và đọc localStorage — bệ thử thay bằng một biến thường để đổi
    được chế độ, chứ không giả localStorage: bài kiểm canh LUẬT SẮP XẾP, không canh chỗ nhớ. */
-const F = new Function('MX_SAP_INIT',
-  'var MX_SAP=MX_SAP_INIT;' + boc('_mxMaGoc') + boc('_mxSapCols')
-  + '; return { maGoc:_mxMaGoc, sap:_mxSapCols, dat:function(v){MX_SAP=v;} };');
+const F = new Function('MX_SAP_INIT', 'CFG',
+  'var MX_SAP=MX_SAP_INIT;' + boc('_mangTong') + boc('_mangTongDoan') + boc('_mxMaGoc') + boc('_mxSapCols')
+  + '; return { maGoc:_mxMaGoc, sap:_mxSapCols, tong:_mangTong, doan:_mangTongDoan };');
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 1. 🔴 THỨ TỰ CÂY — chỗ so số sẽ sai
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-const A = F('tk');
+const A = F('tk', { mangTk: [] });
 /* Mỗi "mảng" ở đây chỉ khai đúng một mã, để phép so thứ tự không bị mã khác chen vào. */
 function xepTheoMa(danh) {
   const cols = Object.keys(danh);
@@ -95,7 +95,7 @@ teq('   ba mảng cùng mã gốc thì giữ A→Z',
   ['EVENT GHOST MN', 'EVENT SNOW MN', 'EVENT VR MN'],
   A.sap(COLS, ROWS, MX).filter(x => x.indexOf('EVENT') === 0 && x !== 'EVENT FZ MN'));
 
-const B = F('mang');
+const B = F('mang', { mangTk: [] });
 teq('🔴 xếp theo mảng vẫn là A→Z như cũ', COLS.slice().sort(), B.sap(COLS, ROWS, MX));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
@@ -122,6 +122,50 @@ teq('   và không lẫn với mã 64120', '6412',
 
 teq('mảng chưa khai gì trả mã gốc rỗng', '', A.maGoc('M', [{ ten: 'L' }], {}));
 teq('danh sách rỗng thì không nổ', [], A.sap([], ROWS, MX));
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 3b. MÃ TỔNG CỦA MẢNG — "TUTU MN (6410)"
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 12/09/2026: *"Chỗ mảng mình sẽ mở ngoặc ra. Tức kiểu nó là số tổng. VD TUTU MN
+ * (6410) Cơ sở 64106…"*, *"Còn FZ MN (6412)"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+const C = F('tk', { mangTk: [
+  { pll: 'TUTU MN', nhomTk: '6410' },
+  { pll: 'FZ MN',   nhomTk: '6412' },
+] });
+teq('🔴 đọc mã tổng đã khai', '6410', C.tong('TUTU MN'));
+teq('   không phân biệt hoa thường', '6412', C.tong('fz mn'));
+teq('   mảng chưa khai thì rỗng', '', C.tong('FARM MN'));
+
+/* 🔴 ĐOÁN THEO CỘT TRÁI NHẤT CÓ MÃ 5 CHỮ SỐ. Anh Thắng: *"đối với loại chi phí setup và tháo
+   dỡ thì nó là chi phí CHUNG nên không theo quy luật"* — 64125 nằm ở cả FZ, FARM lẫn EVENT.
+   Đếm số lần thì mã chung ấy thắng ở mảng khai ít ô, và EVENT FZ MN (chỉ 3 ô: 64196 · 64125 ·
+   64125) đoán ra 6412 thay vì 6419. Phép dưới canh đúng ca ấy — nó là lý do luật này tồn tại. */
+teq('   đoán cho TUTU MN',  '6410', C.doan('TUTU MN', ROWS, MX));
+teq('   đoán cho FARM MN',  '6416', C.doan('FARM MN', ROWS, MX));
+teq('🔴 đoán ĐÚNG cho EVENT FZ MN dù nó khai ít ô', '6419', C.doan('EVENT FZ MN', ROWS, MX));
+/* Mã 4 chữ số (6320 · 6322) là hệ khác — cắt ra "632" là một cấp chẳng nói lên mảng nào. */
+teq('🔴 bỏ qua mã 4 chữ số, không cắt bừa', '',
+  C.doan('M', [{ ten: 'L' }], { 'L|M': '6320' }));
+teq('   mảng trống thì không đoán nổi', '', C.doan('M', [{ ten: 'L' }], {}));
+
+/* 🔴 XẾP THEO SỐ TK: MÃ TỔNG THẮNG mã nhỏ nhất. Đây chính là chỗ kéo EVENT FZ MN về đúng chỗ
+   với ba mảng EVENT kia — mã nhỏ nhất của nó là 64125 (chi phí chung) nên nó rơi xuống cuối. */
+const D = F('tk', { mangTk: COLS.map(c => ({ pll: c, nhomTk: c.indexOf('EVENT') === 0 ? '6419'
+  : (c === 'FARM MN' ? '6416' : (c === 'FZ MN' ? '6412' : '6410')) })) });
+teq('🔴 khai mã tổng xong, EVENT FZ MN về đúng chỗ với anh em nó',
+  ['TUTU MN', 'FZ MN', 'FARM MN', 'EVENT FZ MN', 'EVENT GHOST MN', 'EVENT SNOW MN', 'EVENT VR MN'],
+  D.sap(COLS, ROWS, MX));
+/* Mảng chưa khai tổng vẫn lui về mã nhỏ nhất, không bị đẩy xuống cuối như mảng trắng trơn.
+   ⚠️ Dữ liệu chọn sao cho HAI CÁCH RA HAI KẾT QUẢ KHÁC NHAU, không thì phép xanh cả khi mã
+      tổng bị bỏ qua hoàn toàn: FZ MN khai tổng 6300 (nhỏ hơn mã nhỏ nhất 6322 của chính nó),
+      còn TUTU MN không khai nên lui về 6320. Có dùng mã tổng → FZ trước; không dùng → TUTU
+      trước, vì 6320 < 6322. */
+const E = F('tk', { mangTk: [{ pll: 'FZ MN', nhomTk: '6300' }] });
+teq('🔴 mã tổng của FZ thắng, còn TUTU lui về mã nhỏ nhất 6320',
+  ['FZ MN', 'TUTU MN'], E.sap(['TUTU MN', 'FZ MN'], ROWS, MX));
+teq('   (đối chứng) không ai khai tổng thì TUTU lên trước',
+  ['TUTU MN', 'FZ MN'], A.sap(['TUTU MN', 'FZ MN'], ROWS, MX));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * 4. 🔴 HAI NÚT PHẢI BẤM ĐƯỢC — CÁI KHÓA CỦA BẢNG MÃ KHÔNG ĐƯỢC NUỐT CHÚNG
