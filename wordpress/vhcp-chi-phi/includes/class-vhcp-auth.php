@@ -132,7 +132,7 @@ class VHCP_Auth {
 	}
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════
-	 * MỘT ĐƠN CÓ NẰM TRONG TẦM NHÌN CỦA NGƯỜI ĐANG GỌI KHÔNG.
+	 * MỘT BẢN GHI CÓ NẰM TRONG TẦM NHÌN CỦA NGƯỜI ĐANG GỌI KHÔNG.
 	 *
 	 * Anh Thắng 12/09/2026 vạch cơ cấu:
 	 *   · *"Cửa hàng trưởng trở xuống — chỉ xem được cơ sở mình quản lý"*
@@ -153,12 +153,16 @@ class VHCP_Auth {
 	 * ⚠️ VẪN GIỮ VẾ "ĐƠN CỦA MÌNH" cho cả hai vai. Bỏ đi là người lập đơn cho một cơ sở vừa
 	 *    bị gỡ khỏi danh sách phụ trách mất luôn chính cái đơn mình đang làm dở.
 	 *
-	 * @param string $nguoi_lap Tên người lập đơn.
-	 * @param string $coso      Chuỗi cơ sở của đơn — có thể là "A, B" gom từ nhiều dòng chi.
+	 * 🔴 DÙNG CHO CẢ ĐƠN LẪN DÒNG SỔ CHI PHÍ. Hai sổ, một câu hỏi — nên một hàm. Chép luật ra
+	 *    hai nơi là sớm muộn hai nơi lệch, và lệch ở đây nghĩa là một màn lọc còn màn kia thì
+	 *    không (đúng chuyện đã xảy ra với sổ chi phí, soi ra 12/09/2026).
+	 *
+	 * @param string $nguoi_tao Tên người lập đơn — hoặc người nhập dòng, với sổ chi phí.
+	 * @param string $coso      Chuỗi cơ sở — có thể là "A, B" gom từ nhiều dòng chi.
 	 *                          Chỉ cần MỘT cơ sở nằm trong tầm là đọc được.
 	 * @return bool
 	 */
-	public static function don_trong_tam( $nguoi_lap, $coso ) {
+	public static function trong_tam( $nguoi_tao, $coso ) {
 		$la_nv = self::la_nhan_vien();
 		$la_ql = ( self::$vai_tro === 'Quản lý' );
 		if ( ! $la_nv && ! $la_ql ) { return true; }   // Admin · Kế toán: không bó theo cơ sở
@@ -168,7 +172,7 @@ class VHCP_Auth {
 		if ( $la_ql && ! $ds ) { return true; }
 
 		$toi = mb_strtolower( trim( (string) self::nguoi() ) );
-		if ( '' !== $toi && mb_strtolower( trim( (string) $nguoi_lap ) ) === $toi ) { return true; }
+		if ( '' !== $toi && mb_strtolower( trim( (string) $nguoi_tao ) ) === $toi ) { return true; }
 		foreach ( explode( ',', (string) $coso ) as $cs ) {
 			if ( self::trong_coso( $cs ) ) { return true; }
 		}

@@ -860,7 +860,7 @@ class VHCP_Don {
 		 *    hình chỉ được nhét vào thẻ phiên rồi thôi — không chỗ nào ở máy chủ đọc tới, nên
 		 *    khai ba cơ sở hay ba mươi cũng như nhau: danh sách vẫn chỉ lọc theo NGƯỜI LẬP.
 		 *
-		 * ⚠️ LUẬT ĐẦY ĐỦ nằm trong `VHCP_Auth::don_trong_tam()` — kể cả chỗ hai vai hiểu ô Cơ
+		 * ⚠️ LUẬT ĐẦY ĐỦ nằm trong `VHCP_Auth::trong_tam()` — kể cả chỗ hai vai hiểu ô Cơ
 		 *    sở RỖNG theo hai nghĩa ngược nhau. Để nó ở Auth vì `VHCP_Duan` và `VHCP_Bp` cũng
 		 *    phải hỏi đúng câu ấy; chép luật ra ba nơi là sớm muộn ba nơi lệch.
 		 *
@@ -869,7 +869,7 @@ class VHCP_Don {
 		 *    người phụ trách một trong các cơ sở ấy vẫn phải theo dõi được phần của mình.
 		 */
 		$out = array_values( array_filter( $out, function ( $x ) {
-			return VHCP_Auth::don_trong_tam( (string) $x['nguoiLap'], (string) $x['coso'] );
+			return VHCP_Auth::trong_tam( (string) $x['nguoiLap'], (string) $x['coso'] );
 		} ) );
 		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
 		   sách đơn · duyệt tạm ứng · quyết toán · thừa/thiếu · báo cáo · xuất MISA) đều múc
@@ -902,7 +902,7 @@ class VHCP_Don {
 		   LIỆU được bộ phận cơ sở mình quản lý"*. Trước bản này dòng thoát sớm ở đây bỏ qua
 		   mọi vai không phải Nhân viên, nên quản lý khai đúng ba cơ sở của mình vẫn sửa được
 		   đơn của cơ sở bất kỳ. Nay cả hai vai đi xuống cùng một chốt; Admin và Kế toán vẫn
-		   thoát — `don_trong_tam()` trả `true` ngay cho họ. */
+		   thoát — `trong_tam()` trả `true` ngay cho họ. */
 		if ( ! VHCP_Auth::la_nhan_vien() && 'Quản lý' !== VHCP_Auth::vai_tro() ) { return ''; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return 'Không tìm thấy đơn ' . $ma_don . ' trong sổ.'; }
@@ -915,8 +915,8 @@ class VHCP_Don {
 		   tưởng hệ thống hỏng chứ không nghĩ là hai chốt khai khác nhau.
 		   Phạm vi: đơn có ÍT NHẤT MỘT dòng chi thuộc cơ sở mình phụ trách. Dùng chính
 		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu, và hỏi
-		   đúng cái hàm mà danh sách đang hỏi (`don_trong_tam`) để hai bên không thể lệch. */
-		if ( VHCP_Auth::don_trong_tam( (string) $d['nguoi_lap'], implode( ', ', self::cac_coso_cua_don( $ma_don ) ) ) ) { return ''; }
+		   đúng cái hàm mà danh sách đang hỏi (`trong_tam`) để hai bên không thể lệch. */
+		if ( VHCP_Auth::trong_tam( (string) $d['nguoi_lap'], implode( ', ', self::cac_coso_cua_don( $ma_don ) ) ) ) { return ''; }
 		return 'Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách.';
 	}
 

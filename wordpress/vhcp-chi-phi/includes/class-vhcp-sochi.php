@@ -222,6 +222,35 @@ class VHCP_SoChi {
 			   thuộc bộ phận ấy. Cùng chỗ với chốt đơn vị, vì cùng một lý do — lọc trước khi
 			   gom các ô lọc, không thì ô lọc vẫn bày kỳ và loại của mảng khác. */
 			if ( ! VHCP_Auth::xem_duoc_loai( isset( $r['loai'] ) ? $r['loai'] : '' ) ) { continue; }
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 VÀ LỌC THEO CƠ SỞ PHỤ TRÁCH — CHỐT NÀY TỪNG THIẾU HẲN.
+			 *
+			 * Anh Thắng 12/09/2026: *"Cửa hàng trưởng trở xuống — chỉ xem được cơ sở mình quản
+			 * lý"*. Soi trọn luồng ngay hôm ấy thì sổ chi phí là màn DUY NHẤT còn hở: danh sách
+			 * đơn, ô tìm, sổ lệnh, xuất MISA, bootstrap đều lọc đúng, riêng đây thì không.
+			 *
+			 * 🔴 `$scope` BÊN DƯỚI KHÔNG PHẢI CHỐT QUYỀN, đừng nhầm. Nó đọc từ `coso_scope` —
+			 *    một tham số do MÀN gửi lên — nên nó là Ô LỌC của người dùng, không phải hàng
+			 *    rào. Ai gọi thẳng cổng API mà không gửi tham số ấy thì nhận về cả sổ của mọi
+			 *    cơ sở. Lọc ở giao diện thì dữ liệu đã nằm trên máy người ta rồi.
+			 *
+			 * ⚠️ HỎI ĐÚNG CÁI HÀM MÀ DANH SÁCH ĐƠN ĐANG HỎI. Chép lại luật ở đây là hai sổ hiểu
+			 *    "cơ sở mình quản lý" theo hai kiểu, và không ai phát hiện ra cho tới lúc một
+			 *    người thấy dòng chi của mình ở màn này mà không thấy ở màn kia.
+			 *    `nguoi_nhap` đóng vai "người lập": ai tự tay nhập một dòng thì vẫn đọc lại
+			 *    được nó, kể cả khi cơ sở ấy vừa bị gỡ khỏi danh sách họ phụ trách.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			/* ⚠️ DÒNG CHƯA KHAI CƠ SỞ THÌ CHO QUA — cùng luật với "loại chưa khai bộ phận" ở
+			   `xem_duoc_loai()`, và vì đúng lý do ấy: sổ chi phí của anh Thắng dựng từ sổ cũ,
+			   rất nhiều dòng còn bỏ trống ô Cơ sở. Chặn chúng lại là ngày bản này lên, nhân
+			   viên mở màn ra thấy gần như trắng — và họ sẽ kết luận là mất dữ liệu chứ không
+			   đoán ra là do một ô chưa khai. `kiem-vai-bo-bo-phan.php` đỏ đúng chỗ này.
+			   Vế "của mình" thì KHÔNG nới: người nhập rỗng mà cơ sở cũng rỗng thì đây là dòng
+			   vô chủ, và vô chủ nghĩa là ai trong nhà cũng đọc được — không phải ai cũng SỬA
+			   được, cửa sửa gác riêng. */
+			$cs_dong = trim( (string) ( isset( $r['coso'] ) ? $r['coso'] : '' ) );
+			if ( '' !== $cs_dong && ! VHCP_Auth::trong_tam(
+					isset( $r['nguoi_nhap'] ) ? $r['nguoi_nhap'] : '', $cs_dong ) ) { continue; }
 			$ky_set[ (string) $r['ky'] ] = 1;
 			if ( trim( (string) $r['loai'] ) !== '' ) { $loai_set[ (string) $r['loai'] ] = 1; }
 			if ( trim( (string) $r['tk_no'] ) !== '' ) { $tk_set[ (string) $r['tk_no'] ] = 1; }
