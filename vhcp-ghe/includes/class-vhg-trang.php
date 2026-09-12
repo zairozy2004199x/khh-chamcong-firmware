@@ -8614,18 +8614,23 @@ function veQuanLy(){
   _mt.trung.forEach(function(t){ maTrungSet[String(t.ma)] = true; });
   may.forEach(function(m){
     if (m.an) return;
-    if (m.coso) { (maTheoCoso[m.coso] = maTheoCoso[m.coso] || []).push(m.ma); }
-    else { maChuaGan.push(m.ma); }
+    var it = { ma: m.ma, ten: m.ten || '' };
+    if (m.coso) { (maTheoCoso[m.coso] = maTheoCoso[m.coso] || []).push(it); }
+    else { maChuaGan.push(it); }
   });
+  /* Mỗi ghế: MÃ (ô) kèm TÊN máy — anh Thắng 12/09/2026: "mã thì phải kèm tên máy chứ". Mã trùng
+     (nằm ở ≥2 cơ sở) tô ĐỎ cả cụm. */
   function dsMaHtml_(list){
     if (!list || !list.length) return '<span class="mut">—</span>';
-    return list.slice().sort(function(a,b){ return String(a).localeCompare(String(b), undefined, {numeric:true}); })
-      .map(function(ma){
-        var d = maTrungSet[String(ma)];
-        return '<code style="font-size:11px;padding:1px 4px;border-radius:4px;background:#f1f5f9;'
-          + (d ? 'color:#dc2626;font-weight:800;background:#fee2e2' : '') + '"'
-          + (d ? ' title="' + L('Mã TRÙNG — cần đổi','Duplicate code — rename') + '"' : '') + '>' + esc(ma) + '</code>';
-      }).join(' ');
+    return list.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); })
+      .map(function(o){
+        var d = maTrungSet[String(o.ma)];
+        var ten = o.ten ? ' <span style="font-size:11px;color:' + (d ? '#dc2626' : '#475569') + '">' + esc(o.ten) + '</span>' : '';
+        return '<span style="display:inline-block;margin:2px 8px 2px 0;white-space:nowrap;' + (d ? 'font-weight:800' : '') + '"'
+          + (d ? ' title="' + L('Mã TRÙNG (ở nhiều cơ sở) — cần đổi','Duplicate code (multiple sites) — rename') + '"' : '') + '>'
+          + '<code style="font-size:11px;padding:1px 4px;border-radius:4px;background:' + (d ? '#fee2e2;color:#dc2626' : '#f1f5f9') + '">' + esc(o.ma) + '</code>'
+          + ten + '</span>';
+      }).join('');
   }
   if (_mt.trung.length || _mt.long.length) {
     h += '<div class="card" style="border:1px solid #f0c0c0;background:#fff5f5">'
