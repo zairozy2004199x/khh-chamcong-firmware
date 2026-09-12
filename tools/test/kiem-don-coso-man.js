@@ -131,7 +131,9 @@ function beTao() {
      bỏ qua một nút chưa dựng xong trên màn thật — không giả mạo hành vi nào. */
   const O = id => ({ _id: id, style: { display: '' }, value: id === 'daLoai' ? 'Setup lắp đặt' : '',
     textContent: '', innerHTML: '', placeholder: '', className: 'btn b-x',
-    querySelector: () => null });
+    /* `<select>` thật luôn có `options`; ô giả thiếu nó thì `_apLoaiDa()` nổ, và bài kiểm chết
+       giữa chừng vì LỖI CỦA BỆ ĐỠ chứ không phải của mã. */
+    options: [], querySelector: () => null });
   const moi = {
     DA_ITEMS: [], DA_TUAN: [], DA_NHOM: '', DA_CUR: null, DA_CHO_KEO: false,
     /* Người này vào được cả hai loại đơn -> lối "Đơn tuần của cơ sở" trong khối tạo có hiện. */
@@ -156,7 +158,11 @@ function beTao() {
      chứ đừng khai hàm rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm, mà nó đang đụng vào
      đúng hai nút bài kiểm này soi. */
   const bangTen = (/var TEN_LOAI_BP=\{[\s\S]*?\n  \};/.exec(HTML) || [''])[0];
-  const src = `${bangTen}\n${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
+  /* `daMoTao()` cũng đổ lại ô "Loại dự án" — bốc cả bảng loại và hàm áp vào, đừng khai hàm
+     rỗng: khai rỗng là bỏ dòng gọi ấy ra khỏi tầm kiểm của bài này. */
+  const bangLoai = (/var LOAI_DA_DS=\[[\s\S]*?\n  \];/.exec(HTML) || [''])[0];
+  const src = `${bangTen}\n${bangLoai}\n${boc('_apLoaiDa')}
+    ${boc('_tenNhom')}\n${boc('_tenNhomBp')}\n${boc('_apTenNhom')}
     ${boc('_p2')}\n${boc('_ngayISO')}\n${boc('_mondayOf')}\n${boc('_kyRange')}
     ${boc('_daTenTuan')}\n${boc('_daTuanDs')}\n${boc('daNapTuan')}\n${boc('daOnLoai')}
     ${boc('_tabDuoc')}\n${boc('_daHienHoi')}\n${boc('daDoiLoai')}

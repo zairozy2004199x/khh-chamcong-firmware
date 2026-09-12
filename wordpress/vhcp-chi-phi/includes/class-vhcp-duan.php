@@ -75,7 +75,10 @@ class VHCP_DuAn {
 			return ( '' === $ten_cs ) ? self::ensure_co_so_chung( $nguoi ) : self::tao_don_coso( $ten_cs, $nguoi, $tu, $den );
 		}
 		$ten = VHCP_Util::san( $ten );
-		if ( ! in_array( $loai, array( 'Tháo dỡ', 'Setup lắp đặt' ), true ) ) { return VHCP_Util::err( 'Loại không hợp lệ' ); }
+		if ( ! in_array( $loai, self::LOAI_DU_AN, true ) ) {
+			return VHCP_Util::err( 'Loại dự án không hợp lệ: "' . $loai . '". Hợp lệ: '
+				. implode( ' · ', self::LOAI_DU_AN ) . '.' );
+		}
 		if ( $ten === '' ) { return VHCP_Util::err( 'Nhập tên dự án' ); }
 		$ma = VHCP_Util::uid( 'DA' );
 		$wpdb->insert( VHCP_DB::t( 'da_index' ), array(
@@ -115,6 +118,23 @@ class VHCP_DuAn {
 
 	/** Tên loại của đơn chi phí cơ sở — thứ phân biệt "đơn" với "dự án" trên mọi màn. */
 	const LOAI_COSO = 'Chi phí cơ sở';
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * LOẠI DỰ ÁN HỢP LỆ — KHAI Ở MỘT CHỖ.
+	 *
+	 * Anh Thắng 12/09/2026, nhìn ô "LOẠI DỰ ÁN" của nhân viên Marketing vẫn xổ ra Setup lắp
+	 * đặt / Tháo dỡ: *"sai hạng mục rồi"*. Đúng — hai cái đó là việc của Kỹ thuật. Marketing
+	 * lập dự án cho *"Bán vé sớm, Khai trương, Sự kiện"*.
+	 *
+	 * 🔴 ĐÂY LÀ LOẠI LƯU XUỐNG SỔ, KHÔNG PHẢI NHÃN TRÊN MÀN. Khác hẳn việc đổi tên hai cái nút
+	 *    ở bản 1.143.0 — chỗ ấy chỉ đổi chữ, còn `loai` giữ nguyên. Ở đây ba loại mới là ba
+	 *    thứ có thật, cần đứng riêng trong báo cáo và bản xuất, nên chúng phải vào sổ.
+	 *
+	 * ⚠️ CHỈ THÊM, KHÔNG ĐỔI TÊN CÁI CŨ. 'Setup lắp đặt' và 'Tháo dỡ' đang nằm trên hàng trăm
+	 *    dòng trong sổ; đổi chữ là mọi dòng cũ rơi ra ngoài mọi bộ lọc, và `loai_cp_mac_dinh()`
+	 *    không tra được mã tài khoản cho chúng nữa.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const LOAI_DU_AN = array( 'Setup lắp đặt', 'Tháo dỡ', 'Bán vé sớm', 'Khai trương', 'Sự kiện' );
 
 	/**
 	 * Dự án này thật ra là một ĐƠN chi phí cơ sở (theo tuần), không phải dự án Setup/Tháo dỡ.
@@ -1075,7 +1095,12 @@ class VHCP_DuAn {
 			else { self::hm_ghi_( $ma_da, $r, array( 'tt' => $tt, 'dot' => (int) $d['dot'],
 				'unc' => isset( $sua['unc'] ) ? $sua['unc'] : $h['unc'] ) ); }
 		}
-		return VHCP_Util::ok( array( 'dot' => $moi ) );
+
+		/* 🔴 MÓC 1/2 CỦA LUẬT "ĐƠN CƠ SỞ TỰ QUYẾT TOÁN": vừa CẤP TIỀN xong. Hạng mục nào đã đủ
+		   hoá đơn từ trước thì chốt luôn. Xem khối 🔴 ở `tu_quyet_toan_coso()`. */
+		$tu_qt = array( 'so' => 0 );
+		if ( 'ung' === $tt ) { $tu_qt = self::tu_quyet_toan_coso( $ma_da, $d['rows'] ); }
+		return VHCP_Util::ok( array( 'dot' => $moi, 'tuQuyetToan' => (int) $tu_qt['so'] ) );
 	}
 
 	/**
@@ -1133,6 +1158,113 @@ class VHCP_DuAn {
 		), 'Gửi quyết toán dự án', 'qt' );
 		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'qtDot' => $dot ) ); }
 		return VHCP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * ĐƠN CHI PHÍ CƠ SỞ TỰ QUYẾT TOÁN — THANH TOÁN MỘT LẦN.
+	 *
+	 * Anh Thắng 11/09/2026: *"Đơn chi phí cơ sở là đơn thanh toán 1 lần, khi cấp tiền và đủ hóa
+	 * đơn, cấp xong nó tự đẩy sang đã quyết toán luôn"*.
+	 *
+	 * 🔴 HAI ĐIỀU KIỆN, VÀ CÁI NÀO XONG SAU THÌ CÁI ĐÓ ĐẨY.
+	 *    Thứ tự thật ngoài đời không cố định: có tuần kế toán cấp tiền trước rồi nhân viên mới
+	 *    về đính hoá đơn; có tuần nhân viên đính hoá đơn từ hôm trước, hôm sau kế toán mới
+	 *    chuyển khoản. Chỉ đẩy ở một nhánh thì nửa số đơn nằm treo mãi ở "chờ chốt", mà nhìn
+	 *    màn không có gì nói vì sao. Nên móc ở CẢ HAI chỗ, và phép kiểm giống hệt nhau —
+	 *    `tu_quyet_toan_coso()` là nơi DUY NHẤT biết luật.
+	 *
+	 * 🔴 CHỈ ĐƠN CHI PHÍ CƠ SỞ. Dự án Setup/Tháo dỡ tạm ứng nhiều đợt, chi rải nhiều tháng, và
+	 *    quyết toán là lúc kế toán ngồi đối chiếu cả dự án — tự chốt sổ hộ ở đó là cướp mất
+	 *    bước đối chiếu của người giữ sổ 141.
+	 *
+	 * ⚠️ KHÔNG ĐỘNG VÀO HẠNG MỤC ĐÃ NẰM TRONG MỘT LỆNH QUYẾT TOÁN (`qtDot > 0`). Quyết toán hai
+	 *    lần cùng một khoản là tất toán gấp đôi số đã ứng — sổ 141 âm mà không ai hiểu vì sao.
+	 *
+	 * ⚠️ KHÔNG GỌI `dat_tt_qt()`. Hàm ấy gác quyền "chỉ kế toán chốt sổ" — đúng cho người bấm
+	 *    tay, nhưng ở đây chính kế toán vừa cấp tiền, hoặc nhân viên vừa đính nốt hoá đơn cho
+	 *    một khoản kế toán đã cấp. Đi qua cửa ấy là nhân viên đính hoá đơn xong nhận một câu
+	 *    chối khó hiểu. Ghi thẳng, và nói rõ trong nhật ký rằng MÁY tự chốt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Hạng mục đã đủ điều kiện tự quyết toán chưa: thuộc một lệnh tạm ứng · đã chốt hoá đơn · chưa quyết toán. */
+	private static function hm_du_tu_qt( $h ) {
+		if ( ! $h ) { return false; }
+		if ( (int) $h['qtDot'] > 0 ) { return false; }
+		if ( 'xong' !== $h['tt'] ) { return false; }
+		/* `dot > 0` = thuộc một lệnh tạm ứng. Lệnh ấy đã cấp tiền chưa thì phải hỏi chính lệnh:
+		   trạng thái hạng mục đã nhảy sang 'xong' rồi, nó không còn nhớ mình từng ở 'ung' hay
+		   chưa — mà "đã chốt hoá đơn" với "đã nhận tiền" là hai chuyện khác hẳn nhau.
+
+		   ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: đổi dòng này thành `true`
+		      KHÔNG đổi kết quả — hạng mục không thuộc lệnh nào có `dot = 0`, mà bảng `$da_cap`
+		      chỉ chứa số đợt CÓ THẬT nên `$da_cap[0]` luôn rỗng và chỗ gọi chặn tiếp. Giữ vế
+		      này vì nó nói thẳng ra điều kiện, và vì ngày nào bảng `$da_cap` đổi cách dựng thì
+		      đây là lớp chặn còn lại cho đơn 🏢 trực tiếp (kế toán trả thẳng NCC, không có lệnh
+		      tạm ứng nào — không có khoản ứng nào để tất toán). */
+		return (int) $h['dot'] > 0;
+	}
+
+	/**
+	 * Tự lập lệnh quyết toán và chốt luôn cho những hạng mục đã đủ điều kiện.
+	 *
+	 * ⚠️ LUÔN PHẢI TRUYỀN `$rows`. Từng có nhánh "rỗng = xét cả đơn" cho tiện, nhưng không lối
+	 *    gọi thật nào dùng tới — mà một nhánh không ai đi qua thì không bài kiểm nào giữ nó
+	 *    đúng, và nó vẫn nằm đó chờ người sau tin là chạy được. Cần rà cả đơn thì chỗ gọi tự
+	 *    liệt kê hạng mục lớn ra, ở đó mới biết mình đang rà cái gì.
+	 *
+	 * @param string $ma_da Mã dự án.
+	 * @param array  $rows  Hạng mục cần xét.
+	 * @return array so · dot · soTien.
+	 */
+	public static function tu_quyet_toan_coso( $ma_da, $rows ) {
+		$f = self::find( $ma_da );
+		if ( ! $f || ! self::la_don_coso( $f['loai'] ) ) { return array( 'so' => 0, 'dot' => 0 ); }
+
+		$lon = array();
+		foreach ( self::lines_of( $ma_da ) as $l ) {
+			if ( ! self::is_real( $l ) ) { continue; }
+			if ( trim( (string) $l['cap_cha'] ) !== '' ) { continue; }
+			$lon[ (int) $l['row_no'] ] = trim( (string) $l['noi_dung'] );
+		}
+		$xet = array();
+		foreach ( (array) $rows as $r ) { if ( isset( $lon[ (int) $r ] ) ) { $xet[] = (int) $r; } }
+		/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG, ghi lại để lần sau khỏi đuổi theo: bỏ dòng này KHÔNG đổi kết
+		   quả — vòng dưới chạy trên mảng rỗng nên `$nhan` rỗng, và `if ( ! $nhan )` trả về đúng
+		   thế. Giữ vì nó cắt hẳn một lượt hỏi CSDL (`get_dot`) cho lời gọi chắc chắn không có
+		   gì để làm — mà lời gọi ấy nằm trên đường cấp tiền, chỗ người dùng đang đứng đợi. */
+		if ( ! $xet ) { return array( 'so' => 0, 'dot' => 0 ); }
+
+		/* Lệnh tạm ứng nào ĐÃ CẤP TIỀN — tra một lượt, đừng hỏi trong vòng lặp. */
+		$da_cap = array();
+		foreach ( self::get_dot( $ma_da, 'tu' ) as $k => $d ) {
+			if ( 'ung' === ( isset( $d['tt'] ) ? $d['tt'] : '' ) ) { $da_cap[ (int) $k ] = 1; }
+		}
+
+		$nhan = array(); $tong = 0;
+		foreach ( array_unique( $xet ) as $r ) {
+			$h = self::hm_cua( $ma_da, $r );
+			if ( ! self::hm_du_tu_qt( $h ) ) { continue; }
+			if ( empty( $da_cap[ (int) $h['dot'] ] ) ) { continue; }   // lệnh chưa cấp tiền
+			$nhan[] = (int) $r;
+			$tong  += self::tien_hm( $ma_da, $r );
+		}
+		if ( ! $nhan ) { return array( 'so' => 0, 'dot' => 0 ); }
+
+		$ds  = self::get_dot( $ma_da, 'qt' );
+		$dot = 0;
+		foreach ( array_keys( $ds ) as $k ) { $dot = max( $dot, (int) $k ); }
+		$dot++;
+
+		/* Lập lệnh rồi CHỐT luôn — hai bước tay gộp thành một nhịp máy. Ghi thẳng 'xong' chứ
+		   không 'xin' rồi sửa: hai lượt ghi là hai dòng nhật ký cho một việc, và cái dòng giữa
+		   ("đang xin quyết toán") không tồn tại thật một giây nào. */
+		$moi = self::dot_ghi_( $ma_da, $dot, array(
+			'tt' => 'xong', 'rows' => $nhan, 'soTien' => $tong, 'lich' => array(),
+			'lyDo' => 'Tự chốt: đơn chi phí cơ sở thanh toán một lần — đã cấp tiền và đủ hoá đơn.',
+			'unc'  => '',
+		), 'Tự chốt quyết toán đơn chi phí cơ sở', 'qt' );
+		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'qtDot' => $dot ) ); }
+		return array( 'so' => count( $nhan ), 'dot' => $moi, 'soTien' => $tong );
 	}
 
 	/**
@@ -1329,7 +1461,14 @@ class VHCP_DuAn {
 		}
 		if ( 'nhap' === $tt ) { $sua['dot'] = 0; }
 		$moi = self::hm_ghi_( $ma_da, $row, $sua );
-		return VHCP_Util::ok( array( 'hm' => $moi ) );
+
+		/* 🔴 MÓC 2/2 CỦA LUẬT "ĐƠN CƠ SỞ TỰ QUYẾT TOÁN": vừa CHỐT HOÁ ĐƠN xong. Nếu khoản này
+		   đã được cấp tiền từ trước thì chốt quyết toán luôn. Xem khối 🔴 ở
+		   `tu_quyet_toan_coso()` — nó tự bỏ qua dự án Setup/Tháo dỡ và hạng mục chưa đủ điều
+		   kiện, nên gọi ở đây là an toàn cho mọi loại đơn. */
+		$tu_qt = array( 'so' => 0 );
+		if ( 'xong' === $tt ) { $tu_qt = self::tu_quyet_toan_coso( $ma_da, array( $row ) ); }
+		return VHCP_Util::ok( array( 'hm' => $moi, 'tuQuyetToan' => (int) $tu_qt['so'] ) );
 	}
 
 	// ---------------------------------------------------------------- dòng hạng mục
@@ -1688,6 +1827,10 @@ class VHCP_DuAn {
 
 	/** Loại dự án -> loại chi phí tương ứng trong danh mục (tên trùng khớp, không phải đoán). */
 	public static function loai_cp_mac_dinh( $loai_du_an ) {
+		/* ⚠️ BA LOẠI CỦA MARKETING CHƯA CÓ DÒNG RIÊNG TRONG DANH MỤC LOẠI CHI PHÍ, nên để trống
+		   ở đây là ĐÚNG: trống thì ô Loại chi phí trên màn không bị chọn sẵn một dòng sai, và
+		   người nhập tự chọn loại của họ ("Chi phí marketing", "Chi Phí MKT - Hoạt náo"…).
+		   Ngày nào anh Thắng khai dòng riêng cho chúng thì thêm vào bảng này một dòng là xong. */
 		$map = array(
 			'Tháo dỡ'       => 'Chi phí tháo dỡ',
 			'Setup lắp đặt' => 'Chi phí setup lắp đặt gian hàng mới',

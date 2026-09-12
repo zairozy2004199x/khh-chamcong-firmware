@@ -4260,6 +4260,44 @@
    * ⚠️ THÊM BỘ PHẬN THÌ KHAI VÀO ĐÂY, MỘT CHỖ. Bốn nút ở hai màn cùng đọc bảng này; rải chữ
    *    vào từng nút là bốn nơi phải nhớ sửa, mà nơi quên sẽ nói tên của bộ phận khác.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * LOẠI DỰ ÁN — MỘT DANH SÁCH CHUNG, MỌI BỘ PHẬN NHÌN GIỐNG NHAU.
+   *
+   * Anh Thắng 12/09/2026, lúc đầu chỉ ra ô "LOẠI DỰ ÁN" của Marketing vẫn xổ Setup/Tháo dỡ:
+   * *"sai hạng mục rồi"*. Em định tách danh sách theo bộ phận, nhưng anh chốt lại ngay:
+   *   *"Thôi để anh phân loại theo NỘI DUNG chung, để anh cũng dùng được, tránh việc mỗi bộ
+   *   phận một kiểu"*.
+   *
+   * 🔴 VÀ ANH ĐÚNG. Tách theo bộ phận nghe gọn nhưng đẻ ra ba cái giá phải trả:
+   *      · người kiêm hai mảng (chính anh Thắng) mở ra chỉ thấy một nửa danh sách;
+   *      · Kỹ thuật đi dựng sân khấu cho một sự kiện thì không có loại nào để chọn;
+   *      · thêm một bộ phận là phải nhớ khai thêm một danh sách, quên thì họ thấy danh sách
+   *        của bộ phận khác mà không hiểu vì sao.
+   *    Phân theo NỘI DUNG công việc thì ai làm việc gì chọn việc đó — không cần biết người ấy
+   *    thuộc phòng nào.
+   *
+   * ⚠️ `nhan` là chữ hiện trên ô chọn, `giaTri` là thứ vào sổ. Đừng gộp: sửa chữ cho dễ đọc mà
+   *    kéo theo giá trị là mọi dòng cũ rơi ra ngoài mọi bộ lọc.
+   *
+   * ⚠️ MỖI `giaTri` PHẢI CÓ TRONG `VHCP_DuAn::LOAI_DU_AN` bên máy chủ, không thì lập đơn xong
+   *    nhận câu "Loại dự án không hợp lệ" — `kiem-loai-du-an-chung.js` canh đúng chỗ đó.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  var LOAI_DA_DS=[
+    {giaTri:'Setup lắp đặt', nhan:'🆕 Chi phí Setup lắp đặt gian hàng'},
+    {giaTri:'Tháo dỡ',       nhan:'🧹 Chi phí Tháo dỡ'},
+    {giaTri:'Bán vé sớm',    nhan:'🎫 Chi phí bán vé sớm'},
+    {giaTri:'Khai trương',   nhan:'🎉 Chi phí khai trương'},
+    {giaTri:'Sự kiện',       nhan:'🎪 Chi phí sự kiện'}
+  ];
+  /** Đổ lại ô "Loại dự án" theo bộ phận, giữ lựa chọn cũ nếu còn hợp lệ. */
+  function _apLoaiDa(){
+    var sel=el('daLoai'); if(!sel) return;
+    var cu=sel.value;
+    sel.innerHTML=LOAI_DA_DS.map(function(x){
+      return '<option value="'+esc(x.giaTri)+'">'+esc(x.nhan)+'</option>';
+    }).join('');
+    if(cu){ for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===cu){ sel.value=cu; break; } } }
+  }
   var TEN_LOAI_BP={
     'Marketing':{
       coso:{ten:'🏢 Chi Phí Marketing Cơ Sở',                     phu:'Một đơn gom NHIỀU gian · theo TUẦN'},
@@ -4311,6 +4349,7 @@
   }
   function daMoTao(nhomSan){
     _apTenNhom();
+    _apLoaiDa();
     if(el('daTaoNut')) el('daTaoNut').style.display='none';
     if(el('daTaoBox')) el('daTaoBox').style.display='block';
     /* Lối sang đơn tuần chỉ bày cho người vào được tab ấy. */
@@ -4384,9 +4423,22 @@
     return '';
   }
   /* Nhánh dự án: nhãn ô gian đổi theo Setup / Tháo dỡ. */
-  function daOnLoai(){ var setup=((el('daLoai')&&el('daLoai').value)==='Setup lắp đặt');
-    el('daTenLbl').textContent=setup?'Tên gian hàng mới (Setup)':'Chọn cơ sở (Tháo dỡ)';
-    el('daTen').placeholder=setup?'Gõ tên gian hàng mới':'Chọn cơ sở có sẵn';
+  /**
+   * Nhãn ô tên đổi theo loại dự án.
+   *
+   * 🔴 CHỈ 'Tháo dỡ' MỚI LÀ "CHỌN CƠ SỞ CÓ SẴN". Tháo dỡ thì gian đã đứng đó từ trước, nên
+   *    chọn trong danh sách. Setup thì gian chưa tồn tại — phải gõ tên mới. Ba loại của
+   *    Marketing (bán vé sớm · khai trương · sự kiện) cũng là chỗ chưa có trong danh mục, nên
+   *    đi cùng nhánh "gõ tên", không phải nhánh "chọn có sẵn".
+   *
+   *    Viết ngược lại (`!== 'Setup lắp đặt'` thì là chọn-có-sẵn) là mọi loại mới thêm sau này
+   *    đều rơi vào nhánh chọn-có-sẵn, và nhân viên Marketing không gõ nổi tên sự kiện của họ.
+   */
+  function daOnLoai(){
+    var v=String((el('daLoai')&&el('daLoai').value)||'');
+    var chonCoSan=( v==='Tháo dỡ' );
+    if(el('daTenLbl')) el('daTenLbl').textContent=chonCoSan?'Chọn cơ sở (Tháo dỡ)':('Tên '+(v==='Setup lắp đặt'?'gian hàng mới (Setup)':'chương trình / địa điểm'));
+    if(el('daTen')) el('daTen').placeholder=chonCoSan?'Chọn cơ sở có sẵn':(v==='Setup lắp đặt'?'Gõ tên gian hàng mới':'Gõ tên chương trình, gian hoặc địa điểm');
   }
   /* Tên đơn của một tuần.
      🔴 KHÔNG DÙNG DẤU "/" — `VHCP_Util::san()` thay mọi ký tự cấm tên sheet (`[ ] * ? / \ :`)
