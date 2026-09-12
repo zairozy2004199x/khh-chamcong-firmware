@@ -1717,7 +1717,9 @@ class VHG_Trang {
       '.bc-prog.du{background:#ecfdf5;border-color:#a7f3d0}',
       '.bc-chip{display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;background:#fff;border:1px solid #cbd5e1}',
       '.bc-chip.x{background:#dcfce7;border-color:#86efac}',
-      '.bc-chip.o{background:#fee2e2;border-color:#fecaca}',
+      /* Cơ sở CHƯA nộp = đỏ rõ + bấm được (nhảy thẳng tới ô nhập cơ sở đó) — anh Thắng 12/09/2026. */
+      '.bc-chip.o{background:#fee2e2;border-color:#f87171;color:#b91c1c;font-weight:700;cursor:pointer}',
+      '.bc-chip.o:hover{background:#fecaca;border-color:#ef4444}',
       '.bc-msg{font-size:13px;font-weight:600;margin-top:10px}',
       '.bc-lech{background:#fef2f2}', '.bc-khop{color:#059669}'
     ].join('');
@@ -1834,7 +1836,7 @@ class VHG_Trang {
        cơ sở bằng chuẩn hoá (bỏ dấu/khoảng trắng/hoa-thường) để cột `coso` hồ sơ lệch chính tả với
        tên cơ sở thật vẫn ra đúng. */
     var csNorm_=bcCsNorm_;   // dùng chung bộ chuẩn hoá ở đầu module (xem NVLOC/bcCsNorm_)
-    var sL=el('select');
+    var sL=el('select'); sL.id='bc-coso-sel';
     function napCoSo_(ds){
       sL.innerHTML=''; sL.appendChild(new Option('— Chọn cơ sở —',''));
       (ds&&ds.length?ds:(BC.coso||[])).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
@@ -2752,6 +2754,20 @@ class VHG_Trang {
 
   // ---------------- PHIÊN / TIẾN ĐỘ ----------------
   function refreshPhien(){ goi('bc_phien',{ngay:NGAY},function(r){ if(r&&r.ok) veProg(r); }); }
+  /* Bấm chip "cơ sở chưa nộp" → chọn cơ sở đó + cuộn tới bảng nhập ngay. `selectLoc()` tự lọc ghế
+     theo cơ sở nên không cần dropdown; vẫn đồng bộ ô chọn cơ sở cho khớp mắt (thêm option nếu ô
+     đang bị lọc theo nhân viên mà thiếu cơ sở này). */
+  function chonCoSoTuChip_(c){
+    var sel=$('bc-coso-sel');
+    if(sel){
+      var co=false; for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===c){ co=true; break; } }
+      if(!co) sel.appendChild(new Option(c,c));
+      sel.value=c;
+    }
+    LOC=c; selectLoc(c);
+    var body=$('bc-rows');
+    if(body && body.scrollIntoView) body.scrollIntoView({behavior:'smooth',block:'center'});
+  }
   function veProg(p){
     var box=$('bc-prog'); if(!box) return; box.textContent=''; box.className='bc-prog'+(p.du?' du':'');
     var head=el('b',null, p.du ? ('✓ ĐỦ BÁO CÁO '+p.so_coso+'/'+p.so_coso+' cơ sở') : ('Tiến độ: '+p.so_coso_xong+'/'+p.so_coso+' cơ sở'));
@@ -2764,7 +2780,14 @@ class VHG_Trang {
       if(t) chip.title='Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ';
       box.appendChild(chip);
     });
-    (p.coso_conlai||[]).forEach(function(c){ box.appendChild(el('span','bc-chip o',c)); });
+    /* Chip cơ sở CHƯA nộp: đỏ + BẤM ĐƯỢC để nhảy thẳng tới ô nhập của cơ sở đó — anh Thắng
+       12/09/2026: "cơ sở chưa nộp hiện đỏ, nhân viên bấm trực tiếp là chuyển đến chỗ nhập luôn". */
+    (p.coso_conlai||[]).forEach(function(c){
+      var chip=el('span','bc-chip o',c);
+      chip.title='Bấm để nhập báo cáo cho '+c;
+      chip.onclick=function(){ chonCoSoTuChip_(c); };
+      box.appendChild(chip);
+    });
     if(p.tong) box.appendChild(el('span',null,' · Tổng '+money(p.tong)+'đ'));
     if(p.trang_thai==='chot_som') box.appendChild(el('span',null,' · ĐÃ CHỐT SỚM'+(p.bo_qua&&p.bo_qua.length?(' (bỏ: '+p.bo_qua.join(', ')+')'):'')));
     /* Tổng tiền mặt/QR THEO TỪNG CƠ SỞ — anh Thắng 29/08/2026: "Hiện tổng doanh thu tiền mặt và
