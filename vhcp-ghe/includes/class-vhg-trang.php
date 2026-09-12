@@ -8901,9 +8901,12 @@ function veQuanLy(){
     + '</th><th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
   if (!coso.length) h += '<tr><td colspan="4" class="mut">'
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
+  /* CƠ SỞ 0 GHẾ gom xuống khối riêng (gập) ở cuối — admin vẫn mở gán ghế/xoá; nhân viên vốn
+     không thấy (danh sách theo ghế). Anh Thắng 12/09/2026. */
+  var hRong='', nRong=0;
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
-    h += '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
+    var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
       /* Bấm thẳng tên địa điểm là ra ghế của nó — anh Thắng 10/09/2026: "thay vì chọn cơ sở sẽ
          ra ghế, thì bấm vào địa điểm nó sẽ ra ghế luôn". Ô lọc ở khối Ghế vẫn còn (vẫn cần để
          về "Tất cả" hay xem "chưa gán"); đây chỉ là lối tắt từ chỗ người ta đang nhìn, khỏi
@@ -8934,6 +8937,7 @@ function veQuanLy(){
         + ' title="' + L('Bật/tắt: máy ở đây reset về 0 sau mỗi lần thu','Toggle: meter resets to 0 after each collection') + '"'
         + (Number(c.reset_moi_lan)?' class="on"':'') + '>🔄</button> '
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
+    if((demGhe[c.ten]||0)>0){ h+=_rh; } else { hRong+=_rh; nRong++; }
   });
   if (chuaGan) {
     var rc = dt['(chưa gán)'] || { tong:0, qr:0, tien_mat:0 };
@@ -8946,7 +8950,14 @@ function veQuanLy(){
       + '<td style="line-height:1.9">' + dsMaHtml_(maChuaGan) + '</td>'
       + '<td></td></tr>';
   }
-  h += '</table><p class="mut" style="margin:8px 0 0">'
+  h += '</table>';
+  if (nRong) {
+    h += '<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#64748b">📭 '
+      + L('Cơ sở chưa có ghế','Sites with no chairs') + ' (' + nRong + ') — ' + L('bấm để xem / gán ghế / xoá','click to view / assign / delete') + '</summary>'
+      + '<table style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+      + '</th><th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
+  }
+  h += '<p class="mut" style="margin:8px 0 0">'
     + L('Xoá địa điểm KHÔNG xoá ghế — ghế thành "chưa gán". Doanh thu theo kỳ đang chọn ở đầu trang.',
         'Deleting a site does not delete its chairs — they become "unassigned". Revenue is for the selected period.')
     + '</p></div>';
