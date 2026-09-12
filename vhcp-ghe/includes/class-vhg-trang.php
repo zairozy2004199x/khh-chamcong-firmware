@@ -1564,6 +1564,11 @@ class VHG_Trang {
      + gắn ✓ vào ô xổ "Cơ sở" — anh Thắng 12/09/2026: "cơ sở nào đã nộp báo cáo, hiện màu xanh".
      Theo ngày: đổi ngày là refreshPhien() nạp lại, tô lại. */
   var PHIEN_XONG={};
+  /* TU_SPA = màn báo cáo này mở TỪ trang quản trị (/ghe) hay từ cổng PIN thuần. Vào từ SPA thì
+     bên dưới lớp phủ #bc-app còn nguyên trang quản lý đang đăng nhập → cho nút "Về trang quản lý"
+     đóng lớp phủ (KHÔNG đăng xuất). Vào bằng PIN thuần thì bên dưới chỉ là màn đăng nhập, không
+     hiện nút ấy. Anh Thắng 12/09/2026: "thiếu tab quay về trang chủ". */
+  var TU_SPA=false;
   /* NVLOC = bộ lọc "nhân viên đang chọn ở ô trên" → dùng chung cho CẢ ô cơ sở LẪN danh sách
      "Báo cáo trong 24h — sửa được". null = không lọc (tất cả); object {csNorm:true,…} = chỉ những
      cơ sở người đó phụ trách. Anh Thắng 12/09/2026: "chọn tên ở trên thì lịch sử cũng chỉ hiện
@@ -1755,6 +1760,7 @@ class VHG_Trang {
   // ---------------- CỔNG PIN ----------------
   function moBaoCao(ghiChuTuDong){
     styleOnce();
+    TU_SPA=false;   // vào bằng PIN thuần → không có trang quản lý bên dưới để về
     var app=$('bc-app'); app.className='mo'; app.textContent='';
     var g=el('div','bc-card bc-gate');
     g.appendChild(el('div',null,'📋'));
@@ -1819,6 +1825,15 @@ class VHG_Trang {
       var tc=el('a','bc-btn','🏠 Trang chủ'); tc.href=BC.trangChuUrl;
       tc.title='Quay lại trang chủ của web';
       top.appendChild(tc);
+    }
+    /* Về trang QUẢN LÝ (dashboard /ghe) — anh Thắng 12/09/2026: "thiếu tab quay về trang chủ".
+       Chỉ hiện khi vào từ SPA (TU_SPA): đóng lớp phủ #bc-app để lộ lại trang quản lý bên dưới,
+       KHÔNG đăng xuất (khác "Thoát"). Vào bằng PIN thuần thì bên dưới là màn đăng nhập nên ẩn nút. */
+    if (TU_SPA) {
+      var ql=el('button','bc-btn','⚙ Về trang quản lý');
+      ql.title='Đóng màn báo cáo, quay lại trang quản lý (không đăng xuất)';
+      ql.onclick=function(){ PIN=''; BC=null; $('bc-app').className=''; };
+      top.appendChild(ql);
     }
     var out=el('button','bc-btn','Thoát');
     /* Thoát cả hai lớp trong MỘT lượt bấm — anh Thắng 29/08/2026: "2 trang này là 1, tại sao
@@ -2163,37 +2178,9 @@ class VHG_Trang {
        khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
     var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
     tdN.appendChild(kx);
-    /* 🔴 MÁY ĐÃ "DỌN/ĐIỀU CHUYỂN" (an=1) VẪN HIỆN, TÔ ĐỎ — anh Thắng 12/09/2026: "bất cứ giá nào
-       cũng không được ẩn, nếu sai thì cảnh báo đỏ". Trước đây máy này bị loại khỏi màn nhập (xem
-       ds_ghe), nhân viên mất đường gõ chỉ số. Nay hiện kèm nhắc đỏ để kiểm tra, vẫn gõ được. */
-    if(g.an){
-      var anBadge=el('div'); anBadge.style.cssText='font-size:11px;color:#b91c1c;font-weight:800;margin-top:3px';
-      anBadge.textContent = g.lac
-        ? '⚠ Máy có báo cáo gần đây ở cơ sở này nhưng đã đổi/mất gán cơ sở — kiểm tra & gắn lại'
-        : '⚠ Máy đã dọn/điều chuyển — kiểm tra trước khi nhập';
-      tdN.appendChild(anBadge);
-      /* HÀNG ĐỎ CHỈ HIỆN CHO ADMIN (ds_ghe gác $hien_an, nhân viên không nhận) → cho admin bấm
-         "Hiện lại" ngay tại chỗ: anh Thắng 12/09/2026 "admin bấm vào ghế đó nó sẽ hiện lại cho
-         nhân viên". Endpoint bc_hien_ghe gỡ cờ ẩn + gán ghế 'lạc' về đúng cơ sở của báo cáo. */
-      var bHien=el('button','bc-btn','↩ Hiện lại cho nhân viên');
-      bHien.style.cssText='margin-top:5px;font-size:11px;font-weight:700;padding:3px 9px;background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;border-radius:8px';
-      bHien.onclick=function(){
-        if(!confirm('Hiện lại ghế '+(g.ma)+(g.coso?(' ở '+g.coso):'')+' cho nhân viên?\n'
-          +'Ghế sẽ được gỡ cờ ẩn'+(g.lac?' và gán về cơ sở này':'')+', từ đó nhân viên thấy lại ở màn nhập.')) return;
-        bHien.disabled=true; bHien.textContent='Đang hiện…';
-        goi('bc_hien_ghe',{ma:g.ma,coso:g.coso||''},function(r){
-          if(!r||!r.ok){ bHien.disabled=false; bHien.textContent='↩ Hiện lại cho nhân viên';
-            alert((r&&r.error)||'Không hiện lại được ghế.'); return; }
-          /* Làm mới danh sách ghế (đổi cờ an/coso) rồi vẽ lại cơ sở đang xem để hàng rớt khỏi đỏ. */
-          goi('bc_boot',{pin:PIN},function(rb){
-            if(rb&&rb.ok&&rb.pinOk){ BC=rb; }
-            if(LOC) selectLoc(LOC);
-          });
-        });
-      };
-      tdN.appendChild(bHien);
-      tr.style.background='#fef2f2';
-    }
+    /* Máy "đã dọn/điều chuyển" và ghế "lạc" KHÔNG còn hiện ở màn nhập — anh Thắng 12/09/2026:
+       "chuyển thông báo này vào tab Quản lý ghế". ds_ghe() đã lọc sạch nên veDong() không cần
+       nhánh hàng đỏ nữa; việc đưa về / đổi mã trùng nằm ở tab Quản lý ghế. */
     tr.appendChild(tdN);
     // chỉ số trước (+ ngày đọc mốc, giống bản điện thoại — anh Thắng 07/09/2026)
     var tdB=el('td');
@@ -3635,6 +3622,7 @@ class VHG_Trang {
       return;
     }
     styleOnce();
+    TU_SPA=true;   // mở từ trang quản trị → cho nút "Về trang quản lý"
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
     var app=$('bc-app'); app.className='mo'; app.textContent='';
     veChinh();
@@ -8597,6 +8585,13 @@ function veQuanLy(){
 
   /* ---- Cảnh báo mã trùng / lồng nhau ---- */
   var _mt = maTrungTim(may);
+  /* CƠ SỞ NÀO CHỨA GHẾ TRÙNG MÃ → tô đỏ ngay trên hàng địa điểm — anh Thắng 12/09/2026: "cơ sở nào
+     có ghế trùng mã thì cũng hiện đỏ cảnh báo lên". Gom từ CHÍNH _mt.trung (một nguồn duy nhất, khỏi
+     lệch với khối cảnh báo ở trên): mỗi mã trùng nằm ở những cơ sở nào → đánh dấu các cơ sở ấy. */
+  var cosoTrungMa = {};
+  _mt.trung.forEach(function(t){ t.ds.forEach(function(x){
+    var k = x.coso || ''; if (k) { (cosoTrungMa[k] = cosoTrungMa[k] || []).push(t.ma); }
+  }); });
   if (_mt.trung.length || _mt.long.length) {
     h += '<div class="card" style="border:1px solid #f0c0c0;background:#fff5f5">'
        + '<h2 style="color:#dc2626;margin-top:0">⚠ ' + L('Cảnh báo mã ghế','Chair-code warnings') + '</h2>';
@@ -8684,6 +8679,10 @@ function veQuanLy(){
          cả cơ sở, giấu trong một hộp thoại là không ai biết cơ sở nào đang bật. */
       + (Number(c.reset_moi_lan) ? '<div style="color:#b45309;font-weight:700;font-size:11px;margin-top:2px">🔄 '
           + L('Reset về 0 sau mỗi lần thu','Meter resets to 0 after each collection') + '</div>' : '')
+      + (cosoTrungMa[c.ten] ? '<div style="color:#dc2626;font-weight:800;font-size:11px;margin-top:3px" title="'
+          + L('Bấm tên cơ sở để xem ghế, sửa mã cho khác đi','Open the site to see chairs and rename the code') + '">⚠ '
+          + L('Có ghế TRÙNG MÃ: ','Chairs with duplicate codes: ')
+          + esc(cosoTrungMa[c.ten].filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', ')) + '</div>' : '')
       + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
       + '<td class="r"><b>' + tien(r.tong) + '</b>'

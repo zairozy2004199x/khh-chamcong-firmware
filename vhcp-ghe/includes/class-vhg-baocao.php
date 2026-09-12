@@ -145,71 +145,29 @@ class VHG_BaoCao {
 	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
 	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
 	public static function ds_ghe( $q, $hien_an = false ) {
-		global $wpdb;
+		/* MÀN NHẬP CHỈ HIỆN GHẾ SỐNG, ĐÚNG CƠ SỞ. Máy "đã dọn/điều chuyển" (`an`=1) và ghế "lạc"
+		   (đổi/mất gán cơ sở) KHÔNG bày ra đây nữa — anh Thắng 12/09/2026: *"chuyển thông báo này
+		   vào tab Quản lý ghế"*. Việc phát hiện & xử lý (đưa về, đổi mã trùng) đã dồn về tab QUẢN LÝ
+		   GHẾ: khối "Ghế đã ẩn (điều chuyển / xoá)" + cảnh báo MÃ TRÙNG. Vẫn KHÔNG mất dữ liệu — ghế
+		   còn nguyên trong danh mục, chỉ là màn thu tiền của nhân viên gọn lại, không còn hàng đỏ.
+		   ($hien_an giữ lại cho tương thích chữ ký; không còn dùng để bơm hàng đỏ ở đây.) */
 		$ra = array();
-		$da_co = array();   // mã ghế đã có trong danh sách → khỏi bơm trùng từ lịch sử
 		foreach ( VHG_May::ds_may() as $m ) {
-			/* 🔴 MÁY ĐÃ "DỌN/ĐIỀU CHUYỂN" (`an`=1) — anh Thắng 12/09/2026:
-			   · ADMIN/quản lý/kế toán ($hien_an) → VẪN HIỆN, tô ĐỎ để phát hiện & sửa nhầm ("bất cứ
-			     giá nào cũng không được ẩn, nếu sai thì cảnh báo đỏ"). Nút "Xoá"/checkbox "đã dọn"
-			     ở admin đặt an=1 làm máy sống biến mất khỏi màn nhập — mất chỉ số mà không ai hay.
-			   · NHÂN VIÊN (mặc định) → ẩn như cũ ("với nhân viên không cần hiện"): máy đã dọn thật
-			     thì đừng bày ra bàn thu tiền cho rối. An toàn nằm ở chỗ ADMIN thấy đỏ và gỡ cờ. */
-			$an   = ! empty( $m['an'] );
-			if ( $an && ! $hien_an ) { continue; }
+			if ( ! empty( $m['an'] ) ) { continue; }   // đã dọn/điều chuyển → quản lý ở tab Quản lý ghế
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
 				'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
 				'coso' => $coso,
-				'an'   => $an ? 1 : 0,
+				'an'   => 0,
 			);
-			$da_co[ (string) $m['ma'] . '|' . self::squash( $coso ) ] = true;   // khoá theo GHẾ + CƠ SỞ
 		}
-		/* 🔴 GHẾ "LẠC" — CÓ BÁO CÁO GẦN ĐÂY Ở CƠ SỞ MÀ KHÔNG CÒN KHỚP DANH MỤC MÁY. Anh Thắng
-		   12/09/2026: VHM-1 "báo cáo hôm qua thì có" mà màn nhập không thấy — vì `may.coso_id` của
-		   nó đã đổi/mất gán nên không match cơ sở nữa (Duyệt vẫn thấy do đọc coso_key ĐÓNG BĂNG ở
-		   báo cáo). "Bất cứ giá nào cũng không được ẩn": bơm lại theo ĐÚNG cơ sở của báo cáo gần đây
-		   để luôn còn đường nhập tiếp; tô đỏ, nhắc kiểm tra. Bó trong 45 ngày để không kéo cả kho
-		   ghế cũ. Chỉ bơm CẶP (mã ghế · cơ sở) CHƯA có ở trên — ghế còn khớp cơ sở đã nằm trong bảng.
-
-		   ⚠️ CHỈ HIỆN CHO ADMIN ($hien_an) — anh Thắng 12/09/2026: "Đã bảo ghế ẩn không hiện vào tài
-		   khoản nhân viên mà… chỉ hiện cho admin, và admin bấm vào ghế đó nó sẽ hiện lại cho nhân
-		   viên". Nhân viên KHÔNG được thấy hàng đỏ này (rối bàn thu tiền); admin bấm vào → `hien_ghe()`
-		   gỡ cờ ẩn + gán ghế về đúng cơ sở của báo cáo, từ đó nhân viên mới thấy lại. */
-		if ( $hien_an ) {
-			$tu_lac = gmdate( 'Y-m-d', current_time( 'timestamp' ) - 45 * 86400 );
-			$ls = $wpdb->get_results( $wpdb->prepare(
-				'SELECT d.ma_may AS ma, MAX(d.ten) AS ten, h.coso AS coso FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
-				. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-				. ' WHERE h.ngay >= %s GROUP BY d.ma_may, h.coso', $tu_lac ), ARRAY_A );
-			foreach ( (array) $ls as $r ) {
-				$ma = (string) ( isset( $r['ma'] ) ? $r['ma'] : '' );
-				if ( '' === $ma ) { continue; }
-				$coso = (string) ( isset( $r['coso'] ) ? $r['coso'] : '' );
-				/* ⚠️ Khoá CÙNG DẠNG với vòng máy sống ở trên: GHẾ|squash(CƠ SỞ). Đổi sang khoá này mà
-				   để vòng lạc tra khoá cũ (chỉ theo mã) là hai đầu lệch — mọi ghế đều "đã có", vòng
-				   lạc câm hẳn, VHM-1 lại biến mất. */
-				$k = $ma . '|' . self::squash( $coso );
-				if ( isset( $da_co[ $k ] ) ) { continue; }
-				if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
-				$ra[] = array(
-					'ma'   => $ma,
-					'ten'  => (string) ( '' !== (string) $r['ten'] ? $r['ten'] : $ma ),
-					'coso' => $coso,
-					'an'   => 1, 'lac' => 1,
-				);
-				$da_co[ $k ] = true;
-			}
-		}
-		/* Xếp theo cơ sở → MÁY ĐÃ DỌN XUỐNG CUỐI (anh Thắng 12/09/2026: "máy đã dọn cho vào cuối")
-		   → rồi TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10, VHM-2).
-		   `strnatcasecmp` hiểu số trong tên nên "-2" đứng trước "-10"; sắp ở NGUỒN để cả bảng nhập
-		   chỉ số lẫn ô xổ ghế đều cùng thứ tự, khỏi mỗi màn một kiểu. */
+		/* Xếp theo cơ sở → TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10,
+		   VHM-2). `strnatcasecmp` hiểu số trong tên nên "-2" đứng trước "-10"; sắp ở NGUỒN để cả bảng
+		   nhập chỉ số lẫn ô xổ ghế đều cùng thứ tự, khỏi mỗi màn một kiểu. */
 		usort( $ra, function( $a, $b ) {
 			return strnatcasecmp( (string) $a['coso'], (string) $b['coso'] )
-				?: ( ( (int) $a['an'] ) - ( (int) $b['an'] ) )
 				?: strnatcasecmp( (string) $a['ten'], (string) $b['ten'] );
 		} );
 		return $ra;
