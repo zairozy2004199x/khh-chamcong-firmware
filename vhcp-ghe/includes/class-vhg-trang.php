@@ -2748,9 +2748,28 @@ class VHG_Trang {
     goi('bc_recent',{},function(r){
       var ds=(r&&r.ds)||[];
       if(!ds.length){ wrapl.appendChild(el('div','bc-mut','Chưa có báo cáo nào trong 24 giờ qua.')); return; }
-      var TRANG=10, trang=1, soTrang=Math.max(1,Math.ceil(ds.length/TRANG));
+      /* 🔎 LỌC THEO NGÀY — anh Thắng 12/09/2026: "lọc phần báo cáo sửa lại, tìm theo ngày nhập".
+         Chỉ liệt kê những ngày THẬT SỰ có báo cáo (kèm số báo cáo), mới nhất trước; chọn "Tất cả"
+         là về như cũ. Lọc phía trình duyệt trên đúng tập bc_recent đã tải, không gọi lại máy chủ. */
+      function ddVn_(d){ d=String(d||''); return d.length>=10 ? (d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4)) : d; }
+      var demNgay={}, dsNgay=[];
+      ds.forEach(function(rp){ var d=rp.date||''; if(d){ if(!demNgay[d]){ demNgay[d]=0; dsNgay.push(d); } demNgay[d]++; } });
+      dsNgay.sort(function(a,b){ return a<b?1:(a>b?-1:0); });
+      var locNgay='';
+      var barLoc=el('div'); barLoc.style.cssText='display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:2px 0 6px';
+      barLoc.appendChild(el('span','bc-mut','🔎 Lọc theo ngày:'));
+      var selNgay=el('select'); selNgay.style.cssText='padding:6px 9px;border:1px solid #cbd5e1;border-radius:8px;font:inherit';
+      selNgay.appendChild(new Option('— Tất cả ngày ('+ds.length+') —',''));
+      dsNgay.forEach(function(d){ selNgay.appendChild(new Option(ddVn_(d)+' ('+demNgay[d]+' báo cáo)', d)); });
+      barLoc.appendChild(selNgay);
+      box.insertBefore(barLoc, wrapl);
+      var TRANG=10, trang=1, soTrang=1;
+      selNgay.onchange=function(){ locNgay=selNgay.value; trang=1; ve(); };
       function ve(){
         wrapl.textContent='';
+        var dsL = locNgay ? ds.filter(function(rp){ return (rp.date||'')===locNgay; }) : ds;
+        soTrang = Math.max(1, Math.ceil(dsL.length/TRANG));
+        if(!dsL.length){ wrapl.appendChild(el('div','bc-mut','Không có báo cáo nào cho ngày này.')); pager.textContent=''; return; }
         /* 🔴 NHÓM THEO CƠ SỞ — anh Thắng 05/09/2026: *"chỗ phần báo cáo trong 24h sửa được sẽ
            hiện ra báo cáo từng cơ sở mà nhân viên đã nộp"*. Trước đây danh sách phẳng, mỗi thẻ
            tự nói tên cơ sở của nó — một người trực hai ba cơ sở phải đọc từng dòng mới biết cơ
@@ -2759,7 +2778,7 @@ class VHG_Trang {
            ⚠️ NHÓM TRONG PHẠM VI MỘT TRANG, không gom xuyên trang. `ds` đã xếp theo thời gian gửi
               (mới nhất trước) và trang cắt theo đúng thứ tự đó; gom xuyên trang thì một cơ sở có
               thể mất tiêu đề ở trang sau, hoặc một tiêu đề đứng trơ không có thẻ nào dưới nó. */
-        var trangDs=ds.slice((trang-1)*TRANG, trang*TRANG);
+        var trangDs=dsL.slice((trang-1)*TRANG, trang*TRANG);
         var thuTu=[], theoCs={};
         trangDs.forEach(function(rp){
           var cs=rp.locName||'(chưa rõ cơ sở)';
@@ -2782,7 +2801,7 @@ class VHG_Trang {
         var bTruoc=el('button','bc-btn','← Trang trước');
         bTruoc.disabled=(trang<=1);
         bTruoc.onclick=function(){ if(trang>1){ trang--; ve(); box.scrollIntoView({block:'start',behavior:'smooth'}); } };
-        var nhan=el('span','bc-mut','Trang '+trang+'/'+soTrang+' · '+ds.length+' báo cáo');
+        var nhan=el('span','bc-mut','Trang '+trang+'/'+soTrang+' · '+dsL.length+' báo cáo');
         var bSau=el('button','bc-btn','Trang sau →');
         bSau.disabled=(trang>=soTrang);
         bSau.onclick=function(){ if(trang<soTrang){ trang++; ve(); box.scrollIntoView({block:'start',behavior:'smooth'}); } };
