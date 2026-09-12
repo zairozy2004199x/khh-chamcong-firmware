@@ -1560,6 +1560,10 @@ class VHG_Trang {
 (function(){
   var API = window.VHG_API || '';
   var PIN='', BC=null, NGAY='', LOC='', LAST={}, LASTD={}, KE={}, KICHXA={}, GUI_DANG=false;
+  /* PHIEN_XONG = cơ sở ĐÃ NỘP báo cáo cho NGÀY đang chọn (từ bc_phien → veProg). Dùng để tô XANH
+     + gắn ✓ vào ô xổ "Cơ sở" — anh Thắng 12/09/2026: "cơ sở nào đã nộp báo cáo, hiện màu xanh".
+     Theo ngày: đổi ngày là refreshPhien() nạp lại, tô lại. */
+  var PHIEN_XONG={};
   /* NVLOC = bộ lọc "nhân viên đang chọn ở ô trên" → dùng chung cho CẢ ô cơ sở LẪN danh sách
      "Báo cáo trong 24h — sửa được". null = không lọc (tất cả); object {csNorm:true,…} = chỉ những
      cơ sở người đó phụ trách. Anh Thắng 12/09/2026: "chọn tên ở trên thì lịch sử cũng chỉ hiện
@@ -1862,6 +1866,7 @@ class VHG_Trang {
     function napCoSo_(ds){
       sL.innerHTML=''; sL.appendChild(new Option('— Chọn cơ sở —',''));
       (ds&&ds.length?ds:(BC.coso||[])).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
+      toMauCoSo_();
     }
     if(BC.nhanSu && BC.nhanSu.length){
       var fNV=el('label','bc-f'); fNV.appendChild(el('span',null,'Nhân viên (lọc cơ sở)'));
@@ -2854,7 +2859,22 @@ class VHG_Trang {
     var body=$('bc-rows');
     if(body && body.scrollIntoView) body.scrollIntoView({behavior:'smooth',block:'center'});
   }
+  /* Tô XANH + gắn ✓ cho cơ sở ĐÃ NỘP trong ô xổ "Cơ sở" — anh Thắng 12/09/2026. Dùng $('bc-coso-sel')
+     (không dùng biến closure) để gọi được từ cả napCoSo_ (trong veChinh) lẫn veProg (ngoài). Đặt lại
+     text theo o.value mỗi lượt để ✓ không cộng dồn. option màu chữ chạy tốt trên máy tính; điện thoại
+     nhiều máy bỏ màu option nên ✓ ở đầu tên là phần chắc chắn thấy. */
+  function toMauCoSo_(){
+    var sel=$('bc-coso-sel'); if(!sel) return;
+    for(var i=0;i<sel.options.length;i++){
+      var o=sel.options[i]; if(!o.value) continue;
+      var xong=!!PHIEN_XONG[bcCsNorm_(o.value)];
+      o.textContent=(xong?'✓ ':'')+o.value;
+      o.style.color=xong?'#15803d':'';
+      o.style.fontWeight=xong?'700':'';
+    }
+  }
   function veProg(p){
+    PHIEN_XONG={}; (p&&p.coso_xong||[]).forEach(function(c){ PHIEN_XONG[bcCsNorm_(c)]=true; }); toMauCoSo_();
     var box=$('bc-prog'); if(!box) return; box.textContent=''; box.className='bc-prog'+(p.du?' du':'');
     var head=el('b',null, p.du ? ('✓ ĐỦ BÁO CÁO '+p.so_coso+'/'+p.so_coso+' cơ sở') : ('Tiến độ: '+p.so_coso_xong+'/'+p.so_coso+' cơ sở'));
     box.appendChild(head);
