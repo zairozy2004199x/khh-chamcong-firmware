@@ -1731,6 +1731,35 @@ class VHG_Trang {
          như cũ; ô số đỏ đứng riêng, không đổi nghĩa hai khung đó). */
       '.bc-t input.bc-lech{color:#b91c1c;font-weight:800;border:1.6px solid #ef4444;'
         + 'background:#fef2f2;border-radius:7px}',
+      /* 📱 ĐIỆN THOẠI: bảng ghế 10 cột KHÔNG cuộn ngang nữa mà XẾP DỌC — mỗi ghế thành một thẻ,
+         mỗi ô một hàng "Nhãn : ô nhập". Anh Thắng 12/09/2026: "dùng điện thoại nó tràn quá… thu
+         nhỏ chữ, xuống hàng nhập để tránh tràn ngang khó kéo". Nhãn gắn qua nth-child theo đúng
+         thứ tự 10 cột ở thead (không phải đụng veDong). Hàng cảnh báo (.bc-warn-row) trải hết. */
+      "@media(max-width:640px){"
+        + ".bc-scroll{overflow-x:visible;border-radius:12px}"
+        + ".bc-t.full{min-width:0;font-size:13px}"
+        + ".bc-t.full thead{display:none}"
+        + ".bc-t.full tr{display:block;border-bottom:2px solid #cbd5e1}"
+        + ".bc-t.full td{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:0;padding:5px 10px}"
+        + ".bc-t.full td::before{font-weight:700;font-size:11px;text-transform:uppercase;color:#334155;flex:0 0 42%;text-align:left;white-space:normal}"
+        + ".bc-t.full td:first-child{display:block;background:#f8fafc;font-weight:800;padding:8px 10px 6px}"
+        + ".bc-t.full td:first-child::before{content:none}"
+        + ".bc-t.full td:nth-child(2)::before{content:'Chỉ số trước'}"
+        + ".bc-t.full td:nth-child(3)::before{content:'Chỉ số sau'}"
+        + ".bc-t.full td:nth-child(4)::before{content:'Actual'}"
+        + ".bc-t.full td:nth-child(5)::before{content:'Tiền mặt'}"
+        + ".bc-t.full td:nth-child(6)::before{content:'QR'}"
+        + ".bc-t.full td:nth-child(7)::before{content:'Thực thu tiền mặt'}"
+        + ".bc-t.full td:nth-child(8)::before{content:'Ghi chú'}"
+        + ".bc-t.full td:nth-child(9)::before{content:'📷 Ảnh chỉ số'}"
+        + ".bc-t.full td:nth-child(10)::before{content:'🧹 Ảnh vệ sinh'}"
+        + ".bc-t.full input{width:100%;max-width:none;min-width:0}"
+        + ".bc-t.full input.note{min-width:0}"
+        + ".bc-t.full .bc-ro{display:inline-block;min-width:90px}"
+        + ".bc-t.full tr.bc-warn-row{border-bottom:0}"
+        + ".bc-t.full tr.bc-warn-row td{display:block;padding:0 10px 8px}"
+        + ".bc-t.full tr.bc-warn-row td::before{content:none}"
+        + "}",
       /* Chế độ Gọn: cột đã ít (7 thay vì 10) nhưng vẫn nên bớt đệm + bớt min-width từng ô cho vừa
          khít điện thoại phổ thông (~360-390px ngang) mà không phải cuộn — 2 nút "Chọn ảnh" vốn đã
          hẹp sẵn, chỉ input chỉ số/QR cần thu nhỏ. */
