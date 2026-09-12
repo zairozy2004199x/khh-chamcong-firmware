@@ -237,7 +237,7 @@ teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)',
 	substr_count( $SRC, 'self::cong_dong_trung(' ) );
 teq( 'cong_may_dong() vẫn đúng 4 chỗ gọi — không thêm bản sao thứ năm', 4,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
-t( 'VER_TBL đã lên 4 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '4';" ) );
+t( 'VER_TBL đã lên 5 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '5';" ) );
 t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó)', false !== strpos( $SRC, 'KEY ref (ref)' ) );
 
 /* Phiên bản: header và hằng VER phải bằng nhau. */

@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.21.0
+ * Version:           0.22.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.21.0';
+	const VER = '0.22.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1617,6 +1617,17 @@ class SAOKE_App {
 	}
 	/* Khoá so tên cửa hàng: bỏ dấu + bỏ mọi ký tự không phải chữ/số. */
 	public static function chuan_ch( $s ) { return preg_replace( '/[^a-z0-9]/', '', self::kd( $s ) ); }
+	/* Khoá LỎNG để khớp tên "gần đúng" — anh Thắng 12/09/2026: nội dung CK ghi thêm phần trong
+	   NGOẶC và ĐUÔI sau gạch, vd "CGV VINCOM XUÂN KHÁNH ( Cần Thơ ) — Cần Thơ", nên chuan_ch() không
+	   khớp điểm "CGV VINCOM XUÂN KHÁNH ( Cần Thơ )". Bỏ (…) và đuôi sau " — "/" – "/" - " rồi mới
+	   chuẩn hoá. Dùng làm ĐƯỜNG LUI, KHÔNG thay chuan_ch() (khoá exact vẫn thắng — xem ax_ma_nop). */
+	public static function chuan_ch_long( $s ) {
+		$s = (string) $s;
+		$s = preg_replace( '/\([^)]*\)/u', ' ', $s );        // bỏ mọi phần trong ngoặc
+		$p = preg_split( '/\s[—–\-]\s/u', $s );              // cắt ở " — " / " – " / " - "
+		if ( is_array( $p ) && count( $p ) ) { $s = $p[0]; }
+		return self::chuan_ch( $s );
+	}
 
 	public static function ma_chuan( $pn, $ht, $mien, $so ) {
 		return 'KH' . $pn . strtoupper( $ht ) . strtoupper( $mien ) . substr( '0000' . (int) $so, -4 );
@@ -1845,6 +1856,9 @@ class SAOKE_App {
 		$tc = trim( (string) $ax['tenChuan'] );
 		if ( '' === $tc ) { return array( 'ma' => '', 'vi' => 'chưa điền Cửa hàng chuẩn, cũng chưa điền Mã bank' ); }
 		$k = self::chuan_ch( $tc );
+		/* Không khớp exact thì thử KHOÁ LỎNG (bỏ ngoặc/đuôi) — vd "CGV VINCOM XUÂN KHÁNH ( Cần Thơ )
+		   — Cần Thơ" khớp điểm "CGV VINCOM XUÂN KHÁNH ( Cần Thơ )". Exact vẫn ưu tiên. */
+		if ( ! isset( $map_ten[ $k ] ) ) { $kl = self::chuan_ch_long( $tc ); if ( isset( $map_ten[ $kl ] ) ) { $k = $kl; } }
 		if ( ! isset( $map_ten[ $k ] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" không có trong danh sách điểm' ); }
 		if ( ! empty( $map_ten[ $k ]['trung'] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" bị nhiều điểm dùng chung — phải điền Mã bank' ); }
 		return array( 'ma' => $map_ten[ $k ]['ma'], 'vi' => '' );
@@ -1902,14 +1916,25 @@ class SAOKE_App {
 	}
 	/* map chuan_ch(tên điểm) -> ['ma'=>..,'trung'=>bool] để suy mã từ tên chuẩn. */
 	private static function map_ten_diem() {
-		$map = array();
-		foreach ( self::ds_diem() as $d ) {
+		$map = array(); $ds = self::ds_diem();
+		foreach ( $ds as $d ) {
 			$ten = isset( $d['ten'] ) ? $d['ten'] : ''; $ma = isset( $d['ma'] ) ? $d['ma'] : '';
 			$k = self::chuan_ch( $ten );
 			if ( '' === $k || '' === $ma ) { continue; }
 			if ( isset( $map[ $k ] ) ) { if ( $map[ $k ]['ma'] !== $ma ) { $map[ $k ]['trung'] = true; } continue; }
 			$map[ $k ] = array( 'ma' => $ma, 'trung' => false );
 		}
+		/* Lượt 2: thêm KHOÁ LỎNG (bỏ ngoặc + đuôi) làm đường lui — KHÔNG đè khoá exact đã có; nếu hai
+		   điểm ra cùng khoá lỏng với mã khác nhau thì đánh 'trung' để BUỘC gán tay (không đoán bừa). */
+		$loose = array();
+		foreach ( $ds as $d ) {
+			$ten = isset( $d['ten'] ) ? $d['ten'] : ''; $ma = isset( $d['ma'] ) ? $d['ma'] : '';
+			$kl = self::chuan_ch_long( $ten );
+			if ( '' === $kl || '' === $ma || isset( $map[ $kl ] ) ) { continue; }
+			if ( ! isset( $loose[ $kl ] ) ) { $loose[ $kl ] = array( 'ma' => $ma, 'trung' => false ); }
+			elseif ( $loose[ $kl ]['ma'] !== $ma ) { $loose[ $kl ]['trung'] = true; }
+		}
+		foreach ( $loose as $kl => $v ) { if ( ! isset( $map[ $kl ] ) ) { $map[ $kl ] = $v; } }
 		return $map;
 	}
 
