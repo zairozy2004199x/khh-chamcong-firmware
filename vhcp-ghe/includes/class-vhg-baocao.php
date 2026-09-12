@@ -540,6 +540,23 @@ class VHG_BaoCao {
 
 	// ══════════════════════════════════════════════════════════════════ ĐĂNG NHẬP / BOOTSTRAP
 
+	/** Danh sách [{ten, coso[]}] mọi nhân viên có gán cơ sở — cho ô "chọn nhân viên → lọc cơ sở"
+	 *  của admin/kế toán. Tên cơ sở lấy nguyên văn cột `coso` hồ sơ (trình duyệt tự chuẩn hoá khớp). */
+	public static function ds_nhan_su_() {
+		$out = array();
+		if ( ! class_exists( 'VHG_Auth' ) ) { return $out; }
+		$us = VHG_Auth::users();
+		if ( is_wp_error( $us ) ) { return $out; }
+		foreach ( (array) $us as $u ) {
+			$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			$cs = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
+			if ( ! count( $cs ) ) { continue; }
+			$out[] = array( 'ten' => $ten, 'coso' => $cs );
+		}
+		return $out;
+	}
+
 	public static function boot( $pin ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
@@ -562,23 +579,11 @@ class VHG_BaoCao {
 			if ( '' !== $t && isset( $cs[ $t ] ) ) { $reset_cs[] = $t; }
 		}
 		/* 👤 DANH SÁCH NHÂN VIÊN → CƠ SỞ HỌ QUẢN LÝ — anh Thắng 12/09/2026: "chọn tên nhân viên để
-		   ra cơ sở bạn quản lý, cho dễ test". CHỈ gửi khi PIN đang đăng nhập là TOÀN QUYỀN (admin —
-		   không giới hạn cơ sở lẫn ghế); nhân viên thường không thấy ai khác. Mỗi người: tên + danh
-		   sách cơ sở (tách từ cột `coso` hồ sơ). Trình duyệt dùng để lọc ô "Cơ sở" theo người chọn. */
+		   ra cơ sở bạn quản lý, cho dễ test". Gửi khi PIN TOÀN QUYỀN (đường PIN thuần); còn admin
+		   đăng nhập qua /ghe thì gắn theo VAI TRÒ ở boot_tu_ai() — vì PIN admin có thể LIỆT KÊ đủ
+		   cơ sở chứ không để trống, cổng "toàn quyền" ở đây không bắt được. */
 		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
-		$nhan_su = array();
-		if ( $toan_quyen && class_exists( 'VHG_Auth' ) ) {
-			$us = VHG_Auth::users();
-			if ( ! is_wp_error( $us ) ) {
-				foreach ( (array) $us as $u ) {
-					$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
-					if ( '' === $ten ) { continue; }
-					$cs_nv = self::tach_( isset( $u['coso'] ) ? $u['coso'] : '' );
-					if ( ! count( $cs_nv ) ) { continue; }   // không gán cơ sở thì bỏ (không giúp gì cho việc chọn)
-					$nhan_su[] = array( 'ten' => $ten, 'coso' => $cs_nv );
-				}
-			}
-		}
+		$nhan_su = $toan_quyen ? self::ds_nhan_su_() : array();
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
@@ -691,8 +696,19 @@ class VHG_BaoCao {
 				'viSao' => $vi_sao );
 		}
 		$r = self::boot( $pin );
-		if ( ! empty( $r['ok'] ) ) { $r['pin'] = $pin; }
-		else { $r['viSao'] = $vi_sao . '; boot_that_bai'; }
+		if ( ! empty( $r['ok'] ) ) {
+			$r['pin'] = $pin;
+			/* 👤 ADMIN/QUẢN LÝ/KẾ TOÁN đăng nhập qua /ghe → gắn danh sách nhân viên để chọn-lọc cơ sở
+			   (dù PIN có liệt kê đủ cơ sở chứ không "toàn quyền"). Anh Thắng 12/09/2026: "bàn này là
+			   admin, sẽ sửa lỗi của nhân viên khác nên cần hiện tên + cơ sở của họ". */
+			if ( class_exists( 'VHG_Auth' ) ) {
+				$qq = VHG_Auth::quyen_cua( isset( $ai['role'] ) ? $ai['role'] : '' );
+				if ( ! empty( $qq['quan_tri'] ) || ! empty( $qq['chot_doanh_so'] ) ) {
+					$r['nhanSu'] = self::ds_nhan_su_();
+					$r['toanQuyen'] = 1;
+				}
+			}
+		} else { $r['viSao'] = $vi_sao . '; boot_that_bai'; }
 		return $r;
 	}
 
