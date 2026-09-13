@@ -3084,7 +3084,7 @@ class VHG_Trang {
   /* Huy hiệu "đủ/thiếu ảnh máy" của một nhóm cơ sở — ĐỦ = mọi ghế của mọi báo cáo trong nhóm có
      ≥1 ảnh (anh Thắng 12/09: "đã có ảnh sao vẫn báo thiếu" → không đòi đủ 2). Tách riêng để LƯU
      xong ảnh một ghế thì gọi lại cập nhật ngay tại chỗ, khỏi tải lại cả khối. */
-  var HUY_HIEU_ANH=[];
+  var HUY_HIEU_ANH=[], HUY_HIEU_ANH_BC=[];
   /* Đếm ghế / ghế thiếu ảnh của MỘT báo cáo. `_coAnh` = ghế vừa LƯU thêm ảnh trong phiên này
      (server chưa trả URL mới về nhưng chắc chắn đã có) — để huy hiệu xanh ngay, không đợi tải lại. */
   function demAnhBc_(rp){
@@ -3105,16 +3105,27 @@ class VHG_Trang {
       badge.style.color='#b45309'; badge.style.background='#fef3c7'; }
   }
   /* Huy hiệu ảnh của RIÊNG một báo cáo — dán vào dòng báo cáo (recentItem) để khi một cơ sở có
-     hai báo cáo, biết ngay báo cáo nào đủ ảnh, báo cáo nào thiếu. */
-  function huyHieuAnhBc_(rp){
+     hai báo cáo, biết ngay báo cáo nào đủ ảnh, báo cáo nào thiếu. Vẽ lên một span có sẵn để bổ
+     sung ảnh xong (capNhatHuyHieuAnh_) là cập nhật ngay chứ không đợi tải lại. */
+  function veHuyHieuAnhBc_(sp,rp){
     var s=demAnhBc_(rp);
-    var sp=el('span'); sp.style.cssText='font-size:11px;font-weight:700;padding:2px 8px;'
-      +'border-radius:999px;white-space:nowrap';
     if(s.tong>0 && s.thieu===0){ sp.textContent='✅ đủ ảnh'; sp.style.color='#166534'; sp.style.background='#dcfce7'; }
     else { sp.textContent='📷 thiếu '+s.thieu+'/'+s.tong+' ảnh'; sp.style.color='#b45309'; sp.style.background='#fef3c7'; }
+  }
+  function huyHieuAnhBc_(rp){
+    var sp=el('span'); sp.style.cssText='font-size:11px;font-weight:700;padding:2px 8px;'
+      +'border-radius:999px;white-space:nowrap';
+    veHuyHieuAnhBc_(sp,rp);
+    HUY_HIEU_ANH_BC.push({ badge:sp, rp:rp });
     return sp;
   }
-  function capNhatHuyHieuAnh_(){ HUY_HIEU_ANH.forEach(function(x){ veHuyHieuAnh_(x.badge,x.reports); }); }
+  /* 🔴 SAU KHI BỔ SUNG ĐỦ ẢNH THÌ PHẢI BÁO ĐỦ NGAY — anh Thắng 13/09/2026. Vẽ lại CẢ huy hiệu
+     nhóm cơ sở LẪN huy hiệu riêng từng báo cáo; huy hiệu riêng là span tĩnh vẽ một lần trong
+     recentItem, không tự cập nhật, nên phải đăng ký vào HUY_HIEU_ANH_BC để lượt này quét lại. */
+  function capNhatHuyHieuAnh_(){
+    HUY_HIEU_ANH.forEach(function(x){ veHuyHieuAnh_(x.badge,x.reports); });
+    HUY_HIEU_ANH_BC.forEach(function(x){ veHuyHieuAnhBc_(x.badge,x.rp); });
+  }
   /* 🔴 CHIA TRANG 10 BÁO CÁO/TRANG — anh Thắng 30/08/2026: "Chỗ này sửa hiện 10 báo cáo 1 trang
      thôi nhé". Trước đây `ds` (toàn bộ báo cáo trong 24h thuộc phạm vi PIN) đổ thẳng ra hết một
      lượt — cơ sở đông máy dồn vào một khung cuộn dài cả màn hình, khó dò ra báo cáo cần sửa.
@@ -3167,7 +3178,7 @@ class VHG_Trang {
       selNgay.onchange=function(){ locNgay=selNgay.value; trang=1; ve(); };
       function ve(){
         wrapl.textContent='';
-        HUY_HIEU_ANH=[];   // vẽ lại trang → đăng ký lại các huy hiệu ảnh cho lượt này
+        HUY_HIEU_ANH=[]; HUY_HIEU_ANH_BC=[];   // vẽ lại trang → đăng ký lại các huy hiệu ảnh cho lượt này
         var dsL = locNgay ? ds.filter(function(rp){ return (rp.date||'')===locNgay; }) : ds;
         soTrang = Math.max(1, Math.ceil(dsL.length/TRANG));
         if(!dsL.length){ wrapl.appendChild(el('div','bc-mut','Không có báo cáo nào cho ngày này.')); pager.textContent=''; return; }
