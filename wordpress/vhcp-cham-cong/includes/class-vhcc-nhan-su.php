@@ -1168,6 +1168,116 @@ class VHCC_NhanSu {
 		return false;
 	}
 
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * VAI TRÒ THEO BỘ PHẬN — GỢI Ý, KHÔNG PHẢI BÓ
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"Chỗ Vai Trò nó sẽ sinh ra khi chọn bộ phận phải không. VD nếu Khối
+	 * cơ sở nó sinh ra là nhân viên, cửa hàng trưởng, cửa hàng phó"*.
+	 *
+	 * =============================================================================================
+	 * 🔴 SẮP XẾP LẠI Ô XỔ, TUYỆT ĐỐI KHÔNG XOÁ LỰA CHỌN NÀO
+	 * =============================================================================================
+	 * Cách làm hiển nhiên — lọc ô xổ chỉ còn vai của bộ phận — là một cái bẫy đã cắn kho này một
+	 * lần. Người đang mang một vai KHÔNG thuộc bộ phận vừa chọn thì lựa chọn ấy biến mất, ô xổ
+	 * NHẢY VỀ DÒNG ĐẦU, và chỉ cần bấm Lưu một cái là đổi vai của họ — mà không ai định đổi ai.
+	 * Đúng chuyện `o_vai()` đã phải chống với vai "Kế Toán MTD", và `dat_vai_tro()` phải chống
+	 * lần nữa ở phía lưu.
+	 *
+	 * Nên luật ở đây là: **đưa vai của bộ phận LÊN ĐẦU** (nhóm riêng), phần còn lại vẫn nằm
+	 * nguyên bên dưới. Gợi ý cho nhanh tay, không cắt đường của ai.
+	 *
+	 * ⚠️ DANH MỤC KHAI ĐƯỢC, KHÔNG GÕ CỨNG. Bên chi phí đã vấp đúng chỗ này — *"Danh sách trước
+	 *    đây gõ cứng ở HAI nơi… mà hai nơi gõ cứng là hai nơi có thể lệch nhau"*. Công ty thêm
+	 *    một phòng hay một vai thì anh Thắng tự khai, không phải chờ sửa mã.
+	 */
+
+	/** Khoá lưu bản đồ bộ phận -> vai. */
+	const VAI_BP_O = 'vhcc_vai_bo_phan';
+
+	/**
+	 * Hạt giống: đúng MỘT dòng anh Thắng đã nói, không đoán thêm phòng nào.
+	 *
+	 * 🔴 CÁC PHÒNG KHÁC CỐ Ý ĐỂ TRỐNG. Trống = không gợi ý gì, ô xổ y như cũ — đó là trạng thái
+	 *    an toàn. Đoán hộ mười một phòng ban rồi bày lên đầu ô xổ là dạy người khai chọn sai một
+	 *    cách tự tin, và sai vai trò thì ra quyền.
+	 */
+	const VAI_BP_HAT_GIONG = array(
+		self::BP_CO_SO => array( 'Nhân viên', 'Cửa hàng trưởng', 'Cửa hàng phó' ),
+	);
+
+	/** Bản đồ đang khai: [ bộ phận => [tên vai, …] ]. */
+	public static function vai_theo_bo_phan() {
+		$v = get_option( self::VAI_BP_O, null );
+		if ( ! is_array( $v ) ) {
+			$v = self::VAI_BP_HAT_GIONG;
+			update_option( self::VAI_BP_O, $v );
+		}
+		$ra = array();
+		foreach ( $v as $bp => $ds ) {
+			$bp = trim( (string) $bp );
+			if ( '' === $bp ) { continue; }
+			$sach = array();
+			foreach ( (array) $ds as $t ) {
+				$t = trim( (string) $t );
+				if ( '' !== $t && ! in_array( $t, $sach, true ) ) { $sach[] = $t; }
+			}
+			if ( $sach ) { $ra[ $bp ] = $sach; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Khai vai cho một bộ phận. Danh sách rỗng = xoá khai, bộ phận ấy thôi gợi ý.
+	 *
+	 * ⚠️ KHÔNG chối vai chưa có trong hệ. Khai trước rồi tạo vai sau là thứ tự tự nhiên khi dựng
+	 *    sơ đồ tổ chức ("Cửa hàng phó" chưa tồn tại lúc anh Thắng nói ra nó). Chối ở đây thì
+	 *    người khai phải nhớ làm đúng thứ tự — mà không ai nhớ. Thay vào đó `vai_goi_y()` kê ra
+	 *    vai nào khai rồi mà hệ chưa có, ngay trên màn hình.
+	 */
+	public static function dat_vai_bo_phan( $u, $bo_phan, $ds_vai ) {
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Khai vai cho bộ phận cần vai Kế toán trở lên.' );
+		}
+		$bp = trim( (string) $bo_phan );
+		if ( '' === $bp ) { return array( 'ok' => false, 'error' => 'Thiếu tên bộ phận.' ); }
+		if ( ! in_array( $bp, self::ds_bo_phan(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Bộ phận "' . $bp . '" không có trong hệ.' );
+		}
+		$sach = array();
+		foreach ( (array) $ds_vai as $t ) {
+			$t = trim( (string) $t );
+			if ( '' !== $t && ! in_array( $t, $sach, true ) ) { $sach[] = $t; }
+		}
+		$ban = self::vai_theo_bo_phan();
+		if ( $sach ) { $ban[ $bp ] = $sach; } else { unset( $ban[ $bp ] ); }
+		update_option( self::VAI_BP_O, $ban );
+		return array( 'ok' => true, 'so' => count( $sach ) );
+	}
+
+	/**
+	 * GỢI Ý VAI cho một hồ sơ, theo bộ phận của họ.
+	 *
+	 * @return array array(
+	 *     'boPhan' => bộ phận đang xét ('' nếu chưa xếp),
+	 *     'trong'  => vai của bộ phận VÀ hệ đang có — bày lên đầu ô xổ,
+	 *     'thieu'  => vai đã khai cho bộ phận mà hệ CHƯA có (kê ra để đi khai, đừng im lặng bỏ),
+	 * )
+	 */
+	public static function vai_goi_y( $hs ) {
+		$x  = self::mang_bo_phan_cua( $hs );
+		$bp = (string) $x['boPhan'];
+		$ra = array( 'boPhan' => $bp, 'trong' => array(), 'thieu' => array() );
+		if ( '' === $bp ) { return $ra; }
+		$ban = self::vai_theo_bo_phan();
+		if ( empty( $ban[ $bp ] ) ) { return $ra; }
+		$co = VHCC_Vai::ds_ten();
+		foreach ( $ban[ $bp ] as $t ) {
+			if ( in_array( $t, $co, true ) ) { $ra['trong'][] = $t; } else { $ra['thieu'][] = $t; }
+		}
+		return $ra;
+	}
+
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
