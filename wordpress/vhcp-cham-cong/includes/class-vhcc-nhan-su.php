@@ -463,6 +463,8 @@ class VHCC_NhanSu {
 		   class-vhcc-trang-ns.php) — trước đây hàm chỉ ĐẾM số lượng trong nhóm, không giữ lại
 		   DANH SÁCH mã trong nhóm nên không trỏ được sang "hồ sơ kia" là mã nào. */
 		$ma_theo_nhom = array();
+		/* Mọi mã theo TÊN, bất kể cơ sở — để mời ghép được cả cặp "trùng tên khác cơ sở". */
+		$ma_theo_ten  = array();
 		foreach ( (array) $ds as $r ) {
 			$k_ten = self::khoa_so( isset( $r['ho_ten'] ) ? (string) $r['ho_ten'] : '' );
 			if ( '' === $k_ten ) { continue; }
@@ -473,7 +475,11 @@ class VHCC_NhanSu {
 			$nhom_k = $k_ten . '·' . $cs;
 			if ( ! isset( $ma_theo_nhom[ $nhom_k ] ) ) { $ma_theo_nhom[ $nhom_k ] = array(); }
 			$ma_nv_r = isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '';
-			if ( '' !== $ma_nv_r ) { $ma_theo_nhom[ $nhom_k ][] = $ma_nv_r; }
+			if ( '' !== $ma_nv_r ) {
+				$ma_theo_nhom[ $nhom_k ][] = $ma_nv_r;
+				if ( ! isset( $ma_theo_ten[ $k_ten ] ) ) { $ma_theo_ten[ $k_ten ] = array(); }
+				$ma_theo_ten[ $k_ten ][] = $ma_nv_r;
+			}
 		}
 
 		$ra = array();
@@ -497,7 +503,22 @@ class VHCC_NhanSu {
 					}
 				}
 			}
-			$ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m, 'motNguoi' => $mot_nguoi, 'doi' => $doi );
+			/* 🔴 `doi` CHỈ ĐIỀN KHI CÙNG CƠ SỞ — và đó là lý do nút "Ghép với" không hiện cho
+			   cặp trùng tên KHÁC cơ sở. Anh Thắng 13/09/2026: *"Không hiện chỗ sửa hồ sơ để
+			   ghép"*, kèm ảnh hai hồ sơ "Nguyễn Thị Mai Anh" mang nhãn *trùng tên (khác cơ sở)*
+			   mà không có nút nào.
+			   Một người làm hai cơ sở là chuyện thường ở chuỗi này, nên "khác cơ sở" KHÔNG đủ để
+			   kết luận hai người. Nay kê riêng `doiTen` — mọi mã cùng tên, bất kể cơ sở — để màn
+			   hình mời ghép được, còn việc có thật sự là một người hay không thì màn XEM TRƯỚC
+			   lo (nó bày CCCD, SĐT, ngày vào làm ra để soát). */
+			$doi_ten = array();
+			if ( $t ) {
+				foreach ( (array) ( isset( $ma_theo_ten[ $x['k_ten'] ] ) ? $ma_theo_ten[ $x['k_ten'] ] : array() ) as $md ) {
+					if ( $md !== $x['ma'] ) { $doi_ten[] = $md; }
+				}
+			}
+			$ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m, 'motNguoi' => $mot_nguoi,
+				'doi' => $doi, 'doiTen' => $doi_ten );
 		}
 		return $ra;
 	}

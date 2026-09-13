@@ -51,6 +51,9 @@ $nv( 'MNNV2KVC0119', 'Nguyễn Thị Mai Anh', 'FZ_LTVT' );                     
 $nv( 'MNNV2KVC0024', 'NGUYỄN HOÀNG ANH', 'FZ_SC_VIVO_T4' );
 $nv( 'MNNV2KVC0036', 'TRẦN QUỐC BẢO', 'FZ_LTVT', 'POSH_Q1' );                 // 🔴 LÀM HAI MẢNG
 $nv( 'MNNV2MTD0025', 'NGUYỄN THỊ MAI ANH', 'FARM_PT', 'JP_AEON_TP' );         // hai cơ sở, MỘT mảng
+/* 🔴 CẶP TRÙNG TÊN KHÁC CƠ SỞ — đúng ảnh anh Thắng gửi 13/09/2026 ("Không hiện chỗ sửa hồ
+   sơ để ghép"): hai "Nguyễn Thị Mai Anh" ở hai cơ sở khác nhau, trước đây không có nút nào. */
+$nv( 'MNNV2KVC0119b', 'Nguyễn Thị Mai Anh', 'FZ_LTVT' );
 $nv( 'MNQL2KVC0003', 'LÊ VĂN CƯỜNG', 'FZ_LTVT', 'GO_AN_LAC', '', 'Quản lý' ); // quản lý một mảng
 $nv( 'MNQL2KVC0007', 'PHẠM THU HÀ', 'FZ_LTVT', 'POSH_Q1', 'POSH_Q1', 'Cửa hàng trưởng' ); // 🔴 chỉ QL không kéo mảng
 $nv( 'MNVP2CTY0001', 'HUỲNH QUANG THẮNG', '', '', '', 'Admin', 'Văn phòng', 'Tổng Giám Đốc (CEO)' );

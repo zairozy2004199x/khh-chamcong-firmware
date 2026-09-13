@@ -629,4 +629,28 @@ t( 'nút gộp mở màn xem trước bằng đường dẫn, không POST thẳn
 t( '🔴 gộp thật đòi gõ đúng chuỗi xác nhận', strpos( $src_g, "'GOP' !== \$go" ) !== false );
 t( 'màn nói rõ CHƯA đổi gì cả', strpos( $src_g, 'Chưa đổi gì cả' ) !== false );
 
+
+
+/* ── Ghép được cả cặp TRÙNG TÊN KHÁC CƠ SỞ (anh Thắng: "Không hiện chỗ sửa hồ sơ để ghép") ── */
+echo "── 10. Ghép cặp khác cơ sở ─────────────────────────────\n";
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KCS_A', 'ho_ten' => 'Nguyễn Thị Mai Anh',
+	'cua_hang' => 'FZ_LTVT', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KCS_B', 'ho_ten' => 'Nguyễn Thị Mai Anh',
+	'cua_hang' => 'FARM_PT', 'vai_tro' => 'Nhân viên' ) );
+$tr_k = VHCC_NhanSu::dau_hieu_trung( VHCC_NhanSu::ds_nhan_vien( array( 'ma_nv' => 'AD', 'role' => 'Admin' ) ) );
+t( 'hệ vẫn gắn cờ trùng tên', ! empty( $tr_k['KCS_A']['ten'] ), $tr_k['KCS_A'] );
+t( '🔴 KHÁC cơ sở nên KHÔNG phải "một người hai hồ sơ"', empty( $tr_k['KCS_A']['motNguoi'] ) );
+teq( '🔴 nhưng `doi` rỗng — đây đúng là lý do nút ghép không hiện', array(), $tr_k['KCS_A']['doi'] );
+t( '🔴 nay có `doiTen` để mời ghép được', in_array( 'KCS_B', $tr_k['KCS_A']['doiTen'], true ),
+	$tr_k['KCS_A']['doiTen'] );
+
+$src_k = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( 'nhánh khác cơ sở nay cũng vẽ nút ghép', strpos( $src_k, "\$co_trung['doiTen']" ) !== false );
+t( '🔴 và màn xem trước cảnh báo riêng cho ca khác cơ sở',
+	strpos( $src_k, 'HAI CƠ SỞ KHÁC NHAU' ) !== false );
+t( 'có đường gõ tay hai mã khi hệ không dò ra cặp',
+	strpos( $src_k, 'Gộp hai hồ sơ bất kỳ' ) !== false );
+t( '🔴 đường gõ tay vẫn đi qua màn XEM TRƯỚC (GET gop_a/gop_b), không gộp thẳng',
+	strpos( $src_k, '<form method="get" class="hang">' ) !== false );
+
 ket_luan_vai();

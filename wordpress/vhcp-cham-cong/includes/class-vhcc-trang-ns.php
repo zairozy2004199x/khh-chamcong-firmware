@@ -378,8 +378,19 @@ class VHCC_TrangNS {
 		   vốn của ai. Mọi cảnh báo khác chỉ là "sửa lại cho gọn"; cảnh báo này là "dừng lại".
 		   Vẫn cho gộp (đổi tên là chuyện có thật — lấy chồng, sửa chính tả), nhưng phải đập vào
 		   mắt, không nằm lẫn trong bảng so ô. */
-		$ten_khac = false;
-		foreach ( (array) $xt['khac'] as $k_t ) { if ( 'Họ tên' === $k_t['o'] ) { $ten_khac = true; } }
+		$ten_khac = false; $cs_khac = false;
+		foreach ( (array) $xt['khac'] as $k_t ) {
+			if ( 'Họ tên' === $k_t['o'] ) { $ten_khac = true; }
+			if ( 'Cơ sở chính' === $k_t['o'] ) { $cs_khac = true; }
+		}
+		/* Tên GIỐNG mà cơ sở KHÁC: có thể một người làm hai nơi (thường), có thể hai người trùng
+		   tên (cũng thường, tên Việt trùng rất nhiều). Không đủ để chặn, nhưng phải nhắc soát. */
+		if ( ! $ten_khac && $cs_khac ) {
+			echo '<div class="bao canh"><b>Hai hồ sơ này ở HAI CƠ SỞ KHÁC NHAU</b> — có thể là một '
+				. 'người làm hai nơi (chuyện thường ở chuỗi), cũng có thể là hai người trùng tên '
+				. '(tên Việt trùng rất nhiều). Soát <b>CCCD · SĐT · ngày vào làm</b> ở bảng dưới '
+				. 'trước khi gõ xác nhận.</div>';
+		}
 		if ( $ten_khac ) {
 			echo '<div class="bao loi"><b>⛔ HAI HỒ SƠ NÀY GHI HAI HỌ TÊN KHÁC NHAU</b> — rất có thể '
 				. 'đây là <b>hai người khác nhau</b>, không phải một người hai hồ sơ. Gộp nhầm là trộn '
@@ -432,6 +443,31 @@ class VHCC_TrangNS {
 			echo '</form>';
 		}
 		echo '</div>';
+	}
+
+	/**
+	 * GÕ THẲNG HAI MÃ ĐỂ GỘP — đường không phụ thuộc vào phép tự dò.
+	 *
+	 * 🔴 Phép dò trùng so tên đã chuẩn hoá. Hai hồ sơ của cùng một người mà tên gõ lệch nhau
+	 *    ("Nguyễn Thị Mai Anh" / "Nguyen Thi Mai Anh 1" / thêm dấu cách) thì KHÔNG vào nhóm nào,
+	 *    nên không có nút nào mời ghép — và người ta tưởng hệ không làm được.
+	 *    Ô gõ tay là đường cuối cùng, luôn đi được. Vẫn qua đúng màn xem trước ấy.
+	 */
+	private static function the_gop_tay( $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) { return; }
+		echo '<div class="the"><details><summary><b>Gộp hai hồ sơ bất kỳ</b> '
+			. '<span class="mo" style="font-weight:400">(khi hệ không tự dò ra cặp)</span></summary>';
+		echo '<p class="mo">Hệ tự dò cặp bằng cách so <b>tên</b>. Hai hồ sơ cùng người mà tên gõ lệch '
+			. 'nhau thì không vào nhóm nào, nên không có nút nào mời ghép. Gõ thẳng hai mã ở đây — '
+			. 'vẫn đi qua <b>màn xem trước</b>, chưa gộp gì ngay.</p>';
+		echo '<form method="get" class="hang">';
+		if ( ! get_option( 'permalink_structure' ) ) {
+			echo '<input type="hidden" name="vhcc_ns" value="1">';
+		}
+		echo '<div><label>Mã GIỮ LẠI</label><input type="text" name="gop_a" placeholder="vd: MNNV2KVC0036" required></div>';
+		echo '<div><label>Mã SẼ XOÁ</label><input type="text" name="gop_b" placeholder="vd: MNNV2KVC0024" required></div>';
+		echo '<button class="chinh">Xem trước</button>';
+		echo '</form></details></div>';
 	}
 
 	/** Gộp thật — chỉ khi gõ đúng chuỗi xác nhận. */
@@ -1345,6 +1381,7 @@ class VHCC_TrangNS {
 		/* Ngay SAU Bảng vai trò: khai vai cho bộ phận chỉ có nghĩa khi vai đã tồn tại, nên hai
 		   khối phải đứng cạnh nhau và đúng thứ tự đọc. */
 		self::the_vai_bp( $toi );
+		self::the_gop_tay( $toi );
 		self::the_dau_viec( $toi );
 		self::the_ngoai_pham_vi();
 		self::the_mac_dinh( $ds_trang );
@@ -2025,8 +2062,30 @@ class VHCC_TrangNS {
 						}
 					}
 				} elseif ( $co_trung['ten'] ) {
-					echo '<span class="chip-t" title="Có người cùng tên ở CƠ SỞ KHÁC — nhiều khả '
-						. 'năng là hai người thật, không phải lỗi.">trùng tên (khác cơ sở)</span>';
+					echo '<span class="chip-t" title="Có người cùng tên ở CƠ SỞ KHÁC — có thể là hai '
+						. 'người thật, cũng có thể là một người làm hai nơi.">trùng tên (khác cơ sở)</span>';
+					/* 🔴 CŨNG PHẢI CÓ ĐƯỜNG GHÉP. Anh Thắng 13/09/2026: *"Không hiện chỗ sửa hồ sơ
+					   để ghép"* — ảnh là hai hồ sơ "Nguyễn Thị Mai Anh" mang đúng nhãn này mà
+					   không có nút nào.
+					   Một người làm hai cơ sở là chuyện THƯỜNG ở chuỗi này, nên "khác cơ sở" không
+					   đủ để kết luận hai người. Bản trước cố ý giấu nút vì sợ gộp nhầm — nhưng giấu
+					   đường đi thì người ta đi đường vòng (sửa tay, xoá bớt), còn nguy hơn.
+					   ⚠️ Nút MỞ XEM TRƯỚC, và ở đó có cảnh báo riêng cho ca khác cơ sở. Chốt nằm ở
+					      màn xem trước, không nằm ở việc giấu nút. */
+					if ( VHCC_Vai::duoc( $toi, 'he_thong' ) && ! empty( $co_trung['doiTen'] ) ) {
+						foreach ( $co_trung['doiTen'] as $md ) {
+							$lt = isset( $hoat_dong[ $ma ] ) ? (int) $hoat_dong[ $ma ]['luot'] : 0;
+							$ld = isset( $hoat_dong[ $md ] ) ? (int) $hoat_dong[ $md ]['luot'] : 0;
+							$gi = ( $ld > $lt ) ? $md : $ma;
+							$bo = ( $ld > $lt ) ? $ma : $md;
+							echo '<br><a class="nut" style="margin-top:4px;padding:2px 8px;font-size:12px" '
+								. 'href="' . esc_url( add_query_arg(
+									array( 'gop_a' => $gi, 'gop_b' => $bo ), self::url_hien() ) ) . '" '
+								. 'title="' . esc_attr( 'Xem trước việc gộp ' . $bo . ' vào ' . $gi
+									. ' — chưa đổi gì cả. Hai hồ sơ này KHÁC cơ sở, soát kỹ trước.' ) . '">'
+								. 'Ghép với ' . esc_html( $md ) . '</a>';
+						}
+					}
 				}
 			}
 			echo '</td>';
