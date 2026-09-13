@@ -166,67 +166,122 @@ input[type="date"],input[type="number"],.num-in{font-family:"IBM Plex Mono",mono
 .btn.sm{font-size:15px;padding:8px 13px}
 .hint{font-size:12.5px;color:var(--muted);line-height:1.5}
 
-/* ---------- fare board ---------- */
-.board{background:var(--board);color:var(--board-ink);border:1px solid var(--board);box-shadow:var(--shadow)}
-.board-head{
-  display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px;
-  padding:13px 17px;border-bottom:1px solid var(--board-line);background:var(--board-2);
-}
-.board-head h2{color:var(--board-ink)}
-.board-head .eyebrow{color:var(--amber-bright)}
-.board-sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--board-dim);letter-spacing:.05em}
-.rows{display:grid}
-.row{
-  display:grid;grid-template-columns:104px minmax(0,1fr) 104px 168px;gap:14px;align-items:center;
-  padding:13px 17px 13px 18px;border-bottom:1px solid var(--board-line);position:relative;
-}
-.row:last-child{border-bottom:0}
-.row.best{background:var(--board-2)}
-.row.best::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--amber-bright)}
-.r-air{display:grid;gap:2px}
-.r-code{font-family:"Barlow Condensed",sans-serif;font-size:23px;font-weight:700;letter-spacing:.06em;line-height:1}
-.r-name{font-size:11.5px;color:var(--board-dim)}
-.r-time{display:grid;gap:3px;min-width:0}
-.r-clock{font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:500;letter-spacing:.02em;font-variant-numeric:tabular-nums}
-.r-clock span{color:var(--board-dim);font-size:13px}
-.r-meta{font-size:11.5px;color:var(--board-dim);overflow-wrap:anywhere}
-.r-chan{font-size:12.5px;color:var(--board-dim);line-height:1.35}
-.r-chan b{display:block;color:var(--board-ink);font-weight:500;font-size:13.5px}
-.r-price{text-align:right;display:grid;gap:1px;justify-items:end}
-.r-price b{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-.row.best .r-price b{color:var(--amber-bright)}
-.r-price span{font-size:11px;color:var(--board-dim)}
-.r-price i{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--board-dim)}
-.badge-best{
-  position:absolute;top:-1px;left:18px;background:var(--amber-bright);color:var(--on-amber);
-  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;padding:2px 7px;text-transform:uppercase;
-}
-.row.best{padding-top:20px}
-.go{
-  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:15px;font-weight:600;
-  background:transparent;border:1px solid var(--board-line);color:var(--board-ink);padding:5px 10px;cursor:pointer;
-  text-decoration:none;display:inline-block;margin-top:5px;
-}
-.go:hover{border-color:var(--amber-bright);color:var(--amber-bright)}
-.empty{padding:34px 18px;color:var(--board-dim);font-size:14px;text-align:center}
+/* ---------- thanh tìm chuyến ---------- */
+.searchbar{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;display:grid;gap:12px}
+.sb-row{display:grid;grid-template-columns:minmax(0,1.15fr) 42px minmax(0,1.15fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.75fr) minmax(0,.9fr) auto;gap:10px;align-items:end}
+.sb-row .btn{height:42px;padding-inline:20px}
+.sb-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+@media (max-width:1060px){ .sb-row{grid-template-columns:1fr 42px 1fr 1fr;} .sb-row .btn{grid-column:1/-1} }
+@media (max-width:560px){ .sb-row{grid-template-columns:1fr 1fr} .sb-row .swapbtn{display:none} }
 
-/* ---------- price calendar ---------- */
-.cal{margin-top:22px}
-.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:12px}
-.day{
-  display:grid;gap:6px;justify-items:center;background:var(--surface);border:1px solid var(--line);
-  padding:9px 4px 8px;cursor:pointer;font:inherit;color:var(--ink);
-}
+/* ---------- dải giá 7 ngày ---------- */
+.strip{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;gap:8px;align-items:stretch}
+.strip-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.arrow{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:17px;line-height:1}
+.arrow:hover:not(:disabled){border-color:var(--amber-bright);color:var(--amber)}
+.arrow:disabled{opacity:.35;cursor:default}
+.day{display:grid;gap:3px;justify-items:center;background:var(--surface);border:1px solid var(--line);
+  padding:9px 4px;cursor:pointer;font:inherit;color:var(--ink);text-align:center}
 .day:hover{border-color:var(--amber-bright)}
-.day[aria-current="date"]{border-color:var(--board);box-shadow:inset 0 0 0 1px var(--board)}
-.day.cheapest{background:var(--cheap-soft);border-color:var(--cheap)}
-.d-dow{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
-.d-date{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums}
-.d-bar{width:100%;background:var(--line-soft);display:flex;align-items:flex-end;height:38px}
-.d-bar i{display:block;width:100%;background:var(--board-2);min-height:3px}
-.day.cheapest .d-bar i{background:var(--cheap)}
-.d-price{font-family:"IBM Plex Mono",monospace;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
-.day.cheapest .d-price{color:var(--cheap);font-weight:600}
+.day[aria-current="date"]{background:var(--board);border-color:var(--board);color:var(--board-ink)}
+.day[aria-current="date"] .d-dow{color:var(--board-dim)}
+.day[aria-current="date"] .d-price{color:var(--amber-bright)}
+.day.cheap .d-price{color:var(--cheap);font-weight:600}
+.day:disabled{opacity:.4;cursor:default}
+.d-dow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;white-space:nowrap}
+.d-price{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:760px){
+  .strip{grid-template-columns:1fr}
+  .strip .arrow{display:none}
+  .strip-days{display:flex;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:4px}
+  .strip-days .day{min-width:104px;scroll-snap-align:start}
+}
+
+/* ---------- khung kết quả ---------- */
+.results{display:grid;grid-template-columns:minmax(0,248px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){ .results{grid-template-columns:1fr} }
+.rail{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);display:grid}
+.rail section{padding:13px 15px;border-bottom:1px solid var(--line-soft);display:grid;gap:7px}
+.rail section:last-child{border-bottom:0}
+.f-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.f-head h3{font-size:14px;letter-spacing:.05em;white-space:nowrap}
+.link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--amber);cursor:pointer;text-decoration:underline;white-space:nowrap}
+.f-item{display:flex;align-items:center;gap:9px;padding:4px 0;cursor:pointer;line-height:1.3;
+  font-family:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink)}
+.f-item input{width:16px;height:16px;accent-color:var(--amber-bright);flex:none;margin:0}
+.f-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.f-price{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;
+  color:var(--muted);flex:none;letter-spacing:0;text-transform:none}
+.f-item.off{opacity:.4}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);
+  padding:4px 6px 4px 9px;font-size:12.5px}
+.pill button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
+.pill button:hover{color:var(--warn)}
+
+.topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sorts{display:flex;border:1px solid var(--line);background:var(--surface)}
+.sort{padding:9px 14px;border:0;border-right:1px solid var(--line-soft);background:transparent;color:var(--ink-2);
+  font:600 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
+.sort:last-child{border-right:0}
+.sort[aria-pressed="true"]{background:var(--board);color:var(--board-ink)}
+.count{font-size:13px;color:var(--muted)}
+
+/* ---------- thẻ chuyến ---------- */
+.res{display:grid;gap:10px}
+.card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:118px minmax(0,1fr) minmax(150px,auto) auto;gap:18px;align-items:center;padding:15px 17px;position:relative}
+.card.best{border-color:var(--amber-bright)}
+.badge{position:absolute;top:-1px;left:17px;background:var(--amber-bright);color:var(--on-amber);
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;padding:2px 7px;text-transform:uppercase}
+.card.best{padding-top:22px}
+.c-air{display:flex;align-items:center;gap:9px;min-width:0}
+.c-logo{width:34px;height:34px;flex:none;display:grid;place-items:center;background:var(--board);color:#F2F5F8;
+  font:700 13px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em}
+.c-name{font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+.c-name small{display:block;color:var(--muted);font-size:11.5px;font-family:"IBM Plex Mono",monospace}
+.c-leg{display:grid;grid-template-columns:auto minmax(60px,1fr) auto;gap:12px;align-items:center;min-width:0}
+.t-big{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1}
+.t-code{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.t-mid{display:grid;gap:3px;justify-items:center;text-align:center}
+.t-dur{font-size:11.5px;color:var(--muted)}
+.t-line{width:100%;height:1px;background:var(--line);position:relative}
+.t-line::after{content:"";position:absolute;right:0;top:-2px;width:5px;height:5px;background:var(--ink-2);border-radius:50%}
+.t-stop{font-size:11.5px;color:var(--ink-2)}
+.c-price{display:grid;gap:2px;justify-items:end;text-align:right}
+.c-price b{font-family:"IBM Plex Mono",monospace;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--amber)}
+.card.best .c-price b{color:var(--amber-bright)}
+.c-price span{font-size:11.5px;color:var(--muted)}
+.c-price .delta{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
+.c-act{display:grid;gap:6px;justify-items:stretch}
+.choose{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:17px;
+  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);padding:9px 18px;
+  text-decoration:none;text-align:center;cursor:pointer;white-space:nowrap}
+.choose:hover{filter:brightness(1.06)}
+.choose.alt{background:transparent;color:var(--ink-2);border-color:var(--line);font-size:14px;padding:6px 12px}
+.choose.alt:hover{border-color:var(--amber-bright);color:var(--amber)}
+.c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}
+.mini{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line-soft);padding:3px 7px}
+.mini.bag{color:var(--cheap);border-color:var(--cheap)}
+@media (max-width:760px){
+  .card{grid-template-columns:1fr auto;gap:12px}
+  .c-air{grid-column:1/-1}
+  .c-leg{grid-column:1/-1}
+  .c-act{grid-column:1/-1}
+  .c-price{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;justify-items:start;text-align:left}
+  .c-price span,.c-price .delta{white-space:nowrap}
+}
+.empty{padding:34px 18px;color:var(--muted);font-size:14px;text-align:center;background:var(--surface);border:1px solid var(--line)}
+
+/* ---------- bảng cài đặt nguồn ---------- */
+details.statecard summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+details.statecard summary::-webkit-details-marker{display:none}
+details.statecard summary::after{content:"Cài đặt ▾";font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+details.statecard[open] summary::after{content:"Thu lại ▴"}
+details.statecard[open]{gap:12px}
+details.statecard > *:not(summary){margin-top:2px}
+
 
 /* ---------- channels ---------- */
 .chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
@@ -296,12 +351,14 @@ section.sec>.hint{max-width:74ch}
     <h1>Dò vé rẻ</h1>
     <p class="lede">Gõ chặng bay một lần. Máy xếp các lựa chọn từ rẻ tới đắt, mở song song những nơi đang bán vé chặng đó, rồi bơm sẵn thông tin hành khách và hoá đơn VAT vào form đặt vé. Phần anh giữ lại là thẻ và mã OTP — hai thứ không nên giao cho máy.</p>
   </div>
-  <aside class="statecard">
-    <span class="eyebrow">Nguồn giá</span>
-    <span class="tag" id="srcTag">Giá mô phỏng — chưa nối API</span>
+  <details class="statecard" id="srcPanel">
+    <summary>
+      <span class="eyebrow">Nguồn giá</span>
+      <span class="tag" id="srcTag">Giá mô phỏng — chưa nối API</span>
+    </summary>
     <p id="srcNote">Chạy <code>node server/proxy.mjs</code> trong repo rồi dán địa chỉ proxy vào đây là bảng giá chuyển sang dữ liệu Amadeus thật. Chưa có khoá thì <code>--mock</code> để xem luồng chạy.</p>
     <div class="field">
-      <label for="proxyUrl">Địa chỉ proxy</label>
+      <label for="proxyUrl">Địa chỉ proxy giá</label>
       <input id="proxyUrl" placeholder="http://localhost:8787" spellcheck="false" autocomplete="off">
     </div>
     <div class="field">
@@ -312,90 +369,72 @@ section.sec>.hint{max-width:74ch}
       <button class="btn sm" type="button" id="useProxy">Dùng nguồn này</button>
       <button class="btn ghost sm" type="button" id="clearProxy">Về giá mô phỏng</button>
     </div>
-  </aside>
+  </details>
 </header>
 
-<main class="grid">
-
-  <form class="panel" id="searchForm">
-    <div class="panel-head"><h2>Chặng bay</h2><span class="eyebrow">Bước 1</span></div>
-    <div class="panel-body">
-      <div class="swap">
-        <div class="field">
-          <label for="from">Điểm đi</label>
-          <input id="from" name="from" list="airports" value="SGN" autocomplete="off" spellcheck="false">
-        </div>
-        <button type="button" class="swapbtn" id="swapBtn" title="Đảo chiều" aria-label="Đảo chiều điểm đi và điểm đến">⇄</button>
-        <div class="field">
-          <label for="to">Điểm đến</label>
-          <input id="to" name="to" list="airports" value="HAN" autocomplete="off" spellcheck="false">
-        </div>
-      </div>
-      <datalist id="airports"></datalist>
-
-      <div class="chips" role="group" aria-label="Loại hành trình">
-        <button type="button" class="chip" id="tripOw" aria-pressed="true">Một chiều</button>
-        <button type="button" class="chip" id="tripRt" aria-pressed="false">Khứ hồi</button>
-      </div>
-
-      <div class="two">
-        <div class="field"><label for="dep">Ngày đi</label><input type="date" id="dep" name="dep"></div>
-        <div class="field"><label for="ret">Ngày về</label><input type="date" id="ret" name="ret" disabled></div>
-      </div>
-
-      <div class="three">
-        <div class="field"><label for="adt">Người lớn</label><input type="number" id="adt" name="adt" min="1" max="9" value="1"></div>
-        <div class="field"><label for="chd">Trẻ 2–11</label><input type="number" id="chd" name="chd" min="0" max="8" value="0"></div>
-        <div class="field"><label for="inf">Em bé &lt;2</label><input type="number" id="inf" name="inf" min="0" max="4" value="0"></div>
-      </div>
-
-      <div class="two">
-        <div class="field">
-          <label for="cabin">Hạng vé</label>
-          <select id="cabin" name="cabin">
-            <option value="ECONOMY">Phổ thông</option>
-            <option value="PREMIUM_ECONOMY">Phổ thông đặc biệt</option>
-            <option value="BUSINESS">Thương gia</option>
-          </select>
-        </div>
-        <div class="field"><label for="cap">Trần giá / khách (đ)</label><input type="number" id="cap" name="cap" min="0" step="100000" placeholder="tuỳ ý"></div>
-      </div>
-
-      <div class="field">
-        <span class="lbl">Lọc thêm</span>
-        <div class="chips" role="group" aria-label="Bộ lọc">
-          <button type="button" class="chip" id="fDirect" aria-pressed="true">Chỉ bay thẳng</button>
-          <button type="button" class="chip" id="fBag" aria-pressed="false">Có ký gửi 20kg</button>
-          <button type="button" class="chip" id="fDay" aria-pressed="false">Bay 08:00–18:00</button>
-        </div>
-      </div>
-
-      <button class="btn" type="submit">Dò giá &amp; xếp hạng</button>
-      <p class="hint">Mã sân bay hoặc tên thành phố đều được: <span class="num">SGN</span>, <span class="num">HAN</span>, Đà Nẵng, Phú Quốc, Bangkok…</p>
+<form class="searchbar" id="searchForm">
+  <div class="sb-row">
+    <div class="field">
+      <label for="from">Điểm đi</label>
+      <input id="from" name="from" list="airports" value="SGN" autocomplete="off" spellcheck="false">
     </div>
-  </form>
+    <button type="button" class="swapbtn" id="swapBtn" title="Đảo chiều" aria-label="Đảo chiều điểm đi và điểm đến">⇄</button>
+    <div class="field">
+      <label for="to">Điểm đến</label>
+      <input id="to" name="to" list="airports" value="HAN" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="field"><label for="dep">Ngày đi</label><input type="date" id="dep" name="dep"></div>
+    <div class="field"><label for="ret">Ngày về</label><input type="date" id="ret" name="ret" disabled></div>
+    <div class="field"><label for="adt">Người lớn</label><input type="number" id="adt" name="adt" min="1" max="9" value="1"></div>
+    <div class="field">
+      <label for="cabin">Hạng vé</label>
+      <select id="cabin" name="cabin">
+        <option value="ECONOMY">Phổ thông</option>
+        <option value="PREMIUM_ECONOMY">Phổ thông đặc biệt</option>
+        <option value="BUSINESS">Thương gia</option>
+      </select>
+    </div>
+    <button class="btn" type="submit">Dò giá</button>
+  </div>
+  <datalist id="airports"></datalist>
+  <div class="sb-foot">
+    <div class="chips" role="group" aria-label="Loại hành trình">
+      <button type="button" class="chip" id="tripOw" aria-pressed="true">Một chiều</button>
+      <button type="button" class="chip" id="tripRt" aria-pressed="false">Khứ hồi</button>
+      <span class="chip" style="cursor:default;background:transparent;border-style:dashed">Trẻ 2–11
+        <input type="number" id="chd" min="0" max="8" value="0" style="width:44px;padding:2px 4px;margin-left:6px;display:inline-block"></span>
+      <span class="chip" style="cursor:default;background:transparent;border-style:dashed">Em bé &lt;2
+        <input type="number" id="inf" min="0" max="4" value="0" style="width:44px;padding:2px 4px;margin-left:6px;display:inline-block"></span>
+    </div>
+    <p class="hint">Gõ mã sân bay hoặc tên thành phố: <span class="num">SGN</span>, <span class="num">HAN</span>, Đà Nẵng, Phú Quốc…</p>
+  </div>
+</form>
+
+<section class="sec" aria-label="Giá theo ngày">
+  <div class="strip">
+    <button class="arrow" type="button" id="stripPrev" aria-label="Tuần trước">‹</button>
+    <div class="strip-days" id="strip"></div>
+    <button class="arrow" type="button" id="stripNext" aria-label="Tuần sau">›</button>
+  </div>
+  <p class="hint" id="calNote">Bấm một ngày để đổi ngày đi. Cột rẻ nhất tuần được tô xanh.</p>
+</section>
+
+<main class="results">
+  <aside class="rail" id="rail"></aside>
 
   <div>
-    <section class="board">
-      <div class="board-head">
-        <div>
-          <span class="eyebrow">Bước 2 · rẻ nhất lên đầu</span>
-          <h2 id="boardTitle">SGN → HAN</h2>
-        </div>
-        <div class="board-sub" id="boardSub">chưa dò</div>
+    <div class="topbar">
+      <div class="sorts" role="group" aria-label="Sắp xếp">
+        <button class="sort" type="button" data-sort="price" aria-pressed="true">Rẻ nhất</button>
+        <button class="sort" type="button" data-sort="dep" aria-pressed="false">Bay sớm nhất</button>
+        <button class="sort" type="button" data-sort="dur" aria-pressed="false">Nhanh nhất</button>
       </div>
-      <div class="rows" id="rows">
-        <div class="empty">Bấm <b>Dò giá &amp; xếp hạng</b> để máy bày bảng giá.</div>
-      </div>
-    </section>
-
-    <section class="cal sec">
-      <h3>Lịch giá 7 ngày quanh ngày đi</h3>
-      <p class="hint" id="calNote">Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.</p>
-      <div class="cal-grid" id="cal"></div>
-    </section>
+      <span class="count" id="boardSub">chưa dò</span>
+    </div>
+    <div class="res" id="rows">
+      <div class="empty">Bấm <b>Dò giá</b> để xem bảng giá.</div>
+    </div>
   </div>
-
 </main>
 
 <section class="sec">
@@ -944,7 +983,13 @@ function DVR_LEARN(){
 }
 
 /* ---------------- trạng thái & màn hình ---------------- */
-const state = { trip:"ow", direct:true, bag:false, day:false, last:null };
+const state = {
+  trip: "ow", last: null, live: false, offers: [], stripFrom: null, sort: "price",
+  f: { al: new Set(), stop: new Set(), time: new Set(), bag: false }
+};
+const BLOCKS = [["som","Sáng sớm","00–06"],["sang","Buổi sáng","06–12"],["chieu","Buổi chiều","12–18"],["toi","Buổi tối","18–24"]];
+const blockOf = h => h < 6 ? "som" : h < 12 ? "sang" : h < 18 ? "chieu" : "toi";
+const blockName = k => (BLOCKS.find(b => b[0] === k) || ["","",""])[1];
 
 function readQuery(){
   const from = airportOf($("#from").value), to = airportOf($("#to").value);
@@ -953,7 +998,7 @@ function readQuery(){
   return {
     from, to, dep: $("#dep").value, ret: state.trip==="rt" ? $("#ret").value : "",
     adt:+$("#adt").value||1, chd:+$("#chd").value||0, inf:+$("#inf").value||0,
-    cabin: $("#cabin").value, cap:+$("#cap").value||0
+    cabin: $("#cabin").value
   };
 }
 
@@ -1007,7 +1052,7 @@ async function run(){
     try {
       const j = await api("/api/offers?" + new URLSearchParams({
         from: q.from.code, to: q.to.code, dep: q.dep, ret: q.ret || "",
-        adt: q.adt, chd: q.chd, inf: q.inf, cabin: q.cabin, direct: state.direct ? "1" : "0"
+        adt: q.adt, chd: q.chd, inf: q.inf, cabin: q.cabin, direct: "0"
       }));
       if(mine !== seq) return;
       offers = j.offers || [];
@@ -1031,78 +1076,170 @@ async function run(){
     else setSource("sim", "Giá mô phỏng — " + err,
       "Proxy chưa trả được dữ liệu nên bảng quay về giá mô phỏng. Sửa lại rồi bấm Dò giá.");
   }
-  renderBoard(q, offers, live);
+
+  state.offers = offers;
+  state.live = live;
+  // bộ lọc hãng chỉ giữ lại hãng còn bay chặng này
+  const con = new Set(offers.map(o => o.al.code));
+  [...state.f.al].forEach(c => { if(!con.has(c)) state.f.al.delete(c); });
+  renderAll(q);
 }
 
-function renderBoard(q, all, live){
-  const total = all.length;
-  let offers = all.slice();
-  if(state.direct) offers = offers.filter(o => o.stops === 0);
-  if(state.bag)    offers = offers.filter(o => o.bag);
-  if(state.day)    offers = offers.filter(o => o.depHour >= 8 && o.depHour < 18);
-  if(q.cap)        offers = offers.filter(o => o.price <= q.cap);
-  offers.sort((a,b) => a.price - b.price);
+/* ---------------- lọc & sắp xếp ---------------- */
+function passes(o, boQua){
+  const f = state.f;
+  if(boQua !== "al"   && f.al.size   && !f.al.has(o.al.code)) return false;
+  if(boQua !== "stop" && f.stop.size && !f.stop.has(Math.min(o.stops, 1))) return false;
+  if(boQua !== "time" && f.time.size && !f.time.has(blockOf(o.depHour))) return false;
+  if(boQua !== "bag"  && f.bag && !o.bag) return false;
+  return true;
+}
+const sorters = {
+  price: (a,b) => a.price - b.price,
+  dep:   (a,b) => a.dep.localeCompare(b.dep),
+  dur:   (a,b) => a.mins - b.mins
+};
+function ketQua(){ return state.offers.filter(o => passes(o)).sort(sorters[state.sort]); }
+function reYNhat(list){ return list.length ? Math.min(...list.map(o => o.price)) : 0; }
 
-  $("#boardTitle").textContent = q.from.code + " → " + q.to.code;
-  const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
-  const [yy,mm,dd] = q.dep.split("-");
-  $("#boardSub").textContent = (live ? "giá thật · " : "") + offers.length + "/" + total + " lựa chọn · "
-    + dd + "/" + mm + " · " + paxTxt + " · " + Math.round(distKm(q.from, q.to)) + " km";
-
-  const rows = $("#rows");
-  if(!offers.length){
-    rows.innerHTML = '<div class="empty">Không còn lựa chọn nào sau khi lọc. Bỏ bớt bộ lọc hoặc nới trần giá.</div>';
-  } else {
-    const links = channelList(q);
-    rows.innerHTML = offers.slice(0,9).map((o,i) => {
-      const url = o.seller.name === "Website hãng" ? o.al.site
-                : (links.find(c => c.name === o.seller.name) || {}).url
-                  || o.al.site || links[0].url;
-      const tong = o.total || paxPrice(o.price, q);
-      const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
-      return '<article class="row' + (i === 0 ? " best" : "") + '">'
-        + (i === 0 ? '<span class="badge-best">Rẻ nhất</span>' : "")
-        + '<div class="r-air"><span class="r-code">' + o.al.code + '</span><span class="r-name">' + o.al.name + '</span></div>'
-        + '<div class="r-time"><div class="r-clock">' + o.dep + ' <span>' + q.from.code + '</span> — ' + o.arr
-          + (o.overnight ? '<sup>+1</sup>' : "") + ' <span>' + q.to.code + '</span></div>'
-        + '<div class="r-meta">' + o.code + ' · ' + durTxt(o.mins) + ' · ' + (o.stops ? o.stops + " điểm dừng" : "bay thẳng")
-          + ' · ' + bagTxt + '</div></div>'
-        + '<div class="r-chan"><b>' + o.seller.name + '</b>' + o.seller.note
-          + '<a class="go" href="' + url + '" target="_blank" rel="noopener">Tự đặt</a>'
-          + (orderLink(o, q) ? '<a class="go" style="border-color:var(--amber-bright);color:var(--amber-bright)" href="'
-              + orderLink(o, q) + '" target="_blank" rel="noopener">Đặt qua mình</a>' : "")
-          + '</div>'
-        + '<div class="r-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
-          + '<i>tổng ' + money(tong, o.cur) + '</i></div>'
-        + '</article>';
-    }).join("");
-  }
-  $("#calNote").textContent = live
-    ? "Lịch giá là ước lượng của máy, không gọi API cho từng ngày (đỡ chạm trần lượt gọi). Bấm một ngày để đổi ngày đi rồi dò lại bằng giá thật."
-    : "Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.";
-  renderCal(q);
+function renderAll(q){
+  renderStrip(q);
+  renderRail(q);
+  renderResults(q);
   renderChannels(q);
 }
 
-function renderCal(q){
-  const days = [];
-  for(let i=-3;i<=3;i++){
-    const d = addDays(parseISO(q.dep), i);
-    if(d < new Date(new Date().toDateString())) { days.push(null); continue; }
-    days.push({ d, iso: iso(d), p: cheapestOn(q, iso(d)) });
+/* ---------------- dải giá 7 ngày ---------------- */
+function renderStrip(q){
+  const homNay = new Date(new Date().toDateString());
+  if(!state.stripFrom) state.stripFrom = iso(addDays(parseISO(q.dep), -3));
+  if(parseISO(state.stripFrom) < homNay) state.stripFrom = iso(homNay);
+
+  const ngay = [];
+  for(let k = 0; k < 7; k++){
+    const d = addDays(parseISO(state.stripFrom), k);
+    ngay.push({ d, iso: iso(d), gia: cheapestOn(q, iso(d)) });
   }
-  const real = days.filter(Boolean);
-  const min = Math.min(...real.map(x=>x.p)), max = Math.max(...real.map(x=>x.p));
-  $("#cal").innerHTML = days.map(x => {
-    if(!x) return '<div class="day" style="opacity:.35;cursor:default" aria-hidden="true"><span class="d-dow">—</span><span class="d-date">·</span><span class="d-bar"></span><span class="d-price">—</span></div>';
-    const h = max === min ? 100 : 28 + 72*(x.p-min)/(max-min);
-    const cheap = x.p === min;
-    return '<button type="button" class="day' + (cheap ? " cheapest" : "") + '" data-d="' + x.iso + '"'
-      + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
-      + '<span class="d-dow">' + DOW[x.d.getDay()] + '</span>'
-      + '<span class="d-date">' + pad(x.d.getDate()) + "/" + pad(x.d.getMonth()+1) + '</span>'
-      + '<span class="d-bar"><i style="height:' + h.toFixed(0) + '%"></i></span>'
-      + '<span class="d-price">' + Math.round(x.p/1000) + 'k</span></button>';
+  const min = Math.min(...ngay.map(x => x.gia));
+  $("#strip").innerHTML = ngay.map(x =>
+    '<button type="button" class="day' + (x.gia === min ? " cheap" : "") + '" data-d="' + x.iso + '"'
+    + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
+    + '<span class="d-dow">' + DOW[x.d.getDay()] + ", " + x.d.getDate() + " thg " + (x.d.getMonth()+1) + '</span>'
+    + '<span class="d-price">' + vnd(x.gia) + '</span></button>'
+  ).join("");
+  $("#stripPrev").disabled = parseISO(state.stripFrom) <= homNay;
+  $("#calNote").textContent = state.live
+    ? "Giá trên dải ngày là ước lượng của máy — đổi ngày rồi bấm Dò giá để lấy giá thật cho ngày đó."
+    : "Bấm một ngày để đổi ngày đi. Ngày rẻ nhất trong tuần được tô xanh.";
+}
+
+/* ---------------- cột lọc ---------------- */
+function nhom(key, boQua){
+  const m = new Map();
+  state.offers.filter(o => passes(o, boQua)).forEach(o => {
+    const k = key(o);
+    const cu = m.get(k);
+    if(!cu || o.price < cu.gia) m.set(k, { gia: o.price, so: (cu ? cu.so : 0) + 1, o });
+    else cu.so++;
+  });
+  return m;
+}
+function dong(id, on, nhan, gia, so, disabled){
+  return '<label class="f-item' + (so ? "" : " off") + '">'
+    + '<input type="checkbox" data-f="' + id + '"' + (on ? " checked" : "") + (so ? "" : " disabled") + '>'
+    + '<span class="nm">' + nhan + '</span>'
+    + '<span class="f-price">' + (so ? vnd(gia) : "—") + '</span></label>';
+}
+function renderRail(q){
+  const f = state.f;
+  const hang = nhom(o => o.al.code, "al");
+  const dung = nhom(o => Math.min(o.stops, 1), "stop");
+  const gio  = nhom(o => blockOf(o.depHour), "time");
+  const coBag = state.offers.filter(o => passes(o, "bag") && o.bag);
+
+  const chips = [];
+  [...f.al].forEach(c => chips.push(["al:" + c, (hang.get(c)?.o.al.name) || c]));
+  [...f.stop].forEach(s => chips.push(["stop:" + s, s ? "Có điểm dừng" : "Bay thẳng"]));
+  [...f.time].forEach(k => chips.push(["time:" + k, blockName(k)]));
+  if(f.bag) chips.push(["bag:1", "Có ký gửi"]);
+
+  $("#rail").innerHTML =
+    (chips.length ? '<section><div class="f-head"><h3>Bộ lọc đã chọn</h3>'
+      + '<button class="link" type="button" id="clearF">Xoá tất cả</button></div>'
+      + '<div class="pills">' + chips.map(c =>
+          '<span class="pill">' + c[1] + '<button type="button" data-x="' + c[0] + '" aria-label="Bỏ lọc">×</button></span>').join("")
+      + '</div></section>' : "")
+
+    + '<section><div class="f-head"><h3>Hãng hàng không</h3></div>'
+    + [...hang.entries()].sort((a,b) => a[1].gia - b[1].gia).map(([code, v]) =>
+        dong("al:" + code, f.al.has(code), v.o.al.name, v.gia, v.so)).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Số điểm dừng</h3></div>'
+    + [0,1].map(s => {
+        const v = dung.get(s);
+        return dong("stop:" + s, f.stop.has(s), s ? "1 điểm dừng trở lên" : "Bay thẳng", v ? v.gia : 0, v ? v.so : 0);
+      }).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Giờ cất cánh</h3></div>'
+    + BLOCKS.map(([k, ten, khung]) => {
+        const v = gio.get(k);
+        return dong("time:" + k, f.time.has(k), ten + ' <span class="f-price" style="margin:0 0 0 4px">' + khung + '</span>',
+                    v ? v.gia : 0, v ? v.so : 0);
+      }).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Hành lý</h3></div>'
+    + dong("bag:1", f.bag, "Đã gồm ký gửi", coBag.length ? Math.min(...coBag.map(o => o.price)) : 0, coBag.length)
+    + '</section>';
+}
+
+/* ---------------- thẻ chuyến ---------------- */
+function renderResults(q){
+  const list = ketQua();
+  const re = reYNhat(list);
+  const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
+  const [yy, mm, dd] = q.dep.split("-");
+  $("#boardSub").textContent = (state.live ? "giá thật · " : "giá mô phỏng · ") + list.length + "/" + state.offers.length
+    + " chuyến · " + q.from.code + " → " + q.to.code + " · " + dd + "/" + mm + " · " + paxTxt;
+
+  if(!list.length){
+    $("#rows").innerHTML = '<div class="empty">Không còn chuyến nào khớp bộ lọc. Bỏ bớt một vài điều kiện ở cột bên trái.</div>';
+    return;
+  }
+  const links = channelList(q);
+  $("#rows").innerHTML = list.slice(0, 14).map(o => {
+    const banUrl = o.seller.name === "Website hãng" ? o.al.site
+                 : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url;
+    const donUrl = orderLink(o, q);
+    const tong = o.total || paxPrice(o.price, q);
+    const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
+    const nhat = o.price === re;
+    return '<article class="card' + (nhat ? " best" : "") + '">'
+      + (nhat ? '<span class="badge">Rẻ nhất</span>' : "")
+      + '<div class="c-air"><span class="c-logo">' + o.al.code + '</span>'
+        + '<span class="c-name">' + o.al.name + '<small>' + o.code + '</small></span></div>'
+      + '<div class="c-leg">'
+        + '<div><div class="t-big">' + o.dep + '</div><div class="t-code">' + q.from.code + '</div></div>'
+        + '<div class="t-mid"><span class="t-dur">' + durTxt(o.mins) + '</span><span class="t-line"></span>'
+          + '<span class="t-stop">' + (o.stops ? o.stops + " điểm dừng" : "Bay thẳng") + '</span></div>'
+        + '<div><div class="t-big">' + o.arr + (o.overnight ? '<sup>+1</sup>' : "") + '</div>'
+          + '<div class="t-code">' + q.to.code + '</div></div>'
+      + '</div>'
+      + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
+        + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
+      + '<div class="c-act">'
+        + (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
+                    + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
+                  : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Chọn</a>'
+                    + '<span class="hint" style="text-align:center">' + o.seller.name + '</span>')
+      + '</div>'
+      + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
+        + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
+        + (o.seller.note ? '<span class="mini">' + o.seller.note + '</span>' : "")
+      + '</div>'
+      + '</article>';
   }).join("");
 }
 
@@ -1346,10 +1483,12 @@ async function lookupTax(){
 }
 
 /* ---------------- sự kiện ---------------- */
-$("#searchForm").addEventListener("submit", e => { e.preventDefault(); run(); });
+$("#searchForm").addEventListener("submit", e => { e.preventDefault(); state.stripFrom = null; run(); });
 $("#swapBtn").addEventListener("click", () => {
-  const f = $("#from").value; $("#from").value = $("#to").value; $("#to").value = f; run();
+  const f = $("#from").value; $("#from").value = $("#to").value; $("#to").value = f;
+  state.stripFrom = null; run();
 });
+["#chd","#inf","#cabin"].forEach(s => $(s).addEventListener("change", run));
 function toggle(btn, on){ btn.setAttribute("aria-pressed", on ? "true" : "false"); }
 $("#tripOw").addEventListener("click", () => { state.trip = "ow"; toggle($("#tripOw"),true); toggle($("#tripRt"),false); $("#ret").disabled = true; run(); });
 $("#tripRt").addEventListener("click", () => {
@@ -1358,14 +1497,51 @@ $("#tripRt").addEventListener("click", () => {
   if(!$("#ret").value) $("#ret").value = iso(addDays(parseISO($("#dep").value), 4));
   run();
 });
-[["#fDirect","direct"],["#fBag","bag"],["#fDay","day"]].forEach(([sel,key]) => {
-  $(sel).addEventListener("click", () => { state[key] = !state[key]; toggle($(sel), state[key]); run(); });
-});
-$("#cal").addEventListener("click", e => {
+/* dải ngày */
+$("#strip").addEventListener("click", e => {
   const b = e.target.closest("[data-d]"); if(!b) return;
   $("#dep").value = b.dataset.d;
-  if(state.trip === "rt" && $("#ret").value < b.dataset.d) $("#ret").value = iso(addDays(parseISO(b.dataset.d), 4));
+  if(state.trip === "rt" && $("#ret").value && $("#ret").value < b.dataset.d)
+    $("#ret").value = iso(addDays(parseISO(b.dataset.d), 4));
   run();
+});
+$("#stripPrev").addEventListener("click", () => {
+  state.stripFrom = iso(addDays(parseISO(state.stripFrom), -7));
+  if(state.last) renderStrip(state.last);
+});
+$("#stripNext").addEventListener("click", () => {
+  state.stripFrom = iso(addDays(parseISO(state.stripFrom), 7));
+  if(state.last) renderStrip(state.last);
+});
+
+/* cột lọc */
+function doiLoc(id, on){
+  const [k, v] = id.split(":");
+  if(k === "al"){ on ? state.f.al.add(v) : state.f.al.delete(v); }
+  else if(k === "stop"){ on ? state.f.stop.add(+v) : state.f.stop.delete(+v); }
+  else if(k === "time"){ on ? state.f.time.add(v) : state.f.time.delete(v); }
+  else if(k === "bag"){ state.f.bag = on; }
+  if(state.last){ renderRail(state.last); renderResults(state.last); }
+}
+$("#rail").addEventListener("change", e => {
+  const el = e.target.closest("[data-f]"); if(!el) return;
+  doiLoc(el.dataset.f, el.checked);
+});
+$("#rail").addEventListener("click", e => {
+  const x = e.target.closest("[data-x]");
+  if(x){ doiLoc(x.dataset.x, false); return; }
+  if(e.target.id === "clearF"){
+    state.f = { al: new Set(), stop: new Set(), time: new Set(), bag: false };
+    if(state.last){ renderRail(state.last); renderResults(state.last); }
+  }
+});
+
+/* sắp xếp */
+document.querySelector(".sorts").addEventListener("click", e => {
+  const b = e.target.closest("[data-sort]"); if(!b) return;
+  state.sort = b.dataset.sort;
+  [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  if(state.last) renderResults(state.last);
 });
 $("#openAll").addEventListener("click", () => {
   if(!state.last) { run(); if(!state.last) return; }
