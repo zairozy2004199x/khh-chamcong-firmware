@@ -1,0 +1,29 @@
+{
+  "searchUrl": "https://www.traveloka.com/vi-VN/flight/fullsearch?ap=SGN.HAN&dt=04-10-2026.null&ps=1.0.0&sc=ECONOMY",
+  "pax": [
+    {
+      "full": "NGUYEN VAN A",
+      "first": "VAN A",
+      "last": "NGUYEN",
+      "dob": "12/05/1990",
+      "dobIso": "1990-05-12",
+      "genderVi": "Nam",
+      "genderEn": "Male",
+      "genderShort": "M",
+      "idType": "CCCD",
+      "idNo": "079090001234",
+      "natVi": "Việt Nam",
+      "natEn": "Vietnam",
+      "natCode": "VN"
+    }
+  ],
+  "contact": { "name": "Nguyễn Văn A", "phone": "0912345678", "email": "vana@congty.com" },
+  "invoice": {
+    "company": "Công ty TNHH K&H",
+    "tax": "0312345678",
+    "email": "ketoan@congty.com",
+    "addr": "Số 1, đường ABC, phường XYZ, TP HCM",
+    "buyer": "Nguyễn Văn A"
+  },
+  "pay": { "method": "Thẻ quốc tế (Visa/Master)", "bank": "Vietcombank", "holder": "NGUYEN VAN A" }
+}

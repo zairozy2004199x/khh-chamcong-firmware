@@ -1,0 +1,1046 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dò Vé Rẻ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#E9EDF1;
+  --surface:#FFFFFF;
+  --surface-2:#F2F5F8;
+  --board:#0B2440;
+  --board-2:#123050;
+  --board-line:#1C3E63;
+  --board-ink:#E9F0F8;
+  --board-dim:#8FA9C4;
+  --ink:#0B2440;
+  --ink-2:#39536E;
+  --muted:#6B839C;
+  --line:#CCD6E1;
+  --line-soft:#E1E7EE;
+  --amber:#B45F05;
+  --amber-bright:#E8890B;
+  --on-amber:#1B1000;
+  --cheap:#0B6B54;
+  --cheap-soft:#DEF0EA;
+  --warn:#8C3310;
+  --warn-soft:#FAEADF;
+  --shadow:0 1px 2px rgba(11,36,64,.07), 0 10px 28px -20px rgba(11,36,64,.45);
+  color-scheme:light;
+}
+
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#07121E;
+    --surface:#0F2134;
+    --surface-2:#172F46;
+    --board:#050E19;
+    --board-2:#0C2136;
+    --board-line:#1B3A5B;
+    --board-ink:#E9F0F8;
+    --board-dim:#7E99B6;
+    --ink:#E6EEF7;
+    --ink-2:#B4C6D9;
+    --muted:#8AA2BB;
+    --line:#26425F;
+    --line-soft:#1B3450;
+    --amber:#F2A83B;
+    --amber-bright:#F2A83B;
+    --on-amber:#1B1000;
+    --cheap:#3EC49E;
+    --cheap-soft:#0E3B31;
+    --warn:#F0A88A;
+    --warn-soft:#3A1B0E;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#07121E;
+  --surface:#0F2134;
+  --surface-2:#172F46;
+  --board:#050E19;
+  --board-2:#0C2136;
+  --board-line:#1B3A5B;
+  --board-ink:#E9F0F8;
+  --board-dim:#7E99B6;
+  --ink:#E6EEF7;
+  --ink-2:#B4C6D9;
+  --muted:#8AA2BB;
+  --line:#26425F;
+  --line-soft:#1B3450;
+  --amber:#F2A83B;
+  --amber-bright:#F2A83B;
+  --on-amber:#1B1000;
+  --cheap:#3EC49E;
+  --cheap-soft:#0E3B31;
+  --warn:#F0A88A;
+  --warn-soft:#3A1B0E;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1180px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px;display:grid;gap:30px}
+h1,h2,h3{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;margin:0;text-wrap:balance;letter-spacing:.01em}
+h1{font-size:clamp(46px,9vw,78px);font-weight:700;line-height:.9;letter-spacing:-.005em}
+h2{font-size:clamp(22px,3.4vw,29px);font-weight:600;line-height:1.05}
+h3{font-size:17px;font-weight:600;letter-spacing:.04em}
+p{margin:0}
+a{color:var(--amber);text-underline-offset:3px}
+.eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11px;font-weight:500;letter-spacing:.17em;text-transform:uppercase;color:var(--amber);
+}
+.num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+:where(button,a,input,select,textarea):focus-visible{outline:2.5px solid var(--amber-bright);outline-offset:2px}
+
+/* ---------- masthead ---------- */
+.masthead{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.85fr);gap:26px;align-items:end}
+.lede{max-width:60ch;color:var(--ink-2);margin-top:14px;font-size:15.5px}
+.statecard{
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--amber-bright);
+  padding:15px 17px;display:grid;gap:9px;box-shadow:var(--shadow);
+}
+.statecard p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
+.statecard .eyebrow{color:var(--ink-2)}
+.tag{
+  display:inline-flex;align-items:center;gap:7px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;color:var(--warn);
+  background:var(--warn-soft);width:max-content;
+}
+.tag.ok{color:var(--cheap);background:var(--cheap-soft)}
+
+/* ---------- layout ---------- */
+.grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.panel-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:14px 17px;border-bottom:1px solid var(--line-soft);
+}
+.panel-body{padding:17px;display:grid;gap:15px}
+
+/* ---------- form ---------- */
+.field{display:grid;gap:5px}
+label,.lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+input,select{
+  font-family:inherit;font-size:15px;color:var(--ink);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:0;padding:10px 11px;width:100%;min-width:0;
+}
+input[type="date"],input[type="number"],.num-in{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.swap{display:grid;grid-template-columns:1fr 42px 1fr;gap:8px;align-items:end}
+.swapbtn{
+  height:42px;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  font-size:16px;cursor:pointer;line-height:1;
+}
+.swapbtn:hover{border-color:var(--amber-bright);color:var(--amber)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:7px 10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);cursor:pointer;
+}
+.chip[aria-pressed="true"]{background:var(--board);color:var(--board-ink);border-color:var(--board)}
+.btn{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:19px;
+  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);
+  padding:11px 18px;cursor:pointer;line-height:1.1;
+}
+.btn:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--amber-bright);color:var(--amber)}
+.btn.sm{font-size:15px;padding:8px 13px}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.5}
+
+/* ---------- fare board ---------- */
+.board{background:var(--board);color:var(--board-ink);border:1px solid var(--board);box-shadow:var(--shadow)}
+.board-head{
+  display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:10px;
+  padding:13px 17px;border-bottom:1px solid var(--board-line);background:var(--board-2);
+}
+.board-head h2{color:var(--board-ink)}
+.board-head .eyebrow{color:var(--amber-bright)}
+.board-sub{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--board-dim);letter-spacing:.05em}
+.rows{display:grid}
+.row{
+  display:grid;grid-template-columns:104px minmax(0,1fr) 104px 168px;gap:14px;align-items:center;
+  padding:13px 17px 13px 18px;border-bottom:1px solid var(--board-line);position:relative;
+}
+.row:last-child{border-bottom:0}
+.row.best{background:var(--board-2)}
+.row.best::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--amber-bright)}
+.r-air{display:grid;gap:2px}
+.r-code{font-family:"Barlow Condensed",sans-serif;font-size:23px;font-weight:700;letter-spacing:.06em;line-height:1}
+.r-name{font-size:11.5px;color:var(--board-dim)}
+.r-time{display:grid;gap:3px;min-width:0}
+.r-clock{font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:500;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.r-clock span{color:var(--board-dim);font-size:13px}
+.r-meta{font-size:11.5px;color:var(--board-dim);overflow-wrap:anywhere}
+.r-chan{font-size:12.5px;color:var(--board-dim);line-height:1.35}
+.r-chan b{display:block;color:var(--board-ink);font-weight:500;font-size:13.5px}
+.r-price{text-align:right;display:grid;gap:1px;justify-items:end}
+.r-price b{font-family:"IBM Plex Mono",monospace;font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.row.best .r-price b{color:var(--amber-bright)}
+.r-price span{font-size:11px;color:var(--board-dim)}
+.r-price i{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--board-dim)}
+.badge-best{
+  position:absolute;top:-1px;left:18px;background:var(--amber-bright);color:var(--on-amber);
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;padding:2px 7px;text-transform:uppercase;
+}
+.row.best{padding-top:20px}
+.go{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:15px;font-weight:600;
+  background:transparent;border:1px solid var(--board-line);color:var(--board-ink);padding:5px 10px;cursor:pointer;
+  text-decoration:none;display:inline-block;margin-top:5px;
+}
+.go:hover{border-color:var(--amber-bright);color:var(--amber-bright)}
+.empty{padding:34px 18px;color:var(--board-dim);font-size:14px;text-align:center}
+
+/* ---------- price calendar ---------- */
+.cal{margin-top:22px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:12px}
+.day{
+  display:grid;gap:6px;justify-items:center;background:var(--surface);border:1px solid var(--line);
+  padding:9px 4px 8px;cursor:pointer;font:inherit;color:var(--ink);
+}
+.day:hover{border-color:var(--amber-bright)}
+.day[aria-current="date"]{border-color:var(--board);box-shadow:inset 0 0 0 1px var(--board)}
+.day.cheapest{background:var(--cheap-soft);border-color:var(--cheap)}
+.d-dow{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase}
+.d-date{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums}
+.d-bar{width:100%;background:var(--line-soft);display:flex;align-items:flex-end;height:38px}
+.d-bar i{display:block;width:100%;background:var(--board-2);min-height:3px}
+.day.cheapest .d-bar i{background:var(--cheap)}
+.d-price{font-family:"IBM Plex Mono",monospace;font-size:11px;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.day.cheapest .d-price{color:var(--cheap);font-weight:600}
+
+/* ---------- channels ---------- */
+.chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
+.chan{
+  display:grid;gap:7px;padding:13px 14px;background:var(--surface);border:1px solid var(--line);
+  align-content:start;
+}
+.chan b{font-family:"Barlow Condensed",sans-serif;font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.chan .kind{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.chan .note{font-size:12.5px;color:var(--ink-2)}
+.chan a{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:15px;letter-spacing:.05em;font-weight:600;text-decoration:none;border-bottom:1px solid var(--amber);width:max-content}
+
+/* ---------- profile ---------- */
+.pax{border:1px solid var(--line);padding:14px;display:grid;gap:12px;background:var(--surface-2)}
+.pax-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.del{background:none;border:0;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
+.del:hover{color:var(--warn)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;align-items:start}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.safe{border-left:3px solid var(--warn);background:var(--warn-soft);padding:12px 14px;font-size:13px;color:var(--ink);line-height:1.55}
+
+/* ---------- flow ---------- */
+.steps{display:grid;gap:0;counter-reset:step;border-top:1px solid var(--line)}
+.step{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 4px;border-bottom:1px solid var(--line)}
+.step-n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);padding-top:3px}
+.step b{display:block;font-weight:600;font-size:15px}
+.step p{font-size:13.5px;color:var(--ink-2);margin-top:3px}
+.state{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;white-space:nowrap;margin-top:2px}
+.state.auto{color:var(--cheap);background:var(--cheap-soft)}
+.state.half{color:var(--amber);background:transparent}
+.state.hand{color:var(--warn);background:var(--warn-soft)}
+
+/* ---------- misc ---------- */
+.foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;line-height:1.6}
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--board);color:var(--board-ink);
+  padding:11px 17px;font-size:13.5px;box-shadow:var(--shadow);z-index:50;border:1px solid var(--board-line);max-width:92vw;
+}
+textarea{width:100%;font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);padding:10px;min-height:96px;line-height:1.5}
+
+.sec{display:grid;gap:12px;align-content:start}
+section.sec>.hint{max-width:74ch}
+.sec>.panel-head{padding:0 0 10px}
+
+@media (max-width:960px){
+  .grid{grid-template-columns:1fr}
+  .masthead{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .row{grid-template-columns:minmax(0,1fr) auto;gap:10px 12px}
+  .r-air{grid-column:1/-1;display:flex;align-items:baseline;gap:8px}
+  .r-chan{grid-column:1;font-size:12px}
+  .r-price{grid-column:2;align-self:end}
+  .cal-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .step{grid-template-columns:30px minmax(0,1fr);}
+  .state{grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="masthead">
+  <div>
+    <span class="eyebrow">So giá · chọn chuyến · điền sẵn hồ sơ</span>
+    <h1>Dò vé rẻ</h1>
+    <p class="lede">Gõ chặng bay một lần. Máy xếp các lựa chọn từ rẻ tới đắt, mở song song những nơi đang bán vé chặng đó, rồi bơm sẵn thông tin hành khách và hoá đơn VAT vào form đặt vé. Phần anh giữ lại là thẻ và mã OTP — hai thứ không nên giao cho máy.</p>
+  </div>
+  <aside class="statecard">
+    <span class="eyebrow">Nguồn giá</span>
+    <span class="tag" id="srcTag">Giá mô phỏng — chưa nối API</span>
+    <p>Bảng giá bên dưới do máy dựng theo cự ly chặng, khung giờ và số ngày mua trước, đủ thật để chạy thử luồng đặt vé. Giá bán thật đổi từng phút: nối API Amadeus hoặc Duffel (README trong repo) hoặc mở thẳng các trang bán vé ở mục dưới.</p>
+  </aside>
+</header>
+
+<main class="grid">
+
+  <form class="panel" id="searchForm">
+    <div class="panel-head"><h2>Chặng bay</h2><span class="eyebrow">Bước 1</span></div>
+    <div class="panel-body">
+      <div class="swap">
+        <div class="field">
+          <label for="from">Điểm đi</label>
+          <input id="from" name="from" list="airports" value="SGN" autocomplete="off" spellcheck="false">
+        </div>
+        <button type="button" class="swapbtn" id="swapBtn" title="Đảo chiều" aria-label="Đảo chiều điểm đi và điểm đến">⇄</button>
+        <div class="field">
+          <label for="to">Điểm đến</label>
+          <input id="to" name="to" list="airports" value="HAN" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <datalist id="airports"></datalist>
+
+      <div class="chips" role="group" aria-label="Loại hành trình">
+        <button type="button" class="chip" id="tripOw" aria-pressed="true">Một chiều</button>
+        <button type="button" class="chip" id="tripRt" aria-pressed="false">Khứ hồi</button>
+      </div>
+
+      <div class="two">
+        <div class="field"><label for="dep">Ngày đi</label><input type="date" id="dep" name="dep"></div>
+        <div class="field"><label for="ret">Ngày về</label><input type="date" id="ret" name="ret" disabled></div>
+      </div>
+
+      <div class="three">
+        <div class="field"><label for="adt">Người lớn</label><input type="number" id="adt" name="adt" min="1" max="9" value="1"></div>
+        <div class="field"><label for="chd">Trẻ 2–11</label><input type="number" id="chd" name="chd" min="0" max="8" value="0"></div>
+        <div class="field"><label for="inf">Em bé &lt;2</label><input type="number" id="inf" name="inf" min="0" max="4" value="0"></div>
+      </div>
+
+      <div class="two">
+        <div class="field">
+          <label for="cabin">Hạng vé</label>
+          <select id="cabin" name="cabin">
+            <option value="ECONOMY">Phổ thông</option>
+            <option value="PREMIUM_ECONOMY">Phổ thông đặc biệt</option>
+            <option value="BUSINESS">Thương gia</option>
+          </select>
+        </div>
+        <div class="field"><label for="cap">Trần giá / khách (đ)</label><input type="number" id="cap" name="cap" min="0" step="100000" placeholder="tuỳ ý"></div>
+      </div>
+
+      <div class="field">
+        <span class="lbl">Lọc thêm</span>
+        <div class="chips" role="group" aria-label="Bộ lọc">
+          <button type="button" class="chip" id="fDirect" aria-pressed="true">Chỉ bay thẳng</button>
+          <button type="button" class="chip" id="fBag" aria-pressed="false">Có ký gửi 20kg</button>
+          <button type="button" class="chip" id="fDay" aria-pressed="false">Bay 08:00–18:00</button>
+        </div>
+      </div>
+
+      <button class="btn" type="submit">Dò giá &amp; xếp hạng</button>
+      <p class="hint">Mã sân bay hoặc tên thành phố đều được: <span class="num">SGN</span>, <span class="num">HAN</span>, Đà Nẵng, Phú Quốc, Bangkok…</p>
+    </div>
+  </form>
+
+  <div>
+    <section class="board">
+      <div class="board-head">
+        <div>
+          <span class="eyebrow">Bước 2 · rẻ nhất lên đầu</span>
+          <h2 id="boardTitle">SGN → HAN</h2>
+        </div>
+        <div class="board-sub" id="boardSub">chưa dò</div>
+      </div>
+      <div class="rows" id="rows">
+        <div class="empty">Bấm <b>Dò giá &amp; xếp hạng</b> để máy bày bảng giá.</div>
+      </div>
+    </section>
+
+    <section class="cal sec">
+      <h3>Lịch giá 7 ngày quanh ngày đi</h3>
+      <p class="hint">Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.</p>
+      <div class="cal-grid" id="cal"></div>
+    </section>
+  </div>
+
+</main>
+
+<section class="sec">
+  <span class="eyebrow">Bước 3 · đối chiếu giá thật</span>
+  <h2>Mở song song nơi đang bán chặng này</h2>
+  <p class="hint">Mỗi thẻ mở đúng chặng, đúng ngày, đúng số khách anh vừa nhập — không phải gõ lại. Nhóm “trang hãng” không nhận tham số qua đường dẫn nên mở về trang chủ; lúc đó dùng nút <b>Điền hộ</b> ở mục dưới.</p>
+  <div class="chan-grid" id="chans"></div>
+  <div class="actions">
+    <button class="btn ghost sm" type="button" id="openAll">Mở cùng lúc 5 trang so giá</button>
+    <span class="hint">Trình duyệt có thể chặn cửa sổ bật lên — chọn “luôn cho phép” cho trang này.</span>
+  </div>
+</section>
+
+<section class="sec">
+  <span class="eyebrow">Bước 4 · khai một lần, dùng mãi</span>
+  <h2>Hồ sơ điền sẵn</h2>
+  <p class="hint">Lưu trong máy anh (localStorage của trình duyệt này), không gửi đi đâu hết. Nút <b>Điền hộ</b> bên dưới là thứ mang hồ sơ này sang form đặt vé của hãng.</p>
+
+  <div class="cols">
+    <div class="sec">
+      <div class="panel-head" style="padding-inline:0;border-bottom:1px solid var(--line)">
+        <h3>Hành khách</h3>
+        <button class="btn ghost sm" type="button" id="addPax">+ Thêm khách</button>
+      </div>
+      <div class="sec" id="paxList"></div>
+    </div>
+
+    <div class="sec">
+      <div class="panel-head" style="padding-inline:0;border-bottom:1px solid var(--line)"><h3>Liên hệ &amp; hoá đơn VAT</h3></div>
+      <div class="two">
+        <div class="field"><label for="ctName">Người liên hệ</label><input id="ctName" name="ctName" autocomplete="name" placeholder="Nguyễn Văn A"></div>
+        <div class="field"><label for="ctPhone">Điện thoại</label><input id="ctPhone" name="ctPhone" inputmode="tel" autocomplete="tel" placeholder="0912 345 678"></div>
+      </div>
+      <div class="field"><label for="ctEmail">Email nhận vé</label><input id="ctEmail" name="ctEmail" type="email" autocomplete="email" placeholder="ten@congty.com"></div>
+      <div class="field"><label for="invCompany">Tên đơn vị xuất hoá đơn</label><input id="invCompany" name="invCompany" autocomplete="organization" placeholder="Công ty TNHH K&amp;H"></div>
+      <div class="two">
+        <div class="field"><label for="invTax">Mã số thuế</label><input id="invTax" name="invTax" class="num-in" inputmode="numeric" placeholder="0312345678"></div>
+        <div class="field"><label for="invEmail">Email nhận hoá đơn</label><input id="invEmail" name="invEmail" type="email" placeholder="ketoan@congty.com"></div>
+      </div>
+      <div class="field"><label for="invAddr">Địa chỉ trên hoá đơn</label><input id="invAddr" name="invAddr" autocomplete="street-address" placeholder="Số 1, đường …, phường …, TP …"></div>
+      <div class="field"><label for="invBuyer">Người mua hàng</label><input id="invBuyer" name="invBuyer" placeholder="để trống = lấy người liên hệ"></div>
+
+      <div class="panel-head" style="padding-inline:0;border-bottom:1px solid var(--line)"><h3>Thanh toán</h3></div>
+      <div class="two">
+        <div class="field">
+          <label for="payMethod">Hình thức</label>
+          <select id="payMethod" name="payMethod">
+            <option>Thẻ quốc tế (Visa/Master)</option>
+            <option>Thẻ ATM nội địa</option>
+            <option>QR ngân hàng</option>
+            <option>Ví điện tử (Momo/ZaloPay)</option>
+          </select>
+        </div>
+        <div class="field"><label for="payBank">Ngân hàng</label><input id="payBank" name="payBank" placeholder="Vietcombank"></div>
+      </div>
+      <div class="field"><label for="payHolder">Tên chủ thẻ (in trên thẻ)</label><input id="payHolder" name="payHolder" placeholder="NGUYEN VAN A"></div>
+      <div class="safe"><b>Số thẻ và CVV cố ý không có chỗ nhập ở đây.</b> Hai số đó để trình duyệt hoặc trình quản lý mật khẩu của anh giữ và tự điền ở bước cuối — an toàn hơn hẳn việc một trang web lưu lại. Máy điền xong toàn bộ phần còn lại, anh chỉ chọn thẻ đã lưu rồi nhập OTP.</div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn sm" type="button" id="saveProfile">Lưu hồ sơ vào máy</button>
+    <a class="btn ghost sm" id="fillLink" href="#" title="Kéo nút này lên thanh dấu trang của trình duyệt">Điền hộ (kéo lên bookmark)</a>
+    <button class="btn ghost sm" type="button" id="copyFill">Sao chép mã “Điền hộ”</button>
+    <button class="btn ghost sm" type="button" id="copyJson">Sao chép hồ sơ JSON</button>
+    <button class="btn ghost sm" type="button" id="copyBot">Sao chép script tự đặt (Playwright)</button>
+    <button class="btn ghost sm" type="button" id="clearProfile">Xoá hồ sơ</button>
+  </div>
+  <p class="hint">Cách dùng nút <b>Điền hộ</b>: kéo nó lên thanh dấu trang → mở trang đặt vé của hãng → bấm dấu trang đó. Nó dò các ô “họ tên / ngày sinh / CMND / MST / địa chỉ…” trên trang và điền vào, kể cả trang tiếng Anh.</p>
+</section>
+
+<section class="sec">
+  <span class="eyebrow">Bước 5 · ranh giới</span>
+  <h2>Máy làm tới đâu, anh làm từ đâu</h2>
+  <div class="steps">
+    <div class="step"><div class="step-n">01</div><div><b>Dò giá &amp; xếp chuyến</b><p>Máy quét chặng, ngày, lịch giá 7 ngày quanh đó và chỉ ra chuyến rẻ nhất theo bộ lọc của anh.</p></div><span class="state auto">Tự động</span></div>
+    <div class="step"><div class="step-n">02</div><div><b>Mở đúng trang, đúng chặng</b><p>Một cú bấm mở song song các trang bán vé với chặng – ngày – số khách đã điền sẵn trên đường dẫn.</p></div><span class="state auto">Tự động</span></div>
+    <div class="step"><div class="step-n">03</div><div><b>Điền hành khách + hoá đơn VAT</b><p>Nút “Điền hộ” hoặc script Playwright đổ toàn bộ hồ sơ vào form. Trang nào đổi giao diện thì máy điền hụt vài ô, nhìn qua một lượt là thấy.</p></div><span class="state half">Máy điền, anh soát</span></div>
+    <div class="step"><div class="step-n">04</div><div><b>Chọn thẻ &amp; nhập OTP</b><p>Ngân hàng bắt buộc người thật xác thực (3-D Secure). Không hệ thống nào hợp lệ mà vượt qua được bước này thay anh.</p></div><span class="state hand">Anh làm tay</span></div>
+    <div class="step"><div class="step-n">05</div><div><b>Giữ mã vé &amp; hoá đơn</b><p>Sau khi thanh toán, lưu mã đặt chỗ và đối chiếu email hoá đơn VAT đúng mã số thuế đã khai.</p></div><span class="state half">Máy nhắc, anh lưu</span></div>
+  </div>
+  <p class="hint">Một điều nên biết trước: nhiều hãng và đại lý cấm robot đặt vé trong điều khoản sử dụng, và họ chặn bằng captcha. Cách làm ở đây là <b>điền hộ trên chính trình duyệt của anh</b> — anh vẫn là người bấm mua — chứ không phải một con bot chạy ngầm mua vé hàng loạt.</p>
+</section>
+
+<footer class="foot">
+  <p>Dò Vé Rẻ · công cụ nội bộ, chạy hoàn toàn trong trình duyệt. Hồ sơ nằm ở máy anh; không có máy chủ nào nhận dữ liệu.</p>
+  <p>Giá hiển thị là <b>giá mô phỏng</b> cho tới khi nối API bán vé thật. Giá cuối cùng luôn là giá trên trang thanh toán của hãng.</p>
+</footer>
+
+</div>
+<div class="toast" id="toast" hidden></div>
+<script>
+"use strict";
+
+/* ---------------- sân bay: toạ độ thật, dùng để tính cự ly & thời gian bay ---------------- */
+const AIRPORTS = [
+  ["SGN","TP Hồ Chí Minh","Tân Sơn Nhất",10.8188,106.6520],
+  ["HAN","Hà Nội","Nội Bài",21.2212,105.8072],
+  ["DAD","Đà Nẵng","Đà Nẵng",16.0439,108.1994],
+  ["CXR","Nha Trang","Cam Ranh",11.9982,109.2193],
+  ["PQC","Phú Quốc","Phú Quốc",10.2270,103.9670],
+  ["HPH","Hải Phòng","Cát Bi",20.8194,106.7247],
+  ["VCA","Cần Thơ","Cần Thơ",10.0851,105.7118],
+  ["HUI","Huế","Phú Bài",16.4015,107.7032],
+  ["UIH","Quy Nhơn","Phù Cát",13.9550,109.0422],
+  ["VII","Vinh","Vinh",18.7376,105.6708],
+  ["DLI","Đà Lạt","Liên Khương",11.7500,108.3667],
+  ["THD","Thanh Hoá","Thọ Xuân",19.9017,105.4678],
+  ["VDO","Vân Đồn","Vân Đồn",21.1178,107.4142],
+  ["BMV","Buôn Ma Thuột","Buôn Ma Thuột",12.6683,108.1200],
+  ["PXU","Pleiku","Pleiku",14.0045,108.0170],
+  ["TBB","Tuy Hoà","Tuy Hoà",13.0496,109.3337],
+  ["VCL","Chu Lai","Chu Lai",15.4033,108.7060],
+  ["VCS","Côn Đảo","Côn Đảo",8.7318,106.6329],
+  ["CAH","Cà Mau","Cà Mau",9.1777,105.1778],
+  ["DIN","Điện Biên","Điện Biên Phủ",21.3975,103.0081],
+  ["BKK","Bangkok","Suvarnabhumi",13.6900,100.7501],
+  ["SIN","Singapore","Changi",1.3644,103.9915],
+  ["KUL","Kuala Lumpur","KLIA",2.7456,101.7099],
+  ["PNH","Phnom Penh","Techo",11.5466,104.8441],
+  ["HKG","Hồng Kông","Hong Kong",22.3080,113.9185],
+  ["TPE","Đài Bắc","Đào Viên",25.0777,121.2328],
+  ["ICN","Seoul","Incheon",37.4602,126.4407],
+  ["NRT","Tokyo","Narita",35.7720,140.3929],
+  ["MNL","Manila","Ninoy Aquino",14.5086,121.0198],
+  ["SYD","Sydney","Kingsford Smith",-33.9399,151.1753],
+  ["CDG","Paris","Charles de Gaulle",49.0097,2.5479]
+].map(a => ({code:a[0], city:a[1], name:a[2], lat:a[3], lon:a[4]}));
+
+const AIRLINES = [
+  {code:"VJ", name:"Vietjet Air",        mult:0.78, lcc:true,  site:"https://www.vietjetair.com/vi"},
+  {code:"VN", name:"Vietnam Airlines",   mult:1.16, lcc:false, site:"https://www.vietnamairlines.com/vn/vi/home"},
+  {code:"QH", name:"Bamboo Airways",     mult:0.97, lcc:false, site:"https://www.bambooairways.com/vn/vi/"},
+  {code:"VU", name:"Vietravel Airlines", mult:0.85, lcc:true,  site:"https://www.vietravelairlines.com/vi"}
+];
+const SELLERS = [
+  {name:"Website hãng", f:1.000, note:"đổi vé dễ nhất"},
+  {name:"Traveloka",    f:0.985, note:"hay có mã giảm"},
+  {name:"Trip.com",     f:1.010, note:"trả góp 0%"}
+];
+
+/* ---------------- tiện ích ---------------- */
+const $ = s => document.querySelector(s);
+const norm = s => (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\u0111/g,"d").trim();
+const pad = n => String(n).padStart(2,"0");
+const vnd = n => new Intl.NumberFormat("vi-VN").format(Math.round(n));
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseISO = s => { const [y,m,d]=(s||"").split("-").map(Number); return new Date(y,(m||1)-1,d||1); };
+const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const DOW = ["CN","T2","T3","T4","T5","T6","T7"];
+
+function hash(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+function rng(seed){ let a=hash(seed); return () => { a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function airportOf(q){
+  const t = norm(q);
+  if(!t) return null;
+  const up = q.trim().toUpperCase();
+  return AIRPORTS.find(a=>a.code===up)
+      || AIRPORTS.find(a=>norm(a.city)===t || norm(a.name)===t)
+      || AIRPORTS.find(a=>norm(a.city).includes(t) || norm(a.name).includes(t))
+      || null;
+}
+function distKm(a,b){
+  const R=6371, r=x=>x*Math.PI/180;
+  const dLat=r(b.lat-a.lat), dLon=r(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2 + Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+/* ---------------- mô hình giá (mô phỏng, có quy luật thật) ---------------- */
+function baseFare(km, depDate, cabin){
+  let p = 380000 + 900*Math.pow(km,0.95);
+  const days = Math.round((parseISO(depDate) - new Date(new Date().toDateString()))/86400000);
+  p *= days<3 ? 1.52 : days<7 ? 1.30 : days<14 ? 1.15 : days<30 ? 1.0 : days<60 ? 0.93 : 0.88;
+  const dow = parseISO(depDate).getDay();
+  p *= (dow===5||dow===0) ? 1.08 : (dow===2||dow===3) ? 0.94 : 1;
+  p *= cabin==="BUSINESS" ? 2.9 : cabin==="PREMIUM_ECONOMY" ? 1.7 : 1;
+  return p;
+}
+function timeFactor(h){ return h<7 ? 0.86 : h<9 ? 1.0 : h<16 ? 0.95 : h<20 ? 1.08 : 0.84; }
+
+function buildOffers(q){
+  const km = distKm(q.from, q.to);
+  const base = baseFare(km, q.dep, q.cabin);
+  const intl = km > 1600;
+  const out = [];
+  AIRLINES.forEach((al, ai) => {
+    const r = rng(q.from.code+q.to.code+q.dep+al.code);
+    const n = 2 + Math.floor(r()*3);
+    for(let i=0;i<n;i++){
+      const h = Math.floor(r()*19) + 5;                 // 05:00 – 23:00
+      const m = [0,5,10,15,20,25,30,35,40,45,50,55][Math.floor(r()*12)];
+      const stops = (intl && r()<0.3) ? 1 : (r()<0.05 ? 1 : 0);
+      const mins = Math.round(km/750*60) + 35 + stops*105;
+      const depT = new Date(2000,0,1,h,m);
+      const arrT = new Date(depT.getTime() + mins*60000);
+      const bag = al.lcc ? (r()<0.35) : true;           // LCC: đôi khi đã gồm ký gửi
+      const seller = SELLERS[Math.floor(r()*SELLERS.length)];
+      let p = base * al.mult * timeFactor(h) * (stops?0.87:1) * (bag?1.12:1) * (0.92+r()*0.2) * seller.f;
+      p = Math.round(p/1000)*1000;
+      out.push({
+        al, code: al.code + (100 + Math.floor(r()*800)),
+        dep: pad(depT.getHours())+":"+pad(depT.getMinutes()),
+        arr: pad(arrT.getHours())+":"+pad(arrT.getMinutes()),
+        overnight: arrT.getDate() > 1,
+        mins, stops, bag, seller, price: p, depHour: h
+      });
+    }
+  });
+  return out;
+}
+function cheapestOn(q, dateStr){
+  const km = distKm(q.from, q.to);
+  const base = baseFare(km, dateStr, q.cabin);
+  const r = rng(q.from.code+q.to.code+dateStr+"cal");
+  return Math.round(base * 0.78 * 0.88 * (0.93 + r()*0.14) / 1000)*1000;
+}
+function paxPrice(p, q){ return p*q.adt + p*0.9*q.chd + p*0.12*q.inf; }
+function durTxt(m){ return Math.floor(m/60)+"h"+(m%60?pad(m%60):"00"); }
+
+/* ---------------- điền hộ: hàm này được đóng gói thành bookmarklet & script Playwright ---------------- */
+function DVR_FILL(D){
+  var strip = function(s){
+    return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
+      .replace(/\u0111/g,"d").replace(/[_\-.]+/g," ").replace(/\s+/g," ").trim();
+  };
+  var ownSig = function(el){
+    var s = [el.name, el.id, el.placeholder, el.getAttribute("aria-label"),
+             el.getAttribute("title"), el.getAttribute("autocomplete"), el.getAttribute("data-testid")].join(" ");
+    if(el.id){
+      try {
+        var l = document.querySelector('label[for="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"]');
+        if(l) s += " " + l.textContent;
+      } catch(e){}
+    }
+    var w = el.closest ? el.closest("label") : null;
+    if(w) s += " " + w.textContent;
+    return strip(s).slice(0,300);
+  };
+  var nearSig = function(el){
+    var s = "", p = el.parentElement;
+    for(var k=0; k<3 && p; k++){
+      var prev = p.previousElementSibling;
+      if(prev && !prev.querySelector("input, select, textarea")) s += " " + prev.textContent;
+      p = p.parentElement;
+    }
+    return strip(s).slice(0,200);
+  };
+  var setVal = function(el, vals){
+    var list = [].concat(vals).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
+    if(!list.length) return false;
+    if(el.tagName === "SELECT"){
+      for(var k=0;k<list.length;k++){
+        var t = strip(String(list[k]));
+        for(var i=0;i<el.options.length;i++){
+          var o = el.options[i];
+          if(!o.value && !strip(o.textContent)) continue;
+          if(strip(o.textContent) === t || strip(o.value) === t ||
+             (t.length > 1 && strip(o.textContent).indexOf(t) > -1)){
+            el.value = o.value;
+            el.dispatchEvent(new Event("input",{bubbles:true}));
+            el.dispatchEvent(new Event("change",{bubbles:true}));
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    var v = String(list[0]);
+    if(el.type === "date" && /^\d{2}\/\d{2}\/\d{4}$/.test(v)){ var q = v.split("/"); v = q[2]+"-"+q[1]+"-"+q[0]; }
+    var proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    var d = Object.getOwnPropertyDescriptor(proto, "value");
+    if(d && d.set) d.set.call(el, v); else el.value = v;
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    el.dispatchEvent(new Event("change",{bubbles:true}));
+    el.dispatchEvent(new Event("blur",{bubbles:true}));
+    return true;
+  };
+  var P = function(n, k){ var p = D.pax[Math.min(n, D.pax.length-1)] || {}; return p[k]; };
+  var RULES = [
+    {k:"tax",    re:/(ma so thue|tax ?(code|id|number)|\bmst\b)/,                              get:function(){ return D.invoice.tax; }},
+    {k:"inveml", re:/((hoa don|vat|invoice|billing).{0,16}(e ?mail)|(e ?mail).{0,16}(hoa don|vat|invoice|billing))/, get:function(){ return D.invoice.email; }},
+    {k:"comp",   re:/(ten (cong ty|don vi|doanh nghiep)|cong ty|company|organi[sz]ation|business name)/, get:function(){ return D.invoice.company; }},
+    {k:"buyer",  re:/(nguoi mua|buyer)/,                                                        get:function(){ return D.invoice.buyer; }},
+    {k:"addr",   re:/(dia chi|address|street)/,                                                 get:function(){ return D.invoice.addr; }},
+    {k:"cardnm", re:/(ten chu the|chu the|card ?holder|name on card)/,                           get:function(){ return D.pay.holder; }},
+    {k:"phone",  re:/(dien thoai|so dt|\bsdt\b|phone|mobile|\btel\b)/,                           get:function(){ return D.contact.phone; }},
+    {k:"email",  re:/(e ?mail)/,                                                                 get:function(){ return D.contact.email; }},
+    {k:"dob",    re:/(ngay sinh|date ?of ?birth|\bdob\b|birth ?date|birthday|\bsinh\b)/,         get:function(n){ return [P(n,"dob"), P(n,"dobIso")]; }},
+    {k:"gender", re:/(gioi tinh|gender|\bsex\b|danh xung|\btitle\b|xung ho)/,                    get:function(n){ return [P(n,"genderVi"), P(n,"genderEn"), P(n,"genderShort")]; }},
+    {k:"idno",   re:/(so (cccd|cmnd|giay to|ho chieu|the)|\bcccd\b|\bcmnd\b|passport|id ?(no|number)|identity|giay to tuy than)/, get:function(n){ return P(n,"idNo"); }},
+    {k:"nat",    re:/(quoc tich|nationality|quoc gia|country)/,                                  get:function(n){ return [P(n,"natVi"), P(n,"natEn"), P(n,"natCode")]; }},
+    {k:"full",   re:/(ho (va )?ten|full ?name|passenger ?name|contact ?name|ten (hanh khach|khach|day du|nguoi|lien he))/, get:function(n){ return P(n,"full"); }},
+    {k:"first",  re:/(ho dem|ten dem|first ?name|given ?name|middle ?name|(^| )ten( |$))/,       get:function(n){ return P(n,"first"); }},
+    {k:"last",   re:/(surname|last ?name|family ?name|(^| )ho( |$))/,                            get:function(n){ return P(n,"last"); }}
+  ];
+  var SKIP = /(cvv|cvc|card ?number|so the|ma bao mat|expir|het han|\botp\b|captcha|coupon|promo|ma giam|mat khau|password)/;
+
+  var seen = {}, filled = 0, skipped = 0;
+  var nodes = document.querySelectorAll("input, select, textarea");
+  for(var i=0;i<nodes.length;i++){
+    var el = nodes[i];
+    if(el.disabled || el.readOnly) continue;
+    if(/^(hidden|password|submit|button|checkbox|radio|file|image|reset|search|range|color)$/.test(el.type||"")) continue;
+    if(el.offsetParent === null && el.tagName !== "SELECT") continue;
+    if(el.tagName !== "SELECT" && String(el.value||"").trim() !== "") continue;
+
+    var own = ownSig(el);
+    var both = (own + " " + nearSig(el)).trim();
+    if(SKIP.test(both)){ skipped++; continue; }
+
+    var done = false;
+    for(var pass=0; pass<2 && !done; pass++){
+      var s = pass === 0 ? own : both;
+      if(pass === 1 && s === own) break;
+      for(var j=0;j<RULES.length;j++){
+        if(!RULES[j].re.test(s)) continue;
+        var n = seen[RULES[j].k] || 0;
+        var vals = [].concat(RULES[j].get(n)).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
+        if(!vals.length){ done = true; break; }            // đúng loại nhưng hồ sơ đang trống
+        if(setVal(el, vals)){ seen[RULES[j].k] = n + 1; filled++; done = true; break; }
+        // select không có lựa chọn nào khớp → thử luật kế tiếp
+      }
+    }
+  }
+  var box = document.createElement("div");
+  box.textContent = "Dò Vé Rẻ đã điền " + filled + " ô" + (skipped ? " · bỏ qua " + skipped + " ô thẻ/OTP (cố ý)" : "");
+  box.setAttribute("style","position:fixed;z-index:2147483647;left:50%;bottom:20px;transform:translateX(-50%);background:#0B2440;color:#E9F0F8;font:14px/1.4 system-ui,sans-serif;padding:11px 16px;border-left:4px solid #E8890B;box-shadow:0 8px 30px rgba(0,0,0,.35)");
+  document.body.appendChild(box);
+  setTimeout(function(){ box.remove(); }, 6000);
+  return filled;
+}
+
+/* ---------------- trạng thái & màn hình ---------------- */
+const state = { trip:"ow", direct:true, bag:false, day:false, last:null };
+
+function readQuery(){
+  const from = airportOf($("#from").value), to = airportOf($("#to").value);
+  if(!from || !to) { toast("Không nhận ra sân bay. Thử mã 3 chữ: SGN, HAN, DAD…"); return null; }
+  if(from.code === to.code){ toast("Điểm đi và điểm đến đang trùng nhau."); return null; }
+  return {
+    from, to, dep: $("#dep").value, ret: state.trip==="rt" ? $("#ret").value : "",
+    adt:+$("#adt").value||1, chd:+$("#chd").value||0, inf:+$("#inf").value||0,
+    cabin: $("#cabin").value, cap:+$("#cap").value||0
+  };
+}
+
+function run(){
+  const q = readQuery(); if(!q) return;
+  state.last = q;
+  let offers = buildOffers(q);
+  const total = offers.length;
+  if(state.direct) offers = offers.filter(o => o.stops === 0);
+  if(state.bag)    offers = offers.filter(o => o.bag);
+  if(state.day)    offers = offers.filter(o => o.depHour >= 8 && o.depHour < 18);
+  if(q.cap)        offers = offers.filter(o => o.price <= q.cap);
+  offers.sort((a,b) => a.price - b.price);
+
+  $("#boardTitle").textContent = q.from.code + " → " + q.to.code;
+  const paxTxt = [q.adt+" người lớn", q.chd?q.chd+" trẻ em":"", q.inf?q.inf+" em bé":""].filter(Boolean).join(" · ");
+  const [yy,mm,dd] = q.dep.split("-");
+  $("#boardSub").textContent = offers.length + "/" + total + " lựa chọn · " + dd + "/" + mm + " · " + paxTxt
+    + " · " + Math.round(distKm(q.from,q.to)) + " km";
+
+  const rows = $("#rows");
+  if(!offers.length){
+    rows.innerHTML = '<div class="empty">Không còn lựa chọn nào sau khi lọc. Bỏ bớt bộ lọc hoặc nới trần giá.</div>';
+  } else {
+    const links = channelList(q);
+    rows.innerHTML = offers.slice(0,9).map((o,i) => {
+      const url = o.seller.name === "Website hãng" ? o.al.site
+                : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site;
+      return '<article class="row' + (i===0 ? " best" : "") + '">'
+        + (i===0 ? '<span class="badge-best">Rẻ nhất</span>' : "")
+        + '<div class="r-air"><span class="r-code">' + o.al.code + '</span><span class="r-name">' + o.al.name + '</span></div>'
+        + '<div class="r-time"><div class="r-clock">' + o.dep + ' <span>' + q.from.code + '</span> — ' + o.arr
+          + (o.overnight ? '<sup>+1</sup>' : "") + ' <span>' + q.to.code + '</span></div>'
+        + '<div class="r-meta">' + o.code + ' · ' + durTxt(o.mins) + ' · ' + (o.stops ? o.stops + " điểm dừng" : "bay thẳng")
+          + ' · ' + (o.bag ? "23kg ký gửi" : "7kg xách tay") + '</div></div>'
+        + '<div class="r-chan"><b>' + o.seller.name + '</b>' + o.seller.note
+          + '<a class="go" href="' + url + '" target="_blank" rel="noopener">Đặt</a></div>'
+        + '<div class="r-price"><b>' + vnd(o.price) + '</b><span>đ / khách, gồm thuế phí</span>'
+          + '<i>tổng ' + vnd(paxPrice(o.price, q)) + 'đ</i></div>'
+        + '</article>';
+    }).join("");
+  }
+  renderCal(q);
+  renderChannels(q);
+}
+
+function renderCal(q){
+  const days = [];
+  for(let i=-3;i<=3;i++){
+    const d = addDays(parseISO(q.dep), i);
+    if(d < new Date(new Date().toDateString())) { days.push(null); continue; }
+    days.push({ d, iso: iso(d), p: cheapestOn(q, iso(d)) });
+  }
+  const real = days.filter(Boolean);
+  const min = Math.min(...real.map(x=>x.p)), max = Math.max(...real.map(x=>x.p));
+  $("#cal").innerHTML = days.map(x => {
+    if(!x) return '<div class="day" style="opacity:.35;cursor:default" aria-hidden="true"><span class="d-dow">—</span><span class="d-date">·</span><span class="d-bar"></span><span class="d-price">—</span></div>';
+    const h = max === min ? 100 : 28 + 72*(x.p-min)/(max-min);
+    const cheap = x.p === min;
+    return '<button type="button" class="day' + (cheap ? " cheapest" : "") + '" data-d="' + x.iso + '"'
+      + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
+      + '<span class="d-dow">' + DOW[x.d.getDay()] + '</span>'
+      + '<span class="d-date">' + pad(x.d.getDate()) + "/" + pad(x.d.getMonth()+1) + '</span>'
+      + '<span class="d-bar"><i style="height:' + h.toFixed(0) + '%"></i></span>'
+      + '<span class="d-price">' + Math.round(x.p/1000) + 'k</span></button>';
+  }).join("");
+}
+
+/* ---------------- đường dẫn tới các hệ thống bán vé ---------------- */
+const dmy = s => { const [y,m,d] = s.split("-"); return d + "-" + m + "-" + y; };
+const ymd6 = s => { const [y,m,d] = s.split("-"); return y.slice(2) + m + d; };
+
+function channelList(q){
+  const A = q.from.code, B = q.to.code, a = A.toLowerCase(), b = B.toLowerCase();
+  const rt = !!q.ret;
+  const cabinSky = q.cabin === "BUSINESS" ? "business" : q.cabin === "PREMIUM_ECONOMY" ? "premiumeconomy" : "economy";
+  const cls = q.cabin === "BUSINESS" ? "c" : q.cabin === "PREMIUM_ECONOMY" ? "s" : "y";
+  const gq = "Flights from " + A + " to " + B + " on " + q.dep + (rt ? " returning " + q.ret : " one way");
+  return [
+    {name:"Google Flights", kind:"so giá", note:"Quét gần như mọi hãng, có biểu đồ giá theo ngày.", meta:true,
+     url:"https://www.google.com/travel/flights?hl=vi&curr=VND&q=" + encodeURIComponent(gq)},
+    {name:"Skyscanner", kind:"so giá", note:"Có “tháng rẻ nhất” và cảnh báo giá.", meta:true,
+     url:"https://www.skyscanner.com.vn/transport/flights/" + a + "/" + b + "/" + ymd6(q.dep) + "/" + (rt ? ymd6(q.ret) + "/" : "")
+        + "?adults=" + q.adt + "&children=" + q.chd + "&infants=" + q.inf + "&cabinclass=" + cabinSky + "&preferdirects=" + (state.direct ? "true" : "false") + "&currency=VND"},
+    {name:"Traveloka", kind:"đại lý", note:"Hay có mã giảm cho chặng nội địa.", meta:true,
+     url:"https://www.traveloka.com/vi-VN/flight/fullsearch?ap=" + A + "." + B + "&dt=" + dmy(q.dep) + "." + (rt ? dmy(q.ret) : "null")
+        + "&ps=" + q.adt + "." + q.chd + "." + q.inf + "&sc=" + q.cabin},
+    {name:"Trip.com", kind:"đại lý", note:"Giá quốc tế thường tốt, xuất hoá đơn được.", meta:true,
+     url:"https://vn.trip.com/flights/showfarefirst?dcity=" + a + "&acity=" + b + "&ddate=" + q.dep + (rt ? "&rdate=" + q.ret : "")
+        + "&triptype=" + (rt ? "rt" : "ow") + "&class=" + cls + "&quantity=" + q.adt + "&childqty=" + q.chd + "&babyqty=" + q.inf + "&locale=vi-VN&curr=VND"},
+    {name:"Momondo", kind:"so giá", note:"Xếp hạng “rẻ nhất / nhanh nhất / đáng tiền nhất”.", meta:true,
+     url:"https://www.momondo.vn/flight-search/" + A + "-" + B + "/" + q.dep + (rt ? "/" + q.ret : "") + "/" + q.adt + "adults?sort=price_a"},
+    {name:"Vietnam Airlines", kind:"trang hãng", note:"Vé linh hoạt, đổi giờ dễ. Mở trang chủ rồi bấm “Điền hộ”.", url:"https://www.vietnamairlines.com/vn/vi/home"},
+    {name:"Vietjet Air", kind:"trang hãng", note:"Giá thấp nhất thường ở đây, nhớ cộng phí hành lý.", url:"https://www.vietjetair.com/vi"},
+    {name:"Bamboo Airways", kind:"trang hãng", note:"Giữa hai nhóm trên, suất ăn kèm nhiều hạng vé.", url:"https://www.bambooairways.com/vn/vi/"},
+    {name:"Vietravel Airlines", kind:"trang hãng", note:"Ít chuyến nhưng thỉnh thoảng rẻ bất ngờ.", url:"https://www.vietravelairlines.com/vi"}
+  ];
+}
+function renderChannels(q){
+  $("#chans").innerHTML = channelList(q).map(c =>
+    '<div class="chan"><span class="kind">' + c.kind + '</span><b>' + c.name + '</b>'
+    + '<span class="note">' + c.note + '</span>'
+    + '<a href="' + c.url + '" target="_blank" rel="noopener">Mở →</a></div>').join("");
+}
+
+/* ---------------- hồ sơ ---------------- */
+const KEY = "dovere.profile.v1";
+const CONTACT_FIELDS = ["ctName","ctPhone","ctEmail","invCompany","invTax","invEmail","invAddr","invBuyer","payMethod","payBank","payHolder"];
+
+function paxCard(i, d){
+  d = d || {};
+  const val = k => (d[k] || "").replace(/"/g, "&quot;");
+  return '<div class="pax" data-i="' + i + '">'
+    + '<div class="pax-head"><span class="lbl">Khách ' + (i+1) + '</span>'
+    + (i ? '<button type="button" class="del" data-del="' + i + '">Xoá khách này</button>' : '<span class="hint">khách chính, đứng tên đặt chỗ</span>') + '</div>'
+    + '<div class="field"><label for="p' + i + 'full">Họ và tên (viết như trên giấy tờ)</label>'
+      + '<input id="p' + i + 'full" data-f="full" value="' + val("full") + '" placeholder="NGUYEN VAN A"></div>'
+    + '<div class="two">'
+      + '<div class="field"><label for="p' + i + 'dob">Ngày sinh</label><input type="date" id="p' + i + 'dob" data-f="dob" value="' + val("dob") + '"></div>'
+      + '<div class="field"><label for="p' + i + 'gender">Giới tính</label><select id="p' + i + 'gender" data-f="gender">'
+        + '<option' + (d.gender === "Nữ" ? "" : " selected") + '>Nam</option><option' + (d.gender === "Nữ" ? " selected" : "") + '>Nữ</option></select></div>'
+    + '</div>'
+    + '<div class="two">'
+      + '<div class="field"><label for="p' + i + 'idType">Giấy tờ</label><select id="p' + i + 'idType" data-f="idType">'
+        + '<option' + (d.idType === "Hộ chiếu" ? "" : " selected") + '>CCCD</option><option' + (d.idType === "Hộ chiếu" ? " selected" : "") + '>Hộ chiếu</option></select></div>'
+      + '<div class="field"><label for="p' + i + 'idNo">Số giấy tờ</label><input id="p' + i + 'idNo" data-f="idNo" class="num-in" value="' + val("idNo") + '"></div>'
+    + '</div>'
+    + '<div class="field"><label for="p' + i + 'nat">Quốc tịch</label><input id="p' + i + 'nat" data-f="nat" value="' + (val("nat") || "Việt Nam") + '"></div>'
+    + '</div>';
+}
+function renderPax(list){
+  $("#paxList").innerHTML = (list && list.length ? list : [{}]).map((d,i) => paxCard(i,d)).join("");
+}
+function collect(){
+  const pax = [...document.querySelectorAll(".pax")].map(card => {
+    const o = {};
+    card.querySelectorAll("[data-f]").forEach(el => o[el.dataset.f] = el.value.trim());
+    return o;
+  });
+  const rest = {};
+  CONTACT_FIELDS.forEach(id => rest[id] = ($("#" + id) ? $("#" + id).value.trim() : ""));
+  return { pax, ...rest };
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(collect())); toast("Đã lưu hồ sơ vào trình duyệt này."); }
+  catch(e){ toast("Trình duyệt chặn lưu trữ — hồ sơ chỉ dùng được trong phiên này."); }
+  refreshFill();
+}
+function load(){
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
+  if(!p){
+    renderPax([{full:"", gender:"Nam", idType:"CCCD", nat:"Việt Nam"}]);
+    return;
+  }
+  renderPax(p.pax);
+  CONTACT_FIELDS.forEach(id => { if($("#" + id) && p[id] !== undefined) $("#" + id).value = p[id]; });
+}
+function fillData(){
+  const p = collect();
+  return {
+    pax: (p.pax.length ? p.pax : [{}]).map(x => {
+      const parts = (x.full || "").trim().split(/\s+/).filter(Boolean);
+      const last = parts[0] || "";
+      const first = parts.slice(1).join(" ") || last;
+      const [y,m,d] = (x.dob || "").split("-");
+      const vnNat = norm(x.nat || "") === "viet nam";
+      return {
+        full: x.full || "", first, last,
+        dob: d ? d + "/" + m + "/" + y : "", dobIso: x.dob || "",
+        genderVi: x.gender || "Nam", genderEn: x.gender === "Nữ" ? "Female" : "Male", genderShort: x.gender === "Nữ" ? "F" : "M",
+        idType: x.idType || "CCCD", idNo: x.idNo || "",
+        natVi: x.nat || "", natEn: vnNat ? "Vietnam" : (x.nat || ""), natCode: vnNat ? "VN" : ""
+      };
+    }),
+    contact: { name: p.ctName, phone: p.ctPhone, email: p.ctEmail },
+    invoice: { company: p.invCompany, tax: p.invTax, email: p.invEmail || p.ctEmail, addr: p.invAddr, buyer: p.invBuyer || p.ctName },
+    pay: { method: p.payMethod, bank: p.payBank, holder: p.payHolder }
+  };
+}
+function bookmarkletSrc(){
+  return "javascript:" + encodeURIComponent("(" + DVR_FILL.toString() + ")(" + JSON.stringify(fillData()) + ");void 0;");
+}
+function refreshFill(){ $("#fillLink").href = bookmarkletSrc(); }
+
+function botScript(){
+  const q = state.last;
+  const url = q ? (channelList(q).find(c => c.name === "Traveloka") || {}).url : "https://www.traveloka.com";
+  return [
+    "// Dò Vé Rẻ — mở sẵn chặng, điền sẵn hồ sơ, dừng lại trước bước thanh toán.",
+    "// Cài một lần:  npm i playwright && npx playwright install chromium",
+    "// Chạy:        node dat-ve.mjs",
+    "import { chromium } from 'playwright';",
+    "",
+    "const URL = " + JSON.stringify(url) + ";",
+    "const DATA = " + JSON.stringify(fillData(), null, 2) + ";",
+    "",
+    "const FILL = " + DVR_FILL.toString() + ";",
+    "",
+    "const browser = await chromium.launch({ headless: false, slowMo: 120 });",
+    "const page = await browser.newPage({ locale: 'vi-VN' });",
+    "await page.goto(URL, { waitUntil: 'domcontentloaded' });",
+    "",
+    "// Chọn chuyến bằng tay (giá đổi từng phút — người chọn vẫn chuẩn hơn máy),",
+    "// tới khi hiện form thông tin hành khách thì chạy tiếp dòng dưới.",
+    "await page.pause();",
+    "",
+    "const n = await page.evaluate(([fn, d]) => new Function('return ' + fn)()(d), [FILL.toString(), DATA]);",
+    "console.log('Đã điền', n, 'ô. Kiểm tra lại rồi tự nhập thẻ + OTP.');",
+    "",
+    "// Cố ý dừng ở đây: số thẻ, CVV và OTP do người thật nhập.",
+    "await page.pause();",
+    "await browser.close();",
+    ""
+  ].join("\n");
+}
+
+/* ---------------- vặt ---------------- */
+let toastT;
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.hidden = true, 4200);
+}
+async function copy(text, ok){
+  try { await navigator.clipboard.writeText(text); toast(ok); }
+  catch(e){
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast(ok); } catch(e2){ toast("Trình duyệt chặn sao chép — bấm chuột phải vào nút để chép thủ công."); }
+    ta.remove();
+  }
+}
+
+/* ---------------- sự kiện ---------------- */
+$("#searchForm").addEventListener("submit", e => { e.preventDefault(); run(); });
+$("#swapBtn").addEventListener("click", () => {
+  const f = $("#from").value; $("#from").value = $("#to").value; $("#to").value = f; run();
+});
+function toggle(btn, on){ btn.setAttribute("aria-pressed", on ? "true" : "false"); }
+$("#tripOw").addEventListener("click", () => { state.trip = "ow"; toggle($("#tripOw"),true); toggle($("#tripRt"),false); $("#ret").disabled = true; run(); });
+$("#tripRt").addEventListener("click", () => {
+  state.trip = "rt"; toggle($("#tripRt"),true); toggle($("#tripOw"),false);
+  $("#ret").disabled = false;
+  if(!$("#ret").value) $("#ret").value = iso(addDays(parseISO($("#dep").value), 4));
+  run();
+});
+[["#fDirect","direct"],["#fBag","bag"],["#fDay","day"]].forEach(([sel,key]) => {
+  $(sel).addEventListener("click", () => { state[key] = !state[key]; toggle($(sel), state[key]); run(); });
+});
+$("#cal").addEventListener("click", e => {
+  const b = e.target.closest("[data-d]"); if(!b) return;
+  $("#dep").value = b.dataset.d;
+  if(state.trip === "rt" && $("#ret").value < b.dataset.d) $("#ret").value = iso(addDays(parseISO(b.dataset.d), 4));
+  run();
+});
+$("#openAll").addEventListener("click", () => {
+  if(!state.last) { run(); if(!state.last) return; }
+  const metas = channelList(state.last).filter(c => c.meta);
+  let blocked = 0;
+  metas.forEach(c => { if(!window.open(c.url, "_blank", "noopener")) blocked++; });
+  toast(blocked ? "Trình duyệt chặn " + blocked + "/" + metas.length + " cửa sổ — cho phép pop-up rồi bấm lại."
+                : "Đã mở " + metas.length + " trang so giá.");
+});
+$("#addPax").addEventListener("click", () => {
+  const list = collect().pax;
+  list.push({ gender:"Nam", idType:"CCCD", nat:"Việt Nam" });
+  renderPax(list);
+  $("#adt").value = Math.min(9, list.length);
+  refreshFill(); run();
+});
+$("#paxList").addEventListener("click", e => {
+  const b = e.target.closest("[data-del]"); if(!b) return;
+  const list = collect().pax;
+  list.splice(+b.dataset.del, 1);
+  renderPax(list);
+  $("#adt").value = Math.max(1, list.length);
+  refreshFill(); run();
+});
+$("#paxList").addEventListener("change", refreshFill);
+document.addEventListener("change", e => { if(CONTACT_FIELDS.includes(e.target.id)) refreshFill(); });
+$("#saveProfile").addEventListener("click", save);
+$("#copyFill").addEventListener("click", () => copy(bookmarkletSrc(), "Đã chép mã “Điền hộ”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
+$("#copyJson").addEventListener("click", () => copy(JSON.stringify(fillData(), null, 2), "Đã chép hồ sơ dạng JSON."));
+$("#copyBot").addEventListener("click", () => copy(botScript(), "Đã chép script Playwright. Lưu thành dat-ve.mjs rồi chạy: node dat-ve.mjs"));
+$("#clearProfile").addEventListener("click", () => {
+  try { localStorage.removeItem(KEY); } catch(e){}
+  renderPax([{ gender:"Nam", idType:"CCCD", nat:"Việt Nam" }]);
+  CONTACT_FIELDS.forEach(id => { if($("#" + id) && $("#" + id).tagName !== "SELECT") $("#" + id).value = ""; });
+  refreshFill();
+  toast("Đã xoá hồ sơ khỏi máy này.");
+});
+$("#fillLink").addEventListener("click", e => {
+  e.preventDefault();
+  toast("Nút này để KÉO lên thanh dấu trang, rồi bấm nó khi đang ở trang đặt vé.");
+});
+
+/* ---------------- khởi động ---------------- */
+AIRPORTS.forEach(a => {
+  const o = document.createElement("option");
+  o.value = a.code;
+  o.label = a.code + " — " + a.city + " (" + a.name + ")";
+  o.textContent = o.label;
+  $("#airports").appendChild(o);
+});
+$("#dep").value = iso(addDays(new Date(), 21));
+$("#dep").min = iso(new Date());
+$("#ret").min = iso(new Date());
+load();
+refreshFill();
+run();
+</script>
+</body>
+</html>
