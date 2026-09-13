@@ -12,6 +12,7 @@ class DVR_Shortcodes {
 		add_shortcode( 'do_ve_re_dat_ve', array( __CLASS__, 'dat_ve' ) );
 		add_action( 'wp', array( __CLASS__, 'an_thanh_quan_tri' ) );
 		add_filter( 'template_include', array( __CLASS__, 'khung_rieng' ) );
+		add_action( 'wp_head', array( __CLASS__, 'mau_thuong_hieu' ), 20 );
 	}
 
 	/** Trang này có phải trang bán vé của plugin không. */
@@ -75,6 +76,22 @@ class DVR_Shortcodes {
 	}
 
 	/** Bộ chữ Baloo 2 + Be Vietnam Pro; thiếu nó là trang rơi về font hệ thống. */
+	/** Màu thương hiệu khai trong Cài đặt sẽ đè lên màu cam mặc định. */
+	public static function mau_thuong_hieu() {
+		$m = dvr_cai_dat( 'mau_chinh', '' );
+		if ( ! $m || ! dvr_mau_rgb( $m ) ) {
+			return;
+		}
+		$rgb  = dvr_mau_rgb( $m );
+		$chu  = dvr_chu_tren_nen( $m );   // chọn bên tương phản cao hơn, không đoán bằng mắt
+		$bong = 'rgba(' . implode( ',', $rgb ) . ',.55)';
+		echo '<style id="dvr-mau">:root{'
+			. '--accent:' . esc_attr( $m ) . ';'
+			. '--accent-2:' . esc_attr( dvr_lam_nhat( $m, 0.22 ) ) . ';'
+			. '--on-accent:' . esc_attr( $chu ) . ';'
+			. '--sh-cam:0 10px 22px -10px ' . esc_attr( $bong ) . ';}</style>';
+	}
+
 	public static function nap_chu() {
 		wp_enqueue_style(
 			'dovere-chu',

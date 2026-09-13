@@ -59,3 +59,9 @@ body.dvr-toan-man{background:var(--ground);min-height:100vh}
 
 /* Khung riêng đã có logo ở thanh đầu trang rồi thì banner khỏi lặp lại logo. */
 body.dvr-toan-man .dvr .hero .logo{display:none}
+
+/* Logo ảnh của công ty: nền trắng bo tròn, để logo màu nhạt (vàng, be) vẫn nổi
+   trên banner nền trời. */
+.dvr .logo img{height:60px;max-width:100%;width:auto;object-fit:contain;background:#fff;border-radius:14px;padding:8px 12px;
+  box-shadow:0 2px 6px rgba(21,34,66,.08), 0 14px 28px -18px rgba(21,34,66,.5)}
+.dvr .dvr-top .logo img{height:42px;padding:5px 9px;border-radius:11px}

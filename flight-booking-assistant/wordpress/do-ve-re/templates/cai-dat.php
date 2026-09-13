@@ -135,6 +135,13 @@ $cd = dvr_cai_dat();
 					<p class="description">Dán đường dẫn ảnh logo (tải lên ở Thư viện rồi copy link). Để trống thì dùng biểu tượng máy bay sẵn có.</p></td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="dvr_mau">Màu thương hiệu</label></th>
+				<td><input type="text" name="dovere_settings[mau_chinh]" id="dvr_mau" class="regular-text code"
+						value="<?php echo esc_attr( $cd['mau_chinh'] ); ?>" placeholder="#C1960C">
+					<p class="description">Mã màu của logo công ty, ví dụ vàng K&amp;H là <code>#C1960C</code>. Để trống thì dùng màu cam mặc định.
+						Màu sáng thì chữ trên nút tự chuyển sang đen cho đọc được.</p></td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="dvr_hero_ten">Tên hiện cạnh logo</label></th>
 				<td><input name="dovere_settings[hero_ten]" id="dvr_hero_ten" class="regular-text" value="<?php echo esc_attr( $cd['hero_ten'] ); ?>"></td>
 			</tr>

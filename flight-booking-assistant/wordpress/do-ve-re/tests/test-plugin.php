@@ -189,5 +189,25 @@ ok( 'có dòng bản quyền kèm năm', strpos( $ct, '© ' . gmdate( 'Y' ) ) !=
 $GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
 ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
+echo "\nMàu thương hiệu\n";
+ok( 'đọc được mã 6 ký tự', dvr_mau_rgb( '#C1960C' ) === array( 193, 150, 12 ), dvr_mau_rgb( '#C1960C' ) );
+ok( 'đọc được mã rút gọn 3 ký tự', dvr_mau_rgb( '#fc0' ) === array( 255, 204, 0 ), dvr_mau_rgb( '#fc0' ) );
+ok( 'mã sai thì trả null', null === dvr_mau_rgb( 'vàng' ) );
+ok( 'vàng K&H: chữ trắng đọc không nổi nên phải chọn chữ đen', '#152242' === dvr_chu_tren_nen( '#C1960C' ), dvr_chu_tren_nen( '#C1960C' ) );
+ok( 'cam mặc định: chọn chữ trắng', '#FFFFFF' === dvr_chu_tren_nen( '#D9432B' ), dvr_chu_tren_nen( '#D9432B' ) );
+ok( 'chữ chọn ra đạt tương phản 4.5 trở lên',
+	dvr_tuong_phan( '#C1960C', dvr_chu_tren_nen( '#C1960C' ) ) >= 4.5, round( dvr_tuong_phan( '#C1960C', '#152242' ), 2 ) );
+ok( 'chữ trắng trên vàng thì KHÔNG đạt — đúng như mắt thấy',
+	dvr_tuong_phan( '#C1960C', '#FFFFFF' ) < 3, round( dvr_tuong_phan( '#C1960C', '#FFFFFF' ), 2 ) );
+ok( 'trộn trắng ra sắc nhạt hơn', dvr_lam_nhat( '#C1960C', 0.5 ) === '#E0CB86', dvr_lam_nhat( '#C1960C', 0.5 ) );
+
+$GLOBALS['dvr_options']['dovere_settings']['mau_chinh'] = '#C1960C';
+ob_start(); DVR_Shortcodes::mau_thuong_hieu(); $css = ob_get_clean();
+ok( 'in ra biến CSS đúng màu', strpos( $css, '--accent:#C1960C' ) !== false, $css );
+ok( 'chữ trên nút chuyển sang đen cho dễ đọc', strpos( $css, '--on-accent:#152242' ) !== false, $css );
+$GLOBALS['dvr_options']['dovere_settings']['mau_chinh'] = '';
+ob_start(); DVR_Shortcodes::mau_thuong_hieu(); $trong = ob_get_clean();
+ok( 'không khai màu thì không in gì', '' === $trong );
+
 echo "\n$dat đạt, $hong hỏng\n";
 exit( $hong ? 1 : 0 );

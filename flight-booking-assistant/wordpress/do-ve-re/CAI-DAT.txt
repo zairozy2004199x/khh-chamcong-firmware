@@ -21,6 +21,13 @@ SAU KHI KÍCH HOẠT — KHÔNG PHẢI LÀM GÌ
        ("Trang đặt vé" plugin đã tự chọn sẵn)
   4. Xong. Mở link bảng giá là thấy chạy.
 
+LOGO CÔNG TY
+  1. Quản trị → Thư viện → Thêm mới → tải file logo lên → copy "Đường dẫn tập tin".
+  2. Dò Vé Rẻ → Cài đặt → mục "Đầu trang" → dán vào ô Logo → Lưu.
+  Logo đặt trên nền trắng bo tròn nên logo màu nhạt (vàng, be) vẫn nổi trên banner.
+  Ô "Màu thương hiệu" nhận mã màu của logo, ví dụ vàng K&H là #C1960C — nút bấm
+  và giá tiền sẽ chuyển sang màu đó, chữ trên nút tự đổi đen/trắng cho đọc được.
+
 CHÂN TRANG
   Thông tin công ty (tên, mã số thuế, địa chỉ, chi nhánh, bản quyền) hiện ở cuối
   cả hai trang bán vé. Sửa trong Dò Vé Rẻ → Cài đặt, mục "Thông tin công ty ở
