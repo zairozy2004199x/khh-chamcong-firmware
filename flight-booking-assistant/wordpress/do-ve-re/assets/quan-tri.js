@@ -1,0 +1,149 @@
+"use strict";
+const $ = s => document.querySelector(s);
+const vnd = n => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0)) + "đ";
+let filter = "", timer;
+
+async function api(path, body){
+  const r = await fetch(DVR.rest + path, {
+    method: body ? "POST" : "GET",
+    headers: { "content-type": "application/json", "X-WP-Nonce": DVR.nonce },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || j.message || ("máy chủ trả " + r.status));
+  return j;
+}
+
+function fillPayload(o){
+  const pax = (o.pax || []).map(p => {
+    const parts = String(p.full || "").trim().split(/\s+/);
+    const [y,m,d] = String(p.dob || "").split("-");
+    return {
+      full: p.full || "", last: parts[0] || "", first: parts.slice(1).join(" ") || parts[0] || "",
+      dob: d ? d + "/" + m + "/" + y : "", dobIso: p.dob || "",
+      genderVi: "Nam", genderEn: "Male", genderShort: "M",
+      idNo: p.idNo || "", natVi: "Việt Nam", natEn: "Vietnam", natCode: "VN"
+    };
+  });
+  const iv = o.invoice || {}, ct = o.contact || {};
+  return {
+    pax,
+    contact: { name: ct.name || "", phone: ct.phone || "", email: ct.email || "" },
+    invoice: { company: iv.company || "", tax: iv.tax || "", email: iv.email || ct.email || "", addr: iv.addr || "", buyer: iv.buyer || ct.name || "" },
+    pay: { holder: "" },
+    trip: {
+      from: (o.flight.route || "").split("-")[0] || "", to: (o.flight.route || "").split("-")[1] || "",
+      dep: (o.flight.date || "").split("-").reverse().join("-"), depIso: o.flight.date || "",
+      ret: "", retIso: "", adt: (o.pax || []).length, chd: 0, inf: 0
+    },
+    sites: {}
+  };
+}
+const fillHref = o => "javascript:" + encodeURIComponent("(" + DVR_FILL.toString() + ")(" + JSON.stringify(fillPayload(o)) + ");void 0;");
+
+const AIRLINE = { VN:"https://www.vietnamairlines.com/vn/vi/home", VJ:"https://www.vietjetair.com/vi",
+                  QH:"https://www.bambooairways.com/vn/vi/", VU:"https://www.vietravelairlines.com/vi" };
+
+function thu(o){
+  const m = (o.mail || []).slice(-1)[0];
+  if(!m) return (o.contact || {}).email ? '<div class="log">✉ chưa gửi thư nào</div>' : "";
+  const gio = new Date(m.at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return m.ok
+    ? '<div class="log" style="color:var(--cheap)">✉ ' + m.kind + ' · đã gửi ' + gio + '</div>'
+    : '<div class="log" style="color:var(--warn)">✉ ' + m.kind + ' HỎNG: ' + m.error + '</div>';
+}
+function tag(o){
+  const cls = o.status === "da_xuat_ve" ? "ok" : ["hoan_tien","huy","het_han"].includes(o.status) ? "bad" : "wait";
+  return '<span class="tag ' + cls + '">' + o.statusText + '</span>';
+}
+
+function render(j){
+  const t = j.tong;
+  $("#tiles").innerHTML =
+    '<div class="tile"><span class="lbl">Đơn</span><b>' + t.don + '</b></div>'
+  + '<div class="tile"><span class="lbl">Đã thu của khách</span><b>' + vnd(t.daThu) + '</b></div>'
+  + '<div class="tile"><span class="lbl">Đã trả cho hãng</span><b>' + vnd(t.daMua) + '</b></div>'
+  + '<div class="tile"><span class="lbl">Chênh lệch</span><b style="color:var(--cheap)">' + vnd(t.lai) + '</b></div>';
+
+  const list = filter ? j.orders.filter(o => o.status === filter) : j.orders;
+  $("#rows").innerHTML = list.length ? list.map(o => {
+    const canPay = o.status === "cho_thanh_toan" || o.status === "het_han";
+    const canBook = ["da_nhan_tien","dang_dat_ve"].includes(o.status);
+    const site = AIRLINE[o.flight.airline] || "";
+    return '<tr><td><b class="num">' + o.code + '</b><div class="hint">'
+      + new Date(o.createdAt).toLocaleString("vi-VN", { hour:"2-digit", minute:"2-digit", day:"2-digit", month:"2-digit" }) + '</div></td>'
+      + '<td>' + o.flight.route + '<div class="hint">' + o.flight.airline + " " + o.flight.number + " · "
+      + o.flight.date + " · " + o.flight.dep + "</div>"
+      + (o.pnr ? '<div class="num" style="color:var(--cheap)">' + o.pnr + '</div>' : "") + '</td>'
+      + '<td>' + (o.pax || []).map(p => p.full).join("<br>")
+      + '<div class="hint">' + (o.contact.phone || "") + "</div></td>"
+      + '<td class="money">' + vnd(o.money.total)
+      + (o.money.paid ? '<div class="hint">đã nhận ' + vnd(o.money.paid) + (o.thieu > 0 ? " · thiếu " + vnd(o.thieu) : "") + "</div>" : "")
+      + (o.money.cost ? '<div class="hint">mua ' + vnd(o.money.cost) + " · chênh " + vnd(o.money.paid - o.money.cost) + "</div>" : "")
+      + '</td>'
+      + '<td>' + tag(o) + (o.quaHan ? '<div class="hint" style="color:var(--warn)">trả sau hạn giữ giá</div>' : "")
+      + thu(o)
+      + '<div class="log">' + (o.log || []).slice(-2).map(l => "· " + l.what).join("<br>") + '</div></td>'
+      + '<td><div class="acts">'
+      + (canPay ? '<button data-act="paid" data-code="' + o.code + '">Đã nhận tiền</button>' : "")
+      + (canBook ? '<a class="go" href="' + fillHref(o) + '" title="Kéo lên thanh dấu trang rồi bấm khi đang ở trang hãng">Điền hộ</a>' : "")
+      + (canBook && site ? '<a href="' + site + '" target="_blank" rel="noopener">Trang hãng</a>' : "")
+      + (canBook ? '<button data-act="booking" data-code="' + o.code + '">Mã đặt chỗ</button>' : "")
+      + (o.status !== "hoan_tien" && o.status !== "huy" && o.status !== "da_xuat_ve"
+          ? '<button data-act="refund" data-code="' + o.code + '">Hoàn tiền</button>'
+            + '<button data-act="cancel" data-code="' + o.code + '">Huỷ</button>' : "")
+      + ((o.contact || {}).email ? '<button data-act="mail" data-code="' + o.code + '">Gửi lại thư</button>' : "")
+      + '</div></td></tr>';
+  }).join("") : '<tr><td colspan="6" class="hint">Không có đơn nào ở nhóm này.</td></tr>';
+}
+
+async function load(){
+  try {
+    render(await api("/admin/orders"));
+    $("#msg").textContent = "Cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
+    clearInterval(timer);
+    timer = setInterval(load, 20000);
+  } catch(e){
+    $("#msg").textContent = "Không xem được: " + e.message;
+    clearInterval(timer);
+  }
+}
+$("#load").addEventListener("click", load);
+
+$("#filters").addEventListener("click", e => {
+  const b = e.target.closest("[data-f]"); if(!b) return;
+  filter = b.dataset.f;
+  [...$("#filters").children].forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  load();
+});
+
+$("#rows").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]"); if(!b) return;
+  const { act, code } = b.dataset;
+  let bao = "";
+  try {
+    if(act === "paid"){
+      const amount = prompt("Số tiền thực nhận cho đơn " + code + " (đ):");
+      if(amount === null) return;
+      await api("/admin/orders/" + code + "/paid", { amount: +String(amount).replace(/\D/g,"") });
+    } else if(act === "booking"){
+      const pnr = prompt("Mã đặt chỗ (PNR) của đơn " + code + ":");
+      if(!pnr) return;
+      const cost = prompt("Giá mua vào (đ) — để tính chênh lệch, bỏ trống cũng được:") || 0;
+      await api("/admin/orders/" + code + "/booking", { pnr, cost: +String(cost).replace(/\D/g,"") });
+    } else if(act === "refund"){
+      const reason = prompt("Lý do hoàn tiền đơn " + code + ":") || "";
+      await api("/admin/orders/" + code + "/refund", { reason });
+    } else if(act === "cancel"){
+      const reason = prompt("Lý do huỷ đơn " + code + ":") || "";
+      await api("/admin/orders/" + code + "/cancel", { reason });
+    } else if(act === "mail"){
+      const r = await api("/admin/orders/" + code + "/mail", {});
+      bao = "Đã gửi lại thư (" + r.kind + ") cho đơn " + code + ".";
+    }
+    await load();
+    if(bao) $("#msg").textContent = bao;
+  } catch(err){ $("#msg").textContent = "Không làm được: " + err.message; }
+});
+
+load();

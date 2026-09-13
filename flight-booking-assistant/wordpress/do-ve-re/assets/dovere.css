@@ -1,0 +1,362 @@
+/* Dò Vé Rẻ — mọi lớp nằm trong .dvr để không đụng giao diện theme của anh. */
+
+:root{
+  --ground:#E9EDF1;
+  --surface:#FFFFFF;
+  --surface-2:#F2F5F8;
+  --board:#0B2440;
+  --board-2:#123050;
+  --board-line:#1C3E63;
+  --board-ink:#E9F0F8;
+  --board-dim:#8FA9C4;
+  --ink:#0B2440;
+  --ink-2:#39536E;
+  --muted:#6B839C;
+  --line:#CCD6E1;
+  --line-soft:#E1E7EE;
+  --amber:#B45F05;
+  --amber-bright:#E8890B;
+  --on-amber:#1B1000;
+  --cheap:#0B6B54;
+  --cheap-soft:#DEF0EA;
+  --warn:#8C3310;
+  --warn-soft:#FAEADF;
+  --shadow:0 1px 2px rgba(11,36,64,.07), 0 10px 28px -20px rgba(11,36,64,.45);
+  color-scheme:light;
+}
+
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#07121E;
+    --surface:#0F2134;
+    --surface-2:#172F46;
+    --board:#050E19;
+    --board-2:#0C2136;
+    --board-line:#1B3A5B;
+    --board-ink:#E9F0F8;
+    --board-dim:#7E99B6;
+    --ink:#E6EEF7;
+    --ink-2:#B4C6D9;
+    --muted:#8AA2BB;
+    --line:#26425F;
+    --line-soft:#1B3450;
+    --amber:#F2A83B;
+    --amber-bright:#F2A83B;
+    --on-amber:#1B1000;
+    --cheap:#3EC49E;
+    --cheap-soft:#0E3B31;
+    --warn:#F0A88A;
+    --warn-soft:#3A1B0E;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#07121E;
+  --surface:#0F2134;
+  --surface-2:#172F46;
+  --board:#050E19;
+  --board-2:#0C2136;
+  --board-line:#1B3A5B;
+  --board-ink:#E9F0F8;
+  --board-dim:#7E99B6;
+  --ink:#E6EEF7;
+  --ink-2:#B4C6D9;
+  --muted:#8AA2BB;
+  --line:#26425F;
+  --line-soft:#1B3450;
+  --amber:#F2A83B;
+  --amber-bright:#F2A83B;
+  --on-amber:#1B1000;
+  --cheap:#3EC49E;
+  --cheap-soft:#0E3B31;
+  --warn:#F0A88A;
+  --warn-soft:#3A1B0E;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
+  color-scheme:dark;
+}
+
+.dvr *{box-sizing:border-box}
+.dvr{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Sans","Segoe UI",Roboto,system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.dvr .wrap{max-width:1180px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px;display:grid;gap:30px}
+.dvr h1, .dvr h2, .dvr h3{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;margin:0;text-wrap:balance;letter-spacing:.01em}
+.dvr h1{font-size:clamp(46px,9vw,78px);font-weight:700;line-height:.9;letter-spacing:-.005em}
+.dvr h2{font-size:clamp(22px,3.4vw,29px);font-weight:600;line-height:1.05}
+.dvr h3{font-size:17px;font-weight:600;letter-spacing:.04em}
+.dvr p{margin:0}
+.dvr a{color:var(--amber);text-underline-offset:3px}
+.dvr .eyebrow{
+  font-family:"IBM Plex Mono",ui-monospace,monospace;
+  font-size:11px;font-weight:500;letter-spacing:.17em;text-transform:uppercase;color:var(--amber);
+}
+.dvr .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.dvr :where(button, .dvr a, .dvr input, .dvr select, .dvr textarea):focus-visible{outline:2.5px solid var(--amber-bright);outline-offset:2px}
+
+/* ---------- masthead ---------- */
+.dvr .masthead{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.85fr);gap:26px;align-items:end}
+.dvr .lede{max-width:60ch;color:var(--ink-2);margin-top:14px;font-size:15.5px}
+.dvr .statecard{
+  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--amber-bright);
+  padding:15px 17px;display:grid;gap:9px;box-shadow:var(--shadow);
+}
+.dvr .statecard p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
+.dvr .statecard .eyebrow{color:var(--ink-2)}
+.dvr .tag{
+  display:inline-flex;align-items:center;gap:7px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;color:var(--warn);
+  background:var(--warn-soft);width:max-content;
+}
+.dvr .tag.ok{color:var(--cheap);background:var(--cheap-soft)}
+
+/* ---------- layout ---------- */
+.dvr .grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:start}
+.dvr .panel{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
+.dvr .panel-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding:14px 17px;border-bottom:1px solid var(--line-soft);
+}
+.dvr .panel-body{padding:17px;display:grid;gap:15px}
+
+/* ---------- form ---------- */
+.dvr .field{display:grid;gap:5px}
+.dvr label, .dvr .lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.dvr input, .dvr select{
+  font-family:inherit;font-size:15px;color:var(--ink);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:0;padding:10px 11px;width:100%;min-width:0;
+}
+.dvr input[type="date"], .dvr input[type="number"], .dvr .num-in{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.dvr .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dvr .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.dvr .swap{display:grid;grid-template-columns:1fr 42px 1fr;gap:8px;align-items:end}
+.dvr .swapbtn{
+  height:42px;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  font-size:16px;cursor:pointer;line-height:1;
+}
+.dvr .swapbtn:hover{border-color:var(--amber-bright);color:var(--amber)}
+.dvr .chips{display:flex;flex-wrap:wrap;gap:8px}
+.dvr .chip{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  padding:7px 10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);cursor:pointer;
+}
+.dvr .chip[aria-pressed="true"]{background:var(--board);color:var(--board-ink);border-color:var(--board)}
+.dvr .btn{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:19px;
+  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);
+  padding:11px 18px;cursor:pointer;line-height:1.1;
+}
+.dvr .btn:hover{filter:brightness(1.06)}
+.dvr .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+.dvr .btn.ghost:hover{border-color:var(--amber-bright);color:var(--amber)}
+.dvr .btn.sm{font-size:15px;padding:8px 13px}
+.dvr .hint{font-size:12.5px;color:var(--muted);line-height:1.5}
+
+/* ---------- thanh tìm chuyến ---------- */
+.dvr .searchbar{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;display:grid;gap:12px}
+.dvr .sb-row{display:grid;grid-template-columns:minmax(0,1.15fr) 42px minmax(0,1.15fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.75fr) minmax(0,.9fr) auto;gap:10px;align-items:end}
+.dvr .sb-row .btn{height:42px;padding-inline:20px}
+.dvr .sb-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
+@media (max-width:1060px){ .dvr .sb-row{grid-template-columns:1fr 42px 1fr 1fr;} .dvr .sb-row .btn{grid-column:1/-1} }
+@media (max-width:560px){ .dvr .sb-row{grid-template-columns:1fr 1fr} .dvr .sb-row .swapbtn{display:none} }
+
+/* ---------- dải giá 7 ngày ---------- */
+.dvr .strip{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;gap:8px;align-items:stretch}
+.dvr .strip-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.dvr .arrow{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:17px;line-height:1}
+.dvr .arrow:hover:not(:disabled){border-color:var(--amber-bright);color:var(--amber)}
+.dvr .arrow:disabled{opacity:.35;cursor:default}
+.dvr .day{display:grid;gap:3px;justify-items:center;background:var(--surface);border:1px solid var(--line);
+  padding:9px 4px;cursor:pointer;font:inherit;color:var(--ink);text-align:center}
+.dvr .day:hover{border-color:var(--amber-bright)}
+.dvr .day[aria-current="date"]{background:var(--board);border-color:var(--board);color:var(--board-ink)}
+.dvr .day[aria-current="date"] .d-dow{color:var(--board-dim)}
+.dvr .day[aria-current="date"] .d-price{color:var(--amber-bright)}
+.dvr .day.cheap .d-price{color:var(--cheap);font-weight:600}
+.dvr .day:disabled{opacity:.4;cursor:default}
+.dvr .d-dow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;white-space:nowrap}
+.dvr .d-price{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media (max-width:760px){
+  .dvr .strip{grid-template-columns:1fr}
+  .dvr .strip .arrow{display:none}
+  .dvr .strip-days{display:flex;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:4px}
+  .dvr .strip-days .day{min-width:104px;scroll-snap-align:start}
+}
+
+/* ---------- khung kết quả ---------- */
+.dvr .results{display:grid;grid-template-columns:minmax(0,248px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){ .dvr .results{grid-template-columns:1fr} }
+.dvr .rail{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);display:grid}
+.dvr .rail section{padding:13px 15px;border-bottom:1px solid var(--line-soft);display:grid;gap:7px}
+.dvr .rail section:last-child{border-bottom:0}
+.dvr .f-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dvr .f-head h3{font-size:14px;letter-spacing:.05em;white-space:nowrap}
+.dvr .link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--amber);cursor:pointer;text-decoration:underline;white-space:nowrap}
+.dvr .f-item{display:flex;align-items:center;gap:9px;padding:4px 0;cursor:pointer;line-height:1.3;
+  font-family:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink)}
+.dvr .f-item input{width:16px;height:16px;accent-color:var(--amber-bright);flex:none;margin:0}
+.dvr .f-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dvr .f-price{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;
+  color:var(--muted);flex:none;letter-spacing:0;text-transform:none}
+.dvr .f-item.off{opacity:.4}
+.dvr .pills{display:flex;flex-wrap:wrap;gap:6px}
+.dvr .pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);
+  padding:4px 6px 4px 9px;font-size:12.5px}
+.dvr .pill button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
+.dvr .pill button:hover{color:var(--warn)}
+
+.dvr .topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.dvr .sorts{display:flex;border:1px solid var(--line);background:var(--surface)}
+.dvr .sort{padding:9px 14px;border:0;border-right:1px solid var(--line-soft);background:transparent;color:var(--ink-2);
+  font:600 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
+.dvr .sort:last-child{border-right:0}
+.dvr .sort[aria-pressed="true"]{background:var(--board);color:var(--board-ink)}
+.dvr .count{font-size:13px;color:var(--muted)}
+
+/* ---------- thẻ chuyến ---------- */
+.dvr .res{display:grid;gap:10px}
+.dvr .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);
+  display:grid;grid-template-columns:118px minmax(0,1fr) minmax(150px,auto) auto;gap:18px;align-items:center;padding:15px 17px;position:relative}
+.dvr .card.best{border-color:var(--amber-bright)}
+.dvr .badge{position:absolute;top:-1px;left:17px;background:var(--amber-bright);color:var(--on-amber);
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;padding:2px 7px;text-transform:uppercase}
+.dvr .card.best{padding-top:22px}
+.dvr .c-air{display:flex;align-items:center;gap:9px;min-width:0}
+.dvr .c-logo{width:34px;height:34px;flex:none;display:grid;place-items:center;background:var(--board);color:#F2F5F8;
+  font:700 13px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em}
+.dvr .c-name{font-size:13px;line-height:1.25;overflow-wrap:anywhere}
+.dvr .c-name small{display:block;color:var(--muted);font-size:11.5px;font-family:"IBM Plex Mono",monospace}
+.dvr .c-leg{display:grid;grid-template-columns:auto minmax(60px,1fr) auto;gap:12px;align-items:center;min-width:0}
+.dvr .t-big{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1}
+.dvr .t-code{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.dvr .t-mid{display:grid;gap:3px;justify-items:center;text-align:center}
+.dvr .t-dur{font-size:11.5px;color:var(--muted)}
+.dvr .t-line{width:100%;height:1px;background:var(--line);position:relative}
+.dvr .t-line::after{content:"";position:absolute;right:0;top:-2px;width:5px;height:5px;background:var(--ink-2);border-radius:50%}
+.dvr .t-stop{font-size:11.5px;color:var(--ink-2)}
+.dvr .c-price{display:grid;gap:2px;justify-items:end;text-align:right}
+.dvr .c-price b{font-family:"IBM Plex Mono",monospace;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--amber)}
+.dvr .card.best .c-price b{color:var(--amber-bright)}
+.dvr .c-price span{font-size:11.5px;color:var(--muted)}
+.dvr .c-price .delta{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
+.dvr .c-act{display:grid;gap:6px;justify-items:stretch}
+.dvr .choose{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:17px;
+  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);padding:9px 18px;
+  text-decoration:none;text-align:center;cursor:pointer;white-space:nowrap}
+.dvr .choose:hover{filter:brightness(1.06)}
+.dvr .choose.alt{background:transparent;color:var(--ink-2);border-color:var(--line);font-size:14px;padding:6px 12px}
+.dvr .choose.alt:hover{border-color:var(--amber-bright);color:var(--amber)}
+.dvr .c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}
+.dvr .mini{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line-soft);padding:3px 7px}
+.dvr .mini.bag{color:var(--cheap);border-color:var(--cheap)}
+@media (max-width:760px){
+  .dvr .card{grid-template-columns:1fr auto;gap:12px}
+  .dvr .c-air{grid-column:1/-1}
+  .dvr .c-leg{grid-column:1/-1}
+  .dvr .c-act{grid-column:1/-1}
+  .dvr .c-price{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;justify-items:start;text-align:left}
+  .dvr .c-price span, .dvr .c-price .delta{white-space:nowrap}
+}
+.dvr .empty{padding:34px 18px;color:var(--muted);font-size:14px;text-align:center;background:var(--surface);border:1px solid var(--line)}
+
+/* ---------- bảng cài đặt nguồn ---------- */
+.dvr details.statecard summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.dvr details.statecard summary::-webkit-details-marker{display:none}
+.dvr details.statecard summary::after{content:"Cài đặt ▾";font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.dvr details.statecard[open] summary::after{content:"Thu lại ▴"}
+.dvr details.statecard[open]{gap:12px}
+.dvr details.statecard > *:not(summary){margin-top:2px}
+
+
+/* ---------- channels ---------- */
+.dvr .chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
+.dvr .chan{
+  display:grid;gap:7px;padding:13px 14px;background:var(--surface);border:1px solid var(--line);
+  align-content:start;
+}
+.dvr .chan b{font-family:"Barlow Condensed",sans-serif;font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.dvr .chan .kind{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
+.dvr .chan .note{font-size:12.5px;color:var(--ink-2)}
+.dvr .chan a{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:15px;letter-spacing:.05em;font-weight:600;text-decoration:none;border-bottom:1px solid var(--amber);width:max-content}
+
+/* ---------- profile ---------- */
+.dvr .pax{border:1px solid var(--line);padding:14px;display:grid;gap:12px;background:var(--surface-2)}
+.dvr .pax-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dvr .del{background:none;border:0;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
+.dvr .del:hover{color:var(--warn)}
+.dvr .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;align-items:start}
+.dvr .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dvr .safe{border-left:3px solid var(--warn);background:var(--warn-soft);padding:12px 14px;font-size:13px;color:var(--ink);line-height:1.55}
+
+/* ---------- flow ---------- */
+.dvr .steps{display:grid;gap:0;counter-reset:step;border-top:1px solid var(--line)}
+.dvr .step{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 4px;border-bottom:1px solid var(--line)}
+.dvr .step-n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);padding-top:3px}
+.dvr .step b{display:block;font-weight:600;font-size:15px}
+.dvr .step p{font-size:13.5px;color:var(--ink-2);margin-top:3px}
+.dvr .state{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;white-space:nowrap;margin-top:2px}
+.dvr .state.auto{color:var(--cheap);background:var(--cheap-soft)}
+.dvr .state.half{color:var(--amber);background:transparent}
+.dvr .state.hand{color:var(--warn);background:var(--warn-soft)}
+
+/* ---------- misc ---------- */
+.dvr .foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;line-height:1.6}
+.dvr .toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--board);color:var(--board-ink);
+  padding:11px 17px;font-size:13.5px;box-shadow:var(--shadow);z-index:50;border:1px solid var(--board-line);max-width:92vw;
+}
+.dvr textarea{width:100%;font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);padding:10px;min-height:96px;line-height:1.5}
+
+.dvr .sec{display:grid;gap:12px;align-content:start}
+.dvr section.sec>.hint{max-width:74ch}
+.dvr .sec>.panel-head{padding:0 0 10px}
+
+@media (max-width:960px){
+  .dvr .grid{grid-template-columns:1fr}
+  .dvr .masthead{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+  .dvr .row{grid-template-columns:minmax(0,1fr) auto;gap:10px 12px}
+  .dvr .r-air{grid-column:1/-1;display:flex;align-items:baseline;gap:8px}
+  .dvr .r-chan{grid-column:1;font-size:12px}
+  .dvr .r-price{grid-column:2;align-self:end}
+  .dvr .cal-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .dvr .step{grid-template-columns:30px minmax(0,1fr);}
+  .dvr .state{grid-column:2}
+}
+@media (prefers-reduced-motion:reduce){.dvr *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+
+/* phần dùng chung với trang đặt vé và trang quản trị */
+:root:not([data-theme="light"]){
+    --ground:#07121E; --surface:#0F2134; --surface-2:#172F46;
+    --board:#050E19; --board-2:#0C2136; --board-line:#1B3A5B; --board-ink:#E9F0F8; --board-dim:#7E99B6;
+    --ink:#E6EEF7; --ink-2:#B4C6D9; --muted:#8AA2BB; --line:#26425F; --line-soft:#1B3450;
+    --amber:#F2A83B; --amber-bright:#F2A83B; --on-amber:#1B1000;
+    --cheap:#3EC49E; --cheap-soft:#0E3B31; --warn:#F0A88A; --warn-soft:#3A1B0E;
+    color-scheme:dark;
+  }
+.dvr [hidden]{display:none!important}
+.dvr .dark{background:var(--board);color:var(--board-ink);border-color:var(--board)}
+.dvr .dark .lbl, .dvr .dark .hint{color:var(--board-dim)}
+.dvr .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.dvr .tag.wait{color:var(--amber);background:transparent}
+.dvr .tag.bad{color:var(--warn);background:var(--warn-soft)}
+.dvr .money{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.dvr .total{font-size:26px;font-weight:600}
+.dvr .split{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
+.dvr .split:last-child{border-bottom:0}
+.dvr .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.dvr .tile{background:var(--surface);border:1px solid var(--line);padding:12px 14px;display:grid;gap:3px}
+.dvr .tile b{font-family:"IBM Plex Mono",monospace;font-size:21px;font-variant-numeric:tabular-nums}
+.dvr table{width:100%;border-collapse:collapse;font-size:13.5px}
+.dvr th{text-align:left;font:500 10.5px/1 "IBM Plex Mono",monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
+.dvr td{padding:10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.dvr .scroll{overflow-x:auto}

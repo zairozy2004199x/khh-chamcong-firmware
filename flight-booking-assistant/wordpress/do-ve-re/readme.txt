@@ -1,0 +1,43 @@
+=== Dò Vé Rẻ ===
+Contributors: khh
+Tags: flights, booking, vietqr, travel
+Requires at least: 6.0
+Tested up to: 6.7
+Requires PHP: 7.4
+Stable tag: 1.0.0
+License: GPLv2 or later
+
+So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, gửi email mã đặt chỗ.
+
+== Description ==
+
+Ba phần dùng được ngay sau khi kích hoạt:
+
+* **Bảng giá** — shortcode `[do_ve_re]`: khách gõ chặng, xem giá theo 7 ngày, lọc theo hãng / điểm dừng / giờ bay, và mở song song các trang đang bán chặng đó.
+* **Trang đặt vé** — shortcode `[do_ve_re_dat_ve]`: khách điền thông tin, gõ mã số thuế là tự ra tên công ty, rồi chuyển khoản theo mã QR có sẵn số tiền và mã đơn.
+* **Trang Đơn hàng** trong khu quản trị: theo dõi đã thu — đã trả cho hãng — chênh lệch, điền hộ thông tin khách sang form của hãng, nhập mã đặt chỗ để đóng đơn.
+
+Không lưu số thẻ của khách ở bất kỳ đâu: khách chuyển khoản ngân hàng.
+
+== Installation ==
+
+1. Quản trị → Gói mở rộng → Cài mới → Tải gói mở rộng lên → chọn file zip này → Kích hoạt.
+2. Tạo hai trang: một trang dán `[do_ve_re]`, một trang dán `[do_ve_re_dat_ve]`.
+3. Vào **Dò Vé Rẻ → Cài đặt**: khai số tài khoản nhận tiền, phí dịch vụ, chọn trang đặt vé.
+4. Muốn giá thật thì khai thêm khoá Amadeus (developers.amadeus.com). Bỏ trống thì bảng chạy bằng giá mô phỏng.
+5. Muốn tiền về tự khớp đơn thì khai khoá webhook, trỏ dịch vụ báo biến động số dư (SePay, Casso…) về:
+   `/wp-json/dovere/v1/webhook/bank` với header `Authorization: Apikey <khoá>`.
+
+== Frequently Asked Questions ==
+
+= Email gửi bằng gì? =
+Bằng `wp_mail` của WordPress, nên dùng luôn cấu hình SMTP sẵn có trên site.
+
+= Giá có chính xác không? =
+Chưa khai khoá Amadeus thì bảng giá là **mô phỏng** và có nhãn nói rõ. Khai rồi thì giá lấy từ Amadeus,
+nhưng Vietjet và Vietravel phần lớn không bán qua GDS nên vẫn nên đối chiếu với trang hãng.
+
+== Changelog ==
+
+= 1.0.0 =
+* Bảng giá, trang đặt vé với QR VietQR, trang quản trị đơn, email bốn mốc, webhook ngân hàng, tra mã số thuế.

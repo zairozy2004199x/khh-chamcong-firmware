@@ -1,0 +1,1051 @@
+"use strict";
+/* ---------------- sân bay: toạ độ thật, dùng để tính cự ly & thời gian bay ---------------- */
+const AIRPORTS = [
+  ["SGN","TP Hồ Chí Minh","Tân Sơn Nhất",10.8188,106.6520],
+  ["HAN","Hà Nội","Nội Bài",21.2212,105.8072],
+  ["DAD","Đà Nẵng","Đà Nẵng",16.0439,108.1994],
+  ["CXR","Nha Trang","Cam Ranh",11.9982,109.2193],
+  ["PQC","Phú Quốc","Phú Quốc",10.2270,103.9670],
+  ["HPH","Hải Phòng","Cát Bi",20.8194,106.7247],
+  ["VCA","Cần Thơ","Cần Thơ",10.0851,105.7118],
+  ["HUI","Huế","Phú Bài",16.4015,107.7032],
+  ["UIH","Quy Nhơn","Phù Cát",13.9550,109.0422],
+  ["VII","Vinh","Vinh",18.7376,105.6708],
+  ["DLI","Đà Lạt","Liên Khương",11.7500,108.3667],
+  ["THD","Thanh Hoá","Thọ Xuân",19.9017,105.4678],
+  ["VDO","Vân Đồn","Vân Đồn",21.1178,107.4142],
+  ["BMV","Buôn Ma Thuột","Buôn Ma Thuột",12.6683,108.1200],
+  ["PXU","Pleiku","Pleiku",14.0045,108.0170],
+  ["TBB","Tuy Hoà","Tuy Hoà",13.0496,109.3337],
+  ["VCL","Chu Lai","Chu Lai",15.4033,108.7060],
+  ["VCS","Côn Đảo","Côn Đảo",8.7318,106.6329],
+  ["CAH","Cà Mau","Cà Mau",9.1777,105.1778],
+  ["DIN","Điện Biên","Điện Biên Phủ",21.3975,103.0081],
+  ["BKK","Bangkok","Suvarnabhumi",13.6900,100.7501],
+  ["SIN","Singapore","Changi",1.3644,103.9915],
+  ["KUL","Kuala Lumpur","KLIA",2.7456,101.7099],
+  ["PNH","Phnom Penh","Techo",11.5466,104.8441],
+  ["HKG","Hồng Kông","Hong Kong",22.3080,113.9185],
+  ["TPE","Đài Bắc","Đào Viên",25.0777,121.2328],
+  ["ICN","Seoul","Incheon",37.4602,126.4407],
+  ["NRT","Tokyo","Narita",35.7720,140.3929],
+  ["MNL","Manila","Ninoy Aquino",14.5086,121.0198],
+  ["SYD","Sydney","Kingsford Smith",-33.9399,151.1753],
+  ["CDG","Paris","Charles de Gaulle",49.0097,2.5479]
+].map(a => ({code:a[0], city:a[1], name:a[2], lat:a[3], lon:a[4]}));
+
+const AIRLINES = [
+  {code:"VJ", name:"Vietjet Air",        mult:0.78, lcc:true,  site:"https://www.vietjetair.com/vi"},
+  {code:"VN", name:"Vietnam Airlines",   mult:1.16, lcc:false, site:"https://www.vietnamairlines.com/vn/vi/home"},
+  {code:"QH", name:"Bamboo Airways",     mult:0.97, lcc:false, site:"https://www.bambooairways.com/vn/vi/"},
+  {code:"VU", name:"Vietravel Airlines", mult:0.85, lcc:true,  site:"https://www.vietravelairlines.com/vi"}
+];
+const SELLERS = [
+  {name:"Website hãng", f:1.000, note:"đổi vé dễ nhất"},
+  {name:"Traveloka",    f:0.985, note:"hay có mã giảm"},
+  {name:"Trip.com",     f:1.010, note:"trả góp 0%"}
+];
+
+/* ---------------- tiện ích ---------------- */
+const $ = s => document.querySelector(s);
+const norm = s => (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\u0111/g,"d").trim();
+const pad = n => String(n).padStart(2,"0");
+const vnd = n => new Intl.NumberFormat("vi-VN").format(Math.round(n));
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parseISO = s => { const [y,m,d]=(s||"").split("-").map(Number); return new Date(y,(m||1)-1,d||1); };
+const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+const DOW = ["CN","T2","T3","T4","T5","T6","T7"];
+
+function hash(str){ let h=2166136261; for(let i=0;i<str.length;i++){ h^=str.charCodeAt(i); h=Math.imul(h,16777619);} return h>>>0; }
+function rng(seed){ let a=hash(seed); return () => { a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+function airportOf(q){
+  const t = norm(q);
+  if(!t) return null;
+  const up = q.trim().toUpperCase();
+  return AIRPORTS.find(a=>a.code===up)
+      || AIRPORTS.find(a=>norm(a.city)===t || norm(a.name)===t)
+      || AIRPORTS.find(a=>norm(a.city).includes(t) || norm(a.name).includes(t))
+      || null;
+}
+function distKm(a,b){
+  const R=6371, r=x=>x*Math.PI/180;
+  const dLat=r(b.lat-a.lat), dLon=r(b.lon-a.lon);
+  const h=Math.sin(dLat/2)**2 + Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+/* ---------------- mô hình giá (mô phỏng, có quy luật thật) ---------------- */
+function baseFare(km, depDate, cabin){
+  let p = 380000 + 900*Math.pow(km,0.95);
+  const days = Math.round((parseISO(depDate) - new Date(new Date().toDateString()))/86400000);
+  p *= days<3 ? 1.52 : days<7 ? 1.30 : days<14 ? 1.15 : days<30 ? 1.0 : days<60 ? 0.93 : 0.88;
+  const dow = parseISO(depDate).getDay();
+  p *= (dow===5||dow===0) ? 1.08 : (dow===2||dow===3) ? 0.94 : 1;
+  p *= cabin==="BUSINESS" ? 2.9 : cabin==="PREMIUM_ECONOMY" ? 1.7 : 1;
+  return p;
+}
+function timeFactor(h){ return h<7 ? 0.86 : h<9 ? 1.0 : h<16 ? 0.95 : h<20 ? 1.08 : 0.84; }
+
+function buildOffers(q){
+  const km = distKm(q.from, q.to);
+  const base = baseFare(km, q.dep, q.cabin);
+  const intl = km > 1600;
+  const out = [];
+  AIRLINES.forEach((al, ai) => {
+    const r = rng(q.from.code+q.to.code+q.dep+al.code);
+    const n = 2 + Math.floor(r()*3);
+    for(let i=0;i<n;i++){
+      const h = Math.floor(r()*19) + 5;                 // 05:00 – 23:00
+      const m = [0,5,10,15,20,25,30,35,40,45,50,55][Math.floor(r()*12)];
+      const stops = (intl && r()<0.3) ? 1 : (r()<0.05 ? 1 : 0);
+      const mins = Math.round(km/750*60) + 35 + stops*105;
+      const depT = new Date(2000,0,1,h,m);
+      const arrT = new Date(depT.getTime() + mins*60000);
+      const bag = al.lcc ? (r()<0.35) : true;           // LCC: đôi khi đã gồm ký gửi
+      const seller = SELLERS[Math.floor(r()*SELLERS.length)];
+      let p = base * al.mult * timeFactor(h) * (stops?0.87:1) * (bag?1.12:1) * (0.92+r()*0.2) * seller.f;
+      p = Math.round(p/1000)*1000;
+      out.push({
+        al, code: al.code + (100 + Math.floor(r()*800)),
+        dep: pad(depT.getHours())+":"+pad(depT.getMinutes()),
+        arr: pad(arrT.getHours())+":"+pad(arrT.getMinutes()),
+        overnight: arrT.getDate() > 1,
+        mins, stops, bag, seller, price: p, depHour: h
+      });
+    }
+  });
+  return out;
+}
+function cheapestOn(q, dateStr){
+  const km = distKm(q.from, q.to);
+  const base = baseFare(km, dateStr, q.cabin);
+  const r = rng(q.from.code+q.to.code+dateStr+"cal");
+  return Math.round(base * 0.78 * 0.88 * (0.93 + r()*0.14) / 1000)*1000;
+}
+function paxPrice(p, q){ return p*q.adt + p*0.9*q.chd + p*0.12*q.inf; }
+function durTxt(m){ return Math.floor(m/60)+"h"+(m%60?pad(m%60):"00"); }
+
+/* ---------------- điền hộ: hàm này được đóng gói thành bookmarklet & script Playwright ---------------- */
+function DVR_FILL(D){
+  var strip = function(s){
+    return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
+      .replace(/\u0111/g,"d").replace(/[_\-.]+/g," ").replace(/\s+/g," ").trim();
+  };
+  var T = D.trip || {};
+  var P = function(n, k){ var p = (D.pax || [])[Math.min(n, (D.pax||[]).length-1)] || {}; return p[k]; };
+
+  // giá trị theo tên khoá — dùng chung cho luật riêng lẫn luật chung
+  var VAL = {
+    full:   function(n){ return P(n,"full"); },
+    first:  function(n){ return P(n,"first"); },
+    last:   function(n){ return P(n,"last"); },
+    dob:    function(n){ return [P(n,"dob"), P(n,"dobIso")]; },
+    gender: function(n){ return [P(n,"genderVi"), P(n,"genderEn"), P(n,"genderShort")]; },
+    idNo:   function(n){ return P(n,"idNo"); },
+    nat:    function(n){ return [P(n,"natVi"), P(n,"natEn"), P(n,"natCode")]; },
+    phone:  function(){ return D.contact.phone; },
+    email:  function(){ return D.contact.email; },
+    ctName: function(){ return D.contact.name; },
+    company:function(){ return D.invoice.company; },
+    tax:    function(){ return D.invoice.tax; },
+    invEmail:function(){ return D.invoice.email; },
+    addr:   function(){ return D.invoice.addr; },
+    buyer:  function(){ return D.invoice.buyer; },
+    cardHolder: function(){ return D.pay.holder; },
+    from:   function(){ return [T.from, T.fromCity]; },
+    to:     function(){ return [T.to, T.toCity]; },
+    depDate:function(){ return [T.dep, T.depIso]; },
+    retDate:function(){ return [T.ret, T.retIso]; },
+    adt:    function(){ return T.adt; },
+    chd:    function(){ return T.chd; },
+    inf:    function(){ return T.inf; }
+  };
+
+  var RULES = [
+    // hoá đơn & liên hệ
+    {k:"tax",        re:/(ma so thue|tax ?(code|id|number)|\bmst\b)/},
+    {k:"invEmail",   re:/((hoa don|vat|invoice|billing).{0,16}(e ?mail)|(e ?mail).{0,16}(hoa don|vat|invoice|billing))/},
+    {k:"company",    re:/(ten (cong ty|don vi|doanh nghiep)|cong ty|company|organi[sz]ation|business name)/},
+    {k:"buyer",      re:/(nguoi mua|buyer)/},
+    {k:"addr",       re:/(dia chi|address|street)/},
+    {k:"cardHolder", re:/(ten chu the|chu the|card ?holder|name on card)/},
+    {k:"phone",      re:/(dien thoai|so dt|\bsdt\b|phone|mobile|\btel\b)/},
+    {k:"email",      re:/(e ?mail)/},
+    // chuyến bay — ngày đứng trước điểm đi/đến vì "departure" dùng chung cho cả hai
+    {k:"depDate",    re:/(ngay di|ngay khoi hanh|ngay bay|ngay xuat phat|departure ?date|depart(ure)? on|depart ?date|outbound ?date|\bdepartdate\b)/},
+    {k:"retDate",    re:/(ngay ve|ngay tro ve|ngay quay ve|return ?date|inbound ?date|\breturndate\b)/},
+    {k:"from",       re:/(diem di|noi di|noi khoi hanh|san bay di|bay tu|\btu\b|\bfrom\b|origin|departure ?(city|airport|station)|departing ?from|\bdeparture\b)/},
+    {k:"to",         re:/(diem den|noi den|san bay den|bay den|\bden\b|destination|arrival ?(city|airport|station)|flying ?to|going ?to|(^| )to( |$)|\barrival\b)/},
+    {k:"adt",        re:/(nguoi lon|so nguoi lon|\badult)/},
+    {k:"chd",        re:/(tre em|so tre em|\bchild)/},
+    {k:"inf",        re:/(em be|tre so sinh|\binfant|\bbaby\b)/},
+    // hành khách
+    {k:"dob",        re:/(ngay sinh|date ?of ?birth|\bdob\b|birth ?date|birthday|\bsinh\b)/},
+    {k:"gender",     re:/(gioi tinh|gender|\bsex\b|danh xung|\btitle\b|xung ho)/},
+    {k:"idNo",       re:/(so (cccd|cmnd|giay to|ho chieu|the)|\bcccd\b|\bcmnd\b|passport|id ?(no|number)|identity|giay to tuy than)/},
+    {k:"nat",        re:/(quoc tich|nationality|quoc gia|country)/},
+    {k:"full",       re:/(ho (va )?ten|full ?name|passenger ?name|contact ?name|ten (hanh khach|khach|day du|nguoi|lien he))/},
+    {k:"first",      re:/(ho dem|ten dem|first ?name|given ?name|middle ?name|(^| )ten( |$))/},
+    {k:"last",       re:/(surname|last ?name|family ?name|(^| )ho( |$))/}
+  ];
+  var SKIP = /(cvv|cvc|card ?number|so the|ma bao mat|expir|het han|\botp\b|captcha|coupon|promo|ma giam|mat khau|password)/;
+
+  var ownSig = function(el){
+    var s = [el.name, el.id, el.placeholder, el.getAttribute("aria-label"),
+             el.getAttribute("title"), el.getAttribute("autocomplete"), el.getAttribute("data-testid")].join(" ");
+    if(el.id){
+      try {
+        var l = document.querySelector('label[for="' + (window.CSS && CSS.escape ? CSS.escape(el.id) : el.id) + '"]');
+        if(l) s += " " + l.textContent;
+      } catch(e){}
+    }
+    var w = el.closest ? el.closest("label") : null;
+    if(w) s += " " + w.textContent;
+    return strip(s).slice(0,300);
+  };
+  var ownText = function(node){      // chữ nằm ngay trong khối, không tính chữ của ô nhập khác
+    var s = "";
+    for(var i=0;i<node.childNodes.length;i++){
+      var c = node.childNodes[i];
+      if(c.nodeType === 3) s += " " + c.nodeValue;
+      else if(c.nodeType === 1 && /^(SPAN|B|STRONG|EM|I|SMALL|LABEL|P|H1|H2|H3|H4|H5|H6)$/.test(c.tagName)
+              && !c.querySelector("input, select, textarea")) s += " " + c.textContent;
+    }
+    return s;
+  };
+  var nearSig = function(el){
+    var s = "", p = el.parentElement;
+    for(var k=0; k<3 && p; k++){
+      s += " " + ownText(p);
+      var prev = p.previousElementSibling;
+      if(prev && !prev.querySelector("input, select, textarea")) s += " " + prev.textContent;
+      p = p.parentElement;
+    }
+    return strip(s).slice(0,240);
+  };
+  var usable = function(el){
+    if(!el || el.disabled || el.readOnly) return false;
+    if(/^(hidden|password|submit|button|checkbox|radio|file|image|reset|range|color)$/.test(el.type||"")) return false;
+    if(el.offsetParent === null && el.tagName !== "SELECT") return false;
+    return true;
+  };
+  var setVal = function(el, vals){
+    var list = [].concat(vals).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
+    if(!list.length) return false;
+    if(el.tagName === "SELECT"){
+      for(var k=0;k<list.length;k++){
+        var t = strip(String(list[k]));
+        for(var i=0;i<el.options.length;i++){
+          var o = el.options[i];
+          if(!o.value && !strip(o.textContent)) continue;
+          if(strip(o.textContent) === t || strip(o.value) === t ||
+             (t.length > 1 && strip(o.textContent).indexOf(t) > -1)){
+            el.value = o.value;
+            el.dispatchEvent(new Event("input",{bubbles:true}));
+            el.dispatchEvent(new Event("change",{bubbles:true}));
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    var v = String(list[0]);
+    if(el.type === "date" && /^\d{2}\/\d{2}\/\d{4}$/.test(v)){ var q = v.split("/"); v = q[2]+"-"+q[1]+"-"+q[0]; }
+    if(el.type === "number") v = String(v).replace(/[^\d]/g,"") || "0";
+    var proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    var d = Object.getOwnPropertyDescriptor(proto, "value");
+    try { el.focus(); } catch(e){}
+    if(d && d.set) d.set.call(el, v); else el.value = v;
+    el.dispatchEvent(new Event("input",{bubbles:true}));
+    el.dispatchEvent(new Event("change",{bubbles:true}));
+    // ô chọn sân bay thường là hộp gợi ý: đánh thức danh sách để người dùng chọn tiếp
+    try { el.dispatchEvent(new KeyboardEvent("keyup",{bubbles:true, key:v.slice(-1)})); } catch(e){}
+    el.dispatchEvent(new Event("blur",{bubbles:true}));
+    return true;
+  };
+
+  var seen = {}, filled = 0, skipped = 0, done = [];
+  var take = function(el, key){
+    if(done.indexOf(el) > -1) return false;
+    var n = seen[key] || 0;
+    var get = VAL[key];
+    if(!get) return false;
+    var vals = [].concat(get(n)).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
+    if(!vals.length){ done.push(el); return false; }        // đúng loại nhưng hồ sơ trống
+    if(!setVal(el, vals)) return false;
+    seen[key] = n + 1; filled++; done.push(el);
+    return true;
+  };
+
+  // ---- 1. luật riêng của trang này (do "Học form" ghi lại) ----
+  var host = location.hostname.replace(/^www\./,"");
+  var own = [];
+  Object.keys(D.sites || {}).forEach(function(h){
+    var hh = h.replace(/^www\./,"");
+    if(host === hh || host.slice(-(hh.length+1)) === "." + hh) own = own.concat(D.sites[h]);
+  });
+  own.forEach(function(r){
+    var els;
+    try { els = document.querySelectorAll(r.sel); } catch(e){ return; }
+    for(var i=0;i<els.length;i++){
+      var el = els[i];
+      if(!usable(el)) continue;
+      if(el.tagName !== "SELECT" && String(el.value||"").trim() !== "") continue;
+      if(take(el, r.key)) break;
+    }
+  });
+
+  // ---- 2. luật chung ----
+  var nodes = document.querySelectorAll("input, select, textarea");
+  for(var i=0;i<nodes.length;i++){
+    var el = nodes[i];
+    if(!usable(el) || done.indexOf(el) > -1) continue;
+    if(el.tagName !== "SELECT" && String(el.value||"").trim() !== "") continue;
+
+    var sOwn = ownSig(el);
+    var both = (sOwn + " " + nearSig(el)).trim();
+    if(SKIP.test(both)){ skipped++; continue; }
+
+    var hit = false;
+    for(var pass=0; pass<2 && !hit; pass++){
+      var s = pass === 0 ? sOwn : both;
+      if(pass === 1 && s === sOwn) break;
+      for(var j=0;j<RULES.length;j++){
+        if(!RULES[j].re.test(s)) continue;
+        if(take(el, RULES[j].k)){ hit = true; break; }
+        if(done.indexOf(el) > -1){ hit = true; break; }     // hồ sơ trống ô này → thôi
+        // select không có lựa chọn nào khớp → thử luật kế tiếp
+      }
+    }
+  }
+
+  var box = document.createElement("div");
+  box.textContent = "Dò Vé Rẻ đã điền " + filled + " ô"
+    + (own.length ? " (" + own.length + " luật riêng của " + host + ")" : "")
+    + (skipped ? " · bỏ qua " + skipped + " ô thẻ/OTP (cố ý)" : "");
+  box.setAttribute("style","position:fixed;z-index:2147483647;left:50%;bottom:20px;transform:translateX(-50%);background:#0B2440;color:#E9F0F8;font:14px/1.4 system-ui,sans-serif;padding:11px 16px;border-left:4px solid #E8890B;box-shadow:0 8px 30px rgba(0,0,0,.35)");
+  document.body.appendChild(box);
+  setTimeout(function(){ box.remove(); }, 6000);
+  return filled;
+}
+
+/* ---------------- học form: ghi luật riêng cho từng trang ---------------- */
+function DVR_LEARN(){
+  if(window.__dvrLearn) { window.__dvrLearn.stop(); return; }
+
+  var KEYS = [
+    ["full","Họ và tên (cả họ lẫn tên)"], ["last","Họ / Surname"], ["first","Tên đệm và tên / Given name"],
+    ["dob","Ngày sinh"], ["gender","Giới tính"], ["idNo","Số CCCD / hộ chiếu"], ["nat","Quốc tịch"],
+    ["phone","Điện thoại"], ["email","Email nhận vé"], ["ctName","Tên người liên hệ"],
+    ["company","Tên công ty (hoá đơn)"], ["tax","Mã số thuế"], ["invEmail","Email nhận hoá đơn"],
+    ["addr","Địa chỉ hoá đơn"], ["buyer","Người mua hàng"], ["cardHolder","Tên chủ thẻ"],
+    ["from","Điểm đi"], ["to","Điểm đến"], ["depDate","Ngày đi"], ["retDate","Ngày về"],
+    ["adt","Số người lớn"], ["chd","Số trẻ em"], ["inf","Số em bé"]
+  ];
+  var host = location.hostname.replace(/^www\./,"");
+  var rules = [];
+
+  var sel = function(el){
+    if(el.name) {
+      var byName = document.querySelectorAll(el.tagName.toLowerCase() + '[name="' + el.name + '"]');
+      if(byName.length === 1) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
+    }
+    if(el.id && /^[A-Za-z][\w-]*$/.test(el.id)) return "#" + el.id;
+    if(el.getAttribute("data-testid")) return '[data-testid="' + el.getAttribute("data-testid") + '"]';
+    if(el.placeholder) return el.tagName.toLowerCase() + '[placeholder="' + el.placeholder.replace(/"/g,'\\"') + '"]';
+    var path = [], n = el;
+    while(n && n.nodeType === 1 && path.length < 5){
+      var part = n.tagName.toLowerCase();
+      if(n.parentElement){
+        var sibs = [].slice.call(n.parentElement.children).filter(function(c){ return c.tagName === n.tagName; });
+        if(sibs.length > 1) part += ":nth-of-type(" + (sibs.indexOf(n)+1) + ")";
+      }
+      path.unshift(part);
+      n = n.parentElement;
+    }
+    return path.join(" > ");
+  };
+
+  var panel = document.createElement("div");
+  panel.setAttribute("style","position:fixed;z-index:2147483647;right:16px;bottom:16px;width:310px;max-height:70vh;overflow:auto;background:#0B2440;color:#E9F0F8;font:13px/1.45 system-ui,sans-serif;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.45);border-left:4px solid #E8890B");
+  var head = "<div style='font:600 15px/1.2 system-ui'>Học form · " + host + "</div>"
+    + "<div style='margin:6px 0 10px;color:#8FA9C4'>Bấm vào một ô trên trang, rồi chọn ô đó là gì.</div>";
+  var list = document.createElement("div");
+  var foot = document.createElement("div");
+  foot.setAttribute("style","display:flex;gap:8px;margin-top:12px");
+  foot.innerHTML = "<button id='dvrCopy' style=\"flex:1;font:600 13px system-ui;background:#E8890B;color:#1B1000;border:0;padding:8px;cursor:pointer\">Chép luật</button>"
+    + "<button id='dvrStop' style=\"font:600 13px system-ui;background:transparent;color:#E9F0F8;border:1px solid #1C3E63;padding:8px 10px;cursor:pointer\">Xong</button>";
+  panel.innerHTML = head;
+  panel.appendChild(list);
+  panel.appendChild(foot);
+  document.body.appendChild(panel);
+
+  var draw = function(){
+    list.innerHTML = rules.length
+      ? rules.map(function(r,i){ return "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid #1C3E63'><span style='color:#E8890B'>" + r.key + "</span><code style='color:#8FA9C4;font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' title='" + r.sel + "'>" + r.sel + "</code></div>"; }).join("")
+      : "<div style='color:#8FA9C4;font-style:italic'>chưa ghi ô nào</div>";
+  };
+  draw();
+
+  var menu = null;
+  var closeMenu = function(){ if(menu){ menu.remove(); menu = null; } };
+
+  var onClick = function(e){
+    var el = e.target;
+    if(panel.contains(el)) return;
+    if(!/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+    e.preventDefault(); e.stopPropagation();
+    closeMenu();
+    var r = el.getBoundingClientRect();
+    menu = document.createElement("div");
+    menu.setAttribute("style","position:fixed;z-index:2147483647;left:" + Math.min(r.left, innerWidth-270) + "px;top:" + Math.min(r.bottom+4, innerHeight-300) + "px;width:260px;max-height:280px;overflow:auto;background:#fff;color:#0B2440;font:13px system-ui;box-shadow:0 10px 40px rgba(0,0,0,.35);border:1px solid #CCD6E1");
+    menu.innerHTML = KEYS.map(function(k){
+      return "<div data-k='" + k[0] + "' style='padding:7px 10px;cursor:pointer;border-bottom:1px solid #E1E7EE'>" + k[1] + "</div>";
+    }).join("") + "<div data-k='' style='padding:7px 10px;cursor:pointer;color:#8C3310'>Bỏ qua ô này</div>";
+    menu.addEventListener("click", function(ev){
+      var k = ev.target.getAttribute("data-k");
+      if(k === null) return;
+      if(k){
+        var s = sel(el);
+        for(var z = rules.length - 1; z >= 0; z--) if(rules[z].sel === s) rules.splice(z, 1);
+        rules.push({ sel: s, key: k });
+        el.style.outline = "2px solid #E8890B";
+        draw();
+      }
+      closeMenu();
+    });
+    document.body.appendChild(menu);
+  };
+
+  document.addEventListener("click", onClick, true);
+
+  foot.querySelector("#dvrCopy").addEventListener("click", function(){
+    var out = {}; out[host] = rules;
+    var txt = JSON.stringify(out, null, 2);
+    var ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); this.textContent = "Đã chép " + rules.length + " luật"; }
+    catch(e){ this.textContent = "Không chép được"; }
+    ta.remove();
+  });
+
+  var stop = function(){
+    document.removeEventListener("click", onClick, true);
+    closeMenu(); panel.remove(); window.__dvrLearn = null;
+  };
+  foot.querySelector("#dvrStop").addEventListener("click", stop);
+  window.__dvrLearn = { stop: stop, rules: rules };
+}
+
+/* ---------------- trạng thái & màn hình ---------------- */
+const state = {
+  trip: "ow", last: null, live: false, offers: [], stripFrom: null, sort: "price",
+  f: { al: new Set(), stop: new Set(), time: new Set(), bag: false }
+};
+const BLOCKS = [["som","Sáng sớm","00–06"],["sang","Buổi sáng","06–12"],["chieu","Buổi chiều","12–18"],["toi","Buổi tối","18–24"]];
+const blockOf = h => h < 6 ? "som" : h < 12 ? "sang" : h < 18 ? "chieu" : "toi";
+const blockName = k => (BLOCKS.find(b => b[0] === k) || ["","",""])[1];
+
+function readQuery(){
+  const from = airportOf($("#from").value), to = airportOf($("#to").value);
+  if(!from || !to) { toast("Không nhận ra sân bay. Thử mã 3 chữ: SGN, HAN, DAD…"); return null; }
+  if(from.code === to.code){ toast("Điểm đi và điểm đến đang trùng nhau."); return null; }
+  return {
+    from, to, dep: $("#dep").value, ret: state.trip==="rt" ? $("#ret").value : "",
+    adt:+$("#adt").value||1, chd:+$("#chd").value||0, inf:+$("#inf").value||0,
+    cabin: $("#cabin").value
+  };
+}
+
+/* ---------------- nguồn giá: hỏi WordPress, khoá Amadeus nằm ở máy chủ ---------------- */
+async function api(path){
+  const r = await fetch(DVR.rest + path, { headers: { accept: "application/json", "X-WP-Nonce": DVR.nonce } });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || j.message || ("máy chủ trả về " + r.status));
+  return j;
+}
+function setSource(kind, text, note){
+  const tag = $("#srcTag");
+  if(!tag) return;
+  tag.textContent = text;
+  tag.className = "tag" + (kind === "live" ? " ok" : "");
+  if(note && $("#srcNote")) $("#srcNote").textContent = note;
+}
+const money = (n, cur) => (!cur || cur === "VND")
+  ? vnd(n) + "đ"
+  : cur + " " + new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(n);
+
+/* Nút "Chọn" dẫn khách sang trang đặt vé của WordPress, mang theo chuyến và giá. */
+function orderLink(o, q){
+  if(!DVR.coBan || !DVR.orderPage) return "";
+  return DVR.orderPage + (DVR.orderPage.indexOf("?") > -1 ? "&" : "?") + new URLSearchParams({
+    route: q.from.code + "-" + q.to.code, date: q.dep,
+    airline: o.al.code, number: o.code, dep: o.dep, arr: o.arr,
+    stops: o.stops, bag: o.bag ? "1" : "0", cabin: q.cabin,
+    fare: Math.round(o.price), total: Math.round(o.total || paxPrice(o.price, q)), cur: o.cur || "VND",
+    adt: q.adt, chd: q.chd, inf: q.inf
+  });
+}
+
+/* ---------------- dò giá ---------------- */
+let seq = 0;
+async function run(){
+  const q = readQuery(); if(!q) return;
+  state.last = q;
+  const mine = ++seq;
+  let offers = null, live = false, err = "";
+
+  if(DVR.coGiaThat){
+    $("#rows").innerHTML = '<div class="empty">Đang hỏi giá thật cho ' + q.from.code + " → " + q.to.code + '…</div>';
+    try {
+      const j = await api("/api/offers?" + new URLSearchParams({
+        from: q.from.code, to: q.to.code, dep: q.dep, ret: q.ret || "",
+        adt: q.adt, chd: q.chd, inf: q.inf, cabin: q.cabin, direct: "0"
+      }));
+      if(mine !== seq) return;
+      offers = j.offers || [];
+      if(offers.length){
+        live = true;
+        setSource("live", "Giá thật · Amadeus" + (j.cached ? " · đệm 5 phút" : ""),
+          "Lưu ý: hãng giá rẻ nội địa (Vietjet, Vietravel) nhiều khi không bán qua GDS, nên vẫn nên đối chiếu bằng các trang ở mục dưới.");
+      } else {
+        err = "nguồn thật không có chuyến nào cho chặng và ngày này";
+      }
+    } catch(e){
+      if(mine !== seq) return;
+      err = e.message;
+    }
+  }
+
+  if(!live){
+    offers = buildOffers(q);
+    if(!DVR.coGiaThat) setSource("sim", "Giá mô phỏng — chưa khai khoá Amadeus",
+      "Vào Quản trị → Dò Vé Rẻ → Cài đặt, khai khoá Amadeus là bảng giá chuyển sang dữ liệu thật.");
+    else setSource("sim", "Giá mô phỏng — " + err,
+      "Nguồn giá thật chưa trả được dữ liệu nên bảng quay về giá mô phỏng.");
+  }
+
+  state.offers = offers;
+  state.live = live;
+  // bộ lọc hãng chỉ giữ lại hãng còn bay chặng này
+  const con = new Set(offers.map(o => o.al.code));
+  [...state.f.al].forEach(c => { if(!con.has(c)) state.f.al.delete(c); });
+  renderAll(q);
+}
+
+/* ---------------- lọc & sắp xếp ---------------- */
+function passes(o, boQua){
+  const f = state.f;
+  if(boQua !== "al"   && f.al.size   && !f.al.has(o.al.code)) return false;
+  if(boQua !== "stop" && f.stop.size && !f.stop.has(Math.min(o.stops, 1))) return false;
+  if(boQua !== "time" && f.time.size && !f.time.has(blockOf(o.depHour))) return false;
+  if(boQua !== "bag"  && f.bag && !o.bag) return false;
+  return true;
+}
+const sorters = {
+  price: (a,b) => a.price - b.price,
+  dep:   (a,b) => a.dep.localeCompare(b.dep),
+  dur:   (a,b) => a.mins - b.mins
+};
+function ketQua(){ return state.offers.filter(o => passes(o)).sort(sorters[state.sort]); }
+function reYNhat(list){ return list.length ? Math.min(...list.map(o => o.price)) : 0; }
+
+function renderAll(q){
+  renderStrip(q);
+  renderRail(q);
+  renderResults(q);
+  renderChannels(q);
+}
+
+/* ---------------- dải giá 7 ngày ---------------- */
+function renderStrip(q){
+  const homNay = new Date(new Date().toDateString());
+  if(!state.stripFrom) state.stripFrom = iso(addDays(parseISO(q.dep), -3));
+  if(parseISO(state.stripFrom) < homNay) state.stripFrom = iso(homNay);
+
+  const ngay = [];
+  for(let k = 0; k < 7; k++){
+    const d = addDays(parseISO(state.stripFrom), k);
+    ngay.push({ d, iso: iso(d), gia: cheapestOn(q, iso(d)) });
+  }
+  const min = Math.min(...ngay.map(x => x.gia));
+  $("#strip").innerHTML = ngay.map(x =>
+    '<button type="button" class="day' + (x.gia === min ? " cheap" : "") + '" data-d="' + x.iso + '"'
+    + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
+    + '<span class="d-dow">' + DOW[x.d.getDay()] + ", " + x.d.getDate() + " thg " + (x.d.getMonth()+1) + '</span>'
+    + '<span class="d-price">' + vnd(x.gia) + '</span></button>'
+  ).join("");
+  $("#stripPrev").disabled = parseISO(state.stripFrom) <= homNay;
+  $("#calNote").textContent = state.live
+    ? "Giá trên dải ngày là ước lượng của máy — đổi ngày rồi bấm Dò giá để lấy giá thật cho ngày đó."
+    : "Bấm một ngày để đổi ngày đi. Ngày rẻ nhất trong tuần được tô xanh.";
+}
+
+/* ---------------- cột lọc ---------------- */
+function nhom(key, boQua){
+  const m = new Map();
+  state.offers.filter(o => passes(o, boQua)).forEach(o => {
+    const k = key(o);
+    const cu = m.get(k);
+    if(!cu || o.price < cu.gia) m.set(k, { gia: o.price, so: (cu ? cu.so : 0) + 1, o });
+    else cu.so++;
+  });
+  return m;
+}
+function dong(id, on, nhan, gia, so, disabled){
+  return '<label class="f-item' + (so ? "" : " off") + '">'
+    + '<input type="checkbox" data-f="' + id + '"' + (on ? " checked" : "") + (so ? "" : " disabled") + '>'
+    + '<span class="nm">' + nhan + '</span>'
+    + '<span class="f-price">' + (so ? vnd(gia) : "—") + '</span></label>';
+}
+function renderRail(q){
+  const f = state.f;
+  const hang = nhom(o => o.al.code, "al");
+  const dung = nhom(o => Math.min(o.stops, 1), "stop");
+  const gio  = nhom(o => blockOf(o.depHour), "time");
+  const coBag = state.offers.filter(o => passes(o, "bag") && o.bag);
+
+  const chips = [];
+  [...f.al].forEach(c => chips.push(["al:" + c, (hang.get(c)?.o.al.name) || c]));
+  [...f.stop].forEach(s => chips.push(["stop:" + s, s ? "Có điểm dừng" : "Bay thẳng"]));
+  [...f.time].forEach(k => chips.push(["time:" + k, blockName(k)]));
+  if(f.bag) chips.push(["bag:1", "Có ký gửi"]);
+
+  $("#rail").innerHTML =
+    (chips.length ? '<section><div class="f-head"><h3>Bộ lọc đã chọn</h3>'
+      + '<button class="link" type="button" id="clearF">Xoá tất cả</button></div>'
+      + '<div class="pills">' + chips.map(c =>
+          '<span class="pill">' + c[1] + '<button type="button" data-x="' + c[0] + '" aria-label="Bỏ lọc">×</button></span>').join("")
+      + '</div></section>' : "")
+
+    + '<section><div class="f-head"><h3>Hãng hàng không</h3></div>'
+    + [...hang.entries()].sort((a,b) => a[1].gia - b[1].gia).map(([code, v]) =>
+        dong("al:" + code, f.al.has(code), v.o.al.name, v.gia, v.so)).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Số điểm dừng</h3></div>'
+    + [0,1].map(s => {
+        const v = dung.get(s);
+        return dong("stop:" + s, f.stop.has(s), s ? "1 điểm dừng trở lên" : "Bay thẳng", v ? v.gia : 0, v ? v.so : 0);
+      }).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Giờ cất cánh</h3></div>'
+    + BLOCKS.map(([k, ten, khung]) => {
+        const v = gio.get(k);
+        return dong("time:" + k, f.time.has(k), ten + ' <span class="f-price" style="margin:0 0 0 4px">' + khung + '</span>',
+                    v ? v.gia : 0, v ? v.so : 0);
+      }).join("")
+    + '</section>'
+
+    + '<section><div class="f-head"><h3>Hành lý</h3></div>'
+    + dong("bag:1", f.bag, "Đã gồm ký gửi", coBag.length ? Math.min(...coBag.map(o => o.price)) : 0, coBag.length)
+    + '</section>';
+}
+
+/* ---------------- thẻ chuyến ---------------- */
+function renderResults(q){
+  const list = ketQua();
+  const re = reYNhat(list);
+  const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
+  const [yy, mm, dd] = q.dep.split("-");
+  $("#boardSub").textContent = (state.live ? "giá thật · " : "giá mô phỏng · ") + list.length + "/" + state.offers.length
+    + " chuyến · " + q.from.code + " → " + q.to.code + " · " + dd + "/" + mm + " · " + paxTxt;
+
+  if(!list.length){
+    $("#rows").innerHTML = '<div class="empty">Không còn chuyến nào khớp bộ lọc. Bỏ bớt một vài điều kiện ở cột bên trái.</div>';
+    return;
+  }
+  const links = channelList(q);
+  $("#rows").innerHTML = list.slice(0, 14).map(o => {
+    const banUrl = o.seller.name === "Website hãng" ? o.al.site
+                 : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url;
+    const donUrl = orderLink(o, q);
+    const tong = o.total || paxPrice(o.price, q);
+    const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
+    const nhat = o.price === re;
+    return '<article class="card' + (nhat ? " best" : "") + '">'
+      + (nhat ? '<span class="badge">Rẻ nhất</span>' : "")
+      + '<div class="c-air"><span class="c-logo">' + o.al.code + '</span>'
+        + '<span class="c-name">' + o.al.name + '<small>' + o.code + '</small></span></div>'
+      + '<div class="c-leg">'
+        + '<div><div class="t-big">' + o.dep + '</div><div class="t-code">' + q.from.code + '</div></div>'
+        + '<div class="t-mid"><span class="t-dur">' + durTxt(o.mins) + '</span><span class="t-line"></span>'
+          + '<span class="t-stop">' + (o.stops ? o.stops + " điểm dừng" : "Bay thẳng") + '</span></div>'
+        + '<div><div class="t-big">' + o.arr + (o.overnight ? '<sup>+1</sup>' : "") + '</div>'
+          + '<div class="t-code">' + q.to.code + '</div></div>'
+      + '</div>'
+      + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
+        + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
+      + '<div class="c-act">'
+        + (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
+                    + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
+                  : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Chọn</a>'
+                    + '<span class="hint" style="text-align:center">' + o.seller.name + '</span>')
+      + '</div>'
+      + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
+        + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
+        + (o.seller.note ? '<span class="mini">' + o.seller.note + '</span>' : "")
+      + '</div>'
+      + '</article>';
+  }).join("");
+}
+
+/* ---------------- đường dẫn tới các hệ thống bán vé ---------------- */
+const dmy = s => { const [y,m,d] = s.split("-"); return d + "-" + m + "-" + y; };
+const ymd6 = s => { const [y,m,d] = s.split("-"); return y.slice(2) + m + d; };
+
+function channelList(q){
+  const A = q.from.code, B = q.to.code, a = A.toLowerCase(), b = B.toLowerCase();
+  const rt = !!q.ret;
+  const cabinSky = q.cabin === "BUSINESS" ? "business" : q.cabin === "PREMIUM_ECONOMY" ? "premiumeconomy" : "economy";
+  const cls = q.cabin === "BUSINESS" ? "c" : q.cabin === "PREMIUM_ECONOMY" ? "s" : "y";
+  const gq = "Flights from " + A + " to " + B + " on " + q.dep + (rt ? " returning " + q.ret : " one way");
+  return [
+    {name:"Google Flights", kind:"so giá", note:"Quét gần như mọi hãng, có biểu đồ giá theo ngày.", meta:true,
+     url:"https://www.google.com/travel/flights?hl=vi&curr=VND&q=" + encodeURIComponent(gq)},
+    {name:"Skyscanner", kind:"so giá", note:"Có “tháng rẻ nhất” và cảnh báo giá.", meta:true,
+     url:"https://www.skyscanner.com.vn/transport/flights/" + a + "/" + b + "/" + ymd6(q.dep) + "/" + (rt ? ymd6(q.ret) + "/" : "")
+        + "?adults=" + q.adt + "&children=" + q.chd + "&infants=" + q.inf + "&cabinclass=" + cabinSky + "&preferdirects=" + (state.direct ? "true" : "false") + "&currency=VND"},
+    {name:"Traveloka", kind:"đại lý", note:"Hay có mã giảm cho chặng nội địa.", meta:true,
+     url:"https://www.traveloka.com/vi-VN/flight/fullsearch?ap=" + A + "." + B + "&dt=" + dmy(q.dep) + "." + (rt ? dmy(q.ret) : "null")
+        + "&ps=" + q.adt + "." + q.chd + "." + q.inf + "&sc=" + q.cabin},
+    {name:"Trip.com", kind:"đại lý", note:"Giá quốc tế thường tốt, xuất hoá đơn được.", meta:true,
+     url:"https://vn.trip.com/flights/showfarefirst?dcity=" + a + "&acity=" + b + "&ddate=" + q.dep + (rt ? "&rdate=" + q.ret : "")
+        + "&triptype=" + (rt ? "rt" : "ow") + "&class=" + cls + "&quantity=" + q.adt + "&childqty=" + q.chd + "&babyqty=" + q.inf + "&locale=vi-VN&curr=VND"},
+    {name:"Momondo", kind:"so giá", note:"Xếp hạng “rẻ nhất / nhanh nhất / đáng tiền nhất”.", meta:true,
+     url:"https://www.momondo.vn/flight-search/" + A + "-" + B + "/" + q.dep + (rt ? "/" + q.ret : "") + "/" + q.adt + "adults?sort=price_a"},
+    {name:"Vietnam Airlines", kind:"trang hãng", note:"Vé linh hoạt, đổi giờ dễ. Trang chủ không nhận chặng qua đường dẫn — mở rồi bấm “Điền hộ” để máy điền ô tìm chuyến.", url:"https://www.vietnamairlines.com/vn/vi/home"},
+    {name:"Vietjet Air", kind:"trang hãng", note:"Giá thấp nhất thường ở đây, nhớ cộng phí hành lý.", url:"https://www.vietjetair.com/vi"},
+    {name:"Bamboo Airways", kind:"trang hãng", note:"Giữa hai nhóm trên, suất ăn kèm nhiều hạng vé.", url:"https://www.bambooairways.com/vn/vi/"},
+    {name:"Vietravel Airlines", kind:"trang hãng", note:"Ít chuyến nhưng thỉnh thoảng rẻ bất ngờ.", url:"https://www.vietravelairlines.com/vi"}
+  ];
+}
+function renderChannels(q){
+  $("#chans").innerHTML = channelList(q).map(c =>
+    '<div class="chan"><span class="kind">' + c.kind + '</span><b>' + c.name + '</b>'
+    + '<span class="note">' + c.note + '</span>'
+    + '<a href="' + c.url + '" target="_blank" rel="noopener">Mở →</a></div>').join("");
+}
+
+/* ---------------- hồ sơ ---------------- */
+const KEY = "dovere.profile.v1";
+const CONTACT_FIELDS = ["ctName","ctPhone","ctEmail","invCompany","invTax","invEmail","invAddr","invBuyer","payMethod","payBank","payHolder"];
+
+function paxCard(i, d){
+  d = d || {};
+  const val = k => (d[k] || "").replace(/"/g, "&quot;");
+  return '<div class="pax" data-i="' + i + '">'
+    + '<div class="pax-head"><span class="lbl">Khách ' + (i+1) + '</span>'
+    + (i ? '<button type="button" class="del" data-del="' + i + '">Xoá khách này</button>' : '<span class="hint">khách chính, đứng tên đặt chỗ</span>') + '</div>'
+    + '<div class="field"><label for="p' + i + 'full">Họ và tên (viết như trên giấy tờ)</label>'
+      + '<input id="p' + i + 'full" data-f="full" value="' + val("full") + '" placeholder="NGUYEN VAN A"></div>'
+    + '<div class="two">'
+      + '<div class="field"><label for="p' + i + 'dob">Ngày sinh</label><input type="date" id="p' + i + 'dob" data-f="dob" value="' + val("dob") + '"></div>'
+      + '<div class="field"><label for="p' + i + 'gender">Giới tính</label><select id="p' + i + 'gender" data-f="gender">'
+        + '<option' + (d.gender === "Nữ" ? "" : " selected") + '>Nam</option><option' + (d.gender === "Nữ" ? " selected" : "") + '>Nữ</option></select></div>'
+    + '</div>'
+    + '<div class="two">'
+      + '<div class="field"><label for="p' + i + 'idType">Giấy tờ</label><select id="p' + i + 'idType" data-f="idType">'
+        + '<option' + (d.idType === "Hộ chiếu" ? "" : " selected") + '>CCCD</option><option' + (d.idType === "Hộ chiếu" ? " selected" : "") + '>Hộ chiếu</option></select></div>'
+      + '<div class="field"><label for="p' + i + 'idNo">Số giấy tờ</label><input id="p' + i + 'idNo" data-f="idNo" class="num-in" value="' + val("idNo") + '"></div>'
+    + '</div>'
+    + '<div class="field"><label for="p' + i + 'nat">Quốc tịch</label><input id="p' + i + 'nat" data-f="nat" value="' + (val("nat") || "Việt Nam") + '"></div>'
+    + '</div>';
+}
+function renderPax(list){
+  $("#paxList").innerHTML = (list && list.length ? list : [{}]).map((d,i) => paxCard(i,d)).join("");
+}
+function collect(){
+  const pax = [...document.querySelectorAll(".pax")].map(card => {
+    const o = {};
+    card.querySelectorAll("[data-f]").forEach(el => o[el.dataset.f] = el.value.trim());
+    return o;
+  });
+  const rest = {};
+  CONTACT_FIELDS.forEach(id => rest[id] = ($("#" + id) ? $("#" + id).value.trim() : ""));
+  return { pax, ...rest };
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(collect())); toast("Đã lưu hồ sơ vào trình duyệt này."); }
+  catch(e){ toast("Trình duyệt chặn lưu trữ — hồ sơ chỉ dùng được trong phiên này."); }
+  refreshFill();
+}
+function load(){
+  let p = null;
+  try { p = JSON.parse(localStorage.getItem(KEY) || "null"); } catch(e){}
+  if(!p){
+    renderPax([{full:"", gender:"Nam", idType:"CCCD", nat:"Việt Nam"}]);
+    return;
+  }
+  renderPax(p.pax);
+  CONTACT_FIELDS.forEach(id => { if($("#" + id) && p[id] !== undefined) $("#" + id).value = p[id]; });
+}
+function fillData(){
+  const p = collect();
+  return {
+    pax: (p.pax.length ? p.pax : [{}]).map(x => {
+      const parts = (x.full || "").trim().split(/\s+/).filter(Boolean);
+      const last = parts[0] || "";
+      const first = parts.slice(1).join(" ") || last;
+      const [y,m,d] = (x.dob || "").split("-");
+      const vnNat = norm(x.nat || "") === "viet nam";
+      return {
+        full: x.full || "", first, last,
+        dob: d ? d + "/" + m + "/" + y : "", dobIso: x.dob || "",
+        genderVi: x.gender || "Nam", genderEn: x.gender === "Nữ" ? "Female" : "Male", genderShort: x.gender === "Nữ" ? "F" : "M",
+        idType: x.idType || "CCCD", idNo: x.idNo || "",
+        natVi: x.nat || "", natEn: vnNat ? "Vietnam" : (x.nat || ""), natCode: vnNat ? "VN" : ""
+      };
+    }),
+    contact: { name: p.ctName, phone: p.ctPhone, email: p.ctEmail },
+    invoice: { company: p.invCompany, tax: p.invTax, email: p.invEmail || p.ctEmail, addr: p.invAddr, buyer: p.invBuyer || p.ctName },
+    pay: { method: p.payMethod, bank: p.payBank, holder: p.payHolder },
+    trip: state.last ? {
+      from: state.last.from.code, fromCity: state.last.from.city,
+      to: state.last.to.code, toCity: state.last.to.city,
+      dep: dmy(state.last.dep), depIso: state.last.dep,
+      ret: state.last.ret ? dmy(state.last.ret) : "", retIso: state.last.ret || "",
+      adt: state.last.adt, chd: state.last.chd, inf: state.last.inf
+    } : {},
+    sites: loadSites()
+  };
+}
+const SITES_KEY = "dovere.sites.v1";
+function loadSites(){ try { return JSON.parse(localStorage.getItem(SITES_KEY) || "{}"); } catch(e){ return {}; } }
+function sitesCount(s){ return Object.keys(s).reduce((n,h) => n + (s[h] || []).length, 0); }
+function showSites(){
+  const s = loadSites(), n = sitesCount(s), hosts = Object.keys(s);
+  $("#sitesCount").textContent = n ? n + " luật · " + hosts.join(", ") : "chưa học trang nào";
+  $("#sitesBox").value = n ? JSON.stringify(s, null, 2) : "";
+}
+function saveSites(){
+  const raw = $("#sitesBox").value.trim();
+  if(!raw){ try { localStorage.removeItem(SITES_KEY); } catch(e){} showSites(); refreshFill(); toast("Đã xoá luật riêng."); return; }
+  let obj;
+  try { obj = JSON.parse(raw); } catch(e){ toast("JSON chưa đúng — dán nguyên khối mà nút “Chép luật” đưa ra."); return; }
+  const KEYS = ["full","first","last","dob","gender","idNo","nat","phone","email","ctName",
+                "company","tax","invEmail","addr","buyer","cardHolder","from","to","depDate","retDate","adt","chd","inf"];
+  const clean = {}; let bad = 0;
+  Object.keys(obj).forEach(h => {
+    const list = (obj[h] || []).filter(r => {
+      const ok = r && typeof r.sel === "string" && KEYS.includes(r.key);
+      if(!ok) bad++;
+      return ok;
+    });
+    if(list.length) clean[h.replace(/^https?:\/\//,"").replace(/\/.*$/,"").replace(/^www\./,"")] = list;
+  });
+  if(!Object.keys(clean).length){ toast("Không thấy luật nào hợp lệ trong khối vừa dán."); return; }
+  try { localStorage.setItem(SITES_KEY, JSON.stringify(clean)); } catch(e){ toast("Trình duyệt chặn lưu trữ."); return; }
+  showSites(); refreshFill();
+  toast("Đã lưu " + sitesCount(clean) + " luật riêng cho " + Object.keys(clean).join(", ")
+        + (bad ? " · bỏ " + bad + " dòng không hợp lệ" : "") + ".");
+}
+function learnSrc(){ return "javascript:" + encodeURIComponent("(" + DVR_LEARN.toString() + ")();void 0;"); }
+function bookmarkletSrc(){
+  return "javascript:" + encodeURIComponent("(" + DVR_FILL.toString() + ")(" + JSON.stringify(fillData()) + ");void 0;");
+}
+function refreshFill(){ $("#fillLink").href = bookmarkletSrc(); $("#learnLink").href = learnSrc(); }
+
+function botScript(){
+  const q = state.last;
+  const url = q ? (channelList(q).find(c => c.name === "Traveloka") || {}).url : "https://www.traveloka.com";
+  return [
+    "// Dò Vé Rẻ — mở sẵn chặng, điền sẵn hồ sơ, dừng lại trước bước thanh toán.",
+    "// Cài một lần:  npm i playwright && npx playwright install chromium",
+    "// Chạy:        node dat-ve.mjs",
+    "import { chromium } from 'playwright';",
+    "",
+    "const URL = " + JSON.stringify(url) + ";",
+    "const DATA = " + JSON.stringify(fillData(), null, 2) + ";",
+    "",
+    "const FILL = " + DVR_FILL.toString() + ";",
+    "",
+    "const browser = await chromium.launch({ headless: false, slowMo: 120 });",
+    "const page = await browser.newPage({ locale: 'vi-VN' });",
+    "await page.goto(URL, { waitUntil: 'domcontentloaded' });",
+    "",
+    "// Chọn chuyến bằng tay (giá đổi từng phút — người chọn vẫn chuẩn hơn máy),",
+    "// tới khi hiện form thông tin hành khách thì chạy tiếp dòng dưới.",
+    "await page.pause();",
+    "",
+    "const n = await page.evaluate(([fn, d]) => new Function('return ' + fn)()(d), [FILL.toString(), DATA]);",
+    "console.log('Đã điền', n, 'ô. Kiểm tra lại rồi tự nhập thẻ + OTP.');",
+    "",
+    "// Cố ý dừng ở đây: số thẻ, CVV và OTP do người thật nhập.",
+    "await page.pause();",
+    "await browser.close();",
+    ""
+  ].join("\n");
+}
+
+/* ---------------- vặt ---------------- */
+let toastT;
+function toast(msg){
+  const t = $("#toast");
+  t.textContent = msg; t.hidden = false;
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.hidden = true, 4200);
+}
+async function copy(text, ok){
+  try { await navigator.clipboard.writeText(text); toast(ok); }
+  catch(e){
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast(ok); } catch(e2){ toast("Trình duyệt chặn sao chép — bấm chuột phải vào nút để chép thủ công."); }
+    ta.remove();
+  }
+}
+
+/* ---------------- gõ mã số thuế → tự điền tên và địa chỉ công ty ---------------- */
+let taxT = null, taxDone = "";
+async function lookupTax(){
+  const st = $("#taxStatus");
+  const mst = $("#invTax").value.replace(/[^\d-]/g, "");
+  if(!/^\d{10}(-\d{3})?$/.test(mst)){
+    taxDone = "";
+    st.textContent = mst ? "mã số thuế phải đủ 10 số (chi nhánh thì 10-3 số)" : "gõ đủ 10 số, máy tự điền tên và địa chỉ công ty";
+    return;
+  }
+  if(mst === taxDone) return;
+  st.textContent = "đang tra " + mst + "…";
+  try {
+    const j = await api("/api/tax?mst=" + encodeURIComponent(mst));
+    taxDone = mst;
+    const c = $("#invCompany"), a = $("#invAddr"), b = $("#invBuyer");
+    const filled = [];
+    if(j.company && !c.value.trim()){ c.value = j.company; filled.push("tên công ty"); }
+    if(j.address && !a.value.trim()){ a.value = j.address; filled.push("địa chỉ"); }
+    st.textContent = filled.length
+      ? j.company + " · đã điền " + filled.join(" và ")
+      : j.company + " · giữ nguyên phần anh đã gõ";
+    refreshFill();
+  } catch(e){
+    taxDone = "";
+    st.textContent = "không tra được: " + e.message;
+  }
+}
+
+/* ---------------- sự kiện ---------------- */
+$("#searchForm").addEventListener("submit", e => { e.preventDefault(); state.stripFrom = null; run(); });
+$("#swapBtn").addEventListener("click", () => {
+  const f = $("#from").value; $("#from").value = $("#to").value; $("#to").value = f;
+  state.stripFrom = null; run();
+});
+["#chd","#inf","#cabin"].forEach(s => $(s).addEventListener("change", run));
+function toggle(btn, on){ btn.setAttribute("aria-pressed", on ? "true" : "false"); }
+$("#tripOw").addEventListener("click", () => { state.trip = "ow"; toggle($("#tripOw"),true); toggle($("#tripRt"),false); $("#ret").disabled = true; run(); });
+$("#tripRt").addEventListener("click", () => {
+  state.trip = "rt"; toggle($("#tripRt"),true); toggle($("#tripOw"),false);
+  $("#ret").disabled = false;
+  if(!$("#ret").value) $("#ret").value = iso(addDays(parseISO($("#dep").value), 4));
+  run();
+});
+/* dải ngày */
+$("#strip").addEventListener("click", e => {
+  const b = e.target.closest("[data-d]"); if(!b) return;
+  $("#dep").value = b.dataset.d;
+  if(state.trip === "rt" && $("#ret").value && $("#ret").value < b.dataset.d)
+    $("#ret").value = iso(addDays(parseISO(b.dataset.d), 4));
+  run();
+});
+$("#stripPrev").addEventListener("click", () => {
+  state.stripFrom = iso(addDays(parseISO(state.stripFrom), -7));
+  if(state.last) renderStrip(state.last);
+});
+$("#stripNext").addEventListener("click", () => {
+  state.stripFrom = iso(addDays(parseISO(state.stripFrom), 7));
+  if(state.last) renderStrip(state.last);
+});
+
+/* cột lọc */
+function doiLoc(id, on){
+  const [k, v] = id.split(":");
+  if(k === "al"){ on ? state.f.al.add(v) : state.f.al.delete(v); }
+  else if(k === "stop"){ on ? state.f.stop.add(+v) : state.f.stop.delete(+v); }
+  else if(k === "time"){ on ? state.f.time.add(v) : state.f.time.delete(v); }
+  else if(k === "bag"){ state.f.bag = on; }
+  if(state.last){ renderRail(state.last); renderResults(state.last); }
+}
+$("#rail").addEventListener("change", e => {
+  const el = e.target.closest("[data-f]"); if(!el) return;
+  doiLoc(el.dataset.f, el.checked);
+});
+$("#rail").addEventListener("click", e => {
+  const x = e.target.closest("[data-x]");
+  if(x){ doiLoc(x.dataset.x, false); return; }
+  if(e.target.id === "clearF"){
+    state.f = { al: new Set(), stop: new Set(), time: new Set(), bag: false };
+    if(state.last){ renderRail(state.last); renderResults(state.last); }
+  }
+});
+
+/* sắp xếp */
+document.querySelector(".sorts").addEventListener("click", e => {
+  const b = e.target.closest("[data-sort]"); if(!b) return;
+  state.sort = b.dataset.sort;
+  [...b.parentElement.children].forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  if(state.last) renderResults(state.last);
+});
+$("#openAll").addEventListener("click", () => {
+  if(!state.last) { run(); if(!state.last) return; }
+  const metas = channelList(state.last).filter(c => c.meta);
+  let blocked = 0;
+  metas.forEach(c => { if(!window.open(c.url, "_blank", "noopener")) blocked++; });
+  toast(blocked ? "Trình duyệt chặn " + blocked + "/" + metas.length + " cửa sổ — cho phép pop-up rồi bấm lại."
+                : "Đã mở " + metas.length + " trang so giá.");
+});
+$("#addPax").addEventListener("click", () => {
+  const list = collect().pax;
+  list.push({ gender:"Nam", idType:"CCCD", nat:"Việt Nam" });
+  renderPax(list);
+  $("#adt").value = Math.min(9, list.length);
+  refreshFill(); run();
+});
+$("#paxList").addEventListener("click", e => {
+  const b = e.target.closest("[data-del]"); if(!b) return;
+  const list = collect().pax;
+  list.splice(+b.dataset.del, 1);
+  renderPax(list);
+  $("#adt").value = Math.max(1, list.length);
+  refreshFill(); run();
+});
+$("#paxList").addEventListener("change", refreshFill);
+document.addEventListener("change", e => { if(CONTACT_FIELDS.includes(e.target.id)) refreshFill(); });
+$("#invTax").addEventListener("input", () => { clearTimeout(taxT); taxT = setTimeout(lookupTax, 600); });
+$("#invTax").addEventListener("blur", lookupTax);
+$("#saveProfile").addEventListener("click", save);
+$("#saveSites").addEventListener("click", saveSites);
+$("#copyLearn").addEventListener("click", () => copy(learnSrc(), "Đã chép mã “Học form”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
+$("#learnLink").addEventListener("click", e => { e.preventDefault(); toast("Nút này để KÉO lên thanh dấu trang, rồi bấm khi đang ở trang đặt vé."); });
+$("#copyFill").addEventListener("click", () => copy(bookmarkletSrc(), "Đã chép mã “Điền hộ”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
+$("#copyJson").addEventListener("click", () => copy(JSON.stringify(fillData(), null, 2), "Đã chép hồ sơ dạng JSON."));
+$("#copyBot").addEventListener("click", () => copy(botScript(), "Đã chép script Playwright. Lưu thành dat-ve.mjs rồi chạy: node dat-ve.mjs"));
+$("#clearProfile").addEventListener("click", () => {
+  try { localStorage.removeItem(KEY); } catch(e){}
+  renderPax([{ gender:"Nam", idType:"CCCD", nat:"Việt Nam" }]);
+  CONTACT_FIELDS.forEach(id => { if($("#" + id) && $("#" + id).tagName !== "SELECT") $("#" + id).value = ""; });
+  refreshFill();
+  toast("Đã xoá hồ sơ khỏi máy này.");
+});
+$("#fillLink").addEventListener("click", e => {
+  e.preventDefault();
+  toast("Nút này để KÉO lên thanh dấu trang, rồi bấm nó khi đang ở trang đặt vé.");
+});
+
+/* ---------------- khởi động ---------------- */
+AIRPORTS.forEach(a => {
+  const o = document.createElement("option");
+  o.value = a.code;
+  o.label = a.code + " — " + a.city + " (" + a.name + ")";
+  o.textContent = o.label;
+  $("#airports").appendChild(o);
+});
+$("#dep").value = iso(addDays(new Date(), 21));
+$("#dep").min = iso(new Date());
+$("#ret").min = iso(new Date());
+load();
+showSites();
+refreshFill();
+run();

@@ -1,0 +1,36 @@
+DÒ VÉ RẺ — PLUGIN WORDPRESS
+============================
+
+CÀI
+  Quản trị WordPress → Gói mở rộng → Cài mới → "Tải gói mở rộng lên"
+  → chọn file  do-ve-re-wordpress.zip  → Cài đặt → Kích hoạt.
+
+SAU KHI KÍCH HOẠT (5 phút)
+  1. Tạo trang "Vé máy bay", dán vào nội dung:      [do_ve_re]
+  2. Tạo trang "Đặt vé",     dán vào nội dung:      [do_ve_re_dat_ve]
+  3. Vào menu "Dò Vé Rẻ" → Cài đặt:
+       - Số tài khoản ngân hàng nhận tiền + mã BIN (Vietcombank là 970436)
+       - Phí dịch vụ (phần chênh lệch của mình)
+       - Chọn "Trang đặt vé" là trang vừa tạo ở bước 2
+  4. Xong. Mở trang ở bước 1 là thấy bảng giá chạy.
+
+MUỐN GIÁ THẬT (không bắt buộc)
+  Đăng ký developers.amadeus.com lấy API Key + Secret, khai vào trang Cài đặt.
+  Chưa khai thì bảng giá chạy bằng giá mô phỏng và có nhãn nói rõ.
+
+MUỐN TIỀN VỀ TỰ KHỚP ĐƠN (không bắt buộc)
+  Đăng ký SePay hoặc Casso, trỏ webhook về:
+      https://<tên-miền-của-anh>/wp-json/dovere/v1/webhook/bank
+  kèm header:  Authorization: Apikey <khoá>
+  Khoá đó khai luôn ở ô "Khoá webhook" trong Cài đặt.
+  Chưa dùng thì vào Dò Vé Rẻ → Đơn hàng, bấm tay nút "Đã nhận tiền".
+
+EMAIL
+  Gửi bằng wp_mail của WordPress. Site đã có plugin SMTP thì dùng luôn, không phải khai gì.
+
+VẬN HÀNH MỘT ĐƠN
+  Khách chọn chuyến → điền thông tin → chuyển khoản theo QR
+  → mình thấy đơn ở Dò Vé Rẻ → Đơn hàng
+  → bấm "Điền hộ" (kéo lên thanh dấu trang) rồi mở trang hãng, bấm một cái là form đầy
+  → mua xong bấm "Mã đặt chỗ", nhập PNR và giá mua vào
+  → khách nhận email mã đặt chỗ, bảng trên tự tính chênh lệch.
