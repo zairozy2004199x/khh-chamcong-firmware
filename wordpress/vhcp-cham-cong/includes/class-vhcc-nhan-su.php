@@ -889,16 +889,32 @@ class VHCC_NhanSu {
 	 * một cơ sở mảng khác mà không làm ở đó thì không vì thế mà đổi mảng; ai chỉ đi quản (không
 	 * chấm ở đâu cả) thì mới lấy cả cơ sở quản làm căn cứ.
 	 *
-	 * 🔴 CƠ SỞ THUỘC NHIỀU MẢNG KHÁC NHAU -> KHÔNG SUY, BẮT CHỌN TAY. Đây là chốt quan trọng
-	 *    nhất của cả hàm. Im lặng chọn lấy một mảng là gán sai mà không ai biết — và sai ở đây
-	 *    là sai cái trục mà bản sau sẽ BÓ QUYỀN theo. Nói "không biết" vẫn đúng hơn đoán.
+	 * =============================================================================================
+	 * 🔴 MỘT NGƯỜI THUỘC NHIỀU MẢNG LÀ CHUYỆN THƯỜNG, KHÔNG PHẢI LỖI
+	 * =============================================================================================
+	 * Anh Thắng 13/09/2026: *"Đối với nhân viên là người làm thì họ có thể làm ở 2 mảng nhiều cơ
+	 * sở, nhưng đối với quản lý 1 mảng thì mình không lo"*.
+	 *
+	 * Bản 3.68.0 coi "cơ sở thuộc nhiều mảng" là chỗ hệ chịu thua: trả rỗng, gắn nhãn đỏ «lệch
+	 * mảng», và đẩy người ấy vào danh sách việc. SAI, và sai theo kiểu tệ nhất:
+	 *
+	 *   · Nhân viên quầy chạy giữa Khu vui chơi và Máy tự động là chuyện HÀNG NGÀY. Gắn cờ đỏ cho
+	 *     họ nghĩa là gắn cờ cho phần lớn sổ — một danh sách việc dài bằng cả công ty thì không
+	 *     phải danh sách việc, nó chỉ là nhiễu.
+	 *   · Và nhiễu thì dạy người ta thôi đọc cờ. Đúng bài học của `dat_vai_tro()`: dòng đỏ kêu
+	 *     oan làm hỏng luôn dòng đỏ thật.
+	 *
+	 * Nay: thuộc bao nhiêu mảng thì GHI NHẬN bấy nhiêu, y như một người có nhiều cơ sở. Không cờ,
+	 * không bắt chọn tay. Chỉ còn ĐÚNG hai cảnh là thật sự chưa biết — chưa gắn cơ sở nào, và cơ
+	 * sở có mà chưa ai khai mảng cho nó.
+	 *
+	 * Quản lý thì anh Thắng chốt là mỗi người một mảng nên *"không lo"* — hệ không cần luật riêng
+	 * cho họ: một mảng thì phép suy này trả đúng một mảng.
 	 *
 	 * @return array array(
-	 *     'mang'   => mảng suy ra ('' nếu không suy được),
+	 *     'dsMang' => CÁC mảng suy ra (rỗng nếu không suy được),
 	 *     'coSo'   => các cơ sở đã dùng làm căn cứ,
 	 *     'vi'     => câu giải thích ngắn để in thẳng lên màn,
-	 *     'lech'   => true khi các cơ sở thuộc NHIỀU mảng khác nhau,
-	 *     'dsMang' => các mảng tìm thấy (để nói rõ lệch giữa những mảng nào),
 	 * )
 	 */
 	public static function suy_mang( $hs ) {
@@ -907,7 +923,7 @@ class VHCC_NhanSu {
 		/* Chỉ đi quản, không chấm ở đâu: vẫn phải có căn cứ, nên lấy cơ sở quản. */
 		if ( ! $ds ) { $ds = self::ds_coso_hs( $hs ); }
 		if ( ! $ds ) {
-			return array( 'mang' => '', 'coSo' => array(), 'lech' => false, 'dsMang' => array(),
+			return array( 'dsMang' => array(), 'coSo' => array(),
 				'vi' => 'chưa gắn cơ sở nào — phải chọn tay' );
 		}
 		$thay = array(); $chua = array();
@@ -917,23 +933,18 @@ class VHCC_NhanSu {
 			if ( ! isset( $thay[ $m ] ) ) { $thay[ $m ] = array(); }
 			$thay[ $m ][] = $cs;
 		}
-		$ds_mang = array_keys( $thay );
-		if ( ! $ds_mang ) {
-			return array( 'mang' => '', 'coSo' => $ds, 'lech' => false, 'dsMang' => array(),
+		if ( ! $thay ) {
+			return array( 'dsMang' => array(), 'coSo' => $ds,
 				'vi' => 'cơ sở ' . implode( ', ', $chua ) . ' chưa khai mảng — khai ở màn Cấu hình, '
 					. 'hoặc chọn tay' );
 		}
-		if ( count( $ds_mang ) > 1 ) {
-			$ke = array();
-			foreach ( $thay as $m => $cs_ds ) { $ke[] = $m . ' (' . implode( ', ', $cs_ds ) . ')'; }
-			return array( 'mang' => '', 'coSo' => $ds, 'lech' => true, 'dsMang' => $ds_mang,
-				'vi' => 'cơ sở thuộc NHIỀU mảng: ' . implode( ' · ', $ke ) . ' — phải chọn tay' );
-		}
-		$m = $ds_mang[0];
-		$vi = 'theo cơ sở ' . implode( ', ', $thay[ $m ] );
+		/* Kể ra TỪNG MẢNG kèm cơ sở làm căn cứ: "Khu vui chơi (VIVO) · Máy tự động (POSH_Q1)".
+		   Đọc một dòng là soát được, không phải đi tra bảng cơ sở. */
+		$ke = array();
+		foreach ( $thay as $m => $cs_ds ) { $ke[] = $m . ' (' . implode( ', ', $cs_ds ) . ')'; }
+		$vi = 'theo cơ sở: ' . implode( ' · ', $ke );
 		if ( $chua ) { $vi .= ' (chưa tính ' . implode( ', ', $chua ) . ': cơ sở ấy chưa khai mảng)'; }
-		return array( 'mang' => $m, 'coSo' => $thay[ $m ], 'lech' => false,
-			'dsMang' => $ds_mang, 'vi' => $vi );
+		return array( 'dsMang' => array_keys( $thay ), 'coSo' => $ds, 'vi' => $vi );
 	}
 
 	/** BỘ PHẬN suy ra từ cơ sở: có cơ sở thì là khối cơ sở; không có thì chịu, phải khai tay. */
@@ -964,23 +975,40 @@ class VHCC_NhanSu {
 		$cs   = isset( $hs['cua_hang'] ) ? (string) $hs['cua_hang'] : '';
 		$mk   = isset( $hs['mang'] ) ? trim( (string) $hs['mang'] ) : '';
 		$bk   = isset( $hs['bo_phan'] ) ? trim( (string) $hs['bo_phan'] ) : '';
-		$suy = self::suy_mang( $hs );
+		$suy   = self::suy_mang( $hs );
+		$ds_mk = self::tach_mang( $mk );
+		$ds_hl = $ds_mk ? $ds_mk : $suy['dsMang'];
 		return array(
-			'mang'       => ( '' !== $mk ) ? $mk : $suy['mang'],
+			/* `mang` là chuỗi ĐỂ ĐỌC ("Khu vui chơi + Máy tự động"); `dsMang` là danh sách ĐỂ SO.
+			   Lọc và đếm phải dùng `dsMang` — so bằng chuỗi ghép thì người làm hai mảng không
+			   khớp với bất kỳ ô lọc nào, và họ biến mất khỏi mọi bộ lọc mà chẳng ai để ý. */
+			'mang'       => implode( ' + ', $ds_hl ),
+			'dsMang'     => $ds_hl,
 			'boPhan'     => ( '' !== $bk ) ? $bk : self::suy_bo_phan( $hs ),
 			'mangKhai'   => $mk,
+			'dsMangKhai' => $ds_mk,
 			'boPhanKhai' => $bk,
 			'theoCoSo'   => ( '' === $mk && '' === $bk ),
 			/* Chở theo CĂN CỨ để màn hình in thẳng ra. Không có nó thì người đọc phải tự đi tra
 			   cơ sở nào thuộc mảng nào — tức là không ai soát, và phép suy không soát được thì
 			   chẳng khác gì phép đoán (anh Thắng 13/09/2026). */
 			'vi'         => $suy['vi'],
-			'lech'       => ! empty( $suy['lech'] ),
 			'canCu'      => $suy['coSo'],
-			/* Cần chọn tay: chưa khai tay mà cũng không suy nổi. Đây mới là DANH SÁCH VIỆC thật,
-			   khác hẳn "đang trôi theo cơ sở" (trôi mà suy ra đúng thì không phải làm gì). */
-			'canChonTay' => ( '' === $mk && '' === $suy['mang'] ),
+			/* 🔴 DANH SÁCH VIỆC CHỈ CÒN ĐÚNG MỘT CẢNH: không khai tay mà cũng không suy ra nổi
+			   mảng nào. Thuộc NHIỀU mảng KHÔNG nằm ở đây — đó là trạng thái hợp lệ của nhân viên
+			   chạy giữa hai mảng, gắn cờ cho họ là gắn cờ cho phần lớn sổ. */
+			'canChonTay' => ! $ds_hl,
 		);
+	}
+
+	/** Tách chuỗi mảng đã khai ("A, B") thành danh sách. Lưu giống `coso_phu` — cùng một lối. */
+	public static function tach_mang( $chuoi ) {
+		$ra = array();
+		foreach ( explode( ',', (string) $chuoi ) as $x ) {
+			$x = trim( $x );
+			if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+		}
+		return $ra;
 	}
 
 	/**
@@ -1011,9 +1039,17 @@ class VHCC_NhanSu {
 		   không xảy ra, và dòng đỏ kêu oan dạy người ta thôi đọc dòng đỏ. */
 		if ( $m === $m_cu && $b === $b_cu ) { return array( 'ok' => true, 'doi' => false ); }
 
-		if ( '' !== $m && ! in_array( $m, self::ds_mang(), true ) ) {
-			return array( 'ok' => false, 'error' => $ma . ': mảng "' . $m . '" không có trong hệ.' );
+		/* Nhận NHIỀU mảng, ngăn bằng dấu phẩy — một người làm hai mảng là chuyện thường. Chuẩn
+		   hoá lại lúc ghi để chuỗi trong sổ luôn cùng một dạng, khỏi sinh hai biến thể của cùng
+		   một tổ hợp ("A, B" và "A,B") rồi lọc trượt. */
+		$ds_m = self::tach_mang( $m );
+		foreach ( $ds_m as $x_m ) {
+			if ( ! in_array( $x_m, self::ds_mang(), true ) ) {
+				return array( 'ok' => false, 'error' => $ma . ': mảng "' . $x_m . '" không có trong hệ.' );
+			}
 		}
+		$m = implode( ', ', $ds_m );
+		if ( $m === $m_cu && $b === $b_cu ) { return array( 'ok' => true, 'doi' => false ); }
 		if ( '' !== $b && ! in_array( $b, self::ds_bo_phan(), true ) ) {
 			return array( 'ok' => false, 'error' => $ma . ': bộ phận "' . $b . '" không có trong hệ.' );
 		}
@@ -1031,13 +1067,19 @@ class VHCC_NhanSu {
 	 *    mảng nào — thứ mà chính bảng bên dưới đang giấu đi.
 	 */
 	public static function dem_mang_bo_phan( $ds ) {
-		$mang = array(); $bp = array(); $chua = 0; $tay = 0; $lech = 0;
+		$mang = array(); $bp = array(); $chua = 0; $tay = 0; $nhieu = 0;
 		foreach ( (array) $ds as $r ) {
 			$x = self::mang_bo_phan_cua( $r );
-			$km = ( '' !== $x['mang'] ) ? $x['mang'] : '— chưa xếp —';
+			/* 🔴 ĐẾM VÀO TỪNG MẢNG, không đếm vào chuỗi ghép. Người làm hai mảng phải có mặt ở
+			   CẢ HAI ô — đó đúng là câu hỏi người ta hỏi dải này ("mảng Khu vui chơi có bao nhiêu
+			   người"). Đếm theo chuỗi ghép thì đẻ ra một ô thứ ba tên "A + B" mà bấm vào không
+			   lọc được gì, còn hai ô thật thì thiếu người.
+			   ⚠️ Hệ quả: tổng của dải có thể LỚN HƠN số người. Đó là đúng, và màn hình nói rõ. */
+			$co = ! empty( $x['dsMang'] ) ? $x['dsMang'] : array( '— chưa xếp —' );
+			foreach ( $co as $km ) { $mang[ $km ] = ( isset( $mang[ $km ] ) ? $mang[ $km ] : 0 ) + 1; }
 			$kb = ( '' !== $x['boPhan'] ) ? $x['boPhan'] : '— chưa xếp —';
-			$mang[ $km ] = ( isset( $mang[ $km ] ) ? $mang[ $km ] : 0 ) + 1;
 			$bp[ $kb ]   = ( isset( $bp[ $kb ] ) ? $bp[ $kb ] : 0 ) + 1;
+			if ( count( $co ) > 1 ) { $nhieu++; }
 			if ( $x['theoCoSo'] ) { $chua++; }
 			/* 🔴 HAI CON SỐ KHÁC NHAU, ĐỪNG GỘP.
 			   `theoCoSo` = đang trôi theo cơ sở — phần lớn là ĐÚNG, không phải việc phải làm.
@@ -1045,11 +1087,10 @@ class VHCC_NhanSu {
 			   Gộp hai cái là con số lúc nào cũng to (199 người trôi), nên không ai nhìn nữa, và
 			   mấy người thật sự cần xếp tay chìm nghỉm trong đó. */
 			if ( ! empty( $x['canChonTay'] ) ) { $tay++; }
-			if ( ! empty( $x['lech'] ) ) { $lech++; }
 		}
 		arsort( $mang ); arsort( $bp );
 		return array( 'mang' => $mang, 'boPhan' => $bp, 'theoCoSo' => $chua,
-			'canChonTay' => $tay, 'lech' => $lech );
+			'canChonTay' => $tay, 'nhieuMang' => $nhieu );
 	}
 
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {

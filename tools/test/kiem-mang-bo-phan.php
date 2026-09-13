@@ -142,31 +142,63 @@ $nv( 'NV_2CS', 'Làm hai nơi cùng mảng', 'VIVO' );
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
 	. " SET coso_phu='GO_AN_LAC' WHERE ma_nv='NV_2CS'" );
 $sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_2CS' ) );
-teq( 'hai cơ sở cùng mảng -> suy ra mảng ấy', 'Khu vui chơi', $sm['mang'] );
+teq( 'hai cơ sở cùng mảng -> suy ra đúng MỘT mảng', array( 'Khu vui chơi' ), $sm['dsMang'] );
 teq( '🔴 và căn cứ kể ĐỦ HAI cơ sở, không chỉ cơ sở đầu', 2, count( $sm['coSo'] ) );
 t( 'câu giải thích đọc ra được tên cơ sở', strpos( $sm['vi'], 'VIVO' ) !== false
 	&& strpos( $sm['vi'], 'GO_AN_LAC' ) !== false, $sm['vi'] );
 
-/* --- (1b) 🔴 hai cơ sở KHÁC mảng: KHÔNG được đoán bừa --- */
-$nv( 'NV_LECH', 'Làm hai mảng khác nhau', 'VIVO' );
+/* --- (1b) 🔴 LÀM HAI MẢNG LÀ CHUYỆN THƯỜNG, KHÔNG PHẢI LỖI ---
+ *
+ * Anh Thắng 13/09/2026: *"Đối với nhân viên là người làm thì họ có thể làm ở 2 mảng nhiều cơ sở,
+ * nhưng đối với quản lý 1 mảng thì mình không lo"* — *"làm ở 2 mảng, thì chấm công ở 2 mảng"*.
+ *
+ * Bản 3.68.0 gắn cờ đỏ «lệch mảng» cho cảnh này và đẩy người ấy vào danh sách việc. Sai theo kiểu
+ * tệ nhất: nhân viên quầy chạy giữa hai mảng là chuyện HÀNG NGÀY, nên cờ ấy bật cho phần lớn sổ —
+ * mà một danh sách việc dài bằng cả công ty thì không phải danh sách việc, nó là nhiễu. Và nhiễu
+ * dạy người ta thôi đọc cờ, hỏng luôn cờ thật.
+ */
+$nv( 'NV_2MANG', 'Làm hai mảng', 'VIVO' );
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
-	. " SET coso_phu='POSH_Q1' WHERE ma_nv='NV_LECH'" );
-$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
-teq( '🔴 cơ sở thuộc hai mảng -> KHÔNG suy, trả rỗng', '', $sm['mang'] );
-t( '🔴 và đánh dấu là LỆCH, không im lặng bỏ qua', ! empty( $sm['lech'] ), $sm );
-t( 'câu giải thích nói rõ lệch giữa những mảng nào',
-	strpos( $sm['vi'], 'Khu vui chơi' ) !== false && strpos( $sm['vi'], 'Máy tự động' ) !== false,
-	$sm['vi'] );
-$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
-t( '🔴 người lệch mảng nằm trong DANH SÁCH VIỆC (canChonTay)', ! empty( $x['canChonTay'] ), $x );
+	. " SET coso_phu='POSH_Q1' WHERE ma_nv='NV_2MANG'" );
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_2MANG' ) );
+teq( '🔴 làm hai mảng -> suy ra ĐỦ HAI, không chịu thua', 2, count( $sm['dsMang'] ) );
+t( 'và đúng hai mảng ấy', in_array( 'Khu vui chơi', $sm['dsMang'], true )
+	&& in_array( 'Máy tự động', $sm['dsMang'], true ), $sm['dsMang'] );
+t( 'câu giải thích kể từng mảng kèm cơ sở căn cứ',
+	strpos( $sm['vi'], 'Khu vui chơi (VIVO)' ) !== false
+	&& strpos( $sm['vi'], 'Máy tự động (POSH_Q1)' ) !== false, $sm['vi'] );
 
-/* Khai tay xong thì hết lệch — đó là cách người ta giải quyết. */
+$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_2MANG' ) );
+t( '🔴 KHÔNG nằm trong danh sách việc — đây là trạng thái hợp lệ', empty( $x['canChonTay'] ), $x );
+teq( 'chuỗi để ĐỌC ghép cả hai', 'Khu vui chơi + Máy tự động', $x['mang'] );
+teq( 'danh sách để SO có đủ hai', 2, count( $x['dsMang'] ) );
+
+/* 🔴 Người hai mảng phải KHỚP CẢ HAI ô lọc. So bằng chuỗi ghép thì họ không khớp ô nào và biến
+   mất khỏi mọi bộ lọc — mà biến mất thì không ai thấy để mà thắc mắc. */
+t( '🔴 khớp ô lọc "Khu vui chơi"', in_array( 'Khu vui chơi', $x['dsMang'], true ) );
+t( '🔴 và khớp cả ô lọc "Máy tự động"', in_array( 'Máy tự động', $x['dsMang'], true ) );
+
+/* Ghim tay NHIỀU mảng cũng phải được — ô tích, không phải ô xổ một lựa chọn. */
 $r = VHCC_NhanSu::dat_mang_bo_phan( array( 'ma_nv' => 'KT9', 'role' => 'Kế toán' ),
-	'NV_LECH', 'Máy tự động', '' );
-t( 'khai tay cho người lệch mảng được', ! empty( $r['ok'] ), $r );
-$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
-teq( 'và mảng theo đúng ý người khai', 'Máy tự động', $x['mang'] );
-t( '🔴 hết nằm trong danh sách việc', empty( $x['canChonTay'] ), $x );
+	'NV_2MANG', 'Máy tự động, Văn phòng', '' );
+t( 'ghim tay HAI mảng cùng lúc được', ! empty( $r['ok'] ) && ! empty( $r['doi'] ), $r );
+$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_2MANG' ) );
+teq( 'giữ đủ hai mảng đã ghim', 2, count( $x['dsMang'] ) );
+t( 'và đúng hai mảng ấy', in_array( 'Máy tự động', $x['dsMang'], true )
+	&& in_array( 'Văn phòng', $x['dsMang'], true ), $x['dsMang'] );
+
+/* Một mảng lạ trong chuỗi thì chối CẢ lượt, không ghi một nửa. */
+$r = VHCC_NhanSu::dat_mang_bo_phan( array( 'ma_nv' => 'KT9', 'role' => 'Kế toán' ),
+	'NV_2MANG', 'Máy tự động, Mảng Trên Trời', '' );
+t( '🔴 một mảng lạ -> chối cả lượt', empty( $r['ok'] ), $r );
+teq( 'và hồ sơ giữ nguyên, không ghi một nửa', 2, count(
+	VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_2MANG' ) )['dsMang'] ) );
+
+/* Bỏ hết tích -> trôi lại theo cơ sở, và lại ra đủ hai mảng. */
+$r = VHCC_NhanSu::dat_mang_bo_phan( array( 'ma_nv' => 'KT9', 'role' => 'Kế toán' ), 'NV_2MANG', '', '' );
+t( 'bỏ hết tích được', ! empty( $r['ok'] ) && ! empty( $r['doi'] ), $r );
+teq( '🔴 trôi lại theo cơ sở và ra đủ HAI mảng', 2,
+	count( VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_2MANG' ) )['dsMang'] ) );
 
 /* --- (2) chỉ có cơ sở PHỤ, cơ sở chính trống --- */
 $nv( 'NV_CHIPHU', 'Chỉ có cơ sở phụ', '' );
@@ -181,19 +213,20 @@ $nv( 'NV_QL', 'Làm Vivo, quản Posh', 'VIVO' );
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
 	. " SET coso_phu='POSH_Q1', coso_ql='POSH_Q1' WHERE ma_nv='NV_QL'" );
 $sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_QL' ) );
-teq( '🔴 cơ sở "chỉ QL" không kéo mảng theo -> vẫn suy ra được', 'Khu vui chơi', $sm['mang'] );
-t( 'và KHÔNG bị coi là lệch mảng', empty( $sm['lech'] ), $sm );
+/* Quản một cơ sở mảng khác mà KHÔNG làm ở đó thì không vì thế mà thuộc mảng ấy —
+   anh Thắng: "đối với quản lý 1 mảng thì mình không lo". */
+teq( '🔴 cơ sở "chỉ QL" không kéo mảng theo', array( 'Khu vui chơi' ), $sm['dsMang'] );
 
 /* Người CHỈ đi quản, không chấm ở đâu: vẫn phải có căn cứ chứ không bỏ trắng. */
 $nv( 'NV_QLTHUAN', 'Chỉ đi quản', 'POSH_Q1' );
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
 	. " SET coso_ql='POSH_Q1' WHERE ma_nv='NV_QLTHUAN'" );
 teq( 'người chỉ đi quản vẫn suy ra mảng của nơi mình quản',
-	'Máy tự động', VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_QLTHUAN' ) )['mang'] );
+	array( 'Máy tự động' ), VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_QLTHUAN' ) )['dsMang'] );
 
 /* --- (3) cơ sở chưa khai mảng: nói rõ cơ sở NÀO, chỉ đường đi khai --- */
 $sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_LA' ) );
-teq( 'cơ sở chưa khai mảng -> không suy được', '', $sm['mang'] );
+teq( 'cơ sở chưa khai mảng -> không suy được', array(), $sm['dsMang'] );
 /* Tên hiện ra đã gỡ tiền tố 'CS_' (chuan_coso) — đó là tên người ta thấy ở mọi màn khác,
    nên câu giải thích phải dùng đúng tên ấy, không phải chuỗi thô trong sổ. */
 t( '🔴 nhưng nói rõ CƠ SỞ NÀO chưa khai', strpos( $sm['vi'], 'LA_HOAC' ) !== false, $sm['vi'] );
@@ -206,10 +239,13 @@ t( 'không gắn cơ sở -> nói đúng là chưa gắn cơ sở',
 
 /* --- màn hình phải IN RA căn cứ ấy, không giữ trong bụng --- */
 $src_ns = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
-t( '🔴 ô xổ in ra câu giải thích của suy_mang(), không chỉ in kết quả',
-	strpos( $src_ns, "\$c['vi']" ) !== false );
-t( 'hàng chưa suy được có nhãn cảnh báo ngay trong ô',
-	strpos( $src_ns, 'mb-canh' ) !== false && strpos( $src_ns, 'lệch mảng' ) !== false );
+t( '🔴 ô Mảng in ra câu giải thích của suy_mang(), không chỉ in kết quả',
+	strpos( $src_ns, "\$sm['vi']" ) !== false );
+t( '🔴 ô Mảng là HỘP TÍCH nhiều mảng, không phải ô xổ một lựa chọn',
+	strpos( $src_ns, "type=\"checkbox\" name=\"mbp_mang[" ) !== false );
+t( 'ô không tích gì vẫn có nhãn nói nó suy ra gì', strpos( $src_ns, 'mb-suy' ) !== false );
+t( '🔴 không còn cờ "lệch mảng" — làm hai mảng là chuyện thường',
+	false === strpos( $src_ns, 'lệch mảng' ) );
 
 /* ================================================================== 4. DANH SÁCH & CHỐT QUYỀN */
 
@@ -266,8 +302,20 @@ t( 'được tính là đang trôi theo cơ sở trở lại', ! empty( $x['theo
 $ds = VHCC_NhanSu::ds_nhan_vien( array( 'ma_nv' => 'AD', 'role' => 'Admin' ) );
 $dem = VHCC_NhanSu::dem_mang_bo_phan( $ds );
 $tong = 0; foreach ( $dem['mang'] as $so ) { $tong += $so; }
-teq( '🔴 dải đếm cộng lại phải BẰNG số người đưa vào — không bỏ sót ai',
-	count( $ds ), $tong );
+/* 🔴 BẤT BIẾN ĐÚNG SAU 3.69.0: tổng trục Mảng LỚN HƠN số người đúng bằng số lượt "thuộc thêm một
+   mảng nữa". Người làm hai mảng có mặt ở CẢ HAI ô — đó chính là câu hỏi người ta hỏi dải này
+   ("mảng Khu vui chơi có bao nhiêu người"), và màn hình nói rõ tổng sẽ lớn hơn số người.
+   Ghim bằng một phép cộng chứ không ghim số cứng: bỏ sót một người thì con số hụt, mà đếm nhầm
+   một người vào mảng họ không thuộc thì con số dôi — cả hai đều đỏ. */
+$dôi = 0;
+foreach ( $ds as $r_d ) {
+	$n_d = count( VHCC_NhanSu::mang_bo_phan_cua( $r_d )['dsMang'] );
+	$dôi += ( $n_d > 1 ) ? ( $n_d - 1 ) : 0;
+}
+teq( '🔴 tổng trục Mảng = số người + số lượt thuộc thêm mảng — không sót, không dôi',
+	count( $ds ) + $dôi, $tong );
+t( 'và có người thật sự thuộc nhiều mảng trong mẫu (kẻo phép trên thành vô nghĩa)', $dôi > 0, $dôi );
+teq( 'dải đếm khai đúng số người nhiều mảng', $dôi > 0, ! empty( $dem['nhieuMang'] ) );
 $tong_b = 0; foreach ( $dem['boPhan'] as $so ) { $tong_b += $so; }
 teq( 'trục bộ phận cũng vậy', count( $ds ), $tong_b );
 t( 'người chưa xếp được gom vào một ô riêng, không biến mất',

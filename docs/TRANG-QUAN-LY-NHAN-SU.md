@@ -668,7 +668,38 @@ làm) và *"N người hệ KHÔNG suy ra mảng"* (**đây** mới là danh sá
 Gộp chung thì con số lúc nào cũng to — 199 người trôi — nên không ai nhìn nữa, và mấy người thật sự
 cần xếp tay chìm nghỉm trong đó.
 
-69 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+### 🔴 Một người thuộc NHIỀU mảng là chuyện thường, không phải lỗi (3.69.0)
+
+Anh Thắng: *"Đối với nhân viên là người làm thì họ có thể làm ở 2 mảng nhiều cơ sở, nhưng đối với
+quản lý 1 mảng thì mình không lo"* — *"làm ở 2 mảng, thì chấm công ở 2 mảng"*.
+
+3.68.0 coi "cơ sở thuộc nhiều mảng" là chỗ hệ chịu thua: trả rỗng, gắn nhãn đỏ «lệch mảng», đẩy
+người ấy vào danh sách việc. **Sai, và sai theo kiểu tệ nhất:** nhân viên quầy chạy giữa Khu vui
+chơi và Máy tự động là chuyện hàng ngày, nên cờ ấy bật cho phần lớn sổ. Một danh sách việc dài
+bằng cả công ty thì không phải danh sách việc — nó là nhiễu, và nhiễu dạy người ta thôi đọc cờ,
+hỏng luôn cờ thật. Đúng bài học của `dat_vai_tro()`.
+
+Từ 3.69.0: **thuộc bao nhiêu mảng thì ghi nhận bấy nhiêu**, y như một người có nhiều cơ sở.
+
+| | Trước | Nay |
+|---|---|---|
+| Cột `mang` | một mảng | danh sách, ngăn bằng dấu phẩy (như `coso_phu`) |
+| Ô trên bảng | xổ một lựa chọn | **hộp tích nhiều mảng** (cùng hình dạng với cột Cơ sở) |
+| Nhiều mảng | cờ đỏ «lệch mảng», bắt chọn tay | trạng thái hợp lệ, không cờ |
+| Danh sách việc | gồm cả người nhiều mảng | **chỉ còn** người không suy ra nổi mảng nào |
+
+⚠️ `mang` là chuỗi **để đọc** ("Khu vui chơi + Máy tự động"); `dsMang` là danh sách **để so**. Lọc
+và đếm phải dùng `dsMang` — so bằng chuỗi ghép thì người làm hai mảng **không khớp ô lọc nào và
+biến mất khỏi mọi bộ lọc**, mà biến mất thì không ai thấy để mà thắc mắc.
+
+⚠️ Dải đếm đếm vào **từng** mảng, nên tổng **lớn hơn** số người. Đó là đúng — đó chính là câu người
+ta hỏi dải này ("mảng Khu vui chơi có bao nhiêu người") — và màn hình nói rõ ra.
+
+Quản lý thì anh Thắng chốt mỗi người một mảng nên *"không lo"*: không cần luật riêng, một mảng thì
+phép suy trả đúng một mảng. Cơ sở «chỉ QL» vẫn **không** kéo mảng theo — quản một nơi khác mảng mà
+không làm ở đó thì không vì thế mà thuộc mảng ấy.
+
+80 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
 
 ---
 
