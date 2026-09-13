@@ -220,66 +220,71 @@ Repo công khai nghĩa là bất kỳ ai trên internet đều đọc được c
 
 ---
 
-## 10. Ba lệnh có sẵn
+## 10. Lệnh gửi đi các nơi
 
-Anh Thắng 13/09/2026: *"cho lệnh gom về 1 chỗ và lệnh tự add token"*.
+Anh Thắng 13/09/2026: *"làm chung 1 lệnh để anh gửi các nơi"*.
 
-### `tools/soat-plugin-tren-host.sh` — còn sót gì?
+### Một dòng dán vào là xong
 
-Chạy **trên hosting**. Liệt kê mọi plugin đang cài rồi để đối chiếu với `wordpress/` của repo.
-Làm việc này **trước** khi gom bất cứ thứ gì — chứ không đoán.
+Gửi đúng khối này cho người phụ trách từng site:
 
 ```bash
-ssh <tài khoản>@<host>
 cd <thư mục có wp-config.php>
-bash soat-plugin-tren-host.sh > danh-sach.txt
+curl -fsSL https://raw.githubusercontent.com/zairozy2004199x/khh-chamcong-firmware/claude/rebuild-chi-phi-wordpress-hl2yze/tools/tren-host.sh -o tren-host.sh
+bash tren-host.sh
 ```
 
-Nó cũng nói luôn khoá GitHub đã khai chưa (chỉ **có/không**, không in khoá).
+Script làm ba việc, theo thứ tự: **soát** đang có gì → **khai khoá** GitHub → **hỏi lại** GitHub
+xem có bản mới.
 
-### `tools/khai-khoa-github.sh` — khai khoá bằng một lệnh
+> ⚠️ **Tải về rồi mới chạy, không `curl | bash`.** Kéo thẳng mã lạ vào `bash` là chạy thứ mình
+> chưa nhìn thấy — kể cả mã của chính mình, vì hôm nay đúng không có nghĩa ngày mai vẫn đúng
+> (ai đó đổi nhánh, repo bị chiếm). Tải ra tệp thì còn `cat tren-host.sh` xem trước được.
+>
+> ⚠️ **Đường dẫn trên chỉ chạy khi repo còn CÔNG KHAI.** Sau khi đổi sang Private (mục 9), gửi
+> thẳng tệp `tools/tren-host.sh` qua Zalo hoặc email thay vì dán link.
 
-Chạy **trên hosting**, khỏi vào wp-admin dán tay:
+### Chạy riêng từng phần
 
 ```bash
-bash khai-khoa-github.sh                    # tám plugin dùng chung
-bash khai-khoa-github.sh vhcphn_gh_token    # riêng bản vùng Hà Nội
+bash tren-host.sh soat      # chỉ xem, KHÔNG ghi gì cả — an toàn tuyệt đối
+bash tren-host.sh khoa      # chỉ khai khoá
+bash tren-host.sh capnhat   # chỉ hỏi lại GitHub ngay
+bash tren-host.sh khoa vhcphn_gh_token   # khoá của bản vùng Hà Nội
 ```
 
-Script hỏi, anh dán, Enter.
+**`soat` không ghi gì cả** — cố ý. Gửi cho người lạ máy thì việc đầu tiên họ chạy phải là việc
+không làm hỏng được gì.
 
-> 🔴 **Không đưa khoá vào dòng lệnh.** `bash khai-khoa-github.sh github_pat_xxx` trông tiện hơn
-> nhưng khoá ấy nằm lại trong `~/.bash_history` và hiện ra với ai gõ `ps` đúng lúc. Script đọc
-> từ bàn phím bằng `read -s` — gõ xong không hiện, không lưu đâu cả.
+Phần `soat` cũng trả lời luôn câu *"còn nhiều trang chưa thấy trong này"*: nó liệt kê riêng
+**những plugin KHÔNG phải của K&H** đang chạy trên trang — bộ nào hiện ở đó là bộ repo không
+giữ mã, mất máy chủ là mất luôn.
 
-Nó soát hình dạng khoá **trước khi ghi**: dán nhầm nửa chuỗi hay dán nhầm mật khẩu khác thì
-chối luôn. Ghi vào rồi mới sai thì lần cập nhật sau im lặng không thấy bản mới — một lỗi không
+> 🔴 **Không đưa khoá vào dòng lệnh.** `bash tren-host.sh khoa github_pat_xxx` trông tiện hơn,
+> nhưng chuỗi ấy nằm lại trong `~/.bash_history` của máy chủ và hiện ra với bất kỳ ai gõ `ps`
+> đúng lúc. Tham số thứ hai là **tên ô**, không phải khoá. Script đọc khoá từ bàn phím bằng
+> `read -s` — gõ xong không hiện, không lưu đâu cả.
+
+Nó soát hình dạng khoá **trước khi ghi** (`github_pat_` hoặc `ghp_`, tối thiểu 30 ký tự). Dán
+nhầm nửa chuỗi mà vẫn ghi vào thì lần cập nhật sau im lặng không thấy bản mới — một lỗi không
 có câu báo nào.
 
-### `tools/gom-repo.sh` — gom repo khác về đây
-
-Chạy **trên máy anh**:
+### Gom repo — lệnh riêng, chạy trên máy anh
 
 ```bash
 bash tools/gom-repo.sh <chủ/repo-nguồn> <tên-thư-mục-đích> [nhánh] [thư-mục-con]
 
-# cả repo về thành một plugin
 bash tools/gom-repo.sh zairozy2004199x/vhcp-kho vhcp-kho
-
-# chỉ lấy một thư mục con của repo nguồn
 bash tools/gom-repo.sh zairozy2004199x/Claude vhcp-abc main wordpress/vhcp-abc
 ```
 
-**Dùng `git subtree`, không chép tay** — chép tay thì mã về đây nhưng **lịch sử ở lại repo cũ**,
-và sáu tháng sau hỏi *"dòng này sửa hôm nào, vì sao"* thì không còn chỗ nào trả lời.
+Dùng **`git subtree`** để **giữ nguyên lịch sử**. Chép tay thì mã về đây nhưng lịch sử ở lại
+repo cũ, và sáu tháng sau hỏi *"dòng này sửa hôm nào, vì sao"* thì không còn chỗ nào trả lời.
 
-Script tự chốt ba chỗ trước khi đụng vào gì:
+Ba chốt trước khi đụng vào gì: cây làm việc phải **sạch**, thư mục đích **chưa tồn tại** (gom đè
+là mất mã đang có mà không ai báo), và làm trên **nhánh riêng** `gom-<tên>`.
 
-- cây làm việc phải **sạch** — gom mà lỗi giữa chừng thì không biết chỗ nào của ai;
-- thư mục đích **chưa tồn tại** — gom đè lên là mất mã đang có mà không ai báo;
-- làm trên **nhánh riêng** `gom-<tên>`, xem xong ưng mới gộp.
-
-Gom xong **chưa phải là xong**: còn phải nối bộ tự cập nhật cho plugin mới (mục 6) và chạy
+Gom xong **chưa phải là xong**: còn nối bộ tự cập nhật cho plugin mới (mục 6) rồi chạy
 `chay-het.sh`. Bỏ bước ấy thì plugin nằm đây im lặng, không bao giờ hiện bản mới.
 
 ---
@@ -293,6 +298,5 @@ Gom xong **chưa phải là xong**: còn phải nối bộ tự cập nhật cho
 | `tools/build-plugin-zip.sh` | dựng `.zip` cài được (bỏ `goc/`, giữ `apps-script/`) |
 | `tools/test/kiem-tu-cap-nhat.php` | 75 phép — quét mọi plugin, bắt bộ mới quên nối |
 | `tools/test/kiem-tach-ban-vung.php` | canh bản vùng không dùng chung chuỗi nào với bản gốc |
-| `tools/soat-plugin-tren-host.sh` | liệt kê plugin đang chạy trên host để đối chiếu với repo |
-| `tools/khai-khoa-github.sh` | khai khoá GitHub bằng một lệnh (WP-CLI) |
+| `tools/tren-host.sh` | **một lệnh gửi đi các nơi** — soát · khai khoá · hỏi lại GitHub |
 | `tools/gom-repo.sh` | gom một repo khác về `wordpress/<tên>`, giữ nguyên lịch sử |
