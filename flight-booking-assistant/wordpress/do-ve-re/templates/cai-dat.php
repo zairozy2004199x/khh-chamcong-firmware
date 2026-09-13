@@ -182,6 +182,17 @@ $cd = dvr_cai_dat();
 				</td>
 			</tr>
 			<tr>
+				<th scope="row">Thử nguồn</th>
+				<td>
+					<p class="description" style="margin:0 0 8px">Lưu cài đặt trước, rồi bấm thử — máy gọi đúng nguồn đang chọn và cho xem vài chuyến có thật.</p>
+					<input id="dvr-tu" value="SGN" size="4" maxlength="3" style="text-transform:uppercase;width:70px">
+					→ <input id="dvr-den" value="HAN" size="4" maxlength="3" style="text-transform:uppercase;width:70px">
+					<button type="button" class="button button-secondary" id="dvr-thu">Thử nguồn giá</button>
+					<p class="description">Nội địa thử <code>SGN → HAN</code>, quốc tế thử <code>SGN → SIN</code> — để biết nguồn thiếu hẳn hay chỉ thiếu vé trong nước.</p>
+					<pre id="dvr-ketqua" style="display:none;max-height:340px;overflow:auto;background:#f6f7f7;border:1px solid #dcdcde;padding:10px;margin-top:8px;white-space:pre-wrap"></pre>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="dvr_tax">Dịch vụ tra mã số thuế</label></th>
 				<td><input name="dovere_settings[tax_api]" id="dvr_tax" class="regular-text code" value="<?php echo esc_attr( $cd['tax_api'] ); ?>"></td>
 			</tr>
@@ -220,12 +231,7 @@ $cd = dvr_cai_dat();
 				<td><textarea name="dovere_settings[dl_map]" id="dvr_dl_map" class="large-text code" rows="5" placeholder='{"duong_dan":"data.flights","hang":"airlineCode","ten_hang":"airlineName","so_hieu":"flightNumber","gio_di":"departTime","gio_den":"arriveTime","gia":"totalFare","tien_te":"currency","diem_dung":"stopNum","ky_gui":"baggage"}'><?php echo esc_textarea( $cd['dl_map'] ); ?></textarea>
 					<p class="description">Trường nào của họ ứng với trường nào của mình. <code>duong_dan</code> là chỗ chứa danh sách chuyến, viết kiểu <code>data.flights</code>.</p></td>
 			</tr>
-			<tr>
-				<th scope="row">Thử kết nối</th>
-				<td><button type="button" class="button" id="dvr-thu">Gọi thử SGN → HAN</button>
-					<p class="description">Xem đại lý trả về gì để khai bảng ánh xạ cho khớp.</p>
-					<pre id="dvr-ketqua" style="display:none;max-height:320px;overflow:auto;background:#f6f7f7;border:1px solid #dcdcde;padding:10px;margin-top:8px"></pre></td>
-			</tr>
+
 		</table>
 
 		<h2 class="title">Đầu trang</h2>
@@ -301,16 +307,33 @@ $cd = dvr_cai_dat();
 	<script>
 	document.getElementById('dvr-thu').addEventListener('click', async function () {
 		var o = document.getElementById('dvr-ketqua');
+		var tu = (document.getElementById('dvr-tu').value || 'SGN').toUpperCase();
+		var den = (document.getElementById('dvr-den').value || 'HAN').toUpperCase();
 		o.style.display = 'block';
-		o.textContent = 'Đang gọi…';
+		o.textContent = 'Đang gọi ' + tu + ' → ' + den + '…';
 		try {
-			var r = await fetch('<?php echo esc_url_raw( rest_url( 'dovere/v1/admin/thu-nguon' ) ); ?>', {
+			var r = await fetch('<?php echo esc_url_raw( rest_url( 'dovere/v1/admin/thu-nguon' ) ); ?>?from=' + tu + '&to=' + den, {
 				headers: { 'X-WP-Nonce': '<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>' }
 			});
 			var j = await r.json();
-			o.textContent = j.error ? ('LỖI: ' + j.error) : JSON.stringify(j.body, null, 2).slice(0, 6000);
+			if (j.error) { o.textContent = '✗ ' + j.error; return; }
+			var d = [
+				'Nguồn: ' + j.nguon,
+				'Chặng thử: ' + j.chang,
+				'',
+				(j.so_chuyen ? '✓ ' : '✗ ') + j.ket_luan
+			];
+			if (j.vai_chuyen && j.vai_chuyen.length) {
+				d.push('', 'Vài chuyến lấy được:');
+				j.vai_chuyen.forEach(function (x) { d.push('  · ' + x); });
+			}
+			if (j.tho) {
+				d.push('', 'Nguyên văn đại lý trả về (để khai bảng ánh xạ):',
+					JSON.stringify(j.tho, null, 2).slice(0, 4000));
+			}
+			o.textContent = d.join('\n');
 		} catch (e) {
-			o.textContent = 'LỖI: ' + e.message;
+			o.textContent = '✗ ' + e.message;
 		}
 	});
 	</script>

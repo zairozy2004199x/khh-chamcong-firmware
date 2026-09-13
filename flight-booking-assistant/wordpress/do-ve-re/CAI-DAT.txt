@@ -58,6 +58,12 @@ KHUNG TRANG
   Muốn trang nằm trong khung của theme như trang thường thì vào Cài đặt bỏ tick
   "Dựng khung riêng cho hai trang bán vé".
 
+GIÁ HIỆN TRÊN TRANG
+  Chưa nối nguồn giá thì trang KHÔNG tự dựng số: bảng giá thay bằng danh sách nơi
+  đang bán chặng đó, khách bấm sang xem giá và giờ bay thật. Làm vậy vì số tự dựng
+  đặt cạnh nút sang nơi bán sẽ lệch với giá bên đó — khách bấm vào là thấy ngay.
+  Nối nguồn thật (Duffel hoặc đại lý) thì bảng giá đầy đủ hiện lại như cũ.
+
 MUỐN GIÁ THẬT (không bắt buộc)
   Cổng tự phục vụ của Amadeus đã đóng ngày 17/7/2025 — không lấy khoá thử miễn
   phí được nữa. Nguồn còn tự đăng ký ngay được là DUFFEL:

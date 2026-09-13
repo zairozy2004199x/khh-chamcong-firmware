@@ -147,6 +147,19 @@ function get_current_screen() {
 	return null;
 }
 
+class WP_REST_Response {
+	public $data;
+	public $status;
+	public function __construct( $data = null, $status = 200 ) {
+		$this->data   = $data;
+		$this->status = $status;
+	}
+}
+function register_rest_route( ...$a ) {}
+function rest_url( $p = '' ) { return 'https://ve.knh.vn/wp-json/' . ltrim( (string) $p, '/' ); }
+function wp_create_nonce( $a = '' ) { return 'nonce'; }
+function esc_js( $s ) { return (string) $s; }
+
 class WP_Error {
 	private $code;
 	private $msg;

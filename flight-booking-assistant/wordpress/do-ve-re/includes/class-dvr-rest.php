@@ -105,15 +105,73 @@ class DVR_Rest {
 		return new WP_REST_Response( $kq, 200 );
 	}
 
-	/** Gọi thử API đại lý và trả về nguyên văn, để khai bảng ánh xạ cho khớp. */
-	public static function thu_nguon() {
-		$q  = array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => gmdate( 'Y-m-d', time() + 14 * DAY_IN_SECONDS ),
-			'ret' => '', 'adt' => 1, 'chd' => 0, 'inf' => 0, 'cabin' => 'ECONOMY' );
-		$kq = DVR_Dai_Ly::goi( $q );
+	/** Gọi thử đúng nguồn đang chọn, trả về vài chuyến để soi xem có dùng được không. */
+	public static function thu_nguon( $req ) {
+		$from = strtoupper( sanitize_text_field( (string) $req->get_param( 'from' ) ) );
+		$to   = strtoupper( sanitize_text_field( (string) $req->get_param( 'to' ) ) );
+		$q    = array(
+			'from'  => $from ? $from : 'SGN',
+			'to'    => $to ? $to : 'HAN',
+			'dep'   => gmdate( 'Y-m-d', time() + 14 * DAY_IN_SECONDS ),
+			'ret'   => '', 'adt' => 1, 'chd' => 0, 'inf' => 0, 'cabin' => 'ECONOMY', 'direct' => false,
+		);
+		$nguon = dvr_cai_dat( 'nguon', 'mo_phong' );
+		$tho   = null;
+
+		if ( 'duffel' === $nguon ) {
+			if ( ! dvr_cai_dat( 'duffel_token', '' ) ) {
+				return new WP_REST_Response( array( 'error' => 'Đang chọn nguồn Duffel nhưng chưa dán khoá.' ), 200 );
+			}
+			$kq = DVR_Duffel::tim_chuyen( $q );
+		} elseif ( 'dai_ly' === $nguon ) {
+			if ( ! dvr_cai_dat( 'dl_url', '' ) ) {
+				return new WP_REST_Response( array( 'error' => 'Đang chọn nguồn đại lý nhưng chưa khai đường dẫn API ở mục "API của đại lý cấp 1".' ), 200 );
+			}
+			$tho = DVR_Dai_Ly::goi( $q );
+			if ( is_wp_error( $tho ) ) {
+				return new WP_REST_Response( array( 'error' => $tho->get_error_message() ), 200 );
+			}
+			$kq = array( 'offers' => DVR_Dai_Ly::doi_du_lieu( $tho, $q ), 'source' => 'dai_ly' );
+		} elseif ( 'amadeus' === $nguon ) {
+			if ( ! dvr_cai_dat( 'amadeus_id', '' ) ) {
+				return new WP_REST_Response( array( 'error' => 'Đang chọn nguồn Amadeus nhưng chưa khai khoá.' ), 200 );
+			}
+			$kq = DVR_Amadeus::tim_chuyen( $q );
+		} else {
+			return new WP_REST_Response( array( 'error' => 'Đang để "Giá mô phỏng" — chọn một nguồn thật rồi Lưu, sau đó thử lại.' ), 200 );
+		}
+
 		if ( is_wp_error( $kq ) ) {
 			return new WP_REST_Response( array( 'error' => $kq->get_error_message() ), 200 );
 		}
-		return new WP_REST_Response( array( 'body' => $kq, 'doc_duoc' => count( DVR_Dai_Ly::doi_du_lieu( $kq, $q ) ) ), 200 );
+
+		$ds  = isset( $kq['offers'] ) ? $kq['offers'] : array();
+		$vai = array();
+		foreach ( array_slice( $ds, 0, 5 ) as $o ) {
+			$vai[] = sprintf(
+				'%s %s · %s → %s · %s%s · %s',
+				$o['al']['code'],
+				$o['code'],
+				$o['dep'],
+				$o['arr'],
+				number_format( $o['price'], 0, ',', '.' ),
+				'VND' === $o['cur'] ? 'đ' : ' ' . $o['cur'],
+				$o['stops'] ? $o['stops'] . ' điểm dừng' : 'bay thẳng'
+			);
+		}
+		$ra = array(
+			'nguon'     => $nguon,
+			'chang'     => $q['from'] . ' → ' . $q['to'] . ' ngày ' . $q['dep'],
+			'so_chuyen' => count( $ds ),
+			'vai_chuyen'=> $vai,
+			'ket_luan'  => count( $ds )
+				? 'Nguồn này có ' . count( $ds ) . ' chuyến cho chặng vừa thử — dùng được.'
+				: 'Nguồn này KHÔNG có chuyến nào cho chặng vừa thử. Thử chặng quốc tế (vd SGN → SIN) để xem nguồn có chạy không, hay chỉ thiếu nội địa Việt Nam.',
+		);
+		if ( null !== $tho ) {
+			$ra['tho'] = $tho;   // để khai bảng ánh xạ cho khớp
+		}
+		return new WP_REST_Response( $ra, 200 );
 	}
 
 	/* ---------- đơn hàng ---------- */

@@ -519,11 +519,13 @@ async function run(){
   }
 
   if(!live){
-    offers = buildOffers(q);
-    if(!DVR.coGiaThat) setSource("sim", "Giá mô phỏng — chưa khai khoá Amadeus",
-      "Vào Quản trị → Dò Vé Rẻ → Cài đặt, khai khoá Amadeus là bảng giá chuyển sang dữ liệu thật.");
-    else setSource("sim", "Giá mô phỏng — " + err,
-      "Nguồn giá thật chưa trả được dữ liệu nên bảng quay về giá mô phỏng.");
+    // Chưa có nguồn thật thì KHÔNG dựng chuyến giả: giờ bay và giá giả đặt cạnh nút
+    // sang nơi bán chỉ làm khách bấm vào rồi thấy lệch hẳn với bên đó.
+    offers = [];
+    if(!DVR.coGiaThat) setSource("sim", "Chưa nối nguồn giá",
+      "Trang không tự dựng giá. Bấm một nơi bán để xem giá và giờ bay thật. Khai nguồn giá trong Quản trị → Dò Vé Rẻ → Cài đặt là bảng giá hiện ngay tại đây.");
+    else setSource("sim", "Nguồn giá chưa trả được dữ liệu — " + err,
+      "Tạm thời mời khách xem thẳng ở nơi bán bên dưới.");
   }
 
   state.offers = offers;
@@ -553,9 +555,35 @@ function reYNhat(list){ return list.length ? Math.min(...list.map(o => o.price))
 
 function renderAll(q){
   renderStrip(q);
-  renderRail(q);
-  renderResults(q);
+  const rail = $("#rail"), sorts = document.querySelector(".sorts");
+  if(state.live && state.offers.length){
+    if(rail) rail.hidden = false;
+    if(sorts) sorts.hidden = false;
+    renderRail(q);
+    renderResults(q);
+  } else {
+    if(rail) rail.hidden = true;
+    if(sorts) sorts.hidden = true;
+    renderNoiBan(q);
+  }
   renderChannels(q);
+}
+
+/* ---------------- chưa có số liệu thật: chỉ mở đúng nơi đang bán ---------------- */
+function renderNoiBan(q){
+  const ds = channelList(q);
+  const [yy, mm, dd] = q.dep.split("-");
+  const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
+  $("#boardSub").textContent = q.from.code + " → " + q.to.code + " · " + dd + "/" + mm + " · " + paxTxt;
+  $("#rows").innerHTML =
+    '<div class="note" style="margin-bottom:14px">Chúng tôi không tự dựng giá ở đây. Bấm một nơi bán bên dưới để xem '
+    + '<b>giá và giờ bay thật</b> cho chặng ' + q.from.code + ' → ' + q.to.code + ' ngày ' + dd + '/' + mm
+    + ', đã điền sẵn số khách.</div>'
+    + '<div class="chan-grid">' + ds.map(c =>
+        '<div class="chan"><span class="kind">' + c.kind + '</span><b>' + c.name + '</b>'
+        + '<span class="hint">' + c.note + '</span>'
+        + '<a class="choose" style="margin-top:6px" href="' + ganMa(c.url, c.name) + '" target="_blank" rel="noopener">Xem giá</a></div>'
+      ).join("") + '</div>';
 }
 
 /* ---------------- dải giá 7 ngày ---------------- */
@@ -569,15 +597,17 @@ function renderStrip(q){
     const d = addDays(parseISO(state.stripFrom), k);
     ngay.push({ d, iso: iso(d), gia: cheapestOn(q, iso(d)) });
   }
-  const min = Math.min(...ngay.map(x => x.gia));
+  const min = state.live ? Math.min(...ngay.map(x => x.gia)) : -1;
   $("#strip").innerHTML = ngay.map(x =>
     '<button type="button" class="day' + (x.gia === min ? " cheap" : "") + '" data-d="' + x.iso + '"'
     + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
     + '<span class="d-dow">' + DOW[x.d.getDay()] + ", " + x.d.getDate() + " thg " + (x.d.getMonth()+1) + '</span>'
-    + '<span class="d-price">' + vnd(x.gia) + '</span></button>'
+    + '<span class="d-price">' + (state.live ? vnd(x.gia) : 'Xem giá') + '</span></button>'
   ).join("");
   $("#stripPrev").disabled = parseISO(state.stripFrom) <= homNay;
-  $("#calNote").textContent = state.live
+  $("#calNote").textContent = !state.live
+    ? "Bấm một ngày để đổi ngày đi — các nút bên dưới mở đúng ngày đó ở nơi bán."
+    : state.live
     ? "Giá trên dải ngày là ước lượng của máy — đổi ngày rồi bấm Dò giá để lấy giá thật cho ngày đó."
     : "Bấm một ngày để đổi ngày đi. Ngày rẻ nhất trong tuần được tô xanh.";
 }

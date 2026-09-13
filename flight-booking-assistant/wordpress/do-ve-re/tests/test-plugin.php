@@ -236,6 +236,27 @@ ok( 'thư chốt giá mới đưa số tài khoản', strpos( $bg['html'], '0071
 $hc = DVR_Mail::soan( 'het_cho', $o );
 ok( 'thư hết chỗ nói rõ chưa thu đồng nào', strpos( $hc['html'], 'chưa thu đồng nào' ) !== false );
 
+echo "\nNút thử nguồn giá\n";
+require_once $goc . '/includes/class-dvr-rest.php';
+class DVR_Req_Gia {
+	private $p;
+	public function __construct( $p = array() ) { $this->p = $p; }
+	public function get_param( $k ) { return isset( $this->p[ $k ] ) ? $this->p[ $k ] : null; }
+}
+$GLOBALS['dvr_options']['dovere_settings']['nguon'] = 'mo_phong';
+$t = DVR_Rest::thu_nguon( new DVR_Req_Gia() )->data;
+ok( 'đang để giá mô phỏng thì nhắc chọn nguồn thật', isset( $t['error'] ) && strpos( $t['error'], 'mô phỏng' ) !== false, $t );
+$GLOBALS['dvr_options']['dovere_settings']['nguon'] = 'duffel';
+$GLOBALS['dvr_options']['dovere_settings']['duffel_token'] = '';
+$t = DVR_Rest::thu_nguon( new DVR_Req_Gia() )->data;
+ok( 'chọn Duffel mà chưa dán khoá thì nói thẳng ra', strpos( $t['error'], 'chưa dán khoá' ) !== false, $t );
+$GLOBALS['dvr_options']['dovere_settings']['nguon'] = 'dai_ly';
+$GLOBALS['dvr_options']['dovere_settings']['dl_url'] = '';
+$t = DVR_Rest::thu_nguon( new DVR_Req_Gia() )->data;
+ok( 'chọn đại lý mà chưa khai URL thì chỉ đúng chỗ phải khai',
+	strpos( $t['error'], 'API của đại lý' ) !== false, $t );
+$GLOBALS['dvr_options']['dovere_settings']['nguon'] = 'mo_phong';
+
 echo "\nNguồn giá đại lý cấp 1\n";
 $GLOBALS['dvr_options']['dovere_settings']['dl_map'] = json_encode( array(
 	'duong_dan' => 'data.flights', 'hang' => 'airlineCode', 'ten_hang' => 'airlineName',
