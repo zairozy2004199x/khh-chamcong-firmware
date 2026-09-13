@@ -28,6 +28,23 @@ mặc định ấy cũng được chạy thật — chứ không phải một nh
 Trả mã thoát khác 0 nếu có bài đỏ, dùng được cho CI. Bỏ qua `wp-stub.php` (bệ đỡ, không phải bài
 thử) và `bench-queries.php` (đo tốc độ, không có kết luận đúng/sai).
 
+### ⚠️ Đóng gói bằng `build-plugin-zip.sh`, KHÔNG bằng `zip -qr`
+
+13/09/2026: hai bản **3.69.0** và **3.69.1** đã giao đi với `goc/` **nằm trong bản cài** — Code.gs
++ Index.html, 1,3 MB. Trên hosting chúng nằm dưới `wp-content/plugins/…` và **đọc được từ web**
+bằng một địa chỉ đoán ra được, tức công bố cấu trúc bảng và cách tính lương của cả chuỗi để đổi
+lấy đúng con số không.
+
+Nguyên nhân: đóng gói bằng `zip -qr` thô, rồi soát bằng `diff -rq zip nguồn`. **Phép soát ấy bảo
+đảm ra sai** — nó đòi bản cài khớp y hệt cây nguồn, trong khi trình đóng gói *cố ý* loại bớt. Soát
+càng chặt càng chắc chắn sai.
+
+`test-cham-cong.php` có canh chuyện này, nhưng nó **tự đóng gói lại rồi mới soát** — nên nó canh
+trình đóng gói, không canh cái tệp đang nằm trong `dist/`. Hai bản lọt vẫn xanh hết bài.
+
+Nay `chay-het.sh` soi **đúng tệp sẽ được commit và gửi đi**, và chạy **trước** khi có gì kịp dựng
+lại nó.
+
 ---
 
 ## 2. `xem-man.sh` — bộ thử đếm chuỗi không nhìn được màn hình

@@ -31,6 +31,37 @@ chay() {   # $1 = lệnh, $2 = tên hiển thị
   fi
 }
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# SOÁT BẢN CÀI TRONG dist/ TRƯỚC MỌI THỨ KHÁC — NÓ LÀ THỨ THẬT SỰ ĐI TỚI HOSTING.
+#
+# 🔴 13/09/2026: hai bản 3.69.0 và 3.69.1 đã giao cho anh Thắng với `goc/` NẰM TRONG BẢN CÀI —
+#    Code.gs + Index.html, 1,3 MB. Trên hosting chúng nằm dưới wp-content/plugins/… và ĐỌC ĐƯỢC
+#    TỪ WEB bằng một địa chỉ đoán ra được, tức công bố cấu trúc bảng và cách tính lương của cả
+#    chuỗi để đổi lấy đúng con số không.
+#
+#    Nguyên nhân: đóng gói bằng `zip -qr` thô thay vì `tools/build-plugin-zip.sh`, rồi soát bằng
+#    `diff -rq zip nguồn`. Phép soát ấy BẢO ĐẢM RA SAI: nó đòi bản cài khớp y hệt cây nguồn,
+#    trong khi trình đóng gói CỐ Ý loại bớt. Soát càng chặt càng chắc chắn sai.
+#
+#    `test-cham-cong.php` có canh chuyện này, nhưng nó TỰ ĐÓNG GÓI LẠI rồi mới soát — nên nó
+#    canh trình đóng gói, không canh cái tệp đang nằm trong dist/. Hai bản lọt vẫn xanh hết bài.
+#    Phép dưới đây soi ĐÚNG tệp sẽ được commit và gửi đi, và chạy TRƯỚC khi có gì kịp dựng lại.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+echo "── Bản cài trong dist/ ────────────────────────────────────────"
+LOT=0
+for z in dist/*.zip; do
+  [ -e "$z" ] || continue
+  if unzip -Z1 "$z" 2>/dev/null | grep -q '/goc/'; then
+    printf '  ✗ %s có goc/ — mã gốc đọc được từ web\n' "$(basename "$z")"; LOT=$((LOT+1))
+  fi
+done
+if [ "$LOT" -gt 0 ]; then
+  echo "     Đóng gói lại bằng: bash tools/build-plugin-zip.sh"
+  HONG=$((HONG+1)); TEN_HONG+=("bản cài lọt goc/")
+else
+  echo "  ✓ không bản cài nào lọt goc/"; DAT=$((DAT+1))
+fi
+
 echo "── Soát cú pháp PHP ───────────────────────────────────────────"
 if find wordpress -name '*.php' -print0 2>/dev/null | xargs -0 -n1 php -l 2>&1 | grep -v 'No syntax errors'; then
   echo "  ✗ có tệp PHP sai cú pháp"; HONG=$((HONG+1)); TEN_HONG+=("cú pháp PHP")
