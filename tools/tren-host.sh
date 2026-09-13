@@ -73,6 +73,18 @@ fi
 tar -xzf "$TAM/nguon.tgz" -C "$TAM"
 
 GOC="$(find "$TAM" -maxdepth 1 -type d -name "$(basename "$REPO")-*" | head -1)"
+
+# ── tự cập nhật chính mình ──────────────────────────────────────────────────
+# raw.githubusercontent.com cache 5 phút và bỏ qua mọi tham số phá cache, nên
+# curl lại script ngay sau khi nó vừa đổi là lấy đúng bản cũ. Tarball thì không
+# cache, mà trong đó đã có sẵn bản mới của chính script này — dùng luôn.
+TOI="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
+MOI="$GOC/tools/$(basename "$0")"
+if [ "${TREN_HOST_DA_TU_CAP_NHAT:-}" != "1" ] && [ -f "$MOI" ] && ! cmp -s "$MOI" "$TOI"; then
+  echo "→ Có bản script mới, đang cập nhật rồi chạy lại..."
+  cp "$MOI" "$TOI"
+  TREN_HOST_DA_TU_CAP_NHAT=1 exec bash "$TOI" "$@"
+fi
 NGUON="$GOC/$DUONG_DAN"
 if [ ! -f "$NGUON/$SLUG.php" ]; then
   echo "✗ Trong nhánh '$NHANH' không có $DUONG_DAN/$SLUG.php"
