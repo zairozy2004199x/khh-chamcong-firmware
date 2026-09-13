@@ -808,6 +808,55 @@ vậy" chứ không giống một bộ lọc hiểu nhầm.
 
 ---
 
+## 4l. Co giãn theo trang — bảng 11 cột vừa màn hình (3.76.0)
+
+Anh Thắng 13/09/2026: *"Chỉnh lại co giãn theo trang"*, kèm ảnh cột **Ghế massage** bị mép phải
+cắt cụt.
+
+Mở ra đo bằng `bash tools/xem/xem-man.sh` thì thấy **hai chuyện khác nhau**, phải chữa cả hai —
+chữa một cái thì cái kia vẫn còn:
+
+### 🔴 (1) Cả TRANG trôi ngang — lỗi thật, không phải chuyện bảng rộng
+
+Ô chọn ẩn của dải ba nút (`vai · Mở · Khoá`) là `position:absolute` mà **không có ổ neo nào**.
+Không có ổ neo thì nó đo theo cả trang chứ không theo ô chứa — và `overflow-x` của `.cuon` chỉ
+cắt được thứ nằm trong lòng nó, không cắt được thứ neo ra ngoài.
+
+Hậu quả nặng hơn vẻ ngoài:
+
+* trang thừa ra ~60px bề ngang, **thanh cuộn dưới cùng kéo luôn cả tiêu đề lẫn dải lọc** đi theo;
+* cột **Mã NV ghim trái hết ghim** — nó ghim theo khung `.cuon`, không phải theo trang, nên cuộn
+  sang phải là mất luôn thứ cho biết đang sửa hồ sơ của ai.
+
+Vá bằng đúng một chữ: `.ba{position:relative}`.
+
+### (2) Bảng 11 cột rộng hơn khung — bóp lại, không bỏ cột
+
+Bảng chạy chế độ **gọn** qua lớp riêng `table.b-ns` / `.cuon-ns` (không bóp `table` chung — mấy
+bảng nhỏ cùng trang không cần): chữ 12.5px, ô sát lại, năm cột nút bỏ sàn 170px xuống 116px, cột
+Cơ sở chữ 11px. Khung chung cũng nới từ 1760px lên 2200px để màn 1920 dùng hết bề ngang.
+
+Đo được, ở cảnh thử 9 cột (`tools/xem/dung-man.php`):
+
+| | trước | sau |
+|---|---|---|
+| trang trôi ngang | **57px** | 0 |
+| bảng cần | 1576px | **1318px** |
+
+Quy ra bảng thật 11 cột (thêm *Nội bộ* và *Ghế massage*): **1916px → 1556px**. Vừa khung ở màn
+1600px trở lên. Màn hẹp hơn thì **chỉ RIÊNG bảng cuộn** — tiêu đề và dải lọc đứng yên, cột Mã NV
+ghim trái chạy đúng — và không bóp chữ thêm nữa, vì bóp nữa là không đọc được.
+
+### ⚠️ Bẫy đã sập một lần, nay có chốt
+
+`table.b-ns select.o-q-vai{max-width:152px}` **nặng ký hơn** `td select[name^="mbp_bp"]{max-width:none}`
+ở trên. Không ghi lại `max-width:none` trong chính luật `.b-ns` thì ô **Bộ phận** bị cắt cụt đuôi
+«theo cơ sở → …» — đúng lỗi bản 3.69.0, che mất đúng phần thông tin mà cái nhãn ấy sinh ra để nói.
+`tools/test/kiem-mang-bo-phan.php` mục 12 giữ cả ba luật này.
+
+`tools/xem/chup.js` nay in thẳng bảng bề ngang ở 1366 · 1500 · 1730 · 1920 — trang có trôi ngang
+không, bảng cần bao nhiêu, khung có bấy nhiêu.
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

@@ -1286,7 +1286,52 @@ class VHCC_TrangNS {
 			. 'tr.hang-sua .luoi label input[type="date"]{max-width:100%;min-width:0}'
 			/* Chú thích trong nhãn ("đang có 6 số…") xuống dòng riêng, đừng chen ngang làm nhãn
 			   dài gấp ba rồi kéo ô lưới rộng ra theo. */
-			. 'tr.hang-sua .luoi label .mo{display:block;font-size:11px;margin:1px 0 0}';
+			. 'tr.hang-sua .luoi label .mo{display:block;font-size:11px;margin:1px 0 0}'
+			/* ==============================================================================
+			 * CO GIÃN THEO TRANG — bảng nhân sự phải VỪA bề ngang trang
+			 * ==============================================================================
+			 * Anh Thắng 13/09/2026: *"Chỉnh lại co giãn theo trang"* — ảnh gửi kèm cho thấy
+			 * cột "Ghế massage" bị mép phải cắt cụt, còn thanh cuộn thì kéo CẢ TRANG đi ngang.
+			 *
+			 * 🔴 HAI CHUYỆN KHÁC NHAU, phải chữa cả hai — chữa một cái thì cái kia vẫn còn:
+			 *    (1) cả trang trôi ngang (lỗi thật, xem ngay dưới đây);
+			 *    (2) bảng 11 cột rộng hơn khung (phải bóp lại cho vừa).
+			 * ============================================================================== */
+			/* 🔴 (1) Ô chọn ẩn của dải ba nút là `position:absolute` mà KHÔNG có ổ neo nào, nên
+			   nó đo theo cả TRANG chứ không theo ô chứa — và `overflow-x` của `.cuon` chỉ cắt
+			   được thứ nằm trong lòng nó, không cắt được thứ neo ra ngoài. Hậu quả: trang thừa
+			   ra ~60px bề ngang, thanh cuộn dưới cùng kéo luôn cả tiêu đề lẫn dải lọc đi theo,
+			   mà cột Mã NV ghim trái thì hết ghim — vì nó ghim theo khung `.cuon`, không phải
+			   theo trang. Một chữ `position:relative` là ô ẩn về đúng trong lòng ô của nó. */
+			. '.ba{position:relative}'
+			/* (2a) Màn này là bảng 11 cột. Khung chung 1760px hợp với mọi màn khác, nhưng ở đây
+			   nó bỏ phí phần bề ngang còn lại của màn 1920 rồi lại đi cắt hai cột cuối. */
+			. '.bo{max-width:2200px}'
+			/* (2b) Chế độ GỌN cho riêng bảng nhân sự: chữ nhỏ hơn một điểm, ô sát lại. Bóp đều
+			   tay như vậy rẻ hơn nhiều so với bỏ bớt cột — mỗi cột ở đây đều có người dùng. */
+			. 'table.b-ns{font-size:12.5px}'
+			. 'table.b-ns th,table.b-ns td{padding:6px 7px}'
+			. '.cuon-ns input,.cuon-ns select{padding:4px 6px}'
+			/* Năm cột nút (ba cột quyền + Ghế + Chi phí) trước bị ghim 170px chỉ vì cột Bộ phận
+			   cần chỗ. Nay ghim sàn theo đúng bề ngang dải nút, còn tên cột thì cứ xuống dòng. */
+			. 'table.b-ns th.tr-doc{min-width:116px}'
+			. 'table.b-ns .ba span{padding:3px 6px;font-size:11px}'
+			. 'table.b-ns .cot-nut button{padding:2px 5px;font-size:10.5px}'
+			/* Hai cột điều động vẫn phải đọc HẾT nhãn «theo cơ sở → …» — đó là lý do chúng tồn
+			   tại. Nên bóp nhẹ hơn mấy cột nút, và có sàn riêng. */
+			/* ⚠️ Phải ghi lại `max-width:none` Ở ĐÂY. Luật `select.o-q-vai{max-width:152px}`
+			   ngay dưới nặng ký hơn luật `td select[name^="mbp_bp"]` ở trên, nên bỏ dòng này
+			   là ô Bộ phận bị cắt cụt đuôi «theo cơ sở → …» — đúng lỗi bản 3.69.0. */
+			. 'table.b-ns td select[name^="mbp_bp"]{max-width:none;min-width:146px}'
+			. 'table.b-ns select.o-q-vai{max-width:152px;font-size:12px}'
+			. 'table.b-ns .mb-suy{max-width:158px}'
+			. 'table.b-ns .o-cs-tich{min-width:0;font-size:11px}'
+			. 'table.b-ns .o-cs-tich label{font-size:11px}'
+			. 'table.b-ns .o-cs-tich .cs-hang{gap:6px}'
+			/* Màn hẹp (máy tính xách tay 13", máy bảng) thì KHÔNG bóp tiếp nữa — bóp nữa là
+			   không đọc được. Ở đó để `.cuon` cuộn ngang như cũ; khác một chỗ: nay chỉ RIÊNG
+			   bảng cuộn, tiêu đề và dải lọc đứng yên, và cột Mã NV ghim trái chạy đúng. */
+			. '@media(max-width:1100px){.bo{padding-left:12px;padding-right:12px}}';
 	}
 
 	/**
@@ -1931,7 +1976,9 @@ class VHCC_TrangNS {
 		echo '<form method="post">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
 		echo self::o_loc();
-		echo '<div class="cuon"><table><thead><tr>';
+		/* `cuon-ns` + `b-ns`: bảng NÀY chạy chế độ gọn để vừa bề ngang trang — xem `css_them()`.
+		   Đặt lớp riêng chứ không sửa `table` chung: mấy bảng nhỏ cùng trang không cần bóp. */
+		echo '<div class="cuon cuon-ns"><table class="b-ns"><thead><tr>';
 		echo '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Vai trò</th>';
 		/* Hai cột điều động. Nút áp cả cột ở ngay đầu cột — cùng cơ chế với ba cột quyền bên
 		   phải, và cũng chỉ áp cho người ĐANG HIỆN, không phải cả 225 người. */

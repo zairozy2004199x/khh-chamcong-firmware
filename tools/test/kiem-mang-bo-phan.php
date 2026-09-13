@@ -688,4 +688,33 @@ VHCC_Vai::gieo_cua_hang_pho();
 t( '🔴 xoá tay rồi thì nâng cấp KHÔNG mọc lại',
 	! in_array( 'Cửa hàng phó', VHCC_Vai::ds_ten(), true ), VHCC_Vai::ds_ten() );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 12. CO GIÃN THEO TRANG — BA CHỐT GIỮ BỐ CỤC
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026: *"Chỉnh lại co giãn theo trang"*. Ba luật CSS dưới đây mỗi cái vá một
+ * lỗi đã thấy tận mắt; xoá nhầm cái nào thì bố cục hỏng lại mà không phép thử nào kêu.
+ *
+ * ⚠️ Đây là chốt CHỐNG XOÁ NHẦM, không phải phép đo bố cục — đếm chuỗi thì không nhìn được màn
+ *    hình. Đo thật nằm ở `bash tools/xem/xem-man.sh` (mở bằng Chromium rồi đo từng cột).
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 12. Co giãn theo trang ──────────────────────────────\n";
+
+/* 🔴 Ô chọn ẩn của dải ba nút `position:absolute` mà không có ổ neo thì nó đo theo CẢ TRANG,
+   `overflow-x` của `.cuon` không cắt được, và cả trang trôi ngang ~60px — kéo theo cả tiêu đề
+   lẫn dải lọc, mà cột Mã NV ghim trái thì hết ghim. */
+t( '🔴 dải ba nút có ổ neo, không cho ô ẩn đẩy cả trang trôi ngang',
+	strpos( $src_ns, ".ba{position:relative}" ) !== false );
+
+/* Bảng nhân sự chạy chế độ gọn qua lớp riêng — không bóp `table` chung, vì mấy bảng nhỏ cùng
+   trang không cần. Mất lớp là mọi luật `table.b-ns{...}` thành vô nghĩa mà vẫn "có mặt". */
+t( 'bảng nhân sự mang lớp gọn b-ns / cuon-ns',
+	strpos( $src_ns, '<div class="cuon cuon-ns"><table class="b-ns">' ) !== false );
+
+/* 🔴 LỖI 3.69.0 SUÝT TÁI PHÁT. `table.b-ns select.o-q-vai{max-width:152px}` nặng ký hơn
+   `td select[name^="mbp_bp"]{max-width:none}` ở trên, nên nếu không ghi lại `max-width:none`
+   trong chính luật `.b-ns` thì ô Bộ phận bị cắt cụt đuôi «theo cơ sở → …» — che đúng phần
+   thông tin mà cái nhãn ấy sinh ra để nói. */
+t( '🔴 ô Bộ phận trong bảng gọn vẫn được nới hết cỡ (không cắt nhãn «theo cơ sở → …»)',
+	strpos( $src_ns, 'table.b-ns td select[name^="mbp_bp"]{max-width:none;min-width:146px}' ) !== false );
+
 ket_luan_vai();

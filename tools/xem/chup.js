@@ -51,6 +51,31 @@ if (!tep || !fs.existsSync(tep)) { console.log('✗ chưa dựng được tệp 
   if (cat.length) { cat.slice(0, 10).forEach(x => console.log('  ⚠️ ' + x)); }
   else { console.log('  ✓ không ô nào bị cắt'); }
 
+  /* 🔴 BỀ NGANG — lỗi anh Thắng thấy 13/09/2026 ("Chỉnh lại co giãn theo trang"): bảng tràn
+   *    khung, VÀ cả trang trôi ngang vì ô chọn ẩn của dải ba nút neo ra ngoài `.cuon`.
+   *    Trang trôi ngang tệ hơn bảng tràn: thanh cuộn kéo theo cả tiêu đề lẫn dải lọc, và cột
+   *    Mã NV ghim trái hết ghim — nó ghim theo khung bảng, không theo trang. */
+  console.log('\n── Bề ngang: trang và bảng có vừa nhau không ──────────────');
+  for (const W of [1366, 1500, 1730, 1920]) {
+    await p.setViewportSize({ width: W, height: 1000 });
+    await p.waitForTimeout(120);
+    const d = await p.evaluate(() => {
+      const t = [...document.querySelectorAll('.cuon table')]
+        .find(x => x.querySelectorAll('thead th').length > 6);
+      const c = t && t.closest('.cuon');
+      const min = (() => { if (!t) return 0; t.style.width = 'min-content';
+        const w = t.offsetWidth; t.style.width = ''; return w; })();
+      return { trang: document.documentElement.scrollWidth, win: innerWidth,
+        khung: c ? c.clientWidth : 0, can: min, cot: t ? t.querySelectorAll('thead th').length : 0 };
+    });
+    const troi = d.trang > d.win + 1;
+    console.log('  ' + String(W).padEnd(5)
+      + (troi ? '⚠️ CẢ TRANG trôi ngang ' + (d.trang - d.win) + 'px' : '✓ trang không trôi ngang')
+      + ' · bảng ' + d.cot + ' cột cần ' + d.can + 'px, khung ' + d.khung + 'px → '
+      + (d.can <= d.khung + 1 ? 'vừa' : 'phải cuộn ' + (d.can - d.khung) + 'px'));
+  }
+  await p.setViewportSize({ width: 1500, height: 1200 });
+
   console.log('\n📷 ảnh: ' + path.join(thuMuc, 'man-day-du.png') + ' · ' + path.join(thuMuc, 'dai-dem.png'));
   await b.close();
 })();
