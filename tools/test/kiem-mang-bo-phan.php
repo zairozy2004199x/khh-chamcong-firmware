@@ -365,10 +365,101 @@ t( '🔴 luu_mang_bp() gọi sau luu_coso()',
 	strpos( $src, '$cs  = self::luu_coso( $toi );' ) < strpos( $src, '$mbp = self::luu_mang_bp( $toi );' ) );
 
 /* ------------------------------------------------------------------ kết luận */
-echo "\n";
-if ( $truot ) {
-	echo '✗ TRƯỢT ' . count( $truot ) . ' / ' . ( $dat + count( $truot ) ) . ":\n";
-	foreach ( $truot as $x ) { echo '    · ' . $x . "\n"; }
-	exit( 1 );
+function ket_luan_vai() {
+	global $dat, $truot;
+	echo "\n";
+	if ( $truot ) {
+		echo '✗ TRƯỢT ' . count( $truot ) . ' / ' . ( $dat + count( $truot ) ) . ":\n";
+		foreach ( $truot as $x ) { echo '    · ' . $x . "\n"; }
+		exit( 1 );
+	}
+	echo "✓ ĐẠT — $dat phép: mảng & bộ phận gắn được, và dải vai chỉ đúng ai bị chối ở cổng.\n";
 }
-echo "✓ ĐẠT — $dat phép: mảng & bộ phận gắn được, trôi theo cơ sở đúng, điều động không có cửa hậu.\n";
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 7. DẢI ĐẾM THEO VAI — VÀ CHỐT CHỐNG BÁO OAN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026 đã chuyển nguồn người dùng sang `ho_so` (cổng PIN đọc thẳng hồ sơ). Từ
+ * đó cột Vai trò không còn là một ô xổ trên bảng — nó là THỨ QUYẾT ĐỊNH AI VÀO ĐƯỢC CỔNG, vì
+ * `VHCC_Phien` so vai trong thẻ phiên với `VHCC_Auth::vai_tro_vao()`.
+ *
+ * 🔴 BÀI HỌC MẤT MỘT LƯỢT. Bản đầu của `dem_vai()` TỰ VIẾT LUẬT: so chuỗi vai với
+ *    `vai_tro_vao()` bằng `khoa_ten()`. Dải đếm lập tức tô đỏ vai **"Kế toán"** — một trong năm
+ *    vai DỰNG SẴN — và báo "3 người không vào được cổng". Thử qua cửa thật thì họ VÀO ĐƯỢC:
+ *    nguồn `ho_so` chạy mỗi chuỗi qua `VHCC_NguoiDung::vai_tro_biet()` trước, hàm ấy quy
+ *    "Kế toán" → "Kế toán cá nhân".
+ *
+ * ⚠️ BÁO OAN Ở ĐÂY LÀ LOẠI TỆ NHẤT: nó bảo người ta đi sửa vai của mấy chục hồ sơ đang chạy
+ *    tốt — sửa xong mới là lúc hỏng thật. Dòng đỏ kêu oan không chỉ vô dụng, nó sai khiến.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 7. Đếm theo vai, và ai bị chối ở cổng ───────────────\n";
+
+/* ⚠️ KHAI QUA API THẬT (`dat_them`), ĐỪNG NHÉT THẲNG OPTION. `VHCC_Vai::them()` nhớ kết quả
+   trong một biến tĩnh cho cả lượt chạy; nhét option thô thì bộ đệm vẫn giữ giá trị cũ và bài
+   thử đo một danh sách không tồn tại. Đi qua API thì cũng là thử luôn phép xoá đệm — chính là
+   lỗi vừa vá ở `dat_them()`: khai vai mới xong, bảng vẽ lại NGAY trong lượt POST ấy vẫn thiếu
+   vai vừa khai, và người khai tưởng mình bấm hụt. */
+$ad_v = array( 'ma_nv' => 'AD9', 'role' => 'Admin' );
+/* 🔴 LÀM BẨN BỘ ĐỆM TRƯỚC — nếu không, phép thử dưới XANH CẢ KHI mã đã hỏng.
+   `them()` chỉ nhớ sau LẦN ĐỌC ĐẦU. Bài thử mà khai vai trước khi đọc lần nào thì bộ đệm còn
+   rỗng, nên bỏ hẳn phép xoá đệm nó vẫn xanh — đúng loại phép thử canh chính nó.
+   Cảnh thật luôn đọc trước: trang vẽ ô xổ Vai trò (gọi `ds_ten()`) rồi người ta mới bấm POST
+   thêm vai, và bảng vẽ lại NGAY trong lượt ấy. */
+$truoc_v = count( VHCC_Vai::ds_ten() );
+t( 'dựng cảnh: đã đọc danh sách vai một lượt (bộ đệm nóng)', $truoc_v > 0, $truoc_v );
+foreach ( array( 'Kế Toán MTD' => 'KE_TOAN', 'Hotline MTD' => 'NHAN_VIEN' ) as $t_v => $g_v ) {
+	$r_v = VHCC_Vai::dat_them( $ad_v, $t_v, $g_v );
+	t( 'khai được vai tự tạo "' . $t_v . '"', ! empty( $r_v['ok'] ), $r_v );
+}
+t( '🔴 vai vừa khai có mặt NGAY trong lượt này (bộ đệm đã được xoá lúc lưu)',
+	in_array( 'Kế Toán MTD', VHCC_Vai::ds_ten(), true ), VHCC_Vai::ds_ten() );
+teq( 'và danh sách dài thêm đúng hai vai vừa khai', $truoc_v + 2, count( VHCC_Vai::ds_ten() ) );
+
+/* 🔴 Năm vai DỰNG SẴN phải vào được HẾT. Đỏ ở đây nghĩa là hệ đang tự chối chính vai của mình. */
+foreach ( VHCC_Vai::TEN as $ma_v => $ten_v ) {
+	t( '🔴 vai dựng sẵn "' . $ten_v . '" phải vào được cổng', VHCC_NhanSu::vai_vao_duoc( $ten_v ) );
+}
+/* Vai TỰ TẠO nằm ở `ds_ten()`, `vai_tro_biet()` không biết chúng — phải khớp thẳng. */
+t( '🔴 vai tự tạo đã khai thì vào được', VHCC_NhanSu::vai_vao_duoc( 'Kế Toán MTD' ) );
+t( 'và vai tự tạo thứ hai cũng vậy', VHCC_NhanSu::vai_vao_duoc( 'Hotline MTD' ) );
+/* Viết tắt của sổ cũ — `vai_tro_biet()` lo phần này. */
+t( 'viết tắt "ql" vào được', VHCC_NhanSu::vai_vao_duoc( 'ql' ) );
+t( 'viết tắt "cht" vào được', VHCC_NhanSu::vai_vao_duoc( 'cht' ) );
+/* Vai TRỐNG không phải bị chối — `users_cua()` hạ về 'Nhân viên'. Tô đỏ nó là báo oan. */
+t( '🔴 vai TRỐNG không bị coi là chối', VHCC_NhanSu::vai_vao_duoc( '' ) );
+/* Còn vai lạ thật thì phải đỏ, nếu không dải này chẳng canh gì. */
+t( '🔴 vai lạ thật thì BỊ CHỐI', ! VHCC_NhanSu::vai_vao_duoc( 'Truong ca' ) );
+t( 'và một chuỗi bịa cũng bị chối', ! VHCC_NhanSu::vai_vao_duoc( 'Vai Trên Trời' ) );
+
+/* --- đếm --- */
+$ds_v = array(
+	array( 'vai_tro' => 'Nhân viên' ), array( 'vai_tro' => 'Nhân viên' ),
+	array( 'vai_tro' => 'Kế toán' ),            // dựng sẵn, quy đổi được -> KHÔNG đỏ
+	array( 'vai_tro' => 'Kế Toán MTD' ),        // tự tạo đã khai -> KHÔNG đỏ
+	array( 'vai_tro' => 'Truong ca' ),          // lạ -> đỏ
+	array( 'vai_tro' => '' ),                   // trống -> KHÔNG đỏ
+);
+$dv = VHCC_NhanSu::dem_vai( $ds_v );
+teq( 'đếm đúng số vai khác nhau', 5, count( $dv['vai'] ) );
+teq( 'gộp đúng hai người cùng vai', 2, $dv['vai']['Nhân viên']['so'] );
+teq( '🔴 chỉ MỘT người bị chối, không báo oan cả đám', 1, $dv['chan'] );
+t( '🔴 "Kế toán" KHÔNG bị tô đỏ (đây đúng chỗ bản đầu sai)', ! empty( $dv['vai']['Kế toán']['vao'] ) );
+t( 'vai tự tạo không bị tô đỏ', ! empty( $dv['vai']['Kế Toán MTD']['vao'] ) );
+t( 'vai trống không bị tô đỏ', ! empty( $dv['vai']['— chưa khai vai —']['vao'] ) );
+t( '🔴 vai lạ BỊ tô đỏ', empty( $dv['vai']['Truong ca']['vao'] ) );
+
+/* Sắp giảm dần để vai đông người đứng trước — dải đếm đọc từ trái sang. */
+$dau_v = array_key_first( $dv['vai'] );
+teq( 'vai đông người nhất đứng đầu', 'Nhân viên', $dau_v );
+
+/* --- màn hình --- */
+t( 'màn nhân sự có dải đếm vai', strpos( $src_ns, 'dai_vai(' ) !== false );
+t( '🔴 bộ lọc nhận CẢ mã bậc lẫn tên vai thật',
+	strpos( $src_ns, '$la_ma = isset( VHCC_Vai::BAC[ $vai ] );' ) !== false );
+t( 'ô vai bị chối có lớp riêng để tô đỏ', strpos( $src_ns, 'vai-chan' ) !== false );
+/* Luật "ai vào được" chỉ được viết MỘT chỗ — mọc bản sao là sớm muộn lệch nhau. */
+teq( 'vai_vao_duoc() chỉ được gọi từ dem_vai()', 1,
+	substr_count( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php' ),
+		'self::vai_vao_duoc(' ) );
+
+ket_luan_vai();

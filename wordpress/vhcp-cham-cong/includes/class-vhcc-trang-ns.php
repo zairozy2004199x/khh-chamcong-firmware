@@ -1021,6 +1021,7 @@ class VHCC_TrangNS {
 			   che đúng phần thông tin, nên cột này nới rộng hơn ô xổ thường. */
 			. 'th.tr-doc{min-width:170px}'
 			. 'td select[name^="mbp_bp"]{max-width:none;width:100%;min-width:160px}'
+			. '.dai-hang .nut.vai-chan{border-color:#fecaca;background:#fef2f2;color:var(--do)}'
 			. '.mb-hop{display:flex;flex-direction:column;gap:1px}'
 			. '.mb-o{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;cursor:pointer}'
 			. '.mb-o input{margin:0}'
@@ -1610,10 +1611,24 @@ class VHCC_TrangNS {
 		$dang_pin = isset( $_GET['pin_o'] ) ? sanitize_text_field( wp_unslash( $_GET['pin_o'] ) ) : '';
 		$dang_xoa = isset( $_GET['xoa_o'] ) ? sanitize_text_field( wp_unslash( $_GET['xoa_o'] ) ) : '';
 		$nguoi = VHCC_NhanSu::ds_nhan_vien( $toi, $cs, $q );
+		/* Dải đếm vai dựng TRƯỚC khi lọc — bấm vào một ô xong mà dải chỉ còn mỗi ô ấy thì không
+		   còn đường bấm sang ô khác, phải Bỏ lọc rồi làm lại. Cùng lối với dải mảng/bộ phận. */
+		$dem_v = VHCC_NhanSu::dem_vai( $nguoi );
 		if ( '' !== $vai ) {
+			/* 🔴 NHẬN CẢ HAI KIỂU GIÁ TRỊ.
+			   Ô xổ trên thanh lọc gửi MÃ BẬC ('NHAN_VIEN'…) — năm bậc, gộp mọi vai cùng bậc.
+			   Dải đếm bên dưới gửi TÊN VAI THẬT ('Kế Toán MTD') — vì nó đếm theo chuỗi trong sổ.
+			   Chỉ nhận một kiểu thì cái kia bấm vào ra bảng rỗng, mà bảng rỗng trông y như
+			   "không có ai như vậy" chứ không giống một bộ lọc hiểu nhầm. */
+			$la_ma = isset( VHCC_Vai::BAC[ $vai ] );
+			$k_vai = VHCC_Vai::khoa_ten( $vai );
 			$loc = array();
 			foreach ( $nguoi as $r ) {
-				if ( VHCC_Vai::ma( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) === $vai ) { $loc[] = $r; }
+				$t_r = trim( (string) ( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) );
+				$khop = $la_ma
+					? ( VHCC_Vai::ma( $t_r ) === $vai )
+					: ( '— chưa khai vai —' === $vai ? '' === $t_r : VHCC_Vai::khoa_ten( $t_r ) === $k_vai );
+				if ( $khop ) { $loc[] = $r; }
 			}
 			$nguoi = $loc;
 		}
@@ -1712,6 +1727,7 @@ class VHCC_TrangNS {
 
 		self::o_tim( $toi, $cs, $q, $vai, $mang, $nbp );
 		self::dai_mang_bp( $dem_mb, $mang, $nbp );
+		self::dai_vai( $dem_v, $vai );
 
 		if ( ! $lat ) {
 			echo '<div class="bao canh">Không có hồ sơ nào khớp bộ lọc.</div></div>';
@@ -2630,6 +2646,42 @@ class VHCC_TrangNS {
 				. ' người hệ KHÔNG suy ra mảng</b> — chưa gắn cơ sở, hoặc cơ sở của họ chưa ai khai '
 				. 'mảng. Đây là danh sách việc: <a href="' . esc_url( $u_tay ) . '">xem '
 				. (int) $dem['canChonTay'] . ' người này</a>.</p>';
+		}
+		echo '</div>';
+	}
+
+
+	/**
+	 * DẢI ĐẾM THEO VAI TRÒ — và tô đỏ vai nào ĐANG BỊ CHỐI Ở CỬA.
+	 *
+	 * 🔴 Từ lúc cổng PIN đọc thẳng hồ sơ (nguồn `ho_so`), cột Vai trò quyết định ai vào được.
+	 *    Một hồ sơ mang chuỗi vai không có trong danh sách được vào là người đó đăng nhập không
+	 *    được — mà màn hình chỉ nói "PIN không đúng hoặc chưa được cấp", nên họ đổ cho cái PIN.
+	 *    Dải này là chỗ duy nhất nhìn ra chuyện đó trước khi có người gọi điện than.
+	 *
+	 * ⚠️ Mỗi ô là một ĐƯỜNG LỌC theo TÊN VAI THẬT, không phải theo bậc — xem chốt hai kiểu giá
+	 *    trị ở `the_bang()`.
+	 */
+	private static function dai_vai( $dem, $dang ) {
+		if ( empty( $dem['vai'] ) ) { return; }
+		echo '<div class="dai-mb"><div class="dai-hang"><b>Vai trò</b>';
+		foreach ( $dem['vai'] as $ten => $x ) {
+			$dg = ( (string) $dang === (string) $ten );
+			$u  = add_query_arg( array( 'nvai' => $dg ? '' : $ten, 'np' => 1 ), self::url_hien() );
+			echo '<a class="nut' . ( $dg ? ' chinh' : '' ) . ( empty( $x['vao'] ) ? ' vai-chan' : '' ) . '"'
+				. ' href="' . esc_url( $u ) . '"'
+				. ( empty( $x['vao'] )
+					? ' title="Vai này KHÔNG có trong danh sách được vào cổng — người mang nó đăng nhập không được"'
+					: ( $dg ? ' title="Đang lọc theo ô này — bấm lần nữa để bỏ lọc"' : '' ) ) . '>'
+				. ( empty( $x['vao'] ) ? '⛔ ' : '' ) . esc_html( $ten ) . ' <b>' . (int) $x['so'] . '</b></a>';
+		}
+		echo '</div>';
+		if ( ! empty( $dem['chan'] ) ) {
+			echo '<p class="bao canh" style="margin:6px 0 0">⛔ <b>' . (int) $dem['chan']
+				. ' người mang vai KHÔNG vào được cổng</b> — hồ sơ ghi một tên vai mà hệ không có. '
+				. 'Họ gõ đúng PIN vẫn bị chối, và màn hình chỉ nói "PIN không đúng" nên không ai '
+				. 'đoán ra. Bấm ô ⛔ ở trên để xem họ là ai, rồi đổi sang một vai có thật — hoặc '
+				. 'khai thêm vai ấy ở khối <b>Bảng vai trò</b> bên dưới.</p>';
 		}
 		echo '</div>';
 	}

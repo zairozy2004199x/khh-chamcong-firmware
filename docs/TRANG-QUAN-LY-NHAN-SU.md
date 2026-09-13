@@ -770,6 +770,44 @@ chuỗi xác nhận → đỏ.
 
 ---
 
+## 4k. Dải đếm theo VAI — và ai đang bị chối ở cổng (3.71.0)
+
+Sau khi anh Thắng chuyển nguồn người dùng sang `ho_so`, cột Vai trò **thôi là một ô xổ** và trở
+thành **thứ quyết định ai vào được cổng**: `VHCC_Phien` so vai trong thẻ phiên với
+`VHCC_Auth::vai_tro_vao()`.
+
+Hệ quả: một hồ sơ mang chuỗi vai hệ không có (vai sót từ sổ cũ, gõ sai chính tả, vai của app
+khác) là người đó **đăng nhập không được** — mà màn hình chỉ nói *"PIN không đúng hoặc chưa được
+cấp"*. Họ đổ cho cái PIN, gõ lại mấy lượt rồi thôi. Không ai lần ra là vì cái tên vai.
+
+Dải mới đếm **theo chuỗi thật trong sổ** (không quy về bậc — quy về bậc thì "Kế Toán MTD" và
+"Kế toán cá nhân" gộp vào một ô, che mất đúng thứ cần nhìn), mỗi ô là một đường lọc, và **tô đỏ
+⛔** vai nào không qua được cửa.
+
+### 🔴 Bài học: đừng tự viết luật, hãy gọi đúng đường cổng đi
+
+Bản đầu của `dem_vai()` tự so chuỗi với `vai_tro_vao()` bằng `khoa_ten()`. Dải lập tức tô đỏ vai
+**"Kế toán"** — một trong *năm vai dựng sẵn* — và báo "3 người không vào được cổng".
+
+Thử qua cửa thật thì họ **vào được**: nguồn `ho_so` chạy mỗi chuỗi qua
+`VHCC_NguoiDung::vai_tro_biet()` trước, hàm ấy quy `Kế toán → Kế toán cá nhân`, `ql → Quản lý`,
+`cht → Cửa hàng trưởng`…
+
+⚠️ **Báo oan ở đây là loại tệ nhất**: nó bảo người ta đi sửa vai của mấy chục hồ sơ đang chạy
+tốt — sửa xong mới là lúc hỏng thật. Dòng đỏ kêu oan không chỉ vô dụng, nó **sai khiến**.
+
+`VHCC_NhanSu::vai_vao_duoc()` nay đi đúng đường: khớp thẳng `vai_tro_vao()` trước (bắt vai **tự
+tạo**, thứ `vai_tro_biet()` không biết), rồi mới quy đổi. Vai **trống** không tính là bị chối —
+`users_cua()` hạ nó về 'Nhân viên'.
+
+Bộ lọc `nvai` nhận **cả hai kiểu**: mã bậc (từ ô xổ trên thanh lọc) và tên vai thật (từ dải đếm).
+Chỉ nhận một kiểu thì cái kia bấm vào ra bảng rỗng — mà bảng rỗng trông y như "không có ai như
+vậy" chứ không giống một bộ lọc hiểu nhầm.
+
+109 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

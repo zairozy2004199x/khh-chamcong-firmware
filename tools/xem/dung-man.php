@@ -57,6 +57,11 @@ $nv( 'MNVP2CTY0001', 'HUỲNH QUANG THẮNG', '', '', '', 'Admin', 'Văn phòng'
 $nv( 'MNVP2CTY0011', 'TRẦN THỊ KẾ TOÁN', '', '', '', 'Kế toán', 'Văn phòng', 'Phòng Kế Toán - Tài Chính' );
 $nv( 'MNNV2XXX0099', 'VÕ MINH KHOA', 'CS_MOI_CHUA_KHAI' );                    // 🔴 cơ sở chưa khai mảng
 $nv( 'MNNV2XXX0100', 'ĐẶNG VĂN LỘC', '' );                                     // 🔴 chưa gắn cơ sở
+/* 🔴 VAI SÓT TỪ SỔ CŨ — người này gõ đúng PIN vẫn bị chối ở cổng, mà màn hình chỉ nói "PIN không
+   đúng". Đúng cảnh dải đếm vai sinh ra để lôi lên mặt. */
+$nv( 'MNNV2SOT0001', 'BÙI VAI SÓT', 'FZ_LTVT', '', '', 'Kế Toán MTD' );
+$nv( 'MNNV2SOT0002', 'CAO VAI LẠ', 'FZ_LTVT', '', '', 'Truong ca' );
+$nv( 'MNNV2SOT0003', 'DƯƠNG CHƯA KHAI', 'FZ_LTVT', '', '', '' );
 
 /* ---- Thẻ phiên Admin, rồi gọi ĐÚNG trang thật ---- */
 $tok = VHCC_Auth::phat_token( 'Huỳnh Quang Thắng', 'Admin', '', 'MNVP2CTY0001' );

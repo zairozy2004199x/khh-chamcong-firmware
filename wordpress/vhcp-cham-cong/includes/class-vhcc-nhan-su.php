@@ -1097,6 +1097,77 @@ class VHCC_NhanSu {
 			'canChonTay' => $tay, 'nhieuMang' => $nhieu );
 	}
 
+
+	/**
+	 * ĐẾM NGƯỜI THEO VAI TRÒ — và chỉ ra vai nào ĐANG BỊ CHỐI Ở CỬA.
+	 *
+	 * =============================================================================================
+	 * 🔴 VÌ SAO CẦN, VÀ VÌ SAO LÀ BÂY GIỜ.
+	 * =============================================================================================
+	 * Anh Thắng 13/09/2026 đã chuyển nguồn người dùng sang `ho_so` — cổng PIN nay đọc THẲNG hồ sơ
+	 * nhân sự. Chuyện đó đổi hẳn tính chất của cột Vai trò: trước nó chỉ là một ô xổ trên bảng,
+	 * nay nó là **thứ quyết định ai vào được cổng**, vì `login()` so vai trong hồ sơ với
+	 * `VHCC_Auth::vai_tro_vao()`.
+	 *
+	 * Hệ quả: một hồ sơ mang chuỗi vai KHÔNG có trong danh sách ấy (vai sót từ sổ cũ, vai gõ sai
+	 * chính tả, vai của app khác) là người đó **đăng nhập không được** — mà màn hình chỉ nói
+	 * "PIN không đúng hoặc chưa được cấp". Họ đi đổ cho cái PIN, gõ lại mấy lượt rồi thôi. Không
+	 * ai lần ra là vì cái tên vai.
+	 *
+	 * ⚠️ ĐẾM THEO CHUỖI THẬT TRONG SỔ, KHÔNG QUY VỀ MÃ. Quy về mã thì "Kế Toán MTD" và "Kế toán
+	 *    cá nhân" gộp hết vào một ô "Kế toán" — đúng về quyền, nhưng che mất đúng thứ đang cần
+	 *    nhìn: có bao nhiêu chuỗi vai khác nhau đang nằm trong sổ, và chuỗi nào không vào được.
+	 *
+	 * @param array $ds danh sách hồ sơ ĐÃ LỌC QUYỀN (cùng lý do với `dem_mang_bo_phan`).
+	 * @return array array( 'vai' => [ tên => ['so'=>N,'vao'=>bool] ], 'chan' => số người bị chối )
+	 */
+	public static function dem_vai( $ds ) {
+		$ra = array(); $chan = 0;
+		foreach ( (array) $ds as $r ) {
+			$t = trim( (string) ( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) );
+			$k = ( '' !== $t ) ? $t : '— chưa khai vai —';
+			if ( ! isset( $ra[ $k ] ) ) {
+				$ra[ $k ] = array( 'so' => 0, 'vao' => self::vai_vao_duoc( $t ) );
+			}
+			$ra[ $k ]['so']++;
+			if ( ! $ra[ $k ]['vao'] ) { $chan++; }
+		}
+		uasort( $ra, function ( $a, $b ) { return $b['so'] - $a['so']; } );
+		return array( 'vai' => $ra, 'chan' => $chan );
+	}
+
+	/**
+	 * CHUỖI VAI NÀY CÓ QUA ĐƯỢC CỬA KHÔNG — đi ĐÚNG ĐƯỜNG CỔNG ĐI, không tự viết luật.
+	 *
+	 * 🔴 BÀI HỌC 13/09/2026, MẤT MỘT LƯỢT. Bản đầu của `dem_vai()` tự so chuỗi vai với
+	 *    `vai_tro_vao()` bằng `khoa_ten()`. Kết quả: dải đếm tô đỏ vai **"Kế toán"** — một trong
+	 *    năm vai DỰNG SẴN của hệ — và báo "3 người không vào được cổng".
+	 *
+	 *    Thử qua cửa thật thì họ VÀO ĐƯỢC. Vì nguồn `ho_so` chạy mỗi chuỗi vai qua
+	 *    `VHCC_NguoiDung::vai_tro_biet()` TRƯỚC đã — hàm ấy quy "Kế toán" → "Kế toán cá nhân",
+	 *    "ql" → "Quản lý", "cht" → "Cửa hàng trưởng"… Bỏ qua bước quy đổi là báo oan hàng loạt.
+	 *
+	 * ⚠️ MÀ BÁO OAN Ở ĐÂY LÀ LOẠI TỆ NHẤT: nó bảo người ta đi sửa vai của mấy chục hồ sơ đang
+	 *    chạy tốt. Sửa xong mới là lúc hỏng thật. Dòng đỏ kêu oan không chỉ vô dụng — nó sai
+	 *    khiến người ta.
+	 *
+	 * Nên: quy đổi bằng đúng hàm cổng dùng, rồi mới so với đúng danh sách cổng so.
+	 */
+	public static function vai_vao_duoc( $tho ) {
+		$t = trim( (string) $tho );
+		/* Vai TRỐNG không phải bị chối: `users_cua()` hạ nó về 'Nhân viên', bậc thấp nhất. */
+		if ( '' === $t ) { return true; }
+		if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'vai_tro_vao' ) ) { return true; }
+		$cho = VHCC_Auth::vai_tro_vao();
+		/* Khớp thẳng — vai tự tạo ("Kế Toán MTD") nằm ở đây, `vai_tro_biet()` không biết chúng. */
+		if ( in_array( $t, $cho, true ) ) { return true; }
+		if ( class_exists( 'VHCC_NguoiDung' ) && method_exists( 'VHCC_NguoiDung', 'vai_tro_biet' ) ) {
+			$quy = VHCC_NguoiDung::vai_tro_biet( $t );
+			if ( '' !== $quy && in_array( $quy, $cho, true ) ) { return true; }
+		}
+		return false;
+	}
+
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
