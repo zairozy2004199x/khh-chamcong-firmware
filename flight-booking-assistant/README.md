@@ -22,6 +22,9 @@ flight-booking-assistant/
 
 ## Chạy
 
+Nhanh nhất: Windows bấm đúp `chay-windows.bat`, macOS/Linux chạy `./chay-mac-linux.sh` — nó tự tạo
+`.env` lần đầu, mở cả hai máy chủ rồi bật trình duyệt. Xem thêm `BAT-DAU.txt`.
+
 Chỉ xem bảng giá và điền hộ: mở thẳng `index.html` bằng Chrome/Edge/Safari. Không cài gì.
 Hồ sơ hành khách nằm trong `localStorage` của chính trình duyệt đó.
 

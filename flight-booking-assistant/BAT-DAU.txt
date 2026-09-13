@@ -1,0 +1,28 @@
+DÒ VÉ RẺ — so giá vé máy bay, điền hộ hồ sơ, và bán vé qua mình
+================================================================
+
+CHỈ XEM BẢNG GIÁ THÌ KHÔNG CẦN CÀI GÌ
+  Bấm đúp vào  index.html  — mở bằng Chrome hoặc Edge là chạy.
+
+MUỐN GIÁ THẬT + NHẬN ĐƠN CỦA KHÁCH
+  1. Cài Node.js bản LTS ở https://nodejs.org  (một lần duy nhất)
+  2. Windows : bấm đúp  chay-windows.bat
+     Mac/Linux: mở Terminal, kéo file  chay-mac-linux.sh  vào rồi Enter
+  3. Lần đầu nó tạo file .env và mở lên cho anh khai:
+       - số tài khoản ngân hàng nhận tiền của khách
+       - khoá Amadeus nếu muốn giá thật (bỏ trống thì chạy giá mô phỏng)
+       - SMTP để gửi email mã vé cho khách (bỏ trống thì thư chỉ in ra màn hình)
+     Khai xong lưu lại, chạy lại file .bat / .sh ở bước 2.
+
+BA ĐỊA CHỈ SẼ DÙNG
+  index.html                             bảng giá, dò chuyến, điền hộ hồ sơ
+  http://localhost:8788/dat-ve.html      trang khách đặt vé và chuyển khoản
+  http://localhost:8788/quan-tri.html    trang mình xử lý đơn (cần token trong .env)
+
+MẤY ĐIỀU NÊN BIẾT TRƯỚC
+  - Số thẻ và OTP luôn do khách/mình tự nhập. Bộ này không lưu thẻ ở bất kỳ đâu.
+  - Vietjet và Vietravel phần lớn không bán qua GDS, nên giá thật từ Amadeus vẫn
+    phải đối chiếu với trang hãng.
+  - Giá đổi từng phút: đơn có hạn giữ giá, quá hạn thì đặt lại theo giá mới.
+
+Chi tiết từng phần nằm trong README.md.
