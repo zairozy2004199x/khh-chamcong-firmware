@@ -182,6 +182,13 @@ $cd = dvr_cai_dat();
 				</td>
 			</tr>
 			<tr>
+				<th scope="row"><label for="dvr_ty_gia">Tỉ giá quy đổi</label></th>
+				<td><input type="number" name="dovere_settings[ty_gia]" id="dvr_ty_gia" value="<?php echo esc_attr( $cd['ty_gia'] ); ?>" class="regular-text" step="1" min="0" placeholder="26200">
+					<p class="description">Duffel thường báo giá bằng <b>USD</b>. Khai số VND cho 1 USD là bảng giá hiện tiền Việt,
+						kèm ghi chú &ldquo;quy đổi từ … USD&rdquo;. Để 0 thì giữ nguyên ngoại tệ.
+						<b>Tỉ giá này do mình tự khai, nhớ cập nhật</b> — và nhớ tính rộng tay một chút vì ngân hàng bán ra cao hơn tỉ giá trung tâm.</p></td>
+			</tr>
+			<tr>
 				<th scope="row">Thử nguồn</th>
 				<td>
 					<p class="description" style="margin:0 0 8px">Lưu cài đặt trước, rồi bấm thử — máy gọi đúng nguồn đang chọn và cho xem vài chuyến có thật.</p>
@@ -323,6 +330,7 @@ $cd = dvr_cai_dat();
 				'',
 				(j.so_chuyen ? '✓ ' : '✗ ') + j.ket_luan
 			];
+			if (j.canh_bao) { d.push('', '⚠ ' + j.canh_bao); }
 			if (j.vai_chuyen && j.vai_chuyen.length) {
 				d.push('', 'Vài chuyến lấy được:');
 				j.vai_chuyen.forEach(function (x) { d.push('  · ' + x); });

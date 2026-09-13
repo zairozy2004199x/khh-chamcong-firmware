@@ -164,7 +164,7 @@ class DVR_Admin {
 		$ng                = isset( $v['nguon'] ) ? $v['nguon'] : 'mo_phong';
 		$ra['nguon']       = in_array( $ng, array( 'mo_phong', 'duffel', 'amadeus', 'dai_ly' ), true ) ? $ng : 'mo_phong';
 		$ra['amadeus_env'] = 'production' === ( isset( $v['amadeus_env'] ) ? $v['amadeus_env'] : '' ) ? 'production' : 'test';
-		foreach ( array( 'fee_pct', 'fee_flat', 'fee_min', 'hold_minutes', 'order_page' ) as $k ) {
+		foreach ( array( 'fee_pct', 'fee_flat', 'fee_min', 'hold_minutes', 'order_page', 'ty_gia' ) as $k ) {
 			$ra[ $k ] = max( 0, (float) ( isset( $v[ $k ] ) ? $v[ $k ] : 0 ) );
 		}
 		$ra['hold_minutes'] = max( 5, (int) $ra['hold_minutes'] );

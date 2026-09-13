@@ -236,6 +236,52 @@ ok( 'thư chốt giá mới đưa số tài khoản', strpos( $bg['html'], '0071
 $hc = DVR_Mail::soan( 'het_cho', $o );
 ok( 'thư hết chỗ nói rõ chưa thu đồng nào', strpos( $hc['html'], 'chưa thu đồng nào' ) !== false );
 
+echo "\nQuy đổi ngoại tệ\n";
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 26200;
+list( $tien, $cur, $ghi ) = dvr_quy_doi( 55, 'USD' );
+ok( '55 USD thành 1.441.000đ', 1441000 === $tien && 'VND' === $cur, array( $tien, $cur ) );
+ok( 'ghi rõ quy đổi từ đâu', 'quy đổi từ 55 USD' === $ghi, $ghi );
+list( $t2, $c2, $g2 ) = dvr_quy_doi( 1690000, 'VND' );
+ok( 'tiền Việt thì giữ nguyên, không ghi chú', 1690000 === $t2 && '' === $g2 );
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 0;
+list( $t3, $c3 ) = dvr_quy_doi( 55, 'USD' );
+ok( 'chưa khai tỉ giá thì giữ nguyên ngoại tệ', 55 === $t3 && 'USD' === $c3, array( $t3, $c3 ) );
+
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 26200;
+$body = json_decode( file_get_contents( $goc . '/tests/duffel-offers.json' ), true );
+$body['data']['offers'][0]['total_currency'] = 'USD';
+$body['data']['offers'][0]['total_amount']   = '110.00';
+$ch = DVR_Duffel::doi_du_lieu( $body, array( 'adt' => 2, 'chd' => 0 ) );
+$usd = null;
+foreach ( $ch as $x ) { if ( $x['goc'] ) { $usd = $x; } }
+ok( 'chào giá USD của Duffel được đổi sang VND', $usd && 1441000 === $usd['price'] && 'VND' === $usd['cur'],
+	$usd ? array( $usd['price'], $usd['cur'] ) : null );
+ok( 'ghi chú ghi giá MỖI KHÁCH (110 USD cho 2 khách = 55)',
+	$usd && 'quy đổi từ 55 USD' === $usd['goc'], $usd ? $usd['goc'] : null );
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 0;
+
+echo "\nLọc hãng giả của chế độ thử\n";
+$gia = array( 'data' => array( 'offers' => array(
+	array( 'total_amount' => '68.00', 'total_currency' => 'USD',
+		'owner' => array( 'iata_code' => 'ZZ', 'name' => 'Duffel Airways' ),
+		'slices' => array( array( 'duration' => 'PT3H02M', 'segments' => array( array(
+			'departing_at' => '2026-09-27T20:07:00', 'arriving_at' => '2026-09-27T23:09:00',
+			'marketing_carrier' => array( 'iata_code' => 'ZZ', 'name' => 'Duffel Airways' ),
+			'marketing_carrier_flight_number' => '9788' ) ) ) ) ),
+	array( 'total_amount' => '93.00', 'total_currency' => 'USD',
+		'owner' => array( 'iata_code' => 'VJ', 'name' => 'VietJet Air' ),
+		'slices' => array( array( 'duration' => 'PT3H05M', 'segments' => array( array(
+			'departing_at' => '2026-09-27T07:10:00', 'arriving_at' => '2026-09-27T10:15:00',
+			'marketing_carrier' => array( 'iata_code' => 'VJ', 'name' => 'VietJet Air' ),
+			'marketing_carrier_flight_number' => '0813' ) ) ) ) ),
+) ) );
+$loc = DVR_Duffel::doi_du_lieu( $gia, array( 'adt' => 1 ) );
+ok( 'bỏ chuyến của hãng giả ZZ', 1 === count( $loc ) && 'VJ' === $loc[0]['al']['code'],
+	array_column( array_column( $loc, 'al' ), 'code' ) );
+ok( 'nhận ra gói tin có hãng giả để cảnh báo', true === DVR_Duffel::co_hang_gia( $gia ) );
+ok( 'gói tin sạch thì không báo nhầm', false === DVR_Duffel::co_hang_gia(
+	json_decode( file_get_contents( $goc . '/tests/duffel-offers.json' ), true ) ) );
+
 echo "\nNút thử nguồn giá\n";
 require_once $goc . '/includes/class-dvr-rest.php';
 class DVR_Req_Gia {

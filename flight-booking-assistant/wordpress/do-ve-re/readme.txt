@@ -4,7 +4,7 @@ Tags: flights, booking, vietqr, travel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.3.0
+Stable tag: 1.4.0
 License: GPLv2 or later
 
 So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, gửi email mã đặt chỗ.
@@ -38,6 +38,10 @@ Chưa khai khoá Amadeus thì bảng giá là **mô phỏng** và có nhãn nói
 nhưng Vietjet và Vietravel phần lớn không bán qua GDS nên vẫn nên đối chiếu với trang hãng.
 
 == Changelog ==
+
+= 1.4.0 =
+* Quy đổi ngoại tệ sang VND theo tỉ giá khai trong Cài đặt, ghi rõ "quy đổi từ … USD".
+* Lọc bỏ chuyến của hãng giả Duffel Airways (mã ZZ) trong chế độ thử; nút thử nguồn cảnh báo khi đang dùng khoá thử.
 
 = 1.3.0 =
 * Bỏ hẳn chuyến bay mô phỏng: chưa nối nguồn thật thì trang không dựng giá, chỉ mở đúng nơi đang bán.

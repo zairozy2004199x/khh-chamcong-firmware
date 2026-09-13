@@ -129,6 +129,10 @@ class DVR_Amadeus {
 				}
 			}
 
+			$cur_goc = isset( $o['price']['currency'] ) ? $o['price']['currency'] : 'VND';
+			list( $gia_moi, $cur, $ghi_chu ) = dvr_quy_doi( $moi, $cur_goc );
+			list( $tong_moi, , )             = dvr_quy_doi( $tong, $cur_goc );
+
 			$ra[] = array(
 				'al'        => array(
 					'code' => $ma,
@@ -145,9 +149,10 @@ class DVR_Amadeus {
 				'bagText'   => $kien > 0 ? $kien . ' kiện ký gửi' : 'chỉ xách tay',
 				'cabin'     => isset( $fd['cabin'] ) ? $fd['cabin'] : ( isset( $q['cabin'] ) ? $q['cabin'] : 'ECONOMY' ),
 				'seller'    => array( 'name' => 'Amadeus (GDS)', 'note' => 'giá GDS' ),
-				'price'     => (int) round( $moi ),
-				'total'     => (int) round( $tong ),
-				'cur'       => isset( $o['price']['currency'] ) ? $o['price']['currency'] : 'VND',
+				'price'     => $gia_moi,
+				'total'     => $tong_moi,
+				'cur'       => $cur,
+				'goc'       => $ghi_chu,
 				'depHour'   => (int) substr( $di, 11, 2 ),
 			);
 		}

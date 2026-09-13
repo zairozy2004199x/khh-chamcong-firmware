@@ -710,16 +710,15 @@ function renderResults(q){
           + '<div class="t-code">' + q.to.code + '</div></div>'
       + '</div>'
       + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>'
-        + (DVR.cheDo === "gioi_thieu" ? 'giá tham khảo · bấm để xem giá thật' : 'mỗi khách · gồm thuế phí') + '</span>'
+        + (o.goc ? o.goc : 'mỗi khách · gồm thuế phí') + '</span>'
         + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
       + '<div class="c-act">'
-        + (DVR.cheDo === "gioi_thieu"
-            ? '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
-              + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>'
-            : (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
-                        + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
-                      : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
-                        + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>'))
+        + (donUrl
+            // có nguồn mua được và có trang đặt vé: dẫn khách vào luồng đơn của mình
+            ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
+              + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Xem ở ' + o.seller.name + '</a>'
+            : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
+              + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>')
       + '</div>'
       + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
         + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'

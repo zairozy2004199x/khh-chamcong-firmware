@@ -58,6 +58,19 @@ KHUNG TRANG
   Muốn trang nằm trong khung của theme như trang thường thì vào Cài đặt bỏ tick
   "Dựng khung riêng cho hai trang bán vé".
 
+TIỀN TỆ
+  Duffel thường báo giá bằng USD. Vào Cài đặt → Nguồn giá → "Tỉ giá quy đổi",
+  khai số VND cho 1 USD (vd 26200) là bảng giá hiện tiền Việt kèm ghi chú
+  "quy đổi từ ... USD". Tỉ giá do mình tự khai nên nhớ cập nhật, và nên tính
+  rộng tay vì ngân hàng bán ra cao hơn tỉ giá trung tâm.
+
+KHOÁ THỬ vs KHOÁ THẬT (Duffel)
+  Khoá duffel_test_ : chuyến và giờ bay có thể đúng, nhưng GIÁ không phải giá
+                      bán thật, và Duffel trộn thêm hãng giả "Duffel Airways"
+                      (mã ZZ) — plugin đã lọc bỏ, không lọt ra trang khách.
+  Khoá duffel_live_ : giá thật, xuất vé được. Cần hoàn tất xác minh doanh nghiệp
+                      với Duffel trước.
+
 GIÁ HIỆN TRÊN TRANG
   Chưa nối nguồn giá thì trang KHÔNG tự dựng số: bảng giá thay bằng danh sách nơi
   đang bán chặng đó, khách bấm sang xem giá và giờ bay thật. Làm vậy vì số tự dựng

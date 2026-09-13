@@ -94,6 +94,19 @@ class DVR_Duffel {
 	}
 
 	/** Đổi chào giá của Duffel sang đúng hình dạng bảng giá của trang. */
+	/** Hãng giả Duffel dựng cho chế độ thử — không có thật, không được lọt ra trang khách. */
+	const HANG_GIA = array( 'ZZ' );
+
+	public static function co_hang_gia( $body ) {
+		foreach ( (array) ( isset( $body['data']['offers'] ) ? $body['data']['offers'] : array() ) as $o ) {
+			$ma = isset( $o['owner']['iata_code'] ) ? $o['owner']['iata_code'] : '';
+			if ( in_array( $ma, self::HANG_GIA, true ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	public static function doi_du_lieu( $body, $q = array() ) {
 		$offers = isset( $body['data']['offers'] ) ? $body['data']['offers'] : ( isset( $body['data'] ) && isset( $body['data'][0] ) ? $body['data'] : array() );
 		$ra     = array();
@@ -108,6 +121,9 @@ class DVR_Duffel {
 			$cuoi = $seg[ count( $seg ) - 1 ];
 			$hang = isset( $dau['marketing_carrier'] ) ? $dau['marketing_carrier'] : ( isset( $o['owner'] ) ? $o['owner'] : array() );
 			$ma   = isset( $hang['iata_code'] ) ? $hang['iata_code'] : '??';
+			if ( in_array( $ma, self::HANG_GIA, true ) ) {
+				continue;   // chuyến của hãng giả, bỏ qua
+			}
 			$di   = isset( $dau['departing_at'] ) ? $dau['departing_at'] : '';
 			$den  = isset( $cuoi['arriving_at'] ) ? $cuoi['arriving_at'] : '';
 			$tong = (float) ( isset( $o['total_amount'] ) ? $o['total_amount'] : 0 );
@@ -123,6 +139,10 @@ class DVR_Duffel {
 					}
 				}
 			}
+
+			$cur_goc = isset( $o['total_currency'] ) ? $o['total_currency'] : 'VND';
+			list( $gia_moi, $cur, $ghi_chu ) = dvr_quy_doi( $so > 0 ? $tong / $so : $tong, $cur_goc );
+			list( $tong_moi, , )             = dvr_quy_doi( $tong, $cur_goc );
 
 			$ra[] = array(
 				'al'        => array(
@@ -141,9 +161,10 @@ class DVR_Duffel {
 				'bagText'   => $kien > 0 ? $kien . ' kiện ký gửi' : 'chỉ xách tay',
 				'cabin'     => isset( $q['cabin'] ) ? $q['cabin'] : 'ECONOMY',
 				'seller'    => array( 'name' => 'Duffel', 'note' => 'đặt và xuất vé qua Duffel' ),
-				'price'     => (int) round( $so > 0 ? $tong / $so : $tong ),
-				'total'     => (int) round( $tong ),
-				'cur'       => isset( $o['total_currency'] ) ? $o['total_currency'] : 'VND',
+				'price'     => $gia_moi,
+				'total'     => $tong_moi,
+				'cur'       => $cur,
+				'goc'       => $ghi_chu,
 				'depHour'   => (int) substr( $di, 11, 2 ),
 			);
 		}

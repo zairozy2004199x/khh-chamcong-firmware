@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.3.0' );
+define( 'DVR_VERSION', '1.4.0' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -60,6 +60,7 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		'aff_kiwi'       => '',
 		'nguon'          => 'mo_phong',
 		'duffel_token'   => '',
+		'ty_gia'         => 0,
 		'dl_ten'         => '',
 		'dl_url'         => '',
 		'dl_token'       => '',
@@ -94,6 +95,22 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		return $cd;
 	}
 	return isset( $cd[ $khoa ] ) && '' !== $cd[ $khoa ] ? $cd[ $khoa ] : $mac_dinh;
+}
+
+/**
+ * Quy đổi ngoại tệ sang VND theo tỉ giá khai trong Cài đặt.
+ * Trả về mảng [số tiền, tiền tệ, ghi chú gốc] — chưa khai tỉ giá thì giữ nguyên.
+ */
+function dvr_quy_doi( $tien, $tien_te ) {
+	$tg = (float) dvr_cai_dat( 'ty_gia', 0 );
+	if ( 'VND' === $tien_te || $tg <= 0 ) {
+		return array( (int) round( $tien ), $tien_te, '' );
+	}
+	return array(
+		(int) round( $tien * $tg ),
+		'VND',
+		'quy đổi từ ' . rtrim( rtrim( number_format( $tien, 2, ',', '.' ), '0' ), ',' ) . ' ' . $tien_te,
+	);
 }
 
 /** Ảnh mã QR chuyển khoản VietQR — chỉ chứa số tài khoản của mình, số tiền và mã đơn. */

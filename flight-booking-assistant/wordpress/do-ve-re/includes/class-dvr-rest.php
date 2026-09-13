@@ -118,9 +118,16 @@ class DVR_Rest {
 		$nguon = dvr_cai_dat( 'nguon', 'mo_phong' );
 		$tho   = null;
 
+		$canh_bao = '';
 		if ( 'duffel' === $nguon ) {
-			if ( ! dvr_cai_dat( 'duffel_token', '' ) ) {
+			$khoa = dvr_cai_dat( 'duffel_token', '' );
+			if ( ! $khoa ) {
 				return new WP_REST_Response( array( 'error' => 'Đang chọn nguồn Duffel nhưng chưa dán khoá.' ), 200 );
+			}
+			if ( 0 === strpos( $khoa, 'duffel_test' ) ) {
+				$canh_bao = 'Khoá đang dùng là khoá THỬ (duffel_test_). Chuyến và giờ bay có thể đúng, nhưng GIÁ trong chế độ thử '
+					. 'không phải giá bán thật, và Duffel còn trộn thêm chuyến của hãng giả "Duffel Airways" (mã ZZ) — mình đã lọc bỏ. '
+					. 'Muốn giá thật thì hoàn tất xác minh doanh nghiệp ở Duffel rồi đổi sang khoá duffel_live_.';
 			}
 			$kq = DVR_Duffel::tim_chuyen( $q );
 		} elseif ( 'dai_ly' === $nguon ) {
@@ -160,6 +167,7 @@ class DVR_Rest {
 			);
 		}
 		$ra = array(
+			'canh_bao'  => $canh_bao,
 			'nguon'     => $nguon,
 			'chang'     => $q['from'] . ' → ' . $q['to'] . ' ngày ' . $q['dep'],
 			'so_chuyen' => count( $ds ),
