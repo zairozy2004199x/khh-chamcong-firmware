@@ -54,7 +54,7 @@ class DVR_Amadeus {
 		$khoa_cache = 'dovere_off_' . md5( wp_json_encode( $q ) );
 		$cu         = get_transient( $khoa_cache );
 		if ( false !== $cu ) {
-			return array( 'offers' => $cu, 'source' => 'amadeus', 'cached' => true );
+			return array( 'offers' => $cu, 'source' => 'amadeus', 'cached' => true, 'thu' => self::moi_truong_thu() );
 		}
 		$token = self::token();
 		if ( is_wp_error( $token ) ) {
@@ -99,7 +99,12 @@ class DVR_Amadeus {
 		}
 		$chuyen = self::doi_du_lieu( $body, $q );
 		set_transient( $khoa_cache, $chuyen, 5 * MINUTE_IN_SECONDS );
-		return array( 'offers' => $chuyen, 'source' => 'amadeus', 'cached' => false );
+		return array( 'offers' => $chuyen, 'source' => 'amadeus', 'cached' => false, 'thu' => self::moi_truong_thu() );
+	}
+
+	/** Môi trường thử của Amadeus cũng chỉ có giá dựng sẵn, không phải giá bán. */
+	public static function moi_truong_thu() {
+		return 'production' !== dvr_cai_dat( 'amadeus_env', 'test' );
 	}
 
 	/** Đổi dữ liệu Amadeus v2 sang đúng hình dạng bảng giá của trang. */

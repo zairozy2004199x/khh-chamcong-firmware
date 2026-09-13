@@ -282,6 +282,16 @@ ok( 'ghi chú ghi giá MỖI KHÁCH (110 USD cho 2 khách = 55)',
 	$usd && 'quy đổi từ 55 USD' === $usd['goc'], $usd ? $usd['goc'] : null );
 $GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 0;
 
+echo "\nNhận ra nguồn đang chạy chế độ thử\n";
+ok( 'khoá duffel_test_ bị coi là khoá thử', DVR_Duffel::khoa_thu( 'duffel_test_abc123' ) );
+ok( 'khoá duffel_live_ là khoá thật', ! DVR_Duffel::khoa_thu( 'duffel_live_abc123' ) );
+ok( 'không có khoá thì không coi là khoá thử', ! DVR_Duffel::khoa_thu( '' ) );
+$GLOBALS['dvr_options']['dovere_settings']['amadeus_env'] = 'test';
+ok( 'Amadeus môi trường thử cũng là giá dựng sẵn', DVR_Amadeus::moi_truong_thu() );
+$GLOBALS['dvr_options']['dovere_settings']['amadeus_env'] = 'production';
+ok( 'Amadeus môi trường thật thì giá dùng được', ! DVR_Amadeus::moi_truong_thu() );
+$GLOBALS['dvr_options']['dovere_settings']['amadeus_env'] = 'test';
+
 echo "\nLọc hãng giả của chế độ thử\n";
 $gia = array( 'data' => array( 'offers' => array(
 	array( 'total_amount' => '68.00', 'total_currency' => 'USD',

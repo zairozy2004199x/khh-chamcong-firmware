@@ -440,7 +440,7 @@ function DVR_LEARN(){
 
 /* ---------------- trạng thái & màn hình ---------------- */
 const state = {
-  trip: "ow", last: null, live: false, offers: [], stripFrom: null, sort: "price",
+  trip: "ow", last: null, live: false, giaThu: false, offers: [], stripFrom: null, sort: "price",
   f: { al: new Set(), stop: new Set(), time: new Set(), bag: false }
 };
 const BLOCKS = [["som","Sáng sớm","00–06"],["sang","Buổi sáng","06–12"],["chieu","Buổi chiều","12–18"],["toi","Buổi tối","18–24"]];
@@ -478,7 +478,7 @@ const money = (n, cur) => (!cur || cur === "VND")
 
 /* Nút "Chọn" dẫn khách sang trang đặt vé của WordPress, mang theo chuyến và giá. */
 function orderLink(o, q){
-  if(!DVR.coBan || !DVR.orderPage) return "";
+  if(!DVR.coBan || !DVR.orderPage || state.giaThu) return "";   // giá thử thì không cho đặt theo giá đó
   return DVR.orderPage + (DVR.orderPage.indexOf("?") > -1 ? "&" : "?") + new URLSearchParams({
     route: q.from.code + "-" + q.to.code, date: q.dep,
     airline: o.al.code, number: o.code, dep: o.dep, arr: o.arr,
@@ -488,13 +488,19 @@ function orderLink(o, q){
   });
 }
 
+/* Nguồn thử của Duffel/Amadeus trả cả trăm chuyến cùng một mức giá — thấy vậy thì coi như chưa có giá,
+   thà không hiện còn hơn hiện sai rồi khách bấm sang nơi bán lại thấy lệch. */
+function giaDangNgo(list){
+  return list.length >= 5 && list.every(o => o.price === list[0].price);
+}
+
 /* ---------------- dò giá ---------------- */
 let seq = 0;
 async function run(){
   const q = readQuery(); if(!q) return;
   state.last = q;
   const mine = ++seq;
-  let offers = null, live = false, err = "";
+  let offers = null, live = false, thu = false, err = "";
 
   if(DVR.coGiaThat){
     $("#rows").innerHTML = '<div class="empty">Đang hỏi giá thật cho ' + q.from.code + " → " + q.to.code + '…</div>';
@@ -507,8 +513,16 @@ async function run(){
       offers = j.offers || [];
       if(offers.length){
         live = true;
-        setSource("live", "Giá thật · Amadeus" + (j.cached ? " · đệm 5 phút" : ""),
-          "Lưu ý: hãng giá rẻ nội địa (Vietjet, Vietravel) nhiều khi không bán qua GDS, nên vẫn nên đối chiếu bằng các trang ở mục dưới.");
+        thu = !!j.thu || giaDangNgo(offers);
+        setSource(thu ? "thu" : "live",
+          thu ? "Giờ bay thật · GIÁ CHƯA PHẢI GIÁ BÁN"
+              : "Giá thật · " + (j.source === "duffel" ? "Duffel" : j.source === "dai_ly" ? "Đại lý" : "Amadeus")
+                + (j.cached ? " · đệm 5 phút" : ""),
+          thu
+            ? "Nguồn giá đang chạy ở chế độ thử (khoá duffel_test_ hoặc Amadeus môi trường thử) nên mọi chuyến về cùng một mức giá — "
+              + "không phải giá bán thật. Trang đang giấu giá đó đi và chỉ đưa khách sang nơi bán thật. "
+              + "Đổi sang khoá duffel_live_ hoặc nguồn đại lý cấp 1 là giá hiện lại ngay."
+            : "Lưu ý: hãng giá rẻ nội địa (Vietjet, Vietravel) nhiều khi không bán qua GDS, nên vẫn nên đối chiếu bằng các trang ở mục dưới.");
       } else {
         err = "nguồn thật không có chuyến nào cho chặng và ngày này";
       }
@@ -530,6 +544,8 @@ async function run(){
 
   state.offers = offers;
   state.live = live;
+  state.giaThu = live && thu;
+  if(state.giaThu && state.sort === "price") state.sort = "dep";
   // bộ lọc hãng chỉ giữ lại hãng còn bay chặng này
   const con = new Set(offers.map(o => o.al.code));
   [...state.f.al].forEach(c => { if(!con.has(c)) state.f.al.delete(c); });
@@ -559,7 +575,12 @@ function renderAll(q){
   if(khung) khung.classList.toggle("rong", !(state.live && state.offers.length));
   if(state.live && state.offers.length){
     if(rail) rail.hidden = false;
-    if(sorts) sorts.hidden = false;
+    if(sorts){
+      sorts.hidden = false;
+      const nutRe = sorts.querySelector('[data-sort="price"]');
+      if(nutRe) nutRe.hidden = !!state.giaThu;          // giá thử thì không có "Rẻ nhất" để mà xếp
+      [...sorts.children].forEach(c => c.setAttribute("aria-pressed", c.dataset.sort === state.sort ? "true" : "false"));
+    }
     renderRail(q);
     renderResults(q);
   } else {
@@ -593,24 +614,26 @@ function renderStrip(q){
   if(!state.stripFrom) state.stripFrom = iso(addDays(parseISO(q.dep), -3));
   if(parseISO(state.stripFrom) < homNay) state.stripFrom = iso(homNay);
 
+  // Chỉ ngày đang dò mới có giá thật. Không bịa giá cho sáu ngày còn lại —
+  // trước đây máy tự ước lượng nên số trên dải ngày lệch hẳn với nơi bán.
+  const coGia = state.live && !state.giaThu && state.offers.length > 0;
+  const reNhat = coGia ? Math.min(...state.offers.map(o => o.price)) : 0;
   const ngay = [];
   for(let k = 0; k < 7; k++){
     const d = addDays(parseISO(state.stripFrom), k);
-    ngay.push({ d, iso: iso(d), gia: cheapestOn(q, iso(d)) });
+    ngay.push({ d, iso: iso(d) });
   }
-  const min = state.live ? Math.min(...ngay.map(x => x.gia)) : -1;
-  $("#strip").innerHTML = ngay.map(x =>
-    '<button type="button" class="day' + (x.gia === min ? " cheap" : "") + '" data-d="' + x.iso + '"'
-    + (x.iso === q.dep ? ' aria-current="date"' : "") + '>'
-    + '<span class="d-dow">' + DOW[x.d.getDay()] + ", " + x.d.getDate() + " thg " + (x.d.getMonth()+1) + '</span>'
-    + '<span class="d-price">' + (state.live ? vnd(x.gia) : 'Xem giá') + '</span></button>'
-  ).join("");
+  $("#strip").innerHTML = ngay.map(x => {
+    const dangXem = x.iso === q.dep;
+    return '<button type="button" class="day' + (dangXem && coGia ? " cheap" : "") + '" data-d="' + x.iso + '"'
+      + (dangXem ? ' aria-current="date"' : "") + '>'
+      + '<span class="d-dow">' + DOW[x.d.getDay()] + ", " + x.d.getDate() + " thg " + (x.d.getMonth()+1) + '</span>'
+      + '<span class="d-price">' + (dangXem && coGia ? vnd(reNhat) + "đ" : "Xem giá") + '</span></button>';
+  }).join("");
   $("#stripPrev").disabled = parseISO(state.stripFrom) <= homNay;
-  $("#calNote").textContent = !state.live
-    ? "Bấm một ngày để đổi ngày đi — các nút bên dưới mở đúng ngày đó ở nơi bán."
-    : state.live
-    ? "Giá trên dải ngày là ước lượng của máy — đổi ngày rồi bấm Dò giá để lấy giá thật cho ngày đó."
-    : "Bấm một ngày để đổi ngày đi. Ngày rẻ nhất trong tuần được tô xanh.";
+  $("#calNote").textContent = coGia
+    ? "Giá hiện trên dải ngày là giá thật của ngày đang xem. Bấm sang ngày khác để dò giá thật cho ngày đó."
+    : "Bấm một ngày để đổi ngày đi — các nút bên dưới mở đúng ngày đó ở nơi bán.";
 }
 
 /* ---------------- cột lọc ---------------- */
@@ -628,7 +651,7 @@ function dong(id, on, nhan, gia, so, disabled){
   return '<label class="f-item' + (so ? "" : " off") + '">'
     + '<input type="checkbox" data-f="' + id + '"' + (on ? " checked" : "") + (so ? "" : " disabled") + '>'
     + '<span class="nm">' + nhan + '</span>'
-    + '<span class="f-price">' + (so ? vnd(gia) : "—") + '</span></label>';
+    + '<span class="f-price">' + (so && !state.giaThu ? vnd(gia) : "—") + '</span></label>';
 }
 function renderRail(q){
   const f = state.f;
@@ -681,7 +704,8 @@ function renderResults(q){
   const re = reYNhat(list);
   const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
   const [yy, mm, dd] = q.dep.split("-");
-  $("#boardSub").textContent = (state.live ? "giá thật · " : "giá mô phỏng · ") + list.length + "/" + state.offers.length
+  $("#boardSub").textContent = (state.giaThu ? "giờ bay thật · chưa có giá bán · " : state.live ? "giá thật · " : "giá mô phỏng · ")
+    + list.length + "/" + state.offers.length
     + " chuyến · " + q.from.code + " → " + q.to.code + " · " + dd + "/" + mm + " · " + paxTxt;
 
   if(!list.length){
@@ -696,7 +720,7 @@ function renderResults(q){
     const donUrl = orderLink(o, q);
     const tong = o.total || paxPrice(o.price, q);
     const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
-    const nhat = o.price === re;
+    const nhat = !state.giaThu && o.price === re;
     return '<article class="card' + (nhat ? " best" : "") + '">'
       + (nhat ? '<span class="badge">Rẻ nhất</span>' : "")
       + '<div class="c-air"><span class="c-logo">' + o.al.code + '</span>'
@@ -708,9 +732,12 @@ function renderResults(q){
         + '<div><div class="t-big">' + o.arr + (o.overnight ? '<sup>+1</sup>' : "") + '</div>'
           + '<div class="t-code">' + q.to.code + '</div></div>'
       + '</div>'
-      + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>'
-        + (o.goc ? o.goc : 'mỗi khách · gồm thuế phí') + '</span>'
-        + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
+      + '<div class="c-price">' + (state.giaThu
+          ? '<b class="chua">Xem giá ở nơi bán</b><span>nguồn đang chạy chế độ thử</span>'
+          : '<b>' + money(o.price, o.cur) + '</b><span>'
+            + (o.goc ? o.goc : 'mỗi khách · gồm thuế phí') + '</span>'
+            + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span>')
+        + '</div>'
       + '<div class="c-act">'
         + (donUrl
             // có trang đặt vé của mình: dẫn khách vào luồng đơn, mình mua vé hộ
@@ -726,7 +753,9 @@ function renderResults(q){
       + '</div>'
       + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
         + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
-        + (o.seller.note ? '<span class="mini">' + o.seller.note + '</span>' : "")
+        + (state.giaThu
+            ? '<span class="mini">giờ bay thật · giá chưa phải giá bán</span>'
+            : (o.seller.note ? '<span class="mini">' + o.seller.note + '</span>' : ""))
       + '</div>'
       + '</article>';
   }).join("");

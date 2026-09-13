@@ -127,7 +127,8 @@ class DVR_Rest {
 			if ( 0 === strpos( $khoa, 'duffel_test' ) ) {
 				$canh_bao = 'Khoá đang dùng là khoá THỬ (duffel_test_). Chuyến và giờ bay có thể đúng, nhưng GIÁ trong chế độ thử '
 					. 'không phải giá bán thật, và Duffel còn trộn thêm chuyến của hãng giả "Duffel Airways" (mã ZZ) — mình đã lọc bỏ. '
-					. 'Muốn giá thật thì hoàn tất xác minh doanh nghiệp ở Duffel rồi đổi sang khoá duffel_live_.';
+					. 'Vì vậy trang khách đang GIẤU giá của nguồn này: khách vẫn thấy giờ bay và số hiệu chuyến, còn giá thì bấm sang nơi bán để xem. '
+					. 'Muốn giá hiện lên thì hoàn tất xác minh doanh nghiệp ở Duffel rồi đổi sang khoá duffel_live_.';
 			}
 			$kq = DVR_Duffel::tim_chuyen( $q );
 		} elseif ( 'dai_ly' === $nguon ) {

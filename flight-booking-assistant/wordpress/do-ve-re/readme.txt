@@ -4,7 +4,7 @@ Tags: flights, booking, vietqr, travel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.5.0
+Stable tag: 1.5.1
 License: GPLv2 or later
 
 So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, gửi email mã đặt chỗ.
@@ -38,6 +38,12 @@ Chưa khai khoá Amadeus thì bảng giá là **mô phỏng** và có nhãn nói
 nhưng Vietjet và Vietravel phần lớn không bán qua GDS nên vẫn nên đối chiếu với trang hãng.
 
 == Changelog ==
+
+= 1.5.1 =
+* Nguồn giá đang chạy chế độ thử (khoá duffel_test_, Amadeus môi trường thử) thì KHÔNG hiện giá nữa: giữ nguyên giờ bay và số hiệu chuyến thật, còn giá thì mời khách xem tại nơi bán — trước đây cả trăm chuyến cùng về một mức giá dựng sẵn, lệch hẳn giá bán thật.
+* Máy tự nhận ra cả khi nguồn trả về hàng loạt chuyến cùng một giá, dù khoá không ghi là khoá thử.
+* Dải 7 ngày bỏ hẳn giá ước lượng của máy: chỉ ngày đang dò mới hiện giá thật, các ngày khác ghi "Xem giá".
+* Chế độ giá thử thì nút "Chọn" (đặt qua mình) tạm khoá, để không ai đặt theo một con số không có thật.
 
 = 1.5.0 =
 * Bảng giá luôn hiện tiền Việt: không khai tỉ giá thì máy tự lấy tỉ giá trên mạng (12 giờ làm mới một lần), hỏng mạng thì dùng bảng dự phòng, và ghi rõ "quy đổi từ … USD · tỉ giá tạm tính".

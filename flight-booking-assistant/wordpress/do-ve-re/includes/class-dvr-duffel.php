@@ -64,10 +64,11 @@ class DVR_Duffel {
 		if ( ! $token ) {
 			return new WP_Error( 'dvr_thieu_khoa', 'Chưa khai khoá Duffel trong Cài đặt.' );
 		}
+		$thu        = self::khoa_thu( $token );
 		$khoa_cache = 'dovere_duffel_' . md5( wp_json_encode( $q ) );
 		$cu         = get_transient( $khoa_cache );
 		if ( false !== $cu ) {
-			return array( 'offers' => $cu, 'source' => 'duffel', 'cached' => true );
+			return array( 'offers' => $cu, 'source' => 'duffel', 'cached' => true, 'thu' => $thu );
 		}
 
 		$r = wp_remote_post(
@@ -90,7 +91,15 @@ class DVR_Duffel {
 		}
 		$chuyen = self::doi_du_lieu( $body, $q );
 		set_transient( $khoa_cache, $chuyen, 5 * MINUTE_IN_SECONDS );
-		return array( 'offers' => $chuyen, 'source' => 'duffel', 'cached' => false );
+		return array( 'offers' => $chuyen, 'source' => 'duffel', 'cached' => false, 'thu' => $thu );
+	}
+
+	/**
+	 * Khoá duffel_test_ chạy trong môi trường thử: giờ bay gần đúng nhưng GIÁ là giá dựng sẵn,
+	 * mọi chuyến thường về cùng một mức. Bảng giá phải biết để giấu con số đó đi.
+	 */
+	public static function khoa_thu( $token ) {
+		return 0 === strpos( (string) $token, 'duffel_test' );
 	}
 
 	/** Đổi chào giá của Duffel sang đúng hình dạng bảng giá của trang. */

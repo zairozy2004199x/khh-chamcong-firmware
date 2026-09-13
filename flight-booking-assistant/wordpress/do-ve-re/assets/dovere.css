@@ -246,6 +246,7 @@
 .dvr .t-line::after{content:"";position:absolute;right:-1px;top:-3px;width:8px;height:8px;background:var(--blue);border-radius:50%}
 .dvr .t-stop{font-size:11.5px;color:var(--ink-2);font-weight:500}
 .dvr .c-price{display:grid;gap:2px;justify-items:end;text-align:right}
+.dvr .c-price > *{max-width:100%}   /* chữ dài thì xuống dòng, không tràn đè lên giờ bay */
 .dvr .c-price b{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent);letter-spacing:-.01em}
 .dvr .c-price span{font-size:11.5px;color:var(--muted)}
 .dvr .c-price .delta{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -259,6 +260,7 @@
 .dvr .choose:hover{transform:translateY(-2px);box-shadow:0 16px 28px -12px rgba(255,122,24,.7)}
 .dvr .choose.alt{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line);font-size:13px;padding:8px 14px;box-shadow:none}
 .dvr .choose.alt:hover{border-color:var(--blue);color:var(--blue);transform:none;box-shadow:var(--sh-1)}
+.dvr .c-price .chua{font-size:15px;font-weight:800;color:var(--ink-2);line-height:1.3}
 .dvr .c-noi{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.55}
 .dvr .c-noi a{color:var(--blue);text-decoration:none;border-bottom:1px dotted var(--blue)}
 .dvr .c-noi a:hover{color:var(--accent);border-bottom-color:var(--accent)}
