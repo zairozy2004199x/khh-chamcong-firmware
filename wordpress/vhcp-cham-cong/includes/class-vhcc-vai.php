@@ -448,6 +448,37 @@ class VHCC_Vai {
 	/** Quên phần nhớ tạm — gọi sau mỗi lượt ghi, và bộ thử cũng cần. */
 	public static function quen_nho() { self::$nho_them = null; }
 
+	/**
+	 * GIEO VAI "CỬA HÀNG PHÓ" — MỘT LẦN, THÊM CHỨ KHÔNG ĐÈ.
+	 *
+	 * Anh Thắng 13/09/2026 chốt: Cửa hàng phó **ngang Cửa hàng trưởng** (chấm bù, xem công cơ
+	 * sở, xếp lịch — làm được mọi việc của trưởng). Bảng `VAI_BP_HAT_GIONG` đã khai vai này cho
+	 * Khối Nhân Viên Cơ Sở từ 3.72.0, nhưng vai ấy CHƯA TỒN TẠI trong hệ nên màn hình chỉ hiện
+	 * được câu "bộ phận có khai vai này, hệ chưa có". Gieo nốt là đóng vòng.
+	 *
+	 * ⚠️ THÊM, KHÔNG GHI ĐÈ DANH SÁCH. Site anh Thắng đã có vai tự tạo ("Kế Toán MTD",
+	 *    "Hotline MTD"); ghi đè cả mảng là xoá sạch chúng, và người mang vai ấy mất đường vào
+	 *    cổng ngay lượt đăng nhập sau.
+	 *
+	 * ⚠️ CHỈ GIEO MỘT LẦN, ghim bằng cờ riêng. Không có cờ thì mỗi lần nâng cấp lại mọc lại vai
+	 *    mà anh Thắng vừa cố ý xoá — hệ cãi lại người dùng, và cãi im lặng.
+	 */
+	public static function gieo_cua_hang_pho() {
+		if ( get_option( 'vhcc_gieo_ch_pho' ) ) { return false; }
+		update_option( 'vhcc_gieo_ch_pho', 1 );
+		$ten = 'Cửa hàng phó';
+		foreach ( self::ds_ten() as $co ) {
+			if ( self::khoa_ten( $co ) === self::khoa_ten( $ten ) ) { return false; }
+		}
+		$b = get_option( self::O_THEM );
+		$b = is_array( $b ) ? $b : array();
+		$b[ $ten ] = self::CHT;
+		update_option( self::O_THEM, $b );
+		self::quen_nho();
+		return true;
+	}
+
+
 	/** Mọi tên vai đang dùng được: vai gốc trước, vai tự tạo sau. */
 	public static function ds_ten() {
 		$ra = array();

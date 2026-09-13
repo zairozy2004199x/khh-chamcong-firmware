@@ -629,4 +629,63 @@ t( 'nút gộp mở màn xem trước bằng đường dẫn, không POST thẳn
 t( '🔴 gộp thật đòi gõ đúng chuỗi xác nhận', strpos( $src_g, "'GOP' !== \$go" ) !== false );
 t( 'màn nói rõ CHƯA đổi gì cả', strpos( $src_g, 'Chưa đổi gì cả' ) !== false );
 
+
+
+/* ── Ghép được cả cặp TRÙNG TÊN KHÁC CƠ SỞ (anh Thắng: "Không hiện chỗ sửa hồ sơ để ghép") ── */
+echo "── 10. Ghép cặp khác cơ sở ─────────────────────────────\n";
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KCS_A', 'ho_ten' => 'Nguyễn Thị Mai Anh',
+	'cua_hang' => 'FZ_LTVT', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KCS_B', 'ho_ten' => 'Nguyễn Thị Mai Anh',
+	'cua_hang' => 'FARM_PT', 'vai_tro' => 'Nhân viên' ) );
+$tr_k = VHCC_NhanSu::dau_hieu_trung( VHCC_NhanSu::ds_nhan_vien( array( 'ma_nv' => 'AD', 'role' => 'Admin' ) ) );
+t( 'hệ vẫn gắn cờ trùng tên', ! empty( $tr_k['KCS_A']['ten'] ), $tr_k['KCS_A'] );
+t( '🔴 KHÁC cơ sở nên KHÔNG phải "một người hai hồ sơ"', empty( $tr_k['KCS_A']['motNguoi'] ) );
+teq( '🔴 nhưng `doi` rỗng — đây đúng là lý do nút ghép không hiện', array(), $tr_k['KCS_A']['doi'] );
+t( '🔴 nay có `doiTen` để mời ghép được', in_array( 'KCS_B', $tr_k['KCS_A']['doiTen'], true ),
+	$tr_k['KCS_A']['doiTen'] );
+
+$src_k = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( 'nhánh khác cơ sở nay cũng vẽ nút ghép', strpos( $src_k, "\$co_trung['doiTen']" ) !== false );
+t( '🔴 và màn xem trước cảnh báo riêng cho ca khác cơ sở',
+	strpos( $src_k, 'HAI CƠ SỞ KHÁC NHAU' ) !== false );
+t( 'có đường gõ tay hai mã khi hệ không dò ra cặp',
+	strpos( $src_k, 'Gộp hai hồ sơ bất kỳ' ) !== false );
+t( '🔴 đường gõ tay vẫn đi qua màn XEM TRƯỚC (GET gop_a/gop_b), không gộp thẳng',
+	strpos( $src_k, '<form method="get" class="hang">' ) !== false );
+
+
+
+/* ── Gieo vai "Cửa hàng phó" — anh Thắng chốt: NGANG Cửa hàng trưởng ───────────────────────── */
+echo "── 11. Gieo vai Cửa hàng phó ───────────────────────────\n";
+delete_option( 'vhcc_gieo_ch_pho' );
+$GLOBALS['VHCP_OPT']['vhcc_vai_them'] = array( 'Kế Toán MTD' => 'KE_TOAN', 'Hotline MTD' => 'NHAN_VIEN' );
+VHCC_Vai::quen_nho();
+
+t( 'gieo lần đầu có tác dụng', VHCC_Vai::gieo_cua_hang_pho() !== null );
+$sau = VHCC_Vai::ds_ten();
+t( '🔴 "Cửa hàng phó" nay có trong hệ', in_array( 'Cửa hàng phó', $sau, true ), $sau );
+/* ⚠️ THÊM, KHÔNG ĐÈ. Ghi đè cả mảng là xoá sạch vai tự tạo anh Thắng đang dùng, và người mang
+   vai ấy mất đường vào cổng ngay lượt đăng nhập sau. */
+t( '🔴 KHÔNG xoá mất vai tự tạo đang có', in_array( 'Kế Toán MTD', $sau, true )
+	&& in_array( 'Hotline MTD', $sau, true ), $sau );
+teq( '🔴 và nó ngang CỬA HÀNG TRƯỞNG, đúng lời anh Thắng',
+	VHCC_Vai::bac( array( 'role' => 'Cửa hàng trưởng' ) ),
+	VHCC_Vai::bac( array( 'role' => 'Cửa hàng phó' ) ) );
+t( 'vai này vào được cổng', VHCC_NhanSu::vai_vao_duoc( 'Cửa hàng phó' ) );
+
+/* Gieo xong thì bộ phận Khối cơ sở hết "thiếu vai". */
+$gy_p = VHCC_NhanSu::vai_goi_y( VHCC_NhanSu::ho_so( 'NV_VIVO' ) );
+t( '🔴 Khối Nhân Viên Cơ Sở hết báo thiếu vai', empty( $gy_p['thieu'] ), $gy_p );
+t( 'và Cửa hàng phó vào nhóm gợi ý', in_array( 'Cửa hàng phó', $gy_p['trong'], true ), $gy_p );
+
+/* 🔴 CHỈ GIEO MỘT LẦN. Không có cờ thì mỗi lượt nâng cấp lại mọc lại vai anh Thắng vừa cố ý
+   xoá — hệ cãi lại người dùng, và cãi im lặng. */
+$b_xoa = get_option( 'vhcc_vai_them' );
+unset( $b_xoa['Cửa hàng phó'] );
+update_option( 'vhcc_vai_them', $b_xoa );
+VHCC_Vai::quen_nho();
+VHCC_Vai::gieo_cua_hang_pho();
+t( '🔴 xoá tay rồi thì nâng cấp KHÔNG mọc lại',
+	! in_array( 'Cửa hàng phó', VHCC_Vai::ds_ten(), true ), VHCC_Vai::ds_ten() );
+
 ket_luan_vai();
