@@ -2869,6 +2869,26 @@ class VHG_Trang {
       moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
     }catch(e){}
   }
+  /* Dựng lại ảnh báo cáo từ một báo cáo CŨ trong khối "Báo cáo trong 24h" — anh Thắng 13/09/2026:
+     *"nếu báo cũ chưa gửi thì hiện ô ảnh báo cáo để tải về"*. Khác baoCaoAnh_ ở nguồn số: đây lấy
+     THẲNG số máy chủ đã tính cho từng ghế (actual/cash/qr trong rp.chairs) nên khỏi tính lại. */
+  function baoCaoAnhTuRp_(rp){
+    try{
+      var list=[], tB=0,tA=0,tAct=0,tCash=0,tQr=0;
+      (rp.chairs||[]).forEach(function(c){
+        var b=(c.meterBefore===''||c.meterBefore==null)?'':Number(c.meterBefore);
+        var a=(c.meterAfter===''||c.meterAfter==null)?'':Number(c.meterAfter);
+        var actual=Number(c.actual||0), qr=Number(c.qr||0), cash=Number(c.cash||0);
+        if(b!=='') tB+=b; if(a!=='') tA+=a; tAct+=actual; tCash+=cash; tQr+=qr;
+        list.push({ name:(c.chairName||c.chairCode||''), before:(b===''?'':money(b)), after:(a===''?'':money(a)),
+          actual:money(actual), cash:money(cash), qr:money(qr) });
+      });
+      var cv=veReportCanvas_(rp.locName||'', rp.date||'', list,
+        { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
+        { cash:tCash, qr:tQr });
+      moModalAnh_(cv, 'Báo cáo cơ sở '+(rp.locName||'')+' ngày '+ddmmyy_(rp.date||''));
+    }catch(e){}
+  }
 
   function guiBaoCao(){
     var msg=$('bc-msg'); msg.className='bc-msg'; msg.textContent='';
@@ -3433,6 +3453,12 @@ class VHG_Trang {
         if(rp.chairs && rp.chairs.length) body.insertBefore(bulkChooser24h_(body), body.firstChild);
       };
     }
+    /* 📤 ẢNH BÁO CÁO ĐỂ TẢI/GỬI ZALO — anh Thắng 13/09/2026: *"nếu báo cũ chưa gửi thì hiện ô
+       ảnh báo cáo để tải về"*. Báo cáo đã khoá vẫn dựng được ảnh (chỉ là bằng chứng để gửi Zalo,
+       không sửa gì), nên nút này hiện cho MỌI báo cáo. */
+    var bAnh=el('button','bc-btn','📤 Ảnh báo cáo');
+    bAnh.onclick=function(){ baoCaoAnhTuRp_(rp); };
+    head.appendChild(bAnh);
     d.appendChild(head); d.appendChild(body);
     d.appendChild(khoiBill_(rp));
     return d;
