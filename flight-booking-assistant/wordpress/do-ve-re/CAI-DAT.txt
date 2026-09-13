@@ -41,8 +41,13 @@ KHUNG TRANG
   "Dựng khung riêng cho hai trang bán vé".
 
 MUỐN GIÁ THẬT (không bắt buộc)
-  Đăng ký developers.amadeus.com lấy API Key + Secret, khai vào trang Cài đặt.
-  Chưa khai thì bảng giá chạy bằng giá mô phỏng và có nhãn nói rõ.
+  Cổng tự phục vụ của Amadeus đã đóng ngày 17/7/2025 — không lấy khoá thử miễn
+  phí được nữa. Nguồn còn tự đăng ký ngay được là DUFFEL:
+    1. Tạo tài khoản ở duffel.com
+    2. Developers → Access tokens → copy khoá duffel_test_... (chế độ thử, miễn phí)
+    3. Dò Vé Rẻ → Cài đặt → Nguồn giá → chọn "Duffel", dán khoá vào → Lưu
+  Bán thật thì đổi sang khoá duffel_live_...
+  Chưa khai gì thì bảng giá chạy bằng giá mô phỏng và có nhãn nói rõ.
 
 MUỐN TIỀN VỀ TỰ KHỚP ĐƠN (không bắt buộc)
   Đăng ký SePay hoặc Casso, trỏ webhook về:

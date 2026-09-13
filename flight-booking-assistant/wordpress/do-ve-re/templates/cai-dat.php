@@ -99,22 +99,45 @@ $cd = dvr_cai_dat();
 			</tr>
 		</table>
 
-		<h2 class="title">Giá thật từ Amadeus</h2>
+		<h2 class="title">Nguồn giá</h2>
+		<div class="notice notice-warning inline" style="margin:6px 0 12px;padding:10px 14px">
+			<p style="margin:0"><b>Cổng tự phục vụ của Amadeus đã đóng ngày 17/7/2025.</b>
+			Không còn đăng ký lấy khoá thử miễn phí được nữa; muốn dùng Amadeus phải qua
+			<a href="https://developers.amadeus.com" target="_blank" rel="noopener">Amadeus Enterprise</a> và ký hợp đồng.
+			Nguồn còn tự đăng ký ngay được là <a href="https://duffel.com" target="_blank" rel="noopener">Duffel</a>.</p>
+		</div>
 		<table class="form-table" role="presentation">
 			<tr>
-				<th scope="row"><label for="dvr_am_id">API Key</label></th>
-				<td><input name="dovere_settings[amadeus_id]" id="dvr_am_id" class="regular-text" value="<?php echo esc_attr( $cd['amadeus_id'] ); ?>" autocomplete="off">
-					<p class="description">Lấy ở developers.amadeus.com. Để trống thì bảng giá chạy bằng giá mô phỏng.</p></td>
+				<th scope="row">Lấy giá từ đâu</th>
+				<td>
+					<label style="display:block;margin-bottom:6px"><input type="radio" name="dovere_settings[nguon]" value="mo_phong" <?php checked( 'mo_phong', $cd['nguon'] ); ?>>
+						<b>Giá mô phỏng</b> — máy tự dựng theo cự ly, khung giờ, ngày mua trước. Có nhãn nói rõ cho khách biết.</label>
+					<label style="display:block;margin-bottom:6px"><input type="radio" name="dovere_settings[nguon]" value="duffel" <?php checked( 'duffel', $cd['nguon'] ); ?>>
+						<b>Duffel</b> — đăng ký ở duffel.com, bật chế độ thử là có khoá ngay, miễn phí.</label>
+					<label style="display:block"><input type="radio" name="dovere_settings[nguon]" value="amadeus" <?php checked( 'amadeus', $cd['nguon'] ); ?>>
+						<b>Amadeus</b> — chỉ dùng được nếu công ty đã có sẵn khoá Enterprise.</label>
+				</td>
 			</tr>
 			<tr>
-				<th scope="row"><label for="dvr_am_secret">API Secret</label></th>
+				<th scope="row"><label for="dvr_duffel">Khoá Duffel</label></th>
+				<td><input type="password" name="dovere_settings[duffel_token]" id="dvr_duffel" class="large-text code"
+						value="<?php echo esc_attr( $cd['duffel_token'] ); ?>" autocomplete="off" placeholder="duffel_test_...">
+					<p class="description">Duffel → Developers → Access tokens. Khoá bắt đầu bằng <code>duffel_test_</code> là chế độ thử
+						(không xuất vé thật), <code>duffel_live_</code> là chế độ thật.</p></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_am_id">Amadeus API Key</label></th>
+				<td><input name="dovere_settings[amadeus_id]" id="dvr_am_id" class="regular-text" value="<?php echo esc_attr( $cd['amadeus_id'] ); ?>" autocomplete="off"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_am_secret">Amadeus API Secret</label></th>
 				<td><input type="password" name="dovere_settings[amadeus_secret]" id="dvr_am_secret" class="regular-text" value="<?php echo esc_attr( $cd['amadeus_secret'] ); ?>" autocomplete="off"></td>
 			</tr>
 			<tr>
-				<th scope="row">Môi trường</th>
+				<th scope="row">Môi trường Amadeus</th>
 				<td>
-					<label><input type="radio" name="dovere_settings[amadeus_env]" value="test" <?php checked( 'test', $cd['amadeus_env'] ); ?>> Thử nghiệm (dữ liệu sandbox)</label><br>
-					<label><input type="radio" name="dovere_settings[amadeus_env]" value="production" <?php checked( 'production', $cd['amadeus_env'] ); ?>> Thật (có tính phí theo lượt gọi)</label>
+					<label><input type="radio" name="dovere_settings[amadeus_env]" value="test" <?php checked( 'test', $cd['amadeus_env'] ); ?>> Thử nghiệm</label><br>
+					<label><input type="radio" name="dovere_settings[amadeus_env]" value="production" <?php checked( 'production', $cd['amadeus_env'] ); ?>> Thật</label>
 				</td>
 			</tr>
 			<tr>

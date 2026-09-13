@@ -75,11 +75,15 @@ class DVR_Rest {
 		if ( ! $q['from'] || ! $q['to'] || ! $q['dep'] ) {
 			return new WP_REST_Response( array( 'error' => 'Thiếu tham số from / to / dep.' ), 400 );
 		}
-		if ( ! dvr_cai_dat( 'amadeus_id', '' ) ) {
-			// chưa khai khoá: trang tự dựng giá mô phỏng, nói rõ cho người xem biết
+		$nguon = dvr_cai_dat( 'nguon', 'mo_phong' );
+		if ( 'duffel' === $nguon && dvr_cai_dat( 'duffel_token', '' ) ) {
+			$kq = DVR_Duffel::tim_chuyen( $q );
+		} elseif ( 'amadeus' === $nguon && dvr_cai_dat( 'amadeus_id', '' ) ) {
+			$kq = DVR_Amadeus::tim_chuyen( $q );
+		} else {
+			// chưa khai nguồn nào: trang tự dựng giá mô phỏng, nói rõ cho người xem biết
 			return new WP_REST_Response( array( 'offers' => array(), 'source' => 'none' ), 200 );
 		}
-		$kq = DVR_Amadeus::tim_chuyen( $q );
 		if ( is_wp_error( $kq ) ) {
 			return new WP_REST_Response( array( 'error' => $kq->get_error_message() ), 502 );
 		}

@@ -126,11 +126,14 @@ node server/proxy.mjs --mock
 Mở `index.html`, dán `http://localhost:8787` vào ô **Nguồn giá → Địa chỉ proxy**, bấm *Dùng nguồn này*.
 Nhãn đổi sang **Giá thật** và bảng lấy dữ liệu từ proxy. Tra mã số thuế cũng chạy bằng dữ liệu mẫu.
 
-### Giá thật từ Amadeus
+### Giá thật
 
-1. Đăng ký ở [developers.amadeus.com](https://developers.amadeus.com) → tạo app → lấy **API Key** và **API Secret**.
-   Gói Self-Service có bậc miễn phí; môi trường `test` trả dữ liệu sandbox (chặng và giá không đầy đủ),
-   muốn số liệu bán thật phải chuyển sang `production` (có tính phí theo lượt gọi).
+> **Cổng tự phục vụ của Amadeus đã đóng ngày 17/7/2025.** Không còn đăng ký lấy khoá thử miễn phí được
+> nữa; Amadeus giờ chỉ còn đường Enterprise, phải liên hệ và ký hợp đồng. Nguồn tự đăng ký ngay được
+> là **Duffel** (duffel.com): tạo tài khoản, vào Developers → Access tokens, lấy khoá `duffel_test_…`
+> dùng thử miễn phí, đổi sang `duffel_live_…` khi bán thật.
+
+1. Với Amadeus (chỉ khi công ty đã có khoá Enterprise sẵn): lấy **API Key** và **API Secret**.
 2. Chạy proxy:
 
 Khai trong `.env`:

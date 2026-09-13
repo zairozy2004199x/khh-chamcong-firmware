@@ -64,7 +64,8 @@ class DVR_Shortcodes {
 			'nonce'     => wp_create_nonce( 'wp_rest' ),
 			'orderPage' => $cd['order_page'] ? get_permalink( $cd['order_page'] ) : '',
 			'shopName'  => $cd['shop_name'],
-			'coGiaThat' => (bool) $cd['amadeus_id'],
+			'coGiaThat' => ( 'duffel' === $cd['nguon'] && $cd['duffel_token'] )
+				|| ( 'amadeus' === $cd['nguon'] && $cd['amadeus_id'] ),
 			'coBan'     => (bool) ( $cd['order_page'] && $cd['bank_account'] ),
 			'fee'       => array(
 				'pct'  => (float) $cd['fee_pct'],

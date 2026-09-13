@@ -189,6 +189,34 @@ ok( 'có dòng bản quyền kèm năm', strpos( $ct, '© ' . gmdate( 'Y' ) ) !=
 $GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
 ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
+echo "\nNguồn giá Duffel\n";
+$yc = DVR_Duffel::goi_yeu_cau( array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => '2026-10-04', 'ret' => '',
+	'adt' => 2, 'chd' => 1, 'inf' => 0, 'cabin' => 'ECONOMY' ) );
+ok( 'một chiều thì gửi đúng một chặng', count( $yc['data']['slices'] ) === 1, $yc['data']['slices'] );
+ok( 'đúng điểm đi, điểm đến, ngày',
+	'SGN' === $yc['data']['slices'][0]['origin'] && 'HAN' === $yc['data']['slices'][0]['destination']
+	&& '2026-10-04' === $yc['data']['slices'][0]['departure_date'], $yc['data']['slices'][0] );
+ok( '2 người lớn + 1 trẻ em thành 3 hành khách', count( $yc['data']['passengers'] ) === 3, $yc['data']['passengers'] );
+ok( 'trẻ em gửi bằng tuổi, không phải type', isset( $yc['data']['passengers'][2]['age'] ), $yc['data']['passengers'][2] );
+ok( 'hạng vé đổi sang chữ thường của Duffel', 'economy' === $yc['data']['cabin_class'], $yc['data'] );
+$yc2 = DVR_Duffel::goi_yeu_cau( array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => '2026-10-04', 'ret' => '2026-10-08', 'adt' => 1, 'cabin' => 'BUSINESS' ) );
+ok( 'khứ hồi thì gửi hai chặng, chặng về ngược chiều',
+	count( $yc2['data']['slices'] ) === 2 && 'HAN' === $yc2['data']['slices'][1]['origin'], $yc2['data']['slices'] );
+ok( 'thương gia đổi đúng tên', 'business' === $yc2['data']['cabin_class'] );
+
+$body = json_decode( file_get_contents( $goc . '/tests/duffel-offers.json' ), true );
+$ch   = DVR_Duffel::doi_du_lieu( $body, array( 'adt' => 2, 'chd' => 0, 'cabin' => 'ECONOMY' ) );
+ok( 'đọc được cả hai chào giá', count( $ch ) === 2, count( $ch ) );
+ok( 'xếp từ rẻ tới đắt', $ch[0]['price'] <= $ch[1]['price'], array_column( $ch, 'price' ) );
+ok( 'chia giá theo đầu khách', 1130000 === $ch[0]['price'] && 2260000 === $ch[0]['total'], array( $ch[0]['price'], $ch[0]['total'] ) );
+ok( 'lấy tên hãng từ marketing_carrier', 'Bamboo Airways' === $ch[0]['al']['name'], $ch[0]['al'] );
+ok( 'đếm đúng điểm dừng', 1 === $ch[0]['stops'] && 0 === $ch[1]['stops'], array_column( $ch, 'stops' ) );
+ok( 'giờ bay cắt từ chuỗi ISO', '12:40' === $ch[1]['dep'] && '14:50' === $ch[1]['arr'], array( $ch[1]['dep'], $ch[1]['arr'] ) );
+ok( 'nhận ra chuyến qua đêm', true === $ch[0]['overnight'] );
+ok( 'đọc hành lý ký gửi', true === $ch[1]['bag'] && false === $ch[0]['bag'], array_column( $ch, 'bag' ) );
+ok( 'giữ nguyên tiền tệ', 'VND' === $ch[0]['cur'] );
+ok( 'số hiệu chuyến ghép từ mã hãng', 'QH130' === $ch[0]['code'], $ch[0]['code'] );
+
 echo "\nMàu thương hiệu\n";
 ok( 'đọc được mã 6 ký tự', dvr_mau_rgb( '#C1960C' ) === array( 193, 150, 12 ), dvr_mau_rgb( '#C1960C' ) );
 ok( 'đọc được mã rút gọn 3 ký tự', dvr_mau_rgb( '#fc0' ) === array( 255, 204, 0 ), dvr_mau_rgb( '#fc0' ) );

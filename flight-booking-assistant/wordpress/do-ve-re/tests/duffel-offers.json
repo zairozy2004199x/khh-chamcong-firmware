@@ -1,0 +1,58 @@
+{
+  "data": {
+    "id": "orq_0000",
+    "offers": [
+      {
+        "id": "off_01",
+        "total_amount": "3480000.00",
+        "total_currency": "VND",
+        "owner": { "iata_code": "VN", "name": "Vietnam Airlines" },
+        "slices": [
+          {
+            "duration": "PT2H10M",
+            "origin": { "iata_code": "SGN" },
+            "destination": { "iata_code": "HAN" },
+            "segments": [
+              {
+                "departing_at": "2026-10-04T12:40:00",
+                "arriving_at": "2026-10-04T14:50:00",
+                "marketing_carrier": { "iata_code": "VN", "name": "Vietnam Airlines" },
+                "marketing_carrier_flight_number": "220",
+                "passengers": [
+                  { "baggages": [ { "type": "checked", "quantity": 1 }, { "type": "carry_on", "quantity": 1 } ] }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "off_02",
+        "total_amount": "2260000.00",
+        "total_currency": "VND",
+        "owner": { "iata_code": "QH", "name": "Bamboo Airways" },
+        "slices": [
+          {
+            "duration": "PT5H35M",
+            "segments": [
+              {
+                "departing_at": "2026-10-04T21:50:00",
+                "arriving_at": "2026-10-04T23:15:00",
+                "marketing_carrier": { "iata_code": "QH", "name": "Bamboo Airways" },
+                "marketing_carrier_flight_number": "130",
+                "passengers": [ { "baggages": [ { "type": "carry_on", "quantity": 1 } ] } ]
+              },
+              {
+                "departing_at": "2026-10-05T01:20:00",
+                "arriving_at": "2026-10-05T03:25:00",
+                "marketing_carrier": { "iata_code": "QH", "name": "Bamboo Airways" },
+                "marketing_carrier_flight_number": "202",
+                "passengers": [ { "baggages": [ { "type": "carry_on", "quantity": 1 } ] } ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
