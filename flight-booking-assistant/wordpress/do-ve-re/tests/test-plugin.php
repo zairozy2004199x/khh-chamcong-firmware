@@ -17,7 +17,6 @@ $src = file_get_contents( $goc . '/do-ve-re.php' );
 $src = preg_replace( '/register_activation_hook.*?\n\n/s', '', $src );
 $src = preg_replace( '/add_action\(\s*\'plugins_loaded\'.*?\}\s*\);\n/s', '', $src );
 $src = str_replace( "require_once DVR_DIR . 'includes/class-dvr-rest.php';\n", '', $src );
-$src = str_replace( "require_once DVR_DIR . 'includes/class-dvr-shortcodes.php';\n", '', $src );
 $src = str_replace( "if ( ! defined( 'ABSPATH' ) ) {\n\texit;\n}", '', $src );
 $src = preg_replace( '/^<\?php/', '', $src );
 $src = str_replace( "plugin_dir_path( __FILE__ )", "'" . $goc . "/'", $src );
@@ -170,6 +169,25 @@ $GLOBALS['dvr_options']['dovere_pages'] = $t3;
 $link = DVR_Admin::trang_khach();
 ok( 'đưa ra được link cho khách',
 	strpos( $link['bang_gia'], 'https://ve.knh.vn/' ) === 0 && strpos( $link['dat_ve'], 'https://ve.knh.vn/' ) === 0, $link );
+
+echo "\nChân trang thông tin công ty\n";
+$GLOBALS['dvr_options']['dovere_settings'] = array_merge( $GLOBALS['dvr_options']['dovere_settings'], array(
+	'cty_vi' => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H',
+	'cty_en' => 'K&H SERVICES AND ENTERTAINMENT COMPANY LIMITED',
+	'cty_mst' => '0106924989', 'cty_dai_dien' => 'Nguyễn Văn Kiên', 'cty_tu_ngay' => '05/08/2015',
+	'cty_dia_chi' => 'Thôn Mai Nội, Xã Sóc Sơn, Thành phố Hà Nội, Việt Nam',
+	'cty_dien_thoai' => '0435961469', 'cty_co_quan' => 'Thuế cơ sở 18 thành phố Hà Nội',
+	'cty_chi_nhanh' => 'Đà Nẵng, Hải Phòng, Bình Dương',
+) );
+$ct = DVR_Shortcodes::chan_trang();
+ok( 'có tên công ty và mã số thuế', strpos( $ct, '0106924989' ) !== false && strpos( $ct, 'GIẢI TRÍ K&amp;H' ) !== false );
+ok( 'ký tự & được thoát, không vỡ HTML', strpos( $ct, 'K&H SERVICES' ) === false && strpos( $ct, 'K&amp;H SERVICES' ) !== false );
+ok( 'có địa chỉ, điện thoại, cơ quan thuế',
+	strpos( $ct, 'Sóc Sơn' ) !== false && strpos( $ct, '0435961469' ) !== false && strpos( $ct, 'Thuế cơ sở 18' ) !== false );
+ok( 'chi nhánh tách bằng dấu chấm giữa', strpos( $ct, 'Đà Nẵng · Hải Phòng · Bình Dương' ) !== false, $ct );
+ok( 'có dòng bản quyền kèm năm', strpos( $ct, '© ' . gmdate( 'Y' ) ) !== false );
+$GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
+ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
 echo "\n$dat đạt, $hong hỏng\n";
 exit( $hong ? 1 : 0 );

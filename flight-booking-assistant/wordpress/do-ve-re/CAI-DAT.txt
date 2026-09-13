@@ -21,6 +21,11 @@ SAU KHI KÍCH HOẠT — KHÔNG PHẢI LÀM GÌ
        ("Trang đặt vé" plugin đã tự chọn sẵn)
   4. Xong. Mở link bảng giá là thấy chạy.
 
+CHÂN TRANG
+  Thông tin công ty (tên, mã số thuế, địa chỉ, chi nhánh, bản quyền) hiện ở cuối
+  cả hai trang bán vé. Sửa trong Dò Vé Rẻ → Cài đặt, mục "Thông tin công ty ở
+  chân trang". Xoá trắng ô "Tên công ty" là bỏ hẳn khối đó.
+
 KHUNG TRANG
   Hai trang bán vé dựng khung riêng: không có header, menu, footer của theme, và
   giãn hết bề ngang màn hình; thanh quản trị đen của WordPress cũng được ẩn

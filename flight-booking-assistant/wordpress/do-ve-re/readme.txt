@@ -4,7 +4,7 @@ Tags: flights, booking, vietqr, travel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.3
+Stable tag: 1.0.5
 License: GPLv2 or later
 
 So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, gửi email mã đặt chỗ.
@@ -38,6 +38,11 @@ Chưa khai khoá Amadeus thì bảng giá là **mô phỏng** và có nhãn nói
 nhưng Vietjet và Vietravel phần lớn không bán qua GDS nên vẫn nên đối chiếu với trang hãng.
 
 == Changelog ==
+
+= 1.0.5 =
+* Giao diện sáng: nền trời, khối bo tròn nổi khối, nút bo viên; bỏ chế độ tối để khách luôn thấy một giao diện.
+* Nạp bộ chữ Baloo 2 + Be Vietnam Pro (trước đây thiếu nên trang chạy bằng font hệ thống).
+* Thêm khối thông tin công ty ở chân trang, sửa được trong Cài đặt.
 
 = 1.0.3 =
 * Hai trang bán vé có khung riêng: bỏ header/footer của theme, giãn hết bề ngang màn hình, ẩn thanh quản trị.

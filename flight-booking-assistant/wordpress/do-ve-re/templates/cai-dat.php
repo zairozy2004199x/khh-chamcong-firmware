@@ -127,6 +127,45 @@ $cd = dvr_cai_dat();
 			</tr>
 		</table>
 
+		<h2 class="title">Thông tin công ty ở chân trang</h2>
+		<p class="description" style="margin:0 0 10px">Hiện ở cuối cả hai trang bán vé. Xoá trắng ô “Tên công ty” là bỏ hẳn khối này.</p>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="dvr_cty_vi">Tên công ty</label></th>
+				<td><input name="dovere_settings[cty_vi]" id="dvr_cty_vi" class="large-text" value="<?php echo esc_attr( $cd['cty_vi'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_en">Tên tiếng Anh</label></th>
+				<td><input name="dovere_settings[cty_en]" id="dvr_cty_en" class="large-text" value="<?php echo esc_attr( $cd['cty_en'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_mst">Mã số thuế</label></th>
+				<td><input name="dovere_settings[cty_mst]" id="dvr_cty_mst" class="regular-text" value="<?php echo esc_attr( $cd['cty_mst'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_dd">Người đại diện</label></th>
+				<td><input name="dovere_settings[cty_dai_dien]" id="dvr_cty_dd" class="regular-text" value="<?php echo esc_attr( $cd['cty_dai_dien'] ); ?>">
+					&nbsp; hoạt động từ <input name="dovere_settings[cty_tu_ngay]" value="<?php echo esc_attr( $cd['cty_tu_ngay'] ); ?>" class="small-text" placeholder="05/08/2015"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_dc">Địa chỉ</label></th>
+				<td><input name="dovere_settings[cty_dia_chi]" id="dvr_cty_dc" class="large-text" value="<?php echo esc_attr( $cd['cty_dia_chi'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_dt">Điện thoại</label></th>
+				<td><input name="dovere_settings[cty_dien_thoai]" id="dvr_cty_dt" class="regular-text" value="<?php echo esc_attr( $cd['cty_dien_thoai'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_cq">Cơ quan quản lý thuế</label></th>
+				<td><input name="dovere_settings[cty_co_quan]" id="dvr_cty_cq" class="large-text" value="<?php echo esc_attr( $cd['cty_co_quan'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_cty_cn">Chi nhánh</label></th>
+				<td><input name="dovere_settings[cty_chi_nhanh]" id="dvr_cty_cn" class="large-text" value="<?php echo esc_attr( $cd['cty_chi_nhanh'] ); ?>">
+					<p class="description">Ngăn nhau bằng dấu phẩy.</p></td>
+			</tr>
+		</table>
+
 		<?php submit_button( 'Lưu cài đặt' ); ?>
 	</form>
 </div>

@@ -44,10 +44,11 @@ while ( have_posts() ) {
 
 <div class="dvr">
 	<footer class="dvr-day">
-		<span><?php echo esc_html( get_bloginfo( 'name' ) ); ?> · <?php echo esc_html( gmdate( 'Y' ) ); ?></span>
 		<span>Giá và tình trạng chỗ do hãng quyết định tại thời điểm xuất vé.</span>
 	</footer>
 </div>
+
+<?php DVR_Shortcodes::chan_trang( true ); ?>
 
 <?php wp_footer(); ?>
 </body>

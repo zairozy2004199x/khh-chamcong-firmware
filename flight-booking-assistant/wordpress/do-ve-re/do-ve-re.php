@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.0.3
+ * Version:           1.0.5
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.0.3' );
+define( 'DVR_VERSION', '1.0.5' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,15 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		'order_page'     => 0,
 		'an_thanh'       => 1,
 		'toan_man'       => 1,
+		'cty_vi'         => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H',
+		'cty_en'         => 'K&H SERVICES AND ENTERTAINMENT COMPANY LIMITED',
+		'cty_mst'        => '0106924989',
+		'cty_dai_dien'   => 'Nguyễn Văn Kiên',
+		'cty_tu_ngay'    => '05/08/2015',
+		'cty_dia_chi'    => 'Thôn Mai Nội, Xã Sóc Sơn, Thành phố Hà Nội, Việt Nam',
+		'cty_dien_thoai' => '0435961469',
+		'cty_co_quan'    => 'Thuế cơ sở 18 thành phố Hà Nội',
+		'cty_chi_nhanh'  => 'Đà Nẵng, Hải Phòng, Bình Dương, Thành phố Hồ Chí Minh, Sense City Hồ Chí Minh, Nha Trang',
 	);
 	$cd = wp_parse_args( get_option( 'dovere_settings', array() ), $mac );
 	if ( null === $khoa ) {

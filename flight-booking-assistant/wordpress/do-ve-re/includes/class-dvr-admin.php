@@ -152,7 +152,8 @@ class DVR_Admin {
 	public static function lam_sach( $v ) {
 		$v = (array) $v;
 		$ra = array();
-		foreach ( array( 'shop_name', 'bank_id', 'bank_account', 'bank_name', 'bank_label', 'amadeus_id', 'amadeus_secret', 'webhook_secret', 'tax_api' ) as $k ) {
+		foreach ( array( 'shop_name', 'bank_id', 'bank_account', 'bank_name', 'bank_label', 'amadeus_id', 'amadeus_secret', 'webhook_secret', 'tax_api',
+			'cty_vi', 'cty_en', 'cty_mst', 'cty_dai_dien', 'cty_tu_ngay', 'cty_dia_chi', 'cty_dien_thoai', 'cty_co_quan', 'cty_chi_nhanh' ) as $k ) {
 			$ra[ $k ] = sanitize_text_field( isset( $v[ $k ] ) ? $v[ $k ] : '' );
 		}
 		$ra['amadeus_env'] = 'production' === ( isset( $v['amadeus_env'] ) ? $v['amadeus_env'] : '' ) ? 'production' : 'test';
@@ -168,7 +169,8 @@ class DVR_Admin {
 
 	public static function trang_don() {
 		self::khoi_link();
-		wp_enqueue_style( 'dovere', DVR_URL . 'assets/dovere.css', array(), DVR_VERSION );
+		DVR_Shortcodes::nap_chu();
+		wp_enqueue_style( 'dovere', DVR_URL . 'assets/dovere.css', array( 'dovere-chu' ), DVR_VERSION );
 		wp_enqueue_script( 'dovere-autofill', DVR_URL . 'assets/autofill.js', array(), DVR_VERSION, true );
 		wp_enqueue_script( 'dovere-quan-tri', DVR_URL . 'assets/quan-tri.js', array( 'dovere-autofill' ), DVR_VERSION, true );
 		wp_localize_script( 'dovere-quan-tri', 'DVR', array(

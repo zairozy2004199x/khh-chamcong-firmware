@@ -74,23 +74,86 @@ class DVR_Shortcodes {
 		);
 	}
 
+	/** Bộ chữ Baloo 2 + Be Vietnam Pro; thiếu nó là trang rơi về font hệ thống. */
+	public static function nap_chu() {
+		wp_enqueue_style(
+			'dovere-chu',
+			'https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap',
+			array(),
+			null
+		);
+	}
+
 	private static function nap( $ten, $phu_thuoc = array() ) {
-		wp_enqueue_style( 'dovere', DVR_URL . 'assets/dovere.css', array(), DVR_VERSION );
+		self::nap_chu();
+		wp_enqueue_style( 'dovere', DVR_URL . 'assets/dovere.css', array( 'dovere-chu' ), DVR_VERSION );
 		wp_enqueue_script( 'dovere-' . $ten, DVR_URL . 'assets/' . $ten . '.js', $phu_thuoc, DVR_VERSION, true );
 		wp_localize_script( 'dovere-' . $ten, 'DVR', self::cau_hinh_js() );
+	}
+
+	/**
+	 * Khối thông tin công ty ở chân trang. Trả về chuỗi; truyền true để in luôn.
+	 * Bỏ trống tên công ty trong Cài đặt là khối này biến mất.
+	 */
+	public static function chan_trang( $in_luon = false ) {
+		$cd = dvr_cai_dat();
+		if ( empty( $cd['cty_vi'] ) ) {
+			return '';
+		}
+		$dong = function ( $nhan, $gia_tri, $dam = false ) {
+			if ( '' === trim( (string) $gia_tri ) ) {
+				return '';
+			}
+			return '<div class="ct-dong"><span>' . esc_html( $nhan ) . '</span> '
+				. ( $dam ? '<b>' . esc_html( $gia_tri ) . '</b>' : esc_html( $gia_tri ) ) . '</div>';
+		};
+		$chi_nhanh = array_filter( array_map( 'trim', preg_split( '/[,\n]+/', (string) $cd['cty_chi_nhanh'] ) ) );
+
+		$h  = '<div class="dvr"><footer class="cty">';
+		$h .= '<div class="cty-luoi">';
+
+		$h .= '<div class="cty-cot"><div class="cty-ten">' . esc_html( $cd['cty_vi'] ) . '</div>';
+		if ( ! empty( $cd['cty_en'] ) ) {
+			$h .= '<div class="cty-en">' . esc_html( $cd['cty_en'] ) . '</div>';
+		}
+		$h .= $dong( 'Mã số thuế / Tax code:', $cd['cty_mst'], true );
+		$h .= $dong( 'Người đại diện / Legal rep.:', $cd['cty_dai_dien'], true );
+		$h .= $dong( 'Hoạt động từ / Since:', $cd['cty_tu_ngay'], true );
+		$h .= '</div>';
+
+		$h .= '<div class="cty-cot">';
+		$h .= $dong( 'Địa chỉ / Address:', $cd['cty_dia_chi'], true );
+		$h .= $dong( 'Điện thoại / Phone:', $cd['cty_dien_thoai'], true );
+		$h .= $dong( 'Cơ quan quản lý thuế:', $cd['cty_co_quan'], true );
+		$h .= '</div>';
+
+		if ( $chi_nhanh ) {
+			$h .= '<div class="cty-cot"><div class="cty-dong"><span>Chi nhánh / Branches:</span></div>'
+				. '<div class="cty-nhanh">' . implode( ' · ', array_map( 'esc_html', $chi_nhanh ) ) . '</div></div>';
+		}
+
+		$h .= '</div><div class="cty-ban-quyen">© ' . esc_html( gmdate( 'Y' ) ) . ' ' . esc_html( $cd['cty_vi'] )
+			. '. Toàn bộ bản quyền thuộc công ty. / All rights reserved.</div>';
+		$h .= '</footer></div>';
+
+		if ( $in_luon ) {
+			echo $h; // phpcs:ignore WordPress.Security.EscapeOutput -- từng phần đã esc ở trên
+		}
+		return $h;
 	}
 
 	public static function bang_gia() {
 		self::nap( 'bang-gia' );
 		ob_start();
 		include DVR_DIR . 'templates/bang-gia.php';
-		return ob_get_clean();
+		// khung riêng đã in chân trang rồi, đừng in hai lần
+		return ob_get_clean() . ( dvr_cai_dat( 'toan_man', 1 ) ? '' : self::chan_trang() );
 	}
 
 	public static function dat_ve() {
 		self::nap( 'dat-ve' );
 		ob_start();
 		include DVR_DIR . 'templates/dat-ve.php';
-		return ob_get_clean();
+		return ob_get_clean() . ( dvr_cai_dat( 'toan_man', 1 ) ? '' : self::chan_trang() );
 	}
 }

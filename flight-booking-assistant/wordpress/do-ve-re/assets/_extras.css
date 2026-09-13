@@ -1,0 +1,50 @@
+/* Phần riêng của bản WordPress: khu quản trị, khung trang riêng, chân trang công ty.
+   Ghép vào cuối dovere.css lúc dựng gói. */
+
+/* ----------------------------------------------------------------------
+   Trong khu quản trị, WordPress đặt màu chữ bằng selector có #id nên thắng
+   CSS của plugin — tiêu đề bị chìm vào nền. Mấy dòng này kéo lại cho đúng.
+   ---------------------------------------------------------------------- */
+#wpbody-content .dvr h1,
+#wpbody-content .dvr h2,
+#wpbody-content .dvr h3{color:var(--ink)}
+#wpbody-content .dvr .board-head h2,
+#wpbody-content .dvr .board-head .eyebrow{color:var(--board-ink)}
+#wpbody-content .dvr .eyebrow{color:var(--accent)}
+#wpbody-content .dvr a{color:var(--accent)}
+#wpbody-content .dvr table{background:transparent;border-collapse:collapse}
+#wpbody-content .dvr th,
+#wpbody-content .dvr td{color:var(--ink)}
+#wpbody-content .dvr .hint,
+#wpbody-content .dvr .log{color:var(--muted)}
+
+/* ----------------------------------------------------------------------
+   Khung trang riêng: không có header/footer của theme, nội dung giãn hết
+   bề ngang màn hình.
+   ---------------------------------------------------------------------- */
+body.dvr-toan-man{background:var(--ground);min-height:100vh}
+.dvr .dvr-top{max-width:1440px;margin-inline:auto;padding:14px 20px;display:flex;flex-wrap:wrap;gap:14px;
+  align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.dvr .dvr-home{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;font-size:21px;
+  font-weight:700;letter-spacing:.04em;color:var(--ink);text-decoration:none}
+.dvr .dvr-home:hover{color:var(--accent)}
+.dvr .dvr-nav{display:flex;flex-wrap:wrap;gap:16px}
+.dvr .dvr-nav a{font-size:13.5px;color:var(--ink-2);text-decoration:none}
+.dvr .dvr-nav a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.dvr .dvr-day{max-width:1440px;margin-inline:auto;padding:20px;display:flex;flex-wrap:wrap;gap:10px;
+  justify-content:space-between;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)}
+
+/* ---------- khối thông tin công ty ở chân trang ---------- */
+.dvr .cty{max-width:1440px;margin-inline:auto;padding:26px 20px 40px;border-top:1px solid var(--line);
+  font-size:13px;line-height:1.7;color:var(--ink-2)}
+.dvr .cty-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px 34px;align-items:start}
+.dvr .cty-ten{font-weight:600;color:var(--ink);font-size:13.5px;letter-spacing:.01em}
+.dvr .cty-en{font-style:italic;color:var(--muted);margin-bottom:7px}
+.dvr .cty-dong{display:block}
+.dvr .ct-dong{display:block}
+.dvr .ct-dong span,.dvr .cty-dong span{color:var(--muted)}
+.dvr .ct-dong b{font-weight:600;color:var(--ink)}
+.dvr .cty-nhanh{color:var(--ink);overflow-wrap:anywhere}
+.dvr .cty-ban-quyen{margin-top:22px;padding-top:14px;border-top:1px solid var(--line-soft);
+  font-size:12.5px;color:var(--muted)}
+@media (max-width:640px){ .dvr .cty{padding:22px 20px 32px} }

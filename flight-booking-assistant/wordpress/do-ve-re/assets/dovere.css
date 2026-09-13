@@ -1,365 +1,346 @@
-/* Dò Vé Rẻ — mọi lớp nằm trong .dvr để không đụng giao diện theme của anh. */
+/* Dò Vé Rẻ — mọi lớp nằm trong .dvr để không đụng giao diện theme của anh.
+   File này dựng từ <style> của index.html, đừng sửa tay: sửa index.html rồi dựng lại. */
 
+/* ============================================================
+   Dò Vé Rẻ — một bảng màu sáng duy nhất, khối bo tròn nổi khối.
+   Chữ: Baloo 2 cho tiêu đề (tròn, vui) + Be Vietnam Pro cho nội dung
+   (bộ chữ vẽ riêng cho tiếng Việt, dấu không chạm nhau).
+   Cố ý KHÔNG đổi màu theo chế độ tối của máy: khách xem trang bán vé
+   luôn thấy đúng một giao diện sáng như nhau.
+   ============================================================ */
 :root{
-  --ground:#E9EDF1;
+  --sky-1:#EAF3FF;
+  --sky-2:#FFF4EA;
+  --ground:#F3F7FD;
   --surface:#FFFFFF;
-  --surface-2:#F2F5F8;
-  --board:#0B2440;
-  --board-2:#123050;
-  --board-line:#1C3E63;
-  --board-ink:#E9F0F8;
-  --board-dim:#8FA9C4;
-  --ink:#0B2440;
-  --ink-2:#39536E;
-  --muted:#6B839C;
-  --line:#CCD6E1;
-  --line-soft:#E1E7EE;
-  --amber:#B45F05;
-  --amber-bright:#E8890B;
-  --on-amber:#1B1000;
-  --cheap:#0B6B54;
-  --cheap-soft:#DEF0EA;
-  --warn:#8C3310;
-  --warn-soft:#FAEADF;
-  --shadow:0 1px 2px rgba(11,36,64,.07), 0 10px 28px -20px rgba(11,36,64,.45);
+  --surface-2:#F6FAFF;
+  --ink:#152242;
+  --ink-2:#42527C;
+  --muted:#7E8CAC;
+  --line:#E3EAF6;
+  --line-soft:#EFF4FB;
+  --accent:#FF7A18;
+  --accent-2:#FFA04A;
+  --on-accent:#FFFFFF;
+  --blue:#2F7DFF;
+  --blue-2:#6FB0FF;
+  --cheap:#00A47C;
+  --cheap-soft:#E1F7F0;
+  --warn:#D9432B;
+  --warn-soft:#FFEDE8;
+  --board:#2F7DFF;
+  --board-2:#6FB0FF;
+  --board-ink:#FFFFFF;
+  --board-dim:#DCEAFF;
+  --board-line:rgba(255,255,255,.3);
+  --r:16px;
+  --r-sm:12px;
+  --r-pill:999px;
+  --sh-1:0 1px 2px rgba(21,34,66,.05), 0 10px 22px -14px rgba(21,34,66,.35);
+  --sh-2:0 2px 6px rgba(21,34,66,.06), 0 22px 40px -22px rgba(47,125,255,.45);
+  --sh-cam:0 10px 22px -10px rgba(255,122,24,.55);
+  --sh-xanh:0 12px 26px -12px rgba(47,125,255,.5);
   color-scheme:light;
 }
 
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --ground:#07121E;
-    --surface:#0F2134;
-    --surface-2:#172F46;
-    --board:#050E19;
-    --board-2:#0C2136;
-    --board-line:#1B3A5B;
-    --board-ink:#E9F0F8;
-    --board-dim:#7E99B6;
-    --ink:#E6EEF7;
-    --ink-2:#B4C6D9;
-    --muted:#8AA2BB;
-    --line:#26425F;
-    --line-soft:#1B3450;
-    --amber:#F2A83B;
-    --amber-bright:#F2A83B;
-    --on-amber:#1B1000;
-    --cheap:#3EC49E;
-    --cheap-soft:#0E3B31;
-    --warn:#F0A88A;
-    --warn-soft:#3A1B0E;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
-    color-scheme:dark;
-  }
-}
-:root[data-theme="dark"]{
-  --ground:#07121E;
-  --surface:#0F2134;
-  --surface-2:#172F46;
-  --board:#050E19;
-  --board-2:#0C2136;
-  --board-line:#1B3A5B;
-  --board-ink:#E9F0F8;
-  --board-dim:#7E99B6;
-  --ink:#E6EEF7;
-  --ink-2:#B4C6D9;
-  --muted:#8AA2BB;
-  --line:#26425F;
-  --line-soft:#1B3450;
-  --amber:#F2A83B;
-  --amber-bright:#F2A83B;
-  --on-amber:#1B1000;
-  --cheap:#3EC49E;
-  --cheap-soft:#0E3B31;
-  --warn:#F0A88A;
-  --warn-soft:#3A1B0E;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 12px 30px -20px rgba(0,0,0,.8);
-  color-scheme:dark;
-}
-
 .dvr *{box-sizing:border-box}
+.dvr [hidden]{display:none!important}
 .dvr{
   margin:0;
-  background:var(--ground);
   color:var(--ink);
-  font-family:"IBM Plex Sans","Segoe UI",Roboto,system-ui,sans-serif;
+  background:
+    radial-gradient(1200px 520px at 12% -8%, var(--sky-2) 0%, rgba(255,244,234,0) 60%),
+    radial-gradient(1000px 480px at 88% -4%, var(--sky-1) 0%, rgba(234,243,255,0) 62%),
+    var(--ground);
+  background-attachment:fixed;
+  font-family:"Be Vietnam Pro","Segoe UI",Roboto,system-ui,sans-serif;
   font-size:15px;
-  line-height:1.55;
+  line-height:1.6;
   -webkit-font-smoothing:antialiased;
 }
-.dvr .wrap{max-width:1440px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px;display:grid;gap:30px}
-.dvr h1, .dvr h2, .dvr h3{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;margin:0;text-wrap:balance;letter-spacing:.01em}
-.dvr h1{font-size:clamp(46px,9vw,78px);font-weight:700;line-height:.9;letter-spacing:-.005em}
-.dvr h2{font-size:clamp(22px,3.4vw,29px);font-weight:600;line-height:1.05}
-.dvr h3{font-size:17px;font-weight:600;letter-spacing:.04em}
+.dvr .wrap{max-width:1440px;margin-inline:auto;padding-inline:20px;padding-block:30px 64px;display:grid;gap:28px}
+.dvr h1, .dvr h2, .dvr h3{font-family:"Baloo 2","Be Vietnam Pro",sans-serif;margin:0;text-wrap:balance;line-height:1.15;letter-spacing:-.01em}
+.dvr h1{font-size:clamp(38px,6.4vw,62px);font-weight:700}
+.dvr h2{font-size:clamp(21px,3vw,28px);font-weight:700}
+.dvr h3{font-size:17px;font-weight:600}
 .dvr p{margin:0}
-.dvr a{color:var(--amber);text-underline-offset:3px}
-.dvr .eyebrow{
-  font-family:"IBM Plex Mono",ui-monospace,monospace;
-  font-size:11px;font-weight:500;letter-spacing:.17em;text-transform:uppercase;color:var(--amber);
-}
-.dvr .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
-.dvr :where(button, .dvr a, .dvr input, .dvr select, .dvr textarea):focus-visible{outline:2.5px solid var(--amber-bright);outline-offset:2px}
+.dvr a{color:var(--blue);text-underline-offset:3px}
+.dvr .eyebrow{font-size:11.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.dvr .num{font-variant-numeric:tabular-nums}
+.dvr :where(button, .dvr a, .dvr input, .dvr select, .dvr textarea):focus-visible{outline:3px solid var(--blue-2);outline-offset:2px;border-radius:6px}
 
-/* ---------- masthead ---------- */
-.dvr .masthead{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.85fr);gap:26px;align-items:end}
-.dvr .lede{max-width:60ch;color:var(--ink-2);margin-top:14px;font-size:15.5px}
+/* ---------- đầu trang ---------- */
+.dvr .masthead{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(280px,.85fr);gap:26px;align-items:end}
+.dvr .lede{max-width:58ch;color:var(--ink-2);margin-top:12px;font-size:15.5px}
 .dvr .statecard{
-  background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--amber-bright);
-  padding:15px 17px;display:grid;gap:9px;box-shadow:var(--shadow);
+  background:linear-gradient(160deg,#FFFFFF 0%,#F4F9FF 100%);
+  border:1px solid var(--line);border-radius:var(--r);padding:17px 19px;display:grid;gap:9px;box-shadow:var(--sh-1);
 }
-.dvr .statecard p{font-size:13.5px;color:var(--ink-2);line-height:1.5}
-.dvr .statecard .eyebrow{color:var(--ink-2)}
+.dvr .statecard p{font-size:13.5px;color:var(--ink-2);line-height:1.55}
+.dvr .statecard code{background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:1px 5px;font-size:12.5px}
 .dvr .tag{
-  display:inline-flex;align-items:center;gap:7px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
-  letter-spacing:.12em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;color:var(--warn);
-  background:var(--warn-soft);width:max-content;
+  display:inline-flex;align-items:center;gap:7px;font-size:11.5px;font-weight:600;letter-spacing:.05em;
+  text-transform:uppercase;padding:6px 12px;border-radius:var(--r-pill);color:var(--warn);background:var(--warn-soft);
+  /* nhãn dài (vd "Giá mô phỏng — chưa khai khoá Amadeus") phải xuống dòng,
+     không thì nó bẻ toác bố cục trên màn hẹp */
+  /* KHÔNG dùng width:max-content: trong lưới, nhãn dài sẽ kéo cả cột rộng ra
+     rồi đẩy tràn trang trên màn hẹp. justify-self cho nó co lại vừa chữ. */
+  justify-self:start;align-self:start;max-width:100%;white-space:normal;
 }
 .dvr .tag.ok{color:var(--cheap);background:var(--cheap-soft)}
+.dvr .tag.wait{color:var(--accent);background:#FFF0E2}
+.dvr .tag.bad{color:var(--warn);background:var(--warn-soft)}
 
-/* ---------- layout ---------- */
-.dvr .grid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:22px;align-items:start}
-.dvr .panel{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow)}
-.dvr .panel-head{
-  display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  padding:14px 17px;border-bottom:1px solid var(--line-soft);
-}
-.dvr .panel-body{padding:17px;display:grid;gap:15px}
-
-/* ---------- form ---------- */
-.dvr .field{display:grid;gap:5px}
-.dvr label, .dvr .lbl{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.dvr input, .dvr select{
-  font-family:inherit;font-size:15px;color:var(--ink);background:var(--surface-2);
-  border:1px solid var(--line);border-radius:0;padding:10px 11px;width:100%;min-width:0;
-}
-.dvr input[type="date"], .dvr input[type="number"], .dvr .num-in{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
-.dvr .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.dvr .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.dvr .swap{display:grid;grid-template-columns:1fr 42px 1fr;gap:8px;align-items:end}
-.dvr .swapbtn{
-  height:42px;background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
-  font-size:16px;cursor:pointer;line-height:1;
-}
-.dvr .swapbtn:hover{border-color:var(--amber-bright);color:var(--amber)}
-.dvr .chips{display:flex;flex-wrap:wrap;gap:8px}
-.dvr .chip{
-  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-  padding:7px 10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);cursor:pointer;
-}
-.dvr .chip[aria-pressed="true"]{background:var(--board);color:var(--board-ink);border-color:var(--board)}
-.dvr .btn{
-  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:19px;
-  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);
-  padding:11px 18px;cursor:pointer;line-height:1.1;
-}
-.dvr .btn:hover{filter:brightness(1.06)}
-.dvr .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
-.dvr .btn.ghost:hover{border-color:var(--amber-bright);color:var(--amber)}
-.dvr .btn.sm{font-size:15px;padding:8px 13px}
-.dvr .hint{font-size:12.5px;color:var(--muted);line-height:1.5}
-
-/* ---------- thanh tìm chuyến ---------- */
-.dvr .searchbar{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);padding:14px 16px;display:grid;gap:12px}
-.dvr .sb-row{display:grid;grid-template-columns:minmax(0,1.15fr) 42px minmax(0,1.15fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.75fr) minmax(0,.9fr) auto;gap:10px;align-items:end}
-.dvr .sb-row .btn{height:42px;padding-inline:20px}
-.dvr .sb-foot{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
-@media (max-width:1060px){ .dvr .sb-row{grid-template-columns:1fr 42px 1fr 1fr;} .dvr .sb-row .btn{grid-column:1/-1} }
-@media (max-width:560px){ .dvr .sb-row{grid-template-columns:1fr 1fr} .dvr .sb-row .swapbtn{display:none} }
-
-/* ---------- dải giá 7 ngày ---------- */
-.dvr .strip{display:grid;grid-template-columns:36px minmax(0,1fr) 36px;gap:8px;align-items:stretch}
-.dvr .strip-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
-.dvr .arrow{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;font-size:17px;line-height:1}
-.dvr .arrow:hover:not(:disabled){border-color:var(--amber-bright);color:var(--amber)}
-.dvr .arrow:disabled{opacity:.35;cursor:default}
-.dvr .day{display:grid;gap:3px;justify-items:center;background:var(--surface);border:1px solid var(--line);
-  padding:9px 4px;cursor:pointer;font:inherit;color:var(--ink);text-align:center}
-.dvr .day:hover{border-color:var(--amber-bright)}
-.dvr .day[aria-current="date"]{background:var(--board);border-color:var(--board);color:var(--board-ink)}
-.dvr .day[aria-current="date"] .d-dow{color:var(--board-dim)}
-.dvr .day[aria-current="date"] .d-price{color:var(--amber-bright)}
-.dvr .day.cheap .d-price{color:var(--cheap);font-weight:600}
-.dvr .day:disabled{opacity:.4;cursor:default}
-.dvr .d-dow{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;white-space:nowrap}
-.dvr .d-price{font-family:"IBM Plex Mono",monospace;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
-@media (max-width:760px){
-  .dvr .strip{grid-template-columns:1fr}
-  .dvr .strip .arrow{display:none}
-  .dvr .strip-days{display:flex;overflow-x:auto;scroll-snap-type:x proximity;padding-bottom:4px}
-  .dvr .strip-days .day{min-width:104px;scroll-snap-align:start}
-}
-
-/* ---------- khung kết quả ---------- */
-.dvr .results{display:grid;grid-template-columns:minmax(0,248px) minmax(0,1fr);gap:18px;align-items:start}
-@media (max-width:900px){ .dvr .results{grid-template-columns:1fr} }
-.dvr .rail{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);display:grid}
-.dvr .rail section{padding:13px 15px;border-bottom:1px solid var(--line-soft);display:grid;gap:7px}
-.dvr .rail section:last-child{border-bottom:0}
-.dvr .f-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-.dvr .f-head h3{font-size:14px;letter-spacing:.05em;white-space:nowrap}
-.dvr .link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--amber);cursor:pointer;text-decoration:underline;white-space:nowrap}
-.dvr .f-item{display:flex;align-items:center;gap:9px;padding:4px 0;cursor:pointer;line-height:1.3;
-  font-family:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink)}
-.dvr .f-item input{width:16px;height:16px;accent-color:var(--amber-bright);flex:none;margin:0}
-.dvr .f-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dvr .f-price{margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:12px;font-variant-numeric:tabular-nums;
-  color:var(--muted);flex:none;letter-spacing:0;text-transform:none}
-.dvr .f-item.off{opacity:.4}
-.dvr .pills{display:flex;flex-wrap:wrap;gap:6px}
-.dvr .pill{display:inline-flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--line);
-  padding:4px 6px 4px 9px;font-size:12.5px}
-.dvr .pill button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:0 2px}
-.dvr .pill button:hover{color:var(--warn)}
-
-.dvr .topbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
-.dvr .sorts{display:flex;border:1px solid var(--line);background:var(--surface)}
-.dvr .sort{padding:9px 14px;border:0;border-right:1px solid var(--line-soft);background:transparent;color:var(--ink-2);
-  font:600 13px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
-.dvr .sort:last-child{border-right:0}
-.dvr .sort[aria-pressed="true"]{background:var(--board);color:var(--board-ink)}
-.dvr .count{font-size:13px;color:var(--muted)}
-
-/* ---------- thẻ chuyến ---------- */
-.dvr .res{display:grid;gap:10px}
-.dvr .card{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);
-  display:grid;grid-template-columns:118px minmax(0,1fr) minmax(150px,auto) auto;gap:18px;align-items:center;padding:15px 17px;position:relative}
-.dvr .card.best{border-color:var(--amber-bright)}
-.dvr .badge{position:absolute;top:-1px;left:17px;background:var(--amber-bright);color:var(--on-amber);
-  font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.13em;padding:2px 7px;text-transform:uppercase}
-.dvr .card.best{padding-top:22px}
-.dvr .c-air{display:flex;align-items:center;gap:9px;min-width:0}
-.dvr .c-logo{width:34px;height:34px;flex:none;display:grid;place-items:center;background:var(--board);color:#F2F5F8;
-  font:700 13px/1 "Barlow Condensed",sans-serif;letter-spacing:.06em}
-.dvr .c-name{font-size:13px;line-height:1.25;overflow-wrap:anywhere}
-.dvr .c-name small{display:block;color:var(--muted);font-size:11.5px;font-family:"IBM Plex Mono",monospace}
-.dvr .c-leg{display:grid;grid-template-columns:auto minmax(60px,1fr) auto;gap:12px;align-items:center;min-width:0}
-.dvr .t-big{font-family:"IBM Plex Mono",monospace;font-size:23px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1}
-.dvr .t-code{font-size:11.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
-.dvr .t-mid{display:grid;gap:3px;justify-items:center;text-align:center}
-.dvr .t-dur{font-size:11.5px;color:var(--muted)}
-.dvr .t-line{width:100%;height:1px;background:var(--line);position:relative}
-.dvr .t-line::after{content:"";position:absolute;right:0;top:-2px;width:5px;height:5px;background:var(--ink-2);border-radius:50%}
-.dvr .t-stop{font-size:11.5px;color:var(--ink-2)}
-.dvr .c-price{display:grid;gap:2px;justify-items:end;text-align:right}
-.dvr .c-price b{font-family:"IBM Plex Mono",monospace;font-size:21px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--amber)}
-.dvr .card.best .c-price b{color:var(--amber-bright)}
-.dvr .c-price span{font-size:11.5px;color:var(--muted)}
-.dvr .c-price .delta{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
-.dvr .c-act{display:grid;gap:6px;justify-items:stretch}
-.dvr .choose{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-weight:600;font-size:17px;
-  background:var(--amber-bright);color:var(--on-amber);border:1px solid var(--amber-bright);padding:9px 18px;
-  text-decoration:none;text-align:center;cursor:pointer;white-space:nowrap}
-.dvr .choose:hover{filter:brightness(1.06)}
-.dvr .choose.alt{background:transparent;color:var(--ink-2);border-color:var(--line);font-size:14px;padding:6px 12px}
-.dvr .choose.alt:hover{border-color:var(--amber-bright);color:var(--amber)}
-.dvr .c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:6px;margin-top:-4px}
-.dvr .mini{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line-soft);padding:3px 7px}
-.dvr .mini.bag{color:var(--cheap);border-color:var(--cheap)}
-@media (max-width:760px){
-  .dvr .card{grid-template-columns:1fr auto;gap:12px}
-  .dvr .c-air{grid-column:1/-1}
-  .dvr .c-leg{grid-column:1/-1}
-  .dvr .c-act{grid-column:1/-1}
-  .dvr .c-price{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;justify-items:start;text-align:left}
-  .dvr .c-price span, .dvr .c-price .delta{white-space:nowrap}
-}
-.dvr .empty{padding:34px 18px;color:var(--muted);font-size:14px;text-align:center;background:var(--surface);border:1px solid var(--line)}
-
-/* ---------- bảng cài đặt nguồn ---------- */
-.dvr details.statecard summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
-.dvr details.statecard summary::-webkit-details-marker{display:none}
-.dvr details.statecard summary::after{content:"Cài đặt ▾";font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.dvr details.statecard[open] summary::after{content:"Thu lại ▴"}
-.dvr details.statecard[open]{gap:12px}
-.dvr details.statecard > *:not(summary){margin-top:2px}
-
-
-/* ---------- channels ---------- */
-.dvr .chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(212px,1fr));gap:12px}
-.dvr .chan{
-  display:grid;gap:7px;padding:13px 14px;background:var(--surface);border:1px solid var(--line);
-  align-content:start;
-}
-.dvr .chan b{font-family:"Barlow Condensed",sans-serif;font-size:20px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
-.dvr .chan .kind{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)}
-.dvr .chan .note{font-size:12.5px;color:var(--ink-2)}
-.dvr .chan a{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:15px;letter-spacing:.05em;font-weight:600;text-decoration:none;border-bottom:1px solid var(--amber);width:max-content}
-
-/* ---------- profile ---------- */
-.dvr .pax{border:1px solid var(--line);padding:14px;display:grid;gap:12px;background:var(--surface-2)}
-.dvr .pax-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.dvr .del{background:none;border:0;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
-.dvr .del:hover{color:var(--warn)}
-.dvr .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px;align-items:start}
-.dvr .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
-.dvr .safe{border-left:3px solid var(--warn);background:var(--warn-soft);padding:12px 14px;font-size:13px;color:var(--ink);line-height:1.55}
-
-/* ---------- flow ---------- */
-.dvr .steps{display:grid;gap:0;counter-reset:step;border-top:1px solid var(--line)}
-.dvr .step{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:14px;align-items:start;padding:14px 4px;border-bottom:1px solid var(--line)}
-.dvr .step-n{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--muted);padding-top:3px}
-.dvr .step b{display:block;font-weight:600;font-size:15px}
-.dvr .step p{font-size:13.5px;color:var(--ink-2);margin-top:3px}
-.dvr .state{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.11em;text-transform:uppercase;padding:4px 8px;border:1px solid currentColor;white-space:nowrap;margin-top:2px}
-.dvr .state.auto{color:var(--cheap);background:var(--cheap-soft)}
-.dvr .state.half{color:var(--amber);background:transparent}
-.dvr .state.hand{color:var(--warn);background:var(--warn-soft)}
-
-/* ---------- misc ---------- */
-.dvr .foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:16px;line-height:1.6}
-.dvr .toast{
-  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--board);color:var(--board-ink);
-  padding:11px 17px;font-size:13.5px;box-shadow:var(--shadow);z-index:50;border:1px solid var(--board-line);max-width:92vw;
-}
-.dvr textarea{width:100%;font-family:"IBM Plex Mono",monospace;font-size:12px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);padding:10px;min-height:96px;line-height:1.5}
-
+/* ---------- khối chung ---------- */
+.dvr .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);overflow:hidden}
+.dvr .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
+.dvr .panel-body{padding:18px;display:grid;gap:15px}
 .dvr .sec{display:grid;gap:12px;align-content:start}
 .dvr section.sec>.hint{max-width:74ch}
 .dvr .sec>.panel-head{padding:0 0 10px}
+.dvr .note{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--r-sm);
+  padding:13px 16px;font-size:13.5px;line-height:1.6;box-shadow:var(--sh-1)}
 
-@media (max-width:960px){
-  .dvr .grid{grid-template-columns:1fr}
-  .dvr .masthead{grid-template-columns:1fr}
+/* ---------- ô nhập ---------- */
+.dvr .field{display:grid;gap:6px}
+.dvr label, .dvr .lbl{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.dvr input, .dvr select, .dvr textarea{
+  font:inherit;font-size:15px;color:var(--ink);background:var(--surface-2);
+  border:1.5px solid var(--line);border-radius:var(--r-sm);padding:11px 13px;width:100%;min-width:0;
+  transition:border-color .15s, box-shadow .15s, background .15s;
 }
+.dvr input:hover, .dvr select:hover{border-color:var(--blue-2)}
+.dvr input:focus, .dvr select:focus, .dvr textarea:focus{background:var(--surface);border-color:var(--blue);box-shadow:0 0 0 4px rgba(47,125,255,.14);outline:none}
+.dvr input::placeholder{color:#A9B4CC}
+.dvr textarea{min-height:96px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.5}
+.dvr .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.dvr .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.dvr .swapbtn{
+  height:46px;width:46px;border-radius:var(--r-pill);background:var(--surface);border:1.5px solid var(--line);
+  color:var(--blue);font-size:17px;cursor:pointer;line-height:1;box-shadow:var(--sh-1);transition:transform .15s, box-shadow .15s;
+}
+.dvr .swapbtn:hover{transform:rotate(180deg);box-shadow:var(--sh-xanh);border-color:var(--blue)}
+
+/* ---------- nút ---------- */
+.dvr .btn{
+  font-family:"Baloo 2","Be Vietnam Pro",sans-serif;font-weight:700;font-size:17px;letter-spacing:.01em;
+  background:linear-gradient(180deg,var(--accent-2) 0%,var(--accent) 100%);
+  color:var(--on-accent);border:0;border-radius:var(--r-pill);padding:12px 24px;cursor:pointer;line-height:1.15;
+  box-shadow:var(--sh-cam);transition:transform .15s, box-shadow .15s, filter .15s;
+}
+.dvr .btn:hover{transform:translateY(-2px);box-shadow:0 16px 28px -12px rgba(255,122,24,.7)}
+.dvr .btn:active{transform:translateY(0)}
+.dvr .btn.ghost{background:var(--surface);color:var(--ink);border:1.5px solid var(--line);box-shadow:var(--sh-1)}
+.dvr .btn.ghost:hover{border-color:var(--blue);color:var(--blue);box-shadow:var(--sh-xanh)}
+.dvr .btn.sm{font-size:15px;padding:9px 16px}
+.dvr .chips{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.dvr .chip{
+  font-size:13px;font-weight:500;padding:9px 15px;border-radius:var(--r-pill);
+  border:1.5px solid var(--line);background:var(--surface);color:var(--ink-2);cursor:pointer;transition:all .15s;
+}
+.dvr .chip:hover{border-color:var(--blue-2);color:var(--blue)}
+.dvr .chip[aria-pressed="true"]{background:linear-gradient(180deg,var(--blue-2),var(--blue));color:#fff;border-color:transparent;box-shadow:var(--sh-xanh)}
+.dvr .hint{font-size:12.5px;color:var(--muted);line-height:1.55}
+.dvr .link{background:none;border:0;padding:0;font:inherit;font-size:12.5px;color:var(--blue);cursor:pointer;text-decoration:underline;white-space:nowrap}
+
+/* ---------- thanh tìm chuyến ---------- */
+.dvr .searchbar{
+  background:var(--surface);border:1px solid var(--line);border-radius:calc(var(--r) + 4px);
+  box-shadow:var(--sh-2);padding:18px 20px;display:grid;gap:14px;
+}
+.dvr .sb-row{display:grid;grid-template-columns:minmax(0,1.15fr) 46px minmax(0,1.15fr) minmax(0,.95fr) minmax(0,.95fr) minmax(0,.72fr) minmax(0,.9fr) auto;gap:12px;align-items:end}
+.dvr .sb-row .btn{height:46px;padding-inline:26px}
+.dvr .sb-foot{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+@media (max-width:1060px){ .dvr .sb-row{grid-template-columns:1fr 46px 1fr 1fr} .dvr .sb-row .btn{grid-column:1/-1} }
+@media (max-width:560px){ .dvr .sb-row{grid-template-columns:1fr 1fr} .dvr .sb-row .swapbtn{display:none} }
+
+/* ---------- dải giá 7 ngày ---------- */
+.dvr .strip{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;gap:10px;align-items:stretch}
+.dvr .strip-days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.dvr .arrow{
+  border:1.5px solid var(--line);background:var(--surface);color:var(--blue);border-radius:var(--r-pill);
+  cursor:pointer;font-size:18px;line-height:1;box-shadow:var(--sh-1);transition:all .15s;
+}
+.dvr .arrow:hover:not(:disabled){border-color:var(--blue);box-shadow:var(--sh-xanh);transform:translateY(-1px)}
+.dvr .arrow:disabled{opacity:.35;cursor:default}
+.dvr .day{
+  display:grid;gap:4px;justify-items:center;background:var(--surface);border:1.5px solid var(--line);
+  border-radius:var(--r-sm);padding:11px 5px;cursor:pointer;font:inherit;color:var(--ink);text-align:center;
+  box-shadow:var(--sh-1);transition:transform .15s, box-shadow .15s, border-color .15s;
+}
+.dvr .day:hover{transform:translateY(-2px);border-color:var(--blue-2);box-shadow:var(--sh-xanh)}
+.dvr .day[aria-current="date"]{background:linear-gradient(160deg,var(--blue-2),var(--blue));border-color:transparent;color:#fff;box-shadow:var(--sh-xanh)}
+.dvr .day[aria-current="date"] .d-dow{color:var(--board-dim)}
+.dvr .day[aria-current="date"] .d-price{color:#fff}
+.dvr .day.cheap .d-price{color:var(--cheap);font-weight:700}
+.dvr .day:disabled{opacity:.4;cursor:default}
+.dvr .d-dow{font-size:11px;font-weight:500;color:var(--muted);white-space:nowrap}
+.dvr .d-price{font-size:13.5px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
 @media (max-width:760px){
-  .dvr .row{grid-template-columns:minmax(0,1fr) auto;gap:10px 12px}
-  .dvr .r-air{grid-column:1/-1;display:flex;align-items:baseline;gap:8px}
-  .dvr .r-chan{grid-column:1;font-size:12px}
-  .dvr .r-price{grid-column:2;align-self:end}
-  .dvr .cal-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-  .dvr .step{grid-template-columns:30px minmax(0,1fr);}
-  .dvr .state{grid-column:2}
+  .dvr .strip{grid-template-columns:1fr}
+  .dvr .strip .arrow{display:none}
+  .dvr .strip-days{display:flex;overflow-x:auto;scroll-snap-type:x proximity;padding:2px 2px 6px}
+  .dvr .strip-days .day{min-width:108px;scroll-snap-align:start}
 }
+
+/* ---------- khung kết quả ---------- */
+.dvr .results{display:grid;grid-template-columns:minmax(0,258px) minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:900px){ .dvr .results{grid-template-columns:1fr} }
+.dvr .rail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);display:grid;overflow:hidden}
+.dvr .rail section{padding:15px 17px;border-bottom:1px solid var(--line-soft);display:grid;gap:7px}
+.dvr .rail section:last-child{border-bottom:0}
+.dvr .f-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.dvr .f-head h3{font-size:15px}
+.dvr .f-item{display:flex;align-items:center;gap:10px;padding:5px 0;cursor:pointer;line-height:1.3;
+  font-family:inherit;font-size:13.5px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--ink)}
+.dvr .f-item input{width:17px;height:17px;accent-color:var(--blue);flex:none;margin:0;border-radius:5px}
+.dvr .f-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dvr .f-price{margin-left:auto;font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--muted);flex:none;letter-spacing:0;text-transform:none}
+.dvr .f-item.off{opacity:.4}
+.dvr .pills{display:flex;flex-wrap:wrap;gap:6px}
+.dvr .pill{display:inline-flex;align-items:center;gap:7px;background:#EEF5FF;border:1px solid #D8E6FF;color:var(--blue);
+  border-radius:var(--r-pill);padding:5px 8px 5px 12px;font-size:12.5px;font-weight:500}
+.dvr .pill button{background:none;border:0;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0 2px;opacity:.7}
+.dvr .pill button:hover{opacity:1}
+
+.dvr .topbar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.dvr .sorts{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-pill);padding:4px;box-shadow:var(--sh-1)}
+.dvr .sort{padding:9px 18px;border:0;background:transparent;color:var(--ink-2);border-radius:var(--r-pill);
+  font:600 13.5px/1 "Be Vietnam Pro",sans-serif;cursor:pointer;transition:all .15s}
+.dvr .sort:hover{color:var(--blue)}
+.dvr .sort[aria-pressed="true"]{background:linear-gradient(180deg,var(--blue-2),var(--blue));color:#fff;box-shadow:var(--sh-xanh)}
+.dvr .count{font-size:13px;color:var(--muted)}
+
+/* ---------- thẻ chuyến ---------- */
+.dvr .res{display:grid;gap:14px}
+.dvr .card{
+  background:var(--surface);border:1px solid var(--line);border-radius:calc(var(--r) + 2px);box-shadow:var(--sh-1);
+  display:grid;grid-template-columns:122px minmax(0,1fr) minmax(158px,auto) auto;gap:18px;align-items:center;
+  padding:17px 19px;position:relative;transition:transform .15s, box-shadow .15s;
+}
+.dvr .card:hover{transform:translateY(-3px);box-shadow:var(--sh-2)}
+.dvr .card.best{border-color:#FFD2A8;box-shadow:0 2px 6px rgba(21,34,66,.06), 0 22px 40px -22px rgba(255,122,24,.55)}
+.dvr .badge{
+  position:absolute;top:-11px;left:19px;background:linear-gradient(180deg,var(--accent-2),var(--accent));color:#fff;
+  font-size:11px;font-weight:700;letter-spacing:.05em;padding:4px 12px;border-radius:var(--r-pill);box-shadow:var(--sh-cam);
+}
+.dvr .c-air{display:flex;align-items:center;gap:11px;min-width:0}
+.dvr .c-logo{
+  width:42px;height:42px;flex:none;display:grid;place-items:center;border-radius:13px;
+  background:linear-gradient(160deg,var(--blue-2),var(--blue));color:#fff;
+  font:700 14px/1 "Baloo 2",sans-serif;letter-spacing:.02em;box-shadow:var(--sh-xanh);
+}
+.dvr .c-name{font-size:13.5px;line-height:1.3;font-weight:500;overflow-wrap:anywhere}
+.dvr .c-name small{display:block;color:var(--muted);font-size:11.5px;font-weight:400}
+.dvr .c-leg{display:grid;grid-template-columns:auto minmax(60px,1fr) auto;gap:14px;align-items:center;min-width:0}
+.dvr .t-big{font-size:25px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1;letter-spacing:-.01em}
+.dvr .t-code{font-size:12px;color:var(--muted)}
+.dvr .t-mid{display:grid;gap:4px;justify-items:center;text-align:center}
+.dvr .t-dur{font-size:11.5px;color:var(--muted)}
+.dvr .t-line{width:100%;height:2px;background:linear-gradient(90deg,var(--line) 0%,var(--blue-2) 100%);border-radius:2px;position:relative}
+.dvr .t-line::after{content:"";position:absolute;right:-1px;top:-3px;width:8px;height:8px;background:var(--blue);border-radius:50%}
+.dvr .t-stop{font-size:11.5px;color:var(--ink-2);font-weight:500}
+.dvr .c-price{display:grid;gap:2px;justify-items:end;text-align:right}
+.dvr .c-price b{font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent);letter-spacing:-.01em}
+.dvr .c-price span{font-size:11.5px;color:var(--muted)}
+.dvr .c-price .delta{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.dvr .c-act{display:grid;gap:7px;justify-items:stretch}
+.dvr .choose{
+  font-family:"Baloo 2","Be Vietnam Pro",sans-serif;font-weight:700;font-size:16px;
+  background:linear-gradient(180deg,var(--accent-2),var(--accent));color:#fff;border:0;border-radius:var(--r-pill);
+  padding:11px 24px;text-decoration:none;text-align:center;cursor:pointer;white-space:nowrap;
+  box-shadow:var(--sh-cam);transition:transform .15s, box-shadow .15s;
+}
+.dvr .choose:hover{transform:translateY(-2px);box-shadow:0 16px 28px -12px rgba(255,122,24,.7)}
+.dvr .choose.alt{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line);font-size:13px;padding:8px 14px;box-shadow:none}
+.dvr .choose.alt:hover{border-color:var(--blue);color:var(--blue);transform:none;box-shadow:var(--sh-1)}
+.dvr .c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:7px;margin-top:-2px}
+.dvr .mini{font-size:11.5px;font-weight:500;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r-pill);padding:4px 11px}
+.dvr .mini.bag{color:var(--cheap);background:var(--cheap-soft);border-color:#BFEADD}
+@media (max-width:760px){
+  .dvr .card{grid-template-columns:1fr auto;gap:13px}
+  .dvr .c-air, .dvr .c-leg, .dvr .c-act{grid-column:1/-1}
+  .dvr .c-price{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;justify-items:start;text-align:left}
+  .dvr .c-price span, .dvr .c-price .delta{white-space:nowrap}
+}
+.dvr .empty{padding:38px 20px;color:var(--muted);font-size:14px;text-align:center;background:var(--surface);
+  border:1px dashed var(--line);border-radius:var(--r)}
+
+/* ---------- khối xanh (chuyến đã chọn) ---------- */
+.dvr .board{background:linear-gradient(150deg,var(--board-2) 0%,var(--board) 100%);color:var(--board-ink);
+  border-radius:calc(var(--r) + 2px);box-shadow:var(--sh-xanh);overflow:hidden}
+.dvr .board-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:17px 20px}
+.dvr .board-head h2{color:var(--board-ink)}
+.dvr .board-head .eyebrow{color:var(--board-dim)}
+.dvr .board-sub{font-size:13px;color:var(--board-dim)}
+.dvr .dark{background:linear-gradient(150deg,var(--board-2),var(--board));color:var(--board-ink);border:0}
+.dvr .dark .lbl, .dvr .dark .hint{color:var(--board-dim)}
+
+/* ---------- nơi bán vé ---------- */
+.dvr .chan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(216px,1fr));gap:14px}
+.dvr .chan{display:grid;gap:8px;padding:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  align-content:start;box-shadow:var(--sh-1);transition:transform .15s, box-shadow .15s}
+.dvr .chan:hover{transform:translateY(-3px);box-shadow:var(--sh-2)}
+.dvr .chan b{font-family:"Baloo 2",sans-serif;font-size:19px;font-weight:700}
+.dvr .chan .kind{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.dvr .chan .note{font-size:12.5px;color:var(--ink-2);background:none;border:0;padding:0;box-shadow:none;border-radius:0}
+.dvr .chan a{font-weight:600;font-size:14px;text-decoration:none;color:var(--blue);width:max-content}
+.dvr .chan a:hover{text-decoration:underline}
+
+/* ---------- hồ sơ ---------- */
+.dvr .pax{border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;background:var(--surface-2)}
+.dvr .pax-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dvr .del{background:none;border:0;color:var(--muted);font:inherit;font-size:12.5px;cursor:pointer;text-decoration:underline}
+.dvr .del:hover{color:var(--warn)}
+.dvr .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:24px;align-items:start}
+.dvr .actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.dvr .safe{border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:var(--r-sm);padding:13px 16px;font-size:13px;line-height:1.6}
+
+/* ---------- các bước ---------- */
+.dvr .steps{display:grid;gap:10px}
+.dvr .step{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:14px;align-items:start;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px;box-shadow:var(--sh-1)}
+.dvr .step-n{font-family:"Baloo 2",sans-serif;font-size:17px;font-weight:700;color:#fff;background:linear-gradient(160deg,var(--blue-2),var(--blue));
+  width:34px;height:34px;display:grid;place-items:center;border-radius:11px;box-shadow:var(--sh-xanh)}
+.dvr .step b{display:block;font-weight:600;font-size:15px}
+.dvr .step p{font-size:13.5px;color:var(--ink-2);margin-top:3px}
+.dvr .state{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:5px 11px;border-radius:var(--r-pill);white-space:nowrap}
+.dvr .state.auto{color:var(--cheap);background:var(--cheap-soft)}
+.dvr .state.half{color:var(--accent);background:#FFF0E2}
+.dvr .state.hand{color:var(--warn);background:var(--warn-soft)}
+
+/* ---------- bảng, ô số liệu ---------- */
+.dvr .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.dvr .tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:15px 17px;display:grid;gap:4px;box-shadow:var(--sh-1)}
+.dvr .tile b{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.dvr .split, .dvr .kv{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-soft)}
+.dvr .split:last-child, .dvr .kv:last-child{border-bottom:0}
+.dvr .kv b, .dvr .split b{font-variant-numeric:tabular-nums}
+.dvr .big{font-size:26px;font-weight:700;color:var(--accent)}
+.dvr .money, .dvr .total{font-variant-numeric:tabular-nums}
+.dvr table, .dvr .tbl{width:100%;border-collapse:collapse;font-size:13.5px;background:var(--surface)}
+.dvr th, .dvr .tbl th{text-align:left;font:600 11.5px/1 "Be Vietnam Pro",sans-serif;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);padding:12px;border-bottom:1px solid var(--line)}
+.dvr td, .dvr .tbl td{padding:13px 12px;border-bottom:1px solid var(--line-soft);vertical-align:top}
+.dvr .scroll, .dvr .wrapx{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);background:var(--surface)}
+.dvr .acts{display:flex;flex-wrap:wrap;gap:7px}
+.dvr .acts button, .dvr .acts a{font:600 12.5px/1 "Be Vietnam Pro",sans-serif;padding:8px 12px;border:1.5px solid var(--line);
+  border-radius:var(--r-pill);background:var(--surface);color:var(--ink);cursor:pointer;text-decoration:none}
+.dvr .acts button:hover, .dvr .acts a:hover{border-color:var(--blue);color:var(--blue)}
+.dvr .acts .go{background:linear-gradient(180deg,var(--accent-2),var(--accent));color:#fff;border-color:transparent;box-shadow:var(--sh-cam)}
+.dvr .log{font-size:12px;color:var(--muted);margin-top:6px;display:grid;gap:2px}
+
+/* ---------- vặt ---------- */
+.dvr .foot{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:18px;line-height:1.65}
+.dvr .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:13px 20px;border-radius:var(--r-pill);font-size:13.5px;box-shadow:var(--sh-2);z-index:50;max-width:92vw}
+@media (max-width:960px){ .dvr .masthead{grid-template-columns:1fr} }
+@media (max-width:760px){ .dvr .step{grid-template-columns:34px minmax(0,1fr)} .dvr .state{grid-column:2} }
 @media (prefers-reduced-motion:reduce){.dvr *{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
-
-/* phần dùng chung với trang đặt vé và trang quản trị */
-:root:not([data-theme="light"]){
-    --ground:#07121E; --surface:#0F2134; --surface-2:#172F46;
-    --board:#050E19; --board-2:#0C2136; --board-line:#1B3A5B; --board-ink:#E9F0F8; --board-dim:#7E99B6;
-    --ink:#E6EEF7; --ink-2:#B4C6D9; --muted:#8AA2BB; --line:#26425F; --line-soft:#1B3450;
-    --amber:#F2A83B; --amber-bright:#F2A83B; --on-amber:#1B1000;
-    --cheap:#3EC49E; --cheap-soft:#0E3B31; --warn:#F0A88A; --warn-soft:#3A1B0E;
-    color-scheme:dark;
-  }
-.dvr [hidden]{display:none!important}
-.dvr .dark{background:var(--board);color:var(--board-ink);border-color:var(--board)}
-.dvr .dark .lbl, .dvr .dark .hint{color:var(--board-dim)}
-.dvr .three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-.dvr .tag.wait{color:var(--amber);background:transparent}
-.dvr .tag.bad{color:var(--warn);background:var(--warn-soft)}
-.dvr .money{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
-.dvr .total{font-size:26px;font-weight:600}
-.dvr .split{display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--line-soft)}
-.dvr .split:last-child{border-bottom:0}
-.dvr .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-.dvr .tile{background:var(--surface);border:1px solid var(--line);padding:12px 14px;display:grid;gap:3px}
-.dvr .tile b{font-family:"IBM Plex Mono",monospace;font-size:21px;font-variant-numeric:tabular-nums}
-.dvr table{width:100%;border-collapse:collapse;font-size:13.5px}
-.dvr th{text-align:left;font:500 10.5px/1 "IBM Plex Mono",monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
-.dvr td{padding:10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
-.dvr .scroll{overflow-x:auto}
+/* Phần riêng của bản WordPress: khu quản trị, khung trang riêng, chân trang công ty.
+   Ghép vào cuối dovere.css lúc dựng gói. */
 
 /* ----------------------------------------------------------------------
    Trong khu quản trị, WordPress đặt màu chữ bằng selector có #id nên thắng
@@ -370,8 +351,8 @@
 #wpbody-content .dvr h3{color:var(--ink)}
 #wpbody-content .dvr .board-head h2,
 #wpbody-content .dvr .board-head .eyebrow{color:var(--board-ink)}
-#wpbody-content .dvr .eyebrow{color:var(--amber)}
-#wpbody-content .dvr a{color:var(--amber)}
+#wpbody-content .dvr .eyebrow{color:var(--accent)}
+#wpbody-content .dvr a{color:var(--accent)}
 #wpbody-content .dvr table{background:transparent;border-collapse:collapse}
 #wpbody-content .dvr th,
 #wpbody-content .dvr td{color:var(--ink)}
@@ -387,9 +368,24 @@ body.dvr-toan-man{background:var(--ground);min-height:100vh}
   align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
 .dvr .dvr-home{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;font-size:21px;
   font-weight:700;letter-spacing:.04em;color:var(--ink);text-decoration:none}
-.dvr .dvr-home:hover{color:var(--amber)}
+.dvr .dvr-home:hover{color:var(--accent)}
 .dvr .dvr-nav{display:flex;flex-wrap:wrap;gap:16px}
 .dvr .dvr-nav a{font-size:13.5px;color:var(--ink-2);text-decoration:none}
-.dvr .dvr-nav a:hover{color:var(--amber);text-decoration:underline;text-underline-offset:3px}
+.dvr .dvr-nav a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 .dvr .dvr-day{max-width:1440px;margin-inline:auto;padding:20px;display:flex;flex-wrap:wrap;gap:10px;
   justify-content:space-between;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)}
+
+/* ---------- khối thông tin công ty ở chân trang ---------- */
+.dvr .cty{max-width:1440px;margin-inline:auto;padding:26px 20px 40px;border-top:1px solid var(--line);
+  font-size:13px;line-height:1.7;color:var(--ink-2)}
+.dvr .cty-luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px 34px;align-items:start}
+.dvr .cty-ten{font-weight:600;color:var(--ink);font-size:13.5px;letter-spacing:.01em}
+.dvr .cty-en{font-style:italic;color:var(--muted);margin-bottom:7px}
+.dvr .cty-dong{display:block}
+.dvr .ct-dong{display:block}
+.dvr .ct-dong span,.dvr .cty-dong span{color:var(--muted)}
+.dvr .ct-dong b{font-weight:600;color:var(--ink)}
+.dvr .cty-nhanh{color:var(--ink);overflow-wrap:anywhere}
+.dvr .cty-ban-quyen{margin-top:22px;padding-top:14px;border-top:1px solid var(--line-soft);
+  font-size:12.5px;color:var(--muted)}
+@media (max-width:640px){ .dvr .cty{padding:22px 20px 32px} }
