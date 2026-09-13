@@ -2814,7 +2814,7 @@ class VHG_Trang {
     box.appendChild(cv);
     var bar=document.createElement('div'); bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
     if(navigator.share){
-      var bS=document.createElement('button'); bS.className='bc-btn pri'; bS.textContent='📤 Chia sẻ lên Zalo';
+      var bS=document.createElement('button'); bS.type='button'; bS.className='bc-btn pri'; bS.textContent='📤 Chia sẻ lên Zalo';
       bS.onclick=function(){
         cv.toBlob(function(b){
           if(!b){ alert('Không tạo được ảnh — bấm "Tải ảnh" rồi gửi tay.'); return; }
@@ -2829,7 +2829,7 @@ class VHG_Trang {
     var bD=document.createElement('a'); bD.className='bc-btn'; bD.textContent='⬇ Tải ảnh';
     try{ bD.href=cv.toDataURL('image/png'); }catch(e){} bD.download='bao-cao.png';
     bar.appendChild(bD);
-    var bC=document.createElement('button'); bC.className='bc-btn'; bC.textContent='Đóng';
+    var bC=document.createElement('button'); bC.type='button'; bC.className='bc-btn'; bC.textContent='Đóng';
     bC.onclick=function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
     bar.appendChild(bC);
     box.appendChild(bar);
@@ -2861,13 +2861,13 @@ class VHG_Trang {
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
         { cash:tCash, qr:tQr });
       moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
-    }catch(e){}
+    }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
   function baoCaoTongAnh_(tong, loc, ngay){
     try{
       var cv=veReportCanvas_(loc, ngay, [], null, { tong:tong, cash:tong, qr:0 });
       moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
-    }catch(e){}
+    }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
   /* Dựng lại ảnh báo cáo từ một báo cáo CŨ trong khối "Báo cáo trong 24h" — anh Thắng 13/09/2026:
      *"nếu báo cũ chưa gửi thì hiện ô ảnh báo cáo để tải về"*. Khác baoCaoAnh_ ở nguồn số: đây lấy
@@ -2887,7 +2887,7 @@ class VHG_Trang {
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
         { cash:tCash, qr:tQr });
       moModalAnh_(cv, 'Báo cáo cơ sở '+(rp.locName||'')+' ngày '+ddmmyy_(rp.date||''));
-    }catch(e){}
+    }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
 
   function guiBaoCao(){
@@ -3460,7 +3460,10 @@ class VHG_Trang {
        (không nhét vào head cạnh nút Sửa) nên hiện cho MỌI báo cáo — kể cả đã khoá hoặc toàn QR
        (khối bill của các báo cáo đó không có hàng nút). Bấm là dựng ảnh POSH để Tải/Chia sẻ Zalo. */
     var actBar=el('div'); actBar.style.cssText='display:flex;justify-content:flex-end;margin-top:8px';
-    var bAnh=el('button','bc-btn','📤 Báo cáo ảnh'); bAnh.style.fontWeight='700';
+    var bAnh=el('button','bc-btn','📤 Báo cáo ảnh'); bAnh.type='button'; bAnh.style.fontWeight='700';
+    /* 🔴 type='button' BẮT BUỘC — thẻ báo cáo nằm trong <form>, nút không đặt type mặc định là
+       submit → bấm là NẠP LẠI TRANG, modal ảnh vừa dựng bị bỏ ngay ("bấm chưa phản hồi", anh
+       Thắng 13/09/2026). Cùng cách đã vá cho nút "Báo lỗi" và các nút lý do. */
     bAnh.onclick=function(){ baoCaoAnhTuRp_(rp); };
     actBar.appendChild(bAnh); d.appendChild(actBar);
     return d;
