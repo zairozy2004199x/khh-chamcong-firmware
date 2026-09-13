@@ -208,6 +208,8 @@ class VHCC_TrangNS {
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		if ( 'vai_bp' === $viec )      { return self::viec_vai_bp( $toi ); }
+		if ( 'luu_nhom' === $viec )    { return self::viec_luu_nhom( $toi ); }
+		if ( 'ap_day' === $viec )      { return self::viec_ap_day( $toi ); }
 		if ( 'gop_that' === $viec )    { return self::viec_gop_that( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
 		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
@@ -1331,7 +1333,39 @@ class VHCC_TrangNS {
 			/* Màn hẹp (máy tính xách tay 13", máy bảng) thì KHÔNG bóp tiếp nữa — bóp nữa là
 			   không đọc được. Ở đó để `.cuon` cuộn ngang như cũ; khác một chỗ: nay chỉ RIÊNG
 			   bảng cuộn, tiêu đề và dải lọc đứng yên, và cột Mã NV ghim trái chạy đúng. */
-			. '@media(max-width:1100px){.bo{padding-left:12px;padding-right:12px}}';
+			. '@media(max-width:1100px){.bo{padding-left:12px;padding-right:12px}}'
+			/* ==============================================================================
+			 * DẢI CHIP "VÀO ĐƯỢC ĐÂU, VÌ ĐÂU" — thay cho năm cột nút cũ (3.77.0)
+			 * ============================================================================== */
+			. '.chip-q-dai{display:flex;flex-wrap:wrap;gap:4px}'
+			. '.chip-q{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:9px;'
+			. 'font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;border:1px solid}'
+			/* Xanh = vào được, xám = không. Màu KHÔNG đứng một mình: chip luôn có CHỮ tên trang,
+			   nên bản in đen trắng và người mù màu vẫn đọc ra mình đang xem cột nào. */
+			. '.chip-q.q-co{background:#dcfce7;border-color:#86efac;color:#15803d}'
+			. '.chip-q.q-khong{background:#f1f5f9;border-color:#e2e8f0;color:#94a3b8}'
+			/* Chữ nhỏ trong chip nói TẦNG nào quyết (bp · mảng · riêng). Nhạt hơn tên trang —
+			   nó là chú thích, không phải nhãn. */
+			. '.chip-q i{font-style:normal;font-size:9.5px;font-weight:700;opacity:.7;'
+			. 'text-transform:uppercase;letter-spacing:.3px}'
+			/* Đặt RIÊNG cho một người: viền đứt. Giữa 245 hàng đi theo luật chung, dòng đi riêng
+			   phải nhận ra được mà không cần rê chuột — nó là thứ duy nhất ở cột này mà đổi luật
+			   nhóm cũng không lay chuyển. */
+			. '.chip-q.q-rieng{border-style:dashed;border-width:1.5px}'
+			/* ⚠ = luật nói một đằng, sổ người dùng bên kia một nẻo. Vàng, không đỏ: đây là "còn
+			   việc phải bấm", không phải "hỏng". */
+			. '.chip-q.q-lech{background:#fef3c7;border-color:#fcd34d;color:#92400e}'
+			/* Khối "đặt riêng" trong hàng sửa: mỗi trang một cụm nhãn + dải nút. */
+			. '.q-mot{display:inline-flex;flex-direction:column;gap:3px}'
+			. '.q-ten{font-size:11.5px;color:var(--mo);font-weight:600}'
+			/* Số người của mỗi nhóm trong bảng luật — để biết đang khai cho bao nhiêu người. */
+			. '.sl-nho{display:inline-block;min-width:18px;text-align:center;border-radius:9px;'
+			. 'background:#e2e8f0;color:#475569;font-size:11px;padding:0 5px;margin-left:4px}'
+			/* Bảng luật nhóm: cột nút bó sát bề ngang dải nút, phần thừa dồn cho cột TÊN NHÓM.
+			   Không ghim thì `width:100%` chia đều, và mỗi dải nút lọt thỏm giữa một ô rộng gấp
+			   ba nó — mắt phải chạy cả gang tay mới nối được tên phòng với ô mình vừa bấm. */
+			. 'table.b-nhom td.o-q-td,table.b-nhom th.tr-doc{width:1%;white-space:nowrap}'
+			. 'table.b-nhom td.o-q-td{text-align:left}';
 	}
 
 	/**
@@ -1419,6 +1453,9 @@ class VHCC_TrangNS {
 		echo '<div class="the">';
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp );
 		echo '</div>';
+		/* Ngay DƯỚI bảng: cột "Quyền vào trang" trong bảng chỉ ĐỌC, nên chỗ khai phải là thứ
+		   tiếp theo mắt chạm tới — không bắt người ta đi tìm ở cuối trang. */
+		self::the_quyen_nhom( $toi );
 		self::the_dong_bo( $toi );
 		self::the_quyen_noi_bo( $toi );
 		self::canh_vai_la( $toi );
@@ -1789,7 +1826,16 @@ class VHCC_TrangNS {
 			. 'bên trong, không mang phiên chấm công sang.</li>';
 		echo '<li><b>Vận hành chi phí</b> — app đó có <b>sổ người dùng riêng</b> (vai "Kế toán cá '
 			. 'nhân" / "Kế toán NCC"), không nhất thiết có Mã NV trong hồ sơ chấm công. Khai quyền '
-			. 'cho app chi phí thì làm ở chính app ấy, tại màn Cấu hình → Người dùng.</li>';
+			. '<b>bên trong</b> app chi phí thì vẫn phải làm ở chính app ấy, màn Cấu hình → Người '
+			. 'dùng. <span class="mo">Ở đây chỉ khai được <b>ai có mặt trong sổ ấy</b> — cột '
+			. '<b>Vận hành chi phí</b> của bảng luật nhóm.</span></li>';
+		/* 🔴 3.77.0 — NÓI THẲNG RANH GIỚI CỦA LUẬT NHÓM. Hai cột đẩy người trông y hệt ba cột
+		   trang trong cùng một bảng, nên người khai dễ tin rằng tích xong là xong. Không phải:
+		   bên kia là sổ người dùng riêng, phải có một lượt bấm tạo tài khoản thật. */
+		echo '<li><b>Luật nhóm cho hai cột đẩy người</b> (Ghế massage · Vận hành chi phí) chỉ là '
+			. '<b>lời khai</b> — nó nói ai <i>nên</i> có tài khoản. Tài khoản thật vẫn phải bấm '
+			. 'tạo, ở dải chênh lệch ngay dưới bảng luật. Hai hệ ấy đều có ngăn tiền, nên không '
+			. 'tự tạo tài khoản cho ai mà không có một lượt bấm để quy trách nhiệm.</li>';
 		echo '</ul>';
 		echo '</details></div>';
 	}
@@ -1978,6 +2024,13 @@ class VHCC_TrangNS {
 		echo self::o_loc();
 		/* `cuon-ns` + `b-ns`: bảng NÀY chạy chế độ gọn để vừa bề ngang trang — xem `css_them()`.
 		   Đặt lớp riêng chứ không sửa `table` chung: mấy bảng nhỏ cùng trang không cần bóp. */
+		/* 🔴 MỒI SẴN BỘ PHẬN & MẢNG CHO CẢ LÁT CẮT. Cột "Quyền vào trang" hỏi `VHCC_Cong::giai()`
+		   ba lần mỗi hàng; không mồi thì mỗi hàng là một lượt SELECT hồ sơ — cho đúng những dòng
+		   vừa đọc xong ở ngay trên. 50 hàng = 50 lượt thừa, mỗi lần mở trang. */
+		foreach ( $lat as $r_moi ) {
+			$ma_moi = trim( (string) $r_moi['ma_nv'] );
+			if ( '' !== $ma_moi ) { VHCC_Cong::nhom_cua( $ma_moi, $r_moi ); }
+		}
 		echo '<div class="cuon cuon-ns"><table class="b-ns"><thead><tr>';
 		echo '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Vai trò</th>';
 		/* Hai cột điều động. Nút áp cả cột ở ngay đầu cột — cùng cơ chế với ba cột quyền bên
@@ -1998,50 +2051,28 @@ class VHCC_TrangNS {
 				. '<button type="submit" name="cot" value="' . esc_attr( 'mbp_' . $c_mb['o'] . '|*' ) . '"'
 				. ' title="Áp giá trị vừa chọn cho tất cả người đang hiện, rồi lưu luôn">Áp</button></th>';
 		}
-		/* 🔴 NÚT ÁP CẢ CỘT — thứ thật sự tiết kiệm thời gian. Anh Thắng: *"cho nhanh"*. Đổi ô
-		   xổ thành nút bấm mới bớt được một lần bấm mỗi ô; còn khoá cả một cơ sở cho một trang
-		   thì vẫn là 50 lần bấm. Nút này làm cả cột trong MỘT lần.
-		   ⚠️ Chỉ áp cho người ĐANG HIỆN — cùng luật với nút Lưu. Bảng có lọc và phân trang, nên
-		      "cả cột" nghĩa là cả cột của lát cắt này, không phải của 240 người. */
-		foreach ( $ds_trang as $k_t => $t ) {
-			echo '<th class="tr-doc">' . esc_html( $t['ten'] ) . '<br>';
-			echo '<span class="cot-nut">';
-			foreach ( array( '' => 'vai', 'mo' => 'Mở', 'khoa' => 'Khoá' ) as $gt => $ten ) {
-				echo '<button type="submit" name="cot" value="' . esc_attr( $k_t . '|' . $gt ) . '"'
-					. ' title="Áp «' . esc_attr( $ten ) . '» cho tất cả người đang hiện, rồi lưu luôn">'
-					. esc_html( $ten ) . '</button>';
-			}
-			echo '</span></th>';
-		}
-		/* 🔴 CỘT GHẾ TRÔNG GIỐNG BA CỘT KIA NHƯNG LÀ MỘT CƠ CHẾ KHÁC — xem đầu `VHCC_DayGhe`.
-		   Ba cột kia ghi một NGOẠI LỆ vào sổ quyền; cột này ĐẨY NGƯỜI THẬT sang sổ người dùng
-		   của hệ ghế, vì `/ghe` có phiên riêng và không đọc `ma_nv`. Nên nó chỉ có HAI nút:
-		   đẩy sang, hoặc gỡ ra. Không có "theo vai" — bên ấy không hỏi vai bên này bao giờ. */
+		/* =====================================================================================
+		 * 🔴 NĂM CỘT QUYỀN GỘP LẠI THÀNH MỘT — anh Thắng 13/09/2026
+		 * =====================================================================================
+		 * *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng người nữa…
+		 * Mà phân theo bộ phận. nên làm gọn lại cho ah"*.
+		 *
+		 * Trước: mỗi trang một cột, mỗi cột một dải ba nút, cho TỪNG người — 245 người × 5 cột là
+		 * 1.225 ô phải tích tay, và 600px bề ngang chỉ để chở mấy ô ấy.
+		 *
+		 * Nay: cột này chỉ ĐỌC — nó nói người ấy vào được đâu VÀ VÌ ĐÂU (theo bộ phận, theo mảng,
+		 * theo vai, hay đặt riêng). Chỗ KHAI chuyển hẳn xuống khối "Phân quyền theo bộ phận &
+		 * mảng": khai một lần cho cả phòng.
+		 *
+		 * ⚠️ VẪN GIỮ ĐƯỜNG ĐẶT RIÊNG CHO TỪNG NGƯỜI — nó nằm trong khối "sửa ▾" của chính hàng
+		 *    ấy. Bỏ hẳn thì mọi ngoại lệ đang có thành không gỡ được bằng màn hình, mà ngoại lệ
+		 *    là tầng DUY NHẤT khoá được đích danh một người khi cả bộ phận đang mở.
+		 * ===================================================================================== */
 		$co_ghe = self::cot_ghe( $toi );
-		if ( $co_ghe ) {
-			echo '<th class="tr-doc">Ghế massage<br><span class="cot-nut">';
-			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
-				echo '<button type="submit" name="cot" value="' . esc_attr( VHCC_DayGhe::COT . '|' . $gt ) . '"'
-					. ' title="' . esc_attr( 'mo' === $gt
-						? 'Đẩy tất cả người đang hiện sang hệ ghế, rồi lưu luôn'
-						: 'Gỡ tất cả người đang hiện khỏi hệ ghế, rồi lưu luôn' ) . '">'
-					. esc_html( $ten ) . '</button>';
-			}
-			echo '</span></th>';
-		}
-		$co_cp = self::cot_chi_phi( $toi );
-		if ( $co_cp ) {
-			echo '<th class="tr-doc">Vận hành chi phí<br><span class="cot-nut">';
-			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
-				echo '<button type="submit" name="cot" value="'
-					. esc_attr( VHCC_DayChiPhi::COT . '|' . $gt ) . '"'
-					. ' title="' . esc_attr( 'mo' === $gt
-						? 'Đẩy tất cả người đang hiện sang app Vận hành chi phí, rồi lưu luôn'
-						: 'Gỡ tất cả người đang hiện khỏi app Vận hành chi phí, rồi lưu luôn' ) . '">'
-					. esc_html( $ten ) . '</button>';
-			}
-			echo '</span></th>';
-		}
+		$co_cp  = self::cot_chi_phi( $toi );
+		echo '<th class="tr-doc">Quyền vào trang<br>'
+			. '<span class="mo" style="font-weight:400;font-size:10.5px">khai ở khối '
+			. '<b>Phân quyền theo bộ phận</b> bên dưới</span></th>';
 		echo '</tr></thead><tbody>';
 
 		foreach ( $lat as $r ) {
@@ -2227,31 +2258,13 @@ class VHCC_TrangNS {
 			      tính cho cùng một câu hỏi là sớm muộn màn hình nói khác cửa vào. */
 			$gia = array( 'ma_nv' => $ma, 'role' => (string) ( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) );
 
-			foreach ( $ds_trang as $k => $t ) {
-				$dat = VHCC_Cong::o( $ma, $k );
-				/* Mặc định THEO VAI — tính với người KHÔNG mang ngoại lệ, nên phải hỏi thẳng
-				   `VHCC_Vai`, không gọi `duoc_vao()` (nó đã tính cả ngoại lệ vào rồi). */
-				$mac  = VHCC_Vai::duoc( $gia, $t['quyen'] );
-				/* ⚠️ Không có mã NV thì ngoại lệ không bám vào đâu được — thẻ phiên mang mã
-				   rỗng, nên `duoc_vao()` bỏ qua sạch. Nói ra, đừng vẽ một ô chọn vô tác dụng. */
-				if ( '' === $ma ) {
-					echo '<td class="o-q-td"><span class="chua-ma">chưa có Mã NV</span></td>';
-					continue;
-				}
-				echo '<td class="o-q-td">' . self::ba_nut( $ma, $k, $dat, $mac ) . '</td>';
-			}
-			if ( $co_ghe ) {
-				echo '<td class="o-q-td">'
-					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
-						: self::hai_nut_ghe( $ma ) ) . '</td>';
-			}
-			if ( $co_cp ) {
-				echo '<td class="o-q-td">'
-					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
-						: self::hai_nut_chi_phi( $ma ) ) . '</td>';
-			}
+			/* ⚠️ Không có mã NV thì ngoại lệ không bám vào đâu được — thẻ phiên mang mã rỗng,
+			   nên `duoc_vao()` bỏ qua sạch. Nói ra, đừng vẽ một dải chip vô nghĩa. */
+			echo '<td class="o-q-td">'
+				. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
+					: self::dai_chip_quyen( $gia, $ma, $ds_trang, $co_ghe, $co_cp ) ) . '</td>';
 			echo '</tr>';
-			$so_cot_hang = 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 );
+			$so_cot_hang = 7;
 			if ( $dang_sua === $ma ) {
 				self::hang_sua( $toi, $r, $so_cot_hang );
 			}
@@ -2441,6 +2454,43 @@ class VHCC_TrangNS {
 				: 'chưa có' ) . ', để trống = giữ nguyên)</span>'
 			. '<input name="pin_dang_nhap" inputmode="numeric"></label>';
 		echo '</div>';
+
+		/* =====================================================================================
+		 * ĐẶT RIÊNG QUYỀN VÀO TRANG CHO ĐÍCH DANH NGƯỜI NÀY
+		 * =====================================================================================
+		 * Từ 3.77.0 chỗ khai chính là khối "Phân quyền theo bộ phận & mảng" — khai một lần cho cả
+		 * phòng. Mấy dải nút dưới đây là TẦNG NGOẠI LỆ, và nó ở lại vì hai lý do:
+		 *
+		 *   1. Nó là đường DUY NHẤT khoá được một người trong khi cả bộ phận vẫn mở (người đang
+		 *      bị nhắc, người sắp nghỉ) — luật nhóm không làm được chuyện ấy.
+		 *   2. Ngoại lệ đã đặt từ trước vẫn còn trong sổ. Bỏ hẳn màn hình này thì chúng thành
+		 *      không gỡ được bằng tay người, chỉ còn cách sửa CSDL.
+		 *
+		 * ⚠️ Nằm TRONG form của bảng, nên bấm "Lưu hồ sơ này" là lưu luôn — xem `viec_sua_nhanh()`.
+		 * ===================================================================================== */
+		if ( '' !== $ma ) {
+			$gia = array( 'ma_nv' => $ma, 'role' => $g( 'vai_tro' ) );
+			echo '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--vien)">';
+			echo '<b>Đặt riêng quyền vào trang</b> <span class="mo">— chỉ dùng khi người này phải '
+				. 'khác cả bộ phận của họ. Để ở «theo bộ/vai» là đi theo luật chung.</span>';
+			echo '<div class="hang" style="gap:14px;margin-top:8px;flex-wrap:wrap">';
+			foreach ( VHCC_Cong::ds() as $k_t => $t_t ) {
+				$n_t = VHCC_Cong::nhom_noi_gi( $ma, $k_t );
+				$mac = ( null !== $n_t ) ? (bool) $n_t['duoc'] : VHCC_Vai::duoc( $gia, $t_t['quyen'] );
+				echo '<span class="q-mot"><span class="q-ten">' . esc_html( $t_t['ten'] ) . '</span>'
+					. self::ba_nut( $ma, $k_t, VHCC_Cong::o( $ma, $k_t ), $mac, $n_t ) . '</span>';
+			}
+			if ( self::cot_ghe( $toi ) ) {
+				echo '<span class="q-mot"><span class="q-ten">Ghế massage</span>'
+					. self::hai_nut_ghe( $ma ) . '</span>';
+			}
+			if ( self::cot_chi_phi( $toi ) ) {
+				echo '<span class="q-mot"><span class="q-ten">Vận hành chi phí</span>'
+					. self::hai_nut_chi_phi( $ma ) . '</span>';
+			}
+			echo '</div></div>';
+		}
+
 		echo '<div class="hang" style="margin-top:10px">';
 		echo '<button class="chinh" name="viec" value="sua_nhanh">Lưu hồ sơ này</button>';
 		/* ⚠️ HAI NÚT LƯU TRÊN CÙNG MỘT BIỂU MẪU TỪNG LÀ MỘT CÁI BẪY: tích ô quyền ở bảng rồi bấm
@@ -2778,14 +2828,383 @@ class VHCC_TrangNS {
 	 *    nhưng trùng `id` là trình duyệt nhảy về ô ĐẦU TIÊN mang id ấy — bấm ở hàng 40 mà đổi
 	 *    hàng 1. Ghép cả mã lẫn khoá trang, rồi băm cho sạch ký tự lạ.
 	 */
-	private static function ba_nut( $ma, $k, $dat, $mac ) {
-		$goc = 'q' . substr( md5( $ma . '|' . $k ), 0, 10 );
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * PHÂN QUYỀN THEO BỘ PHẬN & MẢNG — khai MỘT LẦN cho cả phòng
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền
+	 * từng người nữa"* — *"Ghế massage dành cho mảng kinh doanh máy tự động"*.
+	 *
+	 * 🔴 HAI CHIỀU, VÀ CHÚNG KHÁC NHAU THẬT:
+	 *    · BỘ PHẬN trả lời "người này làm VIỆC GÌ" — Phòng Kế Toán cần trang chấm công, Khối Nhân
+	 *      Viên Cơ Sở cần trạm.
+	 *    · MẢNG trả lời "người này làm Ở ĐÂU" — và đó mới là chiều đúng cho Ghế massage: ghế nằm
+	 *      trong mảng Máy tự động, ai chạy mảng ấy thì cần, bất kể họ thuộc phòng nào.
+	 *    Gộp hai chiều vào một bảng là sớm muộn phải khai "Khối Nhân Viên Cơ Sở ở mảng Máy tự
+	 *    động" thành một dòng riêng — tức là quay lại đúng chỗ tích tay từng trường hợp.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function the_quyen_nhom( $toi ) {
+		/* 🔴 CHỈ VẼ CỘT NGƯỜI XEM BẤM ĐƯỢC — cùng luật với hai cột đẩy ở bảng chính. Vẽ một cột
+		   mà bấm vào là bị chối thì tệ hơn không vẽ: họ bấm, thấy câu chối, và tưởng hệ hỏng. */
+		$cot = VHCC_Cong::cot_nhom();
+		if ( ! self::cot_ghe( $toi ) )     { unset( $cot[ VHCC_DayGhe::COT ] ); }
+		if ( ! self::cot_chi_phi( $toi ) ) { unset( $cot[ VHCC_DayChiPhi::COT ] ); }
+		if ( ! $cot ) { return; }
+		$sua = VHCC_Vai::duoc( $toi, 'ho_so' );
+		/* MỘT lượt đọc cho cả khối: vừa đếm người mỗi nhóm, vừa dò chênh lệch ghế/chi phí. Hai
+		   việc ấy hỏi cùng sáu cột của cùng một bảng — tách ra là đọc cả sổ hai lần. */
+		$so_do = self::ds_nhom_tho();
+		$dem   = VHCC_NhanSu::dem_mang_bo_phan( $so_do );
+
+		echo '<div class="the"><h2>Phân quyền theo bộ phận &amp; mảng</h2>';
+		echo '<p class="mo">Khai ở đây là khai cho <b>cả nhóm</b> — thêm người vào bộ phận ấy là '
+			. 'họ có ngay, khỏi tích tay. Thứ tự xét: <b>đặt riêng cho một người</b> → <b>luật bộ '
+			. 'phận</b> → <b>luật mảng</b> → <b>thang vai</b>. Ô để ở <b>«—»</b> là nhóm ấy không '
+			. 'nói gì, để tầng dưới quyết.</p>';
+		/* ⚠️ NÓI TRƯỚC LUẬT "MỞ THẮNG". Người làm hai mảng là chuyện thường ở chuỗi này; ai khai
+		   luật mà không biết điều đó thì tưởng mình vừa khoá xong một mảng. */
+		echo '<p class="mo">⚠️ Một người làm <b>hai mảng</b> thì <b>«Mở» thắng</b> — khoá một mảng '
+			. 'không cắt được đường vào mà mảng kia đang mở. Muốn khoá đích danh một người thì đặt '
+			. 'riêng ở khối <b>sửa ▾</b> của hàng người ấy: tầng đó thắng tất cả.</p>';
+
+		if ( ! $sua ) {
+			echo '<div class="bao canh">Chỉ xem — khai quyền theo nhóm cần vai Kế toán trở lên.</div>';
+		}
+		echo '<form method="post">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+
+		foreach ( array(
+			array( 'loai' => 'bp',   'nhan' => 'Bộ phận',
+				'ds' => VHCC_NhanSu::ds_bo_phan(), 'dem' => $dem['boPhan'] ),
+			array( 'loai' => 'mang', 'nhan' => 'Mảng kinh doanh',
+				'ds' => VHCC_NhanSu::ds_mang(),    'dem' => $dem['mang'] ),
+		) as $kh ) {
+			echo '<div class="cuon" style="margin-top:12px"><table class="stt b-nhom"><thead><tr><th>'
+				. esc_html( $kh['nhan'] ) . '</th>';
+			foreach ( $cot as $t ) {
+				echo '<th class="tr-doc">' . esc_html( $t['ten'] )
+					. ( 'day' === $t['kieu'] ? '<br><span class="mo" style="font-weight:400;'
+						. 'font-size:10.5px">phải bấm đẩy — xem dải dưới</span>' : '' ) . '</th>';
+			}
+			echo '</tr></thead><tbody>';
+			foreach ( $kh['ds'] as $ten ) {
+				$so = isset( $kh['dem'][ $ten ] ) ? (int) $kh['dem'][ $ten ] : 0;
+				echo '<tr><td>' . esc_html( $ten )
+					. ' <span class="sl-nho" title="Số người đang thuộc nhóm này">' . $so . '</span></td>';
+				foreach ( $cot as $k => $t ) {
+					echo '<td class="o-q-td">'
+						. self::ba_nut_nhom( $kh['loai'], $ten, $k, VHCC_Cong::o_nhom( $kh['loai'], $ten, $k ), $sua )
+						. '</td>';
+				}
+				echo '</tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+
+		if ( $sua ) {
+			echo '<div class="hang" style="margin-top:12px">'
+				. '<button class="chinh" name="viec" value="luu_nhom">Lưu luật nhóm</button>'
+				. '<span class="mo">Có hiệu lực ngay ở lượt đăng nhập sau — không phải đụng vào '
+				. 'hồ sơ ai cả.</span></div>';
+		}
+		echo '</form>';
+
+		self::dai_chenh_day( $cot, $so_do );
+		echo '</div>';
+	}
+
+	/** Dải ba nút cho MỘT ô luật nhóm. Nút đầu là «—» (không khai), không phải «theo vai». */
+	private static function ba_nut_nhom( $loai, $ten, $cot, $dat, $sua ) {
+		$goc = 'n' . substr( md5( $loai . '|' . $ten . '|' . $cot ), 0, 10 );
 		$h   = '<span class="ba">';
 		$cac = array(
-			''     => array( 'ten' => 'vai ' . ( $mac ? '✓' : '✕' ), 'lop' => 'v-vai',
-				'chu' => 'Theo vai — ' . ( $mac ? 'vai hiện tại vào được' : 'vai hiện tại không vào được' ) ),
-			'mo'   => array( 'ten' => 'Mở',   'lop' => 'v-mo',   'chu' => 'Mở riêng cho người này, dù vai chưa tới' ),
-			'khoa' => array( 'ten' => 'Khoá', 'lop' => 'v-khoa', 'chu' => 'Khoá riêng người này, dù vai đã đủ' ),
+			''     => array( 'ten' => '—', 'lop' => 'v-vai',
+				'chu' => 'Nhóm này không nói gì về cột ấy — để tầng dưới (mảng, rồi thang vai) quyết' ),
+			'mo'   => array( 'ten' => 'Mở',   'lop' => 'v-mo',   'chu' => 'Cả nhóm này được vào' ),
+			'khoa' => array( 'ten' => 'Khoá', 'lop' => 'v-khoa', 'chu' => 'Cả nhóm này bị chặn' ),
+		);
+		foreach ( $cac as $gt => $c ) {
+			$id = $goc . ( '' === $gt ? 'x' : $gt );
+			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
+				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
+				. ' name="nhom[' . esc_attr( $loai ) . '][' . esc_attr( $ten ) . '][' . esc_attr( $cot ) . ']"'
+				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false )
+				. ( $sua ? '' : ' disabled' ) . '>'
+				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
+		}
+		return $h . '</span>';
+	}
+
+	/**
+	 * DẢI CHÊNH LỆCH — luật nói một đằng, sổ người dùng bên kia đang một nẻo.
+	 *
+	 * 🔴 VÌ SAO KHÔNG TỰ ĐẨY. Ghế massage và Vận hành chi phí có SỔ NGƯỜI DÙNG RIÊNG và cả hai
+	 *    đều là màn có ngăn tiền. Tự tạo tài khoản cho 37 người vì ai đó vừa tích một ô là trao
+	 *    chìa khoá mà chính họ cũng không biết mình đang cầm — và không có một lượt bấm nào để
+	 *    quy trách nhiệm. Nên: luật KHAI ở trên, còn tạo tài khoản thật thì một nút, một lượt
+	 *    bấm, đếm rõ bao nhiêu người.
+	 *
+	 * ⚠️ ĐẾM LẠI Ở MÁY CHỦ khi bấm, không tin danh sách gửi lên — xem `viec_ap_day()`.
+	 */
+	private static function dai_chenh_day( $cot, $so_do ) {
+		$co = array();
+		foreach ( $cot as $k => $t ) { if ( 'day' === $t['kieu'] ) { $co[ $k ] = $t['ten']; } }
+		if ( ! $co ) { return; }
+		$ch = self::chenh_day( $so_do );
+		$co_gi = false;
+		foreach ( $co as $k => $ten ) {
+			if ( ! isset( $ch[ $k ] ) ) { continue; }
+			if ( $ch[ $k ]['them'] || $ch[ $k ]['bo'] ) { $co_gi = true; }
+		}
+		if ( ! $co_gi ) {
+			echo '<p class="mo" style="margin-top:12px">✓ Sổ người dùng của Ghế massage và Vận '
+				. 'hành chi phí đang <b>khớp đúng luật</b> ở trên — không còn ai lệch.</p>';
+			return;
+		}
+		echo '<form method="post" style="margin-top:12px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		foreach ( $co as $k => $ten ) {
+			if ( ! isset( $ch[ $k ] ) ) { continue; }
+			foreach ( array(
+				'them' => array( 'Đẩy hết', 'chưa có tài khoản <b>' . $ten . '</b> mà luật nói NÊN có' ),
+				'bo'   => array( 'Gỡ hết',  'đang có tài khoản <b>' . $ten . '</b> mà luật nói KHÔNG nên có' ),
+			) as $chieu => $v ) {
+				$so = count( $ch[ $k ][ $chieu ] );
+				if ( ! $so ) { continue; }
+				echo '<div class="bao canh"><b>' . (int) $so . ' người</b> ' . $v[1] . ' — '
+					. esc_html( implode( ', ', array_slice( $ch[ $k ][ $chieu ], 0, 8 ) ) )
+					. ( $so > 8 ? '…' : '' )
+					. ' <button class="nut" name="viec" value="ap_day" '
+					. 'style="margin-left:6px">' . esc_html( $v[0] . ' ' . $so . ' người' ) . '</button>'
+					. '<input type="hidden" name="ap_day_o" value="' . esc_attr( $k . '|' . $chieu ) . '">'
+					. '</div>';
+			}
+		}
+		echo '</form>';
+	}
+
+	/**
+	 * AI ĐANG LỆCH GIỮA LUẬT NHÓM VÀ SỔ NGƯỜI DÙNG BÊN KIA.
+	 *
+	 * @return array [ cột => [ 'them' => [mã…], 'bo' => [mã…] ] ]
+	 *
+	 * ⚠️ MỘT LƯỢT ĐỌC CHO CẢ SỔ, rồi tính trong bộ nhớ. Hỏi `VHCC_Cong::nhom_noi_gi()` từng người
+	 *    là 245 lượt SELECT cho một dải báo.
+	 */
+	private static function chenh_day( $so_do ) {
+		$ra = array();
+		$cot = VHCC_Cong::cot_nhom();
+		$day = array();
+		foreach ( $cot as $k => $t ) { if ( 'day' === $t['kieu'] ) { $day[] = $k; } }
+		if ( ! $day ) { return $ra; }
+		$l = VHCC_Cong::luat_nhom();
+		if ( ! $l['bp'] && ! $l['mang'] ) { return $ra; }
+
+		foreach ( $day as $k ) { $ra[ $k ] = array( 'them' => array(), 'bo' => array() ); }
+		foreach ( (array) $so_do as $r ) {
+			$ma = trim( (string) $r['ma_nv'] );
+			if ( '' === $ma ) { continue; }
+			foreach ( $day as $k ) {
+				$n = VHCC_Cong::nhom_noi_gi_hs( $r, $k );
+				if ( null === $n ) { continue; }
+				$da = self::da_day_cot( $k, $ma );
+				if ( $n['duoc'] && ! $da )  { $ra[ $k ]['them'][] = $ma; }
+				if ( ! $n['duoc'] && $da )  { $ra[ $k ]['bo'][]   = $ma; }
+			}
+		}
+		return $ra;
+	}
+
+	/**
+	 * SỔ NHÂN SỰ RÚT GỌN — đúng sáu cột mà `mang_bo_phan_cua()` cần, không hơn.
+	 *
+	 * ⚠️ ĐỪNG gọi `ds_nhan_vien()` cho việc này: hàm ấy trả cả hồ sơ đầy đủ (kể cả ô lương với
+	 *    người có quyền xem), tức kéo 245 dòng × 30 cột về chỉ để đếm hai cột.
+	 */
+	private static function ds_nhom_tho() {
+		return (array) VHCC_DB::rows( 'SELECT ma_nv, cua_hang, coso_phu, coso_ql, mang, bo_phan FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv <> ''" );
+	}
+
+	/** Người này đã có tài khoản bên hệ của cột `$k` chưa. */
+	private static function da_day_cot( $k, $ma ) {
+		if ( class_exists( 'VHCC_DayGhe' ) && VHCC_DayGhe::COT === $k )       { return VHCC_DayGhe::da_day( $ma ); }
+		if ( class_exists( 'VHCC_DayChiPhi' ) && VHCC_DayChiPhi::COT === $k ) { return VHCC_DayChiPhi::da_day( $ma ); }
+		return false;
+	}
+
+	/** LƯU BẢNG LUẬT NHÓM. */
+	private static function viec_luu_nhom( $toi ) {
+		$gui = isset( $_POST['nhom'] ) ? wp_unslash( $_POST['nhom'] ) : array();
+		if ( ! is_array( $gui ) ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
+		$sach = array( 'bp' => array(), 'mang' => array() );
+		foreach ( array( 'bp', 'mang' ) as $loai ) {
+			if ( ! isset( $gui[ $loai ] ) || ! is_array( $gui[ $loai ] ) ) { continue; }
+			foreach ( $gui[ $loai ] as $ten => $cac ) {
+				if ( ! is_array( $cac ) ) { continue; }
+				$ten_s = sanitize_text_field( (string) $ten );
+				if ( '' === $ten_s ) { continue; }
+				foreach ( $cac as $k => $v ) {
+					$sach[ $loai ][ $ten_s ][ sanitize_key( (string) $k ) ]
+						= sanitize_text_field( (string) $v );
+				}
+			}
+		}
+		$kq = VHCC_Cong::luu_nhom( $toi, $sach );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		if ( ! $kq['doi'] ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
+		return array( array( 'ok' => 'Đã lưu ' . (int) $kq['doi'] . ' ô luật nhóm. '
+			. 'Có hiệu lực ngay ở lượt đăng nhập sau.' ) );
+	}
+
+	/**
+	 * ĐẨY / GỠ HÀNG LOẠT CHO KHỚP LUẬT.
+	 *
+	 * 🔴 ĐẾM LẠI Ở ĐÂY, KHÔNG TIN DANH SÁCH GỬI LÊN. Biểu mẫu nằm trên một trang có thể đã mở từ
+	 *    nửa tiếng trước; trong khoảng ấy luật đổi, người vào người ra. Nhận danh sách mã từ biểu
+	 *    mẫu là tạo tài khoản cho một tập người của nửa tiếng trước — mà đây là hệ có ngăn tiền.
+	 */
+	private static function viec_ap_day( $toi ) {
+		$o = isset( $_POST['ap_day_o'] ) ? sanitize_text_field( wp_unslash( $_POST['ap_day_o'] ) ) : '';
+		$x = explode( '|', $o );
+		$k = isset( $x[0] ) ? $x[0] : '';
+		$chieu = isset( $x[1] ) ? $x[1] : '';
+		if ( ! in_array( $chieu, array( 'them', 'bo' ), true ) ) {
+			return array( array( 'loi' => 'Chỉ nhận: them · bo.' ) );
+		}
+		$cot = VHCC_Cong::cot_nhom();
+		if ( ! isset( $cot[ $k ] ) || 'day' !== $cot[ $k ]['kieu'] ) {
+			return array( array( 'loi' => 'Không có cột đẩy "' . $k . '".' ) );
+		}
+		$ch = self::chenh_day( self::ds_nhom_tho() );
+		$ds = isset( $ch[ $k ][ $chieu ] ) ? $ch[ $k ][ $chieu ] : array();
+		if ( ! $ds ) { return array( array( 'canh' => 'Không còn ai lệch — chưa làm gì.' ) ); }
+
+		$bang = array();
+		foreach ( $ds as $ma ) { $bang[ $ma ] = ( 'them' === $chieu ) ? 'mo' : ''; }
+		if ( class_exists( 'VHCC_DayGhe' ) && VHCC_DayGhe::COT === $k ) {
+			$kq = VHCC_DayGhe::luu_nhieu( $toi, $bang );
+		} elseif ( class_exists( 'VHCC_DayChiPhi' ) && VHCC_DayChiPhi::COT === $k ) {
+			$kq = VHCC_DayChiPhi::luu_nhieu( $toi, $bang );
+		} else {
+			return array( array( 'loi' => 'Không có hệ nào nhận cột "' . $k . '".' ) );
+		}
+		if ( empty( $kq['ok'] ) ) {
+			return array( array( 'loi' => isset( $kq['error'] ) ? $kq['error'] : 'Không đẩy được.' ) );
+		}
+		return array( array( 'ok' => ( 'them' === $chieu ? 'Đã đẩy ' : 'Đã gỡ ' )
+			. (int) ( isset( $kq['doi'] ) ? $kq['doi'] : count( $bang ) ) . ' người ở cột '
+			. $cot[ $k ]['ten'] . ' cho khớp luật nhóm.' ) );
+	}
+
+	/**
+	 * TÊN NGẮN CỦA MỘT CỘT QUYỀN — để năm cái chip nằm vừa một ô hẹp.
+	 *
+	 * ⚠️ Có ĐƯỜNG LUI về tên đầy đủ. Gõ cứng cả năm tên ở đây thì thêm một trang vào `VHCC_Cong::SO`
+	 *    là chip của nó trống trơn — mà sổ trang sinh ra để TỰ DÒ, không phải để gõ hai lần.
+	 */
+	private static function ten_gon( $khoa, $ten_day ) {
+		$b = array(
+			'cham_cong' => 'Chấm công',
+			'tram'      => 'Trạm',
+			'noi_bo'    => 'Nội bộ',
+		);
+		if ( class_exists( 'VHCC_DayGhe' ) )    { $b[ VHCC_DayGhe::COT ]    = 'Ghế'; }
+		if ( class_exists( 'VHCC_DayChiPhi' ) ) { $b[ VHCC_DayChiPhi::COT ] = 'Chi phí'; }
+		return isset( $b[ $khoa ] ) ? $b[ $khoa ] : (string) $ten_day;
+	}
+
+	/**
+	 * DẢI CHIP "NGƯỜI NÀY VÀO ĐƯỢC ĐÂU, VÀ VÌ ĐÂU" — cột đọc, không phải cột khai.
+	 *
+	 * 🔴 CHỮ "VÌ ĐÂU" MỚI LÀ PHẦN CÓ GIÁ TRỊ. Một cái chip xanh nói "vào được" thì nhìn bảng vai
+	 *    cũng đoán ra; thứ không đoán được là nó xanh VÌ luật bộ phận, VÌ luật mảng, hay VÌ ai đó
+	 *    đã đặt riêng cho người này từ sáu tháng trước. Không in ra thì người đi soát phải mở ba
+	 *    khối khác nhau cho mỗi hàng — tức là không ai soát.
+	 *
+	 * ⚠️ HỎI BẰNG CHÍNH HÀM CỦA CỬA VÀO (`VHCC_Cong::giai`). Tự tính lại thứ tự bốn tầng ở đây là
+	 *    có hai bộ luật cho cùng một câu hỏi, và sớm muộn màn hình nói khác cửa vào.
+	 */
+	private static function dai_chip_quyen( $gia, $ma, $ds_trang, $co_ghe, $co_cp ) {
+		$h = '<span class="chip-q-dai">';
+		foreach ( $ds_trang as $k => $t ) {
+			$g  = VHCC_Cong::giai( $gia, $k );
+			$h .= self::chip_quyen( self::ten_gon( $k, $t['ten'] ), (bool) $g['duoc'],
+				(string) $g['vi'], (string) $g['ten'] );
+		}
+		if ( $co_ghe ) {
+			$h .= self::chip_day( VHCC_DayGhe::COT, 'Ghế', VHCC_DayGhe::da_day( $ma ), $ma );
+		}
+		if ( $co_cp ) {
+			$h .= self::chip_day( VHCC_DayChiPhi::COT, 'Chi phí', VHCC_DayChiPhi::da_day( $ma ), $ma );
+		}
+		return $h . '</span>';
+	}
+
+	/** Một chip trang: xanh = vào được, xám = không. Chữ nhỏ phía sau nói TẦNG nào quyết. */
+	private static function chip_quyen( $ten, $duoc, $vi, $nhom ) {
+		$nho = '';
+		$chu = ( $duoc ? 'Vào được' : 'Không vào được' ) . ' — ';
+		if ( 'bo_phan' === $vi )      { $nho = 'bp';   $chu .= 'theo luật của bộ phận «' . $nhom . '»'; }
+		elseif ( 'mang' === $vi )     { $nho = 'mảng'; $chu .= 'theo luật của mảng «' . $nhom . '»'; }
+		elseif ( 'rieng' === $vi )    { $nho = 'riêng'; $chu .= 'ĐẶT RIÊNG cho người này — mở «sửa ▾» ở cột Họ tên để đổi hoặc gỡ'; }
+		else                          { $chu .= 'theo thang vai, không ai khai riêng'; }
+		return '<span class="chip-q ' . ( $duoc ? 'q-co' : 'q-khong' )
+			. ( 'rieng' === $vi ? ' q-rieng' : '' ) . '" title="' . esc_attr( $chu ) . '">'
+			. esc_html( $ten ) . ( '' !== $nho ? '<i>' . esc_html( $nho ) . '</i>' : '' ) . '</span>';
+	}
+
+	/**
+	 * Chip của hai cột ĐẨY NGƯỜI (Ghế, Chi phí).
+	 *
+	 * 🔴 KHÁC HẲN chip trang: ở đây "có tài khoản" là SỰ THẬT bên hệ kia, còn luật nhóm mới chỉ
+	 *    là LỜI KHAI. Hai thứ lệch nhau là chuyện bình thường và phải NÓI RA — luật vừa khai
+	 *    xong thì chưa ai có tài khoản cả. Dấu ⚠ ở đây nghĩa là "còn việc phải bấm", không phải
+	 *    "hỏng".
+	 */
+	private static function chip_day( $cot, $ten, $da_day, $ma ) {
+		$n   = VHCC_Cong::nhom_noi_gi( $ma, $cot );
+		$nen = ( null === $n ) ? null : (bool) $n['duoc'];
+		$da  = (bool) $da_day;
+		$lech = ( null !== $nen && $nen !== $da );
+		$chu = $da ? 'ĐANG có tài khoản bên hệ này' : 'Chưa có tài khoản bên hệ này';
+		if ( null !== $n ) {
+			$chu .= ' · luật ' . ( 'bo_phan' === $n['vi'] ? 'bộ phận' : 'mảng' ) . ' «' . $n['ten'] . '» nói '
+				. ( $nen ? 'NÊN có' : 'KHÔNG nên có' );
+		}
+		if ( $lech ) {
+			$chu .= ' — còn việc phải bấm, xem dải chênh lệch ngay dưới bảng';
+		}
+		return '<span class="chip-q ' . ( $da ? 'q-co' : 'q-khong' ) . ( $lech ? ' q-lech' : '' )
+			. '" title="' . esc_attr( $chu ) . '">' . esc_html( $ten )
+			. ( $lech ? '<i>⚠</i>' : '' ) . '</span>';
+	}
+
+	/**
+	 * @param array|null $nhom Luật nhóm đang quyết ô này (`VHCC_Cong::nhom_noi_gi`), hoặc null.
+	 *
+	 * 🔴 NÚT ĐẦU PHẢI NÓI ĐÚNG NÓ ĐANG THEO GÌ. Từ 3.77.0 "bỏ ngoại lệ" không còn nghĩa là "về
+	 *    theo vai" nữa — nó về theo LUẬT BỘ PHẬN nếu bộ phận ấy có khai. Vẫn ghi "theo vai" thì
+	 *    người bấm tưởng mình vừa trả người ta về thang vai, trong khi thực tế họ rơi vào luật
+	 *    của cả phòng, có thể ngược hẳn.
+	 */
+	private static function ba_nut( $ma, $k, $dat, $mac, $nhom = null ) {
+		$goc = 'q' . substr( md5( $ma . '|' . $k ), 0, 10 );
+		$h   = '<span class="ba">';
+		if ( null !== $nhom ) {
+			$n_ten = ( 'bo_phan' === $nhom['vi'] ? 'bộ phận' : 'mảng' ) . ' «' . $nhom['ten'] . '»';
+			$dau   = array( 'ten' => 'theo bộ ' . ( $mac ? '✓' : '✕' ),
+				'chu' => 'Không đặt riêng — đi theo luật của ' . $n_ten . ', hiện đang '
+					. ( $mac ? 'MỞ' : 'KHOÁ' ) );
+		} else {
+			$dau = array( 'ten' => 'vai ' . ( $mac ? '✓' : '✕' ),
+				'chu' => 'Theo vai — ' . ( $mac ? 'vai hiện tại vào được' : 'vai hiện tại không vào được' ) );
+		}
+		$cac = array(
+			''     => array( 'ten' => $dau['ten'], 'lop' => 'v-vai', 'chu' => $dau['chu'] ),
+			'mo'   => array( 'ten' => 'Mở',   'lop' => 'v-mo',   'chu' => 'Mở riêng cho người này, dù luật chung chưa tới' ),
+			'khoa' => array( 'ten' => 'Khoá', 'lop' => 'v-khoa', 'chu' => 'Khoá riêng người này, dù luật chung đã mở' ),
 		);
 		foreach ( $cac as $gt => $c ) {
 			$id = $goc . ( '' === $gt ? 'v' : $gt );

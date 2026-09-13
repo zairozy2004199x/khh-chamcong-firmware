@@ -9711,6 +9711,18 @@ teq( 'và không có câu chối nào cho trang lạ', '', VHCC_Cong::vi_sao_kho
  *    hệ, không phải hai. Đặt cookie khác là `toi()` trả rỗng và mọi phép thử dưới đây soi
  *    trang chối chứ không soi bảng.
  */
+/**
+ * MÃ NV CỦA HÀNG ĐẦU TIÊN trên màn — đọc ra từ chính đường "sửa ▾" trang vừa vẽ.
+ *
+ * 🔴 TỪ 3.77.0 Ô QUYỀN TỪNG NGƯỜI NẰM TRONG KHỐI "sửa ▾", không còn ở mặt bảng (anh Thắng:
+ *    *"không cần phân quyền từng người nữa… nên làm gọn lại"*). Nên muốn thử mấy ô ấy thì phải
+ *    MỞ khối sửa của một người — và mã người ấy lấy từ trang, đừng gõ cứng: cảnh thử đổi một
+ *    dòng dữ liệu là phép thử xanh vì không tìm thấy ai chứ không phải vì đúng.
+ */
+function vhcc_ns_ma_dau( $h ) {
+	return preg_match( '/sua_o=([A-Za-z0-9_]+)/', $h, $m ) ? $m[1] : '';
+}
+
 function vhcc_hr_ns( $tok, $get = array() ) {
 	$_GET = $get; $_POST = array();
 	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
@@ -9956,11 +9968,20 @@ $g_h   = vhcc_hr_ns( $g_tok );
    và đỏ oan; mà vết phá đúng chỗ thì lại xanh. Đã vấp đúng vậy. */
 t( '🔴 màn nhân sự có cột Ghế massage',
 	strpos( $g_h, 'class="tr-doc">Ghế massage' ) !== false, $g_h );
-/* HAI nút, không phải ba — bên ghế không có khái niệm "theo vai". */
+/* HAI nút, không phải ba — bên ghế không có khái niệm "theo vai".
+   🔴 Từ 3.77.0 dải nút ấy nằm trong khối "sửa ▾" của chính hàng, không còn ở mặt bảng. */
+$g_h_sua = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01' ) );
 t( 'ô cột ghế chỉ có Đẩy / Gỡ, không có «theo vai»',
-	strpos( $g_h, 'Đẩy ✓' ) !== false && strpos( $g_h, 'name="o[GHNV01][ghe]"' ) !== false, $g_h );
-/* ⚠️ Nút áp cả cột cũng phải có, kẻo đẩy 200 người là 200 lần bấm. */
-t( 'có nút áp cả cột cho hệ ghế', strpos( $g_h, 'value="ghe|mo"' ) !== false, $g_h );
+	strpos( $g_h_sua, 'Đẩy ✓' ) !== false
+	&& strpos( $g_h_sua, 'name="o[GHNV01][ghe]"' ) !== false, $g_h_sua );
+/* ⚠️ Vẫn phải có đường làm HÀNG LOẠT, kẻo đẩy 200 người là 200 lần bấm. Nay nó không còn là
+   nút "áp cả cột" nữa mà là LUẬT THEO NHÓM (khai một lần cho cả mảng) cộng nút đẩy cho khớp
+   luật — anh Thắng 13/09/2026: *"Ghế massage dành cho mảng kinh doanh máy tự động"*. */
+t( 'khai được luật Ghế massage theo cả mảng',
+	strpos( $g_h, 'name="nhom[mang][' ) !== false
+	&& strpos( $g_h, '][ghe]"' ) !== false, $g_h );
+t( 'và có đường đẩy hàng loạt cho khớp luật', strpos( $g_h, 'value="ap_day"' ) !== false
+	|| strpos( $g_h, 'khớp đúng luật' ) !== false, $g_h );
 
 /* 🔴 KẾ TOÁN KHÔNG ĐƯỢC THẤY CỘT ẤY. Vẽ một cột mà người xem bấm vào là bị chối thì tệ hơn
    không vẽ — họ bấm, thấy câu chối, và tưởng hệ thống hỏng. */
@@ -10518,7 +10539,17 @@ t( '🔴 Nhân viên mở trang ra thì thấy màn chối, không thấy bảng
 t( 'và không có một ô quyền nào', strpos( $ns_h, 'name="o[' ) === false, $ns_h );
 
 $ns_h = vhcc_ns( 'Kế toán' );
-t( 'Kế toán thấy bảng người × trang', strpos( $ns_h, 'name="o[' ) !== false );
+/* 🔴 3.77.0 — MẶT BẢNG CHỈ CÒN ĐỌC. Cột "Quyền vào trang" in ra dải chip "vào được đâu, vì
+   đâu"; chỗ KHAI là bảng luật theo bộ phận & mảng ngay dưới. Anh Thắng 13/09/2026: *"Khi xây
+   bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng người nữa"*. */
+t( 'Kế toán thấy dải chip quyền trên mỗi hàng', strpos( $ns_h, 'chip-q-dai' ) !== false, $ns_h );
+t( '🔴 và thấy bảng khai luật theo bộ phận', strpos( $ns_h, 'name="nhom[bp][' ) !== false, $ns_h );
+t( 'kèm hàng cho từng mảng kinh doanh', strpos( $ns_h, 'name="nhom[mang][' ) !== false, $ns_h );
+t( 'có nút lưu luật nhóm', strpos( $ns_h, 'value="luu_nhom"' ) !== false, $ns_h );
+/* ⚠️ KẾ TOÁN KHÔNG ĐƯỢC KHAI CỘT ĐẨY NGƯỜI. Luật "cả mảng này có tài khoản Ghế massage" mà khai
+   được ở bậc Kế toán thì một Admin nào đó bấm "Đẩy hết" theo luật ấy mà tưởng là luật của mình. */
+t( '🔴 Kế toán KHÔNG khai được luật cột Ghế massage',
+	strpos( $ns_h, '][ghe]"' ) === false, $ns_h );
 t( 'có nút lưu', strpos( $ns_h, 'value="luu_quyen"' ) !== false );
 t( 'có cột cho trang Trạm chấm công', strpos( $ns_h, 'Trạm chấm công' ) !== false );
 /* 🔴 Nói thẳng những trang KHÔNG khai được ở đây — kẻo anh Thắng đi tìm cột "Vận hành chi phí"
@@ -10658,8 +10689,14 @@ foreach ( array( 'value=""' => 'theo vai', 'value="mo"' => 'mở', 'value="khoa"
 /* 🔴 Nút đầu phải NÓI RA theo vai là vào được hay không. Chỉ viết "vai" thì cả cột trông giống
    hệt nhau, và người khai không quyết được có cần đặt ngoại lệ hay không — đúng câu hỏi họ mở
    trang này ra để trả lời. */
+/* 🔴 3.77.0 — dải nút ấy chuyển vào khối "sửa ▾" của chính hàng. Mở ra rồi mới thử. */
+$nt_ma  = vhcc_ns_ma_dau( $nt_h );
+$nt_sua = vhcc_ns( 'Kế toán', array( 'sua_o' => $nt_ma ) );
+t( 'dò được một mã để mở khối sửa', '' !== $nt_ma, $nt_ma );
 t( '🔴 nút "theo vai" in ra ✓ hoặc ✕, không chỉ mỗi chữ "vai"',
-	strpos( $nt_h, 'vai ✓' ) !== false || strpos( $nt_h, 'vai ✕' ) !== false, $nt_h );
+	strpos( $nt_sua, 'vai ✓' ) !== false || strpos( $nt_sua, 'vai ✕' ) !== false, $nt_sua );
+t( 'và vẫn đặt riêng được cho đích danh người ấy',
+	strpos( $nt_sua, 'name="o[' . $nt_ma . '][' ) !== false, $nt_sua );
 
 /* ⚠️ `id` phải DUY NHẤT: `<label for=…>` mà trùng id thì bấm ở hàng 40 lại đổi hàng 1 — người
    dùng thấy có gì đó nhảy, nhưng không thấy mình vừa sửa nhầm hồ sơ của ai. */
@@ -10681,11 +10718,22 @@ if ( preg_match_all( '/<input type="radio" id="([^"]+)"/', $nt_h, $nt_m ) ) {
 	t( 'dò được nút quyền trong trang', false, $nt_h );
 }
 
-/* ---- 60o. NÚT ÁP CẢ CỘT ----
-   Đổi ô xổ thành nút mới bớt được MỘT lần bấm mỗi ô; khoá cả một cơ sở cho một trang vẫn là 50
-   lần bấm. Nút này làm cả cột trong một lần. */
-t( 'đầu mỗi cột có nút áp cả cột', strpos( $nt_h, 'name="cot" value="tram|khoa"' ) !== false, $nt_h );
-t( 'và nút đưa cả cột về theo vai', strpos( $nt_h, 'name="cot" value="tram|"' ) !== false );
+/* ---- 60o. LÀM HÀNG LOẠT ----
+   🔴 3.77.0 ĐỔI CÁCH. Trước là "áp cả cột" — bấm một lần, ghi 50 ngoại lệ cho 50 người đang
+   hiện; ai vào sau thì không có gì cả, và 50 dòng ngoại lệ ấy ở lại trong sổ mãi mãi.
+   Nay là LUẬT THEO NHÓM: khai một dòng cho bộ phận, ai vào bộ phận ấy là có ngay, ai ra là hết
+   — không sinh một dòng ngoại lệ nào. Anh Thắng: *"Sau này ai thuộc mảng nào và bộ phận nào sẽ
+   phân quyền và điều động dễ hơn"*.
+   (`viec_cot()` ở tầng máy chủ GIỮ NGUYÊN, cùng lối với `go_ngoai_le` khi bỏ `the_ngoai_le()`:
+   bỏ MÀN HÌNH, không bỏ NĂNG LỰC.) */
+t( 'khai được luật trang Trạm cho cả một bộ phận',
+	strpos( $nt_h, '][tram]"' ) !== false, $nt_h );
+foreach ( array( '' => 'không khai', 'mo' => 'mở cả nhóm', 'khoa' => 'khoá cả nhóm' ) as $nn_v => $nn_t ) {
+	t( 'luật nhóm đủ ba trạng thái — "' . $nn_t . '"',
+		preg_match( '/name="nhom\[bp\]\[[^"]*\]\[tram\]" value="' . preg_quote( $nn_v, '/' ) . '"/', $nt_h ) === 1, $nt_h );
+}
+t( '🔴 và KHÔNG còn nút áp cả cột ở mặt bảng',
+	strpos( $nt_h, 'name="cot" value="tram|khoa"' ) === false, $nt_h );
 
 /* 🔴 NÚT CỘT KHÔNG GỬI `viec`. Một biểu mẫu chỉ gửi tên/giá trị của ĐÚNG cái nút vừa bấm — bấm
    nút cột thì `viec` (của nút Lưu) không có mặt. Chỉ nghe mỗi `viec` là nút cột bấm xong không
@@ -10915,7 +10963,8 @@ t( 'mã nguồn trang cũng không còn dựng nút đó',
 	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' ),
 		'Thêm nhân sự</a>' ) === false );
 /* Nhưng trang vẫn phải làm đúng việc của nó — bảng quyền còn nguyên. */
-t( 'bảng "ai vào được trang nào" vẫn còn', strpos( $vq_ad, 'name="o[' ) !== false, $vq_ad );
+t( 'bảng "ai vào được trang nào" vẫn còn', strpos( $vq_ad, 'chip-q-dai' ) !== false
+	&& strpos( $vq_ad, 'name="nhom[bp][' ) !== false, $vq_ad );
 vhcc_dung_bang();
 
 /* ==========================================================================================
@@ -16737,11 +16786,16 @@ t( 'Cửa hàng trưởng càng không', empty( VHCC_DayChiPhi::dat(
 $h_cp = vhcc_ns( 'Admin' );
 t( '🔴 bảng có cột Vận hành chi phí',
 	strpos( $h_cp, 'Vận hành chi phí' ) !== false, substr( $h_cp, 0, 400 ) );
-t( 'và có nút Đẩy / Gỡ áp cả cột',
-	strpos( $h_cp, 'value="' . VHCC_DayChiPhi::COT . '|mo"' ) !== false
-	&& strpos( $h_cp, 'value="' . VHCC_DayChiPhi::COT . '|"' ) !== false, $h_cp );
-t( 'mỗi hàng có ô chọn của cột ấy',
-	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']' ) !== false, $h_cp );
+/* 🔴 3.77.0: "áp cả cột" đổi thành LUẬT THEO NHÓM + nút đẩy cho khớp luật. */
+t( 'và khai được luật Vận hành chi phí theo nhóm',
+	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp );
+t( 'mỗi hàng có chip nói người ấy đã sang bên ấy chưa',
+	strpos( $h_cp, 'chip-q-dai' ) !== false, $h_cp );
+/* Đặt riêng cho một người thì vẫn còn — trong khối "sửa ▾" của hàng ấy. */
+$cp_ma  = vhcc_ns_ma_dau( $h_cp );
+$h_cp_s = vhcc_ns( 'Admin', array( 'sua_o' => $cp_ma ) );
+t( 'và đặt riêng được cho từng người trong khối sửa',
+	strpos( $h_cp_s, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp_s );
 /* 🔴 CỘT NÀY KHÔNG PHẢI NGOẠI LỆ QUYỀN — phải tách khỏi bảng trước khi phần còn lại đi vào sổ
    ngoại lệ, không thì `VHCC_Cong::dat()` chối nó bằng câu "không có trang tên chi_phi" và người
    bấm không hiểu vì sao ô mình vừa chọn lại mất. */

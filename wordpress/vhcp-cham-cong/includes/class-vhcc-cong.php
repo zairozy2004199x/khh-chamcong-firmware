@@ -37,6 +37,18 @@ class VHCC_Cong {
 	const O = 'vhcc_quyen_trang';
 
 	/**
+	 * LUẬT THEO NHÓM — [ 'bp' | 'mang' => [ tên nhóm => [ khoá cột => 'mo' | 'khoa' ] ] ].
+	 *
+	 * Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân
+	 * quyền từng người nữa"* — *"Ghế massage dành cho mảng kinh doanh máy tự động"*.
+	 *
+	 * 🔴 THÊM MỘT TẦNG, KHÔNG THAY TẦNG NÀO. Thang vai vẫn là mặc định, ngoại lệ riêng vẫn
+	 *    thắng tất cả. Tầng này nằm GIỮA hai thứ ấy, và nó là tầng anh Thắng khai MỘT LẦN cho
+	 *    cả phòng thay vì tích tay 240 người.
+	 */
+	const O_NHOM = 'vhcc_quyen_nhom';
+
+	/**
 	 * SỔ TRANG — khai lớp và hàm, KHÔNG khai địa chỉ cứng.
 	 *
 	 * `quyen` là quyền tối thiểu theo thang `VHCC_Vai` để vào trang ấy khi CHƯA có ngoại lệ nào.
@@ -167,19 +179,96 @@ class VHCC_Cong {
 	 *    quên khai vào `SO` thì cả trang ấy đóng với tất cả mọi người, và không ai đoán ra.
 	 */
 	public static function duoc_vao( $u, $trang ) {
+		$g = self::giai( $u, $trang );
+		return (bool) $g['duoc'];
+	}
+
+	/**
+	 * NGƯỜI NÀY VÀO ĐƯỢC TRANG NÀY KHÔNG — VÀ VÌ ĐÂU.
+	 *
+	 * =========================================================================================
+	 * 🔴 BỐN TẦNG, XÉT TỪ HẸP TỚI RỘNG. Thứ tự này là cả cái luật.
+	 * =========================================================================================
+	 *   1. `rieng`    — ngoại lệ đặt cho ĐÍCH DANH người ấy. Thắng tất cả, kể cả luật nhóm.
+	 *                   Đây là đường DUY NHẤT khoá được một người mà cả phòng vẫn mở.
+	 *   2. `bo_phan`  — luật của bộ phận người ấy đang thuộc.
+	 *   3. `mang`     — luật của mảng kinh doanh người ấy đang làm.
+	 *   4. `vai`      — thang vai, y như từ trước tới giờ.
+	 *
+	 * 🔴 MỘT NGƯỜI LÀM HAI MẢNG THÌ "MỞ" THẮNG. Anh Thắng 13/09/2026: *"làm ở 2 mảng, thì chấm
+	 *    công ở 2 mảng"* — đó là trạng thái THƯỜNG của nhân viên chạy giữa hai mảng, không phải
+	 *    lỗi. Lấy "khoá" thắng thì người làm thêm một mảng nữa lại MẤT đường vào trang mà mảng
+	 *    chính của họ vẫn cần, và màn hình chối họ bằng đúng một câu không nói ra lý do. Muốn
+	 *    khoá đích danh một người thì đặt ngoại lệ riêng — tầng 1, và nó thắng.
+	 *
+	 * @return array( 'duoc' => bool, 'vi' => 'rieng'|'bo_phan'|'mang'|'vai'|'ngoai_so',
+	 *                'ten' => tên nhóm đã quyết (rỗng nếu không phải tầng nhóm) )
+	 */
+	public static function giai( $u, $trang ) {
 		$trang = (string) $trang;
 		$ds    = self::ds();
-		if ( ! isset( $ds[ $trang ] ) ) { return true; }
-
+		/* ⚠️ TRANG KHÔNG CÓ TRONG SỔ THÌ CHO QUA — xem chú thích ở `duoc_vao()`. */
+		if ( ! isset( $ds[ $trang ] ) ) {
+			return array( 'duoc' => true, 'vi' => 'ngoai_so', 'ten' => '' );
+		}
 		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
 		if ( '' !== $ma ) {
 			$ng = self::ngoai_le_cua( $ma );
-			if ( isset( $ng[ $trang ] ) ) {
-				if ( 'mo' === $ng[ $trang ] )   { return true; }
-				if ( 'khoa' === $ng[ $trang ] ) { return false; }
+			if ( isset( $ng[ $trang ] ) && in_array( $ng[ $trang ], array( 'mo', 'khoa' ), true ) ) {
+				return array( 'duoc' => ( 'mo' === $ng[ $trang ] ), 'vi' => 'rieng', 'ten' => '' );
 			}
+			$n = self::nhom_quyet( $ma, $trang );
+			if ( null !== $n ) { return $n; }
 		}
-		return VHCC_Vai::duoc( $u, $ds[ $trang ]['quyen'] );
+		return array( 'duoc' => VHCC_Vai::duoc( $u, $ds[ $trang ]['quyen'] ), 'vi' => 'vai', 'ten' => '' );
+	}
+
+	/**
+	 * LUẬT NHÓM CÓ QUYẾT ĐƯỢC Ô NÀY KHÔNG — `null` là không, đi tiếp xuống thang vai.
+	 *
+	 * ⚠️ CHƯA KHAI LUẬT NÀO THÌ KHÔNG TRA HỒ SƠ. `duoc_vao()` chạy ở MỌI lượt tải trang của ba
+	 *    plugin; thêm một câu SELECT vào đó cho site chưa dùng tính năng này là bắt cả chuỗi trả
+	 *    tiền cho một thứ họ không bật.
+	 */
+	private static function nhom_quyet( $ma_nv, $cot ) {
+		$l = self::luat_nhom();
+		if ( ! $l['bp'] && ! $l['mang'] ) { return null; }
+		return self::ap_luat( self::nhom_cua( $ma_nv ), $cot, $l );
+	}
+
+	/**
+	 * ÁP LUẬT NHÓM LÊN MỘT NGƯỜI ĐÃ BIẾT BỘ PHẬN & MẢNG.
+	 *
+	 * ⚠️ Tách khỏi `nhom_quyet()` vì màn Quản lý nhân sự đã CẦM SẴN hồ sơ của cả 50 hàng. Bắt nó
+	 *    đi qua `nhom_cua()` là 50 lượt SELECT cho dữ liệu đang nằm trong tay — và dải chênh lệch
+	 *    ghế/chi phí thì quét cả 245 người, tức 245 lượt.
+	 *
+	 * @param array $n array( 'boPhan' => string, 'dsMang' => array )
+	 */
+	private static function ap_luat( $n, $cot, $l = null ) {
+		if ( null === $l ) { $l = self::luat_nhom(); }
+		if ( ! $l['bp'] && ! $l['mang'] ) { return null; }
+		$cot = (string) $cot;
+
+		$bp = isset( $n['boPhan'] ) ? (string) $n['boPhan'] : '';
+		if ( '' !== $bp && isset( $l['bp'][ $bp ][ $cot ] )
+			&& in_array( $l['bp'][ $bp ][ $cot ], array( 'mo', 'khoa' ), true ) ) {
+			return array( 'duoc' => ( 'mo' === $l['bp'][ $bp ][ $cot ] ), 'vi' => 'bo_phan', 'ten' => $bp );
+		}
+
+		/* 🔴 "MỞ" THẮNG khi một người thuộc nhiều mảng — lý do ở chú thích `giai()`. Nên phải
+		   quét HẾT các mảng rồi mới kết luận, đừng trả về ngay ở mảng đầu tiên có luật. */
+		$khoa_boi = '';
+		foreach ( (array) ( isset( $n['dsMang'] ) ? $n['dsMang'] : array() ) as $m ) {
+			if ( ! isset( $l['mang'][ $m ][ $cot ] ) ) { continue; }
+			$d = $l['mang'][ $m ][ $cot ];
+			if ( 'mo' === $d ) { return array( 'duoc' => true, 'vi' => 'mang', 'ten' => $m ); }
+			if ( 'khoa' === $d && '' === $khoa_boi ) { $khoa_boi = $m; }
+		}
+		if ( '' !== $khoa_boi ) {
+			return array( 'duoc' => false, 'vi' => 'mang', 'ten' => $khoa_boi );
+		}
+		return null;
 	}
 
 	/** Vì sao không vào được — '' là được phép. Nói ra ngoại lệ hay vai, để còn biết xin ai. */
@@ -188,9 +277,20 @@ class VHCC_Cong {
 		$ds  = self::ds();
 		$ten = isset( $ds[ $trang ]['ten'] ) ? $ds[ $trang ]['ten'] : $trang;
 		$ma  = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
-		$ng  = self::ngoai_le_cua( $ma );
-		if ( isset( $ng[ $trang ] ) && 'khoa' === $ng[ $trang ] ) {
+		$g   = self::giai( $u, $trang );
+		/* 🔴 NÓI RA ĐÚNG TẦNG NÀO CHỐI. Câu "chưa đủ quyền" chung chung thì người bị chối không
+		   biết đi xin ai: khoá riêng thì nhờ Kế toán gỡ đúng dòng của mình, còn khoá theo cả bộ
+		   phận thì có đi xin cũng phải sửa luật của cả phòng — hai việc khác hẳn nhau. */
+		if ( 'rieng' === $g['vi'] ) {
 			return 'Trang "' . $ten . '" đã bị khoá riêng với tài khoản này ở màn Quản lý nhân sự.';
+		}
+		if ( 'bo_phan' === $g['vi'] ) {
+			return 'Trang "' . $ten . '" đang khoá với cả bộ phận "' . $g['ten'] . '" — '
+				. 'sửa ở khối Phân quyền theo bộ phận, màn Quản lý nhân sự.';
+		}
+		if ( 'mang' === $g['vi'] ) {
+			return 'Trang "' . $ten . '" đang khoá với cả mảng "' . $g['ten'] . '" — '
+				. 'sửa ở khối Phân quyền theo bộ phận, màn Quản lý nhân sự.';
 		}
 		return 'Trang "' . $ten . '" chưa mở cho vai hiện tại của anh/chị. '
 			. 'Cần vào thì nhờ Kế toán mở ở màn Quản lý nhân sự.';
@@ -364,6 +464,149 @@ class VHCC_Cong {
 		unset( $b[ $ma ] );
 		update_option( self::O, $b );
 		return $so;
+	}
+
+	/* ====================================================================== luật theo nhóm */
+
+	/** Toàn bộ luật nhóm, đã chuẩn hoá về hai ngăn `bp` và `mang`. */
+	public static function luat_nhom() {
+		$x = get_option( self::O_NHOM );
+		return array(
+			'bp'   => ( is_array( $x ) && isset( $x['bp'] ) && is_array( $x['bp'] ) ) ? $x['bp'] : array(),
+			'mang' => ( is_array( $x ) && isset( $x['mang'] ) && is_array( $x['mang'] ) ) ? $x['mang'] : array(),
+		);
+	}
+
+	/**
+	 * NHỮNG CỘT KHAI ĐƯỢC THEO NHÓM — trang trong sổ, CỘNG hai cột đẩy người sang hệ khác.
+	 *
+	 * 🔴 HAI KIỂU, ĐỪNG TRỘN. `kieu='trang'` là ngoại lệ đọc lúc gác cửa — khai xong là có hiệu
+	 *    lực ngay, không phải làm gì thêm. `kieu='day'` (Ghế massage, Vận hành chi phí) thì
+	 *    KHÔNG gác được: hai hệ ấy có sổ người dùng riêng và không đọc `ma_nv` bên này, nên luật
+	 *    ở đây chỉ nói "ai ĐÁNG LẼ phải có tài khoản". Việc tạo tài khoản thật vẫn phải bấm —
+	 *    xem dải chênh lệch ở màn Quản lý nhân sự. Tự tạo tài khoản trong một hệ có ngăn tiền
+	 *    mà không ai bấm là thứ không được làm im lặng.
+	 */
+	public static function cot_nhom() {
+		$ra = array();
+		foreach ( self::ds() as $k => $t ) {
+			$ra[ $k ] = array( 'ten' => $t['ten'], 'kieu' => 'trang' );
+		}
+		if ( class_exists( 'VHCC_DayGhe' ) && VHCC_DayGhe::co_he_ghe() ) {
+			$ra[ VHCC_DayGhe::COT ] = array( 'ten' => 'Ghế massage', 'kieu' => 'day' );
+		}
+		if ( class_exists( 'VHCC_DayChiPhi' ) && VHCC_DayChiPhi::co_he_chi_phi() ) {
+			$ra[ VHCC_DayChiPhi::COT ] = array( 'ten' => 'Vận hành chi phí', 'kieu' => 'day' );
+		}
+		return $ra;
+	}
+
+	/** Ô hiện tại của luật nhóm: 'mo' · 'khoa' · '' (chưa khai). */
+	public static function o_nhom( $loai, $ten, $cot ) {
+		$l = self::luat_nhom();
+		$loai = ( 'mang' === $loai ) ? 'mang' : 'bp';
+		$ten  = trim( (string) $ten );
+		return isset( $l[ $loai ][ $ten ][ (string) $cot ] ) ? (string) $l[ $loai ][ $ten ][ (string) $cot ] : '';
+	}
+
+	/**
+	 * LƯU CẢ BẢNG LUẬT NHÓM TRONG MỘT LƯỢT.
+	 *
+	 * @param array $bang [ 'bp'|'mang' => [ tên => [ cột => 'mo'|'khoa'|'' ] ] ]
+	 *
+	 * ⚠️ Cùng luật với `luu_nhieu()`: chỉ động vào nhóm CÓ TÊN trong `$bang`. Bảng luật này
+	 *    ngắn nên hôm nay gửi đủ, nhưng ngày nó dài ra và có phân trang thì cái nết "ghi đè cả
+	 *    sổ" là xoá luật của những nhóm không hiện.
+	 */
+	public static function luu_nhom( $u, $bang ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Khai quyền theo bộ phận cần vai Kế toán trở lên.', 'doi' => 0 );
+		}
+		$cot = self::cot_nhom();
+		$l   = self::luat_nhom();
+		$doi = 0;
+		foreach ( array( 'bp', 'mang' ) as $loai ) {
+			if ( ! isset( $bang[ $loai ] ) || ! is_array( $bang[ $loai ] ) ) { continue; }
+			foreach ( $bang[ $loai ] as $ten => $cac ) {
+				$ten = trim( (string) $ten );
+				if ( '' === $ten || ! is_array( $cac ) ) { continue; }
+				foreach ( $cac as $k => $dat ) {
+					$k = (string) $k;
+					if ( ! isset( $cot[ $k ] ) ) { continue; }
+					/* 🔴 CỘT ĐẨY NGƯỜI CẦN BẬC ADMIN, y như nút đẩy từng người. Không chốt ở đây
+					   thì Kế toán khai được luật "cả mảng này có tài khoản Ghế massage" — rồi
+					   một Admin nào đó bấm Đẩy hết theo luật ấy mà tưởng là luật của mình. */
+					if ( 'day' === $cot[ $k ]['kieu'] && ! VHCC_Vai::duoc( $u, 'he_thong' ) ) { continue; }
+					$dat = (string) $dat;
+					if ( ! in_array( $dat, array( 'mo', 'khoa', '' ), true ) ) { continue; }
+					$cu = isset( $l[ $loai ][ $ten ][ $k ] ) ? (string) $l[ $loai ][ $ten ][ $k ] : '';
+					if ( $cu === $dat ) { continue; }
+					if ( '' === $dat ) {
+						unset( $l[ $loai ][ $ten ][ $k ] );
+						if ( empty( $l[ $loai ][ $ten ] ) ) { unset( $l[ $loai ][ $ten ] ); }
+					} else {
+						if ( ! isset( $l[ $loai ][ $ten ] ) || ! is_array( $l[ $loai ][ $ten ] ) ) {
+							$l[ $loai ][ $ten ] = array();
+						}
+						$l[ $loai ][ $ten ][ $k ] = $dat;
+					}
+					$doi++;
+				}
+			}
+		}
+		if ( $doi ) { update_option( self::O_NHOM, $l ); }
+		return array( 'ok' => true, 'doi' => $doi );
+	}
+
+	/**
+	 * BỘ PHẬN & MẢNG CỦA MỘT NGƯỜI — hỏi đúng `VHCC_NhanSu`, không tự suy lại ở đây.
+	 *
+	 * ⚠️ NHỚ TRONG LƯỢT CHẠY. Một lượt tải trang hỏi quyền nhiều lần (thanh điều hướng vẽ đủ ba
+	 *    trang, rồi cửa vào hỏi lại); không nhớ thì mỗi câu hỏi là một lượt SELECT hồ sơ.
+	 */
+	public static function nhom_cua( $ma_nv, $moi = null ) {
+		static $nho = array();
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'boPhan' => '', 'dsMang' => array() ); }
+		/* 🔴 MỒI SẴN TỪ HỒ SƠ ĐÃ NẠP. Màn nhân sự vẽ 50 hàng, mỗi hàng hỏi quyền 3 trang; không
+		   mồi thì đó là 50 lượt SELECT cho những dòng vừa đọc xong ở ngay trên. */
+		if ( null !== $moi ) { $nho[ $ma ] = self::nhom_tu_hs( $moi ); return $nho[ $ma ]; }
+		if ( isset( $nho[ $ma ] ) ) { return $nho[ $ma ]; }
+		$ra = array( 'boPhan' => '', 'dsMang' => array() );
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'mang_bo_phan_cua' ) ) {
+			$hs = VHCC_NhanSu::ho_so( $ma );
+			if ( $hs ) { $ra = self::nhom_tu_hs( $hs ); }
+		}
+		$nho[ $ma ] = $ra;
+		return $ra;
+	}
+
+	/**
+	 * LUẬT NHÓM ĐANG NÓI GÌ VỀ MỘT NGƯỜI, cho MỘT cột — kể cả cột kiểu `day`.
+	 *
+	 * Khác `giai()` ở chỗ: `giai()` chỉ trả lời cho TRANG có trong sổ (vì nó là cửa gác), còn
+	 * hàm này trả lời cho cả `ghe` / `chi_phi` — nơi luật chỉ là LỜI KHAI, chưa phải hiện thực.
+	 *
+	 * @return array|null null = nhóm không nói gì về ô này.
+	 */
+	public static function nhom_noi_gi( $ma_nv, $cot ) {
+		return self::nhom_quyet( $ma_nv, $cot );
+	}
+
+	/** Như `nhom_noi_gi()` nhưng nhận thẳng HỒ SƠ đã nạp — không tra lại CSDL. */
+	public static function nhom_noi_gi_hs( $hs, $cot ) {
+		$l = self::luat_nhom();
+		if ( ! $l['bp'] && ! $l['mang'] ) { return null; }
+		return self::ap_luat( self::nhom_tu_hs( $hs ), $cot, $l );
+	}
+
+	/** Rút bộ phận & mảng ra từ một hồ sơ đã nạp. */
+	public static function nhom_tu_hs( $hs ) {
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'mang_bo_phan_cua' ) ) {
+			return array( 'boPhan' => '', 'dsMang' => array() );
+		}
+		$mb = VHCC_NhanSu::mang_bo_phan_cua( (array) $hs );
+		return array( 'boPhan' => (string) $mb['boPhan'], 'dsMang' => (array) $mb['dsMang'] );
 	}
 
 	/** Trạng thái hiện tại của một ô trong bảng: 'mo' · 'khoa' · '' (theo vai). */

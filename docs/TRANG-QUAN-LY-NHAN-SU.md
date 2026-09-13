@@ -857,6 +857,86 @@ ghim trái chạy đúng — và không bóp chữ thêm nữa, vì bóp nữa l
 `tools/xem/chup.js` nay in thẳng bảng bề ngang ở 1366 · 1500 · 1730 · 1920 — trang có trôi ngang
 không, bảng cần bao nhiêu, khung có bấy nhiêu.
 
+## 4m. Quyền theo BỘ PHẬN & MẢNG — và năm cột gộp thành một (3.77.0)
+
+Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng
+người nữa. Ghế massa dành cho mảng kinh doanh máy tự động. Mà phân theo bộ phận. nên làm gọn lại
+cho ah"*.
+
+### 🔴 BỐN TẦNG, XÉT TỪ HẸP TỚI RỘNG
+
+```
+đặt riêng cho một người  →  luật BỘ PHẬN  →  luật MẢNG  →  thang vai
+```
+
+Thứ tự này **là cả cái luật**, và nó không nhìn thấy được trên màn hình — nên `VHCC_Cong::giai()`
+là một nơi duy nhất trả lời, và `tools/test/kiem-mang-bo-phan.php` mục 13 canh từng tầng:
+
+* Đảo hai tầng giữa → luật mảng đè luật bộ phận, người khai luật bộ phận thấy nó "không ăn".
+* Đảo tầng đầu → ngoại lệ đặt cho đích danh một người bị luật cả phòng nuốt mất, tức là **mất
+  luôn đường duy nhất khoá được một người** khi cả bộ phận đang mở.
+
+Tầng mới nằm **giữa** ngoại lệ và thang vai. Thang vai vẫn là mặc định; không khai luật nào thì
+mọi thứ y hệt trước — và **không tra hồ sơ một lượt nào** (`duoc_vao()` chạy ở mọi lượt tải trang
+của ba plugin, nên site chưa bật tính năng này không phải trả tiền cho nó).
+
+### 🔴 LÀM HAI MẢNG THÌ "MỞ" THẮNG
+
+Anh Thắng: *"làm ở 2 mảng, thì chấm công ở 2 mảng"*. Đó là trạng thái **thường** của nhân viên
+chạy giữa hai mảng. Lấy "khoá" thắng thì họ mất đường vào trang mà mảng chính vẫn cần, và màn
+hình chối họ bằng một câu không nói ra lý do. Muốn khoá đích danh một người → **đặt riêng**, tầng
+1, và nó thắng.
+
+### Hai chiều, cố ý không gộp
+
+| | trả lời câu | hợp với |
+|---|---|---|
+| **Bộ phận** | người này làm **việc gì** | ba trang gác cửa |
+| **Mảng** | người này làm **ở đâu** | Ghế massage (nằm trong mảng Máy tự động) |
+
+Gộp hai chiều vào một bảng là sớm muộn phải khai "Khối Nhân Viên Cơ Sở ở mảng Máy tự động" thành
+một dòng riêng — tức quay lại đúng chỗ tích tay từng trường hợp.
+
+### 🔴 HAI CỘT ĐẨY NGƯỜI CHỈ LÀ LỜI KHAI, KHÔNG TỰ TẠO TÀI KHOẢN
+
+`Ghế massage` và `Vận hành chi phí` không gác được bằng ngoại lệ: hai hệ ấy có **sổ người dùng
+riêng** và không đọc `ma_nv` bên này. Luật nhóm ở đây chỉ nói **ai nên có tài khoản**. Việc tạo
+tài khoản thật vẫn phải bấm — **dải chênh lệch** ngay dưới bảng luật đếm ra bao nhiêu người lệch
+và có nút "Đẩy hết N người" / "Gỡ hết N người".
+
+Không tự đẩy, vì cả hai đều là màn **có ngăn tiền**: tự tạo tài khoản cho 37 người vì ai đó vừa
+tích một ô là trao chìa khoá mà chính họ cũng không biết mình đang cầm, và không có một lượt bấm
+nào để quy trách nhiệm. Khai luật cột đẩy cũng cần bậc **Admin**, y như nút đẩy từng người —
+không thì Kế toán khai luật rồi một Admin bấm "Đẩy hết" mà tưởng là luật của mình.
+
+⚠️ Nút "Đẩy hết" **đếm lại ở máy chủ** khi bấm, không tin danh sách gửi lên: biểu mẫu có thể đã
+mở từ nửa tiếng trước, trong khoảng ấy luật đổi và người vào người ra.
+
+### Năm cột quyền gộp thành một
+
+Trước: mỗi trang một cột, mỗi cột một dải ba nút, cho **từng người** — 245 người × 5 cột là
+**1.225 ô phải tích tay**, và ~600px bề ngang chỉ để chở mấy ô ấy.
+
+Nay cột **Quyền vào trang** chỉ **đọc**: một dải chip nói người ấy vào được đâu **và vì đâu**
+(`bp` · `mảng` · `riêng` · không ghi gì = theo vai). Chữ "vì đâu" mới là phần có giá trị — cái
+chip xanh thì nhìn bảng vai cũng đoán ra, còn nó xanh **vì** luật bộ phận hay **vì** ai đó đặt
+riêng từ sáu tháng trước thì không đoán được.
+
+Đường **đặt riêng cho từng người vẫn còn**, chuyển vào khối **sửa ▾** của chính hàng ấy. Bỏ hẳn
+thì mọi ngoại lệ đang có thành không gỡ được bằng màn hình, chỉ còn cách sửa CSDL.
+
+Nút đầu của dải ba nút nay nói đúng nó đang theo **gì**: có luật nhóm thì ghi «theo bộ ✓/✕», chứ
+không còn ghi «vai ✓/✕» — vì "bỏ ngoại lệ" nay không còn nghĩa là "về theo vai".
+
+Đo bằng `bash tools/xem/xem-man.sh`, bảng thu từ **1.556px xuống 1.071px** — vừa khung ở cả màn
+1366px, không còn phải cuộn ngang ở đâu cả.
+
+### ⚠️ Nhớ sẵn bộ phận & mảng cho cả lát cắt
+
+Cột chip hỏi `VHCC_Cong::giai()` ba lần mỗi hàng. Không mồi sẵn thì mỗi hàng là một lượt `SELECT`
+hồ sơ — cho đúng những dòng vừa đọc xong ở ngay trên. `the_bang()` gọi `VHCC_Cong::nhom_cua( $ma,
+$row )` một vòng trước khi vẽ; dải chênh lệch thì đọc **một** lượt sáu cột cho cả sổ.
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

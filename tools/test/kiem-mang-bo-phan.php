@@ -717,4 +717,153 @@ t( 'bảng nhân sự mang lớp gọn b-ns / cuon-ns',
 t( '🔴 ô Bộ phận trong bảng gọn vẫn được nới hết cỡ (không cắt nhãn «theo cơ sở → …»)',
 	strpos( $src_ns, 'table.b-ns td select[name^="mbp_bp"]{max-width:none;min-width:146px}' ) !== false );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 13. QUYỀN THEO BỘ PHẬN & MẢNG — BỐN TẦNG, VÀ THỨ TỰ CỦA CHÚNG
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền
+ * từng người nữa… Ghế massage dành cho mảng kinh doanh máy tự động. Mà phân theo bộ phận."*
+ *
+ * 🔴 THỨ TỰ BỐN TẦNG LÀ CẢ CÁI LUẬT — và nó không nhìn thấy được trên màn hình:
+ *      đặt riêng → luật bộ phận → luật mảng → thang vai.
+ *    Đảo hai tầng giữa thì luật mảng đè luật bộ phận, và người khai luật bộ phận thấy nó "không
+ *    ăn" mà không hiểu vì sao. Đảo tầng đầu thì ngoại lệ đặt cho đích danh một người bị luật cả
+ *    phòng nuốt mất — tức là mất luôn đường DUY NHẤT khoá được một người.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 13. Quyền theo bộ phận & mảng ───────────────────────\n";
+
+$nv( 'Q_VIVO', 'Quyền Vivo', 'VIVO' );                       // theo cơ sở -> Khu vui chơi
+$nv( 'Q_POSH', 'Quyền Posh', 'POSH_Q1' );                    // theo cơ sở -> Máy tự động
+$nv( 'Q_KETOAN', 'Quyền Kế toán', '', '', 'Phòng Kế Toán - Tài Chính' );
+/* 🔴 NGƯỜI LÀM HAI MẢNG — cảnh anh Thắng nói là chuyện THƯỜNG, không phải lỗi. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'Q_HAI', 'ho_ten' => 'Quyền Hai Mảng', 'cua_hang' => 'VIVO',
+	'mang' => 'Khu vui chơi, Máy tự động', 'bo_phan' => '', 'vai_tro' => 'Nhân viên' ) );
+
+$u_ad = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'Q_AD' );
+$u_kt = array( 'name' => 'KT',  'role' => 'Kế toán', 'coso' => '', 'ma_nv' => 'Q_KT2' );
+$nguoi = function ( $ma ) {
+	$hs = VHCC_NhanSu::ho_so( $ma );
+	return array( 'ma_nv' => $ma, 'name' => $hs['ho_ten'], 'coso' => $hs['cua_hang'],
+		'role' => $hs['vai_tro'] );
+};
+
+/* ---- 13a. Chưa khai gì thì mọi thứ y như cũ ---- */
+delete_option( VHCC_Cong::O_NHOM );
+$q_mac = VHCC_Cong::duoc_vao( $nguoi( 'Q_VIVO' ), 'tram' );
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'tram' );
+teq( '🔴 chưa khai luật nhóm nào thì vẫn theo thang vai', 'vai', $g['vi'] );
+teq( 'và câu trả lời không đổi', $q_mac, VHCC_Vai::duoc( $nguoi( 'Q_VIVO' ), 'cham_online' ) );
+
+/* ---- 13b. Luật BỘ PHẬN ---- */
+/* ⚠️ DÙNG "KHOÁ" ĐỂ CHỨNG MINH, KHÔNG DÙNG "MỞ". Cả ba trang trong sổ đều để ngưỡng thấp
+   (`cong_minh`, `cham_online`) — ai cũng qua. Khai "mở" rồi thấy xanh thì phép thử ấy xanh vì
+   thang vai vốn đã cho qua, chứ không phải vì luật nhóm chạy: một phép thử không thể sai. */
+$r = VHCC_Cong::luu_nhom( $u_ad, array( 'bp' => array(
+	VHCC_NhanSu::BP_CO_SO => array( 'cham_cong' => 'khoa' ),
+	'Phòng Kế Toán - Tài Chính' => array( 'tram' => 'khoa' ),
+) ) );
+t( 'lưu được luật bộ phận', ! empty( $r['ok'] ), $r );
+teq( 'đếm đúng số ô đã đổi', 2, (int) $r['doi'] );
+
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'cham_cong' );
+t( '🔴 nhân viên quầy nay bị chặn Quản trị chấm công — theo BỘ PHẬN', empty( $g['duoc'] ), $g );
+teq( 'và màn hình nói ra được là vì bộ phận', 'bo_phan', $g['vi'] );
+teq( 'kèm đúng tên bộ phận', VHCC_NhanSu::BP_CO_SO, $g['ten'] );
+/* 🔴 ĐỐI CHỨNG: thang vai vốn CHO người ấy qua. Không có dòng này thì phép trên xanh kể cả khi
+   luật nhóm không chạy một dòng nào — và đó là loại phép thử tệ nhất. */
+t( '🔴 đối chứng: thang vai vốn cho người ấy qua, nên cái "không" ở trên là do luật nhóm',
+	VHCC_Vai::duoc( $nguoi( 'Q_VIVO' ), 'cong_minh' ) );
+
+$g = VHCC_Cong::giai( $nguoi( 'Q_KETOAN' ), 'tram' );
+t( '🔴 luật bộ phận KHOÁ được, không chỉ mở', empty( $g['duoc'] ), $g );
+teq( 'và nói ra vì bộ phận nào', 'Phòng Kế Toán - Tài Chính', $g['ten'] );
+t( 'câu chối gọi thẳng tên bộ phận',
+	strpos( VHCC_Cong::vi_sao_khong( $nguoi( 'Q_KETOAN' ), 'tram' ), 'Phòng Kế Toán' ) !== false,
+	VHCC_Cong::vi_sao_khong( $nguoi( 'Q_KETOAN' ), 'tram' ) );
+
+/* ---- 13c. Luật MẢNG, và "MỞ THẮNG" khi một người hai mảng ---- */
+$r = VHCC_Cong::luu_nhom( $u_ad, array( 'mang' => array(
+	'Máy tự động'  => array( 'tram' => 'mo' ),
+	'Khu vui chơi' => array( 'tram' => 'khoa' ),
+) ) );
+t( 'lưu được luật mảng', ! empty( $r['ok'] ), $r );
+
+$g = VHCC_Cong::giai( $nguoi( 'Q_POSH' ), 'tram' );
+t( 'người mảng Máy tự động vào được Trạm chấm công', ! empty( $g['duoc'] ), $g );
+teq( 'và vì MẢNG', 'mang', $g['vi'] );
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'tram' );
+t( 'người mảng Khu vui chơi thì không', empty( $g['duoc'] ), $g );
+
+/* 🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA MỤC NÀY. Người làm hai mảng, một mảng mở một mảng khoá:
+   lấy "khoá" thắng thì họ MẤT đường vào trang mà mảng chính vẫn cần, và màn hình chối họ bằng
+   một câu không nói ra lý do. Anh Thắng: *"làm ở 2 mảng, thì chấm công ở 2 mảng"*. */
+$g = VHCC_Cong::giai( $nguoi( 'Q_HAI' ), 'tram' );
+t( '🔴 làm HAI mảng, một mở một khoá -> MỞ thắng', ! empty( $g['duoc'] ), $g );
+teq( 'và nói ra mảng nào đã mở', 'Máy tự động', $g['ten'] );
+
+/* ---- 13d. Bộ phận ĐÈ mảng, và đặt riêng ĐÈ tất cả ---- */
+VHCC_Cong::luu_nhom( $u_ad, array( 'bp' => array(
+	VHCC_NhanSu::BP_CO_SO => array( 'tram' => 'khoa' ) ) ) );
+$g = VHCC_Cong::giai( $nguoi( 'Q_POSH' ), 'tram' );
+t( '🔴 luật BỘ PHẬN đè luật mảng', empty( $g['duoc'] ), $g );
+teq( 'và nói đúng tầng', 'bo_phan', $g['vi'] );
+
+VHCC_Cong::dat( $u_ad, 'Q_POSH', 'tram', 'mo' );
+$g = VHCC_Cong::giai( $nguoi( 'Q_POSH' ), 'tram' );
+t( '🔴 đặt RIÊNG cho một người đè cả hai tầng nhóm', ! empty( $g['duoc'] ), $g );
+teq( 'và nói đúng tầng', 'rieng', $g['vi'] );
+/* Đây là đường DUY NHẤT khoá một người khi cả bộ phận đang mở — mất nó là mất hẳn khả năng ấy. */
+VHCC_Cong::luu_nhom( $u_ad, array( 'bp' => array(
+	VHCC_NhanSu::BP_CO_SO => array( 'cham_cong' => 'mo' ) ) ) );
+VHCC_Cong::dat( $u_ad, 'Q_VIVO', 'cham_cong', 'khoa' );
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'cham_cong' );
+t( '🔴 khoá đích danh được một người dù cả bộ phận đang mở', empty( $g['duoc'] ), $g );
+t( 'câu chối nói rõ là khoá RIÊNG, không đổ cho bộ phận',
+	strpos( VHCC_Cong::vi_sao_khong( $nguoi( 'Q_VIVO' ), 'cham_cong' ), 'riêng' ) !== false,
+	VHCC_Cong::vi_sao_khong( $nguoi( 'Q_VIVO' ), 'cham_cong' ) );
+VHCC_Cong::dat( $u_ad, 'Q_VIVO', 'cham_cong', '' );
+VHCC_Cong::dat( $u_ad, 'Q_POSH', 'tram', '' );
+
+/* ---- 13e. Cột ĐẨY NGƯỜI cần bậc Admin ---- */
+$cot = VHCC_Cong::cot_nhom();
+t( 'sổ cột nhóm có các trang đang cài', isset( $cot['cham_cong'], $cot['tram'] ), array_keys( $cot ) );
+foreach ( array( 'cham_cong', 'tram' ) as $k_c ) {
+	teq( 'trang "' . $k_c . '" là kiểu gác cửa', 'trang', $cot[ $k_c ]['kieu'] );
+}
+if ( isset( $cot[ VHCC_DayChiPhi::COT ] ) ) {
+	teq( '🔴 cột Vận hành chi phí là kiểu ĐẨY NGƯỜI, không phải gác cửa',
+		'day', $cot[ VHCC_DayChiPhi::COT ]['kieu'] );
+	$r = VHCC_Cong::luu_nhom( $u_kt, array( 'mang' => array(
+		'Máy tự động' => array( VHCC_DayChiPhi::COT => 'mo' ) ) ) );
+	teq( '🔴 Kế toán KHÔNG khai được luật cột đẩy người', 0, (int) $r['doi'] );
+	$r = VHCC_Cong::luu_nhom( $u_ad, array( 'mang' => array(
+		'Máy tự động' => array( VHCC_DayChiPhi::COT => 'mo' ) ) ) );
+	teq( 'Admin thì khai được', 1, (int) $r['doi'] );
+	/* Luật cột đẩy KHÔNG tự tạo tài khoản — nó chỉ là lời khai. */
+	t( '🔴 khai xong vẫn CHƯA ai có tài khoản bên ấy', ! VHCC_DayChiPhi::da_day( 'Q_POSH' ) );
+	$n = VHCC_Cong::nhom_noi_gi( 'Q_POSH', VHCC_DayChiPhi::COT );
+	t( 'nhưng hệ biết người ấy NÊN có', null !== $n && ! empty( $n['duoc'] ), $n );
+}
+
+/* ---- 13f. Bậc quyền của chính việc khai luật ---- */
+$r = VHCC_Cong::luu_nhom( array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'VIVO' ),
+	array( 'bp' => array( VHCC_NhanSu::BP_CO_SO => array( 'tram' => 'mo' ) ) ) );
+t( '🔴 Nhân viên KHÔNG khai được luật nhóm', empty( $r['ok'] ), $r );
+t( 'và câu chối nói ra cần vai nào',
+	isset( $r['error'] ) && strpos( $r['error'], 'Kế toán' ) !== false, $r );
+
+/* ---- 13g. Gỡ luật thì rơi lại đúng tầng dưới, không mắc kẹt ---- */
+VHCC_Cong::luu_nhom( $u_ad, array( 'bp' => array(
+	VHCC_NhanSu::BP_CO_SO => array( 'cham_cong' => '', 'tram' => '' ) ) ) );
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'cham_cong' );
+teq( '🔴 gỡ luật bộ phận thì rơi về thang vai, không kẹt lại', 'vai', $g['vi'] );
+$g = VHCC_Cong::giai( $nguoi( 'Q_POSH' ), 'tram' );
+teq( 'và rơi đúng một tầng — xuống luật mảng, chứ không rơi thẳng xuống vai', 'mang', $g['vi'] );
+
+/* ---- 13h. Trang KHÔNG có trong sổ thì luật nhóm không được đụng vào ---- */
+$g = VHCC_Cong::giai( $nguoi( 'Q_VIVO' ), 'mot_trang_khong_co' );
+t( '🔴 trang ngoài sổ vẫn cho qua', ! empty( $g['duoc'] ), $g );
+teq( 'và đánh dấu là ngoài sổ', 'ngoai_so', $g['vi'] );
+delete_option( VHCC_Cong::O_NHOM );
+
 ket_luan_vai();
