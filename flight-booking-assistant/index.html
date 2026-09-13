@@ -266,6 +266,9 @@ textarea{min-height:96px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace
 .choose:hover{transform:translateY(-2px);box-shadow:0 16px 28px -12px rgba(255,122,24,.7)}
 .choose.alt{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line);font-size:13px;padding:8px 14px;box-shadow:none}
 .choose.alt:hover{border-color:var(--blue);color:var(--blue);transform:none;box-shadow:var(--sh-1)}
+.c-noi{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.55}
+.c-noi a{color:var(--blue);text-decoration:none;border-bottom:1px dotted var(--blue)}
+.c-noi a:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:7px;margin-top:-2px}
 .mini{font-size:11.5px;font-weight:500;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);
   border-radius:var(--r-pill);padding:4px 11px}
@@ -1278,8 +1281,9 @@ function renderResults(q){
   }
   const links = channelList(q);
   $("#rows").innerHTML = list.slice(0, 14).map(o => {
-    const banUrl = o.seller.name === "Website hãng" ? o.al.site
-                 : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url;
+    const mua = noiMua(o, q, links);
+    const chinh = mua[0];
+    const banUrl = chinh.url;
     const donUrl = orderLink(o, q);
     const tong = o.total || paxPrice(o.price, q);
     const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
@@ -1299,9 +1303,14 @@ function renderResults(q){
         + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
       + '<div class="c-act">'
         + (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
-                    + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
-                  : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Chọn</a>'
-                    + '<span class="hint" style="text-align:center">' + o.seller.name + '</span>')
+                    + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự xem ở ' + chinh.name + '</a>'
+                  : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Mua ở ' + chinh.name + '</a>'
+                    + '<span class="hint" style="text-align:center">mở đúng ' + q.from.code + ' → ' + q.to.code
+                      + ' ngày ' + dd + '/' + mm + ' — chọn chuyến ' + o.code + ' lúc ' + o.dep + '</span>')
+        + (mua.length > 1
+            ? '<div class="c-noi">nơi bán khác: ' + mua.slice(1, 4).map(c =>
+                '<a href="' + c.url + '" target="_blank" rel="noopener">' + c.name + '</a>').join(" · ") + '</div>'
+            : "")
       + '</div>'
       + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
         + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
@@ -1314,6 +1323,26 @@ function renderResults(q){
 /* ---------------- đường dẫn tới các hệ thống bán vé ---------------- */
 const dmy = s => { const [y,m,d] = s.split("-"); return d + "-" + m + "-" + y; };
 const ymd6 = s => { const [y,m,d] = s.split("-"); return y.slice(2) + m + d; };
+
+/* Sân bay trong nước — dùng để chọn nơi bán quen thuộc cho chặng nội địa. */
+const VN_SAN_BAY = new Set(["SGN","HAN","DAD","CXR","PQC","HPH","VCA","HUI","UIH","VII",
+                            "DLI","THD","VDO","BMV","PXU","TBB","VCL","VCS","CAH","DIN"]);
+
+/* Nơi khách mua được đúng chuyến này: đường dẫn đã mang sẵn chặng, ngày và số khách.
+   Nguồn giá chỉ báo giá chứ không bán lẻ, nên luôn quy về các kênh tra cứu thật
+   thay vì ném khách ra trang chủ hãng — trang chủ không nhận chặng qua đường dẫn. */
+function noiMua(o, q, links){
+  const ra = [];
+  const them = c => { if(c && c.url && !ra.some(x => x.name === c.name)) ra.push(c); };
+  them(links.find(c => c.name === o.seller.name && c.meta));
+  const trongNuoc = VN_SAN_BAY.has(q.from.code) && VN_SAN_BAY.has(q.to.code);
+  (trongNuoc ? ["Traveloka", "Trip.com", "Google Flights", "Skyscanner", "Momondo"]
+             : ["Google Flights", "Skyscanner", "Trip.com", "Traveloka", "Momondo"])
+    .forEach(t => them(links.find(c => c.name === t)));
+  const hang = links.find(c => c.kind === "trang hãng" && (c.name === o.al.name || (o.al.site && c.url === o.al.site)));
+  them(hang || (o.al.site ? { name: "Website " + o.al.name, url: o.al.site, kind: "trang hãng" } : null));
+  return ra;
+}
 
 function channelList(q){
   const A = q.from.code, B = q.to.code, a = A.toLowerCase(), b = B.toLowerCase();

@@ -160,7 +160,7 @@ class DVR_Duffel {
 				'bag'       => $kien > 0,
 				'bagText'   => $kien > 0 ? $kien . ' kiện ký gửi' : 'chỉ xách tay',
 				'cabin'     => isset( $q['cabin'] ) ? $q['cabin'] : 'ECONOMY',
-				'seller'    => array( 'name' => 'Duffel', 'note' => 'đặt và xuất vé qua Duffel' ),
+				'seller'    => array( 'name' => 'Duffel', 'note' => 'giá lấy thẳng từ hệ thống đặt chỗ' ),
 				'price'     => $gia_moi,
 				'total'     => $tong_moi,
 				'cur'       => $cur,

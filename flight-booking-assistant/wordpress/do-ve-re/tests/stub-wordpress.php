@@ -10,6 +10,7 @@ if ( PHP_SAPI !== 'cli' ) {
 
 define( 'ABSPATH', __DIR__ . '/' );
 define( 'MINUTE_IN_SECONDS', 60 );
+define( 'HOUR_IN_SECONDS', 3600 );
 define( 'DAY_IN_SECONDS', 86400 );
 
 $GLOBALS['dvr_options'] = array();
@@ -99,11 +100,32 @@ function add_action( ...$a ) {}
 function apply_filters( $tag, $v ) {
 	return $v;
 }
+$GLOBALS['dvr_transients'] = array();
 function get_transient( $k ) {
-	return false;
+	return isset( $GLOBALS['dvr_transients'][ $k ] ) ? $GLOBALS['dvr_transients'][ $k ] : false;
 }
 function set_transient( $k, $v, $t = 0 ) {
+	$GLOBALS['dvr_transients'][ $k ] = $v;
 	return true;
+}
+function delete_transient( $k ) {
+	unset( $GLOBALS['dvr_transients'][ $k ] );
+	return true;
+}
+
+/* --- mạng giả: khai $GLOBALS['dvr_http'][ url ] = nội dung trả về --- */
+$GLOBALS['dvr_http'] = array();
+function wp_remote_get( $url, $args = array() ) {
+	if ( ! isset( $GLOBALS['dvr_http'][ $url ] ) ) {
+		return new WP_Error( 'http_request_failed', 'Không nối được ' . $url );
+	}
+	return array( 'body' => $GLOBALS['dvr_http'][ $url ], 'response' => array( 'code' => 200 ) );
+}
+function wp_remote_retrieve_body( $r ) {
+	return is_array( $r ) && isset( $r['body'] ) ? $r['body'] : '';
+}
+function wp_remote_retrieve_response_code( $r ) {
+	return is_array( $r ) && isset( $r['response']['code'] ) ? $r['response']['code'] : 0;
 }
 
 /* --- kho bài viết giả, đủ để thử việc tự tạo trang cho khách --- */

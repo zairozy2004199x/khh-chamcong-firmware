@@ -166,8 +166,15 @@ class DVR_Rest {
 				$o['stops'] ? $o['stops'] . ' điểm dừng' : 'bay thẳng'
 			);
 		}
+		list( $tg_usd, $ng_usd ) = dvr_ty_gia( 'USD' );
 		$ra = array(
 			'canh_bao'  => $canh_bao,
+			'ty_gia'    => $tg_usd > 0
+				? '1 USD = ' . number_format( round( $tg_usd ), 0, ',', '.' ) . 'đ · '
+					. ( 'tay' === $ng_usd ? 'tỉ giá mình tự khai trong Cài đặt'
+						: ( 'mang' === $ng_usd ? 'tự lấy trên mạng, 12 giờ làm mới một lần'
+							: 'bảng dự phòng trong plugin (không hỏi được mạng) — nên tự khai tỉ giá' ) )
+				: '',
 			'nguon'     => $nguon,
 			'chang'     => $q['from'] . ' → ' . $q['to'] . ' ngày ' . $q['dep'],
 			'so_chuyen' => count( $ds ),

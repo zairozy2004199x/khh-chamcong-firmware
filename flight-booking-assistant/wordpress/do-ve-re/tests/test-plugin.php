@@ -244,8 +244,30 @@ ok( 'ghi rõ quy đổi từ đâu', 'quy đổi từ 55 USD' === $ghi, $ghi );
 list( $t2, $c2, $g2 ) = dvr_quy_doi( 1690000, 'VND' );
 ok( 'tiền Việt thì giữ nguyên, không ghi chú', 1690000 === $t2 && '' === $g2 );
 $GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 0;
-list( $t3, $c3 ) = dvr_quy_doi( 55, 'USD' );
-ok( 'chưa khai tỉ giá thì giữ nguyên ngoại tệ', 55 === $t3 && 'USD' === $c3, array( $t3, $c3 ) );
+$GLOBALS['dvr_transients'] = array();
+list( $t3, $c3, $g3 ) = dvr_quy_doi( 55, 'USD' );
+ok( 'không khai tỉ giá thì vẫn ra tiền Việt (bảng dự phòng)', 'VND' === $c3 && $t3 > 1000000, array( $t3, $c3 ) );
+ok( 'nói rõ là tỉ giá tạm tính', strpos( $g3, 'tỉ giá tạm tính' ) !== false, $g3 );
+
+$GLOBALS['dvr_transients'] = array();
+$GLOBALS['dvr_http']['https://open.er-api.com/v6/latest/USD'] =
+	'{"result":"success","base_code":"USD","rates":{"USD":1,"VND":26500,"SGD":1.3,"EUR":0.92}}';
+list( $t4, $c4, $g4 ) = dvr_quy_doi( 55, 'USD' );
+ok( 'lấy được tỉ giá trên mạng thì dùng tỉ giá đó', 1457500 === $t4 && 'VND' === $c4, array( $t4, $c4 ) );
+list( $t5, $c5 ) = dvr_quy_doi( 100, 'SGD' );
+ok( 'tiền khác USD cũng quy đổi được', 2038462 === $t5 && 'VND' === $c5, array( $t5, $c5 ) );
+list( $tg_m, $ng_m ) = dvr_ty_gia( 'USD' );
+ok( 'tỉ giá lấy trên mạng được nhớ lại, không hỏi mạng nữa',
+	'mang' === $ng_m && isset( $GLOBALS['dvr_transients']['dovere_ty_gia'] ), $ng_m );
+
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 27000;
+list( $tg_t, $ng_t ) = dvr_ty_gia( 'USD' );
+ok( 'tỉ giá mình tự khai đè lên tỉ giá trên mạng', 27000.0 === $tg_t && 'tay' === $ng_t, array( $tg_t, $ng_t ) );
+$GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 0;
+list( $t6, $c6, $g6 ) = dvr_quy_doi( 40, 'XYZ' );
+ok( 'tiền lạ không có tỉ giá thì giữ nguyên, không bịa', 40 === $t6 && 'XYZ' === $c6 && '' === $g6, array( $t6, $c6 ) );
+$GLOBALS['dvr_http'] = array();
+$GLOBALS['dvr_transients'] = array();
 
 $GLOBALS['dvr_options']['dovere_settings']['ty_gia'] = 26200;
 $body = json_decode( file_get_contents( $goc . '/tests/duffel-offers.json' ), true );

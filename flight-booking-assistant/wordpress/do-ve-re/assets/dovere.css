@@ -259,6 +259,9 @@
 .dvr .choose:hover{transform:translateY(-2px);box-shadow:0 16px 28px -12px rgba(255,122,24,.7)}
 .dvr .choose.alt{background:var(--surface);color:var(--ink-2);border:1.5px solid var(--line);font-size:13px;padding:8px 14px;box-shadow:none}
 .dvr .choose.alt:hover{border-color:var(--blue);color:var(--blue);transform:none;box-shadow:var(--sh-1)}
+.dvr .c-noi{font-size:11.5px;color:var(--muted);text-align:center;line-height:1.55}
+.dvr .c-noi a{color:var(--blue);text-decoration:none;border-bottom:1px dotted var(--blue)}
+.dvr .c-noi a:hover{color:var(--accent);border-bottom-color:var(--accent)}
 .dvr .c-tags{grid-column:2/-1;display:flex;flex-wrap:wrap;gap:7px;margin-top:-2px}
 .dvr .mini{font-size:11.5px;font-weight:500;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--line);
   border-radius:var(--r-pill);padding:4px 11px}

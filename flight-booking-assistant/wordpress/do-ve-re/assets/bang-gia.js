@@ -690,11 +690,9 @@ function renderResults(q){
   }
   const links = channelList(q);
   $("#rows").innerHTML = list.slice(0, 14).map(o => {
-    const banUrl = ganMa(
-      o.seller.name === "Website hãng" ? o.al.site
-        : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url,
-      o.seller.name
-    );
+    const mua = noiMua(o, q, links);
+    const chinh = mua[0];
+    const banUrl = ganMa(chinh.url, chinh.name);
     const donUrl = orderLink(o, q);
     const tong = o.total || paxPrice(o.price, q);
     const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
@@ -715,11 +713,16 @@ function renderResults(q){
         + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
       + '<div class="c-act">'
         + (donUrl
-            // có nguồn mua được và có trang đặt vé: dẫn khách vào luồng đơn của mình
+            // có trang đặt vé của mình: dẫn khách vào luồng đơn, mình mua vé hộ
             ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
-              + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Xem ở ' + o.seller.name + '</a>'
-            : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
-              + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>')
+              + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự xem ở ' + chinh.name + '</a>'
+            : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Mua ở ' + chinh.name + '</a>'
+              + '<span class="hint" style="text-align:center">mở đúng ' + q.from.code + ' → ' + q.to.code
+                + ' ngày ' + dd + '/' + mm + ' — chọn chuyến ' + o.code + ' lúc ' + o.dep + '</span>')
+        + (mua.length > 1
+            ? '<div class="c-noi">nơi bán khác: ' + mua.slice(1, 4).map(c =>
+                '<a href="' + ganMa(c.url, c.name) + '" target="_blank" rel="noopener">' + c.name + '</a>').join(" · ") + '</div>'
+            : "")
       + '</div>'
       + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
         + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
@@ -732,6 +735,26 @@ function renderResults(q){
 /* ---------------- đường dẫn tới các hệ thống bán vé ---------------- */
 const dmy = s => { const [y,m,d] = s.split("-"); return d + "-" + m + "-" + y; };
 const ymd6 = s => { const [y,m,d] = s.split("-"); return y.slice(2) + m + d; };
+
+/* Sân bay trong nước — dùng để chọn nơi bán quen thuộc cho chặng nội địa. */
+const VN_SAN_BAY = new Set(["SGN","HAN","DAD","CXR","PQC","HPH","VCA","HUI","UIH","VII",
+                            "DLI","THD","VDO","BMV","PXU","TBB","VCL","VCS","CAH","DIN"]);
+
+/* Nơi khách mua được đúng chuyến này: đường dẫn đã mang sẵn chặng, ngày và số khách.
+   Nguồn giá (Duffel, đại lý) chỉ báo giá chứ không bán lẻ, nên luôn quy về các kênh tra cứu thật
+   thay vì ném khách ra trang chủ hãng — trang chủ không nhận chặng qua đường dẫn. */
+function noiMua(o, q, links){
+  const ra = [];
+  const them = c => { if(c && c.url && !ra.some(x => x.name === c.name)) ra.push(c); };
+  them(links.find(c => c.name === o.seller.name && c.meta));
+  const trongNuoc = VN_SAN_BAY.has(q.from.code) && VN_SAN_BAY.has(q.to.code);
+  (trongNuoc ? ["Traveloka", "Trip.com", "Google Flights", "Skyscanner", "Momondo"]
+             : ["Google Flights", "Skyscanner", "Trip.com", "Traveloka", "Momondo"])
+    .forEach(t => them(links.find(c => c.name === t)));
+  const hang = links.find(c => c.kind === "trang hãng" && (c.name === o.al.name || (o.al.site && c.url === o.al.site)));
+  them(hang || (o.al.site ? { name: "Website " + o.al.name, url: o.al.site, kind: "trang hãng" } : null));
+  return ra;
+}
 
 /* Gắn mã giới thiệu (affiliate) nếu đã khai trong Cài đặt — bỏ trống thì link vẫn chạy bình thường. */
 function ganMa(url, ten){

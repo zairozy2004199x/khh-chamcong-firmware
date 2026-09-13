@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.4.1
+ * Version:           1.5.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.4.1' );
+define( 'DVR_VERSION', '1.5.0' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -97,19 +97,84 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 	return isset( $cd[ $khoa ] ) && '' !== $cd[ $khoa ] ? $cd[ $khoa ] : $mac_dinh;
 }
 
+/** Tỉ giá dự phòng khi không hỏi được mạng — số VND cho 1 đơn vị ngoại tệ. */
+function dvr_ty_gia_du_phong() {
+	return array(
+		'USD' => 26200, 'EUR' => 28600, 'GBP' => 33600, 'SGD' => 19700, 'AUD' => 17200,
+		'CAD' => 18700, 'CHF' => 30500, 'JPY' => 175,   'CNY' => 3650,  'HKD' => 3360,
+		'KRW' => 19,    'THB' => 770,   'MYR' => 5900,  'TWD' => 820,   'PHP' => 460,
+		'IDR' => 1.6,   'INR' => 300,   'AED' => 7100,  'NZD' => 15500,
+	);
+}
+
 /**
- * Quy đổi ngoại tệ sang VND theo tỉ giá khai trong Cài đặt.
- * Trả về mảng [số tiền, tiền tệ, ghi chú gốc] — chưa khai tỉ giá thì giữ nguyên.
+ * Bảng tỉ giá tự lấy trên mạng (số VND cho 1 đơn vị ngoại tệ), nhớ trong 12 giờ.
+ * Hỏi không được thì trả mảng rỗng và 30 phút sau mới hỏi lại, để khỏi làm chậm trang.
+ */
+function dvr_ty_gia_tu_dong() {
+	$cu = get_transient( 'dovere_ty_gia' );
+	if ( is_array( $cu ) ) {
+		return $cu;
+	}
+	if ( ! function_exists( 'wp_remote_get' ) ) {
+		return array();
+	}
+	$r = wp_remote_get( 'https://open.er-api.com/v6/latest/USD', array( 'timeout' => 12 ) );
+	if ( is_wp_error( $r ) ) {
+		set_transient( 'dovere_ty_gia', array(), 30 * MINUTE_IN_SECONDS );
+		return array();
+	}
+	$j     = json_decode( wp_remote_retrieve_body( $r ), true );
+	$ti    = isset( $j['rates'] ) && is_array( $j['rates'] ) ? $j['rates'] : array();
+	$vnd   = isset( $ti['VND'] ) ? (float) $ti['VND'] : 0;   // 1 USD bằng bao nhiêu VND
+	$bang  = array();
+	if ( $vnd > 0 ) {
+		foreach ( $ti as $ma => $gia ) {
+			if ( 'VND' !== $ma && (float) $gia > 0 ) {
+				$bang[ $ma ] = $vnd / (float) $gia;          // 1 đơn vị ngoại tệ bằng bao nhiêu VND
+			}
+		}
+	}
+	set_transient( 'dovere_ty_gia', $bang, $bang ? 12 * HOUR_IN_SECONDS : 30 * MINUTE_IN_SECONDS );
+	return $bang;
+}
+
+/**
+ * Tỉ giá đang dùng cho một loại tiền: trả về mảng [số VND cho 1 đơn vị, nguồn tỉ giá].
+ * Thứ tự ưu tiên: số mình tự khai trong Cài đặt (cho USD) → tỉ giá lấy trên mạng → bảng dự phòng.
+ */
+function dvr_ty_gia( $tien_te ) {
+	$tien_te = strtoupper( trim( (string) $tien_te ) );
+	if ( '' === $tien_te || 'VND' === $tien_te ) {
+		return array( 1.0, 'vnd' );
+	}
+	$tay = (float) dvr_cai_dat( 'ty_gia', 0 );
+	if ( $tay > 0 && 'USD' === $tien_te ) {
+		return array( $tay, 'tay' );
+	}
+	$bang = dvr_ty_gia_tu_dong();
+	if ( isset( $bang[ $tien_te ] ) && $bang[ $tien_te ] > 0 ) {
+		return array( (float) $bang[ $tien_te ], 'mang' );
+	}
+	$du = dvr_ty_gia_du_phong();
+	return isset( $du[ $tien_te ] ) ? array( (float) $du[ $tien_te ], 'du_phong' ) : array( 0.0, 'chiu' );
+}
+
+/**
+ * Quy đổi ngoại tệ sang VND để bảng giá luôn hiện tiền Việt.
+ * Trả về mảng [số tiền, tiền tệ, ghi chú gốc]; không biết tỉ giá thì đành giữ nguyên ngoại tệ.
  */
 function dvr_quy_doi( $tien, $tien_te ) {
-	$tg = (float) dvr_cai_dat( 'ty_gia', 0 );
-	if ( 'VND' === $tien_te || $tg <= 0 ) {
-		return array( (int) round( $tien ), $tien_te, '' );
+	list( $tg, $nguon ) = dvr_ty_gia( $tien_te );
+	if ( $tg <= 0 || 'vnd' === $nguon ) {
+		return array( (int) round( $tien ), $tien_te ? strtoupper( $tien_te ) : 'VND', '' );
 	}
+	$goc = rtrim( rtrim( number_format( $tien, 2, ',', '.' ), '0' ), ',' ) . ' ' . strtoupper( $tien_te );
 	return array(
 		(int) round( $tien * $tg ),
 		'VND',
-		'quy đổi từ ' . rtrim( rtrim( number_format( $tien, 2, ',', '.' ), '0' ), ',' ) . ' ' . $tien_te,
+		'quy đổi từ ' . $goc
+			. ( 'tay' === $nguon ? '' : ' · tỉ giá tạm tính ' . number_format( round( $tg ), 0, ',', '.' ) ),
 	);
 }
 

@@ -184,9 +184,10 @@ $cd = dvr_cai_dat();
 			<tr>
 				<th scope="row"><label for="dvr_ty_gia">Tỉ giá quy đổi</label></th>
 				<td><input type="number" name="dovere_settings[ty_gia]" id="dvr_ty_gia" value="<?php echo esc_attr( $cd['ty_gia'] ); ?>" class="regular-text" step="1" min="0" placeholder="26200">
-					<p class="description">Duffel thường báo giá bằng <b>USD</b>. Khai số VND cho 1 USD là bảng giá hiện tiền Việt,
-						kèm ghi chú &ldquo;quy đổi từ … USD&rdquo;. Để 0 thì giữ nguyên ngoại tệ.
-						<b>Tỉ giá này do mình tự khai, nhớ cập nhật</b> — và nhớ tính rộng tay một chút vì ngân hàng bán ra cao hơn tỉ giá trung tâm.</p></td>
+					<p class="description">Duffel thường báo giá bằng <b>USD</b>. <b>Để trống (0) là máy tự lấy tỉ giá trên mạng</b>
+						và làm mới 12 giờ một lần, nên bảng giá luôn hiện tiền Việt kèm ghi chú &ldquo;quy đổi từ … USD&rdquo;.
+						Chỉ khai số ở đây khi muốn chốt cứng tỉ giá của mình — nhớ tính rộng tay một chút vì ngân hàng bán ra
+						cao hơn tỉ giá trung tâm, và nhớ cập nhật. Tỉ giá đang dùng xem ở nút &ldquo;Thử nguồn giá&rdquo; bên dưới.</p></td>
 			</tr>
 			<tr>
 				<th scope="row">Thử nguồn</th>
