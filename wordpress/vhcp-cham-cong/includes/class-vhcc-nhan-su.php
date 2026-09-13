@@ -1080,7 +1080,11 @@ class VHCC_NhanSu {
 			$kb = ( '' !== $x['boPhan'] ) ? $x['boPhan'] : '— chưa xếp —';
 			$bp[ $kb ]   = ( isset( $bp[ $kb ] ) ? $bp[ $kb ] : 0 ) + 1;
 			if ( count( $co ) > 1 ) { $nhieu++; }
-			if ( $x['theoCoSo'] ) { $chua++; }
+			/* 🔴 HAI CON SỐ PHẢI RỜI NHAU. "Trôi theo cơ sở" chỉ đếm người trôi mà SUY RA ĐƯỢC —
+			   ai trôi mà suy không ra thì thuộc con số kia. Để chồng lấn thì câu "đó là trạng
+			   thái ĐÚNG cho nhân viên quầy" nói trùm cả mấy người chưa gắn cơ sở, tức là màn
+			   hình đang trấn an về đúng mấy trường hợp cần đụng tay. */
+			if ( $x['theoCoSo'] && empty( $x['canChonTay'] ) ) { $chua++; }
 			/* 🔴 HAI CON SỐ KHÁC NHAU, ĐỪNG GỘP.
 			   `theoCoSo` = đang trôi theo cơ sở — phần lớn là ĐÚNG, không phải việc phải làm.
 			   `canChonTay` = suy không ra, hệ đang bỏ trống — ĐÂY mới là danh sách việc.

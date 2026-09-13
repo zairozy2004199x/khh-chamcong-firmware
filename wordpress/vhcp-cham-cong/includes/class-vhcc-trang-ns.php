@@ -1014,6 +1014,13 @@ class VHCC_TrangNS {
 			. 'min-width:132px}'
 			. '.dai-hang .nut{padding:3px 9px;font-size:12.5px}'
 			. '.dai-mb p.mo{margin:4px 0 0;font-size:12.5px}'
+			/* Ô điều động phải đọc được HẾT chữ. `.o-q-vai` ghim max-width 170px cho ô trong
+			   hàng; ô đầu cột dài hơn nên bị cắt mất đuôi, trông như chữ lỗi. */
+			. 'select.o-dieu-dong{max-width:none;width:100%;margin-top:4px}'
+			/* Ô Bộ phận chở NHÃN SUY RA («theo cơ sở → Khối Nhân Viên Cơ Sở»). Cắt mất đuôi là
+			   che đúng phần thông tin, nên cột này nới rộng hơn ô xổ thường. */
+			. 'th.tr-doc{min-width:170px}'
+			. 'td select[name^="mbp_bp"]{max-width:none;width:100%;min-width:160px}'
 			. '.mb-hop{display:flex;flex-direction:column;gap:1px}'
 			. '.mb-o{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;cursor:pointer}'
 			. '.mb-o input{margin:0}'
@@ -1725,8 +1732,8 @@ class VHCC_TrangNS {
 			echo '<th class="tr-doc">' . esc_html( $c_mb['ten'] ) . '<br><span class="cot-nut">';
 			echo '<button type="submit" name="cot" value="' . esc_attr( 'mbp_' . $c_mb['o'] . '|' ) . '"'
 				. ' title="Trả cả cột về «theo cơ sở» cho tất cả người đang hiện, rồi lưu luôn">theo cơ sở</button>';
-			echo '</span><select class="o-q-vai" name="cot_' . esc_attr( $c_mb['o'] ) . '">'
-				. '<option value="">— điều động cả cột sang… —</option>';
+			echo '</span><select class="o-q-vai o-dieu-dong" name="cot_' . esc_attr( $c_mb['o'] ) . '">'
+				. '<option value="">— điều động cả cột —</option>';
 			foreach ( $c_mb['ds'] as $t_mb ) {
 				echo '<option value="' . esc_attr( $t_mb ) . '">' . esc_html( $t_mb ) . '</option>';
 			}
