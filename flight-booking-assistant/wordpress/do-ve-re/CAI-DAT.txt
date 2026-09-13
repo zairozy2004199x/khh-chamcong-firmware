@@ -29,11 +29,15 @@ LOGO CÔNG TY
   và giá tiền sẽ chuyển sang màu đó, chữ trên nút tự đổi đen/trắng cho đọc được.
 
 HAI CÁCH DÙNG — chọn trong Dò Vé Rẻ → Cài đặt → "Cách hoạt động"
-  1. BÁN QUA MÌNH (mặc định): khách chuyển khoản cho mình, mình mua vé rồi gửi
+  1. BÁN QUA MÌNH: khách chuyển khoản cho mình, mình mua vé rồi gửi
      mã đặt chỗ. Ăn chênh lệch, nhưng cần nguồn mua được và phải lo hoàn/đổi.
-  2. SO GIÁ RỒI DẪN SANG NƠI BÁN: khách bấm là sang thẳng trang hãng hoặc đại lý
+  2. SO GIÁ RỒI DẪN SANG NƠI BÁN (đang bật sẵn): khách bấm là sang thẳng trang hãng hoặc đại lý
      để tự mua. Không cần hợp đồng với hãng nào, không cầm tiền khách, không lo
      hoàn vé. Có mã giới thiệu thì được hoa hồng; không có thì link vẫn chạy.
+
+CÔNG CỤ NỘI BỘ
+  Mục "Hồ sơ điền sẵn" và "Học form" ở cuối trang bảng giá CHỈ hiện khi mình
+  đang đăng nhập tài khoản quản trị. Khách vào xem không thấy gì từ đó trở xuống.
 
 CHỐT GIÁ TRƯỚC (chỉ dùng khi bán qua mình, bật sẵn)
   Khách đặt xong KHÔNG thấy số tài khoản ngay. Đơn vào trạng thái "Chờ báo giá".

@@ -679,7 +679,8 @@ function renderResults(q){
         + '<div><div class="t-big">' + o.arr + (o.overnight ? '<sup>+1</sup>' : "") + '</div>'
           + '<div class="t-code">' + q.to.code + '</div></div>'
       + '</div>'
-      + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
+      + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>'
+        + (DVR.cheDo === "gioi_thieu" ? 'giá tham khảo · bấm để xem giá thật' : 'mỗi khách · gồm thuế phí') + '</span>'
         + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
       + '<div class="c-act">'
         + (DVR.cheDo === "gioi_thieu"

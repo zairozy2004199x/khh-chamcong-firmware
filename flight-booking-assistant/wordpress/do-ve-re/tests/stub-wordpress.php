@@ -49,6 +49,9 @@ function esc_attr( $s ) {
 function esc_url( $s ) {
 	return (string) $s;
 }
+function home_url( $p = '' ) {
+	return 'https://ve.knh.vn/' . ltrim( (string) $p, '/' );
+}
 function esc_url_raw( $s ) {
 	return (string) $s;
 }
@@ -136,7 +139,7 @@ function wp_nonce_url( $u, $a = '' ) {
 	return $u . '&_wpnonce=abc';
 }
 function current_user_can( $c ) {
-	return true;
+	return isset( $GLOBALS['quyen'] ) ? (bool) $GLOBALS['quyen'] : true;
 }
 function add_shortcode( ...$a ) {}
 function register_setting( ...$a ) {}

@@ -190,11 +190,35 @@ $GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
 ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
 echo "\nChế độ hoạt động\n";
+$GLOBALS['dvr_options']['dovere_settings'] = array();   // cài mới, chưa khai gì
+ok( 'cài mới chạy ngay ở chế độ dẫn sang nơi bán', 'gioi_thieu' === dvr_cai_dat( 'che_do' ), dvr_cai_dat( 'che_do' ) );
+ok( 'chưa khai nguồn thì dùng giá mô phỏng', 'mo_phong' === dvr_cai_dat( 'nguon' ) );
+$GLOBALS['dvr_options']['dovere_settings'] = array(
+	'shop_name' => 'Vé K&H', 'bank_id' => '970436', 'bank_account' => '0071000123456',
+	'bank_name' => 'CONG TY TNHH K&H', 'bank_label' => 'Vietcombank',
+	'fee_pct' => 3, 'fee_flat' => 0, 'fee_min' => 50000, 'hold_minutes' => 30, 'order_page' => 12,
+);
 $ls = DVR_Admin::lam_sach( array( 'che_do' => 'gioi_thieu', 'nguon' => 'dai_ly' ) );
 ok( 'nhận chế độ dẫn sang nơi bán', 'gioi_thieu' === $ls['che_do'], $ls['che_do'] );
 ok( 'nhận nguồn đại lý', 'dai_ly' === $ls['nguon'], $ls['nguon'] );
 $ls2 = DVR_Admin::lam_sach( array( 'che_do' => 'linh tinh', 'nguon' => 'linh tinh' ) );
 ok( 'giá trị lạ thì về mặc định an toàn', 'ban' === $ls2['che_do'] && 'mo_phong' === $ls2['nguon'], $ls2 );
+
+echo "\nCông cụ nội bộ không lộ ra cho khách\n";
+$dvr_trang = function () use ( $goc ) {
+	ob_start();
+	include $goc . '/templates/bang-gia.php';
+	return ob_get_clean();
+};
+$GLOBALS['quyen'] = false;
+$khach = $dvr_trang();
+$GLOBALS['quyen'] = true;
+$minh = $dvr_trang();
+ok( 'khách vẫn thấy bảng giá', strpos( $khach, 'id="rows"' ) !== false );
+ok( 'khách vẫn thấy mục nơi bán vé', strpos( $khach, 'id="chans"' ) !== false );
+ok( 'khách KHÔNG thấy hồ sơ điền sẵn', strpos( $khach, 'Hồ sơ điền sẵn' ) === false );
+ok( 'khách KHÔNG thấy nút Học form', strpos( $khach, 'Học form' ) === false );
+ok( 'mình đăng nhập thì thấy đủ công cụ', strpos( $minh, 'Hồ sơ điền sẵn' ) !== false && strpos( $minh, 'Học form' ) !== false );
 
 echo "\nLuồng chốt giá trước\n";
 $GLOBALS['dvr_options']['dovere_settings']['bao_gia_truoc'] = 1;

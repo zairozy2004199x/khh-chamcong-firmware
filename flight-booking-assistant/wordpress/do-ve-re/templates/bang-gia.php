@@ -130,10 +130,16 @@ if ( ! defined( 'ABSPATH' ) ) {
   </div>
 </section>
 
+<?php if ( current_user_can( 'manage_options' ) ) : ?>
+<div class="note" style="border-left-color:var(--blue)">
+	<b>Phần dưới đây chỉ mình thấy.</b> Khách vào trang không nhìn thấy mục nào từ đây trở xuống —
+	đó là công cụ nội bộ để điền hộ form của hãng.
+</div>
+
 <section class="sec">
   <span class="eyebrow">Bước 4 · khai một lần, dùng mãi</span>
   <h2>Hồ sơ điền sẵn</h2>
-  <p class="hint">Lưu trong máy anh (localStorage của trình duyệt này), không gửi đi đâu hết. Nút <b>Điền hộ</b> bên dưới là thứ mang hồ sơ này sang form đặt vé của hãng.</p>
+  <p class="hint">Lưu trong trình duyệt của mình (localStorage), không gửi đi đâu hết. Nút <b>Điền hộ</b> bên dưới là thứ mang hồ sơ này sang form đặt vé của hãng.</p>
 
   <div class="cols">
     <div class="sec">
@@ -204,7 +210,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 <section class="sec">
   <span class="eyebrow">Bước 5 · ranh giới</span>
-  <h2>Máy làm tới đâu, anh làm từ đâu</h2>
+  <h2>Máy làm tới đâu, mình làm từ đâu</h2>
   <div class="steps">
     <div class="step"><div class="step-n">01</div><div><b>Dò giá &amp; xếp chuyến</b><p>Máy quét chặng, ngày, lịch giá 7 ngày quanh đó và chỉ ra chuyến rẻ nhất theo bộ lọc của anh.</p></div><span class="state auto">Tự động</span></div>
     <div class="step"><div class="step-n">02</div><div><b>Mở đúng trang, đúng chặng</b><p>Một cú bấm mở song song các trang bán vé với chặng – ngày – số khách đã điền sẵn trên đường dẫn.</p></div><span class="state auto">Tự động</span></div>
@@ -214,6 +220,7 @@ if ( ! defined( 'ABSPATH' ) ) {
   </div>
   <p class="hint">Một điều nên biết trước: nhiều hãng và đại lý cấm robot đặt vé trong điều khoản sử dụng, và họ chặn bằng captcha. Cách làm ở đây là <b>điền hộ trên chính trình duyệt của anh</b> — anh vẫn là người bấm mua — chứ không phải một con bot chạy ngầm mua vé hàng loạt.</p>
 </section>
+<?php endif; ?>
 
 <footer class="foot">
   <p>Dò Vé Rẻ · công cụ nội bộ, chạy hoàn toàn trong trình duyệt. Hồ sơ nằm ở máy anh; không có máy chủ nào nhận dữ liệu.</p>
