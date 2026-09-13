@@ -1424,6 +1424,12 @@ class VHG_BaoCao {
 			$tien_mat = 0; $qr_tong = 0;
 			foreach ( $dong as $d ) { $tien_mat += (int) $d['tien_mat']; $qr_tong += (int) $d['qr']; }
 			$ra[] = array( 'reportId' => $h['report_id'], 'date' => self::ngay_( $h['ngay'] ),
+				/* 🔴 `nhapLuc` = LÚC BÁO CÁO ĐƯỢC NHẬP THẬT SỰ (`bc.tao_luc`), khác `date` là NGÀY CỦA
+				   CHỈ SỐ (`bc.ngay`). Anh Thắng 12/09/2026: *"sao ngày 12 lại chèn vào ngày 12, phải
+				   thêm lịch sử ngày nhập báo cáo"* — một báo cáo chỉ số ngày 12 nhưng gõ vào ngày 13
+				   nằm chung ô "ngày 12" trông như thu hai lần. Bày mốc nhập ra thì phân biệt được ngay
+				   báo cáo nào là lần nhập sau, và cũng là cái mốc để dò báo cáo trùng có thiếu ảnh. */
+				'nhapLuc' => (string) $h['tao_luc'],
 				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe,
 				'cash' => $tien_mat, 'qr' => $qr_tong, 'nopTt' => $nop_tt,
 				'khoa' => self::khoa_bill_( $h ) ? 1 : 0,

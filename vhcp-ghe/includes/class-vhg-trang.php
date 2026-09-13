@@ -3085,16 +3085,34 @@ class VHG_Trang {
      ≥1 ảnh (anh Thắng 12/09: "đã có ảnh sao vẫn báo thiếu" → không đòi đủ 2). Tách riêng để LƯU
      xong ảnh một ghế thì gọi lại cập nhật ngay tại chỗ, khỏi tải lại cả khối. */
   var HUY_HIEU_ANH=[];
+  /* Đếm ghế / ghế thiếu ảnh của MỘT báo cáo. `_coAnh` = ghế vừa LƯU thêm ảnh trong phiên này
+     (server chưa trả URL mới về nhưng chắc chắn đã có) — để huy hiệu xanh ngay, không đợi tải lại. */
+  function demAnhBc_(rp){
+    var tong=0, thieu=0;
+    (rp&&rp.chairs||[]).forEach(function(g){ tong++; if(!((g.anh&&g.anh.length)||g._coAnh)) thieu++; });
+    return { tong:tong, thieu:thieu };
+  }
   function veHuyHieuAnh_(badge, reports){
     var tongGhe=0, thieuGhe=0;
-    (reports||[]).forEach(function(rp){ (rp.chairs||[]).forEach(function(g){
-      /* `_coAnh` = ghế vừa được LƯU thêm ảnh trong phiên này (server chưa trả URL mới về, nhưng
-         chắc chắn đã có ảnh) — để huy hiệu chuyển xanh ngay, không đợi tải lại. */
-      tongGhe++; if(!((g.anh&&g.anh.length)||g._coAnh)) thieuGhe++; }); });
+    (reports||[]).forEach(function(rp){ var s=demAnhBc_(rp); tongGhe+=s.tong; thieuGhe+=s.thieu; });
+    /* 🔴 KHI CƠ SỞ CÓ NHIỀU BÁO CÁO, huy hiệu nhóm gộp ảnh của TẤT CẢ — một ghế thiếu ảnh ở báo
+       cáo NHẬP LẦN SAU cũng kéo cả nhóm sang "thiếu", nên anh Thắng thấy *"gửi đủ ảnh mà vẫn báo
+       thiếu"* (12/09/2026). Vì vậy mỗi báo cáo còn có huy hiệu RIÊNG (huyHieuAnhBc_) ở dòng của nó
+       để chỉ đúng báo cáo nào đang thiếu; huy hiệu nhóm đây là tổng kết. */
     if(tongGhe>0 && thieuGhe===0){ badge.textContent='✅ đã gửi đủ ảnh máy';
       badge.style.color='#166534'; badge.style.background='#dcfce7'; }
     else { badge.textContent='📷 thiếu ảnh '+thieuGhe+'/'+tongGhe+' ghế';
       badge.style.color='#b45309'; badge.style.background='#fef3c7'; }
+  }
+  /* Huy hiệu ảnh của RIÊNG một báo cáo — dán vào dòng báo cáo (recentItem) để khi một cơ sở có
+     hai báo cáo, biết ngay báo cáo nào đủ ảnh, báo cáo nào thiếu. */
+  function huyHieuAnhBc_(rp){
+    var s=demAnhBc_(rp);
+    var sp=el('span'); sp.style.cssText='font-size:11px;font-weight:700;padding:2px 8px;'
+      +'border-radius:999px;white-space:nowrap';
+    if(s.tong>0 && s.thieu===0){ sp.textContent='✅ đủ ảnh'; sp.style.color='#166534'; sp.style.background='#dcfce7'; }
+    else { sp.textContent='📷 thiếu '+s.thieu+'/'+s.tong+' ảnh'; sp.style.color='#b45309'; sp.style.background='#fef3c7'; }
+    return sp;
   }
   function capNhatHuyHieuAnh_(){ HUY_HIEU_ANH.forEach(function(x){ veHuyHieuAnh_(x.badge,x.reports); }); }
   /* 🔴 CHIA TRANG 10 BÁO CÁO/TRANG — anh Thắng 30/08/2026: "Chỗ này sửa hiện 10 báo cáo 1 trang
@@ -3114,6 +3132,16 @@ class VHG_Trang {
       /* Lọc theo nhân viên đang chọn ở ô trên (NVLOC) — chỉ giữ báo cáo của cơ sở người đó phụ
          trách. NVLOC=null → giữ nguyên tất cả. Anh Thắng 12/09/2026. */
       if(NVLOC){ ds=ds.filter(function(rp){ return NVLOC[bcCsNorm_(rp.locName||'')]; }); }
+      /* 🔴 SẮP XẾP THEO NGÀY — anh Thắng 13/09/2026: *"việc sắp xếp báo cáo cũng phải sắp theo
+         ngày"*. Máy chủ trả theo `tao_luc` (LÚC NHẬP) giảm dần, nên báo cáo chỉ số ngày 12 gõ vào
+         ngày 13 chen lẫn giữa đám ngày 13. Xếp lại theo NGÀY CHỈ SỐ (`date`) mới nhất trước, cùng
+         ngày thì theo lúc nhập mới nhất trước — các báo cáo cùng ngày đứng liền một khối. */
+      ds.sort(function(a,b){
+        var da=String(a.date||''), db=String(b.date||'');
+        if(da!==db) return da<db?1:-1;
+        var na=String(a.nhapLuc||''), nb=String(b.nhapLuc||'');
+        return na<nb?1:(na>nb?-1:0);
+      });
       if(!ds.length){
         wrapl.appendChild(el('div','bc-mut', NVLOC
           ? 'Nhân viên này chưa có báo cáo nào trong 24 giờ qua.'
@@ -3216,7 +3244,24 @@ class VHG_Trang {
        thật (có ghi đè thực thu / QR), nên bày thẳng hai con số thật: Tiền mặt phải nộp + QR. */
     trai.appendChild(el('b',null, rp.date+' · '+rp.rows+' ghế · TM '+money(rp.cash)+'đ · QR '+money(rp.qr||0)+'đ'));
     trai.appendChild(huyHieuNop_(rp));
+    /* 📷 Huy hiệu ảnh RIÊNG từng báo cáo — anh Thắng 12/09/2026: *"gửi đủ ảnh mà vẫn báo thiếu"*.
+       Cơ sở có hai báo cáo thì huy hiệu nhóm gộp cả hai; dán huy hiệu riêng vào từng dòng để chỉ
+       đúng báo cáo nào còn thiếu. */
+    trai.appendChild(huyHieuAnhBc_(rp));
     head.appendChild(trai);
+    /* 🕒 LỊCH SỬ NGÀY NHẬP — anh Thắng 12/09/2026: *"sao ngày 12 lại chèn vào ngày 12, phải thêm
+       lịch sử ngày nhập báo cáo"*. `rp.date` là NGÀY CHỈ SỐ; `rp.nhapLuc` là LÚC GÕ VÀO máy thật.
+       Báo cáo chỉ số ngày 12 mà gõ ngày 13 nằm chung ô "12/09" trông như thu hai lần — bày mốc nhập
+       ra thì thấy ngay đây là lần nhập sau. Chỉ nhấn mạnh (đỏ cam) khi ngày nhập KHÁC ngày chỉ số. */
+    if(rp.nhapLuc){
+      var nl=String(rp.nhapLuc), ngayNhap=nl.slice(0,10);
+      var nhapVn=(nl.length>=16)?(nl.slice(8,10)+'/'+nl.slice(5,7)+'/'+nl.slice(0,4)+' '+nl.slice(11,16)):nl;
+      var lech=(ngayNhap && rp.date && ngayNhap!==rp.date);
+      var ln=el('div'); ln.style.cssText='flex-basis:100%;width:100%;font-size:11.5px;margin-top:2px;'
+        +(lech?'color:#b45309;font-weight:700':'color:#64748b');
+      ln.textContent=(lech?'⚠ ':'🕒 ')+'Nhập lúc '+nhapVn+(lech?' (khác ngày chỉ số '+ddmmyy_(rp.date)+')':'');
+      trai.appendChild(ln);
+    }
     var body=el('div'); body.style.display='none'; body.style.marginTop='8px';
     /* 🔴 ĐÃ KHOÁ THÌ KHÔNG CÓ NÚT SỬA — anh Thắng 05/09/2026. Bày một cái nút rồi để máy chủ
        chối là bắt người ta gõ lại cả báo cáo mới biết mình không được sửa. Chốt THẬT nằm ở
