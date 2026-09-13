@@ -2752,8 +2752,12 @@ class VHG_Trang {
     var padX=20, tableW=0; cols.forEach(function(c){ tableW+=c.w; });
     var W=tableW+padX*2, rh=30, hh=34, titleH=142;
     var tongOnly=!(list&&list.length);
+    /* GHI CHÚ / LÝ DO — anh Thắng 13/09/2026: máy lỗi / sai chỉ số ghi lý do phải hiện trên ảnh
+       báo cáo. Gom các ghế có ghi chú thành danh sách in dưới bảng, và đánh dấu ⚠ dòng đó. */
+    var notes=[]; if(!tongOnly){ list.forEach(function(r){ var n=String(r.note||'').trim(); if(n) notes.push({ name:r.name, note:n }); }); }
+    var notesH = notes.length ? (24 + notes.length*18 + 6) : 0;
     var bodyH = tongOnly ? 96 : (hh + list.length*rh + rh);   // +1 dòng tổng
-    var footH=56, H=titleH+bodyH+footH;
+    var footH=56, H=titleH+bodyH+notesH+footH;
     var cv=document.createElement('canvas'); cv.width=W*DPR; cv.height=H*DPR;
     cv.style.width=W+'px'; cv.style.height=H+'px';
     var g=cv.getContext('2d'); g.scale(DPR,DPR);
@@ -2790,8 +2794,23 @@ class VHG_Trang {
       var ty=titleH;
       drawRow(ty, cols.map(function(c){ return c.h; }), {bold:true,bg:'#e2e8f0',h:hh,fs:12});
       var ry=ty+hh;
-      list.forEach(function(r){ drawRow(ry, [r.name,r.before,r.after,r.actual,r.cash,r.qr]); ry+=rh; });
+      list.forEach(function(r){
+        var coLd=!!String(r.note||'').trim();
+        drawRow(ry, [(coLd?'⚠ ':'')+r.name, r.before, r.after, r.actual, r.cash, r.qr], coLd?{bg:'#fff7ed'}:undefined);
+        ry+=rh;
+      });
       drawRow(ry, ['TỔNG', tot.before, tot.after, tot.actual, tot.cash, tot.qr], {bold:true,bg:'#fef9c3'});
+      ry+=rh;
+      if(notes.length){
+        g.textAlign='left'; g.fillStyle='#b45309'; g.font='bold 12px Arial';
+        g.fillText('⚠ Ghi chú / lý do:', padX, ry+14);
+        g.font='12px Arial'; g.fillStyle='#7c2d12';
+        notes.forEach(function(n,i){
+          var t='• '+n.name+': '+n.note, maxw=W-padX*2;
+          while(t && g.measureText(t).width>maxw && t.length>1){ t=t.slice(0,-2)+'…'; }
+          g.fillText(t, padX, ry+24+18+i*18-8);
+        });
+      }
     }
     var fy=H-footH+16;
     g.textAlign='left'; g.font='bold 13px Arial'; g.fillStyle='#166534';
@@ -2858,7 +2877,7 @@ class VHG_Trang {
         var qr=Number(r.qr||0), cash=actual-qr;
         if(b!=='') tB+=b; if(a!=='') tA+=a; tAct+=actual; tCash+=cash; tQr+=qr;
         list.push({ name:(r.chairName||r.chairCode||''), before:(b===''?'':money(b)), after:(a===''?'':money(a)),
-          actual:money(actual), cash:money(cash), qr:money(qr) });
+          actual:money(actual), cash:money(cash), qr:money(qr), note:(r.abnormalReason||r.note||'') });
       });
       var cv=veReportCanvas_(loc, ngay, list,
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
@@ -2884,7 +2903,7 @@ class VHG_Trang {
         var actual=Number(c.actual||0), qr=Number(c.qr||0), cash=Number(c.cash||0);
         if(b!=='') tB+=b; if(a!=='') tA+=a; tAct+=actual; tCash+=cash; tQr+=qr;
         list.push({ name:(c.chairName||c.chairCode||''), before:(b===''?'':money(b)), after:(a===''?'':money(a)),
-          actual:money(actual), cash:money(cash), qr:money(qr) });
+          actual:money(actual), cash:money(cash), qr:money(qr), note:(c.note||'') });
       });
       var cv=veReportCanvas_(rp.locName||'', rp.date||'', list,
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
