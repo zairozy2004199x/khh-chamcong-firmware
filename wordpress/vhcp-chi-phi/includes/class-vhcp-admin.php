@@ -35,6 +35,23 @@ class VHCP_Admin {
 			$secret = isset( $_POST['vhcp_sso_secret'] ) ? trim( (string) wp_unslash( $_POST['vhcp_sso_secret'] ) ) : '';
 			VHCP_Meta::set( 'SSO_SECRET', $secret );
 
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * KHOÁ GITHUB — Ô TRỐNG LÀ GIỮ NGUYÊN, KHÔNG PHẢI XOÁ.
+			 *
+			 * Ô này KHÔNG BAO GIỜ hiện khoá đang lưu (xem `page_settings()`), nên "trống" là
+			 * trạng thái BÌNH THƯỜNG của nó. Hiểu trống là xoá thì mỗi lượt đổi múi giờ hay
+			 * đổi đường dẫn app là mất khoá, và lần cập nhật sau im lặng không thấy bản mới.
+			 * Cùng đúng cái bẫy đã gặp với ô PIN bên trang nhân sự.
+			 *
+			 * Muốn bỏ hẳn khoá thì có ô tích riêng — một việc CÓ Ý, không phải hậu quả của
+			 * việc để trống một ô.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( ! empty( $_POST['vhcp_gh_xoa'] ) ) {
+				VHCP_TuCapNhat::xoa_khoa();
+			} elseif ( isset( $_POST['vhcp_gh_token'] ) ) {
+				VHCP_TuCapNhat::dat_khoa( wp_unslash( $_POST['vhcp_gh_token'] ) );
+			}
+
 			VHCP_Cfg::clear_cache();
 			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-settings', 'vhcp_msg' => 'saved' ), admin_url( 'admin.php' ) ) );
 			exit;
@@ -374,6 +391,30 @@ class VHCP_Admin {
 		}
 		echo '</select><p class="description">App cũ chạy múi <code>Asia/Bangkok</code> (GMT+7).</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcp_sso_secret">SSO_SECRET</label></th><td><input name="vhcp_sso_secret" id="vhcp_sso_secret" value="' . esc_attr( $secret ) . '" class="regular-text code"><p class="description">Chuỗi bí mật dùng chung với trang tổng K&amp;H để đăng nhập một lần (<code>?sso=&lt;token&gt;</code>). Để trống nếu chỉ đăng nhập bằng PIN.</p></td></tr>';
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG BAO GIỜ ĐỔ KHOÁ ĐANG LƯU RA `value`.
+		 *
+		 * Cùng luật đã đặt cho PIN và khoá máy chấm công: trang chạy ngoài internet, một ảnh
+		 * chụp màn hình là mất khoá. Ô chỉ NÓI CÓ HAY KHÔNG và nhận khoá mới dán đè.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$co_khoa = VHCP_TuCapNhat::co_khoa();
+		echo '<tr><th scope="row"><label for="vhcp_gh_token">Khoá GitHub</label></th><td>';
+		echo '<input type="password" name="vhcp_gh_token" id="vhcp_gh_token" value="" autocomplete="new-password" class="regular-text code" placeholder="'
+			. ( $co_khoa ? 'đã có khoá — dán khoá mới để thay' : 'chưa khai' ) . '">';
+		echo '<p class="description">'
+			. ( $co_khoa
+				? '<b style="color:#16a34a">Đã khai khoá.</b> Trang sẽ tự thấy bản mới trên GitHub và hiện nút <b>Cập nhật</b> ở màn Plugin.'
+				: '<b style="color:#b45309">Chưa khai.</b> Khai xong thì mỗi bản mới hiện ngay ở màn Plugin, khỏi tải tệp .zip về nữa.' )
+			. '<br>Tạo ở GitHub → Settings → Developer settings → <b>Fine-grained tokens</b>: chọn đúng kho <code>'
+			. esc_html( VHCP_TuCapNhat::REPO ) . '</code>, mục <b>Contents</b> để <b>Read-only</b>. '
+			. 'Khoá chỉ đọc nên lỡ lộ cũng không ai ghi được gì vào mã.<br>'
+			. '<em>Ô này không bao giờ hiện khoá đang lưu — để trống là giữ nguyên.</em></p>';
+		if ( $co_khoa ) {
+			echo '<p><label><input type="checkbox" name="vhcp_gh_xoa" value="1"> Xoá hẳn khoá đang lưu</label></p>';
+		}
+		echo '</td></tr>';
+
 		echo '</tbody></table>';
 		submit_button();
 		echo '</form></div>';

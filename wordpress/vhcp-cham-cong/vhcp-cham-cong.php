@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           3.76.0
+ * Version:           3.77.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '3.76.0' );
+define( 'VHCC_VERSION', '3.77.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -92,8 +92,14 @@ require_once VHCC_DIR . 'includes/class-vhcc-quen-pin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang-ns.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-man.php';
+require_once VHCC_DIR . 'includes/class-vhcc-tu-cap-nhat.php';
 
 register_activation_hook( __FILE__, array( 'VHCC_DB', 'install' ) );
+
+/* Tự cập nhật từ GitHub Releases — xem khối dài ở `VHCC_TuCapNhat`. Khoá GitHub dùng CHUNG
+   với plugin Vận Hành Chi Phí (cùng một option), nên khai một lần là cả hai trang cùng thấy
+   bản mới. Chưa khai thì nó im lặng không làm gì. */
+VHCC_TuCapNhat::init();
 
 add_action( 'plugins_loaded', 'vhcc_maybe_upgrade' );
 function vhcc_maybe_upgrade() {

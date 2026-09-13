@@ -62,6 +62,15 @@ function dbDelta( $sql ) { return array(); }
 function get_option( $k, $d = false ) { return array_key_exists( $k, $GLOBALS['VHCP_OPT'] ) ? $GLOBALS['VHCP_OPT'][ $k ] : $d; }
 function update_option( $k, $v ) { $GLOBALS['VHCP_OPT'][ $k ] = $v; return true; }
 function delete_option( $k ) { unset( $GLOBALS['VHCP_OPT'][ $k ] ); return true; }
+/* Đủ dùng cho lớp tự cập nhật: nó chỉ cần chuỗi `<thư mục>/<tệp>.php` để làm khoá nhận plugin. */
+function plugin_basename( $tep ) {
+	$tep = str_replace( '\\', '/', (string) $tep );
+	$p   = explode( '/', trim( $tep, '/' ) );
+	$n   = count( $p );
+	return ( $n >= 2 ) ? ( $p[ $n - 2 ] . '/' . $p[ $n - 1 ] ) : $tep;
+}
+function wpautop( $s ) { return '<p>' . str_replace( "\n\n", '</p><p>', (string) $s ) . '</p>'; }
+
 function get_transient( $k ) { return array_key_exists( $k, $GLOBALS['VHCP_TR'] ) ? $GLOBALS['VHCP_TR'][ $k ] : false; }
 function set_transient( $k, $v, $t = 0 ) { $GLOBALS['VHCP_TR'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['VHCP_TR'][ $k ] ); return true; }
@@ -650,7 +659,16 @@ function vhcp_test_bang_thieu() {
 
 /** Nạp các lớp của plugin (không nạp file bootstrap để tránh hook WordPress). */
 function vhcp_test_boot( $dir ) {
-	define( 'VHCP_VERSION', 'test' );
+	$chinh_ver = @file_get_contents( $dir . '/vhcp-chi-phi.php' );
+	if ( ! is_string( $chinh_ver ) ) { $chinh_ver = ''; }
+	/* 🔴 ĐỌC SỐ PHIÊN BẢN THẬT TỪ TỆP PLUGIN, không đặt chuỗi 'test'.
+	   Lớp tự cập nhật so phiên bản bằng `version_compare()` để quyết định "có bản mới không".
+	   Với chuỗi 'test' thì phép so ấy cho kết quả vô nghĩa, nên phép "không bao giờ HẠ CẤP"
+	   không thể thử được — mà hạ cấp chính là chỗ nguy nhất: bấm một nút để quay ngược thời
+	   gian, mất đúng những bản vá vừa cài. */
+	$ver_chinh = '0.0.0';
+	if ( preg_match( '/^\s*\*?\s*Version:\s*(\S+)/m', $chinh_ver, $m_ver ) ) { $ver_chinh = $m_ver[1]; }
+	define( 'VHCP_VERSION', $ver_chinh );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
 	/* 🔴 ĐỌC DANH SÁCH LỚP TỪ CHÍNH TỆP PLUGIN, không gõ tay lại.
