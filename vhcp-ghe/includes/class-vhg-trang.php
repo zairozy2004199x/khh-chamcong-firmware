@@ -2801,44 +2801,47 @@ class VHG_Trang {
     g.fillText('Xuất lúc '+t2, padX, fy+20);
     return cv;
   }
-  function moModalAnh_(cv, capText){
-    var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;'
-      +'align-items:flex-start;justify-content:center;overflow:auto;padding:16px';
-    var box=document.createElement('div');
-    box.style.cssText='background:#fff;border-radius:12px;padding:14px;max-width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)';
-    var h=document.createElement('div'); h.style.cssText='font-weight:800;margin-bottom:8px;color:#111827';
-    h.textContent='✅ Đã gửi báo cáo — ảnh để gửi Zalo';
-    box.appendChild(h);
-    cv.style.maxWidth='100%'; cv.style.height='auto'; cv.style.border='1px solid #e2e8f0'; cv.style.borderRadius='8px';
-    box.appendChild(cv);
-    var bar=document.createElement('div'); bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
+  /* 🔴 KHÔNG DÙNG MODAL OVERLAY NỮA — anh Thắng 13/09/2026 báo "bấm chưa phản hồi"/"vẫn chưa
+     được": overlay position:fixed dựng xong không hiện trên trang này (có thể bị cắt/ẩn bởi thẻ
+     cha). Nay trả về một KHỐI NỘI DUNG để chèn THẲNG vào thẻ báo cáo — ảnh hiện đúng chỗ, không
+     phụ thuộc overlay hay z-index. Kèm nút Tải ảnh / Chia sẻ Zalo ngay dưới ảnh. */
+  function khoiAnhNoiDung_(cv, capText){
+    var wrap=el('div'); wrap.style.cssText='border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:8px;background:#fff';
+    cv.style.maxWidth='100%'; cv.style.height='auto'; cv.style.display='block';
+    cv.style.border='1px solid #e2e8f0'; cv.style.borderRadius='8px';
+    wrap.appendChild(cv);
+    var bar=el('div'); bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:8px';
     if(navigator.share){
-      var bS=document.createElement('button'); bS.type='button'; bS.className='bc-btn pri'; bS.textContent='📤 Chia sẻ lên Zalo';
+      var bS=el('button','bc-btn pri','📤 Chia sẻ lên Zalo'); bS.type='button';
       bS.onclick=function(){
-        cv.toBlob(function(b){
-          if(!b){ alert('Không tạo được ảnh — bấm "Tải ảnh" rồi gửi tay.'); return; }
-          var file=new File([b],'bao-cao.png',{type:'image/png'});
-          var data={ text:capText, title:capText };
-          try{ if(navigator.canShare && navigator.canShare({files:[file]})) data.files=[file]; }catch(e){}
-          navigator.share(data).catch(function(){});
-        },'image/png');
+        try{
+          cv.toBlob(function(b){
+            if(!b){ alert('Không tạo được ảnh — bấm "Tải ảnh" rồi gửi tay.'); return; }
+            var file=new File([b],'bao-cao.png',{type:'image/png'});
+            var data={ text:capText, title:capText };
+            try{ if(navigator.canShare && navigator.canShare({files:[file]})) data.files=[file]; }catch(e){}
+            navigator.share(data).catch(function(){});
+          },'image/png');
+        }catch(e){ alert('Máy không chia sẻ được — bấm "Tải ảnh" rồi gửi tay.'); }
       };
       bar.appendChild(bS);
     }
-    var bD=document.createElement('a'); bD.className='bc-btn'; bD.textContent='⬇ Tải ảnh';
+    var bD=el('a','bc-btn','⬇ Tải ảnh');
     try{ bD.href=cv.toDataURL('image/png'); }catch(e){} bD.download='bao-cao.png';
     bar.appendChild(bD);
-    var bC=document.createElement('button'); bC.type='button'; bC.className='bc-btn'; bC.textContent='Đóng';
-    bC.onclick=function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
-    bar.appendChild(bC);
-    box.appendChild(bar);
-    var cap=document.createElement('div'); cap.style.cssText='margin-top:8px;color:#64748b;font-size:12px';
-    cap.textContent='Nội dung kèm khi chia sẻ: “'+capText+'”. Máy không hiện khay chia sẻ thì bấm "Tải ảnh" rồi gửi vào nhóm Zalo.';
-    box.appendChild(cap);
-    ov.appendChild(box);
-    ov.addEventListener('click',function(e){ if(e.target===ov && ov.parentNode) ov.parentNode.removeChild(ov); });
-    document.body.appendChild(ov);
+    wrap.appendChild(bar);
+    var cap=el('div','bc-mut','Nội dung kèm khi chia sẻ: “'+capText+'”. Không có nút Chia sẻ thì bấm "Tải ảnh" rồi gửi vào nhóm Zalo.');
+    cap.style.marginTop='6px'; wrap.appendChild(cap);
+    return wrap;
+  }
+  /* Post-submit: chèn khối ảnh ngay dưới dòng thông báo "Đã gửi báo cáo". */
+  function hienAnhDuoiMsg_(cv, capText){
+    var node=khoiAnhNoiDung_(cv, capText); node.id='bc-anh-preview';
+    var old=document.getElementById('bc-anh-preview'); if(old&&old.parentNode) old.parentNode.removeChild(old);
+    node.id='bc-anh-preview';
+    var msg=$('bc-msg');
+    if(msg&&msg.parentNode) msg.parentNode.insertBefore(node, msg.nextSibling); else document.body.appendChild(node);
+    try{ node.scrollIntoView({block:'center'}); }catch(e){}
   }
   function baoCaoAnh_(rows, loc, ngay){
     try{
@@ -2860,19 +2863,19 @@ class VHG_Trang {
       var cv=veReportCanvas_(loc, ngay, list,
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
         { cash:tCash, qr:tQr });
-      moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
+      hienAnhDuoiMsg_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
     }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
   function baoCaoTongAnh_(tong, loc, ngay){
     try{
       var cv=veReportCanvas_(loc, ngay, [], null, { tong:tong, cash:tong, qr:0 });
-      moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
+      hienAnhDuoiMsg_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
     }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
   /* Dựng lại ảnh báo cáo từ một báo cáo CŨ trong khối "Báo cáo trong 24h" — anh Thắng 13/09/2026:
      *"nếu báo cũ chưa gửi thì hiện ô ảnh báo cáo để tải về"*. Khác baoCaoAnh_ ở nguồn số: đây lấy
      THẲNG số máy chủ đã tính cho từng ghế (actual/cash/qr trong rp.chairs) nên khỏi tính lại. */
-  function baoCaoAnhTuRp_(rp){
+  function baoCaoAnhTuRp_(rp, mount){
     try{
       var list=[], tB=0,tA=0,tAct=0,tCash=0,tQr=0;
       (rp.chairs||[]).forEach(function(c){
@@ -2886,7 +2889,9 @@ class VHG_Trang {
       var cv=veReportCanvas_(rp.locName||'', rp.date||'', list,
         { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
         { cash:tCash, qr:tQr });
-      moModalAnh_(cv, 'Báo cáo cơ sở '+(rp.locName||'')+' ngày '+ddmmyy_(rp.date||''));
+      var node=khoiAnhNoiDung_(cv, 'Báo cáo cơ sở '+(rp.locName||'')+' ngày '+ddmmyy_(rp.date||''));
+      if(mount){ mount.textContent=''; mount.appendChild(node); }
+      else hienAnhDuoiMsg_(cv, 'Báo cáo cơ sở '+(rp.locName||'')+' ngày '+ddmmyy_(rp.date||''));
     }catch(e){ alert('Không tạo được ảnh báo cáo: '+((e&&e.message)||e)); }
   }
 
@@ -3461,11 +3466,17 @@ class VHG_Trang {
        (khối bill của các báo cáo đó không có hàng nút). Bấm là dựng ảnh POSH để Tải/Chia sẻ Zalo. */
     var actBar=el('div'); actBar.style.cssText='display:flex;justify-content:flex-end;margin-top:8px';
     var bAnh=el('button','bc-btn','📤 Báo cáo ảnh'); bAnh.type='button'; bAnh.style.fontWeight='700';
+    var anhBox=el('div'); anhBox.style.display='none';   // khối ảnh chèn THẲNG vào thẻ (không modal)
     /* 🔴 type='button' BẮT BUỘC — thẻ báo cáo nằm trong <form>, nút không đặt type mặc định là
-       submit → bấm là NẠP LẠI TRANG, modal ảnh vừa dựng bị bỏ ngay ("bấm chưa phản hồi", anh
-       Thắng 13/09/2026). Cùng cách đã vá cho nút "Báo lỗi" và các nút lý do. */
-    bAnh.onclick=function(){ baoCaoAnhTuRp_(rp); };
-    actBar.appendChild(bAnh); d.appendChild(actBar);
+       submit → bấm là NẠP LẠI TRANG (anh Thắng 13/09/2026 "bấm chưa phản hồi"). Và ảnh vẽ THẲNG
+       vào thẻ (anhBox) chứ không mở modal — modal overlay không hiện trên trang này ("vẫn chưa
+       được"). Bấm lần nữa để ẩn. */
+    bAnh.onclick=function(){
+      if(anhBox.style.display===''){ anhBox.style.display='none'; bAnh.textContent='📤 Báo cáo ảnh'; return; }
+      if(anhBox.dataset.built!=='1'){ baoCaoAnhTuRp_(rp, anhBox); anhBox.dataset.built='1'; }
+      anhBox.style.display=''; bAnh.textContent='🔽 Ẩn ảnh báo cáo';
+    };
+    actBar.appendChild(bAnh); d.appendChild(actBar); d.appendChild(anhBox);
     return d;
   }
 
