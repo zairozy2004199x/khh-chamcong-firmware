@@ -38,6 +38,21 @@ class VHCP_Auth {
 	/* PHÒNG BAN của người đang gọi — đọc từ chính TÀI KHOẢN, không phải từ vai. Xem khối dài
 	   ở `bo_phan_bo()` để biết vì sao đổi. */
 	private static $bo_phan = '';
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * MÃ NV — KHOÁ THỨ HAI, chỉ để PHÂN BIỆT NGƯỜI TRÙNG TÊN. Không phải khoá nối dữ liệu.
+	 *
+	 * Anh Thắng 13/09/2026: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng với nhân viên
+	 * tạo trực tiếp trên trang chi phí thì sao, làm sao để gộp lại"*.
+	 *
+	 * 🔴 ĐỌC KỸ TRƯỚC KHI ĐỊNH DÙNG NÓ THAY TÊN. Mọi đơn đã lập mang `nguoi_lap` là TÊN, mọi
+	 *    dòng sổ chi mang `nguoi_nhap` là TÊN — hàng chục nghìn dòng, không dòng nào có mã NV.
+	 *    Nên mã NV KHÔNG tra ngược ra được đơn cũ, và đổi khoá nối sang nó là mọi đơn cũ mồ
+	 *    côi cùng lúc. Việc của nó chỉ có hai:
+	 *      · bảng phân quyền bày ra để người ta biết "Nguyễn Văn A" nào trong hai người;
+	 *      · `login()` dùng nó để nối một hàng bên Nhân sự vào đúng dòng bên Chi phí.
+	 *    Ngoài hai việc đó, TÊN vẫn là khoá.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	private static $ma_nv = '';
 	/**
 	 * 🔴 QUY VỀ VAI GỐC NGAY TẠI ĐÂY, một chỗ duy nhất.
 	 *
@@ -47,13 +62,16 @@ class VHCP_Auth {
 	 *
 	 * Quy ở cửa vào nên mọi chỗ phía sau không cần biết vai tự tạo là gì.
 	 */
-	public static function dat_vai_tro( $r, $ten = '', $coso = '', $bo_phan = '' ) {
+	public static function dat_vai_tro( $r, $ten = '', $coso = '', $bo_phan = '', $ma_nv = '' ) {
 		self::$vai_hien = (string) $r;
 		self::$vai_tro  = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::vai_goc( (string) $r ) : (string) $r;
 		self::$nguoi    = (string) $ten;
 		self::$coso     = (string) $coso;
 		self::$bo_phan  = (string) $bo_phan;
+		self::$ma_nv    = (string) $ma_nv;
 	}
+	/** Mã NV của người đang gọi — '' nếu tài khoản chưa khai. Xem khối dài ở `$ma_nv`. */
+	public static function ma_nv() { return trim( (string) self::$ma_nv ); }
 	/**
 	 * BỘ PHẬN mà người đang gọi bị bó vào — '' = không bó (thấy mọi bộ phận).
 	 *
@@ -213,23 +231,128 @@ class VHCP_Auth {
 		if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) { return array( 'ok' => false, 'error' => 'PIN phải gồm 4–8 chữ số' ); }
 		if ( self::is_locked() ) { return array( 'ok' => false, 'error' => 'Nhập sai quá nhiều lần — thử lại sau 10 phút' ); }
 
-		foreach ( VHCP_Cfg::get_users() as $u ) {   // get_users() tự seed nếu cấu hình còn trống
-			if ( trim( (string) $u['pin'] ) === $pin ) {
-				self::clear_fails();
-				$tok = self::issue_token( $u['ten'], ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ), $u['coso'], $u['boPhan'] );
-				return array(
-					'ok'     => true,
-					'name'   => $u['ten'],
-					'role'   => ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
-					'roleGoc' => VHCP_Cfg::vai_goc( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
-					'coso'   => $u['coso'],
-					'boPhan' => $u['boPhan'],
-					'token'  => $tok,
-				);
+		$u = null;
+		foreach ( VHCP_Cfg::get_users() as $x ) {   // get_users() tự seed nếu cấu hình còn trống
+			if ( trim( (string) $x['pin'] ) === $pin ) { $u = $x; break; }
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * MỘT PIN VÀO CẢ HAI TRANG — anh Thắng 13/09/2026: *"vì khi nhân viên dùng tk từ nhân
+		 * sự thì dữ liệu không có"*.
+		 *
+		 * Trước bản này hai trang có hai kho PIN rời hẳn nhau: trang Chi phí đọc bảng người
+		 * dùng của riêng nó, trang Nhân sự đọc cột `pin_dang_nhap` của bảng hồ sơ. Không một
+		 * dòng mã nào nối hai bên — nên PIN cấp bên Nhân sự gõ vào đây chỉ nhận về "PIN không
+		 * đúng hoặc chưa được cấp", đúng như anh gặp.
+		 *
+		 * 🔴 CHỈ MƯỢN MẬT KHẨU, KHÔNG MƯỢN QUYỀN. Khớp được PIN bên Nhân sự vẫn CHƯA đủ để vào:
+		 *    người ấy phải có sẵn một dòng trong bảng người dùng của trang Chi phí, và vai ·
+		 *    cơ sở · phòng ban lấy từ ĐÚNG DÒNG ĐÓ. Làm ngược lại — lấy vai bên Nhân sự sang —
+		 *    là cả sổ nhân viên tự nhiên có quyền trên trang tiền, mà không ai bấm nút nào.
+		 *    Chưa có dòng thì chối, kèm câu nói rõ vì sao, để khỏi ngồi thử lại PIN.
+		 *
+		 * 🔴 THỨ TỰ: BẢNG CHI PHÍ TRƯỚC. Hai kho có thể trùng PIN nhau (4 chữ số, vài chục
+		 *    người). Tra bên Nhân sự trước là một PIN trùng sẽ mở nhầm tài khoản của người
+		 *    khác — đường vòng giành mất chỗ của đường chính.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! $u ) {
+			$qua = self::qua_nhan_su( $pin );
+			if ( isset( $qua['error'] ) ) {
+				/* Đếm là một lượt sai: PIN ấy CÓ thật bên Nhân sự, nên nếu không đếm thì đây
+				   thành cái cửa dò PIN không giới hạn lượt. */
+				self::bump_fails();
+				return array( 'ok' => false, 'error' => (string) $qua['error'] );
 			}
+			if ( isset( $qua['user'] ) ) { $u = $qua['user']; }
+		}
+
+		if ( $u ) {
+			self::clear_fails();
+			$tok = self::issue_token( $u['ten'], ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ), $u['coso'], $u['boPhan'] );
+			return array(
+				'ok'     => true,
+				'name'   => $u['ten'],
+				'role'   => ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
+				'roleGoc' => VHCP_Cfg::vai_goc( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
+				'coso'   => $u['coso'],
+				'boPhan' => $u['boPhan'],
+				'maNv'   => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+				'token'  => $tok,
+			);
 		}
 		self::bump_fails();
 		return array( 'ok' => false, 'error' => 'PIN không đúng hoặc chưa được cấp' );
+	}
+
+	/**
+	 * PIN NÀY CÓ PHẢI CỦA MỘT HỒ SƠ BÊN NHÂN SỰ KHÔNG — và nếu phải thì nó ứng với dòng nào
+	 * trong bảng người dùng của trang Chi phí.
+	 *
+	 * @return array  array()                 — không dính dáng gì tới bên Nhân sự, đi tiếp
+	 *                array('error' => …)      — PIN có thật bên ấy nhưng KHÔNG cho vào, kèm lý do
+	 *                array('user'  => dòng)   — nối được, cấp thẻ theo dòng này
+	 *
+	 * ⚠️ MỌI ĐƯỜNG CHỐI ĐỀU PHẢI NÓI RÕ LÝ DO. Trả về một câu "PIN không đúng" cho người có PIN
+	 *    đúng là họ gõ lại năm lần rồi bị khoá mười phút, trong khi việc cần làm chỉ là khai
+	 *    thêm một dòng ở màn Cấu hình.
+	 */
+	private static function qua_nhan_su( $pin ) {
+		global $wpdb;
+		/* ⚠️ GÁC BẰNG `method_exists`, KHÔNG CHỈ `class_exists`. Bốn plugin cài độc lập, bản có
+		   thể lệch nhau — lớp có mặt mà hàm chưa có là gọi hụt, và gọi hụt ở ĐÂY thì trắng
+		   nguyên cổng đăng nhập, tức không ai vào được trang. */
+		if ( ! method_exists( 'VHCC_DB', 't' ) ) { return array(); }   // trang Nhân sự chưa cài
+		$t = VHCC_DB::t( 'nhan_vien' );
+		/* Bảng chưa dựng (plugin vừa bật, chưa chạy install) — hỏi thẳng là một câu lỗi SQL
+		   vào nhật ký ở MỌI lượt đăng nhập sai. */
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return array(); }
+
+		$ds = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_nv, ho_ten, trang_thai_lam_viec FROM $t WHERE pin_dang_nhap = %s", $pin ), ARRAY_A );
+		if ( ! $ds ) { return array(); }
+
+		/* 🔴 HAI HỒ SƠ CÙNG PIN -> CHỐI, KHÔNG ĐOÁN. Cột `pin_dang_nhap` bên ấy không có
+		   UNIQUE, nên hai người mang cùng PIN là chuyện có thật. Đoán lấy hàng đầu là cho
+		   người này vào bằng tài khoản của người kia. */
+		if ( count( $ds ) > 1 ) {
+			return array( 'error' => 'PIN này đang khai cho ' . count( $ds ) . ' người bên trang '
+				. 'Nhân sự, nên không biết là ai. Nhờ quản trị đổi PIN cho từng người rồi thử lại.' );
+		}
+		$ns  = $ds[0];
+		$mnv = trim( (string) $ns['ma_nv'] );
+		$ten = trim( (string) $ns['ho_ten'] );
+
+		if ( method_exists( 'VHCC_NhanSu', 'da_nghi' ) && VHCC_NhanSu::da_nghi( $ns['trang_thai_lam_viec'] ) ) {
+			return array( 'error' => 'Hồ sơ "' . $ten . '" đang để trạng thái đã nghỉ việc bên '
+				. 'trang Nhân sự, nên PIN này không mở được trang Chi phí.' );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * NỐI HAI BÊN: MÃ NV TRƯỚC, TÊN SAU.
+		 *
+		 * Mã NV là khoá chắc chắn — mỗi hồ sơ một mã, `UNIQUE KEY ma_nv` bên ấy lo phần đó, và
+		 * ô mã NV bên này đã chặn hai người cùng mã lúc Lưu.
+		 *
+		 * Tên là khoá LỎNG, chỉ dùng khi chưa ai khai mã: gõ lệch một dấu là trượt, và hai
+		 * người trùng tên thật thì nó nối vào nhầm người. Nhưng bỏ nó đi thì ngày đầu chưa
+		 * khai mã NV cho ai, không một tài khoản nào vào được — nên vẫn giữ, và đặt SAU.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$k_ten = mb_strtolower( $ten );
+		$theo_ten = null;
+		foreach ( VHCP_Cfg::get_users() as $x ) {
+			$m = trim( (string) ( isset( $x['maNv'] ) ? $x['maNv'] : '' ) );
+			if ( '' !== $mnv && '' !== $m && mb_strtolower( $m ) === mb_strtolower( $mnv ) ) {
+				return array( 'user' => $x );
+			}
+			if ( null === $theo_ten && '' !== $k_ten && mb_strtolower( trim( (string) $x['ten'] ) ) === $k_ten ) {
+				$theo_ten = $x;
+			}
+		}
+		if ( $theo_ten ) { return array( 'user' => $theo_ten ); }
+
+		return array( 'error' => 'PIN đúng bên trang Nhân sự, nhưng "' . $ten . '"'
+			. ( '' !== $mnv ? ' (' . $mnv . ')' : '' ) . ' chưa được cấp quyền ở trang Chi phí. '
+			. 'Nhờ quản trị thêm một dòng cho người này ở màn Cấu hình → Người dùng & Phân quyền.' );
 	}
 
 	/** changePin(name, oldPin, newPin) */
@@ -303,6 +426,7 @@ class VHCP_Auth {
 		$vai  = (string) $r['vai_tro'];
 		$cs   = (string) $r['coso'];
 		$bp   = (string) $r['bo_phan'];
+		$mnv  = '';
 		$khoa = mb_strtolower( trim( $ten ) );
 		if ( '' !== $khoa && class_exists( 'VHCP_Cfg' ) ) {
 			foreach ( VHCP_Cfg::get_users() as $u ) {
@@ -310,6 +434,10 @@ class VHCP_Auth {
 				$vai = ( trim( (string) $u['vaiTro'] ) !== '' ) ? (string) $u['vaiTro'] : 'Nhân viên';
 				$cs  = (string) $u['coso'];
 				$bp  = (string) $u['boPhan'];
+				/* Mã NV KHÔNG nằm trong thẻ phiên — thẻ không có cột ấy, và cũng không cần:
+				   đã đọc lại vai/cơ sở/bộ phận từ bảng người dùng mỗi lượt thì đọc thêm một ô
+				   nữa không tốn gì, mà khai mã NV cho ai đó là ăn ngay, khỏi đăng nhập lại. */
+				$mnv = isset( $u['maNv'] ) ? trim( (string) $u['maNv'] ) : '';
 				break;
 			}
 		}
@@ -318,7 +446,7 @@ class VHCP_Auth {
 		   Vai vừa tạo ra mà gần như không dùng được thì tính năng tạo vai coi như vô nghĩa. */
 		return array( 'name' => $ten, 'role' => $vai,
 			'roleGoc' => VHCP_Cfg::vai_goc( $vai ),
-			'coso' => $cs, 'boPhan' => $bp );
+			'coso' => $cs, 'boPhan' => $bp, 'maNv' => $mnv );
 	}
 
 	/**

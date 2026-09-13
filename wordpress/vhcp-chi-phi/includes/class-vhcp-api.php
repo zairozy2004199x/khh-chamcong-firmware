@@ -51,7 +51,12 @@ class VHCP_API {
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
 			'listUserBak', 'khoiPhucUsers',
 			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
-			'doiTenCoSo' );
+			'doiTenCoSo',
+			/* Soát trùng nhân sự bày ra cả sổ hồ sơ bên trang Nhân sự (tên · mã NV · cơ sở ·
+			   chức vụ · ai đã có PIN) — đó là dữ liệu nhân sự của cả công ty, không phải việc
+			   của kế toán. Và `doiTenNguoi` thì sửa hàng loạt trên tám bảng cộng thẻ phiên,
+			   đụng thẳng vào khoá nối của mọi đơn cũ. Cả hai: chỉ Admin. */
+			'soatNhanSu', 'doiTenNguoi' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -215,6 +220,8 @@ class VHCP_API {
 			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
 			'cosoLa'                => array( 'VHCP_Cfg', 'coso_la' ),
 			'doiTenCoSo'            => array( 'VHCP_Cfg', 'doi_ten_coso' ),
+			'soatNhanSu'            => array( 'VHCP_Cfg', 'soat_nhan_su' ),
+			'doiTenNguoi'           => array( 'VHCP_Cfg', 'doi_ten_nguoi' ),
 			'getQuyen'              => array( 'VHCP_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),
@@ -419,9 +426,12 @@ class VHCP_API {
 			   và mọi thứ rơi về đúng hành vi cũ — chỉ thấy đơn của chính mình. */
 			/* Phòng ban đi kèm luôn (13/09/2026): từ nay nó bó theo TÀI KHOẢN chứ không theo
 			   vai, nên không truyền là mọi chốt phòng ban im lặng mở toang. */
+			/* Mã NV đi kèm luôn: `soatNhanSu()` và `doiTenNguoi()` cần biết người đang gọi là
+			   ai bên Nhân sự. Không truyền là chúng đọc ra chuỗi rỗng và im lặng bỏ qua. */
 			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '',
 				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '',
-				$user && isset( $user['boPhan'] ) ? (string) $user['boPhan'] : '' );
+				$user && isset( $user['boPhan'] ) ? (string) $user['boPhan'] : '',
+				$user && isset( $user['maNv'] ) ? (string) $user['maNv'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn

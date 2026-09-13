@@ -272,14 +272,17 @@ const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|
     return true;
   })
   .map(m => m[1] || ('<' + m[2] + '>'));
-t('hàng người dùng dựng đủ ô cho mọi cột (≥7)', GOI.length >= 7, GOI);
+t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8, GOI);
 
 /* 🔴 HAI CỘT ĐÃ BỎ 12/09/2026 — anh Thắng: *"Bỏ cột tài khoản có"* và *"Đơn vị với xem đơn vị
    là 1"*. `tkCo` và `xemDonVi` không còn ô nào trên màn, nên cũng không còn chỉ số; chúng vẫn
    được gửi lên dưới dạng chuỗi RỖNG CỨNG để máy chủ ghi đúng số cột của sổ.
    ⚠️ Phép dưới cùng canh đúng chỗ ấy: hai khoá đó phải là hằng '' trong `saveCfgUsers`, KHÔNG
       được là `r[n]` — lỡ ai đó trả lại chỉ số cho chúng là mọi cột sau lại trượt một nhịp. */
-const COT = ['ten', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
+/* Cột "Mã NV" thêm 13/09/2026 — anh Thắng: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng
+   với nhân viên tạo trực tiếp trên trang chi phí thì sao"*. Nó nằm NGAY SAU Tên, nên mọi cột
+   phía sau dịch đúng một nhịp — và đó chính là loại thay đổi phép này sinh ra để canh. */
+const COT = ['ten', 'maNv', 'pin', 'vaiTro', 'boPhan', 'coso', 'maDt', 'donVi'];
 teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
 const CHI_SO = {};
 let dem = 0;

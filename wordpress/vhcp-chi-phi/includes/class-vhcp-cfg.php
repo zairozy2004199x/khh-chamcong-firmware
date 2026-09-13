@@ -777,7 +777,10 @@ class VHCP_Cfg {
 			   site bật WP_DEBUG — cho một cột vừa mới thêm mà chưa ai kịp khai. */
 			$out['users'][] = array( 'ten' => $r[0], 'pin' => VHCP_Util::pin_sach( $r[1] ), 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => VHCP_Util::ma_so( $r[4] ), 'maDt' => VHCP_Util::ma_so( $r[5] ), 'boPhan' => $r[6],
 				'donVi' => isset( $r[7] ) ? trim( (string) $r[7] ) : '',
-				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '' );
+				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '',
+				/* MÃ NV — khoá thứ hai, xem khối dài ở `VHCP_Auth::login()`. Ô cuối cùng nên
+				   dòng cũ chín ô không có nó; `isset` lo phần ấy. */
+				'maNv' => isset( $r[9] ) ? VHCP_Util::ma_so( $r[9] ) : '' );
 		}
 
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
@@ -912,6 +915,49 @@ class VHCP_Cfg {
 					. 'dữ liệu cũ vẫn còn nguyên.'
 				);
 			}
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * HAI DÒNG CÙNG MỘT TÊN, HOẶC CÙNG MỘT MÃ NV — CHỐI THẲNG.
+			 *
+			 * 🔴 TÊN: `user_by_token()` duyệt bảng người dùng và lấy dòng ĐẦU TIÊN khớp tên,
+			 *    rồi `break`. Hai dòng cùng tên nghĩa là dòng thứ hai không bao giờ tới lượt:
+			 *    khai cho người ấy vai gì, cơ sở nào cũng vô nghĩa, mà màn hình thì vẫn bày ra
+			 *    đủ hai dòng như thể cả hai đều đang chạy. Và vì TÊN là khoá nối mọi đơn cũ,
+			 *    hai người trùng tên thật sẽ dùng chung sổ đơn của nhau.
+			 *
+			 * 🔴 MÃ NV: đó là thứ `login()` dùng để nối một hàng bên Nhân sự vào đúng dòng bên
+			 *    Chi phí. Hai dòng cùng mã là câu hỏi "PIN này của ai" có hai đáp án — và một
+			 *    câu hỏi đăng nhập có hai đáp án thì phải chối, không được đoán.
+			 *
+			 * ⚠️ Ô RỖNG KHÔNG TÍNH LÀ TRÙNG. Phần lớn tài khoản chưa khai mã NV; gom chúng lại
+			 *    thành "mười người trùng mã rỗng" là chặn luôn mọi lượt Lưu.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			$da_ten = array(); $da_mnv = array();
+			foreach ( $cfg['users'] as $x0 ) {
+				$x0 = (array) $x0;
+				$t0 = mb_strtolower( trim( (string) ( isset( $x0['ten'] ) ? $x0['ten'] : '' ) ) );
+				if ( '' !== $t0 ) {
+					if ( isset( $da_ten[ $t0 ] ) ) {
+						return VHCP_Util::err( 'Không lưu: có HAI dòng cùng tên "'
+							. trim( (string) $x0['ten'] ) . '". Tên là thứ nối người này với đơn '
+							. 'họ đã lập, nên hai dòng cùng tên sẽ dùng chung sổ đơn của nhau — '
+							. 'và chỉ dòng trên cùng có tác dụng. Xoá dòng thừa, hoặc nếu đúng là '
+							. 'hai người khác nhau thì phải đổi tên một người cho khác đi.' );
+					}
+					$da_ten[ $t0 ] = 1;
+				}
+				$m0 = trim( (string) ( isset( $x0['maNv'] ) ? $x0['maNv'] : '' ) );
+				if ( '' !== $m0 ) {
+					$mk = mb_strtolower( $m0 );
+					if ( isset( $da_mnv[ $mk ] ) ) {
+						return VHCP_Util::err( 'Không lưu: mã NV "' . $m0 . '" đang khai cho HAI '
+							. 'người (' . $da_mnv[ $mk ] . ' và ' . trim( (string) $x0['ten'] ) . '). '
+							. 'Mã NV là thứ dùng để nối PIN bên Nhân sự sang đây, nên mỗi mã chỉ '
+							. 'được thuộc về một người.' );
+					}
+					$da_mnv[ $mk ] = trim( (string) ( isset( $x0['ten'] ) ? $x0['ten'] : '?' ) );
+				}
+			}
+
 			/* Còn dữ liệu thì cất một bản trước khi đè. Bản lưu của `cfg_undo` chỉ có MỘT ô và
 			   bị bảng ghi sau giành mất, nên không tin được cho việc này. */
 			if ( $dang_co > 0 ) { self::sao_luu_users(); }
@@ -1094,7 +1140,8 @@ class VHCP_Cfg {
 					VHCP_Util::ma_so( $g( $x, 'maDt' ) ),
 					$g( $x, 'boPhan' ),
 					$g( $x, 'donVi' ),
-					$g( $x, 'xemDonVi' )
+					$g( $x, 'xemDonVi' ),
+					VHCP_Util::ma_so( $g( $x, 'maNv' ) )
 				);
 			}
 			self::write( self::USER, $rows );
@@ -2575,5 +2622,346 @@ class VHCP_Cfg {
 		self::write( self::USER, $hien );
 		self::clear_cache();
 		return VHCP_Util::ok( array( 'them' => $them, 'tong' => count( $hien ) ) );
+	}
+
+	/* ==========================================================================================
+	 *  SOÁT TRÙNG NHÂN SỰ ↔ CHI PHÍ
+	 *
+	 *  Anh Thắng 13/09/2026: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng với nhân viên
+	 *  tạo trực tiếp trên trang chi phí thì sao, làm sao để gộp lại"*.
+	 *
+	 *  🔴 HAI HỆ KHOÁ NGƯỜI KHÁC NHAU, VÀ ĐÓ LÀ CẢ CÂU CHUYỆN:
+	 *      · bên Nhân sự  khoá là MÃ NV (`UNIQUE KEY ma_nv`) — hai người trùng tên vẫn là hai hàng
+	 *      · bên Chi phí  khoá là TÊN   — trùng tên là MỘT người, dùng chung sổ đơn
+	 *
+	 *  Nên đẩy sổ nhân sự sang đây có ba ngả, và chỉ một ngả là lành:
+	 *      · trùng tên ĐÚNG TỪNG CHỮ  -> tự gộp, không phải làm gì
+	 *      · lệch một dấu / một dấu cách -> thành HAI người, người mới vào thấy trống trơn còn
+	 *        đơn cũ mồ côi, mà KHÔNG có câu lỗi nào
+	 *      · hai người trùng tên THẬT -> gộp nhầm làm một, chung đơn chung tiền
+	 *
+	 *  Màn này bày cả ba ra TRƯỚC khi đẩy. Nó chỉ ĐỌC và ĐẾM, không tự sửa gì: đổi tên một người
+	 *  là đụng khoá nối của mọi đơn họ đã lập, nên việc ấy phải do người bấm nút quyết, từng
+	 *  trường hợp một.
+	 * ========================================================================================== */
+
+	/** Bỏ dấu tiếng Việt — CHỈ để so sánh, không bao giờ để lưu hay bày ra. */
+	public static function bo_dau( $s ) {
+		$n = array(
+			'a' => 'àáạảãâầấậẩẫăằắặẳẵ', 'e' => 'èéẹẻẽêềếệểễ', 'i' => 'ìíịỉĩ',
+			'o' => 'òóọỏõôồốộổỗơờớợởỡ', 'u' => 'ùúụủũưừứựửữ', 'y' => 'ỳýỵỷỹ', 'd' => 'đ',
+		);
+		$s = mb_strtolower( (string) $s, 'UTF-8' );
+		foreach ( $n as $thay => $bo ) {
+			foreach ( preg_split( '//u', $bo, -1, PREG_SPLIT_NO_EMPTY ) as $c ) {
+				$s = str_replace( $c, $thay, $s );
+			}
+		}
+		return $s;
+	}
+
+	/**
+	 * Khoá so LỎNG của một cái tên: bỏ dấu, hạ chữ thường, gộp mọi khoảng trắng làm một.
+	 *
+	 * ⚠️ ĐÂY KHÔNG PHẢI KHOÁ NỐI DỮ LIỆU. Khoá nối vẫn là tên nguyên văn (đã `trim` + hạ chữ
+	 *    thường) như `user_by_token()` dùng. Khoá lỏng chỉ để NGỜ: "hai cái tên này có khi là
+	 *    một người". Dùng nó để nối thật là "Lê Văn Tuấn" và "Lê Văn Tuân" thành một.
+	 */
+	public static function khoa_long( $s ) {
+		return trim( preg_replace( '/\s+/u', ' ', self::bo_dau( $s ) ) );
+	}
+
+	/** Khoá CHẶT — đúng thứ `user_by_token()` và mọi đơn đang dùng để nhận nhau. */
+	private static function khoa_chat( $s ) {
+		return mb_strtolower( trim( (string) $s ) );
+	}
+
+	/**
+	 * ĐẾM ĐƠN CŨ THEO TÊN — mỗi cái tên đang gánh bao nhiêu dòng dữ liệu.
+	 *
+	 * 🔴 CON SỐ NÀY LÀ THỨ QUYẾT ĐỊNH ĐƯỢC PHÉP ĐỔI TÊN HAY KHÔNG. Đổi tên một người chưa lập
+	 *    đơn nào là việc vô hại; đổi tên người đang gánh 300 dòng là dời 300 dòng ấy sang một
+	 *    cái tên khác. Bày số ra cạnh mỗi nút, để không ai bấm mà không biết mình đang bấm gì.
+	 *
+	 * Quét đủ MỌI cột mang tên người, không chỉ `nguoi_lap`: một người có thể chưa lập đơn nào
+	 * mà đã duyệt hàng trăm cái.
+	 */
+	const NGUOI_COT = array(
+		'don'      => array( 'nguoi_lap', 'nguoi_duyet', 'nguoi_qt', 'nguoi_qt_ncc', 'nguoi_cap' ),
+		'so_chi'   => array( 'nguoi_nhap' ),
+		'da_index' => array( 'nguoi_tao' ),
+		'mk_don'   => array( 'nguoi_tao' ),
+		'bp_index' => array( 'nguoi_tao' ),
+		'log'      => array( 'nguoi' ),
+		'thungrac' => array( 'nguoi' ),
+		'lenh_tu'  => array( 'nguoi' ),
+	);
+
+	/**
+	 * @return array khoá chặt của tên => tổng số dòng đang mang tên ấy.
+	 *
+	 * ⚠️ GOM THEO KHOÁ CHẶT chứ không theo chuỗi thô: sổ cũ có cả " Nguyễn Văn A" lẫn "nguyễn
+	 *    văn a", mà `user_by_token()` coi chúng là một người — đếm tách ra là bày sai.
+	 */
+	private static function dem_don_theo_ten() {
+		global $wpdb;
+		$dem = array();
+		foreach ( self::NGUOI_COT as $bang => $cot ) {
+			$t = VHCP_DB::t( $bang );
+			foreach ( $cot as $c ) {
+				/* Tên bảng và tên cột đến từ hằng ngay trên, không từ dữ liệu — không có gì để
+				   `prepare()` ở đây, và `prepare()` cũng không nhận tên cột làm tham số. */
+				$rows = $wpdb->get_results( "SELECT `$c` AS ten, COUNT(*) AS n FROM $t WHERE `$c` <> '' GROUP BY `$c`", ARRAY_A );
+				foreach ( (array) $rows as $r ) {
+					$k = self::khoa_chat( $r['ten'] );
+					if ( '' === $k ) { continue; }
+					$dem[ $k ] = ( isset( $dem[ $k ] ) ? $dem[ $k ] : 0 ) + (int) $r['n'];
+				}
+			}
+		}
+		return $dem;
+	}
+
+	/** Sổ nhân sự bên trang Chấm công — mảng rỗng nếu trang ấy chưa cài. */
+	private static function ho_so_nhan_su() {
+		global $wpdb;
+		/* ⚠️ `method_exists` chứ không `class_exists` — xem `da_nghi_ns()` ngay dưới. */
+		if ( ! method_exists( 'VHCC_DB', 't' ) ) { return null; }
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return null; }
+		return (array) $wpdb->get_results(
+			"SELECT ma_nv, ho_ten, cua_hang, chuc_vu, trang_thai_lam_viec, pin_dang_nhap FROM $t ORDER BY ho_ten", ARRAY_A );
+	}
+
+	/**
+	 * soatNhanSu(): đối chiếu sổ nhân sự với bảng người dùng của trang Chi phí.
+	 *
+	 * Năm nhóm, xếp theo mức cần xử lý giảm dần:
+	 *   trungTen  — HAI hồ sơ nhân sự cùng một tên. Nguy nhất: đẩy sang là chúng chập làm một.
+	 *   lech      — tên "gần giống" nhau (khớp sau khi bỏ dấu / gộp khoảng trắng) nhưng KHÔNG
+	 *               khớp từng chữ. Đây là chỗ đơn cũ mồ côi.
+	 *   thieuCp   — có bên Nhân sự, chưa có tài khoản bên Chi phí.
+	 *   thieuNs   — có bên Chi phí, không thấy bên Nhân sự (người cũ đã nghỉ, hoặc gõ sai tên).
+	 *   khop      — khớp đúng từng chữ. Không phải làm gì; bày ra để biết đã soát tới.
+	 *
+	 * ⚠️ NGƯỜI ĐÃ NGHỈ VẪN ĐƯỢC BÀY, có nhãn riêng. Họ vẫn gánh đơn cũ, và tên họ vẫn phải giữ
+	 *    nguyên — lọc họ ra khỏi màn là mất dấu vì sao một cái tên bên Chi phí không có cặp.
+	 */
+	public static function soat_nhan_su() {
+		$hs = self::ho_so_nhan_su();
+		if ( null === $hs ) {
+			return VHCP_Util::ok( array( 'coNhanSu' => false, 'nhom' => array(), 'tong' => array() ) );
+		}
+		$dem = self::dem_don_theo_ten();
+		$don = function ( $ten ) use ( $dem ) {
+			$k = self::khoa_chat( $ten );
+			return isset( $dem[ $k ] ) ? (int) $dem[ $k ] : 0;
+		};
+
+		/* Bảng người dùng, tra được bằng cả hai khoá. */
+		$cp_chat = array(); $cp_long = array();
+		foreach ( self::get_users() as $u ) {
+			$ten = trim( (string) $u['ten'] );
+			if ( '' === $ten ) { continue; }
+			$cp_chat[ self::khoa_chat( $ten ) ] = $u;
+			$l = self::khoa_long( $ten );
+			if ( '' !== $l ) {
+				if ( ! isset( $cp_long[ $l ] ) ) { $cp_long[ $l ] = array(); }
+				$cp_long[ $l ][] = $u;
+			}
+		}
+
+		/* Hồ sơ nhân sự trùng tên nhau — gom trước, vì một hồ sơ có thể vừa trùng tên đồng
+		   nghiệp vừa khớp một dòng bên Chi phí, và khi đó nhóm "trùng tên" mới là nhóm đúng. */
+		$ns_chat = array();
+		foreach ( $hs as $r ) {
+			$k = self::khoa_chat( $r['ho_ten'] );
+			if ( '' === $k ) { continue; }
+			if ( ! isset( $ns_chat[ $k ] ) ) { $ns_chat[ $k ] = array(); }
+			$ns_chat[ $k ][] = $r;
+		}
+
+		$nhom = array( 'trungTen' => array(), 'lech' => array(), 'thieuCp' => array(), 'thieuNs' => array(), 'khop' => array() );
+		$da_dung_cp = array();   // dòng Chi phí nào đã tìm được cặp
+
+		foreach ( $ns_chat as $k => $ds ) {
+			$ten   = trim( (string) $ds[0]['ho_ten'] );
+			$so_don = $don( $ten );
+
+			if ( count( $ds ) > 1 ) {
+				$nhom['trungTen'][] = array(
+					'ten'  => $ten,
+					'don'  => $so_don,
+					'coCp' => isset( $cp_chat[ $k ] ),
+					'hoSo' => array_map( function ( $r ) {
+						return array( 'maNv' => (string) $r['ma_nv'], 'coso' => (string) $r['cua_hang'],
+							'chucVu' => (string) $r['chuc_vu'], 'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ) );
+					}, $ds ),
+				);
+				if ( isset( $cp_chat[ $k ] ) ) { $da_dung_cp[ $k ] = 1; }
+				continue;
+			}
+
+			$r = $ds[0];
+			if ( isset( $cp_chat[ $k ] ) ) {
+				$da_dung_cp[ $k ] = 1;
+				$u = $cp_chat[ $k ];
+				$nhom['khop'][] = array(
+					'ten' => $ten, 'maNv' => (string) $r['ma_nv'], 'don' => $so_don,
+					'vaiTro' => (string) $u['vaiTro'],
+					'maNvCp' => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+					'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+				);
+				continue;
+			}
+
+			/* Chưa khớp chặt — thử khoá lỏng. Khớp lỏng nghĩa là gần như chắc chắn cùng một
+			   người mà tên gõ lệch, và đó đúng là ca anh Thắng hỏi. */
+			$l = self::khoa_long( $ten );
+			if ( '' !== $l && isset( $cp_long[ $l ] ) ) {
+				foreach ( $cp_long[ $l ] as $u ) {
+					$kc = self::khoa_chat( $u['ten'] );
+					if ( isset( $da_dung_cp[ $kc ] ) ) { continue; }
+					$da_dung_cp[ $kc ] = 1;
+					$nhom['lech'][] = array(
+						'tenNs' => $ten, 'maNv' => (string) $r['ma_nv'],
+						'tenCp' => trim( (string) $u['ten'] ),
+						'donNs' => $so_don, 'donCp' => $don( $u['ten'] ),
+						'vaiTro' => (string) $u['vaiTro'],
+						'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+					);
+					continue 2;
+				}
+			}
+
+			$nhom['thieuCp'][] = array(
+				'ten' => $ten, 'maNv' => (string) $r['ma_nv'], 'coso' => (string) $r['cua_hang'],
+				'chucVu' => (string) $r['chuc_vu'], 'don' => $so_don,
+				'coPin' => trim( (string) $r['pin_dang_nhap'] ) !== '',
+				'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
+			);
+		}
+
+		foreach ( $cp_chat as $k => $u ) {
+			if ( isset( $da_dung_cp[ $k ] ) ) { continue; }
+			$nhom['thieuNs'][] = array(
+				'ten' => trim( (string) $u['ten'] ), 'vaiTro' => (string) $u['vaiTro'],
+				'coso' => (string) $u['coso'], 'don' => $don( $u['ten'] ),
+				'maNvCp' => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+			);
+		}
+
+		$tong = array();
+		foreach ( $nhom as $ten_nhom => $ds ) { $tong[ $ten_nhom ] = count( $ds ); }
+		return VHCP_Util::ok( array(
+			'coNhanSu' => true, 'nhom' => $nhom, 'tong' => $tong,
+			'soHoSo' => count( $hs ), 'soTaiKhoan' => count( $cp_chat ),
+		) );
+	}
+
+	/**
+	 * Hỏi bên Nhân sự "đã nghỉ chưa" — có trang ấy thì hỏi nó, không có thì tự đọc theo cùng luật.
+	 *
+	 * ⚠️ GÁC BẰNG `method_exists`, KHÔNG CHỈ `class_exists`. Bốn plugin cài độc lập nên bản có
+	 *    thể lệch nhau: lớp có mặt mà hàm chưa có là gọi hụt, và gọi hụt một hàm tĩnh thì
+	 *    trắng cả trang WordPress. Bản dự phòng ngay dưới đọc theo ĐÚNG luật của `da_nghi()`
+	 *    (có chữ "nghỉ" là nghỉ; ô trống là đang làm) nên hai đường cho cùng một kết quả.
+	 */
+	private static function da_nghi_ns( $tt ) {
+		if ( method_exists( 'VHCC_NhanSu', 'da_nghi' ) ) { return (bool) VHCC_NhanSu::da_nghi( $tt ); }
+		$t = trim( (string) $tt );
+		return '' !== $t && false !== strpos( mb_strtolower( $t ), 'nghỉ' );
+	}
+
+	/* ==========================================================================================
+	 *  ĐỔI TÊN MỘT NGƯỜI TRÊN MỌI CHỖ CÙNG LÚC — anh em sinh đôi của `doi_ten_coso()`.
+	 *
+	 *  🔴 KHÔNG ĐỂ NGƯỜI TA SỬA Ô TÊN TRONG BẢNG RỒI ĐI SỬA DỮ LIỆU SAU. Sửa ô tên là việc một
+	 *     giây; còn tên cũ thì nằm rải ở tám bảng, mười ba cột. Làm tay kiểu gì cũng sót, và chỗ
+	 *     sót im lặng cho tới lúc người ấy mở trang lên thấy sổ đơn của mình trống trơn.
+	 *
+	 *  🔴 ĐỔI TÊN LÀ GỘP, KHÔNG PHẢI ĐỔI NHÃN. Đổi "Nguyen Van A" thành "Nguyễn Văn A" trong khi
+	 *     đã có một dòng mang tên "Nguyễn Văn A" nghĩa là hai sổ đơn nhập làm một — và không có
+	 *     đường về. Nên khi đích đã tồn tại thì phải nói thẳng con số của cả hai bên ra trước,
+	 *     và chỉ đi tiếp khi người bấm khai rõ là muốn gộp (`gop`).
+	 * ========================================================================================== */
+	public static function doi_ten_nguoi( $cu, $moi, $gop = false ) {
+		global $wpdb;
+		$cu  = trim( (string) $cu );
+		$moi = trim( (string) $moi );
+		if ( '' === $cu || '' === $moi ) { return VHCP_Util::err( 'Thiếu tên cũ hoặc tên mới' ); }
+		if ( $cu === $moi ) { return VHCP_Util::err( 'Hai tên giống hệt nhau — không có gì để đổi' ); }
+
+		$k_cu  = self::khoa_chat( $cu );
+		$k_moi = self::khoa_chat( $moi );
+
+		/* Dòng đích đã có sẵn trong bảng người dùng -> đây là một cú GỘP. */
+		$co_dich = false;
+		foreach ( self::get_users() as $u ) {
+			if ( self::khoa_chat( $u['ten'] ) === $k_moi ) { $co_dich = true; break; }
+		}
+		if ( $co_dich && $k_cu !== $k_moi && ! $gop ) {
+			$dem = self::dem_don_theo_ten();
+			return VHCP_Util::err( 'Tên "' . $moi . '" đã có tài khoản. Đổi "' . $cu . '" thành tên đó '
+				. 'là GỘP hai sổ đơn làm một: '
+				. ( isset( $dem[ $k_cu ] ) ? (int) $dem[ $k_cu ] : 0 ) . ' dòng của "' . $cu . '" sẽ nhập vào '
+				. ( isset( $dem[ $k_moi ] ) ? (int) $dem[ $k_moi ] : 0 ) . ' dòng của "' . $moi . '", và không có đường về. '
+				. 'Nếu đúng ý thì bấm lại và xác nhận gộp.' );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ĐỔI THEO KHOÁ CHẶT, KHÔNG `WHERE cot = $cu`. Sổ cũ có cả " Nguyễn Văn A" lẫn
+		 *    "NGUYỄN VĂN A" — `user_by_token()` coi chúng là MỘT người, nên đổi tên mà bỏ sót
+		 *    chúng là để lại đúng những dòng mồ côi mà việc này sinh ra để dọn.
+		 *
+		 * 🔴 VÌ SAO LIỆT KÊ BIẾN THỂ RỒI MỚI ĐỔI, thay vì một câu `WHERE LOWER(TRIM(cot)) = …`:
+		 *      · `LOWER()` của cả MySQL lẫn SQLite chỉ hạ chữ ASCII — "NGUYỄN" ra "nguyỄn",
+		 *        nên câu ấy trượt đúng những cái tên tiếng Việt mà nó cần bắt;
+		 *      · còn `WHERE TRIM(cot) = 'tên'` trần thì dựa vào COLLATION của cột để bỏ qua
+		 *        hoa thường. Đúng trên host thật, sai trên bệ đỡ thử — nghĩa là phép kiểm xanh
+		 *        mà thứ nó kiểm thì không phải thứ đang chạy, đúng loại lỗi tệ nhất.
+		 *    Liệt kê các chuỗi CÓ THẬT trong cột rồi lọc bằng `khoa_chat()` thì hai nơi cùng
+		 *    một luật, và luật ấy chính là luật `user_by_token()` đang dùng để nhận người.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$dem = array();
+		$doi_cot = function ( $t, $c ) use ( $wpdb, $k_cu, $moi ) {
+			$n = 0;
+			foreach ( (array) $wpdb->get_col( "SELECT DISTINCT `$c` FROM $t WHERE `$c` <> ''" ) as $v ) {
+				if ( self::khoa_chat( $v ) !== $k_cu || (string) $v === $moi ) { continue; }
+				$n += (int) $wpdb->query( $wpdb->prepare( "UPDATE $t SET `$c` = %s WHERE `$c` = %s", $moi, $v ) );
+			}
+			return $n;
+		};
+		foreach ( self::NGUOI_COT as $bang => $cot ) {
+			$t = VHCP_DB::t( $bang );
+			foreach ( $cot as $c ) {
+				$n = $doi_cot( $t, $c );
+				if ( $n ) { $dem[ $bang . '.' . $c ] = $n; }
+			}
+		}
+
+		/* Thẻ phiên đang mở cũng mang tên — bỏ qua là người ấy vẫn đăng nhập được bằng tên CŨ
+		   suốt 30 ngày, và `user_by_token()` không tìm ra dòng nào khớp nên rơi về vai trong
+		   thẻ, tức là vai đông cứng từ lúc đăng nhập. */
+		$doi_cot( VHCP_DB::t( 'session' ), 'ten' );
+
+		/* Bảng người dùng: đổi tên dòng cũ; nếu là cú gộp thì XOÁ dòng cũ, giữ dòng đích. */
+		$rows  = self::read( self::USER );
+		$giu   = array();
+		$u_doi = 0; $u_bo = 0;
+		foreach ( $rows as $r ) {
+			$r = array_values( (array) $r );
+			$k = self::khoa_chat( isset( $r[0] ) ? $r[0] : '' );
+			if ( $k !== $k_cu ) { $giu[] = $r; continue; }
+			if ( $co_dich ) { $u_bo++; continue; }   // gộp -> dòng đích đã có, bỏ dòng này
+			$r[0] = $moi;
+			$giu[] = $r;
+			$u_doi++;
+		}
+		if ( $u_doi || $u_bo ) { self::sao_luu_users(); self::write( self::USER, $giu ); }
+
+		self::clear_cache();
+		return VHCP_Util::ok( array( 'dong' => $dem, 'doiDong' => array_sum( $dem ),
+			'sua' => $u_doi, 'goBo' => $u_bo, 'gop' => $co_dich ) );
 	}
 }

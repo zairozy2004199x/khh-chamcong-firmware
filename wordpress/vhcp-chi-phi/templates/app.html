@@ -1321,7 +1321,7 @@
       <div style="padding:6px 14px 12px;font-size:11px;color:#94a3b8"><b>Chỉ làm bộ phận</b> — để trống là vai đó thấy mọi bộ phận, như từ trước tới nay. Khai một bộ phận thì người mang vai ấy <b>chỉ thấy chi phí của bộ phận đó</b>: dòng chi mang loại chi phí thuộc bộ phận ấy, và đơn có ít nhất một dòng như thế. Bộ phận của một loại chi phí khai ở bảng <b>Loại chi phí</b> bên dưới — loại nào <b>chưa khai</b> bộ phận thì vẫn hiện cho mọi kế toán, để tiền không biến mất khỏi màn nào.</div>
     </div>
     <div class="card" id="userCard">
-      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnSoatNs" style="display:none" onclick="doSoatNs()">🔍 Soát trùng với Nhân sự</button><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
       <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
@@ -1330,6 +1330,11 @@
            và đơn họ lập cũng không ai mở lại được. Bày thẳng lên đầu bảng để người khai thấy
            ngay, thay vì chờ người kia báo. -->
       <div id="khaiLacBanner" style="display:none;margin:8px 14px 0;padding:10px 12px;border-radius:8px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:12.5px"></div>
+      <!-- 🔴 SOÁT TRÙNG TRƯỚC KHI ĐẨY — anh Thắng 13/09/2026: *"nếu đẩy từ nhân sự sang, mà
+           nhân viên này trùng với nhân viên tạo trực tiếp trên trang chi phí thì sao, làm sao
+           để gộp lại"*. Xem khối dài ở `VHCP_Cfg::soat_nhan_su()`. Khối này chỉ Admin thấy,
+           và nó ĐỌC là chính — mỗi nút đều hỏi lại kèm số dòng sẽ bị dời. -->
+      <div id="soatNsBox" style="display:none;margin:8px 14px 0"></div>
       <div style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f1f5f9;color:#334155;font-size:12px">
         🔒 <b>Tên</b> và <b>PIN</b> lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây — đổi bên trang
         <b>Chấm công → Nhân sự</b>. Tên là khoá nối hai bên: mọi đơn đã lập mang tên người lập, gõ lệch một chữ
@@ -10257,6 +10262,11 @@
     if(el('ngayHongCard')) el('ngayHongCard').style.display=_laAdmin()?'':'none';
     if(!el('cfgUserNhom')) return;
     if(el('btnKhoiPhucUser')) el('btnKhoiPhucUser').style.display=_laAdmin()?'':'none';
+    /* 🔴 KHÔNG TỰ CHẠY `doSoatNs()` Ở ĐÂY. `renderUsers()` chạy lại sau MỖI lượt Lưu cấu hình,
+       còn phép soát thì quét cả sổ nhân sự và đếm dòng trên tám bảng — tự chạy là mỗi lượt Lưu
+       kéo theo một phép quét toàn sổ mà chẳng ai xin. Người cần soát thì bấm nút. */
+    if(el('btnSoatNs')) el('btnSoatNs').style.display=_laAdmin()?'':'none';
+    if(!_laAdmin() && el('soatNsBox')){ el('soatNsBox').style.display='none'; el('soatNsBox').innerHTML=''; }
     // 🔴 TẢI HỎNG THÌ NÓI LÀ TẢI HỎNG, và KHÓA nút Lưu lại. Vẽ bảng trắng rồi để nút Lưu sáng
     //    là mời người ta ghi đè cái rỗng lên danh sách thật — đúng đường tai nạn 25/08/2026.
     if(CFGUSERS_LOI){
@@ -10327,6 +10337,7 @@
   }
   var U_THEAD='<thead><tr>'
     +'<th style="width:190px">Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
+    +'<th style="width:96px" title="Mã NV bên Chấm công · Nhân sự. Chỉ để phân biệt hai người TRÙNG TÊN, và để một PIN vào được cả hai trang. Đơn cũ vẫn nhận nhau bằng TÊN, không bằng mã này.">Mã NV</th>'
     +'<th style="width:96px">PIN <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
     +'<th style="width:132px">Vai trò</th>'
     +'<th style="width:150px">Bộ phận / Loại NV</th>'
@@ -10343,6 +10354,7 @@
     if(khoa){
       return '<tr style="background:#f8fafc;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
         +'<td><input value="'+esc(u.ten||'')+'" style="width:100%" disabled></td>'
+        +'<td><input value="'+esc(u.maNv||'')+'" style="width:100%" disabled></td>'
         +'<td><input value="••••" style="width:100%" disabled></td>'
         +'<td><input value="Admin" style="width:100%" disabled></td>'
         +'<td><input value="'+esc(u.boPhan||'— Tất cả —')+'" style="width:100%" disabled></td>'
@@ -10360,6 +10372,7 @@
        ⚠️ Đây là khoá Ở MÀN cho khỏi lỡ tay, không phải chốt máy chủ: giá trị vẫn được gửi
           lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
     return '<tr><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+      +'<td>'+_inp(u.maNv,'VD: NV012')+'</td>'
       +'<td><input value="'+esc(u.pin||'')+'" readonly title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" inputmode="numeric" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
       +'<td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
       +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
@@ -10368,8 +10381,8 @@
      toàn quản lý và kế toán — thì vẽ lại cả khối cho nó hiện ra rồi mới chèn. */
   function addCfgUser(){
     var tb=_uBody('Nhân viên');
-    if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
-    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
+    if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',maNv:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
+    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
     tb.lastChild.scrollIntoView({block:'center'});
   }
   /** tbody của một vai, hoặc null nếu vai ấy chưa có bảng nào. */
@@ -10431,7 +10444,7 @@
     });
     return ra;
   }
-  function saveCfgUsers(){ var data=_uMoiHang().map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:'', maDt:r[5]||'', donVi:(r[6]||'').trim(), xemDonVi:''};}).filter(function(x){return x.ten;});
+  function saveCfgUsers(){ var data=_uMoiHang().map(function(r){return {ten:(r[0]||'').trim(), maNv:(r[1]||'').trim(), pin:(r[2]||'').trim(), vaiTro:r[3]||'Nhân viên', boPhan:r[4]||'', coso:r[5]||'', tkCo:'', maDt:r[6]||'', donVi:(r[7]||'').trim(), xemDonVi:''};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
     // 🔴 LƯU DANH SÁCH RỖNG = XÓA HẾT TÀI KHOẢN. Không cho đi qua bằng một cú bấm.
     //    Máy chủ chặn lần nữa; đây chỉ là để hỏi cho tử tế trước khi tới đó.
@@ -10443,6 +10456,211 @@
     }
     _saveCfg({users:data},'Đã lưu người dùng');
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * SOÁT TRÙNG NHÂN SỰ ↔ CHI PHÍ
+   *
+   * Anh Thắng 13/09/2026: *"nếu đẩy từ nhân sự sang, mà nhân viên này trùng với nhân viên tạo
+   * trực tiếp trên trang chi phí thì sao, làm sao để gộp lại"*.
+   *
+   * 🔴 MÀN NÀY KHÔNG TỰ GỘP GÌ CẢ. Nó bày ra ba thứ rồi để người bấm quyết từng ca:
+   *     · hai hồ sơ nhân sự TRÙNG TÊN nhau -> đẩy sang là chúng chập làm một người
+   *     · tên hai bên LỆCH một dấu         -> thành hai người, đơn cũ mồ côi
+   *     · có bên này thiếu bên kia
+   *   Lý do không tự làm: tên là khoá nối mọi đơn cũ, nên mỗi lượt đổi tên là dời hàng trăm
+   *   dòng sang một cái tên khác. Máy đoán sai một ca là tiền của người này chui vào sổ người
+   *   kia, và không có đường về.
+   * ══════════════════════════════════════════════════════════════════════════════════════ */
+  function doSoatNs(){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin soát được — khối này bày cả sổ hồ sơ nhân sự'); return; }
+    var b=el('soatNsBox'); if(!b) return;
+    b.style.display=''; b.innerHTML='<div style="padding:12px;color:#64748b;font-size:12.5px">Đang soát…</div>';
+    google.script.run.withSuccessHandler(function(r){ veSoatNs(r||{}); })
+      .withFailureHandler(function(e){ b.innerHTML='<div style="padding:12px;color:#c0392b;font-size:12.5px">Không soát được: '+esc(e.message||'lỗi')+'</div>'; })
+      .soatNhanSu();
+  }
+  function _nsNhan(x){ return x.nghi?' <span style="color:#b45309;font-size:11px">(đã nghỉ)</span>':''; }
+  function _nsDon(n){
+    /* Số dòng đang mang cái tên ấy. 0 thì nói rõ là 0 — "chưa lập đơn nào" là thông tin quan
+       trọng nhất khi quyết định có được đổi tên hay không, đừng để nó thành ô trống. */
+    n=Number(n||0);
+    return n? ('<b>'+n+'</b> dòng') : '<span style="color:#94a3b8">chưa có dòng nào</span>';
+  }
+  function _nsKhung(mau, tieu, than){
+    return '<div style="border:1px solid '+mau[0]+';border-radius:8px;background:'+mau[1]+';overflow:hidden;margin-bottom:10px">'
+      +'<div style="background:'+mau[2]+';color:'+mau[3]+';padding:9px 12px;font-weight:600;font-size:12.5px">'+tieu+'</div>'
+      +'<div style="padding:10px 12px;font-size:12px">'+than+'</div></div>';
+  }
+  var NS_DO=['#fecaca','#fff5f5','#fee2e2','#991b1b'], NS_VANG=['#f0d48a','#fffbef','#fdf2d0','#8a6100'],
+      NS_XANH=['#bbf7d0','#f0fdf4','#dcfce7','#166534'], NS_XAM=['#e2e8f0','#f8fafc','#f1f5f9','#475569'];
+
+  function veSoatNs(r){
+    var b=el('soatNsBox'); if(!b) return;
+    if(!r.success){ b.innerHTML='<div style="padding:12px;color:#c0392b;font-size:12.5px">'+esc(r.error||'Lỗi')+'</div>'; return; }
+    if(!r.coNhanSu){
+      b.innerHTML=_nsKhung(NS_XAM,'Trang Nhân sự chưa cài trên site này',
+        'Không có sổ hồ sơ nào để đối chiếu. Khi nào bật plugin <b>Chấm công</b> lên thì bấm lại nút này.');
+      return;
+    }
+    var n=r.nhom||{}, h='';
+    h+='<div style="font-size:12px;color:#64748b;margin-bottom:8px">Đối chiếu <b>'+(r.soHoSo||0)+'</b> hồ sơ bên Nhân sự '
+      +'với <b>'+(r.soTaiKhoan||0)+'</b> tài khoản bên Chi phí. '
+      +'Hai hệ nhận người theo hai khoá khác nhau — bên Nhân sự là <b>mã NV</b>, bên Chi phí là <b>tên</b> — nên chỗ lệch nằm ở đây.</div>';
+
+    /* ── 1. Hai hồ sơ nhân sự trùng tên nhau ─────────────────────────────────────────── */
+    if((n.trungTen||[]).length){
+      var t='<div style="margin-bottom:8px">Bên Nhân sự đây là <b>hai người khác nhau</b> (hai mã NV). '
+        +'Bên Chi phí thì tên là khoá, nên đẩy sang chúng sẽ <b>chập làm một</b>: chung tài khoản, chung sổ đơn, chung tiền. '
+        +'Phải đổi tên một người cho khác đi <i>trước khi</i> đẩy — ví dụ thêm mã vào sau tên.</div>'
+        +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Các mã NV mang tên này</th><th style="text-align:left">Đơn đang mang tên này</th><th></th></tr>';
+      (n.trungTen||[]).forEach(function(x){
+        t+='<tr><td style="font-weight:600;vertical-align:top">'+esc(x.ten)+'</td>'
+          +'<td style="vertical-align:top">'+x.hoSo.map(function(p){
+              return '<div>'+esc(p.maNv||'(không mã)')+' · '+esc(p.coso||'—')+(p.chucVu?(' · '+esc(p.chucVu)):'')+_nsNhan(p)+'</div>'; }).join('')+'</td>'
+          +'<td style="vertical-align:top">'+_nsDon(x.don)+(x.coCp?' <span style="color:#94a3b8">· đã có tài khoản</span>':'')+'</td>'
+          +'<td style="vertical-align:top"><button class="btn b-x" onclick="moDoiTenNguoi('+_jsq(x.ten)+')">✎ Đổi tên</button></td></tr>';
+      });
+      h+=_nsKhung(NS_DO,'🔴 '+n.trungTen.length+' cái tên đang dùng cho NHIỀU hồ sơ nhân sự', t+'</table>');
+    }
+
+    /* ── 2. Tên hai bên lệch nhau ────────────────────────────────────────────────────── */
+    if((n.lech||[]).length){
+      var t2='<div style="margin-bottom:8px">Bỏ dấu đi thì hai tên này giống hệt nhau, nên gần như chắc chắn là <b>một người</b> — '
+        +'nhưng máy coi là hai. Đẩy sang mà không gộp thì người ấy đăng nhập vào <b>thấy trống trơn</b>, '
+        +'còn đơn cũ ở lại với cái tên kia. Bấm gộp để dồn mọi dòng về một tên.</div>'
+        +'<table style="width:auto"><tr><th style="text-align:left">Tên bên Nhân sự</th><th style="text-align:left">Tên bên Chi phí</th><th style="text-align:left">Dòng đang gánh</th><th></th></tr>';
+      (n.lech||[]).forEach(function(x){
+        t2+='<tr><td style="vertical-align:top">'+esc(x.tenNs)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.maNv||'')+'</span>'+_nsNhan(x)+'</td>'
+          +'<td style="font-weight:600;vertical-align:top">'+esc(x.tenCp)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.vaiTro||'')+'</span></td>'
+          +'<td style="vertical-align:top">bên Chi phí: '+_nsDon(x.donCp)+'</td>'
+          +'<td style="vertical-align:top"><button class="btn b-x" onclick="moDoiTenNguoi('+_jsq(x.tenCp)+','+_jsq(x.tenNs)+')">↦ Đổi thành tên bên Nhân sự</button></td></tr>';
+      });
+      h+=_nsKhung(NS_VANG,'⚠️ '+n.lech.length+' cặp tên LỆCH NHAU giữa hai hệ', t2+'</table>');
+    }
+
+    /* ── 3. Có bên Nhân sự, chưa có tài khoản Chi phí ────────────────────────────────── */
+    if((n.thieuCp||[]).length){
+      var dang=(n.thieuCp||[]).filter(function(x){return !x.nghi;});
+      var t3='<div style="margin-bottom:8px">Những người này <b>chưa có tài khoản</b> ở trang Chi phí. '
+        +'Có PIN bên Nhân sự cũng chưa vào được — PIN chỉ mượn để đăng nhập, còn quyền thì đọc từ bảng dưới. '
+        +'Thêm dòng cho ai cần dùng trang này, và nhớ điền <b>Mã NV</b> để hai bên nối được với nhau.</div>'
+        +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Mã NV</th><th style="text-align:left">Cơ sở · chức vụ</th><th style="text-align:left">PIN</th><th></th></tr>';
+      (n.thieuCp||[]).forEach(function(x){
+        t3+='<tr'+(x.nghi?' style="color:#94a3b8"':'')+'><td>'+esc(x.ten)+_nsNhan(x)+'</td><td>'+esc(x.maNv||'')+'</td>'
+          +'<td>'+esc(x.coso||'—')+(x.chucVu?(' · '+esc(x.chucVu)):'')+'</td>'
+          +'<td>'+(x.coPin?'đã có':'<span style="color:#94a3b8">chưa cấp</span>')+'</td>'
+          +'<td>'+(x.nghi?'':'<button class="btn b-x" onclick="themUserTuNs('+_jsq(x.ten)+','+_jsq(x.maNv||'')+','+_jsq(x.coso||'')+')">＋ Thêm vào bảng</button>')+'</td></tr>';
+      });
+      h+=_nsKhung(NS_XAM,'👤 '+n.thieuCp.length+' hồ sơ nhân sự chưa có tài khoản Chi phí'
+        +(dang.length!==n.thieuCp.length?(' <span style="font-weight:400">('+dang.length+' đang làm)</span>'):''), t3+'</table>');
+    }
+
+    /* ── 4. Có bên Chi phí, không thấy bên Nhân sự ───────────────────────────────────── */
+    if((n.thieuNs||[]).length){
+      var t4='<div style="margin-bottom:8px">Tài khoản bên Chi phí mà <b>không tìm thấy hồ sơ nào</b> mang tên ấy bên Nhân sự. '
+        +'Hoặc là người cũ đã xoá hồ sơ, hoặc tên bên này gõ sai. '
+        +'<b>Đừng vội xoá</b> nếu cột dòng còn số: xoá tài khoản không xoá đơn, mà đơn mất chủ thì không ai mở lại được.</div>'
+        +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Vai trò</th><th style="text-align:left">Cơ sở</th><th style="text-align:left">Dòng đang gánh</th><th></th></tr>';
+      (n.thieuNs||[]).forEach(function(x){
+        t4+='<tr><td style="font-weight:600">'+esc(x.ten)+'</td><td>'+esc(x.vaiTro||'')+'</td><td>'+esc(x.coso||'—')+'</td>'
+          +'<td>'+_nsDon(x.don)+'</td>'
+          +'<td><button class="btn b-x" onclick="moDoiTenNguoi('+_jsq(x.ten)+')">✎ Đổi tên / gộp</button></td></tr>';
+      });
+      h+=_nsKhung(NS_VANG,'🔎 '+n.thieuNs.length+' tài khoản Chi phí không có hồ sơ nhân sự', t4+'</table>');
+    }
+
+    /* ── 5. Khớp ─────────────────────────────────────────────────────────────────────── */
+    var kh=(n.khop||[]).length;
+    if(kh){
+      var thieuMa=(n.khop||[]).filter(function(x){ return !x.maNvCp; });
+      var t5='<b>'+kh+'</b> người khớp tên đúng từng chữ — đẩy từ Nhân sự sang sẽ <b>tự gộp</b>, không phải làm gì.';
+      if(thieuMa.length){
+        t5+='<div style="margin-top:6px;color:#8a6100">Trong đó <b>'+thieuMa.length+'</b> người <b>chưa điền Mã NV</b> ở bảng dưới. '
+          +'Vẫn chạy được — hai bên đang nối nhau bằng tên — nhưng nối bằng tên thì lệch một dấu là đứt. '
+          +'<button class="btn b-x" onclick="dienMaNvTuSoat()">✎ Điền giúp '+thieuMa.length+' mã vào bảng</button></div>';
+        SOAT_MA_NV=thieuMa.map(function(x){ return {ten:x.ten, maNv:x.maNv}; });
+      } else { SOAT_MA_NV=[]; }
+      h+=_nsKhung(NS_XANH,'✅ '+kh+' người khớp tên', t5);
+    }
+
+    if(!(n.trungTen||[]).length && !(n.lech||[]).length && !(n.thieuCp||[]).length && !(n.thieuNs||[]).length){
+      h+=_nsKhung(NS_XANH,'✅ Hai bên khớp hết','Không có tên nào lệch, không có ai thiếu. Đẩy từ Nhân sự sang được rồi.');
+    }
+    b.innerHTML=h;
+  }
+  /* Bọc một chuỗi cho an toàn khi nhét vào thuộc tính onclick. Dấu nháy kép phải thành thực
+     thể, không thì nó đóng sớm thuộc tính và cả nút vỡ — tên người có dấu nháy là hiếm, nhưng
+     "Nguyễn Văn A (2)" thì không hiếm, và ngoặc đơn cũng đủ làm hỏng lời gọi. */
+  function _jsq(x){ return JSON.stringify(String(x==null?'':x)).replace(/"/g,'&quot;'); }
+
+  var SOAT_MA_NV=[];
+  /**
+   * Điền mã NV vào những dòng đang khớp tên mà bỏ trống ô mã.
+   *
+   * ⚠️ CHỈ ĐIỀN VÀO Ô TRÊN MÀN, KHÔNG TỰ LƯU. Lượt Lưu gửi cả bảng lên và ghi đè — người bấm
+   *    phải nhìn thấy mình sắp lưu cái gì trước đã.
+   */
+  function dienMaNvTuSoat(){
+    if(!SOAT_MA_NV.length){ toast('warn','Không có mã nào để điền'); return; }
+    var ban={}; SOAT_MA_NV.forEach(function(x){ ban[String(x.ten).trim().toLowerCase()]=x.maNv; });
+    (CFGUSERS||[]).forEach(function(u){
+      var k=String(u.ten||'').trim().toLowerCase();
+      if(ban[k] && !String(u.maNv||'').trim()) u.maNv=ban[k];
+    });
+    renderUsers();
+    toast('ok','Đã điền '+SOAT_MA_NV.length+' mã vào bảng — xem lại rồi bấm 💾 Lưu');
+  }
+  /** Thêm một dòng mới cho người bên Nhân sự, điền sẵn tên · mã NV · cơ sở. */
+  function themUserTuNs(ten, maNv, coso){
+    var da=(CFGUSERS||[]).some(function(u){ return String(u.ten||'').trim().toLowerCase()===String(ten).trim().toLowerCase(); });
+    if(da){ toast('warn','"'+ten+'" đã có trong bảng rồi'); return; }
+    /* Cơ sở bên Nhân sự là tên cửa hàng, có thể không trùng tên cơ sở khai bên này — cứ điền
+       vào, ô chọn cơ sở sẽ bỏ qua giá trị lạ, và người khai thấy ngay là phải chọn lại. */
+    CFGUSERS=(CFGUSERS||[]).concat([{ten:String(ten).trim(), maNv:String(maNv||'').trim(), pin:'',
+      vaiTro:'Nhân viên', boPhan:'', coso:String(coso||'').trim(), maDt:'', donVi:''}]);
+    renderUsers();
+    toast('ok','Đã thêm dòng cho "'+ten+'" — chọn vai trò · cơ sở rồi bấm 💾 Lưu');
+  }
+  /**
+   * ĐỔI TÊN MỘT NGƯỜI trên mọi bảng cùng lúc.
+   *
+   * 🔴 HAI CÂU HỎI, KHÔNG PHẢI MỘT. Câu thứ nhất: đổi thành tên gì. Câu thứ hai — chỉ hỏi khi
+   *    máy chủ báo tên đích ĐÃ CÓ tài khoản — là: có đúng muốn GỘP hai sổ đơn làm một không.
+   *    Gộp không có đường về, nên nó phải là một cái gật riêng, kèm con số của cả hai bên.
+   */
+  function moDoiTenNguoi(cu, goiY){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin đổi tên người dùng được'); return; }
+    var moi=prompt('Đổi tên "'+cu+'" thành:\n\n'
+      +'Mọi dòng đang mang tên "'+cu+'" (đơn · sổ chi · dự án · biên bản · nhật ký) sẽ chuyển sang tên mới.\n'
+      +'Thẻ đăng nhập đang mở của người này cũng đổi theo.\n\n'
+      +'⚠️ Gõ đúng tên bên Nhân sự, kể cả dấu.', goiY||cu);
+    if(moi===null) return;
+    moi=String(moi).trim();
+    if(!moi||moi===cu){ toast('warn','Chưa đổi gì'); return; }
+    _guiDoiTenNguoi(cu, moi, false);
+  }
+  function _guiDoiTenNguoi(cu, moi, gop){
+    if(!confirm('Đổi MỌI dòng của "'+cu+'" thành "'+moi+'"?'+(gop?'\n\n🔴 GỘP hai sổ đơn làm một. Không có nút hoàn tác.':'')
+      +'\n\nSửa trên tám bảng dữ liệu và cả thẻ đăng nhập.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){
+        toast('ok','Đã đổi '+(r.doiDong||0)+' dòng'+(r.gop?' · đã gộp vào tài khoản đang có':'')
+          +(r.goBo?' · bỏ 1 dòng trùng':''));
+        _log('Đổi tên người dùng', cu+' -> '+moi, (r.doiDong||0)+' dòng');
+        loadCfg(); boot(); doSoatNs();
+      } else {
+        /* Máy chủ chối vì tên đích đã có tài khoản -> hỏi lại cho cú gộp, kèm nguyên câu nó
+           trả về (trong đó có con số dòng của cả hai bên). Không tự đi tiếp. */
+        var e=(r&&r.error)||'Lỗi';
+        if(!gop && /bấm lại và xác nhận gộp/.test(e)){
+          if(confirm(e+'\n\nBấm OK để GỘP.')) _guiDoiTenNguoi(cu, moi, true);
+          return;
+        }
+        toast('err',e);
+      }
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiTenNguoi(cu,moi,gop?1:0);
+  }
+
   /**
    * CƠ SỞ LẠ — tên gian hàng có trên DỮ LIỆU mà không có trong bảng Cấu hình.
    *
