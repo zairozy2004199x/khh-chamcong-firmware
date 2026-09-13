@@ -66,7 +66,19 @@ function get_transient( $k ) { return array_key_exists( $k, $GLOBALS['VHCP_TR'] 
 function set_transient( $k, $v, $t = 0 ) { $GLOBALS['VHCP_TR'][ $k ] = $v; return true; }
 function delete_transient( $k ) { unset( $GLOBALS['VHCP_TR'][ $k ] ); return true; }
 function wp_cache_delete( $k, $g = '' ) { return true; }
-function wp_json_encode( $v ) { return json_encode( $v, JSON_UNESCAPED_UNICODE ); }
+/* 🔴 PHẢI NHẬN THAM SỐ `$options` — Y NHƯ WORDPRESS THẬT.
+ * Bản giả cũ nuốt mất tham số thứ hai, nên `wp_json_encode( $x, JSON_UNESCAPED_SLASHES )` trong
+ * mã thật vẫn ra chuỗi CÓ escape ở bài kiểm. Cổng máy chấm công đáp bằng cờ ấy đúng để bộ giải
+ * mã base64 viết tay trong firmware đọc được (`/9j/` chứ không phải `\/9j\/`) — bản giả dễ dãi
+ * hơn bản thật ở đúng chỗ ấy là phép thử xanh mà máy vẫn không nhận được ảnh.
+ * Cùng loại bẫy với `esc_url` nuốt `data:` — xem chú thích ở đó.
+ *
+ * ⚠️ GIỮ `JSON_UNESCAPED_UNICODE` làm mặc định. WordPress thật KHÔNG bật cờ này, nhưng cả bộ
+ *    thử này đọc chữ Việt trong JSON để soi, và đổi mặc định là sửa hàng chục phép thử cho một
+ *    thứ chẳng liên quan tới lỗi đang xét. Cờ do nơi gọi truyền vào vẫn được cộng thêm đủ. */
+function wp_json_encode( $v, $options = 0, $depth = 512 ) {
+	return json_encode( $v, ( (int) $options ) | JSON_UNESCAPED_UNICODE, (int) $depth );
+}
 function wp_rand( $min = 0, $max = 0 ) { return random_int( $min, $max ); }
 function wp_generate_password( $len = 12, $sp = true, $xsp = false ) {
 	$c = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -190,7 +202,26 @@ function add_submenu_page( $cha, $tt, $mt, $cap, $slug, $cb = '' ) {
 }
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return esc_html( $s ); }
-function esc_url( $s ) { return (string) $s; }
+/* 🔴 `esc_url` PHẢI NUỐT `data:` — Y NHƯ WORDPRESS THẬT.
+ *
+ * WordPress chỉ cho qua một danh sách giao thức (`wp_allowed_protocols`), và `data` KHÔNG có
+ * trong đó: `esc_url('data:image/jpeg;base64,...')` trả về **chuỗi rỗng**. Ảnh biến mất, không
+ * một lời báo.
+ *
+ * Bản giả trước đây trả nguyên chuỗi, nên một chỗ viết `esc_url($anh_the)` vẫn XANH trong bài
+ * kiểm mà ĐEN ngoài đời — đúng loại xanh giả đắt nhất. Nay bản giả cũng nuốt, để cái bẫy ấy nổ
+ * ngay tại đây. Ảnh thẻ (data URI) phải đi qua `esc_attr`, kèm phép soát khuôn.
+ *
+ * ⚠️ Chỉ mô phỏng đúng phần giao thức. Bản thật còn gột nhiều thứ khác — bài kiểm không dựa vào
+ *    những thứ ấy, và mô phỏng nửa vời một hàm lọc là tự dựng một hàm thứ hai để tin nhầm. */
+function esc_url( $s ) {
+	$s = (string) $s;
+	if ( preg_match( '#^\s*([A-Za-z][A-Za-z0-9+.-]*):#', $s, $m )
+		&& ! in_array( strtolower( $m[1] ), array( 'http', 'https', 'ftp', 'ftps', 'mailto', 'tel' ), true ) ) {
+		return '';
+	}
+	return $s;
+}
 function esc_url_raw( $s ) { return (string) $s; }
 function esc_textarea( $s ) { return (string) $s; }
 /* 🔴 KHÔNG KHAI `wp_tempnam` Ở ĐÂY — VÀ ĐÓ LÀ CHỦ Ý.
@@ -388,10 +419,22 @@ class VHCP_Test_WPDB {
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
-		/* SHOW COLUMNS cũng vậy — plugin dùng nó để hỏi "bản bên kia đã có cột này chưa" trước
-		   khi SELECT, vì bốn plugin cài độc lập nên bảng trên host có thể còn thiếu cột vừa
-		   thêm. `PRAGMA table_info` trả cột `name` ở đúng vị trí `get_col()` đọc (cột đầu là
-		   `cid`, nên phải chọn riêng `name`). */
+		/* ══════════════════════════════════════════════════════════════════════════════
+		 * `SHOW COLUMNS` — HAI DẠNG, VÀ PHẢI GIỮ CẢ HAI.
+		 *
+		 * Plugin dùng câu này để hỏi "bản plugin KIA đã có cột ấy chưa". Bốn plugin cài độc lập
+		 * và bản lệch nhau là chuyện thường (09/09/2026: ghế trên live là 2.16.0 trong khi repo
+		 * mới tới 1.41.0; 13/09/2026: chấm công trên live 3.73.0 còn nhánh chi phí mới 3.43.0),
+		 * nên "cột chưa có" là một nhánh CÓ THẬT phải thử được — không mô phỏng thì nhánh
+		 * nói-ra-lý-do ấy không phép thử nào chạm tới.
+		 *
+		 * ⚠️ DẠNG CÓ `LIKE` PHẢI ĐỨNG TRƯỚC. Nó hẹp hơn; để dạng không-LIKE lên trước là nó
+		 *    nuốt luôn cả câu có LIKE và trả về MỌI cột, nên phép "cột này chưa có" lúc nào
+		 *    cũng thấy có.
+		 * ══════════════════════════════════════════════════════════════════════════════ */
+		if ( preg_match( "/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([A-Za-z0-9_]+)`?\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			return "SELECT name FROM pragma_table_info('" . $m[1] . "') WHERE name='" . $m[2] . "'";
+		}
 		if ( preg_match( '/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([A-Za-z0-9_]+)`?/i', $sql, $m ) ) {
 			return "SELECT name FROM pragma_table_info('" . $m[1] . "')";
 		}

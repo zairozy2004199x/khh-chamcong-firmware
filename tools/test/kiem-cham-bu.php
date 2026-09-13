@@ -285,7 +285,19 @@ teq( '🔴 để trống ô giờ vào thì giờ vào GIỮ NGUYÊN, không b�
 teq( 'và giờ ra đã đổi', VHCC_DB::giay( '16:00:00' ), (int) hang( 'NV009' )['gio_ra_giay'] );
 
 /* ---- gõ SAI dạng phải báo lỗi, không được lặng lẽ thành xoá trắng ---- */
+
+/* ⚠️ `8h30` KHÔNG CÒN LÀ "SAI DẠNG" TỪ 3.65.0 — và đó là chủ ý, không phải nới lỏng.
+   `VHCC_DB::gio_24()` nhận `8h30`, `08.30`, `0830`, `830` vì đó đúng là những kiểu người ta gõ
+   thật trên bàn phím số. Bài thử này viết TRƯỚC lúc ấy nên còn dùng `8h30` làm mẫu "sai dạng";
+   để nguyên thì nó canh một luật đã bị thay, tức là canh cho một bản cũ không còn tồn tại.
+   Nay canh đúng hai việc: kiểu gõ nhanh phải ĂN, còn chuỗi thật sự vô nghĩa phải bị CHỐI. */
 $r = sua( $ADMIN, array( 'vao' => '8h30' ) );
+t( 'kiểu gõ nhanh "8h30" được nhận', ! empty( $r['ok'] ), $r );
+teq( 'và hiểu đúng thành 08:30', VHCC_DB::giay( '08:30:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
+$r = sua( $ADMIN, array( 'vao' => '09:30' ) );   // trả lại mốc cũ cho mấy phép dưới
+t( 'trả lại 09:30 được', ! empty( $r['ok'] ), $r );
+
+$r = sua( $ADMIN, array( 'vao' => '8 giờ rưỡi' ) );
 t( '🔴 gõ sai dạng giờ -> báo lỗi', empty( $r['ok'] ) && false !== strpos( $r['error'], 'dạng' ), $r );
 teq( 'và KHÔNG xoá mất giờ vào', VHCC_DB::giay( '09:30:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
 

@@ -141,26 +141,27 @@ class VHCC_DayChiPhi {
 		if ( '' === $ten ) { return null; }
 
 		/* ═════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 PHÒNG BAN LẤY TỪ CỘT `phong_ban`, KHÔNG PHẢI `chuc_vu`.
+		 * 🔴 PHÒNG BAN LẤY TỪ CỘT `bo_phan`, KHÔNG PHẢI `chuc_vu`.
 		 *
 		 * Bản trước lấy thẳng `chuc_vu` nhét vào ô Bộ phận bên chi phí. Nhưng chức vụ là
-		 * *Thu ngân · Ca trưởng · Giám sát · Bảo vệ · Pha chế* — việc người ta LÀM. Còn ô Bộ
-		 * phận bên kia nhận đúng bảy tên *Cơ sở · Văn phòng · Kỹ thuật · Marketing · Công tác ·
-		 * Setup · Máy tự động*, và nó là thứ quyết định người ấy thấy MẢNG CHI PHÍ nào.
-		 *
-		 * Hai bộ chỉ trùng đúng một tên ("Kỹ thuật"). Nên đẩy một Thu ngân sang là ô Bộ phận
-		 * của họ thành "Thu ngân", rồi chốt phòng ban bên ấy đi tìm loại chi phí thuộc phòng
-		 * ban "Thu ngân" — không có cái nào. Màn chi phí của người ấy gần như trắng, và không
-		 * có một câu lỗi nào chỉ ra vì sao.
+		 * *Thu ngân · Ca trưởng · Giám sát · Bảo vệ · Pha chế* — việc người ta LÀM; còn ô Bộ
+		 * phận bên kia là thứ quyết định họ thấy MẢNG CHI PHÍ nào. Hai bộ từ vựng không dính
+		 * dáng gì nhau, nên đẩy một Thu ngân sang là ô Bộ phận của họ thành "Thu ngân", chốt
+		 * phòng ban bên ấy đi tìm loại chi phí thuộc "Thu ngân", không thấy cái nào, và màn chi
+		 * phí của người ấy gần như trắng — không một câu lỗi nào chỉ ra vì sao.
 		 *
 		 * Anh Thắng chốt luật 13/09/2026: *"quyết định bộ phận do nhân sự quyết định, bên chi
-		 * phí chỉ biết bộ phận đó có được quyền không thôi"*. Nên sổ nhân sự nay có cột
-		 * `phong_ban` riêng, khai bằng đúng danh mục của bên ấy — xem `VHCC_NhanSu::phong_ban_ds()`.
+		 * phí chỉ biết bộ phận đó có được quyền không thôi"*. Sổ nhân sự đã có cột `bo_phan`
+		 * (sơ đồ tổ chức — xem `VHCC_NhanSu::ds_bo_phan()`), nên đẩy đúng cột ấy sang.
+		 *
+		 * ⚠️ HAI DANH MỤC VẪN CHƯA CÙNG VỐN TỪ: bên này là *Phòng Kỹ Thuật · Phòng Marketing…*,
+		 *    bên chi phí là *Kỹ thuật · Marketing · Cơ sở · Setup…*. Chuỗi đẩy sang mà không có
+		 *    trong danh mục bên ấy thì chốt phòng ban của họ không khớp được gì. Màn soát bên
+		 *    chi phí (Cấu hình → Người dùng → 🔍 Soát trùng) bày thẳng những ca ấy ra để xử.
 		 *
 		 * ⚠️ CHƯA KHAI THÌ ĐỂ RỖNG, ĐỪNG ĐOÁN. Rỗng bên chi phí nghĩa là "không bó phòng ban",
-		 *    tức người ấy thấy mọi mảng — rộng hơn ý muốn, nhưng KHÔNG làm ai mất việc. Đoán
-		 *    bừa một phòng ban thì cắt mất đúng mảng họ cần mà chẳng ai biết. Màn soát bên chi
-		 *    phí bày riêng những người chưa khai để đi khai nốt.
+		 *    tức thấy mọi mảng — rộng hơn ý muốn, nhưng KHÔNG làm ai mất việc. Đoán bừa thì cắt
+		 *    mất đúng mảng họ cần mà chẳng ai biết.
 		 * ═════════════════════════════════════════════════════════════════════════════════ */
 		return array(
 			'ho_ten'  => $ten,
@@ -168,9 +169,7 @@ class VHCC_DayChiPhi {
 			'pin'     => $pin,
 			'vai_cc'  => (string) $hs['vai_tro'],
 			'coso'    => VHCC_NhanSu::chuan_coso( (string) $hs['cua_hang'] ),
-			'bo_phan' => method_exists( 'VHCC_NhanSu', 'phong_ban_chuan' )
-				? VHCC_NhanSu::phong_ban_chuan( isset( $hs['phong_ban'] ) ? $hs['phong_ban'] : '' )
-				: '',
+			'bo_phan' => trim( (string) ( isset( $hs['bo_phan'] ) ? $hs['bo_phan'] : '' ) ),
 		);
 	}
 
@@ -257,10 +256,6 @@ class VHCC_DayChiPhi {
 			if ( 0 !== strcasecmp( $t, $ten_cu ) && 0 !== strcasecmp( $t, $hs['ho_ten'] ) ) { continue; }
 			/* 🔴 SỬA ĐÚNG BỐN Ô, GIỮ NGUYÊN PHẦN CÒN LẠI. TK Có · Mã đối tượng · Đơn vị · Xem
 			   đơn vị là bảng khai của KẾ TOÁN — sổ nhân sự không biết và không được đoán. */
-			/* Hàng cũ có thể chỉ 9 ô (sổ trước khi có cột Mã NV) — nới cho đủ trước khi ghi ô
-			   thứ 10, không thì `$r[9]` đẻ ra một khoá rời và `array_values` lúc lưu xếp lại
-			   sai chỗ. */
-			$r = array_pad( array_values( $r ), self::SO_O, '' );
 			$r[ self::C_TEN ]     = $hs['ho_ten'];
 			$r[ self::C_PIN ]     = $hs['pin'];
 			$r[ self::C_VAI ]     = self::vai_chi_phi( $hs['vai_cc'] );
@@ -269,16 +264,15 @@ class VHCC_DayChiPhi {
 			/* ⚠️ MÃ NV GHI ĐÈ LUÔN, không gác "chỉ ghi khi rỗng" như ô Bộ phận. Mã là danh
 			   tính, không phải lựa chọn của kế toán: hàng này vừa được nhận ra là của người
 			   mang mã ấy, nên mã ấy đúng theo định nghĩa. */
-			$r[ self::C_MA_NV ]   = $hs['ma_nv'];
+			$r[ self::C_MA_NV ] = $hs['ma_nv'];
 			$rows[ $i ] = $r;
 			$thay = true;
 			break;
 		}
 		if ( ! $thay ) {
-			/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG: hạ `self::SO_O` xuống 9 KHÔNG đổi kết quả — gán `$hang[9]`
-			   ngay dưới tự nới mảng, và khoá vẫn liên tục 0..9 nên `array_values` giữ nguyên
-			   thứ tự. Vẫn khai đúng số ô vì nó nói ra ý định: hàng này có mười ô, và người sửa
-			   sau đọc con số ấy chứ không phải đếm những dòng gán bên dưới. */
+			/* ⚠️ ĐỘT BIẾN TƯƠNG ĐƯƠNG: hạ `self::SO_O` xuống 9 KHÔNG đổi kết quả — phép gán
+			   `$hang[9]` ngay dưới tự nới mảng, và khoá vẫn liên tục 0..9 nên `array_values`
+			   giữ nguyên thứ tự. Vẫn khai đúng số ô vì nó nói ra ý định. */
 			$hang = array_fill( 0, self::SO_O, '' );
 			$hang[ self::C_TEN ]     = $hs['ho_ten'];
 			$hang[ self::C_PIN ]     = $hs['pin'];

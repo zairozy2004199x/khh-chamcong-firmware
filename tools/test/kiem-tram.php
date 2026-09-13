@@ -935,6 +935,109 @@ t( 'có đường lùi khi trình duyệt không cuộn mượt được',
 t( 'nhảy tới một id không có thì im, không nổ',
 	strpos( $tram_js2, 'if(!o) return;' ) !== false );
 
+/* ============================================================ 08/09/2026 — BÁO LỖI RÕ RÀNG
+   Anh Thắng: *"thêm nhân viên bị lỗi ở chấm công"*, rồi *"tại báo cáo lỗi không rõ ràng"*.
+   Ba chỗ dưới đây là ba câu trả lời cho đúng ba thứ đã dựng lại được trong bộ giả lập. */
+
+/* --- 1. NGƯỜI MỚI KHÔNG CHỌN NHIỆM VỤ VẪN CHẤM ĐƯỢC ---------------------------------------
+   Anh Thắng hỏi thẳng: *"khả năng nào không chọn nhiệm vụ lỗi không"*. Câu trả lời phải là MỘT
+   PHÉP THỬ, không phải một lời quả quyết — vì ô nhiệm vụ đúng là ô duy nhất người ta có thể bỏ
+   trống ở màn lưu. Gác 3 chỉ chạy khi ô ấy KHÁC RỖNG; bỏ trống là đi thẳng. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV_MOI1', 'ho_ten' => 'Người Vừa Thêm', 'cua_hang' => 'VIVO',
+	'pin_dang_nhap' => '778811', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn = VHCC_Tram::dang_nhap( '778811' );
+t( 'người vừa được thêm đăng nhập trạm được', ! empty( $dn['ok'] ), $dn );
+$u_moi = VHCC_Tram::nguoi( $dn['token'] );
+$r = VHCC_Online::cham_cong( $u_moi, '', null, '', '' );
+t( 'KHÔNG chọn nhiệm vụ vẫn ghi được giờ — ô nhiệm vụ để trống không phải là lỗi',
+	! empty( $r['ok'] ) && 'vao' === $r['loai'], $r );
+$tt = VHCC_Online::thong_tin( $u_moi );
+t( 'người mới chưa khai nhiệm vụ thì trạm không dựng ô nhiệm vụ (rỗng = việc chính)',
+	array() === $tt['dsNhiemVu'], $tt['dsNhiemVu'] );
+
+/* --- 2. CHƯA TÍCH CƠ SỞ: CÂU CHỐI PHẢI CHỈ ĐÚNG Ô CÓ THẬT -----------------------------------
+   Câu cũ nhắc ô *"Cơ sở chấm công online"* — ô ấy chỉ có ở màn PhanQuyen cũ, KHÔNG có trên
+   biểu mẫu một cửa mà người ta vừa dùng để lập hồ sơ. Chỉ sai chỗ còn tệ hơn không chỉ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV_MOI2', 'ho_ten' => 'Người Thiếu Cơ Sở', 'cua_hang' => '',
+	'pin_dang_nhap' => '778822', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn2 = VHCC_Tram::dang_nhap( '778822' );
+t( 'thiếu cơ sở thì VẪN đăng nhập được (để còn nói ra thiếu gì)', ! empty( $dn2['ok'] ), $dn2 );
+$r = VHCC_Online::cham_cong( VHCC_Tram::nguoi( $dn2['token'] ), '', null, '', '' );
+t( 'chưa tích cơ sở thì bị chối', empty( $r['ok'] ), $r );
+t( 'câu chối gọi tên NGƯỜI phải sửa hồ sơ',
+	strpos( (string) $r['error'], 'Người Thiếu Cơ Sở' ) !== false, $r['error'] );
+t( 'câu chối chỉ đúng ô CÓ THẬT trên biểu mẫu (lưới "Cơ sở")',
+	strpos( (string) $r['error'], 'lưới "Cơ sở"' ) !== false, $r['error'] );
+t( 'câu chối KHÔNG nhắc ô chỉ có ở màn cũ',
+	strpos( (string) $r['error'], 'Cơ sở chấm công online' ) === false, $r['error'] );
+
+/* Và trang khoá nút NGAY, không để họ đi hết đường chụp ảnh rồi mới ăn câu chối. */
+t( 'trang khoá nút chấm khi hồ sơ chưa có cơ sở nào',
+	preg_match( "/if\(!\(\(j\.dsCoSo && j\.dsCoSo\.length\) \|\| j\.coSoMacDinh\)\)\{/", $tram_js2 ) === 1 );
+
+/* --- 3. LƯỢT `cham` HỎNG THÌ HỎI LẠI, ĐỪNG ĐOÁN -------------------------------------------
+   Quá hạn KHÔNG đồng nghĩa chưa ghi: ảnh đã đi rồi, chỉ câu trả lời chưa về. Bảo "chưa lưu
+   được" là mời người ta bấm lượt thứ hai — mà lượt thứ hai ngay sau giờ vào là GIỜ RA. */
+t( 'lượt cham hỏng thì gọi phép soát lại, không dừng ở câu lỗi',
+	strpos( $tram_js2, 'return soatLaiDaGhi(cs, truocKhiGui,' ) !== false );
+t( 'soát lại bằng một lượt gọi NHẸ (không kèm ảnh)',
+	preg_match( "/function soatLaiDaGhi[\s\S]{0,400}?goi\('toi',\{token:token\(\)\}\)/", $tram_js2 ) === 1 );
+t( 'so CẢ bảng hôm nay (kèm giờ ra), không chỉ "đã có giờ vào chưa"',
+	strpos( $tram_js2, "(ds[i].hauTo||'') + '|' + (ds[i].vao||'') + '|' + (ds[i].ra||'')" ) !== false );
+t( 'chụp trạng thái TRƯỚC khi gửi để còn so',
+	strpos( $tram_js2, 'var truocKhiGui = chuoiHomNay(cs);' ) !== false );
+t( 'soát ra ĐÃ GHI thì đóng màn chọn và bỏ ảnh, y như lượt thành công',
+	preg_match( "/chuoiHomNay\(cs\) === truoc[\s\S]{0,600}?ANH = null;[\s\S]{0,80}?hien\('mChon',false\);/", $tram_js2 ) === 1 );
+t( 'soát ra ĐÃ GHI thì dặn ĐỪNG bấm lại',
+	strpos( $tram_js2, 'ĐỪNG bấm lưu lại' ) !== false );
+t( 'hỏi lại cũng hỏng thì nói thẳng là CHƯA BIẾT, không bịa',
+	strpos( $tram_js2, 'CHƯA BIẾT giờ đã ghi hay' ) !== false );
+
+/* Câu lỗi mang mã ngắn để anh Thắng chụp màn là em đọc ra ngay việc nào hỏng ở đâu. */
+t( 'câu quá hạn kèm mã lỗi và tên việc', strpos( $tram_js2, '[QUA-HAN: ' ) !== false );
+t( 'câu mất mạng kèm mã lỗi', strpos( $tram_js2, '[MAT-MANG: ' ) !== false );
+t( 'câu HTTP lạ kèm mã lỗi', strpos( $tram_js2, "[HTTP-' + ma + ': ' + viec + ']" ) !== false );
+/* ⚠️ "Failed to fetch" / "Load failed" là chữ của trình duyệt, ba trình ba câu, không câu nào
+   nói được phải làm gì. Phải dịch, nhưng GIỮ chữ gốc trong ngoặc để còn đối chiếu. */
+t( 'lỗi mạng của fetch được dịch ra việc phải làm',
+	strpos( $tram_js2, 'Không gửi được lên máy chủ' ) !== false );
+
+/* --- 4. Ô CHỌN CƠ SỞ LÚC LƯU: CHỌN SẴN CƠ SỞ CHÍNH ----------------------------------------
+   Anh Thắng 09/09/2026: *"mặc định chấm công là chọn cơ sở chính phải không"* — đúng, và nay
+   có phép thử canh. Chỉ CHỌN SẴN, không khoá: người ta đổi được trong ô xổ, và lượt chấm ghi
+   vào cơ sở ĐANG CHỌN chứ không ghi vào cơ sở chính. Nếu một bản sau này bỏ chữ `selected` đi
+   thì ô xổ nhảy về phần tử đầu của `dsCoSo` — thường vẫn là cơ sở chính, nên lỗi sẽ CÂM ở đúng
+   những hồ sơ hai cơ sở mà thứ tự khác. */
+t( '🔴 ô chọn cơ sở lúc lưu ĐÁNH DẤU SẴN cơ sở chính',
+	strpos( $tram_js2, "(cs[i]===TOI.coSoMacDinh?' selected':'')" ) !== false );
+/* Và lượt gửi lấy giá trị của Ô, không lấy `coSoMacDinh` — đây mới là vế "đổi được". */
+t( 'lượt gửi lấy cơ sở ĐANG CHỌN trong ô, không lấy cơ sở chính',
+	strpos( $tram_js2, 'var cs = oCS ? oCS.value :' ) !== false );
+/* Một cơ sở thì không vẽ ô xổ — nhưng lượt gửi vẫn phải mang đúng tên cơ sở ấy, không gửi rỗng. */
+t( 'chỉ có một cơ sở thì lượt gửi vẫn mang đúng cơ sở đó',
+	strpos( $tram_js2, "(((TOI&&TOI.dsCoSo)||[])[0] || (TOI&&TOI.coSoMacDinh) || '')" ) !== false );
+/* 🔴 CƠ SỞ CHÍNH LUÔN CÓ MẶT TRONG DANH SÁCH, và đứng đầu — `ds_coso_cua_nv()` nhét
+   `$mac_dinh` vào trước rồi mới tới `cua_hang`/`coso_phu`. Không thế thì chữ `selected` ở trên
+   không khớp option nào và ô xổ lặng lẽ chọn cơ sở khác. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV_MDCS',
+	'ho_ten' => 'Người Chọn Sẵn', 'cua_hang' => 'MD_CHINH', 'coso_phu' => 'MD_PHU',
+	'pin_dang_nhap' => '556644', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$dn_md = VHCC_Tram::dang_nhap( '556644' );
+$tt_md = VHCC_Online::thong_tin( VHCC_Tram::nguoi( $dn_md['token'] ) );
+t( '🔴 cơ sở chọn sẵn đúng là cơ sở CHÍNH',
+	'MD_CHINH' === (string) $tt_md['coSoMacDinh'], $tt_md['coSoMacDinh'] );
+t( 'và nó đứng ĐẦU danh sách để ô xổ khớp được',
+	'MD_CHINH' === (string) $tt_md['dsCoSo'][0], $tt_md['dsCoSo'] );
+t( 'cơ sở phụ vẫn có trong ô xổ', in_array( 'MD_PHU', $tt_md['dsCoSo'], true ), $tt_md['dsCoSo'] );
+/* 🔴 VÀ CHẤM VÀO CƠ SỞ PHỤ THÌ GHI VÀO CƠ SỞ PHỤ. "Chọn sẵn" không được biến thành "ghi cứng". */
+$r_md = VHCC_Online::cham_cong( VHCC_Tram::nguoi( $dn_md['token'] ), '', null, 'MD_PHU', '' );
+t( '🔴 đổi ô sang cơ sở phụ thì ghi vào cơ sở phụ', ! empty( $r_md['ok'] )
+	&& 'MD_PHU' === (string) $r_md['coSo'], $r_md );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='NV_MDCS'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV_MDCS'" );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

@@ -20,6 +20,8 @@ vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
 vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
 
 $dat = 0; $truot = array();
+function teq_( $ten, $mong, $that ) { t( $ten, $mong === $that, 'mong "' . $mong . '" mà ra "' . $that . '"' ); }
+
 function t( $ten, $dk, $them = null ) {
 	global $dat, $truot;
 	if ( $dk ) { $dat++; return; }
@@ -600,6 +602,97 @@ if ( $ma_thu ) {
 	t( 'bấm Xoá trên màn thì mẫu biến mất', null === VHCC_Mat::mau( $ma_1 ) );
 }
 $_POST = array(); $_GET = array();
+
+/* ================================================== 13. ẢNH TRÊN MÀN DUYỆT (08/09/2026)
+ *
+ * 🔴 Anh Thắng: *"trên web quản trị chưa có phần duyệt khuôn mặt này (cần hiện rõ ảnh đó ra, đây
+ *    chỉ hiện duyệt hay không thôi)"*.
+ *    Chính chú thích trên màn ấy đã định nghĩa duyệt là *"tôi đã xem ảnh và đúng là người này"*.
+ *    Không có ảnh thì nút Duyệt chỉ là nút dọn hàng chờ — mà nó dán nhãn "đã có người xác nhận"
+ *    lên đúng tấm mẫu có thể là mặt người chấm hộ, rồi từ đó hệ thống gắn cờ NGƯỢC.
+ */
+global $wpdb;
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'AN1', 'ho_ten' => 'Người Có Ảnh',
+	'cua_hang' => 'VIVO', 'anh_the' => 'data:image/jpeg;base64,QUJDREVGR0g=' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-09-01',
+	'ma_nv' => 'AN1', 'hau_to' => '', 'ho_ten' => 'Người Có Ảnh',
+	'anh_vao' => 'vhcc-cham/2026/09/an1-vao.jpg', 'anh_ra' => '' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-09-05',
+	'ma_nv' => 'AN1', 'hau_to' => '', 'ho_ten' => 'Người Có Ảnh',
+	'anh_vao' => 'vhcc-cham/2026/09/an1-moi.jpg', 'anh_ra' => '' ) );
+$wpdb->insert( VHCC_DB::t( 'mat_mau' ), array( 'ma_nv' => 'AN1', 'vector' => '[0.1]', 'so_lan' => 1,
+	'trang_thai' => 'cho', 'nguon_ngay' => '2026-09-01', 'nguon_coso' => 'VIVO',
+	'cap_nhat' => '2026-09-01 08:00:00' ) );
+
+$a = VHCC_Mat::anh_cua_mau( 'AN1', '2026-09-01', 'VIVO' );
+teq_( 'lần đúng về tấm ĐÃ SINH RA MẪU, không phải tấm mới nhất',
+	'vhcc-cham/2026/09/an1-vao.jpg', $a['duong'] );
+t( 'và biết đó đúng là tấm gốc', ! empty( $a['dung_goc'] ), $a );
+
+/* ⚠️ Mẫu lấy từ ẢNH THẺ thì không có lượt chấm nào sinh ra nó (`nguon_ngay` rỗng). Lúc ấy hàm
+   vẫn đưa được một tấm để xem, NHƯNG phải hạ cờ `dung_goc` — người duyệt xác nhận nhầm một tấm
+   khác còn tệ hơn không thấy tấm nào. */
+$a2 = VHCC_Mat::anh_cua_mau( 'AN1', '', '' );
+teq_( 'không có nguồn thì lấy tấm GẦN NHẤT', 'vhcc-cham/2026/09/an1-moi.jpg', $a2['duong'] );
+t( '🔴 nhưng KHÔNG nhận là tấm gốc', empty( $a2['dung_goc'] ), $a2 );
+$a3 = VHCC_Mat::anh_cua_mau( 'KHONG_CO', '2026-09-01', 'VIVO' );
+teq_( 'người chưa có lượt chấm nào thì trả rỗng', '', $a3['duong'] );
+
+$ds_a = VHCC_Mat::ds( array( 'role' => 'Admin' ), 'cho' );
+t( 'ds() kèm ảnh mẫu', ! empty( $ds_a[0]['anh']['duong'] ), $ds_a );
+t( 'ds() kèm ảnh thẻ để đối chiếu', ! empty( $ds_a[0]['anh_the'] ), $ds_a );
+/* Ảnh thẻ là LONGTEXT ~60 KB/người: lượt chỉ đếm mã (duyệt hàng loạt) phải bỏ nó ra. */
+$ds_k = VHCC_Mat::ds( array( 'role' => 'Admin' ), 'cho', false );
+t( '🔴 gọi không kèm ảnh thì KHÔNG kéo ảnh thẻ về', ! isset( $ds_k[0]['anh_the'] ), $ds_k );
+t( 'và cũng không tra ảnh chấm công', ! isset( $ds_k[0]['anh'] ) );
+
+$_GET = array( 'loc' => 'cho' ); $_POST = array();
+ob_start(); VHCC_Man::trang_mat(); $h_a = ob_get_clean();
+t( '🔴 màn duyệt HIỆN ảnh của tấm sinh ra mẫu',
+	strpos( $h_a, 'vhcc-cham/2026/09/an1-vao.jpg' ) !== false, substr( $h_a, -1500 ) );
+t( 'và ghi rõ đó là tấm đã sinh ra mẫu', strpos( $h_a, 'Tấm đã sinh ra mẫu' ) !== false );
+t( '🔴 hiện KÈM ảnh thẻ làm bản đối chứng',
+	strpos( $h_a, 'Ảnh thẻ trong hồ sơ' ) !== false, substr( $h_a, -1500 ) );
+
+/* 🔴 BẪY `esc_url` NUỐT DATA URI. WordPress không cho `data` qua danh sách giao thức, nên
+   `esc_url($anh_the)` trả CHUỖI RỖNG — ảnh biến mất, không một lời báo. Bản giả trong wp-stub
+   nay cũng nuốt y hệt, nên phép thử này nổ thật chứ không xanh giả. */
+t( '🔴 ảnh thẻ (data URI) SỐNG SÓT qua lớp thoát chuỗi',
+	strpos( $h_a, 'data:image/jpeg;base64,QUJDREVGR0g=' ) !== false, substr( $h_a, -1500 ) );
+
+/* Data URI KHÔNG phải ảnh là một đường chạy mã trong trang quản trị — cột này do người dùng
+   nạp lên. Soát khuôn, và chối thì phải NÓI RA chứ không im. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'anh_the' => 'data:text/html;base64,PHNjcmlwdD4=' ), array( 'ma_nv' => 'AN1' ) );
+ob_start(); VHCC_Man::trang_mat(); $h_x = ob_get_clean();
+/* ⚠️ Phép "KHÔNG thấy X" phải kèm một phép khẳng định chứng minh trang đã dựng thật — trang
+   rỗng thì phép phủ định nào cũng xanh mà chẳng chứng minh gì (bẫy đã trả giá hai lần). */
+t( 'trang có dựng thật (dòng của người ấy vẫn ở đó)',
+	strpos( $h_x, 'Người Có Ảnh' ) !== false, substr( $h_x, -1200 ) );
+t( '🔴 data URI không phải ảnh thì KHÔNG vẽ ra', strpos( $h_x, 'data:text/html' ) === false );
+t( 'và nói rõ là ảnh hỏng khuôn, không im lặng bỏ qua',
+	strpos( $h_x, 'hỏng khuôn' ) !== false, substr( $h_x, -1200 ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'anh_the' => 'data:image/jpeg;base64,QUJDREVGR0g=' ), array( 'ma_nv' => 'AN1' ) );
+
+/* Ảnh gốc mất thì viền vàng + câu dặn — người duyệt lướt bằng mắt, một dòng chú thích nhỏ
+   không chặn được cú bấm Duyệt. */
+$wpdb->update( VHCC_DB::t( 'mat_mau' ), array( 'nguon_ngay' => null, 'nguon_coso' => '' ),
+	array( 'ma_nv' => 'AN1' ) );
+ob_start(); VHCC_Man::trang_mat(); $h_v = ob_get_clean();
+t( '🔴 không phải tấm gốc thì BÁO RÕ ngay trên ảnh',
+	strpos( $h_v, 'KHÔNG phải tấm gốc' ) !== false, substr( $h_v, -1500 ) );
+
+/* Không còn ảnh nào thì đừng để ô trống — ô trống đọc ra là "chưa tải xong". */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='AN1'" );
+ob_start(); VHCC_Man::trang_mat(); $h_0 = ob_get_clean();
+t( '🔴 không còn ảnh thì nói thẳng, và bảo XOÁ MẪU thay vì duyệt mò',
+	strpos( $h_0, 'Không còn ảnh' ) !== false && strpos( $h_0, 'Đừng duyệt mò' ) !== false,
+	substr( $h_0, -1500 ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv='AN1'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='AN1'" );
+$_GET = array();
 
 /* Menu phải khai màn này, kèm số chờ duyệt — mẫu chưa duyệt nằm im trong một tab không ai mở
    thì nó vẫn được dùng để so, và nếu chính tấm mẫu ấy bắt nhầm mặt thì hệ thống gắn cờ ngược

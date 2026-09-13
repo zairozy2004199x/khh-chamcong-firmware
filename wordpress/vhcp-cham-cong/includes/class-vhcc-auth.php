@@ -277,13 +277,30 @@ class VHCC_Auth {
 	 *
 	 * @return array{nguon:string, so_cu:int, so_moi:int, muc:array, nang:int}
 	 */
-	public static function doi_chieu_ho_so() {
+	public static function doi_chieu_ho_so() { return self::doi_chieu_nguon( 'ho_so' ); }
+
+	/**
+	 * ĐỐI CHIẾU SỔ ĐANG DÙNG VỚI MỘT NGUỒN ĐÍCH BẤT KỲ.
+	 *
+	 * 🔴 13/09/2026 — VÌ SAO PHẢI TỔNG QUÁT HOÁ. Phép soát này vốn chỉ so với `ho_so`, và chỉ
+	 *    màn Nhân sự gọi nó để KHOÁ NÚT. Nhưng đổi nguồn có **HAI CỬA**: màn Nhân sự (có soát)
+	 *    và màn *Hồ sơ & tài khoản* (bấm là đổi ngay). Chính chú thích ở cửa thứ nhất đã cảnh
+	 *    báo đúng chuyện này — *"hai cửa cho cùng một việc, và cửa mới thì chưa ai gác"* — mà
+	 *    thực tế lại đúng có hai cửa, và cửa chưa gác mới là cửa người ta hay bấm, vì nó nằm
+	 *    ngay dưới chỗ khai PIN.
+	 *
+	 *    Nên chốt phải nằm ở HÀM LÀM VIỆC (`VHCC_Web` xử `doi_nguon`), không nằm ở nút bấm. Cửa
+	 *    thứ ba mọc ra ngày nào cũng được gác sẵn.
+	 *
+	 * @param string $dich nguồn sắp chuyển sang.
+	 */
+	public static function doi_chieu_nguon( $dich = 'ho_so' ) {
 		global $wpdb;
 		$nguon = self::nguon();
 		$muc   = array();
 
 		$cu  = self::users_cua( $nguon );
-		$moi = self::users_cua( 'ho_so' );
+		$moi = self::users_cua( $dich );
 		if ( is_wp_error( $cu ) )  { $cu  = array(); }
 		if ( is_wp_error( $moi ) ) { $moi = array(); }
 
@@ -316,7 +333,7 @@ class VHCC_Auth {
 		   Họ vào được trang, nhưng nút chấm công báo "hồ sơ chưa có Mã NV" và mọi ngoại lệ quyền
 		   khai theo mã đều không bám vào đâu. Vào được mà không làm được gì. */
 		$t_hs = VHCC_DB::t( 'nhan_vien' );
-		if ( VHCC_DB::co_bang( $t_hs ) ) {
+		if ( 'ho_so' === $dich && VHCC_DB::co_bang( $t_hs ) ) {
 			$thieu = VHCC_DB::rows( "SELECT ho_ten, pin_dang_nhap FROM $t_hs"
 				. " WHERE pin_dang_nhap <> '' AND ( ma_nv IS NULL OR TRIM(ma_nv) = '' )" );
 			foreach ( (array) $thieu as $r ) {
@@ -343,9 +360,9 @@ class VHCC_Auth {
 				$muc[] = array(
 					'loai' => 'mat_duong', 'nang' => true,
 					'ten'  => '' !== $ten_cu ? $ten_cu : '(không tên)',
-					'noi'  => 'Đang đăng nhập được, nhưng hồ sơ nhân sự CHƯA khai PIN này. Chuyển '
+					'noi'  => 'Đang đăng nhập được, nhưng sổ "' . $dich . '" CHƯA khai PIN này. Chuyển '
 						. 'nguồn là họ đứng ngoài ngay — mà màn hình chỉ nói "PIN không đúng", nên '
-						. 'họ không đoán ra vì sao. Khai PIN vào hồ sơ của họ trước.',
+						. 'họ không đoán ra vì sao. Khai PIN cho họ ở sổ đó trước.',
 				);
 				continue;
 			}

@@ -15,13 +15,16 @@
  * Thứ tự khối cố ý đi từ NGOÀI VÀO TRONG, theo đúng đường một lượt bấm đi:
  *   1. Cổng có mở không (khoá `VHCC_KHOA_MAY`) — cổng đóng thì mọi thứ dưới đây vô nghĩa
  *   2. Máy nào mất nhịp
- *   3. Nhật ký cổng: gói nào bị bỏ, vì sao
- *   4. Danh sách máy · gán cơ sở
- *   5. Tải lại sổ chấm công từ đầu đọc
- *   6. Sổ mặt trong máy (người nghỉ việc vẫn chấm được)
- *   7. Lượt bấm chờ gán
- *   8. Lệnh đang chờ xuống máy
- *   9. Firmware / OTA
+ *   3. Danh sách máy · gán cơ sở
+ *   4. Tải lại sổ chấm công từ đầu đọc
+ *   5. Sổ mặt trong máy (người nghỉ việc vẫn chấm được)
+ *   6. Lượt bấm chờ gán
+ *   7. Lệnh đang chờ xuống máy (kèm cột "Ảnh mặt" — lệnh nào mang khuôn mặt)
+ *   8. Firmware / OTA
+ *   9. Nhật ký cổng: gói nào bị bỏ, vì sao — CUỐI TRANG
+ *
+ * ⚠️ Nhật ký cổng nằm CUỐI (anh Thắng 09/09/2026: *"chỗ này xuống cuối trang"*). Nó là thứ đọc
+ *    KHI CÓ SỰ CỐ, không phải thứ đọc hằng ngày — xem chú thích ở cuối `man()`.
  *
  * =============================================================================================
  * MẤY CHỐT KHÔNG ĐƯỢC NỚI
@@ -114,13 +117,20 @@ class VHCC_WebMay {
 		self::the_chan_doan();
 		self::the_dem( $ds, $ky );
 		self::the_mat_nhip( $ds );
-		self::the_nhat_ky();
 		self::the_ds_may( $ds, $ky );
 		self::the_tai_lai( $ds, $ky );
 		self::the_so_mat( $ds, $ky );
 		self::the_cho_gan();
 		self::the_lenh( $ky );
 		self::the_firmware( $ds, $ky );
+		/* 🔴 NHẬT KÝ CỔNG XUỐNG CUỐI — anh Thắng 09/09/2026: *"chỗ này xuống cuối trang"*.
+		   Nó vốn đứng thứ ba theo lối "đi từ ngoài vào trong", nhưng lối ấy chỉ đúng cho MỘT
+		   loại việc: lúc cả cơ sở mất chấm công và phải dò ngược xem gói tin chết ở đâu. Còn
+		   mọi lượt mở màn khác — xem máy nào mất nhịp, theo dõi lệnh xuống máy, đẩy firmware —
+		   thì nó là mấy chục dòng `GOI_THU_DUONG` chắn ngang, mỗi dòng cao bốn hàng vì cột "Lúc"
+		   xuống dòng. Thứ đọc KHI CÓ SỰ CỐ không nên chắn trước thứ đọc HẰNG NGÀY. Vẫn mở sẵn
+		   khi có dòng mới, chỉ là nằm dưới. */
+		self::the_nhat_ky();
 	}
 
 	/** 1. CỔNG CÓ MỞ KHÔNG. Đứng đầu vì cổng đóng thì mọi khối dưới đây vô nghĩa. */
@@ -661,12 +671,35 @@ class VHCC_WebMay {
 			echo '<p class="mo"><i>Không có lệnh nào đang chờ.</i></p></details></div>';
 			return;
 		}
-		echo '<div class="cuon"><table><thead><tr><th>Đặt lúc</th><th>Lệnh</th><th>Máy</th>'
-			. '<th>Nhân viên</th><th>Khoảng</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+
+		/* 🔴 09/09/2026 — CỘT "ẢNH MẶT". Anh Thắng: *"Danh sách nhân viên đủ ảnh và chờ đẩy vào
+		   máy chấm công chỗ nào"*. Bảng này vốn có đủ dữ liệu (`co_anh` đã nằm sẵn trong hàng
+		   đợi) nhưng KHÔNG hiện — nên vừa bấm "Lấy ảnh thẻ cho cả N người" xong, mở màn này ra
+		   chỉ thấy một dãy `add` giống hệt nhau, không phân biệt được lệnh nào mang khuôn mặt và
+		   lệnh nào chỉ ghi cái tên. Mà đó đúng là thứ cần theo dõi: lệnh KHÔNG mang ảnh thì người
+		   vào được đầu đọc nhưng vẫn phải ra máy đứng chụp lại. */
+		$co_anh_ = 0;
+		foreach ( $lenh as $q ) { if ( (int) $q['co_anh'] === 1 ) { $co_anh_++; } }
+		echo '<p class="mo"><b>' . $co_anh_ . '/' . count( $lenh ) . '</b> lệnh đang chờ có mang '
+			. '<b>ảnh khuôn mặt</b> — máy nhận xong là quẹt mặt được ngay, khỏi gọi người ra đứng '
+			. 'trước đầu đọc. Lệnh <b>không</b> mang ảnh thì người vẫn vào đầu đọc, nhưng khuôn '
+			. 'mặt phải lấy trực tiếp tại máy.</p>';
+
+		echo '<div class="cuon"><table><thead><tr><th>Đặt lúc</th><th>Lệnh</th><th>Ảnh mặt</th>'
+			. '<th>Máy</th><th>Nhân viên</th><th>Khoảng</th><th>Trạng thái</th><th></th>'
+			. '</tr></thead><tbody>';
 		foreach ( $lenh as $q ) {
 			$da_gui = ( VHCC_MayCong::GUI === $q['trang_thai'] );
+			/* Lệnh `delete` KHÔNG bao giờ mang ảnh (máy tự tra rồi bỏ đúng người) — để ô trống
+			   thay vì in "chưa có", kẻo đọc ra như một thiếu sót cần đi sửa. */
+			$o_anh = ( 'delete' === (string) $q['action'] )
+				? '<span class="mo">—</span>'
+				: ( (int) $q['co_anh'] === 1
+					? '<span style="color:#15803d;font-weight:600">✔ có</span>'
+					: '<span style="color:#b45309;font-weight:600">chưa có</span>' );
 			echo '<tr><td>' . esc_html( (string) $q['tao_luc'] ) . '</td>'
 				. '<td><code>' . esc_html( $q['action'] ) . '</code></td>'
+				. '<td>' . $o_anh . '</td>'
 				. '<td>' . esc_html( $q['cua_hang'] ? $q['cua_hang'] : $q['tram'] ) . '</td>'
 				. '<td>' . esc_html( trim( $q['ma_nv'] . ' ' . $q['ho_ten'] ) ) . '</td>'
 				. '<td>' . esc_html( trim( $q['tu_gio'] . ' → ' . $q['den_gio'], ' →' ) ) . '</td>'

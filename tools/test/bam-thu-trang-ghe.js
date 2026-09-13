@@ -20,10 +20,27 @@
  *    HTML vừa gán để biết có những phần tử nào. Đủ để bắt lỗi phạm vi, lỗi tên hàm, lỗi thứ tự
  *    gọi — là những thứ đã cắn thật. Không đủ để bắt lỗi CSS hay bố cục, và không định bắt.
  *
- * Chạy: node tools/test/bam-thu-trang-ghe.js <đường dẫn class-vhg-trang.php>
+ * Chạy: node tools/test/bam-thu-trang-ghe.js  (hoặc kèm đường dẫn class-vhg-trang.php khác)
+ *
+ * 🔴 ĐƯỜNG DẪN PHẢI CÓ MẶC ĐỊNH, KHÔNG BẮT GÕ TAY.
+ *    Trước 13/09/2026 bài này đòi `process.argv[2]`. Gọi không tham số thì nó NỔ mười dòng
+ *    `ERR_INVALID_ARG_TYPE` — trông y hệt một bài kiểm đỏ, nên ai chạy cả thư mục cũng tưởng
+ *    mã hỏng, mất một lượt đi tìm lỗi không có thật. Và vì nó "đỏ sẵn" nên không ai chạy nữa:
+ *    42 phép bấm thật nằm đó mà không canh gì cả.
+ *
+ *    ⚠️ Mặc định phải là ĐƯỜNG THẬT SỰ ĐƯỢC ĐI, không phải một nhánh dự phòng không ai tới.
+ *       `chay-het.sh` cố ý KHÔNG truyền tham số, đúng để đường mặc định này được chạy mỗi lượt.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const fs = require('fs');
-const src = fs.readFileSync(process.argv[2], 'utf8');
+const path = require('path');
+const MAC_DINH = path.join( __dirname, '..', '..', 'wordpress', 'vhcp-ghe', 'includes', 'class-vhg-trang.php' );
+const duong = process.argv[2] || MAC_DINH;
+if ( ! fs.existsSync( duong ) ) {
+	console.log( '✗ không thấy tệp: ' + duong );
+	console.log( '  (bài này đọc mã trang /ghe — truyền đường dẫn khác nếu kho đặt chỗ khác)' );
+	process.exit( 1 );
+}
+const src = fs.readFileSync(duong, 'utf8');
 const i = src.indexOf("<<<'JS'");
 const js = src.slice(src.indexOf("\n", i) + 1, src.indexOf("\nJS;", i));
 

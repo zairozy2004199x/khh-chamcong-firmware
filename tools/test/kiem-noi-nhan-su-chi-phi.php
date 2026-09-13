@@ -39,7 +39,7 @@ function ho_so( $ma, $ten, $pin = '', $tt = 'Đang làm', $ch = 'FARM PHAN THI�
 	global $wpdb;
 	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
 		'ma_nv' => $ma, 'ho_ten' => $ten, 'cua_hang' => $ch, 'chuc_vu' => 'Nhân viên',
-		'trang_thai_lam_viec' => $tt, 'pin_dang_nhap' => $pin, 'phong_ban' => $pb ) );
+		'trang_thai_lam_viec' => $tt, 'pin_dang_nhap' => $pin, 'bo_phan' => $pb ) );
 }
 /** Ghi bảng người dùng bên Chi phí. Mỗi phần tử: [tên, pin, vai, cơ sở, maDt, donVi, maNv]. */
 function users( $ds ) {
@@ -268,14 +268,14 @@ teq( '   và bên Chi phí',                       'Kỹ thuật',  $kh['Khớp 
 /* 🔴 BẢN CHẤM CÔNG CŨ CHƯA CÓ CỘT `phong_ban` — soát vẫn phải chạy, không được ném lỗi SQL.
    Bốn plugin cài độc lập; hỏi thẳng một cột chưa có là mọi lượt soát đều chết. */
 $t_ns = VHCC_DB::t( 'nhan_vien' );
-$wpdb->exec_raw( "ALTER TABLE $t_ns DROP COLUMN phong_ban" );
+$wpdb->exec_raw( "ALTER TABLE $t_ns DROP COLUMN bo_phan" );
 $cot_con = (array) $wpdb->get_col( "SHOW COLUMNS FROM $t_ns" );
-t( '   (bỏ được cột để dựng cảnh bản cũ)', ! in_array( 'phong_ban', $cot_con, true ), $cot_con );
+t( '   (bỏ được cột để dựng cảnh bản cũ)', ! in_array( 'bo_phan', $cot_con, true ), $cot_con );
 $s2 = VHCP_Cfg::soat_nhan_su();
-t( '⚠️ soát vẫn CHẠY khi bản chấm công chưa có cột phong_ban', ! empty( $s2['success'] ), $s2 );
+t( '⚠️ soát vẫn CHẠY khi bản chấm công chưa có cột bo_phan', ! empty( $s2['success'] ), $s2 );
 teq( '   và không ai bị coi là lệch phòng ban', 0, count( $s2['nhom']['lechPb'] ) );
 teq( '   mọi người đếm vào "chưa xếp bên Nhân sự"', 4, $s2['pbChuaNs'] );
-$wpdb->exec_raw( "ALTER TABLE $t_ns ADD COLUMN phong_ban VARCHAR(120) NOT NULL DEFAULT ''" );
+$wpdb->exec_raw( "ALTER TABLE $t_ns ADD COLUMN bo_phan VARCHAR(120) NOT NULL DEFAULT ''" );
 
 /* ═══ 5. ĐỔI TÊN NGƯỜI TRÊN MỌI BẢNG CÙNG LÚC ════════════════════════════════════ */
 /* Dựng lại cảnh của phần 4 — phần 4b đã dọn sạch ba bảng để đếm cho gọn. */

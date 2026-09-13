@@ -582,7 +582,7 @@ class VHCC_Mat {
 	 */
 	public static function thong_ke( $u, $tu_ngay = '', $den_ngay = '' ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Xem thống kê đối chiếu mặt' ) ); }
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) { return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Xem thống kê đối chiếu mặt' ) ); }
 		$bang = VHCC_DB::t( 'mat_nhat_ky' );
 		$dk   = '';
 		$tv   = array();
@@ -647,13 +647,218 @@ class VHCC_Mat {
 
 	// ==================================================================== quản trị
 
-	/** Danh sách mẫu, để màn quản trị duyệt / xoá. */
-	public static function ds( $u, $trang_thai = '' ) {
+	/**
+	 * BẬC ĐƯỢC DUYỆT MẪU — khai MỘT chỗ, cả wp-admin lẫn màn web đều hỏi hằng này.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng, khi em hỏi ai được duyệt: *"QUản lý và admin duyệt"*.
+	 *    Trước đó bốn cửa của lớp này gác bằng `ho_so` (bậc **Kế toán**, 4), nên Quản lý (bậc 3)
+	 *    mở màn ra chỉ thấy bảng RỖNG và bấm Duyệt thì bị chối — mà không có gì nói vì sao, vì
+	 *    câu chối lại nói về "hồ sơ nhân sự", một việc chẳng liên quan.
+	 *    Nay là `ngoai_coso` (bậc **Quản lý**, 3).
+	 *
+	 * ⚠️ THANG LÀ THANG: "Quản lý trở lên" nghĩa là Quản lý (3), Kế toán (4), Admin (5). Không
+	 *    có cách nào khai "Quản lý và Admin nhưng KHÔNG Kế toán" mà không phá thang — và phá
+	 *    thang là mở đường cho những tổ hợp quyền không ai giải thích nổi (xem chú thích ở
+	 *    `VHCC_Vai::NGOAI_LE`). Kế toán vốn là bậc *"full quyền ngoài admin"*, nên nằm trong là
+	 *    đúng ý chứ không phải nới lỏng.
+	 * ⚠️ Cửa hàng trưởng (2) ĐỨNG NGOÀI, và đó là cả điểm của lớp này: thứ mẫu khuôn mặt canh là
+	 *    CHẤM HỘ, mà người đứng gần chuyện chấm hộ nhất chính là người ở cửa hàng. Một lớp gác do
+	 *    chính người bị gác dựng lên thì không còn là lớp gác.
+	 */
+	const QUYEN = 'ngoai_coso';
+
+	/**
+	 * TẤM ẢNH ĐÃ SINH RA MẪU NÀY — để màn duyệt còn có cái mà xem.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"trên web quản trị chưa có phần duyệt khuôn mặt này (cần hiện
+	 *    rõ ảnh đó ra, đây chỉ hiện duyệt hay không thôi)"*.
+	 *    Chính chú thích trên màn ấy đã tự nói ra định nghĩa: duyệt nghĩa là *"tôi đã mở ảnh ra
+	 *    xem và đúng là người này"*. Mà màn hình lại KHÔNG có ảnh — nên nút Duyệt chỉ còn là một
+	 *    nút bấm cho hết hàng chờ. Duyệt bừa còn hại hơn không duyệt: nó dán nhãn "đã có người
+	 *    xác nhận" lên đúng tấm mẫu có thể là mặt người chấm hộ, và từ đó hệ thống gắn cờ NGƯỢC.
+	 *
+	 * Bảng `mat_mau` KHÔNG giữ ảnh (chỉ giữ dãy đặc trưng), nên phải lần ngược về lượt chấm công
+	 * đã sinh ra nó bằng cặp `nguon_ngay` + `nguon_coso`.
+	 *
+	 * ⚠️ TRẢ VỀ CẢ CỜ `dung_goc`. Ảnh chấm công cũ có thể đã bị dọn khỏi thư mục tải lên, hoặc
+	 *    mẫu được lấy từ ảnh thẻ nên không có lượt chấm nào cả. Lúc ấy hàm trả tấm chấm công
+	 *    GẦN NHẤT có ảnh — vẫn đáng xem, nhưng người duyệt PHẢI biết đó không phải tấm đã sinh
+	 *    ra mẫu, kẻo họ xác nhận nhầm một tấm khác.
+	 *
+	 * @return array ['duong'=>..., 'ngay'=>..., 'coso'=>..., 'dung_goc'=>bool] — 'duong' rỗng là không có.
+	 */
+	public static function anh_cua_mau( $ma_nv, $nguon_ngay = '', $nguon_coso = '' ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array(); }
+		$khong = array( 'duong' => '', 'ngay' => '', 'coso' => '', 'dung_goc' => false );
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return $khong; }
+		$t = VHCC_DB::t( 'cham_cong' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return $khong; }
+
+		/* Lượt ĐÚNG NGUỒN trước. `hau_to` có thể khác rỗng (người kiêm hai việc ghi hàng riêng),
+		   nên không khoá theo nó — bất kỳ hàng nào của người ấy ngày ấy ở cơ sở ấy đều là tấm
+		   chụp cùng buổi. Ưu tiên hàng CÓ ảnh, rồi tới hàng vào trước. */
+		$ngay = trim( (string) $nguon_ngay );
+		$coso = trim( (string) $nguon_coso );
+		if ( '' !== $ngay ) {
+			$sql = 'SELECT anh_vao, anh_ra, ngay, coso FROM ' . $t . ' WHERE ma_nv=%s AND ngay=%s';
+			$ts  = array( $ma, $ngay );
+			if ( '' !== $coso ) { $sql .= ' AND coso=%s'; $ts[] = $coso; }
+			$sql .= " AND (anh_vao <> '' OR anh_ra <> '') ORDER BY id ASC LIMIT 1";
+			$h = $wpdb->get_row( $wpdb->prepare( $sql, $ts ), ARRAY_A );
+			if ( $h ) {
+				$d = '' !== (string) $h['anh_vao'] ? $h['anh_vao'] : $h['anh_ra'];
+				return array( 'duong' => (string) $d, 'ngay' => (string) $h['ngay'],
+					'coso' => (string) $h['coso'], 'dung_goc' => true );
+			}
+		}
+
+		$h = $wpdb->get_row( $wpdb->prepare(
+			'SELECT anh_vao, anh_ra, ngay, coso FROM ' . $t
+			. " WHERE ma_nv=%s AND (anh_vao <> '' OR anh_ra <> '') ORDER BY ngay DESC, id DESC LIMIT 1",
+			$ma ), ARRAY_A );
+		if ( ! $h ) { return $khong; }
+		$d = '' !== (string) $h['anh_vao'] ? $h['anh_vao'] : $h['anh_ra'];
+		return array( 'duong' => (string) $d, 'ngay' => (string) $h['ngay'],
+			'coso' => (string) $h['coso'], 'dung_goc' => false );
+	}
+
+	/**
+	 * TẤM ẢNH CHẤM CÔNG "CHUẨN NHẤT" CỦA MỘT NGƯỜI — để lấy làm ảnh thẻ.
+	 *
+	 * =========================================================================================
+	 * 🔴 09/09/2026 — anh Thắng: *"tài khoản có tính năng chấm công online, và có hệ thống nhận
+	 * diện khuôn mặt, vậy lấy ảnh nhận diện chuẩn đặt để đẩy vào đây luôn được không"*, sau khi
+	 * mở màn Bảng công thấy **29 người ở một cơ sở chưa có ảnh thẻ** — trong khi chính mấy người
+	 * ấy đã tự chụp mặt mình cả chục lần rồi, mỗi lượt chấm công một tấm.
+	 * =========================================================================================
+	 *
+	 * 🔴 CHỌN THEO SỐ ĐO, KHÔNG CHỌN TẤM MỚI NHẤT. Ảnh chấm công là ảnh chụp tại chỗ: có tấm đeo
+	 *    khẩu trang, có tấm đội mũ bảo hiểm, có tấm ngược nắng (xem bảng "30 lượt lệch nhất" —
+	 *    quá nửa là mấy tấm đó). Lấy tấm mới nhất là gặp gì lấy nấy.
+	 *    Nhưng hệ thống đã có sẵn một thước đo cho đúng việc này: **khoảng cách `d`** giữa tấm ấy
+	 *    và mẫu của người đó. `d` NHỎ nghĩa là khuôn mặt hiện rõ và giống hệt mọi lượt khác —
+	 *    tức là **không khẩu trang, không mũ, đủ sáng, nhìn thẳng**. Nên chọn tấm `d` nhỏ nhất
+	 *    chính là chọn tấm rõ mặt nhất, mà không cần biết gì về khẩu trang hay mũ.
+	 *
+	 * ⚠️ CHỈ LẤY LƯỢT KẾT LUẬN 'khop' VÀ KHÔNG BỊ GẮN CỜ. Đây là chốt chống **chấm hộ**: nếu một
+	 *    lượt là mặt người khác thì `d` lớn và kết luận là 'lech' — lấy đúng tấm ấy làm ảnh thẻ
+	 *    là dán mặt người chấm hộ lên hồ sơ nạn nhân, rồi từ đó máy chấm công nhận nhầm suốt.
+	 * ⚠️ KHÔNG có lượt 'khop' nào thì trả rỗng, KHÔNG hạ chuẩn xuống 'kho_noi'. Người mới chỉ có
+	 *    đúng một lượt (lượt ấy thành mẫu, chưa có gì để so) thì thà không đề xuất còn hơn đề
+	 *    xuất một tấm chưa ai đối chiếu với cái gì.
+	 * ⚠️ HÀM NÀY KHÔNG GHI GÌ. Nó chỉ đề xuất; người ta phải NHÌN tấm ảnh rồi mới bấm lưu.
+	 *
+	 * @return array ['duong'=>..., 'ngay'=>..., 'coso'=>..., 'd'=>float] — 'duong' rỗng = không có.
+	 */
+	public static function anh_chuan_cho( $ma_nv ) {
+		global $wpdb;
+		$khong = array( 'duong' => '', 'ngay' => '', 'coso' => '', 'd' => 0.0 );
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return $khong; }
+		$t_nk = VHCC_DB::t( 'mat_nhat_ky' );
+		$t_cc = VHCC_DB::t( 'cham_cong' );
+		if ( ! VHCC_DB::co_bang( $t_nk ) || ! VHCC_DB::co_bang( $t_cc ) ) { return $khong; }
+
+		/* Lấy vài ứng viên chứ không lấy đúng một: tấm `d` nhỏ nhất có thể đã bị dọn khỏi thư
+		   mục uploads (sao lưu, dọn ổ đĩa), mà rơi vào đó rồi trả rỗng thì người dùng thấy
+		   "không có ảnh" trong khi vẫn còn cả chục tấm dùng được. */
+		$ds = VHCC_DB::rows( $wpdb->prepare(
+			"SELECT ngay, coso, d FROM $t_nk WHERE ma_nv=%s AND ket_qua='khop' AND co_gan=0"
+			. ' AND ngay IS NOT NULL ORDER BY d ASC LIMIT 10', $ma ) );
+		foreach ( (array) $ds as $x ) {
+			$h = $wpdb->get_row( $wpdb->prepare(
+				"SELECT anh_vao, anh_ra FROM $t_cc WHERE ma_nv=%s AND ngay=%s AND coso=%s"
+				. " AND (anh_vao <> '' OR anh_ra <> '') ORDER BY id ASC LIMIT 1",
+				$ma, (string) $x['ngay'], (string) $x['coso'] ), ARRAY_A );
+			if ( ! $h ) { continue; }
+			$d = '' !== (string) $h['anh_vao'] ? (string) $h['anh_vao'] : (string) $h['anh_ra'];
+			if ( '' === $d || ! self::co_tep_anh( $d ) ) { continue; }
+			return array( 'duong' => $d, 'ngay' => (string) $x['ngay'],
+				'coso' => (string) $x['coso'], 'd' => (float) $x['d'] );
+		}
+		return $khong;
+	}
+
+	/**
+	 * AI ĐANG CHỜ LẤY ẢNH THẺ — đếm theo cơ sở, MỘT lượt đọc cho cả chuỗi.
+	 *
+	 * 🔴 09/09/2026 — anh Thắng: *"chỗ hồ sơ này, nếu nv có ảnh hợp lệ chờ lưu hoặc đẩy vào máy
+	 *    thì đưa một thông báo nhỏ và link dẫn sang để đẩy"*.
+	 *    Khối lấy ảnh nằm ở màn Bảng công, mà người mở trang Quản lý nhân sự thì đang nhìn đúng
+	 *    cột hồ sơ — không có gì nói cho họ biết là có sẵn ảnh dùng được ở màn bên.
+	 *
+	 * 🔴 KHÔNG GỌI `anh_chuan_cho()` CHO TỪNG NGƯỜI. Hàm ấy tra tới mười lượt chấm công mỗi
+	 *    người; nhân với hai trăm rưỡi hồ sơ là vài trăm lượt đọc cho MỘT DẢI BÁO. Ở đây chỉ cần
+	 *    biết *có hay không*, và câu ấy trả lời được bằng **một** phép nối bảng: ai chưa có ảnh
+	 *    thẻ mà đã từng có lượt đối chiếu KHỚP. Con số có thể nhỉnh hơn số thật vài người (ảnh
+	 *    của lượt ấy đã bị dọn khỏi ổ đĩa) — chấp nhận được cho một dải báo dẫn đường, vì màn kia
+	 *    mới là nơi nói chính xác từng người.
+	 *
+	 * ⚠️ Bỏ người ĐÃ NGHỈ: lọc bằng `VHCC_NhanSu::da_nghi()` trong PHP chứ không bằng `LIKE` trong
+	 *    SQL — luật "thế nào là đã nghỉ" khai một chỗ, và chép nó thành một mẫu chuỗi trong câu
+	 *    lệnh là dựng bộ luật thứ hai sẽ lệch.
+	 *
+	 * @return array [ 'CƠ_SỞ' => số người ] — đã sắp theo tên cơ sở.
+	 */
+	public static function cho_lay_anh_theo_coso() {
+		global $wpdb;
+		$t_hs = VHCC_DB::t( 'nhan_vien' );
+		$t_nk = VHCC_DB::t( 'mat_nhat_ky' );
+		if ( ! VHCC_DB::co_bang( $t_hs ) || ! VHCC_DB::co_bang( $t_nk ) ) { return array(); }
+		$ds = VHCC_DB::rows(
+			"SELECT DISTINCT n.ma_nv, n.cua_hang, n.trang_thai_lam_viec FROM $t_hs n"
+			. " JOIN $t_nk k ON k.ma_nv = n.ma_nv AND k.ket_qua='khop' AND k.co_gan=0"
+			. " WHERE n.ma_nv <> '' AND (n.anh_the IS NULL OR n.anh_the='')" );
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			if ( VHCC_NhanSu::da_nghi( isset( $x['trang_thai_lam_viec'] ) ? $x['trang_thai_lam_viec'] : '' ) ) {
+				continue;
+			}
+			$cs = VHCC_NhanSu::chuan_coso( (string) $x['cua_hang'] );
+			if ( '' === $cs ) { continue; }   // chưa khai cơ sở -> màn kia cũng không vẽ được
+			$ra[ $cs ] = ( isset( $ra[ $cs ] ) ? $ra[ $cs ] : 0 ) + 1;
+		}
+		ksort( $ra );
+		return $ra;
+	}
+
+	/**
+	 * Tệp ảnh chấm công ấy có còn nằm trên ổ đĩa không.
+	 * ⚠️ Hỏi Ổ ĐĨA chứ không hỏi cơ sở dữ liệu: cột `anh_vao` giữ đường dẫn, nhưng tệp thì bị
+	 *    dọn được (sao lưu, dọn ổ, chuyển host). Đề xuất một tấm không mở ra được là đưa người
+	 *    ta tới một ô ảnh vỡ, rồi họ tưởng tính năng hỏng.
+	 */
+	public static function co_tep_anh( $duong ) {
+		$duong = trim( (string) $duong );
+		if ( '' === $duong ) { return false; }
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) || empty( $u['basedir'] ) ) { return false; }
+		return is_readable( trailingslashit( $u['basedir'] ) . $duong );
+	}
+
+	/** Đường dẫn tuyệt đối của một ảnh chấm công. Rỗng nếu không đọc được. */
+	public static function tep_anh( $duong ) {
+		if ( ! self::co_tep_anh( $duong ) ) { return ''; }
+		$u = wp_upload_dir();
+		return trailingslashit( $u['basedir'] ) . trim( (string) $duong );
+	}
+
+	/**
+	 * Danh sách mẫu, để màn quản trị duyệt / xoá.
+	 *
+	 * @param bool $kem_anh nạp kèm ảnh để duyệt (tấm sinh ra mẫu + ảnh thẻ trong hồ sơ).
+	 *                      Để `false` khi chỉ cần đếm — xem chú thích ở dưới.
+	 */
+	public static function ds( $u, $trang_thai = '', $kem_anh = true ) {
+		global $wpdb;
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) { return array(); }
 		$bang = VHCC_DB::t( 'mat_mau' );
 		$hs   = VHCC_DB::t( 'nhan_vien' );
-		$sql  = "SELECT m.*, n.ho_ten, n.cua_hang FROM $bang m LEFT JOIN $hs n ON n.ma_nv = m.ma_nv";
+		/* ⚠️ `anh_the` là LONGTEXT chứa data URI (~50–80 KB mỗi ảnh), nên CHỈ lấy khi màn hình
+		   thật sự vẽ ảnh. Kéo nó về cho một lượt đếm là tự nhân số liệu lên vài megabyte. */
+		$cot = $kem_anh ? 'm.*, n.ho_ten, n.cua_hang, n.anh_the' : 'm.*, n.ho_ten, n.cua_hang';
+		$sql = "SELECT $cot FROM $bang m LEFT JOIN $hs n ON n.ma_nv = m.ma_nv";
 		if ( in_array( $trang_thai, array( 'cho', 'duyet' ), true ) ) {
 			$sql = $wpdb->prepare( $sql . ' WHERE m.trang_thai=%s ORDER BY m.cap_nhat DESC', $trang_thai );
 		} else {
@@ -665,6 +870,11 @@ class VHCC_Mat {
 			/* KHÔNG trả dãy đặc trưng ra màn hình. Nó là dữ liệu sinh trắc học, và màn hình
 			   này không dùng tới nó — chỉ cần biết đã có mẫu, gộp mấy lần, duyệt chưa. */
 			unset( $x['vector'] );
+			if ( $kem_anh ) {
+				$x['anh'] = self::anh_cua_mau( $x['ma_nv'],
+					isset( $x['nguon_ngay'] ) ? $x['nguon_ngay'] : '',
+					isset( $x['nguon_coso'] ) ? $x['nguon_coso'] : '' );
+			}
 			$out[] = $x;
 		}
 		return $out;
@@ -672,8 +882,8 @@ class VHCC_Mat {
 
 	public static function duyet( $u, $ma_nv ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Duyệt mẫu khuôn mặt' ) );
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Duyệt mẫu khuôn mặt' ) );
 		}
 		$ma = trim( (string) $ma_nv );
 		if ( ! self::mau( $ma ) ) { return array( 'ok' => false, 'error' => 'Không thấy mẫu của mã ' . $ma . '.' ); }
@@ -690,8 +900,8 @@ class VHCC_Mat {
 	 */
 	public static function xoa( $u, $ma_nv ) {
 		global $wpdb;
-		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Xoá mẫu khuôn mặt' ) );
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, self::QUYEN, 'Xoá mẫu khuôn mặt' ) );
 		}
 		$ma = trim( (string) $ma_nv );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã NV.' ); }

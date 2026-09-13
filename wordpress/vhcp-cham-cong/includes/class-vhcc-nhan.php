@@ -150,7 +150,18 @@ class VHCC_Nhan {
 			nocache_headers();
 			header( 'Content-Type: application/json; charset=utf-8' );
 		}
-		echo wp_json_encode( $tt );
+		/* 🔴 KHÔNG ESCAPE DẤU `/` TRONG THÂN TRẢ VỀ CHO MÁY — 09/09/2026.
+		   `json_encode` mặc định đổi `/` thành `\/`. Với mọi thứ khác thì vô hại (ArduinoJson
+		   đọc `\/` y như `/`), nhưng ẢNH KHUÔN MẶT đi qua một bộ giải mã base64 VIẾT TAY trong
+		   firmware — nó bám mốc `anh":"` rồi coi mọi ký tự sau đó là base64, không hiểu escape.
+		   Mà base64 của một tấm JPEG gần như luôn mở đầu bằng `/9j/`: gặp `\` là ký tự lạ →
+		   `err` → `fetchPhotoDecoded` trả -3 → người vào đầu đọc mà KHÔNG có khuôn mặt.
+		   Đây là lỗi THỨ HAI trên cùng một đường ảnh, độc lập với chuyện tiền tố `data:` (xem
+		   `VHCC_MayCong::b64_tron`) — sửa một cái mà quên cái kia thì ảnh vẫn không xuống được,
+		   nên phép thử dựng lại NGUYÊN bộ giải mã của firmware chứ không đo từng mảnh.
+		   ⚠️ Chỉ là chuyện in ấn: `\/` và `/` là CÙNG một chuỗi trong JSON, nên không cổng nào
+		      đọc khác đi. */
+		echo wp_json_encode( $tt, JSON_UNESCAPED_SLASHES );
 		if ( ! defined( 'VHCC_TEST' ) ) { exit; }
 	}
 

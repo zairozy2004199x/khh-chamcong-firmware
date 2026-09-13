@@ -65,7 +65,8 @@ class VHCC_Man {
 				   duyệt những mẫu đang hiện, và nói rõ số — "duyệt tất" mà không biết tất là
 				   bao nhiêu thì đó là bấm bừa. */
 				$so = 0;
-				foreach ( VHCC_Mat::ds( $u, 'cho' ) as $m ) {
+				/* `false` = đừng nạp ảnh: lượt này chỉ đếm mã, mà mỗi ảnh thẻ là ~60 KB. */
+				foreach ( VHCC_Mat::ds( $u, 'cho', false ) as $m ) {
 					if ( ! empty( VHCC_Mat::duyet( $u, $m['ma_nv'] )['ok'] ) ) { $so++; }
 				}
 				$bao[] = array( 'ok' => true, 'so' => $so );
@@ -125,14 +126,30 @@ class VHCC_Man {
 
 			if ( ! empty( $tk['dau'] ) ) {
 				echo '<h3>30 lượt lệch nhất</h3>';
-				echo '<p class="description">Mở ảnh của đúng mấy lượt này ở '
-					. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc-cham' ) ) . '">Bảng chấm công</a> '
-					. 'là biết ngưỡng nên đặt ở đâu: xem chúng là người thật hay không.</p>';
-				echo '<table class="widefat striped" style="max-width:760px"><thead><tr>'
+				/* 🔴 08/09/2026 — ẢNH HIỆN NGAY TẠI ĐÂY, không bảo người ta đi sang màn khác tìm.
+				   Bảng này sinh ra để trả lời đúng một câu: "mấy lượt lệch nhất là người thật hay
+				   không". Câu ấy chỉ trả lời được bằng MẮT. Bản cũ chỉ đưa một đường dẫn sang Bảng
+				   chấm công rồi bắt tự dò ra đúng ngày, đúng người — ba mươi lần. Không ai làm
+				   thế, nên ngưỡng vẫn để nguyên số mặc định. */
+				echo '<p class="description" style="max-width:900px">Nhìn ảnh: <b>người thật hay '
+					. 'không</b>. Đám lệch cao mà vẫn là người thật -> nới ngưỡng lên. '
+					. 'Bấm vào ảnh để xem lớn.</p>';
+				echo '<table class="widefat striped" style="max-width:900px"><thead><tr>'
+					. '<th style="width:80px">Ảnh</th>'
 					. '<th>Lệch</th><th>Mã NV</th><th>Ngày</th><th>Cơ sở</th><th>Kết luận</th>'
 					. '</tr></thead><tbody>';
 				foreach ( $tk['dau'] as $d_ ) {
-					echo '<tr><td><b>' . esc_html( number_format( (float) $d_['d'], 3 ) ) . '</b></td>'
+					$a_ = VHCC_Mat::anh_cua_mau( $d_['ma_nv'], (string) $d_['ngay'], (string) $d_['coso'] );
+					$u_ = ! empty( $a_['dung_goc'] ) ? self::url_anh_cham( $a_['duong'] ) : '';
+					echo '<tr><td>' . ( '' !== $u_
+						/* CHỈ hiện khi đúng lượt ấy. Lấy tấm gần nhất thay vào là đưa người ta
+						   xem nhầm ảnh rồi kết luận về một lượt khác — tệ hơn hẳn ô trống. */
+						? '<a href="' . esc_url( $u_ ) . '" target="_blank" rel="noopener">'
+							. '<img src="' . esc_url( $u_ ) . '" alt="Ảnh lượt chấm" loading="lazy"'
+							. ' style="width:64px;height:64px;object-fit:cover;border-radius:5px;'
+							. 'display:block;border:1px solid #c3c4c7"></a>'
+						: '<span style="color:#646970;font-size:11px">không có ảnh</span>' ) . '</td>'
+						. '<td><b>' . esc_html( number_format( (float) $d_['d'], 3 ) ) . '</b></td>'
 						. '<td>' . esc_html( $d_['ma_nv'] ) . '</td>'
 						. '<td>' . esc_html( (string) $d_['ngay'] ) . '</td>'
 						. '<td>' . esc_html( $d_['coso'] ) . '</td>'
@@ -150,8 +167,14 @@ class VHCC_Man {
 		echo '<p class="description" style="max-width:900px">⚠️ <b>Mẫu chưa duyệt vẫn được dùng để '
 			. 'so.</b> Nếu chính ngày đầu tiên ấy có người chấm hộ thì mẫu ghi lại mặt người chấm '
 			. 'hộ — và từ đó hệ thống gắn cờ <b>ngược</b>: người thật bị coi là giả. Duyệt nghĩa là '
-			. '"tôi đã mở ảnh ra xem và đúng là người này"; nghi ngờ thì <b>Xoá mẫu</b>, lượt chấm '
+			. '"tôi đã xem ảnh và đúng là người này"; nghi ngờ thì <b>Xoá mẫu</b>, lượt chấm '
 			. 'sau tự lấy lại.</p>';
+		echo '<p class="description" style="max-width:900px">Cột <b>Ảnh</b> đặt hai tấm cạnh nhau: '
+			. '<span style="color:#1a7f37;font-weight:600">tấm đã sinh ra mẫu</span> (lượt chấm công '
+			. 'đầu tiên của người đó) và <span style="color:#2271b1;font-weight:600">ảnh thẻ trong hồ '
+			. 'sơ</span>. Cùng một người thì duyệt; khác người thì <b>Xoá mẫu</b>. Viền '
+			. '<span style="color:#bd8600;font-weight:600">vàng</span> nghĩa là ảnh gốc không còn, '
+			. 'đang hiện tạm tấm chấm công gần nhất — <b>đừng duyệt theo tấm đó</b>.</p>';
 
 		$url_loc = admin_url( 'admin.php?page=vhcc-mat' );
 		echo '<p>';
@@ -171,11 +194,13 @@ class VHCC_Man {
 		   Gộp cả bảng vào một form thì mọi ô ẩn `ma_nv` cùng được gửi lên, và máy chủ đọc cái
 		   cuối cùng — bấm "Xoá mẫu" ở dòng đầu lại xoá mẫu của dòng cuối. HTML cho phép <form>
 		   nằm trong <td>; chỉ không cho form lồng trong form, mà ở đây không có form bọc ngoài. */
-		echo '<table class="widefat striped" style="max-width:1000px"><thead><tr>'
+		echo '<table class="widefat striped" style="max-width:1180px"><thead><tr>'
+			. '<th style="width:250px">Ảnh — xem rồi mới duyệt</th>'
 			. '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Lấy từ</th><th>Đã gộp</th>'
 			. '<th>Trạng thái</th><th style="width:230px"></th></tr></thead><tbody>';
 		foreach ( $ds as $m ) {
-			echo '<tr><td><b>' . esc_html( $m['ma_nv'] ) . '</b></td>'
+			echo '<tr><td>' . self::o_anh_mau( $m ) . '</td>'
+				. '<td><b>' . esc_html( $m['ma_nv'] ) . '</b></td>'
 				. '<td>' . esc_html( (string) $m['ho_ten'] ) . '</td>'
 				. '<td>' . esc_html( (string) $m['cua_hang'] ) . '</td>'
 				. '<td>' . esc_html( (string) $m['nguon_ngay'] )
@@ -205,11 +230,110 @@ class VHCC_Man {
 			wp_nonce_field( 'vhcc_mat_man' );
 			echo '<button class="button" name="vhcc_mat_viec" value="duyet_het">Duyệt tất cả '
 				. count( $ds ) . ' mẫu đang chờ</button>';
-			echo ' <span class="description">chỉ bấm khi đã xem qua ảnh — duyệt bừa là mất luôn '
-				. 'tác dụng của việc duyệt.</span></form>';
+			echo ' <span class="description">chỉ bấm khi đã lướt hết cột ảnh ở trên — duyệt bừa là '
+				. 'mất luôn tác dụng của việc duyệt.</span></form>';
 		}
 
 		echo '</div>';
+	}
+
+	/**
+	 * Ô ẢNH của một dòng mẫu — TẤM SINH RA MẪU, kèm ẢNH THẺ để đối chiếu.
+	 *
+	 * 🔴 08/09/2026 — anh Thắng: *"cần hiện rõ ảnh đó ra, đây chỉ hiện duyệt hay không thôi"*.
+	 *    Trước bản này màn duyệt chỉ có chữ. Mà chính chú thích ngay trên bảng đã định nghĩa
+	 *    duyệt là *"tôi đã mở ảnh ra xem và đúng là người này"* — không có ảnh thì cái nút ấy
+	 *    chỉ còn là nút dọn hàng chờ, và nó dán nhãn "đã có người xác nhận" lên đúng tấm mẫu có
+	 *    thể là mặt người chấm hộ.
+	 *
+	 * 🔴 HAI ẢNH CẠNH NHAU, KHÔNG PHẢI MỘT. Một mình tấm mẫu chỉ trả lời được "có phải mặt người
+	 *    không"; câu cần trả lời là "có phải mặt ĐÚNG NGƯỜI NÀY không" — mà muốn vậy phải có cái
+	 *    để so. Ảnh thẻ trong hồ sơ là bản đối chứng sẵn có: Cửa hàng trưởng chụp lúc lập hồ sơ,
+	 *    có mặt người đó.
+	 *
+	 * ⚠️ Ảnh hiện SẴN, không phải rê chuột hay bấm mới thấy. Cả màn này sinh ra để NHÌN; giấu nó
+	 *    sau một cú bấm là quay lại đúng chỗ cũ. Bấm vào vẫn mở được ảnh gốc ở tab mới.
+	 * ⚠️ MÀN NÀY KHÔNG CÓ <script> — mọi thứ dưới đây là HTML + CSS nội tuyến.
+	 */
+	private static function o_anh_mau( $m ) {
+		$a   = isset( $m['anh'] ) && is_array( $m['anh'] ) ? $m['anh'] : array();
+		$the = isset( $m['anh_the'] ) ? trim( (string) $m['anh_the'] ) : '';
+		$o   = '<div style="display:flex;gap:8px;align-items:flex-start">';
+
+		$url = self::url_anh_cham( isset( $a['duong'] ) ? $a['duong'] : '' );
+		if ( '' !== $url ) {
+			/* Tấm KHÔNG đúng nguồn phải nói ra, và nói bằng viền vàng chứ không chỉ bằng chữ:
+			   người duyệt lướt bảng bằng mắt, một dòng chú thích nhỏ dưới ảnh không chặn được
+			   cú bấm Duyệt. */
+			$goc = ! empty( $a['dung_goc'] );
+			$o  .= self::khoi_anh_( $url, $goc ? 'Tấm đã sinh ra mẫu' : '⚠️ KHÔNG phải tấm gốc',
+				trim( (string) $a['ngay'] ) . ( '' !== (string) $a['coso'] ? ' · ' . $a['coso'] : '' ),
+				$goc ? '#1a7f37' : '#bd8600' );
+		} else {
+			$o .= '<div style="width:110px;font-size:11px;color:#b32d2e;line-height:1.35">'
+				. '⚠️ <b>Không còn ảnh</b><br>Lượt chấm sinh ra mẫu này không kèm ảnh, hoặc ảnh đã '
+				. 'bị dọn. <b>Đừng duyệt mò</b> — xoá mẫu đi, lượt chấm sau tự lấy lại.</div>';
+		}
+
+		if ( '' !== $the ) {
+			$o .= self::khoi_anh_( $the, 'Ảnh thẻ trong hồ sơ', 'bản đối chứng', '#2271b1' );
+		} else {
+			$o .= '<div style="width:110px;font-size:11px;color:#646970;line-height:1.35">'
+				. 'Hồ sơ <b>chưa có ảnh thẻ</b> — không có gì để đối chiếu. Chỉ duyệt khi anh/chị '
+				. 'nhận ra mặt người này.</div>';
+		}
+		return $o . '</div>';
+	}
+
+	/**
+	 * Một ảnh + nhãn. `$src` nhận cả URL lẫn data URI (ảnh thẻ lưu dạng data URI).
+	 *
+	 * 🔴 DATA URI KHÔNG ĐƯỢC ĐI QUA `esc_url()`. WordPress không có `data` trong danh sách giao
+	 *    thức cho phép, nên `esc_url` trả về CHUỖI RỖNG — ảnh thẻ biến mất, không một lời báo,
+	 *    và người đọc mã sẽ tưởng hồ sơ chưa có ảnh. Với data URI thì soát khuôn rồi `esc_attr`.
+	 * ⚠️ Data URI cũng KHÔNG bọc trong <a>: trình duyệt chặn mở data: ở tab mới từ vài năm nay,
+	 *    nên cái liên kết ấy chỉ là một chỗ bấm không làm gì.
+	 */
+	private static function khoi_anh_( $src, $nhan, $phu, $mau ) {
+		$la_data = ( 0 === strpos( (string) $src, 'data:' ) );
+		if ( $la_data ) {
+			/* Chỉ nhận data URI ẢNH. Cột này do người dùng nạp lên (`rua_anh_the`), mà một
+			   `data:text/html,...` nhét vào `src` là một đường chạy mã trong trang quản trị. */
+			if ( ! preg_match( '#^data:image/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$#', (string) $src ) ) {
+				return '<div style="width:110px;font-size:11px;color:#b32d2e">Ảnh thẻ hỏng khuôn.</div>';
+			}
+			$the_anh = '<img src="' . esc_attr( $src ) . '"';
+		} else {
+			$the_anh = '<img src="' . esc_url( $src ) . '" loading="lazy"';
+		}
+		$the_anh .= ' alt="' . esc_attr( $nhan ) . '"'
+			. ' style="width:110px;height:110px;object-fit:cover;border-radius:6px;display:block;'
+			. 'border:2px solid ' . esc_attr( $mau ) . '">';
+
+		return '<div style="width:110px">'
+			. ( $la_data ? $the_anh
+				: '<a href="' . esc_url( $src ) . '" target="_blank" rel="noopener" '
+					. 'title="Mở ảnh gốc ở tab mới">' . $the_anh . '</a>' )
+			. '<div style="font-size:11px;color:' . esc_attr( $mau ) . ';font-weight:600;margin-top:3px">'
+			. esc_html( $nhan ) . '</div>'
+			. ( '' !== $phu ? '<div style="font-size:11px;color:#646970">' . esc_html( $phu ) . '</div>' : '' )
+			. '</div>';
+	}
+
+	/**
+	 * Đường dẫn tương đối trong `cham_cong.anh_vao`/`anh_ra` -> URL xem được.
+	 * ⚠️ Cùng luật với `VHCC_Web::url_anh_cham()`. Hai bản vì hai lớp không gọi chéo được vào
+	 *    hàm private của nhau — đổi cách lưu ảnh thì phải sửa CẢ HAI.
+	 */
+	private static function url_anh_cham( $duong ) {
+		$duong = trim( (string) $duong );
+		if ( '' === $duong ) { return ''; }
+		/* Data URI thì trả nguyên: ảnh thẻ đi qua đường khác, nhưng chốt ở đây cho chắc — ghép
+		   baseurl vào trước "data:image/..." là ra một URL hỏng, và trình duyệt im lặng. */
+		if ( 0 === strpos( $duong, 'data:' ) ) { return $duong; }
+		$u = wp_upload_dir();
+		if ( ! empty( $u['error'] ) ) { return ''; }
+		return trailingslashit( $u['baseurl'] ) . $duong;
 	}
 
 	/**

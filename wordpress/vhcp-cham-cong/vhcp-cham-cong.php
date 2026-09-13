@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           3.44.0
+ * Version:           3.74.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '3.44.0' );
+define( 'VHCC_VERSION', '3.74.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -68,6 +68,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-may-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-mat.php';
+require_once VHCC_DIR . 'includes/class-vhcc-bao-cao-ca.php';
 require_once VHCC_DIR . 'includes/class-vhcc-bando.php';
 require_once VHCC_DIR . 'includes/class-vhcc-keo.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nguoi-dung.php';
@@ -80,6 +81,9 @@ require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-may.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web-ns.php';
+/* Màn Khuôn mặt của trang web (08/09/2026). Nạp SAU `class-vhcc-mat.php` là đủ — nó chỉ gọi
+   `VHCC_Mat` và `VHCC_Vai`, không đụng gì tới `VHCC_Web` lúc nạp. */
+require_once VHCC_DIR . 'includes/class-vhcc-web-mat.php';
 /* Sổ "ai vào được trang nào" + trang khai nó. Nạp SAU class-vhcc-web.php vì trang khai dùng
    chung phiên và bảng kiểu của trang quản trị. */
 require_once VHCC_DIR . 'includes/class-vhcc-cong.php';

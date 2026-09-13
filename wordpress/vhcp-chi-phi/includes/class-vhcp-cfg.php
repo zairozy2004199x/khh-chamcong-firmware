@@ -2729,14 +2729,24 @@ class VHCP_Cfg {
 		if ( ! method_exists( 'VHCC_DB', 't' ) ) { return null; }
 		$t = VHCC_DB::t( 'nhan_vien' );
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return null; }
-		/* ⚠️ `phong_ban` là cột THÊM SAU (bản chấm công 3.44.0). Site đang chạy bản cũ hơn thì
-		   cột chưa có, và hỏi thẳng là một câu lỗi SQL ở mọi lượt soát. Hỏi sơ đồ trước. */
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * CỘT PHÒNG BAN BÊN NHÂN SỰ TÊN LÀ `bo_phan` — sơ đồ tổ chức, khai ở màn nhân sự.
+		 *
+		 * ⚠️ HỎI SƠ ĐỒ TRƯỚC KHI SELECT. Bốn plugin cài độc lập nên bản có thể lệch nhau bất cứ
+		 *    lúc nào (13/09/2026: chấm công trên host là 3.73.0 trong khi nhánh này mới 3.43.0).
+		 *    Hỏi thẳng một cột bản kia chưa có là câu lỗi SQL ở MỌI lượt soát.
+		 *
+		 * ⚠️ VÀ NÓ KHÔNG CÙNG VỐN TỪ VỚI `BO_PHAN_DS` BÊN NÀY. Bên nhân sự là *Phòng Kỹ Thuật ·
+		 *    Phòng Marketing · Khối Nhân Viên Cơ Sở…*; bên này là *Kỹ thuật · Marketing · Cơ sở ·
+		 *    Setup…*. Màn soát chỉ ĐỐI CHIẾU hai chuỗi và bày chỗ lệch ra — nó không tự dịch,
+		 *    vì dịch sai một phòng là cắt mất đúng mảng chi phí người ta cần.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
 		$co_pb = false;
 		foreach ( (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" ) as $c ) {
-			if ( 'phong_ban' === $c ) { $co_pb = true; break; }
+			if ( 'bo_phan' === $c ) { $co_pb = true; break; }
 		}
 		$cot = 'ma_nv, ho_ten, cua_hang, chuc_vu, trang_thai_lam_viec, pin_dang_nhap'
-			. ( $co_pb ? ', phong_ban' : ", '' AS phong_ban" );
+			. ( $co_pb ? ', bo_phan AS phong_ban' : ", '' AS phong_ban" );
 		return (array) $wpdb->get_results( "SELECT $cot FROM $t ORDER BY ho_ten", ARRAY_A );
 	}
 

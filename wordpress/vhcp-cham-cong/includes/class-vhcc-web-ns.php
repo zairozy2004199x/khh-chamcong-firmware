@@ -186,8 +186,7 @@ class VHCC_WebNS {
 			return;
 		}
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
-			. '<th>Chức vụ</th><th title="Trang Vận hành chi phí đọc ô này. Khác Chức vụ.">Phòng ban</th>'
-			. '<th>SĐT</th><th>Đăng nhập</th><th>Trạng thái</th><th>Cơ sở</th>'
+			. '<th>Chức vụ</th><th>SĐT</th><th>Đăng nhập</th><th>Trạng thái</th><th>Cơ sở</th>'
 			. '<th></th></tr></thead><tbody>';
 		foreach ( $ds as $r ) {
 			$ma  = (string) $r['ma_nv'];
@@ -196,12 +195,6 @@ class VHCC_WebNS {
 			echo '<td><code>' . esc_html( $ma ) . '</code></td>';
 			echo '<td style="text-align:left">' . esc_html( $r['ho_ten'] ) . '</td>';
 			echo '<td>' . esc_html( $r['chuc_vu'] ) . '</td>';
-			/* Chưa xếp phòng ban thì NÓI RA, đừng để ô trống. Ô trống đọc như "không có gì phải
-			   làm"; thật ra nó nghĩa là bên chi phí không bó người này vào mảng nào — rộng hơn ý
-			   muốn, và là việc còn phải làm nốt. */
-			$pb_r = trim( (string) ( isset( $r['phong_ban'] ) ? $r['phong_ban'] : '' ) );
-			echo '<td>' . ( '' !== $pb_r ? esc_html( $pb_r )
-				: '<span class="k vang">chưa xếp</span>' ) . '</td>';
 			echo '<td>' . esc_html( $r['sdt'] ) . '</td>';
 			/* 🔴 CHỈ NÓI CÓ HAY CHƯA — không in PIN, không in độ dài đủ để đoán. */
 			echo '<td>' . ( '' !== $pin

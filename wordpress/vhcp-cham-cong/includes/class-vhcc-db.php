@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.9.0';
+	const SCHEMA_VERSION = '2.10.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -144,6 +144,75 @@ class VHCC_DB {
 	public static function giay( $gio ) {
 		if ( ! preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', trim( (string) $gio ), $m ) ) { return null; }
 		return (int) $m[1] * 3600 + (int) $m[2] * 60 + ( isset( $m[3] ) ? (int) $m[3] : 0 );
+	}
+
+	/**
+	 * GÕ GIỜ KIỂU 24 GIỜ, DỄ DÃI VỚI NGƯỜI GÕ — trả về `'HH:MM'`, `''` (ô trống) hoặc `false` (sai).
+	 *
+	 * 🔴 Anh Thắng 11/09/2026, ảnh hàng "Chấm công bù" với hai ô `01:37 CH` / `09:01 CH`:
+	 *    *"chuyển này sang 24h cho dễ gõ"*.
+	 *
+	 *    Hai ô ấy là `<input type="time">`. Dạng hiện ra (12 giờ kèm SA/CH hay 24 giờ) do
+	 *    **ngôn ngữ của trình duyệt** quyết định, KHÔNG phải do trang — Chrome không đọc thuộc
+	 *    tính `lang` cho ô giờ, Firefox và Safari theo hệ điều hành. Nghĩa là đứng từ máy chủ
+	 *    KHÔNG có cách nào ép nó về 24 giờ. Muốn chắc thì phải tự cầm lấy ô: ô gõ thường, mình
+	 *    định dạng, mình soát.
+	 *
+	 * 🔴 CẦM LẤY Ô THÌ PHẢI CẦM LUÔN PHẦN SOÁT. `type="time"` xưa nay gánh việc chặn gõ bậy;
+	 *    bỏ nó đi mà không thay bằng gì là mở đúng cái lỗi câm mà `VHCC_Bu::sua()` đã phải vá
+	 *    một lần: `giay()` trả `null` cho cả "ô trống" lẫn "gõ bậy", nên gõ nhầm là mất trắng
+	 *    một giờ công mà màn hình vẫn báo Đã lưu. Hàm này trả BA giá trị khác nhau để nơi gọi
+	 *    phân biệt được, và `false` không bao giờ được coi như "ô trống".
+	 *
+	 * Nhận: `13:37` · `13:37:00` · `1:37` · `1337` · `137` · `13.37` · `13h37` · `13 37`.
+	 * Chối: quá 23 giờ, quá 59 phút, và mọi thứ còn lại (kể cả `01:37 CH` — dạng 12 giờ cố ý
+	 * KHÔNG nhận, vì đoán SA hay CH là đoán một ca làm việc).
+	 */
+	/**
+	 * @param string $chu      chuỗi người ta gõ.
+	 * @param bool   $giu_giay giữ luôn phần GIÂY (trả 'HH:MM:SS') thay vì cắt xuống phút.
+	 *
+	 * 🔴 CỜ `$giu_giay` SINH RA TỪ MỘT LỖI THẬT CỦA 3.66.0.
+	 *    Bản ấy gom mọi phép đọc giờ về đây, và hàm này trả 'HH:MM' vì ô nhập chỉ cần tới phút.
+	 *    Nhưng `VHCC_Bu::giay()` cũng đi qua đây, mà nó đọc cả ô "Giờ vào" của sổ cũ — vốn có
+	 *    GIÂY. Thế là `08:30:15` lặng lẽ thành `08:30`: mỗi lượt chấm mất tới 59 giây, không
+	 *    dòng đỏ nào, và sổ vẫn trông đúng vì ai nhìn cũng chỉ đọc tới phút.
+	 *    Bài `kiem-cham-bu.php` bắt được ngay từ bản ấy — nhưng bài đỏ mà không ai chạy thì cũng
+	 *    như không có. (Đó là lý do kho này cần một lệnh chạy hết, xem cuối tệp hướng dẫn.)
+	 *
+	 * ⚠️ MỘT HÀM, MỘT CỜ — đừng tách thành `gio_24()` và `gio_24_giay()`. Hai bản chép của một
+	 *    luật đọc giờ thì sớm muộn lệch nhau, và lệch ở đây nghĩa là cùng một chuỗi, ô nhập hiểu
+	 *    một giờ còn sổ ghi một giờ khác.
+	 */
+	public static function gio_24( $chu, $giu_giay = false ) {
+		$c = trim( (string) $chu );
+		if ( '' === $c ) { return ''; }
+		$c = str_replace( array( '．', '：', 'h', 'H', '.', ' ' ), ':', $c );
+		$c = preg_replace( '/:+/', ':', $c );
+		$c = trim( $c, ':' );
+		if ( preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $c, $m ) ) {
+			$h = (int) $m[1];
+			$p = (int) $m[2];
+			$g = ( isset( $m[3] ) && '' !== $m[3] ) ? (int) $m[3] : 0;
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
+		}
+		/* Gõ liền: `1337` -> 13:37, `937` -> 9:37. Đây là kiểu gõ nhanh nhất trên bàn phím số,
+		   và là lý do chính người ta muốn bỏ ô 12 giờ.
+		   ⚠️ NHẬN CẢ SÁU SỐ (`130522` -> 13:05) — anh Thắng gõ đúng chuỗi ấy vào ô ngay hôm
+		      nhận bản 3.65.0. Sáu số là giờ-phút-giây, đúng dạng ô "Giờ vào" của sổ cũ, nên tay
+		      quen gõ vậy. Giây bị bỏ (bảng công chỉ dùng tới phút ở ô này) — nhưng bỏ giây khác
+		      hẳn CHỐI cả chuỗi: chối là người ta gõ lại ba lần rồi tưởng ô hỏng. */
+		if ( preg_match( '/^(\d{3,6})$/', $c, $m ) ) {
+			$so = $m[1];
+			if ( 5 === strlen( $so ) ) { return false; }   // 5 số thì không đoán được cắt ở đâu
+			$g  = ( 6 === strlen( $so ) ) ? (int) substr( $so, 4, 2 ) : 0;
+			$p  = (int) substr( $so, ( 6 === strlen( $so ) ) ? 2 : -2, 2 );
+			$h  = (int) substr( $so, 0, ( 6 === strlen( $so ) ) ? 2 : strlen( $so ) - 2 );
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
+		}
+		return false;
 	}
 
 	/** Ngược lại, đủ giây: 5400 -> '01:30:00'. Đây là dạng ô Giờ vào / Giờ ra của sheet. */
@@ -226,24 +295,6 @@ class VHCC_DB {
 		   Sheet phải thêm cột MỚI vào CUỐI vì vòng đọc/ghi dùng chỉ số `7 + k`. MySQL gọi theo
 		   TÊN cột nên ràng buộc đó biến mất — thêm cột ở đâu cũng được. Đây là chỗ Sheet bắt
 		   người ta cẩn thận mà MySQL không cần. */
-		/* `phong_ban` KHÁC CẢ HAI cột kia, và khác luôn `VHCC_Luong::BP_DS`. Anh Thắng
-		   13/09/2026: *"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ phận
-		   đó có được quyền không thôi, chứ không can thiệp được"*.
-
-		   🔴 NÓ DÙNG DANH MỤC CỦA TRANG CHI PHÍ, KHÔNG PHẢI DANH MỤC LƯƠNG. Bảy tên: Cơ sở ·
-		      Văn phòng · Kỹ thuật · Marketing · Công tác · Setup · Máy tự động. Sổ này là NGUỒN
-		      THẬT của câu "người này thuộc phòng ban nào", và bên chi phí đọc nó để biết người
-		      ấy được làm mảng chi phí nào.
-
-		   ⚠️ ĐỪNG NHẦM VỚI `VHCC_Luong::BP_DS` (Máy tự động · Khu vui chơi · Văn phòng · Part
-		      time). Bốn tên ấy chia theo CÁCH TÍNH LƯƠNG và gắn vào CƠ SỞ, không gắn vào người;
-		      chúng vẫn nguyên, làm việc của chúng. Hai bộ chỉ trùng hai tên, và nhầm chúng với
-		      nhau là gán cho người ta một phòng ban không có thật bên kia.
-
-		   ⚠️ VÀ ĐỪNG NHẦM VỚI `chuc_vu`. Chức vụ là Thu ngân · Ca trưởng · Giám sát — việc người
-		      ta làm. Trước bản này cầu đẩy sang chi phí lấy chính `chuc_vu` nhét vào ô Bộ phận
-		      bên ấy, nên ai được đẩy cũng mang một "bộ phận" không nằm trong danh mục nào, và
-		      màn chi phí của họ gần như trắng. Xem `VHCC_DayChiPhi::ho_so_day()`. */
 		/* `vai_tro` KHÁC HẲN `chuc_vu`. `chuc_vu` là công việc (Khu vui chơi, Máy tự động);
 		   `vai_tro` là quyền trên trang web: Admin, Quản lý, Kế toán cá nhân, Kế toán NCC,
 		   Cửa hàng trưởng, Nhân viên. Trước bản này chỉ có `chuc_vu`, nên nạp sổ nhân viên xong
@@ -285,18 +336,22 @@ class VHCC_DB {
 			cccd_file_id VARCHAR(190) NOT NULL DEFAULT '',
 			hop_dong_file_id VARCHAR(190) NOT NULL DEFAULT '',
 			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
+			mang VARCHAR(120) NOT NULL DEFAULT '',
+			bo_phan VARCHAR(120) NOT NULL DEFAULT '',
 			coso_phu TEXT NULL,
+			coso_ql TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			anh_the LONGTEXT NULL,
 			cho_tra_ve TINYINT(1) NOT NULL DEFAULT 0,
 			cho_tra_luc DATETIME NULL,
 			cho_tra_boi VARCHAR(190) NOT NULL DEFAULT '',
-			phong_ban VARCHAR(120) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),
 			KEY cccd (cccd),
+			KEY mang (mang),
+			KEY bo_phan (bo_phan),
 			KEY trang_thai_lam_viec (trang_thai_lam_viec)";
 
 		/* ===== 4. MÃ CHẠY SONG SONG (sheet MaSongSong) =======================================
