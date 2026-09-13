@@ -11403,10 +11403,15 @@ vhcc_cham( 'TUTU_BT', '2026-08-07', 'GV1', '', '08:00', '17:00' );
 $tt_h = vhcc_ns( 'Admin' );
 t( '🔴 có nút "Ghép với GV2" ngay tại dòng, không phải mở bảng khác',
 	strpos( $tt_h, 'Ghép với GV2' ) !== false, $tt_h );
-t( '🔴 giá trị nút tự chọn mã NHIỀU chấm công hơn (GV1) làm mã CHÍNH',
-	strpos( $tt_h, 'name="ghep_voi" value="GV1|GV2"' ) !== false, $tt_h );
-t( 'không lộ chiều ngược (GV2 làm chính) ra nút nào',
-	strpos( $tt_h, 'value="GV2|GV1"' ) === false, $tt_h );
+/* ⚠️ TỪ 3.73.0 NÚT NÀY KHÔNG GỘP NGAY — nó mở MÀN XEM TRƯỚC. Gộp xoá một hồ sơ và dời `ma_nv`
+   ở hai mươi bảng, không có đường lùi; để một cú bấm làm thẳng là quá dễ lỡ tay. Dùng đường dẫn
+   (GET) chứ không POST: xem trước là việc ĐỌC, F5 lại không lỡ tay làm gì cả. */
+t( '🔴 nút mở màn XEM TRƯỚC, không gộp ngay',
+	strpos( $tt_h, 'gop_a=GV1' ) !== false && strpos( $tt_h, 'gop_b=GV2' ) !== false, $tt_h );
+t( '🔴 và tự chọn mã NHIỀU chấm công hơn (GV1) làm mã GIỮ',
+	strpos( $tt_h, 'gop_a=GV2' ) === false, $tt_h );
+t( 'không còn đường POST gộp thẳng từ bảng',
+	strpos( $tt_h, 'name="ghep_voi"' ) === false, $tt_h );
 
 /* ⚠️ Vai bậc thấp (Cửa hàng trưởng) gọi THẲNG đường ấy vẫn bị chối ở LÕI — cùng cách phép thử
    "Cửa hàng trưởng gọi thẳng đường ấy vẫn bị chối" của khối "Ghép hai mã" đầy đủ đang làm ngay

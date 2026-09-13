@@ -528,4 +528,105 @@ t( 'màn nói rõ đây là GỢI Ý, không phải chốt quyền',
 t( '🔴 vòng vẽ ô xổ chỉ bỏ qua vai ĐÃ BÀY ở nhóm trên, không lọc theo bộ phận',
 	strpos( $src_v, "if ( isset( \$uu[ \$ten ] ) ) { continue; }   // đã bày ở nhóm trên" ) !== false );
 
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 9. GỘP HAI HỒ SƠ CỦA CÙNG MỘT NGƯỜI
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026: *"Ghép 2 nhân viên gộp dữ liệu lại, mã nhân viên sẽ chọn 1 mã làm mã nv,
+ * mã kia sẽ bỏ, lấy 1 mã pin, mã khác cũng bỏ nếu khác"*. Ảnh anh gửi: MNNV2KVC0024 chấm
+ * 01/07→19/07, MNNV2KVC0036 chấm 01/07→13/09 — CHỒNG TRỌN NỬA THÁNG.
+ *
+ * 🔴 CHỖ MẤT DỮ LIỆU ÂM THẦM: bảy bảng có khoá UNIQUE chứa `ma_nv`. `UPDATE … SET ma_nv=<giữ>`
+ *    đụng khoá thì hàng ấy KHÔNG ĐI, ở lại một mã sắp bị xoá — mồ côi, không màn nào hiện.
+ *    Và với `cham_cong` thì mỗi hàng là một lượt chấm, tức là TIỀN.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 9. Gộp hai hồ sơ ────────────────────────────────────\n";
+
+$admin_g = array( 'ma_nv' => 'ADG', 'role' => 'Admin' );
+$tcc_g   = VHCC_DB::t( 'cham_cong' );
+
+$nv( 'GOP_GIU', 'NGUYỄN HOÀNG ANH', 'FZ_SC_VIVO_T4' );
+$nv( 'GOP_BO',  'NGUYỄN HOÀNG ANH', 'FZ_SC_VIVO_T4' );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ), array( 'ma_nv' => 'GOP_GIU' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '445566', 'sdt' => '0900000001' ),
+	array( 'ma_nv' => 'GOP_BO' ) );
+
+$cc = function ( $ma, $ngay, $ht = '' ) use ( $wpdb, $tcc_g ) {
+	$wpdb->insert( $tcc_g, array( 'coso' => 'FZ_SC_VIVO_T4', 'ngay' => $ngay, 'ma_nv' => $ma,
+		'hau_to' => $ht, 'ho_ten' => 'NGUYỄN HOÀNG ANH', 'gio_vao_giay' => 30600, 'gio_ra_giay' => 61200 ) );
+};
+$cc( 'GOP_GIU', '2026-07-01' ); $cc( 'GOP_GIU', '2026-07-02' ); $cc( 'GOP_GIU', '2026-09-13' );
+$cc( 'GOP_BO',  '2026-07-01' );   // 🔴 TRÙNG NGÀY với mã giữ
+$cc( 'GOP_BO',  '2026-07-05' );
+$wpdb->insert( VHCC_DB::t( 'mat_mau' ), array( 'ma_nv' => 'GOP_GIU', 'vector' => 'x' ) );
+$wpdb->insert( VHCC_DB::t( 'mat_mau' ), array( 'ma_nv' => 'GOP_BO',  'vector' => 'y' ) );  // 🔴 UNIQUE(ma_nv)
+
+$truoc_cc = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $tcc_g" );
+
+/* --- chốt quyền --- */
+$r_g = VHCC_NhanSu::gop_ho_so( $ke_toan, 'GOP_GIU', 'GOP_BO' );
+t( '🔴 Kế toán KHÔNG gộp được (gộp là XOÁ một hồ sơ)', empty( $r_g['ok'] ), $r_g );
+$r_g = VHCC_NhanSu::gop_ho_so( $admin_g, 'GOP_GIU', 'GOP_GIU' );
+t( 'gộp một mã với chính nó bị chối', empty( $r_g['ok'] ), $r_g );
+$r_g = VHCC_NhanSu::gop_ho_so( $admin_g, 'GOP_GIU', 'KHONG_CO' );
+t( 'mã không tồn tại bị chối', empty( $r_g['ok'] ), $r_g );
+
+/* --- XEM TRƯỚC: mặc định KHÔNG được đụng vào dữ liệu --- */
+$xt = VHCC_NhanSu::gop_ho_so( $admin_g, 'GOP_GIU', 'GOP_BO' );
+t( 'xem trước chạy được', ! empty( $xt['ok'] ) && ! empty( $xt['xemTruoc'] ), $xt );
+teq( '🔴 XEM TRƯỚC KHÔNG ĐỔI GÌ — số lượt chấm y nguyên', $truoc_cc,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM $tcc_g" ) );
+t( 'hồ sơ bị gộp vẫn còn nguyên sau khi xem trước', null !== VHCC_NhanSu::ho_so( 'GOP_BO' ) );
+teq( 'đếm đúng 2 lượt chấm sẽ dời', 2, $xt['bang']['cham_cong']['doi'] );
+teq( '🔴 và chỉ ra 1 lượt TRÙNG NGÀY', 1, $xt['bang']['cham_cong']['dung'] );
+t( 'kê rõ ngày nào trùng', strpos( implode( ' ', $xt['dungCC'] ), '01/07/2026' ) !== false, $xt['dungCC'] );
+t( 'kê ô hồ sơ khác nhau (SĐT)', strpos( wp_json_encode( $xt['khac'] ), 'SĐT' ) !== false, $xt['khac'] );
+t( '🔴 báo PIN sẽ được CHUYỂN SANG (mã giữ chưa có PIN)', ! empty( $xt['pin']['chuyen'] ), $xt['pin'] );
+/* ⚠️ Ảnh màn hình đi khắp nơi — xem trước tuyệt đối không được chở PIN ra ngoài. */
+t( '🔴 xem trước KHÔNG chở PIN đi đâu cả', false === strpos( wp_json_encode( $xt ), '445566' ), 'lộ PIN!' );
+
+/* --- LÀM THẬT --- */
+$r_g = VHCC_NhanSu::gop_ho_so( $admin_g, 'GOP_GIU', 'GOP_BO', true );
+t( 'gộp chạy được', ! empty( $r_g['ok'] ), $r_g );
+t( '🔴 hồ sơ mã bỏ đã biến mất', null === VHCC_NhanSu::ho_so( 'GOP_BO' ) );
+t( 'hồ sơ mã giữ còn nguyên', null !== VHCC_NhanSu::ho_so( 'GOP_GIU' ) );
+
+/* 🔴 PHÉP CANH CỐT TỬ: KHÔNG MẤT MỘT LƯỢT CHẤM NÀO. */
+teq( '🔴 tổng số lượt chấm KHÔNG đổi — không mất lượt nào', $truoc_cc,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM $tcc_g" ) );
+teq( '🔴 và TẤT CẢ nay thuộc mã giữ', 5,
+	(int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tcc_g WHERE ma_nv=%s", 'GOP_GIU' ) ) );
+teq( '🔴 không còn lượt nào mồ côi ở mã đã xoá', 0,
+	(int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tcc_g WHERE ma_nv=%s", 'GOP_BO' ) ) );
+/* Lượt trùng ngày phải CÒN, chỉ khác hậu tố — bảng công hiện hai lượt, anh Thắng tự xử. */
+teq( '🔴 ngày 01/07 nay có ĐÚNG HAI lượt (trùng được giữ lại bằng hậu tố khác)', 2,
+	(int) $wpdb->get_var( $wpdb->prepare(
+		"SELECT COUNT(*) FROM $tcc_g WHERE ma_nv=%s AND ngay=%s", 'GOP_GIU', '2026-07-01' ) ) );
+
+/* Bảng có UNIQUE(ma_nv): giữ hàng của mã giữ, bỏ hàng kia — và ĐẾM ra. */
+teq( 'mẫu khuôn mặt chỉ còn một', 1,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv='GOP_GIU'" ) );
+teq( 'và mẫu của mã bỏ không còn mồ côi', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv='GOP_BO'" ) );
+
+/* PIN: mã giữ chưa có thì nhận PIN của mã bỏ — không thì gộp xong người ta mất đường vào. */
+teq( '🔴 PIN của mã bỏ đã chuyển sang mã giữ', '445566',
+	trim( (string) VHCC_NhanSu::ho_so( 'GOP_GIU' )['pin_dang_nhap'] ) );
+
+/* Gộp không lùi được -> phải còn dấu vết. */
+$nk_g = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhat_ky_ho_so' ) . " WHERE o='gop_ho_so'" );
+teq( '🔴 có ghi nhật ký (gộp không lùi được)', 1, $nk_g );
+
+
+
+/* Màn xem trước: phải đập vào mắt khi hai hồ sơ ghi HAI HỌ TÊN khác nhau. */
+$src_g = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( '🔴 màn gộp cảnh báo ĐỎ khi họ tên khác nhau (có thể là hai người)',
+	strpos( $src_g, 'HAI HỒ SƠ NÀY GHI HAI HỌ TÊN KHÁC NHAU' ) !== false );
+t( 'nút gộp mở màn xem trước bằng đường dẫn, không POST thẳng',
+	strpos( $src_g, "'gop_a' => \$chinh" ) !== false );
+t( '🔴 gộp thật đòi gõ đúng chuỗi xác nhận', strpos( $src_g, "'GOP' !== \$go" ) !== false );
+t( 'màn nói rõ CHƯA đổi gì cả', strpos( $src_g, 'Chưa đổi gì cả' ) !== false );
+
 ket_luan_vai();

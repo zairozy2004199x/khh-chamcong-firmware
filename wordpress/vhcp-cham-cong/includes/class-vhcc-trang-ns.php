@@ -106,7 +106,7 @@ class VHCC_TrangNS {
 	/** Tham số phải sống sót qua một lượt POST — bộ lọc và số trang. */
 	/* `sua_o` = mã người đang mở hàng sửa. Nó phải nằm trong THAM_SO để sống sót qua lượt POST —
 	   thiếu thì lưu xong hàng tự đóng, mà anh Thắng đang muốn sửa tiếp mấy ô nữa. */
-	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'nmang', 'nbp', 'np', 'sua_o', 'pin_o' );
+	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'nmang', 'nbp', 'np', 'sua_o', 'pin_o', 'gop_a', 'gop_b' );
 
 	private static function url_hien() {
 		$them = array();
@@ -208,6 +208,7 @@ class VHCC_TrangNS {
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		if ( 'vai_bp' === $viec )      { return self::viec_vai_bp( $toi ); }
+		if ( 'gop_that' === $viec )    { return self::viec_gop_that( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
 		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
@@ -308,6 +309,157 @@ class VHCC_TrangNS {
 	 *    không có đường gõ nhầm mã của người khác. Vẫn đi qua khai_ma_song_song() để giữ NGUYÊN
 	 *    mọi chốt đã có (bậc quyền, hai mã không được trùng nhau, cặp chưa từng khai).
 	 */
+
+	/**
+	 * MÀN XEM TRƯỚC GỘP HỒ SƠ — bày hết hậu quả ra, rồi mới cho gõ xác nhận.
+	 *
+	 * 🔴 Gộp xoá một hồ sơ và dời `ma_nv` ở hai mươi bảng. KHÔNG CÓ ĐƯỜNG LÙI. Nên màn này phải
+	 *    trả lời được ba câu trước khi anh Thắng bấm: dời bao nhiêu, có lượt nào trùng ngày
+	 *    không, và hai hồ sơ đang khác nhau ở ô nào.
+	 */
+	private static function the_gop( $toi ) {
+		$a = isset( $_GET['gop_a'] ) ? sanitize_text_field( wp_unslash( $_GET['gop_a'] ) ) : '';
+		$b = isset( $_GET['gop_b'] ) ? sanitize_text_field( wp_unslash( $_GET['gop_b'] ) ) : '';
+		if ( '' === $a || '' === $b ) { return; }
+
+		$xt = VHCC_NhanSu::gop_ho_so( $toi, $a, $b );
+		echo '<div class="the">';
+		echo '<h2>Gộp hai hồ sơ</h2>';
+		if ( empty( $xt['ok'] ) ) {
+			echo '<div class="bao loi">' . esc_html( (string) $xt['error'] ) . '</div>';
+			echo '<a class="nut" href="' . esc_url( self::url() ) . '">← Về bảng nhân sự</a></div>';
+			return;
+		}
+
+		echo '<div class="bao canh"><b>Chưa đổi gì cả</b> — đây là bản xem trước. Gộp xong thì '
+			. '<b>không lùi lại được</b>: hồ sơ <b>' . esc_html( $b ) . '</b> bị xoá, và mọi lịch sử '
+			. 'của nó chuyển sang <b>' . esc_html( $a ) . '</b>.</div>';
+
+		echo '<div class="luoi">';
+		echo '<div class="the"><b>GIỮ LẠI</b><div class="cs-ten">' . esc_html( $a ) . '</div>'
+			. '<div class="mo">' . esc_html( (string) $xt['tenGiu'] ) . '</div></div>';
+		echo '<div class="the"><b style="color:var(--do)">SẼ XOÁ</b><div class="cs-ten">' . esc_html( $b ) . '</div>'
+			. '<div class="mo">' . esc_html( (string) $xt['tenBo'] ) . '</div></div>';
+		echo '</div>';
+
+		/* Đảo chiều: chọn nhầm bên nào giữ là hỏng, nên để đổi bằng một cú bấm. */
+		echo '<p class="mo"><a href="' . esc_url( add_query_arg(
+			array( 'gop_a' => $b, 'gop_b' => $a ), self::url_hien() ) ) . '">⇄ Đảo lại</a>'
+			. ' — giữ <b>' . esc_html( $b ) . '</b>, xoá <b>' . esc_html( $a ) . '</b> thay vì ngược lại.</p>';
+
+		echo '<h3>Dữ liệu sẽ chuyển</h3>';
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Sổ</th><th>Số dòng chuyển</th>'
+			. '<th>Trùng khoá</th></tr></thead><tbody>';
+		$co_dong = false;
+		foreach ( (array) $xt['bang'] as $ten => $x ) {
+			if ( empty( $x['doi'] ) && empty( $x['dung'] ) ) { continue; }
+			$co_dong = true;
+			echo '<tr><td>' . esc_html( $ten ) . '</td><td><b>' . (int) $x['doi'] . '</b></td>';
+			echo '<td>' . ( $x['dung']
+				? ( 'cham_cong' === $ten
+					? '<span class="chu-co">' . (int) $x['dung'] . ' lượt trùng ngày — sẽ GIỮ CẢ HAI, '
+						. 'chỉ đổi hậu tố</span>'
+					: '<span class="chua">' . (int) $x['dung'] . ' dòng sẽ bị BỎ (giữ dòng của '
+						. esc_html( $a ) . ')</span>' )
+				: '<span class="mo">—</span>' ) . '</td></tr>';
+		}
+		if ( ! $co_dong ) { echo '<tr><td colspan="3" class="mo">Hồ sơ này chưa có dữ liệu gì.</td></tr>'; }
+		echo '</tbody></table></div>';
+
+		if ( ! empty( $xt['dungCC'] ) ) {
+			echo '<div class="bao ok"><b>Lượt chấm trùng ngày sẽ KHÔNG bị mất</b> — mỗi lượt là tiền '
+				. 'công, nên hệ đổi hậu tố để giữ cả hai. Bảng công sẽ hiện hai lượt trong ngày, anh '
+				. 'xem rồi xoá bớt cái thừa: ' . esc_html( implode( ' · ', array_slice( (array) $xt['dungCC'], 0, 12 ) ) )
+				. ( count( (array) $xt['dungCC'] ) > 12 ? ' …' : '' ) . '</div>';
+		}
+
+		/* 🔴 HỌ TÊN KHÁC NHAU = CÓ THỂ KHÔNG PHẢI MỘT NGƯỜI. Đây là hỏng nặng nhất mà màn này
+		   có thể gây ra: gộp công của hai người vào một, và sau đó KHÔNG phân biệt được hàng nào
+		   vốn của ai. Mọi cảnh báo khác chỉ là "sửa lại cho gọn"; cảnh báo này là "dừng lại".
+		   Vẫn cho gộp (đổi tên là chuyện có thật — lấy chồng, sửa chính tả), nhưng phải đập vào
+		   mắt, không nằm lẫn trong bảng so ô. */
+		$ten_khac = false;
+		foreach ( (array) $xt['khac'] as $k_t ) { if ( 'Họ tên' === $k_t['o'] ) { $ten_khac = true; } }
+		if ( $ten_khac ) {
+			echo '<div class="bao loi"><b>⛔ HAI HỒ SƠ NÀY GHI HAI HỌ TÊN KHÁC NHAU</b> — rất có thể '
+				. 'đây là <b>hai người khác nhau</b>, không phải một người hai hồ sơ. Gộp nhầm là trộn '
+				. 'công của hai người vào một, và sau đó <b>không phân biệt được lượt nào của ai</b>. '
+				. 'Soát kỹ CCCD / SĐT / ngày vào làm ở bảng dưới trước khi gõ xác nhận.</div>';
+		}
+		if ( ! empty( $xt['khac'] ) ) {
+			echo '<h3>Hai hồ sơ đang khác nhau</h3>';
+			echo '<p class="mo">Gộp xong thì <b>giữ nguyên ô của ' . esc_html( $a ) . '</b>. Ô nào của '
+				. esc_html( $b ) . ' mới đúng thì sửa sang ' . esc_html( $a ) . ' TRƯỚC khi gộp.</p>';
+			echo '<div class="cuon"><table class="stt"><thead><tr><th>Ô</th>'
+				. '<th>' . esc_html( $a ) . ' (giữ)</th><th>' . esc_html( $b ) . ' (xoá)</th></tr></thead><tbody>';
+			foreach ( (array) $xt['khac'] as $k ) {
+				echo '<tr><td>' . esc_html( (string) $k['o'] ) . '</td>'
+					. '<td>' . ( '' !== $k['giu'] ? esc_html( (string) $k['giu'] ) : '<span class="mo">(trống)</span>' ) . '</td>'
+					. '<td>' . ( '' !== $k['bo'] ? esc_html( (string) $k['bo'] ) : '<span class="mo">(trống)</span>' ) . '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+
+		/* ⚠️ KHÔNG IN PIN. Chỉ nói chuyện gì sẽ xảy ra với nó. */
+		echo '<h3>Mã PIN</h3><p class="mo">';
+		if ( ! empty( $xt['pin']['chuyen'] ) ) {
+			echo '<b>' . esc_html( $a ) . ' chưa có PIN, ' . esc_html( $b ) . ' thì có</b> — PIN ấy sẽ '
+				. 'chuyển sang ' . esc_html( $a ) . ', để người này vẫn đăng nhập được sau khi gộp.';
+		} elseif ( ! empty( $xt['pin']['giuCo'] ) && ! empty( $xt['pin']['boCo'] ) && ! empty( $xt['pin']['khac'] ) ) {
+			echo 'Hai hồ sơ đang mang <b>hai PIN khác nhau</b>. Giữ PIN của ' . esc_html( $a )
+				. ', bỏ PIN của ' . esc_html( $b ) . ' — sau khi gộp, người này chỉ còn gõ được PIN của '
+				. esc_html( $a ) . '. Nhớ báo họ.';
+		} elseif ( empty( $xt['pin']['giuCo'] ) && empty( $xt['pin']['boCo'] ) ) {
+			echo 'Cả hai đều <b>chưa có PIN</b> — gộp xong vẫn chưa đăng nhập được, phải cấp PIN.';
+		} else {
+			echo 'Hai bên cùng một PIN — không có gì phải chọn.';
+		}
+		echo '</p>';
+
+		if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
+			echo '<div class="bao canh">Gộp hồ sơ là việc của <b>Admin</b>. Nhờ Admin bấm giúp.</div>';
+		} else {
+			/* Gõ tay, không phải ô tích — cùng lối với "XOA HET" và "MAT DUONG". */
+			echo '<form method="post" class="hang" style="margin-top:12px">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+			echo '<input type="hidden" name="gop_a" value="' . esc_attr( $a ) . '">';
+			echo '<input type="hidden" name="gop_b" value="' . esc_attr( $b ) . '">';
+			echo '<div><label>Gõ <code>GOP</code> để xác nhận</label>'
+				. '<input type="text" name="xac_nhan" placeholder="GOP" style="max-width:140px"></div>';
+			echo '<button class="nut-do" name="viec" value="gop_that">Gộp ' . esc_html( $b )
+				. ' vào ' . esc_html( $a ) . '</button>';
+			echo '<a class="nut" href="' . esc_url( self::url() ) . '">Huỷ</a>';
+			echo '</form>';
+		}
+		echo '</div>';
+	}
+
+	/** Gộp thật — chỉ khi gõ đúng chuỗi xác nhận. */
+	private static function viec_gop_that( $toi ) {
+		$a  = isset( $_POST['gop_a'] ) ? sanitize_text_field( wp_unslash( $_POST['gop_a'] ) ) : '';
+		$b  = isset( $_POST['gop_b'] ) ? sanitize_text_field( wp_unslash( $_POST['gop_b'] ) ) : '';
+		$go = isset( $_POST['xac_nhan'] ) ? trim( (string) wp_unslash( $_POST['xac_nhan'] ) ) : '';
+		if ( 'GOP' !== $go ) {
+			return array( array( 'loi' => 'Chưa gộp gì. Phải gõ đúng chữ GOP (in hoa, không dấu) vào '
+				. 'ô xác nhận — gộp không lùi lại được.' ) );
+		}
+		$kq = VHCC_NhanSu::gop_ho_so( $toi, $a, $b, true );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => (string) $kq['error'] ) ); }
+		$cc = isset( $kq['bang']['cham_cong'] ) ? $kq['bang']['cham_cong'] : array( 'doi' => 0, 'dung' => 0 );
+		$bo_di = 0;
+		foreach ( (array) $kq['bang'] as $ten => $x ) {
+			if ( 'cham_cong' === $ten ) { continue; }
+			$bo_di += (int) $x['dung'];
+		}
+		return array( array( 'ok' => 'Đã gộp ' . $b . ' vào ' . $a . '. Chuyển ' . (int) $cc['doi']
+			. ' lượt chấm công'
+			. ( $cc['dung'] ? ' (trong đó ' . (int) $cc['dung'] . ' lượt trùng ngày đã đổi hậu tố — '
+				. 'giữ cả hai, xem bảng công rồi xoá bớt cái thừa)' : '' )
+			. ( $bo_di ? ', bỏ ' . $bo_di . ' dòng trùng khoá ở các sổ khác' : '' )
+			. ( ! empty( $kq['pinChuyen'] ) ? ', PIN đã chuyển sang ' . $a : '' )
+			. '. Hồ sơ ' . $b . ' đã xoá — việc này đã ghi vào nhật ký hồ sơ.' ) );
+	}
+
 	private static function viec_ghep_voi( $toi ) {
 		$raw = isset( $_POST['ghep_voi'] ) ? sanitize_text_field( wp_unslash( $_POST['ghep_voi'] ) ) : '';
 		$cap = explode( '|', $raw, 2 );
@@ -1181,6 +1333,7 @@ class VHCC_TrangNS {
 		   `khai_ma_song_song()`/`viec_ghep_ma()`/`viec_bo_ghep_ma()`/`viec_don_ma()` GIỮ NGUYÊN
 		   ở tầng máy chủ (không xoá) — cùng cách `go_ngoai_le`/`ngoai_le_phang()` được giữ khi bỏ
 		   `the_ngoai_le()` trước đó: bỏ MÀN HÌNH quản lý qua UI, không bỏ NĂNG LỰC ở lõi. */
+		self::the_gop( $toi );
 		self::the_cho_duyet_may( $toi );
 		echo '<div class="the">';
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp );
@@ -1858,12 +2011,17 @@ class VHCC_TrangNS {
 							$luot_doi = isset( $hoat_dong[ $ma_doi ] ) ? (int) $hoat_dong[ $ma_doi ]['luot'] : 0;
 							$chinh = ( $luot_doi > $luot_toi ) ? $ma_doi : $ma;
 							$phu   = ( $luot_doi > $luot_toi ) ? $ma : $ma_doi;
-							echo '<br><button type="submit" name="ghep_voi" '
-								. 'value="' . esc_attr( $chinh . '|' . $phu ) . '" class="nut" '
-								. 'style="margin-top:4px;padding:2px 8px;font-size:12px" '
-								. 'title="' . esc_attr( 'Gộp ' . $phu . ' (ít/không có chấm công hơn) '
-									. 'vào ' . $chinh . '. Không đảo lại được, giống nút Ghép ở bảng dưới.' ) . '">'
-								. 'Ghép với ' . esc_html( $ma_doi ) . '</button>';
+							/* 🔴 KHÔNG GỘP NGAY TỪ NÚT NÀY. Gộp xoá một hồ sơ và dời lịch sử chấm
+							   công ở 20 bảng — không có đường lùi. Nút chỉ MỞ MÀN XEM TRƯỚC; ở đó
+							   bày ra sẽ dời gì, đụng gì, mất gì, rồi mới cho gõ xác nhận.
+							   Dùng đường dẫn (GET) chứ không POST: xem trước là việc ĐỌC, F5 lại
+							   không lỡ tay làm gì cả. */
+							echo '<br><a class="nut" style="margin-top:4px;padding:2px 8px;font-size:12px" '
+								. 'href="' . esc_url( add_query_arg(
+									array( 'gop_a' => $chinh, 'gop_b' => $phu ), self::url_hien() ) ) . '" '
+								. 'title="' . esc_attr( 'Xem trước việc gộp ' . $phu . ' vào ' . $chinh
+									. ' — chưa đổi gì cả.' ) . '">'
+								. 'Ghép với ' . esc_html( $ma_doi ) . '</a>';
 						}
 					}
 				} elseif ( $co_trung['ten'] ) {

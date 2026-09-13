@@ -65,7 +65,21 @@ $nv( 'MNNV2SOT0003', 'DƯƠNG CHƯA KHAI', 'FZ_LTVT', '', '', '' );
 
 /* ---- Thẻ phiên Admin, rồi gọi ĐÚNG trang thật ---- */
 $tok = VHCC_Auth::phat_token( 'Huỳnh Quang Thắng', 'Admin', '', 'MNVP2CTY0001' );
-$_GET = array(); $_POST = array();
+/* Dựng cảnh GỘP: hai hồ sơ cùng người, chồng ngày chấm công — đúng ảnh anh Thắng gửi. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ), array( 'ma_nv' => 'MNNV2KVC0024' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '778899', 'sdt' => '0912345678' ),
+	array( 'ma_nv' => 'MNNV2KVC0036' ) );
+$cc_x = function ( $ma, $ngay ) use ( $wpdb ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'FZ_SC_VIVO_T4', 'ngay' => $ngay,
+		'ma_nv' => $ma, 'hau_to' => '', 'ho_ten' => 'NGUYỄN HOÀNG ANH',
+		'gio_vao_giay' => 30600, 'gio_ra_giay' => 61200 ) );
+};
+foreach ( array( '2026-07-01', '2026-07-02', '2026-07-15' ) as $n_x ) { $cc_x( 'MNNV2KVC0024', $n_x ); }
+foreach ( array( '2026-07-01', '2026-07-02', '2026-08-10', '2026-09-13' ) as $n_x ) { $cc_x( 'MNNV2KVC0036', $n_x ); }
+
+$_GET = isset( $argv[2] ) && 'gop' === $argv[2]
+	? array( 'gop_a' => 'MNNV2KVC0036', 'gop_b' => 'MNNV2KVC0024' ) : array();
+$_POST = array();
 $_COOKIE = array( VHCC_Web::COOKIE => $tok );
 ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
 

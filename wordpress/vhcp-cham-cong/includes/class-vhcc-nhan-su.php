@@ -1278,6 +1278,184 @@ class VHCC_NhanSu {
 		return $ra;
 	}
 
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * GỘP HAI HỒ SƠ CỦA CÙNG MỘT NGƯỜI
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"Ghép 2 nhân viên gộp dữ liệu lại, mã nhân viên sẽ chọn 1 mã làm mã
+	 * nv, mã kia sẽ bỏ, lấy 1 mã pin, mã khác cũng bỏ nếu khác"*.
+	 *
+	 * Nút "Ghép với" vốn có CHỈ khai một cặp vào sổ `ma_song_song` — ghi nhận "hai mã là một
+	 * người" để các màn cộng gộp lúc hiển thị. Nó KHÔNG dời dữ liệu và KHÔNG xoá hồ sơ nào. Việc
+	 * này thì gộp thật.
+	 *
+	 * =============================================================================================
+	 * 🔴 KHÔNG CÓ ĐƯỜNG LÙI — nên XEM TRƯỚC là bắt buộc, không phải tuỳ chọn
+	 * =============================================================================================
+	 * Gộp là dời `ma_nv` ở HAI MƯƠI bảng rồi xoá một hồ sơ. Sai một bảng là lịch sử của người đó
+	 * rơi ra ngoài, mà bảng công vẫn hiện bình thường — chỉ thiếu. Nên hàm này chạy được ở hai
+	 * chế độ, và chế độ mặc định là CHỈ ĐẾM.
+	 *
+	 * =============================================================================================
+	 * 🔴 BẢY BẢNG CÓ KHOÁ UNIQUE CHỨA `ma_nv` — ĐÂY LÀ CHỖ MẤT DỮ LIỆU ÂM THẦM
+	 * =============================================================================================
+	 * `UPDATE … SET ma_nv=<giữ> WHERE ma_nv=<bỏ>` mà đụng khoá unique thì MySQL chối CẢ CÂU (hoặc
+	 * chối từng hàng tuỳ chế độ), `$wpdb->query` trả false, và mấy hàng ấy Ở LẠI mã vừa bị xoá —
+	 * mồ côi, không màn nào hiện, không dòng nào báo.
+	 *
+	 * Hai hồ sơ trùng người gần như LUÔN chồng ngày nhau (ảnh anh Thắng gửi: 0024 chấm 01/07→19/07,
+	 * 0036 chấm 01/07→13/09 — chồng trọn nửa tháng). Nên đây là ca THẬT, không phải phòng xa.
+	 *
+	 * Cách xử, khác nhau theo từng bảng và có chủ ý:
+	 *   · `cham_cong` — ĐỔI HẬU TỐ, không bỏ hàng nào. Đây là TIỀN CÔNG; bỏ một lượt chấm là bớt
+	 *     tiền của người ta. Khoá là (coso,ngay,ma_nv,hau_to) nên đổi `hau_to` là lách được, và
+	 *     bảng công sẽ hiện hai lượt trong ngày — anh Thắng nhìn thấy mà tự xử.
+	 *     ⚠️ KHÔNG tự trộn giờ (lấy vào sớm nhất / ra muộn nhất). Nghe hợp lý, nhưng đó là một
+	 *        QUYẾT ĐỊNH NGHIỆP VỤ, và quyết định ấy làm âm thầm thì không ai soát lại được.
+	 *   · Các bảng còn lại — giữ hàng của mã GIỮ, bỏ hàng của mã BỎ, và ĐẾM RA. Mẫu khuôn mặt,
+	 *     lịch làm, xin đi trễ trùng ngày: giữ một cái là đủ, nhưng phải nói ra đã bỏ mấy cái.
+	 *
+	 * @param string $ma_giu mã ở lại.
+	 * @param string $ma_bo  mã bị xoá.
+	 * @param bool   $lam    false = chỉ đếm và kê (mặc định); true = làm thật.
+	 */
+	public static function gop_ho_so( $u, $ma_giu, $ma_bo, $lam = false ) {
+		global $wpdb;
+		/* 🔴 BẬC ADMIN. Gộp XOÁ một hồ sơ và dời lịch sử chấm công — cùng mức nguy hiểm với xoá
+		   sạch sổ hồ sơ, nên cùng bậc. Kế toán sửa được hồ sơ, nhưng không xoá được người. */
+		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
+			return array( 'ok' => false, 'error' => 'Gộp hồ sơ xoá một mã và dời cả lịch sử chấm công — chỉ Admin.' );
+		}
+		$giu = trim( (string) $ma_giu );
+		$bo  = trim( (string) $ma_bo );
+		if ( '' === $giu || '' === $bo ) { return array( 'ok' => false, 'error' => 'Thiếu một trong hai mã.' ); }
+		if ( self::khoa_so( $giu ) === self::khoa_so( $bo ) ) {
+			return array( 'ok' => false, 'error' => 'Hai mã giống nhau — không có gì để gộp.' );
+		}
+		$hs_giu = self::ho_so( $giu );
+		$hs_bo  = self::ho_so( $bo );
+		if ( ! $hs_giu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $giu . '.' ); }
+		if ( ! $hs_bo )  { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $bo . '.' ); }
+
+		$tcc  = VHCC_DB::t( 'cham_cong' );
+		$dem  = array();   // tên bảng => ['doi'=>N, 'dung'=>M]
+		$dung_cc = array();
+
+		/* ---- 1. CHẤM CÔNG: dời, hàng nào đụng thì đổi hậu tố ---- */
+		$trung = VHCC_DB::rows( $wpdb->prepare(
+			"SELECT b.id, b.ngay, b.coso, b.hau_to FROM $tcc b"
+			. " INNER JOIN $tcc a ON a.coso=b.coso AND a.ngay=b.ngay AND a.hau_to=b.hau_to AND a.ma_nv=%s"
+			. " WHERE b.ma_nv=%s", $giu, $bo ) );
+		$tong_cc = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tcc WHERE ma_nv=%s", $bo ) );
+		foreach ( (array) $trung as $r ) {
+			$dung_cc[] = self::ymd_vn( (string) $r['ngay'] ) . ' · ' . (string) $r['coso'];
+		}
+		$dem['cham_cong'] = array( 'doi' => $tong_cc, 'dung' => count( $trung ) );
+
+		if ( $lam ) {
+			/* Đổi hậu tố TRƯỚC khi dời mã — làm ngược lại là câu UPDATE dời mã đụng khoá ngay. */
+			foreach ( (array) $trung as $r ) {
+				$ht = (string) $r['hau_to'];
+				for ( $i = 2; $i <= 9; $i++ ) {
+					$moi_ht = substr( $ht, 0, 2 ) . 'g' . $i;
+					$co = $wpdb->get_var( $wpdb->prepare(
+						"SELECT 1 FROM $tcc WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+						$r['coso'], $r['ngay'], $giu, $moi_ht ) );
+					if ( ! $co ) {
+						$wpdb->update( $tcc, array( 'hau_to' => $moi_ht ), array( 'id' => (int) $r['id'] ) );
+						break;
+					}
+				}
+			}
+			/* 🔴 RỒI MỚI DỜI MÃ. Bước đổi hậu tố ở trên chỉ DỌN ĐƯỜNG; quên câu này thì mọi lượt
+			   chấm của mã bỏ Ở LẠI một hồ sơ sắp bị xoá — mồ côi, không bảng công nào hiện, mà
+			   tổng số hàng vẫn đủ nên phép đếm thô cũng không thấy. Đúng lỗi bản nháp đã dính. */
+			$wpdb->query( $wpdb->prepare( "UPDATE $tcc SET ma_nv=%s WHERE ma_nv=%s", $giu, $bo ) );
+		}
+
+		/* ---- 2. Mọi bảng khác mang mã: đếm hàng đụng khoá unique ---- */
+		foreach ( self::bang_theo_ma() as $ten => $cot_ds ) {
+			if ( 'cham_cong' === $ten ) { continue; }
+			$t = VHCC_DB::t( $ten );
+			if ( ! VHCC_DB::co_bang( $t ) ) { continue; }
+			foreach ( $cot_ds as $cot ) {
+				$so = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE $cot=%s", $bo ) );
+				if ( ! $so ) { continue; }
+				if ( ! isset( $dem[ $ten ] ) ) { $dem[ $ten ] = array( 'doi' => 0, 'dung' => 0 ); }
+				$dem[ $ten ]['doi'] += $so;
+				if ( $lam ) {
+					/* Dời từng hàng: đụng khoá thì `update` trả false — bỏ hàng ấy đi và ĐẾM,
+					   chứ không để nó ở lại một mã sắp bị xoá. Dời cả cụm bằng một câu UPDATE
+					   thì một hàng đụng là CẢ CÂU hỏng, và 36 hàng kia cũng không đi. */
+					foreach ( (array) VHCC_DB::rows( $wpdb->prepare( "SELECT id FROM $t WHERE $cot=%s", $bo ) ) as $h ) {
+						$ok = $wpdb->update( $t, array( $cot => $giu ), array( 'id' => (int) $h['id'] ) );
+						if ( false === $ok ) {
+							$wpdb->delete( $t, array( 'id' => (int) $h['id'] ) );
+							$dem[ $ten ]['dung']++;
+							$dem[ $ten ]['doi']--;
+						}
+					}
+				}
+			}
+		}
+
+		/* ---- 3. Hai hồ sơ khác nhau ở ô nào ---- */
+		$khac = array();
+		foreach ( array( 'ho_ten' => 'Họ tên', 'cua_hang' => 'Cơ sở chính', 'sdt' => 'SĐT',
+			'cccd' => 'CCCD', 'vai_tro' => 'Vai trò', 'ngay_vao_lam' => 'Ngày vào làm',
+			'trang_thai_lam_viec' => 'Trạng thái', 'mang' => 'Mảng', 'bo_phan' => 'Bộ phận' ) as $o => $nhan ) {
+			$a = trim( (string) ( isset( $hs_giu[ $o ] ) ? $hs_giu[ $o ] : '' ) );
+			$b = trim( (string) ( isset( $hs_bo[ $o ] ) ? $hs_bo[ $o ] : '' ) );
+			if ( $a !== $b ) { $khac[] = array( 'o' => $nhan, 'giu' => $a, 'bo' => $b ); }
+		}
+		/* ⚠️ KHÔNG BAO GIỜ IN PIN RA MÀN. Chỉ nói CÓ khác hay không — ảnh màn hình đi khắp nơi,
+		   và kho này đã mất một khoá cầu nối vì đúng một tấm ảnh. */
+		$pin_giu = trim( (string) $hs_giu['pin_dang_nhap'] );
+		$pin_bo  = trim( (string) $hs_bo['pin_dang_nhap'] );
+		$pin = array(
+			'giuCo'  => '' !== $pin_giu,
+			'boCo'   => '' !== $pin_bo,
+			'khac'   => ( $pin_giu !== $pin_bo ),
+			/* Mã giữ CHƯA có PIN mà mã bỏ CÓ -> chuyển sang, kẻo gộp xong người ta mất đường vào. */
+			'chuyen' => ( '' === $pin_giu && '' !== $pin_bo ),
+		);
+
+		if ( ! $lam ) {
+			return array( 'ok' => true, 'xemTruoc' => true, 'giu' => $giu, 'bo' => $bo,
+				'bang' => $dem, 'dungCC' => $dung_cc, 'khac' => $khac, 'pin' => $pin,
+				'tenGiu' => (string) $hs_giu['ho_ten'], 'tenBo' => (string) $hs_bo['ho_ten'] );
+		}
+
+		/* ---- 4. PIN rồi mới xoá hồ sơ ---- */
+		if ( $pin['chuyen'] ) {
+			$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => $pin_bo ),
+				array( 'ma_nv' => $giu ) );
+		}
+		$wpdb->delete( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $bo ) );
+
+		/* Nhật ký: gộp không lùi được, nên ít nhất phải còn dấu vết ai làm, lúc nào, gộp cái gì. */
+		$t_nk = VHCC_DB::t( 'nhat_ky_ho_so' );
+		if ( VHCC_DB::co_bang( $t_nk ) ) {
+			$wpdb->insert( $t_nk, array(
+				'luc'     => current_time( 'mysql' ),
+				'ma_nv'   => $giu,
+				'ai'      => isset( $u['name'] ) ? (string) $u['name'] : '',
+				'tu_coso' => self::chuan_coso( (string) $hs_bo['cua_hang'] ),
+				'o'       => 'gop_ho_so',
+				'cu'      => mb_substr( $bo . ' · ' . (string) $hs_bo['ho_ten'], 0, 255 ),
+				'moi'     => mb_substr( $giu . ' · dời ' . (int) $dem['cham_cong']['doi'] . ' lượt chấm'
+					. ( $dung_cc ? ', ' . count( $dung_cc ) . ' lượt trùng ngày đổi hậu tố' : '' ), 0, 255 ),
+			) );
+		}
+		return array( 'ok' => true, 'giu' => $giu, 'bo' => $bo, 'bang' => $dem,
+			'dungCC' => $dung_cc, 'pinChuyen' => ! empty( $pin['chuyen'] ) );
+	}
+
+	/** 'YYYY-MM-DD' -> 'dd/mm/YYYY' để in ra màn. */
+	private static function ymd_vn( $s ) {
+		return preg_match( '/^(\d{4})-(\d{2})-(\d{2})/', (string) $s, $m ) ? $m[3] . '/' . $m[2] . '/' . $m[1] : (string) $s;
+	}
+
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {
