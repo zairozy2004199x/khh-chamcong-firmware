@@ -1037,6 +1037,70 @@ phòng chưa khai gì**, và chỉ gợi ý **vai có thật trong hệ**.
 🔴 Vẫn **không tự điền**: đoán hộ cả sơ đồ tổ chức rồi bày lên đầu ô xổ là dạy người khai chọn sai
 một cách tự tin. Điền hay không là một lượt bấm.
 
+## 4o. Hai vấn đề phải giải quyết TRƯỚC khi sắp xếp lại phòng ban (3.80.0)
+
+Anh Thắng 13/09/2026: *"Trước khi sắp xếp lại bộ phận và phòng ban và mảng, có mấy vấn đề cần
+giải quyết"*, rồi *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+
+Cả hai đều là đường **hỏng im lặng**, và cả hai đều **bật thành thường xuyên** đúng lúc đổi tên
+phòng ban hàng loạt.
+
+### Bốn chỗ khai vai trò, mỗi chỗ một việc
+
+| chỗ khai | quyết định gì |
+|---|---|
+| **Vai trò** (trên hồ sơ) | người đó **làm được việc gì** — thang 5 bậc |
+| **Vai trò theo bộ phận** | phòng đó **thường dùng vai nào** — chỉ bày lên đầu ô xổ, không chốt quyền |
+| **Phân quyền theo bộ phận & mảng** | phòng đó **vào được trang nào** |
+| **Chia đầu việc** | mở/thu **một đầu việc lẻ** cho một vai — VD vai *Kỹ thuật* được `may` mà không phải lên Admin |
+
+### 🔴 A. Tách phòng theo mảng mà không bó phạm vi thì cái tên chỉ là cái nhãn
+
+Từ bậc **Quản lý** trở lên, `co_quyen_coso()` gặp `cong_tat_ca` là `return true` cho **mọi cơ
+sở** — không hỏi mảng một câu nào. Nên `KVC · Phòng Kế Toán` vẫn xem được công, lương, hồ sơ và
+số tài khoản của cả mảng MTD. Cách duy nhất trước bản này là hạ họ xuống Cửa hàng trưởng rồi tick
+`coso_ql` — nhưng làm vậy họ **mất quyền lương và hồ sơ**, tức hết làm được việc kế toán.
+
+Nay: cột **Phạm vi** ở khối *Phân quyền theo bộ phận* — tick thì người của phòng ấy chỉ thấy cơ sở
+thuộc **mảng của chính họ**, áp cho **mọi bậc kể cả Kế toán**.
+
+**🔴 MẶC ĐỊNH TẮT, VÀ MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ.** Đây là cái siết duy nhất trong khối ấy, mà siết
+nhầm thì người ta mở màn hình ra thấy sổ trống trơn và không có dòng nào nói vì sao:
+
+* chưa tick phòng nào → **không ai bị bó**; cài bản này lên không đổi quyền của một ai;
+* người **chưa suy ra mảng nào** → không bó (bó một danh sách rỗng là khoá sạch);
+* **cơ sở chưa ai khai mảng** → cho qua (cơ sở mới mở mà chưa kịp khai là cả phòng mất đường vào
+  nó, đúng lúc đang cần nhất).
+
+Siết hụt thì thấy được và sửa được; siết oan thì âm thầm chặn việc của người ta.
+
+### 🔴 B. Ô "Chức vụ" là một đường nới quyền sang app chi phí
+
+`VHCC_DayChiPhi::ho_so_day()` trước đây gửi thẳng ô **Chức vụ** (chữ tự do, ai sửa hồ sơ cũng gõ
+được) sang cột **Bộ phận** của sổ người dùng bên chi phí, **không kiểm gì**. Mà bên ấy,
+`VHCP_Cfg::bo_phan_chuan()` quy mọi tên nó không nhận ra về **chuỗi rỗng — nghĩa là KHÔNG BÓ BỘ
+PHẬN**, tức nhìn thấy sổ chi phí của **mọi mảng**.
+
+Gõ đúng `Máy tự động` thì bị bó; gõ `Kế toán MTD`, `máy tự động ` thừa dấu cách, hay **bất kỳ tên
+phòng ban mới nào** thì hết bó. Không một dòng nào báo, ở cả hai bên.
+
+⚠️ Và nó sắp bật thành thường xuyên: mỗi cái tên `KVC · Phòng Kế Toán` là một chuỗi bên chi phí
+không biết, tức **mỗi lượt đẩy là một người hết bị bó**.
+
+**Vá** — chỉ gửi tên bên kia **thật sự hiểu**, tra hẹp trước rộng sau:
+
+1. Chức vụ khớp đúng một bộ phận của chi phí → dùng luôn (giữ nguyên nết cũ khi nó vốn đúng);
+2. **Mảng** của người ấy có bản đồ sang bộ phận chi phí → dùng bản đồ;
+3. Không ra gì → gửi **chuỗi rỗng**.
+
+🔴 Bước 3 **không phải là vá** — nó vẫn là "không bó". Không có cách nào đoán hộ một bộ phận mà
+không đoán sai, và bịa một bộ phận cho người ta còn tệ hơn: họ mất đường vào đúng phần việc của
+mình. Cái vá thật là **nói ra ai đang không bị bó** — khối *Đẩy sang Vận hành chi phí* đếm và kê
+tên, con số ấy trước bản này **không hiện ở đâu, cả hai bên**.
+
+⚠️ Khai bản đồ xong thì **đồng bộ lại ngay** mọi tài khoản đã đẩy — không thì sổ bên kia giữ bộ
+phận cũ, người khai đóng trang và tin là xong. Khai bản đồ cần **Admin**: nó đổi phạm vi nhìn tiền.
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

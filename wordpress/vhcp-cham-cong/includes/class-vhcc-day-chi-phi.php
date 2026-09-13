@@ -139,8 +139,106 @@ class VHCC_DayChiPhi {
 			'pin'     => $pin,
 			'vai_cc'  => (string) $hs['vai_tro'],
 			'coso'    => VHCC_NhanSu::chuan_coso( (string) $hs['cua_hang'] ),
-			'bo_phan' => trim( (string) $hs['chuc_vu'] ),
+			'bo_phan' => self::bo_phan_day( $hs ),
 		);
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BỘ PHẬN GỬI SANG CHI PHÍ — ĐƯỜNG NỚI QUYỀN ÂM THẦM, VÁ Ở ĐÂY
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 LỖI CŨ: gửi thẳng ô **Chức vụ** của hồ sơ chấm công sang cột Bộ phận của sổ người dùng
+	 *    bên chi phí, KHÔNG kiểm gì. Mà bên ấy, `VHCP_Cfg::bo_phan_chuan()` quy mọi tên nó không
+	 *    nhận ra về CHUỖI RỖNG — và chuỗi rỗng ở đó nghĩa là **KHÔNG BÓ BỘ PHẬN**, tức người ấy
+	 *    nhìn thấy sổ chi phí của MỌI mảng.
+	 *
+	 * Nên ô Chức vụ — một ô chữ tự do, ai sửa hồ sơ cũng gõ được — là một đường NỚI QUYỀN. Gõ
+	 *    đúng "Máy tự động" thì bị bó; gõ "Kế toán MTD", "máy tự động " thừa dấu cách, hay bất kỳ
+	 *    tên phòng ban mới nào thì hết bó. Không một dòng nào báo, ở cả hai bên.
+	 *
+	 * ⚠️ VÀ NÓ SẮP BẬT THÀNH THƯỜNG XUYÊN. Anh Thắng 13/09/2026 đang sắp xếp lại phòng ban theo
+	 *    mảng ("KVC · Phòng Kế Toán"…). Mỗi cái tên mới là một chuỗi bên chi phí không biết, tức
+	 *    mỗi lượt đẩy là một người hết bị bó.
+	 *
+	 * VÁ: chỉ gửi tên mà bên kia THẬT SỰ hiểu. Thứ tự tra, hẹp trước rộng sau:
+	 *   1. Chức vụ khớp đúng một bộ phận của chi phí  -> dùng luôn (giữ nguyên nết cũ khi nó đúng);
+	 *   2. MẢNG của người ấy có bản đồ sang bộ phận chi phí -> dùng bản đồ;
+	 *   3. Không ra gì -> gửi CHUỖI RỖNG, và đó là điều phải nói ra ở màn hình.
+	 *
+	 * 🔴 BƯỚC 3 KHÔNG PHẢI LÀ VÁ — nó vẫn là "không bó". Không có cách nào đoán hộ một bộ phận
+	 *    mà không đoán sai, và bịa một bộ phận cho người ta còn tệ hơn: họ mất đường vào đúng
+	 *    phần việc của mình. Cái vá thật là **nói ra ai đang không bị bó** — dải cảnh báo ở màn
+	 *    Quản lý nhân sự, và bản đồ mảng -> bộ phận để anh Thắng khai một lần cho hết.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Khoá lưu bản đồ: [ mảng chấm công => bộ phận của app chi phí ]. */
+	const O_BAN_DO = 'vhcc_mang_sang_chi_phi';
+
+	/** Bản đồ mảng -> bộ phận chi phí. Rỗng = chưa khai gì. */
+	public static function ban_do() {
+		$v = get_option( self::O_BAN_DO, null );
+		if ( ! is_array( $v ) ) { return array(); }
+		$ra = array();
+		foreach ( $v as $m => $b ) {
+			$m = trim( (string) $m );
+			$b = self::bo_phan_hop_le( $b );
+			if ( '' !== $m && '' !== $b ) { $ra[ $m ] = $b; }
+		}
+		return $ra;
+	}
+
+	/** Khai một dòng bản đồ. Bộ phận rỗng = bỏ khai. */
+	public static function dat_ban_do( $u, $mang, $bo_phan ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
+			return array( 'ok' => false, 'error' => 'Khai bản đồ sang app chi phí cần vai Admin.' );
+		}
+		$m = trim( (string) $mang );
+		if ( '' === $m ) { return array( 'ok' => false, 'error' => 'Thiếu mảng.' ); }
+		$b = trim( (string) $bo_phan );
+		if ( '' !== $b && '' === self::bo_phan_hop_le( $b ) ) {
+			return array( 'ok' => false, 'error' => 'App chi phí không có bộ phận "' . $b . '".' );
+		}
+		$v = get_option( self::O_BAN_DO, array() );
+		$v = is_array( $v ) ? $v : array();
+		if ( '' === $b ) { unset( $v[ $m ] ); } else { $v[ $m ] = $b; }
+		update_option( self::O_BAN_DO, $v );
+		return array( 'ok' => true, 'mang' => $m, 'bo_phan' => $b );
+	}
+
+	/** Tên bộ phận mà app chi phí THẬT SỰ hiểu; không hiểu -> ''. */
+	public static function bo_phan_hop_le( $x ) {
+		$x = trim( (string) $x );
+		if ( '' === $x ) { return ''; }
+		if ( ! class_exists( 'VHCP_Cfg' ) || ! method_exists( 'VHCP_Cfg', 'bo_phan_chuan' ) ) {
+			/* Chưa cài app chi phí thì không có gì để đối chiếu — mà đã không đối chiếu được thì
+			   ĐỪNG GỬI. Gửi bừa là đúng cái lỗi đang vá. */
+			return '';
+		}
+		return (string) VHCP_Cfg::bo_phan_chuan( $x );
+	}
+
+	/** Danh sách bộ phận app chi phí đang có. */
+	public static function ds_bo_phan_chi_phi() {
+		if ( ! class_exists( 'VHCP_Cfg' ) || ! defined( 'VHCP_Cfg::BO_PHAN_DS' ) ) { return array(); }
+		return array_values( (array) VHCP_Cfg::BO_PHAN_DS );
+	}
+
+	/** Bộ phận sẽ gửi sang cho một hồ sơ. '' = không bó bộ phận (và phải nói ra). */
+	public static function bo_phan_day( $hs ) {
+		$hs = (array) $hs;
+		$cv = self::bo_phan_hop_le( isset( $hs['chuc_vu'] ) ? $hs['chuc_vu'] : '' );
+		if ( '' !== $cv ) { return $cv; }
+		if ( ! class_exists( 'VHCC_NhanSu' ) || ! method_exists( 'VHCC_NhanSu', 'mang_bo_phan_cua' ) ) {
+			return '';
+		}
+		$bd = self::ban_do();
+		if ( ! $bd ) { return ''; }
+		$mb = VHCC_NhanSu::mang_bo_phan_cua( $hs );
+		/* Người làm NHIỀU mảng: lấy mảng đầu tiên CÓ khai bản đồ. Gộp nhiều bộ phận vào một ô là
+		   bên kia không hiểu, mà bỏ trống thì lại về đúng cái lỗi đang vá. */
+		foreach ( (array) $mb['dsMang'] as $m ) {
+			if ( isset( $bd[ $m ] ) ) { return $bd[ $m ]; }
+		}
+		return '';
 	}
 
 	/* ====================================================================== đẩy / gỡ */

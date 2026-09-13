@@ -86,7 +86,7 @@ class VHCC_NhanSu {
 	 */
 	public static function co_quyen_coso( $u, $coso ) {
 		if ( ! VHCC_Vai::duoc( $u, 'cong_coso' ) ) { return false; }   // Nhân viên dừng ở đây
-		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return true; }
+		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return self::qua_bo_mang( $u, $coso ); }
 		$coso = self::chuan_coso( $coso );
 		if ( '' === $coso ) { return false; }
 		foreach ( self::ds_coso_cua( $u ) as $x ) {
@@ -102,6 +102,96 @@ class VHCC_NhanSu {
 			if ( '' !== $x ) { $ds[] = $x; }
 		}
 		return $ds;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BÓ PHẠM VI THEO MẢNG — "Kế toán KVC chỉ thấy KVC"
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026, khi tách Kế toán / Vận hành / Kỹ thuật thành hai phòng theo mảng:
+	 * *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+	 *
+	 * 🔴 TÁCH PHÒNG THEO MẢNG MÀ KHÔNG BÓ PHẠM VI THÌ CÁI TÊN CHỈ LÀ CÁI NHÃN. Từ bậc Quản lý
+	 *    trở lên, `cong_tat_ca` trả `true` cho MỌI cơ sở — không hỏi mảng một câu nào. Nên
+	 *    "KVC · Phòng Kế Toán" vẫn xem được công, lương, hồ sơ và số tài khoản của cả mảng MTD.
+	 *    Cách duy nhất trước bản này là hạ họ xuống Cửa hàng trưởng rồi tick `coso_ql` — nhưng
+	 *    làm vậy họ mất luôn quyền lương và hồ sơ, tức là hết làm được việc kế toán.
+	 *
+	 * =========================================================================================
+	 * 🔴 MẶC ĐỊNH TẮT, VÀ MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ
+	 * =========================================================================================
+	 * Đây là một cái siết, mà siết nhầm thì người ta mở màn hình ra thấy sổ trống trơn và không
+	 * có một dòng nào nói vì sao. Nên:
+	 *   · chưa khai phòng nào thì KHÔNG ai bị bó — cài bản này lên không đổi quyền của một ai;
+	 *   · người chưa suy ra mảng nào thì KHÔNG bó (bó là khoá sạch, vì không mảng nào khớp);
+	 *   · cơ sở chưa ai khai mảng thì CHO QUA — cơ sở mới mở mà chưa kịp khai là cả phòng mất
+	 *     đường vào nó, đúng lúc đang cần nhất.
+	 * Siết hụt thì thấy được và sửa được; siết oan thì âm thầm chặn việc của người ta.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Khoá lưu: danh sách BỘ PHẬN mà người của nó chỉ thấy cơ sở thuộc mảng của chính họ. */
+	const BO_MANG_O = 'vhcc_bo_theo_mang';
+
+	/** Những bộ phận đang bị bó theo mảng. Rỗng = không ai bị bó. */
+	public static function bo_mang_ds() {
+		$v = get_option( self::BO_MANG_O, null );
+		if ( ! is_array( $v ) ) { return array(); }
+		$ra = array();
+		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x ) { $ra[] = $x; } }
+		return $ra;
+	}
+
+	/** Bật / tắt bó theo mảng cho một bộ phận. */
+	public static function dat_bo_mang( $u, $bo_phan, $bat ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Bó phạm vi theo mảng cần vai Kế toán trở lên.' );
+		}
+		$b = trim( (string) $bo_phan );
+		if ( '' === $b || ! in_array( $b, self::ds_bo_phan(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có phòng ban "' . $b . '".' );
+		}
+		$ds = self::bo_mang_ds();
+		$co = in_array( $b, $ds, true );
+		if ( (bool) $bat === $co ) { return array( 'ok' => false, 'error' => 'Chưa đổi gì.' ); }
+		if ( $bat ) {
+			$ds[] = $b;
+		} else {
+			$ra = array();
+			foreach ( $ds as $x ) { if ( $x !== $b ) { $ra[] = $x; } }
+			$ds = $ra;
+		}
+		update_option( self::BO_MANG_O, array_values( $ds ) );
+		self::ghi_nhat_ky_bp( $u, 'bo_theo_mang', $b, $bat ? 'bật' : 'tắt' );
+		return array( 'ok' => true, 'bo_phan' => $b, 'bat' => (bool) $bat );
+	}
+
+	/**
+	 * NGƯỜI NÀY BỊ BÓ VÀO NHỮNG MẢNG NÀO — `null` nghĩa là KHÔNG bó.
+	 *
+	 * ⚠️ Trả `null` ở mọi chỗ không chắc: chưa khai phòng nào, người không có mã, phòng của họ
+	 *    không nằm trong danh sách bó, hoặc họ chưa suy ra mảng nào. Xem khối chú thích ở trên.
+	 */
+	public static function bo_theo_mang( $u ) {
+		$ds_bo = self::bo_mang_ds();
+		if ( ! $ds_bo ) { return null; }
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma ) { return null; }
+		if ( ! class_exists( 'VHCC_Cong' ) || ! method_exists( 'VHCC_Cong', 'nhom_cua' ) ) { return null; }
+		$n = VHCC_Cong::nhom_cua( $ma );
+		if ( '' === $n['boPhan'] || ! in_array( $n['boPhan'], $ds_bo, true ) ) { return null; }
+		/* 🔴 KHÔNG SUY RA MẢNG NÀO THÌ ĐỪNG BÓ. Bó một danh sách rỗng là khoá sạch mọi cơ sở —
+		   người ấy mở màn hình ra thấy trống trơn và không có dòng nào nói vì sao. */
+		return $n['dsMang'] ? $n['dsMang'] : null;
+	}
+
+	/** Cơ sở này có nằm trong mảng mà người xem bị bó vào không. */
+	private static function qua_bo_mang( $u, $coso ) {
+		$bo = self::bo_theo_mang( $u );
+		if ( null === $bo ) { return true; }
+		$m = self::mang_theo_coso( $coso );
+		/* Cơ sở chưa ai khai mảng thì CHO QUA — cơ sở mới mở mà chưa kịp khai là cả phòng mất
+		   đường vào nó, đúng lúc đang cần nhất. Thiếu khai thì thấy được ở dải đếm và sửa được. */
+		if ( '' === $m ) { return true; }
+		return in_array( $m, $bo, true );
 	}
 
 	/**

@@ -1083,4 +1083,89 @@ $r = VHCC_NhanSu::dat_mang_an( $u_ad2, 'Mảng Bịa Ra', true );
 t( 'mảng không có thật thì chối', empty( $r['ok'] ), $r );
 
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 16. HAI VẤN ĐỀ PHẢI GIẢI QUYẾT TRƯỚC KHI SẮP XẾP LẠI PHÒNG BAN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026: *"Trước khi sắp xếp lại bộ phận và phòng ban và mảng, có mấy vấn đề cần
+ * giải quyết"*, rồi *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+ *
+ * Hai vấn đề, và cả hai đều là đường HỎNG IM LẶNG:
+ *   A. Tách phòng theo mảng mà quyền KHÔNG bó theo mảng thì cái tên chỉ là cái nhãn — từ bậc
+ *      Quản lý trở lên là thấy MỌI cơ sở.
+ *   B. Đẩy người sang app chi phí gửi thẳng ô Chức vụ (chữ tự do) sang cột Bộ phận bên ấy; tên
+ *      nào bên ấy không hiểu thì quy về "không bó" = nhìn thấy sổ của MỌI mảng.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 16. Bó theo mảng & bó bộ phận sang chi phí ──────────\n";
+
+/* ---- 16a. Mặc định TẮT — cài bản này lên không đổi quyền của ai ---- */
+delete_option( VHCC_NhanSu::BO_MANG_O );
+VHCC_Cong::quen_nhom();
+$nv( 'B_KTKVC', 'Kế toán KVC', 'VIVO', '', 'KVC Kế Toán' );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế toán' ), array( 'ma_nv' => 'B_KTKVC' ) );
+VHCC_NhanSu::them_bo_phan( $u_ad2, 'KVC Kế Toán' );
+$u_ktkvc = array( 'name' => 'Kế toán KVC', 'role' => 'Kế toán', 'coso' => 'VIVO', 'ma_nv' => 'B_KTKVC' );
+
+t( '🔴 chưa bật bó thì Kế toán KVC vẫn thấy cơ sở MTD — y như trước bản này',
+	VHCC_NhanSu::co_quyen_coso( $u_ktkvc, 'POSH_Q1' ) );
+teq( 'và hàm bó trả null = không bó ai', null, VHCC_NhanSu::bo_theo_mang( $u_ktkvc ) );
+
+/* ---- 16b. Bật bó cho một phòng ---- */
+$r = VHCC_NhanSu::dat_bo_mang( $u_kt2, 'KVC Kế Toán', true );
+t( 'bật được bó cho một phòng', ! empty( $r['ok'] ), $r );
+VHCC_Cong::quen_nhom();
+t( '🔴 nay Kế toán KVC KHÔNG còn thấy cơ sở mảng MTD',
+	! VHCC_NhanSu::co_quyen_coso( $u_ktkvc, 'POSH_Q1' ) );
+t( '🔴 nhưng VẪN thấy cơ sở mảng của chính họ',
+	VHCC_NhanSu::co_quyen_coso( $u_ktkvc, 'VIVO' ) );
+/* Đối chứng: người phòng KHÁC không bị bó lây. */
+$u_adx = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'S_AD' );
+t( 'người phòng khác KHÔNG bị bó lây', VHCC_NhanSu::co_quyen_coso( $u_adx, 'POSH_Q1' ) );
+
+/* ---- 16c. MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ — siết oan tệ hơn siết hụt ---- */
+$nv( 'B_TRONG', 'Chưa có mảng', '', '', 'KVC Kế Toán' );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế toán' ), array( 'ma_nv' => 'B_TRONG' ) );
+VHCC_Cong::quen_nhom();
+$u_trong = array( 'name' => 'Chưa mảng', 'role' => 'Kế toán', 'coso' => '', 'ma_nv' => 'B_TRONG' );
+teq( '🔴 người KHÔNG suy ra mảng nào thì KHÔNG bó — bó là khoá sạch',
+	null, VHCC_NhanSu::bo_theo_mang( $u_trong ) );
+t( 'nên họ vẫn vào được mọi cơ sở', VHCC_NhanSu::co_quyen_coso( $u_trong, 'POSH_Q1' ) );
+t( '🔴 cơ sở chưa ai khai mảng thì CHO QUA, không khoá',
+	VHCC_NhanSu::co_quyen_coso( $u_ktkvc, 'CS_LA_HOAC' ) );
+
+/* ---- 16d. Tắt bó thì trả lại đúng như cũ ---- */
+VHCC_NhanSu::dat_bo_mang( $u_kt2, 'KVC Kế Toán', false );
+VHCC_Cong::quen_nhom();
+t( 'tắt bó thì họ nhìn lại theo đúng thang vai',
+	VHCC_NhanSu::co_quyen_coso( $u_ktkvc, 'POSH_Q1' ) );
+$r = VHCC_NhanSu::dat_bo_mang( $u_nv2, 'KVC Kế Toán', true );
+t( '🔴 Nhân viên KHÔNG bật được bó', empty( $r['ok'] ), $r );
+
+/* ---- 16e. KHÔNG GỬI TÊN BỘ PHẬN BÊN KIA KHÔNG HIỂU ---- */
+delete_option( VHCC_DayChiPhi::O_BAN_DO );
+teq( '🔴 chức vụ là tên lạ -> KHÔNG gửi gì, không còn lọt thành "không bó" do gõ tay', '',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'KVC · Phòng Kế Toán', 'cua_hang' => 'VIVO' ) ) );
+teq( 'chức vụ khớp đúng một bộ phận bên kia -> giữ nguyên', 'Máy tự động',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'Máy tự động', 'cua_hang' => 'VIVO' ) ) );
+/* ⚠️ Khớp KHÔNG PHÂN BIỆT HOA THƯỜNG, kể cả chữ có dấu — đúng cái bẫy `bo_phan_chuan()` ghi. */
+teq( 'và khớp được cả khi gõ hoa', 'Máy tự động',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'MÁY TỰ ĐỘNG', 'cua_hang' => 'VIVO' ) ) );
+
+/* ---- 16f. Bản đồ mảng -> bộ phận chi phí ---- */
+$r = VHCC_DayChiPhi::dat_ban_do( $u_ad2, 'Máy tự động', 'Máy tự động' );
+t( 'khai được một dòng bản đồ', ! empty( $r['ok'] ), $r );
+$r = VHCC_DayChiPhi::dat_ban_do( $u_ad2, 'Khu vui chơi', 'Cơ sở' );
+t( 'và dòng thứ hai', ! empty( $r['ok'] ), $r );
+teq( '🔴 chức vụ lạ nhưng CÓ bản đồ theo mảng -> gửi đúng bộ phận', 'Cơ sở',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'KVC · Phòng Kế Toán', 'cua_hang' => 'VIVO' ) ) );
+teq( 'cơ sở mảng MTD thì ra bộ phận MTD', 'Máy tự động',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'MTD · Phòng Kế Toán', 'cua_hang' => 'POSH_Q1' ) ) );
+/* Bản đồ KHÔNG được đè chức vụ đã đúng — nết cũ giữ nguyên khi nó vốn đúng. */
+teq( '🔴 chức vụ đã đúng thì bản đồ KHÔNG đè', 'Văn phòng',
+	VHCC_DayChiPhi::bo_phan_day( array( 'chuc_vu' => 'Văn phòng', 'cua_hang' => 'VIVO' ) ) );
+$r = VHCC_DayChiPhi::dat_ban_do( $u_ad2, 'Máy tự động', 'Bộ Phận Bịa' );
+t( 'khai bộ phận bên kia không có thì chối', empty( $r['ok'] ), $r );
+$r = VHCC_DayChiPhi::dat_ban_do( $u_kt2, 'Máy tự động', 'Cơ sở' );
+t( '🔴 Kế toán KHÔNG khai được bản đồ — nó đổi phạm vi nhìn tiền', empty( $r['ok'] ), $r );
+delete_option( VHCC_DayChiPhi::O_BAN_DO );
+
 ket_luan_vai();
