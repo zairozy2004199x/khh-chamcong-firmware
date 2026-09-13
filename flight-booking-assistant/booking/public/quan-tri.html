@@ -112,6 +112,14 @@ const fillHref = o => "javascript:" + encodeURIComponent("(" + DVR_FILL.toString
 const AIRLINE = { VN:"https://www.vietnamairlines.com/vn/vi/home", VJ:"https://www.vietjetair.com/vi",
                   QH:"https://www.bambooairways.com/vn/vi/", VU:"https://www.vietravelairlines.com/vi" };
 
+function thu(o){
+  const m = (o.mail || []).slice(-1)[0];
+  if(!m) return (o.contact || {}).email ? '<div class="log">✉ chưa gửi thư nào</div>' : "";
+  const gio = new Date(m.at).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  return m.ok
+    ? '<div class="log" style="color:var(--cheap)">✉ ' + m.kind + ' · đã gửi ' + gio + '</div>'
+    : '<div class="log" style="color:var(--warn)">✉ ' + m.kind + ' HỎNG: ' + m.error + '</div>';
+}
 function tag(o){
   const cls = o.status === "da_xuat_ve" ? "ok" : ["hoan_tien","huy","het_han"].includes(o.status) ? "bad" : "wait";
   return '<span class="tag ' + cls + '">' + o.statusText + '</span>';
@@ -142,6 +150,7 @@ function render(j){
       + (o.money.cost ? '<div class="hint">mua ' + vnd(o.money.cost) + " · chênh " + vnd(o.money.paid - o.money.cost) + "</div>" : "")
       + '</td>'
       + '<td>' + tag(o) + (o.quaHan ? '<div class="hint" style="color:var(--warn)">trả sau hạn giữ giá</div>' : "")
+      + thu(o)
       + '<div class="log">' + (o.log || []).slice(-2).map(l => "· " + l.what).join("<br>") + '</div></td>'
       + '<td><div class="acts">'
       + (canPay ? '<button data-act="paid" data-code="' + o.code + '">Đã nhận tiền</button>' : "")
@@ -151,6 +160,7 @@ function render(j){
       + (o.status !== "hoan_tien" && o.status !== "huy" && o.status !== "da_xuat_ve"
           ? '<button data-act="refund" data-code="' + o.code + '">Hoàn tiền</button>'
             + '<button data-act="cancel" data-code="' + o.code + '">Huỷ</button>' : "")
+      + ((o.contact || {}).email ? '<button data-act="mail" data-code="' + o.code + '">Gửi lại thư</button>' : "")
       + '</div></td></tr>';
   }).join("") : '<tr><td colspan="6" class="hint">Không có đơn nào ở nhóm này.</td></tr>';
 }
@@ -182,6 +192,7 @@ $("#filters").addEventListener("click", e => {
 $("#rows").addEventListener("click", async e => {
   const b = e.target.closest("button[data-act]"); if(!b) return;
   const { act, code } = b.dataset;
+  let bao = "";
   try {
     if(act === "paid"){
       const amount = prompt("Số tiền thực nhận cho đơn " + code + " (đ):");
@@ -198,8 +209,12 @@ $("#rows").addEventListener("click", async e => {
     } else if(act === "cancel"){
       const reason = prompt("Lý do huỷ đơn " + code + ":") || "";
       await api("/api/admin/orders/" + code + "/cancel", { reason });
+    } else if(act === "mail"){
+      const r = await api("/api/admin/orders/" + code + "/mail", {});
+      bao = "Đã gửi lại thư (" + r.kind + ") cho đơn " + code + ".";
     }
-    load();
+    await load();
+    if(bao) $("#msg").textContent = bao;
   } catch(err){ $("#msg").textContent = "Không làm được: " + err.message; }
 });
 

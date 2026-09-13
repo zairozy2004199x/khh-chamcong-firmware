@@ -12,6 +12,9 @@ flight-booking-assistant/
 ├── server/proxy.mjs        proxy giá thật (Amadeus) + tra mã số thuế — không phụ thuộc thư viện nào
 ├── server/test-proxy.mjs   22 test chạy bằng Amadeus giả, không cần khoá
 ├── booking/server.mjs      máy chủ đơn hàng: khách trả tiền cho mình, mình đi mua vé
+├── booking/mailer.mjs      gửi email (SMTP tự viết, không thư viện) — có chế độ log để chạy thử
+├── booking/mail-noi-dung.mjs  bốn mẫu thư gửi khách
+├── booking/test-mail.mjs   21 test với máy chủ SMTP giả, có cả đường STARTTLS
 ├── booking/public/         trang khách đặt (dat-ve.html) và trang mình xử lý (quan-tri.html)
 └── booking/test-booking.mjs 31 test cả vòng đời đơn, không cần ngân hàng thật
     automation/dat-ve.mjs   script Playwright: mở trang, điền hồ sơ, dừng trước thanh toán
@@ -202,6 +205,44 @@ Từ trang quản trị, mỗi đơn có nút **Điền hộ** mang đúng thôn
 trang, mở trang hãng, bấm một cái là form đầy. Mua xong bấm **Mã đặt chỗ**, đơn đóng lại và khách thấy
 mã ngay trên trang của họ.
 
+### Thư báo cho khách
+
+Khách nhận thư ở bốn mốc, tự động:
+
+| Lúc nào | Thư nói gì |
+|---|---|
+| vừa tạo đơn | số tiền, số tài khoản, nội dung chuyển khoản, hạn giữ giá |
+| tiền về | đã nhận bao nhiêu, đang mua vé (thiếu tiền thì nói rõ thiếu bao nhiêu) |
+| xuất vé xong | **mã đặt chỗ**, chuyến, tên khách, dặn dò giấy tờ và giờ ra sân bay |
+| hoàn tiền | số tiền hoàn và lời xin lỗi |
+
+Khai trong `.env`:
+
+```ini
+MAIL_MODE=smtp              # log = chỉ in ra màn hình (mặc định, để chạy thử)
+MAIL_FROM=ve@congty.com
+MAIL_FROM_NAME=Vé K&H
+SHOP_NAME=Vé K&H
+PUBLIC_URL=https://ve.congty.com    # để chèn link tra đơn vào thư
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=ve@congty.com
+SMTP_PASS=mat-khau-ung-dung         # Gmail: dùng "mật khẩu ứng dụng", không phải mật khẩu tài khoản
+```
+
+Dùng dịch vụ gửi thư thay cho SMTP thì đặt `MAIL_MODE=http` với `MAIL_API_URL` và `MAIL_API_KEY`
+(dạng gói tin giống Resend: `{from, to, subject, text, html}`).
+
+Thư gửi nền, không giữ chân lời đáp HTTP. Gửi hỏng thì ghi vào nhật ký đơn kèm lý do, và trang quản
+trị có nút **Gửi lại thư** — tự chọn đúng mẫu theo trạng thái đơn.
+
+Phần SMTP tự viết: `AUTH LOGIN`, `STARTTLS` cho cổng 587, TLS thẳng cho cổng 465, tiêu đề tiếng Việt
+bọc theo RFC 2047 và thân thư base64 — nên `Vé đã xuất` không biến thành chữ rác trong hộp thư khách.
+
+```bash
+node booking/test-mail.mjs   # 21 test với SMTP giả: AUTH, STARTTLS, sai mật khẩu, API, chế độ log
+```
+
 ### Tiền về thì máy tự biết
 
 Nội dung chuyển khoản chính là mã đơn (`DVR26090001`). Đăng ký một dịch vụ báo biến động số dư
@@ -229,8 +270,9 @@ Sabre qua đại lý — lúc đó mình gánh cả hoàn/đổi vé và tranh c
 ### Kiểm thử
 
 ```bash
-node booking/test-booking.mjs   # 31 test: tạo đơn, chặn đơn sai, webhook khớp mã,
-                                # thiếu tiền, quản trị, hoàn tiền, hết hạn giữ giá
+node booking/test-booking.mjs   # 38 test: tạo đơn, chặn đơn sai, webhook khớp mã, thiếu tiền,
+                                # quản trị, thư báo khách, hoàn tiền, hết hạn giữ giá
+node booking/test-mail.mjs      # 21 test cho phần gửi thư
 ```
 
 ## Script tự đặt (Playwright)

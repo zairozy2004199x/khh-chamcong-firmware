@@ -22,6 +22,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, extname } from 'node:path';
 import { Store } from './store.mjs';
 import { qrImage, matchCode } from './vietqr.mjs';
+import { makeMailer } from './mailer.mjs';
+import { soanThu } from './mail-noi-dung.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -58,6 +60,36 @@ const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const DATA = process.env.DATA || resolve(HERE, 'data', 'orders.json');
 
 const store = await new Store(DATA).init();
+
+/* ---------- thư báo cho khách ---------- */
+const mailer = makeMailer();
+const MAILCFG = {
+  shopName: process.env.SHOP_NAME || 'Dò Vé Rẻ',
+  publicUrl: process.env.PUBLIC_URL || ('http://localhost:' + PORT),
+  bank: BANK
+};
+// gửi xong mới ghi kết quả vào đơn; không chặn lời đáp HTTP, hỏng thì ghi lại để gửi lại được
+async function guiThu(code, kind){
+  const o = store.get(code);
+  if(!o) return { ok: false, error: 'không có đơn ' + code };
+  const to = (o.contact || {}).email;
+  if(!to) return { ok: false, error: 'đơn không có email' };
+  let kq;
+  try {
+    await mailer.send({ to, ...soanThu(kind, o, MAILCFG) });
+    kq = { ok: true };
+  } catch(e){
+    kq = { ok: false, error: e.message };
+  }
+  await store.write(d => {
+    const x = d.orders[code]; if(!x) return;
+    const at = new Date().toISOString();
+    (x.mail = x.mail || []).push({ at, kind, to, ok: kq.ok, error: kq.error || '' });
+    x.log.push({ at, what: kq.ok ? 'Đã gửi thư "' + kind + '" tới ' + to
+                                 : 'Gửi thư "' + kind + '" HỎNG: ' + kq.error });
+  });
+  return kq;
+}
 
 /* ---------- trạng thái đơn ---------- */
 export const TRANG_THAI = {
@@ -151,6 +183,8 @@ const server = createServer(async (req, res) => {
         return o;
       });
 
+      guiThu(order.code, 'moi').catch(() => {});
+
       return send(res, 201, {
         ...view(order),
         bank: { ...BANK, transferNote: order.code },
@@ -208,6 +242,7 @@ const server = createServer(async (req, res) => {
           ref: b.referenceCode || '' });
         return { ok: true, code, paid: amount, thieu: o.thieu, quaHan: o.quaHan };
       });
+      if(out.ok) guiThu(out.code, 'da_nhan_tien').catch(() => {});
       return send(res, out.error ? 404 : 200, out);
     }
 
@@ -233,10 +268,20 @@ const server = createServer(async (req, res) => {
         });
       }
 
-      const m = path.match(/^\/api\/admin\/orders\/([A-Za-z0-9]+)\/(paid|booking|refund|cancel|note)$/);
+      const m = path.match(/^\/api\/admin\/orders\/([A-Za-z0-9]+)\/(paid|booking|refund|cancel|note|mail)$/);
       if(m && req.method === 'POST'){
         const [, code, act] = m;
         const b = await body(req);
+        if(act === 'mail'){
+          const o = store.get(code);
+          if(!o) return send(res, 400, { error: 'Không có đơn ' + code });
+          const kind = b.kind || ({ cho_thanh_toan:'moi', het_han:'moi', da_nhan_tien:'da_nhan_tien',
+                                    dang_dat_ve:'da_nhan_tien', da_xuat_ve:'da_xuat_ve', hoan_tien:'hoan_tien' })[o.status];
+          if(!kind) return send(res, 400, { error: 'Đơn ở trạng thái ' + o.status + ' không có mẫu thư nào.' });
+          const kq = await guiThu(code, kind);
+          if(!kq.ok) return send(res, 502, { error: 'Không gửi được: ' + kq.error });
+          return send(res, 200, { ok: true, kind, order: view(store.get(code)) });
+        }
         const out = await store.write(d => {
           const o = d.orders[code.toUpperCase()];
           if(!o) return { error: 'Không có đơn ' + code };
@@ -267,6 +312,8 @@ const server = createServer(async (req, res) => {
           return { ok: true, order: o };
         });
         if(out.error) return send(res, 400, out);
+        const mauThu = { paid: 'da_nhan_tien', booking: 'da_xuat_ve', refund: 'hoan_tien' }[act];
+        if(mauThu) guiThu(code.toUpperCase(), mauThu).catch(() => {});
         return send(res, 200, { ...out, order: view(out.order) });
       }
 
@@ -302,6 +349,7 @@ if(process.env.NODE_ENV !== 'test'){
     console.log('  mình xử lý  : http://localhost:' + PORT + '/quan-tri.html   (token: ' + ADMIN_TOKEN + ')');
     if(!BANK.account) console.log('  ⚠ chưa khai BANK_ID/BANK_ACCOUNT — chưa sinh được mã QR chuyển khoản');
     if(!WEBHOOK_SECRET) console.log('  ⚠ chưa khai WEBHOOK_SECRET — tiền về phải tự bấm "Đã nhận tiền"');
+    console.log('  thư báo khách: ' + mailer.mota());
     console.log('  phí dịch vụ : ' + FEE.pct + '% + ' + FEE.flat + 'đ, tối thiểu ' + FEE.min + 'đ · giữ giá ' + HOLD + ' phút');
   });
 }

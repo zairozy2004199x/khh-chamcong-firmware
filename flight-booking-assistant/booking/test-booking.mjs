@@ -22,6 +22,7 @@ const dir = await mkdtemp(join(tmpdir(), 'dvr-'));
 const spawnSrv = (port, extra = {}) => spawn(process.execPath, [resolve(HERE, 'server.mjs')], {
   env: { ...process.env, PORT: String(port), ADMIN_TOKEN: TOKEN, WEBHOOK_SECRET: SECRET,
          BANK_ID: '970436', BANK_ACCOUNT: '0071000123456', BANK_NAME: 'CONG TY TNHH K&H',
+         MAIL_MODE: 'log', SHOP_NAME: 'Vé K&H', PUBLIC_URL: 'https://ve.knh.vn',
          FEE_PCT: '3', FEE_MIN: '50000', DATA: join(dir, 'orders-' + port + '.json'), ...extra },
   stdio: 'ignore'
 });
@@ -39,6 +40,19 @@ const call = async (port, path, opt = {}) => {
 };
 const api = (p, o) => call(9921, p, o);
 const admin = (p, o) => call(9921, p, { ...o, headers: { 'x-admin-token': TOKEN } });
+
+// thư gửi bất đồng bộ nên chờ tới khi đơn ghi nhận xong
+const doiThu = async (code, kind, hanMs = 3000) => {
+  const het = Date.now() + hanMs;
+  while(Date.now() < het){
+    const r = await admin('/api/admin/orders');
+    const o = (r.body.orders || []).find(x => x.code === code);
+    const m = (o && o.mail || []).filter(x => x.kind === kind);
+    if(m.length) return m;
+    await sleep(80);
+  }
+  return [];
+};
 
 const DON = {
   flight: { route: 'SGN-HAN', date: '2026-10-04', airline: 'VJ', number: 'VJ120', dep: '06:15', arr: '08:25', stops: 0, bag: false },
@@ -121,6 +135,22 @@ try {
      list.body.orders.find(o => o.code === code).log);
   const rf = await admin('/api/admin/orders/' + c2.body.code + '/refund', { body: { reason: 'hết chỗ giá đó' } });
   ok('hoàn tiền được', rf.body.order.status === 'hoan_tien', rf.body.order.status);
+
+  console.log('\nThư báo khách');
+  const t1 = await doiThu(code, 'moi');
+  ok('tạo đơn xong là gửi hướng dẫn chuyển khoản', t1.length === 1 && t1[0].ok && t1[0].to === 'vana@congty.com', t1);
+  const t2 = await doiThu(code, 'da_nhan_tien');
+  ok('tiền về thì báo đang mua vé', t2.length === 1 && t2[0].ok, t2);
+  const t3 = await doiThu(code, 'da_xuat_ve');
+  ok('xuất vé xong thì gửi mã đặt chỗ', t3.length === 1 && t3[0].ok, t3);
+  const t4 = await doiThu(c2.body.code, 'hoan_tien');
+  ok('hoàn tiền cũng có thư', t4.length === 1 && t4[0].ok, t4);
+  const gl = await admin('/api/admin/orders/' + code + '/mail', { body: {} });
+  ok('gửi lại thư được, tự chọn mẫu theo trạng thái', gl.body.ok === true && gl.body.kind === 'da_xuat_ve', gl.body);
+  const t5 = await doiThu(code, 'da_xuat_ve');
+  ok('lần gửi lại được ghi vào đơn', t5.length === 2, t5.length);
+  const nk = (await admin('/api/admin/orders')).body.orders.find(o => o.code === code);
+  ok('nhật ký đơn ghi việc gửi thư', (nk.log || []).some(l => /Đã gửi thư/.test(l.what)));
 
   console.log('\nHết hạn giữ giá');
   const h = await call(9922, '/api/orders', { body: DON });
