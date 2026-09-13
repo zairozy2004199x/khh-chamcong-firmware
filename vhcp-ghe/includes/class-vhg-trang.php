@@ -3453,14 +3453,16 @@ class VHG_Trang {
         if(rp.chairs && rp.chairs.length) body.insertBefore(bulkChooser24h_(body), body.firstChild);
       };
     }
-    /* 📤 ẢNH BÁO CÁO ĐỂ TẢI/GỬI ZALO — anh Thắng 13/09/2026: *"nếu báo cũ chưa gửi thì hiện ô
-       ảnh báo cáo để tải về"*. Báo cáo đã khoá vẫn dựng được ảnh (chỉ là bằng chứng để gửi Zalo,
-       không sửa gì), nên nút này hiện cho MỌI báo cáo. */
-    var bAnh=el('button','bc-btn','📤 Ảnh báo cáo');
-    bAnh.onclick=function(){ baoCaoAnhTuRp_(rp); };
-    head.appendChild(bAnh);
     d.appendChild(head); d.appendChild(body);
     d.appendChild(khoiBill_(rp));
+    /* 📤 NÚT "BÁO CÁO ẢNH" — anh Thắng 13/09/2026: *"nếu báo cũ chưa gửi thì hiện ô ảnh báo cáo
+       để tải về"*, và đặt ở ĐÁY thẻ bên phải (cạnh khu nộp bill) theo ảnh anh gửi. Để ở đáy thẻ
+       (không nhét vào head cạnh nút Sửa) nên hiện cho MỌI báo cáo — kể cả đã khoá hoặc toàn QR
+       (khối bill của các báo cáo đó không có hàng nút). Bấm là dựng ảnh POSH để Tải/Chia sẻ Zalo. */
+    var actBar=el('div'); actBar.style.cssText='display:flex;justify-content:flex-end;margin-top:8px';
+    var bAnh=el('button','bc-btn','📤 Báo cáo ảnh'); bAnh.style.fontWeight='700';
+    bAnh.onclick=function(){ baoCaoAnhTuRp_(rp); };
+    actBar.appendChild(bAnh); d.appendChild(actBar);
     return d;
   }
 
