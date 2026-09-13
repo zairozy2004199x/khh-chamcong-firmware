@@ -3,7 +3,7 @@
  * Plugin Name:       Trang Vận Hành K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Một trang duy nhất để vào mọi app của K&H — chấm công, chi phí, hợp đồng. Đường dẫn lấy thẳng từ chính mấy app đó nên đổi đường dẫn bên kia thì bên này tự theo.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,11 +22,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHTC_VERSION', '1.6.0' );
+define( 'VHTC_VERSION', '1.7.0' );
 define( 'VHTC_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHTC_DIR . 'includes/class-vhtc-trang.php';
 require_once VHTC_DIR . 'includes/class-vhtc-admin.php';
+require_once VHTC_DIR . 'includes/class-vhtc-tu-cap-nhat.php';
+
+/* Tự cập nhật từ GitHub Releases — hiện nút "Cập nhật" ngay ở màn Plugin.
+   Anh Thắng 13/09/2026: *"cách kết nối github đẩy thẳng code wed lên"*, rồi *"các bộ khác thì
+   sao, cần token nữa không, hay dùng chung"* — khoá dùng CHUNG một ô cho cả chín plugin, khai
+   một lần ở Cài đặt Vận Hành Chi Phí là đủ. Chưa khai thì lớp này im lặng không làm gì.
+   `tools/test/kiem-tu-cap-nhat.php` quét đủ chín plugin, nên bộ mới quên nối là bộ thử đỏ. */
+VHTC_TuCapNhat::init();
 
 add_action( 'init', array( 'VHTC_Trang', 'init' ), 5 );
 add_action( 'template_redirect', array( 'VHTC_Trang', 'co_phai_trang_nay' ) );

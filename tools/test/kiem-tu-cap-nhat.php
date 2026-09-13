@@ -186,20 +186,91 @@ $GLOBALS['VHCP_HTTP'] = array();   // không có mạng
 unset( $GLOBALS['VHCP_TR'][ VHCP_TuCapNhat::O_NHO ] );
 t( '⚠️ mất mạng -> cũng chỉ trả về null', null === VHCP_TuCapNhat::ban_moi( true ) );
 
-/* ═══ 6. 🔴 ĐƯỜNG ĐI — PLUGIN PHẢI NẠP VÀ GỌI ══════════════════════════════════
- * Viết đúng lớp mà quên nối vào plugin thì cài xong không có gì xảy ra, và nhìn mã thì thấy
- * "đã làm rồi". Cùng bài học với cổng API quên truyền phòng ban (13/09/2026).
+/* ═══ 6. 🔴 QUÉT ĐỦ MỌI PLUGIN — BỘ MỚI QUÊN LÀ BÀI NÀY ĐỎ ══════════════════════
+ * Anh Thắng 13/09/2026, ngay sau khi chốt làm cho bảy bộ còn lại: *"với sau này tạo ra bộ mới
+ * thì sao"*.
+ *
+ * 🔴 KHÔNG LIỆT KÊ TAY TỪNG PLUGIN Ở ĐÂY. Danh sách gõ tay đứng im trong khi cây mã đi tiếp —
+ *    đúng cái bẫy mà `tools/build-plugin-zip.sh` đã phải dựng "chốt chống sót" để chặn
+ *    (`vhcp-noi-bo` từng suýt bị bỏ quên kiểu ấy). Phép dưới đây QUÉT thư mục `wordpress/`:
+ *    dựng một plugin mới mà quên nối lớp tự cập nhật là bộ thử đỏ ngay, không ai phải nhớ.
+ *
+ * ⚠️ CỐ Ý BỎ QUA THÌ PHẢI KHAI VÀO `$KHONG_TU_CAP_NHAT`, y như `KHONG_DONG_GOI` bên script
+ *    đóng gói — để chỗ bỏ qua là một QUYẾT ĐỊNH có ghi lại, chứ không phải một chỗ sót.
  * ═════════════════════════════════════════════════════════════════════════════════════ */
-foreach ( array(
-	array( 'chi phí',   '/wordpress/vhcp-chi-phi/vhcp-chi-phi.php',     'class-vhcp-tu-cap-nhat.php', 'VHCP_TuCapNhat::init()' ),
-	array( 'chấm công', '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php', 'class-vhcc-tu-cap-nhat.php', 'VHCC_TuCapNhat::init()' ),
-) as $x ) {
-	$ma = file_get_contents( $goc . $x[1] );
-	$ma = preg_replace( '#/\*.*?\*/#s', '', $ma );
-	$ma = preg_replace( '#//[^\n]*#', '', $ma );
-	t( '🔴 plugin ' . $x[0] . ' CÓ nạp lớp tự cập nhật', false !== strpos( $ma, $x[2] ), null );
-	t( '🔴 plugin ' . $x[0] . ' CÓ gọi init()',           false !== strpos( $ma, $x[3] ), null );
+$KHONG_TU_CAP_NHAT = array(
+	/* Bản viết lại 25/08/2026 đã dừng; hệ đang chạy là `vhcp-cham-cong`. Script đóng gói cũng
+	   bỏ qua nó (`KHONG_DONG_GOI`), nên nó không có bản cài nào để mà cập nhật. */
+	'vhcp-cong',
+);
+
+$ds_plugin = array();
+foreach ( (array) glob( $goc . '/wordpress/*', GLOB_ONLYDIR ) as $thu_muc ) {
+	$ten = basename( $thu_muc );
+	if ( ! file_exists( $thu_muc . '/' . $ten . '.php' ) ) { continue; }
+	$ds_plugin[] = $ten;
 }
+t( 'quét được thư mục plugin (≥ 8)', count( $ds_plugin ) >= 8, $ds_plugin );
+
+$so_co = 0;
+foreach ( $ds_plugin as $ten ) {
+	$chinh = $goc . '/wordpress/' . $ten . '/' . $ten . '.php';
+	$ma = preg_replace( '#/\*.*?\*/#s', '', file_get_contents( $chinh ) );
+	$ma = preg_replace( '#//[^\n]*#', '', $ma );
+
+	if ( in_array( $ten, $KHONG_TU_CAP_NHAT, true ) ) {
+		/* Đã khai bỏ qua thì phải bỏ qua THẬT — nửa vời (có lớp mà không gọi) còn khó hiểu hơn. */
+		t( '⚠️ ' . $ten . ' — cố ý KHÔNG tự cập nhật, và đúng là không có',
+			false === strpos( $ma, 'TuCapNhat' ), $ten );
+		continue;
+	}
+	$so_co++;
+	t( '🔴 ' . $ten . ': CÓ nạp lớp tự cập nhật',
+		1 === preg_match( '/require_once [A-Z_]+ \. .includes\/class-[a-z]+-tu-cap-nhat\.php.;/', $ma ), $ma_loi = null );
+	t( '🔴 ' . $ten . ': CÓ gọi init()',
+		1 === preg_match( '/[A-Z_]+_TuCapNhat::init\(\);/', $ma ), null );
+
+	/* 🔴 TIỀN TỐ TAG PHẢI BẰNG ĐÚNG TÊN THƯ MỤC. Đây là chỗ chín plugin phân biệt bản của
+	   nhau; chép lớp từ plugin khác mà quên đổi dòng này là bộ mới đi nhận bản của bộ cũ. */
+	$lop = glob( $goc . '/wordpress/' . $ten . '/includes/class-*-tu-cap-nhat.php' );
+	if ( ! $lop ) { t( '🔴 ' . $ten . ': có tệp lớp tự cập nhật', false, $ten ); continue; }
+	$ma_lop = file_get_contents( $lop[0] );
+	t( '🔴 ' . $ten . ': tiền tố tag = tên thư mục của chính nó',
+		false !== strpos( $ma_lop, "TIEN_TO = '" . $ten . "-v'" ), $ten );
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * KHOÁ: DÙNG CHUNG — TRỪ BẢN VÙNG.
+	 *
+	 * Anh Thắng 13/09/2026: *"cần token nữa không, hay dùng chung"*. Những plugin sống chung
+	 * MỘT site thì chung một ô khoá: khai một lần là đủ cho cả tám.
+	 *
+	 * 🔴 BẢN VÙNG LÀ NGOẠI LỆ, VÀ LÀ NGOẠI LỆ BẮT BUỘC. `vhcp-chi-phi-hn` (và mọi bản
+	 *    `vhcp-chi-phi-<vùng>` do `tools/tach-ban-vung.sh` sinh ra) được tách để chạy trên một
+	 *    site RIÊNG của vùng ấy; luật của bản vùng là KHÔNG dùng chung một chuỗi nào với bản
+	 *    gốc — không chung tiền tố bảng, không chung ô cấu hình. `kiem-tach-ban-vung.php` canh
+	 *    điều đó, và nó đã bắt được ngay lượt đầu khi lớp tự cập nhật của bản vùng còn chép
+	 *    nguyên ô khoá của bản gốc sang.
+	 *
+	 * ⚠️ NHẬN BẢN VÙNG BẰNG QUY TẮC TÊN, không bằng danh sách gõ tay — thêm một vùng là thêm
+	 *    một dòng phải nhớ sửa, và lần quên nào cũng im lặng. Cùng quy tắc mà
+	 *    `tools/build-plugin-zip.sh` dùng cho nhánh `chi-phi-*`.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	$la_ban_vung = ( 0 === strpos( $ten, 'vhcp-chi-phi-' ) );
+	if ( $la_ban_vung ) {
+		t( '🔴 ' . $ten . ' (bản vùng): khoá RIÊNG, không chung với bản gốc',
+			false === strpos( $ma_lop, "'vhcp_gh_token'" ), $ten );
+		t( '   và ô khoá mang tiền tố của chính nó',
+			1 === preg_match( "/O_KHOA = '[a-z]+_gh_token';/", $ma_lop ), $ten );
+	} else {
+		t( '⚠️ ' . $ten . ': dùng CHUNG một khoá GitHub (khai một lần là đủ)',
+			false !== strpos( $ma_lop, "O_KHOA = 'vhcp_gh_token'" ), $ten );
+	}
+	/* Nhưng bộ nhớ tạm phải RIÊNG, không thì hai plugin giẫm lên kết quả của nhau. */
+	t( '🔴 ' . $ten . ': bộ nhớ tạm riêng',
+		1 === preg_match( "/O_NHO\s+= '(?!vhcp_gh_ban_moi')[a-z]+_gh_ban_moi';/", $ma_lop )
+			|| ( 'vhcp-chi-phi' === $ten && false !== strpos( $ma_lop, "O_NHO   = 'vhcp_gh_ban_moi'" ) ),
+		$ten );
+}
+t( 'có ít nhất tám plugin tự cập nhật được', $so_co >= 8, $so_co );
 
 /* Hai plugin phải dùng CHUNG một khoá — khai một lần, cả hai cùng thấy bản mới. */
 $cc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tu-cap-nhat.php' );

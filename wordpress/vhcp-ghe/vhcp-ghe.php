@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.45.0
+ * Version:           1.46.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.45.0' );
+define( 'VHG_VERSION', '1.46.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -61,6 +61,14 @@ require_once VHG_DIR . 'includes/class-vhg-auth.php';
 require_once VHG_DIR . 'includes/class-vhg-trang.php';
 require_once VHG_DIR . 'includes/class-vhg-shop.php';
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
+require_once VHG_DIR . 'includes/class-vhg-tu-cap-nhat.php';
+
+/* Tự cập nhật từ GitHub Releases — hiện nút "Cập nhật" ngay ở màn Plugin.
+   Anh Thắng 13/09/2026: *"cách kết nối github đẩy thẳng code wed lên"*, rồi *"các bộ khác thì
+   sao, cần token nữa không, hay dùng chung"* — khoá dùng CHUNG một ô cho cả chín plugin, khai
+   một lần ở Cài đặt Vận Hành Chi Phí là đủ. Chưa khai thì lớp này im lặng không làm gì.
+   `tools/test/kiem-tu-cap-nhat.php` quét đủ chín plugin, nên bộ mới quên nối là bộ thử đỏ. */
+VHG_TuCapNhat::init();
 
 register_activation_hook( __FILE__, array( 'VHG_DB', 'install' ) );
 

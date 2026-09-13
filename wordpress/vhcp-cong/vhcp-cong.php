@@ -27,7 +27,6 @@ require_once VCG_DUONG_DAN . 'includes/class-vcg-nap.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-nhap.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-nguoi.php';
 require_once VCG_DUONG_DAN . 'includes/class-vcg-trang.php';
-
 register_activation_hook( __FILE__, array( 'VCG_Boot', 'bat' ) );
 
 class VCG_Boot {

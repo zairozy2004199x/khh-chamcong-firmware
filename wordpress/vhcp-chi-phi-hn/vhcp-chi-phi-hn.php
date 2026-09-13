@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (Hà Nội)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.99.0
+ * Version:           1.100.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCPHN_VERSION', '1.99.0' );
+define( 'VHCPHN_VERSION', '1.100.0' );
 define( 'VHCPHN_FILE', __FILE__ );
 define( 'VHCPHN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPHN_URL', plugin_dir_url( __FILE__ ) );
@@ -48,6 +48,14 @@ require_once VHCPHN_DIR . 'includes/class-vhcp-import.php';
 require_once VHCPHN_DIR . 'includes/class-vhcp-api.php';
 require_once VHCPHN_DIR . 'includes/class-vhcp-app.php';
 require_once VHCPHN_DIR . 'includes/class-vhcp-admin.php';
+require_once VHCPHN_DIR . 'includes/class-vhcphn-tu-cap-nhat.php';
+
+/* Tự cập nhật từ GitHub Releases — hiện nút "Cập nhật" ngay ở màn Plugin.
+   Anh Thắng 13/09/2026: *"cách kết nối github đẩy thẳng code wed lên"*, rồi *"các bộ khác thì
+   sao, cần token nữa không, hay dùng chung"* — khoá dùng CHUNG một ô cho cả chín plugin, khai
+   một lần ở Cài đặt Vận Hành Chi Phí là đủ. Chưa khai thì lớp này im lặng không làm gì.
+   `tools/test/kiem-tu-cap-nhat.php` quét đủ chín plugin, nên bộ mới quên nối là bộ thử đỏ. */
+VHCPHN_TuCapNhat::init();
 
 register_activation_hook( __FILE__, array( 'VHCPHN_DB', 'install' ) );
 
