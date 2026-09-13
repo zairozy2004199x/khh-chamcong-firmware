@@ -86,7 +86,7 @@ class VHCC_NhanSu {
 	 */
 	public static function co_quyen_coso( $u, $coso ) {
 		if ( ! VHCC_Vai::duoc( $u, 'cong_coso' ) ) { return false; }   // Nhân viên dừng ở đây
-		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return true; }
+		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return self::qua_bo_mang( $u, $coso ); }
 		$coso = self::chuan_coso( $coso );
 		if ( '' === $coso ) { return false; }
 		foreach ( self::ds_coso_cua( $u ) as $x ) {
@@ -102,6 +102,96 @@ class VHCC_NhanSu {
 			if ( '' !== $x ) { $ds[] = $x; }
 		}
 		return $ds;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BÓ PHẠM VI THEO MẢNG — "Kế toán KVC chỉ thấy KVC"
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026, khi tách Kế toán / Vận hành / Kỹ thuật thành hai phòng theo mảng:
+	 * *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+	 *
+	 * 🔴 TÁCH PHÒNG THEO MẢNG MÀ KHÔNG BÓ PHẠM VI THÌ CÁI TÊN CHỈ LÀ CÁI NHÃN. Từ bậc Quản lý
+	 *    trở lên, `cong_tat_ca` trả `true` cho MỌI cơ sở — không hỏi mảng một câu nào. Nên
+	 *    "KVC · Phòng Kế Toán" vẫn xem được công, lương, hồ sơ và số tài khoản của cả mảng MTD.
+	 *    Cách duy nhất trước bản này là hạ họ xuống Cửa hàng trưởng rồi tick `coso_ql` — nhưng
+	 *    làm vậy họ mất luôn quyền lương và hồ sơ, tức là hết làm được việc kế toán.
+	 *
+	 * =========================================================================================
+	 * 🔴 MẶC ĐỊNH TẮT, VÀ MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ
+	 * =========================================================================================
+	 * Đây là một cái siết, mà siết nhầm thì người ta mở màn hình ra thấy sổ trống trơn và không
+	 * có một dòng nào nói vì sao. Nên:
+	 *   · chưa khai phòng nào thì KHÔNG ai bị bó — cài bản này lên không đổi quyền của một ai;
+	 *   · người chưa suy ra mảng nào thì KHÔNG bó (bó là khoá sạch, vì không mảng nào khớp);
+	 *   · cơ sở chưa ai khai mảng thì CHO QUA — cơ sở mới mở mà chưa kịp khai là cả phòng mất
+	 *     đường vào nó, đúng lúc đang cần nhất.
+	 * Siết hụt thì thấy được và sửa được; siết oan thì âm thầm chặn việc của người ta.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Khoá lưu: danh sách BỘ PHẬN mà người của nó chỉ thấy cơ sở thuộc mảng của chính họ. */
+	const BO_MANG_O = 'vhcc_bo_theo_mang';
+
+	/** Những bộ phận đang bị bó theo mảng. Rỗng = không ai bị bó. */
+	public static function bo_mang_ds() {
+		$v = get_option( self::BO_MANG_O, null );
+		if ( ! is_array( $v ) ) { return array(); }
+		$ra = array();
+		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x ) { $ra[] = $x; } }
+		return $ra;
+	}
+
+	/** Bật / tắt bó theo mảng cho một bộ phận. */
+	public static function dat_bo_mang( $u, $bo_phan, $bat ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Bó phạm vi theo mảng cần vai Kế toán trở lên.' );
+		}
+		$b = trim( (string) $bo_phan );
+		if ( '' === $b || ! in_array( $b, self::ds_bo_phan(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có phòng ban "' . $b . '".' );
+		}
+		$ds = self::bo_mang_ds();
+		$co = in_array( $b, $ds, true );
+		if ( (bool) $bat === $co ) { return array( 'ok' => false, 'error' => 'Chưa đổi gì.' ); }
+		if ( $bat ) {
+			$ds[] = $b;
+		} else {
+			$ra = array();
+			foreach ( $ds as $x ) { if ( $x !== $b ) { $ra[] = $x; } }
+			$ds = $ra;
+		}
+		update_option( self::BO_MANG_O, array_values( $ds ) );
+		self::ghi_nhat_ky_bp( $u, 'bo_theo_mang', $b, $bat ? 'bật' : 'tắt' );
+		return array( 'ok' => true, 'bo_phan' => $b, 'bat' => (bool) $bat );
+	}
+
+	/**
+	 * NGƯỜI NÀY BỊ BÓ VÀO NHỮNG MẢNG NÀO — `null` nghĩa là KHÔNG bó.
+	 *
+	 * ⚠️ Trả `null` ở mọi chỗ không chắc: chưa khai phòng nào, người không có mã, phòng của họ
+	 *    không nằm trong danh sách bó, hoặc họ chưa suy ra mảng nào. Xem khối chú thích ở trên.
+	 */
+	public static function bo_theo_mang( $u ) {
+		$ds_bo = self::bo_mang_ds();
+		if ( ! $ds_bo ) { return null; }
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma ) { return null; }
+		if ( ! class_exists( 'VHCC_Cong' ) || ! method_exists( 'VHCC_Cong', 'nhom_cua' ) ) { return null; }
+		$n = VHCC_Cong::nhom_cua( $ma );
+		if ( '' === $n['boPhan'] || ! in_array( $n['boPhan'], $ds_bo, true ) ) { return null; }
+		/* 🔴 KHÔNG SUY RA MẢNG NÀO THÌ ĐỪNG BÓ. Bó một danh sách rỗng là khoá sạch mọi cơ sở —
+		   người ấy mở màn hình ra thấy trống trơn và không có dòng nào nói vì sao. */
+		return $n['dsMang'] ? $n['dsMang'] : null;
+	}
+
+	/** Cơ sở này có nằm trong mảng mà người xem bị bó vào không. */
+	private static function qua_bo_mang( $u, $coso ) {
+		$bo = self::bo_theo_mang( $u );
+		if ( null === $bo ) { return true; }
+		$m = self::mang_theo_coso( $coso );
+		/* Cơ sở chưa ai khai mảng thì CHO QUA — cơ sở mới mở mà chưa kịp khai là cả phòng mất
+		   đường vào nó, đúng lúc đang cần nhất. Thiếu khai thì thấy được ở dải đếm và sửa được. */
+		if ( '' === $m ) { return true; }
+		return in_array( $m, $bo, true );
 	}
 
 	/**
@@ -827,8 +917,148 @@ class VHCC_NhanSu {
 		'Phòng Kho Hàng', 'Phòng Kỹ Thuật / CNTT', 'Phòng Vận Hành', self::BP_CO_SO,
 	);
 
-	/** Mọi MẢNG KINH DOANH đang dùng. Dùng CHUNG vốn từ với `bo_phan_coso`, không dựng bảng mới. */
-	public static function ds_mang() {
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MẢNG KINH DOANH — TÊN HIỆN RA MÀN, VÀ BỘ PHẬN RIÊNG CỦA TỪNG MẢNG
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"Tạo mảng kinh doanh trước (Mảng Kinh Doanh Máy Tự Động) (Mảng Kinh
+	 * Doanh Khu Vui Chơi). Mỗi mảng sẽ có một bộ phận riêng"*.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐỔI TÊN HIỆN RA, KHÔNG ĐỔI GIÁ TRỊ LƯU. Và đây là chỗ suýt làm hỏng lương cả chuỗi.
+	 * =========================================================================================
+	 * Chuỗi `'Máy tự động'` không phải một cái nhãn — nó là KHOÁ khớp chính xác ở BỐN plugin:
+	 *
+	 *   · `VHCC_Luong::BP_DS` là danh sách trắng; `bo_phan_cua()` trả 'Chưa xếp' cho bất kỳ giá
+	 *     trị nào ngoài nó, mà 'Chưa xếp' nghĩa là KHÔNG CÓ CÔNG THỨC LƯƠNG NÀO;
+	 *   · `VHCC_Luong::vp_cfg_khoi()` khoá cấu hình công theo đúng cái tên ấy;
+	 *   · `VHCP_Cfg` (chi phí) và `VHDA_Quyen` (dự án) bó quyền theo đúng cái tên ấy;
+	 *   · `VCG_Nap` (cổng) chuẩn hoá chuỗi về đúng cái tên ấy.
+	 *
+	 * Đổi giá trị lưu thành "Mảng Kinh Doanh Máy Tự Động" là cả bốn chỗ trên đồng loạt tra không
+	 * ra — lương của cả mảng rơi về "Chưa xếp", im lặng, và chỉ lộ ra ở kỳ lương sau.
+	 *
+	 * Nên: giá trị lưu GIỮ NGUYÊN, còn màn hình đọc tên dài qua `ten_mang()`. Muốn đổi hẳn giá
+	 * trị lưu thì phải là một lượt riêng, đi qua cả bốn plugin.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Khoá lưu TÊN HIỆN RA của mảng: [ giá trị lưu => tên dài ]. */
+	const TEN_MANG_O = 'vhcc_ten_mang';
+
+	/** Hạt giống: đúng hai cái tên anh Thắng gõ. */
+	const TEN_MANG_HAT_GIONG = array(
+		'Máy tự động'  => 'Mảng Kinh Doanh Máy Tự Động',
+		'Khu vui chơi' => 'Mảng Kinh Doanh Khu Vui Chơi',
+	);
+
+	/** Bản đồ tên hiện ra. */
+	public static function ten_mang_ban() {
+		$v = get_option( self::TEN_MANG_O, null );
+		if ( ! is_array( $v ) ) {
+			$v = self::TEN_MANG_HAT_GIONG;
+			update_option( self::TEN_MANG_O, $v );
+		}
+		$ra = array();
+		foreach ( $v as $k => $t ) {
+			$k = trim( (string) $k ); $t = trim( (string) $t );
+			if ( '' !== $k && '' !== $t ) { $ra[ $k ] = $t; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * TÊN HIỆN RA của một mảng. Chưa đặt thì trả về chính giá trị lưu.
+	 *
+	 * ⚠️ Đường lui phải là chính giá trị lưu, KHÔNG phải chuỗi rỗng — mảng mới thêm mà chưa ai
+	 *    đặt tên dài thì ô xổ trống trơn, và người ta tưởng dữ liệu hỏng.
+	 */
+	public static function ten_mang( $m ) {
+		$m = trim( (string) $m );
+		$b = self::ten_mang_ban();
+		return isset( $b[ $m ] ) ? $b[ $m ] : $m;
+	}
+
+	/** Đặt tên hiện ra cho một mảng. Tên rỗng = bỏ đặt, quay về dùng giá trị lưu. */
+	public static function dat_ten_mang( $u, $mang, $ten ) {
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Sửa sơ đồ tổ chức cần vai Kế toán trở lên.' );
+		}
+		$m = trim( (string) $mang );
+		if ( '' === $m ) { return array( 'ok' => false, 'error' => 'Thiếu mảng.' ); }
+		if ( ! in_array( $m, self::ds_mang_tat_ca(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có mảng "' . $m . '".' );
+		}
+		$t = trim( (string) $ten );
+		$b = self::ten_mang_ban();
+		$cu = isset( $b[ $m ] ) ? $b[ $m ] : '';
+		if ( $cu === $t || ( '' === $t && '' === $cu ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa đổi gì.' );
+		}
+		if ( '' === $t || $t === $m ) { unset( $b[ $m ] ); } else { $b[ $m ] = $t; }
+		update_option( self::TEN_MANG_O, $b );
+		self::ghi_nhat_ky_bp( $u, 'ten_mang', $m . ' → ' . $cu, $t );
+		return array( 'ok' => true, 'mang' => $m, 'ten' => $t );
+	}
+
+	/** Khoá lưu những mảng ĐÃ ẨN khỏi các ô chọn. */
+	const MANG_AN_O = 'vhcc_mang_an';
+
+	/**
+	 * Hạt giống: ẩn sẵn "Part time".
+	 *
+	 * Anh Thắng 13/09/2026, nhìn ô "Thuộc mảng": *"bỏ 2 cái dưới cùng cho anh"*. "Part time" là
+	 * KIỂU LÀM VIỆC, không phải một mảng kinh doanh — cùng loại nhầm với "Tổng Giám Đốc (CEO)"
+	 * nằm trong danh sách phòng ban.
+	 *
+	 * 🔴 ẨN, KHÔNG XOÁ. Chuỗi ấy vẫn nằm trong `VHCC_Luong::BP_DS`, và cơ sở nào đang xếp vào đó
+	 *    thì lương vẫn tra ra công thức như cũ. Bỏ hẳn khỏi danh sách trắng là lương của cơ sở ấy
+	 *    rơi về "Chưa xếp" — im lặng, tới kỳ lương sau mới lộ.
+	 */
+	const MANG_AN_HAT_GIONG = array( 'Part time' );
+
+	/** Những mảng đang ẩn khỏi ô chọn. */
+	public static function mang_an() {
+		$v = get_option( self::MANG_AN_O, null );
+		if ( ! is_array( $v ) ) {
+			$v = array_values( (array) self::MANG_AN_HAT_GIONG );
+			update_option( self::MANG_AN_O, $v );
+		}
+		$ra = array();
+		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x ) { $ra[] = $x; } }
+		return $ra;
+	}
+
+	/** Ẩn / hiện một mảng ở các ô chọn. */
+	public static function dat_mang_an( $u, $mang, $an ) {
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Sửa sơ đồ tổ chức cần vai Kế toán trở lên.' );
+		}
+		$m = trim( (string) $mang );
+		if ( '' === $m || ! in_array( $m, self::ds_mang_tat_ca(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có mảng "' . $m . '".' );
+		}
+		$ds = self::mang_an();
+		$co = in_array( $m, $ds, true );
+		if ( (bool) $an === $co ) { return array( 'ok' => false, 'error' => 'Chưa đổi gì.' ); }
+		if ( $an ) {
+			$ds[] = $m;
+		} else {
+			$ra = array();
+			foreach ( $ds as $x ) { if ( $x !== $m ) { $ra[] = $x; } }
+			$ds = $ra;
+		}
+		update_option( self::MANG_AN_O, array_values( $ds ) );
+		self::ghi_nhat_ky_bp( $u, 'mang_an', $m, $an ? 'ẩn' : 'hiện' );
+		return array( 'ok' => true, 'mang' => $m, 'an' => (bool) $an );
+	}
+
+	/**
+	 * MỌI MẢNG hệ biết — KỂ CẢ mảng đang ẩn.
+	 *
+	 * 🔴 MỌI CHỐT DANH SÁCH TRẮNG PHẢI DÙNG HÀM NÀY, không dùng `ds_mang()`. Ẩn một mảng mà chốt
+	 *    lưu cũng hẹp theo thì người đang khai tay mảng ấy bấm Lưu là nhận câu chối "mảng không
+	 *    có trong hệ" — cho một giá trị chính họ đang mang, và không có cách nào sửa.
+	 */
+	public static function ds_mang_tat_ca() {
 		$ra = array_values( (array) VHCC_Luong::BP_DS );
 		/* Mảng lạ còn sót trong hồ sơ cũng phải hiện ra ô xổ — không thì mở hồ sơ ấy lên là ô tự
 		   nhảy về dòng đầu, bấm Lưu một cái là đổi mảng của người ta mà không ai định làm vậy.
@@ -839,16 +1069,45 @@ class VHCC_NhanSu {
 		return $ra;
 	}
 
-	/** Những giá trị `mang` thật sự đang nằm trong sổ. */
+	/** Mảng để BÀY RA Ô CHỌN — bỏ những mảng đã ẩn. */
+	public static function ds_mang() {
+		$an = self::mang_an();
+		$ra = array();
+		foreach ( self::ds_mang_tat_ca() as $m ) {
+			if ( ! in_array( $m, $an, true ) ) { $ra[] = $m; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Những MẢNG thật sự đang nằm trong sổ.
+	 *
+	 * =========================================================================================
+	 * 🔴 PHẢI TÁCH DẤU PHẨY. Anh Thắng 13/09/2026 gửi ảnh ô "Thuộc mảng": dòng cuối là
+	 *    *"Máy tự động, Khu vui chơi, Văn phòng, Part time"* — một dòng trông như một mảng, nhưng
+	 *    nó là CẢ BỐN MẢNG của MỘT người làm nhiều mảng, dính liền thành một chuỗi.
+	 * =========================================================================================
+	 * Cột `mang` chở nhiều mảng ngăn bằng dấu phẩy (`dat_mang_bo_phan()` ghi đúng như vậy, và đó
+	 * là cố ý — người làm hai mảng là chuyện thường). `SELECT DISTINCT mang` trả về nguyên chuỗi,
+	 * nên mỗi TỔ HỢP mảng đẻ ra một "mảng" giả trong danh sách.
+	 *
+	 * Hỏng theo ba đường, đường nào cũng im lặng:
+	 *   · ô chọn mọc thêm dòng rác, và tích vào nó là ghi một tổ hợp cứng cho người ta;
+	 *   · dải đếm và ô lọc có một ô không bao giờ khớp ai ngoài đúng mấy người tổ hợp ấy;
+	 *   · bảng LUẬT QUYỀN mọc một hàng nhóm giả — khai luật vào đó thì nó chỉ trúng nhúm người
+	 *     có đúng tổ hợp ấy, còn người khai tưởng mình vừa khai cho cả bốn mảng.
+	 *
+	 * `tach_mang()` đã có sẵn cho đúng việc này; chỗ này chỉ quên gọi.
+	 */
 	public static function mang_dang_khai() {
 		$t = VHCC_DB::t( 'nhan_vien' );
 		if ( ! VHCC_DB::co_bang( $t ) ) { return array(); }
 		global $wpdb;
 		$ra = array();
-		foreach ( (array) $wpdb->get_col( "SELECT DISTINCT mang FROM $t WHERE mang <> ''" ) as $m ) {
-			$ra[] = trim( (string) $m );
+		foreach ( (array) $wpdb->get_col( "SELECT DISTINCT mang FROM $t WHERE mang <> ''" ) as $chuoi ) {
+			foreach ( self::tach_mang( $chuoi ) as $m ) { $ra[] = $m; }
 		}
-		return $ra;
+		return array_values( array_unique( $ra ) );
 	}
 
 	/** Sơ đồ tổ chức đang khai. Lần đầu thì gieo hạt giống rồi lưu lại. */
@@ -870,6 +1129,211 @@ class VHCC_NhanSu {
 			}
 		}
 		return $ra;
+	}
+
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * SỬA SƠ ĐỒ TỔ CHỨC — thêm · đổi tên · gộp · xoá phòng ban
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*.
+	 *
+	 * Và đó là lỗi của chính chỗ này: danh sách phòng ban là một HẠT GIỐNG gieo một lần rồi nằm
+	 * trong option — không có một màn hình nào sửa được. Thấy sai thì phải nhắn cho người viết mã
+	 * và chờ một bản cập nhật, cho một việc lẽ ra là gõ lại một cái tên.
+	 *
+	 * 🔴 TÊN BỘ PHẬN LÀ KHOÁ CỦA BA SỔ KHÁC NHAU — đổi tên mà không mang cả ba theo thì mọi thứ
+	 *    gắn vào nó rụng ra, IM LẶNG:
+	 *      1. `nhan_vien.bo_phan`      — người thuộc phòng ấy;
+	 *      2. `vhcc_vai_bo_phan`       — vai bày lên đầu ô xổ của phòng ấy;
+	 *      3. `vhcc_quyen_nhom['bp']`  — luật quyền vào trang của phòng ấy.
+	 *    Rụng (3) là cả phòng lặng lẽ rơi xuống thang vai — không ai thấy gì cho tới lúc có người
+	 *    kêu "sao tôi không vào được nữa". Nên mọi đường ở đây đều đi qua `doi_ten_bo_phan()`.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Ghi danh sách bộ phận (đã rửa trùng & rỗng). */
+	private static function ghi_ds_bo_phan( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			$x = trim( (string) $x );
+			if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+		}
+		update_option( self::BP_DS_O, $ra );
+		return $ra;
+	}
+
+	/** Số người ĐANG KHAI TAY từng bộ phận. Người trôi theo cơ sở không tính — họ không bám tên. */
+	public static function dem_khai_bo_phan() {
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return array(); }
+		global $wpdb;
+		$ra = array();
+		foreach ( (array) $wpdb->get_results(
+			"SELECT bo_phan, COUNT(*) so FROM $t WHERE bo_phan <> '' GROUP BY bo_phan", ARRAY_A ) as $r ) {
+			$ra[ trim( (string) $r['bo_phan'] ) ] = (int) $r['so'];
+		}
+		return $ra;
+	}
+
+	/** THÊM một phòng ban. */
+	public static function them_bo_phan( $u, $ten ) {
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Sửa sơ đồ tổ chức cần vai Kế toán trở lên.' );
+		}
+		$t = trim( (string) $ten );
+		if ( '' === $t ) { return array( 'ok' => false, 'error' => 'Thiếu tên phòng ban.' ); }
+		if ( in_array( $t, self::ds_bo_phan(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Đã có phòng ban "' . $t . '".' );
+		}
+		$ds   = get_option( self::BP_DS_O, null );
+		$ds   = is_array( $ds ) ? $ds : array_values( (array) self::BP_HAT_GIONG );
+		$ds[] = $t;
+		self::ghi_ds_bo_phan( $ds );
+		self::ghi_nhat_ky_bp( $u, 'them_bo_phan', '', $t );
+		return array( 'ok' => true, 'ten' => $t );
+	}
+
+	/**
+	 * ĐỔI TÊN một phòng ban — mang theo CẢ BA sổ bám vào cái tên ấy.
+	 *
+	 * @param bool $gop Cho phép tên mới TRÙNG một phòng đang có (tức là GỘP hai phòng làm một).
+	 *
+	 * ⚠️ GỘP LÀ MỘT VIỆC KHÁC HẲN ĐỔI TÊN, nên phải nói ra ý định bằng `$gop` chứ không để nó
+	 *    xảy ra như tác dụng phụ của một lượt gõ nhầm. Gõ "Phòng Kỹ Thuật" vào ô đổi tên của
+	 *    "Phòng Kỹ Thuật / CNTT" mà hệ im lặng nhập hai phòng làm một thì người gõ không hề biết
+	 *    mình vừa xoá một phòng.
+	 */
+	public static function doi_ten_bo_phan( $u, $cu, $moi, $gop = false ) {
+		/* Đổi tên: Kế toán trở lên, y như mọi việc sửa hồ sơ. GỘP thì cần Admin — nó XOÁ HẲN một
+		   phòng, và kéo cả người lẫn luật quyền của phòng ấy đi theo. */
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Sửa sơ đồ tổ chức cần vai Kế toán trở lên.' );
+		}
+		if ( $gop && ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
+			return array( 'ok' => false, 'error' => 'Gộp hai phòng ban cần vai Admin — nó xoá hẳn một phòng.' );
+		}
+		$a = trim( (string) $cu );
+		$b = trim( (string) $moi );
+		if ( '' === $a || '' === $b ) { return array( 'ok' => false, 'error' => 'Thiếu tên phòng ban.' ); }
+		if ( $a === $b ) { return array( 'ok' => false, 'error' => 'Tên mới trùng tên cũ — chưa đổi gì.' ); }
+		$ds = self::ds_bo_phan();
+		if ( ! in_array( $a, $ds, true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có phòng ban "' . $a . '".' );
+		}
+		$trung = in_array( $b, $ds, true );
+		if ( $trung && ! $gop ) {
+			return array( 'ok' => false,
+				'error' => 'Đã có phòng ban "' . $b . '". Muốn nhập hai phòng làm một thì bấm Gộp.' );
+		}
+
+		/* 1. Sổ người — CHỈ dòng khai tay đúng tên cũ. */
+		global $wpdb;
+		$t     = VHCC_DB::t( 'nhan_vien' );
+		$nguoi = 0;
+		if ( VHCC_DB::co_bang( $t ) ) {
+			$nguoi = (int) $wpdb->query( $wpdb->prepare(
+				"UPDATE $t SET bo_phan=%s WHERE bo_phan=%s", $b, $a ) );
+		}
+
+		/* 2. Vai bày lên đầu. Gộp thì HỢP hai danh sách, không đè — mất vai của phòng đích là
+		      người phòng ấy mở ô xổ ra thấy gợi ý lạ hẳn, mà chẳng ai đụng vào nó. */
+		$ban = self::vai_theo_bo_phan();
+		if ( isset( $ban[ $a ] ) ) {
+			$hop = isset( $ban[ $b ] ) ? $ban[ $b ] : array();
+			foreach ( $ban[ $a ] as $v ) { if ( ! in_array( $v, $hop, true ) ) { $hop[] = $v; } }
+			unset( $ban[ $a ] );
+			if ( $hop ) { $ban[ $b ] = $hop; }
+			update_option( self::VAI_BP_O, $ban );
+		}
+
+		/* 3. Luật quyền theo bộ phận.
+		   🔴 GỘP MÀ HAI BÊN KHAI NGƯỢC NHAU THÌ GIỮ CỦA PHÒNG ĐÍCH, VÀ NÓI RA. Tự chọn hộ một
+		      bên rồi im lặng là đúng kiểu hỏng mà không ai thấy: cả một phòng đổi quyền vì một
+		      lượt gộp tên. */
+		$lech = array();
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'doi_ten_nhom' ) ) {
+			$lech = VHCC_Cong::doi_ten_nhom( 'bp', $a, $b );
+		}
+
+		/* 4. Danh sách phòng ban. */
+		$ds_o = get_option( self::BP_DS_O, null );
+		$ds_o = is_array( $ds_o ) ? $ds_o : array_values( (array) self::BP_HAT_GIONG );
+		$ra   = array();
+		foreach ( $ds_o as $x ) {
+			$x = trim( (string) $x );
+			if ( $x === $a ) { $x = $b; }
+			if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+		}
+		self::ghi_ds_bo_phan( $ra );
+		/* Bộ nhớ trong-lượt của `VHCC_Cong` còn giữ bộ phận CŨ của từng người — không quên thì
+		   bảng vẽ lại ngay sau đây tra luật bằng tên cũ, và cả phòng trông như vừa mất quyền. */
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'quen_nhom' ) ) { VHCC_Cong::quen_nhom(); }
+		self::ghi_nhat_ky_bp( $u, $trung ? 'gop_bo_phan' : 'doi_ten_bo_phan', $a, $b );
+
+		return array( 'ok' => true, 'cu' => $a, 'moi' => $b, 'gop' => (bool) $trung,
+			'nguoi' => $nguoi, 'lech' => $lech );
+	}
+
+	/**
+	 * XOÁ một phòng ban.
+	 *
+	 * 🔴 CHỈ XOÁ ĐƯỢC PHÒNG KHÔNG CÒN AI KHAI TAY. Xoá phòng đang có người thì `bo_phan` của họ
+	 *    trỏ vào một cái tên không còn trong sơ đồ: bảng vẫn hiện tên ấy (vì `ds_bo_phan()` gom
+	 *    cả giá trị lạ còn sót), nhưng khai vai hay khai quyền cho nó thì không được nữa. Muốn bỏ
+	 *    một phòng đang có người thì GỘP nó vào phòng khác — người đi theo.
+	 */
+	public static function xoa_bo_phan( $u, $ten ) {
+		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
+			return array( 'ok' => false, 'error' => 'Xoá phòng ban cần vai Admin.' );
+		}
+		$t = trim( (string) $ten );
+		if ( '' === $t ) { return array( 'ok' => false, 'error' => 'Thiếu tên phòng ban.' ); }
+		if ( self::BP_CO_SO === $t ) {
+			return array( 'ok' => false, 'error' => 'Không xoá được "' . self::BP_CO_SO
+				. '" — mọi người có cơ sở đều tự rơi vào đây khi chưa khai tay.' );
+		}
+		$dem = self::dem_khai_bo_phan();
+		$so  = isset( $dem[ $t ] ) ? (int) $dem[ $t ] : 0;
+		if ( $so ) {
+			return array( 'ok' => false, 'error' => 'Còn ' . $so . ' người đang khai bộ phận "'
+				. $t . '". Chuyển họ đi, hoặc GỘP phòng này vào phòng khác — gộp thì người đi theo.' );
+		}
+		$ds_o = get_option( self::BP_DS_O, null );
+		$ds_o = is_array( $ds_o ) ? $ds_o : array_values( (array) self::BP_HAT_GIONG );
+		if ( ! in_array( $t, $ds_o, true ) ) {
+			return array( 'ok' => false, 'error' => 'Không có phòng ban "' . $t . '" trong sơ đồ.' );
+		}
+		$ra = array();
+		foreach ( $ds_o as $x ) { if ( trim( (string) $x ) !== $t ) { $ra[] = $x; } }
+		self::ghi_ds_bo_phan( $ra );
+
+		/* Vai và luật quyền của phòng vừa xoá cũng phải đi theo — để lại là rác vô hình, và nó
+		   sống dậy đúng ngày có người khai lại một phòng trùng tên. */
+		$ban = self::vai_theo_bo_phan();
+		$co_vai = isset( $ban[ $t ] );
+		if ( $co_vai ) { unset( $ban[ $t ] ); update_option( self::VAI_BP_O, $ban ); }
+		$co_luat = 0;
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'xoa_nhom' ) ) {
+			$co_luat = VHCC_Cong::xoa_nhom( 'bp', $t );
+		}
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'quen_nhom' ) ) { VHCC_Cong::quen_nhom(); }
+		self::ghi_nhat_ky_bp( $u, 'xoa_bo_phan', $t, '' );
+		return array( 'ok' => true, 'ten' => $t, 'vai' => $co_vai, 'luat' => (int) $co_luat );
+	}
+
+	/** Một dòng nhật ký cho mọi lượt sửa sơ đồ — sơ đồ đổi là quyền của cả phòng đổi theo. */
+	private static function ghi_nhat_ky_bp( $u, $viec, $cu, $moi ) {
+		$t = VHCC_DB::t( 'nhat_ky_ho_so' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return; }
+		global $wpdb;
+		$wpdb->insert( $t, array(
+			'luc'     => current_time( 'mysql' ),
+			'ma_nv'   => '',
+			'ai'      => isset( $u['name'] ) ? (string) $u['name'] : '',
+			'tu_coso' => isset( $u['coso'] ) ? (string) $u['coso'] : '',
+			'o'       => $viec,
+			'cu'      => (string) $cu,
+			'moi'     => (string) $moi,
+		) );
 	}
 
 	/** MẢNG của MỘT cơ sở. '' = cơ sở ấy chưa khai mảng. */
@@ -1065,7 +1529,9 @@ class VHCC_NhanSu {
 		   một tổ hợp ("A, B" và "A,B") rồi lọc trượt. */
 		$ds_m = self::tach_mang( $m );
 		foreach ( $ds_m as $x_m ) {
-			if ( ! in_array( $x_m, self::ds_mang(), true ) ) {
+			/* ⚠️ Chốt bằng danh sách ĐẦY ĐỦ. Dùng `ds_mang()` (đã bỏ mảng ẩn) thì người đang
+			   khai tay một mảng vừa bị ẩn bấm Lưu là nhận câu chối cho chính giá trị họ mang. */
+			if ( ! in_array( $x_m, self::ds_mang_tat_ca(), true ) ) {
 				return array( 'ok' => false, 'error' => $ma . ': mảng "' . $x_m . '" không có trong hệ.' );
 			}
 		}
@@ -1226,6 +1692,64 @@ class VHCC_NhanSu {
 	const VAI_BP_HAT_GIONG = array(
 		self::BP_CO_SO => array( 'Nhân viên', 'Cửa hàng trưởng', 'Cửa hàng phó' ),
 	);
+
+	/**
+	 * GỢI Ý VAI CHO MỘT PHÒNG CHƯA KHAI — và nói rõ đây là GỢI Ý.
+	 *
+	 * Anh Thắng 13/09/2026 gửi ảnh khối "Vai trò theo bộ phận": 10 trên 12 phòng trống trơn, nên
+	 * ô Vai trò của người ở mấy phòng ấy chẳng bày gì lên đầu — khối ấy gần như vô dụng.
+	 *
+	 * 🔴 VẪN KHÔNG TỰ ĐIỀN. Hàm này chỉ TRẢ VỀ một đề nghị; điền hay không là một lượt bấm của
+	 *    người khai, và chỉ điền vào phòng ĐANG TRỐNG — đè lên phòng đã khai là sửa việc người ta
+	 *    đã cố ý làm. Đoán hộ rồi bày lên đầu ô xổ là dạy người khai chọn sai một cách tự tin.
+	 *
+	 * ⚠️ Chỉ trả vai CÓ THẬT trong hệ (`VHCC_Vai::ds_ten()`) — gợi ý một vai không tồn tại thì
+	 *    người mang nó gõ đúng PIN vẫn bị chối ở cổng.
+	 */
+	public static function vai_goi_y_bp( $bo_phan ) {
+		$bp = trim( (string) $bo_phan );
+		$co = class_exists( 'VHCC_Vai' ) ? (array) VHCC_Vai::ds_ten() : array();
+		if ( '' === $bp || ! $co ) { return array(); }
+		$de = array( 'Nhân viên', 'Quản lý' );          // mặc định của một phòng văn phòng
+		/* Dùng chính khoá so sánh của bảng vai — bỏ dấu, hạ chữ. Tự viết một cái thứ hai ở đây
+		   là hai chỗ hiểu "Phòng Kế Toán" khác nhau. */
+		$k  = VHCC_Vai::khoa_ten( $bp );
+		if ( self::BP_CO_SO === $bp ) {
+			$de = array( 'Nhân viên', 'Cửa hàng trưởng', 'Cửa hàng phó' );
+		} elseif ( false !== strpos( $k, 'giam doc' ) || false !== strpos( $k, 'ceo' )
+			|| false !== strpos( $k, 'ban giam' ) ) {
+			$de = array( 'Admin' );
+		} elseif ( false !== strpos( $k, 'ke toan' ) || false !== strpos( $k, 'tai chinh' ) ) {
+			$de = array( 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+		} elseif ( false !== strpos( $k, 'nhan su' ) ) {
+			$de = array( 'Kế toán cá nhân', 'Nhân viên', 'Quản lý' );
+		}
+		$ra = array();
+		foreach ( $de as $v ) { if ( in_array( $v, $co, true ) ) { $ra[] = $v; } }
+		return $ra;
+	}
+
+	/**
+	 * ĐIỀN GỢI Ý CHO MỌI PHÒNG ĐANG TRỐNG. Không đụng phòng đã khai.
+	 *
+	 * @return array array( 'ok', 'so' => số phòng vừa điền, 'ten' => [tên phòng…] )
+	 */
+	public static function dien_vai_goi_y( $u ) {
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Khai vai cho bộ phận cần vai Kế toán trở lên.' );
+		}
+		$ban = self::vai_theo_bo_phan();
+		$ten = array();
+		foreach ( self::ds_bo_phan() as $bp ) {
+			if ( ! empty( $ban[ $bp ] ) ) { continue; }      // 🔴 đã khai thì KHÔNG đụng
+			$de = self::vai_goi_y_bp( $bp );
+			if ( ! $de ) { continue; }
+			$ban[ $bp ] = $de;
+			$ten[]      = $bp;
+		}
+		if ( $ten ) { update_option( self::VAI_BP_O, $ban ); }
+		return array( 'ok' => true, 'so' => count( $ten ), 'ten' => $ten );
+	}
 
 	/** Bản đồ đang khai: [ bộ phận => [tên vai, …] ]. */
 	public static function vai_theo_bo_phan() {

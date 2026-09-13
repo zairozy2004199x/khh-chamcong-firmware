@@ -808,6 +808,372 @@ vậy" chứ không giống một bộ lọc hiểu nhầm.
 
 ---
 
+## 4l. Co giãn theo trang — bảng 11 cột vừa màn hình (3.76.0)
+
+Anh Thắng 13/09/2026: *"Chỉnh lại co giãn theo trang"*, kèm ảnh cột **Ghế massage** bị mép phải
+cắt cụt.
+
+Mở ra đo bằng `bash tools/xem/xem-man.sh` thì thấy **hai chuyện khác nhau**, phải chữa cả hai —
+chữa một cái thì cái kia vẫn còn:
+
+### 🔴 (1) Cả TRANG trôi ngang — lỗi thật, không phải chuyện bảng rộng
+
+Ô chọn ẩn của dải ba nút (`vai · Mở · Khoá`) là `position:absolute` mà **không có ổ neo nào**.
+Không có ổ neo thì nó đo theo cả trang chứ không theo ô chứa — và `overflow-x` của `.cuon` chỉ
+cắt được thứ nằm trong lòng nó, không cắt được thứ neo ra ngoài.
+
+Hậu quả nặng hơn vẻ ngoài:
+
+* trang thừa ra ~60px bề ngang, **thanh cuộn dưới cùng kéo luôn cả tiêu đề lẫn dải lọc** đi theo;
+* cột **Mã NV ghim trái hết ghim** — nó ghim theo khung `.cuon`, không phải theo trang, nên cuộn
+  sang phải là mất luôn thứ cho biết đang sửa hồ sơ của ai.
+
+Vá bằng đúng một chữ: `.ba{position:relative}`.
+
+### (2) Bảng 11 cột rộng hơn khung — bóp lại, không bỏ cột
+
+Bảng chạy chế độ **gọn** qua lớp riêng `table.b-ns` / `.cuon-ns` (không bóp `table` chung — mấy
+bảng nhỏ cùng trang không cần): chữ 12.5px, ô sát lại, năm cột nút bỏ sàn 170px xuống 116px, cột
+Cơ sở chữ 11px. Khung chung cũng nới từ 1760px lên 2200px để màn 1920 dùng hết bề ngang.
+
+Đo được, ở cảnh thử 9 cột (`tools/xem/dung-man.php`):
+
+| | trước | sau |
+|---|---|---|
+| trang trôi ngang | **57px** | 0 |
+| bảng cần | 1576px | **1318px** |
+
+Quy ra bảng thật 11 cột (thêm *Nội bộ* và *Ghế massage*): **1916px → 1556px**. Vừa khung ở màn
+1600px trở lên. Màn hẹp hơn thì **chỉ RIÊNG bảng cuộn** — tiêu đề và dải lọc đứng yên, cột Mã NV
+ghim trái chạy đúng — và không bóp chữ thêm nữa, vì bóp nữa là không đọc được.
+
+### ⚠️ Bẫy đã sập một lần, nay có chốt
+
+`table.b-ns select.o-q-vai{max-width:152px}` **nặng ký hơn** `td select[name^="mbp_bp"]{max-width:none}`
+ở trên. Không ghi lại `max-width:none` trong chính luật `.b-ns` thì ô **Bộ phận** bị cắt cụt đuôi
+«theo cơ sở → …» — đúng lỗi bản 3.69.0, che mất đúng phần thông tin mà cái nhãn ấy sinh ra để nói.
+`tools/test/kiem-mang-bo-phan.php` mục 12 giữ cả ba luật này.
+
+`tools/xem/chup.js` nay in thẳng bảng bề ngang ở 1366 · 1500 · 1730 · 1920 — trang có trôi ngang
+không, bảng cần bao nhiêu, khung có bấy nhiêu.
+
+## 4m. Quyền theo BỘ PHẬN & MẢNG — và năm cột gộp thành một (3.77.0)
+
+Anh Thắng 13/09/2026: *"Khi xây bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng
+người nữa. Ghế massa dành cho mảng kinh doanh máy tự động. Mà phân theo bộ phận. nên làm gọn lại
+cho ah"*.
+
+### 🔴 BỐN TẦNG, XÉT TỪ HẸP TỚI RỘNG
+
+```
+đặt riêng cho một người  →  luật BỘ PHẬN  →  luật MẢNG  →  thang vai
+```
+
+Thứ tự này **là cả cái luật**, và nó không nhìn thấy được trên màn hình — nên `VHCC_Cong::giai()`
+là một nơi duy nhất trả lời, và `tools/test/kiem-mang-bo-phan.php` mục 13 canh từng tầng:
+
+* Đảo hai tầng giữa → luật mảng đè luật bộ phận, người khai luật bộ phận thấy nó "không ăn".
+* Đảo tầng đầu → ngoại lệ đặt cho đích danh một người bị luật cả phòng nuốt mất, tức là **mất
+  luôn đường duy nhất khoá được một người** khi cả bộ phận đang mở.
+
+Tầng mới nằm **giữa** ngoại lệ và thang vai. Thang vai vẫn là mặc định; không khai luật nào thì
+mọi thứ y hệt trước — và **không tra hồ sơ một lượt nào** (`duoc_vao()` chạy ở mọi lượt tải trang
+của ba plugin, nên site chưa bật tính năng này không phải trả tiền cho nó).
+
+### 🔴 LÀM HAI MẢNG THÌ "MỞ" THẮNG
+
+Anh Thắng: *"làm ở 2 mảng, thì chấm công ở 2 mảng"*. Đó là trạng thái **thường** của nhân viên
+chạy giữa hai mảng. Lấy "khoá" thắng thì họ mất đường vào trang mà mảng chính vẫn cần, và màn
+hình chối họ bằng một câu không nói ra lý do. Muốn khoá đích danh một người → **đặt riêng**, tầng
+1, và nó thắng.
+
+### Hai chiều, cố ý không gộp
+
+| | trả lời câu | hợp với |
+|---|---|---|
+| **Bộ phận** | người này làm **việc gì** | ba trang gác cửa |
+| **Mảng** | người này làm **ở đâu** | Ghế massage (nằm trong mảng Máy tự động) |
+
+Gộp hai chiều vào một bảng là sớm muộn phải khai "Khối Nhân Viên Cơ Sở ở mảng Máy tự động" thành
+một dòng riêng — tức quay lại đúng chỗ tích tay từng trường hợp.
+
+### 🔴 HAI CỘT ĐẨY NGƯỜI CHỈ LÀ LỜI KHAI, KHÔNG TỰ TẠO TÀI KHOẢN
+
+`Ghế massage` và `Vận hành chi phí` không gác được bằng ngoại lệ: hai hệ ấy có **sổ người dùng
+riêng** và không đọc `ma_nv` bên này. Luật nhóm ở đây chỉ nói **ai nên có tài khoản**. Việc tạo
+tài khoản thật vẫn phải bấm — **dải chênh lệch** ngay dưới bảng luật đếm ra bao nhiêu người lệch
+và có nút "Đẩy hết N người" / "Gỡ hết N người".
+
+Không tự đẩy, vì cả hai đều là màn **có ngăn tiền**: tự tạo tài khoản cho 37 người vì ai đó vừa
+tích một ô là trao chìa khoá mà chính họ cũng không biết mình đang cầm, và không có một lượt bấm
+nào để quy trách nhiệm. Khai luật cột đẩy cũng cần bậc **Admin**, y như nút đẩy từng người —
+không thì Kế toán khai luật rồi một Admin bấm "Đẩy hết" mà tưởng là luật của mình.
+
+⚠️ Nút "Đẩy hết" **đếm lại ở máy chủ** khi bấm, không tin danh sách gửi lên: biểu mẫu có thể đã
+mở từ nửa tiếng trước, trong khoảng ấy luật đổi và người vào người ra.
+
+### Năm cột quyền gộp thành một
+
+Trước: mỗi trang một cột, mỗi cột một dải ba nút, cho **từng người** — 245 người × 5 cột là
+**1.225 ô phải tích tay**, và ~600px bề ngang chỉ để chở mấy ô ấy.
+
+Nay cột **Quyền vào trang** chỉ **đọc**: một dải chip nói người ấy vào được đâu **và vì đâu**
+(`bp` · `mảng` · `riêng` · không ghi gì = theo vai). Chữ "vì đâu" mới là phần có giá trị — cái
+chip xanh thì nhìn bảng vai cũng đoán ra, còn nó xanh **vì** luật bộ phận hay **vì** ai đó đặt
+riêng từ sáu tháng trước thì không đoán được.
+
+Đường **đặt riêng cho từng người vẫn còn**, chuyển vào khối **sửa ▾** của chính hàng ấy. Bỏ hẳn
+thì mọi ngoại lệ đang có thành không gỡ được bằng màn hình, chỉ còn cách sửa CSDL.
+
+Nút đầu của dải ba nút nay nói đúng nó đang theo **gì**: có luật nhóm thì ghi «theo bộ ✓/✕», chứ
+không còn ghi «vai ✓/✕» — vì "bỏ ngoại lệ" nay không còn nghĩa là "về theo vai".
+
+Đo bằng `bash tools/xem/xem-man.sh`, bảng thu từ **1.556px xuống 1.071px** — vừa khung ở cả màn
+1366px, không còn phải cuộn ngang ở đâu cả.
+
+### ⚠️ Nhớ sẵn bộ phận & mảng cho cả lát cắt
+
+Cột chip hỏi `VHCC_Cong::giai()` ba lần mỗi hàng. Không mồi sẵn thì mỗi hàng là một lượt `SELECT`
+hồ sơ — cho đúng những dòng vừa đọc xong ở ngay trên. `the_bang()` gọi `VHCC_Cong::nhom_cua( $ma,
+$row )` một vòng trước khi vẽ; dải chênh lệch thì đọc **một** lượt sáu cột cho cả sổ.
+
+## 4n. Sơ đồ tổ chức sửa được — mảng kinh doanh & phòng ban (3.78.0)
+
+Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*, rồi *"Tạo mảng kinh doanh trước
+(Mảng Kinh Doanh Máy Tự Động) (Mảng Kinh Doanh Khu Vui Chơi). Mỗi mảng sẽ có một bộ phận riêng"*.
+
+Cái sai lớn nhất không phải mấy cái tên — là **không có chỗ nào sửa chúng**. Danh sách phòng ban
+gieo một lần vào option rồi nằm đó; thấy sai thì phải nhắn cho người viết mã và chờ một bản cập
+nhật, cho một việc lẽ ra là gõ lại một cái tên.
+
+### 🔴 ĐỔI TÊN HIỆN RA, KHÔNG ĐỔI GIÁ TRỊ LƯU — chỗ này suýt làm hỏng lương cả chuỗi
+
+Chuỗi `'Máy tự động'` không phải một cái nhãn. Nó là **khoá khớp chính xác ở bốn plugin**:
+
+| nơi | dùng làm gì |
+|---|---|
+| `VHCC_Luong::BP_DS` | danh sách trắng; `bo_phan_cua()` trả `'Chưa xếp'` cho mọi giá trị ngoài nó — mà `'Chưa xếp'` nghĩa là **không có công thức lương nào** |
+| `VHCC_Luong::vp_cfg_khoi()` | khoá cấu hình công theo đúng cái tên ấy |
+| `VHCP_Cfg` (chi phí) · `VHDA_Quyen` (dự án) | bó quyền theo đúng cái tên ấy |
+| `VCG_Nap` (cổng) | chuẩn hoá chuỗi về đúng cái tên ấy |
+
+Đổi giá trị lưu thành `"Mảng Kinh Doanh Máy Tự Động"` là cả bốn chỗ trên đồng loạt tra không ra:
+lương của cả mảng rơi về "Chưa xếp", **im lặng**, tới kỳ lương sau mới lộ.
+
+Nên: **giá trị lưu giữ nguyên**, màn hình đọc tên dài qua `VHCC_NhanSu::ten_mang()`. Nhãn ở ô
+tích, dải đếm, ô lọc và bảng luật đều đọc tên dài; **giá trị gửi lên vẫn là mã lưu**. Muốn đổi hẳn
+giá trị lưu thì phải là một lượt riêng đi qua cả bốn plugin — chưa làm.
+
+### 🔴 KHÔNG có cột "Thuộc mảng" — tên phòng tự nói ra
+
+Bản đầu có thêm một ô xổ "Thuộc mảng" cho mỗi phòng. Anh Thắng bỏ ngay: *"Bỏ mảng luôn… anh tạo
+phòng ban theo mảng đó luôn cho gọn"* — tức là đặt tên phòng kèm mảng (`MTĐ · Phòng Kỹ Thuật`) thì
+cái tên đã nói hết, khỏi cần 12 ô xổ nhắc lại.
+
+Anh ấy đúng, và lý do sâu hơn "cho gọn": một cột chỉ để nhắc lại điều cái tên đã nói là **khai hai
+lần cùng một thứ**, và hai chỗ ấy lệch nhau lúc nào không ai biết — đổi tên phòng thì ô xổ vẫn trỏ
+mảng cũ, mà chẳng có gì đỏ lên.
+
+### Ẩn một mảng — ẩn, không xoá
+
+Ô "Thuộc mảng" còn lòi ra hai dòng rác ở đáy (ảnh 13/09/2026: *"bỏ 2 cái dưới cùng cho anh"*), và
+**hai dòng ấy sai vì hai lý do khác hẳn nhau** — gộp lại thành "ẩn cả hai" là giấu mất một lỗi:
+
+| dòng | vì sao có | chữa kiểu gì |
+|---|---|---|
+| `Part time` | là **kiểu làm việc**, không phải mảng kinh doanh | **ẩn** khỏi ô chọn |
+| `Máy tự động, Khu vui chơi, Văn phòng, Part time` | **lỗi thật**: `mang` chở nhiều mảng ngăn bằng dấu phẩy, mà `SELECT DISTINCT mang` trả nguyên chuỗi → mỗi **tổ hợp** đẻ ra một "mảng" giả | `mang_dang_khai()` gọi `tach_mang()` |
+
+Dòng tổ hợp hỏng theo ba đường, đường nào cũng im lặng: ô chọn mọc dòng rác (tích vào là ghi một
+tổ hợp cứng cho người ta); dải đếm và ô lọc có một ô không khớp ai ngoài đúng nhúm ấy; và **bảng
+luật quyền mọc một hàng nhóm giả** — khai luật vào đó thì người khai tưởng mình vừa khai cho cả
+bốn mảng.
+
+Ẩn thì **ẩn, không xoá**: chuỗi vẫn nằm trong `VHCC_Luong::BP_DS`, cơ sở nào đang xếp vào đó thì
+lương vẫn tra ra công thức như cũ. Bỏ hẳn khỏi danh sách trắng là lương cơ sở ấy rơi về "Chưa xếp".
+
+Hai chốt đi kèm, cả hai đều là đường hỏng-im-lặng:
+
+* **Chốt danh sách trắng dùng `ds_mang_tat_ca()`**, không dùng `ds_mang()`. Hẹp theo thì người
+  đang khai tay mảng vừa bị ẩn bấm Lưu là nhận câu chối *"mảng không có trong hệ"* — cho một giá
+  trị chính họ đang mang, và không có cách nào sửa.
+* **Hộp tích của người đang khai tay mảng ẩn vẫn hiện ô ấy.** Bỏ đi là ô mất dấu tích, và một cú
+  bấm Lưu xoá luôn mảng của họ — im lặng, vì trên màn chưa bao giờ có ô ấy để mà thấy nó biến mất.
+
+### 🔴 ĐỔI TÊN PHÒNG BAN MANG THEO CẢ BA SỔ
+
+Tên phòng ban là khoá của ba nơi. Rụng nơi nào cũng hỏng im lặng:
+
+1. `nhan_vien.bo_phan` — người thuộc phòng ấy;
+2. `vhcc_vai_bo_phan` — vai bày lên đầu ô xổ;
+3. `vhcc_quyen_nhom['bp']` — **luật quyền vào trang**;
+Rụng (3) là cả phòng lặng lẽ rơi xuống thang vai — bảng vẫn xanh, và chỉ lộ khi có người kêu "sao
+tôi không vào được nữa".
+
+* **Đổi tên** sang một phòng **đang có** thì **chối**, kèm lời chỉ sang nút Gộp — gõ nhầm một cái
+  mà hệ im lặng nhập hai phòng làm một thì người gõ không hề biết mình vừa xoá một phòng.
+* **Gộp** (Admin): người chuyển sang hết, vai **hợp** hai danh sách (không đè). Hai bên khai
+  **ngược nhau** ở cùng một cột quyền → giữ của phòng đích **và nói thành lời**; im lặng thì cả
+  một phòng vừa đổi quyền mà không ai biết.
+* **Xoá** (Admin): chỉ khi phòng **không còn ai khai tay** — nút không hiện khi còn người, vì một
+  nút bấm vào chỉ nhận câu chối thì trông như hệ hỏng chứ không phải như một cái chốt. Khối Nhân
+  Viên Cơ Sở không xoá được: ai có cơ sở đều tự rơi vào đó.
+
+### ⚠️ Bộ nhớ trong-lượt phải quên được
+
+`VHCC_Cong::nhom_cua()` nhớ bộ phận của từng người cho cả lượt tải trang. Đổi tên rồi vẽ lại bảng
+trong **cùng lượt POST** mà không quên thì mọi hàng vẫn mang bộ phận cũ, luật tra theo tên cũ
+không khớp, và cả phòng hiện ra như vừa rơi xuống thang vai — người bấm thấy đúng cái mình vừa sợ.
+`VHCC_Cong::quen_nhom()` được gọi sau mọi lượt đổi tên / gộp / xoá. (Bắt được ở mục 14 của bộ thử,
+không phải đoán ra.)
+
+### Gợi ý vai cho phòng đang trống
+
+Ảnh anh Thắng gửi: **10 trên 12 phòng trống trơn**, nên khối *Vai trò theo bộ phận* gần như vô
+dụng. Nút **"Điền gợi ý cho phòng đang trống"** điền một đề nghị (phòng kế toán → vai kế toán;
+khối cơ sở → Nhân viên · Cửa hàng trưởng · Cửa hàng phó; còn lại → Nhân viên · Quản lý), **chỉ vào
+phòng chưa khai gì**, và chỉ gợi ý **vai có thật trong hệ**.
+
+🔴 Vẫn **không tự điền**: đoán hộ cả sơ đồ tổ chức rồi bày lên đầu ô xổ là dạy người khai chọn sai
+một cách tự tin. Điền hay không là một lượt bấm.
+
+## 4o. Hai vấn đề phải giải quyết TRƯỚC khi sắp xếp lại phòng ban (3.80.0)
+
+Anh Thắng 13/09/2026: *"Trước khi sắp xếp lại bộ phận và phòng ban và mảng, có mấy vấn đề cần
+giải quyết"*, rồi *"làm sao phân vai trò cho nv phòng ban đó làm gì"*.
+
+Cả hai đều là đường **hỏng im lặng**, và cả hai đều **bật thành thường xuyên** đúng lúc đổi tên
+phòng ban hàng loạt.
+
+### Bốn chỗ khai vai trò, mỗi chỗ một việc
+
+| chỗ khai | quyết định gì |
+|---|---|
+| **Vai trò** (trên hồ sơ) | người đó **làm được việc gì** — thang 5 bậc |
+| **Vai trò theo bộ phận** | phòng đó **thường dùng vai nào** — chỉ bày lên đầu ô xổ, không chốt quyền |
+| **Phân quyền theo bộ phận & mảng** | phòng đó **vào được trang nào** |
+| **Chia đầu việc** | mở/thu **một đầu việc lẻ** cho một vai — VD vai *Kỹ thuật* được `may` mà không phải lên Admin |
+
+### 🔴 A. Tách phòng theo mảng mà không bó phạm vi thì cái tên chỉ là cái nhãn
+
+Từ bậc **Quản lý** trở lên, `co_quyen_coso()` gặp `cong_tat_ca` là `return true` cho **mọi cơ
+sở** — không hỏi mảng một câu nào. Nên `KVC · Phòng Kế Toán` vẫn xem được công, lương, hồ sơ và
+số tài khoản của cả mảng MTD. Cách duy nhất trước bản này là hạ họ xuống Cửa hàng trưởng rồi tick
+`coso_ql` — nhưng làm vậy họ **mất quyền lương và hồ sơ**, tức hết làm được việc kế toán.
+
+Nay: cột **Phạm vi** ở khối *Phân quyền theo bộ phận* — tick thì người của phòng ấy chỉ thấy cơ sở
+thuộc **mảng của chính họ**, áp cho **mọi bậc kể cả Kế toán**.
+
+**🔴 MẶC ĐỊNH TẮT, VÀ MỌI CHỖ KHÔNG CHẮC ĐỀU MỞ.** Đây là cái siết duy nhất trong khối ấy, mà siết
+nhầm thì người ta mở màn hình ra thấy sổ trống trơn và không có dòng nào nói vì sao:
+
+* chưa tick phòng nào → **không ai bị bó**; cài bản này lên không đổi quyền của một ai;
+* người **chưa suy ra mảng nào** → không bó (bó một danh sách rỗng là khoá sạch);
+* **cơ sở chưa ai khai mảng** → cho qua (cơ sở mới mở mà chưa kịp khai là cả phòng mất đường vào
+  nó, đúng lúc đang cần nhất).
+
+Siết hụt thì thấy được và sửa được; siết oan thì âm thầm chặn việc của người ta.
+
+### 🔴 B. Ô "Chức vụ" là một đường nới quyền sang app chi phí
+
+`VHCC_DayChiPhi::ho_so_day()` trước đây gửi thẳng ô **Chức vụ** (chữ tự do, ai sửa hồ sơ cũng gõ
+được) sang cột **Bộ phận** của sổ người dùng bên chi phí, **không kiểm gì**. Mà bên ấy,
+`VHCP_Cfg::bo_phan_chuan()` quy mọi tên nó không nhận ra về **chuỗi rỗng — nghĩa là KHÔNG BÓ BỘ
+PHẬN**, tức nhìn thấy sổ chi phí của **mọi mảng**.
+
+Gõ đúng `Máy tự động` thì bị bó; gõ `Kế toán MTD`, `máy tự động ` thừa dấu cách, hay **bất kỳ tên
+phòng ban mới nào** thì hết bó. Không một dòng nào báo, ở cả hai bên.
+
+⚠️ Và nó sắp bật thành thường xuyên: mỗi cái tên `KVC · Phòng Kế Toán` là một chuỗi bên chi phí
+không biết, tức **mỗi lượt đẩy là một người hết bị bó**.
+
+**Vá** — chỉ gửi tên bên kia **thật sự hiểu**, tra hẹp trước rộng sau:
+
+1. Chức vụ khớp đúng một bộ phận của chi phí → dùng luôn (giữ nguyên nết cũ khi nó vốn đúng);
+2. **Mảng** của người ấy có bản đồ sang bộ phận chi phí → dùng bản đồ;
+3. Không ra gì → gửi **chuỗi rỗng**.
+
+🔴 Bước 3 **không phải là vá** — nó vẫn là "không bó". Không có cách nào đoán hộ một bộ phận mà
+không đoán sai, và bịa một bộ phận cho người ta còn tệ hơn: họ mất đường vào đúng phần việc của
+mình. Cái vá thật là **nói ra ai đang không bị bó** — khối *Đẩy sang Vận hành chi phí* đếm và kê
+tên, con số ấy trước bản này **không hiện ở đâu, cả hai bên**.
+
+⚠️ Khai bản đồ xong thì **đồng bộ lại ngay** mọi tài khoản đã đẩy — không thì sổ bên kia giữ bộ
+phận cũ, người khai đóng trang và tin là xong. Khai bản đồ cần **Admin**: nó đổi phạm vi nhìn tiền.
+
+## 4p. Thêm ĐÍCH DANH một người vào trang Chi phí — 3.81.0 (13/09/2026)
+
+Anh Thắng, kèm ảnh bảng nhân sự:
+
+> *"lúc đầu phân quyền trang theo bộ phận, mà bộ phận nó đang dính chung các nv khác, nên đã
+> ngừng"* · *"giờ đang bị dính vào đó"* · *"đang có 1 nhân viên mới, cần add vào trang chi phí để
+> nhập báo cáo, nhưng không có chỗ"*
+
+**Đúng là không còn chỗ.** Mục 4m (3.77.0) gộp năm cột quyền thành MỘT cột chỉ đọc và dời chỗ
+khai xuống khối luật bộ phận & mảng. Ba cột *quyền trang* vẫn còn đường riêng trong khối `sửa ▾`
+của từng hàng — nhưng hai cột **đẩy người** (Ghế · Vận hành chi phí) thì mất hẳn. Đường duy nhất
+còn lại là nút **"Đẩy hết N người"** ở dải chênh lệch, mà nút ấy đi theo luật **cả phòng**. Thêm
+một người vào chi phí hoá ra phải mở luật cho cả bộ phận của họ — đúng cái anh Thắng vừa ngừng
+dùng vì *"dính chung các nv khác"*.
+
+### Nút `+` / `−` ngay trên chip
+
+Cột **Quyền vào trang**, hai chip cuối (Ghế · Chi phí) nay mang một nút nhỏ:
+
+| Chip đang | Nút | Bấm vào |
+|---|---|---|
+| xám (chưa có tài khoản) | `+` | đẩy RIÊNG người ấy sang, không đụng ai khác |
+| xanh (đang có) | `−` | gỡ RIÊNG người ấy ra |
+
+Nút nằm trong `<form>` của bảng chính, mang tên riêng `day_1` — chỉ lượt bấm đúng nó mới có mặt
+trong `$_POST`, cùng lối `ghep_voi` / `xoa_ma` đã dùng từ trước.
+
+Đẩy xong, dòng báo **nói luôn người ấy có bị bó bộ phận không**. Rỗng bên chi phí nghĩa là *không
+bó* — xem được sổ của mọi mảng. Một nút tiện tay mà im lặng chỗ này thì chính nó thành đường nới
+quyền mới.
+
+### Bản đồ thứ hai: phòng ban → bộ phận chi phí
+
+Mục 4o dựng bản đồ **mảng → bộ phận**. Chưa đủ, và đây mới là lý do chính khiến gần cả sổ không
+bị bó: hai danh mục không trùng nhau.
+
+| Bên nhân sự khai | Bên chi phí biết |
+|---|---|
+| Phòng Kỹ Thuật · Phòng Kế Toán - Tài Chính · Khối Nhân Viên Cơ Sở… | Cơ sở · Văn phòng · Kỹ thuật · Marketing · Công tác · Setup · Máy tự động |
+
+*"Phòng Kỹ Thuật"* và *"Kỹ thuật"* là hai chuỗi khác nhau — `bo_phan_chuan()` so chữ, không đoán
+nghĩa, nên nó trả rỗng. Bản đồ mảng không đỡ được: mảng là hạt to (*Khu Vui Chơi*), một mảng chứa
+cả Kế toán lẫn Kỹ thuật, ép chung một bộ phận là **bó sai** — mà bó sai còn tệ hơn không bó, vì
+người ta mất đúng phần việc của mình.
+
+Nên khối *"Đẩy sang Vận hành chi phí — bó bộ phận"* nay có **hai bảng**: mảng (như cũ) và **phòng
+ban** (mới, và được tra TRƯỚC).
+
+### Thứ tự tra, sau bản này
+
+```
+1.  ô Bộ phận của hồ sơ khớp thẳng một bộ phận chi phí   -> dùng
+1b. ô Bộ phận có trong BẢN ĐỒ PHÒNG BAN                  -> dùng tên đã khai
+2.  Chức vụ khớp thẳng một bộ phận chi phí               -> dùng  (đường lui cho hồ sơ cũ)
+3.  mảng của người ấy có bản đồ                          -> dùng bản đồ
+4.  không ra gì                                          -> RỖNG, và màn hình phải kê tên
+```
+
+🔴 **Bước 1 đứng trước bước 2, không đảo được.** Anh Thắng 13/09/2026: *"quyết định bộ phận do
+nhân sự quyết định, bên chi phí chỉ biết bộ phận đó có được quyền không thôi, chứ không can thiệp
+được đổi bộ phận"*. Ô Bộ phận là ô chính thức của hệ nhân sự; Chức vụ chỉ là chữ mô tả việc (Thu
+ngân, Ca trưởng). Để chức vụ thắng là trả quyền quyết định về đúng cái ô không ai coi là sơ đồ tổ
+chức.
+
+⚠️ **Chức vụ vẫn được tra, nhưng phải qua cửa `bo_phan_hop_le()`.** Cái hại của bản cũ không nằm ở
+việc *đọc* chức vụ — nó nằm ở việc *gửi thẳng* một chuỗi tự do sang bên kia.
+
+`tools/test/kiem-phong-ban-nhan-su.php` — 43 phép, có phép **hành vi** gọi thẳng
+`VHCC_TrangNS::lam_viec('day_mot')`: ba đột biến đầu tiên (gỡ nút khỏi chip, cắt dispatcher, bỏ
+cảnh báo không-bó) đều sống sót qua phép soi chữ, vì chữ vẫn còn trong tệp — chỉ đường đi bị cắt.
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |
