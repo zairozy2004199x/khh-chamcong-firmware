@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.156.0
+ * Version:           1.157.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCP_VERSION', '1.156.0' );
+define( 'VHCP_VERSION', '1.157.0' );
 define( 'VHCP_FILE', __FILE__ );
 define( 'VHCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCP_URL', plugin_dir_url( __FILE__ ) );
@@ -72,6 +72,20 @@ function vhcp_maybe_upgrade() {
 	   `va_quyen_quyet_toan()` tự giữ cờ, nên lần nạp thứ hai trở đi chỉ tốn một `get_option`. */
 	if ( method_exists( 'VHCP_Cfg', 'va_quyen_quyet_toan' ) ) {
 		VHCP_Cfg::va_quyen_quyet_toan();
+	}
+	/* 🔴 DỜI CỘT BẢNG PHÂN QUYỀN VỀ ĐÚNG VAI — cùng lý do đặt ở đây với bản vá ngay trên.
+	   Anh Thắng 13/09/2026 gửi ảnh một tài khoản vai Quản lý mất hẳn nút "✔ Duyệt tạm ứng"
+	   trong khi nút "↩ Trả lại" vẫn còn. Bản 1.154.0 chèn 'Giám đốc' vào đầu danh sách vai,
+	   mà `CH_Quyen` lưu giá trị theo THỨ TỰ CỘT, nên mọi ô của bảng đã lưu trượt sang phải
+	   đúng một vai. Xem khối dài ở `VHCP_Cfg::va_cot_quyen_them_vai()`.
+
+	   ⚠️ ĐẶT NGOÀI CHỐT `vhcp_db_version`: bản vá này không đổi sơ đồ bảng nào, nên nằm trong
+	      `install()` là không bao giờ chạy — đúng ca 28/08/2026, cài đè xong trông như đã sửa
+	      mà chưa chạy một dòng nào.
+	   ⚠️ Hàm tự giữ mốc, chạy lại không đổi gì, nên lượt nạp thứ hai trở đi chỉ tốn một lượt
+	      đọc meta. */
+	if ( method_exists( 'VHCP_Cfg', 'va_cot_quyen_them_vai' ) ) {
+		VHCP_Cfg::va_cot_quyen_them_vai();
 	}
 	/* 🔴 HÚT CƠ SỞ BÊN GHẾ SANG — LƯỢT ĐẦU.
 	   Anh Thắng 08/09/2026: *"tự đẩy lấy dữ liệu qua luôn"*. Móc `vhg_coso_da_luu` dưới đây

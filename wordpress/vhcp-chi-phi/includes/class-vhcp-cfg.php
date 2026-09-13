@@ -1211,6 +1211,130 @@ class VHCP_Cfg {
 	// ---------------------------------------------------------------- phân quyền
 
 	/** getQuyen(). */
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 *  BẢNG PHÂN QUYỀN ĐỌC THEO VỊ TRÍ — THÊM MỘT VAI LÀ MỌI CỘT TRƯỢT
+	 *
+	 *  Anh Thắng 13/09/2026 gửi ảnh màn Duyệt tạm ứng của một tài khoản vai **Quản lý**: hai
+	 *  đơn "Chờ duyệt tạm ứng" chỉ còn nút 👁 Xem và ↩ Trả lại, **mất hẳn nút ✔ Duyệt tạm ứng**.
+	 *
+	 *  🔴 VÌ SAO. Một hàng của `CH_Quyen` là [ mã, tên, <ô vai 1>, <ô vai 2>, … ] — thứ tự lấy
+	 *     từ `roles()`, và KHÔNG có gì trong hàng nói ô nào thuộc vai nào. Bản 1.154.0 chèn
+	 *     'Giám đốc' vào ĐẦU `VAI_GOC`, nên mọi ô của bảng đã lưu trượt sang phải một vai:
+	 *
+	 *         ô của Quản lý          -> đọc thành Giám đốc
+	 *         ô của Kế toán cá nhân  -> đọc thành Quản lý
+	 *         ô của Kế toán NCC      -> đọc thành Kế toán cá nhân
+	 *         ô của Nhân viên        -> đọc thành Kế toán NCC
+	 *
+	 *     `duyetTU` lưu Quản lý=1, Kế toán cá nhân=0 -> Quản lý nhận số 0: mất nút Duyệt.
+	 *     `traDon`  lưu cả hai =1                    -> Quản lý nhận số 1: nút Trả lại còn.
+	 *     Đúng hai nút trên ảnh, không sai cái nào. Và cùng phép trượt ấy làm Kế toán cá nhân
+	 *     mất "Cấp tạm ứng", Kế toán NCC mất "Xác nhận quyết toán" — cả dây chuyền tiền đứng
+	 *     lại mà màn hình không báo gì.
+	 *
+	 *  🔴 KHÔNG PHẢI CHUYỆN RIÊNG CỦA 'GIÁM ĐỐC'. Xoá một vai tự tạo ở GIỮA danh sách cũng gây
+	 *     đúng phép trượt ấy. Nên bản vá này không đi chữa một ca, nó dựng lại hàng theo TÊN
+	 *     VAI — và từ nay mỗi lượt ghi bảng đều cất kèm danh sách vai ứng với các cột, để lượt
+	 *     đọc sau biết cột nào vốn của ai.
+	 *
+	 *  ⚠️ PHẢI ĐỌC THÔ, KHÔNG QUA `read()`. Hàm ấy tự đệm hàng cho đủ số cột hiện tại, nên hàng
+	 *     lưu theo danh sách vai cũ đọc ra vẫn "đủ ô" — chỉ là lệch. Đệm xong thì không còn dấu
+	 *     vết nào để nhận ra.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Meta cất danh sách vai ứng với các cột của bảng quyền ĐANG LƯU. */
+	const QUYEN_COT_O = 'quyen_cot_vai';
+
+	/**
+	 * Vai gốc TRƯỚC khi 'Giám đốc' được chèn (bản 1.154.0, 13/09/2026).
+	 *
+	 * ⚠️ ĐỪNG SỬA MẢNG NÀY KHI THÊM VAI MỚI. Nó không phải "danh sách vai" — nó là ẢNH CHỤP
+	 *    thứ tự cột của những site đã lưu bảng quyền từ trước bản ấy và chưa có mốc `QUYEN_COT_O`.
+	 *    Sửa nó là đọc sai chính những bảng mà nó sinh ra để đọc đúng.
+	 */
+	const VAI_GOC_TRUOC_GD = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+
+	/**
+	 * Vai gốc MỚI thì thừa hưởng ô của vai nào.
+	 *
+	 * Anh Thắng 13/09/2026: *"Giám Đốc: Toàn Quyền Xem"* — nên cho theo Quản lý, chứ để trắng
+	 * tay thì vai vừa dựng ra không bấm được gì và người ta tưởng nó hỏng.
+	 */
+	const VAI_MOI_THEO = array( 'Giám đốc' => 'Quản lý' );
+
+	/** Danh sách vai ứng với các cột của bảng quyền đang lưu — suy ra nếu chưa có mốc. */
+	private static function quyen_cot_dang_luu() {
+		$m = VHCP_Meta::get_json( self::QUYEN_COT_O, array() );
+		if ( is_array( $m ) && $m ) { return array_values( $m ); }
+		/* Chưa có mốc = bảng lưu từ trước bản 1.154.0. Vai tự tạo vẫn nối vào sau như cũ. */
+		$ra = self::VAI_GOC_TRUOC_GD;
+		foreach ( self::vai_tuy_bien() as $v ) { $ra[] = $v['ten']; }
+		return $ra;
+	}
+
+	/**
+	 * DỜI CỘT BẢNG QUYỀN VỀ ĐÚNG VAI. Chạy ở `plugins_loaded`, mọi lượt tải trang.
+	 *
+	 * 🔴 CHẠY LẠI PHẢI KHÔNG ĐỔI GÌ. Dời hai lần là cột trượt tiếp một nhịp nữa, và lần ấy thì
+	 *    không ai lần ra nguyên nhân. Chốt nằm ở chính cái mốc: dời xong thì mốc bằng `roles()`,
+	 *    và lượt sau thấy bằng nhau là trả về ngay.
+	 *
+	 * @return int số hàng đã dời (0 = không phải làm gì).
+	 */
+	public static function va_cot_quyen_them_vai() {
+		global $wpdb;
+		$roles = self::roles();
+		$cu    = self::quyen_cot_dang_luu();
+		if ( $cu === $roles ) { return 0; }
+
+		$t    = VHCP_DB::t( 'cfg' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, cols FROM $t WHERE bang=%s", self::QUYEN ), ARRAY_A );
+		/* Bảng chưa có hàng nào (site mới) — chỉ cần đặt mốc, `get_quyen()` tự lấy mặc định. */
+		if ( ! $rows ) {
+			VHCP_Meta::set_json( self::QUYEN_COT_O, $roles );
+			return 0;
+		}
+
+		/* Vai tự tạo thừa hưởng vai gốc của nó; vai gốc mới thì theo bảng `VAI_MOI_THEO`. */
+		$theo = self::VAI_MOI_THEO;
+		foreach ( self::vai_tuy_bien() as $v ) { $theo[ $v['ten'] ] = $v['goc']; }
+
+		$doi = 0;
+		foreach ( $rows as $r ) {
+			$a = json_decode( $r['cols'], true );
+			if ( ! is_array( $a ) ) { continue; }
+			$a = array_values( $a );
+			/* Đọc ô cũ theo TÊN vai, từ đúng vị trí nó từng nằm. */
+			$o = array();
+			foreach ( $cu as $i => $vai ) {
+				$o[ $vai ] = array_key_exists( 2 + $i, $a ) ? $a[ 2 + $i ] : null;
+			}
+			$moi = array(
+				isset( $a[0] ) ? $a[0] : '',
+				isset( $a[1] ) ? $a[1] : '',
+			);
+			foreach ( $roles as $vai ) {
+				if ( array_key_exists( $vai, $o ) && null !== $o[ $vai ] ) {
+					$moi[] = $o[ $vai ];
+					continue;
+				}
+				/* Vai MỚI: thừa hưởng ô của vai nó theo, chứ không để trắng tay. */
+				$g = isset( $theo[ $vai ] ) ? $theo[ $vai ] : '';
+				$moi[] = ( '' !== $g && isset( $o[ $g ] ) && null !== $o[ $g ] ) ? $o[ $g ] : '';
+			}
+			if ( wp_json_encode( $moi ) === wp_json_encode( $a ) ) { continue; }
+			$wpdb->update( $t, array( 'cols' => wp_json_encode( $moi ) ), array( 'id' => $r['id'] ) );
+			$doi++;
+		}
+
+		VHCP_Meta::set_json( self::QUYEN_COT_O, $roles );
+		self::clear_cache();
+		delete_transient( 'vhcp_quyen' );
+		return $doi;
+	}
+
 	public static function get_quyen() {
 		$hit = get_transient( 'vhcp_quyen' );
 		if ( is_array( $hit ) ) { return $hit; }
@@ -1326,6 +1450,10 @@ class VHCP_Cfg {
 			$rows[] = $row;
 		}
 		self::write( self::QUYEN, $rows, false );
+		/* Cất kèm danh sách vai ứng với các cột vừa ghi — xem khối dài ở
+		   `va_cot_quyen_them_vai()`. Không có mốc này thì lượt thêm/xoá vai kế tiếp lại làm
+		   mọi ô trượt chỗ, y như ca 'Giám đốc' ngày 13/09/2026. */
+		VHCP_Meta::set_json( self::QUYEN_COT_O, $roles );
 		self::clear_cache();
 		return VHCP_Util::ok();
 	}
@@ -1348,6 +1476,7 @@ class VHCP_Cfg {
 			$rows[] = $row;
 		}
 		self::write( self::QUYEN, $rows, false );
+		VHCP_Meta::set_json( self::QUYEN_COT_O, $roles );   // xem `va_cot_quyen_them_vai()`
 		self::clear_cache();
 		return VHCP_Util::ok( array( 'soHanhDong' => count( $rows ) ) );
 	}
