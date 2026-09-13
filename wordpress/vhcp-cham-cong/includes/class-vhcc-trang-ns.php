@@ -1015,6 +1015,7 @@ class VHCC_TrangNS {
 			. 'min-width:132px}'
 			. '.dai-hang .nut{padding:3px 9px;font-size:12.5px}'
 			. '.dai-mb p.mo{margin:4px 0 0;font-size:12.5px}'
+			. '.mb-canh{font-size:11px;font-weight:700;color:var(--do);margin-bottom:3px;cursor:help}'
 			. 'select.o-q-vai{padding:4px 6px;font-size:12.5px;border-radius:6px;max-width:170px}'
 			/* Đường sang hồ sơ: nhạt và nhỏ, chỉ đậm lên khi rê chuột — mỗi hàng có một cái,
 			   tô đậm sẵn là cả cột tên biến thành một rừng liên kết xanh. */
@@ -2310,20 +2311,21 @@ class VHCC_TrangNS {
 			return array( '<span class="o-vai">' . esc_html( $m ) . '</span>',
 				'<span class="o-vai">' . esc_html( $b ) . '</span>' );
 		}
-		$suy = array(
-			'mang'   => VHCC_NhanSu::mang_theo_coso( isset( $hs['cua_hang'] ) ? $hs['cua_hang'] : '' ),
-			'boPhan' => VHCC_NhanSu::bo_phan_theo_coso( isset( $hs['cua_hang'] ) ? $hs['cua_hang'] : '' ),
-		);
-		$ra = array();
+		$sm  = VHCC_NhanSu::suy_mang( $hs );
+		$ra  = array();
 		foreach ( array(
-			array( 'o' => 'mbp_mang', 'khai' => $x['mangKhai'], 'suy' => $suy['mang'],
-				'ds' => VHCC_NhanSu::ds_mang() ),
-			array( 'o' => 'mbp_bp', 'khai' => $x['boPhanKhai'], 'suy' => $suy['boPhan'],
-				'ds' => VHCC_NhanSu::ds_bo_phan() ),
+			array( 'o' => 'mbp_mang', 'khai' => $x['mangKhai'], 'suy' => $sm['mang'],
+				'vi' => $sm['vi'], 'ds' => VHCC_NhanSu::ds_mang() ),
+			array( 'o' => 'mbp_bp', 'khai' => $x['boPhanKhai'], 'suy' => VHCC_NhanSu::suy_bo_phan( $hs ),
+				'vi' => '', 'ds' => VHCC_NhanSu::ds_bo_phan() ),
 		) as $c ) {
+			/* 🔴 NHÃN PHẢI NÓI RA CĂN CỨ, KHÔNG CHỈ NÓI KẾT QUẢ. Anh Thắng 13/09/2026: *"nếu đổi
+			   mà tự suy, giờ làm sao biết nhân viên đó làm cơ sở đó mà suy"*. «theo cơ sở (Khu
+			   vui chơi)» không trả lời được câu ấy — phải đọc ra ĐÚNG những cơ sở đã dùng làm
+			   căn cứ thì mới soát được bằng mắt. */
 			$nhan = ( '' !== $c['suy'] )
-				? 'theo cơ sở (' . $c['suy'] . ')'
-				: 'theo cơ sở — cơ sở chưa khai, phải chọn tay';
+				? ( '' !== $c['vi'] ? $c['vi'] . ' → ' . $c['suy'] : 'theo cơ sở → ' . $c['suy'] )
+				: ( '' !== $c['vi'] ? $c['vi'] : 'theo cơ sở — chưa suy được, phải chọn tay' );
 			$h = '<select class="o-q-vai" name="' . esc_attr( $c['o'] ) . '[' . esc_attr( $ma ) . ']">';
 			$h .= '<option value=""' . selected( '', $c['khai'], false ) . '>« ' . esc_html( $nhan ) . ' »</option>';
 			foreach ( $c['ds'] as $ten ) {
@@ -2332,6 +2334,11 @@ class VHCC_TrangNS {
 			}
 			$h .= '</select>';
 			$ra[] = $h;
+		}
+		/* Hàng nào hệ chịu thua thì phải NHÌN THẤY, không để nó lẫn vào 199 hàng bình thường. */
+		if ( ! empty( $x['canChonTay'] ) ) {
+			$ra[0] = '<div class="mb-canh" title="' . esc_attr( $sm['vi'] ) . '">'
+				. ( ! empty( $x['lech'] ) ? '⚠️ lệch mảng' : '⚠️ chưa suy được' ) . '</div>' . $ra[0];
 		}
 		$ra[0] = '<input type="hidden" name="mbp_co[' . esc_attr( $ma ) . ']" value="1">' . $ra[0];
 		return $ra;
@@ -2564,9 +2571,21 @@ class VHCC_TrangNS {
 		}
 		if ( ! empty( $dem['theoCoSo'] ) ) {
 			echo '<p class="mo">' . (int) $dem['theoCoSo'] . ' người đang <b>trôi theo cơ sở</b> — '
-				. 'chưa ai xếp tay, hệ tự suy mảng từ cơ sở chính và xếp vào «'
-				. esc_html( VHCC_NhanSu::BP_CO_SO ) . '». Đó là trạng thái ĐÚNG cho nhân viên quầy; '
-				. 'chỉ người văn phòng và người kiêm nhiệm mới cần chọn tay.</p>';
+				. 'chưa ai xếp tay, hệ suy mảng từ <b>mọi cơ sở người ấy làm</b> (bỏ cơ sở «chỉ QL») '
+				. 'và xếp vào «' . esc_html( VHCC_NhanSu::BP_CO_SO ) . '». Đó là trạng thái ĐÚNG cho '
+				. 'nhân viên quầy — rê chuột vào ô Mảng để đọc nó suy từ cơ sở nào.</p>';
+		}
+		/* 🔴 CON SỐ THẬT SỰ LÀ VIỆC PHẢI LÀM. Tách khỏi "trôi theo cơ sở": trôi mà suy ra đúng
+		   thì không phải làm gì, còn suy KHÔNG RA thì hệ đang để trống một ô mà bản sau sẽ bó
+		   quyền theo. Gộp chung thì con số lúc nào cũng to, không ai nhìn nữa. */
+		if ( ! empty( $dem['canChonTay'] ) ) {
+			$u_tay = add_query_arg( array( 'nmang' => '(chưa xếp)', 'np' => 1 ), self::url_hien() );
+			echo '<p class="bao canh" style="margin:6px 0 0">⚠️ <b>' . (int) $dem['canChonTay']
+				. ' người hệ KHÔNG suy ra mảng</b>'
+				. ( ! empty( $dem['lech'] ) ? ' — trong đó <b>' . (int) $dem['lech']
+					. ' người có cơ sở thuộc nhiều mảng khác nhau</b>, hệ cố ý không đoán bừa' : '' )
+				. '. Đây là danh sách việc: <a href="' . esc_url( $u_tay ) . '">xem ' . (int) $dem['canChonTay']
+				. ' người này</a> rồi chọn mảng cho họ.</p>';
 		}
 		echo '</div>';
 	}

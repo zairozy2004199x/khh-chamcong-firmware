@@ -638,7 +638,37 @@ chức của cả trang, không có đường lùi.
 **Bản này CHƯA bó quyền theo mảng/bộ phận** — anh Thắng chốt vậy: gắn + lọc + điều động trước, dữ
 liệu sạch rồi bản sau mới bó, lúc ấy bó mới chính xác.
 
-48 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+### 🔴 Suy từ đâu — và làm sao soát được (3.68.0)
+
+Anh Thắng: *"nếu đổi mà tự suy, giờ làm sao biết nhân viên đó làm cơ sở đó mà suy"*. Câu ấy trúng
+**ba lỗ hổng** của bản 3.67.0 đầu tiên, cả ba đều câm:
+
+1. **Chỉ nhìn cơ sở đầu tiên.** Bản ấy suy từ `cua_hang`, mà `chuan_coso()` **cắt ở dấu phẩy đầu**.
+   Người làm hai nơi — VIVO (Khu vui chơi) và POSH_Q1 (Máy tự động) — chỉ được xét theo VIVO. Màn
+   hình ghi "Khu vui chơi" gọn gàng, không gì cho biết nó vừa bỏ qua một nửa.
+2. **Cơ sở chính trống = coi như không có cơ sở.** Ai chỉ có `coso_phu` bị xếp "chưa xếp" trong khi
+   họ có nơi làm hẳn hoi.
+3. **Không nói suy từ đâu**, nên không ai soát được — mà phép suy không soát được thì chẳng khác gì
+   phép đoán.
+
+Luật từ 3.68.0 (`VHCC_NhanSu::suy_mang()`):
+
+- Xét trên **`ds_coso_cham()`** — mọi cơ sở người ta **làm**, đã bỏ cơ sở «chỉ QL». Quản một nơi
+  khác mảng mà không làm ở đó thì không vì thế mà đổi mảng. Ai **chỉ đi quản** thì mới lấy cơ sở
+  quản làm căn cứ, chứ không bỏ trắng.
+- **Các cơ sở thuộc nhiều mảng khác nhau → KHÔNG suy.** Đây là chốt quan trọng nhất: im lặng chọn
+  lấy một mảng là gán sai mà không ai biết, và sai ở đây là sai cái trục bản sau sẽ **bó quyền**
+  theo. Nói "không biết" vẫn đúng hơn đoán.
+- Hàm trả kèm **câu giải thích** (`vi`), và ô xổ in thẳng ra: «theo cơ sở VIVO, GO_AN_LAC →
+  Khu vui chơi», hoặc «cơ sở thuộc NHIỀU mảng: Khu vui chơi (VIVO) · Máy tự động (POSH_Q1) — phải
+  chọn tay», hoặc «cơ sở LA_HOAC chưa khai mảng — khai ở màn Cấu hình». Soát được bằng mắt.
+
+**Hai con số, đừng gộp:** *"N người đang trôi theo cơ sở"* (phần lớn là ĐÚNG, không phải việc phải
+làm) và *"N người hệ KHÔNG suy ra mảng"* (**đây** mới là danh sách việc, có đường dẫn lọc thẳng ra).
+Gộp chung thì con số lúc nào cũng to — 199 người trôi — nên không ai nhìn nữa, và mấy người thật sự
+cần xếp tay chìm nghỉm trong đó.
+
+69 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
 
 ---
 

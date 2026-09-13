@@ -121,6 +121,96 @@ teq( '🔴 còn người ĐÃ KHAI TAY thì đứng yên — đúng ý người 
 $wpdb->query( 'UPDATE ' . VHCC_DB::t( 'bo_phan_coso' )
 	. " SET bo_phan='Khu vui chơi' WHERE coso='VIVO'" );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3b. "LÀM SAO BIẾT NHÂN VIÊN ĐÓ LÀM CƠ SỞ ĐÓ MÀ SUY"
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026, đúng một câu, trúng ba lỗ hổng của bản đầu — cả ba đều câm:
+ *
+ *  1. Chỉ nhìn CƠ SỞ ĐẦU TIÊN: `chuan_coso()` cắt ở dấu phẩy đầu, nên người làm hai nơi chỉ
+ *     được xét theo nơi thứ nhất. Màn hình ghi một mảng gọn gàng, không gì cho biết nó vừa bỏ
+ *     qua một nửa.
+ *  2. Cơ sở CHÍNH trống thì coi như không có cơ sở — người chỉ có `coso_phu` bị xếp "chưa xếp"
+ *     trong khi họ có nơi làm hẳn hoi.
+ *  3. Không nói SUY TỪ ĐÂU, nên không ai soát được — mà phép suy không soát được thì chẳng
+ *     khác gì phép đoán.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'GO_AN_LAC', 'bo_phan' => 'Khu vui chơi' ) );
+
+/* --- (1) hai cơ sở CÙNG mảng: suy được, và phải kể ra CẢ HAI làm căn cứ --- */
+$nv( 'NV_2CS', 'Làm hai nơi cùng mảng', 'VIVO' );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
+	. " SET coso_phu='GO_AN_LAC' WHERE ma_nv='NV_2CS'" );
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_2CS' ) );
+teq( 'hai cơ sở cùng mảng -> suy ra mảng ấy', 'Khu vui chơi', $sm['mang'] );
+teq( '🔴 và căn cứ kể ĐỦ HAI cơ sở, không chỉ cơ sở đầu', 2, count( $sm['coSo'] ) );
+t( 'câu giải thích đọc ra được tên cơ sở', strpos( $sm['vi'], 'VIVO' ) !== false
+	&& strpos( $sm['vi'], 'GO_AN_LAC' ) !== false, $sm['vi'] );
+
+/* --- (1b) 🔴 hai cơ sở KHÁC mảng: KHÔNG được đoán bừa --- */
+$nv( 'NV_LECH', 'Làm hai mảng khác nhau', 'VIVO' );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
+	. " SET coso_phu='POSH_Q1' WHERE ma_nv='NV_LECH'" );
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
+teq( '🔴 cơ sở thuộc hai mảng -> KHÔNG suy, trả rỗng', '', $sm['mang'] );
+t( '🔴 và đánh dấu là LỆCH, không im lặng bỏ qua', ! empty( $sm['lech'] ), $sm );
+t( 'câu giải thích nói rõ lệch giữa những mảng nào',
+	strpos( $sm['vi'], 'Khu vui chơi' ) !== false && strpos( $sm['vi'], 'Máy tự động' ) !== false,
+	$sm['vi'] );
+$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
+t( '🔴 người lệch mảng nằm trong DANH SÁCH VIỆC (canChonTay)', ! empty( $x['canChonTay'] ), $x );
+
+/* Khai tay xong thì hết lệch — đó là cách người ta giải quyết. */
+$r = VHCC_NhanSu::dat_mang_bo_phan( array( 'ma_nv' => 'KT9', 'role' => 'Kế toán' ),
+	'NV_LECH', 'Máy tự động', '' );
+t( 'khai tay cho người lệch mảng được', ! empty( $r['ok'] ), $r );
+$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_LECH' ) );
+teq( 'và mảng theo đúng ý người khai', 'Máy tự động', $x['mang'] );
+t( '🔴 hết nằm trong danh sách việc', empty( $x['canChonTay'] ), $x );
+
+/* --- (2) chỉ có cơ sở PHỤ, cơ sở chính trống --- */
+$nv( 'NV_CHIPHU', 'Chỉ có cơ sở phụ', '' );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
+	. " SET coso_phu='VIVO' WHERE ma_nv='NV_CHIPHU'" );
+$x = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'NV_CHIPHU' ) );
+teq( '🔴 cơ sở chính trống mà có cơ sở phụ -> vẫn suy ra mảng', 'Khu vui chơi', $x['mang'] );
+teq( '🔴 và vẫn vào khối cơ sở, không rơi vào "chưa xếp"', VHCC_NhanSu::BP_CO_SO, $x['boPhan'] );
+
+/* --- cơ sở "chỉ QL" KHÔNG kéo mảng theo: quản một nơi khác mảng thì không vì thế mà đổi mảng --- */
+$nv( 'NV_QL', 'Làm Vivo, quản Posh', 'VIVO' );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
+	. " SET coso_phu='POSH_Q1', coso_ql='POSH_Q1' WHERE ma_nv='NV_QL'" );
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_QL' ) );
+teq( '🔴 cơ sở "chỉ QL" không kéo mảng theo -> vẫn suy ra được', 'Khu vui chơi', $sm['mang'] );
+t( 'và KHÔNG bị coi là lệch mảng', empty( $sm['lech'] ), $sm );
+
+/* Người CHỈ đi quản, không chấm ở đâu: vẫn phải có căn cứ chứ không bỏ trắng. */
+$nv( 'NV_QLTHUAN', 'Chỉ đi quản', 'POSH_Q1' );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'nhan_vien' )
+	. " SET coso_ql='POSH_Q1' WHERE ma_nv='NV_QLTHUAN'" );
+teq( 'người chỉ đi quản vẫn suy ra mảng của nơi mình quản',
+	'Máy tự động', VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_QLTHUAN' ) )['mang'] );
+
+/* --- (3) cơ sở chưa khai mảng: nói rõ cơ sở NÀO, chỉ đường đi khai --- */
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_LA' ) );
+teq( 'cơ sở chưa khai mảng -> không suy được', '', $sm['mang'] );
+/* Tên hiện ra đã gỡ tiền tố 'CS_' (chuan_coso) — đó là tên người ta thấy ở mọi màn khác,
+   nên câu giải thích phải dùng đúng tên ấy, không phải chuỗi thô trong sổ. */
+t( '🔴 nhưng nói rõ CƠ SỞ NÀO chưa khai', strpos( $sm['vi'], 'LA_HOAC' ) !== false, $sm['vi'] );
+t( 'và chỉ đường đi khai', strpos( $sm['vi'], 'Cấu hình' ) !== false, $sm['vi'] );
+
+/* --- không cơ sở nào cả --- */
+$sm = VHCC_NhanSu::suy_mang( VHCC_NhanSu::ho_so( 'NV_VP' ) );
+t( 'không gắn cơ sở -> nói đúng là chưa gắn cơ sở',
+	strpos( $sm['vi'], 'chưa gắn cơ sở' ) !== false, $sm['vi'] );
+
+/* --- màn hình phải IN RA căn cứ ấy, không giữ trong bụng --- */
+$src_ns = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( '🔴 ô xổ in ra câu giải thích của suy_mang(), không chỉ in kết quả',
+	strpos( $src_ns, "\$c['vi']" ) !== false );
+t( 'hàng chưa suy được có nhãn cảnh báo ngay trong ô',
+	strpos( $src_ns, 'mb-canh' ) !== false && strpos( $src_ns, 'lệch mảng' ) !== false );
+
 /* ================================================================== 4. DANH SÁCH & CHỐT QUYỀN */
 
 $ds_m = VHCC_NhanSu::ds_mang();
