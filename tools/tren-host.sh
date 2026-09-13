@@ -19,8 +19,13 @@ NHANH="${TREN_HOST_NHANH:-claude/chao-em-iiyx5i}"
 
 CHON="${1:-}"
 case "$CHON" in
-  soat) DUONG_DAN="tools/doi-soat-vat/wordpress/doi-soat-vat"; SLUG="doi-soat-vat"
-        TEN="Đối soát thu hộ & lập danh sách xuất hoá đơn VAT" ;;
+  soat) SLUG="doi-soat-vat"
+        TEN="Đối soát thu hộ & lập danh sách xuất hoá đơn VAT"
+        DUONG_DAN="tools/doi-soat-vat/wordpress/doi-soat-vat"
+        # Giao diện nằm riêng ở tools/doi-soat-vat/web và dùng chung cho cả bản
+        # web tĩnh lẫn bản plugin, nên phải chép vào lúc dựng — hệt như
+        # wordpress/dong-goi.sh vẫn làm. Thiếu nó thì plugin cài xong mở ra trắng.
+        KEM_WEB="tools/doi-soat-vat/web" ;;
   "")   echo "Thiếu tên plugin. Ví dụ:  bash tren-host.sh soat"; exit 2 ;;
   *)    echo "Không biết plugin '$CHON'. Hiện có: soat"; exit 2 ;;
 esac
@@ -75,6 +80,35 @@ if [ ! -f "$NGUON/$SLUG.php" ]; then
 fi
 
 PHIEN_BAN="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$NGUON/$SLUG.php" | head -1)"
+
+# ── dựng đúng bộ file của plugin ────────────────────────────────────────────
+DUNG="$TAM/$SLUG"
+mkdir -p "$DUNG"
+cp "$NGUON"/*.php "$NGUON"/*.txt "$DUNG"/ 2>/dev/null || cp "$NGUON"/*.php "$DUNG"/
+if [ -n "${KEM_WEB:-}" ]; then
+  [ -d "$GOC/$KEM_WEB" ] || { echo "✗ Nhánh '$NHANH' thiếu $KEM_WEB"; exit 1; }
+  cp -R "$GOC/$KEM_WEB" "$DUNG/web"
+
+  # Ba chỗ ghi phiên bản phải khớp nhau, nếu không trình duyệt giữ lại giao diện
+  # cũ trong bộ đệm và cập nhật xong vẫn thấy y như chưa sửa gì.
+  V_HTML="$(sed -n 's/.*js\/app\.js?v=\([0-9.]*\)".*/\1/p' "$DUNG/web/index.html" | head -1)"
+  V_CONST="$(sed -n "s/^const DSVAT_VERSION = '\([0-9.]*\)';.*/\1/p" "$DUNG/$SLUG.php" | head -1)"
+  if [ "$PHIEN_BAN" != "$V_HTML" ] || [ "$PHIEN_BAN" != "$V_CONST" ]; then
+    echo "✗ Lệch phiên bản trong nhánh — không cài để khỏi ra bản nửa vời:"
+    echo "    Version ở đầu $SLUG.php : ${PHIEN_BAN:-?}"
+    echo "    DSVAT_VERSION           : ${V_CONST:-?}"
+    echo "    ?v= trong web/index.html: ${V_HTML:-?}"
+    exit 1
+  fi
+
+  # WordPress không cần index.php trong thư mục plugin, nhưng thêm vào thì thư
+  # mục không bị liệt kê nếu máy chủ bật duyệt thư mục.
+  for d in "$DUNG" "$DUNG/web" "$DUNG/web/js" "$DUNG/web/vendor"; do
+    [ -d "$d" ] && printf '<?php\n// Im lặng là vàng.\n' > "$d/index.php"
+  done
+fi
+find "$DUNG" -name '.DS_Store' -delete 2>/dev/null || true
+SO_FILE="$(find "$DUNG" -type f | wc -l | tr -d ' ')"
 CU=""
 if [ -f "$DICH/$SLUG.php" ]; then
   CU="$(sed -n 's/^ \* Version:[[:space:]]*//p' "$DICH/$SLUG.php" | head -1)"
@@ -89,11 +123,11 @@ if [ -d "$DICH" ]; then
   LUU="$PLUGINS/.$SLUG.luu-$(date +%Y%m%d-%H%M%S)"
   mv "$DICH" "$LUU"
 fi
-cp -R "$NGUON" "$DICH"
+cp -R "$DUNG" "$DICH"
 find "$DICH" -type d -exec chmod 755 {} + 2>/dev/null || true
 find "$DICH" -type f -exec chmod 644 {} + 2>/dev/null || true
 
-echo "✓ Đã cài $TEN ${PHIEN_BAN:+($PHIEN_BAN)} vào $DICH"
+echo "✓ Đã cài $TEN ${PHIEN_BAN:+($PHIEN_BAN)} — $SO_FILE file vào $DICH"
 
 # ── kích hoạt nếu hosting có wp-cli ─────────────────────────────────────────
 if command -v wp >/dev/null 2>&1; then
