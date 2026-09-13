@@ -9,6 +9,8 @@ flight-booking-assistant/
 ├── index.html              trang web (mở bằng trình duyệt là chạy, không cần cài gì)
 ├── autofill-bookmarklet.js bản đọc được của hàm điền hộ, để sửa luật khớp ô
 ├── learn-bookmarklet.js    chế độ "Học form": ghi luật riêng cho đúng trang của hãng
+├── server/proxy.mjs        proxy giá thật (Amadeus) + tra mã số thuế — không phụ thuộc thư viện nào
+├── server/test-proxy.mjs   22 test chạy bằng Amadeus giả, không cần khoá
 └── automation/dat-ve.mjs   script Playwright: mở trang, điền hồ sơ, dừng trước thanh toán
 ```
 
@@ -80,37 +82,75 @@ lần dùng mãi, trừ khi hãng dựng lại giao diện.
 
 ## Nối giá thật
 
-Bảng giá trong trang là **giá mô phỏng**: máy dựng theo cự ly chặng (toạ độ sân bay thật), hệ số
-hãng, khung giờ bay, thứ trong tuần và số ngày mua trước. Nó đủ để chạy thử luồng, không phải giá bán.
+Không có proxy thì bảng giá là **giá mô phỏng**: máy dựng theo cự ly chặng (toạ độ sân bay thật),
+hệ số hãng, khung giờ bay, thứ trong tuần và số ngày mua trước. Đủ để chạy thử luồng, không phải giá bán.
 
-Muốn giá thật thì nối một trong hai API sau; cả hai đều cần khoá và **không gọi thẳng từ trình duyệt
-được** (CORS + lộ khoá), nên phải có một proxy nhỏ:
+### Chạy thử trước, chưa cần khoá
 
-- **Amadeus Self-Service** — `GET /v2/shopping/flight-offers`, có gói miễn phí để thử.
-- **Duffel** — `POST /air/offer_requests`, dữ liệu sát vé bán thật hơn, tính phí theo giao dịch.
-
-Proxy tối giản (Node 18+), đặt khoá trong biến môi trường, không đẩy khoá lên repo:
-
-```js
-// proxy.mjs — node proxy.mjs, rồi trong index.html gọi fetch('http://localhost:8787/offers?...')
-import { createServer } from 'node:http';
-const TOKEN = process.env.AMADEUS_TOKEN;           // lấy qua OAuth client_credentials
-createServer(async (req, res) => {
-  const u = new URL(req.url, 'http://x');
-  const api = 'https://test.api.amadeus.com/v2/shopping/flight-offers'
-    + `?originLocationCode=${u.searchParams.get('from')}`
-    + `&destinationLocationCode=${u.searchParams.get('to')}`
-    + `&departureDate=${u.searchParams.get('dep')}`
-    + `&adults=${u.searchParams.get('adt') || 1}&currencyCode=VND&max=30`;
-  const r = await fetch(api, { headers: { Authorization: `Bearer ${TOKEN}` } });
-  res.writeHead(r.status, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-  res.end(await r.text());
-}).listen(8787);
+```bash
+node server/proxy.mjs --mock
 ```
 
-Trong `index.html`, thay `buildOffers(q)` bằng lời gọi proxy và ánh xạ về cùng hình dạng
-`{al, code, dep, arr, mins, stops, bag, seller, price}` là bảng giá chạy bằng dữ liệu thật, phần còn
-lại của trang giữ nguyên. Nhớ đổi nhãn **Giá mô phỏng** ở đầu trang.
+Mở `index.html`, dán `http://localhost:8787` vào ô **Nguồn giá → Địa chỉ proxy**, bấm *Dùng nguồn này*.
+Nhãn đổi sang **Giá thật** và bảng lấy dữ liệu từ proxy. Tra mã số thuế cũng chạy bằng dữ liệu mẫu.
+
+### Giá thật từ Amadeus
+
+1. Đăng ký ở [developers.amadeus.com](https://developers.amadeus.com) → tạo app → lấy **API Key** và **API Secret**.
+   Gói Self-Service có bậc miễn phí; môi trường `test` trả dữ liệu sandbox (chặng và giá không đầy đủ),
+   muốn số liệu bán thật phải chuyển sang `production` (có tính phí theo lượt gọi).
+2. Chạy proxy:
+
+```bash
+AMADEUS_ID=xxx AMADEUS_SECRET=yyy node server/proxy.mjs
+# thật sự bán vé thì thêm: AMADEUS_ENV=production
+```
+
+3. Dán địa chỉ proxy vào trang như trên.
+
+Proxy lo giúp ba việc mà trình duyệt không làm được: **giữ khoá ở máy chủ** (gọi thẳng từ trang web là
+ai xem mã nguồn cũng thấy khoá), **qua CORS**, và **đệm 5 phút** để một lần dò lại không đốt thêm lượt gọi.
+
+Biến môi trường: `PORT` (8787), `ALLOW_ORIGIN` (`*`), `VND_RATE` (quy đổi khi Amadeus trả tiền tệ khác VND),
+`AMADEUS_ENV` (`test`/`production`), `TAX_BASE` (dịch vụ tra mã số thuế).
+
+Endpoint:
+
+| Đường dẫn | Việc |
+|---|---|
+| `GET /api/offers?from=SGN&to=HAN&dep=2026-10-04&adt=1&cabin=ECONOMY&direct=1` | danh sách chuyến, đã xếp từ rẻ tới đắt |
+| `GET /api/tax?mst=0312345678` | tên và địa chỉ doanh nghiệp theo mã số thuế |
+| `GET /api/health` | proxy đang dùng nguồn nào |
+
+Kiểm thử (dựng Amadeus giả đúng schema, không chạm mạng ngoài, không cần khoá):
+
+```bash
+node server/test-proxy.mjs     # 22 test: token, tham số, ánh xạ dữ liệu, cache, tra MST, lỗi
+```
+
+### Điều phải biết trước khi tin bảng giá
+
+- **Vietjet và Vietravel phần lớn không bán qua GDS.** Amadeus là hệ thống của các hãng truyền thống;
+  vé rẻ nhất chặng nội địa nhiều khi chỉ có trên trang của chính hãng. Nên bảng giá thật vẫn phải
+  đối chiếu với mục *Mở song song nơi đang bán chặng này*.
+- **Giá GDS là giá chào, chưa chắc là giá thanh toán.** Phí xuất vé, phí hành lý, phí thanh toán của
+  từng kênh cộng vào sau.
+- Môi trường `test` của Amadeus trả dữ liệu sandbox — đừng lấy con số ở đó làm giá thật.
+
+### Gõ mã số thuế, tự điền thông tin công ty
+
+Gõ đủ 10 số vào ô **Mã số thuế**, proxy hỏi dịch vụ tra cứu doanh nghiệp và điền **tên công ty** +
+**địa chỉ** vào hồ sơ hoá đơn. Mặc định dùng `https://api.vietqr.io/v2/business/{mst}` (miễn phí);
+đổi sang dịch vụ khác bằng `TAX_BASE`. Kết quả nhớ trong 24 giờ. Máy chỉ điền vào ô đang trống —
+anh đã tự gõ thì nó không đè lên.
+
+### Duffel — khi muốn thanh toán ngay trên web của mình
+
+Amadeus Self-Service chỉ **tra giá**; đặt và thu tiền phải sang trang hãng. Muốn khách trả tiền ngay
+trên web của mình thì mình phải là bên bán vé: dùng [Duffel](https://duffel.com) (`POST /air/offer_requests`
+→ `POST /air/orders` kèm payment), hoặc Amadeus Enterprise / Sabre qua đại lý. Chuyện này vướng giấy tờ
+nhiều hơn vướng code: hợp đồng đại lý hoặc số IATA, tài khoản merchant, và trách nhiệm hoàn/đổi vé
+thuộc về mình. Xem mục *Máy làm tới đâu* trong trang.
 
 ## Script tự đặt (Playwright)
 

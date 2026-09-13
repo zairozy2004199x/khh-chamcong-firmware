@@ -299,7 +299,15 @@ section.sec>.hint{max-width:74ch}
   <aside class="statecard">
     <span class="eyebrow">Nguồn giá</span>
     <span class="tag" id="srcTag">Giá mô phỏng — chưa nối API</span>
-    <p>Bảng giá bên dưới do máy dựng theo cự ly chặng, khung giờ và số ngày mua trước, đủ thật để chạy thử luồng đặt vé. Giá bán thật đổi từng phút: nối API Amadeus hoặc Duffel (README trong repo) hoặc mở thẳng các trang bán vé ở mục dưới.</p>
+    <p id="srcNote">Chạy <code>node server/proxy.mjs</code> trong repo rồi dán địa chỉ proxy vào đây là bảng giá chuyển sang dữ liệu Amadeus thật. Chưa có khoá thì <code>--mock</code> để xem luồng chạy.</p>
+    <div class="field">
+      <label for="proxyUrl">Địa chỉ proxy</label>
+      <input id="proxyUrl" placeholder="http://localhost:8787" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button class="btn sm" type="button" id="useProxy">Dùng nguồn này</button>
+      <button class="btn ghost sm" type="button" id="clearProxy">Về giá mô phỏng</button>
+    </div>
   </aside>
 </header>
 
@@ -379,7 +387,7 @@ section.sec>.hint{max-width:74ch}
 
     <section class="cal sec">
       <h3>Lịch giá 7 ngày quanh ngày đi</h3>
-      <p class="hint">Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.</p>
+      <p class="hint" id="calNote">Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.</p>
       <div class="cal-grid" id="cal"></div>
     </section>
   </div>
@@ -420,7 +428,7 @@ section.sec>.hint{max-width:74ch}
       <div class="field"><label for="ctEmail">Email nhận vé</label><input id="ctEmail" name="ctEmail" type="email" autocomplete="email" placeholder="ten@congty.com"></div>
       <div class="field"><label for="invCompany">Tên đơn vị xuất hoá đơn</label><input id="invCompany" name="invCompany" autocomplete="organization" placeholder="Công ty TNHH K&amp;H"></div>
       <div class="two">
-        <div class="field"><label for="invTax">Mã số thuế</label><input id="invTax" name="invTax" class="num-in" inputmode="numeric" placeholder="0312345678"></div>
+        <div class="field"><label for="invTax">Mã số thuế</label><input id="invTax" name="invTax" class="num-in" inputmode="numeric" placeholder="0312345678"><span class="hint" id="taxStatus">gõ đủ 10 số, máy tự điền tên và địa chỉ công ty</span></div>
         <div class="field"><label for="invEmail">Email nhận hoá đơn</label><input id="invEmail" name="invEmail" type="email" placeholder="ketoan@congty.com"></div>
       </div>
       <div class="field"><label for="invAddr">Địa chỉ trên hoá đơn</label><input id="invAddr" name="invAddr" autocomplete="street-address" placeholder="Số 1, đường …, phường …, TP …"></div>
@@ -945,11 +953,73 @@ function readQuery(){
   };
 }
 
-function run(){
+/* ---------------- nguồn giá thật (proxy) ---------------- */
+const PROXY_KEY = "dovere.proxy.v1";
+function loadProxy(){ try { return localStorage.getItem(PROXY_KEY) || ""; } catch(e){ return ""; } }
+function setProxy(v){ try { v ? localStorage.setItem(PROXY_KEY, v) : localStorage.removeItem(PROXY_KEY); } catch(e){} }
+async function api(path){
+  const base = loadProxy().replace(/\/+$/, "");
+  if(!base) throw new Error("chưa khai proxy");
+  let r;
+  try { r = await fetch(base + path, { headers: { accept: "application/json" } }); }
+  catch(e){ throw new Error("không nối được " + base + " — proxy chưa chạy, hoặc trang này đang bị chặn gọi mạng"); }
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ("proxy trả về " + r.status));
+  return j;
+}
+function setSource(kind, text, note){
+  const tag = $("#srcTag");
+  tag.textContent = text;
+  tag.className = "tag" + (kind === "live" ? " ok" : "");
+  if(note) $("#srcNote").textContent = note;
+}
+const money = (n, cur) => (!cur || cur === "VND")
+  ? vnd(n) + "đ"
+  : cur + " " + new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 2 }).format(n);
+
+/* ---------------- dò giá ---------------- */
+let seq = 0;
+async function run(){
   const q = readQuery(); if(!q) return;
   state.last = q;
-  let offers = buildOffers(q);
-  const total = offers.length;
+  const mine = ++seq;
+  let offers = null, live = false, err = "";
+
+  if(loadProxy()){
+    $("#rows").innerHTML = '<div class="empty">Đang hỏi giá thật cho ' + q.from.code + " → " + q.to.code + '…</div>';
+    try {
+      const j = await api("/api/offers?" + new URLSearchParams({
+        from: q.from.code, to: q.to.code, dep: q.dep, ret: q.ret || "",
+        adt: q.adt, chd: q.chd, inf: q.inf, cabin: q.cabin, direct: state.direct ? "1" : "0"
+      }));
+      if(mine !== seq) return;
+      offers = j.offers || [];
+      if(offers.length){
+        live = true;
+        setSource("live",
+          "Giá thật · " + (j.source === "mock" ? "dữ liệu mẫu của proxy" : j.source) + (j.cached ? " · đệm 5 phút" : ""),
+          "Bảng giá lấy qua proxy " + loadProxy() + ". Lưu ý: hãng giá rẻ nội địa (Vietjet, Vietravel) nhiều khi không bán qua GDS, nên vẫn phải đối chiếu bằng các trang ở mục dưới.");
+      } else {
+        err = "nguồn thật không có chuyến nào cho chặng và ngày này";
+      }
+    } catch(e){
+      if(mine !== seq) return;
+      err = e.message;
+    }
+  }
+
+  if(!live){
+    offers = buildOffers(q);
+    if(!loadProxy()) setSource("sim", "Giá mô phỏng — chưa nối API");
+    else setSource("sim", "Giá mô phỏng — " + err,
+      "Proxy chưa trả được dữ liệu nên bảng quay về giá mô phỏng. Sửa lại rồi bấm Dò giá.");
+  }
+  renderBoard(q, offers, live);
+}
+
+function renderBoard(q, all, live){
+  const total = all.length;
+  let offers = all.slice();
   if(state.direct) offers = offers.filter(o => o.stops === 0);
   if(state.bag)    offers = offers.filter(o => o.bag);
   if(state.day)    offers = offers.filter(o => o.depHour >= 8 && o.depHour < 18);
@@ -957,10 +1027,10 @@ function run(){
   offers.sort((a,b) => a.price - b.price);
 
   $("#boardTitle").textContent = q.from.code + " → " + q.to.code;
-  const paxTxt = [q.adt+" người lớn", q.chd?q.chd+" trẻ em":"", q.inf?q.inf+" em bé":""].filter(Boolean).join(" · ");
+  const paxTxt = [q.adt + " người lớn", q.chd ? q.chd + " trẻ em" : "", q.inf ? q.inf + " em bé" : ""].filter(Boolean).join(" · ");
   const [yy,mm,dd] = q.dep.split("-");
-  $("#boardSub").textContent = offers.length + "/" + total + " lựa chọn · " + dd + "/" + mm + " · " + paxTxt
-    + " · " + Math.round(distKm(q.from,q.to)) + " km";
+  $("#boardSub").textContent = (live ? "giá thật · " : "") + offers.length + "/" + total + " lựa chọn · "
+    + dd + "/" + mm + " · " + paxTxt + " · " + Math.round(distKm(q.from, q.to)) + " km";
 
   const rows = $("#rows");
   if(!offers.length){
@@ -969,21 +1039,27 @@ function run(){
     const links = channelList(q);
     rows.innerHTML = offers.slice(0,9).map((o,i) => {
       const url = o.seller.name === "Website hãng" ? o.al.site
-                : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site;
-      return '<article class="row' + (i===0 ? " best" : "") + '">'
-        + (i===0 ? '<span class="badge-best">Rẻ nhất</span>' : "")
+                : (links.find(c => c.name === o.seller.name) || {}).url
+                  || o.al.site || links[0].url;
+      const tong = o.total || paxPrice(o.price, q);
+      const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
+      return '<article class="row' + (i === 0 ? " best" : "") + '">'
+        + (i === 0 ? '<span class="badge-best">Rẻ nhất</span>' : "")
         + '<div class="r-air"><span class="r-code">' + o.al.code + '</span><span class="r-name">' + o.al.name + '</span></div>'
         + '<div class="r-time"><div class="r-clock">' + o.dep + ' <span>' + q.from.code + '</span> — ' + o.arr
           + (o.overnight ? '<sup>+1</sup>' : "") + ' <span>' + q.to.code + '</span></div>'
         + '<div class="r-meta">' + o.code + ' · ' + durTxt(o.mins) + ' · ' + (o.stops ? o.stops + " điểm dừng" : "bay thẳng")
-          + ' · ' + (o.bag ? "23kg ký gửi" : "7kg xách tay") + '</div></div>'
+          + ' · ' + bagTxt + '</div></div>'
         + '<div class="r-chan"><b>' + o.seller.name + '</b>' + o.seller.note
           + '<a class="go" href="' + url + '" target="_blank" rel="noopener">Đặt</a></div>'
-        + '<div class="r-price"><b>' + vnd(o.price) + '</b><span>đ / khách, gồm thuế phí</span>'
-          + '<i>tổng ' + vnd(paxPrice(o.price, q)) + 'đ</i></div>'
+        + '<div class="r-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
+          + '<i>tổng ' + money(tong, o.cur) + '</i></div>'
         + '</article>';
     }).join("");
   }
+  $("#calNote").textContent = live
+    ? "Lịch giá là ước lượng của máy, không gọi API cho từng ngày (đỡ chạm trần lượt gọi). Bấm một ngày để đổi ngày đi rồi dò lại bằng giá thật."
+    : "Cột thấp nhất là ngày rẻ nhất trong tuần. Bấm vào một ngày để đổi ngày đi rồi dò lại.";
   renderCal(q);
   renderChannels(q);
 }
@@ -1216,6 +1292,39 @@ async function copy(text, ok){
   }
 }
 
+/* ---------------- gõ mã số thuế → tự điền tên và địa chỉ công ty ---------------- */
+let taxT = null, taxDone = "";
+async function lookupTax(){
+  const st = $("#taxStatus");
+  const mst = $("#invTax").value.replace(/[^\d-]/g, "");
+  if(!/^\d{10}(-\d{3})?$/.test(mst)){
+    taxDone = "";
+    st.textContent = mst ? "mã số thuế phải đủ 10 số (chi nhánh thì 10-3 số)" : "gõ đủ 10 số, máy tự điền tên và địa chỉ công ty";
+    return;
+  }
+  if(mst === taxDone) return;
+  if(!loadProxy()){
+    st.textContent = "cần proxy đang chạy để tra cứu — khai ở ô “Nguồn giá” đầu trang";
+    return;
+  }
+  st.textContent = "đang tra " + mst + "…";
+  try {
+    const j = await api("/api/tax?mst=" + encodeURIComponent(mst));
+    taxDone = mst;
+    const c = $("#invCompany"), a = $("#invAddr"), b = $("#invBuyer");
+    const filled = [];
+    if(j.company && !c.value.trim()){ c.value = j.company; filled.push("tên công ty"); }
+    if(j.address && !a.value.trim()){ a.value = j.address; filled.push("địa chỉ"); }
+    st.textContent = filled.length
+      ? j.company + " · đã điền " + filled.join(" và ")
+      : j.company + " · giữ nguyên phần anh đã gõ";
+    refreshFill();
+  } catch(e){
+    taxDone = "";
+    st.textContent = "không tra được: " + e.message;
+  }
+}
+
 /* ---------------- sự kiện ---------------- */
 $("#searchForm").addEventListener("submit", e => { e.preventDefault(); run(); });
 $("#swapBtn").addEventListener("click", () => {
@@ -1263,6 +1372,30 @@ $("#paxList").addEventListener("click", e => {
 });
 $("#paxList").addEventListener("change", refreshFill);
 document.addEventListener("change", e => { if(CONTACT_FIELDS.includes(e.target.id)) refreshFill(); });
+$("#invTax").addEventListener("input", () => { clearTimeout(taxT); taxT = setTimeout(lookupTax, 600); });
+$("#invTax").addEventListener("blur", lookupTax);
+$("#useProxy").addEventListener("click", async () => {
+  const v = $("#proxyUrl").value.trim().replace(/\/+$/, "");
+  if(!v){ toast("Dán địa chỉ proxy, ví dụ http://localhost:8787"); return; }
+  setProxy(v);
+  try {
+    const h = await api("/api/health");
+    toast("Đã nối proxy · " + h.provider + (h.env ? " (" + h.env + ")" : ""));
+    taxDone = "";
+    run();
+  } catch(e){
+    setProxy("");
+    setSource("sim", "Giá mô phỏng — " + e.message, "Proxy chưa nối được. Chạy node server/proxy.mjs rồi thử lại.");
+    toast("Không nối được: " + e.message);
+    run();                       // bảng phải quay về giá mô phỏng cho khớp với nhãn
+  }
+});
+$("#clearProxy").addEventListener("click", () => {
+  setProxy(""); $("#proxyUrl").value = "";
+  setSource("sim", "Giá mô phỏng — chưa nối API",
+    "Chạy node server/proxy.mjs trong repo rồi dán địa chỉ proxy vào đây là bảng giá chuyển sang dữ liệu Amadeus thật.");
+  run();
+});
 $("#saveProfile").addEventListener("click", save);
 $("#saveSites").addEventListener("click", saveSites);
 $("#copyLearn").addEventListener("click", () => copy(learnSrc(), "Đã chép mã “Học form”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
@@ -1295,6 +1428,7 @@ $("#dep").min = iso(new Date());
 $("#ret").min = iso(new Date());
 load();
 showSites();
+$("#proxyUrl").value = loadProxy();
 refreshFill();
 run();
 </script>

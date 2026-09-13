@@ -1,0 +1,104 @@
+{
+  "meta": { "count": 3 },
+  "data": [
+    {
+      "type": "flight-offer",
+      "id": "1",
+      "source": "GDS",
+      "numberOfBookableSeats": 9,
+      "itineraries": [
+        {
+          "duration": "PT2H10M",
+          "segments": [
+            {
+              "departure": { "iataCode": "SGN", "terminal": "1", "at": "2026-10-04T06:15:00" },
+              "arrival":   { "iataCode": "HAN", "terminal": "1", "at": "2026-10-04T08:25:00" },
+              "carrierCode": "VJ", "number": "120", "aircraft": { "code": "321" },
+              "duration": "PT2H10M", "numberOfStops": 0, "id": "1"
+            }
+          ]
+        }
+      ],
+      "price": { "currency": "VND", "total": "1690000", "grandTotal": "1690000", "base": "1200000" },
+      "validatingAirlineCodes": ["VJ"],
+      "travelerPricings": [
+        {
+          "travelerId": "1", "fareOption": "STANDARD", "travelerType": "ADULT",
+          "price": { "currency": "VND", "total": "1690000", "base": "1200000" },
+          "fareDetailsBySegment": [
+            { "segmentId": "1", "cabin": "ECONOMY", "fareBasis": "TLOW", "class": "T",
+              "includedCheckedBags": { "quantity": 0 } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "flight-offer",
+      "id": "2",
+      "source": "GDS",
+      "itineraries": [
+        {
+          "duration": "PT2H05M",
+          "segments": [
+            {
+              "departure": { "iataCode": "SGN", "at": "2026-10-04T12:40:00" },
+              "arrival":   { "iataCode": "HAN", "at": "2026-10-04T14:45:00" },
+              "carrierCode": "VN", "number": "220", "aircraft": { "code": "359" },
+              "duration": "PT2H05M", "numberOfStops": 0, "id": "2"
+            }
+          ]
+        }
+      ],
+      "price": { "currency": "VND", "total": "2450000", "grandTotal": "2450000", "base": "1900000" },
+      "validatingAirlineCodes": ["VN"],
+      "travelerPricings": [
+        {
+          "travelerId": "1", "fareOption": "STANDARD", "travelerType": "ADULT",
+          "price": { "currency": "VND", "total": "2450000", "base": "1900000" },
+          "fareDetailsBySegment": [
+            { "segmentId": "2", "cabin": "ECONOMY", "class": "M",
+              "includedCheckedBags": { "quantity": 1 } }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "flight-offer",
+      "id": "3",
+      "source": "GDS",
+      "itineraries": [
+        {
+          "duration": "PT5H35M",
+          "segments": [
+            {
+              "departure": { "iataCode": "SGN", "at": "2026-10-04T21:50:00" },
+              "arrival":   { "iataCode": "DAD", "at": "2026-10-04T23:15:00" },
+              "carrierCode": "QH", "number": "130", "duration": "PT1H25M", "numberOfStops": 0, "id": "3"
+            },
+            {
+              "departure": { "iataCode": "DAD", "at": "2026-10-05T01:20:00" },
+              "arrival":   { "iataCode": "HAN", "at": "2026-10-05T03:25:00" },
+              "carrierCode": "QH", "number": "202", "duration": "PT2H05M", "numberOfStops": 0, "id": "4"
+            }
+          ]
+        }
+      ],
+      "price": { "currency": "VND", "total": "1450000", "grandTotal": "1450000", "base": "1000000" },
+      "validatingAirlineCodes": ["QH"],
+      "travelerPricings": [
+        {
+          "travelerId": "1", "fareOption": "STANDARD", "travelerType": "ADULT",
+          "price": { "currency": "VND", "total": "1450000", "base": "1000000" },
+          "fareDetailsBySegment": [
+            { "segmentId": "3", "cabin": "ECONOMY", "class": "E", "includedCheckedBags": { "quantity": 1 } },
+            { "segmentId": "4", "cabin": "ECONOMY", "class": "E", "includedCheckedBags": { "quantity": 1 } }
+          ]
+        }
+      ]
+    }
+  ],
+  "dictionaries": {
+    "carriers": { "VJ": "VIETJET AIR", "VN": "VIETNAM AIRLINES", "QH": "BAMBOO AIRWAYS" },
+    "aircraft": { "321": "AIRBUS A321", "359": "AIRBUS A350-900" }
+  }
+}
