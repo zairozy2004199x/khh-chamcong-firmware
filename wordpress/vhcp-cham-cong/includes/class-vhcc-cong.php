@@ -49,6 +49,16 @@ class VHCC_Cong {
 	const O_NHOM = 'vhcc_quyen_nhom';
 
 	/**
+	 * Bộ nhớ trong-lượt cho `nhom_cua()`.
+	 *
+	 * 🔴 PHẢI XOÁ ĐƯỢC. Đổi tên một phòng ban rồi vẽ lại bảng trong CÙNG lượt POST thì mọi hàng
+	 *    vẫn mang bộ phận cũ — luật quyền tra theo tên cũ, không khớp, và cả phòng hiện ra như
+	 *    vừa rơi xuống thang vai. Người bấm thấy đúng cái mình vừa sợ, mà thật ra chỉ là bộ nhớ
+	 *    cũ. (Bắt được ở mục 14 của `kiem-mang-bo-phan.php`.)
+	 */
+	private static $nho_nhom = array();
+
+	/**
 	 * SỔ TRANG — khai lớp và hàm, KHÔNG khai địa chỉ cứng.
 	 *
 	 * `quyen` là quyền tối thiểu theo thang `VHCC_Vai` để vào trang ấy khi CHƯA có ngoại lệ nào.
@@ -559,14 +569,63 @@ class VHCC_Cong {
 	}
 
 	/**
+	 * ĐỔI TÊN MỘT NHÓM — luật quyền phải đi theo cái tên.
+	 *
+	 * 🔴 KHÔNG CÓ HÀM NÀY THÌ ĐỔI TÊN MỘT PHÒNG LÀ CẢ PHÒNG RƠI XUỐNG THANG VAI, IM LẶNG. Luật ở
+	 *    đây khoá bằng TÊN nhóm; tên đổi mà luật ở lại tên cũ thì không ai khớp vào nó nữa —
+	 *    bảng vẫn xanh, màn hình vẫn bình thường, và chỉ lộ ra khi có người kêu "sao tôi không
+	 *    vào được nữa".
+	 *
+	 * @return array Những cột mà CẢ HAI bên đều khai mà khai NGƯỢC nhau (chỉ xảy ra khi gộp):
+	 *               [ cột => [ 'giu' => giá trị giữ lại, 'bo' => giá trị bỏ đi ] ].
+	 *               Giữ của bên ĐÍCH — và trả ra đây để màn hình nói thành lời, đừng im lặng.
+	 */
+	public static function doi_ten_nhom( $loai, $cu, $moi ) {
+		$loai = ( 'mang' === $loai ) ? 'mang' : 'bp';
+		$a = trim( (string) $cu );
+		$b = trim( (string) $moi );
+		if ( '' === $a || '' === $b || $a === $b ) { return array(); }
+		$x = get_option( self::O_NHOM );
+		if ( ! is_array( $x ) || ! isset( $x[ $loai ][ $a ] ) || ! is_array( $x[ $loai ][ $a ] ) ) {
+			return array();
+		}
+		$lech = array();
+		$den  = ( isset( $x[ $loai ][ $b ] ) && is_array( $x[ $loai ][ $b ] ) ) ? $x[ $loai ][ $b ] : array();
+		foreach ( $x[ $loai ][ $a ] as $cot => $dat ) {
+			if ( ! isset( $den[ $cot ] ) ) { $den[ $cot ] = $dat; continue; }
+			if ( $den[ $cot ] !== $dat ) {
+				$lech[ $cot ] = array( 'giu' => (string) $den[ $cot ], 'bo' => (string) $dat );
+			}
+		}
+		unset( $x[ $loai ][ $a ] );
+		if ( $den ) { $x[ $loai ][ $b ] = $den; }
+		update_option( self::O_NHOM, $x );
+		self::quen_nhom();
+		return $lech;
+	}
+
+	/** XOÁ luật của một nhóm. Trả về số ô đã xoá. */
+	public static function xoa_nhom( $loai, $ten ) {
+		$loai = ( 'mang' === $loai ) ? 'mang' : 'bp';
+		$t = trim( (string) $ten );
+		$x = get_option( self::O_NHOM );
+		if ( '' === $t || ! is_array( $x ) || ! isset( $x[ $loai ][ $t ] ) ) { return 0; }
+		$so = is_array( $x[ $loai ][ $t ] ) ? count( $x[ $loai ][ $t ] ) : 0;
+		unset( $x[ $loai ][ $t ] );
+		update_option( self::O_NHOM, $x );
+		self::quen_nhom();
+		return $so;
+	}
+
+	/**
 	 * BỘ PHẬN & MẢNG CỦA MỘT NGƯỜI — hỏi đúng `VHCC_NhanSu`, không tự suy lại ở đây.
 	 *
 	 * ⚠️ NHỚ TRONG LƯỢT CHẠY. Một lượt tải trang hỏi quyền nhiều lần (thanh điều hướng vẽ đủ ba
 	 *    trang, rồi cửa vào hỏi lại); không nhớ thì mỗi câu hỏi là một lượt SELECT hồ sơ.
 	 */
 	public static function nhom_cua( $ma_nv, $moi = null ) {
-		static $nho = array();
-		$ma = trim( (string) $ma_nv );
+		$nho = &self::$nho_nhom;
+		$ma  = trim( (string) $ma_nv );
 		if ( '' === $ma ) { return array( 'boPhan' => '', 'dsMang' => array() ); }
 		/* 🔴 MỒI SẴN TỪ HỒ SƠ ĐÃ NẠP. Màn nhân sự vẽ 50 hàng, mỗi hàng hỏi quyền 3 trang; không
 		   mồi thì đó là 50 lượt SELECT cho những dòng vừa đọc xong ở ngay trên. */
@@ -592,6 +651,9 @@ class VHCC_Cong {
 	public static function nhom_noi_gi( $ma_nv, $cot ) {
 		return self::nhom_quyet( $ma_nv, $cot );
 	}
+
+	/** Quên bộ nhớ bộ phận & mảng — gọi sau MỌI lượt đổi tên / gộp / xoá nhóm. */
+	public static function quen_nhom() { self::$nho_nhom = array(); }
 
 	/** Như `nhom_noi_gi()` nhưng nhận thẳng HỒ SƠ đã nạp — không tra lại CSDL. */
 	public static function nhom_noi_gi_hs( $hs, $cot ) {

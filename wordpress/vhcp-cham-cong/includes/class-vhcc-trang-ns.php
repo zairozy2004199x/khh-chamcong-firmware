@@ -209,6 +209,13 @@ class VHCC_TrangNS {
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		if ( 'vai_bp' === $viec )      { return self::viec_vai_bp( $toi ); }
 		if ( 'luu_nhom' === $viec )    { return self::viec_luu_nhom( $toi ); }
+		if ( 'bp_them' === $viec )     { return self::viec_bp_them( $toi ); }
+		if ( 'bp_mang' === $viec )     { return self::viec_bp_mang( $toi ); }
+		if ( 'ten_mang' === $viec )    { return self::viec_ten_mang( $toi ); }
+		if ( 'bp_doi_ten' === $viec )  { return self::viec_bp_doi_ten( $toi ); }
+		if ( 'bp_gop' === $viec )      { return self::viec_bp_gop( $toi ); }
+		if ( 'bp_xoa' === $viec )      { return self::viec_bp_xoa( $toi ); }
+		if ( 'vai_goi_y' === $viec )   { return self::viec_vai_goi_y( $toi ); }
 		if ( 'ap_day' === $viec )      { return self::viec_ap_day( $toi ); }
 		if ( 'gop_that' === $viec )    { return self::viec_gop_that( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
@@ -1462,6 +1469,9 @@ class VHCC_TrangNS {
 		self::the_vai( $toi );
 		/* Ngay SAU Bảng vai trò: khai vai cho bộ phận chỉ có nghĩa khi vai đã tồn tại, nên hai
 		   khối phải đứng cạnh nhau và đúng thứ tự đọc. */
+		/* Sơ đồ tổ chức đứng TRƯỚC hai khối khai theo bộ phận: sửa tên phòng xong mới khai vai
+		   và quyền cho nó — đúng thứ tự người ta làm. */
+		self::the_so_do( $toi );
 		self::the_vai_bp( $toi );
 		self::the_gop_tay( $toi );
 		self::the_dau_viec( $toi );
@@ -2681,13 +2691,16 @@ class VHCC_TrangNS {
 			$tick = in_array( $ten, $x['dsMangKhai'], true );
 			$hm .= '<label class="mb-o"><input type="checkbox" name="mbp_mang[' . esc_attr( $ma ) . '][]"'
 				. ' value="' . esc_attr( $ten ) . '"' . checked( true, $tick, false ) . '> '
-				. esc_html( $ten ) . '</label>';
+				/* ⚠️ NHÃN đọc tên hiện ra, GIÁ TRỊ vẫn là mã lưu — xem `VHCC_NhanSu::ten_mang()`.
+				   Gửi tên dài lên là lương cả mảng rơi về «Chưa xếp». */
+				. esc_html( VHCC_NhanSu::ten_mang( $ten ) ) . '</label>';
 		}
 		$hm .= '</div>';
 		if ( ! $x['dsMangKhai'] ) {
 			$hm .= '<div class="mb-suy" title="' . esc_attr( $sm['vi'] ) . '">'
 				. ( $sm['dsMang']
-					? '« theo cơ sở → ' . esc_html( implode( ' + ', $sm['dsMang'] ) ) . ' »'
+					? '« theo cơ sở → ' . esc_html( implode( ' + ',
+						array_map( array( 'VHCC_NhanSu', 'ten_mang' ), $sm['dsMang'] ) ) ) . ' »'
 					: '⚠️ ' . esc_html( $sm['vi'] ) )
 				. '</div>';
 		} else {
@@ -2698,9 +2711,30 @@ class VHCC_TrangNS {
 		$suy_b = VHCC_NhanSu::suy_bo_phan( $hs );
 		$hb .= '<option value=""' . selected( '', $x['boPhanKhai'], false ) . '>« '
 			. esc_html( '' !== $suy_b ? 'theo cơ sở → ' . $suy_b : 'chưa có cơ sở — chọn tay' ) . ' »</option>';
-		foreach ( VHCC_NhanSu::ds_bo_phan() as $ten ) {
-			$hb .= '<option value="' . esc_attr( $ten ) . '"' . selected( $ten, $x['boPhanKhai'], false ) . '>'
-				. esc_html( $ten ) . '</option>';
+		/* 🔴 XẾP NHÓM THEO MẢNG, MẢNG CỦA CHÍNH NGƯỜI ẤY LÊN ĐẦU. Anh Thắng 13/09/2026: *"Mỗi
+		   mảng sẽ có một bộ phận riêng"*. Một danh sách phẳng 12 phòng thì người khai phải tự
+		   nhớ phòng nào của mảng nào — và nhớ sai thì không có gì đỏ lên.
+		   ⚠️ KHÔNG cắt bớt phòng nào: người kiêm nhiệm có thật, và một ô xổ giấu mất lựa chọn
+		      đúng thì người khai đành chọn một cái gần đúng. Chỉ xếp lại thứ tự. */
+		$so_do  = VHCC_NhanSu::so_do_mang();
+		$cua_ho = $x['dsMang'];
+		$nhom   = array();
+		foreach ( VHCC_NhanSu::ds_mang() as $m ) {
+			if ( empty( $so_do[ $m ] ) ) { continue; }
+			$nhom[] = array( 'ten' => VHCC_NhanSu::ten_mang( $m ),
+				'uu' => in_array( $m, $cua_ho, true ), 'ds' => $so_do[ $m ] );
+		}
+		if ( ! empty( $so_do[''] ) ) {
+			$nhom[] = array( 'ten' => 'Dùng chung', 'uu' => false, 'ds' => $so_do[''] );
+		}
+		usort( $nhom, function ( $a, $b ) { return ( $b['uu'] ? 1 : 0 ) - ( $a['uu'] ? 1 : 0 ); } );
+		foreach ( $nhom as $g ) {
+			$hb .= '<optgroup label="' . esc_attr( $g['ten'] . ( $g['uu'] ? ' — mảng của người này' : '' ) ) . '">';
+			foreach ( $g['ds'] as $ten ) {
+				$hb .= '<option value="' . esc_attr( $ten ) . '"' . selected( $ten, $x['boPhanKhai'], false ) . '>'
+					. esc_html( $ten ) . '</option>';
+			}
+			$hb .= '</optgroup>';
 		}
 		$hb .= '</select>';
 		return array( $hm, $hb );
@@ -2889,7 +2923,9 @@ class VHCC_TrangNS {
 			echo '</tr></thead><tbody>';
 			foreach ( $kh['ds'] as $ten ) {
 				$so = isset( $kh['dem'][ $ten ] ) ? (int) $kh['dem'][ $ten ] : 0;
-				echo '<tr><td>' . esc_html( $ten )
+				/* Nhãn đọc tên hiện ra; khoá luật (`$ten`) vẫn là mã lưu — luật khoá bằng mã. */
+				$nhan_n = ( 'mang' === $kh['loai'] ) ? VHCC_NhanSu::ten_mang( $ten ) : $ten;
+				echo '<tr><td>' . esc_html( $nhan_n )
 					. ' <span class="sl-nho" title="Số người đang thuộc nhóm này">' . $so . '</span></td>';
 				foreach ( $cot as $k => $t ) {
 					echo '<td class="o-q-td">'
@@ -3332,9 +3368,12 @@ class VHCC_TrangNS {
 				$gt  = ( '— chưa xếp —' === $ten ) ? '(chưa xếp)' : $ten;
 				$dang = ( (string) $k['dang'] === (string) $gt );
 				$u = add_query_arg( array( $k['o'] => $dang ? '' : $gt, 'np' => 1 ), self::url_hien() );
+				/* ⚠️ NHÃN đọc tên hiện ra; `$gt` (giá trị lọc) vẫn là MÃ LƯU. Đổi `$gt` sang tên
+				   dài là bấm vào ô lọc ra 0 người — mà bảng thì vẫn đầy. */
+				$nhan = ( 'nmang' === $k['o'] ) ? VHCC_NhanSu::ten_mang( $ten ) : $ten;
 				echo '<a class="nut' . ( $dang ? ' chinh' : '' ) . '" href="' . esc_url( $u ) . '"'
 					. ( $dang ? ' title="Đang lọc theo ô này — bấm lần nữa để bỏ lọc"' : '' ) . '>'
-					. esc_html( $ten ) . ' <b>' . (int) $so . '</b></a>';
+					. esc_html( $nhan ) . ' <b>' . (int) $so . '</b></a>';
 			}
 			echo '</div>';
 		}
@@ -3435,8 +3474,9 @@ class VHCC_TrangNS {
 			echo '<div><label>' . esc_html( $c_l['ten'] ) . '</label><select name="' . esc_attr( $c_l['o'] ) . '">'
 				. '<option value="">— tất cả —</option>';
 			foreach ( $c_l['ds'] as $t_l ) {
+				/* Nhãn đọc tên hiện ra, giá trị gửi lên vẫn là mã lưu — bộ lọc so bằng mã. */
 				echo '<option value="' . esc_attr( $t_l ) . '"' . selected( $c_l['gt'], $t_l, false ) . '>'
-					. esc_html( $t_l ) . '</option>';
+					. esc_html( 'nmang' === $c_l['o'] ? VHCC_NhanSu::ten_mang( $t_l ) : $t_l ) . '</option>';
 			}
 			echo '<option value="(chưa xếp)"' . selected( $c_l['gt'], '(chưa xếp)', false )
 				. '>(chưa xếp)</option></select></div>';
@@ -3463,6 +3503,221 @@ class VHCC_TrangNS {
 				. 'được bày LÊN ĐẦU ô Vai trò của người thuộc bộ phận ấy. Vai khác vẫn chọn được '
 				. 'bình thường, chỉ nằm ở nhóm dưới.' )
 			: ( 'Đã bỏ khai vai cho bộ phận "' . $bp . '" — ô Vai trò của họ trở lại như cũ.' ) ) );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * SƠ ĐỒ TỔ CHỨC — sửa được ngay trên màn, không phải chờ một bản cập nhật
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*.
+	 *
+	 * Và cái sai lớn nhất không phải mấy cái tên — là **không có chỗ nào sửa chúng**. Danh sách
+	 * phòng ban gieo một lần vào option rồi nằm đó; thấy sai thì phải nhắn cho người viết mã và
+	 * chờ, cho một việc lẽ ra là gõ lại một cái tên.
+	 *
+	 * ⚠️ ĐỔI TÊN MANG THEO CẢ BA SỔ bám vào cái tên ấy (người · vai bày lên đầu · luật quyền) —
+	 *    xem `VHCC_NhanSu::doi_ten_bo_phan()`. Riêng GỘP và XOÁ cần Admin: chúng xoá hẳn một
+	 *    phòng và kéo luật quyền của phòng ấy đi theo.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function the_so_do( $toi ) {
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $toi ) ) { return; }
+		$ds    = VHCC_NhanSu::ds_bo_phan();
+		$dem   = VHCC_NhanSu::dem_khai_bo_phan();
+		$admin = VHCC_Vai::duoc( $toi, 'he_thong' );
+		$so_do = VHCC_NhanSu::so_do_mang();
+
+		echo '<div class="the"><details open><summary><b>Sơ đồ tổ chức — mảng kinh doanh &amp; '
+			. 'phòng ban</b> — ' . count( $ds ) . ' phòng</summary>';
+
+		/* ---- 1. MẢNG KINH DOANH ---- */
+		echo '<h3 style="margin:12px 0 4px;font-size:14px">Mảng kinh doanh</h3>';
+		/* 🔴 NÓI THẲNG VÌ SAO CHỈ ĐỔI ĐƯỢC TÊN HIỆN RA. Không nói thì người khai gõ tên dài vào,
+		   thấy màn hình đổi, và tin rằng giá trị lưu cũng đổi theo — rồi đi tìm nó ở chỗ khác. */
+		echo '<p class="mo">Đổi được <b>tên hiện ra</b>. Mã lưu bên dưới thì <b>giữ nguyên</b>: '
+			. 'lương, chi phí và dự án đều khớp đúng chuỗi ấy, đổi đi là lương cả mảng rơi về '
+			. '«Chưa xếp» mà không có gì báo.</p>';
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã lưu</th>'
+			. '<th>Tên hiện ra</th><th>Phòng ban thuộc mảng</th></tr></thead><tbody>';
+		foreach ( VHCC_NhanSu::ds_mang() as $m ) {
+			$trong = isset( $so_do[ $m ] ) ? $so_do[ $m ] : array();
+			echo '<tr><td><code>' . esc_html( $m ) . '</code></td>';
+			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+			echo '<input type="hidden" name="mang_ma" value="' . esc_attr( $m ) . '">';
+			echo '<input type="text" name="mang_ten" value="' . esc_attr( VHCC_NhanSu::ten_mang( $m ) )
+				. '" style="min-width:230px">';
+			echo '<button name="viec" value="ten_mang">Lưu tên</button>';
+			echo '</form></td>';
+			echo '<td class="mo">' . ( $trong ? esc_html( implode( ' · ', $trong ) )
+				: '<span class="chua-ma">chưa gắn phòng nào</span>' ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+
+		/* ---- 2. PHÒNG BAN, XẾP THEO MẢNG ---- */
+		echo '<h3 style="margin:16px 0 4px;font-size:14px">Phòng ban</h3>';
+		echo '<p class="mo">Đổi tên ở đây thì <b>người, vai bày lên đầu và luật quyền</b> của phòng '
+			. 'ấy đi theo — không rơi mất thứ nào. <b>Gộp</b> là nhập hai phòng làm một (người của '
+			. 'phòng bị gộp chuyển sang hết); <b>Xoá</b> chỉ làm được khi phòng không còn ai khai tay.</p>';
+		if ( ! $admin ) {
+			echo '<p class="mo">Vai hiện tại đổi tên và thêm được; <b>gộp</b> và <b>xoá</b> cần Admin.</p>';
+		}
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Phòng ban</th>'
+			. '<th>Thuộc mảng</th><th>Đổi tên</th><th>Gộp / Xoá</th></tr></thead><tbody>';
+		/* Xếp theo mảng rồi mới tới phòng dùng chung — đọc đúng thứ tự anh Thắng mô tả:
+		   "mỗi mảng sẽ có một bộ phận riêng". */
+		$thu_tu = array();
+		foreach ( VHCC_NhanSu::ds_mang() as $m ) {
+			foreach ( ( isset( $so_do[ $m ] ) ? $so_do[ $m ] : array() ) as $bp ) { $thu_tu[] = $bp; }
+		}
+		foreach ( ( isset( $so_do[''] ) ? $so_do[''] : array() ) as $bp ) { $thu_tu[] = $bp; }
+		foreach ( $ds as $bp ) { if ( ! in_array( $bp, $thu_tu, true ) ) { $thu_tu[] = $bp; } }
+
+		foreach ( $thu_tu as $bp ) {
+			$so = isset( $dem[ $bp ] ) ? (int) $dem[ $bp ] : 0;
+			echo '<tr><td><b>' . esc_html( $bp ) . '</b>'
+				. ' <span class="sl-nho" title="Số người ĐANG KHAI TAY phòng này">' . $so . '</span></td>';
+			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+			echo '<input type="hidden" name="bp_cu" value="' . esc_attr( $bp ) . '">';
+			echo '<select name="bp_mang" class="o-q-vai">';
+			$dang_m = VHCC_NhanSu::mang_cua_bo_phan( $bp );
+			echo '<option value=""' . selected( '', $dang_m, false ) . '>— dùng chung —</option>';
+			foreach ( VHCC_NhanSu::ds_mang() as $m ) {
+				echo '<option value="' . esc_attr( $m ) . '"' . selected( $m, $dang_m, false ) . '>'
+					. esc_html( VHCC_NhanSu::ten_mang( $m ) ) . '</option>';
+			}
+			echo '</select><button name="viec" value="bp_mang">Gắn</button>';
+			echo '</form></td>';
+			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+			echo '<input type="hidden" name="bp_cu" value="' . esc_attr( $bp ) . '">';
+			echo '<input type="text" name="bp_moi" value="' . esc_attr( $bp ) . '" style="min-width:190px">';
+			echo '<button name="viec" value="bp_doi_ten">Đổi tên</button>';
+			echo '</form></td>';
+			echo '<td>';
+			if ( $admin ) {
+				echo '<form method="post" class="hang" style="gap:6px;margin:0">';
+				echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+				echo '<input type="hidden" name="bp_cu" value="' . esc_attr( $bp ) . '">';
+				echo '<select name="bp_vao"><option value="">— gộp vào phòng —</option>';
+				foreach ( $ds as $d ) {
+					if ( $d === $bp ) { continue; }
+					echo '<option value="' . esc_attr( $d ) . '">' . esc_html( $d ) . '</option>';
+				}
+				echo '</select>';
+				echo '<button name="viec" value="bp_gop" title="Nhập phòng này vào phòng vừa chọn — '
+					. 'người, vai và luật quyền chuyển sang hết, rồi phòng này biến mất">Gộp</button>';
+				/* ⚠️ Nút Xoá KHÔNG hiện khi còn người — nút bấm vào chỉ nhận câu chối thì tệ hơn
+				   là không có nút, và câu chối ấy còn dạy sai: trông như hệ hỏng chứ không phải
+				   như một cái chốt. */
+				if ( ! $so && VHCC_NhanSu::BP_CO_SO !== $bp ) {
+					echo '<button class="nut xoa-hs" name="viec" value="bp_xoa" '
+						. 'title="Xoá hẳn phòng này khỏi sơ đồ">Xoá</button>';
+				} elseif ( $so ) {
+					echo '<span class="mo" style="font-size:11.5px">còn ' . $so . ' người — gộp, đừng xoá</span>';
+				}
+				echo '</form>';
+			} else {
+				echo '<span class="mo">—</span>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<form method="post" class="hang" style="gap:6px;margin-top:10px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo '<input type="text" name="bp_ten" placeholder="Tên phòng ban mới" style="min-width:240px">';
+		echo '<select name="bp_mang"><option value="">— dùng chung —</option>';
+		foreach ( VHCC_NhanSu::ds_mang() as $m ) {
+			echo '<option value="' . esc_attr( $m ) . '">' . esc_html( VHCC_NhanSu::ten_mang( $m ) ) . '</option>';
+		}
+		echo '</select>';
+		echo '<button class="chinh" name="viec" value="bp_them">Thêm phòng ban</button>';
+		echo '</form>';
+		echo '</details></div>';
+	}
+
+	private static function viec_ten_mang( $toi ) {
+		$m  = isset( $_POST['mang_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['mang_ma'] ) ) : '';
+		$t  = isset( $_POST['mang_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['mang_ten'] ) ) : '';
+		$kq = VHCC_NhanSu::dat_ten_mang( $toi, $m, $t );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'canh' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Mảng «' . $m . '» nay hiện ra là «' . $kq['ten'] . '». '
+			. 'Mã lưu giữ nguyên — lương và chi phí không đụng gì.' ) );
+	}
+
+	private static function viec_bp_mang( $toi ) {
+		$bp = isset( $_POST['bp_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_cu'] ) ) : '';
+		$m  = isset( $_POST['bp_mang'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_mang'] ) ) : '';
+		$kq = VHCC_NhanSu::dat_bo_phan_mang( $toi, $bp, $m );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'canh' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Phòng "' . $bp . '" nay thuộc '
+			. ( '' === $m ? 'DÙNG CHUNG cho mọi mảng' : '«' . VHCC_NhanSu::ten_mang( $m ) . '»' ) . '.' ) );
+	}
+
+	private static function viec_bp_them( $toi ) {
+		$ten = isset( $_POST['bp_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_ten'] ) ) : '';
+		$kq  = VHCC_NhanSu::them_bo_phan( $toi, $ten );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		/* Gắn mảng NGAY trong cùng lượt — bắt thêm xong rồi mới đi gắn là hai lượt bấm cho một
+		   ý định, và cái thứ hai thì người ta quên. */
+		$m = isset( $_POST['bp_mang'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_mang'] ) ) : '';
+		if ( '' !== $m ) { VHCC_NhanSu::dat_bo_phan_mang( $toi, $kq['ten'], $m ); }
+		return array( array( 'ok' => 'Đã thêm phòng ban "' . $kq['ten'] . '"'
+			. ( '' !== $m ? ' vào mảng «' . VHCC_NhanSu::ten_mang( $m ) . '»' : '' ) . '. '
+			. 'Khai vai và luật quyền cho nó ở hai khối ngay trên.' ) );
+	}
+
+	private static function viec_bp_doi_ten( $toi ) {
+		return self::doi_ten_bp( $toi,
+			isset( $_POST['bp_moi'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_moi'] ) ) : '', false );
+	}
+
+	private static function viec_bp_gop( $toi ) {
+		$vao = isset( $_POST['bp_vao'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_vao'] ) ) : '';
+		if ( '' === $vao ) { return array( array( 'canh' => 'Chưa chọn phòng để gộp vào.' ) ); }
+		return self::doi_ten_bp( $toi, $vao, true );
+	}
+
+	/** Chung cho đổi tên và gộp — cùng một việc ở lõi, khác nhau đúng một ý định. */
+	private static function doi_ten_bp( $toi, $moi, $gop ) {
+		$cu = isset( $_POST['bp_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_cu'] ) ) : '';
+		$kq = VHCC_NhanSu::doi_ten_bo_phan( $toi, $cu, $moi, $gop );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$bao = array( array( 'ok' => ( $kq['gop'] ? 'Đã GỘP "' : 'Đã đổi tên "' ) . $kq['cu']
+			. ( $kq['gop'] ? '" vào "' : '" thành "' ) . $kq['moi'] . '"'
+			. ( $kq['nguoi'] ? ' — ' . (int) $kq['nguoi'] . ' người chuyển theo.' : '.' ) ) );
+		/* 🔴 NÓI RA CHỖ HAI BÊN KHAI NGƯỢC NHAU. Giữ của phòng đích là một lựa chọn phải nói
+		   thành lời — im lặng thì cả một phòng vừa đổi quyền mà không ai biết. */
+		if ( ! empty( $kq['lech'] ) ) {
+			$ten_cot = VHCC_Cong::cot_nhom();
+			$dong = array();
+			foreach ( $kq['lech'] as $k => $v ) {
+				$dong[] = ( isset( $ten_cot[ $k ]['ten'] ) ? $ten_cot[ $k ]['ten'] : $k )
+					. ' (giữ «' . $v['giu'] . '», bỏ «' . $v['bo'] . '»)';
+			}
+			$bao[] = array( 'canh' => '⚠️ Hai phòng khai NGƯỢC nhau ở ' . count( $dong )
+				. ' cột quyền — đã giữ theo phòng đích: ' . implode( ' · ', $dong )
+				. '. Soát lại ở khối Phân quyền theo bộ phận.' );
+		}
+		return $bao;
+	}
+
+	private static function viec_bp_xoa( $toi ) {
+		$ten = isset( $_POST['bp_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['bp_cu'] ) ) : '';
+		$kq  = VHCC_NhanSu::xoa_bo_phan( $toi, $ten );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã xoá phòng ban "' . $kq['ten'] . '"'
+			. ( $kq['vai'] ? ', kèm dòng vai của nó' : '' )
+			. ( $kq['luat'] ? ' và ' . (int) $kq['luat'] . ' ô luật quyền' : '' ) . '.' ) );
+	}
+
+	private static function viec_vai_goi_y( $toi ) {
+		$kq = VHCC_NhanSu::dien_vai_goi_y( $toi );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		if ( ! $kq['so'] ) {
+			return array( array( 'canh' => 'Không phòng nào đang trống — chưa điền gì.' ) );
+		}
+		return array( array( 'ok' => 'Đã điền gợi ý cho ' . (int) $kq['so'] . ' phòng đang trống: '
+			. implode( ' · ', $kq['ten'] ) . '. Đây là GỢI Ý — bỏ tích chỗ nào không đúng.' ) );
 	}
 
 	/**
@@ -3509,7 +3764,17 @@ class VHCC_TrangNS {
 			echo '<button name="viec" value="vai_bp">Lưu</button>';
 			echo '</form></td><td></td></tr>';
 		}
-		echo '</tbody></table></div></details></div>';
+		echo '</tbody></table></div>';
+		/* 🔴 10 TRÊN 12 PHÒNG ĐANG TRỐNG (ảnh anh Thắng 13/09/2026) — khối này gần như vô dụng.
+		   Nút điền gợi ý CHỈ điền vào phòng đang trống, không đè phòng đã khai, và nói rõ nó là
+		   gợi ý. Tự điền im lặng thì đó là đoán hộ cả sơ đồ tổ chức của công ty. */
+		echo '<form method="post" class="hang" style="gap:8px;margin-top:10px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo '<button name="viec" value="vai_goi_y">Điền gợi ý cho phòng đang trống</button>';
+		echo '<span class="mo">Chỉ điền vào phòng <b>chưa khai gì</b> — phòng đã khai không đụng. '
+			. 'Điền xong bỏ tích chỗ nào không đúng.</span>';
+		echo '</form>';
+		echo '</details></div>';
 	}
 
 	private static function thanh_trang( $p, $so_tr, $tong ) {

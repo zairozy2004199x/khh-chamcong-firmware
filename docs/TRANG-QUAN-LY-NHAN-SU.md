@@ -937,6 +937,84 @@ Cột chip hỏi `VHCC_Cong::giai()` ba lần mỗi hàng. Không mồi sẵn th
 hồ sơ — cho đúng những dòng vừa đọc xong ở ngay trên. `the_bang()` gọi `VHCC_Cong::nhom_cua( $ma,
 $row )` một vòng trước khi vẽ; dải chênh lệch thì đọc **một** lượt sáu cột cho cả sổ.
 
+## 4n. Sơ đồ tổ chức sửa được — mảng kinh doanh & phòng ban (3.78.0)
+
+Anh Thắng 13/09/2026: *"cơ cấu vai trò phòng ban nó đang sai"*, rồi *"Tạo mảng kinh doanh trước
+(Mảng Kinh Doanh Máy Tự Động) (Mảng Kinh Doanh Khu Vui Chơi). Mỗi mảng sẽ có một bộ phận riêng"*.
+
+Cái sai lớn nhất không phải mấy cái tên — là **không có chỗ nào sửa chúng**. Danh sách phòng ban
+gieo một lần vào option rồi nằm đó; thấy sai thì phải nhắn cho người viết mã và chờ một bản cập
+nhật, cho một việc lẽ ra là gõ lại một cái tên.
+
+### 🔴 ĐỔI TÊN HIỆN RA, KHÔNG ĐỔI GIÁ TRỊ LƯU — chỗ này suýt làm hỏng lương cả chuỗi
+
+Chuỗi `'Máy tự động'` không phải một cái nhãn. Nó là **khoá khớp chính xác ở bốn plugin**:
+
+| nơi | dùng làm gì |
+|---|---|
+| `VHCC_Luong::BP_DS` | danh sách trắng; `bo_phan_cua()` trả `'Chưa xếp'` cho mọi giá trị ngoài nó — mà `'Chưa xếp'` nghĩa là **không có công thức lương nào** |
+| `VHCC_Luong::vp_cfg_khoi()` | khoá cấu hình công theo đúng cái tên ấy |
+| `VHCP_Cfg` (chi phí) · `VHDA_Quyen` (dự án) | bó quyền theo đúng cái tên ấy |
+| `VCG_Nap` (cổng) | chuẩn hoá chuỗi về đúng cái tên ấy |
+
+Đổi giá trị lưu thành `"Mảng Kinh Doanh Máy Tự Động"` là cả bốn chỗ trên đồng loạt tra không ra:
+lương của cả mảng rơi về "Chưa xếp", **im lặng**, tới kỳ lương sau mới lộ.
+
+Nên: **giá trị lưu giữ nguyên**, màn hình đọc tên dài qua `VHCC_NhanSu::ten_mang()`. Nhãn ở ô
+tích, dải đếm, ô lọc và bảng luật đều đọc tên dài; **giá trị gửi lên vẫn là mã lưu**. Muốn đổi hẳn
+giá trị lưu thì phải là một lượt riêng đi qua cả bốn plugin — chưa làm.
+
+### Mỗi mảng có phòng ban riêng
+
+Option `vhcc_bo_phan_mang` = `[ bộ phận => mảng ]`; không có tên trong đó = **dùng chung**. Khối
+*Sơ đồ tổ chức* xếp phòng theo mảng, và ô **Bộ phận** của từng người nay chia `<optgroup>` theo
+mảng với **mảng của chính người ấy lên đầu**.
+
+⚠️ Vẫn **không cắt bớt phòng nào** khỏi ô xổ — người kiêm nhiệm có thật, và một ô xổ giấu mất lựa
+chọn đúng thì người khai đành chọn một cái gần đúng. Chỉ xếp lại thứ tự.
+
+🔴 Hạt giống **không gắn phòng nào vào mảng nào**. Gắn sai một phòng là người phòng ấy biến khỏi
+mọi bộ lọc theo mảng kia, mà chẳng có gì đỏ lên.
+
+### 🔴 ĐỔI TÊN PHÒNG BAN MANG THEO CẢ BỐN SỔ
+
+Tên phòng ban là khoá của bốn nơi. Rụng nơi nào cũng hỏng im lặng:
+
+1. `nhan_vien.bo_phan` — người thuộc phòng ấy;
+2. `vhcc_vai_bo_phan` — vai bày lên đầu ô xổ;
+3. `vhcc_quyen_nhom['bp']` — **luật quyền vào trang**;
+4. `vhcc_bo_phan_mang` — phòng ấy thuộc mảng nào.
+
+Rụng (3) là cả phòng lặng lẽ rơi xuống thang vai — bảng vẫn xanh, và chỉ lộ khi có người kêu "sao
+tôi không vào được nữa".
+
+* **Đổi tên** sang một phòng **đang có** thì **chối**, kèm lời chỉ sang nút Gộp — gõ nhầm một cái
+  mà hệ im lặng nhập hai phòng làm một thì người gõ không hề biết mình vừa xoá một phòng.
+* **Gộp** (Admin): người chuyển sang hết, vai **hợp** hai danh sách (không đè). Hai bên khai
+  **ngược nhau** ở cùng một cột quyền → giữ của phòng đích **và nói thành lời**; im lặng thì cả
+  một phòng vừa đổi quyền mà không ai biết.
+* **Xoá** (Admin): chỉ khi phòng **không còn ai khai tay** — nút không hiện khi còn người, vì một
+  nút bấm vào chỉ nhận câu chối thì trông như hệ hỏng chứ không phải như một cái chốt. Khối Nhân
+  Viên Cơ Sở không xoá được: ai có cơ sở đều tự rơi vào đó.
+
+### ⚠️ Bộ nhớ trong-lượt phải quên được
+
+`VHCC_Cong::nhom_cua()` nhớ bộ phận của từng người cho cả lượt tải trang. Đổi tên rồi vẽ lại bảng
+trong **cùng lượt POST** mà không quên thì mọi hàng vẫn mang bộ phận cũ, luật tra theo tên cũ
+không khớp, và cả phòng hiện ra như vừa rơi xuống thang vai — người bấm thấy đúng cái mình vừa sợ.
+`VHCC_Cong::quen_nhom()` được gọi sau mọi lượt đổi tên / gộp / xoá. (Bắt được ở mục 14 của bộ thử,
+không phải đoán ra.)
+
+### Gợi ý vai cho phòng đang trống
+
+Ảnh anh Thắng gửi: **10 trên 12 phòng trống trơn**, nên khối *Vai trò theo bộ phận* gần như vô
+dụng. Nút **"Điền gợi ý cho phòng đang trống"** điền một đề nghị (phòng kế toán → vai kế toán;
+khối cơ sở → Nhân viên · Cửa hàng trưởng · Cửa hàng phó; còn lại → Nhân viên · Quản lý), **chỉ vào
+phòng chưa khai gì**, và chỉ gợi ý **vai có thật trong hệ**.
+
+🔴 Vẫn **không tự điền**: đoán hộ cả sơ đồ tổ chức rồi bày lên đầu ô xổ là dạy người khai chọn sai
+một cách tự tin. Điền hay không là một lượt bấm.
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |
