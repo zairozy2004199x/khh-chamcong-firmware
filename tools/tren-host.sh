@@ -66,7 +66,9 @@ trap 'rm -rf "$TAM"' EXIT INT TERM
 # Nhánh có dấu "/" nên phải mã hoá khi ghép vào URL.
 NHANH_URL="${NHANH//\//%2F}"
 echo "→ Đang tải mã nguồn..."
-if ! curl -fsSL "https://codeload.github.com/$REPO/tar.gz/refs/heads/$NHANH_URL" -o "$TAM/nguon.tgz"; then
+# Nuốt lời than của curl: ngay dưới đã có câu tiếng Việt nói rõ phải làm gì.
+if ! curl -fsSL "https://codeload.github.com/$REPO/tar.gz/refs/heads/$NHANH_URL" \
+     -o "$TAM/nguon.tgz" 2>/dev/null; then
   echo "✗ Tải không được. Kiểm lại tên nhánh '$NHANH', hoặc hosting chặn ra ngoài."
   exit 1
 fi
