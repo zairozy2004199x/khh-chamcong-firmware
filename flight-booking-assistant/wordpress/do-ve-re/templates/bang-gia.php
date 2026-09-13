@@ -6,12 +6,42 @@ if ( ! defined( 'ABSPATH' ) ) {
 ?>
 <div class="dvr"><div class="wrap">
 
-<header class="masthead">
-  <div>
-    <span class="eyebrow">So giá · chọn chuyến · điền sẵn hồ sơ</span>
-    <h1>Dò vé rẻ</h1>
-    <p class="lede">Gõ chặng bay một lần. Máy xếp các lựa chọn từ rẻ tới đắt, mở song song những nơi đang bán vé chặng đó, rồi bơm sẵn thông tin hành khách và hoá đơn VAT vào form đặt vé. Phần anh giữ lại là thẻ và mã OTP — hai thứ không nên giao cho máy.</p>
+<header class="hero" id="dvr-top">
+  <svg class="hero-bay" viewBox="0 0 230 96" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M18 62h52l22-26h20l-9 26h44c8 0 14 3 14 7s-6 7-14 7H63c-6 0-11-2-14-6L18 62Z" fill="#fff"/>
+    <path d="M96 62h36l-8 12h-18l-10-12Z" fill="#DCEAFF"/>
+    <path d="M136 36h20l-9 26h-19l8-26Z" fill="#FF7A18"/>
+    <circle cx="150" cy="66" r="3" fill="#BFE0FF"/><circle cx="163" cy="66" r="3" fill="#BFE0FF"/>
+    <path d="M8 76h58" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".75"/>
+    <path d="M26 84h28" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".5"/>
+  </svg>
+  <div class="hero-in">
+    <?php
+    $logo = dvr_cai_dat( 'logo_url', '' );
+    echo '<a class="logo" href="' . esc_url( home_url( '/' ) ) . '">';
+    if ( $logo ) {
+        echo '<img src="' . esc_url( $logo ) . '" alt="' . esc_attr( get_bloginfo( 'name' ) ) . '">';
+    } else {
+        ?>
+        <span class="logo-dau" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M2.4 11.2 20.9 3.1c.7-.3 1.4.4 1.1 1.1l-8.1 18.5c-.3.7-1.3.6-1.5-.1l-2.1-6.5a1 1 0 0 0-.6-.6L3.2 13.4c-.7-.2-.8-1.2-.8-1.5Z" fill="#fff"/>
+          <path d="M10.3 15.5 20.8 4.3" stroke="#FFD7B0" stroke-width="1.3" stroke-linecap="round"/>
+        </svg></span>
+        <span class="logo-chu"><b><?php echo esc_html( dvr_cai_dat( 'hero_ten', 'Dò Vé Rẻ' ) ); ?></b><small>Vé máy bay trực tuyến</small></span>
+        <?php
+    }
+    echo '</a>';
+    ?>
+    <h1><?php echo esc_html( dvr_cai_dat( 'hero_tieu_de', 'Vé máy bay trực tuyến' ) ); ?></h1>
+    <p class="lede"><?php echo esc_html( dvr_cai_dat( 'hero_phu_de', 'Dò giá theo chặng và ngày, so nhiều hãng cùng lúc, chọn chuyến rẻ nhất rồi đặt ngay tại đây. Chúng tôi mua vé và gửi mã đặt chỗ vào email của quý khách.' ) ); ?></p>
+    <div class="hangs">
+      <span class="hang"><i style="background:#0B6B54"></i>Vietnam Airlines</span>
+      <span class="hang"><i style="background:#D9432B"></i>Vietjet Air</span>
+      <span class="hang"><i style="background:#1F7A3D"></i>Bamboo Airways</span>
+      <span class="hang"><i style="background:#FF7A18"></i>Vietravel Airlines</span>
+    </div>
   </div>
+
   <aside class="statecard">
     <span class="eyebrow">Nguồn giá</span>
     <span class="tag" id="srcTag">Đang dò…</span>

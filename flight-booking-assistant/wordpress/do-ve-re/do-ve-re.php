@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.0.5
+ * Version:           1.0.6
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.0.5' );
+define( 'DVR_VERSION', '1.0.6' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,10 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		'order_page'     => 0,
 		'an_thanh'       => 1,
 		'toan_man'       => 1,
+		'logo_url'       => '',
+		'hero_ten'       => 'Dò Vé Rẻ',
+		'hero_tieu_de'   => 'Vé máy bay trực tuyến',
+		'hero_phu_de'    => 'Dò giá theo chặng và ngày, so nhiều hãng cùng lúc, chọn chuyến rẻ nhất rồi đặt ngay tại đây. Chúng tôi mua vé và gửi mã đặt chỗ vào email của quý khách.',
 		'cty_vi'         => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H',
 		'cty_en'         => 'K&H SERVICES AND ENTERTAINMENT COMPANY LIMITED',
 		'cty_mst'        => '0106924989',

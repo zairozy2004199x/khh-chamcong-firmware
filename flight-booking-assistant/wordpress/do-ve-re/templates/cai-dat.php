@@ -127,6 +127,27 @@ $cd = dvr_cai_dat();
 			</tr>
 		</table>
 
+		<h2 class="title">Đầu trang</h2>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="dvr_logo">Logo</label></th>
+				<td><input name="dovere_settings[logo_url]" id="dvr_logo" class="large-text code" value="<?php echo esc_attr( $cd['logo_url'] ); ?>" placeholder="https://…/logo.png">
+					<p class="description">Dán đường dẫn ảnh logo (tải lên ở Thư viện rồi copy link). Để trống thì dùng biểu tượng máy bay sẵn có.</p></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_hero_ten">Tên hiện cạnh logo</label></th>
+				<td><input name="dovere_settings[hero_ten]" id="dvr_hero_ten" class="regular-text" value="<?php echo esc_attr( $cd['hero_ten'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_hero_td">Tiêu đề banner</label></th>
+				<td><input name="dovere_settings[hero_tieu_de]" id="dvr_hero_td" class="large-text" value="<?php echo esc_attr( $cd['hero_tieu_de'] ); ?>"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_hero_pd">Câu giới thiệu</label></th>
+				<td><textarea name="dovere_settings[hero_phu_de]" id="dvr_hero_pd" class="large-text" rows="2"><?php echo esc_textarea( $cd['hero_phu_de'] ); ?></textarea></td>
+			</tr>
+		</table>
+
 		<h2 class="title">Thông tin công ty ở chân trang</h2>
 		<p class="description" style="margin:0 0 10px">Hiện ở cuối cả hai trang bán vé. Xoá trắng ô “Tên công ty” là bỏ hẳn khối này.</p>
 		<table class="form-table" role="presentation">
