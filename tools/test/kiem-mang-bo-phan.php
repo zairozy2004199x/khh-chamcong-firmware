@@ -653,4 +653,39 @@ t( 'có đường gõ tay hai mã khi hệ không dò ra cặp',
 t( '🔴 đường gõ tay vẫn đi qua màn XEM TRƯỚC (GET gop_a/gop_b), không gộp thẳng',
 	strpos( $src_k, '<form method="get" class="hang">' ) !== false );
 
+
+
+/* ── Gieo vai "Cửa hàng phó" — anh Thắng chốt: NGANG Cửa hàng trưởng ───────────────────────── */
+echo "── 11. Gieo vai Cửa hàng phó ───────────────────────────\n";
+delete_option( 'vhcc_gieo_ch_pho' );
+$GLOBALS['VHCP_OPT']['vhcc_vai_them'] = array( 'Kế Toán MTD' => 'KE_TOAN', 'Hotline MTD' => 'NHAN_VIEN' );
+VHCC_Vai::quen_nho();
+
+t( 'gieo lần đầu có tác dụng', VHCC_Vai::gieo_cua_hang_pho() !== null );
+$sau = VHCC_Vai::ds_ten();
+t( '🔴 "Cửa hàng phó" nay có trong hệ', in_array( 'Cửa hàng phó', $sau, true ), $sau );
+/* ⚠️ THÊM, KHÔNG ĐÈ. Ghi đè cả mảng là xoá sạch vai tự tạo anh Thắng đang dùng, và người mang
+   vai ấy mất đường vào cổng ngay lượt đăng nhập sau. */
+t( '🔴 KHÔNG xoá mất vai tự tạo đang có', in_array( 'Kế Toán MTD', $sau, true )
+	&& in_array( 'Hotline MTD', $sau, true ), $sau );
+teq( '🔴 và nó ngang CỬA HÀNG TRƯỞNG, đúng lời anh Thắng',
+	VHCC_Vai::bac( array( 'role' => 'Cửa hàng trưởng' ) ),
+	VHCC_Vai::bac( array( 'role' => 'Cửa hàng phó' ) ) );
+t( 'vai này vào được cổng', VHCC_NhanSu::vai_vao_duoc( 'Cửa hàng phó' ) );
+
+/* Gieo xong thì bộ phận Khối cơ sở hết "thiếu vai". */
+$gy_p = VHCC_NhanSu::vai_goi_y( VHCC_NhanSu::ho_so( 'NV_VIVO' ) );
+t( '🔴 Khối Nhân Viên Cơ Sở hết báo thiếu vai', empty( $gy_p['thieu'] ), $gy_p );
+t( 'và Cửa hàng phó vào nhóm gợi ý', in_array( 'Cửa hàng phó', $gy_p['trong'], true ), $gy_p );
+
+/* 🔴 CHỈ GIEO MỘT LẦN. Không có cờ thì mỗi lượt nâng cấp lại mọc lại vai anh Thắng vừa cố ý
+   xoá — hệ cãi lại người dùng, và cãi im lặng. */
+$b_xoa = get_option( 'vhcc_vai_them' );
+unset( $b_xoa['Cửa hàng phó'] );
+update_option( 'vhcc_vai_them', $b_xoa );
+VHCC_Vai::quen_nho();
+VHCC_Vai::gieo_cua_hang_pho();
+t( '🔴 xoá tay rồi thì nâng cấp KHÔNG mọc lại',
+	! in_array( 'Cửa hàng phó', VHCC_Vai::ds_ten(), true ), VHCC_Vai::ds_ten() );
+
 ket_luan_vai();
