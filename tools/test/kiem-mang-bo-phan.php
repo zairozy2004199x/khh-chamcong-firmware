@@ -1168,4 +1168,51 @@ $r = VHCC_DayChiPhi::dat_ban_do( $u_kt2, 'Máy tự động', 'Cơ sở' );
 t( '🔴 Kế toán KHÔNG khai được bản đồ — nó đổi phạm vi nhìn tiền', empty( $r['ok'] ), $r );
 delete_option( VHCC_DayChiPhi::O_BAN_DO );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 17. LỆNH SOÁT TRÊN HOSTING PHẢI CHỈ ĐỌC
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * `tools/soat-nhan-su.php` chạy bằng `wp eval-file` trên HOSTING THẬT, và anh Thắng gửi nó đi
+ * các nơi. Điều kiện để dám gửi là: chạy nhầm mười lần cũng không đổi một ô nào.
+ *
+ * 🔴 CHỐT BẰNG MÁY, ĐỪNG TIN VÀO LỜI HỨA TRONG CHÚ THÍCH. Một lượt sửa sau này thêm một
+ *    `update_option` "cho tiện" là cái lệnh gửi đi khắp nơi thành lệnh GHI — mà không ai đọc lại
+ *    đầu tệp để thấy nó từng hứa gì.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 17. Lệnh soát trên hosting ──────────────────────────\n";
+
+$src_soat = file_get_contents( $goc . '/tools/soat-nhan-su.php' );
+t( 'có tệp lệnh soát', '' !== (string) $src_soat );
+/* ⚠️ Bỏ phần chú thích ra trước khi soi. Chính đầu tệp có câu "Không `update_option`…" — soi
+   thô là phép thử đỏ vì đúng cái dòng hứa rằng nó không làm vậy. */
+$than_soat = preg_replace( '#/\*.*?\*/#s', '', (string) $src_soat );
+foreach ( array( 'update_option', 'delete_option', 'add_option', '->insert(', '->update(',
+	'->delete(', '->query(', 'UPDATE ', 'DELETE ', 'INSERT ', 'DROP ' ) as $ghi ) {
+	t( '🔴 lệnh soát KHÔNG ghi: không có "' . trim( $ghi ) . '"',
+		false === strpos( $than_soat, $ghi ), $ghi );
+}
+/* 🔴 VÀ MẤY HÀM NÓ GỌI CŨNG KHÔNG ĐƯỢC GHI. Đây mới là chỗ suýt lọt: `ds_bo_phan()`,
+   `vai_theo_bo_phan()`, `ten_mang_ban()`, `mang_an()` trước đây GIEO HẠT GIỐNG ngay trong hàm
+   ĐỌC — tiện, nhưng nó biến một câu hỏi thành một lượt ghi, và cái lệnh gửi đi khắp nơi hết còn
+   là "chỉ đọc". Soi thẳng mã nguồn của lớp, không tin vào tệp lệnh. */
+$src_ns2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php' );
+foreach ( array( 'BP_DS_O', 'VAI_BP_O', 'TEN_MANG_O', 'MANG_AN_O' ) as $o_ ) {
+	$vi = strpos( $src_ns2, 'get_option( self::' . $o_ . ', null );' );
+	t( 'hàm đọc "' . $o_ . '" có đường lui hạt giống', false !== $vi, $o_ );
+	if ( false === $vi ) { continue; }
+	/* Trong 220 ký tự ngay sau câu đọc ấy KHÔNG được có lượt ghi nào. */
+	t( '🔴 và nó KHÔNG ghi hạt giống xuống CSDL lúc đọc',
+		false === strpos( substr( $src_ns2, $vi, 220 ), 'update_option' ), $o_ );
+}
+/* 🔴 VÀ KHÔNG IN BÍ MẬT. Kết quả lệnh này đi qua Zalo và ảnh chụp màn hình. */
+t( '🔴 KHÔNG in PIN ra màn hình', false === strpos( $src_soat, "'pin_dang_nhap'" )
+	|| false !== strpos( $src_soat, 'CASE WHEN pin_dang_nhap' ) );
+t( '🔴 KHÔNG đụng tới vector khuôn mặt', false === strpos( $src_soat, 'vector' ) );
+t( 'và KHÔNG in khoá máy', false === strpos( $src_soat, 'VHCC_KHOA_MAY' ) );
+/* Nó gọi những hàm THẬT của plugin, không chép lại phép đếm ra đây — chép là hai bộ luật cho
+   cùng một con số, và bản chép thì đẹp kể cả khi bản thật đã sai. */
+foreach ( array( 'VHCC_NhanSu::dem_mang_bo_phan', 'VHCC_NhanSu::dem_vai',
+	'VHCC_NhanSu::dau_hieu_trung' ) as $ham ) {
+	t( 'gọi đúng hàm thật: ' . $ham, false !== strpos( $src_soat, $ham ), $ham );
+}
+
 ket_luan_vai();

@@ -952,11 +952,9 @@ class VHCC_NhanSu {
 
 	/** Bản đồ tên hiện ra. */
 	public static function ten_mang_ban() {
+		/* Đọc thì đừng ghi — cùng lý do với `ds_bo_phan()`. */
 		$v = get_option( self::TEN_MANG_O, null );
-		if ( ! is_array( $v ) ) {
-			$v = self::TEN_MANG_HAT_GIONG;
-			update_option( self::TEN_MANG_O, $v );
-		}
+		if ( ! is_array( $v ) ) { $v = self::TEN_MANG_HAT_GIONG; }
 		$ra = array();
 		foreach ( $v as $k => $t ) {
 			$k = trim( (string) $k ); $t = trim( (string) $t );
@@ -1017,11 +1015,9 @@ class VHCC_NhanSu {
 
 	/** Những mảng đang ẩn khỏi ô chọn. */
 	public static function mang_an() {
+		/* Đọc thì đừng ghi — cùng lý do với `ds_bo_phan()`. */
 		$v = get_option( self::MANG_AN_O, null );
-		if ( ! is_array( $v ) ) {
-			$v = array_values( (array) self::MANG_AN_HAT_GIONG );
-			update_option( self::MANG_AN_O, $v );
-		}
+		if ( ! is_array( $v ) ) { $v = array_values( (array) self::MANG_AN_HAT_GIONG ); }
 		$ra = array();
 		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x ) { $ra[] = $x; } }
 		return $ra;
@@ -1112,11 +1108,12 @@ class VHCC_NhanSu {
 
 	/** Sơ đồ tổ chức đang khai. Lần đầu thì gieo hạt giống rồi lưu lại. */
 	public static function ds_bo_phan() {
+		/* 🔴 ĐỌC THÌ ĐỪNG GHI. Bản trước gieo hạt giống ngay trong hàm đọc — tiện, nhưng nó biến
+		   một câu hỏi thành một lượt ghi: `wp eval-file` soát trên hosting, một lượt tải trang
+		   bất kỳ, hay một phép thử chỉ muốn đếm — đều để lại dấu trong CSDL. Hạt giống vẫn trả
+		   ra bình thường; nó chỉ được GHI xuống khi có người thật sự sửa sơ đồ. */
 		$v = get_option( self::BP_DS_O, null );
-		if ( ! is_array( $v ) ) {
-			$v = array_values( (array) self::BP_HAT_GIONG );
-			update_option( self::BP_DS_O, $v );
-		}
+		if ( ! is_array( $v ) ) { $v = array_values( (array) self::BP_HAT_GIONG ); }
 		$ra = array();
 		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; } }
 		/* Bộ phận lạ còn sót trong hồ sơ — cùng lý do với ds_mang(). */
@@ -1753,11 +1750,9 @@ class VHCC_NhanSu {
 
 	/** Bản đồ đang khai: [ bộ phận => [tên vai, …] ]. */
 	public static function vai_theo_bo_phan() {
+		/* Đọc thì đừng ghi — cùng lý do với `ds_bo_phan()`. */
 		$v = get_option( self::VAI_BP_O, null );
-		if ( ! is_array( $v ) ) {
-			$v = self::VAI_BP_HAT_GIONG;
-			update_option( self::VAI_BP_O, $v );
-		}
+		if ( ! is_array( $v ) ) { $v = self::VAI_BP_HAT_GIONG; }
 		$ra = array();
 		foreach ( $v as $bp => $ds ) {
 			$bp = trim( (string) $bp );
