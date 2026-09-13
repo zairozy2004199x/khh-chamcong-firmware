@@ -81,7 +81,7 @@ const VE = boChuThich(boc('veSoatNs'));
    mà đổi `if((n.lech||[]).length)` thành `if(false)` vẫn để lại chuỗi ấy trong khối chết bên
    dưới, nên phép xanh trong khi cả nhóm không bao giờ được vẽ. Phá thử bắt đúng chỗ ấy
    (13/09/2026). Nay bắt nguyên cái điều kiện mở nhánh. */
-['trungTen', 'lech', 'thieuCp', 'thieuNs', 'khop'].forEach(function (g) {
+['trungTen', 'lech', 'lechPb', 'thieuCp', 'thieuNs', 'khop'].forEach(function (g) {
   const re = new RegExp('if\\(\\(n\\.' + g + '\\|\\|\\[\\]\\)\\.length\\)|var\\s+kh\\s*=\\s*\\(n\\.' + g);
   t('🔴 có nhánh vẽ nhóm "' + g + '"', re.test(VE), null);
   t('   và nhóm ấy được duyệt ra hàng', new RegExp('\\(n\\.' + g + '\\|\\|\\[\\]\\)\\.forEach|n\\.' + g + '\\[0\\]|\\(n\\.' + g + '\\|\\|\\[\\]\\)\\.filter').test(VE), null);
@@ -102,6 +102,20 @@ t('   và lượt đổi tên thường cũng hỏi trước', /confirm\('Đổi
 const MO = boChuThich(boc('moDoiTenNguoi'));
 t('🔴 chỉ Admin đổi tên được', /_laAdmin\(\)/.test(MO), null);
 t('   lượt đầu KHÔNG mang cờ gộp', /_guiDoiTenNguoi\(cu\s*,\s*moi\s*,\s*false\)/.test(MO), null);
+
+/* Hai con số "chưa xếp phòng ban" phải được nói ra riêng — "chưa khai" và "khai khác nhau" là
+   hai việc khác hẳn, gộp làm một là chỗ lệch thật lẫn mất trong đống dòng không sửa được gì. */
+t('🔴 nói riêng số người CHƯA xếp phòng ban', /pbChuaNs/.test(VE) && /pbChuaCp/.test(VE), null);
+
+/* ═══ 3b. LẤY PHÒNG BAN THEO SỔ NHÂN SỰ ══════════════════════════════════════════
+ * Anh Thắng 13/09/2026: *"quyết định bộ phận do nhân sự quyết định"* — nhưng chốt luôn là chưa
+ * khoá ô bên chi phí vội, chạy song song để đối chiếu. Nút này là đường tạm của giai đoạn ấy.
+ * ═════════════════════════════════════════════════════════════════════════════════════ */
+const LAYPB = boChuThich(boc('layPbTuNs'));
+t('🔴 lấy phòng ban xong chỉ vẽ lại, KHÔNG tự lưu',
+  /renderUsers\(\)/.test(LAYPB) && !/_saveCfg\s*\(/.test(LAYPB), LAYPB.slice(0, 300));
+t('   làm được cả một người lẫn tất cả', /!ten \|\| x\.ten\s*===\s*ten/.test(LAYPB), LAYPB.slice(0, 300));
+t('   và ghi đè ô Bộ phận theo sổ nhân sự', /u\.boPhan\s*=\s*ban\[k\]/.test(LAYPB), null);
 
 /* ═══ 4. HAI NÚT TIỆN TAY — ĐIỀN MÃ VÀ THÊM DÒNG ═════════════════════════════════
  * ⚠️ Cả hai chỉ được sửa Ô TRÊN MÀN rồi vẽ lại, KHÔNG tự lưu. Lượt Lưu ghi đè cả bảng, nên

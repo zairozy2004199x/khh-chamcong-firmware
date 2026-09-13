@@ -10537,6 +10537,34 @@
       h+=_nsKhung(NS_VANG,'⚠️ '+n.lech.length+' cặp tên LỆCH NHAU giữa hai hệ', t2+'</table>');
     }
 
+    /* ── 2b. Phòng ban hai bên khai khác nhau ────────────────────────────────────────── */
+    if((n.lechPb||[]).length){
+      var t2b='<div style="margin-bottom:8px">Từ nay <b>sổ nhân sự quyết định phòng ban</b>, bên này chỉ đọc để biết người ấy '
+        +'được xem mảng chi phí nào. Những người dưới đây đang khai <b>khác nhau ở hai bên</b> — '
+        +'chưa khoá ô nên anh sửa được, nhưng sửa ở đâu thì phải nhớ: sửa bên <b>Nhân sự</b> mới là sửa nguồn.</div>'
+        +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Nhân sự khai</th><th style="text-align:left">Chi phí đang khai</th><th style="text-align:left">Dòng đang gánh</th><th></th></tr>';
+      (n.lechPb||[]).forEach(function(x){
+        t2b+='<tr><td>'+esc(x.ten)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.maNv||'')+'</span></td>'
+          +'<td style="font-weight:600;color:#166534">'+esc(x.pbNs)+'</td>'
+          +'<td style="color:#8a6100">'+esc(x.pbCp)+'</td>'
+          +'<td>'+_nsDon(x.don)+'</td>'
+          +'<td><button class="btn b-x" onclick="layPbTuNs('+_jsq(x.ten)+')">↦ Lấy theo Nhân sự</button></td></tr>';
+      });
+      h+=_nsKhung(NS_VANG,'⚖️ '+n.lechPb.length+' người khai PHÒNG BAN khác nhau ở hai bên',
+        t2b+'</table>'
+        +'<div style="margin-top:8px"><button class="btn b-x" onclick="layPbTuNs()">↦ Lấy TẤT CẢ theo Nhân sự</button> '
+        +'<span style="color:#64748b">— điền vào ô trên bảng, xem lại rồi bấm 💾 Lưu.</span></div>');
+      SOAT_PB=(n.lechPb||[]).map(function(x){ return {ten:x.ten, pb:x.pbNs}; });
+    } else { SOAT_PB=[]; }
+    /* Hai con số "chưa khai" — việc còn phải làm, khác hẳn với "khai khác nhau". */
+    if(r.pbChuaNs||r.pbChuaCp){
+      var tp=[];
+      if(r.pbChuaNs) tp.push('<b>'+r.pbChuaNs+'</b> người <b>chưa xếp phòng ban bên Nhân sự</b> — '
+        +'bên này không bó họ vào mảng nào, tức họ thấy mọi mảng chi phí. Xếp ở trang <b>Chấm công → Nhân sự</b>.');
+      if(r.pbChuaCp) tp.push('<b>'+r.pbChuaCp+'</b> người chưa khai ô Bộ phận bên Chi phí.');
+      h+=_nsKhung(NS_XAM,'🏷 Phòng ban còn thiếu', tp.join('<br>'));
+    }
+
     /* ── 3. Có bên Nhân sự, chưa có tài khoản Chi phí ────────────────────────────────── */
     if((n.thieuCp||[]).length){
       var dang=(n.thieuCp||[]).filter(function(x){return !x.nghi;});
@@ -10592,7 +10620,29 @@
      "Nguyễn Văn A (2)" thì không hiếm, và ngoặc đơn cũng đủ làm hỏng lời gọi. */
   function _jsq(x){ return JSON.stringify(String(x==null?'':x)).replace(/"/g,'&quot;'); }
 
-  var SOAT_MA_NV=[];
+  var SOAT_MA_NV=[], SOAT_PB=[];
+  /**
+   * Lấy phòng ban theo sổ nhân sự — điền vào ô Bộ phận trên bảng người dùng.
+   *
+   * 🔴 CHỈ ĐIỀN VÀO Ô TRÊN MÀN, KHÔNG TỰ LƯU. Cùng luật với nút điền mã NV: lượt Lưu ghi đè cả
+   *    bảng, nên người bấm phải nhìn thấy mình sắp lưu cái gì.
+   *
+   * ⚠️ ĐÂY LÀ ĐƯỜNG TẠM, DÙNG TRONG LÚC HAI BÊN CHẠY SONG SONG. Khi nào ô Bộ phận bên này khoá
+   *    hẳn (đọc thẳng từ nhân sự) thì cả nút này lẫn nhóm "lệch phòng ban" đều không còn việc.
+   */
+  function layPbTuNs(ten){
+    var ds=SOAT_PB.filter(function(x){ return !ten || x.ten===ten; });
+    if(!ds.length){ toast('warn','Không có phòng ban nào để lấy'); return; }
+    var ban={}; ds.forEach(function(x){ ban[String(x.ten).trim().toLowerCase()]=x.pb; });
+    var n=0;
+    (CFGUSERS||[]).forEach(function(u){
+      var k=String(u.ten||'').trim().toLowerCase();
+      if(ban[k]!==undefined && String(u.boPhan||'')!==ban[k]){ u.boPhan=ban[k]; n++; }
+    });
+    renderUsers();
+    toast('ok','Đã đổi '+n+' ô Bộ phận theo sổ nhân sự — xem lại rồi bấm 💾 Lưu');
+  }
+
   /**
    * Điền mã NV vào những dòng đang khớp tên mà bỏ trống ô mã.
    *

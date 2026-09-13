@@ -1695,7 +1695,10 @@ class VHCC_Web {
 	private static function luu_nhieu() {
 		global $wpdb;
 		$bang = VHCC_DB::t( 'nhan_vien' );
-		$ten_o = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu', 'vai_tro', 'pin_dang_nhap' );
+		/* ⚠️ THÊM Ô MỚI THÌ PHẢI KHAI VÀO ĐÂY. Danh sách này vừa để GOM MÃ từ gói gửi lên, vừa
+		   là danh sách ô được ghi — sót một tên là ô ấy dựng ra trên màn, người ta sửa, bấm Lưu,
+		   màn báo "đã lưu", mà giá trị thì không đi đâu cả. */
+		$ten_o = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'phong_ban', 'nhiem_vu', 'vai_tro', 'pin_dang_nhap' );
 
 		/* Gom mã từ mọi ô gửi lên — không tin một ô riêng lẻ nào. */
 		$ma_ds = array();
@@ -1750,13 +1753,33 @@ class VHCC_Web {
 					$ghi[ $c ] = $v;
 					continue;
 				}
+
+				if ( 'phong_ban' === $c ) {
+					/* ⚠️ KHÔNG gác quyền riêng ở đây — xem khối dài ở `VHCC_NhanSu::luu_ho_so()`.
+					   Cả màn này đã đòi quyền `ho_so` (bậc Kế toán) mới vào được, mà bậc ấy cao
+					   hơn mọi chốt riêng định dựng thêm. Chốt thừa chỉ làm người đọc sau tưởng
+					   có một lớp bảo vệ không tồn tại. */
+					/* Rỗng = chưa xếp (một trạng thái thật, ghi được). Tên LẠ thì bỏ hẳn — ghi
+					   bừa một phòng ban bên chi phí không hiểu là màn của người ấy trắng trơn
+					   mà nhìn vẫn như đã khai xong. Cùng lối với ô Vai trò ngay trên. */
+					if ( '' !== $v && '' === VHCC_NhanSu::phong_ban_chuan( $v ) ) {
+						$loi[] = $ten . ': phòng ban "' . $v . '" không có trong danh mục';
+						continue;
+					}
+					$ghi[ $c ] = ( '' === $v ) ? '' : VHCC_NhanSu::phong_ban_chuan( $v );
+					continue;
+				}
 				$ghi[ $c ] = $v;
 			}
 
-			/* So với giá trị đang có — khác mới ghi. */
+			/* So với giá trị đang có — khác mới ghi.
+			   ⚠️ `$cu[$c]` có thể CHƯA CÓ: cột vừa thêm vào sơ đồ mà bảng trên host chưa kịp
+			      chạy dbDelta thì hàng đọc ra thiếu khoá ấy, và so thẳng là một cảnh báo
+			      "undefined index" ở MỌI lượt lưu. Coi thiếu = rỗng. */
 			$khac = array();
 			foreach ( $ghi as $c => $v ) {
-				if ( (string) $v !== (string) $cu[ $c ] ) { $khac[ $c ] = $v; }
+				$cu_v = isset( $cu[ $c ] ) ? (string) $cu[ $c ] : '';
+				if ( (string) $v !== $cu_v ) { $khac[ $c ] = $v; }
 			}
 			if ( ! $khac ) { $bo_qua++; continue; }
 
@@ -1766,6 +1789,10 @@ class VHCC_Web {
 			}
 			$khac['cap_nhat'] = current_time( 'mysql' );
 			$wpdb->update( $bang, $khac, array( 'ma_nv' => $ma ) );
+			/* Bản sao bên chi phí theo bản gốc — xem khối dài ở `luu_ho_so()`. Lưới này sửa
+			   hàng loạt, và trước giờ nó cũng không gọi: đổi PIN cho ba chục người ở đây xong
+			   thì bên chi phí vẫn PIN cũ. Hàm tự bỏ qua người chưa được đẩy. */
+			if ( method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) { VHCC_DayChiPhi::dong_bo( $ma ); }
 			$luu++;
 		}
 		return array( 'luu' => $luu, 'bo_qua' => $bo_qua, 'loi' => $loi );
@@ -1906,6 +1933,16 @@ class VHCC_Web {
 				   `VHCC_NhanSu::dat_vai_tro()`. */
 				if ( '' !== $v && ! in_array( $v, VHCC_Vai::ds_ten(), true ) ) { continue; }
 				$ghi[ $c ] = $v;
+			} elseif ( 'phong_ban' === $c ) {
+				/* ⚠️ Không gác quyền riêng — xem khối dài ở `VHCC_NhanSu::luu_ho_so()`.
+				   Tên lạ thì chối, cùng lối với ô Vai trò ngay trên: ghi bừa một phòng ban bên
+				   chi phí không hiểu là màn của người ấy trắng mà nhìn vẫn như đã khai xong. */
+				if ( '' !== $v && '' === VHCC_NhanSu::phong_ban_chuan( $v ) ) {
+					return array( 'ok' => false, 'error' => 'Phòng ban "' . $v . '" không có trong '
+						. 'danh mục. Chọn một trong: '
+						. implode( ' · ', VHCC_NhanSu::phong_ban_ds() ) . '. Không lưu gì cả.' );
+				}
+				$ghi[ $c ] = ( '' === $v ) ? '' : VHCC_NhanSu::phong_ban_chuan( $v );
 			} else { $ghi[ $c ] = $v; }
 		}
 		$co = $wpdb->get_var( $wpdb->prepare(
@@ -1946,6 +1983,20 @@ class VHCC_Web {
 		$ghi['cap_nhat'] = current_time( 'mysql' );
 		if ( $co ) { $wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) ); }
 		else { $ghi['ma_nv'] = $ma; $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi ); }
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢN SAO BÊN CHI PHÍ PHẢI THEO BẢN GỐC — VÀ ĐƯỜNG NÀY TRƯỚC GIỜ QUÊN GỌI.
+		 *
+		 * `VHCC_DayChiPhi::dong_bo()` được gọi ở trang Nhân sự riêng (`class-vhcc-trang-ns.php`,
+		 * ba chỗ) và ở đường "Quên PIN" — nhưng KHÔNG ở tab Admin này. Nên sửa hồ sơ ngay tại
+		 * đây thì tên · PIN · vai · cơ sở bên chi phí đứng im, và hai sổ lệch nhau lặng lẽ.
+		 * Từ nay ô Phòng ban cũng đi qua đúng đường ấy, nên bỏ sót là phòng ban vừa xếp không
+		 * bao giờ sang tới bên kia.
+		 *
+		 * ⚠️ Hàm này TỰ BỎ QUA người chưa được đẩy, và tự bỏ qua khi chưa cài trang chi phí —
+		 *    nên gọi vô điều kiện ở đây là đúng, không phải thêm chốt gì.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) { VHCC_DayChiPhi::dong_bo( $ma ); }
 
 		/* 🔴 NÓI RÕ ĐÃ LÀM GÌ VỚI PIN. Anh Thắng: *"bấm lưu pin, có ghi đã lưu hồ sơ, nhưng
 		   không thấy pin đâu"*. PIN CÓ được lưu — chỉ là ô không bao giờ hiện nó ra (cố ý), nên
@@ -7563,7 +7614,7 @@ class VHCC_Web {
 		echo '</form>';
 
 		echo '<div class="cuon"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Cửa hàng</th>'
-			. '<th>Cơ sở phụ</th><th>Chức vụ</th><th>Nhiệm vụ</th><th>Vai trò</th><th>PIN</th>'
+			. '<th>Cơ sở phụ</th><th>Chức vụ</th><th title="Trang Vận hành chi phí đọc ô này để biết người ấy xem được mảng chi phí nào. Khác Chức vụ.">Phòng ban</th><th>Nhiệm vụ</th><th>Vai trò</th><th>PIN</th>'
 			. '<th></th></tr></thead><tbody>';
 		foreach ( $rows as $r ) {
 			$id = 'vhcc-bang';
@@ -7581,6 +7632,24 @@ class VHCC_Web {
 			echo '<td><input form="' . $id . '" name="cua_hang' . $k . '" list="dl_ch" value="' . esc_attr( $r['cua_hang'] ) . '" style="width:120px"></td>';
 			echo '<td><input form="' . $id . '" name="coso_phu' . $k . '" list="dl_cp" value="' . esc_attr( (string) $r['coso_phu'] ) . '" style="width:140px"></td>';
 			echo '<td><input form="' . $id . '" name="chuc_vu' . $k . '" list="dl_cv" value="' . esc_attr( $r['chuc_vu'] ) . '" style="width:140px"></td>';
+			/* 🔴 PHÒNG BAN LÀ <select>, KHÔNG phải ô gõ tự do như Chức vụ ngay bên trái — cùng lý
+			   do với ô Vai trò bên phải: đây là một tập ĐÓNG mà bên chi phí phải hiểu từng giá
+			   trị. Gõ "Ky thuat" thiếu dấu là người ấy mở màn chi phí ra trắng, không câu lỗi.
+			   ⚠️ Giá trị cũ ngoài danh mục vẫn phải hiện ra, không thì lượt Lưu kế tiếp xoá mất
+			      nó mà chẳng ai bấm gì. */
+			$pb_ds_r = method_exists( 'VHCC_NhanSu', 'phong_ban_ds' )
+				? (array) VHCC_NhanSu::phong_ban_ds() : array();
+			$pb_r    = trim( (string) ( isset( $r['phong_ban'] ) ? $r['phong_ban'] : '' ) );
+			echo '<td><select form="' . $id . '" name="phong_ban' . $k . '" style="width:130px">';
+			echo '<option value=""' . selected( '', $pb_r, false ) . '>— chưa xếp —</option>';
+			foreach ( $pb_ds_r as $pb_c ) {
+				echo '<option value="' . esc_attr( $pb_c ) . '"' . selected( $pb_c, $pb_r, false )
+					. '>' . esc_html( $pb_c ) . '</option>';
+			}
+			if ( '' !== $pb_r && ! in_array( $pb_r, $pb_ds_r, true ) ) {
+				echo '<option value="' . esc_attr( $pb_r ) . '" selected>' . esc_html( $pb_r ) . ' ⚠️</option>';
+			}
+			echo '</select></td>';
 			echo '<td><input form="' . $id . '" name="nhiem_vu' . $k . '" list="dl_nv" value="' . esc_attr( $r['nhiem_vu'] ) . '" style="width:150px"></td>';
 			/* Ô NHẬP PIN — nhưng KHÔNG BAO GIỜ điền sẵn PIN cũ vào đó. Trang này chạy ngoài
 			   internet; đổ 240 PIN ra màn hình là một ảnh chụp mất sạch mật khẩu cả chuỗi.
@@ -7876,6 +7945,43 @@ class VHCC_Web {
 							. '</option>';
 					}
 					echo '</select>';
+				} elseif ( 'phong_ban' === $c ) {
+					/* ═══════════════════════════════════════════════════════════════════════
+					 * HỘP XỔ ĐÓNG, KHÔNG PHẢI Ô GÕ TAY — khác hẳn ô Chức vụ ngay trên.
+					 *
+					 * Chức vụ gõ tay được vì nó chỉ để người đọc biết; gõ lệch một chữ cũng
+					 * chẳng hỏng gì. Phòng ban thì ngược lại: bên chi phí đem đúng chuỗi này đi
+					 * so với danh mục của họ, nên "Ky thuat" thiếu dấu là không khớp phòng ban
+					 * nào, và màn chi phí của người ấy trắng — im lặng, không câu lỗi.
+					 *
+					 * ⚠️ CHỈ ADMIN / QUẢN LÝ SỬA ĐƯỢC (`luu_ho_so` chặn lần nữa ở máy chủ).
+					 *    Cửa hàng trưởng sửa được là họ tự nới quyền cho nhân viên mình trên
+					 *    trang tiền, ngay tại màn hồ sơ, không ai duyệt.
+					 * ═══════════════════════════════════════════════════════════════════════ */
+					$pb_ds = method_exists( 'VHCC_NhanSu', 'phong_ban_ds' )
+						? (array) VHCC_NhanSu::phong_ban_ds() : array();
+					/* ⚠️ KHÔNG `disabled` theo một bậc riêng. Cả màn này đã đòi quyền `ho_so`
+					   (bậc Kế toán) mới vào được — xem khối dài ở `VHCC_NhanSu::luu_ho_so()`. */
+					echo '<select name="phong_ban" style="width:100%">';
+					echo '<option value=""' . selected( '', $g( 'phong_ban' ), false ) . '>— chưa xếp —</option>';
+					foreach ( $pb_ds as $pb ) {
+						echo '<option value="' . esc_attr( $pb ) . '"'
+							. selected( $pb, $g( 'phong_ban' ), false ) . '>' . esc_html( $pb ) . '</option>';
+					}
+					/* 🔴 GIÁ TRỊ CŨ NGOÀI DANH MỤC VẪN PHẢI HIỆN RA. Hồ sơ nạp từ sổ cũ, hoặc
+					   danh mục bên chi phí vừa bị đổi tên, thì ô này mang một chuỗi không còn
+					   trong danh sách. Không bày ra là hộp xổ tự nhảy về "chưa xếp", và lượt Lưu
+					   kế tiếp XOÁ mất giá trị ấy mà không ai bấm gì. */
+					$pb_cu = trim( (string) $g( 'phong_ban' ) );
+					if ( '' !== $pb_cu && ! in_array( $pb_cu, $pb_ds, true ) ) {
+						echo '<option value="' . esc_attr( $pb_cu ) . '" selected>' . esc_html( $pb_cu )
+							. ' ⚠️ không có trong danh mục</option>';
+					}
+					echo '</select>';
+					if ( ! $pb_ds ) {
+						echo '<span class="mo" style="font-size:12px">Chưa cài trang Vận hành chi phí '
+							. 'nên danh mục đang dùng bản mặc định.</span>';
+					}
 				} elseif ( 'pin_dang_nhap' === $c || 'pin_may' === $c ) {
 					/* ⚠️ KHÔNG điền sẵn PIN cũ, kể cả ở màn sửa từng người. Trống = giữ nguyên. */
 					$co = ( '' !== trim( $g( $c ) ) );
@@ -7963,6 +8069,12 @@ class VHCC_Web {
 			   là một Ô NGƯỜI TA ĐIỀN nữa: `luu_ho_so()` tự rải danh sách tích vào hai cột. */
 			'cua_hang'            => 'Cơ sở làm việc (tích bao nhiêu cũng được)',
 			'chuc_vu'            => 'Chức vụ',
+			/* 🔴 PHÒNG BAN ĐỨNG NGAY DƯỚI CHỨC VỤ — CỐ Ý. Hai ô này hay bị lẫn: chức vụ là việc
+			   người ta LÀM (Thu ngân · Ca trưởng), phòng ban là mảng người ta THUỘC VỀ, và
+			   phòng ban mới là thứ trang Vận hành chi phí đọc để biết họ được xem mảng chi phí
+			   nào. Để cạnh nhau kèm dòng nhắc thì người khai thấy ngay sự khác nhau; để rời
+			   nhau là lại có người gõ "Thu ngân" vào ô phòng ban. */
+			'phong_ban'          => 'Phòng ban (trang Chi phí đọc ô này)',
 			'nhiem_vu'           => 'Nhiệm vụ (cách nhau dấu phẩy)',
 			'trang_thai_lam_viec' => 'Trạng thái làm việc',
 			'ngay_vao_lam'       => 'Ngày vào làm',
@@ -7988,7 +8100,7 @@ class VHCC_Web {
 	);
 
 	/** Các ô sửa được ngoài web. Cố ý KHÔNG cho sửa `ma_nv` — đổi mã là sửa mọi hàng chấm công. */
-	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu', 'vai_tro',
+	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'phong_ban', 'nhiem_vu', 'vai_tro',
 		'trang_thai_lam_viec', 'sdt', 'cccd', 'ngay_sinh', 'gioi_tinh', 'dia_chi',
 		'ngay_vao_lam', 'loai_hop_dong', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang',
 		'pin_dang_nhap', 'pin_may' );

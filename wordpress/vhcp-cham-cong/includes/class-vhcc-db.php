@@ -226,6 +226,24 @@ class VHCC_DB {
 		   Sheet phải thêm cột MỚI vào CUỐI vì vòng đọc/ghi dùng chỉ số `7 + k`. MySQL gọi theo
 		   TÊN cột nên ràng buộc đó biến mất — thêm cột ở đâu cũng được. Đây là chỗ Sheet bắt
 		   người ta cẩn thận mà MySQL không cần. */
+		/* `phong_ban` KHÁC CẢ HAI cột kia, và khác luôn `VHCC_Luong::BP_DS`. Anh Thắng
+		   13/09/2026: *"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ phận
+		   đó có được quyền không thôi, chứ không can thiệp được"*.
+
+		   🔴 NÓ DÙNG DANH MỤC CỦA TRANG CHI PHÍ, KHÔNG PHẢI DANH MỤC LƯƠNG. Bảy tên: Cơ sở ·
+		      Văn phòng · Kỹ thuật · Marketing · Công tác · Setup · Máy tự động. Sổ này là NGUỒN
+		      THẬT của câu "người này thuộc phòng ban nào", và bên chi phí đọc nó để biết người
+		      ấy được làm mảng chi phí nào.
+
+		   ⚠️ ĐỪNG NHẦM VỚI `VHCC_Luong::BP_DS` (Máy tự động · Khu vui chơi · Văn phòng · Part
+		      time). Bốn tên ấy chia theo CÁCH TÍNH LƯƠNG và gắn vào CƠ SỞ, không gắn vào người;
+		      chúng vẫn nguyên, làm việc của chúng. Hai bộ chỉ trùng hai tên, và nhầm chúng với
+		      nhau là gán cho người ta một phòng ban không có thật bên kia.
+
+		   ⚠️ VÀ ĐỪNG NHẦM VỚI `chuc_vu`. Chức vụ là Thu ngân · Ca trưởng · Giám sát — việc người
+		      ta làm. Trước bản này cầu đẩy sang chi phí lấy chính `chuc_vu` nhét vào ô Bộ phận
+		      bên ấy, nên ai được đẩy cũng mang một "bộ phận" không nằm trong danh mục nào, và
+		      màn chi phí của họ gần như trắng. Xem `VHCC_DayChiPhi::ho_so_day()`. */
 		/* `vai_tro` KHÁC HẲN `chuc_vu`. `chuc_vu` là công việc (Khu vui chơi, Máy tự động);
 		   `vai_tro` là quyền trên trang web: Admin, Quản lý, Kế toán cá nhân, Kế toán NCC,
 		   Cửa hàng trưởng, Nhân viên. Trước bản này chỉ có `chuc_vu`, nên nạp sổ nhân viên xong
@@ -274,6 +292,7 @@ class VHCC_DB {
 			cho_tra_ve TINYINT(1) NOT NULL DEFAULT 0,
 			cho_tra_luc DATETIME NULL,
 			cho_tra_boi VARCHAR(190) NOT NULL DEFAULT '',
+			phong_ban VARCHAR(120) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),

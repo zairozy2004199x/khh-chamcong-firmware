@@ -388,6 +388,13 @@ class VHCP_Test_WPDB {
 		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
 			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
 		}
+		/* SHOW COLUMNS cũng vậy — plugin dùng nó để hỏi "bản bên kia đã có cột này chưa" trước
+		   khi SELECT, vì bốn plugin cài độc lập nên bảng trên host có thể còn thiếu cột vừa
+		   thêm. `PRAGMA table_info` trả cột `name` ở đúng vị trí `get_col()` đọc (cột đầu là
+		   `cid`, nên phải chọn riêng `name`). */
+		if ( preg_match( '/^\s*SHOW\s+COLUMNS\s+FROM\s+`?([A-Za-z0-9_]+)`?/i', $sql, $m ) ) {
+			return "SELECT name FROM pragma_table_info('" . $m[1] . "')";
+		}
 		$sql = str_ireplace( 'UTC_TIMESTAMP()', "datetime('now')", $sql );
 		if ( stripos( $sql, 'ON DUPLICATE KEY UPDATE' ) !== false ) {
 			$sql = preg_replace( '/\s+ON DUPLICATE KEY UPDATE.*$/is', '', $sql );

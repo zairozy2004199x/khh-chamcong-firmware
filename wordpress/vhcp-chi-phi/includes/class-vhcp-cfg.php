@@ -2729,8 +2729,15 @@ class VHCP_Cfg {
 		if ( ! method_exists( 'VHCC_DB', 't' ) ) { return null; }
 		$t = VHCC_DB::t( 'nhan_vien' );
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $t ) ) !== $t ) { return null; }
-		return (array) $wpdb->get_results(
-			"SELECT ma_nv, ho_ten, cua_hang, chuc_vu, trang_thai_lam_viec, pin_dang_nhap FROM $t ORDER BY ho_ten", ARRAY_A );
+		/* ⚠️ `phong_ban` là cột THÊM SAU (bản chấm công 3.44.0). Site đang chạy bản cũ hơn thì
+		   cột chưa có, và hỏi thẳng là một câu lỗi SQL ở mọi lượt soát. Hỏi sơ đồ trước. */
+		$co_pb = false;
+		foreach ( (array) $wpdb->get_col( "SHOW COLUMNS FROM $t" ) as $c ) {
+			if ( 'phong_ban' === $c ) { $co_pb = true; break; }
+		}
+		$cot = 'ma_nv, ho_ten, cua_hang, chuc_vu, trang_thai_lam_viec, pin_dang_nhap'
+			. ( $co_pb ? ', phong_ban' : ", '' AS phong_ban" );
+		return (array) $wpdb->get_results( "SELECT $cot FROM $t ORDER BY ho_ten", ARRAY_A );
 	}
 
 	/**
@@ -2781,7 +2788,8 @@ class VHCP_Cfg {
 			$ns_chat[ $k ][] = $r;
 		}
 
-		$nhom = array( 'trungTen' => array(), 'lech' => array(), 'thieuCp' => array(), 'thieuNs' => array(), 'khop' => array() );
+		$nhom = array( 'trungTen' => array(), 'lech' => array(), 'lechPb' => array(),
+			'thieuCp' => array(), 'thieuNs' => array(), 'khop' => array() );
 		$da_dung_cp = array();   // dòng Chi phí nào đã tìm được cặp
 
 		foreach ( $ns_chat as $k => $ds ) {
@@ -2806,12 +2814,33 @@ class VHCP_Cfg {
 			if ( isset( $cp_chat[ $k ] ) ) {
 				$da_dung_cp[ $k ] = 1;
 				$u = $cp_chat[ $k ];
+				$pb_ns = trim( (string) ( isset( $r['phong_ban'] ) ? $r['phong_ban'] : '' ) );
+				$pb_cp = trim( (string) $u['boPhan'] );
 				$nhom['khop'][] = array(
 					'ten' => $ten, 'maNv' => (string) $r['ma_nv'], 'don' => $so_don,
 					'vaiTro' => (string) $u['vaiTro'],
 					'maNvCp' => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
+					'pbNs' => $pb_ns, 'pbCp' => $pb_cp,
 					'nghi' => self::da_nghi_ns( $r['trang_thai_lam_viec'] ),
 				);
+				/* ══════════════════════════════════════════════════════════════════════════
+				 * LỆCH PHÒNG BAN — anh Thắng 13/09/2026: *"quyết định bộ phận do nhân sự quyết
+				 * định, bên chi phí chỉ biết bộ phận đó có được quyền không thôi"*.
+				 *
+				 * Từ nay sổ nhân sự là NGUỒN THẬT. Nhưng anh chốt cùng ngày là CHƯA KHOÁ ô bên
+				 * này vội — hai bên chạy song song một thời gian để đối chiếu, khi nào khớp hết
+				 * mới khoá. Nhóm này chính là cái bảng đối chiếu ấy.
+				 *
+				 * ⚠️ CHỈ TÍNH LỆCH KHI CẢ HAI BÊN ĐỀU CÓ. Một bên trống là "chưa khai", không
+				 *    phải "khai khác" — gom chung vào là bảng đầy những dòng không có gì để sửa,
+				 *    và chỗ lệch thật lẫn mất trong đó. Bên nào trống thì đếm riêng.
+				 * ══════════════════════════════════════════════════════════════════════════ */
+				if ( '' !== $pb_ns && '' !== $pb_cp && mb_strtolower( $pb_ns ) !== mb_strtolower( $pb_cp ) ) {
+					$nhom['lechPb'][] = array(
+						'ten' => $ten, 'maNv' => (string) $r['ma_nv'],
+						'pbNs' => $pb_ns, 'pbCp' => $pb_cp, 'don' => $so_don,
+					);
+				}
 				continue;
 			}
 
@@ -2853,9 +2882,16 @@ class VHCP_Cfg {
 
 		$tong = array();
 		foreach ( $nhom as $ten_nhom => $ds ) { $tong[ $ten_nhom ] = count( $ds ); }
+		/* Hai con số cho biết còn bao nhiêu việc phải khai, tách khỏi con số "khai khác nhau". */
+		$chua_ns = 0; $chua_cp = 0;
+		foreach ( $nhom['khop'] as $x ) {
+			if ( '' === $x['pbNs'] ) { $chua_ns++; }
+			if ( '' === $x['pbCp'] ) { $chua_cp++; }
+		}
 		return VHCP_Util::ok( array(
 			'coNhanSu' => true, 'nhom' => $nhom, 'tong' => $tong,
 			'soHoSo' => count( $hs ), 'soTaiKhoan' => count( $cp_chat ),
+			'pbChuaNs' => $chua_ns, 'pbChuaCp' => $chua_cp,
 		) );
 	}
 

@@ -35,18 +35,18 @@ function t( $ten, $ok, $them = null ) {
 function teq( $ten, $mong, $thuc ) { t( $ten . ' (mong ' . var_export( $mong, true ) . ')', $mong === $thuc, $thuc ); }
 
 /** Ghi thẳng một hồ sơ vào sổ nhân sự bên trang Chấm công. */
-function ho_so( $ma, $ten, $pin = '', $tt = 'Đang làm', $ch = 'FARM PHAN THIẾT' ) {
+function ho_so( $ma, $ten, $pin = '', $tt = 'Đang làm', $ch = 'FARM PHAN THIẾT', $pb = '' ) {
 	global $wpdb;
 	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
 		'ma_nv' => $ma, 'ho_ten' => $ten, 'cua_hang' => $ch, 'chuc_vu' => 'Nhân viên',
-		'trang_thai_lam_viec' => $tt, 'pin_dang_nhap' => $pin ) );
+		'trang_thai_lam_viec' => $tt, 'pin_dang_nhap' => $pin, 'phong_ban' => $pb ) );
 }
 /** Ghi bảng người dùng bên Chi phí. Mỗi phần tử: [tên, pin, vai, cơ sở, maDt, donVi, maNv]. */
 function users( $ds ) {
 	$rows = array();
 	foreach ( $ds as $u ) {
 		$rows[] = array( $u[0], $u[1], $u[2], isset( $u[3] ) ? $u[3] : '', '', isset( $u[4] ) ? $u[4] : '',
-			'', isset( $u[5] ) ? $u[5] : '', '', isset( $u[6] ) ? $u[6] : '' );
+			isset( $u[7] ) ? $u[7] : '', isset( $u[5] ) ? $u[5] : '', '', isset( $u[6] ) ? $u[6] : '' );
 	}
 	VHCP_Cfg::write( VHCP_Cfg::USER, $rows );
 	VHCP_Cfg::clear_cache();
@@ -225,7 +225,70 @@ $wpdb->insert( VHCP_DB::t( 'so_chi' ), array( 'nguoi_nhap' => 'Nguyễn Văn Kh�
 $s = VHCP_Cfg::soat_nhan_su();
 teq( '🔴 đếm ĐỦ dòng của cả ba bảng, gom cả hoa lẫn thường', 3, $s['nhom']['lech'][0]['donCp'] );
 
+/* ═══ 4b. LỆCH PHÒNG BAN — NHÂN SỰ QUYẾT ĐỊNH, CHI PHÍ CHỈ ĐỌC ═══════════════════
+ * Anh Thắng 13/09/2026: *"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ
+ * phận đó có được quyền không thôi, chứ không can thiệp được đổi bộ phận của nhân viên truyền
+ * sang"* — và chốt cùng ngày là CHƯA KHOÁ ô bên chi phí vội, chạy song song để đối chiếu.
+ * Nhóm `lechPb` chính là bảng đối chiếu ấy.
+ * ═════════════════════════════════════════════════════════════════════════════════════ */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) );
+$wpdb->query( 'DELETE FROM ' . VHCP_DB::t( 'don' ) );
+$wpdb->query( 'DELETE FROM ' . VHCP_DB::t( 'so_chi' ) );
+ho_so( 'NV201', 'Khớp Phòng Ban',  '', 'Đang làm', 'FARM PHAN THIẾT', 'Kỹ thuật' );
+ho_so( 'NV202', 'Lệch Phòng Ban',  '', 'Đang làm', 'FARM PHAN THIẾT', 'Kỹ thuật' );
+ho_so( 'NV203', 'Nhân Sự Chưa Khai', '', 'Đang làm', 'FARM PHAN THIẾT', '' );
+ho_so( 'NV204', 'Chi Phí Chưa Khai', '', 'Đang làm', 'FARM PHAN THIẾT', 'Marketing' );
+users( array(
+	array( 'Khớp Phòng Ban',    '1111', 'Nhân viên', '', '', '', 'NV201', 'Kỹ thuật' ),
+	array( 'Lệch Phòng Ban',    '2222', 'Nhân viên', '', '', '', 'NV202', 'Marketing' ),
+	array( 'Nhân Sự Chưa Khai', '3333', 'Nhân viên', '', '', '', 'NV203', 'Setup' ),
+	array( 'Chi Phí Chưa Khai', '4444', 'Nhân viên', '', '', '', 'NV204', '' ),
+) );
+$s = VHCP_Cfg::soat_nhan_su();
+$n = $s['nhom'];
+teq( '🔴 đúng 1 người khai phòng ban LỆCH nhau', 1, count( $n['lechPb'] ) );
+teq( '   đúng người',        'Lệch Phòng Ban',  $n['lechPb'][0]['ten'] );
+teq( '   bày giá trị bên Nhân sự', 'Kỹ thuật',  $n['lechPb'][0]['pbNs'] );
+teq( '   và giá trị bên Chi phí',  'Marketing', $n['lechPb'][0]['pbCp'] );
+/* ⚠️ MỘT BÊN TRỐNG KHÔNG PHẢI LÀ LỆCH. "Chưa khai" và "khai khác" là hai việc khác hẳn: một
+   cái còn phải làm, một cái phải chọn bên nào đúng. Gom chung là bảng đầy dòng không sửa được
+   gì, và chỗ lệch thật lẫn mất trong đó. */
+teq( '⚠️ bên Nhân sự trống thì KHÔNG tính là lệch', 0,
+	count( array_filter( $n['lechPb'], function ( $x ) { return 'Nhân Sự Chưa Khai' === $x['ten']; } ) ) );
+teq( '⚠️ bên Chi phí trống cũng vậy', 0,
+	count( array_filter( $n['lechPb'], function ( $x ) { return 'Chi Phí Chưa Khai' === $x['ten']; } ) ) );
+teq( '🔴 nhưng vẫn ĐẾM RIÊNG: 1 người chưa xếp bên Nhân sự', 1, $s['pbChuaNs'] );
+teq( '🔴 và 1 người chưa khai bên Chi phí',                   1, $s['pbChuaCp'] );
+/* Nhóm khớp mang theo phòng ban cả hai bên để màn bày ra cạnh nhau. */
+$kh = array();
+foreach ( $n['khop'] as $x ) { $kh[ $x['ten'] ] = $x; }
+teq( '   nhóm khớp mang phòng ban bên Nhân sự', 'Kỹ thuật',  $kh['Khớp Phòng Ban']['pbNs'] );
+teq( '   và bên Chi phí',                       'Kỹ thuật',  $kh['Khớp Phòng Ban']['pbCp'] );
+
+/* 🔴 BẢN CHẤM CÔNG CŨ CHƯA CÓ CỘT `phong_ban` — soát vẫn phải chạy, không được ném lỗi SQL.
+   Bốn plugin cài độc lập; hỏi thẳng một cột chưa có là mọi lượt soát đều chết. */
+$t_ns = VHCC_DB::t( 'nhan_vien' );
+$wpdb->exec_raw( "ALTER TABLE $t_ns DROP COLUMN phong_ban" );
+$cot_con = (array) $wpdb->get_col( "SHOW COLUMNS FROM $t_ns" );
+t( '   (bỏ được cột để dựng cảnh bản cũ)', ! in_array( 'phong_ban', $cot_con, true ), $cot_con );
+$s2 = VHCP_Cfg::soat_nhan_su();
+t( '⚠️ soát vẫn CHẠY khi bản chấm công chưa có cột phong_ban', ! empty( $s2['success'] ), $s2 );
+teq( '   và không ai bị coi là lệch phòng ban', 0, count( $s2['nhom']['lechPb'] ) );
+teq( '   mọi người đếm vào "chưa xếp bên Nhân sự"', 4, $s2['pbChuaNs'] );
+$wpdb->exec_raw( "ALTER TABLE $t_ns ADD COLUMN phong_ban VARCHAR(120) NOT NULL DEFAULT ''" );
+
 /* ═══ 5. ĐỔI TÊN NGƯỜI TRÊN MỌI BẢNG CÙNG LÚC ════════════════════════════════════ */
+/* Dựng lại cảnh của phần 4 — phần 4b đã dọn sạch ba bảng để đếm cho gọn. */
+users( array(
+	array( 'Nguyễn Văn A',         '1111', 'Admin',     '', '', '', 'NV101' ),
+	array( 'Nguyễn Văn Không Dấu', '2222', 'Nhân viên', '', '', '', ''      ),
+	array( 'Lê Văn Trùng',         '3333', 'Nhân viên', '', '', '', ''      ),
+	array( 'Không Có Hồ Sơ',       '4444', 'Quản lý',   '', '', '', ''      ),
+) );
+$wpdb->insert( VHCP_DB::t( 'don' ), array( 'ma_don' => 'D1', 'nguoi_lap' => 'Nguyễn Văn Không Dấu' ) );
+$wpdb->insert( VHCP_DB::t( 'don' ), array( 'ma_don' => 'D2', 'nguoi_lap' => 'nguyễn văn không dấu' ) );
+$wpdb->insert( VHCP_DB::t( 'so_chi' ), array( 'nguoi_nhap' => 'Nguyễn Văn Không Dấu' ) );
+
 $r = VHCP_Cfg::doi_ten_nguoi( 'Nguyễn Văn Không Dấu', 'Nguyen Van Khong Dau' );
 t( 'đổi tên chạy được', ! empty( $r['success'] ), $r );
 teq( '🔴 dời đủ 3 dòng (2 đơn + 1 sổ chi), kể cả dòng viết thường', 3, $r['doiDong'] );

@@ -1741,6 +1741,22 @@ class VHCC_NhanSu {
 		if ( self::co_xem_luong( $u ) ) {
 			$cho_phep = array_merge( $cho_phep, self::O_LUONG );
 		}
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * PHÒNG BAN ĐI CHUNG BẬC VỚI CẢ HỒ SƠ — CỐ Ý KHÔNG THÊM CHỐT RIÊNG.
+		 *
+		 * ⚠️ BẢN ĐẦU CÓ GÁC `co_quan_tri_nv()` Ở ĐÂY, VÀ NÓ KHÔNG CHẶN ĐƯỢC AI. Cả hàm này đã
+		 *    đòi `co_sua_ho_so()` = quyền `ho_so` (bậc Kế toán, 4) ngay ở chốt 1; còn
+		 *    `co_quan_tri_nv()` là quyền `ngoai_coso` (bậc Quản lý, 3) — THẤP HƠN. Ai qua được
+		 *    chốt 1 thì đương nhiên qua chốt kia, nên dòng gác ấy chỉ làm người đọc sau tưởng
+		 *    có một lớp bảo vệ không hề tồn tại. Phá thử bắt đúng chỗ đó 13/09/2026: bỏ hẳn nó
+		 *    mà bộ thử vẫn xanh.
+		 *
+		 * Chốt THẬT vẫn còn nguyên và đủ mạnh: Cửa hàng trưởng (bậc 2) và Nhân viên (bậc 1)
+		 * không sửa được hồ sơ nào cả, nên cũng không xếp được phòng ban cho ai. Từ Kế toán trở
+		 * lên thì đã cấp được PIN và đặt được vai trò đăng nhập — hai thứ nguy hơn hẳn một ô
+		 * phòng ban — nên dựng thêm một bậc riêng cho ô này là hàng rào đặt lệch chỗ.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$cho_phep[] = 'phong_ban';
 		/* Danh sách CHO PHÉP, không phải danh sách CHẶN. Với danh sách chặn thì mỗi cột mới thêm
 		   vào bảng là một ô người ta ghi được mà không ai nhớ ra phải chặn. */
 		$ghi = array();
@@ -1757,6 +1773,20 @@ class VHCC_NhanSu {
 			$ghi[ $o ] = $v;
 		}
 		if ( isset( $ghi['cua_hang'] ) ) { $ghi['cua_hang'] = self::chuan_coso( $ghi['cua_hang'] ); }
+		/* 🔴 PHÒNG BAN PHẢI THUỘC DANH MỤC — chối tên lạ ngay tại đây, đừng ghi rồi tính sau.
+		   Ô này quyết định người ấy thấy mảng chi phí nào; một chữ gõ lệch là bên chi phí đi
+		   tìm phòng ban không có thật, không thấy loại nào, và màn của họ trắng — im lặng.
+		   ⚠️ Ô ĐỂ TRỐNG VẪN HỢP LỆ (= chưa xếp phòng ban, bên chi phí hiểu là không bó). Chỉ
+		      chối khi người ta gõ MỘT CÁI TÊN mà cái tên ấy không có trong danh mục. */
+		if ( isset( $ghi['phong_ban'] ) && '' !== trim( (string) $ghi['phong_ban'] ) ) {
+			$pb = self::phong_ban_chuan( $ghi['phong_ban'] );
+			if ( '' === $pb ) {
+				return array( 'ok' => false, 'error' => 'Phòng ban "' . trim( (string) $ghi['phong_ban'] )
+					. '" không có trong danh mục. Chọn một trong: ' . implode( ' · ', self::phong_ban_ds() )
+					. '. (Danh mục này do trang Vận hành chi phí khai — thêm phòng ban mới thì khai bên ấy.)' );
+			}
+			$ghi['phong_ban'] = $pb;
+		}
 		$ghi['cap_nhat'] = current_time( 'mysql' );
 
 		if ( $cu ) {
@@ -2005,6 +2035,53 @@ class VHCC_NhanSu {
 	 */
 	const CHUC_VU_SAN = array( 'Nhân viên', 'Nhân viên bán hàng', 'Thu ngân', 'Ca trưởng',
 		'Giám sát', 'Kỹ thuật', 'Bảo vệ', 'Tạp vụ', 'Pha chế', 'Phục vụ' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * PHÒNG BAN — SỔ NHÂN SỰ LÀ NƠI QUYẾT ĐỊNH, TRANG CHI PHÍ CHỈ ĐỌC.
+	 *
+	 * Anh Thắng 13/09/2026: *"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ
+	 * phận đó có được quyền không thôi, chứ không can thiệp được đổi bộ phận của nhân viên
+	 * truyền sang"*.
+	 *
+	 * 🔴 MỘT DANH MỤC DUY NHẤT, VÀ NÓ Ở BÊN CHI PHÍ. Anh chốt cùng ngày: nhân sự khai bằng đúng
+	 *    bảy tên mà trang chi phí đang dùng. Nên hàm này HỎI plugin chi phí, không giữ bản sao —
+	 *    giữ bản sao là anh thêm một phòng ban bên ấy mà ô bên này vẫn xổ ra danh sách cũ, và
+	 *    người mới khai xong thì bên kia không hiểu.
+	 *
+	 * ⚠️ BẢN DỰ PHÒNG CHỈ DÙNG KHI CHƯA CÀI TRANG CHI PHÍ. Nó là bảy tên mặc định của bên ấy,
+	 *    chép ở đây để ô chọn không rỗng trơn trên một site chỉ cài chấm công. Khi hai bên cùng
+	 *    có mặt thì bản sao này không bao giờ tới lượt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const PHONG_BAN_DU_PHONG = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác',
+		'Setup', 'Máy tự động' );
+
+	/** Danh mục phòng ban đang dùng — lấy từ trang Chi phí khi có, không thì bản dự phòng. */
+	public static function phong_ban_ds() {
+		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật của `tools/test/kiem-goi-cheo.php`.
+		   Bốn plugin cài độc lập, bản có thể lệch nhau bất cứ lúc nào. */
+		if ( method_exists( 'VHCP_Cfg', 'bo_phan_ds' ) ) {
+			$ds = (array) VHCP_Cfg::bo_phan_ds();
+			if ( $ds ) { return array_values( $ds ); }
+		}
+		return self::PHONG_BAN_DU_PHONG;
+	}
+
+	/**
+	 * Đưa một chuỗi về đúng tên trong danh mục — '' nếu không thuộc danh mục nào.
+	 *
+	 * 🔴 KHÔNG NHẬN TÊN LẠ. Đây là ô quyết định người ta thấy mảng chi phí nào; một chữ gõ lệch
+	 *    ("Ky thuat" thiếu dấu) là bên chi phí đi tìm loại thuộc phòng ban "Ky thuat", không
+	 *    thấy cái nào, và màn của người ấy trắng — không có câu lỗi. Chối ngay lúc ghi thì
+	 *    người khai biết mình gõ sai.
+	 */
+	public static function phong_ban_chuan( $s ) {
+		$k = self::chu_thuong( trim( (string) $s ) );
+		if ( '' === $k ) { return ''; }
+		foreach ( self::phong_ban_ds() as $x ) {
+			if ( self::chu_thuong( trim( (string) $x ) ) === $k ) { return (string) $x; }
+		}
+		return '';
+	}
 
 	public static function chuc_vu_cho( $u, $coso ) {
 		$cs = self::chuan_coso( $coso );

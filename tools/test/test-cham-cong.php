@@ -477,8 +477,16 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
-t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về',
-	count( $cot_thuc['nhan_vien'] ) === 32 ); // 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về + phong_ban',
+	count( $cot_thuc['nhan_vien'] ) === 33 ); // 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + phong_ban
+/* 🔴 `phong_ban` KHÁC `chuc_vu`, VÀ KHÁC LUÔN `VHCC_Luong::BP_DS`. Anh Thắng 13/09/2026:
+   *"quyết định bộ phận do nhân sự quyết định, bên chi phí chỉ biết bộ phận đó có được quyền
+   không thôi"*. Sổ này là nguồn thật của câu "người này thuộc phòng ban nào", khai bằng đúng
+   bảy tên của trang Vận hành chi phí. Trước bản này cầu đẩy lấy `chuc_vu` nhét vào ô Bộ phận
+   bên ấy, nên ai được đẩy cũng mang một "bộ phận" không có trong danh mục nào. */
+t( 'nhan_vien có cột phòng ban riêng, tách hẳn chức vụ',
+	in_array( 'phong_ban', $cot_thuc['nhan_vien'], true )
+	&& in_array( 'chuc_vu', $cot_thuc['nhan_vien'], true ) );
 /* 🔴 BA Ô "CHỜ TRẢ VỀ NHÂN SỰ" nằm ngay trong hồ sơ, không ở một sổ rời.
    Anh Thắng 28/08/2026: *"Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là chờ trả về
    nhân sự"*. Dấu ấy là thuộc tính của CHÍNH con người ấy — để ở sổ rời thì xoá hồ sơ, đổi mã,
