@@ -47,11 +47,13 @@ if ( ! defined( 'ABSPATH' ) ) {
     </div>
   </div>
 
+  <?php if ( current_user_can( 'manage_options' ) ) : ?>
   <aside class="statecard">
-    <span class="eyebrow">Nguồn giá</span>
+    <span class="eyebrow">Nguồn giá <span class="hint" style="text-transform:none;letter-spacing:0">(chỉ mình thấy)</span></span>
     <span class="tag" id="srcTag">Đang dò…</span>
-    <p id="srcNote">Khoá Amadeus khai trong Quản trị → Dò Vé Rẻ → Cài đặt. Chưa khai thì bảng chạy bằng giá mô phỏng.</p>
+    <p id="srcNote">Khai nguồn giá trong Quản trị → Dò Vé Rẻ → Cài đặt.</p>
   </aside>
+  <?php endif; ?>
 </header>
 
 <form class="searchbar" id="searchForm">

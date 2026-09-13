@@ -4,7 +4,7 @@ Tags: flights, booking, vietqr, travel
 Requires at least: 6.0
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.4.0
+Stable tag: 1.4.1
 License: GPLv2 or later
 
 So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, gửi email mã đặt chỗ.
@@ -38,6 +38,11 @@ Chưa khai khoá Amadeus thì bảng giá là **mô phỏng** và có nhãn nói
 nhưng Vietjet và Vietravel phần lớn không bán qua GDS nên vẫn nên đối chiếu với trang hãng.
 
 == Changelog ==
+
+= 1.4.1 =
+* Sửa lỗi gọi sai đường dẫn REST khiến bảng giá báo "không tìm thấy đường dẫn".
+* Thẻ "Nguồn giá" chỉ hiện với người quản trị; khách không thấy thông báo kỹ thuật nào.
+* Ẩn cột lọc thì phần còn lại trải hết bề ngang, không chừa chỗ trống.
 
 = 1.4.0 =
 * Quy đổi ngoại tệ sang VND theo tỉ giá khai trong Cài đặt, ghi rõ "quy đổi từ … USD".

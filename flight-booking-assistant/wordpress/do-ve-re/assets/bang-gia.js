@@ -499,7 +499,7 @@ async function run(){
   if(DVR.coGiaThat){
     $("#rows").innerHTML = '<div class="empty">Đang hỏi giá thật cho ' + q.from.code + " → " + q.to.code + '…</div>';
     try {
-      const j = await api("/api/offers?" + new URLSearchParams({
+      const j = await api("/offers?" + new URLSearchParams({
         from: q.from.code, to: q.to.code, dep: q.dep, ret: q.ret || "",
         adt: q.adt, chd: q.chd, inf: q.inf, cabin: q.cabin, direct: "0"
       }));
@@ -555,7 +555,8 @@ function reYNhat(list){ return list.length ? Math.min(...list.map(o => o.price))
 
 function renderAll(q){
   renderStrip(q);
-  const rail = $("#rail"), sorts = document.querySelector(".sorts");
+  const rail = $("#rail"), sorts = document.querySelector(".sorts"), khung = document.querySelector(".results");
+  if(khung) khung.classList.toggle("rong", !(state.live && state.offers.length));
   if(state.live && state.offers.length){
     if(rail) rail.hidden = false;
     if(sorts) sorts.hidden = false;
@@ -955,7 +956,7 @@ async function lookupTax(){
   if(mst === taxDone) return;
   st.textContent = "đang tra " + mst + "…";
   try {
-    const j = await api("/api/tax?mst=" + encodeURIComponent(mst));
+    const j = await api("/tax?mst=" + encodeURIComponent(mst));
     taxDone = mst;
     const c = $("#invCompany"), a = $("#invAddr"), b = $("#invBuyer");
     const filled = [];

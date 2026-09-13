@@ -188,6 +188,8 @@
 
 /* ---------- khung kết quả ---------- */
 .dvr .results{display:grid;grid-template-columns:minmax(0,258px) minmax(0,1fr);gap:20px;align-items:start}
+/* Ẩn cột lọc thì đừng chừa chỗ trống: phần còn lại trải hết bề ngang. */
+.dvr .results.rong{grid-template-columns:minmax(0,1fr)}
 @media (max-width:900px){ .dvr .results{grid-template-columns:1fr} }
 .dvr .rail{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);display:grid;overflow:hidden}
 .dvr .rail section{padding:15px 17px;border-bottom:1px solid var(--line-soft);display:grid;gap:7px}
