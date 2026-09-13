@@ -64,7 +64,10 @@ teq( 'đối chứng · danh mục khai đúng · khu vui chơi khai là "Cơ s�
 teq( '🔴 "Khu vui chơi" gõ thẳng thì KHÔNG phải bộ phận hợp lệ', '', VHCP_Cfg::bo_phan_chuan( 'Khu vui chơi' ) );
 teq( 'đối chứng · loại bỏ trống ô Bộ phận -> rỗng',   '',             VHCP_Cfg::bo_phan_cua_loai( 'Chi phí khác' ) );
 
-function lam( $vai, $ten = 'NV' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '' ); }
+/* 🔴 PHÒNG BAN ĐI THEO TÀI KHOẢN, KHÔNG THEO VAI (đổi 13/09/2026) — xem khối dài ở
+   `VHCP_Auth::bo_phan_bo()`. Bảng vai ở trên vẫn khai cột "Chỉ làm bộ phận" để dữ liệu cũ đọc
+   được, nhưng chốt thật nay lấy từ ô Bộ phận của tài khoản, tức tham số thứ tư ở đây. */
+function lam( $vai, $ten = 'NV', $bp = '' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '', $bp ); }
 function them_don( $ma, $dong ) {
 	global $wpdb;
 	$wpdb->insert( VHCP_DB::t( 'don' ), array( 'ma_don' => $ma, 'ky' => 'T9', 'trang_thai' => 'Chờ quyết toán', 'nguoi_lap' => 'NV' ) );
@@ -107,7 +110,7 @@ teq( '🔴 người KHÔNG bó bộ phận thì KHÔNG đơn nào bị gắn c�
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. KẾ TOÁN MÁY TỰ ĐỘNG — ĐÚNG CÁI ANH THẮNG ĐANG NHÌN
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( 'vai ăn · người này đang bị bó vào Máy tự động', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
 $mtd = co_mo();
 
@@ -132,7 +135,7 @@ teq( '🔴 đơn lọt nhờ dòng chưa khai, còn lại là mảng khác → "
  * Cùng một đơn, hai kế toán hai bộ phận nhìn ra hai chuyện khác nhau. Nếu cờ được tính một lần
  * rồi dùng chung thì bên này ẩn mất đơn của bên kia.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-lam( 'Kế toán khu vui chơi' );
+lam( 'Kế toán khu vui chơi', 'NV', 'Cơ sở' );
 $kvc = co_mo();
 teq( 'đơn thuần máy tự động BỊ CHẶN với kế toán khu vui chơi',
 	false, array_key_exists( 'D_MTD', $kvc ) );
@@ -153,7 +156,7 @@ VHCP_Cfg::write( VHCP_Cfg::LOAI, array(
 	array( 'Chi phí khác',    '6428', '', '', 'Cơ sở',        '', '', '' ),   // vừa khai
 ) );
 VHCP_Cfg::clear_cache();
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 $sau = co_mo();
 teq( '🔴 khai xong ô Bộ phận -> đơn "Chi phí khác" BIẾN HẲN khỏi bảng máy tự động',
 	false, array_key_exists( 'D_KHAC', $sau ) );

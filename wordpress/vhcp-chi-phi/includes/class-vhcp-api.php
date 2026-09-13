@@ -417,8 +417,11 @@ class VHCP_API {
 			/* Cơ sở phụ trách đi kèm luôn: `list_dons()` cần nó để mở phạm vi đơn cho nhân viên
 			   phụ trách nhiều cơ sở (anh Thắng 30/08/2026). Không truyền thì `coso_ds()` rỗng,
 			   và mọi thứ rơi về đúng hành vi cũ — chỉ thấy đơn của chính mình. */
+			/* Phòng ban đi kèm luôn (13/09/2026): từ nay nó bó theo TÀI KHOẢN chứ không theo
+			   vai, nên không truyền là mọi chốt phòng ban im lặng mở toang. */
 			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '',
-				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '' );
+				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '',
+				$user && isset( $user['boPhan'] ) ? (string) $user['boPhan'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn

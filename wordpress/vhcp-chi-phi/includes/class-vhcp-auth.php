@@ -35,6 +35,9 @@ class VHCP_Auth {
 	 *    so bằng `===`. So nguyên chuỗi là người khai ba cơ sở thì không khớp cơ sở nào cả.
 	 */
 	private static $coso    = '';
+	/* PHÒNG BAN của người đang gọi — đọc từ chính TÀI KHOẢN, không phải từ vai. Xem khối dài
+	   ở `bo_phan_bo()` để biết vì sao đổi. */
+	private static $bo_phan = '';
 	/**
 	 * 🔴 QUY VỀ VAI GỐC NGAY TẠI ĐÂY, một chỗ duy nhất.
 	 *
@@ -44,11 +47,12 @@ class VHCP_Auth {
 	 *
 	 * Quy ở cửa vào nên mọi chỗ phía sau không cần biết vai tự tạo là gì.
 	 */
-	public static function dat_vai_tro( $r, $ten = '', $coso = '' ) {
+	public static function dat_vai_tro( $r, $ten = '', $coso = '', $bo_phan = '' ) {
 		self::$vai_hien = (string) $r;
 		self::$vai_tro  = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::vai_goc( (string) $r ) : (string) $r;
 		self::$nguoi    = (string) $ten;
 		self::$coso     = (string) $coso;
+		self::$bo_phan  = (string) $bo_phan;
 	}
 	/**
 	 * BỘ PHẬN mà người đang gọi bị bó vào — '' = không bó (thấy mọi bộ phận).
@@ -57,9 +61,28 @@ class VHCP_Auth {
 	 * bộ phận máy tự động)"*. Bó gắn với VAI, không với ô "Bộ phận" trên tài khoản — xem chốt
 	 * dài ở `VHCP_Cfg::bo_phan_cua_nguoi()`.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * PHÒNG BAN BÓ NGƯỜI ĐANG GỌI — ĐỌC TỪ TÀI KHOẢN, KHÔNG TỪ VAI.
+	 *
+	 * Anh Thắng 13/09/2026: *"anh sẽ tạo ban bệ phòng ban sẵn, ai thuộc bộ phận nào thì thêm
+	 * vào, tránh sai vai hay tự tạo vai lạ"*.
+	 *
+	 * 🔴 CÙNG MỘT THÔNG TIN TỪNG KHAI BA NƠI. Vai "Nhân viên kỹ thuật" mang chữ "kỹ thuật"
+	 *    trong TÊN VAI, lại khai lần nữa ở cột "Chỉ làm bộ phận" của bảng Vai trò, rồi khai
+	 *    lần thứ ba ở cột "Bộ phận" của từng tài khoản. Ba nơi thì sớm muộn lệch, và lệch ở
+	 *    đây nghĩa là người ta thấy hoặc không thấy chi phí của mảng khác mà chẳng ai giải
+	 *    thích nổi. Nay chỉ còn MỘT nơi: ô Bộ phận của tài khoản.
+	 *
+	 * 🔴 ADMIN VÀ GIÁM ĐỐC KHÔNG BỊ BÓ, dù ô Bộ phận của họ có khai gì. Anh Thắng: *"Giám đốc:
+	 *    Toàn Quyền Xem · Admin: Toàn Quyền"*. Không thoát ở đây là một ô khai nhầm trên tài
+	 *    khoản giám đốc cắt mất tầm nhìn toàn cục — đúng thứ vai ấy sinh ra để có.
+	 *
+	 * ⚠️ Ô ĐỂ TRỐNG = KHÔNG BÓ, giữ nguyên hành vi cũ. Phần lớn tài khoản đang bỏ trống ô này;
+	 *    hiểu ngược lại là ngày bản này lên, gần như cả công ty mở màn ra thấy trắng.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
 	public static function bo_phan_bo() {
-		if ( ! class_exists( 'VHCP_Cfg' ) ) { return ''; }
-		return VHCP_Cfg::bo_phan_cua_nguoi( self::$vai_hien );
+		if ( 'Admin' === self::$vai_tro || 'Giám đốc' === self::$vai_tro ) { return ''; }
+		return trim( (string) self::$bo_phan );
 	}
 
 	/* ⚠️ ĐÃ BỎ `xem_duoc_bo_phan( $bp )` — so thẳng tên bộ phận với bộ phận đang bó. Viết ra
@@ -165,7 +188,10 @@ class VHCP_Auth {
 	public static function trong_tam( $nguoi_tao, $coso ) {
 		$la_nv = self::la_nhan_vien();
 		$la_ql = ( self::$vai_tro === 'Quản lý' );
-		if ( ! $la_nv && ! $la_ql ) { return true; }   // Admin · Kế toán: không bó theo cơ sở
+		/* 🔴 GIÁM ĐỐC THOÁT SỚM, cùng chỗ với Admin và Kế toán. Anh Thắng 13/09/2026: *"Giám
+		   đốc: Toàn Quyền Xem"*. Vai này mới nên chưa lọt vào chốt nào — nhưng để nó rơi
+		   xuống nhánh dưới thì một ô Cơ sở khai nhầm là cắt mất tầm nhìn toàn cục. */
+		if ( ! $la_nv && ! $la_ql ) { return true; }   // Admin · Giám đốc · Kế toán: không bó theo cơ sở
 
 		$ds = self::coso_ds();
 		/* Quản lý chưa khai cơ sở nào = trông cả nhà. Nhân viên thì KHÔNG được nới như vậy. */

@@ -158,7 +158,27 @@ class VHCP_Cfg {
 	 * 🔴 'Admin' KHÔNG có trong danh sách kế thừa. Cho kế thừa Admin là ai vào được Cấu hình
 	 *    cũng tự đúc cho mình một vai Admin trá hình — thành cái cửa sau mở sẵn.
 	 */
-	const VAI_GOC = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * CHỨC DANH — DANH SÁCH ĐÓNG, KHÔNG AI ĐẺ THÊM ĐƯỢC.
+	 *
+	 * Anh Thắng 13/09/2026: *"anh sẽ tạo ban bệ phòng ban sẵn, ai thuộc bộ phận nào thì thêm
+	 * vào, tránh sai vai hay tự tạo vai lạ"*, kèm thang quyền:
+	 *   · Nhân viên (cơ sở · kỹ thuật) — chỉ xem cơ sở mình quản lý trở xuống
+	 *   · Quản lý                      — xem bộ phận mình trở xuống
+	 *   · Kế toán bộ phận              — xem bộ phận mình quản lý
+	 *   · Giám đốc                     — toàn quyền xem
+	 *   · Admin                        — toàn quyền
+	 *
+	 * 🔴 'Giám đốc' THÊM 13/09/2026, đứng TRÊN Quản lý. Trước nay ai cần nhìn toàn cục phải
+	 *    mang vai Admin — tức trao luôn quyền sửa cấu hình, đổi PIN, xoá đơn. Giám đốc tách hẳn
+	 *    hai thứ ấy: nhìn cả hệ, nhưng không phải người quản trị.
+	 *
+	 * 🔴 HAI VAI KẾ TOÁN GIỮ NGUYÊN. Anh Thắng gọi chung là "kế toán bộ phận", nhưng 'Kế toán
+	 *    cá nhân' và 'Kế toán NCC' chia VIỆC (ai chốt dòng 141, ai chốt dòng 331) chứ không
+	 *    chia PHẠM VI — hai chuyện vuông góc nhau. Gộp lại là đụng thẳng luồng duyệt NCC đang
+	 *    chạy. Phạm vi "chỉ xem bộ phận mình" cộng thêm, không thay.
+	 * ══════════════════════════════════════════════════════════════════════════════════════ */
+	const VAI_GOC = array( 'Giám đốc', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
 
 	/**
 	 * CÁC BỘ PHẬN CHI PHÍ — chốt DUY NHẤT, phía máy chủ.

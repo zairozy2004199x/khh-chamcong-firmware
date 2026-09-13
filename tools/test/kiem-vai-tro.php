@@ -62,18 +62,21 @@ eval( $src );
 
 echo "— danh sách vai —\n";
 VHCP_Cfg::$GIA = array();
-la( 'chưa khai gì -> đúng 4 vai gốc',
-	array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' ), VHCP_Cfg::roles() );
+la( 'chưa khai gì -> đúng 5 vai gốc',
+	array( 'Giám đốc', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' ), VHCP_Cfg::roles() );
 
 VHCP_Cfg::$GIA[ VHCP_Cfg::VAI ] = array(
 	array( 'Nhân viên văn phòng', 'Nhân viên' ),
 	array( 'Kế toán vùng',        'Kế toán cá nhân' ),
 );
 $r = VHCP_Cfg::roles();
-/* 🔴 BỐN VAI GỐC PHẢI ĐỨNG ĐẦU, ĐÚNG THỨ TỰ. Cột ma trận neo theo chỉ số. */
-la( 'bốn vai gốc vẫn đứng đầu đúng thứ tự',
-	array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' ), array_slice( $r, 0, 4 ) );
-la( 'vai mới nối vào CUỐI', array( 'Nhân viên văn phòng', 'Kế toán vùng' ), array_slice( $r, 4 ) );
+/* 🔴 VAI GỐC PHẢI ĐỨNG ĐẦU, ĐÚNG THỨ TỰ. Cột ma trận neo theo chỉ số.
+   ⚠️ Cắt theo `count( VAI_GOC )` chứ đừng gõ cứng con số: 13/09/2026 thêm 'Giám đốc' là số
+      ấy đổi từ 4 sang 5, và hai phép dưới đỏ vì chính con số chứ không vì thứ tự sai. */
+$_n = count( VHCP_Cfg::VAI_GOC );
+la( 'vai gốc vẫn đứng đầu đúng thứ tự',
+	array( 'Giám đốc', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' ), array_slice( $r, 0, $_n ) );
+la( 'vai mới nối vào CUỐI', array( 'Nhân viên văn phòng', 'Kế toán vùng' ), array_slice( $r, $_n ) );
 
 echo "— quy về vai gốc —\n";
 la( 'vai gốc -> chính nó',        'Nhân viên', VHCP_Cfg::vai_goc( 'Nhân viên' ) );

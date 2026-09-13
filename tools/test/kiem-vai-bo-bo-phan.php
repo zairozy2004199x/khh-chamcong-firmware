@@ -138,9 +138,14 @@ teq( 'loại không có trong danh mục -> rỗng',     '',            VHCP_Cfg
 /* Đăng nhập bằng đúng tên người LẬP ĐƠN thử. Vai Nhân viên vốn chỉ thấy đơn của chính mình
    (luật có sẵn, không liên quan bản này) — đăng nhập tên khác thì bảng rỗng vì lý do đó, và
    phép thử sẽ đổ lỗi nhầm cho chốt bộ phận. */
-function lam( $vai, $ten = 'NV' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '' ); }
+/* 🔴 PHÒNG BAN ĐI THEO TÀI KHOẢN, KHÔNG THEO VAI (đổi 13/09/2026). Anh Thắng: *"anh sẽ tạo
+   ban bệ phòng ban sẵn, ai thuộc bộ phận nào thì thêm vào, tránh sai vai hay tự tạo vai lạ"*.
+   Trước bản ấy bộ phận khai ở cột "Chỉ làm bộ phận" của bảng VAI TRÒ, nên `lam()` chỉ cần
+   truyền tên vai. Nay nó là tham số thứ tư của `dat_vai_tro()` — đúng như cổng API truyền
+   xuống từ ô Bộ phận của tài khoản. */
+function lam( $vai, $ten = 'NV', $bp = '' ) { VHCP_Auth::dat_vai_tro( $vai, $ten, '', $bp ); }
 
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( 'người bó bộ phận đọc đúng bộ phận của mình', 'Máy tự động', VHCP_Auth::bo_phan_bo() );
 teq( '🔴 đọc được dòng của bộ phận mình',  true,  VHCP_Auth::xem_duoc_loai( 'Sửa máy gắp thú' ) );
 teq( '🔴 KHÔNG đọc được dòng của mảng khác', false, VHCP_Auth::xem_duoc_loai( 'Chạy quảng cáo' ) );
@@ -173,7 +178,7 @@ function sc_ids() {
 }
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả ba dòng', array( 'S_KHAC', 'S_MKT', 'S_MTD' ), sc_ids() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động chỉ thấy dòng của mình + dòng chưa phân loại',
 	array( 'S_KHAC', 'S_MTD' ), sc_ids() );
 
@@ -206,7 +211,7 @@ function don_mas() {
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả bốn đơn',
 	array( 'D_LAN', 'D_MKT', 'D_MTD', 'D_TRONG' ), don_mas() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động: thấy đơn của mình, đơn LẪN, và đơn chưa có dòng nào — không thấy đơn thuần marketing',
 	array( 'D_LAN', 'D_MTD', 'D_TRONG' ), don_mas() );
 
@@ -231,7 +236,7 @@ function mang_cho() {
 lam( 'Kế toán cá nhân' );
 teq( 'đối chứng · kế toán thường thấy cả ba mảng',
 	array( 'Công tác', 'Kỹ thuật', 'Marketing' ), mang_cho() );
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 teq( '🔴 kế toán máy tự động KHÔNG thấy mảng nào trong bốn mảng kia',
 	array(), mang_cho() );
 
@@ -242,7 +247,7 @@ VHCP_Cfg::write( VHCP_Cfg::VAI, array(
 	array( 'Kế toán chung',       'Kế toán cá nhân', '' ),
 	array( 'Kế toán marketing',   'Kế toán cá nhân', 'Marketing' ),
 ) );
-lam( 'Kế toán marketing' );
+lam( 'Kế toán marketing', 'NV', 'Marketing' );
 teq( '🔴 vai bó Marketing chỉ thấy mảng Marketing', array( 'Marketing' ), mang_cho() );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -278,7 +283,7 @@ teq( '🔴 ô Bộ phận trên tài khoản KHÔNG bó gì cả',
  *    không chạy — anh Thắng đã kết luận đúng như thế khi nhìn màn Tổng quan còn nguyên 21 mục.
  *    Số loại CHƯA khai bộ phận là thứ biến "trông như hỏng" thành "còn N dòng phải khai".
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-lam( 'Kế toán máy tự động' );
+lam( 'Kế toán máy tự động', 'NV', 'Máy tự động' );
 $b = VHCP_Don::get_bootstrap();
 teq( '🔴 boot nói rõ đang bó bộ phận nào', 'Máy tự động', $b['boPhanBo'] );
 /* Dữ liệu thử có ba loại trên các dòng chi: "Sửa máy gắp thú" (Máy tự động), "Chạy quảng cáo"
