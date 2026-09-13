@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.0.8
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.0.8' );
+define( 'DVR_VERSION', '1.1.0' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -21,6 +21,7 @@ define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
 require_once DVR_DIR . 'includes/class-dvr-store.php';
 require_once DVR_DIR . 'includes/class-dvr-amadeus.php';
 require_once DVR_DIR . 'includes/class-dvr-duffel.php';
+require_once DVR_DIR . 'includes/class-dvr-dai-ly.php';
 require_once DVR_DIR . 'includes/class-dvr-mail.php';
 require_once DVR_DIR . 'includes/class-dvr-rest.php';
 require_once DVR_DIR . 'includes/class-dvr-shortcodes.php';
@@ -51,8 +52,16 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		'fee_flat'       => 0,
 		'fee_min'        => 0,
 		'hold_minutes'   => 30,
+		'bao_gia_truoc'  => 1,
+		'bao_gia_phut'   => 15,
 		'nguon'          => 'mo_phong',
 		'duffel_token'   => '',
+		'dl_ten'         => '',
+		'dl_url'         => '',
+		'dl_token'       => '',
+		'dl_header'      => 'Authorization',
+		'dl_body'        => '',
+		'dl_map'         => '',
 		'amadeus_id'     => '',
 		'amadeus_secret' => '',
 		'amadeus_env'    => 'test',

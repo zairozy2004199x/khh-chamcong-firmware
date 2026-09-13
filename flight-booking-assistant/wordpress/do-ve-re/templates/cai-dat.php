@@ -63,6 +63,16 @@ $cd = dvr_cai_dat();
 					<p class="description">Phần chênh lệch của mình, hiện rõ cho khách thấy trước khi trả tiền.</p></td>
 			</tr>
 			<tr>
+				<th scope="row">Chốt giá trước</th>
+				<td>
+					<label><input type="checkbox" name="dovere_settings[bao_gia_truoc]" value="1" <?php checked( 1, (int) $cd['bao_gia_truoc'] ); ?>>
+						Khách đặt xong thì mình kiểm chỗ rồi mới báo giá chính thức</label>
+					<p class="description">Bật khi nguồn giá chưa phải giá mua được (giá mô phỏng, giá tham khảo). Khách không thấy số tài khoản
+						cho tới khi mình bấm <b>Chốt giá</b> — nên không bao giờ phải xin thêm tiền hay bù lỗ vì giá đã đổi.
+						Hứa báo trong <input type="number" min="1" name="dovere_settings[bao_gia_phut]" value="<?php echo esc_attr( $cd['bao_gia_phut'] ); ?>" class="small-text"> phút.</p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="dvr_hold">Giữ giá (phút)</label></th>
 				<td><input type="number" min="5" name="dovere_settings[hold_minutes]" id="dvr_hold" value="<?php echo esc_attr( $cd['hold_minutes'] ); ?>" class="small-text">
 					<p class="description">Quá hạn mà khách chưa chuyển khoản thì đơn thành “quá hạn giữ giá”.</p></td>
@@ -114,6 +124,8 @@ $cd = dvr_cai_dat();
 						<b>Giá mô phỏng</b> — máy tự dựng theo cự ly, khung giờ, ngày mua trước. Có nhãn nói rõ cho khách biết.</label>
 					<label style="display:block;margin-bottom:6px"><input type="radio" name="dovere_settings[nguon]" value="duffel" <?php checked( 'duffel', $cd['nguon'] ); ?>>
 						<b>Duffel</b> — đăng ký ở duffel.com, bật chế độ thử là có khoá ngay, miễn phí.</label>
+					<label style="display:block;margin-bottom:6px"><input type="radio" name="dovere_settings[nguon]" value="dai_ly" <?php checked( 'dai_ly', $cd['nguon'] ); ?>>
+						<b>Đại lý cấp 1 trong nước</b> — giá mua được thật, có đủ Vietjet/Bamboo. Khai ở mục dưới.</label>
 					<label style="display:block"><input type="radio" name="dovere_settings[nguon]" value="amadeus" <?php checked( 'amadeus', $cd['nguon'] ); ?>>
 						<b>Amadeus</b> — chỉ dùng được nếu công ty đã có sẵn khoá Enterprise.</label>
 				</td>
@@ -147,6 +159,43 @@ $cd = dvr_cai_dat();
 			<tr>
 				<th scope="row"><label for="dvr_shop">Tên hiển thị trong email</label></th>
 				<td><input name="dovere_settings[shop_name]" id="dvr_shop" class="regular-text" value="<?php echo esc_attr( $cd['shop_name'] ); ?>"></td>
+			</tr>
+		</table>
+
+		<h2 class="title">API của đại lý cấp 1</h2>
+		<p class="description" style="margin:0 0 10px">Khai theo tài liệu đại lý gửi. Không phải sửa code: đường dẫn và tên trường khai ở đây.</p>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row"><label for="dvr_dl_ten">Tên đại lý</label></th>
+				<td><input name="dovere_settings[dl_ten]" id="dvr_dl_ten" class="regular-text" value="<?php echo esc_attr( $cd['dl_ten'] ); ?>" placeholder="hiện trên thẻ chuyến bay"></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_dl_url">Đường dẫn API</label></th>
+				<td><input name="dovere_settings[dl_url]" id="dvr_dl_url" class="large-text code" value="<?php echo esc_attr( $cd['dl_url'] ); ?>"
+						placeholder="https://api.dai-ly.vn/search?from={from}&amp;to={to}&amp;date={dep}&amp;adt={adt}">
+					<p class="description">Chỗ thay được: <code>{from} {to} {dep} {ret} {adt} {chd} {inf} {cabin}</code></p></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_dl_token">Khoá</label></th>
+				<td><input type="password" name="dovere_settings[dl_token]" id="dvr_dl_token" class="large-text code" value="<?php echo esc_attr( $cd['dl_token'] ); ?>" autocomplete="off">
+					<p class="description">Gửi trong header <input name="dovere_settings[dl_header]" value="<?php echo esc_attr( $cd['dl_header'] ); ?>" class="small-text" style="width:170px">
+						— để <code>Authorization</code> thì máy tự thêm <code>Bearer</code>.</p></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_dl_body">Gói tin POST</label></th>
+				<td><textarea name="dovere_settings[dl_body]" id="dvr_dl_body" class="large-text code" rows="3" placeholder='{"origin":"{from}","destination":"{to}","departDate":"{dep}","adult":{adt}}'><?php echo esc_textarea( $cd['dl_body'] ); ?></textarea>
+					<p class="description">Để trống thì gọi bằng GET.</p></td>
+			</tr>
+			<tr>
+				<th scope="row"><label for="dvr_dl_map">Bảng ánh xạ</label></th>
+				<td><textarea name="dovere_settings[dl_map]" id="dvr_dl_map" class="large-text code" rows="5" placeholder='{"duong_dan":"data.flights","hang":"airlineCode","ten_hang":"airlineName","so_hieu":"flightNumber","gio_di":"departTime","gio_den":"arriveTime","gia":"totalFare","tien_te":"currency","diem_dung":"stopNum","ky_gui":"baggage"}'><?php echo esc_textarea( $cd['dl_map'] ); ?></textarea>
+					<p class="description">Trường nào của họ ứng với trường nào của mình. <code>duong_dan</code> là chỗ chứa danh sách chuyến, viết kiểu <code>data.flights</code>.</p></td>
+			</tr>
+			<tr>
+				<th scope="row">Thử kết nối</th>
+				<td><button type="button" class="button" id="dvr-thu">Gọi thử SGN → HAN</button>
+					<p class="description">Xem đại lý trả về gì để khai bảng ánh xạ cho khớp.</p>
+					<pre id="dvr-ketqua" style="display:none;max-height:320px;overflow:auto;background:#f6f7f7;border:1px solid #dcdcde;padding:10px;margin-top:8px"></pre></td>
 			</tr>
 		</table>
 
@@ -219,4 +268,21 @@ $cd = dvr_cai_dat();
 
 		<?php submit_button( 'Lưu cài đặt' ); ?>
 	</form>
+
+	<script>
+	document.getElementById('dvr-thu').addEventListener('click', async function () {
+		var o = document.getElementById('dvr-ketqua');
+		o.style.display = 'block';
+		o.textContent = 'Đang gọi…';
+		try {
+			var r = await fetch('<?php echo esc_url_raw( rest_url( 'dovere/v1/admin/thu-nguon' ) ); ?>', {
+				headers: { 'X-WP-Nonce': '<?php echo esc_js( wp_create_nonce( 'wp_rest' ) ); ?>' }
+			});
+			var j = await r.json();
+			o.textContent = j.error ? ('LỖI: ' + j.error) : JSON.stringify(j.body, null, 2).slice(0, 6000);
+		} catch (e) {
+			o.textContent = 'LỖI: ' + e.message;
+		}
+	});
+	</script>
 </div>

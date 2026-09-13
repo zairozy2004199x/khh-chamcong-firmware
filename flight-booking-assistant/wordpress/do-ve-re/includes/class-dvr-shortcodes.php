@@ -65,7 +65,8 @@ class DVR_Shortcodes {
 			'orderPage' => $cd['order_page'] ? get_permalink( $cd['order_page'] ) : '',
 			'shopName'  => $cd['shop_name'],
 			'coGiaThat' => ( 'duffel' === $cd['nguon'] && $cd['duffel_token'] )
-				|| ( 'amadeus' === $cd['nguon'] && $cd['amadeus_id'] ),
+				|| ( 'amadeus' === $cd['nguon'] && $cd['amadeus_id'] )
+				|| ( 'dai_ly' === $cd['nguon'] && $cd['dl_url'] ),
 			'coBan'     => (bool) ( $cd['order_page'] && $cd['bank_account'] ),
 			'fee'       => array(
 				'pct'  => (float) $cd['fee_pct'],

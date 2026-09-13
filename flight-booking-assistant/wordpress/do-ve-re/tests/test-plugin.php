@@ -189,6 +189,62 @@ ok( 'có dòng bản quyền kèm năm', strpos( $ct, '© ' . gmdate( 'Y' ) ) !=
 $GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
 ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
+echo "\nLuồng chốt giá trước\n";
+$GLOBALS['dvr_options']['dovere_settings']['bao_gia_truoc'] = 1;
+$GLOBALS['dvr_options']['dovere_settings']['bao_gia_phut']  = 15;
+ok( 'bật chốt giá trước thì mẫu thư đầu tiên là "đang kiểm chỗ"',
+	strpos( DVR_Mail::soan( 'cho_bao_gia', $o )['subject'], 'đang kiểm chỗ' ) !== false,
+	DVR_Mail::soan( 'cho_bao_gia', $o )['subject'] );
+ok( 'thư đó nói rõ chưa cần chuyển tiền',
+	strpos( DVR_Mail::soan( 'cho_bao_gia', $o )['html'], 'Chưa cần chuyển tiền' ) !== false );
+ok( 'thư đó KHÔNG lộ số tài khoản',
+	strpos( DVR_Mail::soan( 'cho_bao_gia', $o )['html'], '0071000123456' ) === false );
+$bg = DVR_Mail::soan( 'bao_gia', $o );
+ok( 'thư chốt giá có tổng tiền ở tiêu đề', strpos( $bg['subject'], '1.740.700đ' ) !== false, $bg['subject'] );
+ok( 'thư chốt giá mới đưa số tài khoản', strpos( $bg['html'], '0071000123456' ) !== false );
+$hc = DVR_Mail::soan( 'het_cho', $o );
+ok( 'thư hết chỗ nói rõ chưa thu đồng nào', strpos( $hc['html'], 'chưa thu đồng nào' ) !== false );
+
+echo "\nNguồn giá đại lý cấp 1\n";
+$GLOBALS['dvr_options']['dovere_settings']['dl_map'] = json_encode( array(
+	'duong_dan' => 'data.flights', 'hang' => 'airlineCode', 'ten_hang' => 'airlineName',
+	'so_hieu' => 'flightNumber', 'gio_di' => 'departTime', 'gio_den' => 'arriveTime',
+	'gia' => 'totalFare', 'tien_te' => 'currency', 'diem_dung' => 'stopNum', 'ky_gui' => 'baggage',
+) );
+$dl = array( 'data' => array( 'flights' => array(
+	array( 'airlineCode' => 'VJ', 'airlineName' => 'Vietjet Air', 'flightNumber' => '120',
+		'departTime' => '2026-10-04 06:15', 'arriveTime' => '2026-10-04 08:25',
+		'totalFare' => 1190000, 'currency' => 'VND', 'stopNum' => 0, 'baggage' => 0 ),
+	array( 'airlineCode' => 'VN', 'airlineName' => 'Vietnam Airlines', 'flightNumber' => '220',
+		'departTime' => '2026-10-04 22:30', 'arriveTime' => '2026-10-05 00:40',
+		'totalFare' => 2450000, 'currency' => 'VND', 'stopNum' => 0, 'baggage' => '23kg' ),
+) ) );
+$ch = DVR_Dai_Ly::doi_du_lieu( $dl, array( 'adt' => 2, 'chd' => 0, 'cabin' => 'ECONOMY' ) );
+ok( 'đọc danh sách theo đường dẫn đã khai', count( $ch ) === 2, count( $ch ) );
+ok( 'xếp từ rẻ tới đắt', $ch[0]['price'] === 1190000, array_column( $ch, 'price' ) );
+ok( 'nhân giá theo số khách', 2380000 === $ch[0]['total'], $ch[0]['total'] );
+ok( 'cắt đúng giờ bay', '06:15' === $ch[0]['dep'] && '08:25' === $ch[0]['arr'], array( $ch[0]['dep'], $ch[0]['arr'] ) );
+ok( 'tính ra thời gian bay 130 phút', 130 === $ch[0]['mins'], $ch[0]['mins'] );
+ok( 'ký gửi dạng chữ cũng hiểu', true === $ch[1]['bag'] && '23kg' === $ch[1]['bagText'], $ch[1]['bagText'] );
+ok( 'không ký gửi thì ghi xách tay', false === $ch[0]['bag'] && 'chỉ xách tay' === $ch[0]['bagText'] );
+ok( 'nhận ra chuyến hạ cánh hôm sau', true === $ch[1]['overnight'] );
+ok( 'số hiệu ghép mã hãng', 'VJ120' === $ch[0]['code'], $ch[0]['code'] );
+
+// đại lý khác, tên trường khác hẳn — chỉ đổi bảng ánh xạ, không sửa code
+$GLOBALS['dvr_options']['dovere_settings']['dl_map'] = json_encode( array(
+	'duong_dan' => 'result', 'hang' => 'carrier', 'ten_hang' => 'carrier_name', 'so_hieu' => 'flight_no',
+	'gio_di' => 'std', 'gio_den' => 'sta', 'gia' => 'fare_total', 'tien_te' => 'cur', 'diem_dung' => 'transit', 'ky_gui' => 'checked_bag',
+) );
+$dl2 = array( 'result' => array( array( 'carrier' => 'QH', 'carrier_name' => 'Bamboo Airways', 'flight_no' => '202',
+	'std' => '2026-10-04 09:00', 'sta' => '2026-10-04 11:05', 'fare_total' => 1650000, 'cur' => 'VND', 'transit' => 1, 'checked_bag' => 1 ) ) );
+$ch2 = DVR_Dai_Ly::doi_du_lieu( $dl2, array( 'adt' => 1 ) );
+ok( 'đổi đại lý chỉ cần đổi bảng ánh xạ',
+	1 === count( $ch2 ) && 'QH202' === $ch2[0]['code'] && 1650000 === $ch2[0]['price'] && 1 === $ch2[0]['stops'], $ch2 );
+ok( 'thay chỗ trong đường dẫn API',
+	'https://x.vn/s?f=SGN&t=HAN&d=2026-10-04&a=2' === DVR_Dai_Ly::thay_cho( 'https://x.vn/s?f={from}&t={to}&d={dep}&a={adt}',
+		array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => '2026-10-04', 'adt' => 2 ) ) );
+ok( 'đường dẫn sai thì trả mặc định, không vỡ', array() === DVR_Dai_Ly::theo_duong( $dl2, 'khong.co.dau', array() ) );
+
 echo "\nNguồn giá Duffel\n";
 $yc = DVR_Duffel::goi_yeu_cau( array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => '2026-10-04', 'ret' => '',
 	'adt' => 2, 'chd' => 1, 'inf' => 0, 'cabin' => 'ECONOMY' ) );

@@ -8,6 +8,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class DVR_Store {
 
 	const TRANG_THAI = array(
+		'cho_bao_gia'    => 'Chờ báo giá chính thức',
 		'cho_thanh_toan' => 'Chờ khách chuyển khoản',
 		'het_han'        => 'Quá hạn giữ giá',
 		'da_nhan_tien'   => 'Đã nhận tiền, chờ mua vé',
@@ -121,7 +122,7 @@ class DVR_Store {
 			'code'       => $code,
 			'created_at' => $now,
 			'expires_at' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) + (int) $cd['hold_minutes'] * 60 ),
-			'status'     => 'cho_thanh_toan',
+			'status'     => dvr_cai_dat( 'bao_gia_truoc', 1 ) ? 'cho_bao_gia' : 'cho_thanh_toan',
 			'total'      => $tien_ve + $phi,
 			'paid'       => 0,
 			'cost'       => 0,
@@ -148,7 +149,12 @@ class DVR_Store {
 					'email' => sanitize_email( $b['contact']['email'] ),
 				),
 				'invoice' => array_map( 'sanitize_text_field', (array) ( isset( $b['invoice'] ) ? $b['invoice'] : array() ) ),
-				'log'     => array( array( 'at' => $now, 'what' => 'Khách tạo đơn' ) ),
+				'log'     => array( array(
+				'at'   => $now,
+				'what' => dvr_cai_dat( 'bao_gia_truoc', 1 )
+					? 'Khách đặt theo giá tham khảo ' . dvr_tien( $tien_ve ) . ' — chờ mình kiểm chỗ và chốt giá'
+					: 'Khách tạo đơn',
+			) ),
 				'mail'    => array(),
 			),
 		);
@@ -195,6 +201,7 @@ class DVR_Store {
 			array( 'total' => (int) $hang['total'], 'paid' => (int) $hang['paid'], 'cost' => (int) $hang['cost'] )
 		);
 		$het               = 'cho_thanh_toan' === $hang['status'] && strtotime( $hang['expires_at'] ) < time();
+		// đơn chờ báo giá chưa chạy đồng hồ giữ giá: giá chưa chốt thì chưa có gì để giữ
 		$don['status']     = $het ? 'het_han' : $hang['status'];
 		$don['statusText'] = self::TRANG_THAI[ $don['status'] ];
 		return $don;

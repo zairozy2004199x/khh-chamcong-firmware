@@ -82,6 +82,40 @@ class DVR_Mail {
 			);
 		}
 
+		if ( 'cho_bao_gia' === $kind ) {
+			return array(
+				'subject' => 'Đã nhận yêu cầu đặt vé ' . $o['code'] . ' — đang kiểm chỗ',
+				'html'    => self::khung( array(
+					'shop' => $shop, 'link' => $link, 'tieu' => 'Đang kiểm chỗ và báo giá',
+					'dam'  => 'Giá trên bảng là <b>giá tham khảo</b>. Chúng tôi đang kiểm chỗ thật với hãng và sẽ báo giá chính thức trong khoảng '
+						. (int) $cd['bao_gia_phut'] . ' phút, kèm hướng dẫn chuyển khoản.',
+					'than' => self::bang( array_merge( $chung, array(
+						array( 'Giá tham khảo', dvr_tien( $o['money']['fare'] ) ),
+					) ) )
+						. '<p style="margin:14px 0 0;color:#39536E">Chưa cần chuyển tiền lúc này. Nếu hết chỗ ở mức giá đó, chúng tôi báo lại ngay chứ không tự ý đổi giá.</p>',
+				) ),
+			);
+		}
+
+		if ( 'bao_gia' === $kind ) {
+			return array(
+				'subject' => 'Giá chính thức đơn ' . $o['code'] . ' — ' . dvr_tien( $o['money']['total'] ),
+				'html'    => self::khung( array(
+					'shop' => $shop, 'link' => $link, 'tieu' => 'Giá chính thức, mời chuyển khoản',
+					'dam'  => 'Nội dung chuyển khoản giữ nguyên mã <b style="font-family:monospace">' . esc_html( $o['code'] )
+						. '</b>. Giá giữ tới <b>' . esc_html( self::gio( $o['expiresAt'] ) ) . '</b>.',
+					'than' => self::bang( array_merge( $chung, array(
+						array( 'Tiền vé', dvr_tien( $o['money']['fare'] ) ),
+						array( 'Phí dịch vụ', dvr_tien( $o['money']['fee'] ) ),
+						array( 'Tổng phải chuyển', '<span style="color:#B45F05;font-size:18px">' . dvr_tien( $o['money']['total'] ) . '</span>' ),
+						array( 'Ngân hàng', esc_html( $cd['bank_label'] ? $cd['bank_label'] : $cd['bank_id'] ) ),
+						array( 'Số tài khoản', esc_html( $cd['bank_account'] ) ),
+						array( 'Chủ tài khoản', esc_html( $cd['bank_name'] ) ),
+					) ) ),
+				) ),
+			);
+		}
+
 		if ( 'da_nhan_tien' === $kind ) {
 			$thieu = (int) $o['money']['total'] - (int) $o['money']['paid'];
 			return array(
@@ -110,6 +144,18 @@ class DVR_Mail {
 					) ) )
 						. '<p style="margin:14px 0 0;color:#39536E">Làm thủ tục bằng mã đặt chỗ trên web hoặc app của hãng, hoặc tại quầy. '
 						. 'Mang giấy tờ tuỳ thân trùng tên đã đặt, có mặt ở sân bay trước giờ bay ít nhất 2 tiếng.</p>',
+				) ),
+			);
+		}
+
+		if ( 'het_cho' === $kind ) {
+			return array(
+				'subject' => 'Đơn ' . $o['code'] . ' — hết chỗ ở mức giá đó',
+				'html'    => self::khung( array(
+					'shop' => $shop, 'link' => $link, 'tieu' => 'Rất tiếc, hết chỗ', 'mau' => '#8C3310',
+					'dam'  => 'Chặng này đã hết chỗ ở mức giá tham khảo lúc quý khách đặt. Chúng tôi <b>chưa thu đồng nào</b>.',
+					'than' => self::bang( $chung )
+						. '<p style="margin:14px 0 0;color:#39536E">Quý khách đặt lại theo giá mới, hoặc nhắn cho chúng tôi để tìm chuyến khác gần giờ đó.</p>',
 				) ),
 			);
 		}

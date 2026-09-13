@@ -67,6 +67,7 @@ function render(j){
 
   const list = filter ? j.orders.filter(o => o.status === filter) : j.orders;
   $("#rows").innerHTML = list.length ? list.map(o => {
+    const canQuote = o.status === "cho_bao_gia";
     const canPay = o.status === "cho_thanh_toan" || o.status === "het_han";
     const canBook = ["da_nhan_tien","dang_dat_ve"].includes(o.status);
     const site = AIRLINE[o.flight.airline] || "";
@@ -85,6 +86,8 @@ function render(j){
       + thu(o)
       + '<div class="log">' + (o.log || []).slice(-2).map(l => "· " + l.what).join("<br>") + '</div></td>'
       + '<td><div class="acts">'
+      + (canQuote ? '<button class="chinh" data-act="quote" data-code="' + o.code + '">Chốt giá</button>'
+                    + '<button data-act="hetcho" data-code="' + o.code + '">Hết chỗ</button>' : "")
       + (canPay ? '<button data-act="paid" data-code="' + o.code + '">Đã nhận tiền</button>' : "")
       + (canBook ? '<a class="go" href="' + fillHref(o) + '" title="Kéo lên thanh dấu trang rồi bấm khi đang ở trang hãng">Điền hộ</a>' : "")
       + (canBook && site ? '<a href="' + site + '" target="_blank" rel="noopener">Trang hãng</a>' : "")
@@ -122,7 +125,16 @@ $("#rows").addEventListener("click", async e => {
   const { act, code } = b.dataset;
   let bao = "";
   try {
-    if(act === "paid"){
+    if(act === "quote"){
+      const ve = prompt("Giá vé THẬT vừa kiểm trên trang hãng cho đơn " + code + " (đồng, chưa gồm phí dịch vụ):");
+      if(!ve) return;
+      const r = await api("/admin/orders/" + code + "/quote", { fare: +String(ve).replace(/\D/g,"") });
+      bao = "Đã chốt giá đơn " + code + " · tổng " + vnd(r.order.money.total) + ". Khách nhận email kèm số tài khoản.";
+    } else if(act === "hetcho"){
+      const ly = prompt("Ghi chú cho đơn " + code + " (vì sao hết chỗ):") || "";
+      await api("/admin/orders/" + code + "/hetcho", { reason: ly });
+      bao = "Đã báo hết chỗ cho đơn " + code + ". Khách nhận email, chưa thu đồng nào.";
+    } else if(act === "paid"){
       const amount = prompt("Số tiền thực nhận cho đơn " + code + " (đ):");
       if(amount === null) return;
       await api("/admin/orders/" + code + "/paid", { amount: +String(amount).replace(/\D/g,"") });

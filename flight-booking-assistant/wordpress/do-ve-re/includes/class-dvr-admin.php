@@ -153,14 +153,14 @@ class DVR_Admin {
 		$v = (array) $v;
 		$ra = array();
 		foreach ( array( 'shop_name', 'bank_id', 'bank_account', 'bank_name', 'bank_label', 'amadeus_id', 'amadeus_secret', 'webhook_secret', 'tax_api',
-			'duffel_token', 'hero_ten', 'hero_tieu_de', 'hero_phu_de', 'cty_vi', 'cty_en', 'cty_mst', 'cty_dai_dien', 'cty_tu_ngay', 'cty_dia_chi', 'cty_dien_thoai', 'cty_co_quan', 'cty_chi_nhanh' ) as $k ) {
+			'duffel_token', 'dl_ten', 'dl_url', 'dl_token', 'dl_header', 'dl_body', 'dl_map', 'hero_ten', 'hero_tieu_de', 'hero_phu_de', 'cty_vi', 'cty_en', 'cty_mst', 'cty_dai_dien', 'cty_tu_ngay', 'cty_dia_chi', 'cty_dien_thoai', 'cty_co_quan', 'cty_chi_nhanh' ) as $k ) {
 			$ra[ $k ] = sanitize_text_field( isset( $v[ $k ] ) ? $v[ $k ] : '' );
 		}
 		$mau               = isset( $v['mau_chinh'] ) ? trim( (string) $v['mau_chinh'] ) : '';
 		$ra['mau_chinh']   = dvr_mau_rgb( $mau ) ? ( '#' === substr( $mau, 0, 1 ) ? strtoupper( $mau ) : '#' . strtoupper( $mau ) ) : '';
 		$ra['logo_url']    = esc_url_raw( isset( $v['logo_url'] ) ? $v['logo_url'] : '' );
 		$ng                = isset( $v['nguon'] ) ? $v['nguon'] : 'mo_phong';
-		$ra['nguon']       = in_array( $ng, array( 'mo_phong', 'duffel', 'amadeus' ), true ) ? $ng : 'mo_phong';
+		$ra['nguon']       = in_array( $ng, array( 'mo_phong', 'duffel', 'amadeus', 'dai_ly' ), true ) ? $ng : 'mo_phong';
 		$ra['amadeus_env'] = 'production' === ( isset( $v['amadeus_env'] ) ? $v['amadeus_env'] : '' ) ? 'production' : 'test';
 		foreach ( array( 'fee_pct', 'fee_flat', 'fee_min', 'hold_minutes', 'order_page' ) as $k ) {
 			$ra[ $k ] = max( 0, (float) ( isset( $v[ $k ] ) ? $v[ $k ] : 0 ) );
@@ -168,6 +168,8 @@ class DVR_Admin {
 		$ra['hold_minutes'] = max( 5, (int) $ra['hold_minutes'] );
 		$ra['order_page']   = (int) $ra['order_page'];
 		$ra['an_thanh']     = empty( $v['an_thanh'] ) ? 0 : 1;
+		$ra['bao_gia_truoc'] = empty( $v['bao_gia_truoc'] ) ? 0 : 1;
+		$ra['bao_gia_phut']  = max( 1, (int) ( isset( $v['bao_gia_phut'] ) ? $v['bao_gia_phut'] : 15 ) );
 		$ra['toan_man']     = empty( $v['toan_man'] ) ? 0 : 1;
 		return $ra;
 	}

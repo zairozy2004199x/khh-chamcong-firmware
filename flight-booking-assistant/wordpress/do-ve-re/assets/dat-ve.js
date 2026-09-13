@@ -111,6 +111,15 @@ let poll, tick;
 function showOrder(o){
   $("#form").hidden = true;
   $("#payBox").hidden = false;
+  // chưa chốt giá thì chưa hiện số tài khoản: tránh khách chuyển theo giá tham khảo
+  const choBaoGia = o.status === "cho_bao_gia";
+  ["#qr","#bkName","#bkAcc","#bkOwner","#bkAmount","#bkNote"].forEach(s => {
+    const el = document.querySelector(s); if(el) el.closest(".split,.kv,div").style.opacity = choBaoGia ? ".35" : "1";
+  });
+  if(choBaoGia){
+    $("#payNote").textContent = "Giá trên bảng là giá tham khảo. Chúng tôi đang kiểm chỗ thật với hãng và báo giá chính thức trong khoảng "
+      + (o.baoGiaPhut || 15) + " phút — kèm số tài khoản. Chưa cần chuyển tiền lúc này.";
+  }
   $("#orderCode").textContent = o.code;
   $("#qr").src = o.qr || "";
   $("#qr").hidden = !o.qr;
@@ -147,6 +156,20 @@ async function refresh(code){
     tag.className = "tag " + (j.status === "da_xuat_ve" ? "ok"
       : ["hoan_tien","huy","het_han"].includes(j.status) ? "bad" : "wait");
     if(j.status !== "cho_thanh_toan"){ clearInterval(tick); $("#countdown").textContent = ""; }
+    if(j.status === "cho_thanh_toan" && j.bank){
+      // vừa được chốt giá: hiện số tài khoản và số tiền chính thức
+      $("#bkAcc").textContent = j.bank.account || "";
+      $("#bkName").textContent = j.bank.bankLabel || j.bank.bankId || "";
+      $("#bkOwner").textContent = j.bank.accountName || "";
+      $("#bkAmount").textContent = vnd(j.money.total);
+      $("#bkNote").textContent = j.code;
+      if(j.qr){ $("#qr").src = j.qr; $("#qr").hidden = false; }
+      ["#qr","#bkName","#bkAcc","#bkOwner","#bkAmount","#bkNote"].forEach(s => {
+        const el = document.querySelector(s); if(el) el.closest(".split,.kv,div").style.opacity = "1";
+      });
+      $("#payNote").textContent = "Đã có giá chính thức. Chuyển khoản theo số bên trên, giữ nguyên nội dung là mã đơn.";
+    }
+    if(j.status === "huy") $("#payNote").textContent = "Đơn đã huỷ — xem email để biết lý do. Chúng tôi chưa thu đồng nào.";
     if(j.status === "da_nhan_tien") $("#payNote").textContent = "Đã nhận tiền. Chúng tôi đang mua vé, mã đặt chỗ sẽ hiện ngay tại đây và gửi vào email.";
     if(j.status === "da_xuat_ve"){
       $("#pnrBox").hidden = false; $("#pnr").textContent = j.pnr;

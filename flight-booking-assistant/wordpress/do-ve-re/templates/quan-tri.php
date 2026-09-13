@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
   <div class="chips" id="filters">
     <button class="chip" data-f="" aria-pressed="true">Tất cả</button>
+    <button class="chip" data-f="cho_bao_gia" aria-pressed="false">Chờ báo giá</button>
     <button class="chip" data-f="cho_thanh_toan" aria-pressed="false">Chờ chuyển khoản</button>
     <button class="chip" data-f="da_nhan_tien" aria-pressed="false">Đã nhận tiền</button>
     <button class="chip" data-f="da_xuat_ve" aria-pressed="false">Đã xuất vé</button>

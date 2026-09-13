@@ -28,6 +28,13 @@ LOGO CÔNG TY
   Ô "Màu thương hiệu" nhận mã màu của logo, ví dụ vàng K&H là #C1960C — nút bấm
   và giá tiền sẽ chuyển sang màu đó, chữ trên nút tự đổi đen/trắng cho đọc được.
 
+CHỐT GIÁ TRƯỚC (bật sẵn)
+  Khách đặt xong KHÔNG thấy số tài khoản ngay. Đơn vào trạng thái "Chờ báo giá".
+  Mình mở trang hãng kiểm giá thật (dùng nút Điền hộ), rồi bấm "Chốt giá" và nhập
+  giá vé thật — lúc đó khách mới nhận email kèm số tài khoản và mã QR.
+  Hết chỗ ở mức giá đó thì bấm "Hết chỗ": khách nhận thư báo, chưa thu đồng nào.
+  Tắt trong Cài đặt khi nào nguồn giá đã là giá mua được thật.
+
 CHÂN TRANG
   Thông tin công ty (tên, mã số thuế, địa chỉ, chi nhánh, bản quyền) hiện ở cuối
   cả hai trang bán vé. Sửa trong Dò Vé Rẻ → Cài đặt, mục "Thông tin công ty ở

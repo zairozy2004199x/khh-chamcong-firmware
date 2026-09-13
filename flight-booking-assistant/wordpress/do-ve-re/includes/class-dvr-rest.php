@@ -47,6 +47,11 @@ class DVR_Rest {
 			'permission_callback' => array( __CLASS__, 'ai_cung_duoc' ),
 			'callback'            => array( __CLASS__, 'webhook' ),
 		) );
+		register_rest_route( self::NS, '/admin/thu-nguon', array(
+			'methods'             => 'GET',
+			'permission_callback' => array( __CLASS__, 'chi_quan_tri' ),
+			'callback'            => array( __CLASS__, 'thu_nguon' ),
+		) );
 		register_rest_route( self::NS, '/admin/orders', array(
 			'methods'             => 'GET',
 			'permission_callback' => array( __CLASS__, 'chi_quan_tri' ),
@@ -76,7 +81,9 @@ class DVR_Rest {
 			return new WP_REST_Response( array( 'error' => 'Thiếu tham số from / to / dep.' ), 400 );
 		}
 		$nguon = dvr_cai_dat( 'nguon', 'mo_phong' );
-		if ( 'duffel' === $nguon && dvr_cai_dat( 'duffel_token', '' ) ) {
+		if ( 'dai_ly' === $nguon && dvr_cai_dat( 'dl_url', '' ) ) {
+			$kq = DVR_Dai_Ly::tim_chuyen( $q );
+		} elseif ( 'duffel' === $nguon && dvr_cai_dat( 'duffel_token', '' ) ) {
 			$kq = DVR_Duffel::tim_chuyen( $q );
 		} elseif ( 'amadeus' === $nguon && dvr_cai_dat( 'amadeus_id', '' ) ) {
 			$kq = DVR_Amadeus::tim_chuyen( $q );
@@ -98,6 +105,17 @@ class DVR_Rest {
 		return new WP_REST_Response( $kq, 200 );
 	}
 
+	/** Gọi thử API đại lý và trả về nguyên văn, để khai bảng ánh xạ cho khớp. */
+	public static function thu_nguon() {
+		$q  = array( 'from' => 'SGN', 'to' => 'HAN', 'dep' => gmdate( 'Y-m-d', time() + 14 * DAY_IN_SECONDS ),
+			'ret' => '', 'adt' => 1, 'chd' => 0, 'inf' => 0, 'cabin' => 'ECONOMY' );
+		$kq = DVR_Dai_Ly::goi( $q );
+		if ( is_wp_error( $kq ) ) {
+			return new WP_REST_Response( array( 'error' => $kq->get_error_message() ), 200 );
+		}
+		return new WP_REST_Response( array( 'body' => $kq, 'doc_duoc' => count( DVR_Dai_Ly::doi_du_lieu( $kq, $q ) ) ), 200 );
+	}
+
 	/* ---------- đơn hàng ---------- */
 	public static function tao_don( $req ) {
 		$b = $req->get_json_params();
@@ -109,7 +127,7 @@ class DVR_Rest {
 			return new WP_REST_Response( array( 'error' => implode( '; ', $loi ) ), 400 );
 		}
 		$don = DVR_Store::tao( $b, $pax );
-		DVR_Mail::gui( $don['code'], 'moi' );
+		DVR_Mail::gui( $don['code'], 'cho_bao_gia' === $don['status'] ? 'cho_bao_gia' : 'moi' );
 		$don = DVR_Store::lay( $don['code'] );
 		return new WP_REST_Response( self::cho_khach( $don, true ), 201 );
 	}
@@ -125,7 +143,7 @@ class DVR_Rest {
 	/** Bản đơn cho khách xem: bỏ giá mình mua vào và nhật ký nội bộ. */
 	private static function cho_khach( $o, $moi_tao = false ) {
 		$cd   = dvr_cai_dat();
-		$chua = 'cho_thanh_toan' === $o['status'];
+		$chua = 'cho_thanh_toan' === $o['status'];   // chưa chốt giá thì chưa có số tài khoản, chưa có QR
 		return array(
 			'code'       => $o['code'],
 			'status'     => $o['status'],
@@ -141,14 +159,15 @@ class DVR_Rest {
 			),
 			'pnr'        => $o['pnr'],
 			'paxCount'   => count( (array) $o['pax'] ),
-			'bank'       => $chua || $moi_tao ? array(
+			'baoGiaPhut' => (int) dvr_cai_dat( 'bao_gia_phut', 15 ),
+			'bank'       => $chua ? array(
 				'bankId'       => $cd['bank_id'],
 				'bankLabel'    => $cd['bank_label'],
 				'account'      => $cd['bank_account'],
 				'accountName'  => $cd['bank_name'],
 				'transferNote' => $o['code'],
 			) : null,
-			'qr'         => $chua || $moi_tao ? dvr_qr( $o['money']['total'], $o['code'] ) : '',
+			'qr'         => $chua ? dvr_qr( $o['money']['total'], $o['code'] ) : '',
 		);
 	}
 
@@ -220,7 +239,32 @@ class DVR_Rest {
 			return new WP_REST_Response( array( 'error' => 'Không có đơn ' . $code ), 400 );
 		}
 
-		if ( 'paid' === $act ) {
+		if ( 'quote' === $act ) {
+			// chốt giá thật sau khi kiểm chỗ với hãng; đồng hồ giữ giá bắt đầu từ đây
+			$ve = isset( $b['fare'] ) ? (int) $b['fare'] : 0;
+			if ( $ve <= 0 ) {
+				return new WP_REST_Response( array( 'error' => 'Nhập giá vé thật (đồng).' ), 400 );
+			}
+			$phi  = DVR_Store::tinh_phi( $ve );
+			$het  = gmdate( 'Y-m-d H:i:s', strtotime( current_time( 'mysql' ) ) + (int) dvr_cai_dat( 'hold_minutes', 30 ) * 60 );
+			$cu   = (int) $don['money']['fare'];
+			DVR_Store::sua(
+				$code,
+				array(
+					'total'      => $ve + $phi,
+					'status'     => 'cho_thanh_toan',
+					'expires_at' => $het,
+					'data'       => array( 'money' => array_merge( $don['money'], array( 'fare' => $ve, 'fee' => $phi, 'total' => $ve + $phi ) ) ),
+				),
+				'Chốt giá ' . dvr_tien( $ve ) . ' (tham khảo lúc đặt ' . dvr_tien( $cu ) . ')'
+					. ( $ve > $cu ? ' — cao hơn ' . dvr_tien( $ve - $cu ) : ( $ve < $cu ? ' — thấp hơn ' . dvr_tien( $cu - $ve ) : '' ) )
+			);
+			DVR_Mail::gui( $code, 'bao_gia' );
+		} elseif ( 'hetcho' === $act ) {
+			DVR_Store::sua( $code, array( 'status' => 'huy' ),
+				'Hết chỗ ở mức giá tham khảo' . ( ! empty( $b['reason'] ) ? ' — ' . sanitize_text_field( $b['reason'] ) : '' ) );
+			DVR_Mail::gui( $code, 'het_cho' );
+		} elseif ( 'paid' === $act ) {
 			$tien = isset( $b['amount'] ) ? (int) $b['amount'] : (int) $don['money']['total'];
 			DVR_Store::sua( $code, array( 'paid' => $tien, 'status' => 'da_nhan_tien',
 				'data' => array( 'thieu' => (int) $don['money']['total'] - $tien ) ), 'Đánh dấu đã nhận tiền (tay)' );
@@ -242,7 +286,7 @@ class DVR_Rest {
 			DVR_Store::sua( $code, array( 'status' => 'huy' ),
 				'Huỷ đơn' . ( ! empty( $b['reason'] ) ? ' — ' . sanitize_text_field( $b['reason'] ) : '' ) );
 		} elseif ( 'mail' === $act ) {
-			$map  = array( 'cho_thanh_toan' => 'moi', 'het_han' => 'moi', 'da_nhan_tien' => 'da_nhan_tien',
+			$map  = array( 'cho_bao_gia' => 'cho_bao_gia', 'cho_thanh_toan' => 'bao_gia', 'het_han' => 'bao_gia', 'da_nhan_tien' => 'da_nhan_tien',
 				'dang_dat_ve' => 'da_nhan_tien', 'da_xuat_ve' => 'da_xuat_ve', 'hoan_tien' => 'hoan_tien' );
 			$kind = ! empty( $b['kind'] ) ? $b['kind'] : ( isset( $map[ $don['status'] ] ) ? $map[ $don['status'] ] : '' );
 			if ( ! $kind ) {
