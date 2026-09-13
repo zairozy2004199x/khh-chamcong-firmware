@@ -304,6 +304,10 @@ section.sec>.hint{max-width:74ch}
       <label for="proxyUrl">Địa chỉ proxy</label>
       <input id="proxyUrl" placeholder="http://localhost:8787" spellcheck="false" autocomplete="off">
     </div>
+    <div class="field">
+      <label for="orderUrl">Máy chủ đơn hàng (bán qua mình)</label>
+      <input id="orderUrl" placeholder="http://localhost:8788" spellcheck="false" autocomplete="off">
+    </div>
     <div class="actions">
       <button class="btn sm" type="button" id="useProxy">Dùng nguồn này</button>
       <button class="btn ghost sm" type="button" id="clearProxy">Về giá mô phỏng</button>
@@ -955,6 +959,19 @@ function readQuery(){
 
 /* ---------------- nguồn giá thật (proxy) ---------------- */
 const PROXY_KEY = "dovere.proxy.v1";
+const ORDER_KEY = "dovere.orders.v1";
+function loadOrderBase(){ try { return localStorage.getItem(ORDER_KEY) || ""; } catch(e){ return ""; } }
+function orderLink(o, q){
+  const base = loadOrderBase().replace(/\/+$/, "");
+  if(!base) return "";
+  return base + "/dat-ve.html?" + new URLSearchParams({
+    route: q.from.code + "-" + q.to.code, date: q.dep,
+    airline: o.al.code, number: o.code, dep: o.dep, arr: o.arr,
+    stops: o.stops, bag: o.bag ? "1" : "0", cabin: q.cabin,
+    fare: Math.round(o.price), total: Math.round(o.total || paxPrice(o.price, q)), cur: o.cur || "VND",
+    adt: q.adt, chd: q.chd, inf: q.inf
+  });
+}
 function loadProxy(){ try { return localStorage.getItem(PROXY_KEY) || ""; } catch(e){ return ""; } }
 function setProxy(v){ try { v ? localStorage.setItem(PROXY_KEY, v) : localStorage.removeItem(PROXY_KEY); } catch(e){} }
 async function api(path){
@@ -1051,7 +1068,10 @@ function renderBoard(q, all, live){
         + '<div class="r-meta">' + o.code + ' · ' + durTxt(o.mins) + ' · ' + (o.stops ? o.stops + " điểm dừng" : "bay thẳng")
           + ' · ' + bagTxt + '</div></div>'
         + '<div class="r-chan"><b>' + o.seller.name + '</b>' + o.seller.note
-          + '<a class="go" href="' + url + '" target="_blank" rel="noopener">Đặt</a></div>'
+          + '<a class="go" href="' + url + '" target="_blank" rel="noopener">Tự đặt</a>'
+          + (orderLink(o, q) ? '<a class="go" style="border-color:var(--amber-bright);color:var(--amber-bright)" href="'
+              + orderLink(o, q) + '" target="_blank" rel="noopener">Đặt qua mình</a>' : "")
+          + '</div>'
         + '<div class="r-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
           + '<i>tổng ' + money(tong, o.cur) + '</i></div>'
         + '</article>';
@@ -1396,6 +1416,12 @@ $("#clearProxy").addEventListener("click", () => {
     "Chạy node server/proxy.mjs trong repo rồi dán địa chỉ proxy vào đây là bảng giá chuyển sang dữ liệu Amadeus thật.");
   run();
 });
+$("#orderUrl").addEventListener("change", () => {
+  const v = $("#orderUrl").value.trim().replace(/\/+$/, "");
+  try { v ? localStorage.setItem(ORDER_KEY, v) : localStorage.removeItem(ORDER_KEY); } catch(e){}
+  toast(v ? "Đã bật nút “Đặt qua mình” trên từng chuyến." : "Đã tắt nút “Đặt qua mình”.");
+  run();
+});
 $("#saveProfile").addEventListener("click", save);
 $("#saveSites").addEventListener("click", saveSites);
 $("#copyLearn").addEventListener("click", () => copy(learnSrc(), "Đã chép mã “Học form”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
@@ -1429,6 +1455,7 @@ $("#ret").min = iso(new Date());
 load();
 showSites();
 $("#proxyUrl").value = loadProxy();
+$("#orderUrl").value = loadOrderBase();
 refreshFill();
 run();
 </script>

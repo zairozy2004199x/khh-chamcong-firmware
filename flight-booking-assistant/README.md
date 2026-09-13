@@ -11,7 +11,10 @@ flight-booking-assistant/
 ├── learn-bookmarklet.js    chế độ "Học form": ghi luật riêng cho đúng trang của hãng
 ├── server/proxy.mjs        proxy giá thật (Amadeus) + tra mã số thuế — không phụ thuộc thư viện nào
 ├── server/test-proxy.mjs   22 test chạy bằng Amadeus giả, không cần khoá
-└── automation/dat-ve.mjs   script Playwright: mở trang, điền hồ sơ, dừng trước thanh toán
+├── booking/server.mjs      máy chủ đơn hàng: khách trả tiền cho mình, mình đi mua vé
+├── booking/public/         trang khách đặt (dat-ve.html) và trang mình xử lý (quan-tri.html)
+└── booking/test-booking.mjs 31 test cả vòng đời đơn, không cần ngân hàng thật
+    automation/dat-ve.mjs   script Playwright: mở trang, điền hồ sơ, dừng trước thanh toán
 ```
 
 ## Chạy
@@ -144,13 +147,63 @@ Gõ đủ 10 số vào ô **Mã số thuế**, proxy hỏi dịch vụ tra cứu
 đổi sang dịch vụ khác bằng `TAX_BASE`. Kết quả nhớ trong 24 giờ. Máy chỉ điền vào ô đang trống —
 anh đã tự gõ thì nó không đè lên.
 
-### Duffel — khi muốn thanh toán ngay trên web của mình
+## Bán qua mình — khách trả tiền cho mình, mình đi mua vé
 
-Amadeus Self-Service chỉ **tra giá**; đặt và thu tiền phải sang trang hãng. Muốn khách trả tiền ngay
-trên web của mình thì mình phải là bên bán vé: dùng [Duffel](https://duffel.com) (`POST /air/offer_requests`
-→ `POST /air/orders` kèm payment), hoặc Amadeus Enterprise / Sabre qua đại lý. Chuyện này vướng giấy tờ
-nhiều hơn vướng code: hợp đồng đại lý hoặc số IATA, tài khoản merchant, và trách nhiệm hoàn/đổi vé
-thuộc về mình. Xem mục *Máy làm tới đâu* trong trang.
+```bash
+BANK_ID=970436 BANK_ACCOUNT=0071000123456 BANK_NAME="CONG TY TNHH K&H" BANK_LABEL=Vietcombank \
+ADMIN_TOKEN=$(openssl rand -base64 12) WEBHOOK_SECRET=$(openssl rand -base64 12) \
+FEE_PCT=3 FEE_MIN=50000 HOLD_MINUTES=30 node booking/server.mjs
+```
+
+- Khách đặt: `http://localhost:8788/dat-ve.html` — mở từ nút **Đặt qua mình** trên bảng giá, chuyến và
+  giá đi kèm sẵn trên đường dẫn. Khai địa chỉ máy chủ này vào ô *Máy chủ đơn hàng* ở đầu trang chính
+  thì nút đó mới hiện.
+- Mình xử lý: `http://localhost:8788/quan-tri.html` — dán `ADMIN_TOKEN` để vào.
+
+Vòng đời một đơn:
+
+| Trạng thái | Ai làm gì |
+|---|---|
+| `cho_thanh_toan` | khách nhận mã QR VietQR, số tiền và nội dung (mã đơn) nằm sẵn trong mã |
+| `da_nhan_tien` | webhook ngân hàng khớp mã đơn trong nội dung chuyển khoản, hoặc mình bấm tay |
+| `da_xuat_ve` | mình mua vé xong, nhập mã đặt chỗ (và giá mua vào để tính chênh lệch) |
+| `hoan_tien` / `huy` | mua hụt hoặc khách đổi ý |
+| `het_han` | quá `HOLD_MINUTES` mà chưa chuyển khoản — giá thôi được giữ |
+
+Từ trang quản trị, mỗi đơn có nút **Điền hộ** mang đúng thông tin khách của đơn đó: kéo lên thanh dấu
+trang, mở trang hãng, bấm một cái là form đầy. Mua xong bấm **Mã đặt chỗ**, đơn đóng lại và khách thấy
+mã ngay trên trang của họ.
+
+### Tiền về thì máy tự biết
+
+Nội dung chuyển khoản chính là mã đơn (`DVR26090001`). Đăng ký một dịch vụ báo biến động số dư
+(SePay, Casso…) trỏ webhook về `POST /api/webhook/bank`, đặt `WEBHOOK_SECRET` trùng với khoá của họ.
+Máy dò mã đơn trong nội dung kể cả khi ngân hàng chèn thêm chữ hay dấu cách, đối chiếu số tiền, thiếu
+bao nhiêu ghi rõ bấy nhiêu, và tiền về lần hai không ghi đè đơn đã xử lý. Chưa dùng dịch vụ nào thì
+bấm tay nút **Đã nhận tiền**.
+
+### Những chỗ dễ mất tiền
+
+- **Giá đổi giữa lúc khách trả và lúc mình mua.** `HOLD_MINUTES` giữ giá, hết giờ đơn tự thành
+  `het_han`; tiền về sau hạn vẫn nhận nhưng đơn gắn cờ *trả sau hạn giữ giá* để mình quyết mua tiếp
+  hay hoàn. Đặt `FEE_PCT` đủ bù dao động là hợp lý.
+- **Mua hụt phải hoàn nhanh.** Có nút riêng và ghi vào nhật ký đơn.
+- **Không bao giờ nhận số thẻ.** Khách chuyển khoản; không có chỗ nào trong hệ thống lưu thẻ, nên
+  không phải lo PCI-DSS.
+
+### Sau này: quẹt thẻ ngay trên web
+
+Có pháp nhân rồi thì mở cổng VNPay/MoMo/ZaloPay được — khách trả bằng thẻ hoặc ví ngay trên trang,
+đơn tự sang `da_nhan_tien` khi cổng báo về, phần còn lại của luồng giữ nguyên. Muốn tự xuất vé luôn
+(không phải vào trang hãng bấm tay) thì cần [Duffel](https://duffel.com) hoặc Amadeus Enterprise /
+Sabre qua đại lý — lúc đó mình gánh cả hoàn/đổi vé và tranh chấp thẻ.
+
+### Kiểm thử
+
+```bash
+node booking/test-booking.mjs   # 31 test: tạo đơn, chặn đơn sai, webhook khớp mã,
+                                # thiếu tiền, quản trị, hoàn tiền, hết hạn giữ giá
+```
 
 ## Script tự đặt (Playwright)
 

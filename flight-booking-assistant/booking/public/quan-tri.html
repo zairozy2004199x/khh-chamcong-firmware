@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đơn hàng · Dò Vé Rẻ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap{max-width:1180px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    padding:7px 10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink-2);cursor:pointer}
+  .chip[aria-pressed="true"]{background:var(--board);color:var(--board-ink);border-color:var(--board)}
+  .acts{display:flex;flex-wrap:wrap;gap:6px}
+  .acts button,.acts a{font:600 12px/1 "IBM Plex Sans",sans-serif;padding:6px 9px;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);cursor:pointer;text-decoration:none}
+  .acts button:hover,.acts a:hover{border-color:var(--amber-bright);color:var(--amber)}
+  .acts .go{background:var(--amber-bright);color:var(--on-amber);border-color:var(--amber-bright)}
+  .log{font-size:12px;color:var(--muted);margin-top:6px;display:grid;gap:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="row" style="justify-content:space-between;align-items:end">
+    <div>
+      <span class="eyebrow">Bảng điều khiển</span>
+      <h1>Đơn hàng</h1>
+    </div>
+    <div class="row">
+      <div class="field" style="min-width:220px"><label for="token">Token quản trị</label><input id="token" type="password" autocomplete="off"></div>
+      <button class="btn sm" type="button" id="load">Xem đơn</button>
+    </div>
+  </header>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="chips" id="filters">
+    <button class="chip" data-f="" aria-pressed="true">Tất cả</button>
+    <button class="chip" data-f="cho_thanh_toan" aria-pressed="false">Chờ chuyển khoản</button>
+    <button class="chip" data-f="da_nhan_tien" aria-pressed="false">Đã nhận tiền</button>
+    <button class="chip" data-f="da_xuat_ve" aria-pressed="false">Đã xuất vé</button>
+    <button class="chip" data-f="het_han" aria-pressed="false">Quá hạn</button>
+    <button class="chip" data-f="hoan_tien" aria-pressed="false">Hoàn tiền</button>
+  </div>
+
+  <div class="panel scroll">
+    <table>
+      <thead><tr><th>Đơn</th><th>Chuyến</th><th>Khách</th><th>Tiền</th><th>Trạng thái</th><th>Việc cần làm</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="6" class="hint">Nhập token rồi bấm “Xem đơn”.</td></tr></tbody>
+    </table>
+  </div>
+
+  <p class="hint" id="msg"></p>
+  <footer class="hint">
+    Nút <b>Điền hộ</b> ở mỗi đơn mang đúng thông tin khách của đơn đó: kéo lên thanh dấu trang, mở trang hãng, bấm nó.
+    Mua xong thì bấm <b>Mã đặt chỗ</b> để đóng đơn — nhập cả giá mua vào thì bảng trên tự tính lãi.
+  </footer>
+</div>
+
+<script src="/autofill.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const vnd = n => new Intl.NumberFormat("vi-VN").format(Math.round(n || 0)) + "đ";
+const KEY = "dovere.admin.token";
+let filter = "", timer;
+
+try { $("#token").value = localStorage.getItem(KEY) || ""; } catch(e){}
+
+async function api(path, body){
+  const r = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "content-type": "application/json", "x-admin-token": $("#token").value.trim() },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ("máy chủ trả " + r.status));
+  return j;
+}
+
+function fillPayload(o){
+  const pax = (o.pax || []).map(p => {
+    const parts = String(p.full || "").trim().split(/\s+/);
+    const [y,m,d] = String(p.dob || "").split("-");
+    return {
+      full: p.full || "", last: parts[0] || "", first: parts.slice(1).join(" ") || parts[0] || "",
+      dob: d ? d + "/" + m + "/" + y : "", dobIso: p.dob || "",
+      genderVi: "Nam", genderEn: "Male", genderShort: "M",
+      idNo: p.idNo || "", natVi: "Việt Nam", natEn: "Vietnam", natCode: "VN"
+    };
+  });
+  const iv = o.invoice || {}, ct = o.contact || {};
+  return {
+    pax,
+    contact: { name: ct.name || "", phone: ct.phone || "", email: ct.email || "" },
+    invoice: { company: iv.company || "", tax: iv.tax || "", email: iv.email || ct.email || "", addr: iv.addr || "", buyer: iv.buyer || ct.name || "" },
+    pay: { holder: "" },
+    trip: {
+      from: (o.flight.route || "").split("-")[0] || "", to: (o.flight.route || "").split("-")[1] || "",
+      dep: (o.flight.date || "").split("-").reverse().join("-"), depIso: o.flight.date || "",
+      ret: "", retIso: "", adt: (o.pax || []).length, chd: 0, inf: 0
+    },
+    sites: {}
+  };
+}
+const fillHref = o => "javascript:" + encodeURIComponent("(" + DVR_FILL.toString() + ")(" + JSON.stringify(fillPayload(o)) + ");void 0;");
+
+const AIRLINE = { VN:"https://www.vietnamairlines.com/vn/vi/home", VJ:"https://www.vietjetair.com/vi",
+                  QH:"https://www.bambooairways.com/vn/vi/", VU:"https://www.vietravelairlines.com/vi" };
+
+function tag(o){
+  const cls = o.status === "da_xuat_ve" ? "ok" : ["hoan_tien","huy","het_han"].includes(o.status) ? "bad" : "wait";
+  return '<span class="tag ' + cls + '">' + o.statusText + '</span>';
+}
+
+function render(j){
+  const t = j.tong;
+  $("#tiles").innerHTML =
+    '<div class="tile"><span class="lbl">Đơn</span><b>' + t.don + '</b></div>'
+  + '<div class="tile"><span class="lbl">Đã thu của khách</span><b>' + vnd(t.daThu) + '</b></div>'
+  + '<div class="tile"><span class="lbl">Đã trả cho hãng</span><b>' + vnd(t.daMua) + '</b></div>'
+  + '<div class="tile"><span class="lbl">Chênh lệch</span><b style="color:var(--cheap)">' + vnd(t.lai) + '</b></div>';
+
+  const list = filter ? j.orders.filter(o => o.status === filter) : j.orders;
+  $("#rows").innerHTML = list.length ? list.map(o => {
+    const canPay = o.status === "cho_thanh_toan" || o.status === "het_han";
+    const canBook = ["da_nhan_tien","dang_dat_ve"].includes(o.status);
+    const site = AIRLINE[o.flight.airline] || "";
+    return '<tr><td><b class="num">' + o.code + '</b><div class="hint">'
+      + new Date(o.createdAt).toLocaleString("vi-VN", { hour:"2-digit", minute:"2-digit", day:"2-digit", month:"2-digit" }) + '</div></td>'
+      + '<td>' + o.flight.route + '<div class="hint">' + o.flight.airline + " " + o.flight.number + " · "
+      + o.flight.date + " · " + o.flight.dep + "</div>"
+      + (o.pnr ? '<div class="num" style="color:var(--cheap)">' + o.pnr + '</div>' : "") + '</td>'
+      + '<td>' + (o.pax || []).map(p => p.full).join("<br>")
+      + '<div class="hint">' + (o.contact.phone || "") + "</div></td>"
+      + '<td class="money">' + vnd(o.money.total)
+      + (o.money.paid ? '<div class="hint">đã nhận ' + vnd(o.money.paid) + (o.thieu > 0 ? " · thiếu " + vnd(o.thieu) : "") + "</div>" : "")
+      + (o.money.cost ? '<div class="hint">mua ' + vnd(o.money.cost) + " · chênh " + vnd(o.money.paid - o.money.cost) + "</div>" : "")
+      + '</td>'
+      + '<td>' + tag(o) + (o.quaHan ? '<div class="hint" style="color:var(--warn)">trả sau hạn giữ giá</div>' : "")
+      + '<div class="log">' + (o.log || []).slice(-2).map(l => "· " + l.what).join("<br>") + '</div></td>'
+      + '<td><div class="acts">'
+      + (canPay ? '<button data-act="paid" data-code="' + o.code + '">Đã nhận tiền</button>' : "")
+      + (canBook ? '<a class="go" href="' + fillHref(o) + '" title="Kéo lên thanh dấu trang rồi bấm khi đang ở trang hãng">Điền hộ</a>' : "")
+      + (canBook && site ? '<a href="' + site + '" target="_blank" rel="noopener">Trang hãng</a>' : "")
+      + (canBook ? '<button data-act="booking" data-code="' + o.code + '">Mã đặt chỗ</button>' : "")
+      + (o.status !== "hoan_tien" && o.status !== "huy" && o.status !== "da_xuat_ve"
+          ? '<button data-act="refund" data-code="' + o.code + '">Hoàn tiền</button>'
+            + '<button data-act="cancel" data-code="' + o.code + '">Huỷ</button>' : "")
+      + '</div></td></tr>';
+  }).join("") : '<tr><td colspan="6" class="hint">Không có đơn nào ở nhóm này.</td></tr>';
+}
+
+async function load(){
+  try {
+    localStorage.setItem(KEY, $("#token").value.trim());
+  } catch(e){}
+  try {
+    render(await api("/api/admin/orders"));
+    $("#msg").textContent = "Cập nhật lúc " + new Date().toLocaleTimeString("vi-VN");
+    clearInterval(timer);
+    timer = setInterval(load, 20000);
+  } catch(e){
+    $("#msg").textContent = "Không xem được: " + e.message;
+    clearInterval(timer);
+  }
+}
+$("#load").addEventListener("click", load);
+$("#token").addEventListener("keydown", e => { if(e.key === "Enter") load(); });
+
+$("#filters").addEventListener("click", e => {
+  const b = e.target.closest("[data-f]"); if(!b) return;
+  filter = b.dataset.f;
+  [...$("#filters").children].forEach(c => c.setAttribute("aria-pressed", c === b ? "true" : "false"));
+  load();
+});
+
+$("#rows").addEventListener("click", async e => {
+  const b = e.target.closest("button[data-act]"); if(!b) return;
+  const { act, code } = b.dataset;
+  try {
+    if(act === "paid"){
+      const amount = prompt("Số tiền thực nhận cho đơn " + code + " (đ):");
+      if(amount === null) return;
+      await api("/api/admin/orders/" + code + "/paid", { amount: +String(amount).replace(/\D/g,"") });
+    } else if(act === "booking"){
+      const pnr = prompt("Mã đặt chỗ (PNR) của đơn " + code + ":");
+      if(!pnr) return;
+      const cost = prompt("Giá mua vào (đ) — để tính chênh lệch, bỏ trống cũng được:") || 0;
+      await api("/api/admin/orders/" + code + "/booking", { pnr, cost: +String(cost).replace(/\D/g,"") });
+    } else if(act === "refund"){
+      const reason = prompt("Lý do hoàn tiền đơn " + code + ":") || "";
+      await api("/api/admin/orders/" + code + "/refund", { reason });
+    } else if(act === "cancel"){
+      const reason = prompt("Lý do huỷ đơn " + code + ":") || "";
+      await api("/api/admin/orders/" + code + "/cancel", { reason });
+    }
+    load();
+  } catch(err){ $("#msg").textContent = "Không làm được: " + err.message; }
+});
+
+if($("#token").value) load();
+</script>
+</body>
+</html>
