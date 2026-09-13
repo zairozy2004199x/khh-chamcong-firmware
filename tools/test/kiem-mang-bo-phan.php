@@ -462,4 +462,70 @@ teq( 'vai_vao_duoc() chỉ được gọi từ dem_vai()', 1,
 	substr_count( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php' ),
 		'self::vai_vao_duoc(' ) );
 
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 8. VAI THEO BỘ PHẬN — GỢI Ý, KHÔNG ĐƯỢC CẮT LỰA CHỌN
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng: *"Chỗ Vai Trò nó sẽ sinh ra khi chọn bộ phận phải không. VD nếu Khối cơ sở nó sinh
+ * ra là nhân viên, cửa hàng trưởng, cửa hàng phó"*.
+ *
+ * 🔴 CÁCH HIỂN NHIÊN LÀ CÁI BẪY. Lọc ô xổ chỉ còn vai của bộ phận thì người đang mang vai NGOÀI
+ *    bộ phận sẽ mất lựa chọn ấy, ô NHẢY VỀ DÒNG ĐẦU, và một cú bấm Lưu đổi vai của họ mà không
+ *    ai định đổi. Đúng cái `o_vai()` đã phải chống với vai "Kế Toán MTD".
+ *    Nên: chia NHÓM (`optgroup`), bày vai của bộ phận lên đầu, KHÔNG bỏ vai nào.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 8. Vai gợi ý theo bộ phận ───────────────────────────\n";
+
+$ban_v = VHCC_NhanSu::vai_theo_bo_phan();
+t( 'hạt giống khai đúng MỘT dòng anh Thắng đã nói', isset( $ban_v[ VHCC_NhanSu::BP_CO_SO ] ), $ban_v );
+teq( '🔴 và KHÔNG đoán hộ phòng ban nào khác', 1, count( $ban_v ) );
+
+/* Người thuộc Khối cơ sở -> có gợi ý; vai chưa tồn tại thì kê vào 'thieu', không im lặng bỏ. */
+$gy = VHCC_NhanSu::vai_goi_y( VHCC_NhanSu::ho_so( 'NV_VIVO' ) );
+teq( 'bộ phận suy ra đúng', VHCC_NhanSu::BP_CO_SO, $gy['boPhan'] );
+t( 'gợi ý có Nhân viên và Cửa hàng trưởng', in_array( 'Nhân viên', $gy['trong'], true )
+	&& in_array( 'Cửa hàng trưởng', $gy['trong'], true ), $gy );
+t( '🔴 "Cửa hàng phó" chưa có trong hệ -> kê vào THIẾU, không im lặng bỏ',
+	in_array( 'Cửa hàng phó', $gy['thieu'], true ), $gy );
+
+/* Khai vai ấy rồi thì nó chuyển từ 'thieu' sang 'trong'. */
+$r_v = VHCC_Vai::dat_them( $ad_v, 'Cửa hàng phó', 'CUA_HANG_TRUONG' );
+t( 'khai được vai Cửa hàng phó', ! empty( $r_v['ok'] ), $r_v );
+$gy = VHCC_NhanSu::vai_goi_y( VHCC_NhanSu::ho_so( 'NV_VIVO' ) );
+t( '🔴 khai xong thì hết THIẾU', empty( $gy['thieu'] ), $gy );
+t( 'và nó vào nhóm gợi ý', in_array( 'Cửa hàng phó', $gy['trong'], true ), $gy );
+
+/* Người VĂN PHÒNG: bộ phận chưa khai vai -> không gợi ý gì, ô xổ y như cũ. */
+$gy = VHCC_NhanSu::vai_goi_y( VHCC_NhanSu::ho_so( 'NV_VP' ) );
+teq( '🔴 bộ phận chưa khai vai -> không gợi ý (trạng thái an toàn)', array(), $gy['trong'] );
+
+/* --- chốt quyền + danh sách trắng của bộ phận --- */
+$r_v = VHCC_NhanSu::dat_vai_bo_phan( $nhan_vien, VHCC_NhanSu::BP_CO_SO, array( 'Nhân viên' ) );
+t( '🔴 nhân viên KHÔNG khai được vai cho bộ phận', empty( $r_v['ok'] ), $r_v );
+$r_v = VHCC_NhanSu::dat_vai_bo_phan( $ke_toan, 'Phòng Trên Trời', array( 'Nhân viên' ) );
+t( '🔴 bộ phận lạ bị chối', empty( $r_v['ok'] ), $r_v );
+$r_v = VHCC_NhanSu::dat_vai_bo_phan( $ke_toan, 'Phòng Kỹ Thuật', array( 'Nhân viên', 'Quản lý' ) );
+t( 'kế toán khai được cho bộ phận có thật', ! empty( $r_v['ok'] ), $r_v );
+teq( 'lưu đúng hai vai', 2, $r_v['so'] );
+/* Bỏ tích hết = thôi gợi ý. Phải làm được, không thì khai nhầm một lần là kẹt. */
+$r_v = VHCC_NhanSu::dat_vai_bo_phan( $ke_toan, 'Phòng Kỹ Thuật', array() );
+t( 'bỏ khai được', ! empty( $r_v['ok'] ) );
+t( 'và bộ phận ấy hết khai', ! isset( VHCC_NhanSu::vai_theo_bo_phan()['Phòng Kỹ Thuật'] ) );
+
+/* ⚠️ Khai vai cho bộ phận TRƯỚC rồi tạo vai SAU là thứ tự tự nhiên — không được chối. */
+$r_v = VHCC_NhanSu::dat_vai_bo_phan( $ke_toan, 'Phòng Marketing', array( 'Vai Chưa Tạo' ) );
+t( '🔴 khai một vai CHƯA tồn tại vẫn được nhận (khai trước, tạo sau)', ! empty( $r_v['ok'] ), $r_v );
+
+/* --- màn hình: chia nhóm, KHÔNG cắt --- */
+$src_v = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( '🔴 ô Vai trò chia NHÓM bằng optgroup', strpos( $src_v, '<optgroup label=' ) !== false );
+t( 'có khối khai vai theo bộ phận', strpos( $src_v, 'Vai trò theo bộ phận' ) !== false );
+t( 'màn nói rõ đây là GỢI Ý, không phải chốt quyền',
+	strpos( $src_v, 'không phải chốt quyền' ) !== false );
+/* 🔴 Phép canh cốt tử: vòng lặp vẽ ô xổ chỉ được BỎ QUA vai đã bày ở nhóm trên, tuyệt đối
+   không bỏ qua vai vì nó "ngoài bộ phận". */
+t( '🔴 vòng vẽ ô xổ chỉ bỏ qua vai ĐÃ BÀY ở nhóm trên, không lọc theo bộ phận',
+	strpos( $src_v, "if ( isset( \$uu[ \$ten ] ) ) { continue; }   // đã bày ở nhóm trên" ) !== false );
+
 ket_luan_vai();

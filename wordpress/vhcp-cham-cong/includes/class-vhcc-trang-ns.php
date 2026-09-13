@@ -207,6 +207,7 @@ class VHCC_TrangNS {
 		if ( 'them_vai' === $viec )    { return self::viec_them_vai( $toi ); }
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
+		if ( 'vai_bp' === $viec )      { return self::viec_vai_bp( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
 		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
@@ -1188,6 +1189,9 @@ class VHCC_TrangNS {
 		self::the_quyen_noi_bo( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
+		/* Ngay SAU Bảng vai trò: khai vai cho bộ phận chỉ có nghĩa khi vai đã tồn tại, nên hai
+		   khối phải đứng cạnh nhau và đúng thứ tự đọc. */
+		self::the_vai_bp( $toi );
 		self::the_dau_viec( $toi );
 		self::the_ngoai_pham_vi();
 		self::the_mac_dinh( $ds_trang );
@@ -1950,7 +1954,7 @@ class VHCC_TrangNS {
 			}
 			echo '</td>';
 			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'], $r ) . '</td>';
-			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) . '</td>';
+			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '', $r ) . '</td>';
 			list( $o_mang, $o_bp ) = self::o_mang_bp( $toi, $ma, $r );
 			echo '<td>' . $o_mang . '</td><td>' . $o_bp . '</td>';
 
@@ -2423,7 +2427,7 @@ class VHCC_TrangNS {
 		return array( 'doi' => $doi, 'loi' => $loi );
 	}
 
-	private static function o_vai( $toi, $ma, $vai_cu ) {
+	private static function o_vai( $toi, $ma, $vai_cu, $hs = array() ) {
 		$ma_vai  = VHCC_Vai::ma( $vai_cu );
 		$ten_cu  = VHCC_Vai::TEN[ $ma_vai ];
 		$bac_toi = VHCC_Vai::bac( $toi );
@@ -2447,13 +2451,33 @@ class VHCC_TrangNS {
 		/* Đọc `VHCC_Vai::ds_ten()` chứ không đọc hằng của `VHCC_Auth`: danh sách nay gồm cả vai
 		   TỰ TẠO ("Kế toán POSH", "Kế toán nhân sự"…). Đọc hằng thì vai vừa khai không có mặt
 		   trong ô xổ — khai xong không gán được cho ai, tức là khai để đấy. */
-		foreach ( VHCC_Vai::ds_ten() as $ten ) {
-			if ( VHCC_Vai::bac( array( 'role' => $ten ) ) > $bac_toi ) { continue; }
+		/* 🔴 GỢI Ý THEO BỘ PHẬN — BÀY LÊN ĐẦU, KHÔNG CẮT BỚT.
+		   Anh Thắng: *"nếu Khối cơ sở nó sinh ra là nhân viên, cửa hàng trưởng, cửa hàng phó"*.
+		   Cách hiển nhiên (lọc ô xổ chỉ còn vai của bộ phận) là một cái bẫy: người đang mang vai
+		   ngoài bộ phận thì lựa chọn ấy biến mất, ô NHẢY VỀ DÒNG ĐẦU, và một cú bấm Lưu đổi vai
+		   của họ mà không ai định đổi. Nên chia NHÓM chứ không lọc — mọi vai vẫn còn nguyên. */
+		$gy  = VHCC_NhanSu::vai_goi_y( $hs );
+		$uu  = array();
+		foreach ( $gy['trong'] as $t_uu ) {
+			if ( VHCC_Vai::bac( array( 'role' => $t_uu ) ) <= $bac_toi ) { $uu[ $t_uu ] = 1; }
+		}
+		$mot = function ( $ten ) use ( $vai_cu, &$co_cu ) {
 			$chon = ( trim( (string) $vai_cu ) === $ten );
 			if ( $chon ) { $co_cu = true; }
-			$h .= '<option value="' . esc_attr( $ten ) . '"' . selected( true, $chon, false ) . '>'
+			return '<option value="' . esc_attr( $ten ) . '"' . selected( true, $chon, false ) . '>'
 				. esc_html( $ten ) . '</option>';
+		};
+		if ( $uu ) {
+			$h .= '<optgroup label="' . esc_attr( 'Vai của ' . $gy['boPhan'] ) . '">';
+			foreach ( array_keys( $uu ) as $t_uu ) { $h .= $mot( $t_uu ); }
+			$h .= '</optgroup><optgroup label="Vai khác">';
 		}
+		foreach ( VHCC_Vai::ds_ten() as $ten ) {
+			if ( VHCC_Vai::bac( array( 'role' => $ten ) ) > $bac_toi ) { continue; }
+			if ( isset( $uu[ $ten ] ) ) { continue; }   // đã bày ở nhóm trên
+			$h .= $mot( $ten );
+		}
+		if ( $uu ) { $h .= '</optgroup>'; }
 		/* ⚠️ Hồ sơ đang ghi một chuỗi KHÔNG có trong danh sách ("ketoan", "NV", ô trống…) thì
 		   phải giữ nguyên nó làm lựa chọn đang chọn. Không giữ thì ô xổ tự nhảy về dòng đầu, và
 		   người khai chỉ bấm Lưu một cái là đổi vai cả trang mà không hề định đổi ai. */
@@ -2462,7 +2486,15 @@ class VHCC_TrangNS {
 			$h  .= '<option value="' . esc_attr( $tho ) . '" selected>'
 				. esc_html( '' === $tho ? '— chưa khai —' : $tho . ' (chưa chuẩn)' ) . '</option>';
 		}
-		return $h . '</select>';
+		$h .= '</select>';
+		/* Khai vai cho bộ phận TRƯỚC rồi tạo vai SAU là thứ tự tự nhiên ("Cửa hàng phó" chưa
+		   tồn tại lúc anh Thắng nói ra nó). Im lặng bỏ qua thì người khai tưởng đã xong. */
+		if ( ! empty( $gy['thieu'] ) ) {
+			$h .= '<div class="mb-suy" title="Khai vai này ở khối Bảng vai trò bên dưới">⚠️ '
+				. esc_html( $gy['boPhan'] ) . ' có khai vai «' . esc_html( implode( '», «', $gy['thieu'] ) )
+				. '» — hệ chưa có vai ấy</div>';
+		}
+		return $h;
 	}
 
 	/**
@@ -2733,6 +2765,68 @@ class VHCC_TrangNS {
 			echo '<a class="nut" href="' . esc_url( self::url() ) . '">Bỏ lọc</a>';
 		}
 		echo '</form>';
+	}
+
+	/** Lưu danh sách vai của MỘT bộ phận. Bỏ tích hết = bộ phận ấy thôi gợi ý. */
+	private static function viec_vai_bp( $toi ) {
+		$bp = isset( $_POST['vbp_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['vbp_ten'] ) ) : '';
+		$ds = isset( $_POST['vbp_vai'] ) ? (array) wp_unslash( $_POST['vbp_vai'] ) : array();
+		$sach = array();
+		foreach ( $ds as $t ) { $sach[] = sanitize_text_field( (string) $t ); }
+		$kq = VHCC_NhanSu::dat_vai_bo_phan( $toi, $bp, $sach );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => $kq['so']
+			? ( 'Đã khai ' . (int) $kq['so'] . ' vai cho bộ phận "' . $bp . '" — mấy vai này sẽ '
+				. 'được bày LÊN ĐẦU ô Vai trò của người thuộc bộ phận ấy. Vai khác vẫn chọn được '
+				. 'bình thường, chỉ nằm ở nhóm dưới.' )
+			: ( 'Đã bỏ khai vai cho bộ phận "' . $bp . '" — ô Vai trò của họ trở lại như cũ.' ) ) );
+	}
+
+	/**
+	 * KHỐI KHAI "BỘ PHẬN DÙNG NHỮNG VAI NÀO".
+	 *
+	 * ⚠️ Đây là GỢI Ý, không phải chốt quyền. Nói thẳng ra trên màn, kẻo người khai tưởng mình
+	 *    vừa bó quyền ai đó và yên tâm bỏ qua chuyện phân quyền thật.
+	 */
+	private static function the_vai_bp( $toi ) {
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $toi ) ) { return; }
+		$ban = VHCC_NhanSu::vai_theo_bo_phan();
+		$co  = VHCC_Vai::ds_ten();
+		$so_khai = 0;
+		foreach ( $ban as $ds_k ) { $so_khai += count( $ds_k ); }
+
+		echo '<div class="the"><details><summary><b>Vai trò theo bộ phận</b> — '
+			. ( $ban ? count( $ban ) . ' bộ phận đã khai · ' . $so_khai . ' dòng vai'
+				: '<span class="mo">chưa khai bộ phận nào</span>' ) . '</summary>';
+		echo '<p class="mo">Khai ở đây thì ô <b>Vai trò</b> của người thuộc bộ phận ấy sẽ bày mấy '
+			. 'vai này <b>lên đầu</b>, cho nhanh tay. <b>Không cắt bớt lựa chọn nào</b> — vai khác '
+			. 'vẫn chọn được, chỉ nằm ở nhóm dưới. Đây là gợi ý, <b>không phải chốt quyền</b>: '
+			. 'quyền vẫn đi theo thang vai như cũ.</p>';
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Bộ phận</th>'
+			. '<th>Vai bày lên đầu</th><th></th></tr></thead><tbody>';
+		foreach ( VHCC_NhanSu::ds_bo_phan() as $bp ) {
+			$dang = isset( $ban[ $bp ] ) ? $ban[ $bp ] : array();
+			echo '<tr><td><b>' . esc_html( $bp ) . '</b></td>';
+			echo '<td><form method="post" class="hang" style="gap:8px;margin:0">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+			echo '<input type="hidden" name="vbp_ten" value="' . esc_attr( $bp ) . '">';
+			echo '<div class="o-vai-tick">';
+			foreach ( $co as $t ) {
+				echo '<label><input type="checkbox" name="vbp_vai[]" value="' . esc_attr( $t ) . '"'
+					. checked( true, in_array( $t, $dang, true ), false ) . '> ' . esc_html( $t ) . '</label>';
+			}
+			echo '</div>';
+			/* Vai khai rồi mà hệ chưa có — giữ lại bằng ô ẩn, không thì bấm Lưu là mất khai. */
+			foreach ( $dang as $t ) {
+				if ( in_array( $t, $co, true ) ) { continue; }
+				echo '<input type="hidden" name="vbp_vai[]" value="' . esc_attr( $t ) . '">';
+				echo '<span class="chua-ma">⚠️ «' . esc_html( $t ) . '» chưa có trong hệ — khai ở '
+					. 'khối Bảng vai trò</span>';
+			}
+			echo '<button name="viec" value="vai_bp">Lưu</button>';
+			echo '</form></td><td></td></tr>';
+		}
+		echo '</tbody></table></div></details></div>';
 	}
 
 	private static function thanh_trang( $p, $so_tr, $tong ) {
