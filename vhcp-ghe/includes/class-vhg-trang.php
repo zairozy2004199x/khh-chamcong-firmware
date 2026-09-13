@@ -2894,7 +2894,7 @@ class VHG_Trang {
     info.appendChild(dong('Ngân hàng',(r.ngan_hang||'—')+(r.bin?(' ('+r.bin+')'):'')));
     info.appendChild(dong('Số tài khoản', r.so_tk, true));
     if(r.ten_tk) info.appendChild(dong('Chủ tài khoản', r.ten_tk));
-    info.appendChild(dong('Nội dung CK', r.noi_dung, true, '#b45309'));
+    info.appendChild(dong('Nội dung CK', r.noi_dung+(r.nguon?('  (mã lấy từ '+r.nguon+')'):''), true, '#b45309'));
     var dt=dong('Số tiền', money(r.so_tien)+' đ', true, '#166534');
     try{ dt.querySelector('b').style.fontSize='16px'; }catch(e){}
     info.appendChild(dt);

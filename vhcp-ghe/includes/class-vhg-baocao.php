@@ -1466,12 +1466,35 @@ class VHG_BaoCao {
 			'SELECT COALESCE(SUM(tien_mat),0) FROM ' . VHG_DB::t( 'bc_dong' )
 			. ' WHERE report_id=%s AND (chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0)', (string) $report_id ) );
 		if ( $tien <= 0 ) { return array( 'ok' => false, 'message' => 'Báo cáo này không có tiền mặt phải nộp (toàn QR).' ); }
-		/* Mã nộp của cơ sở — tra theo khoá squash để khớp đúng cách bảng bc_ma_nop đã lưu (coso_key). */
+		/* MÃ NỘP của cơ sở — hai nguồn, dùng chung một DB:
+		 *   1) Bảng bc_ma_nop bên Ghế (Kế toán tự nhập) — ƯU TIÊN, vì đây là chỗ ĐÈ TAY cho những
+		 *      cơ sở mà tên bên Sao Kê không khớp được (vd CGV VINCOM XUÂN KHÁNH ≠ CGV CẦN THƠ).
+		 *   2) Nếu chưa nhập tay → TỰ LẤY từ Sao Kê: danh sách điểm nộp (option saoke_diem) — chính
+		 *      là mã KH705…/KH989… thật mà webhook Sao Kê dùng để đối chiếu. Anh Thắng 13/09/2026:
+		 *      "sao mã đó không lấy sẵn từ Sao Kê à".
+		 * ⚠️ §5 CLAUDE.md: Sao Kê chuẩn hoá tên kiểu KHÁC (chuan_ch), Ghế dùng squash(). Đọc chéo
+		 *    thì phải quy CẢ HAI tên qua squash() rồi mới so — so thẳng không bao giờ khớp, hỏng im. */
+		$nguon = '';
 		$code = (string) $wpdb->get_var( $wpdb->prepare(
 			'SELECT code FROM ' . VHG_DB::t( 'bc_ma_nop' ) . ' WHERE coso_key=%s LIMIT 1', self::squash( $coso ) ) );
+		if ( '' !== $code ) {
+			$nguon = 'Kế toán (Ghế)';
+		} else {
+			$ck = self::squash( $coso );
+			$diem = get_option( 'saoke_diem' );
+			if ( is_array( $diem ) ) {
+				foreach ( $diem as $dm ) {
+					$ma_dm  = isset( $dm['ma'] ) ? (string) $dm['ma'] : '';
+					$ten_dm = isset( $dm['ten'] ) ? (string) $dm['ten'] : '';
+					if ( '' === $ma_dm || '' === $ten_dm ) { continue; }
+					if ( self::squash( $ten_dm ) === $ck ) { $code = $ma_dm; $nguon = 'Sao Kê'; break; }
+				}
+			}
+		}
 		if ( '' === $code ) {
-			return array( 'ok' => false, 'message' => 'Cơ sở “' . $coso . '” chưa có MÃ NỘP TIỀN. '
-				. 'Nhờ kế toán vào tab Kế toán → “Mã nộp tiền (nội dung CK ↔ cơ sở)” đặt mã cho cơ sở này rồi tạo lại.' );
+			return array( 'ok' => false, 'message' => 'Cơ sở “' . $coso . '” chưa có MÃ NỘP TIỀN ở cả Sao Kê '
+				. 'lẫn bảng Kế toán. Nhờ kế toán nhập danh sách điểm bên Sao Kê, hoặc vào tab Kế toán → '
+				. '“Mã nộp tiền (nội dung CK ↔ cơ sở)” đặt mã tay cho cơ sở này rồi tạo lại.' );
 		}
 		$tk = VHG_May::nhan_tien_cua( array() );
 		if ( '' === (string) $tk['so_tk'] || '' === (string) $tk['bin'] ) {
@@ -1487,6 +1510,7 @@ class VHG_BaoCao {
 			'ten_tk'   => (string) $tk['ten_tk'],
 			'bin'      => (string) $tk['bin'],
 			'ngan_hang'=> VHG_QR::ten_ngan_hang( $tk['bin'] ),
+			'nguon'    => $nguon,
 			'coso'     => $coso );
 	}
 
