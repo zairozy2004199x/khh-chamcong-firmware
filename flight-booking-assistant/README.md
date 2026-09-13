@@ -8,6 +8,7 @@ vào form đặt vé của hãng. Số thẻ, CVV và OTP **cố ý** để ngư
 flight-booking-assistant/
 ├── index.html              trang web (mở bằng trình duyệt là chạy, không cần cài gì)
 ├── autofill-bookmarklet.js bản đọc được của hàm điền hộ, để sửa luật khớp ô
+├── learn-bookmarklet.js    chế độ "Học form": ghi luật riêng cho đúng trang của hãng
 └── automation/dat-ve.mjs   script Playwright: mở trang, điền hồ sơ, dừng trước thanh toán
 ```
 
@@ -22,6 +23,7 @@ Hồ sơ hành khách nằm trong `localStorage` của chính trình duyệt đ�
 |---|---|
 | Dò giá, xếp chuyến rẻ nhất, lịch giá 7 ngày | máy |
 | Mở đúng chặng – ngày – số khách trên 5 trang so giá | máy |
+| Điền ô tìm chuyến trên trang hãng (chặng, ngày đi/về, số khách) | máy điền, người soát |
 | Điền họ tên, ngày sinh, CCCD/hộ chiếu, liên hệ, mã số thuế, địa chỉ hoá đơn | máy điền, người soát |
 | Chọn thẻ, nhập số thẻ/CVV, xác thực OTP (3-D Secure) | người |
 | Lưu mã đặt chỗ, đối chiếu email hoá đơn VAT | người |
@@ -38,13 +40,43 @@ dùng, người dùng vẫn là người bấm mua — nằm trong ranh giới �
    tạo một dấu trang mới và dán vào ô địa chỉ của nó).
 3. Mở trang đặt vé của hãng, tới form thông tin hành khách, bấm dấu trang đó.
 
-Hàm điền dò từng ô `input/select` trên trang, ghép chữ từ `name`, `id`, `placeholder`, `aria-label`
-và nhãn đứng cạnh, bỏ dấu tiếng Việt rồi khớp với bảng luật trong `autofill-bookmarklet.js`
-(cả tiếng Việt lẫn tiếng Anh). Ô thứ *n* của cùng một loại nhận thông tin của khách thứ *n*, nên
-đoàn 3 người điền một lượt. Ô nào dính `so the`, `cvv`, `otp`, `captcha` thì bỏ qua, cố ý.
+Hàm điền chạy hai lớp:
 
-Hãng đổi giao diện thì vài ô sẽ điền hụt — thêm luật vào `RULES` trong `autofill-bookmarklet.js`
-rồi chép lại vào `DVR_FILL` trong `index.html`.
+1. **Luật riêng theo tên miền** — khớp bằng selector nên luôn đúng, kể cả trang không có nhãn tiếng
+   Việt nào. Do chế độ *Học form* ghi lại (xem dưới).
+2. **Luật chung** — đoán theo chữ quanh ô, hai vòng: vòng 1 chỉ đọc chữ của chính ô đó (`name`,
+   `id`, `placeholder`, `aria-label`, `<label>` của nó); vòng 2 mới đọc thêm chữ nằm cùng khối và
+   khối đứng trước — và chỉ lấy khối không chứa ô nhập nào khác, để không lây nhãn của ô liền trên.
+
+Bảng luật phủ cả tiếng Việt lẫn tiếng Anh, gồm cả ô tìm chuyến (điểm đi, điểm đến, ngày đi, ngày về,
+số người lớn/trẻ em/em bé) lẫn ô hành khách và hoá đơn. Ô thứ *n* của cùng một loại nhận thông tin
+của khách thứ *n*, nên đoàn 3 người điền một lượt. Ô nào dính `so the`, `cvv`, `otp`, `captcha` thì
+bỏ qua, cố ý.
+
+Ô chọn sân bay thường là hộp gợi ý: hàm điền chữ vào rồi bắn `keyup` để danh sách bật lên, còn việc
+bấm chọn đúng dòng vẫn là của người dùng. Bộ đếm khách kiểu nút +/− (không phải `input`/`select`)
+thì máy không chạm tới được.
+
+## Học form — khi trang của hãng không chịu khớp
+
+Trang của Vietjet, Vietnam Airlines, Bamboo dựng bằng widget riêng, tên ô đổi theo từng bản phát
+hành, nên đoán theo nhãn có lúc trật. Cách chắc chắn:
+
+1. Kéo nút **Học form** (mục *Luật riêng theo trang*) lên thanh dấu trang.
+2. Mở trang đặt vé, bấm dấu trang đó → bấm vào từng ô trên trang → chọn ô đó là gì.
+3. Bấm **Chép luật**, quay lại Dò Vé Rẻ, dán khối JSON vào ô *Luật riêng theo trang*, bấm **Lưu**.
+
+Khối JSON có dạng:
+
+```json
+{ "vietjetair.com": [ { "sel": "input[name=\"txtFrom\"]", "key": "from" } ] }
+```
+
+`key` nhận một trong: `full` `first` `last` `dob` `gender` `idNo` `nat` `phone` `email` `ctName`
+`company` `tax` `invEmail` `addr` `buyer` `cardHolder` `from` `to` `depDate` `retDate` `adt` `chd` `inf`.
+
+Luật riêng chạy trước luật chung, nên chỉ cần học vài ô khó; phần còn lại vẫn để máy đoán. Học một
+lần dùng mãi, trừ khi hãng dựng lại giao diện.
 
 ## Nối giá thật
 

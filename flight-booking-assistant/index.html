@@ -452,6 +452,20 @@ section.sec>.hint{max-width:74ch}
     <button class="btn ghost sm" type="button" id="copyBot">Sao chép script tự đặt (Playwright)</button>
     <button class="btn ghost sm" type="button" id="clearProfile">Xoá hồ sơ</button>
   </div>
+  <div class="sec" style="margin-top:4px">
+    <div class="panel-head" style="padding:0 0 10px;border-bottom:1px solid var(--line)">
+      <h3>Luật riêng theo trang</h3>
+      <span class="hint" id="sitesCount">chưa học trang nào</span>
+    </div>
+    <p class="hint">Trang của hãng hay đổi giao diện, và nhiều ô trên đó chẳng có nhãn nào để đoán. Khi “Điền hộ” điền hụt: kéo nút <b>Học form</b> lên bookmark, bấm nó ngay trên trang đặt vé, bấm vào từng ô rồi chọn ô đó là gì, cuối cùng bấm <b>Chép luật</b> và dán khối JSON xuống đây. Từ lần sau máy khớp ô bằng selector đã học, không đoán nữa.</p>
+    <div class="actions">
+      <a class="btn ghost sm" id="learnLink" href="#" title="Kéo nút này lên thanh dấu trang">Học form (kéo lên bookmark)</a>
+      <button class="btn ghost sm" type="button" id="copyLearn">Sao chép mã “Học form”</button>
+    </div>
+    <textarea id="sitesBox" spellcheck="false" placeholder='{ "vietjetair.com": [ { "sel": "input[name=&quot;txtFrom&quot;]", "key": "from" } ] }'></textarea>
+    <div class="actions"><button class="btn sm" type="button" id="saveSites">Lưu luật riêng</button></div>
+  </div>
+
   <p class="hint">Cách dùng nút <b>Điền hộ</b>: kéo nó lên thanh dấu trang → mở trang đặt vé của hãng → bấm dấu trang đó. Nó dò các ô “họ tên / ngày sinh / CMND / MST / địa chỉ…” trên trang và điền vào, kể cả trang tiếng Anh.</p>
 </section>
 
@@ -611,6 +625,65 @@ function DVR_FILL(D){
     return (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()
       .replace(/\u0111/g,"d").replace(/[_\-.]+/g," ").replace(/\s+/g," ").trim();
   };
+  var T = D.trip || {};
+  var P = function(n, k){ var p = (D.pax || [])[Math.min(n, (D.pax||[]).length-1)] || {}; return p[k]; };
+
+  // giá trị theo tên khoá — dùng chung cho luật riêng lẫn luật chung
+  var VAL = {
+    full:   function(n){ return P(n,"full"); },
+    first:  function(n){ return P(n,"first"); },
+    last:   function(n){ return P(n,"last"); },
+    dob:    function(n){ return [P(n,"dob"), P(n,"dobIso")]; },
+    gender: function(n){ return [P(n,"genderVi"), P(n,"genderEn"), P(n,"genderShort")]; },
+    idNo:   function(n){ return P(n,"idNo"); },
+    nat:    function(n){ return [P(n,"natVi"), P(n,"natEn"), P(n,"natCode")]; },
+    phone:  function(){ return D.contact.phone; },
+    email:  function(){ return D.contact.email; },
+    ctName: function(){ return D.contact.name; },
+    company:function(){ return D.invoice.company; },
+    tax:    function(){ return D.invoice.tax; },
+    invEmail:function(){ return D.invoice.email; },
+    addr:   function(){ return D.invoice.addr; },
+    buyer:  function(){ return D.invoice.buyer; },
+    cardHolder: function(){ return D.pay.holder; },
+    from:   function(){ return [T.from, T.fromCity]; },
+    to:     function(){ return [T.to, T.toCity]; },
+    depDate:function(){ return [T.dep, T.depIso]; },
+    retDate:function(){ return [T.ret, T.retIso]; },
+    adt:    function(){ return T.adt; },
+    chd:    function(){ return T.chd; },
+    inf:    function(){ return T.inf; }
+  };
+
+  var RULES = [
+    // hoá đơn & liên hệ
+    {k:"tax",        re:/(ma so thue|tax ?(code|id|number)|\bmst\b)/},
+    {k:"invEmail",   re:/((hoa don|vat|invoice|billing).{0,16}(e ?mail)|(e ?mail).{0,16}(hoa don|vat|invoice|billing))/},
+    {k:"company",    re:/(ten (cong ty|don vi|doanh nghiep)|cong ty|company|organi[sz]ation|business name)/},
+    {k:"buyer",      re:/(nguoi mua|buyer)/},
+    {k:"addr",       re:/(dia chi|address|street)/},
+    {k:"cardHolder", re:/(ten chu the|chu the|card ?holder|name on card)/},
+    {k:"phone",      re:/(dien thoai|so dt|\bsdt\b|phone|mobile|\btel\b)/},
+    {k:"email",      re:/(e ?mail)/},
+    // chuyến bay — ngày đứng trước điểm đi/đến vì "departure" dùng chung cho cả hai
+    {k:"depDate",    re:/(ngay di|ngay khoi hanh|ngay bay|ngay xuat phat|departure ?date|depart(ure)? on|depart ?date|outbound ?date|\bdepartdate\b)/},
+    {k:"retDate",    re:/(ngay ve|ngay tro ve|ngay quay ve|return ?date|inbound ?date|\breturndate\b)/},
+    {k:"from",       re:/(diem di|noi di|noi khoi hanh|san bay di|bay tu|\btu\b|\bfrom\b|origin|departure ?(city|airport|station)|departing ?from|\bdeparture\b)/},
+    {k:"to",         re:/(diem den|noi den|san bay den|bay den|\bden\b|destination|arrival ?(city|airport|station)|flying ?to|going ?to|(^| )to( |$)|\barrival\b)/},
+    {k:"adt",        re:/(nguoi lon|so nguoi lon|\badult)/},
+    {k:"chd",        re:/(tre em|so tre em|\bchild)/},
+    {k:"inf",        re:/(em be|tre so sinh|\binfant|\bbaby\b)/},
+    // hành khách
+    {k:"dob",        re:/(ngay sinh|date ?of ?birth|\bdob\b|birth ?date|birthday|\bsinh\b)/},
+    {k:"gender",     re:/(gioi tinh|gender|\bsex\b|danh xung|\btitle\b|xung ho)/},
+    {k:"idNo",       re:/(so (cccd|cmnd|giay to|ho chieu|the)|\bcccd\b|\bcmnd\b|passport|id ?(no|number)|identity|giay to tuy than)/},
+    {k:"nat",        re:/(quoc tich|nationality|quoc gia|country)/},
+    {k:"full",       re:/(ho (va )?ten|full ?name|passenger ?name|contact ?name|ten (hanh khach|khach|day du|nguoi|lien he))/},
+    {k:"first",      re:/(ho dem|ten dem|first ?name|given ?name|middle ?name|(^| )ten( |$))/},
+    {k:"last",       re:/(surname|last ?name|family ?name|(^| )ho( |$))/}
+  ];
+  var SKIP = /(cvv|cvc|card ?number|so the|ma bao mat|expir|het han|\botp\b|captcha|coupon|promo|ma giam|mat khau|password)/;
+
   var ownSig = function(el){
     var s = [el.name, el.id, el.placeholder, el.getAttribute("aria-label"),
              el.getAttribute("title"), el.getAttribute("autocomplete"), el.getAttribute("data-testid")].join(" ");
@@ -624,14 +697,31 @@ function DVR_FILL(D){
     if(w) s += " " + w.textContent;
     return strip(s).slice(0,300);
   };
+  var ownText = function(node){      // chữ nằm ngay trong khối, không tính chữ của ô nhập khác
+    var s = "";
+    for(var i=0;i<node.childNodes.length;i++){
+      var c = node.childNodes[i];
+      if(c.nodeType === 3) s += " " + c.nodeValue;
+      else if(c.nodeType === 1 && /^(SPAN|B|STRONG|EM|I|SMALL|LABEL|P|H1|H2|H3|H4|H5|H6)$/.test(c.tagName)
+              && !c.querySelector("input, select, textarea")) s += " " + c.textContent;
+    }
+    return s;
+  };
   var nearSig = function(el){
     var s = "", p = el.parentElement;
     for(var k=0; k<3 && p; k++){
+      s += " " + ownText(p);
       var prev = p.previousElementSibling;
       if(prev && !prev.querySelector("input, select, textarea")) s += " " + prev.textContent;
       p = p.parentElement;
     }
-    return strip(s).slice(0,200);
+    return strip(s).slice(0,240);
+  };
+  var usable = function(el){
+    if(!el || el.disabled || el.readOnly) return false;
+    if(/^(hidden|password|submit|button|checkbox|radio|file|image|reset|range|color)$/.test(el.type||"")) return false;
+    if(el.offsetParent === null && el.tagName !== "SELECT") return false;
+    return true;
   };
   var setVal = function(el, vals){
     var list = [].concat(vals).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
@@ -655,67 +745,190 @@ function DVR_FILL(D){
     }
     var v = String(list[0]);
     if(el.type === "date" && /^\d{2}\/\d{2}\/\d{4}$/.test(v)){ var q = v.split("/"); v = q[2]+"-"+q[1]+"-"+q[0]; }
+    if(el.type === "number") v = String(v).replace(/[^\d]/g,"") || "0";
     var proto = el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     var d = Object.getOwnPropertyDescriptor(proto, "value");
+    try { el.focus(); } catch(e){}
     if(d && d.set) d.set.call(el, v); else el.value = v;
     el.dispatchEvent(new Event("input",{bubbles:true}));
     el.dispatchEvent(new Event("change",{bubbles:true}));
+    // ô chọn sân bay thường là hộp gợi ý: đánh thức danh sách để người dùng chọn tiếp
+    try { el.dispatchEvent(new KeyboardEvent("keyup",{bubbles:true, key:v.slice(-1)})); } catch(e){}
     el.dispatchEvent(new Event("blur",{bubbles:true}));
     return true;
   };
-  var P = function(n, k){ var p = D.pax[Math.min(n, D.pax.length-1)] || {}; return p[k]; };
-  var RULES = [
-    {k:"tax",    re:/(ma so thue|tax ?(code|id|number)|\bmst\b)/,                              get:function(){ return D.invoice.tax; }},
-    {k:"inveml", re:/((hoa don|vat|invoice|billing).{0,16}(e ?mail)|(e ?mail).{0,16}(hoa don|vat|invoice|billing))/, get:function(){ return D.invoice.email; }},
-    {k:"comp",   re:/(ten (cong ty|don vi|doanh nghiep)|cong ty|company|organi[sz]ation|business name)/, get:function(){ return D.invoice.company; }},
-    {k:"buyer",  re:/(nguoi mua|buyer)/,                                                        get:function(){ return D.invoice.buyer; }},
-    {k:"addr",   re:/(dia chi|address|street)/,                                                 get:function(){ return D.invoice.addr; }},
-    {k:"cardnm", re:/(ten chu the|chu the|card ?holder|name on card)/,                           get:function(){ return D.pay.holder; }},
-    {k:"phone",  re:/(dien thoai|so dt|\bsdt\b|phone|mobile|\btel\b)/,                           get:function(){ return D.contact.phone; }},
-    {k:"email",  re:/(e ?mail)/,                                                                 get:function(){ return D.contact.email; }},
-    {k:"dob",    re:/(ngay sinh|date ?of ?birth|\bdob\b|birth ?date|birthday|\bsinh\b)/,         get:function(n){ return [P(n,"dob"), P(n,"dobIso")]; }},
-    {k:"gender", re:/(gioi tinh|gender|\bsex\b|danh xung|\btitle\b|xung ho)/,                    get:function(n){ return [P(n,"genderVi"), P(n,"genderEn"), P(n,"genderShort")]; }},
-    {k:"idno",   re:/(so (cccd|cmnd|giay to|ho chieu|the)|\bcccd\b|\bcmnd\b|passport|id ?(no|number)|identity|giay to tuy than)/, get:function(n){ return P(n,"idNo"); }},
-    {k:"nat",    re:/(quoc tich|nationality|quoc gia|country)/,                                  get:function(n){ return [P(n,"natVi"), P(n,"natEn"), P(n,"natCode")]; }},
-    {k:"full",   re:/(ho (va )?ten|full ?name|passenger ?name|contact ?name|ten (hanh khach|khach|day du|nguoi|lien he))/, get:function(n){ return P(n,"full"); }},
-    {k:"first",  re:/(ho dem|ten dem|first ?name|given ?name|middle ?name|(^| )ten( |$))/,       get:function(n){ return P(n,"first"); }},
-    {k:"last",   re:/(surname|last ?name|family ?name|(^| )ho( |$))/,                            get:function(n){ return P(n,"last"); }}
-  ];
-  var SKIP = /(cvv|cvc|card ?number|so the|ma bao mat|expir|het han|\botp\b|captcha|coupon|promo|ma giam|mat khau|password)/;
 
-  var seen = {}, filled = 0, skipped = 0;
+  var seen = {}, filled = 0, skipped = 0, done = [];
+  var take = function(el, key){
+    if(done.indexOf(el) > -1) return false;
+    var n = seen[key] || 0;
+    var get = VAL[key];
+    if(!get) return false;
+    var vals = [].concat(get(n)).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
+    if(!vals.length){ done.push(el); return false; }        // đúng loại nhưng hồ sơ trống
+    if(!setVal(el, vals)) return false;
+    seen[key] = n + 1; filled++; done.push(el);
+    return true;
+  };
+
+  // ---- 1. luật riêng của trang này (do "Học form" ghi lại) ----
+  var host = location.hostname.replace(/^www\./,"");
+  var own = [];
+  Object.keys(D.sites || {}).forEach(function(h){
+    var hh = h.replace(/^www\./,"");
+    if(host === hh || host.slice(-(hh.length+1)) === "." + hh) own = own.concat(D.sites[h]);
+  });
+  own.forEach(function(r){
+    var els;
+    try { els = document.querySelectorAll(r.sel); } catch(e){ return; }
+    for(var i=0;i<els.length;i++){
+      var el = els[i];
+      if(!usable(el)) continue;
+      if(el.tagName !== "SELECT" && String(el.value||"").trim() !== "") continue;
+      if(take(el, r.key)) break;
+    }
+  });
+
+  // ---- 2. luật chung ----
   var nodes = document.querySelectorAll("input, select, textarea");
   for(var i=0;i<nodes.length;i++){
     var el = nodes[i];
-    if(el.disabled || el.readOnly) continue;
-    if(/^(hidden|password|submit|button|checkbox|radio|file|image|reset|search|range|color)$/.test(el.type||"")) continue;
-    if(el.offsetParent === null && el.tagName !== "SELECT") continue;
+    if(!usable(el) || done.indexOf(el) > -1) continue;
     if(el.tagName !== "SELECT" && String(el.value||"").trim() !== "") continue;
 
-    var own = ownSig(el);
-    var both = (own + " " + nearSig(el)).trim();
+    var sOwn = ownSig(el);
+    var both = (sOwn + " " + nearSig(el)).trim();
     if(SKIP.test(both)){ skipped++; continue; }
 
-    var done = false;
-    for(var pass=0; pass<2 && !done; pass++){
-      var s = pass === 0 ? own : both;
-      if(pass === 1 && s === own) break;
+    var hit = false;
+    for(var pass=0; pass<2 && !hit; pass++){
+      var s = pass === 0 ? sOwn : both;
+      if(pass === 1 && s === sOwn) break;
       for(var j=0;j<RULES.length;j++){
         if(!RULES[j].re.test(s)) continue;
-        var n = seen[RULES[j].k] || 0;
-        var vals = [].concat(RULES[j].get(n)).filter(function(v){ return v !== undefined && v !== null && v !== ""; });
-        if(!vals.length){ done = true; break; }            // đúng loại nhưng hồ sơ đang trống
-        if(setVal(el, vals)){ seen[RULES[j].k] = n + 1; filled++; done = true; break; }
+        if(take(el, RULES[j].k)){ hit = true; break; }
+        if(done.indexOf(el) > -1){ hit = true; break; }     // hồ sơ trống ô này → thôi
         // select không có lựa chọn nào khớp → thử luật kế tiếp
       }
     }
   }
+
   var box = document.createElement("div");
-  box.textContent = "Dò Vé Rẻ đã điền " + filled + " ô" + (skipped ? " · bỏ qua " + skipped + " ô thẻ/OTP (cố ý)" : "");
+  box.textContent = "Dò Vé Rẻ đã điền " + filled + " ô"
+    + (own.length ? " (" + own.length + " luật riêng của " + host + ")" : "")
+    + (skipped ? " · bỏ qua " + skipped + " ô thẻ/OTP (cố ý)" : "");
   box.setAttribute("style","position:fixed;z-index:2147483647;left:50%;bottom:20px;transform:translateX(-50%);background:#0B2440;color:#E9F0F8;font:14px/1.4 system-ui,sans-serif;padding:11px 16px;border-left:4px solid #E8890B;box-shadow:0 8px 30px rgba(0,0,0,.35)");
   document.body.appendChild(box);
   setTimeout(function(){ box.remove(); }, 6000);
   return filled;
+}
+
+/* ---------------- học form: ghi luật riêng cho từng trang ---------------- */
+function DVR_LEARN(){
+  if(window.__dvrLearn) { window.__dvrLearn.stop(); return; }
+
+  var KEYS = [
+    ["full","Họ và tên (cả họ lẫn tên)"], ["last","Họ / Surname"], ["first","Tên đệm và tên / Given name"],
+    ["dob","Ngày sinh"], ["gender","Giới tính"], ["idNo","Số CCCD / hộ chiếu"], ["nat","Quốc tịch"],
+    ["phone","Điện thoại"], ["email","Email nhận vé"], ["ctName","Tên người liên hệ"],
+    ["company","Tên công ty (hoá đơn)"], ["tax","Mã số thuế"], ["invEmail","Email nhận hoá đơn"],
+    ["addr","Địa chỉ hoá đơn"], ["buyer","Người mua hàng"], ["cardHolder","Tên chủ thẻ"],
+    ["from","Điểm đi"], ["to","Điểm đến"], ["depDate","Ngày đi"], ["retDate","Ngày về"],
+    ["adt","Số người lớn"], ["chd","Số trẻ em"], ["inf","Số em bé"]
+  ];
+  var host = location.hostname.replace(/^www\./,"");
+  var rules = [];
+
+  var sel = function(el){
+    if(el.name) {
+      var byName = document.querySelectorAll(el.tagName.toLowerCase() + '[name="' + el.name + '"]');
+      if(byName.length === 1) return el.tagName.toLowerCase() + '[name="' + el.name + '"]';
+    }
+    if(el.id && /^[A-Za-z][\w-]*$/.test(el.id)) return "#" + el.id;
+    if(el.getAttribute("data-testid")) return '[data-testid="' + el.getAttribute("data-testid") + '"]';
+    if(el.placeholder) return el.tagName.toLowerCase() + '[placeholder="' + el.placeholder.replace(/"/g,'\\"') + '"]';
+    var path = [], n = el;
+    while(n && n.nodeType === 1 && path.length < 5){
+      var part = n.tagName.toLowerCase();
+      if(n.parentElement){
+        var sibs = [].slice.call(n.parentElement.children).filter(function(c){ return c.tagName === n.tagName; });
+        if(sibs.length > 1) part += ":nth-of-type(" + (sibs.indexOf(n)+1) + ")";
+      }
+      path.unshift(part);
+      n = n.parentElement;
+    }
+    return path.join(" > ");
+  };
+
+  var panel = document.createElement("div");
+  panel.setAttribute("style","position:fixed;z-index:2147483647;right:16px;bottom:16px;width:310px;max-height:70vh;overflow:auto;background:#0B2440;color:#E9F0F8;font:13px/1.45 system-ui,sans-serif;padding:14px;box-shadow:0 10px 40px rgba(0,0,0,.45);border-left:4px solid #E8890B");
+  var head = "<div style='font:600 15px/1.2 system-ui'>Học form · " + host + "</div>"
+    + "<div style='margin:6px 0 10px;color:#8FA9C4'>Bấm vào một ô trên trang, rồi chọn ô đó là gì.</div>";
+  var list = document.createElement("div");
+  var foot = document.createElement("div");
+  foot.setAttribute("style","display:flex;gap:8px;margin-top:12px");
+  foot.innerHTML = "<button id='dvrCopy' style=\"flex:1;font:600 13px system-ui;background:#E8890B;color:#1B1000;border:0;padding:8px;cursor:pointer\">Chép luật</button>"
+    + "<button id='dvrStop' style=\"font:600 13px system-ui;background:transparent;color:#E9F0F8;border:1px solid #1C3E63;padding:8px 10px;cursor:pointer\">Xong</button>";
+  panel.innerHTML = head;
+  panel.appendChild(list);
+  panel.appendChild(foot);
+  document.body.appendChild(panel);
+
+  var draw = function(){
+    list.innerHTML = rules.length
+      ? rules.map(function(r,i){ return "<div style='display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-top:1px solid #1C3E63'><span style='color:#E8890B'>" + r.key + "</span><code style='color:#8FA9C4;font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' title='" + r.sel + "'>" + r.sel + "</code></div>"; }).join("")
+      : "<div style='color:#8FA9C4;font-style:italic'>chưa ghi ô nào</div>";
+  };
+  draw();
+
+  var menu = null;
+  var closeMenu = function(){ if(menu){ menu.remove(); menu = null; } };
+
+  var onClick = function(e){
+    var el = e.target;
+    if(panel.contains(el)) return;
+    if(!/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) return;
+    e.preventDefault(); e.stopPropagation();
+    closeMenu();
+    var r = el.getBoundingClientRect();
+    menu = document.createElement("div");
+    menu.setAttribute("style","position:fixed;z-index:2147483647;left:" + Math.min(r.left, innerWidth-270) + "px;top:" + Math.min(r.bottom+4, innerHeight-300) + "px;width:260px;max-height:280px;overflow:auto;background:#fff;color:#0B2440;font:13px system-ui;box-shadow:0 10px 40px rgba(0,0,0,.35);border:1px solid #CCD6E1");
+    menu.innerHTML = KEYS.map(function(k){
+      return "<div data-k='" + k[0] + "' style='padding:7px 10px;cursor:pointer;border-bottom:1px solid #E1E7EE'>" + k[1] + "</div>";
+    }).join("") + "<div data-k='' style='padding:7px 10px;cursor:pointer;color:#8C3310'>Bỏ qua ô này</div>";
+    menu.addEventListener("click", function(ev){
+      var k = ev.target.getAttribute("data-k");
+      if(k === null) return;
+      if(k){
+        var s = sel(el);
+        for(var z = rules.length - 1; z >= 0; z--) if(rules[z].sel === s) rules.splice(z, 1);
+        rules.push({ sel: s, key: k });
+        el.style.outline = "2px solid #E8890B";
+        draw();
+      }
+      closeMenu();
+    });
+    document.body.appendChild(menu);
+  };
+
+  document.addEventListener("click", onClick, true);
+
+  foot.querySelector("#dvrCopy").addEventListener("click", function(){
+    var out = {}; out[host] = rules;
+    var txt = JSON.stringify(out, null, 2);
+    var ta = document.createElement("textarea");
+    ta.value = txt; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); this.textContent = "Đã chép " + rules.length + " luật"; }
+    catch(e){ this.textContent = "Không chép được"; }
+    ta.remove();
+  });
+
+  var stop = function(){
+    document.removeEventListener("click", onClick, true);
+    closeMenu(); panel.remove(); window.__dvrLearn = null;
+  };
+  foot.querySelector("#dvrStop").addEventListener("click", stop);
+  window.__dvrLearn = { stop: stop, rules: rules };
 }
 
 /* ---------------- trạng thái & màn hình ---------------- */
@@ -821,7 +1034,7 @@ function channelList(q){
         + "&triptype=" + (rt ? "rt" : "ow") + "&class=" + cls + "&quantity=" + q.adt + "&childqty=" + q.chd + "&babyqty=" + q.inf + "&locale=vi-VN&curr=VND"},
     {name:"Momondo", kind:"so giá", note:"Xếp hạng “rẻ nhất / nhanh nhất / đáng tiền nhất”.", meta:true,
      url:"https://www.momondo.vn/flight-search/" + A + "-" + B + "/" + q.dep + (rt ? "/" + q.ret : "") + "/" + q.adt + "adults?sort=price_a"},
-    {name:"Vietnam Airlines", kind:"trang hãng", note:"Vé linh hoạt, đổi giờ dễ. Mở trang chủ rồi bấm “Điền hộ”.", url:"https://www.vietnamairlines.com/vn/vi/home"},
+    {name:"Vietnam Airlines", kind:"trang hãng", note:"Vé linh hoạt, đổi giờ dễ. Trang chủ không nhận chặng qua đường dẫn — mở rồi bấm “Điền hộ” để máy điền ô tìm chuyến.", url:"https://www.vietnamairlines.com/vn/vi/home"},
     {name:"Vietjet Air", kind:"trang hãng", note:"Giá thấp nhất thường ở đây, nhớ cộng phí hành lý.", url:"https://www.vietjetair.com/vi"},
     {name:"Bamboo Airways", kind:"trang hãng", note:"Giữa hai nhóm trên, suất ăn kèm nhiều hạng vé.", url:"https://www.bambooairways.com/vn/vi/"},
     {name:"Vietravel Airlines", kind:"trang hãng", note:"Ít chuyến nhưng thỉnh thoảng rẻ bất ngờ.", url:"https://www.vietravelairlines.com/vi"}
@@ -906,13 +1119,52 @@ function fillData(){
     }),
     contact: { name: p.ctName, phone: p.ctPhone, email: p.ctEmail },
     invoice: { company: p.invCompany, tax: p.invTax, email: p.invEmail || p.ctEmail, addr: p.invAddr, buyer: p.invBuyer || p.ctName },
-    pay: { method: p.payMethod, bank: p.payBank, holder: p.payHolder }
+    pay: { method: p.payMethod, bank: p.payBank, holder: p.payHolder },
+    trip: state.last ? {
+      from: state.last.from.code, fromCity: state.last.from.city,
+      to: state.last.to.code, toCity: state.last.to.city,
+      dep: dmy(state.last.dep), depIso: state.last.dep,
+      ret: state.last.ret ? dmy(state.last.ret) : "", retIso: state.last.ret || "",
+      adt: state.last.adt, chd: state.last.chd, inf: state.last.inf
+    } : {},
+    sites: loadSites()
   };
 }
+const SITES_KEY = "dovere.sites.v1";
+function loadSites(){ try { return JSON.parse(localStorage.getItem(SITES_KEY) || "{}"); } catch(e){ return {}; } }
+function sitesCount(s){ return Object.keys(s).reduce((n,h) => n + (s[h] || []).length, 0); }
+function showSites(){
+  const s = loadSites(), n = sitesCount(s), hosts = Object.keys(s);
+  $("#sitesCount").textContent = n ? n + " luật · " + hosts.join(", ") : "chưa học trang nào";
+  $("#sitesBox").value = n ? JSON.stringify(s, null, 2) : "";
+}
+function saveSites(){
+  const raw = $("#sitesBox").value.trim();
+  if(!raw){ try { localStorage.removeItem(SITES_KEY); } catch(e){} showSites(); refreshFill(); toast("Đã xoá luật riêng."); return; }
+  let obj;
+  try { obj = JSON.parse(raw); } catch(e){ toast("JSON chưa đúng — dán nguyên khối mà nút “Chép luật” đưa ra."); return; }
+  const KEYS = ["full","first","last","dob","gender","idNo","nat","phone","email","ctName",
+                "company","tax","invEmail","addr","buyer","cardHolder","from","to","depDate","retDate","adt","chd","inf"];
+  const clean = {}; let bad = 0;
+  Object.keys(obj).forEach(h => {
+    const list = (obj[h] || []).filter(r => {
+      const ok = r && typeof r.sel === "string" && KEYS.includes(r.key);
+      if(!ok) bad++;
+      return ok;
+    });
+    if(list.length) clean[h.replace(/^https?:\/\//,"").replace(/\/.*$/,"").replace(/^www\./,"")] = list;
+  });
+  if(!Object.keys(clean).length){ toast("Không thấy luật nào hợp lệ trong khối vừa dán."); return; }
+  try { localStorage.setItem(SITES_KEY, JSON.stringify(clean)); } catch(e){ toast("Trình duyệt chặn lưu trữ."); return; }
+  showSites(); refreshFill();
+  toast("Đã lưu " + sitesCount(clean) + " luật riêng cho " + Object.keys(clean).join(", ")
+        + (bad ? " · bỏ " + bad + " dòng không hợp lệ" : "") + ".");
+}
+function learnSrc(){ return "javascript:" + encodeURIComponent("(" + DVR_LEARN.toString() + ")();void 0;"); }
 function bookmarkletSrc(){
   return "javascript:" + encodeURIComponent("(" + DVR_FILL.toString() + ")(" + JSON.stringify(fillData()) + ");void 0;");
 }
-function refreshFill(){ $("#fillLink").href = bookmarkletSrc(); }
+function refreshFill(){ $("#fillLink").href = bookmarkletSrc(); $("#learnLink").href = learnSrc(); }
 
 function botScript(){
   const q = state.last;
@@ -1012,6 +1264,9 @@ $("#paxList").addEventListener("click", e => {
 $("#paxList").addEventListener("change", refreshFill);
 document.addEventListener("change", e => { if(CONTACT_FIELDS.includes(e.target.id)) refreshFill(); });
 $("#saveProfile").addEventListener("click", save);
+$("#saveSites").addEventListener("click", saveSites);
+$("#copyLearn").addEventListener("click", () => copy(learnSrc(), "Đã chép mã “Học form”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
+$("#learnLink").addEventListener("click", e => { e.preventDefault(); toast("Nút này để KÉO lên thanh dấu trang, rồi bấm khi đang ở trang đặt vé."); });
 $("#copyFill").addEventListener("click", () => copy(bookmarkletSrc(), "Đã chép mã “Điền hộ”. Tạo một dấu trang mới và dán vào ô địa chỉ của nó."));
 $("#copyJson").addEventListener("click", () => copy(JSON.stringify(fillData(), null, 2), "Đã chép hồ sơ dạng JSON."));
 $("#copyBot").addEventListener("click", () => copy(botScript(), "Đã chép script Playwright. Lưu thành dat-ve.mjs rồi chạy: node dat-ve.mjs"));
@@ -1039,6 +1294,7 @@ $("#dep").value = iso(addDays(new Date(), 21));
 $("#dep").min = iso(new Date());
 $("#ret").min = iso(new Date());
 load();
+showSites();
 refreshFill();
 run();
 </script>
