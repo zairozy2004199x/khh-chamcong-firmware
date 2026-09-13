@@ -8806,12 +8806,30 @@
     var from=(CUR_PAGE && CUR_PAGE!=='don') ? CUR_PAGE : (_viewDonFrom||'');   // nhớ tab đang đứng để quay lại
     showPage('don'); _viewDonFrom=from; el('donSel').value=m; openDon(m);
   }
+  /**
+   * DUYỆT TẠM ỨNG TỪ BẢNG — BẤM LÀ XONG, KHÔNG HỎI SỐ TIỀN.
+   *
+   * Anh Thắng 13/09/2026: *"bấm duyệt không cần hỏi cái này nhé"* (ảnh hộp `prompt` "DUYỆT TẠM
+   * ỨNG — số tiền tạm ứng cấp cho NV"). Con số điền sẵn trong hộp ấy vốn đã là số tạm ứng của
+   * chính đơn, và gần như lượt nào cũng bấm OK không sửa gì — nên nó chỉ là một nhịp thừa đứng
+   * giữa cái nút và việc nó làm, mà bảng này thì duyệt cả chục đơn một lượt.
+   *
+   * ⚠️ ĐƯỜNG SỬA SỐ VẪN CÒN, chỉ là không nằm ở đây nữa: mở đơn ra (👁 Xem) thì có ô nhập
+   *    `tuDuyetInp` ngay cạnh nút Duyệt, kèm một câu hỏi lại. Ca cần sửa số là ca hiếm và đáng
+   *    để mở đơn xem trước — bỏ hẳn hộp hỏi ở bảng KHÔNG lấy mất khả năng nào.
+   *
+   * ⚠️ KHÔNG THÊM `confirm()` THAY VÀO. Anh bảo bấm duyệt là xong; đổi một hộp hỏi lấy một hộp
+   *    hỏi khác thì chẳng khác gì. Duyệt cũng không phải cửa cuối — tiền chỉ thật sự ra khi kế
+   *    toán bấm "Gửi tạm ứng" ở bước sau, và lỡ tay thì có nút Trả lại ngay cùng hàng.
+   */
   function doDuyetTU(m){
-    var d=(BOOT.dons||[]).filter(function(x){return x.maDon===m;})[0], def=d?d.tamUng:0;
-    var amt=prompt('DUYỆT TẠM ỨNG — số tiền tạm ứng cấp cho NV (sửa lại nếu chưa hợp lý):', def); if(amt===null)return;
+    var d=(BOOT.dons||[]).filter(function(x){return x.maDon===m;})[0];
+    var amt=d?d.tamUng:0;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r.success){ var L=r.lenh; toast('ok','Đã duyệt tạm ứng'+(L?(' · lệnh '+money(L.tong)+'đ'):'')); loadDuyet(); }
+      if(r.success){ var L=r.lenh;
+        _log('Duyệt tạm ứng', m, money(Number(amt)||0)+'đ');
+        toast('ok','Đã duyệt tạm ứng'+(L?(' · lệnh '+money(L.tong)+'đ'):'')); loadDuyet(); }
       else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).duyetTamUng(m,(CURUSER&&CURUSER.name)||'',amt);
   }
