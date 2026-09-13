@@ -2730,6 +2730,146 @@ class VHG_Trang {
     });
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * ẢNH BÁO CÁO ĐỂ GỬI ZALO — anh Thắng 13/09/2026: *"gửi báo cáo thành công thì hiện ảnh báo
+   * cáo (chỉ số, tiền, thông tin) để nhân viên gửi lại lên Zalo"*, kèm nội dung *"Báo cáo cơ sở…
+   * ngày…"*.
+   *
+   * 🔴 KHÔNG TỰ ĐĂNG THẲNG VÀO NHÓM ZALO ĐƯỢC. Zalo không cho ứng dụng ngoài đăng bài vào nhóm
+   *    chat cá nhân (chỉ Official Account gửi được cho người đã theo dõi, qua ZNS tính phí). Gần
+   *    nhất là NÚT CHIA SẺ 1 CHẠM: dựng ảnh PNG ngay trên máy rồi gọi Web Share API — điện thoại
+   *    mở khay chia sẻ có sẵn Zalo, chọn nhóm là gửi (ảnh + câu "Báo cáo cơ sở… ngày…" đính kèm).
+   *    Máy không hỗ trợ Web Share thì còn nút "Tải ảnh" + bảng để chụp màn hình.
+   *
+   * Ảnh vẽ THẲNG lên <canvas> (không cần thư viện ngoài, chạy offline) theo đúng mẫu bảng POSH:
+   * Location · Before · After · Actual · Cash · QR + dòng tổng. Số tính CÙNG công thức với cảnh
+   * báo ở guiBaoCao() (actual = (sau−trước)×đơn giá − kích xa, hoặc Thực thu ghi đè; cash = actual − QR).
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  function veReportCanvas_(loc, ngay, list, tot, foot){
+    var DPR=2;
+    var cols=[ {w:198,a:'left',h:'Location'},{w:104,a:'right',h:'Before'},{w:104,a:'right',h:'After'},
+               {w:110,a:'right',h:'Actual'},{w:110,a:'right',h:'Cash'},{w:110,a:'right',h:'QR'} ];
+    var padX=20, tableW=0; cols.forEach(function(c){ tableW+=c.w; });
+    var W=tableW+padX*2, rh=30, hh=34, titleH=142;
+    var tongOnly=!(list&&list.length);
+    var bodyH = tongOnly ? 96 : (hh + list.length*rh + rh);   // +1 dòng tổng
+    var footH=56, H=titleH+bodyH+footH;
+    var cv=document.createElement('canvas'); cv.width=W*DPR; cv.height=H*DPR;
+    cv.style.width=W+'px'; cv.style.height=H+'px';
+    var g=cv.getContext('2d'); g.scale(DPR,DPR);
+    g.fillStyle='#ffffff'; g.fillRect(0,0,W,H); g.textBaseline='middle';
+    var cx=W/2, y=24;
+    g.textAlign='center'; g.fillStyle='#111827';
+    g.font='bold 22px Arial'; g.fillText('POSH', cx, y); y+=20;
+    g.font='italic 12px Arial'; g.fillStyle='#6b7280'; g.fillText('Relax in style', cx, y); y+=20;
+    g.font='bold 13px Arial'; g.fillStyle='#111827'; g.fillText('K&H services and entertainment Co.,ltd', cx, y); y+=22;
+    g.font='bold 15px Arial'; g.fillText('SUMMARY STATION SALES AND CASH REPORT', cx, y); y+=24;
+    g.font='bold 13px Arial'; g.fillStyle='#1d4ed8';
+    g.fillText('Cơ sở: '+loc+'      Ngày: '+ddmmyy_(ngay), cx, y);
+    function cellX(i){ var x=padX; for(var j=0;j<i;j++) x+=cols[j].w; return x; }
+    function drawRow(yy, vals, o){ o=o||{};
+      var rowH=o.h||rh;
+      cols.forEach(function(c,i){
+        var x=cellX(i);
+        if(o.bg){ g.fillStyle=o.bg; g.fillRect(x,yy,c.w,rowH); }
+        g.strokeStyle='#94a3b8'; g.lineWidth=1; g.strokeRect(x+0.5,yy+0.5,c.w,rowH);
+        g.fillStyle=o.color||'#111827'; g.font=(o.bold?'bold ':'')+(o.fs||12)+'px Arial';
+        g.textAlign=c.a; var tx=(c.a==='right')?x+c.w-6:x+6;
+        var t=String(vals[i]==null?'':vals[i]), maxw=c.w-10;
+        while(t && g.measureText(t).width>maxw && t.length>1){ t=t.slice(0,-2)+'…'; }
+        g.fillText(t, tx, yy+rowH/2);
+      });
+    }
+    if(tongOnly){
+      var by=titleH+10;
+      g.textAlign='center'; g.fillStyle='#334155'; g.font='13px Arial';
+      g.fillText('Báo cáo tổng (không chi tiết từng ghế)', cx, by+8);
+      g.fillStyle='#166534'; g.font='bold 20px Arial';
+      g.fillText('Tổng doanh thu nộp: '+money(foot.tong)+' đ', cx, by+40);
+    } else {
+      var ty=titleH;
+      drawRow(ty, cols.map(function(c){ return c.h; }), {bold:true,bg:'#e2e8f0',h:hh,fs:12});
+      var ry=ty+hh;
+      list.forEach(function(r){ drawRow(ry, [r.name,r.before,r.after,r.actual,r.cash,r.qr]); ry+=rh; });
+      drawRow(ry, ['TỔNG', tot.before, tot.after, tot.actual, tot.cash, tot.qr], {bold:true,bg:'#fef9c3'});
+    }
+    var fy=H-footH+16;
+    g.textAlign='left'; g.font='bold 13px Arial'; g.fillStyle='#166534';
+    g.fillText('Tổng thực thu tiền mặt: '+money(foot.cash||0)+' đ    ·    QR: '+money(foot.qr||0)+' đ', padX, fy);
+    g.font='11px Arial'; g.fillStyle='#64748b';
+    var t2=''; try{ t2=new Date().toLocaleString('vi-VN'); }catch(e){}
+    g.fillText('Xuất lúc '+t2, padX, fy+20);
+    return cv;
+  }
+  function moModalAnh_(cv, capText){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:99999;display:flex;'
+      +'align-items:flex-start;justify-content:center;overflow:auto;padding:16px';
+    var box=document.createElement('div');
+    box.style.cssText='background:#fff;border-radius:12px;padding:14px;max-width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3)';
+    var h=document.createElement('div'); h.style.cssText='font-weight:800;margin-bottom:8px;color:#111827';
+    h.textContent='✅ Đã gửi báo cáo — ảnh để gửi Zalo';
+    box.appendChild(h);
+    cv.style.maxWidth='100%'; cv.style.height='auto'; cv.style.border='1px solid #e2e8f0'; cv.style.borderRadius='8px';
+    box.appendChild(cv);
+    var bar=document.createElement('div'); bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px';
+    if(navigator.share){
+      var bS=document.createElement('button'); bS.className='bc-btn pri'; bS.textContent='📤 Chia sẻ lên Zalo';
+      bS.onclick=function(){
+        cv.toBlob(function(b){
+          if(!b){ alert('Không tạo được ảnh — bấm "Tải ảnh" rồi gửi tay.'); return; }
+          var file=new File([b],'bao-cao.png',{type:'image/png'});
+          var data={ text:capText, title:capText };
+          try{ if(navigator.canShare && navigator.canShare({files:[file]})) data.files=[file]; }catch(e){}
+          navigator.share(data).catch(function(){});
+        },'image/png');
+      };
+      bar.appendChild(bS);
+    }
+    var bD=document.createElement('a'); bD.className='bc-btn'; bD.textContent='⬇ Tải ảnh';
+    try{ bD.href=cv.toDataURL('image/png'); }catch(e){} bD.download='bao-cao.png';
+    bar.appendChild(bD);
+    var bC=document.createElement('button'); bC.className='bc-btn'; bC.textContent='Đóng';
+    bC.onclick=function(){ if(ov.parentNode) ov.parentNode.removeChild(ov); };
+    bar.appendChild(bC);
+    box.appendChild(bar);
+    var cap=document.createElement('div'); cap.style.cssText='margin-top:8px;color:#64748b;font-size:12px';
+    cap.textContent='Nội dung kèm khi chia sẻ: “'+capText+'”. Máy không hiện khay chia sẻ thì bấm "Tải ảnh" rồi gửi vào nhóm Zalo.';
+    box.appendChild(cap);
+    ov.appendChild(box);
+    ov.addEventListener('click',function(e){ if(e.target===ov && ov.parentNode) ov.parentNode.removeChild(ov); });
+    document.body.appendChild(ov);
+  }
+  function baoCaoAnh_(rows, loc, ngay){
+    try{
+      var dv=Number(BC&&BC.don_vi)||10000;
+      var list=[], tB=0,tA=0,tAct=0,tCash=0,tQr=0;
+      (rows||[]).forEach(function(r){
+        var b=(r.meterBefore===''||r.meterBefore==null)?'':Number(r.meterBefore);
+        var a=(r.meterAfter===''||r.meterAfter==null)?'':Number(r.meterAfter);
+        var kx=(KICHXA[r.chairCode]||{tien:0});
+        var actual;
+        if(r.actualOverride!=null&&r.actualOverride!==undefined&&r.actualOverride!=='') actual=Number(r.actualOverride);
+        else if(b===''||a==='') actual=0;
+        else actual=(a-b)*dv-(Number(kx.tien)||0);
+        var qr=Number(r.qr||0), cash=actual-qr;
+        if(b!=='') tB+=b; if(a!=='') tA+=a; tAct+=actual; tCash+=cash; tQr+=qr;
+        list.push({ name:(r.chairName||r.chairCode||''), before:(b===''?'':money(b)), after:(a===''?'':money(a)),
+          actual:money(actual), cash:money(cash), qr:money(qr) });
+      });
+      var cv=veReportCanvas_(loc, ngay, list,
+        { before:money(tB), after:money(tA), actual:money(tAct), cash:money(tCash), qr:money(tQr) },
+        { cash:tCash, qr:tQr });
+      moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
+    }catch(e){}
+  }
+  function baoCaoTongAnh_(tong, loc, ngay){
+    try{
+      var cv=veReportCanvas_(loc, ngay, [], null, { tong:tong, cash:tong, qr:0 });
+      moModalAnh_(cv, 'Báo cáo cơ sở '+loc+' ngày '+ddmmyy_(ngay));
+    }catch(e){}
+  }
+
   function guiBaoCao(){
     var msg=$('bc-msg'); msg.className='bc-msg'; msg.textContent='';
     if(!NGAY){ msg.textContent='Chọn ngày.'; msg.className='bc-msg bc-err'; return; }
@@ -2872,6 +3012,9 @@ class VHG_Trang {
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=((r&&r.message)||(r&&r.error)||'Gửi không thành công.')+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-err'; return; }
           msg.textContent=(r.message||('Đã gửi báo cáo '+LOC+'.'))+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-ok';
+          /* 📤 ẢNH BÁO CÁO ĐỂ GỬI ZALO — dựng NGAY từ `rows` (còn nguyên dữ liệu; dưới đây chỉ xoá
+             ô nhập trên DOM, không đụng mảng) + tên cơ sở/ngày của lượt vừa gửi. */
+          baoCaoAnh_(rows, LOC, NGAY);
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
           ANH_LOAT={};   // gửi xong → xoá bản đồ ảnh, khỏi đính lại ảnh cũ cho báo cáo sau
           document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; try{ delete i._bulkFile; }catch(e){ i._bulkFile=null; } });
@@ -2905,6 +3048,7 @@ class VHG_Trang {
         GUI_DANG=false; $('bc-gui').disabled=false;
         if(!r||!r.ok){ msg.textContent=((r&&r.message)||(r&&r.error)||'Gửi không thành công.')+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-err'; return; }
         msg.textContent=(r.message||('Đã gửi báo cáo tổng '+LOC+'.'))+duoiGiay_(r,_t0,_soAnh); msg.className='bc-msg bc-ok';
+        baoCaoTongAnh_(tong, LOC, NGAY);   // 📤 ảnh báo cáo tổng để gửi Zalo (chỉ có 1 số tổng)
         bcXoaNhap();
         var iP=$('bc-proofs'); if(iP) iP.value='';
         if(aEl) aEl.value='';
