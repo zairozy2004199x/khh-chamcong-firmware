@@ -523,7 +523,9 @@ class VHCC_Bu {
 	 *    nhất là người gõ bốn số liền.
 	 */
 	public static function giay( $chu ) {
-		$c = VHCC_DB::gio_24( $chu );
+		/* GIỮ GIÂY: ô "Giờ vào" của sổ cũ có giây, cắt xuống phút là mỗi lượt chấm mất tới
+		   59 giây mà không dòng đỏ nào — xem chú thích cờ `$giu_giay` ở `VHCC_DB::gio_24()`. */
+		$c = VHCC_DB::gio_24( $chu, true );
 		if ( '' === $c || false === $c ) { return null; }
 		return VHCC_DB::giay( $c );
 	}

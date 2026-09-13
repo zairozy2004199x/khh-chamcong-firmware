@@ -752,6 +752,202 @@ class VHCC_NhanSu {
 	 * @param string $ma_nv  Mã NV của người bị đổi vai.
 	 * @param string $vai    Tên vai, phải nằm trong `VHCC_Vai::ds_ten()`.
 	 */
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MẢNG KINH DOANH & BỘ PHẬN CỦA MỘT NGƯỜI
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 13/09/2026: *"Cơ cấu lại hệ nhân sự để phân quyền theo mảng kinh doanh và bộ phận
+	 * được phân"* — *"Sau này ai thuộc mảng nào và bộ phận nào sẽ phân quyền và điều động dễ hơn"*.
+	 *
+	 * Hai trục KHÁC HẲN NHAU, đừng gộp:
+	 *   · MẢNG KINH DOANH — mảng việc mà tiền chạy qua: Máy tự động · Khu vui chơi · Văn phòng ·
+	 *     Part time. Đây ĐÚNG là vốn từ đã có sẵn trong `bo_phan_coso` (`VHCC_Luong::BP_DS`) —
+	 *     bảng ấy gọi là "bộ phận của CƠ SỞ" nhưng nội dung chính là mảng. Không dựng vốn từ thứ
+	 *     hai cho cùng một thứ: hai danh sách của một khái niệm thì sớm muộn lệch nhau.
+	 *   · BỘ PHẬN — ô trong sơ đồ tổ chức: Phòng Nhân sự, Phòng Kỹ Thuật, Khối Nhân Viên Cơ Sở…
+	 *     Người văn phòng KHÔNG thuộc cơ sở nào, nên trục này không suy ra từ cơ sở được.
+	 *
+	 * =============================================================================================
+	 * 🔴 SUY LÚC ĐỌC, KHÔNG GHI ĐÈ LÚC NÂNG CẤP
+	 * =============================================================================================
+	 * Anh Thắng chọn *"tự suy từ cơ sở, sửa tay chỗ nào sai"*. Có hai cách làm điều đó, và chỉ một
+	 * cách đúng:
+	 *
+	 *   ✗ Chạy một lượt nâng cấp ghi mảng/bộ phận vào cả 225 hồ sơ. Nghe gọn, nhưng: (1) ngày mai
+	 *     đổi mảng của một cơ sở thì 40 hồ sơ ghi cứng vẫn mang mảng cũ, không ai biết mà sửa;
+	 *     (2) không phân biệt được "đã xếp đúng" với "máy đoán hộ", nên không bao giờ biết còn
+	 *     bao nhiêu người chưa ai soát.
+	 *
+	 *   ✓ Để cột TRỐNG nghĩa là "theo cơ sở", và suy ra lúc đọc. Khai tay là ghi đè, và chỉ khi
+	 *     ấy cột mới có chữ. Đổi mảng của cơ sở thì mọi người "theo cơ sở" tự đi theo; ai đã khai
+	 *     tay thì đứng yên — đúng như người khai muốn. Và đếm được ngay ai còn đang trôi theo
+	 *     cơ sở, ai đã được xếp thật.
+	 *
+	 * ⚠️ ĐỪNG ĐỔI Ý NỬA CHỪNG. Nếu sau này có ai thêm một lượt nâng cấp ghi đè, cột trống biến
+	 *    mất và mọi tính chất trên mất theo, mà không có gì đỏ cả.
+	 */
+
+	/** Bộ phận mặc định của người CÓ cơ sở — họ đứng quầy, không thuộc phòng ban nào. */
+	const BP_CO_SO = 'Khối Nhân Viên Cơ Sở';
+
+	/** Khoá lưu danh sách bộ phận (sơ đồ tổ chức). Sửa được ở màn nhân sự. */
+	const BP_DS_O = 'vhcc_ds_bo_phan';
+
+	/**
+	 * Danh sách bộ phận dựng sẵn — đúng sơ đồ anh Thắng đang dùng (ảnh 13/09/2026).
+	 *
+	 * ⚠️ CHỈ LÀ HẠT GIỐNG cho lần đầu. Sau đó nguồn sự thật là option `vhcc_ds_bo_phan`; sửa hằng
+	 *    này KHÔNG đổi được danh sách của một site đã chạy — đó là cố ý, kẻo một bản cập nhật âm
+	 *    thầm xoá mất phòng ban người ta tự thêm.
+	 */
+	const BP_HAT_GIONG = array(
+		'Tổng Giám Đốc (CEO)', 'Phòng Nhân sự', 'Phòng Kế Toán - Tài Chính', 'Phòng Kinh doanh',
+		'Phòng Marketing', 'Phòng Chăm sóc khách hàng', 'Phòng Hành Chính', 'Phòng Kỹ Thuật',
+		'Phòng Kho Hàng', 'Phòng Kỹ Thuật / CNTT', 'Phòng Vận Hành', self::BP_CO_SO,
+	);
+
+	/** Mọi MẢNG KINH DOANH đang dùng. Dùng CHUNG vốn từ với `bo_phan_coso`, không dựng bảng mới. */
+	public static function ds_mang() {
+		$ra = array_values( (array) VHCC_Luong::BP_DS );
+		/* Mảng lạ còn sót trong hồ sơ cũng phải hiện ra ô xổ — không thì mở hồ sơ ấy lên là ô tự
+		   nhảy về dòng đầu, bấm Lưu một cái là đổi mảng của người ta mà không ai định làm vậy.
+		   Đúng cái bẫy `dat_vai_tro()` đã dính với vai "Kế Toán MTD". */
+		foreach ( self::mang_dang_khai() as $m ) {
+			if ( '' !== $m && ! in_array( $m, $ra, true ) ) { $ra[] = $m; }
+		}
+		return $ra;
+	}
+
+	/** Những giá trị `mang` thật sự đang nằm trong sổ. */
+	public static function mang_dang_khai() {
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return array(); }
+		global $wpdb;
+		$ra = array();
+		foreach ( (array) $wpdb->get_col( "SELECT DISTINCT mang FROM $t WHERE mang <> ''" ) as $m ) {
+			$ra[] = trim( (string) $m );
+		}
+		return $ra;
+	}
+
+	/** Sơ đồ tổ chức đang khai. Lần đầu thì gieo hạt giống rồi lưu lại. */
+	public static function ds_bo_phan() {
+		$v = get_option( self::BP_DS_O, null );
+		if ( ! is_array( $v ) ) {
+			$v = array_values( (array) self::BP_HAT_GIONG );
+			update_option( self::BP_DS_O, $v );
+		}
+		$ra = array();
+		foreach ( $v as $x ) { $x = trim( (string) $x ); if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; } }
+		/* Bộ phận lạ còn sót trong hồ sơ — cùng lý do với ds_mang(). */
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( VHCC_DB::co_bang( $t ) ) {
+			global $wpdb;
+			foreach ( (array) $wpdb->get_col( "SELECT DISTINCT bo_phan FROM $t WHERE bo_phan <> ''" ) as $b ) {
+				$b = trim( (string) $b );
+				if ( '' !== $b && ! in_array( $b, $ra, true ) ) { $ra[] = $b; }
+			}
+		}
+		return $ra;
+	}
+
+	/** MẢNG suy ra từ cơ sở chính. '' = cơ sở chưa khai mảng, hoặc người này không có cơ sở. */
+	public static function mang_theo_coso( $coso ) {
+		$cs = self::chuan_coso( $coso );
+		if ( '' === $cs ) { return ''; }
+		$bp = VHCC_Luong::bo_phan_cua( $cs );
+		/* 'Chưa xếp' là câu TRẢ LỜI CỦA `bo_phan_cua()` khi không tra ra, không phải một mảng
+		   thật. Trả nó ra đây là bịa cho người ta một mảng tên "Chưa xếp". */
+		return ( VHCC_Luong::BP_CHUA_XEP === $bp ) ? '' : $bp;
+	}
+
+	/** BỘ PHẬN suy ra từ cơ sở: có cơ sở thì là khối cơ sở; không có thì chịu, phải khai tay. */
+	public static function bo_phan_theo_coso( $coso ) {
+		return ( '' !== self::chuan_coso( $coso ) ) ? self::BP_CO_SO : '';
+	}
+
+	/**
+	 * MẢNG / BỘ PHẬN THẬT SỰ CỦA MỘT HỒ SƠ — khai tay thắng, không có thì suy từ cơ sở.
+	 *
+	 * @param array $hs hàng hồ sơ (cần `mang`/`bo_phan`/`cua_hang`).
+	 * @return array array( 'mang','boPhan','mangKhai','boPhanKhai','theoCoSo' )
+	 *               `theoCoSo` = true khi CẢ HAI đều đang trôi theo cơ sở (chưa ai soát).
+	 */
+	public static function mang_bo_phan_cua( $hs ) {
+		$hs   = (array) $hs;
+		$cs   = isset( $hs['cua_hang'] ) ? (string) $hs['cua_hang'] : '';
+		$mk   = isset( $hs['mang'] ) ? trim( (string) $hs['mang'] ) : '';
+		$bk   = isset( $hs['bo_phan'] ) ? trim( (string) $hs['bo_phan'] ) : '';
+		return array(
+			'mang'       => ( '' !== $mk ) ? $mk : self::mang_theo_coso( $cs ),
+			'boPhan'     => ( '' !== $bk ) ? $bk : self::bo_phan_theo_coso( $cs ),
+			'mangKhai'   => $mk,
+			'boPhanKhai' => $bk,
+			'theoCoSo'   => ( '' === $mk && '' === $bk ),
+		);
+	}
+
+	/**
+	 * ĐẶT MẢNG & BỘ PHẬN cho một người. Chuỗi rỗng = "theo cơ sở" (xoá phần khai tay).
+	 *
+	 * ⚠️ CÙNG BẬC QUYỀN VỚI ĐỔI VAI TRÒ (`co_sua_ho_so`, Kế toán trở lên). Mảng và bộ phận là
+	 *    thứ mà bản sau sẽ BÓ QUYỀN theo; ai sửa được nó thì sau này sửa được phạm vi nhìn thấy
+	 *    của người khác. Đặt thấp hơn bây giờ thì bản sau muốn nâng lên đã có người quen tay.
+	 *
+	 * @return array array( 'ok', 'doi' ) hoặc array( 'ok' => false, 'error' )
+	 */
+	public static function dat_mang_bo_phan( $u, $ma_nv, $mang, $bo_phan ) {
+		global $wpdb;
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Đổi mảng / bộ phận cần vai Kế toán trở lên.' );
+		}
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$cu = self::ho_so( $ma );
+		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+
+		$m = trim( (string) $mang );
+		$b = trim( (string) $bo_phan );
+		$m_cu = trim( (string) ( isset( $cu['mang'] ) ? $cu['mang'] : '' ) );
+		$b_cu = trim( (string) ( isset( $cu['bo_phan'] ) ? $cu['bo_phan'] : '' ) );
+		/* "Không đổi gì" xét TRƯỚC danh sách trắng — cùng bài học với `dat_vai_tro()`: hồ sơ đang
+		   mang một giá trị sót từ sổ cũ thì mỗi lần bấm Lưu bảng lại đẻ một dòng đỏ cho một việc
+		   không xảy ra, và dòng đỏ kêu oan dạy người ta thôi đọc dòng đỏ. */
+		if ( $m === $m_cu && $b === $b_cu ) { return array( 'ok' => true, 'doi' => false ); }
+
+		if ( '' !== $m && ! in_array( $m, self::ds_mang(), true ) ) {
+			return array( 'ok' => false, 'error' => $ma . ': mảng "' . $m . '" không có trong hệ.' );
+		}
+		if ( '' !== $b && ! in_array( $b, self::ds_bo_phan(), true ) ) {
+			return array( 'ok' => false, 'error' => $ma . ': bộ phận "' . $b . '" không có trong hệ.' );
+		}
+		$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'mang' => mb_substr( $m, 0, 120 ), 'bo_phan' => mb_substr( $b, 0, 120 ) ),
+			array( 'ma_nv' => $ma ) );
+		return array( 'ok' => true, 'doi' => true );
+	}
+
+	/**
+	 * ĐẾM NGƯỜI THEO MẢNG và THEO BỘ PHẬN — dải số của màn nhân sự.
+	 *
+	 * ⚠️ ĐẾM TRÊN DANH SÁCH ĐÃ LỌC QUYỀN (`$ds`), không tự truy vấn cả sổ. Cửa hàng trưởng thấy
+	 *    con số của cả chuỗi là một chỗ rò: nó nói cho biết chuỗi có bao nhiêu người, ở những
+	 *    mảng nào — thứ mà chính bảng bên dưới đang giấu đi.
+	 */
+	public static function dem_mang_bo_phan( $ds ) {
+		$mang = array(); $bp = array(); $chua = 0;
+		foreach ( (array) $ds as $r ) {
+			$x = self::mang_bo_phan_cua( $r );
+			$km = ( '' !== $x['mang'] ) ? $x['mang'] : '— chưa xếp —';
+			$kb = ( '' !== $x['boPhan'] ) ? $x['boPhan'] : '— chưa xếp —';
+			$mang[ $km ] = ( isset( $mang[ $km ] ) ? $mang[ $km ] : 0 ) + 1;
+			$bp[ $kb ]   = ( isset( $bp[ $kb ] ) ? $bp[ $kb ] : 0 ) + 1;
+			if ( $x['theoCoSo'] ) { $chua++; }
+		}
+		arsort( $mang ); arsort( $bp );
+		return array( 'mang' => $mang, 'boPhan' => $bp, 'theoCoSo' => $chua );
+	}
+
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
 		global $wpdb;
 		if ( ! self::co_sua_ho_so( $u ) ) {

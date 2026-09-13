@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.9.0';
+	const SCHEMA_VERSION = '2.10.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -168,7 +168,23 @@ class VHCC_DB {
 	 * Chối: quá 23 giờ, quá 59 phút, và mọi thứ còn lại (kể cả `01:37 CH` — dạng 12 giờ cố ý
 	 * KHÔNG nhận, vì đoán SA hay CH là đoán một ca làm việc).
 	 */
-	public static function gio_24( $chu ) {
+	/**
+	 * @param string $chu      chuỗi người ta gõ.
+	 * @param bool   $giu_giay giữ luôn phần GIÂY (trả 'HH:MM:SS') thay vì cắt xuống phút.
+	 *
+	 * 🔴 CỜ `$giu_giay` SINH RA TỪ MỘT LỖI THẬT CỦA 3.66.0.
+	 *    Bản ấy gom mọi phép đọc giờ về đây, và hàm này trả 'HH:MM' vì ô nhập chỉ cần tới phút.
+	 *    Nhưng `VHCC_Bu::giay()` cũng đi qua đây, mà nó đọc cả ô "Giờ vào" của sổ cũ — vốn có
+	 *    GIÂY. Thế là `08:30:15` lặng lẽ thành `08:30`: mỗi lượt chấm mất tới 59 giây, không
+	 *    dòng đỏ nào, và sổ vẫn trông đúng vì ai nhìn cũng chỉ đọc tới phút.
+	 *    Bài `kiem-cham-bu.php` bắt được ngay từ bản ấy — nhưng bài đỏ mà không ai chạy thì cũng
+	 *    như không có. (Đó là lý do kho này cần một lệnh chạy hết, xem cuối tệp hướng dẫn.)
+	 *
+	 * ⚠️ MỘT HÀM, MỘT CỜ — đừng tách thành `gio_24()` và `gio_24_giay()`. Hai bản chép của một
+	 *    luật đọc giờ thì sớm muộn lệch nhau, và lệch ở đây nghĩa là cùng một chuỗi, ô nhập hiểu
+	 *    một giờ còn sổ ghi một giờ khác.
+	 */
+	public static function gio_24( $chu, $giu_giay = false ) {
 		$c = trim( (string) $chu );
 		if ( '' === $c ) { return ''; }
 		$c = str_replace( array( '．', '：', 'h', 'H', '.', ' ' ), ':', $c );
@@ -177,8 +193,9 @@ class VHCC_DB {
 		if ( preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $c, $m ) ) {
 			$h = (int) $m[1];
 			$p = (int) $m[2];
-			if ( $h > 23 || $p > 59 ) { return false; }
-			return sprintf( '%02d:%02d', $h, $p );
+			$g = ( isset( $m[3] ) && '' !== $m[3] ) ? (int) $m[3] : 0;
+			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
 		}
 		/* Gõ liền: `1337` -> 13:37, `937` -> 9:37. Đây là kiểu gõ nhanh nhất trên bàn phím số,
 		   và là lý do chính người ta muốn bỏ ô 12 giờ.
@@ -193,7 +210,7 @@ class VHCC_DB {
 			$p  = (int) substr( $so, ( 6 === strlen( $so ) ) ? 2 : -2, 2 );
 			$h  = (int) substr( $so, 0, ( 6 === strlen( $so ) ) ? 2 : strlen( $so ) - 2 );
 			if ( $h > 23 || $p > 59 || $g > 59 ) { return false; }
-			return sprintf( '%02d:%02d', $h, $p );
+			return $giu_giay ? sprintf( '%02d:%02d:%02d', $h, $p, $g ) : sprintf( '%02d:%02d', $h, $p );
 		}
 		return false;
 	}
@@ -319,6 +336,8 @@ class VHCC_DB {
 			cccd_file_id VARCHAR(190) NOT NULL DEFAULT '',
 			hop_dong_file_id VARCHAR(190) NOT NULL DEFAULT '',
 			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
+			mang VARCHAR(120) NOT NULL DEFAULT '',
+			bo_phan VARCHAR(120) NOT NULL DEFAULT '',
 			coso_phu TEXT NULL,
 			coso_ql TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
@@ -331,6 +350,8 @@ class VHCC_DB {
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),
 			KEY cccd (cccd),
+			KEY mang (mang),
+			KEY bo_phan (bo_phan),
 			KEY trang_thai_lam_viec (trang_thai_lam_viec)";
 
 		/* ===== 4. MÃ CHẠY SONG SONG (sheet MaSongSong) =======================================

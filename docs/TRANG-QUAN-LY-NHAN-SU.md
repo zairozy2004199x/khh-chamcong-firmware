@@ -592,13 +592,84 @@ lần rồi tưởng ô hỏng.
 
 ---
 
+## 4h. Mảng kinh doanh & bộ phận (3.67.0)
+
+Anh Thắng 13/09/2026: *"Cơ cấu lại hệ nhân sự để phân quyền theo mảng kinh doanh và bộ phận được
+phân"* — *"Sau này ai thuộc mảng nào và bộ phận nào sẽ phân quyền và điều động dễ hơn"*.
+
+Bảng nhân sự có thêm **hai cột**: Mảng kinh doanh · Bộ phận. Thanh lọc có hai ô tương ứng (kèm
+lựa chọn `(chưa xếp)`), và đầu bảng có **dải đếm** — mỗi ô là một đường lọc, bấm vào là bảng dưới
+còn đúng nhóm ấy.
+
+**Hai trục khác hẳn nhau, đừng gộp:**
+
+| | Là gì | Vốn từ |
+|---|---|---|
+| **Mảng kinh doanh** | Mảng việc tiền chạy qua | Dùng CHUNG `bo_phan_coso` (`VHCC_Luong::BP_DS`): Máy tự động · Khu vui chơi · Văn phòng · Part time |
+| **Bộ phận** | Ô trong sơ đồ tổ chức | Option `vhcc_ds_bo_phan`, gieo sẵn 12 phòng ban + `Khối Nhân Viên Cơ Sở` |
+
+Không dựng vốn từ thứ hai cho mảng: hai danh sách của một khái niệm thì sớm muộn lệch nhau.
+
+### 🔴 Cột TRỐNG nghĩa là "theo cơ sở" — suy lúc ĐỌC, không ghi đè
+
+Cả thiết kế đứng trên điểm này. Cột `mang`/`bo_phan` để trống = người ấy **trôi theo cơ sở**, giá
+trị thật suy ra lúc đọc (`mang_bo_phan_cua()`). Khai tay thì ghi đè và cột mới có chữ.
+
+Vì sao không chạy một lượt nâng cấp điền sẵn cả 225 hồ sơ:
+
+1. Đổi mảng của một cơ sở thì 40 hồ sơ ghi cứng vẫn mang mảng cũ, **không ai biết mà sửa**.
+2. Không phân biệt được "đã xếp đúng" với "máy đoán hộ", nên không bao giờ biết còn ai chưa soát.
+
+Để trống thì cả hai tính chất ấy có sẵn, và dải đếm nói thẳng *"N người đang trôi theo cơ sở"*.
+
+⚠️ **Đừng đổi ý nửa chừng.** Ai thêm một lượt ghi đè "cho sạch" là mất hết, mà **không có gì đỏ** —
+bảng vẫn hiện đủ tên mảng như cũ. `kiem-mang-bo-phan.php` canh đúng chỗ này (mục 3).
+
+### Điều động hàng loạt
+
+Đầu mỗi cột có ô xổ + nút **Áp** (điều động cả cột đang hiện) và nút **theo cơ sở** (trả cả cột về
+mặc định). Chỉ áp cho người **đang hiện** — cùng luật với nút Lưu, không phải cả 225 người.
+
+⚠️ Đi qua `VHCC_NhanSu::dat_mang_bo_phan()` từng người, **không có đường UPDATE tắt**: chốt quyền
+(Kế toán trở lên, cùng bậc với đổi vai trò) và danh sách trắng nằm trong hàm ấy. Áp cột Mảng thì
+giữ nguyên Bộ phận của từng người và ngược lại — ghi đè cả hai là một cú bấm xoá sạch sơ đồ tổ
+chức của cả trang, không có đường lùi.
+
+**Bản này CHƯA bó quyền theo mảng/bộ phận** — anh Thắng chốt vậy: gắn + lọc + điều động trước, dữ
+liệu sạch rồi bản sau mới bó, lúc ấy bó mới chính xác.
+
+48 phép thử trong `tools/test/kiem-mang-bo-phan.php`.
+
+---
+
+## 4i. Lỗi mất GIÂY của ô giờ 24h (vá ở 3.67.0)
+
+3.66.0 gom mọi phép đọc giờ về `VHCC_DB::gio_24()`, và hàm ấy trả `HH:MM` vì ô nhập chỉ cần tới
+phút. Nhưng `VHCC_Bu::giay()` cũng đi qua đó, mà nó đọc cả ô "Giờ vào" của sổ cũ — vốn **có giây**.
+Thế là `08:30:15` lặng lẽ thành `08:30`: mỗi lượt chấm mất tới 59 giây, không dòng đỏ nào, và sổ
+vẫn trông đúng vì ai nhìn cũng chỉ đọc tới phút.
+
+Vá bằng cờ `gio_24( $chu, $giu_giay )` — **một hàm một cờ**, không tách thành hai hàm: hai bản chép
+của một luật đọc giờ thì sớm muộn lệch, và lệch ở đây nghĩa là ô nhập hiểu một giờ còn sổ ghi một
+giờ khác.
+
+⚠️ `kiem-cham-bu.php` **đã bắt được lỗi này ngay từ 3.66.0** — nhưng bài đỏ mà không ai chạy thì
+cũng như không có. Kho này cần một lệnh chạy hết như `chay-het.sh` bên nhánh POSH.
+
+Cũng trong lượt này: bài thử ấy còn dùng `8h30` làm mẫu "sai dạng", trong khi từ 3.65.0 `gio_24()`
+**cố ý nhận** `8h30` / `08.30` / `0830` / `830`. Nay nó canh đúng hai việc: kiểu gõ nhanh phải ăn,
+chuỗi thật sự vô nghĩa phải bị chối.
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |
 |---|---|
 | Sổ trang + luật "ai vào được trang nào" | `wordpress/vhcp-cham-cong/includes/class-vhcc-cong.php` |
 | Trang `/nhan-su/` | `wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php` |
-| Phép thử | `tools/test/test-cham-cong.php` (mục 60 · mục 39b cho cửa thêm người), `tools/test/kiem-noi-bo.php` |
+| Mảng kinh doanh & bộ phận (mô hình) | `wordpress/vhcp-cham-cong/includes/class-vhcc-nhan-su.php` |
+| Phép thử | `tools/test/test-cham-cong.php` (mục 60 · mục 39b cho cửa thêm người), `tools/test/kiem-noi-bo.php`, `tools/test/kiem-mang-bo-phan.php` |
 
 Danh sách trang **tự dò** bằng `class_exists` + `method_exists('url')` — gỡ một plugin thì cột
 của nó tự biến mất, không để lại dòng trỏ vào hư không. Số phiên bản ở chân trang đọc thẳng từ

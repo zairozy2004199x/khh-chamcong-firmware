@@ -478,10 +478,10 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
 t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về'
-	. ' + coso_ql',
-	count( $cot_thuc['nhan_vien'] ) === 33,
+	. ' + coso_ql + mang + bo_phan',
+	count( $cot_thuc['nhan_vien'] ) === 35,
 	implode( ', ', $cot_thuc['nhan_vien'] ) );
-// 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql
+// 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi + coso_ql + mang + bo_phan
 /* 🔴 CỜ "CHỈ QUẢN LÝ — KHÔNG CHẤM CÔNG" là MỘT CỘT TRONG HỒ SƠ, không phải một sổ rời.
    Anh Thắng 09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm sao để
    loại ra khỏi bảng chấm công, nhưng vẫn quản lý được nhân viên cơ sở đó"*. Cờ này là thuộc
