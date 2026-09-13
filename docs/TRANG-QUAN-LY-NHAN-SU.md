@@ -723,6 +723,53 @@ chuỗi thật sự vô nghĩa phải bị chối.
 
 ---
 
+## 4j. Đổi nguồn người dùng — chốt "không khoá cả công ty" (3.70.0)
+
+Cổng PIN của chấm công có **bốn** nguồn: `chung` (sổ `CH_NguoiDung` của app chi phí) · `rieng`
+(option riêng) · `app` (sổ PhanQuyen của app gốc) · `ho_so` (**đọc thẳng hồ sơ nhân sự**).
+
+Anh Thắng 13/09/2026: *"Vai trò này sẽ do bên nhân sự quyết định chứ không phải trang chi phí
+quyết định, vì nhân sự nó đi chung hết, đầu cuối là trang chi phí"* — tức đích đến là `ho_so`.
+
+### 🔴 Chốt cũ chống nhầm thứ
+
+`VHCC_Web` xử `doi_nguon` vốn chỉ đòi **có ít nhất MỘT người** vào được ở nguồn mới. Nó chống
+Admin tự khoá **mình** ra ngoài — nhưng không chống khoá **200 người còn lại**: đổi sang một sổ
+mới có đúng 3 người là chạy lọt, và sáng hôm sau cả chuỗi đứng ngoài cửa.
+
+Và **người mất đường vào không tự báo được** — cái họ mất chính là đường để báo. Màn hình chỉ nói
+"PIN không đúng", nên họ đổ cho cái PIN, không ai nghĩ tới chuyện cả cuốn sổ vừa bị đổi.
+
+### 🔴 Có HAI cửa đổi nguồn, và cửa thứ hai chưa ai gác
+
+| Cửa | Trước 3.70.0 |
+|---|---|
+| Màn **Quản lý nhân sự** → khối *Đồng bộ* | Khoá nút tới khi hết mục nặng ✓ |
+| Màn **Hồ sơ & tài khoản** → 🔑 *Tài khoản đăng nhập* | **Bấm là đổi ngay** ✗ |
+
+Trớ trêu là chính chú thích ở cửa thứ nhất đã cảnh báo đúng chuyện này — *"hai cửa cho cùng một
+việc, và cửa mới thì chưa ai gác"* — mà thực tế lại đúng có hai cửa. Cửa thứ hai nằm **ngay dưới
+chỗ khai PIN** nên lại là cửa hay bấm nhất.
+
+### Vá
+
+**Chốt chuyển vào HÀM LÀM VIỆC, không nằm ở nút bấm** — cửa thứ ba mọc ra ngày nào cũng được gác
+sẵn. `VHCC_Auth::doi_chieu_ho_so()` tổng quát hoá thành `doi_chieu_nguon( $dich )` để soát được
+với nguồn đích bất kỳ; `doi_nguon` gọi nó, đếm mục `mat_duong`, và **chối kèm danh sách đích danh**
+ai sẽ rớt.
+
+Muốn vượt thì **gõ tay** `MAT DUONG` — ô tích thì bấm nhầm được, gõ đúng một chuỗi thì phải đọc
+câu cảnh báo mới gõ nổi (cùng lối với ô `XOA HET` của lượt xoá sổ hồ sơ).
+
+Cửa thứ hai nay cũng **bày hậu quả ra trước khi bấm**: trước 3.70.0 nó chỉ khoe *"N người vào
+được"* — một con số của sổ **mới**, không so với sổ đang dùng. Đổi từ sổ 200 người sang sổ 3 người
+thì nó vẫn khoe "3 người vào được", nghe như tin tốt.
+
+Đã bẻ để chắc có răng: bỏ chốt → đỏ, và màn hình lộ ra *"4 người vừa MẤT đường vào"*; nhận bừa mọi
+chuỗi xác nhận → đỏ.
+
+---
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

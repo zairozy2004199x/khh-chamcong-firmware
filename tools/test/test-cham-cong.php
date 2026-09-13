@@ -6908,12 +6908,53 @@ ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
 teq( 'không cho đổi sang nguồn KHÔNG AI vào được', 'rieng', VHCC_Auth::nguon() );
 t( 'và nói rõ vì sao: đổi là tự khoá mình ra ngoài',
 	strpos( $h_w, 'tự khoá mình ra ngoài' ) !== false, $h_w );
-/* Có người vào được thì đổi bình thường. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHỐT "KHÔNG KHOÁ CẢ CÔNG TY" — 13/09/2026.
+ *
+ * Chốt trên chỉ đòi CÓ ÍT NHẤT MỘT người vào được: nó chống Admin tự khoá MÌNH ra ngoài, nhưng
+ * không chống khoá 200 người còn lại. Đổi sang một sổ mới có đúng 1 người là chạy lọt, và sáng
+ * hôm sau cả chuỗi đứng ngoài cửa — mà người mất đường vào KHÔNG tự báo được, vì cái họ mất
+ * chính là đường để báo. Màn hình chỉ nói "PIN không đúng", nên họ đổ cho cái PIN.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* Thêm MỘT người vào hồ sơ — nhưng người đang đăng nhập (PIN 246813 ở sổ `rieng`) thì CHƯA có
+   trong hồ sơ, nên đổi bây giờ là họ rớt. Chốt phải chặn. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DN01', 'ho_ten' => 'Anh Vào Được',
 	'pin_dang_nhap' => '135791', 'vai_tro' => 'Admin' ) );
 $_POST = array( 'viec' => 'doi_nguon', 'nguon' => 'ho_so', 'ky' => VHCC_Web::chu_ky( $tok_dn ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+teq( '🔴 có người SẼ MẤT đường vào -> KHÔNG đổi, dù sổ mới đã có người',
+	'rieng', VHCC_Auth::nguon() );
+t( 'và kê ĐÍCH DANH ai sẽ mất, không nói chung chung',
+	strpos( $h_w, 'MẤT đường vào' ) !== false, $h_w );
+t( 'và chỉ đường sang khối Đồng bộ để sửa',
+	strpos( $h_w, 'Đồng bộ chấm công' ) !== false, $h_w );
+
+/* Cố tình vượt: gõ đúng chuỗi. Ô TÍCH thì bấm nhầm được; gõ tay thì phải đọc câu cảnh báo. */
+$_POST = array( 'viec' => 'doi_nguon', 'nguon' => 'ho_so', 'dong_y_mat' => 'sai chữ',
+	'ky' => VHCC_Web::chu_ky( $tok_dn ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
-teq( 'có người vào được thì đổi nguồn bình thường', 'ho_so', VHCC_Auth::nguon() );
+teq( 'gõ SAI chuỗi xác nhận thì vẫn không đổi', 'rieng', VHCC_Auth::nguon() );
+
+/* ĐƯỜNG ĐÚNG: khai PIN của người đang đăng nhập vào hồ sơ -> không ai mất -> đổi trơn tru.
+   Đây là việc anh Thắng nên làm, nên nó phải chạy được mà KHÔNG cần gõ xác nhận gì. */
+/* Khai hồ sơ cho MỌI người đang vào được ở sổ cũ — đúng việc mà khối Đồng bộ bảo phải làm.
+   Dựng theo danh sách thật chứ không gõ cứng một PIN: sổ `rieng` của cảnh này có thể có thêm
+   người, và gõ cứng thì phép thử xanh/đỏ theo thứ tự mấy khối phía trên. */
+$i_dn = 0;
+foreach ( (array) VHCC_Auth::users_cua( 'rieng' ) as $u_dn ) {
+	$p_dn = VHCC_Auth::pin_sach( isset( $u_dn['pin'] ) ? $u_dn['pin'] : '' );
+	if ( '' === $p_dn ) { continue; }
+	$i_dn++;
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+		'ma_nv' => 'DNX' . $i_dn, 'ho_ten' => (string) $u_dn['ten'],
+		'pin_dang_nhap' => $p_dn, 'vai_tro' => (string) $u_dn['vaiTro'] ) );
+}
+t( 'dựng cảnh: đã khai hồ sơ cho mọi người đang đăng nhập được', $i_dn > 0, $i_dn );
+$_POST = array( 'viec' => 'doi_nguon', 'nguon' => 'ho_so', 'ky' => VHCC_Web::chu_ky( $tok_dn ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+teq( '🔴 khai đủ PIN rồi thì đổi nguồn bình thường, KHÔNG phải gõ xác nhận',
+	'ho_so', VHCC_Auth::nguon() );
 update_option( 'vhcc_nguon_nguoidung', 'rieng' );
 $_POST = array(); $_COOKIE = array();
 

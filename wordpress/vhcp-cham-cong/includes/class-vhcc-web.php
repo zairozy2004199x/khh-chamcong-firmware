@@ -1637,9 +1637,50 @@ class VHCC_Web {
 					. 'đổi sang là tự khoá mình ra ngoài, hết phiên là không còn đường nào mở lại. '
 					. 'Khai PIN và Vai trò cho ít nhất một người trước đã.' ) );
 			}
+
+			/* ══════════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CHỐT "KHÔNG KHOÁ CẢ CÔNG TY" — 13/09/2026.
+			 * ══════════════════════════════════════════════════════════════════════════════════
+			 * Chốt `$dem` ở trên chỉ đòi CÓ ÍT NHẤT MỘT người vào được. Nó chống anh tự khoá
+			 * MÌNH ra ngoài, nhưng KHÔNG chống khoá 200 người còn lại: đổi sang một sổ mới có
+			 * đúng 3 người là chạy lọt, và sáng hôm sau cả chuỗi đứng ngoài cửa.
+			 *
+			 * 🔴 VÀ NGƯỜI MẤT ĐƯỜNG VÀO KHÔNG TỰ BÁO ĐƯỢC — cái họ mất chính là đường để báo.
+			 *    Màn hình chỉ nói "PIN không đúng", nên họ đi đổ cho cái PIN, không ai nghĩ tới
+			 *    chuyện cả cuốn sổ vừa bị đổi.
+			 *
+			 * ⚠️ CHỐT NẰM Ở ĐÂY, KHÔNG NẰM Ở NÚT BẤM. Đổi nguồn có HAI cửa: màn Nhân sự (đã khoá
+			 *    nút tới khi hết mục nặng) và màn *Hồ sơ & tài khoản* (bấm là đổi ngay). Cửa thứ
+			 *    hai nằm ngay dưới chỗ khai PIN nên lại là cửa hay bấm nhất, mà chưa ai gác.
+			 *    Đặt chốt ở hàm xử việc thì cửa thứ ba mọc ra ngày nào cũng được gác sẵn.
+			 */
+			$mat = array();
+			if ( $ng !== VHCC_Auth::nguon()
+				&& method_exists( 'VHCC_Auth', 'doi_chieu_nguon' ) ) {
+				$db = VHCC_Auth::doi_chieu_nguon( $ng );
+				foreach ( (array) $db['muc'] as $m ) {
+					if ( 'mat_duong' === $m['loai'] ) { $mat[] = (string) $m['ten']; }
+				}
+			}
+			/* Gõ tay để vượt — cùng lối với ô "XOA HET" của lượt xoá sổ hồ sơ. Ô tích thì bấm
+			   nhầm được; gõ đúng một chuỗi thì phải đọc câu cảnh báo mới gõ nổi. */
+			$go_mat = isset( $_POST['dong_y_mat'] ) ? trim( (string) wp_unslash( $_POST['dong_y_mat'] ) ) : '';
+			if ( $mat && 'MAT DUONG' !== $go_mat ) {
+				$ke = array_slice( $mat, 0, 8 );
+				return array( array( 'loi' => 'Không đổi. <b>' . count( $mat ) . ' người đang đăng nhập '
+					. 'được sẽ MẤT đường vào</b> vì sổ "' . esc_html( $ng ) . '" chưa khai PIN của họ: '
+					. esc_html( implode( ' · ', $ke ) )
+					. ( count( $mat ) > count( $ke ) ? ' … và ' . ( count( $mat ) - count( $ke ) ) . ' người nữa' : '' )
+					. '. Khai PIN cho họ ở sổ đó trước — màn <b>Quản lý nhân sự</b> có khối '
+					. '<b>Đồng bộ chấm công ↔ hồ sơ nhân sự</b> kê đủ từng người và từng việc phải làm. '
+					. 'Cố tình vượt thì gõ <code>MAT DUONG</code> vào ô xác nhận.' ) );
+			}
+
+			$cu_ng = VHCC_Auth::nguon();
 			update_option( 'vhcc_nguon_nguoidung', $ng );
 			return array( array( 'xong' => 'Cổng đăng nhập giờ đọc: ' . $ng . ' — ' . $dem
-				. ' người đăng nhập được.' ) );
+				. ' người đăng nhập được (trước đó: ' . $cu_ng . ').'
+				. ( $mat ? ' ⚠️ ' . count( $mat ) . ' người vừa MẤT đường vào theo đúng xác nhận của anh.' : '' ) ) );
 		}
 
 		if ( 'luu_nhiem_vu' === $viec ) {
@@ -8087,13 +8128,41 @@ class VHCC_Web {
 		   nhớ bấm thêm "Nạp tài khoản" để chép sang. Hai bản danh sách cho cùng một việc thì
 		   sớm muộn lệch nhau, và cái lệch đó im lặng. Đọc thẳng hồ sơ là hết bước chép. */
 		if ( 'ho_so' !== $nguon_ht ) {
+			/* 🔴 NÓI TRƯỚC AI SẼ MẤT ĐƯỜNG VÀO, ĐỪNG ĐỂ BẤM RỒI MỚI BIẾT.
+			   Nút này nằm ngay dưới chỗ khai PIN nên là cửa hay bấm nhất, mà trước 3.70.0 nó chỉ
+			   khoe "N người vào được" — một con số của sổ MỚI, không so với sổ đang dùng. Đổi từ
+			   một sổ 200 người sang một sổ 3 người thì nó vẫn khoe "3 người vào được", nghe như
+			   tin tốt. Lượt lưu có chốt chặn (xem `doi_nguon`), nhưng để người ta bấm rồi ăn câu
+			   chối thì vẫn là bắt đi đường vòng — bày ra đây thì họ biết trước phải làm gì. */
+			$mat_tr = array();
+			if ( method_exists( 'VHCC_Auth', 'doi_chieu_nguon' ) ) {
+				foreach ( (array) VHCC_Auth::doi_chieu_nguon( 'ho_so' )['muc'] as $m_t ) {
+					if ( 'mat_duong' === $m_t['loai'] ) { $mat_tr[] = (string) $m_t['ten']; }
+				}
+			}
 			echo '<div class="bao canh"><b>PIN khai trong hồ sơ bên dưới hiện CHƯA có hiệu lực</b> ở '
 				. 'cổng đăng nhập, vì cổng đang đọc một danh sách khác. Bấm nút dưới để cổng đọc '
-				. 'thẳng hồ sơ — sửa ở đâu có hiệu lực ngay ở đó.'
-				. '<form method="post" style="margin-top:8px">'
+				. 'thẳng hồ sơ — sửa ở đâu có hiệu lực ngay ở đó.';
+			if ( $mat_tr ) {
+				$ke_tr = array_slice( $mat_tr, 0, 8 );
+				echo '<div style="margin-top:8px"><b style="color:var(--do)">⚠️ Chuyển bây giờ thì '
+					. count( $mat_tr ) . ' người đang đăng nhập được sẽ MẤT đường vào</b> — hồ sơ của '
+					. 'họ chưa khai PIN: ' . esc_html( implode( ' · ', $ke_tr ) )
+					. ( count( $mat_tr ) > count( $ke_tr )
+						? ' … và ' . ( count( $mat_tr ) - count( $ke_tr ) ) . ' người nữa' : '' )
+					. '.<br>Khai PIN cho họ trước — màn <b>Quản lý nhân sự</b>, khối <b>Đồng bộ chấm '
+					. 'công ↔ hồ sơ nhân sự</b>, kê đủ từng người và từng việc phải làm.</div>';
+			}
+			echo '<form method="post" style="margin-top:8px">'
 				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc()
-				. '<input type="hidden" name="nguon" value="ho_so">'
-				. '<button class="chinh" name="viec" value="doi_nguon">Cho cổng đọc thẳng Hồ sơ Nhân sự ('
+				. '<input type="hidden" name="nguon" value="ho_so">';
+			if ( $mat_tr ) {
+				/* Gõ tay, không phải ô tích: ô tích bấm nhầm được, gõ đúng một chuỗi thì phải đọc
+				   câu cảnh báo mới gõ nổi. Cùng lối với ô "XOA HET" của lượt xoá sổ hồ sơ. */
+				echo '<input type="text" name="dong_y_mat" placeholder="gõ MAT DUONG để vẫn chuyển" '
+					. 'style="max-width:230px;margin-right:6px">';
+			}
+			echo '<button class="chinh" name="viec" value="doi_nguon">Cho cổng đọc thẳng Hồ sơ Nhân sự ('
 				. (int) $kho['ho_so']['vao'] . ' người vào được)</button></form></div>';
 		} else {
 			echo '<div class="bao ok">Cổng đăng nhập đọc THẲNG hồ sơ — khai PIN và Vai trò ở bảng '
