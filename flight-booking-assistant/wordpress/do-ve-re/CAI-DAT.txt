@@ -21,6 +21,13 @@ SAU KHI KÍCH HOẠT — KHÔNG PHẢI LÀM GÌ
        ("Trang đặt vé" plugin đã tự chọn sẵn)
   4. Xong. Mở link bảng giá là thấy chạy.
 
+KHUNG TRANG
+  Hai trang bán vé dựng khung riêng: không có header, menu, footer của theme, và
+  giãn hết bề ngang màn hình; thanh quản trị đen của WordPress cũng được ẩn
+  (thanh đó vốn chỉ người đăng nhập mới thấy, khách không thấy).
+  Muốn trang nằm trong khung của theme như trang thường thì vào Cài đặt bỏ tick
+  "Dựng khung riêng cho hai trang bán vé".
+
 MUỐN GIÁ THẬT (không bắt buộc)
   Đăng ký developers.amadeus.com lấy API Key + Secret, khai vào trang Cài đặt.
   Chưa khai thì bảng giá chạy bằng giá mô phỏng và có nhãn nói rõ.

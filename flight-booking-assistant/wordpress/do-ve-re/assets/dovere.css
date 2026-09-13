@@ -86,7 +86,7 @@
   line-height:1.55;
   -webkit-font-smoothing:antialiased;
 }
-.dvr .wrap{max-width:1180px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px;display:grid;gap:30px}
+.dvr .wrap{max-width:1440px;margin-inline:auto;padding-inline:20px;padding-block:30px 72px;display:grid;gap:30px}
 .dvr h1, .dvr h2, .dvr h3{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;margin:0;text-wrap:balance;letter-spacing:.01em}
 .dvr h1{font-size:clamp(46px,9vw,78px);font-weight:700;line-height:.9;letter-spacing:-.005em}
 .dvr h2{font-size:clamp(22px,3.4vw,29px);font-weight:600;line-height:1.05}
@@ -377,3 +377,19 @@
 #wpbody-content .dvr td{color:var(--ink)}
 #wpbody-content .dvr .hint,
 #wpbody-content .dvr .log{color:var(--muted)}
+
+/* ----------------------------------------------------------------------
+   Khung trang riêng: không có header/footer của theme, nội dung giãn hết
+   bề ngang màn hình.
+   ---------------------------------------------------------------------- */
+body.dvr-toan-man{background:var(--ground);min-height:100vh}
+.dvr .dvr-top{max-width:1440px;margin-inline:auto;padding:14px 20px;display:flex;flex-wrap:wrap;gap:14px;
+  align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.dvr .dvr-home{font-family:"Barlow Condensed","IBM Plex Sans",sans-serif;text-transform:uppercase;font-size:21px;
+  font-weight:700;letter-spacing:.04em;color:var(--ink);text-decoration:none}
+.dvr .dvr-home:hover{color:var(--amber)}
+.dvr .dvr-nav{display:flex;flex-wrap:wrap;gap:16px}
+.dvr .dvr-nav a{font-size:13.5px;color:var(--ink-2);text-decoration:none}
+.dvr .dvr-nav a:hover{color:var(--amber);text-decoration:underline;text-underline-offset:3px}
+.dvr .dvr-day{max-width:1440px;margin-inline:auto;padding:20px;display:flex;flex-wrap:wrap;gap:10px;
+  justify-content:space-between;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line)}

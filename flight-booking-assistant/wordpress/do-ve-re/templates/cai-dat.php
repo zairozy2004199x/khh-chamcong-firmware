@@ -68,6 +68,23 @@ $cd = dvr_cai_dat();
 					<p class="description">Quá hạn mà khách chưa chuyển khoản thì đơn thành “quá hạn giữ giá”.</p></td>
 			</tr>
 			<tr>
+				<th scope="row">Khung trang</th>
+				<td>
+					<label><input type="checkbox" name="dovere_settings[toan_man]" value="1" <?php checked( 1, (int) $cd['toan_man'] ); ?>>
+						Dựng khung riêng cho hai trang bán vé</label>
+					<p class="description">Bỏ header, menu và footer của theme, nội dung giãn hết bề ngang màn hình.
+						Bỏ tick nếu muốn trang nằm trong khung của theme như trang thường.</p>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">Thanh quản trị</th>
+				<td>
+					<label><input type="checkbox" name="dovere_settings[an_thanh]" value="1" <?php checked( 1, (int) $cd['an_thanh'] ); ?>>
+						Ẩn thanh đen của WordPress trên hai trang bán vé</label>
+					<p class="description">Thanh đó vốn chỉ hiện với người đã đăng nhập — khách không thấy. Ẩn đi để lúc mình tự xem trang cũng thấy đúng như khách thấy.</p>
+				</td>
+			</tr>
+			<tr>
 				<th scope="row"><label for="dvr_order_page">Trang đặt vé</label></th>
 				<td><?php
 					wp_dropdown_pages( array(

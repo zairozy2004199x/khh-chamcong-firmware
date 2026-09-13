@@ -161,6 +161,8 @@ class DVR_Admin {
 		}
 		$ra['hold_minutes'] = max( 5, (int) $ra['hold_minutes'] );
 		$ra['order_page']   = (int) $ra['order_page'];
+		$ra['an_thanh']     = empty( $v['an_thanh'] ) ? 0 : 1;
+		$ra['toan_man']     = empty( $v['toan_man'] ) ? 0 : 1;
 		return $ra;
 	}
 

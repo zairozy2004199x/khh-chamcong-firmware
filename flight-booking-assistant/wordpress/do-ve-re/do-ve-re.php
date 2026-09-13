@@ -3,7 +3,7 @@
  * Plugin Name:       Dò Vé Rẻ
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       So giá vé máy bay, nhận đơn của khách qua chuyển khoản VietQR, và gửi email mã đặt chỗ. Dùng hai shortcode [do_ve_re] và [do_ve_re_dat_ve].
- * Version:           1.0.2
+ * Version:           1.0.3
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Text Domain:       do-ve-re
@@ -13,7 +13,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'DVR_VERSION', '1.0.2' );
+define( 'DVR_VERSION', '1.0.3' );
 define( 'DVR_FILE', __FILE__ );
 define( 'DVR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'DVR_URL', plugin_dir_url( __FILE__ ) );
@@ -56,6 +56,8 @@ function dvr_cai_dat( $khoa = null, $mac_dinh = null ) {
 		'webhook_secret' => '',
 		'tax_api'        => 'https://api.vietqr.io/v2/business/',
 		'order_page'     => 0,
+		'an_thanh'       => 1,
+		'toan_man'       => 1,
 	);
 	$cd = wp_parse_args( get_option( 'dovere_settings', array() ), $mac );
 	if ( null === $khoa ) {
