@@ -24,6 +24,30 @@ Cả ba dùng chung một bộ quy tắc và chung luôn phần giao diện tron
 Cách này hợp nhất nếu site đã chạy WordPress: công cụ nằm luôn trong trang quản
 trị, và chỉ tài khoản có quyền `manage_options` mới mở được.
 
+### Cách nhanh nhất: cài thẳng trên host
+
+Có SSH vào hosting thì khỏi tải zip về máy rồi bấm qua wp-admin:
+
+```bash
+cd ~/public_html          # hoặc thư mục chứa wp-config.php
+curl -fsSL -o tren-host.sh https://raw.githubusercontent.com/zairozy2004199x/khh-chamcong-firmware/claude/chao-em-iiyx5i/tools/tren-host.sh
+bash tren-host.sh soat
+```
+
+Chạy lại đúng dòng cuối là cập nhật lên bản mới nhất — script tự cập nhật cả
+chính nó, nên chỉ phải `curl` một lần. Bản đang chạy được giữ lại, hỏng thì lùi
+về ngay bằng câu lệnh script in ra ở cuối.
+
+Vài điểm đáng biết:
+
+- Script dựng đúng bộ file như `dong-goi.sh`, kể cả thư mục `web/` và phép kiểm
+  ba chỗ ghi phiên bản phải khớp nhau. Lệch phiên bản thì nó dừng, không cài.
+- Hosting có `wp-cli` thì nó kích hoạt và nạp lại đường dẫn luôn; không có thì
+  vào wp-admin bật tay một lần.
+- `raw.githubusercontent.com` cache 5 phút và bỏ qua mọi tham số phá cache, nên
+  vừa sửa script xong mà tải ngay thì vẫn ra bản cũ. Mã nguồn plugin thì lấy qua
+  tarball nên không dính cache.
+
 ### Đóng gói
 
 ```bash
