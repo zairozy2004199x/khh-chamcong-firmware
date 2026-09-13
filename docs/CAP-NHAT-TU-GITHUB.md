@@ -220,7 +220,71 @@ Repo công khai nghĩa là bất kỳ ai trên internet đều đọc được c
 
 ---
 
-## 10. Tệp liên quan
+## 10. Ba lệnh có sẵn
+
+Anh Thắng 13/09/2026: *"cho lệnh gom về 1 chỗ và lệnh tự add token"*.
+
+### `tools/soat-plugin-tren-host.sh` — còn sót gì?
+
+Chạy **trên hosting**. Liệt kê mọi plugin đang cài rồi để đối chiếu với `wordpress/` của repo.
+Làm việc này **trước** khi gom bất cứ thứ gì — chứ không đoán.
+
+```bash
+ssh <tài khoản>@<host>
+cd <thư mục có wp-config.php>
+bash soat-plugin-tren-host.sh > danh-sach.txt
+```
+
+Nó cũng nói luôn khoá GitHub đã khai chưa (chỉ **có/không**, không in khoá).
+
+### `tools/khai-khoa-github.sh` — khai khoá bằng một lệnh
+
+Chạy **trên hosting**, khỏi vào wp-admin dán tay:
+
+```bash
+bash khai-khoa-github.sh                    # tám plugin dùng chung
+bash khai-khoa-github.sh vhcphn_gh_token    # riêng bản vùng Hà Nội
+```
+
+Script hỏi, anh dán, Enter.
+
+> 🔴 **Không đưa khoá vào dòng lệnh.** `bash khai-khoa-github.sh github_pat_xxx` trông tiện hơn
+> nhưng khoá ấy nằm lại trong `~/.bash_history` và hiện ra với ai gõ `ps` đúng lúc. Script đọc
+> từ bàn phím bằng `read -s` — gõ xong không hiện, không lưu đâu cả.
+
+Nó soát hình dạng khoá **trước khi ghi**: dán nhầm nửa chuỗi hay dán nhầm mật khẩu khác thì
+chối luôn. Ghi vào rồi mới sai thì lần cập nhật sau im lặng không thấy bản mới — một lỗi không
+có câu báo nào.
+
+### `tools/gom-repo.sh` — gom repo khác về đây
+
+Chạy **trên máy anh**:
+
+```bash
+bash tools/gom-repo.sh <chủ/repo-nguồn> <tên-thư-mục-đích> [nhánh] [thư-mục-con]
+
+# cả repo về thành một plugin
+bash tools/gom-repo.sh zairozy2004199x/vhcp-kho vhcp-kho
+
+# chỉ lấy một thư mục con của repo nguồn
+bash tools/gom-repo.sh zairozy2004199x/Claude vhcp-abc main wordpress/vhcp-abc
+```
+
+**Dùng `git subtree`, không chép tay** — chép tay thì mã về đây nhưng **lịch sử ở lại repo cũ**,
+và sáu tháng sau hỏi *"dòng này sửa hôm nào, vì sao"* thì không còn chỗ nào trả lời.
+
+Script tự chốt ba chỗ trước khi đụng vào gì:
+
+- cây làm việc phải **sạch** — gom mà lỗi giữa chừng thì không biết chỗ nào của ai;
+- thư mục đích **chưa tồn tại** — gom đè lên là mất mã đang có mà không ai báo;
+- làm trên **nhánh riêng** `gom-<tên>`, xem xong ưng mới gộp.
+
+Gom xong **chưa phải là xong**: còn phải nối bộ tự cập nhật cho plugin mới (mục 6) và chạy
+`chay-het.sh`. Bỏ bước ấy thì plugin nằm đây im lặng, không bao giờ hiện bản mới.
+
+---
+
+## 11. Tệp liên quan
 
 | Tệp | Việc |
 |---|---|
@@ -229,3 +293,6 @@ Repo công khai nghĩa là bất kỳ ai trên internet đều đọc được c
 | `tools/build-plugin-zip.sh` | dựng `.zip` cài được (bỏ `goc/`, giữ `apps-script/`) |
 | `tools/test/kiem-tu-cap-nhat.php` | 75 phép — quét mọi plugin, bắt bộ mới quên nối |
 | `tools/test/kiem-tach-ban-vung.php` | canh bản vùng không dùng chung chuỗi nào với bản gốc |
+| `tools/soat-plugin-tren-host.sh` | liệt kê plugin đang chạy trên host để đối chiếu với repo |
+| `tools/khai-khoa-github.sh` | khai khoá GitHub bằng một lệnh (WP-CLI) |
+| `tools/gom-repo.sh` | gom một repo khác về `wordpress/<tên>`, giữ nguyên lịch sử |
