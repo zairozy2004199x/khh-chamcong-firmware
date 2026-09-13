@@ -18,7 +18,6 @@ $src = preg_replace( '/register_activation_hook.*?\n\n/s', '', $src );
 $src = preg_replace( '/add_action\(\s*\'plugins_loaded\'.*?\}\s*\);\n/s', '', $src );
 $src = str_replace( "require_once DVR_DIR . 'includes/class-dvr-rest.php';\n", '', $src );
 $src = str_replace( "require_once DVR_DIR . 'includes/class-dvr-shortcodes.php';\n", '', $src );
-$src = str_replace( "require_once DVR_DIR . 'includes/class-dvr-admin.php';\n", '', $src );
 $src = str_replace( "if ( ! defined( 'ABSPATH' ) ) {\n\texit;\n}", '', $src );
 $src = preg_replace( '/^<\?php/', '', $src );
 $src = str_replace( "plugin_dir_path( __FILE__ )", "'" . $goc . "/'", $src );
@@ -138,6 +137,25 @@ ok( 'thư xuất vé kèm link tra đơn', strpos( $t['html'], 'don=DVR26090001'
 $t = DVR_Mail::soan( 'hoan_tien', $o );
 ok( 'thư hoàn tiền có số tiền hoàn', strpos( $t['html'], '1.740.700đ' ) !== false );
 ok( 'mẫu thư lạ thì trả null', null === DVR_Mail::soan( 'khong-co', $o ) );
+
+echo "\nTự tạo trang cho khách\n";
+$GLOBALS['dvr_options']['dovere_settings']['order_page'] = 0;
+$t1 = DVR_Admin::tao_trang();
+ok( 'tạo đủ hai trang', count( $t1 ) === 2 && $t1['bang_gia'] && $t1['dat_ve'], $t1 );
+ok( 'trang bảng giá chứa shortcode', strpos( $GLOBALS['dvr_posts'][ $t1['bang_gia'] ]['post_content'], '[do_ve_re]' ) !== false );
+ok( 'trang đặt vé chứa shortcode', strpos( $GLOBALS['dvr_posts'][ $t1['dat_ve'] ]['post_content'], '[do_ve_re_dat_ve]' ) !== false );
+ok( 'tự khai luôn trang đặt vé vào cài đặt', (int) dvr_cai_dat( 'order_page' ) === (int) $t1['dat_ve'], dvr_cai_dat( 'order_page' ) );
+
+$t2 = DVR_Admin::tao_trang();
+ok( 'gọi lại không tạo trùng', $t2 == $t1 && count( $GLOBALS['dvr_posts'] ) === 2, count( $GLOBALS['dvr_posts'] ) );
+
+$GLOBALS['dvr_posts'][ $t1['dat_ve'] ]['post_status'] = 'trash';
+$t3 = DVR_Admin::tao_trang();
+ok( 'trang bị xoá thì dựng lại', $t3['dat_ve'] !== $t1['dat_ve'] && $t3['bang_gia'] === $t1['bang_gia'], array( $t1, $t3 ) );
+
+$link = DVR_Admin::trang_khach();
+ok( 'đưa ra được link cho khách',
+	strpos( $link['bang_gia'], 'https://ve.knh.vn/' ) === 0 && strpos( $link['dat_ve'], 'https://ve.knh.vn/' ) === 0, $link );
 
 echo "\n$dat đạt, $hong hỏng\n";
 exit( $hong ? 1 : 0 );

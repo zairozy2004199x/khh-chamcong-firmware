@@ -10,6 +10,110 @@ class DVR_Admin {
 	public static function khoi_dong() {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'dang_ky_cai_dat' ) );
+		add_action( 'admin_post_dvr_tao_trang', array( __CLASS__, 'xu_ly_tao_trang' ) );
+		add_action( 'admin_notices', array( __CLASS__, 'nhac_tao_trang' ) );
+	}
+
+	/**
+	 * Tạo hai trang cho khách nếu chưa có, và ghi nhớ id.
+	 * Gọi lúc kích hoạt plugin và khi bấm nút trong trang Cài đặt.
+	 */
+	public static function tao_trang() {
+		$can = array(
+			'bang_gia' => array( 'Vé máy bay giá rẻ', '[do_ve_re]' ),
+			'dat_ve'   => array( 'Đặt vé', '[do_ve_re_dat_ve]' ),
+		);
+		$da  = get_option( 'dovere_pages', array() );
+		$moi = array();
+		foreach ( $can as $khoa => $t ) {
+			$id = isset( $da[ $khoa ] ) ? (int) $da[ $khoa ] : 0;
+			if ( $id && get_post_status( $id ) && 'trash' !== get_post_status( $id ) ) {
+				$moi[ $khoa ] = $id;
+				continue;
+			}
+			$co = get_posts( array(
+				'post_type'   => 'page',
+				'post_status' => array( 'publish', 'draft', 'pending', 'private' ),
+				's'           => $t[1],
+				'numberposts' => 1,
+			) );
+			if ( $co ) {
+				$moi[ $khoa ] = $co[0]->ID;
+				continue;
+			}
+			$moi[ $khoa ] = wp_insert_post( array(
+				'post_title'   => $t[0],
+				'post_content' => $t[1],
+				'post_status'  => 'publish',
+				'post_type'    => 'page',
+			) );
+		}
+		update_option( 'dovere_pages', $moi );
+
+		// trang đặt vé phải được khai trong cài đặt thì bảng giá mới hiện nút Chọn
+		$cd = get_option( 'dovere_settings', array() );
+		if ( empty( $cd['order_page'] ) && ! empty( $moi['dat_ve'] ) ) {
+			$cd['order_page'] = (int) $moi['dat_ve'];
+			update_option( 'dovere_settings', $cd );
+		}
+		return $moi;
+	}
+
+	public static function trang_khach() {
+		$p = get_option( 'dovere_pages', array() );
+		$ra = array();
+		foreach ( array( 'bang_gia', 'dat_ve' ) as $k ) {
+			$id = isset( $p[ $k ] ) ? (int) $p[ $k ] : 0;
+			$ra[ $k ] = $id && get_post_status( $id ) && 'trash' !== get_post_status( $id ) ? get_permalink( $id ) : '';
+		}
+		return $ra;
+	}
+
+	public static function xu_ly_tao_trang() {
+		if ( ! current_user_can( 'manage_options' ) || ! check_admin_referer( 'dvr_tao_trang' ) ) {
+			wp_die( 'Không đủ quyền.' );
+		}
+		self::tao_trang();
+		wp_safe_redirect( add_query_arg( 'dvr_da_tao', '1', admin_url( 'admin.php?page=dovere-cai-dat' ) ) );
+		exit;
+	}
+
+	/** Nhắc một lần cho tới khi có trang cho khách. */
+	public static function nhac_tao_trang() {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		$t = self::trang_khach();
+		if ( $t['bang_gia'] && $t['dat_ve'] ) {
+			return;
+		}
+		$man = get_current_screen();
+		if ( $man && false === strpos( (string) $man->id, 'dovere' ) ) {
+			return;
+		}
+		echo '<div class="notice notice-warning"><p><b>Dò Vé Rẻ:</b> chưa có trang nào cho khách xem. '
+			. '<a href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=dvr_tao_trang' ), 'dvr_tao_trang' ) ) . '">'
+			. 'Tạo hai trang giúp tôi</a> — một trang bảng giá, một trang đặt vé.</p></div>';
+	}
+
+	/** Khối link cho khách, hiện ở đầu cả hai trang quản trị. */
+	public static function khoi_link() {
+		$t = self::trang_khach();
+		echo '<div class="notice notice-info inline" style="margin:14px 0;padding:12px 14px">';
+		if ( $t['bang_gia'] || $t['dat_ve'] ) {
+			echo '<p style="margin:0 0 6px"><b>Link gửi cho khách:</b></p><p style="margin:0">';
+			if ( $t['bang_gia'] ) {
+				echo 'Bảng giá &nbsp;<a href="' . esc_url( $t['bang_gia'] ) . '" target="_blank"><code>' . esc_html( $t['bang_gia'] ) . '</code></a><br>';
+			}
+			if ( $t['dat_ve'] ) {
+				echo 'Trang đặt vé &nbsp;<a href="' . esc_url( $t['dat_ve'] ) . '" target="_blank"><code>' . esc_html( $t['dat_ve'] ) . '</code></a>';
+			}
+			echo '</p>';
+		} else {
+			echo '<p style="margin:0">Chưa có trang cho khách. '
+				. '<a class="button button-primary" href="' . esc_url( wp_nonce_url( admin_url( 'admin-post.php?action=dvr_tao_trang' ), 'dvr_tao_trang' ) ) . '">Tạo hai trang cho tôi</a></p>';
+		}
+		echo '</div>';
 	}
 
 	public static function menu() {
@@ -38,6 +142,7 @@ class DVR_Admin {
 	}
 
 	public static function trang_don() {
+		self::khoi_link();
 		wp_enqueue_style( 'dovere', DVR_URL . 'assets/dovere.css', array(), DVR_VERSION );
 		wp_enqueue_script( 'dovere-autofill', DVR_URL . 'assets/autofill.js', array(), DVR_VERSION, true );
 		wp_enqueue_script( 'dovere-quan-tri', DVR_URL . 'assets/quan-tri.js', array( 'dovere-autofill' ), DVR_VERSION, true );

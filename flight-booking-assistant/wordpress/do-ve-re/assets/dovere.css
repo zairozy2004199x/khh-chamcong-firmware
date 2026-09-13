@@ -360,3 +360,20 @@
 .dvr th{text-align:left;font:500 10.5px/1 "IBM Plex Mono",monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line)}
 .dvr td{padding:10px;border-bottom:1px solid var(--line-soft);vertical-align:top}
 .dvr .scroll{overflow-x:auto}
+
+/* ----------------------------------------------------------------------
+   Trong khu quản trị, WordPress đặt màu chữ bằng selector có #id nên thắng
+   CSS của plugin — tiêu đề bị chìm vào nền. Mấy dòng này kéo lại cho đúng.
+   ---------------------------------------------------------------------- */
+#wpbody-content .dvr h1,
+#wpbody-content .dvr h2,
+#wpbody-content .dvr h3{color:var(--ink)}
+#wpbody-content .dvr .board-head h2,
+#wpbody-content .dvr .board-head .eyebrow{color:var(--board-ink)}
+#wpbody-content .dvr .eyebrow{color:var(--amber)}
+#wpbody-content .dvr a{color:var(--amber)}
+#wpbody-content .dvr table{background:transparent;border-collapse:collapse}
+#wpbody-content .dvr th,
+#wpbody-content .dvr td{color:var(--ink)}
+#wpbody-content .dvr .hint,
+#wpbody-content .dvr .log{color:var(--muted)}

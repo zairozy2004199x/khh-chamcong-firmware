@@ -53,7 +53,14 @@ function get_bloginfo( $x = '' ) {
 	return 'Vé K&H';
 }
 function get_permalink( $id ) {
+	if ( isset( $GLOBALS['dvr_posts'][ $id ]['post_title'] ) ) {
+		return 'https://ve.knh.vn/' . sanitize_title( $GLOBALS['dvr_posts'][ $id ]['post_title'] ) . '/';
+	}
 	return 'https://ve.knh.vn/dat-ve/';
+}
+function sanitize_title( $s ) {
+	$s = strtolower( trim( (string) $s ) );
+	return preg_replace( '/[^a-z0-9]+/', '-', $s );
 }
 function date_i18n( $f, $t ) {
 	return gmdate( $f, $t );
@@ -84,6 +91,47 @@ function get_transient( $k ) {
 }
 function set_transient( $k, $v, $t = 0 ) {
 	return true;
+}
+
+/* --- kho bài viết giả, đủ để thử việc tự tạo trang cho khách --- */
+$GLOBALS['dvr_posts'] = array();
+function wp_insert_post( $p ) {
+	$id = count( $GLOBALS['dvr_posts'] ) + 100;
+	$GLOBALS['dvr_posts'][ $id ] = array_merge( array( 'post_status' => 'publish' ), $p );
+	return $id;
+}
+function get_post_status( $id ) {
+	return isset( $GLOBALS['dvr_posts'][ $id ] ) ? $GLOBALS['dvr_posts'][ $id ]['post_status'] : false;
+}
+function get_posts( $args ) {
+	$ra     = array();
+	$nhan   = isset( $args['post_status'] ) ? (array) $args['post_status'] : array( 'publish' );
+	foreach ( $GLOBALS['dvr_posts'] as $id => $p ) {
+		if ( ! in_array( $p['post_status'], $nhan, true ) ) {
+			continue;   // WordPress thật cũng bỏ qua bài trong thùng rác
+		}
+		if ( ! empty( $args['s'] ) && strpos( $p['post_content'], $args['s'] ) === false ) {
+			continue;
+		}
+		$o     = new stdClass();
+		$o->ID = $id;
+		$ra[]  = $o;
+	}
+	return $ra;
+}
+function admin_url( $p = '' ) {
+	return 'https://ve.knh.vn/wp-admin/' . $p;
+}
+function wp_nonce_url( $u, $a = '' ) {
+	return $u . '&_wpnonce=abc';
+}
+function current_user_can( $c ) {
+	return true;
+}
+function add_shortcode( ...$a ) {}
+function register_setting( ...$a ) {}
+function get_current_screen() {
+	return null;
 }
 
 class WP_Error {

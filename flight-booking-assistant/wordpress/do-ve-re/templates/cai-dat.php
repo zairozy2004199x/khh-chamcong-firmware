@@ -8,6 +8,13 @@ $cd = dvr_cai_dat();
 <div class="wrap">
 	<h1>Cài đặt Dò Vé Rẻ</h1>
 
+	<?php
+	if ( ! empty( $_GET['dvr_da_tao'] ) ) {
+		echo '<div class="notice notice-success is-dismissible"><p>Đã tạo xong trang cho khách.</p></div>';
+	}
+	DVR_Admin::khoi_link();
+	?>
+
 	<div class="notice notice-info inline" style="margin:14px 0;padding:10px 14px">
 		<p><b>Hai shortcode:</b></p>
 		<p><code>[do_ve_re]</code> — trang bảng giá cho khách dò chuyến.<br>

@@ -5,14 +5,20 @@ CÀI
   Quản trị WordPress → Gói mở rộng → Cài mới → "Tải gói mở rộng lên"
   → chọn file  do-ve-re-wordpress.zip  → Cài đặt → Kích hoạt.
 
-SAU KHI KÍCH HOẠT (5 phút)
-  1. Tạo trang "Vé máy bay", dán vào nội dung:      [do_ve_re]
-  2. Tạo trang "Đặt vé",     dán vào nội dung:      [do_ve_re_dat_ve]
+SAU KHI KÍCH HOẠT
+  Plugin tự tạo sẵn HAI TRANG cho khách:
+      "Vé máy bay giá rẻ"  — bảng giá, khách dò chuyến
+      "Đặt vé"             — khách điền thông tin và chuyển khoản
+  Link của hai trang đó hiện ngay đầu trang "Dò Vé Rẻ → Đơn hàng" và
+  "Dò Vé Rẻ → Cài đặt" — đó chính là link gửi cho khách.
+  (Lỡ xoá thì vào Cài đặt bấm "Tạo hai trang cho tôi".)
+
+  Còn lại một việc:
   3. Vào menu "Dò Vé Rẻ" → Cài đặt:
        - Số tài khoản ngân hàng nhận tiền + mã BIN (Vietcombank là 970436)
        - Phí dịch vụ (phần chênh lệch của mình)
-       - Chọn "Trang đặt vé" là trang vừa tạo ở bước 2
-  4. Xong. Mở trang ở bước 1 là thấy bảng giá chạy.
+       ("Trang đặt vé" plugin đã tự chọn sẵn)
+  4. Xong. Mở link bảng giá là thấy chạy.
 
 MUỐN GIÁ THẬT (không bắt buộc)
   Đăng ký developers.amadeus.com lấy API Key + Secret, khai vào trang Cài đặt.
