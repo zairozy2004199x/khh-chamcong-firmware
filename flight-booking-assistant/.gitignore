@@ -1,2 +1,5 @@
 booking/data/
 *.tmp
+
+# cấu hình thật, không đẩy lên repo
+.env

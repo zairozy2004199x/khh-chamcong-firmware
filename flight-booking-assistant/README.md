@@ -19,8 +19,31 @@ flight-booking-assistant/
 
 ## Chạy
 
-Mở thẳng `index.html` bằng Chrome/Edge/Safari. Không máy chủ, không cài đặt, không tài khoản.
+Chỉ xem bảng giá và điền hộ: mở thẳng `index.html` bằng Chrome/Edge/Safari. Không cài gì.
 Hồ sơ hành khách nằm trong `localStorage` của chính trình duyệt đó.
+
+Muốn giá thật hoặc bán vé qua mình thì cần Node 20 trở lên:
+
+```
+cp .env.example .env          # Windows: copy .env.example .env
+```
+
+Sửa `.env` (số tài khoản, khoá Amadeus, phí dịch vụ), rồi:
+
+```
+node server/proxy.mjs         # giá thật + tra mã số thuế   → cổng 8787
+node booking/server.mjs       # đơn hàng + thu tiền          → cổng 8788
+```
+
+Hai máy chủ tự đọc `.env`, **không phải gõ biến môi trường**, nên lệnh giống nhau trên
+Windows, macOS và Linux.
+
+> **Gõ ở terminal, đừng gõ trong `node`.** Nếu dấu nhắc đang là `>` và có dòng
+> *"Welcome to Node.js"* thì đó là REPL của Node — nó đọc lệnh shell thành JavaScript và báo
+> `Unexpected identifier`. Gõ `.exit` (hoặc Ctrl+D) để ra, rồi chạy lệnh trên.
+
+Trên Windows dùng PowerShell hoặc Command Prompt đều được; `cd` tới thư mục
+`flight-booking-assistant` trước khi chạy.
 
 ## Tự động tới đâu
 
@@ -104,10 +127,15 @@ Nhãn đổi sang **Giá thật** và bảng lấy dữ liệu từ proxy. Tra m
    muốn số liệu bán thật phải chuyển sang `production` (có tính phí theo lượt gọi).
 2. Chạy proxy:
 
-```bash
-AMADEUS_ID=xxx AMADEUS_SECRET=yyy node server/proxy.mjs
-# thật sự bán vé thì thêm: AMADEUS_ENV=production
+Khai trong `.env`:
+
+```ini
+AMADEUS_ID=xxx
+AMADEUS_SECRET=yyy
+AMADEUS_ENV=test        # đổi thành production khi bán thật
 ```
+
+rồi `node server/proxy.mjs`.
 
 3. Dán địa chỉ proxy vào trang như trên.
 

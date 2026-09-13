@@ -17,10 +17,26 @@
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+
+/* ---------- nạp cấu hình từ file .env (không cần thư viện, không cần gõ biến môi trường) ---------- */
+function napEnv(file){
+  if(!existsSync(file)) return false;
+  try { if(process.loadEnvFile){ process.loadEnvFile(file); return true; } } catch(e){}
+  for(const line of readFileSync(file, 'utf8').split('\n')){
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line.replace(/^\s*#.*$/, ''));
+    if(!m) continue;
+    const v = m[2].replace(/^["']|["']$/g, '');
+    if(!(m[1] in process.env)) process.env[m[1]] = v;
+  }
+  return true;
+}
+for(const f of [resolve(HERE, '.env'), resolve(HERE, '..', '.env')]){ if(napEnv(f)){ console.log('Đọc cấu hình từ ' + f); break; } }
+
 const MOCK = process.argv.includes('--mock');
 const PORT = +(process.env.PORT || 8787);
 const ORIGIN = process.env.ALLOW_ORIGIN || '*';
