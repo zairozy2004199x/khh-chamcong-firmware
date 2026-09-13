@@ -189,6 +189,13 @@ ok( 'có dòng bản quyền kèm năm', strpos( $ct, '© ' . gmdate( 'Y' ) ) !=
 $GLOBALS['dvr_options']['dovere_settings']['cty_vi'] = '';
 ok( 'xoá tên công ty là bỏ hẳn khối', '' === DVR_Shortcodes::chan_trang() );
 
+echo "\nChế độ hoạt động\n";
+$ls = DVR_Admin::lam_sach( array( 'che_do' => 'gioi_thieu', 'nguon' => 'dai_ly' ) );
+ok( 'nhận chế độ dẫn sang nơi bán', 'gioi_thieu' === $ls['che_do'], $ls['che_do'] );
+ok( 'nhận nguồn đại lý', 'dai_ly' === $ls['nguon'], $ls['nguon'] );
+$ls2 = DVR_Admin::lam_sach( array( 'che_do' => 'linh tinh', 'nguon' => 'linh tinh' ) );
+ok( 'giá trị lạ thì về mặc định an toàn', 'ban' === $ls2['che_do'] && 'mo_phong' === $ls2['nguon'], $ls2 );
+
 echo "\nLuồng chốt giá trước\n";
 $GLOBALS['dvr_options']['dovere_settings']['bao_gia_truoc'] = 1;
 $GLOBALS['dvr_options']['dovere_settings']['bao_gia_phut']  = 15;

@@ -67,7 +67,13 @@ class DVR_Shortcodes {
 			'coGiaThat' => ( 'duffel' === $cd['nguon'] && $cd['duffel_token'] )
 				|| ( 'amadeus' === $cd['nguon'] && $cd['amadeus_id'] )
 				|| ( 'dai_ly' === $cd['nguon'] && $cd['dl_url'] ),
-			'coBan'     => (bool) ( $cd['order_page'] && $cd['bank_account'] ),
+			'cheDo'     => $cd['che_do'],
+			'coBan'     => 'ban' === $cd['che_do'] && $cd['order_page'] && $cd['bank_account'],
+			'aff'       => array(
+				'traveloka' => $cd['aff_traveloka'],
+				'trip'      => $cd['aff_trip'],
+				'kiwi'      => $cd['aff_kiwi'],
+			),
 			'fee'       => array(
 				'pct'  => (float) $cd['fee_pct'],
 				'flat' => (int) $cd['fee_flat'],

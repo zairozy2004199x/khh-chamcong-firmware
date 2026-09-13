@@ -49,6 +49,16 @@ function esc_attr( $s ) {
 function esc_url( $s ) {
 	return (string) $s;
 }
+function esc_url_raw( $s ) {
+	return (string) $s;
+}
+function esc_textarea( $s ) {
+	return esc_html( $s );
+}
+function wp_dropdown_pages( $a = array() ) {}
+function checked( $a, $b = true, $echo = true ) {}
+function submit_button( $t = '' ) {}
+function settings_fields( $g ) {}
 function get_bloginfo( $x = '' ) {
 	return 'Vé K&H';
 }

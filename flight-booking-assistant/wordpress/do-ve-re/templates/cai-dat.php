@@ -109,6 +109,35 @@ $cd = dvr_cai_dat();
 			</tr>
 		</table>
 
+		<h2 class="title">Cách hoạt động</h2>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row">Trang này làm gì</th>
+				<td>
+					<label style="display:block;margin-bottom:8px"><input type="radio" name="dovere_settings[che_do]" value="ban" <?php checked( 'ban', $cd['che_do'] ); ?>>
+						<b>Bán qua mình</b> — khách đặt và chuyển khoản cho mình, mình đi mua vé rồi gửi mã đặt chỗ.
+						Ăn chênh lệch, nhưng phải có nguồn mua được và chịu trách nhiệm hoàn/đổi.</label>
+					<label style="display:block"><input type="radio" name="dovere_settings[che_do]" value="gioi_thieu" <?php checked( 'gioi_thieu', $cd['che_do'] ); ?>>
+						<b>So giá rồi dẫn sang nơi bán</b> — khách bấm là sang thẳng trang hãng hoặc đại lý để tự mua.
+						Không cần hợp đồng với hãng nào, không cầm tiền khách, không lo hoàn vé. Đổi lại: mình không xuất hoá đơn được,
+						và chỉ có thu nhập nếu tham gia chương trình giới thiệu của nơi bán.</label>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">Mã giới thiệu</th>
+				<td>
+					<p class="description" style="margin:0 0 8px">Tham gia chương trình giới thiệu của nơi bán thì dán phần đuôi theo dõi vào đây,
+						máy tự gắn vào link. Bỏ trống thì link vẫn mở đúng nơi bán, chỉ là không được tính hoa hồng.</p>
+					<label style="display:block;margin-bottom:6px">Traveloka
+						<input name="dovere_settings[aff_traveloka]" value="<?php echo esc_attr( $cd['aff_traveloka'] ); ?>" class="regular-text code" placeholder="aff_id=..."></label>
+					<label style="display:block;margin-bottom:6px">Trip.com
+						<input name="dovere_settings[aff_trip]" value="<?php echo esc_attr( $cd['aff_trip'] ); ?>" class="regular-text code" placeholder="Allianceid=...&amp;SID=..."></label>
+					<label style="display:block">Kiwi
+						<input name="dovere_settings[aff_kiwi]" value="<?php echo esc_attr( $cd['aff_kiwi'] ); ?>" class="regular-text code" placeholder="affilid=..."></label>
+				</td>
+			</tr>
+		</table>
+
 		<h2 class="title">Nguồn giá</h2>
 		<div class="notice notice-warning inline" style="margin:6px 0 12px;padding:10px 14px">
 			<p style="margin:0"><b>Cổng tự phục vụ của Amadeus đã đóng ngày 17/7/2025.</b>

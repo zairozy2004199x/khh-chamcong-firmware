@@ -659,8 +659,11 @@ function renderResults(q){
   }
   const links = channelList(q);
   $("#rows").innerHTML = list.slice(0, 14).map(o => {
-    const banUrl = o.seller.name === "Website hãng" ? o.al.site
-                 : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url;
+    const banUrl = ganMa(
+      o.seller.name === "Website hãng" ? o.al.site
+        : (links.find(c => c.name === o.seller.name) || {}).url || o.al.site || links[0].url,
+      o.seller.name
+    );
     const donUrl = orderLink(o, q);
     const tong = o.total || paxPrice(o.price, q);
     const bagTxt = o.bagText || (o.bag ? "23kg ký gửi" : "7kg xách tay");
@@ -679,10 +682,13 @@ function renderResults(q){
       + '<div class="c-price"><b>' + money(o.price, o.cur) + '</b><span>mỗi khách · gồm thuế phí</span>'
         + '<span class="delta">' + (nhat ? "tổng " + money(tong, o.cur) : "+" + money(o.price - re, o.cur) + " so với rẻ nhất") + '</span></div>'
       + '<div class="c-act">'
-        + (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
-                    + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
-                  : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Chọn</a>'
-                    + '<span class="hint" style="text-align:center">' + o.seller.name + '</span>')
+        + (DVR.cheDo === "gioi_thieu"
+            ? '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
+              + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>'
+            : (donUrl ? '<a class="choose" href="' + donUrl + '" target="_blank" rel="noopener">Chọn</a>'
+                        + '<a class="choose alt" href="' + banUrl + '" target="_blank" rel="noopener">Tự đặt trên ' + o.seller.name + '</a>'
+                      : '<a class="choose" href="' + banUrl + '" target="_blank" rel="noopener">Đặt tại ' + o.seller.name + '</a>'
+                        + '<span class="hint" style="text-align:center">mở thẳng nơi bán vé</span>'))
       + '</div>'
       + '<div class="c-tags"><span class="mini' + (o.bag ? " bag" : "") + '">' + bagTxt + '</span>'
         + '<span class="mini">' + ((o.cabin || q.cabin) === "BUSINESS" ? "Thương gia" : (o.cabin || q.cabin) === "PREMIUM_ECONOMY" ? "Phổ thông đặc biệt" : "Phổ thông") + '</span>'
@@ -695,6 +701,14 @@ function renderResults(q){
 /* ---------------- đường dẫn tới các hệ thống bán vé ---------------- */
 const dmy = s => { const [y,m,d] = s.split("-"); return d + "-" + m + "-" + y; };
 const ymd6 = s => { const [y,m,d] = s.split("-"); return y.slice(2) + m + d; };
+
+/* Gắn mã giới thiệu (affiliate) nếu đã khai trong Cài đặt — bỏ trống thì link vẫn chạy bình thường. */
+function ganMa(url, ten){
+  const aff = (DVR.aff || {});
+  const ma = ten === "Traveloka" ? aff.traveloka : ten === "Trip.com" ? aff.trip : ten === "Kiwi" ? aff.kiwi : "";
+  if(!ma) return url;
+  return url + (url.indexOf("?") > -1 ? "&" : "?") + ma.replace(/^[?&]/, "");
+}
 
 function channelList(q){
   const A = q.from.code, B = q.to.code, a = A.toLowerCase(), b = B.toLowerCase();

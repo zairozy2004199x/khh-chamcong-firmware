@@ -33,7 +33,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     echo '</a>';
     ?>
     <h1><?php echo esc_html( dvr_cai_dat( 'hero_tieu_de', 'Vé máy bay trực tuyến' ) ); ?></h1>
-    <p class="lede"><?php echo esc_html( dvr_cai_dat( 'hero_phu_de', 'Dò giá theo chặng và ngày, so nhiều hãng cùng lúc, chọn chuyến rẻ nhất rồi đặt ngay tại đây. Chúng tôi mua vé và gửi mã đặt chỗ vào email của quý khách.' ) ); ?></p>
+    <p class="lede"><?php
+	$dvr_mac_dinh = 'gioi_thieu' === dvr_cai_dat( 'che_do', 'ban' )
+		? 'Dò giá theo chặng và ngày, so nhiều hãng cùng lúc. Bấm một chuyến là sang thẳng nơi đang bán vé đó để quý khách tự đặt — chúng tôi không giữ tiền và không bán thay.'
+		: 'Dò giá theo chặng và ngày, so nhiều hãng cùng lúc, chọn chuyến rẻ nhất rồi đặt ngay tại đây. Chúng tôi mua vé và gửi mã đặt chỗ vào email của quý khách.';
+	echo esc_html( dvr_cai_dat( 'hero_phu_de', $dvr_mac_dinh ) );
+	?></p>
     <div class="hangs">
       <span class="hang"><i style="background:#0B6B54"></i>Vietnam Airlines</span>
       <span class="hang"><i style="background:#D9432B"></i>Vietjet Air</span>

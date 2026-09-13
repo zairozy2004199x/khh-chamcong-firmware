@@ -28,7 +28,14 @@ LOGO CÔNG TY
   Ô "Màu thương hiệu" nhận mã màu của logo, ví dụ vàng K&H là #C1960C — nút bấm
   và giá tiền sẽ chuyển sang màu đó, chữ trên nút tự đổi đen/trắng cho đọc được.
 
-CHỐT GIÁ TRƯỚC (bật sẵn)
+HAI CÁCH DÙNG — chọn trong Dò Vé Rẻ → Cài đặt → "Cách hoạt động"
+  1. BÁN QUA MÌNH (mặc định): khách chuyển khoản cho mình, mình mua vé rồi gửi
+     mã đặt chỗ. Ăn chênh lệch, nhưng cần nguồn mua được và phải lo hoàn/đổi.
+  2. SO GIÁ RỒI DẪN SANG NƠI BÁN: khách bấm là sang thẳng trang hãng hoặc đại lý
+     để tự mua. Không cần hợp đồng với hãng nào, không cầm tiền khách, không lo
+     hoàn vé. Có mã giới thiệu thì được hoa hồng; không có thì link vẫn chạy.
+
+CHỐT GIÁ TRƯỚC (chỉ dùng khi bán qua mình, bật sẵn)
   Khách đặt xong KHÔNG thấy số tài khoản ngay. Đơn vào trạng thái "Chờ báo giá".
   Mình mở trang hãng kiểm giá thật (dùng nút Điền hộ), rồi bấm "Chốt giá" và nhập
   giá vé thật — lúc đó khách mới nhận email kèm số tài khoản và mã QR.
