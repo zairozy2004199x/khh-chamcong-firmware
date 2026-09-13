@@ -100,6 +100,9 @@ a{color:var(--blue);text-underline-offset:3px}
 
 /* ---------- khối chung ---------- */
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);overflow:hidden}
+/* Khối không có .panel-body bên trong thì tự lo phần đệm, không thì chữ dính sát viền. */
+.panel.pad{padding:18px;display:grid;gap:15px}
+.panel.pad > .panel-head{padding:0 0 12px;border-bottom:1px solid var(--line-soft)}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
 .panel-body{padding:18px;display:grid;gap:15px}
 .sec{display:grid;gap:12px;align-content:start}

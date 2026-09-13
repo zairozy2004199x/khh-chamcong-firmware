@@ -12,12 +12,12 @@ if ( ! defined( 'ABSPATH' ) ) {
     <p class="hint" id="sub">Điền thông tin hành khách, chuyển khoản theo mã QR, phần mua vé để chúng tôi lo.</p>
   </header>
 
-  <section class="panel dark" id="flightBox">
+  <section class="panel pad dark" id="flightBox">
     <span class="lbl">Chuyến bay</span>
     <div id="flightInfo">Chưa có chuyến nào được chọn.</div>
   </section>
 
-  <form class="panel" id="form">
+  <form class="panel pad" id="form">
     <h2>Hành khách</h2>
     <div id="paxList" class="row" style="display:grid;gap:14px"></div>
     <button class="btn ghost sm" type="button" id="addPax" style="width:max-content">+ Thêm khách</button>
@@ -37,7 +37,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     <div class="field"><label for="invAddr">Địa chỉ trên hoá đơn</label><input id="invAddr"></div>
     <p class="hint" id="taxStatus"></p>
 
-    <div class="panel" style="background:var(--surface-2);box-shadow:none">
+    <div class="panel pad" style="background:var(--surface-2);box-shadow:none">
       <div class="split"><span>Giá vé <span class="hint" id="paxNote"></span></span><b class="money" id="sumFare">—</b></div>
       <div class="split"><span>Phí dịch vụ</span><b class="money" id="sumFee">—</b></div>
       <div class="split"><span><b>Tổng phải chuyển</b></span><b class="money total" id="sumTotal">—</b></div>
@@ -48,7 +48,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     <p class="hint">Chúng tôi không nhận số thẻ. Khách chuyển khoản ngân hàng theo mã QR, nội dung là mã đơn.</p>
   </form>
 
-  <section class="panel" id="payBox" hidden>
+  <section class="panel pad" id="payBox" hidden>
     <div class="row" style="justify-content:space-between">
       <div><span class="eyebrow">Đơn của anh/chị</span><h2 id="orderCode" class="num"></h2></div>
       <span class="tag wait" id="orderStatus">Chờ chuyển khoản</span>
@@ -73,7 +73,7 @@ if ( ! defined( 'ABSPATH' ) ) {
       </div>
     </div>
     <p class="hint" id="payNote">Nhận được tiền, chúng tôi mua vé và gửi mã đặt chỗ vào email trên. Mua không được thì hoàn tiền đủ trong ngày.</p>
-    <div id="pnrBox" hidden class="panel" style="background:var(--cheap-soft);border-color:var(--cheap);box-shadow:none">
+    <div id="pnrBox" hidden class="panel pad" style="background:var(--cheap-soft);border-color:var(--cheap);box-shadow:none">
       <span class="lbl">Mã đặt chỗ</span><b class="num total" id="pnr"></b>
     </div>
   </section>

@@ -93,6 +93,9 @@
 
 /* ---------- khối chung ---------- */
 .dvr .panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh-1);overflow:hidden}
+/* Khối không có .panel-body bên trong thì tự lo phần đệm, không thì chữ dính sát viền. */
+.dvr .panel.pad{padding:18px;display:grid;gap:15px}
+.dvr .panel.pad > .panel-head{padding:0 0 12px;border-bottom:1px solid var(--line-soft)}
 .dvr .panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-soft)}
 .dvr .panel-body{padding:18px;display:grid;gap:15px}
 .dvr .sec{display:grid;gap:12px;align-content:start}

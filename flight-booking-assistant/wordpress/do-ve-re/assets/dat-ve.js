@@ -33,7 +33,7 @@ if(FLIGHT.route){
 
 /* ---- hành khách ---- */
 function paxCard(i){
-  return '<div class="panel" style="box-shadow:none;background:var(--surface-2)">'
+  return '<div class="panel pad" style="box-shadow:none;background:var(--surface-2)">'
     + '<span class="lbl">Khách ' + (i+1) + '</span>'
     + '<div class="field"><label for="p'+i+'full">Họ và tên (như trên giấy tờ)</label><input id="p'+i+'full" data-f="full" required placeholder="NGUYEN VAN A"></div>'
     + '<div class="two">'
