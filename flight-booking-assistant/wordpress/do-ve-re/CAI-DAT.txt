@@ -5,12 +5,13 @@ CÀI
   Quản trị WordPress → Gói mở rộng → Cài mới → "Tải gói mở rộng lên"
   → chọn file  do-ve-re-wordpress.zip  → Cài đặt → Kích hoạt.
 
-SAU KHI KÍCH HOẠT
-  Plugin tự tạo sẵn HAI TRANG cho khách:
+SAU KHI KÍCH HOẠT — KHÔNG PHẢI LÀM GÌ
+  Vừa vào khu quản trị là plugin đã dựng sẵn HAI TRANG cho khách:
       "Vé máy bay giá rẻ"  — bảng giá, khách dò chuyến
       "Đặt vé"             — khách điền thông tin và chuyển khoản
-  Link của hai trang đó hiện ngay đầu trang "Dò Vé Rẻ → Đơn hàng" và
-  "Dò Vé Rẻ → Cài đặt" — đó chính là link gửi cho khách.
+  Đường dẫn:  /ve-may-bay-gia-re   và   /dat-ve
+  Link đầy đủ hiện ngay đầu trang "Dò Vé Rẻ → Đơn hàng" và "Dò Vé Rẻ → Cài đặt"
+  — đó chính là link gửi cho khách.
   (Lỡ xoá thì vào Cài đặt bấm "Tạo hai trang cho tôi".)
 
   Còn lại một việc:

@@ -143,6 +143,7 @@ $GLOBALS['dvr_options']['dovere_settings']['order_page'] = 0;
 $t1 = DVR_Admin::tao_trang();
 ok( 'tạo đủ hai trang', count( $t1 ) === 2 && $t1['bang_gia'] && $t1['dat_ve'], $t1 );
 ok( 'trang bảng giá chứa shortcode', strpos( $GLOBALS['dvr_posts'][ $t1['bang_gia'] ]['post_content'], '[do_ve_re]' ) !== false );
+ok( 'trang có đường dẫn đẹp', $GLOBALS['dvr_posts'][ $t1['bang_gia'] ]['post_name'] === 've-may-bay-gia-re', $GLOBALS['dvr_posts'][ $t1['bang_gia'] ]['post_name'] );
 ok( 'trang đặt vé chứa shortcode', strpos( $GLOBALS['dvr_posts'][ $t1['dat_ve'] ]['post_content'], '[do_ve_re_dat_ve]' ) !== false );
 ok( 'tự khai luôn trang đặt vé vào cài đặt', (int) dvr_cai_dat( 'order_page' ) === (int) $t1['dat_ve'], dvr_cai_dat( 'order_page' ) );
 
@@ -153,6 +154,19 @@ $GLOBALS['dvr_posts'][ $t1['dat_ve'] ]['post_status'] = 'trash';
 $t3 = DVR_Admin::tao_trang();
 ok( 'trang bị xoá thì dựng lại', $t3['dat_ve'] !== $t1['dat_ve'] && $t3['bang_gia'] === $t1['bang_gia'], array( $t1, $t3 ) );
 
+// tự dựng: chạy một lần cho mỗi phiên bản, không dựng lại sau lưng người dùng
+$GLOBALS['dvr_options']['dovere_pages'] = array();
+$GLOBALS['dvr_options']['dovere_tu_dung'] = '';
+$truoc = count( $GLOBALS['dvr_posts'] );
+DVR_Admin::tu_dung_trang();
+ok( 'vào quản trị là dựng sẵn trang, không phải bấm gì', count( $GLOBALS['dvr_posts'] ) >= $truoc, count( $GLOBALS['dvr_posts'] ) );
+ok( 'ghi nhớ đã dựng cho phiên bản này', get_option( 'dovere_tu_dung' ) === DVR_VERSION, get_option( 'dovere_tu_dung' ) );
+$sau = count( $GLOBALS['dvr_posts'] );
+$GLOBALS['dvr_options']['dovere_pages'] = array();
+DVR_Admin::tu_dung_trang();
+ok( 'lần vào sau không dựng lại nữa', count( $GLOBALS['dvr_posts'] ) === $sau, count( $GLOBALS['dvr_posts'] ) );
+
+$GLOBALS['dvr_options']['dovere_pages'] = $t3;
 $link = DVR_Admin::trang_khach();
 ok( 'đưa ra được link cho khách',
 	strpos( $link['bang_gia'], 'https://ve.knh.vn/' ) === 0 && strpos( $link['dat_ve'], 'https://ve.knh.vn/' ) === 0, $link );

@@ -11,7 +11,21 @@ class DVR_Admin {
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
 		add_action( 'admin_init', array( __CLASS__, 'dang_ky_cai_dat' ) );
 		add_action( 'admin_post_dvr_tao_trang', array( __CLASS__, 'xu_ly_tao_trang' ) );
+		add_action( 'admin_init', array( __CLASS__, 'tu_dung_trang' ), 5 );
 		add_action( 'admin_notices', array( __CLASS__, 'nhac_tao_trang' ) );
+	}
+
+	/**
+	 * Cài xong hoặc cập nhật đè lên bản cũ thì dựng sẵn trang cho khách — không
+	 * phải kích hoạt lại, không phải bấm gì. Chỉ tự chạy một lần cho mỗi phiên bản,
+	 * nên ai cố ý xoá trang thì nó không dựng lại sau lưng.
+	 */
+	public static function tu_dung_trang() {
+		if ( get_option( 'dovere_tu_dung' ) === DVR_VERSION ) {
+			return;
+		}
+		update_option( 'dovere_tu_dung', DVR_VERSION, false );
+		self::tao_trang();
 	}
 
 	/**
@@ -20,8 +34,16 @@ class DVR_Admin {
 	 */
 	public static function tao_trang() {
 		$can = array(
-			'bang_gia' => array( 'Vé máy bay giá rẻ', '[do_ve_re]' ),
-			'dat_ve'   => array( 'Đặt vé', '[do_ve_re_dat_ve]' ),
+			'bang_gia' => array(
+				'Vé máy bay giá rẻ',
+				've-may-bay-gia-re',
+				"Dò giá vé máy bay theo chặng và ngày, chọn chuyến rẻ nhất rồi đặt ngay tại đây.\n\n[do_ve_re]",
+			),
+			'dat_ve'   => array(
+				'Đặt vé',
+				'dat-ve',
+				"[do_ve_re_dat_ve]",
+			),
 		);
 		$da  = get_option( 'dovere_pages', array() );
 		$moi = array();
@@ -34,7 +56,7 @@ class DVR_Admin {
 			$co = get_posts( array(
 				'post_type'   => 'page',
 				'post_status' => array( 'publish', 'draft', 'pending', 'private' ),
-				's'           => $t[1],
+				's'           => $khoa === 'dat_ve' ? '[do_ve_re_dat_ve]' : '[do_ve_re]',
 				'numberposts' => 1,
 			) );
 			if ( $co ) {
@@ -43,7 +65,8 @@ class DVR_Admin {
 			}
 			$moi[ $khoa ] = wp_insert_post( array(
 				'post_title'   => $t[0],
-				'post_content' => $t[1],
+				'post_name'    => $t[1],
+				'post_content' => $t[2],
 				'post_status'  => 'publish',
 				'post_type'    => 'page',
 			) );
