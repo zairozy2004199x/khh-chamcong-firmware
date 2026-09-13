@@ -348,6 +348,13 @@ class VHG_Trang {
 					isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $pin ) );
 				return;
 			}
+				/* Nhân viên bấm "Tạo mã nộp tiền" → VietQR chuyển tiền mặt về tài khoản chung, nội
+				   dung = mã nộp của cơ sở, số tiền = thực thu tiền mặt của báo cáo. Xem ma_nop_qr(). */
+				if ( 'bc_ma_nop_qr' === $viec ) {
+					self::tra( VHG_BaoCao::ma_nop_qr(
+						isset( $d['report_id'] ) ? $d['report_id'] : '', $pin ) );
+					return;
+				}
 			if ( 'bc_history' === $viec ) {
 				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::lich_su(
 					isset( $d['thang'] ) ? $d['thang'] : '', $pin ) ) );
@@ -2862,6 +2869,55 @@ class VHG_Trang {
     if(msg&&msg.parentNode) msg.parentNode.insertBefore(node, msg.nextSibling); else document.body.appendChild(node);
     try{ node.scrollIntoView({block:'center'}); }catch(e){}
   }
+  /* Vẽ MA TRẬN QR (mảng chuỗi '0'/'1' server trả) lên canvas — cùng cách trang Shop dùng
+     (VHG_QRVe). lang=4 ô lề trắng để app ngân hàng bắt được mã. */
+  function veQR(hang, o, px){
+    var n=hang.length, lang=4, tong=(n+lang*2)*px;
+    o.width=tong; o.height=tong;
+    var c=o.getContext('2d');
+    c.fillStyle='#fff'; c.fillRect(0,0,tong,tong); c.fillStyle='#000';
+    for(var y=0;y<n;y++){ for(var x=0;x<n;x++){ if(hang[y].charAt(x)==='1') c.fillRect((x+lang)*px,(y+lang)*px,px,px); } }
+  }
+  /* Khối "Mã nộp tiền": QR VietQR + thông tin tài khoản/nội dung/số tiền + nút tải/chia sẻ.
+     Server (bc_ma_nop_qr) đã tự lấy tài khoản chung, mã nộp cơ sở, số tiền thực thu tiền mặt. */
+  function veKhoiMaNop_(r){
+    var wrap=el('div'); wrap.style.cssText='border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-top:4px;background:#fff;text-align:center';
+    var tt=el('div',null,'💸 QUÉT QR ĐỂ NỘP TIỀN MẶT'); tt.style.cssText='font-weight:800;color:#166534;margin-bottom:4px'; wrap.appendChild(tt);
+    var cv=document.createElement('canvas');
+    cv.style.cssText='width:230px;max-width:100%;height:auto;image-rendering:pixelated;margin:6px auto;display:block;border:1px solid #e2e8f0;border-radius:8px';
+    try{ veQR(r.qr||[], cv, 6); }catch(e){}
+    wrap.appendChild(cv);
+    var info=el('div'); info.style.cssText='text-align:left;font-size:13px;margin-top:4px;line-height:1.7;max-width:320px;margin-left:auto;margin-right:auto';
+    function dong(k,v,bold,mau){ var d=el('div'); var a=el('span',null,k+': '); a.style.color='#64748b';
+      var b=el(bold?'b':'span',null,String(v==null?'':v)); if(mau) b.style.color=mau;
+      d.appendChild(a); d.appendChild(b); return d; }
+    info.appendChild(dong('Ngân hàng',(r.ngan_hang||'—')+(r.bin?(' ('+r.bin+')'):'')));
+    info.appendChild(dong('Số tài khoản', r.so_tk, true));
+    if(r.ten_tk) info.appendChild(dong('Chủ tài khoản', r.ten_tk));
+    info.appendChild(dong('Nội dung CK', r.noi_dung, true, '#b45309'));
+    var dt=dong('Số tiền', money(r.so_tien)+' đ', true, '#166534');
+    try{ dt.querySelector('b').style.fontSize='16px'; }catch(e){}
+    info.appendChild(dt);
+    wrap.appendChild(info);
+    var bar=el('div'); bar.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;justify-content:center';
+    if(navigator.share){
+      var bS=el('button','bc-btn pri','📤 Chia sẻ'); bS.type='button';
+      bS.onclick=function(){ try{ cv.toBlob(function(b){ if(!b){alert('Bấm "Tải ảnh QR" rồi gửi tay.');return;}
+        var f=new File([b],'ma-nop-tien.png',{type:'image/png'});
+        var data={ text:'Nộp tiền mặt '+money(r.so_tien)+'đ — nội dung: '+r.noi_dung, title:'Mã nộp tiền' };
+        try{ if(navigator.canShare&&navigator.canShare({files:[f]})) data.files=[f]; }catch(e){}
+        navigator.share(data).catch(function(){}); },'image/png'); }catch(e){ alert('Bấm "Tải ảnh QR" rồi gửi tay.'); } };
+      bar.appendChild(bS);
+    }
+    var bD=el('a','bc-btn','⬇ Tải ảnh QR'); try{ bD.href=cv.toDataURL('image/png'); }catch(e){} bD.download='ma-nop-tien.png';
+    bar.appendChild(bD);
+    wrap.appendChild(bar);
+    var note=el('div','bc-mut','Mở app ngân hàng → quét QR để chuyển '+money(r.so_tien)+'đ, hoặc chuyển tay đúng số TK + nội dung trên. '
+      +'GIỮ NGUYÊN nội dung để kế toán đối chiếu Sao Kê tự khớp về cơ sở.');
+    note.style.marginTop='6px'; wrap.appendChild(note);
+    return wrap;
+  }
+
   function baoCaoAnh_(rows, loc, ngay){
     try{
       var dv=Number(BC&&BC.don_vi)||10000;
@@ -3552,9 +3608,27 @@ class VHG_Trang {
     w.appendChild(gc);
 
     var msg=el('div','bc-mut'); msg.style.marginTop='4px'; w.appendChild(msg);
-    var nut=el('button','bc-btn','✓ Xác nhận đã nộp');
-    nut.style.cssText='margin-top:6px;font-weight:700';
-    w.appendChild(nut);
+    var hangNut=el('div'); hangNut.style.cssText='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;align-items:center';
+    var nut=el('button','bc-btn','✓ Xác nhận đã nộp'); nut.type='button'; nut.style.fontWeight='700';
+    hangNut.appendChild(nut);
+    /* 💸 TẠO MÃ NỘP TIỀN — anh Thắng 13/09/2026: nhân viên bấm là ra VietQR chuyển tiền mặt về
+       tài khoản chung; nội dung = mã nộp cơ sở, số tiền = thực thu tiền mặt (server tự lấy cả ba).
+       QR bung THẲNG vào thẻ (không modal, không phụ thuộc overlay); bấm lần nữa để ẩn. */
+    var nutQr=el('button','bc-btn','💸 Tạo mã nộp tiền'); nutQr.type='button'; nutQr.style.fontWeight='700';
+    hangNut.appendChild(nutQr);
+    w.appendChild(hangNut);
+    var qrBox=el('div'); qrBox.style.marginTop='8px'; w.appendChild(qrBox);
+    var dangQr=false;
+    nutQr.onclick=function(){
+      if(qrBox.dataset.on==='1'){ qrBox.textContent=''; qrBox.dataset.on=''; nutQr.textContent='💸 Tạo mã nộp tiền'; return; }
+      if(dangQr) return; dangQr=true; nutQr.disabled=true; qrBox.textContent='';
+      qrBox.appendChild(el('div','bc-mut','Đang tạo mã nộp tiền…'));
+      goi('bc_ma_nop_qr',{report_id:rp.reportId},function(r){
+        dangQr=false; nutQr.disabled=false; qrBox.textContent='';
+        if(!r||!r.ok){ var e=el('div','bc-mut bc-err','⚠ '+((r&&r.message)||'Không tạo được mã nộp tiền.')); qrBox.appendChild(e); return; }
+        qrBox.appendChild(veKhoiMaNop_(r)); qrBox.dataset.on='1'; nutQr.textContent='🔽 Ẩn mã nộp tiền';
+      });
+    };
 
     var dang=false;
     nut.onclick=function(){

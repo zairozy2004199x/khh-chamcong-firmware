@@ -1441,6 +1441,56 @@ class VHG_BaoCao {
 	}
 
 	/**
+	 * QR NỘP TIỀN MẶT của một báo cáo — anh Thắng 13/09/2026: nút "Tạo mã nộp tiền" bên nhân
+	 * viên. Ba thứ hệ thống TỰ LẤY, nhân viên chỉ bấm:
+	 *   · Tài khoản nhận: TÀI KHOẢN NHẬN CHUNG đã khai một lần (VHG_May::nhan_tien_cua) — cùng
+	 *     tài khoản QR ghế, kế toán/admin cấu hình, không gõ tay ở đây.
+	 *   · Nội dung CK: MÃ NỘP TIỀN của cơ sở (bảng bc_ma_nop, kế toán đặt) — để Sao Kê đối chiếu
+	 *     tự khớp tiền về đúng cơ sở.
+	 *   · Số tiền: THỰC THU TIỀN MẶT phải nộp của báo cáo (QR đã về tài khoản công ty, không tính).
+	 *
+	 * Dựng VietQR bằng chính VHG_QR::dung() (đúng chuỗi như QR ghế) rồi trả MA TRẬN cho trình
+	 * duyệt tự vẽ canvas — không gọi dịch vụ ảnh ngoài, không đẩy số tài khoản qua URL bên thứ ba.
+	 */
+	public static function ma_nop_qr( $report_id, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'message' => 'PIN không hợp lệ.' ); }
+		$h = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1', (string) $report_id ), ARRAY_A );
+		if ( ! $h ) { return array( 'ok' => false, 'message' => 'Không thấy báo cáo.' ); }
+		if ( ! self::trong_pham_vi( $q, $h['coso'] ) ) { return array( 'ok' => false, 'message' => 'Báo cáo ngoài phạm vi PIN.' ); }
+		$coso = (string) $h['coso'];
+		/* Số tiền = TIỀN MẶT PHẢI NỘP của báo cáo (đúng lọc dòng như ds_24h; QR không tính vào). */
+		$tien = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COALESCE(SUM(tien_mat),0) FROM ' . VHG_DB::t( 'bc_dong' )
+			. ' WHERE report_id=%s AND (chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0)', (string) $report_id ) );
+		if ( $tien <= 0 ) { return array( 'ok' => false, 'message' => 'Báo cáo này không có tiền mặt phải nộp (toàn QR).' ); }
+		/* Mã nộp của cơ sở — tra theo khoá squash để khớp đúng cách bảng bc_ma_nop đã lưu (coso_key). */
+		$code = (string) $wpdb->get_var( $wpdb->prepare(
+			'SELECT code FROM ' . VHG_DB::t( 'bc_ma_nop' ) . ' WHERE coso_key=%s LIMIT 1', self::squash( $coso ) ) );
+		if ( '' === $code ) {
+			return array( 'ok' => false, 'message' => 'Cơ sở “' . $coso . '” chưa có MÃ NỘP TIỀN. '
+				. 'Nhờ kế toán vào tab Kế toán → “Mã nộp tiền (nội dung CK ↔ cơ sở)” đặt mã cho cơ sở này rồi tạo lại.' );
+		}
+		$tk = VHG_May::nhan_tien_cua( array() );
+		if ( '' === (string) $tk['so_tk'] || '' === (string) $tk['bin'] ) {
+			return array( 'ok' => false, 'message' => 'Chưa khai TÀI KHOẢN NHẬN TIỀN chung — nhờ admin vào Ghế Massage → “Máy & cơ sở” để khai số TK và ngân hàng.' );
+		}
+		$chuoi = VHG_QR::dung( $tk['bin'], $tk['so_tk'], $tien, $code );
+		return array( 'ok' => true,
+			'qr'       => VHG_QRVe::hang( VHG_QRVe::ma_tran( $chuoi, 'L' ) ),
+			'chuoi'    => $chuoi,
+			'so_tien'  => $tien,
+			'noi_dung' => $code,
+			'so_tk'    => (string) $tk['so_tk'],
+			'ten_tk'   => (string) $tk['ten_tk'],
+			'bin'      => (string) $tk['bin'],
+			'ngan_hang'=> VHG_QR::ten_ngan_hang( $tk['bin'] ),
+			'coso'     => $coso );
+	}
+
+	/**
 	 * ĐÍNH BILL CHUYỂN KHOẢN VÀ XÁC NHẬN ĐÃ NỘP — một cú bấm, ba việc.
 	 *
 	 * Anh Thắng 05/09/2026: *"chỗ đó sẽ có thêm (bổ sung bill chuyển khoản) · khi nhân viên add
