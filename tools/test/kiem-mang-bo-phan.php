@@ -914,22 +914,6 @@ t( '🔴 Nhân viên KHÔNG đặt được', empty( $r['ok'] ), $r );
 $r = VHCC_NhanSu::dat_ten_mang( $u_ad2, 'Mảng Không Có Thật', 'X' );
 t( 'mảng không có thật thì chối', empty( $r['ok'] ), $r );
 
-/* ---- 14b. Phòng ban thuộc mảng nào ---- */
-delete_option( VHCC_NhanSu::BP_MANG_O );
-teq( '🔴 mặc định KHÔNG gắn phòng nào vào mảng nào', '', VHCC_NhanSu::mang_cua_bo_phan( 'Phòng Kho Hàng' ) );
-$r = VHCC_NhanSu::dat_bo_phan_mang( $u_kt2, 'Phòng Kho Hàng', 'Máy tự động' );
-t( 'gắn được phòng vào mảng', ! empty( $r['ok'] ), $r );
-teq( 'và đọc ra đúng', 'Máy tự động', VHCC_NhanSu::mang_cua_bo_phan( 'Phòng Kho Hàng' ) );
-$sd = VHCC_NhanSu::so_do_mang();
-t( 'sơ đồ xếp phòng ấy vào đúng mảng',
-	in_array( 'Phòng Kho Hàng', $sd['Máy tự động'], true ), $sd['Máy tự động'] );
-/* Mảng chưa có phòng nào VẪN phải có ngăn — không thì thêm mảng xong nó không hiện ra ở đâu. */
-t( '🔴 mảng chưa có phòng nào vẫn có ngăn riêng', array_key_exists( 'Part time', $sd ), array_keys( $sd ) );
-t( 'phòng chưa gắn thì nằm ngăn dùng chung',
-	in_array( VHCC_NhanSu::BP_CO_SO, $sd[''], true ), $sd[''] );
-$r = VHCC_NhanSu::dat_bo_phan_mang( $u_ad2, 'Phòng Kho Hàng', 'Mảng Bịa' );
-t( 'gắn vào mảng không có thật thì chối', empty( $r['ok'] ), $r );
-
 /* ---- 14c. Thêm phòng ban ---- */
 $r = VHCC_NhanSu::them_bo_phan( $u_kt2, 'Phòng Thử Nghiệm' );
 t( 'thêm được phòng ban', ! empty( $r['ok'] ), $r );
@@ -959,9 +943,6 @@ t( 'và tên cũ hết sạch', ! isset( $ban_v['Phòng Kho Hàng'] ), array_key
 $g_k = VHCC_Cong::giai( array( 'ma_nv' => 'S_KHO1', 'role' => 'Nhân viên' ), 'tram' );
 t( '🔴 luật quyền đi theo tên mới — phòng KHÔNG rơi xuống thang vai', empty( $g_k['duoc'] ), $g_k );
 teq( 'và nói đúng tên mới', 'Phòng Kho Vận', $g_k['ten'] );
-teq( '🔴 bản đồ "thuộc mảng nào" cũng đi theo', 'Máy tự động',
-	VHCC_NhanSu::mang_cua_bo_phan( 'Phòng Kho Vận' ) );
-teq( 'tên cũ không còn gắn mảng', '', VHCC_NhanSu::mang_cua_bo_phan( 'Phòng Kho Hàng' ) );
 
 /* Đổi tên sang một phòng ĐANG CÓ mà không nói ý định gộp thì phải chối — kẻo gõ nhầm một cái là
    xoá mất một phòng mà không ai biết. */
@@ -1024,5 +1005,82 @@ teq( '🔴 phòng đã khai KHÔNG bị đè', wp_json_encode( $truoc['Phòng Kh
 	wp_json_encode( $sau['Phòng Kho Vận'] ) );
 $r2 = VHCC_NhanSu::dien_vai_goi_y( $u_ad2 );
 teq( 'điền lần hai thì không còn gì để điền', 0, (int) $r2['so'] );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 15. Ô "THUỘC MẢNG" — HAI DÒNG RÁC Ở ĐÁY, HAI NGUYÊN NHÂN KHÁC HẲN NHAU
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 13/09/2026, ảnh ô "Thuộc mảng": *"bỏ 2 cái dưới cùng cho anh"* —
+ *   · "Part time"  → không phải mảng kinh doanh, đó là KIỂU LÀM VIỆC. Chuyện xếp loại.
+ *   · "Máy tự động, Khu vui chơi, Văn phòng, Part time" → một LỖI THẬT: cột `mang` chở nhiều
+ *     mảng ngăn bằng dấu phẩy, mà `SELECT DISTINCT mang` trả nguyên chuỗi, nên mỗi TỔ HỢP đẻ ra
+ *     một "mảng" giả.
+ *
+ * 🔴 HAI CÁI NÀY PHẢI CHỮA HAI KIỂU. Gộp lại thành "ẩn cả hai dòng" là giấu mất cái lỗi: dòng tổ
+ *    hợp vẫn đẻ ra mới mỗi khi có người làm một tổ hợp mảng khác, và mỗi dòng ấy lại mọc một
+ *    hàng nhóm giả trong BẢNG LUẬT QUYỀN — khai luật vào đó thì chỉ trúng nhúm người có đúng tổ
+ *    hợp ấy, còn người khai tưởng mình vừa khai cho cả bốn mảng.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+echo "── 15. Ô «thuộc mảng»: tổ hợp mảng & mảng ẩn ───────────\n";
+
+/* ---- 15a. Người làm nhiều mảng KHÔNG được đẻ ra một "mảng" mới ---- */
+delete_option( VHCC_NhanSu::MANG_AN_O );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'M_TOHOP', 'ho_ten' => 'Người Bốn Mảng', 'cua_hang' => 'VIVO',
+	'mang' => 'Máy tự động, Khu vui chơi, Văn phòng, Part time',
+	'bo_phan' => '', 'vai_tro' => 'Nhân viên' ) );
+$dk = VHCC_NhanSu::mang_dang_khai();
+t( '🔴 chuỗi tổ hợp KHÔNG lọt vào danh sách mảng',
+	! in_array( 'Máy tự động, Khu vui chơi, Văn phòng, Part time', $dk, true ), $dk );
+foreach ( array( 'Máy tự động', 'Khu vui chơi', 'Văn phòng', 'Part time' ) as $m_t ) {
+	t( 'nhưng "' . $m_t . '" thì có — tách ra đủ', in_array( $m_t, $dk, true ), $dk );
+}
+$tat = VHCC_NhanSu::ds_mang_tat_ca();
+t( 'và danh sách mảng cũng sạch chuỗi tổ hợp',
+	! in_array( 'Máy tự động, Khu vui chơi, Văn phòng, Part time', $tat, true ), $tat );
+/* Người ấy vẫn phải đếm vào CẢ BỐN mảng — đó là cả lý do cột này cho nhiều giá trị. */
+$x_t = VHCC_NhanSu::mang_bo_phan_cua( VHCC_NhanSu::ho_so( 'M_TOHOP' ) );
+teq( '🔴 người ấy vẫn thuộc đủ bốn mảng', 4, count( $x_t['dsMang'] ) );
+
+/* ---- 15b. Ẩn một mảng: biến khỏi ô chọn, KHÔNG đụng lương và dữ liệu cũ ---- */
+delete_option( VHCC_NhanSu::MANG_AN_O );
+t( '🔴 hạt giống ẩn sẵn "Part time"',
+	in_array( 'Part time', VHCC_NhanSu::mang_an(), true ), VHCC_NhanSu::mang_an() );
+t( 'nên ô chọn KHÔNG còn nó', ! in_array( 'Part time', VHCC_NhanSu::ds_mang(), true ),
+	VHCC_NhanSu::ds_mang() );
+t( '🔴 nhưng hệ VẪN biết nó — danh sách đầy đủ còn nguyên',
+	in_array( 'Part time', VHCC_NhanSu::ds_mang_tat_ca(), true ), VHCC_NhanSu::ds_mang_tat_ca() );
+/* 🔴 CHỐT NẶNG NHẤT: ẩn không được đụng vào lương. */
+$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => 'KHO_PT', 'bo_phan' => 'Part time' ) );
+teq( '🔴 cơ sở xếp vào mảng đang ẩn VẪN tra ra công thức lương',
+	'Part time', VHCC_Luong::bo_phan_cua( 'KHO_PT' ) );
+/* Và người đang khai tay mảng ấy vẫn lưu được — chốt danh sách trắng phải dùng bản đầy đủ. */
+$nv( 'M_PT', 'Người Part Time', 'VIVO' );
+$r = VHCC_NhanSu::dat_mang_bo_phan( $u_ad2, 'M_PT', 'Part time', '' );
+t( '🔴 người khai tay mảng ĐANG ẨN vẫn lưu được, không bị chối oan', ! empty( $r['ok'] ), $r );
+
+/* 🔴 VÀ NGƯỜI ĐANG KHAI TAY MẢNG ẨN PHẢI CÒN THẤY Ô TÍCH CỦA HỌ. Bỏ nó khỏi hộp tích là một cú
+   bấm Lưu xoá luôn mảng của họ — im lặng, vì trên màn chưa bao giờ có ô ấy để mà thấy nó mất. */
+$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Sếp', 'Admin', '', 'S_AD' ) );
+$_GET = array( 'nq' => 'M_PT' );
+ob_start(); VHCC_TrangNS::phuc_vu(); $h_pt = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 hàng của người ấy VẪN có ô tích "Part time", dù mảng đang ẩn',
+	false !== strpos( $h_pt, 'value="Part time"' ), substr( $h_pt, 0, 200 ) );
+/* `checked` đứng NGAY SAU `value="..."` trong `ba_nut`/hộp tích — nhưng thứ tự thuộc tính là
+   chuyện của mã vẽ, không phải chuyện của luật. Đo bằng chính hồ sơ cho chắc. */
+teq( 'và hồ sơ người ấy vẫn giữ mảng Part time', 'Part time',
+	trim( (string) VHCC_NhanSu::ho_so( 'M_PT' )['mang'] ) );
+
+/* ---- 15c. Ẩn / hiện lại ---- */
+$r = VHCC_NhanSu::dat_mang_an( $u_kt2, 'Part time', false );
+t( 'hiện lại được', ! empty( $r['ok'] ), $r );
+t( 'và nó quay lại ô chọn', in_array( 'Part time', VHCC_NhanSu::ds_mang(), true ) );
+$r = VHCC_NhanSu::dat_mang_an( $u_kt2, 'Part time', true );
+t( 'ẩn lại được', ! empty( $r['ok'] ), $r );
+$r = VHCC_NhanSu::dat_mang_an( $u_nv2, 'Văn phòng', true );
+t( '🔴 Nhân viên KHÔNG ẩn được mảng', empty( $r['ok'] ), $r );
+$r = VHCC_NhanSu::dat_mang_an( $u_ad2, 'Mảng Bịa Ra', true );
+t( 'mảng không có thật thì chối', empty( $r['ok'] ), $r );
+
 
 ket_luan_vai();

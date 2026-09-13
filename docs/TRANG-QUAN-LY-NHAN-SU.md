@@ -964,27 +964,49 @@ Nên: **giá trị lưu giữ nguyên**, màn hình đọc tên dài qua `VHCC_N
 tích, dải đếm, ô lọc và bảng luật đều đọc tên dài; **giá trị gửi lên vẫn là mã lưu**. Muốn đổi hẳn
 giá trị lưu thì phải là một lượt riêng đi qua cả bốn plugin — chưa làm.
 
-### Mỗi mảng có phòng ban riêng
+### 🔴 KHÔNG có cột "Thuộc mảng" — tên phòng tự nói ra
 
-Option `vhcc_bo_phan_mang` = `[ bộ phận => mảng ]`; không có tên trong đó = **dùng chung**. Khối
-*Sơ đồ tổ chức* xếp phòng theo mảng, và ô **Bộ phận** của từng người nay chia `<optgroup>` theo
-mảng với **mảng của chính người ấy lên đầu**.
+Bản đầu có thêm một ô xổ "Thuộc mảng" cho mỗi phòng. Anh Thắng bỏ ngay: *"Bỏ mảng luôn… anh tạo
+phòng ban theo mảng đó luôn cho gọn"* — tức là đặt tên phòng kèm mảng (`MTĐ · Phòng Kỹ Thuật`) thì
+cái tên đã nói hết, khỏi cần 12 ô xổ nhắc lại.
 
-⚠️ Vẫn **không cắt bớt phòng nào** khỏi ô xổ — người kiêm nhiệm có thật, và một ô xổ giấu mất lựa
-chọn đúng thì người khai đành chọn một cái gần đúng. Chỉ xếp lại thứ tự.
+Anh ấy đúng, và lý do sâu hơn "cho gọn": một cột chỉ để nhắc lại điều cái tên đã nói là **khai hai
+lần cùng một thứ**, và hai chỗ ấy lệch nhau lúc nào không ai biết — đổi tên phòng thì ô xổ vẫn trỏ
+mảng cũ, mà chẳng có gì đỏ lên.
 
-🔴 Hạt giống **không gắn phòng nào vào mảng nào**. Gắn sai một phòng là người phòng ấy biến khỏi
-mọi bộ lọc theo mảng kia, mà chẳng có gì đỏ lên.
+### Ẩn một mảng — ẩn, không xoá
 
-### 🔴 ĐỔI TÊN PHÒNG BAN MANG THEO CẢ BỐN SỔ
+Ô "Thuộc mảng" còn lòi ra hai dòng rác ở đáy (ảnh 13/09/2026: *"bỏ 2 cái dưới cùng cho anh"*), và
+**hai dòng ấy sai vì hai lý do khác hẳn nhau** — gộp lại thành "ẩn cả hai" là giấu mất một lỗi:
 
-Tên phòng ban là khoá của bốn nơi. Rụng nơi nào cũng hỏng im lặng:
+| dòng | vì sao có | chữa kiểu gì |
+|---|---|---|
+| `Part time` | là **kiểu làm việc**, không phải mảng kinh doanh | **ẩn** khỏi ô chọn |
+| `Máy tự động, Khu vui chơi, Văn phòng, Part time` | **lỗi thật**: `mang` chở nhiều mảng ngăn bằng dấu phẩy, mà `SELECT DISTINCT mang` trả nguyên chuỗi → mỗi **tổ hợp** đẻ ra một "mảng" giả | `mang_dang_khai()` gọi `tach_mang()` |
+
+Dòng tổ hợp hỏng theo ba đường, đường nào cũng im lặng: ô chọn mọc dòng rác (tích vào là ghi một
+tổ hợp cứng cho người ta); dải đếm và ô lọc có một ô không khớp ai ngoài đúng nhúm ấy; và **bảng
+luật quyền mọc một hàng nhóm giả** — khai luật vào đó thì người khai tưởng mình vừa khai cho cả
+bốn mảng.
+
+Ẩn thì **ẩn, không xoá**: chuỗi vẫn nằm trong `VHCC_Luong::BP_DS`, cơ sở nào đang xếp vào đó thì
+lương vẫn tra ra công thức như cũ. Bỏ hẳn khỏi danh sách trắng là lương cơ sở ấy rơi về "Chưa xếp".
+
+Hai chốt đi kèm, cả hai đều là đường hỏng-im-lặng:
+
+* **Chốt danh sách trắng dùng `ds_mang_tat_ca()`**, không dùng `ds_mang()`. Hẹp theo thì người
+  đang khai tay mảng vừa bị ẩn bấm Lưu là nhận câu chối *"mảng không có trong hệ"* — cho một giá
+  trị chính họ đang mang, và không có cách nào sửa.
+* **Hộp tích của người đang khai tay mảng ẩn vẫn hiện ô ấy.** Bỏ đi là ô mất dấu tích, và một cú
+  bấm Lưu xoá luôn mảng của họ — im lặng, vì trên màn chưa bao giờ có ô ấy để mà thấy nó biến mất.
+
+### 🔴 ĐỔI TÊN PHÒNG BAN MANG THEO CẢ BA SỔ
+
+Tên phòng ban là khoá của ba nơi. Rụng nơi nào cũng hỏng im lặng:
 
 1. `nhan_vien.bo_phan` — người thuộc phòng ấy;
 2. `vhcc_vai_bo_phan` — vai bày lên đầu ô xổ;
 3. `vhcc_quyen_nhom['bp']` — **luật quyền vào trang**;
-4. `vhcc_bo_phan_mang` — phòng ấy thuộc mảng nào.
-
 Rụng (3) là cả phòng lặng lẽ rơi xuống thang vai — bảng vẫn xanh, và chỉ lộ khi có người kêu "sao
 tôi không vào được nữa".
 
