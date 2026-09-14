@@ -36,7 +36,28 @@ di trú dữ liệu, mà di trú một sổ tiền đang chạy để lấy cái
 
 ⚠️ **Đường cũ `/chi-phi` vẫn sống.** Nó nằm trong tin nhắn, dấu trang, mã QR đã in, và iframe của
 trang tổng. Bỏ nó là mọi thứ ấy trả 404 cùng lúc — mà 404 thì người dùng đọc thành *"hệ thống
-sập"*, không đọc thành *"đổi địa chỉ"*. `VHCP_App::init()` khai cả hai luật.
+sập"*, không đọc thành *"đổi địa chỉ"*.
+
+🔴 **Khai CẢ BA đường, không khai có điều kiện** (`VHCP_App::cac_slug()` — 1.161.0). Bản đầu chỉ
+thêm đường đời đầu *khi* slug hiện tại đã khác nó. Nghe hợp lý, nhưng hỏng đúng ở ca thường gặp
+nhất: ô Cài đặt trên host đang lưu sẵn `chi-phi` (anh Thắng dùng link ấy từ đầu) → `slug()` trả
+`chi-phi` → điều kiện sai → **`/chi-phi-kvc` trả 404**. Tức cài bản mới xong, cái link *mới* in
+ra cho mọi người lại là link chết, cho tới khi có ai nhớ vào Cài đặt đổi tay — mà "nhớ vào đổi
+tay" là thứ không xảy ra.
+
+Khai thừa thì vô hại (cùng một luật khai hai lần, WordPress giữ cái sau, cả hai trỏ về một chỗ);
+khai thiếu mới là 404. Nên lấy tập hợp `{ slug đang khai, chi-phi-kvc, chi-phi }` rồi khai hết:
+
+| Ô Cài đặt đang lưu | Đường chạy được |
+|---|---|
+| *(chưa đặt)* | `/chi-phi` · `/chi-phi-kvc` |
+| `chi-phi` | `/chi-phi` · `/chi-phi-kvc` |
+| `chi-phi-kvc` | `/chi-phi` · `/chi-phi-kvc` |
+| một đường tự do | cả ba |
+
+`tools/test/kiem-hai-duong-chi-phi.php` canh cả bốn ca (21 phép), và canh luôn việc **bản
+MTD/VP không giành lại `/chi-phi`** — chúng sinh từ chính bản gốc nên sót một hằng là chúng khai
+đúng đường của bản đang chở sổ thật.
 
 ## Địa chỉ trang tổng: `chi-phi-kh`, không phải `chi-phi-k&h`
 

@@ -47,14 +47,46 @@ class VHCP_App {
 		return add_query_arg( 'vhcp', 'app', home_url( '/' ) );
 	}
 
+	/**
+	 * MỌI ĐƯỜNG DẪN CỦA BẢN NÀY — cùng mở MỘT app, cùng đọc MỘT sổ.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"nhớ trang chi phí cũ sẽ chạy 2 link, tránh các bạn rối"*.
+	 *
+	 * 🔴 KHAI CẢ BA, KHÔNG KHAI CÓ ĐIỀU KIỆN. Bản trước chỉ thêm đường đời đầu KHI slug hiện tại
+	 *    đã khác nó — nghe hợp lý, nhưng nó hỏng đúng ở ca thường gặp nhất:
+	 *
+	 *      ô Cài đặt trên host đang lưu sẵn 'chi-phi' (anh Thắng dùng link ấy từ đầu)
+	 *        -> slug() trả 'chi-phi'
+	 *        -> điều kiện "khác nhau" là SAI
+	 *        -> chỉ /chi-phi được khai, còn /chi-phi-kvc TRẢ 404.
+	 *
+	 *    Tức là cài bản mới lên xong, cái link mới in ra cho mọi người lại là link chết — cho
+	 *    tới khi có ai nhớ vào Cài đặt đổi tay. Mà "nhớ vào đổi tay" là thứ không xảy ra.
+	 *
+	 * ⚠️ KHAI THỪA THÌ VÔ HẠI: cùng một luật khai hai lần, WordPress giữ cái sau, và cả hai đều
+	 *    trỏ về đúng một chỗ. Khai THIẾU mới là 404. Nên lấy tập hợp rồi khai hết.
+	 *
+	 * 🔴 BẢN MTD/VP KHÔNG GIÀNH ĐƯỜNG CỦA AI. Script tách đổi CẢ HAI hằng slug thành
+	 *    'chi-phi-<mã>', nên tập hợp của chúng chỉ có đúng một phần tử — xem chốt trong
+	 *    `tools/tach-ban-vung.sh` và bài kiểm `kiem-tach-ban-vung.php`.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return string[] Đường dẫn, đã bỏ trùng và bỏ rỗng.
+	 */
+	public static function cac_slug() {
+		$ds = array( self::slug(), self::SLUG_MAC_DINH, self::SLUG_CU );
+		$ra = array();
+		foreach ( $ds as $s ) {
+			$s = sanitize_title( (string) $s );
+			if ( '' !== $s && ! in_array( $s, $ra, true ) ) { $ra[] = $s; }
+		}
+		return $ra;
+	}
+
 	public static function init() {
-		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcp_app=1', 'top' );
-		/* ⚠️ ĐƯỜNG LUI, KHÔNG PHẢI ĐƯỜNG THỨ HAI CHO NGƯỜI DÙNG. Chỉ khai khi slug hiện tại đã
-		   khác đường đời đầu — khai trùng một luật hai lần là WordPress giữ cái sau, vô hại
-		   nhưng thừa. Bản MTD/VP sinh từ script có slug riêng, và `SLUG_CU` của chúng cũng đã
-		   được script đổi theo, nên không bản nào giành đường của bản nào. */
-		if ( self::SLUG_CU !== self::slug() ) {
-			add_rewrite_rule( '^' . self::SLUG_CU . '/?$', 'index.php?vhcp_app=1', 'top' );
+		foreach ( self::cac_slug() as $s ) {
+			add_rewrite_rule( '^' . $s . '/?$', 'index.php?vhcp_app=1', 'top' );
 		}
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
