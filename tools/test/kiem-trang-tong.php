@@ -615,6 +615,7 @@ foreach ( array(
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
 	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq', 'mauBuoc',
 	/* việc trên đơn */             'lam',
+	/* chuông */                    'docChuong', 'veSoChuong', 'moChuong', 'mauViec', 'chuongTu', 'datChuongTu',
 ) as $ham ) {
 	t( '🔴 màn còn hàm ' . $ham . '()', false !== strpos( $html, 'function ' . $ham . '(' ), '' );
 }
@@ -811,6 +812,58 @@ t( '🔴 chỉ nhận đường dẫn http(s) cho ảnh',
 t( '⚠️ dòng không ảnh chỉ để dấu gạch xám, không tô cảnh báo',
 	(bool) preg_match( '#chưa đính chứng từ#u', $html ), '' );
 t( '🔴 thực chi lệch thành tiền thì tô lên', (bool) preg_match( '#var lech = \( tc !== null && tc !== tt \);#', $html ), '' );
+
+/* ═══ 6m. CHUÔNG BÁO VIỆC MỚI ══════════════════════════════════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"trang tổng này thêm 1 cái chuông thông báo khi có đơn mới cho kế toán
+ * biết: đơn mới, đơn gửi cấp, duyệt"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có cổng chuông', false !== strpos( $api_ma, '\'chuong\' === $viec' ), '' );
+
+/* 🔴 "MỚI" LÀ MỚI Ở BƯỚC NÀO, KHÔNG PHẢI ĐƠN MỚI LẬP. Một đơn lập tuần trước, hôm nay quản lý
+   vừa duyệt, thì với KẾ TOÁN nó là việc mới toanh — dù `ngay_tao` đã cũ. Đo cả ba loại bằng
+   `ngay_tao` là chuông im đúng lúc cần kêu nhất. */
+foreach ( array(
+	array( 'CHO_DUYET', 'ngay_tao' ),
+	array( 'CHO_CAP',   'ngay_duyet' ),
+	array( 'CHO_QT',    'ngay_gui_qt' ),
+) as $c ) {
+	t( '🔴 «' . $c[0] . '» đo bằng mốc riêng của bước: ' . $c[1],
+		(bool) preg_match( "#self::" . $c[0] . ",\s*'cot' => '" . $c[1] . "'#", $gom3 ), '' );
+}
+/* ⚠️ `ngay_gui_qt` là mốc NHÂN VIÊN BẤM GỬI, khác `ngay_qt` (mốc kế toán chốt). Lấy nhầm là
+   chuông kêu sau khi việc đã xong. */
+t( '⚠️ dùng ngay_gui_qt, KHÔNG dùng ngay_qt',
+	! preg_match( "#'cot' => 'ngay_qt'#", $gom3 ), '' );
+/* ⚠️ Chuông kêu cho việc mình không có quyền bấm là tiếng kêu vô nghĩa — vài lần là người ta
+   thôi nhìn chuông. */
+t( '🔴 chỉ kêu việc người ấy làm được',
+	(bool) preg_match( '#if \( ! VHCPT_Auth::duoc\( [$]khoa, [$]l\[.viec.\] \) \) \{ continue; \}#', $gom3 ), '' );
+/* ⚠️ Mốc rỗng = lần đầu mở trang: lấy 24 giờ gần nhất, không lấy từ đầu thời gian. Một chuông
+   nổ ra bốn trăm mục thì không ai đọc. */
+t( '⚠️ lần đầu mở thì lấy 24 giờ gần nhất',
+	(bool) preg_match( '#DAY_IN_SECONDS#', $api_ma ), '' );
+t( '🔴 chuông xếp MỚI NHẤT lên đầu (khác hàng chờ việc)',
+	(bool) preg_match( '#strcmp\( \(string\) \$b\[.luc.\], \(string\) \$a\[.luc.\] \)#', $api_ma ), '' );
+
+/* ⚠️ Mốc "đã đọc" giữ ở MÁY NGƯỜI DÙNG: mỗi người xem một lúc khác nhau, giữ mốc chung ở máy
+   chủ là người mở sau xoá mất dấu chưa-đọc của người mở trước. */
+t( '⚠️ mốc đã đọc giữ ở máy người dùng', false !== strpos( $html, "localStorage.setItem(O_CHUONG" ), '' );
+/* 🔴 PIN VÀ THẺ PHIÊN KHÔNG BAO GIỜ NẰM Ở localStorage — chỉ mốc thời gian. */
+t( '🔴 và chỉ là MỐC THỜI GIAN, không phải thẻ phiên hay PIN',
+	1 === preg_match_all( '#localStorage\.setItem#', $html )
+		&& false !== strpos( $html, "sessionStorage.setItem(OTHE" ), '' );
+/* ⚠️ localStorage ném lỗi ở cửa sổ ẩn danh — bọc try/catch, chạy tiếp với mốc rỗng. */
+t( '⚠️ lưu trữ hỏng thì vẫn chạy tiếp',
+	(bool) preg_match( '#function chuongTu\(\)\{ try \{#', $html ), '' );
+/* 🔴 Mốc lấy giờ MÁY CHỦ: lệch đồng hồ máy người dùng vài phút là vài việc vừa tới bị đánh dấu
+   đã đọc mà chưa ai nhìn. */
+t( '🔴 đánh dấu đã đọc lấy giờ MÁY CHỦ',
+	(bool) preg_match( '#datChuongTu\( \(CHUONG\.bayGio#', $html ), '' );
+/* Chuông chỉ có nghĩa khi nó TỰ kêu — bắt bấm Làm mới mới biết thì đã không cần chuông. */
+t( '🔴 chuông tự hỏi lại theo nhịp', (bool) preg_match( '#setInterval\(docChuong, 60000\)#', $html ), '' );
+t( 'bấm một mục thì nhảy sang đúng tab của việc ấy',
+	(bool) preg_match( "#NHOM = \( x\.viec === 'duyet'#", $html ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

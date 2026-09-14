@@ -363,6 +363,71 @@ class VHCPT_Gom {
 		);
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CHUÔNG — VIỆC MỚI TỚI TỪ LẦN XEM TRƯỚC
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"trang tổng này thêm 1 cái chuông thông báo khi có đơn mới cho kế
+	 * toán biết: đơn mới, đơn gửi cấp, duyệt"*.
+	 *
+	 * 🔴 "MỚI" LÀ MỚI Ở BƯỚC NÀO, KHÔNG PHẢI ĐƠN MỚI LẬP. Một đơn lập từ tuần trước, hôm nay
+	 *    quản lý vừa duyệt xong, thì với KẾ TOÁN nó là việc mới toanh — dù `ngay_tao` đã cũ.
+	 *    Đo bằng `ngay_tao` cho cả ba loại là chuông im đúng lúc cần kêu nhất. Nên mỗi loại đo
+	 *    bằng MỐC CỦA CHÍNH BƯỚC ẤY:
+	 *      · đơn vừa gửi lên   -> `ngay_tao`
+	 *      · vừa duyệt, chờ cấp -> `ngay_duyet`
+	 *      · vừa gửi quyết toán -> `ngay_gui_qt` (mốc NHÂN VIÊN BẤM GỬI, khác `ngay_qt` là mốc
+	 *        kế toán chốt — xem `VHCP_DB` 1.10.0)
+	 *
+	 * ⚠️ CHỈ ĐẾM VIỆC NGƯỜI NÀY LÀM ĐƯỢC. Chuông kêu cho một việc mình không có quyền bấm là
+	 *    tiếng kêu vô nghĩa, và vài lần như thế là người ta thôi nhìn chuông.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Trần số mục chuông đọc về mỗi bản. */
+	const GIOI_HAN_CHUONG = 50;
+
+	public static function chuong_cua_ban( $khoa, $tu ) {
+		global $wpdb;
+		$tien_to = VHCPT_Ban::tien_to_bang( $khoa );
+		if ( '' === $tien_to ) { return array(); }
+		$bang = $tien_to . 'don';
+		$ten  = VHCPT_Ban::ten( $khoa );
+
+		$loai = array(
+			array( 'viec' => 'duyet', 'tt' => self::CHO_DUYET, 'cot' => 'ngay_tao',
+			       'nhan' => 'đơn mới gửi duyệt' ),
+			array( 'viec' => 'cap',   'tt' => self::CHO_CAP,   'cot' => 'ngay_duyet',
+			       'nhan' => 'đã duyệt — chờ cấp tiền' ),
+			array( 'viec' => 'qtCn',  'tt' => self::CHO_QT,    'cot' => 'ngay_gui_qt',
+			       'nhan' => 'đã gửi quyết toán' ),
+		);
+
+		$ra = array();
+		foreach ( $loai as $l ) {
+			/* ⚠️ Việc mình không làm được thì không kêu — xem khối trên. */
+			if ( ! VHCPT_Auth::duoc( $khoa, $l['viec'] ) ) { continue; }
+			$sql = $wpdb->prepare(
+				"SELECT ma_don, ky, nguoi_lap, {$l['cot']} AS luc
+				   FROM $bang
+				  WHERE trang_thai = %s AND {$l['cot']} IS NOT NULL AND {$l['cot']} > %s
+				  ORDER BY {$l['cot']} DESC LIMIT %d",
+				$l['tt'], (string) $tu, self::GIOI_HAN_CHUONG
+			);
+			foreach ( (array) $wpdb->get_results( $sql, ARRAY_A ) as $r ) {
+				$ra[] = array(
+					'ban'    => $khoa,
+					'tenBan' => $ten,
+					'viec'   => $l['viec'],
+					'nhan'   => $l['nhan'],
+					'maDon'  => (string) $r['ma_don'],
+					'ky'     => (string) $r['ky'],
+					'nguoi'  => (string) $r['nguoi_lap'],
+					'luc'    => (string) $r['luc'],
+				);
+			}
+		}
+		return $ra;
+	}
+
 	/**
 	 * DÒNG CHI CỦA MỘT ĐƠN — đọc thẳng bảng, KHÔNG gọi `<Bản>_Don::get_don()`.
 	 *

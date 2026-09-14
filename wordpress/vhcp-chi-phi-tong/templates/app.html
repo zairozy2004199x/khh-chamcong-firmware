@@ -91,6 +91,16 @@ tfoot td{font-weight:700;background:#f1f5f9}
 .buoc table tbody tr:nth-child(even) td{background:#fcfdfe}
 .buoc table tbody tr:hover td{background:#f8fafc}
 .buoc td.tien{font-weight:700}
+/* CHUÔNG — anh Thắng 14/09/2026: *"thêm 1 cái chuông thông báo khi có đơn mới cho kế toán biết"*. */
+.chuong{position:relative}
+.chuong-so{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;line-height:18px;
+           padding:0 5px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;
+           font-weight:800;text-align:center;box-shadow:0 0 0 2px #0f766e}
+.chuong-hop{position:absolute;right:0;top:38px;width:min(420px,92vw);max-height:70vh;overflow:auto;
+            background:#fff;border:1px solid #cbd5e1;border-radius:12px;z-index:2000;
+            box-shadow:0 12px 32px rgba(15,23,42,.22);text-align:left}
+.chuong-hop .muc{padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer}
+.chuong-hop .muc:hover{background:#f8fafc}
 .dem-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;
           border:1px solid #e2e8f0;background:#fff;color:#94a3b8;margin:0 5px 5px 0}
 .dem-chip b{font-weight:800}
@@ -275,6 +285,9 @@ function veChinh(){
       '<div class="sub">Gom đơn các mảng · quản lý duyệt · kế toán cấp tiền &amp; quyết toán</div></div>' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
         '<span class="nho" style="color:#a7f3d0">'+esc(TOI.ten)+'</span>' +
+        '<span class="chuong"><button class="btn b-x" id="nutChuong" title="Việc mới tới">🔔' +
+          ( CHUONG.ds.length ? '<span class="chuong-so">'+CHUONG.ds.length+'</span>' : '' ) +
+        '</button><div class="chuong-hop" id="hopChuong" hidden></div></span>' +
         '<button class="btn b-x" id="lamMoi">↻ Làm mới</button>' +
         '<button class="btn b-x" id="ra">Đăng xuất</button>' +
       '</div>' +
@@ -293,11 +306,107 @@ function veChinh(){
     goi('dangXuat',{}).catch(function(){});
     datThe(''); TOI=null; BAO=null; veVao();
   };
-  document.getElementById('lamMoi').onclick = function(){ napDs(); };
+  document.getElementById('lamMoi').onclick = function(){ napDs(); docChuong(); };
+  document.getElementById('nutChuong').onclick = function(e){ e.stopPropagation(); moChuong(); };
   Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-nhom]'), function(b){
     b.onclick = function(){ NHOM = b.getAttribute('data-nhom'); veChinh(); };
   });
   napDs();
+  docChuong();
+  /* Hỏi lại mỗi phút. Chuông chỉ có nghĩa khi nó tự kêu — bắt người ta bấm Làm mới để biết có
+     việc mới thì đã không cần chuông. */
+  if (CHUONG.hen) clearInterval(CHUONG.hen);
+  CHUONG.hen = setInterval(docChuong, 60000);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CHUÔNG — VIỆC MỚI TỚI
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"trang tổng này thêm 1 cái chuông thông báo khi có đơn mới cho kế toán
+ * biết: đơn mới, đơn gửi cấp, duyệt"*.
+ *
+ * 🔴 MỐC "ĐÃ ĐỌC" GIỮ Ở MÁY NGƯỜI DÙNG, KHÔNG Ở MÁY CHỦ. Mỗi người xem chuông một lúc khác
+ *    nhau; giữ một mốc chung là người mở sau xoá mất dấu "chưa đọc" của người mở trước.
+ *
+ * ⚠️ CHỈ LÀ MỐC THỜI GIAN, không phải dữ liệu đơn — `localStorage` ở đây không giữ gì đáng
+ *    giấu. (PIN và thẻ phiên thì vẫn không bao giờ nằm ở đó, xem `datThe()`.)
+ *
+ * ⚠️ VÀ NÓ CÓ THỂ NÉM LỖI: cửa sổ ẩn danh, trình duyệt chặn lưu trữ. Bọc try/catch và chạy tiếp
+ *    với mốc rỗng — chuông kêu hơi nhiều còn hơn cả trang chết vì một ô lưu trữ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var CHUONG = { ds: [], mo: false, hen: null };
+var O_CHUONG = 'vhcpt_chuong_tu';
+
+function chuongTu(){ try { return localStorage.getItem(O_CHUONG) || ''; } catch(e){ return ''; } }
+function datChuongTu(v){ try { localStorage.setItem(O_CHUONG, v||''); } catch(e){} }
+
+function docChuong(){
+  goi('chuong',{tu: chuongTu()}).then(function(r){
+    if (!r || r.error) return;
+    CHUONG.ds = r.ds || [];
+    CHUONG.bayGio = r.bayGio || '';
+    /* Vẽ lại đúng nút chuông, không dựng lại cả màn: người ta có thể đang mở một đơn ra xem. */
+    veSoChuong();
+  }).catch(function(){});
+}
+
+function veSoChuong(){
+  var n = document.getElementById('nutChuong');
+  if (!n) return;
+  n.innerHTML = '🔔' + ( CHUONG.ds.length ? '<span class="chuong-so">'+CHUONG.ds.length+'</span>' : '' );
+}
+
+function moChuong(){
+  var o = document.getElementById('hopChuong');
+  if (!o) return;
+  CHUONG.mo = !CHUONG.mo;
+  o.hidden = !CHUONG.mo;
+  if (!CHUONG.mo) return;
+
+  var ds = CHUONG.ds;
+  o.innerHTML = ds.length
+    ? ( '<div style="padding:9px 12px;border-bottom:1px solid #e2e8f0;display:flex;' +
+        'justify-content:space-between;align-items:center;gap:8px">' +
+        '<b>'+ds.length+' việc mới</b>' +
+        '<button class="btn b-x nho" id="chuongXong">Đánh dấu đã đọc</button></div>' +
+        ds.map(function(x, i){
+          var m = mauViec(x.viec);
+          return '<div class="muc" data-ci="'+i+'">' +
+            '<div class="nho"><span class="chip" style="background:'+m.nen+';border-color:'+m.vien+';color:'+m.chu+'">' +
+            esc(x.tenBan)+'</span> <b>'+esc(x.maDon)+'</b></div>' +
+            '<div class="nho" style="color:'+m.chu+'">'+m.bieu+' '+esc(x.nhan)+'</div>' +
+            '<div class="nho mo">'+esc(x.nguoi||'')+( x.ky ? ' · '+esc(x.ky) : '' )+
+            ( x.luc ? ' · '+esc(ngay(x.luc)) : '' )+'</div></div>';
+        }).join('') )
+    : '<div style="padding:16px" class="nho mo">Không có việc mới. ✓</div>';
+
+  var nx = document.getElementById('chuongXong');
+  if (nx) nx.onclick = function(e){
+    e.stopPropagation();
+    /* Mốc lấy từ MÁY CHỦ (giờ của nó), không lấy giờ máy người dùng: lệch đồng hồ vài phút là
+       vài việc vừa tới bị đánh dấu đã đọc mà chưa ai nhìn. */
+    datChuongTu( (CHUONG.bayGio || '') );
+    CHUONG.ds = []; CHUONG.mo = false;
+    document.getElementById('hopChuong').hidden = true;
+    veSoChuong();
+  };
+  /* Bấm một mục -> nhảy sang đúng tab của việc ấy. */
+  Array.prototype.forEach.call(o.querySelectorAll('.muc'), function(n){
+    n.onclick = function(){
+      var x = CHUONG.ds[+n.getAttribute('data-ci')];
+      if (!x) return;
+      CHUONG.mo = false; o.hidden = true;
+      NHOM = ( x.viec === 'duyet' ? 'duyet' : ( x.viec === 'cap' ? 'cap' : 'qt' ) );
+      veChinh();
+    };
+  });
+}
+
+/* Tông màu theo việc — dùng lại bảng màu của các bước, để chuông và bảng nói cùng một thứ tiếng. */
+function mauViec(v){
+  if (v === 'duyet') return mauBuoc('Chờ duyệt tạm ứng');
+  if (v === 'cap')   return mauBuoc('Chờ cấp tạm ứng');
+  return mauBuoc('Chờ quyết toán');
 }
 
 function napDs(){
@@ -1311,6 +1420,13 @@ function lam(nut, d, viec){
     nut.disabled = false; datBao('loi','Không gọi được máy chủ.'); veChinh();
   });
 }
+
+/* Bấm ra ngoài thì đóng hộp chuông — hộp che mất bảng bên dưới. */
+document.addEventListener('click', function(){
+  if (!CHUONG.mo) return;
+  var o = document.getElementById('hopChuong');
+  if (o){ o.hidden = true; CHUONG.mo = false; }
+});
 
 /* ─────────────────────────────────────────────────────────────────── khởi động */
 if (layThe()){

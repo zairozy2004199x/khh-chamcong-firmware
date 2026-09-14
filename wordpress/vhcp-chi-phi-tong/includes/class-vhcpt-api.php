@@ -75,6 +75,7 @@ class VHCPT_Api {
 		if ( 'misaXong' === $viec ) { return self::ra( self::misa_xong( $args ) ); }
 		if ( 'tra' === $viec )      { return self::ra( self::tra( $args ) ); }
 		if ( 'tongQuan' === $viec ) { return self::ra( self::tong_quan( $args ) ); }
+		if ( 'chuong' === $viec )   { return self::ra( self::chuong( $args ) ); }
 		if ( 'traLai' === $viec )   { return self::ra( self::tra_lai( $args ) ); }
 		if ( 'chiTiet' === $viec )  { return self::ra( self::chi_tiet( $args ) ); }
 		if ( 'dangXuat' === $viec ) { VHCPT_Auth::bo_the( $the ); return self::ra( array( 'ok' => true ) ); }
@@ -386,6 +387,31 @@ class VHCPT_Api {
 		}
 		return array( 'ok' => true,
 			'message' => 'Đã quyết toán phần cá nhân ' . $c['ma'] . ' (' . VHCPT_Ban::ten( $c['khoa'] ) . ').' );
+	}
+
+	/**
+	 * CHUÔNG — việc mới tới từ mốc người dùng gửi lên.
+	 *
+	 * ⚠️ MỐC DO MÀN GIỮ, KHÔNG PHẢI MÁY CHỦ. Mỗi người xem chuông ở một lúc khác nhau; giữ một
+	 *    mốc chung ở máy chủ là người mở sau xoá mất dấu "chưa đọc" của người mở trước.
+	 *
+	 * ⚠️ MỐC RỖNG = LẦN ĐẦU MỞ TRANG. Lấy 24 giờ gần nhất chứ không lấy từ đầu thời gian: một
+	 *    chuông nổ ra bốn trăm mục thì không ai đọc, và nó cũng không nói được điều gì mới.
+	 */
+	private static function chuong( $args ) {
+		$tu = isset( $args['tu'] ) ? sanitize_text_field( (string) $args['tu'] ) : '';
+		if ( ! preg_match( '#^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$#', $tu ) ) {
+			$tu = gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - DAY_IN_SECONDS );
+		}
+		$ds = array();
+		foreach ( VHCPT_Auth::ban_doc_duoc() as $khoa ) {
+			foreach ( VHCPT_Gom::chuong_cua_ban( $khoa, $tu ) as $x ) { $ds[] = $x; }
+		}
+		/* Mới nhất lên đầu — chuông là chỗ đọc cái VỪA xảy ra, khác hàng chờ việc (cũ trước). */
+		usort( $ds, function ( $a, $b ) { return strcmp( (string) $b['luc'], (string) $a['luc'] ); } );
+		if ( count( $ds ) > 60 ) { $ds = array_slice( $ds, 0, 60 ); }
+		return array( 'ok' => true, 'ds' => $ds, 'so' => count( $ds ),
+			'bayGio' => current_time( 'mysql' ) );
 	}
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
