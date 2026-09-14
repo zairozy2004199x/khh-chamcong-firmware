@@ -674,6 +674,33 @@ la('🔴 ảnh chứng từ trong bảng dòng chi rê được', src.count('dat
 la('⚠️ thẻ <a> giữ nguyên: bấm vẫn mở ảnh gốc (điện thoại không rê được)',
    src.count('target="_blank" title="Rê chuột để phóng to') >= 2)
 
+# ---------------------------------------------------- điền sẵn tên NV thanh toán = người nhập
+# Anh Thắng 14/09/2026: *"Lấy tên nhân viên nhập làm tên mặc định ban đầu nếu không sửa"*.
+#
+# 🔴 GỢI Ý VÀ GIÁ TRỊ MẶC ĐỊNH LÀ HAI VIỆC KHÁC NHAU. Bản trước trộn làm một: chỉ vai "Nhân
+#    viên" mới được điền sẵn, vì họ cũng là vai duy nhất bị thu hẹp danh sách gợi ý. Nên Admin,
+#    Quản lý, Kế toán mở đơn ra là ô trống — mà phần lớn đơn họ nhập vẫn là tiền của chính họ.
+print('— tên NV thanh toán điền sẵn —')
+_i_dt = src.index('function fillDoiTuongList(')
+_j_dt = src.index('\n  }', _i_dt) + 4
+_fn_dt = src[_i_dt:_j_dt]
+la('bốc được hàm fillDoiTuongList', len(_fn_dt) > 300, len(_fn_dt))
+la('đối chứng: hàm bốc ra khép kín', _fn_dt.rstrip().endswith('}'), _fn_dt[-40:])
+la('🔴 mọi vai đều được điền sẵn tên mình, không riêng Nhân viên',
+   "if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;" in _fn_dt)
+# 🔴 CHỈ Ở LỐI "THANH TOÁN CÁ NHÂN". Ô này lúc chọn NCC là tên NHÀ CUNG CẤP — điền tên người
+#    nhập vào đó là dựng ra một nhà cung cấp mang tên nhân viên, và bút toán ấy đi thẳng sang MISA.
+la('🔴 không điền khi đang chọn Nhà cung cấp', "want==='NV' && f" in _fn_dt)
+# ⚠️ CHỈ ĐIỀN KHI Ô ĐANG TRỐNG: người ta gõ tên người khác rồi đổi qua đổi lại ô Phân loại là
+#    mất chữ vừa gõ, mất im lặng, ngay trước lúc bấm Thêm hạng mục.
+la('⚠️ không đè lên tên đã gõ', "!String(f.value||'').trim()" in _fn_dt)
+# ⚠️ Danh sách GỢI Ý vẫn thu hẹp cho Nhân viên — chọn nhầm người là tiền vào tay người khác.
+la('⚠️ gợi ý vẫn chỉ mình họ với vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_dt)
+# ⚠️ Lượt gọi lúc nạp trang không truyền tham số; không đọc ô Phân loại đang có thì nó luôn
+#    chạy như "chưa chọn phân loại", và tên mặc định không bao giờ hiện ở lần mở trang đầu.
+la('🔴 gọi không tham số thì đọc ô Phân loại đang có',
+   "if(pltt===undefined||pltt===null) pltt=(el('f_pltt')&&el('f_pltt').value)||'';" in _fn_dt)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

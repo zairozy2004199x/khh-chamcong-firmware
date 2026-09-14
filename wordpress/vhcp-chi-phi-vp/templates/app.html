@@ -2712,6 +2712,11 @@
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getBootstrap();
   }
   function fillDoiTuongList(pltt){
+    /* ⚠️ GỌI KHÔNG THAM SỐ THÌ ĐỌC Ô PHÂN LOẠI ĐANG CÓ. Lượt gọi lúc nạp trang (`getBootstrap`)
+       không truyền gì, nên trước nay nó luôn chạy như "chưa chọn phân loại" — kể cả khi ô ấy
+       đã có sẵn "Thanh toán cá nhân". Danh sách gợi ý và tên mặc định vì thế không bao giờ
+       xuất hiện ở lượt mở trang đầu tiên. */
+    if(pltt===undefined||pltt===null) pltt=(el('f_pltt')&&el('f_pltt').value)||'';
     var want=pltt==='Nhà cung cấp'?'NCC':(pltt==='Thanh toán cá nhân'?'NV':'');
     var dl=el('dl_dt'); if(!dl) return;
     // NV THANH TOÁN của nhân viên là CHÍNH HỌ. Liệt kê tên mọi nhân viên khác ở đây vừa
@@ -2721,9 +2726,26 @@
     var chiMinh=(want==='NV' && CURUSER && CURUSER.role==='Nhân viên' && CURUSER.name);
     var ds=chiMinh?[{ten:CURUSER.name}]:((BOOT.doiTuong)||[]).filter(function(x){ return !want||!x.loai||x.loai===want; });
     dl.innerHTML=ds.map(function(x){return '<option value="'+esc(x.ten)+'">';}).join('');
-    // Mặc định điền luôn tên mình cho khỏi phải gõ
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * ĐIỀN SẴN TÊN NGƯỜI ĐANG NHẬP — anh Thắng 14/09/2026: *"Lấy tên nhân viên nhập làm tên
+     * mặc định ban đầu nếu không sửa"*.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 GỢI Ý VÀ GIÁ TRỊ MẶC ĐỊNH LÀ HAI VIỆC KHÁC NHAU. Bản trước trộn làm một: chỉ vai
+     *    "Nhân viên" mới được điền sẵn, vì họ cũng là vai duy nhất bị thu hẹp danh sách gợi ý.
+     *    Nên Admin, Quản lý, Kế toán mở đơn ra là ô trống — mà phần lớn đơn họ nhập vẫn là
+     *    tiền của chính họ. Nay tách: DANH SÁCH gợi ý vẫn thu hẹp cho Nhân viên (chọn nhầm
+     *    người là tiền vào tay người khác), còn GIÁ TRỊ mặc định thì mọi vai đều có.
+     *
+     * 🔴 CHỈ Ở LỐI "THANH TOÁN CÁ NHÂN". Ô này lúc chọn NCC là tên NHÀ CUNG CẤP — điền tên
+     *    người nhập vào đó là dựng ra một nhà cung cấp mang tên nhân viên, và bút toán ấy đi
+     *    thẳng sang MISA.
+     *
+     * ⚠️ CHỈ ĐIỀN KHI Ô ĐANG TRỐNG. Người ta gõ tên người khác rồi đổi qua đổi lại ô Phân
+     *    loại là mất chữ vừa gõ — và mất một cách im lặng, ngay trước lúc bấm Thêm hạng mục.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     var f=el('f_dt');
-    if(chiMinh && f && !String(f.value||'').trim()) f.value=CURUSER.name;
+    if(want==='NV' && f && CURUSER && CURUSER.name && !String(f.value||'').trim()) f.value=CURUSER.name;
   }
   function _guardTU(){ if(CUR&&CUR.lockTU){toast('warn','Tạm ứng đã duyệt — không sửa được');return true;} return false; }
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
