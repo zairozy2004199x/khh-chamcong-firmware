@@ -182,11 +182,60 @@ class VHCPMTD_DonVi {
 		return false;
 	}
 
-	/** Đơn này có được ghép nhiều cơ sở không — tra theo đơn vị ghi trên chính đơn ấy. */
+	/**
+	 * BẢN NÀY CÓ THEO LUẬT "KHÔNG TẠM ỨNG THÌ MỖI DÒNG MỘT CƠ SỞ" KHÔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Đối với bộ phận văn phòng và máy tự động — nếu nhập tạm ứng thì nó
+	 * sẽ khóa theo cơ sở chọn tạm ứng; còn nếu không nhập tạm ứng mà nhập chi phí bình thường
+	 * thì cho cơ chế mỗi chi phí sẽ 1 cơ sở, nên không khóa cơ sở đó lại"*.
+	 *
+	 * 🔴 HAI CÁCH LÀM VIỆC KHÁC NHAU, KHÔNG PHẢI HAI SỞ THÍCH.
+	 *    · CÓ TẠM ỨNG: tiền đã giao cho một người ở một gian, rồi đối chiếu thừa/thiếu theo
+	 *      chính gian ấy. Xin ứng gian này mà chi gian khác là sổ không khớp — khoá là đúng.
+	 *    · KHÔNG TẠM ỨNG: người ta tiêu tiền túi hoặc trả thẳng nhà cung cấp, rồi gom một đợt
+	 *      để thanh toán. Văn phòng và Máy tự động chi kiểu ấy: một đợt rải qua nhiều gian, mỗi
+	 *      dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
+	 *
+	 * 🔴 KVC KHÔNG ĐỔI. Hằng này để `false` ở bản gốc; script `tools/tach-ban-vung.sh` bật `true`
+	 *    cho bản mảng riêng. Anh Thắng đã dặn *"đừng can thiệp gì bên phần chi phí khu vui chơi"*,
+	 *    và luật một-đơn-một-gian bên ấy là có lý do riêng của nó (xem khối trên).
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	const MO_KHI_KHONG_TAM_UNG = true;
+
+	/**
+	 * Đơn này có được ghép nhiều cơ sở không.
+	 *
+	 * Hai đường, cùng trả lời một câu:
+	 *   1. ĐƠN VỊ của đơn nằm trong danh sách cho ghép (POSH) — luật cũ, không đổi.
+	 *   2. Bản này theo luật "không tạm ứng thì mở", và đơn ấy CHƯA có đồng tạm ứng nào.
+	 *
+	 * ⚠️ THƯỚC ĐO LÀ "CÓ DÒNG TẠM ỨNG MANG CƠ SỞ HAY KHÔNG", không phải "tổng tiền ứng > 0".
+	 *    Người ta lưu tạm ứng 0đ cho một gian để đánh dấu "đơn này thuộc gian ấy, kế toán chi bù
+	 *    khi quyết toán" — đó VẪN là chốt gian, và phải khoá. Đo bằng số tiền là mở toang đúng
+	 *    những đơn ấy.
+	 *
+	 * 🔴 VÀ NÓ PHẢI ĐÓNG LẠI ĐƯỢC: thêm một dòng tạm ứng vào đơn đang mở là đơn chốt gian ngay
+	 *    từ lượt đọc sau. Hàm hỏi thẳng bảng mỗi lượt nên không có trạng thái nào kẹt lại.
+	 */
 	public static function don_nhieu_coso( $ma_don ) {
 		$d = VHCPMTD_Don::don_row( $ma_don );
 		if ( ! $d ) { return false; }
-		return self::nhieu_coso( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) );
+		if ( self::nhieu_coso( self::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' ) ) ) { return true; }
+		if ( ! self::MO_KHI_KHONG_TAM_UNG ) { return false; }
+		return ! self::don_co_tam_ung( $ma_don );
+	}
+
+	/** Đơn này đã có dòng tạm ứng nào mang cơ sở chưa. */
+	public static function don_co_tam_ung( $ma_don ) {
+		global $wpdb;
+		$tt = VHCPMTD_DB::t( 'tamung' );
+		$n  = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $tt WHERE ma_don=%s AND coso<>''",
+			(string) $ma_don
+		) );
+		return ( (int) $n ) > 0;
 	}
 
 	/** Bỏ khoảng trắng thừa; rỗng -> nhà mặc định. KHÔNG hạ chữ thường: tên hiện lên màn. */

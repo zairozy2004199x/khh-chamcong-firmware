@@ -216,6 +216,28 @@ for H in default_coso default_nhom; do
 done
 php -l "$DICH/includes/class-vhcp-cfg.php" >/dev/null || { echo "✗ Dọn danh mục xong thì tệp cfg gãy cú pháp."; exit 6; }
 
+# ── Không tạm ứng thì mỗi dòng chi một cơ sở ───────────────────────────────────────────────
+#
+# 🔴 ANH THẮNG 14/09/2026: *"Đối với bộ phận văn phòng và máy tự động — nếu nhập tạm ứng thì nó
+#    sẽ khóa theo cơ sở chọn tạm ứng; còn nếu không nhập tạm ứng mà nhập chi phí bình thường thì
+#    cho cơ chế mỗi chi phí sẽ 1 cơ sở, nên không khóa cơ sở đó lại"*.
+#
+#    CÓ TẠM ỨNG thì tiền đã giao cho một người ở một gian, đối chiếu thừa/thiếu theo chính gian
+#    ấy — xin ứng gian này mà chi gian khác là sổ không khớp, khoá là đúng. KHÔNG TẠM ỨNG thì
+#    người ta tiêu tiền túi hoặc trả thẳng nhà cung cấp rồi gom một đợt: một đợt rải qua nhiều
+#    gian, mỗi dòng một gian. Khoá cả đơn theo dòng đầu là ép họ lập năm đơn cho một đợt chi.
+#
+# ⚠️ BẢN GỐC KHU VUI CHƠI GIỮ NGUYÊN `false` — luật một-đơn-một-gian bên ấy có lý do riêng, và
+#    anh Thắng đã dặn đừng can thiệp phần chi phí khu vui chơi.
+perl -0777 -pi -e '
+  s/(const MO_KHI_KHONG_TAM_UNG = )false;/${1}true;/;
+' "$DICH/includes/class-vhcp-donvi.php"
+if ! grep -q "const MO_KHI_KHONG_TAM_UNG = true;" "$DICH/includes/class-vhcp-donvi.php"; then
+  echo "✗ Luật 'không tạm ứng thì nhiều cơ sở' chưa bật — bản '$MA' sẽ khoá cơ sở như khu vui chơi."
+  grep -n "MO_KHI_KHONG_TAM_UNG" "$DICH/includes/class-vhcp-donvi.php" | head -3
+  exit 7
+fi
+
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
 #    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất
@@ -233,6 +255,7 @@ echo "  · trang     /chi-phi-$MA"
 echo "  · REST      vhcp${MA}/v1/call   (bản gốc giữ vhcp/v1/call)"
 echo "  · menu      wp-admin ?page=vhcp${MA}"
 echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt, khỏi sửa mã)"
+echo "  · cơ sở     không tạm ứng -> mỗi dòng chi một cơ sở; có tạm ứng -> khoá theo gian ấy"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

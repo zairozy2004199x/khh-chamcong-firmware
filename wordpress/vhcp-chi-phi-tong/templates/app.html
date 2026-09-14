@@ -61,7 +61,14 @@ tfoot td{font-weight:700;background:#f1f5f9}
 .bao-ok{background:#dcfce7;border:1px solid #86efac;color:#166534}
 .bao-canh{background:#fef3c7;border:1px solid #fde68a;color:#92400e}
 .bao-tin{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
-tr.ct td{background:#f8fafc}
+/* 🔴 Ô CHI TIẾT KHÔNG ĐƯỢC TRÔNG NHƯ MỘT DÒNG CỦA BẢNG — anh Thắng 14/09/2026:
+   *"Chỉnh luôn lại giao diện trang"*, kèm ảnh phần Xem mở ra: bảng lồng trong bảng, viền chồng
+   viền, mắt không tách được đâu là đơn đâu là dòng chi. Nay nó là một KHỐI riêng thụt vào, có
+   vạch xanh bên trái nối về đúng đơn vừa bấm. */
+tr.ct > td{background:#f8fafc;padding:0;border-top:none}
+tr.ct .hop{margin:0 0 4px 0;padding:12px 14px;border-left:3px solid #0f766e;background:#f8fafc}
+tr.ct table{background:#fff;border-radius:8px;overflow:hidden}
+tr.ct th{background:#f1f5f9}
 .gate{position:fixed;inset:0;background:#0f766e;z-index:3000;display:flex;align-items:center;justify-content:center}
 .gate .hop{background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;
            box-shadow:0 20px 60px rgba(0,0,0,.35)}
@@ -291,7 +298,7 @@ function veBang(){
     g.ds.forEach(function(d){
       var i = ROWS.indexOf(d);
       var lam = d.lam || {};
-      var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1">Xem</button> ';
+      var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1" id="nx'+i+'">Xem</button> ';
       viecs.forEach(function(v){
         if (lam[v.viec]) nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(v.ten)+'</button> ';
       });
@@ -307,7 +314,7 @@ function veBang(){
         '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
         '<td>'+nut+( chua ? '<div class="nho mo">vai của bạn ở mảng này không làm được việc này</div>' : '' )+'</td>' +
         '</tr>' +
-        '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><span class="mo">Đang đọc…</span></td></tr>';
+        '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
     });
 
     h += '</tbody><tfoot><tr><td colspan="5">Cộng '+esc(g.ten)+'</td>' +
@@ -337,45 +344,114 @@ function veLoai(ds){
 }
 
 function xem(i){
-  var o = document.getElementById('ct'+i);
+  var o = document.getElementById('ct'+i), n = document.getElementById('nx'+i);
   if (!o) return;
-  if (!o.hidden){ o.hidden = true; return; }
-  o.hidden = false;
+  /* Nút đổi chữ theo trạng thái: mở rồi mà nút vẫn ghi "Xem" thì người ta bấm lại tưởng nạp
+     thêm, hoá ra đóng mất — chuyện nhỏ nhưng gặp mỗi lần rà một bảng dài. */
+  if (!o.hidden){ o.hidden = true; if (n) n.textContent = 'Xem'; return; }
+  o.hidden = false; if (n) n.textContent = '▾ Đóng';
   if (o.getAttribute('data-xong')==='1') return;
   var d = ROWS[i];
   goi('chiTiet',{ban:d.ban,maDon:d.maDon}).then(function(r){
     o.setAttribute('data-xong','1');
-    o.firstChild.innerHTML = (r && r.error)
+    o.firstChild.innerHTML = '<div class="hop">' + ( (r && r.error)
       ? '<span class="bao bao-loi">'+esc(r.error)+'</span>'
-      : veChiTiet(r.don);
+      : veChiTiet(r.don) ) + '</div>';
   }).catch(function(){ o.firstChild.innerHTML = '<span class="bao bao-loi">Không gọi được máy chủ.</span>'; });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BẤM XEM: TRẠNG THÁI ĐƠN · DÒNG CHI · THỪA THIẾU
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Bổ sung vào để hiện trạng thái đơn khi bấm xem, và phần thừa thiếu ở
+ * cuối trang."*
+ *
+ * 🔴 NGƯỜI DUYỆT PHẢI BIẾT MÌNH ĐANG ĐỨNG Ở ĐÂU TRONG QUY TRÌNH trước khi bấm. Một cái tên trạng
+ *    thái trơ trọi ("Chờ quyết toán") không nói được là đã qua những bước nào — mà thứ tự bước
+ *    mới là cái quyết định bấm được gì. Nên bày cả dải: bước đã qua ✓, bước đang đứng, bước còn
+ *    lại mờ.
+ *
+ * 🔴 VÀ CON SỐ THỪA/THIẾU LÀ THỨ QUYẾT ĐỊNH LÚC QUYẾT TOÁN. Thiếu nó thì kế toán phải mở trang
+ *    mảng ra xem — đúng thứ anh Thắng bảo thôi: *"kế toán và quản lý làm trên trang này, không
+ *    làm trên trang bộ phận"*.
+ *
+ * ⚠️ CHƯA CẤP TIỀN THÌ KHÔNG BÀY THỪA/THIẾU. Chưa ai đưa đồng nào thì không thể thừa; bày ra là
+ *    mời người đọc hiểu nhầm. Lõi bên bản mảng đã ép chênh lệch về 0 trong cảnh ấy, chỗ này chỉ
+ *    không vẽ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var TT_LUONG = ['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
+var TT_NGAN  = { 'Nháp':'Nháp', 'Chờ duyệt tạm ứng':'Chờ duyệt', 'Chờ cấp tạm ứng':'Chờ cấp tiền',
+                 'Đã cấp tạm ứng':'Đã cấp tiền', 'Chờ quyết toán':'Chờ quyết toán',
+                 'Đã quyết toán':'Đã quyết toán', 'Đã xuất MISA':'Đã xuất MISA' };
+
+function veDaiTT(st){
+  st = String(st||'');
+  var i = TT_LUONG.indexOf(st);
+  var h = '<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:2px 0 10px">';
+  TT_LUONG.forEach(function(b,k){
+    /* 🔴 Trạng thái LẠ (bản mảng đổi chữ, hoặc đơn bị trả lại) -> i = −1: đừng tô xanh hết cả
+       dải như thể mọi bước đã xong. Chưa biết đang ở đâu thì không bước nào là "đã qua". */
+    var daQua = (i >= 0 && k < i), dangO = (k === i);
+    var nen = dangO ? '#0369a1' : (daQua ? '#e0f2fe' : '#f1f5f9');
+    var chu = dangO ? '#fff'    : (daQua ? '#0369a1' : '#94a3b8');
+    h += '<span style="font-size:9.5px;font-weight:'+(dangO?'800':'600')+';padding:2px 7px;'+
+         'border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'+
+         (daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
+    if (k < TT_LUONG.length-1) h += '<span style="color:#cbd5e1;font-size:10px">›</span>';
+  });
+  return h + ( i < 0 ? '<span class="nho mo" style="margin-left:6px">trạng thái «'+esc(st)+'»</span>' : '' ) + '</div>';
+}
+
+function veThuaThieu(t){
+  if (!t || !t.daCapTien) return '';
+  var cl = Number(t.chenhLech||0);
+  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f1f5f9','#cbd5e1','#334155'] );
+  var chu = cl > 0 ? 'Thừa '+tien(cl)+' — NV trả lại kế toán'
+          : ( cl < 0 ? 'Thiếu '+tien(Math.abs(cl))+' — kế toán bù cho NV' : 'Khớp — không thừa thiếu' );
+  return '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a">' +
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center">' +
+      '<div><div class="nho mo">Tạm ứng (đã duyệt)</div><div style="font-size:15px;font-weight:800">'+tien(t.tamUng)+'</div></div>' +
+      '<div><div class="nho mo">Thực chi (cá nhân)</div><div style="font-size:15px;font-weight:800">'+tien(t.thucChi)+'</div></div>' +
+      ( Number(t.nccChi||0) ? '<div><div class="nho mo">Trả nhà cung cấp</div><div style="font-size:15px;font-weight:800">'+tien(t.nccChi)+'</div></div>' : '' ) +
+      '<div style="flex:1"></div>' +
+    '</div>' +
+    '<div style="margin-top:8px;padding:8px 10px;border-radius:8px;background:'+mau[0]+';border:1px solid '+mau[1]+';color:'+mau[2]+';font-weight:700">'+chu+'</div>' +
+    '</div>';
 }
 
 function veChiTiet(g){
   g = g || {};
   /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products` — `products` là danh sách GỢI Ý tên hàng.
      Đọc nhầm khoá thì bảng đầy dòng mà không dòng nào của đơn này, và nó trông y như thật. */
-  var ds = g.lines || [], don = g.don || {};
-  var h = '<div class="nho mo" style="margin-bottom:6px"><b>'+esc(don.trangThai||'')+'</b>'+
-          ( don.nguoiDuyet ? ' · duyệt bởi '+esc(don.nguoiDuyet) : '' )+
-          ( don.ghiChu ? ' · '+esc(don.ghiChu) : '' )+'</div>';
+  var ds = g.lines || [], don = g.don || {}, t = g.tien || null;
+
+  var h = '<div style="padding:2px 0 4px">' +
+    '<div style="font-weight:800;color:#0f766e;margin-bottom:2px">Đơn đang ' + esc(don.trangThai||'—') + '</div>' +
+    '<div class="nho mo" style="margin-bottom:6px">' +
+      esc(don.ky||'') + ( don.nguoiLap ? ' · ' + esc(don.nguoiLap) : '' ) +
+      ( don.nguoiDuyet ? ' · duyệt bởi <b>' + esc(don.nguoiDuyet) + '</b>' : '' ) +
+      ( don.ghiChu ? ' · ' + esc(don.ghiChu) : '' ) +
+    '</div>' +
+    veDaiTT(don.trangThai) + '</div>';
+
   if (!ds.length){
     /* ⚠️ "Chưa có dòng chi" KHÁC "đọc hỏng": đơn xin ứng trước được phép gửi khi chưa liệt kê
        hạng mục. Nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
-    return h + '<p class="mo nho">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
+    return h + '<p class="mo nho">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>'
+             + veThuaThieu(t);
   }
   var tong = 0;
   h += '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
        '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>';
   ds.forEach(function(r){
-    var t = Number(r.thanhTien||0); tong += t;
+    var tt = Number(r.thanhTien||0); tong += tt;
     h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
          '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
-         '<td class="r">'+tien(t)+'</td></tr>';
+         '<td class="r">'+tien(tt)+'</td></tr>';
   });
   h += '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
        '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
-  return h;
+  return h + veThuaThieu(t);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

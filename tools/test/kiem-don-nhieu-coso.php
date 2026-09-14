@@ -65,9 +65,17 @@ function boc( $src, $ten ) {
 preg_match( "/const NHIEU_COSO_MAC_DINH = '([^']+)';/", $DV, $m_md );
 t( '🔴 có hằng NHIEU_COSO_MAC_DINH trong mã thật', ! empty( $m_md[1] ), $m_md );
 
+/* Hằng "mở khi không tạm ứng" đọc TỪ MÃ THẬT của bản gốc — bài này canh bản KVC, nơi nó phải
+   là `false`. Bản mảng riêng do `tools/tach-ban-vung.sh` lật thành `true` (có chốt riêng ở đó). */
+preg_match( '/const MO_KHI_KHONG_TAM_UNG = (true|false);/', $DV, $m_mo );
+t( '🔴 có hằng MO_KHI_KHONG_TAM_UNG trong mã thật', ! empty( $m_mo[1] ), $m_mo );
+teq( '🔴 bản gốc KHU VUI CHƠI giữ luật chặt (hằng = false)', 'false', isset( $m_mo[1] ) ? $m_mo[1] : '' );
+
 eval( 'class DVI { const MAC_DINH = "K&H"; const NHIEU_COSO_MAC_DINH = ' . var_export( $m_md[1], true ) . '; '
+	. 'const MO_KHI_KHONG_TAM_UNG = ' . ( 'true' === $m_mo[1] ? 'true' : 'false' ) . '; '
 	. boc( $DV, 'public static function nhieu_coso(' ) . ' '
 	. boc( $DV, 'public static function don_nhieu_coso(' ) . ' '
+	. boc( $DV, 'public static function don_co_tam_ung(' ) . ' '
 	. ' public static function chuan( $x ) { $x = trim( (string) $x ); return "" === $x ? self::MAC_DINH : $x; }'
 	. ' public static function bang( $a, $b ) { return 0 === strcasecmp( self::chuan( $a ), self::chuan( $b ) ); } }' );
 class VHCP_Don { public static function don_row( $m ) { return isset( KHO::$don[ $m ] ) ? KHO::$don[ $m ] : null; } }
@@ -137,17 +145,20 @@ teq( 'K&H: chốt theo TẠM ỨNG trước, rồi mới tới dòng chi', 'Từ
  * Mỗi chốt tự mọc thêm phép kiểm riêng là một chỗ để quên, và chỗ quên nào cũng ra NỬA tính
  * năng: ô chọn mở mà máy chủ vẫn chối, hoặc ngược lại — kiểu hỏng khó thấy nhất.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-$than_tu = boc( $DON, 'public static function set_tam_ung(' );
+/* ⚠️ SOI MÃ, KHÔNG SOI CHÚ THÍCH. Mấy khối giải thích dưới đây nhắc tên hàm `don_nhieu_coso()`
+   rất nhiều — để nguyên thì phép "không tự kiểm đơn vị" đỏ vì một dòng chữ, không vì mã. */
+function bo_chu_thich( $x ) { return preg_replace( '#/\*[\s\S]*?\*/|//[^\n]*#', ' ', $x ); }
+$than_tu = bo_chu_thich( boc( $DON, 'public static function set_tam_ung(' ) );
 t( '🔴 set_tam_ung() hỏi qua coso_cua_don(), không tự kiểm đơn vị',
 	false !== strpos( $than_tu, 'self::coso_cua_don( $ma_don )' )
 	&& false === strpos( $than_tu, 'nhieu_coso' ), '' );
-$than_lk = boc( $DON, 'private static function loi_khac_coso(' );
+$than_lk = bo_chu_thich( boc( $DON, 'private static function loi_khac_coso(' ) );
 t( '   loi_khac_coso() cũng vậy',
 	false !== strpos( $than_lk, 'self::coso_cua_don( $ma_don )' )
 	&& false === strpos( $than_lk, 'nhieu_coso' ), '' );
 /* Và chốt phân quyền KHÔNG được đi qua `coso_cua_don()` — nó phải nhìn ĐỦ mọi gian của đơn,
    không thì người phụ trách gian thứ hai không mở nổi đơn có phần chi của chính gian mình. */
-$than_q = boc( $DON, 'private static function loi_khong_phai_don_minh(' );
+$than_q = bo_chu_thich( boc( $DON, 'private static function loi_khong_phai_don_minh(' ) );
 t( '🔴 chốt phân quyền dùng cac_coso_cua_don() (ĐỦ mọi gian), không dùng coso_cua_don()',
 	false !== strpos( $than_q, 'cac_coso_cua_don( $ma_don )' )
 	&& false === strpos( $than_q, 'self::coso_cua_don(' ), '' );

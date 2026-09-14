@@ -338,13 +338,29 @@ foreach ( VHCPT_Auth::VIEC as $viec => $hd ) {
 		false !== strpos( $cfg_goc, "'key' => '" . $hd . "'" ), $hd );
 }
 
-/* ═══ 6d. CHI TIẾT ĐƠN ĐỌC THẲNG, KHÔNG QUA get_don() ═══════════════════════════
- * 🔴 `get_don()` gác theo PHIÊN của chính bản ấy (`VHCP_Auth`), mà trang tổng mượn sổ người dùng
- *    chứ không mượn phiên. Gọi vào đấy là hỏi một câu bên kia không có ngữ cảnh để trả lời.
+/* ═══ 6d. DANH SÁCH ĐỌC THẲNG; get_don() CHỈ DÙNG SAU KHI MƯỢN PHIÊN ════════════
+ *
+ * 🔴 `get_don()` gác theo PHIÊN của chính bản ấy (`VHCP_Auth`). Gọi nó mà chưa mượn phiên là hỏi
+ *    một câu bên kia không có ngữ cảnh để trả lời — nó chối một đơn đang nằm sờ sờ trên màn.
+ *
+ * ⚠️ PHÉP NÀY ĐÃ NỚI 14/09/2026, CÓ ĐIỀU KIỆN. Bản trước cấm tiệt mọi lời gọi `get_don` ở cả hai
+ *    tệp. Nay khối thừa/thiếu (anh Thắng: *"phần thừa thiếu ở cuối trang"*) phải hỏi chính lõi
+ *    bản mảng — tự trừ "tạm ứng − thực chi" ở đây là dựng bản thứ hai cho một con số tiền, rồi
+ *    hai bản lệch nhau. Nên luật mới:
+ *      · `class-vhcpt-gom.php` (dựng DANH SÁCH, chạy 200 đơn một lượt): vẫn CẤM TIỆT.
+ *      · `class-vhcpt-api.php` (một đơn, khi người ta bấm Xem): cho, nhưng BẮT BUỘC có
+ *        `muon_phien()` đứng trước trong cùng hàm.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 $gom_php = file_get_contents( $TONG . '/includes/class-vhcpt-gom.php' );
-t( '🔴 trang tổng KHÔNG gọi get_don() của bản nào',
-	false === strpos( preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php . $api_php ), 'get_don' ), '' );
+t( '🔴 lượt dựng DANH SÁCH không gọi get_don() (200 đơn, không có phiên)',
+	false === strpos( preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php ), 'get_don' ), '' );
+$api_sach = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $api_php );
+if ( false !== strpos( $api_sach, 'get_don' ) ) {
+	t( '🔴 nơi nào gọi get_don() thì phải MƯỢN PHIÊN trước',
+		(bool) preg_match( '#muon_phien\( \$khoa \);[\s\S]{0,400}?get_don#', $api_sach ), '' );
+	t( '🔴 và chỉ gọi cho MỘT đơn, không gọi trong vòng lặp',
+		! preg_match( '#foreach[\s\S]{0,400}?get_don#', $api_sach ), '' );
+}
 t( '🔴 đọc dòng chi từ bảng «chiphi» (không phải «cp»)',
 	false !== strpos( $gom_php, "\$tien_to . 'chiphi'" ), '' );
 /* ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Bản nháp soi cả tệp và bắt ngay chính câu giải thích *vì sao*
@@ -499,6 +515,39 @@ t( 'màn MISA liệt kê mã đơn của lô (anh Thắng: "xuất misa theo đ�
 	(bool) preg_match( '#Lô này gồm <b>#u', $html ), '' );
 t( '⚠️ và nói rõ khi nhánh ấy không chốt theo mã đơn',
 	(bool) preg_match( '#không chốt theo mã đơn#u', $html ), '' );
+
+/* ═══ 6c. BẤM XEM: TRẠNG THÁI ĐƠN + THỪA THIẾU ═══════════════════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"Bổ sung vào để hiện trạng thái đơn khi bấm xem, và phần thừa thiếu ở
+ * cuối trang."*
+ *
+ * 🔴 CON SỐ THỪA/THIẾU PHẢI HỎI LÕI BẢN MẢNG, KHÔNG TỰ TRỪ Ở ĐÂY. Luật "tạm ứng − thực chi" có
+ *    mấy chỗ tinh (chưa cấp tiền thì chênh lệch là 0; thực chi lấy ô thực mua nếu có; phần NCC
+ *    tính riêng). Chép luật sang trang tổng là dựng bản thứ hai cho cùng một câu hỏi, rồi hai
+ *    bản lệch nhau — mà lệch ở con số tiền thì kế toán tin con số nào?
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 màn có dải trạng thái đơn', false !== strpos( $html, 'function veDaiTT(' ), '' );
+t( '🔴 và dải ấy phủ đủ bảy bước',
+	(bool) preg_match( "#TT_LUONG = \['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'\]#u", $html ), '' );
+/* ⚠️ Trạng thái LẠ (bản mảng đổi chữ) -> không được tô xanh cả dải như thể mọi bước đã xong. */
+t( '⚠️ trạng thái lạ thì KHÔNG bước nào là "đã qua"',
+	(bool) preg_match( '#daQua = \(i >= 0 && k < i\)#', $html ), '' );
+t( '🔴 màn có khối thừa/thiếu', false !== strpos( $html, 'function veThuaThieu(' ), '' );
+/* ⚠️ Chưa cấp tiền thì chưa ai đưa đồng nào — không thể thừa. */
+t( '⚠️ chưa cấp tiền thì KHÔNG bày thừa/thiếu',
+	(bool) preg_match( '#function veThuaThieu\(t\)\{?\s*\n?\s*if \(!t \|\| !t\.daCapTien\) return #', $html ), '' );
+t( 'nói rõ ai trả ai bù, không chỉ ra con số',
+	false !== mb_strpos( $html, 'NV trả lại kế toán' ) && false !== mb_strpos( $html, 'kế toán bù cho NV' ), '' );
+t( '🔴 máy chủ gửi kèm khối tiền khi bấm Xem',
+	(bool) preg_match( '#\'tien\' => [$]tien,#', $api_ma ), '' );
+t( '🔴 và nó HỎI get_don() của bản mảng, không tự trừ',
+	(bool) preg_match( '#\'get_don\'[\s\S]{0,300}?muon_phien\( [$]khoa \)#', $api_ma ), '' );
+
+t( '⚠️ bản mảng đời cũ thiếu get_don() thì vẫn bày được dòng chi',
+	(bool) preg_match( '#[$]tien = null;#', $api_ma ), '' );
+/* Giao diện: ô chi tiết là KHỐI riêng, không trông như một dòng nữa của bảng. */
+t( '🔴 ô chi tiết có khối riêng .hop', false !== strpos( $html, 'tr.ct .hop{' ), '' );
+t( 'nút Xem đổi chữ khi đang mở', false !== mb_strpos( $html, "▾ Đóng" ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

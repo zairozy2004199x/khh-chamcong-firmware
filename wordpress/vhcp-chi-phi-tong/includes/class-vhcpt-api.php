@@ -260,7 +260,44 @@ class VHCPT_Api {
 		if ( ! $d ) {
 			return array( 'error' => 'Không tìm thấy đơn ' . $ma . ' ở mảng ' . VHCPT_Ban::ten( $khoa ) . '.' );
 		}
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * SỐ TIỀN THỪA/THIẾU — anh Thắng 14/09/2026: *"Bổ sung vào để hiện trạng thái đơn khi
+		 * bấm xem, và phần thừa thiếu ở cuối trang."*
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HỎI LÕI CỦA BẢN ẤY, KHÔNG TỰ TRỪ. Luật "tạm ứng − thực chi" nghe đơn giản nhưng có
+		 *    mấy chỗ tinh: chưa cấp tiền thì chênh lệch phải là 0 chứ không phải bằng cả cục tạm
+		 *    ứng; thực chi lấy ô "thực mua" nếu người ta gõ, không thì lấy thành tiền; phần nhà
+		 *    cung cấp tính riêng phần cá nhân. Chép luật ấy sang đây là dựng bản thứ hai cho
+		 *    cùng một câu hỏi, rồi hai bản lệch nhau — mà lệch ở con số tiền thì kế toán tin
+		 *    con số nào?
+		 *
+		 * ⚠️ VÀ NÓ ĐÒI PHIÊN: `get_don()` gác theo đơn vị/bộ phận của người đang gọi. Không mượn
+		 *    phiên thì nó chối một đơn đang nằm sờ sờ trên màn.
+		 *
+		 * ⚠️ THIẾU THÌ BỎ QUA, KHÔNG HỎNG CẢ MÀN. Bản mảng đời cũ không có `get_don()` thì phần
+		 *    dòng chi vẫn bày bình thường, chỉ khuyết khối tiền.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$tien = null;
+		$lop_don = VHCPT_Ban::lop( $khoa, 'Don' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( $lop_don && class_exists( $lop_don ) && method_exists( $lop_don, 'get_don' ) ) {
+			VHCPT_Ban::muon_phien( $khoa );
+			$g = (array) call_user_func( array( $lop_don, 'get_don' ), $ma, false );
+			if ( ! empty( $g['success'] ) ) {
+				$cn  = isset( $g['tongCN'] ) ? (array) $g['tongCN'] : array();
+				$ncc = isset( $g['tongNCC'] ) ? (array) $g['tongNCC'] : array();
+				$tien = array(
+					'tamUng'    => (float) ( isset( $cn['tamUng'] ) ? $cn['tamUng'] : 0 ),
+					'thucChi'   => (float) ( isset( $cn['thucChi'] ) ? $cn['thucChi'] : 0 ),
+					'chenhLech' => (float) ( isset( $cn['chenhLech'] ) ? $cn['chenhLech'] : 0 ),
+					'nccChi'    => (float) ( isset( $ncc['thucChi'] ) ? $ncc['thucChi'] : 0 ),
+					'daCapTien' => ! empty( $g['daCapTien'] ),
+				);
+			}
+		}
+
 		return array( 'ok' => true, 'don' => array(
+			'tien' => $tien,
 			'don' => array(
 				'maDon'      => (string) $d['ma_don'],
 				'ky'         => (string) $d['ky'],

@@ -1267,6 +1267,35 @@ class VHCPVP_Don {
 		if ( $cs_don !== '' && strcasecmp( $cs_don, (string) $coso ) !== 0 ) {
 			return VHCPVP_Util::err( 'Đơn này của cơ sở "' . $cs_don . '" — muốn tạm ứng cơ sở khác thì tạo đơn mới.' );
 		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢN "KHÔNG TẠM ỨNG THÌ MỖI DÒNG MỘT GIAN": LƯU TẠM ỨNG LÀ ĐÓNG ĐƠN LẠI MỘT GIAN.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Bên Văn phòng / Máy tự động, đơn chưa có tạm ứng thì mở — dòng chi gắn gian nào cũng
+		 * được (`VHCPVP_DonVi::don_nhieu_coso()`). Nhưng lưu một dòng tạm ứng vào là đơn LẬP TỨC
+		 * quay về luật một-đơn-một-gian, và gian ấy là gian của tạm ứng.
+		 *
+		 * 🔴 NẾU ĐƠN ĐÃ CÓ DÒNG CHI Ở GIAN KHÁC thì việc ấy làm sổ lệch KHÔNG MỘT TIẾNG ĐỘNG:
+		 *    đơn ghi là của gian A, còn tiền nằm ở gian B và C. Đối chiếu thừa/thiếu cộng cả đơn
+		 *    nên tổng vẫn khớp — chỉ có báo cáo theo gian là sai, và nó sai ở chỗ không ai soi.
+		 *
+		 * ⚠️ CHỐI, KHÔNG TỰ SỬA. Đừng đoán hộ là người ta muốn dời mấy dòng kia sang gian A hay
+		 *    muốn bỏ tạm ứng: cả hai đều đổi số tiền của một gian. Nói ra đang vướng gì và để
+		 *    họ quyết.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( VHCPVP_DonVi::MO_KHI_KHONG_TAM_UNG ) {
+			$khac = array();
+			foreach ( self::cac_coso_cua_don( $ma_don ) as $cs ) {
+				if ( strcasecmp( $cs, (string) $coso ) !== 0 ) { $khac[] = $cs; }
+			}
+			if ( $khac ) {
+				return VHCPVP_Util::err(
+					'Đơn này đang có dòng chi của cơ sở khác (' . implode( ', ', $khac ) . '). '
+					. 'Nhập tạm ứng là chốt cả đơn về cơ sở "' . (string) $coso . '", nên mấy dòng ấy sẽ '
+					. 'nằm sai chỗ. Bỏ hoặc chuyển chúng trước, hoặc để đơn này không tạm ứng và '
+					. 'tách phần cần ứng sang đơn mới.' );
+			}
+		}
 		$t  = VHCPVP_DB::t( 'tamung' );
 		$so = VHCPVP_Util::num( $so );
 		$wpdb->query( $wpdb->prepare( "INSERT INTO $t (ma_don,coso,so) VALUES (%s,%s,%f) ON DUPLICATE KEY UPDATE so=VALUES(so)", (string) $ma_don, (string) $coso, $so ) );
@@ -2386,6 +2415,57 @@ class VHCPVP_Don {
 	 * 🔴 Trừ thẳng `tamUngDuyet` ra khỏi phép tính bằng cách đọc `tamUng` theo cơ sở — `tongCN`
 	 *    trả về số ĐÃ DUYỆT khi có, nên dùng nó ở đây là quay lại chính con số cần thay.
 	 */
+	/**
+	 * SỐ TIỀN BÀY CHO NGƯỜI DUYỆT — "bấm duyệt cái này là duyệt bao nhiêu".
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Nếu theo cơ chế, nếu không nhập tạm ứng thì hiểu là đơn thường
+	 * nhiều cơ sở thì số tiền sẽ lấy theo số thực tế trên đơn."* — kèm ảnh trang tổng: một đơn
+	 * có hai dòng cộng 3.000.000đ mà cột SỐ XIN ghi **0đ**.
+	 *
+	 * 🔴 0đ Ở ĐÂY LÀ MỘT CON SỐ SAI, KHÔNG PHẢI MỘT Ô TRỐNG. Người duyệt đọc cột ấy để quyết
+	 *    định; bày 0đ cho một đơn ba triệu là mời họ bấm Duyệt mà không biết đang duyệt cái gì.
+	 *
+	 * ⚠️ VÌ SAO KHÔNG SỬA THẲNG `tong_xin_hien_tai()`. Hàm ấy trả lời câu khác: *"đơn này XIN
+	 *    TẠM ỨNG bao nhiêu"*. Hai công cụ soát số duyệt mồ côi / bù trừ (`soat_so_duyet()`) đối
+	 *    chiếu nó với số duyệt lịch sử theo phép "duyệt = xin + bù trừ"; đổi nghĩa của nó là hai
+	 *    công cụ ấy bắt đầu thấy lệch ở những đơn không có gì sai. Nên đây là CỬA RIÊNG.
+	 *
+	 * 🔴 VÀ KHÔNG ĐỤNG KHỐI QUYẾT TOÁN. Ở đó luật cố ý ngược lại: đơn không xin tạm ứng phải ra
+	 *    *"Thiếu N — kế toán bù cho NV"*, chứ không phải "Khớp" (xem chú thích ở `get_don()`).
+	 *    Lấy thực chi lấp vào chỗ tạm ứng tại đó là xoá mất khoản kế toán còn nợ nhân viên.
+	 *
+	 * ⚠️ CHỈ ĐỔI Ở BẢN MẢNG RIÊNG (`MO_KHI_KHONG_TAM_UNG`). Bên khu vui chơi mọi đơn đều đi qua
+	 *    tạm ứng, nên nhánh này không có việc gì; để nó chạy ở đó là đổi con số của một mảng
+	 *    đang chạy thật mà không ai yêu cầu.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return float|null null = không đọc được đơn (giữ nguyên nghĩa của hàm gốc).
+	 */
+	public static function tong_de_duyet( $ma_don ) {
+		$t = self::tong_xin_hien_tai( $ma_don );
+		if ( null === $t ) { return null; }
+		if ( ! VHCPVP_DonVi::MO_KHI_KHONG_TAM_UNG ) { return $t; }
+		/* Có dòng tạm ứng (kể cả 0đ — nó vẫn là lời chốt gian) thì con số của đơn là số xin. */
+		if ( VHCPVP_DonVi::don_co_tam_ung( $ma_don ) ) { return $t; }
+		return self::tong_thanh_tien( $ma_don ) + VHCPVP_Util::num( self::du_phong_cua( $ma_don ) );
+	}
+
+	/** Cộng THÀNH TIỀN mọi dòng chi của đơn — "số thực tế trên đơn". */
+	public static function tong_thanh_tien( $ma_don ) {
+		global $wpdb;
+		$t = VHCPVP_DB::t( 'chiphi' );
+		$v = $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(thanh_tien),0) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
+		return VHCPVP_Util::num( $v );
+	}
+
+	/** Ô dự phòng của đơn — cộng vào cả hai lối, để hai con số không lệch nhau vì nó. */
+	public static function du_phong_cua( $ma_don ) {
+		$d = self::don_row( $ma_don );
+		return $d && isset( $d['du_phong'] ) ? $d['du_phong'] : 0;
+	}
+
 	public static function tong_xin_hien_tai( $ma_don ) {
 		$g = self::get_don( $ma_don, false );
 		if ( empty( $g['success'] ) ) { return null; }

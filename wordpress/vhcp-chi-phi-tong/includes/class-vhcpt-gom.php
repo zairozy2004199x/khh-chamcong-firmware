@@ -102,18 +102,34 @@ class VHCPT_Gom {
 			}
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * SỐ TIỀN: HỎI `tong_de_duyet()` TRƯỚC, LUI VỀ `tong_xin_hien_tai()`.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026: *"nếu không nhập tạm ứng thì hiểu là đơn thường nhiều cơ sở thì
+		 * số tiền sẽ lấy theo số thực tế trên đơn"* — kèm ảnh một đơn ba triệu mà cột SỐ XIN ghi
+		 * 0đ, vì `tong_xin_hien_tai()` chỉ cộng tạm ứng, mà đơn ấy không xin ứng đồng nào.
+		 *
+		 * `tong_de_duyet()` trả lời đúng câu người duyệt cần: *"bấm duyệt cái này là duyệt bao
+		 * nhiêu"* — số xin nếu có tạm ứng, số thực tế trên đơn nếu không.
+		 *
+		 * ⚠️ LUI VỀ HÀM CŨ CHỨ KHÔNG BỎ TRỐNG. Bốn plugin nâng cấp lệch nhau; bản mảng chưa lên
+		 *    bản có `tong_de_duyet()` vẫn phải ra một con số, chứ không phải một dấu gạch.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		$lop_don = VHCPT_Ban::lop( $khoa, 'Don' );
 		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
-		$hoi_tien = ( $lop_don && class_exists( $lop_don )
-			&& method_exists( $lop_don, 'tong_xin_hien_tai' ) );
+		$ham_tien = '';
+		if ( $lop_don && class_exists( $lop_don ) ) {
+			if ( method_exists( $lop_don, 'tong_de_duyet' ) )           { $ham_tien = 'tong_de_duyet'; }
+			elseif ( method_exists( $lop_don, 'tong_xin_hien_tai' ) )   { $ham_tien = 'tong_xin_hien_tai'; }
+		}
 
 		$ra = array();
 		foreach ( $rows as $r ) {
 			$ma = trim( (string) $r['ma_don'] );
 			if ( '' === $ma ) { continue; }
 			$tien = null;
-			if ( $hoi_tien ) {
-				$tien = call_user_func( array( $lop_don, 'tong_xin_hien_tai' ), $ma );
+			if ( '' !== $ham_tien ) {
+				$tien = call_user_func( array( $lop_don, $ham_tien ), $ma );
 			}
 			$ra[] = array(
 				'ban'      => $khoa,
