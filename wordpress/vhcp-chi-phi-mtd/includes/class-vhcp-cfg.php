@@ -132,24 +132,12 @@ class VHCPMTD_Cfg {
 
 	/** Danh sách cơ sở mặc định (COSO_LIST của app cũ). */
 	public static function default_coso() {
-		return array( 'FUNZONE ADVENTURE', 'FUNZONE VŨNG TÀU', 'FARM PHAN THIẾT', 'EVENT FARM NHA TRANG', 'TÀU TÂN PHÚ', 'TÀU BÌNH TÂN', 'TÀU BÌNH DƯƠNG', 'TÀU GÒ VẤP', 'TÀU ESTELLA', 'VR SORA', 'VR BÌNH DƯƠNG', 'FUNFEST SC VIVO', 'TUTU TẤN AN', 'ADV TÂN PHÚ' );
+		return array();   // bản mảng riêng: danh mục trắng, khai theo mảng của mình
 	}
 
 	/** NHOM_LIST của app cũ. */
 	public static function default_nhom() {
-		return array(
-			array( 'SP Đồ uống - NCC', 'ncc' ),
-			array( 'SP Đồ ăn - NCC', 'ncc' ),
-			array( 'Vật dụng - NCC - Kho', 'ncc' ),
-			array( 'NVL đồ uống - NCC', 'ncc' ),
-			array( 'NVL đồ ăn - NCC', 'ncc' ),
-			array( 'NVL đồ ăn - Mua lẻ', 'canhan' ),
-			array( 'NVL đồ uống - Mua lẻ', 'canhan' ),
-			array( 'Chi phí cơ sở', 'canhan' ),
-			array( 'MKT - Hoạt náo', 'canhan' ),
-			array( 'Nuôi thú', 'canhan' ),
-			array( 'Phát sinh', 'canhan' ),
-		);
+		return array();   // nt — bảng Loại chi phí dựng từ đây nên cũng trắng theo
 	}
 
 	/**
@@ -638,18 +626,51 @@ class VHCPMTD_Cfg {
 	 *
 	 * 🔴 BẢNG NGƯỜI DÙNG CỐ Ý KHÔNG THEO LUẬT NÀY — xem chỗ gieo `USER` bên dưới.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	/**
+	 * GIEO ĐÚNG MỘT LẦN, CẢ ĐỜI PLUGIN.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VÌ SAO BẢN VÁ NGÀY 14/09 CHƯA CỨU ĐƯỢC ANH THẮNG — *"Tiếp tục không xóa được"*.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Bản trước đã có dấu "đã gieo rồi", nhưng đặt dấu Ở TRONG thân nhánh gieo:
+	 *
+	 *     if ( bảng rỗng && chưa có dấu ) { gieo...; đặt dấu; }
+	 *
+	 * Đọc thì thấy đúng. Nhưng trên MỘT SITE ĐÃ CÀI TỪ TRƯỚC thì bảng KHÔNG rỗng — nhánh không
+	 * chạy — nên dấu KHÔNG BAO GIỜ ĐƯỢC ĐẶT. Rồi anh Thắng dọn sạch bảng:
+	 *
+	 *     bảng rỗng ✓  ·  chưa có dấu ✓   ->  gieo lại nguyên danh mục.
+	 *
+	 * Tức bản vá chỉ cứu được máy cài MỚI TINH; còn đúng những site đang đau thì lượt dọn sạch
+	 * ĐẦU TIÊN vẫn bị hoàn tác y như cũ. (Lượt thứ hai mới ăn — vì lần hoàn tác ấy có đặt dấu.
+	 * Nghĩa là người dùng phải xoá hai lần mới thắng, mà không ai đoán ra luật đó.)
+	 *
+	 * ⚠️ NAY: THẤY BẢNG CÓ DỮ LIỆU LÀ ĐÓNG DẤU NGAY, không đợi tới lượt gieo. Bảng đang có dữ
+	 *    liệu nghĩa là hạt giống đã làm xong việc của nó — dù do lượt gieo cũ hay do người dùng
+	 *    tự khai. Từ đó trở đi bảng rỗng là Ý CỦA NGƯỜI DÙNG và phải được tôn trọng.
+	 *
+	 * @param array    $all  dữ liệu đã đọc sẵn
+	 * @param string   $bang tên bảng cấu hình
+	 * @param string   $dau  khoá meta làm dấu "đã gieo rồi"
+	 * @param callable $lam  việc gieo, chỉ chạy khi thật sự cần
+	 * @return bool   true nếu có gieo (nơi gọi phải đọc lại)
+	 */
+	private static function gieo_mot_lan( $all, $bang, $dau, $lam ) {
+		if ( VHCPMTD_Meta::get( $dau ) ) { return false; }          // đã gieo (hoặc đã đóng dấu) rồi
+		VHCPMTD_Meta::set( $dau, '1' );                             // đóng dấu TRƯỚC, cả hai lối đi
+		if ( count( self::rows_of( $all, $bang ) ) ) { return false; }   // site cũ: coi như đã gieo
+		call_user_func( $lam );
+		return true;
+	}
+
 	private static function seed_from( $all ) {
 		$did = false;
-		if ( ! count( self::rows_of( $all, self::COSO ) ) && ! VHCPMTD_Meta::get( 'seeded_coso_v1' ) ) {
-			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '', '' ) ); }
-			VHCPMTD_Meta::set( 'seeded_coso_v1', '1' );
-			$did = true;
-		}
-		if ( ! count( self::rows_of( $all, self::NHOM ) ) && ! VHCPMTD_Meta::get( 'seeded_nhom_v1' ) ) {
-			foreach ( self::default_nhom() as $n ) { self::append( self::NHOM, array( $n[0], $n[1], '', '' ) ); }
-			VHCPMTD_Meta::set( 'seeded_nhom_v1', '1' );
-			$did = true;
-		}
+		if ( self::gieo_mot_lan( $all, self::COSO, 'seeded_coso_v1', function () {
+			foreach ( VHCPMTD_Cfg::default_coso() as $c ) { VHCPMTD_Cfg::append( VHCPMTD_Cfg::COSO, array( $c, '', '', '', '', '' ) ); }
+		} ) ) { $did = true; }
+		if ( self::gieo_mot_lan( $all, self::NHOM, 'seeded_nhom_v1', function () {
+			foreach ( VHCPMTD_Cfg::default_nhom() as $n ) { VHCPMTD_Cfg::append( VHCPMTD_Cfg::NHOM, array( $n[0], $n[1], '', '' ) ); }
+		} ) ) { $did = true; }
 		if ( ! count( self::rows_of( $all, self::PL ) ) ) {
 			self::append( self::PL, array( 'Thanh toán cá nhân', '141' ) );
 			self::append( self::PL, array( 'Nhà cung cấp', '331' ) );
@@ -754,16 +775,15 @@ class VHCPMTD_Cfg {
 		 *    vá hai chỗ mà bỏ sót chỗ này — nên nay mỗi nhánh "rỗng thì dựng lại" đều phải có
 		 *    dấu riêng, và bài kiểm canh cả ba.
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
-		if ( ! count( self::rows_of( $all, self::LOAI ) ) && ! VHCPMTD_Meta::get( 'seeded_loai_v1' ) ) {
-			VHCPMTD_Meta::set( 'seeded_loai_v1', '1' );
-			$nhom = self::rows_of( $all, self::NHOM );
-			if ( ! count( $nhom ) ) { $nhom = self::read( self::NHOM ); }   // vừa seed trong lượt này -> đọc lại
-			foreach ( $nhom as $r ) {
+		if ( self::gieo_mot_lan( $all, self::LOAI, 'seeded_loai_v1', function () {
+			// Đọc THẲNG từ bảng, không dùng bản đã nạp sẵn: bảng Nhóm có thể vừa được gieo
+			// ngay trong lượt này, lúc ấy bản nạp sẵn còn rỗng.
+			foreach ( VHCPMTD_Cfg::read( VHCPMTD_Cfg::NHOM ) as $r ) {
+				$r = array_values( (array) $r );
 				if ( trim( (string) $r[0] ) === '' ) { continue; }
-				self::append( self::LOAI, array( $r[0], isset( $r[2] ) ? $r[2] : '', '', '', isset( $r[3] ) ? $r[3] : '', '' ) );
+				VHCPMTD_Cfg::append( VHCPMTD_Cfg::LOAI, array( $r[0], isset( $r[2] ) ? $r[2] : '', '', '', isset( $r[3] ) ? $r[3] : '', '' ) );
 			}
-			$did = true;
-		}
+		} ) ) { $did = true; }
 		return $did;
 	}
 

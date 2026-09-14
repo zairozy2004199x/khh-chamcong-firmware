@@ -154,7 +154,7 @@ class VHCPVP_App {
 	 * ⚠️ ĐỂ TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì người
 	 *    dùng đọc thành "trang hỏng".
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
-	const TEN_MAC_DINH = "Chi Phí VP";
+	const TEN_MAC_DINH = "Chi Phí Văn Phòng";
 
 	public static function ten_trang() {
 		$t = trim( (string) get_option( 'vhcpvp_ten_trang', '' ) );

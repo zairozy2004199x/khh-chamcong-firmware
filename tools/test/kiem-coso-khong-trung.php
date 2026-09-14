@@ -147,8 +147,14 @@ VHCP_Cfg::cfg_static();
 teq( '🔴 giữ lại một loại -> vẫn đúng một, không trộn danh mục nhóm vào', 1,
 	count( VHCP_Cfg::read( VHCP_Cfg::LOAI ) ) );
 
-/* 🔴 MỌI NHÁNH "RỖNG THÌ DỰNG LẠI" CỦA DANH MỤC NGƯỜI DÙNG QUẢN PHẢI CÓ DẤU RIÊNG.
-   Phép tĩnh này là cái bắt được ca "vá hai chỗ, sót chỗ thứ ba" — thứ vừa xảy ra thật. */
+/* 🔴 MỌI NHÁNH "RỖNG THÌ DỰNG LẠI" CỦA DANH MỤC NGƯỜI DÙNG QUẢN PHẢI ĐI QUA MỘT CỬA.
+   Phép tĩnh này là cái bắt được ca "vá hai chỗ, sót chỗ thứ ba" — đã xảy ra thật.
+
+   ⚠️ ĐỔI HÌNH 14/09/2026 (lượt hai). Bản trước phép này canh nguyên văn nhánh
+      `! count( rows_of( $all, self::X ) ) && ! VHCP_Meta::get( 'dấu' )`. Ba nhánh ấy nay gom
+      vào một cửa chung `gieo_mot_lan()`, vì đặt dấu bên trong thân nhánh còn thủng một đường
+      nữa: site đã cài từ trước có bảng KHÔNG rỗng nên dấu chẳng bao giờ được đặt (xem
+      `kiem-gieo-dung-mot-lan.php`). Nên phép canh đổi theo hình mới — KHÔNG phải nới ra. */
 $cfg_ma2 = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
 	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' ) );
 foreach ( array(
@@ -156,9 +162,8 @@ foreach ( array(
 	'NHOM' => 'seeded_nhom_v1',
 	'LOAI' => 'seeded_loai_v1',
 ) as $bang_k => $dau ) {
-	t( '🔴 nhánh dựng lại của ' . $bang_k . ' có dấu «' . $dau . '»',
-		(bool) preg_match( '#rows_of\( \$all, self::' . $bang_k . ' \) \)\s*&&\s*! VHCP_Meta::get\( .'
-			. $dau . '. \)#', $cfg_ma2 ), '' );
+	t( '🔴 ' . $bang_k . ' gieo qua cửa chung, mang dấu «' . $dau . '»',
+		(bool) preg_match( '#gieo_mot_lan\( \$all, self::' . $bang_k . ", '" . $dau . "'#", $cfg_ma2 ), '' );
 }
 
 /* 🔴 NHƯNG BẢNG NGƯỜI DÙNG THÌ NGƯỢC LẠI, VÀ CỐ Ý NHƯ VẬY.

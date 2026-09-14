@@ -48,6 +48,20 @@ GOC="wordpress/vhcp-chi-phi"
 DICH="wordpress/vhcp-chi-phi-$MA"
 MA_HOA="$(printf '%s' "$MA" | tr '[:lower:]' '[:upper:]')"
 
+# ── TÊN HIỆN TRÊN ĐẦU TRANG ────────────────────────────────────────────────────────────────
+# Anh Thắng 14/09/2026: *"đổi tên trang máy tự động trước nhé"*. Viết tắt MTD/VP là mã nội bộ —
+# nhân viên lên đơn không đọc ra mảng nào. Tên đầy đủ để ở tiêu đề trang; NHÃN MENU wp-admin
+# vẫn giữ bản ngắn (menu bên trái hẹp, xem lý do ở khối nhãn menu bên dưới).
+#
+# Truyền tham số thứ 3 để đặt tên khác: bash tools/tach-ban-vung.sh vp "Chi Phí VP" "Chi Phí Kho"
+case "$MA" in
+  mtd) TEN_TRANG="Chi Phí Máy Tự Động" ;;
+  vp)  TEN_TRANG="Chi Phí Văn Phòng" ;;
+  *)   TEN_TRANG="Chi Phí $MA_HOA" ;;
+esac
+TEN_TRANG="${3:-$TEN_TRANG}"
+export TEN_TRANG
+
 [ -d "$GOC" ] || { echo "✗ Không thấy $GOC — chạy từ gốc kho."; exit 2; }
 
 if [ -d "$DICH" ]; then
@@ -164,13 +178,43 @@ fi
 # ⚠️ ĐÂY CHỈ LÀ TÊN MẶC ĐỊNH. Người dùng đổi được ngay trên màn Cài đặt (khoá `vhcp<mã>_ten_trang`)
 #    — đổi tên là việc của họ, không phải việc phải sửa mã rồi cài lại.
 perl -pi -e '
-  s{const TEN_MAC_DINH = .[^\x27"]*.;}{const TEN_MAC_DINH = "Chi Phí $ENV{MA_HOA}";}g;
+  s{const TEN_MAC_DINH = .[^\x27"]*.;}{const TEN_MAC_DINH = "$ENV{TEN_TRANG}";}g;
 ' "$DICH/includes/class-vhcp-app.php"
-if ! grep -q "TEN_MAC_DINH = \"Chi Phí $MA_HOA\"" "$DICH/includes/class-vhcp-app.php"; then
+if ! grep -q "TEN_MAC_DINH = \"$TEN_TRANG\"" "$DICH/includes/class-vhcp-app.php"; then
   echo "✗ Tên trang chưa đổi — bản này sẽ trùng tiêu đề với bản gốc."
   grep -n "TEN_MAC_DINH" "$DICH/includes/class-vhcp-app.php" | head -3
   exit 5
 fi
+
+# ── Danh mục gieo sẵn: BẢN MẢNG RIÊNG KHÔNG ĐẺ DANH MỤC CỦA KHU VUI CHƠI ──────────────────
+#
+# 🔴 ANH THẮNG 14/09/2026: *"rõ ràng các trang chi phí là không dùng dữ liệu của nhau, nhỉ là
+#    đẩy sang chi phí tổng thôi"* — đúng, bảng của bốn bản tách hoàn toàn. Nhưng anh mở
+#    /chi-phi-vp ra vẫn thấy 14 gian hàng khu vui chơi (FUNZONE, TÀU TÂN PHÚ, VR SORA…) và
+#    tưởng hai bên đang xài chung sổ.
+#
+#    Chúng KHÔNG kéo từ bản kia sang. Chúng là HẠT GIỐNG GÕ CỨNG trong `default_coso()` —
+#    danh sách của khu vui chơi, chép sang bản nào thì bản ấy tự đẻ ra y hệt. Cùng lý do với
+#    `default_nhom()`: "SP Đồ uống - NCC", "Nuôi thú"… là nhóm mặt hàng của khu vui chơi, ở
+#    Văn phòng hay Máy tự động thì vô nghĩa — mà bảng Loại chi phí lại dựng từ nhóm, nên một
+#    hạt giống sai đẻ ra hai bảng sai.
+#
+# ⚠️ Hạt giống là MỒI CHO NGƯỜI DÙNG ĐẦU TIÊN, không phải dữ liệu. Mồi sai thì người ta phải
+#    ngồi xoá từng dòng trước khi làm được việc — mà xoá tay 14 dòng rồi bấm Lưu là đúng thao
+#    tác đã hỏng suốt hai ngày qua. Bản mảng riêng mở ra với danh mục TRẮNG, khai theo mảng
+#    của mình; bản gốc khu vui chơi giữ nguyên hạt giống của nó.
+perl -0777 -pi -e '
+  s/(function default_coso\(\) \{).*?(\n\t\})/$1\n\t\treturn array();   \/\/ bản mảng riêng: danh mục trắng, khai theo mảng của mình$2/s;
+  s/(function default_nhom\(\) \{).*?(\n\t\})/$1\n\t\treturn array();   \/\/ nt — bảng Loại chi phí dựng từ đây nên cũng trắng theo$2/s;
+' "$DICH/includes/class-vhcp-cfg.php"
+for H in default_coso default_nhom; do
+  if ! grep -A 1 "function $H() {" "$DICH/includes/class-vhcp-cfg.php" | grep -q "return array();"; then
+    echo "✗ $H() chưa được dọn trắng — bản '$MA' sẽ đẻ lại danh mục khu vui chơi."
+    grep -n "function $H" -A 3 "$DICH/includes/class-vhcp-cfg.php" | head -6
+    exit 6
+  fi
+done
+php -l "$DICH/includes/class-vhcp-cfg.php" >/dev/null || { echo "✗ Dọn danh mục xong thì tệp cfg gãy cú pháp."; exit 6; }
 
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
@@ -188,8 +232,10 @@ echo "  · bảng      wp_vhcp${MA}_*"
 echo "  · trang     /chi-phi-$MA"
 echo "  · REST      vhcp${MA}/v1/call   (bản gốc giữ vhcp/v1/call)"
 echo "  · menu      wp-admin ?page=vhcp${MA}"
+echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt, khỏi sửa mã)"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"
 echo "  2. Nạp .zip lên WordPress, kích hoạt — chạy song song bản cũ"
-echo "  3. Khai lại danh mục, tài khoản cho vùng '$MA' (hai bản KHÔNG dùng chung dữ liệu)"
+echo "  3. Khai danh mục, tài khoản cho vùng '$MA' — bản này mở ra TRẮNG, không mang"
+echo "     danh mục của khu vui chơi sang (hai bản KHÔNG dùng chung dữ liệu)"

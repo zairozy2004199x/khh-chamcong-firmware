@@ -154,7 +154,7 @@ class VHCPMTD_App {
 	 * ⚠️ ĐỂ TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì người
 	 *    dùng đọc thành "trang hỏng".
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
-	const TEN_MAC_DINH = "Chi Phí MTD";
+	const TEN_MAC_DINH = "Chi Phí Máy Tự Động";
 
 	public static function ten_trang() {
 		$t = trim( (string) get_option( 'vhcpmtd_ten_trang', '' ) );
