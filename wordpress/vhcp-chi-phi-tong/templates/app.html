@@ -110,6 +110,22 @@ tfoot td{font-weight:700;background:#f1f5f9}
 .buoc table tbody tr:hover td{background:#f8fafc}
 .buoc td.tien{font-weight:700}
 /* CHUÔNG — anh Thắng 14/09/2026: *"thêm 1 cái chuông thông báo khi có đơn mới cho kế toán biết"*. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * XEM TRƯỚC ẢNH CHỨNG TỪ KHI RÊ CHUỘT — anh Thắng 14/09/2026: *"rê chuột vào phóng ảnh lên nhé"*.
+ *
+ * 🔴 KHUNG XEM TRƯỚC PHẢI NỔI NGOÀI BẢNG (`position:fixed` gắn thẳng vào `body`). Bảng dòng chi
+ *    nằm trong `.cuon{overflow-x:auto}`: một ô ảnh to đặt bên trong sẽ bị CẮT ngay mép khung
+ *    cuộn, và người ta chỉ thấy một mẩu. Cùng lý do không dùng mẹo `:hover` thuần CSS.
+ *
+ * ⚠️ `pointer-events:none` — khung phải TRONG SUỐT VỚI CHUỘT. Thiếu nó thì khung vừa hiện ra đã
+ *    nằm dưới con trỏ, trình duyệt coi như chuột đã rời ảnh, khung tắt — rồi lại hiện. Nhấp nháy
+ *    không dứt.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+#anhTo{position:fixed;z-index:4000;display:none;pointer-events:none;background:#fff;padding:6px;
+       border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 16px 40px rgba(15,23,42,.28)}
+#anhTo img{display:block;max-width:min(420px,60vw);max-height:min(420px,60vh);border-radius:6px}
+#anhTo .ct{font-size:11px;color:#64748b;padding:4px 2px 0;text-align:center}
+.o-anh{cursor:zoom-in}
 .chuong{position:relative}
 .chuong-so{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;line-height:18px;
            padding:0 5px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;
@@ -159,6 +175,7 @@ tr.ct th{background:#f1f5f9}
 <body>
 <script id="vhcpt-boot" type="application/json">__VHCPT_BOOT__</script>
 <div id="man"></div>
+<div id="anhTo"><img alt=""><div class="ct">bấm để mở ảnh gốc</div></div>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 CẤU HÌNH ĐI QUA MỘT THẺ JSON RIÊNG, KHÔNG NHÉT THẲNG VÀO GIỮA CÂU LỆNH JS.
@@ -922,8 +939,8 @@ function veAnh(u){
   /* ⚠️ Chỉ nhận đường dẫn http(s): ô này là dữ liệu người dùng nhập, mà `javascript:` trong
      href là một đường chạy mã ngay trên trang của người đang duyệt tiền. */
   if (!/^https?:\/\//i.test(u)) return '<span class="mo" title="Đường dẫn ảnh không hợp lệ">—</span>';
-  return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Mở ảnh chứng từ">' +
-    '<img src="'+esc(u)+'" alt="chứng từ" loading="lazy" ' +
+  return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Mở ảnh chứng từ" class="o-anh">' +
+    '<img src="'+esc(u)+'" alt="chứng từ" loading="lazy" data-to="'+esc(u)+'" ' +
     'style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;' +
     'display:block;margin:0 auto"></a>';
 }
@@ -1626,6 +1643,52 @@ function lam(nut, d, viec){
     nut.disabled = false; datBao('loi','Không gọi được máy chủ.'); veChinh();
   });
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * XEM TRƯỚC ẢNH CHỨNG TỪ — anh Thắng 14/09/2026: *"rê chuột vào phóng ảnh lên nhé"*.
+ *
+ * 🔴 UỶ QUYỀN SỰ KIỆN Ở `document`, KHÔNG GẮN TỪNG ẢNH. Bảng dòng chi được vẽ lại sau mỗi lượt
+ *    bấm Xem, mỗi lượt duyệt, mỗi lượt làm mới; gắn tay từng ảnh là phải nhớ gắn lại ở mọi chỗ
+ *    vẽ — và chỗ quên sẽ là chỗ im lặng không phóng, không ai biết vì sao.
+ *
+ * ⚠️ LẬT KHUNG KHI CHẠM MÉP MÀN. Ảnh ở cột cuối cùng bên phải, mà khung mở sang phải thì nó tràn
+ *    ra ngoài và bị cắt — đúng những dòng cuối bảng, chỗ người ta hay soi nhất.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+(function(){
+  var LE = 18;   // cách con trỏ, đủ để không che chính ô ảnh
+
+  function hop(){ return document.getElementById('anhTo'); }
+
+  function datCho(e){
+    var o = hop(); if (!o || o.style.display !== 'block') return;
+    var w = o.offsetWidth, h = o.offsetHeight;
+    var x = e.clientX + LE, y = e.clientY + LE;
+    if (x + w > window.innerWidth  - 8) x = e.clientX - w - LE;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - LE;
+    /* Chạm cả hai mép thì ghim vào trong màn, đừng để âm — âm là mất nửa khung. */
+    o.style.left = Math.max(8, x) + 'px';
+    o.style.top  = Math.max(8, y) + 'px';
+  }
+
+  document.addEventListener('mouseover', function(e){
+    var n = e.target;
+    if (!n || n.tagName !== 'IMG' || !n.getAttribute('data-to')) return;
+    var o = hop(); if (!o) return;
+    o.querySelector('img').src = n.getAttribute('data-to');
+    o.style.display = 'block';
+    datCho(e);
+  });
+  document.addEventListener('mousemove', datCho);
+  document.addEventListener('mouseout', function(e){
+    var n = e.target;
+    if (!n || n.tagName !== 'IMG' || !n.getAttribute('data-to')) return;
+    var o = hop(); if (o) o.style.display = 'none';
+  });
+  /* Cuộn trang thì tắt: khung gắn theo con trỏ, cuộn xong nó lơ lửng sai chỗ. */
+  window.addEventListener('scroll', function(){
+    var o = hop(); if (o) o.style.display = 'none';
+  }, true);
+})();
 
 /* Bấm ra ngoài thì đóng hộp chuông — hộp che mất bảng bên dưới. */
 document.addEventListener('click', function(){

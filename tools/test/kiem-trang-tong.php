@@ -924,6 +924,30 @@ t( '🔴 thanh đầu có link sang từng trang mảng', false !== strpos( $htm
    câu chối bên ấy nói về PIN chứ không nói họ không thuộc mảng đó. */
 t( '⚠️ chỉ link mảng người ấy có mặt', (bool) preg_match( '#TOI\.bans \|\| \[\]\)\.filter\(function\(b\)\{ return b\.url; \}\)#', $html ), '' );
 
+/* ═══ 6o. XEM TRƯỚC ẢNH CHỨNG TỪ KHI RÊ CHUỘT ═══════════════════════════════════
+ * Anh Thắng 14/09/2026: *"rê chuột vào phóng ảnh lên nhé"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có khung xem trước ảnh', false !== strpos( $html, "id=\"anhTo\"" ), '' );
+/* 🔴 KHUNG PHẢI NỔI NGOÀI BẢNG. Bảng dòng chi nằm trong `.cuon{overflow-x:auto}`: một ô ảnh to
+   đặt bên trong sẽ bị CẮT ngay mép khung cuộn, người ta chỉ thấy một mẩu. */
+t( '🔴 khung nổi ngoài bảng (position:fixed)',
+	(bool) preg_match( '~[#]anhTo\{position:fixed~', $html ), '' );
+/* ⚠️ Thiếu `pointer-events:none` thì khung vừa hiện đã nằm dưới con trỏ, trình duyệt coi như
+   chuột đã rời ảnh, khung tắt — rồi lại hiện. Nhấp nháy không dứt. */
+t( '⚠️ khung TRONG SUỐT với chuột, khỏi nhấp nháy',
+	(bool) preg_match( '#anhTo\{[^}]*pointer-events:none#', $html ), '' );
+/* 🔴 Bảng được vẽ lại sau mỗi lượt bấm Xem / duyệt / làm mới — gắn tay từng ảnh là phải nhớ gắn
+   lại ở mọi chỗ vẽ, và chỗ quên sẽ im lặng không phóng. */
+t( '🔴 uỷ quyền sự kiện ở document, không gắn từng ảnh',
+	(bool) preg_match( "#document\.addEventListener\( *'mouseover'#", $html ), '' );
+/* ⚠️ Ảnh ở cột cuối bên phải: khung mở sang phải sẽ tràn ra ngoài màn và bị cắt. */
+t( '⚠️ chạm mép màn thì lật khung lại',
+	(bool) preg_match( '#x = e\.clientX - w - LE;#', $html ), '' );
+t( '⚠️ và không để lọt ra ngoài mép trái/trên',
+	(bool) preg_match( '#Math\.max\(8, x\)#', $html ), '' );
+t( 'cuộn trang thì tắt khung (nó gắn theo con trỏ)',
+	(bool) preg_match( "#addEventListener\( *'scroll'#", $html ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.
