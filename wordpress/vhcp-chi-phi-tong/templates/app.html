@@ -1497,7 +1497,7 @@ function veTongQuanKq(){
              '</div>' +
              '<div class="cuon" style="border-color:'+m.vien+'"><table>' +
              '<thead><tr style="background:'+m.nen+'">' +
-               '<th style="background:'+m.nen+';color:'+m.chu+'">Mã đơn</th>' +
+               '<th style="background:'+m.nen+';color:'+m.chu+'">Cơ sở</th>' +
                '<th style="background:'+m.nen+';color:'+m.chu+'">Người nhập</th>' +
                '<th style="background:'+m.nen+';color:'+m.chu+'">Kỳ</th>' +
                '<th style="background:'+m.nen+';color:'+m.chu+'">Lúc nhập</th>' +
@@ -1506,7 +1506,8 @@ function veTongQuanKq(){
                /* Số thứ tự trong hàng chờ: "ai nộp trước lên trước" chỉ có nghĩa khi nhìn thấy
                   được thứ tự. Bảng đã xong thì đánh số vô nghĩa nên bỏ. */
                var stt = xong ? '' : '<span class="mo nho" style="margin-right:6px">'+(k+1)+'.</span>';
-               return '<tr><td>'+stt+'<b>'+esc(r.maDon)+'</b></td><td>'+esc(r.nguoiLap)+'</td>' +
+               return '<tr><td>'+stt+veCoSo(r.coso)+'<div class="nho mo">'+esc(r.maDon)+'</div></td>' +
+                      '<td>'+esc(r.nguoiLap)+'</td>' +
                       '<td class="nho">'+esc(r.ky)+'</td>' +
                       '<td class="nho mo">'+esc(ngay(r.ngayTao))+'</td>' +
                       '<td class="r tien" style="color:'+( r.tien ? m.chu : '#94a3b8' )+'">' +

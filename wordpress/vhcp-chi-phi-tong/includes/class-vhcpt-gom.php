@@ -145,31 +145,8 @@ class VHCPT_Gom {
 			   GROUP BY ma_don, nhom ORDER BY tien DESC",
 				$ma_ds
 			), ARRAY_A );
-			/* ══════════════════════════════════════════════════════════════════════════════════
-			 * CƠ SỞ CỦA TỪNG ĐƠN — anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng
-			 * cột cơ sở"*.
-			 *
-			 * 🔴 HỎI CẢ HAI BẢNG. Cơ sở nằm ở DÒNG CHI, nhưng đơn xin ứng trước chưa có dòng chi
-			 *    nào mà vẫn thuộc một gian — gian ấy ghi ở dòng TẠM ỨNG. Chỉ hỏi bảng chi phí là
-			 *    mọi đơn ứng trước hiện ra "—", đúng những đơn đang chờ duyệt nhiều nhất.
-			 *
-			 * ⚠️ MỘT CÂU CHO CẢ LÁT CẮT, không hỏi từng đơn — cùng cái bẫy đã tránh ở loại chi phí
-			 *    ngay trên: hỏi từng đơn là 200 lượt đọc cho một màn.
-			 * ══════════════════════════════════════════════════════════════════════════════════ */
-			$t_tu    = $tien_to . 'tamung';
-			$r_coso  = $wpdb->get_results( $wpdb->prepare(
-				"SELECT ma_don, coso FROM $t_cp WHERE ma_don IN ($cho_ma) AND coso <> ''
-				 UNION
-				 SELECT ma_don, coso FROM $t_tu WHERE ma_don IN ($cho_ma) AND coso <> ''",
-				array_merge( $ma_ds, $ma_ds )
-			), ARRAY_A );
-			foreach ( (array) $r_coso as $r2 ) {
-				$m2 = (string) $r2['ma_don'];
-				$c2 = trim( (string) $r2['coso'] );
-				if ( '' === $c2 ) { continue; }
-				if ( ! isset( $coso_cua[ $m2 ] ) ) { $coso_cua[ $m2 ] = array(); }
-				if ( ! in_array( $c2, $coso_cua[ $m2 ], true ) ) { $coso_cua[ $m2 ][] = $c2; }
-			}
+			/* Cơ sở của từng đơn — một câu cho cả lát cắt, xem khối ở `coso_cua_cac_don()`. */
+			$coso_cua = self::coso_cua_cac_don( $tien_to, $ma_ds );
 
 			foreach ( (array) $r_loai as $r1 ) {
 				$m1 = (string) $r1['ma_don'];
@@ -340,6 +317,15 @@ class VHCPT_Gom {
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tv2 ), ARRAY_A );
 		if ( ! is_array( $rows ) ) { $rows = array(); }
 
+		/* Cơ sở của từng đơn — MỘT câu cho cả lát cắt, đúng hàm mà ba tab việc đang dùng.
+		   Màn Tổng quan cũng đọc theo GIAN chứ không đọc theo mã đơn, nên phải có cột này. */
+		$ma_ds = array();
+		foreach ( $rows as $r0 ) {
+			$m0 = trim( (string) $r0['ma_don'] );
+			if ( '' !== $m0 ) { $ma_ds[] = $m0; }
+		}
+		$coso_cua = self::coso_cua_cac_don( $tien_to, $ma_ds );
+
 		$ra = array();
 		foreach ( $rows as $r ) {
 			$ma = trim( (string) $r['ma_don'] );
@@ -348,6 +334,7 @@ class VHCPT_Gom {
 				'ban'       => $khoa,
 				'tenBan'    => VHCPT_Ban::ten( $khoa ),
 				'maDon'     => $ma,
+				'coso'      => isset( $coso_cua[ $ma ] ) ? $coso_cua[ $ma ] : array(),
 				'ky'        => (string) $r['ky'],
 				'nguoiLap'  => (string) $r['nguoi_lap'],
 				'ngayTao'   => (string) $r['ngay_tao'],
@@ -356,6 +343,45 @@ class VHCPT_Gom {
 			);
 		}
 		return array( 'rows' => $ra, 'tong' => $tong );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CƠ SỞ CỦA TỪNG ĐƠN — anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng cột cơ sở"*.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 HỎI CẢ HAI BẢNG. Cơ sở nằm ở DÒNG CHI, nhưng đơn xin ứng trước chưa có dòng chi nào mà
+	 *    vẫn thuộc một gian — gian ấy ghi ở dòng TẠM ỨNG. Chỉ hỏi bảng chi phí là mọi đơn ứng
+	 *    trước hiện ra "—", đúng những đơn đang chờ duyệt nhiều nhất.
+	 *
+	 * ⚠️ MỘT CÂU CHO CẢ LÁT CẮT, không hỏi từng đơn — hỏi từng đơn là 200 lượt đọc cho một màn.
+	 *
+	 * ⚠️ Dùng chung cho CẢ HAI màn (ba tab việc và Tổng quan). Chép câu SQL ra hai chỗ là ngày mai
+	 *    sửa một chỗ, chỗ kia lặng lẽ trả thiếu cơ sở của đơn ứng trước.
+	 *
+	 * @return array sổ tra ma_don => danh sách tên cơ sở (không trùng).
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function coso_cua_cac_don( $tien_to, $ma_ds ) {
+		global $wpdb;
+		$tien_to = (string) $tien_to;
+		$ma_ds   = array_values( array_filter( array_map( 'strval', (array) $ma_ds ) ) );
+		if ( '' === $tien_to || ! $ma_ds ) { return array(); }
+		$cho_ma = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+		$t_cp   = $tien_to . 'chiphi';
+		$t_tu   = $tien_to . 'tamung';
+		$r_coso = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_don, coso FROM $t_cp WHERE ma_don IN ($cho_ma) AND coso <> ''
+			 UNION
+			 SELECT ma_don, coso FROM $t_tu WHERE ma_don IN ($cho_ma) AND coso <> ''",
+			array_merge( $ma_ds, $ma_ds )
+		), ARRAY_A );
+		$ra = array();
+		foreach ( (array) $r_coso as $r2 ) {
+			$m2 = (string) $r2['ma_don'];
+			$c2 = trim( (string) $r2['coso'] );
+			if ( '' === $c2 ) { continue; }
+			if ( ! isset( $ra[ $m2 ] ) ) { $ra[ $m2 ] = array(); }
+			if ( ! in_array( $c2, $ra[ $m2 ], true ) ) { $ra[ $m2 ][] = $c2; }
+		}
+		return $ra;
 	}
 
 	/** Số tiền của một đơn — hỏi lõi bản ấy, xem khối ở `don_cua_ban()`. */

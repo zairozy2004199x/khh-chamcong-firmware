@@ -970,6 +970,37 @@ t( '⚠️ gom một lượt cho cả lát cắt', (bool) preg_match( '#ma_don I
 t( '⚠️ đơn nhiều gian thì nói thêm còn mấy gian nữa',
 	false !== mb_strpos( $html_ma, 'cơ sở nữa' ), '' );
 
+/* ═══ 6q. MÀN TỔNG QUAN CŨNG ĐỌC THEO GIAN ══════════════════════════════════════
+ * Bảng theo bước ở màn Tổng quan là chỗ kế toán nhìn LÂU NHẤT — đây mới là nơi cần cột Cơ sở
+ * nhất. Để nó một mình dùng cột Mã đơn là cùng một trang mà hai bảng đọc theo hai lối.
+ *
+ * 🔴 CỘT PHẢI CÓ DỮ LIỆU MỚI CÓ NGHĨA: đổi chữ ở đầu bảng mà `tat_ca_don()` không trả `coso`
+ *    thì cả cột hiện "chưa rõ cơ sở" — tệ hơn hẳn cột mã đơn cũ. Nên soát CẢ HAI ĐẦU.
+ * ⚠️ Và hai màn phải gom cơ sở bằng CÙNG một hàm: chép câu SQL ra hai chỗ là ngày mai sửa một
+ *    chỗ, chỗ kia lặng lẽ trả thiếu cơ sở của đơn ứng trước.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 bảng theo bước ở Tổng quan cũng lấy Cơ sở làm cột đầu',
+	false !== mb_strpos( $html_ma, "m.chu+'\">Cơ sở</th>'" ), '' );
+t( '🔴 và ô đầu mỗi dòng vẽ bằng veCoSo, mã đơn xuống dòng dưới',
+	(bool) preg_match( "~stt\+veCoSo\(r\.coso\)[\s\S]{0,80}?esc\(r\.maDon\)~", $html_ma ), '' );
+/* ⚠️ SOI TRONG THÂN `tat_ca_don()`, KHÔNG ĐỌC CẢ TỆP. Bản nháp của phép này soi cả `$gom3`:
+   xoá sạch khoá `coso` khỏi `tat_ca_don()` mà bài vẫn xanh, vì nó đọc trúng dòng y hệt của
+   `don_cua_ban()` nằm phía trên. Phép kiểm nói dối đúng chỗ nó phải canh. */
+$than_tq = ( function ( $src ) {
+	$i = strpos( $src, 'function tat_ca_don(' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $src, "\n\t}", $i );
+	return ( false === $j ) ? '' : substr( $src, $i, $j - $i );
+} )( $gom3 );
+t( '🔴 tat_ca_don trả khoá coso cho từng đơn',
+	'' !== $than_tq && (bool) preg_match( '#.coso.\s*=>\s*isset\( \\$coso_cua#', $than_tq ), '' );
+t( '⚠️ hai màn gom cơ sở bằng CÙNG một hàm',
+	2 === preg_match_all( '#self::coso_cua_cac_don\(#', $gom3 ), '' );
+/* ⚠️ Gom một lượt cho cả lát cắt ở màn Tổng quan nữa — màn này kéo tới GIOI_HAN_TQ đơn, hỏi
+   từng đơn là cả ngàn lượt đọc. */
+t( '⚠️ màn Tổng quan gom cơ sở một lượt, ngoài vòng lặp',
+	(bool) preg_match( '#coso_cua_cac_don\( \\$tien_to, \\$ma_ds \);\s*\n\s*\n\s*\\$ra = array\(\);#', $gom3 ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.
