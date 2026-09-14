@@ -4163,6 +4163,12 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);font-weight:700;
   background:#eef2f7;padding:9px 10px 9px 8px;border-bottom:1px solid #dbe2ec}
 td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:var(--ink2)}
+/* Cột TÊN MISA (bảng Địa điểm) — giữ chỗ đủ đọc hết tên. Anh Thắng 14/09/2026: "cho tên misa
+   rộng ra tí để hết tên đầy đủ". Tên dài nhất đang có cỡ "AEON MALL BÌNH DƯƠNG" (20 ký tự);
+   240px đủ cho ~30 ký tự ở cỡ chữ 12px, còn dư cho tên mới dài hơn.
+   Đặt ở CSS chứ không nhét inline vào từng ô: một chỗ sửa, và `min-width` trên <th> mới thật sự
+   giữ được chiều rộng cột — trình duyệt chia cột theo hàng tiêu đề trước. */
+.misa-ten{min-width:240px}
 /* 🔴 KHUNG CUỘN NGANG CHO BẢNG RỘNG — anh Thắng 01/09/2026, ảnh màn "Doanh thu địa điểm":
    bảng "Theo ghế" cụt mất cột TỔNG ở mép phải.
 
@@ -9155,7 +9161,13 @@ function qlTimGhe(){
 function misaO_(ten){
   var t = esc(ten);
   return '<td class="misa-col"><input data-misau="' + t + '" maxlength="40" style="width:88px;padding:3px 6px;font-size:12px" placeholder="—"></td>'
-       + '<td class="misa-col"><input data-misan="' + t + '" maxlength="190" style="width:150px;padding:3px 6px;font-size:12px" placeholder="—"></td>';
+       /* ⚠️ Ô TÊN MISA phải ĐỦ RỘNG ĐỂ ĐỌC HẾT TÊN. Bản 2.73.0 để cứng 150px nên
+             "AEON MALL BÌNH DƯƠNG" hiện thành "AEON MALL BÌNH DƯƠN…" — anh Thắng 14/09/2026:
+             *"cho tên misa rộng ra tí để hết tên đầy đủ"*. Tên MISA là thứ phải ĐỐI CHIẾU bằng
+             mắt với sổ kế toán; nhìn không hết tên thì cái cột này mất gần hết công dụng.
+             `width:100%` + `min-width` trên ô: rộng ra theo màn hình, nhưng không bao giờ tụt
+             xuống dưới mức đọc được. `box-sizing:border-box` để 100% tính cả viền, không tràn ô. */
+       + '<td class="misa-col misa-ten"><input data-misan="' + t + '" maxlength="190" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px" placeholder="—" title="' + t + '"></td>';
 }
 
 function veQuanLy(){
@@ -9290,7 +9302,7 @@ function veQuanLy(){
      ⚠️ Ô ở đây gọi `kt_ma_misa_dat` (chỉ chạm 2 cột), KHÔNG gọi `kt_ma_misa_luu` (ghi cả hàng) —
         xem chú thích ở `VHG_KeToan::ma_misa_dat`. */
   h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
-    + '</th><th class="misa-col">Unit ID</th><th class="misa-col">' + L('Tên MISA','MISA name') + '</th>'
+    + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
     + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
   if (!coso.length) h += '<tr><td colspan="6" class="mut">'
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
@@ -9343,7 +9355,7 @@ function veQuanLy(){
       + '<td class="r">' + chuaGan + '</td>'
       /* "(chưa gán)" không phải một cơ sở nên KHÔNG có Unit ID — để hai ô trống, đừng cho ô nhập:
          gõ vào đó thì lưu dưới tên "(chưa gán)" thành một dòng rác trong bảng MISA. */
-      + '<td class="misa-col mut">—</td><td class="misa-col mut">—</td>'
+      + '<td class="misa-col mut">—</td><td class="misa-col misa-ten mut">—</td>'
       + '<td style="line-height:1.9">' + dsMaHtml_(maChuaGan) + '</td>'
       + '<td></td></tr>';
   }
@@ -9354,7 +9366,7 @@ function veQuanLy(){
       /* Bảng gập này dùng CHUNG các hàng `hRong` đã dựng ở trên, nên tiêu đề phải có ĐỦ 6 cột
          y hệt bảng chính — thiếu một <th> là mọi ô trong đó lệch sang trái một cột. */
       + '<table style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
-      + '</th><th class="misa-col">Unit ID</th><th class="misa-col">' + L('Tên MISA','MISA name') + '</th>'
+      + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
       + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
   }
   h += '<p class="mut" style="margin:8px 0 0">'

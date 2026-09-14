@@ -60,8 +60,12 @@ Unit ID thì phải mở màn khác rồi dò tên qua lại giữa hai bảng 7
 > lại luật chuẩn hoá ấy bằng JavaScript — repo này đã có đúng một vụ hai bản sao lệch nhau
 > (xem `CLAUDE.md` mục 5: Sao Kê ra chữ thường, Ghế ra chữ HOA).
 
+Ô **Tên MISA** rộng theo màn hình (`width:100%`) nhưng có sàn `.misa-ten{min-width:240px}` — tên
+MISA là thứ phải đối chiếu bằng mắt với sổ kế toán, nhìn không hết tên thì cột này mất gần hết
+công dụng. Hover vào ô hiện tên cơ sở đầy đủ (`title`).
+
 Phép kiểm: `tools/kiem-ghe/kiem-diadiem-misa.js` (Chromium, giả lập ở tầng `XMLHttpRequest` nên
-chạy đúng `goi()` thật).
+chạy đúng `goi()` thật) và `tools/kiem-ghe/kiem-rong-cot-misa.js` (đo cắt chữ ở 3 bề rộng màn).
 
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 

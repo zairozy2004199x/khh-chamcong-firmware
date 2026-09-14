@@ -29,3 +29,17 @@ Kiểm 5 điều, mỗi điều tương ứng một cách hỏng đã thấy th�
 ⚠️ Harness phải giả lập ở tầng `XMLHttpRequest`, **không** thay hàm `goi()`. `goi()` chỉ có
 **ba** tham số và trả lỗi qua **chính** hàm gọi lại (`{ok:false, error:…}`), không có hàm xử lý
 lỗi riêng. Thay `goi()` bằng bản giả là bỏ qua đúng cái luật ấy — và code gọi sai luật vẫn xanh.
+
+
+## `kiem-rong-cot-misa.js` — cột Tên MISA có đọc hết tên không
+
+Đo ở ba bề rộng màn (1500 / 1280 / 1024) và hỏi đúng một câu: **ô có bị cắt chữ không**
+(`scrollWidth > clientWidth`), kèm kiểm trang không tràn ngang.
+
+```bash
+NODE_PATH=/opt/node22/lib/node_modules node kiem-rong-cot-misa.js
+```
+
+⚠️ Harness phải nạp **CSS thật** của plugin (`spa.css` tách từ khối `<<<'CSS'`), không dùng CSS
+rút gọn tự viết. Chiều rộng cột do `.misa-ten{min-width:240px}` quyết định — kiểm bằng CSS khác
+là đo một cái bảng khác, và nó sẽ xanh kể cả khi bản thật vẫn cắt chữ.
