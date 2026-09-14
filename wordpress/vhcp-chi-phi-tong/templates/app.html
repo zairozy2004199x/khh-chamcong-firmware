@@ -41,7 +41,25 @@ body{background:#f1f5f9;color:#0f172a;font-size:13px}
 .cb{padding:14px 16px}
 input,select{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
 input:focus,select:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
-.btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+/* ⚠️ `transition` CHỈ TRÊN NHỮNG THỨ KHÔNG LÀM XÊ DỊCH BỐ CỤC (transform · shadow · màu). Cho
+   nó chạy trên `padding` hay `width` là mỗi lần rê chuột cả hàng nút nhích một chút, và bảng
+   bên dưới giật theo — anh Thắng muốn "động đậy", không phải rung. */
+.btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
+     white-space:nowrap;transition:transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 3px 10px rgba(15,23,42,.16)}
+.btn:active:not(:disabled){transform:translateY(0);box-shadow:0 1px 3px rgba(15,23,42,.14)}
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * NÚT TAB MANG MÀU CỦA CHÍNH NÓ — anh Thắng 14/09/2026: *"tạo màu các nút nhấn theo tab đang mở
+ * của nó"*.
+ *
+ * 🔴 TAB ĐANG MỞ PHẢI NHÌN RA NGAY, kể cả khi mắt đang ở giữa màn. Trước đây tab mở là một nút
+ *    ĐEN giữa hàng nút xám — phân biệt được, nhưng màu đen không nói gì về việc bên trong. Nay
+ *    mỗi tab mang tông của phần việc nó chứa, nên nhìn thanh tab là đã biết mình đang đứng ở
+ *    khâu nào.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.tab{border:1px solid #e2e8f0;background:#fff;color:#64748b}
+.tab:hover{border-color:currentColor}
+.tab.on{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(15,23,42,.18)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
 .b-g{background:#16a34a;color:#fff}
@@ -179,6 +197,7 @@ var TAB_MISA = 'misa';   // tab này KHÔNG phải một nhóm đơn — nó kh�
    bản vẫn lọc theo đơn vị của họ. */
 var TAB_TRA = 'tra';
 var TAB_TQ  = 'tongquan';
+var TAB_CH  = 'cauhinh';
 
 function goi(fn, args){
   return fetch(BOOT.api, {
@@ -203,6 +222,49 @@ function esc(s){
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
   });
 }
+/* Dải link sang các trang mảng — dựng từ chính sổ mảng của người đang xem.
+ * ⚠️ Chỉ bày mảng họ CÓ MẶT: link tới một trang họ không có tài khoản là bấm sang rồi bị chối,
+ *    và câu chối bên ấy nói về PIN chứ không nói về chuyện họ không thuộc mảng đó. */
+function linkMang(){
+  var ds = (TOI && TOI.bans || []).filter(function(b){ return b.url; });
+  if (!ds.length) return '';
+  return '<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center">' +
+    ds.map(function(b){
+      return '<a href="'+esc(b.url)+'" target="_blank" rel="noopener" title="Mở trang '+esc(b.tenBan)+'" ' +
+        'style="font-size:11.5px;font-weight:700;color:#a7f3d0;text-decoration:none;' +
+        'background:rgba(255,255,255,.14);border-radius:999px;padding:3px 10px">' +
+        esc(b.tenBan)+' ↗</a>';
+    }).join('') + '</span>';
+}
+
+/* Tông riêng của từng tab. Ba tab việc lấy đúng tông của bước chúng chứa (xem `mauBuoc`), nên
+   thanh tab và bảng bên dưới nói cùng một thứ tiếng. */
+function mauTab(k){
+  var M = {
+    'cauhinh':  '#334155',   // cấu hình — việc của Admin, tông trung tính
+    'tongquan': '#0f766e',   // tổng quan — màu của chính trang
+    'duyet':    '#b45309',   // đang chờ ai đó làm
+    'cap':      '#b45309',
+    'qt':       '#0369a1',   // tiền đã ra khỏi két, đang đối chiếu
+    'tra':      '#6d28d9',   // tra cứu — việc đọc, không phải việc làm
+    'misa':     '#be123c'    // xuất ra ngoài hệ, mốc cuối
+  };
+  return M[k] || '#0f766e';
+}
+
+function nutTab(k, chu){
+  var m = mauTab(k), on = ( NHOM === k );
+  return '<button class="btn tab'+(on?' on':'')+'" data-nhom="'+esc(k)+'" style="' +
+    ( on ? 'background:'+m+';' : 'color:'+m+';' ) + '">' + chu + '</button>';
+}
+
+/** Người đang xem có vai Admin ở mảng nào không — vai duy nhất sửa được cấu hình trang tổng. */
+function laAdmin(){
+  return (TOI && TOI.bans || []).some(function(b){
+    return String(b.vai||'').trim().toLowerCase() === 'admin';
+  });
+}
+
 /** Người này làm được VIỆC ấy ở ít nhất một mảng không. */
 function coQuyen(viec){
   return (TOI && TOI.bans || []).some(function(b){ return b.quyen && b.quyen[viec]; });
@@ -245,8 +307,7 @@ function veChinh(){
   var nhomDs = TOI.nhom || {};
   var tabs = Object.keys(nhomDs).map(function(k){
     var so = (TOI.dem && TOI.dem[k]) || 0;
-    return '<button class="btn '+(k===NHOM?'b-on':'b-x')+'" data-nhom="'+esc(k)+'">'+
-      esc(nhomDs[k].ten)+'<span class="dem">'+so+'</span></button>';
+    return nutTab(k, nhomDs[k].ten + '<span class="dem">'+so+'</span>');
   }).join('');
   /* 🔴 TAB XUẤT MISA ĐỨNG RIÊNG, KHÔNG PHẢI MỘT NHÓM ĐƠN.
      Ba tab kia hỏi "đơn nào đang chờ tôi quyết định" — có số đếm, gọi ds(). Tab này hỏi
@@ -258,13 +319,13 @@ function veChinh(){
   /* 🔴 TỔNG QUAN ĐỨNG ĐẦU — anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên
      (Dashboard) hiện tất cả đơn từ trước đến giờ"*. Đây là chỗ người ta mở ra trước để biết
      "đang có gì", rồi mới vào từng hàng việc. */
-  tabs = '<button class="btn '+(NHOM===TAB_TQ?'b-on':'b-x')+'" data-nhom="'+TAB_TQ+'">📊 Tổng quan</button>' +
+  tabs = nutTab(TAB_TQ, '📊 Tổng quan') +
     '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' + tabs;
   tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
-    '<button class="btn '+(NHOM===TAB_TRA?'b-on':'b-x')+'" data-nhom="'+TAB_TRA+'">🔎 Tra chi phí</button>';
-  if ( coQuyen('misa') ) {
-    tabs += '<button class="btn '+(NHOM===TAB_MISA?'b-on':'b-x')+'" data-nhom="'+TAB_MISA+'">📤 Xuất MISA</button>';
-  }
+    nutTab(TAB_TRA, '🔎 Tra chi phí');
+  if ( coQuyen('misa') ) { tabs += nutTab(TAB_MISA, '📤 Xuất MISA'); }
+  /* ⚙️ Cấu hình — chỉ Admin. Máy chủ chối lần nữa, không tin mỗi giao diện. */
+  if ( laAdmin() ) { tabs += nutTab(TAB_CH, '⚙️ Cấu hình'); }
 
   /* 🔴 NÓI RÕ VAI Ở TỪNG MẢNG, KHÔNG CHỈ "chỉ xem". Người đọc phải biết mình đang mang vai gì
      thì mới biết phải đi khai quyền ở đâu — "chỉ xem" không nói được điều đó. */
@@ -284,6 +345,11 @@ function veChinh(){
       '<div><h1>💵 Chi Phí Tổng <span class="chip-pb">b'+esc(BOOT.ver)+'</span></h1>' +
       '<div class="sub">Gom đơn các mảng · quản lý duyệt · kế toán cấp tiền &amp; quyết toán</div></div>' +
       '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        /* 🔴 LINK SANG TỪNG TRANG MẢNG, NGAY TRÊN ĐẦU — anh Thắng 14/09/2026: *"trên đầu này link
+           dẫn các trang chi phí"*. Trang tổng cố ý KHÔNG có cấu hình danh mục nào; mọi đường sửa
+           đều dẫn về trang mảng. Trước đây link ấy chỉ nằm rải trong từng thẻ mảng, nên muốn mở
+           một mảng đang không có đơn nào thì không có đường nào bấm. */
+        linkMang() +
         '<span class="nho" style="color:#a7f3d0">'+esc(TOI.ten)+'</span>' +
         '<span class="chuong"><button class="btn b-x" id="nutChuong" title="Việc mới tới">🔔' +
           ( CHUONG.ds.length ? '<span class="chuong-so">'+CHUONG.ds.length+'</span>' : '' ) +
@@ -335,6 +401,8 @@ function veChinh(){
  *    với mốc rỗng — chuông kêu hơi nhiều còn hơn cả trang chết vì một ô lưu trữ.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 var CHUONG = { ds: [], mo: false, hen: null };
+/* Đơn cần bung ra ngay sau lượt vẽ bảng kế tiếp — đặt khi bấm một mục chuông. */
+var MO_DON = null;
 var O_CHUONG = 'vhcpt_chuong_tu';
 
 function chuongTu(){ try { return localStorage.getItem(O_CHUONG) || ''; } catch(e){ return ''; } }
@@ -390,12 +458,16 @@ function moChuong(){
     document.getElementById('hopChuong').hidden = true;
     veSoChuong();
   };
-  /* Bấm một mục -> nhảy sang đúng tab của việc ấy. */
+  /* 🔴 BẤM MỘT MỤC -> MỞ THẲNG ĐƠN ẤY, không chỉ nhảy tab. Anh Thắng 14/09/2026: *"Chuông thông
+     báo nào, bấm vào đơn đó nó vào thẳng đơn đó luôn"*. Thả người ta xuống một bảng ba chục dòng
+     rồi để họ tự dò lại đúng mã đơn vừa bấm là bắt làm hai lần một việc — mà mã đơn thì dài và
+     na ná nhau. */
   Array.prototype.forEach.call(o.querySelectorAll('.muc'), function(n){
     n.onclick = function(){
       var x = CHUONG.ds[+n.getAttribute('data-ci')];
       if (!x) return;
       CHUONG.mo = false; o.hidden = true;
+      MO_DON = { ban: x.ban, maDon: x.maDon };
       NHOM = ( x.viec === 'duyet' ? 'duyet' : ( x.viec === 'cap' ? 'cap' : 'qt' ) );
       veChinh();
     };
@@ -413,6 +485,7 @@ function napDs(){
   if (NHOM === TAB_MISA){ veMisa(); return; }
   if (NHOM === TAB_TRA){ veTra(); return; }
   if (NHOM === TAB_TQ){ veTongQuan(); return; }
+  if (NHOM === TAB_CH){ veCauHinh(); return; }
   goi('ds',{nhom:NHOM}).then(function(r){
     if (r && r.error){ document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
     ROWS = r.rows || [];
@@ -604,6 +677,28 @@ function veBang(){
   Array.prototype.forEach.call(o.querySelectorAll('button[data-xem]'), function(n){
     n.onclick = function(){ xem(+n.getAttribute('data-i')); };
   });
+  moDonDaHen();
+}
+
+/* Bung đúng đơn vừa bấm từ chuông, rồi cuộn tới nó.
+ * ⚠️ ĐƠN CÓ THỂ KHÔNG CÒN Ở TAB NÀY — người khác vừa duyệt xong trong lúc chuông đang mở, nên nó
+ *    đã sang bước sau. Nói ra một câu thay vì im lặng không mở gì: im lặng thì người ta bấm lại
+ *    mấy lần rồi nghĩ chuông hỏng. */
+function moDonDaHen(){
+  if (!MO_DON) return;
+  var can = MO_DON; MO_DON = null;
+  for (var i = 0; i < ROWS.length; i++){
+    if (ROWS[i].ban === can.ban && ROWS[i].maDon === can.maDon){
+      xem(i);
+      var o = document.getElementById('ct'+i);
+      if (o && o.scrollIntoView) o.scrollIntoView({ block:'center', behavior:'smooth' });
+      return;
+    }
+  }
+  datBao('canh', 'Đơn ' + can.maDon + ' không còn ở bước này — có thể vừa có người xử lý xong. '
+    + 'Thử tab khác, hoặc bấm ↻ Làm mới.');
+  var b = document.getElementById('bang');
+  if (b) b.insertAdjacentHTML('beforebegin', veBao());
 }
 
 /* 🔴 MỘT ĐƠN CÓ NHIỀU LOẠI CHI PHÍ — loại nằm ở từng DÒNG CHI, không nằm ở đơn. Rút gọn thành
@@ -1400,6 +1495,117 @@ function veTongQuanKq(){
          '</div></div>';
   }
   o.innerHTML = h;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN CẤU HÌNH — AI LÀM MẢNG NÀO
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"bổ sung tab cấu hình trên trang chi phí tổng, để cấp quyền truy cập
+ * duyệt theo mảng mình làm việc"*.
+ *
+ * 🔴 Ở ĐÂY KHAI PHẠM VI, KHÔNG KHAI QUYỀN. Quyền LÀM GÌ (duyệt · cấp tiền · trả lại · quyết toán ·
+ *    xuất MISA) vẫn nằm ở bảng Phân quyền của từng trang mảng và chỉ ở đó. Màn này trả lời câu
+ *    mà một mình trang tổng biết: người có mặt ở ba mảng thì PHỤ TRÁCH mảng nào.
+ *
+ * ⚠️ TÍCH HẾT = KHÔNG BÓ GÌ. Giữ danh sách đầy đủ trong sổ thì ngày mai thêm mảng thứ năm là
+ *    người ấy lặng lẽ không thấy mảng mới — đúng cái bẫy "danh sách tên khai tay" đã tránh ở
+ *    cửa vào trang.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var CH = { kq: null, dangDoc: false };
+
+function veCauHinh(){
+  var o = document.getElementById('bang');
+  if (!CH.kq){ o.innerHTML = '<p class="mo">Đang đọc…</p>'; docCauHinh(); return; }
+  var k = CH.kq, bans = k.bans || [];
+
+  var h = '<div class="card"><div class="ch"><h2>⚙️ Cấu hình — ai làm mảng nào</h2></div>' +
+    '<div class="cb"><p class="nho mo">Trang tổng <b>không khai quyền</b>: ai được duyệt, cấp tiền, ' +
+    'quyết toán hay xuất MISA vẫn khai ở bảng <b>Phân quyền</b> của từng trang mảng. Ở đây chỉ bó ' +
+    '<b>phạm vi mảng</b> — người có tài khoản ở nhiều mảng thì làm việc trên trang này ở mảng nào.</p>' +
+    '<p class="nho mo">Bỏ tích một mảng = người ấy <b>không thấy và không bấm được</b> đơn của mảng ' +
+    'đó trên trang tổng. <b>Tích hết = không bó gì</b> — mảng mới thêm sau này họ cũng thấy luôn.</p>' +
+    '<div class="cuon" style="margin-top:10px"><table><thead><tr><th>Người</th>' +
+    bans.map(function(b){ return '<th style="text-align:center">'+esc(b.ten)+'</th>'; }).join('') +
+    '<th>Vai ở từng mảng</th></tr></thead><tbody>';
+
+  (k.ds||[]).forEach(function(x, i){
+    h += '<tr><td><b>'+esc(x.ten)+'</b>' +
+      ( x.vao ? '' : '<div class="nho" style="color:#b45309">không vào được trang tổng</div>' ) + '</td>';
+    bans.forEach(function(b){
+      var coMat = (x.coMat||[]).indexOf(b.ban) >= 0;
+      /* ⚠️ KHÔNG CÓ TÀI KHOẢN Ở MẢNG ẤY THÌ KHÔNG CÓ Ô TÍCH. Bày ô rồi tích vào cũng không mở
+         được gì (sổ phạm vi chỉ THU HẸP, không nới ra) — một ô tích không làm gì là lời nói dối
+         nhỏ mà người khai sẽ tin. */
+      if (!coMat){ h += '<td style="text-align:center" class="mo nho" title="Không có tài khoản ở mảng này">—</td>'; return; }
+      var lam = ( x.lam === null || x.lam === undefined ) ? null : x.lam;
+      var tich = ( lam === null ) || ( lam.indexOf(b.ban) >= 0 );
+      h += '<td style="text-align:center"><input type="checkbox" data-i="'+i+'" data-ban="'+esc(b.ban)+'"' +
+           ( tich ? ' checked' : '' ) + '></td>';
+    });
+    var vai = [];
+    Object.keys(x.vai||{}).forEach(function(kb){ vai.push(tenBanNgan(bans,kb)+': '+(x.vai[kb]||'—')); });
+    h += '<td class="nho mo">'+esc(vai.join(' · '))+'</td></tr>';
+  });
+
+  h += '</tbody></table></div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px;align-items:center">' +
+    '<button class="btn b-g" id="chLuu">💾 Lưu phạm vi mảng</button>' +
+    '<span class="nho mo" id="chTin"></span></div></div></div>';
+  o.innerHTML = h;
+
+  document.getElementById('chLuu').onclick = function(){ luuCauHinh(); };
+}
+
+function tenBanNgan(bans, khoa){
+  for (var i=0;i<bans.length;i++){ if (bans[i].ban === khoa) return bans[i].ten; }
+  return khoa;
+}
+
+function docCauHinh(){
+  if (CH.dangDoc) return;
+  CH.dangDoc = true;
+  goi('cauHinh',{}).then(function(r){
+    CH.dangDoc = false;
+    if (r && r.error){
+      document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>';
+      return;
+    }
+    CH.kq = r; veCauHinh();
+  }).catch(function(){
+    CH.dangDoc = false;
+    document.getElementById('bang').innerHTML = '<div class="bao bao-loi">Không gọi được máy chủ.</div>';
+  });
+}
+
+function luuCauHinh(){
+  var o = document.getElementById('bang');
+  var gom = {};
+  Array.prototype.forEach.call(o.querySelectorAll('input[type=checkbox][data-i]'), function(n){
+    var i = n.getAttribute('data-i');
+    if (!gom[i]) gom[i] = [];
+    if (n.checked) gom[i].push(n.getAttribute('data-ban'));
+  });
+  var ds = CH.kq.ds || [], can = [];
+  Object.keys(gom).forEach(function(i){ if (ds[+i]) can.push({ ten: ds[+i].ten, mang: gom[i] }); });
+  if (!can.length) return;
+
+  var tin = document.getElementById('chTin');
+  var nut = document.getElementById('chLuu');
+  nut.disabled = true; if (tin) tin.textContent = 'Đang lưu…';
+  /* Lưu tuần tự từng người: mỗi người một dòng sổ riêng, và lỗi ở một người không được kéo
+     theo cả bảng. */
+  var i = 0, loi = 0;
+  (function ke(){
+    if (i >= can.length){
+      nut.disabled = false;
+      if (tin) tin.textContent = loi ? ('Xong, nhưng '+loi+' người lưu không được.') : 'Đã lưu.';
+      CH.kq = null; docCauHinh();
+      return;
+    }
+    var x = can[i++];
+    goi('luuCauHinh', x).then(function(r){ if (!r || r.error) loi++; ke(); })
+      .catch(function(){ loi++; ke(); });
+  })();
 }
 
 function lam(nut, d, viec){

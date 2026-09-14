@@ -223,6 +223,11 @@ class VHCPT_Auth {
 	public static function duoc( $khoa, $viec ) {
 		if ( ! self::$toi ) { return false; }
 		$k = strtolower( trim( (string) $khoa ) );
+		/* 🔴 PHẠM VI MẢNG CHẶN TRƯỚC MỌI THỨ. Giấu mảng trên màn mà vẫn cho bấm là người ta gửi
+		   thẳng lời gọi lên cổng và duyệt được đơn của mảng không phải của mình — đúng thứ sổ
+		   phạm vi sinh ra để chặn. Xem `mang_cua()`. */
+		$cho = self::mang_cua( self::ten() );
+		if ( null !== $cho && ! in_array( $k, $cho, true ) ) { return false; }
 		$b = isset( self::$toi['bans'][ $k ] ) ? self::$toi['bans'][ $k ] : null;
 		if ( ! $b ) { return false; }
 		if ( ! isset( self::VIEC[ $viec ] ) ) { return false; }
@@ -491,6 +496,89 @@ class VHCPT_Auth {
 	/** Những bản người này ĐỌC được (có mặt trong sổ của bản ấy). */
 	public static function ban_doc_duoc() {
 		if ( ! self::$toi ) { return array(); }
-		return array_keys( (array) self::$toi['bans'] );
+		$ds = array_keys( (array) self::$toi['bans'] );
+		return self::loc_theo_mang( $ds, self::ten() );
+	}
+
+	/* ═══════════════════════════════════════════════════════════════ PHẠM VI MẢNG */
+
+	/** Sổ phạm vi mảng: tên (hạ chữ thường) => danh sách khoá mảng. */
+	const O_MANG = 'vhcpt_mang_cua';
+
+	/**
+	 * NGƯỜI NÀY LÀM VIỆC Ở NHỮNG MẢNG NÀO TRÊN TRANG TỔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"bổ sung tab cấu hình trên trang chi phí tổng, để cấp quyền truy cập
+	 * duyệt theo mảng mình làm việc"*.
+	 *
+	 * 🔴 ĐÂY LÀ PHẠM VI, KHÔNG PHẢI QUYỀN. Quyền LÀM GÌ (duyệt · cấp tiền · trả lại · quyết toán ·
+	 *    xuất MISA) vẫn nằm ở bảng Phân quyền của từng trang mảng và CHỈ ở đó — anh Thắng đã chốt
+	 *    từ đầu: *"trang chi phí tổng nó lấy cấu hình hết bên các trang chi phí con, chứ nó không
+	 *    có cấu hình gì trong đó"*. Khai lại quyền ở đây là dựng bản thứ hai cho cùng một câu hỏi,
+	 *    rồi hai bản lệch nhau và không ai biết bản nào đang có hiệu lực.
+	 *
+	 *    Thứ chỉ trang tổng mới biết là: người này có mặt ở ba mảng, nhưng chỉ PHỤ TRÁCH một.
+	 *    Sổ này trả lời đúng câu ấy, và chỉ câu ấy.
+	 *
+	 * ⚠️ CHƯA KHAI = MỌI MẢNG HỌ CÓ MẶT. Hiểu "chưa khai" thành "không mảng nào" là mỗi người mới
+	 *    vào trang tổng đều thấy trắng trơn cho tới khi có ai nhớ ra phải vào khai — đúng cái bẫy
+	 *    đã tránh ở cửa vào (xem `duoc_vao()`).
+	 *
+	 * 🔴 SỔ CHỈ THU HẸP, KHÔNG BAO GIỜ NỚI RA. Khai một mảng người ấy KHÔNG có tài khoản thì mảng
+	 *    ấy vẫn không mở: `$ds` truyền vào đã là những mảng họ thật sự có mặt.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function mang_cua( $ten ) {
+		$k  = mb_strtolower( trim( (string) $ten ) );
+		$so = get_option( self::O_MANG, array() );
+		if ( ! is_array( $so ) || '' === $k || ! isset( $so[ $k ] ) ) { return null; }
+		$ds = array();
+		foreach ( (array) $so[ $k ] as $x ) {
+			$x = sanitize_key( (string) $x );
+			if ( '' !== $x && ! in_array( $x, $ds, true ) ) { $ds[] = $x; }
+		}
+		return $ds ? $ds : null;   // khai rỗng cũng coi như chưa khai — xem khối trên
+	}
+
+	/** Bó danh sách mảng theo sổ phạm vi. Chưa khai thì giữ nguyên. */
+	public static function loc_theo_mang( $ds, $ten ) {
+		$cho = self::mang_cua( $ten );
+		if ( null === $cho ) { return $ds; }
+		$ra = array();
+		foreach ( (array) $ds as $x ) { if ( in_array( $x, $cho, true ) ) { $ra[] = $x; } }
+		return $ra;
+	}
+
+	/** Ghi sổ phạm vi cho một người. Truyền mảng rỗng = xoá khai (về mặc định mọi mảng). */
+	public static function dat_mang_cua( $ten, $ds ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return; }
+		$so = get_option( self::O_MANG, array() );
+		if ( ! is_array( $so ) ) { $so = array(); }
+		$sach = array();
+		foreach ( (array) $ds as $x ) {
+			$x = sanitize_key( (string) $x );
+			if ( '' !== $x && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		if ( $sach ) { $so[ $k ] = $sach; } else { unset( $so[ $k ] ); }
+		update_option( self::O_MANG, $so );
+	}
+
+	/**
+	 * Người đang gọi có được SỬA cấu hình trang tổng không.
+	 *
+	 * 🔴 CHỈ ADMIN. Màn này quyết ai nhìn thấy sổ tiền của mảng nào; cho người khác sửa là họ tự
+	 *    mở đường cho chính mình. Vai 'Admin' là vai duy nhất đứng ngoài ma trận phân quyền của
+	 *    các bản (xem `bang_quyen()`), nên nó cũng là chỗ duy nhất đủ tư cách.
+	 */
+	public static function la_admin() {
+		if ( ! self::$toi ) { return false; }
+		foreach ( (array) self::$toi['bans'] as $b ) {
+			if ( 0 === strcasecmp( trim( (string) ( isset( $b['vai'] ) ? $b['vai'] : '' ) ), 'Admin' ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

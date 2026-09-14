@@ -615,7 +615,9 @@ foreach ( array(
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
 	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq', 'mauBuoc',
 	/* việc trên đơn */             'lam',
-	/* chuông */                    'docChuong', 'veSoChuong', 'moChuong', 'mauViec', 'chuongTu', 'datChuongTu',
+	/* chuông */                    'docChuong', 'veSoChuong', 'moChuong', 'mauViec', 'chuongTu', 'datChuongTu', 'moDonDaHen',
+	/* cấu hình phạm vi mảng */     'veCauHinh', 'docCauHinh', 'luuCauHinh', 'laAdmin',
+	/* thanh tab + link mảng */     'nutTab', 'mauTab', 'linkMang',
 ) as $ham ) {
 	t( '🔴 màn còn hàm ' . $ham . '()', false !== strpos( $html, 'function ' . $ham . '(' ), '' );
 }
@@ -690,7 +692,7 @@ t( '⚠️ đơn đã xong thì nói ĐÃ XONG, không nói thiếu quyền',
  * chờ mà chưa gửi"*.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 t( '🔴 tab Tổng quan đứng ĐẦU',
-	(bool) preg_match( '#tabs = .<button[^;]*TAB_TQ#', $html ), '' );
+	(bool) preg_match( '#tabs = nutTab\(TAB_TQ,#', $html ), '' );
 t( 'và mở trang là vào thẳng nó', (bool) preg_match( "#NHOM = 'tongquan'#", $html ), '' );
 t( '🔴 có cổng tongQuan ở máy chủ', false !== strpos( $api_ma, '\'tongQuan\' === $viec' ), '' );
 foreach ( array( 'coso', 'loai', 'nguoi', 'tuNgay', 'denNgay' ) as $f ) {
@@ -864,6 +866,63 @@ t( '🔴 đánh dấu đã đọc lấy giờ MÁY CHỦ',
 t( '🔴 chuông tự hỏi lại theo nhịp', (bool) preg_match( '#setInterval\(docChuong, 60000\)#', $html ), '' );
 t( 'bấm một mục thì nhảy sang đúng tab của việc ấy',
 	(bool) preg_match( "#NHOM = \( x\.viec === 'duyet'#", $html ), '' );
+
+/* ═══ 6n. CẤU HÌNH PHẠM VI MẢNG · CHUÔNG MỞ THẲNG ĐƠN · THANH TAB ══════════════
+ *
+ * Anh Thắng 14/09/2026: *"bổ sung tab cấu hình trên trang chi phí tổng, để cấp quyền truy cập
+ * duyệt theo mảng mình làm việc"* · *"Chuông thông báo nào, bấm vào đơn đó nó vào thẳng đơn đó
+ * luôn"* · *"tạo màu các nút nhấn theo tab đang mở"* · *"re chuột nó động đậy"* · *"trên đầu này
+ * link dẫn các trang chi phí"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$auth_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $TONG . '/includes/class-vhcpt-auth.php' ) );
+
+t( '🔴 có cổng đọc và ghi cấu hình',
+	false !== strpos( $api_ma, '\'cauHinh\' === $viec' ) && false !== strpos( $api_ma, '\'luuCauHinh\' === $viec' ), '' );
+/* 🔴 CHỈ ADMIN. Màn này quyết ai nhìn thấy sổ tiền của mảng nào; cho người khác sửa là họ tự mở
+   đường cho chính mình. */
+t( '🔴 cả hai cổng đều gác bằng la_admin()',
+	2 === preg_match_all( '#! VHCPT_Auth::la_admin\(\)#', $api_ma ), '' );
+t( 'và màn chỉ bày tab ấy cho Admin', (bool) preg_match( '#if \( laAdmin\(\) \) \{ tabs \+= nutTab\(TAB_CH#', $html ), '' );
+
+/* 🔴 PHẠM VI CHẶN Ở MÁY CHỦ, KHÔNG CHỈ GIẤU TRÊN MÀN. Giấu mảng đi mà vẫn cho bấm là người ta
+   gửi thẳng lời gọi lên cổng và duyệt được đơn của mảng không phải của mình. */
+t( '🔴 duoc() chặn theo phạm vi mảng',
+	(bool) preg_match( '#function duoc\([\s\S]{0,600}?mang_cua\( self::ten\(\) \)#', $auth_ma ), '' );
+t( '🔴 ban_doc_duoc() cũng lọc theo phạm vi',
+	(bool) preg_match( '#function ban_doc_duoc\([\s\S]{0,300}?loc_theo_mang#', $auth_ma ), '' );
+/* ⚠️ CHƯA KHAI = MỌI MẢNG HỌ CÓ MẶT. Hiểu "chưa khai" thành "không mảng nào" là mỗi người mới
+   vào đều thấy trắng trơn cho tới khi có ai nhớ ra phải vào khai. */
+t( '⚠️ chưa khai thì KHÔNG bó gì',
+	(bool) preg_match( '#null === \$cho \) \{ return \$ds; \}#', $auth_ma ), '' );
+/* ⚠️ Tích hết = xoá khai: giữ danh sách đầy đủ thì ngày mai thêm mảng thứ năm là người ấy lặng
+   lẽ không thấy mảng mới. */
+t( '⚠️ tích HẾT mảng = xoá khai, không ghim danh sách đầy',
+	(bool) preg_match( '#count\( \$sach \) === count\( \$hop \) \) \{ \$sach = array\(\); \}#', $api_ma ), '' );
+/* 🔴 Sổ chỉ THU HẸP: khai một mảng người ấy không có tài khoản thì mảng ấy vẫn không mở. */
+t( '🔴 màn không bày ô tích cho mảng người ấy không có tài khoản',
+	(bool) preg_match( '#if \(!coMat\)\{#', $html ), '' );
+t( '⚠️ và cổng chỉ nhận khoá mảng CÓ THẬT',
+	(bool) preg_match( '#in_array\( \$x, \$hop, true \)#', $api_ma ), '' );
+
+/* Chuông -> mở thẳng đơn. */
+t( '🔴 bấm mục chuông là mở thẳng đơn ấy', (bool) preg_match( '#MO_DON = \{ ban: x\.ban, maDon: x\.maDon \};#', $html ), '' );
+t( 'và cuộn tới nó', (bool) preg_match( '#scrollIntoView#', $html ), '' );
+/* ⚠️ Đơn có thể không còn ở tab ấy (người khác vừa xử lý xong) — nói ra thay vì im lặng không mở
+   gì, im lặng thì người ta bấm lại mấy lần rồi nghĩ chuông hỏng. */
+t( '⚠️ đơn không còn ở bước này thì nói ra',
+	false !== mb_strpos( $html_ma, 'không còn ở bước này' ), '' );
+
+/* Thanh tab. */
+t( '🔴 mỗi tab một tông riêng', false !== strpos( $html, 'function mauTab(' ), '' );
+t( '⚠️ rê chuột thì nhấc nhẹ, KHÔNG đổi kích thước (bảng dưới sẽ giật)',
+	false !== strpos( $html, '.btn:hover:not(:disabled){transform:translateY(-1px)' )
+		&& false !== strpos( $html, 'transition:transform .12s ease' )
+		&& ! preg_match( '#transition:[^;}]*\b(width|height|padding|margin)\b#', $html ), '' );
+t( '🔴 thanh đầu có link sang từng trang mảng', false !== strpos( $html, 'function linkMang(' ), '' );
+/* ⚠️ Chỉ bày mảng họ CÓ MẶT: link tới trang họ không có tài khoản là bấm sang rồi bị chối, mà
+   câu chối bên ấy nói về PIN chứ không nói họ không thuộc mảng đó. */
+t( '⚠️ chỉ link mảng người ấy có mặt', (bool) preg_match( '#TOI\.bans \|\| \[\]\)\.filter\(function\(b\)\{ return b\.url; \}\)#', $html ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

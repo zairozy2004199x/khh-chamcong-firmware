@@ -76,6 +76,8 @@ class VHCPT_Api {
 		if ( 'tra' === $viec )      { return self::ra( self::tra( $args ) ); }
 		if ( 'tongQuan' === $viec ) { return self::ra( self::tong_quan( $args ) ); }
 		if ( 'chuong' === $viec )   { return self::ra( self::chuong( $args ) ); }
+		if ( 'cauHinh' === $viec )  { return self::ra( self::cau_hinh( $args ) ); }
+		if ( 'luuCauHinh' === $viec ) { return self::ra( self::luu_cau_hinh( $args ) ); }
 		if ( 'traLai' === $viec )   { return self::ra( self::tra_lai( $args ) ); }
 		if ( 'chiTiet' === $viec )  { return self::ra( self::chi_tiet( $args ) ); }
 		if ( 'dangXuat' === $viec ) { VHCPT_Auth::bo_the( $the ); return self::ra( array( 'ok' => true ) ); }
@@ -129,6 +131,8 @@ class VHCPT_Api {
 			$bans[] = array(
 				'ban'    => $khoa,
 				'tenBan' => VHCPT_Ban::ten( $khoa ),
+				/* Đường sang trang mảng — dải link trên đầu màn dựng từ đây. */
+				'url'    => (string) ( isset( VHCPT_Ban::ds()[ $khoa ]['url'] ) ? VHCPT_Ban::ds()[ $khoa ]['url'] : '' ),
 				'vai'    => (string) $b['vai'],
 				'duyet'  => ! empty( $b['duyet'] ),
 				/* Cả bảng quyền, để màn biết vẽ nút nào cho mảng nào. */
@@ -387,6 +391,71 @@ class VHCPT_Api {
 		}
 		return array( 'ok' => true,
 			'message' => 'Đã quyết toán phần cá nhân ' . $c['ma'] . ' (' . VHCPT_Ban::ten( $c['khoa'] ) . ').' );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CẤU HÌNH TRANG TỔNG — AI LÀM MẢNG NÀO
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"bổ sung tab cấu hình trên trang chi phí tổng, để cấp quyền truy cập
+	 * duyệt theo mảng mình làm việc"*.
+	 *
+	 * 🔴 Ở ĐÂY KHAI PHẠM VI, KHÔNG KHAI QUYỀN. Quyền LÀM GÌ vẫn nằm ở bảng Phân quyền của từng
+	 *    trang mảng và chỉ ở đó — anh Thắng chốt từ đầu: *"trang chi phí tổng nó lấy cấu hình hết
+	 *    bên các trang chi phí con, chứ nó không có cấu hình gì trong đó"*. Màn này chỉ trả lời
+	 *    câu mà một mình trang tổng biết: người có mặt ở ba mảng thì PHỤ TRÁCH mảng nào.
+	 *
+	 * 🔴 CHỈ ADMIN SỬA ĐƯỢC. Màn này quyết ai nhìn thấy sổ tiền của mảng nào; cho người khác sửa
+	 *    là họ tự mở đường cho chính mình.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function cau_hinh( $args ) {
+		if ( ! VHCPT_Auth::la_admin() ) {
+			return array( 'error' => 'Chỉ Admin mới xem và sửa được cấu hình trang tổng.' );
+		}
+		$bans = array();
+		foreach ( VHCPT_Ban::ds() as $khoa => $b ) {
+			$bans[] = array( 'ban' => $khoa, 'ten' => VHCPT_Ban::ten( $khoa ) );
+		}
+		$ds = array();
+		foreach ( VHCPT_Auth::moi_nguoi() as $k => $ng ) {
+			$cho = VHCPT_Auth::mang_cua( $ng['ten'] );
+			$co  = array();
+			foreach ( $ng['bans'] as $khoa => $b ) { $co[] = $khoa; }
+			$ds[] = array(
+				'ten'    => $ng['ten'],
+				'coMat'  => $co,                       // mảng người ấy có tài khoản
+				'lam'    => ( null === $cho ) ? null : $cho,   // null = chưa khai (mọi mảng)
+				'vao'    => ! empty( $ng['vao'] ),
+				'coViec' => ! empty( $ng['coViec'] ),
+				/* Vai ở từng mảng, để người khai nhìn ra ai là ai mà không phải mở bốn trang. */
+				'vai'    => array_map( function ( $b ) { return (string) $b['vai']; }, $ng['bans'] ),
+			);
+		}
+		return array( 'ok' => true, 'bans' => $bans, 'ds' => $ds );
+	}
+
+	private static function luu_cau_hinh( $args ) {
+		if ( ! VHCPT_Auth::la_admin() ) {
+			return array( 'error' => 'Chỉ Admin mới sửa được cấu hình trang tổng.' );
+		}
+		$ten = isset( $args['ten'] ) ? sanitize_text_field( (string) $args['ten'] ) : '';
+		if ( '' === $ten ) { return array( 'error' => 'Thiếu tên người.' ); }
+		$ds = isset( $args['mang'] ) && is_array( $args['mang'] ) ? $args['mang'] : array();
+
+		/* ⚠️ CHỈ NHẬN MẢNG CÓ THẬT. Khoá lạ lọt vào sổ là một dòng rác không bao giờ khớp gì, và
+		   nó nằm đó im lặng cho tới ngày ai đó đọc sổ và tưởng mảng ấy từng tồn tại. */
+		$hop = array_keys( VHCPT_Ban::ds() );
+		$sach = array();
+		foreach ( $ds as $x ) {
+			$x = sanitize_key( (string) $x );
+			if ( in_array( $x, $hop, true ) && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		/* Tích HẾT mảng = xoá khai, về mặc định "mọi mảng họ có mặt". Giữ một danh sách đầy đủ
+		   trong sổ thì ngày mai thêm mảng thứ năm là người ấy lặng lẽ không thấy mảng mới. */
+		if ( count( $sach ) === count( $hop ) ) { $sach = array(); }
+		VHCPT_Auth::dat_mang_cua( $ten, $sach );
+		return array( 'ok' => true, 'message' => $sach
+			? ( 'Đã bó ' . $ten . ' vào ' . count( $sach ) . ' mảng.' )
+			: ( $ten . ' nay làm ở mọi mảng họ có tài khoản.' ) );
 	}
 
 	/**
