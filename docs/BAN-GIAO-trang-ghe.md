@@ -207,6 +207,38 @@ cáo**, lọc theo **tên · PIN · cơ sở · ghế riêng**, kèm bộ đếm
 Phép kiểm: `tools/kiem-ghe/kiem-tim-nhan-vien.js` — gõ có dấu / không dấu / HOA-thường, tìm theo
 PIN, theo cơ sở, và ca không khớp ai.
 
+### 3.6 Tên thường gọi của ghế (2.80.0)
+
+Anh Thắng 14/09/2026: *"thêm tên thường gọi cho ghế để nhân viên dễ biết, nhiều khi lấy mã cố định
+thành tra tên không ra ràng"*.
+
+Cột mới **`may.ten_goi`** + ô nhập **"Tên thường gọi"** trong bảng Quản lý ghế (lưu khi rời ô, y
+như ô Tên ghế). Màn **nhập chỉ số của nhân viên** hiện nó ở **dòng dưới**, chữ nhỏ màu xanh, ngay
+dưới `Tên ghế (mã)`.
+
+> 🔴 **KHÔNG dùng lại `ten_khai`.** Cột đó là **"Tên trên sao kê"** — phải khớp nội dung chuyển
+> khoản để đối soát ngân hàng ghép tiền về đúng ghế. Sửa nó thành *"ghế cạnh thang máy"* là mọi
+> giao dịch của ghế đó thôi ghép được — **âm thầm**, chỉ lộ ra cuối tháng khi thấy một đống tiền
+> không biết của ghế nào.
+> 🔴 `ten_goi` **không được dùng làm khoá ghép** ở bất kỳ đâu. Nó chỉ để người đọc.
+> 🔴 Hai ô đi **hai đường lưu khác nhau** (`may_ten` / `may_ten_goi`). Gộp làm một là một ngày nào
+> đó sửa tên thường gọi lại ghi đè tên sao kê.
+
+> ⚠️ Trên màn nhân viên, tên thường gọi **đứng dưới**, không thay chỗ `Tên ghế (mã)`. Nhân viên đối
+> chiếu với tem dán trên ghế bằng **mã**; bỏ mã đi để lấy chỗ cho một câu dễ đọc là lúc cần tra
+> ngược lại không còn gì để tra.
+
+**Thứ tự sắp xếp giữ nguyên theo TÊN GHẾ**, không đổi sang tên thường gọi: tên ghế có quy luật
+(`VHM-1`…`VHM-12`) nên xếp ra thứ tự dùng được; tên thường gọi là câu chữ tự do, xếp theo nó thì
+danh sách nhảy lung tung mỗi lần ai đó sửa một cái tên.
+
+Phép kiểm: `tools/kiem-ghe/kiem-ten-thuong-goi.js` — có đủ cột, giá trị nạp đúng, và **hai ô gửi
+hai lệnh riêng, không lệnh nào mang trường của lệnh kia**.
+
+> Phần hiển thị trên màn nhân viên là 6 dòng thêm vào, có `if (g.ten_goi)` bao ngoài, và dùng đúng
+> `el()` sẵn có của khối đó — `node --check` sạch, nhưng **chưa dựng harness riêng cho màn nhân
+> viên** (khối đó là IIFE kín, chưa có lối mở ra để kiểm).
+
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
 - **quan_tri** — Admin/Quản lý: toàn quyền (thêm/xoá cơ sở & ghế, gán mã, cấp PIN báo cáo,

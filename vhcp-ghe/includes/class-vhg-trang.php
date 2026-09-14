@@ -760,6 +760,11 @@ class VHG_Trang {
 					isset( $d['ten'] ) ? (string) $d['ten'] : '' );
 				self::tra( $r ); return;
 			}
+			if ( 'may_ten_goi' === $viec ) {
+				$r = VHG_May::dat_ten_goi( isset( $d['ma'] ) ? (string) $d['ma'] : '',
+					isset( $d['ten_goi'] ) ? (string) $d['ten_goi'] : '' );
+				self::tra( $r ); return;
+			}
 			if ( 'may_an' === $viec ) {
 				$r = VHG_May::dat_an( isset( $d['ma'] ) ? (string) $d['ma'] : '', ! empty( $d['an'] ) );
 				if ( ! empty( $r['ok'] ) ) {
@@ -2297,6 +2302,15 @@ class VHG_Trang {
     var tdN=el('td');
     var tenHien=(g.ten&&String(g.ten)!==String(g.ma)) ? (g.ten+' ('+g.ma+')') : g.ma;
     tdN.appendChild(el('b',null,tenHien));
+    /* TÊN THƯỜNG GỌI xuống DÒNG DƯỚI, chữ nhỏ — anh Thắng 14/09/2026: *"nhiều khi lấy mã cố định
+       thành tra tên không ra ràng"*.
+       ⚠️ ĐỨNG DƯỚI, KHÔNG THAY CHỖ tên+mã. Nhân viên đối chiếu với tem dán trên ghế bằng MÃ; bỏ mã
+          đi để lấy chỗ cho một câu dễ đọc là lúc cần tra ngược lại không còn gì để tra. */
+    if(g.ten_goi){
+      var tg=el('div','mut',g.ten_goi);
+      tg.style.cssText='font-size:12px;margin-top:2px;font-weight:600;color:#0f766e';
+      tdN.appendChild(tg);
+    }
     /* 🔧 BÁO GHẾ LỖI CẦN BẢO TRÌ — anh Thắng 12/09/2026: nhân viên khi thu thấy ghế lỗi thì tích
        vào, ghi nội dung; lệnh đẩy sang tab "Ghế cần bảo trì" bên quản trị (bc_baotri → bao_tri). */
     var bBt=el('button','bc-btn','🔧 Báo lỗi'); bBt.type='button';
@@ -9788,7 +9802,10 @@ function qlGheRender(){
   }
   /* Sắp theo TÊN GHẾ (tự nhiên: VHM-1, VHM-2, … VHM-10), KHÔNG theo mã — anh Thắng 12/09/2026:
      "sắp xếp ghế thì theo tên ghế, không theo mã". Ghế không có tên thì lui về mã. numeric:true để
-     "-2" đứng trước "-10". */
+     "-2" đứng trước "-10".
+     ⚠️ VẪN sắp theo TÊN GHẾ, không theo TÊN THƯỜNG GỌI. Tên ghế có quy luật (VHM-1…VHM-12) nên
+        xếp ra thứ tự dùng được; tên thường gọi là câu chữ tự do ("ghế cạnh thang máy"), xếp theo
+        nó thì danh sách nhảy lung tung mỗi lần ai đó sửa một cái tên. */
   function xepMa(a,b){
     return String(a.ten||a.ma).localeCompare(String(b.ten||b.ma), undefined, {numeric:true})
       || String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true});
@@ -9823,7 +9840,10 @@ function qlGheRender(){
 
   var h = canhTrung + bulk + '<table><tr>'
     + '<th style="width:26px"><input type="checkbox" id="ql-cp"' + (trangDu ? ' checked' : '') + '></th>'
-    + '<th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name') + '</th><th>' + L('Dia diem','Site')
+    + '<th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name') + '</th>'
+    /* TÊN THƯỜNG GỌI — anh Thắng 14/09/2026. Cột riêng, KHÔNG đè lên "Tên ghế": tên ghế đi vào
+       nội dung chuyển khoản để đối soát ngân hàng, còn cột này chỉ để người đọc. */
+    + '<th>' + L('Ten thuong goi','Nickname') + '</th><th>' + L('Dia diem','Site')
     + '</th><th class="r hide-sm">' + L('Trang thai','Status') + '</th><th class="r"></th></tr>';
   if (!list.length) h += '<tr><td colspan="6" class="mut">'
     + (may.length ? L('Khong co ghe o co so nay.','No chairs at this site.')
@@ -9842,7 +9862,13 @@ function qlGheRender(){
       + L('Nhân bản sang mã mới, GIỮ chỉ số (gỡ trùng mã: giữ mã cũ cho cơ sở kia)','Clone to a new code, keep the reading') + '">⎘</button>'
       + maTrungHtml_(m.ma) + '</td>'
       + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
-      + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
+      + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"'
+      + ' title="' + L('Tên ghế — ĐI VÀO NỘI DUNG CHUYỂN KHOẢN để đối soát ngân hàng. Đổi là giao dịch cũ thôi ghép được.',
+                       'Chair name — used in bank transfer content for reconciliation.') + '"></td>'
+      + '<td><input type="text" data-tengoi="' + esc(m.ma) + '" value="' + esc(m.ten_goi || '') + '" maxlength="190" '
+      + 'placeholder="' + L('vd Ghế cạnh thang máy','e.g. Chair by the lift') + '" style="width:150px"'
+      + ' title="' + L('Tên thường gọi — chỉ để nhân viên dễ nhận ra ghế nào. Không ảnh hưởng đối soát.',
+                       'Nickname — only to help staff recognise the chair. Not used for reconciliation.') + '"></td>'
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
       + '<td class="r hide-sm mut">' + tt + '</td>'
       + '<td class="r">'
@@ -9918,6 +9944,15 @@ function qlGheRender(){
     t.onchange = function(){
       if (t.value === t.getAttribute('data-goc')) return;
       lam('may_ten', { ma: t.getAttribute('data-ten'), ten: t.value });
+    };
+  });
+  /* Tên thường gọi — cùng lối lưu-khi-rời-ô với Tên ghế, nhưng ĐƯỜNG KHÁC (`may_ten_goi`).
+     Gộp hai ô vào một lệnh là một ngày nào đó sửa tên thường gọi lại ghi đè tên sao kê. */
+  [].forEach.call(box.querySelectorAll('[data-tengoi]'), function(t){
+    t.setAttribute('data-goc', t.value);
+    t.onchange = function(){
+      if (t.value === t.getAttribute('data-goc')) return;
+      lam('may_ten_goi', { ma: t.getAttribute('data-tengoi'), ten_goi: t.value });
     };
   });
   /* ✎ ĐỔI MÃ GHẾ (admin) — anh Thắng 12/09/2026. gan_ma() dời TOÀN BỘ lịch sử sang mã mới (đã

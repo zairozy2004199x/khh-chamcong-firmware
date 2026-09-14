@@ -1283,6 +1283,29 @@ class VHG_May {
 			? ( 'Đã xoá tên ghế ' . $ma . '.' ) : ( 'Đã đặt tên ghế ' . $ma . ' = "' . $ten . '".' ) );
 	}
 
+	/**
+	 * TÊN THƯỜNG GỌI — anh Thắng 14/09/2026: *"thêm tên thường gọi cho ghế để nhân viên dễ biết,
+	 * nhiều khi lấy mã cố định thành tra tên không ra ràng"*.
+	 *
+	 * 🔴 ĐÂY LÀ CỘT RIÊNG, KHÔNG PHẢI `ten_khai`. `ten_khai` = "Tên trên sao kê", phải khớp nội
+	 *    dung chuyển khoản để đối soát ngân hàng ghép tiền về đúng ghế. Đổi nó thành một cái tên
+	 *    dễ đọc là mọi giao dịch của ghế đó thôi ghép được — âm thầm, và chỉ lộ ra lúc cuối tháng
+	 *    thấy một đống tiền không biết của ghế nào.
+	 * ⚠️ `ten_goi` KHÔNG được dùng làm khoá ghép ở bất kỳ đâu. Nó chỉ để hiện cho người đọc.
+	 */
+	public static function dat_ten_goi( $ma, $ten_goi ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		$tg = mb_substr( trim( (string) $ten_goi ), 0, 190 );
+		$wpdb->update( VHG_DB::t( 'may' ),
+			array( 'ten_goi' => $tg, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => '' === $tg
+			? ( 'Đã xoá tên thường gọi của ghế ' . $ma . '.' )
+			: ( 'Ghế ' . $ma . ' nay gọi là "' . $tg . '".' ) );
+	}
+
 	public static function dat_coso( $ma, $coso_id ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );

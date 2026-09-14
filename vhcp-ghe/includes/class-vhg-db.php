@@ -92,6 +92,19 @@ class VHG_DB {
 			$wpdb->query( "ALTER TABLE $coso ADD COLUMN dong_cua TINYINT(1) NOT NULL DEFAULT 0" );
 		}
 
+		/* `may.ten_goi` (v2.80.0) — TÊN THƯỜNG GỌI của ghế. Anh Thắng 14/09/2026: *"thêm tên
+		   thường gọi cho ghế để nhân viên dễ biết, nhiều khi lấy mã cố định thành tra tên không
+		   ra ràng"*.
+		   🔴 KHÔNG DÙNG LẠI `ten_khai`. Cột đó là "Tên trên sao kê" — nó phải khớp NỘI DUNG CHUYỂN
+		      KHOẢN để đối soát ngân hàng ghép được tiền về đúng ghế (xem `VHG_Saoke`). Sửa nó
+		      thành "ghế cạnh thang máy" là mọi giao dịch của ghế đó thôi ghép được, âm thầm.
+		      `ten_goi` chỉ để NGƯỜI ĐỌC, không đường nào ghép dữ liệu bằng nó. */
+		$may = self::t( 'may' );
+		$co_tg = $wpdb->get_var( "SHOW COLUMNS FROM $may LIKE 'ten_goi'" );
+		if ( ! $co_tg ) {
+			$wpdb->query( "ALTER TABLE $may ADD COLUMN ten_goi VARCHAR(190) NOT NULL DEFAULT '' AFTER ten_khai" );
+		}
+
 		/* `bc.bill_*` (v2.6.0) — thêm tay cùng lý do với `phien.pin` và `coso.ma_kh` ở trên: `bc`
 		   là bảng ĐANG SỐNG, đông hàng thật. Và ở đây hậu quả của việc dbDelta lỡ một cột nặng
 		   hơn hẳn: `bill_luc` là CÁI KHOÁ của báo cáo. Cột không lên thì mọi câu đọc khoá đều

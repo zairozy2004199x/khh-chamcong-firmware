@@ -159,6 +159,12 @@ class VHG_BaoCao {
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
 				'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
+				/* TÊN THƯỜNG GỌI — anh Thắng 14/09/2026: *"để nhân viên dễ biết, nhiều khi lấy mã
+				   cố định thành tra tên không ra ràng"*.
+				   ⚠️ GỬI THÊM, KHÔNG THAY. `ten` vẫn là tên sao kê và vẫn là thứ mọi chỗ ghép dữ
+				      liệu dùng tới; đổi nó thành tên thường gọi là đối soát ngân hàng hụt hết.
+				      Màn nhập chỉ hiện `ten_goi` KÈM `ten` cho người đọc. */
+				'ten_goi' => (string) ( isset( $m['ten_goi'] ) ? $m['ten_goi'] : '' ),
 				'coso' => $coso,
 				'an'   => 0,
 			);
