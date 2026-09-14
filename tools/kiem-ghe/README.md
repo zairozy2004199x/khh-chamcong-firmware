@@ -117,3 +117,20 @@ mã trùng.
 **Tầng giao diện**: đúng hai lượt gọi (xem trước `that:0` rồi mới `that:1`) · mã **đã ẩn** và mã
 **đang thuộc cơ sở** không lọt vào lệnh · mã còn dữ liệu không được gửi đi xoá · hộp xác nhận
 **liệt kê đúng những mã sắp mất**.
+
+
+## `kiem-cuong-che-xoa.js` — đường cưỡng chế của Quản trị
+
+Ba ca, và hai trong ba ca là **không được xoá gì**:
+
+| Ca | Phải xảy ra |
+|---|---|
+| Gõ **sai** chuỗi xác nhận | chỉ có lượt xem trước, **không** lượt nào `that:1` |
+| Bấm **Huỷ** ở ô gõ | như trên |
+| Gõ **đúng** `XOA HAN` | lượt 2 có `that:1` **và** `buoc_qua:1`, đúng danh sách mã |
+
+Và hộp thoại phải nói đủ ba điều trước khi cho gõ: gợi ý **✎ ĐỔI MÃ** là việc đúng hơn · **tổng
+tiền KHÔNG đổi** · **đừng tạo lại mã đã xoá**.
+
+> ⚠️ Kiểm nội dung hộp thoại thì giữ **nguyên văn**. Bản đầu cắt chuỗi ở 400 ký tự rồi đi tìm một
+> câu nằm sau chỗ cắt — báo hỏng oan.

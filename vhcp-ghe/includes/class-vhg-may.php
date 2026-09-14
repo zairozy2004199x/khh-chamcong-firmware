@@ -1339,10 +1339,25 @@ class VHG_May {
 	 *    này thêm một bảng mới có cột `ma_may` mà quên cập nhật ở đây -> hàm tưởng "sạch" rồi xoá,
 	 *    và dữ liệu ở bảng mới thành mồ côi. Dò động thì bảng nào có cột đó là tự được tính.
 	 *
-	 * @param array $ds_ma  danh sách mã
-	 * @param bool  $that   false = CHỈ XEM TRƯỚC (không xoá gì), true = xoá thật
+	 * @param array $ds_ma    danh sách mã
+	 * @param bool  $that     false = CHỈ XEM TRƯỚC (không xoá gì), true = xoá thật
+	 * @param bool  $buoc_qua CƯỠNG CHẾ: xoá cả mã còn dữ liệu. Anh Thắng 14/09/2026:
+	 *                        *"admin có quyền xoá hẳn"*.
+	 *
+	 * 🔴 CƯỠNG CHẾ CHỈ BỎ CHỐT SỐ 2, KHÔNG BỎ CHỐT SỐ 1. Mã đang thuộc một cơ sở thì vẫn không
+	 *    xoá được, kể cả admin — anh xin quyền xoá "mã không có cơ sở", không phải xoá ghế đang
+	 *    chạy. Muốn xoá ghế đang chạy thì gỡ nó khỏi cơ sở trước, để thao tác đó hiện ra rõ ràng.
+	 *
+	 * 🔴 CƯỠNG CHẾ CHỈ XOÁ DÒNG Ở BẢNG `may`. 237 dòng ở `thu`/`lenh`/`nhip`… VẪN NẰM NGUYÊN.
+	 *    Vì sao không xoá luôn: `thu` là TIỀN ĐÃ THU. Xoá đi là tổng doanh thu của những tháng đã
+	 *    chốt đổi số — không ai đi đối soát lại một con số tự nhiên nhỏ đi. Giữ lại thì tổng tiền
+	 *    không đổi, chỉ là mấy dòng ấy không còn tra ngược ra ghế nào.
+	 * ⚠️ HỆ QUẢ PHẢI BIẾT: sau này nếu TẠO LẠI một ghế TRÙNG MÃ cũ, nó sẽ NHẶT LẠI toàn bộ lịch
+	 *    sử ấy (mọi bảng nối bằng chuỗi `ma_may`, không bằng id). Đừng dùng lại mã đã xoá.
+	 * ⚠️ Mã còn nhiều dòng `thu` gần như luôn là MÃ CŨ của một ghế đã đổi tên — việc đúng là
+	 *    `gan_ma()` (đổi mã, lịch sử theo sang) chứ không phải xoá. Màn hình có nói câu này.
 	 */
-	public static function xoa_han_may( $ds_ma, $that = false ) {
+	public static function xoa_han_may( $ds_ma, $that = false, $buoc_qua = false ) {
 		global $wpdb;
 
 		$ma_sach = array();
@@ -1361,7 +1376,7 @@ class VHG_May {
 		$bang_ref = is_array( $bang_ref ) ? $bang_ref : array();
 
 		$t_may = VHG_DB::t( 'may' );
-		$xoa = array(); $giu = array(); $khong_thay = array();
+		$xoa = array(); $giu = array(); $khong_thay = array(); $mo_coi = array();
 
 		foreach ( $ma_sach as $ma ) {
 			$hang = $wpdb->get_row( $wpdb->prepare(
@@ -1378,15 +1393,18 @@ class VHG_May {
 				$n = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . str_replace( '`', '', $b ) . '` WHERE ma_may=%s', $ma ) );
 				if ( $n > 0 ) { $dau_vet[] = str_replace( $wpdb->prefix . 'vhg_', '', $b ) . ' (' . $n . ')'; $tong += $n; }
 			}
-			if ( $tong > 0 ) {
-				$giu[] = array( 'ma' => $ma, 'ly_do' => 'còn ' . $tong . ' dòng dữ liệu: ' . implode( ' · ', $dau_vet ) );
+			if ( $tong > 0 && ! $buoc_qua ) {
+				$giu[] = array( 'ma' => $ma, 'ly_do' => 'còn ' . $tong . ' dòng dữ liệu: ' . implode( ' · ', $dau_vet ),
+					'so_dong' => $tong, 'chi_vi_du_lieu' => 1 );
 				continue;
 			}
+			if ( $tong > 0 ) { $mo_coi[ $ma ] = array( 'so_dong' => $tong, 'o' => implode( ' · ', $dau_vet ) ); }
 			$xoa[] = $ma;
 		}
 
 		if ( ! $that ) {
 			return array( 'ok' => true, 'xem_truoc' => true, 'se_xoa' => $xoa, 'giu_lai' => $giu,
+				'mo_coi' => $mo_coi, 'buoc_qua' => $buoc_qua ? 1 : 0,
 				'khong_thay' => $khong_thay, 'so_bang_da_do' => count( $bang_ref ) );
 		}
 
@@ -1394,9 +1412,15 @@ class VHG_May {
 		foreach ( $xoa as $ma ) {
 			$da += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=0", $ma ) );
 		}
-		return array( 'ok' => true, 'da_xoa' => $da, 'se_xoa' => $xoa, 'giu_lai' => $giu, 'khong_thay' => $khong_thay,
+		$tong_mo_coi = 0;
+		foreach ( $mo_coi as $mc ) { $tong_mo_coi += (int) $mc['so_dong']; }
+		return array( 'ok' => true, 'da_xoa' => $da, 'se_xoa' => $xoa, 'giu_lai' => $giu,
+			'khong_thay' => $khong_thay, 'mo_coi' => $mo_coi, 'buoc_qua' => $buoc_qua ? 1 : 0,
 			'thong_bao' => '🗑 Đã xoá hẳn ' . $da . ' mã ghế chưa gán.'
-				. ( $giu ? ( ' · GIỮ LẠI ' . count( $giu ) . ' mã còn dữ liệu (xem danh sách bên dưới).' ) : '' ) );
+				. ( $giu ? ( ' · GIỮ LẠI ' . count( $giu ) . ' mã còn dữ liệu.' ) : '' )
+				. ( $tong_mo_coi ? ( ' ⚠ ' . $tong_mo_coi . ' dòng dữ liệu của ' . count( $mo_coi )
+					. ' mã vẫn nằm trong CSDL (tổng tiền KHÔNG đổi) nhưng không còn tra ngược ra ghế. '
+					. 'ĐỪNG tạo lại ghế trùng mã đã xoá — nó sẽ nhặt lại toàn bộ lịch sử ấy.' ) : '' ) );
 	}
 
 	public static function xoa_may( $ma ) {

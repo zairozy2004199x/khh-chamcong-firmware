@@ -707,10 +707,19 @@ class VHG_Trang {
 		}
 		if ( 'may_xoa_han' === $viec ) {
 			$that = ! empty( $d['that'] );
-			$r = VHG_May::xoa_han_may( isset( $d['ds'] ) ? $d['ds'] : array(), $that );
+			/* 🔴 CƯỠNG CHẾ CHỈ DÀNH CHO ADMIN THẬT. Việc `may_xoa_han` vốn đã nằm trong
+			   VIEC_QUAN_TRI, nhưng nhánh cưỡng chế xoá được cả mã còn 112 dòng tiền nên kiểm lại
+			   ngay tại đây — một chốt ở xa không đủ cho thao tác không hoàn tác được. */
+			$buoc_qua = ! empty( $d['buoc_qua'] );
+			if ( $buoc_qua && ! VHG_Auth::la_quan_tri( $ai['role'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Chỉ Quản trị mới xoá được mã còn dữ liệu.' ) );
+				return;
+			}
+			$r = VHG_May::xoa_han_may( isset( $d['ds'] ) ? $d['ds'] : array(), $that, $buoc_qua );
 			if ( $that && ! empty( $r['ok'] ) && ! empty( $r['da_xoa'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
-					$ai['name'] . ' XOÁ HẲN ' . (int) $r['da_xoa'] . ' mã ghế chưa gán: '
+					$ai['name'] . ' XOÁ HẲN ' . (int) $r['da_xoa'] . ' mã ghế chưa gán'
+					. ( $buoc_qua ? ' (CƯỠNG CHẾ, bỏ qua dữ liệu còn lại)' : '' ) . ': '
 					. implode( ', ', array_slice( (array) $r['se_xoa'], 0, 30 ) ) ) );
 			}
 			self::tra( $r ); return;
@@ -10740,11 +10749,15 @@ function noi(){
       _ex.disabled = false;
       if (!r || !r.ok) { alert((r && r.error) || L('Không kiểm được.','Check failed.')); return; }
       var xoa = r.se_xoa || [], giu = r.giu_lai || [];
-      if (!xoa.length) {
+      /* Mã bị chặn CHỈ VÌ còn dữ liệu (khác với "đang thuộc một cơ sở") — admin cưỡng chế được.
+         Anh Thắng 14/09/2026: "admin có quyền xoá hẳn". */
+      var chanVongDl = giu.filter(function(g){ return g.chi_vi_du_lieu; });
+      if (!xoa.length && !chanVongDl.length) {
         alert(L('Không mã nào xoá được.\n\n','Nothing can be deleted.\n\n')
           + giu.map(function(g){ return '• ' + g.ma + ' — ' + g.ly_do; }).join('\n'));
         return;
       }
+      if (!xoa.length) { xoaCuongChe(chanVongDl); return; }
       /* Câu hỏi phải LIỆT KÊ ĐÚNG NHỮNG MÃ SẮP MẤT. "Xoá 12 mã?" thì không ai kiểm được máy có
          chọn đúng không, mà đây là thao tác KHÔNG hoàn tác được. */
       var hoi = L('XOÁ HẲN ','PERMANENTLY DELETE ') + xoa.length + L(' mã ghế chưa gán:\n\n',' unassigned codes:\n\n')
@@ -10756,8 +10769,42 @@ function noi(){
       }
       if (!confirm(hoi)) return;
       lam('may_xoa_han', { ds: xoa, that: 1 });
+      /* Còn mã bị chặn vì dữ liệu thì hỏi tiếp SAU KHI đã xoá xong đám sạch — đừng trộn hai
+         quyết định rất khác nhau vào cùng một hộp thoại. */
+      if (chanVongDl.length) setTimeout(function(){ xoaCuongChe(chanVongDl); }, 900);
     });
   };
+
+  /* CƯỠNG CHẾ — chỉ chạy khi anh đã đọc hậu quả và GÕ TAY chữ xác nhận.
+     🔴 Không dùng `confirm()` cho bước này. Một cú Enter là qua được confirm; ở đây đang xoá mã
+        còn tới hàng trăm dòng tiền, nên bắt GÕ để chắc chắn có người thật đang đọc. */
+  function xoaCuongChe(ds){
+    var tong = 0;
+    ds.forEach(function(g){ tong += (g.so_dong || 0); });
+    var tin = L('Những mã này CÒN DỮ LIỆU nên đã bị chặn:\n\n','These codes still hold data and were blocked:\n\n')
+      + ds.slice(0, 15).map(function(g){ return '• ' + g.ma + ' — ' + g.ly_do; }).join('\n')
+      + L('\n\n⚠ Mã còn nhiều dòng "thu" gần như luôn là MÃ CŨ của một ghế đã đổi tên.\n'
+        + 'Việc ĐÚNG trong trường hợp đó là bấm ✎ ĐỔI MÃ — lịch sử theo sang mã mới, không mất gì.\n\n'
+        + 'Nếu vẫn muốn XOÁ HẲN (quyền Quản trị):\n'
+        + '• Dòng ghế bị xoá khỏi danh mục.\n'
+        + '• ' + tong + ' dòng dữ liệu kia VẪN NẰM trong CSDL — tổng tiền KHÔNG đổi — nhưng không còn tra ngược ra ghế nào.\n'
+        + '• ĐỪNG tạo lại ghế trùng mã đã xoá: nó sẽ nhặt lại toàn bộ lịch sử ấy.\n\n'
+        + 'Gõ XOA HAN để xác nhận:',
+          '\n\n⚠ A code with many "thu" rows is almost always the OLD code of a renamed chair.\n'
+        + 'The right fix is ✎ RENAME — history follows the new code.\n\n'
+        + 'To delete anyway (Admin only):\n'
+        + '• The chair row is removed from the catalogue.\n'
+        + '• Those ' + tong + ' data rows STAY in the database — totals do NOT change — but no longer point to any chair.\n'
+        + '• Do NOT recreate a chair with a deleted code: it would inherit all that history.\n\n'
+        + 'Type XOA HAN to confirm:');
+    var go = prompt(tin, '');
+    if (go === null) return;
+    if (String(go).trim().toUpperCase() !== 'XOA HAN') {
+      alert(L('Chưa gõ đúng "XOA HAN" — KHÔNG xoá gì.','Did not type "XOA HAN" — nothing deleted.'));
+      return;
+    }
+    lam('may_xoa_han', { ds: ds.map(function(g){ return g.ma; }), that: 1, buoc_qua: 1 });
+  }
 
   /* 🚪 ĐÓNG CỬA / MỞ LẠI — anh Thắng 14/09/2026 */
   [].forEach.call(document.querySelectorAll('[data-csdong]'), function(b){

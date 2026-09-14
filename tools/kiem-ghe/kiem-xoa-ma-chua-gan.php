@@ -94,7 +94,32 @@ $co_dk = false;
 foreach ( $wpdb->cau_sql as $q ) { if ( stripos( $q, 'DELETE' ) === 0 && stripos( $q, 'coso_id=0' ) !== false ) { $co_dk = true; } }
 ok( 'cau DELETE van kem dieu kien coso_id=0 (chot thu hai)', $co_dk );
 
+echo "— CUONG CHE (admin) —\n";
+$wpdb->da_delete = array(); $wpdb->cau_sql = array();
+$wpdb->may = array( 'AMBT01' => 0, 'AMBT02' => 0, '80840' => 0, 'AM-BD-1' => 3 );
+$rc = VHG_May::xoa_han_may( array( 'AMBT01', '80840', 'AM-BD-1' ), false, true );
+ok( 'cuong che: ma con du lieu VAO danh sach se xoa', in_array( '80840', $rc['se_xoa'], true ) );
+ok( 'cuong che VAN chan ma dang thuoc co so (chot 1 KHONG bo)',
+    ! in_array( 'AM-BD-1', $rc['se_xoa'], true )
+    && count( array_filter( $rc['giu_lai'], fn( $g ) => 'AM-BD-1' === $g['ma'] ) ) === 1 );
+ok( 'cuong che xem truoc van KHONG xoa gi', count( $wpdb->da_delete ) === 0 );
+ok( 'bao truoc so dong se thanh mo coi', isset( $rc['mo_coi']['80840'] ) && 7 === $rc['mo_coi']['80840']['so_dong'] );
+
+$rc2 = VHG_May::xoa_han_may( array( 'AMBT01', '80840', 'AM-BD-1' ), true, true );
+ok( 'cuong che xoa that dung 2 ma', $rc2['da_xoa'] === 2 );
+ok( 'cuong che KHONG dung toi ma dang thuoc co so', ! in_array( 'AM-BD-1', $wpdb->da_delete, true ) );
+ok( 'thong bao noi ro tong tien KHONG doi', str_contains( $rc2['thong_bao'], 'tổng tiền KHÔNG đổi' ) );
+ok( 'thong bao canh bao dung tao lai ma da xoa', str_contains( $rc2['thong_bao'], 'ĐỪNG tạo lại' ) );
+$con = false;
+foreach ( $wpdb->cau_sql as $q ) { if ( stripos( $q, 'DELETE' ) === 0 && stripos( $q, 'vhg_thu' ) !== false ) { $con = true; } }
+ok( 'cuong che CHI xoa bang `may`, khong dung toi bang du lieu', ! $con );
+
+$wpdb->may = array( '80840' => 0 );
+ok( 'khong cuong che thi van chan nhu cu',
+    ! in_array( '80840', VHG_May::xoa_han_may( array( '80840' ), false, false )['se_xoa'], true ) );
+
 echo "— Đường biên —\n";
+$wpdb->may = array( 'AMBT01' => 0, 'AMBT02' => 0, '80840' => 0, 'AM-BD-1' => 3 );
 $wpdb->da_delete = array();
 $r3 = VHG_May::xoa_han_may( array(), true );
 ok( 'danh sach rong -> bao loi, khong xoa', empty( $r3['ok'] ) && count( $wpdb->da_delete ) === 0 );

@@ -138,8 +138,27 @@ Chạy **hai bước**: hỏi máy chủ xem cái nào xoá được (không xo�
 sắp mất** cùng lý do giữ lại từng mã khác → xác nhận mới xoá. Danh sách mã lấy từ `D.may`, **không**
 đọc chữ đang hiển thị — bảng có thể đang bị ô tìm lọc.
 
-Phép kiểm: `tools/kiem-ghe/kiem-xoa-ma-chua-gan.php` (hàm PHP, giả lập `$wpdb`) và
-`tools/kiem-ghe/kiem-xoa-ma-chua-gan.js` (giao diện).
+**Cưỡng chế (2.77.0)** — anh Thắng: *"admin có quyền xoá hẳn"*. Mã bị chặn **chỉ vì còn dữ liệu**
+thì Quản trị xoá được, sau khi **gõ tay** chuỗi `XOA HAN`.
+
+> 🔴 Cưỡng chế **chỉ bỏ chốt 2, KHÔNG bỏ chốt 1** — ghế đang thuộc một cơ sở vẫn không xoá được,
+> kể cả admin. Anh xin quyền xoá *"mã không có cơ sở"*, không phải xoá ghế đang chạy.
+> 🔴 Cưỡng chế **chỉ xoá dòng ở bảng `may`**. Các dòng ở `thu`/`lenh`/`nhip`… **vẫn nằm nguyên** —
+> `thu` là **tiền đã thu**, xoá đi là tổng doanh thu của tháng đã chốt tự nhiên nhỏ lại mà không
+> ai đi đối soát lại. Giữ lại thì **tổng tiền không đổi**, chỉ là mấy dòng ấy không còn tra ngược
+> ra ghế nào.
+> ⚠️ **Đừng tạo lại ghế trùng mã đã xoá** — mọi bảng nối bằng chuỗi `ma_may`, nên ghế mới sẽ
+> **nhặt lại toàn bộ lịch sử cũ**.
+> ⚠️ Mã còn nhiều dòng `thu` gần như luôn là **mã CŨ của một ghế đã đổi tên**. Việc đúng là ✎
+> **đổi mã** (`gan_ma()` dời cả lịch sử sang mã mới), không phải xoá. Hộp thoại nói đúng câu này
+> trước khi cho gõ xác nhận.
+>
+> Dùng `prompt()` bắt gõ chứ không `confirm()`: một cú Enter là qua được `confirm`, mà đây là xoá
+> mã còn tới hàng trăm dòng tiền.
+
+Phép kiểm: `tools/kiem-ghe/kiem-xoa-ma-chua-gan.php` (24 phép, hàm PHP, giả lập `$wpdb`) ·
+`tools/kiem-ghe/kiem-xoa-ma-chua-gan.js` (giao diện) · `tools/kiem-ghe/kiem-cuong-che-xoa.js`
+(gõ sai / bấm Huỷ / gõ đúng).
 
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
