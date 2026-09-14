@@ -1409,15 +1409,6 @@
       </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
-    <div class="card" id="qrCard">
-      <div class="ch"><h2>🏦 Tài khoản nhận tiền (QR chuyển khoản)</h2><button class="btn b-g" onclick="saveCfgQR()">💾 Lưu</button></div>
-      <div class="cb" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
-        <div class="fld"><label>Số tài khoản</label><input id="cfgQrStk" placeholder="VD: 0123456789"></div>
-        <div class="fld"><label>Mã ngân hàng (VietQR)</label><input id="cfgQrBank" placeholder="VD: VCB, TCB, MB, ACB, BIDV, TPB..."></div>
-        <div class="fld"><label>Tên chủ tài khoản</label><input id="cfgQrTen" placeholder="VD: CONG TY POSH" style="min-width:220px"></div>
-      </div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
-    </div>
     <div class="card" id="cosoCard">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
@@ -1427,34 +1418,13 @@
       <datalist id="dl_tinh"></datalist>
     </div>
 
-    <!-- ============ MÃ GỌI TẮT CỦA CƠ SỞ ============
-         Anh Thắng 14/09/2026: ô Cơ sở của một tài khoản khai `TUTU_BD`, còn đơn thì ghi
-         `TÀU BÌNH DƯƠNG` — *"rất nhiều đơn chi tutu bd"*. Hai chuỗi ấy là CÙNG MỘT GIAN, nhưng
-         không quy tắc chuỗi nào suy ra được: `TÀU` không phải `TUTU`, `BD` không nằm trong tên.
-         Máy phải được một người nói cho biết, đúng một lần — và đây là chỗ nói.
+    <!-- 🔤 "Mã gọi tắt của cơ sở" ĐÃ GỠ KHỎI MÀN 14/09/2026 — anh Thắng: *"bỏ đi không cần
+         nữa"*. Nó dựng để nối `TUTU_BD` với `TÀU BÌNH DƯƠNG`, nhưng ô Cơ sở nay chọn được thẳng
+         tên gian (1.179.0 gợi ý cả cơ sở đang có trên đơn) nên không còn ai phải khai mã.
 
-         🔴 KHAI MỘT LẦN, MỌI TÀI KHOẢN DÙNG MÃ ĐỀU CHẠY. Khác hẳn việc sửa ô Cơ sở của từng
-            người: hệ đang có `FZ_LTVT`, `TUTU_TP`, `TUTU_BT`… mỗi mã là một người sẽ vướng.
-
-         ⚠️ ĐÂY LÀ MỘT CỬA PHÂN QUYỀN, KHÔNG PHẢI GHI CHÚ. Thêm một dòng là mở cho mọi tài khoản
-            đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên máy chủ chốt chỉ Admin lưu được. -->
-    <div class="card" id="maTatCard">
-      <div class="ch"><h2>🔤 Mã gọi tắt của cơ sở</h2>
-        <button class="btn b-g" onclick="luuMaTat()">💾 Lưu</button></div>
-      <div class="cb">
-        <p style="font-size:12px;color:#475569;margin-bottom:8px">
-          Mỗi dòng một cặp <b>MÃ|TÊN CƠ SỞ</b>. Dùng khi ô <b>Cơ sở</b> của tài khoản đang khai
-          bằng mã gọi tắt, còn đơn thì ghi tên đầy đủ — khai ở đây một lần là mọi tài khoản dùng
-          mã ấy <b>nhìn thấy đúng gian của mình</b>, khỏi sửa từng người.
-          <br>Ví dụ: <code>TUTU_BD|TÀU BÌNH DƯƠNG</code>
-        </p>
-        <textarea id="maTatRaw" rows="6" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px"
-          placeholder="TUTU_BD|TÀU BÌNH DƯƠNG"></textarea>
-        <div class="nho mo" style="margin-top:6px">Mã không phân biệt hoa thường. Một mã chỉ dẫn
-          tới một cơ sở — khai hai dòng cùng mã thì dòng dưới đè dòng trên.</div>
-        <div id="maTatTin" class="nho" style="margin-top:6px;color:#0f766e"></div>
-      </div>
-    </div>
+         ⚠️ LÕI TRA SỔ GIỮ NGUYÊN (`VHCP_Auth::so_ma_tat()` và nhánh trong `doi_ma_sang_ten()`):
+            mã đã khai trước đó vẫn hiệu lực, bày lại thẻ này là dùng được ngay. Gỡ màn ≠ xoá sổ
+            — xoá sổ là tài khoản nào đang dựa vào mã lập tức mất sạch đơn. -->
 
     <!-- ============ LOẠI CHI PHÍ THEO CƠ SỞ ============
          Thẻ "Khai mã chi phí" ngay dưới đi chiều: MỘT loại -> tích nhiều cơ sở. Đúng khi khai
@@ -1484,9 +1454,30 @@
     </div>
 
     <div class="card" id="heTkCard">
-      <div class="ch"><h2>🏦 Hệ thống tài khoản của kế toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
+      <div class="ch"><h2>🏦 Tài khoản — hệ thống kế toán &amp; tài khoản nhận tiền</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
       <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">App chỉ cần bảng này để <b>biết một mã có tên là gì</b> (chi phí hay doanh thu đều nạp được) — nó <b>không</b> quyết định mảng, mảng lấy theo cơ sở. Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
       <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
+
+      <!-- ══ TÀI KHOẢN NHẬN TIỀN — gộp vào đây 14/09/2026, anh Thắng: *"gộp 2 cái này lại"*.
+           Hai thẻ cũ cùng biểu tượng 🏦, cùng chữ "tài khoản", lại nằm ở hai nhóm cách xa nhau
+           trên màn — người khai phải nhớ "tài khoản" nào ở đâu. Thật ra là hai NGHĨA khác hẳn:
+           một bên là DANH MỤC tài khoản kế toán (641, 331…), một bên là SỐ TÀI KHOẢN ngân hàng
+           nhận tiền thừa. Gộp một chỗ rồi nói rõ hai nghĩa thì hết nhầm.
+
+           ⚠️ GIỮ NGUYÊN MỌI `id` BÊN TRONG (`cfgQrStk` · `cfgQrBank` · `cfgQrTen`) và nút Lưu
+              riêng: `saveCfgQR()` đọc đúng ba ô ấy và ghi vào khoá `qr`, không dính gì tới hệ
+              thống tài khoản. Gộp là gộp CHỖ ĐỨNG, không trộn hai sổ. -->
+      <div style="border-top:1px solid #f1f5f9;padding:12px 14px 4px;display:flex;
+                  justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <b style="font-size:13px">💳 Tài khoản nhận tiền (QR chuyển khoản)</b>
+        <button class="btn b-g" onclick="saveCfgQR()">💾 Lưu tài khoản nhận tiền</button>
+      </div>
+<div class="cb" style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end">
+        <div class="fld"><label>Số tài khoản</label><input id="cfgQrStk" placeholder="VD: 0123456789"></div>
+        <div class="fld"><label>Mã ngân hàng (VietQR)</label><input id="cfgQrBank" placeholder="VD: VCB, TCB, MB, ACB, BIDV, TPB..."></div>
+        <div class="fld"><label>Tên chủ tài khoản</label><input id="cfgQrTen" placeholder="VD: CONG TY POSH" style="min-width:220px"></div>
+      </div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
 
     <!-- 🧭 "Mảng kinh doanh → nhóm tài khoản" ĐÃ GỠ 14/09/2026 — anh Thắng: *"bỏ cái này"*.
@@ -9090,14 +9081,15 @@
     /* ⚠️ Mã gọi tắt đi CÙNG nhóm cơ sở, ngay sau bảng cơ sở: nó là cách gọi khác của chính
        những gian ấy, không phải một thứ riêng. Để nó lạc sang nhóm khác là người khai phải nhớ
        hai chỗ cho một câu hỏi. */
-    { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard','maTatCard'],
-      mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào, và gọi tắt là gì.' },
+    { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard'],
+      mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào.' },
     { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
-    { ten:'💵 Tiền & kỳ',                 id:['qrCard','kyCard'],
-      mo:'Tài khoản nhận tiền, và mốc tuần của đơn.' },
+    /* ⚠️ `qrCard` đã gộp vào `heTkCard` — nhóm này giờ chỉ còn mốc tuần. */
+    { ten:'💵 Kỳ & mốc tuần',             id:['kyCard'],
+      mo:'Mốc tuần của đơn: tuần này chạy từ ngày nào đến ngày nào.' },
     { ten:'🛠 Bảo trì — đụng vào là đụng dữ liệu thật', id:['ngayHongCard','imgMaintCard'],
       mo:'Chỉ dùng khi thật sự cần. Mỗi nút ở đây sửa hàng loạt dòng đã có.' }
   ];
@@ -9659,12 +9651,27 @@
         +'<input type="checkbox" data-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(m)
         +' <span style="font-weight:400;color:#94a3b8">'+nhom[m].length+'</span></label>';
     }).join('')+'</div>';
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * KHỐI "CHƯA KHAI PHÂN LOẠI LỚN" — GẬP LẠI, KHÔNG XOÁ.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Anh Thắng 14/09/2026: *"bỏ cái này"*. Đúng là nó chướng: hơn sáu chục ô tích trải thành
+     * năm hàng dày đặc ngay giữa màn, mỗi lần mở Cấu hình là phải lướt qua.
+     *
+     * 🔴 NHƯNG XOÁ HẲN LÀ MẤT CHỨC NĂNG, KHÔNG PHẢI DỌN RÁC. Khối "ngoại lệ: tích lẻ từng cơ
+     *    sở" ngay dưới chỉ duyệt theo MẢNG (`mangs`), nên nó KHÔNG bày những cơ sở chưa khai
+     *    phân loại lớn — đúng những cơ sở nằm trong danh sách này. Gỡ đi là sáu chục gian ấy
+     *    hết đường khai mã chi phí, và không có câu lỗi nào báo cho ai biết.
+     *
+     * Nên: gập lại, mặc định đóng. Màn gọn đúng như anh muốn, mà cửa vẫn còn — bấm một cái là
+     * mở ra, kèm số đếm để không ai quên là có sáu chục gian đang chờ khai.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     if(le.length){
-      h+='<div style="margin-top:8px;border:1px dashed #fbbf24;border-radius:8px;padding:8px 10px">'
-        +'<div style="font-size:11px;color:#b45309;font-weight:600">Chưa khai phân loại lớn — phải tích lẻ</div>'
-        +'<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px">'
+      h+='<details style="margin-top:8px;border:1px dashed #fbbf24;border-radius:8px;padding:6px 10px">'
+        +'<summary style="font-size:11px;color:#b45309;font-weight:600;cursor:pointer">'
+        +'Chưa khai phân loại lớn — phải tích lẻ ('+le.length+' cơ sở)</summary>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px">'
         +le.map(function(c){ return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" data-coso="'+esc(c)+'" onchange="kcInfo()"> '+esc(c)+'</label>'; }).join('')
-        +'</div></div>';
+        +'</div></details>';
     }
     h+='<div style="margin-top:8px"><a href="javascript:void(0)" onclick="kcToggleLe()" id="kcLeLink" style="font-size:11px;color:#2563eb">＋ ngoại lệ: tích lẻ từng cơ sở</a></div>'
       +'<div id="kcLeBox" style="display:none;margin-top:6px">'+mangs.map(function(m){

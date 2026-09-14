@@ -813,6 +813,32 @@ la('   và hàm đọc hàng cũng gác', 'var _tb=el(tbodyId); if(!_tb) return 
 #    mở ra mỗi ngày. Dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục.
 la('🔴 nút "Dọn loại chưa khai mã" đã gỡ', 'Dọn loại chưa khai mã' not in _re.sub(r'<!--[\s\S]*?-->', ' ', src))
 
+# ------------------------------------------------------ dọn tiếp: gộp thẻ, gỡ thẻ, gập khối
+print('— dọn đợt hai —')
+# 🔴 Hai thẻ "tài khoản" gộp làm một: cùng biểu tượng 🏦, cùng chữ "tài khoản", lại nằm hai nhóm
+#    cách xa nhau — người khai phải nhớ "tài khoản" nào ở đâu. Gộp CHỖ ĐỨNG, không trộn hai sổ.
+la('🔴 thẻ "Tài khoản nhận tiền" đã gộp vào thẻ hệ thống tài khoản',
+   'id="qrCard"' not in src and 'id="cfgQrStk"' in src)
+# ⚠️ Dò cả CỤM NÚT, không dò mỗi tên hàm: `saveCfgQR()` còn xuất hiện ở chỗ định nghĩa hàm, nên
+#    bản nháp chỉ dò tên vẫn xanh kể cả khi nút đã bị gỡ khỏi thẻ.
+la('   và giữ nguyên nút Lưu riêng của nó',
+   'onclick="saveCfgQR()">💾 Lưu tài khoản nhận tiền</button>' in src)
+la('   tiêu đề nói rõ CẢ HAI nghĩa', 'hệ thống kế toán &amp; tài khoản nhận tiền' in src)
+# 🔴 Thẻ "Mã gọi tắt" gỡ khỏi màn, nhưng LÕI TRA SỔ giữ nguyên: mã đã khai vẫn hiệu lực.
+la('🔴 thẻ Mã gọi tắt đã gỡ khỏi màn', 'id="maTatCard"' not in src)
+_auth = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-auth.php'),
+                encoding='utf-8').read()
+la('⚠️ nhưng lõi tra sổ mã gọi tắt giữ nguyên (gỡ màn ≠ xoá sổ)',
+   'function so_ma_tat()' in _auth and '$tat = self::so_ma_tat();' in _auth)
+# 🔴 Khối "chưa khai phân loại lớn" GẬP lại chứ không xoá: khối "ngoại lệ" bên dưới chỉ duyệt
+#    theo MẢNG, nên không bày những cơ sở chưa khai phân loại — xoá là sáu chục gian ấy hết
+#    đường khai mã chi phí, và không có câu lỗi nào báo cho ai biết.
+la('🔴 khối "chưa khai phân loại lớn" vẫn còn, chỉ gập lại',
+   'Chưa khai phân loại lớn' in src and '<details' in src)
+la('   và nói ra còn bao nhiêu cơ sở đang chờ khai', "+le.length+' cơ sở)</summary>'" in src)
+la('⚠️ ô tích của chúng vẫn dựng đủ, không mất cửa khai',
+   'data-coso="\'+esc(c)+\'" onchange="kcInfo()"' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
