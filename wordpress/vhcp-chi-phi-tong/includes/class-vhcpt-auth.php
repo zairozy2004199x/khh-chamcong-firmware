@@ -91,7 +91,7 @@ class VHCPT_Auth {
 						. '(«' . $ten . '» và «' . $tu . '»). Đổi PIN một bên rồi vào lại.' );
 				}
 				$ten = ( '' === $ten ) ? $tu : $ten;
-				$vai = trim( (string) ( isset( $u['vai'] ) ? $u['vai'] : '' ) );
+				$vai = self::vai_cua( $u );
 				$bans[ $khoa ] = array(
 					'vai'   => $vai,
 					'coso'  => trim( (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ),
@@ -111,6 +111,39 @@ class VHCPT_Auth {
 		}
 		if ( '' === $ten ) { return null; }
 		return array( 'ten' => $ten, 'bans' => $bans );
+	}
+
+	/**
+	 * VAI CỦA MỘT DÒNG NGƯỜI DÙNG — ĐỌC ĐÚNG TÊN Ô MÀ BẢN KIA ĐẶT.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐÃ CẮN THẬT 14/09/2026. Anh Thắng đăng nhập trang tổng bằng tài khoản ADMIN và màn ghi
+	 *    *"KVC · (chưa có vai) · chỉ xem"*, kèm dải vàng *"Vai của bạn không được duyệt, cấp tiền
+	 *    hay trả lại đơn ở mảng nào"* — bằng chính tài khoản cao nhất của hệ.
+	 *
+	 *    Bản mảng trả dòng người dùng với ô tên là **`vaiTro`** (xem `VHCP_Cfg::cfg_static()`),
+	 *    còn chỗ này hỏi `$u['vai']`. Không có ô ấy -> chuỗi rỗng -> `bang_quyen()` trả về toàn
+	 *    `false` NGAY Ở DÒNG ĐẦU, trước cả nhánh nới cho Admin. Nên bản 1.2.0 vá Admin mà không
+	 *    cứu được gì: nó vá nhánh thứ hai của một hàm đã thoát ở nhánh thứ nhất.
+	 *
+	 * 🔴 ĐỌC NHẦM KHOÁ LÀ KIỂU HỎNG TỆ NHẤT Ở ĐÂY: không một câu lỗi nào: mọi người vẫn đăng
+	 *    nhập được, tên vẫn đúng, bảng đơn vẫn đầy — chỉ là không ai bấm được gì, và trang thì
+	 *    nói dối rằng đó là do phân quyền. Người đi sửa sẽ ngồi sửa bảng phân quyền, mãi không
+	 *    ra, vì chỗ hỏng không nằm ở đó.
+	 *
+	 * ⚠️ NHẬN CẢ BA TÊN. `vaiTro` là tên thật hôm nay; `vai` và `role` để dành cho bản mảng cũ
+	 *    hoặc bản sau này đổi tên — trang tổng đọc sổ của bốn plugin, mà chúng nâng cấp lệch
+	 *    nhau. Thà nhận rộng ở CỬA ĐỌC còn hơn im lặng trả về "chưa có vai".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	public static function vai_cua( $u ) {
+		$u = (array) $u;
+		foreach ( array( 'vaiTro', 'vai', 'role' ) as $o ) {
+			if ( isset( $u[ $o ] ) && '' !== trim( (string) $u[ $o ] ) ) {
+				return trim( (string) $u[ $o ] );
+			}
+		}
+		return '';
 	}
 
 	/**

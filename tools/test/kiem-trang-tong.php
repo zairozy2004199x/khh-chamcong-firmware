@@ -495,6 +495,11 @@ t( '🔴 tab Xuất MISA chỉ hiện khi có quyền',
 t( 'và nó KHÔNG gọi ds() như ba tab kia',
 	(bool) preg_match( "#if \(NHOM === TAB_MISA\)\{ veMisa\(\); return; \}#", $html ), '' );
 
+t( 'màn MISA liệt kê mã đơn của lô (anh Thắng: "xuất misa theo đơn")',
+	(bool) preg_match( '#Lô này gồm <b>#u', $html ), '' );
+t( '⚠️ và nói rõ khi nhánh ấy không chốt theo mã đơn',
+	(bool) preg_match( '#không chốt theo mã đơn#u', $html ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.

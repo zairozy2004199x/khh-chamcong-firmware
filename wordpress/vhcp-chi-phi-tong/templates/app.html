@@ -457,6 +457,29 @@ function veMisaKq(){
     if (!rows.length){
       h += '<p class="mo">Không có bút toán nào khớp bộ lọc. ✓</p>';
     } else {
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * LÔ NÀY GỒM ĐƠN NÀO — anh Thắng 14/09/2026: *"không có chỗ xuất misa theo đơn"*.
+       * ══════════════════════════════════════════════════════════════════════════════════════
+       * 🔴 TỆP MISA KHÔNG CẮT ĐƯỢC THEO TỪNG ĐƠN, và đó là do hình dạng của bút toán chứ không
+       *    phải do màn này thiếu nút. Lõi gom dòng chi theo MẢNG + LOẠI CHI PHÍ rồi xếp theo
+       *    ngày; một đơn tuần rải thành nhiều dòng nằm xen với đơn khác, và dòng bút toán không
+       *    mang mã đơn (ô "Số chứng từ" để trống cho MISA tự đánh số). Cắt theo đơn là phải đổi
+       *    cách gom ở lõi của từng bản — việc khác, không làm lén ở đây.
+       *
+       * ⚠️ NHƯNG KẾ TOÁN VẪN PHẢI BIẾT LÔ NÀY GỒM GÌ, nhất là vì nút bên cạnh sắp đánh dấu
+       *    đúng những đơn ấy là "đã xuất". Bày danh sách mã đơn ra, ngay cạnh con số.
+       * ══════════════════════════════════════════════════════════════════════════════════════ */
+      var mds = b.maDons || [];
+      if (mds.length){
+        h += '<details style="margin-bottom:10px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
+             'Lô này gồm <b>'+mds.length+' đơn</b> — bấm để xem mã đơn</summary>' +
+             '<div class="nho mo" style="padding:6px 0 2px">' +
+             mds.map(function(m){ return '<span class="chip-l">'+esc(m)+'</span>'; }).join('') +
+             '</div></details>';
+      } else {
+        h += '<p class="nho mo" style="margin-bottom:8px">Nhánh bút toán này không chốt theo mã đơn, ' +
+             'nên không có danh sách đơn để liệt kê.</p>';
+      }
       /* Cảnh báo của chính bản ấy (thiếu mã tài khoản, thiếu mã đơn vị…) — hiện TRƯỚC bảng:
          đẩy một tệp thiếu mã sang MISA rồi mới biết là phải gỡ bút toán ra khỏi sổ kế toán. */
       (b.canh||[]).forEach(function(c){ h += '<div class="bao bao-canh">⚠️ '+esc(c)+'</div>'; });
