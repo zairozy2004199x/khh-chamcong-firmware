@@ -701,6 +701,64 @@ la('⚠️ gợi ý vẫn chỉ mình họ với vai Nhân viên', "CURUSER.role
 la('🔴 gọi không tham số thì đọc ô Phân loại đang có',
    "if(pltt===undefined||pltt===null) pltt=(el('f_pltt')&&el('f_pltt').value)||'';" in _fn_dt)
 
+# ------------------------------------------------- mọi khối nội dung nằm trong khung căn giữa
+# Anh Thắng 14/09/2026, ảnh /chi-phi: *"Chỉnh lệch trang"*. `#datKyBox` và `#donListCard` là
+# `.card` trần đứng ngoài mọi `.wrap`, nên trải hết bề ngang và dính sát mép trái, trong khi cả
+# trang (thanh xanh · thanh tab · thanh tìm đơn · mọi thẻ khác) căn theo trục 1600px.
+#
+# 🔴 SOI CẤU TRÚC, KHÔNG SOI MỘT CHUỖI. Dò "có chữ wrap ở gần donListCard" thì bọc sai chỗ hay
+#    quên thẻ đóng vẫn xanh. Đây đếm độ sâu thật: `.card` nào không có `.wrap` nào bao ngoài.
+print('— không khối nào tràn ra ngoài khung căn giữa —')
+import re as _re
+_body = src[src.index('<body>'):src.index("<script>")]
+_depth = 0
+_inwrap = []
+_lac = []
+for _m in _re.finditer(r'<div\b[^>]*>|</div>', _body):
+    _t = _m.group(0)
+    if _t == '</div>':
+        _depth -= 1
+        _inwrap = [d for d in _inwrap if d < _depth]
+    else:
+        if 'class="wrap"' in _t:
+            _inwrap.append(_depth)
+        if 'class="card"' in _t and not _inwrap:
+            _lac.append(_t[:70])
+        _depth += 1
+la('🔴 không còn .card nào nằm ngoài .wrap', not _lac, _lac)
+# ⚠️ Thẻ đóng thiếu thì cả phần dưới trang tụt vào trong khối — trình duyệt không báo gì.
+_mo = len(_re.findall(r'<div\b', _body)); _dong = len(_re.findall(r'</div>', _body))
+la('⚠️ số thẻ div mở bằng số thẻ đóng', _mo == _dong, '%d mở / %d đóng' % (_mo, _dong))
+# ⚠️ Lớp bọc phải bỏ đệm dọc: .card đã có margin-bottom riêng, cộng thêm 16px trên dưới là hai
+#    khối ấy tự dãn xa hẳn phần còn lại — sửa lệch ngang mà đẻ lệch dọc.
+la('⚠️ lớp bọc bỏ đệm dọc', 'class="wrap" style="padding-top:0;padding-bottom:0"' in _body)
+
+# ------------------------------------------------- bàn giao: người mới cùng cơ sở mở được đơn cũ
+# Anh Thắng 14/09/2026: *"bạn cũ nghỉ, bạn mới nhận việc thì đơn chi phí phải nhìn lại hết được
+# đơn của bạn để có thể tiếp tục chỉnh sửa đơn đó, cùng cơ sở"*.
+#
+# 🔴 DANH SÁCH VÀ CỬA MỞ ĐƠN PHẢI NỚI BẰNG NHAU. Danh sách đã lấp cơ sở từ hàng TẠM ỨNG từ
+#    07/09/2026 (`$cs_tu` trong `list_dons()`), nhưng cửa mở đơn thì chỉ hỏi bảng dòng chi. Hai
+#    bên lệch đúng ở ca hay gặp nhất: ĐƠN XIN ỨNG TRƯỚC — có số tạm ứng mà chưa liệt kê hạng mục
+#    nào. Người mới THẤY đơn ấy trong danh sách, bấm vào thì bị chối. Và đó đúng là những đơn
+#    đang treo tiền, cần bàn giao nhất.
+print('— bàn giao đơn cho người cùng cơ sở —')
+_don_php = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-don.php'),
+                   encoding='utf-8').read()
+_don_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _don_php)
+_i_cs = _don_ma.index('function cac_coso_cua_don(')
+_fn_cs = _don_ma[_i_cs:_don_ma.index('\n\t}', _i_cs)]
+la('bốc được hàm cac_coso_cua_don', len(_fn_cs) > 150, len(_fn_cs))
+la('🔴 cửa mở đơn hỏi CẢ bảng tạm ứng, không chỉ dòng chi',
+   'UNION' in _fn_cs and '$tu' in _fn_cs)
+la('   và hỏi một câu, không hai lượt', _fn_cs.count('get_col') == 1, _fn_cs.count('get_col'))
+# ⚠️ Cửa này chạy trước MỌI lượt mở, sửa, xoá dòng — nên nó phải là chỗ DUY NHẤT quyết định,
+#    và vẫn hỏi đúng `trong_tam()` mà danh sách đang hỏi, để hai bên không thể lệch lần nữa.
+la('⚠️ vẫn hỏi đúng trong_tam() như danh sách',
+   'VHCP_Auth::trong_tam' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
+la('⚠️ và dựng chuỗi cơ sở từ chính cac_coso_cua_don()',
+   'cac_coso_cua_don( $ma_don )' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

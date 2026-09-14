@@ -1100,9 +1100,9 @@ t( '🔴 và giấu nút NCC khi đơn không có dòng NCC',
    bày một nút chắc chắn bị chối là mời người ta bấm rồi đọc câu lỗi — và lần sau họ hết tin
    những nút còn lại. Chặn theo TRẠNG THÁI, không theo tên lát: lát chỉ là cách bày. */
 t( '🔴 đơn Nháp không có việc nào để bấm',
-	(bool) preg_match( "#if \(String\(d\.trangThai\|\|''\) === 'Nháp'\) return \[\];#u", $than_vld ), '' );
+	(bool) preg_match( "#if \(tt === 'Nháp'\) return \[\];#u", $than_vld ), '' );
 t( '🔴 và nút Trả lại cũng ẩn với đơn Nháp',
-	(bool) preg_match( '#if \(lam\.traLai && !nhap\)#', $than_vb ), '' );
+	(bool) preg_match( '#lam\.traLai && !nhap#', $than_vb ), '' );
 t( '⚠️ nói rõ vì sao không có nút, thay vì để trống',
 	false !== mb_strpos( $than_vb, 'nhân viên còn đang soạn' ), '' );
 /* ⚠️ Bảng đơn và thanh hàng loạt phải hỏi CÙNG một hàm — hai bảng việc rời nhau thì một hôm
@@ -1257,6 +1257,101 @@ t( '🔴 chọn cả bảng chỉ chọn đơn đang hiện',
 	(bool) preg_match( "#data-chonlat[\s\S]{0,400}?closest\('table'\)#", $html_ma ), '' );
 /* ⚠️ Trả lại KHÔNG có trong danh sách hàng loạt: nó đòi lý do riêng cho từng đơn. */
 t( '⚠️ không trả lại hàng loạt', ! preg_match( "#VIEC_HL[\s\S]{0,400}?traLai#", $html_ma ), '' );
+
+/* ═══ 6y. NÚT PHẢI HỢP TRẠNG THÁI ĐƠN, KHÔNG CHỈ HỢP QUYỀN ══════════════════════
+ * Anh Thắng 14/09/2026, ảnh bảng "Đã quyết toán" vẫn còn nút Duyệt quyết toán: *"Này là Chờ
+ * Duyệt Quyết Toán"*, và *"Nếu nhân viên chưa bấm gửi quyết toán thì sao duyệt quyết toán
+ * được, phải ẩn đi chứ"*.
+ *
+ * 🔴 `d.lam` CHỈ TRẢ LỜI "CÓ QUYỀN KHÔNG". Máy chủ dựng nó bằng `lam_duoc($khoa)` — cùng một
+ *    bảng cho MỌI đơn của mảng. Lõi bản mảng chối hết nên không đơn nào đi sai đường, nhưng
+ *    người bấm không biết: họ chỉ thấy một nút xanh mời bấm.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 mỗi việc có chốt trạng thái riêng', (bool) preg_match( '#var TT_HOP = \{#', $html_ma ), '' );
+t( '🔴 và viecLamDuoc() đi qua chốt ấy',
+	(bool) preg_match( '#if \(!hopTrangThai\(v\.viec, tt\)\) return;#', $than_vld ), '' );
+t( '🔴 nút Trả lại cũng qua chốt ấy',
+	(bool) preg_match( "#hopTrangThai\('traLai', d\.trangThai\)#", $than_vb ), '' );
+
+/* ══ ĐỐI CHIẾU TỪNG DÒNG VỚI CHÍNH LÕI BẢN MẢNG ═══════════════════════════════════
+ * 🔴 BẢNG Ở MÀN LÀ BẢN SAO LUẬT CỦA LÕI, và bản sao thì lệch được. Lệch theo hướng chặt hơn là
+ *    giấu mất nút đúng; lệch theo hướng lỏng hơn là bày lại đúng cái nút chắc chắn bị chối —
+ *    tức quay về nguyên trạng mà không ai biết. Nên soi CẢ HAI phía: chuỗi trạng thái ở màn
+ *    phải bằng đúng chuỗi trong câu chối của lõi.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$don_goc_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' ) );
+foreach ( array(
+	array( 'duyet', 'duyet_tam_ung',          'Chờ duyệt tạm ứng' ),
+	array( 'cap',   'cap_tam_ung',            'Chờ cấp tạm ứng' ),
+	array( 'qtCn',  'xac_nhan_quyet_toan_cn', 'Chờ quyết toán' ),
+) as $c_tt ) {
+	list( $viec, $ham, $tt_can ) = $c_tt;
+	t( '🔴 lõi «' . $ham . '» đòi đơn ở «' . $tt_can . '»',
+		(bool) preg_match( '#function ' . $ham . '\([\s\S]{0,400}?trang_thai.\] !== .' . preg_quote( $tt_can, '#' ) . '.#u',
+			$don_goc_ma ), $ham );
+	t( '🔴 và màn khai đúng chuỗi ấy cho «' . $viec . '»',
+		(bool) preg_match( '#' . $viec . ':\s*function\(tt\)\{ return tt === .' . preg_quote( $tt_can, '#' ) . '.#u', $html_ma ), $viec );
+}
+/* Xác nhận NCC rộng hơn: lõi chỉ chối Nháp và Đã xuất MISA. */
+t( '🔴 lõi «xac_nhan_quyet_toan_ncc» chỉ chối Nháp và Đã xuất MISA',
+	(bool) preg_match( '#function xac_nhan_quyet_toan_ncc\([\s\S]{0,400}?st === .Nháp. \|\| \\$st === .Đã xuất MISA.#u', $don_goc_ma ), '' );
+t( '🔴 và màn khai đúng như vậy',
+	(bool) preg_match( "#qtNcc:\s*function\(tt\)\{ return tt !== 'Nháp' && tt !== 'Đã xuất MISA'#u", $html_ma ), '' );
+/* ⚠️ TRẢ LẠI: lõi KHÔNG chối trạng thái nào — nó luôn chạy, và với đơn đã quyết toán thì đẩy
+   về "Nháp" rồi gỡ sạch số đã duyệt, tức phá một đơn đã vào sổ. Chốt ấy chỉ có ở màn. */
+t( '⚠️ lõi tra_lai_don không tự chối trạng thái nào',
+	! preg_match( "#function tra_lai_don\([\s\S]{0,300}?trang_thai.\] !== #u", $don_goc_ma ), '' );
+t( '🔴 nên màn phải chặn trả lại đơn đã quyết toán / đã xuất MISA',
+	(bool) preg_match( "#traLai:\s*function\(tt\)\{ return tt !== 'Đã quyết toán' && tt !== 'Đã xuất MISA'#u", $html_ma ), '' );
+/* ⚠️ Việc lạ (bản sau thêm nút mới mà quên khai) thì CHO QUA — giấu mất một nút đúng còn tệ hơn
+   bày một nút thừa, vì người ta không biết mình đang thiếu gì. Lõi vẫn là chốt cuối. */
+t( '⚠️ việc chưa khai trong bảng thì cho qua, không chặn mù',
+	(bool) preg_match( '#return f \? f\(String\(tt\|\|..\)\) : true;#', $html_ma ), '' );
+
+/* ⚠️ "Chưa quyết toán" nghe như nhân viên chưa làm gì — anh Thắng đọc đúng như vậy. Đơn ở lát
+   ấy đã được gửi quyết toán và đang chờ kế toán duyệt. */
+t( '⚠️ lát ấy gọi đúng tên bước: Chờ duyệt quyết toán',
+	false !== mb_strpos( $than_vb, 'Chờ duyệt quyết toán' )
+	&& false === mb_strpos( $than_vb, "ten:'Chưa quyết toán'" ), '' );
+
+/* ═══ 6z. MỘT CON SỐ TIỀN, MỘT NGUỒN ═══════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Cột số xin bị sai"*. Cột đầu lấy `d.tien` (`tong_de_duyet()`), còn
+ * Thực chi và Thừa/thiếu lấy `d.qt` (`get_don()['tongCN']`) — hai nguồn cho ba cột cạnh nhau,
+ * nên bảng tự mâu thuẫn: *"Số xin 0đ · Thực chi 3.090.000đ · thừa 560.000đ"*. Thừa 560.000 thì
+ * tạm ứng phải là 3.650.000, không thể là 0. Dòng cộng cũng nói hai con số.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 lát đã cấp tiền thì cột đầu là Tạm ứng, không phải Số xin',
+	(bool) preg_match( "#dau\( coQT \? 'Tạm ứng' : 'Số xin', 'r' \)#u", $than_vb ), '' );
+t( '🔴 và ô tiền lấy CÙNG nguồn với hai cột bên cạnh',
+	(bool) preg_match( '#function soDau\(d, coQT\)\{\s*if \(coQT && d\.qt\) return Number\(d\.qt\.tamUng\|\|0\);#', $html_ma ), '' );
+/* ⚠️ Cộng cột nào thì cộng đúng cột ấy — cộng một cột rồi ghi nhãn của cột kia là cách chắc
+   chắn nhất để hai dòng tổng chửi nhau. */
+t( '⚠️ dòng tổng của lát cộng đúng cột đang bày',
+	(bool) preg_match( '#if \(coQT\) tongLat = tUng;#', $than_vb ), '' );
+t( '⚠️ và dải cộng theo tuần cũng vậy',
+	(bool) preg_match( '#tongKy \+= soDau\(d, coQT\);#', $than_vb ), '' );
+t( '⚠️ thanh chọn hàng loạt cũng đổi nhãn theo',
+	(bool) preg_match( '#tXin \+= soDau\(d, !!d\.qt\);#', $html_ma )
+	&& false !== mb_strpos( $html_ma, 'nhanDau' ), '' );
+/* ⚠️ `d.tien === null` = bản mảng không trả lời được — ra dấu gạch, không ra 0đ. */
+t( '⚠️ bản mảng không trả lời được vẫn ra dấu gạch',
+	(bool) preg_match( '#function veOSoDau[\s\S]{0,260}?d\.tien === null[\s\S]{0,120}?—#u', $html_ma ), '' );
+
+/* ═══ 6x. CHUÔNG BUNG RA NGAY LÚC MỞ TRANG ══════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Khi có thông báo, mở vào là hiện thông báo thẳng mặt vào trang"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có việc mới thì tự bung hộp chuông',
+	(bool) preg_match( '#if \(CHUONG\.ds\.length && !CHUONG\.mo\) moChuong\(\);#', $html_ma ), '' );
+/* 🔴 CHỈ MỘT LẦN MỖI LƯỢT MỞ TRANG. Chuông tự hỏi lại mỗi phút; bung ở mọi nhịp là cứ một phút
+   hộp lại nhảy ra che bảng — tệ nhất là đúng lúc tay đang đưa tới nút Duyệt. */
+t( '🔴 và chỉ bung MỘT lần, không bung lại mỗi nhịp hỏi',
+	(bool) preg_match( '#if \(!CHUONG\.daTuMo\)\{\s*CHUONG\.daTuMo = true;#', $html_ma ), '' );
+/* ⚠️ Cờ bật NGOÀI điều kiện có việc, nên đóng hộp rồi là thôi cho tới lượt mở trang sau —
+   người dùng đóng một hộp thông báo là họ đã trả lời rồi. */
+t( '⚠️ đóng rồi thì không bung lại',
+	(bool) preg_match( '#CHUONG\.daTuMo = true;\s*\n\s*if \(CHUONG\.ds\.length#', $html_ma ), '' );
+t( '⚠️ cờ khai sẵn trong CHUONG', (bool) preg_match( '#daTuMo: false#', $html_ma ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

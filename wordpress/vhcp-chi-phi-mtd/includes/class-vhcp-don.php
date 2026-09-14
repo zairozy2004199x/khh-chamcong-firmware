@@ -1658,9 +1658,30 @@ class VHCPMTD_Don {
 	public static function cac_coso_cua_don( $ma_don ) {
 		global $wpdb;
 		$t  = VHCPMTD_DB::t( 'chiphi' );
+		$tu = VHCPMTD_DB::t( 'tamung' );
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 HỎI CẢ HAI BẢNG — CƠ SỞ CŨNG NẰM Ở HÀNG TẠM ỨNG, KHÔNG CHỈ Ở DÒNG CHI.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026: *"bạn cũ nghỉ, bạn mới nhận việc thì đơn chi phí phải nhìn lại
+		 * hết được đơn của bạn để có thể tiếp tục chỉnh sửa đơn đó, cùng cơ sở"*.
+		 *
+		 * Hàm này là CỬA MỞ ĐƠN (`loi_khong_phai_don_minh()`). Danh sách đơn thì đã lấp cơ sở
+		 * từ hàng tạm ứng từ 07/09/2026 (xem `$cs_tu` trong `list_dons()`) — nhưng cửa này thì
+		 * chưa, nên hai bên lệch đúng ở ca hay gặp nhất: ĐƠN XIN ỨNG TRƯỚC, có số tạm ứng mà
+		 * chưa liệt kê hạng mục nào. Người mới nhận việc THẤY đơn ấy trong danh sách, bấm vào
+		 * thì bị chối *"Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách"* — và
+		 * đó đúng là những đơn đang treo tiền, cần bàn giao nhất.
+		 *
+		 * Chú thích ngay dưới kia đã chốt: *"CỬA MỞ ĐƠN PHẢI NỚI THEO ĐÚNG BẰNG DANH SÁCH"*.
+		 * Nay nó đúng như vậy thật.
+		 *
+		 * ⚠️ MỘT CÂU UNION, không hai lượt hỏi: cửa này chạy trước MỌI lượt mở, sửa, xoá dòng.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		$rs = $wpdb->get_col( $wpdb->prepare(
-			"SELECT DISTINCT coso FROM $t WHERE ma_don=%s AND coso<>''",
-			(string) $ma_don
+			"SELECT coso FROM $t  WHERE ma_don=%s AND coso<>''
+			 UNION
+			 SELECT coso FROM $tu WHERE ma_don=%s AND coso<>''",
+			(string) $ma_don, (string) $ma_don
 		) );
 		$ra = array();
 		foreach ( (array) $rs as $x ) {

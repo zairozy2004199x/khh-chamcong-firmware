@@ -423,7 +423,7 @@ function veChinh(){
  * ⚠️ VÀ NÓ CÓ THỂ NÉM LỖI: cửa sổ ẩn danh, trình duyệt chặn lưu trữ. Bọc try/catch và chạy tiếp
  *    với mốc rỗng — chuông kêu hơi nhiều còn hơn cả trang chết vì một ô lưu trữ.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-var CHUONG = { ds: [], mo: false, hen: null };
+var CHUONG = { ds: [], mo: false, hen: null, daTuMo: false };
 /* Đơn cần bung ra ngay sau lượt vẽ bảng kế tiếp — đặt khi bấm một mục chuông. */
 var MO_DON = null;
 var O_CHUONG = 'vhcpt_chuong_tu';
@@ -438,6 +438,23 @@ function docChuong(){
     CHUONG.bayGio = r.bayGio || '';
     /* Vẽ lại đúng nút chuông, không dựng lại cả màn: người ta có thể đang mở một đơn ra xem. */
     veSoChuong();
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+     * CÓ VIỆC MỚI THÌ BUNG RA NGAY LÚC MỞ TRANG — anh Thắng 14/09/2026: *"Khi có thông báo, mở
+     * vào là hiện thông báo thẳng mặt vào trang"*.
+     * ══════════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 CHỈ MỘT LẦN MỖI LƯỢT MỞ TRANG. Chuông tự hỏi lại mỗi phút; bung ra ở mọi nhịp là cứ
+     *    một phút hộp lại nhảy ra che bảng, kể cả lúc người ta đang đọc dở một đơn — và thứ tự
+     *    tệ nhất là nó bung đúng lúc tay đang đưa tới nút Duyệt.
+     *
+     * ⚠️ VÀ KHÔNG BUNG LẠI SAU KHI NGƯỜI TA ĐÓNG. Cờ `daTuMo` bật ngay cả khi hộp đang mở sẵn,
+     *    nên đóng rồi là thôi cho tới lượt mở trang sau. Người dùng đóng một hộp thông báo là
+     *    họ đã trả lời rồi.
+     * ══════════════════════════════════════════════════════════════════════════════════════════ */
+    if (!CHUONG.daTuMo){
+      CHUONG.daTuMo = true;
+      if (CHUONG.ds.length && !CHUONG.mo) moChuong();
+    }
   }).catch(function(){});
 }
 
@@ -565,7 +582,9 @@ function veBang(){
      tab việc và màn Tổng quan bày CÙNG những bước ấy; hai bảng màu rời nhau thì cùng một bước
      hiện hai màu ở hai tab, và người đọc mất luôn cái mốc "cam là đang chờ, xanh lá là xong". */
   var LAT = ( NHOM === 'qt' )
-    ? [ { khoa:'chua', ten:'Chưa quyết toán', tt:'Chờ quyết toán', cho:true,
+    /* 🔴 "CHƯA QUYẾT TOÁN" NGHE NHƯ NHÂN VIÊN CHƯA LÀM GÌ — anh Thắng đọc đúng như vậy. Thật ra
+       đơn ở đây đã được gửi quyết toán và đang chờ kế toán duyệt. Gọi đúng tên bước. */
+    ? [ { khoa:'chua', ten:'Chờ duyệt quyết toán', tt:'Chờ quyết toán', cho:true,
           hop:function(d){ return d.trangThai !== 'Đã quyết toán'; } },
         { khoa:'xong', ten:'Đã quyết toán',   tt:'Đã quyết toán',  cho:false,
           hop:function(d){ return d.trangThai === 'Đã quyết toán'; } } ]
@@ -678,8 +697,10 @@ function veBang(){
       theoKy[k].push(d);
     });
 
+    /* Cộng đúng cột đang bày: lát đã cấp tiền thì cộng TẠM ỨNG, không thì cộng Số xin.
+       Cộng một cột rồi ghi nhãn của cột kia là cách chắc chắn nhất để hai dòng tổng chửi nhau. */
     var tongLat = 0, coSo = 0;
-    ds.forEach(function(d){ if (d.tien !== null){ tongLat += d.tien; coSo++; } });
+    ds.forEach(function(d){ if (coDocSo(d, coQT)){ tongLat += soDau(d, coQT); coSo++; } });
 
     /* Cùng bộ áo với màn Tổng quan: khối viền trái theo tông bước, nền nhạt cùng tông, đầu bảng
        tô màu. Xem `mauBuoc()` — ba tông theo NGHĨA, không phải bảy màu cho vui mắt. */
@@ -722,13 +743,27 @@ function veBang(){
       ( coChon ? '<th style="background:'+m.nen+';color:'+m.chu+'" title="Chọn cả bảng">' +
                  '<input type="checkbox" data-chonlat="'+esc(khoaLoc)+'"></th>' : '' ) +
       dau('Cơ sở')+dau('Người lập')+dau('Loại chi phí')+dau('Kỳ')+dau('Lúc') +
-      dau('Số xin','r') +
+      /* ══════════════════════════════════════════════════════════════════════════════════
+       * 🔴 MỘT CON SỐ TIỀN, MỘT NGUỒN — anh Thắng 14/09/2026: *"Cột số xin bị sai"*.
+       * ══════════════════════════════════════════════════════════════════════════════════
+       * Cột này vốn lấy `d.tien` (`tong_de_duyet()` của lõi: "bấm duyệt cái này là duyệt bao
+       * nhiêu"), còn Thực chi và Thừa/thiếu lấy từ khối quyết toán (`get_don()['tongCN']`).
+       * Hai nguồn cho ba cột nằm cạnh nhau, nên bảng tự mâu thuẫn với chính nó: đơn hiện
+       * "Số xin 0đ · Thực chi 3.090.000đ · thừa 560.000đ" — thừa 560.000 thì tạm ứng phải là
+       * 3.650.000, không thể là 0. Dòng cộng cũng nói hai con số: "Số xin 16.000.000" ngay
+       * trên "Tổng tạm ứng 64.508.000".
+       *
+       * Nên khi đơn đã cấp tiền thì cột đầu là TẠM ỨNG, lấy cùng `d.qt` với hai cột kia —
+       * ba cột khớp nhau theo đúng phép trừ người đọc đang nhẩm. Đơn chưa cấp tiền thì chưa
+       * có tạm ứng nào để nói, cột vẫn là Số xin.
+       * ══════════════════════════════════════════════════════════════════════════════════ */
+      dau( coQT ? 'Tạm ứng' : 'Số xin', 'r' ) +
       ( coQT ? dau('Thực chi','r')+dau('Thừa/thiếu','r') : '' ) +
       dau('Việc')+'</tr></thead><tbody>';
 
     thuTuKy.forEach(function(k){
       var dsKy = theoKy[k], tongKy = 0;
-      dsKy.forEach(function(d){ if (d.tien !== null){ tongKy += d.tien; } });
+      dsKy.forEach(function(d){ tongKy += soDau(d, coQT); });
       /* Dải tiêu đề tuần — chỉ khi có từ hai tuần trở lên, không thì nó chỉ là một dòng thừa. */
       if (thuTuKy.length > 1){
         /* Dải tuần ăn theo tông của bước, không để một vệt xám lạc giữa khối màu. */
@@ -765,8 +800,9 @@ function veBang(){
           var ten = ( !caHai && (v.viec === 'qtCn' || v.viec === 'qtNcc') ) ? 'Duyệt quyết toán' : v.ten;
           nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(ten)+'</button> ';
         });
-        if (lam.traLai && !nhap) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
-        var chua = !lamDuoc.length && (!lam.traLai || nhap);
+        var traDuoc = ( lam.traLai && !nhap && hopTrangThai('traLai', d.trangThai) );
+        if (traDuoc) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
+        var chua = !lamDuoc.length && !traDuoc;
         /* ⚠️ Đơn ĐÃ quyết toán thì không còn việc để bấm — nói ra là "đã xong", đừng để câu
            "vai của bạn không làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
         var xong = ( d.trangThai === 'Đã quyết toán' );
@@ -788,7 +824,7 @@ function veBang(){
           '<td>'+veLoai(d.loai)+'</td>' +
           '<td class="nho">'+esc(d.ky)+'</td>' +
           '<td class="nho mo">'+esc(ngay(d.ngayTao))+'</td>' +
-          '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
+          '<td class="r">'+veOSoDau(d, coQT)+'</td>' +
           ( coQT ? veOThucChi(d) : '' ) +
           '<td>'+nut+( chua
             ? '<div class="nho mo">'+( nhap ? '✎ nhân viên còn đang soạn — chưa gửi xin'
@@ -807,6 +843,9 @@ function veBang(){
     var tUng = 0, tChi = 0;
     ds.forEach(function(x){ if (x.qt){ tUng += Number(x.qt.tamUng||0); tChi += Number(x.qt.thucChi||0); } });
     var tCl = tUng - tChi;
+    /* ⚠️ Lát đã cấp tiền thì cột đầu CHÍNH LÀ tạm ứng, nên hai con số phải là một. Để chúng
+       tính riêng là lại đúng cái bệnh vừa chữa: hai nguồn cho một ô. */
+    if (coQT) tongLat = tUng;
 
     return h + '</tbody><tfoot><tr>' +
       ( coChon ? '<td></td>' : '' ) +
@@ -941,6 +980,25 @@ function moDonDaHen(){
  *    — cả hai đều phải ra dấu gạch, không ra "0đ". Bày 0đ là nói với kế toán rằng đơn ấy tiêu
  *    hết sạch tiền ứng, đúng lúc họ đang rà xem ai còn nợ lại bao nhiêu.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CỘT TIỀN ĐẦU TIÊN — TẠM ỨNG (lát đã cấp tiền) hoặc SỐ XIN (chưa cấp).
+ *
+ * 🔴 CÙNG NGUỒN VỚI HAI CỘT BÊN CẠNH khi đã cấp tiền. Xem khối 🔴 ở đầu bảng: lấy `d.tien` cho
+ *    cột này mà `d.qt` cho hai cột kia là bảng tự mâu thuẫn với chính nó.
+ * ⚠️ `d.tien === null` nghĩa là bản mảng không trả lời được (bản quá cũ) — ra dấu gạch, không
+ *    ra 0đ. Còn `d.qt` rỗng ở lát có `coQT` thì là đơn chưa cấp tiền nằm lẫn trong lát ấy.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function soDau(d, coQT){
+  if (coQT && d.qt) return Number(d.qt.tamUng||0);
+  return d.tien === null ? 0 : Number(d.tien);
+}
+function coDocSo(d, coQT){ return (coQT && d.qt) ? true : (d.tien !== null); }
+function veOSoDau(d, coQT){
+  if (coQT && d.qt) return tien(d.qt.tamUng);
+  if (d.tien === null) return '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>';
+  return tien(d.tien);
+}
+
 function veOThucChi(d){
   if (!d.qt) return '<td class="r"><span class="mo" title="Đơn chưa cấp tạm ứng">—</span></td>' +
                     '<td class="r"><span class="mo">—</span></td>';
@@ -1004,6 +1062,41 @@ var CHON = {};
 
 /* Những việc THUẬN mà một đơn đang làm được — Trả lại không nằm ở đây: nó đòi lý do riêng cho
    từng đơn, và một lý do chung dán cho hai chục đơn thì người lập đọc xong vẫn không biết sửa gì. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * VIỆC NÀY BẤM ĐƯỢC Ở TRẠNG THÁI NÀO.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026, ảnh bảng "Đã quyết toán" vẫn còn nút Duyệt quyết toán: *"Này là Chờ
+ * Duyệt Quyết Toán"*, rồi *"Nếu nhân viên chưa bấm gửi quyết toán thì sao duyệt quyết toán
+ * được, phải ẩn đi chứ"*.
+ *
+ * 🔴 `d.lam` CHỈ TRẢ LỜI "NGƯỜI NÀY CÓ QUYỀN KHÔNG", KHÔNG TRẢ LỜI "ĐƠN ĐANG Ở ĐÂU". Máy chủ
+ *    dựng nó bằng `lam_duoc($khoa)` — cùng một bảng cho MỌI đơn của mảng ấy. Nên nút "Duyệt
+ *    quyết toán" hiện y hệt trên đơn đã quyết toán xong, đơn chưa gửi quyết toán, và đơn đang
+ *    thật sự chờ duyệt. Lõi bản mảng chối hết, nên không đơn nào đi sai đường — nhưng người
+ *    bấm không biết điều đó, họ chỉ thấy một nút xanh mời bấm.
+ *
+ * 🔴 BẢNG NÀY LÀ BẢN SAO LUẬT CỦA LÕI, và bản sao thì lệch được. `kiem-trang-tong.php` đối
+ *    chiếu từng dòng ở đây với chính câu chối trong `class-vhcp-don.php`, nên đổi luật một bên
+ *    mà quên bên kia là bài đỏ ngay — chứ không lặng lẽ bày lại một nút chắc chắn bị chối.
+ *
+ * ⚠️ TRẢ LẠI: lõi KHÔNG chối trạng thái nào, nó luôn chạy. Nhưng trả lại một đơn ĐÃ QUYẾT TOÁN
+ *    là đẩy nó về "Nháp" và gỡ sạch số đã duyệt — phá một đơn đã vào sổ. Nên chốt ấy phải nằm
+ *    ở đây, và chỉ ở đây.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var TT_HOP = {
+  duyet:  function(tt){ return tt === 'Chờ duyệt tạm ứng'; },
+  cap:    function(tt){ return tt === 'Chờ cấp tạm ứng'; },
+  qtCn:   function(tt){ return tt === 'Chờ quyết toán'; },
+  qtNcc:  function(tt){ return tt !== 'Nháp' && tt !== 'Đã xuất MISA'; },
+  traLai: function(tt){ return tt !== 'Đã quyết toán' && tt !== 'Đã xuất MISA'; }
+};
+/* Việc lạ (bản sau thêm nút mới mà quên khai ở đây) thì CHO QUA — giấu mất một nút đúng còn tệ
+   hơn bày một nút thừa, vì người ta không biết mình đang thiếu gì. Lõi vẫn là chốt cuối. */
+function hopTrangThai(viec, tt){
+  var f = TT_HOP[viec];
+  return f ? f(String(tt||'')) : true;
+}
+
 function viecLamDuoc(d){
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * 🔴 ĐƠN NHÁP THÌ KHÔNG CÓ VIỆC GÌ ĐỂ BẤM.
@@ -1022,10 +1115,12 @@ function viecLamDuoc(d){
    * ⚠️ CHẶN THEO TRẠNG THÁI, KHÔNG THEO TÊN LÁT. Lát chỉ là cách bày; trạng thái mới là sự
    *    thật — và cùng đơn ấy còn hiện ở màn Tổng quan lẫn thanh làm hàng loạt.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  if (String(d.trangThai||'') === 'Nháp') return [];
+  var tt = String(d.trangThai||'');
+  if (tt === 'Nháp') return [];
   var lam = d.lam || {}, duong = d.duong || null, ra = [];
   ( VIEC_HL[NHOM] || [] ).forEach(function(v){
     if (!lam[v.viec]) return;
+    if (!hopTrangThai(v.viec, tt)) return;
     if (duong){
       if (v.viec === 'qtCn'  && !duong.cn)  return;
       if (v.viec === 'qtNcc' && !duong.ncc) return;
@@ -1042,9 +1137,11 @@ function veThanhChon(ds, khoaLoc, m){
      thì vẫn cộng công thức đó"*. Tính lại bằng lối khác là hai con số cùng tên mà lệch nhau. */
   var tUng = 0, tChi = 0, tXin = 0;
   ch.forEach(function(d){
-    if (d.tien !== null) tXin += Number(d.tien);
+    /* Cùng cột với bảng: đơn đã cấp tiền thì con số đầu là TẠM ỨNG, không phải số xin. */
+    tXin += soDau(d, !!d.qt);
     if (d.qt){ tUng += Number(d.qt.tamUng||0); tChi += Number(d.qt.thucChi||0); }
   });
+  var nhanDau = ch.some(function(d){ return !!d.qt; }) ? 'Tạm ứng' : 'Số xin';
 
   /* Chỉ bày việc mà MỌI đơn đang chọn đều làm được: bày một việc nửa số đơn sẽ bị chối thì
      người bấm phải ngồi đoán đơn nào trượt, đơn nào xong. */
@@ -1054,7 +1151,7 @@ function veThanhChon(ds, khoaLoc, m){
 
   return '<div class="thanh-chon" style="border-color:'+m.vien+';background:'+m.nen+'">' +
     '<span style="color:'+m.chu+';font-weight:800">☑ '+ch.length+' đơn đang chọn</span>' +
-    '<span class="nho" style="color:'+m.chu+'">Số xin <b>'+tien(tXin)+'</b></span>' +
+    '<span class="nho" style="color:'+m.chu+'">'+nhanDau+' <b>'+tien(tXin)+'</b></span>' +
     ( (tUng || tChi)
       ? '<span class="nho" style="color:'+m.chu+'">Tạm ứng <b>'+tien(tUng)+'</b> − Thực chi <b>' +
         tien(tChi)+'</b> = </span>'+veChipCl(tUng - tChi)

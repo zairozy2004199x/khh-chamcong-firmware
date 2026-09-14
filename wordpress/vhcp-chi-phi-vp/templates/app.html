@@ -274,6 +274,17 @@
       <div id="donSuBox" style="display:none"></div>
   </div>
 
+  <!-- 🔴 HAI KHỐI NÀY PHẢI NẰM TRONG `.wrap` NHƯ MỌI KHỐI KHÁC — anh Thắng 14/09/2026, ảnh
+       /chi-phi: *"Chỉnh lệch trang"*. Chúng là `.card` trần, đứng ngoài mọi `.wrap`, nên trải
+       hết bề ngang và dính sát mép trái trong khi cả trang (thanh xanh · thanh tab · thanh tìm
+       đơn · mọi thẻ khác) đều căn theo trục 1600px. Trên màn 24" chênh nhau cả trăm pixel, đọc
+       ra ngay là trang bị vỡ.
+       ⚠️ Bọc THÊM một lớp `.wrap`, không đổi `.card` thành `.wrap`: `#datKyBox` và
+          `#donListCard` đều được JS bật/tắt bằng `style.display`, đổi lớp là đá nhau với nếp ấy.
+       ⚠️ Bỏ đệm dọc của lớp bọc: `.card` đã có `margin-bottom` riêng, cộng thêm 16px trên dưới
+          là hai khối này tự dãn ra xa hẳn phần còn lại — sửa lệch ngang mà đẻ lệch dọc. -->
+  <div class="wrap" style="padding-top:0;padding-bottom:0">
+
   <!-- 🗓 ĐẶT LẠI KHOẢNG NGÀY CỦA ĐƠN — hai ô ngày mở ngay trên trang, không hộp thoại.
        Hộp thoại của trình duyệt chỉ nhận chữ trơn: không có ô lịch, không điền sẵn được khoảng
        đang có, và người ta phải gõ lại cả hai đầu ngày. -->
@@ -316,6 +327,8 @@
       <div class="empty" id="donListEmpty">Chưa có đơn nào.</div>
     </div>
   </div>
+
+  </div><!-- /.wrap bọc datKyBox + donListCard -->
 
   <div class="wrap" id="main" style="display:none">
 
