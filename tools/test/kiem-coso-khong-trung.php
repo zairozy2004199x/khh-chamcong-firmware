@@ -82,6 +82,50 @@ $cfg_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
 t( '🔴 chốt nằm trong write(), gắn với đúng bảng COSO',
 	(bool) preg_match( '#function write\([\s\S]{0,900}?self::COSO === \$bang#', $cfg_ma ), '' );
 
+/* ═══ 5. 🔴 XOÁ HẾT RỒI LƯU -> PHẢI Ở LẠI RỖNG, KHÔNG ĐƯỢC GIEO LẠI ═════════════
+ * Anh Thắng 14/09/2026, bản Văn phòng: *"trang chi phí văn phòng không xóa được cơ sở chi phí
+ * kvc"*. Bản VP gieo sẵn 14 cơ sở của K&H; anh xoá hết rồi bấm Lưu — chúng quay lại ngay lượt
+ * tải sau.
+ *
+ * 🔴 Vì gác của `seed_from()` chỉ hỏi "bảng có rỗng không". Rỗng thì gieo. Mà người ta vừa CỐ Ý
+ *    dọn sạch cũng cho ra một bảng rỗng — không phân biệt được hai chuyện ấy thì mọi lượt dọn
+ *    sạch đều bị hoàn tác, và người dọn không có cách nào thắng.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::write( VHCP_Cfg::COSO, array() );
+teq( 'xoá hết -> bảng rỗng ngay lúc ghi', 0, count( VHCP_Cfg::read( VHCP_Cfg::COSO ) ) );
+/* `seed()` là thứ chạy ở mỗi lượt đăng nhập / mỗi lượt dựng cấu hình tĩnh. */
+VHCP_Cfg::seed();
+teq( '🔴 lượt tải sau KHÔNG gieo lại — bảng vẫn rỗng', 0, count( VHCP_Cfg::read( VHCP_Cfg::COSO ) ) );
+VHCP_Cfg::seed();
+teq( '   và lượt sau nữa cũng vậy', 0, count( VHCP_Cfg::read( VHCP_Cfg::COSO ) ) );
+
+/* ⚠️ XOÁ BỚT VÀI DÒNG CŨNG PHẢI Ở LẠI — ca thường gặp hơn hẳn ca xoá sạch. */
+VHCP_Cfg::write( VHCP_Cfg::COSO, array(
+	array( 'CHỈ CÒN MỘT', '', '', '', '', 'K&H' ),
+) );
+VHCP_Cfg::seed();
+teq( '🔴 xoá bớt, giữ lại một -> vẫn đúng một', 1, count( VHCP_Cfg::read( VHCP_Cfg::COSO ) ) );
+
+/* 🔴 LOẠI CHI PHÍ CŨNG VẬY — anh Thắng 14/09/2026, bản Máy Tự Động: *"bên trang chi phí mtd thì
+   không xóa được loại chi phí cũ"*. Cùng một bệnh, khác bảng: MTD gieo sẵn danh mục loại chi phí
+   của K&H, mà mảng ấy có danh mục riêng nên anh dọn sạch để khai lại — và chúng quay về. */
+VHCP_Cfg::write( VHCP_Cfg::NHOM, array() );
+VHCP_Cfg::seed();
+teq( '🔴 xoá hết LOẠI CHI PHÍ -> không gieo lại', 0, count( VHCP_Cfg::read( VHCP_Cfg::NHOM ) ) );
+VHCP_Cfg::write( VHCP_Cfg::NHOM, array( array( 'Chi phí máy tự động', 'canhan', '', '' ) ) );
+VHCP_Cfg::seed();
+teq( '🔴 khai lại danh mục riêng của mảng -> giữ nguyên, không trộn danh mục cũ vào',
+	1, count( VHCP_Cfg::read( VHCP_Cfg::NHOM ) ) );
+
+/* 🔴 NHƯNG BẢNG NGƯỜI DÙNG THÌ NGƯỢC LẠI, VÀ CỐ Ý NHƯ VẬY.
+   Xoá sạch người dùng là tự khoá mình ngoài cửa VĨNH VIỄN — không còn PIN nào vào được để mà
+   sửa. Dòng Admin gieo lại là đường cứu duy nhất. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array() );
+VHCP_Cfg::seed();
+$u_lai = VHCP_Cfg::read( VHCP_Cfg::USER );
+t( '🔴 xoá sạch NGƯỜI DÙNG -> vẫn gieo lại Admin (đường cứu)',
+	1 === count( $u_lai ) && 'Admin' === trim( (string) $u_lai[0][0] ), $u_lai );
+
 /* ═══ KẾT ═══════════════════════════════════════════════════════════════════════ */
 echo "\n";
 if ( $TRUOT ) {

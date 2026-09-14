@@ -50,7 +50,9 @@ class VHCPT_Auth {
 		'duyet'  => 'duyetTU',
 		'cap'    => 'capTU',
 		'traLai' => 'traDon',
+		'qtCn'   => 'xacNhanQT',
 		'qtNcc'  => 'duyetNCC',
+		'misa'   => 'xuatMISA',
 	);
 
 	/** Giữ lại tên cũ cho chỗ nào còn hỏi "được duyệt tạm ứng không". */

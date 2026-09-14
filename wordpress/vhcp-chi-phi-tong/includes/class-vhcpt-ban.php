@@ -56,11 +56,35 @@ class VHCPT_Ban {
 				'khoa'   => $khoa,
 				'tienTo' => $tien_to,
 				'ten'    => self::ten( $khoa ),
+				'url'    => self::url( $tien_to ),
 			);
 		}
 		ksort( $ra );
 		self::$memo = $ra;
 		return $ra;
+	}
+
+	/**
+	 * ĐƯỜNG DẪN TRANG CỦA MỘT BẢN — để trang tổng dẫn người ta sang đó mà sửa cấu hình.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"nguyên tắc từng bộ phận chi phí là riêng hết nhé… trang chi phí
+	 * tổng nó lấy cấu hình hết bên các trang chi phí con, chứ nó không có cấu hình gì trong đó,
+	 * sau này kế toán muốn sửa cả loại thì có link để đẩy vào trang"*.
+	 *
+	 * 🔴 TRANG TỔNG KHÔNG ĐẺ RA MỘT BẢN CẤU HÌNH THỨ HAI. Danh mục loại chi phí, mã tài khoản,
+	 *    cơ sở, phân quyền — tất cả nằm ở trang mảng, và chỉ ở đó. Cho trang tổng sửa được nữa
+	 *    là hai nơi khai cùng một thứ, rồi hai nơi lệch nhau; mà lệch ở danh mục tài khoản nghĩa
+	 *    là bút toán MISA sai, thứ chỉ lộ khi đối chiếu sổ cuối kỳ.
+	 *
+	 * ⚠️ HỎI CHÍNH BẢN ẤY ĐƯỜNG DẪN CỦA NÓ, đừng ghép chuỗi "chi-phi-" + mã. Đường dẫn đổi được
+	 *    ở màn Cài đặt của từng bản; ghép tay là ngày ai đó đổi thì link này dẫn vào 404.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function url( $tien_to ) {
+		$lop = 'VHCP' . $tien_to . '_App';
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! class_exists( $lop ) || ! method_exists( $lop, 'app_url' ) ) { return ''; }
+		return (string) call_user_func( array( $lop, 'app_url' ) );
 	}
 
 	/** Một bản theo khoá, hoặc null. */

@@ -65,7 +65,10 @@ class VHCPT_Api {
 		if ( 'ds' === $viec )       { return self::ra( self::ds( $args ) ); }
 		if ( 'duyet' === $viec )    { return self::ra( self::duyet( $args ) ); }
 		if ( 'cap' === $viec )      { return self::ra( self::cap( $args ) ); }
+		if ( 'qtCn' === $viec )     { return self::ra( self::qt_cn( $args ) ); }
 		if ( 'qtNcc' === $viec )    { return self::ra( self::qt_ncc( $args ) ); }
+		if ( 'misa' === $viec )     { return self::ra( self::misa( $args ) ); }
+		if ( 'misaXong' === $viec ) { return self::ra( self::misa_xong( $args ) ); }
 		if ( 'traLai' === $viec )   { return self::ra( self::tra_lai( $args ) ); }
 		if ( 'chiTiet' === $viec )  { return self::ra( self::chi_tiet( $args ) ); }
 		if ( 'dangXuat' === $viec ) { VHCPT_Auth::bo_the( $the ); return self::ra( array( 'ok' => true ) ); }
@@ -146,6 +149,11 @@ class VHCPT_Api {
 		if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'don_row' ) ) {
 			return array( 'error' => 'Bản ' . VHCPT_Ban::ten( $khoa ) . ' chưa cài, hoặc quá cũ.' );
 		}
+		/* 🔴 MƯỢN PHIÊN TRƯỚC KHI CHẠM VÀO LÕI BẢN KIA. Mọi hàm nghiệp vụ bên ấy hỏi
+		   `<Bản>_Auth` xem ai đang gọi — không đặt thì chúng chạy với danh tính RỖNG: lúc chối
+		   oan, lúc ghi tên người quyết toán là chuỗi trắng vào chứng từ. Xem khối dài ở
+		   `VHCPT_Ban::muon_phien()`. */
+		VHCPT_Ban::muon_phien( $khoa );
 		$d = call_user_func( array( $lop, 'don_row' ), $ma );
 		if ( ! $d ) { return array( 'error' => 'Không tìm thấy đơn ' . $ma . ' ở mảng ' . VHCPT_Ban::ten( $khoa ) . '.' ); }
 		return array( 'ok' => true, 'lop' => $lop, 'ma' => $ma, 'khoa' => $khoa, 'don' => $d );
@@ -242,6 +250,104 @@ class VHCPT_Api {
 			),
 			'lines' => VHCPT_Gom::dong_chi( $khoa, $ma ),
 		) );
+	}
+
+	/**
+	 * XÁC NHẬN QUYẾT TOÁN PHẦN CÁ NHÂN — việc của kế toán, quyền `xacNhanQT`.
+	 *
+	 * 🔴 GỌI `xac_nhan_qt_cn_nhieu()`, KHÔNG GỌI `xac_nhan_quyet_toan_cn()` THẲNG. Hàm sau đòi
+	 *    hai thứ phải QUYẾT ĐỊNH — cách xử lý và số chênh lệch — và chúng đi thẳng vào chứng từ;
+	 *    bản 1.1.0 vì thế cố ý không làm việc này ở trang tổng. Nhưng hàm TRƯỚC tự tính cả hai
+	 *    từ chính sổ của bản ấy (`list_dons()` -> chênh lệch -> "NV trả lại" / "Kế toán bù" /
+	 *    "Khớp"), nên không còn ô trống nào mời người ta gõ bừa.
+	 *
+	 * ⚠️ VÀ NÓ ĐÒI PHIÊN: `list_dons()` lọc theo đơn vị và bộ phận của người đang gọi. Không
+	 *    mượn phiên thì nó trả danh sách rỗng, `$cl_by` không có mã đơn, và hàm báo "Không tìm
+	 *    thấy đơn" cho một đơn đang nằm sờ sờ trên màn.
+	 */
+	private static function qt_cn( $args ) {
+		$c = self::chot_ghi( $args, 'qtCn' );
+		if ( empty( $c['ok'] ) ) { return $c; }
+		if ( ! method_exists( $c['lop'], 'xac_nhan_qt_cn_nhieu' ) ) {
+			return array( 'error' => 'Bản ' . VHCPT_Ban::ten( $c['khoa'] ) . ' quá cũ, chưa có đường quyết toán.' );
+		}
+		VHCPT_Ban::muon_phien( $c['khoa'] );
+		$kq = (array) call_user_func( array( $c['lop'], 'xac_nhan_qt_cn_nhieu' ),
+			array( $c['ma'] ), VHCPT_Auth::ten() );
+		if ( empty( $kq['success'] ) ) {
+			$loi = ( ! empty( $kq['errors'] ) && is_array( $kq['errors'] ) )
+				? implode( ' · ', $kq['errors'] ) : 'Bản kia chối, không nói lý do.';
+			return array( 'error' => $loi );
+		}
+		return array( 'ok' => true,
+			'message' => 'Đã quyết toán phần cá nhân ' . $c['ma'] . ' (' . VHCPT_Ban::ten( $c['khoa'] ) . ').' );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * XUẤT MISA — GỌI LÕI CỦA TỪNG BẢN, KHÔNG DỰNG BẢNG TÀI KHOẢN THỨ HAI
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Trang tổng là xem, duyệt, quyết toán, xuất misa"*.
+	 *
+	 * 🔴 MỖI MẢNG XUẤT MỘT TỆP RIÊNG, KHÔNG GỘP BA MẢNG VÀO MỘT. Bút toán MISA mang mã đơn vị
+	 *    của từng cơ sở, và ba mảng có ba danh mục tài khoản riêng — gộp một tệp là kế toán phải
+	 *    ngồi tách lại bằng tay, mà tách tay trên bảng bút toán là chỗ dễ lẫn nhất.
+	 *
+	 * ⚠️ KHÔNG ĐÁNH DẤU "ĐÃ XUẤT" NGAY LÚC XEM. Xem thử rồi đóng màn mà sổ đã ghi "đã xuất" thì
+	 *    lượt xuất thật sau đó ra tệp RỖNG — và không ai biết vì sao. Đánh dấu là một nút riêng,
+	 *    bấm sau khi đã tải tệp về.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function misa( $args ) {
+		$ky   = isset( $args['ky'] ) ? sanitize_text_field( (string) $args['ky'] ) : 'all';
+		$mode = isset( $args['mode'] ) ? sanitize_text_field( (string) $args['mode'] ) : 'chuaxuat';
+		$pl   = isset( $args['pl'] ) ? sanitize_text_field( (string) $args['pl'] ) : 'all';
+		$ra   = array();
+		foreach ( VHCPT_Auth::ban_lam_duoc( 'misa' ) as $khoa ) {
+			$lop = VHCPT_Ban::lop( $khoa, 'Misa' );
+			/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+			if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'export_misa' ) ) { continue; }
+			VHCPT_Ban::muon_phien( $khoa );
+			$r = (array) call_user_func( array( $lop, 'export_misa' ), $ky, $mode, $pl );
+			$ra[] = array(
+				'ban'    => $khoa,
+				'tenBan' => VHCPT_Ban::ten( $khoa ),
+				'cols'   => isset( $r['cols'] ) ? $r['cols'] : array(),
+				'rows'   => isset( $r['rows'] ) ? $r['rows'] : array(),
+				'soDong' => isset( $r['count'] ) ? (int) $r['count'] : 0,
+				'soDon'  => isset( $r['sodon'] ) ? (int) $r['sodon'] : 0,
+				'canh'   => isset( $r['warn'] ) ? (array) $r['warn'] : array(),
+				'maDons' => isset( $r['maDons'] ) ? (array) $r['maDons'] : array(),
+			);
+		}
+		if ( ! $ra ) {
+			return array( 'error' => 'Vai của bạn không được xuất MISA ở mảng nào. '
+				. 'Quyền khai ở bảng Phân quyền của từng trang mảng.' );
+		}
+		return array( 'ok' => true, 'ban' => $ra );
+	}
+
+	/** Đánh dấu ĐÃ XUẤT cho một mảng — nút riêng, bấm sau khi đã tải tệp về. */
+	private static function misa_xong( $args ) {
+		$khoa = isset( $args['ban'] ) ? sanitize_key( (string) $args['ban'] ) : '';
+		$pl   = isset( $args['pl'] ) ? sanitize_text_field( (string) $args['pl'] ) : 'all';
+		$ma_ds = isset( $args['maDons'] ) && is_array( $args['maDons'] ) ? $args['maDons'] : array();
+		if ( ! VHCPT_Ban::mot( $khoa ) ) { return array( 'error' => 'Không có mảng "' . $khoa . '".' ); }
+		if ( ! VHCPT_Auth::duoc( $khoa, 'misa' ) ) {
+			return array( 'error' => 'Vai của bạn ở mảng ' . VHCPT_Ban::ten( $khoa ) . ' không được xuất MISA.' );
+		}
+		if ( ! $ma_ds ) { return array( 'error' => 'Không có đơn nào để đánh dấu.' ); }
+		$sach = array();
+		foreach ( $ma_ds as $m ) {
+			$m = sanitize_text_field( (string) $m );
+			if ( '' !== $m ) { $sach[] = $m; }
+		}
+		$lop = VHCPT_Ban::lop( $khoa, 'Misa' );
+		if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'mark_exported' ) ) {
+			return array( 'error' => 'Bản ' . VHCPT_Ban::ten( $khoa ) . ' quá cũ, chưa có đường đánh dấu.' );
+		}
+		VHCPT_Ban::muon_phien( $khoa );
+		$kq = call_user_func( array( $lop, 'mark_exported' ), $sach, $pl );
+		return self::doi_ket_qua( $kq, 'Đã đánh dấu ' . count( $sach ) . ' đơn của '
+			. VHCPT_Ban::ten( $khoa ) . ' là đã xuất MISA.' );
 	}
 
 	/**

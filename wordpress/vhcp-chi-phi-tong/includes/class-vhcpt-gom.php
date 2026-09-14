@@ -118,6 +118,7 @@ class VHCPT_Gom {
 			$ra[] = array(
 				'ban'      => $khoa,
 				'tenBan'   => VHCPT_Ban::ten( $khoa ),
+				'urlBan'   => (string) ( isset( VHCPT_Ban::ds()[ $khoa ]['url'] ) ? VHCPT_Ban::ds()[ $khoa ]['url'] : '' ),
 				'maDon'    => $ma,
 				'ky'       => (string) $r['ky'],
 				'nguoiLap' => (string) $r['nguoi_lap'],

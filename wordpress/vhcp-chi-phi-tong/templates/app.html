@@ -251,9 +251,15 @@ function veBang(){
   thuTu.forEach(function(ban){
     var g = theoMang[ban], tong = 0, coSo = 0;
     g.ds.forEach(function(d){ if (d.tien !== null){ tong += d.tien; coSo++; } });
+    /* 🔴 LINK SANG TRANG MẢNG — anh Thắng 14/09/2026: *"trang chi phí tổng nó lấy cấu hình hết
+       bên các trang chi phí con, chứ nó không có cấu hình gì trong đó, sau này kế toán muốn sửa
+       cả loại thì có link để đẩy vào trang"*. Danh mục loại chi phí, mã tài khoản, cơ sở, phân
+       quyền — tất cả nằm ở trang mảng và chỉ ở đó; chỗ này chỉ dẫn đường sang. */
+    var urlBan = (g.ds[0] && g.ds[0].urlBan) || '';
     h += '<div class="card"><div class="ch">' +
       '<h2>🏷 '+esc(g.ten)+' <span class="chip">'+g.ds.length+' đơn</span></h2>' +
-      '<div class="nho mo">Cộng '+tien(tong)+ ( coSo < g.ds.length ? ' · '+(g.ds.length-coSo)+' đơn chưa đọc được số' : '' )+'</div>' +
+      '<div class="nho mo">Cộng '+tien(tong)+ ( coSo < g.ds.length ? ' · '+(g.ds.length-coSo)+' đơn chưa đọc được số' : '' ) +
+      ( urlBan ? ' · <a href="'+esc(urlBan)+'" target="_blank" rel="noopener">mở trang mảng ↗</a>' : '' ) + '</div>' +
       '</div><div class="cb"><div class="cuon"><table><thead><tr>' +
       '<th>Mã đơn</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
       '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';

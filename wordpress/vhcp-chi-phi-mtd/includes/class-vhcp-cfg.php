@@ -621,14 +621,33 @@ class VHCPMTD_Cfg {
 	 * Như _seedConfig() nhưng dùng dữ liệu ĐÃ ĐỌC SẴN (khỏi 4 lệnh đếm dòng).
 	 * Trả về true nếu có thêm/ sửa gì -> nơi gọi biết là phải đọc lại.
 	 */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 "BẢNG RỖNG" KHÔNG CÓ NGHĨA LÀ "CHƯA GIEO BAO GIỜ".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, bản Văn phòng: *"trang chi phí văn phòng không xóa được cơ sở chi phí
+	 * kvc"*. Bản VP gieo sẵn 14 cơ sở của K&H; anh xoá hết rồi bấm Lưu — và chúng quay lại ngay
+	 * lượt tải sau.
+	 *
+	 * Vì gác của hàm này chỉ hỏi "bảng có rỗng không". Rỗng thì gieo. Mà người ta vừa CỐ Ý dọn
+	 * sạch cũng cho ra một bảng rỗng — không phân biệt được hai chuyện ấy thì mọi lượt dọn sạch
+	 * đều bị hoàn tác, và người dọn không có cách nào thắng.
+	 *
+	 * ⚠️ HẠT GIỐNG LÀ MỒI CHO LƯỢT ĐẦU, KHÔNG PHẢI LUẬT VĨNH VIỄN. Nay mỗi danh mục có một dấu
+	 *    "đã gieo rồi": gieo đúng một lần, sau đó bảng rỗng là ý của người dùng và phải được tôn
+	 *    trọng — kể cả khi rỗng là do họ xoá nhầm, vì còn có nút Khôi phục cho chuyện ấy.
+	 *
+	 * 🔴 BẢNG NGƯỜI DÙNG CỐ Ý KHÔNG THEO LUẬT NÀY — xem chỗ gieo `USER` bên dưới.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 	private static function seed_from( $all ) {
 		$did = false;
-		if ( ! count( self::rows_of( $all, self::COSO ) ) ) {
+		if ( ! count( self::rows_of( $all, self::COSO ) ) && ! VHCPMTD_Meta::get( 'seeded_coso_v1' ) ) {
 			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '', '' ) ); }
+			VHCPMTD_Meta::set( 'seeded_coso_v1', '1' );
 			$did = true;
 		}
-		if ( ! count( self::rows_of( $all, self::NHOM ) ) ) {
+		if ( ! count( self::rows_of( $all, self::NHOM ) ) && ! VHCPMTD_Meta::get( 'seeded_nhom_v1' ) ) {
 			foreach ( self::default_nhom() as $n ) { self::append( self::NHOM, array( $n[0], $n[1], '', '' ) ); }
+			VHCPMTD_Meta::set( 'seeded_nhom_v1', '1' );
 			$did = true;
 		}
 		if ( ! count( self::rows_of( $all, self::PL ) ) ) {
@@ -642,6 +661,10 @@ class VHCPMTD_Cfg {
 			foreach ( self::BO_PHAN_DS as $b ) { self::append( self::BP, array( $b ) ); }
 			$did = true;
 		}
+		/* 🔴 BẢNG NGƯỜI DÙNG GIEO LẠI MỖI KHI RỖNG, CỐ Ý KHÔNG CÓ DẤU "đã gieo rồi".
+		   Xoá sạch người dùng là tự khoá mình ngoài cửa VĨNH VIỄN — không còn PIN nào vào được
+		   để mà sửa. Dòng Admin gieo lại là đường cứu duy nhất, và nó phải luôn có mặt.
+		   ⚠️ Đổi lại: PIN mặc định nằm công khai trong mã. Đổi PIN Admin ngay sau khi cài. */
 		if ( ! count( self::rows_of( $all, self::USER ) ) ) {
 			self::append( self::USER, array( 'Admin', '1111', 'Admin', '', '', '', '' ) );
 			$did = true;

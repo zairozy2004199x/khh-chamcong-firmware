@@ -227,11 +227,25 @@ VHCP_Cfg::write( VHCP_Cfg::COSO, array() );
 VHCP_Cfg::clear_cache();
 $wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'coso' ) );
 $wpdb->insert( VHG_DB::t( 'coso' ), array( 'ten' => 'SNOW NHÀ TUYẾT TÂN PHÚ' ) );   // có bên ghế, thiếu bên kia
-/* ⚠️ KHÔNG ĐÒI DANH MỤC TRỐNG. Bảng cơ sở rỗng thì `cfg_static()` tự gieo lại bộ mẫu
-   (`seed_from()` → `default_coso()`), nên "xoá trắng" là trạng thái không tồn tại. Đòi trống là
-   phép thử đỏ vì một hành vi đúng — đã đỏ đúng như thế ở lượt chạy đầu. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ GIẢ ĐỊNH Ở ĐÂY ĐÃ ĐỔI — 14/09/2026, và đây là chỗ ghi lại.
+ *
+ * Trước: bảng cơ sở rỗng thì `cfg_static()` LUÔN gieo lại bộ mẫu, nên "xoá trắng" là trạng thái
+ * không tồn tại, và phép này đòi danh mục KHÔNG rỗng.
+ *
+ * Nay: hạt giống gieo ĐÚNG MỘT LẦN (dấu `seeded_coso_v1`). Anh Thắng tách chi phí theo mảng, và
+ * bản Văn phòng gieo sẵn 14 cơ sở của K&H — anh xoá hết rồi bấm Lưu, chúng quay lại: *"trang chi
+ * phí văn phòng không xóa được cơ sở chi phí kvc"*. Gác cũ không phân biệt được "chưa gieo bao
+ * giờ" với "người ta vừa cố ý dọn sạch".
+ *
+ * Nên phép này nay canh điều NGƯỢC LẠI, và nó vẫn là ĐỐI CHỨNG cho phần dưới: sau khi dọn sạch,
+ * danh mục ở lại rỗng, nên mọi dòng xuất hiện sau đó chắc chắn đến từ lượt hút bên ghế chứ không
+ * phải từ hạt giống.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_Cfg::seed();
 $dm0 = dm_coso();
-t( 'đối chứng · danh mục rỗng thì tự gieo lại bộ mẫu', count( $dm0 ) > 0, count( $dm0 ) );
+t( '🔴 đối chứng · dọn sạch rồi thì danh mục Ở LẠI rỗng, không tự gieo lại',
+	0 === count( $dm0 ), count( $dm0 ) );
 t( 'sân: gian ấy CHƯA có bên chi phí', ! isset( $dm0['SNOW NHÀ TUYẾT TÂN PHÚ'] ), array_keys( $dm0 ) );
 VHG_May::luu_coso( 0, 'SNOW NHÀ TUYẾT TÂN PHÚ' );   // rơi vào nhánh "đã có"
 $dm = dm_coso();
