@@ -613,7 +613,39 @@ t( '🔴 máy chủ gửi kèm cả hai', false !== strpos( $api_ma, "'lichSu' =
 /* ⚠️ get_log() trả nhật ký của CẢ bản — phải lọc đúng mã đơn, không dội nguyên xuống màn. */
 t( '⚠️ lịch sử lọc đúng mã đơn theo ô Đối tượng',
 	(bool) preg_match( '#doiTuong[\s\S]{0,120}?!== [$]ma \) \{ continue; \}#', $api_ma ), '' );
-t( 'viền thẻ có thật, không chỉ bóng đổ', false !== strpos( $html, '.card{background:#fff;border:1px solid' ), '' );
+/* 🔴 VIỀN THẺ PHẢI CÓ THẬT, không để bóng đổ tự lo. Từ 14/09/2026 bộ áo dùng token, và
+   shadcn nói thẳng: *"the shadow alone does not define the card edge in this system"* — bóng
+   ở bộ này nhạt gần như không thấy, gỡ viền đi là hai thẻ cạnh nhau dính thành một mảng
+   trắng dài. Dò theo TOKEN chứ không theo mã màu, để đổi bảng màu không phải sửa phép này. */
+t( 'viền thẻ có thật, không chỉ bóng đổ',
+	false !== strpos( $html, '.card{background:var(--the);border:1px solid var(--vien)' ), '' );
+/* ⚠️ VÀ MỌI TOKEN ĐƯỢC DÙNG PHẢI CÓ CHỖ KHAI. Gõ nhầm một tên biến trong CSS thì trình duyệt
+   im lặng bỏ qua cả dòng ấy — không lỗi, không cảnh báo, chỉ là cái viền biến mất. */
+if ( preg_match( '#<style>([\s\S]*?)</style>#', $html, $m_css ) ) {
+	$_css   = $m_css[1];
+	preg_match_all( '#var\(\s*(--[a-z0-9-]+)#', $_css, $_dung );
+	preg_match_all( '#(--[a-z0-9-]+)\s*:\s*[^;]+;#', $_css, $_khai );
+	$_thieu = array_values( array_unique( array_diff( $_dung[1], $_khai[1] ) ) );
+	t( '⚠️ không token CSS nào dùng mà chưa khai', ! $_thieu, implode( ', ', $_thieu ) );
+	t( '🔴 bộ áo trộn: nền kem ấm của Officevibe',
+		false !== strpos( $_css, '--nen:#f9f8f6' ), '' );
+	t( '🔴 viền KEM, không phải viền xám',
+		false !== strpos( $_css, '--vien:#f0e9e1' ), '' );
+	t( '🔴 nhấn cobalt + chữ navy',
+		false !== strpos( $_css, '--nhan:#2545ff' ) && false !== strpos( $_css, '--chu-dam:#0c1754' ), '' );
+	/* 🔴 NÚT KHÔNG BO 100px. Officevibe để nút hình viên thuốc; ở trang bảng số thì hai nút
+	   cạnh nhau dính thành một vệt. Lấy 18px của shadcn. */
+	t( '🔴 nút bo 18px (shadcn), KHÔNG 100px (Officevibe)',
+		false !== strpos( $_css, '--bo-nut:18px' ) && false === strpos( $_css, '--bo-nut:100px' ), '' );
+	/* 🔴 Ô NHẬP TRONG BẢNG bo nhỏ hơn ô rời — chín ô bo tròn sát nhau ăn mất bề ngang. */
+	t( '🔴 ô nhập trong bảng bo nhỏ riêng',
+		false !== strpos( $_css, '--bo-o-bang:6px' )
+		&& false !== strpos( $_css, 'td input,td select,.o-loc{border-radius:var(--bo-o-bang)}' ), '' );
+	/* 🔴 KHÔNG TẢI FONT NGOÀI. Trang chạy ngoài internet: thêm một lượt tải font là thêm một
+	   phụ thuộc mạng, và mạng chậm thì chữ nhảy một nhịp giữa lúc người ta đang gõ số tiền. */
+	t( '🔴 không tải font ngoài (@import / fonts.googleapis)',
+		false === strpos( $_css, '@import' ) && false === strpos( $html, 'fonts.googleapis' ), '' );
+}
 
 /* ═══ 6f. MỌI HÀM CỦA MÀN PHẢI CÒN MẶT ══════════════════════════════════════════
  *
@@ -765,7 +797,11 @@ t( '🔴 nhưng KHÔNG đếm Nháp vào ô tròn (chưa gửi thì chưa phải
  * ═══════════════════════════════════════════════════════════════════════════════ */
 t( '🔴 có bảng màu theo bước', false !== strpos( $html, 'function mauBuoc(' ), '' );
 foreach ( array(
-	'Nháp'              => '#64748b',
+	/* ⚠️ Tông XÁM hâm ấm lại 14/09/2026 cho hợp nền kem — nó chỉ có nghĩa "chưa tới lượt
+	   ai", nên đổi sắc không đổi nghĩa. BA TÔNG DƯỚI THÌ KHÔNG: cam = đang chờ người nào đó ·
+	   xanh dương = tiền đã ra khỏi két · xanh lá = xong. Đổi chúng là người đọc mất bảng màu
+	   đã quen cả năm nay. */
+	'Nháp'              => '#8c8781',
 	'Chờ duyệt tạm ứng' => '#b45309',
 	'Chờ cấp tạm ứng'   => '#b45309',
 	'Chờ quyết toán'    => '#b45309',

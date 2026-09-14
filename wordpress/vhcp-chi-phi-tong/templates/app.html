@@ -7,175 +7,221 @@
 <title>Chi Phí Tổng</title>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * CÙNG MỘT BỘ ÁO VỚI TRANG CHI PHÍ — anh Thắng 14/09/2026: *"cho giao diện trang tổng giống như
- * các trang khác"*.
+ * BỘ ÁO TRỘN — anh Thắng 14/09/2026 gửi hai tệp DESIGN.md và chọn *"Trộn hai bản"*, rồi
+ * *"chỉnh lại trang chi phí tổng trước cho anh xem như nào"*.
  *
- * ⚠️ CHÉP BẢNG MÀU, KHÔNG NẠP `vhcp.css` CỦA BẢN KIA. Trang tổng là plugin độc lập; trỏ sang tệp
- *    của plugin khác là ngày nào bản ấy bị gỡ thì trang này mất áo, mà mất áo trong lúc chạy thì
- *    trông y như hỏng. Màu lấy đúng từ `assets/css/vhcp.css`: xanh 0f766e · nền f1f5f9 · viền
- *    cbd5e1 · chữ 0f172a.
+ * HAI TỆP ẤY MÂU THUẪN NHAU, nên "trộn" phải nói rõ lấy gì của ai:
+ *   · Officevibe cho MÀU  — nền kem ấm #f9f8f6, viền kem #f0e9e1, chữ navy #0c1754, nhấn
+ *                           cobalt #2545ff. Officevibe cấm hẳn viền xám: *"the system uses
+ *                           warm cream for every hairline"*.
+ *   · shadcn     cho NHỊP — mật độ compact, đơn vị 4px, thẻ padding 20px, khoảng cách 8px,
+ *                           và đỏ #e7000b CHỈ dùng cho việc xoá / báo lỗi, không trang trí.
+ *
+ * 🔴 BA CHỖ CỐ Ý KHÔNG CHÉP NGUYÊN, vì trang này là trang BẢNG SỐ chứ không phải trang giới
+ *    thiệu — kế toán ngồi nhập tiền cả ngày trên một bảng chín cột:
+ *
+ *    1. NÚT KHÔNG BO 100px. Officevibe để nút hình viên thuốc; ở đây nút nằm chen trong hàng
+ *       và trong ô bảng, bo tròn hết cỡ thì hai nút cạnh nhau dính thành một vệt. Lấy 18px
+ *       của shadcn — vẫn mềm, vẫn tách được.
+ *    2. Ô NHẬP TRONG BẢNG BO 6px, không 16–18px. Chín ô bo tròn sát nhau ăn mất bề ngang và
+ *       tạo một hàng sóng; ô nhập RỜI (ngoài bảng) thì vẫn 10px cho mềm.
+ *    3. KHÔNG TẢI FONT NGOÀI. Cả hai tệp đòi font riêng (Geist · Martinaplantijn · ABC
+ *       Favorit). Trang này chạy ngoài internet trên hosting: thêm một lượt tải font là thêm
+ *       một phụ thuộc mạng, và lúc mạng chậm thì chữ nhảy một nhịp giữa lúc người ta đang gõ
+ *       số tiền. Dùng chồng font hệ thống — chính DESIGN.md cũng ghi sẵn lối thay (Geist →
+ *       Inter → system-ui).
+ *
+ * ⚠️ BỐN TÔNG TRẠNG THÁI GIỮ NGUYÊN (xem `mauBuoc()` trong JS): xám = chưa tới lượt ai · cam =
+ *    đang chờ người nào đó · xanh dương = tiền đã ra khỏi két · xanh lá = xong. Chúng MANG
+ *    NGHĨA, không phải trang trí — đổi theo bộ áo là người đọc mất cái bảng màu đã quen. Chỉ
+ *    tông XÁM được hâm ấm lại cho hợp nền kem; ba tông còn lại đụng vào là đổi nghĩa.
+ *
+ * ⚠️ CHÉP BẢNG MÀU, KHÔNG NẠP CSS CỦA PLUGIN KHÁC. Trang tổng là plugin độc lập; trỏ sang tệp
+ *    của bản kia là ngày nào bản ấy bị gỡ thì trang này mất áo — mà mất áo lúc đang chạy thì
+ *    trông y như hỏng.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
-body{background:#f1f5f9;color:#0f172a;font-size:13px}
-.top{background:#0f766e;color:#fff;padding:14px max(22px,calc((100% - 1600px)/2));
+:root{
+  /* Màu — Officevibe */
+  --nen:#f9f8f6;          /* nền trang, kem ấm */
+  --the:#ffffff;          /* mặt thẻ */
+  --nen-2:#f4f1ec;        /* nền phụ: đầu bảng, nút xám, chân bảng */
+  --vien:#f0e9e1;         /* viền kem — thay hẳn viền xám cũ #cbd5e1 */
+  --vien-dam:#e2d6c7;     /* viền kem đậm, dùng khi cần rõ hơn */
+  --chu:#171417;          /* chữ thường */
+  --chu-dam:#0c1754;      /* tiêu đề, thanh trên, số tiền — navy */
+  --chu-mo:#8c8781;       /* chữ phụ, nhãn, chú thích */
+  --nhan:#2545ff;         /* nhấn: nút chính, vạch chỉ, vòng focus */
+  --nhan-dam:#1a34c9;
+  --nhan-nhat:#eaebf8;    /* nền nhạt của màu nhấn */
+  --do:#e7000b;           /* CHỈ cho xoá và báo lỗi — không trang trí */
+
+  /* Nhịp — shadcn, đơn vị 4px */
+  --d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
+
+  /* Bo góc */
+  --bo-the:16px;          /* thẻ — Officevibe */
+  --bo-nut:18px;          /* nút — shadcn (KHÔNG 100px, xem ghi chú trên) */
+  --bo-badge:16px;        /* thẻ nhãn, chip — Officevibe */
+  --bo-o:10px;            /* ô nhập rời */
+  --bo-o-bang:6px;        /* ô nhập trong bảng */
+  --bo-nho:8px;
+
+  /* Bóng — shadcn: gần như không thấy, viền mới là thứ vạch ra mép thẻ */
+  --bong:0 0 0 1px rgba(12,23,84,.03), 0 1px 3px rgba(12,23,84,.06), 0 1px 2px -1px rgba(12,23,84,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0;
+  font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}
+body{background:var(--nen);color:var(--chu);font-size:14px;line-height:1.5}
+.top{background:var(--chu-dam);color:#fff;padding:var(--d4) max(22px,calc((100% - 1600px)/2));
      display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
-.top h1{font-size:18px;display:flex;align-items:center;gap:8px}
-.top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
-.chip-pb{font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);
-         border-radius:20px;padding:3px 10px;vertical-align:middle}
-.bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px,calc((100% - 1600px)/2));
-     display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.wrap{padding:20px 22px 40px;width:100%;max-width:1600px;margin:0 auto}
-/* ══════════════════════════════════════════════════════════════════════════════════════════════
- * VIỀN VÀ KHOẢNG THỞ — anh Thắng 14/09/2026: *"Nhớ tạo viền trang thẩm mỹ tí"*.
- * Thẻ trước đây chỉ có bóng đổ rất nhạt, nên trên nền xám hai thẻ cạnh nhau dính vào nhau thành
- * một mảng trắng dài; mắt phải tự đoán đâu là hết mảng này sang mảng kia. Thêm viền thật 1px,
- * bo góc rộng hơn, và nới khoảng cách giữa các thẻ. */
-.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;
-      box-shadow:0 1px 3px rgba(15,23,42,.06);margin-bottom:18px;overflow:hidden}
-.card:hover{border-color:#cbd5e1}
-.ch{background:linear-gradient(#fff,#fbfdfd)}
-.ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;
-    align-items:center;flex-wrap:wrap;gap:8px}
-.ch h2{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
-.cb{padding:14px 16px}
-input,select{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
-input:focus,select:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
+.top h1{font-size:20px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:var(--d2)}
+.top .sub{font-size:12px;color:#b9c0e8;margin-top:2px}
+.chip-pb{font-size:12px;font-weight:500;color:#dfe3fa;background:rgba(255,255,255,.14);
+         border-radius:var(--bo-badge,16px);padding:3px 10px;vertical-align:middle}
+.bar{background:var(--the);border-bottom:1px solid var(--vien);padding:10px max(22px,calc((100% - 1600px)/2));
+     display:flex;gap:var(--d2);align-items:center;flex-wrap:wrap}
+.wrap{padding:var(--d5) 22px 40px;width:100%;max-width:1600px;margin:0 auto}
+/* Thẻ: viền kem 1px + bóng gần như không thấy. shadcn: *"the shadow alone does not define the
+   card edge in this system"* — nên viền là thật, bóng chỉ để nhấc thẻ khỏi nền một chút. */
+.card{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);
+      box-shadow:var(--bong);margin-bottom:var(--d4);overflow:hidden}
+.card:hover{border-color:var(--vien-dam)}
+.ch{background:var(--the);padding:var(--d3) var(--d5);border-bottom:1px solid var(--vien);
+    display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--d2)}
+.ch h2{font-size:15px;font-weight:600;color:var(--chu-dam);letter-spacing:-.01em;
+       display:flex;align-items:center;gap:var(--d2)}
+.cb{padding:var(--d4) var(--d5)}
+input,select{padding:8px 10px;border:1px solid var(--vien-dam);border-radius:var(--bo-o);
+             font-size:14px;font-family:inherit;background:var(--the);color:var(--chu)}
+input::placeholder{color:var(--chu-mo)}
+input:focus,select:focus{outline:none;border-color:var(--nhan);box-shadow:0 0 0 3px rgba(37,69,255,.12)}
+/* Ô nhập TRONG bảng: bo nhỏ, nền hơi lùi — xem ghi chú 2 ở đầu tệp. */
+td input,td select,.o-loc{border-radius:var(--bo-o-bang)}
 /* ⚠️ `transition` CHỈ TRÊN NHỮNG THỨ KHÔNG LÀM XÊ DỊCH BỐ CỤC (transform · shadow · màu). Cho
    nó chạy trên `padding` hay `width` là mỗi lần rê chuột cả hàng nút nhích một chút, và bảng
    bên dưới giật theo — anh Thắng muốn "động đậy", không phải rung. */
-.btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;
-     white-space:nowrap;transition:transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease}
-.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 3px 10px rgba(15,23,42,.16)}
-.btn:active:not(:disabled){transform:translateY(0);box-shadow:0 1px 3px rgba(15,23,42,.14)}
+.btn{padding:8px var(--d4);border:none;border-radius:var(--bo-nut);font-size:13.5px;font-weight:500;
+     cursor:pointer;white-space:nowrap;
+     transition:transform .12s ease, box-shadow .12s ease, background .12s ease, color .12s ease}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 3px 10px rgba(12,23,84,.14)}
+.btn:active:not(:disabled){transform:translateY(0);box-shadow:0 1px 3px rgba(12,23,84,.12)}
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * NÚT TAB MANG MÀU CỦA CHÍNH NÓ — anh Thắng 14/09/2026: *"tạo màu các nút nhấn theo tab đang mở
- * của nó"*.
- *
- * 🔴 TAB ĐANG MỞ PHẢI NHÌN RA NGAY, kể cả khi mắt đang ở giữa màn. Trước đây tab mở là một nút
- *    ĐEN giữa hàng nút xám — phân biệt được, nhưng màu đen không nói gì về việc bên trong. Nay
- *    mỗi tab mang tông của phần việc nó chứa, nên nhìn thanh tab là đã biết mình đang đứng ở
- *    khâu nào.
+ * của nó"*. Màu tab do JS đặt thẳng vào `style`, nên bộ áo chỉ lo phần khung.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-.tab{border:1px solid #e2e8f0;background:#fff;color:#64748b}
+.tab{border:1px solid var(--vien);background:var(--the);color:var(--chu-mo)}
 .tab:hover{border-color:currentColor}
-.tab.on{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(15,23,42,.18)}
+.tab.on{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(12,23,84,.16)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
-.b-g{background:#16a34a;color:#fff}
-.b-x{background:#f1f5f9;color:#334155}
-.b-d{background:#fee2e2;color:#dc2626}
-.b-s{background:#e0f2fe;color:#0369a1}
-.b-on{background:#0f172a;color:#fff}
-.dem{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:rgba(0,0,0,.10);
-     font-size:11.5px;font-weight:700}
-.b-on .dem{background:rgba(255,255,255,.22)}
+.b-p{background:var(--nhan);color:#fff}.b-p:hover{background:var(--nhan-dam)}
+.b-g{background:var(--chu-dam);color:#fff}
+.b-x{background:var(--nen-2);color:var(--chu)}
+/* 🔴 ĐỎ CHỈ Ở ĐÂY. shadcn: *"never use it for decoration"* — đỏ trong bộ này chỉ có nghĩa
+   "xoá / trả lại / lỗi", nên nó là thứ duy nhất trên màn mang sắc đỏ. */
+.b-d{background:#fdeaea;color:var(--do)}
+.b-s{background:var(--nhan-nhat);color:var(--chu-dam)}
+.b-on{background:var(--chu-dam);color:#fff}
+.dem{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:rgba(0,0,0,.08);
+     font-size:12px;font-weight:600}
+.b-on .dem,.b-p .dem,.b-g .dem{background:rgba(255,255,255,.22)}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border:1px solid #e2e8f0;padding:7px 9px;text-align:left;vertical-align:top}
-th{background:#f8fafc;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#475569}
+th,td{border:1px solid var(--vien);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--nen-2);font-size:11.5px;font-weight:600;text-transform:uppercase;
+   letter-spacing:.05em;color:var(--chu-mo)}
 td.r,th.r{text-align:right;white-space:nowrap}
-tfoot td{font-weight:700;background:#f1f5f9}
+tfoot td{font-weight:600;background:var(--nen-2);color:var(--chu-dam)}
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * PHẦN XEM ĐƠN — DỰNG THEO ĐÚNG BỐ CỤC TRANG MẢNG (anh Thắng 14/09/2026: *"giao diện trực quan
  * như này đi"*, kèm ba ảnh chụp trang mảng).
  *
  * 🔴 GIỐNG NHAU LÀ ĐỂ ĐỌC ĐƯỢC NGAY, KHÔNG PHẢI ĐỂ ĐẸP. Kế toán và quản lý đọc đơn ở trang mảng
- *    cả năm nay; mắt họ đã quen chỗ nào là trạng thái, chỗ nào là tiền, chỗ nào là lịch sử. Bày
- *    cùng thứ ấy theo một bố cục khác là bắt họ học lại một lần nữa, và lúc vội thì đọc nhầm.
+ *    cả năm nay; mắt họ đã quen chỗ nào là trạng thái, chỗ nào là tiền, chỗ nào là lịch sử.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-.hai-cot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:14px;align-items:start}
+.hai-cot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:var(--d4);align-items:start}
 @media(max-width:980px){.hai-cot{grid-template-columns:minmax(0,1fr)}}
-.hop-tt{border:1px solid #bfdbfe;background:#f8fbff;border-radius:12px;padding:12px 14px}
-.hop-ls{border:1px dashed #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px}
-.chip-k{display:inline-block;padding:2px 9px;border-radius:7px;font-size:11px;font-weight:800;
+.hop-tt{border:1px solid var(--vien);background:var(--nhan-nhat);border-radius:var(--bo-the);padding:var(--d3) var(--d4)}
+.hop-ls{border:1px dashed var(--vien-dam);background:var(--the);border-radius:var(--bo-the);padding:var(--d3) var(--d4)}
+.chip-k{display:inline-block;padding:2px 9px;border-radius:var(--bo-nho);font-size:11.5px;font-weight:600;
         margin:2px 4px 2px 0;white-space:nowrap}
 .k-mo{background:#dcfce7;color:#166534}
-.k-khoa{background:#fee2e2;color:#b91c1c}
+.k-khoa{background:#fdeaea;color:var(--do)}
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * MÀU THEO BƯỚC — anh Thắng 14/09/2026: *"các ô đơn hiện màu mè tí được không"*.
- *
- * 🔴 MÀU Ở ĐÂY LÀ ĐỂ ĐẾM BẰNG MẮT, không phải để trang trí. Bảy khối xám như nhau thì phải đọc
- *    tiêu đề từng khối mới biết đang ở khâu nào; mỗi khâu một tông thì liếc một cái là thấy
- *    "chỗ cam đang dài" — mà chỗ cam chính là chỗ ùn.
- *
- * ⚠️ BA TÔNG THEO NGHĨA, KHÔNG PHẢI BẢY MÀU CẦU VỒNG: xám = chưa tới lượt ai · cam = ĐANG CHỜ
- *    người nào đó làm · xanh dương = tiền đã ra khỏi két · xanh lá = xong. Bảy màu rời rạc thì
- *    người đọc phải nhớ bảng màu, tức lại mất đúng cái lợi vừa nói.
+ * Màu từng khối do `mauBuoc()` đặt thẳng vào `style`; chỗ này chỉ lo khung và nhịp.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-.buoc{border-left:4px solid #cbd5e1;border-radius:10px;padding:10px 12px;margin:14px 0 0;background:#fff}
-.buoc-dau{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
-.buoc-ten{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:7px}
-.buoc-so{font-size:11.5px;font-weight:800;padding:1px 9px;border-radius:999px}
-.buoc-rong{padding:8px 12px;background:#fff}
-.cl-chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
-.thanh-chon{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:8px 10px;
-  border:1px solid #cbd5e1;border-radius:9px}
-.dai-loc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px}
-.o-loc{font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;max-width:230px}
-.buoc table tbody tr:nth-child(even) td{background:#fcfdfe}
-.buoc table tbody tr:hover td{background:#f8fafc}
-.buoc td.tien{font-weight:700}
-/* CHUÔNG — anh Thắng 14/09/2026: *"thêm 1 cái chuông thông báo khi có đơn mới cho kế toán biết"*. */
+.buoc{border-left:4px solid var(--vien-dam);border-radius:var(--bo-the);padding:var(--d3) var(--d4);
+      margin:var(--d4) 0 0;background:var(--the)}
+.buoc-dau{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--d2);margin-bottom:var(--d2)}
+.buoc-ten{font-weight:600;font-size:14px;letter-spacing:-.01em;display:flex;align-items:center;gap:7px}
+.buoc-so{font-size:11.5px;font-weight:600;padding:1px 9px;border-radius:999px}
+.buoc-rong{padding:var(--d2) var(--d3);background:var(--the);color:var(--chu-mo)}
+.cl-chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.thanh-chon{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:var(--d2);padding:var(--d2) 10px;
+  border:1px solid var(--vien-dam);border-radius:var(--bo-o)}
+.dai-loc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:var(--d2);font-size:12.5px}
+.o-loc{font-size:12.5px;padding:3px 6px;border:1px solid var(--vien-dam);background:var(--the);max-width:230px}
+.buoc table tbody tr:nth-child(even) td{background:#fdfcfa}
+.buoc table tbody tr:hover td{background:var(--nen-2)}
+.buoc td.tien{font-weight:600;color:var(--chu-dam)}
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * XEM TRƯỚC ẢNH CHỨNG TỪ KHI RÊ CHUỘT — anh Thắng 14/09/2026: *"rê chuột vào phóng ảnh lên nhé"*.
  *
  * 🔴 KHUNG XEM TRƯỚC PHẢI NỔI NGOÀI BẢNG (`position:fixed` gắn thẳng vào `body`). Bảng dòng chi
  *    nằm trong `.cuon{overflow-x:auto}`: một ô ảnh to đặt bên trong sẽ bị CẮT ngay mép khung
- *    cuộn, và người ta chỉ thấy một mẩu. Cùng lý do không dùng mẹo `:hover` thuần CSS.
+ *    cuộn, và người ta chỉ thấy một mẩu.
  *
  * ⚠️ `pointer-events:none` — khung phải TRONG SUỐT VỚI CHUỘT. Thiếu nó thì khung vừa hiện ra đã
- *    nằm dưới con trỏ, trình duyệt coi như chuột đã rời ảnh, khung tắt — rồi lại hiện. Nhấp nháy
- *    không dứt.
+ *    nằm dưới con trỏ, trình duyệt coi như chuột đã rời ảnh, khung tắt — rồi lại hiện.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-#anhTo{position:fixed;z-index:4000;display:none;pointer-events:none;background:#fff;padding:6px;
-       border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 16px 40px rgba(15,23,42,.28)}
-#anhTo img{display:block;max-width:min(420px,60vw);max-height:min(420px,60vh);border-radius:6px}
-#anhTo .ct{font-size:11px;color:#64748b;padding:4px 2px 0;text-align:center}
+#anhTo{position:fixed;z-index:4000;display:none;pointer-events:none;background:var(--the);padding:6px;
+       border:1px solid var(--vien-dam);border-radius:var(--bo-the);box-shadow:0 16px 40px rgba(12,23,84,.24)}
+#anhTo img{display:block;max-width:min(420px,60vw);max-height:min(420px,60vh);border-radius:var(--bo-nho)}
+#anhTo .ct{font-size:11.5px;color:var(--chu-mo);padding:4px 2px 0;text-align:center}
 .o-anh{cursor:zoom-in}
 .chuong{position:relative}
 .chuong-so{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;line-height:18px;
-           padding:0 5px;border-radius:999px;background:#dc2626;color:#fff;font-size:11px;
-           font-weight:800;text-align:center;box-shadow:0 0 0 2px #0f766e}
+           padding:0 5px;border-radius:999px;background:var(--do);color:#fff;font-size:11px;
+           font-weight:600;text-align:center;box-shadow:0 0 0 2px var(--chu-dam)}
 .chuong-hop{position:absolute;right:0;top:38px;width:min(420px,92vw);max-height:70vh;overflow:auto;
-            background:#fff;border:1px solid #cbd5e1;border-radius:12px;z-index:2000;
-            box-shadow:0 12px 32px rgba(15,23,42,.22);text-align:left}
-.chuong-hop .muc{padding:9px 12px;border-bottom:1px solid #f1f5f9;cursor:pointer}
-.chuong-hop .muc:hover{background:#f8fafc}
-.dem-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;
-          border:1px solid #e2e8f0;background:#fff;color:#94a3b8;margin:0 5px 5px 0}
-.dem-chip b{font-weight:800}
-.qt-hop{border:2px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:14px;margin-top:12px}
-.qt-o{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 14px;min-width:150px}
-.qt-o .nhan{font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.03em}
-.qt-o .so{font-size:19px;font-weight:800;margin-top:2px}
-.cuon{overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px}
+            background:var(--the);border:1px solid var(--vien-dam);border-radius:var(--bo-the);z-index:2000;
+            box-shadow:0 12px 32px rgba(12,23,84,.18);text-align:left}
+.chuong-hop .muc{padding:9px var(--d3);border-bottom:1px solid var(--vien);cursor:pointer}
+.chuong-hop .muc:hover{background:var(--nen-2)}
+.dem-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:500;
+          border:1px solid var(--vien);background:var(--the);color:var(--chu-mo);margin:0 5px 5px 0}
+.dem-chip b{font-weight:600;color:var(--chu-dam)}
+.qt-hop{border:1px solid #fde68a;background:#fffbeb;border-radius:var(--bo-the);padding:var(--d4);margin-top:var(--d3)}
+.qt-o{border:1px solid var(--vien);background:var(--the);border-radius:var(--bo-o);padding:10px var(--d4);min-width:150px}
+.qt-o .nhan{font-size:11px;font-weight:600;color:var(--chu-mo);text-transform:uppercase;letter-spacing:.05em}
+.qt-o .so{font-size:20px;font-weight:600;margin-top:2px;letter-spacing:-.025em;color:var(--chu-dam)}
+.cuon{overflow-x:auto;border:1px solid var(--vien);border-radius:var(--bo-o)}
 .cuon table{border:none}
 .cuon th:first-child,.cuon td:first-child{border-left:none}
 .cuon th:last-child,.cuon td:last-child{border-right:none}
 .cuon tr:first-child th{border-top:none}
-.mo{color:#64748b}
-.nho{font-size:11.5px}
-.chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #cbd5e1;
-      font-size:11.5px;font-weight:600;background:#f8fafc;color:#334155}
-.chip-l{display:inline-block;padding:1px 7px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;
-        color:#1e40af;font-size:11px;font-weight:600;margin:1px 3px 1px 0}
-.bao{padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:12.5px}
-.bao-loi{background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c}
+.mo{color:var(--chu-mo)}
+.nho{font-size:12px}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--vien);
+      font-size:11.5px;font-weight:500;background:var(--nen-2);color:var(--chu)}
+.chip-l{display:inline-block;padding:1px 7px;border-radius:var(--bo-o-bang);background:var(--nhan-nhat);
+        border:1px solid #d6d9f2;color:var(--chu-dam);font-size:11.5px;font-weight:500;margin:1px 3px 1px 0}
+.bao{padding:10px var(--d4);border-radius:var(--bo-o);margin-bottom:var(--d3);font-size:13px}
+.bao-loi{background:#fdeaea;border:1px solid #f7c2c2;color:var(--do)}
 .bao-ok{background:#dcfce7;border:1px solid #86efac;color:#166534}
 .bao-canh{background:#fef3c7;border:1px solid #fde68a;color:#92400e}
-.bao-tin{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+.bao-tin{background:var(--nhan-nhat);border:1px solid #d6d9f2;color:var(--chu-dam)}
 /* 🔴 Ô CHI TIẾT KHÔNG ĐƯỢC TRÔNG NHƯ MỘT DÒNG CỦA BẢNG — anh Thắng 14/09/2026:
    *"Chỉnh luôn lại giao diện trang"*, kèm ảnh phần Xem mở ra: bảng lồng trong bảng, viền chồng
    viền, mắt không tách được đâu là đơn đâu là dòng chi. Nay nó là một KHỐI riêng thụt vào, có
-   vạch xanh bên trái nối về đúng đơn vừa bấm. */
-tr.ct > td{background:#f8fafc;padding:0;border-top:none}
-tr.ct .hop{margin:0 0 4px 0;padding:12px 14px;border-left:3px solid #0f766e;background:#f8fafc}
-tr.ct table{background:#fff;border-radius:8px;overflow:hidden}
-tr.ct th{background:#f1f5f9}
-.gate{position:fixed;inset:0;background:#0f766e;z-index:3000;display:flex;align-items:center;justify-content:center}
-.gate .hop{background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;
-           box-shadow:0 20px 60px rgba(0,0,0,.35)}
-@media(max-width:560px){.wrap{padding:12px}.cb{padding:10px}}
+   vạch màu nhấn bên trái nối về đúng đơn vừa bấm. */
+tr.ct > td{background:var(--nen);padding:0;border-top:none}
+tr.ct .hop{margin:0 0 4px 0;padding:var(--d3) var(--d4);border-left:3px solid var(--nhan);background:var(--nen)}
+tr.ct table{background:var(--the);border-radius:var(--bo-nho);overflow:hidden}
+tr.ct th{background:var(--nen-2)}
+.gate{position:fixed;inset:0;background:var(--chu-dam);z-index:3000;display:flex;align-items:center;justify-content:center}
+.gate .hop{background:var(--the);border-radius:var(--bo-the);padding:28px 30px;width:min(360px,92vw);
+           text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+@media(max-width:560px){.wrap{padding:var(--d3)}.cb{padding:10px}}
 </style>
 </head>
 <body>
@@ -254,7 +300,7 @@ function linkMang(){
   return '<span style="display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center">' +
     ds.map(function(b){
       return '<a href="'+esc(b.url)+'" target="_blank" rel="noopener" title="Mở trang '+esc(b.tenBan)+'" ' +
-        'style="font-size:11.5px;font-weight:700;color:#a7f3d0;text-decoration:none;' +
+        'style="font-size:11.5px;font-weight:700;color:#b9c0e8;text-decoration:none;' +
         'background:rgba(255,255,255,.14);border-radius:999px;padding:3px 10px">' +
         esc(b.tenBan)+' ↗</a>';
     }).join('') + '</span>';
@@ -264,15 +310,15 @@ function linkMang(){
    thanh tab và bảng bên dưới nói cùng một thứ tiếng. */
 function mauTab(k){
   var M = {
-    'cauhinh':  '#334155',   // cấu hình — việc của Admin, tông trung tính
-    'tongquan': '#0f766e',   // tổng quan — màu của chính trang
+    'cauhinh':  '#171417',   // cấu hình — việc của Admin, tông trung tính
+    'tongquan': '#2545ff',   // tổng quan — màu của chính trang
     'duyet':    '#b45309',   // đang chờ ai đó làm
     'cap':      '#b45309',
     'qt':       '#0369a1',   // tiền đã ra khỏi két, đang đối chiếu
     'tra':      '#6d28d9',   // tra cứu — việc đọc, không phải việc làm
     'misa':     '#be123c'    // xuất ra ngoài hệ, mốc cuối
   };
-  return M[k] || '#0f766e';
+  return M[k] || '#2545ff';
 }
 
 function nutTab(k, chu){
@@ -300,7 +346,7 @@ function veVao(){
   document.getElementById('man').innerHTML =
     '<div class="gate"><div class="hop">' +
       '<div style="font-size:34px">💵</div>' +
-      '<h2 style="font-size:18px;color:#0f766e;margin:6px 0 4px">Chi Phí Tổng</h2>' +
+      '<h2 style="font-size:18px;color:#2545ff;margin:6px 0 4px">Chi Phí Tổng</h2>' +
       '<div class="nho mo" style="margin-bottom:16px">Nhập mã PIN của trang chi phí mảng bạn đang làm</div>' +
       ( BAO ? '<div class="bao bao-'+BAO.loai+'" style="text-align:left">'+esc(BAO.chu)+'</div>' : '' ) +
       '<form id="f"><input type="password" id="pin" inputmode="numeric" maxlength="8" autocomplete="off" ' +
@@ -343,8 +389,8 @@ function veChinh(){
      (Dashboard) hiện tất cả đơn từ trước đến giờ"*. Đây là chỗ người ta mở ra trước để biết
      "đang có gì", rồi mới vào từng hàng việc. */
   tabs = nutTab(TAB_TQ, '📊 Tổng quan') +
-    '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' + tabs;
-  tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
+    '<span style="width:1px;height:22px;background:#f0e9e1;margin:0 4px"></span>' + tabs;
+  tabs += '<span style="width:1px;height:22px;background:#f0e9e1;margin:0 4px"></span>' +
     nutTab(TAB_TRA, '🔎 Tra chi phí');
   if ( coQuyen('misa') ) { tabs += nutTab(TAB_MISA, '📤 Xuất MISA'); }
   /* ⚙️ Cấu hình — chỉ Admin. Máy chủ chối lần nữa, không tin mỗi giao diện. */
@@ -373,7 +419,7 @@ function veChinh(){
            đều dẫn về trang mảng. Trước đây link ấy chỉ nằm rải trong từng thẻ mảng, nên muốn mở
            một mảng đang không có đơn nào thì không có đường nào bấm. */
         linkMang() +
-        '<span class="nho" style="color:#a7f3d0">'+esc(TOI.ten)+'</span>' +
+        '<span class="nho" style="color:#b9c0e8">'+esc(TOI.ten)+'</span>' +
         '<span class="chuong"><button class="btn b-x" id="nutChuong" title="Việc mới tới">🔔' +
           ( CHUONG.ds.length ? '<span class="chuong-so">'+CHUONG.ds.length+'</span>' : '' ) +
         '</button><div class="chuong-hop" id="hopChuong" hidden></div></span>' +
@@ -473,7 +519,7 @@ function moChuong(){
 
   var ds = CHUONG.ds;
   o.innerHTML = ds.length
-    ? ( '<div style="padding:9px 12px;border-bottom:1px solid #e2e8f0;display:flex;' +
+    ? ( '<div style="padding:9px 12px;border-bottom:1px solid #f0e9e1;display:flex;' +
         'justify-content:space-between;align-items:center;gap:8px">' +
         '<b>'+ds.length+' việc mới</b>' +
         '<button class="btn b-x nho" id="chuongXong">Đánh dấu đã đọc</button></div>' +
@@ -1011,7 +1057,7 @@ function veOThucChi(d){
    quy ước dấu, và họ sẽ nhớ nhầm. */
 function veChipCl(cl){
   cl = Number(cl||0);
-  if (!cl) return '<span class="cl-chip" style="background:#f1f5f9;color:#475569">khớp</span>';
+  if (!cl) return '<span class="cl-chip" style="background:#f4f1ec;color:#8c8781">khớp</span>';
   return cl > 0
     ? '<span class="cl-chip" style="background:#dcfce7;color:#166534" title="NV trả lại kế toán">thừa '+tien(cl)+'</span>'
     : '<span class="cl-chip" style="background:#fef3c7;color:#92400e" title="Kế toán bù cho NV">thiếu '+tien(Math.abs(cl))+'</span>';
@@ -1296,12 +1342,12 @@ function veDaiTT(st){
     /* 🔴 Trạng thái LẠ (bản mảng đổi chữ, hoặc đơn bị trả lại) -> i = −1: đừng tô xanh hết cả
        dải như thể mọi bước đã xong. Chưa biết đang ở đâu thì không bước nào là "đã qua". */
     var daQua = (i >= 0 && k < i), dangO = (k === i);
-    var nen = dangO ? '#0369a1' : (daQua ? '#e0f2fe' : '#f1f5f9');
-    var chu = dangO ? '#fff'    : (daQua ? '#0369a1' : '#94a3b8');
+    var nen = dangO ? '#0369a1' : (daQua ? '#e0f2fe' : '#f4f1ec');
+    var chu = dangO ? '#fff'    : (daQua ? '#0369a1' : '#8c8781');
     h += '<span style="font-size:9.5px;font-weight:'+(dangO?'800':'600')+';padding:2px 7px;'+
          'border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'+
          (daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
-    if (k < TT_LUONG.length-1) h += '<span style="color:#cbd5e1;font-size:10px">›</span>';
+    if (k < TT_LUONG.length-1) h += '<span style="color:#e2d6c7;font-size:10px">›</span>';
   });
   return h + ( i < 0 ? '<span class="nho mo" style="margin-left:6px">trạng thái «'+esc(st)+'»</span>' : '' ) + '</div>';
 }
@@ -1320,15 +1366,15 @@ function veThuaThieu(t){
    * và họ sẽ đi tìm lỗi ở chỗ không có lỗi. Nay nói thẳng: có khối ấy, nó chờ tới bước cấp tiền.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   if (!t.daCapTien){
-    return '<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:#f8fafc;' +
-      'border:1px dashed #cbd5e1;color:#64748b" class="nho">' +
+    return '<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:#f9f8f6;' +
+      'border:1px dashed #e2d6c7;color:#64748b" class="nho">' +
       '💰 <b>Chưa có phần thừa/thiếu</b> — đơn chưa tới bước <b>cấp tạm ứng</b>. ' +
       'Chưa ai đưa tiền thì chưa đối chiếu được; khối quyết toán hiện ra khi kế toán đã cấp tiền.' +
       ( Number(t.tamUng||0) ? ' Số tạm ứng đã duyệt: <b>'+tien(t.tamUng)+'</b>.' : '' ) +
       '</div>';
   }
   var cl = Number(t.chenhLech||0);
-  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f1f5f9','#cbd5e1','#334155'] );
+  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f4f1ec','#e2d6c7','#171417'] );
   var chu = cl > 0 ? 'Thừa '+tien(cl)+' — NV trả lại kế toán'
           : ( cl < 0 ? 'Thiếu '+tien(Math.abs(cl))+' — kế toán bù cho NV' : 'Khớp — không thừa thiếu' );
   return '<div style="margin-top:10px;padding:10px 12px;border-radius:10px;background:#fffbeb;border:1px solid #fde68a">' +
@@ -1350,9 +1396,9 @@ function veMoc(m){
     ['QT cá nhân', m.qtCn], ['QT nhà cung cấp', m.qtNcc]
   ].filter(function(x){ return x[1] && (x[1].nguoi || x[1].ngay); });
   if (!ds.length) return '';
-  return '<div class="nho" style="margin-top:8px;color:#334155">👤 ' +
+  return '<div class="nho" style="margin-top:8px;color:#171417">👤 ' +
     ds.map(function(x){
-      return esc(x[0])+': <b style="color:#0f766e">'+esc(x[1].nguoi||'—')+'</b>' +
+      return esc(x[0])+': <b style="color:#2545ff">'+esc(x[1].nguoi||'—')+'</b>' +
              ( x[1].ngay ? ' <span class="mo">('+esc(ngay(x[1].ngay))+')</span>' : '' );
     }).join(' · ') + '</div>';
 }
@@ -1386,23 +1432,23 @@ function veChipKhoa(st){
 function veLichSu(ds){
   ds = ds || [];
   if (!ds.length){
-    return '<div class="hop-ls"><div style="font-weight:800;color:#334155;margin-bottom:6px">' +
+    return '<div class="hop-ls"><div style="font-weight:800;color:#171417;margin-bottom:6px">' +
            '🕘 Lịch sử chỉnh đơn</div><p class="nho mo">Chưa có dòng nào.</p></div>';
   }
   var dong = function(x){
-    return '<div style="padding:7px 0;border-bottom:1px solid #f1f5f9">' +
+    return '<div style="padding:7px 0;border-bottom:1px solid #f4f1ec">' +
       '<div class="nho"><b>'+esc(x.nguoi||'—')+'</b>' +
       ( x.vaiTro ? ' <span class="mo">('+esc(x.vaiTro)+')</span>' : '' ) +
       ( x.tg ? ' <span class="mo">· '+esc(x.tg)+'</span>' : '' ) + '</div>' +
-      '<div class="nho" style="color:#0f766e">'+esc(x.hanhDong||'') +
+      '<div class="nho" style="color:#2545ff">'+esc(x.hanhDong||'') +
       ( x.chiTiet ? ' <span class="mo">— '+esc(x.chiTiet)+'</span>' : '' ) + '</div></div>';
   };
   var dau = ds.slice(0,3), con = ds.slice(3);
   return '<div class="hop-ls">' +
-    '<div style="font-weight:800;color:#334155;margin-bottom:4px">🕘 Lịch sử chỉnh đơn (<b>'+ds.length+'</b>)</div>' +
+    '<div style="font-weight:800;color:#171417;margin-bottom:4px">🕘 Lịch sử chỉnh đơn (<b>'+ds.length+'</b>)</div>' +
     dau.map(dong).join('') +
     ( con.length
-      ? '<details style="margin-top:6px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
+      ? '<details style="margin-top:6px"><summary class="nho" style="cursor:pointer;color:#2545ff">' +
         '▸ xem '+con.length+' dòng cũ hơn</summary><div>'+con.map(dong).join('')+'</div></details>'
       : '' ) +
     '</div>';
@@ -1412,7 +1458,7 @@ function veLichSu(ds){
 function veThuaThieu(t){
   if (!t || !t.daCapTien) return '';
   var cl = Number(t.chenhLech||0);
-  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f1f5f9','#cbd5e1','#334155'] );
+  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f4f1ec','#e2d6c7','#171417'] );
   var chu = cl > 0 ? 'Thừa '+tien(cl)+' — NV trả lại kế toán'
           : ( cl < 0 ? 'Thiếu '+tien(Math.abs(cl))+' — kế toán bù cho NV' : 'Khớp — không thừa thiếu' );
   return '<div class="qt-hop">' +
@@ -1457,7 +1503,7 @@ function veAnh(u){
   if (!/^https?:\/\//i.test(u)) return '<span class="mo" title="Đường dẫn ảnh không hợp lệ">—</span>';
   return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Mở ảnh chứng từ" class="o-anh">' +
     '<img src="'+esc(u)+'" alt="chứng từ" loading="lazy" data-to="'+esc(u)+'" ' +
-    'style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;' +
+    'style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #e2d6c7;' +
     'display:block;margin:0 auto"></a>';
 }
 
@@ -1475,10 +1521,10 @@ function veChiTiet(g){
 
   var trai =
     '<div class="hop-tt">' +
-      '<div style="font-size:15px;font-weight:800;color:#0f766e">Đơn đang ' + esc(don.trangThai||'—') + '</div>' +
+      '<div style="font-size:15px;font-weight:800;color:#2545ff">Đơn đang ' + esc(don.trangThai||'—') + '</div>' +
       '<div class="nho mo" style="margin-top:2px">' +
         esc(don.ky||'') +
-        ( csChu ? ' · 🏢 <b style="color:#334155">' + esc(csChu) + '</b>' : '' ) +
+        ( csChu ? ' · 🏢 <b style="color:#171417">' + esc(csChu) + '</b>' : '' ) +
         ( don.nguoiLap ? ' · ' + esc(don.nguoiLap) : '' ) +
         ( don.ghiChu ? ' · ' + esc(don.ghiChu) : '' ) +
       '</div>' +
@@ -1626,7 +1672,7 @@ function veMisaKq(){
        * ══════════════════════════════════════════════════════════════════════════════════════ */
       var mds = b.maDons || [];
       if (mds.length){
-        h += '<details style="margin-bottom:10px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
+        h += '<details style="margin-bottom:10px"><summary class="nho" style="cursor:pointer;color:#2545ff">' +
              'Lô này gồm <b>'+mds.length+' đơn</b> — bấm để xem mã đơn</summary>' +
              '<div class="nho mo" style="padding:6px 0 2px">' +
              mds.map(function(m){ return '<span class="chip-l">'+esc(m)+'</span>'; }).join('') +
@@ -1848,7 +1894,7 @@ function veTraKq(){
     h += '<div class="card"><div class="cb" style="display:flex;justify-content:space-between;' +
          'align-items:center;flex-wrap:wrap;gap:8px">' +
          '<b>Cộng cả '+(k.ban||[]).length+' mảng</b>' +
-         '<span style="font-size:18px;font-weight:800;color:#0f766e">'+tien(k.tong)+'</span>' +
+         '<span style="font-size:18px;font-weight:800;color:#2545ff">'+tien(k.tong)+'</span>' +
          '</div></div>';
   }
   o.innerHTML = h;
@@ -1934,7 +1980,7 @@ function docTongQuan(){
 function mauBuoc(tt){
   var M = {
     /* Chưa tới lượt ai — xám, cố tình nhạt: nó không phải việc của người đang nhìn. */
-    'Nháp':              { chu:'#64748b', nen:'#f1f5f9', nenNhat:'#fcfdfe', vien:'#e2e8f0', bieu:'📝' },
+    'Nháp':              { chu:'#8c8781', nen:'#f4f1ec', nenNhat:'#fdfcfa', vien:'#e2d6c7', bieu:'📝' },
     /* ĐANG CHỜ một người nào đó làm — cam, tông duy nhất kêu lên. */
     'Chờ duyệt tạm ứng': { chu:'#b45309', nen:'#fef3c7', nenNhat:'#fffdf5', vien:'#fde68a', bieu:'⏳' },
     'Chờ cấp tạm ứng':   { chu:'#b45309', nen:'#fef3c7', nenNhat:'#fffdf5', vien:'#fde68a', bieu:'⏳' },
@@ -1947,7 +1993,7 @@ function mauBuoc(tt){
   };
   /* ⚠️ Trạng thái LẠ (bản mảng đổi chữ) vẫn phải vẽ ra được — trả tông xám thay vì để undefined
      rồi cả khối thành "undefined". */
-  return M[String(tt||'')] || { chu:'#64748b', nen:'#f1f5f9', nenNhat:'#fcfdfe', vien:'#e2e8f0', bieu:'•' };
+  return M[String(tt||'')] || { chu:'#64748b', nen:'#f4f1ec', nenNhat:'#fdfcfa', vien:'#f0e9e1', bieu:'•' };
 }
 
 function veTongQuanKq(){
@@ -2012,7 +2058,7 @@ function veTongQuanKq(){
                       '<td>'+esc(r.nguoiLap)+'</td>' +
                       '<td class="nho">'+esc(r.ky)+'</td>' +
                       '<td class="nho mo">'+esc(ngay(r.ngayTao))+'</td>' +
-                      '<td class="r tien" style="color:'+( r.tien ? m.chu : '#94a3b8' )+'">' +
+                      '<td class="r tien" style="color:'+( r.tien ? m.chu : '#8c8781' )+'">' +
                       ( r.tien===null ? '<span class="mo">—</span>' : tien(r.tien) )+'</td></tr>';
              }).join('') +
              '</tbody><tfoot><tr><td colspan="4" class="r">Cộng '+ds.length+' đơn</td>' +
@@ -2025,7 +2071,7 @@ function veTongQuanKq(){
   if ((k.ban||[]).length > 1){
     h += '<div class="card"><div class="cb" style="display:flex;justify-content:space-between;' +
          'align-items:center;flex-wrap:wrap;gap:8px"><b>Cộng cả '+(k.ban||[]).length+' mảng · ' +
-         k.soDon+' đơn</b><span style="font-size:18px;font-weight:800;color:#0f766e">'+tien(k.tong)+'</span>' +
+         k.soDon+' đơn</b><span style="font-size:18px;font-weight:800;color:#2545ff">'+tien(k.tong)+'</span>' +
          '</div></div>';
   }
   o.innerHTML = h;
