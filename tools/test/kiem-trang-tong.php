@@ -352,6 +352,58 @@ t( '⚠️ và xếp theo tao_luc, không xếp theo id (id là VARCHAR)',
 	false !== strpos( $gom_ma, 'ORDER BY tao_luc' )
 		&& false === strpos( $gom_ma, 'ORDER BY id' ), '' );
 
+/* ═══ 6d-2. 🔴 VẼ TRANG THẬT, RỒI ĐÒI JAVASCRIPT CÒN CHẠY ĐƯỢC ══════════════════
+ * Anh Thắng 14/09/2026: *"trang tổng đang trắng"*.
+ *
+ * 🔴 Bản 1.3.0 nhét JSON cấu hình vào chỗ một chú thích nằm GIỮA câu lệnh:
+ *        var BOOT = /*…mốc…*​/ null;
+ *    Thay xong thành `var BOOT = {"api":"…"} null;` — SyntaxError ngay dòng đầu, nên TOÀN BỘ
+ *    script không chạy và trang ra trắng trơn.
+ *
+ * ⚠️ PHÉP KIỂM CŨ KHÔNG BẮT ĐƯỢC, và đó mới là bài học: nó chỉ soi "cái mốc đã biến mất chưa".
+ *    Mốc biến mất thật — chỉ là thứ thay vào chỗ đó không phải JS hợp lệ. Soi dấu vết của một
+ *    việc không bằng soi KẾT QUẢ của việc ấy.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$tep_html = $TONG . '/templates/app.html';
+$html_goc = file_get_contents( $tep_html );
+$so_moc   = substr_count( $html_goc, '__VHCPT_BOOT__' );
+teq( '🔴 có ĐÚNG MỘT chỗ cắm cấu hình', 1, $so_moc );
+/* Giả lập đúng lượt máy chủ xuất trang. */
+$html_ra = str_replace( '__VHCPT_BOOT__',
+	json_encode( array( 'api' => 'https://x/wp-json/vhcpt/v1/call', 'ver' => '9.9.9' ) ), $html_goc );
+t( '🔴 sau khi thay, không còn mốc nào sót', false === strpos( $html_ra, '__VHCPT_BOOT__' ), '' );
+
+/* 🔴 ĐÒI JS CÒN HỢP LỆ — phép mà bản trước thiếu. Tách đúng khối <script> chở mã rồi nhờ node
+   đọc; node không có thì bỏ qua, và NÓI RA là đã bỏ qua (một phép im lặng bỏ qua là một phép
+   không tồn tại). */
+$node = trim( (string) shell_exec( 'command -v node 2>/dev/null' ) );
+if ( '' === $node ) {
+	echo "  ⚠️ không có node — bỏ qua phép soi cú pháp JS\n";
+} else {
+	if ( ! preg_match_all( '#<script(?![^>]*type="application/json")[^>]*>([\s\S]*?)</script>#', $html_ra, $m_js ) ) {
+		t( '🔴 bốc được khối script', false, '' );
+	} else {
+		$js = implode( "\n;\n", $m_js[1] );
+		$tam = sys_get_temp_dir() . '/vhcpt-kiem-' . getmypid() . '.js';
+		file_put_contents( $tam, $js );
+		$ra_node = 0;
+		$out = array();
+		exec( 'node --check ' . escapeshellarg( $tam ) . ' 2>&1', $out, $ra_node );
+		@unlink( $tam );
+		t( '🔴 JavaScript của trang ĐÃ XUẤT còn hợp lệ (không SyntaxError)',
+			0 === $ra_node, implode( "\n", $out ) );
+	}
+}
+
+/* ⚠️ VÀ KHÔNG BAO GIỜ ĐỂ TRANG TRẮNG TRƠN. Thiếu cấu hình thì phải nói ra — trắng trơn là kiểu
+   hỏng tệ nhất: người dùng không có gì để đọc, không có gì để gửi lại cho người sửa. */
+t( '🔴 thiếu cấu hình thì hiện câu báo, không để trắng',
+	false !== mb_strpos( $html_goc, 'Chưa nhận được cấu hình' ), '' );
+/* ⚠️ Và máy chủ phải BIẾT là nó đã thay được hay chưa — `str_replace` im lặng khi không tìm thấy. */
+$app_php2 = file_get_contents( $TONG . '/includes/class-vhcpt-app.php' );
+t( '🔴 máy chủ đếm số lần thay và chối khi khác 1',
+	(bool) preg_match( '#str_replace\([^;]*\$so_thay \);[\s\S]{0,80}?if \( 1 !== \$so_thay \)#', $app_php2 ), '' );
+
 /* ═══ 6e. 🔴 HOOK VÀ LƯỢT NẠP LẠI LUẬT ĐƯỜNG DẪN ════════════════════════════════
  * Anh Thắng 14/09/2026: *"trang tổng bị lỗi, vào là sập"*.
  *

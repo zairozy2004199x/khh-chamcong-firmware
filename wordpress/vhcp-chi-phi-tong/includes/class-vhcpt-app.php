@@ -52,7 +52,19 @@ class VHCPT_App {
 			'api' => esc_url_raw( rest_url( VHCPT_Api::NS . '/call' ) ),
 			'ver' => VHCPT_VERSION,
 		);
-		$html = str_replace( '/*__VHCPT_BOOT__*/', wp_json_encode( $boot ), $html );
+		/* 🔴 THAY VÀO MỘT THẺ JSON RIÊNG, KHÔNG THAY VÀO GIỮA MỘT CÂU LỆNH JS. Bản trước nhét
+		   JSON vào chỗ một chú thích nằm giữa `var BOOT =` và `null;`, nên sau lượt thay câu
+		   lệnh thành `var BOOT = {…} null;` — SyntaxError, cả script chết, trang TRẮNG TRƠN.
+		   ⚠️ Và phải kiểm ĐÃ THAY ĐƯỢC hay chưa: `str_replace` không nói gì khi không tìm thấy,
+		   nó chỉ lặng lẽ trả lại nguyên văn. */
+		$so_thay = 0;
+		$html = str_replace( '__VHCPT_BOOT__', wp_json_encode( $boot ), $html, $so_thay );
+		if ( 1 !== $so_thay ) {
+			status_header( 500 );
+			echo 'Bản cài hỏng: templates/app.html thiếu chỗ cắm cấu hình (__VHCPT_BOOT__ gặp '
+				. (int) $so_thay . ' lần, cần đúng 1). Cài lại plugin.';
+			exit;
+		}
 
 		nocache_headers();
 		status_header( 200 );

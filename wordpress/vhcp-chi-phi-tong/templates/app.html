@@ -57,9 +57,38 @@
   <div class="chan" id="chan"></div>
 </div>
 
+<script id="vhcpt-boot" type="application/json">__VHCPT_BOOT__</script>
 <script>
-// Máy chủ nhét cấu hình vào đúng chỗ này lúc xuất trang — xem VHCPT_App::co_thi_ve().
-var BOOT = /*__VHCPT_BOOT__*/ null;
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CẤU HÌNH ĐI QUA MỘT THẺ JSON RIÊNG, KHÔNG NHÉT THẲNG VÀO GIỮA CÂU LỆNH JS.
+ *
+ *    Bản 1.3.0 viết `var BOOT = /*…mốc…*​/ null;` rồi bảo máy chủ thay cái mốc bằng JSON. Thay
+ *    xong thành `var BOOT = {"api":"…"} null;` — SyntaxError ngay dòng đầu, nên TOÀN BỘ script
+ *    không chạy và trang ra TRẮNG TRƠN. Anh Thắng 14/09/2026: *"trang tổng đang trắng"*.
+ *
+ * ⚠️ VÀ PHÉP KIỂM CŨ KHÔNG BẮT ĐƯỢC: nó chỉ soi "cái mốc đã biến mất chưa". Mốc biến mất thật —
+ *    chỉ là thứ thay vào chỗ đó không phải JS hợp lệ. Nay bài kiểm vẽ trang rồi cho `node
+ *    --check` đọc chính đoạn script ấy.
+ *
+ * 🔴 VÀ KHÔNG BAO GIỜ ĐỂ TRANG TRẮNG TRƠN. Trắng trơn là kiểu hỏng tệ nhất: người dùng không có
+ *    gì để đọc, không có gì để gửi lại cho người sửa. Thiếu cấu hình thì nói ra.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var BOOT = (function () {
+  try {
+    var o = document.getElementById('vhcpt-boot');
+    var v = o ? JSON.parse(o.textContent) : null;
+    return ( v && v.api ) ? v : null;
+  } catch ( e ) { return null; }
+})();
+
+if ( ! BOOT ) {
+  document.getElementById('man').innerHTML =
+    '<div class="the"><h1>Chưa nhận được cấu hình</h1>' +
+    '<p class="mo">Trang mở được nhưng máy chủ không gửi kèm đường gọi cổng. Thường là do mở tệp ' +
+    '<code>app.html</code> thẳng, hoặc bản cài thiếu tệp. Cài lại plugin <b>Chi Phí — Tổng hợp</b> ' +
+    'rồi vào <b>Cài đặt → Đường dẫn tĩnh</b> bấm Lưu một lần.</p></div>';
+  throw new Error('VHCPT: thieu BOOT');
+}
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 THẺ PHIÊN GIỮ TRONG sessionStorage, VÀ KHÔNG BAO GIỜ GIỮ PIN.
