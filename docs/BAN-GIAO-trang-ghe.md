@@ -79,7 +79,43 @@ lên đầu** · *A→Z Unit ID* · *A→Z tên MISA* · *Nhiều ghế nhất*.
 
 Phép kiểm: `tools/kiem-ghe/kiem-diadiem-misa.js` (Chromium, giả lập ở tầng `XMLHttpRequest` nên
 chạy đúng `goi()` thật) · `tools/kiem-ghe/kiem-rong-cot-misa.js` (đo cắt chữ ở 3 bề rộng màn) · và
-`tools/kiem-ghe/kiem-sap-xep-diadiem.js` (5 kiểu sắp xếp, chạy qua `noi()` — đường thật).
+`tools/kiem-ghe/kiem-sap-xep-diadiem.js` (5 kiểu sắp xếp, chạy qua `noi()` — đường thật) · và
+`tools/kiem-ghe/kiem-co-so-trung.js` (dò gần trùng, gộp đúng chiều, đóng/mở cửa).
+
+### 3.2 Cơ sở trùng & cơ sở đã đóng cửa (2.75.0)
+
+Anh Thắng 14/09/2026: *"cần xoá hẳn CÁC CƠ SỞ TRÙNG, còn cơ sở đóng cửa thì ẩn, chứ không hiện
+2, 3 cơ sở như này"*. Ca thật: **CGV PEAR PLAZA** ⟷ **CGV PEARL PLAZA** — lệch đúng một chữ L.
+
+**Dò gần trùng.** Khối cảnh báo cam ngay trên bảng Địa điểm, đo bằng **khoảng cách sửa
+(Levenshtein) ≤ 2** trên tên đã bỏ dấu.
+
+> `luu_coso()` vốn đã chặn tạo cơ sở gần trùng, nhưng nó dùng `squash()` — chỉ gộp khác dấu /
+> hoa-thường / khoảng trắng. `PEAR` vs `PEARL` là hai chuỗi khác nhau thật nên lọt qua. Đó là lý do
+> phải có phép đo thứ hai.
+
+> 🔴 **Chỉ NGHI NGỜ, không tự gộp.** "CGV Vincom 1" và "CGV Vincom 2" cũng lệch 1 ký tự mà là hai
+> nơi thật. Tên ngắn (< 6 ký tự sau khi bỏ dấu) bị bỏ qua — ở đó báo động giả liên tục rồi không
+> ai đọc nữa.
+
+**Gộp** (`coso_gop`) dời **hết ghế** sang cơ sở giữ lại rồi xoá cơ sở kia. Hỏi xác nhận **hai lần**,
+câu hỏi nói rõ cơ sở nào biến mất.
+
+> 🔴 Dời ghế **trước**, xoá **sau**, và xoá bằng `xoa_coso()` chứ không `DELETE` thẳng —
+> `xoa_coso()` có chốt "còn ghế thì không cho xoá", nên nếu bước dời hụt ghế nào thì bước xoá
+> **tự chặn**, cơ sở nguồn còn nguyên để làm lại. Xoá thẳng là ghế sót mất cơ sở, rơi khỏi mọi
+> phạm vi PIN — đúng cái đã gây *"cả loạt VHM biến mất"*.
+
+> ⚠️ **Không sửa báo cáo cũ.** Bảng `bc` lưu tên cơ sở dạng chữ; báo cáo đã nộp dưới tên cũ vẫn
+> nằm dưới tên cũ. Sổ của tháng đã chốt không đổi lại vì hôm nay ai đó dọn danh mục.
+
+**Đóng cửa** (`coso_dong`, cột `coso.dong_cua`) — nút 🚪 trên mỗi hàng. Cơ sở đóng rơi xuống khối
+gập **"🚪 Cơ sở đã đóng cửa"** ở cuối, bấm 🚪 lần nữa là mở lại.
+
+> 🔴 **Đóng cửa ≠ xoá.** Cơ sở đóng vẫn còn ghế, báo cáo, công nợ của những tháng nó từng chạy.
+> Cờ này chỉ ẩn khỏi danh sách làm việc hằng ngày.
+> 🔴 Trạng thái đóng xét **trước** "rỗng ghế": cơ sở đã đóng thường cũng hết ghế, xét ngược thì nó
+> rơi vào khối "chưa có ghế" và lại hiện ra y như một cơ sở mới — đúng cái đang muốn dẹp.
 
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 

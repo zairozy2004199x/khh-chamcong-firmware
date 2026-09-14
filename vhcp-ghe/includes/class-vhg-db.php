@@ -82,6 +82,16 @@ class VHG_DB {
 			$wpdb->query( "ALTER TABLE $coso ADD COLUMN ma_kh VARCHAR(40) NOT NULL DEFAULT '' AFTER tinh" );
 		}
 
+		/* `dong_cua` (v2.75.0) — cơ sở ĐÃ ĐÓNG CỬA. Thêm tay cùng lý do với `ma_kh` ở trên: `coso`
+		   là bảng ĐANG SỐNG.
+		   🔴 ĐÓNG CỬA ≠ XOÁ. Cơ sở đóng vẫn còn ghế, còn báo cáo, còn công nợ của những tháng nó
+		      từng chạy — xoá đi là mọi con số cũ mất chỗ bám. Cờ này chỉ ẨN nó khỏi danh sách làm
+		      việc hằng ngày; báo cáo cũ vẫn tra được như thường. */
+		$co_dong = $wpdb->get_var( "SHOW COLUMNS FROM $coso LIKE 'dong_cua'" );
+		if ( ! $co_dong ) {
+			$wpdb->query( "ALTER TABLE $coso ADD COLUMN dong_cua TINYINT(1) NOT NULL DEFAULT 0" );
+		}
+
 		/* `bc.bill_*` (v2.6.0) — thêm tay cùng lý do với `phien.pin` và `coso.ma_kh` ở trên: `bc`
 		   là bảng ĐANG SỐNG, đông hàng thật. Và ở đây hậu quả của việc dbDelta lỡ một cột nặng
 		   hơn hẳn: `bill_luc` là CÁI KHOÁ của báo cáo. Cột không lên thì mọi câu đọc khoá đều

@@ -662,6 +662,25 @@ class VHG_Trang {
 			}
 			self::tra( $r ); return;
 		}
+		if ( 'coso_gop' === $viec ) {
+			$r = VHG_May::gop_coso( isset( $d['nguon'] ) ? (int) $d['nguon'] : 0,
+			                        isset( $d['dich'] )  ? (int) $d['dich']  : 0 );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' gộp cơ sở "' . (string) $r['ten_nguon'] . '" vào "' . (string) $r['ten_dich']
+					. '" (dời ' . (int) $r['doi'] . ' ghế)' ) );
+			}
+			self::tra( $r ); return;
+		}
+		if ( 'coso_dong' === $viec ) {
+			$r = VHG_May::dong_cua_coso( isset( $d['id'] ) ? (int) $d['id'] : 0, ! empty( $d['dong'] ) );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ( empty( $d['dong'] ) ? ' mở lại' : ' đóng cửa' )
+					. ' cơ sở id=' . (int) ( isset( $d['id'] ) ? $d['id'] : 0 ) ) );
+			}
+			self::tra( $r ); return;
+		}
 		if ( 'may_them' === $viec ) {
 			/* THÊM MỚI — CHẶN TRÙNG MÃ (anh Thắng 11/09/2026). Trước đây đi qua luu_may() nên gõ nhầm
 			   một mã đã có sẽ ÂM THẦM kéo ghế đó sang cơ sở đang mở + xoá tên (payload không có
@@ -9155,6 +9174,46 @@ function qlTimGhe(){
   box.innerHTML = h + '</table>';
 }
 
+/* ══════════════════════ DÒ CƠ SỞ GẦN TRÙNG ═══════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"cần xoá hẳn CÁC CƠ SỞ TRÙNG… chứ không hiện 2, 3 cơ sở như này"*.
+ * Ca thật: "CGV PEAR PLAZA" và "CGV PEARL PLAZA" — lệch đúng một chữ L.
+ *
+ * ⚠️ `squash()` bên máy chủ KHÔNG bắt được ca này: nó chỉ gộp khác dấu / hoa-thường / khoảng
+ *    trắng, còn PEAR vs PEARL là hai chuỗi khác nhau thật. Nên ở đây đo bằng KHOẢNG CÁCH SỬA
+ *    (Levenshtein): khác ≤ 2 ký tự trên tên đã bỏ dấu thì coi là NGHI NGỜ.
+ * ⚠️ CHỈ NGHI NGỜ, KHÔNG TỰ GỘP. "CGV Vincom 1" và "CGV Vincom 2" cũng lệch 1 ký tự mà là hai
+ *    nơi khác nhau thật. Máy chỉ được phép chỉ chỗ; gộp hay không là người quyết.
+ * ⚠️ Bỏ qua tên NGẮN (< 6 ký tự sau khi bỏ dấu): "CGV A" vs "CGV B" lệch 1 ký tự nhưng tỉ lệ
+ *    khác nhau lại rất cao — cảnh báo ở đó là báo động giả liên tục, rồi người ta thôi đọc.
+ */
+function csKhoangCach_(a, b){
+  if (a === b) return 0;
+  var m = a.length, n = b.length;
+  if (Math.abs(m - n) > 2) return 99;            /* lệch quá 2 ký tự độ dài thì khỏi tính */
+  var truoc = new Array(n + 1), nay = new Array(n + 1), i, j;
+  for (j = 0; j <= n; j++) truoc[j] = j;
+  for (i = 1; i <= m; i++){
+    nay[0] = i;
+    for (j = 1; j <= n; j++){
+      nay[j] = Math.min(truoc[j] + 1, nay[j - 1] + 1,
+                        truoc[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+    }
+    for (j = 0; j <= n; j++) truoc[j] = nay[j];
+  }
+  return truoc[n];
+}
+function csGanTrung_(coso){
+  var ds = coso.map(function(c){ return { c: c, k: kdJS(c.ten).replace(/[^a-z0-9]/g, '') }; })
+               .filter(function(x){ return x.k.length >= 6; });
+  var cap = [];
+  for (var i = 0; i < ds.length; i++){
+    for (var j = i + 1; j < ds.length; j++){
+      if (csKhoangCach_(ds[i].k, ds[j].k) <= 2) cap.push([ds[i].c, ds[j].c]);
+    }
+  }
+  return cap;
+}
+
 /* Hai ô Unit ID / Tên MISA của MỘT hàng địa điểm.
    Giá trị để TRỐNG ở đây rồi mới đổ vào sau khi `kt_ma_misa_map` trả về (xem misaNap() trong
    noi()). Vẽ rỗng trước cho bảng hiện ngay, khỏi chờ thêm một lượt gọi mạng mới thấy gì. */
@@ -9313,6 +9372,32 @@ function veQuanLy(){
         lệch nhau. Màn Xuất MISA vẫn giữ vì nó còn Vùng / Thứ tự / Xoá.
      ⚠️ Ô ở đây gọi `kt_ma_misa_dat` (chỉ chạm 2 cột), KHÔNG gọi `kt_ma_misa_luu` (ghi cả hàng) —
         xem chú thích ở `VHG_KeToan::ma_misa_dat`. */
+  /* Cảnh báo CƠ SỞ GẦN TRÙNG — đặt NGAY TRÊN bảng, không nhét vào khối cảnh báo mã ghế ở đầu
+     trang: hai việc khác nhau, và người đang dọn danh mục thì đang nhìn ở đây. */
+  var _gt = csGanTrung_(coso);
+  if (_gt.length) {
+    h += '<div style="margin:10px 0;padding:11px 13px;border:1px solid #fdba74;background:#fff7ed;border-radius:10px">'
+      + '<div style="font-weight:800;color:#9a3412;margin-bottom:6px">⚠ '
+      + L('CƠ SỞ GẦN TRÙNG TÊN','Sites with near-identical names') + ' (' + _gt.length + ')</div>'
+      + '<div style="font-size:12px;color:#7c2d12;margin-bottom:8px">'
+      + L('Máy chỉ NGHI NGỜ, không tự gộp — "CGV Vincom 1" và "CGV Vincom 2" cũng lệch 1 ký tự mà là hai nơi thật. '
+        + 'Gộp sẽ DỜI HẾT GHẾ sang cơ sở anh chọn giữ lại rồi xoá cơ sở kia. Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên.',
+          'Suspected only — merging moves every chair to the site you keep, then deletes the other. Past reports keep the old name.')
+      + '</div>';
+    _gt.forEach(function(p, i){
+      function nut(giu, bo){
+        return '<button class="btn-gop" data-giu="' + giu.id + '" data-bo="' + bo.id + '"'
+          + ' data-giuten="' + esc(giu.ten) + '" data-boten="' + esc(bo.ten) + '"'
+          + ' style="padding:4px 9px;font-size:12px;margin-left:6px">⇄ ' + L('Giữ','Keep') + ' "' + esc(giu.ten) + '"</button>';
+      }
+      h += '<div style="padding:6px 0;border-top:' + (i ? '1px solid #fed7aa' : 'none') + '">'
+        + '<b>' + esc(p[0].ten) + '</b> (' + (demGhe[p[0].ten] || 0) + ' ' + L('ghế','chairs') + ')'
+        + '  ⟷  <b>' + esc(p[1].ten) + '</b> (' + (demGhe[p[1].ten] || 0) + ' ' + L('ghế','chairs') + ')'
+        + '<div style="margin-top:4px">' + nut(p[0], p[1]) + nut(p[1], p[0]) + '</div></div>';
+    });
+    h += '</div>';
+  }
+
   h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
     + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
     + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
@@ -9320,7 +9405,7 @@ function veQuanLy(){
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   /* CƠ SỞ 0 GHẾ gom xuống khối riêng (gập) ở cuối — admin vẫn mở gán ghế/xoá; nhân viên vốn
      không thấy (danh sách theo ghế). Anh Thắng 12/09/2026. */
-  var hRong='', nRong=0;
+  var hRong='', nRong=0, hDong='', nDong=0;
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
     var _rh = '<tr data-cstim="' + esc(kdJS(c.ten + ' ' + (c.tinh || '') + ' ' + (c.ma_kh || ''))) + '">'
@@ -9354,8 +9439,18 @@ function veQuanLy(){
         + ' data-csrtinh="' + esc(c.tinh||'') + '" data-csrmakh="' + esc(c.ma_kh||'') + '"'
         + ' title="' + L('Bật/tắt: máy ở đây reset về 0 sau mỗi lần thu','Toggle: meter resets to 0 after each collection') + '"'
         + (Number(c.reset_moi_lan)?' class="on"':'') + '>🔄</button> '
+      + '<button data-csdong="' + c.id + '" data-csdten="' + esc(c.ten) + '"'
+        + ' data-csddang="' + (Number(c.dong_cua) ? 1 : 0) + '"'
+        + ' title="' + (Number(c.dong_cua)
+            ? L('Mở lại cơ sở này','Reopen this site')
+            : L('Đánh dấu ĐÃ ĐÓNG CỬA — ẩn khỏi danh sách, không xoá gì','Mark as CLOSED — hide from the list, nothing is deleted')) + '"'
+        + (Number(c.dong_cua) ? ' class="on"' : '') + '>🚪</button> '
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
-    if((demGhe[c.ten]||0)>0){ h+=_rh; } else { hRong+=_rh; nRong++; }
+    /* 🔴 ĐÓNG CỬA XÉT TRƯỚC "rỗng ghế". Một cơ sở đã đóng thường cũng hết ghế; xét ngược thì nó
+       rơi vào khối "chưa có ghế" và anh lại thấy nó y như một cơ sở mới chưa gán — đúng cái đang
+       muốn dẹp. Đóng cửa là trạng thái NGƯỜI đặt, nó thắng suy đoán từ số ghế. */
+    if(Number(c.dong_cua)){ hDong+=_rh; nDong++; }
+    else if((demGhe[c.ten]||0)>0){ h+=_rh; } else { hRong+=_rh; nRong++; }
   });
   if (chuaGan) {
     var rc = dt['(chưa gán)'] || { tong:0, qr:0, tien_mat:0 };
@@ -9380,6 +9475,16 @@ function veQuanLy(){
       + '<table id="cs-bang-rong" style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
       + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
       + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
+  }
+  if (nDong) {
+    h += '<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#64748b">🚪 '
+      + L('Cơ sở đã đóng cửa','Closed sites') + ' (' + nDong + ') — ' + L('bấm để xem / mở lại','click to view / reopen') + '</summary>'
+      + '<div style="font-size:12px;color:#64748b;margin:6px 0">'
+      + L('Đóng cửa chỉ ẨN khỏi danh sách. Ghế, báo cáo và công nợ cũ giữ nguyên — bấm 🚪 lần nữa để mở lại.',
+          'Closing only hides the site. Chairs, reports and debts are kept — click 🚪 again to reopen.') + '</div>'
+      + '<table id="cs-bang-dong"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+      + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
+      + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hDong + '</table></details>';
   }
   h += '<p class="mut" style="margin:8px 0 0">'
     + L('Xoá địa điểm KHÔNG xoá ghế — ghế thành "chưa gán". Doanh thu theo kỳ đang chọn ở đầu trang.',
@@ -10306,6 +10411,7 @@ function csSapXep(){
   try { localStorage.setItem('vhg_cs_sap', kieu); } catch(e){}
   csSapMot_(document.getElementById('cs-bang'), kieu);
   csSapMot_(document.getElementById('cs-bang-rong'), kieu);
+  csSapMot_(document.getElementById('cs-bang-dong'), kieu);
 }
 
 /* ══════════════════════ UNIT ID / TÊN MISA trên bảng Địa điểm ══════════════════════════════
@@ -10600,6 +10706,35 @@ function noi(){
   /* Sửa địa điểm: HIỆN Ô NGAY TRÊN HÀNG, sửa cả tên + tỉnh + mã KH một lần rồi Lưu — thay cho 3
      hộp prompt nối tiếp (anh Thắng 09/09/2026: "hiện ra ô hàng để sửa được 1 lần luôn").
      Huỷ hay Lưu đều gọi tai()/lam() vẽ lại cả tab nên không lo mất binding của hàng. */
+  /* 🚪 ĐÓNG CỬA / MỞ LẠI — anh Thắng 14/09/2026 */
+  [].forEach.call(document.querySelectorAll('[data-csdong]'), function(b){
+    b.onclick = function(){
+      var dang = b.getAttribute('data-csddang') === '1';
+      var ten  = b.getAttribute('data-csdten');
+      if (!confirm(dang
+        ? (L('Mở lại cơ sở "','Reopen site "') + ten + L('"?','"?'))
+        : (L('Đánh dấu "','Mark "') + ten + L('" ĐÃ ĐÓNG CỬA?\n\nCơ sở sẽ được ẩn khỏi danh sách. KHÔNG xoá ghế, không xoá báo cáo — mở lại lúc nào cũng được.',
+              '" as CLOSED?\n\nIt will be hidden from the list. No chairs or reports are deleted — you can reopen it any time.')))) return;
+      lam('coso_dong', { id: b.getAttribute('data-csdong'), dong: dang ? 0 : 1 });
+    };
+  });
+
+  /* ⇄ GỘP CƠ SỞ GẦN TRÙNG */
+  [].forEach.call(document.querySelectorAll('.btn-gop[data-giu]'), function(b){
+    b.onclick = function(){
+      var giu = b.getAttribute('data-giuten'), bo = b.getAttribute('data-boten');
+      /* 🔴 HỎI HAI LẦN, và câu hỏi phải NÓI RÕ CƠ SỞ NÀO BIẾN MẤT. Gộp nhầm chiều là ghế dồn về
+         đúng cái cơ sở lẽ ra phải bỏ, rồi phải gộp ngược lại — mà tên cũ thì đã xoá mất. */
+      if (!confirm(L('GỘP cơ sở\n\n  ✗ BỎ:  ','MERGE\n\n  ✗ REMOVE:  ') + bo
+        + L('\n  ✓ GIỮ: ','\n  ✓ KEEP: ') + giu
+        + L('\n\nToàn bộ ghế của "','\n\nEvery chair of "') + bo + L('" sẽ chuyển sang "','" moves to "') + giu
+        + L('", rồi cơ sở đó bị XOÁ HẲN.\n\nBáo cáo đã nộp dưới tên cũ vẫn giữ nguyên.',
+            '", then that site is DELETED.\n\nPast reports keep the old name.'))) return;
+      if (!confirm(L('Chắc chắn xoá hẳn cơ sở "','Really delete site "') + bo + L('"?','"?'))) return;
+      lam('coso_gop', { nguon: b.getAttribute('data-bo'), dich: b.getAttribute('data-giu') });
+    };
+  });
+
   [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
     b.onclick = function(){
       var tr = b.closest('tr'); if (!tr) return;

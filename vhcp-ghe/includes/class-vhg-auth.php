@@ -93,6 +93,8 @@ class VHG_Auth {
 		/* Tab QUẢN LÝ GHẾ: thêm/xoá địa điểm, thêm/xoá ghế. Chỉ quản trị. */
 		'coso_luu',
 		'coso_xoa',
+		'coso_gop',      // gộp hai cơ sở trùng — dời ghế rồi xoá cơ sở cũ
+		'coso_dong',     // đánh dấu cơ sở đã đóng cửa (ẩn khỏi danh sách)
 		'may_them',
 		'may_xoa',
 		'may_coso',

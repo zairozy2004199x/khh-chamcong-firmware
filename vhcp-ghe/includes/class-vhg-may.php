@@ -149,6 +149,68 @@ class VHG_May {
 		}
 	}
 
+	/**
+	 * GỘP hai cơ sở trùng nhau: dời hết ghế của `$nguon` sang `$dich`, rồi xoá dòng `$nguon`.
+	 *
+	 * Anh Thắng 14/09/2026: *"cần xoá hẳn CÁC CƠ SỞ TRÙNG"*. Ca thật: "CGV PEAR PLAZA" và
+	 * "CGV PEARL PLAZA" — lệch đúng một chữ L nên `luu_coso` không bắt được (nó chỉ chặn khác
+	 * dấu / hoa-thường / khoảng trắng, không chặn gõ sai chữ).
+	 *
+	 * 🔴 DỜI GHẾ TRƯỚC, XOÁ SAU — và xoá bằng `xoa_coso()` chứ không `DELETE` thẳng. `xoa_coso()`
+	 *    có chốt "còn ghế thì không cho xoá"; đi qua nó nghĩa là nếu bước dời hụt một ghế nào thì
+	 *    bước xoá TỰ CHẶN, cơ sở nguồn còn nguyên để làm lại. Xoá thẳng là ghế sót mất cơ sở, rơi
+	 *    khỏi mọi phạm vi PIN — đúng cái đã gây "cả loạt VHM biến mất" (xem chú thích `xoa_coso`).
+	 *
+	 * ⚠️ KHÔNG SỬA BÁO CÁO CŨ. Bảng `bc` lưu tên cơ sở dạng chữ; báo cáo đã nộp dưới tên cũ VẪN
+	 *    nằm dưới tên cũ. Đó là chủ ý: sổ sách của tháng đã chốt không được đổi lại vì hôm nay ai
+	 *    đó dọn danh mục. Từ nay ghế báo cáo dưới tên cơ sở ĐÍCH.
+	 * ⚠️ Mã ghế TRÙNG NHAU giữa hai cơ sở thì gộp xong chúng nằm chung một chỗ — app sẽ hiện cảnh
+	 *    báo "mã ghế trùng" ngay trên hàng. Đó là việc phải xử tiếp (đổi mã), không phải lỗi gộp.
+	 */
+	public static function gop_coso( $nguon, $dich ) {
+		global $wpdb;
+		$nguon = (int) $nguon; $dich = (int) $dich;
+		if ( $nguon <= 0 || $dich <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở nguồn hoặc cơ sở đích.' ); }
+		if ( $nguon === $dich )          { return array( 'ok' => false, 'error' => 'Hai cơ sở trùng nhau — không gộp được.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		$ten_n = $wpdb->get_var( $wpdb->prepare( "SELECT ten FROM $bang WHERE id=%d", $nguon ) );
+		$ten_d = $wpdb->get_var( $wpdb->prepare( "SELECT ten FROM $bang WHERE id=%d", $dich ) );
+		if ( null === $ten_n || null === $ten_d ) { return array( 'ok' => false, 'error' => 'Không thấy một trong hai cơ sở (có thể vừa bị xoá).' ); }
+
+		$doi = (int) $wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHG_DB::t( 'may' ) . ' SET coso_id=%d WHERE coso_id=%d', $dich, $nguon ) );
+
+		$xoa = self::xoa_coso( $nguon );
+		if ( empty( $xoa['ok'] ) ) {
+			return array( 'ok' => false, 'error' => 'Đã dời ' . $doi . ' ghế sang "' . $ten_d . '" nhưng CHƯA xoá được cơ sở cũ: '
+				. ( isset( $xoa['error'] ) ? $xoa['error'] : '' ) . ' Cơ sở cũ vẫn còn, anh xem lại rồi xoá tay.' );
+		}
+		self::quen_dem_reset_();
+		self::bao_da_luu_( (string) $ten_d );
+		return array( 'ok' => true, 'doi' => $doi, 'ten_nguon' => (string) $ten_n, 'ten_dich' => (string) $ten_d,
+			'thong_bao' => 'Đã gộp "' . $ten_n . '" vào "' . $ten_d . '": dời ' . $doi . ' ghế, xoá cơ sở cũ. '
+				. 'Báo cáo đã nộp dưới tên cũ vẫn giữ nguyên (sổ tháng đã chốt không sửa lại).' );
+	}
+
+	/**
+	 * Đánh dấu cơ sở ĐÃ ĐÓNG CỬA (hoặc mở lại). Chỉ ẩn khỏi danh sách làm việc — KHÔNG xoá gì.
+	 * Anh Thắng 14/09/2026: *"cơ sở đóng cửa thì ẩn, chứ không hiện 2, 3 cơ sở như này"*.
+	 */
+	public static function dong_cua_coso( $id, $dong ) {
+		global $wpdb;
+		$id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		$ten = $wpdb->get_var( $wpdb->prepare( "SELECT ten FROM $bang WHERE id=%d", $id ) );
+		if ( null === $ten ) { return array( 'ok' => false, 'error' => 'Không thấy cơ sở.' ); }
+		$wpdb->update( $bang, array( 'dong_cua' => $dong ? 1 : 0 ), array( 'id' => $id ) );
+		self::quen_dem_reset_();
+		return array( 'ok' => true, 'dong_cua' => $dong ? 1 : 0,
+			'thong_bao' => $dong
+				? ( '🚪 Đã đánh dấu "' . $ten . '" ĐÓNG CỬA — ẩn khỏi danh sách. Ghế và báo cáo cũ giữ nguyên.' )
+				: ( '↩ Đã mở lại "' . $ten . '".' ) );
+	}
+
 	public static function xoa_coso( $id ) {
 		global $wpdb;
 		$id = (int) $id;

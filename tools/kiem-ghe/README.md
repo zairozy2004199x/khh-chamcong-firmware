@@ -75,3 +75,23 @@ thứ gắn SAU đó không bao giờ được gắn.
 Hai lần bản nháp báo hỏng oan vì dữ liệu thử, không phải vì code:
 - mọi cơ sở cùng **3 ghế** → kiểu "nhiều ghế nhất" không thể đổi thứ tự;
 - **mã ghế trùng nhau** → app bật khối cảnh báo đỏ (đúng chức năng), đẩy bảng ra khỏi ảnh chụp.
+
+
+## `kiem-co-so-trung.js` — cơ sở trùng & cơ sở đã đóng cửa
+
+| Kiểm | Hỏng nếu không kiểm |
+|---|---|
+| Dò đúng cặp gần trùng (PEAR/PEARL = 1, VINCOM 1/2 = 1, khác hẳn ≥ 3) | Bỏ sót cặp trùng, hoặc cảnh báo bừa |
+| Gộp gửi **đúng chiều** (`nguon` = cơ sở bỏ, `dich` = cơ sở giữ) | Ghế dồn về đúng cái lẽ ra phải bỏ — mà tên cũ thì đã xoá |
+| Hỏi xác nhận **đúng hai lần** trước khi xoá một cơ sở | Lỡ tay một cú bấm là mất cơ sở |
+| Cơ sở đóng cửa **không nằm ở bảng chính**, kể cả khi 0 ghế | Vẫn hiện ra — đúng cái đang muốn dẹp |
+| Khối "đã đóng cửa" **gập sẵn** | "Ẩn" mà vẫn mở toang thì không phải ẩn |
+| Bấm 🚪 trên cơ sở đang đóng gửi `dong:0` (mở lại), không phải `dong:1` | Không mở lại được |
+
+### Hai bẫy của harness đã ghi lại ở đây
+
+- **Phải `setTAB('quan-ly')`.** Sau mỗi tác vụ `lam()` gọi `tai()` → `ve()` vẽ lại **cả trang** theo
+  `TAB` hiện tại; để mặc định `doi-soat` thì bảng Địa điểm biến mất và nút tiếp theo không còn.
+- **Vẽ lại màn sạch trước mỗi thao tác.** Bấm tiếp trên cái xác do lần vẽ lại bằng dữ liệu giả để
+  lại là đang kiểm một thứ khác hẳn. Và stub `so_lieu` phải đủ `ai` / `cho` / `choGan` — thiếu là
+  `ve()` ném lỗi, trông y như lỗi sản phẩm.
