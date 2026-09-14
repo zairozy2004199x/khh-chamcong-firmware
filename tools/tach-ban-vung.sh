@@ -238,6 +238,25 @@ if ! grep -q "const MO_KHI_KHONG_TAM_UNG = true;" "$DICH/includes/class-vhcp-don
   exit 7
 fi
 
+# ── Cơ sở hút từ bên Ghế thuộc nhà nào ─────────────────────────────────────────────────────
+#
+# 🔴 ANH THẮNG 14/09/2026: *"chi phí [máy] tự động lấy cơ sở từ ghế, còn chi phí văn phòng lấy từ
+#    đó, chỉnh lại"*.
+#
+#    Bản gốc gắn cứng 'POSH' — đúng cho khu vui chơi, vì gian ghế bên ấy là của nhà POSH. Nhưng
+#    bản Máy tự động và bản Văn phòng có nhà riêng; cơ sở hút về mà mang 'POSH' thì người dùng
+#    nhà mặc định của bản ấy KHÔNG NHÌN THẤY nó (danh mục lọc theo đơn vị) — mở hộp chọn cơ sở ra
+#    thấy trống trơn dù danh mục đầy, và báo cáo theo nhà hụt đúng phần tiền của những gian này.
+#
+# ⚠️ RỖNG = NHÀ MẶC ĐỊNH CỦA CHÍNH BẢN NÀY (`VHCP_DonVi::chuan()` lo phần ấy), không phải "không
+#    có nhà".
+perl -0777 -pi -e "s/const DON_VI_GHE = 'POSH';/const DON_VI_GHE = '';/" "$DICH/includes/class-vhcp-cfg.php"
+if ! grep -q "const DON_VI_GHE = '';" "$DICH/includes/class-vhcp-cfg.php"; then
+  echo "✗ Đơn vị cho cơ sở hút từ Ghế chưa dọn — bản '$MA' sẽ gắn cơ sở vào nhà POSH."
+  grep -n "DON_VI_GHE = " "$DICH/includes/class-vhcp-cfg.php" | head -3
+  exit 8
+fi
+
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
 #    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất

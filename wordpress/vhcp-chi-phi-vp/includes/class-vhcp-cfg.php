@@ -497,13 +497,36 @@ class VHCPVP_Cfg {
 		$n = 0;
 		foreach ( (array) VHG_May::ds_coso() as $c ) {
 			$ten = isset( $c['ten'] ) ? $c['ten'] : '';
-			if ( self::nhan_coso_ngoai( $ten, self::DON_VI_GHE ) ) { $n++; }
+			if ( self::nhan_coso_ngoai( $ten, self::don_vi_ghe() ) ) { $n++; }
 		}
 		return $n;
 	}
 
-	/** Cơ sở bên ghế thuộc đơn vị nào. Một chỗ, để đổi thì đổi đúng một dòng. */
-	const DON_VI_GHE = 'POSH';
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CƠ SỞ HÚT TỪ BÊN GHẾ THUỘC ĐƠN VỊ NÀO
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"chi phí [máy] tự động lấy cơ sở từ ghế, còn chi phí văn phòng lấy
+	 * từ đó, chỉnh lại"*.
+	 *
+	 * 🔴 GẮN CỨNG 'POSH' LÀ ĐÚNG CHO BẢN KHU VUI CHƠI VÀ SAI CHO MỌI BẢN KHÁC. Bên KVC, gian
+	 *    ghế là của nhà POSH nên cơ sở hút về phải mang tên nhà ấy. Nhưng bản Máy tự động và bản
+	 *    Văn phòng có nhà riêng của mình; cơ sở hút về mà mang 'POSH' thì:
+	 *      · người dùng nhà mặc định của bản ấy KHÔNG NHÌN THẤY nó (lọc theo đơn vị), nên họ mở
+	 *        hộp chọn cơ sở ra thấy trống trơn dù danh mục đầy;
+	 *      · và mọi báo cáo theo nhà của bản ấy hụt đúng phần tiền của những gian này.
+	 *    Hỏng im lặng cả hai đường.
+	 *
+	 * ⚠️ MẶC ĐỊNH RỖNG NGHĨA LÀ "NHÀ MẶC ĐỊNH CỦA CHÍNH BẢN NÀY" (`VHCPVP_DonVi::chuan()` lo phần
+	 *    ấy), chứ không phải "không có nhà". Bản gốc giữ 'POSH'; script tách đặt rỗng cho bản
+	 *    vùng. Khai lại được bằng khoá `vhcpvp_dv_ghe` nếu ngày nào cần khác.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const DON_VI_GHE = '';
+
+	/** Đơn vị gắn cho cơ sở hút từ Ghế — khai được, mặc định lấy hằng trên. */
+	public static function don_vi_ghe() {
+		$v = get_option( 'vhcpvp_dv_ghe', null );
+		return is_string( $v ) ? trim( $v ) : self::DON_VI_GHE;
+	}
 
 	/**
 	 * Tai nghe cho móc `vhg_coso_da_luu` của plugin Ghế — xem chỗ đăng ký ở `vhcp-chi-phi-vp.php`.
@@ -513,7 +536,7 @@ class VHCPVP_Cfg {
 	 *    nghe không ai biết còn đúng hay không.
 	 */
 	public static function moc_coso_ghe( $ten ) {
-		self::nhan_coso_ngoai( $ten, self::DON_VI_GHE );
+		self::nhan_coso_ngoai( $ten, self::don_vi_ghe() );
 	}
 
 	/**
@@ -529,7 +552,7 @@ class VHCPVP_Cfg {
 		}
 		$n = self::hut_coso_ghe();
 		return array( 'ok' => true, 'them' => $n, 'thongBao' => $n
-			? ( 'Đã thêm ' . $n . ' cơ sở từ bên Ghế, gắn đơn vị ' . self::DON_VI_GHE . '.' )
+			? ( 'Đã thêm ' . $n . ' cơ sở từ bên Ghế, gắn đơn vị ' . VHCPVP_DonVi::chuan( self::don_vi_ghe() ) . '.' )
 			: 'Danh mục đã đủ — không có cơ sở nào bên Ghế còn thiếu.' );
 	}
 
@@ -559,7 +582,10 @@ class VHCPVP_Cfg {
 			$r  = array_values( (array) $r );
 			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
 			$dv = VHCPVP_DonVi::chuan( isset( $r[5] ) ? $r[5] : '' );
-			if ( '' === $tn || self::DON_VI_GHE !== $dv ) { continue; }
+			/* ⚠️ SO VỚI ĐƠN VỊ ĐANG DÙNG, không so với hằng. Bản vùng đặt đơn vị ghế là nhà mặc
+			   định của nó; so với hằng 'POSH' thì đầu phát này im hẳn, và bên Ghế không bao giờ
+			   biết cơ sở vừa được khai. */
+			if ( '' === $tn || VHCPVP_DonVi::chuan( self::don_vi_ghe() ) !== $dv ) { continue; }
 			do_action( 'vhcpvp_coso_posh_da_luu', $tn );
 		}
 	}

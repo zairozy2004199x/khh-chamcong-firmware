@@ -65,7 +65,12 @@ $than = substr( $CFG, $i, $j - $i + 3 );
 preg_match( "/const DON_VI_GHE = '([^']+)';/", $CFG, $m_dv );
 t( '🔴 có hằng DON_VI_GHE trong mã thật', ! empty( $m_dv[1] ), $m_dv );
 $DV = isset( $m_dv[1] ) ? $m_dv[1] : 'POSH';
+/* ⚠️ `bao_coso_posh_()` nay hỏi qua cửa `don_vi_ghe()` chứ không đọc thẳng hằng — bản mảng
+   riêng đặt đơn vị ghế là nhà mặc định của nó, so với hằng 'POSH' thì đầu phát này im hẳn và
+   bên Ghế không bao giờ biết cơ sở vừa khai (anh Thắng 14/09/2026: *"chi phí văn phòng lấy từ
+   đó, chỉnh lại"*). Lớp giả phải có cửa ấy. */
 eval( 'class TC { const DON_VI_GHE = ' . var_export( $DV, true ) . '; '
+	. ' public static function don_vi_ghe() { return self::DON_VI_GHE; } '
 	. str_replace( 'private static function', 'public static function', $than ) . ' }' );
 
 function bao( $rows ) {
