@@ -717,28 +717,45 @@ class VHCPVP_Cfg {
 			VHCPVP_Meta::set( 'seeded_coso_kythuat_v1', '1' );
 		}
 
-		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — dựng sẵn một lần (anh Thắng 08/09/2026).
-		   Dựng sẵn chứ không bắt khai tay: vai này chỉ đúng khi cột Bộ phận của nó mang đúng
-		   chữ "Máy tự động"; khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy
-		   KHÔNG bó gì cả và người mang nó nhìn thấy sổ của mọi mảng — hỏng đúng theo kiểu
-		   không ai nhận ra.
+		/* VAI "KẾ TOÁN MÁY TỰ ĐỘNG" — ĐÃ BỎ (anh Thắng 14/09/2026: *"bỏ cái này, vì
+		   phân quyền trang nên không cần nữa"*).
 
-		   ⚠️ Đánh dấu đã seed để anh còn XOÁ hoặc ĐỔI được. Không đánh dấu thì mỗi lượt nâng
-		      cấp lại dựng lại một vai anh vừa cố ý bỏ đi. */
-		if ( ! VHCPVP_Meta::get( 'seeded_vai_mtd_v1' ) ) {
-			$did = true;
-			$co  = false;
-			foreach ( self::read( self::VAI ) as $r ) {
-				$r = array_values( (array) $r );
-				if ( mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) === mb_strtolower( 'Kế toán máy tự động' ) ) { $co = true; }
-			}
-			if ( ! $co ) { self::append( self::VAI, array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ) ); }
-			VHCPVP_Meta::set( 'seeded_vai_mtd_v1', '1' );
-		}
+		   Vai này sinh ra ngày 08/09 để bó một kế toán vào riêng bộ phận "Máy tự động", hồi
+		   ba mảng còn chung MỘT trang chi phí. Nay mỗi mảng đã có TRANG RIÊNG — mỗi trang một
+		   bộ bảng và một sổ người dùng riêng — vào đúng trang là đã chỉ thấy mảng ấy, nên vai bó
+		   bộ phận không còn việc gì.
 
-		// Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ phận)
-		// để anh không phải khai lại; sau đó sửa độc lập trong tab ⚙️ Cấu hình.
-		if ( ! count( self::rows_of( $all, self::LOAI ) ) ) {
+		   (Không viết thẳng đường dẫn của các mảng ra đây: bài kiểm `kiem-tach-ban-vung.php` chốt
+		    bản GỐC không được dính một chữ nào của bản vùng, kể cả trong chú thích — dính là dấu
+		    hiệu script tách đã lây ngược, nên phép ấy cố ý không nể chú thích.)
+
+		   ⚠️ Chỉ bỏ việc TỰ DỰNG SẴN, không tự đi xoá: trên bản đang chạy có thể đang có tài khoản
+		      mang vai này, xoá ngầm là họ mất quyền giữa chừng mà không ai biết vì sao. Anh bấm ✕
+		      rồi Lưu là nó đi hẳn — cờ đã seed ('seeded_vai_...') đã đóng nên không có gì dựng lại.
+		      Cơ chế vai tự tạo có bó bộ phận VẪN GIỮ (`bo_phan_cua_nguoi()`); chỉ mỗi vai dựng sẵn
+		      này là thôi. */
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ
+		 * phận) để khỏi phải khai lại; sau đó sửa độc lập trong tab ⚙️ Cấu hình.
+		 *
+		 * 🔴 CHỈ DỰNG MỘT LẦN — anh Thắng 14/09/2026: *"bấm dọn mã thì được, chứ bấm x thì lại
+		 *    không được"*. Chi tiết ấy chính là manh mối, và nó chỉ thẳng vào đây:
+		 *
+		 *      · "🧹 Dọn loại chưa khai mã" GIỮ LẠI loại đã khai mã -> bảng KHÔNG rỗng -> nhánh
+		 *        này không chạy -> xoá ăn.
+		 *      · Bấm ✕ từng dòng cho tới hết rồi Lưu -> bảng RỖNG -> nhánh này dựng lại nguyên
+		 *        danh mục từ NHOM -> "không xoá được".
+		 *
+		 *    Hai nút, hai kết quả, cùng một nguyên nhân: gác chỉ hỏi "bảng có rỗng không", mà
+		 *    người vừa CỐ Ý dọn sạch cũng cho ra một bảng rỗng.
+		 *
+		 * ⚠️ Đây là bảng THỨ BA mắc cùng một bệnh (sau COSO và NHOM, vá cùng ngày). Lần trước
+		 *    vá hai chỗ mà bỏ sót chỗ này — nên nay mỗi nhánh "rỗng thì dựng lại" đều phải có
+		 *    dấu riêng, và bài kiểm canh cả ba.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! count( self::rows_of( $all, self::LOAI ) ) && ! VHCPVP_Meta::get( 'seeded_loai_v1' ) ) {
+			VHCPVP_Meta::set( 'seeded_loai_v1', '1' );
 			$nhom = self::rows_of( $all, self::NHOM );
 			if ( ! count( $nhom ) ) { $nhom = self::read( self::NHOM ); }   // vừa seed trong lượt này -> đọc lại
 			foreach ( $nhom as $r ) {

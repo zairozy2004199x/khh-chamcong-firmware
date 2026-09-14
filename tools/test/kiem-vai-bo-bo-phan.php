@@ -305,29 +305,49 @@ $b4 = VHCP_Don::get_bootstrap();
 teq( '🔴 người KHÔNG bó thì boot trả rỗng -> màn không hiện dải nhắc', '', $b4['boPhanBo'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
- * 6. VAI ĐƯỢC DỰNG SẴN — anh Thắng không phải khai tay
+ * 6. KHÔNG CÒN VAI NÀO ĐƯỢC DỰNG SẴN — anh Thắng 14/09/2026: *"bỏ cái này, vì phân quyền trang
+ *    nên không cần nữa"*
  *
- * 🔴 Khai tay mà gõ "máy tự động " thừa dấu cách, hay "MTD", là vai ấy KHÔNG bó gì cả và người
- *    mang nó nhìn thấy sổ của mọi mảng — hỏng đúng theo kiểu không ai nhận ra.
+ * ⚠️ PHÉP NÀY ĐÃ ĐẢO CHIỀU. Bản trước canh ngược lại: vai "Kế toán máy tự động" PHẢI được dựng
+ *    sẵn, vì hồi ấy ba mảng dùng chung MỘT trang chi phí và chỉ có cột Bộ phận của vai ấy mới
+ *    tách được sổ. Nay mỗi mảng một trang riêng (/chi-phi-kvc · /chi-phi-mtd · /chi-phi-vp), mỗi
+ *    trang một bộ bảng riêng — vào đúng trang là đã chỉ thấy mảng ấy. Vai dựng sẵn thành thừa,
+ *    và thừa ở đây không vô hại: nó hiện lại trong bảng Vai trò tự tạo của CẢ BỐN trang.
+ *
+ * 🔴 Ghi rõ để lần sau khỏi tưởng bài kiểm hỏng mà "vá" ngược lại: mất phép này thì mỗi lượt cài
+ *    mới lại đẻ ra một vai anh vừa cố ý bỏ đi.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$cfg_ma_vai = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' );
+
 VHCP_Cfg::write( VHCP_Cfg::VAI, array() );
-VHCP_Meta::set( 'seeded_vai_mtd_v1', '' );
+VHCP_Meta::set( 'seeded_vai_mtd_v1', '' );   // xoá cả cờ: giả cảnh cài mới tinh
 VHCP_Cfg::clear_cache();
 VHCP_Cfg::cfg_static();   // lượt đọc này chạy seed
 
+teq( '🔴 cài mới: seed KHÔNG tự đẻ vai nào', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
+t( '🔴 và mã nguồn không còn nhánh dựng vai "Kế toán máy tự động"',
+	false !== strpos( $cfg_ma_vai, 'ĐÃ BỎ' )
+		&& false === strpos( $cfg_ma_vai, "self::append( self::VAI, array( 'Kế toán máy tự động'" ),
+	'' );
+
+/* Bỏ dựng sẵn KHÔNG được làm hỏng cơ chế vai tự tạo có bó bộ phận — anh vẫn khai tay được. */
+VHCP_Cfg::write( VHCP_Cfg::VAI, array(
+	array( 'Kế toán máy tự động', 'Kế toán cá nhân', 'Máy tự động' ),
+) );
+VHCP_Cfg::clear_cache();
 $ten_vai = array();
 foreach ( VHCP_Cfg::vai_tuy_bien() as $v ) { $ten_vai[ $v['ten'] ] = $v; }
-t( '🔴 vai "Kế toán máy tự động" được dựng sẵn', isset( $ten_vai['Kế toán máy tự động'] ), array_keys( $ten_vai ) );
+t( 'khai tay thì vai ấy vẫn nhận', isset( $ten_vai['Kế toán máy tự động'] ), array_keys( $ten_vai ) );
 if ( isset( $ten_vai['Kế toán máy tự động'] ) ) {
-	teq( 'và nó bó đúng bộ phận Máy tự động', 'Máy tự động', $ten_vai['Kế toán máy tự động']['boPhan'] );
-	teq( 'và kế thừa Kế toán cá nhân',        'Kế toán cá nhân', $ten_vai['Kế toán máy tự động']['goc'] );
+	teq( 'và vẫn bó đúng bộ phận Máy tự động', 'Máy tự động', $ten_vai['Kế toán máy tự động']['boPhan'] );
+	teq( 'và vẫn kế thừa Kế toán cá nhân',     'Kế toán cá nhân', VHCP_Cfg::vai_goc( 'Kế toán máy tự động' ) );
 }
-/* ⚠️ Đánh dấu đã seed để anh Thắng còn XOÁ hoặc ĐỔI được. Không đánh dấu thì mỗi lượt nâng cấp
-   lại dựng lại một vai anh vừa cố ý bỏ đi. */
+
+/* Và xoá đi thì lượt sau vẫn ở yên đã xoá. */
 VHCP_Cfg::write( VHCP_Cfg::VAI, array() );
 VHCP_Cfg::clear_cache();
 VHCP_Cfg::cfg_static();
-teq( '🔴 anh Thắng xoá vai ấy đi thì lượt sau KHÔNG dựng lại', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
+teq( '🔴 xoá vai đi thì lượt sau KHÔNG dựng lại', 0, count( VHCP_Cfg::vai_tuy_bien() ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $truot ) {

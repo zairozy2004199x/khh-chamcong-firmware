@@ -117,6 +117,50 @@ VHCP_Cfg::seed();
 teq( '🔴 khai lại danh mục riêng của mảng -> giữ nguyên, không trộn danh mục cũ vào',
 	1, count( VHCP_Cfg::read( VHCP_Cfg::NHOM ) ) );
 
+/* 🔴 BẢNG "LOẠI CHI PHÍ × MẢNG KINH DOANH" — bảng THỨ BA mắc cùng bệnh, và là bảng anh Thắng
+   gặp thật: *"bấm dọn mã thì được, chứ bấm x thì lại không được"* (14/09/2026).
+
+   Chi tiết "hai nút, hai kết quả" chính là manh mối:
+     · "🧹 Dọn loại chưa khai mã" GIỮ LẠI loại đã khai mã -> bảng KHÔNG rỗng -> không dựng lại.
+     · Bấm ✕ từng dòng cho tới hết rồi Lưu -> bảng RỖNG -> `cfg_static()` dựng lại nguyên danh
+       mục từ NHOM -> "không xoá được".
+
+   ⚠️ Lượt vá trước chữa COSO và NHOM mà bỏ sót bảng này. Nên phép dưới canh CẢ BA, và canh luôn
+      cái tính chất chung: không nhánh "rỗng thì dựng lại" nào được thiếu dấu riêng của nó. */
+VHCP_Cfg::write( VHCP_Cfg::NHOM, array(
+	array( 'SP Đồ uống - NCC', 'ncc', '', '' ),
+	array( 'Chi phí cơ sở', 'canhan', '', '' ),
+) );
+VHCP_Cfg::write( VHCP_Cfg::LOAI, array() );
+VHCP_Cfg::clear_cache();
+VHCP_Cfg::cfg_static();
+teq( '🔴 xoá hết LOẠI CHI PHÍ × MẢNG -> không dựng lại từ danh mục nhóm',
+	0, count( VHCP_Cfg::read( VHCP_Cfg::LOAI ) ) );
+VHCP_Cfg::clear_cache();
+VHCP_Cfg::cfg_static();
+teq( '   lượt tải sau nữa cũng vậy', 0, count( VHCP_Cfg::read( VHCP_Cfg::LOAI ) ) );
+
+/* ⚠️ XOÁ BỚT, GIỮ LẠI MỘT (đúng cái nút "Dọn loại chưa khai mã" làm) -> phải giữ nguyên một. */
+VHCP_Cfg::write( VHCP_Cfg::LOAI, array( array( 'Chi phí máy tự động', '6278', '', '', '', '' ) ) );
+VHCP_Cfg::clear_cache();
+VHCP_Cfg::cfg_static();
+teq( '🔴 giữ lại một loại -> vẫn đúng một, không trộn danh mục nhóm vào', 1,
+	count( VHCP_Cfg::read( VHCP_Cfg::LOAI ) ) );
+
+/* 🔴 MỌI NHÁNH "RỖNG THÌ DỰNG LẠI" CỦA DANH MỤC NGƯỜI DÙNG QUẢN PHẢI CÓ DẤU RIÊNG.
+   Phép tĩnh này là cái bắt được ca "vá hai chỗ, sót chỗ thứ ba" — thứ vừa xảy ra thật. */
+$cfg_ma2 = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' ) );
+foreach ( array(
+	'COSO' => 'seeded_coso_v1',
+	'NHOM' => 'seeded_nhom_v1',
+	'LOAI' => 'seeded_loai_v1',
+) as $bang_k => $dau ) {
+	t( '🔴 nhánh dựng lại của ' . $bang_k . ' có dấu «' . $dau . '»',
+		(bool) preg_match( '#rows_of\( \$all, self::' . $bang_k . ' \) \)\s*&&\s*! VHCP_Meta::get\( .'
+			. $dau . '. \)#', $cfg_ma2 ), '' );
+}
+
 /* 🔴 NHƯNG BẢNG NGƯỜI DÙNG THÌ NGƯỢC LẠI, VÀ CỐ Ý NHƯ VẬY.
    Xoá sạch người dùng là tự khoá mình ngoài cửa VĨNH VIỄN — không còn PIN nào vào được để mà
    sửa. Dòng Admin gieo lại là đường cứu duy nhất. */
