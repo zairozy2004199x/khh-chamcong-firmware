@@ -310,6 +310,11 @@
   </div>
 
   <div class="card" id="donListCard">
+    <!-- 🔴 DẢI PHẠM VI THƯỜNG TRỰC, KHÔNG PHẢI CHỈ KHI BẢNG RỖNG. Bản 1.174.0 chỉ giải thích
+         lúc danh sách trống; người mới lập một đơn nháp là lời giải thích biến mất, trong khi
+         phạm vi vẫn hỏng y nguyên — đúng cái anh Thắng gặp: bảng hiện 1 đơn (của chính mình)
+         nên trông như đã chạy đúng. Nay dải này luôn ở đó, nói thẳng đang xem những gì. -->
+    <div id="phamViBox" style="display:none"></div>
     <div class="ch"><h2>📋 Danh sách đơn (<span id="donListCount">0</span>)</h2>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
         <div class="fld"><label>Tháng</label><select id="dlThang" onchange="renderDonList()" style="min-width:120px"></select></div>
@@ -2250,6 +2255,53 @@
    * 🔴 KHÔNG NỚI CHỐT ĐỂ CHỮA. So khớp cơ sở lỏng tay (khớp một phần, bỏ dấu…) là mở cửa sổ
    *    tiền của cơ sở khác cho người không phụ trách. Chốt giữ nguyên; chỉ nói rõ vì sao.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * DẢI "ĐANG XEM NHỮNG GÌ" — anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như
+   * nhau, nhìn thấy nội dung như nhau, chức năng quyền hạn như nhau"*.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Đó ĐÚNG là luật đang chạy — hai người khai cùng một cơ sở thì thấy y hệt nhau. Chuyện vỡ
+   * là khi ô Cơ sở của một người không trỏ tới cơ sở nào có thật: người ấy tụt về "chỉ thấy đơn
+   * của chính mình", mà màn thì không nói gì.
+   *
+   * 🔴 NÓI RA PHẠM VI, LUÔN LUÔN. Bản trước chỉ nói khi bảng rỗng, nên chỉ cần người ấy lập một
+   *    đơn nháp là lời giải thích tắt — bảng có đúng một dòng của chính họ, trông y như hệ thống
+   *    đang chạy đúng. Đó là kiểu hỏng tệ nhất: im lặng và có vẻ bình thường.
+   *
+   * ⚠️ CHỈ BÀY CHO NHÂN VIÊN. Kế toán, quản lý, Admin không bị bó theo cơ sở nên dải này với họ
+   *    chỉ là một dòng thừa trên mọi màn.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function vePhamVi(){
+    var o=el('phamViBox'); if(!o) return;
+    if(!(CURUSER && CURUSER.role==='Nhân viên')){ o.style.display='none'; return; }
+    var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    var dm=(BOOT.coso||[]).map(function(x){return String(x).trim().toLowerCase();});
+    var lac=my.filter(function(c){ return dm.indexOf(c.toLowerCase())<0; });
+    o.style.display='block';
+
+    /* Ô Cơ sở trỏ trật thì đây là LỖI CẤU HÌNH, không phải một dòng ghi chú — tô cam, nói thẳng
+       hậu quả, và chỉ đúng chỗ phải sửa. */
+    if(!my.length || (lac.length && dm.length)){
+      o.innerHTML='<div style="padding:9px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;'
+        +'color:#92400e;font-size:12.5px">⚠️ <b>Bạn chỉ đang thấy đơn do chính mình lập.</b> '
+        +( my.length
+            ? 'Ô Cơ sở của tài khoản khai <b>'+esc(lac.join(', '))+'</b>, không khớp cơ sở nào trong danh mục.'
+            : 'Ô Cơ sở của tài khoản đang để trống.' )
+        +' Vì vậy đơn của người làm trước ở cùng cơ sở <b>không hiện ra</b>. '
+        /* ⚠️ HAI ĐƯỜNG SỬA, KHÔNG PHẢI MỘT MỆNH LỆNH. Anh Thắng: *"Chọn lại làm gì, cùng cơ sở
+           thì làm việc như nhau"* — đúng, và chưa chắc ô Cơ sở khai sai: cơ sở ấy có thể là chỗ
+           làm thật mà danh mục chưa khai. Nói cả hai lối để người khai chọn lối đúng với sự
+           thật, thay vì ép họ sửa một ô có khi đang đúng. */
+        +'Cách sửa: <b>hoặc</b> khai <b>'+esc(my.join(', '))+'</b> thành một cơ sở trong '
+        +'<b>Cấu hình › Cơ sở</b> (nếu đó là chỗ làm thật), <b>hoặc</b> sửa ô <b>Cơ sở</b> ở bảng '
+        +'<b>Người dùng &amp; Phân quyền</b> cho trùng với cơ sở mà đơn đang dùng'
+        +(dm.length?' — đang có: '+esc(dm.slice(0,6).join(' · '))+(dm.length>6?' …':''):'')+'.</div>';
+      return;
+    }
+    o.innerHTML='<div style="padding:8px 14px;background:#f0fdfa;border-bottom:1px solid #99f6e4;'
+      +'color:#0f766e;font-size:12.5px">👁 Đang xem đơn của <b>'+esc(my.join(', '))+'</b> — '
+      +'gồm cả đơn do người khác cùng cơ sở lập.</div>';
+  }
+
   function viSaoTrong(){
     if(!(CURUSER && CURUSER.role==='Nhân viên')) return 'Chưa có đơn nào.';
     var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -2400,6 +2452,7 @@
     });
     var curM=(CUR&&CUR.don)?CUR.don.maDon:'';
     if(el('donListCount')) el('donListCount').textContent=dons.length+(dons.length!==all.length?(' / '+all.length):'');
+    vePhamVi();
     if(el('donListEmpty')){
       el('donListEmpty').style.display=dons.length?'none':'block';
       el('donListEmpty').innerHTML=all.length?'Không có đơn nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':viSaoTrong();
@@ -10297,7 +10350,11 @@
     var lac=sel.filter(function(x){ return arr.indexOf(x)<0; });
     sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
     return '<div class="csw"'+(lac.length?' title="Cơ sở không có trong danh mục: '+esc(lac.join(', '))+' — nhiều khi là mã đơn vị bị khai nhầm vào ô tên. Người này sẽ KHÔNG thấy đơn của cơ sở ấy."':'')+'>'
-      + (lac.length?'<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:3px">⚠️ '+esc(lac.join(', '))+' không có trong danh mục — chọn lại</div>':'')
+      /* ⚠️ NÓI SỰ THẬT, ĐỪNG RA LỆNH. Anh Thắng 14/09/2026: *"Chọn lại làm gì, cùng cơ sở thì
+         làm việc như nhau"*. Chữ "chọn lại" đọc như đổ lỗi cho người khai, mà chưa chắc họ sai:
+         cơ sở ấy có thể là chỗ làm thật, chỉ là danh mục chưa khai nó. Câu đúng là nói ra hậu
+         quả — người này sẽ không ghép được với ai — rồi để người khai quyết. */
+      + (lac.length?'<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:3px">⚠️ '+esc(lac.join(', '))+' chưa có trong danh mục cơ sở — người này không ghép được với đơn của cơ sở nào</div>':'')
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'

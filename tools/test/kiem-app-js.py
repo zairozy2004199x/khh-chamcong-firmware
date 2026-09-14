@@ -795,6 +795,32 @@ la('   và nói rõ hậu quả cho người khai', 'sẽ KHÔNG thấy đơn c�
 la('⚠️ nhưng vẫn giữ giá trị lạc, không tự xoá',
    'sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });' in src)
 
+# ------------------------------------------------ dải "đang xem những gì", luôn hiện
+# Anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy nội dung như
+# nhau, chức năng quyền hạn như nhau"*. Đó ĐÚNG là luật đang chạy. Chuyện vỡ là khi ô Cơ sở của
+# một người không trỏ tới cơ sở nào có thật: người ấy tụt về "chỉ thấy đơn của chính mình".
+#
+# 🔴 BẢN 1.174.0 CHỈ NÓI KHI BẢNG RỖNG, nên chỉ cần người ấy lập một đơn nháp là lời giải thích
+#    tắt — bảng có đúng một dòng của chính họ, trông y như hệ thống đang chạy đúng. Đó là kiểu
+#    hỏng tệ nhất: im lặng và có vẻ bình thường.
+print('— dải phạm vi luôn hiện —')
+la('🔴 có dải phạm vi riêng, không dựa vào ô "bảng trống"', 'id="phamViBox"' in src)
+la('🔴 và vẽ lại ở MỌI lượt dựng bảng, không chỉ lúc rỗng', 'vePhamVi();' in src)
+_i_pv = src.index('function vePhamVi(){')
+_fn_pv = src[_i_pv:src.index('\n  }', _i_pv)]
+la('bốc được hàm', len(_fn_pv) > 600, len(_fn_pv))
+# ⚠️ Chỉ bày cho nhân viên: kế toán/quản lý/Admin không bị bó theo cơ sở.
+la('⚠️ chỉ bày cho vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_pv and "o.style.display='none'" in _fn_pv)
+# 🔴 Ô Cơ sở trỏ trật là LỖI CẤU HÌNH — nói thẳng hậu quả, chỉ đúng chỗ phải sửa.
+la('🔴 ô Cơ sở trỏ trật thì báo rõ hậu quả', 'không hiện ra' in _fn_pv)
+la('   và chỉ đúng chỗ phải sửa', 'Người dùng &amp; Phân quyền' in _fn_pv)
+la('   kèm tên cơ sở đang có để chọn lại', 'BOOT.coso' in _fn_pv)
+la('🔴 ca ô Cơ sở để trống cũng vào cùng nhánh cảnh báo', '!my.length ||' in _fn_pv)
+# ⚠️ Khai đúng thì nói rõ ĐANG THẤY CẢ đơn người khác — đó mới là câu trả lời cho "hai người
+#    cùng cơ sở thấy như nhau".
+la('⚠️ khai đúng thì nói rõ thấy cả đơn người cùng cơ sở',
+   'gồm cả đơn do người khác cùng cơ sở lập' in _fn_pv)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
