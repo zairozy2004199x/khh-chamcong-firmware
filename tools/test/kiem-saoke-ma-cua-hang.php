@@ -63,9 +63,11 @@ teq( '🔴 cong_ten_may() chỉ được gọi từ MỘT chỗ (trong cong_may_
 	substr_count( $SRC, 'self::cong_ten_may(' ) );
 teq( '🔴 may_hop_le() chỉ được gọi từ HAI chỗ (cong_ten_may + cong_may_dong)', 2,
 	substr_count( $SRC, 'self::may_hop_le(' ) );
-/* Bốn nơi cần biết máy: bảng Sao Kê cổng (REST) · bảng Sao Kê cổng (đường app gọi) · phép gom
-   tiền theo mã nộp · lượt nạp file. Bốn nơi, MỘT luật. */
-teq( 'và bốn nơi cần biết máy đều gọi đúng hàm chung ấy', 4,
+/* Năm nơi cần biết máy: bảng Sao Kê cổng (REST) · bảng Sao Kê cổng (đường app gọi) · phép gom
+   tiền theo mã nộp · lượt nạp file · và (0.29.0) vietqr_theo_coso_ngay() cho báo cáo bên Ghế gọi
+   sang. Năm nơi, MỘT luật — đếm chỗ GỌI cùng một hàm, tăng khi có chỗ tái dùng hợp lệ là đúng;
+   §6 cấm CHÉP lại luật, không cấm gọi lại. */
+teq( 'và năm nơi cần biết máy đều gọi đúng hàm chung ấy', 5,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 /* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
 t( '🔴 rpc_getSaoKeCong lấy cột ma_ch + may_tay trong câu SELECT',

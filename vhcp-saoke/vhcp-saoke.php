@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.28.0
+ * Version:           0.29.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.28.0';
+	const VER = '0.29.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1905,6 +1905,51 @@ class SAOKE_App {
 	   đó đã nộp tiền mặt chưa. Lưu option saoke_coso_ma: [ chuan_ch(tên cơ sở) => mã ]. */
 	private static function coso_ma_map() { $o = get_option( 'saoke_coso_ma' ); return is_array( $o ) ? $o : array(); }
 	private static function coso_ma( $coso ) { $m = self::coso_ma_map(); $k = self::chuan_ch( $coso ); return isset( $m[ $k ] ) ? (string) $m[ $k ] : ''; }
+	/**
+	 * VietQR THỰC theo CƠ SỞ × NGÀY — cho báo cáo bên Ghế gọi sang.
+	 *
+	 * 🔴 DÙNG CHÍNH luật gán của Sao Kê: cong_may_dong() (noi_dung + MÃ CỬA HÀNG `ma_ch` + bản đồ
+	 *    cửa hàng + gán máy tay) rồi ghe_coso_cua_may() để ra cơ sở của Ghế. Trước đây bên Ghế tự
+	 *    dò lại chỉ bằng noi_dung/diem_ban nên BỎ SÓT dòng "PaymentForOrder" (không có tên máy
+	 *    trong nội dung, chỉ gán được nhờ `ma_ch`) — số VietQR trên báo cáo Ghế thiếu so với màn
+	 *    Sao Kê (anh Thắng 14/09/2026: AEON Bình Dương 01/09). Bài học §6: một luật, một chỗ.
+	 *
+	 * @param string $tu  'Y-m-d'
+	 * @param string $den 'Y-m-d'
+	 * @return array [ 'co'=>bool, 'vq'=>[ tênCơSởGhế => [ 'Y-m-d' => tiền ] ], 'khongKhop'=>int ]
+	 */
+	public static function vietqr_theo_coso_ngay( $tu, $den ) {
+		global $wpdb;
+		$tc = self::tbl_cong();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tc ) ) !== $tc ) {
+			return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 );
+		}
+		$anhXa = self::ds_anhxa( 'vietqr' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT so_tien, DATE(thoi_diem) d, noi_dung, diem_ban, ma_ch, may_tay FROM $tc"
+			. " WHERE nguon='vietqr' AND doc_duoc=1 AND huong<>%s AND DATE(thoi_diem) BETWEEN %s AND %s",
+			'Đi', (string) $tu, (string) $den ), ARRAY_A );
+		$vq = array(); $khong = 0;
+		foreach ( (array) $rows as $r ) {
+			$tien = (int) $r['so_tien']; if ( $tien <= 0 ) { continue; }
+			$ng = (string) $r['d'];
+			$tenMay = self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] );
+			$ax = self::ax_theo_ngay(
+				isset( $anhXa[ self::chuan_ch( $tenMay ) ] ) ? $anhXa[ self::chuan_ch( $tenMay ) ]
+					: ( isset( $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] ) ? $anhXa[ self::chuan_ch( self::cong_coso( $tenMay ) ) ] : null ),
+				self::ymd2vn( $r['d'] ) );
+			$ghe = self::ghe_coso_cua_may( $tenMay );
+			if ( ! $ghe && $ax && '' !== trim( (string) $ax['tenChuan'] ) && self::ghe_la_coso( $ax['tenChuan'] ) ) {
+				$ghe = array( 'coso' => $ax['tenChuan'] );
+			}
+			$cs = $ghe ? (string) $ghe['coso'] : '';
+			if ( '' === $cs ) { $khong += $tien; continue; }
+			if ( ! isset( $vq[ $cs ] ) ) { $vq[ $cs ] = array(); }
+			$vq[ $cs ][ $ng ] = ( isset( $vq[ $cs ][ $ng ] ) ? $vq[ $cs ][ $ng ] : 0 ) + $tien;
+		}
+		return array( 'co' => true, 'vq' => $vq, 'khongKhop' => $khong );
+	}
+
 	/* Địa điểm ghế của 1 tên máy VietQR ("AMTP 02"): khớp máy trước, rồi thử cơ sở (bỏ số). null nếu chưa có. */
 	private static function ghe_coso_cua_may( $ten_may ) {
 		if ( '' === trim( (string) $ten_may ) ) { return null; }

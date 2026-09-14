@@ -235,7 +235,11 @@ teq( '🔴 và cả hai chỗ ấy nằm TRONG cong_doc_payload, không rải ra
 	substr_count( $than, 'self::vqr_ma_tu_payload(' ) );
 teq( 'cong_dong_trung() chỉ được gọi từ MỘT chỗ (trong luu_cong)', 1,
 	substr_count( $SRC, 'self::cong_dong_trung(' ) );
-teq( 'cong_may_dong() vẫn đúng 4 chỗ gọi — không thêm bản sao thứ năm', 4,
+/* 5 chỗ gọi cong_may_dong(): 3 chỗ cũ (r_saoke_cong REST · rpc_getSaoKeCong · vietqr_thuc file cũ)
+   + 1 trong doi_soat + 1 MỚI trong vietqr_theo_coso_ngay() (0.29.0 — báo cáo Ghế gọi sang, TÁI
+   DÙNG luật chứ không sao chép). Đây vẫn là ĐẾM CHỖ GỌI cùng MỘT hàm — tăng khi thêm chỗ tái dùng
+   hợp lệ là đúng; điều bài học §6 cấm là CHÉP LẠI luật, không phải gọi lại. */
+teq( 'cong_may_dong() gọi ở đúng 5 chỗ (tất cả tái dùng, không có bản sao)', 5,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 t( 'VER_TBL đã lên 5 cho KEY ref', false !== strpos( $SRC, "const VER_TBL = '5';" ) );
 t( 'bảng cổng có KEY ref (đường dò trùng chéo đi qua nó)', false !== strpos( $SRC, 'KEY ref (ref)' ) );

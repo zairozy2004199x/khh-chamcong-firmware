@@ -1889,6 +1889,15 @@ class VHG_KeToan {
 	   đồ máy của Ghế (khớp mã máy / tên khai). Máy Ghế chưa có -> gộp vào 'khongKhop', không đoán bừa. */
 	private static function vietqr_thuc_( $tu, $den ) {
 		global $wpdb;
+		/* 🔴 DÙNG LẠI LUẬT GÁN CỦA SAO KÊ — không tự dò lại. Sao Kê gán cơ sở bằng cong_may_dong()
+		   có cả MÃ CỬA HÀNG (ma_ch) + bản đồ cửa hàng + gán máy tay; bản tự dò cũ ở đây chỉ đọc
+		   noi_dung/diem_ban nên bỏ sót dòng "PaymentForOrder" (gán được nhờ ma_ch) → số VietQR trên
+		   báo cáo Ghế thiếu so với màn Sao Kê (anh Thắng 14/09/2026). Bài học §6: một luật, một chỗ.
+		   Chưa cài Sao Kê bản có hàm này thì rơi xuống cách cũ bên dưới. */
+		if ( class_exists( 'SAOKE_App' ) && method_exists( 'SAOKE_App', 'vietqr_theo_coso_ngay' ) ) {
+			$r = SAOKE_App::vietqr_theo_coso_ngay( $tu, $den );
+			if ( is_array( $r ) && ! empty( $r['co'] ) ) { return $r; }
+		}
 		$tbl = $wpdb->prefix . 'saoke_cong';
 		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tbl ) ) !== $tbl ) { return array( 'co' => false, 'vq' => array(), 'khongKhop' => 0 ); }
 		$map = array();
