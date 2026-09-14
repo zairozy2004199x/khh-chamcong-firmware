@@ -759,6 +759,42 @@ la('⚠️ vẫn hỏi đúng trong_tam() như danh sách',
 la('⚠️ và dựng chuỗi cơ sở từ chính cac_coso_cua_don()',
    'cac_coso_cua_don( $ma_don )' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
 
+# ------------------------------------------------ nói ra VÌ SAO danh sách đơn trống
+# Anh Thắng 14/09/2026, tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"chưa thấy
+# đơn"*. Đơn vẫn nằm nguyên trong sổ; cái chặn là PHẠM VI — nhân viên thấy đơn của chính mình
+# cộng đơn thuộc cơ sở đã khai. Ô ấy khai "TUTU_BD" (một MÃ) trong khi đơn ghi TÊN cơ sở, nên
+# chốt so chuỗi trượt sạch — và trượt IM LẶNG.
+#
+# 🔴 "CHƯA CÓ ĐƠN NÀO" LÀ CÂU NÓI SAI SỰ THẬT ở đây, và nó tốn của người dùng cả buổi: họ đi
+#    tìm đơn bị mất, trong khi việc phải làm là sửa một ô trong bảng Người dùng.
+print('— nói ra vì sao danh sách trống —')
+la('🔴 có hàm giải thích màn trống', 'function viSaoTrong(){' in src)
+la('   và bảng đơn dùng nó thay câu "Chưa có đơn nào"', "innerHTML=all.length?" in src and 'viSaoTrong()' in src)
+_i_vs = src.index('function viSaoTrong(){')
+_j_vs = src.index('\n  }', _i_vs) + 4
+_fn_vs = src[_i_vs:_j_vs]
+la('bốc được hàm', len(_fn_vs) > 500, len(_fn_vs))
+la('đối chứng: hàm bốc ra khép kín', _fn_vs.rstrip().endswith('}'), _fn_vs[-40:])
+# Hai ca khác hẳn nhau: ô Cơ sở TRỐNG (bó về đơn của chính mình) và ô khai TÊN LẠC khỏi danh mục.
+la('🔴 ca ô Cơ sở để trống nói rõ phải nhờ ai khai', 'đang để trống' in _fn_vs)
+la('🔴 ca cơ sở khai lạc khỏi danh mục cũng nói rõ', 'danh mục cơ sở không có tên này' in _fn_vs)
+la('   và bày tên đang có trong danh mục để sửa cho khớp', 'BOOT.coso' in _fn_vs)
+# ⚠️ Khai đúng mà vẫn trống thì nói phạm vi đang áp — đừng để người ta tưởng hệ thống mất đơn.
+la('⚠️ khai đúng mà trống thì nói phạm vi đang áp', 'đây là phạm vi của tài khoản bạn' in _fn_vs)
+# 🔴 KHÔNG NỚI CHỐT ĐỂ CHỮA: so khớp cơ sở lỏng tay là mở sổ tiền của cơ sở khác cho người
+#    không phụ trách. Chốt `_trongCoSoToi` phải vẫn so BẰNG NHAU.
+_i_cs2 = src.index('function _trongCoSoToi(d){')
+_fn_cs2 = src[_i_cs2:src.index('\n  }', _i_cs2)]
+la('🔴 chốt phạm vi vẫn so khớp CHÍNH XÁC, không nới', 'my.indexOf(c.trim().toLowerCase())>=0' in _fn_cs2)
+la('   và không dùng khớp một phần', 'indexOf' in _fn_cs2 and '.includes(' not in _fn_cs2)
+# Chặn từ nguồn: bảng Người dùng đánh dấu ô cơ sở đã lưu mà không có trong danh mục.
+la('🔴 bảng Người dùng đánh dấu cơ sở lạc khỏi danh mục',
+   'var lac=sel.filter(function(x){ return arr.indexOf(x)<0; });' in src)
+la('   và nói rõ hậu quả cho người khai', 'sẽ KHÔNG thấy đơn của cơ sở ấy' in src)
+# ⚠️ Giá trị lạc vẫn giữ trong danh sách — xoá đi là âm thầm đổi phân quyền của người khác.
+la('⚠️ nhưng vẫn giữ giá trị lạc, không tự xoá',
+   'sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

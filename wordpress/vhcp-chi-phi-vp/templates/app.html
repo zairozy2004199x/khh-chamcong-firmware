@@ -2230,6 +2230,47 @@
    *    gửi xuống, nên `BOOT.dons` vốn đã đúng phạm vi. Giữ bộ lọc này để hai bên khai cùng một
    *    luật: bản plugin cũ hơn (chưa vá) vẫn gửi xuống đủ đơn, và lúc ấy màn hình vẫn đúng.
    */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * VÌ SAO DANH SÁCH TRỐNG — nói ra, đừng để người dùng đoán.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 14/09/2026, ảnh tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"chưa
+   * thấy đơn"*. Đơn vẫn nằm nguyên trong sổ; cái chặn là PHẠM VI — nhân viên thấy đơn của chính
+   * mình, cộng với đơn thuộc cơ sở đã khai ở ô Cơ sở.
+   *
+   * 🔴 "CHƯA CÓ ĐƠN NÀO" LÀ MỘT CÂU NÓI SAI SỰ THẬT ở đây, và nó tốn của người dùng cả buổi:
+   *    họ đi tìm đơn bị mất, trong khi việc phải làm là sửa một ô trong bảng Người dùng. Màn
+   *    biết thừa lý do — chỉ là trước nay không nói.
+   *
+   * ⚠️ HAI CA HAY GẶP NHẤT, VÀ CHÚNG KHÁC HẲN NHAU:
+   *      · ô Cơ sở TRỐNG      -> phạm vi bó về đúng "đơn do chính mình lập". Người mới nhận
+   *        việc thì chưa lập đơn nào, nên màn trắng trơn.
+   *      · ô Cơ sở khai bằng MÃ ("TUTU_BD") trong khi đơn ghi TÊN ("TUTU TÂN AN") -> so chuỗi
+   *        trượt, và trượt im lặng. Đây là ca dễ nhầm nhất vì ô ấy nhìn có vẻ đã khai đủ.
+   *
+   * 🔴 KHÔNG NỚI CHỐT ĐỂ CHỮA. So khớp cơ sở lỏng tay (khớp một phần, bỏ dấu…) là mở cửa sổ
+   *    tiền của cơ sở khác cho người không phụ trách. Chốt giữ nguyên; chỉ nói rõ vì sao.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function viSaoTrong(){
+    if(!(CURUSER && CURUSER.role==='Nhân viên')) return 'Chưa có đơn nào.';
+    var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    if(!my.length){
+      return 'Chưa có đơn nào của bạn. <b>Ô Cơ sở của tài khoản đang để trống</b>, nên bạn chỉ thấy '
+           + 'đơn do chính mình lập — không thấy đơn của người làm trước ở cùng cơ sở. '
+           + 'Nhờ kế toán khai ô <b>Cơ sở</b> trong bảng Người dùng &amp; Phân quyền.';
+    }
+    /* Cơ sở khai có nằm trong danh mục cơ sở của bản này không — so đúng cách chốt đang so. */
+    var dm=(BOOT.coso||[]).map(function(x){return String(x).trim().toLowerCase();});
+    var lac=my.filter(function(c){ return dm.indexOf(c.toLowerCase())<0; });
+    if(lac.length && dm.length){
+      return 'Chưa thấy đơn nào. Tài khoản của bạn khai cơ sở <b>'+esc(lac.join(', '))+'</b>, '
+           + 'nhưng <b>danh mục cơ sở không có tên này</b> — nhiều khi là khai nhầm MÃ thay vì TÊN cơ sở. '
+           + 'Tên đang có trong danh mục: '+esc(dm.slice(0,8).join(' · '))+(dm.length>8?' …':'')+'. '
+           + 'Nhờ kế toán sửa lại ô <b>Cơ sở</b> cho khớp.';
+    }
+    return 'Chưa có đơn nào ở <b>'+esc(my.join(', '))+'</b> — đây là phạm vi của tài khoản bạn. '
+         + 'Đơn của cơ sở khác sẽ không hiện ở đây.';
+  }
+
   function _trongCoSoToi(d){
     var my=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
     if(!my.length) return false;   // chưa khai cơ sở nào -> KHÔNG mở rộng gì cả
@@ -2361,7 +2402,7 @@
     if(el('donListCount')) el('donListCount').textContent=dons.length+(dons.length!==all.length?(' / '+all.length):'');
     if(el('donListEmpty')){
       el('donListEmpty').style.display=dons.length?'none':'block';
-      el('donListEmpty').textContent=all.length?'Không có đơn nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':'Chưa có đơn nào.';
+      el('donListEmpty').innerHTML=all.length?'Không có đơn nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':viSaoTrong();
     }
     tb.innerHTML=dons.map(function(d){
       var cl=d.chenhLech>=0?'pos':'neg', on=(d.maDon===curM);
@@ -10241,8 +10282,22 @@
   function _cosoSel(v, dv){
     var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var arr=(arguments.length>1)?_cosoTheoDv(dv):(CFG.coso||[]).map(function(x){return x.ten;});
-    arr=arr.slice(); sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
-    return '<div class="csw">'
+    arr=arr.slice();
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 CƠ SỞ ĐÃ LƯU MÀ KHÔNG CÓ TRONG DANH MỤC = MỘT Ô KHAI CHẾT.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Anh Thắng 14/09/2026, tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"chưa
+     * thấy đơn"*. Ô Cơ sở khai "TUTU_BD" — một MÃ, trong khi đơn ghi TÊN cơ sở. Chốt phạm vi
+     * so chuỗi bằng nhau nên trượt sạch, và trượt IM LẶNG: người ấy mở trang ra thấy trắng,
+     * còn người khai thì nhìn ô Cơ sở vẫn thấy "đã khai đủ".
+     *
+     * Giá trị lạc vẫn được giữ trong danh sách (dòng dưới) — xoá nó đi là âm thầm đổi phân
+     * quyền của người khác. Nhưng phải ĐÁNH DẤU, để người khai thấy ngay ô nào đang chết.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var lac=sel.filter(function(x){ return arr.indexOf(x)<0; });
+    sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
+    return '<div class="csw"'+(lac.length?' title="Cơ sở không có trong danh mục: '+esc(lac.join(', '))+' — nhiều khi là mã đơn vị bị khai nhầm vào ô tên. Người này sẽ KHÔNG thấy đơn của cơ sở ấy."':'')+'>'
+      + (lac.length?'<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:3px">⚠️ '+esc(lac.join(', '))+' không có trong danh mục — chọn lại</div>':'')
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'
