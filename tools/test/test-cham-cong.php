@@ -10542,7 +10542,7 @@ $ns_h = vhcc_ns( 'Kế toán' );
 /* 🔴 3.77.0 — MẶT BẢNG CHỈ CÒN ĐỌC. Cột "Quyền vào trang" in ra dải chip "vào được đâu, vì
    đâu"; chỗ KHAI là bảng luật theo bộ phận & mảng ngay dưới. Anh Thắng 13/09/2026: *"Khi xây
    bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng người nữa"*. */
-t( 'Kế toán thấy dải chip quyền trên mỗi hàng', strpos( $ns_h, 'chip-q-dai' ) !== false, $ns_h );
+t( 'Kế toán bấm thẳng được ô quyền trên mỗi hàng', strpos( $ns_h, 'name="o[' ) !== false, $ns_h );
 t( '🔴 và thấy bảng khai luật theo bộ phận', strpos( $ns_h, 'name="nhom[bp][' ) !== false, $ns_h );
 t( 'kèm hàng cho từng mảng kinh doanh', strpos( $ns_h, 'name="nhom[mang][' ) !== false, $ns_h );
 t( 'có nút lưu luật nhóm', strpos( $ns_h, 'value="luu_nhom"' ) !== false, $ns_h );
@@ -10732,8 +10732,30 @@ foreach ( array( '' => 'không khai', 'mo' => 'mở cả nhóm', 'khoa' => 'kho�
 	t( 'luật nhóm đủ ba trạng thái — "' . $nn_t . '"',
 		preg_match( '/name="nhom\[bp\]\[[^"]*\]\[tram\]" value="' . preg_quote( $nn_v, '/' ) . '"/', $nt_h ) === 1, $nt_h );
 }
-t( '🔴 và KHÔNG còn nút áp cả cột ở mặt bảng',
-	strpos( $nt_h, 'name="cot" value="tram|khoa"' ) === false, $nt_h );
+/* 🔴 14/09/2026 — ĐỔI LẠI LẦN NỮA, VÀ LẦN NÀY LÀ CẶP ĐỔI CHỖ.
+   Anh Thắng: *"loại bỏ mảng kinh doanh và bộ phận (sẽ tạo trong thông tin nhân viên)"*, rồi ngay
+   sau đó *"mở lại quyền truy cập trang"*. Bản 3.77.0 làm ngược: gộp năm cột quyền thành dải chip
+   CHỈ ĐỌC trong khi hai cột Mảng/Bộ phận vẫn chiếm chỗ rộng nhất — màn hình dành chỗ đẹp nhất cho
+   thứ khai MỘT LẦN, còn thứ phải bấm HÀNG NGÀY thì chỉ được nhìn.
+   Nay: nút áp cả cột VỀ LẠI, và hai cột kia rời bảng — vào khối «sửa ▾».
+   ⚠️ Luật nhóm (khai một lần cho cả phòng) VẪN CÒN, không bị thay bằng nút cột: hai thứ ấy giải
+      hai bài khác nhau — nút cột cho lát cắt đang hiện, luật nhóm cho người vào sau. */
+t( '🔴 nút áp cả cột ĐÃ VỀ LẠI ở mặt bảng',
+	strpos( $nt_h, 'name="cot" value="tram|khoa"' ) !== false, $nt_h );
+t( 'và nút đưa cả cột về theo vai', strpos( $nt_h, 'name="cot" value="tram|"' ) !== false, $nt_h );
+t( '🔴 mỗi hàng bấm thẳng được ô quyền', strpos( $nt_h, 'name="o[' ) !== false, $nt_h );
+/* Hai cột Mảng / Bộ phận rời khỏi MẶT BẢNG — nhưng ô khai vẫn còn trong khối sửa. */
+t( '🔴 mặt bảng KHÔNG còn nút điều động cả cột mảng',
+	strpos( $nt_h, 'name="cot" value="mbp_mang|' ) === false, $nt_h );
+t( 'và ô khai mảng chuyển vào khối «sửa ▾»',
+	strpos( $nt_h, 'name="mbp_mang[' ) === false
+	&& strpos( $nt_sua, 'name="mbp_mang[' ) !== false, 'không thấy ở khối sửa' );
+t( 'ô khai bộ phận cũng vậy',
+	strpos( $nt_sua, 'name="mbp_bp[' ) !== false, 'không thấy ở khối sửa' );
+/* ⚠️ Dải đếm và ô lọc theo mảng Ở TRÊN phải GIỮ NGUYÊN — bỏ cột là bỏ chỗ KHAI, không phải bỏ
+   chỗ NHÌN. Mất dải đếm là mất luôn danh sách "ai chưa suy ra mảng". */
+t( '🔴 dải đếm theo mảng vẫn còn', strpos( $nt_h, 'dai-mb' ) !== false, $nt_h );
+t( 'và ô lọc theo mảng vẫn còn', strpos( $nt_h, 'name="nmang"' ) !== false, $nt_h );
 
 /* 🔴 NÚT CỘT KHÔNG GỬI `viec`. Một biểu mẫu chỉ gửi tên/giá trị của ĐÚNG cái nút vừa bấm — bấm
    nút cột thì `viec` (của nút Lưu) không có mặt. Chỉ nghe mỗi `viec` là nút cột bấm xong không
@@ -10963,7 +10985,7 @@ t( 'mã nguồn trang cũng không còn dựng nút đó',
 	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' ),
 		'Thêm nhân sự</a>' ) === false );
 /* Nhưng trang vẫn phải làm đúng việc của nó — bảng quyền còn nguyên. */
-t( 'bảng "ai vào được trang nào" vẫn còn', strpos( $vq_ad, 'chip-q-dai' ) !== false
+t( 'bảng "ai vào được trang nào" vẫn còn', strpos( $vq_ad, 'name="o[' ) !== false
 	&& strpos( $vq_ad, 'name="nhom[bp][' ) !== false, $vq_ad );
 vhcc_dung_bang();
 
@@ -16789,8 +16811,8 @@ t( '🔴 bảng có cột Vận hành chi phí',
 /* 🔴 3.77.0: "áp cả cột" đổi thành LUẬT THEO NHÓM + nút đẩy cho khớp luật. */
 t( 'và khai được luật Vận hành chi phí theo nhóm',
 	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp );
-t( 'mỗi hàng có chip nói người ấy đã sang bên ấy chưa',
-	strpos( $h_cp, 'chip-q-dai' ) !== false, $h_cp );
+t( 'mỗi hàng bấm thẳng được ô của cột ấy',
+	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp );
 /* Đặt riêng cho một người thì vẫn còn — trong khối "sửa ▾" của hàng ấy. */
 $cp_ma  = vhcc_ns_ma_dau( $h_cp );
 $h_cp_s = vhcc_ns( 'Admin', array( 'sua_o' => $cp_ma ) );

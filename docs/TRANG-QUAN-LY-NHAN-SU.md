@@ -1101,6 +1101,45 @@ tên, con số ấy trước bản này **không hiện ở đâu, cả hai bên
 ⚠️ Khai bản đồ xong thì **đồng bộ lại ngay** mọi tài khoản đã đẩy — không thì sổ bên kia giữ bộ
 phận cũ, người khai đóng trang và tin là xong. Khai bản đồ cần **Admin**: nó đổi phạm vi nhìn tiền.
 
+## 4p. Bảng này là bảng QUYỀN, không phải bảng sơ đồ tổ chức (3.83.0)
+
+Anh Thắng 14/09/2026: *"loại bỏ mảng kinh doanh và bộ phận (sẽ tạo trong thông tin nhân viên)"*,
+rồi ngay sau đó: *"mở lại quyền truy cập trang"*.
+
+Hai câu ấy là **một cặp đổi chỗ**, không phải hai việc rời nhau — và chúng sửa một lỗi bố cục mà
+bản 3.77.0 tự gây ra.
+
+### 🔴 3.77.0 đã ưu tiên ngược
+
+| | khai bao lâu một lần | 3.77.0 cho nó gì |
+|---|---|---|
+| Mảng / Bộ phận | **một lần** lúc vào làm, đổi khi điều động | hai cột rộng nhất bảng, mỗi ô một hộp tích bốn dòng × 50 hàng |
+| Quyền vào trang | **hàng ngày** | một dải chip **chỉ đọc** |
+
+Màn hình dành chỗ đẹp nhất cho thứ khai một lần, còn thứ phải bấm hàng ngày thì chỉ được nhìn.
+
+Nay trả đúng chỗ:
+
+* **quyền vào trang** bấm thẳng trên hàng, kèm nút **áp cả cột** ở đầu cột;
+* **mảng và bộ phận** chuyển vào khối **«sửa ▾»** — thông tin nhân viên của chính người ấy.
+
+Bảng thu từ 1.318px xuống **1.042px**.
+
+### ⚠️ Vì sao đặt ở «sửa ▾», không đặt ở màn hồ sơ của cửa hàng trưởng
+
+`VHCC_WebNS::the_sua()` gác bằng `ho_so_coso` — **cửa hẹp**, chỉ mở bốn ô liên lạc và ô PIN, cố ý
+không cho đụng tới thứ ra tiền hay ra quyền. Mà mảng và bộ phận **nay chính là thứ ra quyền**
+(luật nhóm 3.77.0, bó phạm vi theo mảng 3.80.0), nên chúng phải ở bậc **Kế toán** — tức ở khối
+sửa của màn Quản lý nhân sự.
+
+### ⚠️ Bỏ cột là bỏ chỗ KHAI, không phải bỏ chỗ NHÌN
+
+**Dải đếm** và **ô lọc** theo mảng / bộ phận ở đầu trang **giữ nguyên**. Mất dải đếm là mất luôn
+danh sách *"N người hệ KHÔNG suy ra mảng"* — thứ duy nhất nói ra ai còn thiếu.
+
+Nút "điều động cả cột" thì đi theo cột: điều động hàng loạt nay làm bằng **luật nhóm** (khai một
+lần cho cả phòng), không phải bằng một lượt ghi 50 dòng cho lát cắt đang hiện.
+
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

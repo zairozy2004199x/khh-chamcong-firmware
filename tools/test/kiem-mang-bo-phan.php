@@ -710,6 +710,17 @@ t( '🔴 dải ba nút có ổ neo, không cho ô ẩn đẩy cả trang trôi n
 t( 'bảng nhân sự mang lớp gọn b-ns / cuon-ns',
 	strpos( $src_ns, '<div class="cuon cuon-ns"><table class="b-ns">' ) !== false );
 
+/* 🔴 14/09/2026 — MẢNG & BỘ PHẬN RỜI MẶT BẢNG, VÀO KHỐI «sửa ▾».
+   Anh Thắng: *"loại bỏ mảng kinh doanh và bộ phận (sẽ tạo trong thông tin nhân viên)"*.
+   ⚠️ Chốt này canh chỗ ĐẶT, không canh chuyện có hay không: bỏ hẳn ô khai thì không ai gắn được
+      mảng nữa, mà luật nhóm và bó phạm vi theo mảng đều bám vào nó. */
+t( '🔴 ô khai mảng nằm TRONG hàm vẽ khối sửa',
+	strpos( $src_ns, 'list( $o_mang, $o_bp ) = self::o_mang_bp( $toi, $ma, $r );' ) !== false );
+$vi_sua = strpos( $src_ns, 'private static function hang_sua(' );
+$vi_mbp = strpos( $src_ns, 'list( $o_mang, $o_bp ) = self::o_mang_bp( $toi, $ma, $r );' );
+t( '🔴 và nó nằm SAU chỗ mở khối sửa, không nằm ở vòng vẽ hàng',
+	false !== $vi_sua && false !== $vi_mbp && $vi_mbp > $vi_sua, array( $vi_sua, $vi_mbp ) );
+
 /* 🔴 LỖI 3.69.0 SUÝT TÁI PHÁT. `table.b-ns select.o-q-vai{max-width:152px}` nặng ký hơn
    `td select[name^="mbp_bp"]{max-width:none}` ở trên, nên nếu không ghi lại `max-width:none`
    trong chính luật `.b-ns` thì ô Bộ phận bị cắt cụt đuôi «theo cơ sở → …» — che đúng phần
