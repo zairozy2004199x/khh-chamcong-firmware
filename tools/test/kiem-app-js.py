@@ -839,6 +839,40 @@ la('   và nói ra còn bao nhiêu cơ sở đang chờ khai', "+le.length+' cơ
 la('⚠️ ô tích của chúng vẫn dựng đủ, không mất cửa khai',
    'data-coso="\'+esc(c)+\'" onchange="kcInfo()"' in src)
 
+# ------------------------------------------------ bảng TK Nợ của nhà thứ hai: GẬP, không bỏ
+print('— bảng TK Nợ theo đơn vị —')
+# 🔴 Anh Thắng 14/09/2026 chỉ vào "🔢 TK Nợ · POSH": *"bỏ cái này vì chi phí này là chi phí
+#    kvc"*, rồi chốt *"ẩn thôi đừng bỏ"*. Bỏ hẳn thì mã tài khoản của nhà ấy còn nằm trong sổ
+#    mà không còn cửa nào sửa — và nhìn màn thì tưởng đã sạch.
+# ⚠️ CẮT THÂN HÀM rồi mới dò. Cả tệp có <details> ở dăm chỗ khác (khối "chưa khai phân loại
+#    lớn", khối ngoại lệ…), nên dò trên cả tệp là xoá sạch đoạn này bài vẫn xanh.
+_m_mx = _re.search(r'function renderTkNoMatrix\(\)\{(.*?)\n  \}', src, _re.S)
+la('tìm thấy renderTkNoMatrix()', _m_mx is not None)
+if _m_mx:
+    _t_mx = _m_mx.group(1)
+    la('🔴 khối đơn vị thứ hai trở đi gập bằng <details>',
+       'if(nhom.length>1 && i>0){' in _t_mx and '<details' in _t_mx,
+       'gập ở đây mới ẩn được bảng TK Nợ của nhà kia')
+    la('   vòng lặp có đếm thứ tự để biết khối nào đứng đầu',
+       'nhom.forEach(function(g, i){' in _t_mx)
+    la('   khối đứng đầu vẫn mở sẵn, không bọc <details>',
+       '} else {\n        h+=\'<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">\'+nhan+phu' in _t_mx)
+    # ⚠️ GẬP CHỨ KHÔNG BỎ KHỎI DOM. saveCfgTkNoMx() gom mã bằng querySelectorAll('.mxNoBody
+    #    input'); ô trong <details> đang đóng vẫn đếm, còn display:none / thôi không vẽ thì mã
+    #    của cả nhà ấy bay sạch ngay lượt Lưu kế tiếp — im lặng, không một câu lỗi.
+    la('⚠️ bảng của nhà bị gập VẪN ĐƯỢC DỰNG (ô còn trong DOM để lượt Lưu đọc được)',
+       'than=\'<div class="tw"><table' in _t_mx and 'class="mxNoBody"' in _t_mx)
+    # 🔴 Không gõ cứng tên nhà: kế toán POSH chỉ xem được mỗi nhà của họ, chốt cứng "POSH" là
+    #    bảng duy nhất của họ cũng gập. Thứ tự quyết định, nên thêm nhà thứ ba tự chạy đúng.
+    # ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Chú thích ngay trên có nhắc cả "POSH" lẫn "display:none" để
+    #    giải thích vì sao KHÔNG dùng chúng — dò trên mã còn chú thích là hai phép dưới đây
+    #    đỏ oan, mà đục mất mã thật thì lại xanh.
+    _mx_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _t_mx)
+    _mx_ma = _re.sub(r'//[^\n]*', ' ', _mx_ma)
+    la('⚠️ và KHÔNG giấu bằng display:none', 'display:none' not in _mx_ma)
+    la('🔴 KHÔNG gõ cứng tên nhà nào trong điều kiện gập', 'POSH' not in _mx_ma,
+       'chốt cứng là kế toán POSH mất luôn bảng của chính họ')
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

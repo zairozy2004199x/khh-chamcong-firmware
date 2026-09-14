@@ -9574,22 +9574,31 @@
     if(!nhom.length){
       h+='<div style="color:#94a3b8;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
     }
-    nhom.forEach(function(g){
+    nhom.forEach(function(g, i){
       /* 🔴 MỖI NHÀ MỘT BỘ CỘT. Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác,
          Chi Phí Chung, Chi Phí Cơ Sở, Chi Phí Setup"*. Bảng 81 mảng của POSH trước nay bày cả
          chín cột của KVC, toàn dấu "—" — kéo ngang mãi không hết mà chẳng có gì để điền.
          ⚠️ Loại CHƯA khai đơn vị vẫn hiện ở mọi nhà (xem `_loaiChoDv`), nên bản này KHÔNG làm
             mất cột nào của ai cho tới khi có người tích. */
+      /* 🔴 NHÀ THỨ HAI TRỞ ĐI THÌ GẬP LẠI, KHÔNG BỎ HẲN.
+         Anh Thắng 14/09/2026 chỉ vào bảng "🔢 TK Nợ · POSH": *"bỏ cái này vì chi phí này là
+         chi phí kvc"*, rồi chốt lại *"ẩn thôi đừng bỏ"*. Đúng: bỏ hẳn là mã tài khoản của nhà
+         ấy còn nằm trong sổ mà không ai sửa được nữa — và nhìn màn thì tưởng đã sạch.
+
+         ⚠️ KHÔNG GÕ CỨNG CHỮ "POSH" Ở ĐÂY. Khối đứng đầu là khối MỞ, còn lại gập — nên
+            kế toán POSH (chỉ xem được mỗi nhà của họ) vẫn thấy bảng của mình mở sẵn, và thêm
+            nhà thứ ba thì nó tự gập theo, khỏi phải nhớ sửa chỗ này.
+         ⚠️ GẬP CHỨ KHÔNG BỎ KHỎI DOM: lúc Lưu, `saveCfgTkNoMx()` đọc mã bằng
+            `querySelectorAll('.mxNoBody input')` — ô nằm trong <details> đang đóng vẫn đếm,
+            nên mã của nhà đang gập không mất. Dùng display:none hay thôi không vẽ thì mất. */
       var rws=rows.filter(function(x){ return _loaiChoDv(x, g.dv); });
+      var nhan='🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span>', phu='', than='';
       if(!rws.length){
-        h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span></div>'
-          +'<div style="color:#94a3b8;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
-        return;
-      }
-      h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span>'
-        +' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
-        +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span></div>'
-        +'<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
+        than='<div style="color:#94a3b8;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
+      } else {
+      phu=' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
+        +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span>';
+      than='<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
         +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f8fafc;z-index:1">Mảng kinh doanh</th>'
         +rws.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
         +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
@@ -9610,6 +9619,15 @@
               +'</tr>';
           }).join('')
         +'</tbody></table></div>';
+      }
+      /* Khối đầu mở sẵn; nhà thứ hai trở đi gập lại, bấm một cái là ra. Một nhà thì
+         không bọc <details> — thêm một cú bấm cho thứ chẳng giấu được gì là vô ích. */
+      if(nhom.length>1 && i>0){
+        h+='<details style="margin:16px 0 6px"><summary style="font-weight:800;color:#334155;font-size:13px;cursor:pointer">'
+          +nhan+phu+'</summary>'+than+'</details>';
+      } else {
+        h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">'+nhan+phu+'</div>'+than;
+      }
     });
     box.innerHTML=h;
     MX_LOCK=false; toggleMxLock();   // vẽ xong thì khóa lại
