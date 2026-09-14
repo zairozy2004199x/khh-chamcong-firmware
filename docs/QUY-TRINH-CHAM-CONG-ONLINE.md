@@ -9,13 +9,39 @@ chữ ở bảng tra lỗi lấy **nguyên văn** từ hệ thống.
 
 ## 1. Nhân viên — năm bước
 
-| # | Việc | Ghi chú |
-|---|---|---|
-| 1 | **Mở trang chấm công** | Bằng **Chrome / Safari**. ⚠️ Đừng mở trong trình duyệt của Zalo hay Facebook — mấy cái đó hay chặn camera, và nút chụp bấm không lên. |
-| 2 | **Gõ PIN 6 số → VÀO** | Quên thì bấm **Quên PIN?** rồi gõ **CCCD**. |
-| 3 | **Bấm 📷 CHẤM CÔNG** | Cho phép **camera**, đưa mặt vào khung, máy **đếm ngược 5 giây** rồi tự chụp → *Dùng ảnh này* / *Chụp lại*. |
-| 4 | **Chọn đúng cơ sở ĐANG ĐỨNG** | + nhiệm vụ nếu có → **LƯU CHẤM CÔNG**. |
-| 5 | **Nhìn mục "Hôm nay"** | Không thấy dòng nào = lượt đó **chưa ghi**, làm lại. |
+### 1. Mở trang chấm công
+
+Bằng **Chrome / Safari**. ⚠️ Đừng mở trong trình duyệt của Zalo hay Facebook — mấy cái đó hay
+chặn camera, và nút chụp bấm không lên.
+
+### 2. Gõ PIN 6 số → VÀO
+
+<img src="anh/quy-trinh-man-dang-nhap.png" alt="Màn đăng nhập" width="262">
+
+Quên thì bấm **Quên PIN?** rồi gõ **CCCD**.
+
+### 3. Bấm 📷 CHẤM CÔNG, để máy tự chụp
+
+<img src="anh/quy-trinh-man-chup-anh.png" alt="Màn chụp ảnh, đang đếm ngược" width="262">
+
+Cho phép **camera**, đưa mặt vào khung, máy **đếm ngược 5 giây rồi tự chụp** — không phải bấm gì.
+Xong thì *Dùng ảnh này* / *Chụp lại*.
+
+### 4. Chọn đúng cơ sở ĐANG ĐỨNG
+
+<img src="anh/quy-trinh-man-luu-cham-cong.png" alt="Màn lưu chấm công" width="262">
+
+Ô **Nhiệm vụ** chỉ hiện với ai có khai thêm việc. Xong bấm **LƯU CHẤM CÔNG**.
+
+### 5. Nhìn mục "Hôm nay" để chắc đã ghi
+
+<img src="anh/quy-trinh-bang-hom-nay.png" alt="Bảng Hôm nay sau lượt chấm đầu ngày" width="262">
+
+Không thấy dòng nào = lượt đó **chưa ghi**, làm lại. Chưa có giờ ra là bình thường — chiều chấm
+lượt nữa là nó điền vào.
+
+> Ảnh trong tài liệu này là **minh hoạ tự vẽ**, không phải ảnh chụp màn hình thật: chụp thật thì
+> phải đăng nhập bằng hồ sơ của một người và lộ toạ độ nhà họ.
 
 ### Mấy điều hay bị hiểu nhầm
 
