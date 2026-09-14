@@ -1320,6 +1320,85 @@ class VHG_May {
 	 * xuống khối "Ghế đã điều chuyển" (hiện mờ) ở cuối bảng, chỉ số/doanh thu/log giữ nguyên, bấm
 	 * "Đưa về" là phục hồi. Không còn đường nào làm mất một ghế khỏi hệ.
 	 */
+	/**
+	 * XOÁ HẲN mã ghế CHƯA GÁN CƠ SỞ — anh Thắng 14/09/2026: *"xoá mã ghế không có cơ sở"*.
+	 *
+	 * 🔴 `xoa_may()` KHÔNG XOÁ, nó chỉ đặt `an=1`. Đó là chủ ý (chỉ số, doanh thu, log của ghế
+	 *    giữ nguyên) và ĐÚNG cho ghế đang chạy thật. Nhưng mã rác chưa gán cơ sở — kiểu "AMBT01"
+	 *    còn sót từ đợt đổi cách đặt mã — thì ẩn đi vẫn nằm đó, không giải quyết được việc anh
+	 *    cần. Hàm này là đường DUY NHẤT xoá hẳn, và nó bị bó rất chặt:
+	 *
+	 *      1. CHỈ ghế `coso_id = 0` (chưa gán). Ghế đang thuộc một cơ sở thì không đụng tới.
+	 *      2. CHỈ ghế KHÔNG CÒN DẤU VẾT ở bất kỳ bảng nào mang cột `ma_may`. Còn một dòng doanh
+	 *         thu / báo cáo / lệnh / nhịp là KHÔNG xoá — xoá là dòng tiền đó mất chỗ bám, tra
+	 *         ngược ra một mã không còn tồn tại.
+	 *      3. Ghế bị từ chối thì BÁO RÕ còn dấu vết ở đâu, bao nhiêu dòng. Im lặng bỏ qua là anh
+	 *         bấm xong thấy mã vẫn còn mà không hiểu vì sao.
+	 *
+	 * ⚠️ DANH SÁCH BẢNG DÒ TỪ CHÍNH CSDL (`information_schema`), không chép tay. Chép tay là sau
+	 *    này thêm một bảng mới có cột `ma_may` mà quên cập nhật ở đây -> hàm tưởng "sạch" rồi xoá,
+	 *    và dữ liệu ở bảng mới thành mồ côi. Dò động thì bảng nào có cột đó là tự được tính.
+	 *
+	 * @param array $ds_ma  danh sách mã
+	 * @param bool  $that   false = CHỈ XEM TRƯỚC (không xoá gì), true = xoá thật
+	 */
+	public static function xoa_han_may( $ds_ma, $that = false ) {
+		global $wpdb;
+
+		$ma_sach = array();
+		foreach ( (array) $ds_ma as $m ) {
+			$m = trim( (string) $m );
+			if ( '' !== $m && ! in_array( $m, $ma_sach, true ) ) { $ma_sach[] = $m; }
+		}
+		if ( ! $ma_sach ) { return array( 'ok' => false, 'error' => 'Chưa chọn mã ghế nào.' ); }
+
+		/* Bảng nào của plugin có cột `ma_may` — hỏi thẳng CSDL. */
+		$tien = $wpdb->prefix . 'vhg\_%';
+		$bang_ref = $wpdb->get_col( $wpdb->prepare(
+			'SELECT DISTINCT TABLE_NAME FROM information_schema.COLUMNS'
+			. ' WHERE TABLE_SCHEMA = DATABASE() AND COLUMN_NAME = %s AND TABLE_NAME LIKE %s',
+			'ma_may', $tien ) );
+		$bang_ref = is_array( $bang_ref ) ? $bang_ref : array();
+
+		$t_may = VHG_DB::t( 'may' );
+		$xoa = array(); $giu = array(); $khong_thay = array();
+
+		foreach ( $ma_sach as $ma ) {
+			$hang = $wpdb->get_row( $wpdb->prepare(
+				"SELECT ma, coso_id FROM $t_may WHERE ma=%s LIMIT 1", $ma ), ARRAY_A );
+			if ( ! $hang ) { $khong_thay[] = $ma; continue; }
+			if ( (int) $hang['coso_id'] !== 0 ) {
+				$giu[] = array( 'ma' => $ma, 'ly_do' => 'đang thuộc một cơ sở — hàm này chỉ xoá mã CHƯA GÁN' );
+				continue;
+			}
+			$dau_vet = array(); $tong = 0;
+			foreach ( $bang_ref as $b ) {
+				/* Tên bảng không nhét được qua %s (nó sẽ bị bọc nháy) — nhưng danh sách này lấy từ
+				   chính information_schema với tiền tố của plugin, không phải từ người dùng. */
+				$n = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT COUNT(*) FROM `' . str_replace( '`', '', $b ) . '` WHERE ma_may=%s', $ma ) );
+				if ( $n > 0 ) { $dau_vet[] = str_replace( $wpdb->prefix . 'vhg_', '', $b ) . ' (' . $n . ')'; $tong += $n; }
+			}
+			if ( $tong > 0 ) {
+				$giu[] = array( 'ma' => $ma, 'ly_do' => 'còn ' . $tong . ' dòng dữ liệu: ' . implode( ' · ', $dau_vet ) );
+				continue;
+			}
+			$xoa[] = $ma;
+		}
+
+		if ( ! $that ) {
+			return array( 'ok' => true, 'xem_truoc' => true, 'se_xoa' => $xoa, 'giu_lai' => $giu,
+				'khong_thay' => $khong_thay, 'so_bang_da_do' => count( $bang_ref ) );
+		}
+
+		$da = 0;
+		foreach ( $xoa as $ma ) {
+			$da += (int) $wpdb->query( $wpdb->prepare( "DELETE FROM $t_may WHERE ma=%s AND coso_id=0", $ma ) );
+		}
+		return array( 'ok' => true, 'da_xoa' => $da, 'se_xoa' => $xoa, 'giu_lai' => $giu, 'khong_thay' => $khong_thay,
+			'thong_bao' => '🗑 Đã xoá hẳn ' . $da . ' mã ghế chưa gán.'
+				. ( $giu ? ( ' · GIỮ LẠI ' . count( $giu ) . ' mã còn dữ liệu (xem danh sách bên dưới).' ) : '' ) );
+	}
+
 	public static function xoa_may( $ma ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );

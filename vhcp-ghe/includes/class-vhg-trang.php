@@ -705,6 +705,16 @@ class VHG_Trang {
 			}
 			self::tra( $r ); return;
 		}
+		if ( 'may_xoa_han' === $viec ) {
+			$that = ! empty( $d['that'] );
+			$r = VHG_May::xoa_han_may( isset( $d['ds'] ) ? $d['ds'] : array(), $that );
+			if ( $that && ! empty( $r['ok'] ) && ! empty( $r['da_xoa'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' XOÁ HẲN ' . (int) $r['da_xoa'] . ' mã ghế chưa gán: '
+					. implode( ', ', array_slice( (array) $r['se_xoa'], 0, 30 ) ) ) );
+			}
+			self::tra( $r ); return;
+		}
 		if ( 'may_coso' === $viec ) {
 			$r = VHG_May::dat_coso( isset( $d['ma'] ) ? (string) $d['ma'] : '',
 				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
@@ -9464,7 +9474,17 @@ function veQuanLy(){
          gõ vào đó thì lưu dưới tên "(chưa gán)" thành một dòng rác trong bảng MISA. */
       + '<td class="misa-col mut">—</td><td class="misa-col misa-ten mut">—</td>'
       + '<td style="line-height:1.9">' + dsMaHtml_(maChuaGan) + '</td>'
-      + '<td></td></tr>';
+      /* 🗑 XOÁ HẲN MÃ CHƯA GÁN — anh Thắng 14/09/2026: *"xoá mã ghế không có cơ sở"*.
+         ⚠️ Nút 🗑 ở các hàng khác gọi `may_xoa`, mà hàm đó KHÔNG xoá — nó chỉ ẩn (`an=1`). Ở đây
+            phải là xoá THẬT, nên dùng đường riêng `may_xoa_han`, và đường đó chỉ xoá mã KHÔNG CÒN
+            một dòng dữ liệu nào. Đừng gộp hai nút làm một: chúng khác nhau ở chỗ nguy hiểm nhất. */
+      + '<td class="r" style="white-space:nowrap">'
+      + (maChuaGan.length
+          ? ('<button id="cs-xoa-chuagan" style="color:#b91c1c" title="'
+             + L('Xoá HẲN những mã chưa gán mà không còn dữ liệu nào','Permanently delete unassigned codes with no data left')
+             + '">🗑 ' + L('Xoá mã chưa gán','Delete unassigned') + '</button>')
+          : '')
+      + '</td></tr>';
   }
   h += '</table>';
   if (nRong) {
@@ -10706,6 +10726,39 @@ function noi(){
   /* Sửa địa điểm: HIỆN Ô NGAY TRÊN HÀNG, sửa cả tên + tỉnh + mã KH một lần rồi Lưu — thay cho 3
      hộp prompt nối tiếp (anh Thắng 09/09/2026: "hiện ra ô hàng để sửa được 1 lần luôn").
      Huỷ hay Lưu đều gọi tai()/lam() vẽ lại cả tab nên không lo mất binding của hàng. */
+  /* 🗑 XOÁ HẲN MÃ GHẾ CHƯA GÁN — anh Thắng 14/09/2026: "xoá mã ghế không có cơ sở".
+     Chạy HAI BƯỚC: hỏi máy chủ xem cái nào xoá được (không xoá gì), hiện cho anh xem, rồi mới xoá.
+     ⚠️ Lấy danh sách mã từ `D.may` chứ KHÔNG đọc chữ trong ô — ô hiển thị có thể đang bị lọc bởi
+        ô tìm, và xoá theo cái đang nhìn thấy thì lọc một kiểu ra một kết quả khác. */
+  var _ex = document.getElementById('cs-xoa-chuagan');
+  if (_ex) _ex.onclick = function(){
+    var ds = [];
+    (D.may || []).forEach(function(m){ if (!m.an && !m.coso) ds.push(m.ma); });
+    if (!ds.length) { alert(L('Không còn mã nào chưa gán.','No unassigned codes left.')); return; }
+    _ex.disabled = true;
+    goi('may_xoa_han', { ds: ds, that: 0 }, function(r){
+      _ex.disabled = false;
+      if (!r || !r.ok) { alert((r && r.error) || L('Không kiểm được.','Check failed.')); return; }
+      var xoa = r.se_xoa || [], giu = r.giu_lai || [];
+      if (!xoa.length) {
+        alert(L('Không mã nào xoá được.\n\n','Nothing can be deleted.\n\n')
+          + giu.map(function(g){ return '• ' + g.ma + ' — ' + g.ly_do; }).join('\n'));
+        return;
+      }
+      /* Câu hỏi phải LIỆT KÊ ĐÚNG NHỮNG MÃ SẮP MẤT. "Xoá 12 mã?" thì không ai kiểm được máy có
+         chọn đúng không, mà đây là thao tác KHÔNG hoàn tác được. */
+      var hoi = L('XOÁ HẲN ','PERMANENTLY DELETE ') + xoa.length + L(' mã ghế chưa gán:\n\n',' unassigned codes:\n\n')
+        + xoa.slice(0, 40).join(', ') + (xoa.length > 40 ? (L('\n… và ','\n… and ') + (xoa.length - 40) + L(' mã nữa',' more')) : '')
+        + L('\n\nKhông hoàn tác được.','\n\nThis cannot be undone.');
+      if (giu.length) {
+        hoi += L('\n\nGIỮ LẠI ','\n\nKEEPING ') + giu.length + L(' mã vì còn dữ liệu:\n',' codes that still hold data:\n')
+          + giu.slice(0, 15).map(function(g){ return '• ' + g.ma + ' — ' + g.ly_do; }).join('\n');
+      }
+      if (!confirm(hoi)) return;
+      lam('may_xoa_han', { ds: xoa, that: 1 });
+    });
+  };
+
   /* 🚪 ĐÓNG CỬA / MỞ LẠI — anh Thắng 14/09/2026 */
   [].forEach.call(document.querySelectorAll('[data-csdong]'), function(b){
     b.onclick = function(){

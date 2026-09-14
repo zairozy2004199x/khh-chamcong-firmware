@@ -117,6 +117,30 @@ gập **"🚪 Cơ sở đã đóng cửa"** ở cuối, bấm 🚪 lần nữa l
 > 🔴 Trạng thái đóng xét **trước** "rỗng ghế": cơ sở đã đóng thường cũng hết ghế, xét ngược thì nó
 > rơi vào khối "chưa có ghế" và lại hiện ra y như một cơ sở mới — đúng cái đang muốn dẹp.
 
+### 3.3 Xoá hẳn mã ghế chưa gán (2.76.0)
+
+Anh Thắng 14/09/2026: *"xoá mã ghế không có cơ sở"*. Nút 🗑 **Xoá mã chưa gán** nằm ngay trên hàng
+**"(chưa gán)"** của bảng Địa điểm.
+
+> 🔴 **`may_xoa` KHÔNG xoá — nó chỉ đặt `an=1`.** Đó là chủ ý và đúng cho ghế đang chạy thật (chỉ
+> số, doanh thu, log giữ nguyên). Nhưng mã rác chưa gán — kiểu `AMBT01` còn sót từ đợt đổi cách đặt
+> mã — thì ẩn đi vẫn nằm đó. `xoa_han_may()` là đường **duy nhất** trong plugin xoá hẳn, và nó bị
+> bó bằng ba chốt:
+>
+> 1. chỉ ghế `coso_id = 0` — ghế đang thuộc một cơ sở thì không đụng tới;
+> 2. chỉ ghế **không còn một dòng nào** ở bất kỳ bảng nào mang cột `ma_may`;
+> 3. ghế bị từ chối phải **báo rõ** còn dấu vết ở bảng nào, bao nhiêu dòng.
+>
+> ⚠️ Danh sách bảng **dò từ `information_schema`**, không chép tay — thêm bảng mới có cột `ma_may`
+> mà quên cập nhật là hàm tưởng "sạch" rồi xoá, dữ liệu bảng mới thành mồ côi.
+
+Chạy **hai bước**: hỏi máy chủ xem cái nào xoá được (không xoá gì) → hiện danh sách **đúng những mã
+sắp mất** cùng lý do giữ lại từng mã khác → xác nhận mới xoá. Danh sách mã lấy từ `D.may`, **không**
+đọc chữ đang hiển thị — bảng có thể đang bị ô tìm lọc.
+
+Phép kiểm: `tools/kiem-ghe/kiem-xoa-ma-chua-gan.php` (hàm PHP, giả lập `$wpdb`) và
+`tools/kiem-ghe/kiem-xoa-ma-chua-gan.js` (giao diện).
+
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
 - **quan_tri** — Admin/Quản lý: toàn quyền (thêm/xoá cơ sở & ghế, gán mã, cấp PIN báo cáo,

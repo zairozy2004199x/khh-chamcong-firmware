@@ -95,3 +95,25 @@ Hai lần bản nháp báo hỏng oan vì dữ liệu thử, không phải vì c
 - **Vẽ lại màn sạch trước mỗi thao tác.** Bấm tiếp trên cái xác do lần vẽ lại bằng dữ liệu giả để
   lại là đang kiểm một thứ khác hẳn. Và stub `so_lieu` phải đủ `ai` / `cho` / `choGan` — thiếu là
   `ve()` ném lỗi, trông y như lỗi sản phẩm.
+
+
+## Xoá hẳn mã ghế chưa gán — kiểm ở **hai tầng**
+
+```bash
+php  kiem-xoa-ma-chua-gan.php     # hàm PHP, giả lập $wpdb — chốt an toàn thật nằm ở đây
+NODE_PATH=/opt/node22/lib/node_modules node kiem-xoa-ma-chua-gan.js   # giao diện
+```
+
+Đây là thao tác **không hoàn tác được**, nên kiểm cả hai tầng chứ không chỉ giao diện.
+
+**Tầng PHP** (14 phép kiểm): xem trước **không chạy một câu DELETE nào** · mã còn dữ liệu bị giữ và
+lý do nói rõ bảng nào bao nhiêu dòng · mã đang thuộc cơ sở bị giữ · câu `DELETE` vẫn kèm
+`coso_id=0` (chốt thứ hai, phòng khi vòng lọc phía trên sai) · danh sách rỗng / mã không tồn tại /
+mã trùng.
+
+> Test nạp **đúng hàm thật** từ `class-vhg-may.php` bằng `eval`, không chép lại thân hàm. Chép lại
+> là kiểm một bản sao — bản thật sửa gì cũng không ai biết.
+
+**Tầng giao diện**: đúng hai lượt gọi (xem trước `that:0` rồi mới `that:1`) · mã **đã ẩn** và mã
+**đang thuộc cơ sở** không lọt vào lệnh · mã còn dữ liệu không được gửi đi xoá · hộp xác nhận
+**liệt kê đúng những mã sắp mất**.

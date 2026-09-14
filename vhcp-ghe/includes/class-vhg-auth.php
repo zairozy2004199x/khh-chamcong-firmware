@@ -97,6 +97,7 @@ class VHG_Auth {
 		'coso_dong',     // đánh dấu cơ sở đã đóng cửa (ẩn khỏi danh sách)
 		'may_them',
 		'may_xoa',
+		'may_xoa_han',   // xoá HẲN mã ghế chưa gán, chỉ khi không còn dấu vết dữ liệu
 		'may_coso',
 	);
 
