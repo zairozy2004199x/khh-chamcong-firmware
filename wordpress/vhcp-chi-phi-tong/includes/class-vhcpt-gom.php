@@ -130,6 +130,7 @@ class VHCPT_Gom {
 		 *    một màn — cùng cái bẫy đã mắc ở `dem()` (xem chú thích ở đó).
 		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		$loai_cua = array();
+		$coso_cua = array();
 		$ma_ds = array();
 		foreach ( $rows as $r0 ) {
 			$m0 = trim( (string) $r0['ma_don'] );
@@ -144,6 +145,32 @@ class VHCPT_Gom {
 			   GROUP BY ma_don, nhom ORDER BY tien DESC",
 				$ma_ds
 			), ARRAY_A );
+			/* ══════════════════════════════════════════════════════════════════════════════════
+			 * CƠ SỞ CỦA TỪNG ĐƠN — anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng
+			 * cột cơ sở"*.
+			 *
+			 * 🔴 HỎI CẢ HAI BẢNG. Cơ sở nằm ở DÒNG CHI, nhưng đơn xin ứng trước chưa có dòng chi
+			 *    nào mà vẫn thuộc một gian — gian ấy ghi ở dòng TẠM ỨNG. Chỉ hỏi bảng chi phí là
+			 *    mọi đơn ứng trước hiện ra "—", đúng những đơn đang chờ duyệt nhiều nhất.
+			 *
+			 * ⚠️ MỘT CÂU CHO CẢ LÁT CẮT, không hỏi từng đơn — cùng cái bẫy đã tránh ở loại chi phí
+			 *    ngay trên: hỏi từng đơn là 200 lượt đọc cho một màn.
+			 * ══════════════════════════════════════════════════════════════════════════════════ */
+			$t_tu    = $tien_to . 'tamung';
+			$r_coso  = $wpdb->get_results( $wpdb->prepare(
+				"SELECT ma_don, coso FROM $t_cp WHERE ma_don IN ($cho_ma) AND coso <> ''
+				 UNION
+				 SELECT ma_don, coso FROM $t_tu WHERE ma_don IN ($cho_ma) AND coso <> ''",
+				array_merge( $ma_ds, $ma_ds )
+			), ARRAY_A );
+			foreach ( (array) $r_coso as $r2 ) {
+				$m2 = (string) $r2['ma_don'];
+				$c2 = trim( (string) $r2['coso'] );
+				if ( '' === $c2 ) { continue; }
+				if ( ! isset( $coso_cua[ $m2 ] ) ) { $coso_cua[ $m2 ] = array(); }
+				if ( ! in_array( $c2, $coso_cua[ $m2 ], true ) ) { $coso_cua[ $m2 ][] = $c2; }
+			}
+
 			foreach ( (array) $r_loai as $r1 ) {
 				$m1 = (string) $r1['ma_don'];
 				if ( ! isset( $loai_cua[ $m1 ] ) ) { $loai_cua[ $m1 ] = array(); }
@@ -189,6 +216,8 @@ class VHCPT_Gom {
 				'tenBan'   => VHCPT_Ban::ten( $khoa ),
 				'urlBan'   => (string) ( isset( VHCPT_Ban::ds()[ $khoa ]['url'] ) ? VHCPT_Ban::ds()[ $khoa ]['url'] : '' ),
 				'maDon'    => $ma,
+				/* Danh sách gian của đơn — màn bày một tên, nhiều gian thì nói "N cơ sở". */
+				'coso'     => isset( $coso_cua[ $ma ] ) ? $coso_cua[ $ma ] : array(),
 				'ky'       => (string) $r['ky'],
 				'nguoiLap' => (string) $r['nguoi_lap'],
 				'donVi'    => (string) $r['don_vi'],

@@ -610,7 +610,7 @@ t( 'viền thẻ có thật, không chỉ bóng đổ', false !== strpos( $html,
  * ═══════════════════════════════════════════════════════════════════════════════ */
 foreach ( array(
 	/* cổng PIN + khung màn */      'veVao', 'veChinh', 'napDs', 'veBang', 'coQuyen',
-	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu', 'veAnh',
+	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu', 'veAnh', 'veCoSo',
 	/* xuất MISA */                 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong',
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
 	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq', 'mauBuoc',
@@ -947,6 +947,28 @@ t( '⚠️ và không để lọt ra ngoài mép trái/trên',
 	(bool) preg_match( '#Math\.max\(8, x\)#', $html ), '' );
 t( 'cuộn trang thì tắt khung (nó gắn theo con trỏ)',
 	(bool) preg_match( "#addEventListener\( *'scroll'#", $html ), '' );
+
+/* ═══ 6p. CỘT CƠ SỞ THAY CỘT MÃ ĐƠN ═════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng cột cơ sở"*.
+ *
+ * 🔴 Người duyệt đọc theo GIAN: *"tuần này Aeon Tân Phú xin bao nhiêu"*. Mã đơn là chuỗi ngẫu
+ *    nhiên dài, na ná nhau, không nói gì khi lướt qua một bảng ba chục dòng.
+ * ⚠️ NHƯNG KHÔNG BỎ HẲN MÃ ĐƠN — nó là thứ duy nhất đối chiếu được với trang mảng và với lịch
+ *    sử. Cho xuống dòng dưới, chữ nhỏ.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 cột đầu bảng đơn là Cơ sở', false !== mb_strpos( $html_ma, "'<th>Cơ sở</th><th>Người lập</th>" ), '' );
+t( '⚠️ mã đơn vẫn còn, ở dòng dưới chữ nhỏ',
+	(bool) preg_match( '~veCoSo\(d\.coso\)~', $html ) && false !== mb_strpos( $html_ma, "esc(d.maDon)+'</div></td>'" ), '' );
+/* 🔴 HỎI CẢ HAI BẢNG: đơn xin ứng trước chưa có dòng chi nào mà vẫn thuộc một gian — gian ấy ghi
+   ở dòng TẠM ỨNG. Chỉ hỏi bảng chi phí là mọi đơn ứng trước hiện "—", đúng những đơn đang chờ
+   duyệt nhiều nhất. */
+t( '🔴 cơ sở gom từ CẢ bảng chi phí lẫn bảng tạm ứng',
+	(bool) preg_match( '#SELECT ma_don, coso FROM \$t_cp[\s\S]{0,200}?UNION[\s\S]{0,200}?FROM \$t_tu#', $gom3 ), '' );
+/* ⚠️ Một câu cho cả lát cắt, không hỏi từng đơn — hỏi từng đơn là 200 lượt đọc cho một màn. */
+t( '⚠️ gom một lượt cho cả lát cắt', (bool) preg_match( '#ma_don IN \(\$cho_ma\)[\s\S]{0,120}?UNION#', $gom3 ), '' );
+/* ⚠️ Đơn rải nhiều gian thì nói SỐ GIAN, không bày mỗi một tên như thể đơn chỉ có nó. */
+t( '⚠️ đơn nhiều gian thì nói thêm còn mấy gian nữa',
+	false !== mb_strpos( $html_ma, 'cơ sở nữa' ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

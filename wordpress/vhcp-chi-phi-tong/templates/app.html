@@ -621,7 +621,7 @@ function veBang(){
            '<span class="nho mo">Cộng '+tien(tongLat)+'</span></div>';
     }
     h += '<div class="cuon"><table><thead><tr>' +
-      '<th>Mã đơn</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
+      '<th>Cơ sở</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
       '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';
 
     thuTuKy.forEach(function(k){
@@ -648,7 +648,12 @@ function veBang(){
         var xong = ( d.trangThai === 'Đã quyết toán' );
 
         h += '<tr>' +
-          '<td><b>'+esc(d.maDon)+'</b></td>' +
+          /* 🔴 CƠ SỞ LÊN ĐẦU — anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng cột
+             cơ sở"*. Người duyệt đọc theo GIAN: "tuần này Aeon Tân Phú xin bao nhiêu". Mã đơn là
+             chuỗi ngẫu nhiên dài, na ná nhau, không nói gì khi lướt qua.
+             ⚠️ NHƯNG KHÔNG BỎ HẲN MÃ ĐƠN: nó là thứ duy nhất đối chiếu được với trang mảng và
+                với lịch sử. Cho xuống dòng dưới, chữ nhỏ. */
+          '<td>'+veCoSo(d.coso)+'<div class="nho mo">'+esc(d.maDon)+'</div></td>' +
           '<td>'+esc(d.nguoiLap)+'</td>' +
           '<td>'+veLoai(d.loai)+'</td>' +
           '<td class="nho">'+esc(d.ky)+'</td>' +
@@ -716,6 +721,15 @@ function moDonDaHen(){
     + 'Thử tab khác, hoặc bấm ↻ Làm mới.');
   var b = document.getElementById('bang');
   if (b) b.insertAdjacentHTML('beforebegin', veBao());
+}
+
+/* Gian của một đơn. Một đơn có thể rải nhiều gian (Văn phòng / Máy tự động khi không tạm ứng)
+   — bày một cái tên như thể đơn chỉ có nó là nói sai về đơn. */
+function veCoSo(ds){
+  ds = ds || [];
+  if (!ds.length) return '<span class="mo nho">chưa rõ cơ sở</span>';
+  if (ds.length === 1) return '<b>'+esc(ds[0])+'</b>';
+  return '<b>'+esc(ds[0])+'</b><span class="mo nho"> +'+(ds.length-1)+' cơ sở nữa</span>';
 }
 
 /* 🔴 MỘT ĐƠN CÓ NHIỀU LOẠI CHI PHÍ — loại nằm ở từng DÒNG CHI, không nằm ở đơn. Rút gọn thành
