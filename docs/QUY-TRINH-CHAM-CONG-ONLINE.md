@@ -3,7 +3,15 @@
 Bản dán ở cơ sở và gửi Zalo cho nhân viên mới. Mô tả đúng hành vi của **Chấm công 3.81.0**; câu
 chữ ở bảng tra lỗi lấy **nguyên văn** từ hệ thống.
 
-> Trang đọc được (gửi cho cơ sở): https://claude.ai/code/artifact/932a3d87-5f0a-4680-87dd-e94cec6743c9
+> **Bản gửi cơ sở**
+> * Trang web: https://claude.ai/code/artifact/932a3d87-5f0a-4680-87dd-e94cec6743c9
+> * **PDF in / gửi Zalo**: [`QUY-TRINH-CHAM-CONG-ONLINE.pdf`](QUY-TRINH-CHAM-CONG-ONLINE.pdf) — 10 trang A4
+> * Nguồn của cả hai: [`quy-trinh-cham-cong-online.html`](quy-trinh-cham-cong-online.html)
+>
+> Sửa tài liệu thì sửa tệp `.html`, rồi xuất lại PDF bằng:
+> ```
+> node tools/xuat-pdf.js docs/quy-trinh-cham-cong-online.html docs/QUY-TRINH-CHAM-CONG-ONLINE.pdf
+> ```
 
 ---
 
