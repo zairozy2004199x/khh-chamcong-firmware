@@ -6019,12 +6019,25 @@ function veBcPin(){
       + 'muốn đổi phạm vi hoặc khoá riêng.',
       'Use the staff member\'s existing HR / attendance PIN (the two systems sync). Tick the branches '
       + 'they cover. Admin only.') + '</p>'
-    + '<table><tr><th>PIN</th><th>' + L('Tên','Name') + '</th><th>' + L('Cơ sở','Branches')
+    /* Ô TÌM NHÂN VIÊN — anh Thắng 14/09/2026: *"gõ tìm kiếm tên nhân viên"*. Danh sách này dài
+       bằng số nhân viên cả chuỗi; cuộn tay để tìm một người là hỏng việc.
+       ⚠️ Lọc NGAY TRONG DOM (ẩn/hiện hàng), không vẽ lại bảng — vẽ lại là mất con trỏ trong ô
+          tìm sau mỗi phím gõ. Cùng luật với ô tìm ở bảng Địa điểm.
+       ⚠️ Khoá tìm dựng bằng `kdJS` (BỎ DẤU), không phải `toLowerCase()` như ô lọc cơ sở ngay bên
+          dưới. Đây là tìm TÊN NGƯỜI: gõ "thang" phải ra "Thắng", gõ "chau" phải ra "châu". Ô lọc
+          cơ sở dùng toLowerCase() là đủ vì tên cơ sở thường gõ hoa không dấu, nhưng tên người thì
+          không ai gõ đủ dấu để đi tìm. */
+    + '<div class="act" style="margin-bottom:10px">'
+    + '<input id="bcp-tim" type="search" placeholder="🔎 ' + L('Gõ tên nhân viên, PIN hoặc cơ sở…','Search name, PIN or branch…')
+      + '" style="flex:1;min-width:220px;max-width:380px">'
+    + '<span id="bcp-dem-tim" class="mut" style="align-self:center"></span></div>'
+    + '<table id="bcp-bang"><tr><th>PIN</th><th>' + L('Tên','Name') + '</th><th>' + L('Cơ sở','Branches')
     + '</th><th class="hide-sm">' + L('Ghế riêng','Chairs') + '</th><th>' + L('Bật','On')
     + '</th><th class="r"></th></tr>';
   if (!BCP.length) h += '<tr><td colspan="6" class="mut">' + L('Chưa có PIN nào.','No PINs yet.') + '</td></tr>';
   BCP.forEach(function(p){
-    h += '<tr><td><b>' + esc(p.pin) + '</b></td><td>' + esc(p.ten || '') + '</td>'
+    h += '<tr data-bcptim="' + esc(kdJS([p.pin, p.ten || '', p.coso || '', p.ghe || ''].join(' '))) + '">'
+      + '<td><b>' + esc(p.pin) + '</b></td><td>' + esc(p.ten || '') + '</td>'
       + '<td>' + esc(p.coso || L('(cả phạm vi)','(all)')) + '</td>'
       + '<td class="hide-sm mut">' + esc(p.ghe || '') + '</td>'
       + '<td>' + (p.active ? '✓' : '<span class="mut">' + L('tắt','off') + '</span>') + '</td>'
@@ -6104,6 +6117,23 @@ function noiBcPin(){
     bcpTickCoso(u.coso || '');   // cơ sở trống = không tích ô nào (toàn phạm vi)
     if (e) e.textContent = u.pin ? '' : L('Người này chưa có PIN trong nhân sự — nhập PIN tay.','No HR PIN — enter PIN manually.');
   };
+  /* Tìm nhân viên trong bảng PIN */
+  var tim = document.getElementById('bcp-tim'), demTim = document.getElementById('bcp-dem-tim');
+  function bcpLoc(){
+    if (!tim) return;
+    var q = kdJS(tim.value.trim()), hien = 0, tong = 0;
+    [].forEach.call(document.querySelectorAll('#bcp-bang tr[data-bcptim]'), function(tr){
+      tong++;
+      var khop = !q || (tr.getAttribute('data-bcptim') || '').indexOf(q) >= 0;
+      tr.style.display = khop ? '' : 'none';
+      if (khop) hien++;
+    });
+    if (demTim) demTim.textContent = !q ? (tong + ' ' + L('người','people'))
+      : (hien ? (hien + '/' + tong + ' ' + L('người','people'))
+              : L('không thấy ai khớp','no match'));
+  }
+  if (tim) { tim.oninput = bcpLoc; bcpLoc(); }
+
   // Lọc + chọn tất/bỏ tất + đếm cho lưới cơ sở
   var csQ = document.getElementById('bcp-cs-q');
   if (csQ) csQ.oninput = function(){ var q = csQ.value.trim().toLowerCase();

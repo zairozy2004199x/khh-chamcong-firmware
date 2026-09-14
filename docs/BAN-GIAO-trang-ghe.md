@@ -192,6 +192,21 @@ Báo cáo đã **khoá ngày** thì mọi ô về lại chữ tĩnh.
 Phép kiểm: `tools/kiem-ghe/kiem-sua-o-tien.php` (11 phép, hàm `sua()` thật, giả lập `$wpdb`) và
 `tools/kiem-ghe/kiem-sua-o-tien.js` (cột nào cho gõ, ba payload, khoá ngày).
 
+### 3.5 Tìm nhân viên ở tab PIN báo cáo (2.79.0)
+
+Anh Thắng 14/09/2026: *"gõ tìm kiếm tên nhân viên"*. Ô tìm ngay trên bảng **📋 PIN nhân viên báo
+cáo**, lọc theo **tên · PIN · cơ sở · ghế riêng**, kèm bộ đếm *"3/48 người"* / *"không thấy ai khớp"*.
+
+> 🔴 Khoá tìm dựng bằng **`kdJS` (bỏ dấu)**, không phải `toLowerCase()` như ô *lọc cơ sở* ngay bên
+> dưới. Đây là tìm **tên người**: gõ `thang` phải ra **Thắng**, gõ `chau` phải ra **châu**. Không ai
+> gõ đủ dấu để đi tìm một cái tên.
+
+> ⚠️ Lọc **ngay trong DOM** (ẩn/hiện hàng), không vẽ lại bảng — vẽ lại là mất con trỏ sau mỗi phím
+> gõ. Cùng luật với ô tìm ở bảng Địa điểm.
+
+Phép kiểm: `tools/kiem-ghe/kiem-tim-nhan-vien.js` — gõ có dấu / không dấu / HOA-thường, tìm theo
+PIN, theo cơ sở, và ca không khớp ai.
+
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
 - **quan_tri** — Admin/Quản lý: toàn quyền (thêm/xoá cơ sở & ghế, gán mã, cấp PIN báo cáo,

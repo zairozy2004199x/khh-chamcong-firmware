@@ -153,3 +153,21 @@ ba payload đúng khoá; khoá ngày → **0** ô nhập.
 
 > ⚠️ Bảng dựng bằng `innerHTML` (tiêu đề) + `appendChild` (dòng) nằm chung **một** `tbody`, nên
 > hàng 0 là **tiêu đề**. Bản đầu đọc hàng 0 → mọi ô "không có input" → báo hỏng oan.
+
+
+## `kiem-tim-nhan-vien.js` — ô tìm ở tab PIN báo cáo
+
+Dùng đúng những cái tên có thật trong ảnh anh Thắng gửi (có dấu, có ngoặc, HOA lẫn thường).
+
+| Gõ | Phải ra |
+|---|---|
+| `thang` (không dấu) | Hà Quang **Thắng** — và **không** ra "Thanh" |
+| `Thắng` (có dấu) | y hệt |
+| `DUONG` (HOA, không dấu) | DƯƠNG TRUNG TÍN · Huỳnh Ngọc Thanh (cơ sở có "BÌNH DƯƠNG") |
+| `chau` | Đặng thị ngọc **châu** |
+| PIN `594619` | đúng người đó |
+| `ben tre` | khớp cả tên lẫn cơ sở |
+| chuỗi vô nghĩa | 0 hàng, bộ đếm nói *"không thấy ai khớp"* |
+
+> ⚠️ Bản đầu em đoán `ben tre` ra **2** người rồi báo hỏng oan — thực tế chỉ 1. Phép kiểm phải
+> **đếm từ dữ liệu thử**, không đoán bằng cảm tính.
