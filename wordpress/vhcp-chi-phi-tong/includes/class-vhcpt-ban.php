@@ -107,6 +107,48 @@ class VHCPT_Ban {
 		return 'VHCP' . $b['tienTo'] . '_' . $duoi;
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MƯỢN PHIÊN CỦA BẢN KIA — chìa khoá để trang tổng dùng LÕI THẬT, không viết lại luật.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Trang tổng là xem, duyệt, quyết toán, xuất misa, sau này kế toán
+	 * và quản lý làm trên trang này, không làm trên trang bộ phận"*.
+	 *
+	 * 🔴 BA VIỆC ẤY NẰM SÂU TRONG LÕI CỦA TỪNG BẢN, và chúng hỏi `<Bản>_Auth` xem "ai đang gọi":
+	 *      · `get_don()`      -> `loi_khong_phai_don_minh()` -> `VHCP_DonVi::vi_sao_khong_dung()`
+	 *      · `export_misa()`  -> lọc theo đơn vị và bộ phận của người gọi
+	 *      · `xac_nhan_quyet_toan_cn()` -> ghi tên người quyết toán vào chứng từ
+	 *    Trang tổng mượn SỔ NGƯỜI DÙNG của các bản nhưng trước nay không mượn PHIÊN, nên mấy
+	 *    hàm ấy hỏi một câu mà bên kia không có ngữ cảnh để trả lời.
+	 *
+	 * 🔴 CHÉP LUẬT SANG ĐÂY LÀ CON ĐƯỜNG SAI. Luật quyết toán có chỗ tinh (chênh lệch, bù trừ
+	 *    tuần trước, đơn vừa cá nhân vừa NCC); luật MISA có bảng tài khoản riêng cho từng loại
+	 *    chi phí. Dựng bản thứ hai cho cùng một luật là hai bản lệch nhau — và lệch ở đây nghĩa
+	 *    là chứng từ xuất ra sai, thứ chỉ lộ khi kế toán đối chiếu sổ cuối kỳ.
+	 *
+	 * ⚠️ MƯỢN PHIÊN KHÔNG PHẢI NỚI QUYỀN. Vai đặt vào là vai của chính người ấy TRONG SỔ CỦA BẢN
+	 *    ẤY — đọc ra lúc đăng nhập, không phải thứ trình duyệt gửi lên. Nên mọi chốt bên kia vẫn
+	 *    chạy y như khi họ đăng nhập thẳng vào trang mảng; ta chỉ nói cho bên ấy biết ai đang gõ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function muon_phien( $khoa ) {
+		$b = self::mot( $khoa );
+		if ( ! $b ) { return false; }
+		$ng = VHCPT_Auth::toi();
+		if ( ! $ng || ! isset( $ng['bans'][ $b['khoa'] ] ) ) { return false; }
+		$hs = $ng['bans'][ $b['khoa'] ];
+		$lop = self::lop( $khoa, 'Auth' );
+		/* ⚠️ Gác `class_exists`/`method_exists` CÙNG HÀM với lời gọi — luật `kiem-goi-cheo.php`. */
+		if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'dat_vai_tro' ) ) { return false; }
+		call_user_func(
+			array( $lop, 'dat_vai_tro' ),
+			isset( $hs['vai'] ) ? $hs['vai'] : '',
+			(string) $ng['ten'],
+			isset( $hs['coso'] ) ? $hs['coso'] : '',
+			isset( $hs['boPhan'] ) ? $hs['boPhan'] : '',
+			isset( $hs['maNv'] ) ? $hs['maNv'] : ''
+		);
+		return true;
+	}
+
 	/** Tiền tố bảng của một bản: 'wp_vhcpmtd_'. */
 	public static function tien_to_bang( $khoa ) {
 		global $wpdb;

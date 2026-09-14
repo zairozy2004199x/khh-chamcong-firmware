@@ -66,6 +66,42 @@ class VHCPT_Gom {
 		$rows = $wpdb->get_results( $sql, ARRAY_A );
 		if ( ! is_array( $rows ) ) { return array(); }
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * LOẠI CHI PHÍ CỦA TỪNG ĐƠN — anh Thắng 14/09/2026: *"Thể hiện loại chi phí luôn nhé"*.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MỘT ĐƠN CÓ NHIỀU LOẠI. Loại chi phí nằm ở từng DÒNG CHI, không nằm ở đơn — một đơn
+		 *    tuần có thể vừa "NVL đồ uống" vừa "Chi phí cơ sở". Nên cột này là DANH SÁCH, và khi
+		 *    dài thì cắt bớt kèm số còn lại; rút gọn thành một loại là nói sai về đơn.
+		 *
+		 * ⚠️ MỘT CÂU HỎI CHO CẢ LÁT CẮT, KHÔNG HỎI TỪNG ĐƠN. Hỏi từng đơn là 200 lượt đọc cho
+		 *    một màn — cùng cái bẫy đã mắc ở `dem()` (xem chú thích ở đó).
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$loai_cua = array();
+		$ma_ds = array();
+		foreach ( $rows as $r0 ) {
+			$m0 = trim( (string) $r0['ma_don'] );
+			if ( '' !== $m0 ) { $ma_ds[] = $m0; }
+		}
+		if ( $ma_ds ) {
+			$cho_ma = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+			$t_cp   = $tien_to . 'chiphi';
+			$r_loai = $wpdb->get_results( $wpdb->prepare(
+				"SELECT ma_don, nhom, COUNT(*) AS so, SUM(thanh_tien) AS tien
+				   FROM $t_cp WHERE ma_don IN ($cho_ma) AND nhom <> ''
+			   GROUP BY ma_don, nhom ORDER BY tien DESC",
+				$ma_ds
+			), ARRAY_A );
+			foreach ( (array) $r_loai as $r1 ) {
+				$m1 = (string) $r1['ma_don'];
+				if ( ! isset( $loai_cua[ $m1 ] ) ) { $loai_cua[ $m1 ] = array(); }
+				$loai_cua[ $m1 ][] = array(
+					'ten'  => (string) $r1['nhom'],
+					'so'   => (int) $r1['so'],
+					'tien' => (float) $r1['tien'],
+				);
+			}
+		}
+
 		$lop_don = VHCPT_Ban::lop( $khoa, 'Don' );
 		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
 		$hoi_tien = ( $lop_don && class_exists( $lop_don )
@@ -97,6 +133,9 @@ class VHCPT_Gom {
 				   mảng thì mỗi dòng một câu trả lời khác nhau. Một cờ chung là vẽ ra nút họ bấm
 				   vào sẽ bị chối, hoặc giấu mất nút họ có quyền bấm. */
 				'lam'      => self::lam_duoc( $khoa ),
+				/* Xếp theo tiền giảm dần (đã sắp trong câu lệnh) — loại tốn nhiều nhất đứng
+				   trước, vì đó là loại người duyệt cần nhìn đầu tiên. */
+				'loai'     => isset( $loai_cua[ $ma ] ) ? $loai_cua[ $ma ] : array(),
 			);
 		}
 		return $ra;

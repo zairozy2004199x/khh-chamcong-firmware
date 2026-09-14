@@ -1,77 +1,83 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Chi phí tổng — duyệt đơn ba mảng</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<base target="_top">
+<title>Chi Phí Tổng</title>
 <style>
-  :root{
-    --nen:#f6f7f9; --the:#fff; --vien:#e5e7eb; --chu:#111827; --mo:#6b7280;
-    --xanh:#16a34a; --xanhnhat:#dcfce7; --do:#dc2626; --donhat:#fee2e2;
-    --vang:#b45309; --vangnhat:#fef3c7; --lam:#2563eb;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--nen);color:var(--chu);
-       font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  .bao{max-width:1100px;margin:0 auto;padding:16px}
-  h1{font-size:20px;margin:0 0 2px}
-  .mo{color:var(--mo)}
-  .the{background:var(--the);border:1px solid var(--vien);border-radius:12px;padding:16px;margin-bottom:14px}
-  input,button,select{font:inherit}
-  input[type=password],input[type=text]{padding:9px 11px;border:1px solid var(--vien);border-radius:8px;width:100%}
-  button{padding:8px 14px;border:1px solid var(--vien);border-radius:8px;background:#fff;cursor:pointer}
-  button.chinh{background:var(--lam);border-color:var(--lam);color:#fff;font-weight:600}
-  button.duyet{background:var(--xanhnhat);border-color:#86efac;color:#15803d;font-weight:600}
-  button.tra{background:var(--donhat);border-color:#fca5a5;color:#b91c1c}
-  button:disabled{opacity:.45;cursor:not-allowed}
-  .hang{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .tab{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
-  .tab button{border-radius:999px}
-  .tab button.on{background:var(--chu);border-color:var(--chu);color:#fff}
-  .dem{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;
-       background:rgba(0,0,0,.08);font-size:12px;font-weight:700}
-  .cuon{overflow-x:auto}
-  table{border-collapse:collapse;width:100%;min-width:760px}
-  th,td{padding:9px 10px;border-bottom:1px solid var(--vien);text-align:left;vertical-align:top}
-  th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--mo)}
-  td.tien{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
-  .chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid var(--vien);
-        font-size:12px;font-weight:600}
-  .bao-loi{background:var(--donhat);border:1px solid #fca5a5;color:#b91c1c;
-           padding:10px 12px;border-radius:8px;margin-bottom:12px}
-  .bao-ok{background:var(--xanhnhat);border:1px solid #86efac;color:#15803d;
-          padding:10px 12px;border-radius:8px;margin-bottom:12px}
-  .bao-canh{background:var(--vangnhat);border:1px solid #fcd34d;color:var(--vang);
-            padding:10px 12px;border-radius:8px;margin-bottom:12px}
-  tr.ct td{background:#f9fafb;border-bottom:2px solid var(--vien)}
-  .ct table{min-width:0}
-  .ct th,.ct td{padding:5px 8px;font-size:13px;border-bottom:1px solid var(--vien)}
-  .vao{max-width:380px;margin:8vh auto}
-  .chan{text-align:center;color:var(--mo);font-size:12px;padding:8px 0 24px}
-  @media (max-width:520px){ .bao{padding:12px} .the{padding:13px} }
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CÙNG MỘT BỘ ÁO VỚI TRANG CHI PHÍ — anh Thắng 14/09/2026: *"cho giao diện trang tổng giống như
+ * các trang khác"*.
+ *
+ * ⚠️ CHÉP BẢNG MÀU, KHÔNG NẠP `vhcp.css` CỦA BẢN KIA. Trang tổng là plugin độc lập; trỏ sang tệp
+ *    của plugin khác là ngày nào bản ấy bị gỡ thì trang này mất áo, mà mất áo trong lúc chạy thì
+ *    trông y như hỏng. Màu lấy đúng từ `assets/css/vhcp.css`: xanh 0f766e · nền f1f5f9 · viền
+ *    cbd5e1 · chữ 0f172a.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
+body{background:#f1f5f9;color:#0f172a;font-size:13px}
+.top{background:#0f766e;color:#fff;padding:14px max(22px,calc((100% - 1600px)/2));
+     display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+.top h1{font-size:18px;display:flex;align-items:center;gap:8px}
+.top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
+.chip-pb{font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);
+         border-radius:20px;padding:3px 10px;vertical-align:middle}
+.bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px,calc((100% - 1600px)/2));
+     display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
+.ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;
+    align-items:center;flex-wrap:wrap;gap:8px}
+.ch h2{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.cb{padding:14px 16px}
+input,select{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
+input:focus,select:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
+.btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
+.b-g{background:#16a34a;color:#fff}
+.b-x{background:#f1f5f9;color:#334155}
+.b-d{background:#fee2e2;color:#dc2626}
+.b-s{background:#e0f2fe;color:#0369a1}
+.b-on{background:#0f172a;color:#fff}
+.dem{display:inline-block;margin-left:6px;padding:0 7px;border-radius:999px;background:rgba(0,0,0,.10);
+     font-size:11.5px;font-weight:700}
+.b-on .dem{background:rgba(255,255,255,.22)}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top}
+th{background:#f8fafc;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#475569}
+td.r,th.r{text-align:right;white-space:nowrap}
+tfoot td{font-weight:700;background:#f1f5f9}
+.cuon{overflow-x:auto}
+.mo{color:#64748b}
+.nho{font-size:11.5px}
+.chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #cbd5e1;
+      font-size:11.5px;font-weight:600;background:#f8fafc;color:#334155}
+.chip-l{display:inline-block;padding:1px 7px;border-radius:6px;background:#eff6ff;border:1px solid #bfdbfe;
+        color:#1e40af;font-size:11px;font-weight:600;margin:1px 3px 1px 0}
+.bao{padding:10px 14px;border-radius:10px;margin-bottom:12px;font-size:12.5px}
+.bao-loi{background:#fee2e2;border:1px solid #fca5a5;color:#b91c1c}
+.bao-ok{background:#dcfce7;border:1px solid #86efac;color:#166534}
+.bao-canh{background:#fef3c7;border:1px solid #fde68a;color:#92400e}
+.bao-tin{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
+tr.ct td{background:#f8fafc}
+.gate{position:fixed;inset:0;background:#0f766e;z-index:3000;display:flex;align-items:center;justify-content:center}
+.gate .hop{background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;
+           box-shadow:0 20px 60px rgba(0,0,0,.35)}
+@media(max-width:560px){.wrap{padding:12px}.cb{padding:10px}}
 </style>
 </head>
 <body>
-<div class="bao">
-  <div id="man"></div>
-  <div class="chan" id="chan"></div>
-</div>
-
 <script id="vhcpt-boot" type="application/json">__VHCPT_BOOT__</script>
+<div id="man"></div>
 <script>
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 CẤU HÌNH ĐI QUA MỘT THẺ JSON RIÊNG, KHÔNG NHÉT THẲNG VÀO GIỮA CÂU LỆNH JS.
- *
- *    Bản 1.3.0 viết `var BOOT = /*…mốc…*​/ null;` rồi bảo máy chủ thay cái mốc bằng JSON. Thay
- *    xong thành `var BOOT = {"api":"…"} null;` — SyntaxError ngay dòng đầu, nên TOÀN BỘ script
- *    không chạy và trang ra TRẮNG TRƠN. Anh Thắng 14/09/2026: *"trang tổng đang trắng"*.
- *
- * ⚠️ VÀ PHÉP KIỂM CŨ KHÔNG BẮT ĐƯỢC: nó chỉ soi "cái mốc đã biến mất chưa". Mốc biến mất thật —
- *    chỉ là thứ thay vào chỗ đó không phải JS hợp lệ. Nay bài kiểm vẽ trang rồi cho `node
- *    --check` đọc chính đoạn script ấy.
- *
- * 🔴 VÀ KHÔNG BAO GIỜ ĐỂ TRANG TRẮNG TRƠN. Trắng trơn là kiểu hỏng tệ nhất: người dùng không có
- *    gì để đọc, không có gì để gửi lại cho người sửa. Thiếu cấu hình thì nói ra.
+ *    Bản 1.3.0 viết `var BOOT = /*…mốc…*​/ null;` rồi bảo máy chủ thay cái mốc bằng JSON — thay
+ *    xong thành `var BOOT = {"api":"…"} null;`, SyntaxError ngay dòng đầu, cả script chết và
+ *    trang ra TRẮNG TRƠN. Phép kiểm cũ không bắt được vì nó chỉ soi "mốc đã biến mất chưa".
+ * 🔴 VÀ KHÔNG BAO GIỜ ĐỂ TRANG TRẮNG TRƠN: thiếu cấu hình thì nói ra.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 var BOOT = (function () {
   try {
@@ -80,28 +86,21 @@ var BOOT = (function () {
     return ( v && v.api ) ? v : null;
   } catch ( e ) { return null; }
 })();
-
 if ( ! BOOT ) {
   document.getElementById('man').innerHTML =
-    '<div class="the"><h1>Chưa nhận được cấu hình</h1>' +
-    '<p class="mo">Trang mở được nhưng máy chủ không gửi kèm đường gọi cổng. Thường là do mở tệp ' +
-    '<code>app.html</code> thẳng, hoặc bản cài thiếu tệp. Cài lại plugin <b>Chi Phí — Tổng hợp</b> ' +
-    'rồi vào <b>Cài đặt → Đường dẫn tĩnh</b> bấm Lưu một lần.</p></div>';
+    '<div class="wrap"><div class="card"><div class="ch"><h2>Chưa nhận được cấu hình</h2></div>' +
+    '<div class="cb"><p class="mo">Trang mở được nhưng máy chủ không gửi kèm đường gọi cổng. ' +
+    'Thường là do mở tệp <code>app.html</code> thẳng, hoặc bản cài thiếu tệp. Cài lại plugin ' +
+    '<b>Chi Phí — Tổng hợp</b> rồi vào <b>Cài đặt → Đường dẫn tĩnh</b> bấm Lưu một lần.</p></div></div></div>';
   throw new Error('VHCPT: thieu BOOT');
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 THẺ PHIÊN GIỮ TRONG sessionStorage, VÀ KHÔNG BAO GIỜ GIỮ PIN.
- *    Cùng luật đã đặt cho trang chi phí: PIN không bao giờ nằm lại ở máy khách. Thẻ thì hết hạn
- *    được và thu hồi được, PIN thì không.
- * ⚠️ sessionStorage có thể ném lỗi (cửa sổ riêng tư, chặn site data) — bọc try/catch, và trang
- *    vẫn phải chạy được khi không lưu được gì: người dùng chỉ phải nhập PIN lại mỗi lượt mở.
- * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 var OTHE = 'vhcpt_the';
 function layThe(){ try{ return sessionStorage.getItem(OTHE) || ''; }catch(e){ return ''; } }
 function datThe(v){ try{ v ? sessionStorage.setItem(OTHE,v) : sessionStorage.removeItem(OTHE); }catch(e){} }
 
 var TOI = null, NHOM = 'duyet', ROWS = [], BAO = null;
+var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại', qtNcc:'quyết toán NCC' };
 
 function goi(fn, args){
   return fetch(BOOT.api, {
@@ -110,59 +109,50 @@ function goi(fn, args){
     body: JSON.stringify({ fn: fn, args: args || {} })
   }).then(function(r){ return r.json(); });
 }
-
 function tien(v){
   if (v === null || v === undefined) return '—';
   return new Intl.NumberFormat('vi-VN').format(Math.round(v)) + 'đ';
 }
 function ngay(s){
   if (!s) return '';
-  var t = String(s).replace(' ', 'T');
-  var d = new Date(t);
+  var d = new Date(String(s).replace(' ','T'));
   if (isNaN(d.getTime())) return String(s).slice(0,16);
-  var hai = function(n){ return (n<10?'0':'') + n; };
-  return hai(d.getDate()) + '/' + hai(d.getMonth()+1) + ' ' + hai(d.getHours()) + ':' + hai(d.getMinutes());
+  var h = function(n){ return (n<10?'0':'')+n; };
+  return h(d.getDate())+'/'+h(d.getMonth()+1)+' '+h(d.getHours())+':'+h(d.getMinutes());
 }
 function esc(s){
-  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
   });
 }
-function veBao(){
-  if (!BAO) return '';
-  return '<div class="bao-' + (BAO.loai) + '">' + esc(BAO.chu) + '</div>';
-}
-function datBao(loai, chu){ BAO = { loai: loai, chu: chu }; }
+function veBao(){ return BAO ? '<div class="bao bao-'+BAO.loai+'">'+esc(BAO.chu)+'</div>' : ''; }
+function datBao(loai,chu){ BAO = { loai:loai, chu:chu }; }
 
-/* ─────────────────────────────────────────────────────────────────── màn đăng nhập */
+/* ─────────────────────────────────────────────────────────────────── cổng PIN */
 function veVao(){
   document.getElementById('man').innerHTML =
-    '<div class="vao"><div class="the">' +
-      '<h1>Chi phí tổng</h1>' +
-      '<p class="mo">Duyệt đơn của mọi mảng ở một chỗ. Dùng đúng <b>PIN</b> của trang chi phí mảng bạn đang làm.</p>' +
-      veBao() +
-      '<form id="f"><input type="password" id="pin" inputmode="numeric" autocomplete="off" placeholder="PIN">' +
-      '<div class="hang" style="margin-top:10px"><button class="chinh" type="submit" id="nut">Vào</button></div></form>' +
+    '<div class="gate"><div class="hop">' +
+      '<div style="font-size:34px">💵</div>' +
+      '<h2 style="font-size:18px;color:#0f766e;margin:6px 0 4px">Chi Phí Tổng</h2>' +
+      '<div class="nho mo" style="margin-bottom:16px">Nhập mã PIN của trang chi phí mảng bạn đang làm</div>' +
+      ( BAO ? '<div class="bao bao-'+BAO.loai+'" style="text-align:left">'+esc(BAO.chu)+'</div>' : '' ) +
+      '<form id="f"><input type="password" id="pin" inputmode="numeric" maxlength="8" autocomplete="off" ' +
+        'placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px">' +
+      '<div style="margin-top:14px"><button class="btn b-p" type="submit" id="nut" style="width:170px">Đăng nhập</button></div></form>' +
     '</div></div>';
-  var f = document.getElementById('f');
-  f.addEventListener('submit', function(e){
+  document.getElementById('f').addEventListener('submit', function(e){
     e.preventDefault();
-    var o = document.getElementById('pin');
-    var nut = document.getElementById('nut');
+    var o = document.getElementById('pin'), nut = document.getElementById('nut');
     nut.disabled = true;
-    goi('dangNhap', { pin: o.value }).then(function(r){
-      /* ⚠️ Xoá ô PIN ngay, kể cả khi vào được — ô còn chữ là còn thứ hiện ra trong ảnh chụp
-         màn hình, và trang này người ta hay chụp để gửi nhau khi có vướng. */
-      o.value = '';
-      nut.disabled = false;
-      if (r && r.error) { datBao('loi', r.error); veVao(); return; }
-      datThe(r.token);
-      TOI = r.toi;
-      BAO = null;
-      veChinh();
+    goi('dangNhap',{pin:o.value}).then(function(r){
+      /* ⚠️ Xoá ô PIN ngay, kể cả khi vào được — ô còn chữ là còn thứ hiện ra trong ảnh chụp màn
+         hình, mà trang này người ta hay chụp để gửi nhau khi có vướng. */
+      o.value=''; nut.disabled=false;
+      if (r && r.error){ datBao('loi', r.error); veVao(); return; }
+      datThe(r.token); TOI = r.toi; BAO = null; veChinh();
     }).catch(function(){
-      o.value = ''; nut.disabled = false;
-      datBao('loi', 'Không gọi được máy chủ. Thử lại.'); veVao();
+      o.value=''; nut.disabled=false;
+      datBao('loi','Không gọi được máy chủ. Thử lại.'); veVao();
     });
   });
   document.getElementById('pin').focus();
@@ -170,202 +160,220 @@ function veVao(){
 
 /* ─────────────────────────────────────────────────────────────────── màn chính */
 function veChinh(){
-  var m = document.getElementById('man');
   var nhomDs = TOI.nhom || {};
   var tabs = Object.keys(nhomDs).map(function(k){
     var so = (TOI.dem && TOI.dem[k]) || 0;
-    return '<button data-nhom="' + esc(k) + '" class="' + (k === NHOM ? 'on' : '') + '">' +
-      esc(nhomDs[k].ten) + '<span class="dem">' + so + '</span></button>';
+    return '<button class="btn '+(k===NHOM?'b-on':'b-x')+'" data-nhom="'+esc(k)+'">'+
+      esc(nhomDs[k].ten)+'<span class="dem">'+so+'</span></button>';
   }).join('');
 
-  /* Nhãn nói RÕ làm được gì ở mảng nào. "✓" chung chung thì người ta không biết vì sao nút Cấp
-     hiện ở mảng này mà không hiện ở mảng kia. */
-  var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại', qtNcc:'NCC' };
-  var mangs = (TOI.bans || []).map(function(b){
+  /* 🔴 NÓI RÕ VAI Ở TỪNG MẢNG, KHÔNG CHỈ "chỉ xem". Người đọc phải biết mình đang mang vai gì
+     thì mới biết phải đi khai quyền ở đâu — "chỉ xem" không nói được điều đó. */
+  var mangs = (TOI.bans||[]).map(function(b){
     var q = b.quyen || {};
     var co = Object.keys(TEN_VIEC).filter(function(k){ return q[k]; }).map(function(k){ return TEN_VIEC[k]; });
-    return '<span class="chip" title="Vai của bạn ở mảng này: ' + esc(b.vai) + '">' +
-      esc(b.tenBan) + (co.length ? ' · ' + esc(co.join(', ')) : ' · chỉ xem') + '</span>';
+    return '<span class="chip" title="Vai của bạn ở mảng này">'+esc(b.tenBan)+' · '+esc(b.vai||'(chưa có vai)')+
+      ( co.length ? ' · '+esc(co.join(', ')) : ' · chỉ xem' )+'</span>';
   }).join(' ');
-
-  /* 🔴 NÓI RA KHI KHÔNG LÀM ĐƯỢC GÌ. Không nói thì người ta ngồi tìm cái nút không bao giờ hiện,
-     và kết luận là trang hỏng. */
-  var khongDuyet = (TOI.bans || []).every(function(b){
-    var q = b.quyen || {};
+  var khongLam = (TOI.bans||[]).every(function(b){
+    var q = b.quyen||{};
     return !Object.keys(TEN_VIEC).some(function(k){ return q[k]; });
   });
 
-  m.innerHTML =
-    '<div class="the">' +
-      '<div class="hang" style="justify-content:space-between">' +
-        '<div><h1>Chi phí tổng</h1><div class="mo">' + esc(TOI.ten) + ' · ' + mangs + '</div></div>' +
-        '<button id="ra">Thoát</button>' +
+  document.getElementById('man').innerHTML =
+    '<div class="top">' +
+      '<div><h1>💵 Chi Phí Tổng <span class="chip-pb">b'+esc(BOOT.ver)+'</span></h1>' +
+      '<div class="sub">Gom đơn các mảng · quản lý duyệt · kế toán cấp tiền &amp; quyết toán</div></div>' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<span class="nho" style="color:#a7f3d0">'+esc(TOI.ten)+'</span>' +
+        '<button class="btn b-x" id="lamMoi">↻ Làm mới</button>' +
+        '<button class="btn b-x" id="ra">Đăng xuất</button>' +
       '</div>' +
     '</div>' +
-    veBao() +
-    (khongDuyet ? '<div class="bao-canh">Vai của bạn <b>không được duyệt, cấp tiền hay trả lại đơn</b> ' +
-      'ở mảng nào, nên bảng dưới chỉ để xem. Quyền khai ở bảng <b>Phân quyền</b> của từng trang mảng.</div>' : '') +
-    '<div class="tab">' + tabs + '</div>' +
-    '<div class="the" id="bang"><p class="mo">Đang đọc…</p></div>';
+    '<div class="bar">'+tabs+'</div>' +
+    '<div class="wrap">' +
+      veBao() +
+      '<div class="bao bao-tin">Mảng của bạn: '+mangs+'</div>' +
+      ( khongLam ? '<div class="bao bao-canh">Vai của bạn <b>không được duyệt, cấp tiền hay trả lại đơn</b> ở '+
+        'mảng nào, nên bảng dưới chỉ để xem. Quyền khai ở bảng <b>Phân quyền</b> của từng trang mảng.</div>' : '' ) +
+      '<div id="bang"><p class="mo">Đang đọc…</p></div>' +
+      '<p class="nho mo" style="text-align:center;padding:10px 0 24px">Chi phí tổng · bản '+esc(BOOT.ver)+'</p>' +
+    '</div>';
 
   document.getElementById('ra').onclick = function(){
-    goi('dangXuat', {}).catch(function(){});
-    datThe(''); TOI = null; BAO = null; veVao();
+    goi('dangXuat',{}).catch(function(){});
+    datThe(''); TOI=null; BAO=null; veVao();
   };
-  Array.prototype.forEach.call(m.querySelectorAll('.tab button'), function(b){
+  document.getElementById('lamMoi').onclick = function(){ napDs(); };
+  Array.prototype.forEach.call(document.querySelectorAll('.bar button[data-nhom]'), function(b){
     b.onclick = function(){ NHOM = b.getAttribute('data-nhom'); veChinh(); };
   });
   napDs();
 }
 
 function napDs(){
-  goi('ds', { nhom: NHOM }).then(function(r){
-    if (r && r.error) { document.getElementById('bang').innerHTML = '<div class="bao-loi">' + esc(r.error) + '</div>'; return; }
+  goi('ds',{nhom:NHOM}).then(function(r){
+    if (r && r.error){ document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
     ROWS = r.rows || [];
-    if (r.dem) { TOI.dem = r.dem; }
+    if (r.dem) TOI.dem = r.dem;
     veBang();
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MỖI MẢNG MỘT BẢNG RIÊNG — anh Thắng 14/09/2026: *"tách 3 bảng riêng, để kế toán biết 3 bộ
+ *    phận"*, *"vì tên có thể trùng nhau"*.
+ *
+ *    Gộp ba mảng vào một bảng rồi thêm cột "Mảng" nghe thì đủ thông tin, nhưng hai người TRÙNG
+ *    TÊN ở hai mảng nằm cạnh nhau trong cùng một bảng là chỗ mắt trượt qua — kế toán đọc theo
+ *    tên, không đọc theo cột thứ nhất. Tách hẳn thì cái tên nằm dưới đúng tiêu đề mảng của nó,
+ *    và mỗi bảng có dòng cộng riêng.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
 function veBang(){
-  var b = document.getElementById('bang');
-  if (!ROWS.length) {
-    b.innerHTML = '<p class="mo">Không có đơn nào ở nhóm này. ✓</p>';
-    return;
-  }
-  /* 🔴 MỖI TAB MỘT VIỆC CHÍNH — nút phải khớp với chỗ đơn đang đứng. Bày nút "Duyệt" cho một
-     đơn đã ở "Chờ cấp" thì bấm vào chỉ nhận câu chối từ bản kia, và người dùng không đọc đó là
-     "sai nút", họ đọc đó là "trang hỏng". */
-  var VIEC_CUA_TAB = {
-    duyet: [ { viec:'duyet',  ten:'Duyệt',          lop:'duyet' } ],
-    cap:   [ { viec:'cap',    ten:'Cấp tạm ứng',    lop:'duyet' } ],
-    qt:    [ { viec:'qtNcc',  ten:'Xác nhận NCC',   lop:'duyet' } ]
-  };
-  var viecs = VIEC_CUA_TAB[NHOM] || [];
-  var h = '<div class="cuon"><table><thead><tr>' +
-    '<th>Mảng</th><th>Mã đơn</th><th>Người lập</th><th>Kỳ</th><th>Lúc</th>' +
-    '<th style="text-align:right">Số xin</th><th></th></tr></thead><tbody>';
-  ROWS.forEach(function(d, i){
-    var lam = d.lam || {};
-    var nut = '<button data-i="' + i + '" data-xem="1">Xem</button>';
-    viecs.forEach(function(v){
-      if (lam[v.viec]) {
-        nut += '<button class="' + v.lop + '" data-i="' + i + '" data-viec="' + v.viec + '">' + esc(v.ten) + '</button>';
-      }
-    });
-    if (lam.traLai) {
-      nut += '<button class="tra" data-i="' + i + '" data-viec="traLai">Trả lại</button>';
-    }
-    var chuaCoQuyen = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
-    h += '<tr>' +
-      '<td><span class="chip">' + esc(d.tenBan) + '</span></td>' +
-      '<td><b>' + esc(d.maDon) + '</b></td>' +
-      '<td>' + esc(d.nguoiLap) + '</td>' +
-      '<td>' + esc(d.ky) + '</td>' +
-      '<td class="mo">' + esc(ngay(d.ngayTao)) + '</td>' +
-      '<td class="tien">' + (d.tien === null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien)) + '</td>' +
-      '<td class="hang">' + nut +
-        (chuaCoQuyen ? ' <span class="mo">vai của bạn ở mảng này không làm được việc này</span>' : '') +
-      '</td></tr>' +
-      '<tr class="ct" id="ct' + i + '" hidden><td colspan="7"><span class="mo">Đang đọc…</span></td></tr>';
-  });
-  h += '</tbody></table></div>';
-  b.innerHTML = h;
+  var o = document.getElementById('bang');
+  if (!ROWS.length){ o.innerHTML = '<div class="card"><div class="cb"><p class="mo">Không có đơn nào ở nhóm này. ✓</p></div></div>'; return; }
 
-  Array.prototype.forEach.call(b.querySelectorAll('button[data-viec]'), function(n){
+  var VIEC_TAB = {
+    duyet: [ {viec:'duyet', ten:'Duyệt', lop:'b-g'} ],
+    cap:   [ {viec:'cap',   ten:'Cấp tạm ứng', lop:'b-g'} ],
+    qt:    [ {viec:'qtNcc', ten:'Xác nhận NCC', lop:'b-s'} ]
+  };
+  var viecs = VIEC_TAB[NHOM] || [];
+
+  /* Nhóm dòng theo mảng, giữ thứ tự mảng như máy chủ trả về (đã xếp theo khoá). */
+  var theoMang = {}, thuTu = [];
+  ROWS.forEach(function(d){
+    if (!theoMang[d.ban]){ theoMang[d.ban] = { ten: d.tenBan, ds: [] }; thuTu.push(d.ban); }
+    theoMang[d.ban].ds.push(d);
+  });
+
+  var h = '';
+  thuTu.forEach(function(ban){
+    var g = theoMang[ban], tong = 0, coSo = 0;
+    g.ds.forEach(function(d){ if (d.tien !== null){ tong += d.tien; coSo++; } });
+    h += '<div class="card"><div class="ch">' +
+      '<h2>🏷 '+esc(g.ten)+' <span class="chip">'+g.ds.length+' đơn</span></h2>' +
+      '<div class="nho mo">Cộng '+tien(tong)+ ( coSo < g.ds.length ? ' · '+(g.ds.length-coSo)+' đơn chưa đọc được số' : '' )+'</div>' +
+      '</div><div class="cb"><div class="cuon"><table><thead><tr>' +
+      '<th>Mã đơn</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
+      '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';
+
+    g.ds.forEach(function(d){
+      var i = ROWS.indexOf(d);
+      var lam = d.lam || {};
+      var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1">Xem</button> ';
+      viecs.forEach(function(v){
+        if (lam[v.viec]) nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(v.ten)+'</button> ';
+      });
+      if (lam.traLai) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
+      var chua = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
+
+      h += '<tr>' +
+        '<td><b>'+esc(d.maDon)+'</b></td>' +
+        '<td>'+esc(d.nguoiLap)+'</td>' +
+        '<td>'+veLoai(d.loai)+'</td>' +
+        '<td class="nho">'+esc(d.ky)+'</td>' +
+        '<td class="nho mo">'+esc(ngay(d.ngayTao))+'</td>' +
+        '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
+        '<td>'+nut+( chua ? '<div class="nho mo">vai của bạn ở mảng này không làm được việc này</div>' : '' )+'</td>' +
+        '</tr>' +
+        '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><span class="mo">Đang đọc…</span></td></tr>';
+    });
+
+    h += '</tbody><tfoot><tr><td colspan="5">Cộng '+esc(g.ten)+'</td>' +
+         '<td class="r">'+tien(tong)+'</td><td></td></tr></tfoot></table></div></div></div>';
+  });
+  o.innerHTML = h;
+
+  Array.prototype.forEach.call(o.querySelectorAll('button[data-viec]'), function(n){
     n.onclick = function(){ lam(n, ROWS[+n.getAttribute('data-i')], n.getAttribute('data-viec')); };
   });
-  Array.prototype.forEach.call(b.querySelectorAll('button[data-xem]'), function(n){
+  Array.prototype.forEach.call(o.querySelectorAll('button[data-xem]'), function(n){
     n.onclick = function(){ xem(+n.getAttribute('data-i')); };
   });
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 MỞ CHI TIẾT TRƯỚC KHI DUYỆT. Bảng ngoài chỉ có một con số tổng; bấm Duyệt mà không mở được
- *    hạng mục ra xem thì người duyệt đang ký vào thứ họ chưa đọc. Đây là cái làm trang gom dùng
- *    được thật, không phải một tiện ích thêm.
- * ⚠️ Đọc MỘT LẦN rồi giữ lại: bấm đóng mở mấy lượt mà mỗi lượt một lần gọi máy chủ là màn giật.
- * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+/* 🔴 MỘT ĐƠN CÓ NHIỀU LOẠI CHI PHÍ — loại nằm ở từng DÒNG CHI, không nằm ở đơn. Rút gọn thành
+   một loại là nói sai về đơn; nên bày hết, dài quá thì cắt kèm số còn lại. */
+function veLoai(ds){
+  ds = ds || [];
+  if (!ds.length) return '<span class="mo nho">chưa có dòng chi</span>';
+  var h = '', n = Math.min(ds.length, 3);
+  for (var i=0;i<n;i++){
+    h += '<span class="chip-l" title="'+esc(ds[i].so+' dòng · '+tien(ds[i].tien))+'">'+esc(ds[i].ten)+'</span>';
+  }
+  if (ds.length > n) h += '<span class="mo nho"> +'+(ds.length-n)+' loại nữa</span>';
+  return h;
+}
+
 function xem(i){
-  var o = document.getElementById('ct' + i);
+  var o = document.getElementById('ct'+i);
   if (!o) return;
-  if (!o.hidden) { o.hidden = true; return; }
+  if (!o.hidden){ o.hidden = true; return; }
   o.hidden = false;
-  if (o.getAttribute('data-xong') === '1') return;
+  if (o.getAttribute('data-xong')==='1') return;
   var d = ROWS[i];
-  goi('chiTiet', { ban: d.ban, maDon: d.maDon }).then(function(r){
-    o.setAttribute('data-xong', '1');
-    if (r && r.error) { o.firstChild.innerHTML = '<span class="bao-loi">' + esc(r.error) + '</span>'; return; }
-    o.firstChild.innerHTML = veChiTiet(r.don);
-  }).catch(function(){
-    o.firstChild.innerHTML = '<span class="bao-loi">Không gọi được máy chủ.</span>';
-  });
+  goi('chiTiet',{ban:d.ban,maDon:d.maDon}).then(function(r){
+    o.setAttribute('data-xong','1');
+    o.firstChild.innerHTML = (r && r.error)
+      ? '<span class="bao bao-loi">'+esc(r.error)+'</span>'
+      : veChiTiet(r.don);
+  }).catch(function(){ o.firstChild.innerHTML = '<span class="bao bao-loi">Không gọi được máy chủ.</span>'; });
 }
 
 function veChiTiet(g){
   g = g || {};
-  /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products`. `products` là danh sách GỢI Ý tên hàng để
-     điền nhanh — đọc nhầm khoá thì bảng hiện ra đầy dòng mà không dòng nào là của đơn này, và
-     nó trông y như thật. Ghi chú thì nằm trong `don`, không ở gốc. */
-  var ds = g.lines || [];
-  var don = g.don || {};
-  var h = '';
-  h += '<p class="mo"><b>' + esc(don.trangThai || '') + '</b>' +
-       (don.nguoiDuyet ? ' · duyệt bởi ' + esc(don.nguoiDuyet) : '') + '</p>';
-  if (don.ghiChu) { h += '<p class="mo">Ghi chú: ' + esc(don.ghiChu) + '</p>'; }
-  if (!ds.length) {
-    /* ⚠️ "Không có dòng chi" KHÁC "đọc hỏng". Đơn xin ứng trước được phép gửi khi chưa liệt kê
-       hạng mục — nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
-    h += '<p class="mo">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
-    return h;
+  /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products` — `products` là danh sách GỢI Ý tên hàng.
+     Đọc nhầm khoá thì bảng đầy dòng mà không dòng nào của đơn này, và nó trông y như thật. */
+  var ds = g.lines || [], don = g.don || {};
+  var h = '<div class="nho mo" style="margin-bottom:6px"><b>'+esc(don.trangThai||'')+'</b>'+
+          ( don.nguoiDuyet ? ' · duyệt bởi '+esc(don.nguoiDuyet) : '' )+
+          ( don.ghiChu ? ' · '+esc(don.ghiChu) : '' )+'</div>';
+  if (!ds.length){
+    /* ⚠️ "Chưa có dòng chi" KHÁC "đọc hỏng": đơn xin ứng trước được phép gửi khi chưa liệt kê
+       hạng mục. Nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
+    return h + '<p class="mo nho">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
   }
   var tong = 0;
-  h += '<table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
-       '<th style="text-align:right">Thành tiền</th></tr></thead><tbody>';
+  h += '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
+       '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>';
   ds.forEach(function(r){
-    var t = Number(r.thanhTien || 0);
-    tong += t;
-    h += '<tr><td>' + esc(r.coso || '') + '</td>' +
-         '<td>' + esc(r.nhom || '') + '</td>' +
-         '<td>' + esc(r.noiDung || '') + '</td>' +
-         '<td class="tien">' + tien(t) + '</td></tr>';
+    var t = Number(r.thanhTien||0); tong += t;
+    h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
+         '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
+         '<td class="r">'+tien(t)+'</td></tr>';
   });
-  h += '</tbody><tfoot><tr><th colspan="3" style="text-align:right">Cộng ' + ds.length + ' dòng</th>' +
-       '<td class="tien">' + tien(tong) + '</td></tr></tfoot></table>';
+  h += '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
+       '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
   return h;
 }
 
 function lam(nut, d, viec){
-  var args = { ban: d.ban, maDon: d.maDon };
+  var args = { ban:d.ban, maDon:d.maDon };
   /* ⚠️ DUYỆT thì KHÔNG hỏi gì — anh Thắng 13/09/2026: *"bấm duyệt không cần hỏi cái này nhé"*.
-     TRẢ LẠI thì phải hỏi lý do: người lập đơn cần biết sửa cái gì, mà đơn trả về không kèm lý do
-     thì họ gửi lại y nguyên và vòng lặp ấy chạy mãi. */
-  if (viec === 'traLai') {
-    var ly = prompt('Trả lại đơn ' + d.maDon + ' — lý do để người lập biết sửa gì:');
+     TRẢ LẠI thì phải hỏi lý do: đơn trả về không kèm lý do thì người lập gửi lại y nguyên. */
+  if (viec === 'traLai'){
+    var ly = prompt('Trả lại đơn '+d.maDon+' — lý do để người lập biết sửa gì:');
     if (ly === null) return;
     args.lyDo = ly;
   }
   nut.disabled = true;
   goi(viec, args).then(function(r){
     nut.disabled = false;
-    if (r && r.error) { datBao('loi', r.error); } else { datBao('ok', (r && r.message) || 'Xong.'); }
+    if (r && r.error) datBao('loi', r.error); else datBao('ok', (r&&r.message)||'Xong.');
     veChinh();
   }).catch(function(){
-    nut.disabled = false;
-    datBao('loi', 'Không gọi được máy chủ.'); veChinh();
+    nut.disabled = false; datBao('loi','Không gọi được máy chủ.'); veChinh();
   });
 }
 
 /* ─────────────────────────────────────────────────────────────────── khởi động */
-document.getElementById('chan').textContent = 'Chi phí tổng · bản ' + (BOOT && BOOT.ver ? BOOT.ver : '?');
-if (layThe()) {
-  goi('toi', {}).then(function(r){
-    if (r && r.error) { datThe(''); veVao(); return; }
+if (layThe()){
+  goi('toi',{}).then(function(r){
+    if (r && r.error){ datThe(''); veVao(); return; }
     TOI = r; veChinh();
   }).catch(function(){ veVao(); });
-} else {
-  veVao();
-}
+} else { veVao(); }
 </script>
 </body>
 </html>

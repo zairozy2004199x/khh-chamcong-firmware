@@ -93,6 +93,12 @@ class VHCPT_Auth {
 				$bans[ $khoa ] = array(
 					'vai'   => $vai,
 					'coso'  => trim( (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ),
+					/* ⚠️ GIỮ ĐỦ THỨ CẦN ĐỂ MƯỢN PHIÊN bên bản ấy — xem `VHCPT_Ban::muon_phien()`.
+					   Thiếu `boPhan` là người bị bó bộ phận sang đó thành KHÔNG bó, tức nhìn
+					   thấy sổ của mọi mảng; thiếu `maNv` là mấy chốt "đơn của mình" mất sợi dây
+					   nối. Cả hai đều hỏng im lặng. */
+					'boPhan' => trim( (string) ( isset( $u['boPhan'] ) ? $u['boPhan'] : '' ) ),
+					'maNv'   => trim( (string) ( isset( $u['maNv'] ) ? $u['maNv'] : '' ) ),
 					'duyet' => self::duoc_duyet( $khoa, $vai ),
 					/* Cả bảng quyền, tra một lượt rồi cất vào thẻ phiên: mỗi lượt tra là một
 					   `get_quyen()` của bản kia, mà màn nào cũng cần hỏi bốn việc. */

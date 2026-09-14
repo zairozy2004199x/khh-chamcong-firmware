@@ -100,7 +100,10 @@ t( '🔴 KHÔNG lưu PIN vào localStorage/sessionStorage',
 	! preg_match( '/(local|session)Storage\.setItem\s*\(\s*[^)]*pin/i', $html_js ), '' );
 t( '   thẻ phiên thì có lưu (và chỉ thẻ)',
 	false !== strpos( $html_js, 'sessionStorage.setItem' ), '' );
-t( '🔴 xoá ô PIN ngay sau khi gửi', false !== strpos( $html_js, "o.value = ''" ), '' );
+/* ⚠️ Bám VIỆC, đừng bám khoảng trắng: bản trước tìm nguyên văn `o.value = ''` rồi đỏ ngay lượt
+   viết lại giao diện chỉ vì mã mới viết `o.value=''`. Phép đỏ oan là phép người ta học cách bỏ qua. */
+t( '🔴 xoá ô PIN ngay sau khi gửi',
+	(bool) preg_match( "#\\bo\\.value\\s*=\\s*''#", $html_js ), '' );
 
 /* ═══ 6. LÕI CHẠY THẬT — SỔ BẢN · ĐĂNG NHẬP · QUYỀN ═════════════════════════════
  * Dựng hai bản GIẢ bằng lớp mang đúng quy tắc tên, rồi hỏi lõi. Phần này bắt được thứ mà soi

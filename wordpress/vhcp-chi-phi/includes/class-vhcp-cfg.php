@@ -409,10 +409,35 @@ class VHCP_Cfg {
 			VHCP_Meta::set_json( 'cfg_undo', array( 'name' => $bang, 'data' => self::read( $bang ) ) );
 		}
 		$wpdb->delete( $t, array( 'bang' => $bang ) );
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 DANH MỤC CƠ SỞ KHÔNG ĐƯỢC CÓ HAI DÒNG CÙNG TÊN — gác ngay ở cửa ghi.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026, bản Văn phòng vừa cài: *"Chi phí văn phòng, bấm lưu thì nó lưu
+		 * tại tính sinh ra tiếp"* — 14 cơ sở bấm Lưu một cái thành 25, tên lặp lại.
+		 *
+		 * `nhan_coso_ngoai()` có chốt chống trùng, nhưng đó là cửa ĐẨY TỪ GHẾ SANG. Cửa LƯU TAY
+		 * thì trước nay không ai gác: danh sách gửi lên sao thì ghi xuống vậy. Bất kể dòng trùng
+		 * sinh ra từ đâu — bấm Lưu hai lượt, một lượt hút từ Ghế chồng lên hạt giống, hay trình
+		 * duyệt gửi lại biểu mẫu — cửa này phải chối nó.
+		 *
+		 * 🔴 VÌ SAO TRÙNG TÊN LÀ HỎNG THẬT, KHÔNG PHẢI XẤU MẮT: cơ sở ở đây được nhận ra bằng
+		 *    CHUỖI TÊN, không bằng mã (xem khối dài ở `coso_la()`). Hai dòng cùng tên là tiền của
+		 *    một gian hàng tách làm đôi ở mọi bảng gom, và hai ô "Mã đơn vị MISA" khác nhau cho
+		 *    cùng một chỗ — xuất MISA ra thì không ai biết dòng nào đúng.
+		 *
+		 * ⚠️ GIỮ DÒNG ĐẦU, BỎ DÒNG SAU. Dòng đầu là dòng người ta đã khai mấy ô MISA; dòng sau
+		 *    gần như luôn là dòng vừa sinh thêm, còn trắng. Giữ dòng sau là xoá công khai tay.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$da_co = array();
 		$i = 0;
 		foreach ( (array) $rows as $r ) {
 			$r = array_values( (array) $r );
 			if ( ! isset( $r[0] ) || trim( (string) $r[0] ) === '' ) { continue; }
+			if ( self::COSO === $bang ) {
+				$k_ten = mb_strtolower( trim( (string) $r[0] ) );
+				if ( isset( $da_co[ $k_ten ] ) ) { continue; }
+				$da_co[ $k_ten ] = 1;
+			}
 			$i++;
 			$wpdb->insert( $t, array( 'bang' => $bang, 'stt' => $i, 'cols' => wp_json_encode( $r ) ) );
 		}
