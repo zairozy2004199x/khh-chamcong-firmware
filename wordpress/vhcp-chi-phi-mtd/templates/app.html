@@ -21,7 +21,7 @@
   <div class="top">
     <!-- Số phiên bản in thẳng lên trang: cài đè xong mà không biết bản nào đang chạy thì mọi
          con số lệch đều thành câu đố. Lấy từ VHCPMTD_CFG.ver do máy chủ gửi xuống. -->
-    <div><h1>💵 Vận Hành Chi Phí <span id="pbChip" style="font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px"></span></h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
+    <div><h1>💵 <span id="tenTrang">Vận Hành Chi Phí</span> <span id="pbChip" style="font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px"></span></h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="userChip" style="font-size:12px;color:#a7f3d0"></span>
       <button class="btn b-x" onclick="boot()">↻ Làm mới</button>
@@ -1692,6 +1692,11 @@
 <script>
   var SSO_USER = (window.VHCPMTD_CFG && window.VHCPMTD_CFG.ssoUser) || null;   // SSO: danh tính do WordPress xác thực (null nếu mở trực tiếp)
   // In số phiên bản plugin lên tiêu đề ngay khi trang dựng xong.
+  /* Tên trang do máy chủ gửi xuống (khai ở màn Cài đặt) — bốn bản chi phí cài chung một site,
+     mở hai tab cạnh nhau mà cùng một dòng tiêu đề thì không biết tab nào là mảng nào. */
+  (function(){ var t=(window.VHCPMTD_CFG&&window.VHCPMTD_CFG.tenTrang)||'';
+    document.addEventListener('DOMContentLoaded',function(){
+      var o=document.getElementById('tenTrang'); if(o&&t) o.textContent=t; }); })();
   (function(){ var v=(window.VHCPMTD_CFG&&window.VHCPMTD_CFG.ver)||'';
     document.addEventListener('DOMContentLoaded',function(){
       var c=document.getElementById('pbChip'); if(c&&v) c.textContent='b'+v; });

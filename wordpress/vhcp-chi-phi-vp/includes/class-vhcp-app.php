@@ -139,7 +139,30 @@ class VHCPVP_App {
 	 * @param string $trang   URL nhận lệnh của ĐƯỜNG GỌI THỨ BA (chính trang đang mở).
 	 * @param array  $fns     Danh sách hàm giao diện được phép gọi (null = tất cả).
 	 */
-	public static function head_block( $tieu_de = 'Vận Hành Chi Phí', $trang = '', $fns = null ) {
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * TÊN TRANG — KHAI ĐƯỢC, KHÔNG GÕ CỨNG.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, ảnh trang Văn phòng: *"Đổi tên trang chi phí"*. Bốn bản chi phí cài
+	 * chung một site đều mở ra với đúng một dòng «Vận Hành Chi Phí» trên đầu — mở hai tab cạnh
+	 * nhau thì không biết tab nào là mảng nào.
+	 *
+	 * 🔴 CÙNG BỆNH VỚI NHÃN MENU wp-admin (vá 14/09 sáng): lượt đổi tiền tố của script tách
+	 *    không chạm tới chuỗi tiếng Việt. Nhưng lần này KHÔNG vá bằng cách cho script sửa chuỗi
+	 *    — vá thế thì mỗi lần anh Thắng muốn đổi tên lại phải sửa mã và cài lại. Nay tên nằm ở
+	 *    một khoá cấu hình, khai ngay trên màn Cài đặt.
+	 *
+	 * ⚠️ ĐỂ TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì người
+	 *    dùng đọc thành "trang hỏng".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const TEN_MAC_DINH = "Chi Phí VP";
+
+	public static function ten_trang() {
+		$t = trim( (string) get_option( 'vhcpvp_ten_trang', '' ) );
+		return ( '' !== $t ) ? $t : self::TEN_MAC_DINH;
+	}
+
+	public static function head_block( $tieu_de = null, $trang = '', $fns = null ) {
+		if ( null === $tieu_de || '' === trim( (string) $tieu_de ) ) { $tieu_de = self::ten_trang(); }
 		$sso = self::sso_user();
 		if ( $trang === '' ) { $trang = add_query_arg( 'vhcpvp_api', '1', self::app_url() ); }
 		if ( $fns === null )  { $fns = array_keys( VHCPVP_API::map() ); }
@@ -154,6 +177,8 @@ class VHCPVP_App {
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'],
 				'roleGoc' => VHCPVP_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
 			'ver'      => VHCPVP_VERSION,
+			/* Giao diện lấy tên từ đây — xem khối dài ở `ten_trang()`. */
+			'tenTrang' => self::ten_trang(),
 		);
 
 		$out  = '<title>' . esc_html( $tieu_de ) . '</title>' . "\n";

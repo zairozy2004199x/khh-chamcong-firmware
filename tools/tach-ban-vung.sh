@@ -156,6 +156,22 @@ if ! grep -q "add_menu_page( \"Chi Phí $MA_HOA\", \"Chi Phí $MA_HOA\"" "$DICH/
   exit 4
 fi
 
+# ── Tên hiện trên đầu TRANG ────────────────────────────────────────────────────────────────
+# 🔴 CÙNG BỆNH VỚI NHÃN MENU: chuỗi tiếng Việt nên lượt đổi tiền tố không chạm tới.
+#    Anh Thắng 14/09/2026: *"Đổi tên trang chi phí"* — bốn bản cài chung một site đều mở ra với
+#    đúng một dòng «Vận Hành Chi Phí»; mở hai tab cạnh nhau thì không biết tab nào là mảng nào.
+#
+# ⚠️ ĐÂY CHỈ LÀ TÊN MẶC ĐỊNH. Người dùng đổi được ngay trên màn Cài đặt (khoá `vhcp<mã>_ten_trang`)
+#    — đổi tên là việc của họ, không phải việc phải sửa mã rồi cài lại.
+perl -pi -e '
+  s{const TEN_MAC_DINH = .[^\x27"]*.;}{const TEN_MAC_DINH = "Chi Phí $ENV{MA_HOA}";}g;
+' "$DICH/includes/class-vhcp-app.php"
+if ! grep -q "TEN_MAC_DINH = \"Chi Phí $MA_HOA\"" "$DICH/includes/class-vhcp-app.php"; then
+  echo "✗ Tên trang chưa đổi — bản này sẽ trùng tiêu đề với bản gốc."
+  grep -n "TEN_MAC_DINH" "$DICH/includes/class-vhcp-app.php" | head -3
+  exit 5
+fi
+
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
 #    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất

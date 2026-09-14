@@ -23,6 +23,11 @@ class VHCPMTD_Admin {
 		check_admin_referer( 'vhcpmtd_' . $action );
 
 		if ( $action === 'settings' ) {
+			/* ⚠️ Ô TRỐNG = DÙNG TÊN MẶC ĐỊNH, không phải = tên rỗng. Trang không có tiêu đề thì
+			   người dùng đọc thành "trang hỏng". Xem `VHCPMTD_App::ten_trang()`. */
+			if ( isset( $_POST['vhcpmtd_ten_trang'] ) ) {
+				update_option( 'vhcpmtd_ten_trang', sanitize_text_field( wp_unslash( $_POST['vhcpmtd_ten_trang'] ) ) );
+			}
 			$slug = isset( $_POST['vhcpmtd_slug'] ) ? sanitize_title( wp_unslash( $_POST['vhcpmtd_slug'] ) ) : 'chi-phi';
 			if ( $slug === '' ) { $slug = 'chi-phi'; }
 			$old = get_option( 'vhcpmtd_slug' );
@@ -384,6 +389,18 @@ class VHCPMTD_Admin {
 		wp_nonce_field( 'vhcpmtd_settings' );
 		echo '<input type="hidden" name="vhcpmtd_action" value="settings">';
 		echo '<table class="form-table"><tbody>';
+		/* 🔴 TÊN TRANG — anh Thắng 14/09/2026: *"Đổi tên trang chi phí"*. Bốn bản chi phí cài
+		   chung một site đều mở ra với đúng một dòng tiêu đề; mở hai tab cạnh nhau thì không
+		   biết tab nào là mảng nào. Khai ở đây thay vì gõ cứng trong mã: đổi tên là việc người
+		   dùng làm, không phải việc phải cài lại plugin. */
+		echo '<tr><th scope="row"><label for="vhcpmtd_ten_trang">Tên trang</label></th><td>'
+			. '<input name="vhcpmtd_ten_trang" id="vhcpmtd_ten_trang" value="'
+			. esc_attr( (string) get_option( 'vhcpmtd_ten_trang', '' ) ) . '" class="regular-text" placeholder="'
+			. esc_attr( VHCPMTD_App::TEN_MAC_DINH ) . '">'
+			. '<p class="description">Hiện trên đầu trang và trên thẻ tiêu đề trình duyệt. '
+			. 'Để trống thì dùng <code>' . esc_html( VHCPMTD_App::TEN_MAC_DINH ) . '</code>. '
+			. 'Bốn bản chi phí cài chung một site — đặt tên riêng cho mỗi mảng thì mở nhiều tab '
+			. 'mới phân biệt được.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcpmtd_slug">Đường dẫn app</label></th><td>' . esc_html( home_url( '/' ) ) . '<input name="vhcpmtd_slug" id="vhcpmtd_slug" value="' . esc_attr( $slug ) . '" class="regular-text"> /<p class="description">Mặc định <code>chi-phi</code>. Đổi xong hãy mở lại app 1 lần để đường dẫn được nạp.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcpmtd_timezone">Múi giờ</label></th><td><select name="vhcpmtd_timezone" id="vhcpmtd_timezone">';
 		foreach ( timezone_identifiers_list() as $z ) {
