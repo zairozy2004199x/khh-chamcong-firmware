@@ -1340,8 +1340,12 @@ function dungViewCong(nguon){
   + '</details>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Từ cổng ' + esc(ten) + ' <span class="muted" id="'+id('congLbl')+'"></span></h3>'
-  +   '<div class="row" style="margin-bottom:8px"><div class="fld"><label>🏬 Lọc theo cơ sở / cửa hàng</label>'
-  +     '<select id="'+id('congLoc')+'" onchange="cgLocCong(\''+nguon+'\')"><option value="">— Tất cả cơ sở —</option></select></div></div>'
+  +   '<div class="row" style="margin-bottom:8px">'
+  +     '<div class="fld"><label>🏬 Lọc theo cơ sở / cửa hàng</label>'
+  +       '<select id="'+id('congLoc')+'" onchange="cgLocCong(\''+nguon+'\')"><option value="">— Tất cả cơ sở —</option></select></div>'
+  +     '<div class="fld"><label>📅 Lọc theo ngày</label>'
+  +       '<select id="'+id('congLocNgay')+'" onchange="cgLocCong(\''+nguon+'\')"><option value="">— Tất cả ngày —</option></select></div>'
+  +   '</div>'
   +   '<table><thead><tr><th>Thời điểm</th><th>Máy</th><th>Cửa hàng</th><th>Mã nộp tiền</th>'
   +   '<th>Mã giao dịch cổng</th><th>Nội dung</th><th>Trạng thái</th><th>Số tiền</th></tr></thead>'
   +   '<tbody id="'+id('congBody')+'"></tbody></table>'
@@ -2431,35 +2435,56 @@ function veSaoKeCong(nguon, d){
 
 /* Cơ sở của một dòng cổng = tên cửa hàng chuẩn (chỉ có khi đã ra máy). Dòng chưa rõ máy -> ''. */
 function cgCoSoCua_(r){ return ( r && r.tenMay && r.cuaHangChuan ) ? String(r.cuaHangChuan) : ''; }
+/* Ngày của một dòng cổng = 10 ký tự đầu của thời điểm (dd/mm/yyyy). */
+function cgNgayCua_(r){ return String((r && r.thoiDiem) || '').slice(0,10); }
+/* Khoá sắp xếp ngày dd/mm/yyyy -> yyyymmdd để xếp mới nhất trước. */
+function cgNgaySort_(g){ var p = String(g).split('/'); return p.length===3 ? Number(p[2]+p[1]+p[0]) : 0; }
 
-/* Nạp danh sách cơ sở vào ô lọc, giữ nguyên lựa chọn cũ nếu còn. */
+/* Nạp danh sách cơ sở + ngày vào hai ô lọc, giữ nguyên lựa chọn cũ nếu còn. */
 function cgNapLocCong(nguon){
   var d = CG_FILE[nguon]; if(!d) return;
-  var sel = cgEl(nguon,'congLoc'); if(!sel) return;
-  var cu = sel.value || '';
-  var m = {}, coRong = false;
-  (d.cong||[]).forEach(function(r){ var c = cgCoSoCua_(r); if(c) m[c]=(m[c]||0)+1; else coRong = true; });
-  var ks = Object.keys(m).sort(function(a,b){ return a.localeCompare(b,'vi'); });
-  var h = '<option value="">— Tất cả cơ sở ('+((d.cong||[]).length)+' dòng) —</option>';
-  ks.forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+' ('+m[c]+')</option>'; });
-  if(coRong) h += '<option value="__chuaro__">(chưa rõ máy)</option>';
-  sel.innerHTML = h;
-  sel.value = cu;                      // giữ lựa chọn cũ
-  if(sel.value !== cu) sel.value = ''; // cơ sở cũ không còn trong kỳ mới -> về Tất cả
+  var sel = cgEl(nguon,'congLoc');
+  if(sel){
+    var cu = sel.value || '';
+    var m = {}, coRong = false;
+    (d.cong||[]).forEach(function(r){ var c = cgCoSoCua_(r); if(c) m[c]=(m[c]||0)+1; else coRong = true; });
+    var ks = Object.keys(m).sort(function(a,b){ return a.localeCompare(b,'vi'); });
+    var h = '<option value="">— Tất cả cơ sở ('+((d.cong||[]).length)+' dòng) —</option>';
+    ks.forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+' ('+m[c]+')</option>'; });
+    if(coRong) h += '<option value="__chuaro__">(chưa rõ máy)</option>';
+    sel.innerHTML = h;
+    sel.value = cu;                      // giữ lựa chọn cũ
+    if(sel.value !== cu) sel.value = ''; // cơ sở cũ không còn trong kỳ mới -> về Tất cả
+  }
+  var selN = cgEl(nguon,'congLocNgay');
+  if(selN){
+    var cuN = selN.value || '';
+    var dm = {};
+    (d.cong||[]).forEach(function(r){ var g = cgNgayCua_(r); if(g) dm[g]=(dm[g]||0)+1; });
+    var kn = Object.keys(dm).sort(function(a,b){ return cgNgaySort_(b) - cgNgaySort_(a); });
+    var hn = '<option value="">— Tất cả ngày —</option>';
+    kn.forEach(function(g){ hn += '<option value="'+esc(g)+'">'+esc(g)+' ('+dm[g]+')</option>'; });
+    selN.innerHTML = hn;
+    selN.value = cuN;
+    if(selN.value !== cuN) selN.value = '';
+  }
 }
 
-/* Vẽ bảng "Từ cổng" theo cơ sở đang chọn. */
+/* Vẽ bảng "Từ cổng" theo cơ sở + ngày đang chọn (lọc phía trình duyệt, kết hợp cả hai). */
 function cgVeBangCong(nguon){
   var d = CG_FILE[nguon]; if(!d) return;
   var sel = cgEl(nguon,'congLoc'), loc = sel ? sel.value : '';
+  var selN = cgEl(nguon,'congLocNgay'), locN = selN ? selN.value : '';
   var ds = (d.cong||[]);
   if(loc === '__chuaro__') ds = ds.filter(function(r){ return !cgCoSoCua_(r); });
   else if(loc) ds = ds.filter(function(r){ return cgCoSoCua_(r) === loc; });
+  if(locN) ds = ds.filter(function(r){ return cgNgayCua_(r) === locN; });
+  var coLoc = !!(loc || locN);
   cgVeBang(nguon, 'cong', ds, cgDongCong(nguon), 8,
-    'Không có giao dịch nào' + (loc ? ' cho cơ sở này' : ' trong kỳ') + '.');
+    'Không có giao dịch nào' + (coLoc ? ' khớp bộ lọc' : ' trong kỳ') + '.');
   var tong = ds.reduce(function(s,r){ return s + (Number(r.soTien)||0); }, 0);
   cgEl(nguon,'congLbl').textContent = (d.cong||[]).length
-    ? ('· ' + ds.length + (loc ? ('/' + d.cong.length) : '') + ' dòng · ' + fmt(tong) + 'đ')
+    ? ('· ' + ds.length + (coLoc ? ('/' + d.cong.length) : '') + ' dòng · ' + fmt(tong) + 'đ')
     : '';
 }
 function cgLocCong(nguon){ cgVeBangCong(nguon); }
