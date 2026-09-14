@@ -3,7 +3,7 @@
  * Plugin Name:       Chi Phí — Tổng hợp (TONG)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Gom kho đơn của các mảng chi phí (KVC · MTD · VP…) về MỘT trang cho người duyệt. Không có sổ riêng: đọc thẳng bảng của từng bản và duyệt ghi ngược về đúng bản sinh ra đơn.
- * Version:           1.9.0
+ * Version:           1.10.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -28,7 +28,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCPT_VERSION', '1.9.0' );
+define( 'VHCPT_VERSION', '1.10.0' );
 define( 'VHCPT_FILE', __FILE__ );
 define( 'VHCPT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPT_URL', plugin_dir_url( __FILE__ ) );

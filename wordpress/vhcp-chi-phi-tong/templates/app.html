@@ -25,8 +25,16 @@ body{background:#f1f5f9;color:#0f172a;font-size:13px}
          border-radius:20px;padding:3px 10px;vertical-align:middle}
 .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px,calc((100% - 1600px)/2));
      display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
-.card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
+.wrap{padding:20px 22px 40px;width:100%;max-width:1600px;margin:0 auto}
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * VIỀN VÀ KHOẢNG THỞ — anh Thắng 14/09/2026: *"Nhớ tạo viền trang thẩm mỹ tí"*.
+ * Thẻ trước đây chỉ có bóng đổ rất nhạt, nên trên nền xám hai thẻ cạnh nhau dính vào nhau thành
+ * một mảng trắng dài; mắt phải tự đoán đâu là hết mảng này sang mảng kia. Thêm viền thật 1px,
+ * bo góc rộng hơn, và nới khoảng cách giữa các thẻ. */
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;
+      box-shadow:0 1px 3px rgba(15,23,42,.06);margin-bottom:18px;overflow:hidden}
+.card:hover{border-color:#cbd5e1}
+.ch{background:linear-gradient(#fff,#fbfdfd)}
 .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;
     align-items:center;flex-wrap:wrap;gap:8px}
 .ch h2{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
@@ -45,11 +53,15 @@ input:focus,select:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px 
      font-size:11.5px;font-weight:700}
 .b-on .dem{background:rgba(255,255,255,.22)}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left;vertical-align:top}
+th,td{border:1px solid #e2e8f0;padding:7px 9px;text-align:left;vertical-align:top}
 th{background:#f8fafc;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#475569}
 td.r,th.r{text-align:right;white-space:nowrap}
 tfoot td{font-weight:700;background:#f1f5f9}
-.cuon{overflow-x:auto}
+.cuon{overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px}
+.cuon table{border:none}
+.cuon th:first-child,.cuon td:first-child{border-left:none}
+.cuon th:last-child,.cuon td:last-child{border-right:none}
+.cuon tr:first-child th{border-top:none}
 .mo{color:#64748b}
 .nho{font-size:11.5px}
 .chip{display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #cbd5e1;
@@ -110,6 +122,11 @@ var TOI = null, NHOM = 'duyet', ROWS = [], BAO = null;
 var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại',
                  qtCn:'quyết toán cá nhân', qtNcc:'quyết toán NCC', misa:'xuất MISA' };
 var TAB_MISA = 'misa';   // tab này KHÔNG phải một nhóm đơn — nó không gọi ds()
+/* 🔴 TRA MỞ CHO MỌI NGƯỜI VÀO ĐƯỢC TRANG, không gác thêm quyền. Ai đã qua cửa vào trang tổng thì
+   đều là người duyệt hoặc xử lý đơn; bó thêm ở đây là quản lý duyệt tiền mà không tra nổi khoản
+   mình vừa duyệt. Phần bó thật nằm ở máy chủ: chỉ gom mảng người ấy có mặt, và lõi tra của từng
+   bản vẫn lọc theo đơn vị của họ. */
+var TAB_TRA = 'tra';
 
 function goi(fn, args){
   return fetch(BOOT.api, {
@@ -186,9 +203,10 @@ function veChinh(){
      một ô đếm và không ô nào đúng.
      ⚠️ Chỉ hiện cho người có quyền xuất MISA ở ÍT NHẤT một mảng — bày một tab bấm vào
         chỉ để nhận câu chối là thứ người ta bấm đi bấm lại. */
+  tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
+    '<button class="btn '+(NHOM===TAB_TRA?'b-on':'b-x')+'" data-nhom="'+TAB_TRA+'">🔎 Tra chi phí</button>';
   if ( coQuyen('misa') ) {
-    tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
-      '<button class="btn '+(NHOM===TAB_MISA?'b-on':'b-x')+'" data-nhom="'+TAB_MISA+'">📤 Xuất MISA</button>';
+    tabs += '<button class="btn '+(NHOM===TAB_MISA?'b-on':'b-x')+'" data-nhom="'+TAB_MISA+'">📤 Xuất MISA</button>';
   }
 
   /* 🔴 NÓI RÕ VAI Ở TỪNG MẢNG, KHÔNG CHỈ "chỉ xem". Người đọc phải biết mình đang mang vai gì
@@ -237,6 +255,7 @@ function veChinh(){
 
 function napDs(){
   if (NHOM === TAB_MISA){ veMisa(); return; }
+  if (NHOM === TAB_TRA){ veTra(); return; }
   goi('ds',{nhom:NHOM}).then(function(r){
     if (r && r.error){ document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
     ROWS = r.rows || [];
@@ -419,6 +438,40 @@ function veThuaThieu(t){
     '</div>';
 }
 
+/* MỐC AI LÀM GÌ LÚC NÀO — hàng chip nhỏ, đọc lướt được trong một giây. */
+function veMoc(m){
+  if (!m) return '';
+  var ds = [
+    ['Duyệt tạm ứng', m.duyet], ['Cấp tiền', m.cap],
+    ['Quyết toán cá nhân', m.qtCn], ['Quyết toán NCC', m.qtNcc]
+  ].filter(function(x){ return x[1] && (x[1].nguoi || x[1].ngay); });
+  if (!ds.length) return '';
+  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px">' +
+    ds.map(function(x){
+      return '<span class="chip" title="'+esc(x[1].ngay||'')+'">'+esc(x[0])+': <b>'+
+             esc(x[1].nguoi||'—')+'</b>'+( x[1].ngay ? ' · '+esc(ngay(x[1].ngay)) : '' )+'</span>';
+    }).join('') + '</div>';
+}
+
+/* LỊCH SỬ CHỈNH ĐƠN — gập lại, vì đơn chạy lâu có vài chục dòng.
+   🔴 Nhưng KHÔNG giấu hẳn: một đơn vừa bị trả lại rồi gửi lại, hay vừa bị gỡ số duyệt, nhìn y
+      hệt đơn bình thường — chỉ chỗ này nói ra. Nên số dòng hiện ngay trên nhãn. */
+function veLichSu(ds){
+  ds = ds || [];
+  if (!ds.length) return '';
+  return '<details style="margin-top:10px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
+    '🕘 Lịch sử chỉnh đơn (<b>'+ds.length+'</b>) — bấm để xem</summary>' +
+    '<div style="padding:8px 0 2px">' +
+    ds.map(function(x){
+      return '<div style="padding:6px 0;border-bottom:1px dashed #e2e8f0">' +
+        '<div class="nho"><b>'+esc(x.nguoi||'—')+'</b>'+
+        ( x.vaiTro ? ' <span class="mo">('+esc(x.vaiTro)+')</span>' : '' )+
+        ( x.tg ? ' <span class="mo">· '+esc(x.tg)+'</span>' : '' )+'</div>' +
+        '<div class="nho" style="color:#0f766e">'+esc(x.hanhDong||'')+
+        ( x.chiTiet ? ' <span class="mo">— '+esc(x.chiTiet)+'</span>' : '' )+'</div></div>';
+    }).join('') + '</div></details>';
+}
+
 function veChiTiet(g){
   g = g || {};
   /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products` — `products` là danh sách GỢI Ý tên hàng.
@@ -432,13 +485,13 @@ function veChiTiet(g){
       ( don.nguoiDuyet ? ' · duyệt bởi <b>' + esc(don.nguoiDuyet) + '</b>' : '' ) +
       ( don.ghiChu ? ' · ' + esc(don.ghiChu) : '' ) +
     '</div>' +
-    veDaiTT(don.trangThai) + '</div>';
+    veDaiTT(don.trangThai) + veMoc(g.moc) + '</div>';
 
   if (!ds.length){
     /* ⚠️ "Chưa có dòng chi" KHÁC "đọc hỏng": đơn xin ứng trước được phép gửi khi chưa liệt kê
        hạng mục. Nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
     return h + '<p class="mo nho">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>'
-             + veThuaThieu(t);
+             + veThuaThieu(t) + veLichSu(g.lichSu);
   }
   var tong = 0;
   h += '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
@@ -451,7 +504,7 @@ function veChiTiet(g){
   });
   h += '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
        '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
-  return h + veThuaThieu(t);
+  return h + veThuaThieu(t) + veLichSu(g.lichSu);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -638,6 +691,141 @@ function xongMisa(nut, b){
   }).catch(function(){
     nut.disabled = false; datBao('loi','Không gọi được máy chủ.'); veChinh();
   });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN TRA CHI PHÍ — GÕ MỘT LẦN, GOM CẢ BA MẢNG
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"chọn cửa hàng, chọn loại chi phí là biết được ngay phải không"* →
+ * *"nếu trang tổng khi gõ, nó tự gom 3 trang lại được không"*.
+ *
+ * 🔴 HỘP CHỌN, KHÔNG PHẢI Ô GÕ, cho cửa hàng và loại chi phí. Ô gõ dò trong cả nội dung dòng
+ *    chi: gõ "Chi phí cơ sở" thì dính luôn mọi dòng có mấy chữ ấy trong phần mô tả. Và gõ thiếu
+ *    dấu hay sai một chữ là ra THIẾU TIỀN — thiếu bao nhiêu thì không ai biết, vì con số nhỏ đi
+ *    trông vẫn hợp lý. Ô gõ vẫn còn, nhưng để tìm nội dung, không phải để bó danh mục.
+ *
+ * 🔴 MỖI MẢNG MỘT BẢNG RIÊNG — *"tách 3 bảng riêng, để kế toán biết 3 bộ phận"*, *"vì tên có thể
+ *    trùng nhau"*. Ba mảng có thể cùng có một cửa hàng tên y hệt.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var TRA = { coso:'all', loai:'all', ky:'all', q:'', kq:null, dangDoc:false };
+
+function oChon(id, nhan, val, ds, chuAll){
+  var h = '<label class="nho mo" style="margin-right:4px">'+esc(nhan)+'</label><select id="'+id+'">' +
+          '<option value="all">'+esc(chuAll)+'</option>';
+  (ds||[]).forEach(function(x){
+    h += '<option value="'+esc(x)+'"'+(String(val)===String(x)?' selected':'')+'>'+esc(x)+'</option>';
+  });
+  return h + '</select>';
+}
+
+function veTra(){
+  var o = document.getElementById('bang');
+  var k = TRA.kq || {};
+  o.innerHTML =
+    '<div class="card"><div class="ch"><h2>🔎 Tra chi phí — gom cả ba mảng</h2></div>' +
+      '<div class="cb"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        oChon('tCoso','Cửa hàng', TRA.coso, k.cosoList, 'Tất cả cửa hàng') +
+        oChon('tLoai','Loại chi phí', TRA.loai, k.loaiList, 'Tất cả loại') +
+        oChon('tKy','Kỳ', TRA.ky, k.kyList, 'Mọi kỳ') +
+        '<input id="tQ" placeholder="🔎 nội dung dòng chi, mã tài khoản…" value="'+esc(TRA.q)+'" style="min-width:230px;flex:1">' +
+        '<button class="btn b-p" id="tTim">Tra</button>' +
+        '<button class="btn b-x" id="tXoa">Bỏ lọc</button>' +
+      '</div>' +
+      ( TRA.kq
+        ? '<p class="nho mo" style="margin-top:8px">Tìm thấy <b>'+k.soDong+' dòng</b> · cộng <b>'+tien(k.tong)+'</b> ' +
+          'trên '+(k.ban||[]).length+' mảng.</p>'
+        : '<p class="nho mo" style="margin-top:8px">Chọn cửa hàng và/hoặc loại chi phí rồi bấm <b>Tra</b>. ' +
+          'Lần đầu để trống hết cũng được — nó nạp đủ danh mục cho hai hộp chọn.</p>' ) +
+      '</div></div><div id="tKq"></div>';
+
+  document.getElementById('tTim').onclick = function(){
+    TRA.coso = document.getElementById('tCoso').value;
+    TRA.loai = document.getElementById('tLoai').value;
+    TRA.ky   = document.getElementById('tKy').value;
+    TRA.q    = document.getElementById('tQ').value;
+    docTra();
+  };
+  document.getElementById('tXoa').onclick = function(){
+    TRA.coso='all'; TRA.loai='all'; TRA.ky='all'; TRA.q=''; docTra();
+  };
+  document.getElementById('tQ').addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){ e.preventDefault(); document.getElementById('tTim').click(); }
+  });
+
+  if (TRA.kq) veTraKq(); else docTra();   // vào tab là nạp luôn, để hai hộp chọn có danh mục
+}
+
+function docTra(){
+  if (TRA.dangDoc) return;
+  TRA.dangDoc = true;
+  var o = document.getElementById('tKq');
+  if (o) o.innerHTML = '<p class="mo">Đang gom ba mảng…</p>';
+  goi('tra',{coso:TRA.coso, loai:TRA.loai, ky:TRA.ky, q:TRA.q}).then(function(r){
+    TRA.dangDoc = false;
+    if (r && r.error){ if (o) o.innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
+    TRA.kq = r;
+    veTra();   // vẽ lại cả thanh lọc: hai hộp chọn vừa có danh mục đầy đủ
+  }).catch(function(){
+    TRA.dangDoc = false;
+    if (o) o.innerHTML = '<div class="bao bao-loi">Không gọi được máy chủ.</div>';
+  });
+}
+
+function veTraKq(){
+  var o = document.getElementById('tKq'), k = TRA.kq;
+  if (!o || !k) return;
+  var h = '';
+  (k.ban||[]).forEach(function(b){
+    var it = b.items || [];
+    h += '<div class="card"><div class="ch">' +
+      '<h2>🏷 '+esc(b.tenBan)+' <span class="chip">'+b.soDong+' dòng</span></h2>' +
+      '<div class="nho mo">Cộng <b>'+tien(b.tong)+'</b>' +
+      ( b.url ? ' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">mở trang mảng ↗</a>' : '' ) +
+      '</div></div><div class="cb">';
+
+    if (!it.length){
+      h += '<p class="mo">Mảng này không có dòng nào khớp. ✓</p>';
+    } else {
+      /* Cộng theo cửa hàng đứng TRƯỚC bảng dòng: khi lọc "tất cả cửa hàng" thì đây mới là thứ
+         người ta cần, còn bảng dòng là để soi chi tiết một khoản. */
+      if ((b.byCoso||[]).length > 1){
+        h += '<div class="cuon" style="margin-bottom:10px"><table><thead><tr><th>Cửa hàng</th>' +
+             '<th class="r">Số dòng</th><th class="r">Cộng</th></tr></thead><tbody>' +
+             b.byCoso.map(function(c){
+               return '<tr><td>'+esc(c.coso||c.ten||'')+'</td><td class="r">'+(c.n||0)+'</td>' +
+                      '<td class="r">'+tien(c.tien||0)+'</td></tr>';
+             }).join('') + '</tbody></table></div>';
+      }
+      h += '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Cửa hàng</th><th>Loại chi phí</th>' +
+           '<th>Nội dung</th><th>Mảng</th><th class="r">TK Nợ</th><th class="r">Số tiền</th>' +
+           '</tr></thead><tbody>' +
+        it.map(function(r){
+          return '<tr><td class="nho">'+esc(r.ngay||'')+'</td><td>'+esc(r.coso||'')+'</td>' +
+                 '<td>'+esc(r.loai||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
+                 '<td class="nho mo">'+esc(r.mang||'')+'</td>' +
+                 '<td class="r nho">'+esc(r.tkNo||'')+'</td>' +
+                 '<td class="r">'+tien(Number(r.tien||0))+'</td></tr>';
+        }).join('') + '</tbody></table></div>';
+      /* ⚠️ NÓI RA KHI BẢNG BỊ CẮT. Con số cộng ở trên là của CẢ lát cắt; bày 200 dòng mà im lặng
+         thì người đọc tự cộng tay rồi kết luận phần mềm tính sai. */
+      if (b.soDong > it.length){
+        h += '<p class="nho mo" style="margin-top:6px">Đang xem <b>'+it.length+'</b> dòng đầu trong ' +
+             b.soDong+' dòng. Con số cộng ở trên là của <b>cả '+b.soDong+' dòng</b>. ' +
+             'Lọc hẹp lại (chọn kỳ, hoặc một cửa hàng) để xem đủ.</p>';
+      }
+    }
+    h += '</div></div>';
+  });
+
+  /* Tổng chung để cuối, sau ba bảng — đọc xong từng mảng rồi mới tới con số gộp. */
+  if ((k.ban||[]).length > 1){
+    h += '<div class="card"><div class="cb" style="display:flex;justify-content:space-between;' +
+         'align-items:center;flex-wrap:wrap;gap:8px">' +
+         '<b>Cộng cả '+(k.ban||[]).length+' mảng</b>' +
+         '<span style="font-size:18px;font-weight:800;color:#0f766e">'+tien(k.tong)+'</span>' +
+         '</div></div>';
+  }
+  o.innerHTML = h;
 }
 
 function lam(nut, d, viec){

@@ -464,6 +464,7 @@ t( '⚠️ dùng cờ xong thì xoá cờ',
  *    năng coi như không tồn tại, mà không đầu nào kêu.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 $api_ma = file_get_contents( $TONG . '/includes/class-vhcpt-api.php' );
+$trama_ma = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-trama.php' );
 
 t( '🔴 tab Chờ quyết toán có nút Quyết toán cá nhân (qtCn)',
 	(bool) preg_match( "#qt:\s*\[[^\]]*viec:'qtCn'#", $html ), '' );
@@ -548,6 +549,47 @@ t( '⚠️ bản mảng đời cũ thiếu get_don() thì vẫn bày được d�
 /* Giao diện: ô chi tiết là KHỐI riêng, không trông như một dòng nữa của bảng. */
 t( '🔴 ô chi tiết có khối riêng .hop', false !== strpos( $html, 'tr.ct .hop{' ), '' );
 t( 'nút Xem đổi chữ khi đang mở', false !== mb_strpos( $html, "▾ Đóng" ), '' );
+
+/* ═══ 6e. TRA CHI PHÍ GOM BA MẢNG · MỐC · LỊCH SỬ · VIỀN ════════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"nếu trang tổng khi gõ, nó tự gom 3 trang lại được không"*,
+ * *"bên trang tổng khi bấm xem, thì nó cũng phải đủ 2 phần này trong đơn đó"*,
+ * *"Nhớ tạo viền trang thẩm mỹ tí"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có cổng tra gom ba mảng', false !== strpos( $api_ma, '\'tra\' === $viec' ), '' );
+t( '🔴 nó gọi LÕI TRA của từng bản, không tự đọc bảng',
+	(bool) preg_match( '#lop\( [$]khoa, \'TraMa\' \)#', $api_ma ), '' );
+t( '⚠️ và mượn phiên trước khi gọi',
+	(bool) preg_match( '#\'TraMa\'[\s\S]{0,400}?muon_phien\( [$]khoa \)#', $api_ma ), '' );
+/* 🔴 Chỉ gom mảng người ấy có mặt — gom hết rồi lọc lúc vẽ thì con số tổng ở đầu màn đã kể cả
+   mảng họ không được nhìn, mà đó là con số người ta đọc trước tiên. */
+t( '🔴 chỉ gom mảng người ấy đọc được',
+	(bool) preg_match( '#foreach \( VHCPT_Auth::ban_doc_duoc\(\) as \$khoa \)[\s\S]{0,300}?TraMa#', $api_ma ), '' );
+t( '🔴 màn có tab Tra chi phí', false !== strpos( $html, "TAB_TRA" ), '' );
+t( 'và hộp chọn cửa hàng + loại chi phí (không bắt gõ tay)',
+	false !== strpos( $html, "oChon('tCoso'" ) && false !== strpos( $html, "oChon('tLoai'" ), '' );
+/* ⚠️ Bảng cắt 200 dòng mà con số cộng là của cả lát cắt — im lặng thì người đọc tự cộng tay rồi
+   kết luận phần mềm tính sai. */
+/* ⚠️ SOI CHUỖI CHỈ CÓ TRONG MÃ, KHÔNG SOI CHỮ CŨNG NẰM Ở CHÚ THÍCH. Bản nháp của phép này dò
+   "Con số cộng ở trên là của" — mà chính khối chú thích giải thích *vì sao* phải nói ra cũng
+   mang đúng câu ấy. Đục thủng mã mà bài vẫn xanh: phép kiểm nói dối. Cùng cái bẫy đã gặp ở
+   `kiem-don-nhieu-coso.php` sáng nay. */
+$html_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $html );
+t( '⚠️ nói ra khi bảng bị cắt bớt dòng',
+	false !== mb_strpos( $html_ma, 'Con số cộng ở trên là của' ), '' );
+t( '🔴 lõi tra nhận bộ lọc theo LOẠI chi phí',
+	(bool) preg_match( '#[$]f_loai = mb_strtolower#', $trama_ma ), '' );
+t( '⚠️ danh sách loại gom từ DỮ LIỆU THẬT, không từ danh mục',
+	(bool) preg_match( '#\$loai_list = array_keys\( \$loai_set \);#', $trama_ma ), '' );
+
+t( '🔴 bấm Xem có mốc ai làm gì lúc nào', false !== strpos( $html, 'function veMoc(' ), '' );
+t( '🔴 và có lịch sử chỉnh đơn', false !== strpos( $html, 'function veLichSu(' ), '' );
+t( '🔴 máy chủ gửi kèm cả hai', false !== strpos( $api_ma, "'lichSu' => \$lich_su," )
+	|| (bool) preg_match( "#'lichSu' =>#", $api_ma ), '' );
+/* ⚠️ get_log() trả nhật ký của CẢ bản — phải lọc đúng mã đơn, không dội nguyên xuống màn. */
+t( '⚠️ lịch sử lọc đúng mã đơn theo ô Đối tượng',
+	(bool) preg_match( '#doiTuong[\s\S]{0,120}?!== [$]ma \) \{ continue; \}#', $api_ma ), '' );
+t( 'viền thẻ có thật, không chỉ bóng đổ', false !== strpos( $html, '.card{background:#fff;border:1px solid' ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

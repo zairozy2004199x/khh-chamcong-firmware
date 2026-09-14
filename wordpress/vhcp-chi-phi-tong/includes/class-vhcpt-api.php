@@ -73,6 +73,7 @@ class VHCPT_Api {
 		if ( 'qtNcc' === $viec )    { return self::ra( self::qt_ncc( $args ) ); }
 		if ( 'misa' === $viec )     { return self::ra( self::misa( $args ) ); }
 		if ( 'misaXong' === $viec ) { return self::ra( self::misa_xong( $args ) ); }
+		if ( 'tra' === $viec )      { return self::ra( self::tra( $args ) ); }
 		if ( 'traLai' === $viec )   { return self::ra( self::tra_lai( $args ) ); }
 		if ( 'chiTiet' === $viec )  { return self::ra( self::chi_tiet( $args ) ); }
 		if ( 'dangXuat' === $viec ) { VHCPT_Auth::bo_the( $the ); return self::ra( array( 'ok' => true ) ); }
@@ -296,8 +297,51 @@ class VHCPT_Api {
 			}
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * MỐC AI LÀM GÌ LÚC NÀO, VÀ LỊCH SỬ CHỈNH ĐƠN — anh Thắng 14/09/2026: *"bên trang tổng
+		 * khi bấm xem, thì nó cũng phải đủ 2 phần này trong đơn đó"*.
+		 *
+		 * 🔴 ĐÂY LÀ THỨ NGƯỜI DUYỆT ĐỌC TRƯỚC KHI BẤM. Một đơn vừa bị trả lại rồi gửi lại, hay một
+		 *    đơn có người vừa gỡ số duyệt, nhìn y hệt đơn bình thường — chỉ lịch sử mới nói ra.
+		 *    Thiếu nó thì quản lý phải mở trang mảng, đúng thứ đang cố bỏ.
+		 *
+		 * ⚠️ LỌC THEO ĐÚNG MÃ ĐƠN. `get_log()` trả nhật ký của CẢ bản (800 dòng gần nhất); dội
+		 *    nguyên xuống màn là vừa nặng vừa bày việc của đơn khác.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$lich_su = array();
+		$lop_log = VHCPT_Ban::lop( $khoa, 'Log' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( $lop_log && class_exists( $lop_log ) && method_exists( $lop_log, 'get_log' ) ) {
+			$lg = (array) call_user_func( array( $lop_log, 'get_log' ), array( 'q' => $ma, 'limit' => 400 ) );
+			$it = isset( $lg['items'] ) ? (array) $lg['items'] : ( isset( $lg['data']['items'] ) ? (array) $lg['data']['items'] : array() );
+			foreach ( $it as $x ) {
+				$x = (array) $x;
+				/* `q` dò trong cả nội dung nên vẫn lọt dòng của đơn khác có nhắc mã này — chốt
+				   lại bằng đúng ô Đối tượng. */
+				if ( trim( (string) ( isset( $x['doiTuong'] ) ? $x['doiTuong'] : '' ) ) !== $ma ) { continue; }
+				$lich_su[] = array(
+					'tg'       => (string) ( isset( $x['tg'] ) ? $x['tg'] : '' ),
+					'nguoi'    => (string) ( isset( $x['nguoi'] ) ? $x['nguoi'] : '' ),
+					'vaiTro'   => (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ),
+					'hanhDong' => (string) ( isset( $x['hanhDong'] ) ? $x['hanhDong'] : '' ),
+					'chiTiet'  => (string) ( isset( $x['chiTiet'] ) ? $x['chiTiet'] : '' ),
+				);
+				if ( count( $lich_su ) >= 30 ) { break; }
+			}
+		}
+
 		return array( 'ok' => true, 'don' => array(
 			'tien' => $tien,
+			'lichSu' => $lich_su,
+			'moc' => array(
+				'duyet'  => array( 'nguoi' => (string) $d['nguoi_duyet'], 'ngay' => (string) $d['ngay_duyet'] ),
+				'cap'    => array( 'nguoi' => (string) ( isset( $d['nguoi_cap'] ) ? $d['nguoi_cap'] : '' ),
+				                   'ngay'  => (string) ( isset( $d['ngay_cap'] ) ? $d['ngay_cap'] : '' ) ),
+				'qtCn'   => array( 'nguoi' => (string) ( isset( $d['nguoi_qt'] ) ? $d['nguoi_qt'] : '' ),
+				                   'ngay'  => (string) ( isset( $d['ngay_qt'] ) ? $d['ngay_qt'] : '' ) ),
+				'qtNcc'  => array( 'nguoi' => (string) ( isset( $d['nguoi_qt_ncc'] ) ? $d['nguoi_qt_ncc'] : '' ),
+				                   'ngay'  => (string) ( isset( $d['ngay_qt_ncc'] ) ? $d['ngay_qt_ncc'] : '' ) ),
+			),
 			'don' => array(
 				'maDon'      => (string) $d['ma_don'],
 				'ky'         => (string) $d['ky'],
@@ -341,6 +385,77 @@ class VHCPT_Api {
 		}
 		return array( 'ok' => true,
 			'message' => 'Đã quyết toán phần cá nhân ' . $c['ma'] . ' (' . VHCPT_Ban::ten( $c['khoa'] ) . ').' );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * TRA CHI PHÍ — GÕ MỘT LẦN, GOM CẢ BA MẢNG
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"sau này muốn tra chi phí, chọn cửa hàng, chọn loại chi phí là biết
+	 * được ngay phải không"* → *"nếu trang tổng khi gõ, nó tự gom 3 trang lại được không"*.
+	 *
+	 * 🔴 GỌI LÕI TRA CỦA TỪNG BẢN, KHÔNG TỰ ĐỌC BẢNG. `VHCP_TraMa::search()` gom dòng từ BỐN
+	 *    nguồn (chi phí, sổ chi, đơn mua, dự án), rửa mã tài khoản, và lọc theo đơn vị của người
+	 *    đang xem. Viết lại câu SQL ở đây là bỏ hết mấy lớp ấy — ra một bảng trông giống thật
+	 *    nhưng thiếu nguồn và hở phân quyền.
+	 *
+	 * 🔴 MỖI MẢNG MỘT BẢNG RIÊNG, KHÔNG TRỘN — cùng lý do anh Thắng đã chốt cho màn duyệt: *"tách
+	 *    3 bảng riêng, để kế toán biết 3 bộ phận"*, *"vì tên có thể trùng nhau"*. Ba mảng có thể
+	 *    cùng có một cửa hàng tên y hệt; trộn vào một bảng rồi cộng một dòng là hai khoản của hai
+	 *    bộ phận nằm chung mà không ai tách được nữa.
+	 *
+	 * ⚠️ CHỈ GOM MẢNG NGƯỜI NÀY CÓ MẶT (`ban_doc_duoc()`). Gom hết rồi lọc lúc vẽ thì con số tổng
+	 *    ở đầu màn đã kể cả mảng họ không được nhìn — mà đó là con số người ta đọc trước tiên.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function tra( $args ) {
+		$loc = array(
+			'coso' => isset( $args['coso'] ) ? sanitize_text_field( (string) $args['coso'] ) : 'all',
+			'loai' => isset( $args['loai'] ) ? sanitize_text_field( (string) $args['loai'] ) : 'all',
+			'ky'   => isset( $args['ky'] )   ? sanitize_text_field( (string) $args['ky'] )   : 'all',
+			'tkNo' => isset( $args['tkNo'] ) ? sanitize_text_field( (string) $args['tkNo'] ) : 'all',
+			'q'    => isset( $args['q'] )    ? sanitize_text_field( (string) $args['q'] )    : '',
+		);
+
+		$ra = array(); $cu_ds = array(); $lo_ds = array(); $ky_ds = array(); $tong = 0; $dong = 0;
+		foreach ( VHCPT_Auth::ban_doc_duoc() as $khoa ) {
+			$lop = VHCPT_Ban::lop( $khoa, 'TraMa' );
+			/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+			if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'search' ) ) { continue; }
+			VHCPT_Ban::muon_phien( $khoa );
+			$r = (array) call_user_func( array( $lop, 'search' ), $loc );
+			if ( empty( $r['success'] ) ) { continue; }
+
+			$items = isset( $r['items'] ) ? (array) $r['items'] : array();
+			$t_ban = (float) ( isset( $r['tong'] ) ? $r['tong'] : 0 );
+			$tong += $t_ban; $dong += count( $items );
+			$ra[] = array(
+				'ban'    => $khoa,
+				'tenBan' => VHCPT_Ban::ten( $khoa ),
+				'url'    => (string) ( isset( VHCPT_Ban::ds()[ $khoa ]['url'] ) ? VHCPT_Ban::ds()[ $khoa ]['url'] : '' ),
+				/* Cắt bớt khi quá dài: màn bày 200 dòng đầu, con số cộng thì vẫn của CẢ lát cắt.
+				   Cộng một đằng bày một nẻo mà không nói ra là chỗ người đọc tự kết luận sai. */
+				'items'  => array_slice( $items, 0, 200 ),
+				'soDong' => count( $items ),
+				'tong'   => $t_ban,
+				'byCoso' => isset( $r['byCoso'] ) ? array_slice( (array) $r['byCoso'], 0, 30 ) : array(),
+			);
+
+			/* Gom danh sách cho ba hộp chọn — hợp nhất của cả ba mảng. */
+			foreach ( (array) ( isset( $r['cosoList'] ) ? $r['cosoList'] : array() ) as $x ) { $cu_ds[ (string) $x ] = 1; }
+			foreach ( (array) ( isset( $r['loaiList'] ) ? $r['loaiList'] : array() ) as $x ) { $lo_ds[ (string) $x ] = 1; }
+			foreach ( (array) ( isset( $r['kyList'] )   ? $r['kyList']   : array() ) as $x ) { $ky_ds[ (string) $x ] = 1; }
+		}
+
+		if ( ! $ra ) {
+			return array( 'error' => 'Không đọc được mảng nào. Bản mảng có thể chưa cài, hoặc quá cũ '
+				. '(chưa có màn Tra theo mã).' );
+		}
+
+		$cu = array_keys( $cu_ds ); sort( $cu );
+		$lo = array_keys( $lo_ds ); sort( $lo );
+		$ky = array_keys( $ky_ds );
+		rsort( $ky );
+		return array( 'ok' => true, 'ban' => $ra, 'tong' => $tong, 'soDong' => $dong,
+			'cosoList' => $cu, 'loaiList' => $lo, 'kyList' => $ky );
 	}
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════

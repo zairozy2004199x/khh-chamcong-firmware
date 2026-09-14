@@ -213,8 +213,11 @@ class VHCPT_Gom {
 		if ( '' === $ma ) { return null; }
 		$bang = $tien_to . 'don';
 		$r = $wpdb->get_row( $wpdb->prepare(
+			/* Mốc AI LÀM GÌ LÚC NÀO — anh Thắng 14/09/2026 muốn bấm Xem là thấy đủ, khỏi mở
+			   trang mảng. Lấy luôn trong câu này chứ không hỏi thêm lượt nữa. */
 			"SELECT ma_don, ky, nguoi_lap, don_vi, ngay_tao, trang_thai, ghi_chu,
-			        nguoi_duyet, ngay_duyet, tam_ung_duyet
+			        nguoi_duyet, ngay_duyet, tam_ung_duyet,
+			        nguoi_cap, ngay_cap, nguoi_qt, ngay_qt, nguoi_qt_ncc, ngay_qt_ncc
 			   FROM $bang WHERE ma_don = %s LIMIT 1", $ma
 		), ARRAY_A );
 		return is_array( $r ) ? $r : null;
