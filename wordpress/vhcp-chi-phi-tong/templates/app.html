@@ -442,7 +442,26 @@ function veDaiTT(st){
 }
 
 function veThuaThieu(t){
-  if (!t || !t.daCapTien) return '';
+  /* `t` rỗng = bản mảng đời cũ không trả được số. Không có gì để nói thì im. */
+  if (!t) return '';
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 CHƯA CẤP TIỀN THÌ CHƯA THỂ THỪA/THIẾU — nhưng PHẢI NÓI RA, đừng im.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 14/09/2026: *"sao cái này chưa có, hay do chưa quyết toán"*. Đúng là do chưa cấp
+   * tiền, và đó là luật đúng — chưa ai đưa đồng nào thì không có gì để đối chiếu.
+   *
+   * Nhưng bản trước KHÔNG VẼ GÌ CẢ trong cảnh ấy, nên nhìn y như màn bị thiếu mất một khối.
+   * Người dùng không phân biệt được "chưa tới lúc" với "hỏng" khi cả hai đều là khoảng trắng —
+   * và họ sẽ đi tìm lỗi ở chỗ không có lỗi. Nay nói thẳng: có khối ấy, nó chờ tới bước cấp tiền.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  if (!t.daCapTien){
+    return '<div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:#f8fafc;' +
+      'border:1px dashed #cbd5e1;color:#64748b" class="nho">' +
+      '💰 <b>Chưa có phần thừa/thiếu</b> — đơn chưa tới bước <b>cấp tạm ứng</b>. ' +
+      'Chưa ai đưa tiền thì chưa đối chiếu được; khối quyết toán hiện ra khi kế toán đã cấp tiền.' +
+      ( Number(t.tamUng||0) ? ' Số tạm ứng đã duyệt: <b>'+tien(t.tamUng)+'</b>.' : '' ) +
+      '</div>';
+  }
   var cl = Number(t.chenhLech||0);
   var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f1f5f9','#cbd5e1','#334155'] );
   var chu = cl > 0 ? 'Thừa '+tien(cl)+' — NV trả lại kế toán'

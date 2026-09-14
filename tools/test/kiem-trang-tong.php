@@ -95,6 +95,10 @@ t( '   và câu chữ nói rõ điều đó cho người khai',
 
 /* ═══ 5. TRANG KHÔNG GIỮ PIN Ở MÁY KHÁCH ════════════════════════════════════════ */
 $html = file_get_contents( $TONG . '/templates/app.html' );
+/* ⚠️ SOI CHUỖI CHỈ CÓ TRONG MÃ, KHÔNG SOI CHỮ CŨNG NẰM Ở CHÚ THÍCH. Đã cắn thật: một phép dò
+   "Con số cộng ở trên là của" mà chính khối chú thích giải thích *vì sao* phải nói ra cũng mang
+   đúng câu ấy — đục thủng mã mà bài vẫn xanh, tức phép kiểm nói dối. */
+$html_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $html );
 $html_js = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $html );
 t( '🔴 KHÔNG lưu PIN vào localStorage/sessionStorage',
 	! preg_match( '/(local|session)Storage\.setItem\s*\(\s*[^)]*pin/i', $html_js ), '' );
@@ -535,8 +539,16 @@ t( '⚠️ trạng thái lạ thì KHÔNG bước nào là "đã qua"',
 	(bool) preg_match( '#daQua = \(i >= 0 && k < i\)#', $html ), '' );
 t( '🔴 màn có khối thừa/thiếu', false !== strpos( $html, 'function veThuaThieu(' ), '' );
 /* ⚠️ Chưa cấp tiền thì chưa ai đưa đồng nào — không thể thừa. */
-t( '⚠️ chưa cấp tiền thì KHÔNG bày thừa/thiếu',
-	(bool) preg_match( '#function veThuaThieu\(t\)\{?\s*\n?\s*if \(!t \|\| !t\.daCapTien\) return #', $html ), '' );
+/* ⚠️ ĐỔI 14/09/2026 (lượt hai). Bản trước canh "chưa cấp tiền thì KHÔNG vẽ gì". Đúng luật,
+   nhưng khoảng trắng ấy làm anh Thắng tưởng màn thiếu mất một khối: *"sao cái này chưa có"*.
+   Người dùng không phân biệt được "chưa tới lúc" với "hỏng" khi cả hai đều là khoảng trắng.
+   Nay luật là: KHÔNG bày con số thừa/thiếu, nhưng PHẢI nói ra vì sao chưa có. */
+t( '🔴 chưa cấp tiền thì KHÔNG bày con số thừa/thiếu',
+	(bool) preg_match( '#if \(!t\.daCapTien\)\{#', $html ), '' );
+t( '🔴 nhưng NÓI RA vì sao chưa có, không để trắng',
+	false !== mb_strpos( $html_ma, 'đơn chưa tới bước' ), '' );
+t( '⚠️ bản mảng đời cũ không trả được số thì im hẳn',
+	(bool) preg_match( '#if \(!t\) return \x27\x27;#', $html ), '' );
 t( 'nói rõ ai trả ai bù, không chỉ ra con số',
 	false !== mb_strpos( $html, 'NV trả lại kế toán' ) && false !== mb_strpos( $html, 'kế toán bù cho NV' ), '' );
 t( '🔴 máy chủ gửi kèm khối tiền khi bấm Xem',
@@ -570,11 +582,6 @@ t( 'và hộp chọn cửa hàng + loại chi phí (không bắt gõ tay)',
 	false !== strpos( $html, "oChon('tCoso'" ) && false !== strpos( $html, "oChon('tLoai'" ), '' );
 /* ⚠️ Bảng cắt 200 dòng mà con số cộng là của cả lát cắt — im lặng thì người đọc tự cộng tay rồi
    kết luận phần mềm tính sai. */
-/* ⚠️ SOI CHUỖI CHỈ CÓ TRONG MÃ, KHÔNG SOI CHỮ CŨNG NẰM Ở CHÚ THÍCH. Bản nháp của phép này dò
-   "Con số cộng ở trên là của" — mà chính khối chú thích giải thích *vì sao* phải nói ra cũng
-   mang đúng câu ấy. Đục thủng mã mà bài vẫn xanh: phép kiểm nói dối. Cùng cái bẫy đã gặp ở
-   `kiem-don-nhieu-coso.php` sáng nay. */
-$html_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $html );
 t( '⚠️ nói ra khi bảng bị cắt bớt dòng',
 	false !== mb_strpos( $html_ma, 'Con số cộng ở trên là của' ), '' );
 t( '🔴 lõi tra nhận bộ lọc theo LOẠI chi phí',
