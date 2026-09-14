@@ -1082,10 +1082,34 @@ t( '🔴 máy chủ hỏi don_loai() của bản mảng, không tự đoán',
 	(bool) preg_match( '#method_exists\( \\$lop, .don_loai. \)[\s\S]{0,200}?call_user_func\( array\( \\$lop, .don_loai. \)#', $gom_sach ), '' );
 t( '🔴 và gửi kèm từng đơn để màn biết đường nào',
 	(bool) preg_match( "#'duong'\s*=>\s*self::duong_cua_don\(#", $gom_sach ), '' );
+/* Bảng việc của một đơn nay do `viecLamDuoc()` quyết — bảng đơn và thanh làm hàng loạt dùng
+   CHUNG nó, nên soi trong thân hàm ấy. */
+$than_vld = ( function ( $src ) {
+	$i = strpos( $src, 'function viecLamDuoc(' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $src, "\n}", $i );
+	return ( false === $j ) ? '' : substr( $src, $i, $j - $i );
+} )( $html_ma );
+t( 'đọc được thân viecLamDuoc()', '' !== $than_vld, '' );
 t( '🔴 màn giấu nút quyết toán cá nhân khi đơn không có dòng cá nhân',
-	(bool) preg_match( "#v\.viec === 'qtCn'\s*&& !duong\.cn\)\s*return;#", $than_vb ), '' );
+	(bool) preg_match( '#v\.viec === .qtCn.\s*&& !duong\.cn\)\s*return;#', $than_vld ), '' );
 t( '🔴 và giấu nút NCC khi đơn không có dòng NCC',
-	(bool) preg_match( "#v\.viec === 'qtNcc' && !duong\.ncc\) return;#", $than_vb ), '' );
+	(bool) preg_match( '#v\.viec === .qtNcc. && !duong\.ncc\) return;#', $than_vld ), '' );
+/* 🔴 ĐƠN NHÁP KHÔNG CÓ VIỆC GÌ — anh Thắng 14/09/2026: *"Đơn là đơn nháp chưa gửi xin tại sao
+   lại duyệt"*, *"ẩn nút duyệt nếu đơn nháp chưa bấm gửi xin"*. Lõi bản mảng vốn đã chối, nhưng
+   bày một nút chắc chắn bị chối là mời người ta bấm rồi đọc câu lỗi — và lần sau họ hết tin
+   những nút còn lại. Chặn theo TRẠNG THÁI, không theo tên lát: lát chỉ là cách bày. */
+t( '🔴 đơn Nháp không có việc nào để bấm',
+	(bool) preg_match( "#if \(String\(d\.trangThai\|\|''\) === 'Nháp'\) return \[\];#u", $than_vld ), '' );
+t( '🔴 và nút Trả lại cũng ẩn với đơn Nháp',
+	(bool) preg_match( '#if \(lam\.traLai && !nhap\)#', $than_vb ), '' );
+t( '⚠️ nói rõ vì sao không có nút, thay vì để trống',
+	false !== mb_strpos( $than_vb, 'nhân viên còn đang soạn' ), '' );
+/* ⚠️ Bảng đơn và thanh hàng loạt phải hỏi CÙNG một hàm — hai bảng việc rời nhau thì một hôm
+   nút ở bảng bày ra mà ô tích bên kia lại bảo đơn ấy không làm được gì. */
+t( '⚠️ bảng đơn vẽ nút bằng chính viecLamDuoc()',
+	(bool) preg_match( '#lamDuoc = viecLamDuoc\(d\)#', $than_vb )
+	&& (bool) preg_match( '#lamDuoc\.forEach\(function\(v\)#', $than_vb ), '' );
 /* ⚠️ Bản mảng đời cũ không trả `duong` thì giữ nếp cũ — bày hết, còn hơn giấu mất nút đúng. */
 t( '⚠️ bản mảng không trả lời được thì bày như cũ',
 	(bool) preg_match( '#var duong = d\.duong \|\| null;#', $than_vb ), '' );
@@ -1147,14 +1171,52 @@ t( '⚠️ bỏ qua khoảng trắng đầu chuỗi', (bool) preg_match( '#searc
  * Anh Thắng 14/09/2026: *"Trên mỗi đầu bảng, cho phép lọc lại đơn (theo tuần, tháng, người gửi,
  * loại chi phí đang có trong bảng đó)"*.
  * ═══════════════════════════════════════════════════════════════════════════════ */
-foreach ( array( 'thang', 'ky', 'nguoi', 'loai' ) as $truong ) {
+/* Anh Thắng 14/09/2026, sau khi thấy dải lọc: *"lọc theo ngày, tuần, tháng, năm nữa"*. */
+foreach ( array( 'nam', 'thang', 'ky', 'ngay', 'nguoi', 'loai' ) as $truong ) {
 	t( '🔴 lọc được theo «' . $truong . '»',
 		(bool) preg_match( '#L\.' . $truong . '\b#', $than_vb ), $truong );
 }
+/* 🔴 BỐN MỨC THỜI GIAN LỒNG NHAU. Chọn năm 2026 mà hộp Tuần vẫn bày tuần của 2025 thì chọn vào
+   là bảng trắng, và người ta tưởng mất đơn. Mỗi cấp chỉ bày giá trị CÒN LẠI sau các cấp trên. */
+t( '🔴 danh mục tháng dựng sau khi lọc năm',
+	(bool) preg_match( '#dmThang = gom\(dsGoc\.filter\(qNam\)#', $than_vb ), '' );
+t( '🔴 danh mục tuần dựng sau khi lọc tháng',
+	(bool) preg_match( '#dmKy\s*= gom\(dsGoc\.filter\(qThang\)#', $than_vb ), '' );
+t( '🔴 danh mục ngày dựng sau khi lọc tuần',
+	(bool) preg_match( '#dmNgay\s*= gom\(dsGoc\.filter\(qKy\)#', $than_vb ), '' );
+/* ⚠️ Đổi cấp trên thì lựa chọn cấp dưới đã lạc phải được dọn — không thì nó lặng lẽ lọc sạch
+   bảng trong khi hộp chọn hiện "tất cả", và người dùng nhìn bảng trống mà không thấy lọc nào. */
+t( '⚠️ lựa chọn lạc khỏi danh mục thì tự dọn',
+	(bool) preg_match( '#if \(L\[c\[0\]\] && c\[1\]\.indexOf\(L\[c\[0\]\]\) < 0\) L\[c\[0\]\] = ..;#', $than_vb ), '' );
+/* 🔴 Năm phải CÙNG TRỤC với tháng và tuần (đều từ kỳ), nếu không thì chọn năm xong hộp tuần
+   trống trơn ở những đơn lập cuối năm cho kỳ đầu năm sau. */
+t( '🔴 năm lấy từ kỳ trước, lùi về ngày lập sau',
+	(bool) preg_match( '#function namCuaDon\(d\)\{[\s\S]{0,200}?thangCuaKy\(d\.ky\)[\s\S]{0,260}?d\.ngayTao#', $html_ma ), '' );
+/* ⚠️ Nhãn phải nói "Ngày nhập": đơn không có trường ngày nào khác — kỳ là một TUẦN. Gọi trống
+   không là "Ngày" thì người ta tưởng lọc theo ngày tiêu tiền. */
+t( '⚠️ nhãn nói rõ là NGÀY NHẬP', false !== mb_strpos( $html_ma, "'Ngày nhập'" ), '' );
+/* ⚠️ Không sắp chuỗi bốn mức thời gian: "T10" đứng trước "T9", và ngày "dd/mm/yyyy" thì mọi
+   ngày 01 của mọi tháng dồn lên đầu. Thứ tự gặp = thứ tự thời gian, vì máy chủ đã xếp sẵn. */
+t( '⚠️ bốn mức thời gian giữ thứ tự xuất hiện, không sắp chuỗi',
+	! preg_match( '#dmNam[\s\S]{0,40}?\.sort\(#', $than_vb )
+	&& ! preg_match( '#dmKy[\s\S]{0,40}?\.sort\(#', $than_vb ), '' );
+t( '⚠️ còn người gửi và loại chi phí thì sắp a→z có dấu',
+	(bool) preg_match( '#dmNguoi = gom\(conLai[\s\S]{0,80}?\.sort\(sanh\)#', $than_vb )
+	&& (bool) preg_match( "#localeCompare\(String\(b\), 'vi'\)#", $html_ma ), '' );
+/* 🔴 MỘT CHỖ DUY NHẤT KHAI CÁC Ô LỌC. Trước có ba chỗ gõ tay danh sách trường; thêm ô Năm mà
+   quên một chỗ thì ô ấy không bao giờ xoá được, và "bỏ lọc" chỉ bỏ một nửa. */
+t( '🔴 danh sách ô lọc khai một chỗ duy nhất',
+	(bool) preg_match( "#var O_LOC = \['nam','thang','ky','ngay','nguoi','loai'\];#", $html_ma ), '' );
+t( '🔴 và mọi chỗ dựng/xoá đều gọi locRong()',
+	3 === preg_match_all( '#locRong\(\)#', $html_ma ) + 0
+	|| 3 <= preg_match_all( '#locRong\(\)#', $html_ma ), '' );
+t( '⚠️ không còn chỗ nào gõ tay danh sách trường lọc',
+	false === mb_strpos( $html_ma, "thang:'', ky:''" ), '' );
 /* 🔴 Danh mục dựng từ chính đơn TRONG BẢNG ẤY — bày cả trăm loại của cả năm là bắt người ta dò,
    và chọn phải loại không có đơn nào thì bảng trắng, nhìn như hỏng. */
 t( '🔴 danh mục dựng từ đơn của chính bảng ấy',
-	(bool) preg_match( '#dsGoc\.forEach\(function\(d\)\{[\s\S]{0,300}?them\(dmLoai#', $than_vb ), '' );
+	(bool) preg_match( '#var dmNam\s*= gom\(dsGoc,#', $than_vb )
+	&& (bool) preg_match( '#conLai\.forEach\(function\(d\)\{ \(d\.loai\|\|\[\]\)#', $than_vb ), '' );
 /* ⚠️ Giữ lựa chọn NGOÀI DOM: veBang() vẽ lại cả màn sau mỗi lượt lọc và mỗi lượt duyệt. */
 t( '⚠️ lựa chọn lọc giữ ngoài DOM, theo từng bảng',
 	(bool) preg_match( '#var LOC_BANG = \{\};#', $html_ma )

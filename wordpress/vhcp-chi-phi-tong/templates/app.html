@@ -599,26 +599,54 @@ function veBang(){
      *    duyệt; giữ lựa chọn trong DOM là nó bay mất ngay lần vẽ kế tiếp.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
     var khoaLoc = ban + '|' + lat.khoa;
-    var L = LOC_BANG[khoaLoc] || ( LOC_BANG[khoaLoc] = { thang:'', ky:'', nguoi:'', loai:'' } );
+    var L = LOC_BANG[khoaLoc] || ( LOC_BANG[khoaLoc] = locRong() );
 
-    var dmThang = [], dmKy = [], dmNguoi = [], dmLoai = [];
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * BỐN MỨC THỜI GIAN LỒNG NHAU: NĂM › THÁNG › TUẦN › NGÀY.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 DANH MỤC CẤP DƯỚI DỰNG TRÊN LỰA CHỌN CẤP TRÊN. Chọn năm 2026 mà hộp Tuần vẫn bày tuần
+     *    của 2025 thì chọn vào là bảng trắng, và người ta tưởng mất đơn. Nên mỗi cấp chỉ bày
+     *    những giá trị CÒN LẠI sau các cấp trên.
+     *
+     * ⚠️ GIỮ THỨ TỰ XUẤT HIỆN cho bốn mức thời gian, KHÔNG sắp chuỗi: kỳ là chữ tiếng Việt
+     *    ("T9/2026 (7/9-13/9/2026)") nên sắp chuỗi thì T10 đứng trước T9, và ngày "dd/mm/yyyy"
+     *    sắp chuỗi thì mọi ngày 01 của mọi tháng dồn lên đầu. Máy chủ đã xếp đơn theo thời
+     *    gian, nên thứ tự gặp chính là thứ tự thời gian — đúng cái cần, mà không phải hiểu
+     *    định dạng chuỗi. Người gửi và loại chi phí thì sắp a→z, vì đó là danh sách để DÒ.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     var them = function(ds2, v){ v = String(v||'').trim(); if (v && ds2.indexOf(v) < 0) ds2.push(v); };
-    dsGoc.forEach(function(d){
-      them(dmThang, thangCuaKy(d.ky));
-      them(dmKy, d.ky);
-      them(dmNguoi, d.nguoiLap);
-      (d.loai||[]).forEach(function(x){ them(dmLoai, x.ten); });
+    var gom  = function(ds2, lay){ var r = []; ds2.forEach(function(d){ them(r, lay(d)); }); return r; };
+
+    var qNam   = function(d){ return !L.nam   || namCuaDon(d) === L.nam; };
+    var qThang = function(d){ return qNam(d)   && (!L.thang || thangCuaKy(d.ky) === L.thang); };
+    var qKy    = function(d){ return qThang(d) && (!L.ky    || String(d.ky||'') === L.ky); };
+    var qNgay  = function(d){ return qKy(d)    && (!L.ngay  || ngayCuaDon(d) === L.ngay); };
+
+    var dmNam   = gom(dsGoc, namCuaDon);
+    var dmThang = gom(dsGoc.filter(qNam),   function(d){ return thangCuaKy(d.ky); });
+    var dmKy    = gom(dsGoc.filter(qThang), function(d){ return d.ky; });
+    var dmNgay  = gom(dsGoc.filter(qKy),    ngayCuaDon);
+    var conLai  = dsGoc.filter(qNgay);
+    var dmNguoi = gom(conLai, function(d){ return d.nguoiLap; }).sort(sanh);
+    var dmLoai  = [];
+    conLai.forEach(function(d){ (d.loai||[]).forEach(function(x){ them(dmLoai, x.ten); }); });
+    dmLoai.sort(sanh);
+
+    /* ⚠️ ĐỔI CẤP TRÊN THÌ DỌN LỰA CHỌN CẤP DƯỚI ĐÃ LẠC. Chọn tuần của T9/2026 rồi đổi năm sang
+       2025: giá trị cũ không còn trong danh mục nào, nó lặng lẽ lọc sạch bảng và hộp chọn thì
+       hiện "tất cả" — người dùng nhìn một bảng trống mà không thấy bộ lọc nào đang bật. */
+    [['nam',dmNam],['thang',dmThang],['ky',dmKy],['ngay',dmNgay],
+     ['nguoi',dmNguoi],['loai',dmLoai]].forEach(function(c){
+      if (L[c[0]] && c[1].indexOf(L[c[0]]) < 0) L[c[0]] = '';
     });
-    dmThang.sort(); dmKy.sort(); dmNguoi.sort(); dmLoai.sort();
 
     var ds = dsGoc.filter(function(d){
-      if (L.thang && thangCuaKy(d.ky) !== L.thang) return false;
-      if (L.ky    && String(d.ky||'') !== L.ky)    return false;
+      if (!qNgay(d)) return false;
       if (L.nguoi && String(d.nguoiLap||'') !== L.nguoi) return false;
       if (L.loai  && !(d.loai||[]).some(function(x){ return x.ten === L.loai; })) return false;
       return true;
     });
-    var dangLoc = !!(L.thang || L.ky || L.nguoi || L.loai);
+    var dangLoc = coLoc(L);
     /* ══════════════════════════════════════════════════════════════════════════════════════
      * 🔴 AI NỘP TRƯỚC, LÊN TRƯỚC — anh Thắng 14/09/2026: *"nhớ ai nhập trước, lên trước"*.
      * ══════════════════════════════════════════════════════════════════════════════════════
@@ -661,7 +689,7 @@ function veBang(){
           '<span class="buoc-so" style="background:'+m.nen+';color:'+m.chu+'">'+ds.length+' đơn' +
           ( dangLoc ? ' / '+dsGoc.length : '' )+'</span></span>' +
         '<span class="nho" style="color:'+m.chu+';font-weight:700">Cộng '+tien(tongLat)+'</span>' +
-      '</div>' + veDaiLoc(khoaLoc, L, dmThang, dmKy, dmNguoi, dmLoai, dangLoc, m);
+      '</div>' + veDaiLoc(khoaLoc, L, dmNam, dmThang, dmKy, dmNgay, dmNguoi, dmLoai, dangLoc, m);
 
     /* Có đơn nhưng lọc không ra gì là chuyện KHÁC HẲN "hết việc" — nói rõ, kèm lối thoát. */
     if (!ds.length){
@@ -713,7 +741,7 @@ function veBang(){
       }
       dsKy.forEach(function(d){
         var i = ROWS.indexOf(d);
-        var lam = d.lam || {};
+        var lam = d.lam || {}, lamDuoc = viecLamDuoc(d);
         var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1" id="nx'+i+'">Xem</button> ';
         /* ══════════════════════════════════════════════════════════════════════════════════
          * 🔴 CHỈ BÀY NÚT CỦA ĐƯỜNG MÀ ĐƠN THẬT SỰ ĐI.
@@ -729,23 +757,20 @@ function veBang(){
          * ══════════════════════════════════════════════════════════════════════════════════ */
         var duong = d.duong || null;
         var caHai = !duong || (duong.cn && duong.ncc);
-        viecs.forEach(function(v){
-          if (!lam[v.viec]) return;
-          if (duong){
-            if (v.viec === 'qtCn'  && !duong.cn)  return;
-            if (v.viec === 'qtNcc' && !duong.ncc) return;
-          }
+        var nhap  = ( String(d.trangThai||'') === 'Nháp' );
+        /* Dùng CHUNG `viecLamDuoc()` với thanh làm hàng loạt — hai bảng việc rời nhau thì một
+           hôm nút ở đây bày ra mà ô tích bên kia lại bảo đơn ấy không làm được gì. */
+        lamDuoc.forEach(function(v){
           /* Một đường duy nhất thì không còn gì để phân biệt — gọi thẳng là "Duyệt quyết toán". */
           var ten = ( !caHai && (v.viec === 'qtCn' || v.viec === 'qtNcc') ) ? 'Duyệt quyết toán' : v.ten;
           nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(ten)+'</button> ';
         });
-        if (lam.traLai) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
-        var chua = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
+        if (lam.traLai && !nhap) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
+        var chua = !lamDuoc.length && (!lam.traLai || nhap);
         /* ⚠️ Đơn ĐÃ quyết toán thì không còn việc để bấm — nói ra là "đã xong", đừng để câu
            "vai của bạn không làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
         var xong = ( d.trangThai === 'Đã quyết toán' );
 
-        var lamDuoc = viecLamDuoc(d);
         h += '<tr>' +
           ( coChon
             ? '<td>'+( lamDuoc.length
@@ -766,8 +791,9 @@ function veBang(){
           '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
           ( coQT ? veOThucChi(d) : '' ) +
           '<td>'+nut+( chua
-            ? '<div class="nho mo">'+( xong ? '✓ đã quyết toán xong — còn chờ xuất MISA'
-                                            : 'vai của bạn ở mảng này không làm được việc này' )+'</div>'
+            ? '<div class="nho mo">'+( nhap ? '✎ nhân viên còn đang soạn — chưa gửi xin'
+                                : ( xong ? '✓ đã quyết toán xong — còn chờ xuất MISA'
+                                         : 'vai của bạn ở mảng này không làm được việc này' ) )+'</div>'
             : '' )+'</td>' +
           '</tr>' +
           '<tr class="ct" id="ct'+i+'" hidden><td colspan="'+soCot+'"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
@@ -838,7 +864,7 @@ function veBang(){
   Array.prototype.forEach.call(o.querySelectorAll('select[data-loc]'), function(n){
     n.onchange = function(){
       var k = n.getAttribute('data-loc');
-      if (!LOC_BANG[k]) LOC_BANG[k] = { thang:'', ky:'', nguoi:'', loai:'' };
+      if (!LOC_BANG[k]) LOC_BANG[k] = locRong();
       LOC_BANG[k][n.getAttribute('data-truong')] = n.value;
       veBang();
     };
@@ -878,7 +904,7 @@ function veBang(){
   Array.prototype.forEach.call(o.querySelectorAll('[data-xoaloc]'), function(n){
     n.onclick = function(e){
       e.preventDefault();
-      LOC_BANG[n.getAttribute('data-xoaloc')] = { thang:'', ky:'', nguoi:'', loai:'' };
+      LOC_BANG[n.getAttribute('data-xoaloc')] = locRong();
       veBang();
     };
   });
@@ -979,6 +1005,24 @@ var CHON = {};
 /* Những việc THUẬN mà một đơn đang làm được — Trả lại không nằm ở đây: nó đòi lý do riêng cho
    từng đơn, và một lý do chung dán cho hai chục đơn thì người lập đọc xong vẫn không biết sửa gì. */
 function viecLamDuoc(d){
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 ĐƠN NHÁP THÌ KHÔNG CÓ VIỆC GÌ ĐỂ BẤM.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 14/09/2026: *"Đơn là đơn nháp chưa gửi xin tại sao lại duyệt"*, *"ẩn nút duyệt
+   * nếu đơn nháp chưa bấm gửi xin"*.
+   *
+   * Nháp = nhân viên CÒN ĐANG SOẠN, chưa bấm gửi xin. Bảng ấy bày ra để quản lý thấy cái SẮP
+   * tới, không phải để làm. Lõi bản mảng vốn đã chối (`duyet_tam_ung()` đòi đơn ở "Chờ duyệt
+   * tạm ứng"), nên tiền không đi đâu — nhưng bày một nút chắc chắn bị chối là mời người ta bấm
+   * rồi đọc một câu lỗi, và lần sau họ hết tin những nút còn lại.
+   *
+   * ⚠️ TRẢ LẠI CŨNG KHÔNG: trả một đơn nhân viên đang gõ dở về cho chính họ thì chẳng nói được
+   *    điều gì, ngoài việc xoá mất số đã nhập nếu đơn từng được duyệt ở vòng trước.
+   *
+   * ⚠️ CHẶN THEO TRẠNG THÁI, KHÔNG THEO TÊN LÁT. Lát chỉ là cách bày; trạng thái mới là sự
+   *    thật — và cùng đơn ấy còn hiện ở màn Tổng quan lẫn thanh làm hàng loạt.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  if (String(d.trangThai||'') === 'Nháp') return [];
   var lam = d.lam || {}, duong = d.duong || null, ra = [];
   ( VIEC_HL[NHOM] || [] ).forEach(function(v){
     if (!lam[v.viec]) return;
@@ -1028,6 +1072,16 @@ function veThanhChon(ds, khoaLoc, m){
    lượt duyệt, nên thứ gì để trong DOM là bay mất ngay lần vẽ kế tiếp. Khoá: mảng|lát. */
 var LOC_BANG = {};
 
+/* 🔴 MỘT CHỖ DUY NHẤT KHAI CÁC Ô LỌC. Trước có ba chỗ gõ tay `{thang:'',ky:'',nguoi:'',loai:''}`
+   (dựng mới · bỏ lọc một bảng · nút "bỏ lọc"); thêm ô Năm mà quên một chỗ thì ô ấy không bao
+   giờ xoá được, và "bỏ lọc" chỉ bỏ một nửa. */
+var O_LOC = ['nam','thang','ky','ngay','nguoi','loai'];
+function locRong(){ var r = {}; O_LOC.forEach(function(k){ r[k] = ''; }); return r; }
+function coLoc(L){ return O_LOC.some(function(k){ return !!L[k]; }); }
+
+/* So chuỗi tiếng Việt có dấu — `sort()` trần so theo mã ký tự nên "Đ" rơi xuống sau "Z". */
+function sanh(a, b){ return String(a).localeCompare(String(b), 'vi'); }
+
 /* "T9/2026 (7/9-13/9/2026)" -> "T9/2026". Kỳ là TUẦN; tháng là phần trước dấu ngoặc.
    ⚠️ Không có ngoặc (bản mảng đổi cách ghi kỳ) thì trả nguyên chuỗi — lọc theo tháng lúc ấy
       thành lọc theo kỳ, vẫn dùng được, thay vì trả rỗng và cả hộp chọn trống trơn. */
@@ -1037,7 +1091,27 @@ function thangCuaKy(ky){
   return i > 0 ? s.slice(0, i) : s;
 }
 
-function veDaiLoc(khoa, L, dmThang, dmKy, dmNguoi, dmLoai, dangLoc, m){
+/* Năm của đơn — anh Thắng 14/09/2026: *"lọc theo ngày, tuần, tháng, năm nữa"*.
+   ⚠️ LẤY TỪ KỲ TRƯỚC, LÙI VỀ NGÀY LẬP SAU. Năm phải cùng một trục với tháng và tuần, nếu không
+      thì chọn "2026" rồi hộp Tuần bày tuần của 2025 — chọn vào là bảng trắng. Kỳ mới là trục
+      kế toán (tiền chốt theo tuần quản lý); ngày lập chỉ là lối lùi khi kỳ không đọc được. */
+function namCuaDon(d){
+  var t = thangCuaKy(d.ky), i = t.lastIndexOf('/');
+  if (i >= 0 && /^\d{4}$/.test(t.slice(i + 1))) return t.slice(i + 1);
+  var s = String(d.ngayTao||'').slice(0, 4);
+  return /^\d{4}$/.test(s) ? s : '';
+}
+
+/* Ngày của đơn = NGÀY LẬP, và nhãn phải nói ra như vậy. Đơn không có trường "ngày" nào khác:
+   kỳ là một TUẦN, không phải một ngày. Gọi trống không là "Ngày" thì người ta tưởng lọc được
+   theo ngày tiêu tiền, rồi không hiểu vì sao con số không khớp với hoá đơn trong tay. */
+function ngayCuaDon(d){
+  var s = String(d.ngayTao||'').slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return '';
+  return s.slice(8, 10)+'/'+s.slice(5, 7)+'/'+s.slice(0, 4);
+}
+
+function veDaiLoc(khoa, L, dmNam, dmThang, dmKy, dmNgay, dmNguoi, dmLoai, dangLoc, m){
   /* Hộp chỉ có một giá trị thì không lọc được gì — bỏ hẳn, đừng bày một ô chọn giả. */
   var hop = function(ten, nhan, ds, val){
     if (ds.length < 2) return '';
@@ -1047,7 +1121,8 @@ function veDaiLoc(khoa, L, dmThang, dmKy, dmNguoi, dmLoai, dangLoc, m){
         return '<option value="'+esc(x)+'"'+( x === val ? ' selected' : '' )+'>'+esc(x)+'</option>';
       }).join('') + '</select>';
   };
-  var h = hop('thang','Tháng',dmThang,L.thang) + hop('ky','Tuần',dmKy,L.ky) +
+  var h = hop('nam','Năm',dmNam,L.nam) + hop('thang','Tháng',dmThang,L.thang) +
+          hop('ky','Tuần',dmKy,L.ky) + hop('ngay','Ngày nhập',dmNgay,L.ngay) +
           hop('nguoi','Người gửi',dmNguoi,L.nguoi) + hop('loai','Loại chi phí',dmLoai,L.loai);
   if (!h) return '';
   return '<div class="dai-loc">🔎 '+h +
