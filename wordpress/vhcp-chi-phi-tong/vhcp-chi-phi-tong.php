@@ -3,7 +3,7 @@
  * Plugin Name:       Chi Phí — Tổng hợp (TONG)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Gom kho đơn của các mảng chi phí (KVC · MTD · VP…) về MỘT trang cho người duyệt. Không có sổ riêng: đọc thẳng bảng của từng bản và duyệt ghi ngược về đúng bản sinh ra đơn.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -28,7 +28,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCPT_VERSION', '1.2.0' );
+define( 'VHCPT_VERSION', '1.3.0' );
 define( 'VHCPT_FILE', __FILE__ );
 define( 'VHCPT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCPT_URL', plugin_dir_url( __FILE__ ) );
@@ -48,17 +48,47 @@ require_once VHCPT_DIR . 'includes/class-vhcpt-tu-cap-nhat.php';
 
 /* Ưu tiên 20: sau các plugin chi phí (mặc định 10), để `VHCPT_Ban` dò được lớp của chúng. */
 add_action( 'plugins_loaded', function () {
-	VHCPT_App::init();
 	VHCPT_Api::init();
 	VHCPT_TuCapNhat::init();
 	if ( is_admin() ) { VHCPT_Admin::init(); }
 }, 20 );
 
-/* Bật plugin -> nạp lại luật đường dẫn, không thì /chi-phi-kh trả 404 cho tới lượt lưu
-   permalink kế tiếp — mà người vừa bật thì mở trang ngay. */
-register_activation_hook( __FILE__, function () {
-	require_once VHCPT_DIR . 'includes/class-vhcpt-app.php';
-	VHCPT_App::init();
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ĐƯỜNG DẪN KHAI Ở `init`, VÀ NẠP LẠI LUẬT THÌ QUA MỘT CỜ — KHÔNG FLUSH LÚC KÍCH HOẠT.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"trang tổng bị lỗi, vào là sập"*. Đúng, và đây là chỗ hỏng:
+ *
+ *   Bản đầu gọi `flush_rewrite_rules()` NGAY trong `register_activation_hook`. Lúc ấy WordPress
+ *   mới nạp plugin, hook `init` của các plugin KHÁC chưa chạy, nên chúng chưa kịp khai đường của
+ *   mình. `flush` ghi lại TOÀN BỘ bảng luật theo đúng những gì đang có — tức ghi lại một bảng
+ *   THIẾU. Kết quả: /chi-phi, /cham-cong, /ghe… đồng loạt 404. Không có câu lỗi nào, và nhìn y
+ *   như cả site sập.
+ *
+ * ⚠️ CHÚ THÍCH TRONG `VHCP_App::init()` CỦA BẢN GỐC ĐÃ NÓI ĐÚNG ĐIỀU NÀY — *"phải chạy SAU khi
+ *    cả app chi phí và thư viện hợp đồng đều khai xong đường dẫn của mình, không thì lần nạp lại
+ *    đó ghi thiếu một đường và trang kia trả 404"*. Bản gốc vì thế chỉ ĐẶT CỜ lúc kích hoạt rồi
+ *    flush ở `init` ưu tiên 99. Bản tổng nay đi đúng lối ấy.
+ *
+ * 🔴 VÀ `add_rewrite_rule` PHẢI GỌI TRONG `init`, KHÔNG PHẢI `plugins_loaded`. Gọi sớm thì luật
+ *    nằm ngoài lượt dựng bảng của WordPress — lúc trúng lúc trượt tuỳ bộ nhớ đệm, mà "lúc trúng
+ *    lúc trượt" là kiểu hỏng tốn nhiều thời gian nhất để lần ra.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+add_action( 'init', array( 'VHCPT_App', 'init' ), 5 );
+add_action( 'init', 'vhcpt_nap_lai_duong', 99 );
+
+function vhcpt_nap_lai_duong() {
+	if ( ! get_option( 'vhcpt_flush_rewrite' ) ) { return; }
+	delete_option( 'vhcpt_flush_rewrite' );
 	flush_rewrite_rules( false );
+}
+
+/* Bật plugin -> chỉ ĐẶT CỜ. Lượt tải kế tiếp, `init` ưu tiên 99 mới nạp lại luật — lúc ấy mọi
+   plugin đã khai xong đường của mình. */
+register_activation_hook( __FILE__, function () {
+	update_option( 'vhcpt_flush_rewrite', 1 );
 } );
-register_deactivation_hook( __FILE__, function () { flush_rewrite_rules( false ); } );
+/* Tắt plugin -> cũng chỉ đặt cờ, cùng lý do: flush ngay lúc này là ghi lại bảng luật trong một
+   lượt tải mà `init` của các plugin khác chưa chạy. */
+register_deactivation_hook( __FILE__, function () {
+	update_option( 'vhcpt_flush_rewrite', 1 );
+} );

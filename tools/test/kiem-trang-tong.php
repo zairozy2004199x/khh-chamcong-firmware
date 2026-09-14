@@ -352,6 +352,36 @@ t( '⚠️ và xếp theo tao_luc, không xếp theo id (id là VARCHAR)',
 	false !== strpos( $gom_ma, 'ORDER BY tao_luc' )
 		&& false === strpos( $gom_ma, 'ORDER BY id' ), '' );
 
+/* ═══ 6e. 🔴 HOOK VÀ LƯỢT NẠP LẠI LUẬT ĐƯỜNG DẪN ════════════════════════════════
+ * Anh Thắng 14/09/2026: *"trang tổng bị lỗi, vào là sập"*.
+ *
+ * 🔴 Bản đầu gọi `flush_rewrite_rules()` NGAY trong `register_activation_hook`. Lúc ấy hook
+ *    `init` của các plugin KHÁC chưa chạy, nên chúng chưa khai đường của mình; `flush` ghi lại
+ *    TOÀN BỘ bảng luật theo đúng những gì đang có — tức ghi lại một bảng THIẾU. /chi-phi,
+ *    /cham-cong, /ghe… đồng loạt 404, không câu lỗi nào, nhìn y như cả site sập.
+ *
+ * ⚠️ Chú thích trong `VHCP_App::init()` của bản gốc đã nói đúng điều này từ trước, và bản gốc
+ *    vì thế chỉ ĐẶT CỜ lúc kích hoạt rồi flush ở `init` ưu tiên 99.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$boot_tong = file_get_contents( $TONG . '/vhcp-chi-phi-tong.php' );
+$boot_ma   = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $boot_tong );
+
+t( '🔴 KHÔNG flush_rewrite_rules() trong register_activation_hook',
+	! preg_match( '#register_activation_hook[\s\S]{0,300}?flush_rewrite_rules#', $boot_ma ), '' );
+t( '🔴 và cũng không flush trong register_deactivation_hook',
+	! preg_match( '#register_deactivation_hook[\s\S]{0,300}?flush_rewrite_rules#', $boot_ma ), '' );
+t( '🔴 kích hoạt chỉ ĐẶT CỜ',
+	(bool) preg_match( "#register_activation_hook[\s\S]{0,200}?update_option\( 'vhcpt_flush_rewrite'#", $boot_ma ), '' );
+t( '🔴 và lượt nạp lại luật nằm ở hook `init` ưu tiên MUỘN (>= 99)',
+	(bool) preg_match( "#add_action\( 'init', 'vhcpt_nap_lai_duong', (9[9]|[1-9]\d{2,}) \)#", $boot_ma ), '' );
+t( '🔴 đường dẫn khai ở `init`, KHÔNG ở `plugins_loaded`',
+	(bool) preg_match( "#add_action\( 'init', array\( 'VHCPT_App', 'init' \)#", $boot_ma )
+		&& ! preg_match( "#plugins_loaded[\s\S]{0,200}?VHCPT_App::init#", $boot_ma ), '' );
+/* ⚠️ Cờ phải được XOÁ sau khi dùng, không thì mỗi lượt tải trang là một lượt ghi lại cả bảng
+   luật — chậm dần và không ai biết vì sao. */
+t( '⚠️ dùng cờ xong thì xoá cờ',
+	(bool) preg_match( "#delete_option\( 'vhcpt_flush_rewrite' \);[\s\S]{0,120}?flush_rewrite_rules#", $boot_ma ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.

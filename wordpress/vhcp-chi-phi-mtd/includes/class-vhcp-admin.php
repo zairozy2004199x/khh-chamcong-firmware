@@ -8,7 +8,7 @@ class VHCPMTD_Admin {
 	const CAP = 'manage_options';
 
 	public static function menu() {
-		add_menu_page( 'Vận Hành Chi Phí', 'Vận Hành Chi Phí', self::CAP, 'vhcpmtd', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
+		add_menu_page( "Chi Phí MTD", "Chi Phí MTD", self::CAP, 'vhcpmtd', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
 		add_submenu_page( 'vhcpmtd', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcpmtd-import', array( __CLASS__, 'page_import' ) );
 		add_submenu_page( 'vhcpmtd', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcpmtd-sheet', array( __CLASS__, 'page_sheet' ) );
 		add_submenu_page( 'vhcpmtd', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcpmtd-settings', array( __CLASS__, 'page_settings' ) );

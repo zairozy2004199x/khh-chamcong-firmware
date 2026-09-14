@@ -281,6 +281,25 @@ t( '   slug menu wp-admin khác nhau (không thì chung cả màn Cài đặt)',
 	false !== strpos( $ad_v, "self::CAP, 'vhcp" . $MA . "'" ), '' );
 t( '   form trong wp-admin POST về màn CỦA CHÍNH NÓ',
 	false === strpos( $ad_v, "admin.php?page=vhcp'" ), '' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NHÃN MENU wp-admin PHẢI KHÁC NHAU — anh Thắng 14/09/2026, ảnh màn quản trị.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bốn dòng «Vận Hành Chi Phí» y hệt nhau trong menu bên trái, không biết dòng nào là mảng nào.
+ * Lượt đổi tiền tố ở script tách KHÔNG chạm tới nhãn, vì nhãn là chuỗi tiếng Việt không chứa
+ * chữ `vhcp`.
+ *
+ * ⚠️ Cái hại không phải xấu mắt: bấm nhầm dòng là mở màn Cấu hình của MẢNG KHÁC, rồi sửa danh
+ *    mục hay phân quyền ở đó mà tưởng đang sửa mảng mình. Không có gì báo, vì màn nào cũng
+ *    giống hệt màn nào.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+preg_match( '#add_menu_page\(\s*(["\'])(.*?)\1#', $ad_v, $nh_v );
+preg_match( '#add_menu_page\(\s*(["\'])(.*?)\1#', file_get_contents( $GOCP . '/includes/class-vhcp-admin.php' ), $nh_g );
+t( 'bốc được nhãn menu hai bên', ! empty( $nh_v[2] ) && ! empty( $nh_g[2] ), array( $nh_v, $nh_g ) );
+t( '🔴 nhãn menu KHÁC nhãn của bản gốc',
+	trim( $nh_v[2] ) !== trim( $nh_g[2] ), array( trim( $nh_v[2] ), trim( $nh_g[2] ) ) );
+t( '🔴 và nhãn mang MÃ của bản này (' . $MA . ')',
+	false !== mb_stripos( $nh_v[2], $MA ), $nh_v[2] );
+
 $up_v = file_get_contents( $DICH . '/includes/class-vhcp-upload.php' );
 t( '   thư mục ảnh tải lên khác nhau (không thì hai bản trộn ảnh chung)',
 	false !== strpos( $up_v, "const ROOT     = 'vhcp" . $MA . "'" ), '' );

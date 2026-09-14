@@ -8,7 +8,7 @@ class VHCPHN_Admin {
 	const CAP = 'manage_options';
 
 	public static function menu() {
-		add_menu_page( 'Vận Hành Chi Phí', 'Vận Hành Chi Phí', self::CAP, 'vhcphn', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
+		add_menu_page( 'Chi Phí HN', 'Chi Phí HN', self::CAP, 'vhcphn', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
 		add_submenu_page( 'vhcphn', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcphn-import', array( __CLASS__, 'page_import' ) );
 		add_submenu_page( 'vhcphn', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcphn-sheet', array( __CLASS__, 'page_sheet' ) );
 		add_submenu_page( 'vhcphn', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcphn-settings', array( __CLASS__, 'page_settings' ) );

@@ -127,6 +127,35 @@ if grep -qE "'chi-phi'|'chi-phi-kvc'" "$DICH/includes/class-vhcp-app.php"; then
   exit 3
 fi
 
+# ── Nhãn menu trong wp-admin ───────────────────────────────────────────────────────────────
+# 🔴 NHÃN MENU KHÔNG CHỨA CHỮ `vhcp`, NÊN LƯỢT ĐỔI TIỀN TỐ Ở TRÊN KHÔNG ĐỤNG TỚI NÓ.
+#    Anh Thắng 14/09/2026 gửi ảnh wp-admin: bốn dòng «Vận Hành Chi Phí» y hệt nhau trong menu
+#    bên trái, không biết dòng nào là mảng nào. Bốn bản cài chung một site thì mỗi bản có menu
+#    riêng (slug đã khác), nhưng NHÃN thì vẫn là cái chuỗi chép từ bản gốc.
+#
+# ⚠️ Cái hại không phải xấu mắt: bấm nhầm dòng là mở màn Cấu hình của MẢNG KHÁC, rồi sửa danh
+#    mục hay phân quyền ở đó mà tưởng đang sửa mảng mình. Không có gì báo, vì màn nào cũng
+#    giống hệt màn nào.
+#
+# ⚠️ NHÃN PHẢI NGẮN. Menu bên trái hẹp; nhét cả «Chi Phí — Máy Tự Động (MTD)» vào là nó xuống
+#    dòng hoặc bị cắt. Dùng «Chi Phí <MÃ HOA>», còn tên đầy đủ để ở tiêu đề trang.
+#
+# ⚠️ THAY BẤT KỲ NHÃN NÀO ĐANG CÓ, đừng tìm đúng một chuỗi. Bản đầu của khối này tìm nguyên văn
+#    'Vận Hành Chi Phí' — rồi bản gốc đổi nhãn thành 'Chi Phí KVC' và lượt thay lặng lẽ trượt,
+#    nên bản mới mang luôn nhãn 'Chi Phí KVC'. Sót kiểu ấy không kêu: nó chỉ hiện ra dưới dạng
+#    hai dòng menu giống nhau, đúng cái đang đi sửa.
+NHAN_MENU="Chi Phí $MA_HOA"
+export NHAN_MENU
+perl -pi -e '
+  s{add_menu_page\(\s*(["\x27])(?:(?!\1).)*\1\s*,\s*(["\x27])(?:(?!\2).)*\2}
+   {add_menu_page( "$ENV{NHAN_MENU}", "$ENV{NHAN_MENU}"}g;
+' "$DICH/includes/class-vhcp-admin.php"
+if ! grep -q "add_menu_page( \"Chi Phí $MA_HOA\", \"Chi Phí $MA_HOA\"" "$DICH/includes/class-vhcp-admin.php"; then
+  echo "✗ Nhãn menu chưa đổi — bản này sẽ trùng dòng menu với bản khác."
+  grep -n "add_menu_page(" "$DICH/includes/class-vhcp-admin.php" | head -3
+  exit 4
+fi
+
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
 #    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất
