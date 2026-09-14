@@ -16,6 +16,7 @@
 #   bash tren-host.sh                # làm cả ba việc, theo thứ tự
 #
 #   bash tren-host.sh soat           # chỉ xem đang có gì, KHÔNG ghi gì cả
+#   bash tren-host.sh khoa tatca     # MỘT lượt gõ, khai khoá cho CẢ MƯỜI MỘT bộ  ← nên dùng
 #   bash tren-host.sh khoa           # chỉ khai khoá GitHub
 #   bash tren-host.sh khoa vhcphn_gh_token    # khoá của BẢN VÙNG Hà Nội (site riêng)
 #   bash tren-host.sh capnhat        # chỉ bắt WordPress hỏi lại GitHub ngay
@@ -36,8 +37,14 @@ VIEC="${1:-tatca}"
 O_KHOA="${2:-vhcp_gh_token}"
 
 # Tám plugin trên cùng một site dùng chung một ô khoá; bản vùng có ô riêng.
-DS_PLUGIN="vhcp-chi-phi vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn"
-DS_NHO="vhcp vhcc vhg vhnb vhtc vhd vhda vhcphn"
+# ⚠️ THÊM MỘT BỘ THÌ THÊM VÀO CẢ HAI DÒNG. Anh Thắng 14/09/2026 tách chi phí theo mảng, nên
+#    nay có bốn bản chi phí: KVC (bản gốc) · MTD · VP · TỔNG. Mỗi bản một khoá GitHub riêng —
+#    bốn plugin cài chung một WordPress thì dùng chung khoá cấu hình là đổi bên này đổi luôn
+#    bên kia.
+DS_PLUGIN="vhcp-chi-phi vhcp-chi-phi-mtd vhcp-chi-phi-vp vhcp-chi-phi-tong vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn"
+DS_NHO="vhcp vhcpmtd vhcpvp vhcpt vhcc vhg vhnb vhtc vhd vhda vhcphn"
+# Ô khoá GitHub của từng bộ. Dùng cho cả lượt soát lẫn lượt khai "tatca".
+DS_O_KHOA="vhcp_gh_token vhcpmtd_gh_token vhcpvp_gh_token vhcpt_gh_token vhcc_gh_token vhg_gh_token vhnb_gh_token vhtc_gh_token vhd_gh_token vhda_gh_token vhcphn_gh_token"
 
 gach() { printf '─%.0s' $(seq 1 72); echo; }
 
@@ -89,7 +96,7 @@ viec_soat() {
 
   echo
   echo "▸ Khoá GitHub (chỉ nói CÓ hay KHÔNG, không in khoá ra):"
-  for o in vhcp_gh_token vhcphn_gh_token; do
+  for o in $DS_O_KHOA; do
     local v; v="$(wp option get "$o" 2>/dev/null || true)"
     if [ -n "$v" ]; then printf '    %-20s ĐÃ KHAI (%s ký tự)\n' "$o" "${#v}"
     else                 printf '    %-20s chưa khai\n' "$o"; fi
@@ -100,17 +107,40 @@ viec_soat() {
 # ══ VIỆC 2: KHAI KHOÁ ════════════════════════════════════════════════════════════════════════
 viec_khoa() {
   gach
-  echo "2. KHAI KHOÁ GITHUB  →  ô '$O_KHOA'"
-  gach
-  local cu; cu="$(wp option get "$O_KHOA" 2>/dev/null || true)"
-  if [ -n "$cu" ]; then
-    echo "Ô này ĐANG CÓ khoá (${#cu} ký tự). Dán khoá mới để thay, hoặc Enter suông để giữ nguyên."
+  # Khai cho MỘT ô, hay cho MỌI ô — chỉ khác nhau ở danh sách ô sẽ ghi, luồng hỏi khoá thì
+  # dùng chung. Viết hai luồng song song là hai chỗ phải sửa mỗi lần đổi luật soát khoá, và chỗ
+  # bị quên là chỗ nhận bừa một chuỗi hỏng.
+  local ds_ghi="$O_KHOA"
+  local nhieu=0
+  if [ "$O_KHOA" = "tatca" ]; then ds_ghi="$DS_O_KHOA"; nhieu=1; fi
+
+  if [ "$nhieu" = 1 ]; then
+    echo "2. KHAI KHOÁ GITHUB  →  MỌI BỘ (một lượt gõ, ghi vào tất cả các ô)"
   else
-    echo "Ô này chưa khai."
+    echo "2. KHAI KHOÁ GITHUB  →  ô '$O_KHOA'"
+  fi
+  gach
+  if [ "$nhieu" = 1 ]; then
+    # ⚠️ CÙNG MỘT KHOÁ CHO MỌI Ô LÀ CỐ Ý VÀ AN TOÀN: khoá chỉ đọc, trỏ đúng một kho. Cái phải
+    #    riêng là Ô — bốn plugin chi phí cài chung một WordPress, dùng chung Ô cấu hình là đổi
+    #    bên này đổi luôn bên kia.
+    echo "Sẽ ghi cùng một khoá vào:"
+    local _o; for _o in $ds_ghi; do printf '    · %s\n' "$_o"; done
     echo
     echo "Tạo khoá: GitHub → Settings → Developer settings → Fine-grained tokens"
     echo "          Only select repositories → khh-chamcong-firmware"
     echo "          Permissions → Contents → Read-only      ← đúng một mục này"
+  else
+    local cu; cu="$(wp option get "$O_KHOA" 2>/dev/null || true)"
+    if [ -n "$cu" ]; then
+      echo "Ô này ĐANG CÓ khoá (${#cu} ký tự). Dán khoá mới để thay, hoặc Enter suông để giữ nguyên."
+    else
+      echo "Ô này chưa khai."
+      echo
+      echo "Tạo khoá: GitHub → Settings → Developer settings → Fine-grained tokens"
+      echo "          Only select repositories → khh-chamcong-firmware"
+      echo "          Permissions → Contents → Read-only      ← đúng một mục này"
+    fi
   fi
   echo
   # 🔴 `-s`: gõ vào KHÔNG hiện lên màn hình. Một ảnh chụp lúc này là mất khoá.
@@ -131,13 +161,30 @@ viec_khoa() {
     echo "🔴 Chuỗi quá ngắn (${#khoa} ký tự) — nhiều khả năng dán thiếu. KHÔNG ghi gì."; return 1
   fi
 
-  wp option update "$O_KHOA" "$khoa" --quiet
-  local moi; moi="$(wp option get "$O_KHOA" 2>/dev/null || true)"
-  if [ "${#moi}" = "${#khoa}" ]; then
-    echo "✓ Đã khai (${#moi} ký tự)."
-  else
-    echo "🔴 Ghi xong nhưng đọc lại không khớp. Khai tay ở wp-admin → Cài đặt."; return 1
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  # MỘT LƯỢT GÕ, KHAI CHO MỌI BỘ — `khoa tatca`
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  # Anh Thắng 14/09/2026: *"kèm token chạy git auto cho anh luôn nhé"*. Nay có mười một bộ, mỗi
+  # bộ một ô khoá riêng (bốn plugin chi phí cài chung một WordPress thì dùng chung khoá cấu hình
+  # là đổi bên này đổi luôn bên kia). Bắt gõ mười một lượt thì lượt thứ tám là lượt bị bỏ, và bộ
+  # ấy im lặng không bao giờ thấy bản mới — không câu lỗi nào, chỉ là nó đứng yên mãi.
+  #
+  # ⚠️ `$ds_ghi` đã dựng ở đầu hàm — một ô, hay cả mười một.
+  local hong=0 xong=0 o moi
+  for o in $ds_ghi; do
+    wp option update "$o" "$khoa" --quiet
+    moi="$(wp option get "$o" 2>/dev/null || true)"
+    if [ "${#moi}" = "${#khoa}" ]; then
+      xong=$((xong+1)); printf '    ✓ %-22s đã khai (%s ký tự)\n' "$o" "${#moi}"
+    else
+      hong=$((hong+1)); printf '    🔴 %-22s ghi xong nhưng đọc lại không khớp\n' "$o"
+    fi
+  done
+  echo
+  if [ "$hong" -gt 0 ]; then
+    echo "🔴 $hong ô KHÔNG ghi được. Khai tay mấy ô ấy ở wp-admin → Cài đặt của từng bộ."; return 1
   fi
+  echo "✓ Xong $xong ô."
 }
 
 # ══ VIỆC 3: BẮT HỎI LẠI GITHUB NGAY ══════════════════════════════════════════════════════════

@@ -51,7 +51,14 @@ if ( '' === $MA ) {
 	foreach ( (array) glob( $GOC . '/wordpress/vhcp-chi-phi-*', GLOB_ONLYDIR ) as $d ) {
 		$ten_d = basename( $d );
 		$m_d   = substr( $ten_d, strlen( 'vhcp-chi-phi-' ) );
-		if ( '' !== $m_d ) { $cac[] = $m_d; }
+		if ( '' === $m_d ) { continue; }
+		/* 🔴 TRANG TỔNG KHÔNG PHẢI MỘT BẢN VÙNG, dù tên thư mục cùng dạng. Nó không sinh từ
+		   `tach-ban-vung.sh`, không có sổ chi phí của riêng nó, và cố ý KHÔNG mang những tệp bài
+		   này đi soi (màn Cấu hình, cổng nạp ảnh, bộ nhập liệu…). Soi nó bằng thước của bản vùng
+		   là đỏ oan — mà đỏ oan vài lần là người ta thôi đọc cái đỏ.
+		   Bài riêng của nó: `tools/test/kiem-trang-tong.php`. */
+		if ( 'tong' === $m_d ) { continue; }
+		$cac[] = $m_d;
 	}
 	sort( $cac );
 	if ( ! $cac ) {
