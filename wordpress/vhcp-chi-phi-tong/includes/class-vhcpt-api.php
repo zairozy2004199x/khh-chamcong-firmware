@@ -426,6 +426,9 @@ class VHCPT_Api {
 				'lam'    => ( null === $cho ) ? null : $cho,   // null = chưa khai (mọi mảng)
 				'vao'    => ! empty( $ng['vao'] ),
 				'coViec' => ! empty( $ng['coViec'] ),
+				/* Ca lệch đang ghi trong sổ ngoại lệ — để màn nói được VÌ SAO người này vào
+				   được (hay không), chứ không chỉ bày một ô tích câm. */
+				'ngoaiLe' => VHCPT_Auth::ngoai_le( $ng['ten'] ),
 				/* Vai ở từng mảng, để người khai nhìn ra ai là ai mà không phải mở bốn trang. */
 				'vai'    => array_map( function ( $b ) { return (string) $b['vai']; }, $ng['bans'] ),
 			);
@@ -453,9 +456,31 @@ class VHCPT_Api {
 		   trong sổ thì ngày mai thêm mảng thứ năm là người ấy lặng lẽ không thấy mảng mới. */
 		if ( count( $sach ) === count( $hop ) ) { $sach = array(); }
 		VHCPT_Auth::dat_mang_cua( $ten, $sach );
-		return array( 'ok' => true, 'message' => $sach
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * CỬA VÀO TRANG TỔNG — anh Thắng 14/09/2026: *"chưa cho cấu hình"*.
+		 *
+		 * ⚠️ CHỈ ĐỘNG VÀO KHI MÀN CÓ GỬI Ô TÍCH LÊN. Thiếu khoá `vao` mà vẫn ghi thì một bản màn
+		 *    cũ (hoặc một lượt gọi chỉ để bó mảng) sẽ lặng lẽ khoá cửa cả bảng.
+		 *
+		 * 🔴 SO VỚI LUẬT NỀN, KHÔNG SO VỚI TÌNH TRẠNG HIỆN TẠI. `co_viec_nao()` là luật nền;
+		 *    `duoc_vao()` đã trộn cả sổ ngoại lệ vào rồi nên đem nó ra so là sổ tự khẳng định
+		 *    chính nó — người đang ở sổ CHO-VÀO thì mãi mãi ở đó.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$tin_vao = '';
+		if ( array_key_exists( 'vao', (array) $args ) ) {
+			$bans = VHCPT_Auth::bans_theo_ten( $ten );
+			$nen  = VHCPT_Auth::co_viec_nao( $bans );
+			$cho  = ! empty( $args['vao'] ) && 'false' !== $args['vao'] && '0' !== (string) $args['vao'];
+			$ca   = VHCPT_Auth::dat_vao( $ten, $cho, $nen );
+			if ( 'them' === $ca )      { $tin_vao = ' Cho vào trang tổng (ngoài luật quyền).'; }
+			elseif ( 'chan' === $ca )  { $tin_vao = ' Chặn khỏi trang tổng.'; }
+			else                       { $tin_vao = $cho ? ' Vào được theo quyền sẵn có.' : ' Không có quyền nào nên vẫn không vào được.'; }
+		}
+
+		return array( 'ok' => true, 'message' => ( $sach
 			? ( 'Đã bó ' . $ten . ' vào ' . count( $sach ) . ' mảng.' )
-			: ( $ten . ' nay làm ở mọi mảng họ có tài khoản.' ) );
+			: ( $ten . ' nay làm ở mọi mảng họ có tài khoản.' ) ) . $tin_vao );
 	}
 
 	/**

@@ -111,6 +111,83 @@ teq( 'và có đúng hai form', 2, $mo );
 t( '🔴 form đầu ĐÓNG trước khi mở form bảng người',
 	(bool) preg_match( "#submit_button\(\);\s*echo '</form>';[\s\S]{0,2000}?Người vào trang tổng#u", $ad_sach ), '' );
 
+/* ═══ 6. MỞ / KHOÁ CỬA NGAY TRÊN MÀN CẤU HÌNH ═══════════════════════════════════
+ * Anh Thắng 14/09/2026, nhìn màn Cấu hình thấy hai chục dòng ghi *"không vào được trang tổng"*
+ * mà không sửa được: *"chưa cho cấu hình"*.
+ *
+ * 🔴 SỔ NGOẠI LỆ CHỈ GHI CA LỆCH. Nếu mỗi ô tích đều nhét một dòng vào sổ CHO-VÀO thì sổ ấy lớn
+ *    dần thành đúng cái "danh sách tên khai tay" mà luật nền sinh ra để tránh: ngày mai người ta
+ *    thôi làm kế toán, mất sạch quyền bên trang mảng, mà tên vẫn nằm trong sổ — vẫn vào được sổ
+ *    tiền của cả ba mảng.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+VHCPT_Auth::dat_so( VHCPT_Auth::O_THEM, array() );
+VHCPT_Auth::dat_so( VHCPT_Auth::O_CHAN, array() );
+
+/* Bốn ca của bảng chân trị: (muốn vào?) × (luật nền có cho?). */
+teq( '🔴 tích + nền ĐÃ cho vào -> không ghi sổ nào', '', VHCPT_Auth::dat_vao( 'Chị Kế Toán', true, true ) );
+teq( 'và tên không nằm ở sổ nào', '', VHCPT_Auth::ngoai_le( 'Chị Kế Toán' ) );
+teq( '🔴 tích + nền CHỐI -> ghi sổ cho-vào', 'them', VHCPT_Auth::dat_vao( 'Chị Giám Đốc 2', true, false ) );
+teq( '🔴 bỏ tích + nền CHO -> ghi sổ chặn', 'chan', VHCPT_Auth::dat_vao( 'Anh Nghỉ 2', false, true ) );
+teq( '🔴 bỏ tích + nền ĐÃ chối -> không ghi sổ nào', '', VHCPT_Auth::dat_vao( 'Nhân Viên B', false, false ) );
+teq( 'và tên ấy cũng không nằm ở sổ nào', '', VHCPT_Auth::ngoai_le( 'Nhân Viên B' ) );
+
+/* 🔴 KẾT QUẢ PHẢI ĐÚNG Ý NGƯỜI KHAI Ở CẢ BỐN CA — ô tích là một lời hứa. */
+foreach ( array(
+	array( 'Ca A', true,  true  ),
+	array( 'Ca B', true,  false ),
+	array( 'Ca C', false, true  ),
+	array( 'Ca D', false, false ),
+) as $ca ) {
+	list( $ten, $cho, $nen ) = $ca;
+	VHCPT_Auth::dat_vao( $ten, $cho, $nen );
+	teq( '🔴 ' . $ten . ': tích ' . var_export( $cho, true ) . ' / nền ' . var_export( $nen, true ) . ' -> vào được?',
+		$cho, VHCPT_Auth::duoc_vao( ban( $nen ? array( 'duyet' ) : array() ), $ten ) );
+}
+
+/* ⚠️ ĐỔI Ý PHẢI GỠ ĐƯỢC. Chỉ thêm mà không gỡ thì một người từng bị chặn sẽ bị chặn mãi, kể cả
+   sau khi người khai tích lại — và không ai hiểu vì sao ô tích không ăn. */
+VHCPT_Auth::dat_vao( 'Đổi Ý', false, true );
+teq( '⚠️ chặn rồi tích lại -> gỡ khỏi sổ chặn', '', VHCPT_Auth::dat_vao( 'Đổi Ý', true, true ) );
+teq( 'và vào lại được', true, VHCPT_Auth::duoc_vao( ban( array( 'duyet' ) ), 'Đổi Ý' ) );
+VHCPT_Auth::dat_vao( 'Đổi Ý 2', true, false );
+teq( '⚠️ cho vào rồi bỏ tích -> gỡ khỏi sổ cho-vào', '', VHCPT_Auth::dat_vao( 'Đổi Ý 2', false, false ) );
+
+/* ⚠️ KHÔNG ĐỨNG CẢ HAI SỔ. Đứng cả hai thì `duoc_vao()` đọc sổ CHẶN trước, và người khai sẽ thấy
+   ô tích của mình không có tác dụng gì mà không có lời giải thích nào. */
+VHCPT_Auth::dat_so( VHCPT_Auth::O_THEM, array( 'Hai Chỗ' ) );
+VHCPT_Auth::dat_vao( 'Hai Chỗ', false, true );
+t( '⚠️ ghi sổ chặn thì gỡ luôn khỏi sổ cho-vào',
+	! in_array( 'hai chỗ', VHCPT_Auth::so( VHCPT_Auth::O_THEM ), true ), VHCPT_Auth::so( VHCPT_Auth::O_THEM ) );
+VHCPT_Auth::dat_so( VHCPT_Auth::O_CHAN, array( 'Hai Chỗ 2' ) );
+VHCPT_Auth::dat_vao( 'Hai Chỗ 2', true, false );
+t( '⚠️ ghi sổ cho-vào thì gỡ luôn khỏi sổ chặn',
+	! in_array( 'hai chỗ 2', VHCPT_Auth::so( VHCPT_Auth::O_CHAN ), true ), VHCPT_Auth::so( VHCPT_Auth::O_CHAN ) );
+
+teq( 'tên rỗng thì không ghi gì', '', VHCPT_Auth::dat_vao( '   ', true, false ) );
+
+/* ═══ 7. CỬA ẤY NỐI ĐƯỢC RA MÀN ═════════════════════════════════════════════════ */
+t( '🔴 luuCauHinh chỉ động vào cửa khi màn CÓ gửi ô tích lên',
+	(bool) preg_match( '#array_key_exists\( .vao., \(array\) \\$args \)#', $api ), '' );
+/* 🔴 So với LUẬT NỀN, không so với tình trạng hiện tại: `duoc_vao()` đã trộn sổ ngoại lệ vào rồi
+   nên đem nó ra so là sổ tự khẳng định chính nó — người đang ở sổ cho-vào thì mãi ở đó. */
+t( '🔴 và so với co_viec_nao(), KHÔNG so với duoc_vao()',
+	(bool) preg_match( '#\\$nen\s*=\s*VHCPT_Auth::co_viec_nao\(#', $api )
+	&& ! preg_match( '#\\$nen\s*=\s*VHCPT_Auth::duoc_vao\(#', $api ), '' );
+t( 'màn cấu hình trả về ca lệch đang ghi', false !== mb_strpos( $api, 'ngoai_le(' ), '' );
+
+$app = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-tong/templates/app.html' );
+$app_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $app );
+t( '🔴 bảng cấu hình có cột Vào trang tổng', false !== mb_strpos( $app_ma, 'Vào trang tổng' ), '' );
+t( '🔴 mỗi dòng có ô tích cửa vào', (bool) preg_match( '#data-vao="#', $app_ma ), '' );
+/* 🔴 Admin bỏ tích chính mình là mất luôn đường quay lại — chỗ mở ra chỉ còn trong wp-admin. */
+t( '🔴 màn nhận ra dòng của chính người đang khai',
+	(bool) preg_match( '#var toi = \( TOI && TOI\.ten#', $app_ma ), '' );
+t( '🔴 và khoá ô tích của dòng ấy lại',
+	(bool) preg_match( "#toi \? ' disabled#", $app_ma ), '' );
+/* ⚠️ `disabled` chỉ chặn ngón tay, không chặn vòng lặp gom — gom cả ô khoá là vẫn ghi đè. */
+t( '⚠️ và ô bị khoá KHÔNG được gom vào lượt gửi',
+	(bool) preg_match( '#data-vao\]?.\), function\(n\)\{\s*if \(n\.disabled\) return;#', $app_ma ), '' );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

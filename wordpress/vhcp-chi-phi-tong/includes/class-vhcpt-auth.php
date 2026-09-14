@@ -324,6 +324,61 @@ class VHCPT_Auth {
 	}
 
 	/**
+	 * MỞ / KHOÁ CỬA VÀO TRANG TỔNG CHO MỘT NGƯỜI.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, nhìn màn Cấu hình thấy hai chục dòng ghi *"không vào được trang
+	 * tổng"* mà không sửa được: *"chưa cho cấu hình"*. Trước nay hai sổ ngoại lệ chỉ sửa được
+	 * trong wp-admin — bảng ngoài trang bày ra tình trạng rồi để người xem chịu.
+	 *
+	 * 🔴 SỔ NGOẠI LỆ CHỈ GHI CA LỆCH, KHÔNG GHI CẢ DANH SÁCH. Luật nền vẫn là theo QUYỀN
+	 *    (`duoc_vao()`): ai có việc xử lý đơn ở bất kỳ mảng nào thì vào được, không ai phải khai
+	 *    gì. Nếu mỗi ô tích đều nhét một dòng vào sổ CHO-VÀO thì sổ ấy lớn dần thành đúng cái
+	 *    "danh sách tên khai tay" mà `duoc_vao()` sinh ra để tránh — và ngày mai người ta thôi
+	 *    làm kế toán, tên vẫn nằm đó, vẫn vào được sổ tiền.
+	 *
+	 *    Nên: tích mà luật nền ĐÃ cho vào → không ghi gì; bỏ tích mà luật nền ĐÃ chối → cũng
+	 *    không ghi gì. Sổ chỉ giữ đúng hai ca người khai thật sự đi ngược luật nền.
+	 *
+	 * ⚠️ MỘT NGƯỜI KHÔNG ĐỨNG Ở CẢ HAI SỔ. Đứng cả hai thì `duoc_vao()` đọc sổ CHẶN trước và
+	 *    người khai sẽ thấy ô tích của mình không có tác dụng gì. Nên mỗi lượt ghi đều gỡ tên
+	 *    khỏi sổ kia.
+	 *
+	 * @param string $ten Tên người, đúng như trong sổ người dùng của bản.
+	 * @param bool   $cho Người khai muốn người ấy vào được hay không.
+	 * @param bool   $nen Luật nền (theo quyền) có cho vào không — `co_viec_nao()`.
+	 * @return string Ca đã ghi: 'them' · 'chan' · '' (theo luật nền, không ngoại lệ).
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function dat_vao( $ten, $cho, $nen ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return ''; }
+		$them = self::so( self::O_THEM );
+		$chan = self::so( self::O_CHAN );
+		$bo   = function ( $ds ) use ( $k ) {
+			$ra = array();
+			foreach ( (array) $ds as $x ) { if ( $x !== $k ) { $ra[] = $x; } }
+			return $ra;
+		};
+		$them = $bo( $them );
+		$chan = $bo( $chan );
+		$ca   = '';
+		if ( $cho && ! $nen )      { $them[] = $k; $ca = 'them'; }
+		elseif ( ! $cho && $nen )  { $chan[] = $k; $ca = 'chan'; }
+		self::dat_so( self::O_THEM, $them );
+		self::dat_so( self::O_CHAN, $chan );
+		return $ca;
+	}
+
+	/** Người này đang đứng ở sổ ngoại lệ nào: 'them' · 'chan' · '' (không sổ nào). */
+	public static function ngoai_le( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return ''; }
+		if ( in_array( $k, self::so( self::O_CHAN ), true ) ) { return 'chan'; }
+		if ( in_array( $k, self::so( self::O_THEM ), true ) ) { return 'them'; }
+		return '';
+	}
+
+	/**
 	 * MỌI NGƯỜI CỦA MỌI MẢNG — cho màn cấu hình trong wp-admin.
 	 *
 	 * 🔴 KHÔNG TRẢ PIN RA. Màn này chạy trong wp-admin, nhưng luật vẫn là luật: PIN không rời

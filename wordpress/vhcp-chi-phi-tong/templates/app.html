@@ -1556,13 +1556,27 @@ function veCauHinh(){
     '<b>phạm vi mảng</b> — người có tài khoản ở nhiều mảng thì làm việc trên trang này ở mảng nào.</p>' +
     '<p class="nho mo">Bỏ tích một mảng = người ấy <b>không thấy và không bấm được</b> đơn của mảng ' +
     'đó trên trang tổng. <b>Tích hết = không bó gì</b> — mảng mới thêm sau này họ cũng thấy luôn.</p>' +
+    '<p class="nho mo">Cột <b>Vào trang tổng</b> mở cửa cho người cần theo dõi mà chưa có quyền xử lý ' +
+    'đơn nào (giám đốc, kế toán đang bàn giao), hoặc khoá lại người có quyền mà không cần vào đây. ' +
+    'Ai đã có quyền duyệt · cấp tiền · quyết toán · xuất MISA ở một mảng thì <b>tự vào được</b>, ' +
+    'không phải khai.</p>' +
     '<div class="cuon" style="margin-top:10px"><table><thead><tr><th>Người</th>' +
+    '<th style="text-align:center">Vào trang tổng</th>' +
     bans.map(function(b){ return '<th style="text-align:center">'+esc(b.ten)+'</th>'; }).join('') +
     '<th>Vai ở từng mảng</th></tr></thead><tbody>';
 
   (k.ds||[]).forEach(function(x, i){
     h += '<tr><td><b>'+esc(x.ten)+'</b>' +
       ( x.vao ? '' : '<div class="nho" style="color:#b45309">không vào được trang tổng</div>' ) + '</td>';
+
+    /* ⚠️ KHÔNG CHO TỰ KHOÁ MÌNH. Màn này chỉ Admin mở được; Admin bỏ tích chính mình là mất
+       luôn đường quay lại, và chỗ mở ra chỉ còn nằm trong wp-admin. */
+    var toi = ( TOI && TOI.ten && TOI.ten.toLowerCase() === String(x.ten||'').toLowerCase() );
+    h += '<td style="text-align:center">' +
+      '<input type="checkbox" data-vao="'+i+'"'+( x.vao ? ' checked' : '' ) +
+      ( toi ? ' disabled title="Không tự khoá cửa của chính mình được"' : '' ) + '>' +
+      '<div class="nho mo">'+esc(viCo(x, toi))+'</div></td>';
+
     bans.forEach(function(b){
       var coMat = (x.coMat||[]).indexOf(b.ban) >= 0;
       /* ⚠️ KHÔNG CÓ TÀI KHOẢN Ở MẢNG ẤY THÌ KHÔNG CÓ Ô TÍCH. Bày ô rồi tích vào cũng không mở
@@ -1586,6 +1600,15 @@ function veCauHinh(){
   o.innerHTML = h;
 
   document.getElementById('chLuu').onclick = function(){ luuCauHinh(); };
+}
+
+/* Vì sao người này vào được (hay không) — người khai cần đọc ra LÝ DO, vì bỏ tích một người
+   đang vào theo quyền và bỏ tích một người vốn đã không vào là hai việc khác hẳn nhau. */
+function viCo(x, toi){
+  if (toi) return 'chính mình';
+  if (x.ngoaiLe === 'them') return 'cho vào thêm';
+  if (x.ngoaiLe === 'chan') return 'đang bị chặn';
+  return x.coViec ? 'theo quyền sẵn có' : 'chưa có quyền nào';
 }
 
 function tenBanNgan(bans, khoa){
@@ -1617,8 +1640,27 @@ function luuCauHinh(){
     if (!gom[i]) gom[i] = [];
     if (n.checked) gom[i].push(n.getAttribute('data-ban'));
   });
+  /* Ô tích cửa vào đi cùng chuyến với ô tích mảng: một người một lượt ghi, không để hai lượt
+     gọi cho một dòng rồi lượt sau hỏng mà lượt trước đã ghi. */
+  var vao = {};
+  Array.prototype.forEach.call(o.querySelectorAll('input[type=checkbox][data-vao]'), function(n){
+    /* ⚠️ Ô BỊ KHOÁ (chính mình) KHÔNG GỬI. `disabled` chỉ chặn được ngón tay, không chặn được
+       vòng lặp này — gom cả nó là máy chủ vẫn ghi đè cửa của chính người đang khai. */
+    if (n.disabled) return;
+    vao[n.getAttribute('data-vao')] = n.checked ? 1 : 0;
+  });
   var ds = CH.kq.ds || [], can = [];
-  Object.keys(gom).forEach(function(i){ if (ds[+i]) can.push({ ten: ds[+i].ten, mang: gom[i] }); });
+  /* Gộp khoá của cả hai sổ ô tích: một người chỉ có ô cửa vào mà không có ô mảng nào (mảng của
+     họ đã bị gỡ khỏi trang) thì vẫn phải lưu được cửa vào cho họ. */
+  var khoa = {};
+  Object.keys(gom).forEach(function(i){ khoa[i] = 1; });
+  Object.keys(vao).forEach(function(i){ khoa[i] = 1; });
+  Object.keys(khoa).forEach(function(i){
+    if (!ds[+i]) return;
+    var x = { ten: ds[+i].ten, mang: gom[i] || [] };
+    if (vao[i] !== undefined) x.vao = vao[i];
+    can.push(x);
+  });
   if (!can.length) return;
 
   var tin = document.getElementById('chTin');
