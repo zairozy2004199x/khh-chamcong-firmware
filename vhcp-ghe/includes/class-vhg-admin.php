@@ -281,6 +281,42 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Tem QR dán ghế', 'Tem QR dán ghế', self::CAP, 'vhg-tem', array( __CLASS__, 'trang_tem' ) );
 		add_submenu_page( 'vhg', 'Chốt tiền (chỉ số ghế)', 'Chốt tiền (chỉ số ghế)', self::CAP, 'vhg-chottien', array( __CLASS__, 'trang_chottien' ) );
 		add_submenu_page( 'vhg', 'Nạp file firmware', 'Nạp file firmware', self::CAP, 'vhg-fw', array( __CLASS__, 'trang_fw' ) );
+		add_submenu_page( 'vhg', 'Tự cập nhật', 'Tự cập nhật', self::CAP, 'vhg-capnhat', array( __CLASS__, 'trang_capnhat' ) );
+	}
+
+	/**
+	 * TỰ CẬP NHẬT — xem bản đang chạy, bản mới trên GitHub, và bấm "Kiểm tra ngay".
+	 * WordPress cũng tự kiểm định kỳ; trang này chỉ để không phải chờ, và để nhìn thấy trạng thái.
+	 */
+	public static function trang_capnhat() {
+		self::gac();
+		if ( ! class_exists( 'VHG_TuCapNhat' ) ) { echo '<div class="wrap"><p>Chưa nạp được bộ tự cập nhật.</p></div>'; return; }
+		$da_kiem = false;
+		if ( isset( $_POST['vhg_kiem'] ) ) {
+			check_admin_referer( 'vhg' );
+			VHG_TuCapNhat::quen_nho();
+			$da_kiem = true;
+		}
+		$moi = VHG_TuCapNhat::ban_moi( $da_kiem );   // bấm kiểm -> bỏ qua bộ nhớ, hỏi GitHub ngay
+		echo '<div class="wrap"><h1>Tự cập nhật vhcp-ghe</h1>';
+		echo '<table class="widefat" style="max-width:640px;margin-top:12px"><tbody>';
+		echo '<tr><td style="width:220px"><b>Bản đang chạy</b></td><td>v' . esc_html( VHG_VERSION ) . '</td></tr>';
+		if ( $moi ) {
+			echo '<tr><td><b>Bản mới trên GitHub</b></td><td><b style="color:#166534">v' . esc_html( $moi['ver'] )
+				. '</b> — có bản mới để nâng cấp</td></tr>';
+			echo '<tr><td></td><td><a class="button button-primary" href="' . esc_url( admin_url( 'update-core.php' ) )
+				. '">Ra trang Cập nhật để bấm "Cập nhật ngay"</a></td></tr>';
+		} else {
+			echo '<tr><td><b>Bản mới trên GitHub</b></td><td>Đang là bản mới nhất (không có bản nào cao hơn để nâng).</td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<form method="post" style="margin-top:14px">';
+		wp_nonce_field( 'vhg' );
+		echo '<button class="button" name="vhg_kiem" value="1">↻ Kiểm tra ngay</button>';
+		echo '</form>';
+		echo '<p class="description" style="margin-top:12px">Bộ này CHỈ nâng lên bản cao hơn, không bao giờ tự hạ bản. '
+			. 'Nguồn: nhánh <code>' . esc_html( VHG_TuCapNhat::NHANH ) . '</code> của repo công khai — không cần token.</p>';
+		echo '</div>';
 	}
 
 	// ======================================================================= tiện ích chung

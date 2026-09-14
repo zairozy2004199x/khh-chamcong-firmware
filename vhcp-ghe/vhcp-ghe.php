@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           2.71.1
+ * Version:           2.72.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '2.71.1' );
+define( 'VHG_VERSION', '2.72.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -71,6 +71,9 @@ require_once VHG_DIR . 'includes/class-vhg-trang.php';
 require_once VHG_DIR . 'includes/class-vhg-shop.php';
 require_once VHG_DIR . 'includes/class-vhg-fw.php';
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
+/* Tự cập nhật từ GitHub — hiện nút "Cập nhật" ở màn Plugin, CHỈ nâng bản, không lùi. */
+require_once VHG_DIR . 'includes/class-vhg-tu-cap-nhat.php';
+VHG_TuCapNhat::init();
 
 register_activation_hook( __FILE__, array( 'VHG_DB', 'install' ) );
 
@@ -80,6 +83,9 @@ function vhg_maybe_upgrade() {
 		VHG_DB::install();
 		update_option( 'vhg_ver', VHG_VERSION );
 		update_option( 'vhg_flush_rewrite', 1 );
+		/* Vừa lên bản mới thì quên kết quả hỏi GitHub cũ đi, để lần sau hỏi lại từ đầu (khỏi
+		   còn báo "có bản mới" cho bản mình vừa cài xong). */
+		if ( class_exists( 'VHG_TuCapNhat' ) ) { VHG_TuCapNhat::quen_nho(); }
 	}
 }
 
