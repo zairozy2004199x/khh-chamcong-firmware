@@ -174,6 +174,25 @@ class VHCP_Auth {
 	public static function doi_ma_sang_ten( $x ) {
 		$k = mb_strtolower( trim( (string) $x ) );
 		if ( '' === $k ) { return (string) $x; }
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * SỔ MÃ GỌI TẮT — tra TRƯỚC danh mục, vì đây là chỗ người ta khai TAY cho đúng ca lệch.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026: ô Cơ sở khai `TUTU_BD`, còn đơn ghi `TÀU BÌNH DƯƠNG` — *"rất
+		 * nhiều đơn chi tutu bd"*. Hai chuỗi ấy là CÙNG MỘT GIAN, nhưng không quy tắc chuỗi nào
+		 * suy ra được (`TÀU` không phải `TUTU`, `BD` không nằm trong tên). Máy phải được một
+		 * người nói cho biết, đúng một lần — và đó là sổ này.
+		 *
+		 * 🔴 TRA SỔ NÀY TRƯỚC `so_coso()`. Danh mục cơ sở ở nhiều bản còn rỗng (*"làm gì có danh
+		 *    mục cơ sở"*), nên nếu để sau thì `if ( ! $ds ) return` ở dưới thoát sớm và sổ này
+		 *    không bao giờ được hỏi tới — đúng cái bẫy khiến bản 1.175.0 không cứu được ca này.
+		 *
+		 * ⚠️ Sổ khai trong Cấu hình chi phí, là CẤU HÌNH NỘI BỘ của trang này — không đụng danh
+		 *    mục nào bên ngoài, đúng như anh chốt.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$tat = self::so_ma_tat();
+		if ( isset( $tat[ $k ] ) ) { return $tat[ $k ]; }
+
 		$ds = self::so_coso();
 		if ( ! $ds ) { return (string) $x; }
 		/* Trùng đúng TÊN thường gọi thì thôi, khỏi tra gì thêm. */
@@ -202,6 +221,68 @@ class VHCP_Auth {
 			if ( '' !== $x ) { $ra[] = self::doi_ma_sang_ten( $x ); }
 		}
 		return implode( ', ', $ra );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * SỔ MÃ GỌI TẮT CỦA CƠ SỞ — "TUTU_BD = TÀU BÌNH DƯƠNG".
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Mỗi dòng một cặp `mã|tên cơ sở`, cất trong bảng meta của chính trang chi phí.
+	 *
+	 * ⚠️ KHOÁ LÀ MÃ ĐÃ HẠ CHỮ THƯỜNG, để `TUTU_BD`, `tutu_bd`, ` Tutu_Bd ` cùng trúng một dòng —
+	 *    ô Cơ sở là chỗ gõ tay, và người gõ tay thì gõ mỗi lúc một kiểu.
+	 *
+	 * ⚠️ MỘT MÃ CHỈ DẪN TỚI MỘT TÊN. Khai hai dòng cùng mã thì dòng sau đè dòng trước — thà đè
+	 *    hẳn còn hơn giữ cả hai rồi phải đoán, mà đoán ở chốt phân quyền là mở nhầm cửa.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const O_MA_TAT = 'ma_tat_coso';
+	private static $so_tat = null;
+	public static function so_ma_tat() {
+		if ( null !== self::$so_tat ) { return self::$so_tat; }
+		self::$so_tat = array();
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! class_exists( 'VHCP_Meta' ) || ! method_exists( 'VHCP_Meta', 'get' ) ) { return self::$so_tat; }
+		$raw = (string) call_user_func( array( 'VHCP_Meta', 'get' ), self::O_MA_TAT, '' );
+		foreach ( preg_split( '/\r\n|\r|\n/', $raw ) as $dong ) {
+			$dong = trim( (string) $dong );
+			if ( '' === $dong || false === mb_strpos( $dong, '|' ) ) { continue; }
+			list( $ma, $ten ) = array_pad( explode( '|', $dong, 2 ), 2, '' );
+			$ma  = mb_strtolower( trim( $ma ) );
+			$ten = trim( $ten );
+			if ( '' === $ma || '' === $ten ) { continue; }
+			self::$so_tat[ $ma ] = $ten;
+		}
+		return self::$so_tat;
+	}
+
+	/** Ghi lại sổ mã gọi tắt. Nhận nguyên khối chữ, mỗi dòng `mã|tên cơ sở`. */
+	public static function dat_ma_tat( $raw ) {
+		$sach = array();
+		foreach ( preg_split( '/\r\n|\r|\n/', (string) $raw ) as $dong ) {
+			$dong = trim( (string) $dong );
+			if ( '' === $dong || false === mb_strpos( $dong, '|' ) ) { continue; }
+			list( $ma, $ten ) = array_pad( explode( '|', $dong, 2 ), 2, '' );
+			$ma  = trim( $ma );
+			$ten = trim( $ten );
+			if ( '' === $ma || '' === $ten ) { continue; }
+			$sach[] = $ma . '|' . $ten;
+		}
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHCP_Meta' ) && method_exists( 'VHCP_Meta', 'set' ) ) {
+			call_user_func( array( 'VHCP_Meta', 'set' ), self::O_MA_TAT, implode( "\n", $sach ) );
+		}
+		self::$so_tat = null;   // đọc lại ở lượt sau
+		return count( $sach );
+	}
+
+	/* Hai cổng cho màn Cấu hình. Trả nguyên khối chữ đúng như người ta đã gõ, để sửa tiếp được. */
+	public static function doc_ma_tat_api() {
+		$ds = array();
+		foreach ( self::so_ma_tat() as $ma => $ten ) { $ds[] = $ma . '|' . $ten; }
+		return array( 'success' => true, 'raw' => implode( "\n", $ds ), 'so' => count( $ds ) );
+	}
+	public static function luu_ma_tat_api( $raw ) {
+		$n = self::dat_ma_tat( $raw );
+		return array( 'success' => true, 'so' => $n, 'message' => 'Đã lưu ' . $n . ' mã gọi tắt.' );
 	}
 
 	/** Danh mục cơ sở rút gọn: tên · mã đơn vị · tên theo MISA. Đọc một lần mỗi lượt gọi. */

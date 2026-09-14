@@ -256,6 +256,59 @@ foreach ( array( 'chan_bp', 'chan_pv', 'chan_dv' ) as $bien ) {
 }
 t( '⚠️ và gửi ba con số ấy xuống màn', false !== strpos( $don_ma, "'daChan'" ), '' );
 
+/* ═══ 6. SỔ MÃ GỌI TẮT — "TUTU_BD = TÀU BÌNH DƯƠNG" ════════════════════════════
+ * Anh Thắng 14/09/2026: ô Cơ sở khai `TUTU_BD`, đơn ghi `TÀU BÌNH DƯƠNG` — *"rất nhiều đơn chi
+ * tutu bd"*. Cùng một gian, nhưng không quy tắc chuỗi nào suy ra được (`TÀU` không phải `TUTU`,
+ * `BD` không nằm trong tên). Máy phải được một người nói cho biết, đúng một lần.
+ *
+ * 🔴 TRA SỔ NÀY TRƯỚC DANH MỤC. Danh mục cơ sở ở nhiều bản còn rỗng (*"làm gì có danh mục cơ
+ *    sở"*), nên để sau là nhánh "danh mục rỗng thì trả nguyên chuỗi" thoát sớm và sổ không bao
+ *    giờ được hỏi tới — đúng cái bẫy khiến bản 1.175.0 không cứu được ca này.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$p_tat = $ref->getProperty( 'so_tat' );
+$p_tat->setAccessible( true );
+$p_tat->setValue( null, array( 'tutu_bd' => 'TÀU BÌNH DƯƠNG', 'fz_ltvt' => 'FUNZONE LTVT' ) );
+$p->setValue( null, array() );   // danh mục cơ sở RỖNG — đúng hiện trạng bản chạy thật
+
+teq( '🔴 mã gọi tắt ra đúng tên cơ sở', 'TÀU BÌNH DƯƠNG', VHCP_Auth::doi_ma_sang_ten( 'TUTU_BD' ) );
+teq( '🔴 và tra được KỂ CẢ khi danh mục cơ sở rỗng',
+	'FUNZONE LTVT', VHCP_Auth::doi_ma_sang_ten( 'FZ_LTVT' ) );
+teq( 'không phân biệt hoa thường', 'TÀU BÌNH DƯƠNG', VHCP_Auth::doi_ma_sang_ten( 'tutu_bd' ) );
+teq( 'khoảng trắng thừa cũng bỏ qua', 'TÀU BÌNH DƯƠNG', VHCP_Auth::doi_ma_sang_ten( '  TUTU_BD ' ) );
+teq( '⚠️ mã chưa khai thì vẫn trả nguyên chuỗi', 'LẠ HOẮC', VHCP_Auth::doi_ma_sang_ten( 'LẠ HOẮC' ) );
+
+/* 🔴 ĐÚNG CA CỦA ANH THẮNG, ĐẦU ĐẾN CUỐI: tài khoản khai mã, đơn ghi tên đầy đủ, danh mục rỗng. */
+nap_users( $p_memo, array( array( 'ten' => 'Thuỳ Dương', 'coso' => 'TUTU_BD' ) ) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Thuỳ Dương', 'TUTU_BD', '', '' );
+t( '🔴 khai bằng mã gọi tắt -> thấy đơn của gian ấy',
+	VHCP_Auth::trong_tam( 'Trương Thanh Lâm', 'TÀU BÌNH DƯƠNG' ), '' );
+t( '🔴 nhưng KHÔNG thấy gian khác',
+	! VHCP_Auth::trong_tam( 'Trương Thanh Lâm', 'FUNZONE LTVT' ), '' );
+
+/* ═══ 6b. ĐỌC / GHI SỔ ═════════════════════════════════════════════════════════ */
+$p_tat->setValue( null, null );
+teq( '🔴 ghi sổ: bỏ dòng rỗng và dòng thiếu dấu |', 2,
+	VHCP_Auth::dat_ma_tat( "TUTU_BD|TÀU BÌNH DƯƠNG\n\n  \nkhông có gạch đứng\nFZ_LTVT|FUNZONE LTVT\n" ) );
+teq( 'và đọc lại ra đúng cặp', 'TÀU BÌNH DƯƠNG', VHCP_Auth::doi_ma_sang_ten( 'TUTU_BD' ) );
+/* ⚠️ Một mã chỉ dẫn tới MỘT tên — khai hai dòng cùng mã thì dòng dưới đè dòng trên, thà đè hẳn
+   còn hơn giữ cả hai rồi phải đoán; đoán ở chốt phân quyền là mở nhầm cửa. */
+VHCP_Auth::dat_ma_tat( "X|GIAN A\nX|GIAN B" );
+teq( '⚠️ hai dòng cùng mã -> dòng dưới đè dòng trên', 'GIAN B', VHCP_Auth::doi_ma_sang_ten( 'X' ) );
+/* ⚠️ Tên cơ sở có dấu gạch đứng trong tên thì chỉ tách ở dấu ĐẦU TIÊN. */
+VHCP_Auth::dat_ma_tat( 'Y|GIAN A | B' );
+teq( '⚠️ chỉ tách ở dấu | đầu tiên', 'GIAN A | B', VHCP_Auth::doi_ma_sang_ten( 'Y' ) );
+VHCP_Auth::dat_ma_tat( '' );
+teq( '⚠️ xoá sạch sổ thì trả nguyên chuỗi', 'TUTU_BD', VHCP_Auth::doi_ma_sang_ten( 'TUTU_BD' ) );
+
+/* 🔴 KHAI SỔ NÀY LÀ MỞ MỘT CỬA PHÂN QUYỀN — thêm một dòng là mọi tài khoản giữ mã ấy nhìn thấy
+   sổ tiền của gian ấy. Nên máy chủ phải chốt chỉ Admin. */
+$api_ma2 = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' ) );
+t( '🔴 chỉ Admin lưu được sổ mã gọi tắt',
+	(bool) preg_match( '#\\$admin_only = array\( .luuMaTatCoso.#', $api_ma2 ), '' );
+t( '⚠️ và hai cổng đọc/ghi có khai trong bảng hàm',
+	false !== strpos( $api_ma2, "'docMaTatCoso'" ) && false !== strpos( $api_ma2, "'luuMaTatCoso'" ), '' );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

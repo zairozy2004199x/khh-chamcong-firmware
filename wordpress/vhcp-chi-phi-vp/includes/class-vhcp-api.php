@@ -33,7 +33,11 @@ class VHCPVP_API {
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
+		/* 🔴 SỔ MÃ GỌI TẮT LÀ MỘT CỬA PHÂN QUYỀN. Khai thêm một dòng `MÃ|CƠ SỞ` là mở cho mọi tài
+		   khoản đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên chỉ Admin, ngang hàng với
+		   mấy việc đụng thẳng vào số liệu bên dưới. */
+		$admin_only = array( 'luuMaTatCoso',
+			'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
 			'donBuTruCu',
 			/* Đặt lại mốc một tuần ("tuần này chạy từ ngày nào đến ngày nào") — anh Thắng chốt
@@ -216,6 +220,10 @@ class VHCPVP_API {
 			'dsKyDangCo'            => array( 'VHCPVP_Don', 'ds_ky_dang_co' ),
 			'undoConfig'            => array( 'VHCPVP_Cfg', 'undo_config' ),
 			'getUsers'              => array( 'VHCPVP_Cfg', 'get_users' ),
+			/* Sổ mã gọi tắt của cơ sở — "TUTU_BD = TÀU BÌNH DƯƠNG". Xem khối dài ở
+			   `VHCPVP_Auth::so_ma_tat()`. */
+			'docMaTatCoso'          => array( 'VHCPVP_Auth', 'doc_ma_tat_api' ),
+			'luuMaTatCoso'          => array( 'VHCPVP_Auth', 'luu_ma_tat_api' ),
 			'listUserBak'           => array( 'VHCPVP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCPVP_Cfg', 'khoi_phuc_users' ),
 			'cosoLa'                => array( 'VHCPVP_Cfg', 'coso_la' ),

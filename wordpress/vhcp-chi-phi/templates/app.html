@@ -1432,6 +1432,35 @@
       <datalist id="dl_tinh"></datalist>
     </div>
 
+    <!-- ============ MÃ GỌI TẮT CỦA CƠ SỞ ============
+         Anh Thắng 14/09/2026: ô Cơ sở của một tài khoản khai `TUTU_BD`, còn đơn thì ghi
+         `TÀU BÌNH DƯƠNG` — *"rất nhiều đơn chi tutu bd"*. Hai chuỗi ấy là CÙNG MỘT GIAN, nhưng
+         không quy tắc chuỗi nào suy ra được: `TÀU` không phải `TUTU`, `BD` không nằm trong tên.
+         Máy phải được một người nói cho biết, đúng một lần — và đây là chỗ nói.
+
+         🔴 KHAI MỘT LẦN, MỌI TÀI KHOẢN DÙNG MÃ ĐỀU CHẠY. Khác hẳn việc sửa ô Cơ sở của từng
+            người: hệ đang có `FZ_LTVT`, `TUTU_TP`, `TUTU_BT`… mỗi mã là một người sẽ vướng.
+
+         ⚠️ ĐÂY LÀ MỘT CỬA PHÂN QUYỀN, KHÔNG PHẢI GHI CHÚ. Thêm một dòng là mở cho mọi tài khoản
+            đang giữ mã ấy nhìn thấy sổ tiền của gian ấy — nên máy chủ chốt chỉ Admin lưu được. -->
+    <div class="card" id="maTatCard">
+      <div class="ch"><h2>🔤 Mã gọi tắt của cơ sở</h2>
+        <button class="btn b-g" onclick="luuMaTat()">💾 Lưu</button></div>
+      <div class="cb">
+        <p style="font-size:12px;color:#475569;margin-bottom:8px">
+          Mỗi dòng một cặp <b>MÃ|TÊN CƠ SỞ</b>. Dùng khi ô <b>Cơ sở</b> của tài khoản đang khai
+          bằng mã gọi tắt, còn đơn thì ghi tên đầy đủ — khai ở đây một lần là mọi tài khoản dùng
+          mã ấy <b>nhìn thấy đúng gian của mình</b>, khỏi sửa từng người.
+          <br>Ví dụ: <code>TUTU_BD|TÀU BÌNH DƯƠNG</code>
+        </p>
+        <textarea id="maTatRaw" rows="6" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px"
+          placeholder="TUTU_BD|TÀU BÌNH DƯƠNG"></textarea>
+        <div class="nho mo" style="margin-top:6px">Mã không phân biệt hoa thường. Một mã chỉ dẫn
+          tới một cơ sở — khai hai dòng cùng mã thì dòng dưới đè dòng trên.</div>
+        <div id="maTatTin" class="nho" style="margin-top:6px;color:#0f766e"></div>
+      </div>
+    </div>
+
     <!-- ============ LOẠI CHI PHÍ THEO CƠ SỞ ============
          Thẻ "Khai mã chi phí" ngay dưới đi chiều: MỘT loại -> tích nhiều cơ sở. Đúng khi khai
          một khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại — "gian này dùng
@@ -9096,8 +9125,11 @@
    *    ngayHongCard) — xếp một lần lúc dựng trang thì khối hiện sau sẽ nằm lạc chỗ.
    * ══════════════════════════════════════════════════════════════════════════════════════ */
   var CH_NHOM=[
-    { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard'],
-      mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào.' },
+    /* ⚠️ Mã gọi tắt đi CÙNG nhóm cơ sở, ngay sau bảng cơ sở: nó là cách gọi khác của chính
+       những gian ấy, không phải một thứ riêng. Để nó lạc sang nhóm khác là người khai phải nhớ
+       hai chỗ cho một câu hỏi. */
+    { ten:'🏢 Cơ sở & đơn vị',            id:['cosoCard','maTatCard'],
+      mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào, và gọi tắt là gì.' },
     { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
     { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard','mangTkCard'],
@@ -9185,11 +9217,41 @@
       });
     });
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MÃ GỌI TẮT CỦA CƠ SỞ — "TUTU_BD = TÀU BÌNH DƯƠNG".
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * ⚠️ TRẢ NGUYÊN KHỐI CHỮ ĐÚNG NHƯ ĐÃ GÕ, không dựng lại từ sổ đã tách: người khai cần sửa
+   *    tiếp trên chính thứ họ vừa viết. Dựng lại là mỗi lần mở ra thứ tự dòng lại khác.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function docMaTat(){
+    if(!el('maTatRaw')) return;
+    google.script.run.withSuccessHandler(function(r){
+      if(r && r.success){ el('maTatRaw').value=r.raw||''; veMaTatTin(r.so||0); }
+    }).withFailureHandler(function(){}).docMaTatCoso();
+  }
+  function veMaTatTin(n){
+    var o=el('maTatTin'); if(!o) return;
+    o.textContent = n ? ('Đang có '+n+' mã gọi tắt.') : 'Chưa khai mã nào.';
+  }
+  function luuMaTat(){
+    var o=el('maTatRaw'); if(!o) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      loading(false);
+      if(r && r.success){ toast('ok', r.message||'Đã lưu.'); veMaTatTin(r.so||0);
+        /* 🔴 TẢI LẠI CẢ MÀN: mã vừa khai đổi ngay PHẠM VI của người khác — danh sách đơn, ô lọc,
+           bảng người dùng đều dựng từ đó. Để nguyên là màn nói một đằng, máy chủ hiểu một nẻo. */
+        boot(); }
+      else toast('err', (r&&r.error)||'Không lưu được');
+    }).withFailureHandler(function(e){ loading(false); toast('err', e.message); }).luuMaTatCoso(o.value);
+  }
+
   function loadCfg(){ loading(true); dungXoCauHinh();
     google.script.run.withSuccessHandler(function(c){ CFG=c||{};
       google.script.run.withSuccessHandler(function(t){
         TKCHART=(t&&t.taiKhoan)||[]; TKNAME={}; TKCHART.forEach(function(x){ TKNAME[String(x.ma)]=x.ten||''; });
         CFG.mangTk=(t&&t.mangTk)||[];
+        docMaTat();
         google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; CFGUSERS_LOI=''; renderCfg(); renderUsers();})
           .withFailureHandler(function(e){loading(false); CFGUSERS=[]; CFGUSERS_LOI=(e&&e.message)||'không gọi được máy chủ'; renderCfg(); renderUsers();}).getUsers();
       }).withFailureHandler(function(e){ TKCHART=[]; TKNAME={};
