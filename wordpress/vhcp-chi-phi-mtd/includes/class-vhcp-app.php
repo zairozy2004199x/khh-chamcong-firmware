@@ -3,14 +3,14 @@
  * TRANG APP — xuất nguyên trang giao diện (templates/app.html) tại 1 đường dẫn riêng
  * để CSS của theme không chen vào, và vẫn nhúng iframe được vào trang tổng K&H.
  *
- *   https://<tên miền>/chi-phi/            (đường dẫn tĩnh, đổi được trong Cài đặt)
- *   https://<tên miền>/?vhcp=app           (dùng khi permalink đang để dạng ?p=)
- *   https://<tên miền>/chi-phi/?sso=<token> (đăng nhập một lần từ trang tổng)
+ *   https://<tên miền>/chi-phi-mtd/            (đường dẫn tĩnh, đổi được trong Cài đặt)
+ *   https://<tên miền>/?vhcpmtd=app           (dùng khi permalink đang để dạng ?p=)
+ *   https://<tên miền>/chi-phi-mtd/?sso=<token> (đăng nhập một lần từ trang tổng)
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-class VHCP_App {
+class VHCPMTD_App {
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	 * BẢN NÀY LÀ TRANG CỦA MẢNG KHU VUI CHƠI — anh Thắng 14/09/2026
@@ -31,46 +31,46 @@ class VHCP_App {
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 
 	/** Đường dẫn mặc định của bản này. */
-	const SLUG_MAC_DINH = 'chi-phi-kvc';
+	const SLUG_MAC_DINH = 'chi-phi-mtd';
 
 	/** Đường dẫn đời đầu — giữ sống để link cũ không chết. */
-	const SLUG_CU = 'chi-phi';
+	const SLUG_CU = 'chi-phi-mtd';
 
 	public static function slug() {
-		$s = get_option( 'vhcp_slug' );
+		$s = get_option( 'vhcpmtd_slug' );
 		$s = $s ? sanitize_title( $s ) : self::SLUG_MAC_DINH;
 		return $s ? $s : self::SLUG_MAC_DINH;
 	}
 
 	public static function app_url() {
 		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug() . '/' ); }
-		return add_query_arg( 'vhcp', 'app', home_url( '/' ) );
+		return add_query_arg( 'vhcpmtd', 'app', home_url( '/' ) );
 	}
 
 	public static function init() {
-		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcp_app=1', 'top' );
+		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcpmtd_app=1', 'top' );
 		/* ⚠️ ĐƯỜNG LUI, KHÔNG PHẢI ĐƯỜNG THỨ HAI CHO NGƯỜI DÙNG. Chỉ khai khi slug hiện tại đã
 		   khác đường đời đầu — khai trùng một luật hai lần là WordPress giữ cái sau, vô hại
 		   nhưng thừa. Bản MTD/VP sinh từ script có slug riêng, và `SLUG_CU` của chúng cũng đã
 		   được script đổi theo, nên không bản nào giành đường của bản nào. */
 		if ( self::SLUG_CU !== self::slug() ) {
-			add_rewrite_rule( '^' . self::SLUG_CU . '/?$', 'index.php?vhcp_app=1', 'top' );
+			add_rewrite_rule( '^' . self::SLUG_CU . '/?$', 'index.php?vhcpmtd_app=1', 'top' );
 		}
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
-		// Nạp lại đường dẫn: xem vhcp_flush_rewrite() ở file chính — phải chạy SAU khi cả
+		// Nạp lại đường dẫn: xem vhcpmtd_flush_rewrite() ở file chính — phải chạy SAU khi cả
 		// app chi phí và thư viện hợp đồng đều khai xong đường dẫn của mình, không thì lần
 		// nạp lại đó ghi thiếu một đường và trang kia trả 404.
 	}
 
 	public static function query_vars( $vars ) {
-		$vars[] = 'vhcp_app';
+		$vars[] = 'vhcpmtd_app';
 		return $vars;
 	}
 
 	public static function maybe_render() {
-		$is_app = ( (int) get_query_var( 'vhcp_app' ) === 1 );
-		if ( ! $is_app && isset( $_GET['vhcp'] ) && $_GET['vhcp'] === 'app' ) { $is_app = true; }
+		$is_app = ( (int) get_query_var( 'vhcpmtd_app' ) === 1 );
+		if ( ! $is_app && isset( $_GET['vhcpmtd'] ) && $_GET['vhcpmtd'] === 'app' ) { $is_app = true; }
 		if ( ! $is_app ) { return; }
 
 		// ĐƯỜNG GỌI THỨ BA — qua chính URL của app.
@@ -79,8 +79,8 @@ class VHCP_App {
 		// /wp-admin/admin-ajax.php bị trả 403 kèm trang "Checking your browser", trong khi
 		// trang app vẫn mở bình thường. Vậy thì nhận luôn lệnh trên đường dẫn đã mở được
 		// đó: người dùng vừa tải trang này xong nên tường lửa chắc chắn cho đi qua.
-		if ( isset( $_GET['vhcp_api'] ) ) {
-			VHCP_API::trang();
+		if ( isset( $_GET['vhcpmtd_api'] ) ) {
+			VHCPMTD_API::trang();
 			exit;
 		}
 
@@ -92,11 +92,11 @@ class VHCP_App {
 	public static function sso_user() {
 		if ( empty( $_GET['sso'] ) ) { return null; }
 		$tok   = sanitize_text_field( wp_unslash( $_GET['sso'] ) );
-		$ident = VHCP_Auth::verify_sso_token( $tok );
+		$ident = VHCPMTD_Auth::verify_sso_token( $tok );
 		if ( ! $ident ) { return null; }
-		$u = VHCP_Auth::resolve_sso_user( $ident );
+		$u = VHCPMTD_Auth::resolve_sso_user( $ident );
 		// SSO không qua cổng PIN nên phát token phiên ngay để API nhận.
-		$u['token'] = VHCP_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
+		$u['token'] = VHCPMTD_Auth::issue_token( $u['name'], $u['role'], $u['coso'], '' );
 		return $u;
 	}
 
@@ -109,10 +109,10 @@ class VHCP_App {
 	 */
 	public static function head_block( $tieu_de = 'Vận Hành Chi Phí', $trang = '', $fns = null ) {
 		$sso = self::sso_user();
-		if ( $trang === '' ) { $trang = add_query_arg( 'vhcp_api', '1', self::app_url() ); }
-		if ( $fns === null )  { $fns = array_keys( VHCP_API::map() ); }
+		if ( $trang === '' ) { $trang = add_query_arg( 'vhcpmtd_api', '1', self::app_url() ); }
+		if ( $fns === null )  { $fns = array_keys( VHCPMTD_API::map() ); }
 		$cfg = array(
-			'endpoint' => esc_url_raw( rest_url( 'vhcp/v1/call' ) ),
+			'endpoint' => esc_url_raw( rest_url( 'vhcpmtd/v1/call' ) ),
 			// Đường dự phòng khi hosting chặn /wp-json/ (giao diện tự chuyển)
 			'ajax'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
 			// Đường dự phòng CUỐI: chính URL của trang này — Cloudflare chặn theo đường dẫn,
@@ -120,32 +120,32 @@ class VHCP_App {
 			'trang'    => esc_url_raw( $trang ),
 			'fns'      => $fns,
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'],
-				'roleGoc' => VHCP_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
-			'ver'      => VHCP_VERSION,
+				'roleGoc' => VHCPMTD_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
+			'ver'      => VHCPMTD_VERSION,
 		);
 
 		$out  = '<title>' . esc_html( $tieu_de ) . '</title>' . "\n";
-		$out .= '<link rel="stylesheet" href="' . esc_url( VHCP_URL . 'assets/css/vhcp.css' ) . '?ver=' . rawurlencode( VHCP_VERSION ) . '">' . "\n";
-		$out .= '<script>window.VHCP_CFG=' . wp_json_encode( $cfg ) . ';';
+		$out .= '<link rel="stylesheet" href="' . esc_url( VHCPMTD_URL . 'assets/css/vhcp.css' ) . '?ver=' . rawurlencode( VHCPMTD_VERSION ) . '">' . "\n";
+		$out .= '<script>window.VHCPMTD_CFG=' . wp_json_encode( $cfg ) . ';';
 		if ( $sso && ! empty( $sso['token'] ) ) {
 			// Nạp sẵn token cho phiên SSO (ghi đè token cũ của máy này).
-			$out .= 'try{localStorage.setItem("vhcp_token",' . wp_json_encode( $sso['token'] ) . ');}catch(e){}';
+			$out .= 'try{localStorage.setItem("vhcpmtd_token",' . wp_json_encode( $sso['token'] ) . ');}catch(e){}';
 		}
 		$out .= '</script>' . "\n";
-		$out .= '<script src="' . esc_url( VHCP_URL . 'assets/js/gas-shim.js' ) . '?ver=' . rawurlencode( VHCP_VERSION ) . '"></script>' . "\n";
+		$out .= '<script src="' . esc_url( VHCPMTD_URL . 'assets/js/gas-shim.js' ) . '?ver=' . rawurlencode( VHCPMTD_VERSION ) . '"></script>' . "\n";
 		return $out;
 	}
 
 	public static function render() {
-		$file = VHCP_DIR . 'templates/app.html';
+		$file = VHCPMTD_DIR . 'templates/app.html';
 		if ( ! is_readable( $file ) ) {
 			status_header( 500 );
 			echo 'Thiếu file templates/app.html của plugin Vận Hành Chi Phí.';
 			return;
 		}
 		$html = file_get_contents( $file );
-		$html = str_replace( '<!--VHCP_HEAD-->', self::head_block(), $html );
-		$html = str_replace( '<!--VHCP_CHAN-->', self::chan_block(), $html );
+		$html = str_replace( '<!--VHCPMTD_HEAD-->', self::head_block(), $html );
+		$html = str_replace( '<!--VHCPMTD_CHAN-->', self::chan_block(), $html );
 
 		nocache_headers();
 		header( 'Content-Type: text/html; charset=UTF-8' );
@@ -207,9 +207,9 @@ class VHCP_App {
 			. '.vhg-ban-quyen{border-top-color:#eef2f7;color:#94a3b8}';
 	}
 
-	/** [vhcp_app height="900"] — nhúng app vào 1 trang WordPress bằng iframe. */
+	/** [vhcpmtd_app height="900"] — nhúng app vào 1 trang WordPress bằng iframe. */
 	public static function shortcode( $atts ) {
-		$a = shortcode_atts( array( 'height' => '900' ), $atts, 'vhcp_app' );
+		$a = shortcode_atts( array( 'height' => '900' ), $atts, 'vhcpmtd_app' );
 		$h = preg_replace( '/[^0-9a-z%]/i', '', (string) $a['height'] );
 		if ( $h === '' ) { $h = '900'; }
 		if ( is_numeric( $h ) ) { $h .= 'px'; }

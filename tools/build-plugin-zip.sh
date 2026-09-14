@@ -77,6 +77,17 @@ case "$CHON" in
     dong_goi "Ghế Massage" vhcp-ghe
     dong_goi "Nội Bộ K&H" vhcp-noi-bo
     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
+    # ── MỌI BẢN CHI PHÍ RỜI, DÒ THEO THƯ MỤC ────────────────────────────────────────────────
+    # 🔴 DÒ, KHÔNG LIỆT KÊ. Anh Thắng 14/09/2026 tách mỗi mảng kinh doanh một trang; số bản rời
+    #    nay là ba và sẽ còn thêm. Gõ tay từng dòng ở đây thì mảng thứ tư sinh ra tháng sau lại
+    #    thiếu bản cài đúng lúc cần — mà "thiếu bản cài" chỉ lộ ra khi người ta đang chờ để cài.
+    for _d in "$ROOT"/wordpress/vhcp-chi-phi-*/; do
+      [ -d "$_d" ] || continue
+      _t="$(basename "$_d")"
+      [ -f "$_d/$_t.php" ] || continue
+      _n="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$_d/$_t.php" | head -1)"
+      dong_goi "${_n:-$_t}" "$_t"
+    done
     ;;
   *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | tatca)"; exit 1 ;;
 esac
@@ -91,6 +102,9 @@ if [ "$CHON" = "tatca" ]; then
     ten="$(basename "$d")"
     [ -f "$d/$ten.php" ] || continue
     case " $KHONG_DONG_GOI " in *" $ten "*) continue ;; esac
+    # Bản chi phí rời đã được vòng dò ở nhánh `tatca` đóng gói — chốt gõ tay không thấy chúng
+    # trong mã script nên sẽ kêu oan. Kêu oan vài lần là người ta thôi đọc cảnh báo.
+    case "$ten" in vhcp-chi-phi-*) continue ;; esac
     grep -q "dong_goi \".*\" $ten\b" "${BASH_SOURCE[0]}" || echo "⚠️  CHƯA ĐÓNG GÓI: $ten (thêm vào tools/build-plugin-zip.sh, hoặc khai vào KHONG_DONG_GOI)"
   done
 fi

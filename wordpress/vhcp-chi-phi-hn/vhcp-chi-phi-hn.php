@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Vận Hành Chi Phí (Hà Nội)
+ * Plugin Name:       Chi Phí — Hà Nội (HN)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
  * Version:           1.100.0

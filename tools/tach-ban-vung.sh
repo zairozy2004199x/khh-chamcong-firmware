@@ -105,11 +105,36 @@ find "$DICH" -type f \( -name '*.php' -o -name '*.html' -o -name '*.js' -o -name
     '
 
 
-# Đường dẫn trang mặc định + tên plugin — sửa RIÊNG, sau lượt đổi tiền tố.
+# ── Đường dẫn trang ────────────────────────────────────────────────────────────────────────
+# 🔴 PHẢI ĐỔI **CẢ HAI** HẰNG SLUG, VÀ ĐÂY LÀ CHỖ NGUY NHẤT CỦA CẢ SCRIPT.
+#    Từ 14/09/2026 bản gốc mang hai hằng: `SLUG_MAC_DINH = 'chi-phi-kvc'` (đường của mảng Khu
+#    Vui Chơi) và `SLUG_CU = 'chi-phi'` (đường đời đầu, giữ sống cho link cũ khỏi chết).
+#    · Quên đổi SLUG_MAC_DINH -> bản mới mặc định mở ở /chi-phi-kvc, tức GIÀNH ĐƯỜNG của bản
+#      đang chở sổ tiền thật.
+#    · Quên đổi SLUG_CU -> bản mới cũng đăng ký /chi-phi, và WordPress cho luật khai SAU đè
+#      luật trước: /chi-phi rơi vào bảng RỖNG của bản mới. Đúng cái đã cắn 08/09/2026 với
+#      đường REST — trang mở ra trống trơn, dữ liệu còn nguyên mà nhìn y như mất sạch.
+#    Nên sau lượt sed có một CHỐT: không còn chuỗi 'chi-phi' hay 'chi-phi-kvc' trần nào sót lại.
 sed -i \
+  -e "s#'chi-phi-kvc'#'chi-phi-$MA'#g" \
   -e "s#'chi-phi'#'chi-phi-$MA'#g" \
   -e "s#/chi-phi/#/chi-phi-$MA/#g" \
   "$DICH/includes/class-vhcp-app.php"
+if grep -qE "'chi-phi'|'chi-phi-kvc'" "$DICH/includes/class-vhcp-app.php"; then
+  echo "✗ CÒN SÓT đường dẫn của bản gốc trong $DICH/includes/class-vhcp-app.php"
+  grep -nE "'chi-phi'|'chi-phi-kvc'" "$DICH/includes/class-vhcp-app.php"
+  echo "  Bản này sẽ GIÀNH đường của bản đang chạy — dừng, không giao bản hỏng."
+  exit 3
+fi
+
+# ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
+# ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
+#    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất
+#    đường vào sổ tiền của cả một mảng. Tên truyền vào mà không có mã thì tự chèn vào cuối.
+case "$TEN" in
+  *"$MA"*|*"$MA_HOA"*) ;;
+  *) TEN="$TEN ($MA_HOA)" ;;
+esac
 sed -i "s/^ \* Plugin Name:.*/ * Plugin Name:       $TEN/" "$DICH/vhcp-chi-phi-$MA.php"
 
 echo "✓ Đã sinh $DICH"
