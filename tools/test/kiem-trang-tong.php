@@ -763,6 +763,25 @@ t( '⚠️ trạng thái lạ vẫn có tông để vẽ',
 t( '🔴 hàng chờ đánh số thứ tự, bảng đã xong thì không',
 	(bool) preg_match( '#var stt = xong \? .. :#', $html ), '' );
 
+/* ═══ 6k. BA TAB TỰ ĐỌC NHƯ NHAU, VÀ MẢNG THIẾU THÌ NÓI RA ══════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"Xuất misa chưa lấy bên kvc hay sao anh chưa thấy"*.
+ *
+ * 🔴 Hoá ra chỉ là màn chưa tự đọc — nhưng đó đã là một lỗi: hai tab bên cạnh (Tra chi phí,
+ *    Tổng quan) tự đọc ngay khi mở, riêng Xuất MISA chờ bấm. Người dùng đọc sự im lặng ấy
+ *    thành "mảng KVC không lấy được", và đó là cách đọc hợp lý với những gì màn bày ra.
+ * 🔴 Câu hỏi của anh còn chỉ đúng một lỗ thật: `continue` khi bản quá cũ làm cả một mảng BIẾN
+ *    MẤT khỏi màn mà không một lời. Không ai phân biệt được "mảng ấy không có bút toán" với
+ *    "mảng ấy chưa cài xong" — và họ sẽ đi sửa bộ lọc, chỗ không có lỗi.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 tab Xuất MISA tự đọc khi mở', (bool) preg_match( '#veMisaKq\(\); else docMisa\(\);#', $html ), '' );
+t( 'tab Tra chi phí cũng vậy',       (bool) preg_match( '#veTraKq\(\); else docTra\(\);#', $html ), '' );
+t( 'tab Tổng quan cũng vậy',         (bool) preg_match( '#veTongQuanKq\(\); else docTongQuan\(\);#', $html ), '' );
+t( '🔴 bản quá cũ thì vẫn bày thẻ mảng kèm lý do, không bỏ qua im lặng',
+	(bool) preg_match( "#'thieu'  => true,#", $api_ma ), '' );
+t( 'và màn nói rõ đó KHÁC "không có bút toán nào"',
+	(bool) preg_match( '#if \(b\.thieu\)\{#', $html ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.

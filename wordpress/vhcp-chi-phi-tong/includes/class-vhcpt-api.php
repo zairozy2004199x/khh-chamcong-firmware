@@ -543,8 +543,29 @@ class VHCPT_Api {
 		$ra   = array();
 		foreach ( VHCPT_Auth::ban_lam_duoc( 'misa' ) as $khoa ) {
 			$lop = VHCPT_Ban::lop( $khoa, 'Misa' );
-			/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
-			if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'export_misa' ) ) { continue; }
+			/* ══════════════════════════════════════════════════════════════════════════════════
+			 * ⚠️ BẢN QUÁ CŨ THÌ NÓI RA, ĐỪNG BỎ QUA IM LẶNG.
+			 * ══════════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 14/09/2026: *"Xuất misa chưa lấy bên kvc hay sao anh chưa thấy"*. Lần ấy
+			 * hoá ra chỉ là màn chưa tự đọc, nhưng câu hỏi chỉ đúng một lỗ thật: `continue` ở đây
+			 * làm cả một mảng BIẾN MẤT khỏi màn mà không một lời. Người dùng không có cách nào
+			 * phân biệt "mảng ấy không có bút toán nào" với "mảng ấy chưa cài xong" — và họ sẽ
+			 * đi tìm lỗi ở bộ lọc, chỗ không có lỗi.
+			 *
+			 * ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`.
+			 * ══════════════════════════════════════════════════════════════════════════════════ */
+			if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'export_misa' ) ) {
+				$ra[] = array(
+					'ban'    => $khoa,
+					'tenBan' => VHCPT_Ban::ten( $khoa ),
+					'cols'   => array(), 'rows' => array(), 'soDong' => 0, 'soDon' => 0,
+					'maDons' => array(),
+					'canh'   => array( 'Bản ' . VHCPT_Ban::ten( $khoa ) . ' chưa cài, hoặc quá cũ '
+						. '(chưa có đường xuất MISA). Nâng cấp bản ấy rồi đọc lại.' ),
+					'thieu'  => true,
+				);
+				continue;
+			}
 			VHCPT_Ban::muon_phien( $khoa );
 			$r = (array) call_user_func( array( $lop, 'export_misa' ), $ky, $mode, $pl );
 			$ra[] = array(

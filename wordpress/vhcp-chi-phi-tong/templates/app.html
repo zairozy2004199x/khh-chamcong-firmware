@@ -797,7 +797,11 @@ function veMisa(){
     MISA.daTai = {};
     docMisa();
   };
-  if (MISA.ban.length) veMisaKq();
+  /* 🔴 TỰ ĐỌC KHI MỞ TAB — anh Thắng 14/09/2026: *"Xuất misa chưa lấy bên kvc hay sao anh chưa
+     thấy"*. Màn cũ chờ bấm "Đọc bút toán" mới chạy, trong khi hai tab bên cạnh (Tra chi phí,
+     Tổng quan) tự đọc ngay. Người dùng đọc sự im lặng ấy thành "mảng KVC không lấy được" —
+     và đó là cách đọc hợp lý với những gì màn hình bày ra. */
+  if (MISA.ban.length) veMisaKq(); else docMisa();
 }
 
 function docMisa(){
@@ -826,7 +830,10 @@ function veMisaKq(){
           : '' ) +
       '</div></div><div class="cb">';
 
-    if (!rows.length){
+    if (b.thieu){
+      /* Mảng chưa cài xong — KHÁC HẲN "không có bút toán nào". Nói rõ để khỏi ai đi sửa bộ lọc. */
+      h += '<div class="bao bao-canh">⚠️ '+esc((b.canh||[])[0]||'Bản này chưa cài, hoặc quá cũ.')+'</div>';
+    } else if (!rows.length){
       h += '<p class="mo">Không có bút toán nào khớp bộ lọc. ✓</p>';
     } else {
       /* ══════════════════════════════════════════════════════════════════════════════════════
