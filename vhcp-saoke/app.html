@@ -1349,6 +1349,8 @@ function dungViewCong(nguon){
   + '</details>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Từ cổng ' + esc(ten) + ' <span class="muted" id="'+id('congLbl')+'"></span></h3>'
+  +   '<div class="row" style="margin-bottom:8px"><div class="fld"><label>🏬 Lọc theo cơ sở / cửa hàng</label>'
+  +     '<select id="'+id('congLoc')+'" onchange="cgLocCong(\''+nguon+'\')"><option value="">— Tất cả cơ sở —</option></select></div></div>'
   +   '<table><thead><tr><th>Thời điểm</th><th>Máy</th><th>Cửa hàng</th><th>Mã nộp tiền</th>'
   +   '<th>Mã giao dịch cổng</th><th>Nội dung</th><th>Trạng thái</th><th>Số tiền</th></tr></thead>'
   +   '<tbody id="'+id('congBody')+'"></tbody></table>'
@@ -2406,62 +2408,17 @@ function veSaoKeCong(nguon, d){
   if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• ' + ds.join('<br>• ') + '</div>'; }
   else b.style.display='none';
 
-  cgVeBang(nguon, 'cong', d.cong || [], function(r){
-        /* 🔴 "Chưa rõ máy" một mình là một câu bí. Có mã cửa hàng mà chưa rõ máy = thiếu BẢN ĐỒ
-           (nạp bảng Danh sách cửa hàng là xong); không có mã cửa hàng = dòng này webhook ghi và
-           chưa nạp bù sao kê của cổng. Hai cảnh ấy sửa bằng hai việc khác nhau, nên phải phân
-           biệt được ngay trên dòng — kẻo người đọc bấm quanh không biết làm gì tiếp. */
-        /* Ba cảnh "chưa rõ máy", ba việc phải làm khác nhau — nói ra ngay trên dòng:
-             · có mã cửa hàng mà chưa ra máy -> thiếu BẢN ĐỒ, nạp Danh sách cửa hàng;
-             · dòng CŨ, không mã             -> nạp bù từ file cổng (từ 0.20.0 chỉ còn dòng cũ);
-             · dòng MỚI mà vẫn không mã      -> cổng không gửi mã trong gói ấy, phải nạp file.
-
-           ⚠️ TỪ 0.20.0 CÂU "mới hơn lần nạp file" KHÔNG CÒN ĐÚNG MẶC ĐỊNH. Webhook nay đọc được
-              mã cửa hàng ngay trong gói (kể cả ô toàn chữ như `RJFSHCSXE9` mà bản cũ vứt im
-              lặng), nên dòng mới thường tự ra máy. Còn bảo người ta "xuất file mới rồi nạp lại"
-              là sai việc — họ đi làm một việc không cần thiết rồi tưởng app hỏng khi vẫn y cũ. */
-        /* 🖐️ GÁN MÁY THỦ CÔNG — anh Thắng 12/09/2026: "một số giao dịch dò không ra, muốn gán thủ
-           công". Ô nhập + nút ngay trên dòng: dòng "chưa rõ máy" thì gõ tên máy rồi Gán; dòng đã
-           gán tay thì cho Đổi / Bỏ. Máy chủ ghi vào cột may_tay của đúng dòng (khoá theo `khoa`),
-           cong_may_dong() đọc trước mọi suy đoán nên ra máy ngay và tiền về đúng cơ sở. */
-        var ganCtrl = '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
-          + '<input class="skgm-inp" value="'+esc(r.mayTay||'')+'" placeholder="Gõ tên máy" '
-          +   'style="width:120px;font-size:11px;padding:3px 6px;border:1px solid var(--line);border-radius:6px">'
-          + '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
-          +   'onclick="skGanMayTay(this)" style="font-size:11px;padding:3px 8px;cursor:pointer">'+(r.mayTay?'Đổi':'Gán máy')+'</button>'
-          + (r.mayTay ? '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
-              +   'onclick="skGanMayTay(this,1)" style="font-size:11px;padding:3px 8px;cursor:pointer">Bỏ</button>' : '')
-          + '</div>';
-        var may;
-        if (r.tenMay) {
-          may = esc(r.tenMay) + (r.mayTay ? ' <span class="muted" style="font-size:10px">(gán tay)</span>' + ganCtrl : '');
-        } else {
-          may = '<span style="color:var(--gold)">chưa rõ máy</span>'
-             + (r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
-                             +'</code> — chưa có trong bản đồ, nạp Danh sách cửa hàng</div>')
-                : r.moiHonNap ? '<div class="muted" style="font-size:11px">gói webhook không kèm mã cửa hàng — nạp bù từ file cổng</div>'
-                : '<div class="muted" style="font-size:11px">dòng cũ, chưa nạp bù từ file cổng</div>')
-             + ganCtrl;
-        }
-        var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
-        return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
-             /* th,td của trang để white-space:nowrap, nên MỘT ô dài là cả bảng trôi ngang và
-                các cột sau bị đẩy ra khỏi màn — trông y như dữ liệu lệch hàng (anh Thắng
-                10/09/2026). Nguyên nhân gốc đã vá bên máy chủ (may_hop_le), nhưng chặn luôn
-                ở đây để không dữ liệu lạ nào phá được bố cục nữa. Dùng đúng luật đã có ở các
-                bảng khác trong file: white-space:normal + max-width. */
-             + '<td>'+esc(r.thoiDiem)+'</td>'
-             + '<td style="white-space:normal;max-width:210px">'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
-             + '<td>'+esc(r.maGD)+'</td>'
-             + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
-             + '<td class="in">'+fmt(r.soTien)+'</td></tr>'; }, 8, 'Không có giao dịch nào trong kỳ.');
-  cgEl(nguon,'congLbl').textContent = d.cong.length ? ('· '+d.cong.length+' dòng · '+fmt(d.congTien)+'đ') : '';
+  /* Lọc theo cơ sở — anh Thắng 14/09/2026: bảng Việt QR 1400+ dòng, cần lọc về đúng một cơ sở.
+     Nạp danh sách cơ sở vào ô lọc rồi vẽ bảng "Từ cổng" theo lựa chọn hiện tại (lọc phía trình
+     duyệt trên đúng tập đã tải, không gọi lại máy chủ). */
+  CG_FILE[nguon] = d;
+  cgNapLocCong(nguon);
+  cgVeBangCong(nguon);
 
   // Khối gán mã cửa hàng cho máy chưa khai
-  CG_FILE[nguon] = d;
-  var aw = cgEl(nguon,'axWrap'), ds = d.chuaAnhXa || [];
-  if(ds.length){ aw.style.display='';
-    cgEl(nguon,'axBody').innerHTML = ds.map(function(x,i){
+  var aw = cgEl(nguon,'axWrap'), dsAx = d.chuaAnhXa || [];
+  if(dsAx.length){ aw.style.display='';
+    cgEl(nguon,'axBody').innerHTML = dsAx.map(function(x,i){
       return '<tr><td><b>'+esc(x.ten)+'</b></td><td class="muted" style="white-space:normal">'+esc((x.may||[]).join(' · '))+'</td>'
         + '<td class="num">'+x.soLan+'</td><td class="num in">'+fmt(x.soTien)+'</td>'
         + '<td><input id="'+cgId(nguon,'axTen-'+i)+'" list="'+cgId(nguon,'dsCH')+'" placeholder="tên cửa hàng bên ngân hàng" style="width:100%"></td>'
@@ -2487,6 +2444,73 @@ function veSaoKeCong(nguon, d){
              + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.maGD)+'</td>'
              + '<td class="in">'+fmt(r.vao)+'</td></tr>'; }, 7, 'Không có dòng sao kê nào khớp từ khoá trong kỳ.');
   cgEl(nguon,'bankLbl').textContent = d.bank.length ? ('· '+d.bank.length+' dòng · '+fmt(d.bankTien)+'đ') : '';
+}
+
+/* Cơ sở của một dòng cổng = tên cửa hàng chuẩn (chỉ có khi đã ra máy). Dòng chưa rõ máy -> ''. */
+function cgCoSoCua_(r){ return ( r && r.tenMay && r.cuaHangChuan ) ? String(r.cuaHangChuan) : ''; }
+
+/* Nạp danh sách cơ sở vào ô lọc, giữ nguyên lựa chọn cũ nếu còn. */
+function cgNapLocCong(nguon){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var sel = cgEl(nguon,'congLoc'); if(!sel) return;
+  var cu = sel.value || '';
+  var m = {}, coRong = false;
+  (d.cong||[]).forEach(function(r){ var c = cgCoSoCua_(r); if(c) m[c]=(m[c]||0)+1; else coRong = true; });
+  var ks = Object.keys(m).sort(function(a,b){ return a.localeCompare(b,'vi'); });
+  var h = '<option value="">— Tất cả cơ sở ('+((d.cong||[]).length)+' dòng) —</option>';
+  ks.forEach(function(c){ h += '<option value="'+esc(c)+'">'+esc(c)+' ('+m[c]+')</option>'; });
+  if(coRong) h += '<option value="__chuaro__">(chưa rõ máy)</option>';
+  sel.innerHTML = h;
+  sel.value = cu;                      // giữ lựa chọn cũ
+  if(sel.value !== cu) sel.value = ''; // cơ sở cũ không còn trong kỳ mới -> về Tất cả
+}
+
+/* Vẽ bảng "Từ cổng" theo cơ sở đang chọn. */
+function cgVeBangCong(nguon){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var sel = cgEl(nguon,'congLoc'), loc = sel ? sel.value : '';
+  var ds = (d.cong||[]);
+  if(loc === '__chuaro__') ds = ds.filter(function(r){ return !cgCoSoCua_(r); });
+  else if(loc) ds = ds.filter(function(r){ return cgCoSoCua_(r) === loc; });
+  cgVeBang(nguon, 'cong', ds, cgDongCong(nguon), 8,
+    'Không có giao dịch nào' + (loc ? ' cho cơ sở này' : ' trong kỳ') + '.');
+  var tong = ds.reduce(function(s,r){ return s + (Number(r.soTien)||0); }, 0);
+  cgEl(nguon,'congLbl').textContent = (d.cong||[]).length
+    ? ('· ' + ds.length + (loc ? ('/' + d.cong.length) : '') + ' dòng · ' + fmt(tong) + 'đ')
+    : '';
+}
+function cgLocCong(nguon){ cgVeBangCong(nguon); }
+
+/* Hàm vẽ MỘT dòng "Từ cổng" — tách ra để cả lượt vẽ đầu lẫn lượt lọc dùng chung. */
+function cgDongCong(nguon){
+  return function(r){
+        var ganCtrl = '<div style="margin-top:4px;display:flex;gap:4px;flex-wrap:wrap;align-items:center">'
+          + '<input class="skgm-inp" value="'+esc(r.mayTay||'')+'" placeholder="Gõ tên máy" '
+          +   'style="width:120px;font-size:11px;padding:3px 6px;border:1px solid var(--line);border-radius:6px">'
+          + '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
+          +   'onclick="skGanMayTay(this)" style="font-size:11px;padding:3px 8px;cursor:pointer">'+(r.mayTay?'Đổi':'Gán máy')+'</button>'
+          + (r.mayTay ? '<button class="skgm-btn" data-khoa="'+esc(r.khoa||'')+'" data-nguon="'+esc(nguon)+'" '
+              +   'onclick="skGanMayTay(this,1)" style="font-size:11px;padding:3px 8px;cursor:pointer">Bỏ</button>' : '')
+          + '</div>';
+        var may;
+        if (r.tenMay) {
+          may = esc(r.tenMay) + (r.mayTay ? ' <span class="muted" style="font-size:10px">(gán tay)</span>' + ganCtrl : '');
+        } else {
+          may = '<span style="color:var(--gold)">chưa rõ máy</span>'
+             + (r.maCH ? ('<div class="muted" style="font-size:11px">CH <code>'+esc(r.maCH)
+                             +'</code> — chưa có trong bản đồ, nạp Danh sách cửa hàng</div>')
+                : r.moiHonNap ? '<div class="muted" style="font-size:11px">gói webhook không kèm mã cửa hàng — nạp bù từ file cổng</div>'
+                : '<div class="muted" style="font-size:11px">dòng cũ, chưa nạp bù từ file cổng</div>')
+             + ganCtrl;
+        }
+        var ch  = r.tenMay ? (esc(r.cuaHangChuan) + (r.daAnhXa ? '' : ' <span class="muted">(chưa gán mã)</span>')) : '—';
+        return '<tr'+(r.tenMay && !r.daAnhXa ? ' style="background:rgba(161,92,7,.10)"' : '')+'>'
+             + '<td>'+esc(r.thoiDiem)+'</td>'
+             + '<td style="white-space:normal;max-width:210px">'+may+'</td><td>'+ch+'</td><td>'+esc(r.maBank||'—')+'</td>'
+             + '<td>'+esc(r.maGD)+'</td>'
+             + '<td style="white-space:normal;max-width:420px">'+esc(r.noiDung)+'</td><td>'+esc(r.trangThai)+'</td>'
+             + '<td class="in">'+fmt(r.soTien)+'</td></tr>';
+  };
 }
 // Tải lại đúng luồng của tab: Việt QR = webhook, MoMo/VNPAY = file theo tháng.
 // Gọi sai luồng thì hàm vẽ sẽ ghi vào id không tồn tại trên tab đó -> vỡ IM LẶNG.
