@@ -1262,15 +1262,8 @@ function dungViewCong(nguon){
       : esc(ten) + ' gom nhiều giao dịch rồi chuyển về bank thành <b>một cục</b> nên đối soát <b>N:1</b> — '
         + 'tổng cổng so với cục về, không so từng dòng.')
   + '</div>'
-  + '<div class="panel row">'
-  +   '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
-  +   '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
-  +   oKy(id('ky'), 'cgDatKy(\''+nguon+'\')')
-  +   '<div class="fld" style="align-self:flex-end"><button onclick="taiSaoKeCong(\''+nguon+'\')">🔍 Lọc</button></div>'
-  +   '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
-  +     'title="Đặt lại về 7 ngày gần nhất rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
-  +   '<div class="fld" style="align-self:flex-end"><span class="muted" id="'+id('capNhat')+'"></span></div>'
-  + '</div>'
+  /* Khối Lọc (Từ ngày/Đến ngày/Kỳ/Lọc/Làm mới) đã CHUYỂN XUỐNG sát bảng "Từ cổng" — anh Thắng
+     14/09/2026: để mấy thẻ số liệu lên đầu, các bộ lọc gom chung một chỗ ngay trên bảng. */
   + '<div class="cards" style="grid-template-columns:repeat(4,1fr)">'
   +   '<div class="card"><div class="lbl">Từ cổng ' + esc(ten) + '</div><div class="val in" id="'+id('congTien')+'">0</div><div class="lbl" id="'+id('congDong')+'"></div></div>'
   +   '<div class="card"><div class="lbl">Từ sao kê ngân hàng</div><div class="val in" id="'+id('bankTien')+'">0</div><div class="lbl" id="'+id('bankDong')+'"></div></div>'
@@ -1340,6 +1333,15 @@ function dungViewCong(nguon){
   + '</details>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Từ cổng ' + esc(ten) + ' <span class="muted" id="'+id('congLbl')+'"></span></h3>'
+  +   '<div class="row" style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--line)">'
+  +     '<div class="fld"><label>Từ ngày</label><input type="date" id="'+id('tu')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
+  +     '<div class="fld"><label>Đến ngày</label><input type="date" id="'+id('den')+'" onchange="cgBoKy(\''+nguon+'\')"></div>'
+  +     oKy(id('ky'), 'cgDatKy(\''+nguon+'\')')
+  +     '<div class="fld" style="align-self:flex-end"><button onclick="taiSaoKeCong(\''+nguon+'\')">🔍 Lọc</button></div>'
+  +     '<div class="fld" style="align-self:flex-end"><button class="gray" id="'+id('lamMoi')+'" onclick="cgLamMoi(\''+nguon+'\')" '
+  +       'title="Đặt lại về 7 ngày gần nhất rồi đọc lại số liệu mới nhất">🔄 Làm mới</button></div>'
+  +     '<div class="fld" style="align-self:flex-end"><span class="muted" id="'+id('capNhat')+'"></span></div>'
+  +   '</div>'
   +   '<div class="row" style="margin-bottom:8px">'
   +     '<div class="fld"><label>🏬 Lọc theo cơ sở / cửa hàng</label>'
   +       '<select id="'+id('congLoc')+'" onchange="cgLocCong(\''+nguon+'\')"><option value="">— Tất cả cơ sở —</option></select></div>'
