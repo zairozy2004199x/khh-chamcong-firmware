@@ -147,9 +147,86 @@ class VHCP_Auth {
 		$ra = array();
 		foreach ( explode( ',', (string) self::$coso ) as $x ) {
 			$x = trim( $x );
-			if ( '' !== $x ) { $ra[] = $x; }
+			if ( '' !== $x ) { $ra[] = self::doi_ma_sang_ten( $x ); }
 		}
 		return $ra;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Ô CƠ SỞ NHẬN CẢ MÃ ĐƠN VỊ VÀ TÊN THEO MISA, KHÔNG CHỈ TÊN THƯỜNG GỌI.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"vẫn không
+	 * xem được đơn cũ của bạn NV cùng cơ sở làm trước"*. Ô Cơ sở khai `TUTU_BD` — đó là MÃ ĐƠN VỊ
+	 * của cơ sở, còn đơn thì ghi TÊN THƯỜNG GỌI. Chốt phạm vi so tên với tên nên trượt sạch.
+	 *
+	 * 🔴 ĐÂY LÀ TRA SỔ, KHÔNG PHẢI NỚI TAY. Khác nhau ở chỗ: so khớp mờ (khớp một phần, bỏ dấu)
+	 *    thì "Tân An" trúng luôn cả "VR Tân An" lẫn "TuTu Tân An" — mở sổ tiền của gian khác cho
+	 *    người không phụ trách. Còn ở đây: mã phải CÓ THẬT trong danh mục cơ sở, và mỗi mã chỉ
+	 *    dẫn tới ĐÚNG MỘT tên. Không có mã ấy thì trả nguyên chuỗi, chốt vẫn chối như cũ.
+	 *
+	 * ⚠️ MÃ TRÙNG NHAU THÌ KHÔNG DỊCH. Hai cơ sở lỡ khai chung một mã đơn vị thì dịch sang cái
+	 *    nào cũng là đoán — mà đoán ở chốt phân quyền là mở nhầm cửa. Thà chối, rồi người khai
+	 *    thấy màn trống và sửa lại sổ.
+	 *
+	 * ⚠️ Danh mục CHƯA nạp được (bảng rỗng, bản mới cài) thì trả nguyên chuỗi — không được biến
+	 *    một ô đang khai đúng thành rỗng.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function doi_ma_sang_ten( $x ) {
+		$k = mb_strtolower( trim( (string) $x ) );
+		if ( '' === $k ) { return (string) $x; }
+		$ds = self::so_coso();
+		if ( ! $ds ) { return (string) $x; }
+		/* Trùng đúng TÊN thường gọi thì thôi, khỏi tra gì thêm. */
+		foreach ( $ds as $c ) {
+			if ( mb_strtolower( $c['ten'] ) === $k ) { return $c['ten']; }
+		}
+		$trung = array();
+		foreach ( $ds as $c ) {
+			$ma = mb_strtolower( trim( (string) $c['ma'] ) );
+			$tm = mb_strtolower( trim( (string) $c['tenMisa'] ) );
+			if ( ( '' !== $ma && $ma === $k ) || ( '' !== $tm && $tm === $k ) ) {
+				if ( ! in_array( $c['ten'], $trung, true ) ) { $trung[] = $c['ten']; }
+			}
+		}
+		return ( 1 === count( $trung ) ) ? $trung[0] : (string) $x;
+	}
+
+	/* Dịch CẢ CHUỖI "A, TUTU_BD" sang tên thường gọi — dùng cho thứ gửi xuống MÀN.
+	   🔴 MÀN PHẢI NHẬN GIÁ TRỊ ĐÃ DỊCH, không tự dịch lại: nó lọc danh sách đơn trước khi hỏi
+	      máy chủ (`_trongCoSoToi`), nên hai bên dịch riêng là sớm muộn hai bên lệch — và lệch ở
+	      đây nghĩa là màn giấu mất đơn mà máy chủ vẫn cho xem, hoặc ngược lại. */
+	public static function coso_hien( $chuoi ) {
+		$ra = array();
+		foreach ( explode( ',', (string) $chuoi ) as $x ) {
+			$x = trim( $x );
+			if ( '' !== $x ) { $ra[] = self::doi_ma_sang_ten( $x ); }
+		}
+		return implode( ', ', $ra );
+	}
+
+	/** Danh mục cơ sở rút gọn: tên · mã đơn vị · tên theo MISA. Đọc một lần mỗi lượt gọi. */
+	private static $so_cs = null;
+	public static function so_coso() {
+		if ( null !== self::$so_cs ) { return self::$so_cs; }
+		self::$so_cs = array();
+		/* ⚠️ ĐỌC `cfg_static()`, KHÔNG ĐỌC `get_config()`. Hàm này chạy trên MỌI lượt lọc đơn,
+		   mà `get_config()` kéo cả bảng chi phí về chỉ để dựng danh sách đối tượng —
+		   `cfg_static()` có nhớ tạm và chỉ đọc mấy bảng danh mục.
+		   ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHCP_Cfg' ) && method_exists( 'VHCP_Cfg', 'cfg_static' ) ) {
+			$cfg = (array) call_user_func( array( 'VHCP_Cfg', 'cfg_static' ) );
+			foreach ( (array) ( isset( $cfg['coso'] ) ? $cfg['coso'] : array() ) as $c ) {
+				$c = (array) $c;
+				$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
+				if ( '' === $ten ) { continue; }
+				self::$so_cs[] = array(
+					'ten'     => $ten,
+					'ma'      => isset( $c['maDonVi'] ) ? (string) $c['maDonVi'] : '',
+					'tenMisa' => isset( $c['tenMisa'] ) ? (string) $c['tenMisa'] : '',
+				);
+			}
+		}
+		return self::$so_cs;
 	}
 
 	/**
@@ -274,7 +351,7 @@ class VHCP_Auth {
 				'name'   => $u['ten'],
 				'role'   => ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
 				'roleGoc' => VHCP_Cfg::vai_goc( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
-				'coso'   => $u['coso'],
+				'coso'   => self::coso_hien( $u['coso'] ),
 				'boPhan' => $u['boPhan'],
 				'maNv'   => isset( $u['maNv'] ) ? (string) $u['maNv'] : '',
 				'token'  => $tok,
@@ -490,7 +567,7 @@ class VHCP_Auth {
 				array( 'token' => $token ) );
 		}
 		return array( 'ok' => true, 'name' => $u['name'], 'role' => $u['role'],
-			'roleGoc' => $u['roleGoc'], 'coso' => $u['coso'], 'boPhan' => $u['boPhan'] );
+			'roleGoc' => $u['roleGoc'], 'coso' => self::coso_hien( $u['coso'] ), 'boPhan' => $u['boPhan'] );
 	}
 
 	public static function logout( $token ) {
@@ -604,7 +681,7 @@ class VHCP_Auth {
 			if ( ! empty( $ov[ $k ]['coso'] ) ) { $coso = $ov[ $k ]['coso']; }
 		}
 		return array( 'name' => (string) ( isset( $ident['n'] ) ? $ident['n'] : '' ), 'role' => $role,
-			'roleGoc' => VHCP_Cfg::vai_goc( $role ), 'coso' => $coso );
+			'roleGoc' => VHCP_Cfg::vai_goc( $role ), 'coso' => self::coso_hien( $coso ) );
 	}
 
 	private static function sso_overrides() {
