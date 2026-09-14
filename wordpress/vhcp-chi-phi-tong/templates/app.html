@@ -317,6 +317,106 @@ function veBang(){
     theoMang[d.ban].ds.push(d);
   });
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MỘT BẢNG = MỘT LÁT VIỆC, XẾP THEO TUẦN RỒI THEO NGÀY
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * Anh Thắng 14/09/2026: *"Tách 2 bảng, đã quyết toán và chưa quyết toán, mỗi mảng 2 bảng như
+   * vậy"* và *"Sắp xếp đơn theo tuần và đơn theo ngày"*.
+   *
+   * 🔴 CHƯA XONG VÀ ĐÃ XONG LÀ HAI LÁT VIỆC KHÁC NHAU, không phải hai màu của một bảng. Kế toán
+   *    mở tab này để LÀM, nên thứ chưa làm phải nằm gọn một chỗ, đếm được, hết là hết. Trộn đơn
+   *    đã quyết toán vào giữa là mỗi lần rà phải đọc lại từ đầu xem dòng nào còn việc.
+   *
+   * 🔴 XẾP THEO TUẦN TRƯỚC, NGÀY SAU — tiền ở đây chốt theo TUẦN CỦA QUẢN LÝ (xem
+   *    `chot_bu_tru()` bên bản mảng). Đọc lẫn lộn hai tuần rồi cộng nhẩm là ra một con số không
+   *    thuộc tuần nào. Mỗi tuần một dải tiêu đề kèm cộng riêng.
+   *
+   * ⚠️ THỨ TỰ TUẦN LẤY TỪ THỨ TỰ MÁY CHỦ TRẢ VỀ, không tự sắp chuỗi kỳ. Kỳ là chuỗi tiếng Việt
+   *    ("T9/2026 (7/9-13/9/2026)"); sắp nó bằng phép so chuỗi thì T10 đứng trước T9. Máy chủ đã
+   *    xếp đơn theo `ngay_tao` giảm dần, nên tuần nào có đơn mới nhất thì xuất hiện trước —
+   *    đúng thứ tự cần, và không phải hiểu định dạng chuỗi kỳ.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  var LAT = ( NHOM === 'qt' )
+    ? [ { khoa:'chua', ten:'Chưa quyết toán', mau:'#b45309',
+          hop:function(d){ return d.trangThai !== 'Đã quyết toán'; } },
+        { khoa:'xong', ten:'Đã quyết toán',   mau:'#166534',
+          hop:function(d){ return d.trangThai === 'Đã quyết toán'; } } ]
+    : [ { khoa:'all', ten:'', mau:'', hop:function(){ return true; } } ];
+
+  function veMotBang(g, lat, ban){
+    var ds = g.ds.filter(lat.hop);
+    if (!ds.length){
+      return lat.ten
+        ? '<p class="nho mo" style="margin:6px 0 12px">— <b>'+esc(lat.ten)+'</b>: không có đơn nào. ✓</p>'
+        : '';
+    }
+    /* Gom theo TUẦN, giữ thứ tự gặp (máy chủ đã xếp theo ngày giảm dần). */
+    var theoKy = {}, thuTuKy = [];
+    ds.forEach(function(d){
+      var k = d.ky || '(chưa có kỳ)';
+      if (!theoKy[k]){ theoKy[k] = []; thuTuKy.push(k); }
+      theoKy[k].push(d);
+    });
+
+    var tongLat = 0, coSo = 0;
+    ds.forEach(function(d){ if (d.tien !== null){ tongLat += d.tien; coSo++; } });
+
+    var h = '';
+    if (lat.ten){
+      h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;' +
+           'gap:8px;margin:14px 0 6px"><b style="color:'+lat.mau+'">'+esc(lat.ten)+
+           ' <span class="chip">'+ds.length+' đơn</span></b>' +
+           '<span class="nho mo">Cộng '+tien(tongLat)+'</span></div>';
+    }
+    h += '<div class="cuon"><table><thead><tr>' +
+      '<th>Mã đơn</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
+      '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';
+
+    thuTuKy.forEach(function(k){
+      var dsKy = theoKy[k], tongKy = 0;
+      dsKy.forEach(function(d){ if (d.tien !== null){ tongKy += d.tien; } });
+      /* Dải tiêu đề tuần — chỉ khi có từ hai tuần trở lên, không thì nó chỉ là một dòng thừa. */
+      if (thuTuKy.length > 1){
+        h += '<tr><td colspan="5" style="background:#f1f5f9;font-weight:800;color:#334155">' +
+             '📅 '+esc(k)+' <span class="mo nho">· '+dsKy.length+' đơn</span></td>' +
+             '<td class="r" style="background:#f1f5f9;font-weight:800">'+tien(tongKy)+'</td>' +
+             '<td style="background:#f1f5f9"></td></tr>';
+      }
+      dsKy.forEach(function(d){
+        var i = ROWS.indexOf(d);
+        var lam = d.lam || {};
+        var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1" id="nx'+i+'">Xem</button> ';
+        viecs.forEach(function(v){
+          if (lam[v.viec]) nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(v.ten)+'</button> ';
+        });
+        if (lam.traLai) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
+        var chua = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
+        /* ⚠️ Đơn ĐÃ quyết toán thì không còn việc để bấm — nói ra là "đã xong", đừng để câu
+           "vai của bạn không làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
+        var xong = ( d.trangThai === 'Đã quyết toán' );
+
+        h += '<tr>' +
+          '<td><b>'+esc(d.maDon)+'</b></td>' +
+          '<td>'+esc(d.nguoiLap)+'</td>' +
+          '<td>'+veLoai(d.loai)+'</td>' +
+          '<td class="nho">'+esc(d.ky)+'</td>' +
+          '<td class="nho mo">'+esc(ngay(d.ngayTao))+'</td>' +
+          '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
+          '<td>'+nut+( chua
+            ? '<div class="nho mo">'+( xong ? '✓ đã quyết toán xong — còn chờ xuất MISA'
+                                            : 'vai của bạn ở mảng này không làm được việc này' )+'</div>'
+            : '' )+'</td>' +
+          '</tr>' +
+          '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
+      });
+    });
+
+    return h + '</tbody><tfoot><tr><td colspan="5">Cộng ' +
+      esc( lat.ten ? lat.ten : g.ten ) +
+      ( coSo < ds.length ? ' <span class="nho mo">('+(ds.length-coSo)+' đơn chưa đọc được số)</span>' : '' ) +
+      '</td><td class="r">'+tien(tongLat)+'</td><td></td></tr></tfoot></table></div>';
+  }
+
   var h = '';
   thuTu.forEach(function(ban){
     var g = theoMang[ban], tong = 0, coSo = 0;
@@ -330,34 +430,9 @@ function veBang(){
       '<h2>🏷 '+esc(g.ten)+' <span class="chip">'+g.ds.length+' đơn</span></h2>' +
       '<div class="nho mo">Cộng '+tien(tong)+ ( coSo < g.ds.length ? ' · '+(g.ds.length-coSo)+' đơn chưa đọc được số' : '' ) +
       ( urlBan ? ' · <a href="'+esc(urlBan)+'" target="_blank" rel="noopener">mở trang mảng ↗</a>' : '' ) + '</div>' +
-      '</div><div class="cb"><div class="cuon"><table><thead><tr>' +
-      '<th>Mã đơn</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
-      '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';
-
-    g.ds.forEach(function(d){
-      var i = ROWS.indexOf(d);
-      var lam = d.lam || {};
-      var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1" id="nx'+i+'">Xem</button> ';
-      viecs.forEach(function(v){
-        if (lam[v.viec]) nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(v.ten)+'</button> ';
-      });
-      if (lam.traLai) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
-      var chua = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
-
-      h += '<tr>' +
-        '<td><b>'+esc(d.maDon)+'</b></td>' +
-        '<td>'+esc(d.nguoiLap)+'</td>' +
-        '<td>'+veLoai(d.loai)+'</td>' +
-        '<td class="nho">'+esc(d.ky)+'</td>' +
-        '<td class="nho mo">'+esc(ngay(d.ngayTao))+'</td>' +
-        '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
-        '<td>'+nut+( chua ? '<div class="nho mo">vai của bạn ở mảng này không làm được việc này</div>' : '' )+'</td>' +
-        '</tr>' +
-        '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
-    });
-
-    h += '</tbody><tfoot><tr><td colspan="5">Cộng '+esc(g.ten)+'</td>' +
-         '<td class="r">'+tien(tong)+'</td><td></td></tr></tfoot></table></div></div></div>';
+      '</div><div class="cb">' +
+      LAT.map(function(lat){ return veMotBang(g, lat, ban); }).join('') +
+      '</div></div>';
   });
   o.innerHTML = h;
 

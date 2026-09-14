@@ -27,16 +27,38 @@ class VHCPT_Gom {
 	const CHO_DUYET = 'Chờ duyệt tạm ứng';
 	const CHO_CAP   = 'Chờ cấp tạm ứng';
 	const CHO_QT    = 'Chờ quyết toán';
+	/* Đã xong phần quyết toán, còn chờ xuất MISA — xem `nhom()`. */
+	const DA_QT     = 'Đã quyết toán';
 
 	/** Số đơn tối đa đọc về một lượt. */
 	const GIOI_HAN = 200;
 
-	/** Các nhóm trạng thái bày thành tab trên màn. */
+	/**
+	 * Các nhóm trạng thái bày thành tab trên màn.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 `tt` LÀ THỨ ĐỌC VỀ, `demTt` LÀ THỨ ĐẾM LÊN Ô TRÒN — hai câu hỏi khác nhau.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Tách 2 bảng, đã quyết toán và chưa quyết toán, mỗi mảng 2 bảng như
+	 * vậy"*. Nên tab Quyết toán nay đọc về CẢ đơn đã quyết toán, để bày bảng thứ hai.
+	 *
+	 * Nhưng con số trên tab phải vẫn là VIỆC CÒN PHẢI LÀM. Đếm cả đơn đã xong là ô tròn không
+	 * bao giờ về 0 — mà một con số không bao giờ về 0 thì người ta thôi nhìn nó, và hôm có việc
+	 * thật cũng không ai để ý. Đó là cách hỏng một cái đồng hồ báo.
+	 *
+	 * ⚠️ BẢNG "ĐÃ QUYẾT TOÁN" DỪNG Ở TRƯỚC MISA. Không gom `Đã xuất MISA`: những đơn ấy xong
+	 *    hẳn rồi, gom vào thì bảng phình theo từng tháng cho tới khi không mở nổi — trong khi
+	 *    thứ kế toán cần thấy ở đây là phần việc CÒN LẠI của mình.
+	 */
 	public static function nhom() {
 		return array(
 			'duyet' => array( 'ten' => 'Chờ duyệt tạm ứng', 'tt' => array( self::CHO_DUYET ) ),
 			'cap'   => array( 'ten' => 'Chờ cấp tạm ứng',   'tt' => array( self::CHO_CAP ) ),
-			'qt'    => array( 'ten' => 'Chờ quyết toán',    'tt' => array( self::CHO_QT ) ),
+			'qt'    => array(
+				'ten'   => 'Quyết toán',
+				'tt'    => array( self::CHO_QT, self::DA_QT ),
+				'demTt' => array( self::CHO_QT ),
+			),
 		);
 	}
 
@@ -283,8 +305,10 @@ class VHCPT_Gom {
 		$ra = array();
 		foreach ( self::nhom() as $k => $n ) {
 			$so = 0;
+			/* Đếm VIỆC CÒN PHẢI LÀM, không đếm cả đơn đã xong — xem khối ở `nhom()`. */
+			$dem_tt = isset( $n['demTt'] ) ? $n['demTt'] : $n['tt'];
 			foreach ( VHCPT_Auth::ban_doc_duoc() as $khoa ) {
-				$so += self::dem_cua_ban( $khoa, $n['tt'] );
+				$so += self::dem_cua_ban( $khoa, $dem_tt );
 			}
 			$ra[ $k ] = $so;
 		}

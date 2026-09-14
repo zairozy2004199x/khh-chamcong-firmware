@@ -640,6 +640,46 @@ t( '⚠️ đơn nhiều gian thì nói SỐ GIAN, không bày mỗi một tên'
 t( 'lịch sử bày ba dòng mới nhất, phần cũ gập lại',
 	(bool) preg_match( '#ds\.slice\(0,3\)#', $html ), '' );
 
+/* ═══ 6h. TAB QUYẾT TOÁN: HAI BẢNG, XẾP THEO TUẦN RỒI NGÀY ══════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"Tách 2 bảng, đã quyết toán và chưa quyết toán, mỗi mảng 2 bảng như
+ * vậy"* và *"Sắp xếp đơn theo tuần và đơn theo ngày"*.
+ *
+ * 🔴 CHƯA XONG VÀ ĐÃ XONG LÀ HAI LÁT VIỆC, không phải hai màu của một bảng: kế toán mở tab này
+ *    để LÀM, nên thứ chưa làm phải nằm gọn một chỗ, đếm được, hết là hết.
+ * 🔴 VÀ CON SỐ TRÊN TAB VẪN LÀ VIỆC CÒN PHẢI LÀM. Đếm cả đơn đã xong là ô tròn không bao giờ về
+ *    0 — một con số không bao giờ về 0 thì người ta thôi nhìn nó, và hôm có việc thật cũng
+ *    không ai để ý. Đó là cách hỏng một cái đồng hồ báo.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$gom_php2 = file_get_contents( $TONG . '/includes/class-vhcpt-gom.php' );
+t( '🔴 nhóm quyết toán đọc về CẢ đơn đã quyết toán',
+	(bool) preg_match( "#'tt'\s*=> array\( self::CHO_QT, self::DA_QT \)#", $gom_php2 ), '' );
+t( '🔴 nhưng ĐẾM chỉ tính việc còn phải làm',
+	(bool) preg_match( "#'demTt' => array\( self::CHO_QT \)#", $gom_php2 ), '' );
+t( '🔴 và dem() có dùng demTt khi có',
+	(bool) preg_match( '#\$dem_tt = isset\( \$n\[.demTt.\] \) \? \$n\[.demTt.\] : \$n\[.tt.\];#', $gom_php2 ), '' );
+/* ⚠️ Không gom "Đã xuất MISA": những đơn ấy xong hẳn, gom vào thì bảng phình theo từng tháng
+   cho tới khi không mở nổi. */
+t( '⚠️ KHÔNG gom đơn đã xuất MISA vào bảng ấy',
+	! preg_match( "#'tt'\s*=> array\( self::CHO_QT, self::DA_QT, [^)]*MISA#", $gom_php2 ), '' );
+
+t( '🔴 màn chia hai lát ở tab quyết toán',
+	(bool) preg_match( "#khoa:'chua'[\s\S]{0,400}?khoa:'xong'#", $html ), '' );
+t( 'và chỉ chia ở tab ấy, tab khác vẫn một bảng',
+	(bool) preg_match( "#NHOM === 'qt' \)#", $html ), '' );
+t( '🔴 gom đơn theo TUẦN trong mỗi bảng', false !== strpos( $html, 'var theoKy = {}, thuTuKy = [];' ), '' );
+/* ⚠️ Kỳ là chuỗi tiếng Việt ("T9/2026 (7/9-13/9/2026)"); sắp bằng phép so chuỗi thì T10 đứng
+   trước T9. Thứ tự phải lấy từ thứ tự máy chủ trả về (đã xếp theo ngày giảm dần). */
+t( '⚠️ KHÔNG tự sắp chuỗi kỳ (T10 sẽ đứng trước T9)',
+	! preg_match( '#thuTuKy\.sort\(#', $html ), '' );
+t( 'máy chủ xếp đơn theo ngày giảm dần', false !== strpos( $gom_php2, 'ORDER BY ngay_tao DESC' ), '' );
+t( 'dải tiêu đề tuần chỉ hiện khi có từ hai tuần',
+	(bool) preg_match( '#if \(thuTuKy\.length > 1\)\{#', $html ), '' );
+/* ⚠️ Đơn đã quyết toán không còn việc để bấm — nói "đã xong", đừng để câu "vai của bạn không
+   làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
+t( '⚠️ đơn đã xong thì nói ĐÃ XONG, không nói thiếu quyền',
+	false !== mb_strpos( $html_ma, 'đã quyết toán xong — còn chờ xuất MISA' ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.
