@@ -1281,7 +1281,7 @@ function dungViewCong(nguon){
   // Mấy khối dưới chỉ dùng lúc CÀI ĐẶT / chữa cháy -> gập lại cho trang gọn, mở khi cần.
   + '<details class="panel" id="'+id('congCu')+'"><summary style="cursor:pointer;font-weight:600">⚙️ Cài đặt & công cụ '
   +   '<span class="muted" style="font-weight:400">(link webhook · <b>nạp bù từ file</b>'
-  +   (nguon === 'vietqr' ? ' · <b>bản đồ cửa hàng</b>' : '') + ' · thử payload · từ khoá)</span></summary>'
+  +   (nguon === 'vietqr' ? ' · <b>bản đồ cửa hàng</b>' : '') + ')</span></summary>'
   +   '<div style="margin-top:12px">'
   +     '<b>Link webhook dán vào ' + esc(ten) + '</b>'
   +     '<div class="hint">App chỉ có <b>một</b> link <code>/exec</code>; phân biệt cổng bằng <code>src=</code> '
@@ -1333,18 +1333,9 @@ function dungViewCong(nguon){
   +     '<div id="'+id('bdKq')+'" style="margin-top:8px"></div>'
   +     '<div id="'+id('bdDs')+'" style="margin-top:8px"></div>'
   +   '</div>')
-  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
-  +     '<b>Từ khoá nhận dòng ' + esc(ten) + ' trong sao kê ngân hàng</b>'
-  +     '<div class="hint" id="'+id('tkHint')+'"></div>'
-  +     '<div class="row"><div class="fld"><input id="'+id('tuKhoa')+'" placeholder="vd: VQR"></div>'
-  +     '<div class="fld" style="align-self:flex-end"><button onclick="cgLuuTuKhoa(\''+nguon+'\')">Lưu từ khoá</button></div></div>'
-  +   '</div>'
-  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px">'
-  +     '<b>🧪 Thử 1 payload để soi cách đọc</b>'
-  +     '<textarea id="'+id('thu')+'" rows="2" placeholder=\'{"values":[["...","...","50000",...]]}\' '
-  +     'style="width:100%;font:inherit;resize:vertical;margin:6px 0"></textarea>'
-  +     '<button class="gray" onclick="cgThu(\''+nguon+'\')">Thử payload</button> '
-  +     '<span class="muted" id="'+id('thuKq')+'"></span>'
+  +   '<div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px" class="hint">'
+  +     'Từ khoá nhận dòng ' + esc(ten) + ' và ô thử payload đã chuyển sang tab '
+  +     '<b>⚙️ Cấu hình</b> (để không lộ trên màn đối soát).'
   +   '</div>'
   + '</details>'
   + '<div class="panel" style="overflow:auto">'
@@ -1488,12 +1479,8 @@ function dungViewFile(nguon){
   +   '<th>Nội dung</th><th class="num">Tiền vào</th></tr></thead>'
   +   '<tbody id="'+id('bankBody')+'"></tbody></table>'
   + '</div>'
-  + '<details class="panel"><summary style="cursor:pointer;font-weight:600">⚙️ Từ khoá nhận cục '
-  +   esc(ten) + ' trong sao kê ngân hàng</summary>'
-  +   '<div class="hint" id="'+id('tkHint')+'" style="margin-top:10px"></div>'
-  +   '<div class="row"><div class="fld"><input id="'+id('tuKhoa')+'" placeholder="vd: VNPAY"></div>'
-  +   '<div class="fld" style="align-self:flex-end"><button onclick="cgLuuTuKhoa(\''+nguon+'\')">Lưu từ khoá</button></div></div>'
-  + '</details>';
+  + '<div class="panel hint">Từ khoá nhận cục ' + esc(ten) + ' đã chuyển sang tab '
+  +   '<b>⚙️ Cấu hình</b> (để không lộ trên màn đối soát).</div>';
 }
 function cgThangNay(nguon){
   var d = new Date();
@@ -1535,9 +1522,7 @@ function veDoiSoatFile(nguon, d){
   ch.textContent = fmt(d.chenh); ch.className = 'val ' + (d.chenh === 0 ? 'in' : 'out');
   cgEl(nguon,'fThieu').textContent = d.conThieuNgay.length;
   cgEl(nguon,'fThieuSub').textContent = 'trên ' + d.soNgayCanCo + ' ngày cần có';
-  if(!cgEl(nguon,'tuKhoa').value) cgEl(nguon,'tuKhoa').value = d.tuKhoa;
-  cgEl(nguon,'tkHint').innerHTML = 'Đang lọc dòng sao kê có nội dung chứa <b>'+esc(d.tuKhoa)+'</b>.'
-    + (nguon==='momo' ? ' <b style="color:var(--vang)">Riêng MoMo: em chưa thấy dòng MoMo nào trong sao kê của anh nên từ khoá này là PHỎNG ĐOÁN.</b>' : '');
+  /* Ô sửa từ khoá đã dời sang tab Cấu hình (v0.27.0) — không còn ghi vào màn đối soát nữa. */
 
   var ds = [];
   if(!d.tongFile) ds.push('Tháng này <b>chưa nạp file nào</b>. Tải file kết xuất '+esc(d.ten)+' ở khối bên dưới.');
@@ -2366,9 +2351,7 @@ function veSaoKeCong(nguon, d){
     + d.congKho + ' thiếu trường';
   cgEl(nguon,'url').textContent = d.webhookUrl || '(chưa có — đặt Webhook API Key ở tab Cấu hình rồi deploy)';
   cgEl(nguon,'raw').textContent = d.payloadCuoi || '(chưa có payload nào — cổng chưa bắn tới)';
-  if(!cgEl(nguon,'tuKhoa').value) cgEl(nguon,'tuKhoa').value = d.tuKhoa;
-  cgEl(nguon,'tkHint').innerHTML = 'Đang lọc dòng sao kê có nội dung chứa <b>'+esc(d.tuKhoa)+'</b>. Mặc định: <code>'+esc(d.tuKhoaMacDinh)+'</code>.'
-    + (nguon==='momo' ? ' <b style="color:var(--vang)">Riêng MoMo: em chưa thấy dòng MoMo nào trong sao kê của anh nên từ khoá này là PHỎNG ĐOÁN</b> — có dòng thật thì anh sửa lại đúng chữ trong nội dung.' : '');
+  /* Ô sửa từ khoá + thử payload đã dời sang tab Cấu hình (v0.27.0) — không còn ghi vào màn đối soát. */
 
   // Cảnh báo: nói rõ vì sao rỗng, đừng để anh đoán
   var ds = [];
@@ -2552,7 +2535,10 @@ function cgLuuTuKhoa(nguon){
   var tk = cgEl(nguon,'tuKhoa').value;
   google.script.run.withSuccessHandler(function(r){
     if(!r||!r.ok){ toast((r&&r.error)||'Lỗi', true); return; }
-    toast('Đã lưu từ khoá "'+r.tuKhoa+'"'); cgTaiLai(nguon);
+    toast('Đã lưu từ khoá "'+r.tuKhoa+'"');
+    /* Chỉ tải lại màn đối soát nếu nó ĐÃ được dựng — nút này nay nằm ở tab Cấu hình, có thể
+       người dùng chưa mở tab cổng nào (v-cvietqr trống), gọi loader sẽ ghi vào id không tồn tại. */
+    if(cgEl(nguon,'capNhat')) cgTaiLai(nguon);
   }).withFailureHandler(function(e){ toast(e.message, true); }).luuTuKhoaCong(PIN, nguon, tk);
 }
 function cgThu(nguon){
@@ -2561,7 +2547,7 @@ function cgThu(nguon){
   google.script.run.withSuccessHandler(function(r){
     if(!r||!r.ok){ k.textContent = (r&&r.error)||'Lỗi'; return; }
     k.textContent = r.ketQua + ' · đọc ra ' + (r.doc?r.doc.length:0) + ' giao dịch';
-    taiSaoKeCong(nguon);
+    if(cgEl(nguon,'capNhat')) cgTaiLai(nguon);   // chỉ tải lại nếu màn cổng đã dựng
   }).withFailureHandler(function(e){ k.textContent = 'Lỗi: '+e.message; }).testWebhookCong(PIN, nguon, js);
 }
 
@@ -2758,6 +2744,38 @@ function renderCfg(){
   document.getElementById('cfgWebhookKey').placeholder = CFG.hasWebhookKey ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
   document.getElementById('cfgApiToken').placeholder = CFG.hasApiToken ? '(đã đặt — nhập để đổi)' : 'chưa đặt';
   renderCosoMa();
+  renderTuKhoaCong();
+}
+/* Từ khoá nhận dòng từng cổng + ô thử payload — v0.27.0 dời từ màn đối soát sang đây để không
+   lộ trên màn vận hành. Dùng LẠI id cgId(nguon,...) nên cgLuuTuKhoa()/cgThu() chạy y nguyên. */
+function renderTuKhoaCong(){
+  var host = document.getElementById('v-cfg'); if(!host) return;
+  var box = document.getElementById('cfgTuKhoa');
+  if(!box){ box = document.createElement('div'); box.id='cfgTuKhoa';
+    box.style.cssText='margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)';
+    host.appendChild(box); }
+  var tk = {}; (CFG.tukhoaCong||[]).forEach(function(x){ tk[x.nguon]=x; });
+  var dsNguon = ['vietqr','momo','vnpay'];
+  var h = '<h3 style="margin:0 0 6px">Từ khoá &amp; thử payload theo cổng</h3>'
+    + '<div class="muted" style="margin-bottom:10px">Từ khoá để nhận dòng của cổng trong sao kê ngân hàng, '
+    + 'và ô thử payload để soi cách đọc. Dời về đây cho gọn màn đối soát và tránh lộ thông tin.</div>';
+  dsNguon.forEach(function(n){
+    var x = tk[n] || {}, ten = CONG_TEN[n];
+    h += '<div style="border-top:1px solid var(--line);padding-top:10px;margin-top:10px">'
+      + '<b>Cổng '+esc(ten)+'</b>'
+      + '<div class="row" style="margin-top:6px"><div class="fld" style="flex:1;min-width:200px">'
+      +   '<label>Từ khoá nhận dòng trong sao kê ngân hàng</label>'
+      +   '<input id="'+cgId(n,'tuKhoa')+'" value="'+esc(x.tuKhoa||'')+'" placeholder="vd: '+(n==='vietqr'?'VQR':(n==='momo'?'MOMO':'VNPAY'))+'"></div>'
+      +   '<div class="fld" style="align-self:flex-end"><button onclick="cgLuuTuKhoa(\''+n+'\')">Lưu từ khoá</button></div></div>'
+      + '<div class="hint" id="'+cgId(n,'tkHint')+'"></div>'
+      + '<div style="margin-top:6px"><label class="muted">🧪 Thử 1 payload để soi cách đọc</label>'
+      +   '<textarea id="'+cgId(n,'thu')+'" rows="2" placeholder=\'{"values":[["...","...","50000",...]]}\' '
+      +   'style="width:100%;font:inherit;resize:vertical;margin:6px 0"></textarea>'
+      +   '<button class="gray" onclick="cgThu(\''+n+'\')">Thử payload</button> '
+      +   '<span class="muted" id="'+cgId(n,'thuKq')+'"></span></div>'
+      + '</div>';
+  });
+  box.innerHTML = h;
 }
 /* Mã nộp tiền theo cơ sở — kế toán tự nhập (không cần vào WP-Admin). Lưu ở plugin, dùng để lọc
    sao kê ngân hàng biết cơ sở đã nộp tiền mặt chưa. */
