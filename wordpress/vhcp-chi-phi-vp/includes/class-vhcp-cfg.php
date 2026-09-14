@@ -493,6 +493,7 @@ class VHCPVP_Cfg {
 	 * @return int số dòng THÊM MỚI.
 	 */
 	public static function hut_coso_ghe() {
+		if ( ! self::LAY_COSO_GHE ) { return 0; }   // bản không dùng ghế — xem hằng ấy
 		if ( ! class_exists( 'VHG_May' ) || ! method_exists( 'VHG_May', 'ds_coso' ) ) { return 0; }
 		$n = 0;
 		foreach ( (array) VHG_May::ds_coso() as $c ) {
@@ -522,6 +523,23 @@ class VHCPVP_Cfg {
 	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
 	const DON_VI_GHE = '';
 
+	/**
+	 * BẢN NÀY CÓ LẤY CƠ SỞ TỪ BÊN GHẾ KHÔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế chỉ mỗi MTD thôi"*.
+	 *
+	 * 🔴 KHÔNG PHẢI MẢNG NÀO CŨNG CÓ GHẾ. Máy tự động chính là mảng ghế massage nên danh mục gian
+	 *    của nó đúng bằng danh mục bên Ghế. Văn phòng thì không: gian ở đó là chỗ làm việc, không
+	 *    liên quan. Hút sang là mỗi lần bên Ghế mở thêm một điểm đặt máy, danh mục Văn phòng lại
+	 *    dài thêm một dòng lạ — rồi người nhập chọn nhầm, và tiền văn phòng rơi vào một gian ghế.
+	 *
+	 * ⚠️ TẮT LÀ TẮT CẢ BA LỐI: lượt hút tự động, tai nghe móc từ bên Ghế, và nút bấm tay. Tắt
+	 *    hai để sót một thì cơ sở vẫn chảy sang, chỉ là chậm hơn và khó truy hơn.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	const LAY_COSO_GHE = false;
+
 	/** Đơn vị gắn cho cơ sở hút từ Ghế — khai được, mặc định lấy hằng trên. */
 	public static function don_vi_ghe() {
 		$v = get_option( 'vhcpvp_dv_ghe', null );
@@ -536,6 +554,7 @@ class VHCPVP_Cfg {
 	 *    nghe không ai biết còn đúng hay không.
 	 */
 	public static function moc_coso_ghe( $ten ) {
+		if ( ! self::LAY_COSO_GHE ) { return; }   // bản không dùng ghế — xem hằng ấy
 		self::nhan_coso_ngoai( $ten, self::don_vi_ghe() );
 	}
 
@@ -547,6 +566,10 @@ class VHCPVP_Cfg {
 	 * cả tháng — nút này là đường ấy.
 	 */
 	public static function hut_coso_ghe_api() {
+		if ( ! self::LAY_COSO_GHE ) {
+			return array( 'ok' => false, 'error' => 'Mảng này không lấy cơ sở từ bên Ghế. '
+				. 'Gian của mảng khai thẳng ở bảng Cơ sở bên dưới.' );
+		}
 		if ( ! class_exists( 'VHG_May' ) ) {
 			return array( 'ok' => false, 'error' => 'Chưa cài plugin Ghế massage trên site này.' );
 		}
@@ -578,6 +601,8 @@ class VHCPVP_Cfg {
 	 *    trên đúng đường người ta bấm Lưu.
 	 */
 	private static function bao_coso_posh_( $rows ) {
+		/* Bản không dùng ghế thì cũng không báo sang — xem hằng `LAY_COSO_GHE`. */
+		if ( ! self::LAY_COSO_GHE ) { return; }
 		foreach ( (array) $rows as $r ) {
 			$r  = array_values( (array) $r );
 			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );

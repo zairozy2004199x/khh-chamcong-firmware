@@ -257,6 +257,28 @@ if ! grep -q "const DON_VI_GHE = '';" "$DICH/includes/class-vhcp-cfg.php"; then
   exit 8
 fi
 
+# 🔴 MẢNG NÀO CÓ GHẾ — anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế chỉ mỗi MTD thôi"*.
+#
+#    Máy tự động CHÍNH LÀ mảng ghế massage nên danh mục gian của nó đúng bằng danh mục bên Ghế.
+#    Văn phòng thì không: gian ở đó là chỗ làm việc. Hút sang là mỗi lần bên Ghế mở thêm một điểm
+#    đặt máy, danh mục Văn phòng lại dài thêm một dòng lạ — rồi người nhập chọn nhầm, và tiền văn
+#    phòng rơi vào một gian ghế.
+#
+# ⚠️ MẶC ĐỊNH LÀ BẬT. Vùng mới sinh sau này mà quên khai ở đây thì nó theo nếp bản gốc, chứ
+#    không lặng lẽ mất một đường dữ liệu.
+case "$MA" in
+  vp) GHE=false ;;
+  *)  GHE=true  ;;
+esac
+if [ "$GHE" = "false" ]; then
+  perl -0777 -pi -e "s/const LAY_COSO_GHE = true;/const LAY_COSO_GHE = false;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LAY_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa tắt được đường lấy cơ sở từ Ghế cho bản '$MA'."
+    grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+fi
+
 # ── Tên plugin ─────────────────────────────────────────────────────────────────────────────
 # ⚠️ TÊN PHẢI MANG MÃ BẢN. Trong danh sách Plugin của wp-admin bốn bản trông na ná nhau; thiếu
 #    mã thì gỡ nhầm hay cập nhật nhầm là chuyện sớm muộn, mà gỡ nhầm một bản chi phí là mất
@@ -275,6 +297,7 @@ echo "  · REST      vhcp${MA}/v1/call   (bản gốc giữ vhcp/v1/call)"
 echo "  · menu      wp-admin ?page=vhcp${MA}"
 echo "  · tên trang $TEN_TRANG   (đổi được ở wp-admin -> Cài đặt, khỏi sửa mã)"
 echo "  · cơ sở     không tạm ứng -> mỗi dòng chi một cơ sở; có tạm ứng -> khoá theo gian ấy"
+echo "  · lấy từ Ghế $GHE"
 echo
 echo "Bước tiếp:"
 echo "  1. bash tools/build-plugin-zip.sh chi-phi-$MA"

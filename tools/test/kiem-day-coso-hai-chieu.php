@@ -70,6 +70,7 @@ $DV = isset( $m_dv[1] ) ? $m_dv[1] : 'POSH';
    bên Ghế không bao giờ biết cơ sở vừa khai (anh Thắng 14/09/2026: *"chi phí văn phòng lấy từ
    đó, chỉnh lại"*). Lớp giả phải có cửa ấy. */
 eval( 'class TC { const DON_VI_GHE = ' . var_export( $DV, true ) . '; '
+	. ' const LAY_COSO_GHE = true; '
 	. ' public static function don_vi_ghe() { return self::DON_VI_GHE; } '
 	. str_replace( 'private static function', 'public static function', $than ) . ' }' );
 

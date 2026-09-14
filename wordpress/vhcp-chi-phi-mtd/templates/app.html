@@ -1406,7 +1406,7 @@
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
     <div class="card" id="cosoCard">
-      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây, gắn sẵn đơn vị POSH. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-x" id="btnHutGhe" onclick="hutCoSoGhe()" title="Kéo các địa điểm bên trang Ghế massage sang đây. Chỉ THÊM — không sửa, không xoá dòng nào đang có.">🪑 Hút cơ sở từ Ghế</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div id="cosoLaBox" style="display:none"></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:150px" title="Bên nào nhìn thấy chi phí của cơ sở này. Ô NHẬP kèm gợi ý — gõ tên đơn vị MỚI vào là khai xong, không phải sửa mã. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Tỉnh / thành của gian này — để gom và lọc theo vùng. Ô NHẬP kèm gợi ý: gõ tên tỉnh mới vào là có. Để trống = chưa khai.">Tỉnh / Thành</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
@@ -9217,6 +9217,7 @@
   function delCfgRow(btn){ var tr=btn.parentNode.parentNode; tr.parentNode.removeChild(tr); }
   function renderCfg(){
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
+    anNutHutGhe();   /* mảng không dùng ghế thì giấu nút — xem hàm ấy */
     renderCosoBody();
     renderCfgBp();
     renderVai();
@@ -9773,6 +9774,15 @@
 
      ⚠️ CHỈ THÊM. Máy chủ không sửa, không xoá, không đè ô MISA của dòng đang có — xem
         `VHCPMTD_Cfg::nhan_coso_ngoai()`. Nên bấm mấy lần cũng không sinh dòng thứ hai. */
+  /* 🔴 MẢNG KHÔNG DÙNG GHẾ THÌ GIẤU NÚT — anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế
+     chỉ mỗi MTD thôi"*. Máy chủ vẫn chối lần nữa (`LAY_COSO_GHE`), nhưng bày một nút bấm vào chỉ
+     nhận câu chối là thứ người ta bấm đi bấm lại rồi nghĩ trang hỏng. */
+  function anNutHutGhe(){
+    if (VHCPMTD_CFG && VHCPMTD_CFG.layCoSoGhe) return;
+    var n = document.getElementById('btnHutGhe');
+    if (n) n.style.display = 'none';
+  }
+
   function hutCoSoGhe(){
     if(!confirm('Kéo các địa điểm bên trang Ghế massage sang danh mục này, gắn sẵn đơn vị POSH?\n\nCHỈ THÊM cơ sở còn thiếu — không sửa, không xoá dòng nào đang có.')) return;
     google.script.run.withSuccessHandler(function(r){

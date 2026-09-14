@@ -179,6 +179,9 @@ class VHCP_App {
 			'ver'      => VHCP_VERSION,
 			/* Giao diện lấy tên từ đây — xem khối dài ở `ten_trang()`. */
 			'tenTrang' => self::ten_trang(),
+			/* Mảng này có lấy cơ sở từ bên Ghế không — màn ẩn nút "Hút cơ sở từ Ghế" khi không.
+			   Bày một nút bấm vào chỉ nhận câu chối là thứ người ta bấm đi bấm lại. */
+			'layCoSoGhe' => VHCP_Cfg::LAY_COSO_GHE ? 1 : 0,
 		);
 
 		$out  = '<title>' . esc_html( $tieu_de ) . '</title>' . "\n";

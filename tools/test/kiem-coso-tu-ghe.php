@@ -48,6 +48,61 @@ $sh = file_get_contents( $GOC . '/tools/tach-ban-vung.sh' );
 t( '🔴 script tách có chốt kiểm hằng ấy',
 	(bool) preg_match( '#grep -q "const DON_VI_GHE = \x27\x27;"#', $sh ), '' );
 
+/* ═══ 1b. MẢNG NÀO CÓ GHẾ, MẢNG NÀO KHÔNG ═══════════════════════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế chỉ mỗi MTD thôi"*.
+ *
+ * 🔴 Máy tự động CHÍNH LÀ mảng ghế massage nên danh mục gian của nó đúng bằng danh mục bên Ghế.
+ *    Văn phòng thì không: gian ở đó là chỗ làm việc. Hút sang là mỗi lần bên Ghế mở thêm một
+ *    điểm đặt máy, danh mục Văn phòng lại dài thêm một dòng lạ — rồi người nhập chọn nhầm, và
+ *    tiền văn phòng rơi vào một gian ghế.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 bản gốc khu vui chơi: CÓ lấy từ Ghế', true, VHCP_Cfg::LAY_COSO_GHE );
+$mtd_ma = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-mtd/includes/class-vhcp-cfg.php' );
+$vp_ma  = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-vp/includes/class-vhcp-cfg.php' );
+if ( $mtd_ma ) { t( '🔴 bản «mtd» (máy tự động): CÓ lấy từ Ghế',
+	(bool) preg_match( '#const LAY_COSO_GHE = true;#', $mtd_ma ), '' ); }
+if ( $vp_ma )  { t( '🔴 bản «vp» (văn phòng): KHÔNG lấy từ Ghế',
+	(bool) preg_match( '#const LAY_COSO_GHE = false;#', $vp_ma ), '' ); }
+t( '🔴 script tách khai đúng mảng nào tắt', (bool) preg_match( '#vp\) GHE=false#', $sh ), '' );
+/* ⚠️ MẶC ĐỊNH LÀ BẬT: vùng mới sinh mà quên khai thì theo nếp bản gốc, chứ không lặng lẽ mất
+   một đường dữ liệu. */
+t( '⚠️ vùng chưa khai thì mặc định BẬT', (bool) preg_match( '#\*\)  GHE=true#', $sh ), '' );
+
+/* 🔴 TẮT LÀ TẮT CẢ BỐN LỐI — lượt hút, tai nghe từ Ghế, nút bấm tay, và đầu phát ngược. Tắt ba
+   để sót một thì cơ sở vẫn chảy sang, chỉ là chậm hơn và khó truy hơn. */
+$cfg0 = preg_replace( '#/\*[\s\S]*?\*/|//[^\n]*#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' ) );
+/* ⚠️ SOI TRONG THÂN HÀM, KHÔNG ĐỌC LAN SANG HÀM KẾ BÊN. Bản nháp của phép này quét 260 ký tự
+   sau tên hàm — xoá sạch gác của `moc_coso_ghe()` mà bài vẫn xanh, vì nó đọc trúng chữ
+   `LAY_COSO_GHE` của `hut_coso_ghe_api()` nằm ngay dưới. Phép kiểm nói dối đúng chỗ nó phải
+   canh. Nay cắt thân hàm ra trước rồi mới soi. */
+function than_ham( $src, $ten ) {
+	$i = strpos( $src, 'function ' . $ten . '(' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $src, "\n\t}", $i );
+	return ( false === $j ) ? '' : substr( $src, $i, $j - $i );
+}
+foreach ( array(
+	'hut_coso_ghe'     => 'lượt hút',
+	'moc_coso_ghe'     => 'tai nghe từ Ghế',
+	'hut_coso_ghe_api' => 'nút bấm tay',
+	'bao_coso_posh_'   => 'đầu phát ngược',
+) as $ham => $nhan ) {
+	$than = than_ham( $cfg0, $ham );
+	t( '🔴 ' . $nhan . ' có gác LAY_COSO_GHE trong THÂN nó',
+		'' !== $than && false !== strpos( $than, 'LAY_COSO_GHE' ), $ham );
+}
+/* ⚠️ Và màn giấu nút đi: bày một nút bấm vào chỉ nhận câu chối là thứ người ta bấm đi bấm lại
+   rồi nghĩ trang hỏng. */
+$html0 = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '⚠️ màn giấu nút khi mảng không dùng ghế', false !== strpos( $html0, 'function anNutHutGhe(' ), '' );
+t( 'và nó chạy mỗi lượt dựng màn Cấu hình',
+	(bool) preg_match( '#function renderCfg\(\)[\s\S]{0,400}?anNutHutGhe\(\);#', $html0 ), '' );
+t( '🔴 máy chủ gửi cờ xuống màn',
+	false !== strpos( file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-app.php' ),
+		"'layCoSoGhe' => VHCP_Cfg::LAY_COSO_GHE" ), '' );
+
 /* ═══ 2. RỖNG PHẢI RA NHÀ MẶC ĐỊNH, KHÔNG PHẢI "KHÔNG CÓ NHÀ" ════════════════════ */
 teq( '🔴 chuan("") = nhà mặc định', VHCP_DonVi::MAC_DINH, VHCP_DonVi::chuan( '' ) );
 
