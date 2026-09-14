@@ -97,6 +97,7 @@ nói dối bằng hình ảnh — người xem tin vào cái chấm chứ không
 | `Giờ này không thuộc hàng tăng ca / ca đêm.` | Chỉ gặp ở khối Văn phòng. Báo quản lý, **đừng chấm lại nhiều lần**. | Quản lý |
 | `Tài khoản này chưa bật chấm công online.` | Hồ sơ chưa có **Mã NV**. | Quản lý |
 | **"PIN không đúng" dù gõ đúng PIN** | 🔴 Gần như chắc là **vai trò trong hồ sơ ghi một tên hệ không có**. Cổng chối nhưng chỉ nói được "PIN không đúng". Xem dải **⛔ vai không vào được cổng** ở màn Quản lý nhân sự. | Kế toán |
+| Quên PIN → `Hồ sơ có nhưng chưa được cấp mật khẩu đăng nhập.` | Hồ sơ có thật nhưng chưa ai cấp PIN. Quản lý mở hồ sơ, đặt PIN 6 số rồi Lưu. | Quản lý |
 | Bấm 📷 mà không lên camera | Chưa cho phép camera, hoặc đang ở trình duyệt Zalo/Facebook. | Tự làm |
 | `📍 Chưa bắt được vị trí` | Bình thường khi ở trong nhà. **Vẫn chấm được.** | Bỏ qua |
 
