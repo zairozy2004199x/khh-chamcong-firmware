@@ -148,6 +148,34 @@ class VHCPBB_Cfg {
    ấy nói KHÔNG. Bảng phân quyền sửa được trên màn và anh Thắng đã sửa nó thật; đoán theo tên vai
    là nói ngược lại thứ người ta vừa khai. Thiếu ca này thì một bản `return 'Quản lý' === $vai`
    vẫn xanh — đã thử, nó sống. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 ADMIN ĐỨNG NGOÀI MA TRẬN PHÂN QUYỀN — ca đã cắn thật 14/09/2026.
+ *
+ * `VHCP_Cfg::roles()` của bản thật trả về *Giám đốc · Quản lý · Kế toán cá nhân · Kế toán NCC ·
+ * Nhân viên* — KHÔNG có 'Admin'. Bảng phân quyền chỉ có cột cho những vai ấy, nên
+ * `$q['duyetTU']['Admin']` không tồn tại và trang tổng đọc ra `false`: Admin đăng nhập vào thấy
+ * "vai của bạn không được duyệt ở mảng nào". Anh Thắng sau khi cài: *"chi phí tổng chưa có"*.
+ *
+ * Bản giả này dựng ĐÚNG hình ấy — `roles()` không kể Admin, và ma trận cũng không có cột Admin.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+class VHCPEE_Don { public static function don_row( $m ) { return null; } }
+class VHCPEE_Cfg {
+	public static function roles() {
+		return array( 'Giám đốc', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+	}
+	public static function get_users() {
+		return array( array( 'ten' => 'Sếp Tổng', 'pin' => '8642', 'vai' => 'Admin', 'coso' => '' ) );
+	}
+	public static function get_quyen() {
+		return array(
+			'duyetTU'  => array( 'Quản lý' => true ),
+			'capTU'    => array( 'Kế toán cá nhân' => true ),
+			'traDon'   => array( 'Quản lý' => true ),
+			'duyetNCC' => array( 'Kế toán NCC' => true ),
+		);
+	}
+}
+
 class VHCPDD_Don { public static function don_row( $m ) { return null; } }
 class VHCPDD_Cfg {
 	public static function get_users() {
@@ -260,6 +288,31 @@ teq( '   ban_lam_duoc("cap") rỗng với quản lý', array(), VHCPT_Auth::ban_
 VHCPT_Auth::dat_toi( array( 'ten' => 'Thẻ Cũ', 'bans' => array( 'aa' => array( 'vai' => 'Quản lý', 'duyet' => true ) ) ) );
 t( '🔴 thẻ cũ: duyệt thì vẫn được', VHCPT_Auth::duoc( 'aa', 'duyet' ), '' );
 t( '🔴 thẻ cũ: cấp tiền thì KHÔNG', ! VHCPT_Auth::duoc( 'aa', 'cap' ), '' );
+VHCPT_Auth::dat_toi( $ng );
+
+/* ═══ 6b-2. 🔴 ADMIN PHẢI LÀM ĐƯỢC MỌI VIỆC ═════════════════════════════════════ */
+$ad2 = VHCPT_Auth::tim_theo_pin( '8642' );
+t( 'Admin đăng nhập được', is_array( $ad2 ) && isset( $ad2['ten'] ), $ad2 );
+VHCPT_Auth::dat_toi( $ad2 );
+foreach ( array_keys( VHCPT_Auth::VIEC ) as $v_ad ) {
+	t( '🔴 Admin làm được việc «' . $v_ad . '» ở bản ee', VHCPT_Auth::duoc( 'ee', $v_ad ), '' );
+}
+t( '   và duoc_duyet() cũng nói thế (một đường, không hai)',
+	VHCPT_Auth::duoc_duyet( 'ee', 'Admin' ), '' );
+/* ⚠️ NHƯNG KHÔNG PHẢI "AI CŨNG QUA". Vai có mặt trong ma trận thì vẫn tra ma trận — nới cho
+   Admin là vì bảng ấy không có chỗ trả lời về Admin, không phải vì tên vai nghe to. */
+t( '🔴 vai «Nhân viên» ở bản ee vẫn KHÔNG duyệt được',
+	! VHCPT_Auth::bang_quyen( 'ee', 'Nhân viên' )['duyet'], '' );
+t( '🔴 và «Quản lý» thì duyệt được, nhưng KHÔNG cấp tiền',
+	VHCPT_Auth::bang_quyen( 'ee', 'Quản lý' )['duyet']
+		&& ! VHCPT_Auth::bang_quyen( 'ee', 'Quản lý' )['cap'], '' );
+/* 🔴 ĐỐI CHỨNG: bản nào ĐÃ đưa Admin vào ma trận thì tra bình thường, không nới nữa. Bản aa có
+   cột Admin? Không — nhưng roles() của nó cũng không khai, nên nó cùng ca với ee. Phép dưới
+   canh đúng cái điều kiện: "không nằm trong roles()", chứ không phải "tên là Admin". */
+$auth_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $TONG . '/includes/class-vhcpt-auth.php' ) );
+t( '🔴 điều kiện nới là "Admin KHÔNG nằm trong roles()", không phải chỉ so tên',
+	false !== strpos( $auth_ma, "in_array( 'Admin', \$vai_ds, true )" ), '' );
 VHCPT_Auth::dat_toi( $ng );
 
 /* ═══ 6c. API: MỖI VIỆC GÁC BẰNG HÀNH ĐỘNG CỦA CHÍNH NÓ ════════════════════════ */

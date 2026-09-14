@@ -112,16 +112,11 @@ class VHCPT_Auth {
 	 *    và anh Thắng đã sửa nó thật; đoán theo tên vai là nói ngược lại thứ người ta vừa khai.
 	 */
 	public static function duoc_duyet( $khoa, $vai ) {
-		$vai = trim( (string) $vai );
-		if ( '' === $vai ) { return false; }
-		$lop_cfg = VHCPT_Ban::lop( $khoa, 'Cfg' );
-		if ( ! $lop_cfg || ! class_exists( $lop_cfg ) || ! method_exists( $lop_cfg, 'get_quyen' ) ) {
-			return false;
-		}
-		$q = (array) call_user_func( array( $lop_cfg, 'get_quyen' ) );
-		if ( ! isset( $q[ self::QUYEN_DUYET ] ) || ! is_array( $q[ self::QUYEN_DUYET ] ) ) { return false; }
-		$hang = $q[ self::QUYEN_DUYET ];
-		return ! empty( $hang[ $vai ] );
+		/* ⚠️ ĐI QUA `bang_quyen()`, KHÔNG TỰ TRA LẠI. Bản trước tra thẳng ma trận ở đây, nên nó
+		   mắc y nguyên cái lỗi Admin ở trên — hai đường trả lời cùng một câu hỏi thì cái nào
+		   được vá cũng để lại cái kia sai. */
+		$b = self::bang_quyen( $khoa, $vai );
+		return ! empty( $b['duyet'] );
 	}
 
 	/**
@@ -140,6 +135,35 @@ class VHCPT_Auth {
 		if ( ! $lop_cfg || ! class_exists( $lop_cfg ) || ! method_exists( $lop_cfg, 'get_quyen' ) ) {
 			return $ra;
 		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 ADMIN ĐỨNG NGOÀI MA TRẬN PHÂN QUYỀN — VÀ BẢN 1.1.0 KHÔNG BIẾT ĐIỀU ĐÓ.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * `VHCP_Cfg::roles()` trả về *Giám đốc · Quản lý · Kế toán cá nhân · Kế toán NCC · Nhân
+		 * viên* (+ vai tự tạo). **Không có 'Admin'.** Bảng phân quyền chỉ có cột cho những vai
+		 * ấy, nên `$q['duyetTU']['Admin']` KHÔNG TỒN TẠI. Bên trang mảng, Admin được cho qua
+		 * bằng một luật riêng ("Admin toàn quyền", xem app.html); trang tổng tra thẳng ma trận
+		 * nên đọc ra `false` — và Admin đăng nhập vào thấy *"vai của bạn không được duyệt, cấp
+		 * tiền hay trả lại đơn ở mảng nào"*.
+		 *
+		 * Anh Thắng 14/09/2026, sau khi cài: *"chi phí tổng chưa có"*. Đúng — cửa mở nhưng
+		 * trong đó không bấm được gì, kể cả bằng tài khoản cao nhất của hệ.
+		 *
+		 * 🔴 ĐÂY KHÔNG PHẢI "ĐOÁN THEO TÊN VAI" — thứ mà chính tệp này cấm ở khối trên. Khác
+		 *    nhau ở chỗ: 'Quản lý' CÓ trong ma trận, nên đoán hộ nó là nói ngược lại thứ người
+		 *    ta vừa khai. 'Admin' thì KHÔNG có cột nào để khai cả — tra nó là hỏi một câu bảng
+		 *    ấy không có chỗ trả lời. Nên điều kiện phải là "vai này không nằm trong `roles()`
+		 *    của bản ấy", chứ không phải "vai này tên là Admin": ngày nào Admin được đưa vào ma
+		 *    trận thì nó tự quay về tra bình thường, không cần ai nhớ sửa chỗ này.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'Admin' === $vai && method_exists( $lop_cfg, 'roles' ) ) {
+			$vai_ds = (array) call_user_func( array( $lop_cfg, 'roles' ) );
+			if ( ! in_array( 'Admin', $vai_ds, true ) ) {
+				foreach ( self::VIEC as $viec => $hd ) { $ra[ $viec ] = true; }
+				return $ra;
+			}
+		}
+
 		$q = (array) call_user_func( array( $lop_cfg, 'get_quyen' ) );
 		foreach ( self::VIEC as $viec => $hd ) {
 			$ra[ $viec ] = ( isset( $q[ $hd ] ) && is_array( $q[ $hd ] ) && ! empty( $q[ $hd ][ $vai ] ) );

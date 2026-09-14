@@ -115,6 +115,19 @@ Không có sổ người dùng riêng. PIN gõ vào được thử qua `<Bản>_
 được mảng nào thì thấy đơn của mảng ấy. Cho nó sổ riêng thì mỗi lần đổi người duyệt phải khai hai
 nơi, và nơi bị quên là nơi vẫn còn mở cửa cho người đã nghỉ.
 
+🔴 **Admin đứng NGOÀI ma trận phân quyền — phải nới riêng.** `VHCP_Cfg::roles()` trả về *Giám
+đốc · Quản lý · Kế toán cá nhân · Kế toán NCC · Nhân viên* (+ vai tự tạo); **không có `Admin`**.
+Bảng phân quyền chỉ có cột cho những vai ấy, nên `$q['duyetTU']['Admin']` không tồn tại. Bên
+trang mảng, Admin được cho qua bằng một luật riêng (*"Admin toàn quyền"*); bản 1.1.0 của trang
+tổng tra thẳng ma trận nên đọc ra `false` — **Admin đăng nhập vào không bấm được gì**, kể cả
+bằng tài khoản cao nhất của hệ. Anh Thắng sau khi cài: *"chi phí tổng chưa có"*. Vá ở 1.2.0.
+
+⚠️ Điều kiện nới là **"vai này không nằm trong `roles()` của bản ấy"**, không phải *"vai này tên
+là Admin"*. Khác nhau ở chỗ: `Quản lý` **có** trong ma trận nên đoán hộ nó là nói ngược lại thứ
+người ta vừa khai; `Admin` thì **không có cột nào để khai cả** — tra nó là hỏi một câu bảng ấy
+không có chỗ trả lời. Viết theo điều kiện ấy thì ngày nào Admin được đưa vào ma trận, nó tự quay
+về tra bình thường, khỏi cần ai nhớ sửa.
+
 🔴 **Quyền duyệt hỏi chính bảng phân quyền của bản chứa đơn** (`<Bản>_Cfg::get_quyen()['duyetTU']`),
 không đoán theo tên vai. Bảng ấy sửa được trên màn và anh Thắng đã sửa nó thật; đoán theo tên vai
 là nói ngược lại thứ người ta vừa khai. Một người có thể là Quản lý ở KVC (duyệt được) và Kế toán
@@ -169,7 +182,7 @@ trùng nhau là chuyện thường, chúng đánh số độc lập.
 
 `Chờ duyệt tạm ứng` · `Chờ cấp tạm ứng` · `Chờ quyết toán` — chuỗi tiếng Việt có dấu. Đổi một chữ
 ở một bản là đơn của bản ấy **biến mất** khỏi trang tổng: không câu lỗi nào, chỉ là bảng ngắn đi.
-`tools/test/kiem-trang-tong.php` canh đúng chỗ đó (72 phép).
+`tools/test/kiem-trang-tong.php` canh đúng chỗ đó (81 phép).
 
 ## Khoá GitHub: mỗi bộ một ô, nhưng khai một lượt
 
