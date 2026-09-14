@@ -437,6 +437,64 @@ t( '🔴 đường dẫn khai ở `init`, KHÔNG ở `plugins_loaded`',
 t( '⚠️ dùng cờ xong thì xoá cờ',
 	(bool) preg_match( "#delete_option\( 'vhcpt_flush_rewrite' \);[\s\S]{0,120}?flush_rewrite_rules#", $boot_ma ), '' );
 
+/* ═══ 6b. HAI MÀN KẾ TOÁN: QUYẾT TOÁN ĐẦY ĐỦ VÀ XUẤT MISA ═══════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"Trang tổng là xem, duyệt, quyết toán, xuất misa, sau này kế toán và
+ * quản lý làm trên trang này, không làm trên trang bộ phận."*
+ *
+ * 🔴 TẦNG MÁY CHỦ XONG TRƯỚC GIAO DIỆN MỘT BẢN — `qtCn`, `misa`, `misaXong` đã nhận lời gọi từ
+ *    bản 1.4.0, nhưng màn không có nút nào bấm tới. Nghĩa là kế toán vẫn phải mở trang mảng,
+ *    đúng thứ câu trên bảo thôi. Bài này canh CẢ HAI ĐẦU cùng có mặt: thiếu một đầu thì tính
+ *    năng coi như không tồn tại, mà không đầu nào kêu.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$api_ma = file_get_contents( $TONG . '/includes/class-vhcpt-api.php' );
+
+t( '🔴 tab Chờ quyết toán có nút Quyết toán cá nhân (qtCn)',
+	(bool) preg_match( "#qt:\s*\[[^\]]*viec:'qtCn'#", $html ), '' );
+t( 'và vẫn giữ nút Xác nhận NCC bên cạnh',
+	(bool) preg_match( "#qt:\s*\[[^\]]*viec:'qtNcc'#", $html ), '' );
+t( '🔴 máy chủ nhận đúng hai việc ấy',
+	false !== strpos( $api_ma, '\'qtCn\' === $viec' ) && false !== strpos( $api_ma, '\'qtNcc\' === $viec' ), '' );
+
+foreach ( array( 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong' ) as $h ) {
+	t( 'màn MISA có hàm ' . $h . '()', false !== strpos( $html, 'function ' . $h . '(' ), '' );
+}
+t( '🔴 màn MISA gọi đúng hai cổng máy chủ',
+	(bool) preg_match( "#goi\( *'misa' *,#", $html ) && (bool) preg_match( "#goi\( *'misaXong' *,#", $html ), '' );
+t( '🔴 và máy chủ có nhận cả hai',
+	false !== strpos( $api_ma, '\'misa\' === $viec' ) && false !== strpos( $api_ma, '\'misaXong\' === $viec' ), '' );
+
+/* 🔴 XEM KHÔNG PHẢI LÀ XUẤT. Đánh dấu "đã xuất" ngay lúc bày bảng thì một lượt xem thử làm lượt
+      xuất THẬT sau đó ra tệp rỗng — và không ai hiểu vì sao. Nút đánh dấu phải KHOÁ tới khi đã
+      tải tệp; chỗ mở khoá duy nhất nằm trong `taiMisa()`. */
+t( '🔴 nút Đánh dấu bị khoá cho tới khi đã tải tệp',
+	(bool) preg_match( "#MISA\.daTai\[b\.ban\][\s\S]{0,120}?disabled#", $html ), '' );
+t( '🔴 và cờ đã-tải chỉ được bật TRONG hàm tải tệp',
+	1 === preg_match_all( "#MISA\.daTai\[[^\]]+\] = true#", $html ), '' );
+t( '🔴 lượt đọc bút toán KHÔNG tự đánh dấu đã xuất',
+	! preg_match( "#function docMisa\(\)[\s\S]{0,600}?goi\( *'misaXong'#", $html ), '' );
+t( 'đọc bút toán mặc định lấy nhánh «chưa xuất lần nào»',
+	(bool) preg_match( "#mode:'chuaxuat'#", $html ), '' );
+
+/* ⚠️ maDons RỖNG KHÔNG PHẢI LỖI — lõi MISA chỉ trả mã đơn ở nhánh chi phí thường. Bật nút lên
+      trong cảnh ấy là người ta bấm rồi nhận câu chối, nghe như hỏng. */
+t( '⚠️ mảng không có mã đơn thì nói thẳng, không bày nút bấm hụt',
+	(bool) preg_match( "#function nutXong[\s\S]{0,400}?không có mã đơn để đánh dấu#u", $html ), '' );
+
+/* ⚠️ Tệp .csv phải có BOM, không thì Excel mở ra tiếng Việt thành ký tự lạ. */
+t( '⚠️ tệp .csv xuất ra có BOM cho Excel',
+	false !== strpos( $html, "new Blob(['\xef\xbb\xbf'" ), '' );
+t( '⚠️ ô chứa phẩy/nháy/xuống dòng được bọc nháy kép',
+	(bool) preg_match( '#function oCsv[\s\S]{0,300}?replace\(/"/g#', $html ), '' );
+t( 'mỗi mảng một tệp riêng (tên tệp mang khoá mảng)',
+	(bool) preg_match( "#download = 'misa-' \+ b\.ban#", $html ), '' );
+
+/* 🔴 Tab MISA chỉ hiện cho người có quyền xuất ở ít nhất một mảng. */
+t( '🔴 tab Xuất MISA chỉ hiện khi có quyền',
+	(bool) preg_match( "#if \( coQuyen\('misa'\) \)#", $html ), '' );
+t( 'và nó KHÔNG gọi ds() như ba tab kia',
+	(bool) preg_match( "#if \(NHOM === TAB_MISA\)\{ veMisa\(\); return; \}#", $html ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.

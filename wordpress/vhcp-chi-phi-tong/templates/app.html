@@ -100,7 +100,9 @@ function layThe(){ try{ return sessionStorage.getItem(OTHE) || ''; }catch(e){ re
 function datThe(v){ try{ v ? sessionStorage.setItem(OTHE,v) : sessionStorage.removeItem(OTHE); }catch(e){} }
 
 var TOI = null, NHOM = 'duyet', ROWS = [], BAO = null;
-var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại', qtNcc:'quyết toán NCC' };
+var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại',
+                 qtCn:'quyết toán cá nhân', qtNcc:'quyết toán NCC', misa:'xuất MISA' };
+var TAB_MISA = 'misa';   // tab này KHÔNG phải một nhóm đơn — nó không gọi ds()
 
 function goi(fn, args){
   return fetch(BOOT.api, {
@@ -124,6 +126,10 @@ function esc(s){
   return String(s==null?'':s).replace(/[&<>"']/g,function(c){
     return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
   });
+}
+/** Người này làm được VIỆC ấy ở ít nhất một mảng không. */
+function coQuyen(viec){
+  return (TOI && TOI.bans || []).some(function(b){ return b.quyen && b.quyen[viec]; });
 }
 function veBao(){ return BAO ? '<div class="bao bao-'+BAO.loai+'">'+esc(BAO.chu)+'</div>' : ''; }
 function datBao(loai,chu){ BAO = { loai:loai, chu:chu }; }
@@ -166,6 +172,17 @@ function veChinh(){
     return '<button class="btn '+(k===NHOM?'b-on':'b-x')+'" data-nhom="'+esc(k)+'">'+
       esc(nhomDs[k].ten)+'<span class="dem">'+so+'</span></button>';
   }).join('');
+  /* 🔴 TAB XUẤT MISA ĐỨNG RIÊNG, KHÔNG PHẢI MỘT NHÓM ĐƠN.
+     Ba tab kia hỏi "đơn nào đang chờ tôi quyết định" — có số đếm, gọi ds(). Tab này hỏi
+     "bút toán nào chưa đẩy sang MISA": khác câu hỏi, khác lát cắt, khác cả đơn vị đếm
+     (nó đếm DÒNG bút toán, không đếm đơn). Nhét chung một máng là hai thứ tranh nhau
+     một ô đếm và không ô nào đúng.
+     ⚠️ Chỉ hiện cho người có quyền xuất MISA ở ÍT NHẤT một mảng — bày một tab bấm vào
+        chỉ để nhận câu chối là thứ người ta bấm đi bấm lại. */
+  if ( coQuyen('misa') ) {
+    tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
+      '<button class="btn '+(NHOM===TAB_MISA?'b-on':'b-x')+'" data-nhom="'+TAB_MISA+'">📤 Xuất MISA</button>';
+  }
 
   /* 🔴 NÓI RÕ VAI Ở TỪNG MẢNG, KHÔNG CHỈ "chỉ xem". Người đọc phải biết mình đang mang vai gì
      thì mới biết phải đi khai quyền ở đâu — "chỉ xem" không nói được điều đó. */
@@ -212,6 +229,7 @@ function veChinh(){
 }
 
 function napDs(){
+  if (NHOM === TAB_MISA){ veMisa(); return; }
   goi('ds',{nhom:NHOM}).then(function(r){
     if (r && r.error){ document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
     ROWS = r.rows || [];
@@ -236,7 +254,13 @@ function veBang(){
   var VIEC_TAB = {
     duyet: [ {viec:'duyet', ten:'Duyệt', lop:'b-g'} ],
     cap:   [ {viec:'cap',   ten:'Cấp tạm ứng', lop:'b-g'} ],
-    qt:    [ {viec:'qtNcc', ten:'Xác nhận NCC', lop:'b-s'} ]
+    /* 🔴 HAI ĐƯỜNG QUYẾT TOÁN, BÀY CẢ HAI — đơn "Chờ quyết toán" có thể là tiền đã ứng cho
+       NHÂN VIÊN (quyết toán phần cá nhân: so tiền ứng với tiền tiêu, chênh thì thu lại hoặc
+       bù thêm) hoặc tiền trả NHÀ CUNG CẤP (xác nhận NCC đã nhận). Đoán hộ bằng cách chỉ bày
+       một nút là ép kế toán mở trang mảng cho nửa số đơn — đúng thứ anh Thắng bảo thôi:
+       *"sau này kế toán và quản lý làm trên trang này, không làm trên trang bộ phận"*. */
+    qt:    [ {viec:'qtCn',  ten:'Quyết toán cá nhân', lop:'b-g'},
+             {viec:'qtNcc', ten:'Xác nhận NCC',       lop:'b-s'} ]
   };
   var viecs = VIEC_TAB[NHOM] || [];
 
@@ -352,6 +376,169 @@ function veChiTiet(g){
   h += '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
        '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
   return h;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN XUẤT MISA — anh Thắng 14/09/2026: *"Trang tổng là xem, duyệt, quyết toán, xuất misa, sau
+ * này kế toán và quản lý làm trên trang này, không làm trên trang bộ phận."*
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MỖI MẢNG MỘT TỆP RIÊNG. Bút toán MISA mang mã đơn vị của từng cơ sở, và ba mảng có ba danh
+ *    mục tài khoản riêng — gộp một tệp là kế toán phải ngồi tách tay trên bảng bút toán, chỗ dễ
+ *    lẫn nhất trong cả quy trình.
+ *
+ * 🔴 XEM KHÔNG PHẢI LÀ XUẤT. Đánh dấu "đã xuất" ngay lúc bày bảng thì một lượt xem thử rồi đóng
+ *    màn sẽ làm lượt xuất THẬT sau đó ra tệp rỗng — và không ai hiểu vì sao. Nên đánh dấu là một
+ *    nút riêng, chỉ bật lên SAU khi đã bấm tải tệp.
+ *
+ * ⚠️ TỆP .CSV CÓ BOM. Không có BOM thì Excel mở ra tiếng Việt thành ký tự lạ, kế toán tưởng dữ
+ *    liệu hỏng. Ngăn cách bằng dấu phẩy, ô nào chứa phẩy/nháy/xuống dòng thì bọc nháy kép.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var MISA = { ky:'all', mode:'chuaxuat', pl:'all', ban:[], daTai:{} };
+
+function veMisa(){
+  var o = document.getElementById('bang');
+  o.innerHTML =
+    '<div class="card"><div class="ch"><h2>📤 Xuất bút toán sang MISA</h2>' +
+      '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+        '<label class="nho mo">Kỳ</label><input id="mKy" placeholder="vd 2026-09 · để trống = tất cả" ' +
+          'value="'+esc(MISA.ky==='all'?'':MISA.ky)+'" style="width:210px">' +
+        '<label class="nho mo">Đơn</label><select id="mMode">' +
+          '<option value="chuaxuat"'+(MISA.mode==='chuaxuat'?' selected':'')+'>Chưa xuất lần nào</option>' +
+          '<option value="all"'+(MISA.mode==='all'?' selected':'')+'>Tất cả (kể cả đã xuất)</option>' +
+        '</select>' +
+        '<label class="nho mo">Phân loại</label><select id="mPl">' +
+          '<option value="all"'+(MISA.pl==='all'?' selected':'')+'>Cả hai</option>' +
+          '<option value="canhan"'+(MISA.pl==='canhan'?' selected':'')+'>Thanh toán cá nhân</option>' +
+          '<option value="ncc"'+(MISA.pl==='ncc'?' selected':'')+'>Nhà cung cấp</option>' +
+        '</select>' +
+        '<button class="btn b-p" id="mDoc">Đọc bút toán</button>' +
+      '</div></div>' +
+      '<div class="cb"><p class="nho mo">Mỗi mảng ra một tệp riêng. Bấm <b>Đọc bút toán</b> để xem trước, ' +
+      'tải tệp về, rồi mới bấm <b>Đánh dấu đã xuất</b> — xem thử không làm mất lượt xuất thật.</p></div>' +
+    '</div><div id="mKq"></div>';
+
+  document.getElementById('mDoc').onclick = function(){
+    var k = (document.getElementById('mKy').value||'').trim();
+    MISA.ky   = k === '' ? 'all' : k;
+    MISA.mode = document.getElementById('mMode').value;
+    MISA.pl   = document.getElementById('mPl').value;
+    MISA.daTai = {};
+    docMisa();
+  };
+  if (MISA.ban.length) veMisaKq();
+}
+
+function docMisa(){
+  var o = document.getElementById('mKq');
+  o.innerHTML = '<p class="mo">Đang đọc bút toán…</p>';
+  goi('misa',{ky:MISA.ky, mode:MISA.mode, pl:MISA.pl}).then(function(r){
+    if (r && r.error){ o.innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
+    MISA.ban = r.ban || [];
+    veMisaKq();
+  }).catch(function(){ o.innerHTML = '<div class="bao bao-loi">Không gọi được máy chủ.</div>'; });
+}
+
+function veMisaKq(){
+  var o = document.getElementById('mKq');
+  if (!MISA.ban.length){ o.innerHTML = '<div class="card"><div class="cb"><p class="mo">Chưa đọc.</p></div></div>'; return; }
+
+  var h = '';
+  MISA.ban.forEach(function(b, bi){
+    var cols = b.cols || [], rows = b.rows || [];
+    h += '<div class="card"><div class="ch">' +
+      '<h2>🏷 '+esc(b.tenBan)+' <span class="chip">'+rows.length+' dòng · '+b.soDon+' đơn</span></h2>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+        ( rows.length
+          ? '<button class="btn b-p nho" data-tai="'+bi+'">⬇ Tải .csv</button>' +
+            nutXong(b, bi)
+          : '' ) +
+      '</div></div><div class="cb">';
+
+    if (!rows.length){
+      h += '<p class="mo">Không có bút toán nào khớp bộ lọc. ✓</p>';
+    } else {
+      /* Cảnh báo của chính bản ấy (thiếu mã tài khoản, thiếu mã đơn vị…) — hiện TRƯỚC bảng:
+         đẩy một tệp thiếu mã sang MISA rồi mới biết là phải gỡ bút toán ra khỏi sổ kế toán. */
+      (b.canh||[]).forEach(function(c){ h += '<div class="bao bao-canh">⚠️ '+esc(c)+'</div>'; });
+      var xem = rows.slice(0, 20);
+      h += '<div class="cuon"><table><thead><tr>' +
+        cols.map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('') + '</tr></thead><tbody>' +
+        xem.map(function(r){
+          return '<tr>' + cols.map(function(c,ci){
+            var v = Array.isArray(r) ? r[ci] : r[c];
+            return '<td'+( typeof v === 'number' ? ' class="r"' : '' )+'>'+
+                   esc( typeof v === 'number' ? tien(v) : (v==null?'':v) )+'</td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>';
+      if (rows.length > xem.length){
+        h += '<p class="nho mo" style="margin-top:6px">Đang xem '+xem.length+' dòng đầu. ' +
+             'Tệp .csv có đủ cả '+rows.length+' dòng.</p>';
+      }
+    }
+    h += '</div></div>';
+  });
+  o.innerHTML = h;
+
+  Array.prototype.forEach.call(o.querySelectorAll('button[data-tai]'), function(n){
+    n.onclick = function(){ taiMisa(MISA.ban[+n.getAttribute('data-tai')]); };
+  });
+  Array.prototype.forEach.call(o.querySelectorAll('button[data-xong]'), function(n){
+    n.onclick = function(){ xongMisa(n, MISA.ban[+n.getAttribute('data-xong')]); };
+  });
+}
+
+/* Nút "Đánh dấu đã xuất" — hai điều kiện, mỗi điều kiện một lời giải thích riêng.
+   🔴 `maDons` RỖNG KHÔNG PHẢI LỖI: lõi MISA chỉ trả danh sách mã đơn ở nhánh chi phí thường;
+      các nhánh khác (tạm ứng, đợt trả NCC…) chốt theo cách riêng của chúng và trả mảng rỗng.
+      Bật nút lên trong cảnh ấy là người ta bấm rồi nhận câu "Không có đơn nào để đánh dấu" —
+      nghe như hỏng, trong khi chẳng có gì hỏng cả. Nên nói thẳng ngay trên nút. */
+function nutXong(b, bi){
+  var ds = b.maDons || [];
+  if (!ds.length){
+    return '<span class="nho mo" title="Nhánh bút toán này không chốt theo mã đơn">' +
+           'không có mã đơn để đánh dấu</span>';
+  }
+  var san = !!MISA.daTai[b.ban];
+  return '<button class="btn b-g nho" data-xong="'+bi+'"' +
+    ( san ? '' : ' disabled title="Tải tệp về đã, rồi mới đánh dấu"' ) +
+    '>✓ Đánh dấu '+ds.length+' đơn đã xuất</button>';
+}
+
+/** Một ô .csv: bọc nháy kép khi có phẩy, nháy hoặc xuống dòng; nháy trong ô nhân đôi. */
+function oCsv(v){
+  var t = (v == null) ? '' : String(v);
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g,'""') + '"' : t;
+}
+
+function taiMisa(b){
+  var cols = b.cols || [], rows = b.rows || [];
+  var d = [ cols.map(oCsv).join(',') ];
+  rows.forEach(function(r){
+    d.push( cols.map(function(c,ci){ return oCsv( Array.isArray(r) ? r[ci] : r[c] ); }).join(',') );
+  });
+  /* ﻿ = BOM. Thiếu nó thì Excel đọc tệp bằng bảng mã máy và tiếng Việt ra ký tự lạ. */
+  var blob = new Blob(['﻿' + d.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'misa-' + b.ban + '-' + ( MISA.ky === 'all' ? 'tatca' : MISA.ky ) + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  MISA.daTai[b.ban] = true;   // giờ mới cho bấm "Đánh dấu đã xuất"
+  veMisaKq();
+}
+
+function xongMisa(nut, b){
+  if (!confirm('Đánh dấu '+(b.maDons||[]).length+' đơn của '+b.tenBan+' là ĐÃ XUẤT MISA?\n\n' +
+               'Sau bước này chúng không còn nằm trong lượt "Chưa xuất lần nào" nữa.')) return;
+  nut.disabled = true;
+  goi('misaXong',{ban:b.ban, pl:MISA.pl, maDons:b.maDons||[]}).then(function(r){
+    nut.disabled = false;
+    if (r && r.error){ datBao('loi', r.error); } else { datBao('ok', (r&&r.message)||'Xong.'); }
+    veChinh();
+  }).catch(function(){
+    nut.disabled = false; datBao('loi','Không gọi được máy chủ.'); veChinh();
+  });
 }
 
 function lam(nut, d, viec){
