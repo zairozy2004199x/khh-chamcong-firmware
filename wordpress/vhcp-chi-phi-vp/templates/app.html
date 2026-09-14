@@ -10345,6 +10345,33 @@
     var arr=(arguments.length>1)?_cosoTheoDv(dv):(CFG.coso||[]).map(function(x){return x.ten;});
     arr=arr.slice();
     /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 GỢI Ý CẢ CƠ SỞ ĐANG CÓ TRÊN ĐƠN, KHÔNG CHỈ CƠ SỞ TRONG DANH MỤC.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Anh Thắng 14/09/2026: *"làm gì có danh mục cơ sở"* — đúng, bản này danh mục còn rỗng,
+     * nên hộp chọn mở ra trắng trơn và người khai đành gõ tay một chuỗi bất kỳ ("TUTU_BD").
+     * Chuỗi ấy không khớp cơ sở nào trên đơn, và người được phân nó mở trang ra thấy trắng —
+     * đúng cả buổi hôm nay.
+     *
+     * Cơ sở XUẤT HIỆN TRÊN ĐƠN thì luôn là cơ sở có thật và đang dùng. Bày chúng ra đây biến
+     * việc khai từ "gõ đúng một chuỗi mà không ai biết là chuỗi nào" thành một cú tích chuột.
+     *
+     * ⚠️ Chỉ THÊM vào gợi ý, không đụng giá trị đã lưu: ô này quyết ai thấy sổ tiền nào, nên
+     *    không tự sửa gì của ai — xem chốt ngay dưới (giá trị lạ vẫn giữ nguyên).
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    /* ⚠️ GIỮ NGUYÊN THỨ TỰ DANH MỤC, chỉ sắp PHẦN THÊM. Danh mục cơ sở được khai theo mảng và
+       khu vực, nên sắp lại cả hộp là người khai mất luôn cái trật tự họ quen tay — `kiem-o-coso
+       -theo-don-vi.js` canh đúng chỗ đó. Phần lấy từ đơn thì chưa có trật tự nào, sắp a→z cho
+       dễ dò. */
+    var _them=[];
+    (BOOT.dons||[]).forEach(function(d){
+      String(d.coso||'').split(',').forEach(function(c){
+        c=c.trim();
+        if(c && arr.indexOf(c)<0 && _them.indexOf(c)<0) _them.push(c);
+      });
+    });
+    _them.sort(function(a,b){ return String(a).localeCompare(String(b),'vi'); });
+    arr=arr.concat(_them);
+    /* ══════════════════════════════════════════════════════════════════════════════════════
      * 🔴 CƠ SỞ ĐÃ LƯU MÀ KHÔNG CÓ TRONG DANH MỤC = MỘT Ô KHAI CHẾT.
      * ══════════════════════════════════════════════════════════════════════════════════════
      * Anh Thắng 14/09/2026, tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"chưa

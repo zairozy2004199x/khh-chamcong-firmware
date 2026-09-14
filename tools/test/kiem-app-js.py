@@ -794,6 +794,27 @@ la('⚠️ và chỉ bày cho vai Nhân viên', "CURUSER.role==='Nhân viên'" i
 la('🔴 dải vẽ lại ở MỌI lượt dựng bảng, không chỉ lúc rỗng', 'vePhamVi();' in src)
 la('   có chỗ riêng cho nó trên màn', 'id="phamViBox"' in src)
 
+# ------------------------------------------- ô Cơ sở gợi ý cả cơ sở đang có trên đơn
+# Anh Thắng 14/09/2026: *"làm gì có danh mục cơ sở"*. Đúng — bản này danh mục còn rỗng, nên hộp
+# chọn mở ra trắng trơn và người khai đành gõ tay một chuỗi bất kỳ ("TUTU_BD"). Chuỗi ấy không
+# khớp cơ sở nào trên đơn, và người được phân nó mở trang ra thấy trắng.
+#
+# 🔴 CƠ SỞ XUẤT HIỆN TRÊN ĐƠN LUÔN LÀ CƠ SỞ CÓ THẬT. Bày chúng ra biến việc khai từ "gõ đúng một
+#    chuỗi mà không ai biết là chuỗi nào" thành một cú tích chuột.
+print('— ô Cơ sở gợi ý theo đơn thật —')
+_i_cs3 = src.index('function _cosoSel(')
+_fn_cs3 = src[_i_cs3:src.index('\n  }', _i_cs3)]
+la('bốc được hàm _cosoSel', len(_fn_cs3) > 400, len(_fn_cs3))
+la('🔴 gộp thêm cơ sở đang có trên đơn vào gợi ý', '(BOOT.dons||[]).forEach' in _fn_cs3)
+la('   và tách được đơn ghép nhiều cơ sở', "String(d.coso||'').split(',')" in _fn_cs3)
+la('⚠️ xếp a→z có dấu cho dễ dò', "localeCompare(String(b),'vi')" in _fn_cs3)
+# ⚠️ Danh mục được khai theo mảng và khu vực — sắp lại cả hộp là người khai mất trật tự quen tay.
+la('⚠️ nhưng giữ nguyên thứ tự danh mục, chỉ sắp phần thêm',
+   '_them.sort(' in _fn_cs3 and 'arr=arr.concat(_them);' in _fn_cs3)
+# ⚠️ Chỉ THÊM vào gợi ý, không đụng giá trị đã lưu: ô này quyết ai thấy sổ tiền nào.
+la('⚠️ giá trị đã lưu vẫn giữ nguyên, không tự sửa của ai',
+   'sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });' in _fn_cs3)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
