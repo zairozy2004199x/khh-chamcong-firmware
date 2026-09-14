@@ -347,17 +347,34 @@ foreach ( VHCPT_Auth::VIEC as $viec => $hd ) {
  * 🔴 `get_don()` gác theo PHIÊN của chính bản ấy (`VHCP_Auth`). Gọi nó mà chưa mượn phiên là hỏi
  *    một câu bên kia không có ngữ cảnh để trả lời — nó chối một đơn đang nằm sờ sờ trên màn.
  *
- * ⚠️ PHÉP NÀY ĐÃ NỚI 14/09/2026, CÓ ĐIỀU KIỆN. Bản trước cấm tiệt mọi lời gọi `get_don` ở cả hai
- *    tệp. Nay khối thừa/thiếu (anh Thắng: *"phần thừa thiếu ở cuối trang"*) phải hỏi chính lõi
- *    bản mảng — tự trừ "tạm ứng − thực chi" ở đây là dựng bản thứ hai cho một con số tiền, rồi
- *    hai bản lệch nhau. Nên luật mới:
- *      · `class-vhcpt-gom.php` (dựng DANH SÁCH, chạy 200 đơn một lượt): vẫn CẤM TIỆT.
- *      · `class-vhcpt-api.php` (một đơn, khi người ta bấm Xem): cho, nhưng BẮT BUỘC có
- *        `muon_phien()` đứng trước trong cùng hàm.
+ * ⚠️ PHÉP NÀY ĐÃ NỚI HAI LẦN TRONG NGÀY 14/09/2026, MỖI LẦN KÈM MỘT RÀNG BUỘC MỚI.
+ *      · Bản đầu: cấm tiệt mọi lời gọi `get_don` ở cả hai tệp.
+ *      · Nới 1 — khối thừa/thiếu khi bấm Xem (*"phần thừa thiếu ở cuối trang"*): `class-vhcpt-
+ *        api.php` được gọi, nhưng BẮT BUỘC có `muon_phien()` đứng trước trong cùng hàm, và chỉ
+ *        cho MỘT đơn.
+ *      · Nới 2 — cột Thực chi và Thừa/thiếu ngay trên bảng (*"Thêm cột thực chi và tiền thừa
+ *        thiếu"*): `class-vhcpt-gom.php` cũng được gọi, với HAI chốt thay cho lệnh cấm cũ, vì
+ *        hai chốt ấy chính là hai lý do đã sinh ra lệnh cấm:
+ *          · thiếu phiên  → phải có `muon_phien()`, và mượn MỘT LẦN ngoài vòng lặp;
+ *          · 200 lượt đọc → phải gác `da_cap_tien()`, tức chỉ hỏi những đơn đã tới bước có gì
+ *            để đối chiếu. Hai tab đầu gần như không đơn nào lọt qua chốt này.
+ *
+ * 🔴 TỰ TRỪ "tạm ứng − thực chi" Ở ĐÂY THÌ KHÔNG PHẢI NỚI GÌ CẢ — nhưng đó là dựng bản luật thứ
+ *    hai cho một con số TIỀN, rồi hai bản lệch nhau và kế toán không biết tin bản nào. Giữa một
+ *    lượt đọc nặng hơn và hai con số tiền đá nhau, chọn lượt đọc.
  * ═══════════════════════════════════════════════════════════════════════════════ */
 $gom_php = file_get_contents( $TONG . '/includes/class-vhcpt-gom.php' );
-t( '🔴 lượt dựng DANH SÁCH không gọi get_don() (200 đơn, không có phiên)',
-	false === strpos( preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php ), 'get_don' ), '' );
+$gom_sach = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php );
+if ( false !== strpos( $gom_sach, 'get_don' ) ) {
+	t( '🔴 lượt dựng DANH SÁCH có mượn phiên trước khi gọi get_don()',
+		(bool) preg_match( '#muon_phien\( \$khoa \);[\s\S]*?get_don#', $gom_sach ), '' );
+	/* 🔴 Mượn MỘT LẦN, ngoài vòng lặp: mượn trong vòng là 200 lượt tra sổ người dùng cho một màn. */
+	t( '🔴 và mượn MỘT LẦN, ngoài vòng lặp dựng dòng',
+		(bool) preg_match( '#muon_phien\( \$khoa \);\s*\n\s*\n\s*\$ra = array\(\);\s*\n\s*foreach#', $gom_sach ), '' );
+	/* 🔴 Chốt thứ hai: chưa cấp tiền thì chưa có gì để đối chiếu — và bỏ luôn được lượt đọc. */
+	t( '🔴 và chỉ hỏi đơn ĐÃ CẤP TIỀN, gác cùng hàm với lời gọi',
+		(bool) preg_match( "#da_cap_tien'[^\n]*\) *\{ *return null; *\}[\s\S]{0,200}?get_don#", $gom_sach ), '' );
+}
 $api_sach = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $api_php );
 if ( false !== strpos( $api_sach, 'get_don' ) ) {
 	t( '🔴 nơi nào gọi get_don() thì phải MƯỢN PHIÊN trước',
@@ -1048,8 +1065,136 @@ t( '🔴 đầu mỗi mảng có dải chip đếm theo lát',
 t( '⚠️ lát rỗng vẫn nói ra, nhưng nhạt hẳn',
 	(bool) preg_match( '#buoc-rong#', $than_vb ) && false !== mb_strpos( $than_vb, 'không có đơn nào. ✓' ), '' );
 /* 🔴 Khối mở thì phải đóng: thiếu một `</div>` là cả phần dưới trang tụt vào trong khối. */
-t( '🔴 khối lát đóng lại ở cuối bảng',
-	(bool) preg_match( '#</tfoot></table></div></div>.#', $than_vb ), '' );
+/* 🔴 Khối mở thì phải đóng. Thanh "đang chọn N đơn" chen vào giữa bảng và thẻ đóng, nên chỗ
+   này dò cả cụm: thiếu một `</div>` là cả phần dưới trang tụt vào trong khối lát. */
+t( '🔴 khối lát đóng lại sau bảng và sau thanh chọn',
+	(bool) preg_match( "#</tfoot></table></div>' \+ veThanhChon\([^)]*\) \+ '</div>'#", $than_vb ), '' );
+
+/* ═══ 6s. CHỈ BÀY NÚT CỦA ĐƯỜNG MÀ ĐƠN THẬT SỰ ĐI ═══════════════════════════════
+ * Anh Thắng 14/09/2026: *"Lúc tạo đơn và đi lệnh thì đã xác nhận chi phí cá nhân hay chi nhà
+ * cung cấp rồi, nên không cần xác nhận lại, mà là duyệt đơn nếu nó đúng thôi"*.
+ *
+ * 🔴 ĐƯỜNG ĐI ĐÃ CHỐT TỪ LÚC NHẬP DÒNG CHI. Bày cả hai nút cho mọi đơn là bắt kế toán trả lời
+ *    lại một câu đã có đáp án trong sổ — và bấm nhầm thì đơn đi sai đường.
+ * ⚠️ HỎI LÕI, ĐỪNG TỰ ĐOÁN: luật "dòng nào là NCC" nằm ở `VHCP_Util::is_ncc()` của bản mảng.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 máy chủ hỏi don_loai() của bản mảng, không tự đoán',
+	(bool) preg_match( '#method_exists\( \\$lop, .don_loai. \)[\s\S]{0,200}?call_user_func\( array\( \\$lop, .don_loai. \)#', $gom_sach ), '' );
+t( '🔴 và gửi kèm từng đơn để màn biết đường nào',
+	(bool) preg_match( "#'duong'\s*=>\s*self::duong_cua_don\(#", $gom_sach ), '' );
+t( '🔴 màn giấu nút quyết toán cá nhân khi đơn không có dòng cá nhân',
+	(bool) preg_match( "#v\.viec === 'qtCn'\s*&& !duong\.cn\)\s*return;#", $than_vb ), '' );
+t( '🔴 và giấu nút NCC khi đơn không có dòng NCC',
+	(bool) preg_match( "#v\.viec === 'qtNcc' && !duong\.ncc\) return;#", $than_vb ), '' );
+/* ⚠️ Bản mảng đời cũ không trả `duong` thì giữ nếp cũ — bày hết, còn hơn giấu mất nút đúng. */
+t( '⚠️ bản mảng không trả lời được thì bày như cũ',
+	(bool) preg_match( '#var duong = d\.duong \|\| null;#', $than_vb ), '' );
+t( '⚠️ một đường duy nhất thì nhãn gọn lại là "Duyệt quyết toán"',
+	false !== mb_strpos( $than_vb, 'Duyệt quyết toán' ), '' );
+
+/* ═══ 6t. CỘT THỰC CHI · THỪA/THIẾU · TỔNG ĐƠN ══════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Thêm cột thực chi và tiền thừa thiếu"*, *"Tổng tạm ứng − Tổng thực chi
+ * = Thừa thiếu. Hiện chỗ tổng đơn"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 máy chủ trả khối quyết toán của từng đơn',
+	(bool) preg_match( "#'qt'\s*=>\s*self::qt_cua_don\(#", $gom_sach ), '' );
+/* 🔴 Hỏi lõi, không tự trừ — chép luật "tạm ứng − thực chi" sang đây là dựng bản thứ hai cho
+   một con số TIỀN, rồi hai bản lệch nhau. */
+foreach ( array( 'tamUng', 'thucChi', 'chenhLech' ) as $k_qt ) {
+	t( '🔴 «' . $k_qt . '» lấy thẳng từ tongCN của lõi bản mảng',
+		(bool) preg_match( '#.' . $k_qt . '.\s*=>\s*\(float\) \( isset\( \\$cn\[.' . $k_qt . '.#', $gom_sach ), $k_qt );
+}
+t( '🔴 bảng có hai cột Thực chi và Thừa/thiếu',
+	false !== mb_strpos( $than_vb, "dau('Thực chi','r')" ) && false !== mb_strpos( $than_vb, "dau('Thừa/thiếu','r')" ), '' );
+/* ⚠️ Hai cột gạch ngang chạy suốt bảng ở hai tab đầu thì chỉ tổ đẩy cột Việc ra khỏi màn. */
+t( '⚠️ chỉ bày khi lát có đơn đã cấp tiền',
+	(bool) preg_match( '#var coQT = ds\.some\(function\(x\)\{ return !!x\.qt; \}\);#', $than_vb ), '' );
+/* 🔴 `d.qt` rỗng phải ra dấu gạch, không ra "0đ": bày 0đ là nói đơn ấy tiêu sạch tiền ứng. */
+/* ⚠️ Dò NỘI DUNG ô, không dò riêng câu `if (!d.qt) return`: bản nháp chỉ dò câu ấy, nên lượt phá
+   "trả về 0đ thay vì dấu gạch" giữ nguyên câu điều kiện và bài vẫn xanh. */
+$than_otc = ( function ( $src ) {
+	$i = strpos( $src, 'function veOThucChi(' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $src, "\n}", $i );
+	return ( false === $j ) ? '' : substr( $src, $i, $j - $i );
+} )( $html_ma );
+t( '🔴 đơn chưa cấp tiền ra dấu gạch, không ra 0đ',
+	'' !== $than_otc
+	&& (bool) preg_match( '#if \(!d\.qt\) return[\s\S]{0,200}?—#u', $than_otc )
+	&& ! preg_match( '#if \(!d\.qt\) return[\s\S]{0,200}?0đ#u', $than_otc ), '' );
+t( '🔴 dòng tổng của lát nói Tổng tạm ứng − Tổng thực chi',
+	(bool) preg_match( '#Tổng tạm ứng[\s\S]{0,120}?Tổng thực chi#u', $than_vb ), '' );
+/* ⚠️ Cộng từng cột rồi TRỪ, không cộng dồn chênh lệch từng đơn — hai lối lệch nhau ngay khi có
+   đơn bản mảng không trả lời được. */
+t( '⚠️ cộng hai cột rồi trừ, không cộng dồn chênh lệch',
+	(bool) preg_match( '#var tCl = tUng - tChi;#', $than_vb ), '' );
+t( '⚠️ thừa và thiếu khác màu và nói rõ ai trả ai',
+	false !== mb_strpos( $html_ma, 'NV trả lại kế toán' ) && false !== mb_strpos( $html_ma, 'Kế toán bù cho NV' ), '' );
+
+/* ═══ 6u. VIẾT HOA CHỮ ĐẦU NỘI DUNG ═════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Chỗ nội dung có tự chỉnh kí tự đầu tiên viết hoa được không"*.
+ * 🔴 CHỈ SỬA LÚC VẼ, KHÔNG SỬA SỔ — nội dung đi thẳng vào bảng xuất MISA.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 cột Nội dung vẽ qua hoaDau()', 2 === preg_match_all( '#esc\(hoaDau\(r\.noiDung\)\)#', $html_ma ), '' );
+/* ⚠️ Chỉ nâng chữ đầu, KHÔNG hạ phần còn lại: "ĐỒ CHƠI CÁ" là nhân viên cố tình gõ hoa cả cụm. */
+t( '⚠️ không hạ phần còn lại xuống chữ thường',
+	(bool) preg_match( '#function hoaDau#', $html_ma ) && ! preg_match( '#hoaDau[\s\S]{0,300}?toLowerCase#', $html_ma ), '' );
+/* ⚠️ Và không dùng text-transform:capitalize của CSS — nó viết hoa MỌI từ. */
+t( '⚠️ không dùng text-transform:capitalize', false === mb_strpos( $html_ma, 'capitalize' ), '' );
+t( '⚠️ bỏ qua khoảng trắng đầu chuỗi', (bool) preg_match( '#search\(/\\\\S/\)#', $html_ma ), '' );
+
+/* ═══ 6v. LỌC LẠI NGAY TRÊN ĐẦU MỖI BẢNG ════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Trên mỗi đầu bảng, cho phép lọc lại đơn (theo tuần, tháng, người gửi,
+ * loại chi phí đang có trong bảng đó)"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+foreach ( array( 'thang', 'ky', 'nguoi', 'loai' ) as $truong ) {
+	t( '🔴 lọc được theo «' . $truong . '»',
+		(bool) preg_match( '#L\.' . $truong . '\b#', $than_vb ), $truong );
+}
+/* 🔴 Danh mục dựng từ chính đơn TRONG BẢNG ẤY — bày cả trăm loại của cả năm là bắt người ta dò,
+   và chọn phải loại không có đơn nào thì bảng trắng, nhìn như hỏng. */
+t( '🔴 danh mục dựng từ đơn của chính bảng ấy',
+	(bool) preg_match( '#dsGoc\.forEach\(function\(d\)\{[\s\S]{0,300}?them\(dmLoai#', $than_vb ), '' );
+/* ⚠️ Giữ lựa chọn NGOÀI DOM: veBang() vẽ lại cả màn sau mỗi lượt lọc và mỗi lượt duyệt. */
+t( '⚠️ lựa chọn lọc giữ ngoài DOM, theo từng bảng',
+	(bool) preg_match( '#var LOC_BANG = \{\};#', $html_ma )
+	&& (bool) preg_match( "#var khoaLoc = ban \+ '\|' \+ lat\.khoa;#", $than_vb ), '' );
+t( '⚠️ hộp chỉ có một giá trị thì bỏ hẳn', (bool) preg_match( '#if \(ds\.length < 2\) return .{2};#', $html_ma ), '' );
+/* ⚠️ "Có đơn nhưng lọc không ra gì" khác hẳn "hết việc" — phải nói rõ, kèm lối thoát. */
+t( '⚠️ lọc không ra gì thì nói rõ và cho bỏ lọc',
+	false !== mb_strpos( $than_vb, 'Không đơn nào khớp bộ lọc' ) && false !== mb_strpos( $than_vb, 'data-xoaloc' ), '' );
+
+/* ═══ 6w. CHỌN NHIỀU ĐƠN, LÀM MỘT LƯỢT ══════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"Khi kế toán muốn duyệt hàng loạt, chọn theo đơn thì vẫn cộng công
+ * thức đó"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+/* 🔴 KHOÁ BẰNG MÃ ĐƠN, KHÔNG BẰNG CHỈ SỐ DÒNG. Bảng đổi thứ tự sau mỗi lượt lọc và mỗi lượt
+   duyệt, nên chỉ số trỏ sang đơn khác mà ô tích vẫn nằm nguyên chỗ cũ — ở màn bấm-là-ra-tiền,
+   đó là duyệt nhầm đơn. */
+t( '🔴 ô tích khoá bằng mảng|mã đơn',
+	(bool) preg_match( "#data-chon=\"'\+esc\(d\.ban\+'\|'\+d\.maDon\)#", $than_vb ), '' );
+t( '🔴 thanh chọn cộng CÙNG công thức với dòng tổng',
+	(bool) preg_match( '#tUng \+= Number\(d\.qt\.tamUng\|\|0\); tChi \+= Number\(d\.qt\.thucChi\|\|0\);#', $html_ma )
+	&& (bool) preg_match( '#veChipCl\(tUng - tChi\)#', $html_ma ), '' );
+/* 🔴 Chỉ bày việc MỌI đơn đang chọn đều làm được — bày việc nửa số đơn sẽ bị chối thì người bấm
+   phải ngồi đoán đơn nào trượt. */
+t( '🔴 chỉ bày việc mọi đơn đang chọn đều làm được',
+	(bool) preg_match( '#ch\.every\(function\(d\)\{ return viecLamDuoc\(d\)#', $html_ma ), '' );
+/* 🔴 Gửi TUẦN TỰ từng đơn — mỗi đơn qua đúng cổng và đúng chốt quyền như bấm tay. */
+t( '🔴 gửi tuần tự từng đơn, không gộp một lời gọi',
+	(bool) preg_match( "#goi\(viec, \{ ban: x\.ban, maDon: x\.maDon \}\)#", $html_ma ), '' );
+t( '🔴 hỏi trước khi chạy, kèm số đơn và số tiền',
+	(bool) preg_match( "#confirm\(ten\+' cho '\+ds\.length\+' đơn, cộng '\+tien\(tong\)#u", $html_ma ), '' );
+/* ⚠️ Đơn nào xong thì bỏ chọn ngay, kẻo bấm lần nữa lên đúng những đơn vừa làm. */
+t( '⚠️ đơn xong thì bỏ chọn ngay', (bool) preg_match( '#xong\+\+; delete CHON\[x\.khoa\];#', $html_ma ), '' );
+/* ⚠️ Đơn lỗi phải nói tên ra, đừng gộp thành "có lỗi". */
+t( '⚠️ đơn không làm được thì nêu đích danh',
+	(bool) preg_match( "#loi\.push\(x\.maDon#", $html_ma ), '' );
+/* 🔴 Ô tích đầu bảng chỉ chọn đơn ĐANG HIỆN — chọn cả thứ bị bộ lọc giấu là duyệt nhầm. */
+t( '🔴 chọn cả bảng chỉ chọn đơn đang hiện',
+	(bool) preg_match( "#data-chonlat[\s\S]{0,400}?closest\('table'\)#", $html_ma ), '' );
+/* ⚠️ Trả lại KHÔNG có trong danh sách hàng loạt: nó đòi lý do riêng cho từng đơn. */
+t( '⚠️ không trả lại hàng loạt', ! preg_match( "#VIEC_HL[\s\S]{0,400}?traLai#", $html_ma ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

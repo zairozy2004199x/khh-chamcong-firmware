@@ -107,6 +107,11 @@ tfoot td{font-weight:700;background:#f1f5f9}
 .buoc-ten{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:7px}
 .buoc-so{font-size:11.5px;font-weight:800;padding:1px 9px;border-radius:999px}
 .buoc-rong{padding:8px 12px;background:#fff}
+.cl-chip{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:800;white-space:nowrap}
+.thanh-chon{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px;padding:8px 10px;
+  border:1px solid #cbd5e1;border-radius:9px}
+.dai-loc{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:12px}
+.o-loc{font-size:12px;padding:3px 6px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;max-width:230px}
 .buoc table tbody tr:nth-child(even) td{background:#fcfdfe}
 .buoc table tbody tr:hover td{background:#f8fafc}
 .buoc td.tien{font-weight:700}
@@ -525,18 +530,9 @@ function veBang(){
   var o = document.getElementById('bang');
   if (!ROWS.length){ o.innerHTML = '<div class="card"><div class="cb"><p class="mo">Không có đơn nào ở nhóm này. ✓</p></div></div>'; return; }
 
-  var VIEC_TAB = {
-    duyet: [ {viec:'duyet', ten:'Duyệt', lop:'b-g'} ],
-    cap:   [ {viec:'cap',   ten:'Cấp tạm ứng', lop:'b-g'} ],
-    /* 🔴 HAI ĐƯỜNG QUYẾT TOÁN, BÀY CẢ HAI — đơn "Chờ quyết toán" có thể là tiền đã ứng cho
-       NHÂN VIÊN (quyết toán phần cá nhân: so tiền ứng với tiền tiêu, chênh thì thu lại hoặc
-       bù thêm) hoặc tiền trả NHÀ CUNG CẤP (xác nhận NCC đã nhận). Đoán hộ bằng cách chỉ bày
-       một nút là ép kế toán mở trang mảng cho nửa số đơn — đúng thứ anh Thắng bảo thôi:
-       *"sau này kế toán và quản lý làm trên trang này, không làm trên trang bộ phận"*. */
-    qt:    [ {viec:'qtCn',  ten:'Quyết toán cá nhân', lop:'b-g'},
-             {viec:'qtNcc', ten:'Xác nhận NCC',       lop:'b-s'} ]
-  };
-  var viecs = VIEC_TAB[NHOM] || [];
+  /* Bảng việc theo tab nay nằm ngoài hàm (`VIEC_HL`) — thanh làm hàng loạt cũng đọc nó, và hai
+     bản chép rời nhau thì một hôm thêm việc mới ở một chỗ, chỗ kia lặng lẽ thiếu nút. */
+  var viecs = VIEC_HL[NHOM] || [];
 
   /* Nhóm dòng theo mảng, giữ thứ tự mảng như máy chủ trả về (đã xếp theo khoá). */
   var theoMang = {}, thuTu = [];
@@ -587,7 +583,42 @@ function veBang(){
             hop:function(){ return true; } } ] );
 
   function veMotBang(g, lat, ban){
-    var ds = g.ds.filter(lat.hop);
+    var dsGoc = g.ds.filter(lat.hop);
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * LỌC LẠI NGAY TRÊN ĐẦU BẢNG — anh Thắng 14/09/2026: *"Trên mỗi đầu bảng, cho phép lọc lại
+     * đơn (theo tuần, tháng, người gửi, loại chi phí đang có trong bảng đó)"*.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 DANH MỤC DỰNG TỪ CHÍNH ĐƠN TRONG BẢNG ẤY, không phải từ danh mục chung của mảng. Bày
+     *    cả trăm loại chi phí của cả năm trong khi bảng chỉ có bốn loại là bắt người ta dò —
+     *    và chọn phải một loại không có đơn nào thì bảng trắng, nhìn như hỏng.
+     *
+     * ⚠️ LỌC Ở MÀN, KHÔNG GỌI LẠI MÁY CHỦ. Dữ liệu đã nằm sẵn trong tay; gọi lại là chờ thêm
+     *    một nhịp cho việc không cần chờ.
+     *
+     * ⚠️ NHỚ LỰA CHỌN THEO TỪNG BẢNG. `veBang()` vẽ lại cả màn sau mỗi lượt lọc, mỗi lượt
+     *    duyệt; giữ lựa chọn trong DOM là nó bay mất ngay lần vẽ kế tiếp.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var khoaLoc = ban + '|' + lat.khoa;
+    var L = LOC_BANG[khoaLoc] || ( LOC_BANG[khoaLoc] = { thang:'', ky:'', nguoi:'', loai:'' } );
+
+    var dmThang = [], dmKy = [], dmNguoi = [], dmLoai = [];
+    var them = function(ds2, v){ v = String(v||'').trim(); if (v && ds2.indexOf(v) < 0) ds2.push(v); };
+    dsGoc.forEach(function(d){
+      them(dmThang, thangCuaKy(d.ky));
+      them(dmKy, d.ky);
+      them(dmNguoi, d.nguoiLap);
+      (d.loai||[]).forEach(function(x){ them(dmLoai, x.ten); });
+    });
+    dmThang.sort(); dmKy.sort(); dmNguoi.sort(); dmLoai.sort();
+
+    var ds = dsGoc.filter(function(d){
+      if (L.thang && thangCuaKy(d.ky) !== L.thang) return false;
+      if (L.ky    && String(d.ky||'') !== L.ky)    return false;
+      if (L.nguoi && String(d.nguoiLap||'') !== L.nguoi) return false;
+      if (L.loai  && !(d.loai||[]).some(function(x){ return x.ten === L.loai; })) return false;
+      return true;
+    });
+    var dangLoc = !!(L.thang || L.ky || L.nguoi || L.loai);
     /* ══════════════════════════════════════════════════════════════════════════════════════
      * 🔴 AI NỘP TRƯỚC, LÊN TRƯỚC — anh Thắng 14/09/2026: *"nhớ ai nhập trước, lên trước"*.
      * ══════════════════════════════════════════════════════════════════════════════════════
@@ -604,7 +635,7 @@ function veBang(){
                      : ( x > y ? -1 : ( x < y ? 1 : 0 ) );
     });
     var m = mauBuoc(lat.tt);
-    if (!ds.length){
+    if (!dsGoc.length){
       /* Lát rỗng vẫn nói ra, nhưng nhạt hẳn: nó là tin tốt ("hết việc"), không phải một khối
          trống để người ta phải dò xem có phải mình lọc sai không. */
       return '<div class="buoc buoc-rong" style="border-left-color:'+m.vien+'">' +
@@ -627,16 +658,45 @@ function veBang(){
     var h = '<div class="buoc" style="border-left-color:'+m.chu+';background:'+m.nenNhat+'">' +
       '<div class="buoc-dau">' +
         '<span class="buoc-ten" style="color:'+m.chu+'">'+m.bieu+' '+esc(lat.ten) +
-          '<span class="buoc-so" style="background:'+m.nen+';color:'+m.chu+'">'+ds.length+' đơn</span></span>' +
+          '<span class="buoc-so" style="background:'+m.nen+';color:'+m.chu+'">'+ds.length+' đơn' +
+          ( dangLoc ? ' / '+dsGoc.length : '' )+'</span></span>' +
         '<span class="nho" style="color:'+m.chu+';font-weight:700">Cộng '+tien(tongLat)+'</span>' +
-      '</div>';
+      '</div>' + veDaiLoc(khoaLoc, L, dmThang, dmKy, dmNguoi, dmLoai, dangLoc, m);
+
+    /* Có đơn nhưng lọc không ra gì là chuyện KHÁC HẲN "hết việc" — nói rõ, kèm lối thoát. */
+    if (!ds.length){
+      return h + '<div class="nho mo" style="padding:8px 2px">Không đơn nào khớp bộ lọc ở bảng này ' +
+             '('+dsGoc.length+' đơn bị lọc bỏ). <a href="#" data-xoaloc="'+esc(khoaLoc)+'">bỏ lọc</a></div></div>';
+    }
 
     var dau = function(ten, lop){
       return '<th'+( lop ? ' class="'+lop+'"' : '' )+' style="background:'+m.nen+';color:'+m.chu+'">'+ten+'</th>';
     };
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * CỘT THỰC CHI VÀ THỪA/THIẾU — anh Thắng 14/09/2026: *"Thêm cột thực chi và tiền thừa
+     * thiếu"*, *"Tổng tạm ứng − Tổng thực chi = Thừa thiếu. Hiện chỗ tổng đơn"*.
+     *
+     * ⚠️ CHỈ BÀY KHI LÁT NÀY CÓ ĐƠN ĐÃ CẤP TIỀN. Đơn chưa tới bước cấp tạm ứng thì chưa ai đưa
+     *    đồng nào — hai cột ấy sẽ là hai cột gạch ngang chạy suốt bảng ở hai tab đầu, đẩy cột
+     *    Việc ra khỏi màn để đổi lấy không gì cả.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var coQT = ds.some(function(x){ return !!x.qt; });
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * CHỌN NHIỀU ĐƠN RỒI LÀM MỘT LƯỢT — anh Thắng 14/09/2026: *"Khi kế toán muốn duyệt hàng
+     * loạt, chọn theo đơn thì vẫn cộng công thức đó"*.
+     *
+     * ⚠️ CHỈ BÀY CỘT CHỌN KHI CÓ ÍT NHẤT MỘT ĐƠN LÀM ĐƯỢC VIỆC. Bảng "Đã quyết toán" hay bảng
+     *    của người chỉ-xem thì cột ấy là một cột ô tích không dẫn tới đâu.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    var coChon = ds.some(function(x){ return viecLamDuoc(x).length > 0; });
+    var soCot = 7 + (coQT ? 2 : 0) + (coChon ? 1 : 0);
     h += '<div class="cuon" style="border-color:'+m.vien+'"><table><thead><tr style="background:'+m.nen+'">' +
+      ( coChon ? '<th style="background:'+m.nen+';color:'+m.chu+'" title="Chọn cả bảng">' +
+                 '<input type="checkbox" data-chonlat="'+esc(khoaLoc)+'"></th>' : '' ) +
       dau('Cơ sở')+dau('Người lập')+dau('Loại chi phí')+dau('Kỳ')+dau('Lúc') +
-      dau('Số xin','r')+dau('Việc')+'</tr></thead><tbody>';
+      dau('Số xin','r') +
+      ( coQT ? dau('Thực chi','r')+dau('Thừa/thiếu','r') : '' ) +
+      dau('Việc')+'</tr></thead><tbody>';
 
     thuTuKy.forEach(function(k){
       var dsKy = theoKy[k], tongKy = 0;
@@ -645,17 +705,39 @@ function veBang(){
       if (thuTuKy.length > 1){
         /* Dải tuần ăn theo tông của bước, không để một vệt xám lạc giữa khối màu. */
         var nk = 'background:'+m.nen+';color:'+m.chu+';font-weight:800';
-        h += '<tr><td colspan="5" style="'+nk+'">' +
+        h += '<tr>'+( coChon ? '<td style="background:'+m.nen+'"></td>' : '' ) +
+             '<td colspan="5" style="'+nk+'">' +
              '📅 '+esc(k)+' <span class="nho" style="opacity:.75">· '+dsKy.length+' đơn</span></td>' +
              '<td class="r" style="'+nk+'">'+tien(tongKy)+'</td>' +
-             '<td style="background:'+m.nen+'"></td></tr>';
+             '<td colspan="'+(soCot-6-(coChon?1:0))+'" style="background:'+m.nen+'"></td></tr>';
       }
       dsKy.forEach(function(d){
         var i = ROWS.indexOf(d);
         var lam = d.lam || {};
         var nut = '<button class="btn b-x nho" data-i="'+i+'" data-xem="1" id="nx'+i+'">Xem</button> ';
+        /* ══════════════════════════════════════════════════════════════════════════════════
+         * 🔴 CHỈ BÀY NÚT CỦA ĐƯỜNG MÀ ĐƠN THẬT SỰ ĐI.
+         * ══════════════════════════════════════════════════════════════════════════════════
+         * Anh Thắng 14/09/2026: *"Lúc tạo đơn và đi lệnh thì đã xác nhận chi phí cá nhân hay
+         * chi nhà cung cấp rồi, nên không cần xác nhận lại, mà là duyệt đơn nếu nó đúng thôi"*.
+         *
+         * Đường đi đã chốt từ lúc nhập dòng chi. Bày cả hai nút cho mọi đơn là bắt kế toán trả
+         * lời lại một câu đã có đáp án trong sổ — và bấm nhầm thì đơn đi sai đường.
+         *
+         * ⚠️ ĐƠN ĐI CẢ HAI ĐƯỜNG vẫn bày cả hai, kèm nhãn dài để phân biệt. Bản mảng đời cũ
+         *    không trả `duong` thì giữ nguyên nếp cũ — bày hết, còn hơn giấu mất nút đúng.
+         * ══════════════════════════════════════════════════════════════════════════════════ */
+        var duong = d.duong || null;
+        var caHai = !duong || (duong.cn && duong.ncc);
         viecs.forEach(function(v){
-          if (lam[v.viec]) nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(v.ten)+'</button> ';
+          if (!lam[v.viec]) return;
+          if (duong){
+            if (v.viec === 'qtCn'  && !duong.cn)  return;
+            if (v.viec === 'qtNcc' && !duong.ncc) return;
+          }
+          /* Một đường duy nhất thì không còn gì để phân biệt — gọi thẳng là "Duyệt quyết toán". */
+          var ten = ( !caHai && (v.viec === 'qtCn' || v.viec === 'qtNcc') ) ? 'Duyệt quyết toán' : v.ten;
+          nut += '<button class="btn '+v.lop+' nho" data-i="'+i+'" data-viec="'+v.viec+'">'+esc(ten)+'</button> ';
         });
         if (lam.traLai) nut += '<button class="btn b-d nho" data-i="'+i+'" data-viec="traLai">Trả lại</button>';
         var chua = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
@@ -663,7 +745,14 @@ function veBang(){
            "vai của bạn không làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
         var xong = ( d.trangThai === 'Đã quyết toán' );
 
+        var lamDuoc = viecLamDuoc(d);
         h += '<tr>' +
+          ( coChon
+            ? '<td>'+( lamDuoc.length
+                ? '<input type="checkbox" data-chon="'+esc(d.ban+'|'+d.maDon)+'"' +
+                  ( CHON[d.ban+'|'+d.maDon] ? ' checked' : '' )+'>'
+                : '' )+'</td>'
+            : '' ) +
           /* 🔴 CƠ SỞ LÊN ĐẦU — anh Thắng 14/09/2026: *"thêm cột cơ sở, thay cột mã đơn bằng cột
              cơ sở"*. Người duyệt đọc theo GIAN: "tuần này Aeon Tân Phú xin bao nhiêu". Mã đơn là
              chuỗi ngẫu nhiên dài, na ná nhau, không nói gì khi lướt qua.
@@ -675,20 +764,41 @@ function veBang(){
           '<td class="nho">'+esc(d.ky)+'</td>' +
           '<td class="nho mo">'+esc(ngay(d.ngayTao))+'</td>' +
           '<td class="r">'+( d.tien===null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien) )+'</td>' +
+          ( coQT ? veOThucChi(d) : '' ) +
           '<td>'+nut+( chua
             ? '<div class="nho mo">'+( xong ? '✓ đã quyết toán xong — còn chờ xuất MISA'
                                             : 'vai của bạn ở mảng này không làm được việc này' )+'</div>'
             : '' )+'</td>' +
           '</tr>' +
-          '<tr class="ct" id="ct'+i+'" hidden><td colspan="7"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
+          '<tr class="ct" id="ct'+i+'" hidden><td colspan="'+soCot+'"><div class="hop"><span class="mo">Đang đọc…</span></div></td></tr>';
       });
     });
 
-    return h + '</tbody><tfoot><tr><td colspan="5" class="r">Cộng ' +
+    /* 🔴 CỘNG Ở CHỖ TỔNG ĐƠN — anh Thắng: *"Tổng tạm ứng − Tổng thực chi = Thừa thiếu. Hiện
+       chỗ tổng đơn"*. Cộng từng cột rồi TRỪ, không cộng dồn chênh lệch từng đơn: hai lối ra
+       cùng một số ở đây, nhưng lối cộng dồn sẽ lệch ngay khi có đơn bản mảng không trả lời
+       được — nó bỏ qua đơn ấy ở cả ba con số, còn lối trừ thì hai đầu vẫn khớp nhau. */
+    var tUng = 0, tChi = 0;
+    ds.forEach(function(x){ if (x.qt){ tUng += Number(x.qt.tamUng||0); tChi += Number(x.qt.thucChi||0); } });
+    var tCl = tUng - tChi;
+
+    return h + '</tbody><tfoot><tr>' +
+      ( coChon ? '<td></td>' : '' ) +
+      '<td colspan="5" class="r">Cộng ' +
       esc( lat.ten ? lat.ten : g.ten ) +
       ( coSo < ds.length ? ' <span class="nho mo">('+(ds.length-coSo)+' đơn chưa đọc được số)</span>' : '' ) +
-      '</td><td class="r" style="color:'+m.chu+'">'+tien(tongLat)+'</td><td></td></tr>' +
-      '</tfoot></table></div></div>';
+      '</td><td class="r" style="color:'+m.chu+'">'+tien(tongLat)+'</td>' +
+      ( coQT
+        ? '<td class="r" style="color:'+m.chu+'">'+tien(tChi)+'</td>' +
+          '<td class="r">'+veChipCl(tCl)+'</td>'
+        : '' ) +
+      '<td></td></tr>' +
+      ( coQT
+        ? '<tr><td colspan="'+soCot+'" class="nho" style="background:'+m.nenNhat+';color:'+m.chu+'">' +
+          '💰 Tổng tạm ứng <b>'+tien(tUng)+'</b> − Tổng thực chi <b>'+tien(tChi)+'</b> = ' +
+          veChipCl(tCl)+'</td></tr>'
+        : '' ) +
+      '</tfoot></table></div>' + veThanhChon(ds, khoaLoc, m) + '</div>';
   }
 
   var h = '';
@@ -725,6 +835,53 @@ function veBang(){
   Array.prototype.forEach.call(o.querySelectorAll('button[data-xem]'), function(n){
     n.onclick = function(){ xem(+n.getAttribute('data-i')); };
   });
+  Array.prototype.forEach.call(o.querySelectorAll('select[data-loc]'), function(n){
+    n.onchange = function(){
+      var k = n.getAttribute('data-loc');
+      if (!LOC_BANG[k]) LOC_BANG[k] = { thang:'', ky:'', nguoi:'', loai:'' };
+      LOC_BANG[k][n.getAttribute('data-truong')] = n.value;
+      veBang();
+    };
+  });
+  Array.prototype.forEach.call(o.querySelectorAll('input[data-chon]'), function(n){
+    n.onclick = function(){
+      var k = n.getAttribute('data-chon');
+      if (n.checked) CHON[k] = 1; else delete CHON[k];
+      veBang();
+    };
+  });
+  /* Ô tích ở đầu bảng: chọn/bỏ đúng những đơn ĐANG HIỆN trong bảng ấy — không đụng tới đơn bị
+     bộ lọc giấu đi. Chọn cả thứ mình không nhìn thấy là cách nhanh nhất để duyệt nhầm. */
+  Array.prototype.forEach.call(o.querySelectorAll('input[data-chonlat]'), function(n){
+    n.onclick = function(){
+      var o2 = n.closest('table');
+      Array.prototype.forEach.call(o2.querySelectorAll('input[data-chon]'), function(x){
+        var k = x.getAttribute('data-chon');
+        if (n.checked) CHON[k] = 1; else delete CHON[k];
+      });
+      veBang();
+    };
+  });
+  Array.prototype.forEach.call(o.querySelectorAll('[data-bochon]'), function(n){
+    n.onclick = function(){
+      var o2 = n.closest('.buoc');
+      if (!o2) return;
+      Array.prototype.forEach.call(o2.querySelectorAll('input[data-chon]'), function(x){
+        delete CHON[x.getAttribute('data-chon')];
+      });
+      veBang();
+    };
+  });
+  Array.prototype.forEach.call(o.querySelectorAll('button[data-hl]'), function(n){
+    n.onclick = function(){ lamHangLoat(n, n.getAttribute('data-hl')); };
+  });
+  Array.prototype.forEach.call(o.querySelectorAll('[data-xoaloc]'), function(n){
+    n.onclick = function(e){
+      e.preventDefault();
+      LOC_BANG[n.getAttribute('data-xoaloc')] = { thang:'', ky:'', nguoi:'', loai:'' };
+      veBang();
+    };
+  });
   moDonDaHen();
 }
 
@@ -751,6 +908,153 @@ function moDonDaHen(){
 
 /* Gian của một đơn. Một đơn có thể rải nhiều gian (Văn phòng / Máy tự động khi không tạm ứng)
    — bày một cái tên như thể đơn chỉ có nó là nói sai về đơn. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Ô THỰC CHI VÀ THỪA/THIẾU CỦA MỘT ĐƠN.
+ *
+ * ⚠️ `d.qt` RỖNG KHÔNG PHẢI LÀ SỐ 0. Đơn chưa cấp tiền, hoặc bản mảng đời cũ không trả lời được
+ *    — cả hai đều phải ra dấu gạch, không ra "0đ". Bày 0đ là nói với kế toán rằng đơn ấy tiêu
+ *    hết sạch tiền ứng, đúng lúc họ đang rà xem ai còn nợ lại bao nhiêu.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function veOThucChi(d){
+  if (!d.qt) return '<td class="r"><span class="mo" title="Đơn chưa cấp tạm ứng">—</span></td>' +
+                    '<td class="r"><span class="mo">—</span></td>';
+  return '<td class="r tien">'+tien(d.qt.thucChi)+'</td>' +
+         '<td class="r">'+veChipCl(Number(d.qt.chenhLech||0))+'</td>';
+}
+
+/* Chênh lệch: dương = NV còn giữ tiền thừa, âm = kế toán còn nợ NV. Hai chiều tiền khác hẳn
+   nhau nên phải khác màu, và phải nói ra ai trả ai — chỉ một con số thì người đọc phải nhớ
+   quy ước dấu, và họ sẽ nhớ nhầm. */
+function veChipCl(cl){
+  cl = Number(cl||0);
+  if (!cl) return '<span class="cl-chip" style="background:#f1f5f9;color:#475569">khớp</span>';
+  return cl > 0
+    ? '<span class="cl-chip" style="background:#dcfce7;color:#166534" title="NV trả lại kế toán">thừa '+tien(cl)+'</span>'
+    : '<span class="cl-chip" style="background:#fef3c7;color:#92400e" title="Kế toán bù cho NV">thiếu '+tien(Math.abs(cl))+'</span>';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * VIẾT HOA CHỮ CÁI ĐẦU CỦA NỘI DUNG — anh Thắng 14/09/2026: *"Chỗ nội dung có tự chỉnh kí tự đầu
+ * tiên viết hoa được không"*.
+ *
+ * 🔴 CHỈ SỬA LÚC VẼ, KHÔNG SỬA SỔ. Nội dung là chữ nhân viên gõ và là thứ đi thẳng vào bảng xuất
+ *    MISA; sửa trong sổ thì một hôm nào đó bút toán lệch với chứng từ giấy mà không ai biết vì
+ *    sao. Ở đây chỉ là cách bày ra màn hình.
+ *
+ * ⚠️ CHỈ NÂNG CHỮ ĐẦU, KHÔNG HẠ PHẦN CÒN LẠI. "ĐỒ CHƠI CÁ" là nhân viên cố tình gõ hoa cả cụm;
+ *    hạ nó xuống là sửa chữ của người ta. Và `text-transform:capitalize` của CSS thì viết hoa
+ *    MỌI từ — "Rau Củ Bọ Ú 9-9", không phải thứ anh hỏi.
+ *
+ * ⚠️ BỎ QUA KHOẢNG TRẮNG ĐẦU: chuỗi " giặt bao tay" mà nâng ký tự thứ nhất thì nâng đúng dấu
+ *    cách, và nhìn y như không có gì xảy ra.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function hoaDau(s){
+  s = String(s == null ? '' : s);
+  var i = s.search(/\S/);
+  if (i < 0) return s;
+  return s.slice(0, i) + s.charAt(i).toUpperCase() + s.slice(i + 1);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * LÀM HÀNG LOẠT — anh Thắng 14/09/2026: *"Khi kế toán muốn duyệt hàng loạt, chọn theo đơn thì
+ * vẫn cộng công thức đó"*.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Đơn đang chọn, khoá `mảng|mã đơn` — KHÔNG khoá bằng chỉ số dòng: bảng đổi thứ tự sau mỗi lượt
+ * lọc và mỗi lượt duyệt, nên chỉ số trỏ sang đơn khác mà ô tích vẫn nằm nguyên chỗ cũ. Ở một
+ * màn bấm-là-ra-tiền, chuyện ấy là duyệt nhầm đơn.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var VIEC_HL = {
+  duyet: [ {viec:'duyet', ten:'Duyệt', lop:'b-g'} ],
+  cap:   [ {viec:'cap',   ten:'Cấp tạm ứng', lop:'b-g'} ],
+  /* 🔴 HAI ĐƯỜNG QUYẾT TOÁN — đơn "Chờ quyết toán" có thể là tiền đã ứng cho NHÂN VIÊN (so tiền
+     ứng với tiền tiêu, chênh thì thu lại hoặc bù thêm) hoặc tiền trả NHÀ CUNG CẤP. Từ 14/09/2026
+     màn chỉ bày nút của đường đơn THẬT SỰ đi (xem `viecLamDuoc()`), vì đường ấy đã chốt từ lúc
+     nhập dòng chi — nhưng bảng vẫn giữ cả hai, cho đơn đi cả hai đường. */
+  qt:    [ {viec:'qtCn',  ten:'Quyết toán cá nhân', lop:'b-g'},
+           {viec:'qtNcc', ten:'Xác nhận NCC',       lop:'b-s'} ]
+};
+
+var CHON = {};
+
+/* Những việc THUẬN mà một đơn đang làm được — Trả lại không nằm ở đây: nó đòi lý do riêng cho
+   từng đơn, và một lý do chung dán cho hai chục đơn thì người lập đọc xong vẫn không biết sửa gì. */
+function viecLamDuoc(d){
+  var lam = d.lam || {}, duong = d.duong || null, ra = [];
+  ( VIEC_HL[NHOM] || [] ).forEach(function(v){
+    if (!lam[v.viec]) return;
+    if (duong){
+      if (v.viec === 'qtCn'  && !duong.cn)  return;
+      if (v.viec === 'qtNcc' && !duong.ncc) return;
+    }
+    ra.push(v);
+  });
+  return ra;
+}
+
+function veThanhChon(ds, khoaLoc, m){
+  var ch = ds.filter(function(d){ return CHON[d.ban+'|'+d.maDon]; });
+  if (!ch.length) return '';
+  /* 🔴 CÙNG MỘT CÔNG THỨC với dòng tổng của bảng, chỉ đổi tập đơn — anh Thắng: *"chọn theo đơn
+     thì vẫn cộng công thức đó"*. Tính lại bằng lối khác là hai con số cùng tên mà lệch nhau. */
+  var tUng = 0, tChi = 0, tXin = 0;
+  ch.forEach(function(d){
+    if (d.tien !== null) tXin += Number(d.tien);
+    if (d.qt){ tUng += Number(d.qt.tamUng||0); tChi += Number(d.qt.thucChi||0); }
+  });
+
+  /* Chỉ bày việc mà MỌI đơn đang chọn đều làm được: bày một việc nửa số đơn sẽ bị chối thì
+     người bấm phải ngồi đoán đơn nào trượt, đơn nào xong. */
+  var chung = viecLamDuoc(ch[0]).filter(function(v){
+    return ch.every(function(d){ return viecLamDuoc(d).some(function(x){ return x.viec === v.viec; }); });
+  });
+
+  return '<div class="thanh-chon" style="border-color:'+m.vien+';background:'+m.nen+'">' +
+    '<span style="color:'+m.chu+';font-weight:800">☑ '+ch.length+' đơn đang chọn</span>' +
+    '<span class="nho" style="color:'+m.chu+'">Số xin <b>'+tien(tXin)+'</b></span>' +
+    ( (tUng || tChi)
+      ? '<span class="nho" style="color:'+m.chu+'">Tạm ứng <b>'+tien(tUng)+'</b> − Thực chi <b>' +
+        tien(tChi)+'</b> = </span>'+veChipCl(tUng - tChi)
+      : '' ) +
+    '<span style="flex:1"></span>' +
+    chung.map(function(v){
+      return '<button class="btn '+v.lop+' nho" data-hl="'+esc(v.viec)+'" data-lat="'+esc(khoaLoc)+'">' +
+             esc(v.ten)+' '+ch.length+' đơn</button>';
+    }).join(' ') +
+    '<button class="btn b-x nho" data-bochon="'+esc(khoaLoc)+'">Bỏ chọn</button>' +
+    '</div>';
+}
+
+/* Lựa chọn lọc của TỪNG bảng, giữ ngoài DOM — `veBang()` vẽ lại cả màn sau mỗi lượt lọc và mỗi
+   lượt duyệt, nên thứ gì để trong DOM là bay mất ngay lần vẽ kế tiếp. Khoá: mảng|lát. */
+var LOC_BANG = {};
+
+/* "T9/2026 (7/9-13/9/2026)" -> "T9/2026". Kỳ là TUẦN; tháng là phần trước dấu ngoặc.
+   ⚠️ Không có ngoặc (bản mảng đổi cách ghi kỳ) thì trả nguyên chuỗi — lọc theo tháng lúc ấy
+      thành lọc theo kỳ, vẫn dùng được, thay vì trả rỗng và cả hộp chọn trống trơn. */
+function thangCuaKy(ky){
+  var s = String(ky||'').trim();
+  var i = s.indexOf(' (');
+  return i > 0 ? s.slice(0, i) : s;
+}
+
+function veDaiLoc(khoa, L, dmThang, dmKy, dmNguoi, dmLoai, dangLoc, m){
+  /* Hộp chỉ có một giá trị thì không lọc được gì — bỏ hẳn, đừng bày một ô chọn giả. */
+  var hop = function(ten, nhan, ds, val){
+    if (ds.length < 2) return '';
+    return '<select class="o-loc" data-loc="'+esc(khoa)+'" data-truong="'+ten+'">' +
+      '<option value="">'+nhan+': tất cả</option>' +
+      ds.map(function(x){
+        return '<option value="'+esc(x)+'"'+( x === val ? ' selected' : '' )+'>'+esc(x)+'</option>';
+      }).join('') + '</select>';
+  };
+  var h = hop('thang','Tháng',dmThang,L.thang) + hop('ky','Tuần',dmKy,L.ky) +
+          hop('nguoi','Người gửi',dmNguoi,L.nguoi) + hop('loai','Loại chi phí',dmLoai,L.loai);
+  if (!h) return '';
+  return '<div class="dai-loc">🔎 '+h +
+    ( dangLoc ? '<a href="#" class="nho" data-xoaloc="'+esc(khoa)+'" style="color:'+m.chu+'">bỏ lọc</a>' : '' ) +
+    '</div>';
+}
+
 function veCoSo(ds){
   ds = ds || [];
   if (!ds.length) return '<span class="mo nho">chưa rõ cơ sở</span>';
@@ -1032,7 +1336,7 @@ function veChiTiet(g){
       /* 🔴 THỰC CHI LỆCH THÀNH TIỀN THÌ TÔ LÊN — đó chính là dòng người duyệt phải soi: mua
          hụt, mua thêm, hay gõ nhầm. Bằng nhau thì để xám, khỏi tranh mắt với chỗ cần nhìn. */
       var lech = ( tc !== null && tc !== tt );
-      h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
+      h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(hoaDau(r.noiDung))+'</td>' +
            '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
            '<td class="r">'+tien(tt)+'</td>' +
            '<td class="r"'+( lech ? ' style="color:#b45309;font-weight:800" title="Lệch thành tiền"' : ' class="r mo"' )+'>' +
@@ -1351,7 +1655,7 @@ function veTraKq(){
            '</tr></thead><tbody>' +
         it.map(function(r){
           return '<tr><td class="nho">'+esc(r.ngay||'')+'</td><td>'+esc(r.coso||'')+'</td>' +
-                 '<td>'+esc(r.loai||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
+                 '<td>'+esc(r.loai||'')+'</td><td>'+esc(hoaDau(r.noiDung))+'</td>' +
                  '<td class="nho mo">'+esc(r.mang||'')+'</td>' +
                  '<td class="r nho">'+esc(r.tkNo||'')+'</td>' +
                  '<td class="r">'+tien(Number(r.tien||0))+'</td></tr>';
@@ -1705,6 +2009,58 @@ function luuCauHinh(){
     var x = can[i++];
     goi('luuCauHinh', x).then(function(r){ if (!r || r.error) loi++; ke(); })
       .catch(function(){ loi++; ke(); });
+  })();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * LÀM MỘT LƯỢT CHO NHIỀU ĐƠN.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 GỬI TUẦN TỰ, MỖI ĐƠN MỘT LƯỢT GỌI — không gộp thành một lời gọi "làm hết". Mỗi đơn đi qua
+ *    đúng cái cổng và đúng cái chốt quyền như khi bấm tay, nên một đơn bị chối không kéo theo
+ *    mười chín đơn kia, và nhật ký bên trang mảng vẫn ghi từng đơn một.
+ *
+ * 🔴 HỎI TRƯỚC, KÈM SỐ TIỀN. Đây là nút ra tiền cho cả chục đơn cùng lúc; bấm nhầm thì không có
+ *    nút hoàn tác nào ở đây cả.
+ *
+ * ⚠️ ĐƠN NÀO XONG THÌ BỎ CHỌN NGAY. Giữ nguyên lựa chọn sau khi chạy là người ta bấm lần nữa
+ *    lên đúng những đơn vừa làm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function lamHangLoat(nut, viec){
+  var lat = nut.getAttribute('data-lat');
+  var hop = nut.closest('.buoc');
+  if (!hop) return;
+  var ds = [];
+  Array.prototype.forEach.call(hop.querySelectorAll('input[data-chon]:checked'), function(x){
+    var k = x.getAttribute('data-chon'), i = k.indexOf('|');
+    ds.push({ ban: k.slice(0, i), maDon: k.slice(i + 1), khoa: k });
+  });
+  if (!ds.length) return;
+
+  var ten = ( ( VIEC_HL[NHOM] || [] ).filter(function(v){ return v.viec === viec; })[0] || {} ).ten || viec;
+  var tong = 0;
+  ROWS.forEach(function(d){
+    if (CHON[d.ban+'|'+d.maDon] && d.tien !== null &&
+        ds.some(function(x){ return x.khoa === d.ban+'|'+d.maDon; })) { tong += Number(d.tien); }
+  });
+  if (!confirm(ten+' cho '+ds.length+' đơn, cộng '+tien(tong)+'?\n\nViệc này không hoàn tác được ở đây.')) return;
+
+  nut.disabled = true;
+  var i = 0, xong = 0, loi = [];
+  (function ke(){
+    if (i >= ds.length){
+      datBao(loi.length ? 'loi' : 'ok',
+        'Đã '+ten.toLowerCase()+' '+xong+'/'+ds.length+' đơn.' +
+        ( loi.length ? ' Không được: '+loi.join(' · ') : '' ));
+      veChinh();
+      return;
+    }
+    var x = ds[i++];
+    nut.textContent = ten+'… '+i+'/'+ds.length;
+    goi(viec, { ban: x.ban, maDon: x.maDon }).then(function(r){
+      if (r && r.error) { loi.push(x.maDon+' ('+r.error+')'); }
+      else { xong++; delete CHON[x.khoa]; }
+      ke();
+    }).catch(function(){ loi.push(x.maDon+' (không gọi được máy chủ)'); ke(); });
   })();
 }
 

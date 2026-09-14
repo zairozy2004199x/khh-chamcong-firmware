@@ -180,6 +180,15 @@ class VHCPT_Gom {
 			elseif ( method_exists( $lop_don, 'tong_xin_hien_tai' ) )   { $ham_tien = 'tong_xin_hien_tai'; }
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * MƯỢN PHIÊN MỘT LẦN, NGOÀI VÒNG LẶP.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * `get_don()` gác theo đơn vị/bộ phận của người đang gọi, nên khối quyết toán đòi có
+		 * phiên của bản ấy. Mượn trong vòng lặp là hai trăm lượt tra sổ người dùng cho một màn;
+		 * mượn một lần ở đây thì cả lát cắt dùng chung, vì cùng một mảng và cùng một người.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		VHCPT_Ban::muon_phien( $khoa );
+
 		$ra = array();
 		foreach ( $rows as $r ) {
 			$ma = trim( (string) $r['ma_don'] );
@@ -212,9 +221,73 @@ class VHCPT_Gom {
 				/* Xếp theo tiền giảm dần (đã sắp trong câu lệnh) — loại tốn nhiều nhất đứng
 				   trước, vì đó là loại người duyệt cần nhìn đầu tiên. */
 				'loai'     => isset( $loai_cua[ $ma ] ) ? $loai_cua[ $ma ] : array(),
+				/* Đơn này đi đường nào — chi cá nhân, trả nhà cung cấp, hay cả hai. */
+				'duong'    => self::duong_cua_don( $khoa, $ma ),
+				/* Khối quyết toán của đơn: tạm ứng · thực chi · thừa/thiếu. null = chưa tới lúc
+				   (chưa cấp tiền) hoặc bản mảng đời cũ không trả lời được. */
+				'qt'       => self::qt_cua_don( $khoa, $ma, (string) $r['trang_thai'] ),
 			);
 		}
 		return $ra;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * ĐƠN ĐI ĐƯỜNG NÀO — CHI CÁ NHÂN HAY TRẢ NHÀ CUNG CẤP
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Lúc tạo đơn và đi lệnh thì đã xác nhận chi phí cá nhân hay chi nhà
+	 * cung cấp rồi, nên không cần xác nhận lại, mà là duyệt đơn nếu nó đúng thôi"*.
+	 *
+	 * 🔴 ĐƯỜNG ĐI ĐÃ CHỐT TỪ LÚC NHẬP DÒNG CHI, không phải một câu hỏi lúc quyết toán. Bày cả hai
+	 *    nút cho mọi đơn là bắt kế toán trả lời lại một câu đã có đáp án trong sổ — và bấm nhầm
+	 *    nút thì đơn đi sai đường.
+	 *
+	 * ⚠️ VẪN CÓ ĐƠN ĐI CẢ HAI ĐƯỜNG (vài dòng mua lẻ, vài dòng trả NCC). Ca ấy bày cả hai nút,
+	 *    đúng như lõi bản mảng xử lý: xác nhận NCC xong mà còn phần cá nhân thì đơn CHƯA chốt.
+	 *
+	 * @return array|null [ 'cn' => bool, 'ncc' => bool ] · null = bản mảng không trả lời được.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function duong_cua_don( $khoa, $ma ) {
+		$lop = VHCPT_Ban::lop( $khoa, 'Don' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'don_loai' ) ) { return null; }
+		$l = (array) call_user_func( array( $lop, 'don_loai' ), $ma );
+		return array( 'cn' => ! empty( $l['cn'] ), 'ncc' => ! empty( $l['ncc'] ) );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * KHỐI QUYẾT TOÁN CỦA MỘT ĐƠN — TẠM ỨNG · THỰC CHI · THỪA/THIẾU
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Thêm cột thực chi và tiền thừa thiếu"*, và *"Tổng tạm ứng − Tổng
+	 * thực chi = Thừa thiếu. Hiện chỗ tổng đơn"*.
+	 *
+	 * 🔴 HỎI LÕI CỦA BẢN ẤY, KHÔNG TỰ TRỪ. Luật nghe đơn giản nhưng có mấy chỗ tinh: chưa cấp
+	 *    tiền thì chênh lệch là 0 chứ không phải cả cục tạm ứng; thực chi lấy ô "thực mua" nếu
+	 *    người ta đã gõ, không thì lấy thành tiền; phần nhà cung cấp tính tách khỏi phần cá
+	 *    nhân. Chép luật ấy sang đây là dựng bản thứ hai cho cùng một câu hỏi tiền — rồi hai bản
+	 *    lệch nhau, và kế toán không biết tin con số nào.
+	 *
+	 * ⚠️ CHƯA CẤP TIỀN THÌ KHÔNG HỎI. Đơn chưa tới bước cấp tạm ứng thì chưa ai đưa đồng nào,
+	 *    không có gì để đối chiếu — và bỏ qua được cả một lượt `get_don()` cho mỗi đơn ở hai tab
+	 *    đầu, nơi gần như mọi đơn đều chưa cấp.
+	 *
+	 * ⚠️ MƯỢN PHIÊN ĐÃ LÀM MỘT LẦN Ở NGOÀI VÒNG LẶP (`don_cua_ban()`), nên ở đây không gọi lại.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function qt_cua_don( $khoa, $ma, $tt ) {
+		$lop = VHCPT_Ban::lop( $khoa, 'Don' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! $lop || ! class_exists( $lop ) ) { return null; }
+		if ( ! method_exists( $lop, 'da_cap_tien' ) || ! method_exists( $lop, 'get_don' ) ) { return null; }
+		if ( ! call_user_func( array( $lop, 'da_cap_tien' ), $tt ) ) { return null; }
+		$g = (array) call_user_func( array( $lop, 'get_don' ), $ma, false );
+		if ( empty( $g['success'] ) ) { return null; }
+		$cn  = isset( $g['tongCN'] )  ? (array) $g['tongCN']  : array();
+		$ncc = isset( $g['tongNCC'] ) ? (array) $g['tongNCC'] : array();
+		return array(
+			'tamUng'    => (float) ( isset( $cn['tamUng'] ) ? $cn['tamUng'] : 0 ),
+			'thucChi'   => (float) ( isset( $cn['thucChi'] ) ? $cn['thucChi'] : 0 ),
+			'chenhLech' => (float) ( isset( $cn['chenhLech'] ) ? $cn['chenhLech'] : 0 ),
+			'nccChi'    => (float) ( isset( $ncc['thucChi'] ) ? $ncc['thucChi'] : 0 ),
+		);
 	}
 
 	/**
