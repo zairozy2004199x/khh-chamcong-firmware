@@ -613,6 +613,7 @@ foreach ( array(
 	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu',
 	/* xuất MISA */                 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong',
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
+	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq',
 	/* việc trên đơn */             'lam',
 ) as $ham ) {
 	t( '🔴 màn còn hàm ' . $ham . '()', false !== strpos( $html, 'function ' . $ham . '(' ), '' );
@@ -679,6 +680,58 @@ t( 'dải tiêu đề tuần chỉ hiện khi có từ hai tuần',
    làm được việc này" (đúng chữ nhưng sai ý, nghe như thiếu quyền). */
 t( '⚠️ đơn đã xong thì nói ĐÃ XONG, không nói thiếu quyền',
 	false !== mb_strpos( $html_ma, 'đã quyết toán xong — còn chờ xuất MISA' ), '' );
+
+/* ═══ 6i. TAB TỔNG QUAN (DASHBOARD) ═════════════════════════════════════════════
+ *
+ * Anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên (Dashboard) hiện tất cả đơn từ trước
+ * đến giờ, kèm các bộ lọc"* · *"chỗ này cũng tách ra các bảng … tức các bước để kế toán theo
+ * dõi, nhớ ai nhập trước, lên trước"* · *"chỗ chờ duyệt hiện các đơn nháp nhân viên đang lên
+ * chờ mà chưa gửi"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 tab Tổng quan đứng ĐẦU',
+	(bool) preg_match( '#tabs = .<button[^;]*TAB_TQ#', $html ), '' );
+t( 'và mở trang là vào thẳng nó', (bool) preg_match( "#NHOM = 'tongquan'#", $html ), '' );
+t( '🔴 có cổng tongQuan ở máy chủ', false !== strpos( $api_ma, '\'tongQuan\' === $viec' ), '' );
+foreach ( array( 'coso', 'loai', 'nguoi', 'tuNgay', 'denNgay' ) as $f ) {
+	t( '🔴 lọc theo «' . $f . '»', (bool) preg_match( "#'" . $f . "' *=>#", $api_ma ), '' );
+}
+t( '🔴 lọc theo MẢNG bó ngay từ máy chủ, không lọc lúc vẽ',
+	(bool) preg_match( '#[$]chon && [$]chon !== [$]khoa \) \{ continue; \}#', $api_ma ), '' );
+
+/* 🔴 LỌC TRONG SQL, KHÔNG LỌC SAU KHI ĐÃ LẤY. Có LIMIT: lấy 300 dòng rồi mới bỏ đơn không khớp
+   là lọc "cơ sở Aeon Tân Phú" ra 4 đơn trong khi cơ sở ấy có 60. */
+$gom3 = file_get_contents( $TONG . '/includes/class-vhcpt-gom.php' );
+t( '🔴 cơ sở lọc TRONG SQL (câu con trên bảng chi phí)',
+	(bool) preg_match( '#ma_don IN \( SELECT ma_don FROM \$b_cp WHERE coso = %s \)#', $gom3 ), '' );
+/* ⚠️ Đơn xin ứng trước chưa có dòng chi nào mà vẫn thuộc một gian — phải hỏi cả bảng tạm ứng. */
+t( '⚠️ và hỏi CẢ bảng tạm ứng (đơn xin ứng trước chưa có dòng chi)',
+	(bool) preg_match( '#ma_don IN \( SELECT ma_don FROM \$b_tu WHERE coso = %s \)#', $gom3 ), '' );
+t( '🔴 loại chi phí cũng lọc trong SQL',
+	(bool) preg_match( '#ma_don IN \( SELECT ma_don FROM \$b_cp WHERE nhom = %s \)#', $gom3 ), '' );
+/* ⚠️ Cắt ở nửa đêm là mất sạch đơn lập trong chính ngày người ta vừa chọn. */
+t( '⚠️ lọc «đến ngày» tính TỚI HẾT ngày ấy',
+	false !== strpos( $gom3, "23:59:59" ), '' );
+t( 'đếm TRƯỚC trên cả lát cắt, để nói được đang xem bao nhiêu trong bao nhiêu',
+	false !== strpos( $gom3, '$sql_dem = "SELECT COUNT(*)' ), '' );
+
+t( '🔴 chia bảng theo BƯỚC, đúng thứ tự quy trình',
+	(bool) preg_match( "#const BUOC = array\([\s\S]{0,200}?'Nháp'[\s\S]{0,600}?'Đã xuất MISA'#u", $gom3 ), '' );
+
+/* ═══ AI NỘP TRƯỚC, LÊN TRƯỚC ═══════════════════════════════════════════════════
+ * 🔴 Luật CÔNG BẰNG, không phải sở thích sắp xếp: hàng chờ xếp mới-nhất-trước thì đơn nộp sớm
+ *    bị đẩy dần xuống đáy mỗi khi có người nộp thêm — người chờ lâu nhất lại bị xử sau cùng,
+ *    và không ai nhìn thấy vì màn hình luôn trông gọn.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 bảng việc-cần-làm xếp CŨ TRƯỚC', (bool) preg_match( '#lat\.cho \?#', $html ), '' );
+t( '⚠️ bảng đã xong thì mới nhất trước', (bool) preg_match( '#var xong = \( bc\.tt === .Đã quyết toán.#u', $html ), '' );
+
+/* Tab Chờ duyệt bày kèm đơn NHÁP. */
+t( '🔴 tab Chờ duyệt có bảng Nháp riêng',
+	(bool) preg_match( "#khoa:'nhap'#", $html ), '' );
+t( '🔴 nhóm duyet đọc về cả đơn Nháp',
+	(bool) preg_match( "#'tt'\s*=> array\( self::CHO_DUYET, self::NHAP \)#", $gom3 ), '' );
+t( '🔴 nhưng KHÔNG đếm Nháp vào ô tròn (chưa gửi thì chưa phải việc của ai)',
+	(bool) preg_match( "#'demTt' => array\( self::CHO_DUYET \),#", $gom3 ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

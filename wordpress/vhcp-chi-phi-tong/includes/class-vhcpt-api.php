@@ -74,6 +74,7 @@ class VHCPT_Api {
 		if ( 'misa' === $viec )     { return self::ra( self::misa( $args ) ); }
 		if ( 'misaXong' === $viec ) { return self::ra( self::misa_xong( $args ) ); }
 		if ( 'tra' === $viec )      { return self::ra( self::tra( $args ) ); }
+		if ( 'tongQuan' === $viec ) { return self::ra( self::tong_quan( $args ) ); }
 		if ( 'traLai' === $viec )   { return self::ra( self::tra_lai( $args ) ); }
 		if ( 'chiTiet' === $viec )  { return self::ra( self::chi_tiet( $args ) ); }
 		if ( 'dangXuat' === $viec ) { VHCPT_Auth::bo_the( $the ); return self::ra( array( 'ok' => true ) ); }
@@ -385,6 +386,70 @@ class VHCPT_Api {
 		}
 		return array( 'ok' => true,
 			'message' => 'Đã quyết toán phần cá nhân ' . $c['ma'] . ' (' . VHCPT_Ban::ten( $c['khoa'] ) . ').' );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * TỔNG QUAN — MỌI ĐƠN TỪ TRƯỚC TỚI GIỜ, CHIA THEO BƯỚC
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên (Dashboard) hiện tất cả đơn từ
+	 * trước đến giờ, kèm các bộ lọc"* và ngay sau đó *"chỗ này cũng tách ra các bảng: đã tạm ứng,
+	 * chưa tạm ứng, chờ tạm ứng — tức các bước để kế toán theo dõi, nhớ ai nhập trước, lên trước"*.
+	 *
+	 * 🔴 "AI NHẬP TRƯỚC, LÊN TRƯỚC" LÀ MỘT LUẬT CÔNG BẰNG, KHÔNG PHẢI MỘT SỞ THÍCH SẮP XẾP.
+	 *    Hàng chờ xếp mới-nhất-trước thì đơn nộp sớm bị đẩy dần xuống đáy mỗi khi có người nộp
+	 *    thêm — người nộp sớm nhất chờ lâu nhất, và không ai nhìn thấy điều đó. Nên mọi bảng
+	 *    VIỆC-CÒN-PHẢI-LÀM xếp CŨ TRƯỚC.
+	 *
+	 * ⚠️ Bảng ĐÃ XONG thì ngược lại — mới nhất trước, vì người ta mở ra để xem việc vừa làm.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function tong_quan( $args ) {
+		$loc = array(
+			'coso'      => isset( $args['coso'] ) ? sanitize_text_field( (string) $args['coso'] ) : '',
+			'loai'      => isset( $args['loai'] ) ? sanitize_text_field( (string) $args['loai'] ) : '',
+			'nguoi'     => isset( $args['nguoi'] ) ? sanitize_text_field( (string) $args['nguoi'] ) : '',
+			'trangThai' => isset( $args['trangThai'] ) ? sanitize_text_field( (string) $args['trangThai'] ) : '',
+			'tuNgay'    => isset( $args['tuNgay'] ) ? sanitize_text_field( (string) $args['tuNgay'] ) : '',
+			'denNgay'   => isset( $args['denNgay'] ) ? sanitize_text_field( (string) $args['denNgay'] ) : '',
+		);
+		/* Lọc theo MẢNG = chọn bản nào để hỏi. Bó ngay từ đây chứ không lọc lúc vẽ: hỏi cả bốn
+		   bản rồi bỏ ba là ba lượt đọc bảng phí cho mỗi lần đổi bộ lọc. */
+		$chon = isset( $args['ban'] ) ? sanitize_key( (string) $args['ban'] ) : '';
+
+		$ra = array(); $cs = array(); $lo = array(); $ng = array();
+		$tong = 0; $dong = 0; $cat = 0;
+		foreach ( VHCPT_Auth::ban_doc_duoc() as $khoa ) {
+			/* Danh mục cho ba hộp chọn lấy từ MỌI mảng, kể cả mảng đang bị lọc ra — nếu không
+			   thì chọn một mảng xong là hai hộp kia rỗng và không đổi lại được nữa. */
+			$dm = VHCPT_Gom::danh_muc( $khoa );
+			foreach ( $dm['coso'] as $x )  { $cs[ $x ] = 1; }
+			foreach ( $dm['loai'] as $x )  { $lo[ $x ] = 1; }
+			foreach ( $dm['nguoi'] as $x ) { $ng[ $x ] = 1; }
+			if ( '' !== $chon && $chon !== $khoa ) { continue; }
+
+			$r = VHCPT_Gom::tat_ca_don( $khoa, $loc );
+			$rows = isset( $r['rows'] ) ? (array) $r['rows'] : array();
+			$t_ban = 0;
+			foreach ( $rows as $x ) { if ( null !== $x['tien'] ) { $t_ban += (float) $x['tien']; } }
+			$tong += $t_ban; $dong += (int) $r['tong'];
+			if ( (int) $r['tong'] > count( $rows ) ) { $cat++; }
+			$ra[] = array(
+				'ban'    => $khoa,
+				'tenBan' => VHCPT_Ban::ten( $khoa ),
+				'url'    => (string) ( isset( VHCPT_Ban::ds()[ $khoa ]['url'] ) ? VHCPT_Ban::ds()[ $khoa ]['url'] : '' ),
+				'rows'   => $rows,
+				'soDon'  => (int) $r['tong'],
+				'tong'   => $t_ban,
+			);
+		}
+		if ( ! $ra && '' === $chon ) {
+			return array( 'error' => 'Không đọc được mảng nào.' );
+		}
+		$k = function ( $m ) { $x = array_keys( $m ); sort( $x ); return $x; };
+		return array( 'ok' => true, 'ban' => $ra, 'tong' => $tong, 'soDon' => $dong, 'coCat' => $cat,
+			'cosoList' => $k( $cs ), 'loaiList' => $k( $lo ), 'nguoiList' => $k( $ng ),
+			'banList'  => array_map( function ( $x ) { return array( 'ban' => $x, 'ten' => VHCPT_Ban::ten( $x ) ); },
+				VHCPT_Auth::ban_doc_duoc() ),
+			'buoc'     => VHCPT_Gom::BUOC );
 	}
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════

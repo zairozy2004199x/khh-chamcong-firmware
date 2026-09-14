@@ -29,6 +29,31 @@ class VHCPT_Gom {
 	const CHO_QT    = 'Chờ quyết toán';
 	/* Đã xong phần quyết toán, còn chờ xuất MISA — xem `nhom()`. */
 	const DA_QT     = 'Đã quyết toán';
+	/* NHÁP — nhân viên đang soạn, CHƯA gửi lên. Anh Thắng 14/09/2026: *"chỗ chờ duyệt hiện các
+	   đơn nháp nhân viên đang lên chờ mà chưa gửi"*: quản lý muốn thấy cái sắp tới, không chỉ
+	   cái đã tới. Nhưng nó KHÔNG phải việc của quản lý — không đếm vào ô tròn, xem `nhom()`. */
+	const NHAP      = 'Nháp';
+	const DA_CAP    = 'Đã cấp tạm ứng';
+	const DA_MISA   = 'Đã xuất MISA';
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CÁC BƯỚC MỘT ĐƠN ĐI QUA — dùng cho màn Tổng quan.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"chỗ này cũng tách ra các bảng: đã tạm ứng, chưa tạm ứng, chờ tạm
+	 * ứng — tức các bước để kế toán theo dõi"*.
+	 *
+	 * 🔴 THỨ TỰ NÀY LÀ THỨ TỰ THẬT CỦA QUY TRÌNH, không phải bảng chữ cái. Bày lộn thứ tự là
+	 *    người đọc mất luôn cảm giác "đơn đang đi tới đâu" — thứ duy nhất cái màn này để làm.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const BUOC = array(
+		array( 'tt' => 'Nháp',              'ten' => 'Nháp — chưa gửi',        'mau' => '#64748b' ),
+		array( 'tt' => 'Chờ duyệt tạm ứng', 'ten' => 'Chờ duyệt tạm ứng',      'mau' => '#b45309' ),
+		array( 'tt' => 'Chờ cấp tạm ứng',   'ten' => 'Chờ cấp tạm ứng',        'mau' => '#b45309' ),
+		array( 'tt' => 'Đã cấp tạm ứng',    'ten' => 'Đã cấp tạm ứng',         'mau' => '#0369a1' ),
+		array( 'tt' => 'Chờ quyết toán',    'ten' => 'Chờ quyết toán',         'mau' => '#b45309' ),
+		array( 'tt' => 'Đã quyết toán',     'ten' => 'Đã quyết toán',          'mau' => '#166534' ),
+		array( 'tt' => 'Đã xuất MISA',      'ten' => 'Đã xuất MISA',           'mau' => '#166534' ),
+	);
 
 	/** Số đơn tối đa đọc về một lượt. */
 	const GIOI_HAN = 200;
@@ -52,7 +77,13 @@ class VHCPT_Gom {
 	 */
 	public static function nhom() {
 		return array(
-			'duyet' => array( 'ten' => 'Chờ duyệt tạm ứng', 'tt' => array( self::CHO_DUYET ) ),
+			/* Nháp bày kèm để quản lý thấy cái SẮP tới, nhưng không đếm: đơn nhân viên chưa
+			   gửi thì chưa phải việc của ai cả, đếm vào là ô tròn nói sai số việc phải làm. */
+			'duyet' => array(
+				'ten'   => 'Chờ duyệt tạm ứng',
+				'tt'    => array( self::CHO_DUYET, self::NHAP ),
+				'demTt' => array( self::CHO_DUYET ),
+			),
 			'cap'   => array( 'ten' => 'Chờ cấp tạm ứng',   'tt' => array( self::CHO_CAP ) ),
 			'qt'    => array(
 				'ten'   => 'Quyết toán',
@@ -178,6 +209,142 @@ class VHCPT_Gom {
 			);
 		}
 		return $ra;
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BẢNG TỔNG QUAN — MỌI ĐƠN TỪ TRƯỚC TỚI GIỜ, CÓ BỘ LỌC
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên (Dashboard) hiện tất cả đơn từ
+	 * trước đến giờ, kèm các bộ lọc: lọc theo cơ sở, lọc theo mảng, lọc theo ngày, lọc theo chi
+	 * phí, lọc theo người nhập"*.
+	 *
+	 * 🔴 KHÁC HẲN BA TAB KIA: chúng hỏi *"đơn nào đang chờ TÔI quyết định"* — một lát cắt hẹp,
+	 *    lọc theo trạng thái. Tab này hỏi *"đơn nào đã từng có"* — không lọc trạng thái gì cả,
+	 *    nên nó có thể chạm vào vài nghìn đơn.
+	 *
+	 * 🔴 LỌC TRONG SQL, KHÔNG LỌC SAU KHI ĐÃ LẤY. Có `LIMIT`: lấy 300 dòng rồi mới bỏ đơn không
+	 *    khớp là người ta lọc "cơ sở Aeon Tân Phú" và nhận về 4 đơn, trong khi cơ sở ấy có 60 —
+	 *    56 chỗ kia đã bị đơn của cơ sở khác chiếm mất. Đây đúng cái bẫy `VHCP_DonVi::dieu_kien_sql()`
+	 *    đã ghi lại cho màn tìm đơn.
+	 *
+	 * ⚠️ CƠ SỞ VÀ LOẠI CHI PHÍ NẰM Ở DÒNG CHI, KHÔNG NẰM Ở ĐƠN. Nên hai bộ lọc ấy phải đi qua
+	 *    câu con trên bảng chi phí — và với cơ sở thì CẢ bảng tạm ứng nữa, vì đơn xin ứng trước
+	 *    chưa có dòng chi nào mà vẫn thuộc một gian.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Trần số đơn đọc về MỖI BẢN cho màn tổng quan. */
+	const GIOI_HAN_TQ = 300;
+
+	public static function tat_ca_don( $khoa, $loc ) {
+		global $wpdb;
+		$tien_to = VHCPT_Ban::tien_to_bang( $khoa );
+		if ( '' === $tien_to ) { return array( 'rows' => array(), 'tong' => 0 ); }
+		$bang = $tien_to . 'don';
+		$b_cp = $tien_to . 'chiphi';
+		$b_tu = $tien_to . 'tamung';
+
+		$loc = (array) $loc;
+		$g   = function ( $k ) use ( $loc ) {
+			$v = isset( $loc[ $k ] ) ? trim( (string) $loc[ $k ] ) : '';
+			return ( '' === $v || 'all' === $v ) ? '' : $v;
+		};
+		$dk = array( '1=1' ); $tv = array();
+
+		$cs = $g( 'coso' );
+		if ( '' !== $cs ) {
+			/* Cơ sở của đơn = cơ sở ở DÒNG CHI, hoặc ở dòng TẠM ỨNG với đơn xin ứng trước. */
+			$dk[] = "( ma_don IN ( SELECT ma_don FROM $b_cp WHERE coso = %s )"
+				. " OR ma_don IN ( SELECT ma_don FROM $b_tu WHERE coso = %s ) )";
+			$tv[] = $cs; $tv[] = $cs;
+		}
+		$lo = $g( 'loai' );
+		if ( '' !== $lo ) {
+			$dk[] = "ma_don IN ( SELECT ma_don FROM $b_cp WHERE nhom = %s )";
+			$tv[] = $lo;
+		}
+		$ng = $g( 'nguoi' );
+		if ( '' !== $ng ) {
+			/* Tìm THEO MẢNH TÊN: sổ người dùng gõ tay nên "Thảo" phải ra "Huỳnh Thị Thu Thảo".
+			   Bắt khớp cả tên là người ta phải gõ đủ họ tên có dấu, và thường là gõ sai. */
+			$dk[] = 'nguoi_lap LIKE %s';
+			$tv[] = '%' . $wpdb->esc_like( $ng ) . '%';
+		}
+		$tt = $g( 'trangThai' );
+		if ( '' !== $tt ) { $dk[] = 'trang_thai = %s'; $tv[] = $tt; }
+
+		/* NGÀY: chặn hai đầu độc lập — người ta hay chỉ điền một đầu ("từ đầu tháng tới giờ"). */
+		$tu_ngay = $g( 'tuNgay' );
+		if ( '' !== $tu_ngay && preg_match( '#^\d{4}-\d{2}-\d{2}$#', $tu_ngay ) ) {
+			$dk[] = 'ngay_tao >= %s'; $tv[] = $tu_ngay . ' 00:00:00';
+		}
+		$den_ngay = $g( 'denNgay' );
+		if ( '' !== $den_ngay && preg_match( '#^\d{4}-\d{2}-\d{2}$#', $den_ngay ) ) {
+			/* ⚠️ TỚI HẾT NGÀY ẤY, không phải tới 00:00. Cắt ở nửa đêm là mất sạch đơn lập
+			   trong chính ngày người ta vừa chọn — và họ sẽ tưởng hôm ấy không ai lập đơn. */
+			$dk[] = 'ngay_tao <= %s'; $tv[] = $den_ngay . ' 23:59:59';
+		}
+		$where = implode( ' AND ', $dk );
+
+		/* Đếm TRƯỚC, trên cả lát cắt — để nói được "đang xem 300 trong 812 đơn". */
+		$sql_dem = "SELECT COUNT(*) FROM $bang WHERE $where";
+		$tong    = (int) ( $tv ? $wpdb->get_var( $wpdb->prepare( $sql_dem, $tv ) ) : $wpdb->get_var( $sql_dem ) );
+
+		$sql = "SELECT ma_don, ky, nguoi_lap, don_vi, ngay_tao, trang_thai, tam_ung_duyet
+		          FROM $bang WHERE $where ORDER BY ngay_tao DESC LIMIT %d";
+		$tv2  = array_merge( $tv, array( self::GIOI_HAN_TQ ) );
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tv2 ), ARRAY_A );
+		if ( ! is_array( $rows ) ) { $rows = array(); }
+
+		$ra = array();
+		foreach ( $rows as $r ) {
+			$ma = trim( (string) $r['ma_don'] );
+			if ( '' === $ma ) { continue; }
+			$ra[] = array(
+				'ban'       => $khoa,
+				'tenBan'    => VHCPT_Ban::ten( $khoa ),
+				'maDon'     => $ma,
+				'ky'        => (string) $r['ky'],
+				'nguoiLap'  => (string) $r['nguoi_lap'],
+				'ngayTao'   => (string) $r['ngay_tao'],
+				'trangThai' => (string) $r['trang_thai'],
+				'tien'      => self::tien_cua_don( $khoa, $ma ),
+			);
+		}
+		return array( 'rows' => $ra, 'tong' => $tong );
+	}
+
+	/** Số tiền của một đơn — hỏi lõi bản ấy, xem khối ở `don_cua_ban()`. */
+	public static function tien_cua_don( $khoa, $ma ) {
+		$lop = VHCPT_Ban::lop( $khoa, 'Don' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! $lop || ! class_exists( $lop ) ) { return null; }
+		if ( method_exists( $lop, 'tong_de_duyet' ) )     { return call_user_func( array( $lop, 'tong_de_duyet' ), $ma ); }
+		if ( method_exists( $lop, 'tong_xin_hien_tai' ) ) { return call_user_func( array( $lop, 'tong_xin_hien_tai' ), $ma ); }
+		return null;
+	}
+
+	/** Danh mục cho ba hộp chọn của màn tổng quan — gom từ chính sổ của bản. */
+	public static function danh_muc( $khoa ) {
+		global $wpdb;
+		$tien_to = VHCPT_Ban::tien_to_bang( $khoa );
+		if ( '' === $tien_to ) { return array( 'coso' => array(), 'loai' => array(), 'nguoi' => array() ); }
+		$b_cp = $tien_to . 'chiphi';
+		$b_dn = $tien_to . 'don';
+		$doc  = function ( $sql ) use ( $wpdb ) {
+			$v = $wpdb->get_col( $sql );
+			$ra = array();
+			foreach ( (array) $v as $x ) {
+				$x = trim( (string) $x );
+				if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+			}
+			sort( $ra );
+			return $ra;
+		};
+		return array(
+			'coso'  => $doc( "SELECT DISTINCT coso FROM $b_cp WHERE coso <> '' LIMIT 400" ),
+			'loai'  => $doc( "SELECT DISTINCT nhom FROM $b_cp WHERE nhom <> '' LIMIT 400" ),
+			'nguoi' => $doc( "SELECT DISTINCT nguoi_lap FROM $b_dn WHERE nguoi_lap <> '' LIMIT 400" ),
+		);
 	}
 
 	/**

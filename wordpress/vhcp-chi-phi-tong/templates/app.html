@@ -138,7 +138,7 @@ var OTHE = 'vhcpt_the';
 function layThe(){ try{ return sessionStorage.getItem(OTHE) || ''; }catch(e){ return ''; } }
 function datThe(v){ try{ v ? sessionStorage.setItem(OTHE,v) : sessionStorage.removeItem(OTHE); }catch(e){} }
 
-var TOI = null, NHOM = 'duyet', ROWS = [], BAO = null;
+var TOI = null, NHOM = 'tongquan', ROWS = [], BAO = null;
 var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại',
                  qtCn:'quyết toán cá nhân', qtNcc:'quyết toán NCC', misa:'xuất MISA' };
 var TAB_MISA = 'misa';   // tab này KHÔNG phải một nhóm đơn — nó không gọi ds()
@@ -147,6 +147,7 @@ var TAB_MISA = 'misa';   // tab này KHÔNG phải một nhóm đơn — nó kh�
    mình vừa duyệt. Phần bó thật nằm ở máy chủ: chỉ gom mảng người ấy có mặt, và lõi tra của từng
    bản vẫn lọc theo đơn vị của họ. */
 var TAB_TRA = 'tra';
+var TAB_TQ  = 'tongquan';
 
 function goi(fn, args){
   return fetch(BOOT.api, {
@@ -223,6 +224,11 @@ function veChinh(){
      một ô đếm và không ô nào đúng.
      ⚠️ Chỉ hiện cho người có quyền xuất MISA ở ÍT NHẤT một mảng — bày một tab bấm vào
         chỉ để nhận câu chối là thứ người ta bấm đi bấm lại. */
+  /* 🔴 TỔNG QUAN ĐỨNG ĐẦU — anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên
+     (Dashboard) hiện tất cả đơn từ trước đến giờ"*. Đây là chỗ người ta mở ra trước để biết
+     "đang có gì", rồi mới vào từng hàng việc. */
+  tabs = '<button class="btn '+(NHOM===TAB_TQ?'b-on':'b-x')+'" data-nhom="'+TAB_TQ+'">📊 Tổng quan</button>' +
+    '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' + tabs;
   tabs += '<span style="width:1px;height:22px;background:#e2e8f0;margin:0 4px"></span>' +
     '<button class="btn '+(NHOM===TAB_TRA?'b-on':'b-x')+'" data-nhom="'+TAB_TRA+'">🔎 Tra chi phí</button>';
   if ( coQuyen('misa') ) {
@@ -276,6 +282,7 @@ function veChinh(){
 function napDs(){
   if (NHOM === TAB_MISA){ veMisa(); return; }
   if (NHOM === TAB_TRA){ veTra(); return; }
+  if (NHOM === TAB_TQ){ veTongQuan(); return; }
   goi('ds',{nhom:NHOM}).then(function(r){
     if (r && r.error){ document.getElementById('bang').innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
     ROWS = r.rows || [];
@@ -337,20 +344,45 @@ function veBang(){
    *    đúng thứ tự cần, và không phải hiểu định dạng chuỗi kỳ.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var LAT = ( NHOM === 'qt' )
-    ? [ { khoa:'chua', ten:'Chưa quyết toán', mau:'#b45309',
+    ? [ { khoa:'chua', ten:'Chưa quyết toán', mau:'#b45309', cho:true,
           hop:function(d){ return d.trangThai !== 'Đã quyết toán'; } },
-        { khoa:'xong', ten:'Đã quyết toán',   mau:'#166534',
+        { khoa:'xong', ten:'Đã quyết toán',   mau:'#166534', cho:false,
           hop:function(d){ return d.trangThai === 'Đã quyết toán'; } } ]
-    : [ { khoa:'all', ten:'', mau:'', hop:function(){ return true; } } ];
+    /* 🔴 NHÁP BÀY RIÊNG, ĐỨNG SAU — anh Thắng 14/09/2026: *"chỗ chờ duyệt hiện các đơn nháp
+       nhân viên đang lên chờ mà chưa gửi"*. Quản lý muốn thấy cái SẮP tới, không chỉ cái đã
+       tới. Nhưng nó chưa phải việc của họ: nhân viên còn đang soạn, bấm Duyệt vào đó là duyệt
+       một đơn chưa xong. Nên để bảng dưới, màu xám, và ô đếm trên tab KHÔNG kể nó. */
+    : ( NHOM === 'duyet'
+      ? [ { khoa:'cho',  ten:'Chờ duyệt tạm ứng',        mau:'#b45309', cho:true,
+            hop:function(d){ return d.trangThai !== 'Nháp'; } },
+          { khoa:'nhap', ten:'Nháp — nhân viên chưa gửi', mau:'#64748b', cho:false,
+            hop:function(d){ return d.trangThai === 'Nháp'; } } ]
+      : [ { khoa:'all', ten:'', mau:'', cho:true, hop:function(){ return true; } } ] );
 
   function veMotBang(g, lat, ban){
     var ds = g.ds.filter(lat.hop);
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 AI NỘP TRƯỚC, LÊN TRƯỚC — anh Thắng 14/09/2026: *"nhớ ai nhập trước, lên trước"*.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Đây là một luật CÔNG BẰNG, không phải một sở thích sắp xếp. Hàng chờ xếp mới-nhất-trước
+     * thì đơn nộp sớm bị đẩy dần xuống đáy mỗi khi có người nộp thêm: người chờ lâu nhất lại
+     * bị xử sau cùng, và không ai nhìn thấy điều đó vì màn hình luôn trông "gọn".
+     *
+     * ⚠️ BẢNG ĐÃ XONG thì ngược lại — mới nhất trước, vì người ta mở ra để xem việc VỪA làm,
+     *    không phải để tìm việc tiếp theo.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
+    ds = ds.slice().sort(function(a,b){
+      var x = String(a.ngayTao||''), y = String(b.ngayTao||'');
+      return lat.cho ? ( x < y ? -1 : ( x > y ? 1 : 0 ) )
+                     : ( x > y ? -1 : ( x < y ? 1 : 0 ) );
+    });
     if (!ds.length){
       return lat.ten
         ? '<p class="nho mo" style="margin:6px 0 12px">— <b>'+esc(lat.ten)+'</b>: không có đơn nào. ✓</p>'
         : '';
     }
-    /* Gom theo TUẦN, giữ thứ tự gặp (máy chủ đã xếp theo ngày giảm dần). */
+    /* Gom theo TUẦN, giữ thứ tự gặp — nay là thứ tự vừa xếp ở trên, nên tuần cũng đi theo
+       đúng chiều ấy (hàng chờ: tuần cũ trước; đã xong: tuần mới trước). */
     var theoKy = {}, thuTuKy = [];
     ds.forEach(function(d){
       var k = d.ky || '(chưa có kỳ)';
@@ -1013,6 +1045,150 @@ function veTraKq(){
          'align-items:center;flex-wrap:wrap;gap:8px">' +
          '<b>Cộng cả '+(k.ban||[]).length+' mảng</b>' +
          '<span style="font-size:18px;font-weight:800;color:#0f766e">'+tien(k.tong)+'</span>' +
+         '</div></div>';
+  }
+  o.innerHTML = h;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN TỔNG QUAN — MỌI ĐƠN TỪ TRƯỚC TỚI GIỜ, CHIA THEO BƯỚC
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"thêm giúp anh 1 cái tab đầu tiên (Dashboard) hiện tất cả đơn từ trước
+ * đến giờ, kèm các bộ lọc: lọc theo cơ sở, lọc theo mảng, lọc theo ngày, lọc theo chi phí, lọc
+ * theo người nhập"* → *"chỗ này cũng tách ra các bảng: đã tạm ứng, chưa tạm ứng, chờ tạm ứng —
+ * tức các bước để kế toán theo dõi, nhớ ai nhập trước, lên trước"*.
+ *
+ * 🔴 CHIA THEO BƯỚC, KHÔNG ĐỔ MỘT ĐỐNG. Một bảng 800 dòng đủ mọi trạng thái thì không trả lời
+ *    được câu người ta thật sự hỏi: *"đang kẹt ở khâu nào"*. Chia ra rồi thì nhìn số đơn mỗi
+ *    bước là thấy ngay chỗ ùn.
+ *
+ * 🔴 VÀ TRONG MỖI BƯỚC, AI NỘP TRƯỚC ĐỨNG TRƯỚC — cùng luật công bằng với các tab việc.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+var TQ = { ban:'', coso:'', loai:'', nguoi:'', tuNgay:'', denNgay:'', kq:null, dangDoc:false };
+
+function veTongQuan(){
+  var o = document.getElementById('bang'), k = TQ.kq || {};
+  var oBan = '<label class="nho mo" style="margin-right:4px">Mảng</label><select id="qBan">' +
+    '<option value="">Tất cả mảng</option>' +
+    (k.banList||[]).map(function(b){
+      return '<option value="'+esc(b.ban)+'"'+(TQ.ban===b.ban?' selected':'')+'>'+esc(b.ten)+'</option>';
+    }).join('') + '</select>';
+
+  o.innerHTML =
+    '<div class="card"><div class="ch"><h2>📊 Tổng quan — mọi đơn từ trước tới giờ</h2>' +
+      ( TQ.kq ? '<div class="nho mo"><b>'+k.soDon+'</b> đơn · cộng <b>'+tien(k.tong)+'</b></div>' : '' ) +
+    '</div><div class="cb">' +
+      '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        oBan +
+        oChon('qCoso','Cơ sở', TQ.coso, k.cosoList, 'Tất cả cơ sở') +
+        oChon('qLoai','Loại chi phí', TQ.loai, k.loaiList, 'Tất cả loại') +
+        oChon('qNguoi','Người nhập', TQ.nguoi, k.nguoiList, 'Tất cả người') +
+        '<label class="nho mo">Từ ngày</label><input type="date" id="qTu" value="'+esc(TQ.tuNgay)+'">' +
+        '<label class="nho mo">đến</label><input type="date" id="qDen" value="'+esc(TQ.denNgay)+'">' +
+        '<button class="btn b-p" id="qTim">Lọc</button>' +
+        '<button class="btn b-x" id="qXoa">Bỏ lọc</button>' +
+      '</div>' +
+      ( k.coCat ? '<p class="nho" style="margin-top:8px;color:#b45309">⚠️ Có mảng nhiều đơn hơn ' +
+        'số bày ra được — con số đếm ở trên là của <b>cả lát cắt</b>, còn bảng chỉ bày phần đầu. ' +
+        'Lọc hẹp lại (chọn kỳ hoặc một cơ sở) để xem đủ.</p>' : '' ) +
+    '</div></div><div id="qKq"></div>';
+
+  document.getElementById('qTim').onclick = function(){
+    TQ.ban    = document.getElementById('qBan').value;
+    TQ.coso   = document.getElementById('qCoso').value;
+    TQ.loai   = document.getElementById('qLoai').value;
+    TQ.nguoi  = document.getElementById('qNguoi').value;
+    TQ.tuNgay = document.getElementById('qTu').value;
+    TQ.denNgay= document.getElementById('qDen').value;
+    docTongQuan();
+  };
+  document.getElementById('qXoa').onclick = function(){
+    TQ.ban=''; TQ.coso=''; TQ.loai=''; TQ.nguoi=''; TQ.tuNgay=''; TQ.denNgay=''; docTongQuan();
+  };
+
+  if (TQ.kq) veTongQuanKq(); else docTongQuan();
+}
+
+function docTongQuan(){
+  if (TQ.dangDoc) return;
+  TQ.dangDoc = true;
+  var o = document.getElementById('qKq');
+  if (o) o.innerHTML = '<p class="mo">Đang đọc…</p>';
+  goi('tongQuan',{ ban:TQ.ban, coso:TQ.coso, loai:TQ.loai, nguoi:TQ.nguoi,
+                   tuNgay:TQ.tuNgay, denNgay:TQ.denNgay }).then(function(r){
+    TQ.dangDoc = false;
+    if (r && r.error){ if (o) o.innerHTML = '<div class="bao bao-loi">'+esc(r.error)+'</div>'; return; }
+    TQ.kq = r;
+    veTongQuan();
+  }).catch(function(){
+    TQ.dangDoc = false;
+    if (o) o.innerHTML = '<div class="bao bao-loi">Không gọi được máy chủ.</div>';
+  });
+}
+
+function veTongQuanKq(){
+  var o = document.getElementById('qKq'), k = TQ.kq;
+  if (!o || !k) return;
+  var buoc = k.buoc || [];
+  var h = '';
+
+  (k.ban||[]).forEach(function(b){
+    var rows = b.rows || [];
+    h += '<div class="card"><div class="ch">' +
+      '<h2>🏷 '+esc(b.tenBan)+' <span class="chip">'+b.soDon+' đơn</span></h2>' +
+      '<div class="nho mo">Cộng <b>'+tien(b.tong)+'</b>' +
+      ( b.url ? ' · <a href="'+esc(b.url)+'" target="_blank" rel="noopener">mở trang mảng ↗</a>' : '' ) +
+      '</div></div><div class="cb">';
+
+    if (!rows.length){
+      h += '<p class="mo">Không có đơn nào khớp bộ lọc.</p>';
+    } else {
+      /* Dải đếm theo bước — nhìn một cái là thấy đang ùn ở khâu nào. */
+      var dem = {};
+      rows.forEach(function(r){ dem[r.trangThai] = (dem[r.trangThai]||0) + 1; });
+      h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' +
+        buoc.map(function(bc){
+          var n = dem[bc.tt] || 0;
+          return '<span class="chip" style="border-color:'+(n?bc.mau:'#e2e8f0')+';color:'+(n?bc.mau:'#94a3b8')+'">' +
+                 esc(bc.ten)+': <b>'+n+'</b></span>';
+        }).join('') + '</div>';
+
+      /* Mỗi BƯỚC một bảng, theo đúng thứ tự quy trình. */
+      buoc.forEach(function(bc){
+        var ds = rows.filter(function(r){ return r.trangThai === bc.tt; });
+        if (!ds.length) return;
+        /* 🔴 Ai nộp trước lên trước — trừ hai bước cuối (đã xong) thì mới nhất trước. */
+        var xong = ( bc.tt === 'Đã quyết toán' || bc.tt === 'Đã xuất MISA' );
+        ds = ds.slice().sort(function(a,c){
+          var x = String(a.ngayTao||''), y = String(c.ngayTao||'');
+          return xong ? ( x > y ? -1 : ( x < y ? 1 : 0 ) ) : ( x < y ? -1 : ( x > y ? 1 : 0 ) );
+        });
+        var tg = 0;
+        ds.forEach(function(r){ if (r.tien !== null) tg += Number(r.tien); });
+
+        h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;' +
+             'gap:8px;margin:14px 0 6px"><b style="color:'+bc.mau+'">'+esc(bc.ten) +
+             ' <span class="chip">'+ds.length+' đơn</span></b>' +
+             '<span class="nho mo">Cộng '+tien(tg)+'</span></div>' +
+             '<div class="cuon"><table><thead><tr><th>Mã đơn</th><th>Người nhập</th><th>Kỳ</th>' +
+             '<th>Lúc nhập</th><th class="r">Số tiền</th></tr></thead><tbody>' +
+             ds.map(function(r){
+               return '<tr><td><b>'+esc(r.maDon)+'</b></td><td>'+esc(r.nguoiLap)+'</td>' +
+                      '<td class="nho">'+esc(r.ky)+'</td>' +
+                      '<td class="nho mo">'+esc(ngay(r.ngayTao))+'</td>' +
+                      '<td class="r">'+( r.tien===null ? '<span class="mo">—</span>' : tien(r.tien) )+'</td></tr>';
+             }).join('') +
+             '</tbody><tfoot><tr><td colspan="4" class="r">Cộng '+ds.length+' đơn</td>' +
+             '<td class="r">'+tien(tg)+'</td></tr></tfoot></table></div>';
+      });
+    }
+    h += '</div></div>';
+  });
+
+  if ((k.ban||[]).length > 1){
+    h += '<div class="card"><div class="cb" style="display:flex;justify-content:space-between;' +
+         'align-items:center;flex-wrap:wrap;gap:8px"><b>Cộng cả '+(k.ban||[]).length+' mảng · ' +
+         k.soDon+' đơn</b><span style="font-size:18px;font-weight:800;color:#0f766e">'+tien(k.tong)+'</span>' +
          '</div></div>';
   }
   o.innerHTML = h;
