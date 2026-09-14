@@ -388,6 +388,14 @@ class VHG_KeToan {
 		   đường nhân viên): tiền = Thực thu ghi đè nếu có, ngược lại = actual − QR. Không bao giờ
 		   cộng dieu_chinh vào tiền nữa. */
 		$co_de_cu = ( false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) );
+		/* GỠ GHI ĐÈ — anh Thắng 14/09/2026 (sửa thẳng trong ô): xoá trắng ô "Tiền mặt" nghĩa là
+		   "thôi ghi đè, tính lại theo chỉ số".
+		   🔴 PHẢI CÓ CỜ RIÊNG, không suy từ `actualOverride` rỗng. Rỗng đã mang nghĩa khác và
+		      quan trọng: "tôi chỉ sửa QR/chỉ số, ĐỪNG đụng số ghi đè" — nhánh `$co_de_cu`. Trộn
+		      hai ý vào một giá trị là mỗi lần kế toán nắn QR của dòng ghi đè thì số tiền mặt tự
+		      rơi về công thức, âm thầm, mà tổng vẫn khớp nên đối chiếu không bắt (đúng lỗi R1 đã
+		      phải đi vá 12/09). */
+		if ( ! empty( $patch['bo_ghi_de'] ) ) { $co_de_cu = false; }
 		if ( array_key_exists( 'actualOverride', $patch ) && '' !== trim( (string) $patch['actualOverride'] ) ) {
 			/* Kế toán gõ Thực thu MỚI → ghi đè hẳn; lưu vào dieu_chinh cho khớp hiển thị. QR giữ
 			   nguyên (điện tử, không theo chỉ số máy). Dọn dấu ghi đè cũ trước khi gắn dấu mới
@@ -405,6 +413,11 @@ class VHG_KeToan {
 		} else {
 			$cash = $actual - $qr;   // dòng thường: công thức thuần, dieu_chinh về 0
 			$adj  = 0;
+			/* Vừa gỡ ghi đè thì dọn luôn dấu trong ghi chú — để lại là dòng hiện chữ "Thực thu
+			   ghi đè: 340.000đ" trong khi tiền đã tính theo công thức, hai thứ nói ngược nhau. */
+			if ( ! empty( $patch['bo_ghi_de'] ) ) {
+				$note = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $note ) );
+			}
 		}
 		$tong = $cash + $qr;
 

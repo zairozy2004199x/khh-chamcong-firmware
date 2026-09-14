@@ -6188,6 +6188,14 @@ var KTD_NV = '';         // anh Thắng 29/08/2026: "lọc báo cáo theo nhân 
 var KTD_NGAY = '';
 var KTU_TRANG = 1;       // anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang".
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+/* Chuỗi tiền người gõ -> số nguyên. "340.000", "340,000", "340 000 đ" đều ra 340000.
+   ⚠️ BỎ HẾT dấu chấm/phẩy chứ không coi là thập phân: tiền VNĐ không có phần lẻ, mà "340.000"
+      qua parseFloat sẽ thành 340 — mất ba con số không, âm thầm.
+   ⚠️ Giữ dấu ÂM: khoản điều chỉnh có thể âm.
+   Đây là bản DÙNG CHUNG cho ô sửa thẳng trên bảng; `ktdSuaRow` có bản cục bộ `sn()` y hệt từ
+   trước — ai gộp lại thì gộp, nhưng đừng để hai bản LỆCH luật nhau. */
+function ktSo(s){ s=String(s==null?'':s); var am=/^\s*-/.test(s); var d=s.replace(/[^0-9]/g,'');
+  return d===''?0:(am?-1:1)*parseInt(d,10); }
 /* Chỉ số máy có thể LẺ (551,5) — hiện dấu phẩy thập phân, tối đa 2 số lẻ. Dùng cho cột chỉ số
    trong tab Duyệt; TIỀN vẫn dùng ktVnd (số nguyên). */
 function csKt(n){ if(n==null||n==='') return ''; var x=Number(n); if(isNaN(x)) return String(n);
@@ -6745,15 +6753,57 @@ function ktdRow(o,c,m,reload,locked){
     (c.meterBefore!=null && c.meterAfter!=null && Number(c.meterAfter) < Number(c.meterBefore));
   tr.appendChild(oChiSo(c.meterBefore, true, false));
   tr.appendChild(oChiSo(c.meterAfter, false, lechSau));
-  tr.appendChild(td(ktVnd(c.actual),1));
   /* Số "Tiền mặt" TỰ NÓ cũng tô đỏ + đậm khi đang bị ghi đè — không chỉ dòng ghi chú nhỏ bên trên,
      vì cột số mới là chỗ kế toán nhìn thẳng vào khi soát tiền, dễ lướt qua đúng chỗ đang sai lệch
      với "Nộp" (cash ghi đè mà Nộp còn tính theo số cũ là bug riêng, đã vá ở VHG_KeToan::sua()/
      VHG_BaoCao::sua_dong() — tô đỏ ở đây chỉ để kế toán TỰ NHÌN THẤY còn lệch hay không). */
-  var tdCash=td(ktVnd(c.cash),1);
-  if(coGhiDe){ tdCash.style.color='var(--red)'; tdCash.style.fontWeight='700'; tdCash.title='Thực thu ghi đè — không tính theo công thức chỉ số.'; }
-  tr.appendChild(tdCash);
-  tr.appendChild(td(ktVnd(c.qr),1));
+  /* 🔴 SỬA THẲNG Ô TIỀN NGAY TRÊN BẢNG — anh Thắng 14/09/2026: *"cho sửa trực tiếp trong ô luôn"*.
+     Trước đây phải bấm Sửa để bung một hàng ô nhập ở cột cuối, gõ xong bấm Lưu. Với kế toán nắn
+     QR của hai chục ghế thì đó là hai chục lần bung–gõ–đóng.
+     ⚠️ CHỈ hai cột NGƯỜI NHẬP được: Tiền mặt (thực thu) và QR.
+        `Actual` = (sau−trước)×đơn_giá và `Nộp` là số TÍNH RA — cho gõ vào đó là đẻ ra một con số
+        không khớp công thức nào, rồi không ai biết số nào mới đúng. Muốn đổi Actual thì sửa chỉ
+        số; muốn đổi Nộp thì sửa Tiền mặt/QR.
+     ⚠️ Ô Tiền mặt có gõ = GHI ĐÈ (thực thu), xoá trắng = GỠ ghi đè, tính lại theo công thức. Hai
+        ý này gửi hai khoá KHÁC NHAU (`actualOverride` / `bo_ghi_de`) — xem chú thích ở
+        `VHG_KeToan::sua()`, đừng gộp. */
+  function oTien(val, loai, doRed){
+    var tdc=ktEl('td'); tdc.style.textAlign='right'; tdc.style.fontVariantNumeric='tabular-nums';
+    if(locked){
+      tdc.textContent=ktVnd(val);
+      if(doRed){ tdc.style.color='var(--red)'; tdc.style.fontWeight='700'; }
+      return tdc;
+    }
+    var i=document.createElement('input'); i.type='text'; i.inputMode='numeric';
+    i.value=ktVnd(val);
+    i.style.cssText='width:96px;text-align:right;font-variant-numeric:tabular-nums';
+    i.title = loai==='cash'
+      ? 'Sửa TIỀN MẶT (thực thu) — Enter hoặc bấm ra ngoài để lưu. Gõ số = GHI ĐÈ, không tính theo chỉ số. Xoá trắng = gỡ ghi đè, tính lại theo công thức.'
+      : 'Sửa QR — Enter hoặc bấm ra ngoài để lưu.';
+    if(doRed){ i.style.color='#b91c1c'; i.style.fontWeight='700'; i.style.borderColor='#e08a3c'; }
+    var cu=String(i.value).trim();
+    i.addEventListener('change',function(){
+      var v=String(i.value).trim(); if(v===cu) return;
+      var patch;
+      if(loai==='qr'){ patch={ qr: ktSo(v) }; }
+      else if(v===''){
+        /* Không có ghi đè mà xoá trắng thì chẳng có gì để gỡ — trả lại số cũ, đừng gửi lên. */
+        if(!coGhiDe){ i.value=cu; return; }
+        if(!confirm(L('Gỡ "Thực thu ghi đè" của ghế này?\n\nTiền mặt sẽ tính lại theo công thức (Actual − QR).',
+                      'Remove the cash override?\n\nCash goes back to the formula (Actual − QR).'))) { i.value=cu; return; }
+        patch={ bo_ghi_de: 1 };
+      }
+      else { patch={ actualOverride: ktSo(v) }; }
+      cu=v;
+      ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);
+    });
+    i.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); i.blur(); } });
+    tdc.appendChild(i);
+    return tdc;
+  }
+  tr.appendChild(td(ktVnd(c.actual),1));
+  tr.appendChild(oTien(c.cash,'cash',coGhiDe));
+  tr.appendChild(oTien(c.qr,'qr',false));
   tr.appendChild(td(ktVnd(c.paid),1));
   var tdD=ktEl('td'); var cb=ktEl('input'); cb.type='checkbox'; cb.checked=!!c.confirmed;
   /* Duyệt LẺ từng ghế — anh Thắng: cơ sở tới 20 máy, cần thấy máy nào duyệt máy đó, không phải

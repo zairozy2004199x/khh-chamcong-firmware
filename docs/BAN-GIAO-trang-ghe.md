@@ -160,6 +160,38 @@ Phép kiểm: `tools/kiem-ghe/kiem-xoa-ma-chua-gan.php` (24 phép, hàm PHP, gi�
 `tools/kiem-ghe/kiem-xoa-ma-chua-gan.js` (giao diện) · `tools/kiem-ghe/kiem-cuong-che-xoa.js`
 (gõ sai / bấm Huỷ / gõ đúng).
 
+### 3.4 Sửa thẳng ô tiền trên bảng Duyệt (2.78.0)
+
+Anh Thắng 14/09/2026: *"cho sửa trực tiếp trong ô luôn"*. Trước đây phải bấm **Sửa** để bung một
+hàng ô nhập ở cột cuối, gõ xong bấm **Lưu** — kế toán nắn QR của hai chục ghế là hai chục lần
+bung–gõ–đóng.
+
+Nay **Tiền mặt** và **QR** là ô nhập ngay trên bảng, Enter hoặc bấm ra ngoài là lưu — y như cột
+chỉ số **Trước/Sau** đã làm từ 2.37.0. Nút **Sửa** vẫn còn cho những trường ít dùng (± điều chỉnh,
+ghi chú).
+
+| Cột | Sửa thẳng? | Vì sao |
+|---|---|---|
+| Trước · Sau | ✅ | người nhập |
+| **Tiền mặt · QR** | ✅ **mới** | người nhập |
+| Actual · Nộp | ❌ | **số TÍNH RA** — cho gõ vào là đẻ ra con số không khớp công thức nào, rồi không ai biết số nào đúng. Đổi Actual thì sửa chỉ số; đổi Nộp thì sửa Tiền mặt/QR |
+
+**Ô Tiền mặt mang hai ý, gửi hai khoá khác nhau:**
+
+- **gõ số** → `actualOverride` = ghi đè (Thực thu), không tính theo chỉ số;
+- **xoá trắng** → `bo_ghi_de` = gỡ ghi đè, tính lại `Actual − QR` (hỏi xác nhận trước, và dọn luôn
+  dấu *"Thực thu ghi đè"* trong ghi chú).
+
+> 🔴 **Phải là cờ riêng, không suy từ `actualOverride` rỗng.** Rỗng đã mang nghĩa khác và quan
+> trọng: *"tôi chỉ sửa QR/chỉ số, ĐỪNG đụng số ghi đè"*. Trộn hai ý vào một giá trị là mỗi lần kế
+> toán nắn QR của dòng ghi đè thì tiền mặt tự rơi về công thức — **âm thầm, mà tổng vẫn khớp nên
+> đối chiếu không bắt**. Đúng lỗi R1 đã phải đi vá 12/09/2026.
+
+Báo cáo đã **khoá ngày** thì mọi ô về lại chữ tĩnh.
+
+Phép kiểm: `tools/kiem-ghe/kiem-sua-o-tien.php` (11 phép, hàm `sua()` thật, giả lập `$wpdb`) và
+`tools/kiem-ghe/kiem-sua-o-tien.js` (cột nào cho gõ, ba payload, khoá ngày).
+
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
 - **quan_tri** — Admin/Quản lý: toàn quyền (thêm/xoá cơ sở & ghế, gán mã, cấp PIN báo cáo,

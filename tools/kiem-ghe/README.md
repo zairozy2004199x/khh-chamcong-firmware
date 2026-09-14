@@ -134,3 +134,22 @@ tiền KHÔNG đổi** · **đừng tạo lại mã đã xoá**.
 
 > ⚠️ Kiểm nội dung hộp thoại thì giữ **nguyên văn**. Bản đầu cắt chuỗi ở 400 ký tự rồi đi tìm một
 > câu nằm sau chỗ cắt — báo hỏng oan.
+
+
+## Sửa thẳng ô tiền — kiểm ở **hai tầng**
+
+```bash
+php  kiem-sua-o-tien.php    # hàm VHG_KeToan::sua() thật, giả lập $wpdb
+NODE_PATH=/opt/node22/lib/node_modules node kiem-sua-o-tien.js
+```
+
+**Tầng PHP** — mệnh đề quan trọng nhất: **gõ QR trên dòng đang ghi đè thì số ghi đè phải GIỮ
+NGUYÊN**, không rơi về công thức. Hỏng chỗ này là tiền sai mà **tổng vẫn khớp**, nên đối chiếu
+không bắt được. Kiểm thêm: gõ Tiền mặt → ghi đè + gắn dấu vào ghi chú; xoá trắng (`bo_ghi_de`) →
+về `Actual − QR`, `dieu_chinh` về 0, **dọn dấu** khỏi ghi chú; dòng thường không tự sinh dấu ghi đè.
+
+**Tầng giao diện**: đúng **4 cột** cho gõ (Trước · Sau · Tiền mặt · QR), **Actual và Nộp không**;
+ba payload đúng khoá; khoá ngày → **0** ô nhập.
+
+> ⚠️ Bảng dựng bằng `innerHTML` (tiêu đề) + `appendChild` (dòng) nằm chung **một** `tbody`, nên
+> hàng 0 là **tiêu đề**. Bản đầu đọc hàng 0 → mọi ô "không có input" → báo hỏng oan.
