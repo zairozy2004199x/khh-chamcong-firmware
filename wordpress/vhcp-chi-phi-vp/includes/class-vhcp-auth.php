@@ -415,7 +415,30 @@ class VHCPVP_Auth {
 		return self::cung_coso_khai( $nguoi_tao );
 	}
 
-	/** Người này và người đang gọi có được phân chung ít nhất một cơ sở không (bảng Người dùng). */
+	/**
+	 * Người này và người đang gọi có được phân chung ít nhất một cơ sở không (bảng Người dùng).
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 VẾ NÀY PHỤ THUỘC TÀI KHOẢN NGƯỜI LẬP CÒN TRONG SỔ — VÀ ĐÓ LÀ GIỚI HẠN CỦA NÓ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026 tự soi ra: *"khoá nhân viên cũ là nó ép không cho hiện, anh mở nhân
+	 * viên cũ là nó tự hiện cả 2 người luôn"*. Đúng như vậy, và đúng theo thiết kế: nó tra ô Cơ
+	 * sở của NGƯỜI LẬP trong bảng Người dùng, nên tài khoản ấy bị gỡ là không còn gì để tra.
+	 *
+	 * Cay ở chỗ: ca cần nhất lại chính là ca ấy — *"bạn cũ nghỉ, bạn mới nhận việc"*. Người ta
+	 * nghỉ thì tài khoản bị khoá, và đơn họ để lại biến mất khỏi mắt người kế nhiệm.
+	 *
+	 * ⚠️ ĐỪNG CHỮA BẰNG CÁCH GIỮ TÀI KHOẢN CŨ SỐNG. Một tài khoản còn hiệu lực là một PIN còn
+	 *    vào được sổ tiền; giữ nó chỉ để danh sách đơn đẹp là đổi một lỗ bảo mật lấy một tiện
+	 *    nghi hiển thị.
+	 *
+	 * 🔴 ĐƯỜNG BỀN LÀ SỔ MÃ GỌI TẮT (`so_ma_tat()`). Khai `TUTU_BD|TÀU BÌNH DƯƠNG` một lần thì
+	 *    ô Cơ sở của người đang xem dịch thẳng ra tên gian, và vế CHÍNH — so với cơ sở ghi trên
+	 *    ĐƠN — khớp ngay. Đơn là thứ không bao giờ biến mất khi một tài khoản bị khoá, nên lối
+	 *    ấy đứng vững qua mọi lượt người vào người ra. Vế dưới đây chỉ là lưới đỡ cho lúc chưa
+	 *    kịp khai sổ.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 */
 	public static function cung_coso_khai( $nguoi_tao ) {
 		$ten = mb_strtolower( trim( (string) $nguoi_tao ) );
 		if ( '' === $ten ) { return false; }

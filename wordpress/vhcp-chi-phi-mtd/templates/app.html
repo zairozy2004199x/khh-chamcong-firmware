@@ -310,11 +310,6 @@
   </div>
 
   <div class="card" id="donListCard">
-    <!-- 🔴 DẢI PHẠM VI THƯỜNG TRỰC, KHÔNG PHẢI CHỈ KHI BẢNG RỖNG. Bản 1.174.0 chỉ giải thích
-         lúc danh sách trống; người mới lập một đơn nháp là lời giải thích biến mất, trong khi
-         phạm vi vẫn hỏng y nguyên — đúng cái anh Thắng gặp: bảng hiện 1 đơn (của chính mình)
-         nên trông như đã chạy đúng. Nay dải này luôn ở đó, nói thẳng đang xem những gì. -->
-    <div id="phamViBox" style="display:none"></div>
     <div class="ch"><h2>📋 Danh sách đơn (<span id="donListCount">0</span>)</h2>
       <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
         <div class="fld"><label>Tháng</label><select id="dlThang" onchange="renderDonList()" style="min-width:120px"></select></div>
@@ -1494,14 +1489,18 @@
       <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
     </div>
 
-    <div class="card" id="mangTkCard">
-      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản <span style="font-size:11px;font-weight:400;color:#94a3b8">(tùy chọn — chỉ cần khi ghép hàng loạt)</span></h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doMangTk()" title="Đọc hệ thống tài khoản, tự điền Nhóm TK + Từ khóa cho từng mảng">🔎 Dò từ hệ thống tài khoản</button><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:760px"><thead><tr><th>Mảng kinh doanh <div style="font-weight:400;font-size:10px;color:#94a3b8">= Phân loại lớn của cơ sở</div></th><th style="width:130px">Nhóm TK</th><th style="width:200px">Từ khóa trong tên TK</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgMangBody"></tbody></table></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khỏi khai tay: nạp hệ thống tài khoản rồi bấm <b>🔎 Dò từ hệ thống tài khoản</b> — app thấy tài khoản cha nào có tài khoản con thì lấy số hiệu làm <b>Nhóm TK</b> (VD <b>6412</b>) và bỏ chữ "Chi phí" khỏi tên cha làm <b>Từ khóa</b> (VD <b>Funzone</b>), rồi ghép sẵn vào <b>Mảng</b> nếu tên phân loại lớn của cơ sở khớp được. Dòng nào cột <b>Mảng</b> còn trống là app không dám đoán — anh chọn tay rồi <b>💾 Lưu</b>. Xong bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên tài khoản để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã đã sửa tay và loại tự thêm <b>không bị đụng</b>.</div>
-    </div>
+    <!-- 🧭 "Mảng kinh doanh → nhóm tài khoản" ĐÃ GỠ 14/09/2026 — anh Thắng: *"bỏ cái này"*.
+         Bảng khai tay ấy chỉ dùng cho một việc: ghép hàng loạt loại chi phí từ hệ thống tài
+         khoản, làm một lần lúc dựng danh mục. Xong việc thì nó nằm đó chiếm chỗ mãi.
+
+         ⚠️ DỮ LIỆU `mangTk` GIỮ NGUYÊN, không xoá: "Mã tổng của mảng" vẫn ghi vào cột Nhóm TK
+            của chính bảng ấy (xem khối 🔴 ở `luuMaTongMang()`), và `_saveCfg({mangTk:…})` vẫn
+            chạy. Gỡ bảng khai tay ≠ bỏ sổ. -->
 
     <div class="card" id="loaiMxCard">
-      <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-d" onclick="doXoaLoaiTuTao()" title="Xóa các loại chi phí chưa khai mã nào — phần lớn là tên hạng mục lỡ nạp vào từ bảng tính cũ. Loại đã khai mã thì GIỮ LẠI. Dòng chi phí cũ không đổi.">🧹 Dọn loại chưa khai mã</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><!-- 🧹 "Dọn loại chưa khai mã" ĐÃ GỠ 14/09/2026 — anh Thắng: *"loại bỏ"*. Một nút XOÁ HÀNG
+             LOẠT đứng ngay cạnh nút Lưu, trong một bảng người ta mở ra mỗi ngày để sửa tên loại.
+             Nó dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục. --><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
@@ -2182,7 +2181,10 @@
     //   · nguồn "💵 Sổ chi phí (nhập phẳng)" ở tab 📤 Xuất MISA GIỮ NGUYÊN, để xuất nốt;
     //   · 📅 Vận hành theo tuần và 🔎 Tra theo mã tài khoản vẫn cộng đủ các dòng đó.
     // Xóa hẳn dữ liệu là việc khác, phải nói rõ mới làm.
-    var BO_TAB={mkt:1,congtac:1,setup:1,sochi:1};
+    /* ⚠️ `vhtuan` bỏ 14/09/2026 — anh Thắng: *"bỏ tab vận hành tuần"*. Dùng đúng cơ chế đã có
+       thay vì xoá mã: tab tắt khỏi thanh, còn `loadVHTuan()` và trang của nó nằm im. Bật lại
+       chỉ là gỡ một chữ ở dòng này — rẻ hơn hẳn việc dựng lại cả màn nếu sau này cần. */
+    var BO_TAB={mkt:1,congtac:1,setup:1,sochi:1,vhtuan:1};
     var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
               'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
               // Kế toán vào được Cấu hình: khai mã tài khoản / tên MISA / mã đơn vị là việc
@@ -2285,56 +2287,17 @@
    *    tiền của cơ sở khác cho người không phụ trách. Chốt giữ nguyên; chỉ nói rõ vì sao.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   /* ══════════════════════════════════════════════════════════════════════════════════════════
-   * DẢI "ĐANG XEM NHỮNG GÌ" — anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như
-   * nhau, nhìn thấy nội dung như nhau, chức năng quyền hạn như nhau"*.
+   * DẢI PHẠM VI ĐÃ GỠ — anh Thắng 14/09/2026: *"loại bỏ này cho anh"*.
    * ══════════════════════════════════════════════════════════════════════════════════════════
-   * Đó ĐÚNG là luật đang chạy — hai người khai cùng một cơ sở thì thấy y hệt nhau. Chuyện vỡ
-   * là khi ô Cơ sở của một người không trỏ tới cơ sở nào có thật: người ấy tụt về "chỉ thấy đơn
-   * của chính mình", mà màn thì không nói gì.
+   * Nó dựng ra để CHẨN ĐOÁN, và đã làm xong việc ấy: ba chốt đếm số đơn mình cắt, dải nói ra
+   * "Đã ẩn 108 đơn của cơ sở khác" — nhờ đó tìm đúng chốt sau bốn lượt vá mò. Xong việc thì gỡ:
+   * một dòng chữ nhắc mỗi ngày rằng "bạn chỉ thấy cơ sở của mình" là thứ người dùng đọc đúng
+   * một lần rồi thôi, còn nó thì chiếm chỗ mãi mãi.
    *
-   * 🔴 NÓI RA PHẠM VI, LUÔN LUÔN. Bản trước chỉ nói khi bảng rỗng, nên chỉ cần người ấy lập một
-   *    đơn nháp là lời giải thích tắt — bảng có đúng một dòng của chính họ, trông y như hệ thống
-   *    đang chạy đúng. Đó là kiểu hỏng tệ nhất: im lặng và có vẻ bình thường.
-   *
-   * ⚠️ CHỈ BÀY CHO NHÂN VIÊN. Kế toán, quản lý, Admin không bị bó theo cơ sở nên dải này với họ
-   *    chỉ là một dòng thừa trên mọi màn.
+   * ⚠️ PHẦN ĐẾM Ở MÁY CHỦ THÌ GIỮ (`VHCPMTD_Don::so_da_chan()` và khoá `daChan`). Nó rẻ — ba phép
+   *    cộng — và là công cụ đã chứng minh giá trị đúng hôm nay: lần sau có ai "không thấy đơn"
+   *    thì bật lại một dòng là biết chốt nào cắt, khỏi mò lại từ đầu.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  function vePhamVi(){
-    var o=el('phamViBox'); if(!o) return;
-    if(!(CURUSER && CURUSER.role==='Nhân viên')){ o.style.display='none'; return; }
-    var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    o.style.display='block';
-    /* ⚠️ CHƯA PHÂN CƠ SỞ THÌ NÓI THẲNG, VÀ CHỈ CÓ THẾ — không soi với danh mục nào, không kết
-       tội ai. Đây là thông tin, không phải lời buộc tội. */
-    if(!my.length){
-      o.innerHTML='<div style="padding:8px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;'
-        +'color:#64748b;font-size:12.5px">👁 Tài khoản chưa được phân cơ sở — bạn đang thấy '
-        +'<b>đơn do chính mình lập</b>.</div>';
-      return;
-    }
-    o.innerHTML='<div style="padding:8px 14px;background:#f0fdfa;border-bottom:1px solid #99f6e4;'
-      +'color:#0f766e;font-size:12.5px">👁 Bạn phụ trách <b>'+esc(my.join(', '))+'</b> — thấy và '
-      +'làm tiếp được <b>mọi đơn của cơ sở này</b>, kể cả đơn do người khác lập.'
-      + veDaChan() + '</div>';
-  }
-
-  /* ══════════════════════════════════════════════════════════════════════════════════════════
-   * BA CHỐT ĐÃ CẮT BAO NHIÊU ĐƠN — anh Thắng 14/09/2026, sau bốn lượt vá mà vẫn *"vẫn chả có
-   * gì"*: màn nói "Danh sách đơn (1)" rồi thôi, không ai biết hơn trăm đơn kia rơi ở đâu.
-   *
-   * 🔴 BA CHỐT, BA LÝ DO KHÁC HẲN NHAU — và đó mới là thông tin. Nói trống "bị lọc" thì vẫn phải
-   *    đoán tiếp; nói "12 đơn rơi ở chốt BỘ PHẬN" là chỉ thẳng ô cần sửa.
-   *
-   * ⚠️ Chốt nào không cắt gì thì không nhắc: một dòng toàn số 0 chỉ làm loãng cái đang cắt thật.
-   * ══════════════════════════════════════════════════════════════════════════════════════════ */
-  function veDaChan(){
-    var c=(BOOT.daChan)||{}, p=[];
-    if(Number(c.boPhan||0)) p.push('<b>'+c.boPhan+'</b> đơn không thuộc <b>bộ phận</b> của bạn');
-    if(Number(c.phamVi||0)) p.push('<b>'+c.phamVi+'</b> đơn của <b>cơ sở khác</b>');
-    if(Number(c.donVi||0))  p.push('<b>'+c.donVi+'</b> đơn của <b>đơn vị khác</b>');
-    if(!p.length) return '';
-    return '<div class="nho" style="margin-top:4px;opacity:.85">Đã ẩn: '+p.join(' · ')+'.</div>';
-  }
 
   function viSaoTrong(){
     if(!(CURUSER && CURUSER.role==='Nhân viên')) return 'Chưa có đơn nào.';
@@ -2489,7 +2452,6 @@
     });
     var curM=(CUR&&CUR.don)?CUR.don.maDon:'';
     if(el('donListCount')) el('donListCount').textContent=dons.length+(dons.length!==all.length?(' / '+all.length):'');
-    vePhamVi();
     if(el('donListEmpty')){
       el('donListEmpty').style.display=dons.length?'none':'block';
       el('donListEmpty').innerHTML=all.length?'Không có đơn nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':viSaoTrong();
@@ -9132,7 +9094,7 @@
       mo:'Nền của mọi thứ còn lại: mỗi cơ sở thuộc đơn vị nào, mảng kinh doanh nào, và gọi tắt là gì.' },
     { ten:'👥 Người & quyền',             id:['bpCard','vaiCard','userCard','quyenCard'],
       mo:'Ai đăng nhập được, thấy gì, và bấm được nút nào.' },
-    { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard','mangTkCard'],
+    { ten:'🧮 Danh mục chi phí & tài khoản', id:['khaiMaCard','loaiMxCard','tkCoCard','heTkCard'],
       mo:'Chi phí này là chi phí gì, và đi vào tài khoản nào khi xuất MISA.' },
     { ten:'💵 Tiền & kỳ',                 id:['qrCard','kyCard'],
       mo:'Tài khoản nhận tiền, và mốc tuần của đơn.' },
@@ -9421,7 +9383,9 @@
     renderCfgBp();
     renderVai();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
-    el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
+    /* ⚠️ Bảng khai tay `mangTk` đã gỡ khỏi màn 14/09/2026 — gác `null` ở đây, không thì
+       `renderCfg()` ném lỗi ngay dòng này và CẢ tab Cấu hình trắng trơn. */
+    if(el('cfgMangBody')) el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
     // Card "Mã đối tượng" đã bỏ khỏi Cấu hình (mã đối tượng của nhân viên khai ở bảng
     // Người dùng). Giữ đoạn này nhưng bỏ qua nếu không còn chỗ vẽ, khỏi lỗi JS chặn cả
@@ -9667,7 +9631,7 @@
     return '<select style="width:100%">'+['<option value="">— chọn mảng —</option>'].concat(out.map(function(p){
       return '<option value="'+esc(p)+'"'+(p===v?' selected':'')+'>'+esc(p)+'</option>'; })).join('')+'</select>';
   }
-  function addCfgMang(){ el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  function addCfgMang(){ if(!el('cfgMangBody')) return; el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
   // ---- KHAI MÃ: tên gọi + số tài khoản + tích cơ sở áp dụng
   function kcFill(){
     el('kcLoaiList').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
@@ -9846,7 +9810,9 @@
    *    bảng là lệch lại. `tools/test/test-cauhinh-xo.js` có phép ĐẾM Ô THẬT của từng cột rồi
    *    so với chỉ số `saveCfgUsers` đang dùng — thêm một ô là đỏ ngay, kèm tên cột bị lệch.
    */
-  function _readRows(tbodyId){ return Array.prototype.map.call(el(tbodyId).getElementsByTagName('tr'),function(tr){
+  /* ⚠️ Bảng có thể đã gỡ khỏi màn (xem `mangTkCard`) — trả mảng rỗng thay vì ném lỗi. */
+  function _readRows(tbodyId){ var _tb=el(tbodyId); if(!_tb) return [];
+    return Array.prototype.map.call(_tb.getElementsByTagName('tr'),function(tr){
     return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]):not(.cs-tim),select'),function(f){
       if(f.tagName==='SELECT'&&f.multiple){ return Array.prototype.map.call(f.selectedOptions,function(o){return o.value;}).join(', '); }
       return f.value; }); }); }
@@ -10658,7 +10624,20 @@
           lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
     return '<tr><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
       +'<td>'+_inp(u.maNv,'VD: NV012')+'</td>'
-      +'<td><input value="'+esc(u.pin||'')+'" readonly title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây." maxlength="8" inputmode="numeric" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * 🔴 KHÔNG IN PIN RA MÀN HÌNH.
+       * ══════════════════════════════════════════════════════════════════════════════════════
+       * Ô này trước đây đổ PIN nguyên văn vào `value=`, nên cả bảng bày ra hàng chục mã đăng
+       * nhập: `1000`, `1122`, `2233`… Ai đứng sau lưng, ai xem một ảnh chụp màn hình, ai mở
+       * "xem mã nguồn trang" đều đọc được — mà trang này chạy ngoài internet.
+       *
+       * ⚠️ VẪN LÀ MỘT Ô NHẬP VÀ VẪN GIỮ GIÁ TRỊ THẬT, chỉ đổi sang `type="password"`. Bảng này
+       *    lưu bằng cách đọc lại MỌI ô trên hàng (`_readRows`), nên thay giá trị bằng dấu chấm
+       *    là lượt Lưu kế tiếp ghi đè PIN thật bằng chuỗi che — khoá tài khoản của cả bảng.
+       *
+       * ⚠️ PIN vẫn readonly: đổi ở trang Chấm công · Nhân sự, không đổi ở đây.
+       * ══════════════════════════════════════════════════════════════════════════════════════ */
+      +'<td><input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây. Che đi vì trang này chạy ngoài internet." maxlength="8" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
       +'<td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
       +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
   }
@@ -10667,7 +10646,8 @@
   function addCfgUser(){
     var tb=_uBody('Nhân viên');
     if(!tb){ CFGUSERS=(CFGUSERS||[]).concat([{ten:'',maNv:'',pin:'',vaiTro:'Nhân viên',boPhan:'',coso:'',maDt:'',donVi:''}]); renderUsers(); return; }
-    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
+    /* Hàng MỚI cũng che: người khai gõ PIN cho người khác, và họ gõ ngay giữa văn phòng. */
+    tb.insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td>'+_inp('','VD: NV012')+'</td><td><input type="password" maxlength="8" autocomplete="off" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('','')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td>'+_delBtn()+'</tr>');
     tb.lastChild.scrollIntoView({block:'center'});
   }
   /** tbody của một vai, hoặc null nếu vai ấy chưa có bảng nào. */

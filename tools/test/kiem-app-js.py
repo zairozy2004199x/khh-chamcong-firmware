@@ -782,38 +782,36 @@ la('🔴 màn không lọc lại phạm vi, để máy chủ giữ một bản l
    'function _trongPhamVi(d){ return true; }' in src)
 la('   và không còn bản chép so ô Cơ sở với chuỗi trên đơn',
    'd.nguoiLap===CURUSER.name || _trongCoSoToi(d)' not in src)
-# Dải phạm vi: nói thông tin, không buộc tội.
-_i_pv = src.index('function vePhamVi(){')
-_fn_pv = src[_i_pv:src.index('\n  }', _i_pv)]
-la('🔴 dải phạm vi nói rõ "toàn quyền trên cơ sở của mình"',
-   'mọi đơn của cơ sở này' in _fn_pv and 'kể cả đơn do người khác lập' in _fn_pv)
-_fn_pv_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _fn_pv)
-la('⚠️ chưa được phân cơ sở thì nói thẳng, không kết tội ai',
-   'chưa được phân cơ sở' in _fn_pv_ma and 'danh mục' not in _fn_pv_ma)
-la('⚠️ và chỉ bày cho vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_pv)
-la('🔴 dải vẽ lại ở MỌI lượt dựng bảng, không chỉ lúc rỗng', 'vePhamVi();' in src)
-la('   có chỗ riêng cho nó trên màn', 'id="phamViBox"' in src)
+# Dải phạm vi ĐÃ GỠ — anh Thắng 14/09/2026: *"loại bỏ này cho anh"*. Nó dựng để CHẨN ĐOÁN và
+# đã làm xong việc ấy (chỉ ra "108 đơn của cơ sở khác", tìm đúng chốt sau bốn lượt vá mò). Xong
+# việc thì gỡ: một dòng nhắc mỗi ngày rằng "bạn chỉ thấy cơ sở của mình" là thứ người dùng đọc
+# đúng một lần rồi thôi, còn nó thì chiếm chỗ mãi mãi.
+la('🔴 dải phạm vi đã gỡ khỏi màn', 'function vePhamVi(' not in src and 'phamViBox' not in src)
+la('   và không còn dòng "Đã ẩn …" trên trang', 'function veDaChan(' not in src)
+# ⚠️ PHẦN ĐẾM Ở MÁY CHỦ THÌ GIỮ: rẻ (ba phép cộng) và là công cụ đã chứng minh giá trị — lần sau
+#    có ai "không thấy đơn" thì bật lại một dòng là biết chốt nào cắt, khỏi mò lại từ đầu.
+_don_php2 = io.open(os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-don.php'),
+                    encoding='utf-8').read()
+la('⚠️ nhưng phần đếm ở máy chủ vẫn còn, để bật lại khi cần',
+   'function so_da_chan()' in _don_php2 and "'daChan'" in _don_php2)
 
-# ------------------------------------------- ô Cơ sở gợi ý cả cơ sở đang có trên đơn
-# Anh Thắng 14/09/2026: *"làm gì có danh mục cơ sở"*. Đúng — bản này danh mục còn rỗng, nên hộp
-# chọn mở ra trắng trơn và người khai đành gõ tay một chuỗi bất kỳ ("TUTU_BD"). Chuỗi ấy không
-# khớp cơ sở nào trên đơn, và người được phân nó mở trang ra thấy trắng.
-#
-# 🔴 CƠ SỞ XUẤT HIỆN TRÊN ĐƠN LUÔN LÀ CƠ SỞ CÓ THẬT. Bày chúng ra biến việc khai từ "gõ đúng một
-#    chuỗi mà không ai biết là chuỗi nào" thành một cú tích chuột.
-print('— ô Cơ sở gợi ý theo đơn thật —')
-_i_cs3 = src.index('function _cosoSel(')
-_fn_cs3 = src[_i_cs3:src.index('\n  }', _i_cs3)]
-la('bốc được hàm _cosoSel', len(_fn_cs3) > 400, len(_fn_cs3))
-la('🔴 gộp thêm cơ sở đang có trên đơn vào gợi ý', '(BOOT.dons||[]).forEach' in _fn_cs3)
-la('   và tách được đơn ghép nhiều cơ sở', "String(d.coso||'').split(',')" in _fn_cs3)
-la('⚠️ xếp a→z có dấu cho dễ dò', "localeCompare(String(b),'vi')" in _fn_cs3)
-# ⚠️ Danh mục được khai theo mảng và khu vực — sắp lại cả hộp là người khai mất trật tự quen tay.
-la('⚠️ nhưng giữ nguyên thứ tự danh mục, chỉ sắp phần thêm',
-   '_them.sort(' in _fn_cs3 and 'arr=arr.concat(_them);' in _fn_cs3)
-# ⚠️ Chỉ THÊM vào gợi ý, không đụng giá trị đã lưu: ô này quyết ai thấy sổ tiền nào.
-la('⚠️ giá trị đã lưu vẫn giữ nguyên, không tự sửa của ai',
-   'sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });' in _fn_cs3)
+# ------------------------------------------------------------------ dọn mấy khối thừa
+# Anh Thắng 14/09/2026: *"sẵn sửa trang chi phí loại bỏ mấy cái thừa"*.
+print('— dọn khối thừa trên trang chi phí —')
+# 🔴 Tab "Vận hành tuần" bỏ bằng đúng cơ chế đã có (`BO_TAB`), không xoá mã: bật lại chỉ là gỡ
+#    một chữ, rẻ hơn hẳn dựng lại cả màn.
+la('🔴 tab Vận hành tuần đã tắt', 'vhtuan:1' in src)
+la('   và tắt bằng BO_TAB, không xoá mã màn', 'function loadVHTuan' in src)
+# 🔴 Bảng khai tay "Mảng kinh doanh → nhóm tài khoản" gỡ khỏi màn, nhưng DỮ LIỆU giữ nguyên:
+#    "Mã tổng của mảng" vẫn ghi vào cột Nhóm TK của chính bảng ấy.
+la('🔴 bảng Mảng → nhóm tài khoản đã gỡ khỏi màn', 'id="mangTkCard"' not in src)
+la('⚠️ nhưng sổ mangTk giữ nguyên, không xoá dữ liệu', 'mangTk:data' in src)
+# 🔴 Gỡ một bảng mà quên gác `el(...)` là `renderCfg()` ném lỗi ngay và CẢ tab Cấu hình trắng.
+la('🔴 chỗ vẽ bảng đã gỡ có gác null', "if(el('cfgMangBody'))" in src)
+la('   và hàm đọc hàng cũng gác', 'var _tb=el(tbodyId); if(!_tb) return [];' in src)
+# 🔴 Nút "Dọn loại chưa khai mã" — một nút XOÁ HÀNG LOẠT đứng cạnh nút Lưu, trong bảng người ta
+#    mở ra mỗi ngày. Dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục.
+la('🔴 nút "Dọn loại chưa khai mã" đã gỡ', 'Dọn loại chưa khai mã' not in _re.sub(r'<!--[\s\S]*?-->', ' ', src))
 
 print()
 if hong:

@@ -329,13 +329,30 @@ t('🔴 lưu người dùng gom từ MỌI bảng vai trò, không phải một 
  *    mọi người mất tên và PIN, và họ không đăng nhập được nữa.
  * ═══════════════════════════════════════════════════════════════════════════════════════ */
 const O_TEN = (HANG.match(/<input value="'\+esc\(u\.ten[^>]*>/) || [])[0] || '';
-const O_PIN = (HANG.match(/<input value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
+/* 🔴 Ô PIN nay là `type="password"` — anh Thắng 14/09/2026 gửi ảnh bảng bày ra hàng chục PIN
+   (`1000`, `1122`, `2233`…). Trang này chạy ngoài internet: ai đứng sau lưng, ai xem một ảnh
+   chụp màn, ai mở "xem mã nguồn trang" đều đọc được. Mẫu dò phải theo, nếu không phép kiểm
+   canh một ô không còn tồn tại và trượt cả bốn phép dưới. */
+const O_PIN = (HANG.match(/<input type="password" value="'\+esc\(u\.pin[^>]*>/) || [])[0] || '';
 t('🔴 ô Tên khoá lại (readonly)', /\breadonly\b/.test(O_TEN), O_TEN);
 t('🔴 ô PIN cũng khoá lại',      /\breadonly\b/.test(O_PIN), O_PIN);
 t('🔴 KHÔNG dùng disabled — disabled thì trình duyệt bỏ qua ô, lưu một cái là mất sạch tên/PIN',
   !/\bdisabled\b/.test(O_TEN) && !/\bdisabled\b/.test(O_PIN), [O_TEN, O_PIN]);
 t('   và vẫn mang giá trị thật lên (readonly giữ nguyên .value)',
   /value="'\+esc\(u\.ten/.test(O_TEN) && /value="'\+esc\(u\.pin/.test(O_PIN), [O_TEN, O_PIN]);
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHÔNG IN PIN RA MÀN HÌNH — luật cứng của cả hệ, và bảng này từng vi phạm nó.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ CHE BẰNG `type="password"`, KHÔNG thay giá trị bằng dấu chấm: bảng lưu bằng cách đọc lại
+ *    MỌI ô trên hàng, nên thay giá trị là lượt Lưu kế tiếp ghi đè PIN thật bằng chuỗi che —
+ *    khoá tài khoản của cả bảng cùng lúc.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+t('🔴 ô PIN che đi, không bày mã ra màn', /type="password"/.test(O_PIN), O_PIN);
+t('⚠️ nhưng KHÔNG thay giá trị bằng dấu chấm (lưu một cái là mất sạch PIN)',
+  /value="'\+esc\(u\.pin\|\|''\)\+'"/.test(O_PIN), O_PIN);
+/* Hàng THÊM MỚI cũng phải che: người khai gõ PIN cho người khác, ngay giữa văn phòng. */
+t('🔴 ô PIN của hàng thêm mới cũng che',
+  /<input type="password" maxlength="8"/.test(HTML), '');
 t('🔴 rê chuột vào nói rõ phải sửa ở đâu (khoá mà không nói thì người ta tưởng hỏng)',
   /title="[^"]*nhân sự/.test(O_TEN) && /title="[^"]*nhân sự/.test(O_PIN), [O_TEN, O_PIN]);
 t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:#f1f5f9/.test(O_TEN), O_TEN);
