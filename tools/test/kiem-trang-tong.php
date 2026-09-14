@@ -610,7 +610,7 @@ t( 'viền thẻ có thật, không chỉ bóng đổ', false !== strpos( $html,
  * ═══════════════════════════════════════════════════════════════════════════════ */
 foreach ( array(
 	/* cổng PIN + khung màn */      'veVao', 'veChinh', 'napDs', 'veBang', 'coQuyen',
-	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu',
+	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu', 'veAnh',
 	/* xuất MISA */                 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong',
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
 	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq', 'mauBuoc',
@@ -781,6 +781,36 @@ t( '🔴 bản quá cũ thì vẫn bày thẻ mảng kèm lý do, không bỏ qu
 	(bool) preg_match( "#'thieu'  => true,#", $api_ma ), '' );
 t( 'và màn nói rõ đó KHÁC "không có bút toán nào"',
 	(bool) preg_match( '#if \(b\.thieu\)\{#', $html ), '' );
+
+/* ═══ 6l. CỘT ẢNH CHỨNG TỪ VÀ CỘT THỰC CHI ══════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"thêm cột hình ảnh để dò nữa nhé"* · *"chi thực tế nữa"*.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 máy chủ trả kèm ảnh chứng từ của từng dòng',
+	(bool) preg_match( '#thanh_tien, thuc_mua, anh#', $gom3 ), '' );
+t( '🔴 và thực chi', (bool) preg_match( "#'thucChi'   => self::thuc_chi_dong#", $gom3 ), '' );
+/* 🔴 GỌI LÕI `thuc_chi()`, KHÔNG TỰ CHỌN GIỮA HAI Ô: luật còn một vế dễ quên — CHƯA CẤP TIỀN
+   thì thực chi là 0, không phải bằng thành tiền. Quên vế ấy là đơn mới lập đã hiện "đã chi"
+   đúng bằng số xin, và người duyệt đọc thành tiền đã ra khỏi két. */
+t( '🔴 thực chi HỎI LÕI bản mảng, không tự chọn giữa hai ô',
+	(bool) preg_match( '#method_exists\( [$]lop, .thuc_chi. \)[\s\S]{0,400}?call_user_func\( array\( [$]lop, .thuc_chi. \)#', $gom3 ), '' );
+t( '⚠️ bản mảng đời cũ thiếu hàm ấy thì trả null, không đoán bằng thành tiền',
+	(bool) preg_match( "#'thuc_chi' \) \) \{ return null; \}#", $gom3 ), '' );
+t( '🔴 màn có cột Ảnh và cột Thực chi',
+	false !== mb_strpos( $html_ma, '<th class="r">Thực chi</th>' )
+		&& false !== mb_strpos( $html_ma, 'Ảnh</th>' ), '' );
+/* 🔴 Ảnh nhỏ bấm ra ảnh thật: nhúng hai chục ảnh gốc vào bảng là màn nặng ì và bảng dài tới
+   mức không đối chiếu nổi — mà thứ cần trước tiên chỉ là "dòng này CÓ chứng từ hay không". */
+t( '🔴 ảnh bày cỡ nhỏ, bấm mới mở ảnh thật',
+	(bool) preg_match( '#width:34px;height:34px#', $html ), '' );
+/* ⚠️ Ô ảnh là dữ liệu người dùng nhập; `javascript:` trong href là một đường chạy mã ngay trên
+   trang của người đang duyệt tiền. */
+t( '🔴 chỉ nhận đường dẫn http(s) cho ảnh',
+	(bool) preg_match( '#\^https\?#', $html ), '' );
+/* ⚠️ Không ảnh là chuyện bình thường (mua lẻ không lấy hoá đơn) — tô cảnh báo ở đây là mỗi tuần
+   vài chục lời báo động giả, rồi người ta thôi nhìn cả cột. */
+t( '⚠️ dòng không ảnh chỉ để dấu gạch xám, không tô cảnh báo',
+	(bool) preg_match( '#chưa đính chứng từ#u', $html ), '' );
+t( '🔴 thực chi lệch thành tiền thì tô lên', (bool) preg_match( '#var lech = \( tc !== null && tc !== tt \);#', $html ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

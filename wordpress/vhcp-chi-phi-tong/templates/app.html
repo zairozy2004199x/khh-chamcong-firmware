@@ -702,6 +702,28 @@ function veThuaThieu(t){
     '</div>';
 }
 
+/* ẢNH CHỨNG TỪ CỦA MỘT DÒNG CHI — anh Thắng 14/09/2026: *"thêm cột hình ảnh để dò nữa nhé"*.
+ *
+ * 🔴 ẢNH NHỎ BẤM RA ẢNH THẬT, KHÔNG NHÚNG ẢNH TO VÀO BẢNG. Một đơn tuần có hai chục dòng; nhúng
+ *    hai chục tấm ảnh gốc là màn nặng ì và bảng dài tới mức không đối chiếu nổi — mà thứ người
+ *    duyệt cần trước tiên chỉ là *"dòng này CÓ chứng từ hay không"*.
+ *
+ * ⚠️ KHÔNG ẢNH LÀ CHUYỆN BÌNH THƯỜNG, ĐỪNG TÔ ĐỎ. Mua lẻ không lấy hoá đơn vẫn là dòng hợp lệ;
+ *    tô cảnh báo ở đây là mỗi tuần vài chục lời báo động giả, rồi người ta thôi nhìn cả cột.
+ *    Một dấu gạch xám là đủ nói.
+ */
+function veAnh(u){
+  u = String(u||'').trim();
+  if (!u) return '<span class="mo" title="Dòng này chưa đính chứng từ">—</span>';
+  /* ⚠️ Chỉ nhận đường dẫn http(s): ô này là dữ liệu người dùng nhập, mà `javascript:` trong
+     href là một đường chạy mã ngay trên trang của người đang duyệt tiền. */
+  if (!/^https?:\/\//i.test(u)) return '<span class="mo" title="Đường dẫn ảnh không hợp lệ">—</span>';
+  return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Mở ảnh chứng từ">' +
+    '<img src="'+esc(u)+'" alt="chứng từ" loading="lazy" ' +
+    'style="width:34px;height:34px;object-fit:cover;border-radius:6px;border:1px solid #cbd5e1;' +
+    'display:block;margin:0 auto"></a>';
+}
+
 function veChiTiet(g){
   g = g || {};
   /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products` — `products` là danh sách GỢI Ý tên hàng.
@@ -733,17 +755,34 @@ function veChiTiet(g){
     trai += '<p class="mo nho" style="margin-top:10px">Đơn này <b>chưa có dòng chi nào</b> — ' +
             'đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
   } else {
-    var tong = 0, h = '<div class="cuon" style="margin-top:12px"><table><thead><tr>' +
+    var tong = 0, tongTC = 0, coAnh = 0, coTC = false;
+    ds.forEach(function(r){
+      if ((r.anh||'').trim()) coAnh++;
+      if (r.thucChi !== null && r.thucChi !== undefined) coTC = true;
+    });
+    var h = '<div class="cuon" style="margin-top:12px"><table><thead><tr>' +
       '<th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
-      '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>';
+      '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th>' +
+      '<th class="r">Thực chi</th><th style="text-align:center">Ảnh</th></tr></thead><tbody>';
     ds.forEach(function(r){
       var tt = Number(r.thanhTien||0); tong += tt;
+      var tc = ( r.thucChi === null || r.thucChi === undefined ) ? null : Number(r.thucChi);
+      if (tc !== null) tongTC += tc;
+      /* 🔴 THỰC CHI LỆCH THÀNH TIỀN THÌ TÔ LÊN — đó chính là dòng người duyệt phải soi: mua
+         hụt, mua thêm, hay gõ nhầm. Bằng nhau thì để xám, khỏi tranh mắt với chỗ cần nhìn. */
+      var lech = ( tc !== null && tc !== tt );
       h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
            '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
-           '<td class="r">'+tien(tt)+'</td></tr>';
+           '<td class="r">'+tien(tt)+'</td>' +
+           '<td class="r"'+( lech ? ' style="color:#b45309;font-weight:800" title="Lệch thành tiền"' : ' class="r mo"' )+'>' +
+             ( tc === null ? '<span class="mo" title="Bản mảng chưa trả được số này">—</span>' : tien(tc) )+'</td>' +
+           '<td style="text-align:center">'+veAnh(r.anh)+'</td></tr>';
     });
     trai += h + '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
-            '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
+            '<td class="r">'+tien(tong)+'</td>' +
+            '<td class="r">'+( coTC ? tien(tongTC) : '<span class="mo">—</span>' )+'</td>' +
+            '<td style="text-align:center" class="nho '+( coAnh === ds.length ? '' : 'mo' )+'">' +
+            coAnh+'/'+ds.length+'</td></tr></tfoot></table></div>';
   }
   trai += veThuaThieu(t) + veMoc(g.moc);
 

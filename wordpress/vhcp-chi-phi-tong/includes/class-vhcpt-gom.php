@@ -211,6 +211,22 @@ class VHCPT_Gom {
 		return $ra;
 	}
 
+	/**
+	 * Thực chi của một dòng — hỏi lõi bản ấy, xem chú thích ở `dong_chi()`.
+	 *
+	 * ⚠️ Bản mảng đời cũ thiếu `thuc_chi()` thì trả null, và màn bày dấu gạch. Đoán hộ bằng
+	 *    thành tiền là nói "đã chi" cho một đơn có thể chưa ai đưa đồng nào.
+	 */
+	public static function thuc_chi_dong( $khoa, $r, $tt_don ) {
+		$lop = VHCPT_Ban::lop( $khoa, 'Don' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! $lop || ! class_exists( $lop ) || ! method_exists( $lop, 'thuc_chi' ) ) { return null; }
+		return (float) call_user_func( array( $lop, 'thuc_chi' ),
+			isset( $r['thanh_tien'] ) ? $r['thanh_tien'] : 0,
+			isset( $r['thuc_mua'] ) ? $r['thuc_mua'] : null,
+			(string) $tt_don );
+	}
+
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	 * BẢNG TỔNG QUAN — MỌI ĐƠN TỪ TRƯỚC TỚI GIỜ, CÓ BỘ LỌC
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
@@ -366,6 +382,9 @@ class VHCPT_Gom {
 		if ( '' === $tien_to ) { return array(); }
 		$ma = trim( (string) $ma_don );
 		if ( '' === $ma ) { return array(); }
+		/* Trạng thái đơn — đọc MỘT lượt cho cả bảng, vì `thuc_chi()` cần nó cho từng dòng. */
+		$tt_don = (string) $wpdb->get_var( $wpdb->prepare(
+			"SELECT trang_thai FROM {$tien_to}don WHERE ma_don = %s LIMIT 1", $ma ) );
 		/* ⚠️ BẢNG TÊN LÀ `chiphi`, KHÔNG PHẢI `cp`. Đọc nhầm tên bảng thì `$wpdb` trả mảng rỗng
 		   và màn hiện "chưa có dòng chi nào" — đúng câu mà một đơn xin ứng trước cũng hiện, nên
 		   nhìn không ra là hỏng.
@@ -373,7 +392,10 @@ class VHCPT_Gom {
 		   chuỗi), nên `ORDER BY id` là xếp theo bảng chữ cái của một cái mã — tức xếp bừa. */
 		$bang = $tien_to . 'chiphi';
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			"SELECT coso, ngay, nhom, noi_dung, so_luong, don_gia, thanh_tien
+			/* ẢNH CHỨNG TỪ — anh Thắng 14/09/2026: *"thêm cột hình ảnh để dò nữa nhé"*. Người
+			   duyệt đối chiếu số tiền với tờ hoá đơn; thiếu cột này là phải mở trang mảng cho
+			   từng dòng, mà một đơn tuần có tới hai chục dòng. */
+			"SELECT coso, ngay, nhom, noi_dung, so_luong, don_gia, thanh_tien, thuc_mua, anh
 			   FROM $bang WHERE ma_don = %s ORDER BY tao_luc ASC, ngay ASC LIMIT %d",
 			$ma, self::GIOI_HAN
 		), ARRAY_A );
@@ -388,6 +410,21 @@ class VHCPT_Gom {
 				'soLuong'   => (float) $r['so_luong'],
 				'donGia'    => (float) $r['don_gia'],
 				'thanhTien' => (float) $r['thanh_tien'],
+				/* ⚠️ Ô rỗng là CHƯA ĐÍNH ẢNH, không phải lỗi — đơn hợp lệ vẫn có dòng không ảnh
+				   (mua lẻ không lấy hoá đơn). Trả chuỗi rỗng và để màn nói bằng dấu gạch. */
+				'anh'       => trim( (string) ( isset( $r['anh'] ) ? $r['anh'] : '' ) ),
+				/* ══════════════════════════════════════════════════════════════════════════════
+				 * THỰC CHI — anh Thắng 14/09/2026: *"chi thực tế nữa"*.
+				 * ══════════════════════════════════════════════════════════════════════════════
+				 * 🔴 GỌI LÕI `thuc_chi()` CỦA BẢN ẤY, KHÔNG TỰ CHỌN GIỮA HAI Ô. Luật nghe đơn
+				 *    giản — "có gõ thực mua thì lấy, không thì lấy thành tiền" — nhưng còn một
+				 *    vế nữa dễ quên: CHƯA CẤP TIỀN thì thực chi là 0, không phải bằng thành
+				 *    tiền. Quên vế ấy là đơn mới lập đã hiện "đã chi" đúng bằng số xin, và
+				 *    người duyệt đọc thành tiền đã ra khỏi két.
+				 * ⚠️ Hàm ấy là hàm THUẦN (`$thanh_tien, $thuc_mua, $trang_thai_don`) nên gọi
+				 *    được thẳng, không cần mượn phiên.
+				 * ══════════════════════════════════════════════════════════════════════════════ */
+				'thucChi'   => self::thuc_chi_dong( $khoa, $r, $tt_don ),
 			);
 		}
 		return $ra;
