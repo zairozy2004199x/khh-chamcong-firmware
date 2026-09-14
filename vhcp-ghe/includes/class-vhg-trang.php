@@ -760,6 +760,10 @@ class VHG_Trang {
 					isset( $d['ten'] ) ? (string) $d['ten'] : '' );
 				self::tra( $r ); return;
 			}
+			if ( 'may_ten_lo' === $viec ) {
+				$r = VHG_May::dat_ten_lo( isset( $d['ds'] ) ? $d['ds'] : array() );
+				self::tra( $r ); return;
+			}
 			if ( 'may_ten_goi' === $viec ) {
 				$r = VHG_May::dat_ten_goi( isset( $d['ma'] ) ? (string) $d['ma'] : '',
 					isset( $d['ten_goi'] ) ? (string) $d['ten_goi'] : '' );
@@ -1195,6 +1199,13 @@ class VHG_Trang {
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
+				/* 🔴 PHẢI GỬI `ten_goi` — anh Thắng 14/09/2026: *"Không lưu được tên thường gọi"*.
+				   Lưu THÌ CÓ lưu: `may_ten_goi` ghi đúng vào CSDL. Nhưng payload này (nguồn của
+				   D.may, tức bảng "Quản lý ghế") chưa bao giờ gửi cột đó ra, nên ô luôn vẽ lại
+				   rỗng sau mỗi lượt tải — nhìn y hệt như không lưu được. Cùng một vết với `ma_kh`
+				   ở phần cơ sở ngay bên dưới: thiếu một khoá trong payload là tính năng chết mà
+				   CSDL vẫn đúng, nên soi ở bảng dữ liệu sẽ không thấy gì sai. */
+				'ten_goi' => (string) ( isset( $m['ten_goi'] ) ? $m['ten_goi'] : '' ),
 				'hw'      => '' !== trim( (string) ( isset( $m['mac'] ) ? $m['mac'] : '' ) ) ? 1 : 0,  // đã gắn phần cứng (có MAC)?
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
@@ -1472,6 +1483,9 @@ class VHG_Trang {
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
+				/* Tên thường gọi gửi cho CẢ người thu/hotline, không riêng quản trị — cái tên này
+				   sinh ra đúng là để NHÂN VIÊN nhận ra ghế nào, giấu khỏi họ thì nó vô nghĩa. */
+				'ten_goi' => (string) ( isset( $m['ten_goi'] ) ? $m['ten_goi'] : '' ),
 				'hw'      => '' !== trim( (string) ( isset( $m['mac'] ) ? $m['mac'] : '' ) ) ? 1 : 0,  // đã gắn phần cứng (có MAC)?
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
@@ -4655,6 +4669,78 @@ var CS_MO = '';
 var QL_CHO_CS = '';
 var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
 var QL_SEL = {};   // Quản lý ghế: các mã ghế ĐANG TÍCH CHỌN (giữ qua các trang) — { ma: true }
+/* GIỎ SỬA CHƯA LƯU — { ma: { ten?, ten_goi? } }, chỉ chứa khoá THẬT SỰ khác bản gốc.
+   🔴 Anh Thắng 14/09/2026: *"khi nào bấm lưu mới nhé, chứ cứ gõ vào phát bấm chuột ra nhảy đi
+      đâu mất"*. Trước đây mỗi ô tên tự lưu lúc rời ô, mà đường lưu đi qua lam() → tai() → ve():
+      VẼ LẠI CẢ TRANG. Nên gõ xong một ô, bấm sang ô kế là trang dựng lại từ đầu, về trang 1, con
+      trỏ mất chỗ — sửa 6 ghế là 6 lần bị hất ra.
+   Nay: gõ chỉ ghi vào giỏ này, một nút "💾 Lưu" gửi TẤT CẢ trong một lượt.
+   Giỏ nằm NGOÀI hàm vẽ nên sang trang khác rồi quay lại vẫn còn nguyên phần đang gõ dở. */
+var QL_SUA = {};
+/* Câu báo "đã lưu" hiện ngay chỗ thanh Lưu vừa biến mất. Cố ý KHÔNG dùng alert(): người ta đang
+   nhập liên tục, một hộp thoại phải bấm OK cho mỗi lượt lưu còn bực hơn cả cái lỗi đang chữa. */
+var QL_BAO = '';
+/* Giá trị để VẼ RA ô: bản đang gõ dở nếu có, không thì bản của máy chủ. Nhờ vậy đổi trang, đổi
+   bộ lọc cơ sở, hay một lượt tự làm mới ập vào giữa chừng cũng không nuốt mất phần đang gõ. */
+function qlGiaTri_(m, khoa){
+  var x = QL_SUA[m.ma];
+  if (x && Object.prototype.hasOwnProperty.call(x, khoa)) return x[khoa];
+  return (khoa === 'ten_goi' ? m.ten_goi : m.ten) || '';
+}
+/* Ghi một ô vào giỏ. Bằng bản gốc thì XOÁ khỏi giỏ chứ không ghi chuỗi rỗng — gõ nhầm rồi sửa
+   lại như cũ thì coi như chưa đụng gì, khỏi bắt người ta bấm Lưu cho một thay đổi không có. */
+function qlGhiSua_(ma, khoa, val, goc){
+  QL_BAO = '';   // gõ tiếp thì câu "đã lưu" của lượt trước phải tắt, không thì nó nói dối
+  var x = QL_SUA[ma] || (QL_SUA[ma] = {});
+  if (String(val) === String(goc)) { delete x[khoa]; if (!Object.keys(x).length) delete QL_SUA[ma]; }
+  else { x[khoa] = val; }
+}
+function qlTim_(ma){
+  var ds = (D && D.may) || [];
+  for (var i = 0; i < ds.length; i++){ if (String(ds[i].ma) === String(ma)) return ds[i]; }
+  return null;
+}
+/* LƯU CẢ LÔ — gọi thẳng goi(), KHÔNG qua lam().
+   🔴 lam() kết thúc bằng tai() → ve(): vẽ lại CẢ TRANG. Dùng nó ở đây là lưu xong lại bị hất về
+      đầu danh sách, đúng cái phiền mà nút Lưu sinh ra để dẹp. Ở đây chỉ ghi kết quả vào D.may
+      rồi vẽ lại MỘT bảng, nên trang đứng yên: vẫn trang đó, vẫn bộ lọc đó. */
+function qlLuuTen_(){
+  var ds = [];
+  Object.keys(QL_SUA).forEach(function(ma){
+    var x = QL_SUA[ma], g = { ma: ma };
+    if (Object.prototype.hasOwnProperty.call(x, 'ten'))     g.ten     = x.ten;
+    if (Object.prototype.hasOwnProperty.call(x, 'ten_goi')) g.ten_goi = x.ten_goi;
+    ds.push(g);
+  });
+  if (!ds.length) return;
+  var b = document.getElementById('ql-luuten');
+  if (b){ if (b.disabled) return; b.disabled = true; b.textContent = L('Đang lưu…','Saving…'); }
+  goi('may_ten_lo', { ds: ds }, function(r){
+    if (!r || r.ok === false){
+      if (b){ b.disabled = false; b.textContent = '💾 ' + L('Luu','Save'); }
+      /* 🔴 GIỮ NGUYÊN QL_SUA khi lỗi. Mạng rớt giữa chừng mà xoá giỏ là nuốt mất công gõ của
+         người ta, và tệ hơn: bảng vẽ lại bằng dữ liệu cũ nên trông như chưa hề gõ gì. */
+      alert((r && r.error) || L('Lưu không được — thử lại.','Save failed — try again.'));
+      return;
+    }
+    /* Máy chủ trả lại tên SAU KHI chuẩn hoá (chuan_ten() có thể sửa chữ người gõ). Lấy bản của
+       máy chủ, không lấy bản thô — không thì lần vẽ sau lại thấy "khác" và báo chưa lưu. */
+    var da = (r && r.da) || {};
+    ds.forEach(function(g){
+      var m = qlTim_(g.ma); if (!m) return;
+      var t = da[g.ma] || {};
+      if (Object.prototype.hasOwnProperty.call(g, 'ten')) {
+        m.ten = Object.prototype.hasOwnProperty.call(t, 'ten') ? t.ten : g.ten;
+      }
+      if (Object.prototype.hasOwnProperty.call(g, 'ten_goi')) {
+        m.ten_goi = Object.prototype.hasOwnProperty.call(t, 'ten_goi') ? t.ten_goi : g.ten_goi;
+      }
+    });
+    QL_SUA = {};
+    QL_BAO = (r && r.thong_bao) ? String(r.thong_bao) : '';
+    qlGheRender();
+  });
+}
 var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 /* Tự làm mới tab Điều khiển (2 giây/lần). Anh Thắng: "tắt tự f5 trang". Nhớ lựa chọn trong
@@ -9806,9 +9892,42 @@ function qlGheRender(){
      ⚠️ VẪN sắp theo TÊN GHẾ, không theo TÊN THƯỜNG GỌI. Tên ghế có quy luật (VHM-1…VHM-12) nên
         xếp ra thứ tự dùng được; tên thường gọi là câu chữ tự do ("ghế cạnh thang máy"), xếp theo
         nó thì danh sách nhảy lung tung mỗi lần ai đó sửa một cái tên. */
+  /* 🔴 `localeCompare(..., {numeric:true})` MỘT MÌNH LÀ CHƯA ĐỦ — anh Thắng 14/09/2026: *"Sắp
+     sai thứ tự"*, ảnh chụp ESTELLA-1…ESTELLA-6 rồi ESTELLA4 rơi tuốt xuống cuối.
+     Gốc: numeric:true chỉ so số khi HAI bên cùng tới chữ số một lượt. "ESTELLA-6" và "ESTELLA4"
+     lệch nhau ở dấu '-' trước đã, mà dấu '-' xếp TRƯỚC mọi chữ số — nên cả dãy có gạch nối đứng
+     trước cái tên gõ thiếu gạch. Một cái tên gõ sót một ký tự là đủ để nó rớt khỏi chỗ của nó,
+     và người gõ không có cách nào đoán ra vì sao.
+     Nên: BỎ HẲN dấu ngăn trước khi so, rồi so theo từng khúc CHỮ / SỐ. "ESTELLA-4" và "ESTELLA4"
+     về cùng một khoá, còn khúc số so bằng GIÁ TRỊ nên 2 vẫn đứng trước 10.
+     ⚠️ Chỉ bỏ DẤU NGĂN, không bỏ dấu tiếng Việt: tên ghế có thể là chữ có dấu, cắt đi thì hai
+        cái tên khác hẳn nhau lại đụng khoá. */
+  function xepKhuc_(s){
+    var t = String(s == null ? '' : s).replace(/[\s\-_.,:;/\\()\[\]#]+/g, '');
+    return t.match(/[0-9]+|[^0-9]+/g) || [];
+  }
+  function xepTen_(a, b){
+    var x = xepKhuc_(a), y = xepKhuc_(b), n = Math.min(x.length, y.length);
+    for (var i = 0; i < n; i++){
+      var p = x[i], q = y[i], pS = /^[0-9]/.test(p), qS = /^[0-9]/.test(q);
+      if (pS && qS){
+        var pn = parseInt(p, 10), qn = parseInt(q, 10);
+        if (pn !== qn) return pn < qn ? -1 : 1;
+        /* Cùng giá trị mà khác độ dài ("01" với "1"): xếp cái ngắn trước cho ỔN ĐỊNH, chứ không
+           trả 0 — trả 0 thì thứ tự hai ghế đó đổi chỗ tuỳ lần vẽ, trông như trang bị nhảy. */
+        if (p.length !== q.length) return p.length - q.length;
+      } else if (pS !== qS) {
+        return pS ? -1 : 1;
+      } else {
+        var c = p.localeCompare(q, undefined, { sensitivity: 'base' });
+        if (c) return c;
+        if (p !== q) return p < q ? -1 : 1;
+      }
+    }
+    return x.length - y.length;
+  }
   function xepMa(a,b){
-    return String(a.ten||a.ma).localeCompare(String(b.ten||b.ma), undefined, {numeric:true})
-      || String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true});
+    return xepTen_(a.ten || a.ma, b.ten || b.ma) || xepTen_(a.ma, b.ma);
   }
   var list = may.filter(function(m){ return !m.an && thuocLoc(m); }).sort(xepMa);
   /* 🔴 GHE DA DIEU CHUYEN NAM O DUOI TRANG, KHONG BIEN MAT — anh Thang 05/09/2026: *"cho phan
@@ -9838,7 +9957,23 @@ function qlGheRender(){
       + '<button id="ql-boc" class="ghost">' + L('Bo chon','Clear') + '</button></div>';
   }
 
-  var h = canhTrung + bulk + '<table><tr>'
+  /* Thanh LƯU — chỉ hiện khi thật sự có gì chưa lưu, để ngày thường bảng không đội thêm một
+     dải nút. Đặt TRÊN bảng: bảng dài 10 dòng, để dưới thì sửa dòng đầu xong phải cuộn đi tìm. */
+  var soSua = Object.keys(QL_SUA).length;
+  var thanhLuu = soSua
+    ? '<div class="act" id="ql-thanhluu" style="flex-wrap:wrap;gap:8px;align-items:center;'
+      + 'background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px;margin-bottom:10px">'
+      + '<b style="color:#92400e">✎ ' + soSua + ' ' + L('ghe dang sua, CHUA LUU','chairs edited, NOT saved') + '</b>'
+      + '<button id="ql-luuten" class="on">💾 ' + L('Luu','Save') + '</button>'
+      + '<button id="ql-boten" class="ghost">' + L('Bo thay doi','Discard') + '</button>'
+      + '<span class="mut">' + L('Gõ xong bấm Lưu — trang không nhảy khi đang gõ.',
+                                 'Type freely, then press Save — the page will not jump.') + '</span></div>'
+    : (QL_BAO
+      ? '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:8px 10px;'
+        + 'margin-bottom:10px;color:#166534;font-weight:600">' + esc(QL_BAO) + '</div>'
+      : '');
+
+  var h = canhTrung + bulk + thanhLuu + '<table><tr>'
     + '<th style="width:26px"><input type="checkbox" id="ql-cp"' + (trangDu ? ' checked' : '') + '></th>'
     + '<th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name') + '</th>'
     /* TÊN THƯỜNG GỌI — anh Thắng 14/09/2026. Cột riêng, KHÔNG đè lên "Tên ghế": tên ghế đi vào
@@ -9861,11 +9996,11 @@ function qlGheRender(){
       + ' <button data-mnb="' + esc(m.ma) + '" class="ghost" style="padding:1px 6px;font-size:11px" title="'
       + L('Nhân bản sang mã mới, GIỮ chỉ số (gỡ trùng mã: giữ mã cũ cho cơ sở kia)','Clone to a new code, keep the reading') + '">⎘</button>'
       + maTrungHtml_(m.ma) + '</td>'
-      + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
+      + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(qlGiaTri_(m, 'ten')) + '" maxlength="190" '
       + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"'
       + ' title="' + L('Tên ghế — ĐI VÀO NỘI DUNG CHUYỂN KHOẢN để đối soát ngân hàng. Đổi là giao dịch cũ thôi ghép được.',
                        'Chair name — used in bank transfer content for reconciliation.') + '"></td>'
-      + '<td><input type="text" data-tengoi="' + esc(m.ma) + '" value="' + esc(m.ten_goi || '') + '" maxlength="190" '
+      + '<td><input type="text" data-tengoi="' + esc(m.ma) + '" value="' + esc(qlGiaTri_(m, 'ten_goi')) + '" maxlength="190" '
       + 'placeholder="' + L('vd Ghế cạnh thang máy','e.g. Chair by the lift') + '" style="width:150px"'
       + ' title="' + L('Tên thường gọi — chỉ để nhân viên dễ nhận ra ghế nào. Không ảnh hưởng đối soát.',
                        'Nickname — only to help staff recognise the chair. Not used for reconciliation.') + '"></td>'
@@ -9938,23 +10073,61 @@ function qlGheRender(){
   [].forEach.call(box.querySelectorAll('[data-csma]'), function(s){
     s.onchange = function(){ lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value }); };
   });
-  // đặt/đổi tên ghế — lưu khi rời ô (chỉ khi có đổi, khỏi lưu thừa mỗi lần bấm vào)
+  /* ══════════════════════════════════════════════════════════════════════════════════════
+   * TÊN GHẾ + TÊN THƯỜNG GỌI — GÕ THOẢI MÁI, BẤM LƯU MỚI GỬI
+   *
+   * Gõ chỉ ghi vào QL_SUA. KHÔNG gọi máy chủ, KHÔNG vẽ lại bảng ở mỗi phím — vẽ lại giữa chừng
+   * là ô mất con trỏ, đúng cái "nhảy đi đâu mất" mà anh Thắng gặp.
+   * Thanh Lưu ở trên bảng chỉ cần đếm lại số ghế đang sửa, nên sửa CHỮ trên thanh đó tại chỗ.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  function danhDau_(t, doi){
+    /* Viền vàng = ô này đang khác bản đã lưu. Người sửa 6 ghế rồi bị gọi đi việc khác, quay lại
+       vẫn nhìn ra ngay mình đang dở những ô nào. */
+    t.style.background = doi ? '#fffbeb' : '';
+    t.style.borderColor = doi ? '#f59e0b' : '';
+  }
+  function demLai_(){
+    var n = Object.keys(QL_SUA).length;
+    var bar = document.getElementById('ql-thanhluu');
+    /* Từ 0 lên 1 (hoặc ngược lại) thì thanh Lưu chưa/không còn tồn tại — lúc đó mới vẽ lại bảng.
+       Vẽ lại ở đây KHÔNG hại: nó xảy ra ở phím đầu tiên của cả đợt sửa, và qlGiaTri_ dựng lại ô
+       từ giỏ nên chữ vừa gõ còn nguyên. */
+    if (!bar || !n) { qlGheRender(); return; }
+    var b = bar.querySelector('b');
+    if (b) b.textContent = '✎ ' + n + ' ' + L('ghe dang sua, CHUA LUU','chairs edited, NOT saved');
+  }
+  function noiO_(t, ma, khoa){
+    var goc = t.getAttribute('data-goc');
+    danhDau_(t, t.value !== goc);
+    t.oninput = function(){
+      qlGhiSua_(ma, khoa, t.value, goc);
+      danhDau_(t, t.value !== goc);
+      demLai_();
+    };
+    /* Enter = Lưu. Người nhập liệu gõ xong hay bấm Enter theo phản xạ; không bắt thì họ tưởng
+       đã lưu rồi bỏ đi mất. */
+    t.onkeydown = function(e){ if (e.keyCode === 13) { e.preventDefault(); qlLuuTen_(); } };
+  }
   [].forEach.call(box.querySelectorAll('[data-ten]'), function(t){
-    t.setAttribute('data-goc', t.value);
-    t.onchange = function(){
-      if (t.value === t.getAttribute('data-goc')) return;
-      lam('may_ten', { ma: t.getAttribute('data-ten'), ten: t.value });
-    };
+    var ma = t.getAttribute('data-ten');
+    t.setAttribute('data-goc', (qlTim_(ma) || {}).ten || '');
+    noiO_(t, ma, 'ten');
   });
-  /* Tên thường gọi — cùng lối lưu-khi-rời-ô với Tên ghế, nhưng ĐƯỜNG KHÁC (`may_ten_goi`).
-     Gộp hai ô vào một lệnh là một ngày nào đó sửa tên thường gọi lại ghi đè tên sao kê. */
+  /* ⚠️ HAI CỘT VẪN TÁCH BẠCH kể cả khi đi chung một lệnh lưu: `ten` là tên trên sao kê (đi vào
+     đối soát ngân hàng), `ten_goi` chỉ để người đọc. Lệnh `may_ten_lo` chỉ chạm đúng những khoá
+     có mặt trong gói, nên sửa tên thường gọi không bao giờ động tới tên sao kê. */
   [].forEach.call(box.querySelectorAll('[data-tengoi]'), function(t){
-    t.setAttribute('data-goc', t.value);
-    t.onchange = function(){
-      if (t.value === t.getAttribute('data-goc')) return;
-      lam('may_ten_goi', { ma: t.getAttribute('data-tengoi'), ten_goi: t.value });
-    };
+    var ma = t.getAttribute('data-tengoi');
+    t.setAttribute('data-goc', (qlTim_(ma) || {}).ten_goi || '');
+    noiO_(t, ma, 'ten_goi');
   });
+  var nLuu = document.getElementById('ql-luuten');
+  if (nLuu) nLuu.onclick = qlLuuTen_;
+  var nBo = document.getElementById('ql-boten');
+  if (nBo) nBo.onclick = function(){
+    if (!confirm(L('Bỏ toàn bộ thay đổi tên chưa lưu?','Discard all unsaved name changes?'))) return;
+    QL_SUA = {}; qlGheRender();
+  };
   /* ✎ ĐỔI MÃ GHẾ (admin) — anh Thắng 12/09/2026. gan_ma() dời TOÀN BỘ lịch sử sang mã mới (đã
      hoàn thiện cascade), nên đổi mã không mất chỉ số/doanh thu. Hỏi lại vì mã đi vào nội dung
      chuyển khoản khách gõ — đổi là khách phải gõ mã mới. */

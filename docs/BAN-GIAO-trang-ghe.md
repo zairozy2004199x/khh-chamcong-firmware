@@ -212,9 +212,10 @@ PIN, theo cơ sở, và ca không khớp ai.
 Anh Thắng 14/09/2026: *"thêm tên thường gọi cho ghế để nhân viên dễ biết, nhiều khi lấy mã cố định
 thành tra tên không ra ràng"*.
 
-Cột mới **`may.ten_goi`** + ô nhập **"Tên thường gọi"** trong bảng Quản lý ghế (lưu khi rời ô, y
-như ô Tên ghế). Màn **nhập chỉ số của nhân viên** hiện nó ở **dòng dưới**, chữ nhỏ màu xanh, ngay
-dưới `Tên ghế (mã)`.
+Cột mới **`may.ten_goi`** + ô nhập **"Tên thường gọi"** trong bảng Quản lý ghế. Màn **nhập chỉ số
+của nhân viên** hiện nó ở **dòng dưới**, chữ nhỏ màu xanh, ngay dưới `Tên ghế (mã)`.
+
+> Cách lưu đổi ở **2.82.0** — xem 3.7.
 
 > 🔴 **KHÔNG dùng lại `ten_khai`.** Cột đó là **"Tên trên sao kê"** — phải khớp nội dung chuyển
 > khoản để đối soát ngân hàng ghép tiền về đúng ghế. Sửa nó thành *"ghế cạnh thang máy"* là mọi
@@ -232,12 +233,68 @@ dưới `Tên ghế (mã)`.
 (`VHM-1`…`VHM-12`) nên xếp ra thứ tự dùng được; tên thường gọi là câu chữ tự do, xếp theo nó thì
 danh sách nhảy lung tung mỗi lần ai đó sửa một cái tên.
 
-Phép kiểm: `tools/kiem-ghe/kiem-ten-thuong-goi.js` — có đủ cột, giá trị nạp đúng, và **hai ô gửi
-hai lệnh riêng, không lệnh nào mang trường của lệnh kia**.
+Phép kiểm: `tools/kiem-ghe/kiem-luu-ten.js` + `kiem-luu-ten.php` (thay cho
+`kiem-ten-thuong-goi.js`, đã xoá ở 2.82.0 cùng lối tự lưu mà nó kiểm).
 
 > Phần hiển thị trên màn nhân viên là 6 dòng thêm vào, có `if (g.ten_goi)` bao ngoài, và dùng đúng
 > `el()` sẵn có của khối đó — `node --check` sạch, nhưng **chưa dựng harness riêng cho màn nhân
 > viên** (khối đó là IIFE kín, chưa có lối mở ra để kiểm).
+
+### 3.7 Bấm Lưu mới lưu + vá "không lưu được tên thường gọi" + sắp đúng thứ tự (2.82.0)
+
+Anh Thắng 14/09/2026, ba việc trong một buổi.
+
+#### a) Vá: *"Không lưu được tên thường gọi"*
+
+**CSDL lưu đúng từ đầu.** `may_ten_goi` ghi xuống `may.ten_goi` chuẩn — ảnh màn *nhập chỉ số* của
+anh Thắng còn hiện đúng tên thường gọi màu xanh. Hỏng nằm ở **payload `so_lieu`**: chỗ dựng
+`$may[]` để gửi cho màn hình chưa bao giờ kèm khoá `ten_goi`, nên `D.may[i].ten_goi` luôn
+`undefined` và ô nhập vẽ lại **rỗng** sau mỗi lượt tải. Nhìn y hệt như không lưu được.
+
+> 🔴 **Loại lỗi này không để lại dấu vết ở đâu cả** — CSDL đúng, log đúng, lệnh lưu trả `ok:true`.
+> Cùng một vết với vụ `ma_kh` ở tab Địa điểm (12/09). Nên nay có người gác đúng chỗ nó xảy ra:
+> `kiem-luu-ten.php` quét `class-vhg-trang.php`, **mọi** chỗ dựng danh sách ghế có `ten_khai` mà
+> thiếu `ten_goi` trong vòng 8 dòng là **đỏ**.
+
+Gửi ở **cả hai** payload — quản trị lẫn người thu/hotline. Cái tên này sinh ra đúng là để **nhân
+viên** nhận ra ghế nào; giấu khỏi họ thì nó vô nghĩa.
+
+#### b) *"khi nào bấm lưu mới nhé, chứ cứ gõ vào phát bấm chuột ra nhảy đi đâu mất"*
+
+Gốc phiền phức **không phải "tự lưu"**, mà là **lưu xong vẽ lại cả trang**: đường cũ đi qua
+`lam()` → `tai()` → `ve()`. Rời một ô là dựng lại toàn bộ màn — về trang 1, mất chỗ đang cuộn, mất
+ô đang gõ dở ở hàng khác. Bảng 12 ghế × 2 ô là 24 lần bị hất ra.
+
+Nên đổi **hai** thứ cùng lúc:
+
+1. Gõ chỉ ghi vào **giỏ `QL_SUA`** (ngoài hàm vẽ), không gọi máy chủ. Ô đang khác bản đã lưu
+   được tô **viền vàng**; thanh **"✎ N ghế đang sửa, CHƯA LƯU"** hiện trên bảng.
+2. Nút **💾 Lưu** gửi **một** lượt `may_ten_lo`, rồi **cập nhật tại chỗ** (`D.may` + vẽ lại đúng
+   một bảng) — **không** gọi `lam()`. Trang đứng yên: vẫn trang đó, vẫn bộ lọc đó. Enter cũng lưu.
+
+| Điều | Vì sao |
+|---|---|
+| Giỏ nằm **ngoài** hàm vẽ | Đổi trang / đổi bộ lọc / một lượt tự làm mới ập vào giữa chừng vẫn không nuốt phần đang gõ |
+| Gói chỉ mang khoá **thật sự** đã sửa | Sửa tên thường gọi **không bao giờ** động tới `ten_khai` (tên trên sao kê) |
+| `array_key_exists` chứ không `isset`/`empty` | Xoá trắng một cái tên là ý định hợp lệ; `empty('')` là true nên lối cũ sẽ báo "đã lưu" mà tên còn nguyên |
+| Lưu hỏng thì **giữ** giỏ | Mạng rớt không được phép nuốt công gõ — và tệ hơn: bảng vẽ lại bằng dữ liệu cũ nên trông như chưa ai gõ gì |
+| Màn lấy tên **đã chuẩn hoá** máy chủ trả về | `chuan_ten()` sửa chữ người gõ; giữ chữ thô thì lần vẽ sau lại thấy "khác" và báo chưa lưu |
+
+#### c) *"Sắp sai thứ tự"*
+
+Ảnh: `ESTELLA-1 … ESTELLA-6` rồi **`ESTELLA4` rơi tuốt xuống cuối**. Anh Thắng tự tìm ra ngay sau
+đó: *"do gốc thiếu ký tự"* — cái tên đó gõ sót dấu gạch nối.
+
+Dữ liệu sai thật, nhưng **cách sắp cũng không chịu nổi một lỗi gõ**: `localeCompare(…, {numeric:
+true})` chỉ so số khi hai bên cùng tới chữ số một lượt, mà dấu `-` xếp **trước** mọi chữ số — nên
+cả dãy có gạch nối đứng trước cái tên thiếu gạch. Sót một ký tự là đủ để một cái ghế rớt khỏi chỗ
+của nó, và người gõ không có cách nào đoán ra vì sao.
+
+Nay: **bỏ hẳn dấu ngăn** (`-`, khoảng trắng, `_`, `.`…) rồi so theo từng khúc **CHỮ / SỐ**, khúc
+số so bằng **giá trị**. `ESTELLA-4` và `ESTELLA4` về cùng một khoá; `-2` vẫn đứng trước `-10`.
+
+> ⚠️ Chỉ bỏ **dấu ngăn**, không bỏ dấu tiếng Việt — cắt dấu đi thì hai cái tên khác hẳn nhau lại
+> đụng khoá.
 
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 

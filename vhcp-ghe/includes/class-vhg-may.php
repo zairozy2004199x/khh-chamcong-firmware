@@ -1306,6 +1306,51 @@ class VHG_May {
 			: ( 'Ghế ' . $ma . ' nay gọi là "' . $tg . '".' ) );
 	}
 
+	/**
+	 * LƯU MỘT LÔ tên ghế / tên thường gọi — anh Thắng 14/09/2026: *"khi nào bấm lưu mới nhé, chứ
+	 * cứ gõ vào phát bấm chuột ra nhảy đi đâu mất"*.
+	 *
+	 * 🔴 GỐC CỦA PHIỀN PHỨC KHÔNG PHẢI Ở "TỰ LƯU", MÀ Ở CHỖ LƯU XONG VẼ LẠI CẢ TRANG. Đường cũ đi
+	 *    qua `lam()` → `tai()` → `ve()`, tức mỗi lần rời một ô là dựng lại toàn bộ màn: mất chỗ
+	 *    đang cuộn, mất ô đang gõ dở ở hàng khác. Với một bảng 12 ghế × 2 ô thì đó là 24 lần nhảy.
+	 *    Nên đổi HAI thứ cùng lúc: (1) chỉ lưu khi bấm nút, (2) lưu xong CẬP NHẬT TẠI CHỖ.
+	 *
+	 * @param array $ds [ { ma, ten?, ten_goi? } ] — CHỈ chạm những khoá THẬT SỰ có mặt.
+	 *
+	 * ⚠️ `array_key_exists` chứ không `isset`/`empty`: xoá trắng một cái tên là ý định hợp lệ
+	 *    (bỏ tên thường gọi), mà `empty('')` là true nên `isset`-kiểu sẽ lặng lẽ bỏ qua — người ta
+	 *    xoá xong bấm Lưu, báo "đã lưu", mà tên vẫn còn nguyên.
+	 * ⚠️ Hai cột VẪN TÁCH BẠCH: `ten` là tên trên sao kê (đi vào đối soát ngân hàng), `ten_goi`
+	 *    chỉ để người đọc. Gộp lô KHÔNG có nghĩa là gộp ý nghĩa.
+	 */
+	public static function dat_ten_lo( $ds ) {
+		global $wpdb;
+		$ds = is_array( $ds ) ? $ds : array();
+		if ( ! $ds ) { return array( 'ok' => false, 'error' => 'Không có thay đổi nào để lưu.' ); }
+		$bang = VHG_DB::t( 'may' );
+		$xong = 0; $loi = array(); $da = array();
+		foreach ( $ds as $x ) {
+			$ma = trim( (string) ( isset( $x['ma'] ) ? $x['ma'] : '' ) );
+			if ( '' === $ma ) { $loi[] = 'thiếu mã ghế'; continue; }
+			$data = array();
+			if ( array_key_exists( 'ten', $x ) )     { $data['ten_khai'] = VHG_Doc::chuan_ten( (string) $x['ten'] ); }
+			if ( array_key_exists( 'ten_goi', $x ) ) { $data['ten_goi']  = mb_substr( trim( (string) $x['ten_goi'] ), 0, 190 ); }
+			if ( ! $data ) { continue; }
+			$data['cap_nhat'] = current_time( 'mysql' );
+			$wpdb->update( $bang, $data, array( 'ma' => $ma ) );
+			/* Trả lại ĐÚNG giá trị sau khi chuẩn hoá — `chuan_ten()` có thể sửa chữ người gõ (bỏ
+			   dấu, gộp khoảng trắng). Không trả về thì ô trên màn giữ chữ THÔ, lần sau so với
+			   `data-goc` lại thấy "khác" và hiện là chưa lưu, dù đã lưu rồi. */
+			$mot = array();
+			if ( array_key_exists( 'ten_khai', $data ) ) { $mot['ten']     = (string) $data['ten_khai']; }
+			if ( array_key_exists( 'ten_goi', $data ) )  { $mot['ten_goi'] = (string) $data['ten_goi']; }
+			$da[ $ma ] = $mot;
+			$xong++;
+		}
+		return array( 'ok' => true, 'xong' => $xong, 'loi' => $loi, 'da' => $da,
+			'thong_bao' => '💾 Đã lưu ' . $xong . ' ghế.' . ( $loi ? ( ' ⚠ ' . count( $loi ) . ' dòng lỗi.' ) : '' ) );
+	}
+
 	public static function dat_coso( $ma, $coso_id ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );

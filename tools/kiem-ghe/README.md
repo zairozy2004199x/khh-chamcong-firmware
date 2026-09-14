@@ -171,3 +171,43 @@ Dùng đúng những cái tên có thật trong ảnh anh Thắng gửi (có d�
 
 > ⚠️ Bản đầu em đoán `ben tre` ra **2** người rồi báo hỏng oan — thực tế chỉ 1. Phép kiểm phải
 > **đếm từ dữ liệu thử**, không đoán bằng cảm tính.
+
+## `dung.sh` — dựng sân kiểm
+
+```bash
+bash tools/kiem-ghe/dung.sh        # -> /tmp/ghetest/{trang.html,k5t.js,spa.css}
+```
+
+Cắt khối JS **thật** ra khỏi `class-vhg-trang.php` theo mốc `<<<'JS'` / `JS;`, rồi chèn cửa sổ
+`window.__T` **trước** dòng đóng `})();`.
+
+> ⚠️ Phải chèn **trước** dòng đóng IIFE, không phải nối vào cuối file. Nối vào cuối thì `TOK`,
+> `D`, `QL_SUA` trong cửa sổ đó là **biến toàn cục khác**, gán vào không chạm được gì bên trong —
+> phép kiểm sẽ xanh trong khi không hề điều khiển được trang.
+
+`k5t.js` / `spa.css` là bản dựng, `.gitignore` ở thư mục này lo phần không cho chúng vào repo.
+
+## `kiem-luu-ten.js` + `kiem-luu-ten.php` — Lưu tên khi bấm nút (2.82.0)
+
+Anh Thắng 14/09/2026: *"khi nào bấm lưu mới nhé, chứ cứ gõ vào phát bấm chuột ra nhảy đi đâu
+mất"* và *"Không lưu được tên thường gọi"*.
+
+```bash
+bash tools/kiem-ghe/dung.sh
+NODE_PATH=/opt/node22/lib/node_modules node tools/kiem-ghe/kiem-luu-ten.js   # 24 phép
+php tools/kiem-ghe/kiem-luu-ten.php                                         # 15 phép
+```
+
+| Kiểm | Hỏng nếu không kiểm |
+|---|---|
+| Gõ xong rời ô **không** gọi máy chủ | Quay lại lối tự lưu → mỗi ô là một lần vẽ lại cả trang, đúng cái "nhảy đi đâu mất" |
+| Vẽ lại giữa chừng vẫn giữ chữ đang gõ dở | Một lượt tự làm mới ập vào là mất trắng phần đang nhập |
+| Gói gửi đi **chỉ** mang khoá đã sửa | Sửa tên thường gọi mà ghi đè `ten_khai` → tên trên sao kê hỏng, tiền cũ thôi ghép được vào ghế |
+| Lưu hỏng thì **giữ** giỏ sửa | Mạng rớt là nuốt mất công gõ, mà màn hình lại trông như chưa ai gõ gì |
+| Màn lấy tên **đã chuẩn hoá** của máy chủ | Giữ chữ thô → lần vẽ sau lại báo "chưa lưu" dù đã lưu |
+| `ten_goi=''` vẫn ghi xuống CSDL | `empty('')` là true → xoá tên xong báo "đã lưu" mà tên còn nguyên |
+| **Mọi payload danh sách ghế đều kèm `ten_goi`** | 🔴 Đúng gốc lỗi *"Không lưu được tên thường gọi"*: CSDL lưu đúng, chỉ payload không gửi ra, nên ô luôn vẽ lại rỗng — soi bảng dữ liệu không thấy gì sai |
+| Sắp xếp: tên thiếu gạch nối vẫn đúng chỗ | `localeCompare` xếp `-` trước chữ số → `ESTELLA4` rơi xuống sau `ESTELLA-6` |
+
+> Thay cho `kiem-ten-thuong-goi.js` (đã xoá ở 2.82.0): bài đó kiểm lối **tự lưu khi rời ô**, mà
+> chính lối ấy là thứ bị bỏ.
