@@ -209,6 +209,53 @@ $p_vai->setValue( null, 'Kế toán' );
 t( '⚠️ kế toán vẫn trông thấy tất, không bị vế mới bó lại',
 	VHCP_Auth::trong_tam( 'Ai Đó', 'GIAN BẤT KỲ' ), '' );
 
+/* ═══ 5. "CẤP CƠ SỞ NÀO THÌ THẤY MỌI ĐƠN CỦA CƠ SỞ ĐÓ" ═════════════════════════
+ * Anh Thắng 14/09/2026: *"giống cơ chế admin thôi, admin thì full, nv thì cấp quyền cơ sở nào
+ * thì nhìn thấy cơ sở đó thôi, mọi đơn"*.
+ *
+ * 🔴 CHỮ "MỌI ĐƠN" LÀ VẾ QUAN TRỌNG NHẤT. Chốt BỘ PHẬN sinh ra cho vai kế toán chuyên mảng
+ *    ("Kế toán máy tự động chỉ làm mảng MTD"); đem áp lên người đứng cửa hàng là sai chỗ — một
+ *    cửa hàng nhập đủ thứ chi phí, nên bó theo bộ phận thì ngay đơn của đồng nghiệp cùng quầy
+ *    cũng biến mất. Đó đúng là thứ đã đi tìm suốt bốn lượt vá.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+nap_users( $p_memo, array(
+	array( 'ten' => 'Thuỳ Dương', 'coso' => 'TUTU_BD' ),
+	array( 'ten' => 'Chưa Khai',  'coso' => '' ),
+) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Thuỳ Dương', 'TUTU_BD', 'Nhân viên cơ sở', '' );
+teq( '🔴 nhân viên ĐÃ được phân cơ sở', true, VHCP_Auth::nv_co_coso() );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chưa Khai', '', 'Nhân viên cơ sở', '' );
+teq( '⚠️ chưa phân cơ sở thì KHÔNG', false, VHCP_Auth::nv_co_coso() );
+/* 🔴 VAI KHÁC THÌ KHÔNG, KỂ CẢ KHI CÓ CƠ SỞ. Phép này phải đặt cơ sở KHÁC RỖNG mới phân biệt
+   được: bản nháp để cơ sở rỗng nên vế "là nhân viên" bị đục bỏ mà bài vẫn xanh — hai lối cùng
+   ra `false` vì lý do khác nhau. Chốt bộ phận của kế toán chuyên mảng ("Kế toán máy tự động
+   chỉ làm mảng MTD") phải giữ nguyên, nếu không họ thấy luôn mảng khác. */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Kế Toán', 'TUTU_BD', '', '' );
+$p_vai->setValue( null, 'Kế toán' );
+teq( '🔴 vai khác thì KHÔNG, dù đã có cơ sở', false, VHCP_Auth::nv_co_coso() );
+
+/* 🔴 CHỐT BỘ PHẬN PHẢI CÓ NGOẠI LỆ ẤY, VÀ NGOẠI LỆ PHẢI BÓ TRONG PHẠM VI CƠ SỞ. "full" ở đây là
+   full TRONG cơ sở mình, không phải full cả nhà — đơn gian khác vẫn rơi ở chốt phạm vi. */
+$don_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-don.php' ) );
+t( '🔴 chốt bộ phận mở cho nhân viên có cơ sở',
+	(bool) preg_match( '#! VHCP_Auth::nv_co_coso\(\)#', $don_ma ), '' );
+t( '🔴 nhưng chỉ mở với đơn TRONG phạm vi của họ',
+	(bool) preg_match( '#nv_co_coso\(\)[\s\S]{0,160}?trong_tam\(#', $don_ma ), '' );
+/* ⚠️ Đơn chưa có dòng chi thì cơ sở đọc ở hàng tạm ứng — không thì đơn xin ứng trước của đồng
+   nghiệp lại rơi đúng vào chốt vừa mở. */
+t( '⚠️ và lấy cơ sở cả từ hàng tạm ứng khi đơn chưa có dòng chi',
+	(bool) preg_match( '#\\$_cs_m = isset\( \\$coso_by[\s\S]{0,140}?\\$cs_tu#', $don_ma ), '' );
+
+/* ⚠️ BA CHỐT PHẢI ĐẾM ĐƯỢC. Không nói ra thì mỗi lần hỏng là một vòng đoán — đã mất bốn lượt vá
+   vì đơn rơi ở chốt khác với chốt đang sửa. */
+foreach ( array( 'chan_bp', 'chan_pv', 'chan_dv' ) as $bien ) {
+	t( '⚠️ đếm số đơn bị cắt ở chốt «' . $bien . '»',
+		false !== strpos( $don_ma, 'self::$' . $bien . '++' )
+		|| (bool) preg_match( '#self::\\$' . $bien . ' = #', $don_ma ), $bien );
+}
+t( '⚠️ và gửi ba con số ấy xuống màn', false !== strpos( $don_ma, "'daChan'" ), '' );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

@@ -244,6 +244,16 @@ class VHCPVP_Auth {
 		return false;
 	}
 
+	/* Nhân viên ĐÃ ĐƯỢC PHÂN CƠ SỞ — anh Thắng 14/09/2026: *"giống cơ chế admin thôi, admin thì
+	   full, nv thì cấp quyền cơ sở nào thì nhìn thấy cơ sở đó thôi, mọi đơn"*.
+	   🔴 "MỌI ĐƠN" nghĩa là không chốt nào khác cắt thêm trong cơ sở ấy — kể cả chốt BỘ PHẬN,
+	      vốn sinh ra cho vai kế toán chuyên mảng ("Kế toán máy tự động chỉ làm mảng MTD"), chứ
+	      không phải cho người đứng cửa hàng. Cửa hàng nhập đủ thứ chi phí; bó họ theo bộ phận là
+	      chính đơn đồng nghiệp cùng quầy cũng biến mất khỏi màn của họ. */
+	public static function nv_co_coso() {
+		return self::la_nhan_vien() && (bool) self::coso_ds();
+	}
+
 	/** Người đang gọi là NHÂN VIÊN (chỉ được thấy / sửa đơn của chính mình)? */
 	public static function la_nhan_vien() {
 		return ( self::$vai_tro === 'Nhân viên' && trim( self::$nguoi ) !== '' );

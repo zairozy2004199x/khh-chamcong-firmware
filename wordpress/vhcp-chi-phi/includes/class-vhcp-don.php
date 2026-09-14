@@ -610,6 +610,10 @@ class VHCP_Don {
 			'quyen'      => VHCP_Cfg::get_quyen(),
 			'soDuDauKy'  => self::get_so_du_dau_ky(),
 			'dons'       => self::list_dons( $cp ),
+			/* ⚠️ ĐỌC SAU `list_dons()` — ba con số chỉ có giá trị sau khi nó chạy xong. Đặt
+			   trước là luôn nhận 0, và màn sẽ nói "không chốt nào cắt gì" trong khi 108 đơn
+			   vừa rơi đâu mất. PHP dựng mảng theo thứ tự viết, nên thứ tự này là chốt thật. */
+			'daChan'     => self::so_da_chan(),
 			'products'   => self::product_suggestions( $cp ),
 		);
 	}
@@ -677,6 +681,7 @@ class VHCP_Don {
 		      thì vẫn hiện: chưa có dòng nào để mà nói nó thuộc bộ phận nào, mà đó lại đúng là
 		      đơn đang treo tiền. */
 		$bo_phan_bo = VHCP_Auth::bo_phan_bo();
+		self::$chan_bp = 0; self::$chan_pv = 0; self::$chan_dv = 0;
 		$don_cham   = array();
 		/* true = đơn này có ÍT NHẤT MỘT dòng khai đúng bộ phận đang bó. Đơn không có dòng nào
 		   như thế mà vẫn lọt là lọt nhờ mấy nhánh "cho qua" — xem chốt 🔴 ở chỗ gán `$bp_mo`. */
@@ -719,7 +724,32 @@ class VHCP_Don {
 			if ( $m === '' ) { continue; }
 			/* Có dòng chi mà KHÔNG dòng nào thuộc bộ phận mình -> bỏ. Đơn chưa có dòng nào thì
 			   `$don_cham` không có khoá ấy, và nó vẫn hiện — xem khối 🔴 ở trên. */
-			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) { continue; }
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 NHÂN VIÊN ĐÃ ĐƯỢC PHÂN CƠ SỞ THÌ CHỐT BỘ PHẬN KHÔNG CẮT NỮA.
+			 * ══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 14/09/2026: *"giống cơ chế admin thôi, admin thì full, nv thì cấp quyền
+			 * cơ sở nào thì nhìn thấy cơ sở đó thôi, mọi đơn"*.
+			 *
+			 * Chốt bộ phận sinh ra cho vai KẾ TOÁN CHUYÊN MẢNG ("Kế toán máy tự động chỉ thực
+			 * hiện công việc bên bộ phận máy tự động"). Đem nó áp lên người đứng cửa hàng là sai
+			 * chỗ: một cửa hàng nhập đủ thứ chi phí — cơ sở, marketing, nguyên vật liệu — nên bó
+			 * theo bộ phận thì ngay đơn của đồng nghiệp cùng quầy cũng biến mất. Đó đúng là thứ
+			 * đã đi tìm suốt bốn lượt vá hôm nay, mỗi lượt sửa một chốt khác.
+			 *
+			 * ⚠️ CHỈ MỞ TRONG PHẠM VI CƠ SỞ CỦA HỌ. Đơn của gian khác vẫn rơi ở chốt PHẠM VI
+			 *    ngay bên dưới — "full" ở đây là full TRONG cơ sở mình, không phải full cả nhà.
+			 *
+			 * ⚠️ ĐỌC CƠ SỞ CẢ Ở HÀNG TẠM ỨNG. Đơn xin ứng trước chưa có dòng chi nào; chỉ nhìn
+			 *    `$coso_by` là nó rơi đúng vào chốt vừa mở, và đó lại là đơn đang treo tiền.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			if ( '' !== $bo_phan_bo && isset( $don_cham[ $m ] ) && ! $don_cham[ $m ] ) {
+				$_cs_m = isset( $coso_by[ $m ] ) ? implode( ', ', array_keys( $coso_by[ $m ] ) )
+					: ( isset( $cs_tu[ $m ] ) ? $cs_tu[ $m ] : '' );
+				if ( ! VHCP_Auth::nv_co_coso()
+					|| ! VHCP_Auth::trong_tam( (string) $r['nguoi_lap'], $_cs_m ) ) {
+					self::$chan_bp++; continue;
+				}
+			}
 			/* 🔴 ĐƠN "CHƯA RÕ BỘ PHẬN" — gắn cờ, để màn còn ẩn được nếu người dùng muốn.
 			   Anh Thắng 08/09/2026: *"lý do sao tk kế toán mtd vẫn hiện đơn kvc"*.
 
@@ -868,9 +898,11 @@ class VHCP_Don {
 		 *    Chỉ cần MỘT trong số đó nằm trong phạm vi là thấy được — đơn ghép nhiều cơ sở thì
 		 *    người phụ trách một trong các cơ sở ấy vẫn phải theo dõi được phần của mình.
 		 */
+		$truoc = count( $out );
 		$out = array_values( array_filter( $out, function ( $x ) {
 			return VHCP_Auth::trong_tam( (string) $x['nguoiLap'], (string) $x['coso'] );
 		} ) );
+		self::$chan_pv = $truoc - count( $out );
 		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
 		   sách đơn · duyệt tạm ứng · quyết toán · thừa/thiếu · báo cáo · xuất MISA) đều múc
 		   từ `list_dons()`. Chặn ở đây là chặn hết một lượt; chặn ở từng màn là sớm muộn sót
@@ -878,11 +910,39 @@ class VHCP_Don {
 		   Anh Thắng 26/08: *"Bộ phận khác nên sẽ tách biệt không xem được doanh thu của nhau."* */
 		$dv_xem = VHCP_DonVi::xem_duoc();
 		if ( null !== $dv_xem ) {
+			$truoc2 = count( $out );
 			$out = array_values( array_filter( $out, function ( $x ) {
 				return VHCP_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' );
 			} ) );
+			self::$chan_dv = $truoc2 - count( $out );
 		}
 		return array_reverse( $out );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BA CHỐT CẮT ĐƠN, VÀ SỐ ĐƠN TỪNG CHỐT ĐÃ CẮT.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026, sau bốn lượt vá mà vẫn *"vẫn chả có gì"*: màn nói "Danh sách đơn (1)"
+	 * và hết — không ai biết 108 đơn kia rơi ở đâu. Ba chốt chạy nối nhau, mỗi chốt một lý do
+	 * hoàn toàn khác:
+	 *      · BỘ PHẬN  — đơn không có dòng nào thuộc bộ phận mình được bó vào
+	 *      · PHẠM VI  — không phải đơn của mình, không thuộc cơ sở mình, người lập cũng không
+	 *                   cùng cơ sở khai với mình (`VHCP_Auth::trong_tam`)
+	 *      · ĐƠN VỊ   — thuộc pháp nhân khác (K&H · POSH)
+	 *
+	 * 🔴 KHÔNG NÓI RA THÌ MỖI LẦN HỎNG LÀ MỘT VÒNG ĐOÁN. Sửa chốt cơ sở bốn lượt mà đơn vẫn mất,
+	 *    vì nó rơi ở chốt khác — đó là giá của việc để hệ thống im lặng. Ba con số này rẻ (cộng
+	 *    thêm vài phép đếm) và chấm dứt hẳn vòng ấy.
+	 *
+	 * ⚠️ CHỈ LÀ SỐ ĐẾM, KHÔNG PHẢI CỬA. Chúng không nới cho ai vào đâu cả; thiếu chúng thì màn
+	 *    vẫn chạy y nguyên, chỉ là không giải thích được gì.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static $chan_bp = 0;
+	private static $chan_pv = 0;
+	private static $chan_dv = 0;
+	public static function so_da_chan() {
+		return array( 'boPhan' => (int) self::$chan_bp, 'phamVi' => (int) self::$chan_pv,
+			'donVi' => (int) self::$chan_dv );
 	}
 
 	/**

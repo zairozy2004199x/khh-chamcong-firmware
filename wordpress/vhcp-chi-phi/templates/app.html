@@ -2285,7 +2285,26 @@
     }
     o.innerHTML='<div style="padding:8px 14px;background:#f0fdfa;border-bottom:1px solid #99f6e4;'
       +'color:#0f766e;font-size:12.5px">👁 Bạn phụ trách <b>'+esc(my.join(', '))+'</b> — thấy và '
-      +'làm tiếp được <b>mọi đơn của cơ sở này</b>, kể cả đơn do người khác lập.</div>';
+      +'làm tiếp được <b>mọi đơn của cơ sở này</b>, kể cả đơn do người khác lập.'
+      + veDaChan() + '</div>';
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * BA CHỐT ĐÃ CẮT BAO NHIÊU ĐƠN — anh Thắng 14/09/2026, sau bốn lượt vá mà vẫn *"vẫn chả có
+   * gì"*: màn nói "Danh sách đơn (1)" rồi thôi, không ai biết hơn trăm đơn kia rơi ở đâu.
+   *
+   * 🔴 BA CHỐT, BA LÝ DO KHÁC HẲN NHAU — và đó mới là thông tin. Nói trống "bị lọc" thì vẫn phải
+   *    đoán tiếp; nói "12 đơn rơi ở chốt BỘ PHẬN" là chỉ thẳng ô cần sửa.
+   *
+   * ⚠️ Chốt nào không cắt gì thì không nhắc: một dòng toàn số 0 chỉ làm loãng cái đang cắt thật.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function veDaChan(){
+    var c=(BOOT.daChan)||{}, p=[];
+    if(Number(c.boPhan||0)) p.push('<b>'+c.boPhan+'</b> đơn không thuộc <b>bộ phận</b> của bạn');
+    if(Number(c.phamVi||0)) p.push('<b>'+c.phamVi+'</b> đơn của <b>cơ sở khác</b>');
+    if(Number(c.donVi||0))  p.push('<b>'+c.donVi+'</b> đơn của <b>đơn vị khác</b>');
+    if(!p.length) return '';
+    return '<div class="nho" style="margin-top:4px;opacity:.85">Đã ẩn: '+p.join(' · ')+'.</div>';
   }
 
   function viSaoTrong(){
