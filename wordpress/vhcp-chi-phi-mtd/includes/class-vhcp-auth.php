@@ -297,7 +297,66 @@ class VHCPMTD_Auth {
 		foreach ( explode( ',', (string) $coso ) as $cs ) {
 			if ( self::trong_coso( $cs ) ) { return true; }
 		}
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CÙNG Ô CƠ SỞ TRONG CẤU HÌNH = CÙNG CHỖ LÀM, DÙ ĐƠN GHI CHỮ GÌ.
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy nội
+		 * dung như nhau, chức năng quyền hạn như nhau"*, *"có quyền làm tiếp đơn cũ của người
+		 * cũ"*, và chốt lại: *"cấu hình nội bộ chi phí mà, không liên quan bên ngoài"* ·
+		 * *"phân cơ sở thì toàn quyền"*.
+		 *
+		 * 🔴 ĐÂY LÀ GỐC RỄ CỦA CẢ CHUỖI HỎI NGÀY 14/09. Hai vế trên chỉ so ô Cơ sở của NGƯỜI
+		 *    ĐANG XEM với chuỗi cơ sở ghi TRÊN ĐƠN. Nên hai người cùng được phân `TUTU_BD` vẫn
+		 *    không thấy nhau, vì dòng chi của họ ghi "TÀU BÌNH DƯƠNG" — hai chuỗi khác nhau cho
+		 *    cùng một chỗ làm. Bạn mới nhận việc mở trang ra thấy trắng, và không ai hiểu vì sao.
+		 *
+		 *    Vế này hỏi thẳng câu đáng hỏi: NGƯỜI LẬP ĐƠN có được phân cùng cơ sở với mình
+		 *    không. Hỏi trong BẢNG NGƯỜI DÙNG của chính trang chi phí — cấu hình nội bộ, không
+		 *    liên quan danh mục hay hệ thống nào bên ngoài, đúng như anh nói.
+		 *
+		 * ⚠️ KHÔNG NỚI CHO Ô RỖNG. Người chưa được phân cơ sở thì ô của họ rỗng; coi "rỗng gặp
+		 *    rỗng" là cùng chỗ làm thì mọi người chưa khai bỗng thấy đơn của nhau — mở toang
+		 *    bằng đúng cái ô mà người ta quên điền.
+		 *
+		 * ⚠️ VÀ CHỈ CẦN CHẠM MỘT CƠ SỞ CHUNG. Người phụ trách hai gian, người kia một gian: chỉ
+		 *    cần một gian trùng là cùng làm việc ở đó.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		return self::cung_coso_khai( $nguoi_tao );
+	}
+
+	/** Người này và người đang gọi có được phân chung ít nhất một cơ sở không (bảng Người dùng). */
+	public static function cung_coso_khai( $nguoi_tao ) {
+		$ten = mb_strtolower( trim( (string) $nguoi_tao ) );
+		if ( '' === $ten ) { return false; }
+		$cua_toi = self::coso_ds();
+		if ( ! $cua_toi ) { return false; }   // mình chưa được phân cơ sở -> không ghép với ai
+		$ho = self::coso_cua_nguoi( $nguoi_tao );
+		if ( ! $ho ) { return false; }        // họ chưa được phân -> cũng không
+		foreach ( $ho as $a ) {
+			foreach ( $cua_toi as $b ) {
+				if ( mb_strtolower( trim( $a ) ) === mb_strtolower( trim( $b ) ) ) { return true; }
+			}
+		}
 		return false;
+	}
+
+	/** Ô Cơ sở của một người trong bảng Người dùng — đã tách theo dấu phẩy và dịch mã sang tên. */
+	public static function coso_cua_nguoi( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return array(); }
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! class_exists( 'VHCPMTD_Cfg' ) || ! method_exists( 'VHCPMTD_Cfg', 'get_users' ) ) { return array(); }
+		foreach ( (array) call_user_func( array( 'VHCPMTD_Cfg', 'get_users' ) ) as $u ) {
+			$u = (array) $u;
+			if ( mb_strtolower( trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) ) ) !== $k ) { continue; }
+			$ra = array();
+			foreach ( explode( ',', (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ) as $x ) {
+				$x = trim( $x );
+				if ( '' !== $x ) { $ra[] = self::doi_ma_sang_ten( $x ); }
+			}
+			return $ra;
+		}
+		return array();
 	}
 
 	/** login(pin) */

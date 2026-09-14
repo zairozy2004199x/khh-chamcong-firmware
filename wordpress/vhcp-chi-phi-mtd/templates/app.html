@@ -2274,54 +2274,31 @@
     var o=el('phamViBox'); if(!o) return;
     if(!(CURUSER && CURUSER.role==='Nhân viên')){ o.style.display='none'; return; }
     var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
-    var dm=(BOOT.coso||[]).map(function(x){return String(x).trim().toLowerCase();});
-    var lac=my.filter(function(c){ return dm.indexOf(c.toLowerCase())<0; });
     o.style.display='block';
-
-    /* Ô Cơ sở trỏ trật thì đây là LỖI CẤU HÌNH, không phải một dòng ghi chú — tô cam, nói thẳng
-       hậu quả, và chỉ đúng chỗ phải sửa. */
-    if(!my.length || (lac.length && dm.length)){
-      o.innerHTML='<div style="padding:9px 14px;background:#fffbeb;border-bottom:1px solid #fde68a;'
-        +'color:#92400e;font-size:12.5px">⚠️ <b>Bạn chỉ đang thấy đơn do chính mình lập.</b> '
-        +( my.length
-            ? 'Ô Cơ sở của tài khoản khai <b>'+esc(lac.join(', '))+'</b>, không khớp cơ sở nào trong danh mục.'
-            : 'Ô Cơ sở của tài khoản đang để trống.' )
-        +' Vì vậy đơn của người làm trước ở cùng cơ sở <b>không hiện ra</b>. '
-        /* ⚠️ HAI ĐƯỜNG SỬA, KHÔNG PHẢI MỘT MỆNH LỆNH. Anh Thắng: *"Chọn lại làm gì, cùng cơ sở
-           thì làm việc như nhau"* — đúng, và chưa chắc ô Cơ sở khai sai: cơ sở ấy có thể là chỗ
-           làm thật mà danh mục chưa khai. Nói cả hai lối để người khai chọn lối đúng với sự
-           thật, thay vì ép họ sửa một ô có khi đang đúng. */
-        +'Cách sửa: <b>hoặc</b> khai <b>'+esc(my.join(', '))+'</b> thành một cơ sở trong '
-        +'<b>Cấu hình › Cơ sở</b> (nếu đó là chỗ làm thật), <b>hoặc</b> sửa ô <b>Cơ sở</b> ở bảng '
-        +'<b>Người dùng &amp; Phân quyền</b> cho trùng với cơ sở mà đơn đang dùng'
-        +(dm.length?' — đang có: '+esc(dm.slice(0,6).join(' · '))+(dm.length>6?' …':''):'')+'.</div>';
+    /* ⚠️ CHƯA PHÂN CƠ SỞ THÌ NÓI THẲNG, VÀ CHỈ CÓ THẾ — không soi với danh mục nào, không kết
+       tội ai. Đây là thông tin, không phải lời buộc tội. */
+    if(!my.length){
+      o.innerHTML='<div style="padding:8px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;'
+        +'color:#64748b;font-size:12.5px">👁 Tài khoản chưa được phân cơ sở — bạn đang thấy '
+        +'<b>đơn do chính mình lập</b>.</div>';
       return;
     }
     o.innerHTML='<div style="padding:8px 14px;background:#f0fdfa;border-bottom:1px solid #99f6e4;'
-      +'color:#0f766e;font-size:12.5px">👁 Đang xem đơn của <b>'+esc(my.join(', '))+'</b> — '
-      +'gồm cả đơn do người khác cùng cơ sở lập.</div>';
+      +'color:#0f766e;font-size:12.5px">👁 Bạn phụ trách <b>'+esc(my.join(', '))+'</b> — thấy và '
+      +'làm tiếp được <b>mọi đơn của cơ sở này</b>, kể cả đơn do người khác lập.</div>';
   }
 
   function viSaoTrong(){
     if(!(CURUSER && CURUSER.role==='Nhân viên')) return 'Chưa có đơn nào.';
     var my=String(CURUSER.coso||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     if(!my.length){
-      return 'Chưa có đơn nào của bạn. <b>Ô Cơ sở của tài khoản đang để trống</b>, nên bạn chỉ thấy '
-           + 'đơn do chính mình lập — không thấy đơn của người làm trước ở cùng cơ sở. '
-           + 'Nhờ kế toán khai ô <b>Cơ sở</b> trong bảng Người dùng &amp; Phân quyền.';
+      return 'Chưa có đơn nào của bạn. Tài khoản <b>chưa được phân cơ sở</b>, nên bạn chỉ thấy '
+           + 'đơn do chính mình lập. Nhờ kế toán phân cơ sở trong bảng <b>Người dùng &amp; Phân quyền</b>.';
     }
-    /* Cơ sở khai có nằm trong danh mục cơ sở của bản này không — so đúng cách chốt đang so. */
-    var dm=(BOOT.coso||[]).map(function(x){return String(x).trim().toLowerCase();});
-    var lac=my.filter(function(c){ return dm.indexOf(c.toLowerCase())<0; });
-    if(lac.length && dm.length){
-      return 'Chưa thấy đơn nào. Tài khoản của bạn khai cơ sở <b>'+esc(lac.join(', '))+'</b>, '
-           + 'nhưng <b>danh mục cơ sở không có tên này</b> — nhiều khi là khai nhầm MÃ thay vì TÊN cơ sở. '
-           + 'Tên đang có trong danh mục: '+esc(dm.slice(0,8).join(' · '))+(dm.length>8?' …':'')+'. '
-           + 'Nhờ kế toán sửa lại ô <b>Cơ sở</b> cho khớp.';
-    }
-    return 'Chưa có đơn nào ở <b>'+esc(my.join(', '))+'</b> — đây là phạm vi của tài khoản bạn. '
-         + 'Đơn của cơ sở khác sẽ không hiện ở đây.';
+    return 'Chưa có đơn nào ở <b>'+esc(my.join(', '))+'</b>.';
   }
+
+
 
   function _trongCoSoToi(d){
     var my=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
@@ -2330,11 +2307,23 @@
        MỘT cái nằm trong phạm vi là thấy được. */
     return String(d.coso||'').split(',').some(function(c){ return my.indexOf(c.trim().toLowerCase())>=0; });
   }
-  function _trongPhamVi(d){
-    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
-    if(!isNV) return true;
-    return d.nguoiLap===CURUSER.name || _trongCoSoToi(d);
-  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 MÁY CHỦ ĐÃ LỌC RỒI — MÀN KHÔNG LỌC LẠI.
+   * ══════════════════════════════════════════════════════════════════════════════════════════
+   * `list_dons()` đã chạy mọi đơn qua `VHCPMTD_Auth::trong_tam()` trước khi gửi xuống (xem chốt ở
+   * đó). Lọc lại ở màn bằng một bản luật CHÉP TAY là dựng bản thứ hai cho cùng một câu hỏi
+   * phân quyền — và hai bản chỉ cần lệch một vế là hỏng theo hướng tệ nhất: màn GIẤU mất đơn
+   * mà máy chủ vẫn cho xem, im lặng, không câu lỗi nào.
+   *
+   * Đúng chuyện đã xảy ra 14/09/2026: máy chủ nới cho "cùng cơ sở" thì thấy nhau, còn bản chép
+   * ở màn vẫn so ô Cơ sở với chuỗi ghi trên đơn — anh Thắng nạp bản mới mà vẫn *"chưa thấy
+   * đơn"*, vì đơn bị chặn ở lớp cuối cùng, ngay trước mắt.
+   *
+   * ⚠️ AN TOÀN KHÔNG GIẢM: cửa duy nhất đưa đơn xuống màn là `getBootstrap` → `list_dons()`,
+   *    và cửa mở/sửa từng đơn thì `loi_khong_phai_don_minh()` gác riêng ở máy chủ. Giấu ở màn
+   *    chưa bao giờ là chốt — nó chỉ là lớp sơn, xem chú thích ở `loi_khong_phai_don_minh()`.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _trongPhamVi(d){ return true; }
   function _myDons(){ return _sapDon((BOOT.dons||[]).filter(_trongPhamVi)); }
   /** "T8/2026 (17/8-23/8/2026)" -> "T8/2026" (tháng) — phần trước dấu ngoặc. */
   function _thangCuaKy(ky){ return String(ky||'').split(' (')[0].trim(); }
@@ -10347,14 +10336,22 @@
      * Giá trị lạc vẫn được giữ trong danh sách (dòng dưới) — xoá nó đi là âm thầm đổi phân
      * quyền của người khác. Nhưng phải ĐÁNH DẤU, để người khai thấy ngay ô nào đang chết.
      * ══════════════════════════════════════════════════════════════════════════════════════ */
-    var lac=sel.filter(function(x){ return arr.indexOf(x)<0; });
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 KHÔNG CẢNH BÁO GÌ Ở Ô CƠ SỞ.
+     * ══════════════════════════════════════════════════════════════════════════════════════
+     * Bản 1.174.0 gắn cờ mọi giá trị không có trong `CFG.coso`. Anh Thắng 14/09/2026 gửi ảnh
+     * bảng Người dùng: cờ vàng bắn vào GẦN NHƯ MỌI DÒNG — "FARM PHAN THIẾT", "TÀU TÂN PHÚ",
+     * "NHÀ MA BÌNH DƯƠNG"… toàn cơ sở thật đang chạy trên đơn. Rồi anh chốt: *"làm gì có danh
+     * mục cơ sở"*, *"cấu hình nội bộ chi phí mà, không liên quan bên ngoài"*, *"loại bỏ cảnh
+     * báo, phân cơ sở thì toàn quyền"*.
+     *
+     * 🔴 Ô CƠ SỞ Ở ĐÂY LÀ CẤU HÌNH NỘI BỘ CỦA TRANG CHI PHÍ, không phải một lựa chọn phải
+     *    khớp danh mục nào. Đem nó đi soi với một bảng có thể rỗng, rồi kết tội hàng loạt, là
+     *    cách chắc chắn nhất để người dùng thôi tin mọi cảnh báo khác trên màn — kể cả những
+     *    cảnh báo đúng.
+     * ══════════════════════════════════════════════════════════════════════════════════════ */
     sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
-    return '<div class="csw"'+(lac.length?' title="Cơ sở không có trong danh mục: '+esc(lac.join(', '))+' — nhiều khi là mã đơn vị bị khai nhầm vào ô tên. Người này sẽ KHÔNG thấy đơn của cơ sở ấy."':'')+'>'
-      /* ⚠️ NÓI SỰ THẬT, ĐỪNG RA LỆNH. Anh Thắng 14/09/2026: *"Chọn lại làm gì, cùng cơ sở thì
-         làm việc như nhau"*. Chữ "chọn lại" đọc như đổ lỗi cho người khai, mà chưa chắc họ sai:
-         cơ sở ấy có thể là chỗ làm thật, chỉ là danh mục chưa khai nó. Câu đúng là nói ra hậu
-         quả — người này sẽ không ghép được với ai — rồi để người khai quyết. */
-      + (lac.length?'<div style="font-size:11px;color:#b45309;font-weight:700;margin-bottom:3px">⚠️ '+esc(lac.join(', '))+' chưa có trong danh mục cơ sở — người này không ghép được với đơn của cơ sở nào</div>':'')
+    return '<div class="csw">'
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'

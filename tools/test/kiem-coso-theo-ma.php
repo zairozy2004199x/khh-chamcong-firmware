@@ -128,6 +128,87 @@ t( '🔴 cả ba điểm trả coso xuống màn đều dịch sẵn', 3 === $di
 t( '⚠️ không còn chỗ nào trả coso thô cho màn',
 	! preg_match( '#.coso.\s*=>\s*\\$u\[.coso.\]#', $auth_ma ), '' );
 
+/* ═══ 4. CÙNG Ô CƠ SỞ TRONG CẤU HÌNH = CÙNG CHỖ LÀM ════════════════════════════
+ * Anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy nội dung như
+ * nhau, chức năng quyền hạn như nhau"*, *"có quyền làm tiếp đơn cũ của người cũ"*, và chốt:
+ * *"cấu hình nội bộ chi phí mà, không liên quan bên ngoài"* · *"phân cơ sở thì toàn quyền"*.
+ *
+ * 🔴 ĐÂY LÀ GỐC RỄ CỦA CẢ CHUỖI HỎI NGÀY 14/09. Hai vế cũ chỉ so ô Cơ sở của NGƯỜI ĐANG XEM với
+ *    chuỗi cơ sở ghi TRÊN ĐƠN. Nên hai người cùng được phân `TUTU_BD` vẫn không thấy nhau, vì
+ *    dòng chi ghi "TÀU BÌNH DƯƠNG" — hai chuỗi khác nhau cho cùng một chỗ làm. Bạn mới nhận
+ *    việc mở trang thấy trắng, và không ai hiểu vì sao.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ BƠM SỔ NGƯỜI DÙNG VÀO CHÍNH LỚP THẬT, không dựng lớp giả: `VHCP_Cfg::get_users()` đọc
+   `cfg_static()`, mà hàm ấy có bộ nhớ tạm — đặt thẳng vào đó là cả lối đi thật được dùng, kể
+   cả chỗ đọc khoá `coso`. Dựng lớp giả thì phép kiểm chỉ chứng minh lớp giả chạy đúng. */
+require_once $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php';
+$ref_cfg = new ReflectionClass( 'VHCP_Cfg' );
+$p_memo  = $ref_cfg->getProperty( 'memo' );
+$p_memo->setAccessible( true );
+function nap_users( $p_memo, $ds ) {
+	$p_memo->setValue( null, array( 'users' => $ds, 'coso' => array() ) );
+}
+nap_users( $p_memo, array(
+	array( 'ten' => 'Trương Thanh Lâm', 'coso' => 'TUTU_BD' ),
+	array( 'ten' => 'Thuỳ Dương',       'coso' => 'TUTU_BD' ),
+	array( 'ten' => 'Người Gian Khác',  'coso' => 'VR_TA' ),
+	array( 'ten' => 'Chưa Khai',        'coso' => '' ),
+) );
+$p->setValue( null, array() );   // danh mục rỗng: cấu hình nội bộ, không liên quan bên ngoài
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Thuỳ Dương', 'TUTU_BD', '', '' );
+
+/* 🔴 ĐÚNG CA CỦA ANH THẮNG: đơn của người làm trước, ghi cơ sở bằng TÊN ĐẦY ĐỦ, trong khi cả
+   hai tài khoản khai bằng MÃ. Vế cũ trượt; vế mới bắt được vì hỏi "người lập có cùng ô Cơ sở
+   với mình không". */
+t( '🔴 đơn người cùng ô Cơ sở -> THẤY, dù đơn ghi tên khác hẳn',
+	VHCP_Auth::trong_tam( 'Trương Thanh Lâm', 'TÀU BÌNH DƯƠNG' ), '' );
+t( '🔴 và thấy cả khi đơn chưa có dòng chi nào (cơ sở rỗng)',
+	VHCP_Auth::trong_tam( 'Trương Thanh Lâm', '' ), '' );
+/* 🔴 NHƯNG KHÔNG MỞ SANG GIAN KHÁC — đây là vế giữ cho "toàn quyền" không thành "thấy hết". */
+t( '🔴 người gian khác -> KHÔNG thấy',
+	! VHCP_Auth::trong_tam( 'Người Gian Khác', 'TÀU BÌNH DƯƠNG' ), '' );
+t( '🔴 người lạ không có trong sổ -> KHÔNG thấy',
+	! VHCP_Auth::trong_tam( 'Ai Đó Lạ', 'TÀU BÌNH DƯƠNG' ), '' );
+/* ⚠️ RỖNG GẶP RỖNG KHÔNG PHẢI LÀ CÙNG CHỖ LÀM. Coi là cùng thì mọi người quên khai bỗng thấy
+   đơn của nhau — mở toang bằng đúng cái ô người ta quên điền. */
+t( '⚠️ họ chưa được phân cơ sở -> KHÔNG ghép',
+	! VHCP_Auth::trong_tam( 'Chưa Khai', 'TÀU BÌNH DƯƠNG' ), '' );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chưa Khai', '', '', '' );
+t( '⚠️ và mình chưa được phân cơ sở thì cũng không ghép với ai',
+	! VHCP_Auth::trong_tam( 'Trương Thanh Lâm', 'TÀU BÌNH DƯƠNG' ), '' );
+t( '⚠️ nhưng đơn của CHÍNH MÌNH thì vẫn thấy',
+	VHCP_Auth::trong_tam( 'Chưa Khai', 'GIAN NÀO CŨNG ĐƯỢC' ), '' );
+/* 🔴 CẢ HAI CÙNG RỖNG CŨNG KHÔNG PHẢI CÙNG CHỖ LÀM. Phép trên chưa đủ: hai ca ấy còn một bên
+   có cơ sở nên lối nào cũng ra "không ghép" — bản nháp đục chốt thành "rỗng gặp rỗng = cùng
+   chỗ" mà bài vẫn xanh. Ca dưới đây là ca duy nhất phân biệt được, và nó là ca nguy nhất: mọi
+   người quên khai bỗng thấy đơn của nhau, mở toang bằng đúng cái ô người ta quên điền. */
+nap_users( $p_memo, array(
+	array( 'ten' => 'Chưa Khai',   'coso' => '' ),
+	array( 'ten' => 'Chưa Khai 2', 'coso' => '' ),
+) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chưa Khai', '', '', '' );
+t( '🔴 hai người CÙNG rỗng -> vẫn KHÔNG thấy đơn của nhau',
+	! VHCP_Auth::trong_tam( 'Chưa Khai 2', '' ), '' );
+
+/* ⚠️ Chỉ cần CHẠM một cơ sở chung: người phụ trách hai gian, người kia một gian. */
+nap_users( $p_memo, array(
+	array( 'ten' => 'Trương Thanh Lâm', 'coso' => 'TUTU_BD' ),
+	array( 'ten' => 'Thuỳ Dương',       'coso' => 'TUTU_BD' ),
+	array( 'ten' => 'Hai Gian',         'coso' => 'VR_TA, TUTU_BD' ),
+) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Thuỳ Dương', 'TUTU_BD', '', '' );
+t( '⚠️ chạm một cơ sở chung là đủ', VHCP_Auth::trong_tam( 'Hai Gian', '' ), '' );
+
+/* ⚠️ VAI KHÁC KHÔNG ĐỔI GÌ: Admin · Kế toán · Giám đốc vẫn thoát sớm, Quản lý vẫn theo cơ sở. */
+/* ⚠️ Đặt VAI GỐC thẳng qua phản chiếu: `dat_vai_tro()` quy vai qua `VHCP_Cfg::vai_goc()`, mà
+   sổ vai trong bộ nhớ tạm ở đây đã bị thay bằng sổ người dùng giả — quy ra 'Nhân viên' rồi
+   phép kiểm đỏ vì cái stub, không phải vì mã thật. */
+$p_vai = $ref->getProperty( 'vai_tro' );
+$p_vai->setAccessible( true );
+$p_vai->setValue( null, 'Kế toán' );
+t( '⚠️ kế toán vẫn trông thấy tất, không bị vế mới bó lại',
+	VHCP_Auth::trong_tam( 'Ai Đó', 'GIAN BẤT KỲ' ), '' );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

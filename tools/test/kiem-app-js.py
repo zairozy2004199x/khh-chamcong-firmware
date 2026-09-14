@@ -759,67 +759,40 @@ la('⚠️ vẫn hỏi đúng trong_tam() như danh sách',
 la('⚠️ và dựng chuỗi cơ sở từ chính cac_coso_cua_don()',
    'cac_coso_cua_don( $ma_don )' in _don_ma[_don_ma.index('function loi_khong_phai_don_minh('):][:2000])
 
-# ------------------------------------------------ nói ra VÌ SAO danh sách đơn trống
-# Anh Thắng 14/09/2026, tài khoản "Ung Nguyễn Thùy Dương · Nhân viên · TUTU_BD": *"chưa thấy
-# đơn"*. Đơn vẫn nằm nguyên trong sổ; cái chặn là PHẠM VI — nhân viên thấy đơn của chính mình
-# cộng đơn thuộc cơ sở đã khai. Ô ấy khai "TUTU_BD" (một MÃ) trong khi đơn ghi TÊN cơ sở, nên
-# chốt so chuỗi trượt sạch — và trượt IM LẶNG.
+# ------------------------------------------------ phân cơ sở thì toàn quyền, không cảnh báo
+# Anh Thắng 14/09/2026, cả một chuỗi: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy
+# nội dung như nhau, chức năng quyền hạn như nhau"* · *"có quyền làm tiếp đơn cũ của người cũ"*
+# · *"làm gì có danh mục cơ sở"* · *"cấu hình nội bộ chi phí mà, không liên quan bên ngoài"* ·
+# *"loại bỏ cảnh báo, phân cơ sở thì toàn quyền"*.
 #
-# 🔴 "CHƯA CÓ ĐƠN NÀO" LÀ CÂU NÓI SAI SỰ THẬT ở đây, và nó tốn của người dùng cả buổi: họ đi
-#    tìm đơn bị mất, trong khi việc phải làm là sửa một ô trong bảng Người dùng.
-print('— nói ra vì sao danh sách trống —')
-la('🔴 có hàm giải thích màn trống', 'function viSaoTrong(){' in src)
-la('   và bảng đơn dùng nó thay câu "Chưa có đơn nào"', "innerHTML=all.length?" in src and 'viSaoTrong()' in src)
-_i_vs = src.index('function viSaoTrong(){')
-_j_vs = src.index('\n  }', _i_vs) + 4
-_fn_vs = src[_i_vs:_j_vs]
-la('bốc được hàm', len(_fn_vs) > 500, len(_fn_vs))
-la('đối chứng: hàm bốc ra khép kín', _fn_vs.rstrip().endswith('}'), _fn_vs[-40:])
-# Hai ca khác hẳn nhau: ô Cơ sở TRỐNG (bó về đơn của chính mình) và ô khai TÊN LẠC khỏi danh mục.
-la('🔴 ca ô Cơ sở để trống nói rõ phải nhờ ai khai', 'đang để trống' in _fn_vs)
-la('🔴 ca cơ sở khai lạc khỏi danh mục cũng nói rõ', 'danh mục cơ sở không có tên này' in _fn_vs)
-la('   và bày tên đang có trong danh mục để sửa cho khớp', 'BOOT.coso' in _fn_vs)
-# ⚠️ Khai đúng mà vẫn trống thì nói phạm vi đang áp — đừng để người ta tưởng hệ thống mất đơn.
-la('⚠️ khai đúng mà trống thì nói phạm vi đang áp', 'đây là phạm vi của tài khoản bạn' in _fn_vs)
-# 🔴 KHÔNG NỚI CHỐT ĐỂ CHỮA: so khớp cơ sở lỏng tay là mở sổ tiền của cơ sở khác cho người
-#    không phụ trách. Chốt `_trongCoSoToi` phải vẫn so BẰNG NHAU.
-_i_cs2 = src.index('function _trongCoSoToi(d){')
-_fn_cs2 = src[_i_cs2:src.index('\n  }', _i_cs2)]
-la('🔴 chốt phạm vi vẫn so khớp CHÍNH XÁC, không nới', 'my.indexOf(c.trim().toLowerCase())>=0' in _fn_cs2)
-la('   và không dùng khớp một phần', 'indexOf' in _fn_cs2 and '.includes(' not in _fn_cs2)
-# Chặn từ nguồn: bảng Người dùng đánh dấu ô cơ sở đã lưu mà không có trong danh mục.
-la('🔴 bảng Người dùng đánh dấu cơ sở lạc khỏi danh mục',
-   'var lac=sel.filter(function(x){ return arr.indexOf(x)<0; });' in src)
-la('   và nói rõ hậu quả cho người khai', 'sẽ KHÔNG thấy đơn của cơ sở ấy' in src)
-# ⚠️ Giá trị lạc vẫn giữ trong danh sách — xoá đi là âm thầm đổi phân quyền của người khác.
-la('⚠️ nhưng vẫn giữ giá trị lạc, không tự xoá',
-   'sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });' in src)
-
-# ------------------------------------------------ dải "đang xem những gì", luôn hiện
-# Anh Thắng 14/09/2026: *"2 nhân viên cùng cơ sở thì làm việc như nhau, nhìn thấy nội dung như
-# nhau, chức năng quyền hạn như nhau"*. Đó ĐÚNG là luật đang chạy. Chuyện vỡ là khi ô Cơ sở của
-# một người không trỏ tới cơ sở nào có thật: người ấy tụt về "chỉ thấy đơn của chính mình".
-#
-# 🔴 BẢN 1.174.0 CHỈ NÓI KHI BẢNG RỖNG, nên chỉ cần người ấy lập một đơn nháp là lời giải thích
-#    tắt — bảng có đúng một dòng của chính họ, trông y như hệ thống đang chạy đúng. Đó là kiểu
-#    hỏng tệ nhất: im lặng và có vẻ bình thường.
-print('— dải phạm vi luôn hiện —')
-la('🔴 có dải phạm vi riêng, không dựa vào ô "bảng trống"', 'id="phamViBox"' in src)
-la('🔴 và vẽ lại ở MỌI lượt dựng bảng, không chỉ lúc rỗng', 'vePhamVi();' in src)
+# 🔴 KHÔNG SOI Ô CƠ SỞ VỚI DANH MỤC NÀO. Bản 1.174.0 gắn cờ mọi giá trị không có trong CFG.coso,
+#    và cờ vàng bắn vào gần như mọi dòng — toàn cơ sở thật đang chạy trên đơn. Kết tội hàng loạt
+#    là cách chắc chắn nhất để người dùng thôi tin mọi cảnh báo khác, kể cả cảnh báo đúng.
+print('— phân cơ sở thì toàn quyền —')
+# ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Bản nháp dò cả tệp và đỏ vì đọc trúng chính câu giải thích *vì sao*
+#    bỏ cảnh báo — phép kiểm chửi đúng cái chú thích nói rằng nó đã được sửa. Cùng cái bẫy đã
+#    gặp với kiem-tach-ban-vung.php và kiem-trang-tong.php.
+_src_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', src)
+la('🔴 bảng Người dùng không còn gắn cờ ô Cơ sở',
+   'chưa có trong danh mục cơ sở' not in _src_ma and 'không có trong danh mục' not in _src_ma)
+la('   và không còn dò CFG.coso để kết tội', 'var lac=' not in src, [l for l in src.split('\n') if 'var lac=' in l][:2])
+# 🔴 MÁY CHỦ ĐÃ LỌC RỒI — MÀN KHÔNG LỌC LẠI. Hai bản luật phân quyền thì chỉ cần lệch một vế là
+#    màn GIẤU mất đơn mà máy chủ vẫn cho xem: im lặng, không câu lỗi nào. Đúng chuyện đã xảy ra.
+la('🔴 màn không lọc lại phạm vi, để máy chủ giữ một bản luật duy nhất',
+   'function _trongPhamVi(d){ return true; }' in src)
+la('   và không còn bản chép so ô Cơ sở với chuỗi trên đơn',
+   'd.nguoiLap===CURUSER.name || _trongCoSoToi(d)' not in src)
+# Dải phạm vi: nói thông tin, không buộc tội.
 _i_pv = src.index('function vePhamVi(){')
 _fn_pv = src[_i_pv:src.index('\n  }', _i_pv)]
-la('bốc được hàm', len(_fn_pv) > 600, len(_fn_pv))
-# ⚠️ Chỉ bày cho nhân viên: kế toán/quản lý/Admin không bị bó theo cơ sở.
-la('⚠️ chỉ bày cho vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_pv and "o.style.display='none'" in _fn_pv)
-# 🔴 Ô Cơ sở trỏ trật là LỖI CẤU HÌNH — nói thẳng hậu quả, chỉ đúng chỗ phải sửa.
-la('🔴 ô Cơ sở trỏ trật thì báo rõ hậu quả', 'không hiện ra' in _fn_pv)
-la('   và chỉ đúng chỗ phải sửa', 'Người dùng &amp; Phân quyền' in _fn_pv)
-la('   kèm tên cơ sở đang có để chọn lại', 'BOOT.coso' in _fn_pv)
-la('🔴 ca ô Cơ sở để trống cũng vào cùng nhánh cảnh báo', '!my.length ||' in _fn_pv)
-# ⚠️ Khai đúng thì nói rõ ĐANG THẤY CẢ đơn người khác — đó mới là câu trả lời cho "hai người
-#    cùng cơ sở thấy như nhau".
-la('⚠️ khai đúng thì nói rõ thấy cả đơn người cùng cơ sở',
-   'gồm cả đơn do người khác cùng cơ sở lập' in _fn_pv)
+la('🔴 dải phạm vi nói rõ "toàn quyền trên cơ sở của mình"',
+   'mọi đơn của cơ sở này' in _fn_pv and 'kể cả đơn do người khác lập' in _fn_pv)
+_fn_pv_ma = _re.sub(r'/\*[\s\S]*?\*/', ' ', _fn_pv)
+la('⚠️ chưa được phân cơ sở thì nói thẳng, không kết tội ai',
+   'chưa được phân cơ sở' in _fn_pv_ma and 'danh mục' not in _fn_pv_ma)
+la('⚠️ và chỉ bày cho vai Nhân viên', "CURUSER.role==='Nhân viên'" in _fn_pv)
+la('🔴 dải vẽ lại ở MỌI lượt dựng bảng, không chỉ lúc rỗng', 'vePhamVi();' in src)
+la('   có chỗ riêng cho nó trên màn', 'id="phamViBox"' in src)
 
 print()
 if hong:
