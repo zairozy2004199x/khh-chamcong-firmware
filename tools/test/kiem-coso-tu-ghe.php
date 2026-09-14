@@ -57,17 +57,26 @@ t( '🔴 script tách có chốt kiểm hằng ấy',
  *    điểm đặt máy, danh mục Văn phòng lại dài thêm một dòng lạ — rồi người nhập chọn nhầm, và
  *    tiền văn phòng rơi vào một gian ghế.
  * ═══════════════════════════════════════════════════════════════════════════════ */
-teq( '🔴 bản gốc khu vui chơi: CÓ lấy từ Ghế', true, VHCP_Cfg::LAY_COSO_GHE );
+/* 🔴 BẢN GỐC (KHU VUI CHƠI) ĐÃ TẮT TỪ 14/09/2026 — trước đó là BẬT, và đó chính là lỗi.
+ *    Anh Thắng gửi ảnh khối "ĐƠN VỊ POSH · 67 cơ sở" (AEON MALL, CGV, Bệnh viện 175… tức điểm
+ *    đặt ghế) rồi hỏi *"tại sao xóa không được"*, *"nó thuộc bộ phận khác"*, *"bỏ vào đây là
+ *    người khác khai sai"*. Xóa không được vì `vhcp_maybe_upgrade()` hút lại đủ 67 gian ấy MỖI
+ *    LẦN ĐỔI PHIÊN BẢN PLUGIN — xóa xong cài bản sau là chúng về nguyên, không một câu báo. */
+teq( '🔴 bản gốc khu vui chơi: KHÔNG lấy từ Ghế (gian ghế là của POSH)',
+	false, VHCP_Cfg::LAY_COSO_GHE );
 $mtd_ma = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-mtd/includes/class-vhcp-cfg.php' );
 $vp_ma  = @file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-vp/includes/class-vhcp-cfg.php' );
 if ( $mtd_ma ) { t( '🔴 bản «mtd» (máy tự động): CÓ lấy từ Ghế',
 	(bool) preg_match( '#const LAY_COSO_GHE = true;#', $mtd_ma ), '' ); }
 if ( $vp_ma )  { t( '🔴 bản «vp» (văn phòng): KHÔNG lấy từ Ghế',
 	(bool) preg_match( '#const LAY_COSO_GHE = false;#', $vp_ma ), '' ); }
-t( '🔴 script tách khai đúng mảng nào tắt', (bool) preg_match( '#vp\) GHE=false#', $sh ), '' );
-/* ⚠️ MẶC ĐỊNH LÀ BẬT: vùng mới sinh mà quên khai thì theo nếp bản gốc, chứ không lặng lẽ mất
-   một đường dữ liệu. */
-t( '⚠️ vùng chưa khai thì mặc định BẬT', (bool) preg_match( '#\*\)  GHE=true#', $sh ), '' );
+t( '🔴 script tách khai đúng mảng nào BẬT', (bool) preg_match( '#mtd\) GHE=true#', $sh ), '' );
+/* 🔴 MẶC ĐỊNH LÀ TẮT, ĐỔI TỪ 14/09/2026. Hai kiểu hỏng không bằng nhau, nên mặc định phải
+   ngả về phía hỏng TO TIẾNG:
+     · quên BẬT -> danh mục cơ sở của mảng ấy trống, người dùng thấy ngay, bấm nút "Hút cơ sở
+                   từ Ghế" là xong.
+     · quên TẮT -> 67 dòng lạ lặng lẽ chảy vào, không ai biết, và xóa thì nó mọc lại. */
+t( '🔴 vùng chưa khai thì mặc định TẮT', (bool) preg_match( '#\*\)   GHE=false#', $sh ), '' );
 
 /* 🔴 TẮT LÀ TẮT CẢ BỐN LỐI — lượt hút, tai nghe từ Ghế, nút bấm tay, và đầu phát ngược. Tắt ba
    để sót một thì cơ sở vẫn chảy sang, chỉ là chậm hơn và khó truy hơn. */
@@ -90,9 +99,20 @@ foreach ( array(
 	'bao_coso_posh_'   => 'đầu phát ngược',
 ) as $ham => $nhan ) {
 	$than = than_ham( $cfg0, $ham );
-	t( '🔴 ' . $nhan . ' có gác LAY_COSO_GHE trong THÂN nó',
-		'' !== $than && false !== strpos( $than, 'LAY_COSO_GHE' ), $ham );
+	/* 🔴 GÁC PHẢI GỌI HÀM `lay_coso_ghe()`, KHÔNG ĐỌC HẰNG THẲNG. Từ 14/09/2026 hằng chỉ là
+	   NẾP CỦA BẢN, còn khoá cấu hình `vhcp_lay_coso_ghe` mới là tiếng nói cuối. Lối nào đọc
+	   hằng thẳng thì khoá ấy chỉ ăn ở nửa số lối — và "tắt rồi mà cơ sở vẫn chảy sang" là một
+	   câu không ai dò ra nổi. Dò tên hàm CHỮ THƯỜNG, nên đọc hằng thẳng là phép này đỏ. */
+	t( '🔴 ' . $nhan . ' có gác lay_coso_ghe() trong THÂN nó',
+		'' !== $than && false !== strpos( $than, 'lay_coso_ghe()' ), $ham );
 }
+/* Và hàm ấy phải ngả về hằng khi chưa ai khai khoá — ép `(bool) null` là MỌI site đều tắt,
+   kể cả bản Máy tự động vốn sống nhờ đường này. */
+$than_lay = than_ham( $cfg0, 'lay_coso_ghe' );
+t( '🔴 lay_coso_ghe() hỏi khoá cấu hình trước',
+	false !== strpos( $than_lay, "get_option( 'vhcp_lay_coso_ghe'" ), '' );
+t( '🔴 chưa khai khoá thì ngả về hằng của bản',
+	false !== strpos( $than_lay, 'return self::LAY_COSO_GHE;' ), '' );
 /* ⚠️ Và màn giấu nút đi: bày một nút bấm vào chỉ nhận câu chối là thứ người ta bấm đi bấm lại
    rồi nghĩ trang hỏng. */
 $html0 = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/templates/app.html' );
@@ -101,7 +121,7 @@ t( 'và nó chạy mỗi lượt dựng màn Cấu hình',
 	(bool) preg_match( '#function renderCfg\(\)[\s\S]{0,400}?anNutHutGhe\(\);#', $html0 ), '' );
 t( '🔴 máy chủ gửi cờ xuống màn',
 	false !== strpos( file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-app.php' ),
-		"'layCoSoGhe' => VHCP_Cfg::LAY_COSO_GHE" ), '' );
+		"'layCoSoGhe' => VHCP_Cfg::lay_coso_ghe()" ), '' );
 
 /* ═══ 2. RỖNG PHẢI RA NHÀ MẶC ĐỊNH, KHÔNG PHẢI "KHÔNG CÓ NHÀ" ════════════════════ */
 teq( '🔴 chuan("") = nhà mặc định', VHCP_DonVi::MAC_DINH, VHCP_DonVi::chuan( '' ) );

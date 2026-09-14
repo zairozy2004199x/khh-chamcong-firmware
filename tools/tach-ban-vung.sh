@@ -260,20 +260,36 @@ fi
 # 🔴 MẢNG NÀO CÓ GHẾ — anh Thắng 14/09/2026: *"VP không dùng cơ sở ghế, ghế chỉ mỗi MTD thôi"*.
 #
 #    Máy tự động CHÍNH LÀ mảng ghế massage nên danh mục gian của nó đúng bằng danh mục bên Ghế.
-#    Văn phòng thì không: gian ở đó là chỗ làm việc. Hút sang là mỗi lần bên Ghế mở thêm một điểm
-#    đặt máy, danh mục Văn phòng lại dài thêm một dòng lạ — rồi người nhập chọn nhầm, và tiền văn
-#    phòng rơi vào một gian ghế.
+#    Mảng khác thì không: gian ở đó là chỗ làm việc hay khu vui chơi. Hút sang là mỗi lần bên Ghế
+#    mở thêm một điểm đặt máy, danh mục bản kia lại dài thêm một dòng lạ — rồi người nhập chọn nhầm,
+#    và tiền của mảng này rơi vào một gian ghế.
 #
-# ⚠️ MẶC ĐỊNH LÀ BẬT. Vùng mới sinh sau này mà quên khai ở đây thì nó theo nếp bản gốc, chứ
-#    không lặng lẽ mất một đường dữ liệu.
+# 🔴 MẶC ĐỊNH LÀ TẮT, ĐỔI TỪ 14/09/2026. Trước đó mặc định là BẬT và bản gốc (khu vui chơi)
+#    chịu đúng cái giá của nếp ấy: 67 điểm đặt ghế (AEON MALL, CGV, Bệnh viện 175…) nằm lẫn
+#    trong danh mục cơ sở của họ, xóa bao nhiêu lần cũng quay về — vì lượt hút tự động chạy lại
+#    mỗi khi đổi phiên bản plugin. Anh Thắng: *"tại sao xóa không được"*, *"nó thuộc bộ phận
+#    khác"*, *"bỏ vào đây là người khác khai sai"*.
+#
+#    Hai kiểu hỏng không bằng nhau, nên mặc định phải ngả về phía hỏng TO TIẾNG:
+#      · quên BẬT  -> danh mục cơ sở của mảng ấy trống, người dùng thấy ngay, bấm nút
+#                     "🪑 Hút cơ sở từ Ghế" là xong.
+#      · quên TẮT  -> 67 dòng lạ lặng lẽ chảy vào, không ai biết, và xóa thì nó mọc lại.
 case "$MA" in
-  vp) GHE=false ;;
-  *)  GHE=true  ;;
+  mtd) GHE=true  ;;
+  *)   GHE=false ;;
 esac
-if [ "$GHE" = "false" ]; then
-  perl -0777 -pi -e "s/const LAY_COSO_GHE = true;/const LAY_COSO_GHE = false;/" "$DICH/includes/class-vhcp-cfg.php"
+if [ "$GHE" = "true" ]; then
+  perl -0777 -pi -e "s/const LAY_COSO_GHE = false;/const LAY_COSO_GHE = true;/" "$DICH/includes/class-vhcp-cfg.php"
+  if ! grep -q "const LAY_COSO_GHE = true;" "$DICH/includes/class-vhcp-cfg.php"; then
+    echo "✗ Chưa bật được đường lấy cơ sở từ Ghế cho bản '$MA'."
+    grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
+    exit 9
+  fi
+else
+  # Bản gốc đã tắt sẵn; chốt lại để một ngày ai đó bật lại bản gốc thì lỗi nổ ở đây,
+  # chứ không nổ ở danh mục cơ sở của khách hàng sau vài tuần.
   if ! grep -q "const LAY_COSO_GHE = false;" "$DICH/includes/class-vhcp-cfg.php"; then
-    echo "✗ Chưa tắt được đường lấy cơ sở từ Ghế cho bản '$MA'."
+    echo "✗ Bản '$MA' không dùng cơ sở Ghế mà hằng LAY_COSO_GHE vẫn đang bật."
     grep -n "LAY_COSO_GHE" "$DICH/includes/class-vhcp-cfg.php" | head -3
     exit 9
   fi

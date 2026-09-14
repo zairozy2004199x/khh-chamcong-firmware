@@ -72,6 +72,10 @@ $DV = isset( $m_dv[1] ) ? $m_dv[1] : 'POSH';
 eval( 'class TC { const DON_VI_GHE = ' . var_export( $DV, true ) . '; '
 	. ' const LAY_COSO_GHE = true; '
 	. ' public static function don_vi_ghe() { return self::DON_VI_GHE; } '
+	/* ⚠️ Cửa thứ hai, thêm 14/09/2026: `bao_coso_posh_()` nay hỏi `lay_coso_ghe()` chứ không
+	   đọc hằng thẳng, vì bản khu vui chơi đã tắt đường ghế mà bản Máy tự động thì không.
+	   Lớp giả thiếu cửa này là tệp chết ngay bằng "Call to undefined method". */
+	. ' public static function lay_coso_ghe() { return self::LAY_COSO_GHE; } '
 	. str_replace( 'private static function', 'public static function', $than ) . ' }' );
 
 function bao( $rows ) {

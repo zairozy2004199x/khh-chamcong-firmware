@@ -493,7 +493,7 @@ class VHCPMTD_Cfg {
 	 * @return int số dòng THÊM MỚI.
 	 */
 	public static function hut_coso_ghe() {
-		if ( ! self::LAY_COSO_GHE ) { return 0; }   // bản không dùng ghế — xem hằng ấy
+		if ( ! self::lay_coso_ghe() ) { return 0; }   // bản không dùng ghế — xem hằng ấy
 		if ( ! class_exists( 'VHG_May' ) || ! method_exists( 'VHG_May', 'ds_coso' ) ) { return 0; }
 		$n = 0;
 		foreach ( (array) VHG_May::ds_coso() as $c ) {
@@ -536,9 +536,49 @@ class VHCPMTD_Cfg {
 	 *
 	 * ⚠️ TẮT LÀ TẮT CẢ BA LỐI: lượt hút tự động, tai nghe móc từ bên Ghế, và nút bấm tay. Tắt
 	 *    hai để sót một thì cơ sở vẫn chảy sang, chỉ là chậm hơn và khó truy hơn.
+	 *
+	 * 🔴 BẢN KHU VUI CHƠI (bản gốc này) ĐÃ TẮT, TỪ 14/09/2026.
+	 *    Anh Thắng gửi ảnh khối "🏢 ĐƠN VỊ POSH · 67 cơ sở" — AEON MALL, CGV, Bệnh viện 175…
+	 *    tức điểm đặt ghế massage — rồi hỏi *"tại sao xóa không được"*, *"nó thuộc bộ phận
+	 *    khác"*, *"bỏ vào đây là người khác khai sai"*.
+	 *
+	 *    Xóa KHÔNG ĐƯỢC là vì bật hằng này thì `vhcpmtd_maybe_upgrade()` hút lại đủ 67 gian
+	 *    ẤY MỖI LẦN ĐỔI PHIÊN BẢN PLUGIN — xóa xong, cài bản sau là chúng về nguyên, không
+	 *    một câu báo nào. Cộng thêm hai đường nữa: móc `vhg_coso_da_luu` và nút bấm tay.
+	 *
+	 *    Mà gian ghế là của nhà POSH, không phải của khu vui chơi: để chúng trong danh mục ở
+	 *    đây chỉ tổ làm hộp chọn cơ sở dài thêm 67 dòng để người nhập chọn nhầm — đúng câu
+	 *    *"người khác khai sai"*. Anh đã chốt hướng này ngay hôm ấy: *"ghế chỉ mỗi MTD thôi"*.
+	 *
+	 * ⚠️ TẮT Ở ĐÂY KHÔNG XÓA DÒNG NÀO ĐANG CÓ. Nó chỉ thôi kéo thêm. 67 gian đã nằm trong sổ
+	 *    vẫn ở đó cho tới khi có người xóa tay ở màn Cấu hình — và từ bản này, xóa là ở yên.
+	 *
+	 * ⚠️ TẮT cũng tắt luôn đầu PHÁT `vhcpmtd_coso_posh_da_luu` (xem `bao_coso_posh_`). Hiện
+	 *    KHÔNG CÓ AI NGHE hành động ấy trong cả bộ mã, nên không mất gì; ngày nào bên Ghế cần
+	 *    nghe thì phải tách đầu phát ra khỏi hằng này, đừng bật lại cả ba đường hút.
 	 * ══════════════════════════════════════════════════════════════════════════════════════════
 	 */
 	const LAY_COSO_GHE = true;
+
+	/**
+	 * BẢN NÀY CÓ LẤY CƠ SỞ TỪ GHẾ KHÔNG — đọc lúc chạy, không đọc hằng thẳng.
+	 *
+	 * Cùng một nếp với `don_vi_ghe()` ngay dưới: hằng là NẾP CỦA BẢN, khoá cấu hình là lối
+	 * đổi cho một site cụ thể mà không phải dựng bản mới.
+	 *
+	 * 🔴 MỌI CHỐT PHẢI GỌI HÀM NÀY, đừng đọc `self::LAY_COSO_GHE` thẳng. Đọc hằng thẳng thì
+	 *    khoá cấu hình chỉ ăn ở nửa số lối, và "tắt rồi mà cơ sở vẫn chảy sang" là một câu
+	 *    không ai dò ra nổi.
+	 *
+	 * ⚠️ CHỈ NHẬN GIÁ TRỊ ĐÃ KHAI. `get_option` trả `null` khi chưa ai đặt — lúc ấy phải theo
+	 *    hằng, chứ ép `(bool) null` là mọi site đều tắt, kể cả bản Máy tự động vốn sống nhờ
+	 *    đường này.
+	 */
+	public static function lay_coso_ghe() {
+		$v = get_option( 'vhcpmtd_lay_coso_ghe', null );
+		if ( null === $v || '' === $v ) { return self::LAY_COSO_GHE; }
+		return (bool) (int) $v;
+	}
 
 	/** Đơn vị gắn cho cơ sở hút từ Ghế — khai được, mặc định lấy hằng trên. */
 	public static function don_vi_ghe() {
@@ -554,7 +594,7 @@ class VHCPMTD_Cfg {
 	 *    nghe không ai biết còn đúng hay không.
 	 */
 	public static function moc_coso_ghe( $ten ) {
-		if ( ! self::LAY_COSO_GHE ) { return; }   // bản không dùng ghế — xem hằng ấy
+		if ( ! self::lay_coso_ghe() ) { return; }   // bản không dùng ghế — xem hằng ấy
 		self::nhan_coso_ngoai( $ten, self::don_vi_ghe() );
 	}
 
@@ -566,7 +606,7 @@ class VHCPMTD_Cfg {
 	 * cả tháng — nút này là đường ấy.
 	 */
 	public static function hut_coso_ghe_api() {
-		if ( ! self::LAY_COSO_GHE ) {
+		if ( ! self::lay_coso_ghe() ) {
 			return array( 'ok' => false, 'error' => 'Mảng này không lấy cơ sở từ bên Ghế. '
 				. 'Gian của mảng khai thẳng ở bảng Cơ sở bên dưới.' );
 		}
@@ -602,7 +642,7 @@ class VHCPMTD_Cfg {
 	 */
 	private static function bao_coso_posh_( $rows ) {
 		/* Bản không dùng ghế thì cũng không báo sang — xem hằng `LAY_COSO_GHE`. */
-		if ( ! self::LAY_COSO_GHE ) { return; }
+		if ( ! self::lay_coso_ghe() ) { return; }
 		foreach ( (array) $rows as $r ) {
 			$r  = array_values( (array) $r );
 			$tn = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );

@@ -38,6 +38,22 @@ function teq( $ten, $mong, $thuc ) {
 }
 global $wpdb;
 
+/* ═══ CÔNG TẮC: BẢN NÀY CÓ LẤY CƠ SỞ TỪ GHẾ KHÔNG ═══════════════════════════
+ *
+ * 🔴 BẢN GỐC (KHU VUI CHƠI) ĐÃ TẮT ĐƯỜNG NÀY TỪ 14/09/2026 — anh Thắng: *"nó thuộc bộ phận
+ *    khác"*, *"bỏ vào đây là người khác khai sai"*. Nhưng CƠ CHẾ thì vẫn sống nguyên ở bản Máy
+ *    tự động, nên tệp này phải tiếp tục thử nó — tắt bài kiểm theo là mất sạch lưới an toàn cho
+ *    đúng cái bản đang dùng nó hằng ngày.
+ *
+ * ⚠️ BẬT BẰNG KHOÁ CẤU HÌNH, không sửa hằng trong mã. `VHCP_Cfg::lay_coso_ghe()` đọc khoá
+ *    `vhcp_lay_coso_ghe` trước rồi mới ngả về hằng — đúng đường một site thật bật lại.
+ * ════════════════════════════════════════════════════════════════════════════════════════ */
+teq( '🔴 bản gốc khu vui chơi TẮT sẵn (67 gian ghế thôi chảy vào)',
+	false, VHCP_Cfg::LAY_COSO_GHE );
+update_option( 'vhcp_lay_coso_ghe', 1 );
+t( '⚠️ khoá cấu hình bật lại được cho bản nào cần (VD máy tự động)',
+	VHCP_Cfg::lay_coso_ghe() );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 0. NẠP PLUGIN GHẾ + DỰNG BẢNG CỦA NÓ
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
@@ -251,10 +267,52 @@ VHG_May::luu_coso( 0, 'SNOW NHÀ TUYẾT TÂN PHÚ' );   // rơi vào nhánh "đ
 $dm = dm_coso();
 t( '🔴 nhánh "cơ sở này đã có" VẪN đẩy sang', isset( $dm['SNOW NHÀ TUYẾT TÂN PHÚ'] ), $dm );
 
-/* ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════════════════
+ * 8. TẮT CÔNG TẮC -> TẮT CẢ BA LỐI
+ *
+ * 🔴 ĐÂY LÀ PHÉP QUAN TRỌNG NHẤT CỦA TỆP NÀY, từ 14/09/2026.
+ *    Anh Thắng xoá 67 gian ghế khỏi danh mục khu vui chơi, xoá mãi không được, vì lượt hút tự
+ *    động chạy lại MỖI LẦN ĐỔI PHIÊN BẢN PLUGIN. Tắt mà còn sót một lối thì cơ sở vẫn chảy
+ *    sang — chỉ chậm hơn và khó truy hơn, tức tệ hơn hẳn.
+ * ════════════════════════════════════════════════════════════════════════════════════════ */
+update_option( 'vhcp_lay_coso_ghe', 0 );
+VHCP_Cfg::write( VHCP_Cfg::COSO, array() );
+VHCP_Cfg::clear_cache();
+$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'coso' ) );
+foreach ( array( 'AEON MALL BÌNH DƯƠNG', 'CGV LANDMARK 81', 'BỆNH VIỆN 175' ) as $x ) {
+	$wpdb->insert( VHG_DB::t( 'coso' ), array( 'ten' => $x ) );
+}
+teq( '🔴 lối 1 — lượt hút tự động: tắt thì không kéo gian nào', 0, VHCP_Cfg::hut_coso_ghe() );
+teq( 'danh mục vẫn trống', 0, count( dm_coso() ) );
+
+/* Lối 2 — móc `vhg_coso_da_luu`: tạo cơ sở MỚI bên ghế, bên này phải im. Đây là lối lặng lẽ
+   nhất: không ai bấm gì cả, chỉ cần bên kia lưu một dòng. */
+VHG_May::luu_coso( 0, 'CGV PEARL PLAZA' );
+teq( '🔴 lối 2 — móc từ bên Ghế: tắt thì không nhận', 0, count( dm_coso() ) );
+
+/* Lối 3 — nút bấm tay ở màn Cấu hình: phải CHỐI, và nói ra lý do chứ không im lặng trả 0. */
+$api3 = VHCP_Cfg::hut_coso_ghe_api();
+t( '🔴 lối 3 — nút bấm tay: tắt thì chối', empty( $api3['ok'] ), $api3 );
+t( '   và nói rõ vì sao chối', '' !== trim( (string) ( isset( $api3['error'] ) ? $api3['error'] : '' ) ), $api3 );
+teq( 'sau cả ba lối, danh mục vẫn trống trơn', 0, count( dm_coso() ) );
+
+/* ⚠️ VÀ MÀN CẤU HÌNH PHẢI GIẤU NÚT ẤY ĐI. Nút còn đó mà bấm vào chỉ ra câu chối là một
+   nút chết — người ta bấm, đọc, rồi bấm lại lần nữa vào tuần sau. */
+$app_ma = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-app.php' );
+t( '⚠️ cờ gửi xuống màn đi qua hàm, không đọc hằng thẳng',
+	false !== strpos( $app_ma, "'layCoSoGhe' => VHCP_Cfg::lay_coso_ghe()" ), '' );
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHỐI BÁO TRƯỢT PHẢI ĐỨNG CUỐI CÙNG, ngay trên dòng tổng kết.
+ *    14/09/2026 nó nằm ở giữa tệp, và khối "8. TẮT CÔNG TẮC" thêm vào sau đó CHẠY XONG rồi
+ *    kết quả rơi vào hư không: gỡ hẳn gác của `moc_coso_ghe()` mà bài vẫn in "✓ SẠCH", chỉ
+ *    tụt vài phép — một con số không ai nhìn. Phép kiểm nói dối đúng chỗ nó phải canh.
+ *    Thêm khối mới thì thêm Ở TRÊN chỗ này.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $truot ) {
 	echo "\n✗ TRƯỢT " . count( $truot ) . " phép (đạt $dat):\n";
 	foreach ( $truot as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
+
 echo "\n✓ SẠCH — $dat phép: cơ sở bên ghế tự sang danh mục chi phí, gắn đơn vị POSH, chỉ thêm không đè.\n";
