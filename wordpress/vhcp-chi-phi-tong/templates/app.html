@@ -106,6 +106,7 @@ tfoot td{font-weight:700;background:#f1f5f9}
 .buoc-dau{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
 .buoc-ten{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:7px}
 .buoc-so{font-size:11.5px;font-weight:800;padding:1px 9px;border-radius:999px}
+.buoc-rong{padding:8px 12px;background:#fff}
 .buoc table tbody tr:nth-child(even) td{background:#fcfdfe}
 .buoc table tbody tr:hover td{background:#f8fafc}
 .buoc td.tien{font-weight:700}
@@ -563,21 +564,27 @@ function veBang(){
    *    xếp đơn theo `ngay_tao` giảm dần, nên tuần nào có đơn mới nhất thì xuất hiện trước —
    *    đúng thứ tự cần, và không phải hiểu định dạng chuỗi kỳ.
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* 🔴 MỖI LÁT MANG MỘT TRẠNG THÁI TIÊU BIỂU (`tt`) để lấy tông từ `mauBuoc()` — đừng gõ mã màu
+     ở đây. Anh Thắng 14/09/2026: *"sao trang tổng làm đẹp mà tab khác lại không làm đẹp"*. Ba
+     tab việc và màn Tổng quan bày CÙNG những bước ấy; hai bảng màu rời nhau thì cùng một bước
+     hiện hai màu ở hai tab, và người đọc mất luôn cái mốc "cam là đang chờ, xanh lá là xong". */
   var LAT = ( NHOM === 'qt' )
-    ? [ { khoa:'chua', ten:'Chưa quyết toán', mau:'#b45309', cho:true,
+    ? [ { khoa:'chua', ten:'Chưa quyết toán', tt:'Chờ quyết toán', cho:true,
           hop:function(d){ return d.trangThai !== 'Đã quyết toán'; } },
-        { khoa:'xong', ten:'Đã quyết toán',   mau:'#166534', cho:false,
+        { khoa:'xong', ten:'Đã quyết toán',   tt:'Đã quyết toán',  cho:false,
           hop:function(d){ return d.trangThai === 'Đã quyết toán'; } } ]
     /* 🔴 NHÁP BÀY RIÊNG, ĐỨNG SAU — anh Thắng 14/09/2026: *"chỗ chờ duyệt hiện các đơn nháp
        nhân viên đang lên chờ mà chưa gửi"*. Quản lý muốn thấy cái SẮP tới, không chỉ cái đã
        tới. Nhưng nó chưa phải việc của họ: nhân viên còn đang soạn, bấm Duyệt vào đó là duyệt
        một đơn chưa xong. Nên để bảng dưới, màu xám, và ô đếm trên tab KHÔNG kể nó. */
     : ( NHOM === 'duyet'
-      ? [ { khoa:'cho',  ten:'Chờ duyệt tạm ứng',        mau:'#b45309', cho:true,
+      ? [ { khoa:'cho',  ten:'Chờ duyệt tạm ứng',        tt:'Chờ duyệt tạm ứng', cho:true,
             hop:function(d){ return d.trangThai !== 'Nháp'; } },
-          { khoa:'nhap', ten:'Nháp — nhân viên chưa gửi', mau:'#64748b', cho:false,
+          { khoa:'nhap', ten:'Nháp — nhân viên chưa gửi', tt:'Nháp',              cho:false,
             hop:function(d){ return d.trangThai === 'Nháp'; } } ]
-      : [ { khoa:'all', ten:'', mau:'', cho:true, hop:function(){ return true; } } ] );
+      /* Tab Chờ cấp chỉ có một lát; vẫn đặt tên cho nó để khối có đầu đề và tông như mọi lát. */
+      : [ { khoa:'all', ten:'Chờ cấp tạm ứng', tt:'Chờ cấp tạm ứng', cho:true,
+            hop:function(){ return true; } } ] );
 
   function veMotBang(g, lat, ban){
     var ds = g.ds.filter(lat.hop);
@@ -596,10 +603,12 @@ function veBang(){
       return lat.cho ? ( x < y ? -1 : ( x > y ? 1 : 0 ) )
                      : ( x > y ? -1 : ( x < y ? 1 : 0 ) );
     });
+    var m = mauBuoc(lat.tt);
     if (!ds.length){
-      return lat.ten
-        ? '<p class="nho mo" style="margin:6px 0 12px">— <b>'+esc(lat.ten)+'</b>: không có đơn nào. ✓</p>'
-        : '';
+      /* Lát rỗng vẫn nói ra, nhưng nhạt hẳn: nó là tin tốt ("hết việc"), không phải một khối
+         trống để người ta phải dò xem có phải mình lọc sai không. */
+      return '<div class="buoc buoc-rong" style="border-left-color:'+m.vien+'">' +
+             '<span class="nho mo">'+m.bieu+' <b>'+esc(lat.ten)+'</b>: không có đơn nào. ✓</span></div>';
     }
     /* Gom theo TUẦN, giữ thứ tự gặp — nay là thứ tự vừa xếp ở trên, nên tuần cũng đi theo
        đúng chiều ấy (hàng chờ: tuần cũ trước; đã xong: tuần mới trước). */
@@ -613,26 +622,33 @@ function veBang(){
     var tongLat = 0, coSo = 0;
     ds.forEach(function(d){ if (d.tien !== null){ tongLat += d.tien; coSo++; } });
 
-    var h = '';
-    if (lat.ten){
-      h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;' +
-           'gap:8px;margin:14px 0 6px"><b style="color:'+lat.mau+'">'+esc(lat.ten)+
-           ' <span class="chip">'+ds.length+' đơn</span></b>' +
-           '<span class="nho mo">Cộng '+tien(tongLat)+'</span></div>';
-    }
-    h += '<div class="cuon"><table><thead><tr>' +
-      '<th>Cơ sở</th><th>Người lập</th><th>Loại chi phí</th><th>Kỳ</th><th>Lúc</th>' +
-      '<th class="r">Số xin</th><th>Việc</th></tr></thead><tbody>';
+    /* Cùng bộ áo với màn Tổng quan: khối viền trái theo tông bước, nền nhạt cùng tông, đầu bảng
+       tô màu. Xem `mauBuoc()` — ba tông theo NGHĨA, không phải bảy màu cho vui mắt. */
+    var h = '<div class="buoc" style="border-left-color:'+m.chu+';background:'+m.nenNhat+'">' +
+      '<div class="buoc-dau">' +
+        '<span class="buoc-ten" style="color:'+m.chu+'">'+m.bieu+' '+esc(lat.ten) +
+          '<span class="buoc-so" style="background:'+m.nen+';color:'+m.chu+'">'+ds.length+' đơn</span></span>' +
+        '<span class="nho" style="color:'+m.chu+';font-weight:700">Cộng '+tien(tongLat)+'</span>' +
+      '</div>';
+
+    var dau = function(ten, lop){
+      return '<th'+( lop ? ' class="'+lop+'"' : '' )+' style="background:'+m.nen+';color:'+m.chu+'">'+ten+'</th>';
+    };
+    h += '<div class="cuon" style="border-color:'+m.vien+'"><table><thead><tr style="background:'+m.nen+'">' +
+      dau('Cơ sở')+dau('Người lập')+dau('Loại chi phí')+dau('Kỳ')+dau('Lúc') +
+      dau('Số xin','r')+dau('Việc')+'</tr></thead><tbody>';
 
     thuTuKy.forEach(function(k){
       var dsKy = theoKy[k], tongKy = 0;
       dsKy.forEach(function(d){ if (d.tien !== null){ tongKy += d.tien; } });
       /* Dải tiêu đề tuần — chỉ khi có từ hai tuần trở lên, không thì nó chỉ là một dòng thừa. */
       if (thuTuKy.length > 1){
-        h += '<tr><td colspan="5" style="background:#f1f5f9;font-weight:800;color:#334155">' +
-             '📅 '+esc(k)+' <span class="mo nho">· '+dsKy.length+' đơn</span></td>' +
-             '<td class="r" style="background:#f1f5f9;font-weight:800">'+tien(tongKy)+'</td>' +
-             '<td style="background:#f1f5f9"></td></tr>';
+        /* Dải tuần ăn theo tông của bước, không để một vệt xám lạc giữa khối màu. */
+        var nk = 'background:'+m.nen+';color:'+m.chu+';font-weight:800';
+        h += '<tr><td colspan="5" style="'+nk+'">' +
+             '📅 '+esc(k)+' <span class="nho" style="opacity:.75">· '+dsKy.length+' đơn</span></td>' +
+             '<td class="r" style="'+nk+'">'+tien(tongKy)+'</td>' +
+             '<td style="background:'+m.nen+'"></td></tr>';
       }
       dsKy.forEach(function(d){
         var i = ROWS.indexOf(d);
@@ -668,10 +684,11 @@ function veBang(){
       });
     });
 
-    return h + '</tbody><tfoot><tr><td colspan="5">Cộng ' +
+    return h + '</tbody><tfoot><tr><td colspan="5" class="r">Cộng ' +
       esc( lat.ten ? lat.ten : g.ten ) +
       ( coSo < ds.length ? ' <span class="nho mo">('+(ds.length-coSo)+' đơn chưa đọc được số)</span>' : '' ) +
-      '</td><td class="r">'+tien(tongLat)+'</td><td></td></tr></tfoot></table></div>';
+      '</td><td class="r" style="color:'+m.chu+'">'+tien(tongLat)+'</td><td></td></tr>' +
+      '</tfoot></table></div></div>';
   }
 
   var h = '';
@@ -688,6 +705,15 @@ function veBang(){
       '<div class="nho mo">Cộng '+tien(tong)+ ( coSo < g.ds.length ? ' · '+(g.ds.length-coSo)+' đơn chưa đọc được số' : '' ) +
       ( urlBan ? ' · <a href="'+esc(urlBan)+'" target="_blank" rel="noopener">mở trang mảng ↗</a>' : '' ) + '</div>' +
       '</div><div class="cb">' +
+      /* Dải đếm theo lát — nhìn một cái là thấy mảng này đang ùn ở khâu nào, không phải cuộn
+         hết ba bảng mới biết. Cùng kiểu chip với màn Tổng quan. */
+      ( LAT.length > 1
+        ? '<div style="margin-bottom:8px">' + LAT.map(function(lat){
+            var n = g.ds.filter(lat.hop).length, mc = mauBuoc(lat.tt);
+            return '<span class="dem-chip"'+( n ? ' style="background:'+mc.nen+';border-color:'+mc.vien +
+                   ';color:'+mc.chu+'"' : '' )+'>'+esc(lat.ten)+': <b>'+n+'</b></span>';
+          }).join('') + '</div>'
+        : '' ) +
       LAT.map(function(lat){ return veMotBang(g, lat, ban); }).join('') +
       '</div></div>';
   });

@@ -956,7 +956,9 @@ t( 'cuộn trang thì tắt khung (nó gắn theo con trỏ)',
  * ⚠️ NHƯNG KHÔNG BỎ HẲN MÃ ĐƠN — nó là thứ duy nhất đối chiếu được với trang mảng và với lịch
  *    sử. Cho xuống dòng dưới, chữ nhỏ.
  * ═══════════════════════════════════════════════════════════════════════════════ */
-t( '🔴 cột đầu bảng đơn là Cơ sở', false !== mb_strpos( $html_ma, "'<th>Cơ sở</th><th>Người lập</th>" ), '' );
+t( '🔴 cột đầu bảng đơn là Cơ sở, rồi mới tới Người lập',
+	(bool) preg_match( "#dau\( *'Cơ sở' *\) *\. *dau\( *'Người lập' *\)#u",
+		str_replace( '+', '.', $html_ma ) ), '' );
 t( '⚠️ mã đơn vẫn còn, ở dòng dưới chữ nhỏ',
 	(bool) preg_match( '~veCoSo\(d\.coso\)~', $html ) && false !== mb_strpos( $html_ma, "esc(d.maDon)+'</div></td>'" ), '' );
 /* 🔴 HỎI CẢ HAI BẢNG: đơn xin ứng trước chưa có dòng chi nào mà vẫn thuộc một gian — gian ấy ghi
@@ -1000,6 +1002,54 @@ t( '⚠️ hai màn gom cơ sở bằng CÙNG một hàm',
    từng đơn là cả ngàn lượt đọc. */
 t( '⚠️ màn Tổng quan gom cơ sở một lượt, ngoài vòng lặp',
 	(bool) preg_match( '#coso_cua_cac_don\( \\$tien_to, \\$ma_ds \);\s*\n\s*\n\s*\\$ra = array\(\);#', $gom3 ), '' );
+
+/* ═══ 6r. BA TAB VIỆC MẶC CÙNG BỘ ÁO VỚI MÀN TỔNG QUAN ══════════════════════════
+ * Anh Thắng 14/09/2026: *"sao trang tổng làm đẹp mà tab khác lại không làm đẹp"*.
+ *
+ * 🔴 MỘT BẢNG MÀU DUY NHẤT CHO CẢ TRANG. Ba tab việc và màn Tổng quan bày CÙNG những bước ấy.
+ *    Gõ mã màu riêng ở tab việc thì cùng một bước hiện hai màu ở hai tab, và người đọc mất luôn
+ *    cái mốc đã học được: cam là đang chờ ai đó, xanh dương là tiền đã ra khỏi két, xanh lá là
+ *    xong. Nên mọi tông đều phải đi qua `mauBuoc()`.
+ * ⚠️ Và mỗi lát phải khai được TRẠNG THÁI của nó (`tt`) thì `mauBuoc()` mới tra ra tông — thiếu
+ *    khoá ấy thì hàm trả tông xám mặc định và cả ba tab lại trắng trơn như cũ, không câu lỗi nào.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ SOI TRONG THÂN `veBang()`, KHÔNG ĐỌC CẢ TỆP. Màn Tổng quan có y hệt những chuỗi này (nó là
+   nơi bộ áo ấy ra đời), nên phép dò cả tệp vẫn xanh kể cả khi ba tab việc trở lại trắng trơn —
+   đã thử: bóc sạch khối `buoc` và tông đầu bảng khỏi `veBang()` mà bài không hề đỏ. */
+$than_vb = ( function ( $src ) {
+	$i = strpos( $src, 'function veBang(' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $src, "\n}", $i );
+	return ( false === $j ) ? '' : substr( $src, $i, $j - $i );
+} )( $html_ma );
+t( 'đọc được thân veBang()', '' !== $than_vb, '' );
+t( '🔴 tab việc lấy tông từ mauBuoc(), không gõ mã màu tay',
+	(bool) preg_match( '#var m = mauBuoc\(lat\.tt\);#', $than_vb ), '' );
+/* Năm lát: Chờ quyết toán · Đã quyết toán · Chờ duyệt tạm ứng · Nháp · Chờ cấp tạm ứng. */
+teq( '🔴 và cả năm lát đều khai trạng thái của nó',
+	5, preg_match_all( '#\btt:\s*.(?:Chờ|Nháp|Đã)#u', $html_ma ) );
+/* Khối viền trái + nền nhạt + đầu bảng tô màu — đúng ba thứ làm nên bộ áo của màn Tổng quan. */
+$html_noi = str_replace( '+', '.', $than_vb );   // nối chuỗi JS thành một mạch, dễ dò
+t( '🔴 mỗi lát nằm trong khối buoc viền theo tông',
+	(bool) preg_match( '#<div class="buoc" style="border-left-color:.\.m\.chu#', $html_noi )
+	&& (bool) preg_match( '#background:.\.m\.nenNhat#', $html_noi ), '' );
+t( '🔴 đầu bảng tô nền theo tông bước',
+	(bool) preg_match( '#<thead><tr style="background:.\.m\.nen#', $html_noi ), '' );
+t( '⚠️ và khung cuộn viền cùng tông',
+	(bool) preg_match( '#class="cuon" style="border-color:.\.m\.vien#', $html_noi ), '' );
+t( '⚠️ và từng ô đầu bảng cũng tô, không chỉ hàng',
+	(bool) preg_match( '#var dau = function\(ten, lop\)#', $than_vb ), '' );
+/* ⚠️ Một vệt xám cố định giữa khối màu đọc như lỗi vẽ. */
+t( '⚠️ dải tuần ăn theo tông bước, không còn xám cố định',
+	false === mb_strpos( $than_vb, 'background:#f1f5f9;font-weight:800;color:#334155' ), '' );
+/* Dải chip đếm ở đầu mỗi mảng — thấy ngay mảng này ùn ở khâu nào, khỏi cuộn hết ba bảng. */
+t( '🔴 đầu mỗi mảng có dải chip đếm theo lát',
+	(bool) preg_match( '#LAT\.length > 1[\s\S]{0,200}?dem-chip#', $than_vb ), '' );
+t( '⚠️ lát rỗng vẫn nói ra, nhưng nhạt hẳn',
+	(bool) preg_match( '#buoc-rong#', $than_vb ) && false !== mb_strpos( $than_vb, 'không có đơn nào. ✓' ), '' );
+/* 🔴 Khối mở thì phải đóng: thiếu một `</div>` là cả phần dưới trang tụt vào trong khối. */
+t( '🔴 khối lát đóng lại ở cuối bảng',
+	(bool) preg_match( '#</tfoot></table></div></div>.#', $than_vb ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
