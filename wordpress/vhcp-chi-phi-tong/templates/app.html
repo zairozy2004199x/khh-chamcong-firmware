@@ -57,6 +57,26 @@ th,td{border:1px solid #e2e8f0;padding:7px 9px;text-align:left;vertical-align:to
 th{background:#f8fafc;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;color:#475569}
 td.r,th.r{text-align:right;white-space:nowrap}
 tfoot td{font-weight:700;background:#f1f5f9}
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * PHẦN XEM ĐƠN — DỰNG THEO ĐÚNG BỐ CỤC TRANG MẢNG (anh Thắng 14/09/2026: *"giao diện trực quan
+ * như này đi"*, kèm ba ảnh chụp trang mảng).
+ *
+ * 🔴 GIỐNG NHAU LÀ ĐỂ ĐỌC ĐƯỢC NGAY, KHÔNG PHẢI ĐỂ ĐẸP. Kế toán và quản lý đọc đơn ở trang mảng
+ *    cả năm nay; mắt họ đã quen chỗ nào là trạng thái, chỗ nào là tiền, chỗ nào là lịch sử. Bày
+ *    cùng thứ ấy theo một bố cục khác là bắt họ học lại một lần nữa, và lúc vội thì đọc nhầm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.hai-cot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,360px);gap:14px;align-items:start}
+@media(max-width:980px){.hai-cot{grid-template-columns:minmax(0,1fr)}}
+.hop-tt{border:1px solid #bfdbfe;background:#f8fbff;border-radius:12px;padding:12px 14px}
+.hop-ls{border:1px dashed #cbd5e1;background:#fff;border-radius:12px;padding:12px 14px}
+.chip-k{display:inline-block;padding:2px 9px;border-radius:7px;font-size:11px;font-weight:800;
+        margin:2px 4px 2px 0;white-space:nowrap}
+.k-mo{background:#dcfce7;color:#166534}
+.k-khoa{background:#fee2e2;color:#b91c1c}
+.qt-hop{border:2px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:14px;margin-top:12px}
+.qt-o{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 14px;min-width:150px}
+.qt-o .nhan{font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.03em}
+.qt-o .so{font-size:19px;font-weight:800;margin-top:2px}
 .cuon{overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px}
 .cuon table{border:none}
 .cuon th:first-child,.cuon td:first-child{border-left:none}
@@ -438,38 +458,101 @@ function veThuaThieu(t){
     '</div>';
 }
 
-/* MỐC AI LÀM GÌ LÚC NÀO — hàng chip nhỏ, đọc lướt được trong một giây. */
+/* MỐC AI LÀM GÌ LÚC NÀO — một dòng gọn ở cuối khối quyết toán, như trang mảng. */
 function veMoc(m){
   if (!m) return '';
   var ds = [
-    ['Duyệt tạm ứng', m.duyet], ['Cấp tiền', m.cap],
-    ['Quyết toán cá nhân', m.qtCn], ['Quyết toán NCC', m.qtNcc]
+    ['duyệt TU', m.duyet], ['cấp tiền', m.cap],
+    ['QT cá nhân', m.qtCn], ['QT nhà cung cấp', m.qtNcc]
   ].filter(function(x){ return x[1] && (x[1].nguoi || x[1].ngay); });
   if (!ds.length) return '';
-  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px">' +
+  return '<div class="nho" style="margin-top:8px;color:#334155">👤 ' +
     ds.map(function(x){
-      return '<span class="chip" title="'+esc(x[1].ngay||'')+'">'+esc(x[0])+': <b>'+
-             esc(x[1].nguoi||'—')+'</b>'+( x[1].ngay ? ' · '+esc(ngay(x[1].ngay)) : '' )+'</span>';
-    }).join('') + '</div>';
+      return esc(x[0])+': <b style="color:#0f766e">'+esc(x[1].nguoi||'—')+'</b>' +
+             ( x[1].ngay ? ' <span class="mo">('+esc(ngay(x[1].ngay))+')</span>' : '' );
+    }).join(' · ') + '</div>';
 }
 
-/* LỊCH SỬ CHỈNH ĐƠN — gập lại, vì đơn chạy lâu có vài chục dòng.
-   🔴 Nhưng KHÔNG giấu hẳn: một đơn vừa bị trả lại rồi gửi lại, hay vừa bị gỡ số duyệt, nhìn y
-      hệt đơn bình thường — chỉ chỗ này nói ra. Nên số dòng hiện ngay trên nhãn. */
+/* CÒN SỬA ĐƯỢC HAY ĐÃ CHỐT — suy từ TRẠNG THÁI, đúng luật bên trang mảng.
+   🔴 Người duyệt cần biết ngay đơn này còn động được không: đơn đã chốt số mà bảo nhân viên
+      "sửa lại giúp anh" là một vòng đi lại vô ích, rồi mới biết phải nhờ kế toán. */
+function veChipKhoa(st){
+  st = String(st||'');
+  var daChot = (st === 'Đã quyết toán' || st === 'Đã xuất MISA');
+  var daGui  = (st !== 'Nháp');
+  var h = '<div style="margin:6px 0 2px">';
+  if (daChot){
+    h += '<span class="chip-k k-khoa">🔒 KHOÁ SỬA</span>' +
+         '<span class="chip-k k-khoa">🔒 KHOÁ THÊM DÒNG</span>' +
+         '<span class="chip-k k-khoa">🔒 KHOÁ XOÁ HẠNG MỤC ĐÃ XIN</span>' +
+         '</div><div class="nho" style="margin-top:4px;color:#b91c1c">' +
+         '🔒 <b>ĐÃ CHỐT SỐ.</b> Số đã vào sổ nên không sửa được nữa. Cần sửa thì báo kế toán.</div>';
+    return h;
+  }
+  h += '<span class="chip-k k-mo">✓ SỬA ĐƯỢC</span>' +
+       '<span class="chip-k k-mo">✓ THÊM DÒNG ĐƯỢC</span>' +
+       ( daGui ? '<span class="chip-k k-khoa">🔒 KHOÁ XOÁ HẠNG MỤC ĐÃ XIN</span>' : '' ) +
+       '</div>';
+  return h;
+}
+
+/* LỊCH SỬ CHỈNH ĐƠN — thẻ riêng cột phải, như trang mảng.
+   ⚠️ Ba dòng mới nhất bày sẵn, phần còn lại gập: đơn chạy lâu có tới năm chục dòng, dội hết ra
+      thì cái cần đọc (mới nhất) bị đẩy xuống dưới đáy. */
 function veLichSu(ds){
   ds = ds || [];
-  if (!ds.length) return '';
-  return '<details style="margin-top:10px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
-    '🕘 Lịch sử chỉnh đơn (<b>'+ds.length+'</b>) — bấm để xem</summary>' +
-    '<div style="padding:8px 0 2px">' +
-    ds.map(function(x){
-      return '<div style="padding:6px 0;border-bottom:1px dashed #e2e8f0">' +
-        '<div class="nho"><b>'+esc(x.nguoi||'—')+'</b>'+
-        ( x.vaiTro ? ' <span class="mo">('+esc(x.vaiTro)+')</span>' : '' )+
-        ( x.tg ? ' <span class="mo">· '+esc(x.tg)+'</span>' : '' )+'</div>' +
-        '<div class="nho" style="color:#0f766e">'+esc(x.hanhDong||'')+
-        ( x.chiTiet ? ' <span class="mo">— '+esc(x.chiTiet)+'</span>' : '' )+'</div></div>';
-    }).join('') + '</div></details>';
+  if (!ds.length){
+    return '<div class="hop-ls"><div style="font-weight:800;color:#334155;margin-bottom:6px">' +
+           '🕘 Lịch sử chỉnh đơn</div><p class="nho mo">Chưa có dòng nào.</p></div>';
+  }
+  var dong = function(x){
+    return '<div style="padding:7px 0;border-bottom:1px solid #f1f5f9">' +
+      '<div class="nho"><b>'+esc(x.nguoi||'—')+'</b>' +
+      ( x.vaiTro ? ' <span class="mo">('+esc(x.vaiTro)+')</span>' : '' ) +
+      ( x.tg ? ' <span class="mo">· '+esc(x.tg)+'</span>' : '' ) + '</div>' +
+      '<div class="nho" style="color:#0f766e">'+esc(x.hanhDong||'') +
+      ( x.chiTiet ? ' <span class="mo">— '+esc(x.chiTiet)+'</span>' : '' ) + '</div></div>';
+  };
+  var dau = ds.slice(0,3), con = ds.slice(3);
+  return '<div class="hop-ls">' +
+    '<div style="font-weight:800;color:#334155;margin-bottom:4px">🕘 Lịch sử chỉnh đơn (<b>'+ds.length+'</b>)</div>' +
+    dau.map(dong).join('') +
+    ( con.length
+      ? '<details style="margin-top:6px"><summary class="nho" style="cursor:pointer;color:#0f766e">' +
+        '▸ xem '+con.length+' dòng cũ hơn</summary><div>'+con.map(dong).join('')+'</div></details>'
+      : '' ) +
+    '</div>';
+}
+
+/* KHỐI QUYẾT TOÁN — ba ô lớn + dải kết luận, đúng kiểu trang mảng. */
+function veThuaThieu(t){
+  if (!t || !t.daCapTien) return '';
+  var cl = Number(t.chenhLech||0);
+  var mau = cl > 0 ? ['#dcfce7','#86efac','#166534'] : ( cl < 0 ? ['#fef3c7','#fde68a','#92400e'] : ['#f1f5f9','#cbd5e1','#334155'] );
+  var chu = cl > 0 ? 'Thừa '+tien(cl)+' — NV trả lại kế toán'
+          : ( cl < 0 ? 'Thiếu '+tien(Math.abs(cl))+' — kế toán bù cho NV' : 'Khớp — không thừa thiếu' );
+  return '<div class="qt-hop">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">' +
+      '<b style="color:#92400e">💰 Quyết toán — thực chi &amp; trả tiền kế toán</b>' +
+      '<span class="nho" style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:6px;font-weight:700">' +
+      'kế toán đối chiếu &amp; trả tiền</span>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+      '<div class="qt-o" style="background:#eff6ff;border-color:#bfdbfe"><div class="nhan">Tạm ứng (số đã duyệt)</div>' +
+        '<div class="so" style="color:#1e40af">'+tien(t.tamUng)+'</div></div>' +
+      '<div class="qt-o" style="background:#f0fdf4;border-color:#86efac"><div class="nhan">Thực chi (tổng dòng đã mua)</div>' +
+        '<div class="so" style="color:#166534">'+tien(t.thucChi)+'</div></div>' +
+      '<div class="qt-o" style="background:'+mau[0]+';border-color:'+mau[1]+'"><div class="nhan">Còn lại (thừa/thiếu)</div>' +
+        '<div class="so" style="color:'+mau[2]+'">'+tien(Math.abs(cl))+( cl>0?'đ thừa':( cl<0?'đ thiếu':'' ))+'</div></div>' +
+      ( Number(t.nccChi||0)
+        ? '<div class="qt-o"><div class="nhan">Trả nhà cung cấp</div><div class="so">'+tien(t.nccChi)+'</div></div>' : '' ) +
+    '</div>' +
+    '<div class="nho mo" style="margin-top:8px">💡 <b>Tạm ứng</b> = số đã duyệt (cố định, khoá sau duyệt). ' +
+      '<b>Thực chi</b> = tổng các dòng đã mua. → <b>Còn lại</b> = Tạm ứng − Thực chi ' +
+      '(thừa: NV trả lại · thiếu: kế toán bù).</div>' +
+    '<div style="margin-top:8px;padding:10px 12px;border-radius:8px;background:'+mau[0]+';border:1px solid '+mau[1]+';' +
+      'color:'+mau[2]+';font-weight:800;font-size:14px">'+chu+'</div>' +
+    '</div>';
 }
 
 function veChiTiet(g){
@@ -478,33 +561,46 @@ function veChiTiet(g){
      Đọc nhầm khoá thì bảng đầy dòng mà không dòng nào của đơn này, và nó trông y như thật. */
   var ds = g.lines || [], don = g.don || {}, t = g.tien || null;
 
-  var h = '<div style="padding:2px 0 4px">' +
-    '<div style="font-weight:800;color:#0f766e;margin-bottom:2px">Đơn đang ' + esc(don.trangThai||'—') + '</div>' +
-    '<div class="nho mo" style="margin-bottom:6px">' +
-      esc(don.ky||'') + ( don.nguoiLap ? ' · ' + esc(don.nguoiLap) : '' ) +
-      ( don.nguoiDuyet ? ' · duyệt bởi <b>' + esc(don.nguoiDuyet) + '</b>' : '' ) +
-      ( don.ghiChu ? ' · ' + esc(don.ghiChu) : '' ) +
-    '</div>' +
-    veDaiTT(don.trangThai) + veMoc(g.moc) + '</div>';
+  /* Cơ sở của đơn lấy từ chính dòng chi. Một đơn có thể rải nhiều gian (Văn phòng / Máy tự động
+     khi không tạm ứng) — nói ra số gian chứ đừng bày một cái tên như thể đơn chỉ có nó. */
+  var cs = [];
+  ds.forEach(function(r){ var x = (r.coso||'').trim(); if (x && cs.indexOf(x) < 0) cs.push(x); });
+  var csChu = cs.length === 1 ? cs[0] : ( cs.length > 1 ? cs.length + ' cơ sở' : '' );
+
+  var trai =
+    '<div class="hop-tt">' +
+      '<div style="font-size:15px;font-weight:800;color:#0f766e">Đơn đang ' + esc(don.trangThai||'—') + '</div>' +
+      '<div class="nho mo" style="margin-top:2px">' +
+        esc(don.ky||'') +
+        ( csChu ? ' · 🏢 <b style="color:#334155">' + esc(csChu) + '</b>' : '' ) +
+        ( don.nguoiLap ? ' · ' + esc(don.nguoiLap) : '' ) +
+        ( don.ghiChu ? ' · ' + esc(don.ghiChu) : '' ) +
+      '</div>' +
+      veChipKhoa(don.trangThai) +
+      veDaiTT(don.trangThai) +
+    '</div>';
 
   if (!ds.length){
     /* ⚠️ "Chưa có dòng chi" KHÁC "đọc hỏng": đơn xin ứng trước được phép gửi khi chưa liệt kê
        hạng mục. Nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
-    return h + '<p class="mo nho">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>'
-             + veThuaThieu(t) + veLichSu(g.lichSu);
+    trai += '<p class="mo nho" style="margin-top:10px">Đơn này <b>chưa có dòng chi nào</b> — ' +
+            'đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
+  } else {
+    var tong = 0, h = '<div class="cuon" style="margin-top:12px"><table><thead><tr>' +
+      '<th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
+      '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>';
+    ds.forEach(function(r){
+      var tt = Number(r.thanhTien||0); tong += tt;
+      h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
+           '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
+           '<td class="r">'+tien(tt)+'</td></tr>';
+    });
+    trai += h + '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
+            '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
   }
-  var tong = 0;
-  h += '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
-       '<th class="r">SL</th><th class="r">Đơn giá</th><th class="r">Thành tiền</th></tr></thead><tbody>';
-  ds.forEach(function(r){
-    var tt = Number(r.thanhTien||0); tong += tt;
-    h += '<tr><td>'+esc(r.coso||'')+'</td><td>'+esc(r.nhom||'')+'</td><td>'+esc(r.noiDung||'')+'</td>' +
-         '<td class="r">'+(r.soLuong||'')+'</td><td class="r">'+tien(Number(r.donGia||0))+'</td>' +
-         '<td class="r">'+tien(tt)+'</td></tr>';
-  });
-  h += '</tbody><tfoot><tr><td colspan="5" class="r">Cộng '+ds.length+' dòng</td>' +
-       '<td class="r">'+tien(tong)+'</td></tr></tfoot></table></div>';
-  return h + veThuaThieu(t) + veLichSu(g.lichSu);
+  trai += veThuaThieu(t) + veMoc(g.moc);
+
+  return '<div class="hai-cot"><div>' + trai + '</div><div>' + veLichSu(g.lichSu) + '</div></div>';
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

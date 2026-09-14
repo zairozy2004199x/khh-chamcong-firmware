@@ -591,6 +591,48 @@ t( '⚠️ lịch sử lọc đúng mã đơn theo ô Đối tượng',
 	(bool) preg_match( '#doiTuong[\s\S]{0,120}?!== [$]ma \) \{ continue; \}#', $api_ma ), '' );
 t( 'viền thẻ có thật, không chỉ bóng đổ', false !== strpos( $html, '.card{background:#fff;border:1px solid' ), '' );
 
+/* ═══ 6f. MỌI HÀM CỦA MÀN PHẢI CÒN MẶT ══════════════════════════════════════════
+ *
+ * 🔴 ĐÃ CẮN THẬT HAI LẦN TRONG MỘT BUỔI, 14/09/2026. Viết lại một khối của `app.html` bằng cách
+ *    cắt từ mốc A tới mốc B rồi dán khối mới vào — mà giữa hai mốc ấy còn nằm nguyên màn Xuất
+ *    MISA và màn Tra chi phí. Chúng biến mất sạch. Tệp vẫn đúng cú pháp, `node --check` vẫn
+ *    xanh, trang vẫn mở ra bình thường — chỉ là bấm vào tab thì không có gì xảy ra.
+ *
+ * ⚠️ Phép này rẻ và bắt được đúng kiểu hỏng ấy: kê tên MỌI hàm màn đang cần, thiếu một cái là
+ *    đỏ. Thêm màn mới thì thêm tên vào đây.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+foreach ( array(
+	/* cổng PIN + khung màn */      'veVao', 'veChinh', 'napDs', 'veBang', 'coQuyen',
+	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu',
+	/* xuất MISA */                 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong',
+	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
+	/* việc trên đơn */             'lam',
+) as $ham ) {
+	t( '🔴 màn còn hàm ' . $ham . '()', false !== strpos( $html, 'function ' . $ham . '(' ), '' );
+}
+
+/* ═══ 6g. BỐ CỤC XEM ĐƠN GIỐNG TRANG MẢNG ═══════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"giao diện trực quan như này đi"* — kèm ảnh trang mảng.
+ * 🔴 Giống nhau là để ĐỌC ĐƯỢC NGAY, không phải để đẹp: kế toán và quản lý đã quen chỗ nào là
+ *    trạng thái, chỗ nào là tiền, chỗ nào là lịch sử. Bố cục khác là bắt họ học lại, và lúc vội
+ *    thì đọc nhầm.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 xem đơn chia hai cột (đơn | lịch sử)', false !== strpos( $html, 'class="hai-cot"' ), '' );
+t( '⚠️ và xuống một cột ở màn hẹp', false !== strpos( $html, '@media(max-width:980px){.hai-cot{' ), '' );
+t( '🔴 có chip còn-sửa-được / đã-khoá', false !== strpos( $html, 'function veChipKhoa(' ), '' );
+t( 'đơn đã chốt thì nói rõ vì sao không sửa được',
+	false !== mb_strpos( $html_ma, 'Số đã vào sổ nên không sửa được nữa' ), '' );
+t( '🔴 khối quyết toán có đủ ba ô Tạm ứng · Thực chi · Còn lại',
+	false !== mb_strpos( $html_ma, 'Tạm ứng (số đã duyệt)' )
+		&& false !== mb_strpos( $html_ma, 'Thực chi (tổng dòng đã mua)' )
+		&& false !== mb_strpos( $html_ma, 'Còn lại (thừa/thiếu)' ), '' );
+/* ⚠️ Một đơn có thể rải nhiều gian (Văn phòng / Máy tự động khi không tạm ứng) — bày một cái tên
+   như thể đơn chỉ có nó là nói sai về đơn. */
+t( '⚠️ đơn nhiều gian thì nói SỐ GIAN, không bày mỗi một tên',
+	(bool) preg_match( '#cs\.length > 1 \? cs\.length \+ . cơ sở.#u', $html ), '' );
+t( 'lịch sử bày ba dòng mới nhất, phần cũ gập lại',
+	(bool) preg_match( '#ds\.slice\(0,3\)#', $html ), '' );
+
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một
  *    bản là đơn của bản ấy biến mất khỏi trang tổng — không câu lỗi nào, chỉ là bảng ngắn đi.
