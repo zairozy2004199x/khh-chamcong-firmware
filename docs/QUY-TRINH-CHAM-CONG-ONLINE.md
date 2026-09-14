@@ -85,6 +85,51 @@ nói dối bằng hình ảnh — người xem tin vào cái chấm chứ không
 
 ---
 
+## 1b. Làm ở HAI cơ sở trong một ngày
+
+Chỉ đọc phần này nếu ô **Cơ sở được chấm công** có từ hai dòng. Cả phần này để tránh đúng hai
+chuyện: **chấm lộn cơ sở** và **thiếu giờ ra**.
+
+### 🔴 Luật gốc: mỗi cơ sở là một bảng công RIÊNG
+
+Hệ ghi công theo **từng cơ sở**. Làm hai nơi trong một ngày thì bảng Hôm nay có **hai dòng**, và
+**mỗi dòng phải đủ cả giờ vào lẫn giờ ra** — tức **bốn lượt chấm**, không phải hai.
+
+Hai dòng ấy **độc lập**: chưa chấm ra ở nơi cũ thì vẫn chấm vào ở nơi mới được. Hệ **không chặn**
+— nên nó cũng **không nhắc**.
+
+### 🔴 Cái bẫy: ô cơ sở luôn chọn sẵn cơ sở CHÍNH
+
+Lúc bấm **LƯU CHẤM CÔNG**, ô cơ sở đã điền sẵn **cơ sở chính**. Đang đứng ở **cơ sở phụ** mà bấm
+lướt không nhìn ô là **lượt ấy ghi vào cơ sở chính**.
+
+Hỏng kép: cơ sở phụ **mất trắng** lượt đó, cơ sở chính **mọc thêm** một giờ ra không có thật. Và
+**không có gì báo** — màn hình vẫn hiện "đã ghi".
+
+> **Mỗi lượt, đọc lại tên cơ sở trong ô trước khi bấm Lưu.** Đúng một giây.
+
+### Một ngày làm hai nơi, đủ bốn lượt
+
+| Lúc | Việc | Bảng Hôm nay sau đó |
+|---|---|---|
+| 08:00 | Tới nơi → chấm, chọn `VP_KH-HCM` | VP_KH-HCM · vào 08:00 · ra — |
+| 11:45 | **Chấm RA trước khi rời**, vẫn `VP_KH-HCM` | VP_KH-HCM · vào 08:00 · ra 11:45 |
+| 13:10 | Tới nơi thứ hai → chấm, **đổi ô** sang `SETUP_VP` | thêm dòng SETUP_VP · vào 13:10 · ra — |
+| 17:30 | Về → chấm, vẫn `SETUP_VP` | SETUP_VP · vào 13:10 · ra 17:30 |
+
+![Quy trình hai cơ sở](anh/quy-trinh-hai-co-so.png)
+
+**Chấm RA trước khi rời, đừng để tới nơi mới.** Rời rồi mới nhớ thì hoặc **quên luôn**, hoặc chấm
+ra mà ô cơ sở **đã nhảy** theo nơi mới — nơi cũ vẫn thiếu giờ ra, nơi mới mọc thêm một giờ vào sai.
+
+**Cuối ngày đếm hai thứ:** số dòng = số cơ sở đã làm, và mỗi dòng có **cả Vào lẫn Ra**. Thiếu ô
+nào thì báo quản lý **ngay trong ngày**.
+
+⚠️ **Chấm nhầm cơ sở rồi thì tự sửa không được** — không có nút xoá lượt chấm, cố chấm lại chỉ
+làm dòng sai thêm rối. Báo quản lý sửa ở màn **Bảng công**, trong ngày.
+
+---
+
 ## 2. Bảng tra: màn hình báo gì thì làm gì
 
 | Màn hình hiện | Nghĩa là gì · làm gì | Ai sửa |

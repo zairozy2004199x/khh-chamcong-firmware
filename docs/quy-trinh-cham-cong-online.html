@@ -331,6 +331,43 @@ figcaption{font-size:12.5px;color:var(--mo);margin:8px 0 0;max-width:34ch}
 .cham.c-luc{background:var(--luc)}
 .cham.c-canh{background:var(--canh)}
 
+/* ───────────────── một ngày làm hai nơi ───────────────── */
+.doi{margin:20px 0 0;border-left:2px solid var(--vien);padding-left:0;list-style:none}
+.doi li{
+  display:grid;grid-template-columns:64px 1fr;gap:0 14px;
+  padding:0 0 18px 16px;margin-left:-2px;border-left:2px solid transparent;position:relative;
+}
+.doi li::before{
+  content:"";position:absolute;left:-7px;top:5px;width:12px;height:12px;border-radius:50%;
+  background:var(--the);border:2.5px solid var(--dau);
+}
+.doi li.ra::before{border-color:var(--canh)}
+.doi .gio{
+  font:600 14px/1.5 "JetBrains Mono",ui-monospace,monospace;
+  font-variant-numeric:tabular-nums;color:var(--muc);
+}
+.doi .viec{font-size:14.5px;line-height:1.5}
+.doi .viec b{font-weight:600}
+.doi .cs{
+  display:inline-block;font:600 11.5px/1 "JetBrains Mono",monospace;
+  background:var(--dau-nen);color:var(--dau);padding:3px 6px;border-radius:3px;
+}
+.doi .sau{
+  display:block;margin-top:6px;font-size:12.5px;color:var(--mo);
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+}
+.bay{
+  margin:20px 0 0;border:1px solid var(--do-vien);border-radius:4px;overflow:hidden;
+}
+.bay-dau{
+  background:var(--do-nen);color:var(--do);padding:10px 14px;
+  font:600 11px/1.3 "JetBrains Mono",ui-monospace,monospace;
+  letter-spacing:.12em;text-transform:uppercase;
+}
+.bay-than{padding:13px 14px;background:var(--the);font-size:15px}
+.bay-than p{margin:0}
+.bay-than p + p{margin-top:9px}
+
 /* ───────────────── danh sách kiểm ───────────────── */
 .kiem{list-style:none;margin:22px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
 .kiem li{
@@ -611,6 +648,90 @@ figcaption{font-size:12.5px;color:var(--mo);margin:8px 0 0;max-width:34ch}
     </table>
   </div>
 
+</section>
+
+<!-- ══════════════ PHẦN 1B ══════════════ -->
+<section class="phan">
+  <div class="phan-dau">
+    <h2>Làm ở hai cơ sở trong một ngày</h2>
+    <span class="ai">Nhân viên chạy hai nơi</span>
+  </div>
+  <p class="dan">Đọc thêm phần này nếu ô <b>Cơ sở được chấm công</b> của anh/chị có từ hai dòng. Cả phần này chỉ để tránh đúng hai chuyện: <b>chấm lộn cơ sở</b>, và <b>thiếu giờ ra</b>.</p>
+
+  <div class="luu">
+    <span class="nhan">Luật gốc: mỗi cơ sở là một bảng công riêng</span>
+    <p>Hệ ghi công theo <b>từng cơ sở</b>. Làm ở hai nơi trong một ngày thì có <b>hai dòng</b> ở bảng Hôm nay, và <b>mỗi dòng phải đủ cả giờ vào lẫn giờ ra</b> — tức là <b>bốn lượt chấm</b>, không phải hai.</p>
+    <p>Hai dòng ấy <b>độc lập</b>: chưa chấm ra ở nơi cũ thì vẫn chấm vào ở nơi mới được. Hệ không chặn — nên nó cũng không nhắc.</p>
+  </div>
+
+  <div class="bay">
+    <div class="bay-dau">🔴 Cái bẫy: ô cơ sở luôn chọn sẵn cơ sở CHÍNH</div>
+    <div class="bay-than">
+      <p>Lúc bấm <b>LƯU CHẤM CÔNG</b>, ô cơ sở đã điền sẵn <b>cơ sở chính</b> của anh/chị. Đang đứng ở <b>cơ sở phụ</b> mà bấm lướt không nhìn ô là <b>lượt ấy ghi vào cơ sở chính</b>.</p>
+      <p>Hỏng kép: cơ sở phụ <b>mất trắng</b> lượt đó, còn cơ sở chính <b>mọc thêm</b> một giờ ra không có thật. Và <b>không có gì báo</b> — màn hình vẫn hiện "đã ghi".</p>
+      <p><b>Mỗi lượt, đọc lại tên cơ sở trong ô trước khi bấm Lưu.</b> Đúng một giây.</p>
+    </div>
+  </div>
+
+  <h3 style="font:600 17px/1.3 'Be Vietnam Pro',sans-serif;margin:34px 0 0">Một ngày làm hai nơi, đủ bốn lượt</h3>
+  <p class="doc-mau" style="margin:8px 0 0;max-width:62ch">Ví dụ sáng ở <code>VP_KH-HCM</code>, chiều sang <code>SETUP_VP</code>. Cột dưới mỗi việc là <b>bảng Hôm nay phải hiện ra gì</b> sau lượt ấy.</p>
+
+  <ol class="doi">
+    <li>
+      <span class="gio">08:00</span>
+      <span class="viec">Tới nơi → chấm, chọn <span class="cs">VP_KH-HCM</span>
+        <span class="sau">Hôm nay: VP_KH-HCM · vào 08:00 · ra —</span></span>
+    </li>
+    <li class="ra">
+      <span class="gio">11:45</span>
+      <span class="viec"><b>Chấm RA trước khi rời</b>, vẫn chọn <span class="cs">VP_KH-HCM</span>
+        <span class="sau">Hôm nay: VP_KH-HCM · vào 08:00 · ra 11:45</span></span>
+    </li>
+    <li>
+      <span class="gio">13:10</span>
+      <span class="viec">Tới nơi thứ hai → chấm, <b>đổi ô</b> sang <span class="cs">SETUP_VP</span>
+        <span class="sau">Hôm nay: thêm dòng SETUP_VP · vào 13:10 · ra —</span></span>
+    </li>
+    <li class="ra">
+      <span class="gio">17:30</span>
+      <span class="viec">Về → chấm, vẫn chọn <span class="cs">SETUP_VP</span>
+        <span class="sau">Hôm nay: SETUP_VP · vào 13:10 · ra 17:30</span></span>
+    </li>
+  </ol>
+
+  <div class="co-hinh">
+    <div>
+      <div class="luu">
+        <span class="nhan">Chấm RA trước khi rời, đừng để tới nơi mới</span>
+        <p>Rời rồi mới nhớ thì hai chuyện hay xảy ra: <b>quên luôn</b>, hoặc chấm ra mà ô cơ sở <b>đã nhảy</b> theo nơi mới — thành ra nơi cũ vẫn thiếu giờ ra, mà nơi mới mọc thêm một giờ vào sai.</p>
+      </div>
+      <div class="luu">
+        <span class="nhan">Cuối ngày, đếm hai thứ</span>
+        <p><b>Số dòng</b> ở bảng Hôm nay phải bằng <b>số cơ sở đã làm</b>. Và <b>mỗi dòng</b> phải có <b>cả Vào lẫn Ra</b>. Thiếu một ô nào thì báo quản lý <b>ngay trong ngày</b>.</p>
+      </div>
+    </div>
+    <figure class="hinh">
+      <div class="dt">
+        <div class="dt-thanh">Bảng Hôm nay · cuối ngày</div>
+        <div class="dt-than">
+          <table class="dt-bang">
+            <thead><tr><th>Cơ sở</th><th>Hàng</th><th>Vào</th><th>Ra</th></tr></thead>
+            <tbody>
+              <tr><td>VP_KH-HCM</td><td>chính</td><td>08:00</td><td>11:45</td></tr>
+              <tr><td>SETUP_VP</td><td>chính</td><td>13:10</td><td>17:30</td></tr>
+            </tbody>
+          </table>
+          <p class="dt-ghi">Đủ <b>2 dòng</b>, mỗi dòng <b>đủ Vào và Ra</b> — ngày đó xong.</p>
+        </div>
+      </div>
+      <figcaption>Minh hoạ. Đây là thứ phải thấy trước khi về.</figcaption>
+    </figure>
+  </div>
+
+  <div class="luu nang">
+    <span class="nhan">Chấm nhầm cơ sở rồi thì tự sửa KHÔNG được</span>
+    <p>Không có nút xoá lượt chấm — cố chấm lại cho đúng chỉ làm dòng sai thêm rối. <b>Báo quản lý ngay trong ngày</b>, họ sửa ở màn <b>Bảng công</b>. Để sang tháng sau là đụng vào bảng lương đã chốt.</p>
+  </div>
 </section>
 
 <!-- ══════════════ PHẦN 2 ══════════════ -->
