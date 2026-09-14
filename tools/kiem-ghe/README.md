@@ -43,3 +43,35 @@ NODE_PATH=/opt/node22/lib/node_modules node kiem-rong-cot-misa.js
 ⚠️ Harness phải nạp **CSS thật** của plugin (`spa.css` tách từ khối `<<<'CSS'`), không dùng CSS
 rút gọn tự viết. Chiều rộng cột do `.misa-ten{min-width:240px}` quyết định — kiểm bằng CSS khác
 là đo một cái bảng khác, và nó sẽ xanh kể cả khi bản thật vẫn cắt chữ.
+
+
+## `kiem-sap-xep-diadiem.js` — 5 kiểu sắp xếp bảng Địa điểm
+
+```bash
+NODE_PATH=/opt/node22/lib/node_modules node kiem-sap-xep-diadiem.js
+```
+
+| Kiểm | Hỏng nếu không kiểm |
+|---|---|
+| A→Z địa điểm · chưa có Unit ID lên đầu · A→Z Unit ID · A→Z tên MISA · nhiều ghế nhất | Kiểu nào đó lặng lẽ không đổi thứ tự |
+| Ô trống dồn **xuống cuối** ở kiểu Unit ID / tên MISA | 19 hàng rỗng chiếm hết màn |
+| Hàng **"(chưa gán)" luôn cuối** ở mọi kiểu | Người đọc tưởng có một địa điểm tên "(chưa gán)" |
+| Bảng gập "cơ sở chưa có ghế" cũng được sắp | Hai bảng hai thứ tự khác nhau |
+| Gõ Unit ID xong **KHÔNG tự nhảy chỗ**, chỉ đổi khi chọn lại kiểu sắp | Đang điền từ trên xuống mà hàng nhảy đi là không ai điền nổi |
+| Nhớ lựa chọn qua `localStorage` | Mỗi lần tải lại phải chọn lại |
+
+### 🔴 Harness PHẢI gọi `noi()`, không gọi thẳng `misaNap()`
+
+Mọi sự kiện của trang gắn trong `noi()` — đó là đường thật (`if (TAB === 'quan-ly') { … noi(); }`).
+Bản đầu của phép kiểm này gọi thẳng `misaNap()` nên ô chọn sắp xếp **không có handler nào**, và
+phép kiểm **xanh oan cho một cái nút chết**.
+
+Muốn gọi `noi()` thì `trang.html` phải dựng cả **khung đầu trang** (`#lam-moi`, `#thoat`) —
+`noi()` gán `onclick` vào hai nút đó **không có bảo vệ null**, thiếu là nó văng giữa chừng và mọi
+thứ gắn SAU đó không bao giờ được gắn.
+
+### Dữ liệu thử phải khác nhau thật
+
+Hai lần bản nháp báo hỏng oan vì dữ liệu thử, không phải vì code:
+- mọi cơ sở cùng **3 ghế** → kiểu "nhiều ghế nhất" không thể đổi thứ tự;
+- **mã ghế trùng nhau** → app bật khối cảnh báo đỏ (đúng chức năng), đẩy bảng ra khỏi ảnh chụp.

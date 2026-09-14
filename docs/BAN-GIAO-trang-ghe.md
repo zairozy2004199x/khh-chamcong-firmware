@@ -64,8 +64,22 @@ Unit ID thì phải mở màn khác rồi dò tên qua lại giữa hai bảng 7
 MISA là thứ phải đối chiếu bằng mắt với sổ kế toán, nhìn không hết tên thì cột này mất gần hết
 công dụng. Hover vào ô hiện tên cơ sở đầy đủ (`title`).
 
+**Sắp xếp (2.74.0)** — ô chọn cạnh ô tìm, 5 kiểu: *A→Z địa điểm* (mặc định) · **Chưa có Unit ID
+lên đầu** · *A→Z Unit ID* · *A→Z tên MISA* · *Nhiều ghế nhất*. Lựa chọn được nhớ trong
+`localStorage` (`vhg_cs_sap`).
+
+- Sắp **trong DOM**, không vẽ lại bảng — cột Unit ID là ô đang gõ, vẽ lại là mất con trỏ và mất
+  chữ chưa kịp lưu (ô tìm ở trên cũng theo luật này).
+- Khoá sắp đọc **từ chính ô nhập**, không từ bản đồ nạp lúc đầu — vừa gõ xong chọn sắp lại phải
+  thấy nó về đúng chỗ mới.
+- Ô trống dồn **xuống cuối** (muốn xem hàng trống thì đã có kiểu *Chưa có Unit ID lên đầu*).
+- Hàng **"(chưa gán)" luôn nằm cuối** mọi kiểu — nó không phải một cơ sở.
+- Gõ xong **không tự sắp lại**: đang điền lần lượt mà mỗi lần rời ô hàng nhảy đi là không ai điền
+  nổi. Thứ tự chỉ đổi khi chọn lại kiểu.
+
 Phép kiểm: `tools/kiem-ghe/kiem-diadiem-misa.js` (Chromium, giả lập ở tầng `XMLHttpRequest` nên
-chạy đúng `goi()` thật) và `tools/kiem-ghe/kiem-rong-cot-misa.js` (đo cắt chữ ở 3 bề rộng màn).
+chạy đúng `goi()` thật) · `tools/kiem-ghe/kiem-rong-cot-misa.js` (đo cắt chữ ở 3 bề rộng màn) · và
+`tools/kiem-ghe/kiem-sap-xep-diadiem.js` (5 kiểu sắp xếp, chạy qua `noi()` — đường thật).
 
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 

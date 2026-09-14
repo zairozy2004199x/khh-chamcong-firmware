@@ -9291,6 +9291,18 @@ function veQuanLy(){
   h += '<div class="act" style="margin-bottom:8px">'
     + '<input id="cs-tim" type="search" placeholder="🔎 ' + L('Tìm địa điểm, tỉnh hoặc mã KH…','Search site, province or code…')
       + '" style="flex:1;min-width:200px;max-width:340px">'
+    /* SẮP XẾP — anh Thắng 14/09/2026: *"sắp xếp ãm theo tên unit hoặc theo tùy chọn"*. Đang điền
+       Unit ID cho 73 cơ sở thì thứ tự A→Z theo tên địa điểm là thứ tự BẤT LỢI NHẤT: cơ sở đã điền
+       và chưa điền nằm xen kẽ nhau, mắt phải quét cả bảng mới biết còn thiếu ở đâu.
+       ⚠️ SẮP NGAY TRONG DOM, không vẽ lại bảng — y như ô tìm ở trên. Vẽ lại là mất con trỏ trong
+          ô đang gõ dở và mất luôn chữ chưa kịp lưu. */
+    + '<select id="cs-sap" title="' + L('Thứ tự hiển thị','Sort order') + '" style="align-self:center;padding:6px 8px;font-size:12.5px">'
+      + '<option value="ten">' + L('A→Z theo địa điểm','A→Z by site') + '</option>'
+      + '<option value="thieu">' + L('Chưa có Unit ID lên đầu','Missing Unit ID first') + '</option>'
+      + '<option value="unit">' + L('A→Z theo Unit ID','A→Z by Unit ID') + '</option>'
+      + '<option value="misa">' + L('A→Z theo tên MISA','A→Z by MISA name') + '</option>'
+      + '<option value="ghe">' + L('Nhiều ghế nhất','Most chairs') + '</option>'
+      + '</select>'
     + '<span id="cs-dem" class="mut" style="align-self:center"></span>'
     + '<span id="cs-misa-thieu" class="mut" style="align-self:center;margin-left:10px"></span></div>';
   /* UNIT ID + TÊN MISA NGAY TRÊN HÀNG ĐỊA ĐIỂM — anh Thắng 14/09/2026: *"đẩy dồn 2 cột này qua
@@ -9365,7 +9377,7 @@ function veQuanLy(){
       + L('Cơ sở chưa có ghế','Sites with no chairs') + ' (' + nRong + ') — ' + L('bấm để xem / gán ghế / xoá','click to view / assign / delete') + '</summary>'
       /* Bảng gập này dùng CHUNG các hàng `hRong` đã dựng ở trên, nên tiêu đề phải có ĐỦ 6 cột
          y hệt bảng chính — thiếu một <th> là mọi ô trong đó lệch sang trái một cột. */
-      + '<table style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+      + '<table id="cs-bang-rong" style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
       + '</th><th class="misa-col">Unit ID</th><th class="misa-col misa-ten">' + L('Tên MISA','MISA name') + '</th>'
       + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
   }
@@ -10239,6 +10251,63 @@ function thoatNgoai(){
 window.VHG_Trang = window.VHG_Trang || {};
 window.VHG_Trang.thoat = thoatNgoai;
 
+/* ══════════════════════ SẮP XẾP BẢNG ĐỊA ĐIỂM ═════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"sắp xếp ãm theo tên unit hoặc theo tùy chọn"*.
+ *
+ * 🔴 SẮP TRONG DOM, KHÔNG VẼ LẠI BẢNG. Cột Unit ID / Tên MISA là Ô ĐANG GÕ; vẽ lại bảng là mất
+ *    con trỏ và mất luôn chữ chưa kịp lưu. Ô tìm ở trên cũng theo đúng luật này (lọc bằng
+ *    ẩn/hiện hàng), nên hai thứ dùng chung một bảng DOM mà không đá nhau.
+ *
+ * 🔴 ĐỌC KHOÁ SẮP TỪ CHÍNH Ô NHẬP, không từ bản đồ đã nạp lúc đầu. Anh vừa gõ Unit ID xong bấm
+ *    sắp lại thì phải thấy nó về đúng chỗ mới — đọc bản nạp cũ là hàng nhảy về chỗ của giá trị
+ *    CŨ, trông y như app ghi hụt.
+ *
+ * ⚠️ Ô TRỐNG XUỐNG CUỐI ở kiểu "theo Unit ID" / "theo tên MISA". Trống mà xếp trước thì 19 hàng
+ *    rỗng chiếm hết màn — muốn xem hàng rỗng đã có kiểu "Chưa có Unit ID lên đầu" riêng.
+ * ⚠️ Hàng "(chưa gán)" LUÔN nằm cuối, mọi kiểu sắp. Nó không phải một cơ sở; trộn nó vào giữa là
+ *    người đọc tưởng đó là một địa điểm tên "(chưa gán)".
+ */
+function csSapKhoa_(tr, kieu){
+  var a = tr.querySelector('[data-csxem]');
+  var ten = a ? (a.getAttribute('data-csxem') || '') : '';
+  if (kieu === 'ghe')  { return -(parseInt((tr.children[1] || {}).textContent, 10) || 0); }
+  if (kieu === 'unit' || kieu === 'misa' || kieu === 'thieu') {
+    var o = tr.querySelector(kieu === 'misa' ? '[data-misan]' : '[data-misau]');
+    var v = o ? (o.value || '').trim() : '';
+    if (kieu === 'thieu') { return (v ? '1' : '0') + '\u0000' + kdJS(ten); }
+    /* '\uffff' đứng sau mọi ký tự thường gặp → ô trống tự dồn xuống cuối, mà vẫn giữ được thứ
+       tự A→Z theo tên địa điểm bên trong đám trống ấy. */
+    return (v ? kdJS(v) : '\uffff') + '\u0000' + kdJS(ten);
+  }
+  return kdJS(ten);
+}
+function csSapMot_(bang, kieu){
+  if (!bang) return;
+  var than = bang.tBodies[0] || bang;
+  var hang = [].slice.call(than.rows);
+  var dau = [], giua = [], cuoi = [];
+  hang.forEach(function(tr){
+    if (tr.cells.length && tr.cells[0].tagName === 'TH') { dau.push(tr); return; }   /* hàng tiêu đề */
+    var a = tr.querySelector('[data-csxem]');
+    if (a && a.getAttribute('data-csxem') === '__none__') { cuoi.push(tr); return; } /* "(chưa gán)" */
+    if (!a) { cuoi.push(tr); return; }                                              /* hàng lạ: để yên ở cuối */
+    giua.push(tr);
+  });
+  giua.sort(function(x, y){
+    var kx = csSapKhoa_(x, kieu), ky = csSapKhoa_(y, kieu);
+    if (typeof kx === 'number') return kx - ky;
+    return kx < ky ? -1 : (kx > ky ? 1 : 0);
+  });
+  dau.concat(giua, cuoi).forEach(function(tr){ than.appendChild(tr); });
+}
+function csSapXep(){
+  var o = document.getElementById('cs-sap'); if (!o) return;
+  var kieu = o.value || 'ten';
+  try { localStorage.setItem('vhg_cs_sap', kieu); } catch(e){}
+  csSapMot_(document.getElementById('cs-bang'), kieu);
+  csSapMot_(document.getElementById('cs-bang-rong'), kieu);
+}
+
 /* ══════════════════════ UNIT ID / TÊN MISA trên bảng Địa điểm ══════════════════════════════
  * Nạp giá trị vào các ô do misaO_() dựng, rồi tự lưu khi ô ĐỔI.
  *
@@ -10273,6 +10342,9 @@ function misaNap(){
       var v = m[o.getAttribute('data-misan')]; o.value = (v && v.unit_name) || '';
     });
     misaDemThieu();
+    /* Sắp SAU KHI đã đổ giá trị vào ô — sắp trước thì mọi ô còn rỗng, kiểu "theo Unit ID" ra
+       đúng thứ tự A→Z theo tên, trông như nút sắp xếp không ăn. */
+    csSapXep();
   });
 
   function luu(ten){
@@ -10468,8 +10540,16 @@ function noi(){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
   });
 
-  /* ---- UNIT ID / TÊN MISA ngay trên hàng địa điểm (anh Thắng 14/09/2026) ---- */
+  /* ---- UNIT ID / TÊN MISA + sắp xếp bảng Địa điểm (anh Thắng 14/09/2026) ---- */
+  var _es = document.getElementById('cs-sap');   /* ⚠️ PHẢI khai `var` — thiếu là đẻ ra biến toàn cục ngầm */
+  if (_es) {
+    /* Nhớ lựa chọn qua các lần mở trang: đang điền Unit ID cho 73 cơ sở thì mỗi lần tải lại mà
+       phải chọn lại kiểu sắp là một lần bực. */
+    try { var _k = localStorage.getItem('vhg_cs_sap'); if (_k) _es.value = _k; } catch(e){}
+    _es.onchange = csSapXep;
+  }
   misaNap();
+  csSapXep();
 
   /* ---- TAB QUẢN LÝ GHẾ: địa điểm + ghế ---- */
   var _e;

@@ -1,0 +1,34 @@
+<!doctype html><meta charset="utf-8"><title>kiem</title>
+<link rel="stylesheet" href="spa.css">
+<style>table{border-collapse:collapse}th,td{border:1px solid #ddd;padding:4px 6px;font-size:13px}
+.mut{color:#94a3b8}.r{text-align:right}.card{padding:10px}.act{display:flex;gap:6px}.kpis{display:flex;gap:8px}</style>
+<body>
+<!-- Khung dau trang cua app that: noi() gan su kien vao may nut nay KHONG co bao ve null,
+     nen harness phai dung chung y nhu trang that, khong thi noi() vang giua chung va moi thu
+     gan SAU do (trong co o chon sap xep) khong bao gio duoc gan. -->
+<header><button id="lam-moi">↻</button><button id="thoat">Thoát</button>
+  <span id="dong-ho"></span><span id="dong-ho-top"></span></header>
+<div id="app"></div>
+<script>
+window.VHG_API='/api'; window.VHG_BAN='2.73.0'; window.VHG_TEN='POSH';
+window.__GOI=[]; window.__TRALOI={};
+// Giả lập XMLHttpRequest để chạy ĐÚNG hàm goi() thật, kể cả nhánh lỗi.
+window.XMLHttpRequest=function(){
+  var self=this; this.readyState=0; this.responseText='';
+  this.open=function(m,u){ self._u=u; };
+  this.setRequestHeader=function(){};
+  this.send=function(body){
+    var viec=(self._u.match(/api=([^&]+)/)||[])[1]||'';
+    window.__GOI.push({viec:viec, d:JSON.parse(body||'{}')});
+    var r=window.__TRALOI[viec];
+    setTimeout(function(){
+      if(r==='MATMANG'){ self.readyState=4; if(self.onerror) self.onerror(); return; }
+      self.readyState=4; self.status=200;
+      self.responseText=JSON.stringify(typeof r==='function'?r(JSON.parse(body||'{}')):(r||{ok:true}));
+      if(self.onreadystatechange) self.onreadystatechange();
+    },5);
+  };
+};
+</script>
+<script src="k5t.js"></script>
+</body>
