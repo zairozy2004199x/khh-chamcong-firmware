@@ -613,7 +613,7 @@ foreach ( array(
 	/* xem một đơn */               'xem', 'veChiTiet', 'veDaiTT', 'veChipKhoa', 'veThuaThieu', 'veMoc', 'veLichSu',
 	/* xuất MISA */                 'veMisa', 'docMisa', 'veMisaKq', 'taiMisa', 'xongMisa', 'oCsv', 'nutXong',
 	/* tra chi phí ba mảng */       'veTra', 'docTra', 'veTraKq', 'oChon',
-	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq',
+	/* tổng quan (Dashboard) */     'veTongQuan', 'docTongQuan', 'veTongQuanKq', 'mauBuoc',
 	/* việc trên đơn */             'lam',
 ) as $ham ) {
 	t( '🔴 màn còn hàm ' . $ham . '()', false !== strpos( $html, 'function ' . $ham . '(' ), '' );
@@ -732,6 +732,36 @@ t( '🔴 nhóm duyet đọc về cả đơn Nháp',
 	(bool) preg_match( "#'tt'\s*=> array\( self::CHO_DUYET, self::NHAP \)#", $gom3 ), '' );
 t( '🔴 nhưng KHÔNG đếm Nháp vào ô tròn (chưa gửi thì chưa phải việc của ai)',
 	(bool) preg_match( "#'demTt' => array\( self::CHO_DUYET \),#", $gom3 ), '' );
+
+/* ═══ 6j. MÀU THEO BƯỚC ═════════════════════════════════════════════════════════
+ * Anh Thắng 14/09/2026: *"các ô đơn hiện màu mè tí được không"*.
+ *
+ * 🔴 MÀU Ở ĐÂY LÀ ĐỂ ĐẾM BẰNG MẮT, không phải trang trí. Bảy khối xám như nhau thì phải đọc
+ *    tiêu đề từng khối mới biết đang ở khâu nào; mỗi khâu một tông thì liếc một cái là thấy
+ *    "chỗ cam đang dài" — mà chỗ cam chính là chỗ ùn.
+ * ⚠️ BA TÔNG THEO NGHĨA, không phải bảy màu cầu vồng: xám = chưa tới lượt ai · cam = ĐANG CHỜ
+ *    người nào đó · xanh dương = tiền đã ra khỏi két · xanh lá = xong. Bảy màu rời rạc thì
+ *    người đọc phải nhớ bảng màu, tức mất đúng cái lợi vừa nói.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 có bảng màu theo bước', false !== strpos( $html, 'function mauBuoc(' ), '' );
+foreach ( array(
+	'Nháp'              => '#64748b',
+	'Chờ duyệt tạm ứng' => '#b45309',
+	'Chờ cấp tạm ứng'   => '#b45309',
+	'Chờ quyết toán'    => '#b45309',
+	'Đã cấp tạm ứng'    => '#0369a1',
+	'Đã quyết toán'     => '#166534',
+	'Đã xuất MISA'      => '#166534',
+) as $tt => $mau ) {
+	t( 'bước «' . $tt . '» mang tông ' . $mau,
+		(bool) preg_match( "#'" . preg_quote( $tt, '#' ) . "':\s*\{ chu:'" . preg_quote( $mau, '#' ) . "'#u", $html ), '' );
+}
+/* ⚠️ Trạng thái LẠ (bản mảng đổi chữ) vẫn phải vẽ ra được, không để cả khối thành "undefined". */
+t( '⚠️ trạng thái lạ vẫn có tông để vẽ',
+	(bool) preg_match( "#return M\[String\(tt\|\|''\)\] \|\| \{ chu:#", $html ), '' );
+/* 🔴 "Ai nộp trước lên trước" chỉ có nghĩa khi NHÌN THẤY được thứ tự. */
+t( '🔴 hàng chờ đánh số thứ tự, bảng đã xong thì không',
+	(bool) preg_match( '#var stt = xong \? .. :#', $html ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

@@ -73,6 +73,27 @@ tfoot td{font-weight:700;background:#f1f5f9}
         margin:2px 4px 2px 0;white-space:nowrap}
 .k-mo{background:#dcfce7;color:#166534}
 .k-khoa{background:#fee2e2;color:#b91c1c}
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * MÀU THEO BƯỚC — anh Thắng 14/09/2026: *"các ô đơn hiện màu mè tí được không"*.
+ *
+ * 🔴 MÀU Ở ĐÂY LÀ ĐỂ ĐẾM BẰNG MẮT, không phải để trang trí. Bảy khối xám như nhau thì phải đọc
+ *    tiêu đề từng khối mới biết đang ở khâu nào; mỗi khâu một tông thì liếc một cái là thấy
+ *    "chỗ cam đang dài" — mà chỗ cam chính là chỗ ùn.
+ *
+ * ⚠️ BA TÔNG THEO NGHĨA, KHÔNG PHẢI BẢY MÀU CẦU VỒNG: xám = chưa tới lượt ai · cam = ĐANG CHỜ
+ *    người nào đó làm · xanh dương = tiền đã ra khỏi két · xanh lá = xong. Bảy màu rời rạc thì
+ *    người đọc phải nhớ bảng màu, tức lại mất đúng cái lợi vừa nói.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.buoc{border-left:4px solid #cbd5e1;border-radius:10px;padding:10px 12px;margin:14px 0 0;background:#fff}
+.buoc-dau{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.buoc-ten{font-weight:800;font-size:13.5px;display:flex;align-items:center;gap:7px}
+.buoc-so{font-size:11.5px;font-weight:800;padding:1px 9px;border-radius:999px}
+.buoc table tbody tr:nth-child(even) td{background:#fcfdfe}
+.buoc table tbody tr:hover td{background:#f8fafc}
+.buoc td.tien{font-weight:700}
+.dem-chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;
+          border:1px solid #e2e8f0;background:#fff;color:#94a3b8;margin:0 5px 5px 0}
+.dem-chip b{font-weight:800}
 .qt-hop{border:2px solid #f59e0b;background:#fffbeb;border-radius:12px;padding:14px;margin-top:12px}
 .qt-o{border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:10px 14px;min-width:150px}
 .qt-o .nhan{font-size:10.5px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.03em}
@@ -1126,6 +1147,26 @@ function docTongQuan(){
   });
 }
 
+/* Tông màu của một bước. Xem khối `.buoc` trong CSS: ba tông theo NGHĨA, không phải bảy màu. */
+function mauBuoc(tt){
+  var M = {
+    /* Chưa tới lượt ai — xám, cố tình nhạt: nó không phải việc của người đang nhìn. */
+    'Nháp':              { chu:'#64748b', nen:'#f1f5f9', nenNhat:'#fcfdfe', vien:'#e2e8f0', bieu:'📝' },
+    /* ĐANG CHỜ một người nào đó làm — cam, tông duy nhất kêu lên. */
+    'Chờ duyệt tạm ứng': { chu:'#b45309', nen:'#fef3c7', nenNhat:'#fffdf5', vien:'#fde68a', bieu:'⏳' },
+    'Chờ cấp tạm ứng':   { chu:'#b45309', nen:'#fef3c7', nenNhat:'#fffdf5', vien:'#fde68a', bieu:'⏳' },
+    'Chờ quyết toán':    { chu:'#b45309', nen:'#fef3c7', nenNhat:'#fffdf5', vien:'#fde68a', bieu:'⏳' },
+    /* Tiền ĐÃ ra khỏi két — xanh dương, mốc đáng nhớ nhất của một đơn. */
+    'Đã cấp tạm ứng':    { chu:'#0369a1', nen:'#e0f2fe', nenNhat:'#f8fcff', vien:'#bae6fd', bieu:'💸' },
+    /* Xong — xanh lá. */
+    'Đã quyết toán':     { chu:'#166534', nen:'#dcfce7', nenNhat:'#f9fefb', vien:'#86efac', bieu:'✅' },
+    'Đã xuất MISA':      { chu:'#166534', nen:'#dcfce7', nenNhat:'#f9fefb', vien:'#86efac', bieu:'📤' }
+  };
+  /* ⚠️ Trạng thái LẠ (bản mảng đổi chữ) vẫn phải vẽ ra được — trả tông xám thay vì để undefined
+     rồi cả khối thành "undefined". */
+  return M[String(tt||'')] || { chu:'#64748b', nen:'#f1f5f9', nenNhat:'#fcfdfe', vien:'#e2e8f0', bieu:'•' };
+}
+
 function veTongQuanKq(){
   var o = document.getElementById('qKq'), k = TQ.kq;
   if (!o || !k) return;
@@ -1146,10 +1187,10 @@ function veTongQuanKq(){
       /* Dải đếm theo bước — nhìn một cái là thấy đang ùn ở khâu nào. */
       var dem = {};
       rows.forEach(function(r){ dem[r.trangThai] = (dem[r.trangThai]||0) + 1; });
-      h += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' +
+      h += '<div style="margin-bottom:8px">' +
         buoc.map(function(bc){
-          var n = dem[bc.tt] || 0;
-          return '<span class="chip" style="border-color:'+(n?bc.mau:'#e2e8f0')+';color:'+(n?bc.mau:'#94a3b8')+'">' +
+          var n = dem[bc.tt] || 0, m = mauBuoc(bc.tt);
+          return '<span class="dem-chip"'+( n ? ' style="background:'+m.nen+';border-color:'+m.vien+';color:'+m.chu+'"' : '' )+'>' +
                  esc(bc.ten)+': <b>'+n+'</b></span>';
         }).join('') + '</div>';
 
@@ -1166,20 +1207,32 @@ function veTongQuanKq(){
         var tg = 0;
         ds.forEach(function(r){ if (r.tien !== null) tg += Number(r.tien); });
 
-        h += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;' +
-             'gap:8px;margin:14px 0 6px"><b style="color:'+bc.mau+'">'+esc(bc.ten) +
-             ' <span class="chip">'+ds.length+' đơn</span></b>' +
-             '<span class="nho mo">Cộng '+tien(tg)+'</span></div>' +
-             '<div class="cuon"><table><thead><tr><th>Mã đơn</th><th>Người nhập</th><th>Kỳ</th>' +
-             '<th>Lúc nhập</th><th class="r">Số tiền</th></tr></thead><tbody>' +
-             ds.map(function(r){
-               return '<tr><td><b>'+esc(r.maDon)+'</b></td><td>'+esc(r.nguoiLap)+'</td>' +
+        var m = mauBuoc(bc.tt);
+        h += '<div class="buoc" style="border-left-color:'+m.chu+';background:'+m.nenNhat+'">' +
+             '<div class="buoc-dau">' +
+               '<span class="buoc-ten" style="color:'+m.chu+'">'+m.bieu+' '+esc(bc.ten) +
+                 '<span class="buoc-so" style="background:'+m.nen+';color:'+m.chu+'">'+ds.length+' đơn</span></span>' +
+               '<span class="nho" style="color:'+m.chu+';font-weight:700">Cộng '+tien(tg)+'</span>' +
+             '</div>' +
+             '<div class="cuon" style="border-color:'+m.vien+'"><table>' +
+             '<thead><tr style="background:'+m.nen+'">' +
+               '<th style="background:'+m.nen+';color:'+m.chu+'">Mã đơn</th>' +
+               '<th style="background:'+m.nen+';color:'+m.chu+'">Người nhập</th>' +
+               '<th style="background:'+m.nen+';color:'+m.chu+'">Kỳ</th>' +
+               '<th style="background:'+m.nen+';color:'+m.chu+'">Lúc nhập</th>' +
+               '<th class="r" style="background:'+m.nen+';color:'+m.chu+'">Số tiền</th></tr></thead><tbody>' +
+             ds.map(function(r, k){
+               /* Số thứ tự trong hàng chờ: "ai nộp trước lên trước" chỉ có nghĩa khi nhìn thấy
+                  được thứ tự. Bảng đã xong thì đánh số vô nghĩa nên bỏ. */
+               var stt = xong ? '' : '<span class="mo nho" style="margin-right:6px">'+(k+1)+'.</span>';
+               return '<tr><td>'+stt+'<b>'+esc(r.maDon)+'</b></td><td>'+esc(r.nguoiLap)+'</td>' +
                       '<td class="nho">'+esc(r.ky)+'</td>' +
                       '<td class="nho mo">'+esc(ngay(r.ngayTao))+'</td>' +
-                      '<td class="r">'+( r.tien===null ? '<span class="mo">—</span>' : tien(r.tien) )+'</td></tr>';
+                      '<td class="r tien" style="color:'+( r.tien ? m.chu : '#94a3b8' )+'">' +
+                      ( r.tien===null ? '<span class="mo">—</span>' : tien(r.tien) )+'</td></tr>';
              }).join('') +
              '</tbody><tfoot><tr><td colspan="4" class="r">Cộng '+ds.length+' đơn</td>' +
-             '<td class="r">'+tien(tg)+'</td></tr></tfoot></table></div>';
+             '<td class="r" style="color:'+m.chu+'">'+tien(tg)+'</td></tr></tfoot></table></div></div>';
       });
     }
     h += '</div></div>';
