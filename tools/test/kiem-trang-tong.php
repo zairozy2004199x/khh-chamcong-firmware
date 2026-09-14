@@ -118,10 +118,19 @@ class VHCPAA_Cfg {
 			array( 'ten' => 'Anh Nhân',  'pin' => '1111', 'vai' => 'Nhân viên', 'coso' => 'CS1' ),
 			/* Nửa kia của ca "một PIN ra hai người khác tên" — nửa còn lại ở VHCPCC_Cfg. */
 			array( 'ten' => 'Anh Khác',  'pin' => '9999', 'vai' => 'Nhân viên', 'coso' => 'CS1' ),
+			/* 🔴 NGƯỜI NÀY LÀ CẢ CÁI CHỐT: Kế toán cá nhân KHÔNG duyệt tạm ứng được, nhưng LÀ
+			   NGƯỜI DUY NHẤT cấp được tiền, và cũng trả lại đơn được. Bản 1.0.0 gác mọi việc
+			   bằng `duyetTU` nên họ bị khoá ngoài hoàn toàn. */
+			array( 'ten' => 'Chị Kế Toán', 'pin' => '2468', 'vai' => 'Kế toán cá nhân', 'coso' => 'CS1' ),
 		);
 	}
 	public static function get_quyen() {
-		return array( 'duyetTU' => array( 'Quản lý' => true, 'Nhân viên' => false ) );
+		return array(
+			'duyetTU'  => array( 'Quản lý' => true,  'Nhân viên' => false, 'Kế toán cá nhân' => false ),
+			'capTU'    => array( 'Quản lý' => false, 'Nhân viên' => false, 'Kế toán cá nhân' => true ),
+			'traDon'   => array( 'Quản lý' => true,  'Nhân viên' => false, 'Kế toán cá nhân' => true ),
+			'duyetNCC' => array( 'Quản lý' => false, 'Nhân viên' => false, 'Kế toán cá nhân' => false ),
+		);
 	}
 }
 class VHCPBB_Don { public static function don_row( $m ) { return array( 'ma_don' => $m ); }
@@ -223,6 +232,72 @@ $lay = VHCPT_Auth::nguoi_cua_the( $the );
 teq( '   tra thẻ ra đúng người', 'Chị Duyệt', $lay['ten'] );
 VHCPT_Auth::bo_the( $the );
 t( '   thu thẻ rồi thì tra không ra', null === VHCPT_Auth::nguoi_cua_the( $the ), '' );
+
+/* ═══ 6b. 🔴 MỖI VIỆC MỘT QUYỀN RIÊNG — không gác chung bằng "duyetTU" ═══════════
+ * Anh Thắng 14/09/2026: *"trang tổng là trang do quản lý VÀ KẾ TOÁN duyệt chi phí"*. Kế toán cá
+ * nhân không duyệt tạm ứng, nhưng là người DUY NHẤT cấp được tiền — gác chung một hành động là
+ * khoá họ ngoài cửa, và trang tổng chỉ làm được nửa việc nó sinh ra để làm.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$kt = VHCPT_Auth::tim_theo_pin( '2468' );
+t( 'kế toán đăng nhập được', is_array( $kt ) && isset( $kt['ten'] ), $kt );
+VHCPT_Auth::dat_toi( $kt );
+t( '🔴 kế toán KHÔNG duyệt tạm ứng được', ! VHCPT_Auth::duoc( 'aa', 'duyet' ), '' );
+t( '🔴 nhưng CẤP TIỀN được', VHCPT_Auth::duoc( 'aa', 'cap' ), '' );
+t( '🔴 và TRẢ LẠI đơn được', VHCPT_Auth::duoc( 'aa', 'traLai' ), '' );
+t( '⚠️ còn xác nhận NCC thì không', ! VHCPT_Auth::duoc( 'aa', 'qtNcc' ), '' );
+
+VHCPT_Auth::dat_toi( $ng );
+t( '🔴 quản lý duyệt được', VHCPT_Auth::duoc( 'aa', 'duyet' ), '' );
+t( '🔴 nhưng KHÔNG cấp tiền được', ! VHCPT_Auth::duoc( 'aa', 'cap' ), '' );
+t( '   và trả lại được', VHCPT_Auth::duoc( 'aa', 'traLai' ), '' );
+t( '⚠️ ở mảng bb thì không làm được gì', ! VHCPT_Auth::duoc( 'bb', 'duyet' )
+	&& ! VHCPT_Auth::duoc( 'bb', 'cap' ), '' );
+t( '⚠️ việc lạ -> chối, không đoán', ! VHCPT_Auth::duoc( 'aa', 'xoaSach' ), '' );
+teq( '   ban_lam_duoc("cap") rỗng với quản lý', array(), VHCPT_Auth::ban_lam_duoc( 'cap' ) );
+
+/* 🔴 THẺ CŨ (phát trước bản này, chưa có bảng quyền) KHÔNG ĐƯỢC CHO QUA HẾT. Lui về đúng một
+   việc duyệt tạm ứng mà nó có — nới rộng khi thiếu dữ liệu là mở cửa bằng chính chỗ thiếu. */
+VHCPT_Auth::dat_toi( array( 'ten' => 'Thẻ Cũ', 'bans' => array( 'aa' => array( 'vai' => 'Quản lý', 'duyet' => true ) ) ) );
+t( '🔴 thẻ cũ: duyệt thì vẫn được', VHCPT_Auth::duoc( 'aa', 'duyet' ), '' );
+t( '🔴 thẻ cũ: cấp tiền thì KHÔNG', ! VHCPT_Auth::duoc( 'aa', 'cap' ), '' );
+VHCPT_Auth::dat_toi( $ng );
+
+/* ═══ 6c. API: MỖI VIỆC GÁC BẰNG HÀNH ĐỘNG CỦA CHÍNH NÓ ════════════════════════ */
+$api_php = file_get_contents( $TONG . '/includes/class-vhcpt-api.php' );
+foreach ( array(
+	array( 'duyet',   'duyet' ),
+	array( 'cap',     'cap' ),
+	array( 'tra_lai', 'traLai' ),
+	array( 'qt_ncc',  'qtNcc' ),
+) as $c_api ) {
+	t( '🔴 ' . $c_api[0] . '() gác bằng «' . $c_api[1] . '», không gác chung',
+		(bool) preg_match( '#function ' . $c_api[0] . '\([^)]*\)\s*\{\s*\$c = self::chot_ghi\( \$args, .'
+			. $c_api[1] . '. \);#', $api_php ), '' );
+}
+/* ⚠️ Và bảng tên hành động phải khớp với `VHCP_Cfg::actions()` của bản gốc — gõ sai một chữ thì
+   hàm tra trả "không có quyền", im lặng, nhìn y như người ấy chưa được khai quyền. */
+$cfg_goc = file_get_contents( $GOC . '/wordpress/vhcp-chi-phi/includes/class-vhcp-cfg.php' );
+foreach ( VHCPT_Auth::VIEC as $viec => $hd ) {
+	t( '🔴 hành động «' . $hd . '» có thật trong bảng phân quyền của bản gốc',
+		false !== strpos( $cfg_goc, "'key' => '" . $hd . "'" ), $hd );
+}
+
+/* ═══ 6d. CHI TIẾT ĐƠN ĐỌC THẲNG, KHÔNG QUA get_don() ═══════════════════════════
+ * 🔴 `get_don()` gác theo PHIÊN của chính bản ấy (`VHCP_Auth`), mà trang tổng mượn sổ người dùng
+ *    chứ không mượn phiên. Gọi vào đấy là hỏi một câu bên kia không có ngữ cảnh để trả lời.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$gom_php = file_get_contents( $TONG . '/includes/class-vhcpt-gom.php' );
+t( '🔴 trang tổng KHÔNG gọi get_don() của bản nào',
+	false === strpos( preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php . $api_php ), 'get_don' ), '' );
+t( '🔴 đọc dòng chi từ bảng «chiphi» (không phải «cp»)',
+	false !== strpos( $gom_php, "\$tien_to . 'chiphi'" ), '' );
+/* ⚠️ SOI MÃ ĐÃ BỎ CHÚ THÍCH. Bản nháp soi cả tệp và bắt ngay chính câu giải thích *vì sao*
+   không xếp theo id — bài đỏ vì đọc trúng lời cảnh báo về đúng cái nó đang canh. Cùng cái bẫy
+   đã gặp với `kiem-tach-ban-vung.php` hôm 13/09. */
+$gom_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $gom_php );
+t( '⚠️ và xếp theo tao_luc, không xếp theo id (id là VARCHAR)',
+	false !== strpos( $gom_ma, 'ORDER BY tao_luc' )
+		&& false === strpos( $gom_ma, 'ORDER BY id' ), '' );
 
 /* ═══ 7. GIAO KÈO TRẠNG THÁI VỚI CÁC BẢN ════════════════════════════════════════
  * 🔴 Trạng thái là chuỗi tiếng Việt có dấu, và nó là GIAO KÈO giữa bốn plugin. Đổi một chữ ở một

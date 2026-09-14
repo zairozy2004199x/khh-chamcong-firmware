@@ -29,7 +29,31 @@ class VHCPT_Auth {
 	/** Thẻ phiên sống bao lâu (giây). */
 	const HAN = 43200;
 
-	/** Hành động "được duyệt tạm ứng" trong bảng phân quyền của các bản. */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * MỖI VIỆC MỘT HÀNH ĐỘNG RIÊNG — KHÔNG GÁC CHUNG BẰNG "duyetTU"
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 LỖI CỦA BẢN 1.0.0, VÁ Ở ĐÂY. Bản ấy gác MỌI việc ghi bằng đúng một hành động `duyetTU`.
+	 *    Nhưng bảng phân quyền của các bản có bốn việc khác nhau cho bốn vai khác nhau:
+	 *      · duyetTU   — Quản lý duyệt tạm ứng
+	 *      · capTU     — Kế toán cá nhân cấp (chuyển) tiền
+	 *      · traDon    — Quản lý VÀ cả hai kế toán đều trả lại đơn được
+	 *      · duyetNCC  — Kế toán NCC xác nhận phần nhà cung cấp
+	 *    Gác chung bằng `duyetTU` thì Kế toán cá nhân — người DUY NHẤT được cấp tiền — không làm
+	 *    được gì trên trang tổng, dù bên trang mảng họ làm bình thường. Anh Thắng 14/09/2026:
+	 *    *"trang tổng là trang do quản lý và kế toán duyệt chi phí"* — kế toán bị khoá ngoài thì
+	 *    trang tổng chỉ làm được nửa việc nó sinh ra để làm.
+	 *
+	 * ⚠️ TÊN HÀNH ĐỘNG LÀ GIAO KÈO VỚI CÁC BẢN (`VHCP_Cfg::actions()`). Gõ sai một chữ thì hàm
+	 *    tra trả về "không có quyền" — im lặng, và nhìn y như người ấy chưa được khai quyền.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	const VIEC = array(
+		'duyet'  => 'duyetTU',
+		'cap'    => 'capTU',
+		'traLai' => 'traDon',
+		'qtNcc'  => 'duyetNCC',
+	);
+
+	/** Giữ lại tên cũ cho chỗ nào còn hỏi "được duyệt tạm ứng không". */
 	const QUYEN_DUYET = 'duyetTU';
 
 	/** Người của lượt gọi này — đặt bởi `xac_the()`. */
@@ -70,6 +94,9 @@ class VHCPT_Auth {
 					'vai'   => $vai,
 					'coso'  => trim( (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ),
 					'duyet' => self::duoc_duyet( $khoa, $vai ),
+					/* Cả bảng quyền, tra một lượt rồi cất vào thẻ phiên: mỗi lượt tra là một
+					   `get_quyen()` của bản kia, mà màn nào cũng cần hỏi bốn việc. */
+					'quyen' => self::bang_quyen( $khoa, $vai ),
 				);
 				break;
 			}
@@ -95,6 +122,61 @@ class VHCPT_Auth {
 		if ( ! isset( $q[ self::QUYEN_DUYET ] ) || ! is_array( $q[ self::QUYEN_DUYET ] ) ) { return false; }
 		$hang = $q[ self::QUYEN_DUYET ];
 		return ! empty( $hang[ $vai ] );
+	}
+
+	/**
+	 * Bảng quyền của một vai ở một bản: [ việc của trang tổng => bool ].
+	 *
+	 * ⚠️ MỘT LƯỢT `get_quyen()` CHO CẢ BỐN VIỆC. Hỏi từng việc một là bốn lượt đọc bảng phân
+	 *    quyền của bản kia cho mỗi người, mỗi lượt đăng nhập.
+	 */
+	public static function bang_quyen( $khoa, $vai ) {
+		$ra = array();
+		foreach ( self::VIEC as $viec => $hd ) { $ra[ $viec ] = false; }
+		$vai = trim( (string) $vai );
+		if ( '' === $vai ) { return $ra; }
+		$lop_cfg = VHCPT_Ban::lop( $khoa, 'Cfg' );
+		/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( ! $lop_cfg || ! class_exists( $lop_cfg ) || ! method_exists( $lop_cfg, 'get_quyen' ) ) {
+			return $ra;
+		}
+		$q = (array) call_user_func( array( $lop_cfg, 'get_quyen' ) );
+		foreach ( self::VIEC as $viec => $hd ) {
+			$ra[ $viec ] = ( isset( $q[ $hd ] ) && is_array( $q[ $hd ] ) && ! empty( $q[ $hd ][ $vai ] ) );
+		}
+		return $ra;
+	}
+
+	/**
+	 * Người đang đăng nhập có làm được VIỆC này ở BẢN này không.
+	 *
+	 * 🔴 ĐỌC TỪ THẺ PHIÊN, KHÔNG HỎI LẠI BẢNG PHÂN QUYỀN Ở ĐÂY. Thẻ được dựng lúc đăng nhập từ
+	 *    chính bảng ấy; hỏi lại giữa chừng thì một lượt sửa phân quyền đang diễn ra sẽ cho hai
+	 *    câu trả lời khác nhau trong cùng một lượt bấm. Muốn quyền mới có hiệu lực thì đăng
+	 *    nhập lại — thẻ sống 12 giờ.
+	 */
+	public static function duoc( $khoa, $viec ) {
+		if ( ! self::$toi ) { return false; }
+		$k = strtolower( trim( (string) $khoa ) );
+		$b = isset( self::$toi['bans'][ $k ] ) ? self::$toi['bans'][ $k ] : null;
+		if ( ! $b ) { return false; }
+		if ( ! isset( self::VIEC[ $viec ] ) ) { return false; }
+		/* Thẻ cũ (phát trước bản này) chưa có bảng quyền — lui về đúng một việc duyệt tạm ứng
+		   mà nó có, chứ không cho qua hết. Người dùng đăng nhập lại là có đủ. */
+		if ( ! isset( $b['quyen'] ) || ! is_array( $b['quyen'] ) ) {
+			return ( 'duyet' === $viec ) && ! empty( $b['duyet'] );
+		}
+		return ! empty( $b['quyen'][ $viec ] );
+	}
+
+	/** Những bản người này làm được VIỆC ấy. */
+	public static function ban_lam_duoc( $viec ) {
+		$ra = array();
+		if ( ! self::$toi ) { return $ra; }
+		foreach ( (array) self::$toi['bans'] as $khoa => $b ) {
+			if ( self::duoc( $khoa, $viec ) ) { $ra[] = $khoa; }
+		}
+		return $ra;
 	}
 
 	/* ══════════════════════════════════════════════════════════════════ THẺ PHIÊN */

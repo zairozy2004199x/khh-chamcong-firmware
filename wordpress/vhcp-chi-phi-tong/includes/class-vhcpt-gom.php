@@ -92,9 +92,88 @@ class VHCPT_Gom {
 				   thật sự chưa xin đồng nào. Bày cả hai thành "0đ" là người duyệt bấm duyệt một
 				   đơn mà không biết mình đang duyệt bao nhiêu. */
 				'tien'     => ( null === $tien ) ? null : (float) $tien,
-				'duyetDuoc'=> in_array( $khoa, VHCPT_Auth::ban_duyet_duoc(), true ),
+				/* 🔴 KÈM THEO TỪNG DÒNG "LÀM ĐƯỢC VIỆC GÌ", không chỉ một cờ duyệt. Cùng một người
+				   có thể duyệt được ở mảng này mà chỉ cấp tiền được ở mảng kia — bảng gộp ba
+				   mảng thì mỗi dòng một câu trả lời khác nhau. Một cờ chung là vẽ ra nút họ bấm
+				   vào sẽ bị chối, hoặc giấu mất nút họ có quyền bấm. */
+				'lam'      => self::lam_duoc( $khoa ),
 			);
 		}
+		return $ra;
+	}
+
+	/**
+	 * DÒNG CHI CỦA MỘT ĐƠN — đọc thẳng bảng, KHÔNG gọi `<Bản>_Don::get_don()`.
+	 *
+	 * 🔴 `get_don()` GÁC THEO PHIÊN ĐĂNG NHẬP CỦA CHÍNH BẢN ẤY. Nó đi qua
+	 *    `loi_khong_phai_don_minh()` → `VHCP_DonVi::vi_sao_khong_dung()`, mà hàm ấy đọc
+	 *    `VHCP_Auth` — phiên bên bản kia. Trang tổng không đăng nhập vào bản nào cả (nó mượn sổ
+	 *    người dùng, không mượn phiên), nên gọi vào đấy là hỏi một câu mà bên kia không có ngữ
+	 *    cảnh để trả lời: lúc chối oan, lúc cho qua, và cả hai đều không phải câu trả lời đúng.
+	 *
+	 * ⚠️ QUYỀN VẪN ĐƯỢC GÁC — ở tầng trang tổng, trước khi gọi tới đây: người hỏi phải có tài
+	 *    khoản ở bản ấy (xem `VHCPT_Api::chi_tiet()`). Đọc thẳng không có nghĩa là đọc không
+	 *    chốt; nó có nghĩa là chốt nằm ở nơi có đủ ngữ cảnh để chốt.
+	 */
+	public static function dong_chi( $khoa, $ma_don ) {
+		global $wpdb;
+		$tien_to = VHCPT_Ban::tien_to_bang( $khoa );
+		if ( '' === $tien_to ) { return array(); }
+		$ma = trim( (string) $ma_don );
+		if ( '' === $ma ) { return array(); }
+		/* ⚠️ BẢNG TÊN LÀ `chiphi`, KHÔNG PHẢI `cp`. Đọc nhầm tên bảng thì `$wpdb` trả mảng rỗng
+		   và màn hiện "chưa có dòng chi nào" — đúng câu mà một đơn xin ứng trước cũng hiện, nên
+		   nhìn không ra là hỏng.
+		   ⚠️ XẾP THEO `tao_luc`, KHÔNG XẾP THEO `id`. Cột id ở bảng này là VARCHAR (mã sinh
+		   chuỗi), nên `ORDER BY id` là xếp theo bảng chữ cái của một cái mã — tức xếp bừa. */
+		$bang = $tien_to . 'chiphi';
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT coso, ngay, nhom, noi_dung, so_luong, don_gia, thanh_tien
+			   FROM $bang WHERE ma_don = %s ORDER BY tao_luc ASC, ngay ASC LIMIT %d",
+			$ma, self::GIOI_HAN
+		), ARRAY_A );
+		if ( ! is_array( $rows ) ) { return array(); }
+		$ra = array();
+		foreach ( $rows as $r ) {
+			$ra[] = array(
+				'coso'      => (string) $r['coso'],
+				'ngay'      => (string) $r['ngay'],
+				'nhom'      => (string) $r['nhom'],
+				'noiDung'   => (string) $r['noi_dung'],
+				'soLuong'   => (float) $r['so_luong'],
+				'donGia'    => (float) $r['don_gia'],
+				'thanhTien' => (float) $r['thanh_tien'],
+			);
+		}
+		return $ra;
+	}
+
+	/** Một hàng đơn, đọc thẳng — cùng lý do với `dong_chi()`. */
+	public static function mot_don( $khoa, $ma_don ) {
+		global $wpdb;
+		$tien_to = VHCPT_Ban::tien_to_bang( $khoa );
+		if ( '' === $tien_to ) { return null; }
+		$ma = trim( (string) $ma_don );
+		if ( '' === $ma ) { return null; }
+		$bang = $tien_to . 'don';
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT ma_don, ky, nguoi_lap, don_vi, ngay_tao, trang_thai, ghi_chu,
+			        nguoi_duyet, ngay_duyet, tam_ung_duyet
+			   FROM $bang WHERE ma_don = %s LIMIT 1", $ma
+		), ARRAY_A );
+		return is_array( $r ) ? $r : null;
+	}
+
+	/** Người đang đăng nhập làm được việc gì ở bản này. Nhớ theo bản trong một lượt tải. */
+	private static $lam_memo = array();
+
+	private static function lam_duoc( $khoa ) {
+		if ( isset( self::$lam_memo[ $khoa ] ) ) { return self::$lam_memo[ $khoa ]; }
+		$ra = array();
+		foreach ( array_keys( VHCPT_Auth::VIEC ) as $viec ) {
+			$ra[ $viec ] = VHCPT_Auth::duoc( $khoa, $viec );
+		}
+		self::$lam_memo[ $khoa ] = $ra;
 		return $ra;
 	}
 

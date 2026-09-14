@@ -5,6 +5,22 @@
 > riêng không trùng nhau, vì bộ phận có mã riêng, tk khoản riêng, quản lý riêng, chỉ là kho đơn
 > đẩy nó gom về 1 trang chi phí cho người duyệt"*
 
+## Ai làm gì ở đâu
+
+> Anh Thắng 14/09/2026: *"trang từng mảng là trang cho nhân viên lên báo cáo chi phí, còn trang
+> tổng là trang do quản lý và kế toán duyệt chi phí, nhưng dữ liệu và duyệt vẫn đẩy thông nhau,
+> mục đích tránh trùng dữ liệu"*
+
+| | Trang mảng (`/chi-phi-kvc` · `-mtd` · `-vp`) | Trang tổng (`/chi-phi-kh`) |
+|---|---|---|
+| **Ai dùng** | nhân viên lập đơn, báo cáo chi phí | quản lý · kế toán duyệt |
+| **Việc chính** | tạo đơn, khai hạng mục, gửi duyệt, gửi quyết toán | duyệt · cấp tiền · trả lại · xác nhận NCC |
+| **Dữ liệu** | sổ riêng của mảng ấy | **không có sổ nào** — đọc và ghi vào sổ của mảng |
+
+🔴 **Hai nơi, một sổ.** Duyệt ở trang tổng hay duyệt ở trang mảng đều ghi vào **cùng một hàng
+đơn** — đó là cả mục đích: *tránh trùng dữ liệu*. Không có bước "đồng bộ" nào cả, vì không có gì
+để đồng bộ.
+
 ## Bốn trang
 
 | Trang | Plugin | Bảng | Lớp | Trạng thái |
@@ -89,13 +105,34 @@ hiếm, nhưng khi xảy ra thì cho vào là cho một người mang danh ngư�
 
 ### Đọc và ghi
 
-| Việc | Cách |
-|---|---|
-| Danh sách đơn | một `SELECT` trên `*_don` của từng bản, lọc trạng thái ngay trong câu lệnh |
-| Số tiền mỗi đơn | gọi `<Bản>_Don::tong_xin_hien_tai()` |
-| Đếm cho tab | `COUNT(*)` |
-| Duyệt | `<Bản>_Don::duyet_tam_ung()` — ghi ngược về đúng bản sinh ra đơn |
-| Trả lại | `<Bản>_Don::tra_lai_don()` |
+| Việc | Cách | Quyền phải có ở mảng ấy |
+|---|---|---|
+| Danh sách đơn | một `SELECT` trên `*_don`, lọc trạng thái ngay trong câu lệnh | có tài khoản |
+| Số tiền mỗi đơn | gọi `<Bản>_Don::tong_xin_hien_tai()` | — |
+| Đếm cho tab | `COUNT(*)` | — |
+| Xem chi tiết đơn | `SELECT` trên `*_chiphi` | có tài khoản |
+| Duyệt tạm ứng | `<Bản>_Don::duyet_tam_ung()` | `duyetTU` |
+| Cấp tạm ứng | `<Bản>_Don::cap_tam_ung()` | `capTU` |
+| Trả lại | `<Bản>_Don::tra_lai_don()` | `traDon` |
+| Xác nhận NCC | `<Bản>_Don::xac_nhan_quyet_toan_ncc()` | `duyetNCC` |
+
+🔴 **Mỗi việc một quyền riêng, không gác chung bằng `duyetTU`.** Bản 1.0.0 gác mọi việc ghi bằng
+đúng một hành động — và thế là **Kế toán cá nhân**, người *duy nhất* cấp được tiền, bị khoá ngoài
+hoàn toàn, dù bên trang mảng họ làm bình thường. Vá ở 1.1.0.
+
+🔴 **Chi tiết đơn đọc thẳng bảng, không gọi `get_don()`.** Hàm ấy gác theo **phiên đăng nhập của
+chính bản đó** (`VHCP_Auth` → `VHCP_DonVi::vi_sao_khong_dung()`), mà trang tổng mượn *sổ người
+dùng* chứ không mượn *phiên*. Gọi vào đấy là hỏi một câu bên kia không có ngữ cảnh để trả lời:
+lúc chối oan, lúc cho qua. Quyền vẫn được gác — ở tầng trang tổng, nơi có đủ ngữ cảnh.
+
+⚠️ Bảng dòng chi tên là **`chiphi`**, không phải `cp`; và `id` của nó là `VARCHAR` nên xếp theo
+`tao_luc`, xếp theo `id` là xếp theo bảng chữ cái của một cái mã.
+
+⚠️ **Xác nhận quyết toán phần cá nhân cố ý không làm ở trang tổng.**
+`xac_nhan_quyet_toan_cn()` đòi hai thứ phải *quyết định* — cách xử lý và số chênh lệch — và chúng
+đi thẳng vào chứng từ. Bày hai ô ấy trên một màn duyệt nhanh, không có bảng hạng mục bên cạnh để
+đối chiếu, là mời người ta gõ bừa cho xong. Việc ấy làm ở trang mảng, nơi có khối Quyết toán đầy
+đủ.
 
 Số tiền **không** tính lại ở trang tổng: luật gom hạng mục có chỗ tinh (`Nháp` thì gộp cả dòng
 phát sinh, sau đó thì không; có hàng tạm ứng tay thì lấy hàng ấy). Chép luật ấy sang đây là dựng
@@ -111,7 +148,7 @@ trùng nhau là chuyện thường, chúng đánh số độc lập.
 
 `Chờ duyệt tạm ứng` · `Chờ cấp tạm ứng` · `Chờ quyết toán` — chuỗi tiếng Việt có dấu. Đổi một chữ
 ở một bản là đơn của bản ấy **biến mất** khỏi trang tổng: không câu lỗi nào, chỉ là bảng ngắn đi.
-`tools/test/kiem-trang-tong.php` canh đúng chỗ đó (48 phép).
+`tools/test/kiem-trang-tong.php` canh đúng chỗ đó (72 phép).
 
 ## Khoá GitHub: mỗi bộ một ô, nhưng khai một lượt
 
@@ -131,6 +168,5 @@ bao giờ đi vào dòng lệnh — dòng lệnh nằm lại trong `~/.bash_hist
 
 ## Việc còn lại
 
-Trang tổng hiện làm đúng hai việc của người duyệt: **duyệt tạm ứng** và **trả lại đơn**. Chưa
-làm: cấp tạm ứng, xác nhận quyết toán, và màn báo cáo cộng số ba mảng. Mấy việc ấy đều gọi được
-qua cùng một đường (`<Bản>_Don::…`) khi cần.
+Chưa làm ở trang tổng: **xác nhận quyết toán phần cá nhân** (lý do ở trên) và **màn báo cáo cộng
+số ba mảng**. Cả hai đều đi qua cùng một đường (`<Bản>_Don::…`) khi cần.

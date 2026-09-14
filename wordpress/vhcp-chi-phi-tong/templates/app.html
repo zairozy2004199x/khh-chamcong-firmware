@@ -43,6 +43,9 @@
           padding:10px 12px;border-radius:8px;margin-bottom:12px}
   .bao-canh{background:var(--vangnhat);border:1px solid #fcd34d;color:var(--vang);
             padding:10px 12px;border-radius:8px;margin-bottom:12px}
+  tr.ct td{background:#f9fafb;border-bottom:2px solid var(--vien)}
+  .ct table{min-width:0}
+  .ct th,.ct td{padding:5px 8px;font-size:13px;border-bottom:1px solid var(--vien)}
   .vao{max-width:380px;margin:8vh auto}
   .chan{text-align:center;color:var(--mo);font-size:12px;padding:8px 0 24px}
   @media (max-width:520px){ .bao{padding:12px} .the{padding:13px} }
@@ -146,14 +149,22 @@ function veChinh(){
       esc(nhomDs[k].ten) + '<span class="dem">' + so + '</span></button>';
   }).join('');
 
+  /* Nhãn nói RÕ làm được gì ở mảng nào. "✓" chung chung thì người ta không biết vì sao nút Cấp
+     hiện ở mảng này mà không hiện ở mảng kia. */
+  var TEN_VIEC = { duyet:'duyệt', cap:'cấp tiền', traLai:'trả lại', qtNcc:'NCC' };
   var mangs = (TOI.bans || []).map(function(b){
+    var q = b.quyen || {};
+    var co = Object.keys(TEN_VIEC).filter(function(k){ return q[k]; }).map(function(k){ return TEN_VIEC[k]; });
     return '<span class="chip" title="Vai của bạn ở mảng này: ' + esc(b.vai) + '">' +
-      esc(b.tenBan) + (b.duyet ? ' ✓' : ' · chỉ xem') + '</span>';
+      esc(b.tenBan) + (co.length ? ' · ' + esc(co.join(', ')) : ' · chỉ xem') + '</span>';
   }).join(' ');
 
-  /* 🔴 NÓI RA KHI KHÔNG DUYỆT ĐƯỢC MẢNG NÀO. Không nói thì người ta ngồi tìm cái nút không bao
-     giờ hiện, và kết luận là trang hỏng. */
-  var khongDuyet = (TOI.bans || []).every(function(b){ return !b.duyet; });
+  /* 🔴 NÓI RA KHI KHÔNG LÀM ĐƯỢC GÌ. Không nói thì người ta ngồi tìm cái nút không bao giờ hiện,
+     và kết luận là trang hỏng. */
+  var khongDuyet = (TOI.bans || []).every(function(b){
+    var q = b.quyen || {};
+    return !Object.keys(TEN_VIEC).some(function(k){ return q[k]; });
+  });
 
   m.innerHTML =
     '<div class="the">' +
@@ -163,8 +174,8 @@ function veChinh(){
       '</div>' +
     '</div>' +
     veBao() +
-    (khongDuyet ? '<div class="bao-canh">Vai của bạn <b>không có quyền duyệt tạm ứng</b> ở mảng nào, ' +
-      'nên bảng dưới chỉ để xem. Quyền duyệt khai ở bảng <b>Phân quyền</b> của từng trang mảng.</div>' : '') +
+    (khongDuyet ? '<div class="bao-canh">Vai của bạn <b>không được duyệt, cấp tiền hay trả lại đơn</b> ' +
+      'ở mảng nào, nên bảng dưới chỉ để xem. Quyền khai ở bảng <b>Phân quyền</b> của từng trang mảng.</div>' : '') +
     '<div class="tab">' + tabs + '</div>' +
     '<div class="the" id="bang"><p class="mo">Đang đọc…</p></div>';
 
@@ -193,11 +204,30 @@ function veBang(){
     b.innerHTML = '<p class="mo">Không có đơn nào ở nhóm này. ✓</p>';
     return;
   }
-  var laDuyet = (NHOM === 'duyet');
+  /* 🔴 MỖI TAB MỘT VIỆC CHÍNH — nút phải khớp với chỗ đơn đang đứng. Bày nút "Duyệt" cho một
+     đơn đã ở "Chờ cấp" thì bấm vào chỉ nhận câu chối từ bản kia, và người dùng không đọc đó là
+     "sai nút", họ đọc đó là "trang hỏng". */
+  var VIEC_CUA_TAB = {
+    duyet: [ { viec:'duyet',  ten:'Duyệt',          lop:'duyet' } ],
+    cap:   [ { viec:'cap',    ten:'Cấp tạm ứng',    lop:'duyet' } ],
+    qt:    [ { viec:'qtNcc',  ten:'Xác nhận NCC',   lop:'duyet' } ]
+  };
+  var viecs = VIEC_CUA_TAB[NHOM] || [];
   var h = '<div class="cuon"><table><thead><tr>' +
     '<th>Mảng</th><th>Mã đơn</th><th>Người lập</th><th>Kỳ</th><th>Lúc</th>' +
     '<th style="text-align:right">Số xin</th><th></th></tr></thead><tbody>';
   ROWS.forEach(function(d, i){
+    var lam = d.lam || {};
+    var nut = '<button data-i="' + i + '" data-xem="1">Xem</button>';
+    viecs.forEach(function(v){
+      if (lam[v.viec]) {
+        nut += '<button class="' + v.lop + '" data-i="' + i + '" data-viec="' + v.viec + '">' + esc(v.ten) + '</button>';
+      }
+    });
+    if (lam.traLai) {
+      nut += '<button class="tra" data-i="' + i + '" data-viec="traLai">Trả lại</button>';
+    }
+    var chuaCoQuyen = !viecs.some(function(v){ return lam[v.viec]; }) && !lam.traLai;
     h += '<tr>' +
       '<td><span class="chip">' + esc(d.tenBan) + '</span></td>' +
       '<td><b>' + esc(d.maDon) + '</b></td>' +
@@ -205,12 +235,10 @@ function veBang(){
       '<td>' + esc(d.ky) + '</td>' +
       '<td class="mo">' + esc(ngay(d.ngayTao)) + '</td>' +
       '<td class="tien">' + (d.tien === null ? '<span class="mo" title="Bản kia không trả lời được số tiền">—</span>' : tien(d.tien)) + '</td>' +
-      '<td class="hang">' +
-        (laDuyet && d.duyetDuoc
-          ? '<button class="duyet" data-i="' + i + '" data-viec="duyet">Duyệt</button>' +
-            '<button class="tra" data-i="' + i + '" data-viec="traLai">Trả lại</button>'
-          : '<span class="mo">' + (d.duyetDuoc ? '' : 'không có quyền ở mảng này') + '</span>') +
-      '</td></tr>';
+      '<td class="hang">' + nut +
+        (chuaCoQuyen ? ' <span class="mo">vai của bạn ở mảng này không làm được việc này</span>' : '') +
+      '</td></tr>' +
+      '<tr class="ct" id="ct' + i + '" hidden><td colspan="7"><span class="mo">Đang đọc…</span></td></tr>';
   });
   h += '</tbody></table></div>';
   b.innerHTML = h;
@@ -218,6 +246,64 @@ function veBang(){
   Array.prototype.forEach.call(b.querySelectorAll('button[data-viec]'), function(n){
     n.onclick = function(){ lam(n, ROWS[+n.getAttribute('data-i')], n.getAttribute('data-viec')); };
   });
+  Array.prototype.forEach.call(b.querySelectorAll('button[data-xem]'), function(n){
+    n.onclick = function(){ xem(+n.getAttribute('data-i')); };
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MỞ CHI TIẾT TRƯỚC KHI DUYỆT. Bảng ngoài chỉ có một con số tổng; bấm Duyệt mà không mở được
+ *    hạng mục ra xem thì người duyệt đang ký vào thứ họ chưa đọc. Đây là cái làm trang gom dùng
+ *    được thật, không phải một tiện ích thêm.
+ * ⚠️ Đọc MỘT LẦN rồi giữ lại: bấm đóng mở mấy lượt mà mỗi lượt một lần gọi máy chủ là màn giật.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function xem(i){
+  var o = document.getElementById('ct' + i);
+  if (!o) return;
+  if (!o.hidden) { o.hidden = true; return; }
+  o.hidden = false;
+  if (o.getAttribute('data-xong') === '1') return;
+  var d = ROWS[i];
+  goi('chiTiet', { ban: d.ban, maDon: d.maDon }).then(function(r){
+    o.setAttribute('data-xong', '1');
+    if (r && r.error) { o.firstChild.innerHTML = '<span class="bao-loi">' + esc(r.error) + '</span>'; return; }
+    o.firstChild.innerHTML = veChiTiet(r.don);
+  }).catch(function(){
+    o.firstChild.innerHTML = '<span class="bao-loi">Không gọi được máy chủ.</span>';
+  });
+}
+
+function veChiTiet(g){
+  g = g || {};
+  /* ⚠️ DÒNG CHI NẰM Ở `lines`, KHÔNG PHẢI `products`. `products` là danh sách GỢI Ý tên hàng để
+     điền nhanh — đọc nhầm khoá thì bảng hiện ra đầy dòng mà không dòng nào là của đơn này, và
+     nó trông y như thật. Ghi chú thì nằm trong `don`, không ở gốc. */
+  var ds = g.lines || [];
+  var don = g.don || {};
+  var h = '';
+  h += '<p class="mo"><b>' + esc(don.trangThai || '') + '</b>' +
+       (don.nguoiDuyet ? ' · duyệt bởi ' + esc(don.nguoiDuyet) : '') + '</p>';
+  if (don.ghiChu) { h += '<p class="mo">Ghi chú: ' + esc(don.ghiChu) + '</p>'; }
+  if (!ds.length) {
+    /* ⚠️ "Không có dòng chi" KHÁC "đọc hỏng". Đơn xin ứng trước được phép gửi khi chưa liệt kê
+       hạng mục — nói rõ để người duyệt không đi tìm lỗi ở chỗ không có lỗi. */
+    h += '<p class="mo">Đơn này <b>chưa có dòng chi nào</b> — đơn xin ứng trước. Số xin nằm ở ô tạm ứng.</p>';
+    return h;
+  }
+  var tong = 0;
+  h += '<table><thead><tr><th>Cơ sở</th><th>Loại chi phí</th><th>Nội dung</th>' +
+       '<th style="text-align:right">Thành tiền</th></tr></thead><tbody>';
+  ds.forEach(function(r){
+    var t = Number(r.thanhTien || 0);
+    tong += t;
+    h += '<tr><td>' + esc(r.coso || '') + '</td>' +
+         '<td>' + esc(r.nhom || '') + '</td>' +
+         '<td>' + esc(r.noiDung || '') + '</td>' +
+         '<td class="tien">' + tien(t) + '</td></tr>';
+  });
+  h += '</tbody><tfoot><tr><th colspan="3" style="text-align:right">Cộng ' + ds.length + ' dòng</th>' +
+       '<td class="tien">' + tien(tong) + '</td></tr></tfoot></table>';
+  return h;
 }
 
 function lam(nut, d, viec){
