@@ -95,6 +95,38 @@ teq( '🔴 dòng Admin đọc ra vai «Admin», không phải rỗng', 'Admin', 
 t( '⚠️ và «Admin» KHÔNG nằm trong ma trận phân quyền (nên phải có nhánh nới riêng)',
 	! in_array( 'Admin', (array) VHCP_Cfg::roles(), true ), VHCP_Cfg::roles() );
 
+/* ═══ 5. THẺ PHÁT TỪ BẢN CŨ PHẢI TỰ LÀM MỚI ══════════════════════════════════════
+ *
+ * 🔴 ĐÃ CẮN THẬT, NGAY SAU BẢN VÁ TRÊN. Anh Thắng nạp 1.7.1, F5, màn VẪN ghi "(chưa có vai)" —
+ *    *"chưa thấy gì"*. Vai và quyền tra một lần lúc đăng nhập rồi cất vào thẻ phiên sống 12 giờ,
+ *    nên thẻ đang cầm vẫn mang đúng cái vai rỗng của lỗi vừa vá.
+ *
+ *    Đăng xuất vào lại là hết. Nhưng không ai đoán ra: màn không nói gì về thẻ, nó nói về phân
+ *    quyền — nên người dùng kết luận bản vá không chạy, và đó là kết luận hợp lý.
+ *
+ * ⚠️ Phép này canh phần MÃ NGUỒN của cơ chế (chạy thật cần cả bốn plugin nạp cùng lúc, thứ bộ
+ *    thử một-plugin không dựng được). Hai đầu phải cùng có mặt: thẻ mang dấu bản, và mỗi lượt
+ *    gọi có đi qua cửa làm mới.
+ * ═══════════════════════════════════════════════════════════════════════════════ */
+$api_ma = preg_replace( '#/\*[\s\S]*?\*/#', ' ',
+	file_get_contents( $GOC . '/wordpress/vhcp-chi-phi-tong/includes/class-vhcpt-api.php' ) );
+
+t( '🔴 thẻ phát ra có đóng dấu bản plugin',
+	(bool) preg_match( "#'ban' *=> *defined\( 'VHCPT_VERSION' \)#", $auth_sach ), '' );
+t( '🔴 mọi lượt gọi có thẻ đều đi qua cửa làm mới',
+	(bool) preg_match( '#\$ng = VHCPT_Auth::lam_moi_neu_cu\( \$the, \$ng \);#', $api_ma ), '' );
+t( '🔴 và cửa ấy đứng TRƯỚC dat_toi()',
+	(bool) preg_match( '#lam_moi_neu_cu\([\s\S]{0,120}?dat_toi#', $api_ma ), '' );
+t( 'dấu bản khớp thì KHÔNG tra lại (khỏi hỏi bảng phân quyền mỗi lượt bấm)',
+	(bool) preg_match( '#\$ban_the === \$ban_nay \) \{ return \$ng; \}#', $auth_sach ), '' );
+t( '⚠️ tra lại mà không ra thì GIỮ NGUYÊN quyền cũ, không tước của ai',
+	(bool) preg_match( '#if \( ! \$bans \) \{ return \$ng; \}#', $auth_sach ), '' );
+t( '🔴 dựng lại sổ mảng đi qua bans_theo_ten(), không chép thân tim_theo_pin()',
+	false !== strpos( $auth_sach, 'function bans_theo_ten' )
+		&& (bool) preg_match( '#\$bans = self::bans_theo_ten\( \$ten \);#', $auth_sach ), '' );
+t( 'và nó cũng đọc vai qua vai_cua()',
+	(bool) preg_match( '#function bans_theo_ten[\s\S]{0,900}?self::vai_cua\( \$u \)#', $auth_sach ), '' );
+
 /* ═══════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

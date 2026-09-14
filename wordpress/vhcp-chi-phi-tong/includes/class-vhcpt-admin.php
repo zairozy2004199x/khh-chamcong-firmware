@@ -55,6 +55,31 @@ class VHCPT_Admin {
 			VHCPT_TuCapNhat::dat_khoa( wp_unslash( $_POST['vhcpt_gh_token'] ) );
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * NGƯỜI VÀO TRANG TỔNG — lưu NGOẠI LỆ, không lưu cả danh sách.
+		 *
+		 * 🔴 Luật nền là theo QUYỀN (xem `VHCPT_Auth::duoc_vao()`), nên chỗ này chỉ ghi lại hai
+		 *    sổ: ai bị chặn dù có quyền, ai được cho vào dù không có quyền. Lưu cả danh sách tên
+		 *    thì tuyển một kế toán mới là trang tổng chối họ cho tới khi có người nhớ vào đây
+		 *    thêm tên — thứ không nên nằm trong một quy trình tiền bạc.
+		 *
+		 * ⚠️ CHỈ GHI KHI FORM CÓ GỬI BẢNG ẤY (`vhcpt_co_bang`). Không có gác này thì mỗi lượt
+		 *    Lưu ở form đường dẫn — form không mang ô tích nào — sẽ xoá sạch cả hai sổ.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! empty( $_POST['vhcpt_co_bang'] ) ) {
+			$tich = isset( $_POST['vhcpt_vao'] ) && is_array( $_POST['vhcpt_vao'] )
+				? array_map( 'strval', array_keys( wp_unslash( $_POST['vhcpt_vao'] ) ) ) : array();
+			$tich = array_map( 'mb_strtolower', array_map( 'trim', $tich ) );
+			$them = array(); $chan = array();
+			foreach ( VHCPT_Auth::moi_nguoi() as $k => $ng ) {
+				$duoc = in_array( $k, $tich, true );
+				if ( $duoc === (bool) $ng['coViec'] ) { continue; }   // trùng luật nền -> khỏi ghi
+				if ( $duoc ) { $them[] = $k; } else { $chan[] = $k; }
+			}
+			VHCPT_Auth::dat_so( VHCPT_Auth::O_THEM, $them );
+			VHCPT_Auth::dat_so( VHCPT_Auth::O_CHAN, $chan );
+		}
+
 		wp_safe_redirect( add_query_arg( array( 'page' => self::TRANG, 'vhcpt_msg' => 'saved' ),
 			admin_url( 'admin.php' ) ) );
 		exit;
@@ -128,7 +153,73 @@ class VHCPT_Admin {
 
 		echo '</tbody></table>';
 		submit_button();
+		/* ⚠️ ĐÓNG FORM Ở ĐÂY. Bảng "Người vào trang tổng" bên dưới là một form RIÊNG, mà HTML
+		   không cho lồng form trong form: trình duyệt lặng lẽ bỏ form trong, và nút Lưu của nó
+		   gửi sang form ngoài — tức bấm Lưu bảng người thì lưu đường dẫn, còn ô tích rơi đâu mất. */
 		echo '</form>';
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * BẢNG "NGƯỜI VÀO TRANG TỔNG"
+		 * ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 KHÔNG IN PIN RA MÀN. Màn này nằm trong wp-admin, nhưng luật vẫn là luật: PIN không
+		 *    đi vào HTML, không nằm trong ảnh chụp màn hình người ta gửi cho nhau.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		$nguoi = VHCPT_Auth::moi_nguoi();
+		echo '<hr><h2>Người vào trang tổng</h2>';
+		echo '<p class="description" style="max-width:820px">Trang tổng là chỗ <b>duyệt và xử lý đơn</b>. '
+			. 'Mặc định ai có ít nhất một quyền <b>duyệt · cấp tiền · trả lại · quyết toán · xuất MISA</b> '
+			. 'ở bất kỳ mảng nào thì vào được — tức quản lý và kế toán. <b>Nhân viên chỉ lập đơn thì không '
+			. 'cần vào</b>, và cũng không vào được. Quyền khai ở bảng <b>Phân quyền</b> của từng trang mảng; '
+			. 'ô tích dưới đây chỉ dùng cho ngoại lệ.</p>';
+
+		if ( ! $nguoi ) {
+			echo '<div class="notice notice-warning inline"><p>Chưa đọc được sổ người dùng của mảng nào.</p></div>';
+		} else {
+			echo '<form method="post" action="">';
+			wp_nonce_field( 'vhcpt_luu' );
+			echo '<input type="hidden" name="vhcpt_action" value="luu">';
+			echo '<input type="hidden" name="vhcpt_co_bang" value="1">';
+			echo '<table class="widefat striped" style="max-width:1100px"><thead><tr>'
+				. '<th style="width:70px">Vào</th><th>Tên</th><th>Vai ở từng mảng</th>'
+				. '<th>Làm được việc gì</th><th style="width:150px">Vì sao</th></tr></thead><tbody>';
+
+			$ten_viec = array( 'duyet' => 'duyệt', 'cap' => 'cấp tiền', 'traLai' => 'trả lại',
+				'qtCn' => 'quyết toán CN', 'qtNcc' => 'quyết toán NCC', 'misa' => 'xuất MISA' );
+
+			foreach ( $nguoi as $k => $ng ) {
+				$vais = array(); $viecs = array();
+				foreach ( $ng['bans'] as $khoa => $b ) {
+					$vais[] = VHCPT_Ban::ten( $khoa ) . ': ' . ( '' !== $b['vai'] ? $b['vai'] : '(chưa có vai)' );
+					foreach ( $ten_viec as $v => $tv ) {
+						if ( ! empty( $b['quyen'][ $v ] ) && ! in_array( $tv, $viecs, true ) ) { $viecs[] = $tv; }
+					}
+				}
+				/* Vì sao người này vào được (hay không) — nói ra, để khỏi ai phải đoán. */
+				if ( in_array( $k, VHCPT_Auth::so( VHCPT_Auth::O_CHAN ), true ) ) {
+					$vi = '<b style="color:#b91c1c">bị chặn tay</b>';
+				} elseif ( in_array( $k, VHCPT_Auth::so( VHCPT_Auth::O_THEM ), true ) ) {
+					$vi = '<b style="color:#0369a1">cho vào tay</b>';
+				} elseif ( $ng['coViec'] ) {
+					$vi = 'có quyền xử lý đơn';
+				} else {
+					$vi = '<span style="color:#6b7280">chỉ lập đơn</span>';
+				}
+
+				echo '<tr><td style="text-align:center"><input type="checkbox" name="vhcpt_vao['
+					. esc_attr( $k ) . ']" value="1"' . checked( $ng['vao'], true, false ) . '></td>'
+					. '<td><b>' . esc_html( $ng['ten'] ) . '</b></td>'
+					. '<td class="description">' . esc_html( implode( ' · ', $vais ) ) . '</td>'
+					. '<td class="description">' . ( $viecs ? esc_html( implode( ', ', $viecs ) )
+						: '<span style="color:#6b7280">— không việc nào —</span>' ) . '</td>'
+					. '<td class="description">' . $vi . '</td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<p class="description">Bỏ tích một người ĐANG có quyền = <b>chặn</b> họ vào trang tổng '
+				. '(quyền bên trang mảng giữ nguyên). Tích một người KHÔNG có quyền = cho vào để <b>xem</b>, '
+				. 'họ vẫn không bấm được việc nào.</p>';
+			submit_button( 'Lưu người vào trang tổng' );
+			echo '</form>';
+		}
 		echo '<p>Trang tổng: <a href="' . esc_url( VHCPT_App::app_url() ) . '" target="_blank"><code>'
 			. esc_html( VHCPT_App::app_url() ) . '</code></a></p>';
 		echo '</div>';

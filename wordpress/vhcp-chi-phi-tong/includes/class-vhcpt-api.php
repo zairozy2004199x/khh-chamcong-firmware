@@ -59,6 +59,10 @@ class VHCPT_Api {
 		$the = self::the_cua_lenh( $req );
 		$ng  = VHCPT_Auth::nguoi_cua_the( $the );
 		if ( ! $ng ) { return self::ra( array( 'error' => 'Phiên đã hết. Đăng nhập lại.' ) ); }
+		/* 🔴 Thẻ phát ra từ bản CŨ mang theo vai và quyền của bản cũ — kể cả khi bản cũ ấy đọc
+		   sai. Nâng cấp rồi F5 mà màn vẫn y nguyên là cảnh đã xảy ra thật (xem
+		   `VHCPT_Auth::lam_moi_neu_cu()`). Làm mới tại đây, trước mọi việc. */
+		$ng = VHCPT_Auth::lam_moi_neu_cu( $the, $ng );
 		VHCPT_Auth::dat_toi( $ng );
 
 		if ( 'toi' === $viec )      { return self::ra( self::toi() ); }
@@ -89,6 +93,25 @@ class VHCPT_Api {
 		if ( ! $kq ) { return array( 'error' => 'PIN không đúng, hoặc không có tài khoản ở mảng nào.' ); }
 		if ( isset( $kq['loi'] ) ) { return array( 'error' => (string) $kq['loi'] ); }
 		if ( ! $kq['bans'] ) { return array( 'error' => 'Tài khoản này chưa thuộc mảng nào.' ); }
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * CỬA VÀO — anh Thắng 14/09/2026: *"đẩy nhân sự kế toán, và quản lý qua để duyệt đơn và
+		 * xử lý đơn, nhân viên thì không cần"*.
+		 *
+		 * 🔴 CHỐI Ở ĐÂY, KHÔNG CHỐI Ở MÀN. Giấu nút đi mà vẫn cho vào là người ta vẫn đọc được
+		 *    toàn bộ sổ chi của ba mảng — đúng thứ đang phải tách. Cửa phải đóng ở máy chủ.
+		 *
+		 * ⚠️ VÀ NÓI RÕ VÌ SAO, KÈM CHỖ SỬA. Câu "không có quyền" trơ trọi là người ta đi hỏi
+		 *    vòng quanh; câu này chỉ thẳng vào bảng Phân quyền của trang mảng.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! VHCPT_Auth::duoc_vao( $kq['bans'], $kq['ten'] ) ) {
+			return array( 'error' => 'Trang tổng dành cho người DUYỆT và XỬ LÝ đơn (quản lý · kế toán). '
+				. 'Vai của bạn ở các mảng không được duyệt, cấp tiền, trả lại, quyết toán hay xuất MISA, '
+				. 'nên chưa vào được. Lên đơn thì làm ở trang chi phí của mảng mình. '
+				. 'Cần vào đây thì khai quyền ở bảng Phân quyền của trang mảng, hoặc nhờ Admin thêm tên '
+				. 'vào mục «Người vào trang tổng» ở wp-admin.' );
+		}
+
 		VHCPT_Auth::dat_toi( $kq );
 		return array(
 			'ok'    => true,

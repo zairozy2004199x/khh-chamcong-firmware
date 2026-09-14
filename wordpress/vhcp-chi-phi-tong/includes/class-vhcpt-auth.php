@@ -244,6 +244,116 @@ class VHCPT_Auth {
 		return $ra;
 	}
 
+	/* ═══════════════════════════════════════════════════════════════ AI ĐƯỢC VÀO CỬA */
+
+	/** Hai sổ ngoại lệ — xem `duoc_vao()`. Lưu tên đã hạ chữ thường. */
+	const O_THEM = 'vhcpt_vao_them';
+	const O_CHAN = 'vhcpt_vao_chan';
+
+	/**
+	 * NGƯỜI NÀY CÓ ĐƯỢC VÀO TRANG TỔNG KHÔNG.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 14/09/2026: *"Trang tổng thêm phần cấu hình để đẩy nhân sự kế toán, và quản lý
+	 * qua để duyệt đơn và xử lý đơn, nhân viên thì không cần"*.
+	 *
+	 * 🔴 LUẬT NỀN LÀ THEO QUYỀN, KHÔNG PHẢI THEO DANH SÁCH TÊN. Nếu cửa vào là một danh sách tên
+	 *    khai tay thì mỗi lần tuyển một kế toán mới, người ấy khai đủ quyền bên trang mảng, làm
+	 *    được mọi việc ở đó — nhưng trang tổng vẫn chối, cho tới khi có ai nhớ ra là phải vào
+	 *    wp-admin thêm tên. Cái "có ai nhớ ra" đó là thứ không bao giờ nên nằm trong một quy
+	 *    trình tiền bạc.
+	 *
+	 *    Nên: ai có ÍT NHẤT MỘT quyền xử lý đơn (duyệt · cấp tiền · trả lại · quyết toán · xuất
+	 *    MISA) ở bất kỳ mảng nào thì vào được. Đúng là kế toán và quản lý. Nhân viên thuần chỉ
+	 *    lập đơn, không có quyền nào trong số ấy — nên họ không vào, đúng như anh nói, mà không
+	 *    ai phải khai gì.
+	 *
+	 * ⚠️ HAI SỔ NGOẠI LỆ cho những ca luật nền không với tới:
+	 *      · CHO VÀO THÊM — người cần theo dõi mà không cần bấm gì (giám đốc, kế toán trưởng
+	 *        đang bàn giao). Họ vào và chỉ xem được.
+	 *      · CHẶN — người có quyền bên trang mảng nhưng tạm không cho vào trang tổng (nghỉ
+	 *        việc chưa xoá sổ, đang bàn giao).
+	 *    Chặn thắng cho-vào: hai sổ cùng có tên thì phía cấm phải thắng, luôn luôn.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @param array  $bans sổ mảng của người ấy (như `tim_theo_pin()` trả về)
+	 * @param string $ten  tên người ấy
+	 */
+	public static function duoc_vao( $bans, $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( in_array( $k, self::so( self::O_CHAN ), true ) ) { return false; }
+		if ( in_array( $k, self::so( self::O_THEM ), true ) ) { return true; }
+		return self::co_viec_nao( $bans );
+	}
+
+	/** Sổ mảng này có quyền xử lý đơn ở mảng nào không. */
+	public static function co_viec_nao( $bans ) {
+		foreach ( (array) $bans as $b ) {
+			$q = isset( $b['quyen'] ) && is_array( $b['quyen'] ) ? $b['quyen'] : array();
+			foreach ( self::VIEC as $viec => $hd ) {
+				if ( ! empty( $q[ $viec ] ) ) { return true; }
+			}
+		}
+		return false;
+	}
+
+	/** Đọc một sổ ngoại lệ. Tên đã hạ chữ thường, không trùng, không rỗng. */
+	public static function so( $o ) {
+		$v = get_option( $o, array() );
+		$ra = array();
+		foreach ( (array) $v as $x ) {
+			$x = mb_strtolower( trim( (string) $x ) );
+			if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+		}
+		return $ra;
+	}
+
+	/** Ghi một sổ ngoại lệ. */
+	public static function dat_so( $o, $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $x ) {
+			$x = mb_strtolower( trim( (string) $x ) );
+			if ( '' !== $x && ! in_array( $x, $ra, true ) ) { $ra[] = $x; }
+		}
+		update_option( $o, $ra );
+	}
+
+	/**
+	 * MỌI NGƯỜI CỦA MỌI MẢNG — cho màn cấu hình trong wp-admin.
+	 *
+	 * 🔴 KHÔNG TRẢ PIN RA. Màn này chạy trong wp-admin, nhưng luật vẫn là luật: PIN không rời
+	 *    khỏi chỗ nó nằm, không đi vào HTML, không nằm trong ảnh chụp màn hình gửi cho nhau.
+	 *
+	 * ⚠️ GOM THEO TÊN: một người thường có mặt ở nhiều mảng (cùng PIN, cùng tên). Bày ba dòng
+	 *    cho một người là ba ô tích cho một quyết định, và chúng sẽ lệch nhau.
+	 *
+	 * @return array [ tên => [ 'ten', 'bans' => [khoá => ['vai','quyen']], 'coViec' => bool ] ]
+	 */
+	public static function moi_nguoi() {
+		$ra = array();
+		foreach ( VHCPT_Ban::ds() as $khoa => $b ) {
+			$lop_cfg = VHCPT_Ban::lop( $khoa, 'Cfg' );
+			/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+			if ( ! $lop_cfg || ! class_exists( $lop_cfg ) || ! method_exists( $lop_cfg, 'get_users' ) ) {
+				continue;
+			}
+			foreach ( (array) call_user_func( array( $lop_cfg, 'get_users' ) ) as $u ) {
+				$ten = trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) );
+				if ( '' === $ten ) { continue; }
+				$k = mb_strtolower( $ten );
+				if ( ! isset( $ra[ $k ] ) ) { $ra[ $k ] = array( 'ten' => $ten, 'bans' => array() ); }
+				$vai = self::vai_cua( $u );
+				$ra[ $k ]['bans'][ $khoa ] = array( 'vai' => $vai, 'quyen' => self::bang_quyen( $khoa, $vai ) );
+			}
+		}
+		foreach ( $ra as $k => $x ) {
+			$ra[ $k ]['coViec'] = self::co_viec_nao( $x['bans'] );
+			$ra[ $k ]['vao']    = self::duoc_vao( $x['bans'], $x['ten'] );
+		}
+		ksort( $ra );
+		return $ra;
+	}
+
 	/* ══════════════════════════════════════════════════════════════════ THẺ PHIÊN */
 
 	/**
@@ -258,8 +368,90 @@ class VHCPT_Auth {
 			'ten'  => (string) $nguoi['ten'],
 			'bans' => (array) $nguoi['bans'],
 			'luc'  => time(),
+			/* 🔴 ĐÓNG DẤU BẢN VÀO THẺ — xem `lam_moi_neu_cu()`. */
+			'ban'  => defined( 'VHCPT_VERSION' ) ? VHCPT_VERSION : '',
 		), self::HAN );
 		return $the;
+	}
+
+	/**
+	 * THẺ PHÁT TRƯỚC LƯỢT NÂNG CẤP THÌ TỰ LÀM MỚI QUYỀN.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐÃ CẮN THẬT 14/09/2026, HAI LẦN LIỀN. Bản 1.7.1 vá đúng lỗi đọc nhầm ô `vaiTro`, anh
+	 *    Thắng nạp lên, F5 — và màn vẫn ghi *"KVC · (chưa có vai) · chỉ xem"*. *"chưa thấy gì"*.
+	 *
+	 *    Vì vai và quyền được tra MỘT LẦN lúc đăng nhập rồi cất vào thẻ phiên (transient, sống
+	 *    12 giờ). Thẻ anh đang cầm phát ra từ bản CŨ, mang đúng cái vai rỗng của lỗi vừa vá. Vá
+	 *    xong, cài xong, F5 xong — thẻ cũ vẫn nói y như trước.
+	 *
+	 *    Đăng xuất rồi vào lại là hết. Nhưng KHÔNG AI ĐOÁN RA ĐIỀU ĐÓ: màn không nói gì về thẻ,
+	 *    nó nói về phân quyền. Người dùng sẽ kết luận bản vá không chạy — và đó là kết luận hợp
+	 *    lý với những gì họ nhìn thấy.
+	 *
+	 * ⚠️ NÊN: thẻ mang dấu BẢN phát ra nó. Bản đang chạy khác dấu ấy -> tra lại vai và quyền từ
+	 *    sổ các mảng NGAY trong lượt gọi này, rồi ghi đè vào thẻ. Người dùng không phải làm gì.
+	 *
+	 * 🔴 TRA LẠI THEO TÊN, KHÔNG ĐÒI PIN LẠI. Thẻ này đã được xác thực bằng PIN lúc phát; tên
+	 *    trong thẻ do máy chủ ghi, không phải thứ người dùng gửi lên. Đòi PIN lần nữa chỉ để đọc
+	 *    lại chính bảng phân quyền của họ là bắt người ta trả giá cho lỗi của mình.
+	 *
+	 * ⚠️ CHỈ LÀM MỚI KHI ĐỔI BẢN, KHÔNG LÀM MỖI LƯỢT GỌI. Hỏi lại bảng phân quyền giữa chừng thì
+	 *    một lượt sửa phân quyền đang diễn ra sẽ cho hai câu trả lời khác nhau trong cùng một
+	 *    lượt bấm — lý do ban đầu người ta cất quyền vào thẻ. Đổi bản là mốc rõ ràng và hiếm.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 *
+	 * @return array người (đã làm mới nếu cần)
+	 */
+	public static function lam_moi_neu_cu( $the, $ng ) {
+		$ban_nay = defined( 'VHCPT_VERSION' ) ? VHCPT_VERSION : '';
+		$ban_the = isset( $ng['ban'] ) ? (string) $ng['ban'] : '';
+		if ( '' !== $ban_nay && $ban_the === $ban_nay ) { return $ng; }
+
+		$ten = trim( (string) ( isset( $ng['ten'] ) ? $ng['ten'] : '' ) );
+		if ( '' === $ten ) { return $ng; }
+
+		$bans = self::bans_theo_ten( $ten );
+		if ( ! $bans ) { return $ng; }   // không tra ra thì giữ nguyên, đừng tước quyền của ai
+
+		$ng['bans'] = $bans;
+		$ng['ban']  = $ban_nay;
+		set_transient( 'vhcpt_the_' . hash( 'sha256', (string) $the ), $ng, self::HAN );
+		return $ng;
+	}
+
+	/**
+	 * Dựng lại sổ mảng của một người theo TÊN — cùng hình dạng `tim_theo_pin()` trả về.
+	 *
+	 * ⚠️ ĐỂ Ở MỘT CHỖ RIÊNG chứ không chép lại thân `tim_theo_pin()`: hai bản chép tay của cùng
+	 *    một việc là chỗ lệch nhau sau vài lượt sửa, mà lệch ở đây nghĩa là quyền của người này
+	 *    khác nhau tuỳ họ vừa đăng nhập hay vừa được làm mới thẻ.
+	 */
+	public static function bans_theo_ten( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $k ) { return array(); }
+		$bans = array();
+		foreach ( VHCPT_Ban::ds() as $khoa => $b ) {
+			$lop_cfg = VHCPT_Ban::lop( $khoa, 'Cfg' );
+			/* ⚠️ Gác CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+			if ( ! $lop_cfg || ! class_exists( $lop_cfg ) || ! method_exists( $lop_cfg, 'get_users' ) ) {
+				continue;
+			}
+			foreach ( (array) call_user_func( array( $lop_cfg, 'get_users' ) ) as $u ) {
+				if ( mb_strtolower( trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) ) ) !== $k ) { continue; }
+				$vai = self::vai_cua( $u );
+				$bans[ $khoa ] = array(
+					'vai'    => $vai,
+					'coso'   => trim( (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ),
+					'boPhan' => trim( (string) ( isset( $u['boPhan'] ) ? $u['boPhan'] : '' ) ),
+					'maNv'   => trim( (string) ( isset( $u['maNv'] ) ? $u['maNv'] : '' ) ),
+					'duyet'  => self::duoc_duyet( $khoa, $vai ),
+					'quyen'  => self::bang_quyen( $khoa, $vai ),
+				);
+				break;
+			}
+		}
+		return $bans;
 	}
 
 	/** Tra thẻ. Trả về người, hoặc null. */
