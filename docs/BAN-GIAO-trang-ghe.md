@@ -38,6 +38,31 @@ plugin phải cùng cài trên một site.
 - ⚡ Kích hoạt ghế · 🪑 Quản lý ghế · 🔖 Gắn mã máy · 🔌 Lịch sử tắt mở máy · 📋 PIN báo cáo
 - 🎛 Điều khiển ghế · 🚨 Ghế lỗi · 📞 Hỗ trợ khách · ⬆️ Nạp firmware · ⚙️ Cấu hình
 
+### 3.1 Unit ID / Tên MISA ngay trên bảng Địa điểm (2.73.0)
+
+Anh Thắng 14/09/2026: *"đẩy dồn 2 cột này qua bên địa điểm để kiểm tra và check nhập 1 lần"*.
+
+Hai ô **Unit ID** và **Tên MISA** trước chỉ có ở tab *Xuất MISA*. Muốn biết cơ sở nào còn thiếu
+Unit ID thì phải mở màn khác rồi dò tên qua lại giữa hai bảng 73 dòng. Nay điền thẳng ở bảng
+**Địa điểm**, và cạnh ô tìm có dòng đếm **"⚠ N cơ sở chưa có Unit ID"**.
+
+- **Lưu khi rời ô**, không phải mỗi hàng một nút — 73 cơ sở thì 73 cú bấm là đúng thứ cần bỏ.
+  Viền ô: vàng = đang gửi · xanh = đã lưu · **đỏ = CHƯA lưu** (giữ nguyên chữ vừa gõ để gõ lại).
+- **Một nguồn duy nhất**: cả hai màn cùng ghi vào bảng `bc_ma_misa`. Tab *Xuất MISA* vẫn giữ vì
+  nó còn **Vùng · Thứ tự · Xoá**.
+- Không đủ quyền đọc bảng MISA → **ẩn hẳn** hai cột, không để lại ô nhập chết.
+
+> 🔴 Ô ở màn Địa điểm gọi `kt_ma_misa_dat` (chỉ chạm 2 cột), **KHÔNG** gọi `kt_ma_misa_luu` (ghi
+> cả hàng). Dùng nhầm hàm kia thì mỗi lần sửa một Unit ID là **Vùng và Thứ tự của cơ sở đó bị
+> xoá trắng** — im lặng, chỉ lộ ra lúc xuất MISA thấy thứ tự loạn.
+
+> 🔴 Khoá ghép tên cơ sở ⇄ bảng MISA là `squash()`, ghép **ở máy chủ** (`ma_misa_map`). Đừng viết
+> lại luật chuẩn hoá ấy bằng JavaScript — repo này đã có đúng một vụ hai bản sao lệch nhau
+> (xem `CLAUDE.md` mục 5: Sao Kê ra chữ thường, Ghế ra chữ HOA).
+
+Phép kiểm: `tools/kiem-ghe/kiem-diadiem-misa.js` (Chromium, giả lập ở tầng `XMLHttpRequest` nên
+chạy đúng `goi()` thật).
+
 ## 4. Phân quyền (`VHG_Auth::quyen_cua`)
 
 - **quan_tri** — Admin/Quản lý: toàn quyền (thêm/xoá cơ sở & ghế, gán mã, cấp PIN báo cáo,

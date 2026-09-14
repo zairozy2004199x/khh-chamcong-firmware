@@ -513,6 +513,8 @@ class VHG_Trang {
 			if ( 'kt_qr_ap' === $viec )      { self::tra( VHG_KeToan::qr_ap( isset( $d['targets'] ) ? $d['targets'] : array(), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
 			if ( 'kt_ma_misa_ds' === $viec )  { self::tra( VHG_KeToan::ma_misa_ds() ); return; }
 			if ( 'kt_ma_misa_luu' === $viec ) { self::tra( VHG_KeToan::ma_misa_luu( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '', isset( $d['vung'] ) ? $d['vung'] : '', isset( $d['thu_tu'] ) ? $d['thu_tu'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) ); return; }
+			if ( 'kt_ma_misa_map' === $viec ) { self::tra( VHG_KeToan::ma_misa_map() ); return; }
+			if ( 'kt_ma_misa_dat' === $viec ) { self::tra( VHG_KeToan::ma_misa_dat( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '' ) ); return; }
 			if ( 'kt_ma_misa_xoa' === $viec ) { self::tra( VHG_KeToan::ma_misa_xoa( isset( $d['coso_key'] ) ? $d['coso_key'] : '' ) ); return; }
 			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
@@ -9147,6 +9149,15 @@ function qlTimGhe(){
   box.innerHTML = h + '</table>';
 }
 
+/* Hai ô Unit ID / Tên MISA của MỘT hàng địa điểm.
+   Giá trị để TRỐNG ở đây rồi mới đổ vào sau khi `kt_ma_misa_map` trả về (xem misaNap() trong
+   noi()). Vẽ rỗng trước cho bảng hiện ngay, khỏi chờ thêm một lượt gọi mạng mới thấy gì. */
+function misaO_(ten){
+  var t = esc(ten);
+  return '<td class="misa-col"><input data-misau="' + t + '" maxlength="40" style="width:88px;padding:3px 6px;font-size:12px" placeholder="—"></td>'
+       + '<td class="misa-col"><input data-misan="' + t + '" maxlength="190" style="width:150px;padding:3px 6px;font-size:12px" placeholder="—"></td>';
+}
+
 function veQuanLy(){
   var coso = D.coso || [], may = D.may || [];
   var tc = (D.tong && D.tong.theo_coso) || [];
@@ -9268,10 +9279,20 @@ function veQuanLy(){
   h += '<div class="act" style="margin-bottom:8px">'
     + '<input id="cs-tim" type="search" placeholder="🔎 ' + L('Tìm địa điểm, tỉnh hoặc mã KH…','Search site, province or code…')
       + '" style="flex:1;min-width:200px;max-width:340px">'
-    + '<span id="cs-dem" class="mut" style="align-self:center"></span></div>';
+    + '<span id="cs-dem" class="mut" style="align-self:center"></span>'
+    + '<span id="cs-misa-thieu" class="mut" style="align-self:center;margin-left:10px"></span></div>';
+  /* UNIT ID + TÊN MISA NGAY TRÊN HÀNG ĐỊA ĐIỂM — anh Thắng 14/09/2026: *"đẩy dồn 2 cột này qua
+     bên địa điểm để kiểm tra và check nhập 1 lần"*. Trước đây hai ô này nằm ở tab Xuất MISA, tức
+     là muốn biết cơ sở nào còn thiếu Unit ID thì phải mở màn khác rồi dò tên qua lại giữa hai
+     bảng 73 dòng. Nay điền ngay chỗ đang nhìn.
+     ⚠️ MỘT NGUỒN DUY NHẤT: cả hai màn cùng ghi vào bảng `bc_ma_misa`, nên không có chuyện hai nơi
+        lệch nhau. Màn Xuất MISA vẫn giữ vì nó còn Vùng / Thứ tự / Xoá.
+     ⚠️ Ô ở đây gọi `kt_ma_misa_dat` (chỉ chạm 2 cột), KHÔNG gọi `kt_ma_misa_luu` (ghi cả hàng) —
+        xem chú thích ở `VHG_KeToan::ma_misa_dat`. */
   h += '<table id="cs-bang"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
-    + '</th><th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
-  if (!coso.length) h += '<tr><td colspan="4" class="mut">'
+    + '</th><th class="misa-col">Unit ID</th><th class="misa-col">' + L('Tên MISA','MISA name') + '</th>'
+    + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>';
+  if (!coso.length) h += '<tr><td colspan="6" class="mut">'
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   /* CƠ SỞ 0 GHẾ gom xuống khối riêng (gập) ở cuối — admin vẫn mở gán ghế/xoá; nhân viên vốn
      không thấy (danh sách theo ghế). Anh Thắng 12/09/2026. */
@@ -9299,6 +9320,7 @@ function veQuanLy(){
           + esc(cosoTrungMa[c.ten].filter(function(v,i,a){ return a.indexOf(v)===i; }).join(', ')) + '</div>' : '')
       + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
+      + misaO_(c.ten)
       + '<td style="line-height:1.9">' + dsMaHtml_(maTheoCoso[c.ten]) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
       + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'')
@@ -9319,6 +9341,9 @@ function veQuanLy(){
       + '<td class="mut"><a href="#" data-csxem="__none__" style="color:#1d4ed8;text-decoration:none;cursor:pointer">'
       + L('(chưa gán)','(unassigned)') + '</a></td>'
       + '<td class="r">' + chuaGan + '</td>'
+      /* "(chưa gán)" không phải một cơ sở nên KHÔNG có Unit ID — để hai ô trống, đừng cho ô nhập:
+         gõ vào đó thì lưu dưới tên "(chưa gán)" thành một dòng rác trong bảng MISA. */
+      + '<td class="misa-col mut">—</td><td class="misa-col mut">—</td>'
       + '<td style="line-height:1.9">' + dsMaHtml_(maChuaGan) + '</td>'
       + '<td></td></tr>';
   }
@@ -9326,8 +9351,11 @@ function veQuanLy(){
   if (nRong) {
     h += '<details style="margin-top:10px"><summary style="cursor:pointer;font-weight:700;color:#64748b">📭 '
       + L('Cơ sở chưa có ghế','Sites with no chairs') + ' (' + nRong + ') — ' + L('bấm để xem / gán ghế / xoá','click to view / assign / delete') + '</summary>'
+      /* Bảng gập này dùng CHUNG các hàng `hRong` đã dựng ở trên, nên tiêu đề phải có ĐỦ 6 cột
+         y hệt bảng chính — thiếu một <th> là mọi ô trong đó lệch sang trái một cột. */
       + '<table style="margin-top:8px"><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
-      + '</th><th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
+      + '</th><th class="misa-col">Unit ID</th><th class="misa-col">' + L('Tên MISA','MISA name') + '</th>'
+      + '<th>' + L('Mã ghế','Chair codes') + '</th><th class="r"></th></tr>' + hRong + '</table></details>';
   }
   h += '<p class="mut" style="margin:8px 0 0">'
     + L('Xoá địa điểm KHÔNG xoá ghế — ghế thành "chưa gán". Doanh thu theo kỳ đang chọn ở đầu trang.',
@@ -10199,6 +10227,84 @@ function thoatNgoai(){
 window.VHG_Trang = window.VHG_Trang || {};
 window.VHG_Trang.thoat = thoatNgoai;
 
+/* ══════════════════════ UNIT ID / TÊN MISA trên bảng Địa điểm ══════════════════════════════
+ * Nạp giá trị vào các ô do misaO_() dựng, rồi tự lưu khi ô ĐỔI.
+ *
+ * ⚠️ LƯU KHI ĐỔI, KHÔNG PHẢI MỖI HÀNG MỘT NÚT. 73 cơ sở mà mỗi hàng một nút Lưu là 73 cú bấm —
+ *    đúng thứ anh Thắng muốn bỏ ("check nhập 1 lần"). Dùng sự kiện `change`: nó chỉ nổ khi rời ô
+ *    VÀ giá trị thật sự khác lúc vào ô, nên không có chuyện gõ nửa chừng đã bắn lên máy chủ.
+ * ⚠️ NHƯNG TỰ LƯU THÌ PHẢI NHÌN THẤY. Mỗi ô đổi viền theo trạng thái: vàng = đang gửi, xanh =
+ *    đã lưu, đỏ = hỏng (và giữ nguyên chữ anh vừa gõ để gõ lại, KHÔNG tự trả về giá trị cũ —
+ *    bài học 2.37.1 "gõ số mới tự về cũ").
+ * ⚠️ Không đủ quyền đọc bảng MISA thì ẨN HẲN hai cột, không để lại ô nhập chết. Ô nhập gõ được
+ *    mà lưu không được là tệ hơn không có ô.
+ */
+function misaAn_(){
+  [].forEach.call(document.querySelectorAll('.misa-col'), function(el){ el.style.display = 'none'; });
+}
+function misaVien_(o, mau){ o.style.outline = mau ? ('2px solid ' + mau) : ''; o.style.outlineOffset = mau ? '-1px' : ''; }
+
+function misaNap(){
+  var oU = document.querySelectorAll('[data-misau]');
+  if (!oU.length) return;                       /* không ở màn Địa điểm */
+  /* ⚠️ `goi()` CHỈ CÓ BA THAM SỐ — không có hàm xử lý lỗi riêng như `google.script.run`. Mọi
+     hỏng hóc (mất mạng, quá giờ, không đủ quyền) đều quay về CHÍNH hàm này dưới dạng
+     `{ok:false, error:…}`. Truyền thêm một hàm thứ tư là nó bị bỏ qua IM LẶNG: lưu hỏng mà ô
+     vẫn xanh như đã lưu. Đã suýt viết sai chỗ này. */
+  goi('kt_ma_misa_map', {}, function(r){
+    if (!r || !r.ok || !r.map) { misaAn_(); return; }
+    var m = r.map;
+    [].forEach.call(document.querySelectorAll('[data-misau]'), function(o){
+      var v = m[o.getAttribute('data-misau')]; o.value = (v && v.unit_id) || '';
+    });
+    [].forEach.call(document.querySelectorAll('[data-misan]'), function(o){
+      var v = m[o.getAttribute('data-misan')]; o.value = (v && v.unit_name) || '';
+    });
+    misaDemThieu();
+  });
+
+  function luu(ten){
+    var oU = document.querySelector('[data-misau="' + ten.replace(/"/g, '\\"') + '"]');
+    var oN = document.querySelector('[data-misan="' + ten.replace(/"/g, '\\"') + '"]');
+    if (!oU || !oN) return;
+    misaVien_(oU, '#f59e0b'); misaVien_(oN, '#f59e0b');
+    goi('kt_ma_misa_dat', { coso: ten, unit_id: oU.value, unit_name: oN.value }, function(r){
+      var ok = !!(r && r.ok);
+      misaVien_(oU, ok ? '#16a34a' : '#dc2626');
+      misaVien_(oN, ok ? '#16a34a' : '#dc2626');
+      if (ok) {
+        setTimeout(function(){ misaVien_(oU, ''); misaVien_(oN, ''); }, 1400);
+      } else {
+        /* 🔴 HỎNG THÌ GIỮ VIỀN ĐỎ, KHÔNG tự xoá sau 1,4 giây. Ô đỏ rồi lại trắng như chưa có gì
+           là đúng cách để anh tưởng đã lưu xong. Và KHÔNG trả ô về giá trị cũ — chữ anh vừa gõ
+           phải còn đó để gõ lại (bài học 2.37.1 "gõ số mới tự về cũ"). */
+        alert(L('CHƯA LƯU được Unit ID của ','NOT saved — Unit ID for ') + ten + '\n'
+          + ((r && (r.error || r.message)) || L('Không rõ lý do.','Unknown reason.')));
+      }
+      misaDemThieu();
+    });
+  }
+  [].forEach.call(document.querySelectorAll('[data-misau],[data-misan]'), function(o){
+    o.onchange = function(){ luu(o.getAttribute('data-misau') || o.getAttribute('data-misan')); };
+    /* Enter = sang ô kế, không phải gửi cả trang. Nhập 73 dòng thì phím Enter phải đi tới được. */
+    o.onkeydown = function(ev){ if (ev.key === 'Enter') { ev.preventDefault(); o.blur(); } };
+  });
+}
+
+/* Đếm cơ sở CÒN THIẾU Unit ID và bày ngay cạnh ô tìm — đây là lý do anh Thắng muốn gộp hai cột
+   vào đây: nhìn một cái biết còn phải điền bao nhiêu, khỏi mở màn khác đếm tay. */
+function misaDemThieu(){
+  var o = document.getElementById('cs-misa-thieu'); if (!o) return;
+  var thieu = 0, tong = 0;
+  [].forEach.call(document.querySelectorAll('[data-misau]'), function(i){
+    tong++; if (!(i.value || '').trim()) thieu++;
+  });
+  if (!tong) { o.textContent = ''; return; }
+  o.innerHTML = thieu
+    ? ('<b style="color:#b45309">⚠ ' + thieu + '</b> ' + L('cơ sở chưa có Unit ID','sites missing a Unit ID'))
+    : ('<b style="color:#15803d">✓</b> ' + L('mọi cơ sở đã có Unit ID','every site has a Unit ID'));
+}
+
 function noi(){
   henLai();
   chayDongHo();
@@ -10349,6 +10455,9 @@ function noi(){
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
   });
+
+  /* ---- UNIT ID / TÊN MISA ngay trên hàng địa điểm (anh Thắng 14/09/2026) ---- */
+  misaNap();
 
   /* ---- TAB QUẢN LÝ GHẾ: địa điểm + ghế ---- */
   var _e;

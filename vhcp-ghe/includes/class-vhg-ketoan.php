@@ -1314,6 +1314,67 @@ class VHG_KeToan {
 		else { $wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), $data ); }
 		return array( 'ok' => true, 'message' => 'Đã lưu Unit ID cho ' . $coso . '.' );
 	}
+	/**
+	 * Bản đồ { TÊN CƠ SỞ (đúng như bảng `coso`) => [unit_id, unit_name] } cho màn ĐỊA ĐIỂM.
+	 *
+	 * 🔴 GHÉP Ở MÁY CHỦ, KHÔNG GHÉP Ở TRÌNH DUYỆT. Khoá ghép là `squash()` — bỏ dấu, viết hoa,
+	 *    bỏ mọi ký tự không phải chữ/số. Viết lại luật ấy bằng JavaScript là đẻ ra bản sao thứ
+	 *    hai của một quy tắc chuẩn hoá, mà repo này đã có đúng một vụ như thế: Sao Kê dùng
+	 *    `chuan_ch()` ra chữ THƯỜNG, Ghế dùng `squash()` ra chữ HOA — hai bên ghép hụt nhau âm
+	 *    thầm (xem CLAUDE.md mục 5). Một nguồn duy nhất thì không có gì để lệch.
+	 *
+	 * ⚠️ Trả về theo TÊN CƠ SỞ chứ không theo `coso_key`: màn Địa điểm đang cầm tên, đưa nó thứ
+	 *    nó tra được ngay.
+	 */
+	public static function ma_misa_map() {
+		global $wpdb;
+		$rows = $wpdb->get_results( 'SELECT coso_key, unit_id, unit_name FROM ' . VHG_DB::t( 'bc_ma_misa' ), ARRAY_A );
+		$theo_key = array();
+		foreach ( (array) $rows as $r ) {
+			$theo_key[ (string) $r['coso_key'] ] = array(
+				'unit_id'   => (string) $r['unit_id'],
+				'unit_name' => (string) $r['unit_name'],
+			);
+		}
+		$ra = array();
+		foreach ( VHG_May::ds_coso() as $c ) {
+			$ten = isset( $c['ten'] ) ? (string) $c['ten'] : '';
+			if ( '' === $ten ) { continue; }
+			$k = self::squash( $ten );
+			$ra[ $ten ] = isset( $theo_key[ $k ] ) ? $theo_key[ $k ] : array( 'unit_id' => '', 'unit_name' => '' );
+		}
+		return array( 'ok' => true, 'map' => $ra );
+	}
+
+	/**
+	 * Đặt RIÊNG Unit ID + Tên MISA, GIỮ NGUYÊN các ô còn lại.
+	 *
+	 * 🔴 KHÔNG DÙNG `ma_misa_luu()` CHO MÀN ĐỊA ĐIỂM. Hàm đó ghi CẢ HÀNG — `vung`, `thu_tu`,
+	 *    `ghi_chu` đều bị ghi đè bằng thứ người gọi truyền vào. Màn Địa điểm chỉ có hai ô, nên
+	 *    gọi nó là mỗi lần anh sửa một Unit ID thì Vùng và Thứ tự của cơ sở đó bị xoá trắng —
+	 *    im lặng, và chỉ lộ ra lúc xuất MISA thấy thứ tự loạn. Hàm này chỉ chạm đúng hai cột.
+	 * ⚠️ Chưa có hàng thì THÊM hàng (điền sẵn `unit_name` = tên cơ sở nếu bỏ trống), không báo
+	 *    lỗi "chưa mồi" — người đang đứng ở màn Địa điểm không có nút Mồi nào để bấm.
+	 */
+	public static function ma_misa_dat( $coso, $unit_id, $unit_name ) {
+		global $wpdb;
+		$coso = trim( (string) $coso );
+		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu tên cơ sở.' ); }
+		$ck  = self::squash( $coso );
+		$uid = mb_substr( trim( (string) $unit_id ), 0, 40 );
+		$un  = mb_substr( trim( (string) $unit_name ), 0, 190 );
+		$co  = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
+		if ( $co ) {
+			$wpdb->update( VHG_DB::t( 'bc_ma_misa' ), array( 'coso' => $coso, 'unit_id' => $uid, 'unit_name' => $un ), array( 'coso_key' => $ck ) );
+		} else {
+			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array(
+				'coso_key' => $ck, 'coso' => $coso, 'unit_id' => $uid,
+				'unit_name' => ( '' !== $un ? $un : $coso ),
+				'vung' => '', 'thu_tu' => 0, 'ghi_chu' => '' ) );
+		}
+		return array( 'ok' => true, 'unit_id' => $uid, 'unit_name' => $un, 'message' => 'Đã lưu ' . $coso . '.' );
+	}
+
 	public static function ma_misa_xoa( $coso_key ) {
 		global $wpdb;
 		$wpdb->delete( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => (string) $coso_key ) );
