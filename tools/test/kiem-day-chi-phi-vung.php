@@ -1,6 +1,6 @@
 <?php
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * ĐẨY NHÂN SỰ SANG BẢN CHI PHÍ VĂN PHÒNG — VÀ KHÔNG ĐƯỢC ĐỤNG SANG BẢN KHU VUI CHƠI.
+ * ĐẨY NHÂN SỰ SANG MỘT BẢN CHI PHÍ — VÀ KHÔNG ĐƯỢC ĐỤNG SANG BẢN NÀO KHÁC.
  *
  * Anh Thắng 15/09/2026: *"Tạo tab lệnh để đẩy dữ liệu nv sang 1 trang chi phí văn phòng trước"*.
  *
@@ -18,7 +18,7 @@
  *    — mà không phải dựng cả plugin thứ hai. Còn sổ khu vui chơi thì là PLUGIN THẬT, vì đó mới
  *    là cái phải chứng minh là KHÔNG bị đụng.
  *
- * Chạy: php tools/test/kiem-day-chi-phi-vp.php
+ * Chạy: php tools/test/kiem-day-chi-phi-vung.php
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 $goc = dirname( dirname( __DIR__ ) );
 require __DIR__ . '/wp-stub.php';
@@ -27,6 +27,23 @@ require __DIR__ . '/wp-stub.php';
    ngay lúc chạy; khai sau thì mọi phép dưới đây rơi vào nhánh "chưa cài" và bài xanh vì không
    thử được gì — đúng kiểu bài kiểm nói dối. */
 class VHCPVP_Cfg {
+	const USER = 'CH_NguoiDung';
+	const BO_PHAN_DS = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup' );
+	public static $so = array();
+	public static function read( $bang ) {
+		return isset( self::$so[ $bang ] ) ? self::$so[ $bang ] : array();
+	}
+	public static function write( $bang, $rows ) { self::$so[ $bang ] = $rows; }
+	public static function bo_phan_chuan( $x ) {
+		$x = trim( (string) $x );
+		foreach ( self::BO_PHAN_DS as $b ) { if ( 0 === strcasecmp( $b, $x ) ) { return $b; } }
+		return '';
+	}
+}
+
+/* Bản Máy tự động — lớp giả thứ hai. Có HAI đích mới thử được câu "đẩy sang bản này thì bản
+   kia không đụng gì", mà đó là cả lý do tệp này tồn tại. */
+class VHCPMTD_Cfg {
 	const USER = 'CH_NguoiDung';
 	const BO_PHAN_DS = array( 'Cơ sở', 'Văn phòng', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup' );
 	public static $so = array();
@@ -170,6 +187,80 @@ t( '🔴 thân lớp cha (ngoài bộ nối) KHÔNG gọi thẳng VHCP_Cfg',
 	! preg_match( '/VHCP_Cfg::/', $ngoai ),
 	preg_match( '/.*VHCP_Cfg::.*/', $ngoai, $m_n ) ? $m_n[0] : '' );
 
+/* ═══ 8. BẢN MÁY TỰ ĐỘNG — anh Thắng 15/09/2026: *"làm tab máy tự động luôn nhé"* ═══
+ *
+ * 🔴 BA ĐÍCH, BA SỔ. Đây là chỗ một lớp chép-dán sẽ lộ ra: sót một hàm bộ nối là người đẩy
+ *    "sang Máy tự động" rơi vào sổ Văn phòng hoặc sổ khu vui chơi, báo thành công như thường. */
+t( '🔴 có lớp đẩy sang bản Máy tự động', class_exists( 'VHCC_DayChiPhiMTD' ) );
+t( '   cũng kế thừa thân chung', is_subclass_of( 'VHCC_DayChiPhiMTD', 'VHCC_DayChiPhi' ) );
+t( '🔴 ba cột khác nhau đôi một', 3 === count( array_unique( array(
+	VHCC_DayChiPhi::COT, VHCC_DayChiPhiVP::COT, VHCC_DayChiPhiMTD::COT ) ) ) );
+t( '🔴 ba sổ "đã đẩy" khác nhau đôi một', 3 === count( array_unique( array(
+	VHCC_DayChiPhi::O_DA_DAY, VHCC_DayChiPhiVP::O_DA_DAY, VHCC_DayChiPhiMTD::O_DA_DAY ) ) ) );
+
+VHCC_NhanSu::luu_ho_so( $ad, array( 'ma_nv' => 'MT01', 'ho_ten' => 'Anh Máy',
+	'cua_hang' => 'AEON MALL BÌNH DƯƠNG', 'pin_dang_nhap' => '6060', 'vai_tro' => 'Nhân viên' ) );
+$vp_truoc  = VHCPVP_Cfg::read( VHCPVP_Cfg::USER );
+$kvc_truoc = VHCP_Cfg::read( VHCP_Cfg::USER );
+$kq = VHCC_DayChiPhiMTD::dat( $ad, 'MT01', 'mo' );
+t( 'đẩy sang MTD chạy được', ! empty( $kq['ok'] ), $kq );
+t( '🔴 hàng nằm trong sổ của bản MÁY TỰ ĐỘNG',
+	null !== hang_ten( VHCPMTD_Cfg::read( VHCPMTD_Cfg::USER ), 'Anh Máy' ), VHCPMTD_Cfg::$so );
+t( '🔴 sổ bản VĂN PHÒNG không bị đụng', VHCPVP_Cfg::read( VHCPVP_Cfg::USER ) === $vp_truoc );
+t( '🔴 sổ bản KHU VUI CHƠI không bị đụng', VHCP_Cfg::read( VHCP_Cfg::USER ) === $kvc_truoc );
+t( '⚠️ và ba sổ "đã đẩy" độc lập',
+	VHCC_DayChiPhiMTD::da_day( 'MT01' )
+	&& ! VHCC_DayChiPhiVP::da_day( 'MT01' )
+	&& ! VHCC_DayChiPhi::da_day( 'MT01' ) );
+
+$ma_mtd = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-day-chi-phi-mtd.php' );
+foreach ( array( 'co_he', 'doc_user', 'ghi_user', 'bp_chuan', 'bp_ds' ) as $h ) {
+	$than = than_ham_vp( $ma_mtd, $h );
+	t( '🔴 bản MTD có viết lại bộ nối «' . $h . '»', '' !== $than, $h );
+	t( '   và trỏ sang VHCPMTD_Cfg', false !== mb_strpos( $than, 'VHCPMTD_Cfg' ), $h );
+}
+/* 🔴 KHÔNG ĐƯỢC SÓT TÊN LỚP CỦA BẢN KHÁC — chép tệp VP ra rồi quên đổi một chữ là ghi nhầm sổ. */
+$mtd_sach = preg_replace( '#/\*[\s\S]*?\*/#', ' ', $ma_mtd );
+t( '🔴 tệp MTD không nhắc VHCPVP_Cfg', ! preg_match( '/\bVHCPVP_Cfg\b/', $mtd_sach ) );
+t( '🔴 tệp MTD không nhắc VHCP_Cfg',   ! preg_match( '/\bVHCP_Cfg\b/', $mtd_sach ) );
+
+/* ═══ 9. MÀN: TAB PHẢI HIỆN CẢ KHI BẢN ĐÍCH CHƯA CÀI ═══════════════════════════
+ *
+ * 🔴 LỖI NGÀY 15/09/2026, EM TỰ GÂY RA. Bản trước giấu hẳn tab khi `co_he()` trả false, lý do
+ *    nghe rất hợp: "một tab bấm vào chỉ để đọc câu chưa cài là thứ người ta bấm lại vào tuần
+ *    sau". Anh Thắng cài bản chấm công mới, mở trang, và nhắn *"Chưa thấy tab đẩy"* — vì bản
+ *    Chi phí Văn phòng chưa cài. Màn KHÔNG NÓI GÌ, nên không cách nào biết thiếu cái gì: y hệt
+ *    tính năng chưa làm, hay làm hỏng.
+ *
+ *    Giấu một thứ vì nó chưa dùng được chỉ đúng khi người dùng KHÔNG ĐANG TÌM nó. */
+$ns = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+$than_dai = than_ham_vp( $ns, 'dai_tab_ns' );
+t( 'bốc được hàm vẽ dải tab', '' !== $than_dai );
+/* 🔴 DÒ THEO TÍNH CHẤT, KHÔNG DÒ TÊN HÀM CŨ. Bản nháp của phép này chỉ đòi "có gọi
+   co_quyen_day" và "không còn chữ co_tab_day_vp" — chèn thêm một cửa
+   `if ( ! ...::co_he() ) { return; }` ngay dưới là tab giấu lại y như cũ mà bài VẪN XANH.
+   Tính chất thật cần giữ: dải tab chỉ có ĐÚNG MỘT đường thoát sớm, và nó hỏi QUYỀN. */
+t( '🔴 dải tab hỏi QUYỀN, không hỏi "đã cài chưa"',
+	false !== mb_strpos( $than_dai, 'co_quyen_day( $toi )' ), $than_dai );
+t( '🔴 và chỉ có ĐÚNG MỘT đường thoát sớm — thêm cửa nào nữa là tab lại biến mất',
+	1 === preg_match_all( '/\breturn\b/', $than_dai ), $than_dai );
+t( '🔴 tab chưa cài được thì tự nói ra ngay trên nhãn',
+	false !== mb_strpos( $than_dai, 'chưa cài' ), $than_dai );
+/* ⚠️ Dải tab dựng TỪ BẢNG KHAI, không gõ tay tên từng bản — thêm bản là thêm một dòng. */
+t( '⚠️ dải tab duyệt bảng khai, không gõ tay tên bản',
+	false !== mb_strpos( $than_dai, 'ds_dich_day()' ), $than_dai );
+$than_ds = than_ham_vp( $ns, 'ds_dich_day' );
+t( '🔴 bảng khai có đủ cả hai bản',
+	false !== mb_strpos( $than_ds, 'VHCC_DayChiPhiVP' )
+	&& false !== mb_strpos( $than_ds, 'VHCC_DayChiPhiMTD' ), $than_ds );
+/* 🔴 ĐÍCH LẤY TỪ Ô `nman` CỦA CHÍNH BIỂU MẪU. Đọc chỗ khác là có ngày bấm ở tab Máy tự động mà
+   người rơi sang sổ Văn phòng — sai sổ thì không có gì báo. */
+$than_luu = than_ham_vp( $ns, 'viec_day_vp' );
+t( '🔴 hàm lưu lấy đích từ ô nman của biểu mẫu',
+	false !== mb_strpos( $than_luu, "\$_POST['nman']" ), $than_luu );
+t( '🔴 và KHÔNG gõ cứng lớp nào',
+	! preg_match( '/VHCC_DayChiPhi(VP|MTD)::/', $than_luu ), $than_luu );
+
 /* ═══════════════════════════════════════════════════════════════════════════════
  * Khối báo trượt đứng CUỐI CÙNG — thêm mục mới thì thêm Ở TRÊN chỗ này.
  * ═══════════════════════════════════════════════════════════════════════════════ */
@@ -178,4 +269,4 @@ if ( $TRUOT ) {
 	foreach ( $TRUOT as $x ) { echo "  · $x\n"; }
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $DAT phép: đẩy sang bản Văn phòng, và sổ khu vui chơi không hề bị đụng.\n";
+echo "\n✓ SẠCH — $DAT phép: ba bản chi phí, ba sổ riêng, không bản nào đụng sổ bản nào.\n";

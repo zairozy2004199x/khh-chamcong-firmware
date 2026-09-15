@@ -189,7 +189,7 @@ class VHCC_TrangNS {
 		   luật bộ phận — mà luật bộ phận thì đụng cả phòng. Nút này trả lại đường đẩy ĐÍCH DANH
 		   một người, không đi qua luật nhóm. Tên riêng `day_1`, cùng lối với `ghep_voi`/`xoa_ma`. */
 		elseif ( isset( $_POST['day_1'] ) ) { $viec_gui = 'day_mot'; }
-		/* Hai nút của TAB LỆNH (đẩy / gỡ hàng loạt sang bản Chi phí Văn phòng). Mỗi nút một
+		/* Hai nút của TAB LỆNH (đẩy / gỡ hàng loạt sang bản chi phí của tab đang mở). Mỗi nút một
 		   tên riêng vì chúng làm hai việc NGƯỢC NHAU trên cùng một danh sách đã tích — gộp
 		   vào một `viec` rồi đọc thêm một ô ẩn là mở đường cho lượt bấm nhầm thành lượt gỡ. */
 		elseif ( isset( $_POST['vp_day'] ) || isset( $_POST['vp_go'] ) ) { $viec_gui = 'day_vp'; }
@@ -1479,8 +1479,8 @@ class VHCC_TrangNS {
 		 * ⚠️ VẼ TRƯỚC KHI `return`, và đứng SAU mấy dải cảnh báo: nếu cổng PIN đang đọc sai kho
 		 *    thì đẩy xong người ta vẫn không đăng nhập được — phải thấy dải ấy trước đã.
 		 */
-		if ( 'day_vp' === self::man_ns() ) {
-			self::the_tab_day_vp( $toi );
+		if ( isset( self::ds_dich_day()[ self::man_ns() ] ) ) {
+			self::the_tab_day( $toi, self::man_ns() );
 			self::dong_trang();
 			return;
 		}
@@ -1857,47 +1857,103 @@ class VHCC_TrangNS {
 		return isset( $_GET['nman'] ) ? sanitize_key( wp_unslash( $_GET['nman'] ) ) : '';
 	}
 
-	/** Dải tab ở đầu trang. Vẽ ở CẢ HAI màn, kẻo vào tab lệnh rồi không có đường về. */
-	private static function dai_tab_ns( $toi ) {
-		if ( ! self::co_tab_day_vp( $toi ) ) { return; }
-		$man = self::man_ns();
-		$cac = array(
-			''       => 'Tổng quan',
-			'day_vp' => '⇪ Đẩy sang Chi phí Văn phòng',
+	/**
+	 * CÁC BẢN CHI PHÍ ĐẨY ĐƯỢC SANG — khai MỘT CHỖ.
+	 *
+	 * Thêm một bản (Hà Nội…) là thêm ĐÚNG MỘT DÒNG ở đây, cộng một lớp sáu hàm kiểu
+	 * `VHCC_DayChiPhiVP`. Gõ tay tên bản ở dải tab, ở bộ định tuyến, ở hàm lưu… là ba chỗ phải
+	 * nhớ sửa, và chỗ quên sẽ là chỗ không ai bấm tới nên không ai phát hiện.
+	 */
+	private static function ds_dich_day() {
+		return array(
+			'day_vp'  => 'VHCC_DayChiPhiVP',
+			'day_mtd' => 'VHCC_DayChiPhiMTD',
 		);
+	}
+
+	/** Lớp lo bản đích của một tab. '' nếu tab ấy không có thật. */
+	private static function lop_dich( $man ) {
+		$ds = self::ds_dich_day();
+		if ( ! isset( $ds[ $man ] ) ) { return ''; }
+		$lop = $ds[ $man ];
+		/* ⚠️ Gác CÙNG HÀM với chỗ dùng — lớp có thể chưa nạp nếu ai đó gỡ bớt tệp. */
+		return ( class_exists( $lop ) && method_exists( $lop, 'co_he' ) ) ? $lop : '';
+	}
+
+	/**
+	 * Dải tab ở đầu trang. Vẽ ở CẢ HAI màn, kẻo vào tab lệnh rồi không có đường về.
+	 *
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 TAB VẪN HIỆN KHI BẢN ĐÍCH CHƯA CÀI — VÀ ĐÂY LÀ MỘT LỖI EM TỰ GÂY RA RỒI PHẢI SỬA.
+	 *
+	 *    Bản trước em giấu hẳn tab khi `co_he()` trả false, lý do nghe rất hợp: "một tab bấm
+	 *    vào chỉ để đọc câu chưa cài là thứ người ta bấm lại vào tuần sau". Nhưng anh Thắng cài
+	 *    xong bản chấm công mới, mở trang ra, và nhắn *"Chưa thấy tab đẩy"* — vì bản Chi phí
+	 *    Văn phòng chưa được cài. Màn KHÔNG NÓI GÌ CẢ, nên không có cách nào biết là thiếu cái
+	 *    gì: y hệt tính năng chưa làm, hay làm hỏng.
+	 *
+	 *    Giấu một thứ vì nó chưa dùng được chỉ đúng khi người dùng KHÔNG ĐANG TÌM nó. Ở đây họ
+	 *    đang tìm. Nên nay tab luôn có mặt cho người đủ vai, và tab nào chưa cài được thì tự
+	 *    nói ra ngay trên nhãn — mờ đi, kèm chữ "chưa cài".
+	 * ══════════════════════════════════════════════════════════════════════════════════════
+	 */
+	private static function dai_tab_ns( $toi ) {
+		if ( ! self::co_quyen_day( $toi ) ) { return; }
+		$man = self::man_ns();
 		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px">';
-		foreach ( $cac as $k => $ten ) {
-			$url = '' === $k ? self::url() : add_query_arg( array( 'nman' => $k ), self::url() );
-			$dang = ( $man === $k );
-			echo '<a class="nut' . ( $dang ? ' chinh' : '' ) . '" href="' . esc_url( $url ) . '">'
-				. esc_html( $ten ) . '</a>';
+		$url = self::url();
+		echo '<a class="nut' . ( '' === $man ? ' chinh' : '' ) . '" href="' . esc_url( $url )
+			. '">Tổng quan</a>';
+		foreach ( self::ds_dich_day() as $k => $lop ) {
+			$co  = ( '' !== self::lop_dich( $k ) ) && call_user_func( array( $lop, 'co_he' ) );
+			$ten = '⇪ ' . ( '' !== self::lop_dich( $k )
+				? call_user_func( array( $lop, 'ten_he' ) ) : $k );
+			$u   = add_query_arg( array( 'nman' => $k ), self::url() );
+			echo '<a class="nut' . ( $man === $k ? ' chinh' : '' ) . '" href="' . esc_url( $u ) . '"'
+				. ( $co ? '' : ' style="opacity:.55"' ) . '>' . esc_html( $ten )
+				. ( $co ? '' : ' <span class="chua">· chưa cài</span>' ) . '</a>';
 		}
 		echo '</div></div>';
 	}
 
 	/**
-	 * Ai thấy tab này.
+	 * Ai được đẩy người sang một app chi phí.
 	 *
 	 * 🔴 CÙNG BẬC VỚI ĐẨY SANG BẢN KHU VUI CHƠI, và vì cùng một lý do: màn chi phí có ngăn
 	 *    TIỀN (duyệt chi, quyết toán), còn PIN đẩy sang là PIN chấm công dùng chung. Đẩy nhầm
 	 *    một người là trao cho họ chìa khoá mà chính họ cũng không biết mình đang cầm.
 	 *
-	 * ⚠️ CHƯA CÀI BẢN VP THÌ KHÔNG VẼ TAB. Một tab bấm vào chỉ để đọc câu "chưa cài" là thứ
-	 *    người ta bấm lại vào tuần sau. Dò bằng `co_he()` — nó hỏi từng hàm, không hỏi mỗi tên
-	 *    lớp, vì hai plugin cài độc lập nên bản có thể lệch nhau bất cứ lúc nào.
+	 * ⚠️ HỎI QUYỀN THÔI, KHÔNG HỎI "ĐÃ CÀI CHƯA". Hai câu ấy tách hẳn nhau từ 15/09/2026 —
+	 *    xem khối dài ở `dai_tab_ns()`.
 	 */
-	private static function co_tab_day_vp( $toi ) {
-		return class_exists( 'VHCC_DayChiPhiVP' )
-			&& method_exists( 'VHCC_DayChiPhiVP', 'co_he' )
-			&& VHCC_DayChiPhiVP::co_he()
-			&& VHCC_Vai::duoc( $toi, VHCC_DayChiPhiVP::QUYEN );
+	private static function co_quyen_day( $toi ) {
+		return class_exists( 'VHCC_DayChiPhi' )
+			&& VHCC_Vai::duoc( $toi, VHCC_DayChiPhi::QUYEN );
 	}
 
-	/** Thân tab lệnh. */
-	private static function the_tab_day_vp( $toi ) {
-		if ( ! self::co_tab_day_vp( $toi ) ) {
-			echo '<div class="the"><div class="bao loi">Tab này cần vai Admin, và cần plugin '
-				. 'Chi phí Văn phòng đã kích hoạt trên site.</div></div>';
+	/**
+	 * Thân tab lệnh — MỘT thân cho mọi bản đích.
+	 *
+	 * ⚠️ CHƯA CÀI BẢN ĐÍCH THÌ NÓI RA, KHÔNG IM. Anh Thắng 15/09/2026: *"Chưa thấy tab đẩy"* —
+	 *    vì bản ấy chưa cài mà màn không nói gì. Xem khối dài ở `dai_tab_ns()`.
+	 */
+	private static function the_tab_day( $toi, $man ) {
+		$lop = self::lop_dich( $man );
+		if ( '' === $lop ) {
+			echo '<div class="the"><div class="bao loi">Không có bản đích nào tên "'
+				. esc_html( $man ) . '".</div></div>';
+			return;
+		}
+		$ten_he = call_user_func( array( $lop, 'ten_he' ) );
+		if ( ! self::co_quyen_day( $toi ) ) {
+			echo '<div class="the"><div class="bao loi">Đẩy người sang hệ ' . esc_html( $ten_he )
+				. ' cần vai Admin — màn ấy có ngăn tiền.</div></div>';
+			return;
+		}
+		if ( ! call_user_func( array( $lop, 'co_he' ) ) ) {
+			echo '<div class="the"><div class="bao canh"><b>Chưa cài plugin ' . esc_html( $ten_he )
+				. ' trên site này</b> (hoặc bản bên ấy quá cũ), nên chưa đẩy được ai. '
+				. 'Cài plugin ấy rồi kích hoạt, tải lại trang này là tab mở.</div></div>';
 			return;
 		}
 		$bp  = isset( $_GET['vbp'] )  ? sanitize_text_field( wp_unslash( $_GET['vbp'] ) ) : '';
@@ -1905,9 +1961,9 @@ class VHCC_TrangNS {
 		$q   = isset( $_GET['vq'] )   ? sanitize_text_field( wp_unslash( $_GET['vq'] ) ) : '';
 		$chi = isset( $_GET['vchi'] ) ? sanitize_key( wp_unslash( $_GET['vchi'] ) ) : '';
 
-		echo '<div class="tieu-man"><h1>Đẩy nhân sự sang Chi phí Văn phòng</h1>'
+		echo '<div class="tieu-man"><h1>Đẩy nhân sự sang ' . esc_html( $ten_he ) . '</h1>'
 			. '<p class="mo">Người được đẩy có mặt trong sổ <b>Người dùng &amp; Phân quyền</b> của '
-			. 'bản Văn phòng, và đăng nhập bằng <b>chính PIN chấm công</b> của họ.</p></div>';
+			. 'bản ấy, và đăng nhập bằng <b>chính PIN chấm công</b> của họ.</p></div>';
 
 		/* 🔴 NÓI TRƯỚC NHỮNG GÌ LƯỢT ĐẨY GIỮ NGUYÊN. Sổ bên ấy có người thật đang dùng, và ô
 		   TK Có · Mã đối tượng · Đơn vị là bảng khai của KẾ TOÁN. Không nói ra thì người bấm
@@ -1922,7 +1978,7 @@ class VHCC_TrangNS {
 
 		/* ── Bộ lọc ─────────────────────────────────────────────────────────────────── */
 		echo '<div class="the"><form method="get" class="hang" style="gap:8px;flex-wrap:wrap">';
-		echo '<input type="hidden" name="nman" value="day_vp">';
+		echo '<input type="hidden" name="nman" value="' . esc_attr( $man ) . '">';
 		echo '<select name="vbp"><option value="">— Mọi bộ phận —</option>';
 		foreach ( VHCC_NhanSu::ds_bo_phan() as $b ) {
 			echo '<option value="' . esc_attr( $b ) . '"' . selected( $bp, $b, false ) . '>'
@@ -1936,7 +1992,7 @@ class VHCC_TrangNS {
 			. '<option value="roi"' . selected( $chi, 'roi', false ) . '>Đã đẩy</option>'
 			. '</select>';
 		echo '<button class="nut">Lọc</button>';
-		echo '<a class="nut" href="' . esc_url( add_query_arg( array( 'nman' => 'day_vp' ), self::url() ) )
+		echo '<a class="nut" href="' . esc_url( add_query_arg( array( 'nman' => $man ), self::url() ) )
 			. '">Xoá lọc</a>';
 		echo '</form></div>';
 
@@ -1947,7 +2003,7 @@ class VHCC_TrangNS {
 			$ma = trim( (string) ( isset( $r['ma_nv'] ) ? $r['ma_nv'] : '' ) );
 			if ( '' === $ma ) { continue; }
 			if ( '' !== $bp && trim( (string) ( isset( $r['bo_phan'] ) ? $r['bo_phan'] : '' ) ) !== $bp ) { continue; }
-			$da = VHCC_DayChiPhiVP::da_day( $ma );
+			$da = call_user_func( array( $lop, 'da_day' ), $ma );
 			if ( 'chua' === $chi && $da ) { continue; }
 			if ( 'roi' === $chi && ! $da ) { continue; }
 			$loc[] = array( 'r' => $r, 'ma' => $ma, 'da' => $da );
@@ -1960,10 +2016,10 @@ class VHCC_TrangNS {
 		}
 		echo '<form method="post">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-		echo '<input type="hidden" name="nman" value="day_vp">';
+		echo '<input type="hidden" name="nman" value="' . esc_attr( $man ) . '">';
 		echo '<div class="cuon"><table><thead><tr>'
 			. '<th style="width:34px"></th><th>Mã NV</th><th>Họ tên</th><th>Bộ phận</th>'
-			. '<th>Cơ sở</th><th>PIN</th><th>Bên VP</th></tr></thead><tbody>';
+			. '<th>Cơ sở</th><th>PIN</th><th>Bên kia</th></tr></thead><tbody>';
 		$thieu_pin = 0;
 		foreach ( $loc as $x ) {
 			$r   = $x['r'];
@@ -2007,10 +2063,23 @@ class VHCC_TrangNS {
 		}
 	}
 
-	/** Đẩy / gỡ hàng loạt theo danh sách vừa tích. */
+	/**
+	 * Đẩy / gỡ hàng loạt theo danh sách vừa tích — cho BẢN ĐÍCH CỦA TAB ĐANG MỞ.
+	 *
+	 * 🔴 ĐÍCH LẤY TỪ Ô `nman` CỦA CHÍNH BIỂU MẪU, không đoán. Biểu mẫu trong tab nào thì mang
+	 *    theo tên tab ấy; đọc chỗ khác (URL hiện tại, tab mở lần trước) là có ngày bấm ở tab
+	 *    Máy tự động mà người rơi sang sổ Văn phòng — sai sổ thì không có gì báo, và người ấy
+	 *    lặng lẽ có chìa khoá vào một màn có ngăn tiền không ai định.
+	 */
 	private static function viec_day_vp( $toi ) {
-		if ( ! class_exists( 'VHCC_DayChiPhiVP' ) || ! method_exists( 'VHCC_DayChiPhiVP', 'luu_nhieu' ) ) {
-			return array( array( 'loi' => 'Chưa cài plugin Chi phí Văn phòng trên site này.' ) );
+		$man = isset( $_POST['nman'] ) ? sanitize_key( wp_unslash( $_POST['nman'] ) ) : '';
+		$lop = self::lop_dich( $man );
+		if ( '' === $lop || ! method_exists( $lop, 'luu_nhieu' ) || ! method_exists( $lop, 'ten_he' ) ) {
+			return array( array( 'loi' => 'Không rõ đẩy sang bản chi phí nào — tải lại trang rồi làm lại.' ) );
+		}
+		$ten_he = call_user_func( array( $lop, 'ten_he' ) );
+		if ( ! call_user_func( array( $lop, 'co_he' ) ) ) {
+			return array( array( 'loi' => 'Chưa cài plugin ' . $ten_he . ' trên site này.' ) );
 		}
 		$day = isset( $_POST['vp_day'] );
 		$ma  = isset( $_POST['vpma'] ) ? wp_unslash( $_POST['vpma'] ) : array();
@@ -2022,16 +2091,16 @@ class VHCC_TrangNS {
 			$m = sanitize_text_field( (string) $m );
 			if ( '' !== $m ) { $bang[ $m ] = $day ? 'mo' : ''; }
 		}
-		$kq = VHCC_DayChiPhiVP::luu_nhieu( $toi, $bang );
+		$kq = call_user_func( array( $lop, 'luu_nhieu' ), $toi, $bang );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		$bao = array();
-		$bao[] = array( 'ok' => 'Chi phí Văn phòng: đã ' . ( $day ? 'đẩy' : 'gỡ' ) . ' '
+		$bao[] = array( 'ok' => $ten_he . ': đã ' . ( $day ? 'đẩy' : 'gỡ' ) . ' '
 			. (int) $kq['doi'] . ' người'
-			. ( $day ? '. Họ đăng nhập trang Chi phí Văn phòng bằng chính PIN chấm công.' : '.' ) );
+			. ( $day ? '. Họ đăng nhập trang ấy bằng chính PIN chấm công.' : '.' ) );
 		/* 🔴 PHẢI KỂ TÊN NGƯỜI BỊ XOÁ PIN RA. Im lặng là sáng hôm sau có người gõ PIN không vào
 		   được và không ai nối được hai chuyện với nhau. */
 		if ( ! empty( $kq['mat_pin'] ) ) {
-			$bao[] = array( 'canh' => 'Bên VP có người trùng PIN nên đã bị XOÁ PIN (hàng vẫn còn, '
+			$bao[] = array( 'canh' => 'Bên ' . $ten_he . ' có người trùng PIN nên đã bị XOÁ PIN (hàng vẫn còn, '
 				. 'chỉ mất đường đăng nhập): ' . implode( ', ', (array) $kq['mat_pin'] )
 				. '. Cấp PIN mới cho họ bên ấy là dùng lại được.' );
 		}
