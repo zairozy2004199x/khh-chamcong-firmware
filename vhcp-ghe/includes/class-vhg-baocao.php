@@ -53,6 +53,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class VHG_BaoCao {
 
 	const GIO_SUA = 24;   // nhân viên sửa được trong ngần này giờ kể từ lúc gửi
+	/* 🔎 DẤU VÂN TAY CỦA CHÍNH TỆP NÀY — anh Thắng 15/09/2026: góc màn in "2.90.0" (VHG_VERSION từ
+	   vhcp-ghe.php) mà boot() vẫn xử sự như mã cũ (rỗng ô cơ sở nhưng KHÔNG kèm chanDoan — điều
+	   2.90.0 không thể làm). Nghĩa là tệp đang CHẠY không phải tệp trong zip: bộ đệm bytecode
+	   (opcache) giữ bản cũ, hoặc phản hồi API bị đệm. Hằng này nằm TRONG class-vhg-baocao.php và
+	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
+	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
+	   VHG_VERSION mỗi lần sửa tệp này. */
+	const BAN = '2.91.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -850,7 +858,8 @@ class VHG_BaoCao {
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
 			'resetCoso' => $reset_cs, 'toanQuyen' => $toan_quyen ? 1 : 0, 'nhanSu' => $nhan_su,
 			'chamCongUrl' => self::cham_cong_url(),
-			'trangChuUrl' => home_url( '/' ) );
+			'trangChuUrl' => home_url( '/' ),
+			'banBc' => self::BAN );   // vân tay tệp báo cáo — xem const BAN
 		if ( $chan_doan ) { $out['chanDoan'] = $chan_doan; }
 		return $out;
 	}

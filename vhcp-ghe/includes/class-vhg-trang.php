@@ -1759,7 +1759,11 @@ class VHG_Trang {
        chạy ở cơ sở, wifi/4G yếu). readyState không bao giờ lên 4 thì cb() không bao giờ gọi,
        nút "Đang lưu…" đứng mãi và không có cách nào tự phục hồi ngoài tải lại trang. */
     var xongMotLan=false; function xong(r){ if(xongMotLan) return; xongMotLan=true; cb(r); }
-    x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
+    /* `_=Date.now()` = CHỐNG ĐỆM — anh Thắng 15/09/2026: màn báo cáo nhận về một phản hồi mà mã máy
+       chủ hiện tại KHÔNG THỂ tạo ra (rỗng ô cơ sở nhưng thiếu chanDoan). Một lớp đệm (CDN / plugin
+       cache / proxy host) có thể đang phát lại phản hồi API cũ theo URL. Mỗi lượt một URL khác nhau
+       thì không lớp đệm nào khớp được; máy chủ bỏ qua tham số thừa này. */
+    x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec + '&_=' + Date.now(), true);
     x.setRequestHeader('Content-Type','application/json');
     /* Lượt gửi kèm nhiều ảnh (chứng từ + ảnh ghế) cần lâu hơn 25s bình thường trên 4G yếu —
        anh Thắng 29/08/2026: "Lỗi khi gửi báo cáo" lặp lại nhiều lần ở cơ sở đính 13 ảnh chứng
@@ -2047,7 +2051,9 @@ class VHG_Trang {
     if(BC.staff){
       var who=el('div');
       who.style.cssText='margin:4px 0 2px;font-weight:800;color:var(--tim,#4f46e5)';
-      who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở';
+      /* `mã báo cáo` = vân tay của class-vhg-baocao.php (BC.banBc) — lệch với số bản ở góc màn
+         là bằng chứng tệp báo cáo cũ còn chạy (opcache) hoặc phản hồi bị đệm. Xem const BAN. */
+      who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở · mã báo cáo '+(BC.banBc||'?');
       c1.appendChild(who);
     }
     /* 🔎 KHỐI CHẨN ĐOÁN — chỉ hiện khi máy chủ gửi BC.chanDoan (nhân viên vẫn "0 cơ sở"). In ra để
@@ -2066,6 +2072,20 @@ class VHG_Trang {
       _d('Admin khai theo TÊN (bc_pin)', cd.bcpin_theo_ten);
       _d('Ghế sống / khớp phạm vi', cd.ghe_song+' / '+cd.ghe_khop_pham_vi);
       c1.appendChild(box);
+    }
+    /* 🔴 LƯỚI DƯỚI — ô cơ sở rỗng mà máy chủ KHÔNG gửi chanDoan. Mã boot() từ 2.90.0 KHÔNG THỂ
+       trả ra tổ hợp này; gặp nó tức là phản hồi đến từ MÃ CŨ (opcache giữ tệp cũ) hoặc BỘ ĐỆM
+       phát lại phản hồi cũ — không phải lỗi phạm vi. Nói thẳng ra kèm mã báo cáo để không còn
+       phải đoán lớp nào hỏng (anh Thắng 15/09/2026, sau 4 bản vá đúng mà "không ăn"). */
+    if(!(BC.coso||[]).length && !BC.chanDoan){
+      var cu=el('div');
+      cu.style.cssText='margin:6px 0;padding:10px 12px;border-radius:10px;background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;font-size:12px;line-height:1.6';
+      cu.appendChild(el('b',null,'⛔ Phản hồi này đến từ MÃ CŨ hoặc BỘ ĐỆM, không phải bản đang cài.'));
+      var d1=el('div'); d1.textContent='Ô cơ sở rỗng nhưng máy chủ không gửi khối chẩn đoán — bản 2.90.0 trở lên luôn gửi. Mã báo cáo nhận được: '+(BC.banBc||'KHÔNG CÓ (tệp báo cáo cũ)')+'.';
+      cu.appendChild(d1);
+      var d2=el('div'); d2.textContent='Cách xử lý: nhờ hosting xoá opcache / khởi động lại PHP, hoặc tắt–bật plugin Ghế một lần, rồi tải lại trang.';
+      cu.appendChild(d2);
+      c1.appendChild(cu);
     }
     c1.appendChild(el('div','bc-mut',
       'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));

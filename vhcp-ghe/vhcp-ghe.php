@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           2.90.0
+ * Version:           2.91.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '2.90.0' );
+define( 'VHG_VERSION', '2.91.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -86,7 +86,33 @@ function vhg_maybe_upgrade() {
 		/* Vừa lên bản mới thì quên kết quả hỏi GitHub cũ đi, để lần sau hỏi lại từ đầu (khỏi
 		   còn báo "có bản mới" cho bản mình vừa cài xong). */
 		if ( class_exists( 'VHG_TuCapNhat' ) ) { VHG_TuCapNhat::quen_nho(); }
+		/* Vừa lên bản mới → đuổi bytecode CŨ của mọi tệp plugin ra khỏi opcache. Xem vhg_xoa_opcache(). */
+		vhg_xoa_opcache();
 	}
+}
+
+/* 🔴 ĐUỔI MÃ CŨ KHỎI BỘ ĐỆM BYTECODE (opcache) SAU KHI CÀI BẢN MỚI — anh Thắng 15/09/2026.
+   Triệu chứng: góc màn in đúng số bản mới (VHG_VERSION đọc từ vhcp-ghe.php), mà một tệp lớp
+   (class-vhg-baocao.php) vẫn chạy hành vi của bản CŨ — bốn bản vá liên tiếp "không ăn" dù zip
+   đúng. Trên hosting dùng chung, PHP hay giữ bytecode đã biên dịch và không soát lại mtime
+   (validate_timestamps tắt / revalidate thưa), nên tệp mới nằm trên đĩa mà PHP vẫn chạy bản cũ
+   trong RAM; WordPress khi cài zip có gọi wp_opcache_invalidate() nhưng nhiều host chặn API đó.
+   Ở đây tự làm, có gác: thiếu hàm hay bị chặn (restrict_api) thì lệnh vô hại, không đổ lỗi.
+   Gọi ở HAI mốc: (1) vhg_maybe_upgrade — ngay lượt tải đầu sau khi số bản đổi; (2) móc
+   upgrader_process_complete — ngay khi WordPress cài/nâng xong plugin này, kể cả qua tự cập nhật. */
+function vhg_xoa_opcache() {
+	if ( ! function_exists( 'opcache_invalidate' ) ) { return; }
+	$goc = rtrim( VHG_DIR, '/\\' );
+	$ds  = array( $goc . '/vhcp-ghe.php' );
+	foreach ( (array) glob( $goc . '/includes/*.php' ) as $f ) { $ds[] = $f; }
+	foreach ( $ds as $f ) {
+		if ( is_file( $f ) ) { @opcache_invalidate( $f, true ); }
+	}
+}
+add_action( 'upgrader_process_complete', 'vhg_moc_nang_cap_xong', 10, 2 );
+function vhg_moc_nang_cap_xong( $nang, $tuy ) {
+	if ( ! is_array( $tuy ) || ( isset( $tuy['type'] ) && 'plugin' !== $tuy['type'] ) ) { return; }
+	vhg_xoa_opcache();
 }
 
 /* 🔴 CƠ SỞ ĐƠN VỊ POSH BÊN CHI PHÍ -> VÀO THẲNG DANH MỤC CƠ SỞ CỦA GHẾ.
