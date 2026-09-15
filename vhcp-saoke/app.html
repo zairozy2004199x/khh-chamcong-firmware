@@ -739,6 +739,10 @@ document.getElementById('pinInput').addEventListener('keydown', function(e){ if(
 // Mở lại trang trong cùng phiên: vẫn HỎI máy chủ xác nhận PIN, không tin suông ô đã nhớ —
 // PIN có thể đã bị đổi ở tab khác, tin suông là mọi lời gọi sau đó đều lỗi "Sai mã PIN".
 (function tuDangNhap(){
+  /* Vào bằng VÉ từ trang Ghế: máy chủ đã đặt phiên (cookie httponly), mọi lượt gọi sau được chấp
+     nhận không cần PIN — nên vào thẳng, khỏi hiện màn hỏi PIN. PIN để rỗng là đúng: nó không còn
+     là thứ xác thực trong phiên này. Xem SAOKE_App::pin_ok()/nhan_ve_(). */
+  if (window.SAOKE_VE_OK) { vaoApp(''); return; }
   var pin = pinDaNho();
   if (!pin) return;
   google.script.run.withSuccessHandler(function(r){

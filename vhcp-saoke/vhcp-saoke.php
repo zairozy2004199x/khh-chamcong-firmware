@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.31.0
+ * Version:           0.32.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.31.0';
+	const VER = '0.32.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -41,6 +41,8 @@ class SAOKE_App {
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
 		add_filter( 'rest_pre_serve_request', array( __CLASS__, 'cors' ), 10, 4 );
 		add_shortcode( 'posh_saoke', array( __CLASS__, 'shortcode' ) );
+		/* Nhận vé từ trang Ghế TRƯỚC khi trang vẽ ra — xem nhan_ve_(). */
+		add_action( 'template_redirect', array( __CLASS__, 'nhan_ve_' ), 1 );
 		add_action( 'admin_menu', array( __CLASS__, 'admin_menu' ) );
 		add_action( 'wp', array( __CLASS__, 'an_admin_bar' ) );
 		add_action( 'saoke_cron_sync', array( __CLASS__, 'cron_sync' ) );
@@ -167,9 +169,63 @@ class SAOKE_App {
 
 	// ───────────────────────────── PIN ─────────────────────────────
 	private static function pin_ok( $req ) {
+		/* 🔴 PHIÊN TỪ VÉ CỦA TRANG GHẾ ĐƯỢC TÍNH LÀ ĐÃ QUA CỬA. Anh Thắng 15/09/2026: kế toán bấm
+		   link Sao Kê bên Ghế thì vào thẳng, không hỏi PIN nữa. Quyền lấy từ HỒ SƠ NHÂN SỰ (ai có
+		   quyền Chốt doanh số) chứ không phải tài khoản WordPress — kế toán bên này chỉ dùng PIN.
+		   ⚠️ KHÔNG BỎ PIN. Đây là THÊM một đường vào, PIN vẫn nguyên cho người gõ thẳng địa chỉ. */
+		if ( self::phien_ok_() ) { return true; }
 		$luu = (string) get_option( 'saoke_pin', '' );
 		if ( '' === $luu ) { return false; }
 		return hash_equals( $luu, (string) $req->get_param( 'pin' ) );
+	}
+
+	/** Cookie phiên có còn sống không. Khoá lưu dạng BĂM — lộ bảng options cũng không dựng lại được cookie. */
+	private static function phien_ok_() {
+		$sid = isset( $_COOKIE['saoke_ses'] ) ? preg_replace( '/[^a-f0-9]/', '', (string) $_COOKIE['saoke_ses'] ) : '';
+		if ( 32 !== strlen( $sid ) ) { return false; }
+		return is_array( get_transient( 'saoke_ses_' . hash( 'sha256', $sid ) ) );
+	}
+
+	/**
+	 * 🔴 NHẬN VÉ MỘT LẦN TỪ TRANG GHẾ (?sk=…) → đặt phiên 8 tiếng → XOÁ vé khỏi đường dẫn.
+	 *
+	 * Vé do `VHG_Trang::saoke_ve_()` cấp, chỉ cấp cho người đã qua cổng `kt_` bên Ghế (đã có token
+	 * hợp lệ VÀ có quyền Chốt doanh số / Quản trị). Hai plugin dùng chung một CSDL (CLAUDE.md §5)
+	 * nên bên này chỉ cần đọc đúng khoá đã thoả thuận — KHÔNG gọi lớp nào của Ghế, gỡ Ghế ra thì
+	 * chỗ này lặng lẽ không làm gì, PIN vẫn chạy.
+	 *
+	 * Bốn chốt an toàn:
+	 *   · vé 128 bit ngẫu nhiên, lưu dạng BĂM, sống 2 phút;
+	 *   · DÙNG MỘT LẦN — đọc xong xoá ngay, nên vé còn trong lịch sử trình duyệt cũng vô dụng;
+	 *   · chuyển hướng bỏ `?sk=` ngay lập tức, để vé không nằm lại trên thanh địa chỉ / referrer;
+	 *   · cookie httponly + samesite, JS không đọc được.
+	 */
+	public static function nhan_ve_() {
+		if ( ! isset( $_GET['sk'] ) ) { return; }
+		$ve   = preg_replace( '/[^a-f0-9]/', '', (string) wp_unslash( $_GET['sk'] ) );
+		$sach = remove_query_arg( 'sk' );
+		if ( 32 === strlen( $ve ) ) {
+			$k = 'vhg_sk_ve_' . hash( 'sha256', $ve );
+			$d = get_transient( $k );
+			if ( is_array( $d ) ) {
+				delete_transient( $k );   // DÙNG MỘT LẦN
+				$sid = bin2hex( random_bytes( 16 ) );
+				set_transient( 'saoke_ses_' . hash( 'sha256', $sid ),
+					array( 'ten' => (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ), 'luc' => time() ),
+					8 * HOUR_IN_SECONDS );
+				$het = time() + 8 * HOUR_IN_SECONDS;
+				/* setcookie() nhận mảng tuỳ chọn từ PHP 7.3; plugin khai Requires PHP 7.2 nên phải
+				   có nhánh lùi, không thì đúng host PHP 7.2 là lỗi trắng trang. */
+				if ( PHP_VERSION_ID >= 70300 ) {
+					setcookie( 'saoke_ses', $sid, array( 'expires' => $het, 'path' => '/',
+						'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax' ) );
+				} else {
+					setcookie( 'saoke_ses', $sid, $het, '/; samesite=Lax', '', is_ssl(), true );
+				}
+			}
+		}
+		wp_safe_redirect( $sach );
+		exit;
 	}
 	private static function loi_pin() { return new WP_Error( 'pin', 'Sai mã PIN hoặc chưa đặt PIN (WP Admin → Sao Kê SePay).', array( 'status' => 401 ) ); }
 
@@ -2843,7 +2899,10 @@ class SAOKE_App {
 		$html = is_readable( $file ) ? (string) file_get_contents( $file ) : '';
 		if ( '' === $html ) { return '<p>Thiếu app.html trong plugin.</p>'; }
 		// Cầu google.script.run (Apps Script) -> POST /rpc {fn,args}. {__err} -> withFailureHandler.
-		$shim = '<script>(function(){var REST=' . wp_json_encode( $rest ) . ';'
+		/* Báo cho app biết đã có phiên (vào bằng vé từ Ghế) để khỏi hiện màn hỏi PIN. Cờ này chỉ
+		   nói 'đã qua cửa', KHÔNG mang PIN — PIN không bao giờ được in ra HTML (§4). */
+		$shim = '<script>window.SAOKE_VE_OK=' . ( self::phien_ok_() ? 'true' : 'false' ) . ';</script>'
+			. '<script>(function(){var REST=' . wp_json_encode( $rest ) . ';'
 			. 'function post(fn,args,s,f,u){fetch(REST+"/rpc",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({fn:fn,args:args})})'
 			. '.then(function(r){return r.json();}).then(function(d){if(d&&typeof d==="object"&&d.__err!==undefined){if(f)f(new Error(d.__err),u);return;}if(s)s(d,u);})'
 			. '.catch(function(e){if(f)f(e,u);});}'

@@ -181,6 +181,28 @@ class VHG_Trang {
 
 	/* URL trang Sao Kê (plugin vhcp-saoke) — tìm trang publish chứa shortcode [posh_saoke]. Rỗng nếu
 	   chưa cài Sao Kê. Anh Thắng 12/09/2026: "cho đường dẫn trang sao kê vào tab kế toán bên ghế". */
+	/**
+	 * 🔴 CẤP VÉ MỘT LẦN ĐỂ SANG TRANG SAO KÊ KHÔNG PHẢI GÕ PIN — anh Thắng 15/09/2026.
+	 *
+	 * Chỉ gọi được từ cổng `kt_`, mà cổng ấy đã đòi token hợp lệ VÀ quyền Chốt doanh số / Quản trị
+	 * (lấy từ HỒ SƠ NHÂN SỰ, không phải tài khoản WordPress — kế toán bên này chỉ dùng PIN).
+	 *
+	 * Vé 128 bit ngẫu nhiên, lưu dạng BĂM (lộ bảng options cũng không dựng lại được vé), sống 2
+	 * phút, và bên Sao Kê XOÁ ngay khi dùng. Hai plugin dùng chung CSDL (CLAUDE.md §5) nên chỉ cần
+	 * thống nhất TÊN KHOÁ `vhg_sk_ve_<băm>` — không gọi lớp của nhau, gỡ plugin nào thì bên kia
+	 * lặng lẽ không có đường này chứ không lỗi.
+	 */
+	private static function saoke_ve_( $ten ) {
+		$url = self::sao_ke_url();
+		if ( '' === $url ) {
+			return array( 'ok' => false, 'error' => 'Chưa tìm thấy trang Sao Kê (trang chứa shortcode [posh_saoke]).' );
+		}
+		$ve = bin2hex( random_bytes( 16 ) );
+		set_transient( 'vhg_sk_ve_' . hash( 'sha256', $ve ),
+			array( 'ten' => (string) $ten, 'luc' => time() ), 120 );
+		return array( 'ok' => true, 'url' => add_query_arg( 'sk', $ve, $url ) );
+	}
+
 	private static function sao_ke_url() {
 		global $wpdb;
 		$id = (int) $wpdb->get_var(
@@ -524,6 +546,7 @@ class VHG_Trang {
 				return;
 			}
 			$boi = (string) $ai['name'];
+			if ( 'kt_saoke_ve' === $viec ) { self::tra( self::saoke_ve_( $boi ) ); return; }
 			if ( 'kt_ds' === $viec )       { self::tra( VHG_KeToan::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_thieu_bc' === $viec )    { self::tra( VHG_KeToan::thieu_bao_cao( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_lich_coso_ds' === $viec )  { self::tra( VHG_KeToan::lich_coso_ds() ); return; }
@@ -5606,8 +5629,28 @@ function ve(){
       /* Mục LINK (ra plugin khác) — render thẻ <a> mở tab mới, KHÔNG đưa vào TABS (không phải tab
          nội bộ, không dính luật chọn tab). */
       if (x[0] === 'link-saoke') {
-        navHtml += '<a href="' + esc(D.saoKeUrl) + '" target="_blank" rel="noopener" '
-          + 'style="display:block;text-decoration:none">' + '<button style="width:100%;text-align:left">↗ ' + x[1] + '</button></a>';
+        /* Bấm -> XIN VÉ rồi mới mở, để kế toán vào thẳng không phải gõ PIN (xem saoke_ve_).
+           ⚠️ Mở tab TRƯỚC khi gọi mạng: trình duyệt chặn cửa sổ mở từ trong callback bất đồng bộ,
+              nên window.open phải nằm ngay trong lượt bấm, rồi mới gán địa chỉ khi vé về. */
+        navHtml += '<button data-saoke="1" style="width:100%;text-align:left">↗ ' + x[1] + '</button>';
+        if (!window.__skDaNoi) {
+          window.__skDaNoi = 1;
+          document.addEventListener('click', function(ev){
+            var b = ev.target && ev.target.closest && ev.target.closest('[data-saoke]');
+            if (!b) return;
+            ev.preventDefault();
+            var w = window.open('', '_blank');
+            goi('kt_saoke_ve', {}, function(r){
+              if (!r || !r.ok) {
+                if (w) w.close();
+                alert((r && r.error) || L('Không mở được trang Sao Kê.','Could not open bank statements.'));
+                return;
+              }
+              if (w) { try { w.opener = null; } catch(e){} w.location = r.url; }
+              else { window.location = r.url; }   /* bị chặn popup -> đi thẳng ở tab này */
+            });
+          });
+        }
         return;
       }
       TABS.push(x);
