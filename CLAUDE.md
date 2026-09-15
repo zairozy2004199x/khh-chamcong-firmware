@@ -16,10 +16,17 @@ Dán code chỉ khi anh ấy hỏi *"sửa chỗ nào"* / *"cho xem code"* — v
 
 ```bash
 # build (chạy ở gốc repo, tên thư mục = tên plugin)
-rm -f dist/vhcp-ghe.zip && zip -qr dist/vhcp-ghe.zip vhcp-ghe -x '*.DS_Store'
+bash tools/build-ghe.sh   # GHẾ: tạo bản sao lớp báo cáo mang số bản, zip, tự diff — xem §1 bên dưới
+rm -f dist/vhcp-saoke.zip && zip -qr dist/vhcp-saoke.zip vhcp-saoke -x '*.DS_Store'   # các plugin khác
 ```
 
-- `vhcp-ghe/` → `dist/vhcp-ghe.zip` (đã có sẵn trong repo, commit kèm mỗi lần sửa)
+- `vhcp-ghe/` → `dist/vhcp-ghe.zip` (đã có sẵn trong repo, commit kèm mỗi lần sửa). **Build bằng
+  `tools/build-ghe.sh`, không zip tay**: script chép `includes/class-vhg-baocao.php` thành
+  `includes/class-vhg-baocao-v<VER>.php` (xoá bản sao cũ trước) rồi mới zip. `vhcp-ghe.php` nạp
+  **bản sao** này trước, tệp gốc chỉ là đường lui — vì trên host thật tệp gốc **kẹt quyền trên đĩa**,
+  sáu lần cài zip (2.86→2.92) không ghi đè được mà vẫn "cài thành công" (15/09/2026). Tên mới thì
+  luôn ghi được, opcache luôn biên dịch tươi. **Chỉ sửa tệp gốc**, không sửa tay bản sao; bài
+  `kiem-ghe-ban-baocao.php` canh bản sao đúng MỘT, đúng tên, byte-y-nguyên. Commit cả bản sao.
 - `vhcp-saoke/` → `dist/vhcp-saoke.zip`
 - `vhcp-ve/` → `dist/vhcp-ve.zip`
 - `dist/vhcp-du-an.zip` → chỉ có zip, **không có mã nguồn trong repo**, không sửa được từ đây

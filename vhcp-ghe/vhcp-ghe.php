@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           2.92.0
+ * Version:           2.93.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '2.92.0' );
+define( 'VHG_VERSION', '2.93.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -54,7 +54,22 @@ require_once VHG_DIR . 'includes/class-vhg-quy.php';
 /* Báo cáo doanh thu theo cơ sở (port app Apps Script "thu tiền"). Nạp SAU class-vhg-quy.php và
    class-vhg-may.php: VHG_BaoCao dùng VHG_Quy::don_vi() và VHG_May::ds_may(), và đọc chung bảng
    `chot` để lấy chỉ số trước. */
-require_once VHG_DIR . 'includes/class-vhg-baocao.php';
+/* 🔴 NẠP LỚP BÁO CÁO QUA BẢN SAO MANG SỐ BẢN — anh Thắng 15/09/2026 ("bản đó em cài luôn đó").
+   Sáu lần cài liên tiếp (2.86→2.92): vhcp-ghe.php và class-vhg-trang.php đều đổi mới, riêng
+   class-vhg-baocao.php thì KHÔNG (màn nhân viên in "mã báo cáo ?"). Tệp ấy trên đĩa không được ghi
+   đè — quyền / chủ sở hữu kẹt từ một lượt sửa tay trên host — mà zip vẫn "cài thành công"; bộ đuổi
+   opcache của 2.92.0 cũng không cứu nổi vì đĩa vốn đã cũ. Không sửa được quyền từ trong WordPress.
+   Cách né: mỗi bản kèm MỘT bản sao y nguyên của lớp dưới tên có số bản
+   (includes/class-vhg-baocao-v<VER>.php). Tên MỚI ⇒ chưa có tệp cũ cản ⇒ luôn ghi được; opcache
+   cũng chưa từng thấy đường dẫn ấy ⇒ luôn biên dịch tươi. Nạp bản sao TRƯỚC; không có (zip lỗi)
+   mới lùi về tệp gốc — nạp ĐÚNG MỘT trong hai: lớp không gác class_exists, nạp cả hai là fatal.
+   Nguồn sửa vẫn là class-vhg-baocao.php. tools/build-ghe.sh tạo bản sao lúc build (xoá bản sao
+   cũ, chép bản mới, zip, tự diff). Bài tools/test/kiem-ghe-ban-baocao.php canh: đúng MỘT bản sao,
+   đúng tên theo VHG_VERSION, byte-y-nguyên với nguồn. Tệp gốc còn kẹt chỉ là cảnh báo vàng
+   (vhg_tep_ket) — plugin vẫn chạy đúng, dọn quyền cho host lúc rảnh. */
+$vhg_bc_sao = VHG_DIR . 'includes/class-vhg-baocao-v' . VHG_VERSION . '.php';
+require_once file_exists( $vhg_bc_sao ) ? $vhg_bc_sao : VHG_DIR . 'includes/class-vhg-baocao.php';
+unset( $vhg_bc_sao );
 /* Trang kế toán (duyệt báo cáo, đối chiếu, công nợ, MISA…). Nạp SAU class-vhg-baocao.php và
    class-vhg-quy.php: VHG_KeToan dùng lại VHG_BaoCao::squash/ngay_/chi_so_truoc và VHG_Quy::don_vi. */
 require_once VHG_DIR . 'includes/class-vhg-ketoan.php';
@@ -139,14 +154,27 @@ function vhg_moc_nang_cap_xong( $nang, $tuy ) {
  *    tools/test/kiem-ghe-ban-baocao.php canh ba chỗ bằng nhau — quên tăng BAN là bộ soát này
  *    báo đỏ trên host dù mã đúng: lỗi ở bộ canh, đổ tội cho đúng thứ mình canh.
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+/** Số bản ghi TRONG tệp lớp trên đĩa (đọc thẳng, không qua opcache); '' nếu không đọc được / không có BAN. */
+function vhg_ban_tren_dia_( $tep ) {
+	$src = @file_get_contents( $tep );
+	return ( is_string( $src ) && preg_match( "/const BAN = '([0-9][0-9.]*)'/", $src, $m ) ) ? $m[1] : '';
+}
 add_action( 'plugins_loaded', 'vhg_soat_tep_lop', 1 );
 function vhg_soat_tep_lop() {
+	$tep  = VHG_DIR . 'includes/class-vhg-baocao.php';
+	$dia  = vhg_ban_tren_dia_( $tep );
 	$chay = defined( 'VHG_BaoCao::BAN' ) ? (string) VHG_BaoCao::BAN : '';
-	if ( $chay === VHG_VERSION ) { delete_option( 'vhg_tep_lech' ); return; }
-	$tep = VHG_DIR . 'includes/class-vhg-baocao.php';
-	$dia = '';
-	$src = @file_get_contents( $tep );
-	if ( is_string( $src ) && preg_match( "/const BAN = '([0-9][0-9.]*)'/", $src, $m ) ) { $dia = $m[1]; }
+	if ( $chay === VHG_VERSION ) {
+		delete_option( 'vhg_tep_lech' );
+		/* Lớp đang chạy ĐÚNG (thường là qua bản sao mang số bản). Tệp GỐC trên đĩa còn kẹt bản cũ
+		   không? Chỉ cảnh báo VÀNG: plugin vẫn chạy đúng, đây là việc dọn quyền cho host lúc rảnh —
+		   để không ai tưởng là lỗi, và cũng không ai quên hẳn nó. */
+		if ( $dia !== VHG_VERSION ) {
+			update_option( 'vhg_tep_ket', array( 'dia' => ( '' !== $dia ? $dia : '(không có BAN — bản trước 2.91.0)' ),
+				'luc' => current_time( 'mysql' ) ), false );
+		} else { delete_option( 'vhg_tep_ket' ); }
+		return;
+	}
 	$loai = ( $dia === VHG_VERSION ) ? 'opcache' : 'dia';
 	if ( function_exists( 'opcache_invalidate' ) ) { @opcache_invalidate( $tep, true ); }
 	if ( 'opcache' === $loai && function_exists( 'opcache_reset' ) ) { @opcache_reset(); }
@@ -173,6 +201,18 @@ function vhg_bao_tep_lech() {
 		. ' · tệp trên đĩa: <code>' . esc_html( (string) $l['dia'] ) . '</code>'
 		. ' · kết luận: <b>' . ( $opc ? 'bộ đệm PHP giữ bản cũ' : 'tệp trên đĩa chưa được thay' ) . '</b>'
 		. ' (soát lúc ' . esc_html( (string) $l['luc'] ) . ').<br>' . $cach . '</p></div>';
+}
+/* Cảnh báo VÀNG: tệp gốc kẹt nhưng plugin đang chạy đúng qua bản sao — không phải lỗi, là việc dọn. */
+add_action( 'admin_notices', 'vhg_bao_tep_ket' );
+function vhg_bao_tep_ket() {
+	if ( ! current_user_can( 'manage_options' ) ) { return; }
+	if ( is_array( get_option( 'vhg_tep_lech' ) ) ) { return; }   // đang có lỗi đỏ thì khỏi chồng vàng
+	$k = get_option( 'vhg_tep_ket' );
+	if ( ! is_array( $k ) ) { return; }
+	echo '<div class="notice notice-warning"><p><b>Ghế Massage:</b> tệp gốc <code>includes/class-vhg-baocao.php</code> trên đĩa '
+		. 'đang kẹt ở bản <code>' . esc_html( (string) $k['dia'] ) . '</code> (không ghi đè được khi cài zip). '
+		. 'Plugin <b>vẫn chạy đúng</b> bản <code>' . esc_html( VHG_VERSION ) . '</code> qua bản sao mang số bản — không ảnh hưởng gì. '
+		. 'Khi rảnh, nhờ hosting đổi chủ sở hữu / quyền ghi tệp ấy về giống <code>vhcp-ghe.php</code> để lần sau khỏi cần bản sao.</p></div>';
 }
 
 /* 🔴 CƠ SỞ ĐƠN VỊ POSH BÊN CHI PHÍ -> VÀO THẲNG DANH MỤC CƠ SỞ CỦA GHẾ.
