@@ -692,6 +692,16 @@ class VHG_BaoCao {
 		$q = self::pin_info( $pin );
 		if ( ! $q ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'PIN không đúng hoặc đã ngừng dùng.' ); }
 		$toan_quyen = empty( $q['coso_key'] ) && empty( $q['ghe'] );
+		/* 🔴 GÁC CHẤM CÔNG — anh Thắng 15/09/2026: nhân viên hôm nay CHƯA chấm công thì chưa cho vào
+		   màn báo cáo, hiện lời chào + nút chấm công; chấm xong bấm vào lại là vào. Chốt AN TOÀN =
+		   FAIL-OPEN: chỉ chặn khi CHẮC CHẮN người này có hồ sơ chấm công mà chưa chấm vào hôm nay;
+		   thiếu plugin Chấm Công / không tra ra hồ sơ / PIN toàn quyền (admin) → KHÔNG chặn, vì chặn
+		   nhầm là khoá luôn đường nộp doanh thu. Xem cham_cong_chua_(). */
+		if ( self::cham_cong_chua_( $pin, $toan_quyen ) ) {
+			return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'], 'chuaChamCong' => 1,
+				'today' => current_time( 'Y-m-d' ), 'chamCongUrl' => self::cham_cong_url(),
+				'trangChuUrl' => home_url( '/' ) );
+		}
 		/* 🔴 HÀNG ĐỎ (máy 'đã dọn' + ghế 'lạc') CHỈ HIỆN CHO ADMIN THẬT ($la_admin) — anh Thắng
 		   12/09/2026: "Đã bảo ghế ẩn không hiện vào tài khoản nhân viên mà… chưa ẩn cho tài khoản
 		   nhân viên". PIN TOÀN QUYỀN KHÔNG còn tính là admin: nhiều nhân viên (vd DƯƠNG TRUNG TÍN)
@@ -747,6 +757,39 @@ class VHG_BaoCao {
 			return VHCC_Tram::url();
 		}
 		return home_url( '/cham-cong-online/' );
+	}
+
+	/**
+	 * NHÂN VIÊN NÀY HÔM NAY ĐÃ CHẤM CÔNG CHƯA — trả TRUE chỉ khi CHẮC CHẮN chưa chấm.
+	 *
+	 * 🔴 FAIL-OPEN. Đây là cửa đứng trước đường NỘP DOANH THU: chặn nhầm là khoá tiền của cả ca.
+	 *    Nên mọi trường hợp không chắc đều cho QUA (trả false):
+	 *      · PIN toàn quyền (admin / quản lý nhiều cơ sở) — không phải người "vào ca".
+	 *      · Chưa cài plugin Chấm Công (không có VHCC_Tram / VHCC_DB).
+	 *      · PIN không tra ra hồ sơ chấm công (chưa có Mã NV) — người ngoài diện chấm công.
+	 *      · Bất kỳ lỗi nào khi đọc bảng.
+	 *    CHỈ chặn khi: tra ra đúng Mã NV trong hồ sơ chấm công VÀ hôm nay chưa có lượt chấm VÀO
+	 *    (gio_vao_giay>0) ở bất kỳ cơ sở nào.
+	 *
+	 * ⚠️ Gọi CHÉO sang plugin Chấm Công — gác class_exists/method_exists như mọi chỗ gọi chéo khác.
+	 */
+	private static function cham_cong_chua_( $pin, $toan_quyen ) {
+		try {
+			if ( $toan_quyen ) { return false; }
+			if ( ! class_exists( 'VHCC_Tram' ) || ! method_exists( 'VHCC_Tram', 'tim_pin' ) ) { return false; }
+			if ( ! class_exists( 'VHCC_DB' ) || ! method_exists( 'VHCC_DB', 't' ) ) { return false; }
+			$tim = VHCC_Tram::tim_pin( (string) $pin );
+			if ( empty( $tim['thay'] ) || '' === trim( (string) ( isset( $tim['ma_nv'] ) ? $tim['ma_nv'] : '' ) ) ) { return false; }
+			$ma = trim( (string) $tim['ma_nv'] );
+			global $wpdb;
+			$tbl = VHCC_DB::t( 'cham_cong' );
+			$co = (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM $tbl WHERE ngay=%s AND ma_nv=%s AND gio_vao_giay>0",
+				current_time( 'Y-m-d' ), $ma ) );
+			return 0 === $co;   // chưa có lượt chấm vào hôm nay -> chặn
+		} catch ( \Throwable $e ) {
+			return false;       // lỗi gì cũng CHO QUA — không khoá đường nộp doanh thu
+		}
 	}
 
 		/**
