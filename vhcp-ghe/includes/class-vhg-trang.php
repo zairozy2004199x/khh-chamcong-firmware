@@ -2359,6 +2359,14 @@ class VHG_Trang {
     var tdN=el('td');
     var tenHien=(g.ten&&String(g.ten)!==String(g.ma)) ? (g.ten+' ('+g.ma+')') : g.ma;
     tdN.appendChild(el('b',null,tenHien));
+    /* 🔴 Ghế ĐANG ẨN nhưng vẫn hiện cho nhân viên được gán cơ sở này nộp — anh Thắng 15/09/2026:
+       "cơ sở tự ẩn, chứ ghế không bao giờ rời khỏi cơ sở" + "hiện lại ẩn cho nhân viên nộp". Gắn
+       nhãn nhỏ để biết ghế này lẽ ra bị ẩn (điều chuyển/dọn) — nhìn là biết vì sao nó có mặt. */
+    if(g.an){
+      var eAn=el('span',null,'đang ẩn');
+      eAn.style.cssText='margin-left:6px;font-size:10px;padding:1px 6px;border-radius:8px;background:#fef3c7;color:#b45309;border:1px solid #fcd34d;font-weight:700;vertical-align:middle';
+      tdN.appendChild(eAn);
+    }
     /* TÊN THƯỜNG GỌI xuống DÒNG DƯỚI, chữ nhỏ — anh Thắng 14/09/2026: *"nhiều khi lấy mã cố định
        thành tra tên không ra ràng"*.
        ⚠️ ĐỨNG DƯỚI, KHÔNG THAY CHỖ tên+mã. Nhân viên đối chiếu với tem dán trên ghế bằng MÃ; bỏ mã

@@ -145,17 +145,34 @@ class VHG_BaoCao {
 	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
 	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
 	public static function ds_ghe( $q, $hien_an = false ) {
-		/* MÀN NHẬP CHỈ HIỆN GHẾ SỐNG, ĐÚNG CƠ SỞ. Máy "đã dọn/điều chuyển" (`an`=1) và ghế "lạc"
-		   (đổi/mất gán cơ sở) KHÔNG bày ra đây nữa — anh Thắng 12/09/2026: *"chuyển thông báo này
-		   vào tab Quản lý ghế"*. Việc phát hiện & xử lý (đưa về, đổi mã trùng) đã dồn về tab QUẢN LÝ
-		   GHẾ: khối "Ghế đã ẩn (điều chuyển / xoá)" + cảnh báo MÃ TRÙNG. Vẫn KHÔNG mất dữ liệu — ghế
-		   còn nguyên trong danh mục, chỉ là màn thu tiền của nhân viên gọn lại, không còn hàng đỏ.
-		   ($hien_an giữ lại cho tương thích chữ ký; không còn dùng để bơm hàng đỏ ở đây.) */
+		/* MÀN NHẬP CHỈ HIỆN GHẾ SỐNG, ĐÚNG CƠ SỞ. Máy "đã dọn/điều chuyển" (`an`=1) mặc định KHÔNG
+		   bày ra đây — anh Thắng 12/09/2026: *"chuyển thông báo này vào tab Quản lý ghế"*. Việc phát
+		   hiện & xử lý (đưa về, đổi mã trùng) dồn về tab QUẢN LÝ GHẾ. Vẫn KHÔNG mất dữ liệu — ghế còn
+		   nguyên trong danh mục, chỉ là màn thu tiền của nhân viên gọn lại, không còn hàng đỏ.
+		   ($hien_an giữ lại cho tương thích chữ ký; không còn dùng để bơm hàng đỏ ở đây.)
+
+		   🔴 NGOẠI LỆ — GHẾ ẨN VẪN HIỆN CHO PIN ĐƯỢC GÁN ĐÍCH DANH CƠ SỞ/GHẾ ẤY. Anh Thắng
+		   15/09/2026: *"cơ sở tự ẩn, chứ ghế không bao giờ rời khỏi cơ sở"* + *"hiện lại ẩn cho nhân
+		   viên nộp"*. Cả một cơ sở có thể bị ẩn hết ghế (điều chuyển/dọn tạm) mà nhân viên được gán
+		   cơ sở đó VẪN phải nộp doanh thu được — trước đây ds_ghe() lọc sạch `an` nên họ vào thấy "0
+		   ghế", cơ sở rớt khỏi phạm vi (lỗi 2.85/2.86 chưa dứt điểm). Nay: ghế `an`=1 vẫn hiện NẾU
+		   PIN gán tường minh ghế đó (`ghe`) hoặc cơ sở của nó (`coso_key`). PIN TOÀN QUYỀN (màn
+		   admin / quản nhiều nơi) giữ nguyên — ghế ẩn vẫn giấu để bảng gọn. Cờ `an` gửi ĐÚNG giá trị
+		   thật để màn nhập gắn nhãn "đang ẩn", không giả 0 như trước. */
+		$co_coso = ! empty( $q['coso_key'] );
+		$co_ghe  = ! empty( $q['ghe'] );
 		$ra = array();
 		foreach ( VHG_May::ds_may() as $m ) {
-			if ( ! empty( $m['an'] ) ) { continue; }   // đã dọn/điều chuyển → quản lý ở tab Quản lý ghế
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
+			$an = ! empty( $m['an'] );
+			if ( $an ) {
+				/* Ghế ẩn: chỉ hiện khi PIN gán ĐÍCH DANH ghế này hoặc cơ sở này (PIN có phạm vi).
+				   PIN toàn quyền (cả hai rỗng) → `$gan` false → ghế ẩn vẫn giấu như cũ. */
+				$gan = ( $co_ghe && in_array( (string) $m['ma'], $q['ghe'], true ) )
+					|| ( $co_coso && isset( $q['coso_key'][ self::squash( $coso ) ] ) );
+				if ( ! $gan ) { continue; }
+			}
 			$ra[] = array(
 				'ma'   => (string) $m['ma'],
 				'ten'  => (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] ),
@@ -166,7 +183,7 @@ class VHG_BaoCao {
 				      Màn nhập chỉ hiện `ten_goi` KÈM `ten` cho người đọc. */
 				'ten_goi' => (string) ( isset( $m['ten_goi'] ) ? $m['ten_goi'] : '' ),
 				'coso' => $coso,
-				'an'   => 0,
+				'an'   => $an ? 1 : 0,
 			);
 		}
 		/* Xếp theo cơ sở → TÊN GHẾ dạng người-đọc: VHM-1, VHM-2, … VHM-10 (không phải VHM-1, VHM-10,
