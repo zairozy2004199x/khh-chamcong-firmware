@@ -104,6 +104,38 @@ class VHG_Trang {
 	 * ⚠️ NỘI DUNG rác chỉ trả khi site bật `WP_DEBUG`: nó thường kèm ĐƯỜNG DẪN TUYỆT ĐỐI trên
 	 *    máy chủ, mà trang này chạy ngoài internet cho nhân viên cơ sở.
 	 */
+	/**
+	 * 🔎 LIỆT KÊ TỆP LỚP BÁO CÁO THẬT SỰ CÓ TRÊN ĐĨA.
+	 *
+	 * 🔴 PHẢI NẰM Ở ĐÂY, KHÔNG PHẢI TRONG class-vhg-baocao.php. Cả hai bộ chẩn đoán trước (2.91, 2.92)
+	 *    đều viết trong chính tệp đang nghi là cũ — nên chúng không bao giờ chạy, và bốn lượt thử của
+	 *    anh Thắng chỉ thấy một màn hình câm. Tệp này thì đã CHỨNG MINH là mới (chính nó vẽ dòng
+	 *    "bản X · mã báo cáo Y"), nên chẩn đoán đặt ở đây chắc chắn chạy.
+	 *
+	 * Đọc thẳng thư mục bằng glob/stat (không qua opcache) để trả lời đúng một câu: bản sao mang số
+	 * bản có trên đĩa không, và nếu không thì thư mục ấy đang có những tệp nào, ghi được không, mốc
+	 * sửa bao giờ — so với hai tệp CHẮC CHẮN mới. Toàn số và tên tệp, không có gì nhạy cảm (§4).
+	 */
+	private static function chan_doan_tep_() {
+		$thu_muc = VHG_DIR . 'includes/';
+		$sao     = $thu_muc . 'class-vhg-baocao-v' . VHG_VERSION . '.php';
+		$ds      = array();
+		foreach ( (array) glob( $thu_muc . 'class-vhg-baocao*.php' ) as $f ) {
+			$ds[] = basename( $f ) . ' · ' . (int) @filesize( $f ) . 'B · sửa '
+				. @gmdate( 'd/m H:i', (int) @filemtime( $f ) );
+		}
+		$moc = function( $f ) { return is_file( $f ) ? @gmdate( 'd/m H:i', (int) @filemtime( $f ) ) : '(không có)'; };
+		return array(
+			'ban'        => defined( 'VHG_VERSION' ) ? VHG_VERSION : '?',
+			'sao_can'    => basename( $sao ),
+			'sao_co'     => file_exists( $sao ) ? 1 : 0,
+			'tep_co'     => $ds ? implode( ' ;; ', $ds ) : '(không có tệp class-vhg-baocao* nào)',
+			'ghi_duoc'   => is_writable( $thu_muc ) ? 1 : 0,
+			'moc_chinh'  => $moc( VHG_DIR . 'vhcp-ghe.php' ),
+			'moc_trang'  => $moc( $thu_muc . 'class-vhg-trang.php' ),
+		);
+	}
+
 	private static function tra( $d ) {
 		$rac = '';
 		while ( ob_get_level() > 0 ) {
@@ -273,7 +305,11 @@ class VHG_Trang {
 				/* Admin THẬT = đang đăng nhập WordPress (anh Thắng cài/sửa plugin qua WP nên luôn có
 				   phiên admin). Chỉ họ mới thấy hàng ghế ĐỎ (đã dọn/lạc) — PIN toàn quyền của nhân
 				   viên KHÔNG còn tính là admin (xem boot()). */
-				self::tra( VHG_BaoCao::boot( $pin, current_user_can( 'manage_options' ) ) ); return;
+				$r_boot = VHG_BaoCao::boot( $pin, current_user_can( 'manage_options' ) );
+				/* Thiếu banBc = lớp báo cáo đang chạy là bản trước 2.91 → kèm ảnh chụp thư mục thật để
+				   biết bản sao mang số bản có trên đĩa hay không. Xem chan_doan_tep_(). */
+				if ( is_array( $r_boot ) && ! isset( $r_boot['banBc'] ) ) { $r_boot['chanDoanTep'] = self::chan_doan_tep_(); }
+				self::tra( $r_boot ); return;
 			}
 			if ( 'bc_lastmeters' === $viec ) {
 				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
@@ -460,7 +496,11 @@ class VHG_Trang {
 		   chính hồ sơ nhân sự rồi gọi thẳng `VHG_BaoCao::boot()` — vẫn qua ĐÚNG luật cũ (ngoại lệ
 		   bc_pin, khoá PIN…), chỉ khỏi bắt gõ lại. */
 		if ( 'bc_boot_tu_token' === $viec ) {
-			self::tra( VHG_BaoCao::boot_tu_ai( $ai, VHG_Auth::pin_phien_tu_token( $tok ) ) );
+			$r_tok = VHG_BaoCao::boot_tu_ai( $ai, VHG_Auth::pin_phien_tu_token( $tok ) );
+			if ( is_array( $r_tok ) && ! empty( $r_tok['ok'] ) && ! isset( $r_tok['banBc'] ) ) {
+				$r_tok['chanDoanTep'] = self::chan_doan_tep_();
+			}
+			self::tra( $r_tok );
 			return;
 		}
 
@@ -2089,6 +2129,21 @@ class VHG_Trang {
       cu.appendChild(d1);
       var d2=el('div'); d2.textContent='Cách xử lý: nhờ hosting xoá opcache / khởi động lại PHP, hoặc tắt–bật plugin Ghế một lần, rồi tải lại trang.';
       cu.appendChild(d2);
+      /* 🔎 ẢNH CHỤP THƯ MỤC THẬT (do class-vhg-trang.php dựng — tệp này chắc chắn mới, xem
+         chan_doan_tep_()). Nói thẳng bản sao mang số bản có trên đĩa hay không, thư mục đang có
+         những tệp nào và ghi được không — hết đoán giữa "opcache" với "tệp kẹt". */
+      if(BC.chanDoanTep){
+        var ct=BC.chanDoanTep;
+        var h=el('div'); h.style.cssText='margin-top:8px;padding-top:8px;border-top:1px dashed #fca5a5';
+        h.appendChild(el('b',null,'Ảnh chụp thư mục includes/ trên máy chủ:'));
+        function _t(k,v){ var d=el('div'); d.appendChild(el('b',null,k+': ')); d.appendChild(document.createTextNode(String(v))); h.appendChild(d); }
+        _t('Cần có bản sao', ct.sao_can+' → '+(ct.sao_co?'CÓ':'KHÔNG CÓ'));
+        _t('Tệp thật đang có', ct.tep_co);
+        _t('Thư mục ghi được', ct.ghi_duoc?'có':'KHÔNG');
+        _t('Mốc sửa vhcp-ghe.php', ct.moc_chinh);
+        _t('Mốc sửa class-vhg-trang.php', ct.moc_trang);
+        cu.appendChild(h);
+      }
       c1.appendChild(cu);
     }
     c1.appendChild(el('div','bc-mut',
