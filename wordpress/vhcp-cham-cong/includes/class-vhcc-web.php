@@ -460,6 +460,44 @@ class VHCC_Web {
 			return;
 		}
 
+		/* ---------------------------------------------------------------------------------
+		 * XUẤT BẢNG LƯƠNG (.xlsx) — đúng mẫu file kế toán đang dùng.
+		 *
+		 * Anh Thắng 15/09/2026, kèm `LƯƠNG CƠ SỞ - T08.2026`: *"mỗi cơ sở sẽ xuất bảng công giờ
+		 * ra theo mẫu file như này. Cửa hàng trưởng sẽ xuất ra để nộp kế toán"*.
+		 *
+		 * ⚠️ Cửa `cong_coso` (bậc Cửa hàng trưởng) là ĐÚNG và cố ý: người xuất là cửa hàng
+		 *    trưởng. Bảng này KHÔNG in lương cơ bản của ai ra ngoài phạm vi cơ sở họ quản, và
+		 *    `co_quyen_coso()` ngay trên đã chốt phạm vi ấy. Đòi bậc Kế toán ở đây là chối đúng
+		 *    người được giao việc.
+		 * ------------------------------------------------------------------------------- */
+		if ( 'luong' === $loai ) {
+			try {
+				$bl = VHCC_BangLuong::to_xlsx( $cs, $th, VHCC_NhanSu::ten_coso( $cs ) );
+			} catch ( \Throwable $e ) {
+				$da_gui = true;
+				self::loi_xuat( 'Dựng bảng lương thì gặp lỗi: ' . $e->getMessage()
+					. ' (' . basename( $e->getFile() ) . ' dòng ' . $e->getLine() . ').' );
+				return;
+			}
+			if ( empty( $bl['ok'] ) ) {
+				$da_gui = true;
+				self::loi_xuat( isset( $bl['error'] ) ? $bl['error'] : 'Không dựng được bảng lương.' );
+				return;
+			}
+			$noi_l = VHCC_Xuat::xlsx( $bl['to'] );
+			if ( null === $noi_l ) {
+				$da_gui = true;
+				self::loi_xuat( 'Không dựng được tệp .xlsx. Máy chủ có ZipArchive: '
+					. ( VHCC_Xuat::co_xlsx() ? 'có' : 'CHƯA CÓ — nhờ hosting bật phần mở rộng zip của PHP' )
+					. '.' );
+				return;
+			}
+			$da_gui = true;
+			VHCC_Xuat::gui( VHCC_BangLuong::ten_tep( $cs, $bl['bang']['thang'] ), $noi_l );
+			return;
+		}
+
 		/* Đường CHẨN ĐOÁN: `&thu=1` — in ra con số thay vì dựng tệp. Mở được bằng trình duyệt,
 		   đọc được bằng mắt, chụp màn hình gửi đi được. Không in gì bí mật: chỉ tình trạng máy. */
 		if ( ! empty( $_GET['thu'] ) ) {
@@ -653,11 +691,11 @@ class VHCC_Web {
 	 *    biệt được — bỏ đi vẫn xanh. Hỏi thẳng hàm này thì hỏi được cả trên máy có lẫn máy không.
 	 */
 	public static function xuat_can_zip( $loai ) {
-		return ( 'ca' === $loai || 'luoi' === $loai );
+		return ( 'ca' === $loai || 'luoi' === $loai || 'luong' === $loai );
 	}
 
 	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
-		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi' ), true ) ) {
+		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi', 'luong' ), true ) ) {
 			return 'Không biết xuất kiểu "' . $loai . '".';
 		}
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
@@ -869,7 +907,10 @@ class VHCC_Web {
 		   cần nó nhất là Quản lý (bậc 3) — mà `co_ho_so` đòi bậc 4, nên để ngoài danh sách này
 		   là chối đúng người cần dùng, bằng một câu nói về màn Hồ sơ họ không hề đụng tới. Hai
 		   việc này tự hỏi `ngoai_coso` + `co_quyen_coso` ngay dòng đầu — chặt hơn, không lỏng hơn. */
-		'doi_chieu_app', 'nap_app' );
+		'doi_chieu_app', 'nap_app',
+		/* Khai đơn giá là việc của tab Cấu hình, không dính gì tới màn Hồ sơ. Chốt thật ở
+		   `VHCC_GiaGio::gac()` — bậc Kế toán, chặt hơn chốt dưới chứ không lỏng hơn. */
+		'gia_gio' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -1248,6 +1289,39 @@ class VHCC_Web {
 					. ' Mở hồ sơ người này rồi tải ảnh lên sau.' );
 			}
 			return $bao_tn;
+		}
+
+		/* ĐƠN GIÁ GIỜ CỦA CƠ SỞ — xem `VHCC_GiaGio`. Gác thật nằm trong chính lớp ấy
+		   (`luong`, tức bậc Kế toán); ở đây chỉ đọc biểu mẫu rồi chuyển xuống. */
+		if ( 'gia_gio' === $viec ) {
+			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$bao_g = array();
+			if ( isset( $_POST['gg_chung'] ) || isset( $_POST['gg_chung_moi'] ) ) {
+				$bang_c = isset( $_POST['gg_chung'] ) ? (array) wp_unslash( $_POST['gg_chung'] ) : array();
+				/* 🔴 BA DÒNG TRỐNG Ở CUỐI BẢNG PHẢI ĐƯỢC ĐỌC. Vẽ ra ô để gõ mà bộ xử lý không
+				   nhận thì người ta gõ một chức vụ mới, bấm Lưu, màn báo "đã lưu" — và chức vụ
+				   ấy biến mất không dấu vết. Thà đừng vẽ ô còn hơn vẽ một ô không ăn. */
+				$ten_moi = isset( $_POST['gg_chung_moi_ten'] )
+					? (array) wp_unslash( $_POST['gg_chung_moi_ten'] ) : array();
+				foreach ( (array) ( isset( $_POST['gg_chung_moi'] ) ? wp_unslash( $_POST['gg_chung_moi'] ) : array() )
+					as $i_m => $gia_m ) {
+					$tn = isset( $ten_moi[ $i_m ] ) ? trim( (string) $ten_moi[ $i_m ] ) : '';
+					if ( '' === $tn || '' === trim( (string) $gia_m ) ) { continue; }
+					$bang_c[ $tn ] = $gia_m;
+				}
+				$r = VHCC_GiaGio::dat_chung( $toi, $bang_c );
+				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+					: array( 'xong' => 'Đã lưu bảng đơn giá CHUNG của cả chuỗi (' . (int) $r['so']
+						. ' chức vụ). Cơ sở nào có bảng riêng thì bảng riêng vẫn thắng.' );
+			}
+			if ( isset( $_POST['gg_cs'] ) && '' !== $cs_g ) {
+				$r = VHCC_GiaGio::dat_coso( $toi, $cs_g, (array) wp_unslash( $_POST['gg_cs'] ) );
+				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+					: array( 'xong' => 'Đã lưu đơn giá riêng của ' . $cs_g . ' (' . (int) $r['so']
+						. ' chức vụ). Mở lại khối Bảng lương cơ sở để thấy tiền.' );
+			}
+			if ( ! $bao_g ) { $bao_g[] = array( 'loi' => 'Không có ô đơn giá nào được gửi lên.' ); }
+			return $bao_g;
 		}
 
 		if ( 'sua_gio' === $viec ) {
@@ -4302,6 +4376,14 @@ class VHCC_Web {
 			      `luong_tho()`/`luong_mtd()`/`luong_vp()`) vẫn nguyên — cần lại lương thì chỉ việc
 			      gọi lại đúng dòng dưới đây, không phải dựng lại từ đầu. `VHCC_Luong` (lõi tính
 			      tiền) cũng không đụng: tính lương qua nơi khác (nếu có) vẫn ra đúng số. */
+			/* 🔴 KHỐI BẢNG LƯƠNG CƠ SỞ — MỚI, KHÔNG PHẢI DỰNG LẠI KHỐI ĐÃ BỎ Ở TRÊN.
+			   Anh Thắng 15/09/2026, kèm `LƯƠNG CƠ SỞ - T08.2026`: *"mỗi cơ sở sẽ xuất bảng công
+			   giờ ra theo mẫu file như này. Cửa hàng trưởng sẽ xuất ra để nộp kế toán"*.
+			   Lý do anh bỏ khối cũ hôm 07/09 (*"đơn giá còn chưa khai xong"*) nay đã hết: sổ
+			   `VHCC_GiaGio` là chỗ khai ấy. Nhưng đây là khối KHÁC: khối cũ quy tổng công ra
+			   tiền theo engine từng bộ phận, khối này dựng đúng BỐ CỤC FILE KẾ TOÁN từ giờ và
+			   đơn giá — hai thứ khác nhau, nên `the_khoi_luong()` vẫn nằm im chỗ cũ. */
+			self::the_bang_luong_cs( $toi, $mot_cs, $th );
 			self::the_khoi_in( $toi, $mot_cs, $th );
 			self::the_doi_chieu_app( $toi, $mot_cs, $th, $ky );
 			echo '</details></div>';
@@ -7238,6 +7320,225 @@ class VHCC_Web {
 		echo '</div>';
 	}
 
+	/**
+	 * BẢNG LƯƠNG CƠ SỞ — đúng bố cục file kế toán, ngay trên màn Bảng công.
+	 *
+	 * =========================================================================================
+	 * 🔴 GÁC BẰNG `cong_coso` (BẬC CỬA HÀNG TRƯỞNG) — CỐ Ý, VÀ CÓ CÁI GIÁ CỦA NÓ
+	 * =========================================================================================
+	 * Khối lương cũ (`the_khoi_luong()`) gác bằng `luong`, tức bậc Kế toán. Khối này thì không,
+	 * vì anh Thắng giao đúng việc ấy cho cửa hàng trưởng: *"Cửa hàng trưởng sẽ xuất ra để nộp kế
+	 * toán"*. Không xem được thì không soát được, mà xuất một tệp mình chưa từng nhìn rồi nộp
+	 * lên là nộp cả cái sai.
+	 *
+	 * ⚠️ CÁI GIÁ PHẢI NÓI RA: từ bản này, cửa hàng trưởng ĐỌC ĐƯỢC tiền công của người trong cơ
+	 *    sở mình — số giờ, đơn giá, lương chính. `co_quyen_coso()` ngay dưới chốt đúng phạm vi
+	 *    ấy: cơ sở khác vẫn không mở được. Muốn siết lại thì đổi một dòng ở đây, không phải đi
+	 *    tìm khắp nơi.
+	 *
+	 * ⚠️ Lương CƠ BẢN (`luong_co_ban`) cũng hiện, vì cột "Lương cb" là một cột của mẫu. Đây là
+	 *    thứ trước nay chỉ bậc `xem_luong_hs` mới thấy trong hồ sơ. Nói ra để anh Thắng biết mà
+	 *    quyết, chứ không lẳng lặng mở.
+	 */
+	/**
+	 * KHỐI KHAI ĐƠN GIÁ GIỜ — bảng chung của cả chuỗi, và bảng riêng của một cơ sở.
+	 *
+	 * 🔴 LIỆT KÊ ĐÚNG NHỮNG CHỨC VỤ ĐANG DÙNG THẬT CỦA THÁNG, KHÔNG BẮT GÕ TAY.
+	 *    Khoá tra là tên chức vụ đã bỏ dấu; gõ tay thì khai "Lơ tàu" mà bảng in ra "Lơ Tàu" vẫn
+	 *    tra được — nhưng khai một việc KHÔNG TỒN TẠI ("Lơ tầu") thì không có gì báo, và người
+	 *    khai đinh ninh xong rồi. Nên màn tự đọc ra chức vụ nào thật sự có giờ trong tháng, kèm
+	 *    số dòng, và đánh dấu cái nào chưa có giá.
+	 */
+	private static function the_gia_gio( $ky, $toi, $cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_GiaGio::QUYEN ) ) { return; }
+
+		$th = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
+		$so = VHCC_GiaGio::so();
+
+		echo '<div class="the"><details><summary><b>Đơn giá giờ của cơ sở</b> '
+			. '<span class="mo">— cột “Tiền/h” của bảng lương</span></summary>';
+		echo '<p class="mo">Tra theo thứ tự <b>người → cơ sở → chung</b>: khai riêng cho ai thì '
+			. 'người ấy thắng, không thì lấy bảng của cơ sở, không nữa thì lấy bảng chung. '
+			. '<b>Ô để trống = xoá khai</b> (rơi về tầng dưới), không phải ghi 0.</p>';
+		/* 🔴 NÓI THẲNG HẬU QUẢ CỦA VIỆC KHÔNG KHAI — đây là chỗ duy nhất người ta đọc trước khi
+		   bỏ qua nó. Chưa khai thì bảng lương để TRỐNG tiền, chứ hệ không đoán lấy một con số. */
+		echo '<div class="bao canh" style="margin:0 0 12px">Chức vụ nào <b>chưa khai</b> thì bảng '
+			. 'lương để <b>trống</b> ô tiền của người ấy — hệ <b>không đoán</b> đơn giá. Đoán là '
+			. 'sai tiền của cả một nhóm cùng lúc mà bảng vẫn đầy số nên chẳng ai nghi.</div>';
+
+		/* --- bảng riêng của cơ sở đang chọn --- */
+		if ( '' !== $cs ) {
+			$kcs  = VHCC_GiaGio::khoa_cs( $cs );
+			$dang = array();
+			/* 🔴 QUÉT BA THÁNG GẦN NHẤT, KHÔNG CHỈ THÁNG NÀY.
+			   Khai đơn giá là việc người ta làm ĐẦU THÁNG — mà đầu tháng thì tháng này gần như
+			   chưa có giờ chấm nào, nên quét mỗi tháng hiện tại là màn hiện "chưa có chức vụ nào
+			   để khai" đúng vào lúc người ta mở ra để khai. Ba tháng đủ để danh sách đứng yên,
+			   và vẫn không lôi về những việc cửa hàng đã bỏ từ lâu. */
+			$cac_thang = array( $th );
+			$mm = $th;
+			for ( $i = 0; $i < 2; $i++ ) {
+				$mm = gmdate( 'Y-m', strtotime( $mm . '-01 12:00:00 UTC -1 month' ) );
+				$cac_thang[] = $mm;
+			}
+			foreach ( $cac_thang as $m_x ) {
+				$b_x = VHCC_BangLuong::dung( $cs, $m_x );
+				if ( empty( $b_x['ok'] ) ) { continue; }
+				foreach ( $b_x['dong'] as $d ) {
+					if ( '' === $d['cv'] || 'thang' === $d['cheDo'] ) { continue; }
+					if ( ! isset( $dang[ $d['cv'] ] ) ) { $dang[ $d['cv'] ] = 0; }
+					$dang[ $d['cv'] ]++;
+				}
+			}
+			ksort( $dang );
+			echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+			echo '<input type="hidden" name="viec" value="gia_gio">';
+			echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+			echo '<h3 style="margin:14px 0 6px">Riêng cơ sở ' . esc_html( $cs )
+				. ' <span class="mo">— chức vụ có giờ trong ba tháng gần nhất ('
+				. esc_html( implode( ' · ', array_reverse( $cac_thang ) ) ) . ')</span></h3>';
+			if ( ! $dang ) {
+				echo '<p class="mo">Ba tháng gần nhất cơ sở này chưa có giờ chấm nào tính theo '
+					. 'giờ — chưa có chức vụ nào để khai. Khai ở <b>bảng chung</b> bên dưới cũng '
+					. 'được, cơ sở sẽ lấy theo đó.</p>';
+			} else {
+				echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th>'
+					. '<th>Số dòng</th><th>Đơn giá riêng của cơ sở (đ/giờ)</th>'
+					. '<th>Đang áp dụng</th></tr></thead><tbody>';
+				foreach ( $dang as $cv => $n ) {
+					$k  = VHCC_GiaGio::khoa_cv( $cv );
+					$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? $so['coso'][ $kcs ][ $k ] : '';
+					$ap = VHCC_GiaGio::tra( $cs, $cv, '', $so );
+					$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở',
+						'chung' => 'bảng chung', 'khong' => 'CHƯA KHAI' );
+					echo '<tr' . ( 'khong' === $ap['tu'] ? ' class="hong"' : '' ) . '>';
+					echo '<td><b>' . esc_html( $cv ) . '</b></td>';
+					echo '<td class="p">' . (int) $n . '</td>';
+					echo '<td><input name="gg_cs[' . esc_attr( $cv ) . ']" inputmode="numeric" '
+						. 'style="width:130px" value="' . esc_attr( '' === $cu ? '' : (int) $cu )
+						. '" placeholder="vd 23000"></td>';
+					echo '<td class="mo">' . ( $ap['gia'] > 0
+						? esc_html( number_format( (float) $ap['gia'], 0, ',', '.' ) ) . 'đ · '
+						: '' ) . esc_html( $ten_tu[ $ap['tu'] ] ) . '</td>';
+					echo '</tr>';
+				}
+				echo '</tbody></table></div>';
+				echo '<p style="margin:10px 0 0"><button class="chinh">Lưu đơn giá của '
+					. esc_html( $cs ) . '</button></p>';
+			}
+			echo '</form>';
+		} else {
+			echo '<p class="mo">Chọn một cơ sở ở ô trên để khai đơn giá riêng cho cơ sở đó.</p>';
+		}
+
+		/* --- bảng chung của cả chuỗi --- */
+		echo '<form method="post" style="margin-top:18px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<input type="hidden" name="viec" value="gia_gio">';
+		echo '<h3 style="margin:0 0 6px">Bảng chung cả chuỗi '
+			. '<span class="mo">— dùng khi cơ sở không khai riêng</span></h3>';
+		$chung = isset( $so['chung'] ) ? $so['chung'] : array();
+		echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th>'
+			. '<th>Đơn giá (đ/giờ)</th></tr></thead><tbody>';
+		$da_ve = array();
+		foreach ( $chung as $k => $v ) {
+			$da_ve[] = $k;
+			echo '<tr><td><input name="gg_chung_ten[' . esc_attr( $k ) . ']" value="'
+				. esc_attr( $k ) . '" readonly style="width:180px;background:#f8fafc"></td>';
+			echo '<td><input name="gg_chung[' . esc_attr( $k ) . ']" inputmode="numeric" '
+				. 'style="width:130px" value="' . esc_attr( (int) $v ) . '"></td></tr>';
+		}
+		/* Ba dòng trống để thêm chức vụ mới — không có thì khai xong một lần là hết chỗ thêm. */
+		for ( $i = 0; $i < 3; $i++ ) {
+			echo '<tr><td><input name="gg_chung_moi_ten[' . $i . ']" placeholder="vd Thu ngân" '
+				. 'style="width:180px"></td><td><input name="gg_chung_moi[' . $i . ']" '
+				. 'inputmode="numeric" style="width:130px" placeholder="vd 24000"></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p style="margin:10px 0 0"><button class="chinh">Lưu bảng chung</button></p>';
+		echo '</form></details></div>';
+	}
+
+	private static function the_bang_luong_cs( $toi, $cs, $th ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { return; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+
+		$b = VHCC_BangLuong::dung( $cs, $th );
+		echo '<div class="the"><details>';
+		echo '<summary><b>Bảng lương cơ sở</b> — ' . esc_html( $cs ) . ' · tháng '
+			. esc_html( $th ) . ' <span class="mo">(đúng mẫu nộp kế toán)</span></summary>';
+		if ( empty( $b['ok'] ) ) {
+			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div></details></div>';
+			return;
+		}
+
+		/* 🔴 NÓI NGAY BẢNG NÀY GỒM GÌ VÀ THIẾU GÌ — TRƯỚC KHI NGƯỜI TA ĐỌC SỐ.
+		   Một bảng lương thiếu vài đơn giá vẫn đầy số và trông vẫn xong. Câu cảnh báo phải đứng
+		   TRÊN bảng, không phải nằm lẫn trong một ô ghi chú ở cột cuối mà mắt lướt qua. */
+		if ( $b['thieu']['gia'] > 0 ) {
+			echo '<div class="bao loi" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gia']
+				. ' dòng chưa khai đơn giá giờ</b> — mấy dòng ấy để TRỐNG tiền, không phải 0đ. '
+				. 'Khai ở khối <b>Đơn giá giờ của cơ sở</b> trong tab Cấu hình (bậc Kế toán), '
+				. 'rồi mở lại bảng này.</div>';
+		}
+		if ( ! empty( $b['thieu']['congChuan'] ) ) {
+			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Chưa khai <b>số ngày công chuẩn '
+				. 'của tháng</b> — người ăn lương tháng chưa ra được tiền. Khai ở tab Cấu hình, '
+				. 'khối <b>Công thức tính công</b>.</div>';
+		}
+		if ( $b['thieu']['gio'] > 0 ) {
+			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gio']
+				. ' lượt thiếu giờ vào hoặc giờ ra</b> — KHÔNG cộng phút nào vào số giờ. '
+				. 'Sửa thẳng trong lưới ở trên rồi mở lại.</div>';
+		}
+
+		echo '<p class="mo">Số giờ lấy thẳng từ lưới ở trên; đơn giá lấy từ sổ đơn giá. Mấy cột '
+			. '<b>phụ cấp · giảm trừ · BHXH · giờ thêm</b> cố ý để trống — kế toán điền, và tệp '
+			. 'xuất ra có sẵn công thức nên gõ vào là tổng tự nhảy.</p>';
+
+		echo '<div class="cuon"><table class="b"><thead><tr>'
+			. '<th>#</th><th>Họ tên</th><th>Chức vụ</th><th>Số giờ</th><th>Tiền/h</th>'
+			. '<th>Lương chính</th><th>Ghi chú</th></tr></thead><tbody>';
+		foreach ( $b['dong'] as $d ) {
+			$hong = ( null === $d['luongChinh'] );
+			echo '<tr' . ( $hong ? ' class="hong"' : '' ) . '>';
+			echo '<td>' . (int) $d['stt'] . '</td>';
+			echo '<td>' . esc_html( $d['ten'] ) . '</td>';
+			echo '<td>' . esc_html( $d['cv'] )
+				. ( '' !== $d['hauTo'] ? ' <span class="mo">(-' . esc_html( $d['hauTo'] ) . ')</span>' : '' )
+				. '</td>';
+			echo '<td class="p">' . ( 'thang' === $d['cheDo']
+				? esc_html( $d['congThuc'] ) . ' <span class="mo">công</span>'
+				: esc_html( number_format( (float) $d['gio'], 2, ',', '.' ) ) ) . '</td>';
+			echo '<td class="p">' . ( null === $d['gia'] ? '<span class="mo">—</span>'
+				: esc_html( number_format( (float) $d['gia'], 0, ',', '.' ) ) ) . '</td>';
+			echo '<td class="p"><b>' . ( null === $d['luongChinh'] ? '<span class="mo">—</span>'
+				: esc_html( number_format( (float) $d['luongChinh'], 0, ',', '.' ) ) ) . '</b></td>';
+			$gc = array();
+			if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
+			if ( 'khong' === $d['giaTu'] && 'thang' !== $d['cheDo'] ) { $gc[] = 'CHƯA KHAI ĐƠN GIÁ'; }
+			if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
+			if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
+			echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) ) . '</td>';
+			echo '</tr>';
+		}
+		echo '<tr><td></td><td><b>TỔNG</b></td><td class="mo">' . (int) $b['tong']['nguoi'] . ' dòng</td>'
+			. '<td class="p"><b>' . esc_html( number_format( (float) $b['tong']['gio'], 2, ',', '.' ) )
+			. '</b></td><td></td><td class="p"><b>'
+			. esc_html( number_format( (float) $b['tong']['luongChinh'], 0, ',', '.' ) )
+			. '</b></td><td></td></tr>';
+		echo '</tbody></table></div>';
+
+		echo '<p style="margin:10px 0 0"><a class="nut chinh" href="'
+			. esc_url( add_query_arg( array( 'xuat' => 'luong', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
+			. '">⬇ Xuất bảng lương (.xlsx)</a> <span class="mo">— đúng bố cục file kế toán đang '
+			. 'dùng: tựa, hai dòng tiêu đề, nhóm cột cộng/trừ, dòng tổng. Nộp thẳng, không phải '
+			. 'chép tay sang mẫu.</span></p>';
+		echo '</details></div>';
+	}
+
 	private static function the_khoi_luong( $toi, $cs, $th ) {
 		/* 🔴 KHÔNG CÓ Ô LỌC RIÊNG. Cơ sở và tháng nhận thẳng từ màn Bảng công — đó là toàn bộ
 		   điểm của việc gộp. Dựng thêm một ô chọn ở đây là hai ô cho cùng một thứ, và người ta
@@ -7647,6 +7948,7 @@ class VHCC_Web {
 		   tính lương — mà trước đó chúng nằm chen nhau trên một màn dài. */
 		self::the_cach_tinh( $ky, $toi );
 		self::the_thieu_khai( $ky, $toi, $cs );
+		self::the_gia_gio( $ky, $toi, $cs );
 
 		if ( '' === $cs ) {
 			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '

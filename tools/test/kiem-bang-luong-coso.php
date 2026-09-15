@@ -20,6 +20,13 @@ $goc = dirname( dirname( __DIR__ ) );
 vhcp_test_boot( $goc . '/wordpress/vhcp-chi-phi' );
 vhcc_test_boot( $goc . '/wordpress/vhcp-cham-cong' );
 
+/* 🔴 PHẢI KHAI `VHCC_TEST`, KHÔNG THÌ BÀI KIỂM CHẾT CÂM.
+   `VHCC_Web::ve()` (chuyển hướng sau mỗi lượt POST) gọi `exit` — trừ khi hằng số này có mặt.
+   Thiếu nó thì lượt POST đầu tiên giết luôn cả tiến trình, mà vì đang nằm trong `ob_start()`
+   nên mọi thứ đã in ra bị nuốt sạch: màn hình TRỐNG TRƠN, mã thoát 0, trông y như bài kiểm
+   chạy xong không có gì để nói. Mất mười phút mới lần ra. */
+define( 'VHCC_TEST', 1 );
+
 $dat = 0; $truot = array();
 
 register_shutdown_function( function () {
@@ -52,6 +59,23 @@ function ket_luan() {
 }
 
 global $wpdb;
+
+/** Dựng một màn của trang quản trị bằng phiên của một người cụ thể. */
+function vhcc_man( $ma_nv, $vai, $coso, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người ' . $ma_nv, $vai, $coso, $ma_nv ) );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+
+/* ⚠️ CƠ SỞ PHẢI CÓ TRONG DANH MỤC (`bo_phan_coso`) THÌ MỚI VÀO Ô CHỌN Ở MÀN CẤU HÌNH.
+   `ds_coso()` đọc từ bảng ấy và bảng `may`, KHÔNG đọc từ `nhan_vien` — nên gieo mỗi hồ sơ là
+   ô chọn rỗng, `$cs` bị xoá về '' và khối khai đơn giá riêng không vẽ ra. */
+foreach ( array( 'AEON_BT' => 'Khu vui chơi', 'AEON_TP' => 'Khu vui chơi',
+	'LOTTE_GV' => 'Khu vui chơi', 'KHO_LA' => 'Khu vui chơi' ) as $_cs => $_bp ) {
+	$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $_cs, 'bo_phan' => $_bp ) );
+}
 
 $U_KT = array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' );
 $U_CHT = array( 'name' => 'Trưởng Cửa Hàng', 'role' => 'Cửa hàng trưởng', 'coso' => 'AEON_BT' );
@@ -347,5 +371,88 @@ if ( VHCC_Xuat::co_xlsx() ) {
 /* 🔴 HỢP ĐỒNG CŨ CỦA BẢNG KIỂU Ô KHÔNG ĐƯỢC ĐỔI. Chỉ số 1 = đậm, dùng cho dòng tiêu đề của mọi
    bảng xuất khác đang chạy. Chèn kiểu mới vào giữa là mọi tiêu đề cũ đổi kiểu mà không ai sửa gì. */
 teq( '🔴 kiểu 1 vẫn là ĐẬM (hợp đồng cũ)', 1, VHCC_Xuat::DAM );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 4. MÀN HÌNH — KHỐI CÓ VẼ RA, NÚT CÓ ĂN, VÀ QUYỀN KHÔNG RỘNG HƠN Ý ĐỊNH
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/* 🔴 CANH ĐƯỜNG NGƯỜI DÙNG ĐI, KHÔNG CHỈ CANH LÕI. Bài học 15/09/2026 (`sua_gio`): quyền đúng,
+   lõi đúng, khối vẽ đúng — mà tên việc không có trong danh sách trắng nên bấm nút không ăn, và
+   5162 phép vẫn xanh vì chúng đều gọi thẳng vào lõi. */
+teq( '🔴 việc khai đơn giá có tên trong danh sách việc của trang',
+	true, in_array( 'gia_gio', VHCC_Web::VIEC_CHAM, true ) );
+teq( '🔴 "luong" là một kiểu xuất hợp lệ', '',
+	VHCC_Web::vi_sao_khong_xuat( array( 'name' => 'T', 'role' => 'Cửa hàng trưởng',
+		'coso' => 'AEON_BT', 'ma_nv' => 'X' ), 'luong', 'AEON_BT' ) );
+t( '🔴 và nó cần ZipArchive (để báo đúng câu khi hosting thiếu)',
+	VHCC_Web::xuat_can_zip( 'luong' ) );
+
+/* 🔴 CƠ SỞ KHÁC VẪN CHỐI. Mở cửa xuất cho cửa hàng trưởng không được kéo theo mở phạm vi. */
+t( '🔴 cửa hàng trưởng KHÔNG xuất được bảng lương cơ sở khác',
+	'' !== VHCC_Web::vi_sao_khong_xuat( array( 'name' => 'T', 'role' => 'Cửa hàng trưởng',
+		'coso' => 'AEON_BT', 'ma_nv' => 'X' ), 'luong', 'LOTTE_GV' ) );
+/* Nhân viên bậc 1 thì không xuất được gì cả. */
+t( '🔴 nhân viên bậc 1 KHÔNG xuất được bảng lương',
+	'' !== VHCC_Web::vi_sao_khong_xuat( array( 'name' => 'N', 'role' => 'Nhân viên',
+		'coso' => 'AEON_BT', 'ma_nv' => 'Y' ), 'luong', 'AEON_BT' ) );
+
+/* ---- Khối trên màn Bảng công: cửa hàng trưởng PHẢI thấy ---- */
+$h_cht = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( '🔴 cửa hàng trưởng thấy khối Bảng lương cơ sở',
+	false !== strpos( $h_cht, 'Bảng lương cơ sở' ), substr( $h_cht, 0, 400 ) );
+t( 'có nút xuất bảng lương', false !== strpos( $h_cht, 'xuat=luong' ), 'thiếu nút xuất' );
+t( 'bảng hiện tên người và số giờ',
+	false !== strpos( $h_cht, 'Lâm Tú Lanh' ) && false !== strpos( $h_cht, '19,20' ), $h_cht );
+/* 🔴 DÒNG CHƯA KHAI GIÁ PHẢI KÊU TO, TRÊN ĐẦU BẢNG — không phải nằm lẫn ở cột ghi chú cuối. */
+t( '🔴 màn cảnh báo ngay đầu khối về dòng chưa khai đơn giá',
+	false !== strpos( $h_cht, 'chưa khai đơn giá giờ' ), $h_cht );
+
+/* 🔴 NHÂN VIÊN BẬC 1 KHÔNG THẤY MỘT ĐỒNG NÀO. Khối này in tiền công của người khác. */
+$h_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( '🔴 nhân viên bậc 1 KHÔNG thấy khối Bảng lương cơ sở',
+	false === strpos( $h_nv, 'Bảng lương cơ sở' ), 'lộ bảng lương cho bậc 1' );
+t( '🔴 và KHÔNG thấy đơn giá của ai', false === strpos( $h_nv, '23.000' ), 'lộ đơn giá' );
+
+/* ---- Khối khai đơn giá: chỉ Kế toán trở lên ---- */
+$h_kt = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' ) );
+t( '🔴 kế toán thấy khối khai đơn giá',
+	false !== strpos( $h_kt, 'Đơn giá giờ của cơ sở' ), substr( $h_kt, 0, 400 ) );
+t( 'khối liệt kê chức vụ đang dùng thật của tháng, không bắt gõ tay',
+	false !== strpos( $h_kt, 'name="gg_cs[' ), $h_kt );
+t( 'và có bảng chung cả chuỗi', false !== strpos( $h_kt, 'name="gg_chung[' ), $h_kt );
+
+$h_cht_ch = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' ) );
+t( '🔴 cửa hàng trưởng KHÔNG thấy khối khai đơn giá',
+	false === strpos( $h_cht_ch, 'Đơn giá giờ của cơ sở' ), 'cửa hàng trưởng khai được đơn giá' );
+
+/* ---- 🔴 GỬI THẬT MỘT LƯỢT POST. Khối vẽ đúng mà bộ điều phối không nhận việc thì bấm Lưu
+        xong không có gì xảy ra — và mọi phép soi HTML ở trên vẫn xanh. ---- */
+$tok_kt = VHCC_Auth::phat_token( 'Chị Kế Toán', 'Kế toán', '', 'KT_BL' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_kt );
+$_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' );
+$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ), 'ccs' => 'AEON_BT',
+	'gg_cs' => array( 'Lái Tàu' => '26500' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_post = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 bấm Lưu trên màn thì đơn giá vào sổ thật', 26500.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
+t( 'và màn KHÔNG báo câu chối về màn Hồ sơ',
+	false === strpos( $h_post, 'thuộc màn Hồ sơ' ), substr( $h_post, 0, 600 ) );
+
+/* Ba dòng trống ở cuối bảng chung phải ĐỌC ĐƯỢC — vẽ ô mà không nhận là người ta gõ xong,
+   thấy báo "đã lưu", rồi chức vụ biến mất không dấu vết. */
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_kt );
+$_GET  = array( 'man' => 'cau_hinh' );
+$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ),
+	'gg_chung' => array( 'tn' => '24000' ),
+	'gg_chung_moi_ten' => array( 0 => 'Thu ngân mới' ),
+	'gg_chung_moi'     => array( 0 => '28000' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 dòng trống gõ thêm chức vụ mới thì LƯU THẬT', 28000.0,
+	VHCC_GiaGio::tra( 'CS_KHONG_KHAI', 'Thu ngân mới' )['gia'] );
 
 ket_luan();
