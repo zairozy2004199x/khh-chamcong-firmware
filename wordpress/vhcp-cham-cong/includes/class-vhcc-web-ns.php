@@ -147,6 +147,16 @@ class VHCC_WebNS {
 			return;
 		}
 
+		/* 🔴 THÊM NGƯỜI MỚI — ĐẶT Ở ĐÂY VÌ ĐÂY LÀ CHỖ NGƯỜI TA ĐI TÌM.
+		   Anh Thắng 14/09/2026: *"Bổ sung cửa hàng trưởng có thể tạo và thêm nhân viên được
+		   luôn (nhưng không xóa được)"*. Năng lực có sẵn từ 28/08 (`them_nv_cua_hang()`), nhưng
+		   khối vẽ chỉ nằm ở màn Bảng công — mà ai muốn thêm người thì mở màn Nhân sự cửa hàng.
+		   Có mà không thấy thì với người dùng là KHÔNG CÓ.
+		   ⚠️ Khối tự ẩn với Kế toán trở lên (họ có tab Hồ sơ rộng hơn, cấp được mã CHUẨN) và tự
+		      ẩn với ai không có quyền `them_nv` — chốt nằm trong chính nó, không nhân bản ở đây.
+		   ⚠️ XOÁ thì KHÔNG mở: `xoa_ho_so` vẫn ở bậc Admin, và màn này không vẽ nút xoá nào. */
+		VHCC_Web::khoi_them_nv( $ky, $toi, $cs, $ds_cs, 'ns_coso' );
+
 		$ma_sua = isset( $_GET['nma'] ) ? sanitize_text_field( wp_unslash( $_GET['nma'] ) ) : '';
 		if ( '' !== $ma_sua ) { self::the_sua( $ky, $toi, $cs, $ma_sua ); }
 

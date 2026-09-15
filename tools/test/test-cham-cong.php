@@ -18545,6 +18545,82 @@ t( '🔴 báo trước rằng sửa ở đây là đổi cho cả cửa hàng ki
 t( 'và có sổ sửa hồ sơ ngay dưới', strpos( $h_sua_2, 'Sổ sửa hồ sơ' ) !== false, $h_sua_2 );
 
 /* =============================================================================================
+ * 🔴 THÊM NGƯỜI NGAY TRÊN MÀN NHÂN SỰ CỬA HÀNG — VÀ VẪN KHÔNG XOÁ ĐƯỢC AI.
+ * =============================================================================================
+ * Anh Thắng 14/09/2026, kèm ảnh chính màn này: *"Bổ sung cửa hàng trưởng có thể tạo và thêm
+ * nhân viên được luôn ( nhưng không xóa được )"*.
+ *
+ * ⚠️ NĂNG LỰC ĐÃ CÓ TỪ 28/08 (`them_nv_cua_hang()`, quyền `them_nv` bậc Cửa hàng trưởng) — thiếu
+ *    là thiếu CHỖ VẼ: khối chỉ nằm ở màn Bảng công, mà người muốn thêm người thì mở màn Nhân sự
+ *    cửa hàng. Nên mục này canh ĐÚNG MỘT ĐIỀU mà 5000 phép trước không canh: khối CÓ MẶT ở màn
+ *    này. Có mà không thấy thì với người dùng là không có.
+ *
+ * 🔴 VÀ CANH LUÔN NỬA SAU CỦA CÂU: *"nhưng không xóa được"*. Mở cửa tạo mà hở luôn cửa xoá thì
+ *    một bấm nhầm là mất hồ sơ kèm cả lịch sử công của người ta.
+ */
+$h_ns_tn = vhcc_web_nhu2( 'NSTR', 'CUA_HANG_TRUONG', 'CH_MOT',
+	array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT' ) );
+t( '🔴 màn Nhân sự cửa hàng CÓ khối thêm người',
+	strpos( $h_ns_tn, 'Thêm người mới vào cửa hàng' ) !== false, substr( $h_ns_tn, 0, 800 ) );
+t( 'có ô căn cước', strpos( $h_ns_tn, 'name="tn_cccd"' ) !== false, $h_ns_tn );
+t( 'và nút gửi', strpos( $h_ns_tn, 'value="them_nv"' ) !== false, $h_ns_tn );
+t( 'khối vẫn gập lại, không bày sẵn',
+	strpos( $h_ns_tn, '<details class="gap"' ) !== false, $h_ns_tn );
+/* Ô ẨN `man`/`ncs` PHẢI NÓI ĐÚNG TÊN MÀN ĐANG VẼ. Chúng KHÔNG điều khiển đường về — đường về
+   thật là địa chỉ đang mở (phép canh đường về thật nằm ở lượt gửi bên dưới) — nhưng một ô ẩn
+   nói sai tên màn là một cái bẫy chờ ngày ai đó nối `man` vào `$_REQUEST`.
+   ⚠️ CẮT LẤY ĐÚNG KHỐI THÊM NGƯỜI RỒI MỚI SOI. Soi cả trang thì phép này XANH GIẢ: thanh điều
+      hướng cũng có `name="man" value="ns_coso"` của riêng nó, nên đóng cứng `'cham'` ở biểu mẫu vẫn
+      không làm phép này đỏ. Bắt được lúc phá thử: mutation chỉ đỏ đúng một phép, không phải hai. */
+$i_tn_d = strpos( $h_ns_tn, 'Thêm người mới vào cửa hàng' );
+$kho_tn = false === $i_tn_d ? ''
+	: substr( $h_ns_tn, $i_tn_d, strpos( $h_ns_tn, '</details>', $i_tn_d ) - $i_tn_d );
+t( '🔴 lượt gửi quay về ĐÚNG màn Nhân sự cửa hàng, không nhảy sang Bảng công',
+	strpos( $kho_tn, 'name="man" value="ns_coso"' ) !== false, $kho_tn );
+t( 'và giữ nguyên cơ sở đang xem',
+	strpos( $kho_tn, 'name="ncs" value="CH_MOT"' ) !== false, $kho_tn );
+
+/* 🔴 XOÁ THÌ KHÔNG. Canh bằng chính TÊN VIỆC mà bộ điều phối nhận, chứ không canh chữ "Xoá" trên
+   màn — chữ đổi được, tên việc thì không. */
+t( '🔴 màn KHÔNG có một nút xoá hồ sơ nào',
+	strpos( $h_ns_tn, 'value="xoa_ho_so"' ) === false
+	&& strpos( $h_ns_tn, 'value="xoa_nv"' ) === false, 'có đường xoá trên màn cửa hàng trưởng' );
+/* 🔴 KHÔNG CÓ NÚT KHÔNG PHẢI LÀ KHÔNG GỌI ĐƯỢC. Chốt thật nằm ở tầng dưới: gọi thẳng hàm xoá
+   bằng tài khoản cửa hàng trưởng vẫn phải bị chối. */
+$r_xoa_cht = VHCC_NhanSu::xoa_ho_so( $ns_cht, 'N1' );
+t( '🔴 gọi thẳng hàm xoá bằng tài khoản cửa hàng trưởng: BỊ CHỐI',
+	empty( $r_xoa_cht['ok'] ), $r_xoa_cht );
+t( 'và hồ sơ vẫn còn nguyên', null !== VHCC_NhanSu::ho_so( 'N1' ) );
+
+/* 🔴 GỬI THẬT MỘT LƯỢT POST TỪ MÀN NÀY. Khối vẽ đúng mà bộ điều phối của màn Nhân sự không nhận
+   việc `them_nv` thì bấm nút xong không có gì xảy ra — và phép soi HTML ở trên vẫn xanh. */
+$tok_ns_tn = VHCC_Auth::phat_token( 'Trưởng Một', 'CUA_HANG_TRUONG', 'CH_MOT', 'NSTR' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_ns_tn );
+$_GET  = array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT' );
+$_POST = array( 'viec' => 'them_nv', 'ky' => VHCC_Web::chu_ky( $tok_ns_tn ),
+	'tn_ho_ten' => 'Người Thêm Từ Màn NS', 'tn_cccd' => '012345678921', 'tn_coso' => 'CH_MOT' );
+ob_start(); VHCC_Web::phuc_vu(); $h_ns_post = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+t( '🔴 bấm Thêm trên màn Nhân sự cửa hàng thì hồ sơ vào sổ thật',
+	null !== VHCC_NhanSu::ho_so_theo_cccd( '012345678921' ),
+	( preg_match( '#<div class="bao loi">(.{0,300}?)</div>#s', $h_ns_post, $m_ns_tn )
+		? trim( wp_strip_all_tags( $m_ns_tn[1] ) ) : 'KHÔNG THẤY CÂU NÀO' ) );
+/* 🔴 VÀ SAU LƯỢT GỬI, NGƯỜI TA VẪN Ở MÀN NHÂN SỰ CỬA HÀNG. Đây mới là phép canh ĐƯỜNG VỀ
+   THẬT: bộ định tuyến đọc `man` từ `$_GET`, còn ô ẩn chỉ là nhãn. Bị ném sang Bảng công thì
+   người ta không thấy người vừa thêm đâu cả — và họ bấm Thêm lần nữa. */
+t( '🔴 gửi xong vẫn đứng ở màn Nhân sự cửa hàng',
+	strpos( $h_ns_post, '<h2>Nhân sự cửa hàng</h2>' ) !== false, substr( $h_ns_post, 0, 900 ) );
+t( 'và thấy ngay người vừa thêm trong bảng',
+	strpos( $h_ns_post, 'Người Thêm Từ Màn NS' ) !== false, substr( $h_ns_post, 0, 900 ) );
+
+/* 🔴 KẾ TOÁN TRỞ LÊN KHÔNG THẤY KHỐI NÀY — họ có tab Hồ sơ rộng hơn và cấp được mã CHUẨN. Hai
+   cửa cùng làm một việc, cửa hẹp bày cạnh cửa rộng, là người ta phân vân chọn cửa nào. */
+$h_ns_kt = vhcc_web_nhu2( 'NSKT', 'Kế toán', 'CH_MOT',
+	array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT' ) );
+t( '🔴 Kế toán KHÔNG thấy khối thêm người ở màn này',
+	strpos( $h_ns_kt, 'Thêm người mới vào cửa hàng' ) === false, substr( $h_ns_kt, 0, 800 ) );
+
+/* =============================================================================================
  * XEM PIN Ở TRANG QUẢN LÝ NHÂN SỰ.
  * =============================================================================================
  * Anh Thắng 31/08/2026, kèm ảnh dãy nút dưới tên người: *"Bổ sung xem PIn được tại vị trí này"*.
