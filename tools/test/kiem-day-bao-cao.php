@@ -102,6 +102,21 @@ phep( 'chưa ghép cơ sở -> không thấy cơ sở nào', array( KHH_DT_CHUA_
 khh_dt_dat_ghep( array( 'FZ_ADV_TP' => 'TuTu Train - Aeon Tân Phú' ) );
 khh_dt_test_quen_phien();
 phep( 'ghép xong thì thấy đúng cơ sở của mình', array( 'TuTu Train - Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
+/* Hình dạng CŨ (bản 1.6.0 lưu mỗi mã một chuỗi) phải đọc được nguyên — site đã khai vài mã rồi. */
+phep( 'đọc được bảng ghép kiểu cũ (một chuỗi)', array( 'TuTu Train - Aeon Tân Phú' ) === khh_dt_ghep_ten_ds( 'FZ_ADV_TP' ) );
+
+/* ---- 🔴 MỘT MÃ, HAI QUÁN TRÊN MÁY POS (anh Thắng 15/09/2026) ----
+   Gò An Lạc: sổ nhân sự một mã, máy POS hai quán, một cửa hàng trưởng coi cả hai. */
+khh_dt_dat_ghep( array( 'FZ_ADV_TP' => array( 'FUNZONE ADVENTURE GO AN LẠC', 'COFFE GO AN LẠC' ) ) );
+khh_dt_test_quen_phien();
+phep( 'một mã tích được hai quán POS',
+	array( 'FUNZONE ADVENTURE GO AN LẠC', 'COFFE GO AN LẠC' ) === khh_dt_phien_co_so_ds() );
+phep( 'và mã ấy hết bị đòi ghép', ! in_array( 'FZ_ADV_TP', khh_dt_ma_chua_ghep(), true ) );
+khh_dt_dat_ghep( array( 'FZ_ADV_TP' => array() ) );
+khh_dt_test_quen_phien();
+phep( 'bỏ tích hết thì lại là chưa ghép', in_array( 'FZ_ADV_TP', khh_dt_ma_chua_ghep(), true ) );
+khh_dt_dat_ghep( array( 'FZ_ADV_TP' => 'TuTu Train - Aeon Tân Phú' ) );
+khh_dt_test_quen_phien();
 
 /* ---- một người HAI cơ sở (anh Thắng 15/09/2026) ---- */
 $kq = khh_dt_day_vao( array(
@@ -115,11 +130,12 @@ khh_dt_test_quen_phien();
 phep( 'ghép mới một trong hai cơ sở -> vẫn báo chưa xong', ! empty( $kq['chua_ghep'] ) );
 phep( 'và tạm thời chỉ thấy cơ sở đã ghép', array( 'TuTu Train - Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
 khh_dt_dat_ghep( array(
-	'FZ_ADV_TP' => 'TuTu Train - Aeon Tân Phú',
+	'FZ_ADV_TP' => array( 'TuTu Train - Aeon Tân Phú', 'COFFE GO AN LẠC' ),
 	'TUTU_TP'   => 'TuTu Train - Tân Phú',
 ) );
 khh_dt_test_quen_phien();
-phep( 'ghép đủ thì thấy CẢ HAI cơ sở', array( 'TuTu Train - Aeon Tân Phú', 'TuTu Train - Tân Phú' ) === khh_dt_phien_co_so_ds() );
+phep( 'hai mã, một mã hai quán -> gộp đủ cả ba',
+	array( 'TuTu Train - Aeon Tân Phú', 'COFFE GO AN LẠC', 'TuTu Train - Tân Phú' ) === khh_dt_phien_co_so_ds() );
 $kq = khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'coso' => 'FZ_ADV_TP, TUTU_TP' ) );
 phep( 'ghép đủ rồi thì hết báo chưa ghép', empty( $kq['chua_ghep'] ) );
 

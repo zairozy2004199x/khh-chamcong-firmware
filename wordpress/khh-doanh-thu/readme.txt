@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.7.0
+Stable tag: 1.8.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -54,7 +54,8 @@ theo tên · PIN · mã cơ sở · vai. Họ mở link báo cáo, gõ chính PI
 và chỉ thấy cơ sở của mình.
 
 Ai phụ trách **hai cơ sở** thì tích đủ hai cơ sở cho họ ở trang Nhân sự — bên này tự theo, và họ
-nhập báo cáo được cho cả hai. Ai vai **duyệt** (kế toán, quản lý) thì xem tổng mọi cơ sở, không
+nhập báo cáo được cho cả hai. Còn nếu một điểm bán bị máy POS tách thành hai quán (khu vui chơi
+và quán cà phê cùng một chỗ) thì ở bảng Ghép cơ sở **tích cả hai quán cho cùng một mã**. Ai vai **duyệt** (kế toán, quản lý) thì xem tổng mọi cơ sở, không
 cần ghép mã.
 
 Một việc phải khai một lần: **Quản trị → Ghép cơ sở**. Sổ nhân sự gọi quán bằng mã (`FZ_ADV_TP`),
@@ -80,6 +81,12 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.8.0 =
+* **Một mã cơ sở ghép được nhiều quán trên máy POS.** Cùng một điểm Gò An Lạc mà máy POS tách
+  thành "FUNZONE ADVENTURE GO AN LẠC" và "COFFE GO AN LẠC", trong khi sổ nhân sự chỉ có một mã và
+  một cửa hàng trưởng coi cả hai. Ô chọn một-đổi-một nay thành danh sách tích, tích bao nhiêu quán
+  cũng được. Bảng ghép khai kiểu cũ (một chuỗi) vẫn đọc nguyên, không phải khai lại.
 
 = 1.7.0 =
 * **Một người phụ trách được hai (hay nhiều) cơ sở** — tích thêm cơ sở cho họ ở trang Nhân sự là

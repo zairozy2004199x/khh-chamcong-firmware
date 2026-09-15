@@ -225,3 +225,11 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .top .ai .ten{font-weight:600;color:var(--ink-2)}
 .khh-dt .canh-ghep{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:13px;
   background:var(--app-mem);color:var(--ink-2)}
+.khh-dt .ghep-chon{max-height:148px;overflow:auto;border:1px solid var(--line);border-radius:10px;
+  background:var(--card-2);padding:6px 8px;min-width:280px}
+.khh-dt .ghep-chon.mo-nhat{opacity:.6}
+.khh-dt .ghep-chon label{display:flex;align-items:flex-start;gap:8px;padding:3px 2px;font-size:13px;
+  text-align:left;cursor:pointer}
+.khh-dt .ghep-chon label:hover{color:var(--app)}
+.khh-dt .ghep-chon input{margin-top:3px;flex:none}
+.khh-dt .ghep-nhac{font-size:12.5px;color:var(--ink-3);padding:2px 2px 6px}

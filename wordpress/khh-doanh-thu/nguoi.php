@@ -104,32 +104,64 @@ function khh_dt_tach_ma( $chuoi ) {
 	return $ra;
 }
 
-/** [ MÃ => tên cơ sở đúng như trong số liệu POS ]. */
+/**
+ * [ MÃ => [ tên cơ sở đúng như trong số liệu POS, … ] ].
+ *
+ * 🔴 MỘT MÃ GHÉP ĐƯỢC NHIỀU QUÁN TRÊN MÁY POS. Anh Thắng 15/09/2026, đang mở ô chọn của
+ *    `FZ_ADV_TP`: *"bạn này muốn chọn 2 cơ sở để nhập thì sao"*. Cùng một điểm Gò An Lạc mà máy
+ *    POS tách ra hai quán — *"FUNZONE ADVENTURE GO AN LẠC"* và *"COFFE GO AN LẠC"* — trong khi
+ *    sổ nhân sự chỉ có một mã, và một cửa hàng trưởng coi cả hai. Ghép một-đổi-một thì chị ấy
+ *    nhập được khu vui chơi, còn quán cà phê ngay cạnh thì không, mà không có chỗ nào khai thêm.
+ */
 function khh_dt_ghep_ds() {
 	$x = get_option( 'khh_dt_ghep_coso', array() );
 	return is_array( $x ) ? $x : array();
 }
 
-/** Tên cơ sở bên POS của một mã; '' nếu chưa khai. */
-function khh_dt_ghep_ten( $ma ) {
+/**
+ * Những tên cơ sở bên POS của một mã; mảng rỗng nếu chưa khai.
+ *
+ * ⚠️ NHẬN CẢ HÌNH DẠNG CŨ. Bản 1.6.0 lưu mỗi mã một chuỗi; site của anh Thắng đã khai vài mã
+ *    bằng bản ấy rồi. Đọc chuỗi như một danh sách một phần tử, không bắt ai khai lại.
+ */
+function khh_dt_ghep_ten_ds( $ma ) {
 	$ma = strtoupper( trim( (string) $ma ) );
 	if ( '' === $ma ) {
-		return '';
+		return array();
 	}
 	$ds = khh_dt_ghep_ds();
-	return isset( $ds[ $ma ] ) ? (string) $ds[ $ma ] : '';
+	if ( ! isset( $ds[ $ma ] ) ) {
+		return array();
+	}
+	$v  = $ds[ $ma ];
+	$ra = array();
+	foreach ( is_array( $v ) ? $v : array( $v ) as $x ) {
+		$t = trim( (string) $x );
+		if ( '' !== $t && ! in_array( $t, $ra, true ) ) {
+			$ra[] = $t;
+		}
+	}
+	return $ra;
 }
 
-/** Khai lại cả bảng ghép. Giá trị rỗng = bỏ khai mã đó. */
+/** Khai lại cả bảng ghép. Danh sách rỗng = bỏ khai mã đó. */
 function khh_dt_dat_ghep( $bang ) {
 	$sach = array();
 	foreach ( (array) $bang as $ma => $ten ) {
 		$ma  = strtoupper( sanitize_text_field( (string) $ma ) );
-		$ten = sanitize_text_field( (string) $ten );
-		if ( '' === $ma || '' === $ten ) {
+		if ( '' === $ma ) {
 			continue;
 		}
-		$sach[ $ma ] = $ten;
+		$ds = array();
+		foreach ( is_array( $ten ) ? $ten : array( $ten ) as $t ) {
+			$t = sanitize_text_field( (string) $t );
+			if ( '' !== $t && ! in_array( $t, $ds, true ) ) {
+				$ds[] = $t;
+			}
+		}
+		if ( $ds ) {
+			$sach[ $ma ] = $ds;
+		}
 	}
 	update_option( 'khh_dt_ghep_coso', $sach, false );
 	return $sach;
@@ -154,7 +186,7 @@ function khh_dt_ma_chua_ghep() {
 			continue;
 		}
 		foreach ( khh_dt_tach_ma( (string) $r['coso_ma'] ) as $ma ) {
-			if ( '' === khh_dt_ghep_ten( $ma ) && ! in_array( $ma, $ra, true ) ) {
+			if ( ! khh_dt_ghep_ten_ds( $ma ) && ! in_array( $ma, $ra, true ) ) {
 				$ra[] = $ma;
 			}
 		}
@@ -269,7 +301,7 @@ function khh_dt_day_vao( $hs ) {
 		'chua_ghep' => ( '' !== $cs && (bool) array_filter(
 			khh_dt_tach_ma( $cs ),
 			function ( $m ) {
-				return '' === khh_dt_ghep_ten( $m );
+				return ! khh_dt_ghep_ten_ds( $m );
 			}
 		) ),
 	);
@@ -439,9 +471,10 @@ function khh_dt_phien_co_so_ds() {
 	}
 	$ten_ds = array();
 	foreach ( $ma_ds as $ma ) {
-		$ten = khh_dt_ghep_ten( $ma );
-		if ( '' !== $ten && ! in_array( $ten, $ten_ds, true ) ) {
-			$ten_ds[] = $ten;
+		foreach ( khh_dt_ghep_ten_ds( $ma ) as $ten ) {
+			if ( ! in_array( $ten, $ten_ds, true ) ) {
+				$ten_ds[] = $ten;
+			}
 		}
 	}
 	/* Chưa ghép được mã nào -> KHÔNG thấy cơ sở nào (mảng rỗng ở đây nghĩa là THẤY HẾT, nên phải
@@ -526,8 +559,8 @@ function khh_dt_rest_ghep() {
 	$ghep = array();
 	foreach ( array_keys( $ma_ds ) as $m ) {
 		$ghep[] = array(
-			'ma'  => $m,
-			'ten' => khh_dt_ghep_ten( $m ),
+			'ma'     => $m,
+			'ten_ds' => khh_dt_ghep_ten_ds( $m ),
 		);
 	}
 	return array(

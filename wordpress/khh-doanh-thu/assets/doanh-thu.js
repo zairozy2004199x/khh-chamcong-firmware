@@ -912,10 +912,12 @@
     var h = '<div class="khung" id="dtGhep"><header><h2>Ghép cơ sở</h2>' +
       '<span class="goi">' + ghep.length + ' mã</span></header>';
     h += '<div class="chu-them" style="margin-top:6px">Mã bên trái là cơ sở trong sổ nhân sự; ' +
-      'chọn bên phải là tên đúng của quán ấy trong số liệu máy POS. Chưa ghép thì người của cơ sở ' +
-      'đó đăng nhập được nhưng không thấy số nào. Người vai <b>duyệt</b> (kế toán, quản lý) xem ' +
-      'tổng mọi cơ sở nên mã của họ không cần ghép. Muốn ai phụ trách hai cơ sở thì tích thêm cơ ' +
-      'sở cho họ ở trang Nhân sự — bên này tự theo.</div>';
+      'tích bên phải là những quán của mã ấy trong số liệu máy POS. <b>Tích được nhiều quán</b>: ' +
+      'một điểm bán bên nhân sự có thể là hai quán trên máy POS (khu vui chơi và quán cà phê ' +
+      'cùng một chỗ), người của mã ấy nhập báo cáo cho cả những quán đã tích. Chưa tích gì thì ' +
+      'họ đăng nhập được nhưng không thấy số nào. Người vai <b>duyệt</b> (kế toán, quản lý) xem ' +
+      'tổng mọi cơ sở nên mã của họ không cần tích. Còn muốn một người coi hai điểm bán KHÁC ' +
+      'nhau thì tích thêm cơ sở cho họ ở trang Nhân sự — bên này tự theo.</div>';
     if (thieu.length) {
       h += '<div class="canh-ghep">Đang có người ở ' + thieu.length + ' mã chưa ghép: <b>' +
         thieu.map(esc).join(', ') + '</b></div>';
@@ -925,18 +927,23 @@
         '<b>Quản trị báo cáo cơ sở</b>, bấm Đẩy cho cửa hàng trưởng.</div>';
     } else {
       h += '<div class="bang-cuon"><table><thead><tr><th>Mã cơ sở (nhân sự)</th>' +
-        '<th>Tên cơ sở trên máy POS</th><th>Người</th></tr></thead><tbody>' +
+        '<th>Tên cơ sở trên máy POS — tích được nhiều quán</th><th>Người</th></tr></thead><tbody>' +
         ghep.map(function (g) {
           /* Một người có thể phụ trách hai cơ sở nên họ hiện ở cả hai hàng. */
           var nguoi = ng.filter(function (x) { return (x.coso_ds || []).indexOf(g.ma) >= 0; });
           var chiDuyet = nguoi.length && nguoi.every(function (x) { return x.vai === 'duyet'; });
+          var chon = g.ten_ds || [];
           return '<tr data-ma="' + esc(g.ma) + '">' +
             '<td><code>' + esc(g.ma) + '</code></td>' +
-            '<td><select data-ghep="' + esc(g.ma) + '"><option value="">' +
-              (chiDuyet ? '— không cần ghép —' : '— chưa ghép —') + '</option>' +
+            /* TÍCH, KHÔNG PHẢI CHỌN MỘT. Một điểm bán trên sổ nhân sự có thể là hai quán trên
+               máy POS (Gò An Lạc: khu vui chơi + quán cà phê), cùng một cửa hàng trưởng coi. */
+            '<td><div class="ghep-chon' + (chiDuyet ? ' mo-nhat' : '') + '" data-o-ghep="' + esc(g.ma) + '">' +
+              (chiDuyet ? '<div class="ghep-nhac">Ai cũng vai duyệt — xem tổng mọi cơ sở, không cần tích.</div>' : '') +
               ch.map(function (t) {
-                return '<option value="' + esc(t) + '"' + (t === g.ten ? ' selected' : '') + '>' + esc(t) + '</option>';
-              }).join('') + '</select></td>' +
+                return '<label><input type="checkbox" data-ghep="' + esc(g.ma) + '" value="' + esc(t) + '"' +
+                  (chon.indexOf(t) >= 0 ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
+              }).join('') +
+            '</div></td>' +
             '<td style="text-align:left">' + (nguoi.length
               ? nguoi.map(function (x) {
                   return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) +
@@ -955,8 +962,9 @@
     if (!nut) return;
     nut.addEventListener('click', function () {
       var bang = {};
-      Array.prototype.forEach.call(o.querySelectorAll('[data-ghep]'), function (se) {
-        bang[se.dataset.ghep] = se.value;
+      Array.prototype.forEach.call(o.querySelectorAll('[data-o-ghep]'), function (h) { bang[h.dataset.oGhep] = []; });
+      Array.prototype.forEach.call(o.querySelectorAll('input[data-ghep]'), function (c) {
+        if (c.checked) bang[c.dataset.ghep].push(c.value);
       });
       nut.disabled = true; nut.textContent = 'Đang lưu…';
       var fd = new FormData(); fd.append('ghep', JSON.stringify(bang));
