@@ -765,9 +765,13 @@ class VHG_BaoCao {
 		   bc_pin ⇄ hồ sơ QUA TÊN nên vẫn thấy — chính là chỗ lệch anh Thắng mô tả.
 		   Người này ĐÃ xác thực hợp lệ và ra đúng TÊN, nên khi ô cơ sở trống thì lấy chính hàng
 		   bc_pin admin khai THEO TÊN ấy để cấp lại phạm vi. CHỐT AN TOÀN: chỉ chạy khi $cs RỖNG
-		   (đúng ca hỏng), KHÔNG áp cho admin, và KHÔNG BAO GIỜ cấp toàn quyền — chỉ thêm đúng cơ
-		   sở/ghế admin đã ghi cho tên đó (hàng coso rỗng = toàn quyền thì BỎ QUA, không nới quyền). */
-		if ( ! $la_admin && empty( $cs ) && '' !== trim( (string) $q['ten'] ) ) {
+		   (đúng ca hỏng) và KHÔNG BAO GIỜ cấp toàn quyền — chỉ thêm đúng cơ sở/ghế admin đã ghi cho
+		   tên đó (hàng coso rỗng = toàn quyền thì BỎ QUA, không nới quyền).
+		   ⚠️ KHÔNG gác theo $la_admin. $la_admin chỉ nói NGƯỜI ĐANG XEM có phải admin WordPress không
+		      (để hiện ghế đỏ), KHÔNG liên quan tới PHẠM VI của chính PIN này. Trước gác nhầm ở đây:
+		      admin đăng nhập WP rồi gõ PIN nhân viên để thử → $la_admin=true → bản vá bị bỏ qua, nên
+		      thử mãi vẫn "0 cơ sở" (anh Thắng 15/09/2026). Nay xét theo phạm vi PIN, ai xem cũng vậy. */
+		if ( empty( $cs ) && '' !== trim( (string) $q['ten'] ) ) {
 			$ten_sq = self::squash( $q['ten'] );
 			if ( '' !== $ten_sq ) {
 				foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
@@ -817,7 +821,7 @@ class VHG_BaoCao {
 		   không thấy cơ sở"* tự nói ra hỏng ở đâu thay vì đoán qua đoán lại. Không in PIN/khoá, chỉ
 		   in TÊN + tên cơ sở + con số đếm (đều không nhạy cảm). Ẩn hẳn khi mọi thứ bình thường. */
 		$chan_doan = null;
-		if ( ! $la_admin && empty( $cs ) ) {
+		if ( empty( $cs ) ) {   // cùng lý do không gác $la_admin như khối cứu-theo-tên ở trên
 			$ten_sq = self::squash( $q['ten'] );
 			$bcpin_ten = array();
 			foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
