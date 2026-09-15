@@ -854,7 +854,16 @@ class VHCC_Web {
 	   thì nút vẫn vẽ ra, vẫn bấm được, và câu trả lời là một dòng nói về màn Hồ sơ — người dùng
 	   đi xin đúng cái quyền mà họ không cần. Phần gác thật nằm trong
 	   `VHCC_NhanSu::them_nv_cua_hang()`, hỏi đúng đầu việc `them_nv`. */
-	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh',
+	/* 🔴 `sua_gio` CŨNG PHẢI CÓ TÊN Ở ĐÂY — đúng cái bẫy mà chuú thích trên vừa nói, lặp lại
+	   lần thứ hai. Anh Thắng 28/08/2026 đã hạ `sua_gio` xuống bậc Cửa hàng trưởng, và hàng sửa
+	   VẪN VẼ RA cho họ (`hang_sua()` hỏi đúng `sua_gio`) — nhưng tên việc không được khai vào đây,
+	   nên lượt gửi rơi xuống chốt dưới và bị đá ra bằng một câu nói về màn Hồ sơ. Anh Thắng
+	   15/09/2026 gửi ảnh chính câu ấy: *"Cho cửa hàng trưởng sửa và thêm giờ công"*.
+	   ⚠️ Không phải nới quyền: `VHCC_Bu::sua()` vẫn hỏi `sua_gio` rồi `vi_sao_khong_duoc()`
+	      (phạm vi cơ sở, bảng đã khoá, ngày hợp lệ) ngay dòng đầu. Đây chỉ là mở đúng cửa để
+	      lượt gửi đi đến được chỗ gác thật. */
+	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'sua_gio', 'xem_cong', 'nap_cong', 'ca',
+		'cach_tinh',
 		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra',
 		/* Đối chiếu / nạp về từ app gốc: việc của màn Bảng công, KHÔNG phải việc hồ sơ. Người
 		   cần nó nhất là Quản lý (bậc 3) — mà `co_ho_so` đòi bậc 4, nên để ngoài danh sách này
@@ -5621,9 +5630,14 @@ class VHCC_Web {
 		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
 
 		if ( ! $duoc ) {
+			/* ⚠️ DÙNG `VHCC_Vai::loi()` CHỨ KHÔNG GÕ TAY TÊN BẬC. Câu gõ tay ở đây từng nói "cần quyền
+			   Admin" suốt từ 28/08/2026 — tức từ ngày chính anh Thắng hạ `sua_gio` xuống bậc Cửa hàng
+			   trưởng. Người đọc nó sẽ đi xin nhầm quyền. `loi()` đọc thẳng bảng vai nên không lệch được nữa,
+			   và nó nói luôn tài khoản đang ở bậc nào. */
 			echo '<div class="bao canh" style="margin:0">' . esc_html( $co_gio
-				? 'Sửa giờ đã có cần quyền Admin. Thấy giờ sai thì gắn cờ để Admin sửa.'
-				: 'Bù giờ vào ô trống cần quyền Cửa hàng trưởng trở lên.' ) . '</div></div></td></tr>';
+				? VHCC_Vai::loi( $toi, 'sua_gio', 'Sửa giờ đã có' )
+					. ' Thấy giờ sai thì gắn cờ để cấp trên sửa.'
+				: VHCC_Vai::loi( $toi, 'cham_bu', 'Bù giờ vào ô trống' ) ) . '</div></div></td></tr>';
 			return;
 		}
 
