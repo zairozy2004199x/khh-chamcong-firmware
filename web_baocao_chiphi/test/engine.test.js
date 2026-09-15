@@ -100,3 +100,18 @@ assert.strictEqual(E.num('1.234.567,5'), 1234567.5);
 assert.strictEqual(E.num('  2 000 000 '), 2000000);
 
 console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các trường hợp biên đạt.`);
+
+// ---- Trạng thái duyệt: khoản chờ duyệt không tính, trừ khi bật includePending; khoản từ chối không bao giờ tính
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  const base = E.computeReport(st).grandTotal;
+  st.costItems[0].status = 'cho_duyet';
+  st.costItems[1].status = 'tu_choi';
+  let r = E.computeReport(st);
+  assert(Math.abs(r.grandTotal - (base - 55000000 - 10000000)) < 0.01, 'khoản chờ duyệt / từ chối phải bị loại');
+  assert(E.validate(st).some((i) => i.msg.includes('chờ duyệt')), 'phải báo có khoản chờ duyệt');
+  st.options.includePending = true;
+  r = E.computeReport(st);
+  assert(Math.abs(r.grandTotal - (base - 10000000)) < 0.01, 'includePending phải tính khoản chờ duyệt');
+  console.log('OK — trạng thái duyệt.');
+}

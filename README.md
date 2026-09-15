@@ -31,7 +31,7 @@ thấy là **dừng, không phát hành**.
 
 | Thư mục | Việc |
 |---|---|
-| `web_baocao_chiphi/` | **Web app "Báo cáo chi phí"** — nhập file Excel chi phí hàng tháng (doanh thu, khoản chi phí, bảng lương), tự phân bổ MTĐ / KVC và xuất ra tab *File tổng báo cáo* + phân bổ theo điểm để hạch toán MISA. Chạy hoàn toàn trên trình duyệt, mở `index.html` là dùng. Xem `web_baocao_chiphi/README.md` |
+| `web_baocao_chiphi/` | **Web app "Báo cáo chi phí"** — nhập file Excel chi phí hàng tháng (doanh thu, khoản chi phí, bảng lương), tự phân bổ MTĐ / KVC và xuất ra tab *File tổng báo cáo* + phân bổ theo điểm để hạch toán MISA. Giao diện chạy trên GitHub Pages; nhân viên nhập chi phí ở `nhap.html`, kế toán duyệt; dữ liệu chung lưu Google Sheets qua Apps Script. Xem `web_baocao_chiphi/README.md` và `web_baocao_chiphi/backend/README.md` |
 
 ## Phát hành
 

@@ -125,7 +125,8 @@
     depts.forEach((d) => hdr.push(d.name));
     hdr.push('Kiểm tra (tổng phân bổ)', 'Loại trừ', 'Gộp cột', 'Ghi chú');
     aoa.push(hdr);
-    (state.costItems || []).forEach((it, i) => {
+    const activeItems = E.activeCostItems(state);
+    activeItems.forEach((it, i) => {
       const shares = E.itemShares(state, it);
       const alloc = report.itemAlloc[it.id] || {};
       const row = [i + 1, it.kind === 'personal' ? 'Cá nhân' : 'Công ty', it.name, it.misaGeneral || '', it.misaDetail || '', it.account || '', it.objectCode || '', E.num(it.total), splitLabel(state, it)];
@@ -135,8 +136,8 @@
       row.push(sum, (it.excludeDepts || []).map((id) => (depts.find((d) => d.id === id) || { name: id }).name).join(', '), it.groupKey || '', it.note || '');
       aoa.push(row);
     });
-    const tot = ['', '', 'Tổng cộng', '', '', '', '', (state.costItems || []).reduce((a, it) => a + E.num(it.total), 0), ''];
-    groups.forEach((g) => tot.push((state.costItems || []).reduce((a, it) => a + (E.itemShares(state, it)[g.id] || 0), 0)));
+    const tot = ['', '', 'Tổng cộng', '', '', '', '', activeItems.reduce((a, it) => a + E.num(it.total), 0), ''];
+    groups.forEach((g) => tot.push(activeItems.reduce((a, it) => a + (E.itemShares(state, it)[g.id] || 0), 0)));
     depts.forEach((d) => tot.push(report.rowTotals[d.id] || 0));
     tot.push(report.grandTotal);
     aoa.push(tot);

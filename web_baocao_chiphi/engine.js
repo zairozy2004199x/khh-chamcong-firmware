@@ -33,6 +33,23 @@
     { key: 'bonus', label: 'Bonus VP' },
   ];
 
+  /** Trạng thái khoản chi phí khi làm việc nhiều người (không có status = coi như đã duyệt). */
+  const COST_STATUSES = [
+    { value: 'cho_duyet', label: 'Chờ duyệt' },
+    { value: 'da_duyet', label: 'Đã duyệt' },
+    { value: 'tu_choi', label: 'Từ chối' },
+  ];
+  /** Khoản chi phí được đưa vào tính toán: bỏ khoản từ chối; khoản chờ duyệt chỉ tính khi options.includePending. */
+  function activeCostItems(state) {
+    const inc = !!(state.options && state.options.includePending);
+    return (state.costItems || []).filter((it) => {
+      const st = it.status || 'da_duyet';
+      if (st === 'tu_choi') return false;
+      if (st === 'cho_duyet') return inc;
+      return true;
+    });
+  }
+
   function num(v) {
     if (v === null || v === undefined || v === '') return 0;
     if (typeof v === 'number') return isFinite(v) ? v : 0;
@@ -113,7 +130,7 @@
   /** Gộp các khoản chi phí thành cột báo cáo (cùng groupKey → 1 cột). */
   function reportColumns(state) {
     const cols = [];
-    (state.costItems || []).forEach((item) => {
+    activeCostItems(state).forEach((item) => {
       const key = item.groupKey ? `g:${item.groupKey}` : `i:${item.id}`;
       let col = cols.find((c) => c.key === key);
       if (!col) {
@@ -309,7 +326,9 @@
         });
       }
     });
-    (state.costItems || []).forEach((it, idx) => {
+    const pending = (state.costItems || []).filter((it) => it.status === 'cho_duyet').length;
+    if (pending) issues.push({ level: state.options && state.options.includePending ? 'warn' : 'info', msg: `${pending} khoản đang chờ duyệt${state.options && state.options.includePending ? ' — ĐANG được tính vào báo cáo (tuỳ chọn "tính cả khoản chờ duyệt").' : ' — chưa tính vào báo cáo.'}` });
+    activeCostItems(state).forEach((it, idx) => {
       const label = it.name || `Khoản #${idx + 1}`;
       if (num(it.total) === 0) issues.push({ level: 'warn', msg: `Khoản "${label}" có tổng tiền = 0.` });
       if (it.split === 'custom') {
@@ -392,7 +411,7 @@
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
     st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, ...x }));
     st.costItems = (st.costItems || []).map((it) => {
-      const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', ...it };
+      const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: '', createdBy: '', ...it };
       if (!o.id) o.id = newId('ci');
       // tương thích dữ liệu cũ: mtd/kvc → shares + split
       if (it && (it.mtd !== undefined || it.kvc !== undefined) && !it.shares) {
@@ -406,6 +425,7 @@
       delete o.kvc;
       return o;
     });
+    st.options = Object.assign({ includePending: false }, st.options || {});
     st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', values: {}, ...m, id: m.id || newId('mc') }));
     st.salaryDept = (st.salaryDept || []).map((r) => ({ misaGeneral: '', misaDetail: '', ...r }));
     st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', ...r, id: r.id || newId('ss') }));
@@ -414,6 +434,8 @@
 
   return {
     SALARY_DEPT_FIELDS,
+    COST_STATUSES,
+    activeCostItems,
     num,
     fmt,
     newId,

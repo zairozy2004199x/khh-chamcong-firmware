@@ -29,6 +29,8 @@
   </div>
 
   <div class="actions">
+    <span class="sync" id="syncBox" title="Trạng thái đồng bộ với máy chủ"><span class="dot" id="syncDot"></span><span id="syncText">Cục bộ</span></span>
+    <button class="btn" id="btnSettings" title="Kết nối máy chủ dùng chung (Google Sheets)">⚙</button>
     <label class="btn" title="Nhập file Excel 'File chi phí MN Txx/yyyy' (đọc Doanh thu, total general, Bảng tổng lương, File tổng báo cáo)">
       <span class="ico">📥</span> Nhập Excel
       <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" hidden>
@@ -45,6 +47,9 @@
         <hr>
         <button data-act="print">In / Lưu PDF báo cáo</button>
         <button data-act="copyReport">Sao chép Mục I (dán vào Excel)</button>
+        <hr>
+        <a class="menu-file" href="nhap.html" target="_blank" rel="noopener">Mở trang nhập chi phí (nhân viên)</a>
+        <button data-act="syncNow">Tải lại từ máy chủ</button>
         <hr>
         <button data-act="reset" class="danger">Xoá toàn bộ dữ liệu</button>
       </div>
@@ -75,6 +80,8 @@
 <footer class="foot">
   <span id="saveState">Tự lưu trên trình duyệt này.</span>
   <span>·</span>
+  <a href="nhap.html" target="_blank" rel="noopener">Trang nhập chi phí (nhân viên)</a>
+  <span>·</span>
   <span>Phiên bản <span id="appVersion"></span></span>
   <span>·</span>
   <a href="README.md" target="_blank" rel="noopener">Hướng dẫn</a>
@@ -95,10 +102,33 @@
   </div>
 </div>
 
+<!-- Kết nối máy chủ -->
+<div class="modal" id="cfgModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><strong>Kết nối máy chủ dùng chung</strong><button class="btn small" data-close>Đóng</button></div>
+    <div class="modal-body">
+      <p class="hint">Dữ liệu lưu trên Google Sheets qua Google Apps Script — nhân viên nhập chi phí ở trang <a href="nhap.html" target="_blank" rel="noopener">nhap.html</a>, kế toán duyệt và tính ở đây. Hướng dẫn tạo API: <code>web_baocao_chiphi/backend/README.md</code>. Bỏ tick "Bật" để làm việc cục bộ như cũ.</p>
+      <div class="form-grid">
+        <label class="full">URL máy chủ (Apps Script Web app, kết thúc bằng /exec)<input id="cfgUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+        <label>Mã truy cập (kế toán)<input id="cfgToken" type="password" autocomplete="off"></label>
+        <label>Tên của anh/chị<input id="cfgUser" placeholder="VD: Thắng"></label>
+        <label class="full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="cfgEnabled"> Bật đồng bộ với máy chủ</label>
+      </div>
+      <p class="hint" id="cfgMsg"></p>
+      <p class="hint">Link gửi nhân viên (đã kèm URL, còn mã nhân viên anh gửi riêng): <code id="cfgEmpLink">—</code></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnCfgTest">Kiểm tra kết nối</button>
+      <button class="btn primary" id="btnCfgSave">Lưu & kết nối</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/xlsx.full.min.js"></script>
 <script src="engine.js"></script>
+<script src="api.js"></script>
 <script src="importer.js"></script>
 <script src="exporter.js"></script>
 <script src="sample-data.js"></script>

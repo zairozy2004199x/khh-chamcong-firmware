@@ -2,12 +2,13 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const STORAGE_KEY = 'khh_baocao_chiphi_v1';
   const UI_KEY = 'khh_baocao_chiphi_ui';
   const E = window.BaoCaoEngine;
   const IMP = window.BaoCaoImporter;
   const EXP = window.BaoCaoExporter;
+  const API = window.BaoCaoApi;
 
   const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
   const $ = (sel, root) => (root || document).querySelector(sel);
@@ -56,6 +57,13 @@
       badge.textContent = errs ? errs : warns;
       badge.className = 'pill' + (errs ? '' : ' warn');
     } else badge.hidden = true;
+    const pending = state.costItems.filter((it) => it.status === 'cho_duyet').length;
+    const ctab = $('#tabs button[data-tab="costs"]');
+    let pb = $('#pendingBadge');
+    if (!pb) { pb = document.createElement('span'); pb.id = 'pendingBadge'; pb.className = 'pill warn'; ctab.appendChild(pb); }
+    pb.hidden = !pending;
+    pb.textContent = pending;
+    pb.title = `${pending} khoản chờ duyệt`;
     $('#periodBadge').textContent = report.periodLabel;
     $('#selMonth').value = state.period.month;
     $('#inpYear').value = state.period.year;
@@ -65,6 +73,7 @@
     recompute();
     saveState();
     if (!opts || !opts.silent) renderTab(opts && opts.tab);
+    if (!opts || !opts.noPush) sync.schedulePush();
   }
 
   // đường dẫn dữ liệu "costItems.3.total"
@@ -299,8 +308,13 @@
     const kindOptions = [{ value: 'personal', label: 'Cá nhân' }, { value: 'company', label: 'Công ty' }];
     const methodOptions = [{ value: '', label: 'Theo nhóm' }, ...METHOD_OPTIONS];
     const filter = ui.costFilter || 'all';
-    const items = state.costItems.map((it, i) => ({ it, i })).filter((x) => filter === 'all' || x.it.kind === filter);
+    const statusOf = (it) => it.status || 'da_duyet';
+    const items = state.costItems.map((it, i) => ({ it, i })).filter((x) => filter === 'all' || x.it.kind === filter || statusOf(x.it) === filter);
     const totalAll = state.costItems.reduce((a, it) => a + E.num(it.total), 0);
+    const activeTotal = E.activeCostItems(state).reduce((a, it) => a + E.num(it.total), 0);
+    const pendingCount = state.costItems.filter((it) => statusOf(it) === 'cho_duyet').length;
+    const statusOptions = E.COST_STATUSES;
+    const statusLabel = (v) => (statusOptions.find((o) => o.value === v) || { label: v }).label;
 
     root.innerHTML = `
       <div class="card">
@@ -309,13 +323,20 @@
           <span class="hint">Tương ứng vùng G..N sheet "total general". <em>Nội dung chi tiết MISA</em> là tiêu đề cột trên báo cáo; các khoản cùng <em>Gộp cột</em> hiển thị chung một cột.</span>
           <div class="spacer"></div>
           <div class="seg">
-            ${[{ v: 'all', l: 'Tất cả' }, { v: 'personal', l: 'Cá nhân' }, { v: 'company', l: 'Công ty' }].map((o) => `<button data-act="costFilter" data-arg="${o.v}" class="${filter === o.v ? 'active' : ''}">${o.l}</button>`).join('')}
+            ${[{ v: 'all', l: 'Tất cả' }, { v: 'personal', l: 'Cá nhân' }, { v: 'company', l: 'Công ty' }, { v: 'cho_duyet', l: `Chờ duyệt${pendingCount ? ` (${pendingCount})` : ''}` }, { v: 'tu_choi', l: 'Từ chối' }].map((o) => `<button data-act="costFilter" data-arg="${o.v}" class="${filter === o.v ? 'active' : ''}">${o.l}</button>`).join('')}
           </div>
           <button class="btn small primary" data-act="addItem">+ Thêm khoản</button>
         </div>
+        <div class="toolbar">
+          <label class="hint"><input type="checkbox" data-path="options.includePending" data-type="bool" ${state.options.includePending ? 'checked' : ''}> Tính cả khoản <b>chờ duyệt</b> vào báo cáo (xem trước)</label>
+          <span class="hint">Đang tính: <b>${fmt(activeTotal)}</b> / tổng ${fmt(totalAll)}</span>
+          <div class="spacer"></div>
+          ${pendingCount ? `<button class="btn small" data-act="approveAll" title="Chuyển tất cả khoản chờ duyệt sang Đã duyệt">✓ Duyệt tất cả (${pendingCount})</button>` : ''}
+          ${sync.on ? `<span class="hint">Khoản nhân viên nhập ở <a href="nhap.html" target="_blank" rel="noopener">trang nhập chi phí</a> tự hiện ở đây sau tối đa 1 phút.</span>` : `<span class="hint">Kết nối máy chủ (⚙) để nhân viên nhập chi phí từ máy khác.</span>`}
+        </div>
         <div class="table-wrap tall"><table class="grid-table dense">
           <thead><tr>
-            <th class="sticky-col">#</th><th>Loại</th><th>Tên khoản (nội bộ)</th><th>Nội dung chung MISA</th><th>Nội dung chi tiết MISA (tiêu đề cột báo cáo)</th>
+            <th class="sticky-col">#</th><th>Trạng thái</th><th>Người nhập</th><th>Loại</th><th>Tên khoản (nội bộ)</th><th>Nội dung chung MISA</th><th>Nội dung chi tiết MISA (tiêu đề cột báo cáo)</th>
             <th>Tài khoản</th><th>Mã đối tượng</th><th class="num">Tổng tiền</th><th>Kiểu chia nhóm</th>
             ${groups.map((g) => `<th class="num">${esc(g.name)}</th>`).join('')}
             <th>Phương pháp</th><th>Loại trừ bộ phận</th><th>Gộp cột</th><th>Ghi chú</th><th></th>
@@ -326,8 +347,11 @@
                   .map(({ it, i }) => {
                     const shares = E.itemShares(state, it);
                     const custom = it.split === 'custom';
-                    return `<tr>
+                    const stv = statusOf(it);
+                    return `<tr class="${stv === 'cho_duyet' ? 'pending' : stv === 'tu_choi' ? 'rejected' : ''}">
                       <td class="sticky-col muted">${i + 1}</td>
+                      <td>${sel(`costItems.${i}.status`, stv, statusOptions, `class="${stv}" title="${esc(statusLabel(stv))}${it.approvedBy ? ' bởi ' + esc(it.approvedBy) : ''}"`)}</td>
+                      <td class="muted" title="${esc(it.createdAt ? new Date(it.createdAt).toLocaleString('vi-VN') : '')}">${esc(it.createdBy || '')}</td>
                       <td>${sel(`costItems.${i}.kind`, it.kind, kindOptions)}</td>
                       <td>${inp(`costItems.${i}.name`, it.name, 'text', 'wide')}</td>
                       <td>${inp(`costItems.${i}.misaGeneral`, it.misaGeneral, 'text', 'wide')}</td>
@@ -352,9 +376,9 @@
                     </tr>`;
                   })
                   .join('')
-              : `<tr><td colspan="${15 + groups.length}" class="empty">Chưa có khoản chi phí. Nhập Excel hoặc bấm "+ Thêm khoản".</td></tr>`
+              : `<tr><td colspan="${17 + groups.length}" class="empty">Chưa có khoản chi phí. Nhập Excel, nhân viên nhập ở trang nhập chi phí, hoặc bấm "+ Thêm khoản".</td></tr>`
           }
-          <tr class="total"><td class="sticky-col"></td><td colspan="6">Tổng cộng (${state.costItems.length} khoản)</td>${tdn(totalAll)}<td></td>
+          <tr class="total"><td class="sticky-col"></td><td colspan="8">Tổng cộng (${state.costItems.length} khoản, đang tính ${fmt(activeTotal)})</td>${tdn(totalAll)}<td></td>
             ${groups.map((g) => tdn(state.costItems.reduce((a, it) => a + (E.itemShares(state, it)[g.id] || 0), 0))).join('')}<td colspan="5"></td></tr>
           </tbody>
         </table></div>
@@ -762,7 +786,7 @@
       renderTab();
     },
     addItem() {
-      state.costItems.push({ id: E.newId('ci'), kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '' });
+      state.costItems.push({ id: E.newId('ci'), kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: 'da_duyet', createdBy: sync.on ? API.getConfig().user : '', createdAt: new Date().toISOString() });
       ui.costFilter = 'all';
       commit();
       const el = $(`[data-path="costItems.${state.costItems.length - 1}.name"]`);
@@ -813,6 +837,13 @@
       state.salarySites.forEach((r) => { r.report = E.num(r.reported); r.dntt = E.num(r.reported); });
       commit();
     },
+    approveAll() {
+      const n = state.costItems.filter((it) => it.status === 'cho_duyet').length;
+      if (!n || !confirm(`Duyệt ${n} khoản đang chờ?`)) return;
+      state.costItems.forEach((it) => { if (it.status === 'cho_duyet') { it.status = 'da_duyet'; it.approvedBy = API.getConfig().user || 'Kế toán'; } });
+      commit();
+    },
+    syncNow() { sync.pull({ force: true, notify: true }); },
     // khác
     sitesDept(v) {
       ui.sitesDept = v;
@@ -863,7 +894,10 @@
       try {
         const res = IMP.importWorkbook(XLSX, new Uint8Array(ev.target.result), state);
         prevState = JSON.parse(JSON.stringify(state));
+        const keep = sync.on ? state.costItems.filter((it) => it.createdBy && it.createdBy !== API.getConfig().user) : [];
         state = res.state;
+        state.costItems.forEach((it) => { it.status = 'da_duyet'; it.createdBy = sync.on ? API.getConfig().user : ''; it.createdAt = new Date().toISOString(); });
+        if (keep.length) { state.costItems = state.costItems.concat(keep); res.log.push({ level: 'info', msg: `Giữ lại ${keep.length} khoản do người khác nhập trên máy chủ.` }); }
         commit({ tab: 'dashboard' });
         showLog(`Đã nhập "${file.name}"`, res.log, res.sheetNames);
       } catch (e) {
@@ -910,9 +944,15 @@
   }
 
   function loadSample() {
+    if (sync.on && !confirm('Đang đồng bộ máy chủ: dữ liệu mẫu sẽ ghi lên máy chủ cho kỳ T8/2026 (khoản do người khác nhập vẫn giữ). Tiếp tục?')) return;
     prevState = JSON.parse(JSON.stringify(state));
+    const keep = sync.on ? state.costItems.filter((it) => it.createdBy && it.createdBy !== API.getConfig().user) : [];
     state = E.normalizeState(JSON.parse(JSON.stringify(window.SAMPLE_DATA)));
-    commit({ tab: 'dashboard' });
+    state.costItems.forEach((it) => { it.status = 'da_duyet'; it.createdBy = sync.on ? API.getConfig().user : ''; });
+    state.costItems = state.costItems.concat(keep);
+    commit({ tab: 'dashboard', noPush: true });
+    sync.onPeriodChange();
+    sync.schedulePush();
     toast('Đã nạp dữ liệu mẫu T8/2026.', { label: 'Hoàn tác', fn: undo });
   }
 
@@ -929,12 +969,14 @@
     state.manualCols.forEach((mc) => (mc.values = {}));
     state.salaryDept.forEach((r) => E.SALARY_DEPT_FIELDS.forEach((f) => (r[f.key] = 0)));
     state.salarySites.forEach((r) => { r.reported = 0; r.report = 0; r.dntt = 0; r.actual = 0; });
-    commit({ tab: 'revenue' });
+    commit({ tab: 'revenue', noPush: true });
+    sync.onPeriodChange();
     toast(`Đã tạo kỳ ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
   }
 
   function resetAll() {
-    if (!confirm('Xoá toàn bộ dữ liệu đã lưu trên trình duyệt này? (Nên Lưu file cấu hình .json trước.)')) return;
+    if (!confirm('Xoá toàn bộ dữ liệu đã lưu trên trình duyệt này? (Nên Lưu file cấu hình .json trước.)' + (sync.on ? '\n\nĐồng bộ máy chủ sẽ được TẮT để không xoá dữ liệu chung.' : ''))) return;
+    if (sync.on) { API.setConfig({ enabled: false }); sync.stop(); }
     prevState = JSON.parse(JSON.stringify(state));
     state = E.normalizeState(E.emptyState());
     commit({ tab: 'revenue' });
@@ -978,8 +1020,8 @@
       if (b) renderTab(b.dataset.tab);
     });
     // kỳ
-    $('#selMonth').addEventListener('change', (e) => { state.period.month = +e.target.value; commit(); });
-    $('#inpYear').addEventListener('change', (e) => { state.period.year = +e.target.value || state.period.year; commit(); });
+    $('#selMonth').addEventListener('change', (e) => { state.period.month = +e.target.value; commit({ noPush: true }); sync.onPeriodChange(); });
+    $('#inpYear').addEventListener('change', (e) => { state.period.year = +e.target.value || state.period.year; commit({ noPush: true }); sync.onPeriodChange(); });
     // nhập liệu (uỷ quyền)
     const main = $('#main');
     main.addEventListener('change', (e) => {
@@ -1020,8 +1062,14 @@
       const b = e.target.closest('button[data-act]');
       if (!b) return;
       $('#moreMenu').hidden = true;
-      ({ sample: loadSample, newPeriod, exportJson, print: ACTIONS.print, copyReport, reset: resetAll }[b.dataset.act] || (() => {}))();
+      ({ sample: loadSample, newPeriod, exportJson, print: ACTIONS.print, copyReport, reset: resetAll, syncNow: ACTIONS.syncNow }[b.dataset.act] || (() => {}))();
     });
+    // kết nối máy chủ
+    $('#btnSettings').addEventListener('click', openSettings);
+    $('#cfgModal').addEventListener('click', (e) => { if (e.target.matches('[data-close]') || e.target === e.currentTarget) $('#cfgModal').hidden = true; });
+    $('#btnCfgTest').addEventListener('click', () => testSettings(false));
+    $('#btnCfgSave').addEventListener('click', () => testSettings(true));
+    $('#cfgUrl').addEventListener('input', updateEmpLink);
     // modal
     $('#logModal').addEventListener('click', (e) => { if (e.target.matches('[data-close]') || e.target === e.currentTarget) $('#logModal').hidden = true; });
     $('#btnUndoImport').addEventListener('click', () => { undo(); $('#logModal').hidden = true; });
@@ -1041,7 +1089,248 @@
     });
 
     renderTab(ui.tab);
+    sync.start();
   }
+
+  // ------------------------------------------------------------------ Kết nối máy chủ (cài đặt)
+  function openSettings() {
+    const c = API.getConfig();
+    $('#cfgUrl').value = c.url;
+    $('#cfgToken').value = c.token;
+    $('#cfgUser').value = c.user;
+    $('#cfgEnabled').checked = !!c.enabled;
+    $('#cfgMsg').textContent = sync.lastError ? 'Lỗi gần nhất: ' + sync.lastError : '';
+    updateEmpLink();
+    $('#cfgModal').hidden = false;
+  }
+  function updateEmpLink() {
+    const url = $('#cfgUrl').value.trim();
+    const base = location.href.replace(/[^/]*$/, '') + 'nhap.html';
+    $('#cfgEmpLink').textContent = url ? `${base}?url=${encodeURIComponent(url)}` : '—';
+  }
+  async function testSettings(save) {
+    const cfg = { url: $('#cfgUrl').value, token: $('#cfgToken').value, user: $('#cfgUser').value, enabled: $('#cfgEnabled').checked };
+    const msg = $('#cfgMsg');
+    if (save && !cfg.enabled) {
+      API.setConfig(cfg);
+      sync.stop();
+      $('#cfgModal').hidden = true;
+      toast('Đã tắt đồng bộ — làm việc cục bộ trên trình duyệt này.');
+      return;
+    }
+    if (!cfg.url || !cfg.token) { msg.textContent = 'Nhập URL và mã truy cập.'; return; }
+    if (!cfg.user) { msg.textContent = 'Nhập tên của anh/chị.'; return; }
+    msg.textContent = 'Đang kiểm tra…';
+    try {
+      const r = await API.call('ping', {}, { config: cfg });
+      if (!r.role) throw new Error('Mã truy cập không đúng');
+      if (r.role !== 'ketoan') throw new Error('Mã này là mã NHÂN VIÊN — trang tổng hợp cần mã kế toán.');
+      msg.textContent = `Kết nối OK — API v${r.version}, quyền kế toán.`;
+      if (save) {
+        API.setConfig(cfg);
+        $('#cfgModal').hidden = true;
+        await sync.start({ force: true });
+      }
+    } catch (e) {
+      msg.textContent = 'Lỗi: ' + e.message;
+    }
+  }
+
+  // ------------------------------------------------------------------ Đồng bộ với máy chủ
+  const sync = {
+    on: false,
+    busy: false,
+    lastError: '',
+    version: 0,
+    periodKey: '',
+    stateSnap: '',
+    costSnap: {},
+    pushTimer: null,
+    pollTimer: null,
+    pendingPush: false,
+
+    indicator(kind, text) {
+      $('#syncDot').className = 'dot ' + (kind || '');
+      $('#syncText').textContent = text;
+      $('#syncBox').title = text;
+    },
+    stateForServer(st) {
+      const c = JSON.parse(JSON.stringify(st));
+      delete c.costItems;
+      return c;
+    },
+    snapshot() {
+      this.stateSnap = JSON.stringify(this.stateForServer(state));
+      this.costSnap = {};
+      state.costItems.forEach((it) => (this.costSnap[it.id] = JSON.stringify(it)));
+    },
+    async start(opts) {
+      this.on = API.isEnabled();
+      clearInterval(this.pollTimer);
+      if (!this.on) { this.indicator('', 'Cục bộ'); renderTab(); return; }
+      this.periodKey = API.periodKey(state.period);
+      await this.pull({ force: true, notify: true, initial: true });
+      this.pollTimer = setInterval(() => this.pull({}), 60000);
+    },
+    stop() {
+      this.on = false;
+      clearInterval(this.pollTimer);
+      clearTimeout(this.pushTimer);
+      this.indicator('', 'Cục bộ');
+      renderTab();
+    },
+    onPeriodChange() {
+      if (!this.on) return;
+      const k = API.periodKey(state.period);
+      if (k === this.periodKey) return;
+      this.periodKey = k;
+      this.pull({ force: true, notify: true, initial: true });
+    },
+    schedulePush() {
+      if (!this.on) return;
+      clearTimeout(this.pushTimer);
+      this.pushTimer = setTimeout(() => this.push(), 1200);
+    },
+    /** Đẩy thay đổi cục bộ lên máy chủ (chỉ những gì khác bản đã đồng bộ). */
+    async push() {
+      if (!this.on) return;
+      if (this.busy) { this.pendingPush = true; return; }
+      this.busy = true;
+      this.indicator('busy', 'Đang lưu lên máy chủ…');
+      try {
+        const period = API.periodKey(state.period);
+        if (period !== this.periodKey) { this.busy = false; this.onPeriodChange(); return; }
+        // khoản chi phí
+        const changed = [];
+        const seen = new Set();
+        state.costItems.forEach((it, i) => {
+          seen.add(it.id);
+          const j = JSON.stringify(it);
+          if (this.costSnap[it.id] !== j) changed.push(Object.assign({}, it, { period, sortOrder: i + 1 }));
+        });
+        const removed = Object.keys(this.costSnap).filter((id) => !seen.has(id));
+        for (let i = 0; i < changed.length; i += 40) {
+          const r = await API.call('upsertCosts', { items: changed.slice(i, i + 40) });
+          if (r.denied && r.denied.length) toast(`${r.denied.length} khoản không được phép sửa.`);
+        }
+        for (const id of removed) await API.call('deleteCost', { id });
+        // cấu hình & số liệu còn lại
+        const sj = JSON.stringify(this.stateForServer(state));
+        if (sj !== this.stateSnap) {
+          const r = await API.call('saveState', { period, state: JSON.parse(sj), version: this.version });
+          this.version = r.version;
+        }
+        this.snapshot();
+        this.lastError = '';
+        this.indicator('ok', `Đã lưu máy chủ ${new Date().toLocaleTimeString('vi-VN')} · ${API.getConfig().user}`);
+      } catch (e) {
+        this.lastError = e.message;
+        if (e.data && e.data.conflict) {
+          this.indicator('bad', 'Xung đột: người khác vừa lưu kỳ này');
+          toast('Kỳ này vừa được người khác lưu. Tải lại từ máy chủ rồi sửa tiếp.', { label: 'Tải lại', fn: () => this.pull({ force: true, notify: true, overwrite: true }) });
+        } else {
+          this.indicator('bad', 'Lỗi lưu: ' + e.message);
+          toast('Không lưu được lên máy chủ: ' + e.message);
+        }
+      } finally {
+        this.busy = false;
+        if (this.pendingPush) { this.pendingPush = false; this.schedulePush(); }
+      }
+    },
+    /** Tải từ máy chủ; hoà trộn với thay đổi cục bộ chưa đẩy. */
+    async pull(opts) {
+      if (!this.on || this.busy) return;
+      opts = opts || {};
+      // đang gõ trong ô nhập thì để lần sau (trừ khi bấm tải lại)
+      if (!opts.force && document.activeElement && document.activeElement.matches('input, select, textarea')) return;
+      this.busy = true;
+      this.indicator('busy', 'Đang tải từ máy chủ…');
+      try {
+        const period = API.periodKey(state.period);
+        const r = await API.call('getPeriod', { period });
+        this.periodKey = period;
+        const serverCosts = (r.costs || []).map((c) => { const o = Object.assign({}, c); delete o.period; return o; });
+        let changedSomething = false;
+        if (r.state) {
+          const localStateJson = JSON.stringify(this.stateForServer(state));
+          const localDirty = this.stateSnap && localStateJson !== this.stateSnap;
+          if (opts.initial || opts.overwrite || !localDirty) {
+            if (r.version !== this.version || opts.initial || opts.overwrite) {
+              const merged = Object.assign({}, r.state, { costItems: [] });
+              const newState = E.normalizeState(merged);
+              if (JSON.stringify(this.stateForServer(newState)) !== localStateJson) changedSomething = true;
+              const localCosts = state.costItems;
+              state = newState;
+              state.costItems = localCosts;
+              this.version = r.version;
+            }
+          }
+        } else if (opts.initial) {
+          // kỳ chưa có trên máy chủ → hỏi đẩy cấu hình đang có lên
+          const hasLocal = state.departments.length && (state.sites.length || state.costItems.length || state.salarySites.length);
+          if (hasLocal && confirm(`Kỳ ${E.periodLabel(state.period)} chưa có trên máy chủ. Đẩy dữ liệu đang có trên máy này lên (nhóm, bộ phận, điểm, lương, ${state.costItems.length} khoản chi phí) làm bản gốc?`)) {
+            state.costItems.forEach((it) => { if (!it.status) it.status = 'da_duyet'; if (!it.createdBy) it.createdBy = API.getConfig().user; });
+            this.stateSnap = '';
+            this.costSnap = {};
+            this.version = 0;
+            this.busy = false;
+            await this.push();
+            recompute();
+            renderTab();
+            return;
+          }
+        }
+        // hoà trộn khoản chi phí: máy chủ thắng với khoản chưa sửa cục bộ; giữ khoản mới cục bộ chưa đẩy
+        const localById = {};
+        state.costItems.forEach((it) => (localById[it.id] = it));
+        const serverIds = new Set(serverCosts.map((c) => c.id));
+        const merged = [];
+        serverCosts.forEach((sc) => {
+          const loc = localById[sc.id];
+          const locDirty = loc && this.costSnap[sc.id] && JSON.stringify(loc) !== this.costSnap[sc.id];
+          const pick = locDirty ? loc : sc;
+          if (!loc || JSON.stringify(loc) !== JSON.stringify(pick)) changedSomething = true;
+          merged.push(pick);
+        });
+        state.costItems.forEach((it) => {
+          if (serverIds.has(it.id)) return;
+          const wasOnServer = !!this.costSnap[it.id];
+          if (!wasOnServer) merged.push(it); // mới tạo cục bộ, chưa đẩy
+          else changedSomething = true; // đã bị xoá trên máy chủ
+        });
+        state.costItems = merged;
+        // cập nhật snapshot cho phần đã đồng bộ (giữ dấu "dirty" cho phần chưa đẩy)
+        const dirtyState = this.stateSnap && JSON.stringify(this.stateForServer(state)) !== this.stateSnap;
+        const prevCostSnap = this.costSnap;
+        const stateSnapBefore = this.stateSnap;
+        this.snapshot();
+        if (dirtyState && !opts.overwrite) this.stateSnap = stateSnapBefore;
+        state.costItems.forEach((it) => {
+          const j = JSON.stringify(it);
+          const sc = serverCosts.find((c) => c.id === it.id);
+          if (!sc || JSON.stringify(sc) !== j) this.costSnap[it.id] = prevCostSnap[it.id] || ''; // vẫn khác máy chủ → còn phải đẩy
+        });
+        this.lastError = '';
+        const pending = state.costItems.filter((it) => it.status === 'cho_duyet').length;
+        this.indicator('ok', `Máy chủ ${new Date().toLocaleTimeString('vi-VN')}${r.updatedBy ? ' · ' + r.updatedBy : ''}${pending ? ` · ${pending} chờ duyệt` : ''}`);
+        if (changedSomething || opts.initial) {
+          recompute();
+          saveState();
+          renderTab();
+          if (opts.notify && changedSomething && !opts.initial) toast('Đã cập nhật dữ liệu mới từ máy chủ.');
+          if (opts.initial && r.state) toast(`Đã tải kỳ ${E.periodLabel(state.period)} từ máy chủ (bản v${r.version}${r.updatedBy ? ', ' + r.updatedBy : ''}).`);
+        } else if (opts.notify) toast('Không có gì mới trên máy chủ.');
+        this.busy = false;
+        if (Object.keys(this.costSnap).some((id) => { const it = state.costItems.find((x) => x.id === id); return it && this.costSnap[id] !== JSON.stringify(it); })) this.schedulePush();
+      } catch (e) {
+        this.lastError = e.message;
+        this.indicator('bad', 'Lỗi máy chủ: ' + e.message);
+        if (opts.notify) toast('Không tải được từ máy chủ: ' + e.message);
+      } finally {
+        this.busy = false;
+      }
+    },
+  };
 
   // Cho phép kiểm thử / tích hợp từ ngoài (VD: nhúng iframe rồi gọi window.BaoCaoApp.getState()).
   window.BaoCaoApp = {

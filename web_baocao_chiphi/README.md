@@ -6,6 +6,16 @@ thay cho việc kéo công thức tay trong file Excel "File chi phí MN Txx/yyy
 Nhập dữ liệu đầu vào (doanh thu, danh mục khoản chi phí, bảng lương) → ứng dụng tính ra đúng
 nội dung tab **File tổng báo cáo** (3 mục), kèm bảng kiểm và phân bổ xuống từng điểm để hạch toán MISA.
 
+## Chạy nhiều người (web hosting + nhân viên nhập chi phí)
+
+- **Giao diện** deploy lên **GitHub Pages** bằng workflow `.github/workflows/pages.yml`
+  (bật 1 lần: *Settings → Pages → Source: GitHub Actions*).
+- **Dữ liệu dùng chung** lưu trên **Google Sheets** qua **Google Apps Script** (`backend/apps-script/Code.gs`).
+  Nhân viên nhập khoản chi phí ở **`nhap.html`** (điện thoại được), kế toán **duyệt** trong tab *Chi phí đầu vào*,
+  web tự phân bổ và ra *File tổng báo cáo*. Mã truy cập riêng cho nhân viên và kế toán.
+- Hướng dẫn triển khai từng bước: **[`backend/README.md`](backend/README.md)**.
+- Không kết nối máy chủ thì trang kế toán vẫn chạy cục bộ (lưu trên trình duyệt) như mô tả dưới.
+
 ## Mở ứng dụng
 
 Cách 1 — mở trực tiếp: tải thư mục `web_baocao_chiphi/` về máy, mở `index.html` bằng Chrome / Edge.
@@ -77,7 +87,10 @@ Phím tắt: `Ctrl+O` nhập Excel, `Ctrl+S` xuất Excel, `Enter` trong bảng 
 | `engine.js` | Lõi tính toán thuần (không phụ thuộc giao diện): phân bổ, báo cáo, phân bổ theo điểm, kiểm tra dữ liệu |
 | `importer.js` | Đọc file Excel đầu vào → dữ liệu ứng dụng (SheetJS) |
 | `exporter.js` | Dựng workbook Excel đầu ra |
-| `app.js` | Trạng thái, tự lưu, các tab, nhập/xuất |
+| `app.js` | Trạng thái, tự lưu, các tab, nhập/xuất, đồng bộ máy chủ (duyệt khoản, phát hiện xung đột) |
+| `api.js` | Gọi API Apps Script (dùng chung cho trang kế toán và trang nhân viên) |
+| `nhap.html`, `nhap.js` | Trang nhập chi phí cho nhân viên |
+| `backend/apps-script/Code.gs` | API trên Google Apps Script, dữ liệu trong Google Sheets (`ChiPhi`, `State`, `NhatKy`) |
 | `sample-data.js` | Dữ liệu mẫu T8/2026 (trích từ file gốc) — hiển thị khi mở lần đầu |
 | `vendor/xlsx.full.min.js` | Thư viện SheetJS (Apache-2.0) để trang chạy được offline |
 | `test/engine.test.js` | Kiểm thử tự động, đối chiếu 185 con số với file Excel gốc T8/2026 |
