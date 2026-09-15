@@ -2053,7 +2053,11 @@ class VHG_Trang {
       who.style.cssText='margin:4px 0 2px;font-weight:800;color:var(--tim,#4f46e5)';
       /* `mã báo cáo` = vân tay của class-vhg-baocao.php (BC.banBc) — lệch với số bản ở góc màn
          là bằng chứng tệp báo cáo cũ còn chạy (opcache) hoặc phản hồi bị đệm. Xem const BAN. */
-      who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở · mã báo cáo '+(BC.banBc||'?');
+      /* In CẢ HAI số bản: `bản` = VHG_VERSION (tệp chính), `mã báo cáo` = VHG_BaoCao::BAN (tệp lớp).
+         Hai số lệch nhau = tệp lớp cũ còn sống; một ảnh chụp là đủ kết luận, khỏi phải hỏi qua lại
+         "đang chạy bản nào" như 15/09/2026. */
+      who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở'
+        +' · bản '+(window.VHG_BAN||'?')+' · mã báo cáo '+(BC.banBc||'?');
       c1.appendChild(who);
     }
     /* 🔎 KHỐI CHẨN ĐOÁN — chỉ hiện khi máy chủ gửi BC.chanDoan (nhân viên vẫn "0 cơ sở"). In ra để

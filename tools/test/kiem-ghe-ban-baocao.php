@@ -75,5 +75,19 @@ t( 'tools/build-ghe.sh có mặt và xoá bản sao cũ trước khi chép bản
 	is_file( $goc . '/tools/build-ghe.sh' )
 	&& false !== strpos( (string) file_get_contents( $goc . '/tools/build-ghe.sh' ), 'rm -f vhcp-ghe/includes/class-vhg-baocao-v*.php' ) );
 
+/* ── MỘT NGUỒN PHẠM VI ─────────────────────────────────────────────────────────────────────
+   Đếm theo CHỖ GỌI, không đếm chuỗi (§6 CLAUDE.md, bài học 0.18.1): luật dựng phạm vi từng có BA
+   bản sao viết bằng ba đoạn mã khác nhau — boot(), phien_tinh() và doi_chieu(). Vá một chỗ thì hai
+   chỗ kia vẫn sai, sinh ra cảnh ô chọn cơ sở ra 0 trong khi thanh Tiến độ ra 67 cơ sở kèm doanh thu
+   cả chuỗi (15/09/2026). Nay cả ba phải đi qua pham_vi_man_, và ds_ghe() chỉ được gọi TRONG hàm ấy. */
+echo "── Một nguồn phạm vi (pham_vi_man_) ──\n";
+$goiPv = preg_match_all( '/self::pham_vi_man_\(/', $bc );
+$goiDs = preg_match_all( '/self::ds_ghe\(/', $bc );
+t( "🔴 pham_vi_man_ được gọi đúng 3 chỗ (boot · phien_tinh · doi_chieu) — đang có $goiPv", 3 === $goiPv );
+t( "🔴 ds_ghe chỉ còn gọi TRONG pham_vi_man_ (2 lượt: dựng + dựng lại sau cứu-theo-tên) — đang có $goiDs", 2 === $goiDs );
+t( 'pham_vi_man_ trả đủ q/ghe/cs/toan_quyen',
+	1 === preg_match( "/return array\( 'q' => \\\$q, 'ghe' => \\\$ghe, 'cs' => \\\$cs,/", $bc )
+	&& false !== strpos( $bc, "'toan_quyen' =>" ) );
+
 echo "\n" . ( $LOI ? "ĐỎ: $LOI/$SO phép hỏng" : "SẠCH: $SO phép" ) . "\n";
 exit( $LOI ? 1 : 0 );

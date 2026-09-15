@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.93.0';
+	const BAN = '2.94.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 
@@ -729,6 +729,81 @@ class VHG_BaoCao {
 		return $out;
 	}
 
+	/**
+	 * PHẠM VI MÀN BÁO CÁO — MỘT nguồn cho CẢ ô chọn cơ sở LẪN thanh Tiến độ (phien_tinh).
+	 *
+	 * 🔴 VÌ SAO GOM (anh Thắng 15/09/2026). boot() và phien_tinh() từng tự dựng phạm vi riêng bằng
+	 *    hai đoạn mã khác nhau. Trên host thật, CÙNG MỘT PIN cho ra hai con số chửi nhau: ô chọn cơ
+	 *    sở "phạm vi 0 cơ sở" trong khi thanh Tiến độ "17/67 cơ sở" kèm doanh thu cả chuỗi — vừa sai
+	 *    vừa LỘ số liệu của 67 cơ sở cho một nhân viên. Bản vá cho một bên không bao giờ chạm bên
+	 *    kia, nên lỗi cứ quay lại ở nửa còn lại. Một hàm thì hai màn không thể lệch.
+	 *
+	 * ⚠️ $la_admin chỉ đi vào ds_ghe() (cờ hiện ghế đỏ), KHÔNG đổi phạm vi. Nên phien_tinh() gọi
+	 *    không truyền cờ vẫn ra CÙNG danh sách cơ sở như boot() — đó là điều kiện để hai màn khớp.
+	 *
+	 * @param array $q  phạm vi thô từ pin_info() (đã kiểm khác null).
+	 * @return array [ 'q'=>…, 'ghe'=>[…], 'cs'=>[tên cơ sở=>true], 'toan_quyen'=>bool ]
+	 */
+	private static function pham_vi_man_( $q, $la_admin = false ) {
+			$hien_an    = $la_admin;
+			$ghe = self::ds_ghe( $q, $hien_an );
+			$cs = array();
+			foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
+			/* 🔴 CƠ SỞ ĐƯỢC GÁN LUÔN HIỆN TRONG Ô CHỌN — kể cả khi ghế bị ẩn hết. Anh Thắng 15/09/2026:
+			   "thường xuyên có NV bị ẩn ở cơ sở, dù vào vẫn thấy nhân viên gán cơ sở đó". Trước đây danh
+			   sách cơ sở dựng CHỈ từ ghế đang hiện, nên cơ sở bị ẩn hết ghế (điều chuyển/dọn tạm) rớt
+			   khỏi phạm vi → màn báo cáo hiện "0 cơ sở" dù PIN vẫn được gán, và NV không chọn để nộp
+			   được. Thêm cơ sở gán tường minh của PIN (bc_pin.coso) vào để luôn chọn được. PIN toàn
+			   quyền (coso rỗng) không thêm gì — vẫn thấy mọi cơ sở có ghế như cũ. */
+			if ( ! empty( $q['coso'] ) ) {
+				foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
+			}
+			/* 🔴 CỨU PHẠM VI THEO TÊN khi ô cơ sở TRỐNG — anh Thắng 15/09/2026: *"qua trang admin thấy
+			   nhân viên đó CÓ cơ sở đó, còn nhân viên thì lại KHÔNG thấy… lỗi rất nặng"*. Cơ sở gán trong
+			   "Cấp PIN báo cáo" (bảng bc_pin). Nhưng PIN nhân viên DÙNG ĐỂ VÀO (hồ sơ nhân sự / token
+			   /ghe = PIN chấm công) có thể KHÁC cột `pin` của hàng bc_pin (admin gõ một PIN báo cáo
+			   riêng). Khi đó pin_info() không quy được PIN về đúng hàng ngoại lệ, rơi xuống hồ sơ nhân
+			   sự → phạm vi rỗng/khác → "0 cơ sở". Ô "chọn nhân viên" của admin (ds_nhan_su_) lại nối
+			   bc_pin ⇄ hồ sơ QUA TÊN nên vẫn thấy — chính là chỗ lệch anh Thắng mô tả.
+			   Người này ĐÃ xác thực hợp lệ và ra đúng TÊN, nên khi ô cơ sở trống thì lấy chính hàng
+			   bc_pin admin khai THEO TÊN ấy để cấp lại phạm vi. CHỐT AN TOÀN: chỉ chạy khi $cs RỖNG
+			   (đúng ca hỏng) và KHÔNG BAO GIỜ cấp toàn quyền — chỉ thêm đúng cơ sở/ghế admin đã ghi cho
+			   tên đó (hàng coso rỗng = toàn quyền thì BỎ QUA, không nới quyền).
+			   ⚠️ KHÔNG gác theo $la_admin. $la_admin chỉ nói NGƯỜI ĐANG XEM có phải admin WordPress không
+			      (để hiện ghế đỏ), KHÔNG liên quan tới PHẠM VI của chính PIN này. Trước gác nhầm ở đây:
+			      admin đăng nhập WP rồi gõ PIN nhân viên để thử → $la_admin=true → bản vá bị bỏ qua, nên
+			      thử mãi vẫn "0 cơ sở" (anh Thắng 15/09/2026). Nay xét theo phạm vi PIN, ai xem cũng vậy. */
+			if ( empty( $cs ) && '' !== trim( (string) $q['ten'] ) ) {
+				$ten_sq = self::squash( $q['ten'] );
+				if ( '' !== $ten_sq ) {
+					foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
+						if ( 1 !== (int) $row['active'] ) { continue; }
+						if ( self::squash( isset( $row['ten'] ) ? $row['ten'] : '' ) !== $ten_sq ) { continue; }
+						$cs_row = self::tach_( isset( $row['coso'] ) ? $row['coso'] : '' );
+						$gh_row = self::tach_( isset( $row['ghe'] ) ? $row['ghe'] : '' );
+						if ( ! count( $cs_row ) && ! count( $gh_row ) ) { continue; }   // hàng toàn quyền → không nới
+						foreach ( $cs_row as $c ) {
+							$c = trim( (string) $c ); if ( '' === $c ) { continue; }
+							$q['coso'][] = $c; $q['coso_key'][ self::squash( $c ) ] = true;
+						}
+						foreach ( $gh_row as $g ) { $g = trim( (string) $g ); if ( '' !== $g ) { $q['ghe'][] = $g; } }
+					}
+					/* Dựng lại ghế + ô cơ sở theo phạm vi vừa cứu. */
+					if ( ! empty( $q['coso_key'] ) || ! empty( $q['ghe'] ) ) {
+						$q['coso'] = array_values( array_unique( $q['coso'] ) );
+						$q['ghe']  = array_values( array_unique( $q['ghe'] ) );
+						$toan_quyen = false;
+						$ghe = self::ds_ghe( $q, $hien_an );
+						$cs = array();
+						foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
+						foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
+					}
+				}
+			}
+		return array( 'q' => $q, 'ghe' => $ghe, 'cs' => $cs,
+			'toan_quyen' => ( empty( $q['coso_key'] ) && empty( $q['ghe'] ) ) );
+	}
+
 	public static function boot( $pin, $la_admin = false ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
@@ -751,61 +826,15 @@ class VHG_BaoCao {
 		   đỏ. Admin thật = đang ĐĂNG NHẬP WordPress (current_user_can) truyền vào từ router bc_boot,
 		   hoặc vai trò quản trị/chốt doanh số qua /ghe (boot_tu_ai). $toan_quyen giữ lại chỉ để bật
 		   ô chọn nhân viên (nhanSu), KHÔNG dùng cho việc hiện hàng đỏ nữa. */
-		$hien_an    = $la_admin;
-		$ghe = self::ds_ghe( $q, $hien_an );
-		$cs = array();
-		foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
-		/* 🔴 CƠ SỞ ĐƯỢC GÁN LUÔN HIỆN TRONG Ô CHỌN — kể cả khi ghế bị ẩn hết. Anh Thắng 15/09/2026:
-		   "thường xuyên có NV bị ẩn ở cơ sở, dù vào vẫn thấy nhân viên gán cơ sở đó". Trước đây danh
-		   sách cơ sở dựng CHỈ từ ghế đang hiện, nên cơ sở bị ẩn hết ghế (điều chuyển/dọn tạm) rớt
-		   khỏi phạm vi → màn báo cáo hiện "0 cơ sở" dù PIN vẫn được gán, và NV không chọn để nộp
-		   được. Thêm cơ sở gán tường minh của PIN (bc_pin.coso) vào để luôn chọn được. PIN toàn
-		   quyền (coso rỗng) không thêm gì — vẫn thấy mọi cơ sở có ghế như cũ. */
-		if ( ! empty( $q['coso'] ) ) {
-			foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
-		}
-		/* 🔴 CỨU PHẠM VI THEO TÊN khi ô cơ sở TRỐNG — anh Thắng 15/09/2026: *"qua trang admin thấy
-		   nhân viên đó CÓ cơ sở đó, còn nhân viên thì lại KHÔNG thấy… lỗi rất nặng"*. Cơ sở gán trong
-		   "Cấp PIN báo cáo" (bảng bc_pin). Nhưng PIN nhân viên DÙNG ĐỂ VÀO (hồ sơ nhân sự / token
-		   /ghe = PIN chấm công) có thể KHÁC cột `pin` của hàng bc_pin (admin gõ một PIN báo cáo
-		   riêng). Khi đó pin_info() không quy được PIN về đúng hàng ngoại lệ, rơi xuống hồ sơ nhân
-		   sự → phạm vi rỗng/khác → "0 cơ sở". Ô "chọn nhân viên" của admin (ds_nhan_su_) lại nối
-		   bc_pin ⇄ hồ sơ QUA TÊN nên vẫn thấy — chính là chỗ lệch anh Thắng mô tả.
-		   Người này ĐÃ xác thực hợp lệ và ra đúng TÊN, nên khi ô cơ sở trống thì lấy chính hàng
-		   bc_pin admin khai THEO TÊN ấy để cấp lại phạm vi. CHỐT AN TOÀN: chỉ chạy khi $cs RỖNG
-		   (đúng ca hỏng) và KHÔNG BAO GIỜ cấp toàn quyền — chỉ thêm đúng cơ sở/ghế admin đã ghi cho
-		   tên đó (hàng coso rỗng = toàn quyền thì BỎ QUA, không nới quyền).
-		   ⚠️ KHÔNG gác theo $la_admin. $la_admin chỉ nói NGƯỜI ĐANG XEM có phải admin WordPress không
-		      (để hiện ghế đỏ), KHÔNG liên quan tới PHẠM VI của chính PIN này. Trước gác nhầm ở đây:
-		      admin đăng nhập WP rồi gõ PIN nhân viên để thử → $la_admin=true → bản vá bị bỏ qua, nên
-		      thử mãi vẫn "0 cơ sở" (anh Thắng 15/09/2026). Nay xét theo phạm vi PIN, ai xem cũng vậy. */
-		if ( empty( $cs ) && '' !== trim( (string) $q['ten'] ) ) {
-			$ten_sq = self::squash( $q['ten'] );
-			if ( '' !== $ten_sq ) {
-				foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
-					if ( 1 !== (int) $row['active'] ) { continue; }
-					if ( self::squash( isset( $row['ten'] ) ? $row['ten'] : '' ) !== $ten_sq ) { continue; }
-					$cs_row = self::tach_( isset( $row['coso'] ) ? $row['coso'] : '' );
-					$gh_row = self::tach_( isset( $row['ghe'] ) ? $row['ghe'] : '' );
-					if ( ! count( $cs_row ) && ! count( $gh_row ) ) { continue; }   // hàng toàn quyền → không nới
-					foreach ( $cs_row as $c ) {
-						$c = trim( (string) $c ); if ( '' === $c ) { continue; }
-						$q['coso'][] = $c; $q['coso_key'][ self::squash( $c ) ] = true;
-					}
-					foreach ( $gh_row as $g ) { $g = trim( (string) $g ); if ( '' !== $g ) { $q['ghe'][] = $g; } }
-				}
-				/* Dựng lại ghế + ô cơ sở theo phạm vi vừa cứu. */
-				if ( ! empty( $q['coso_key'] ) || ! empty( $q['ghe'] ) ) {
-					$q['coso'] = array_values( array_unique( $q['coso'] ) );
-					$q['ghe']  = array_values( array_unique( $q['ghe'] ) );
-					$toan_quyen = false;
-					$ghe = self::ds_ghe( $q, $hien_an );
-					$cs = array();
-					foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
-					foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
-				}
-			}
-		}
+		/* 🔴 MỘT NGUỒN PHẠM VI DUY NHẤT cho cả màn nhập LẪN thanh Tiến độ — xem pham_vi_man_().
+		   Trước đây boot() và phien_tinh() mỗi hàm tự dựng phạm vi riêng: cùng một PIN mà ô chọn cơ sở
+		   ra 0 còn thanh Tiến độ ra 67 cơ sở (anh Thắng 15/09/2026) — hai con số cãi nhau, và bản "67"
+		   còn bày doanh thu cả chuỗi cho một nhân viên. Gom về một hàm thì không thể lệch nữa. */
+		$pv         = self::pham_vi_man_( $q, $la_admin );
+		$q          = $pv['q'];
+		$ghe        = $pv['ghe'];
+		$cs         = $pv['cs'];
+		$toan_quyen = $pv['toan_quyen'];
 		$khoa = $wpdb->get_results( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc_khoa' ), ARRAY_A );
 		$khoa_loc = array();
 		foreach ( (array) $khoa as $k ) {
@@ -2202,11 +2231,15 @@ class VHG_BaoCao {
 		$ngay = self::ngay_( $ngay );
 		if ( '' === $ngay ) { $ngay = current_time( 'Y-m-d' ); }
 
-		/* Phạm vi cơ sở phải thu = các cơ sở có ghế thuộc PIN (gồm cả ghế lẻ). */
+		/* 🔴 PHẠM VI LẤY TỪ pham_vi_man_ — ĐÚNG danh sách cơ sở mà ô chọn của màn nhập đang bày.
+		   Trước đây chỗ này tự dựng từ ds_ghe(): cơ sở được gán mà ghế bị ẩn hết thì rơi khỏi thanh
+		   Tiến độ dù vẫn phải nộp, và mọi bản vá phạm vi bên boot() không chạm tới đây — sinh ra cảnh
+		   ô chọn ra 0 còn Tiến độ ra 67 (anh Thắng 15/09/2026). */
+		$pv = self::pham_vi_man_( $q );
 		$scope_key = array();
-		foreach ( self::ds_ghe( $q ) as $g ) {
-			$c = (string) $g['coso'];
-			if ( '' !== $c ) { $scope_key[ self::squash( $c ) ] = $c; }
+		foreach ( array_keys( $pv['cs'] ) as $ten_cs ) {
+			$ten_cs = (string) $ten_cs;
+			if ( '' !== $ten_cs ) { $scope_key[ self::squash( $ten_cs ) ] = $ten_cs; }
 		}
 
 		/* Cơ sở ĐÃ gửi báo cáo hôm nay (có ít nhất 1 ghế thực nhập), trong phạm vi.
@@ -2350,9 +2383,12 @@ class VHG_BaoCao {
 		   phải một phép quy đổi múi giờ nào khác. */
 		$ngay_sau = gmdate( 'Y-m-d', strtotime( $ngay . ' +1 day' ) );
 
+		/* Phạm vi lấy từ pham_vi_man_ — CÙNG danh sách cơ sở với màn nhập và thanh Tiến độ.
+		   Bản sao thứ ba của luật dựng phạm vi từng nằm ở đây; xem §6 CLAUDE.md: luật đúng mà một bản
+		   sao không được vá thì màn hình vẫn sai. */
 		$scope_key = array();
-		foreach ( self::ds_ghe( $q ) as $g ) {
-			if ( '' !== (string) $g['coso'] ) { $scope_key[ self::squash( $g['coso'] ) ] = true; }
+		foreach ( array_keys( self::pham_vi_man_( $q )['cs'] ) as $ten_cs ) {
+			if ( '' !== (string) $ten_cs ) { $scope_key[ self::squash( $ten_cs ) ] = true; }
 		}
 
 		$rows = $wpdb->get_results( $wpdb->prepare(
