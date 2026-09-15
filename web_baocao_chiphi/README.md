@@ -6,6 +6,14 @@ thay cho việc kéo công thức tay trong file Excel "File chi phí MN Txx/yyy
 Nhập dữ liệu đầu vào (doanh thu, danh mục khoản chi phí, bảng lương) → ứng dụng tính ra đúng
 nội dung tab **File tổng báo cáo** (3 mục), kèm bảng kiểm và phân bổ xuống từng điểm để hạch toán MISA.
 
+## Bản WordPress (khuyên dùng khi đã có hosting WordPress)
+
+Thư mục `khbc-bao-cao-chi-phi/` là **plugin WordPress** dùng chung toàn bộ giao diện ở đây (engine, importer,
+exporter, app.js, nhap.js) nhưng dữ liệu nằm trong MySQL của WordPress, đăng nhập PIN, phân quyền
+Admin / Kế toán / Nhân viên, ảnh chứng từ, chốt kỳ, nhật ký, tự cập nhật từ GitHub. Sửa giao diện ở đây rồi
+chạy `python3 khbc-bao-cao-chi-phi/tools/dong-bo-giao-dien.py` để chép sang plugin (CI kiểm tra lệch).
+Chạy thử không cần WordPress: `php -S 127.0.0.1:8088 khbc-bao-cao-chi-phi/tools/dev/router.php` → `/bao-cao-chi-phi/` (PIN 1111).
+
 ## Chạy nhiều người (web hosting + nhân viên nhập chi phí)
 
 - **Giao diện** deploy lên **GitHub Pages** bằng workflow `.github/workflows/pages.yml`
@@ -88,7 +96,8 @@ Phím tắt: `Ctrl+O` nhập Excel, `Ctrl+S` xuất Excel, `Enter` trong bảng 
 | `importer.js` | Đọc file Excel đầu vào → dữ liệu ứng dụng (SheetJS) |
 | `exporter.js` | Dựng workbook Excel đầu ra |
 | `app.js` | Trạng thái, tự lưu, các tab, nhập/xuất, đồng bộ máy chủ (duyệt khoản, phát hiện xung đột) |
-| `api.js` | Gọi API Apps Script (dùng chung cho trang kế toán và trang nhân viên) |
+| `api.js` | Gọi máy chủ: Apps Script (bản tĩnh) hoặc REST WordPress (bản plugin) — tự chọn theo `window.KHBC_CFG` |
+| `wp-ui.js` | Cổng PIN, hộp Tài khoản, quản lý người dùng, tải tệp — chỉ dùng ở bản WordPress |
 | `nhap.html`, `nhap.js` | Trang nhập chi phí cho nhân viên |
 | `backend/apps-script/Code.gs` | API trên Google Apps Script, dữ liệu trong Google Sheets (`ChiPhi`, `State`, `NhatKy`) |
 | `sample-data.js` | Dữ liệu mẫu T8/2026 (trích từ file gốc) — hiển thị khi mở lần đầu |

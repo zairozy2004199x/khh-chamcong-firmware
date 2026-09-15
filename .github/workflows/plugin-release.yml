@@ -1,0 +1,69 @@
+# Phát hành plugin WordPress "Báo Cáo Chi Phí (K&H)" lên GitHub Releases.
+#
+# Mỗi lần push vào main có đổi khbc-bao-cao-chi-phi/ hoặc web_baocao_chiphi/:
+#   1. chạy test engine, kiểm tra plugin đã đồng bộ giao diện (tools/dong-bo-giao-dien.py --check),
+#      kiểm tra số phiên bản khớp nhau;
+#   2. nếu tag khbc-bao-cao-chi-phi-v<phiên bản> CHƯA có → dựng zip đúng tên thư mục plugin và tạo Release.
+# Plugin trên WordPress tự thấy bản mới (KHBC_TuCapNhat) và bày nút "Cập nhật ngay".
+# Tag riêng theo tiền tố nên không đụng release `latest` của firmware.
+name: Phát hành plugin Báo cáo chi phí
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'khbc-bao-cao-chi-phi/**'
+      - 'web_baocao_chiphi/**'
+      - '.github/workflows/plugin-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Kiểm thử engine
+        run: node web_baocao_chiphi/test/engine.test.js
+
+      - name: Plugin đã đồng bộ giao diện chưa
+        run: python3 khbc-bao-cao-chi-phi/tools/dong-bo-giao-dien.py --check
+
+      - name: Lint PHP
+        run: |
+          for f in $(find khbc-bao-cao-chi-phi -name '*.php'); do php -l "$f" >/dev/null || exit 1; done
+
+      - name: Đọc phiên bản
+        id: ver
+        run: |
+          V=$(bash khbc-bao-cao-chi-phi/tools/kiem-phien-ban.sh)
+          echo "ver=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=khbc-bao-cao-chi-phi-v$V" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/khbc-bao-cao-chi-phi-v$V" >/dev/null 2>&1; then
+            echo "exists=1" >> "$GITHUB_OUTPUT"; echo "Tag đã có — không phát hành lại."
+          else
+            echo "exists=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dựng zip plugin
+        if: steps.ver.outputs.exists == '0'
+        run: |
+          rm -rf _pkg && mkdir _pkg
+          rsync -a --exclude 'tools/dev' khbc-bao-cao-chi-phi/ _pkg/khbc-bao-cao-chi-phi/
+          (cd _pkg && zip -qr ../khbc-bao-cao-chi-phi.zip khbc-bao-cao-chi-phi)
+          ls -la khbc-bao-cao-chi-phi.zip
+
+      - name: Tạo Release
+        if: steps.ver.outputs.exists == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NOTES=$(awk '/^== Changelog ==/{f=1;next} f' khbc-bao-cao-chi-phi/readme.txt | head -40)
+          gh release create "${{ steps.ver.outputs.tag }}" khbc-bao-cao-chi-phi.zip \
+            --title "Báo Cáo Chi Phí ${{ steps.ver.outputs.ver }}" \
+            --notes "$NOTES"
