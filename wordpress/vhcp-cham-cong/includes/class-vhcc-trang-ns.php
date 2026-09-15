@@ -667,6 +667,11 @@ class VHCC_TrangNS {
 			$r = VHCC_DayChiPhi::dat( $toi, $ma, false );
 			if ( ! empty( $r['ok'] ) ) { $go[] = 'Vận hành chi phí'; }
 		}
+		if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'da_day' )
+			&& method_exists( 'VHCC_DayBaoCao', 'dat' ) && VHCC_DayBaoCao::da_day( $ma ) ) {
+			$r = VHCC_DayBaoCao::dat( $toi, $ma, false );
+			if ( ! empty( $r['ok'] ) ) { $go[] = 'Quản trị báo cáo cơ sở'; }
+		}
 
 		$kq = VHCC_NhanSu::xoa_ho_so( $toi, $ma );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
@@ -699,6 +704,7 @@ class VHCC_TrangNS {
 	private static function tach_ghe( $sach ) {
 		$ghe = array();
 		$chi_phi = array();
+		$bao_cao = array();
 		foreach ( $sach as $ma => $cac ) {
 			if ( ! is_array( $cac ) ) { continue; }
 			/* Hai cột này KHÔNG phải ngoại lệ quyền — chúng đẩy người thật sang hệ khác. Tách ra
@@ -712,8 +718,12 @@ class VHCC_TrangNS {
 				$chi_phi[ $ma ] = (string) $cac[ VHCC_DayChiPhi::COT ];
 				unset( $sach[ $ma ][ VHCC_DayChiPhi::COT ] );
 			}
+			if ( array_key_exists( VHCC_DayBaoCao::COT, $cac ) ) {
+				$bao_cao[ $ma ] = (string) $cac[ VHCC_DayBaoCao::COT ];
+				unset( $sach[ $ma ][ VHCC_DayBaoCao::COT ] );
+			}
 		}
-		return array( $sach, $ghe, $chi_phi );
+		return array( $sach, $ghe, $chi_phi, $bao_cao );
 	}
 
 	/** Đẩy/gỡ sang app Vận hành chi phí, rồi kể lại thành mấy dòng báo. */
@@ -727,6 +737,32 @@ class VHCC_TrangNS {
 				. 'Họ đăng nhập /chi-phi bằng chính PIN chấm công.' );
 		}
 		foreach ( (array) $kq['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		return $bao;
+	}
+
+	/**
+	 * Đẩy/gỡ sang màn Quản trị báo cáo cơ sở, rồi kể lại thành mấy dòng báo.
+	 *
+	 * ⚠️ NÓI RA AI CHƯA GHÉP ĐƯỢC CƠ SỞ. Mã cơ sở bên nhân sự (`FZ_SC_VIVO_T4`) không trùng chữ
+	 *    với tên cơ sở bên máy POS, nên người đẩy sang mà chưa khai bảng ghép thì đăng nhập được
+	 *    nhưng KHÔNG thấy cơ sở nào — im lặng là họ tưởng hệ hỏng.
+	 */
+	private static function luu_bao_cao( $toi, $ds ) {
+		if ( ! $ds || ! self::cot_bao_cao( $toi ) ) { return array(); }
+		$kq = VHCC_DayBaoCao::luu_nhieu( $toi, $ds );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$bao = array();
+		if ( ! empty( $kq['doi'] ) ) {
+			$bao[] = array( 'ok' => 'Quản trị báo cáo cơ sở: đã đẩy/gỡ ' . (int) $kq['doi'] . ' người. '
+				. 'Họ vào màn báo cáo bằng chính PIN chấm công.' );
+		}
+		foreach ( (array) $kq['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		if ( ! empty( $kq['chua_ghep'] ) ) {
+			$bao[] = array( 'canh' => 'Nhưng chưa ghép mã cơ sở sang tên cơ sở bên máy POS cho: '
+				. implode( ', ', array_map( 'strval', (array) $kq['chua_ghep'] ) )
+				. '. Khai bảng ghép ở tab Quản trị của màn báo cáo, không thì họ đăng nhập được mà '
+				. 'không thấy cơ sở nào.' );
+		}
 		return $bao;
 	}
 
@@ -761,8 +797,9 @@ class VHCC_TrangNS {
 			&& ! isset( $_POST['mbp_co'] ) && ! isset( $_POST['nb'] ) ) {
 			return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) );
 		}
-		list( $sach, $ghe, $chi_phi ) = self::tach_ghe( $sach );
-		$bao_ghe = array_merge( self::luu_ghe( $toi, $ghe ), self::luu_chi_phi( $toi, $chi_phi ) );
+		list( $sach, $ghe, $chi_phi, $bao_cao ) = self::tach_ghe( $sach );
+		$bao_ghe = array_merge( self::luu_ghe( $toi, $ghe ), self::luu_chi_phi( $toi, $chi_phi ),
+			self::luu_bao_cao( $toi, $bao_cao ) );
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 
@@ -866,6 +903,11 @@ class VHCC_TrangNS {
 				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
 					VHCC_DayChiPhi::dong_bo( $ma_s );
 				}
+				/* Và bản sao bên màn Quản trị báo cáo cơ sở — cùng lý do, cùng lúc: cửa hàng trưởng
+				   vào màn ấy bằng chính PIN này, để lệch là sáng hôm sau họ không nhập được báo cáo. */
+				if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'dong_bo' ) ) {
+					VHCC_DayBaoCao::dong_bo( $ma_s );
+				}
 			}
 			if ( ! empty( $r['doi'] ) ) {
 				$ra['doi']++; $ra['go'] += (int) $r['go'];
@@ -875,6 +917,11 @@ class VHCC_TrangNS {
 				/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
 				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
 					VHCC_DayChiPhi::dong_bo( $ma_s );
+				}
+				/* Và bản sao bên màn Quản trị báo cáo cơ sở — cùng lý do, cùng lúc: cửa hàng trưởng
+				   vào màn ấy bằng chính PIN này, để lệch là sáng hôm sau họ không nhập được báo cáo. */
+				if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'dong_bo' ) ) {
+					VHCC_DayBaoCao::dong_bo( $ma_s );
 				}
 			}
 		}
@@ -911,6 +958,11 @@ class VHCC_TrangNS {
 				/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
 				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
 					VHCC_DayChiPhi::dong_bo( $ma_s );
+				}
+				/* Và bản sao bên màn Quản trị báo cáo cơ sở — cùng lý do, cùng lúc: cửa hàng trưởng
+				   vào màn ấy bằng chính PIN này, để lệch là sáng hôm sau họ không nhập được báo cáo. */
+				if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'dong_bo' ) ) {
+					VHCC_DayBaoCao::dong_bo( $ma_s );
 				}
 			}
 		}
@@ -1012,6 +1064,18 @@ class VHCC_TrangNS {
 			return $bao_p ? $bao_p : array( array( 'canh' => 'Cột "Vận hành chi phí" vốn đã như vậy '
 				. 'cho ' . count( $cp ) . ' người đang hiện — không có gì đổi.' ) );
 		}
+		if ( VHCC_DayBaoCao::COT === $trang ) {
+			if ( ! self::cot_bao_cao( $toi ) ) {
+				return array( array( 'loi' => 'Đẩy người sang màn Quản trị báo cáo cơ sở cần vai Admin.' ) );
+			}
+			$sach = self::doc_o();
+			if ( ! $sach ) { return array( array( 'loi' => 'Không có người nào đang hiện để áp.' ) ); }
+			$bc = array();
+			foreach ( $sach as $ma_b => $x_b ) { $bc[ $ma_b ] = ( 'mo' === $dat ) ? 'mo' : ''; }
+			$bao_b = self::luu_bao_cao( $toi, $bc );
+			return $bao_b ? $bao_b : array( array( 'canh' => 'Cột "Quản trị báo cáo cơ sở" vốn đã '
+				. 'như vậy cho ' . count( $bc ) . ' người đang hiện — không có gì đổi.' ) );
+		}
 		if ( VHCC_DayGhe::COT === $trang ) {
 			if ( ! self::cot_ghe( $toi ) ) {
 				return array( array( 'loi' => 'Đẩy người sang hệ ghế cần vai Admin.' ) );
@@ -1072,6 +1136,11 @@ class VHCC_TrangNS {
 		/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
 		if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
 			VHCC_DayChiPhi::dong_bo( $ma );
+		}
+		/* Và bản sao bên màn Quản trị báo cáo cơ sở — cùng lý do, cùng lúc: cửa hàng trưởng
+		   vào màn ấy bằng chính PIN này, để lệch là sáng hôm sau họ không nhập được báo cáo. */
+		if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'dong_bo' ) ) {
+			VHCC_DayBaoCao::dong_bo( $ma );
 		}
 		$bao = array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
 			. ( '' !== $pin ? ' PIN đã đổi.' : '' )
@@ -2088,6 +2157,19 @@ class VHCC_TrangNS {
 			}
 			echo '</span></th>';
 		}
+		$co_bc = self::cot_bao_cao( $toi );
+		if ( $co_bc ) {
+			echo '<th class="tr-doc">Quản trị báo cáo cơ sở<br><span class="cot-nut">';
+			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
+				echo '<button type="submit" name="cot" value="'
+					. esc_attr( VHCC_DayBaoCao::COT . '|' . $gt ) . '"'
+					. ' title="' . esc_attr( 'mo' === $gt
+						? 'Đẩy tất cả người đang hiện sang màn Quản trị báo cáo cơ sở, rồi lưu luôn'
+						: 'Gỡ tất cả người đang hiện khỏi màn Quản trị báo cáo cơ sở, rồi lưu luôn' ) . '">'
+					. esc_html( $ten ) . '</button>';
+			}
+			echo '</span></th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		foreach ( $lat as $r ) {
@@ -2294,8 +2376,14 @@ class VHCC_TrangNS {
 					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
 						: self::hai_nut_chi_phi( $ma ) ) . '</td>';
 			}
+			if ( $co_bc ) {
+				echo '<td class="o-q-td">'
+					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
+						: self::hai_nut_bao_cao( $ma ) ) . '</td>';
+			}
 			echo '</tr>';
-			$so_cot_hang = 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 );
+			$so_cot_hang = 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 )
+				+ ( $co_bc ? 1 : 0 );
 			if ( $dang_sua === $ma ) {
 				self::hang_sua( $toi, $r, $so_cot_hang );
 			}
@@ -3265,6 +3353,40 @@ class VHCC_TrangNS {
 	 */
 	private static function cot_chi_phi( $toi ) {
 		return VHCC_DayChiPhi::co_he_chi_phi() && VHCC_Vai::duoc( $toi, VHCC_DayChiPhi::QUYEN );
+	}
+
+	/**
+	 * CỘT QUẢN TRỊ BÁO CÁO CƠ SỞ — anh Thắng 15/09/2026: *"bổ sung thêm cột bên trang nhân sự để
+	 * cấp quyền đẩy sang"*, vì *"bên đó là các cửa hàng trưởng được quyền nhập báo cáo"*.
+	 *
+	 * Cùng cơ chế với cột Ghế và cột Chi phí: ĐẨY NGƯỜI THẬT kèm PIN sang sổ người dùng của màn
+	 * báo cáo, chứ không ghi một ngoại lệ vào sổ quyền — màn ấy có phiên riêng.
+	 */
+	private static function cot_bao_cao( $toi ) {
+		return VHCC_DayBaoCao::co_he_bao_cao() && VHCC_Vai::duoc( $toi, VHCC_DayBaoCao::QUYEN );
+	}
+
+	/** HAI nút, y như cột Ghế và cột Chi phí: có mặt bên ấy, hoặc không. */
+	private static function hai_nut_bao_cao( $ma ) {
+		$dat = VHCC_DayBaoCao::o( $ma );
+		$goc = 'b' . substr( md5( $ma . '|baocao' ), 0, 10 );
+		$h   = '<span class="ba">';
+		$cac = array(
+			'mo' => array( 'ten' => 'Đẩy ✓', 'lop' => 'v-mo',
+				'chu' => 'Được nhập báo cáo ngày của cơ sở mình ở màn Quản trị báo cáo cơ sở — '
+					. 'đăng nhập bằng chính PIN chấm công' ),
+			''   => array( 'ten' => 'Gỡ', 'lop' => 'v-khoa',
+				'chu' => 'Không có trong sổ người dùng của màn Quản trị báo cáo cơ sở' ),
+		);
+		foreach ( $cac as $gt => $c ) {
+			$id = $goc . ( '' === $gt ? 'g' : $gt );
+			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
+				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
+				. ' name="o[' . esc_attr( $ma ) . '][' . esc_attr( VHCC_DayBaoCao::COT ) . ']"'
+				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false ) . '>'
+				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
+		}
+		return $h . '</span>';
 	}
 
 	/** HAI nút, y như cột Ghế: có mặt bên ấy, hoặc không. */
