@@ -60,7 +60,7 @@ class VHG_BaoCao {
 	   boot() trả nó kèm mọi phản hồi (`banBc`) — số ở góc nói tệp chính là bản nào, số này nói
 	   TỆP BÁO CÁO là bản nào. Hai số lệch nhau là bằng chứng tệp cũ còn sống. Phải tăng cùng
 	   VHG_VERSION mỗi lần sửa tệp này. */
-	const BAN = '2.91.0';
+	const BAN = '2.92.0';
 
 	public static function don_vi() { return VHG_Quy::don_vi(); }
 

@@ -32,7 +32,12 @@ Sau khi build: giải nén ra chỗ tạm rồi `diff -rq` với thư mục ngu�
 2. **`node --check` trọn khối JS heredoc** — JS nằm trong `<<<'JS' … JS;` của
    `class-vhg-trang.php` (`js()`, `js_baocao()`) và `class-vhg-shop.php`. PHP không kiểm cú pháp
    trong heredoc: **một dấu `}` thừa là trắng cả trang** (đã dính ở 2.20.0, vá ở 2.20.1).
-3. Tăng số bản ở header `Version:` **và** hằng `VHG_VERSION` — hai chỗ, phải bằng nhau.
+3. Tăng số bản ở **ba** chỗ, phải bằng nhau: header `Version:`, hằng `VHG_VERSION` (cùng trong
+   `vhcp-ghe.php`) **và** `VHG_BaoCao::BAN` (trong `includes/class-vhg-baocao.php`). Chỗ thứ ba là
+   *vân tay* của tệp lớp: `boot()` trả nó ra (`banBc`), `vhg_soat_tep_lop()` so với `VHG_VERSION` để
+   bắt ca *tệp lớp cũ còn sống* (opcache giữ bytecode cũ / upload không ghi đè được — 15/09/2026,
+   bốn bản vá đúng liên tiếp "không ăn" vì thế). Quên tăng `BAN` là bộ soát báo đỏ trên host dù
+   mã đúng. Bài `tools/test/kiem-ghe-ban-baocao.php` canh ba chỗ; `chay-het.sh` tự gom.
    Trang in số bản ra góc phải; số không đổi thì không ai biết bản mới đã lên chưa.
 4. Build zip, commit cả zip lẫn source, push.
 
