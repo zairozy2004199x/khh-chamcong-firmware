@@ -1885,29 +1885,55 @@ class VHG_Trang {
          nhỏ chữ, xuống hàng nhập để tránh tràn ngang khó kéo". Nhãn gắn qua nth-child theo đúng
          thứ tự 10 cột ở thead (không phải đụng veDong). Hàng cảnh báo (.bc-warn-row) trải hết. */
       "@media(max-width:640px){"
-        + ".bc-scroll{overflow-x:visible;border-radius:12px}"
-        + ".bc-t.full{min-width:0;font-size:13px}"
+        /* Khung ngoài nhường chỗ cho thẻ — không còn hộp bo quanh cả bảng. */
+        + ".bc-scroll{overflow-x:visible;border:0;border-radius:0;background:transparent;padding:0}"
+        + ".bc-t.full{min-width:0;font-size:13px;border-collapse:separate;border-spacing:0;background:transparent}"
         + ".bc-t.full thead{display:none}"
-        + ".bc-t.full tr{display:block;border-bottom:2px solid #cbd5e1}"
-        + ".bc-t.full td{display:flex;justify-content:space-between;align-items:center;gap:10px;border-bottom:0;padding:5px 10px}"
-        + ".bc-t.full td::before{font-weight:700;font-size:11px;text-transform:uppercase;color:#334155;flex:0 0 42%;text-align:left;white-space:normal}"
-        + ".bc-t.full td:first-child{display:block;background:#f8fafc;font-weight:800;padding:8px 10px 6px}"
+        + ".bc-t.full tbody{display:block}"
+        /* MỖI GHẾ LÀ MỘT THẺ THẬT, không phải hàng bảng bị bẻ xuống. */
+        + ".bc-t.full tr{display:block;background:#fff;border:1px solid #e5e5e5;border-radius:20px;"
+          + "padding:14px 16px 16px;margin:0 0 10px;box-shadow:0 1px 2px rgba(0,0,0,.04)}"
+        + ".bc-t.full td{display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;padding:6px 0}"
+        + ".bc-t.full td::before{font-weight:500;font-size:11px;letter-spacing:.5px;text-transform:uppercase;"
+          + "color:#737373;flex:0 0 40%;text-align:left;white-space:normal}"
+        /* Đầu thẻ = tên ghế. */
+        + ".bc-t.full td:first-child{display:block;background:transparent;font-weight:700;font-size:16px;"
+          + "color:#0f172a;padding:0 0 10px}"
         + ".bc-t.full td:first-child::before{content:none}"
-        + ".bc-t.full td:nth-child(2)::before{content:'Chỉ số trước'}"
-        + ".bc-t.full td:nth-child(3)::before{content:'Chỉ số sau'}"
-        + ".bc-t.full td:nth-child(4)::before{content:'Actual'}"
-        + ".bc-t.full td:nth-child(5)::before{content:'Tiền mặt'}"
-        + ".bc-t.full td:nth-child(6)::before{content:'QR'}"
-        + ".bc-t.full td:nth-child(7)::before{content:'Thực thu tiền mặt'}"
-        + ".bc-t.full td:nth-child(8)::before{content:'Ghi chú'}"
+        + ".bc-t.full td:nth-child(2)::before{content:\'Chỉ số trước\'}"
+        + ".bc-t.full td:nth-child(3)::before{content:\'Chỉ số sau\'}"
+        + ".bc-t.full td:nth-child(4)::before{content:\'Actual\'}"
+        + ".bc-t.full td:nth-child(5)::before{content:\'Tiền mặt\'}"
+        + ".bc-t.full td:nth-child(6)::before{content:\'QR\'}"
+        + ".bc-t.full td:nth-child(7)::before{content:\'Thực thu tiền mặt\'}"
+        + ".bc-t.full td:nth-child(8)::before{content:\'Ghi chú\'}"
         + ".bc-t.full td:nth-child(8){display:block}"
-        + ".bc-t.full td:nth-child(9)::before{content:'📷 Ảnh chỉ số'}"
-        + ".bc-t.full td:nth-child(10)::before{content:'🧹 Ảnh vệ sinh'}"
+        + ".bc-t.full td:nth-child(9)::before{content:\'Ảnh chỉ số\'}"
+        + ".bc-t.full td:nth-child(10)::before{content:\'Ảnh vệ sinh\'}"
+        /* HAI Ô PHẢI GÕ (Chỉ số sau · QR): nhãn lên trên, ô nhập trải hết bề ngang, cao >=46px
+           cho ngón tay. Chỉ số sau to nhất vì đó là thứ DUY NHẤT bắt buộc nhập. */
+        + ".bc-t.full td:nth-child(3),.bc-t.full td:nth-child(6){flex-direction:column;align-items:stretch;gap:6px;padding:8px 0}"
+        + ".bc-t.full td:nth-child(3)::before,.bc-t.full td:nth-child(6)::before{flex:none}"
+        + ".bc-t.full td:nth-child(3)::before{color:#0f172a;font-weight:700}"
+        + ".bc-t.full td:nth-child(3) input{height:52px;font-size:21px;font-weight:700;"
+          + "border:1.5px solid #0f172a;border-radius:14px;padding:0 14px}"
+        + ".bc-t.full td:nth-child(6) input{height:46px;font-size:17px;border-radius:14px;padding:0 14px}"
+        /* 🔴 Ô LỆCH VẪN PHẢI ĐỎ. Luật `.bc-t input.bc-lech` ở trên có độ ưu tiên THẤP HƠN hai luật
+           vừa khai, nên phải khai LẠI ở đây — không thì chỉ số đi lùi mất màu đỏ trên điện thoại
+           mà bàn phím vẫn cho gửi: đúng kiểu hỏng im lặng mà cả tệp này tránh. */
+        + ".bc-t.full td:nth-child(3) input.bc-lech{border:1.6px solid #ef4444;color:#b91c1c;background:#fef2f2}"
+        /* Số dóng cột bằng chữ ĐỀU CÓ SẴN của máy + tabular-nums. KHÔNG tải phông ngoài: màn này
+           mở bằng 4G ở trung tâm thương mại, một phông web là một lượt tải có thể không về. */
+        + ".bc-t.full input,.bc-t.full .bc-ro{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}"
         + ".bc-t.full input{width:100%;max-width:none;min-width:0}"
-        + ".bc-t.full input.note{min-width:0}"
-        + ".bc-t.full .bc-ro{display:inline-block;min-width:90px}"
-        + ".bc-t.full tr.bc-warn-row{border-bottom:0}"
-        + ".bc-t.full tr.bc-warn-row td{display:block;padding:0 10px 8px}"
+        + ".bc-t.full input.note{min-width:0;font-family:inherit}"
+        + ".bc-t.full .bc-ro{display:inline-block;min-width:0;font-weight:700;color:#0f172a}"
+        /* Ô máy TỰ TÍNH: chữ xám, nhạt hơn ô gõ — nhìn là biết chỗ nào của mình. */
+        + ".bc-t.full td:nth-child(4),.bc-t.full td:nth-child(5),.bc-t.full td:nth-child(7){color:#475569}"
+        /* Hàng cảnh báo bám ngay dưới thẻ, KHÔNG tự thành một thẻ rời; giữ trong suốt để luật
+           đỏ=chặn / vàng=nhắc của chính nội dung bên trong quyết định màu. */
+        + ".bc-t.full tr.bc-warn-row{background:transparent;border:0;border-radius:0;box-shadow:none;padding:0 2px;margin:-6px 0 10px}"
+        + ".bc-t.full tr.bc-warn-row td{display:block;padding:0}"
         + ".bc-t.full tr.bc-warn-row td::before{content:none}"
         + "}",
       /* Chế độ Gọn: cột đã ít (7 thay vì 10) nhưng vẫn nên bớt đệm + bớt min-width từng ô cho vừa
