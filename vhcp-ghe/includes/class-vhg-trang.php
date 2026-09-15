@@ -1964,7 +1964,27 @@ class VHG_Trang {
       '.bc-tt{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px}',
       '.bc-tt span{display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b}',
       '.bc-tt b{font-size:16px;font-variant-numeric:tabular-nums}',
-      '.bc-prog{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:13px}',
+      '.bc-prog{display:block;background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:14px 16px;margin-top:6px;font-size:13px}',
+      '.bc-prog-dau{display:flex;align-items:baseline;justify-content:space-between;gap:10px}',
+      '.bc-prog-nhan{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#64748b}',
+      '.bc-prog-dem{font-size:14px;font-weight:800;color:#0f172a;font-variant-numeric:tabular-nums}',
+      '.bc-prog-bar{display:flex;gap:3px;margin-top:8px}',
+      '.bc-prog-o{flex:1 1 0;height:6px;border-radius:3px;background:#e2e8f0}',
+      '.bc-prog-o.on{background:#16a34a}',
+      '.bc-prog-bar.lien{display:block;height:6px;border-radius:3px;background:#e2e8f0;overflow:hidden}',
+      '.bc-prog-fill{display:block;height:100%;background:#16a34a;border-radius:3px}',
+      '.bc-prog-nhom{margin-top:10px}',
+      '.bc-prog-tieu{font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:#64748b;margin-bottom:6px}',
+      '.bc-prog-chips{display:flex;gap:6px;flex-wrap:wrap}',
+      '.bc-prog-gap{background:none;border:0;padding:6px 0 0;font:inherit;font-weight:700;color:#4f46e5;cursor:pointer;text-decoration:underline}',
+      '.bc-prog-ct{margin-top:8px;font-size:12px;color:#475569}',
+      '.bc-prog-ct div{margin-top:3px}',
+      /* Hình thức nộp: ba nút to thay ô xổ — dễ bấm bằng ngón tay, thấy hết lựa chọn cùng lúc. */
+      '.bc-seg-wrap{display:flex;gap:6px;margin-top:4px}',
+      '.bc-seg{flex:1 1 0;min-height:46px;padding:0 8px;border:1px solid #cbd5e1;background:#fff;'
+        + 'border-radius:12px;font-size:13px;font-weight:600;color:#475569;cursor:pointer}',
+      '.bc-seg.on{background:#0f172a;border-color:#0f172a;color:#fff}',
+      '.bc-amt-hint{font-weight:700;color:#0f172a;font-variant-numeric:tabular-nums}',
       '.bc-prog.du{background:#ecfdf5;border-color:#a7f3d0}',
       '.bc-chip{display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;background:#fff;border:1px solid #cbd5e1}',
       '.bc-chip.x{background:#dcfce7;border-color:#86efac}',
@@ -2281,18 +2301,32 @@ class VHG_Trang {
     c2.appendChild(tot);
     wrap.appendChild(c2);
 
-    // nộp tiền — gọn: chỉ 1 ô Hình thức; đầy đủ: hình thức + số tiền + ghi chú
+    // nộp tiền — hình thức thành 3 nút to (dễ bấm trên điện thoại), kèm số tiền + ghi chú
     var c3=el('div','bc-card');
     c3.appendChild(el('h3','bc-h','Nộp tiền'));
+    /* 🔴 Ô ẨN #bc-method GIỮ NGUYÊN HỢP ĐỒNG CŨ. Bốn chỗ khác đọc `$('bc-method').value` (lúc
+       gửi báo cáo, lúc khôi phục nháp…). Đổi <select> thành nút mà bỏ phần tử mang id ấy đi là
+       cả bốn chỗ im lặng đọc undefined — tiền nộp gửi lên sai hình thức mà không ai thấy. Nút
+       chỉ ĐỔI GIÁ TRỊ của ô ẩn.
+       ⚠️ Ô ẩn KHÔNG phát sự kiện `input` như <select> cũ, nên phải tự gọi bcLuuNhap() — không
+          thì nháp mất phần hình thức khi nhân viên lỡ thoát app. */
+    var mHid=el('input'); mHid.type='hidden'; mHid.id='bc-method'; mHid.value='cash';
+    c3.appendChild(mHid);
+    var fM=el('label','bc-f'); fM.style.display='block'; fM.style.marginTop='10px';
+    fM.appendChild(el('span',null,'Hình thức'));
+    var segW=el('div','bc-seg-wrap');
+    [['cash','Tiền mặt'],['transfer','Chuyển khoản'],['unpaid','Chưa nộp']].forEach(function(m){
+      var b=el('button','bc-seg',m[1]); b.type='button'; b.setAttribute('data-met',m[0]);
+      b.onclick=function(){ mHid.value=m[0]; veHinhThuc_(); bcLuuNhap(); };
+      segW.appendChild(b);
+    });
+    fM.appendChild(segW); c3.appendChild(fM);
     var r3=el('div','bc-row'); r3.style.marginTop='10px';
-    var fM=el('label','bc-f'); fM.appendChild(el('span',null,'Hình thức'));
-    var sM=el('select'); sM.id='bc-method';
-    sM.appendChild(new Option('Nộp tiền mặt','cash'));
-    sM.appendChild(new Option('Chuyển khoản','transfer'));
-    sM.appendChild(new Option('Chưa nộp','unpaid'));
-    fM.appendChild(sM); r3.appendChild(fM);
     {
-      var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền nộp (trống = đủ)'));
+      var fA=el('label','bc-f');
+      var spA=el('span',null,'Số tiền nộp (trống = đủ) ');
+      var hintA=el('span','bc-amt-hint'); hintA.id='bc-amt-hint'; spA.appendChild(hintA);
+      fA.appendChild(spA);
       var iA=el('input'); iA.id='bc-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = nộp đủ tiền mặt';
       fA.appendChild(iA); r3.appendChild(fA);
       var fNo=el('label','bc-f'); fNo.appendChild(el('span',null,'Ghi chú'));
@@ -2301,6 +2335,7 @@ class VHG_Trang {
     }
     c3.appendChild(r3);
     wrap.appendChild(c3);
+    veHinhThuc_();
 
     /* Ảnh chỉ số + ảnh vệ sinh giờ nằm NGAY TRONG DÒNG của từng ghế (cột 📷 Chỉ số / 🧹 Vệ
        sinh ở bảng "Số liệu từng ghế") — anh Thắng: "Chèn thêm ảnh cho nhân viên thu tiền theo
@@ -2470,7 +2505,7 @@ class VHG_Trang {
       var iNo=tr.querySelector('.note'); if(iNo && d.note) iNo.value=d.note;
       calc(tr);
     });
-    var mEl=$('bc-method'); if(mEl && tra.method) mEl.value=tra.method;
+    var mEl=$('bc-method'); if(mEl && tra.method){ mEl.value=tra.method; veHinhThuc_(); }
     var aEl=$('bc-amt'); if(aEl && tra.amt) aEl.value=tra.amt;
     var pnEl=$('bc-paynote'); if(pnEl && tra.paynote) pnEl.value=tra.paynote;
     tinhTong();
@@ -2924,6 +2959,15 @@ class VHG_Trang {
     }
   }
 
+  /* Đồng bộ ba nút Hình thức theo giá trị ô ẩn #bc-method. Phải gọi CẢ khi khôi phục nháp —
+     chỗ đó chỉ gán .value, không gọi thì nút sáng một đằng, giá trị gửi đi một nẻo. */
+  function veHinhThuc_(){
+    var m=$('bc-method'); var v=m?m.value:'cash';
+    document.querySelectorAll('.bc-seg').forEach(function(b){
+      b.className='bc-seg'+(b.getAttribute('data-met')===v?' on':'');
+    });
+  }
+
   function tinhTong(){
     var a=0,c=0,q=0;
     document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
@@ -2934,6 +2978,8 @@ class VHG_Trang {
     if($('bc-s-cash')) $('bc-s-cash').textContent=money(c);
     if($('bc-s-qr')) $('bc-s-qr').textContent=money(q);
     if($('bc-s-total')) $('bc-s-total').textContent=money(c+q);
+    /* Nhắc ngay cạnh ô "Số tiền nộp" số tiền mặt PHẢI nộp — để trống ô là nộp đúng số này. */
+    if($('bc-amt-hint')) $('bc-amt-hint').textContent = c>0 ? ('· phải nộp '+money(c)+'đ') : '';
   }
 
   // gõ ô nào cũng tính lại (uỷ quyền sự kiện), và lưu nháp cho khỏi mất khi lỡ thoát app
@@ -3467,42 +3513,98 @@ class VHG_Trang {
       o.style.fontWeight=xong?'700':'';
     }
   }
+  /* 🔴 THANH TIẾN ĐỘ KHÔNG ĐƯỢC THÀNH BỨC TƯỜNG. PIN toàn quyền có 67 cơ sở: bản cũ đổ thẳng 67
+     chip + 67 dòng tiền ra màn, đẩy ô nhập xuống khỏi màn hình và không đọc nổi cái nào (anh
+     Thắng 15/09/2026). Nay: một dòng đếm + thanh vạch, CHƯA NỘP đứng TRƯỚC vì đó là việc còn
+     phải làm, phần thừa gập sau nút "+N nữa", chi tiết tiền gập riêng.
+     ⚠️ GIỮ NGUYÊN hai thứ đã có giá trị: chip đỏ BẤM ĐƯỢC để nhảy thẳng tới ô nhập (anh Thắng
+        12/09/2026) và tooltip tiền mặt/QR/tổng của từng cơ sở đã nộp. */
+  var PROG_MO = {};
   function veProg(p){
     PHIEN_XONG={}; (p&&p.coso_xong||[]).forEach(function(c){ PHIEN_XONG[bcCsNorm_(c)]=true; }); toMauCoSo_();
     var box=$('bc-prog'); if(!box) return; box.textContent=''; box.className='bc-prog'+(p.du?' du':'');
-    var head=el('b',null, p.du ? ('✓ ĐỦ BÁO CÁO '+p.so_coso+'/'+p.so_coso+' cơ sở') : ('Tiến độ: '+p.so_coso_xong+'/'+p.so_coso+' cơ sở'));
-    box.appendChild(head);
-    /* Chip cơ sở đã gửi mang thêm `title` (Tiền mặt/QR/Tổng của đúng cơ sở đó) để rê chuột xem
-       nhanh trên máy tính — xem thêm dòng chi tiết ĐẦY ĐỦ ngay dưới cho máy chạm không rê được. */
+    var xong=p.so_coso_xong||0, tong=p.so_coso||0;
     var theoCoso={}; (p.theo_coso||[]).forEach(function(t){ theoCoso[t.ten]=t; });
-    (p.coso_xong||[]).forEach(function(c){
-      var chip=el('span','bc-chip x',c); var t=theoCoso[c];
-      if(t) chip.title='Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ';
-      box.appendChild(chip);
-    });
-    /* Chip cơ sở CHƯA nộp: đỏ + BẤM ĐƯỢC để nhảy thẳng tới ô nhập của cơ sở đó — anh Thắng
-       12/09/2026: "cơ sở chưa nộp hiện đỏ, nhân viên bấm trực tiếp là chuyển đến chỗ nhập luôn". */
-    (p.coso_conlai||[]).forEach(function(c){
+
+    var dau=el('div','bc-prog-dau');
+    dau.appendChild(el('span','bc-prog-nhan', p.du?'Đã đủ báo cáo hôm nay':'Tiến độ hôm nay'));
+    dau.appendChild(el('b','bc-prog-dem', xong+'/'+tong+' cơ sở'));
+    box.appendChild(dau);
+
+    /* Ít cơ sở: mỗi cơ sở một vạch (đếm được bằng mắt). Nhiều: một thanh liền — 67 vạch thì
+       mỗi vạch mảnh hơn sợi tóc, vô nghĩa. */
+    if(tong>0){
+      var bar=el('div','bc-prog-bar'), i2;
+      if(tong<=12){
+        for(i2=0;i2<tong;i2++) bar.appendChild(el('span','bc-prog-o'+(i2<xong?' on':'')));
+      }else{
+        bar.className='bc-prog-bar lien';
+        var fill=el('span','bc-prog-fill'); fill.style.width=Math.round(xong*100/tong)+'%';
+        bar.appendChild(fill);
+      }
+      box.appendChild(bar);
+    }
+
+    function nhom(tieu, ds, khoa, lamChip){
+      if(!ds.length) return;
+      var g=el('div','bc-prog-nhom');
+      g.appendChild(el('div','bc-prog-tieu', tieu+' · '+ds.length));
+      var wrap=el('div','bc-prog-chips');
+      var mo=!!PROG_MO[khoa], han=8;
+      ((mo||ds.length<=han)?ds:ds.slice(0,han)).forEach(function(c){ wrap.appendChild(lamChip(c)); });
+      g.appendChild(wrap);
+      if(ds.length>han){
+        var b=el('button','bc-prog-gap', mo?'thu gọn':('+ '+(ds.length-han)+' nữa'));
+        b.type='button';
+        b.onclick=function(){ PROG_MO[khoa]=!mo; veProg(p); };
+        g.appendChild(b);
+      }
+      box.appendChild(g);
+    }
+
+    nhom('Chưa nộp', p.coso_conlai||[], 'conlai', function(c){
       var chip=el('span','bc-chip o',c);
       chip.title='Bấm để nhập báo cáo cho '+c;
       chip.onclick=function(){ chonCoSoTuChip_(c); };
-      box.appendChild(chip);
+      return chip;
     });
-    if(p.tong) box.appendChild(el('span',null,' · Tổng '+money(p.tong)+'đ'));
-    if(p.trang_thai==='chot_som') box.appendChild(el('span',null,' · ĐÃ CHỐT SỚM'+(p.bo_qua&&p.bo_qua.length?(' (bỏ: '+p.bo_qua.join(', ')+')'):'')));
-    /* Tổng tiền mặt/QR THEO TỪNG CƠ SỞ — anh Thắng 29/08/2026: "Hiện tổng doanh thu tiền mặt và
-       QR theo cơ sở trên này". Trước đây chỉ có MỘT số Tổng gộp cả ngày, không tách được cơ sở
-       nào thu tiền mặt bao nhiêu/QR bao nhiêu — phải mở từng báo cáo mới biết. Thêm dòng riêng,
-       width:100% để tự xuống hàng dưới chip (bc-prog vốn flex-wrap), mỗi cơ sở một dòng. */
-    if((p.theo_coso||[]).length){
-      var det=el('div'); det.style.cssText='width:100%;margin-top:6px;font-size:12px;color:#475569';
-      p.theo_coso.forEach(function(t){
-        var line=el('div'); line.style.marginTop='2px';
-        line.appendChild(el('b',null,t.ten));
-        line.appendChild(document.createTextNode(': Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ'));
-        det.appendChild(line);
-      });
-      box.appendChild(det);
+    nhom('Đã nộp', p.coso_xong||[], 'xong', function(c){
+      var chip=el('span','bc-chip x',c); var t=theoCoso[c];
+      if(t) chip.title='Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ';
+      return chip;
+    });
+
+    if(p.tong){
+      var tg=el('div','bc-prog-nhom');
+      tg.appendChild(el('div','bc-prog-tieu','Tổng đã thu'));
+      tg.appendChild(el('b','bc-prog-dem', money(p.tong)+'đ'));
+      box.appendChild(tg);
+    }
+    if(p.trang_thai==='chot_som'){
+      box.appendChild(el('div','bc-prog-ct','ĐÃ CHỐT SỚM'
+        +(p.bo_qua&&p.bo_qua.length?(' — bỏ: '+p.bo_qua.join(', ')):'')));
+    }
+
+    var ct=p.theo_coso||[];
+    if(ct.length){
+      var g2=el('div','bc-prog-nhom'), moCt=!!PROG_MO.ct;
+      if(ct.length>4){
+        var b2=el('button','bc-prog-gap', moCt?'ẩn chi tiết tiền':('xem chi tiết tiền '+ct.length+' cơ sở'));
+        b2.type='button';
+        b2.onclick=function(){ PROG_MO.ct=!moCt; veProg(p); };
+        g2.appendChild(b2);
+      }
+      if(moCt||ct.length<=4){
+        var det=el('div','bc-prog-ct');
+        ct.forEach(function(t){
+          var line=el('div');
+          line.appendChild(el('b',null,t.ten));
+          line.appendChild(document.createTextNode(': Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ'));
+          det.appendChild(line);
+        });
+        g2.appendChild(det);
+      }
+      box.appendChild(g2);
     }
   }
 
