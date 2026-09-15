@@ -227,4 +227,125 @@ teq( '🔴 dòng ca chính vẫn ăn trọn lương tháng', 4000000.0, $d_ch['l
 teq( '🔴 dòng ca đêm tính THEO GIỜ, không nhân lương tháng lần hai', 'gio', $d_cd['cheDo'] );
 teq( 'ca đêm 5 giờ × 30.000 = 150.000', 150000.0, $d_cd['luongChinh'] );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 3. TỆP XUẤT RA — ĐÚNG DẠNG FILE KẾ TOÁN, VÀ MỞ ĐƯỢC
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/* Thêm vào chính cơ sở này một người CHƯA KHAI ĐƠN GIÁ — để soi cái dòng nguy hiểm nhất của
+   tệp xuất ra: dòng mà hệ không ra được tiền. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_NOGIA',
+	'ho_ten' => 'Người Chưa Khai Giá', 'cccd' => '079304016348', 'cua_hang' => 'AEON_BT',
+	'chuc_vu' => 'Việc Chưa Có Trong Sổ', 'vai_tro' => 'Nhân viên' ) );
+$gieo( 'BT_NOGIA', 'AEON_BT', '2026-08-05', 8 * 3600, 480 );
+
+$x = VHCC_BangLuong::to_xlsx( 'AEON_BT', '2026-08', 'TRAIN AEON BÌNH TÂN' );
+t( 'dựng được tờ xuất', ! empty( $x['ok'] ), $x );
+$to = $x['to'][0];
+$h  = $to['hang'];
+
+/* Lấy giá trị thô của một ô, bất kể nó được bọc kiểu gì. */
+$gv = function ( $dong, $cot ) use ( $h ) {
+	$o = isset( $h[ $dong ][ $cot ] ) ? $h[ $dong ][ $cot ] : null;
+	if ( is_array( $o ) && isset( $o['ct'] ) ) { return '=' . $o['ct']; }
+	if ( is_array( $o ) && array_key_exists( 'v', $o ) ) { $o = $o['v']; }
+	if ( is_array( $o ) && isset( $o['chu'] ) ) { return (string) $o['chu']; }
+	return $o;
+};
+
+teq( 'dòng 1 là tên công ty', 'K&H CO. LTD', $gv( 0, 0 ) );
+teq( 'có tựa đúng nguyên văn file', 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', $gv( 3, 0 ) );
+teq( '🔴 ngày là NGÀY CUỐI THÁNG, không phải hôm nay', '31/08/2026', $gv( 4, 0 ) );
+teq( 'và nói rõ cơ sở nào', 'TRAIN AEON BÌNH TÂN', $gv( 5, 0 ) );
+
+/* Hai dòng tiêu đề, đúng vị trí cột như file — kế toán đối chiếu bằng mắt theo vị trí. */
+teq( 'A7 = STT',  'STT', $gv( 6, 0 ) );
+teq( 'C7 = CCCD', 'CCCD', $gv( 6, 2 ) );
+teq( 'H7 = Tiền/h', 'Tiền/h', $gv( 6, 7 ) );
+teq( 'M7 = Tổng lương', 'Tổng lương', $gv( 6, 12 ) );
+teq( 'Z7 = TOTAL SALARY', 'TOTAL SALARY', $gv( 6, 25 ) );
+teq( 'F8 = Số công YC (nằm ở dòng hai)', 'Số công YC', $gv( 7, 5 ) );
+teq( 'U8 = Tổng (của nhóm cộng)', 'Tổng', $gv( 7, 20 ) );
+
+/* Dòng dữ liệu đầu tiên nằm ở dòng 9, đúng như file. */
+teq( 'B9 = tên người', 'Lâm Tú Lanh', $gv( 8, 1 ) );
+teq( '🔴 số căn cước GIỮ SỐ 0 ĐẦU — nó đi vào hồ sơ bảo hiểm', '094301002660', $gv( 8, 2 ) );
+teq( 'G9 = số giờ', 19.2, $gv( 8, 6 ) );
+teq( 'H9 = đơn giá', 23000.0, $gv( 8, 7 ) );
+teq( '🔴 I9 là CÔNG THỨC, không phải số chết', '=G9*H9', $gv( 8, 8 ) );
+teq( 'M9 = I+K−L, đúng công thức đọc từ file', '=I9+K9-L9', $gv( 8, 12 ) );
+teq( 'U9 = tổng nhóm cộng', '=SUM(N9:T9)', $gv( 8, 20 ) );
+teq( 'Y9 = tổng nhóm trừ', '=SUM(V9:X9)', $gv( 8, 24 ) );
+teq( 'Z9 = M+U−Y, đúng công thức đọc từ file', '=M9+U9-Y9', $gv( 8, 25 ) );
+
+/* 🔴 CỘT J K L N..Y ĐỂ TRỐNG — anh Thắng chốt kế toán điền. Có số 0 ở đấy là nói dối rằng hệ
+   đã xét tới chúng. */
+foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 21 => 'V', 23 => 'X' ) as $ci => $ten ) {
+	teq( '🔴 cột ' . $ten . ' để TRỐNG cho kế toán điền, không phải số 0', null, $gv( 8, $ci ) );
+}
+
+/* 🔴 DÒNG CHƯA KHAI GIÁ: KHÔNG MỘT CÔNG THỨC NÀO, và nói thẳng vì sao.
+   Để `M=I+K−L` chạy trên dòng I trống thì M ra 0 — trông y như người này tháng nay không có
+   lương, chứ không phải "chưa ai khai đơn giá". */
+$d_kg = null;
+for ( $i = 8; $i < count( $h ); $i++ ) {
+	if ( 'Người Chưa Khai Giá' === $gv( $i, 1 ) ) { $d_kg = $i; }
+}
+t( 'tìm thấy dòng chưa khai giá', null !== $d_kg );
+teq( 'vẫn có đủ số giờ', 8.0, $gv( $d_kg, 6 ) );
+teq( '🔴 cột Lương chính để TRỐNG', null, $gv( $d_kg, 8 ) );
+teq( '🔴 cột Tổng lương KHÔNG có công thức (không ra số 0)', null, $gv( $d_kg, 12 ) );
+teq( '🔴 cột TOTAL SALARY cũng vậy', null, $gv( $d_kg, 25 ) );
+t( '🔴 và ghi chú NÓI THẲNG vì sao trống',
+	false !== strpos( (string) $gv( $d_kg, 26 ), 'CHƯA KHAI ĐƠN GIÁ' ), $gv( $d_kg, 26 ) );
+
+/* Dòng tổng cộng bằng SUM, để kế toán sửa một ô là tổng theo ngay. */
+$d_tong = count( $h ) - 1;
+t( 'dòng cuối là dòng TỔNG', false !== strpos( (string) $gv( $d_tong, 1 ), 'TỔNG' ), $gv( $d_tong, 1 ) );
+teq( 'tổng cột Z cộng bằng SUM', '=SUM(Z9:Z11)', $gv( $d_tong, 25 ) );
+
+/* Ô gộp và độ rộng cột — lấy theo đúng file, để mở ra trông y hệt cái kế toán đang dùng. */
+t( 'có gộp ô tiêu đề nhóm cộng (N7:U7)', in_array( 'N7:U7', $to['gop'], true ), $to['gop'] );
+t( 'có gộp ô tiêu đề nhóm trừ (V7:X7)', in_array( 'V7:X7', $to['gop'], true ), $to['gop'] );
+teq( 'khai đủ độ rộng cho 27 cột A..AA', 27, count( VHCC_BangLuong::RONG_COT ) );
+teq( 'mọi dòng đều đủ 27 cột', true, ( function () use ( $h ) {
+	foreach ( $h as $d ) { if ( count( $d ) !== 27 ) { return false; } }
+	return true;
+} )() );
+
+/* ---- Tệp .xlsx THẬT: dựng ra và mở lại được ---- */
+if ( VHCC_Xuat::co_xlsx() ) {
+	$noi = VHCC_Xuat::xlsx( $x['to'] );
+	t( '🔴 dựng được tệp .xlsx thật', is_string( $noi ) && strlen( $noi ) > 1000, strlen( (string) $noi ) );
+	/* Mở lại bằng chính ZipArchive: thiếu một phần là Excel báo "unreadable content" và KHÔNG
+	   mở tệp — chứ không bỏ qua phần nó không hiểu. */
+	$tam = VHCC_DB::tep_tam( 'vhcc-thu-xuat' );
+	file_put_contents( $tam, $noi );
+	$z = new ZipArchive();
+	t( 'tệp mở lại được như một gói zip hợp lệ', true === $z->open( $tam ) );
+	foreach ( array( '[Content_Types].xml', 'xl/workbook.xml', 'xl/styles.xml',
+		'xl/worksheets/sheet1.xml' ) as $phan ) {
+		t( 'có đủ phần ' . $phan, false !== $z->locateName( $phan ), $phan );
+	}
+	$sx = $z->getFromName( 'xl/worksheets/sheet1.xml' );
+	/* ⚠️ Excel BẮT đúng thứ tự: <cols> trước <sheetData>, <mergeCells> sau. Sai thứ tự là tệp
+	   không mở được — nên canh bằng vị trí, không chỉ canh "có mặt". */
+	t( '🔴 <cols> đứng TRƯỚC <sheetData>', strpos( $sx, '<cols>' ) < strpos( $sx, '<sheetData>' ) );
+	t( '🔴 <mergeCells> đứng SAU </sheetData>',
+		strpos( $sx, '<mergeCells' ) > strpos( $sx, '</sheetData>' ) );
+	t( 'công thức được ghi bằng thẻ <f>', false !== strpos( $sx, '<f>G9*H9</f>' ), 'thiếu <f>' );
+	/* 🔴 Công thức KHÔNG được kèm <v> đoán sẵn — Excel sẽ hiện số đoán ấy cho tới khi ai đó bấm
+	   tính lại, tức một con số trông như thật mà sai. */
+	t( '🔴 công thức KHÔNG kèm <v> đoán sẵn',
+		false === strpos( $sx, '<f>G9*H9</f><v>' ), 'có <v> đi kèm công thức' );
+	$st = $z->getFromName( 'xl/styles.xml' );
+	t( 'có định dạng tiền #,##0', false !== strpos( $st, '#,##0' ) );
+	t( 'có định dạng giờ 0.00 — 19,2 giờ làm tròn lên 19 là lệch tiền', false !== strpos( $st, '0.00' ) );
+	$z->close();
+	@unlink( $tam );
+}
+
+/* 🔴 HỢP ĐỒNG CŨ CỦA BẢNG KIỂU Ô KHÔNG ĐƯỢC ĐỔI. Chỉ số 1 = đậm, dùng cho dòng tiêu đề của mọi
+   bảng xuất khác đang chạy. Chèn kiểu mới vào giữa là mọi tiêu đề cũ đổi kiểu mà không ai sửa gì. */
+teq( '🔴 kiểu 1 vẫn là ĐẬM (hợp đồng cũ)', 1, VHCC_Xuat::DAM );
+
 ket_luan();

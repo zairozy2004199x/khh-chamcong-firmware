@@ -219,4 +219,161 @@ class VHCC_BangLuong {
 			),
 		);
 	}
+
+	/** Độ rộng 27 cột A..AA, lấy đúng theo file kế toán đang dùng. */
+	const RONG_COT = array( 7.1, 36.6, 15.9, 20.7, 16.4, 17.0, 14.0, 18.6, 18.7, 18.0, 19.6,
+		13.9, 17.7, 12.9, 18.0, 15.3, 15.9, 16.1, 14.0, 14.0, 15.9, 13.3, 9.0, 14.7, 14.6,
+		18.1, 28.7 );
+
+	/** Dòng đầu tiên chứa dữ liệu người (1-indexed) — ngay dưới hai dòng tiêu đề 7 và 8. */
+	const DONG_DAU = 9;
+
+	/**
+	 * Dựng tệp .xlsx đúng dạng file kế toán đang dùng.
+	 *
+	 * =========================================================================================
+	 * 🔴 NHỮNG CỘT HỆ KHÔNG BIẾT THÌ ĐỂ TRỐNG — NHƯNG CÓ CÔNG THỨC SẴN
+	 * =========================================================================================
+	 * Phụ cấp, giảm trừ, BHXH, giờ thêm: hệ không có dữ liệu (xem chú thích đầu lớp). Nhưng để
+	 * trống suông thì kế toán gõ vào xong vẫn phải tự cộng tay — tức là xuất ra để đó. Nên mỗi
+	 * dòng mang sẵn `U=SUM(N:T)`, `Y=SUM(V:X)`, `M=I+K−L`, `Z=M+U−Y`: gõ một con số vào giữa là
+	 * TỔNG tự nhảy, đúng như cái file họ đang làm tay.
+	 *
+	 * 🔴 DÒNG CHƯA KHAI ĐƠN GIÁ THÌ KHÔNG CÓ CÔNG THỨC NÀO HẾT.
+	 *    Để công thức `M=I+K−L` chạy trên một dòng có I trống thì M ra **0** — và số 0 ấy trông
+	 *    y như một người tháng này không có lương, chứ không phải "chưa ai khai đơn giá cho việc
+	 *    này". Ô trống thì người đọc dừng lại hỏi; số 0 thì người đọc tin. Nên dòng thiếu giá để
+	 *    trống trọn, và cột ghi chú nói thẳng ra.
+	 *
+	 * ⚠️ Số CĂN CƯỚC phải là CHỮ. `079304016348` để Excel tự đoán là mất số 0 đầu, thành
+	 *    79304016348 — và đó là số sẽ đi vào hồ sơ bảo hiểm.
+	 */
+	public static function to_xlsx( $coso, $thang, $ten_cs = '' ) {
+		$b = self::dung( $coso, $thang );
+		if ( empty( $b['ok'] ) ) { return $b; }
+
+		$chu  = function ( $v, $s ) { return array( 'v' => VHCC_Xuat::chu( $v ), 's' => $s ); };
+		$o    = function ( $v, $s ) { return VHCC_Xuat::o_kieu( $v, $s ); };
+		$ct   = function ( $f, $s ) { return VHCC_Xuat::ct( $f, $s ); };
+		$trong = function ( $s ) { return VHCC_Xuat::o_kieu( null, $s ); };
+
+		$T = VHCC_Xuat::TIEN;
+		$G = VHCC_Xuat::GIO;
+		$V = VHCC_Xuat::CHU_V;
+		$B = VHCC_Xuat::BANG;
+
+		$cuoi_thang = gmdate( 'd/m/Y', strtotime( $b['thang'] . '-01 12:00:00 UTC +1 month -1 day' ) );
+		$ten_cs = '' !== trim( (string) $ten_cs ) ? trim( (string) $ten_cs ) : $b['coso'];
+
+		$rong = function ( $n ) { return array_fill( 0, $n, '' ); };
+		$hang = array();
+		$hang[] = array_merge( array( 'K&H CO. LTD' ), $rong( 26 ) );
+		$hang[] = array_merge( array( 'ACCOUNTING' ), $rong( 26 ) );
+		$hang[] = $rong( 27 );
+		$hang[] = array_merge( array( $o( 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', VHCC_Xuat::TUA ) ), $rong( 26 ) );
+		$hang[] = array_merge( array( $o( $cuoi_thang, VHCC_Xuat::TUA ) ), $rong( 26 ) );
+		$hang[] = array_merge( array( $o( $ten_cs, VHCC_Xuat::DAM ) ), $rong( 26 ) );
+
+		/* Hai dòng tiêu đề — chữ lấy nguyên văn từ file, kể cả mấy chỗ viết tắt. */
+		$h1 = array( 'STT', 'NAME', 'CCCD', 'POSITION', 'Lương cb', '', 'Số công thực', 'Tiền/h',
+			'Lương chính', 'Số giờ thêm', "Lương\n giờ thêm+ lương làm lễ", 'BHXH', 'Tổng lương',
+			'Các khoản cộng vào lương', '', '', '', '', '', '', '',
+			'Các khoản giảm trừ vào lương', '', '', '', 'TOTAL SALARY', 'NOTES' );
+		$h2 = array( '', '', '', '', '', 'Số công YC', '', '', '', '', '', '', '',
+			'Setup', '%KID - Trách nhiệm', 'Target ', 'Lương Thiếu ', 'HT giữ xe, HT đi lại',
+			'Trả TN', 'Hoàn cọc', 'Tổng', 'Phạt', '', 'Đặt cọc', 'Cộng', '', '' );
+		foreach ( array( $h1, $h2 ) as $h ) {
+			$d = array();
+			foreach ( $h as $x ) { $d[] = $o( $x, $B ); }
+			$hang[] = $d;
+		}
+
+		$r = self::DONG_DAU;
+		foreach ( $b['dong'] as $x ) {
+			$co_gia = ( null !== $x['luongChinh'] );
+			$ghi = array();
+			if ( 'khong' === $x['giaTu'] && 'thang' !== $x['cheDo'] ) {
+				$ghi[] = 'CHƯA KHAI ĐƠN GIÁ GIỜ cho "' . $x['cv'] . '" — chưa ra được tiền';
+			}
+			if ( 'thang' === $x['cheDo'] && null === $x['congYc'] ) {
+				$ghi[] = 'CHƯA KHAI SỐ CÔNG CHUẨN CỦA THÁNG — chưa ra được tiền';
+			}
+			if ( $x['thieuGio'] > 0 ) {
+				$ghi[] = $x['thieuGio'] . ' ngày thiếu giờ vào hoặc giờ ra, KHÔNG tính vào số giờ';
+			}
+
+			$dong = array();
+			$dong[] = $o( $x['stt'], VHCC_Xuat::STT );
+			$dong[] = $o( $x['ten'], $V );
+			$dong[] = $chu( $x['cccd'], $V );
+			$dong[] = $o( $x['cv'], $V );
+			$dong[] = ( null === $x['luongCb'] ) ? $trong( $T ) : $o( (float) $x['luongCb'], $T );
+			$dong[] = ( null === $x['congYc'] ) ? $trong( $G ) : $o( (float) $x['congYc'], $G );
+			/* 🔴 CỘT G MANG HAI THỨ, ĐÚNG NHƯ FILE GỐC: người ăn theo giờ thì đây là SỐ GIỜ,
+			   người ăn lương tháng thì đây là SỐ NGÀY CÔNG. Tách thành hai cột là lệch mẫu, mà
+			   kế toán thì đối chiếu bằng mắt theo đúng vị trí cột. */
+			$dong[] = ( 'thang' === $x['cheDo'] )
+				? $o( (float) $x['congThuc'], $G )
+				: $o( (float) $x['gio'], $G );
+			$dong[] = ( null === $x['gia'] ) ? $trong( $T ) : $o( (float) $x['gia'], $T );
+			if ( ! $co_gia ) {
+				/* Dòng chưa ra được tiền: KHÔNG một công thức nào — xem chú thích trên. */
+				$dong[] = $trong( $T );                                   // I
+				for ( $i = 9; $i <= 25; $i++ ) { $dong[] = $trong( $T ); }
+			} else {
+				$dong[] = ( 'thang' === $x['cheDo'] )
+					? $ct( 'E' . $r . '*G' . $r . '/F' . $r, $T )
+					: $ct( 'G' . $r . '*H' . $r, $T );                    // I
+				$dong[] = $trong( $G );                                   // J giờ thêm
+				$dong[] = $trong( $T );                                   // K lương giờ thêm
+				$dong[] = $trong( $T );                                   // L BHXH
+				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T );    // M tổng lương
+				for ( $i = 0; $i < 7; $i++ ) { $dong[] = $trong( $T ); }  // N..T
+				$dong[] = $ct( 'SUM(N' . $r . ':T' . $r . ')', $T );      // U
+				$dong[] = $trong( $T );                                   // V phạt
+				$dong[] = $trong( $T );                                   // W
+				$dong[] = $trong( $T );                                   // X đặt cọc
+				$dong[] = $ct( 'SUM(V' . $r . ':X' . $r . ')', $T );      // Y
+				$dong[] = $ct( 'M' . $r . '+U' . $r . '-Y' . $r, $T );    // Z
+			}
+			$dong[] = $o( implode( ' · ', $ghi ), $V );                   // AA
+			$hang[] = $dong;
+			$r++;
+		}
+
+		/* Dòng tổng — cộng thẳng bằng SUM để kế toán sửa một ô là tổng theo ngay. */
+		$cuoi = $r - 1;
+		$tong = array( $trong( VHCC_Xuat::TONG ),
+			$o( 'TỔNG — ' . $ten_cs, VHCC_Xuat::TONG ),
+			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ),
+			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ) );
+		if ( $cuoi >= self::DONG_DAU ) {
+			foreach ( array( 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
+				'V', 'W', 'X', 'Y', 'Z' ) as $c ) {
+				$tong[] = $ct( 'SUM(' . $c . self::DONG_DAU . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG );
+			}
+		} else {
+			for ( $i = 0; $i < 18; $i++ ) { $tong[] = $trong( VHCC_Xuat::TONG ); }
+		}
+		$tong[] = $trong( VHCC_Xuat::TONG );
+		$hang[] = $tong;
+
+		$gop = array( 'A4:AA4', 'A5:AA5', 'A6:AA6', 'A7:A8', 'B7:B8', 'C7:C8', 'D7:D8', 'E7:E8',
+			'G7:G8', 'H7:H8', 'I7:I8', 'J7:J8', 'K7:K8', 'L7:L8', 'M7:M8', 'N7:U7', 'V7:X7',
+			'Z7:Z8', 'AA7:AA8' );
+
+		return array( 'ok' => true, 'bang' => $b, 'to' => array( array(
+			'ten' => 'Lương ' . $b['thang'],
+			'cot' => self::RONG_COT,
+			'gop' => $gop,
+			'damDongDau' => false,
+			'hang' => $hang,
+		) ) );
+	}
+
+	/** Tên tệp gửi về trình duyệt. */
+	public static function ten_tep( $coso, $thang ) {
+		$cs = preg_replace( '/[^A-Za-z0-9_-]+/', '-', (string) $coso );
+		return 'LUONG-' . trim( $cs, '-' ) . '-' . str_replace( '-', '.', (string) $thang ) . '.xlsx';
+	}
 }
