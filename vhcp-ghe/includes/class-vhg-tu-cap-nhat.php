@@ -52,6 +52,11 @@ class VHG_TuCapNhat {
 		/* Thư mục sau khi giải nén phải mang ĐÚNG tên `vhcp-ghe/`, không thì WordPress cài thành
 		   plugin song song và trang vẫn chạy bản cũ dù báo "đã cập nhật" — lỗi im khó lần nhất. */
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'sua_ten_thu_muc' ), 10, 4 );
+		/* 🔴 TỰ KHAI TÊN VÀO DANH SÁCH CHUNG. Trang "Cập nhật" trong /ghe dựng bảng từ chính danh
+		   sách này, nên plugin nào gắn bộ tự cập nhật sau chỉ cần thêm MỘT dòng như dòng dưới là tự
+		   hiện thêm vào trang — không phải đi sửa trang ấy. Anh Thắng 15/09/2026: "sau các trang khác
+		   tạo tự cập nhật thì link vào". */
+		add_filter( 'vhcp_tu_cap_nhat_ds', array( __CLASS__, 'khai_ds' ) );
 	}
 
 	/** Đường plugin dạng `vhcp-ghe/vhcp-ghe.php` — khoá WordPress dùng để nhận plugin. */
@@ -117,6 +122,18 @@ class VHG_TuCapNhat {
 	 * bên trên) nên ô nhớ gần như luôn có sẵn; chưa có thì trả null và màn hình chỉ đơn giản là
 	 * không khoe gì.
 	 */
+	/** Khai tên mình vào danh sách plugin có thể tự cập nhật. */
+	public static function khai_ds( $ds ) {
+		$ds[] = array(
+			'ma'    => 'vhcp-ghe',
+			'ten'   => 'Ghế Massage (K&H)',
+			'duong' => self::duong(),
+			'hien'  => (string) ( defined( 'VHG_VERSION' ) ? VHG_VERSION : '?' ),
+			'lop'   => __CLASS__,
+		);
+		return is_array( $ds ) ? $ds : array();
+	}
+
 	public static function ban_moi_nho() {
 		$nho = get_transient( self::O_NHO );
 		return is_array( $nho ) && $nho ? $nho : null;

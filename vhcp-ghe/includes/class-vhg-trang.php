@@ -206,6 +206,86 @@ class VHG_Trang {
 	 *
 	 * @return array|null [ 'url'=>…, 'ds'=>[ 'Ghế 2.99.0', … ] ] — null = không hiện gì.
 	 */
+	/**
+	 * Danh sách plugin có thể tự cập nhật + bản đang chạy + bản mới (nếu có).
+	 *
+	 * @param bool $soat true = HỎI LẠI GitHub ngay (bỏ ô nhớ). Chỉ dùng khi người ta bấm nút
+	 *                   "Kiểm tra bản mới" — đó là hành động có chủ ý nên chờ vài giây là chấp
+	 *                   nhận được; mọi lượt mở trang bình thường thì đọc ô nhớ (xem ban_moi_nho).
+	 */
+	private static function cn_ds_( $soat = false ) {
+		$ra = array();
+		foreach ( (array) apply_filters( 'vhcp_tu_cap_nhat_ds', array() ) as $p ) {
+			$lop = isset( $p['lop'] ) ? (string) $p['lop'] : '';
+			$moi = '';
+			if ( '' !== $lop && class_exists( $lop ) ) {
+				$ham = $soat ? 'ban_moi' : 'ban_moi_nho';
+				if ( method_exists( $lop, $ham ) ) {
+					$m = $soat ? call_user_func( array( $lop, $ham ), true ) : call_user_func( array( $lop, $ham ) );
+					if ( is_array( $m ) && ! empty( $m['ver'] ) ) { $moi = (string) $m['ver']; }
+				}
+			}
+			$ra[] = array( 'ma' => (string) $p['ma'], 'ten' => (string) $p['ten'],
+				'hien' => (string) $p['hien'], 'moi' => $moi );
+		}
+		return array( 'ok' => true, 'ds' => $ra );
+	}
+
+	/**
+	 * 🔴 CHẠY CẬP NHẬT MỘT PLUGIN — đây là chỗ CÀI MÃ LÊN MÁY CHỦ, đọc kỹ trước khi sửa.
+	 *
+	 * Anh Thắng 15/09/2026: *"điện thoại thì vào trang wp-admin không được"*. Nên phải bấm được
+	 * từ trang /ghe. Cổng `cn_` phía trên đã chốt: chỉ vai trò Quản trị.
+	 *
+	 * ⚠️ `$ma` CHỈ để TRA trong danh sách plugin đã khai, không bao giờ dùng làm đường dẫn. Nguồn
+	 *    tải nằm ở hằng REPO/NHANH trong chính lớp tự cập nhật — trình duyệt không đặt được.
+	 * ⚠️ Quên ô nhớ + gọi wp_update_plugins() TRƯỚC: Plugin_Upgrader chỉ cài khi bảng cập nhật của
+	 *    WordPress có mục cho plugin này, mà mục đó do bộ lọc của ta chèn vào lúc bảng được dựng
+	 *    lại. Không làm bước này thì nút bấm xong báo "đã là bản mới nhất" dù GitHub có bản mới.
+	 * ⚠️ Nạp các tệp wp-admin/includes/* bằng tay: đây là lượt gọi ở NGOÀI trang quản trị nên
+	 *    WordPress chưa nạp sẵn Plugin_Upgrader.
+	 */
+	private static function cn_chay_( $ma, $boi ) {
+		$ma   = trim( $ma );
+		$chon = null;
+		foreach ( (array) apply_filters( 'vhcp_tu_cap_nhat_ds', array() ) as $p ) {
+			if ( isset( $p['ma'] ) && (string) $p['ma'] === $ma ) { $chon = $p; break; }
+		}
+		if ( ! $chon ) { return array( 'ok' => false, 'error' => 'Không có plugin này trong danh sách cập nhật.' ); }
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+		require_once ABSPATH . 'wp-admin/includes/misc.php';
+		require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+
+		if ( isset( $chon['lop'] ) && class_exists( $chon['lop'] ) && method_exists( $chon['lop'], 'quen_nho' ) ) {
+			call_user_func( array( $chon['lop'], 'quen_nho' ) );
+		}
+		wp_clean_plugins_cache( true );
+		wp_update_plugins();
+
+		$skin = new Automatic_Upgrader_Skin();
+		$up   = new Plugin_Upgrader( $skin );
+		$kq   = $up->upgrade( (string) $chon['duong'] );
+
+		$loi = array_filter( (array) $skin->get_upgrade_messages() );
+		if ( is_wp_error( $kq ) ) {
+			return array( 'ok' => false, 'error' => 'Cập nhật hỏng: ' . $kq->get_error_message() );
+		}
+		if ( false === $kq ) {
+			/* false = WordPress không ghi được tệp (thường là host đòi thông tin FTP). Nói thẳng
+			   ra thay vì im lặng — người dùng sẽ tưởng đã cập nhật xong. */
+			return array( 'ok' => false, 'error' => 'Máy chủ không cho ghi tệp plugin (thường do host đòi FTP). '
+				. 'Nhờ hosting bật quyền ghi, hoặc cập nhật từ máy tính qua wp-admin.' );
+		}
+		if ( class_exists( 'VHG_Nhat_Ky' ) ) {
+			VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong',
+				'ghi_chu' => $boi . ' cập nhật plugin ' . $ma . ' từ trang Ghế.' ) );
+		}
+		return array( 'ok' => true, 'thongBao' => 'Đã cập nhật ' . $chon['ten'] . '. Tải lại trang để chạy bản mới.'
+			. ( $loi ? ( ' (' . implode( ' · ', array_slice( $loi, -2 ) ) . ')' ) : '' ) );
+	}
+
 	private static function cap_nhat_info_() {
 		if ( ! current_user_can( 'update_plugins' ) ) { return null; }
 		$ds = array();
@@ -566,6 +646,32 @@ class VHG_Trang {
 		 * Kế toán = người "Chốt doanh số"; quản lý/Admin cũng vào được. Người thu (chỉ giúp khách)
 		 * KHÔNG vào. Đọc/ghi chung bảng bc/bc_dong — xem class-vhg-ketoan.php.
 		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * TRUNG TÂM CẬP NHẬT (cn_*) — CHỈ VAI TRÒ QUẢN TRỊ.
+		 *
+		 * 🔴 GÁC CHẶT HƠN `kt_`. Cổng kế toán cho cả "Chốt doanh số" vào; cổng này thì KHÔNG —
+		 *    nó CÀI MÃ LÊN MÁY CHỦ. Chỉ Quản trị.
+		 * 🔴 KHÔNG NHẬN ĐƯỜNG DẪN NGUỒN TỪ TRÌNH DUYỆT. Chỉ nhận MÃ plugin, rồi tra trong danh
+		 *    sách do chính các lớp tự cập nhật khai ra; nguồn tải luôn là hằng REPO/NHANH ghim
+		 *    trong mã. Nên kể cả có ai chiếm được phiên Quản trị, thứ duy nhất họ làm được là ép
+		 *    cài lại đúng bản trên nhánh của mình — không trỏ được sang nguồn nào khác.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 0 === strpos( $viec, 'cn_' ) ) {
+			$qcn = VHG_Auth::quyen_cua( $ai['role'] );
+			if ( empty( $qcn['quan_tri'] ) ) {
+				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+					'error' => 'Chỉ vai trò Quản trị mới cập nhật được plugin.' ) );
+				return;
+			}
+			if ( 'cn_ds' === $viec )   { self::tra( self::cn_ds_( ! empty( $d['soat'] ) ) ); return; }
+			if ( 'cn_chay' === $viec ) {
+				self::tra( self::cn_chay_( isset( $d['ma'] ) ? (string) $d['ma'] : '', (string) $ai['name'] ) );
+				return;
+			}
+			self::tra( array( 'ok' => false, 'error' => 'Việc cập nhật không rõ: ' . $viec ) );
+			return;
+		}
+
 		if ( 0 === strpos( $viec, 'kt_' ) ) {
 			$q = VHG_Auth::quyen_cua( $ai['role'] );
 			if ( empty( $q['quan_tri'] ) && empty( $q['chot_doanh_so'] ) ) {
@@ -5216,7 +5322,7 @@ function loiTho2_(x){
   if(!tho)     return L('Máy chủ trả về RỖNG (mã ','Server returned EMPTY (status ')+st+L(') — thường là PHP chết giữa chừng hoặc gói tin bị cắt.',') — usually a PHP crash or a truncated request.');
   return L('Máy chủ trả về thứ không đọc được (mã ','Server returned unreadable data (status ')+st+'): '+tho;
 }
-function goi(viec, d, xong0){
+function goi(viec, d, xong0, timeoutMs){
   d = d || {}; d.token = TOK;
   var x = new XMLHttpRequest();
   /* 🔴 KHÔNG CÓ timeout/onerror TRƯỚC ĐÂY = TREO VĨNH VIỄN khi mạng rớt giữa chừng. Nút
@@ -5225,7 +5331,8 @@ function goi(viec, d, xong0){
   var xongMotLan=false; function xong(r){ if(xongMotLan) return; xongMotLan=true; xong0(r); }
   x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
   x.setRequestHeader('Content-Type','application/json');
-  x.timeout = 25000;
+  /* Lượt CÀI PLUGIN lâu hơn 25s là bình thường (tải zip + giải nén) — cho gọi tuỳ chỉnh. */
+  x.timeout = timeoutMs || 25000;
   x.onreadystatechange = function(){
     if (x.readyState !== 4) return;
     var r = null;
@@ -5633,9 +5740,10 @@ function ve(){
       T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data')),
       /* LINK ra trang Sao Kê (plugin riêng) — mở tab mới; chỉ hiện khi đã cài Sao Kê. */
       T((QT || KT) && D && D.saoKeUrl, 'link-saoke', '🏦 ' + L('Sao Kê ngân hàng','Bank statements')),
-      /* Link sang trang Cập nhật của WordPress. Máy chủ CHỈ gửi D.capNhat cho người có quyền
-         update_plugins, nên ở đây khỏi đoán quyền lần nữa — có gói tin là hiện. */
-      T(D && D.capNhat, 'link-capnhat', '⬆️ ' + L('Cập nhật plugin','Plugin updates')
+      /* Trung tâm cập nhật — TAB trong chính trang này, bấm được trên điện thoại (anh Thắng
+         15/09/2026: "điện thoại thì vào wp-admin không được"). Link wp-admin nằm BÊN TRONG tab,
+         cho ai đang ngồi máy tính. */
+      T(QT, 'cap-nhat', '⬆️ ' + L('Cập nhật plugin','Plugin updates')
         + ((D && D.capNhat && D.capNhat.ds.length) ? ' (' + D.capNhat.ds.length + ')' : ''))
     ]],
     [ L('Kỹ thuật','Technical'), [
@@ -5661,19 +5769,6 @@ function ve(){
     items.forEach(function(x){
       /* Mục LINK (ra plugin khác) — render thẻ <a> mở tab mới, KHÔNG đưa vào TABS (không phải tab
          nội bộ, không dính luật chọn tab). */
-      if (x[0] === 'link-capnhat') {
-        var cn = D.capNhat, nhan = x[1];
-        /* Có bản mới thì nói RÕ bản nào, khỏi phải sang tận nơi mới biết đáng bấm hay không. */
-        navHtml += '<a href="' + esc(cn.url) + '" target="_blank" rel="noopener" '
-          + 'style="display:block;text-decoration:none">'
-          + '<button style="width:100%;text-align:left'
-          + (cn.ds.length ? ';font-weight:800' : '') + '">↗ ' + nhan + '</button></a>';
-        if (cn.ds.length) {
-          navHtml += '<div class="nav-grp" style="font-weight:400;opacity:.85">'
-            + esc(L('Có bản mới: ','New: ') + cn.ds.join(' · ')) + '</div>';
-        }
-        return;
-      }
       if (x[0] === 'link-saoke') {
         /* Bấm -> XIN VÉ rồi mới mở, để kế toán vào thẳng không phải gõ PIN (xem saoke_ve_).
            ⚠️ Mở tab TRƯỚC khi gọi mạng: trình duyệt chặn cửa sổ mở từ trong callback bất đồng bộ,
@@ -5812,6 +5907,7 @@ function ve(){
   if (TAB === 'danop')      { h += veDaNop()    + '</div>'; app.innerHTML = h; noi(); daNopTai(); return; }
   if (TAB === 'kt-lichsu')  { h += veKtLichSu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'cap-nhat')   { h += veCapNhat()  + '</div>'; app.innerHTML = h; noi(); cnTai(false); return; }
   if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-nhap')    { h += veKtNhap()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
@@ -8243,6 +8339,53 @@ function thangHomNay(){
   var d=new Date(); var m=d.getMonth()+1;
   return d.getFullYear()+'-'+(m<10?'0':'')+m;
 }
+function veCapNhat(){
+  var wp = (D && D.capNhat && D.capNhat.url) ? D.capNhat.url : '';
+  return '<div class="card"><h2>⬆️ ' + L('Cập nhật plugin','Plugin updates') + '</h2>'
+    + '<p class="mut">' + L('Bấm ngay tại đây, không cần vào wp-admin. Chỉ cài được bản trên nhánh đã ghim của repo — không trỏ sang nguồn nào khác được.',
+        'Update right here, no wp-admin needed. Only installs from the pinned repo branch.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<button id="cn-soat" class="on">↻ ' + L('Kiểm tra bản mới','Check for updates') + '</button>'
+    + (wp ? ('<a href="' + esc(wp) + '" target="_blank" rel="noopener" style="text-decoration:none"><button>'
+        + L('Mở trang Cập nhật của WordPress','Open WordPress Updates') + '</button></a>') : '')
+    + '</div>'
+    + '<div id="cn-ds" style="margin-top:10px"></div></div>';
+}
+
+/* Danh sách plugin + nút cập nhật. `soat` = hỏi lại GitHub ngay (chờ lâu hơn, chỉ khi bấm nút). */
+function cnTai(soat){
+  var box = document.getElementById('cn-ds'); if (!box) return;
+  box.innerHTML = '<span class="mut">' + (soat ? L('Đang hỏi GitHub…','Checking GitHub…') : L('Đang tải…','Loading…')) + '</span>';
+  goi('cn_ds', { soat: soat ? 1 : 0 }, function(r){
+    if (!r || !r.ok) { box.innerHTML = '<span class="mut">' + esc((r && r.error) || L('Không đọc được danh sách.','Could not load.')) + '</span>'; return; }
+    var h = '<table style="border-collapse:collapse;width:100%;margin-top:4px">'
+      + '<tr><th style="text-align:left">' + L('Plugin','Plugin') + '</th><th>' + L('Đang chạy','Current')
+      + '</th><th>' + L('Bản mới','New') + '</th><th></th></tr>';
+    r.ds.forEach(function(p){
+      h += '<tr><td><b>' + esc(p.ten) + '</b></td>'
+        + '<td style="text-align:center">' + esc(p.hien) + '</td>'
+        + '<td style="text-align:center">' + (p.moi ? ('<b style="color:#b45309">' + esc(p.moi) + '</b>') : '<span class="mut">—</span>') + '</td>'
+        + '<td style="text-align:right">' + (p.moi
+            ? ('<button class="on" data-cn="' + esc(p.ma) + '">' + L('Cập nhật ngay','Update now') + '</button>')
+            : '') + '</td></tr>';
+    });
+    box.innerHTML = h + '</table>';
+    [].forEach.call(box.querySelectorAll('[data-cn]'), function(b){
+      b.onclick = function(){
+        var ma = b.getAttribute('data-cn');
+        if (!confirm(L('Cập nhật ','Update ') + ma + L(' ngay bây giờ?',' now?'))) return;
+        b.disabled = true; b.textContent = L('Đang cập nhật…','Updating…');
+        /* Cài plugin lâu hơn 25s là bình thường -> nới thời gian chờ riêng cho lượt này. */
+        goi('cn_chay', { ma: ma }, function(r2){
+          alert((r2 && (r2.thongBao || r2.error)) || L('Không rõ kết quả — tải lại trang rồi kiểm tra số bản.',
+            'Unknown result — reload and check the version.'));
+          cnTai(false);
+        }, 120000);
+      };
+    });
+  }, soat ? 45000 : 25000);
+}
+
 function veKtXuat(){
   var thg=thangHomNay();
   return '<div class="card"><h2>' + L('Xuất chứng từ MISA','Export MISA vouchers') + '</h2>'
@@ -11211,6 +11354,8 @@ function misaDemThieu(){
 }
 
 function noi(){
+  var bSoat = document.getElementById('cn-soat');
+  if (bSoat) bSoat.onclick = function(){ cnTai(true); };
   henLai();
   chayDongHo();
   chayDongHoTop();
