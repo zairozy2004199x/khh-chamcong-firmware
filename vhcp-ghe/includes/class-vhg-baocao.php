@@ -697,7 +697,7 @@ class VHG_BaoCao {
 		   FAIL-OPEN: chỉ chặn khi CHẮC CHẮN người này có hồ sơ chấm công mà chưa chấm vào hôm nay;
 		   thiếu plugin Chấm Công / không tra ra hồ sơ / PIN toàn quyền (admin) → KHÔNG chặn, vì chặn
 		   nhầm là khoá luôn đường nộp doanh thu. Xem cham_cong_chua_(). */
-		if ( self::cham_cong_chua_( $pin, $toan_quyen ) ) {
+		if ( self::cham_cong_chua_( $pin, $la_admin ) ) {
 			return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'], 'chuaChamCong' => 1,
 				'today' => current_time( 'Y-m-d' ), 'chamCongUrl' => self::cham_cong_url(),
 				'trangChuUrl' => home_url( '/' ) );
@@ -773,9 +773,13 @@ class VHG_BaoCao {
 	 *
 	 * ⚠️ Gọi CHÉO sang plugin Chấm Công — gác class_exists/method_exists như mọi chỗ gọi chéo khác.
 	 */
-	private static function cham_cong_chua_( $pin, $toan_quyen ) {
+	private static function cham_cong_chua_( $pin, $la_admin ) {
 		try {
-			if ( $toan_quyen ) { return false; }
+			/* 🔴 CHỈ BỎ QUA ADMIN THẬT (đang đăng nhập WordPress), KHÔNG bỏ qua theo "toàn quyền".
+			   Nhân viên CHƯA PHÂN CƠ SỞ có coso_key rỗng → từng bị coi là toàn quyền và LỌT cửa gác
+			   (anh Thắng 15/09/2026 "vẫn không thấy"). Nay ai không phải admin WP, mà có hồ sơ chấm
+			   công, thì đều bị soát — kể cả PIN toàn quyền / chưa phân cơ sở. */
+			if ( $la_admin ) { return false; }
 			if ( ! class_exists( 'VHCC_Tram' ) || ! method_exists( 'VHCC_Tram', 'tim_pin' ) ) { return false; }
 			if ( ! class_exists( 'VHCC_DB' ) || ! method_exists( 'VHCC_DB', 't' ) ) { return false; }
 			$tim = VHCC_Tram::tim_pin( (string) $pin );
