@@ -913,7 +913,9 @@
       '<span class="goi">' + ghep.length + ' mã</span></header>';
     h += '<div class="chu-them" style="margin-top:6px">Mã bên trái là cơ sở trong sổ nhân sự; ' +
       'chọn bên phải là tên đúng của quán ấy trong số liệu máy POS. Chưa ghép thì người của cơ sở ' +
-      'đó đăng nhập được nhưng không thấy số nào.</div>';
+      'đó đăng nhập được nhưng không thấy số nào. Người vai <b>duyệt</b> (kế toán, quản lý) xem ' +
+      'tổng mọi cơ sở nên mã của họ không cần ghép. Muốn ai phụ trách hai cơ sở thì tích thêm cơ ' +
+      'sở cho họ ở trang Nhân sự — bên này tự theo.</div>';
     if (thieu.length) {
       h += '<div class="canh-ghep">Đang có người ở ' + thieu.length + ' mã chưa ghép: <b>' +
         thieu.map(esc).join(', ') + '</b></div>';
@@ -925,15 +927,22 @@
       h += '<div class="bang-cuon"><table><thead><tr><th>Mã cơ sở (nhân sự)</th>' +
         '<th>Tên cơ sở trên máy POS</th><th>Người</th></tr></thead><tbody>' +
         ghep.map(function (g) {
-          var nguoi = ng.filter(function (x) { return x.coso_ma === g.ma; });
+          /* Một người có thể phụ trách hai cơ sở nên họ hiện ở cả hai hàng. */
+          var nguoi = ng.filter(function (x) { return (x.coso_ds || []).indexOf(g.ma) >= 0; });
+          var chiDuyet = nguoi.length && nguoi.every(function (x) { return x.vai === 'duyet'; });
           return '<tr data-ma="' + esc(g.ma) + '">' +
             '<td><code>' + esc(g.ma) + '</code></td>' +
-            '<td><select data-ghep="' + esc(g.ma) + '"><option value="">— chưa ghép —</option>' +
+            '<td><select data-ghep="' + esc(g.ma) + '"><option value="">' +
+              (chiDuyet ? '— không cần ghép —' : '— chưa ghép —') + '</option>' +
               ch.map(function (t) {
                 return '<option value="' + esc(t) + '"' + (t === g.ten ? ' selected' : '') + '>' + esc(t) + '</option>';
               }).join('') + '</select></td>' +
             '<td style="text-align:left">' + (nguoi.length
-              ? nguoi.map(function (x) { return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) + (x.vai === 'duyet' ? ', duyệt' : '') + ')</span>'; }).join('<br>')
+              ? nguoi.map(function (x) {
+                  return esc(x.ho_ten) + ' <span style="color:var(--ink-3)">(' + esc(x.ma_nv) +
+                    (x.vai === 'duyet' ? ', duyệt — xem tổng mọi cơ sở'
+                      : ((x.coso_ds || []).length > 1 ? ', ' + x.coso_ds.length + ' cơ sở' : '')) + ')</span>';
+                }).join('<br>')
               : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
         }).join('') + '</tbody></table></div>' +
         '<div style="margin-top:12px"><button class="nut chinh" type="button" id="dtLuuGhep">Lưu bảng ghép</button> ' +

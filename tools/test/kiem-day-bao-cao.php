@@ -97,11 +97,50 @@ $ai = khh_dt_phien_nguoi();
 phep( 'phiên nhận ra đúng người', $ai && 'NV001' === $ai['ma_nv'] );
 phep( 'gõ sai PIN thì không vào', empty( khh_dt_pin_dang_nhap( '9999' )['ok'] ) );
 
-/* 🔴 CHƯA GHÉP THÌ KHÔNG THẤY GÌ — không được trả '' (nghĩa là "mọi cơ sở"). */
-phep( 'chưa ghép cơ sở -> không thấy cơ sở nào', KHH_DT_CHUA_GHEP === khh_dt_phien_co_so() );
+/* 🔴 CHƯA GHÉP THÌ KHÔNG THẤY GÌ — không được trả mảng rỗng (nghĩa là "mọi cơ sở"). */
+phep( 'chưa ghép cơ sở -> không thấy cơ sở nào', array( KHH_DT_CHUA_GHEP ) === khh_dt_phien_co_so_ds() );
 khh_dt_dat_ghep( array( 'FZ_ADV_TP' => 'TuTu Train - Aeon Tân Phú' ) );
 khh_dt_test_quen_phien();
-phep( 'ghép xong thì thấy đúng cơ sở của mình', 'TuTu Train - Aeon Tân Phú' === khh_dt_phien_co_so() );
+phep( 'ghép xong thì thấy đúng cơ sở của mình', array( 'TuTu Train - Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
+
+/* ---- một người HAI cơ sở (anh Thắng 15/09/2026) ---- */
+$kq = khh_dt_day_vao( array(
+	'ma_nv'  => 'NV001',
+	'ho_ten' => 'Trần Thị B',
+	'pin'    => '4321',
+	'vai'    => 'nhap',
+	'coso'   => 'FZ_ADV_TP, TUTU_TP',
+) );
+khh_dt_test_quen_phien();
+phep( 'ghép mới một trong hai cơ sở -> vẫn báo chưa xong', ! empty( $kq['chua_ghep'] ) );
+phep( 'và tạm thời chỉ thấy cơ sở đã ghép', array( 'TuTu Train - Aeon Tân Phú' ) === khh_dt_phien_co_so_ds() );
+khh_dt_dat_ghep( array(
+	'FZ_ADV_TP' => 'TuTu Train - Aeon Tân Phú',
+	'TUTU_TP'   => 'TuTu Train - Tân Phú',
+) );
+khh_dt_test_quen_phien();
+phep( 'ghép đủ thì thấy CẢ HAI cơ sở', array( 'TuTu Train - Aeon Tân Phú', 'TuTu Train - Tân Phú' ) === khh_dt_phien_co_so_ds() );
+$kq = khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'coso' => 'FZ_ADV_TP, TUTU_TP' ) );
+phep( 'ghép đủ rồi thì hết báo chưa ghép', empty( $kq['chua_ghep'] ) );
+
+/* ---- 🔴 KẾ TOÁN XEM TỔNG: vai 'duyet' KHÔNG bị bó vào cơ sở của mình ----
+   VP_KH-HCM không phải một quán nào cả nên không bao giờ ghép được; bó theo cơ sở thì đúng người
+   cần nhìn cả 15 quán lại là người thấy rỗng. */
+khh_dt_day_vao( array(
+	'ma_nv'  => 'KT01',
+	'ho_ten' => 'Lý Tiểu Phương',
+	'pin'    => '778899',
+	'vai'    => 'duyet',
+	'coso'   => 'VP_KH-HCM',
+) );
+$dn_kt = khh_dt_pin_dang_nhap( '778899' );
+khh_dt_test_dat_the( $dn_kt['token'] );
+phep( 'kế toán vai duyệt xem được tổng mọi cơ sở', array() === khh_dt_phien_co_so_ds() );
+phep( 'và mã văn phòng không bị đòi ghép', ! in_array( 'VP_KH-HCM', khh_dt_ma_chua_ghep(), true ) );
+
+/* Về lại phiên của cửa hàng trưởng cho các phép sau. */
+$dn = khh_dt_pin_dang_nhap( '4321' );
+khh_dt_test_dat_the( $dn['token'] );
 
 /* --- vai đọc lại từ bảng, không tin thẻ phiên --- */
 khh_dt_day_vao( array( 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Thị B', 'pin' => '4321', 'vai' => 'duyet', 'coso' => 'FZ_ADV_TP' ) );

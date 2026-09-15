@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -53,6 +53,10 @@ Cửa hàng trưởng KHÔNG cần tài khoản WordPress. Ở trang **Nhân s�
 theo tên · PIN · mã cơ sở · vai. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày,
 và chỉ thấy cơ sở của mình.
 
+Ai phụ trách **hai cơ sở** thì tích đủ hai cơ sở cho họ ở trang Nhân sự — bên này tự theo, và họ
+nhập báo cáo được cho cả hai. Ai vai **duyệt** (kế toán, quản lý) thì xem tổng mọi cơ sở, không
+cần ghép mã.
+
 Một việc phải khai một lần: **Quản trị → Ghép cơ sở**. Sổ nhân sự gọi quán bằng mã (`FZ_ADV_TP`),
 máy POS gọi bằng tên dài ("TuTu Train - Aeon Tân Phú …"), không có cách nào đoán hộ. Mã chưa ghép
 thì người của cơ sở đó vào được nhưng thấy rỗng — và màn nói thẳng ra lý do, chứ không lặng lẽ
@@ -76,6 +80,17 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.7.0 =
+* **Một người phụ trách được hai (hay nhiều) cơ sở** — tích thêm cơ sở cho họ ở trang Nhân sự là
+  bên này tự theo. Mọi phép lọc nay nghĩ bằng danh sách cơ sở, không phải một cơ sở.
+* **Vai "duyệt" (kế toán, quản lý, admin) xem tổng mọi cơ sở**, không bị bó vào cơ sở của mình.
+  Kế toán đứng ở mã văn phòng (VP_KH-HCM) — một mã không phải quán nào cả, không bao giờ ghép
+  được; trước đó chính người cần nhìn cả 15 quán lại là người thấy rỗng.
+* Bảng Ghép cơ sở thôi đòi ghép những mã mà mọi người ở đó đều vai duyệt, và nói rõ ai đang phụ
+  trách mấy cơ sở.
+* Ô chọn cửa hàng cũng cắt theo phần của người xem — trước vẫn liệt kê đủ 15 quán, chọn quán
+  người ta thì nhận màn trống, trông y như hệ hỏng.
 
 = 1.6.0 =
 * **Đăng nhập bằng PIN chấm công** cho người được đẩy từ trang Nhân sự sang — không tạo tài khoản

@@ -62,21 +62,40 @@ function khh_dt_tao_bang_bc() {
  * ------------------------------------------------------------------ */
 
 /**
- * Cơ sở được gán cho người đang xem; rỗng = xem và nhập được mọi cơ sở.
+ * NHỮNG CƠ SỞ NGƯỜI ĐANG XEM ĐƯỢC ĐỤNG TỚI. MẢNG RỖNG = MỌI CƠ SỞ.
  *
- * Hai loại người: tài khoản WordPress (cơ sở nằm ở meta, chọn trong hồ sơ) và người vào bằng PIN
- * chấm công (cơ sở là MÃ đẩy từ trang nhân sự sang, tra qua bảng ghép — xem `nguoi.php`).
+ * 🔴 DANH SÁCH, KHÔNG PHẢI MỘT CHUỖI. Anh Thắng 15/09/2026: *"cho thêm giúp anh bạn nhập được 2
+ *    cơ sở"*. Nhà mình có người phụ trách hai quán (bên nhân sự khai bằng ô cơ sở phụ từ
+ *    31/08/2026), nên mọi phép hỏi "được đụng vào cơ sở nào" phải trả lời bằng danh sách. Trả về
+ *    một chuỗi rồi lấy cái đầu tiên là người ấy nhập được quán này, quán kia báo "không phụ
+ *    trách" — sai im lặng, và họ sẽ tưởng tại mình nhớ nhầm.
  *
- * ⚠️ HỎI PHIÊN PIN TRƯỚC, VÀ CHỈ KHI KHÔNG HỎI ĐÍCH DANH AI. Truyền `$uid` vào là đang hỏi về một
- *    tài khoản WordPress cụ thể (màn Quản trị, hồ sơ người dùng) — lúc ấy phiên PIN của người đang
- *    ngồi trước máy không liên quan gì.
+ * Hai loại người: tài khoản WordPress (một cơ sở, chọn trong hồ sơ) và người vào bằng PIN chấm
+ * công (mã cơ sở đẩy từ trang nhân sự sang, tra qua bảng ghép — xem `nguoi.php`).
+ */
+function khh_dt_co_so_ds() {
+	if ( ! is_user_logged_in() && function_exists( 'khh_dt_phien_nguoi' ) && khh_dt_phien_nguoi() ) {
+		return khh_dt_phien_co_so_ds();
+	}
+	$m = (string) get_user_meta( get_current_user_id(), 'khh_dt_co_so', true );
+	return '' === $m ? array() : array( $m );
+}
+
+/**
+ * Cơ sở đã gán cho MỘT TÀI KHOẢN WORDPRESS — chỉ dùng cho màn quản trị và hồ sơ người dùng.
+ *
+ * ⚠️ ĐỪNG dùng hàm này để hỏi "người đang ngồi trước máy được xem gì": nó không biết phiên PIN,
+ *    và nó chỉ trả về được một cơ sở. Câu hỏi ấy hỏi `khh_dt_co_so_ds()`.
  */
 function khh_dt_co_so_cua( $uid = 0 ) {
-	if ( ! $uid && ! is_user_logged_in() && function_exists( 'khh_dt_phien_nguoi' ) && khh_dt_phien_nguoi() ) {
-		return khh_dt_phien_co_so();
-	}
 	$uid = $uid ? $uid : get_current_user_id();
 	return (string) get_user_meta( $uid, 'khh_dt_co_so', true );
+}
+
+/** Tên cơ sở để giao diện chọn sẵn: có đúng một cơ sở thì là cơ sở ấy, nhiều hơn thì để người chọn. */
+function khh_dt_co_so_mac_dinh() {
+	$ds = khh_dt_co_so_ds();
+	return 1 === count( $ds ) ? (string) $ds[0] : '';
 }
 
 /** Tên người đang mở màn — để in lên góc trang và ghi vào ô "người nhập" của báo cáo ngày. */
@@ -108,8 +127,8 @@ function khh_dt_duoc_cua_hang( $cua_hang ) {
 	if ( ! khh_dt_duoc_ghi() ) {
 		return false;
 	}
-	$cua = khh_dt_co_so_cua();
-	return '' === $cua || $cua === (string) $cua_hang;
+	$ds = khh_dt_co_so_ds();
+	return ! $ds || in_array( (string) $cua_hang, $ds, true );
 }
 
 add_action( 'show_user_profile', 'khh_dt_o_ho_so' );
@@ -239,8 +258,8 @@ function khh_dt_rest_bc_lay( $req ) {
 	/* 🔴 CHẶN CẢ ĐƯỜNG ĐỌC, KHÔNG CHỈ ĐƯỜNG GHI. Đường ghi đã hỏi `khh_dt_duoc_cua_hang()`, nhưng
 	   đường đọc thì nhận nguyên tên cơ sở gửi lên — đổi một chữ trên thanh địa chỉ là cửa hàng
 	   trưởng quán này đọc được doanh thu và tiền mặt đếm được của quán kia. */
-	$cua = khh_dt_co_so_cua();
-	if ( '' !== $cua && $cua !== $ch ) {
+	$cua_ds = khh_dt_co_so_ds();
+	if ( $cua_ds && ! in_array( $ch, $cua_ds, true ) ) {
 		return new WP_Error( 'khh_dt_bc', 'Anh/chị không phụ trách cơ sở này.', array( 'status' => 403 ) );
 	}
 
@@ -257,7 +276,8 @@ function khh_dt_rest_bc_lay( $req ) {
 		'pos'      => khh_dt_so_pos( $ngay, $ch ),
 		'bao_cao'  => $r,
 		'duoc_ghi' => khh_dt_duoc_cua_hang( $ch ),
-		'cua_toi'  => khh_dt_co_so_cua(),
+		'cua_toi'  => khh_dt_co_so_mac_dinh(),
+		'cua_toi_ds' => khh_dt_co_so_ds(),
 	);
 }
 
@@ -346,9 +366,11 @@ function khh_dt_rest_doi_soat( $req ) {
 	$tu  = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'tu' ) );
 	$den = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'den' ) );
 	$ch  = (string) $req->get_param( 'cua_hang' );
-	$cua = khh_dt_co_so_cua();
-	if ( '' !== $cua ) {
-		$ch = $cua;                                    // người phụ trách một cơ sở chỉ thấy cơ sở mình
+	/* Người phụ trách cơ sở chỉ thấy cơ sở mình — một hay hai đều thế. Chọn một cơ sở ngoài phần
+	   của mình thì coi như không chọn, chứ không chối: giao diện có thể còn nhớ lựa chọn cũ. */
+	$cua_ds = khh_dt_co_so_ds();
+	if ( $cua_ds && ! in_array( $ch, $cua_ds, true ) ) {
+		$ch = 1 === count( $cua_ds ) ? (string) $cua_ds[0] : '';
 	}
 
 	$pos = khh_dt_bang();
@@ -370,6 +392,9 @@ function khh_dt_rest_doi_soat( $req ) {
 	if ( $ch && '*' !== $ch ) {
 		$sql   .= ' AND p.cua_hang = %s';
 		$args[] = $ch;
+	} elseif ( $cua_ds ) {
+		$sql   .= ' AND p.cua_hang IN (' . implode( ',', array_fill( 0, count( $cua_ds ), '%s' ) ) . ')';
+		$args   = array_merge( $args, $cua_ds );
 	}
 	$sql .= ' ORDER BY p.ngay DESC, p.cua_hang ASC LIMIT 2000';
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
@@ -415,7 +440,7 @@ function khh_dt_rest_doi_soat( $req ) {
 	}
 	return array(
 		'dong'    => $ra,
-		'cua_toi' => $cua,
+		'cua_toi' => khh_dt_co_so_mac_dinh(),
 		'nguong'  => khh_dt_nguong(),
 	);
 }

@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://khh.vn/
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.6.0
+ * Version:           1.7.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.6.0' );
+define( 'KHH_DT_VERSION', '1.7.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -285,6 +285,15 @@ function khh_dt_rest_cau_hinh() {
 	$bang = khh_dt_bang();
 	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds   = $wpdb->get_results( "SELECT cua_hang, SUM(doanh_thu) dt FROM $bang GROUP BY cua_hang ORDER BY dt DESC", ARRAY_A );
+	/* 🔴 CẮT LUÔN DANH SÁCH CỬA HÀNG GỬI XUỐNG. Số liệu đã cắt theo cơ sở rồi, nhưng nếu ô chọn
+	   cửa hàng vẫn liệt kê đủ 15 quán thì cửa hàng trưởng chọn quán người ta và nhận về màn trống
+	   — trông y như hệ hỏng. Người phụ trách hai quán thì thấy đúng hai. */
+	$cua_ds = khh_dt_co_so_ds();
+	if ( $cua_ds ) {
+		$ds = array_values( array_filter( (array) $ds, function ( $r ) use ( $cua_ds ) {
+			return in_array( (string) $r['cua_hang'], $cua_ds, true );
+		} ) );
+	}
 	$bien = $wpdb->get_row( "SELECT MIN(ngay) tu, MAX(ngay) den, COUNT(*) n FROM $bang", ARRAY_A );
 	// phpcs:enable
 	$meta = get_option( 'khh_dt_meta', array() );
@@ -300,10 +309,11 @@ function khh_dt_rest_cau_hinh() {
 		'duoc_ghi'  => khh_dt_duoc_ghi(),
 		'duoc_nap'  => khh_dt_duoc_nap(),
 		'quan_tri'  => khh_dt_duoc_quan_tri(),
-		'cua_toi'   => khh_dt_co_so_cua(),
+		'cua_toi'   => khh_dt_co_so_mac_dinh(),
+		'cua_toi_ds' => $cua_ds,
 		'ten_toi'   => khh_dt_ten_dang_xem(),
 		'bang_pin'  => (bool) khh_dt_phien_nguoi(),
-		'chua_ghep_co_so' => khh_dt_phien_nguoi() && KHH_DT_CHUA_GHEP === khh_dt_co_so_cua(),
+		'chua_ghep_co_so' => in_array( KHH_DT_CHUA_GHEP, $cua_ds, true ),
 		'co_api'    => (bool) get_option( 'khh_dt_api_token' ),
 		'gioi_han_tai_len' => size_format( wp_max_upload_size() ),
 		'gioi_han_byte'    => (int) wp_max_upload_size(),
@@ -322,10 +332,10 @@ function khh_dt_rest_bao_cao( $req ) {
 	   Cửa hàng trưởng được gán một cơ sở thì gói dữ liệu gửi xuống máy họ chỉ có cơ sở ấy. Giấu
 	   bằng JavaScript là số của 14 quán kia vẫn nằm trong trang, mở tab Mạng của trình duyệt ra
 	   là đọc được. */
-	$cua = khh_dt_co_so_cua();
-	if ( '' !== $cua ) {
-		$sql   .= ' AND cua_hang = %s';
-		$args[] = $cua;
+	$cua_ds = khh_dt_co_so_ds();
+	if ( $cua_ds ) {
+		$sql   .= ' AND cua_hang IN (' . implode( ',', array_fill( 0, count( $cua_ds ), '%s' ) ) . ')';
+		$args   = array_merge( $args, $cua_ds );
 	}
 	if ( $tu ) {
 		$sql   .= ' AND ngay >= %s';

@@ -86,6 +86,24 @@ function khh_dt_tao_bang_nguoi() {
  * Bảng ghép mã cơ sở (nhân sự) ↔ tên cơ sở (máy POS)
  * ================================================================== */
 
+/**
+ * Tách chuỗi mã cơ sở ("FZ_ADV_TP, TUTU_TP") thành danh sách, viết hoa, bỏ trùng.
+ *
+ * Một người có thể phụ trách HAI cơ sở — chuyện thật của nhà mình, và bên nhân sự đã khai được
+ * như thế từ 31/08/2026 (`nhan_vien.coso_phu`). Nên chỗ nào ở đây cũng phải nghĩ bằng DANH SÁCH,
+ * không phải một chuỗi.
+ */
+function khh_dt_tach_ma( $chuoi ) {
+	$ra = array();
+	foreach ( explode( ',', (string) $chuoi ) as $x ) {
+		$x = strtoupper( trim( $x ) );
+		if ( '' !== $x && ! in_array( $x, $ra, true ) ) {
+			$ra[] = $x;
+		}
+	}
+	return $ra;
+}
+
 /** [ MÃ => tên cơ sở đúng như trong số liệu POS ]. */
 function khh_dt_ghep_ds() {
 	$x = get_option( 'khh_dt_ghep_coso', array() );
@@ -117,16 +135,28 @@ function khh_dt_dat_ghep( $bang ) {
 	return $sach;
 }
 
-/** Những mã cơ sở đang có người mà chưa khai tên POS — để màn Quản trị nhắc. */
+/**
+ * Những mã cơ sở đang có người mà chưa khai tên POS — để màn Quản trị nhắc.
+ *
+ * ⚠️ BỎ QUA MÃ MÀ MỌI NGƯỜI Ở ĐÓ ĐỀU LÀ 'duyet'. Kế toán và văn phòng đứng ở `VP_KH-HCM` — một
+ *    mã không phải quán nào cả, không bao giờ ghép được, mà họ cũng không cần: vai 'duyet' xem
+ *    tổng mọi cơ sở. Nhắc một việc không làm được và cũng không cần làm thì lần sau không ai đọc
+ *    lời nhắc nữa, kể cả lời nhắc thật.
+ */
 function khh_dt_ma_chua_ghep() {
 	global $wpdb;
 	$ng = khh_dt_bang_nguoi();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$ds = (array) $wpdb->get_col( "SELECT DISTINCT coso_ma FROM $ng WHERE coso_ma<>''" );
+	$ds = (array) $wpdb->get_results( "SELECT coso_ma, vai FROM $ng WHERE coso_ma<>''", ARRAY_A );
 	$ra = array();
-	foreach ( $ds as $ma ) {
-		if ( '' === khh_dt_ghep_ten( $ma ) ) {
-			$ra[] = (string) $ma;
+	foreach ( $ds as $r ) {
+		if ( 'duyet' === (string) $r['vai'] ) {
+			continue;
+		}
+		foreach ( khh_dt_tach_ma( (string) $r['coso_ma'] ) as $ma ) {
+			if ( '' === khh_dt_ghep_ten( $ma ) && ! in_array( $ma, $ra, true ) ) {
+				$ra[] = $ma;
+			}
 		}
 	}
 	return $ra;
@@ -168,7 +198,7 @@ function khh_dt_day_vao( $hs ) {
 	$ten = trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) );
 	$pin = trim( (string) ( isset( $hs['pin'] ) ? $hs['pin'] : '' ) );
 	$vai = (string) ( isset( $hs['vai'] ) ? $hs['vai'] : 'nhap' );
-	$cs  = strtoupper( trim( (string) ( isset( $hs['coso'] ) ? $hs['coso'] : '' ) ) );
+	$cs  = implode( ',', khh_dt_tach_ma( isset( $hs['coso'] ) ? $hs['coso'] : '' ) );
 
 	if ( '' === $ma ) {
 		return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' );
@@ -234,7 +264,14 @@ function khh_dt_day_vao( $hs ) {
 		'ok'        => true,
 		'viec'      => $viec,
 		'mat_pin'   => $mat_pin,
-		'chua_ghep' => ( '' !== $cs && '' === khh_dt_ghep_ten( $cs ) ),
+		/* Hai cơ sở mà mới ghép được một thì VẪN là chưa xong — người ấy nhập được quán này,
+		   quán kia không thấy đâu, và đó là loại hỏng người ta không báo vì tưởng mình nhớ nhầm. */
+		'chua_ghep' => ( '' !== $cs && (bool) array_filter(
+			khh_dt_tach_ma( $cs ),
+			function ( $m ) {
+				return '' === khh_dt_ghep_ten( $m );
+			}
+		) ),
 	);
 }
 
@@ -379,19 +416,37 @@ function khh_dt_phien_dong() {
 	return array( 'ok' => true );
 }
 
-/** Tên cơ sở bên POS mà người đang mở màn được đụng tới; '' = mọi cơ sở. */
-function khh_dt_phien_co_so() {
+/**
+ * Những cơ sở (tên bên POS) mà người đang mở màn được đụng tới. MẢNG RỖNG = mọi cơ sở.
+ *
+ * 🔴 VAI 'duyet' THÌ XEM TỔNG, KHÔNG BỊ BÓ VÀO CƠ SỞ CỦA MÌNH.
+ *    Anh Thắng 15/09/2026: *"phân ra kế toán xem được tổng cơ sở"*. Kế toán ngồi ở VP_KH-HCM —
+ *    một mã KHÔNG PHẢI quán nào cả, nên không bao giờ ghép được sang tên cơ sở POS. Nếu vẫn bó
+ *    theo cơ sở thì người duy nhất cần nhìn cả 15 quán lại là người thấy rỗng. Vai 'duyet' vốn
+ *    đã nghĩa là "nhập, và xem đối soát của mọi cơ sở".
+ */
+function khh_dt_phien_co_so_ds() {
 	$n = khh_dt_phien_nguoi();
 	if ( ! $n ) {
-		return '';
+		return array();
 	}
-	$ma = (string) $n['coso_ma'];
-	if ( '' === $ma ) {
-		return '';
+	if ( 'duyet' === (string) $n['vai'] ) {
+		return array();
 	}
-	$ten = khh_dt_ghep_ten( $ma );
-	/* Chưa khai bảng ghép -> KHÔNG thấy cơ sở nào. Xem đầu tệp. */
-	return '' !== $ten ? $ten : KHH_DT_CHUA_GHEP;
+	$ma_ds = khh_dt_tach_ma( (string) $n['coso_ma'] );
+	if ( ! $ma_ds ) {
+		return array();
+	}
+	$ten_ds = array();
+	foreach ( $ma_ds as $ma ) {
+		$ten = khh_dt_ghep_ten( $ma );
+		if ( '' !== $ten && ! in_array( $ten, $ten_ds, true ) ) {
+			$ten_ds[] = $ten;
+		}
+	}
+	/* Chưa ghép được mã nào -> KHÔNG thấy cơ sở nào (mảng rỗng ở đây nghĩa là THẤY HẾT, nên phải
+	   trả một tên không khớp quán nào). Xem đầu tệp. */
+	return $ten_ds ? $ten_ds : array( KHH_DT_CHUA_GHEP );
 }
 
 /* ================================================================== *
@@ -457,9 +512,10 @@ function khh_dt_rest_ghep() {
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$nguoi = (array) $wpdb->get_results( "SELECT ma_nv, ho_ten, coso_ma, vai, cap_nhat FROM $ng ORDER BY coso_ma, ho_ten", ARRAY_A );
 	$ma_ds = array();
-	foreach ( $nguoi as $n ) {
-		if ( '' !== (string) $n['coso_ma'] ) {
-			$ma_ds[ (string) $n['coso_ma'] ] = true;
+	foreach ( $nguoi as $i => $n ) {
+		$nguoi[ $i ]['coso_ds'] = khh_dt_tach_ma( (string) $n['coso_ma'] );
+		foreach ( $nguoi[ $i ]['coso_ds'] as $m ) {
+			$ma_ds[ $m ] = true;
 		}
 	}
 	foreach ( array_keys( khh_dt_ghep_ds() ) as $m ) {

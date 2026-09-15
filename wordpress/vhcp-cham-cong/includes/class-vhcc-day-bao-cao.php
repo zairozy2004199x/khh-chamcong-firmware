@@ -18,6 +18,10 @@
  * (chi phí, ghế, nội bộ) đều đã vào bằng PIN ấy. Nên cột này đẩy sang y như cột Vận hành chi phí:
  * tên · PIN · cơ sở · vai.
  *
+ * ⚠️ MỘT NGƯỜI CÓ THỂ PHỤ TRÁCH HAI CƠ SỞ, và đẩy sang thì phải đủ cả hai. Ô tích cơ sở ở sổ
+ *    nhân sự từ 31/08/2026 mang nghĩa "có mặt làm việc đầy đủ tại chi nhánh đó" — chính với phụ
+ *    như nhau, nên chỗ này hỏi `VHCC_NhanSu::ds_coso_hs()` chứ không đọc mỗi `cua_hang`.
+ *
  * ⚠️ CƠ SỞ HAI BÊN KHÔNG TRÙNG CHỮ. Bên nhân sự là MÃ (`FARM_PT`, `FZ_SC_VIVO_T4`); bên máy POS
  *    là tên dài (*"TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )"*). Đẩy sang thì gửi
  *    NGUYÊN MÃ, và bên ấy có bảng ghép mã ↔ tên cơ sở khai một lần. Đoán hộ ở đây là gán nhầm
@@ -127,9 +131,28 @@ class VHCC_DayBaoCao {
 			'ho_ten' => $ten,
 			'pin'    => $pin,
 			'vai'    => self::vai_bao_cao( (string) $hs['vai_tro'] ),
-			/* Gửi NGUYÊN MÃ cơ sở của sổ nhân sự; bên báo cáo có bảng ghép mã ↔ tên cơ sở POS. */
-			'coso'   => VHCC_NhanSu::chuan_coso( (string) $hs['cua_hang'] ),
+			/* Gửi NGUYÊN MÃ cơ sở của sổ nhân sự; bên báo cáo có bảng ghép mã ↔ tên cơ sở POS.
+			   🔴 GỬI CẢ HAI (HAY BA) CƠ SỞ, không chỉ cơ sở chính. Anh Thắng 15/09/2026: *"cho
+			   thêm giúp anh bạn nhập được 2 cơ sở"*. Từ 31/08/2026 ô tích cơ sở ở đây nghĩa là
+			   "có mặt làm việc đầy đủ tại chi nhánh đó", chính với phụ như nhau — nên `ds_coso_hs()`
+			   là câu trả lời đúng, còn `chuan_coso($hs['cua_hang'])` chỉ lấy được cái đầu tiên và
+			   người phụ trách hai quán sẽ nhập được một quán rồi bị chối ở quán kia. */
+			'coso'   => self::ma_coso( $hs ),
 		);
+	}
+
+	/**
+	 * Chuỗi mã cơ sở gửi sang: mọi cơ sở của hồ sơ, nối bằng dấu phẩy.
+	 *
+	 * ⚠️ GÁC `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `tools/test/kiem-goi-cheo.php`.
+	 *    Thiếu `ds_coso_hs()` (bản chấm công cũ) thì lui về cơ sở chính, một cơ sở vẫn hơn không.
+	 */
+	private static function ma_coso( $hs ) {
+		if ( method_exists( 'VHCC_NhanSu', 'ds_coso_hs' ) ) {
+			$ds = (array) VHCC_NhanSu::ds_coso_hs( $hs );
+			if ( $ds ) { return implode( ',', $ds ); }
+		}
+		return VHCC_NhanSu::chuan_coso( (string) $hs['cua_hang'] );
 	}
 
 	/* ====================================================================== đẩy / gỡ */
