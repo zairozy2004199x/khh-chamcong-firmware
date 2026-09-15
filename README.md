@@ -27,6 +27,12 @@ thấy là **dừng, không phát hành**.
 | `esp32_hik_chamcong_full/` | **Máy chính** — đọc sự kiện quẹt thẻ/khuôn mặt từ đầu đọc Hikvision (ISAPI), đẩy lên web app kèm ảnh, đồng bộ nhân viên xuống máy, màn hình CYD, hỗ trợ cả WiFi lẫn 4G |
 | `esp32_ota_updater/` | **Máy trạm ("thợ nạp")** — tự tải `.bin` mới về thẻ nhớ cắm sẵn qua WiFi; đứng gần máy chính rồi **bấm** mới nạp |
 
+## Web app báo cáo chi phí
+
+| Thư mục | Việc |
+|---|---|
+| `web_baocao_chiphi/` | **Web app "Báo cáo chi phí"** — nhập file Excel chi phí hàng tháng (doanh thu, khoản chi phí, bảng lương), tự phân bổ MTĐ / KVC và xuất ra tab *File tổng báo cáo* + phân bổ theo điểm để hạch toán MISA. Chạy hoàn toàn trên trình duyệt, mở `index.html` là dùng. Xem `web_baocao_chiphi/README.md` |
+
 ## Phát hành
 
 Mỗi lần đẩy code lên nhánh `main`, GitHub Actions tự biên dịch và tạo bản phát hành.
