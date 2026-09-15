@@ -47,6 +47,8 @@ require_once VHCC_DIR . 'includes/class-vhcc-phien.php';
 require_once VHCC_DIR . 'includes/class-vhcc-cau-noi.php';
 require_once VHCC_DIR . 'includes/class-vhcc-api.php';
 require_once VHCC_DIR . 'includes/class-vhcc-luong.php';
+require_once VHCC_DIR . 'includes/class-vhcc-gia-gio.php';
+require_once VHCC_DIR . 'includes/class-vhcc-bang-luong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-pdf.php';
 require_once VHCC_DIR . 'includes/class-vhcc-quyen.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan-su.php';
