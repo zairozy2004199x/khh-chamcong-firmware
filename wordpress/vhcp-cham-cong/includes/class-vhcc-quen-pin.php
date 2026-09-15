@@ -178,6 +178,11 @@ class VHCC_QuenPin {
 			if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
 				VHCC_DayChiPhi::dong_bo( $ma );
 			}
+			/* Và bản sao bên màn Quản trị báo cáo cơ sở — cùng lý do, cùng lúc: cửa hàng trưởng
+			   vào màn ấy bằng chính PIN này, để lệch là sáng hôm sau họ không nhập được báo cáo. */
+			if ( class_exists( 'VHCC_DayBaoCao' ) && method_exists( 'VHCC_DayBaoCao', 'dong_bo' ) ) {
+				VHCC_DayBaoCao::dong_bo( $ma );
+			}
 		}
 		self::ghi( $ma, (string) $hs['ho_ten'] );
 		return array( 'ok' => true, 'ma_nv' => $ma, 'ho_ten' => (string) $hs['ho_ten'] );

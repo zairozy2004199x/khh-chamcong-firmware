@@ -1101,6 +1101,24 @@ tên, con số ấy trước bản này **không hiện ở đâu, cả hai bên
 ⚠️ Khai bản đồ xong thì **đồng bộ lại ngay** mọi tài khoản đã đẩy — không thì sổ bên kia giữ bộ
 phận cũ, người khai đóng trang và tin là xong. Khai bản đồ cần **Admin**: nó đổi phạm vi nhìn tiền.
 
+
+<!-- ══════════════════════════════════════════════════════════════════════════════════════════
+     🔴 HAI NHÁNH CÙNG ĐÁNH SỐ 3.81–3.83 CHO BA VIỆC KHÁC NHAU — hoà lại 15/09/2026.
+
+     Nhánh «rebuild-chi-phi» và nhánh «quan-tri-cham-cong»/«magical-goldberg» cùng làm plugin
+     Chấm công song song, và cùng đánh 3.81.0 · 3.82.0 · 3.83.0 cho những việc khác hẳn nhau.
+     Anh Thắng cài bản của nhánh này lên site đang chạy bản của nhánh kia, và WordPress báo
+     "Bạn đang tải lên một phiên bản cũ của plugin hiện tại" — một câu nói ĐÚNG về con số mà
+     SAI về việc: hai bản ấy không phải cũ/mới, chúng là hai nhánh việc rời nhau.
+
+     Mục 4p (dưới) là của nhánh này; mục 4q là của nhánh kia, đánh lại số lúc hoà.
+
+     ⚠️ TRƯỚC KHI ĐÁNH SỐ MỚI CHO BẤT KỲ PLUGIN NÀO: dò số trên MỌI nhánh, đừng chỉ nhìn
+        nhánh mình. Lệnh:
+          for b in $(git branch -r | sed 's| *origin/||' | grep -v HEAD); do
+            echo -n "$b "; git show origin/$b:wordpress/<plugin>/<plugin>.php \
+              2>/dev/null | grep -m1 'Version:'; done
+     ══════════════════════════════════════════════════════════════════════════════════════════ -->
 ## 4p. Thêm ĐÍCH DANH một người vào trang Chi phí — 3.81.0 (13/09/2026)
 
 Anh Thắng, kèm ảnh bảng nhân sự:
@@ -1173,7 +1191,44 @@ việc *đọc* chức vụ — nó nằm ở việc *gửi thẳng* một chu�
 cảnh báo không-bó) đều sống sót qua phép soi chữ, vì chữ vẫn còn trong tệp — chỉ đường đi bị cắt.
 
 ---
+## 4q. Bảng này là bảng QUYỀN, không phải bảng sơ đồ tổ chức (3.83.0)
 
+Anh Thắng 14/09/2026: *"loại bỏ mảng kinh doanh và bộ phận (sẽ tạo trong thông tin nhân viên)"*,
+rồi ngay sau đó: *"mở lại quyền truy cập trang"*.
+
+Hai câu ấy là **một cặp đổi chỗ**, không phải hai việc rời nhau — và chúng sửa một lỗi bố cục mà
+bản 3.77.0 tự gây ra.
+
+### 🔴 3.77.0 đã ưu tiên ngược
+
+| | khai bao lâu một lần | 3.77.0 cho nó gì |
+|---|---|---|
+| Mảng / Bộ phận | **một lần** lúc vào làm, đổi khi điều động | hai cột rộng nhất bảng, mỗi ô một hộp tích bốn dòng × 50 hàng |
+| Quyền vào trang | **hàng ngày** | một dải chip **chỉ đọc** |
+
+Màn hình dành chỗ đẹp nhất cho thứ khai một lần, còn thứ phải bấm hàng ngày thì chỉ được nhìn.
+
+Nay trả đúng chỗ:
+
+* **quyền vào trang** bấm thẳng trên hàng, kèm nút **áp cả cột** ở đầu cột;
+* **mảng và bộ phận** chuyển vào khối **«sửa ▾»** — thông tin nhân viên của chính người ấy.
+
+Bảng thu từ 1.318px xuống **1.042px**.
+
+### ⚠️ Vì sao đặt ở «sửa ▾», không đặt ở màn hồ sơ của cửa hàng trưởng
+
+`VHCC_WebNS::the_sua()` gác bằng `ho_so_coso` — **cửa hẹp**, chỉ mở bốn ô liên lạc và ô PIN, cố ý
+không cho đụng tới thứ ra tiền hay ra quyền. Mà mảng và bộ phận **nay chính là thứ ra quyền**
+(luật nhóm 3.77.0, bó phạm vi theo mảng 3.80.0), nên chúng phải ở bậc **Kế toán** — tức ở khối
+sửa của màn Quản lý nhân sự.
+
+### ⚠️ Bỏ cột là bỏ chỗ KHAI, không phải bỏ chỗ NHÌN
+
+**Dải đếm** và **ô lọc** theo mảng / bộ phận ở đầu trang **giữ nguyên**. Mất dải đếm là mất luôn
+danh sách *"N người hệ KHÔNG suy ra mảng"* — thứ duy nhất nói ra ai còn thiếu.
+
+Nút "điều động cả cột" thì đi theo cột: điều động hàng loạt nay làm bằng **luật nhóm** (khai một
+lần cho cả phòng), không phải bằng một lượt ghi 50 dòng cho lát cắt đang hiện.
 ## 5. Nằm ở đâu trong mã
 
 | Việc | Tệp |

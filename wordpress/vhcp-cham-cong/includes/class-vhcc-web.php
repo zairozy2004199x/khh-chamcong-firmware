@@ -3655,8 +3655,15 @@ class VHCC_Web {
 	 * ⚠️ GẬP LẠI, KHÔNG BÀY SẴN. Thêm người là việc vài tháng một lần; bảng công là việc hằng
 	 *    ngày. Bày sẵn một biểu mẫu tạo hồ sơ ngay giữa đường đọc hằng ngày là sớm muộn có
 	 *    người điền nhầm vào đó.
+	 *
+	 * 🔴 VẼ ĐƯỢC TỪ CẢ MÀN NHÂN SỰ CỬA HÀNG NỮA.
+	 *    Anh Thắng 14/09/2026: *"Bổ sung cửa hàng trưởng có thể tạo và thêm nhân viên được luôn"*.
+	 *    Năng lực có sẵn từ 28/08, nhưng khối vẽ chỉ nằm ở màn Bảng công — mà ai muốn thêm người
+	 *    thì mở màn <b>Nhân sự cửa hàng</b>. Có mà không thấy thì với người dùng là KHÔNG CÓ.
+	 *    Nên hàm đổi từ `private` sang `public`. `$man_ve` chỉ để ô ẩn `man` nói đúng tên màn
+	 *    đang vẽ — nó KHÔNG điều khiển đường về; xem chú thích tại chính hai ô ẩn ấy bên dưới.
 	 */
-	private static function khoi_them_nv( $ky, $toi, $cs, $ds_cs ) {
+	public static function khoi_them_nv( $ky, $toi, $cs, $ds_cs, $man_ve = 'cham' ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) ) { return; }
 		/* Người đã có tab Hồ sơ thì tạo hồ sơ ở đó — đầy đủ ô hơn, và cấp được mã CHUẨN. Bày
 		   thêm một cửa hẹp bên cạnh một cửa rộng chỉ làm người ta phân vân chọn cửa nào. */
@@ -3679,7 +3686,17 @@ class VHCC_Web {
 		echo '<form method="post" class="hang" enctype="multipart/form-data" '
 			. 'style="gap:8px;flex-wrap:wrap">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
-		echo '<input type="hidden" name="man" value="cham">';
+		/* ⚠️ HAI Ô ẨN NÀY KHÔNG PHẢI LÀ ĐƯỜNG VỀ — nói rõ để không ai tưởng nhầm.
+		   Đường về thật là chính địa chỉ đang mở: biểu mẫu không khai `action`, nên lượt gửi quay
+		   lại đúng địa chỉ cũ kèm nguyên chuỗi truy vấn, mà `man`/`ncs` chỉ được đọc từ `$_GET`.
+		   Cố ý giữ thế: khai `action` cứng thì thêm người xong là MẤT hết bộ lọc tháng/ngày/cơ sở
+		   người ta đang đặt. Nhưng đóng cứng `value="cham"` ở đây thì khối vẽ từ màn Nhân sự cửa
+		   hàng mang trong mình một ô nói SAI tên màn — và ngày ai đó nối `man` vào `$_REQUEST` là ngày
+		   cái bẫy ấy sập. */
+		echo '<input type="hidden" name="man" value="' . esc_attr( $man_ve ) . '">';
+		if ( 'cham' !== $man_ve && '' !== (string) $cs ) {
+			echo '<input type="hidden" name="ncs" value="' . esc_attr( $cs ) . '">';
+		}
 		echo '<div><label for="tn_ten">Họ tên</label>'
 			. '<input id="tn_ten" name="tn_ho_ten" required></div>';
 		echo '<div><label for="tn_cc">Số căn cước</label>'
