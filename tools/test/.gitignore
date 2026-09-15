@@ -1,0 +1,7 @@
+# Ảnh chụp màn hình, PID và sổ đơn giả sinh ra khi CHẠY bộ thử — không phải tệp mẫu.
+*.png
+*.pid
+dvr-orders.json
+node_modules/
+# Tệp mẫu đầu vào thì giữ lại.
+!khh-platform/tepthu/*
