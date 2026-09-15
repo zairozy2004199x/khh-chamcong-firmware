@@ -2050,6 +2050,23 @@ class VHG_Trang {
       who.textContent='👤 '+BC.staff+' · phạm vi '+((BC.coso||[]).length)+' cơ sở';
       c1.appendChild(who);
     }
+    /* 🔎 KHỐI CHẨN ĐOÁN — chỉ hiện khi máy chủ gửi BC.chanDoan (nhân viên vẫn "0 cơ sở"). In ra để
+       chụp gửi kỹ thuật: nói thẳng phạm vi PIN giải ra được gì, admin đã khai gì theo tên, và có
+       bao nhiêu ghế khớp — không kèm PIN/khoá. */
+    if(BC.chanDoan){
+      var cd=BC.chanDoan;
+      var box=el('div');
+      box.style.cssText='margin:6px 0;padding:10px 12px;border-radius:10px;background:#fff7ed;border:1px solid #fdba74;color:#7c2d12;font-size:12px;line-height:1.6';
+      box.appendChild(el('b',null,'⚠ Chưa tra ra cơ sở cho nhân viên này — thông tin chẩn đoán (chụp gửi kỹ thuật):'));
+      function _d(k,v){ var d=el('div'); d.appendChild(el('b',null,k+': ')); d.appendChild(document.createTextNode(String(v))); box.appendChild(d); }
+      _d('Tên', cd.ten);
+      _d('Cơ sở PIN giải ra', cd.q_coso||'(rỗng)');
+      _d('Số ghế lẻ gán', cd.q_ghe_n);
+      _d('PIN toàn quyền', cd.q_toanquyen?'CÓ':'không');
+      _d('Admin khai theo TÊN (bc_pin)', cd.bcpin_theo_ten);
+      _d('Ghế sống / khớp phạm vi', cd.ghe_song+' / '+cd.ghe_khop_pham_vi);
+      c1.appendChild(box);
+    }
     c1.appendChild(el('div','bc-mut',
       'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
     var r1=el('div','bc-row'); r1.style.marginTop='12px';

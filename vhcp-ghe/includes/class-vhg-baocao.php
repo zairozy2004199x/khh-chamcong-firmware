@@ -756,6 +756,44 @@ class VHG_BaoCao {
 		if ( ! empty( $q['coso'] ) ) {
 			foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
 		}
+		/* 🔴 CỨU PHẠM VI THEO TÊN khi ô cơ sở TRỐNG — anh Thắng 15/09/2026: *"qua trang admin thấy
+		   nhân viên đó CÓ cơ sở đó, còn nhân viên thì lại KHÔNG thấy… lỗi rất nặng"*. Cơ sở gán trong
+		   "Cấp PIN báo cáo" (bảng bc_pin). Nhưng PIN nhân viên DÙNG ĐỂ VÀO (hồ sơ nhân sự / token
+		   /ghe = PIN chấm công) có thể KHÁC cột `pin` của hàng bc_pin (admin gõ một PIN báo cáo
+		   riêng). Khi đó pin_info() không quy được PIN về đúng hàng ngoại lệ, rơi xuống hồ sơ nhân
+		   sự → phạm vi rỗng/khác → "0 cơ sở". Ô "chọn nhân viên" của admin (ds_nhan_su_) lại nối
+		   bc_pin ⇄ hồ sơ QUA TÊN nên vẫn thấy — chính là chỗ lệch anh Thắng mô tả.
+		   Người này ĐÃ xác thực hợp lệ và ra đúng TÊN, nên khi ô cơ sở trống thì lấy chính hàng
+		   bc_pin admin khai THEO TÊN ấy để cấp lại phạm vi. CHỐT AN TOÀN: chỉ chạy khi $cs RỖNG
+		   (đúng ca hỏng), KHÔNG áp cho admin, và KHÔNG BAO GIỜ cấp toàn quyền — chỉ thêm đúng cơ
+		   sở/ghế admin đã ghi cho tên đó (hàng coso rỗng = toàn quyền thì BỎ QUA, không nới quyền). */
+		if ( ! $la_admin && empty( $cs ) && '' !== trim( (string) $q['ten'] ) ) {
+			$ten_sq = self::squash( $q['ten'] );
+			if ( '' !== $ten_sq ) {
+				foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
+					if ( 1 !== (int) $row['active'] ) { continue; }
+					if ( self::squash( isset( $row['ten'] ) ? $row['ten'] : '' ) !== $ten_sq ) { continue; }
+					$cs_row = self::tach_( isset( $row['coso'] ) ? $row['coso'] : '' );
+					$gh_row = self::tach_( isset( $row['ghe'] ) ? $row['ghe'] : '' );
+					if ( ! count( $cs_row ) && ! count( $gh_row ) ) { continue; }   // hàng toàn quyền → không nới
+					foreach ( $cs_row as $c ) {
+						$c = trim( (string) $c ); if ( '' === $c ) { continue; }
+						$q['coso'][] = $c; $q['coso_key'][ self::squash( $c ) ] = true;
+					}
+					foreach ( $gh_row as $g ) { $g = trim( (string) $g ); if ( '' !== $g ) { $q['ghe'][] = $g; } }
+				}
+				/* Dựng lại ghế + ô cơ sở theo phạm vi vừa cứu. */
+				if ( ! empty( $q['coso_key'] ) || ! empty( $q['ghe'] ) ) {
+					$q['coso'] = array_values( array_unique( $q['coso'] ) );
+					$q['ghe']  = array_values( array_unique( $q['ghe'] ) );
+					$toan_quyen = false;
+					$ghe = self::ds_ghe( $q, $hien_an );
+					$cs = array();
+					foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
+					foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
+				}
+			}
+		}
 		$khoa = $wpdb->get_results( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc_khoa' ), ARRAY_A );
 		$khoa_loc = array();
 		foreach ( (array) $khoa as $k ) {
@@ -775,12 +813,42 @@ class VHG_BaoCao {
 		   đăng nhập qua /ghe thì gắn theo VAI TRÒ ở boot_tu_ai() — vì PIN admin có thể LIỆT KÊ đủ
 		   cơ sở chứ không để trống, cổng "toàn quyền" ở đây không bắt được. */
 		$nhan_su = $toan_quyen ? self::ds_nhan_su_() : array();
-		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
+		/* 🔎 CHẨN ĐOÁN CHỈ KHI VẪN "0 CƠ SỞ" cho nhân viên (không phải admin) — để câu *"nhân viên
+		   không thấy cơ sở"* tự nói ra hỏng ở đâu thay vì đoán qua đoán lại. Không in PIN/khoá, chỉ
+		   in TÊN + tên cơ sở + con số đếm (đều không nhạy cảm). Ẩn hẳn khi mọi thứ bình thường. */
+		$chan_doan = null;
+		if ( ! $la_admin && empty( $cs ) ) {
+			$ten_sq = self::squash( $q['ten'] );
+			$bcpin_ten = array();
+			foreach ( VHG_DB::rows( 'SELECT ten, coso, ghe, active FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
+				if ( self::squash( isset( $row['ten'] ) ? $row['ten'] : '' ) !== $ten_sq ) { continue; }
+				$bcpin_ten[] = '#' . ( (int) $row['active'] ) . ' coso="' . trim( (string) $row['coso'] )
+					. '" ghe="' . trim( (string) $row['ghe'] ) . '"';
+			}
+			$may_n = 0; $may_khop = 0;
+			foreach ( VHG_May::ds_may() as $m ) {
+				if ( ! empty( $m['an'] ) ) { continue; }
+				$may_n++;
+				if ( self::trong_pham_vi( $q, (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ), (string) $m['ma'] ) ) { $may_khop++; }
+			}
+			$chan_doan = array(
+				'ten'        => (string) $q['ten'],
+				'q_coso'     => implode( ' | ', (array) $q['coso'] ),
+				'q_ghe_n'    => count( (array) $q['ghe'] ),
+				'q_toanquyen'=> ( empty( $q['coso_key'] ) && empty( $q['ghe'] ) ) ? 1 : 0,
+				'bcpin_theo_ten' => $bcpin_ten ? implode( ' ;; ', $bcpin_ten ) : '(không có hàng bc_pin nào trùng tên)',
+				'ghe_song'   => $may_n,
+				'ghe_khop_pham_vi' => $may_khop,
+			);
+		}
+		$out = array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
 			'resetCoso' => $reset_cs, 'toanQuyen' => $toan_quyen ? 1 : 0, 'nhanSu' => $nhan_su,
 			'chamCongUrl' => self::cham_cong_url(),
 			'trangChuUrl' => home_url( '/' ) );
+		if ( $chan_doan ) { $out['chanDoan'] = $chan_doan; }
+		return $out;
 	}
 
 	/**
