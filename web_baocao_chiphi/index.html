@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Báo cáo chi phí K&amp;H</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f6f5f'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3EKH%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">KH</span>
+    <div>
+      <div class="brand-title">Báo cáo chi phí <span id="periodBadge" class="badge"></span></div>
+      <div class="brand-sub">Phân bổ chi phí → File tổng báo cáo · MISA</div>
+    </div>
+  </div>
+
+  <div class="period-box">
+    <label>Kỳ
+      <select id="selMonth" title="Tháng"></select>
+    </label>
+    <label>Năm
+      <input id="inpYear" type="number" min="2020" max="2100" title="Năm">
+    </label>
+  </div>
+
+  <div class="actions">
+    <span class="sync" id="syncBox" title="Trạng thái đồng bộ với máy chủ"><span class="dot" id="syncDot"></span><span id="syncText">Cục bộ</span></span>
+    <button class="btn" id="btnSettings" title="Kết nối máy chủ dùng chung (Google Sheets)">⚙</button>
+    <label class="btn" title="Nhập file Excel 'File chi phí MN Txx/yyyy' (đọc Doanh thu, total general, Bảng tổng lương, File tổng báo cáo)">
+      <span class="ico">📥</span> Nhập Excel
+      <input type="file" id="fileInput" accept=".xlsx,.xlsm,.xls,.csv" hidden>
+    </label>
+    <button class="btn primary" id="btnExport" title="Xuất Excel gồm File tổng báo cáo + bảng kiểm + phân bổ theo điểm"><span class="ico">📤</span> Xuất Excel</button>
+    <div class="menu">
+      <button class="btn" id="btnMore" aria-haspopup="true" aria-expanded="false" title="Thêm">⋯</button>
+      <div class="menu-list" id="moreMenu" hidden>
+        <button data-act="sample">Nạp dữ liệu mẫu T8/2026</button>
+        <button data-act="newPeriod">Kỳ mới (giữ cấu hình, xoá số liệu)</button>
+        <hr>
+        <button data-act="exportJson">Lưu file cấu hình (.json)</button>
+        <label class="menu-file">Mở file cấu hình (.json)<input type="file" id="jsonInput" accept=".json" hidden></label>
+        <hr>
+        <button data-act="print">In / Lưu PDF báo cáo</button>
+        <button data-act="copyReport">Sao chép Mục I (dán vào Excel)</button>
+        <hr>
+        <a class="menu-file" href="nhap.html" target="_blank" rel="noopener">Mở trang nhập chi phí (nhân viên)</a>
+        <button data-act="syncNow">Tải lại từ máy chủ</button>
+        <hr>
+        <button data-act="reset" class="danger">Xoá toàn bộ dữ liệu</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" role="tablist">
+  <button role="tab" data-tab="dashboard">Tổng quan</button>
+  <button role="tab" data-tab="revenue">Doanh thu</button>
+  <button role="tab" data-tab="costs">Chi phí đầu vào</button>
+  <button role="tab" data-tab="salary">Lương</button>
+  <button role="tab" data-tab="report" class="hl">File tổng báo cáo</button>
+  <button role="tab" data-tab="sites">Phân bổ theo điểm</button>
+  <button role="tab" data-tab="check">Kiểm tra <span id="issueBadge" class="pill" hidden></span></button>
+  <button role="tab" data-tab="log" id="tabLog" hidden>Nhật ký</button>
+</nav>
+
+<main id="main">
+  <section id="tab-dashboard" class="tab"></section>
+  <section id="tab-revenue" class="tab"></section>
+  <section id="tab-costs" class="tab"></section>
+  <section id="tab-salary" class="tab"></section>
+  <section id="tab-report" class="tab"></section>
+  <section id="tab-sites" class="tab"></section>
+  <section id="tab-check" class="tab"></section>
+  <section id="tab-log" class="tab"></section>
+</main>
+
+<footer class="foot">
+  <span id="saveState">Tự lưu trên trình duyệt này.</span>
+  <span>·</span>
+  <a href="nhap.html" target="_blank" rel="noopener">Trang nhập chi phí (nhân viên)</a>
+  <span>·</span>
+  <span>Phiên bản <span id="appVersion"></span></span>
+  <span>·</span>
+  <a href="README.md" target="_blank" rel="noopener">Hướng dẫn</a>
+</footer>
+
+<!-- Hộp nhật ký nhập Excel -->
+<div class="modal" id="logModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head">
+      <strong id="logTitle">Kết quả nhập Excel</strong>
+      <button class="btn small" data-close>Đóng</button>
+    </div>
+    <div class="modal-body" id="logBody"></div>
+    <div class="modal-foot">
+      <button class="btn" id="btnUndoImport">Hoàn tác (giữ dữ liệu cũ)</button>
+      <button class="btn primary" data-close>Dùng dữ liệu vừa nhập</button>
+    </div>
+  </div>
+</div>
+
+<!-- Kết nối máy chủ -->
+<div class="modal" id="cfgModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><strong>Kết nối máy chủ dùng chung</strong><button class="btn small" data-close>Đóng</button></div>
+    <div class="modal-body">
+      <p class="hint">Dữ liệu lưu trên Google Sheets qua Google Apps Script — nhân viên nhập chi phí ở trang <a href="nhap.html" target="_blank" rel="noopener">nhap.html</a>, kế toán duyệt và tính ở đây. Hướng dẫn tạo API: <code>web_baocao_chiphi/backend/README.md</code>. Bỏ tick "Bật" để làm việc cục bộ như cũ.</p>
+      <div class="form-grid">
+        <label class="full">URL máy chủ (Apps Script Web app, kết thúc bằng /exec)<input id="cfgUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+        <label>Mã truy cập (kế toán)<input id="cfgToken" type="password" autocomplete="off"></label>
+        <label>Tên của anh/chị<input id="cfgUser" placeholder="VD: Thắng"></label>
+        <label class="full" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="cfgEnabled"> Bật đồng bộ với máy chủ</label>
+      </div>
+      <p class="hint" id="cfgMsg"></p>
+      <p class="hint">Link gửi nhân viên (đã kèm URL, còn mã nhân viên anh gửi riêng): <code id="cfgEmpLink">—</code></p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" id="btnCfgTest">Kiểm tra kết nối</button>
+      <button class="btn primary" id="btnCfgSave">Lưu & kết nối</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tài khoản (bản WordPress): đổi PIN, đăng xuất, Admin quản lý người dùng -->
+<div class="modal" id="acctModal" hidden>
+  <div class="modal-card wide">
+    <div class="modal-head"><strong>👤 Tài khoản</strong><button class="btn small" data-close>Đóng</button></div>
+    <div class="modal-body" id="acctBody"></div>
+  </div>
+</div>
+
+<!-- Cổng đăng nhập PIN (bản WordPress) -->
+<div id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-logo">KH</div>
+    <h2 id="gateTitle">Báo cáo chi phí</h2>
+    <p class="hint">Nhập mã PIN (4–8 số) để đăng nhập</p>
+    <input id="gatePin" class="pin-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••">
+    <div class="keypad" id="keypad"></div>
+    <div id="gateErr" class="gate-err"></div>
+    <button class="btn primary" id="gateBtn" style="width:100%;justify-content:center">Đăng nhập</button>
+    <p class="hint" id="gateFoot"></p>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="engine.js"></script>
+<script src="api.js"></script>
+<script src="wp-ui.js"></script>
+<script src="importer.js"></script>
+<script src="exporter.js"></script>
+<script src="sample-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

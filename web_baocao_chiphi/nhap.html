@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Nhập chi phí — K&amp;H</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23b8791f'/%3E%3Ctext x='16' y='22' font-size='16' font-family='Arial' font-weight='bold' text-anchor='middle' fill='white'%3EKH%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<style>
+  .form-grid { display: grid; gap: 10px 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  .form-grid label > input, .form-grid label > select, .form-grid label > textarea { font-size: 14px; color: var(--text); }
+  .form-grid .full { grid-column: 1 / -1; }
+  .form-grid textarea { min-height: 56px; font-family: var(--font); }
+  .status { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+  .status.cho_duyet { background: var(--warn-soft); color: var(--warn); }
+  .status.da_duyet { background: var(--ok-soft); color: var(--ok); }
+  .status.tu_choi { background: var(--danger-soft); color: var(--danger); }
+  .entry { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .entry:last-child { border-bottom: 0; }
+  .entry .amt { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .entry .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .entry .body { flex: 1; min-width: 0; }
+  .entry .body .t { font-weight: 600; }
+  .big { font-size: 18px; font-weight: 800; }
+  .conn { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); display: inline-block; }
+  .dot.ok { background: var(--ok); } .dot.bad { background: var(--danger); }
+  .logo.emp { background: var(--accent); }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo emp">KH</span>
+    <div>
+      <div class="brand-title">Nhập chi phí <span id="periodBadge" class="badge"></span></div>
+      <div class="brand-sub">Nhân viên nhập · kế toán duyệt · web tự phân bổ</div>
+    </div>
+  </div>
+  <div class="period-box">
+    <label>Kỳ <select id="selMonth"></select></label>
+    <label>Năm <input id="inpYear" type="number" min="2020" max="2100"></label>
+  </div>
+  <div class="actions">
+    <span class="conn"><span class="dot" id="connDot"></span><span id="connText">Chưa kết nối</span></span>
+    <button class="btn" id="btnSettings">⚙ Kết nối</button>
+    <button class="btn" id="btnAcct" hidden>👤</button>
+    <button class="btn" id="btnRefresh" title="Tải lại danh sách">↻</button>
+  </div>
+</header>
+
+<main style="max-width: 1100px; margin: 0 auto; width: 100%;">
+  <div class="card" id="settingsCard" hidden>
+    <div class="card-head"><h2>Kết nối máy chủ</h2><span class="hint">Kế toán gửi cho anh/chị URL và mã truy cập. Chỉ cần nhập một lần trên máy này.</span></div>
+    <div class="form-grid">
+      <label class="full">URL máy chủ (Google Apps Script, kết thúc bằng /exec)<input id="cfgUrl" placeholder="https://script.google.com/macros/s/…/exec"></label>
+      <label>Mã truy cập<input id="cfgToken" type="password" autocomplete="off"></label>
+      <label>Tên của anh/chị (ghi vào từng khoản)<input id="cfgUser" placeholder="VD: Nguyễn Văn A"></label>
+    </div>
+    <div class="toolbar" style="margin-top:10px">
+      <button class="btn primary" id="btnSaveCfg">Lưu & kiểm tra kết nối</button>
+      <span class="hint" id="cfgMsg"></span>
+    </div>
+  </div>
+
+  <div id="lockedBanner" class="issue warn" hidden><span class="lv">ĐÃ CHỐT</span><span>Kỳ này đã được kế toán chốt — không thêm / sửa khoản được nữa.</span></div>
+
+  <div class="card">
+    <div class="card-head"><h2 id="formTitle">Thêm khoản chi phí</h2><span class="hint">Điền xong bấm Gửi. Khoản sẽ ở trạng thái <b>Chờ duyệt</b>; kế toán duyệt xong mới vào báo cáo. Còn chờ duyệt thì vẫn sửa / xoá được.</span></div>
+    <form id="form" autocomplete="off">
+      <input type="hidden" id="fId">
+      <div class="form-grid">
+        <label class="full">Tên khoản / nội dung chi (bắt buộc)<input id="fName" required placeholder="VD: Chi phí tiền ăn Teambuilding MN 3-4/9"></label>
+        <label>Số tiền (VNĐ, bắt buộc)<input id="fTotal" class="num" inputmode="numeric" required placeholder="0"></label>
+        <label>Loại
+          <select id="fKind"><option value="company">Chi phí công ty</option><option value="personal">Chi phí cá nhân</option></select>
+        </label>
+        <label>Chia cho nhóm
+          <select id="fSplit"></select>
+        </label>
+        <div id="sharesBox" class="full form-grid" hidden></div>
+        <label class="full">Nội dung diễn giải chung trên MISA<input id="fMisaGeneral" placeholder="VD: Chi phí chung MN Tháng 8/2026 _ General Exp"></label>
+        <label class="full">Nội dung diễn giải chi tiết trên MISA (sẽ là tiêu đề cột báo cáo)<input id="fMisaDetail" placeholder="VD: Chi phí chung MN Tháng 8/2026 _ Gift HH"></label>
+        <label>Tài khoản<input id="fAccount" placeholder="VD: N6416/331"></label>
+        <label>Mã đối tượng<input id="fObject" placeholder="VD: CC00342"></label>
+        <label class="full">Ghi chú (hoá đơn, người chi, link chứng từ…)<textarea id="fNote"></textarea></label>
+        <div class="full" id="fileBox" hidden>
+          <label>Ảnh chứng từ / hoá đơn (JPG, PNG, PDF — tối đa 8MB mỗi tệp)
+            <input type="file" id="fFiles" multiple accept="image/*,.pdf,.xlsx,.docx">
+          </label>
+          <div id="fileList" class="chips" style="margin-top:6px"></div>
+        </div>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <button class="btn primary" type="submit" id="btnSubmit">Gửi khoản chi phí</button>
+        <button class="btn" type="button" id="btnCancelEdit" hidden>Huỷ sửa</button>
+        <span class="hint" id="formMsg"></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h2>Khoản đã nhập trong kỳ</h2>
+      <div class="spacer"></div>
+      <label class="hint"><input type="checkbox" id="onlyMine" checked> Chỉ của tôi</label>
+    </div>
+    <div class="toolbar"><span class="hint" id="sumText"></span></div>
+    <div id="list"><div class="empty">Chưa kết nối máy chủ.</div></div>
+  </div>
+</main>
+
+<footer class="foot">
+  <span>Trang dành cho nhân viên. Kế toán dùng <a href="index.html">trang tổng hợp</a>.</span>
+</footer>
+
+<div class="modal" id="acctModal" hidden>
+  <div class="modal-card">
+    <div class="modal-head"><strong>👤 Tài khoản</strong><button class="btn small" data-close>Đóng</button></div>
+    <div class="modal-body" id="acctBody"></div>
+  </div>
+</div>
+
+<div id="gate" class="gate" hidden>
+  <div class="gate-card">
+    <div class="gate-logo emp">KH</div>
+    <h2 id="gateTitle">Nhập chi phí</h2>
+    <p class="hint">Nhập mã PIN (4–8 số) để đăng nhập</p>
+    <input id="gatePin" class="pin-input" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••">
+    <div class="keypad" id="keypad"></div>
+    <div id="gateErr" class="gate-err"></div>
+    <button class="btn primary" id="gateBtn" style="width:100%;justify-content:center">Đăng nhập</button>
+    <p class="hint" id="gateFoot"></p>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="engine.js"></script>
+<script src="api.js"></script>
+<script src="wp-ui.js"></script>
+<script src="nhap.js"></script>
+</body>
+</html>
