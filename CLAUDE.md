@@ -36,9 +36,11 @@ Sau khi build: giải nén ra chỗ tạm rồi `diff -rq` với thư mục ngu�
 ## 2. Bắt buộc trước khi giao
 
 1. `php -l` từng file `.php` đã đụng vào.
-2. **`node --check` trọn khối JS heredoc** — JS nằm trong `<<<'JS' … JS;` của
-   `class-vhg-trang.php` (`js()`, `js_baocao()`) và `class-vhg-shop.php`. PHP không kiểm cú pháp
-   trong heredoc: **một dấu `}` thừa là trắng cả trang** (đã dính ở 2.20.0, vá ở 2.20.1).
+2. **`bash tools/soat-js-heredoc.sh`** — soát cú pháp **mọi** khối JS nằm trong `<<<'JS' … JS;`.
+   PHP không kiểm cú pháp trong heredoc: **một dấu `}` thừa là trắng cả trang** (đã dính ở
+   2.20.0, vá ở 2.20.1). ⚠️ **Đừng gõ tay `sed` hai khối như trước**: 15/09/2026
+   `class-vhg-trang.php` có khối **thứ ba** (trang `/it`) và lệnh gõ tay cũ vẫn "xanh" trong khi
+   khối mới chưa hề được kiểm. Script tự tìm nên thêm khối bao nhiêu cũng không sót.
 3. Tăng số bản ở **ba** chỗ, phải bằng nhau: header `Version:`, hằng `VHG_VERSION` (cùng trong
    `vhcp-ghe.php`) **và** `VHG_BaoCao::BAN` (trong `includes/class-vhg-baocao.php`). Chỗ thứ ba là
    *vân tay* của tệp lớp: `boot()` trả nó ra (`banBc`), `vhg_soat_tep_lop()` so với `VHG_VERSION` để

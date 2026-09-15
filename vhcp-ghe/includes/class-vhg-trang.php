@@ -44,14 +44,31 @@ class VHG_Trang {
 		return add_query_arg( 'vhg', 'app', home_url( '/' ) );
 	}
 
+	/** Đường dẫn trang IT (mặc định `/it`) — đổi được bằng option, giống slug trang Ghế. */
+	public static function slug_it() {
+		$s = get_option( 'vhg_slug_it' );
+		$s = $s ? sanitize_title( $s ) : 'it';
+		return $s ? $s : 'it';
+	}
+
+	public static function url_it() {
+		if ( get_option( 'permalink_structure' ) ) { return home_url( '/' . self::slug_it() . '/' ); }
+		return add_query_arg( 'vhg', 'it', home_url( '/' ) );
+	}
+
 	public static function init() {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhg_app=1', 'top' );
+		/* 🔴 TRANG IT — anh Thắng 15/09/2026: *"1 trang tổng do IT quản lý như khmatrix.com/it"*.
+		   Khai Ở ĐÂY, trong init() vốn đã gài ở ưu tiên 4 (xem vhcp-ghe.php): khai chỗ khác, hoặc
+		   gài sau lượt nạp lại luật ở 99, là trang trả 404 mà KHÔNG có gì báo lỗi ở đâu cả — đúng
+		   chuyện đã xảy ra với /mua-ma ngày 23/08/2026. */
+		add_rewrite_rule( '^' . self::slug_it() . '/?$', 'index.php?vhg_it=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'parse_request', array( __CLASS__, 'chan_chuyen_huong' ), 0 );
 		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ), 0 );
 	}
 
-	public static function query_vars( $v ) { $v[] = 'vhg_app'; return $v; }
+	public static function query_vars( $v ) { $v[] = 'vhg_app'; $v[] = 'vhg_it'; return $v; }
 
 	private static function la_trang() {
 		if ( 1 === (int) get_query_var( 'vhg_app' ) ) { return true; }
@@ -62,22 +79,171 @@ class VHG_Trang {
 		return $d === $s || substr( $d, - ( strlen( $s ) + 1 ) ) === '/' . $s;
 	}
 
+	private static function la_trang_it() {
+		if ( 1 === (int) get_query_var( 'vhg_it' ) ) { return true; }
+		if ( isset( $_GET['vhg'] ) && 'it' === $_GET['vhg'] ) { return true; }
+		$d = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+		$d = trim( (string) parse_url( $d, PHP_URL_PATH ), '/' );
+		$s = self::slug_it();
+		return $d === $s || substr( $d, - ( strlen( $s ) + 1 ) ) === '/' . $s;
+	}
+
 	/** Luật 1. Xem khối đầu tệp. */
 	public static function chan_chuyen_huong() {
-		if ( ! self::la_trang() ) { return; }
+		if ( ! self::la_trang() && ! self::la_trang_it() ) { return; }
 		add_filter( 'redirect_canonical', '__return_false', 99 );
 		remove_action( 'template_redirect', 'redirect_canonical' );
 	}
 
 	public static function phuc_vu() {
-		if ( ! self::la_trang() ) { return; }
+		$la_it = self::la_trang_it();
+		if ( ! self::la_trang() && ! $la_it ) { return; }
+		/* Trang IT dùng CHUNG cổng API này (cùng token, cùng luật quyền) — không mở cổng thứ hai. */
 		if ( isset( $_GET['api'] ) || isset( $_POST['api'] ) ) {
 			self::api();
 			if ( ! defined( 'VHG_TEST' ) ) { exit; }
 			return;
 		}
-		self::ve();
+		if ( $la_it ) { self::ve_it(); } else { self::ve(); }
 		if ( ! defined( 'VHG_TEST' ) ) { exit; }
+	}
+
+	/**
+	 * 🔴 TRANG IT (`/it`) — anh Thắng 15/09/2026: *"1 trang tổng do IT quản lý như khmatrix.com/it"*,
+	 * vì *"điện thoại thì vào trang wp-admin không được"*.
+	 *
+	 * ⚠️ KHÔNG ĐẺ THÊM MẬT KHẨU. Gác bằng đúng thứ đã có: PIN nhân sự + vai trò Quản trị. Một mật
+	 *    khẩu riêng cho trang cài-mã-lên-máy-chủ là thêm một bí mật nữa để quên, để lộ, để không ai
+	 *    đổi khi có người nghỉ việc.
+	 * ⚠️ KHÔNG MỞ CỔNG API THỨ HAI. Trang này gọi đúng cổng `?api=` của trang Ghế (xem phuc_vu):
+	 *    cùng token, cùng luật quyền. Việc gác nằm ở cổng `cn_` (chỉ Quản trị), không nằm ở đây —
+	 *    nên dù ai mở được trang này cũng không làm được gì nếu PIN không phải Quản trị.
+	 */
+	public static function ve_it() {
+		$ten = esc_html( self::TEN_NGAN );
+		$api = esc_url( self::url_it() );
+		$css = self::css_it();
+		$js  = self::js_it();
+		header( 'Content-Type: text/html; charset=utf-8' );
+		echo '<!doctype html><html lang="vi"><head><meta charset="utf-8">'
+			. '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+			. '<meta name="robots" content="noindex,nofollow">'
+			. '<title>IT — ' . $ten . '</title><style>' . $css . '</style></head><body>'
+			. '<div class="wrap">'
+			. '<h1>Trang IT</h1>'
+			. '<p class="mut">Cập nhật plugin ngay tại đây, không cần vào wp-admin.</p>'
+			. '<div id="cong" class="card"><h2>Đăng nhập</h2>'
+			. '<p class="mut">Dùng PIN nhân sự của bạn. Cần vai trò <b>Quản trị</b>.</p>'
+			. '<input id="pin" type="password" inputmode="numeric" maxlength="8" placeholder="PIN">'
+			. '<button id="vao" class="pri">Vào</button><div id="loi" class="loi"></div></div>'
+			. '<div id="man" style="display:none"></div>'
+			. '</div><script>var IT_API=' . wp_json_encode( $api ) . ';</script>'
+			. '<script>' . $js . '</script></body></html>';
+	}
+
+	private static function js_it() {
+		return <<<'JS'
+(function(){
+  var TOK = '';
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  /* Cùng cổng API với trang Ghế — token đi kèm mọi lượt, luật quyền do máy chủ giữ. */
+  function goi(viec, d, xong, cho){
+    d = d || {}; if (TOK) d.token = TOK;
+    var x = new XMLHttpRequest(), rồi = false;
+    function xong1(r){ if (rồi) return; rồi = true; xong(r); }
+    x.open('POST', IT_API + (IT_API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
+    x.setRequestHeader('Content-Type','application/json');
+    x.timeout = cho || 25000;
+    x.onreadystatechange = function(){
+      if (x.readyState !== 4) return;
+      var r = null; try { r = JSON.parse(x.responseText); } catch(e){}
+      xong1(r || { ok:false, error:'Máy chủ trả lời không đọc được (HTTP ' + x.status + ').' });
+    };
+    x.ontimeout = function(){ xong1({ ok:false, error:'Máy chủ không trả lời — thử lại.' }); };
+    x.onerror  = function(){ xong1({ ok:false, error:'Mất kết nối mạng.' }); };
+    x.send(JSON.stringify(d));
+  }
+
+  function vao(){
+    var v = ($('pin').value || '').trim();
+    if (!/^[0-9]{4,8}$/.test(v)) { $('loi').textContent = 'PIN phải 4–8 chữ số.'; return; }
+    $('vao').disabled = true; $('loi').textContent = 'Đang kiểm tra…';
+    goi('login', { pin: v }, function(r){
+      $('vao').disabled = false;
+      if (!r || !r.ok) { $('loi').textContent = (r && r.error) || 'Không đăng nhập được.'; return; }
+      TOK = r.token; $('loi').textContent = '';
+      $('cong').style.display = 'none';
+      $('man').style.display = '';
+      $('man').innerHTML = '<div class="card"><h2>Cập nhật plugin</h2>'
+        + '<p class="mut">Xin chào ' + esc(r.name) + '. Chỉ cài được bản trên nhánh đã ghim của repo.</p>'
+        + '<button id="soat">Kiểm tra bản mới</button>'
+        + '<div id="ds" style="margin-top:12px"></div></div>';
+      $('soat').onclick = function(){ tai(true); };
+      tai(false);
+    });
+  }
+
+  function tai(soat){
+    var box = $('ds'); if (!box) return;
+    box.innerHTML = '<span class="mut">' + (soat ? 'Đang hỏi GitHub…' : 'Đang tải…') + '</span>';
+    goi('cn_ds', { soat: soat ? 1 : 0 }, function(r){
+      if (!r || !r.ok) {
+        box.innerHTML = '<span class="loi">' + esc((r && r.error) || 'Không đọc được danh sách.') + '</span>';
+        return;
+      }
+      var h = '<table><tr><th>Plugin</th><th>Đang chạy</th><th>Bản mới</th><th></th></tr>';
+      r.ds.forEach(function(p){
+        h += '<tr><td><b>' + esc(p.ten) + '</b></td>'
+          + '<td class="num">' + esc(p.hien) + '</td>'
+          + '<td class="num">' + (p.moi ? ('<span class="moi">' + esc(p.moi) + '</span>') : '—') + '</td>'
+          + '<td style="text-align:right">'
+          + (p.moi ? ('<button data-ma="' + esc(p.ma) + '">Cập nhật</button>') : '') + '</td></tr>';
+      });
+      box.innerHTML = h + '</table>';
+      [].forEach.call(box.querySelectorAll('[data-ma]'), function(b){
+        b.onclick = function(){
+          var ma = b.getAttribute('data-ma');
+          if (!confirm('Cập nhật ' + ma + ' ngay bây giờ?')) return;
+          b.disabled = true; b.textContent = 'Đang cài…';
+          /* Cài plugin lâu hơn 25s là bình thường (tải zip + giải nén). */
+          goi('cn_chay', { ma: ma }, function(r2){
+            alert((r2 && (r2.thongBao || r2.error)) || 'Không rõ kết quả — tải lại trang rồi xem số bản.');
+            tai(false);
+          }, 120000);
+        };
+      });
+    }, soat ? 45000 : 25000);
+  }
+
+  $('vao').onclick = vao;
+  $('pin').addEventListener('keydown', function(e){ if (e.key === 'Enter') vao(); });
+})();
+JS;
+	}
+
+	private static function css_it() {
+		return 'body{margin:0;background:#f5f5f5;color:#0a0a0a;'
+			. 'font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}'
+			. '.wrap{max-width:640px;margin:0 auto;padding:24px 16px 48px}'
+			. 'h1{font-size:24px;letter-spacing:-.4px;margin:0 0 4px}'
+			. 'h2{font-size:16px;margin:0 0 8px}'
+			. '.mut{color:#737373;font-size:13px;margin:0 0 12px}'
+			. '.card{background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:20px;margin-top:16px}'
+			. 'input{width:100%;box-sizing:border-box;height:48px;padding:0 14px;border:1px solid #e5e5e5;'
+			. 'border-radius:12px;font-size:16px;background:#fafafa}'
+			. 'button{min-height:46px;padding:0 16px;border:1px solid #e5e5e5;background:#fff;'
+			. 'border-radius:12px;font-size:14px;font-weight:600;cursor:pointer}'
+			. 'button.pri{background:#0a0a0a;border-color:#0a0a0a;color:#fafafa;width:100%;margin-top:10px}'
+			. 'button[disabled]{opacity:.55;cursor:default}'
+			. 'table{width:100%;border-collapse:collapse;margin-top:6px}'
+			. 'th{text-align:left;font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#737373;padding:0 0 8px}'
+			. 'td{border-top:1px solid #e5e5e5;padding:12px 0;vertical-align:middle}'
+			. '.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}'
+			. '.moi{color:#b45309;font-weight:700}'
+			. '.loi{color:#e7000b;font-size:13px;margin-top:10px;min-height:18px}'
+			. '@media(max-width:480px){td,th{font-size:13px}}';
 	}
 
 	// =========================================================================================
