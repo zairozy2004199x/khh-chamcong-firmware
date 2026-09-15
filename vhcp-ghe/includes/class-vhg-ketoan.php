@@ -206,8 +206,34 @@ class VHG_KeToan {
 			$lich = trim( (string) ( isset( $c['lich_bc'] ) ? $c['lich_bc'] : '' ) );
 			$ds_thu = array_values( array_filter( array_map( 'intval', explode( ',', $lich ) ),
 				function ( $x ) { return $x >= 1 && $x <= 7; } ) );
-			$ra[] = array( 'id' => (int) $c['id'], 'coso' => (string) $c['ten'], 'thu' => $ds_thu );
+			/* `key` = squash(tên) — để bộ lọc "theo người gửi" ở màn Lịch khớp cơ sở của người gửi
+			   (nguoi_gui_ds cũng khoá theo squash). Không quy cùng một khoá thì lọc trượt im lặng. */
+			$ra[] = array( 'id' => (int) $c['id'], 'coso' => (string) $c['ten'],
+				'key' => self::squash( (string) $c['ten'] ), 'thu' => $ds_thu );
 		}
+		return array( 'ok' => true, 'rows' => $ra );
+	}
+
+	/**
+	 * DANH SÁCH NGƯỜI GỬI BÁO CÁO + cơ sở họ đã từng gửi — để màn Lịch nộp lọc "chọn người gửi
+	 * trước rồi mới chọn cơ sở" (anh Thắng 15/09/2026). Lấy từ CHÍNH lịch sử báo cáo (`bc.nhan_vien`
+	 * × `bc.coso_key`) nên tự chứa, không phụ thuộc bảng PIN/nhân sự (đang được sửa song song).
+	 */
+	public static function nguoi_gui_ds() {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT DISTINCT nhan_vien, coso, coso_key FROM " . VHG_DB::t( 'bc' )
+			. " WHERE nhan_vien<>'' ORDER BY nhan_vien ASC", ARRAY_A );
+		$map = array();
+		foreach ( (array) $rows as $r ) {
+			$ten = trim( (string) $r['nhan_vien'] ); if ( '' === $ten ) { continue; }
+			$k = trim( (string) $r['coso_key'] ); if ( '' === $k ) { $k = self::squash( (string) $r['coso'] ); }
+			if ( '' === $k ) { continue; }
+			if ( ! isset( $map[ $ten ] ) ) { $map[ $ten ] = array(); }
+			$map[ $ten ][ $k ] = true;
+		}
+		$ra = array();
+		foreach ( $map as $ten => $keys ) { $ra[] = array( 'ten' => $ten, 'keys' => array_keys( $keys ) ); }
+		usort( $ra, function ( $a, $b ) { return strcasecmp( $a['ten'], $b['ten'] ); } );
 		return array( 'ok' => true, 'rows' => $ra );
 	}
 

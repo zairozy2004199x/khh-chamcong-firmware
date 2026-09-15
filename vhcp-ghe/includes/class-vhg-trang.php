@@ -480,6 +480,7 @@ class VHG_Trang {
 			if ( 'kt_ds' === $viec )       { self::tra( VHG_KeToan::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_thieu_bc' === $viec )    { self::tra( VHG_KeToan::thieu_bao_cao( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_lich_coso_ds' === $viec )  { self::tra( VHG_KeToan::lich_coso_ds() ); return; }
+			if ( 'kt_nguoi_gui_ds' === $viec )  { self::tra( VHG_KeToan::nguoi_gui_ds() ); return; }
 			if ( 'kt_lich_coso_luu' === $viec ) { self::tra( VHG_May::luu_lich_coso( isset( $d['id'] ) ? $d['id'] : 0, isset( $d['thu'] ) ? $d['thu'] : array() ) ); return; }
 			if ( 'kt_ct' === $viec )       { self::tra( VHG_KeToan::chi_tiet( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_sua' === $viec )      { self::tra( VHG_KeToan::sua( isset( $d['report_id'] ) ? $d['report_id'] : '', isset( $d['ma_may'] ) ? $d['ma_may'] : '', isset( $d['patch'] ) ? $d['patch'] : array(), $boi ) ); return; }
@@ -6455,9 +6456,15 @@ function ktdLich(){
   goi('kt_lich_coso_ds',{},function(r){
     box.textContent='';
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    /* 🔴 CHỌN NGƯỜI GỬI TRƯỚC RỒI MỚI CHỌN CƠ SỞ — anh Thắng 15/09/2026. Ô xổ người gửi (lấy từ
+       lịch sử báo cáo) lọc bảng còn đúng cơ sở người đó đã gửi; kết hợp với ô lọc tên bên dưới. */
+    var selN=ktEl('select'); selN.style.cssText='width:100%;max-width:280px;margin-bottom:8px;display:block';
+    selN.innerHTML='<option value="">'+L('— Tất cả người gửi —','— All submitters —')+'</option>';
+    box.appendChild(selN);
     var iLoc=ktEl('input'); iLoc.type='text'; iLoc.placeholder=L('Lọc theo tên cơ sở…','Filter by branch name…');
-    iLoc.style.cssText='width:100%;max-width:280px;margin-bottom:8px';
+    iLoc.style.cssText='width:100%;max-width:280px;margin-bottom:8px;display:block';
     box.appendChild(iLoc);
+    var KEYSET=null;   // null = mọi cơ sở; ngược lại = tập key cơ sở của người gửi đang chọn
     var sc=ktEl('div','table-scroll');
     var tb=ktEl('table'); tb.style.minWidth='480px';
     var tenTat = (NN==='en') ? KTD_THU_TEN_EN : KTD_THU_VIET_TAT;
@@ -6467,7 +6474,7 @@ function ktdLich(){
     tb.innerHTML = thead;
     var tbody=ktEl('tbody');
     r.rows.forEach(function(c){
-      var tr=ktEl('tr'); tr.dataset.ten=c.coso.toLowerCase();
+      var tr=ktEl('tr'); tr.dataset.ten=c.coso.toLowerCase(); tr.dataset.key=c.key||'';
       tr.appendChild(ktEl('td',null,c.coso));
       for(var t=1;t<=7;t++){
         var td=ktEl('td'); td.style.textAlign='center';
@@ -6481,10 +6488,29 @@ function ktdLich(){
       tbody.appendChild(tr);
     });
     tb.appendChild(tbody); sc.appendChild(tb); box.appendChild(sc);
-    iLoc.oninput=function(){
+    function apDung(){
       var q=iLoc.value.trim().toLowerCase();
-      tbody.querySelectorAll('tr').forEach(function(tr){ tr.style.display = (!q || tr.dataset.ten.indexOf(q)>=0) ? '' : 'none'; });
-    };
+      tbody.querySelectorAll('tr').forEach(function(tr){
+        var okNguoi = !KEYSET || KEYSET[tr.dataset.key];        // lọc theo người gửi (nếu có chọn)
+        var okTen   = !q || tr.dataset.ten.indexOf(q)>=0;       // lọc theo tên cơ sở
+        tr.style.display = (okNguoi && okTen) ? '' : 'none';
+      });
+    }
+    iLoc.oninput=apDung;
+    /* Nạp danh sách người gửi (từ lịch sử báo cáo) vào ô xổ. Lỗi ở đây KHÔNG được làm hỏng bảng
+       lịch — bảng vẫn dùng được, chỉ là thiếu bộ lọc người gửi. */
+    goi('kt_nguoi_gui_ds',{},function(rn){
+      if(!rn||!rn.ok||!rn.rows||!rn.rows.length) return;
+      var MAP={};
+      rn.rows.forEach(function(p){ MAP[p.ten]=p.keys||[];
+        selN.appendChild(new Option(p.ten+' ('+(p.keys?p.keys.length:0)+')', p.ten)); });
+      selN.onchange=function(){
+        var keys=MAP[selN.value];
+        if(!selN.value||!keys){ KEYSET=null; }
+        else { KEYSET={}; keys.forEach(function(k){ KEYSET[k]=1; }); }
+        apDung();
+      };
+    });
   });
 }
 function ktdRac(){
