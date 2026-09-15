@@ -101,7 +101,7 @@ t('và đếm đủ lý do bộ phận', /thuộc bộ phận khác/.test(vi2.ch
 // ---------------------------------------------------------------- 4. đủ dùng thì đừng làm ồn
 const M3 = moi('', NV_CS);
 const vi3 = M3.vi('TÀU ESTELLA', '', '');
-t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#94a3b8', vi3);
+t('còn loại bị ẩn thì vẫn ghi chú nhẹ (xám)', vi3.chu === '' || vi3.mau === '#8c8781', vi3);
 t('danh mục trống thì nói thẳng',
   /Danh mục loại chi phí đang trống/.test(new Function('BOOT','NHOM_CP','NHOM_CP_CS','CURUSER','esc',nguon)(
     { cosoPll:{}, tkNoMx:{}, loaiChiPhi:[] }, '', NHOM_CP_CS, NV_CS, v=>String(v||'')).vi('X','','').chu));

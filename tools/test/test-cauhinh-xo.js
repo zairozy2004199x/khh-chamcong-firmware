@@ -355,8 +355,8 @@ t('🔴 ô PIN của hàng thêm mới cũng che',
   /<input type="password" maxlength="8"/.test(HTML), '');
 t('🔴 rê chuột vào nói rõ phải sửa ở đâu (khoá mà không nói thì người ta tưởng hỏng)',
   /title="[^"]*nhân sự/.test(O_TEN) && /title="[^"]*nhân sự/.test(O_PIN), [O_TEN, O_PIN]);
-t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:#f1f5f9/.test(O_TEN), O_TEN);
-t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>') >= 0);
+t('   nhìn cũng biết là khoá, không phải ô gõ được', /background:#f4f1ec/.test(O_TEN), O_TEN);
+t('   tiêu đề cột nói rõ nguồn', HTML.indexOf('>Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>') >= 0);
 t('   và có câu giải thích dưới bảng', HTML.indexOf('lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây') >= 0);
 /* Các cột KHÁC vẫn phải sửa được — khoá quá tay thì bảng thành chỉ để ngắm. */
 t('🔴 vai trò · bộ phận · cơ sở · đơn vị vẫn sửa được',

@@ -856,7 +856,7 @@ if _m_mx:
     la('   vòng lặp có đếm thứ tự để biết khối nào đứng đầu',
        'nhom.forEach(function(g, i){' in _t_mx)
     la('   khối đứng đầu vẫn mở sẵn, không bọc <details>',
-       '} else {\n        h+=\'<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">\'+nhan+phu' in _t_mx)
+       '} else {\n        h+=\'<div style="font-weight:800;color:#171417;margin:16px 0 6px;font-size:13px">\'+nhan+phu' in _t_mx)
     # ⚠️ GẬP CHỨ KHÔNG BỎ KHỎI DOM. saveCfgTkNoMx() gom mã bằng querySelectorAll('.mxNoBody
     #    input'); ô trong <details> đang đóng vẫn đếm, còn display:none / thôi không vẽ thì mã
     #    của cả nhà ấy bay sạch ngay lượt Lưu kế tiếp — im lặng, không một câu lỗi.

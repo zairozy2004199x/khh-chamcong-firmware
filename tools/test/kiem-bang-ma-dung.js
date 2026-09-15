@@ -204,7 +204,7 @@ const MANG_TK = [
     h.indexOf('<th style="width:128px">Chi phí cơ sở</th>') >= 0, h.slice(0, 400));
   t('   bảng thuộc tính KHÔNG còn cột mảng nào (đó là chỗ nó phình ngang)',
     h.slice(0, h.indexOf('mxNoBody')).indexOf('Funzone') < 0);
-  t('   bảng mã có tiêu đề nói rõ nó là gì, kèm tên đơn vị', h.indexOf('🔢 TK Nợ · <span style="color:#0f766e">K&amp;H</span>') >= 0, h.slice(h.indexOf('mxNoBody')-400, h.indexOf('mxNoBody')));
+  t('   bảng mã có tiêu đề nói rõ nó là gì, kèm tên đơn vị', h.indexOf('🔢 TK Nợ · <span style="color:#2545ff">K&amp;H</span>') >= 0, h.slice(h.indexOf('mxNoBody')-400, h.indexOf('mxNoBody')));
   /* Dính CẢ ô tiêu đề LẪN ô tên mảng. Dính mỗi tiêu đề thì kéo ngang vẫn mất tên mảng — đúng
      lúc đang dò mã là lúc cần nó nhất. */
   /* MỌI hàng đều phải dính, không phải "có chỗ nào đó dính". Dính mỗi ô tiêu đề thì kéo

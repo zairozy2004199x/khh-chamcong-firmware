@@ -7,10 +7,10 @@
 </head>
 <body>
   <!-- CỔNG ĐĂNG NHẬP PIN -->
-  <div id="gate" style="position:fixed;inset:0;background:#0f766e;z-index:3000;display:none;align-items:center;justify-content:center">
+  <div id="gate" style="position:fixed;inset:0;background:#2545ff;z-index:3000;display:none;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
       <div style="font-size:34px">💵</div>
-      <h2 style="font-size:18px;color:#0f766e;margin:6px 0 4px">Vận Hành Chi Phí</h2>
+      <h2 style="font-size:18px;color:#2545ff;margin:6px 0 4px">Vận Hành Chi Phí</h2>
       <div style="font-size:12px;color:#64748b;margin-bottom:16px">Nhập mã PIN (4–8 số) để đăng nhập</div>
       <input id="gatePin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px" onkeydown="if(event.key==='Enter')doLogin()">
       <div id="gateErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:8px 0"></div>
@@ -21,9 +21,9 @@
   <div class="top">
     <!-- Số phiên bản in thẳng lên trang: cài đè xong mà không biết bản nào đang chạy thì mọi
          con số lệch đều thành câu đố. Lấy từ VHCPVP_CFG.ver do máy chủ gửi xuống. -->
-    <div><h1>💵 <span id="tenTrang">Vận Hành Chi Phí</span> <span id="pbChip" style="font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px"></span></h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
+    <div><h1>💵 <span id="tenTrang">Vận Hành Chi Phí</span> <span id="pbChip" style="font-size:12px;font-weight:600;color:#b9c0e8;background:rgba(255,255,255,.16);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px"></span></h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span id="userChip" style="font-size:12px;color:#a7f3d0"></span>
+      <span id="userChip" style="font-size:12px;color:#b9c0e8"></span>
       <button class="btn b-x" onclick="boot()">↻ Làm mới</button>
       <button class="btn b-x" id="btnChangePin" onclick="openPinModal()" title="Đổi mật khẩu (PIN) của bạn">🔑 Đổi MK</button>
       <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
@@ -82,7 +82,7 @@
           rỗng trong khi có mấy chục đơn chứa nó. -->
   <div class="wrap" id="timChung" style="padding-top:10px;padding-bottom:0">
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 12px;
-      background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+      background:#fff;border:1px solid #f0e9e1;border-radius:12px">
       <span style="font-size:12px;color:#64748b;font-weight:700;white-space:nowrap">TÌM ĐƠN</span>
       <input id="tdQ" placeholder="🔎 Loại chi phí lẻ, nội dung dòng chi, người lập…" style="min-width:250px;flex:1"
         onkeydown="if(event.key==='Enter')doTimDon()">
@@ -119,13 +119,13 @@
         </div>
       </div>
       <div id="tqScopeNote" style="display:none;margin:0 14px 10px;padding:7px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:12px;color:#1e40af"></div>
-      <div id="tqCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"><span style="color:#94a3b8;font-size:13px">Đang tải…</span></div>
+      <div id="tqCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"><span style="color:#8c8781;font-size:13px">Đang tải…</span></div>
       <!-- Nhắc hợp đồng sắp hết hạn: để hợp đồng hết hạn mà không ai biết là mất mặt bằng
            hoặc bị áp giá mới. Chỉ vai trò thấy được tab Hợp đồng mới thấy ô này. -->
       <div id="tqOpenRow" style="display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:0 14px 12px">
         <div class="fld"><label>🏦 Số dư đầu kỳ (quỹ đầu tháng — seed cho Đối chiếu quỹ tuần đầu)</label><input id="tqOpenSo" type="number" placeholder="0" style="width:220px"></div>
         <button class="btn b-p" id="tqOpenSave" onclick="saveSoDuDauKy()">💾 Lưu số dư đầu kỳ</button>
-        <span style="font-size:11px;color:#94a3b8;flex-basis:100%">Áp dụng cho tuần/kỳ ĐẦU TIÊN ở Quyết toán ▸ "Theo tuần" — mang số dư đầu vào để cân bằng dòng tiền liền mạch cả tháng.</span>
+        <span style="font-size:11px;color:#8c8781;flex-basis:100%">Áp dụng cho tuần/kỳ ĐẦU TIÊN ở Quyết toán ▸ "Theo tuần" — mang số dư đầu vào để cân bằng dòng tiền liền mạch cả tháng.</span>
       </div>
       <div style="padding:0 14px 10px;font-size:12px;color:#64748b">💸 <b>Chi phí xin</b> = tổng hạng mục xin (chưa gồm tạm ứng dự phòng) · 🧾 <b>Chi phí thực tế</b> = thực chi (gồm phát sinh) · <b>Chênh lệch</b> = xin − thực tế (dương = còn dư, âm = chi vượt).</div>
     </div>
@@ -291,7 +291,7 @@
   <div id="datKyBox" class="card" style="display:none;border-left:4px solid #0ea5e9;background:#f0f9ff">
     <div style="padding:10px 14px">
       <b>🗓 Đặt lại khoảng ngày của đơn</b>
-      <div style="font-size:11.5px;color:#475569;margin:4px 0 8px">
+      <div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">
         Đợt việc kéo dài hơn hay ngắn hơn dự tính thì nắn lại khoảng ngày ở đây.
         Kỳ đang là <b id="dkKyCu">—</b>. <b>Gửi quyết toán rồi thì khoá</b> — số đã vào sổ, kỳ là cái ngăn nó nằm.
         Ngày của từng dòng chi giữ nguyên: ngày mua là chuyện đã xảy ra.
@@ -358,7 +358,7 @@
                nhau là chỗ gõ nhầm. Không đổi được cách trình duyệt vẽ, nên ghi rõ bên dưới
                ngày đang hiểu là ngày nào theo kiểu Việt Nam. -->
           <div class="fld"><label>Ngày</label><input id="f_ngay" type="date" onchange="_veNgayVi()">
-            <div id="f_ngayVi" style="font-size:11px;color:#0f766e"></div></div>
+            <div id="f_ngayVi" style="font-size:11px;color:#2545ff"></div></div>
           <div class="fld"><label>Phân loại (Cá nhân / NCC) *</label><select id="f_pltt" onchange="onPlttChange()"></select></div>
           <div class="fld"><label id="lblDoiTuong">Đối tượng (NV/NCC)</label><input id="f_dt" list="dl_dt" autocomplete="off" placeholder="Tên NV hoặc NCC"><datalist id="dl_dt"></datalist></div>
           <!-- CHỌN CHI PHÍ NÀO: mỗi mảng một ô riêng. Chọn mảng nào thì ô Loại chi phí chỉ
@@ -403,7 +403,7 @@
       </div>
       <!-- Nhắc lại nút thao tác NGAY CHỖ NHẬP XONG: nhập hạng mục xong thì việc kế tiếp là
            gửi xin tạm ứng, không nên buộc cuộn lên đầu trang mới thấy nút. -->
-      <div id="donActionDuoi" style="display:none;padding:10px 16px;border-top:1px solid #f1f5f9;background:#f8fafc;align-items:center;gap:10px;flex-wrap:wrap">
+      <div id="donActionDuoi" style="display:none;padding:10px 16px;border-top:1px solid #f4f1ec;background:#f9f8f6;align-items:center;gap:10px;flex-wrap:wrap">
         <span id="donActionDuoiHint" style="font-size:12px;color:#64748b"></span>
         <div style="flex:1"></div>
         <button class="btn b-s" id="btnActionDuoi" style="font-size:14px;padding:10px 18px"></button>
@@ -434,7 +434,7 @@
                thì nó hiện 1837000 trong khi ô bên cạnh hiện 30.000.000, hai kiểu số cạnh nhau
                trên cùng một hàng. Giá trị thật đọc qua _tienSo() nên không đổi gì phía sau. -->
           <div class="fld"><label>Thực chi (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:180px;font-weight:800;font-size:17px;text-align:right;color:#15803d;background:#f0fdf4;border:2px solid #bbf7d0"></div>
-          <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:170px;font-weight:800;font-size:17px;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;text-align:right">—</div></div>
+          <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:170px;font-weight:800;font-size:17px;padding:9px 12px;border:2px solid #f0e9e1;border-radius:8px;background:#f9f8f6;text-align:right">—</div></div>
           <!-- HAI Ô HÓA ĐƠN, CÓ TÊN. Anh Thắng: "với 1 đơn cho phép upload 2 hóa đơn".
                Ô thứ hai sinh ra vì ô thứ nhất THIẾU hoặc SAI, nên đặt tên "bổ sung" chứ không
                phải một danh sách vô danh — người đối chiếu sau này cần biết cái nào là bản bù. -->
@@ -442,7 +442,7 @@
             <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
               <button class="btn b-x" id="qtImgBtn" onclick="attachHoaDon(1)">📎 Hóa đơn 1</button>
               <button class="btn b-s" id="qtImgXem" style="display:none">👁</button>
-              <span style="color:#cbd5e1">|</span>
+              <span style="color:#e2d6c7">|</span>
               <button class="btn b-x" id="qtImgBtn2" onclick="attachHoaDon(2)">📎 Hóa đơn 2 (bổ sung)</button>
               <button class="btn b-s" id="qtImgXem2" style="display:none">👁</button>
             </div>
@@ -476,7 +476,7 @@
           <div class="fld"><label>Ngày chi</label><input id="sc_ngay" type="date"></div>
           <div class="fld"><label>Cơ sở</label><select id="sc_coso" onchange="onScCoso()"></select></div>
           <div class="fld"><label>Loại chi phí <span style="color:#dc2626">*</span></label><select id="sc_loai" onchange="onScLoai()"></select></div>
-          <div class="fld"><label>Mã tài khoản (tự lấy)</label><input id="sc_tk" placeholder="—" readonly style="background:#f8fafc;font-family:Consolas,monospace"></div>
+          <div class="fld"><label>Mã tài khoản (tự lấy)</label><input id="sc_tk" placeholder="—" readonly style="background:#f9f8f6;font-family:Consolas,monospace"></div>
           <div class="fld"><label>Hình thức chi</label><select id="sc_ht" onchange="onScCoso()"><option value="Tạm ứng NV">💰 Tạm ứng NV</option><option value="Trực tiếp NCC">🏢 Trực tiếp NCC</option></select></div>
           <div class="fld"><label>Đối tượng (NV/NCC)</label><input id="sc_dt" list="dl_dt" placeholder="Tên NV hoặc NCC"></div>
         </div>
@@ -537,10 +537,10 @@
         <table style="min-width:280px;flex:1"><thead><tr><th>Mã tài khoản</th><th style="width:60px">Dòng</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead><tbody id="scByTk"></tbody></table>
         <table style="min-width:280px;flex:1"><thead><tr><th>Cơ sở</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead><tbody id="scByCoso"></tbody></table>
       </div>
-      <div class="ch" style="border-top:1px solid #e2e8f0"><h2>🏗 Tổng theo dự án / công trình</h2></div>
+      <div class="ch" style="border-top:1px solid #f0e9e1"><h2>🏗 Tổng theo dự án / công trình</h2></div>
       <div class="tw" style="padding:8px 14px 16px">
         <table style="min-width:640px"><thead><tr><th>Mã dự án</th><th style="width:60px">Dòng</th><th style="text-align:right;width:140px">Dự toán</th><th style="text-align:right;width:140px">Thực chi</th><th style="text-align:right;width:140px">Còn lại</th></tr></thead><tbody id="scByDuAn"></tbody></table>
-        <div style="font-size:11px;color:#94a3b8;padding-top:8px">Một dự án chỉ là <b>các dòng chi mang cùng mã dự án</b> — khỏi bảng riêng, khỏi gom. Dòng nào là <b>hạng mục lớn</b> của các dòng khác thì chỉ giữ dự toán, thực chi để 0 để không đếm hai lần.</div>
+        <div style="font-size:11px;color:#8c8781;padding-top:8px">Một dự án chỉ là <b>các dòng chi mang cùng mã dự án</b> — khỏi bảng riêng, khỏi gom. Dòng nào là <b>hạng mục lớn</b> của các dòng khác thì chỉ giữ dự toán, thực chi để 0 để không đếm hai lần.</div>
       </div>
     </div>
   </div>
@@ -561,10 +561,10 @@
              không phải một danh sách phải xổ ra mới đọc được. -->
         <div id="daTaoNut" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
           <button class="btn b-p" onclick="daMoTao()">➕ Tạo đơn</button>
-          <span style="font-size:11px;color:#94a3b8">Bấm <b>Tạo đơn</b> rồi chọn <b>🏢 cơ sở</b> (theo TUẦN) hay <b>🏗 dự án</b> (theo GIAN).</span>
+          <span style="font-size:11px;color:#8c8781">Bấm <b>Tạo đơn</b> rồi chọn <b>🏢 cơ sở</b> (theo TUẦN) hay <b>🏗 dự án</b> (theo GIAN).</span>
           <button class="btn b-x" data-dcsw-di="don" onclick="showPage('don')" style="display:none;margin-left:auto">← Quay lại đơn tuần của cơ sở</button>
         </div>
-        <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+        <div id="daTaoBox" style="display:none;padding:10px 12px;background:#f9f8f6;border:1px solid #f0e9e1;border-radius:10px">
           <!-- 🔴 HỎI ĐÚNG MỘT LẦN — anh Thắng 11/09/2026: *"Sao lại hỏi lần 2"*.
                Người dùng đã chọn loại ở hộp "＋ Tạo đơn mới" bên tab đơn rồi mới sang đây; bày
                lại nguyên hàng "Đơn này là gì?" thì trông như lựa chọn vừa rồi không được ghi
@@ -576,7 +576,7 @@
                phải đọc từng chữ mới biết chọn cái nào. Nay mỗi loại một MÀU riêng và một dòng
                phụ đề nói gom theo gì — nhìn là nhận ra, khỏi đọc. -->
           <div id="daTaoHoi" style="display:flex;gap:10px;align-items:stretch;flex-wrap:wrap">
-            <span style="font-size:12px;color:#334155;font-weight:700;align-self:center">Đơn này là gì?</span>
+            <span style="font-size:12px;color:#171417;font-weight:700;align-self:center">Đơn này là gì?</span>
             <button class="btn b-x" id="daNhomCs" onclick="daChonNhom('coso')" style="text-align:left;padding:9px 14px;line-height:1.35">
               <b style="font-size:13px">🏢 Chi phí cơ sở</b><br><span class="nhomPhu" style="font-size:11px;opacity:.85">Một đơn gom NHIỀU gian · theo TUẦN</span>
             </button>
@@ -591,7 +591,7 @@
             <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto;align-self:center">✖ Đóng</button>
           </div>
           <div id="daDangLap" style="display:none;gap:8px;align-items:center;flex-wrap:wrap">
-            <span style="font-size:12px;color:#334155">Đang lập: <b id="daDangLapTen" style="color:#0f766e"></b></span>
+            <span style="font-size:12px;color:#171417">Đang lập: <b id="daDangLapTen" style="color:#2545ff"></b></span>
             <button class="btn b-x" onclick="daDoiLoai()" title="Chọn lại loại đơn">↺ Đổi loại</button>
             <button class="btn b-x" onclick="daDongTao()" style="margin-left:auto">✖ Đóng</button>
           </div>
@@ -605,10 +605,10 @@
                  Một gian làm nhiều đợt thì tên gian không phân biệt nổi đợt nào với đợt nào;
                  thêm mấy chữ ở đây là danh sách đọc ra ngay "FUNFEST SC VIVO — Cải tạo quầy".
                  Để TRỐNG vẫn lập được: không phải đợt nào cũng cần nói thêm. -->
-            <div class="fld" id="daNdBox"><label>Nội dung đơn <span style="font-weight:400;color:#94a3b8">(không bắt buộc)</span></label><input id="daNoiDung" list="dl_da_nd_don" placeholder="VD: Cải tạo quầy, sửa mái…" style="min-width:230px"><datalist id="dl_da_nd_don"><option value="Cải tạo"><option value="Sửa chữa"><option value="Bảo trì"><option value="Nâng cấp"><option value="Di dời"></datalist></div>
+            <div class="fld" id="daNdBox"><label>Nội dung đơn <span style="font-weight:400;color:#8c8781">(không bắt buộc)</span></label><input id="daNoiDung" list="dl_da_nd_don" placeholder="VD: Cải tạo quầy, sửa mái…" style="min-width:230px"><datalist id="dl_da_nd_don"><option value="Cải tạo"><option value="Sửa chữa"><option value="Bảo trì"><option value="Nâng cấp"><option value="Di dời"></datalist></div>
             <button class="btn b-p" onclick="createDuAnUI()">➕ Lập đơn</button>
           </div>
-          <span id="daCreateHint" style="display:block;font-size:11px;color:#94a3b8;padding-top:8px">Chi phí cơ sở = chọn TUẦN, rồi mỗi dòng ghi gian của nó. Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — đơn đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
+          <span id="daCreateHint" style="display:block;font-size:11px;color:#8c8781;padding-top:8px">Chi phí cơ sở = chọn TUẦN, rồi mỗi dòng ghi gian của nó. Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — đơn đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
         </div>
       </div>
       <div style="padding:8px 14px 0"><select id="daListFilter" onchange="DA_TRANG=1;renderDuAnList()"><option value="Đang làm">⏳ Đang làm</option></select></div>
@@ -656,7 +656,7 @@
         <div class="tw"><table style="min-width:820px"><thead><tr><th style="width:90px">Ngày</th><th>Nội dung</th><th style="width:150px">Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:150px">Hạng mục lớn</th><th style="text-align:right;width:130px">Dự toán</th><th style="text-align:right;width:130px">Thực chi</th></tr></thead><tbody id="daSoChiBody"></tbody></table></div>
       </div>
       <div id="daClosedNote" style="display:none"></div>
-      <div id="daLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
+      <div id="daLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f0e9e1">
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
         <div class="fld"><label>Nội dung</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:190px"><datalist id="dl_da_nd"></datalist></div>
@@ -688,7 +688,7 @@
       <div id="daXinBar" style="display:none;margin:8px 0 0;padding:10px 14px;border-radius:10px;
            background:#f0fdf4;border:1px solid #86efac;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center">
         <b style="color:#166534">📤 Xin tạm ứng</b>
-        <span style="font-size:12.5px;color:#475569">Đã tích <b id="daXinSo">0</b> hạng mục ·
+        <span style="font-size:12.5px;color:#8c8781">Đã tích <b id="daXinSo">0</b> hạng mục ·
           tổng <b id="daXinTong" style="color:#166534">0</b>đ</span>
         <button class="btn b-s" onclick="daTichHet(true)">Tích hết</button>
         <button class="btn b-s" onclick="daTichHet(false)">Bỏ tích</button>
@@ -704,7 +704,7 @@
       <div id="daQtBar" style="display:none;margin:8px 0 0;padding:10px 14px;border-radius:10px;
            background:#faf5ff;border:1px solid #d8b4fe;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center">
         <b style="color:#6b21a8">🧾 Gửi quyết toán</b>
-        <span style="font-size:12.5px;color:#475569">Đã tích <b id="daQtSo">0</b> hạng mục ·
+        <span style="font-size:12.5px;color:#8c8781">Đã tích <b id="daQtSo">0</b> hạng mục ·
           tổng <b id="daQtTong" style="color:#6b21a8">0</b>đ</span>
         <button class="btn b-s" onclick="daTichQtHet(true)">Tích hết</button>
         <button class="btn b-s" onclick="daTichQtHet(false)">Bỏ tích</button>
@@ -714,7 +714,7 @@
            background:#faf5ff;border:1px solid #d8b4fe"></div>
 
       <div id="daQtBox" style="display:none;margin:10px 0 0">
-        <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px">🧾 Lệnh quyết toán của dự án</div>
+        <div style="font-size:12.5px;font-weight:700;color:#171417;margin-bottom:4px">🧾 Lệnh quyết toán của dự án</div>
         <div class="tw"><table>
           <thead><tr><th style="width:64px">Đợt</th><th>Hạng mục trong lệnh</th>
             <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th>Mốc</th>
@@ -725,7 +725,7 @@
 
       <!-- Các lệnh tạm ứng đã gửi của chính dự án này — nhân viên nhìn là biết đợt nào tới đâu. -->
       <div id="daLenhBox" style="display:none;margin:10px 0 0">
-        <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:4px">💵 Lệnh tạm ứng của dự án</div>
+        <div style="font-size:12.5px;font-weight:700;color:#171417;margin-bottom:4px">💵 Lệnh tạm ứng của dự án</div>
         <div class="tw"><table>
           <thead><tr><th style="width:64px">Đợt</th><th>Hạng mục trong lệnh</th>
             <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th>Uỷ nhiệm chi</th><th>Mốc</th>
@@ -747,7 +747,7 @@
       </div>
       <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Mỗi <b>gian hàng / sự kiện = 1 đơn</b>; mở đơn ra thêm nhiều <b>hạng mục</b> (ads/KOL/POSM...). 👉 Số <b>tạm ứng</b> = ô "Ngân sách (dự toán)" + Hình thức chi 💰 Tạm ứng.</div>
       <div id="mkOvSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
-      <div class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
+      <div class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f0e9e1">
         <div class="fld"><label>Cơ sở / Gian</label><input id="mkNewCoso" list="dl_coso_mk" placeholder="VD: FARM NHA TRANG" style="width:180px"><datalist id="dl_coso_mk"></datalist></div>
         <div class="fld"><label>Tên chiến dịch/sự kiện</label><input id="mkNewTen" placeholder="VD: Khai trương / Trung thu..." style="min-width:200px"></div>
         <div class="fld"><label>Kênh chính</label><select id="mkNewKenh" style="width:150px"><option value="">—</option><option>Facebook Ads</option><option>TikTok Ads</option><option>Google Ads</option><option>Zalo</option><option>KOL/Influencer</option><option>POSM/In ấn</option><option>Sự kiện/Hoạt náo</option><option>Content/Sản xuất</option><option>Đa kênh</option><option>Khác</option></select></div>
@@ -771,7 +771,7 @@
         </div>
       </div>
       <div id="mkSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
-      <div id="mkLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
+      <div id="mkLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f0e9e1">
         <div class="fld"><label>Kênh</label><select id="ml_kenh" style="width:150px"><option value="">—</option><option>Facebook Ads</option><option>TikTok Ads</option><option>Google Ads</option><option>Zalo</option><option>KOL/Influencer</option><option>POSM/In ấn</option><option>Sự kiện/Hoạt náo</option><option>Content/Sản xuất</option><option>Khác</option></select></div>
         <div class="fld"><label>Nội dung</label><input id="ml_nd" placeholder="VD: Chạy ads FB tuần 1" style="min-width:180px"></div>
         <div class="fld"><label>Loại chi phí <span id="ml_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="ml_loaicp" style="width:205px" onchange="mlTkHint()"></select></div>
@@ -822,7 +822,7 @@
         </div>
       </div>
       <div id="bpSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
-      <div id="bpLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
+      <div id="bpLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f0e9e1">
         <div class="fld"><label>Nội dung</label><input id="bl_nd" placeholder="VD: Thuê nhân công / Ăn uống / Vé xe..." style="min-width:190px"></div>
         <div class="fld"><label>Loại chi phí <span id="bl_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="bl_loaicp" style="width:205px" onchange="blTkHint()"></select></div>
         <div class="fld"><label>SL</label><input id="bl_sl" type="number" min="0" placeholder="0" style="width:70px" oninput="blCalcTT()"></div>
@@ -1083,7 +1083,7 @@
     <div class="card" id="qtCardCho">
       <div class="ch">
         <h2>⏳ Chờ quyết toán <span style="font-size:11px;font-weight:400;color:#64748b">— kế toán xác nhận</span> <span class="badge st-cho" id="qtSoCho">0</span></h2>
-        <div style="font-size:12px;color:#475569" id="qtSumCho"></div>
+        <div style="font-size:12px;color:#8c8781" id="qtSumCho"></div>
       </div>
       <div id="qtBatchBar" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:10px 14px">
         <b id="qtSelInfo">Đã chọn 0 đơn</b>
@@ -1160,7 +1160,7 @@
           <button class="btn b-x" onclick="qtXoaLocXong()" title="Bỏ lọc tuần riêng — bảng này bày lại mọi tuần">✕</button>
         </div>
       </div>
-      <div style="font-size:12px;color:#475569;padding:0 14px 6px" id="qtSumXong"></div>
+      <div style="font-size:12px;color:#8c8781;padding:0 14px 6px" id="qtSumXong"></div>
       <div class="tw">
         <table>
           <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
@@ -1176,7 +1176,7 @@
          cạnh hai bảng quyết toán. -->
     <div class="card" id="qtCardChuaNop">
       <div class="ch"><h2>⏰ Đã cấp tạm ứng — CHƯA nộp hóa đơn <span class="badge st-cap" id="qtSoChuaNop">0</span></h2>
-        <div style="font-size:12px;color:#475569" id="qtSumChuaNop"></div></div>
+        <div style="font-size:12px;color:#8c8781" id="qtSumChuaNop"></div></div>
       <div class="tw">
         <table>
           <thead><tr><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th>Ngày cấp tiền</th><th style="text-align:center">Xem</th></tr></thead>
@@ -1238,7 +1238,7 @@
       <div style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px">
         <div style="flex:1;min-width:170px;background:#dcfce7;border:1px solid #86efac;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#166534">▲ TỔNG THỪA (NV trả lại)</div><div style="font-size:22px;font-weight:800;color:#166534" id="ttThua">0đ</div></div>
         <div style="flex:1;min-width:170px;background:#fee2e2;border:1px solid #fecaca;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#b91c1c">▼ TỔNG THIẾU (kế toán bù)</div><div style="font-size:22px;font-weight:800;color:#b91c1c" id="ttThieu">0đ</div></div>
-        <div style="flex:1;min-width:170px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#334155">CHÊNH LỆCH RÒNG</div><div style="font-size:22px;font-weight:800;color:#334155" id="ttRong">0đ</div></div>
+        <div style="flex:1;min-width:170px;background:#f4f1ec;border:1px solid #e2d6c7;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#171417">CHÊNH LỆCH RÒNG</div><div style="font-size:22px;font-weight:800;color:#171417" id="ttRong">0đ</div></div>
         <div style="flex:1;min-width:150px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px"><div style="font-size:12px;color:#1e40af">Đơn · đã tất toán</div><div style="font-size:22px;font-weight:800;color:#1e40af"><span id="ttSoDon">0</span> · <span id="ttSoTT" style="color:#16a34a">0</span></div></div>
       </div>
       <div style="padding:0 14px 6px;font-size:12px;color:#64748b">Thừa/thiếu = <b>Tạm ứng − Đã chi cá nhân</b> (không tính NCC 331). Tick <b>"Đã tất toán"</b> khi đã thu tiền thừa / bù tiền thiếu xong với kế toán.</div>
@@ -1287,10 +1287,10 @@
   <!-- ============ TRANG: CẤU HÌNH ============ -->
   <div id="page-cauhinh" class="wrap" style="display:none">
     <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <span style="flex:1;font-size:11px;color:#94a3b8">Bấm vào tiêu đề từng mục để xổ xuống / gập lại.</span>
+      <span style="flex:1;font-size:11px;color:#8c8781">Bấm vào tiêu đề từng mục để xổ xuống / gập lại.</span>
       <button class="btn b-x" onclick="xoTatCa(true)" title="Mở hết mọi mục cấu hình">▾ Mở tất cả</button>
       <button class="btn b-x" onclick="xoTatCa(false)" title="Gập hết cho gọn trang">▸ Gập tất cả</button>
-      <span style="font-size:11px;color:#94a3b8">Lỡ lưu nhầm?</span>
+      <span style="font-size:11px;color:#8c8781">Lỡ lưu nhầm?</span>
       <button class="btn b-x" onclick="undoCfg()" title="Khôi phục về nội dung ngay trước lần Lưu gần nhất">↩ Hồi lại lần lưu gần nhất</button>
     </div>
     <!-- 🔴 ĐẶT LẠI MỐC TUẦN — anh Thắng 08/09/2026: *"có những tuần lỡ dở giữa tháng, nên
@@ -1331,7 +1331,7 @@
         <b>Không kế thừa được Admin</b> — cho phép là ai vào Cấu hình cũng tự đúc cho mình một vai Admin trá hình.
       </div>
       <div class="tw"><table style="min-width:720px"><thead><tr><th style="width:260px">Tên vai trò</th><th style="width:220px">Kế thừa quyền của</th><th style="width:200px">Chỉ làm bộ phận</th><th style="width:44px"></th></tr></thead><tbody id="cfgVaiBody"></tbody></table></div>
-      <div style="padding:6px 14px 12px;font-size:11px;color:#94a3b8"><b>Chỉ làm bộ phận</b> — để trống là vai đó thấy mọi bộ phận, như từ trước tới nay. Khai một bộ phận thì người mang vai ấy <b>chỉ thấy chi phí của bộ phận đó</b>: dòng chi mang loại chi phí thuộc bộ phận ấy, và đơn có ít nhất một dòng như thế. Bộ phận của một loại chi phí khai ở bảng <b>Loại chi phí</b> bên dưới — loại nào <b>chưa khai</b> bộ phận thì vẫn hiện cho mọi kế toán, để tiền không biến mất khỏi màn nào.</div>
+      <div style="padding:6px 14px 12px;font-size:11px;color:#8c8781"><b>Chỉ làm bộ phận</b> — để trống là vai đó thấy mọi bộ phận, như từ trước tới nay. Khai một bộ phận thì người mang vai ấy <b>chỉ thấy chi phí của bộ phận đó</b>: dòng chi mang loại chi phí thuộc bộ phận ấy, và đơn có ít nhất một dòng như thế. Bộ phận của một loại chi phí khai ở bảng <b>Loại chi phí</b> bên dưới — loại nào <b>chưa khai</b> bộ phận thì vẫn hiện cho mọi kế toán, để tiền không biến mất khỏi màn nào.</div>
     </div>
     <div class="card" id="userCard">
       <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnSoatNs" style="display:none" onclick="doSoatNs()">🔍 Soát trùng với Nhân sự</button><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
@@ -1348,7 +1348,7 @@
            để gộp lại"*. Xem khối dài ở `VHCPVP_Cfg::soat_nhan_su()`. Khối này chỉ Admin thấy,
            và nó ĐỌC là chính — mỗi nút đều hỏi lại kèm số dòng sẽ bị dời. -->
       <div id="soatNsBox" style="display:none;margin:8px 14px 0"></div>
-      <div style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f1f5f9;color:#334155;font-size:12px">
+      <div style="margin:8px 14px 0;padding:8px 12px;border-radius:8px;background:#f4f1ec;color:#171417;font-size:12px">
         🔒 <b>Tên</b> và <b>PIN</b> lấy từ <b>hệ thống nhân sự</b> nên khoá ở đây — đổi bên trang
         <b>Chấm công → Nhân sự</b>. Tên là khoá nối hai bên: mọi đơn đã lập mang tên người lập, gõ lệch một chữ
         là người ấy mất sạch đơn cũ của mình mà không có câu lỗi nào. Các cột còn lại (vai trò · bộ phận · cơ sở ·
@@ -1357,7 +1357,7 @@
       <!-- 🔴 MỖI VAI TRÒ MỘT BẢNG — anh Thắng 12/09/2026: *"Sắp xếp bảng nhân sự theo vai trò,
            mỗi vai trò 1 bảng"*. JS dựng toàn bộ vào đây; xem `renderUsers()`. -->
       <div id="cfgUserNhom"></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
+      <div style="padding:8px 14px;font-size:11px;color:#8c8781">
         <b>Vai trò</b> quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (duyệt · soát, trong phạm vi cơ sở mình phụ trách) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (cửa hàng trưởng trở xuống — chỉ cơ sở mình quản lý).<br>
         <b>Cơ sở</b> quyết định XEM ĐƯỢC TỚI ĐÂU: <b>Nhân viên</b> để trống ô ấy thì chỉ còn đơn do chính mình lập; <b>Quản lý</b> để trống thì trông cả đơn vị.<br>
         <b>Đơn vị</b> quyết định ĐỌC ĐƯỢC SỔ NHÀ NÀO: để trống = <b>K&amp;H</b>, và K&amp;H là nhà mẹ nên đọc cả hệ. Nhà khác chỉ đọc đúng nhà mình.<br>
@@ -1368,7 +1368,7 @@
     </div>
     <div class="card" id="imgMaintCard">
       <div class="ch"><h2>🗂️ Bảo trì ảnh</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#475569;font-size:12px"></div></div>
+      <div style="padding:8px 14px;font-size:11px;color:#8c8781">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#8c8781;font-size:12px"></div></div>
     </div>
     <!-- SỬA NGÀY HỎNG HÀNG LOẠT — chỉ Admin. Đang có 580 dòng mang ngày "22/08/4621" nằm
          rải khắp các đơn ĐÃ QUYẾT TOÁN, tức tệp gửi MISA đang sai kỳ hạch toán. Sửa tay
@@ -1379,7 +1379,7 @@
           <button class="btn b-x" onclick="doDoKyHong()">🔎 Dò kỳ hỏng</button>
           <button class="btn b-x" onclick="doDoNgayHong()">🔎 Dò ngày hỏng</button>
         </div></div>
-      <div style="padding:10px 14px;font-size:12px;color:#475569;line-height:1.7">
+      <div style="padding:10px 14px;font-size:12px;color:#8c8781;line-height:1.7">
         <b>Vì sao hỏng:</b> ô ngày trong bảng tính xuất ra <b>SỐ SÊ-RI</b> (<code>46213.0</code> = số ngày kể từ
         30/12/1899). Bộ đọc cũ hiểu <code>4621</code> thành <b>năm</b> → ra <code>22/08/4621</code>. Bản này đã đọc
         đúng sê-ri nên <b>dữ liệu nạp mới không hỏng nữa</b>.
@@ -1398,13 +1398,13 @@
     <div class="card" id="quyenCard">
       <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
       <div class="tw"><table style="min-width:640px"><thead id="quyenHead"></thead><tbody id="quyenBody"></tbody></table></div>
-      <div style="padding:8px 14px 0;font-size:11.5px;color:#334155">
+      <div style="padding:8px 14px 0;font-size:11.5px;color:#171417">
         <b>Luồng chi phí cơ sở:</b>
-        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Lên đơn · <b>NV</b></span>→
-        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Xin tạm ứng · <b>NV</b></span>→
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #b9c0e8;border-radius:6px;padding:2px 7px;margin:2px">Lên đơn · <b>NV</b></span>→
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #b9c0e8;border-radius:6px;padding:2px 7px;margin:2px">Xin tạm ứng · <b>NV</b></span>→
         <span style="display:inline-block;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:2px 7px;margin:2px">Duyệt tạm ứng · <b>Quản lý</b></span>→
         <span style="display:inline-block;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:2px 7px;margin:2px">Cấp tạm ứng · <b>Kế toán</b></span>→
-        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Gửi quyết toán · <b>NV</b></span>→
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #b9c0e8;border-radius:6px;padding:2px 7px;margin:2px">Gửi quyết toán · <b>NV</b></span>→
         <span style="display:inline-block;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:2px 7px;margin:2px">Quyết toán · <b>Kế toán</b></span>
       </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
@@ -1447,7 +1447,7 @@
         <b style="font-size:12px">Áp dụng cho phân loại lớn:</b>
         <button class="btn b-x" onclick="kcTickAll(true)">Tích hết</button>
         <button class="btn b-x" onclick="kcTickAll(false)">Bỏ hết</button>
-        <span style="font-size:11px;color:#94a3b8">Tích theo <b>phân loại lớn</b> là nhanh nhất — mọi cơ sở trong đó, kể cả cơ sở mở sau này, đều dùng mã này. Chỉ mở phần tích lẻ khi có cơ sở cần mã khác.</span>
+        <span style="font-size:11px;color:#8c8781">Tích theo <b>phân loại lớn</b> là nhanh nhất — mọi cơ sở trong đó, kể cả cơ sở mở sau này, đều dùng mã này. Chỉ mở phần tích lẻ khi có cơ sở cần mã khác.</span>
       </div>
       <div id="kcCosoBox" style="padding:0 14px 12px"></div>
       <datalist id="kcLoaiList"></datalist>
@@ -1455,8 +1455,8 @@
 
     <div class="card" id="heTkCard">
       <div class="ch"><h2>🏦 Tài khoản — hệ thống kế toán &amp; tài khoản nhận tiền</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
-      <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">App chỉ cần bảng này để <b>biết một mã có tên là gì</b> (chi phí hay doanh thu đều nạp được) — nó <b>không</b> quyết định mảng, mảng lấy theo cơ sở. Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
-      <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
+      <div style="padding:6px 14px 4px;font-size:11px;color:#8c8781">App chỉ cần bảng này để <b>biết một mã có tên là gì</b> (chi phí hay doanh thu đều nạp được) — nó <b>không</b> quyết định mảng, mảng lấy theo cơ sở. Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
+      <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#2545ff"></div>
 
       <!-- ══ TÀI KHOẢN NHẬN TIỀN — gộp vào đây 14/09/2026, anh Thắng: *"gộp 2 cái này lại"*.
            Hai thẻ cũ cùng biểu tượng 🏦, cùng chữ "tài khoản", lại nằm ở hai nhóm cách xa nhau
@@ -1467,7 +1467,7 @@
            ⚠️ GIỮ NGUYÊN MỌI `id` BÊN TRONG (`cfgQrStk` · `cfgQrBank` · `cfgQrTen`) và nút Lưu
               riêng: `saveCfgQR()` đọc đúng ba ô ấy và ghi vào khoá `qr`, không dính gì tới hệ
               thống tài khoản. Gộp là gộp CHỖ ĐỨNG, không trộn hai sổ. -->
-      <div style="border-top:1px solid #f1f5f9;padding:12px 14px 4px;display:flex;
+      <div style="border-top:1px solid #f4f1ec;padding:12px 14px 4px;display:flex;
                   justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
         <b style="font-size:13px">💳 Tài khoản nhận tiền (QR chuyển khoản)</b>
         <button class="btn b-g" onclick="saveCfgQR()">💾 Lưu tài khoản nhận tiền</button>
@@ -1477,7 +1477,7 @@
         <div class="fld"><label>Mã ngân hàng (VietQR)</label><input id="cfgQrBank" placeholder="VD: VCB, TCB, MB, ACB, BIDV, TPB..."></div>
         <div class="fld"><label>Tên chủ tài khoản</label><input id="cfgQrTen" placeholder="VD: CONG TY POSH" style="min-width:220px"></div>
       </div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
 
     <!-- 🧭 "Mảng kinh doanh → nhóm tài khoản" ĐÃ GỠ 14/09/2026 — anh Thắng: *"bỏ cái này"*.
@@ -1493,13 +1493,13 @@
              LOẠT đứng ngay cạnh nút Lưu, trong một bảng người ta mở ra mỗi ngày để sửa tên loại.
              Nó dựng cho một lần dọn dữ liệu cũ; giữ lại là để một cú bấm nhầm xoá cả danh mục. --><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#8c8781"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> <b>Bảng trên</b> — mỗi hàng là một loại chi phí: <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái). <b>TK Có</b> app tự lấy theo hình thức chi (Tạm ứng NV → <b>141</b> · Trực tiếp NCC → <b>331</b>), không phải khai. <b>Bảng dưới</b> — <b>TK Nợ của từng mảng</b>, mỗi hàng là một mảng kinh doanh (xếp DỌC cho dễ dò, vì mảng thì hàng chục còn loại chi phí chỉ chừng mươi cái) — mảng của một dòng chi lấy theo <b>Phân loại lớn</b> của cơ sở (khai ở bảng 🏢 Mã đơn vị theo Cơ sở), nên cùng loại chi phí mà khác cơ sở thì khác mã, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
 
     <div class="card" id="tkCoCard">
       <div class="ch"><h2>💳 TK Có theo Phân loại thanh toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgPl()">＋ Thêm</button><button class="btn b-g" onclick="saveCfgPl()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:520px"><thead><tr><th>Phân loại TT</th><th style="width:120px">TK Có</th><th style="width:44px"></th></tr></thead><tbody id="cfgPlBody"></tbody></table></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Mặc định: Thanh toán cá nhân → <b>141</b> (tạm ứng) · Nhà cung cấp → <b>331</b> (phải trả NCC). Sửa theo TK bạn đi bên MISA.</div>
+      <div style="padding:8px 14px;font-size:11px;color:#8c8781">Mặc định: Thanh toán cá nhân → <b>141</b> (tạm ứng) · Nhà cung cấp → <b>331</b> (phải trả NCC). Sửa theo TK bạn đi bên MISA.</div>
     </div>
 
 <!-- BỎ CARD "Mã đối tượng (NV / Nhà cung cấp)".
@@ -1517,7 +1517,7 @@
   <!-- HỘP THOẠI TẠO ĐƠN MỚI -->
   <div id="newDonModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1800;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(430px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <h3 style="font-size:16px;margin-bottom:14px;color:#0f766e">＋ Tạo đơn mới</h3>
+      <h3 style="font-size:16px;margin-bottom:14px;color:#2545ff">＋ Tạo đơn mới</h3>
       <!-- 🔴 HỎI LOẠI ĐƠN TRƯỚC. Anh Thắng 10/09/2026: *"lúc tạo đơn sẽ hỏi luôn là đơn dự án
            hay đơn chi phí cơ sở chung. tạo 2 lệnh để chọn để ra đơn cho đúng"*.
            Trước đây nút "＋ Tạo đơn mới" luôn đẻ ra đơn TUẦN · CƠ SỞ, còn đơn dự án phải sang
@@ -1526,7 +1526,7 @@
            ⚠️ CHỈ HỎI KHI NGƯỜI ẤY VÀO ĐƯỢC CẢ HAI. Ai chỉ có một loại thì hỏi là bày ra một
               câu chỉ có một đáp án — xem `newDon()`. -->
       <div id="ndLoaiBox" style="display:none;margin-bottom:14px">
-        <label style="display:block;font-size:12px;font-weight:700;color:#334155;margin-bottom:6px">Đơn này là loại nào?</label>
+        <label style="display:block;font-size:12px;font-weight:700;color:#171417;margin-bottom:6px">Đơn này là loại nào?</label>
         <div style="display:flex;flex-direction:column;gap:8px">
           <!-- 🔴 TÊN PHẢI TỰ PHÂN BIỆT ĐƯỢC. Ba loại này có tới hai loại mang chữ "cơ sở"
                (đơn tuần của nhân viên cơ sở · đơn chi phí cơ sở của Kỹ thuật) — đúng chỗ anh
@@ -1552,10 +1552,10 @@
         <label>Khoảng ngày của đợt (từ → đến)</label>
         <div style="display:flex;gap:8px;align-items:center">
           <input type="date" id="ndTuNgay" style="flex:1">
-          <span style="color:#94a3b8">→</span>
+          <span style="color:#8c8781">→</span>
           <input type="date" id="ndDenNgay" style="flex:1">
         </div>
-        <div style="font-size:11.5px;color:#94a3b8;margin-top:5px">Đợt dài bao nhiêu ngày cũng được, vắt sang tháng cũng được.</div>
+        <div style="font-size:11.5px;color:#8c8781;margin-top:5px">Đợt dài bao nhiêu ngày cũng được, vắt sang tháng cũng được.</div>
       </div>
       <div class="fld" style="margin-bottom:16px"><label>Người lập</label>
         <input id="ndNguoiLap" placeholder="Tên NV" style="width:100%"></div>
@@ -1572,7 +1572,7 @@
        nhập lại từ đầu. Khai ngay tại chỗ: gõ tên + số tài khoản là chọn được luôn. -->
   <div id="loaiNhanhModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1950;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(520px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:92vh;overflow:auto">
-      <h3 style="font-size:16px;margin-bottom:4px;color:#0f766e">＋ Thêm loại chi phí</h3>
+      <h3 style="font-size:16px;margin-bottom:4px;color:#2545ff">＋ Thêm loại chi phí</h3>
       <div style="font-size:11.5px;color:#64748b;margin-bottom:14px">Khai xong dùng được ngay ở đây, và hiện luôn trong ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh.</div>
       <div class="fld" style="margin-bottom:10px"><label>Tên loại chi phí *</label>
         <input id="lnTen" placeholder="VD: Chi phí điện nước" style="width:100%"></div>
@@ -1586,12 +1586,12 @@
            sở thuộc mảng đó, là không làm nổi. -->
       <div class="fld" style="margin-bottom:10px"><label>Áp cho</label>
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px">
-          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#334155;cursor:pointer">
+          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#171417;cursor:pointer">
             <input type="radio" name="lnPham" value="mang" checked onchange="lnPhamDoi()"> Theo mảng kinh doanh</label>
-          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#334155;cursor:pointer">
+          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#171417;cursor:pointer">
             <input type="radio" name="lnPham" value="coso" onchange="lnPhamDoi()"> <span id="lnPhamCoso">Chỉ riêng cơ sở này</span></label>
         </div>
-        <div id="lnMangHop" style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;max-height:190px;overflow:auto">
+        <div id="lnMangHop" style="border:1px solid #f0e9e1;border-radius:8px;padding:8px 10px;max-height:190px;overflow:auto">
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
             <button type="button" class="btn b-x" onclick="lnTickMang(1)" style="padding:2px 8px;font-size:11px">Chọn tất cả</button>
             <button type="button" class="btn b-x" onclick="lnTickMang(0)" style="padding:2px 8px;font-size:11px">Bỏ chọn</button>
@@ -1599,7 +1599,7 @@
           </div>
           <div id="lnMangDs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
         </div>
-        <span style="font-size:11px;color:#94a3b8">Khai theo mảng thì mọi cơ sở cùng mảng dùng được luôn — kể cả cơ sở mở sau này.</span></div>
+        <span style="font-size:11px;color:#8c8781">Khai theo mảng thì mọi cơ sở cùng mảng dùng được luôn — kể cả cơ sở mở sau này.</span></div>
       <!-- MỘT LOẠI CHI PHÍ CÓ THỂ MANG NHIỀU TK NỢ, theo hai kiểu:
              1) KHÁC MẢNG THÌ KHÁC MÃ — "Chi phí cơ sở" là 64166 ở FARM, 64126 ở FZ.
                 Đây là kiểu thường dùng: khai từng lần, mỗi lần tích mảng tương ứng.
@@ -1607,10 +1607,10 @@
                 tự đoán mã nào: ô "Loại chi phí" tách ra thành từng dòng theo mã, kèm tên
                 tài khoản, để người nhập chỉ rõ. -->
       <div class="fld" style="margin-bottom:10px">
-        <label style="display:flex;gap:7px;align-items:flex-start;font-weight:400;text-transform:none;letter-spacing:0;font-size:12.5px;color:#334155;cursor:pointer">
+        <label style="display:flex;gap:7px;align-items:flex-start;font-weight:400;text-transform:none;letter-spacing:0;font-size:12.5px;color:#171417;cursor:pointer">
           <input type="checkbox" id="lnThem" style="margin-top:2px">
           <span><b>Thêm mã nữa</b> cho ô đang có (1 loại chi phí · nhiều TK Nợ) — không thay mã cũ.
-            <span style="color:#94a3b8">Bỏ trống thì mã mới THAY mã cũ ở các mảng đã tích.</span></span></label>
+            <span style="color:#8c8781">Bỏ trống thì mã mới THAY mã cũ ở các mảng đã tích.</span></span></label>
       </div>
       <div class="fld" style="margin-bottom:10px"><label>Nhóm — quyết định loại này nằm ở nút nào ở mục "Chọn chi phí nào"</label>
         <select id="lnBoPhan" style="width:100%">
@@ -1631,7 +1631,7 @@
   <!-- POPUP THÊM CƠ SỞ -->
   <div id="cosoModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1900;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <h3 style="font-size:16px;margin-bottom:14px;color:#0f766e">＋ Thêm cơ sở</h3>
+      <h3 style="font-size:16px;margin-bottom:14px;color:#2545ff">＋ Thêm cơ sở</h3>
       <div class="fld" style="margin-bottom:10px"><label>Tên thường gọi</label><input id="ncTen" placeholder="VD: FARM PHAN THIẾT"></div>
       <div class="fld" style="margin-bottom:10px"><label>Tên theo MISA</label><input id="ncMisa" placeholder="VD: FARM MN Lotte Phan Thiết"></div>
       <div class="fld" style="margin-bottom:10px"><label>Mã đơn vị (MISA)</label><input id="ncMa" placeholder="VD: FLMPT"></div>
@@ -1639,9 +1639,9 @@
              đơn vị thứ ba (anh Thắng 11/09/2026: *"tách anh thêm 1 đơn vị KVC đi"*) là nhãn ấy
              nói sai ngay, mà chẳng ai nhớ ra để sửa. Danh sách thật nằm ở ô gợi ý bên dưới,
              dựng từ chính dữ liệu (`VHCPVP_DonVi::ds()`). -->
-        <label>Đơn vị — bên nào nhìn thấy chi phí của gian này <span style="font-weight:400;color:#94a3b8">(gõ tên mới để mở thêm đơn vị)</span></label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
+        <label>Đơn vị — bên nào nhìn thấy chi phí của gian này <span style="font-weight:400;color:#8c8781">(gõ tên mới để mở thêm đơn vị)</span></label><input id="ncDonVi" list="dl_donvi" placeholder="để trống = K&amp;H"></div>
       <div class="fld" style="margin-bottom:10px"><label>Phân loại lớn</label><input id="ncPll" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)"></div>
-      <div class="fld" style="margin-bottom:16px"><label>Tỉnh / Thành <span style="font-weight:400;color:#94a3b8">(không bắt buộc)</span></label><input id="ncTinh" list="dl_tinh" placeholder="VD: TP HCM"></div>
+      <div class="fld" style="margin-bottom:16px"><label>Tỉnh / Thành <span style="font-weight:400;color:#8c8781">(không bắt buộc)</span></label><input id="ncTinh" list="dl_tinh" placeholder="VD: TP HCM"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="btn b-x" onclick="closeCfgCoso()">Huỷ</button>
         <button class="btn b-p" onclick="submitCfgCoso()">Thêm vào danh sách</button>
@@ -1670,7 +1670,7 @@
   <!-- POPUP GỬI (CẤP) TẠM ỨNG -->
   <div id="capModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1950;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <h3 style="font-size:16px;margin-bottom:6px;color:#0f766e">💵 Gửi (cấp) tạm ứng</h3>
+      <h3 style="font-size:16px;margin-bottom:6px;color:#2545ff">💵 Gửi (cấp) tạm ứng</h3>
       <div id="capSub" style="font-size:12px;color:#64748b;margin-bottom:14px">Xác nhận đã đẩy tiền cho NV đi mua.</div>
       <div class="fld" style="margin-bottom:10px"><label>Hình thức</label>
         <select id="capHt" onchange="capHtChange()" style="width:100%"><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option></select></div>
@@ -1688,7 +1688,7 @@
   <!-- Modal TRẢ ĐƠN (kèm phản hồi) -->
   <div id="pinModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1960;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(400px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <h3 style="font-size:16px;margin-bottom:6px;color:#0f766e">🔑 Đổi mật khẩu (PIN)</h3>
+      <h3 style="font-size:16px;margin-bottom:6px;color:#2545ff">🔑 Đổi mật khẩu (PIN)</h3>
       <div style="font-size:12px;color:#64748b;margin-bottom:12px">PIN gồm 4–8 chữ số — dùng để đăng nhập.</div>
       <div class="fld"><label>PIN hiện tại</label><input id="pinOld" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
       <div class="fld" style="margin-top:8px"><label>PIN mới (4–8 số)</label><input id="pinNew" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
@@ -1714,7 +1714,7 @@
   </div>
   <div id="splitModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1950;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(460px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
-      <h3 style="font-size:16px;margin-bottom:6px;color:#0f766e">＋ Tách chi phí sang cơ sở khác</h3>
+      <h3 style="font-size:16px;margin-bottom:6px;color:#2545ff">＋ Tách chi phí sang cơ sở khác</h3>
       <div id="splitSub" style="font-size:12px;color:#64748b;margin-bottom:12px">Nhân đôi dòng này thành 1 dòng ở cơ sở khác. Sau đó chỉnh <b>Thực chi</b> ở mỗi dòng cho đúng phần từng cơ sở.</div>
       <div class="fld"><label>Cơ sở cho bản sao</label>
         <select id="splitCoso" style="width:100%"></select></div>
@@ -1762,7 +1762,7 @@
     el('logBody').innerHTML=items.map(function(x){
       // Không có thời điểm thì nói rõ vì sao, đừng để ô trống trơn cho người ta đoán.
       var _tg=x.tg?esc(x.tg):'<span style="color:#b45309" title="Dòng nạp từ nhật ký cũ — cột thời điểm là số sê-ri bảng tính, thời điểm thật không khôi phục được">— không rõ</span>';
-      return '<tr><td style="white-space:nowrap;font-size:12px;color:#64748b">'+_tg+'</td><td>'+esc(x.nguoi)+(x.vaiTro?'<div style="font-size:10px;color:#94a3b8">'+esc(x.vaiTro)+'</div>':'')+'</td><td>'+esc(x.hanhDong)+'</td><td style="font-size:12px">'+esc(x.doiTuong)+'</td><td style="font-size:12px;color:#475569">'+esc(x.chiTiet)+'</td></tr>';
+      return '<tr><td style="white-space:nowrap;font-size:12px;color:#64748b">'+_tg+'</td><td>'+esc(x.nguoi)+(x.vaiTro?'<div style="font-size:10px;color:#8c8781">'+esc(x.vaiTro)+'</div>':'')+'</td><td>'+esc(x.hanhDong)+'</td><td style="font-size:12px">'+esc(x.doiTuong)+'</td><td style="font-size:12px;color:#8c8781">'+esc(x.chiTiet)+'</td></tr>';
     }).join('');
   }
   // Lọc nhóm mặt hàng theo phân loại TT (NCC / cá nhân)
@@ -1874,7 +1874,7 @@
     var ten=String((el('f_nhom')&&el('f_nhom').value)||'').trim().toLowerCase();
     var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
     lb.textContent = hit && hit.tkNo ? ('TK Nợ '+hit.tkNo) : (ten?'chưa gắn mã TK':'');
-    lb.style.color = (hit&&hit.tkNo)?'#0f766e':'#dc2626';
+    lb.style.color = (hit&&hit.tkNo)?'#2545ff':'#dc2626';
   }
   function onNoiDung(){
     var p=PRODMAP[el('f_nd').value.trim().toLowerCase()]; if(!p) return;
@@ -2452,7 +2452,7 @@
       return '<tr'+(on?' style="background:#ecfeff"':'')+'>'+
         '<td>'+esc(d.ky||d.maDon)+'</td>'+
         // Mỗi đơn 1 cơ sở -> hiện thẳng ở danh sách, khỏi phải mở từng đơn ra xem
-        '<td>'+(d.coso?('<b>'+esc(d.coso)+'</b>'):'<span style="color:#94a3b8">chưa có dòng nào</span>')+'</td>'+
+        '<td>'+(d.coso?('<b>'+esc(d.coso)+'</b>'):'<span style="color:#8c8781">chưa có dòng nào</span>')+'</td>'+
         '<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td>'+
@@ -3068,7 +3068,7 @@
       var _ktBanner=_mKt?('<div style="margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#b91c1c;font-size:12px;font-weight:600">⚠️ ĐƠN ĐÃ ĐƯỢC KẾ TOÁN SỬA SỐ TIỀN'+(_mKt[1].trim()?(' (bởi '+esc(_mKt[1].trim())+')'):'')+' — số liệu quyết toán đã thay đổi, QL & NV lưu ý.</div>'):'';
       // Ghi luôn CƠ SỞ của đơn lên badge: mỗi đơn 1 cơ sở nên đây là thông tin nhận dạng
       // chính, phải thấy ngay chứ không phải cuộn xuống mục nhập mới biết.
-      var _csD=r.don.cosoDon?('<b style="color:#0f766e"> · 🏢 '+esc(r.don.cosoDon)+'</b>'):'';
+      var _csD=r.don.cosoDon?('<b style="color:#2545ff"> · 🏢 '+esc(r.don.cosoDon)+'</b>'):'';
       /* Dải trạng thái: một câu tiếng người + thanh bước. Đặt NGAY ĐẦU ĐƠN, trước mọi con số —
          câu đầu tiên người dùng đọc phải trả lời câu họ đang hỏi. */
       var _ct=_cauTrangThai(st);
@@ -3088,7 +3088,7 @@
         +';border-radius:9px;color:'+_ct.mau+'">'
         +'<div style="font-size:14px;font-weight:800;letter-spacing:.2px">'
           +'Đơn đang <u>'+esc(st||'—')+'</u></div>'
-        +'<div style="font-size:11px;color:#475569;margin:2px 0 6px">'+_nhanDang+'</div>'
+        +'<div style="font-size:11px;color:#8c8781;margin:2px 0 6px">'+_nhanDang+'</div>'
         +'<div style="margin-bottom:5px">'+_lamDuocGi(st)+'</div>'
         +'<div style="font-size:11.5px;line-height:1.5">'+_ct.chu+'</div>'
         +_thanhBuoc(st)+'</div>';
@@ -3165,7 +3165,7 @@
       var chips=keys.sort().map(function(cs){ return '<span class="chip">'+esc(cs)+': <b>'+money(t[cs])+'đ</b></span>'; }).join('');
       var parts=[]; if(hangMuc>0)parts.push('nhập tay '+money(hangMuc)+'đ');
       if(dp>0)parts.push('dự phòng đơn cũ '+money(dp)+'đ');
-      var bd=(parts.length>1)?(' <span style="color:#94a3b8">('+parts.join(' + ')+')</span>'):'';
+      var bd=(parts.length>1)?(' <span style="color:#8c8781">('+parts.join(' + ')+')</span>'):'';
       /* 🔴 XIN ĐÃ ĐỔI SAU KHI DUYỆT -> PHẢI KÊU LÊN.
          Từ 26/08/2026 nhân viên sửa được hạng mục xin ở cả những trạng thái SAU khi quản lý đã
          duyệt (anh Thắng: *"còn lại nhân viên đều được sửa và bổ sung đơn"*). Đó là điều anh
@@ -3186,9 +3186,9 @@
       el('tuChips').innerHTML=chips+'<div style="margin-top:6px;font-size:13px"><b>Tổng tạm ứng xin: '+money(tong)+'đ</b>'+bd+((duyet>0&&duyet!==tong)?(' · <span style="color:#0369a1">đã duyệt: '+money(duyet)+'đ</span>'):'')+'</div>'+_canhLech;
     } else if(CUR.tuMode==='new' && duyet>0){   // tạm ứng CỤC do quản lý duyệt
       el('tuChips').innerHTML='<span class="chip">💰 Tạm ứng (cục cả đơn): <b>'+money(duyet)+'đ</b></span>'+
-        '<div style="font-size:11px;color:#94a3b8;margin-top:6px">Số đã duyệt cho cả đơn.</div>';
+        '<div style="font-size:11px;color:#8c8781;margin-top:6px">Số đã duyệt cho cả đơn.</div>';
     } else {
-      el('tuChips').innerHTML='<span style="color:#94a3b8;font-size:12px">Đơn này <b>không xin tạm ứng</b> (= 0). Cần ứng trước thì nhập số ở ô <b>“Số tạm ứng”</b> cho từng cơ sở phía trên; để trống = kế toán chi bù khi quyết toán.</span>';
+      el('tuChips').innerHTML='<span style="color:#8c8781;font-size:12px">Đơn này <b>không xin tạm ứng</b> (= 0). Cần ứng trước thì nhập số ở ô <b>“Số tạm ứng”</b> cho từng cơ sở phía trên; để trống = kế toán chi bù khi quyết toán.</span>';
     }
   }
   /* `saveDuPhong()` ĐÃ BỎ cùng ô nhập dự phòng (01/09/2026). Hàm ở lại thì mồ côi mà vẫn nguy:
@@ -3385,10 +3385,10 @@
       +(NGH.items||[]).map(function(x){
         return '<tr><td style="font-size:11px">'+esc(x.maDon)+'</td><td style="font-size:11px">'+esc(x.ky||'')+'</td>'
           +'<td style="font-size:12px">'+esc(x.noiDung||'')+'</td>'
-          +'<td style="color:#b91c1c;font-weight:700">'+esc(x.cu)+'<div style="font-size:10px;font-weight:400;color:#94a3b8">'+esc(x.tho)+'</div></td>'
+          +'<td style="color:#b91c1c;font-weight:700">'+esc(x.cu)+'<div style="font-size:10px;font-weight:400;color:#8c8781">'+esc(x.tho)+'</div></td>'
           +'<td>'+(x.moi?('<b style="color:'+(x.uocLuong?'#b45309':'#166534')+'">'+esc(x.moi)+'</b>'+(x.uocLuong?'<div style="font-size:10px;color:#b45309">ước lượng — đúng tuần, chưa chắc đúng ngày</div>':'')):'<span style="color:#b91c1c">— không suy được, sửa tay —</span>')+'</td></tr>';
       }).join('')+'</tbody></table></div>';
-    if(NGH.tong>(NGH.items||[]).length) h+='<div style="font-size:11px;color:#94a3b8;padding-top:6px">Chỉ liệt kê '+(NGH.items||[]).length+' dòng đầu; bấm sửa là áp cho cả '+NGH.tong+' dòng.</div>';
+    if(NGH.tong>(NGH.items||[]).length) h+='<div style="font-size:11px;color:#8c8781;padding-top:6px">Chỉ liệt kê '+(NGH.items||[]).length+' dòng đầu; bấm sửa là áp cho cả '+NGH.tong+' dòng.</div>';
     b.innerHTML=h;
   }
   function _nghCach(){ return (el('nghCach')&&el('nghCach').value)||'seri'; }
@@ -3552,12 +3552,12 @@
       : '✏ sửa nội dung được (không mua thì để Thực chi = 0)';
     html+='<tr><td colspan="'+COLS+'" style="background:#ecfeff;font-weight:800;color:#0369a1;border-left:4px solid #0369a1;padding:8px 10px">📋 HẠNG MỤC ĐÃ XIN ('+xinL.length+') <span style="font-weight:400;color:#64748b">· '+xinLbl+'</span></td></tr>';
     html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:(xinUnlock&&sd)||admDel, admOnly:(!(xinUnlock&&sd))&&admDel, canSplit:xinEditContent||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
-    if(!xinL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có hạng mục xin —</td></tr>';
+    if(!xinL.length) html+='<tr><td colspan="'+COLS+'" style="color:#8c8781;padding:8px 10px">— chưa có hạng mục xin —</td></tr>';
     // ---- Mục PHÁT SINH (mua thêm ngoài dự kiến) ----
     if(psL.length || (!stNhap&&!stFin)){
       html+='<tr><td colspan="'+COLS+'" style="background:#fff7ed;font-weight:800;color:#b45309;border-left:4px solid #f59e0b;padding:8px 10px">➕ PHÁT SINH — mua thêm ngoài dự kiến ('+psL.length+') <span style="font-weight:400;color:#64748b">· để quản lý / kế toán biết là phát sinh</span></td></tr>';
       html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:psEdit, canDelRow:psEdit||admDel, admOnly:(!psEdit)&&admDel, canSplit:psEdit||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
-      if(!psL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có phát sinh (thêm ở form phía trên) —</td></tr>';
+      if(!psL.length) html+='<tr><td colspan="'+COLS+'" style="color:#8c8781;padding:8px 10px">— chưa có phát sinh (thêm ở form phía trên) —</td></tr>';
     }
     b.innerHTML=html;
   }
@@ -3598,14 +3598,14 @@
                +' style="width:104px;text-align:center;padding:4px 5px;'+(xau?'border-color:#dc2626;background:#fef2f2;color:#b91c1c;font-weight:700':'')+'"'
                +' title="'+(xau?'Năm vô lý — gõ lại theo kiểu ngày/tháng/năm':'Sửa ngày ngay tại đây — kiểu ngày/tháng/năm')+'">';
            })()+'</td>'+
-          '<td>'+esc(l.noiDung)+(l.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
+          '<td>'+esc(l.noiDung)+(l.ghiChu?'<div style="font-size:11px;color:#8c8781">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
           '<td>'+esc(l.dvt)+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td>'+
           '<td class="money"><b>'+money(l.thanhTien)+'</b></td>'+
           '<td class="money">'+(o.canThucChi
              ? '<input type="text" inputmode="numeric" value="'+((l.thucMua===''||l.thucMua==null)?'':money(l.thucMua))+'" onfocus="tienVao(this)" onblur="tienRa(this)" onchange="saveLineThucMua(\''+l.id+'\',_tienSo(this.value))" placeholder="='+money(l.thanhTien)+'" title="Thực chi — để trống = bằng Thành tiền; nhập nếu thực trả khác; 0 nếu không mua" style="width:112px;text-align:right;padding:5px 6px">'
-             : ((l.thucMua===''||l.thucMua==null)?'<span style="color:#94a3b8" title="Bằng Thành tiền">= '+money(l.thanhTien)+'</span>':'<b>'+money(l.thucMua)+'</b>'))+'</td>'+
-          '<td class="money">'+((l.thueSuat!==''&&l.thueSuat!=null)?money(l.tienThue)+'<div style="font-size:10px;color:#94a3b8">'+esc(l.thueSuat)+'%</div>':'—')+'</td>'+
-          '<td style="font-size:11px">'+esc(l.phanLoaiTT||'')+(l.doiTuong?'<div style="color:#94a3b8">'+esc(l.doiTuong)+'</div>':'')+'</td>'+
+             : ((l.thucMua===''||l.thucMua==null)?'<span style="color:#8c8781" title="Bằng Thành tiền">= '+money(l.thanhTien)+'</span>':'<b>'+money(l.thucMua)+'</b>'))+'</td>'+
+          '<td class="money">'+((l.thueSuat!==''&&l.thueSuat!=null)?money(l.tienThue)+'<div style="font-size:10px;color:#8c8781">'+esc(l.thueSuat)+'%</div>':'—')+'</td>'+
+          '<td style="font-size:11px">'+esc(l.phanLoaiTT||'')+(l.doiTuong?'<div style="color:#8c8781">'+esc(l.doiTuong)+'</div>':'')+'</td>'+
           '<td style="text-align:center">'+(l.phanLoaiTT==='Nhà cung cấp'
               ? '<span title="Hàng NCC (TK 331)" style="color:#b45309">🏢</span>'
               : (o.canFlag
@@ -3826,7 +3826,7 @@
         +'Đổi số ở đây thì khối Quyết toán tính lại "còn lại". Ghi vết cũ→mới, có báo nội bộ.</div>'
         +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
         +'<span style="font-size:12px">Tạm ứng hiện <b>'+money(_atu)+'đ</b> → mới:</span>'
-        +'<input id="suaTUInp" type="number" min="0" value="'+_atu+'" style="width:150px;padding:5px 7px;text-align:right;border:1px solid #cbd5e1;border-radius:6px">'
+        +'<input id="suaTUInp" type="number" min="0" value="'+_atu+'" style="width:150px;padding:5px 7px;text-align:right;border:1px solid #e2d6c7;border-radius:6px">'
         +'<button class="btn b-p" onclick="doSuaTU()">✏️ Lưu số tạm ứng mới</button>'
         +(_atu>0?('<button class="btn b-d" onclick="doHaTU0()" title="Lượt cấp là bấm nhầm, tiền chưa ra khỏi két">🏦 Hạ về 0 (tiền chưa ra khỏi két)</button>'):'')
         +'</div>'
@@ -3837,9 +3837,9 @@
     }
     // Phần Cá nhân (141): KT cá nhân xác nhận ở bước Chờ quyết toán
     if(loai.cn && role!=='Kế toán NCC'){
-      var duyetInfo=CUR.don.nguoiDuyet?' <span style="font-size:11px;color:#94a3b8">· duyệt TƯ: <b>'+esc(CUR.don.nguoiDuyet)+'</b>'+(CUR.don.ngayDuyet?' ('+esc(CUR.don.ngayDuyet)+')':'')+'</span>':'';
-      var capInfo=CUR.don.nguoiCap?' <span style="font-size:11px;color:#94a3b8">· cấp tiền: <b>'+esc(CUR.don.nguoiCap)+'</b>'+(CUR.don.ngayCap?' ('+esc(CUR.don.ngayCap)+')':'')+(CUR.don.htCap?' · '+esc(CUR.don.htCap):'')+'</span>'+(CUR.don.anhCap?' <a href="'+esc(CUR.don.anhCap)+'" target="_blank" data-bill="'+esc(CUR.don.anhCap)+'" title="Rê chuột để phóng to · bấm để mở ảnh gốc" style="font-size:11px">🖼 ảnh CK</a>':''):'';
-      var qtInfo=cnDone?' <span style="font-size:11px;color:#94a3b8">· QT: <b>'+esc(CUR.don.nguoiQT)+'</b>'+(CUR.don.ngayQT?' ('+esc(CUR.don.ngayQT)+')':'')+'</span>':'';
+      var duyetInfo=CUR.don.nguoiDuyet?' <span style="font-size:11px;color:#8c8781">· duyệt TƯ: <b>'+esc(CUR.don.nguoiDuyet)+'</b>'+(CUR.don.ngayDuyet?' ('+esc(CUR.don.ngayDuyet)+')':'')+'</span>':'';
+      var capInfo=CUR.don.nguoiCap?' <span style="font-size:11px;color:#8c8781">· cấp tiền: <b>'+esc(CUR.don.nguoiCap)+'</b>'+(CUR.don.ngayCap?' ('+esc(CUR.don.ngayCap)+')':'')+(CUR.don.htCap?' · '+esc(CUR.don.htCap):'')+'</span>'+(CUR.don.anhCap?' <a href="'+esc(CUR.don.anhCap)+'" target="_blank" data-bill="'+esc(CUR.don.anhCap)+'" title="Rê chuột để phóng to · bấm để mở ảnh gốc" style="font-size:11px">🖼 ảnh CK</a>':''):'';
+      var qtInfo=cnDone?' <span style="font-size:11px;color:#8c8781">· QT: <b>'+esc(CUR.don.nguoiQT)+'</b>'+(CUR.don.ngayQT?' ('+esc(CUR.don.ngayQT)+')':'')+'</span>':'';
       h+='<div style="margin-bottom:6px">👤 <b>Cá nhân (141)</b>: ';
       if(cnDone){ h+='<span style="color:#166534">✓ đã quyết toán</span>'+duyetInfo+capInfo+qtInfo; }
       else if(st==='Chờ duyệt tạm ứng'){ h+='<span style="color:#854d0e">chờ duyệt tạm ứng</span>';
@@ -3853,7 +3853,7 @@
       h+='</div>';
     }
     // Phần NCC (331): KT NCC duyệt ĐỘC LẬP, ngay sau khi NV gửi đơn
-    if(loai.ncc && role!=='Kế toán cá nhân'){ var nccInfo=nccDone?' <span style="font-size:11px;color:#94a3b8">· duyệt: <b>'+esc(CUR.don.nguoiQTNCC)+'</b>'+(CUR.don.ngayQTNCC?' ('+esc(CUR.don.ngayQTNCC)+')':'')+'</span>':'';
+    if(loai.ncc && role!=='Kế toán cá nhân'){ var nccInfo=nccDone?' <span style="font-size:11px;color:#8c8781">· duyệt: <b>'+esc(CUR.don.nguoiQTNCC)+'</b>'+(CUR.don.ngayQTNCC?' ('+esc(CUR.don.ngayQTNCC)+')':'')+'</span>':'';
       h+='<div style="margin-bottom:6px">🏢 <b>NCC (331)</b> phải trả '+money((CUR.tongNCC||{}).thucChi||0)+'đ: '+(nccDone?'<span style="color:#166534">✓ đã duyệt</span>'+nccInfo:'<span style="color:#854d0e">chờ KT NCC duyệt</span>');
       if(submitted&&!nccDone&&canDo('duyetNCC')) h+=' <button class="btn b-g" onclick="doQtNCC()">✔ Duyệt NCC</button>'; h+='</div>'; }
     if(st==='Chờ quyết toán'&&canDo('traDon')) h+='<button class="btn b-d" onclick="doTraLaiCur()">↩ Trả lại</button>';
@@ -3866,12 +3866,12 @@
   function calcQT(){
     if(el('qtCard').style.display==='none') return;
     var st2=(CUR.don&&CUR.don.trangThai)||'';
-    if(st2==='Chờ duyệt tạm ứng'){ var b0=el('qtResult'); if(b0){b0.style.background='#f1f5f9';b0.style.color='#334155';b0.textContent='Chưa mua — đang chờ duyệt tạm ứng';} if(el('qtConLai')){el('qtConLai').textContent='—';el('qtConLai').style.color='#334155';} if(el('qtQR'))el('qtQR').innerHTML=''; return; }
+    if(st2==='Chờ duyệt tạm ứng'){ var b0=el('qtResult'); if(b0){b0.style.background='#f4f1ec';b0.style.color='#171417';b0.textContent='Chưa mua — đang chờ duyệt tạm ứng';} if(el('qtConLai')){el('qtConLai').textContent='—';el('qtConLai').style.color='#171417';} if(el('qtQR'))el('qtQR').innerHTML=''; return; }
     var tongTU=(CUR.tongCN||{}).tamUng||0, mua=Number(_tienSo(el('qtThucMua').value))||0, cl=tongTU-mua;
     var box=el('qtResult');
     if(cl>0){ box.style.background='#dcfce7'; box.style.color='#166534'; box.textContent='Thừa '+money(cl)+'đ — NV trả lại kế toán'; }
     else if(cl<0){ box.style.background='#fee2e2'; box.style.color='#dc2626'; box.textContent='Thiếu '+money(-cl)+'đ — kế toán chi bù cho NV'; }
-    else { box.style.background='#f1f5f9'; box.style.color='#334155'; box.textContent='Khớp — không thừa thiếu'; }
+    else { box.style.background='#f4f1ec'; box.style.color='#171417'; box.textContent='Khớp — không thừa thiếu'; }
     var elc=el('qtConLai');
     if(elc){
       /* Ô "Còn lại" đổi CẢ NỀN VÀ VIỀN theo kết quả, không chỉ đổi màu chữ. Đây là con số duy
@@ -3881,15 +3881,15 @@
         elc.style.background='#f0fdf4'; elc.style.borderColor='#86efac'; }
       else if(cl<0){ elc.textContent=money(-cl)+'đ thiếu'; elc.style.color='#b91c1c';
         elc.style.background='#fef2f2'; elc.style.borderColor='#fca5a5'; }
-      else { elc.textContent='0đ (khớp)'; elc.style.color='#334155';
-        elc.style.background='#f8fafc'; elc.style.borderColor='#e2e8f0'; }
+      else { elc.textContent='0đ (khớp)'; elc.style.color='#171417';
+        elc.style.background='#f9f8f6'; elc.style.borderColor='#f0e9e1'; }
     }
     var qrBox=el('qtQR'); qrBox.innerHTML=''; var httt=el('qtHTTT').value;
     if(httt==='Chuyển khoản' && cl>0){
       var q=BOOT.qr||{};
       if(q.stk&&q.bank){
         var url='https://img.vietqr.io/image/'+encodeURIComponent(q.bank)+'-'+encodeURIComponent(q.stk)+'-compact2.png?amount='+Math.round(cl)+'&addInfo='+encodeURIComponent('QT '+(CUR.don.ky||CUR.don.maDon))+'&accountName='+encodeURIComponent(q.ten||'');
-        qrBox.innerHTML='<div style="font-size:12px;color:#64748b;margin-bottom:6px">Quét QR để NV chuyển '+money(cl)+'đ về công ty ('+esc(q.bank)+' · '+esc(q.stk)+'):</div><img src="'+url+'" style="width:230px;height:230px;border:1px solid #e2e8f0;border-radius:10px" alt="QR">';
+        qrBox.innerHTML='<div style="font-size:12px;color:#64748b;margin-bottom:6px">Quét QR để NV chuyển '+money(cl)+'đ về công ty ('+esc(q.bank)+' · '+esc(q.stk)+'):</div><img src="'+url+'" style="width:230px;height:230px;border:1px solid #f0e9e1;border-radius:10px" alt="QR">';
       } else qrBox.innerHTML='<div style="font-size:12px;color:#dc2626">⚠ Chưa cấu hình tài khoản QR — vào tab Cấu hình nhập Số TK / Ngân hàng.</div>';
     } else if(httt==='Chuyển khoản' && cl<0){
       qrBox.innerHTML='<div style="font-size:12px;color:#64748b">Thiếu tiền — kế toán chuyển bù '+money(-cl)+'đ cho NV (theo TK của NV).</div>';
@@ -4020,7 +4020,7 @@
     var chenh=tTT-tDT, over=chenh>0;
     var chLb=over?'⚠️ Vượt ngân sách':(chenh<0?'✓ Dư ngân sách':'✓ Khớp'), chVal=money(Math.abs(chenh))+'đ';
     el('mkOvSummary').innerHTML=
-      _tqCard('#f1f5f9','#cbd5e1','#334155','Số đơn', String(items.length),'gian hàng/sự kiện')+
+      _tqCard('#f4f1ec','#e2d6c7','#171417','Số đơn', String(items.length),'gian hàng/sự kiện')+
       _tqCard('#eff6ff','#bfdbfe','#1e40af','Tổng ngân sách', money(tDT)+'đ','dự toán')+
       _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực chi', money(tTT)+'đ','đã chi')+
       _tqCard(over?'#fee2e2':'#dcfce7',over?'#fecaca':'#86efac',over?'#b91c1c':'#166534',chLb,chVal,'thực chi so với ngân sách')+
@@ -4032,7 +4032,7 @@
     renderMkOverview(items);
     el('mkListEmpty').style.display=items.length?'none':'block';
     el('mkListBody').innerHTML=items.map(function(x){
-      var over=x.chenh>0, c=over?'#b91c1c':(x.chenh<0?'#15803d':'#334155'), ct=over?('⚠️ '+money(x.chenh)):(x.chenh<0?('✓ dư '+money(-x.chenh)):'0');
+      var over=x.chenh>0, c=over?'#b91c1c':(x.chenh<0?'#15803d':'#171417'), ct=over?('⚠️ '+money(x.chenh)):(x.chenh<0?('✓ dư '+money(-x.chenh)):'0');
       var st=x.trangThai||'Đang chạy', badge=(st==='Đã đóng')?'<span style="color:#64748b">🔒 '+esc(st)+'</span>':'<span style="color:#15803d">▶ '+esc(st)+'</span>';
       return '<tr style="cursor:pointer" onclick="openMk(\''+esc(x.ma)+'\')"><td><b>'+esc(x.coso||'—')+'</b></td><td>'+esc(x.ten||'')+'</td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.kenh||'')+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucChi)+'</td><td class="money" style="color:'+c+'">'+ct+'</td><td class="money">'+money(x.ketQua)+'</td><td>'+badge+'</td><td style="text-align:center;white-space:nowrap"><button class="btn b-s" onclick="event.stopPropagation();openMk(\''+esc(x.ma)+'\')" title="Mở đơn">📂</button></td></tr>';
     }).join('');
@@ -4148,8 +4148,8 @@
   function renderBpList(){
     if(el('bpListEmpty')) el('bpListEmpty').style.display=BP_LIST.length?'none':'block';
     el('bpListBody').innerHTML=(BP_LIST||[]).map(function(x){
-      var ch=Number(x.chenh)||0, c=ch>0?'#b91c1c':(ch<0?'#15803d':'#334155'), ct=ch>0?('⚠️ vượt '+money(ch)):(ch<0?('✓ dư '+money(-ch)):'✓ khớp');
-      var badge=(x.trangThai==='Đã đóng')?'<span style="color:#475569">🔒 Đã đóng</span>':'<span style="color:#0369a1">▶ Đang xử lý</span>';
+      var ch=Number(x.chenh)||0, c=ch>0?'#b91c1c':(ch<0?'#15803d':'#171417'), ct=ch>0?('⚠️ vượt '+money(ch)):(ch<0?('✓ dư '+money(-ch)):'✓ khớp');
+      var badge=(x.trangThai==='Đã đóng')?'<span style="color:#8c8781">🔒 Đã đóng</span>':'<span style="color:#0369a1">▶ Đang xử lý</span>';
       return '<tr><td>'+esc(x.ten)+'</td><td>'+esc(x.nguoi)+'</td><td>'+esc(x.diaDiem)+'</td><td>'+esc(x.ky)+'</td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucChi)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+ct+'</td><td style="white-space:nowrap">'+badge+'</td><td style="text-align:center"><button class="btn b-p" onclick="openBp(\''+esc(x.ma)+'\')">Mở</button></td></tr>';
     }).join('');
   }
@@ -4248,9 +4248,9 @@
     if(el('vhWeekLabel')) el('vhWeekLabel').textContent='Tuần '+r.weekNo+'/'+r.nam+' · '+r.monday+' → '+r.sunday;
     var g=r.grand||{vh:0,chi:0,mkt:0,tong:0};
     el('vhOvSummary').innerHTML=
-      _tqCard('#f1f5f9','#cbd5e1','#334155','Số cơ sở', String((r.list||[]).length),'có phát sinh trong tuần')+
+      _tqCard('#f4f1ec','#e2d6c7','#171417','Số cơ sở', String((r.list||[]).length),'có phát sinh trong tuần')+
       _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Đơn vận hành', money(g.vh)+'đ','đơn tạm ứng theo tuần')+
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','💵 Sổ chi phí', money(g.chi)+'đ','nhập thẳng theo loại')+
+      _tqCard('#ecfdf5','#b9c0e8','#065f46','💵 Sổ chi phí', money(g.chi)+'đ','nhập thẳng theo loại')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','📣 Marketing', money(g.mkt)+'đ','quảng cáo/sự kiện')+
       _tqCard('#dcfce7','#86efac','#166534','TỔNG VẬN HÀNH', money(g.tong)+'đ','mọi cơ sở tuần này');
     var L=r.list||[];
@@ -4261,20 +4261,20 @@
         '<td class="money"><b>'+money(x.tong)+'</b></td>'+
         '<td style="text-align:center"><button class="btn b-s" onclick="event.stopPropagation();openVHCoso('+i+')" title="Xem chi tiết khoản chi">📂</button></td></tr>';
     }).join('');
-    el('vhListFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="money">'+money(g.vh)+'</td><td class="money">'+money(g.chi)+'</td><td class="money">'+money(g.mkt)+'</td><td class="money">'+money(g.tong)+'</td><td></td></tr>'):'';
+    el('vhListFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f9f8f6;border-top:2px solid #e2d6c7"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="money">'+money(g.vh)+'</td><td class="money">'+money(g.chi)+'</td><td class="money">'+money(g.mkt)+'</td><td class="money">'+money(g.tong)+'</td><td></td></tr>'):'';
   }
   function openVHCoso(i){ if(!VH_CUR) return; var x=(VH_CUR.list||[])[i]; if(!x) return;
     el('vhDetailCard').style.display='';
     el('vhDetailTitle').textContent='🏢 '+x.coso+' · Tuần '+VH_CUR.weekNo+'/'+VH_CUR.nam+' ('+VH_CUR.monday+' → '+VH_CUR.sunday+')';
     el('vhDetailSummary').innerHTML=
       _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Đơn vận hành', money(x.vh)+'đ','')+
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','💵 Sổ chi phí', money(x.chi)+'đ','')+
+      _tqCard('#ecfdf5','#b9c0e8','#065f46','💵 Sổ chi phí', money(x.chi)+'đ','')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','📣 Marketing', money(x.mkt)+'đ','')+
       _tqCard('#dcfce7','#86efac','#166534','TỔNG CƠ SỞ', money(x.tong)+'đ','tuần này');
     var lines=x.lines||[];
     el('vhDetailBody').innerHTML=lines.length?lines.map(function(l){ var m=VH_MOD[l.mod]||{icon:'•',ten:l.mod};
       return '<tr><td style="white-space:nowrap">'+m.icon+' '+esc(m.ten)+'</td><td>'+esc(l.nd||'(không tên)')+'</td><td style="color:#64748b">'+esc(l.ct||'')+'</td><td>'+esc(l.ngay||'')+'</td><td class="money">'+money(l.tien)+'</td></tr>';
-    }).join(''):'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:12px">Không có khoản chi.</td></tr>';
+    }).join(''):'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:12px">Không có khoản chi.</td></tr>';
     try{ el('vhDetailCard').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
   }
   function vhPrint(){ if(!VH_CUR){ toast('warn','Chưa có dữ liệu'); return; } var r=VH_CUR, g=r.grand||{};
@@ -4285,7 +4285,7 @@
       return '<h3>🏢 '+esc(x.coso)+' — TỔNG '+money(x.tong)+'đ</h3><table class="d"><tr><th>Mảng</th><th>Nội dung</th><th>Thuộc</th><th>Ngày</th><th class="r">Số tiền</th></tr>'+ls+'</table>'; }).join('');
     var w=window.open('','_blank'); if(!w){ toast('warn','Trình duyệt chặn cửa sổ in'); return; }
     w.document.write('<html><head><meta charset="utf-8"><title>Vận hành tuần '+r.weekNo+'/'+r.nam+'</title>'+
-      '<style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;color:#475569;font-weight:400;margin:0 0 16px}h3{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;margin-bottom:10px;font-size:13px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}.r{text-align:right;white-space:nowrap}tfoot td,.tot td{font-weight:700;background:#f1f5f9}table.d th{background:#f8fafc}@media print{button{display:none}}</style></head><body>'+
+      '<style>body{font-family:Arial,sans-serif;padding:24px;color:#0c1754}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;color:#8c8781;font-weight:400;margin:0 0 16px}h3{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;margin-bottom:10px;font-size:13px}th,td{border:1px solid #e2d6c7;padding:6px 8px;text-align:left}.r{text-align:right;white-space:nowrap}tfoot td,.tot td{font-weight:700;background:#f4f1ec}table.d th{background:#f9f8f6}@media print{button{display:none}}</style></head><body>'+
       '<h1>📅 BÁO CÁO VẬN HÀNH THEO TUẦN</h1><h2>Tuần '+r.weekNo+'/'+r.nam+' · '+r.monday+' → '+r.sunday+' · Đơn vận hành + Sổ chi phí + Marketing (không gom Kỹ thuật/Công tác/Setup)</h2>'+
       '<table><thead>'+head+'</thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table>'+
       '<h2 style="margin-top:22px">CHI TIẾT KHOẢN CHI THEO CƠ SỞ</h2>'+detail+
@@ -4311,7 +4311,7 @@
     return '<div style="flex:1;min-width:250px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px">'
       +dong('Dự kiến tạm ứng tổng đơn', dk, '#1e40af', true)
       +dong('Số tiền đã xin tạm ứng', xin, '#b45309')
-      +dong('Số tiền kế toán đã chi tạm ứng', chi, '#0f766e')
+      +dong('Số tiền kế toán đã chi tạm ứng', chi, '#2545ff')
       +'<div style="border-top:1px dashed #bfdbfe;margin-top:6px;padding-top:5px;font-size:11px;color:#1e40af;opacity:.85">'
       +(con>0 ? ('còn <b>'+money(con)+'đ</b> chưa gửi xin')
               : (con<0 ? ('⚠️ đã xin vượt dự kiến <b>'+money(-con)+'đ</b>') : '✓ đã gửi xin hết'))
@@ -4433,7 +4433,7 @@
           else if(x.tab==='mkt') openFn="showPage('mkt');setTimeout(function(){openMk('"+esc(x.ma)+"')},250)";
           else if(x.tab==='congtac'||x.tab==='setup') openFn="showPage('"+x.tab+"');setTimeout(function(){openBp('"+esc(x.ma)+"')},250)";
           else openFn="showPage('duyet')";
-          return '<tr><td style="white-space:nowrap">'+(x.icon||'')+' '+esc(x.module)+'</td><td>'+esc(x.ten)+(x.phu?(' <span style="color:#94a3b8">· '+esc(x.phu)+'</span>'):'')+'</td><td>'+esc(x.nguoi||'')+'</td><td>'+esc(x.ngay||'')+'</td><td class="money">'+money(x.soTien||0)+'</td><td style="white-space:nowrap">'+esc(x.trangThai||'')+'</td><td style="text-align:center"><button class="btn b-p" onclick="'+openFn+'">Mở</button></td></tr>';
+          return '<tr><td style="white-space:nowrap">'+(x.icon||'')+' '+esc(x.module)+'</td><td>'+esc(x.ten)+(x.phu?(' <span style="color:#8c8781">· '+esc(x.phu)+'</span>'):'')+'</td><td>'+esc(x.nguoi||'')+'</td><td>'+esc(x.ngay||'')+'</td><td class="money">'+money(x.soTien||0)+'</td><td style="white-space:nowrap">'+esc(x.trangThai||'')+'</td><td style="text-align:center"><button class="btn b-p" onclick="'+openFn+'">Mở</button></td></tr>';
         }).join('');
       }).withFailureHandler(function(){}).getPendingModules();
     });
@@ -4482,12 +4482,12 @@
     el('tqKtCards').innerHTML=
       _tqCard('#eef2ff','#c7d2fe','#3730a3','🆕 Số gian đã Setup', setup.length+' gian', 'Thực tế '+money(sumTT(setup))+'đ')+
       _tqCard('#fff7ed','#fed7aa','#9a3412','🧹 Số gian đã Tháo dỡ', thao.length+' gian', 'Thực tế '+money(sumTT(thao))+'đ')+
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','🔧 Chi phí cơ sở (chung)', money(cosoTT)+'đ', 'Xuyên suốt')+
-      _tqCard('#f1f5f9','#cbd5e1','#334155','Tổng Kỹ thuật (thực tế)', money(totTT)+'đ', 'Dự toán '+money(totDT)+'đ');
-    var row=function(x){ var chenh=Number(x.chenh)||0, c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155'), chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp'), b=(x.trangThai==='Đã đóng')?'🔒':'⏳';
+      _tqCard('#ecfdf5','#b9c0e8','#065f46','🔧 Chi phí cơ sở (chung)', money(cosoTT)+'đ', 'Xuyên suốt')+
+      _tqCard('#f4f1ec','#e2d6c7','#171417','Tổng Kỹ thuật (thực tế)', money(totTT)+'đ', 'Dự toán '+money(totDT)+'đ');
+    var row=function(x){ var chenh=Number(x.chenh)||0, c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#171417'), chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp'), b=(x.trangThai==='Đã đóng')?'🔒':'⏳';
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(x.maDA)+'\')">'+esc(x.ten)+'</a></td><td class="money">'+money(x.tongDuToan)+'</td><td class="money">'+money(x.tongThucTe)+'</td><td class="money" style="color:'+c+';white-space:nowrap">'+chTxt+'</td><td style="text-align:center" title="'+esc(x.trangThai)+'">'+b+'</td></tr>'; };
-    el('tqKtSetupBody').innerHTML=setup.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:10px">Chưa có</td></tr>';
-    el('tqKtThaoBody').innerHTML=thao.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:10px">Chưa có</td></tr>';
+    el('tqKtSetupBody').innerHTML=setup.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
+    el('tqKtThaoBody').innerHTML=thao.map(row).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:10px">Chưa có</td></tr>';
   }
   // ===================== CHI PHÍ KỸ THUẬT (Cơ sở / Setup / Tháo dỡ) =====================
   var DA_CUR=null, DA_ITEMS=[], DA_EDIT_ROW=null, _daPendingLog=null;
@@ -4774,9 +4774,9 @@
       return '<button class="btn b-x" '+(tat?'disabled style="opacity:.45;cursor:default"':'onclick="daDoiTrang('+toi+')"')+'>'+nhan+'</button>';
     };
     b.innerHTML=nut('‹ Trước', DA_TRANG-1, DA_TRANG<=1)
-      +'<span style="color:#334155">Trang <b>'+DA_TRANG+'</b> / '+soTrang+'</span>'
+      +'<span style="color:#171417">Trang <b>'+DA_TRANG+'</b> / '+soTrang+'</span>'
       +nut('Sau ›', DA_TRANG+1, DA_TRANG>=soTrang)
-      +'<span style="color:#94a3b8">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' dự án</span>';
+      +'<span style="color:#8c8781">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' dự án</span>';
   }
   function daDoiTrang(t){ DA_TRANG=t; renderDuAnList();
     var b=el('daListBody'); if(b&&b.scrollIntoView){ try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} } }
@@ -4800,7 +4800,7 @@
     var role=(CURUSER&&CURUSER.role)||'', isAdmin=(role==='Admin'||role==='Quản lý');
     el('daListBody').innerHTML=trang.map(function(x){
       var chenh=Number(x.chenh)||0;
-      var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#334155');
+      var c=chenh>0?'#b91c1c':(chenh<0?'#15803d':'#171417');
       var chTxt=chenh>0?('⚠️ vượt '+money(chenh)):(chenh<0?('✓ dư '+money(-chenh)):'✓ khớp');
       /* Đơn chi phí cơ sở theo đợt xoá như mọi dự án. SỔ CHUNG thì chỉ xoá được KHI RỖNG —
          anh Thắng 11/09/2026, chỉ vào dòng sổ chung 0đ: *"xoá đơn này cho anh"*.
@@ -4940,7 +4940,7 @@
     box.style.display='block';
     body.innerHTML=L.map(function(x){
       return '<tr><td style="white-space:nowrap">'+esc(x.ngay||'')+'</td>'+
-        '<td>'+esc(x.noiDung||'')+(x.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
+        '<td>'+esc(x.noiDung||'')+(x.ghiChu?'<div style="font-size:11px;color:#8c8781">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
         '<td>'+esc(x.loai||'')+'</td>'+
         '<td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td>'+
         '<td>'+esc(x.hangMuc||'')+'</td>'+
@@ -4985,7 +4985,7 @@
     var tDT=0,tTT=0;
     var body=ds.map(function(x){
       var dt=Number(x.duToan)||0, tt=Number(x.thucTe)||0; tDT+=dt; tTT+=tt;
-      var ch=tt-dt, c=ch>0?'#b91c1c':(ch<0?'#15803d':'#334155');
+      var ch=tt-dt, c=ch>0?'#b91c1c':(ch<0?'#15803d':'#171417');
       var ten=String(x.coso||'').trim();
       return '<tr><td>'+(ten?('🏢 '+esc(ten)):'<span style="color:#b45309">⚠️ chưa ghi gian</span>')+'</td>'
         +'<td style="text-align:right;color:#64748b">'+(Number(x.soDong)||0)+'</td>'
@@ -5039,18 +5039,18 @@
       var right;
       if(can){
         var iid='payInp_'+phase+'_'+loai;
-        right='<input id="'+iid+'" type="number" min="0" value="'+(Number(goi_y)>0?Number(goi_y):'')+'" placeholder="số tiền" style="width:150px;text-align:right;padding:5px 7px;border:1px solid #cbd5e1;border-radius:6px;margin-right:6px" title="Số gợi ý — sửa lại nếu kế toán chi số khác">'
+        right='<input id="'+iid+'" type="number" min="0" value="'+(Number(goi_y)>0?Number(goi_y):'')+'" placeholder="số tiền" style="width:150px;text-align:right;padding:5px 7px;border:1px solid #e2d6c7;border-radius:6px;margin-right:6px" title="Số gợi ý — sửa lại nếu kế toán chi số khác">'
           +'<button class="btn b-g" onclick="confirmDuAnPayUI(\''+phase+'\',\''+loai+'\')">✅ Ghi nhận đã chi</button>';
       } else {
-        right='<span style="color:#94a3b8">⏳ chờ kế toán chi'+(Number(goi_y)>0?(' ('+money(goi_y)+'đ)'):'')+'</span>';
+        right='<span style="color:#8c8781">⏳ chờ kế toán chi'+(Number(goi_y)>0?(' ('+money(goi_y)+'đ)'):'')+'</span>';
       }
-      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed #e2e8f0">'
+      return '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:6px 0;border-top:1px dashed #f0e9e1">'
         +'<div><b>'+label+'</b>'+(hint?(' <span style="color:#64748b;font-size:11px">'+hint+'</span>'):'')+'</div>'
         +'<div style="text-align:right;white-space:nowrap">'+right+'</div></div>';
     }
     function block(title, bg, loai, can, duToanAmt, ttChi, extraInfo){
-      var h='<div style="flex:1;min-width:300px;background:'+bg+';border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px">'
-        +'<div style="font-weight:800;margin-bottom:2px">'+title+(can?'':' <span style="color:#94a3b8;font-size:11px;font-weight:400">(chỉ xem)</span>')+'</div>';
+      var h='<div style="flex:1;min-width:300px;background:'+bg+';border:1px solid #f0e9e1;border-radius:10px;padding:10px 12px">'
+        +'<div style="font-weight:800;margin-bottom:2px">'+title+(can?'':' <span style="color:#8c8781;font-size:11px;font-weight:400">(chỉ xem)</span>')+'</div>';
 
       /* ── TẠM ỨNG: nhiều lần, cộng dồn ─────────────────────────────────────────────────
          🔴 GỢI Ý LÀ PHẦN CÒN LẠI, KHÔNG PHẢI CẢ DỰ TOÁN. Điền sẵn cả dự toán khi đã ứng một
@@ -5073,17 +5073,17 @@
                   Math.abs(need2),
                   'thực tế '+money(ttChi)+' − đã ứng '+money(daUng)+(daQT?(' − đã bù/thu '+money(daQT)):''));
       } else if(ttChi>0){
-        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#166534;font-size:12px">✓ Thực tế khớp số đã chi — không cần bù/thu thêm</div>';
+        h+='<div style="padding:6px 0;border-top:1px dashed #f0e9e1;color:#166534;font-size:12px">✓ Thực tế khớp số đã chi — không cần bù/thu thêm</div>';
       } else {
-        h+='<div style="padding:6px 0;border-top:1px dashed #e2e8f0;color:#94a3b8;font-size:12px">⏳ Chưa có thực tế — phần bù/thu hiện sau khi thi công</div>';
+        h+='<div style="padding:6px 0;border-top:1px dashed #f0e9e1;color:#8c8781;font-size:12px">⏳ Chưa có thực tế — phần bù/thu hiện sau khi thi công</div>';
       }
       if(extraInfo) h+=extraInfo;
       return h+'</div>';
     }
     box.style.display='flex';
-    box.innerHTML='<div style="flex:1;min-width:100%;font-weight:800;color:#0f766e">💵 Kế toán chi tiền <span style="font-weight:400;font-size:11px;color:#64748b">— số tiền điền sẵn theo gợi ý, sửa lại được nếu chi khác</span></div>'
+    box.innerHTML='<div style="flex:1;min-width:100%;font-weight:800;color:#2545ff">💵 Kế toán chi tiền <span style="font-weight:400;font-size:11px;color:#64748b">— số tiền điền sẵn theo gợi ý, sửa lại được nếu chi khác</span></div>'
       + block('💰 Tạm ứng — NV tự trả', '#f0fdf4', 'tu', canTU, r.canTamUng||0, r.ttTamUng||0)
-      + block('🏢 Trực tiếp — KT trả NCC', '#eef2ff', 'tt', canTT, r.traTrucTiep||0, r.ttTrucTiep||0, ((r.ttTrucTiep||0)>0?('<div style="padding:6px 0;border-top:1px dashed #e2e8f0;font-size:12px">🧾 <b>Có VAT:</b> '+money(r.ttTrucTiepVAT||0)+'đ · <b>Không VAT:</b> '+money(r.ttTrucTiepNoVAT||0)+'đ</div>'):''));
+      + block('🏢 Trực tiếp — KT trả NCC', '#eef2ff', 'tt', canTT, r.traTrucTiep||0, r.ttTrucTiep||0, ((r.ttTrucTiep||0)>0?('<div style="padding:6px 0;border-top:1px dashed #f0e9e1;font-size:12px">🧾 <b>Có VAT:</b> '+money(r.ttTrucTiepVAT||0)+'đ · <b>Không VAT:</b> '+money(r.ttTrucTiepNoVAT||0)+'đ</div>'):''));
   }
   function confirmDuAnPayUI(phase, loai){
     if(!DA_CUR) return;
@@ -5160,7 +5160,7 @@
         +'<div style="display:flex;gap:6px;align-items:center;margin:4px 0">'
         +'<input id="daDpInp" type="text" inputmode="numeric" value="'+(dpDT?money(dpDT):'')+'" placeholder="0"'
         +' onfocus="tienVao(this)" onblur="tienRa(this)"'
-        +(dpSua?'':' readonly')+' style="width:130px;font-size:15px;font-weight:800;color:#6b21a8'+(dpSua?'':';background:#f1f5f9')+'">'
+        +(dpSua?'':' readonly')+' style="width:130px;font-size:15px;font-weight:800;color:#6b21a8'+(dpSua?'':';background:#f4f1ec')+'">'
         +(dpSua?'<button class="btn b-x" onclick="daLuuDuToan()" title="Lưu con số dự phòng">💾</button>':'')
         +'</div>'
         /* THỜI GIAN SETUP — *"Bổ sung thêm thời gian setup (Từ ngày đến ngày)"*. Đúng nguyên
@@ -5227,7 +5227,7 @@
     var sb=el('daStatusBar');
     if(sb){ if(chungCS){ sb.style.display='none'; }
       else { var mp=(r.trangThai==='Đã đóng')
-               ? ['#f1f5f9','#475569','🔒 Đã đóng — khóa, chỉ xem']
+               ? ['#f4f1ec','#8c8781','🔒 Đã đóng — khóa, chỉ xem']
                : (isCoSo
                   ? ['#f0fdf4','#15803d','🏢 Đơn chi phí cơ sở — MỘT đơn gom NHIỀU gian: mỗi dòng ghi gian của nó ở ô "Gian / cơ sở". Xin tạm ứng, quyết toán rồi bấm "Đóng dự án" như đơn dự án.']
                   : ['#dcfce7','#166534','🔨 Đang thi công — nhập dự toán & chi phí thực tế, thêm mục con & phát sinh. Xong bấm "Đóng dự án". (Dự án chi trực tiếp, không qua bước duyệt tạm ứng.)']);
@@ -5301,7 +5301,7 @@
       var hoSoCell=_docs.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" title="Hồ sơ '+(i+1)+'">📁</a>';}).join(' ')
         +(canEdit?((_docs.length?' ':'')+'<button class="btn b-s" onclick="daDinhHoSo('+l.row+')" title="Đính thêm hồ sơ cho dòng này — cộng thêm, không đè cái đã có" style="padding:0 5px">📎</button>'):'');
       var trS=indent?' style="background:#fcfdff"':(laLon?' style="background:#eef2ff;font-weight:700"':'');
-      var tdS=indent?' style="padding-left:26px;color:#475569"':'';
+      var tdS=indent?' style="padding-left:26px;color:#8c8781"':'';
       return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td><td class="money">'+(String(l.capCha||'')===''?money(l.duToan):'')+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td><td class="money">'+money(l.thanhTien)+'</td><td class="money">'+money(l.thucTe)+'</td><td>'+htB+'</td><td>'+esc(l.vat)+'</td><td style="text-align:center">'+img+'</td><td style="text-align:center">'+hoSoCell+'</td><td>'+esc(l.note)+'</td><td style="text-align:center;white-space:nowrap">'+acts+'</td></tr>';
     }
     function veNhom(ds){
@@ -5334,7 +5334,7 @@
       if(kids.length){
         var kidTT=kids.reduce(function(s,k){return s+(Number(k.thucTe)||0);},0);
         var dt=Number(p.duToan)||0, ch=kidTT-dt, chTxt, chCol;
-        if(dt<=0){ chTxt='—'; chCol='#475569'; }
+        if(dt<=0){ chTxt='—'; chCol='#8c8781'; }
         else if(ch>0){ chTxt='⚠️ vượt '+money(ch); chCol='#b91c1c'; }
         else if(ch<0){ chTxt='✓ dư '+money(-ch); chCol='#166534'; }
         else { chTxt='✓ khớp'; chCol='#166534'; }
@@ -5406,7 +5406,7 @@
     } else {
       html=veNhom(parents)+vePhatSinh(phatSinh);
     }
-    el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#94a3b8;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
+    el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
     /* Thanh tích + bảng lệnh dựng SAU khi bảng đã vẽ: ô tích nằm trong bảng, dựng trước thì
        `querySelectorAll('[data-xtu]')` chưa thấy gì và thanh không bao giờ hiện. */
     daXinBarDoi();
@@ -5455,7 +5455,7 @@
   var HM_ITEMS=[];
   /* Anh Thắng: *"đơn nào chưa bấm xin làm nháp"* — chưa gửi thì nó là bản NHÁP, không phải
      "đang nhập". Nháp là chữ ai cũng hiểu ngay: chưa gửi đi đâu cả, sửa thoải mái. */
-  var HM_NHAN={ nhap:['📝 Nháp','#64748b','#f1f5f9'], xin:['Chờ duyệt','#b45309','#fef3c7'],
+  var HM_NHAN={ nhap:['📝 Nháp','#64748b','#f4f1ec'], xin:['Chờ duyệt','#b45309','#fef3c7'],
     duyet:['Chờ cấp tiền','#1d4ed8','#dbeafe'], ung:['Đã cấp — chờ chốt','#0f766e','#ccfbf1'],
     xong:['✔ Đã chốt (khoá)','#166534','#dcfce7'], tra:['↩ Bị trả lại','#b91c1c','#fee2e2'] };
   function loadDonHM(){
@@ -5474,7 +5474,7 @@
     var t=String((k&&k.tu)||''), d=String((k&&k.den)||'');
     if(!t&&!d) return '<span style="color:#dc2626">chưa gõ</span>';
     return esc(_dmy(t)||'?')+' → '+esc(_dmy(d)||'?')
-      +'<div style="font-size:10px;color:#94a3b8;font-weight:600">'+(isCoSo?'tuần của đơn':'thời gian setup')+'</div>';
+      +'<div style="font-size:10px;color:#8c8781;font-weight:600">'+(isCoSo?'tuần của đơn':'thời gian setup')+'</div>';
   }
   function renderDonHM(){
     var f=(el('hmFilter')&&el('hmFilter').value)||'chuaxong';
@@ -5536,12 +5536,12 @@
         var nut=hmNutChung(k, x.maDA, x.row, x.hinhThuc, h, false, true);
         var lich=(h.lich||[]).length?('<span style="color:#7c3aed;margin-left:8px">lịch: '
           +(h.lich||[]).map(function(y){ return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</span>'):'';
-        return '<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:4px 0;border-top:1px dashed #e2e8f0;font-size:12px">'
+        return '<div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:4px 0;border-top:1px dashed #f0e9e1;font-size:12px">'
           +'<span style="min-width:150px"><b>'+esc(x.noiDung)+'</b></span>'
           +'<span style="font-size:11px;color:#64748b;white-space:nowrap">'+(String(x.hinhThuc||'')==='Trực tiếp'?'🏢':'💰')+' '+money(x.thucTe)+'đ</span>'
           +hmNhanChung(x.hinhThuc, h)
           +_uncGon(h.unc, h.dot)
-          +(h.hoaDon?('<a href="'+esc(h.hoaDon)+'" target="_blank" data-bill="'+esc(h.hoaDon)+'" style="font-size:11px;color:#0f766e;white-space:nowrap" title="Hoá đơn">🧾 hoá đơn</a>'):'')
+          +(h.hoaDon?('<a href="'+esc(h.hoaDon)+'" target="_blank" data-bill="'+esc(h.hoaDon)+'" style="font-size:11px;color:#2545ff;white-space:nowrap" title="Hoá đơn">🧾 hoá đơn</a>'):'')
           +lich
           +'<span style="flex:1"></span>'
           +(nut||'')
@@ -5567,11 +5567,11 @@
        * tạo: đơn chi phí cơ sở xanh ngọc · dự án Setup/Tháo dỡ xanh dương.
        * ══════════════════════════════════════════════════════════════════════════════════ */
       var mauGay=da.isCoSo?'#0f766e':'#1d4ed8';
-      var vT=';border-top:2px solid #cbd5e1';
+      var vT=';border-top:2px solid #e2d6c7';
       var vL=';border-left:4px solid '+mauGay;
-      var vR=';border-right:2px solid #cbd5e1';
+      var vR=';border-right:2px solid #e2d6c7';
       return '<tr><td style="'+vT.slice(1)+vL+'"><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+esc(ma)+'\')">'+esc(da.tenDA)+'</a>'
-        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(da.loaiDA)+' · '+esc(da.nguoiTao||'')+'</div></td>'
+        +'<div style="font-size:10.5px;color:#8c8781">'+esc(da.loaiDA)+' · '+esc(da.nguoiTao||'')+'</div></td>'
         +'<td style="font-size:12px'+vT+'"><b>'+hs.length+'</b> hạng mục</td>'
         +'<td style="white-space:nowrap;font-size:12px'+vT+'">'+_hmNgay(da.kyDA, da.isCoSo)+'</td>'
         +'<td class="money" style="'+vT.slice(1)+'">'+money(tongDT)+'</td><td class="money" style="'+vT.slice(1)+'">'+money(tongTT)+'</td>'
@@ -5587,7 +5587,7 @@
         +hs.map(function(x){ return hmDongForm(_hmKeyDuyet(x.maDA, x.row), 8, vR); }).join('')
         /* Đáy khung + khoảng hở sang đơn sau. Một hàng mảnh chứ không phải viền dưới của hàng
            trên: hàng ô nhập nằm giữa hai thứ ấy và bung ra bất cứ lúc nào. */
-        +'<tr><td colspan="8" style="height:5px;padding:0'+vL+vR+';border-bottom:2px solid #cbd5e1"></td></tr>'
+        +'<tr><td colspan="8" style="height:5px;padding:0'+vL+vR+';border-bottom:2px solid #e2d6c7"></td></tr>'
         +'<tr><td colspan="8" style="height:12px;padding:0;border:0"></td></tr>';
     }).join('');
   }
@@ -5599,9 +5599,9 @@
     if(!u) return '';
     var d=dot?(' · đợt '+dot):'';
     if(/^https?:\/\//i.test(u)){
-      return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" style="font-size:11px;color:#0f766e;white-space:nowrap" title="'+esc(u)+'">📎 UNC'+esc(d)+'</a>';
+      return '<a href="'+esc(u)+'" target="_blank" data-bill="'+esc(u)+'" style="font-size:11px;color:#2545ff;white-space:nowrap" title="'+esc(u)+'">📎 UNC'+esc(d)+'</a>';
     }
-    return '<span style="font-size:11px;color:#0f766e;white-space:nowrap">UNC '+esc(u)+esc(d)+'</span>';
+    return '<span style="font-size:11px;color:#2545ff;white-space:nowrap">UNC '+esc(u)+esc(d)+'</span>';
   }
   /* ═══ MÀN DUYỆT: BẢNG LỆNH TẠM ỨNG CỦA DỰ ÁN ════════════════════════════════════════════
      Anh Thắng: *"Trong 1 đơn chứ, trong 1 đơn mà nhiều lệnh tạm ứng, đơn nào bấm xin thì nó
@@ -5632,15 +5632,15 @@
         +(x.lich||[]).map(function(y){ return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
       var gc=x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'';
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+ma+'\')">'+esc(x.tenDA)+'</a>'
-        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
+        +'<div style="font-size:10.5px;color:#8c8781">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
         +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
-        +'<div style="font-size:10.5px;color:#94a3b8">'+(x.rows||[]).length+' hạng mục</div>'+lich+gc+'</td>'
+        +'<div style="font-size:10.5px;color:#8c8781">'+(x.rows||[]).length+' hạng mục</div>'+lich+gc+'</td>'
         +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA, x.isCoSo)+'</td>'
         +'<td class="money"><b>'+money(x.soTien)+'</b></td>'
-        +'<td style="font-size:11.5px;color:#0f766e">'+(x.unc?esc(x.unc):'—')+'</td>'
+        +'<td style="font-size:11.5px;color:#2545ff">'+(x.unc?esc(x.unc):'—')+'</td>'
         +'<td>'+lenhNhan(x.tt)+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>'
         +'<tr data-hmf="'+k+'" style="display:none"><td colspan="8" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>';
     }).join('');
   }
@@ -5681,7 +5681,7 @@
     var x=_lenhTim(maDA,dot);
     if(!x){ toast('err','Không tìm thấy lệnh'); return; }
     _hmMo(k, '<b>💵 Cấp tạm ứng — '+esc(x.tenDA)+' · đợt '+dot+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cấp <b>'+money(x.soTien)+'đ</b> cho '
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cấp <b>'+money(x.soTien)+'đ</b> cho '
       +(x.rows||[]).length+' hạng mục trong lệnh này — <b>một lần chuyển, một uỷ nhiệm chi</b>. '
       +'Trả tiền mặt thì để trống cũng được.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
@@ -5800,7 +5800,7 @@
   /* ── 💵 KẾ TOÁN CẤP TẠM ỨNG TỪNG ĐỢT ──────────────────────────────────────────────── */
   function hmMoCap(k, maDA, row, dot){
     _hmMo(k, '<b>💵 Cấp tạm ứng đợt '+dot+' — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Đính uỷ nhiệm chi của đợt này để sau còn đối chiếu. Trả tiền mặt thì để trống cũng được.</div>'
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Đính uỷ nhiệm chi của đợt này để sau còn đối chiếu. Trả tiền mặt thì để trống cũng được.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)+'</div>'
       +_hmNutDay(k,'hmGuiCap',maDA,row,'✓ Cấp đợt '+dot,dot));
@@ -5812,7 +5812,7 @@
   /* ── 🧾 CHỐT XONG (đơn tạm ứng) ────────────────────────────────────────────────────── */
   function hmMoChot(k, maDA, row){
     _hmMo(k, '<b>🧾 Chốt hoàn thành — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Chốt xong hạng mục sẽ <b>khoá lại</b> và tính là chi thực tế.</div>'
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Chốt xong hạng mục sẽ <b>khoá lại</b> và tính là chi thực tế.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'hd','Hoá đơn',true,220)+'</div>'
       +_hmNutDay(k,'hmGuiChot',maDA,row,'✓ Chốt &amp; khoá đơn'));
@@ -5831,7 +5831,7 @@
        thẳng nhà cung cấp thì có khi cầm về uỷ nhiệm chi trước, hoá đơn nhà cung cấp xuất sau
        vài hôm — bắt đủ cả hai là đơn nằm treo dù tiền đã đi và đã có chứng từ chuyển khoản. */
     _hmMo(k, '<b>🏢 Kế toán xác nhận ĐÃ TRẢ nhà cung cấp — '+esc(_hmTen(maDA,row))+'</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi. '
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Tích xong đơn sẽ <b>khoá lại</b> và tính là chi thực tế; nhân viên nhìn bảng là biết khoản này kế toán đã đi rồi. '
       +'Đính <b>ít nhất một</b> trong hai — có cái nào trước thì đính cái ấy.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;align-items:center">'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,200)
@@ -6023,7 +6023,7 @@
     o.setAttribute('data-tong', String(tong));
     var homNay=_ngayISO(new Date());
     o.innerHTML='<b>📤 Gửi lệnh tạm ứng — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cả '+ds.length
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cả '+ds.length
       +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần, kế toán cấp một lần kèm '
       +'<b>một uỷ nhiệm chi</b>. Nhận hết trong một hôm thì để nguyên; cần chia ra thì '
       +'<b>sửa số tiền lần 1 nhỏ đi</b> — phần còn lại tự nhảy sang lần sau.</div>'
@@ -6035,7 +6035,7 @@
           +' <input type="text" data-lst="'+i+'" value="'+(i===1?_tienDep(tong):'')+'" placeholder="số tiền"'
           +' inputmode="numeric"'+(ro?' readonly title="Tự tính — phần còn lại sau lần 1 và lần 2"':'')
           +' onfocus="'+(ro?'':'tienVao(this)')+'" onblur="'+(ro?'':'tienRa(this);daLichDoi('+i+')')+'"'
-          +' style="width:110px;font-size:12px;text-align:right'+(ro?';background:#f1f5f9;color:#475569':'')+'"></span>';
+          +' style="width:110px;font-size:12px;text-align:right'+(ro?';background:#f4f1ec;color:#8c8781':'')+'"></span>';
       }).join('')+'</div>'
       +'<div id="daLichNhac" style="font-size:11px;color:#b45309;margin-top:4px"></div>'
       +'<div style="margin-top:6px;font-size:12px">Ghi chú cho kế toán: <input type="text" id="daXinGhiChu" placeholder="VD: mua vật tư đợt đầu" style="width:280px;font-size:12px"></div>'
@@ -6113,7 +6113,7 @@
         quyết toán xong. Tô sáng một ô ở đây là nói dối. Nên mỗi bước hiện SỐ HẠNG MỤC đang
         đứng ở đó, bước nào rỗng thì mờ đi. */
   var DA_BUOC=[
-    ['nhap',  '📝 Nháp',          '#64748b','#f1f5f9'],
+    ['nhap',  '📝 Nháp',          '#64748b','#f4f1ec'],
     ['xin',   'Chờ duyệt',        '#b45309','#fef3c7'],
     ['duyet', 'Chờ cấp tiền',     '#1d4ed8','#dbeafe'],
     ['ung',   'Đã cấp tiền',      '#0f766e','#ccfbf1'],
@@ -6142,12 +6142,12 @@
         var n=dem[b[0]]||0, mo=(n===0);
         return '<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:700;'
           +'color:'+b[2]+';background:'+b[3]+(mo?';opacity:.4':'')+'">'+b[1]+(n?(' <b>'+n+'</b>'):'')+'</span>';
-      }).join('<span style="color:#cbd5e1">›</span>')
+      }).join('<span style="color:#e2d6c7">›</span>')
       +'</div>'
       +(khoa.length?('<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:5px">'
         +khoa.map(function(x){ return '<span style="display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;color:#b91c1c;background:#fee2e2">'+x+'</span>'; }).join('')
         +'</div>'):'')
-      +'<div style="margin-top:4px;font-size:11px;color:#94a3b8">'+tong+(r.isCoSo?' khoản chi · khoản':' hạng mục lớn · hạng mục')
+      +'<div style="margin-top:4px;font-size:11px;color:#8c8781">'+tong+(r.isCoSo?' khoản chi · khoản':' hạng mục lớn · hạng mục')
       +' đã chốt thì không sửa / xoá dòng được nữa — kế toán bấm 🔓 Mở lại thì mới đụng được.</div>';
   }
   /* Hạng mục này nằm trong một lệnh quyết toán ĐÃ CHỐT SỔ chưa. */
@@ -6163,7 +6163,7 @@
     if(!maDA){ box.style.display='none'; box.innerHTML=''; return; }
     var seq=++_daSuSeq;
     box.style.display='';
-    box.innerHTML='<div style="font-size:11.5px;color:#94a3b8">Đang tải lịch sử…</div>';
+    box.innerHTML='<div style="font-size:11.5px;color:#8c8781">Đang tải lịch sử…</div>';
     google.script.run.withSuccessHandler(function(r){
       /* 🔴 LƯỢT CŨ VỀ SAU KHÔNG ĐƯỢC CƯỚP MÀN. Bấm nhanh hai dự án là hai lượt hỏi chạy song
          song; cái nào về sau thì thắng, mà nó có thể là cái hỏi TRƯỚC — nhật ký của dự án A
@@ -6171,21 +6171,21 @@
       if(seq!==_daSuSeq) return;
       var it=(r&&r.items)||[];
       if(!it.length){
-        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
-          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử '+_daTuDon(DA_CUR)+'</b> — chưa có ai chỉnh gì.</div>';
+        box.innerHTML='<div style="border:1px solid #f0e9e1;border-radius:8px;padding:8px 10px;'
+          +'background:#fff;font-size:11.5px;color:#8c8781">🕘 <b>Lịch sử '+_daTuDon(DA_CUR)+'</b> — chưa có ai chỉnh gì.</div>';
         return;
       }
       var hien=it.slice(0,3), con=it.length-hien.length;
       function dong(x){
-        return '<div style="padding:4px 0;border-top:1px dashed #e2e8f0">'
+        return '<div style="padding:4px 0;border-top:1px dashed #f0e9e1">'
           +'<div style="font-size:11.5px"><b>'+esc(x.nguoi||'?')+'</b>'
-          +(x.vaiTro?(' <span style="color:#94a3b8">('+esc(x.vaiTro)+')</span>'):'')
-          +' <span style="color:#94a3b8">· '+esc(x.tg||'')+'</span></div>'
-          +'<div style="font-size:11.5px;color:#334155">'+esc(x.hanhDong||'')
+          +(x.vaiTro?(' <span style="color:#8c8781">('+esc(x.vaiTro)+')</span>'):'')
+          +' <span style="color:#8c8781">· '+esc(x.tg||'')+'</span></div>'
+          +'<div style="font-size:11.5px;color:#171417">'+esc(x.hanhDong||'')
           +(x.chiTiet?(' — '+esc(x.chiTiet)):'')+'</div></div>';
       }
-      box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#fff;min-width:280px">'
-        +'<div style="font-size:11.5px;font-weight:700;color:#334155">🕘 Lịch sử '+_daTuDon(DA_CUR)+' ('+it.length+')</div>'
+      box.innerHTML='<div style="border:1px solid #f0e9e1;border-radius:8px;padding:8px 10px;background:#fff;min-width:280px">'
+        +'<div style="font-size:11.5px;font-weight:700;color:#171417">🕘 Lịch sử '+_daTuDon(DA_CUR)+' ('+it.length+')</div>'
         +hien.map(dong).join('')
         +(con>0?('<details style="margin-top:4px"><summary style="font-size:11px;color:#64748b;cursor:pointer">xem '+con+' dòng cũ hơn</summary>'
           +it.slice(3).map(dong).join('')+'</details>'):'')
@@ -6220,7 +6220,7 @@
     var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
     var o=el('daQtForm'); if(!o) return;
     o.innerHTML='<b>🧾 Gửi quyết toán — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
-      +'<div style="font-size:11.5px;color:#475569;margin:4px 0 8px">Cả '+ds.length
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cả '+ds.length
       +' hạng mục này đi thành <b>MỘT lệnh quyết toán</b>. Kế toán đối chiếu tiền đã tạm ứng với '
       +'tiền đã chi rồi <b>chốt sổ</b> — xong thì khoản tạm ứng trên TK 141 mới tất toán.</div>'
       +'<div style="font-size:12px">Ghi chú cho kế toán: <input type="text" id="daQtGhiChu" placeholder="VD: quyết toán đợt setup tháng 9" style="width:300px;font-size:12px"></div>'
@@ -6270,9 +6270,9 @@
       return '<button class="btn b-x" '+(tat?'disabled style="opacity:.45;cursor:default"':'onclick="qtLenhDoiTrang('+toi+')"')+'>'+nhan+'</button>';
     };
     b.innerHTML=nut('‹ Trước', QTLENH_TRANG-1, QTLENH_TRANG<=1)
-      +'<span style="color:#334155">Trang <b>'+QTLENH_TRANG+'</b> / '+soTrang+'</span>'
+      +'<span style="color:#171417">Trang <b>'+QTLENH_TRANG+'</b> / '+soTrang+'</span>'
       +nut('Sau ›', QTLENH_TRANG+1, QTLENH_TRANG>=soTrang)
-      +'<span style="color:#94a3b8">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' lệnh</span>';
+      +'<span style="color:#8c8781">— đang xem '+(dau+1)+'–'+(dau+dangXem)+' trong '+tong+' lệnh</span>';
   }
   function qtLenhDoiTrang(t){ QTLENH_TRANG=t; renderQtLenh();
     var b=el('qtLenhBody'); if(b&&b.scrollIntoView){ try{ b.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} } }
@@ -6303,15 +6303,15 @@
           +' <button class="btn b-d" onclick="qtTraTab(\''+ma+'\','+x.dot+')">↩ Trả</button>';
       }
       return '<tr><td><a href="javascript:void(0)" onclick="showPage(\'duan\');openDuAn(\''+ma+'\')">'+esc(x.tenDA)+'</a>'
-        +'<div style="font-size:10.5px;color:#94a3b8">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
+        +'<div style="font-size:10.5px;color:#8c8781">'+esc(x.loaiDA)+' · '+esc(x.nguoiTao||'')+'</div></td>'
         +'<td style="white-space:nowrap"><b>Đợt '+x.dot+'</b></td>'
         +'<td style="font-size:12px">'+(x.tenHM||[]).map(esc).join(' · ')
-        +'<div style="font-size:10.5px;color:#94a3b8">'+(x.rows||[]).length+' hạng mục</div>'
+        +'<div style="font-size:10.5px;color:#8c8781">'+(x.rows||[]).length+' hạng mục</div>'
         +(x.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(x.lyDo)+'</div>'):'')+'</td>'
         +'<td style="white-space:nowrap;font-size:12px">'+_hmNgay(x.kyDA, x.isCoSo)+'</td>'
         +'<td class="money"><b>'+money(x.soTien)+'</b></td>'
         +'<td>'+qtNhan(x.tt)+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>';
     }).join('');
   }
   /* Bấm ở TAB QUYẾT TOÁN thì nạp lại bảng của tab ấy, không nạp lại trang dự án (người ta
@@ -6368,8 +6368,8 @@
         +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
         +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
         +'<td>'+qtNhan(d.tt)+'</td>'
-        +'<td style="font-size:10.5px;color:#94a3b8">'+moc+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>';
+        +'<td style="font-size:10.5px;color:#8c8781">'+moc+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>';
     }).join('');
   }
   /* Bảng các lệnh đã gửi của chính dự án đang mở. */
@@ -6402,9 +6402,9 @@
         +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
         +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
         +'<td>'+lenhNhan(d.tt)+'</td>'
-        +'<td style="font-size:11.5px;color:#0f766e">'+(d.unc?esc(d.unc):'—')+'</td>'
-        +'<td style="font-size:10.5px;color:#94a3b8">'+moc+'</td>'
-        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#cbd5e1">—</span>')+'</td></tr>'
+        +'<td style="font-size:11.5px;color:#2545ff">'+(d.unc?esc(d.unc):'—')+'</td>'
+        +'<td style="font-size:10.5px;color:#8c8781">'+moc+'</td>'
+        +'<td style="text-align:center;white-space:nowrap">'+(nut||'<span style="color:#e2d6c7">—</span>')+'</td></tr>'
         +'<tr data-hmf="'+k+'" style="display:none"><td colspan="7" style="background:#f0fdf4;padding:8px 12px;border-left:3px solid #16a34a"></td></tr>';
     }).join('');
   }
@@ -6429,14 +6429,14 @@
     var lockDT = isParent && (editing||thiCong) && !isKT;   // dự toán (tạm ứng) đã chốt -> chỉ kế toán sửa
     var dt=el('da_dt'), tt=el('da_thucte');
     if(dt){
-      if(!isParent){ dt.readOnly=true; dt.value=''; dt.style.background='#f1f5f9'; dt.title='Mục con / phát sinh KHÔNG nhập dự toán (tạm ứng chỉ ở hạng mục lớn)'; }
-      else { dt.readOnly=lockDT; dt.style.background=lockDT?'#f1f5f9':'#fef9c3';
+      if(!isParent){ dt.readOnly=true; dt.value=''; dt.style.background='#f4f1ec'; dt.title='Mục con / phát sinh KHÔNG nhập dự toán (tạm ứng chỉ ở hạng mục lớn)'; }
+      else { dt.readOnly=lockDT; dt.style.background=lockDT?'#f4f1ec':'#fef9c3';
         dt.title=lockDT?'🔒 Dự toán (tạm ứng) đã chốt — chỉ kế toán mở sửa được':'Chi phí dự toán (tạm ứng)'; }
     }
     if(tt){ tt.style.background=isParent?'':'#dcfce7'; }
     var ht=el('da_httt');   // Hình thức chi chỉ ở hạng mục lớn / phát sinh; mục con kế thừa hình thức của cha
     if(ht){
-      if(isChild){ ht.disabled=true; ht.value=''; ht.style.background='#f1f5f9'; ht.title='Mục con theo hình thức chi của hạng mục lớn — không chọn riêng'; }
+      if(isChild){ ht.disabled=true; ht.value=''; ht.style.background='#f4f1ec'; ht.title='Mục con theo hình thức chi của hạng mục lớn — không chọn riêng'; }
       else { ht.disabled=false; ht.style.background=''; ht.title='Hình thức chi (chỉ áp dụng cho hạng mục lớn / phát sinh)'; }
     }
   }
@@ -6588,7 +6588,7 @@
       s.rows.forEach(function(x){ body+='<tr><td>'+esc(x.nd)+'</td><td>'+esc(x.ct)+'</td><td class="n">'+money(x.tien)+'</td></tr>'; });
     });
     if(!body) body='<tr><td colspan="3" style="text-align:center;color:#888;padding:14px">Không tìm thấy chi phí nào khớp "'+esc(r.key)+'"</td></tr>';
-    var css='<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:18px;font-size:13px}h1{font-size:18px;margin:0 0 2px}.sub{color:#555;margin:0 0 10px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:12px}th{background:#f0f0f0}td.n{text-align:right;white-space:nowrap}tr.mod td{background:#eef2ff}.tot{font-size:17px;font-weight:bold;margin:12px 0;color:#0f766e}@media print{.noprint{display:none}}</style>';
+    var css='<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;padding:18px;font-size:13px}h1{font-size:18px;margin:0 0 2px}.sub{color:#555;margin:0 0 10px;font-size:12px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left;font-size:12px}th{background:#f0f0f0}td.n{text-align:right;white-space:nowrap}tr.mod td{background:#eef2ff}.tot{font-size:17px;font-weight:bold;margin:12px 0;color:#2545ff}@media print{.noprint{display:none}}</style>';
     var head='<h1>Báo cáo TỔNG chi phí: '+esc(r.key)+'</h1><div class="sub">Gồm mọi mảng: Kỹ thuật · Marketing · Công tác/Setup · Đơn vận hành · Công ty TNHH Giải Trí K&H</div>';
     var tot='<div class="tot">TỔNG CHI PHÍ: '+money(r.grand)+'đ</div>';
     var table='<table><thead><tr><th>Nội dung</th><th>Thuộc</th><th class="n">Số tiền</th></tr></thead><tbody>'+body+'</tbody></table>';
@@ -6690,7 +6690,7 @@
     var pit=(r.byHangMuc||[]).filter(function(x){ return (Number(x.thucTe)||0)>0; }), tt=Number(t.thucTe)||0;
     if(pit.length>9){ var head=pit.slice(0,9), rest=pit.slice(9), rs=rest.reduce(function(a,x){return a+(Number(x.thucTe)||0);},0);
       pit=head.concat([{nhom:'Khác ('+rest.length+' mục)', thucTe:rs}]); }
-    if(!pit.length || tt<=0){ el('tqHMChart').innerHTML='<span style="color:#94a3b8;font-size:13px">Chưa có dữ liệu để vẽ biểu đồ.</span>'; }
+    if(!pit.length || tt<=0){ el('tqHMChart').innerHTML='<span style="color:#8c8781;font-size:13px">Chưa có dữ liệu để vẽ biểu đồ.</span>'; }
     else { var acc=0, segs=[], leg='';
       pit.forEach(function(x,i){ var c=PIE[i%PIE.length], p=(Number(x.thucTe)||0)/tt*100, st=acc, en=acc+p; acc=en;
         segs.push(c+' '+st.toFixed(3)+'% '+en.toFixed(3)+'%');
@@ -6709,18 +6709,18 @@
       return '<tr><td>'+esc(x.nhom)+'</td><td class="money">'+money(x.xin)+'</td>'+
         '<td class="money">'+money(x.thucTe)+'<div style="height:5px;margin-top:3px;background:#e5e7eb;border-radius:3px;overflow:hidden"><div style="height:100%;width:'+barW+'%;background:#fb923c"></div></div></td>'+
         '<td class="money" style="color:'+c+'">'+money(x.cl)+'</td><td class="money">'+pct+'%</td></tr>';
-    }).join('')||'<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:14px">Chưa có dữ liệu</td></tr>';
-    el('tqHMFoot').innerHTML='<tr style="font-weight:800;background:#f8fafc"><td>TỔNG</td><td class="money">'+money(t.xin)+'</td><td class="money">'+money(t.thucTe)+'</td><td class="money" style="color:'+(t.cl>=0?'#15803d':'#b91c1c')+'">'+money(t.cl)+'</td><td class="money">100%</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
+    el('tqHMFoot').innerHTML='<tr style="font-weight:800;background:#f9f8f6"><td>TỔNG</td><td class="money">'+money(t.xin)+'</td><td class="money">'+money(t.thucTe)+'</td><td class="money" style="color:'+(t.cl>=0?'#15803d':'#b91c1c')+'">'+money(t.cl)+'</td><td class="money">100%</td></tr>';
     // theo tuần (mới nhất trước)
     el('tqKyBody').innerHTML=(r.byKy||[]).slice().reverse().map(function(x){
       var c=x.cl>=0?'#15803d':'#b91c1c';
       return '<tr><td>'+esc(x.ky)+'</td><td class="money">'+money(x.xin)+'</td><td class="money">'+money(x.thucTe)+'</td><td class="money" style="color:'+c+'">'+money(x.cl)+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:14px">Chưa có dữ liệu</td></tr>';
+    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
     // theo cơ sở
     el('tqCSBody').innerHTML=(r.byCoso||[]).map(function(x){
       var c=x.cl>=0?'#15803d':'#b91c1c';
       return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.xin)+'</td><td class="money">'+money(x.thucTe)+'</td><td class="money" style="color:'+c+'">'+money(x.cl)+'</td></tr>';
-    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:14px">Chưa có dữ liệu</td></tr>';
+    }).join('')||'<tr><td colspan="4" style="text-align:center;color:#8c8781;padding:14px">Chưa có dữ liệu</td></tr>';
   }
   // ===================== THỪA / THIẾU THEO TUẦN =====================
   function loadTatToan(){ boot(function(){
@@ -6746,7 +6746,7 @@
       var cl=Number(d.chenhLech)||0, ccls=cl>0?'pos':(cl<0?'neg':'');
       var tip=d.nguoiTatToan?('Tất toán bởi '+d.nguoiTatToan+(d.ngayTatToan?' · '+d.ngayTatToan:'')):'Đánh dấu đã thu/bù xong với kế toán';
       return '<tr'+(d.tatToan?' style="opacity:.6;background:#f0fdf4"':'')+'>'+
-        '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#94a3b8">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
+        '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#8c8781">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td>'+
         '<td class="money '+ccls+'">'+(cl>0?'▲ ':(cl<0?'▼ ':''))+money(Math.abs(cl))+'</td>'+
         '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span></td>'+
@@ -6934,10 +6934,10 @@
     var maCu=0; (r.maCu||[]).forEach(function(x){ maCu+=x.n; });
 
     el('tmSummary').innerHTML=
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','TỔNG', money(r.tong)+'đ', r.soDong+' dòng khớp')+
+      _tqCard('#ecfdf5','#b9c0e8','#065f46','TỔNG', money(r.tong)+'đ', r.soDong+' dòng khớp')+
       _tqCard('#eff6ff','#bfdbfe','#1e40af','Số mã tài khoản', String((r.byMa||[]).length),'trong kết quả')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','Số mảng', String((r.byMang||[]).length),'có phát sinh')+
-      _tqCard(chuaGan?'#fef2f2':'#f1f5f9', chuaGan?'#fecaca':'#cbd5e1', chuaGan?'#991b1b':'#334155','⚠ Chưa gắn mã', String(chuaGan)+' dòng', chuaGan?(money(tienChuaGan)+'đ chưa dò được'):'không còn dòng nào');
+      _tqCard(chuaGan?'#fef2f2':'#f4f1ec', chuaGan?'#fecaca':'#e2d6c7', chuaGan?'#991b1b':'#171417','⚠ Chưa gắn mã', String(chuaGan)+' dòng', chuaGan?(money(tienChuaGan)+'đ chưa dò được'):'không còn dòng nào');
 
     var w=el('tmWarn'), msg=[];
     // Ghi luôn SỐ TIỀN của từng loại còn thiếu mã (danh sách đã sắp tiền nhiều trước):
@@ -6982,15 +6982,15 @@
     }).join('');
     /* Chân bảng nói TỔNG CỦA CẢ BỘ LỌC, không phải tổng của 20 dòng đang hiện — người ta đọc
        con số ấy để đối chiếu, mà tổng của một trang thì chẳng đối chiếu với cái gì. */
-    el('tmFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td colspan="8">TỔNG '+L.length+' DÒNG'
+    el('tmFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f9f8f6;border-top:2px solid #e2d6c7"><td colspan="8">TỔNG '+L.length+' DÒNG'
       +(L.length>TM_MOI?(' <span style="font-weight:400;color:#64748b">· đang hiện '+Lt.length+' dòng của trang '+TM_TRANG+'</span>'):'')
       +'</td><td class="money">'+money(tong)+'</td></tr>'):'';
     _tmVePhanTrang(L.length, soTrang);
 
-    el('tmByMa').innerHTML=(r.byMa||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td style="font-size:12px">'+esc(x.loai||'')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#94a3b8">—</td></tr>';
-    el('tmByMang').innerHTML=(r.byMang||[]).map(function(x){ return '<tr><td>'+esc(_tmName(x.mang))+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#94a3b8">—</td></tr>';
-    el('tmByKy').innerHTML=(r.byKy||[]).map(function(x){ return '<tr><td>'+esc(x.ky)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#94a3b8">—</td></tr>';
-    el('tmByCoso').innerHTML=(r.byCoso||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#94a3b8">—</td></tr>';
+    el('tmByMa').innerHTML=(r.byMa||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td style="font-size:12px">'+esc(x.loai||'')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#8c8781">—</td></tr>';
+    el('tmByMang').innerHTML=(r.byMang||[]).map(function(x){ return '<tr><td>'+esc(_tmName(x.mang))+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#8c8781">—</td></tr>';
+    el('tmByKy').innerHTML=(r.byKy||[]).map(function(x){ return '<tr><td>'+esc(x.ky)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#8c8781">—</td></tr>';
+    el('tmByCoso').innerHTML=(r.byCoso||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#8c8781">—</td></tr>';
   }
   function traExport(){
     if(!TM||!(TM.items||[]).length){ toast('warn','Không có dữ liệu để tải'); return; }
@@ -7296,9 +7296,9 @@
     var ds=_dsMang();
     el('lnMangDs').innerHTML=ds.map(function(m,i){
       var tick=(mang && m.toLowerCase()===mang.toLowerCase())?' checked':'';
-      return '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:#334155;cursor:pointer">'
+      return '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:#171417;cursor:pointer">'
         +'<input type="checkbox" class="lnMang" value="'+esc(m)+'"'+tick+' onchange="lnDemMang()"> '+esc(m)+'</label>';
-    }).join('')||'<span style="font-size:12px;color:#94a3b8">Chưa khai mảng kinh doanh cho cơ sở nào — khai ở ⚙️ Cấu hình → 🏢 Mã đơn vị theo Cơ sở (cột Phân loại lớn).</span>';
+    }).join('')||'<span style="font-size:12px;color:#8c8781">Chưa khai mảng kinh doanh cho cơ sở nào — khai ở ⚙️ Cấu hình → 🏢 Mã đơn vị theo Cơ sở (cột Phân loại lớn).</span>';
     el('lnPhamCoso').textContent=coso?('Chỉ riêng cơ sở '+coso):'Chỉ riêng cơ sở này';
     var rd=document.querySelectorAll('input[name=lnPham]');
     rd[0].checked=true; rd[1].checked=false; rd[1].disabled=!coso;
@@ -7358,7 +7358,7 @@
   // Chọn "＋ Thêm loại chi phí mới…" trong ô chọn -> mở popup, trả ô chọn về giá trị cũ
   var LN_THEM='__them__';
   function _lnDongThem(){
-    return _duocKhaiLoai() ? '<option value="'+LN_THEM+'" style="color:#0f766e;font-weight:700">＋ Thêm loại chi phí mới…</option>' : '';
+    return _duocKhaiLoai() ? '<option value="'+LN_THEM+'" style="color:#2545ff;font-weight:700">＋ Thêm loại chi phí mới…</option>' : '';
   }
   function lnBatChon(selId, coso, cuOld, hinhThuc){
     var sel=el(selId); if(!sel) return false;
@@ -7382,7 +7382,7 @@
       /* Đơn ghép nhiều gian: cơ sở là ô CHỌN SAU CÙNG, nên nhắc "chọn cơ sở trước" là bảo người
          ta làm ngược đúng thứ vừa sửa. Chỉ nhắc khi danh sách thật sự rỗng. */
       if(_donNhieuCoSo()){
-        if(hien) return {chu:'Chọn loại chi phí và nhập nội dung trước — gian hàng gắn ở ô Cơ sở phía dưới.', mau:'#0f766e'};
+        if(hien) return {chu:'Chọn loại chi phí và nhập nội dung trước — gian hàng gắn ở ô Cơ sở phía dưới.', mau:'#2545ff'};
         return {chu:'Chưa loại chi phí nào khai mã cho các mảng của đơn vị này — khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh.', mau:'#dc2626'};
       }
       return {chu:'⬆ Chọn CƠ SỞ trước — mã tài khoản khai theo mảng kinh doanh của cơ sở.', mau:'#b45309'};
@@ -7405,12 +7405,12 @@
         + '. Bấm <b>＋ Thêm loại chi phí mới…</b> trong ô trên để khai ngay.', mau:'#dc2626', thieuMa:nMa};
     }
     if(!ly.length) return {chu:'', mau:''};
-    return {chu:'Đang hiện '+hien+'/'+tong+' loại · ẩn: '+ly.join(' · ')+'.', mau:'#94a3b8', thieuMa:nMa};
+    return {chu:'Đang hiện '+hien+'/'+tong+' loại · ẩn: '+ly.join(' · ')+'.', mau:'#8c8781', thieuMa:nMa};
   }
   function _veLoaiCpVi(id, coso, hinhThuc, loaiTtEx){
     var d=el(id); if(!d) return;
     var v=_loaiCpVi(coso, hinhThuc, loaiTtEx);
-    d.innerHTML=v.chu; d.style.color=v.mau||'#94a3b8';
+    d.innerHTML=v.chu; d.style.color=v.mau||'#8c8781';
     d.style.display=v.chu?'':'none';
   }
   function _reFillLoai(selId, coso, httId){
@@ -7470,11 +7470,11 @@
       chu:'💰 <b>ĐÃ NHẬN TIỀN.</b> Mua xong thì nhập <b>Thực chi</b> + ảnh chứng từ, mua thêm ngoài dự kiến thì thêm ở mục <b>Phát sinh</b>, rồi bấm <b>Gửi quyết toán</b>.'};
     if(st==='Chờ quyết toán') return {mau:'#0369a1',nen:'#eff6ff',vien:'#bfdbfe',
       chu:'📤 <b>ĐÃ GỬI HÓA ĐƠN.</b> Đang chờ <b>kế toán quyết toán</b>. Vẫn bổ sung / sửa được cho tới khi kế toán chốt.'};
-    if(st==='Đã quyết toán') return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',
+    if(st==='Đã quyết toán') return {mau:'#8c8781',nen:'#f9f8f6',vien:'#f0e9e1',
       chu:'🔒 <b>ĐÃ CHỐT SỔ.</b> Số đã vào sổ nên <b>không sửa được nữa</b>. Cần sửa thì báo kế toán.'};
-    if(st==='Đã xuất MISA') return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',
+    if(st==='Đã xuất MISA') return {mau:'#8c8781',nen:'#f9f8f6',vien:'#f0e9e1',
       chu:'🔒 <b>ĐÃ XUẤT MISA.</b> Số đã gửi sang phần mềm kế toán — <b>không sửa được nữa</b>.'};
-    return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',chu:'Trạng thái: <b>'+esc(st||'—')+'</b>'};
+    return {mau:'#8c8781',nen:'#f9f8f6',vien:'#f0e9e1',chu:'Trạng thái: <b>'+esc(st||'—')+'</b>'};
   }
 
   /**
@@ -7549,12 +7549,12 @@
     if(!q && !lo && !cs){ closeTimDon(); return; }
     var seq=++_tdSeq;
     box.style.display=''; if(el('tdClose')) el('tdClose').style.display='inline-block';
-    box.innerHTML='<div style="padding:8px 10px;color:#94a3b8;font-size:12px">Đang tìm…</div>';
+    box.innerHTML='<div style="padding:8px 10px;color:#8c8781;font-size:12px">Đang tìm…</div>';
     google.script.run.withSuccessHandler(function(r){
       if(seq!==_tdSeq) return;
       var it=(r&&r.items)||[];
       if(!it.length){
-        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:10px 12px;font-size:12px;color:#64748b">Không tìm thấy đơn nào khớp.</div>';
+        box.innerHTML='<div style="border:1px solid #f0e9e1;border-radius:8px;background:#fff;padding:10px 12px;font-size:12px;color:#64748b">Không tìm thấy đơn nào khớp.</div>';
         return;
       }
       var h='<div style="border:1px solid #bfdbfe;border-radius:8px;background:#f8fbff;padding:8px 10px">'
@@ -7573,12 +7573,12 @@
           return '<div style="white-space:nowrap"><b>'+esc(x.noiDung||'(chưa có nội dung)')+'</b>'
             +' <span style="color:#0369a1">'+money(x.tien)+'đ</span></div>'; }).join('');
         var _du=(Number(d.soDongKhop)||0)-((d.dong||[]).length);
-        if(_du>0) lo5+='<div style="color:#94a3b8">+'+_du+' dòng nữa</div>';
+        if(_du>0) lo5+='<div style="color:#8c8781">+'+_du+' dòng nữa</div>';
         /* Không có dòng nào khớp (tìm theo kỳ / người lập) thì lui về tên loại — thà thô còn
            hơn để trống một cột. */
         if(!lo5) lo5=(d.loai||[]).slice(0,3).map(function(x){
           return '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 5px;margin-right:3px;white-space:nowrap">'+esc(x)+'</span>'; }).join('');
-        return '<tr style="border-top:1px solid #e2e8f0">'
+        return '<tr style="border-top:1px solid #f0e9e1">'
           +'<td style="padding:4px 6px">'+esc(d.ky||d.maDon)+'</td>'
           +'<td><b>'+esc(d.coso||'—')+'</b></td>'
           +'<td>'+esc(d.nguoiLap||'')+'</td>'
@@ -7601,13 +7601,13 @@
     if(!maDon){ box.style.display='none'; box.innerHTML=''; return; }
     var seq=++_suSeq;
     box.style.display='';
-    box.innerHTML='<div style="font-size:11.5px;color:#94a3b8">Đang tải lịch sử…</div>';
+    box.innerHTML='<div style="font-size:11.5px;color:#8c8781">Đang tải lịch sử…</div>';
     google.script.run.withSuccessHandler(function(r){
       if(seq!==_suSeq) return;            // lượt cũ về sau thì không được cướp màn hình
       var it=_suGop((r&&r.items)||[]);
       if(!it.length){
-        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
-          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử chỉnh đơn</b> — chưa có ai chỉnh gì.</div>';
+        box.innerHTML='<div style="border:1px solid #f0e9e1;border-radius:8px;padding:8px 10px;'
+          +'background:#fff;font-size:11.5px;color:#8c8781">🕘 <b>Lịch sử chỉnh đơn</b> — chưa có ai chỉnh gì.</div>';
         return;
       }
       /* 🔴 TRÊN MÁY HẸP, SỔ SỬ GẬP SẴN. Anh Thắng 06/09/2026 gửi ảnh màn điện thoại: khối sử
@@ -7621,18 +7621,18 @@
          Anh Thắng 06/09/2026: *"phần lịch sử hiện 3 lịch sử thôi"* — trước là 5. Một con số duy
          nhất `SU_HIEN`, dùng cho cả chỗ cắt lẫn hai câu chữ đếm phần còn lại: ba chỗ rời nhau
          thì đổi một chỗ là hai câu kia nói sai số, mà nói sai thì không ai kêu. */
-      var h='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px 10px">';
+      var h='<div style="border:1px solid #f0e9e1;border-radius:8px;background:#fff;padding:8px 10px">';
       if(_hep){
         /* Máy hẹp: cả khối nằm trong một <details> gập sẵn — một dòng chữ thay vì một màn nhật ký.
            Vẫn nói ra SỐ việc, để người ta biết có đáng mở hay không. */
-        h+='<details><summary style="font-size:11.5px;font-weight:800;color:#334155;cursor:pointer;'
+        h+='<details><summary style="font-size:11.5px;font-weight:800;color:#171417;cursor:pointer;'
           +'list-style:revert">🕘 Lịch sử chỉnh đơn ('+it.length+') — bấm để xem</summary>'
           +'<div style="max-height:300px;overflow:auto;margin-top:4px">'+_suDongHtml(it)+'</div>'
           +'</details></div>';
         box.innerHTML=h;
         return;
       }
-      h+='<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
+      h+='<div style="font-size:11.5px;font-weight:800;color:#171417;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
       var SU_HIEN=3;
       h+=_suDongHtml(it.slice(0,SU_HIEN));
       if(it.length>SU_HIEN){
@@ -7721,11 +7721,11 @@
 
   function _suDongHtml(ds){
     return ds.map(function(x){
-      return '<div style="font-size:11.5px;line-height:1.5;padding:3px 0;border-top:1px dashed #f1f5f9">'
-        +'<b>'+esc(x.nguoi||'—')+'</b>'+(x.vaiTro?(' <span style="color:#94a3b8">('+esc(x.vaiTro)+')</span>'):'')
+      return '<div style="font-size:11.5px;line-height:1.5;padding:3px 0;border-top:1px dashed #f4f1ec">'
+        +'<b>'+esc(x.nguoi||'—')+'</b>'+(x.vaiTro?(' <span style="color:#8c8781">('+esc(x.vaiTro)+')</span>'):'')
         +' · <span style="color:#64748b">'+esc(x.tg||'—')+'</span><br>'
         +'<span style="color:#0369a1;font-weight:600">'+esc(x.hanhDong||'')+'</span>'
-        +(x.chiTiet?(' — <span style="color:#334155">'+esc(x.chiTiet)+'</span>'):'')
+        +(x.chiTiet?(' — <span style="color:#171417">'+esc(x.chiTiet)+'</span>'):'')
         +'</div>';
     }).join('');
   }
@@ -7738,11 +7738,11 @@
          `i` = -1, lúc ấy KHÔNG tô ô nào là "đã qua" — thà thanh trông trống còn hơn vẽ bừa một
          tiến độ không đúng. */
       var daQua=(i>=0&&k<i), dangO=(k===i);
-      var nen=dangO?'#0369a1':(daQua?'#e0f2fe':'#f1f5f9');
-      var chu=dangO?'#fff':(daQua?'#0369a1':'#94a3b8');
+      var nen=dangO?'#0369a1':(daQua?'#e0f2fe':'#f4f1ec');
+      var chu=dangO?'#fff':(daQua?'#0369a1':'#8c8781');
       h+='<span style="font-size:9.5px;font-weight:'+(dangO?'800':'600')+';padding:2px 7px;border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'
         +(daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
-      if(k<TT_LUONG.length-1) h+='<span style="color:#cbd5e1;font-size:10px">›</span>';
+      if(k<TT_LUONG.length-1) h+='<span style="color:#e2d6c7;font-size:10px">›</span>';
     });
     return h+'</div>';
   }
@@ -7755,10 +7755,10 @@
         +' Bật quyền <b>“Xin tạm ứng (gửi đơn lên)”</b> cho vai trò này ở ⚙️ <b>Cấu hình → 🔑 Phân quyền chỉnh sửa</b>'
         +' — hoặc bấm <b>↺ Đặt lại mặc định</b> ở card đó.' };
     }
-    if(st==='Chờ duyệt tạm ứng') return { mau:'#0f766e', html:'✔ <b>Đã xin rồi</b> — đang chờ <b>quản lý duyệt tạm ứng</b>. Không cần bấm gì thêm.' };
-    if(st==='Chờ cấp tạm ứng')   return { mau:'#0f766e', html:'✔ <b>Quản lý đã duyệt</b> — đang chờ <b>kế toán cấp tạm ứng</b> (chuyển tiền).' };
+    if(st==='Chờ duyệt tạm ứng') return { mau:'#2545ff', html:'✔ <b>Đã xin rồi</b> — đang chờ <b>quản lý duyệt tạm ứng</b>. Không cần bấm gì thêm.' };
+    if(st==='Chờ cấp tạm ứng')   return { mau:'#2545ff', html:'✔ <b>Quản lý đã duyệt</b> — đang chờ <b>kế toán cấp tạm ứng</b> (chuyển tiền).' };
     if(st==='Đã cấp tạm ứng')    return { mau:'#b91c1c', html:'⚠️ Đã nhận tạm ứng. Bước kế tiếp là <b>gửi quyết toán</b> cho kế toán, nhưng vai trò <b>'+esc(vt)+'</b> chưa có quyền <b>“Gửi quyết toán / gửi hóa đơn”</b> — bật ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa.' };
-    if(st==='Chờ quyết toán')    return { mau:'#0f766e', html:'✔ <b>Đã gửi hóa đơn</b> — đang chờ kế toán <b>quyết toán</b>.' };
+    if(st==='Chờ quyết toán')    return { mau:'#2545ff', html:'✔ <b>Đã gửi hóa đơn</b> — đang chờ kế toán <b>quyết toán</b>.' };
     if(st==='Đã quyết toán')     return { mau:'#64748b', html:'🔒 Đơn đã <b>quyết toán xong</b> — chỉ còn chờ xuất MISA.' };
     if(st==='Đã xuất MISA')      return { mau:'#64748b', html:'🔒 Đơn đã <b>xuất MISA</b> — khóa, không sửa được nữa.' };
     return { mau:'#64748b', html:'Trạng thái đơn: <b>'+esc(st||'—')+'</b> — bước này không có thao tác nào dành cho vai trò '+esc(vt)+'.' };
@@ -7774,7 +7774,7 @@
     if(cs){
       sel.innerHTML='<option value="'+esc(cs)+'">'+esc(cs)+'</option>';
       sel.value=cs; sel.disabled=true;
-      sel.style.background='#f1f5f9';
+      sel.style.background='#f4f1ec';
       if(note){ note.style.display='block'; note.innerHTML='🔒 Đơn này của cơ sở <b>'+esc(cs)+'</b> · muốn nhập cơ sở khác thì <b>Tạo đơn mới</b>'; }
     } else {
       // Mở đơn CHƯA chốt cơ sở: khôi phục đủ danh sách (đơn trước có thể đã khóa còn 1 cơ sở).
@@ -7786,7 +7786,7 @@
        không xin tạm ứng nơi này rồi lên chi phí nơi khác. */
     var tu=el('tuCoso');
     if(tu){
-      if(cs){ tu.innerHTML='<option value="'+esc(cs)+'">'+esc(cs)+'</option>'; tu.value=cs; tu.disabled=true; tu.style.background='#f1f5f9'; }
+      if(cs){ tu.innerHTML='<option value="'+esc(cs)+'">'+esc(cs)+'</option>'; tu.value=cs; tu.disabled=true; tu.style.background='#f4f1ec'; }
       else { if(window._COSO_OPTS_HTML && tu.options.length<=1){ tu.innerHTML=window._COSO_OPTS_HTML; } tu.disabled=false; tu.style.background=''; }
     }
     _xepOCoSo();
@@ -7873,7 +7873,7 @@
     var lb=el(spanId); if(!lb) return;
     var ch=_selLoai(selId), ten=ch.loai;
     var tt=(String((el(httId)&&el(httId).value)||'')==='Trực tiếp');
-    if(!ten){ lb.textContent='· chưa gắn mã → giữ cách cũ Nợ 141 / Có '+(tt?'331':'64125'); lb.style.color='#94a3b8'; return; }
+    if(!ten){ lb.textContent='· chưa gắn mã → giữ cách cũ Nợ 141 / Có '+(tt?'331':'64125'); lb.style.color='#8c8781'; return; }
     var k=ten.toLowerCase();
     var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
     var no=ch.tkNo || _tkNoCua(ten, coso);
@@ -7886,17 +7886,17 @@
        đúng việc không nên làm. Nói rõ mã sẽ tự có, màu trung tính. */
     if(!no && String(coso||'').trim()==='' ){
       lb.textContent='· Nợ (theo gian) / Có '+co;
-      lb.style.color='#94a3b8';
+      lb.style.color='#8c8781';
       return;
     }
     lb.textContent='· Nợ '+(no||'?')+' / Có '+co+(mang?(' · '+mang):'');
-    lb.style.color=no?'#0f766e':'#dc2626';
+    lb.style.color=no?'#2545ff':'#dc2626';
   }
   // Badge mã tài khoản hiện ngay dưới nội dung dòng — dò bằng mắt, khỏi mở Cấu hình
   function tkBadge(loaiCp, tkNo, tkCo){
     if(!tkNo && !loaiCp) return '';
     if(!tkNo) return '<div style="font-size:10px;color:#dc2626">'+esc(loaiCp)+' · chưa gắn mã</div>';
-    return '<div style="font-size:10px;color:#0f766e;font-family:Consolas,monospace">'+esc(loaiCp||'')+' · Nợ '+esc(tkNo)+(tkCo?(' / Có '+esc(tkCo)):'')+'</div>';
+    return '<div style="font-size:10px;color:#2545ff;font-family:Consolas,monospace">'+esc(loaiCp||'')+' · Nợ '+esc(tkNo)+(tkCo?(' / Có '+esc(tkCo)):'')+'</div>';
   }
   function daTkHint(){ _tkHint('da_tkHint','da_loaicp','da_httt', _daCoso()); }
   function mlTkHint(){ _tkHint('ml_tkHint','ml_loaicp','ml_httt', MK_CUR?MK_CUR.coso:''); }
@@ -7977,22 +7977,22 @@
     if(el('dl_mada')) el('dl_mada').innerHTML=(r.duAnList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');
 
     el('scSummary').innerHTML=
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','TỔNG CHI', money(r.tong)+'đ', r.soDong+' dòng')+
+      _tqCard('#ecfdf5','#b9c0e8','#065f46','TỔNG CHI', money(r.tong)+'đ', r.soDong+' dòng')+
       _tqCard('#eff6ff','#bfdbfe','#1e40af','Tiền thuế', money(r.tongThue)+'đ','VAT của các dòng có thuế')+
-      _tqCard('#f1f5f9','#cbd5e1','#334155','Số loại chi phí', String((r.byLoai||[]).length),'đang có phát sinh')+
+      _tqCard('#f4f1ec','#e2d6c7','#171417','Số loại chi phí', String((r.byLoai||[]).length),'đang có phát sinh')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','Số mã tài khoản', String((r.byTkNo||[]).length),'gọi lại được theo mã');
 
     var L=r.items||[];
     el('scEmpty').style.display=L.length?'none':'block';
     el('scBody').innerHTML=L.map(function(x){
       var kh=x.daXuat;
-      return '<tr'+(kh?' style="background:#f8fafc;color:#64748b"':'')+'>'+
+      return '<tr'+(kh?' style="background:#f9f8f6;color:#64748b"':'')+'>'+
         '<td style="white-space:nowrap">'+esc(x.ngay)+'</td>'+
         '<td>'+esc(x.coso)+'</td>'+
         '<td>'+esc(x.loai)+(kh?' <span class="badge st-duyet">đã xuất</span>':'')+'</td>'+
         '<td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td>'+
         '<td style="font-family:Consolas,monospace">'+(x.tkCo?esc(x.tkCo):'<span style="color:#dc2626">—</span>')+'</td>'+
-        '<td>'+esc(x.noiDung||'')+(x.maDuAn?'<div style="font-size:11px;color:#7c3aed">🏗 '+esc(x.maDuAn)+(x.hangMuc?(' · '+esc(x.hangMuc)):'')+'</div>':'')+(x.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
+        '<td>'+esc(x.noiDung||'')+(x.maDuAn?'<div style="font-size:11px;color:#7c3aed">🏗 '+esc(x.maDuAn)+(x.hangMuc?(' · '+esc(x.hangMuc)):'')+'</div>':'')+(x.ghiChu?'<div style="font-size:11px;color:#8c8781">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
         '<td style="font-size:12px">'+esc(x.hinhThuc||'')+'</td>'+
         '<td class="money">'+money(x.soTien)+'</td>'+
         '<td style="text-align:center">'+(x.anh?'<a href="'+esc(x.anh)+'" target="_blank" title="Xem hóa đơn">🧾</a>':'')+'</td>'+
@@ -8000,16 +8000,16 @@
           '<button class="btn b-s" onclick="editSoChi(\''+esc(x.id)+'\')" title="Sửa">✎</button> '+
           '<button class="btn b-d" onclick="delSoChi(\''+esc(x.id)+'\')" title="Xóa">✕</button>'))+'</td></tr>';
     }).join('');
-    el('scFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td colspan="7">TỔNG '+L.length+' DÒNG</td><td class="money">'+money(r.tong)+'</td><td colspan="2"></td></tr>'):'';
+    el('scFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f9f8f6;border-top:2px solid #e2d6c7"><td colspan="7">TỔNG '+L.length+' DÒNG</td><td class="money">'+money(r.tong)+'</td><td colspan="2"></td></tr>'):'';
 
-    el('scByLoai').innerHTML=(r.byLoai||[]).map(function(x){ return '<tr><td>'+esc(x.loai)+'</td><td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#94a3b8">—</td></tr>';
-    el('scByTk').innerHTML=(r.byTkNo||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#94a3b8">—</td></tr>';
-    el('scByCoso').innerHTML=(r.byCoso||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#94a3b8">—</td></tr>';
+    el('scByLoai').innerHTML=(r.byLoai||[]).map(function(x){ return '<tr><td>'+esc(x.loai)+'</td><td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#8c8781">—</td></tr>';
+    el('scByTk').innerHTML=(r.byTkNo||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#8c8781">—</td></tr>';
+    el('scByCoso').innerHTML=(r.byCoso||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#8c8781">—</td></tr>';
     if(el('scByDuAn')) el('scByDuAn').innerHTML=(r.byDuAn||[]).map(function(x){
       var cl=(Number(x.duToan)||0)-(Number(x.tien)||0);
       return '<tr><td><b>'+esc(x.maDuAn)+'</b></td><td>'+x.n+'</td><td class="money">'+money(x.duToan)+'</td><td class="money">'+money(x.tien)+'</td>'+
-        '<td class="money" style="color:'+(cl<0?'#dc2626':'#0f766e')+'">'+money(cl)+'</td></tr>';
-    }).join('')||'<tr><td colspan="5" style="color:#94a3b8">Chưa có dòng nào mang mã dự án</td></tr>';
+        '<td class="money" style="color:'+(cl<0?'#dc2626':'#2545ff')+'">'+money(cl)+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="color:#8c8781">Chưa có dòng nào mang mã dự án</td></tr>';
   }
 
   // Chọn loại chi phí -> hiện luôn mã tài khoản sẽ ghi vào dòng
@@ -8034,7 +8034,7 @@
     var no=ten?(ch.tkNo||_tkNoCua(ten, coso)):'';
     var mang=_mangCua(coso);
     el('sc_tk').value = ten ? ('Nợ '+(no||'?')+' / Có '+tkCo+(mang?('  ·  '+mang):'')) : '';
-    el('sc_tk').style.color=no?'#0f766e':'#dc2626';
+    el('sc_tk').style.color=no?'#2545ff':'#dc2626';
   }
   function calcScTT(){ var sl=parseFloat(el('sc_sl').value)||0, dg=Number(_oTien('sc_dg'))||0; if(sl&&dg) _datTien('sc_tt', Math.round(sl*dg)); }
 
@@ -8260,11 +8260,11 @@
       ds.push(soTrang);
       var truoc=0;
       ds.forEach(function(k){
-        if(k-truoc>1) so+='<span style="color:#94a3b8">…</span> ';
+        if(k-truoc>1) so+='<span style="color:#8c8781">…</span> ';
         so+=nut(k, String(k), false, k===trang)+' '; truoc=k;
       });
     }
-    return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f1f5f9">'
+    return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f4f1ec">'
       +'<span style="font-size:12px;color:#64748b">Đơn <b>'+tu+'–'+den+'</b> trên <b>'+tong+'</b></span>'
       +'<span style="flex:1"></span>'
       +nut(trang-1,'‹ Trước',trang<=1)+' '+so+nut(trang+1,'Sau ›',trang>=soTrang)
@@ -8463,7 +8463,7 @@
     var keys=kAll.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });   // hiển thị: mới nhất trước
     keys.forEach(function(k, gi){
       var rows=byKy[k]; total+=rows.length; var gid='qk'+gi; var s=_qtSums(rows);
-      html+='<tr class="qtGrpHdr" data-open="0" onclick="qtGroupToggle(\''+gid+'\',this)"><td colspan="'+COLS+'" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px"><span class="qtcaret" style="display:inline-block;width:14px">▸</span> 📅 <span>Tuần/kỳ '+esc(k)+'</span> <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(bấm để xổ/gập)</span><div style="font-weight:600;font-size:12px;color:#475569;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
+      html+='<tr class="qtGrpHdr" data-open="0" onclick="qtGroupToggle(\''+gid+'\',this)"><td colspan="'+COLS+'" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px"><span class="qtcaret" style="display:inline-block;width:14px">▸</span> 📅 <span>Tuần/kỳ '+esc(k)+'</span> <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span> <span style="color:#8c8781;font-weight:400;font-size:11px">(bấm để xổ/gập)</span><div style="font-weight:600;font-size:12px;color:#8c8781;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
       if(_kyVal(k)>=0){ var _gn=(s.tu||0)-(carryIn[k]||0), _wst=(_gn<0)?'background:#fef2f2;border-left:4px solid #ef4444;color:#7f1d1d':'background:#fffbeb;border-left:4px solid #f59e0b;color:#78350f';
         html+='<tr class="qkFlow"><td colspan="'+COLS+'" style="'+_wst+';padding:8px 10px;font-size:12px">'+_qtReconHtml(s.tu, s.mua, carryIn[k]||0, hasPrev[k], isOpen[k])+'</td></tr>'; }
       html+=rows.map(function(d){ return _qtRowHtml(d, false, COLS, gid, true); }).join('');
@@ -8483,7 +8483,7 @@
   // Đối chiếu CỤC (dùng chung tab Quyết toán & Gom & mục 2 trong đơn): banner cục nổi bật + đã chi theo cơ sở
   function _reconTablesHtml(r, opts){
     opts=opts||{}; var d=r.don, tcn=r.tongCN||{}, cl=tcn.chenhLech||0;
-    var bg=cl>0?'#dcfce7':(cl<0?'#fee2e2':'#f1f5f9'), col=cl>0?'#166534':(cl<0?'#dc2626':'#334155');
+    var bg=cl>0?'#dcfce7':(cl<0?'#fee2e2':'#f4f1ec'), col=cl>0?'#166534':(cl<0?'#dc2626':'#171417');
     var txt=cl>0?('▲ THỪA '+money(cl)+'đ — NV trả lại'):(cl<0?('▼ THIẾU '+money(-cl)+'đ — kế toán bù'):'✓ KHỚP — không thừa thiếu');
     var h='';
     if(opts.people!==false) h+='<div style="font-size:12px;color:#64748b;margin-bottom:8px">Người lập: <b>'+esc(d.nguoiLap||'')+'</b>'+(d.nguoiDuyet?' · duyệt TƯ: <b>'+esc(d.nguoiDuyet)+'</b>':'')+(d.nguoiCap?' · cấp tiền: <b>'+esc(d.nguoiCap)+'</b>'+(d.htCap?' ('+esc(d.htCap)+')':''):'')+'</div>';
@@ -8495,14 +8495,14 @@
       +'<span style="font-size:15px">'+txt+'</span></div>';
     // Đã chi cá nhân theo cơ sở
     var cnRows=(r.reconCN||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.thucChi)+'</td></tr>'; }).join('')||'<tr><td colspan="2" class="empty">Chưa có chi cá nhân.</td></tr>';
-    h+='<div style="font-weight:700;color:#0f766e;font-size:12.5px;margin:12px 0 4px">👤 Đã chi cá nhân (141) — theo cơ sở</div>'+
+    h+='<div style="font-weight:700;color:#2545ff;font-size:12.5px;margin:12px 0 4px">👤 Đã chi cá nhân (141) — theo cơ sở</div>'+
        '<div class="tw"><table><thead><tr><th>Cơ sở</th><th style="text-align:right">Đã chi</th></tr></thead><tbody>'+cnRows+'</tbody>'+
-       '<tfoot><tr style="font-weight:800;background:#f1f5f9"><td>TỔNG ĐÃ CHI</td><td class="money">'+money(tcn.thucChi||0)+'</td></tr></tfoot></table></div>';
+       '<tfoot><tr style="font-weight:800;background:#f4f1ec"><td>TỔNG ĐÃ CHI</td><td class="money">'+money(tcn.thucChi||0)+'</td></tr></tfoot></table></div>';
     if(r.reconNCC && r.reconNCC.length){
       var nccRows=r.reconNCC.map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.thucChi)+'</td></tr>'; }).join('');
       h+='<div style="font-weight:700;color:#1e40af;font-size:12.5px;margin:10px 0 4px">🏢 NCC (331) phải trả — theo cơ sở</div>'+
          '<div class="tw"><table><thead><tr><th>Cơ sở</th><th style="text-align:right">Phải trả NCC</th></tr></thead><tbody>'+nccRows+'</tbody>'+
-         '<tfoot><tr style="font-weight:800;background:#f1f5f9"><td>TỔNG</td><td class="money">'+money((r.tongNCC||{}).thucChi||0)+'</td></tr></tfoot></table></div>';
+         '<tfoot><tr style="font-weight:800;background:#f4f1ec"><td>TỔNG</td><td class="money">'+money((r.tongNCC||{}).thucChi||0)+'</td></tr></tfoot></table></div>';
     }
     return h;
   }
@@ -8523,7 +8523,7 @@
    * ngay phía trên đã nói đúng con số ấy rồi, lặp lại thành thừa.
    */
   function _linesByCosoHtml(r){
-    var lines=r.lines||[]; if(!lines.length) return '<div style="margin:12px 0 4px;color:#94a3b8;font-size:12px">Chưa có hạng mục nào.</div>';
+    var lines=r.lines||[]; if(!lines.length) return '<div style="margin:12px 0 4px;color:#8c8781;font-size:12px">Chưa có hạng mục nào.</div>';
     function eff(l){ var tm=(l.thucMua===''||l.thucMua==null)?null:Number(l.thucMua); return (tm==null)?(Number(l.thanhTien)||0):tm; }
     function tong(L, f){ return L.reduce(function(x,l){ return x+f(l); },0); }
     function rowHtml(l, con){
@@ -8543,12 +8543,12 @@
           +' title="'+(xauN?'Ngày hỏng — gõ lại kiểu ngày/tháng/năm':'Sửa ngày ngay tại đây')+'">'
         : (l.ngay ? (xauN?'<b style="color:#b91c1c" title="Ngày hỏng">'+esc(l.ngay)+'</b>':esc(l.ngay))
                   : '<span style="color:#b91c1c;font-weight:700" title="Dòng chưa có ngày — Admin sửa được tại đây">— thiếu ngày</span>');
-      return '<tr'+(con?' style="background:#fffdf7"':'')+'><td style="white-space:nowrap">'+oNgay+'</td><td style="'+lui+'">'+dau+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
+      return '<tr'+(con?' style="background:#fffdf7"':'')+'><td style="white-space:nowrap">'+oNgay+'</td><td style="'+lui+'">'+dau+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#8c8781">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
         '<td style="text-align:center;font-size:11px;color:#64748b">'+esc(l.dvt||'')+'</td>'+
         '<td class="money">'+(l.soLuong?money(l.soLuong):'')+'</td>'+
         '<td class="money">'+(l.donGia?money(l.donGia):'')+'</td>'+
         '<td class="money">'+money(l.thanhTien)+'</td>'+
-        '<td class="money">'+(tm==null?('<span style="color:#94a3b8">='+money(e)+'</span>'):('<b>'+money(e)+'</b>'))+'</td>'+
+        '<td class="money">'+(tm==null?('<span style="color:#8c8781">='+money(e)+'</span>'):('<b>'+money(e)+'</b>'))+'</td>'+
         '<td style="text-align:center;font-size:11px">'+loai+'</td>'+
         '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Rê chuột để phóng to · bấm để mở ảnh gốc"><img src="'+esc(l.anh)+'" data-bill="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
     }
@@ -8559,7 +8559,7 @@
       var sTT=tong(L,function(l){return Number(l.thanhTien)||0;}), sEff=tong(L,eff);
       var h='<div style="margin:10px 0 0;font-weight:800;color:#0369a1;background:#ecfeff;border-left:4px solid #0369a1;padding:7px 10px;font-size:12.5px">'
         +'▣ Loại chi phí: '+esc(ten)
-        +' <span style="font-weight:400;color:#475569">· '+L.length+' dòng · dự kiến '+money(sTT)+'đ · thực chi <b>'+money(sEff)+'đ</b></span>'
+        +' <span style="font-weight:400;color:#8c8781">· '+L.length+' dòng · dự kiến '+money(sTT)+'đ · thực chi <b>'+money(sEff)+'đ</b></span>'
         +(ps.length?' <span style="font-weight:600;color:#b45309;font-size:11px">· trong đó '+ps.length+' chi phí con</span>':'')
         +'</div>';
       h+='<div class="tw"><table>'+COT+'<tbody>'+xin.map(function(l){return rowHtml(l,false);}).join('');
@@ -8574,12 +8574,12 @@
     // Cấp cơ sở chỉ dựng khi đơn CÓ TỪ 2 CƠ SỞ — một cơ sở thì thêm một dải nữa là thừa
     var byCs={}; lines.forEach(function(l){ var cs=l.coso||'(Chưa cơ sở)'; (byCs[cs]=byCs[cs]||[]).push(l); });
     var dsCs=Object.keys(byCs).sort(), nhieuCs=dsCs.length>1;
-    var h='<div style="font-weight:700;color:#334155;font-size:12.5px;margin:14px 0 6px">🧾 Chi tiết chi phí'
+    var h='<div style="font-weight:700;color:#171417;font-size:12.5px;margin:14px 0 6px">🧾 Chi tiết chi phí'
       +(nhieuCs?' — theo cơ sở, rồi theo loại chi phí':' — theo loại chi phí')+'</div>';
     dsCs.forEach(function(cs){
       var ls=byCs[cs];
       if(nhieuCs){
-        h+='<div style="margin:12px 0 3px;font-weight:700;color:#0f766e;border-left:3px solid #0f766e;padding-left:8px">🏢 '+esc(cs)
+        h+='<div style="margin:12px 0 3px;font-weight:700;color:#2545ff;border-left:3px solid #2545ff;padding-left:8px">🏢 '+esc(cs)
           +' <span style="font-weight:400;color:#64748b">· dự kiến '+money(tong(ls,function(l){return Number(l.thanhTien)||0;}))+'đ · thực chi '+money(tong(ls,eff))+'đ</span></div>';
       }
       var byLoai={}; ls.forEach(function(l){ var g=l.nhom||'(Chưa chọn loại chi phí)'; (byLoai[g]=byLoai[g]||[]).push(l); });
@@ -8742,7 +8742,7 @@
             +'font-size:10.5px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:0 4px;margin-left:3px">'
             +esc(m)+'</a>';
         }).join('');
-        return '<div style="display:inline-block;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;'
+        return '<div style="display:inline-block;background:#f4f1ec;border:1px solid #f0e9e1;border-radius:6px;'
           +'padding:2px 7px;margin:2px 4px 2px 0;font-size:11.5px">'
           +esc(c.coso||'')+' · <b>'+money(c.tien)+'đ</b>'
           +((c.soDon>1)?(' <span style="color:#64748b">('+c.soDon+' đơn)</span>'):'')
@@ -8857,8 +8857,8 @@
         if(canDo('traDon')) a2+=' <button class="btn b-d" onclick="doTraLai(\''+d.maDon+'\')">↩ Trả lại</button>';
         act+= a2 || ' <span style="font-size:11px;color:#64748b">chờ kế toán gửi tiền</span>'; }
       var info='';
-      if(st==='Đã cấp tạm ứng'&&(d.nguoiDuyet||d.ngayDuyet)) info='<div style="font-size:10px;color:#94a3b8">cấp TƯ: '+esc(d.nguoiDuyet||'')+(d.ngayDuyet?' · '+esc(d.ngayDuyet):'')+'</div>';
-      if(st==='Đã quyết toán') info='<div style="font-size:10px;color:#94a3b8">QT '+esc(d.ngayQT||'')+(d.xuLy?' · '+esc(d.xuLy):'')+'</div>';
+      if(st==='Đã cấp tạm ứng'&&(d.nguoiDuyet||d.ngayDuyet)) info='<div style="font-size:10px;color:#8c8781">cấp TƯ: '+esc(d.nguoiDuyet||'')+(d.ngayDuyet?' · '+esc(d.ngayDuyet):'')+'</div>';
+      if(st==='Đã quyết toán') info='<div style="font-size:10px;color:#8c8781">QT '+esc(d.ngayQT||'')+(d.xuLy?' · '+esc(d.xuLy):'')+'</div>';
       return '<tr>'+chk+'<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td><td class="money">'+money(d.thucChiNCC)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
@@ -9123,9 +9123,9 @@
 
     function dai(g){
       var d=document.createElement('div');
-      d.style.cssText='margin:22px 0 8px;padding:7px 12px;border-radius:9px;background:#f1f5f9;'
-        +'border-left:4px solid #0f766e';
-      d.innerHTML='<b style="font-size:13px;color:#0f766e">'+esc(g.ten)+'</b>'
+      d.style.cssText='margin:22px 0 8px;padding:7px 12px;border-radius:9px;background:#f4f1ec;'
+        +'border-left:4px solid #2545ff';
+      d.innerHTML='<b style="font-size:13px;color:#2545ff">'+esc(g.ten)+'</b>'
         +'<div style="font-size:11.5px;color:#64748b;margin-top:1px">'+esc(g.mo)+'</div>';
       return d;
     }
@@ -9533,8 +9533,8 @@
       mx[n+'|'+String(x.pll||'').trim()]=x.tkNo||'';
       if(n&&!seen[n.toLowerCase()]){ seen[n.toLowerCase()]=1; rows.push({ten:n}); }
     });
-    if(!cols.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có cơ sở nào — khai bảng Cơ sở phía trên & Lưu trước, các cột mảng sẽ hiện ra.</div>'; return; }
-    if(!rows.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có loại chi phí nào — bấm <b>＋ Thêm loại</b>, hoặc khai bằng thẻ 🆕 Khai mã chi phí phía trên.</div>'; return; }
+    if(!cols.length){ box.innerHTML='<div style="color:#8c8781;font-size:12px;padding:6px 0">Chưa có cơ sở nào — khai bảng Cơ sở phía trên & Lưu trước, các cột mảng sẽ hiện ra.</div>'; return; }
+    if(!rows.length){ box.innerHTML='<div style="color:#8c8781;font-size:12px;padding:6px 0">Chưa có loại chi phí nào — bấm <b>＋ Thêm loại</b>, hoặc khai bằng thẻ 🆕 Khai mã chi phí phía trên.</div>'; return; }
     // Bỏ 2 cột "TK Có" và "Mọi mảng": TK Có vốn tự suy theo hình thức chi (tạm ứng NV →
     // 141 · trực tiếp NCC → 331), còn mã thì LUÔN theo mảng của cơ sở nên cột dùng chung
     // chỉ gây nhập hai chỗ rồi lệch nhau. Giá trị đã lưu KHÔNG mất: lúc lưu bảng này app
@@ -9544,8 +9544,8 @@
     var h='<table style="min-width:870px"><thead><tr>'
       +'<th style="text-align:left;min-width:240px">Loại chi phí</th>'
       +'<th style="width:140px">Loại</th>'
-      +'<th style="width:320px">Bộ phận <span style="font-weight:400;color:#94a3b8">(không tích = mọi bộ phận)</span></th>'
-      +'<th style="width:170px">Đơn vị <span style="font-weight:400;color:#94a3b8">(không tích = mọi nhà)</span></th>'
+      +'<th style="width:320px">Bộ phận <span style="font-weight:400;color:#8c8781">(không tích = mọi bộ phận)</span></th>'
+      +'<th style="width:170px">Đơn vị <span style="font-weight:400;color:#8c8781">(không tích = mọi nhà)</span></th>'
       +'<th style="width:190px">Tên theo MISA</th>'
       +'<th style="width:44px"></th></tr></thead><tbody id="cfgMxBody">';
     h+=rows.map(function(x){ return _mxRowHtml(x); }).join('');
@@ -9563,16 +9563,16 @@
       var _n=function(v,ten){ return '<button type="button" data-khong-khoa="1" class="btn '+(MX_SAP===v?'b-p':'b-x')+'"'
         +' onclick="mxDatSap(\''+v+'\')" style="padding:3px 10px;font-size:11.5px">'+ten+'</button>'; };
       h+='<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0 2px">'
-        +'<b style="font-size:12px;color:#334155">Sắp mảng kinh doanh:</b>'
+        +'<b style="font-size:12px;color:#171417">Sắp mảng kinh doanh:</b>'
         +_n('mang','🔤 Theo mảng (A→Z)')+_n('tk','🔢 Theo số tài khoản')
-        +'<span style="font-size:11px;color:#94a3b8">'
+        +'<span style="font-size:11px;color:#8c8781">'
         +(MX_SAP==='tk'
           ? 'Xếp theo <b>mã nhỏ nhất</b> của mỗi mảng, đi theo cây: 641 → 6411 → 6412 → 642 → 6421. Mảng chưa khai mã nào nằm cuối.'
           : 'Xếp theo tên mảng. Bấm <b>Theo số tài khoản</b> để dò theo sổ cái.')
         +'</span></div>';
     }
     if(!nhom.length){
-      h+='<div style="color:#94a3b8;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
+      h+='<div style="color:#8c8781;font-size:12px;padding:10px 0">Chưa có mảng kinh doanh nào thuộc đơn vị bạn xem được — khai <b>Phân loại lớn</b> và <b>Đơn vị</b> ở bảng 🏢 Cơ sở phía trên rồi Lưu.</div>';
     }
     nhom.forEach(function(g, i){
       /* 🔴 MỖI NHÀ MỘT BỘ CỘT. Anh Thắng 12/09/2026: *"Đối với POSH sẽ có cột Chi Phí Khác,
@@ -9592,20 +9592,20 @@
             `querySelectorAll('.mxNoBody input')` — ô nằm trong <details> đang đóng vẫn đếm,
             nên mã của nhà đang gập không mất. Dùng display:none hay thôi không vẽ thì mất. */
       var rws=rows.filter(function(x){ return _loaiChoDv(x, g.dv); });
-      var nhan='🔢 TK Nợ · <span style="color:#0f766e">'+esc(g.dv)+'</span>', phu='', than='';
+      var nhan='🔢 TK Nợ · <span style="color:#2545ff">'+esc(g.dv)+'</span>', phu='', than='';
       if(!rws.length){
-        than='<div style="color:#94a3b8;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
+        than='<div style="color:#8c8781;font-size:12px;padding:2px 0 8px">Chưa loại chi phí nào khai dùng cho đơn vị này — tích ô <b>Đơn vị</b> ở bảng trên rồi Lưu.</div>';
       } else {
-      phu=' <span style="font-weight:400;color:#94a3b8">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
+      phu=' <span style="font-weight:400;color:#8c8781">— '+g.cols.length+' mảng · '+rws.length+' loại · xếp theo '
         +(MX_SAP==='tk'?'số tài khoản':'tên mảng')+'</span>';
       than='<div class="tw"><table style="min-width:'+(220+rws.length*128)+'px"><thead><tr>'
-        +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f8fafc;z-index:1">Mảng kinh doanh</th>'
+        +'<th style="text-align:left;min-width:220px;position:sticky;left:0;background:#f9f8f6;z-index:1">Mảng kinh doanh</th>'
         +rws.map(function(x){ return '<th style="width:128px">'+esc(String(x.ten||''))+'</th>'; }).join('')
         +'</tr></thead><tbody class="mxNoBody" data-dv="'+esc(g.dv)+'">'
         +_mxSapCols(g.cols, rws, mx).map(function(c){
             var _t=_mangTong(c), _d=_mangTongDoan(c, rws, mx);
             return '<tr><td style="position:sticky;left:0;background:#fff;z-index:1">'
-              +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#0f766e;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
+              +'<div style="font-weight:600">'+esc(c)+(_t?(' <span style="color:#2545ff;font-family:Consolas,monospace">('+esc(_t)+')</span>'):'')+'</div>'
               +'<input value="'+esc(_t)+'" data-mang-tong="'+esc(c)+'" list="tkChartList"'
               +' placeholder="'+(_d?('mã tổng? VD '+esc(_d)):'mã tổng của mảng')+'"'
               +' title="Số tổng của cả mảng — VD TUTU MN là 6410, các ô bên phải là 64106 · 64105…&#10;Để trống cũng không sao: nó chỉ dùng để bày trong ngoặc và để xếp theo số tài khoản."'
@@ -9623,10 +9623,10 @@
       /* Khối đầu mở sẵn; nhà thứ hai trở đi gập lại, bấm một cái là ra. Một nhà thì
          không bọc <details> — thêm một cú bấm cho thứ chẳng giấu được gì là vô ích. */
       if(nhom.length>1 && i>0){
-        h+='<details style="margin:16px 0 6px"><summary style="font-weight:800;color:#334155;font-size:13px;cursor:pointer">'
+        h+='<details style="margin:16px 0 6px"><summary style="font-weight:800;color:#171417;font-size:13px;cursor:pointer">'
           +nhan+phu+'</summary>'+than+'</details>';
       } else {
-        h+='<div style="font-weight:800;color:#334155;margin:16px 0 6px;font-size:13px">'+nhan+phu+'</div>'+than;
+        h+='<div style="font-weight:800;color:#171417;margin:16px 0 6px;font-size:13px">'+nhan+phu+'</div>'+than;
       }
     });
     box.innerHTML=h;
@@ -9665,9 +9665,9 @@
     var mangs=Object.keys(nhom).sort();
     mangs.forEach(function(m){ nhom[m].sort(function(a,b){ return a.localeCompare(b,'vi'); }); });
     var h='<div style="display:flex;flex-wrap:wrap;gap:8px">'+mangs.map(function(m){
-      return '<label style="display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">'
+      return '<label style="display:inline-flex;align-items:center;gap:6px;border:1px solid #e2d6c7;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">'
         +'<input type="checkbox" data-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(m)
-        +' <span style="font-weight:400;color:#94a3b8">'+nhom[m].length+'</span></label>';
+        +' <span style="font-weight:400;color:#8c8781">'+nhom[m].length+'</span></label>';
     }).join('')+'</div>';
     /* ══════════════════════════════════════════════════════════════════════════════════════
      * KHỐI "CHƯA KHAI PHÂN LOẠI LỚN" — GẬP LẠI, KHÔNG XOÁ.
@@ -9693,13 +9693,13 @@
     }
     h+='<div style="margin-top:8px"><a href="javascript:void(0)" onclick="kcToggleLe()" id="kcLeLink" style="font-size:11px;color:#2563eb">＋ ngoại lệ: tích lẻ từng cơ sở</a></div>'
       +'<div id="kcLeBox" style="display:none;margin-top:6px">'+mangs.map(function(m){
-        return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;margin-bottom:6px">'
+        return '<div style="border:1px solid #f0e9e1;border-radius:8px;padding:6px 10px;margin-bottom:6px">'
           +'<div style="font-size:11px;color:#64748b;font-weight:600">'+esc(m)+'</div>'
           +'<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px">'
           +nhom[m].map(function(c){ return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" data-coso="'+esc(c)+'" data-cua-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(c)+'</label>'; }).join('')
           +'</div></div>';
       }).join('')+'</div>';
-    el('kcCosoBox').innerHTML=mangs.length||le.length?h:'<div style="color:#94a3b8;font-size:12px">Chưa có cơ sở nào — thêm ở bảng Cơ sở phía dưới.</div>';
+    el('kcCosoBox').innerHTML=mangs.length||le.length?h:'<div style="color:#8c8781;font-size:12px">Chưa có cơ sở nào — thêm ở bảng Cơ sở phía dưới.</div>';
     kcInfo();
   }
   function kcToggleLe(){
@@ -10454,8 +10454,8 @@
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'
-      +   '<div style="padding:6px 8px;border-bottom:1px solid #e2e8f0"><input type="text" class="cs-tim" placeholder="Gõ để lọc: tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
-      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
+      +   '<div style="padding:6px 8px;border-bottom:1px solid #f0e9e1"><input type="text" class="cs-tim" placeholder="Gõ để lọc: tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
+      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #f0e9e1"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
       +   '<div class="cs-list">'+arr.map(function(c,i){
               // 🔴 TÊN THƯỜNG GỌI LÀ TÊN CHÍNH — anh Thắng chốt 25/08/2026. Tên theo MISA và mã
               //    đơn vị chỉ đứng sau, chữ nhỏ màu mờ: chúng có mặt để TÌM chứ không phải để
@@ -10463,7 +10463,7 @@
               var ph=_csPhu(c);
               return '<label data-tim="'+esc(_bd(_csNhan(c)))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'
                 +(sel.indexOf(c)>=0?' checked':'')
-                +'><span>'+esc(c)+(ph?(' <span style="color:#94a3b8;font-size:11px">· '+esc(ph)+'</span>'):'')+'</span></label>';
+                +'><span>'+esc(c)+(ph?(' <span style="color:#8c8781;font-size:11px">· '+esc(ph)+'</span>'):'')+'</span></label>';
             }).join('')+'</div>'
       + '</div></div>';
   }
@@ -10573,8 +10573,8 @@
     el('cfgUserNhom').innerHTML=nhom.map(function(g,i){
       return '<div style="margin:10px 14px 0">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'
-        +  '<b style="font-size:12.5px;color:#0f766e">'+esc(_uNhan(g.vai))+'</b>'
-        +  '<span style="font-size:11px;color:#94a3b8">'+g.ds.length+' người</span>'
+        +  '<b style="font-size:12.5px;color:#2545ff">'+esc(_uNhan(g.vai))+'</b>'
+        +  '<span style="font-size:11px;color:#8c8781">'+g.ds.length+' người</span>'
         +'</div>'
         +'<div class="tw"><table style="min-width:1090px">'+U_THEAD
         +'<tbody id="cfgUserBody'+i+'" data-user-body="1">'
@@ -10612,9 +10612,9 @@
     return thu.filter(function(v){ return m[v].length; }).map(function(v){ return {vai:v, ds:m[v]}; });
   }
   var U_THEAD='<thead><tr>'
-    +'<th style="width:190px">Tên <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
+    +'<th style="width:190px">Tên <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>'
     +'<th style="width:96px" title="Mã NV bên Chấm công · Nhân sự. Chỉ để phân biệt hai người TRÙNG TÊN, và để một PIN vào được cả hai trang. Đơn cũ vẫn nhận nhau bằng TÊN, không bằng mã này.">Mã NV</th>'
-    +'<th style="width:96px">PIN <span style="font-weight:400;color:#94a3b8">(từ nhân sự)</span></th>'
+    +'<th style="width:96px">PIN <span style="font-weight:400;color:#8c8781">(từ nhân sự)</span></th>'
     +'<th style="width:132px">Vai trò</th>'
     +'<th style="width:150px">Bộ phận / Loại NV</th>'
     +'<th style="min-width:220px" title="Nhân viên để trống = chỉ thấy đơn do chính mình lập. Quản lý để trống = trông cả đơn vị.">Cơ sở phụ trách</th>'
@@ -10628,7 +10628,7 @@
   function _uHang(u, laAdminNay){
     var khoa=(!laAdminNay && String(u.vaiTro||'')==='Admin');
     if(khoa){
-      return '<tr style="background:#f8fafc;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
+      return '<tr style="background:#f9f8f6;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
         +'<td><input value="'+esc(u.ten||'')+'" style="width:100%" disabled></td>'
         +'<td><input value="'+esc(u.maNv||'')+'" style="width:100%" disabled></td>'
         +'<td><input value="••••" style="width:100%" disabled></td>'
@@ -10647,7 +10647,7 @@
        phải tin bên nào.
        ⚠️ Đây là khoá Ở MÀN cho khỏi lỡ tay, không phải chốt máy chủ: giá trị vẫn được gửi
           lên nguyên vẹn khi Lưu, nên hàng cũ không mất gì. */
-    return '<tr><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+    return '<tr><td><input value="'+esc(u.ten||'')+'" readonly title="Tên lấy từ hệ thống nhân sự — sửa ở trang Chấm công · Nhân sự, không sửa ở đây." style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed"></td>'
       +'<td>'+_inp(u.maNv,'VD: NV012')+'</td>'
       /* ══════════════════════════════════════════════════════════════════════════════════════
        * 🔴 KHÔNG IN PIN RA MÀN HÌNH.
@@ -10662,7 +10662,7 @@
        *
        * ⚠️ PIN vẫn readonly: đổi ở trang Chấm công · Nhân sự, không đổi ở đây.
        * ══════════════════════════════════════════════════════════════════════════════════════ */
-      +'<td><input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây. Che đi vì trang này chạy ngoài internet." maxlength="8" style="width:100%;background:#f1f5f9;color:#475569;cursor:not-allowed"></td>'
+      +'<td><input type="password" value="'+esc(u.pin||'')+'" readonly autocomplete="off" title="PIN lấy từ hệ thống nhân sự — đổi ở trang Chấm công · Nhân sự, không đổi ở đây. Che đi vì trang này chạy ngoài internet." maxlength="8" style="width:100%;background:#f4f1ec;color:#8c8781;cursor:not-allowed"></td>'
       +'<td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso, u.donVi)+'</td>'
       +'<td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td>'+_delBtn()+'</tr>';
   }
@@ -10773,7 +10773,7 @@
     /* Số dòng đang mang cái tên ấy. 0 thì nói rõ là 0 — "chưa lập đơn nào" là thông tin quan
        trọng nhất khi quyết định có được đổi tên hay không, đừng để nó thành ô trống. */
     n=Number(n||0);
-    return n? ('<b>'+n+'</b> dòng') : '<span style="color:#94a3b8">chưa có dòng nào</span>';
+    return n? ('<b>'+n+'</b> dòng') : '<span style="color:#8c8781">chưa có dòng nào</span>';
   }
   function _nsKhung(mau, tieu, than){
     return '<div style="border:1px solid '+mau[0]+';border-radius:8px;background:'+mau[1]+';overflow:hidden;margin-bottom:10px">'
@@ -10781,7 +10781,7 @@
       +'<div style="padding:10px 12px;font-size:12px">'+than+'</div></div>';
   }
   var NS_DO=['#fecaca','#fff5f5','#fee2e2','#991b1b'], NS_VANG=['#f0d48a','#fffbef','#fdf2d0','#8a6100'],
-      NS_XANH=['#bbf7d0','#f0fdf4','#dcfce7','#166534'], NS_XAM=['#e2e8f0','#f8fafc','#f1f5f9','#475569'];
+      NS_XANH=['#bbf7d0','#f0fdf4','#dcfce7','#166534'], NS_XAM=['#f0e9e1','#f9f8f6','#f4f1ec','#8c8781'];
 
   function veSoatNs(r){
     var b=el('soatNsBox'); if(!b) return;
@@ -10806,7 +10806,7 @@
         t+='<tr><td style="font-weight:600;vertical-align:top">'+esc(x.ten)+'</td>'
           +'<td style="vertical-align:top">'+x.hoSo.map(function(p){
               return '<div>'+esc(p.maNv||'(không mã)')+' · '+esc(p.coso||'—')+(p.chucVu?(' · '+esc(p.chucVu)):'')+_nsNhan(p)+'</div>'; }).join('')+'</td>'
-          +'<td style="vertical-align:top">'+_nsDon(x.don)+(x.coCp?' <span style="color:#94a3b8">· đã có tài khoản</span>':'')+'</td>'
+          +'<td style="vertical-align:top">'+_nsDon(x.don)+(x.coCp?' <span style="color:#8c8781">· đã có tài khoản</span>':'')+'</td>'
           +'<td style="vertical-align:top"><button class="btn b-x" onclick="moDoiTenNguoi('+_jsq(x.ten)+')">✎ Đổi tên</button></td></tr>';
       });
       h+=_nsKhung(NS_DO,'🔴 '+n.trungTen.length+' cái tên đang dùng cho NHIỀU hồ sơ nhân sự', t+'</table>');
@@ -10819,8 +10819,8 @@
         +'còn đơn cũ ở lại với cái tên kia. Bấm gộp để dồn mọi dòng về một tên.</div>'
         +'<table style="width:auto"><tr><th style="text-align:left">Tên bên Nhân sự</th><th style="text-align:left">Tên bên Chi phí</th><th style="text-align:left">Dòng đang gánh</th><th></th></tr>';
       (n.lech||[]).forEach(function(x){
-        t2+='<tr><td style="vertical-align:top">'+esc(x.tenNs)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.maNv||'')+'</span>'+_nsNhan(x)+'</td>'
-          +'<td style="font-weight:600;vertical-align:top">'+esc(x.tenCp)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.vaiTro||'')+'</span></td>'
+        t2+='<tr><td style="vertical-align:top">'+esc(x.tenNs)+' <span style="color:#8c8781;font-size:11px">'+esc(x.maNv||'')+'</span>'+_nsNhan(x)+'</td>'
+          +'<td style="font-weight:600;vertical-align:top">'+esc(x.tenCp)+' <span style="color:#8c8781;font-size:11px">'+esc(x.vaiTro||'')+'</span></td>'
           +'<td style="vertical-align:top">bên Chi phí: '+_nsDon(x.donCp)+'</td>'
           +'<td style="vertical-align:top"><button class="btn b-x" onclick="moDoiTenNguoi('+_jsq(x.tenCp)+','+_jsq(x.tenNs)+')">↦ Đổi thành tên bên Nhân sự</button></td></tr>';
       });
@@ -10834,7 +10834,7 @@
         +'chưa khoá ô nên anh sửa được, nhưng sửa ở đâu thì phải nhớ: sửa bên <b>Nhân sự</b> mới là sửa nguồn.</div>'
         +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Nhân sự khai</th><th style="text-align:left">Chi phí đang khai</th><th style="text-align:left">Dòng đang gánh</th><th></th></tr>';
       (n.lechPb||[]).forEach(function(x){
-        t2b+='<tr><td>'+esc(x.ten)+' <span style="color:#94a3b8;font-size:11px">'+esc(x.maNv||'')+'</span></td>'
+        t2b+='<tr><td>'+esc(x.ten)+' <span style="color:#8c8781;font-size:11px">'+esc(x.maNv||'')+'</span></td>'
           +'<td style="font-weight:600;color:#166534">'+esc(x.pbNs)+'</td>'
           +'<td style="color:#8a6100">'+esc(x.pbCp)+'</td>'
           +'<td>'+_nsDon(x.don)+'</td>'
@@ -10863,9 +10863,9 @@
         +'Thêm dòng cho ai cần dùng trang này, và nhớ điền <b>Mã NV</b> để hai bên nối được với nhau.</div>'
         +'<table style="width:auto"><tr><th style="text-align:left">Tên</th><th style="text-align:left">Mã NV</th><th style="text-align:left">Cơ sở · chức vụ</th><th style="text-align:left">PIN</th><th></th></tr>';
       (n.thieuCp||[]).forEach(function(x){
-        t3+='<tr'+(x.nghi?' style="color:#94a3b8"':'')+'><td>'+esc(x.ten)+_nsNhan(x)+'</td><td>'+esc(x.maNv||'')+'</td>'
+        t3+='<tr'+(x.nghi?' style="color:#8c8781"':'')+'><td>'+esc(x.ten)+_nsNhan(x)+'</td><td>'+esc(x.maNv||'')+'</td>'
           +'<td>'+esc(x.coso||'—')+(x.chucVu?(' · '+esc(x.chucVu)):'')+'</td>'
-          +'<td>'+(x.coPin?'đã có':'<span style="color:#94a3b8">chưa cấp</span>')+'</td>'
+          +'<td>'+(x.coPin?'đã có':'<span style="color:#8c8781">chưa cấp</span>')+'</td>'
           +'<td>'+(x.nghi?'':'<button class="btn b-x" onclick="themUserTuNs('+_jsq(x.ten)+','+_jsq(x.maNv||'')+','+_jsq(x.coso||'')+')">＋ Thêm vào bảng</button>')+'</td></tr>';
       });
       h+=_nsKhung(NS_XAM,'👤 '+n.thieuCp.length+' hồ sơ nhân sự chưa có tài khoản Chi phí'
@@ -11163,7 +11163,7 @@
     // Lỗi dài = việc phải xử (thường là tường lửa): giữ lại cho đọc kỹ, có nút ✕ để tắt
     if(giu){
       var x=document.createElement('span');
-      x.textContent=' ✕'; x.style.cssText='float:right;cursor:pointer;color:#94a3b8;font-weight:700';
+      x.textContent=' ✕'; x.style.cssText='float:right;cursor:pointer;color:#8c8781;font-weight:700';
       x.onclick=function(ev){ ev.stopPropagation(); d.remove(); };
       d.insertBefore(x, d.firstChild);
     } else {

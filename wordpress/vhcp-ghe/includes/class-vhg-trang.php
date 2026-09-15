@@ -815,6 +815,45 @@ class VHG_Trang {
 
 	private static function css() {
 		return <<<'CSS'
+/* ============================================================================================
+ * BỘ ÁO TRỘN — BẢN TỐI. Anh Thắng 14/09/2026: *"thay cho trang ghế và chi phí văn phòng và mtd
+ * đi em"*, sau khi xem bộ trộn (Officevibe cho màu · shadcn cho nhịp) trên trang tổng.
+ *
+ * 🔴 TRANG NÀY KHÔNG ĐỔ ĐƯỢC NỀN KEM, và đây là lý do — không phải em ngại làm:
+ *      · Nó nằm TRÊN MỘT TẤM ẢNH phòng ghế (`body::before`), phủ một lớp tối cho chữ đọc được.
+ *        Thẻ màu kem trên ảnh thì hoặc che mất ảnh, hoặc chữ tối nằm trên vùng sáng của ảnh —
+ *        mà ảnh nào cũng có một vùng sáng ở đâu đó.
+ *      · Nó là MÀN CHO KHÁCH ở trung tâm thương mại: nhân viên cầm một tay, tay kia giữ ngăn
+ *        tiền, và phải đọc được số từ đầu bên kia quầy. Nền sáng chữ tối trong phòng tối là
+ *        ngược đúng chiều cần.
+ *      · Vàng #f0b429 là DẤU NHẬN MẶT của trang, dựng theo ảnh mẫu anh gửi trước đây.
+ *
+ * 🔴 NÊN NÓ LẤY BẢN TỐI CỦA CÙNG BỘ TOKEN, đúng cách một bộ giao diện lo hai mặt sáng/tối:
+ *    CÙNG TÊN BIẾN · CÙNG BO GÓC · CÙNG NHỊP 4px với trang Chi phí và trang Tổng, chỉ khác
+ *    GIÁ TRỊ MÀU. Đổi bo góc hay nhịp ở đây mà không đổi bên kia mới là lệch bộ; đổi màu thì
+ *    không, vì sáng và tối vốn là hai mặt của một bộ.
+ *
+ * ⚠️ Màu MANG NGHĨA giữ nguyên hết: xanh lá = ghế chạy tốt · đỏ = đứt/lỗi · xanh dương = chờ ·
+ *    vàng = đang chạy. Chúng là thứ người ta đọc từ xa, không phải trang trí.
+ * ============================================================================================ */
+:root{
+  /* Cùng TÊN với trang Chi phí · trang Tổng — khác GIÁ TRỊ, vì đây là mặt tối. */
+  --nen:#12141f;                      /* nền trang (dưới ảnh) */
+  --the:rgba(22,25,40,.74);           /* mặt thẻ — kính mờ */
+  --nen-2:rgba(255,255,255,.07);      /* nền phụ: nút thường, ô lùi */
+  --vien:rgba(255,255,255,.09);       /* viền mảnh */
+  --vien-dam:rgba(255,255,255,.15);   /* viền rõ hơn: ô nhập, nút */
+  --chu:#e8ebff;                      /* chữ thường */
+  --chu-dam:#ffffff;                  /* chữ nổi */
+  --chu-mo:#a79a7d;                   /* chữ phụ — ngả vàng cho hợp nhấn */
+  --nhan:#f0b429;                     /* nhấn: VÀNG, dấu nhận mặt của trang ghế */
+  --nhan-dam:#f7c246;
+  --nhan-nhat:rgba(240,180,41,.13);
+  --do:#ff8087;                       /* lỗi/đứt — đỏ sáng để nổi trên nền tối */
+  /* Nhịp và bo góc: GIỐNG HỆT bản sáng, không được lệch. */
+  --d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
+  --bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
+}
 *{box-sizing:border-box}
 /* ============================================================================================
  * NỀN ẢNH PHÒNG GHẾ.
@@ -846,16 +885,16 @@ h1 small{display:block;font-size:11px;letter-spacing:.14em;text-transform:upperc
 /* --- Dải đầu trang: khối kính, dính trên cùng ---
    Dính vì đây là chỗ có nút Thoát và đồng hồ; cuộn xuống bảng giao dịch dài rồi phải cuộn
    ngược lên mới thoát được là một cái phiền không đáng có. */
-.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;
+.top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 var(--d4);
   position:sticky;top:0;z-index:20;padding:11px 14px;
   background:rgba(16,18,30,.80);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
-  border:1px solid rgba(240,180,41,.20);border-radius:14px;
+  border:1px solid rgba(240,180,41,.20);border-radius:var(--bo-the);
   box-shadow:0 10px 30px rgba(0,0,0,.42)}
 .top .sp{flex:1}
 .hieu{display:flex;align-items:center;gap:11px;min-width:0}
 /* Ô biểu tượng: viền vàng mảnh, nền vàng rất nhạt — cùng ngôn ngữ với các nhãn vàng khác. */
 .hieu-o{width:38px;height:38px;flex:none;display:flex;align-items:center;justify-content:center;
-  border-radius:11px;font-size:19px;background:rgba(240,180,41,.13);
+  border-radius:var(--bo-o);font-size:19px;background:var(--nhan-nhat);
   border:1px solid rgba(240,180,41,.34)}
 .dh-top{font-variant-numeric:tabular-nums;font-weight:600;color:#f0b429;letter-spacing:.04em}
 /* Nút đổi ngôn ngữ: hai ô dính nhau, ô đang chọn tô vàng. Để cạnh đồng hồ vì cả hai là thứ
@@ -865,24 +904,24 @@ h1 small{display:block;font-size:11px;letter-spacing:.14em;text-transform:upperc
 .nn button+button{border-left:1px solid rgba(255,255,255,.15)}
 .nn-doi{margin-top:14px;display:flex;justify-content:center}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid rgba(255,255,255,.15);
-  background:rgba(255,255,255,.07);color:#e8ebff;padding:7px 13px;transition:background .15s,border-color .15s}
+button{font:inherit;cursor:pointer;border-radius:var(--bo-nut);border:1px solid var(--vien-dam);
+  background:var(--nen-2);color:var(--chu);padding:7px 13px;transition:background .15s,border-color .15s}
 button:hover{background:rgba(255,255,255,.13);border-color:rgba(240,180,41,.4)}
 button.on{background:#f0b429;border-color:#f0b429;color:#221a00;font-weight:600}
 button.on:hover{background:#f7c246}
 button.ghost{background:transparent}
-input,select{font:inherit;border-radius:9px;border:1px solid rgba(255,255,255,.15);
-  background:rgba(10,12,22,.55);color:#e8ebff;padding:7px 10px;width:100%}
-input:focus,select:focus{outline:none;border-color:#f0b429}
+input,select{font:inherit;border-radius:var(--bo-o);border:1px solid var(--vien-dam);
+  background:rgba(10,12,22,.55);color:var(--chu);padding:7px 10px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--nhan);box-shadow:0 0 0 3px rgba(240,180,41,.18)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:14px}
 .kpi{background:rgba(24,27,44,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px}
+  border:1px solid var(--vien);border-radius:var(--bo-the);padding:var(--d3) var(--d4)}
 .kpi .lb{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a79a7d}
 .kpi .vl{font-size:21px;font-weight:700;margin-top:3px;word-break:break-all}
 .kpi .sb{font-size:12px;color:#8d93c4}
 .vl.a{color:#f0b429}.vl.b{color:#5fa8ff}.vl.c{color:#4ade80}.vl.d{color:#e8ebff}
-.card{background:rgba(22,25,40,.74);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:13px 15px;margin-bottom:14px;
+.card{background:var(--the);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border:1px solid var(--vien);border-radius:var(--bo-the);padding:13px 15px;margin-bottom:var(--d4);
   box-shadow:0 8px 26px rgba(0,0,0,.34)}
 /* Tiêu đề khối: chữ hoa, giãn chữ, một vạch vàng bên trái — để mắt bắt được ranh giới giữa các
    khối ngay cả khi tất cả cùng là kính mờ trên một tấm ảnh. */
@@ -893,19 +932,19 @@ th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
 td{padding:8px 8px 8px 0;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:middle}
 tr:last-child td{border-bottom:0}
 .r{text-align:right}
-.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
 .p-ok{background:#12351f;color:#4ade80}.p-run{background:#2a2410;color:#f0b429}
 .p-wait{background:#111f3d;color:#5fa8ff}.p-off{background:#3a1418;color:#ff8087}
 .warn{background:rgba(58,20,24,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid #7c2732;border-radius:14px;padding:12px 14px;margin-bottom:14px}
+  border:1px solid #7c2732;border-radius:var(--bo-the);padding:var(--d3) var(--d4);margin-bottom:var(--d4)}
 .warn b{color:#ff8087}
 .note{background:rgba(42,36,16,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid #6b551a;border-radius:14px;padding:12px 14px;margin-bottom:14px}
+  border:1px solid #6b551a;border-radius:var(--bo-the);padding:var(--d3) var(--d4);margin-bottom:var(--d4)}
 .note b{color:#f0b429}
 .mut{color:#9aa0c2;font-size:12px}
 .login{max-width:360px;margin:12vh auto;padding:28px 24px;background:rgba(20,23,38,.80);
   -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
-  border:1px solid rgba(240,180,41,.26);border-radius:18px;text-align:center;
+  border:1px solid rgba(240,180,41,.26);border-radius:var(--bo-the);text-align:center;
   box-shadow:0 22px 60px rgba(0,0,0,.55)}
 .login .hieu-o{margin:0 auto 12px;width:46px;height:46px;font-size:23px}
 .login h1{margin-bottom:6px}
@@ -920,7 +959,7 @@ tr:last-child td{border-bottom:0}
    cạnh một con ghế cụ thể và cần thấy đúng nó, to và rõ, chứ không dò theo hàng. */
 .ghe-luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
 .ghe{background:rgba(20,23,38,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px;
+  border:1px solid rgba(255,255,255,.10);border-radius:var(--bo-the);padding:var(--d4);
   box-shadow:0 6px 20px rgba(0,0,0,.3)}
 .ghe.dut{border-color:#7c2732;background:rgba(38,20,26,.78)}
 /* Ghế đang chạy: viền vàng ĐẬM hơn hẳn, vì trong một lưới 26 thẻ kính mờ giống nhau thì cái
@@ -931,7 +970,7 @@ tr:last-child td{border-bottom:0}
 .ghe-cs{font-size:12px;color:#a79a7d;margin-bottom:10px}
 .ghe-dh{font-size:31px;font-weight:700;color:#f0b429;margin:6px 0 2px;
   font-variant-numeric:tabular-nums;letter-spacing:.01em}
-.ghe-tien-loi{margin:8px 0;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.45}
+.ghe-tien-loi{margin:var(--d2) 0;padding:var(--d2) 10px;border-radius:var(--bo-nho);font-size:12px;line-height:1.45}
 .ghe-tien-loi div{font-weight:400;margin-top:3px;opacity:.92}
 .ghe-tien-loi.dang{background:rgba(220,60,50,.16);border:1px solid rgba(220,60,50,.5);
   color:#ffb4ae;font-weight:700}
@@ -957,7 +996,7 @@ tr:last-child td{border-bottom:0}
 .ban-top{font-size:11px;color:#7f7768;letter-spacing:.04em;padding:0 4px}
 .bao-loi{position:sticky;top:0;z-index:99;padding:10px 14px;background:#5b1418;color:#ffd7d7;
   font-size:13px;line-height:1.5;border-bottom:1px solid #8a2026}
-.cs-hop{margin:8px 0 2px;padding:9px 11px;border-radius:10px;
+.cs-hop{margin:var(--d2) 0 2px;padding:9px 11px;border-radius:var(--bo-o);
   background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28)}
 .cs-hop.chua{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
 .cs-nh{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#a79a7d}
@@ -967,19 +1006,19 @@ tr:last-child td{border-bottom:0}
 .cs-so .mui{font-size:14px;color:#8d8577}
 .cs-so .moi{font-size:22px;font-weight:800;color:#f0b429}
 .cs-p{font-size:11.5px;color:#9aa0c2}
-.ph-nhom{padding:12px 13px;border-radius:12px;margin:0 0 10px;
+.ph-nhom{padding:var(--d3) 13px;border-radius:var(--bo-the);margin:0 0 10px;
   background:rgba(10,12,22,.5);border:1px solid rgba(255,255,255,.1)}
 .ph-nhom .nh{color:#e8dcc4;font-weight:700;font-size:14px}
 .ph-o{display:flex;flex-wrap:wrap;gap:8px 16px}
 .ph-tick{display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer}
 .ph-tick.khoa{opacity:.6;cursor:not-allowed}
 .quet-hop{margin-top:12px}
-.quet-hop video{width:100%;max-height:280px;object-fit:cover;border-radius:12px;
+.quet-hop video{width:100%;max-height:280px;object-fit:cover;border-radius:var(--bo-the);
   background:#000;border:1px solid rgba(255,255,255,.14)}
 .quet-hop button{width:100%;margin-top:8px}
 .man{position:fixed;inset:0;background:rgba(8,10,22,.82);display:flex;align-items:center;
   justify-content:center;padding:14px;z-index:50;overflow:auto}
-.hop{background:#1e2240;border:1px solid #3a4170;border-radius:14px;
+.hop{background:#1e2240;border:1px solid #3a4170;border-radius:var(--bo-the);
   padding:18px;max-width:440px;width:100%}
 .hop h3{margin:0 0 2px;font-size:18px}
 .hop .cs{font-size:12px;color:#8d93c4;margin-bottom:14px}
@@ -997,10 +1036,10 @@ tr:last-child td{border-bottom:0}
 .phim button{padding:13px 0;font-size:17px}
 .hop-nut{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .hop-nut button{padding:12px 0}
-.canh{background:#3a1418;border:1px solid #7c2732;border-radius:9px;padding:9px 11px;
+.canh{background:#3a1418;border:1px solid #7c2732;border-radius:var(--bo-o);padding:9px 11px;
   font-size:12px;color:#ff8087;margin-top:10px}
 .act input{width:66px;padding:5px 7px}
-.act select{font:inherit;border-radius:8px;border:1px solid #343a63;background:#151831;color:#e8ebff;padding:5px 7px;max-width:130px}
+.act select{font:inherit;border-radius:var(--bo-o-bang);border:1px solid #343a63;background:#151831;color:var(--chu);padding:5px 7px;max-width:130px}
 .note code{background:#151831;padding:1px 5px;border-radius:5px}
 .act button{padding:5px 10px;font-size:12px}
 @media(max-width:560px){.hide-sm{display:none}.wrap{padding:10px}}

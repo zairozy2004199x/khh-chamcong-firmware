@@ -70,9 +70,9 @@ function dem(re) { return (H.match(re) || []).length; }
 /* 🔴 GÁY TRÁI PHẢI LIỀN MẠCH QUA CẢ BA HÀNG của một đơn (hàng đơn · hàng liệt kê · hàng đáy).
    Chỉ vẽ ở hàng đầu là khung hở một bên từ hàng thứ hai trở xuống — đúng chỗ nhiều chữ nhất. */
 teq('🔴 ba đơn × ba hàng → chín đoạn gáy trái', 9, dem(/border-left:4px solid (#0f766e|#1d4ed8)/g));
-teq('🔴 ba đơn → ba cạnh dưới đóng khung', 3, dem(/border-bottom:2px solid #cbd5e1/g));
-t('🔴 có cạnh trên mở khung', dem(/border-top:2px solid #cbd5e1/g) >= 3, dem(/border-top:2px solid #cbd5e1/g));
-t('🔴 có cạnh phải',          dem(/border-right:2px solid #cbd5e1/g) >= 3, dem(/border-right:2px solid #cbd5e1/g));
+teq('🔴 ba đơn → ba cạnh dưới đóng khung', 3, dem(/border-bottom:2px solid #e2d6c7/g));
+t('🔴 có cạnh trên mở khung', dem(/border-top:2px solid #e2d6c7/g) >= 3, dem(/border-top:2px solid #e2d6c7/g));
+t('🔴 có cạnh phải',          dem(/border-right:2px solid #e2d6c7/g) >= 3, dem(/border-right:2px solid #e2d6c7/g));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 2. 🔴 MÀU GÁY NÓI LUÔN ĐÂY LÀ ĐƠN HAY DỰ ÁN
@@ -89,10 +89,10 @@ teq('hai đơn cơ sở → gáy xanh ngọc, liền ba hàng', 6, dem(/border-l
  * "Chốt xong" là ô nhập bung ra NGOÀI khung.
  * ═════════════════════════════════════════════════════════════════════════════════════════════ */
 const viTriForm = H.indexOf('data-hmf=');
-const viTriDay  = H.indexOf('border-bottom:2px solid #cbd5e1');
+const viTriDay  = H.indexOf('border-bottom:2px solid #e2d6c7');
 t('🔴 hàng ô nhập đứng TRƯỚC đáy khung', viTriForm >= 0 && viTriForm < viTriDay, [viTriForm, viTriDay]);
 t('🔴 và chính hàng ô nhập cũng có cạnh phải của khung',
-  /data-hmf="[^"]*"[^>]*>\s*<td[^>]*border-right:2px solid #cbd5e1/.test(H), H.slice(viTriForm, viTriForm + 260));
+  /data-hmf="[^"]*"[^>]*>\s*<td[^>]*border-right:2px solid #e2d6c7/.test(H), H.slice(viTriForm, viTriForm + 260));
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 4. 🔴 CÓ KHOẢNG HỞ GIỮA HAI KHUNG — dính nhau thì khung nọ nối khung kia thành một
@@ -118,7 +118,7 @@ teq('🔴 hai đơn trùng tên vẫn tách thành hai khung', 2,
 const F = new Function(bocHam('hmDongForm') + '\nreturn hmDongForm;')();
 t('không truyền viền → không có cạnh phải', F('k', 13).indexOf('border-right') < 0, F('k', 13));
 t('   vẫn giữ gáy xanh lá vốn có',          F('k', 13).indexOf('border-left:3px solid #16a34a') >= 0, F('k', 13));
-t('truyền viền → có cạnh phải',             F('k', 8, ';border-right:2px solid #cbd5e1').indexOf('border-right') > 0);
+t('truyền viền → có cạnh phải',             F('k', 8, ';border-right:2px solid #e2d6c7').indexOf('border-right') > 0);
 t('🔴 bảng dự án gọi hmDongForm KHÔNG kèm viền (giữ nguyên như cũ)',
   /hmDongForm\(_hmKeyDA\(p\.row\), 13\)/.test(HTML));
 

@@ -1,32 +1,66 @@
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BỘ ÁO TRỘN — anh Thắng 14/09/2026 gửi hai tệp DESIGN.md, chọn *"Trộn hai bản"*, xem thử trên
+ * trang tổng rồi bảo *"thay cho trang ghế và chi phí văn phòng và mtd đi em"*.
+ *
+ * 🔴 SỬA Ở ĐÂY LÀ SỬA CHO CẢ BỐN BẢN CHI PHÍ. Bản «vp» và «mtd» KHÔNG có bộ áo riêng — chúng
+ *    sinh ra từ chính thư mục này bằng `tools/tach-ban-vung.sh`. Muốn hai bản ấy đổi áo thì
+ *    phải đổi ở đây, và bản khu vui chơi đổi theo. Không có đường nào khác trừ khi dựng ba
+ *    bộ áo rời — mà ba bộ rời là ba chỗ phải nhớ sửa mỗi lần, tức sớm muộn chúng lệch nhau.
+ *
+ * Lấy gì của ai (hai tệp ấy mâu thuẫn nhau, nên phải nói rõ):
+ *   · Officevibe cho MÀU  — nền kem ấm, viền KEM (nó cấm hẳn viền xám), chữ navy, nhấn cobalt.
+ *   · shadcn     cho NHỊP — compact, đơn vị 4px, bóng gần như không thấy, và đỏ CHỈ cho xoá.
+ *
+ * ⚠️ BỐN TÔNG TRẠNG THÁI KHÔNG ĐỔI: cam = đang chờ · xanh dương = tiền đã ra khỏi két ·
+ *    xanh lá = xong. Chúng mang nghĩa, không phải trang trí.
+ * ⚠️ KHÔNG TẢI FONT NGOÀI — trang chạy ngoài internet; mạng chậm thì chữ nhảy một nhịp giữa
+ *    lúc người ta đang gõ số tiền. Dùng chồng font hệ thống.
+ * ⚠️ Cùng đúng bộ tên biến với trang tổng (`vhcp-chi-phi-tong`), để hai trang kế toán mở cạnh
+ *    nhau không lệch tông.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+:root{
+  --nen:#f9f8f6; --the:#ffffff; --nen-2:#f4f1ec;
+  --vien:#f0e9e1; --vien-dam:#e2d6c7;
+  --chu:#171417; --chu-dam:#0c1754; --chu-mo:#8c8781;
+  --nhan:#2545ff; --nhan-dam:#1a34c9; --nhan-nhat:#eaebf8;
+  --do:#e7000b;
+  --d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
+  --bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
+  --bong:0 0 0 1px rgba(12,23,84,.03), 0 1px 3px rgba(12,23,84,.06), 0 1px 2px -1px rgba(12,23,84,.06);
+}
 /* GIAO DIỆN DÙNG CHUNG cho các trang của plugin (app chi phí và thư viện hợp đồng).
    Tách khỏi templates/*.html để hai trang luôn cùng một bộ style, sửa 1 chỗ ăn cả hai. */
   /* Bản WordPress: không còn Google Sheet nên ẩn 2 nút mở sheet */
   #daOpenSheet,#bpOpenSheet{display:none !important}
-  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
-  body{background:#f1f5f9;color:#0f172a;font-size:13px}
+  *{box-sizing:border-box;margin:0;padding:0;
+    font-family:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif}
+  body{background:var(--nen);color:var(--chu);font-size:14px;line-height:1.5}
   /* CANH THẲNG HÀNG VỚI NỘI DUNG.
      Thanh xanh trên cùng và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung
      thì canh giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ
      bên dưới lại thụt vào giữa, nhìn như lệch trang. Đệm hai bên của thanh được tính cho
      bằng đúng lề của khối nội dung. */
-  .top{background:#0f766e;color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  .top{background:var(--chu-dam);color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
   .top h1{font-size:18px;display:flex;align-items:center;gap:8px}
-  .top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
-  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  select,input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
-  select:focus,input:focus,textarea:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
-  .btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .top .sub{font-size:11px;color:#b9c0e8;margin-top:2px}
+  .bar{background:#fff;border-bottom:1px solid #f0e9e1;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  select,input,textarea{padding:8px 10px;border:1px solid var(--vien-dam);border-radius:var(--bo-o);
+    font-size:14px;font-family:inherit;background:var(--the);color:var(--chu)}
+  /* Ô nhập TRONG bảng bo nhỏ: chín ô bo tròn sát nhau ăn mất bề ngang và tạo một hàng sóng. */
+  td input,td select,td textarea{border-radius:var(--bo-o-bang)}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:#2545ff;box-shadow:0 0 0 3px rgba(37,69,255,.12)}
+  .btn{padding:8px 16px;border:none;border-radius:var(--bo-nut);font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap}
   .btn:disabled{opacity:.5;cursor:not-allowed}
-  .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
-  .b-g{background:#16a34a;color:#fff}.b-x{background:#f1f5f9;color:#334155}.b-d{background:#fee2e2;color:#dc2626}
-  .b-s{background:#e0f2fe;color:#0369a1}
+  .b-p{background:#2545ff;color:#fff}.b-p:hover{background:#1a34c9}
+  .b-g{background:var(--chu-dam);color:#fff}.b-x{background:#f4f1ec;color:#171417}.b-d{background:#fdeaea;color:var(--do)}
+  .b-s{background:var(--nhan-nhat);color:var(--chu-dam)}
   /* BỀ RỘNG TRANG THEO MÁY.
      Trước đây chốt 1250px: màn 24" thì bỏ trống hai bên gần 600px, còn điện thoại thì
      lề 22px ăn mất chỗ của bảng. Nay giãn tới 1600px trên màn rộng và bóp lề lại trên
      máy nhỏ. Các mốc dùng chung một hệ: 1200 · 900 · 820 · 560 · 420. */
   .wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
-  .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
-  .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .card{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);box-shadow:var(--bong);margin-bottom:16px;overflow:hidden}
+  .ch{padding:12px 16px;border-bottom:1px solid #f4f1ec;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .ch h2{font-size:14px;font-weight:700}
   .cb{padding:14px 16px}
 
@@ -72,7 +106,7 @@
     #btnMoreDon{display:inline-block}
     .db-phu{display:none}
     .db-hang1.mo .db-phu{display:flex;flex-wrap:wrap;gap:8px;width:100%;
-      margin-top:8px;padding-top:10px;border-top:1px dashed #cbd5e1}
+      margin-top:8px;padding-top:10px;border-top:1px dashed #e2d6c7}
     /* Hai nút một hàng: ngón tay cần bề rộng, và một cột nút dọc dài ngoằng thì cuộn lại y như
        cái đang muốn chữa. */
     .db-hang1.mo .db-phu .btn{flex:1 1 46%}
@@ -94,7 +128,7 @@
     background:#fffdf5;border:1px dashed #fcd34d;border-radius:10px;padding:12px 14px}
   @media(max-width:560px){.qt-cum{padding:10px}}
   .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
-  .st-nhap{background:#f1f5f9;color:#475569}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
+  .st-nhap{background:#f4f1ec;color:#8c8781}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
   .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
   @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
@@ -103,25 +137,25 @@
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
   .fld input,.fld select,.fld textarea{width:100%}
   table{width:100%;border-collapse:collapse;min-width:920px}
-  thead th{background:#f8fafc;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
-  tbody td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px;vertical-align:middle}
-  tbody tr:hover{background:#f8fafc}
+  thead th{background:#f9f8f6;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #f0e9e1;white-space:nowrap}
+  tbody td{padding:8px 10px;border-bottom:1px solid #f4f1ec;font-size:12.5px;vertical-align:middle}
+  tbody tr:hover{background:#f9f8f6}
   .tw{overflow-x:auto}
   .money{text-align:right;font-family:Consolas,monospace;white-space:nowrap}
   .pos{color:#166534;font-weight:700}.neg{color:#dc2626;font-weight:700}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
-  .chip b{color:#0f172a}.chip span{cursor:pointer;color:#94a3b8;font-weight:700}
-  .empty{text-align:center;color:#94a3b8;padding:26px;font-size:13px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#2545ff;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
+  .chip b{color:#0c1754}.chip span{cursor:pointer;color:#8c8781;font-weight:700}
+  .empty{text-align:center;color:#8c8781;padding:26px;font-size:13px}
   #toast{position:fixed;top:14px;right:14px;z-index:2000;display:flex;flex-direction:column;gap:8px}
-  .t{background:#fff;border-left:4px solid #0f766e;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
+  .t{background:#fff;border-left:4px solid #2545ff;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
   .t.err{border-left-color:#ef4444}.t.warn{border-left-color:#f59e0b}
   #lo{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:1500;align-items:center;justify-content:center}
   #lo.show{display:flex}.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   .hide{display:none}
 .csw{position:relative}
-.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
-.cs-list label:hover{background:#f1f5f9}
+.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #e2d6c7;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
+.cs-list label:hover{background:#f4f1ec}
 
   /* ---------- MÁY TÍNH BẢNG & ĐIỆN THOẠI ---------- */
   @media(max-width:820px){
@@ -170,7 +204,7 @@
      Bấm vào tiêu đề để gập/mở — các nút Lưu, Thêm… trong tiêu đề vẫn bấm
      bình thường (JS bỏ qua click rơi vào nút/ô nhập). */
   .card.xo > .ch{cursor:pointer;user-select:none}
-  .card.xo > .ch h2::before{content:'▾';display:inline-block;width:14px;color:#94a3b8;font-size:12px;transition:transform .12s}
+  .card.xo > .ch h2::before{content:'▾';display:inline-block;width:14px;color:#8c8781;font-size:12px;transition:transform .12s}
   .card.xo.dong > .ch h2::before{transform:rotate(-90deg)}
   .card.xo.dong > .ch{border-bottom:none}
   .card.xo.dong > .ch ~ *{display:none !important}
@@ -207,7 +241,7 @@
       "rê chuột", nên đường bấm ấy vẫn là đường chính. */
 #billZoom{
   display:none;position:fixed;z-index:9999;pointer-events:none;
-  background:#fff;border:1px solid #cbd5e1;border-radius:10px;padding:4px;
+  background:#fff;border:1px solid #e2d6c7;border-radius:10px;padding:4px;
   box-shadow:0 12px 34px rgba(15,23,42,.28)
 }
 #billZoom img{display:block;max-width:none;border-radius:7px}

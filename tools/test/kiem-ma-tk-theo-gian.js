@@ -140,7 +140,7 @@ t('   và KHÔNG ghi đè bằng "(theo gian)"', hCu.textContent.indexOf('(theo 
 
 const h1 = hint('FUNZONE VŨNG TÀU');
 t('chọn gian rồi: hiện mã thật 64126', h1.textContent.indexOf('64126') >= 0, h1.textContent);
-t('   và tô xanh (đã có mã)',          h1.style.color === '#0f766e', h1.style.color);
+t('   và tô xanh (đã có mã)',          h1.style.color === '#2545ff', h1.style.color);
 
 /* ─────────────────────────────────────────────────────────────────────────────────────────── */
 if (TRUOT.length) {
