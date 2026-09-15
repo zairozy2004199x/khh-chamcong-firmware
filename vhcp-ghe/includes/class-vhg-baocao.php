@@ -713,6 +713,15 @@ class VHG_BaoCao {
 		$ghe = self::ds_ghe( $q, $hien_an );
 		$cs = array();
 		foreach ( $ghe as $g ) { if ( '' !== $g['coso'] ) { $cs[ $g['coso'] ] = true; } }
+		/* 🔴 CƠ SỞ ĐƯỢC GÁN LUÔN HIỆN TRONG Ô CHỌN — kể cả khi ghế bị ẩn hết. Anh Thắng 15/09/2026:
+		   "thường xuyên có NV bị ẩn ở cơ sở, dù vào vẫn thấy nhân viên gán cơ sở đó". Trước đây danh
+		   sách cơ sở dựng CHỈ từ ghế đang hiện, nên cơ sở bị ẩn hết ghế (điều chuyển/dọn tạm) rớt
+		   khỏi phạm vi → màn báo cáo hiện "0 cơ sở" dù PIN vẫn được gán, và NV không chọn để nộp
+		   được. Thêm cơ sở gán tường minh của PIN (bc_pin.coso) vào để luôn chọn được. PIN toàn
+		   quyền (coso rỗng) không thêm gì — vẫn thấy mọi cơ sở có ghế như cũ. */
+		if ( ! empty( $q['coso'] ) ) {
+			foreach ( (array) $q['coso'] as $c ) { $c = trim( (string) $c ); if ( '' !== $c ) { $cs[ $c ] = true; } }
+		}
 		$khoa = $wpdb->get_results( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc_khoa' ), ARRAY_A );
 		$khoa_loc = array();
 		foreach ( (array) $khoa as $k ) {
