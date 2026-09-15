@@ -192,6 +192,34 @@ class VHG_Trang {
 	 * thống nhất TÊN KHOÁ `vhg_sk_ve_<băm>` — không gọi lớp của nhau, gỡ plugin nào thì bên kia
 	 * lặng lẽ không có đường này chứ không lỗi.
 	 */
+	/**
+	 * 🔴 "CÓ BẢN MỚI" NGAY TRONG TRANG GHẾ — anh Thắng 15/09/2026: *"vào plugin để cập nhật cũng
+	 * bất tiện, có cách nào tạo link sang trang cập nhật để tự bấm"*.
+	 *
+	 * ⚠️ GÁC BẰNG `current_user_can('update_plugins')`, KHÔNG gác bằng vai trò nhân sự. Quyền
+	 *    "Quản trị" trong hồ sơ nhân sự KHÁC tài khoản WordPress: kế toán/nhân viên vào /ghe bằng
+	 *    PIN, không có tài khoản WP. Hiện nút cho họ là đá họ ra màn đăng nhập WordPress rồi đứng
+	 *    đó — thấy một nút mà bấm không được còn tệ hơn không thấy nút nào.
+	 *
+	 * ⚠️ CHỈ ĐỌC Ô NHỚ (`ban_moi_nho`), KHÔNG gọi mạng. Xem chú thích ở chính hàm ấy: một lượt hỏi
+	 *    GitHub chậm nhét vào đây là treo trang Ghế, mà không ai ngờ tới bộ cập nhật.
+	 *
+	 * @return array|null [ 'url'=>…, 'ds'=>[ 'Ghế 2.99.0', … ] ] — null = không hiện gì.
+	 */
+	private static function cap_nhat_info_() {
+		if ( ! current_user_can( 'update_plugins' ) ) { return null; }
+		$ds = array();
+		if ( class_exists( 'VHG_TuCapNhat' ) && method_exists( 'VHG_TuCapNhat', 'ban_moi_nho' ) ) {
+			$m = VHG_TuCapNhat::ban_moi_nho();
+			if ( $m ) { $ds[] = 'Ghế ' . $m['ver']; }
+		}
+		if ( class_exists( 'SAOKE_TuCapNhat' ) && method_exists( 'SAOKE_TuCapNhat', 'ban_moi_nho' ) ) {
+			$m = SAOKE_TuCapNhat::ban_moi_nho();
+			if ( $m ) { $ds[] = 'Sao Kê ' . $m['ver']; }
+		}
+		return array( 'url' => admin_url( 'update-core.php' ), 'ds' => $ds );
+	}
+
 	private static function saoke_ve_( $ten ) {
 		$url = self::sao_ke_url();
 		if ( '' === $url ) {
@@ -1356,6 +1384,7 @@ class VHG_Trang {
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
 			'choGan' => $cho_gan, 'coso' => $ds_coso,
 			'saoKeUrl' => self::sao_ke_url(),   // link sang trang Sao Kê (nếu có) cho menu Kế toán
+			'capNhat'  => self::cap_nhat_info_(),   // 'có bản mới' + link sang trang Cập nhật (xem hàm)
 			'bat' => array( 'ky' => $bat_ky, 'thang' => $bat_thang,
 				'ngay' => $bat_ngay, 'may' => $bat_may, 'ds' => $bat_ds ),
 			/* Tab Thu tiền: tách hai đường tiền mặt (ghế nuốt / người thu) — xem khối giải thích
@@ -5603,7 +5632,11 @@ function ve(){
       T(QT || KT, 'kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')),
       T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data')),
       /* LINK ra trang Sao Kê (plugin riêng) — mở tab mới; chỉ hiện khi đã cài Sao Kê. */
-      T((QT || KT) && D && D.saoKeUrl, 'link-saoke', '🏦 ' + L('Sao Kê ngân hàng','Bank statements'))
+      T((QT || KT) && D && D.saoKeUrl, 'link-saoke', '🏦 ' + L('Sao Kê ngân hàng','Bank statements')),
+      /* Link sang trang Cập nhật của WordPress. Máy chủ CHỈ gửi D.capNhat cho người có quyền
+         update_plugins, nên ở đây khỏi đoán quyền lần nữa — có gói tin là hiện. */
+      T(D && D.capNhat, 'link-capnhat', '⬆️ ' + L('Cập nhật plugin','Plugin updates')
+        + ((D && D.capNhat && D.capNhat.ds.length) ? ' (' + D.capNhat.ds.length + ')' : ''))
     ]],
     [ L('Kỹ thuật','Technical'), [
       T(QT, 'kich-hoat',   '⚡ ' + L('Kích hoạt ghế','Chair activation')),
@@ -5628,6 +5661,19 @@ function ve(){
     items.forEach(function(x){
       /* Mục LINK (ra plugin khác) — render thẻ <a> mở tab mới, KHÔNG đưa vào TABS (không phải tab
          nội bộ, không dính luật chọn tab). */
+      if (x[0] === 'link-capnhat') {
+        var cn = D.capNhat, nhan = x[1];
+        /* Có bản mới thì nói RÕ bản nào, khỏi phải sang tận nơi mới biết đáng bấm hay không. */
+        navHtml += '<a href="' + esc(cn.url) + '" target="_blank" rel="noopener" '
+          + 'style="display:block;text-decoration:none">'
+          + '<button style="width:100%;text-align:left'
+          + (cn.ds.length ? ';font-weight:800' : '') + '">↗ ' + nhan + '</button></a>';
+        if (cn.ds.length) {
+          navHtml += '<div class="nav-grp" style="font-weight:400;opacity:.85">'
+            + esc(L('Có bản mới: ','New: ') + cn.ds.join(' · ')) + '</div>';
+        }
+        return;
+      }
       if (x[0] === 'link-saoke') {
         /* Bấm -> XIN VÉ rồi mới mở, để kế toán vào thẳng không phải gõ PIN (xem saoke_ve_).
            ⚠️ Mở tab TRƯỚC khi gọi mạng: trình duyệt chặn cửa sổ mở từ trong callback bất đồng bộ,

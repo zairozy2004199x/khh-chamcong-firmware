@@ -107,6 +107,21 @@ class VHG_TuCapNhat {
 	}
 
 	/** Quên kết quả đã nhớ để lần hỏi tới gọi lại GitHub ngay (dùng cho nút "Kiểm tra ngay"). */
+	/**
+	 * 🔴 CHỈ ĐỌC THỨ ĐÃ NHỚ — TUYỆT ĐỐI KHÔNG GỌI MẠNG.
+	 *
+	 * Dùng cho chỗ muốn khoe "có bản mới" ngay trong trang người dùng đang xem. `ban_moi()` có thể
+	 * chờ GitHub tới 15 giây; nhét nó vào một lượt tải trang bình thường là treo cả màn hình khi
+	 * mạng chậm — đúng loại lỗi mà người dùng đổ cho "web lag" chứ không ai ngờ tới bộ cập nhật.
+	 * WordPress tự chạy lượt soát cập nhật định kỳ (qua bộ lọc pre_set_site_transient_update_plugins
+	 * bên trên) nên ô nhớ gần như luôn có sẵn; chưa có thì trả null và màn hình chỉ đơn giản là
+	 * không khoe gì.
+	 */
+	public static function ban_moi_nho() {
+		$nho = get_transient( self::O_NHO );
+		return is_array( $nho ) && $nho ? $nho : null;
+	}
+
 	public static function quen_nho() {
 		delete_transient( self::O_NHO );
 	}
