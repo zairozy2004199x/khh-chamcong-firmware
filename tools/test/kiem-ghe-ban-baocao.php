@@ -69,8 +69,19 @@ t( '🔴 bản sao byte-y-nguyên với nguồn (md5 bằng nhau)',
 t( 'vhcp-ghe.php dựng đường bản sao từ VHG_VERSION',
 	false !== strpos( $chinh, "includes/class-vhg-baocao-v' . VHG_VERSION . '.php'" ) );
 t( 'vhcp-ghe.php nạp bản sao TRƯỚC, tệp gốc chỉ là đường lui — đúng MỘT require_once',
-	false !== strpos( $chinh, 'require_once file_exists( $vhg_bc_sao ) ? $vhg_bc_sao : VHG_DIR . \'includes/class-vhg-baocao.php\';' )
-	&& 1 === preg_match_all( '/require_once[^;]*class-vhg-baocao/', $chinh ) );
+	false !== strpos( $chinh, 'require_once $vhg_bc_co ? $vhg_bc_sao : $vhg_bc_goc;' )
+	&& 1 === preg_match_all( '/require_once[^;]*\$vhg_bc_|require_once[^;]*class-vhg-baocao/', $chinh ) );
+/* Hai lớp phòng chống bytecode cũ — đo trên host 15/09/2026 (đĩa ĐÚNG mà lớp vẫn chạy bản cũ):
+   · clearstatcache trước file_exists — một mục "không tồn tại" còn sót là lặng lẽ lùi về tệp gốc;
+   · BAN lệch VHG_VERSION thì đuổi bytecode để LƯỢT SAU tươi (không nạp lại được trong cùng lượt).
+   Bỏ một trong hai là lỗi quay lại mà không ai biết đã từng có cách chữa. */
+t( 'clearstatcache trước khi file_exists bản sao',
+	false !== strpos( $chinh, 'clearstatcache( true, $vhg_bc_sao )' ) );
+t( 'ghi VHG_BC_NAP — tệp lớp NÀO thật sự được nạp',
+	false !== strpos( $chinh, "define( 'VHG_BC_NAP'" ) );
+t( '🔴 tự đuổi bytecode khi BAN lệch VHG_VERSION (chỉ khi lệch, không mỗi lượt)',
+	false !== strpos( $chinh, "defined( 'VHG_BaoCao::BAN' ) && VHG_BaoCao::BAN === VHG_VERSION" )
+	&& false !== strpos( $chinh, 'if ( ! $vhg_bc_khop && function_exists( \'opcache_invalidate\' ) )' ) );
 t( 'tools/build-ghe.sh có mặt và xoá bản sao cũ trước khi chép bản mới',
 	is_file( $goc . '/tools/build-ghe.sh' )
 	&& false !== strpos( (string) file_get_contents( $goc . '/tools/build-ghe.sh' ), 'rm -f vhcp-ghe/includes/class-vhg-baocao-v*.php' ) );

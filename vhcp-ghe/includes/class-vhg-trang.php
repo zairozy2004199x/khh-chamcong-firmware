@@ -133,6 +133,13 @@ class VHG_Trang {
 			'ghi_duoc'   => is_writable( $thu_muc ) ? 1 : 0,
 			'moc_chinh'  => $moc( VHG_DIR . 'vhcp-ghe.php' ),
 			'moc_trang'  => $moc( $thu_muc . 'class-vhg-trang.php' ),
+			/* Tệp NÀO thật sự được nạp (vhcp-ghe.php ghi lúc require) + tình trạng opcache. Đo trên host
+			   15/09/2026: đĩa đúng, tệp đúng, mà lớp chạy vẫn cũ ⇒ bytecode cũ. Hai dòng này nói thẳng. */
+			'nap'        => defined( 'VHG_BC_NAP' ) ? VHG_BC_NAP : '(bản trước 2.96 — không ghi)',
+			'opcache'    => ( function_exists( 'opcache_get_status' ) ? 'có' : 'không' )
+				. ' · soát mốc=' . ( '' === (string) ini_get( 'opcache.validate_timestamps' ) ? '?' : ini_get( 'opcache.validate_timestamps' ) )
+				. ' · chu kỳ=' . ( '' === (string) ini_get( 'opcache.revalidate_freq' ) ? '?' : ini_get( 'opcache.revalidate_freq' ) ) . 's'
+				. ' · đuổi được=' . ( function_exists( 'opcache_invalidate' ) ? 'có' : 'KHÔNG' ),
 		);
 	}
 
@@ -2142,6 +2149,8 @@ class VHG_Trang {
         _t('Thư mục ghi được', ct.ghi_duoc?'có':'KHÔNG');
         _t('Mốc sửa vhcp-ghe.php', ct.moc_chinh);
         _t('Mốc sửa class-vhg-trang.php', ct.moc_trang);
+        _t('Tệp lớp ĐÃ NẠP', ct.nap);
+        _t('opcache', ct.opcache);
         cu.appendChild(h);
       }
       c1.appendChild(cu);

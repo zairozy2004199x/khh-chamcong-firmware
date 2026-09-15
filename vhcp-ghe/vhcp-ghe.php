@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           2.95.0
+ * Version:           2.96.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '2.95.0' );
+define( 'VHG_VERSION', '2.96.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -54,22 +54,44 @@ require_once VHG_DIR . 'includes/class-vhg-quy.php';
 /* Báo cáo doanh thu theo cơ sở (port app Apps Script "thu tiền"). Nạp SAU class-vhg-quy.php và
    class-vhg-may.php: VHG_BaoCao dùng VHG_Quy::don_vi() và VHG_May::ds_may(), và đọc chung bảng
    `chot` để lấy chỉ số trước. */
-/* 🔴 NẠP LỚP BÁO CÁO QUA BẢN SAO MANG SỐ BẢN — anh Thắng 15/09/2026 ("bản đó em cài luôn đó").
-   Sáu lần cài liên tiếp (2.86→2.92): vhcp-ghe.php và class-vhg-trang.php đều đổi mới, riêng
-   class-vhg-baocao.php thì KHÔNG (màn nhân viên in "mã báo cáo ?"). Tệp ấy trên đĩa không được ghi
-   đè — quyền / chủ sở hữu kẹt từ một lượt sửa tay trên host — mà zip vẫn "cài thành công"; bộ đuổi
-   opcache của 2.92.0 cũng không cứu nổi vì đĩa vốn đã cũ. Không sửa được quyền từ trong WordPress.
-   Cách né: mỗi bản kèm MỘT bản sao y nguyên của lớp dưới tên có số bản
-   (includes/class-vhg-baocao-v<VER>.php). Tên MỚI ⇒ chưa có tệp cũ cản ⇒ luôn ghi được; opcache
-   cũng chưa từng thấy đường dẫn ấy ⇒ luôn biên dịch tươi. Nạp bản sao TRƯỚC; không có (zip lỗi)
-   mới lùi về tệp gốc — nạp ĐÚNG MỘT trong hai: lớp không gác class_exists, nạp cả hai là fatal.
-   Nguồn sửa vẫn là class-vhg-baocao.php. tools/build-ghe.sh tạo bản sao lúc build (xoá bản sao
-   cũ, chép bản mới, zip, tự diff). Bài tools/test/kiem-ghe-ban-baocao.php canh: đúng MỘT bản sao,
-   đúng tên theo VHG_VERSION, byte-y-nguyên với nguồn. Tệp gốc còn kẹt chỉ là cảnh báo vàng
-   (vhg_tep_ket) — plugin vẫn chạy đúng, dọn quyền cho host lúc rảnh. */
+/* 🔴 NẠP LỚP BÁO CÁO QUA BẢN SAO MANG SỐ BẢN + TỰ CHỮA BYTECODE CŨ — anh Thắng 15/09/2026.
+   BỆNH: từ 2.86 tới 2.95, vhcp-ghe.php và class-vhg-trang.php đổi mới mỗi lượt cài, riêng lớp
+   VHG_BaoCao vẫn chạy hành vi bản CŨ — màn nhân viên in "mã báo cáo ?" suốt chín lượt cài, nên
+   bốn bản vá phạm vi đúng đắn không bản nào có tác dụng.
+   ĐÃ TỪNG ĐOÁN SAI, ghi lại để khỏi ai đi lại: nghĩ tệp kẹt quyền/chủ sở hữu trên đĩa. Khối chẩn
+   đoán trong class-vhg-trang.php (chan_doan_tep_) đo trên host thật đã BÁC BỎ: bản sao CÓ trên
+   đĩa, cả hai tệp 167008B khớp byte với bản phát hành, cùng mốc sửa với mọi tệp khác, thư mục ghi
+   được. Đĩa hoàn toàn đúng. Thủ phạm là OPCACHE giữ bytecode đã biên dịch của đường dẫn cũ.
+   HAI LỚP PHÒNG:
+   1. Bản sao mang số bản (includes/class-vhg-baocao-v<VER>.php, do tools/build-ghe.sh chép ra):
+      đường dẫn MỚI thì opcache chưa từng thấy ⇒ luôn biên dịch tươi. Nạp bản sao TRƯỚC, tệp gốc
+      chỉ là đường lui — nạp ĐÚNG MỘT trong hai (lớp không gác class_exists, nạp cả hai là fatal).
+   2. Nếu lớp nạp xong mà BAN vẫn lệch VHG_VERSION ⇒ bytecode cũ thật: đuổi nó đi để LƯỢT SAU
+      biên dịch lại từ đĩa. Không nạp lại được trong cùng lượt vì PHP đã khai lớp rồi.
+   Nguồn sửa vẫn là class-vhg-baocao.php; KHÔNG sửa tay bản sao. Bài tools/test/kiem-ghe-ban-baocao.php
+   canh bản sao đúng MỘT, đúng tên theo VHG_VERSION, byte-y-nguyên với nguồn. */
 $vhg_bc_sao = VHG_DIR . 'includes/class-vhg-baocao-v' . VHG_VERSION . '.php';
-require_once file_exists( $vhg_bc_sao ) ? $vhg_bc_sao : VHG_DIR . 'includes/class-vhg-baocao.php';
-unset( $vhg_bc_sao );
+$vhg_bc_goc = VHG_DIR . 'includes/class-vhg-baocao.php';
+/* Bỏ đệm stat: tệp bản sao vừa được lượt cài tạo ra, một mục "không tồn tại" còn sót trong
+   realpath cache là file_exists() trả sai và ta lặng lẽ lùi về tệp gốc. */
+clearstatcache( true, $vhg_bc_sao );
+$vhg_bc_co = file_exists( $vhg_bc_sao );
+/* Tệp nào THẬT SỰ được nạp — trả ra cho khối chẩn đoán, khỏi phải suy đoán. */
+define( 'VHG_BC_NAP', $vhg_bc_co ? basename( $vhg_bc_sao ) : basename( $vhg_bc_goc ) );
+require_once $vhg_bc_co ? $vhg_bc_sao : $vhg_bc_goc;
+/* 🔴 TỰ CHỮA BYTECODE CŨ. Đo trên host thật 15/09/2026: tệp trên đĩa ĐÚNG (167008B, khớp byte,
+   có const BAN mới) mà lớp đang chạy vẫn là bản cũ — opcache giữ bytecode đã biên dịch của
+   đường dẫn ấy. Không thể nạp lại lớp trong cùng lượt (PHP đã khai lớp rồi), nên đuổi bytecode
+   để LƯỢT SAU biên dịch tươi từ đĩa; người dùng chỉ cần tải lại trang.
+   ⚠️ CHỈ đuổi khi phát hiện lệch — gọi opcache_invalidate mỗi lượt là ép biên dịch lại 167KB
+      cho mọi lượt tải, đắt hơn nhiều so với thứ nó chữa. Hàm có thể bị host chặn
+      (opcache.restrict_api); gác function_exists nên chặn thì lệnh vô hại. */
+$vhg_bc_khop = defined( 'VHG_BaoCao::BAN' ) && VHG_BaoCao::BAN === VHG_VERSION;
+if ( ! $vhg_bc_khop && function_exists( 'opcache_invalidate' ) ) {
+	@opcache_invalidate( $vhg_bc_goc, true );
+	if ( $vhg_bc_co ) { @opcache_invalidate( $vhg_bc_sao, true ); }
+}
+unset( $vhg_bc_sao, $vhg_bc_goc, $vhg_bc_co, $vhg_bc_khop );
 /* Trang kế toán (duyệt báo cáo, đối chiếu, công nợ, MISA…). Nạp SAU class-vhg-baocao.php và
    class-vhg-quy.php: VHG_KeToan dùng lại VHG_BaoCao::squash/ngay_/chi_so_truoc và VHG_Quy::don_vi. */
 require_once VHG_DIR . 'includes/class-vhg-ketoan.php';
