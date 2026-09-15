@@ -105,6 +105,23 @@ class VHG_BaoCao {
 		// (1) Ngoại lệ do Admin khai — thắng hồ sơ nhân sự cho riêng PIN này (kể cả để tắt).
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT * FROM ' . VHG_DB::t( 'bc_pin' ) . ' WHERE pin=%s LIMIT 1', $pin_raw ), ARRAY_A );
+		/* 🔴 KHỚP bc_pin THEO PIN CHUẨN HOÁ, KHÔNG chỉ khớp thô — anh Thắng 15/09/2026: *"qua trang
+		   admin thấy nhân viên đó CÓ cơ sở đó, còn nhân viên thì lại KHÔNG thấy"*.
+		   Bảng bc_pin do Admin gõ tay / dán từ bảng tính nên cột `pin` có thể dính số 0 đầu, đuôi
+		   ".0", hoặc khoảng trắng. Khớp thô `WHERE pin=<PIN gõ>` TRƯỢT đúng những hàng đó — trong
+		   khi ds_nhan_su_() (ô "Chọn nhân viên → lọc cơ sở" của admin) lại khớp qua pin_chuan_ nên
+		   VẪN thấy hàng ấy. Hệ quả: admin thấy nhân viên có cơ sở, còn nhân viên tự đăng nhập rơi
+		   xuống bước (2) hồ sơ nhân sự → ra phạm vi khác/rỗng → "0 cơ sở", không nộp được.
+		   Nay pin_info() cũng quy PIN qua pin_chuan_ (khớp thô TRƯỚC cho nhanh & giữ nguyên hành vi
+		   cũ, hụt mới quét chuẩn hoá) để HAI đường ra CÙNG một hàng bc_pin. */
+		if ( ! $r ) {
+			$pin_c = self::pin_chuan_( $pin_raw );
+			if ( '' !== $pin_c ) {
+				foreach ( VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'bc_pin' ) ) as $row ) {
+					if ( self::pin_chuan_( isset( $row['pin'] ) ? $row['pin'] : '' ) === $pin_c ) { $r = $row; break; }
+				}
+			}
+		}
 		if ( $r ) {
 			if ( 1 !== (int) $r['active'] ) { return null; }   // Admin khoá PIN này khỏi báo cáo
 			return self::pham_vi_( $r['ten'], $r['coso'], $r['ghe'] );
