@@ -1,0 +1,136 @@
+=== K&H — Báo cáo doanh thu FABi ===
+Contributors: khh
+Tags: doanh-thu, bao-cao, fabi, ipos, pos
+Requires at least: 5.8
+Tested up to: 6.6
+Requires PHP: 7.2
+Stable tag: 1.6.0
+License: Proprietary
+
+Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
+ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy.
+
+== Description ==
+
+Cài xong vào menu **Doanh thu FABi** trong trang quản trị, và mở được bằng **đường link
+ngoài**: mặc định `tên-miền/doanh-thu-hcm` (đổi được ở ô dưới báo cáo, hoặc khai cứng
+`define( 'KHH_DT_SLUG', 'doanh-thu-hcm' );` trong wp-config.php). Ngoài ra còn nhúng được
+vào trang bất kỳ bằng shortcode `[khh_doanh_thu]`.
+Đang bật plugin **Nền tảng K&H** thì báo cáo cũng hiện thành một ứng dụng trong thanh bên.
+
+Số liệu lưu trong bảng riêng `wp_khh_dt_ngay`, gộp sẵn theo ngày × cửa hàng nên mở nhanh
+và không phình: 15 cửa hàng × 365 ngày ≈ 5.500 dòng một năm. Nạp lại cùng một ngày thì
+ghi đè ngày đó, không cộng dồn.
+
+**Hai cái bẫy của file FABi đã xử lý sẵn:**
+
+1. File có một trang cho mỗi cửa hàng VÀ một trang "Tất cả cửa hàng" gộp — plugin luôn
+   đọc trang gộp.
+2. Trong trang có chèn dòng "Tổng" cộng dồn (cột Thời gian để "-"). Cộng thẳng cột
+   Thành tiền là doanh thu **gấp đôi** — plugin bỏ các dòng đó và báo lại đã bỏ bao nhiêu.
+
+Doanh thu lấy cột **Tổng tiền** (thực thu); không có thì Thành tiền − (Chiết khấu + Giảm giá).
+Số hoá đơn đếm theo **Mã hoá đơn** không trùng, không lấy số dòng.
+
+Đã kiểm với bản xuất thật 14–20/06/2026 của 15 cửa hàng: 17.360 dòng dữ liệu, bỏ 1 dòng
+"Tổng", doanh thu 1.748.615.000 ₫, 12.860 hoá đơn, cao điểm 19–20h.
+
+== Installation ==
+
+1. Trang quản trị → Plugin → Cài mới → Tải plugin lên → chọn file zip.
+2. Kích hoạt.
+3. Vào menu **Doanh thu FABi** → **Nạp báo cáo** → thả file xuất từ FABi.
+
+Máy chủ cần `ZipArchive` và `XMLReader` để đọc .xlsx (hầu hết hosting đều có sẵn).
+Thiếu thì xuất bản CSV từ FABi, plugin vẫn đọc được.
+
+Ai được nạp và xoá số liệu: người có quyền `edit_posts` trở lên. Ai đăng nhập cũng xem được.
+
+== Cửa hàng trưởng vào bằng PIN chấm công ==
+
+Cửa hàng trưởng KHÔNG cần tài khoản WordPress. Ở trang **Nhân sự** của plugin Chấm công có cột
+**Quản trị báo cáo cơ sở** — bấm *Đẩy* là người ấy có mặt trong sổ người dùng của báo cáo, mang
+theo tên · PIN · mã cơ sở · vai. Họ mở link báo cáo, gõ chính PIN chấm công đang dùng hằng ngày,
+và chỉ thấy cơ sở của mình.
+
+Một việc phải khai một lần: **Quản trị → Ghép cơ sở**. Sổ nhân sự gọi quán bằng mã (`FZ_ADV_TP`),
+máy POS gọi bằng tên dài ("TuTu Train - Aeon Tân Phú …"), không có cách nào đoán hộ. Mã chưa ghép
+thì người của cơ sở đó vào được nhưng thấy rỗng — và màn nói thẳng ra lý do, chứ không lặng lẽ
+cho họ xem cả 15 quán.
+
+Gỡ ở trang Nhân sự là hàng biến mất và phiên đang mở tắt ngay. Đổi PIN, đổi vai hay chuyển cơ sở
+bên nhân sự thì bản sao bên này tự theo.
+
+== Đường API FABi ==
+
+Khi iPOS cấp Client ID / Secret Key / Token (gọi 19004766 hoặc support@ipos.vn), khai vào
+`wp-config.php`:
+
+    define( 'KHH_DT_API_BASE',  'https://<máy chủ iPOS cấp>' );
+    define( 'KHH_DT_API_PATH',  '/api/v1/sale/accounting' );
+    define( 'KHH_DT_CLIENT_ID', '...' );
+    define( 'KHH_DT_TOKEN',     '...' );
+
+Rồi gọi `khh_dt_bat_dong_bo()` một lần để đặt lịch đồng bộ mỗi giờ. Khoá không nằm trong
+code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sửa là tên tham số ngày và
+chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
+
+== Changelog ==
+
+= 1.6.0 =
+* **Đăng nhập bằng PIN chấm công** cho người được đẩy từ trang Nhân sự sang — không tạo tài khoản
+  WordPress cho họ nữa. Thẻ phiên đi ở header (không phải cookie), sống 30 ngày; vai và cơ sở đọc
+  lại từ sổ mỗi lượt gọi nên gỡ quyền là ăn ngay.
+* Cổng nhận người: `khh_dt_day_vao()` / `khh_dt_day_ra()` / `khh_dt_da_day()`. PIN trùng thì người
+  cũ mất PIN và được kể tên ra.
+* Tab **Quản trị → Ghép cơ sở**: khai mã cơ sở bên nhân sự ↔ tên cơ sở trên máy POS. Chưa ghép thì
+  người của mã ấy KHÔNG thấy cơ sở nào (trước đây ô cơ sở trống nghĩa là thấy hết).
+* Cắt dữ liệu theo cơ sở ngay ở câu truy vấn, và chặn cả đường ĐỌC báo cáo ngày của cơ sở khác —
+  trước chỉ chặn đường ghi.
+* Ô "người nhập" của báo cáo ghi kèm Mã NV với người vào bằng PIN, để còn truy lại được.
+
+= 1.5.0 =
+* Tab **Quản trị**: danh sách ai được nhập báo cáo, cơ sở phụ trách và quyền, sửa ngay tại chỗ.
+* Cổng **day-nhan-vien** để trang nhân sự đẩy cửa hàng trưởng sang: xác thực bằng token, chưa có
+  tài khoản thì tự tạo và trả về mật khẩu, gỡ quyền bằng tham số bo=1.
+* Tách quyền: nạp file POS và xoá kho vẫn cần edit_posts; nhập báo cáo ngày chỉ cần được cấp
+  quyền (meta khh_dt_quyen), nên cửa hàng trưởng là tài khoản thường vẫn nhập được.
+
+= 1.4.0 =
+* Thêm tab **Nhập báo cáo ngày** cho cơ sở và tab **Đối soát**.
+  Máy POS tự điền phần của nó (doanh thu, hoá đơn, số vé, tiền mặt, chuyển khoản);
+  cơ sở chỉ nhập thứ máy POS không biết: tiền mặt đếm trong két, tiền thực nộp, bill huỷ,
+  tổng lượt chạy, tổng khách vào, vé giấy đã soát. Hệ thống tính lệch ngay khi gõ.
+* Gán cơ sở cho người dùng trong trang Hồ sơ: người phụ trách một cơ sở chỉ nhập và xem
+  cơ sở đó. Sửa sau khi chốt vẫn giữ bản cũ trong lịch sử.
+* Đếm số vé từ cột "Loại món" của FABi để đối chiếu với số khách cơ sở đếm tại cửa.
+
+= 1.3.1 =
+* Sửa lỗi nạp file báo "Call to undefined function wp_tempnam()": hàm đó chỉ có trong
+  trang quản trị, không có khi chạy REST — nay tự tạo file tạm.
+* Đọc được bản xuất FABi kiểu mới (không có dòng tiêu đề, không có cột Pos ID, ô số viết
+  dạng <c><v>…</v></c> không kèm thuộc tính). Trước đây kiểu này đọc ra doanh thu bằng 0
+  vì bộ tách ô bỏ sót các ô không thuộc tính làm lệch hết cột; nay tách bằng SimpleXML.
+* Nhận thêm tên cột "Hoá đơn" (bản mới không còn cột "Mã hoá đơn").
+* File không có dòng tiêu đề thì tự ghi kỳ báo cáo theo khoảng ngày đọc được.
+
+= 1.3.0 =
+* Lỗi PHP trong lúc nạp giờ trả về câu tiếng Việt kèm tên file và số dòng, thay vì trang
+  HTML làm giao diện báo "not valid JSON" hay "mã 500" chung chung.
+* Thêm nút **Kiểm tra máy chủ** trong hộp nạp: xem PHP, ZipArchive, XMLReader, thư mục
+  tạm, bộ nhớ, thời gian chạy, giới hạn tải lên và bảng dữ liệu đã tạo chưa.
+* Bảng dữ liệu tự tạo lại nếu lúc kích hoạt plugin chưa tạo được.
+
+= 1.2.0 =
+* Nạp file theo từng mẩu 1MB: file mấy chục MB vẫn nạp được dù hosting chặn tải lên ở
+  mức thấp. Trước đây gửi nguyên file thì máy chủ cắt ngang và trả trang HTML, giao diện
+  báo lỗi khó hiểu "Unexpected token '<'".
+* Báo lỗi bằng tiếng Việt khi máy chủ trả HTML thay vì dữ liệu (413 / 403 / lỗi 5xx).
+
+= 1.1.0 =
+* Đường link ngoài cho báo cáo (mặc định /doanh-thu-hcm), đổi được trong trang quản trị.
+  Bảng đường dẫn tự nạp lại khi đổi slug, không phải vào Cài đặt → Đường dẫn tĩnh bấm Lưu.
+
+= 1.0.0 =
+* Bản đầu: nạp file .xlsx/.csv của FABi, báo cáo theo ngày/cửa hàng/khung giờ/PTTT/nguồn/món,
+  lọc theo kỳ và theo cửa hàng, in ra PDF, và sẵn đường nối API FABi.
