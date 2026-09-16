@@ -2505,4 +2505,52 @@ teq( '🔴 tệp dùng công thức lương THÁNG (E*G/F), không phải G*H',
 teq( 'cột Lương cb có số', 9000000.0, (float) vhcc_o_hang( $dong_lt[1], 4 ) );
 teq( 'cột Số công YC có số', 20.0, (float) vhcc_o_hang( $dong_lt[1], 5 ) );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 24. BẢNG LƯƠNG PHẢI ĐỌC RA MỘT CÁI BẢNG
+ *
+ * Anh Thắng 16/09/2026: *"cho nó ra 1 cái bảng bài bảng 1 tí đi"*, kèm ảnh mấy cột tiền canh
+ * TRÁI và so le nhau. Cùng lượt anh gửi ba bộ mẫu giao diện kèm hai chữ *"học giao diện"*.
+ *
+ * Mấy phép dưới đây canh CÁI CÓ THẬT trong tệp CSS, không canh "trông đẹp" — thứ không đo được.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$css = vhcc_goi_rieng( 'VHCC_Web', 'css', array() );
+t( 'bóc được tệp kiểu', is_string( $css ) && strlen( $css ) > 500, strlen( (string) $css ) );
+
+/* ───── 1. 🔴 Ô SỐ CANH PHẢI VÀ CHỮ SỐ ĐỀU BỀ NGANG ───── */
+/* Lớp `p` đã gắn vào mọi ô tiền từ lâu mà CHƯA CÓ luật nào, nên nó thừa hưởng canh trái của
+   luật chung — đúng thứ làm bảng số trông không ra bảng. */
+t( '🔴 có luật cho ô số (lớp `p`)', false !== strpos( $css, 'td.p' ), 'không có luật nào cho td.p' );
+t( '🔴 ô số canh PHẢI', 1 === preg_match( '/td\.p[^{]*\{[^}]*text-align:right/', $css ), $css );
+t( '🔴 và dùng chữ số đều bề ngang (tabular-nums)',
+	1 === preg_match( '/td\.p[^{]*\{[^}]*tabular-nums/', $css ),
+	'thiếu tabular-nums — 5.287.500 và 286.000 sẽ lệch cột dù cùng canh phải' );
+
+/* ───── 2. NỀN ẤM, KHÔNG PHẢI XÁM XANH ───── */
+/* Điều duy nhất cả ba bộ mẫu cùng nói. Nền cũ `#f1f5f9` là xám XANH. */
+t( '🔴 nền trang là trắng ẤM, không còn xám xanh',
+	false === strpos( $css, '--nen:#f1f5f9' ) && 1 === preg_match( '/--nen:#f6f4f1/', $css ), $css );
+t( '🔴 viền cũng ấm theo', false === strpos( $css, '--vien:#e2e8f0' ), 'viền vẫn xám lạnh' );
+
+/* ───── 3. HÀNG TỔNG TÁCH KHỎI THÂN BẢNG ───── */
+t( '🔴 hàng TỔNG có nét đậm phía trên',
+	1 === preg_match( '/tr\.tong-bl>td\{[^}]*border-top:2px/', $css ), $css );
+/* 🔴 VÀ NHẬN RA HÀNG TỔNG BẰNG LỚP THẬT, KHÔNG BẰNG `:last-child`. Khối "nhập ▾" mở ra là một
+   hàng nữa nằm SAU nó — bấm nhập một cái là nét đậm nhảy xuống khối nhập. */
+t( '🔴 nhận hàng TỔNG bằng LỚP, không bằng :last-child',
+	false === strpos( $css, 'table.b tbody tr:last-child' ), 'còn bám :last-child' );
+$h_bb = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( 'và màn có in ra lớp ấy', false !== strpos( $h_bb, '<tr class="tong-bl">' ), 'không thấy lớp' );
+
+/* ───── 4. NHÓM CỘT ĐỌC RA MỘT CỤM ───── */
+t( '🔴 tiêu đề nhóm có nét dọc hai bên, như khung trong tệp Excel',
+	1 === preg_match( '/table\.b th\[colspan\]\{[^}]*border-left:1px/', $css ), $css );
+
+/* ───── 5. KHÔNG BÊ NGUYÊN BỘ MẪU TRANG GIỚI THIỆU VÀO MÀN DỮ LIỆU ───── */
+/* Hai trong ba bộ mẫu dựng cho trang bán hàng: tiêu đề serif 80px, thẻ bo 40px, đệm 40px. Màn
+   này có lưới 31 cột và bảng lương 27 cột — bê vào là một tháng không lọt nổi một màn hình. */
+t( '⚠️ KHÔNG nhét tiêu đề 80px vào màn quản trị', false === strpos( $css, 'font-size:80px' ), $css );
+t( '⚠️ và KHÔNG bo thẻ 40px', false === strpos( $css, 'border-radius:40px' ), $css );
+
 ket_luan();

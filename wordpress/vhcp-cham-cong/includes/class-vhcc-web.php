@@ -2519,8 +2519,28 @@ class VHCC_Web {
 	 *    sửa một bên thì bên kia lệch, và không có gì báo.
 	 */
 	public static function css() {
-		return ':root{--nen:#f1f5f9;--the:#fff;--vien:#e2e8f0;--chu:#0f172a;--mo:#64748b;'
-			. '--xanh:#2563eb;--do:#dc2626;--vang:#f59e0b;--luc:#16a34a}'
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * NỀN ẤM, VIỀN ẤM — anh Thắng 16/09/2026 gửi ba bộ mẫu giao diện (Monad · Officevibe ·
+		 * shadcn/ui) kèm hai chữ *"học giao diện"*.
+		 *
+		 * Ba bộ ấy khác nhau gần như mọi thứ, nhưng ĐỒNG Ý đúng ba điều, và đây là ba điều
+		 * dùng được cho một công cụ đầy bảng số:
+		 *   1. nền KHÔNG phải trắng tinh cũng không phải xám xanh — một tông trắng ẤM
+		 *      (#f6f3f1 · #f9f8f6 · #fafafa). Nền cũ ở đây là `#f1f5f9`, xám XANH, nên cả trang
+		 *      hơi lạnh và mấy ô tiền đỏ/vàng bị chỏi.
+		 *   2. viền chỉ một sợi tóc, KHÔNG đổ bóng. Bộ Officevibe nói thẳng: viền phải ấm
+		 *      (`#f0e9e1`), đừng mượn xám lạnh.
+		 *   3. đúng MỘT màu nhấn cho hành động chính; còn lại là xám.
+		 *
+		 * ⚠️ KHÔNG BÊ NGUYÊN BỘ NÀO. Hai bộ kia dựng cho trang giới thiệu: tiêu đề serif 80px,
+		 *    thẻ bo 40px, khoảng đệm 40px. Màn này có lưới 31 cột và bảng lương 27 cột — bê vào
+		 *    là mỗi hàng cao gấp đôi và một tháng không lọt nổi một màn hình. Chỗ nào ba bộ đá
+		 *    nhau thì theo shadcn/ui, vì nó là bộ duy nhất dựng cho dữ liệu dày (bo 18px cho ô
+		 *    bấm, 24px cho thẻ, mật độ "compact").
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		return ':root{--nen:#f6f4f1;--the:#fff;--vien:#e7e2dc;--chu:#171417;--mo:#6f6a66;'
+			. '--xanh:#2563eb;--do:#dc2626;--vang:#f59e0b;--luc:#16a34a;'
+			. '--vien-dam:#d6cfc6;--soc:#faf8f6}'
 			. '*{box-sizing:border-box}'
 			. 'body{margin:0;font:15px/1.6 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;'
 			. 'background:var(--nen);color:var(--chu)}'
@@ -2643,7 +2663,39 @@ class VHCC_Web {
 			. '.luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}'
 			. 'table{border-collapse:collapse;width:100%;font-size:13.5px}'
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
-			. 'th{background:#f8fafc;font-size:12.5px;color:var(--mo);white-space:nowrap}'
+			. 'th{background:var(--soc);font-size:12.5px;color:var(--mo);white-space:nowrap}'
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 Ô SỐ: CANH PHẢI VÀ CHỮ SỐ ĐỀU BỀ NGANG.
+			 *
+			 * Anh Thắng 16/09/2026: *"cho nó ra 1 cái bảng bài bảng 1 tí đi"*, kèm ảnh bảng
+			 * lương — mấy cột tiền canh TRÁI và so le nhau.
+			 *
+			 * Lớp `p` vốn đã được gắn vào mọi ô tiền từ lâu, nhưng CHƯA CÓ MỘT LUẬT NÀO cho nó,
+			 * nên nó thừa hưởng `text-align:left` của luật chung. Hai chuyện phải sửa:
+			 *   · canh PHẢI — mắt dò tiền bằng cách so hàng đơn vị, không so chữ đầu;
+			 *   · `tabular-nums` — phông hệ thống mặc định cho chữ số bề ngang KHÁC nhau, nên
+			 *     `5.287.500` và `286.000` lệch cột dù cùng canh phải. Đây là thứ khiến một
+			 *     bảng số trông "không ra bảng" mà nhìn mãi không biết vì sao.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			/* ⚠️ MỘT DÒNG THÔI. Bản nháp viết kèm `font-feature-settings:"tnum"` làm đường lui —
+			   cùng một luật, viết hai lối. Thử phá dòng ấy thì bài kiểm KHÔNG đỏ, đúng như phải
+			   thế: nó không gánh gì cả. Hai dòng cho một luật là chỗ để người sau sửa nhầm
+			   dòng không gánh rồi tưởng đã sửa. */
+			. 'td.p,th.p{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}'
+			/* Bảng lương đọc ra BẢNG: sọc hàng, hàng đang rê chuột sáng lên, tiêu đề dính trên. */
+			. 'table.b tbody tr:nth-child(even)>td{background:var(--soc)}'
+			. 'table.b tbody tr:hover>td{background:#f1ede8}'
+			. 'table.b thead th{position:sticky;top:0;z-index:3;background:var(--soc);'
+			. 'box-shadow:inset 0 -1px 0 var(--vien-dam)}'
+			/* Hàng TỔNG tách hẳn khỏi thân bảng bằng một nét đậm — không thì nó trông như một
+			   người nữa trong danh sách. */
+			. 'table.b tbody tr.tong-bl>td{border-top:2px solid var(--vien-dam);'
+			. 'background:#f1ede8;font-weight:600}'
+			. 'table.b tbody tr.hang-sua>td{background:#fffbeb}'
+			/* Nhóm cột "Các khoản cộng / giảm trừ" phải đọc ra một CỤM, nên đóng ngoặc hai bên
+			   bằng nét dọc — y như tệp Excel của kế toán kẻ khung quanh nhóm. */
+			. 'table.b th[colspan]{text-align:center;border-left:1px solid var(--vien-dam);'
+			. 'border-right:1px solid var(--vien-dam);color:var(--chu);font-weight:600}'
 			/* ================================= đánh số hàng, theo mẫu HR V5.2 (ảnh 1 và 2)
 			   Mẫu có một cột số chạy dọc bên trái mọi bảng danh sách. Không phải trang trí: bảng
 			   máy có 26 dòng, bảng lịch cả tháng có mấy trăm — người trực gọi điện cho cửa hàng
@@ -8858,7 +8910,10 @@ class VHCC_Web {
 		}
 
 		/* ---- hàng TỔNG: cộng THẲNG TỪ mấy dòng vừa in, không tính lại bằng đường khác ---- */
-		echo '<tr>';
+		/* ⚠️ GẮN LỚP THẬT, đừng để CSS nhận ra hàng tổng bằng `:last-child`. Khối "nhập ▾" mở ra
+		   là một hàng `<tr>` nữa nằm SAU nó, và lúc ấy nét đậm của hàng tổng nhảy xuống khối
+		   nhập — mỗi lần bấm nhập là bảng trông như gãy làm đôi. */
+		echo '<tr class="tong-bl">';
 		foreach ( $hien as $i_c => $c ) {
 			if ( 0 === $i_c ) { echo '<td></td>'; continue; }
 			if ( 1 === $i_c ) { echo '<td><b>TỔNG</b></td>'; continue; }
