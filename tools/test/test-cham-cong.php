@@ -7565,12 +7565,16 @@ t( '🔴 màn Bảng công KHÔNG còn ô tải ảnh thẻ',
    trong LƯỚI CÔNG ở ngay trên. Đo đúng thứ đã dời đi: cái nhãn bấm-để-tải của khối cũ. */
 t( '🔴 và KHÔNG còn nhãn "bấm để tải ảnh thẻ" của khối cũ',
 	strpos( $h_tt, 'bấm để tải ảnh thẻ' ) === false, 'khối cũ còn sót trên màn công' );
-/* 🔴 NHƯNG KHÔNG BIẾN MẤT LẶNG LẼ. Người đã quen thấy khối ở đây mà mở ra trống trơn thì tưởng
-   mất tính năng. Phải còn đúng một dòng, và dòng ấy phải CHỈ ĐÚNG ĐƯỜNG. */
-t( 'còn một dòng chỉ đường sang tab Khuôn mặt',
-	strpos( $h_tt, 'chưa có ảnh thẻ' ) !== false && strpos( $h_tt, 'man=mat' ) !== false, $h_tt );
-t( 'và dòng ấy mang sẵn cơ sở đang xem, khỏi chọn lại',
-	strpos( $h_tt, 'man=mat&ccs=TUTU_BT' ) !== false, $h_tt );
+/* 🔴 VÀ KHÔNG CÒN DÒNG NHẮC NÀO NỮA. Lượt dời 16/09 còn để lại một dòng chỉ đường sang tab
+   Khuôn mặt; anh Thắng nhìn dòng ấy rồi bảo *"bỏ này đi"*. Việc đã dời thì dời hẳn — nhắc mãi
+   một việc làm-một-lần trên màn mở hằng ngày thì thành tiếng ồn. Tab 🙂 Khuôn mặt vẫn nằm sẵn
+   trên thanh điều hướng cho ai cần.
+   ⚠️ Đo cụm chữ của CHÍNH dòng ấy, đừng đo "man=mat" trần — thanh điều hướng vẫn có liên kết
+      sang tab đó, nên phép thử sẽ đỏ vì một thứ đúng ra phải còn. */
+t( '🔴 màn Bảng công KHÔNG còn dòng nhắc ảnh thẻ nào',
+	strpos( $h_tt, 'chưa có ảnh thẻ' ) === false, 'còn sót dòng nhắc trên màn công' );
+t( '⚠️ nhưng tab Khuôn mặt vẫn có trên thanh điều hướng',
+	strpos( $h_tt, 'man=mat' ) !== false, 'mất luôn lối sang tab Khuôn mặt' );
 /* Cân thẻ lại sau khi đổi chỗ — chuyển một lời gọi ra ngoài nhánh `continue` là chỗ dễ hụt
    `</details>` nhất, mà hụt thì cả phần dưới lọt vào trong khối gập. */
 teq( '🔴 đổi chỗ xong thẻ <details> vẫn cân',

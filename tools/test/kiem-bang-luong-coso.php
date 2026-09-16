@@ -1110,4 +1110,51 @@ t( '⚠️ và cảnh báo đổi ở đó là đổi cho MỌI cơ sở',
 t( '🔴 dòng bảng chung đã bị cơ sở đè thì KHÔNG kể',
 	1 !== preg_match( '/bảng chung cả chuỗi<\/b>.*?<b>Lái Tàu<\/b>/us', $h_td ), $h_td );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 12. CỘT LƯƠNG NGAY SAU CỘT TỔNG CỦA LƯỚI
+ *
+ * Anh Thắng 16/09/2026: *"Sau cột tổng à tổng lương tháng này"*.
+ * Nhìn 149h8m mà không biết nó ra bao nhiêu tiền thì vẫn phải cuộn xuống bảng lương, mà cuộn
+ * xuống rồi lại mất dấu người mình đang soi.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+VHCC_GiaGio::dat_chung( $U_KT, array() );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000 ) );
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, 'Lái Tàu' );
+
+$h_lc = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( '🔴 lưới có cột LƯƠNG', false !== strpos( $h_lc, '<th>TỔNG</th><th>LƯƠNG</th>' ), substr( $h_lc, 0, 300 ) );
+t( '🔴 và người đã đủ giá hiện ra TIỀN', false !== strpos( $h_lc, '2.898.000đ' ), 'không thấy tiền của BT_MAN' );
+
+/* 🔴 CHƯA ĐỦ GIÁ THÌ NÓI "THIẾU GIÁ", ĐỪNG IN MỘT CON SỐ NHỎ HƠN SỰ THẬT.
+   Cộng bừa mấy dòng đã có giá rồi in ra là một con số trông rất bình thường — và nó THIẾU tiền
+   của dòng chưa khai. Không ai nghi một ô có số. */
+t( '🔴 người còn dòng chưa khai giá thì ô ghi "thiếu giá", không ghi số',
+	false !== strpos( $h_lc, '>thiếu giá<' ), $h_lc );
+
+/* 🔴 SỐ CỘT CỦA MỌI HÀNG PHẢI BẰNG SỐ CỘT TIÊU ĐỀ.
+   Thêm một cột mà quên một nhánh vẽ hàng là bảng lệch cột — trình duyệt vẫn dựng ra, chỉ là mọi
+   con số trượt sang một ô, và không có gì báo. Đây là cách hỏng kinh điển của việc thêm cột. */
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_lc, $m_lc );
+$bang_lc = isset( $m_lc[0] ) ? $m_lc[0] : '';
+t( 'cắt được lưới ra để đếm cột', '' !== $bang_lc, substr( $h_lc, 0, 200 ) );
+/* ⚠️ ĐẾM BẰNG `<th ` HOẶC `<th>`, ĐỪNG ĐẾM CHUỖI `<th` TRẦN — `<thead>` cũng chứa nó, nên phép
+   thử đội thêm một cột rồi báo "lệch" trong khi bảng cân. Chính nó làm em tưởng mã hỏng. */
+$so_th = preg_match_all( '/<th[ >]/', $bang_lc );
+preg_match_all( '/<tr[^>]*>(.*?)<\/tr>/us', $bang_lc, $m_tr, PREG_SET_ORDER );
+$lech_cot = array();
+foreach ( $m_tr as $tr_x ) {
+	if ( false !== strpos( $tr_x[1], '<th' ) ) { continue; }          // hàng tiêu đề
+	if ( false !== strpos( $tr_x[1], 'colspan' ) ) { continue; }      // hàng sửa / hàng tổng
+	$n_td = preg_match_all( '/<td[ >]/', $tr_x[1] );
+	if ( 0 === $n_td ) { continue; }
+	if ( $n_td !== $so_th ) { $lech_cot[] = $n_td; }
+}
+teq( '🔴 không hàng nào lệch cột so với tiêu đề (' . $so_th . ' cột)', 0, count( $lech_cot ) );
+
+/* Hàng tổng cuối bảng cũng phải có ô tiền — không thì thêm cột xong bảng thọt một ô ở đáy. */
+t( 'hàng tổng cuối lưới có ô tiền',
+	1 === preg_match( '/<tr class="tong">.*?người.*?đ<\/b>/us', $bang_lc ), $bang_lc );
+
 ket_luan();

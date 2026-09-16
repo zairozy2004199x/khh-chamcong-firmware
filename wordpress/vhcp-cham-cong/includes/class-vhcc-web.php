@@ -4110,25 +4110,6 @@ class VHCC_Web {
 	 * (xem `luu_anh_the_thieu()`) và `VHCC_NhanSu::luu_anh_the_rieng()` chỉ đụng đúng cột
 	 * `anh_the` của đúng một mã — không chạm gì khác trong hồ sơ.
 	 */
-	/**
-	 * MỘT DÒNG CHỈ ĐƯỜNG sang tab Khuôn mặt, thay cho khối ảnh thẻ đã dời đi.
-	 *
-	 * Chỉ vẽ khi cơ sở này THẬT SỰ còn người thiếu ảnh — một lời nhắc thường trực ở nơi không
-	 * có việc gì để làm thì chỉ là thêm một dòng để mắt lướt qua, và lướt quen thì lúc có việc
-	 * thật cũng lướt nốt.
-	 */
-	private static function dong_chi_anh_the( $toi, $cs ) {
-		if ( '' === $cs ) { return; }
-		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
-		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
-		$ds = VHCC_NhanSu::thieu_anh_the( $cs );
-		if ( ! $ds ) { return; }
-		echo '<p class="mo" style="margin:10px 0 0">📷 <b>' . count( $ds ) . ' người ở ' . esc_html( $cs )
-			. ' chưa có ảnh thẻ</b> — tải ảnh ở tab <a href="'
-			. esc_url( add_query_arg( array( 'man' => 'mat', 'ccs' => $cs ), self::url() ) )
-			. '"><b>🙂 Khuôn mặt</b></a>.</p>';
-	}
-
 	/* 🔴 16/09/2026 — KHỐI NÀY NAY SỐNG Ở TAB KHUÔN MẶT, không còn trên màn Bảng công.
 	   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*. Cùng lẽ với lượt dời
 	   09/09/2026 (xuống dưới lưới), chỉ là đi nốt quãng còn lại: tải ảnh thẻ là việc làm MỘT
@@ -4496,16 +4477,12 @@ class VHCC_Web {
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
 
-			/* 🔴 16/09/2026 — KHỐI "CHƯA CÓ ẢNH THẺ" ĐÃ RỜI HẲN SANG TAB KHUÔN MẶT.
-			   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*. Đây là quãng còn lại
-			   của lượt dời 09/09/2026 (khi ấy mới đẩy nó xuống dưới lưới, sau khi anh gửi ảnh cả
-			   màn hình đầu là một dải vàng liệt kê mười mấy người, còn lưới nằm tít đáy).
-			   Lý do vẫn thế và nay đi trọn: tải ảnh thẻ là VIỆC LÀM MỘT LẦN cho người mới, còn
-			   lưới công là thứ mở ra hằng ngày để đọc — mà ảnh thẻ thì vốn là mẫu đối chiếu của
-			   chấm công online, tức thuộc về màn Khuôn mặt chứ không phải màn công.
-			   ⚠️ CHỈ MỘT DÒNG CHỈ ĐƯỜNG, KHÔNG BIẾN MẤT LẶNG LẼ. Người đã quen thấy khối ở đây
-			      mà mở ra không còn gì thì tưởng mất tính năng, rồi đi hỏi. Một dòng là đủ. */
-			self::dong_chi_anh_the( $toi, $mot_cs );
+			/* 🔴 16/09/2026 — MÀN NÀY KHÔNG CÒN NHẮC GÌ VỀ ẢNH THẺ NỮA.
+			   Lượt trước còn để lại một dòng chỉ đường sang tab Khuôn mặt, phòng người đã quen
+			   thấy khối ở đây. Anh Thắng nhìn dòng ấy rồi bảo *"bỏ này đi"* — đúng: việc đã dời
+			   thì dời hẳn, một dòng nhắc thường trực ở màn mở hằng ngày cũng là một dòng để mắt
+			   lướt qua, và nhắc mãi một việc làm-một-lần thì thành tiếng ồn. Ai cần thì tab
+			   🙂 Khuôn mặt vẫn nằm sẵn trên thanh điều hướng. */
 
 			/* 🔴 KHỐI "LƯƠNG" ĐÃ BỎ KHỎI MÀN — anh Thắng 07/09/2026, sau khi đã bỏ 3 cột tiền của
 			   bảng mtd (bản 3.39.0): *"bỏ nguyên lương luôn, anh chưa cần"*. Trước đây gộp vào
@@ -6673,6 +6650,36 @@ class VHCC_Web {
 			return;
 		}
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT LƯƠNG NGAY SAU CỘT TỔNG.
+		 *
+		 * Anh Thắng 16/09/2026: *"Sau cột tổng à tổng lương tháng này"*.
+		 *
+		 * Giờ và tiền vốn là một câu hỏi: nhìn 149h8m mà không biết nó ra bao nhiêu tiền thì
+		 * vẫn phải cuộn xuống bảng lương, mà cuộn xuống rồi lại mất dấu người mình đang soi.
+		 *
+		 * ⚠️ QUÉT THÊM MỘT LƯỢT CẢ THÁNG. `dung()` đọc lại toàn bộ công của tháng — chính hàm
+		 *    khối Bảng lương bên dưới cũng gọi. Cố ý KHÔNG nhớ đệm lại: sổ đơn giá và sổ chốt
+		 *    lương đổi được ngay trong cùng một lượt tải (bấm Lưu ở khối dưới), và một bộ nhớ
+		 *    đệm ở đây sẽ bày lại con số CŨ mà không ai biết. Thà tốn một lượt quét.
+		 *
+		 * ⚠️ Cột này chỉ là NHẮC LẠI, không phải nguồn. Chỗ sửa vẫn là khối Bảng lương.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$tien_ds  = array();
+		$tien_cs  = 0.0;
+		$co_thieu = false;
+		$bl_luoi  = VHCC_BangLuong::dung( (string) $b['coSo'], $tt );
+		if ( ! empty( $bl_luoi['ok'] ) ) {
+			foreach ( $bl_luoi['dong'] as $d_bl ) {
+				$k_bl = strtoupper( (string) $d_bl['ma'] );
+				if ( ! isset( $tien_ds[ $k_bl ] ) ) { $tien_ds[ $k_bl ] = array( 'tien' => 0.0, 'du' => true ); }
+				if ( null === $d_bl['luongChinh'] ) { $tien_ds[ $k_bl ]['du'] = false; $co_thieu = true; }
+				else { $tien_ds[ $k_bl ]['tien'] += (float) $d_bl['luongChinh']; }
+				$tien_ds[ $k_bl ]['tien'] += (float) $d_bl['tongCong'] - (float) $d_bl['tongTru'];
+			}
+			foreach ( $tien_ds as $v_bl ) { $tien_cs += $v_bl['tien']; }
+		}
+
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Nhân viên</th>';
 		for ( $i = 1; $i <= $so_ngay; $i++ ) {
 			$t  = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
@@ -6680,7 +6687,7 @@ class VHCC_Web {
 			echo '<th class="ng' . ( $cn ? ' cn' : '' ) . '">' . $i
 				. '<div style="font-weight:400;opacity:.7">' . $thu_vn[ $t ] . '</div></th>';
 		}
-		echo '<th>TỔNG</th></tr></thead><tbody>';
+		echo '<th>TỔNG</th><th>LƯƠNG</th></tr></thead><tbody>';
 
 		/* ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm
 		   thì lưới chạy y như trước, chỉ là không có dòng cơ sở khác. */
@@ -6827,7 +6834,20 @@ class VHCC_Web {
 			   là cơ sở đang xem, mỗi dòng dưới là một cơ sở khác. */
 			/* Tổng của cơ sở KHÁC không còn hiện ở đây — nó thuộc bảng của cơ sở ấy. Xem
 			   `nhan_coso_khac()`: cạnh tên có đường bấm sang thẳng bảng đó. */
-			echo '</td></tr>';
+			echo '</td>';
+			/* 🔴 CHƯA ĐỦ GIÁ THÌ NÓI "THIẾU GIÁ", ĐỪNG IN MỘT CON SỐ NHỎ HƠN SỰ THẬT.
+			   Một người có ba dòng lương mà mới khai giá hai dòng: cộng bừa hai dòng lại rồi in
+			   ra là một con số trông rất bình thường — và nó THIẾU tiền của dòng thứ ba. Không
+			   ai nghi một ô có số. */
+			$t_ng = isset( $tien_ds[ strtoupper( $ma ) ] ) ? $tien_ds[ strtoupper( $ma ) ] : null;
+			echo '<td class="tong">' . ( null === $t_ng
+				? '<span class="mo">—</span>'
+				: ( empty( $t_ng['du'] )
+					? '<span class="chu-hong" title="Còn dòng chưa khai đơn giá — xem khối Bảng '
+						. 'lương cơ sở">thiếu giá</span>'
+					: '<b>' . esc_html( number_format( $t_ng['tien'], 0, ',', '.' ) ) . 'đ</b>' ) )
+				. '</td>';
+			echo '</tr>';
 
 			/* =============================================================================
 			 * 🔴 HÀNG RIÊNG CHO TỪNG CƠ SỞ PHỤ.
@@ -6850,7 +6870,7 @@ class VHCC_Web {
 			if ( '' !== $sg_n ) {
 				foreach ( $hts as $ht_s ) {
 					if ( 0 === strcasecmp( $ma . ( '' !== $ht_s ? '-' . $ht_s : '' ), (string) $sg_m ) ) {
-						self::hang_sua( $so_ngay + 2, (string) $b['coSo'], $sg_n,
+						self::hang_sua( $so_ngay + 3, (string) $b['coSo'], $sg_n,
 							(string) $sg_m, $sg_co, $ky, $toi );
 						break;
 					}
@@ -6861,7 +6881,10 @@ class VHCC_Web {
 		echo '<td colspan="' . (int) $so_ngay . '"></td>';
 		echo '<td><b>' . esc_html( 'ngay' === $kieu_ct
 			? ( (int) $tong_cs . ' công' )
-			: VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td></tr>';
+			: VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td>';
+		echo '<td><b>' . esc_html( number_format( $tien_cs, 0, ',', '.' ) ) . 'đ</b>'
+			. ( $co_thieu ? '<div class="mo chu-hong" style="font-size:10px">chưa đủ giá</div>' : '' )
+			. '</td></tr>';
 		echo '</tbody></table></div>';
 
 		/* Chú giải mã ca — bắt buộc phải có, vì mã trong ô là C1/C2/C3 theo VỊ TRÍ, không phải
