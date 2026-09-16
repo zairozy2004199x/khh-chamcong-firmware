@@ -198,7 +198,22 @@ class VHCC_Xuat {
 	/** Một ô mang kiểu riêng: `o_kieu( 441600, VHCC_Xuat::TIEN )`. */
 	public static function o_kieu( $v, $s ) { return array( 'v' => $v, 's' => (int) $s ); }
 	/** Một ô là CÔNG THỨC: `ct( 'M10+U10-Y10', VHCC_Xuat::TIEN )`. */
-	public static function ct( $f, $s = 0 ) { return array( 'ct' => (string) $f, 's' => (int) $s ); }
+	/**
+	 * Ô CÔNG THỨC. `$v` là GIÁ TRỊ ĐÃ TÍNH SẴN — có thì ghi kèm, không thì thôi.
+	 *
+	 * 🔴 PHẢI GHI KÈM GIÁ TRỊ. Chú thích cũ ở `o()` bảo "đừng kèm `<v>` đoán sẵn" và em giữ nó
+	 *    qua mấy bản. SAI — nó đúng với một giá trị ĐOÁN, còn đây là con số chính lõi lương vừa
+	 *    tính ra, cùng một phép với công thức. Không kèm thì tệp CHỈ có số khi mở bằng một ứng
+	 *    dụng chịu tính lại; xem nhanh trên điện thoại, Google Sheets, WPS hay ô xem trước của
+	 *    hòm thư thì cả cột Lương chính và TOTAL SALARY trống trơn.
+	 *    Anh Thắng 16/09/2026: *"Sao bảo làm y chang lại xuất bảng không có gì"* — kèm chính
+	 *    tệp hệ xuất ra. Soi trong file mẫu của kế toán: 560 ô công thức đều có `<v>` đi kèm.
+	 * ⚠️ Vẫn giữ `fullCalcOnLoad` ở `workbook()`: kế toán gõ vào ô phụ cấp là Excel tính lại,
+	 *    nên con số ghi sẵn không bao giờ kịp cũ.
+	 */
+	public static function ct( $f, $s = 0, $v = null ) {
+		return array( 'ct' => (string) $f, 's' => (int) $s, 'v' => $v );
+	}
 
 	const DAM   = 1;
 	const TUA   = 2;
@@ -264,10 +279,13 @@ class VHCC_Xuat {
 	private static function o( $vt, $gia, $dam ) {
 		$s = $dam ? ' s="1"' : '';
 		if ( is_array( $gia ) && isset( $gia['s'] ) ) { $s = ' s="' . (int) $gia['s'] . '"'; }
-		/* Công thức: ghi `<f>` KHÔNG kèm `<v>`. Kèm một `<v>` đoán sẵn thì Excel hiện số đoán ấy
-		   cho tới lúc nào người ta bấm tính lại — và đó là một con số trông như thật mà sai. */
+		/* Công thức: ghi `<f>`, và KÈM `<v>` khi nơi gọi đưa xuống một giá trị đã tính. Xem khối
+		   chú thích ở `ct()` về việc vì sao phải kèm — và vì sao "đừng kèm" của bản cũ là sai. */
 		if ( is_array( $gia ) && isset( $gia['ct'] ) ) {
-			return '<c r="' . $vt . '"' . $s . '><f>' . self::x( (string) $gia['ct'] ) . '</f></c>';
+			$gt = ( array_key_exists( 'v', $gia ) && null !== $gia['v'] && '' !== $gia['v'] )
+				? '<v>' . ( 0 + $gia['v'] ) . '</v>' : '';
+			return '<c r="' . $vt . '"' . $s . '><f>' . self::x( (string) $gia['ct'] ) . '</f>'
+				. $gt . '</c>';
 		}
 		if ( is_array( $gia ) && array_key_exists( 'v', $gia ) ) { $gia = $gia['v']; }
 		if ( is_array( $gia ) && isset( $gia['chu'] ) ) { $gia = (string) $gia['chu']; }

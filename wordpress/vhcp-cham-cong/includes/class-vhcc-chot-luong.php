@@ -201,6 +201,97 @@ class VHCC_ChotLuong {
 		return array( 'cong' => round( $c, 2 ), 'tru' => round( $r, 2 ) );
 	}
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * ĂN LƯƠNG THÁNG — khai theo TỪNG NGƯỜI, TỪNG THÁNG, ngay trên bảng lương
+	 * ══════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 16/09/2026: *"Trong 1 cửa hàng, có bạn nhận lương tháng không phải theo giờ, nên
+	 * tách bạn đó ra, khi tích vào bạn đó, nhập lương và ngày công là ra lương tháng"*.
+	 *
+	 * Lõi tính lương VỐN ĐÃ biết lối tháng (`Lương cb × Số công thực / Số công YC`). Thiếu là
+	 * ĐƯỜNG KHAI: `luong_co_ban` nằm trong HỒ SƠ (màn khác, quyền khác), còn `Số công YC` là một
+	 * con số khai CHUNG cho cả cơ sở ở tab Cấu hình. Muốn cho một người ăn lương tháng thì phải
+	 * đi hai màn, và con số công chuẩn thì dùng chung với mọi người.
+	 *
+	 * 🔴 VÌ SAO KHAI THEO THÁNG, KHÔNG SỬA HỒ SƠ:
+	 *    Lương cơ bản trong hồ sơ là thứ có thật và dùng cho nhiều việc (bảo hiểm, hợp đồng).
+	 *    Bảng lương tháng 8 phải giữ nguyên con số của tháng 8 kể cả khi tháng 10 người ta tăng
+	 *    lương — sửa hồ sơ là viết lại quá khứ của mọi tháng đã chốt. Sổ này đứng cạnh mấy khoản
+	 *    cộng/trừ, cùng một cơ sở/tháng/mã, nên tháng nào ra số của tháng ấy.
+	 *
+	 * ⚠️ KHÔNG khai ở đây thì lui về hồ sơ + cấu hình cơ sở, y như trước. Đây là LỚP ĐÈ, không
+	 *    phải lối thay thế — cơ sở nào đang chạy ổn không phải khai lại gì.
+	 */
+
+	/** Trần vô lý cho số công chuẩn một tháng. Quá 31 là gõ nhầm cột. */
+	const CONG_TOI_DA = 31;
+
+	/**
+	 * Người này tháng này có khai ăn lương tháng không.
+	 * Trả `null` nếu không khai; nếu có thì `array( 'lcb' => …, 'congYc' => … )`.
+	 */
+	public static function thang_cua( $coso, $thang, $ma_nv, $so = null ) {
+		$so = ( null === $so ) ? self::so() : $so;
+		$k  = self::khoa_cs( $coso );
+		$tt = VHCC_Luong::tien_to_thang( $thang );
+		$m  = strtolower( trim( (string) $ma_nv ) );
+		if ( '' === $k || '' === $tt || '' === $m ) { return null; }
+		$d = isset( $so[ $k ][ $tt ]['luongThang'][ $m ] ) ? $so[ $k ][ $tt ]['luongThang'][ $m ] : null;
+		if ( ! is_array( $d ) || empty( $d['lcb'] ) ) { return null; }
+		return array(
+			'lcb'    => (float) $d['lcb'],
+			'congYc' => ( isset( $d['congYc'] ) && (float) $d['congYc'] > 0 ) ? (float) $d['congYc'] : null,
+		);
+	}
+
+	/**
+	 * Bật / tắt lối ăn lương tháng cho MỘT người trong MỘT tháng.
+	 *
+	 * @param bool  $bat     Ô tích. Tắt = xoá hẳn khai báo, người ấy quay về tính theo giờ.
+	 * @param mixed $luong_cb Lương cơ bản tháng ấy.
+	 * @param mixed $cong_yc  Số công chuẩn của tháng. Để trống = mượn con số chung của cơ sở.
+	 */
+	public static function dat_thang( $u, $coso, $thang, $ma_nv, $bat, $luong_cb, $cong_yc ) {
+		$chan = self::gac( $u, $coso );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+		$k  = self::khoa_cs( $coso );
+		$tt = VHCC_Luong::tien_to_thang( $thang );
+		$m  = strtolower( trim( (string) $ma_nv ) );
+		if ( '' === $k || '' === $tt || '' === $m ) {
+			return array( 'ok' => false, 'error' => 'Thiếu cơ sở, tháng hoặc mã nhân viên.' );
+		}
+		$so = self::so();
+		if ( ! $bat ) {
+			unset( $so[ $k ][ $tt ]['luongThang'][ $m ] );
+			if ( empty( $so[ $k ][ $tt ]['luongThang'] ) ) { unset( $so[ $k ][ $tt ]['luongThang'] ); }
+			if ( empty( $so[ $k ][ $tt ] ) ) { unset( $so[ $k ][ $tt ] ); }
+			VHCC_Luong::dat_cai_dat( self::O, $so, $u );
+			return array( 'ok' => true, 'bat' => false );
+		}
+		$lcb = VHCC_NhanSu::so_tien( $luong_cb );
+		if ( $lcb <= 0 ) {
+			return array( 'ok' => false, 'error' => 'Tích "Ăn lương tháng" thì phải gõ Lương cơ bản — '
+				. 'không có nó thì không ra được tiền, mà để trống rồi vẫn tích là bảng lương im lặng '
+				. 'trả 0đ cho người ấy.' );
+		}
+		if ( $lcb > self::TIEN_TOI_DA ) {
+			return array( 'ok' => false, 'error' => 'Lương cơ bản quá lớn ('
+				. number_format( $lcb, 0, ',', '.' ) . 'đ) — gõ dư số 0?' );
+		}
+		$yc = trim( (string) $cong_yc );
+		if ( '' !== $yc ) {
+			$yc = (float) str_replace( ',', '.', $yc );
+			if ( $yc <= 0 || $yc > self::CONG_TOI_DA ) {
+				return array( 'ok' => false, 'error' => 'Số công chuẩn phải từ 1 tới '
+					. self::CONG_TOI_DA . ' ngày — gõ "' . trim( (string) $cong_yc ) . '" thì không ra được tiền.' );
+			}
+		} else {
+			$yc = 0;
+		}
+		$so[ $k ][ $tt ]['luongThang'][ $m ] = array( 'lcb' => $lcb, 'congYc' => $yc );
+		VHCC_Luong::dat_cai_dat( self::O, $so, $u );
+		return array( 'ok' => true, 'bat' => true, 'lcb' => $lcb, 'congYc' => $yc );
+	}
+
 	/**
 	 * Ghi các khoản tiền của MỘT người.
 	 *

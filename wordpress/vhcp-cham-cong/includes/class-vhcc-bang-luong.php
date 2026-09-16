@@ -190,9 +190,36 @@ class VHCC_BangLuong {
 			   đó xoá một lượt chấm nhầm). Nên vẫn phải đỡ ở đây: không để ra giờ âm, và ĐẾM. */
 			if ( $gio_chinh < 0 ) { $gio_chinh = 0.0; $vuot++; }
 
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * ĂN LƯƠNG THÁNG — KHAI RIÊNG TỪNG NGƯỜI TỪNG THÁNG THÌ ĐÈ LÊN HỒ SƠ.
+			 *
+			 * Anh Thắng 16/09/2026: *"có bạn nhận lương tháng không phải theo giờ, nên tách bạn
+			 * đó ra, khi tích vào bạn đó, nhập lương và ngày công là ra lương tháng"*.
+			 *
+			 * Trước bản này chỉ có hai nguồn: `luong_co_ban` của HỒ SƠ (màn khác, quyền khác) và
+			 * `Số công YC` khai CHUNG cho cả cơ sở. Nay người chốt lương khai thẳng trên bảng
+			 * lương, cho đúng một người, đúng một tháng.
+			 *
+			 * ⚠️ LỚP ĐÈ, KHÔNG PHẢI LỐI THAY THẾ. Không khai thì lui về hồ sơ + cấu hình cơ sở,
+			 *    y như trước — cơ sở nào đang chạy ổn không phải khai lại gì.
+			 * ⚠️ Số công chuẩn để trống thì MƯỢN con số chung của cơ sở; khai riêng thì con số
+			 *    riêng thắng. Người làm nửa tháng rồi nghỉ có công chuẩn khác cả cơ sở.
+			 * ⚠️ BIẾN RIÊNG CHO TỪNG NGƯỜI (`$cong_yc_ng`), KHÔNG GHI ĐÈ `$cong_yc`. Con số chung
+			 *    của cơ sở khai MỘT LẦN ở ngoài vòng lặp; đè thẳng lên nó là người khai riêng
+			 *    làm đổi luôn công chuẩn của MỌI NGƯỜI đứng sau trong danh sách — sai tiền của
+			 *    người không liên quan, và sai theo thứ tự abc nên gần như không lần ra được.
+			 *    Em đã viết đúng cái lỗi ấy ở bản nháp. */
+			$lt        = VHCC_ChotLuong::thang_cua( $coso, $tt, $g['ma'], $so_khac );
+			$cong_yc_ng = $cong_yc;
+			if ( $lt ) {
+				$lcb = (float) $lt['lcb'];
+				if ( null !== $lt['congYc'] ) { $cong_yc_ng = (float) $lt['congYc']; }
+			}
+
 			$theo_thang = ( $lcb > 0 );
 			$mot = function ( $cv, $gio, $la_chinh ) use ( $coso, $g, $so_gia, $ten, $cccd,
-				$theo_thang, $lcb, $cong_yc, $cong_thuc, $gio_tong, $gio_khac ) {
+				$theo_thang, $lcb, $cong_yc_ng, $cong_thuc, $gio_tong, $gio_khac ) {
+				$cong_yc = $cong_yc_ng;
 				$gia = VHCC_GiaGio::tra( $coso, $cv, $g['ma'], $so_gia );
 				$luong = null;
 				if ( $la_chinh && $theo_thang ) {
@@ -358,7 +385,10 @@ class VHCC_BangLuong {
 
 		$chu  = function ( $v, $s ) { return array( 'v' => VHCC_Xuat::chu( $v ), 's' => $s ); };
 		$o    = function ( $v, $s ) { return VHCC_Xuat::o_kieu( $v, $s ); };
-		$ct   = function ( $f, $s ) { return VHCC_Xuat::ct( $f, $s ); };
+		/* ⚠️ PHẢI NHẬN CẢ THAM SỐ THỨ BA. Bản nháp giữ closure hai tham số, nên mọi giá trị đã
+		   tính truyền xuống đều rơi im lặng — tệp vẫn ra, vẫn có công thức, và vẫn trống trơn ở
+		   mọi nơi không tính lại. Đúng cái lỗi đang đi sửa, lặp lại một tầng cao hơn. */
+		$ct   = function ( $f, $s, $v = null ) { return VHCC_Xuat::ct( $f, $s, $v ); };
 		$trong = function ( $s ) { return VHCC_Xuat::o_kieu( null, $s ); };
 
 		$T = VHCC_Xuat::TIEN;
@@ -409,6 +439,9 @@ class VHCC_BangLuong {
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$r   = self::DONG_DAU;
 		$i_k = 0;
+		/* Cộng dồn từng cột của KHỐI, để dòng cộng cũng mang sẵn con số — cùng lý do với mấy ô
+		   công thức ở trên: không có số sẵn thì dòng cộng trống trơn ở mọi nơi không tính lại. */
+		$cong_khoi = array();
 		foreach ( $ds_b as $cs_k => $b_k ) {
 		$i_k++;
 		/* Dòng mở khối — cột A số La Mã, cột B tên cơ sở, đúng khuôn file kế toán đang dùng. */
@@ -417,7 +450,8 @@ class VHCC_BangLuong {
 		for ( $i = 2; $i < 27; $i++ ) { $mo_khoi[] = $trong( VHCC_Xuat::TONG ); }
 		$hang[] = $mo_khoi;
 		$r++;
-		$dau_khoi = $r;
+		$dau_khoi  = $r;
+		$cong_khoi = array();   // cộng dồn RIÊNG từng khối — xem chú thích vùng SUM
 
 		foreach ( $b_k['dong'] as $x ) {
 			$co_gia = ( null !== $x['luongChinh'] );
@@ -451,13 +485,33 @@ class VHCC_BangLuong {
 				$dong[] = $trong( $T );                                   // I
 				for ( $i = 9; $i <= 25; $i++ ) { $dong[] = $trong( $T ); }
 			} else {
+				/* ═══════════════════════════════════════════════════════════════════════════
+				 * 🔴 MỖI Ô CÔNG THỨC KÈM LUÔN GIÁ TRỊ ĐÃ TÍNH.
+				 *
+				 * Anh Thắng 16/09/2026: *"Sao bảo làm y chang lại xuất bảng không có gì"* — kèm
+				 * chính tệp hệ xuất ra. Soi ra thì tệp ấy có 43 ô công thức và KHÔNG ô nào kèm
+				 * giá trị, còn file mẫu của kế toán có 560 ô đều kèm. Không kèm thì tệp chỉ có
+				 * số khi mở bằng ứng dụng chịu tính lại; xem nhanh trên điện thoại, Google
+				 * Sheets hay ô xem trước của hòm thư thì cột Lương chính trống trơn.
+				 *
+				 * Mấy con số dưới đây là của CHÍNH lõi lương vừa tính, cùng một phép với công
+				 * thức — không phải số đoán. `fullCalcOnLoad` vẫn giữ, nên kế toán gõ vào ô phụ
+				 * cấp là Excel tính lại ngay.
+				 * ═══════════════════════════════════════════════════════════════════════════ */
+				$v_i = ( null === $x['luongChinh'] ) ? null : (float) $x['luongChinh'];
+				$la_c = ! empty( $x['laChinh'] );
+				$v_u = $la_c ? (float) $x['tongCong'] : 0.0;
+				$v_y = $la_c ? (float) $x['tongTru'] : 0.0;
+				$v_z = ( null === $v_i ) ? null
+					: round( $v_i + (float) $v_u - (float) $v_y, 2 );
 				$dong[] = ( 'thang' === $x['cheDo'] )
-					? $ct( 'E' . $r . '*G' . $r . '/F' . $r, $T )
-					: $ct( 'G' . $r . '*H' . $r, $T );                    // I
+					? $ct( 'E' . $r . '*G' . $r . '/F' . $r, $T, $v_i )
+					: $ct( 'G' . $r . '*H' . $r, $T, $v_i );              // I
 				$dong[] = $trong( $G );                                   // J giờ thêm
 				$dong[] = $trong( $T );                                   // K lương giờ thêm
 				$dong[] = $trong( $T );                                   // L BHXH
-				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T );    // M tổng lương
+				/* K và L để trống nên M = I. */
+				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T, $v_i );   // M tổng lương
 				/* 🔴 BẢY CỘT CỘNG ĐỔ THẲNG TỪ SỐ CỬA HÀNG TRƯỞNG ĐÃ GÕ — anh Thắng 16/09/2026
 				   đổi quyết định hôm trước ("để trống, kế toán điền"): *"mấy cột đó sẽ do cửa
 				   hàng trưởng nhập"*. Ô nào chưa gõ vẫn để TRỐNG chứ không ghi 0: một tờ lương
@@ -466,17 +520,36 @@ class VHCC_BangLuong {
 					$dong[] = empty( $x['cong'][ $k_c ] ) ? $trong( $T )
 						: $o( (float) $x['cong'][ $k_c ], $T );
 				}
-				$dong[] = $ct( 'SUM(N' . $r . ':T' . $r . ')', $T );      // U
+				$dong[] = $ct( 'SUM(N' . $r . ':T' . $r . ')', $T, $v_u );    // U
 				$dong[] = empty( $x['tru']['phat'] ) ? $trong( $T )
 					: $o( (float) $x['tru']['phat'], $T );                // V phạt
 				$dong[] = $trong( $T );                                   // W (cột trống của mẫu)
 				$dong[] = empty( $x['tru']['datCoc'] ) ? $trong( $T )
 					: $o( (float) $x['tru']['datCoc'], $T );              // X đặt cọc
-				$dong[] = $ct( 'SUM(V' . $r . ':X' . $r . ')', $T );      // Y
-				$dong[] = $ct( 'M' . $r . '+U' . $r . '-Y' . $r, $T );    // Z
+				$dong[] = $ct( 'SUM(V' . $r . ':X' . $r . ')', $T, $v_y );    // Y
+				$dong[] = $ct( 'M' . $r . '+U' . $r . '-Y' . $r, $T, $v_z );  // Z
 			}
 			$dong[] = $o( implode( ' · ', $ghi ), $V );                   // AA
 			$hang[] = $dong;
+			if ( $co_gia ) {
+				foreach ( array( 'I' => $v_i, 'M' => $v_i, 'U' => $v_u, 'Y' => $v_y, 'Z' => $v_z )
+					as $c_k => $v_k ) {
+					if ( null === $v_k ) { continue; }
+					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
+					$cong_khoi[ $c_k ] += (float) $v_k;
+				}
+				foreach ( array_keys( VHCC_ChotLuong::CONG ) as $i_c => $k_c ) {
+					$c_k = chr( ord( 'N' ) + $i_c );
+					$v_k = empty( $x['cong'][ $k_c ] ) ? 0.0 : (float) $x['cong'][ $k_c ];
+					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
+					$cong_khoi[ $c_k ] += $v_k;
+				}
+				foreach ( array( 'V' => 'phat', 'X' => 'datCoc' ) as $c_k => $k_t ) {
+					$v_k = empty( $x['tru'][ $k_t ] ) ? 0.0 : (float) $x['tru'][ $k_t ];
+					if ( ! isset( $cong_khoi[ $c_k ] ) ) { $cong_khoi[ $c_k ] = 0.0; }
+					$cong_khoi[ $c_k ] += $v_k;
+				}
+			}
 			$r++;
 		}
 
@@ -491,7 +564,8 @@ class VHCC_BangLuong {
 		if ( $cuoi >= $dau_khoi ) {
 			foreach ( array( 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
 				'V', 'W', 'X', 'Y', 'Z' ) as $c ) {
-				$tong[] = $ct( 'SUM(' . $c . $dau_khoi . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG );
+				$tong[] = $ct( 'SUM(' . $c . $dau_khoi . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG,
+					isset( $cong_khoi[ $c ] ) ? round( $cong_khoi[ $c ], 2 ) : null );
 			}
 		} else {
 			for ( $i = 0; $i < 18; $i++ ) { $tong[] = $trong( VHCC_Xuat::TONG ); }
