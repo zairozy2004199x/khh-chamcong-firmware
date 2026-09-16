@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.19.0
+Stable tag: 1.20.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,16 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.20.0 =
+* **Số đầy đủ ở chỗ để đối chiếu**: chip nộp tiền ghi `về 39.870.000` thay vì `về 40 tr` — con số
+  ấy là để tra trên sao kê, không phải để liếc.
+* **Sổ MoMo**: khai một lần ở Quản trị → *Khai sổ MoMo*, bảng Tổng hợp có thêm cột **MoMo (sao kê)**
+  và **Lệch MoMo** so với phần CK/QR máy POS ghi. Sổ MoMo đọc thẳng, không nhập vào kho — nó là sổ
+  đối chiếu, không phải sổ tiền nộp.
+* **Cảnh báo hai sổ lệch kỳ**: sao kê có khoản từ trước ngày kho POS bắt đầu thì cột Đã nộp gánh cả
+  tiền mặt của những ngày chưa có số POS — vì thế Không khớp ra số âm. Nay nói thẳng lý do và cách
+  chữa (nạp file POS kỳ trước).
 
 = 1.19.0 =
 * **Tổng hợp cả kỳ theo cơ sở**: doanh thu POS · CK/QR · tiền mặt · đã nộp · treo đầu kỳ · treo

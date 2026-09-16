@@ -1016,7 +1016,7 @@
             (x.nop_lan > 1 ? '<span class="nho"> ' + x.nop_lan + ' lần</span>' : '') +
             (x.lech_nop
               ? '<span class="nho xau" title="Cơ sở khai đã nộp ' + esc(tien(x.nop)) + '"> khai ' +
-                (x.lech_nop > 0 ? '+' : '') + tienGon(x.lech_nop) + '</span>'
+                (x.lech_nop > 0 ? '+' : '') + nguyen(x.lech_nop) + '</span>'
               : '')
           : '<span class="khai">—</span>') + '</td>' +
         '<td>' + theTreo(x, r.co_bank, ng, r.ngay_nhac || 10) + '</td>' +
@@ -1076,7 +1076,7 @@
     ds.forEach(function (x) {
       var c = x.cua_hang;
       if (!theo[c]) {
-        theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, dau: null, cuoi: null, ngayDau: '', ngayCuoi: '' };
+        theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, dau: null, cuoi: null, ngayDau: '', ngayCuoi: '' };
         ten.push(c);
       }
       var t = theo[c];
@@ -1084,6 +1084,7 @@
       t.tm += x.phai_nop || 0;
       t.ck += x.pos_ck || 0;
       t.nop += x.nop_bank || 0;
+      t.momo += (S.dsR && S.dsR.momo ? (S.dsR.momo[x.ngay + '|' + c] || 0) : 0);
       if (!t.ngayCuoi || x.ngay > t.ngayCuoi) { t.ngayCuoi = x.ngay; t.cuoi = x.treo || 0; }
       if (!t.ngayDau || x.ngay < t.ngayDau) {
         t.ngayDau = x.ngay;
@@ -1094,11 +1095,12 @@
     });
     ten.sort();
     if (!ten.length) return '';
+    var coMomo = !!(S.dsR && S.dsR.co_momo);
 
-    var T = { dt: 0, tm: 0, ck: 0, nop: 0, dau: 0, cuoi: 0 };
+    var T = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, dau: 0, cuoi: 0 };
     var hang = ten.map(function (c) {
       var t = theo[c];
-      ['dt', 'tm', 'ck', 'nop', 'dau', 'cuoi'].forEach(function (f) { T[f] += t[f] || 0; });
+      ['dt', 'tm', 'ck', 'nop', 'momo', 'dau', 'cuoi'].forEach(function (f) { T[f] += t[f] || 0; });
       /* Tiền mặt vào trong kỳ phải bằng: đã nộp + (treo cuối − treo đầu). Lệch ra là con số
          không giải thích được — gần như luôn là do sao kê thiếu khoản, hoặc mã nộp tiền khai
          sót; nhưng phải bày ra chứ không được lặng lẽ làm tròn. */
@@ -1109,24 +1111,39 @@
     var o_ = function (v) { return '<td class="s">' + tien(v) + '</td>'; };
     var h = '<div class="khung"><header><h2>Tổng hợp cả kỳ theo cơ sở</h2>' +
       '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + '</span></header>' +
+      ((S.dsR && S.dsR.pos_som && S.dsR.nguon_bank && S.dsR.nguon_bank.tu_ngay &&
+        S.dsR.nguon_bank.tu_ngay < S.dsR.pos_som)
+        ? '<div class="canh-ghep">⚠️ <b>Hai sổ lệch kỳ nhau.</b> Sao kê có khoản từ ' +
+          ngayVN(S.dsR.nguon_bank.tu_ngay) + ', còn kho POS mới có từ ' + ngayVN(S.dsR.pos_som) + '. ' +
+          'Nên cột <b>Đã nộp</b> gánh cả tiền mặt của những ngày chưa có số POS — vì thế nó có thể ' +
+          'lớn hơn cột Tiền mặt, và cột Không khớp ra số âm. Nạp file POS của kỳ trước vào là hết.</div>'
+        : '') +
       '<div class="chu-them" style="margin-top:6px">Tiền nộp so với <b>tiền mặt</b>, không so với ' +
       'tổng doanh thu: phần khách trả bằng chuyển khoản và quét QR tự về tài khoản, không ai mang ' +
       'đi nộp. Phép đúng là <b>tiền mặt POS = đã nộp + còn treo</b>.</div>' +
       '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
         '<th style="text-align:left">Cơ sở</th><th>Doanh thu POS</th><th>CK / QR</th>' +
+        (coMomo ? '<th>MoMo (sao kê)</th><th>Lệch MoMo</th>' : '') +
         '<th>Tiền mặt</th><th>Đã nộp</th><th>Treo đầu kỳ</th><th>Treo cuối kỳ</th><th>Không khớp</th>' +
       '</tr></thead><tbody>' +
       hang.map(function (r_) {
         var t = r_.t;
         return '<tr><td style="text-align:left">' + esc(String(r_.c).slice(0, 34)) + '</td>' +
-          o_(t.dt) + o_(t.ck) + o_(t.tm) + o_(t.nop) + o_(t.dau) + o_(t.cuoi) +
+          o_(t.dt) + o_(t.ck) +
+          (coMomo ? o_(t.momo) + '<td class="s">' + (Math.abs(t.ck - t.momo) < 1000
+            ? '<span style="color:var(--tot)">0</span>'
+            : '<b style="color:var(--s4)">' + (t.ck - t.momo > 0 ? '+' : '') + nguyen(t.ck - t.momo) + '</b>')
+            + '</td>' : '') +
+          o_(t.tm) + o_(t.nop) + o_(t.dau) + o_(t.cuoi) +
           '<td class="s">' + (Math.abs(r_.lech) < 1000 ? '<span style="color:var(--tot)">0</span>'
-            : '<b style="color:var(--xau)">' + (r_.lech > 0 ? '+' : '') + tienGon(r_.lech) + '</b>') + '</td></tr>';
+            : '<b style="color:var(--xau)">' + (r_.lech > 0 ? '+' : '') + nguyen(r_.lech) + '</b>') + '</td></tr>';
       }).join('') +
       '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
         '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở</td>' +
-        o_(T.dt) + o_(T.ck) + o_(T.tm) + o_(T.nop) + o_(T.dau) + o_(T.cuoi) +
-        '<td class="s">' + tienGon(T.tm - (T.nop + (T.cuoi - T.dau))) + '</td></tr>' +
+        o_(T.dt) + o_(T.ck) +
+        (coMomo ? o_(T.momo) + '<td class="s">' + nguyen(T.ck - T.momo) + '</td>' : '') +
+        o_(T.tm) + o_(T.nop) + o_(T.dau) + o_(T.cuoi) +
+        '<td class="s">' + nguyen(T.tm - (T.nop + (T.cuoi - T.dau))) + '</td></tr>' +
       '</tbody></table></div>' +
       '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> cột <b>Treo cuối kỳ</b> là ' +
       'tiền mặt cơ sở đang giữ chưa nộp — đó mới là con số phải hỏi, và phải hỏi khi nó CỨ LỚN DẦN ' +
@@ -1207,7 +1224,7 @@
       }
       /* Cột cuối là SỐ DƯ TREO CUỐI KỲ, không phải tổng mấy ngày thiếu cộng lại — cộng lại là
          đếm cùng một khoản tiền nhiều lần. */
-      o_ += '<td class="ten s">' + (treoCuoi > 1000 ? '<b style="color:var(--xau)">' + tienGon(treoCuoi) + '</b>'
+      o_ += '<td class="ten s">' + (treoCuoi > 1000 ? '<b style="color:var(--xau)">' + nguyen(treoCuoi) + '</b>'
         : (coNgay ? '<span style="color:var(--tot)">sạch</span>' : '—')) + '</td></tr>';
       h += o_;
     });
@@ -1248,52 +1265,6 @@
     }
     return { ma: 'cho', dau: '·', chu: 'đang dồn ' + tien(t) +
       (x.ngay_treo ? ' — ' + x.ngay_treo + ' ngày kể từ lần nộp gần nhất' : '') };
-  }
-
-  /**
-   * Một ô trả lời đúng câu "nộp tiền chưa".
-   *
-   * Bốn trạng thái, và chúng KHÁC NHAU thật sự:
-   *   · chưa tới hạn  — tiền hôm nay, sáng mai mới mang ra ngân hàng. Không gọi tên ai.
-   *   · đủ            — về đủ (cho lệch dưới 1.000 ₫ vì lẻ tiền mặt).
-   *   · thiếu / chưa  — đã quá hạn mà tiền chưa về, hoặc về không đủ.
-   *   · muộn          — có về, nhưng mấy ngày sau. Tiền không mất, nhưng nằm trong tay người ta.
-   */
-  /**
-   * Ô trả lời câu "tiền mặt của quán này đang nằm ở đâu".
-   *
-   * 🔴 ĐO THEO SỐ DƯ TREO VÀ SỐ NGÀY, KHÔNG PHẢI THEO TỪNG NGÀY CÓ NỘP HAY KHÔNG. Cửa hàng
-   *    trưởng gom mấy ngày nộp một cục (sao kê TÀU GÒ VẤP: 4 lần trong 2 tháng), nên "hôm nay
-   *    không thấy giao dịch" là chuyện bình thường, không phải dấu hiệu gì.
-   */
-  function theTreo(x, coBank, ng, nhac) {
-    if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
-    if (!x.co_ma && !x.co_bank) return '<span class="chip cho">chưa khai mã nộp tiền</span>';
-    var t = x.treo || 0;
-    var h = x.nop_bank > 0
-      ? '<span class="chip du">về ' + tienGon(x.nop_bank) + '</span>' : '';
-    if (t < 1000) return h || '<span class="chip du">sạch</span>';
-    var lau = (x.ngay_treo || 0) >= nhac && t > ng.so_tien;
-    return h + '<span class="chip ' + (lau ? 'thieu' : '') + '" title="Cộng dồn tiền mặt phải nộp trừ tiền đã về">' +
-      'treo ' + tienGon(t) + (x.ngay_treo ? ' · ' + x.ngay_treo + ' ngày' : '') + '</span>';
-  }
-
-  function theNop(x, coBank) {
-    if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
-    if (x.phai_nop <= 0) return '<span class="chip">không có tiền mặt</span>';
-    /* Chưa khai mã nộp tiền cho cơ sở này thì hệ KHÔNG BIẾT tiền đã về hay chưa — nói "chưa nộp"
-       là kết tội một người có thể đã nộp đủ. */
-    if (!x.co_ma && !x.co_bank) return '<span class="chip cho">chưa khai mã nộp tiền</span>';
-    var thieu = x.thieu || 0;
-    if (Math.abs(thieu) < 1000) {
-      return '<span class="chip du">đã nộp đủ</span>' +
-        (x.nop_muon >= 2 ? '<span class="chip muon">muộn ' + x.nop_muon + ' ngày</span>' : '');
-    }
-    if (thieu > 0) {
-      if (!x.qua_han) return '<span class="chip cho">chưa tới hạn nộp</span>';
-      return '<span class="chip thieu">' + (x.co_bank ? 'thiếu ' + tienGon(thieu) : 'chưa nộp ' + tienGon(thieu)) + '</span>';
-    }
-    return '<span class="chip du">nộp dư ' + tienGon(-thieu) + '</span>';
   }
 
   function canhBao(x, ng) {
@@ -1357,7 +1328,8 @@
         /* Mẫu hai dòng của sổ đang chọn — nhìn nội dung là biết ngay có phải sao kê hay không. */
         '<div id="dtNguonMau" class="chu-them" style="margin-top:8px"></div>' +
         '<div style="margin-top:8px"><button class="vien" type="button" id="dtNguonTay">' +
-        'Không thấy sổ của mình? Chọn tay →</button></div>' +
+        'Không thấy sổ của mình? Chọn tay →</button> ' +
+        '<button class="vien" type="button" id="dtNguonMomo">Khai sổ MoMo →</button></div>' +
         '<div id="dtNguonTayNoi" hidden style="margin-top:10px"></div>' +
         '</div>';
     }
@@ -1460,7 +1432,9 @@
     veMau();
 
     var nutTay = o.querySelector('#dtNguonTay');
-    if (nutTay) nutTay.addEventListener('click', function () { chonBangTay(o); });
+    if (nutTay) nutTay.addEventListener('click', function () { chonBangTay(o, 'bank'); });
+    var nutMomo = o.querySelector('#dtNguonMomo');
+    if (nutMomo) nutMomo.addEventListener('click', function () { chonBangTay(o, 'momo'); });
 
     var nutKeo = o.querySelector('#dtKeoSk');
     if (nutKeo) {
@@ -1549,13 +1523,19 @@
   /* ---- chọn tay: bảng nào cũng được, cột nào là gì thì tự khai ----
      Máy dò bằng tên cột, mà tên cột là thứ người khác đặt. Đoán được thì tốt; đoán không được
      thì phải để người chỉ, chứ không bắt người ta chờ mình đoán đúng. */
-  function chonBangTay(o) {
+  function chonBangTay(o, viec) {
     var noi = o.querySelector('#dtNguonTayNoi');
     noi.hidden = false;
     noi.innerHTML = '<div class="chu-them">Đang đọc danh sách bảng…</div>';
     api('moi-bang').then(function (r) {
       var ds = (r.bang_ds || []).filter(function (x) { return x.uoc > 0; });
       noi.innerHTML =
+        (viec === 'momo'
+          ? '<div class="chu-them" style="margin-bottom:8px"><b>Sổ MoMo</b> — để biết phần khách trả ' +
+            'qua MoMo mà máy POS ghi có khớp với số MoMo nhận không. MoMo không bắn webhook nên sổ ' +
+            'ấy do người ta tải file lên; ngày nào chưa tải thì sổ thiếu ngày đó, và thiếu file ' +
+            'khác hẳn với "MoMo giữ tiền".</div>'
+          : '') +
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
           '<select id="dtBangTay">' + ds.map(function (x) {
             return '<option value="' + esc(x.bang) + '">' + esc(x.bang) + ' — khoảng ' +
@@ -1564,23 +1544,26 @@
           '<button class="nut" type="button" id="dtSoiBang">Xem bảng này</button>' +
         '</div><div id="dtSoiNoi" style="margin-top:10px"></div>';
       noi.querySelector('#dtSoiBang').addEventListener('click', function () {
-        soiBang(o, noi.querySelector('#dtBangTay').value);
+        soiBang(o, noi.querySelector('#dtBangTay').value, viec);
       });
     }).catch(function (e) {
       noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
     });
   }
 
-  function soiBang(o, bang) {
+  function soiBang(o, bang, viec) {
     var noi = o.querySelector('#dtSoiNoi');
     noi.innerHTML = '<div class="chu-them">Đang đọc…</div>';
     api('soi-bang?bang=' + encodeURIComponent(bang)).then(function (r) {
       var cot = r.cot || [], dong = r.dong || [], doan = r.doan || {};
       if (!cot.length) { noi.innerHTML = '<div class="chu-them">Bảng rỗng hoặc không đọc được.</div>'; return; }
-      var vai = [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền vào *'], ['noi_dung', 'Nội dung'],
-                 ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
-                 ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại'],
-                 ['huong', 'Hướng (Đến / Đi)'], ['trang_thai', 'Trạng thái']];
+      var vai = viec === 'momo'
+        ? [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền *'], ['nhan', 'Tên cửa hàng *'],
+           ['noi_dung', 'Nội dung / mã cửa hàng']]
+        : [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền vào *'], ['noi_dung', 'Nội dung'],
+           ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
+           ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại'],
+           ['huong', 'Hướng (Đến / Đi)'], ['trang_thai', 'Trạng thái']];
       var h = '<div class="bang-cuon"><table><thead><tr>' +
         cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
         '</tr></thead><tbody>' +
@@ -1598,7 +1581,10 @@
             }).join('') + '</select></label>';
         }).join('') + '</div>' +
         '<div style="margin-top:12px"><button class="nut chinh" type="button" id="dtKeoTay">' +
-        'Dùng sổ này và kéo về</button> <span class="chu-them">Ngày và Số tiền là bắt buộc.</span></div>';
+        (viec === 'momo' ? 'Dùng sổ MoMo này' : 'Dùng sổ này và kéo về') +
+        '</button> <span class="chu-them">' +
+        (viec === 'momo' ? 'Ngày, Số tiền và Tên cửa hàng là bắt buộc.' : 'Ngày và Số tiền là bắt buộc.') +
+        '</span></div>';
       noi.innerHTML = h;
       noi.querySelector('#dtKeoTay').addEventListener('click', function () {
         var map = {};
@@ -1606,12 +1592,26 @@
           if (se.value) map[se.dataset.cot] = se.value;
         });
         if (!map.ngay || !map.so_tien) { window.alert('Phải chỉ cột Ngày và cột Số tiền.'); return; }
+        if (viec === 'momo' && !map.nhan) { window.alert('Phải chỉ cột Tên cửa hàng.'); return; }
         var fd = new FormData();
         fd.append('bang', bang);
         fd.append('cot', JSON.stringify(map));
-        fd.append('tu_dong', '1');
         var b = noi.querySelector('#dtKeoTay');
-        b.disabled = true; b.textContent = 'Đang kéo…';
+        b.disabled = true; b.textContent = 'Đang lưu…';
+        if (viec === 'momo') {
+          /* Sổ MoMo KHÔNG kéo vào kho: đọc thẳng mỗi lần xem báo cáo. Nó là sổ đối chiếu, không
+             phải sổ tiền nộp — nhập nó vào kho là lẫn hai dòng tiền với nhau. */
+          api('nguon-momo', { method: 'POST', body: fd }).then(function () {
+            window.alert('Đã khai sổ MoMo. Bảng Tổng hợp cả kỳ nay có thêm cột MoMo và cột Lệch MoMo.');
+            taiQuanTri();
+          }).catch(function (e) {
+            b.disabled = false; b.textContent = 'Dùng sổ MoMo này';
+            window.alert(e.message || e);
+          });
+          return;
+        }
+        fd.append('tu_dong', '1');
+        b.textContent = 'Đang kéo…';
         api('sao-ke-keo', { method: 'POST', body: fd }).then(function (kq) {
           window.alert(keChuyenKeo(kq.vua_keo || {}, bang));
           taiQuanTri();

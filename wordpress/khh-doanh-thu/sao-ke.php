@@ -1190,6 +1190,87 @@ function khh_dt_doan_cot( $cot_ds ) {
 	return $map;
 }
 
+/* ================================================================== *
+ * SỔ MOMO — nguồn thứ ba, để biết phần CK/QR có về đủ không
+ * ================================================================== */
+
+/**
+ * Anh Thắng 16/09/2026: *"cái chỗ chuyển khoản nó là khoản MoMo, lấy dữ liệu từ MoMo qua mới biết
+ * không khớp là bao nhiêu"* — và *"MoMo được lấy từ sao kê MoMo"*.
+ *
+ * Máy POS ghi khách trả bao nhiêu qua MoMo; sao kê MoMo ghi MoMo nhận bao nhiêu; ngân hàng ghi
+ * MoMo chuyển về bao nhiêu. Ba con số ấy đáng lẽ bằng nhau (trừ phí cổng), và mỗi chỗ lệch là
+ * một câu hỏi khác nhau:
+ *
+ *   POS  >  MoMo   -> có giao dịch ghi trên máy mà MoMo không nhận: nhập máy sai, hoặc huỷ.
+ *   MoMo >  ngân hàng -> MoMo đã thu mà chưa chuyển về: cục cuối tháng, hoặc trừ phí.
+ *
+ * ⚠️ MOMO KHÔNG BẮN WEBHOOK (chính app nhà mình ghi thế), nên sổ MoMo là do người ta TẢI FILE lên
+ *    hằng ngày. Ngày nào chưa tải thì sổ thiếu ngày ấy — và thiếu file thì phải nói là THIẾU FILE,
+ *    tuyệt đối không được coi bằng 0 rồi kết luận "MoMo giữ tiền".
+ */
+function khh_dt_nguon_momo() {
+	$x = get_option( 'khh_dt_nguon_momo', array() );
+	return is_array( $x ) && ! empty( $x['bang'] ) ? $x : array();
+}
+
+/**
+ * Doanh thu MoMo theo ngày × cơ sở, đọc thẳng sổ MoMo.
+ *
+ * Trả [ 'ngay|cơ sở' => tổng ] và [ 'ngay' => true ] cho những ngày sổ CÓ dữ liệu — hai thứ khác
+ * nhau: ngày không có dòng nào và ngày chưa tải file trông giống hệt nhau nếu chỉ nhìn tổng.
+ */
+function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
+	global $wpdb;
+	$n = khh_dt_nguon_momo();
+	if ( ! $n ) {
+		return array( 'tong' => array(), 'ngay_co' => array() );
+	}
+	$bang = (string) $n['bang'];
+	$c    = (array) $n['cot'];
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array( 'tong' => array(), 'ngay_co' => array() );
+	}
+	$cot_ten = ! empty( $c['nhan'] ) ? $c['nhan'] : ( ! empty( $c['noi_dung'] ) ? $c['noi_dung'] : '' );
+	if ( empty( $c['ngay'] ) || empty( $c['so_tien'] ) || '' === $cot_ten ) {
+		return array( 'tong' => array(), 'ngay_co' => array() );
+	}
+	$sql  = "SELECT `{$c['ngay']}` ngay, `{$c['so_tien']}` tien, `$cot_ten` ten FROM `$bang` WHERE 1=1";
+	$args = array();
+	if ( $tu ) {
+		$sql   .= " AND `{$c['ngay']}` >= %s";
+		$args[] = $tu . ' 00:00:00';
+	}
+	if ( $den ) {
+		$sql   .= " AND `{$c['ngay']}` <= %s";
+		$args[] = $den . ' 23:59:59';
+	}
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+	// phpcs:enable
+
+	$tong    = array();
+	$ngay_co = array();
+	foreach ( (array) $ds as $r ) {
+		$ngay = khh_dt_ngay( substr( (string) $r['ngay'], 0, 10 ) );
+		if ( '' === $ngay ) {
+			continue;
+		}
+		$ngay_co[ $ngay ] = true;
+		$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
+		if ( '' === $ch ) {
+			$ch = khh_dt_doan_co_so( (string) $r['ten'], '' );
+		}
+		if ( '' === $ch ) {
+			continue;                       // chưa ghép được cửa hàng — đếm riêng ở màn MoMo
+		}
+		$k          = $ngay . '|' . $ch;
+		$tong[ $k ] = ( isset( $tong[ $k ] ) ? $tong[ $k ] : 0 ) + khh_dt_so( $r['tien'] );
+	}
+	return array( 'tong' => $tong, 'ngay_co' => $ngay_co );
+}
+
 /** Một câu tả nguồn đang dùng, để màn đối soát nói ra mình đang đọc sổ nào. */
 function khh_dt_nguon_mo_ta() {
 	global $wpdb;
@@ -1423,6 +1504,15 @@ function khh_dt_rest_sk() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/nguon-momo',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_nguon_momo',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/sao-ke-xoa',
 		array(
 			'methods'             => 'POST',
@@ -1606,6 +1696,33 @@ function khh_dt_rest_soi_bang( $req ) {
 	$ra         = khh_dt_soi_bang( $bang );
 	$ra['bang'] = $bang;
 	return $ra;
+}
+
+function khh_dt_rest_nguon_momo( $req ) {
+	$bang = sanitize_text_field( (string) $req->get_param( 'bang' ) );
+	if ( '' === $bang ) {
+		delete_option( 'khh_dt_nguon_momo' );
+		return array( 'ok' => true, 'bo' => true );
+	}
+	$cot = $req->get_param( 'cot' );
+	if ( is_string( $cot ) ) {
+		$cot = json_decode( $cot, true );
+	}
+	$soi  = khh_dt_soi_bang( $bang );
+	$sach = array();
+	foreach ( khh_dt_cot_nguon() as $vai => $bo_qua ) {
+		$c = ( is_array( $cot ) && isset( $cot[ $vai ] ) ) ? sanitize_text_field( (string) $cot[ $vai ] ) : '';
+		/* Chỉ nhận tên cột CÓ THẬT — chuỗi gửi lên đi thẳng vào câu SQL. */
+		$sach[ $vai ] = in_array( $c, $soi['cot'], true ) ? $c : '';
+	}
+	if ( '' === $sach['ngay'] || '' === $sach['so_tien'] ) {
+		return new WP_Error( 'khh_dt_momo', 'Cột ngày và cột tiền phải có thật trong bảng.', array( 'status' => 400 ) );
+	}
+	if ( '' === $sach['nhan'] && '' === $sach['noi_dung'] ) {
+		return new WP_Error( 'khh_dt_momo', 'Cần một cột mang tên cửa hàng để biết tiền của cơ sở nào.', array( 'status' => 400 ) );
+	}
+	update_option( 'khh_dt_nguon_momo', array( 'bang' => $bang, 'cot' => $sach ), false );
+	return array( 'ok' => true, 'bang' => $bang, 'cot' => $sach );
 }
 
 function khh_dt_rest_sk_xoa() {

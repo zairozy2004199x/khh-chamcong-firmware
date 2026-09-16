@@ -426,6 +426,14 @@ function khh_dt_rest_doi_soat( $req ) {
 	 * ==============================================================================================
 	 */
 	$mo_dau = khh_dt_treo_truoc( $tu );
+	$momo   = khh_dt_momo_theo_ngay( $tu, $den );
+
+	/* 🔴 SAO KÊ CÓ THỂ ĐI TRƯỚC KHO POS — và khi ấy "đã nộp" trông nhiều hơn "tiền mặt".
+	   16/09/2026, Lotte Gò Vấp kỳ 01–15/09: tiền mặt 43,3 tr mà đã nộp 66,76 tr, cột không khớp
+	   ra −37 tr. Không phải ai nộp thừa: sổ ngân hàng có cả khoản gánh tiền mặt của THÁNG TRƯỚC,
+	   trong khi kho POS chưa có tháng ấy nên không có gì để trừ. So hai sổ lệch kỳ nhau thì con
+	   số nào cũng vô nghĩa — phải nói ra, chứ không được để người đọc tự đoán. */
+	$pos_som = khh_dt_ngay_som_nhat();
 	/* 🔴 CƠ SỞ CHƯA KHAI MÃ NỘP TIỀN THÌ KHÔNG ĐƯỢC KẾT TỘI HỌ.
 	   Anh Thắng 16/09/2026 kéo sao kê về xong, cả bảng đỏ rực "chưa nộp 1,1 tr · 5,2 tr · 7,8 tr"
 	   cho mọi ngày của Lotte Gò Vấp — trong khi sự thật là chưa ai khai mã nộp tiền của quán ấy,
@@ -533,6 +541,10 @@ function khh_dt_rest_doi_soat( $req ) {
 	return array(
 		'dong'     => $ra,
 		'ngay_nhac' => khh_dt_ngay_nhac(),
+		'momo'      => $momo['tong'],
+		'momo_ngay_co' => array_keys( $momo['ngay_co'] ),
+		'co_momo'   => (bool) khh_dt_nguon_momo(),
+		'pos_som'   => $pos_som,
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
 		'nguong'   => khh_dt_nguong(),
 		'co_bank'  => (bool) khh_dt_co_sao_ke(),
@@ -589,6 +601,15 @@ function khh_dt_treo_truoc( $tu ) {
 		}
 	}
 	return $ra;
+}
+
+/** Ngày sớm nhất có số liệu POS trong kho — để biết kỳ nào so được, kỳ nào không. */
+function khh_dt_ngay_som_nhat() {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$x = $wpdb->get_var( "SELECT MIN(ngay) FROM $bang" );
+	return $x ? (string) $x : '';
 }
 
 /** Treo quá bao nhiêu ngày thì nhắc. Cơ sở nộp gộp mỗi tuần một lần là bình thường; quá 10 ngày thì không. */
