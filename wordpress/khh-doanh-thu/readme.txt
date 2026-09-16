@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.16.0
+Stable tag: 1.17.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,14 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.17.0 =
+* **Chọn tay sổ sao kê khi máy dò không ra**: chọn bảng bất kỳ trong site → xem 3 dòng đầu và
+  toàn bộ cột → tự chỉ cột nào là Ngày, Số tiền, Nội dung, Mã GD, Nhãn → kéo. Máy vẫn đoán sẵn,
+  người khai chỉ sửa chỗ sai.
+* **Quét mọi bảng**, không riêng bảng mang tiền tố WordPress — plugin có thể tạo bảng riêng.
+* Ô chọn nguồn **hiện hai dòng gần nhất** của sổ đang chọn: nhìn nội dung chuyển khoản là biết
+  ngay có phải sao kê ngân hàng hay không.
 
 = 1.16.0 =
 * **Đổi sang SỐ DƯ TREO cộng dồn.** Cơ sở gom mấy ngày nộp một cục (sao kê TÀU GÒ VẤP: 4 lần

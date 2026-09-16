@@ -835,9 +835,10 @@ function khh_dt_cot_nguon() {
  */
 function khh_dt_nguon_ds() {
 	global $wpdb;
-	$tien_to = str_replace( '_', '\_', $wpdb->prefix );
+	/* ⚠️ QUÉT MỌI BẢNG, KHÔNG CHỈ BẢNG MANG TIỀN TỐ CỦA WORDPRESS. Plugin có thể tạo bảng riêng
+	   không theo tiền tố `wpt9_`, và lọc theo tiền tố là bỏ sót đúng cái bảng cần tìm. */
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$bang_ds = (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tien_to . '%' ) );
+	$bang_ds = (array) $wpdb->get_col( 'SHOW TABLES' );
 	$ra      = array();
 	/* Mấy bảng lõi của WordPress thì chắc chắn không phải sổ tiền — bỏ sớm cho nhanh. */
 	$bo = array( 'posts', 'postmeta', 'comments', 'commentmeta', 'options', 'users', 'usermeta',
@@ -881,12 +882,30 @@ function khh_dt_nguon_ds() {
 		$n   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `$b`" );
 		$bien = $wpdb->get_row( "SELECT MIN(`{$map['ngay']}`) tu, MAX(`{$map['ngay']}`) den FROM `$b`", ARRAY_A );
 		// phpcs:enable
+		/* 🔴 KÈM HAI DÒNG LÀM MẪU. Tên bảng thì người khai không nhận ra, nhưng nhìn một dòng nội
+		   dung chuyển khoản là biết ngay có phải sổ sao kê ngân hàng hay không. Không có mẫu thì
+		   chọn nguồn là đoán mò — mà chọn nhầm sổ là cả bảng đối soát nói sai. */
+		$mau = array();
+		if ( $n > 0 ) {
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+			foreach ( (array) $wpdb->get_results(
+				"SELECT `{$map['ngay']}` ngay, `{$map['so_tien']}` tien, `{$map['noi_dung']}` nd FROM `$b` ORDER BY `{$map['ngay']}` DESC LIMIT 2", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				ARRAY_A
+			) as $m ) {
+				$mau[] = array(
+					'ngay' => substr( (string) $m['ngay'], 0, 16 ),
+					'tien' => khh_dt_so( $m['tien'] ),
+					'nd'   => mb_substr( (string) $m['nd'], 0, 90 ),
+				);
+			}
+		}
 		$ra[] = array(
 			'bang'     => $b,
 			'so_dong'  => $n,
 			'tu_ngay'  => $bien ? substr( (string) $bien['tu'], 0, 10 ) : '',
 			'den_ngay' => $bien ? substr( (string) $bien['den'], 0, 10 ) : '',
 			'cot'      => $map,
+			'mau'      => $mau,
 		);
 	}
 	usort(
@@ -1062,6 +1081,81 @@ function khh_dt_ten_co_so_gan( $nhan ) {
 	return '';
 }
 
+/**
+ * MỌI BẢNG TRONG SITE, kèm số dòng — để người khai tự chỉ đích danh khi máy dò không ra.
+ *
+ * 🔴 PHẢI CÓ ĐƯỜNG CHỌN TAY. Máy dò bằng tên cột, mà tên cột là thứ người khác đặt: sổ của
+ *    plugin Sao Kê Ngân Hàng có thể ghi `transactionDate` / `amount_in` / `remark` — không trùng
+ *    cái tên nào mình liệt kê, và thế là nó không bao giờ hiện ra. Anh Thắng 16/09/2026 đã kẹt
+ *    đúng chỗ ấy: danh sách dò được chỉ có sổ ghế và sổ chi, không có sao kê.
+ *
+ *    Máy đoán được thì tốt; đoán không được thì phải để người chỉ, chứ không được bắt người ta
+ *    chờ mình đoán đúng.
+ */
+function khh_dt_moi_bang() {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			'SELECT TABLE_NAME ten, TABLE_ROWS so FROM information_schema.TABLES
+			 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE %s ORDER BY TABLE_ROWS DESC',
+			'%'
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$ra[] = array(
+			'bang' => (string) $r['ten'],
+			/* `TABLE_ROWS` của InnoDB là số ƯỚC LƯỢNG — đủ để người ta nhận ra bảng nào có dữ
+			   liệu, và rẻ hơn hẳn `COUNT(*)` trên vài trăm bảng. Nói rõ là "khoảng". */
+			'uoc'  => (int) $r['so'],
+		);
+	}
+	return $ra;
+}
+
+/** Cột của một bảng, kèm ba dòng đầu để người khai nhìn mà biết cột nào là cột gì. */
+function khh_dt_soi_bang( $bang ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array( 'cot' => array(), 'dong' => array() );
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$cot = (array) $wpdb->get_col( "SHOW COLUMNS FROM `$bang`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$dong = (array) $wpdb->get_results( "SELECT * FROM `$bang` LIMIT 3", ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	foreach ( $dong as $i => $d ) {
+		foreach ( $d as $k => $v ) {
+			$dong[ $i ][ $k ] = mb_substr( (string) $v, 0, 60 );
+		}
+	}
+	return array(
+		'cot'  => $cot,
+		'dong' => $dong,
+		/* Đoán sẵn để người khai chỉ phải sửa chỗ sai, không phải khai từ đầu. */
+		'doan' => khh_dt_doan_cot( $cot ),
+	);
+}
+
+/** Đoán vai của từng cột theo tên, trả [ vai => tên cột ]. */
+function khh_dt_doan_cot( $cot_ds ) {
+	$thuong = array_map( 'strtolower', (array) $cot_ds );
+	$map    = array();
+	foreach ( khh_dt_cot_nguon() as $vai => $ten_ds ) {
+		$map[ $vai ] = '';
+		foreach ( $ten_ds as $t ) {
+			$i = array_search( $t, $thuong, true );
+			if ( false !== $i ) {
+				$map[ $vai ] = $cot_ds[ $i ];
+				break;
+			}
+		}
+	}
+	return $map;
+}
+
 /** Một câu tả nguồn đang dùng, để màn đối soát nói ra mình đang đọc sổ nào. */
 function khh_dt_nguon_mo_ta() {
 	global $wpdb;
@@ -1108,9 +1202,8 @@ function khh_dt_cot_ma_nguon() {
 /** Những bảng trông như sổ "cơ sở → mã nộp tiền". */
 function khh_dt_ma_nguon_ds() {
 	global $wpdb;
-	$tien_to = str_replace( '_', '\_', $wpdb->prefix );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$bang_ds = (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tien_to . '%' ) );
+	$bang_ds = (array) $wpdb->get_col( 'SHOW TABLES' );   // mọi bảng — xem `khh_dt_nguon_ds()`
 	$bo      = array( 'posts', 'postmeta', 'comments', 'commentmeta', 'options', 'users', 'usermeta',
 		'terms', 'termmeta', 'term_taxonomy', 'term_relationships', 'links' );
 	$ra = array();
@@ -1269,6 +1362,24 @@ function khh_dt_rest_sk() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/moi-bang',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_moi_bang',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/soi-bang',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_soi_bang',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/ma-nguon',
 		array(
 			'methods'             => 'GET',
@@ -1354,17 +1465,36 @@ function khh_dt_rest_sk_keo( $req ) {
 	/* Người khai vừa chọn một bảng nguồn thì nhớ lấy, và từ nay kéo từ đó. */
 	$bang = sanitize_text_field( (string) $req->get_param( 'bang' ) );
 	if ( '' !== $bang ) {
-		$chon = array();
-		foreach ( khh_dt_nguon_ds() as $n ) {
-			if ( $n['bang'] === $bang ) {
-				$chon = $n;
-				break;
+		/* Người khai tự chỉ cột thì nghe theo — máy dò tên cột chỉ là đường tắt, không phải luật. */
+		$cot_tay = $req->get_param( 'cot' );
+		if ( is_string( $cot_tay ) ) {
+			$cot_tay = json_decode( $cot_tay, true );
+		}
+		if ( is_array( $cot_tay ) && ! empty( $cot_tay['ngay'] ) && ! empty( $cot_tay['so_tien'] ) ) {
+			$soi   = khh_dt_soi_bang( $bang );
+			$sach  = array();
+			foreach ( khh_dt_cot_nguon() as $vai => $bo_qua ) {
+				$c = isset( $cot_tay[ $vai ] ) ? sanitize_text_field( (string) $cot_tay[ $vai ] ) : '';
+				/* Chỉ nhận tên cột CÓ THẬT trong bảng ấy — chuỗi gửi lên đi thẳng vào câu SQL. */
+				$sach[ $vai ] = in_array( $c, $soi['cot'], true ) ? $c : '';
 			}
+			if ( '' === $sach['ngay'] || '' === $sach['so_tien'] ) {
+				return new WP_Error( 'khh_dt_keo', 'Cột ngày và cột tiền phải có thật trong bảng.', array( 'status' => 400 ) );
+			}
+			update_option( 'khh_dt_nguon_sk', array( 'bang' => $bang, 'cot' => $sach ), false );
+		} else {
+			$chon = array();
+			foreach ( khh_dt_nguon_ds() as $n ) {
+				if ( $n['bang'] === $bang ) {
+					$chon = $n;
+					break;
+				}
+			}
+			if ( ! $chon ) {
+				return new WP_Error( 'khh_dt_keo', 'Không thấy bảng «' . $bang . '».', array( 'status' => 400 ) );
+			}
+			update_option( 'khh_dt_nguon_sk', array( 'bang' => $chon['bang'], 'cot' => $chon['cot'] ), false );
 		}
-		if ( ! $chon ) {
-			return new WP_Error( 'khh_dt_keo', 'Không thấy bảng «' . $bang . '».', array( 'status' => 400 ) );
-		}
-		update_option( 'khh_dt_nguon_sk', array( 'bang' => $chon['bang'], 'cot' => $chon['cot'] ), false );
 	}
 
 	$nguon = khh_dt_nguon_dang_chon();
@@ -1428,6 +1558,20 @@ function khh_dt_rest_ma_nguon( $req ) {
 		'de_nghi'  => $de,
 		'cua_hang' => khh_dt_ds_cua_hang(),
 	);
+}
+
+function khh_dt_rest_moi_bang() {
+	return array( 'bang_ds' => khh_dt_moi_bang() );
+}
+
+function khh_dt_rest_soi_bang( $req ) {
+	$bang = sanitize_text_field( (string) $req->get_param( 'bang' ) );
+	if ( '' === $bang ) {
+		return new WP_Error( 'khh_dt_soi', 'Chưa chọn bảng.', array( 'status' => 400 ) );
+	}
+	$ra         = khh_dt_soi_bang( $bang );
+	$ra['bang'] = $bang;
+	return $ra;
 }
 
 function khh_dt_rest_sk_xoa() {

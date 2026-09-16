@@ -1270,10 +1270,16 @@
                 esc(x.bang) + ' — ' + nguyen(x.so_dong) + ' dòng' +
                 (x.tu_ngay ? ' · ' + ngayVN(x.tu_ngay) + ' → ' + ngayVN(x.den_ngay) : '') + '</option>';
             }).join('') + '</select>'
-          : '<span class="chu-them">Chỉ thấy cổng SePay trong plugin Ghế Massage.</span>') +
+          : '<span class="chu-them">Máy chưa dò ra sổ nào — chọn tay bên dưới.</span>') +
         '<button class="nut chinh" type="button" id="dtKeoSk">Kéo giao dịch về</button>' +
         (r.tu_keo ? '' : '<label class="o"><input type="checkbox" id="dtTuKeo" checked> tự kéo mỗi giờ</label>') +
-        '</div></div>';
+        '</div>' +
+        /* Mẫu hai dòng của sổ đang chọn — nhìn nội dung là biết ngay có phải sao kê hay không. */
+        '<div id="dtNguonMau" class="chu-them" style="margin-top:8px"></div>' +
+        '<div style="margin-top:8px"><button class="vien" type="button" id="dtNguonTay">' +
+        'Không thấy sổ của mình? Chọn tay →</button></div>' +
+        '<div id="dtNguonTayNoi" hidden style="margin-top:10px"></div>' +
+        '</div>';
     }
 
     if (!r.so_dong) {
@@ -1358,6 +1364,24 @@
 
     o.insertAdjacentHTML('beforeend', h);
 
+    /* Mẫu dòng của sổ đang chọn */
+    var oMau = o.querySelector('#dtNguonMau'), oChon = o.querySelector('#dtNguon');
+    function veMau() {
+      if (!oMau) return;
+      var x = null;
+      ng.forEach(function (n) { if (!oChon || n.bang === oChon.value) { if (!x) x = n; } });
+      if (!x || !(x.mau || []).length) { oMau.innerHTML = ''; return; }
+      oMau.innerHTML = 'Hai dòng gần nhất trong sổ này: ' + x.mau.map(function (m) {
+        return '<div style="margin-top:4px"><code class="nd">' + esc(m.ngay) + ' · ' + tien(m.tien) +
+          ' · ' + esc(m.nd) + '</code></div>';
+      }).join('');
+    }
+    if (oChon) oChon.addEventListener('change', veMau);
+    veMau();
+
+    var nutTay = o.querySelector('#dtNguonTay');
+    if (nutTay) nutTay.addEventListener('click', function () { chonBangTay(o); });
+
     var nutKeo = o.querySelector('#dtKeoSk');
     if (nutKeo) {
       nutKeo.addEventListener('click', function () {
@@ -1425,6 +1449,88 @@
         nut.disabled = false; nut.textContent = 'Lưu và gán lại';
         o.querySelector('#dtBankBao').textContent = e.message || e;
       });
+    });
+  }
+
+  /* ---- chọn tay: bảng nào cũng được, cột nào là gì thì tự khai ----
+     Máy dò bằng tên cột, mà tên cột là thứ người khác đặt. Đoán được thì tốt; đoán không được
+     thì phải để người chỉ, chứ không bắt người ta chờ mình đoán đúng. */
+  function chonBangTay(o) {
+    var noi = o.querySelector('#dtNguonTayNoi');
+    noi.hidden = false;
+    noi.innerHTML = '<div class="chu-them">Đang đọc danh sách bảng…</div>';
+    api('moi-bang').then(function (r) {
+      var ds = (r.bang_ds || []).filter(function (x) { return x.uoc > 0; });
+      noi.innerHTML =
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+          '<select id="dtBangTay">' + ds.map(function (x) {
+            return '<option value="' + esc(x.bang) + '">' + esc(x.bang) + ' — khoảng ' +
+              nguyen(x.uoc) + ' dòng</option>';
+          }).join('') + '</select>' +
+          '<button class="nut" type="button" id="dtSoiBang">Xem bảng này</button>' +
+        '</div><div id="dtSoiNoi" style="margin-top:10px"></div>';
+      noi.querySelector('#dtSoiBang').addEventListener('click', function () {
+        soiBang(o, noi.querySelector('#dtBangTay').value);
+      });
+    }).catch(function (e) {
+      noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
+    });
+  }
+
+  function soiBang(o, bang) {
+    var noi = o.querySelector('#dtSoiNoi');
+    noi.innerHTML = '<div class="chu-them">Đang đọc…</div>';
+    api('soi-bang?bang=' + encodeURIComponent(bang)).then(function (r) {
+      var cot = r.cot || [], dong = r.dong || [], doan = r.doan || {};
+      if (!cot.length) { noi.innerHTML = '<div class="chu-them">Bảng rỗng hoặc không đọc được.</div>'; return; }
+      var vai = [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền vào *'], ['noi_dung', 'Nội dung'],
+                 ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
+                 ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại']];
+      var h = '<div class="bang-cuon"><table><thead><tr>' +
+        cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
+        '</tr></thead><tbody>' +
+        dong.map(function (d) {
+          return '<tr>' + cot.map(function (c) {
+            return '<td style="text-align:left"><code class="nd">' + esc(d[c] == null ? '' : d[c]) + '</code></td>';
+          }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div class="bc-luoi" style="margin-top:12px">' +
+        vai.map(function (v) {
+          return '<label class="bc-o"><b>' + esc(v[1]) + '</b><select data-cot="' + v[0] + '">' +
+            '<option value="">— không có —</option>' +
+            cot.map(function (c) {
+              return '<option value="' + esc(c) + '"' + (doan[v[0]] === c ? ' selected' : '') + '>' + esc(c) + '</option>';
+            }).join('') + '</select></label>';
+        }).join('') + '</div>' +
+        '<div style="margin-top:12px"><button class="nut chinh" type="button" id="dtKeoTay">' +
+        'Dùng sổ này và kéo về</button> <span class="chu-them">Ngày và Số tiền là bắt buộc.</span></div>';
+      noi.innerHTML = h;
+      noi.querySelector('#dtKeoTay').addEventListener('click', function () {
+        var map = {};
+        Array.prototype.forEach.call(noi.querySelectorAll('[data-cot]'), function (se) {
+          if (se.value) map[se.dataset.cot] = se.value;
+        });
+        if (!map.ngay || !map.so_tien) { window.alert('Phải chỉ cột Ngày và cột Số tiền.'); return; }
+        var fd = new FormData();
+        fd.append('bang', bang);
+        fd.append('cot', JSON.stringify(map));
+        fd.append('tu_dong', '1');
+        var b = noi.querySelector('#dtKeoTay');
+        b.disabled = true; b.textContent = 'Đang kéo…';
+        api('sao-ke-keo', { method: 'POST', body: fd }).then(function (kq) {
+          var v = kq.vua_keo || {};
+          window.alert('Đã mang về ' + nguyen(v.keo || 0) + ' khoản tiền vào từ ' + bang + '.' +
+            (v.bo_qr ? '\nBỏ ' + nguyen(v.bo_qr) + ' khoản tiền cổng QR.' : '') +
+            ((v.chua_gan && v.chua_gan.so_dong) ? '\nCòn ' + nguyen(v.chua_gan.so_dong) +
+              ' khoản chưa nhận ra cơ sở — khai mã bên dưới.' : ''));
+          taiQuanTri();
+        }).catch(function (e) {
+          b.disabled = false; b.textContent = 'Dùng sổ này và kéo về';
+          window.alert(e.message || e);
+        });
+      });
+    }).catch(function (e) {
+      noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
     });
   }
 
