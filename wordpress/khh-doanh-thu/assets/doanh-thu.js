@@ -1044,6 +1044,9 @@
             (r.ngay_nhac || 10) + ' ngày và quá ' + tien(ng.so_tien) + '.'
           : 'Chưa nạp sao kê nên chưa biết tiền đã về tài khoản hay chưa.') +
         '</div></div>';
+    /* Tổng hợp theo cơ sở nằm ngay dưới bảng ngày: nhìn từng ngày xong thì hỏi "cả kỳ thì sao". */
+    h += veTongHop(ds, k);
+
     /* Khối lịch nằm DƯỚI mấy ô đếm và TRÊN bảng ngày: nhìn hình dạng cả tháng trước, rồi mới
        soi từng ngày. */
     h += '<div class="khung" id="dtLich"><header><h2>Lịch nộp tiền</h2>' +
@@ -1054,6 +1057,83 @@
     o.innerHTML = h;
     noiLocDoiSoat(o);
     taiLich(o, S.lich.thang || thangCua(k.den));
+  }
+
+  /**
+   * TỔNG HỢP CẢ KỲ THEO CƠ SỞ — trả lời câu "tổng nộp có lệch so với doanh thu không".
+   *
+   * 🔴 TIỀN NỘP KHÔNG SO VỚI TỔNG DOANH THU, MÀ SO VỚI TIỀN MẶT.
+   *    Anh Thắng 16/09/2026 hỏi đúng câu ấy. Nhưng doanh thu gồm cả phần khách trả bằng chuyển
+   *    khoản và quét QR — phần đó TỰ về tài khoản, không ai mang đi nộp. Đem tiền nộp so với
+   *    tổng doanh thu thì quán nào cũng "thiếu" đúng bằng phần QR, tháng nào cũng thiếu, và con
+   *    số ấy không nói lên điều gì.
+   *
+   *    Phép đúng là: tiền mặt máy POS = tiền đã nộp + phần còn treo. Lệch ra ngoài hai thứ đó
+   *    mới là tiền biến mất.
+   */
+  function veTongHop(ds, k) {
+    var theo = {}, ten = [];
+    ds.forEach(function (x) {
+      var c = x.cua_hang;
+      if (!theo[c]) {
+        theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, dau: null, cuoi: null, ngayDau: '', ngayCuoi: '' };
+        ten.push(c);
+      }
+      var t = theo[c];
+      t.dt += x.doanh_thu || 0;
+      t.tm += x.phai_nop || 0;
+      t.ck += x.pos_ck || 0;
+      t.nop += x.nop_bank || 0;
+      if (!t.ngayCuoi || x.ngay > t.ngayCuoi) { t.ngayCuoi = x.ngay; t.cuoi = x.treo || 0; }
+      if (!t.ngayDau || x.ngay < t.ngayDau) {
+        t.ngayDau = x.ngay;
+        /* Treo đầu kỳ = treo sau ngày đầu tiên, trừ đi phần chính ngày ấy góp vào. */
+        t.dau = (x.treo || 0) - ((x.phai_nop || 0) - (x.nop_bank || 0));
+        if (t.dau < 0) t.dau = 0;
+      }
+    });
+    ten.sort();
+    if (!ten.length) return '';
+
+    var T = { dt: 0, tm: 0, ck: 0, nop: 0, dau: 0, cuoi: 0 };
+    var hang = ten.map(function (c) {
+      var t = theo[c];
+      ['dt', 'tm', 'ck', 'nop', 'dau', 'cuoi'].forEach(function (f) { T[f] += t[f] || 0; });
+      /* Tiền mặt vào trong kỳ phải bằng: đã nộp + (treo cuối − treo đầu). Lệch ra là con số
+         không giải thích được — gần như luôn là do sao kê thiếu khoản, hoặc mã nộp tiền khai
+         sót; nhưng phải bày ra chứ không được lặng lẽ làm tròn. */
+      var lech = t.tm - (t.nop + (t.cuoi - t.dau));
+      return { c: c, t: t, lech: lech };
+    });
+
+    var o_ = function (v) { return '<td class="s">' + tien(v) + '</td>'; };
+    var h = '<div class="khung"><header><h2>Tổng hợp cả kỳ theo cơ sở</h2>' +
+      '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + '</span></header>' +
+      '<div class="chu-them" style="margin-top:6px">Tiền nộp so với <b>tiền mặt</b>, không so với ' +
+      'tổng doanh thu: phần khách trả bằng chuyển khoản và quét QR tự về tài khoản, không ai mang ' +
+      'đi nộp. Phép đúng là <b>tiền mặt POS = đã nộp + còn treo</b>.</div>' +
+      '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+        '<th style="text-align:left">Cơ sở</th><th>Doanh thu POS</th><th>CK / QR</th>' +
+        '<th>Tiền mặt</th><th>Đã nộp</th><th>Treo đầu kỳ</th><th>Treo cuối kỳ</th><th>Không khớp</th>' +
+      '</tr></thead><tbody>' +
+      hang.map(function (r_) {
+        var t = r_.t;
+        return '<tr><td style="text-align:left">' + esc(String(r_.c).slice(0, 34)) + '</td>' +
+          o_(t.dt) + o_(t.ck) + o_(t.tm) + o_(t.nop) + o_(t.dau) + o_(t.cuoi) +
+          '<td class="s">' + (Math.abs(r_.lech) < 1000 ? '<span style="color:var(--tot)">0</span>'
+            : '<b style="color:var(--xau)">' + (r_.lech > 0 ? '+' : '') + tienGon(r_.lech) + '</b>') + '</td></tr>';
+      }).join('') +
+      '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
+        '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở</td>' +
+        o_(T.dt) + o_(T.ck) + o_(T.tm) + o_(T.nop) + o_(T.dau) + o_(T.cuoi) +
+        '<td class="s">' + tienGon(T.tm - (T.nop + (T.cuoi - T.dau))) + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> cột <b>Treo cuối kỳ</b> là ' +
+      'tiền mặt cơ sở đang giữ chưa nộp — đó mới là con số phải hỏi, và phải hỏi khi nó CỨ LỚN DẦN ' +
+      'qua từng tháng. Cột <b>Không khớp</b> gần như luôn bằng 0; khác 0 thường là do sao kê thiếu ' +
+      'khoản, mã nộp tiền khai sót, hoặc có kỳ nộp dư (phần dư không mang sang kỳ sau). Nó là dấu ' +
+      'hiệu <b>số liệu chưa đủ</b>, không phải dấu hiệu ai lấy tiền.</div></div>';
+    return h;
   }
 
   function thangCua(ngay) { return String(ngay || ymd(new Date())).slice(0, 7); }

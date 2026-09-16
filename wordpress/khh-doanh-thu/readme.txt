@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.18.0
+Stable tag: 1.19.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,13 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.19.0 =
+* **Tổng hợp cả kỳ theo cơ sở**: doanh thu POS · CK/QR · tiền mặt · đã nộp · treo đầu kỳ · treo
+  cuối kỳ · không khớp. Trả lời thẳng câu "tổng nộp có lệch so với doanh thu không".
+* Nói rõ phép so đúng: **tiền nộp so với TIỀN MẶT, không so với tổng doanh thu** — phần khách trả
+  bằng chuyển khoản và quét QR tự về tài khoản, không ai mang đi nộp. Đem nộp so với tổng doanh
+  thu thì quán nào cũng "thiếu" đúng bằng phần QR, tháng nào cũng thiếu.
 
 = 1.18.0 =
 * **Tự nhận đúng sổ sao kê ngân hàng** (`saoke_gd`) và sổ cổng QR (`saoke_cong`): thêm tên cột
