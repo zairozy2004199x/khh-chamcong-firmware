@@ -31,6 +31,62 @@ class KHBC_TuCapNhat {
 		add_filter( 'pre_set_site_transient_update_plugins', array( __CLASS__, 'chen_ban_moi' ) );
 		add_filter( 'plugins_api', array( __CLASS__, 'chi_tiet' ), 10, 3 );
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'chon_thu_muc' ), 10, 4 );
+		/* Tự khai tên vào bảng TRANG IT — xem khối dài ở `khai_ds()`. */
+		add_filter( 'vhcp_tu_cap_nhat_ds', array( __CLASS__, 'khai_ds' ) );
+	}
+
+	/* ═══════════════════════════════════════════════════════════════════════════════════════════
+	 * KHAI TÊN VÀO BẢNG CHUNG CỦA TRANG IT (khmatrix.com/it).
+	 *
+	 * Anh Thắng 16/09/2026: *"kèm plugin tự cập nhật vào nhé"* — Báo Cáo Chi Phí đã có sẵn bộ tự
+	 * cập nhật đầy đủ, nhưng KHÔNG hiện ở trang IT, nên đứng cạnh Chấm Công / Ghế / Sao Kê thì nó
+	 * là plugin duy nhất vẫn phải vào wp-admin mới cập nhật được.
+	 *
+	 * Trang IT nằm trong plugin Ghế (`VHG_Trang::cn_ds_`) nhưng KHÔNG giữ danh sách plugin nào cả
+	 * — nó dựng bảng từ bộ lọc `vhcp_tu_cap_nhat_ds` lúc chạy. Nên khai một dòng như dưới là TỰ
+	 * hiện thêm vào bảng; không ai phải đi sửa plugin Ghế, và hai plugin không cần biết nhau.
+	 *
+	 * ⚠️ HAI PLUGIN KHÔNG PHỤ THUỘC NHAU. `add_filter` của WordPress chạy được kể cả khi chưa ai
+	 *    treo `apply_filters` tương ứng — site không cài plugin Ghế thì dòng khai này đơn giản là
+	 *    không ai đọc, không lỗi, không cảnh báo. Nên KHÔNG kiểm `class_exists('VHG_Trang')` ở
+	 *    đây: lúc plugin này nạp, thứ tự nạp plugin chưa chắc đã tới Ghế, kiểm sớm là tự loại mình
+	 *    ra khỏi bảng một cách ngẫu nhiên tuỳ thứ tự cài đặt.
+	 *
+	 * ⚠️ Trang IT gọi `ban_moi_nho()` chứ KHÔNG gọi `ban_moi()`. Khác nhau một trời: `ban_moi()`
+	 *    hỏi thẳng GitHub và chờ tới 15 giây — nhét nó vào một lượt tải trang bình thường là treo
+	 *    cả màn hình khi mạng chậm, đúng loại lỗi người ta đổ cho "web lag" chứ không ai ngờ tới
+	 *    bộ cập nhật. Nút "Kiểm tra bản mới" mới được phép gọi `ban_moi()`.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Số bản đang chạy — đọc từ chính hằng của plugin, không chép thành một con số thứ hai. */
+	private static function ban_hien() {
+		return defined( 'KHBC_VERSION' ) ? (string) KHBC_VERSION : '0';
+	}
+
+	/**
+	 * 🔴 CHỈ ĐỌC Ô NHỚ — TUYỆT ĐỐI KHÔNG GỌI MẠNG. Xem khối trên.
+	 *
+	 * Ô nhớ giữ BA hình dạng khác nhau: `{ver:…}` = có bản mới, `{khong:1}` = đã hỏi, không có bản
+	 * mới, `{loi:…}` = lượt hỏi vừa rồi hỏng. Chỉ hình dạng ĐẦU mới là "có bản mới"; trả nguyên ô
+	 * nhớ ra là trang IT đọc `['ver']` của một mẩu `{loi:…}` và khoe một cột trống trông như đang
+	 * chờ tải.
+	 */
+	public static function ban_moi_nho() {
+		$nho = get_transient( self::O_NHO );
+		return ( is_array( $nho ) && ! empty( $nho['ver'] ) ) ? $nho : null;
+	}
+
+	/** Khai tên mình vào danh sách plugin tự cập nhật được (bảng trang IT). */
+	public static function khai_ds( $ds ) {
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$ds[] = array(
+			'ma'    => 'khbc-bao-cao-chi-phi',
+			'ten'   => 'Báo Cáo Chi Phí (K&H)',
+			'duong' => self::duong(),
+			'hien'  => self::ban_hien(),
+			'lop'   => __CLASS__,
+		);
+		return $ds;
 	}
 
 	public static function nhanh() {

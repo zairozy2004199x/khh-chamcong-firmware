@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,13 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.1.0 =
+* Hiện ở **Trang IT** (khmatrix.com/it) cạnh Chấm Công · Ghế Massage · Sao Kê — cập nhật ngay tại
+  đó, không phải vào wp-admin. Plugin tự khai tên qua bộ lọc `vhcp_tu_cap_nhat_ds`; trang IT không
+  giữ danh sách nào cả nên không phải sửa plugin Ghế.
+* Thêm `KHBC_TuCapNhat::ban_moi_nho()` — chỉ đọc ô nhớ, KHÔNG gọi mạng. Trang IT dùng hàm này ở
+  mỗi lượt mở trang; gọi thẳng GitHub ở đó là treo trang khi mạng chậm.
 
 = 1.0.0 =
 * Bản đầu: chuyển web app "Báo cáo chi phí" (GitHub Pages + Google Sheets) sang WordPress —
