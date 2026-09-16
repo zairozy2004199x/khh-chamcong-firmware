@@ -13,7 +13,16 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/dist"
+# Nơi bản cài đi ra. Mặc định là `dist/` — thứ được commit và gửi tới hosting.
+#
+# 🔴 BỘ THỬ PHẢI ĐẶT `VHCP_DIST_DIR` SANG THƯ MỤC TẠM. `test-cham-cong.php` gọi trình này để
+#    soát danh sách tệp trong bản cài; ghi đè thẳng lên `dist/` thì mỗi lượt chạy thử để lại
+#    một `dist/*.zip` khác byte (nội dung y hệt, chỉ khác dấu thời gian bên trong) — vừa làm
+#    cây thư mục bẩn sau mỗi lần chạy, vừa hỏng đúng chỗ `chay-het.sh` đang canh: phép "soát
+#    bản cài trong dist/" cố ý soi ĐÚNG TỆP SẼ ĐƯỢC COMMIT, chứ không soi cái trình đóng gói
+#    vừa dựng lại. Bị ghi đè thì từ lượt sau nó soi một tệp do chính bộ thử tạo ra, và phép
+#    canh ấy mất hết ý nghĩa — đúng cái bẫy mà khối chú thích ở đầu `chay-het.sh` kể lại.
+OUT="${VHCP_DIST_DIR:-$ROOT/dist}"
 CHON="${1:-tatca}"
 
 dong_goi() {

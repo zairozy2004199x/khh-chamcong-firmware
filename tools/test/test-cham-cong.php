@@ -4370,12 +4370,27 @@ $GLOBALS['VHD_POST'] = array(); $GLOBALS['VHCP_HTTP'] = array(); $GLOBALS['VHD_D
 
    Phép thử này soi CẢ HAI chiều nên loại lỗi đó không quay lại được:
    danh sách loại trừ của trình đóng gói phải khớp với những gì mã thật sự đọc. */
+/* ⚠️ ĐÓNG GÓI VÀO THƯ MỤC TẠM, KHÔNG GHI ĐÈ `dist/`.
+   Ghi thẳng lên `dist/` thì mỗi lượt chạy thử để lại một bản cài khác byte (nội dung y hệt,
+   chỉ khác dấu thời gian bên trong) — cây thư mục bẩn sau mỗi lần chạy, và tệ hơn: từ lượt
+   sau, phép "soát bản cài trong dist/" của `chay-het.sh` soi một tệp do chính bộ thử vừa
+   dựng chứ không phải tệp sẽ được commit, tức mất đúng thứ phép ấy sinh ra để canh. */
+$tam_dist  = sys_get_temp_dir() . '/vhcc-zip-' . getmypid();
+$dist_that = $goc . '/dist/vhcp-cham-cong.zip';
+$dau_dist  = file_exists( $dist_that ) ? md5_file( $dist_that ) : '';
 $zip_ra = array();
-exec( 'cd ' . escapeshellarg( $goc ) . ' && bash tools/build-plugin-zip.sh cham-cong 2>&1', $zip_ra, $zip_ma );
+exec( 'cd ' . escapeshellarg( $goc ) . ' && VHCP_DIST_DIR=' . escapeshellarg( $tam_dist )
+	. ' bash tools/build-plugin-zip.sh cham-cong 2>&1', $zip_ra, $zip_ma );
 t( 'đóng gói được bản cài', $zip_ma === 0, implode( "\n", $zip_ra ) );
+t( 'bản cài thử nằm trong thư mục tạm', file_exists( $tam_dist . '/vhcp-cham-cong.zip' ), $tam_dist );
+/* 🔴 Phải CHỨNG MINH `dist/` không hề nhúc nhích — không thì mấy dòng trên lặng lẽ trôi về nếp
+      cũ mà không bài nào hay, và cây thư mục lại bẩn sau mỗi lượt chạy thử. */
+t( '🔴 lượt đóng gói thử KHÔNG chạm vào dist/',
+	'' === $dau_dist ? ! file_exists( $dist_that ) : md5_file( $dist_that ) === $dau_dist,
+	'dist/vhcp-cham-cong.zip đã đổi' );
 
 $ds_zip = array();
-exec( 'unzip -Z1 ' . escapeshellarg( $goc . '/dist/vhcp-cham-cong.zip' ) . ' 2>/dev/null', $ds_zip );
+exec( 'unzip -Z1 ' . escapeshellarg( $tam_dist . '/vhcp-cham-cong.zip' ) . ' 2>/dev/null', $ds_zip );
 $trong_zip = array();
 foreach ( $ds_zip as $d ) { $trong_zip[ preg_replace( '#^vhcp-cham-cong/#', '', trim( $d ) ) ] = 1; }
 t( 'đọc được danh sách tệp trong zip', count( $trong_zip ) > 10, count( $trong_zip ) );
@@ -4394,6 +4409,10 @@ foreach ( $can as $duong => $boi ) {
 }
 t( 'KHÔNG file nào mã đọc lúc chạy mà lại thiếu trong bản cài',
 	count( $thieu ) === 0, implode( ' | ', $thieu ) );
+
+/* Dọn thư mục tạm — bộ thử không để rác lại trên đĩa. */
+foreach ( glob( $tam_dist . '/*' ) as $r_ ) { @unlink( $r_ ); }
+@rmdir( $tam_dist );
 
 /* `goc/` thì phải VẮNG — nó là bản gốc Code.gs, không chạy gì mà đọc được từ web. */
 $co_goc = 0;
