@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.34.0
+ * Version:           0.35.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.34.0';
+	const VER = '0.35.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1936,6 +1936,89 @@ class SAOKE_App {
 		$ds = array(); foreach ( (array) $rows as $r ) { $ds[] = array( 'ten' => (string) $r['ten'], 'tinh' => (string) $r['tinh'], 'maKh' => (string) $r['ma_kh'] ); }
 		return $ds;
 	}
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * NHẬN THÊM CƠ SỞ KHU VUI CHƠI TỪ PLUGIN CHI PHÍ (0.35.0)
+	 *
+	 * Anh Thắng 16/09/2026: *"nhận thêm cơ sở khu vui chơi từ trang chi phí KVC"*.
+	 *
+	 * Tới nay Sao Kê chỉ biết cơ sở bên Ghế — tức chỉ mảng ghế massage (POSH). Mảng khu vui chơi
+	 * không có ghế nào nên không bao giờ xuất hiện, và hệ quả là mọi màn đối chiếu nộp tiền đều
+	 * lặng lẽ bỏ sót nó: không có dòng thì không ai thấy thiếu.
+	 *
+	 * Bên Chi Phí, KVC là một ĐƠN VỊ (cạnh POSH, dưới nhà mẹ K&H — xem `VHCP_DonVi`). Cơ sở của
+	 * nó nằm trong danh mục `CH_CoSo` với cột Đơn vị = KVC.
+	 *
+	 * 🔴 GỌI QUA LỚP CỦA PLUGIN KIA, KHÔNG ĐỌC THẲNG BẢNG. Chính `VHCP_Cfg::hut_coso_ghe()` đã
+	 *    ghi luật ấy cho chiều ngược lại. Đọc thẳng bảng của người ta là ngày họ đổi cột thì bên
+	 *    này hỏng mà không ai báo. `cfg_static()` là cửa công khai của họ, lại có sẵn bộ nhớ đệm
+	 *    5 phút nên gọi nhiều lượt cũng không nặng.
+	 *
+	 * 🔴 TÊN ĐƠN VỊ KHAI Ở OPTION, KHÔNG GÕ CỨNG. Đổi tên đơn vị bên kia là chuyện của người
+	 *    dùng, không phải chuyện phải sửa mã. Mặc định 'KVC'.
+	 *
+	 * ⚠️ KHỬ TRÙNG THEO `chuan_ch()`. Một cơ sở có thể có mặt ở CẢ HAI bên (Chi Phí tự hút cơ sở
+	 *    từ Ghế sang — xem `hut_coso_ghe()`). Không khử là mỗi cơ sở ấy ra hai dòng, và ở màn đối
+	 *    chiếu nộp tiền thì tiền của nó bị đếm hai lần. Đếm thiếu ai cũng thấy; đếm gấp đôi
+	 *    không ai thấy (CLAUDE.md §8).
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Đơn vị bên Chi Phí mà mình nhận cơ sở về. */
+	private static function dv_chi_phi() {
+		$v = trim( (string) get_option( 'saoke_dv_chi_phi', '' ) );
+		return '' !== $v ? $v : 'KVC';
+	}
+
+	/** Plugin Chi Phí có mặt và mở đúng cửa công khai mình cần không. */
+	private static function chiphi_co() {
+		return class_exists( 'VHCP_Cfg' ) && method_exists( 'VHCP_Cfg', 'cfg_static' )
+			&& class_exists( 'VHCP_DonVi' ) && method_exists( 'VHCP_DonVi', 'bang' );
+	}
+
+	/* Cơ sở thuộc đơn vị KVC bên Chi Phí, trả về CÙNG HÌNH DẠNG với ghe_ds_coso(). */
+	private static function chiphi_ds_coso() {
+		if ( ! self::chiphi_co() ) { return array(); }
+		static $ds = null; if ( null !== $ds ) { return $ds; }
+		$dv = self::dv_chi_phi(); $ds = array();
+		$cfg = VHCP_Cfg::cfg_static();
+		foreach ( (array) ( isset( $cfg['coso'] ) ? $cfg['coso'] : array() ) as $c ) {
+			$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
+			if ( '' === $ten ) { continue; }
+			if ( ! VHCP_DonVi::bang( isset( $c['donVi'] ) ? $c['donVi'] : '', $dv ) ) { continue; }
+			/* ⚠️ Cơ sở ĐÃ ĐÓNG CỬA thì bỏ — để lại là mỗi kỳ đối chiếu lại có một dòng "chưa nộp"
+			   vĩnh viễn đỏ, và một dòng đỏ không bao giờ xanh được là dòng người ta thôi nhìn. */
+			if ( '' !== trim( (string) ( isset( $c['dongCua'] ) ? $c['dongCua'] : '' ) ) ) { continue; }
+			$ds[] = array( 'ten' => $ten, 'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ),
+				'maKh' => '', 'nguon' => 'chiphi' );
+		}
+		return $ds;
+	}
+
+	/**
+	 * 🔴 NGUỒN DUY NHẤT CỦA DANH SÁCH CƠ SỞ — Ghế + Chi Phí(KVC), đã khử trùng.
+	 *
+	 * Trước bản này, bảy chỗ trong tệp gọi thẳng `ghe_ds_coso()`. Thêm một nguồn mà chỉ vá vài
+	 * chỗ là KVC hiện ở màn này, vắng ở màn kia — đúng bài học 0.18.1 (§6): luật đúng, một bản
+	 * sao không được vá, bộ thử vẫn xanh, màn hình vẫn sai. Nay cả bảy đi qua đây, và
+	 * `ghe_ds_coso()` chỉ còn ĐÚNG MỘT chỗ gọi: ngay bên dưới.
+	 */
+	private static function ds_coso_all() {
+		static $ds = null; if ( null !== $ds ) { return $ds; }
+		$ds = array(); $thay = array();
+		foreach ( self::ghe_ds_coso() as $c ) {
+			$k = self::chuan_ch( $c['ten'] ); if ( '' === $k || isset( $thay[ $k ] ) ) { continue; }
+			$thay[ $k ] = 1; $c['nguon'] = 'ghe'; $ds[] = $c;
+		}
+		foreach ( self::chiphi_ds_coso() as $c ) {
+			$k = self::chuan_ch( $c['ten'] ); if ( '' === $k || isset( $thay[ $k ] ) ) { continue; }
+			$thay[ $k ] = 1; $ds[] = $c;
+		}
+		usort( $ds, function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
+		return $ds;
+	}
+
+	/** Có nguồn cơ sở nào không — Ghế HOẶC Chi Phí. */
+	private static function coso_co() { return self::ghe_co() || self::chiphi_co(); }
+
 	/* Bản đồ tên máy -> địa điểm ghế. Khoá = chuan_ch(mã máy) và chuan_ch(tên khai). */
 	private static function ghe_map_may() {
 		if ( ! self::ghe_co() ) { return array(); }
@@ -1954,7 +2037,7 @@ class SAOKE_App {
 	private static function ghe_la_coso( $ten ) {
 		if ( ! self::ghe_co() || '' === trim( (string) $ten ) ) { return false; }
 		static $set = null;
-		if ( null === $set ) { $set = array(); foreach ( self::ghe_ds_coso() as $c ) { $set[ self::chuan_ch( $c['ten'] ) ] = 1; } }
+		if ( null === $set ) { $set = array(); foreach ( self::ds_coso_all() as $c ) { $set[ self::chuan_ch( $c['ten'] ) ] = 1; } }
 		return isset( $set[ self::chuan_ch( $ten ) ] );
 	}
 	/* Mã nộp tiền RIÊNG theo cơ sở (do người dùng chỉnh) — dùng để lọc sao kê ngân hàng xem cơ sở
@@ -2103,10 +2186,10 @@ class SAOKE_App {
 			. '</span></td></tr>';
 		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button> <button class="button" name="saoke_keo_conglog" value="1">Kéo VietQR từ Nhật ký ngay</button></p></form>';
 		// ── Mã nộp tiền theo cơ sở (POSH) — để lọc sao kê ngân hàng xem cơ sở đã nộp tiền mặt chưa ──
-		if ( self::ghe_co() ) {
-			$cm = self::coso_ma_map(); $dscs = self::ghe_ds_coso();
+		if ( self::coso_co() ) {
+			$cm = self::coso_ma_map(); $dscs = self::ds_coso_all();
 			echo '<hr><h2>Mã nộp tiền theo cơ sở</h2>';
-			echo '<p class="description">Mỗi cơ sở một mã (chuỗi nhân viên/kế toán ghi trong nội dung khi <b>nộp tiền mặt</b> vào ngân hàng). Dùng để dò trong Sao kê ngân hàng biết cơ sở đó <b>đã nộp tiền mặt chưa</b>. Sửa được, bỏ trống = chưa dùng. Danh sách cơ sở lấy từ trang Ghế (' . count( $dscs ) . ' cơ sở).</p>';
+			echo '<p class="description">Mỗi cơ sở một mã (chuỗi nhân viên/kế toán ghi trong nội dung khi <b>nộp tiền mặt</b> vào ngân hàng). Dùng để dò trong Sao kê ngân hàng biết cơ sở đó <b>đã nộp tiền mặt chưa</b>. Sửa được, bỏ trống = chưa dùng. Danh sách cơ sở gộp từ trang Ghế và đơn vị ' . esc_html( self::dv_chi_phi() ) . ' bên Chi Phí (' . count( $dscs ) . ' cơ sở).</p>';
 			echo '<form method="post">'; wp_nonce_field( 'saoke_cfg' );
 			echo '<table class="widefat striped" style="max-width:860px"><thead><tr><th style="width:45%">Cơ sở</th><th>Tỉnh</th><th>Mã nộp tiền</th></tr></thead><tbody>';
 			foreach ( (array) $dscs as $c ) {
@@ -2201,7 +2284,7 @@ class SAOKE_App {
 		$cfg['danhMuc']  = self::ds_dm();
 		$cfg['phapNhanOpts'] = self::pn_opts();
 		// Cơ sở (ghế) — để nhãn phân loại giao dịch chọn được cơ sở doanh thu, không chỉ danh mục chi phí.
-		$cfg['gheCoso'] = array(); foreach ( self::ghe_ds_coso() as $c ) { $cfg['gheCoso'][] = $c['ten']; }
+		$cfg['gheCoso'] = array(); foreach ( self::ds_coso_all() as $c ) { $cfg['gheCoso'][] = $c['ten']; }
 		$cfg['hasApiToken']  = '' !== (string) get_option( 'saoke_api_token', '' );
 		$cfg['hasWebhookKey'] = '' !== $key;
 		$cfg['webhookUrl'] = '' !== $key ? ( $base . '?key=' . rawurlencode( $key ) ) : $base;
@@ -2322,7 +2405,7 @@ class SAOKE_App {
 		self::can_pin( $a ); $ds = array();
 		// POSH: ưu tiên danh sách địa điểm bên trang Ghế (VietQR = doanh thu ghế theo địa điểm).
 		if ( self::ghe_co() ) {
-			foreach ( self::ghe_ds_coso() as $c ) { $ds[] = array( 'ma' => $c['ten'], 'ten' => $c['ten'] . ( '' !== $c['tinh'] ? ( ' — ' . $c['tinh'] ) : '' ), 'maDiem' => $c['maKh'] ); }
+			foreach ( self::ds_coso_all() as $c ) { $ds[] = array( 'ma' => $c['ten'], 'ten' => $c['ten'] . ( '' !== $c['tinh'] ? ( ' — ' . $c['tinh'] ) : '' ), 'maDiem' => $c['maKh'] ); }
 			if ( count( $ds ) ) { return array( 'ok' => true, 'ds' => $ds, 'nguon' => 'ghe' ); }
 		}
 		foreach ( self::ds_diem() as $d ) { $ds[] = array( 'ma' => $d['ma'], 'ten' => '' !== ( isset( $d['ten'] ) ? $d['ten'] : '' ) ? $d['ten'] : $d['ma'], 'maDiem' => isset( $d['maDiem'] ) ? $d['maDiem'] : '' ); }
@@ -2331,7 +2414,7 @@ class SAOKE_App {
 	// ── Mã nộp tiền theo cơ sở (kế toán tự nhập ở tab Cấu hình) ──
 	public static function rpc_getCosoMa( $a ) {
 		self::can_pin( $a ); $cm = self::coso_ma_map(); $ds = array();
-		foreach ( self::ghe_ds_coso() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
+		foreach ( self::ds_coso_all() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
 		return array( 'ok' => true, 'ds' => $ds, 'coGhe' => self::ghe_co() );
 	}
 	public static function rpc_saveCosoMa( $a ) {
@@ -2365,7 +2448,7 @@ class SAOKE_App {
 		$tu = self::vn2ymd( isset( $a[1] ) ? (string) $a[1] : '' ); $den = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' );
 		$cm = self::coso_ma_map(); $tbl = self::tbl();
 		$rows = array(); $soDaNop = 0; $soChuaNop = 0; $soChuaMa = 0; $tongNop = 0;
-		foreach ( self::ghe_ds_coso() as $c ) {
+		foreach ( self::ds_coso_all() as $c ) {
 			$ma = isset( $cm[ self::chuan_ch( $c['ten'] ) ] ) ? trim( (string) $cm[ self::chuan_ch( $c['ten'] ) ] ) : '';
 			$o = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'ma' => $ma, 'coMa' => '' !== $ma, 'daNop' => false, 'tong' => 0, 'soLan' => 0, 'lanCuoi' => '' );
 			if ( '' !== $ma ) {
@@ -2454,9 +2537,9 @@ class SAOKE_App {
 		$locNguon = $gv( 'nguonTien' ); $tu = $gv( 'tuNgay' ); $den = $gv( 'denNgay' ); $tuKhoa = mb_strtolower( $gv( 'tuKhoa' ) );
 		// TỰ PHÂN LOẠI theo mã nộp của cơ sở: nội dung chứa mã nào -> nhãn tự = cơ sở đó.
 		$maToCoso = array(); $maRe = '';
-		if ( self::ghe_co() ) {
+		if ( self::coso_co() ) {
 			$cmMap = self::coso_ma_map(); $tenByKey = array();
-			foreach ( self::ghe_ds_coso() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
+			foreach ( self::ds_coso_all() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
 			$maList = array();
 			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }
 			if ( $maList ) { $maRe = '/(' . implode( '|', $maList ) . ')/i'; }
