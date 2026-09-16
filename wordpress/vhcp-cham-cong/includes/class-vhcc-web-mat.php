@@ -230,10 +230,10 @@ class VHCC_WebMat {
 			. 'gắn cờ <b>ngược</b>: người thật bị coi là giả. Duyệt nghĩa là "tôi đã xem ảnh và '
 			. 'đúng là người này"; nghi ngờ thì <b>Xoá mẫu</b>, lượt chấm sau tự lấy lại.</div>';
 
-		echo '<p class="mo">Mỗi dòng có <b>hai tấm</b>: <span style="color:#15803d;font-weight:600">'
-			. 'tấm đã sinh ra mẫu</span> (lượt chấm công đầu tiên) và <span style="color:#1d4ed8;'
+		echo '<p class="mo">Mỗi dòng có <b>hai tấm</b>: <span style="color:var(--luc-dam);font-weight:600">'
+			. 'tấm đã sinh ra mẫu</span> (lượt chấm công đầu tiên) và <span style="color:var(--nhan-dam);'
 			. 'font-weight:600">ảnh thẻ trong hồ sơ</span> để đối chiếu. Cùng một người thì duyệt; '
-			. 'khác người thì <b>Xoá mẫu</b>. Viền <span style="color:#b45309;font-weight:600">vàng'
+			. 'khác người thì <b>Xoá mẫu</b>. Viền <span style="color:var(--vang-dam);font-weight:600">vàng'
 			. '</span> nghĩa là ảnh gốc không còn, đang hiện tạm tấm gần nhất — <b>đừng duyệt theo '
 			. 'tấm đó</b>.</p>';
 
@@ -263,10 +263,10 @@ class VHCC_WebMat {
 				. ( '' !== (string) $m['nguon_coso'] ? '<br>' . esc_html( $m['nguon_coso'] ) : '' )
 				. '<br>gộp ' . (int) $m['so_lan'] . ' lần</td>'
 				. '<td>' . ( 'duyet' === $m['trang_thai']
-					? '<span style="color:#15803d;font-weight:600">✔ đã duyệt</span>'
+					? '<span style="color:var(--luc-dam);font-weight:600">✔ đã duyệt</span>'
 						. ( '' !== (string) $m['nguoi_duyet']
 							? '<br><span class="mo">' . esc_html( $m['nguoi_duyet'] ) . '</span>' : '' )
-					: '<span style="color:#b45309;font-weight:600">chờ duyệt</span>' ) . '</td>'
+					: '<span style="color:var(--vang-dam);font-weight:600">chờ duyệt</span>' ) . '</td>'
 				. '<td>' . self::nut_dong( $ky, $m ) . '</td></tr>';
 		}
 		echo '</tbody></table></div>';
@@ -324,7 +324,7 @@ class VHCC_WebMat {
 				trim( (string) $a['ngay'] ) . ( '' !== (string) $a['coso'] ? ' · ' . $a['coso'] : '' ),
 				$goc ? '#15803d' : '#b45309' );
 		} else {
-			$o .= '<div style="width:104px;font-size:11.5px;color:#b91c1c;line-height:1.35">'
+			$o .= '<div style="width:104px;font-size:11.5px;color:var(--do);line-height:1.35">'
 				. '⚠️ <b>Không còn ảnh</b><br>Lượt chấm sinh ra mẫu này không kèm ảnh, hoặc ảnh đã '
 				. 'bị dọn. <b>Đừng duyệt mò</b> — xoá mẫu đi, lượt chấm sau tự lấy lại.</div>';
 		}
@@ -332,7 +332,7 @@ class VHCC_WebMat {
 		if ( '' !== $the ) {
 			$o .= self::khoi_anh( $the, 'Ảnh thẻ trong hồ sơ', 'bản đối chứng', '#1d4ed8' );
 		} else {
-			$o .= '<div style="width:104px;font-size:11.5px;color:#6b7280;line-height:1.35">'
+			$o .= '<div style="width:104px;font-size:11.5px;color:var(--chu-mo);line-height:1.35">'
 				. 'Hồ sơ <b>chưa có ảnh thẻ</b> — không có gì để đối chiếu. Chỉ duyệt khi anh/chị '
 				. 'nhận ra mặt người này.</div>';
 		}
@@ -354,7 +354,7 @@ class VHCC_WebMat {
 			. 'border:2px solid ' . $mau;
 		if ( 0 === strpos( (string) $src, 'data:' ) ) {
 			if ( ! preg_match( '#^data:image/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$#', (string) $src ) ) {
-				return '<div style="width:104px;font-size:11.5px;color:#b91c1c">Ảnh thẻ hỏng khuôn.</div>';
+				return '<div style="width:104px;font-size:11.5px;color:var(--do)">Ảnh thẻ hỏng khuôn.</div>';
 			}
 			$anh = '<img src="' . esc_attr( $src ) . '" alt="' . esc_attr( $nhan ) . '" style="'
 				. esc_attr( $vien ) . '">';

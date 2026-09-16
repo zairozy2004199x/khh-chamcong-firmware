@@ -695,8 +695,8 @@ class VHCC_WebMay {
 			$o_anh = ( 'delete' === (string) $q['action'] )
 				? '<span class="mo">—</span>'
 				: ( (int) $q['co_anh'] === 1
-					? '<span style="color:#15803d;font-weight:600">✔ có</span>'
-					: '<span style="color:#b45309;font-weight:600">chưa có</span>' );
+					? '<span style="color:var(--luc-dam);font-weight:600">✔ có</span>'
+					: '<span style="color:var(--vang-dam);font-weight:600">chưa có</span>' );
 			echo '<tr><td>' . esc_html( (string) $q['tao_luc'] ) . '</td>'
 				. '<td><code>' . esc_html( $q['action'] ) . '</code></td>'
 				. '<td>' . $o_anh . '</td>'

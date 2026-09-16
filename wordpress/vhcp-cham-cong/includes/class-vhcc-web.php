@@ -280,16 +280,21 @@ class VHCC_Web {
 		nocache_headers();
 		header( 'Content-Type: text/html; charset=utf-8' );
 		echo '<!DOCTYPE html><meta charset="utf-8"><title>Trang chấm công gặp lỗi</title>';
+		/* ⚠️ Màu viết `var(--x,#hex)`: màn này dựng KHI trang chính đã nổ, nên bảng kiểu có thể
+		   chưa kịp in ra — giá trị lui là thứ giữ cho nó vẫn đọc được. Còn khi bảng kiểu có mặt
+		   thì nó ăn theo bộ áo chung như mọi màn khác. */
 		echo '<div style="font:15px/1.6 system-ui,Arial;max-width:680px;margin:60px auto;'
-			. 'padding:20px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px">';
+			. 'padding:20px;border:1px solid var(--vien-dam,#fecaca);'
+			. 'background:var(--do-nhat,#fef2f2);border-radius:var(--bo-the,10px)">';
 		echo '<h2 style="margin:0 0 8px">Trang chấm công gặp lỗi</h2>';
 		echo '<p style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;'
-			. 'background:#fff;padding:10px;border-radius:7px;border:1px solid #fecaca">'
+			. 'background:var(--the,#fff);padding:10px;border-radius:var(--bo-o,7px);'
+			. 'border:1px solid var(--vien-dam,#cbd5e1)">'
 			. esc_html( $e->getMessage() ) . '<br><b>' . esc_html( basename( $e->getFile() ) )
 			. '</b> dòng <b>' . (int) $e->getLine() . '</b></p>';
 		echo '<p><b>Chụp nguyên khung trên gửi cho người viết phần mềm</b> — nó chỉ thẳng chỗ hỏng, '
 			. 'không phải đoán.</p>';
-		echo '<p style="color:#78716c;font-size:13px">Bản đang chạy: '
+		echo '<p style="color:var(--chu-mo);font-size:13px">Bản đang chạy: '
 			. esc_html( defined( 'VHCC_VERSION' ) ? VHCC_VERSION : '?' ) . ' · PHP '
 			. esc_html( PHP_VERSION ) . '</p>';
 		echo '<p><a href="' . esc_url( self::url() ) . '">← Về trang chính</a></p></div>';
@@ -396,7 +401,8 @@ class VHCC_Web {
 			header( 'Content-Type: text/html; charset=utf-8' );
 			echo '<!DOCTYPE html><meta charset="utf-8"><title>Xuất Excel không xong</title>';
 			echo '<div style="font:15px/1.6 system-ui,Arial;max-width:640px;margin:60px auto;'
-				. 'padding:20px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px">';
+				. 'padding:20px;border:1px solid var(--vang,#fde68a);background:var(--vang-nhat,#fffbeb);'
+				. 'border-radius:var(--bo-the,10px)">';
 			echo '<h2 style="margin:0 0 8px">Xuất Excel không xong</h2>';
 			echo '<p>Cơ sở <b>' . esc_html( $cs ) . '</b> · tháng <b>' . esc_html( $th ) . '</b>.</p>';
 			echo $het
@@ -404,7 +410,7 @@ class VHCC_Web {
 					. 'nhờ bên hosting nâng <code>memory_limit</code> lên 256M.</p>'
 				: '<p>Máy chủ dừng giữa chừng: <code>' . esc_html( substr( (string) $e['message'], 0, 200 ) )
 					. '</code></p>';
-			echo '<p style="color:#78716c;font-size:13px">Giới hạn bộ nhớ đang là <b>'
+			echo '<p style="color:var(--chu-mo);font-size:13px">Giới hạn bộ nhớ đang là <b>'
 				. esc_html( (string) ini_get( 'memory_limit' ) ) . '</b>, lúc dừng đã dùng <b>'
 				. esc_html( size_format( memory_get_peak_usage( true ) ) ) . '</b>.</p>';
 			echo '<p><a href="' . esc_url( self::url() ) . '">← Quay lại bảng công</a></p></div>';
@@ -2538,19 +2544,71 @@ class VHCC_Web {
 		 *    nhau thì theo shadcn/ui, vì nó là bộ duy nhất dựng cho dữ liệu dày (bo 18px cho ô
 		 *    bấm, 24px cho thẻ, mật độ "compact").
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		return ':root{--nen:#f6f4f1;--the:#fff;--vien:#e7e2dc;--chu:#171417;--mo:#6f6a66;'
-			. '--xanh:#2563eb;--do:#dc2626;--vang:#f59e0b;--luc:#16a34a;'
-			. '--vien-dam:#d6cfc6;--soc:#faf8f6}'
+		return ':root{'
+			/* ---- bảng màu sáng, ĐÚNG SÁU giá trị mà `kiem-bo-ao-tron.php` chốt cho cả nhà ---- */
+			. '--nen:#f9f8f6;--the:#ffffff;--nen-2:#f4f1ec;'
+			. '--vien:#f0e9e1;--vien-dam:#e2d6c7;'
+			. '--chu:#171417;--chu-dam:#0c1754;--chu-mo:#8c8781;'
+			. '--nhan:#2545ff;--nhan-dam:#1a34c9;--nhan-nhat:#eaebf8;--do:#e7000b;'
+			/* ---- màu MANG NGHĨA của riêng bảng chấm công. Mỗi cặp là một sắc + một nền nhạt
+			   + một sắc chữ đọc được trên nền nhạt ấy. Gom lại đây thay vì rải mã màu khắp 213
+			   luật: đổi một sắc là đổi đúng một dòng, và `kiem-bo-ao-tron.php` mục 9 đếm được. */
+			. '--luc:#16a34a;--luc-nhat:#f0fdf4;--luc-dam:#15803d;'
+			. '--vang:#f59e0b;--vang-nhat:#fffbeb;--vang-dam:#b45309;'
+			. '--tim:#7c3aed;--tim-nhat:#f5f3ff;--tim-dam:#6d28d9;'
+			. '--lam:#0891b2;--lam-nhat:#e0f2fe;--lam-dam:#0369a1;'
+			. '--do-nhat:#fef2f2;--cam-nhat:#fff7ed;--cam-dam:#c2410c;'
+			. '--soc:#faf8f6;'
+			/* ---- nhịp và bo góc: SÁU con số phải khớp từng chữ số với sáu trang kia ---- */
+			. '--d1:4px;--d2:8px;--d3:12px;--d4:16px;--d5:20px;--d6:24px;'
+			. '--bo-the:16px;--bo-nut:18px;--bo-o:10px;--bo-o-bang:6px;--bo-nho:8px;--bo-badge:16px;'
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * BA TẦNG BÓNG ĐỔ — phần *"nền 3D"* anh Thắng dặn 16/09/2026.
+			 *
+			 * Ba tầng chứ không một: `--bong` cho thứ ĐANG NẰM YÊN (thẻ, đầu bảng dính),
+			 * `--bong-2` cho thứ ĐANG ĐƯỢC CHẠM (rê chuột, mục đang mở), `--bong-3` cho thứ
+			 * NỔI HẲN LÊN TRÊN (ảnh xem trước). Một tầng dùng chung thì hoặc thẻ nào cũng nổi
+			 * bồng bềnh, hoặc thứ đang chạm chẳng khác gì thứ đứng yên — mà chiều sâu chỉ đọc
+			 * được khi có thứ để so.
+			 * ⚠️ Bóng đổ màu NAVY (`--chu-dam`) pha loãng, không phải đen. Đen trên nền kem ra
+			 *    một vệt xám bẩn; navy loãng thì trong và ăn với màu nhấn.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			. '--bong:0 1px 2px rgba(12,23,84,.05);'
+			. '--bong-2:0 4px 14px rgba(12,23,84,.10);'
+			. '--bong-3:0 12px 32px rgba(12,23,84,.14)'
+			. '}'
 			. '*{box-sizing:border-box}'
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * NỀN 3D Ở TẦNG TRANG, KHÔNG Ở TẦNG Ô.
+			 *
+			 * Ba vầng sáng rất loãng (xanh nhấn · tím · lam) nằm ở ba góc, phía SAU mọi thẻ.
+			 * Thẻ và bảng đều đục hoàn toàn, nên chúng nổi lên khỏi nền — đó là chỗ ra chiều sâu.
+			 *
+			 * 🔴 `background-attachment:fixed` KHÔNG ĐƯỢC BỎ. Lưới 31 cột vừa cuộn dọc vừa cuộn
+			 *    ngang; nền chạy theo là cả trang trôi và nhìn một phút là mỏi mắt. Nền đứng yên
+			 *    thì mắt có mốc, và chiều sâu mới đọc ra.
+			 * 🔴 KHÔNG cho gradient lọt xuống dưới Ô SỐ. Lưới chấm công dùng màu để BÁO LỖI —
+			 *    đỏ ghi sai, vàng trễ, bốn sắc ca. Một lớp tím mờ phủ lên là mọi ô lệch sắc và
+			 *    cảnh báo hết nổi bật. Vì thế `table{background:var(--the)}` ở dưới là bắt buộc,
+			 *    không phải trang trí.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
 			. 'body{margin:0;font:15px/1.6 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;'
-			. 'background:var(--nen);color:var(--chu)}'
+			. 'color:var(--chu);background:'
+			. 'radial-gradient(60rem 40rem at 12% -8%,rgba(37,69,255,.16),transparent 60%),'
+			. 'radial-gradient(48rem 36rem at 92% 4%,rgba(124,58,237,.13),transparent 62%),'
+			. 'radial-gradient(52rem 34rem at 50% 108%,rgba(8,145,178,.12),transparent 60%),'
+			. 'var(--nen);background-attachment:fixed}'
 			/* Dùng hết bề ngang màn hình. Bảng hồ sơ có 9 cột; ép vào 1180px là cột nào cũng
 			   chật, chữ xuống dòng, và mỗi hàng cao gấp ba. */
-			. '.bo{max-width:1760px;margin:0 auto;padding:16px 20px}'
-			. 'header{background:var(--the);border-bottom:1px solid var(--vien);position:sticky;top:0;z-index:5}'
-			. 'header .bo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}'
+			. '.bo{max-width:1760px;margin:0 auto;padding:var(--d4) var(--d5)}'
+			. 'header{background:var(--the);border-bottom:1px solid var(--vien);position:sticky;top:0;z-index:5;'
+			. 'box-shadow:var(--bong)}'
+			. 'header .bo{display:flex;align-items:center;gap:var(--d3);flex-wrap:wrap;padding:var(--d3) var(--d4)}'
 			. 'h1{font-size:17px;margin:0;flex:1}'
-			. '.the{background:var(--the);border:1px solid var(--vien);border-radius:10px;padding:16px;margin:0 0 16px}'
+			. '.the{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);'
+			. 'padding:var(--d4);margin:0 0 var(--d4);box-shadow:var(--bong);'
+			. 'transition:box-shadow .16s ease,border-color .16s ease}'
+			. '.the:hover{box-shadow:var(--bong-2);border-color:var(--vien-dam)}'
 			/* ==================================================================== khung HR V5.2
 			   Anh Thắng 27/08/2026, kèm ba ảnh phần mềm HR V5.2 của Mr Trung: *"Chỗ phần giao
 			   diện và tính năng của trang chấm công thiết kế đẹp mắt y như này"*.
@@ -2567,7 +2625,9 @@ class VHCC_Web {
 			      là CSS thuần. */
 			. '.ung{display:block}'
 			. '/* 🔴 `aside.canh`, KHÔNG PHẢI `.canh` TRẦN. Anh Thắng 28/08/2026 gửi ảnh hai khối cảnh báo cao vống gần hết màn hình: *"không có mã mà sao ra rộng thế"*. Lý do là hai class KHÁC NGHĨA trùng tên: `.canh` của thanh điều hướng bên (cạnh trang), và `.bao canh` của thẻ cảnh báo. Thẻ cảnh báo ăn phải `height:100vh` của thanh bên nên khối nào cũng cao đúng một màn hình, dù bên trong chỉ có một dòng chữ. Buộc vào đúng thẻ `<aside>` thì hai thứ thôi giẫm lên nhau, mà không phải đổi tên class ở hàng chục chỗ đang dùng. */'
-			. 'aside.canh{background:#0f2744;color:#cbd5e1;display:flex;flex-direction:column}'
+			. 'aside.canh{background:linear-gradient(170deg,var(--chu-dam) 0%,#14245e 55%,#101c4a 100%);'
+			. 'color:#cbd5e1;display:flex;flex-direction:column;'
+			. 'box-shadow:inset -1px 0 0 rgba(255,255,255,.07),var(--bong-2)}'
 			. '.canh-hieu{padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}'
 			/* 🔴 `flex:1` CỦA `.hieu` PHẢI BỊ GỠ Ở ĐÂY.
 			   Anh Thắng 27/08/2026, kèm ảnh cột dọc: *"bị lệch"* — một khoảng đen mênh mông giữa
@@ -2583,19 +2643,28 @@ class VHCC_Web {
 			. '.canh-hieu span{display:block;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;'
 			. 'color:#7c9cc4;margin-top:3px}'
 			. '.canh-nav{display:flex;gap:2px;overflow-x:auto;padding:8px}'
-			. '.canh-nav a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;'
+			. '.canh-nav a{display:flex;align-items:center;gap:9px;padding:9px var(--d3);border-radius:var(--bo-nho);'
 			. 'color:#cbd5e1;text-decoration:none;font-size:14px;font-weight:600;white-space:nowrap}'
 			. '.canh-nav a:hover{background:rgba(255,255,255,.07);color:#fff}'
 			/* Mục ĐANG MỞ phải khác hẳn, không chỉ đậm hơn một chút: cột này có tám mục và người
 			   ta liếc chứ không đọc. */
-			. '.canh-nav a.dang{background:var(--xanh);color:#fff}'
+			. '.canh-nav a.dang{background:var(--nhan);color:#fff;box-shadow:var(--bong-2)}'
 			. '.canh-nav a .bt{font-size:15px;line-height:1;width:18px;text-align:center}'
 			. '.canh-duoi{padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);font-size:12px}'
-			. '.canh-ai{background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-bottom:8px}'
+			. '.canh-ai{background:rgba(255,255,255,.06);border-radius:var(--bo-nho);padding:var(--d2) 10px;'
+			. 'margin-bottom:var(--d2)}'
 			. '.canh-ai b{display:block;color:#fff;font-size:13px}'
 			. '.canh-ai span{color:#7c9cc4}'
 			. '.canh-duoi form{margin:0}'
-			. '.canh-duoi button{width:100%;background:var(--do);border-color:var(--do);color:#fff}'
+			/* 🔴 NÚT THOÁT PHẢI LÀ NÚT LẶNG NHẤT CỘT, KHÔNG PHẢI ỒN NHẤT.
+			   16/09/2026, nhìn ảnh chụp cả trang sau khi đổi bo góc: nó là một viên thuốc đỏ đặc
+			   nằm góc dưới trái, và là vật bắt mắt nhất toàn màn — hơn cả mục đang mở, hơn cả
+			   bảng số. Mà đây là nút người ta bấm một lần cuối ca. Màu đặc là để dành cho việc
+			   chính; việc lùi thì viền đỏ trên nền trong là đủ nói "đây là nút đỏ", và chỉ đổ
+			   đặc khi rê chuột tới — lúc ấy mới cần chắc chắn là bấm đúng. */
+			. '.canh-duoi button{width:100%;background:transparent;border-color:rgba(255,255,255,.22);'
+			. 'color:#e9b8b8;font-weight:600;box-shadow:none}'
+			. '.canh-duoi button:hover{background:var(--do);border-color:var(--do);color:#fff}'
 			. '.canh-pb{color:#5c7ba3;font-size:11px;margin-top:8px;line-height:1.5}'
 			. '@media(min-width:1000px){'
 			. '.ung{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}'
@@ -2605,11 +2674,12 @@ class VHCC_Web {
 			. '}'
 			/* Tiêu đề màn — chữ hoa, gạch chân xanh chạy dưới đúng bề rộng chữ. Mỗi màn phải tự
 			   nói mình là màn nào; không có nó thì tám màn mở ra trông giống hệt nhau. */
-			. '.tieu-man{background:var(--the);border:1px solid var(--vien);border-radius:10px;'
-			. 'padding:12px 16px;margin:0 0 16px;display:flex;align-items:center;'
+			. '.tieu-man{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);'
+			. 'box-shadow:var(--bong);'
+			. 'padding:var(--d3) var(--d4);margin:0 0 var(--d4);display:flex;align-items:center;'
 			. 'gap:12px;flex-wrap:wrap}'
 			. '.tieu-man h1{font-size:17px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;'
-			. 'margin:0;padding-bottom:5px;border-bottom:3px solid var(--xanh);flex:0 0 auto}'
+			. 'margin:0;padding-bottom:5px;border-bottom:3px solid var(--nhan);flex:0 0 auto}'
 			. '.tieu-man .mo{margin:0}'
 
 			/* ================================================== nhãn khối, theo mẫu HR V5.2 (ảnh 2)
@@ -2623,47 +2693,75 @@ class VHCC_Web {
 			      (trong `<details>`, trong bảng) là tiêu đề phụ — bôi nhãn cho chúng nữa thì cả
 			      màn đầy nhãn, và nhãn hết nghĩa. */
 			. '.the>h2,.the>h3{font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;'
-			. 'color:#1e40af;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;'
-			. 'padding:7px 11px;margin:-4px -4px 12px;display:inline-block}'
+			. 'color:var(--nhan-dam);background:var(--nhan-nhat);border:0;border-radius:var(--bo-badge);'
+			. 'padding:7px 11px;margin:-4px -4px var(--d3);display:inline-block}'
 			. '.the h2{font-size:15px;margin:0 0 4px}'
-			. '.mo{color:var(--mo);font-size:13px;margin:4px 0}'
-			. 'label{display:block;font-size:13px;color:var(--mo);margin:0 0 3px}'
+			. '.mo{color:var(--chu-mo);font-size:13px;margin:4px 0}'
+			. 'label{display:block;font-size:13px;color:var(--chu-mo);margin:0 0 3px}'
 			/* Nhãn CHO TRÌNH ĐỌC MÀN HÌNH, không hiện ra. Bảng tên cơ sở có 21 ô nhập giống hệt
 			   nhau; không có nhãn thì người dùng trình đọc nghe 21 lần "ô nhập" mà không biết ô
 			   nào của mã nào. `display:none` thì trình đọc cũng bỏ qua — phải kéo ra ngoài khung
 			   nhìn chứ không được ẩn hẳn. */
 			. '.an{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);'
 			. 'white-space:nowrap}'
-			. 'input,select,textarea{font:inherit;padding:7px 9px;border:1px solid #cbd5e1;'
-			. 'border-radius:7px;background:#fff;color:var(--chu);max-width:100%}'
-			. 'input:focus,select:focus{outline:2px solid var(--xanh);outline-offset:1px}'
+			. 'input,select,textarea{font:inherit;padding:7px 9px;border:1px solid var(--vien-dam);'
+			. 'border-radius:var(--bo-o);background:var(--the);color:var(--chu);max-width:100%}'
+			. 'td input,td select{border-radius:var(--bo-o-bang)}'
+			/* Vòng focus theo lối bộ áo chung: viền đổi màu rồi một quầng nhấn 3px quanh ô. Rõ hơn
+			   `outline` một nét — mà quan trọng hơn: nó KHÔNG đổi kích thước ô, nên một hàng mười
+			   ô nhập không nhảy chỗ khi người ta tab qua từng ô. */
+			. 'input:focus,select:focus,textarea:focus{outline:none;border-color:var(--nhan);'
+			. 'box-shadow:0 0 0 3px rgba(37,69,255,.12)}'
 			. '.hang{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}'
-			. 'button{font:inherit;font-weight:600;padding:8px 14px;border-radius:7px;border:1px solid #cbd5e1;'
-			. 'background:#fff;color:var(--chu);cursor:pointer}'
-			. 'button.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * NÚT NHÚN KHI BẤM — thứ học được từ bộ TW Elements anh Thắng gửi 16/09/2026.
+			 *
+			 * Bộ ấy làm hiệu ứng gợn sóng (ripple) bằng JavaScript. Màn này KHÔNG được có một
+			 * dòng script nào (`test-cham-cong.php` chốt), nên lấy phần cốt lõi mà CSS làm được:
+			 * rê chuột thì nút NHÍCH LÊN và bóng dày ra, bấm xuống thì nó hạ về chỗ cũ và bóng
+			 * mỏng lại. Hai nhịp ấy đủ cho tay biết là đã bấm trúng — đúng việc mà ripple lo.
+			 * ⚠️ `transition` KHÔNG chạm tới `background`: nút chính đổi nền khi rê chuột, mà cho
+			 *    nền mờ dần thì lúc bấm liên tiếp màu lem thành một vũng. */
+			. 'button{font:inherit;font-weight:600;padding:var(--d2) 14px;border-radius:var(--bo-nut);'
+			. 'border:1px solid var(--vien-dam);background:var(--the);color:var(--chu);cursor:pointer;'
+			. 'box-shadow:var(--bong);transition:transform .12s ease,box-shadow .12s ease}'
+			. 'button:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--bong-2)}'
+			. 'button:active:not(:disabled){transform:translateY(0);box-shadow:var(--bong)}'
+			. 'button.chinh{background:var(--nhan);border-color:var(--nhan);color:#fff;letter-spacing:.3px}'
+			. 'button.chinh:hover:not(:disabled){background:var(--nhan-dam);border-color:var(--nhan-dam)}'
 			. 'button.nguy{background:var(--do);border-color:var(--do);color:#fff}'
 			/* Nút theo VIỆC, không theo chỗ đứng — mẫu HR V5.2 (ảnh 2) tô xanh lá cho "Thêm",
 			   cam cho "Tải dữ liệu". Màu là thứ mắt đọc trước chữ, nên nó phải nói đúng: xanh lá
 			   = thêm mới, cam = việc chạy lâu và chạm ra ngoài (đọc máy, nạp tệp). */
 			. 'button.them{background:var(--luc);border-color:var(--luc);color:#fff}'
-			. 'button.chay{background:var(--vang);border-color:var(--vang);color:#fff}'
-			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:8px 12px;border-radius:7px;'
-			. 'border:1px solid #cbd5e1;background:#fff;color:var(--chu);text-decoration:none}'
-			. '.nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
+			/* Chữ NÂU ĐẬM trên nền vàng, không phải chữ trắng: trắng trên `#f59e0b` chỉ được
+			   ~2:1 độ tương phản — ngoài sáng ở cửa hàng là đọc không ra chữ trên nút. */
+			. 'button.chay{background:var(--vang);border-color:var(--vang);color:#452a00}'
+			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:var(--d2) var(--d3);'
+			. 'border-radius:var(--bo-nut);border:1px solid var(--vien-dam);background:var(--the);'
+			. 'color:var(--chu);text-decoration:none;box-shadow:var(--bong);'
+			. 'transition:transform .12s ease,box-shadow .12s ease}'
+			. '.nut:hover{transform:translateY(-1px);box-shadow:var(--bong-2)}'
+			. '.nut:active{transform:translateY(0);box-shadow:var(--bong)}'
+			. '.nut.chinh{background:var(--nhan);border-color:var(--nhan);color:#fff}'
 			/* Dải bộ phận: mỗi bộ phận là một LIÊN KẾT kèm số cơ sở đang có. Bộ phận rỗng thì
 			   mờ đi — vẫn bấm được (để thấy câu giải thích), nhưng không mời gọi bấm. */
 			. '.loc-bp{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}'
 			. '.nhan-bp{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;'
-			. 'color:var(--mo);margin-right:2px}'
+			. 'color:var(--chu-mo);margin-right:2px}'
 			. '.loc-bp .nut{padding:6px 11px;font-size:13px}'
 			. '.loc-bp .nut.trong{opacity:.55}'
-			. '.loc-bp .sl{display:inline-block;min-width:18px;text-align:center;border-radius:9px;'
-			. 'background:#e2e8f0;color:#475569;font-size:11px;padding:0 5px;margin-left:3px}'
+			. '.loc-bp .sl{display:inline-block;min-width:18px;text-align:center;border-radius:var(--bo-badge);'
+			. 'background:var(--nen-2);color:var(--chu-mo);font-size:11px;padding:0 5px;margin-left:3px}'
 			. '.loc-bp .nut.chinh .sl{background:rgba(255,255,255,.28);color:#fff}'
 			. '.luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}'
-			. 'table{border-collapse:collapse;width:100%;font-size:13.5px}'
+			/* 🔴 `background:var(--the)` LÀ BẮT BUỘC, KHÔNG PHẢI TRANG TRÍ. Nền trang có ba vầng
+			   sáng gradient; bảng mà trong suốt thì vầng tím lọt xuống dưới ô và mọi ô cảnh báo
+			   (đỏ ghi sai, vàng trễ, bốn sắc ca) lệch sắc theo vị trí ô trên trang. Bảng đục thì
+			   màu báo lỗi luôn đúng một sắc, ở bất kỳ chỗ nào. */
+			. 'table{border-collapse:collapse;width:100%;font-size:13.5px;background:var(--the)}'
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
-			. 'th{background:var(--soc);font-size:12.5px;color:var(--mo);white-space:nowrap}'
+			. 'th{background:var(--soc);font-size:12.5px;color:var(--chu-mo);white-space:nowrap}'
 			/* ═══════════════════════════════════════════════════════════════════════════════
 			 * 🔴 Ô SỐ: CANH PHẢI VÀ CHỮ SỐ ĐỀU BỀ NGANG.
 			 *
@@ -2684,14 +2782,14 @@ class VHCC_Web {
 			. 'td.p,th.p{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}'
 			/* Bảng lương đọc ra BẢNG: sọc hàng, hàng đang rê chuột sáng lên, tiêu đề dính trên. */
 			. 'table.b tbody tr:nth-child(even)>td{background:var(--soc)}'
-			. 'table.b tbody tr:hover>td{background:#f1ede8}'
+			. 'table.b tbody tr:hover>td{background:var(--nen-2)}'
 			. 'table.b thead th{position:sticky;top:0;z-index:3;background:var(--soc);'
-			. 'box-shadow:inset 0 -1px 0 var(--vien-dam)}'
+			. 'box-shadow:inset 0 -1px 0 var(--vien-dam),var(--bong)}'
 			/* Hàng TỔNG tách hẳn khỏi thân bảng bằng một nét đậm — không thì nó trông như một
 			   người nữa trong danh sách. */
 			. 'table.b tbody tr.tong-bl>td{border-top:2px solid var(--vien-dam);'
-			. 'background:#f1ede8;font-weight:600}'
-			. 'table.b tbody tr.hang-sua>td{background:#fffbeb}'
+			. 'background:var(--nen-2);font-weight:600}'
+			. 'table.b tbody tr.hang-sua>td{background:var(--vang-nhat)}'
 			/* Nhóm cột "Các khoản cộng / giảm trừ" phải đọc ra một CỤM, nên đóng ngoặc hai bên
 			   bằng nét dọc — y như tệp Excel của kế toán kẻ khung quanh nhóm. */
 			. 'table.b th[colspan]{text-align:center;border-left:1px solid var(--vien-dam);'
@@ -2708,7 +2806,7 @@ class VHCC_Web {
 			      và bảng lưới cả tháng (cột đầu là tên người) bị chèn số vào giữa tên. */
 			. 'table.stt tbody{counter-reset:d}'
 			. 'table.stt tbody tr{counter-increment:d}'
-			. 'table.stt tbody td:first-child::before{content:counter(d) ". ";color:var(--mo);'
+			. 'table.stt tbody td:first-child::before{content:counter(d) ". ";color:var(--chu-mo);'
 			. 'font-size:11.5px;font-weight:600}'
 			/* Hàng TỔNG không phải một dòng dữ liệu — đánh số cho nó là bảng 26 máy hoá ra 27. */
 			. 'table.stt tbody tr.tong{counter-increment:none}'
@@ -2718,72 +2816,74 @@ class VHCC_Web {
 			   cột mã lại thì cuộn sang phải là mất luôn thứ cho biết đang sửa hồ sơ của AI. */
 			. '.cuon td:first-child,.cuon th:first-child{position:sticky;left:0;z-index:2;'
 			. 'background:var(--the);box-shadow:1px 0 0 var(--vien)}'
-			. '.cuon th:first-child{background:#f8fafc}'
+			. '.cuon th:first-child{background:var(--nen-2)}'
 			. '.cuon td:last-child{white-space:nowrap}'
 			. '.cuon input,.cuon select{padding:6px 8px}'
-			. '.bao{border-radius:9px;padding:11px 13px;margin:0 0 12px;border:1px solid}'
+			. '.bao{border-radius:var(--bo-nho);padding:11px 13px;margin:0 0 var(--d3);border:1px solid}'
 			/* Dải kết quả theo mẫu HR V5.2 (ảnh 1): một chấm tròn màu ở đầu dòng rồi tới chữ.
 			   Chấm ấy làm dải báo nhận ra được TRƯỚC KHI đọc — người vừa bấm Lưu chỉ cần biết
 			   "xanh hay đỏ", và họ liếc chứ không đọc. */
 			. '.bao{position:relative;padding-left:30px}'
 			. '.bao::before{content:"";position:absolute;left:12px;top:1.05em;width:9px;height:9px;'
 			. 'border-radius:50%;background:currentColor;opacity:.75}'
-			. '.bao.ok{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}'
+			. '.bao.ok{background:var(--luc-nhat);border-color:#bbf7d0;color:var(--luc-dam)}'
 			. '.bao.ok b,.bao.loi b,.bao.canh b{color:var(--chu)}'
-			. '.bao.loi{color:var(--do)}.bao.canh{color:#b45309}'
-			. '.bao.loi{background:#fef2f2;border-color:#fecaca}'
-			. '.bao.canh{background:#fffbeb;border-color:#fde68a}'
+			. '.bao.loi{color:var(--do)}.bao.canh{color:var(--vang-dam)}'
+			. '.bao.loi{background:var(--do-nhat);border-color:#fecaca}'
+			. '.bao.canh{background:var(--vang-nhat);border-color:#fde68a}'
 			/* Ô "thiếu giờ NHƯNG đã có đơn được duyệt": không vàng (thôi kêu), nhưng cũng không
 			   trắng trơn — còn một gạch chân xanh để cửa hàng trưởng nhìn ra chỗ nào là do đơn,
 			   chứ không phải chỗ nào cũng đủ giờ. */
 			. 'td.xin-tre{box-shadow:inset 0 -3px 0 #86efac}'
 			/* Hàng của người chờ trả về nhân sự: nền xám nhạt + nút tích đổi màu. Nhạt chứ
 			   không đỏ — đây không phải lỗi, chỉ là một chỗ đứng khác. */
-			. 'td.cho-tra{background:#f8fafc}'
-			. '.cho-tra-nhan{color:#7c3aed;border-color:#ddd6fe}'
+			. 'td.cho-tra{background:var(--nen-2)}'
+			. '.cho-tra-nhan{color:var(--tim);border-color:#ddd6fe}'
 			. 'button.mo-hs{background:none;cursor:pointer;font-family:inherit}'
 			. '.bao ul{margin:6px 0 0 18px;padding:0}'
 			. '.cu{color:var(--do);text-decoration:line-through}'
 			. '.moi{color:var(--luc);font-weight:600}'
 			. '.co{color:var(--luc);font-weight:600}.chua{color:var(--do);font-weight:600}'
 			. '.pin-ho{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;letter-spacing:2px;'
-			. 'user-select:all;background:#fef3c7;padding:1px 6px;border-radius:5px;color:var(--chu)}'
+			. 'user-select:all;background:#fef3c7;padding:1px 6px;border-radius:var(--bo-o-bang);color:var(--chu)}'
 			. '.pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:4px;'
-			. 'user-select:all;background:#fffbeb;padding:6px 12px;border-radius:8px;display:inline-block}'
+			. 'user-select:all;background:var(--vang-nhat);padding:6px var(--d3);border-radius:var(--bo-nho);'
+			. 'display:inline-block}'
 			/* ---- lưới bảng chấm công: 31 cột ngày, phải nhỏ và dày ---- */
 			. 'table.cc{font-size:11.5px}'
 			. 'table.cc th,table.cc td{padding:3px 4px;border:1px solid var(--vien);text-align:center;'
 			. 'white-space:nowrap;vertical-align:middle}'
 			. 'table.cc th.ng{width:34px;min-width:34px;padding:3px 2px}'
 			/* Chủ nhật tô nhạt để đếm tuần bằng mắt — nhìn một tháng mà không có mốc thì đếm mãi. */
-			. 'table.cc th.cn{background:#fef2f2;color:var(--do)}'
-			. 'table.cc th.nay,table.cc td.nay{outline:2px solid var(--xanh);outline-offset:-2px}'
+			. 'table.cc th.cn{background:var(--do-nhat);color:var(--do)}'
+			. 'table.cc th.nay,table.cc td.nay{outline:2px solid var(--nhan);outline-offset:-2px}'
 			. 'table.cc td:first-child{text-align:left;min-width:190px;white-space:normal;line-height:1.3}'
-			. 'table.cc td.o{color:var(--mo);line-height:1.25}'
+			. 'table.cc td.o{color:var(--chu-mo);line-height:1.25}'
 			/* Thiếu giờ ra: nền đỏ nhạt. Không dùng MỖI màu chữ — ô còn có chữ "?" để người mù
 			   màu và bản in đen trắng vẫn đọc được. */
-			. 'table.cc td.hong{background:#fef2f2;color:var(--do);font-weight:600}'
+			. 'table.cc td.hong{background:var(--do-nhat);color:var(--do);font-weight:600}'
 			/* Cả DÒNG thiếu giờ ra ở bảng chi tiết. Luật riêng chứ không dùng chung với `td.hong`
 			   ở trên: `td.hong` tô MỘT ô của lưới, còn ở đây cờ nằm trên `<tr>`. Thiếu luật này
 			   thì thuộc tính có mà màu không lên — đúng kiểu hỏng không kêu tiếng nào. */
-			. 'table.cc tr.hong>td{background:#fef2f2}'
+			. 'table.cc tr.hong>td{background:var(--do-nhat)}'
 			. 'table.cc td.cco{box-shadow:inset 0 0 0 2px var(--vang)}'
-			. 'table.cc td.tong{font-weight:700;background:#f8fafc}'
+			. 'table.cc td.tong{font-weight:700;background:var(--nen-2)}'
 			/* Tên người trong lưới là ĐƯỜNG SANG HỒ SƠ. Gạch chân chấm để thấy là bấm được mà
 			   không hoá thành một dãy chữ xanh chạy dọc cả cột — cột này có mấy chục dòng. */
-			. 'a.ten-nv{color:inherit;text-decoration:none;border-bottom:1px dotted #94a3b8}'
-			. 'a.ten-nv:hover{color:var(--xanh);border-bottom-color:var(--xanh)}'
-			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:0 5px;font-size:11px;font-weight:600}'
+			. 'a.ten-nv{color:inherit;text-decoration:none;border-bottom:1px dotted var(--vien-dam)}'
+			. 'a.ten-nv:hover{color:var(--nhan);border-bottom-color:var(--nhan)}'
+			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:var(--bo-o-bang);padding:0 5px;'
+			. 'font-size:11px;font-weight:600}'
 			. '.chu-hong{color:var(--do);font-weight:600}.chu-co{color:var(--vang);font-weight:600}'
 			/* Lưới Công Văn phòng. Màu ở đây là LÝ DO chứ không phải trang trí, nên mỗi lớp phải
 			   đi kèm một câu trong phần chú thích dưới lưới — màu không có chú giải thì người đọc
 			   chỉ biết "ô này khác màu", không biết khác vì gì. */
 			. 'table.cc td.oc{text-align:center;white-space:nowrap}'
-			. 'table.cc td.oc.hong{background:#fef2f2;color:var(--do)}'
-			. 'table.cc td.oc.vang{background:#fffbeb;color:#b45309}'
-			. 'table.cc td.oc.tim{background:#f5f3ff;color:#6d28d9}'
-			. 'table.cc td.oc.luc{background:#f0fdf4;color:#15803d}'
-			. 'table.cc td.tong{text-align:right;font-weight:700;background:#f8fafc}'
+			. 'table.cc td.oc.hong{background:var(--do-nhat);color:var(--do)}'
+			. 'table.cc td.oc.vang{background:var(--vang-nhat);color:var(--vang-dam)}'
+			. 'table.cc td.oc.tim{background:var(--tim-nhat);color:var(--tim-dam)}'
+			. 'table.cc td.oc.luc{background:var(--luc-nhat);color:var(--luc-dam)}'
+			. 'table.cc td.tong{text-align:right;font-weight:700;background:var(--nen-2)}'
 			/* 🔴 CỘT TỔNG GHIM BÊN PHẢI — chỉ ở lưới "Công của tôi".
 			   Lưới 31 cột luôn phải cuộn ngang, và cuộn tới đâu thì cột Tổng trôi ra ngoài tới
 			   đó. Mà tổng đúng là con số người ta mở màn này để xem: đối soát là nhìn tổng của
@@ -2792,20 +2892,24 @@ class VHCC_Web {
 			   lên vùng bấm. */
 			. 'table.cc.luoi-toi td.tong{position:sticky;right:0;z-index:2;text-align:center;'
 			. 'box-shadow:-3px 0 5px rgba(15,23,42,.07)}'
-			. 'table.cc.luoi-toi th.tong-h{position:sticky;right:0;z-index:3;background:#f8fafc;'
+			. 'table.cc.luoi-toi th.tong-h{position:sticky;right:0;z-index:3;background:var(--nen-2);'
 			. 'box-shadow:-3px 0 5px rgba(15,23,42,.07)}'
 			. '.chu-luc{color:var(--luc);font-weight:600}'
-			. '.k{padding:1px 6px;border-radius:3px;font-size:12px}'
-			. '.k.luc{background:#f0fdf4;color:#15803d}.k.tim{background:#f5f3ff;color:#6d28d9}'
-			. '.k.vang{background:#fffbeb;color:#b45309}.k.hong{background:#fef2f2;color:var(--do)}'
+			. '.k{padding:1px 7px;border-radius:var(--bo-badge);font-size:12px}'
+			. '.k.luc{background:var(--luc-nhat);color:var(--luc-dam)}'
+			. '.k.tim{background:var(--tim-nhat);color:var(--tim-dam)}'
+			. '.k.vang{background:var(--vang-nhat);color:var(--vang-dam)}'
+			. '.k.hong{background:var(--do-nhat);color:var(--do)}'
 			/* Màu theo CA. Bốn tông đủ phân biệt mà không chói; ca thứ 5 trở đi quay vòng lại —
 			   một cơ sở có hơn bốn ca là chuyện hiếm, và quay vòng vẫn hơn là tất cả cùng trắng. */
-			. 'table.cc td.oc.ca1,table.cc th.ca1{background:#eff6ff}'
-			. 'table.cc td.oc.ca2,table.cc th.ca2{background:#f0fdf4}'
-			. 'table.cc td.oc.ca3,table.cc th.ca3{background:#faf5ff}'
-			. 'table.cc td.oc.ca4,table.cc th.ca4{background:#fff7ed}'
-			. '.k.ca1{background:#eff6ff;color:#1d4ed8}.k.ca2{background:#f0fdf4;color:#15803d}'
-			. '.k.ca3{background:#faf5ff;color:#7e22ce}.k.ca4{background:#fff7ed;color:#c2410c}'
+			. 'table.cc td.oc.ca1,table.cc th.ca1{background:var(--nhan-nhat)}'
+			. 'table.cc td.oc.ca2,table.cc th.ca2{background:var(--luc-nhat)}'
+			. 'table.cc td.oc.ca3,table.cc th.ca3{background:var(--tim-nhat)}'
+			. 'table.cc td.oc.ca4,table.cc th.ca4{background:var(--cam-nhat)}'
+			. '.k.ca1{background:var(--nhan-nhat);color:var(--nhan-dam)}'
+			. '.k.ca2{background:var(--luc-nhat);color:var(--luc-dam)}'
+			. '.k.ca3{background:var(--tim-nhat);color:var(--tim-dam)}'
+			. '.k.ca4{background:var(--cam-nhat);color:var(--cam-dam)}'
 			/* Mã ca nằm DƯỚI số giờ, nhỏ và nhạt hơn: số giờ vẫn là thứ đọc trước, mã ca là thứ
 			   liếc thấy. Đảo ngược cỡ chữ là cả lưới trông như một rừng mã. */
 			. '.mca{font-size:10px;font-weight:600;opacity:.75;line-height:1.1;margin-top:1px}'
@@ -2815,14 +2919,14 @@ class VHCC_Web {
 			. '.mdem{font-size:10px;font-weight:600;line-height:1.15;margin-top:2px;padding-top:1px;'
 			. 'border-top:1px dotted var(--vien);opacity:.95;border-radius:0 0 3px 3px}'
 			. '.mdem code{font-size:9px;opacity:.8}'
-			. '.mdem.hong{background:#fef2f2;color:var(--do)}'
+			. '.mdem.hong{background:var(--do-nhat);color:var(--do)}'
 			/* Ngày đứng ở CƠ SỞ KHÁC: xám, không mang màu ca nào — để mắt tách ngay khỏi mấy
 			   dòng thuộc về bảng đang đọc. Con số ở đây KHÔNG nằm trong cột TỔNG. */
-			. '.mdem.ngoai{background:#f1f5f9;color:#475569;font-style:italic}'
-			. '.duoi.ngoai{background:#f1f5f9;color:#475569}'
+			. '.mdem.ngoai{background:var(--nen-2);color:var(--chu-mo);font-style:italic}'
+			. '.duoi.ngoai{background:var(--nen-2);color:var(--chu-mo)}'
 			/* Nhãn CHÍNH / PHỤ trong bảng khai ghép — nằm cạnh TÊN, vì đó là chỗ mắt dừng
 			   lại đầu tiên. Hai màu khác hẳn nhau: đọc lướt cả cột là thấy ngay cấu trúc. */
-			. '.duoi.nhan-chinh{background:#dcfce7;color:#15803d}'
+			. '.duoi.nhan-chinh{background:#dcfce7;color:var(--luc-dam)}'
 			. '.duoi.nhan-phu{background:#f3e8ff;color:#7e22ce}'
 			. 'tr.hang-phu>td:first-child{padding-left:22px}'
 			. 'tr.hang-phu>td{background:#fcfaff}'
@@ -2834,10 +2938,10 @@ class VHCC_Web {
 			/* Tách công trong ô TỔNG: nhỏ và nhạt hơn con số lớn — con số lớn vẫn là thứ đọc
 			   trước, phần tách là thứ liếc thấy. Đảo cỡ chữ là cột TỔNG thành một đoạn văn. */
 			. '.tach-cong{font-size:10.5px;font-weight:500;line-height:1.3;margin-top:2px;'
-			. 'color:var(--mo);white-space:nowrap}'
+			. 'color:var(--chu-mo);white-space:nowrap}'
 			. '.tach-cong b{font-weight:700;color:var(--chu)}'
 			. '.mghep{font-size:9.5px;font-weight:700;line-height:1.15;margin-top:2px;padding:0 3px;'
-			. 'border-radius:3px;background:#e0f2fe;color:#0369a1;letter-spacing:.2px}'
+			. 'border-radius:var(--bo-o-bang);background:var(--lam-nhat);color:var(--lam-dam);letter-spacing:.2px}'
 			/* Nhãn 📷 ảnh chấm công — nằm dưới số, ngoài đường bấm sửa/bù nên bấm vào ảnh KHÔNG
 			   mở nhầm biểu mẫu sửa giờ của cả ô. */
 			. '.manhcc{margin-top:2px;line-height:1}'
@@ -2849,19 +2953,19 @@ class VHCC_Web {
 			   không đụng tới trục dọc. */
 			. '.manhcc a img{display:none;position:absolute;z-index:30;bottom:100%;left:50%;'
 			. 'transform:translateX(-50%);margin-bottom:4px;width:150px;max-width:40vw;height:auto;'
-			. 'border:2px solid #fff;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.35);'
-			. 'background:#fff}'
+			. 'border:2px solid var(--the);border-radius:var(--bo-nho);box-shadow:var(--bong-3);'
+			. 'background:var(--the)}'
 			. '.manhcc a:hover img,.manhcc a:focus img,.manhcc a:focus-visible img{display:block}'
 			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
-			. 'border-top:1px dotted var(--vien);color:#475569;font-style:italic;white-space:nowrap}'
+			. 'border-top:1px dotted var(--vien);color:var(--chu-mo);font-style:italic;white-space:nowrap}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
 			. '.mdem.ca3{background:#f3e8ff;color:#7e22ce}.mdem.ca4{background:#ffedd5;color:#c2410c}'
 			/* Ô bấm được: đường liên kết phủ KÍN ô, giữ nguyên màu chữ. Chỉ tô nền khi rê chuột
 			   — tô sẵn thì cả lưới 600 ô xanh lè, không còn nhìn ra màu theo ca nữa. */
 			. 'table.cc a.o-sua{display:block;margin:-3px -4px;padding:3px 4px;color:inherit;'
 			. 'text-decoration:none;border-radius:3px}'
-			. 'table.cc a.o-sua:hover{background:#1d4ed8;color:#fff;box-shadow:0 0 0 2px #1d4ed8}'
-			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--xanh);outline-offset:1px}'
+			. 'table.cc a.o-sua:hover{background:var(--nhan);color:#fff;box-shadow:0 0 0 2px var(--nhan)}'
+			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--nhan);outline-offset:1px}'
 			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
 			/* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ
 			   nhảy lên như này, chỉnh đứng yên cho anh"*.
@@ -2892,7 +2996,7 @@ class VHCC_Web {
 			. '.hs-in{position:sticky;left:0;width:calc(100vw - 56px);max-width:1100px;'
 			. 'box-sizing:border-box}'
 			. '@media(max-width:640px){.hs-in{width:calc(100vw - 24px)}}'
-			. 'table.cc tr.hang-sua>td{background:#fffbeb;border:2px solid var(--vang);'
+			. 'table.cc tr.hang-sua>td{background:var(--vang-nhat);border:2px solid var(--vang);'
 			. 'text-align:left;white-space:normal;padding:10px 12px;font-size:14px}'
 			. 'table.cc tr.hang-sua label{font-size:12px}'
 			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
@@ -2903,37 +3007,40 @@ class VHCC_Web {
 			. 'font-size:13px;color:var(--chu);cursor:pointer}'
 			. '.o-vai-tick input{width:auto;margin:0}'
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
-			. 'summary::marker{color:var(--xanh)}'
-			. 'summary:hover{color:var(--xanh)}'
+			. 'summary::marker{color:var(--nhan)}'
+			. 'summary:hover{color:var(--nhan)}'
 			/* --- Ô CƠ SỞ: mỗi cơ sở một ô gập (anh Thắng 01/09/2026) ---
 			   Viền trái đậm để mắt bắt được ranh giới giữa hai cơ sở khi mở nhiều ô một lúc —
 			   không có nó thì các thẻ con bên trong trông y hệt thẻ của cơ sở kế tiếp. */
-			. '.cs-o{border-left:4px solid var(--xanh);padding-left:12px}'
+			. '.cs-o{border-left:var(--d1) solid var(--nhan);padding-left:var(--d3)}'
 			. '.cs-ten{font-size:17px;padding:2px 0}'
 			/* Thẻ con nằm TRONG ô cơ sở thì bỏ nền và viền riêng: lồng khung trong khung làm
 			   màn trông chật, mà thứ cần thấy là các dòng tiêu đề gập xếp thẳng một cột. */
 			. '.cs-o .the{background:none;border:0;box-shadow:none;padding:0;margin:8px 0}'
 			/* --- đầu trang --- */
 			. '.hieu{flex:1;font-size:16px;text-decoration:none;color:var(--chu)}'
-			. '.hieu b{color:var(--xanh)}'
+			. '.hieu b{color:var(--nhan)}'
 			/* --- trang chào: thẻ việc --- */
-			. '.chao{background:linear-gradient(180deg,#f8fafc,var(--the))}'
+			. '.chao{background:linear-gradient(180deg,var(--nhan-nhat),var(--the))}'
 			. '.the-viec{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}'
-			. '.viec{display:block;padding:13px 14px;border:1px solid var(--vien);border-radius:10px;'
-			. 'text-decoration:none;color:var(--chu);background:var(--the)}'
-			. '.viec:hover{border-color:var(--xanh);background:#f8fafc}'
+			. '.viec{display:block;padding:13px 14px;border:1px solid var(--vien);border-radius:var(--bo-the);'
+			. 'text-decoration:none;color:var(--chu);background:var(--the);box-shadow:var(--bong);'
+			. 'transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease}'
+			/* Thẻ NHẤC LÊN khi rê chuột — cùng nhịp với nút, để cả màn nói một thứ tiếng: thứ gì
+			   nhích lên dưới con trỏ là thứ bấm được. */
+			. '.viec:hover{border-color:var(--nhan);transform:translateY(-2px);box-shadow:var(--bong-2)}'
 			. '.viec b{display:block;font-size:15px;margin-bottom:3px}'
-			. '.viec span{display:block;font-size:13px;color:var(--mo);line-height:1.45}'
+			. '.viec span{display:block;font-size:13px;color:var(--chu-mo);line-height:1.45}'
 			/* Thẻ Truy cập nhanh theo mẫu HR V5.2: một vòng tròn nhạt mang biểu tượng, rồi tên,
 			   rồi một câu, rồi dòng "Mở →". Vòng tròn không phải trang trí — tám thẻ chữ giống
 			   nhau thì mắt phải ĐỌC từng cái; có hình thì nhận ra thẻ mình cần mà chưa đọc. */
 			. '.viec{position:relative;padding-left:62px}'
 			. '.viec .bt{position:absolute;left:14px;top:13px;width:36px;height:36px;border-radius:50%;'
-			. 'background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:18px}'
-			. '.viec .mo-cn{display:block;margin-top:7px;font-size:13px;font-weight:700;color:var(--xanh)}'
+			. 'background:var(--nhan-nhat);display:flex;align-items:center;justify-content:center;font-size:18px}'
+			. '.viec .mo-cn{display:block;margin-top:7px;font-size:13px;font-weight:700;color:var(--nhan)}'
 			. '.viec-chinh .bt{background:#dbeafe}'
-			. '.viec-chinh{border-color:var(--xanh);background:#eff6ff}'
-			. '.viec-chinh b{color:var(--xanh)}'
+			. '.viec-chinh{border-color:var(--nhan);background:var(--nhan-nhat)}'
+			. '.viec-chinh b{color:var(--nhan)}'
 			. 'input.link{width:100%;min-width:220px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}'
 			/* --- ĐIỆN THOẠI ---
 			   Cửa hàng trưởng ở cơ sở phần lớn chỉ có điện thoại. Bảng ngang thì vẫn phải cuộn —
@@ -2942,7 +3049,7 @@ class VHCC_Web {
 			. '@media(max-width:640px){'
 			. '.bo{padding:10px}h1{font-size:15px}.hieu{font-size:15px}'
 			. '.ai{width:100%;order:3;font-size:12px}'
-			. '.the{padding:13px;border-radius:9px}'
+			. '.the{padding:13px;border-radius:var(--bo-the)}'
 			. '.hang{gap:8px}.hang>div{flex:1 1 140px}'
 			. '.luoi{grid-template-columns:1fr}'
 			. '.the-viec{grid-template-columns:1fr}'
@@ -2951,8 +3058,19 @@ class VHCC_Web {
 			. '.nut{padding:9px 12px}'
 			. '}'
 			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * IN RA GIẤY: HUỶ NỀN 3D VÀ MỌI BÓNG ĐỔ.
+			 *
+			 * 🔴 Không phải chuyện thẩm mỹ. Bảng lương in ra A4 có 27 cột phủ kín tờ giấy; ba
+			 *    vầng gradient ở nền trở thành một lớp tím nhạt trải hết tờ — máy in phun thì ăn
+			 *    hết mực và chữ đen nằm trên nền màu là mờ hẳn. Bóng đổ cũng vậy: trên màn nó là
+			 *    chiều sâu, trên giấy nó là một vệt xám bẩn quanh mỗi thẻ.
+			 * ⚠️ `!important` là cần: `body` khai nền bằng bốn lớp `background` gộp một dòng, và
+			 *    luật trong `@media print` không tự thắng được luật cùng độ đặc hiệu viết trước.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
 			. '@media print{header,form,.nut{display:none!important}'
-			. 'body{background:#fff}.the{border:0;padding:0;margin:0 0 10px}'
+			. 'body{background:#fff!important}*{box-shadow:none!important}'
+			. '.the{border:0;padding:0;margin:0 0 10px}'
 			. '.cuon{overflow:visible}table.cc{font-size:9px}}'
 			/* Chân trang công ty mang bộ kiểu chữ riêng, tiền tố `cty-`. Ghép vào đây thay vì
 			   in thẻ <style> thứ hai giữa trang — một trang một khối kiểu chữ.
@@ -3690,7 +3808,7 @@ class VHCC_Web {
 
 		echo '<div class="the" id="xintre"><details' . ( $cho_sl ? ' open' : '' ) . '>';
 		echo '<summary><b>Xin phép đi trễ</b>'
-			. ( $cho_sl ? ' — <b style="color:#b45309">' . $cho_sl . ' đơn đang chờ duyệt</b>' : '' )
+			. ( $cho_sl ? ' — <b style="color:var(--vang-dam)">' . $cho_sl . ' đơn đang chờ duyệt</b>' : '' )
 			. ' <span class="mo">(bấm để mở)</span></summary>';
 		echo '<p class="mo" style="margin:10px 0">Nộp <b>trước khi tới cửa hàng</b>. Cửa hàng '
 			. 'trưởng duyệt thì cảnh báo đi trễ của ngày đó được bỏ — <b>số giờ công không đổi</b>, '
@@ -3894,7 +4012,7 @@ class VHCC_Web {
 			   bảng không chỉ được hàng nào đang lệch. */
 			$la_moi = in_array( (string) $h['coSo'], (array) $cs_la, true );
 			echo '<tr><td><b>' . esc_html( $h['coSo'] ) . '</b>'
-				. ( $la_moi ? ' <span class="duoi" style="background:#fee2e2;color:#b91c1c">'
+				. ( $la_moi ? ' <span class="duoi" style="background:var(--do-nhat);color:var(--do)">'
 					. 'chưa khai trong hồ sơ</span>' : '' )
 				. '<div class="mo" style="font-size:10.5px">tính theo ' . esc_html( $don_vi ) . '</div></td>';
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -4358,7 +4476,7 @@ class VHCC_Web {
 				echo '<a href="' . esc_url( $u_ ) . '" target="_blank" rel="noopener">'
 					. '<img src="' . esc_url( $u_ ) . '" alt="Ảnh chấm công đề xuất" loading="lazy"'
 					. ' style="width:72px;height:72px;object-fit:cover;border-radius:8px;display:block;'
-					. 'border:2px solid #16a34a"></a>';
+					. 'border:2px solid var(--luc)"></a>';
 				echo '<div><b>' . esc_html( $x['ho_ten'] ) . '</b> <span class="mo">('
 					. esc_html( $ma ) . ')</span><br><span class="mo">Ảnh chấm công '
 					. esc_html( (string) $a['ngay'] ) . ' · lệch <b>'
@@ -6207,7 +6325,7 @@ class VHCC_Web {
 		$tu  = $dang ? $dg['nghiTu']  : ( $de ? $de[0] : null );
 		$den = $dang ? $dg['nghiDen'] : ( $de ? $de[1] : null );
 
-		$h = '<div style="flex:1 1 100%;border-top:1px dashed #cbd5e1;margin-top:6px;padding-top:6px">';
+		$h = '<div style="flex:1 1 100%;border-top:1px dashed var(--vien-dam);margin-top:6px;padding-top:6px">';
 		$h .= '<label style="font-weight:600"><input type="checkbox" name="sg_gay" value="1"'
 			. ( $dang ? ' checked' : '' ) . '> Ca gãy — bỏ khúc nghỉ giữa ra khỏi giờ công</label>';
 		$h .= '<div class="hang" style="margin:4px 0 0;align-items:flex-end">'
@@ -6291,7 +6409,7 @@ class VHCC_Web {
 			   giờ mình gõ sẽ rơi vào ca nào — mà hai ca ấy trả tiền khác nhau. */
 			foreach ( $dong as $d_i ) {
 				$khoa = $d_i['coso'] . '~' . $d_i['hauTo'];
-				echo '<div style="flex:1 1 100%;border-top:1px dashed #cbd5e1;margin-top:6px;padding-top:6px">'
+				echo '<div style="flex:1 1 100%;border-top:1px dashed var(--vien-dam);margin-top:6px;padding-top:6px">'
 					. '<div class="mo" style="font-size:11.5px;margin-bottom:2px"><b>'
 					. esc_html( self::ten_dong_sua( $d_i['coso'], $d_i['hauTo'] ) ) . '</b>'
 					. '</div>'
@@ -6329,7 +6447,7 @@ class VHCC_Web {
 		   vẫn bắt buộc: buộc ghi rõ "bấm nhầm" trước khi xoá. Nền đỏ để không bấm lẫn với Lưu. */
 		if ( $co_gio ) {
 			echo '<div><button class="chinh" name="xoa_het" value="1" '
-				. 'style="background:#b32d2e" title="Xoá cả giờ vào lẫn giờ ra của ngày này '
+				. 'style="background:var(--do)" title="Xoá cả giờ vào lẫn giờ ra của ngày này '
 				. '(cho ca nhân viên quẹt nhầm mặt). Ghi lại nhật ký, dựng lại được.">'
 				. '🗑 Xoá công</button></div>';
 		}
@@ -6750,7 +6868,7 @@ class VHCC_Web {
 
 		echo '<div class="the" id="lenhtre"><details' . ( $mo ? ' open' : '' ) . '>';
 		echo '<summary><b>Lệnh đi trễ</b> — '
-			. ( $cho ? '<b style="color:#b45309">' . count( $cho ) . ' đơn đang chờ duyệt</b>'
+			. ( $cho ? '<b style="color:var(--vang-dam)">' . count( $cho ) . ' đơn đang chờ duyệt</b>'
 				: 'không có đơn nào chờ' )
 			. ' <span class="mo">(mức cho phép hiện tại: ' . (int) $muc . ' phút)</span></summary>';
 
@@ -8399,7 +8517,7 @@ class VHCC_Web {
 		/* Ô giờ của việc chính CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào. Vẫn hiện ra để
 		   người ta thấy ngay con số mình vừa làm đổi. */
 		echo '</div><div><input value="' . esc_attr( number_format( $gio_chinh_ht, 2, ',', '.' ) )
-			. '" readonly style="width:110px;background:#f8fafc" title="Giờ chấm công trừ đi giờ '
+			. '" readonly style="width:110px;background:var(--nen-2)" title="Giờ chấm công trừ đi giờ '
 			. 'khác — không gõ tay được"></div>'
 			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính</div></div>';
 
@@ -10225,7 +10343,7 @@ class VHCC_Web {
 		/* Đặt hàng loạt — thứ thật sự cứu 237 dòng cùng cần một vai trò. Nói rõ PHẠM VI: chỉ
 		   những dòng ĐANG HIỆN theo bộ lọc, không phải cả sổ. */
 		echo '<form method="post" class="hang" style="margin:10px 0;padding:10px;'
-			. 'background:#f8fafc;border:1px solid var(--vien);border-radius:8px">'
+			. 'background:var(--nen-2);border:1px solid var(--vien);border-radius:8px">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc();
 		echo '<div><label for="hl">Đặt Vai trò cho <b>' . count( $rows ) . ' dòng đang hiện</b></label>'
 			. '<select id="hl" name="vt_hl">';
@@ -10270,7 +10388,7 @@ class VHCC_Web {
 			   là người đó không đăng nhập được, mà không có gì báo. */
 			$vt_r = (string) $r['vai_tro'];
 			echo '<td><select form="' . $id . '" name="vai_tro' . $k . '" style="width:130px'
-				. ( '' === $vt_r ? ';border-color:#fca5a5;background:#fef2f2' : '' ) . '">';
+				. ( '' === $vt_r ? ';border-color:var(--do);background:var(--do-nhat)' : '' ) . '">';
 			echo '<option value=""' . selected( '', $vt_r, false ) . '>✖ chưa khai</option>';
 			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_c ) {
 				echo '<option value="' . esc_attr( $vt_c ) . '"' . selected( $vt_c, $vt_r, false ) . '>'
@@ -10435,7 +10553,7 @@ class VHCC_Web {
 					$h .= '<label title="Đặt ' . esc_attr( $v ) . ' làm CƠ SỞ CHÍNH — cơ sở được'
 						. ' chọn sẵn khi người này mở trang chấm công. Chấm ở cơ sở nào đã tích'
 						. ' cũng được tính đủ." style="display:flex;align-items:center;gap:2px;'
-						. 'font-size:11px;font-weight:400;color:var(--mo)">'
+						. 'font-size:11px;font-weight:400;color:var(--chu-mo)">'
 						. '<input type="radio" name="coso_chinh" value="' . esc_attr( $v ) . '"'
 						. checked( $k === $k_chinh, true, false ) . '>chính</label>';
 					$h .= '<label title="CHỈ QUẢN LÝ ' . esc_attr( $v ) . ' — không chấm công ở đó.'
@@ -10443,7 +10561,7 @@ class VHCC_Web {
 						. ' trong bảng công, nhưng người này VẪN quản lý nhân viên ở đó. Không'
 						. ' đặt được cho cơ sở chính." style="display:flex;align-items:center;'
 						. 'gap:2px;font-size:11px;font-weight:400;color:'
-						. ( isset( $k_ql[ $k ] ) ? '#92400e' : 'var(--mo)' ) . '">'
+						. ( isset( $k_ql[ $k ] ) ? 'var(--vang-dam)' : 'var(--chu-mo)' ) . '">'
 						. '<input type="checkbox" name="coso_ql_o[]" value="' . esc_attr( $v ) . '"'
 						. checked( isset( $k_ql[ $k ] ), true, false ) . '>chỉ QL</label>';
 				}
@@ -10734,7 +10852,7 @@ JS;
 		}
 
 		foreach ( self::NHOM_SUA as $nhom => $cot_ds ) {
-			echo '<h3 style="font-size:13.5px;color:var(--mo);margin:16px 0 6px;'
+			echo '<h3 style="font-size:13.5px;color:var(--chu-mo);margin:16px 0 6px;'
 				. 'border-top:1px solid var(--vien);padding-top:12px">' . esc_html( $nhom ) . '</h3>';
 			echo '<div class="luoi">';
 			foreach ( $cot_ds as $c => $nhan ) {
@@ -10819,7 +10937,7 @@ JS;
 						"SELECT COUNT(*) FROM $t WHERE $cot=%s", $ma ) );
 				}
 			}
-			echo '<div style="border-top:2px solid #fecaca;margin-top:20px;padding-top:14px">';
+			echo '<div style="border-top:2px solid var(--vien-dam);margin-top:20px;padding-top:14px">';
 			echo '<h3 style="font-size:14px;margin:0 0 4px;color:var(--do)">Đổi Mã NV</h3>';
 			echo '<p class="mo">Mã nhân viên là thứ NỐI hồ sơ với chấm công, lương, lịch làm, yêu cầu '
 				. 'và sổ mặt trong máy. Đổi mã ở đây sẽ <b>kéo theo cả ' . (int) $dem . ' hàng</b> đang '
@@ -10839,7 +10957,7 @@ JS;
 	}
 
 	private static function the_xoa_het( $ky, $tong ) {
-		echo '<div class="the" style="border-color:#fecaca">';
+		echo '<div class="the" style="border-color:var(--vien-dam)">';
 		echo '<h2 style="color:var(--do)">🗑 Xoá sạch hồ sơ nhân sự</h2>';
 		echo '<p class="mo">Xoá cả <b>' . (int) $tong . '</b> hồ sơ để nạp lại từ đầu. '
 			. '<b>Lượt chấm công, bảng lương và lịch làm KHÔNG bị xoá</b> — chúng gắn theo Mã NV, '

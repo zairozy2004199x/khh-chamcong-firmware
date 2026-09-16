@@ -15299,7 +15299,16 @@ t( 'nhưng tên vẫn hiện đủ', strpos( $h_ln_cht, 'Người LNV1' ) !== fa
    chín cái thẻ trắng nối đuôi, tiêu đề chìm vào giữa đám chữ, và cuộn xuống là mất dấu mình
    đang ở khối nào — người trực một cửa hàng mất chấm công phải đọc từ đầu màn xuống. */
 t( '🔴 tiêu đề khối được bôi thành NHÃN', strpos( $h_hr, '.the>h2,.the>h3{' ) !== false, $h_hr );
-t( 'nhãn ấy là chữ hoa nền nhạt', strpos( $h_hr, 'text-transform:uppercase;color:#1e40af;background:#eff6ff' ) !== false, $h_hr );
+/* ⚠️ 16/09/2026 mã màu ở đây đổi thành TOKEN (`--nhan-dam` / `--nhan-nhat`) khi cả plugin vào
+   bộ áo chung của nhà. Phép vẫn canh đúng thứ cũ — chữ hoa, chữ đậm màu nhấn, nền nhạt màu
+   nhấn — chỉ là canh theo tên biến thay vì theo mã màu, nên lần sau đổi sắc xanh của cả nhà
+   thì phép này không đỏ oan. */
+t( 'nhãn ấy là chữ hoa nền nhạt',
+	strpos( $h_hr, 'text-transform:uppercase;color:var(--nhan-dam);background:var(--nhan-nhat)' ) !== false, $h_hr );
+/* Và nền nhạt ấy phải THẬT SỰ nhạt — một tên biến trỏ vào màu đậm thì nhãn thành một vệt
+   xanh đặc, chữ đậm trên nền đậm. Canh luôn giá trị của `--nhan-nhat` trong bảng kiểu. */
+t( '⚠️ và `--nhan-nhat` đúng là một sắc NHẠT, không phải sắc đậm đặt nhầm tên',
+	(bool) preg_match( '/--nhan-nhat:#(e|f)[0-9a-f]{5}/i', VHCC_Web::css() ), VHCC_Web::css() );
 /* ⚠️ CHỈ con TRỰC TIẾP của `.the`. Mấy `h3` nằm sâu bên trong (trong `<details>`, trong bảng) là
    tiêu đề phụ — bôi nhãn cho chúng nữa thì cả màn đầy nhãn, và nhãn hết nghĩa. */
 t( '🔴 chọn con trực tiếp (`>`), không phải mọi con cháu',
@@ -16073,9 +16082,13 @@ delete_option( VHCC_QuenPin::O_NHAT_KY );
  * Lỗi CSS thì phép thử soi HTML không bắt được — nên soi thẳng bảng kiểu.
  */
 $css_w = VHCC_Web::css();
+/* ⚠️ 16/09/2026 nền cột dọc đổi từ một mảng `#0f2744` phẳng sang GRADIENT navy (phần *"nền
+   3D"* anh Thắng dặn). Phép vẫn canh đúng thứ cũ — luật ấy buộc vào `aside.canh`, không
+   phải `.canh` trần — chỉ đổi cách nhận mặt cái nền. Bắt đầu bằng `--chu-dam` (navy của cả
+   nhà) thì cột dọc và tiêu đề tiền cùng một sắc, không phải hai thứ navy khác nhau. */
 t( '🔴 luật thanh bên buộc vào đúng thẻ <aside>, không phải mọi .canh',
 	strpos( $css_w, 'aside.canh{position:sticky' ) !== false
-	&& strpos( $css_w, 'aside.canh{background:#0f2744' ) !== false );
+	&& strpos( $css_w, 'aside.canh{background:linear-gradient(170deg,var(--chu-dam)' ) !== false );
 /* ⚠️ Canh cả chiều ngược: không còn luật `.canh{` TRẦN nào đặt chiều cao hay bố cục — một luật
    sót lại là thẻ cảnh báo lại cao vống, y như cũ. */
 t( '🔴 không còn luật .canh trần nào đặt chiều cao',
@@ -16085,7 +16098,11 @@ t( 'và không còn luật .canh trần nào đặt bố cục',
 /* Nhưng MÀU của thẻ cảnh báo thì vẫn phải còn — sửa chiều cao mà làm mất màu vàng là đổi một
    lỗi lấy một lỗi khác. */
 t( 'thẻ cảnh báo vẫn giữ nền vàng',
-	strpos( $css_w, '.bao.canh{background:#fffbeb' ) !== false );
+	strpos( $css_w, '.bao.canh{background:var(--vang-nhat)' ) !== false );
+/* ⚠️ Và `--vang-nhat` phải trỏ vào một sắc vàng thật. Đổi tên biến mà quên khai, hoặc khai
+   trỏ nhầm sang xám, thì `strpos` ở trên vẫn xanh còn thẻ cảnh báo thì trắng trơn. */
+t( '⚠️ và `--vang-nhat` được khai, trỏ đúng vào một sắc vàng',
+	(bool) preg_match( '/--vang-nhat:#f[0-9a-f]{3}e[0-9a-f]/i', $css_w ), $css_w );
 
 /* ==========================================================================================
  * 🔴 CỬA HÀNG TRƯỞNG THÊM NGƯỜI MỚI VÀO CƠ SỞ MÌNH.

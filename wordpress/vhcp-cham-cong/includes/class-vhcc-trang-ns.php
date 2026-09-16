@@ -1246,14 +1246,14 @@ class VHCC_TrangNS {
 			/* THANH TAB — hai ô rộng bằng nhau, ô đang mở có gạch xanh dưới chân.
 			   ⚠️ `flex-wrap` để trên điện thoại hai ô xuống dòng thay vì bóp chữ mất dấu. */
 			. '.tab-ns{display:flex;flex-wrap:wrap}'
-			. '.tab-ns-o{flex:1 1 200px;padding:12px 16px;text-decoration:none;color:var(--mo);'
-			. 'border-bottom:3px solid transparent;background:#f8fafc}'
+			. '.tab-ns-o{flex:1 1 200px;padding:12px 16px;text-decoration:none;color:var(--chu-mo);'
+			. 'border-bottom:3px solid transparent;background:var(--nen-2)}'
 			. '.tab-ns-o b{display:block;font-size:15px;color:var(--chu)}'
 			. '.tab-ns-o span{display:block;font-size:12.5px;margin-top:2px}'
-			. '.tab-ns-o:hover{background:#eff6ff}'
-			. '.tab-ns-o.dang{background:var(--the);border-bottom-color:var(--xanh)}'
-			. '.tab-ns-o.dang b{color:var(--xanh)}'
-			. '.o-vai{color:var(--mo)}'
+			. '.tab-ns-o:hover{background:var(--nhan-nhat)}'
+			. '.tab-ns-o.dang{background:var(--the);border-bottom-color:var(--nhan)}'
+			. '.tab-ns-o.dang b{color:var(--nhan)}'
+			. '.o-vai{color:var(--chu-mo)}'
 			/* ==============================================================================
 			 * BA NÚT BẤM LIỀN NHAU, KHÔNG PHẢI Ô XỔ
 			 * ==============================================================================
@@ -1275,38 +1275,38 @@ class VHCC_TrangNS {
 			. '.ba input{position:absolute;opacity:0;width:1px;height:1px;margin:0}'
 			. '.ba label{display:block;margin:0}'
 			. '.ba span{display:block;padding:4px 9px;font-size:12px;line-height:1.2;cursor:pointer;'
-			. 'border:1px solid #cbd5e1;background:#fff;color:var(--mo);white-space:nowrap;'
+			. 'border:1px solid var(--vien-dam);background:var(--the);color:var(--chu-mo);white-space:nowrap;'
 			. '-webkit-user-select:none;user-select:none}'
 			. '.ba label:first-child span{border-radius:6px 0 0 6px}'
 			. '.ba label:last-child span{border-radius:0 6px 6px 0}'
 			. '.ba label+label span{border-left:0}'
-			. '.ba span:hover{background:#f1f5f9}'
+			. '.ba span:hover{background:var(--nen-2)}'
 			/* Ba trạng thái ba màu: theo vai (xám) · mở (lục) · khoá (đỏ). Màu ở đây là để
 			   LIẾC RA NGAY dòng nào khác mặc định giữa hàng trăm ô — không phải trang trí. */
-			. '.ba input:checked+span{background:#e2e8f0;color:var(--chu);font-weight:600;'
-			. 'box-shadow:inset 0 0 0 1px #94a3b8}'
-			. '.ba input.v-mo:checked+span{background:#dcfce7;color:#15803d;box-shadow:inset 0 0 0 1px #16a34a}'
+			. '.ba input:checked+span{background:var(--nen-2);color:var(--chu);font-weight:600;'
+			. 'box-shadow:inset 0 0 0 1px var(--vien-dam)}'
+			. '.ba input.v-mo:checked+span{background:#dcfce7;color:var(--luc-dam);box-shadow:inset 0 0 0 1px #16a34a}'
 			. '.ba input.v-khoa:checked+span{background:#fee2e2;color:var(--do);box-shadow:inset 0 0 0 1px #dc2626}'
 			/* Viền khi đi bằng bàn phím. Thiếu nó là tab qua cả bảng mà không biết đang ở ô nào. */
-			. '.ba input:focus-visible+span{outline:2px solid var(--xanh);outline-offset:1px;'
+			. '.ba input:focus-visible+span{outline:2px solid var(--nhan);outline-offset:1px;'
 			. 'position:relative;z-index:1}'
 			. 'td.o-q-td{text-align:center;padding:4px 6px}'
 			. 'th.tr-doc{white-space:normal;min-width:150px}'
 			/* Nút áp cả cột nằm ngay dưới tên cột — nhỏ và nhạt, để không tranh chỗ với tên. */
 			. '.cot-nut{display:inline-flex;margin-top:5px;font-weight:400}'
-			. '.cot-nut button{padding:2px 7px;font-size:11px;font-weight:600;border:1px solid #cbd5e1;'
-			. 'background:#fff;border-radius:0;color:var(--mo)}'
+			. '.cot-nut button{padding:2px 7px;font-size:11px;font-weight:600;border:1px solid var(--vien-dam);'
+			. 'background:var(--the);border-radius:0;color:var(--chu-mo)}'
 			. '.cot-nut button:first-child{border-radius:5px 0 0 5px}'
 			. '.cot-nut button:last-child{border-radius:0 5px 5px 0}'
 			. '.cot-nut button+button{border-left:0}'
-			. '.cot-nut button:hover{background:#f1f5f9;color:var(--chu)}'
+			. '.cot-nut button:hover{background:var(--nen-2);color:var(--chu)}'
 			. '.chua-ma{color:var(--do);font-size:12px}'
 			/* Dải đếm mảng / bộ phận — mỗi ô là một đường lọc, nên phải trông BẤM ĐƯỢC.
 			   Xuống hàng tự do: 12 bộ phận trên một hàng không xuống dòng là cả trang trôi ngang. */
-			. '.dai-mb{margin:0 0 12px;padding:10px 12px;background:#f8fafc;border:1px solid var(--vien);'
+			. '.dai-mb{margin:0 0 12px;padding:10px 12px;background:var(--nen-2);border:1px solid var(--vien);'
 			. 'border-radius:10px}'
 			. '.dai-hang{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:6px}'
-			. '.dai-hang>b{font-size:12px;color:var(--mo);text-transform:uppercase;letter-spacing:.4px;'
+			. '.dai-hang>b{font-size:12px;color:var(--chu-mo);text-transform:uppercase;letter-spacing:.4px;'
 			. 'min-width:132px}'
 			. '.dai-hang .nut{padding:3px 9px;font-size:12.5px}'
 			. '.dai-mb p.mo{margin:4px 0 0;font-size:12.5px}'
@@ -1317,41 +1317,41 @@ class VHCC_TrangNS {
 			   che đúng phần thông tin, nên cột này nới rộng hơn ô xổ thường. */
 			. 'th.tr-doc{min-width:170px}'
 			. 'td select[name^="mbp_bp"]{max-width:none;width:100%;min-width:160px}'
-			. '.dai-hang .nut.vai-chan{border-color:#fecaca;background:#fef2f2;color:var(--do)}'
+			. '.dai-hang .nut.vai-chan{border-color:#fecaca;background:var(--do-nhat);color:var(--do)}'
 			. '.mb-hop{display:flex;flex-direction:column;gap:1px}'
 			. '.mb-o{display:flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap;cursor:pointer}'
 			. '.mb-o input{margin:0}'
 			/* Nhãn suy ra: nhạt và nhỏ, nhưng PHẢI có — ô không tích gì mà không có nhãn thì
 			   trông y như dữ liệu thiếu, và người ta đi tích tay cho cả sổ. */
-			. '.mb-suy{font-size:11px;color:var(--mo);margin-top:3px;cursor:help;white-space:normal;'
+			. '.mb-suy{font-size:11px;color:var(--chu-mo);margin-top:3px;cursor:help;white-space:normal;'
 			. 'max-width:200px;line-height:1.35}'
 			. 'select.o-q-vai{padding:4px 6px;font-size:12.5px;border-radius:6px;max-width:170px}'
 			/* Đường sang hồ sơ: nhạt và nhỏ, chỉ đậm lên khi rê chuột — mỗi hàng có một cái,
 			   tô đậm sẵn là cả cột tên biến thành một rừng liên kết xanh. */
-			. '.mo-hs{font-size:11px;color:var(--mo);text-decoration:none;white-space:nowrap;'
+			. '.mo-hs{font-size:11px;color:var(--chu-mo);text-decoration:none;white-space:nowrap;'
 			. 'border:1px solid var(--vien);border-radius:5px;padding:1px 5px;margin-left:4px}'
-			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}'
+			. '.mo-hs:hover{color:var(--nhan);border-color:var(--nhan)}'
 			/* Đường "xoá" đỏ ngay từ lúc chưa rê chuột — nó là đường DUY NHẤT ở cột này dẫn tới
 			   một việc không đảo lại được, nên không được trông giống ba đường kia. */
 			/* Ô hiện PIN: nền vàng nhạt như một tờ giấy nhắc tạm — khác hẳn nền trắng của bảng,
 			   để người đang mở nó nhớ rằng có một bí mật đang nằm trên màn hình mình. */
-			. '.pin-o{margin:5px 0 0;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;'
+			. '.pin-o{margin:5px 0 0;background:var(--vang-nhat);border:1px solid #fde68a;border-radius:7px;'
 			. 'padding:5px 9px;font-size:12.5px;display:inline-block}'
-			. '.pin-o.pin-loi{background:#fef2f2;border-color:#fecaca;color:var(--do)}'
+			. '.pin-o.pin-loi{background:var(--do-nhat);border-color:#fecaca;color:var(--do)}'
 			. '.pin-so{font-size:17px;font-weight:700;letter-spacing:2px;color:#92400e}'
-			. '.pin-nhac{color:var(--mo);font-size:11px;margin-left:6px}'
+			. '.pin-nhac{color:var(--chu-mo);font-size:11px;margin-left:6px}'
 			/* Lưới ô tích cơ sở trong cột hẹp: xếp dọc, chữ nhỏ, cuộn khi quá dài. Một người
 			   hiếm khi quá 3–4 cơ sở, nhưng cột này còn phải sống được ở chuỗi 26 cửa hàng. */
 			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;max-height:112px;overflow:auto;'
 			. 'min-width:186px}'
 			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
 			. 'white-space:nowrap;cursor:pointer}'
-			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--mo)}'
+			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--chu-mo)}'
 			/* Một hàng = một cơ sở: ô tích bên trái, nút tròn "chính" dạt sang phải. */
 			. '.o-cs-tich .cs-hang{display:flex;align-items:center;gap:8px;justify-content:space-between}'
-			. '.o-cs-tich .cs-ch{color:var(--mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
+			. '.o-cs-tich .cs-ch{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
 			. '.o-cs-tich .cs-ch:has(input:checked){color:var(--xanh,#0369a1);font-weight:600}'
-			. '.o-cs-tich .cs-ql{color:var(--mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
+			. '.o-cs-tich .cs-ql{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
 			. '.o-cs-tich .cs-ql:has(input:checked){color:#92400e;font-weight:600}'
 			. '.o-cs-tich .cs-hang label:first-child{margin-right:auto}'
 			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
@@ -1362,7 +1362,7 @@ class VHCC_TrangNS {
 			. 'tr.hang-xoa>td{background:#fff7f7}'
 			/* Hàng trùng: nền vàng nhạt + nhãn đỏ. Màu KHÔNG đứng một mình — nhãn có chữ, để
 			   người mù màu và bản in đen trắng vẫn đọc ra. */
-			. 'tr.hang-trung>td{background:#fffbeb}'
+			. 'tr.hang-trung>td{background:var(--vang-nhat)}'
 			. '.chip-t,.chip-n{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
 			. 'background:#fee2e2;color:var(--do);font-size:10.5px;font-weight:700;'
 			. 'letter-spacing:.2px;vertical-align:middle}'
@@ -1373,8 +1373,8 @@ class VHCC_TrangNS {
 			. '.chip-t{background:#fef3c7;color:#92400e}'
 			. '.chip-nang{background:#fee2e2;color:var(--do)}'
 			/* Hàng đang mở: viền đậm để mắt tìm lại được nó giữa 50 hàng sau khi tải lại trang. */
-			. 'tr.dang-sua>td{box-shadow:inset 0 2px 0 var(--xanh)}'
-			. 'tr.hang-sua>td{background:#eff6ff;border:2px solid var(--xanh);padding:12px 14px}'
+			. 'tr.dang-sua>td{box-shadow:inset 0 2px 0 var(--nhan)}'
+			. 'tr.hang-sua>td{background:var(--nhan-nhat);border:2px solid var(--nhan);padding:12px 14px}'
 			/* 🔴 Ô NHẬP PHẢI XUỐNG DÒNG DƯỚI NHÃN. Anh Thắng 27/08/2026: *"lệch khung"* — và đây
 			   là chỗ nó lệch: `<label>Họ tên<input></label>` thì `<input>` là inline, nên
 			   `width:100%` của nó bắt đầu NGAY SAU chữ "Họ tên" chứ không phải từ mép trái ô.
@@ -1447,8 +1447,8 @@ class VHCC_TrangNS {
 			. 'font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;border:1px solid}'
 			/* Xanh = vào được, xám = không. Màu KHÔNG đứng một mình: chip luôn có CHỮ tên trang,
 			   nên bản in đen trắng và người mù màu vẫn đọc ra mình đang xem cột nào. */
-			. '.chip-q.q-co{background:#dcfce7;border-color:#86efac;color:#15803d}'
-			. '.chip-q.q-khong{background:#f1f5f9;border-color:#e2e8f0;color:#94a3b8}'
+			. '.chip-q.q-co{background:#dcfce7;border-color:#86efac;color:var(--luc-dam)}'
+			. '.chip-q.q-khong{background:var(--nen-2);border-color:var(--vien-dam);color:var(--chu-mo)}'
 			/* Chữ nhỏ trong chip nói TẦNG nào quyết (bp · mảng · riêng). Nhạt hơn tên trang —
 			   nó là chú thích, không phải nhãn. */
 			. '.chip-q i{font-style:normal;font-size:9.5px;font-weight:700;opacity:.7;'
@@ -1463,24 +1463,24 @@ class VHCC_TrangNS {
 			/* Nút +/− của hai chip ĐẨY NGƯỜI. Nhỏ, nằm gọn trong chip, nhưng phải BẤM ĐƯỢC
 			   bằng ngón tay: 16px là mức thấp nhất còn trúng trên màn cảm ứng. */
 			. '.chip-q .chip-nut{margin-left:4px;min-width:16px;height:16px;line-height:1;padding:0 3px;'
-			. 'border:1px solid currentColor;border-radius:5px;background:#fff;color:inherit;'
+			. 'border:1px solid currentColor;border-radius:5px;background:var(--the);color:inherit;'
 			. 'font-size:12px;font-weight:700;cursor:pointer;opacity:.75}'
 			. '.chip-q .chip-nut:hover{opacity:1}'
 			/* Khối "đặt riêng" trong hàng sửa: mỗi trang một cụm nhãn + dải nút. */
 			. '.q-mot{display:inline-flex;flex-direction:column;gap:3px}'
-			. '.q-ten{font-size:11.5px;color:var(--mo);font-weight:600}'
+			. '.q-ten{font-size:11.5px;color:var(--chu-mo);font-weight:600}'
 			/* Số người của mỗi nhóm trong bảng luật — để biết đang khai cho bao nhiêu người. */
 			. '.sl-nho{display:inline-block;min-width:18px;text-align:center;border-radius:9px;'
-			. 'background:#e2e8f0;color:#475569;font-size:11px;padding:0 5px;margin-left:4px}'
+			. 'background:var(--nen-2);color:var(--chu-mo);font-size:11px;padding:0 5px;margin-left:4px}'
 			/* Bảng luật nhóm: cột nút bó sát bề ngang dải nút, phần thừa dồn cho cột TÊN NHÓM.
 			   Không ghim thì `width:100%` chia đều, và mỗi dải nút lọt thỏm giữa một ô rộng gấp
 			   ba nó — mắt phải chạy cả gang tay mới nối được tên phòng với ô mình vừa bấm. */
 			. 'table.b-nhom td.o-q-td,table.b-nhom th.tr-doc{width:1%;white-space:nowrap}'
 			. 'table.b-nhom td.o-q-td{text-align:left}'
 			/* Mảng đang ẩn: mờ đi nhưng VẪN ĐỌC ĐƯỢC — nó còn sửa được, và còn phải thấy nó đang ẩn. */
-			. 'tr.mang-an>td{background:#f8fafc;opacity:.75}'
+			. 'tr.mang-an>td{background:var(--nen-2);opacity:.75}'
 			. '.chip-an{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
-			. 'background:#e2e8f0;color:#475569;font-size:10.5px;font-weight:700;vertical-align:middle}';
+			. 'background:var(--nen-2);color:var(--chu-mo);font-size:10.5px;font-weight:700;vertical-align:middle}';
 	}
 
 	/**

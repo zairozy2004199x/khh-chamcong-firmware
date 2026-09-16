@@ -147,8 +147,8 @@ class VHCC_Man {
 						? '<a href="' . esc_url( $u_ ) . '" target="_blank" rel="noopener">'
 							. '<img src="' . esc_url( $u_ ) . '" alt="Ảnh lượt chấm" loading="lazy"'
 							. ' style="width:64px;height:64px;object-fit:cover;border-radius:5px;'
-							. 'display:block;border:1px solid #c3c4c7"></a>'
-						: '<span style="color:#646970;font-size:11px">không có ảnh</span>' ) . '</td>'
+							. 'display:block;border:1px solid var(--vien-dam)"></a>'
+						: '<span style="color:var(--chu-mo);font-size:11px">không có ảnh</span>' ) . '</td>'
 						. '<td><b>' . esc_html( number_format( (float) $d_['d'], 3 ) ) . '</b></td>'
 						. '<td>' . esc_html( $d_['ma_nv'] ) . '</td>'
 						. '<td>' . esc_html( (string) $d_['ngay'] ) . '</td>'
@@ -170,10 +170,10 @@ class VHCC_Man {
 			. '"tôi đã xem ảnh và đúng là người này"; nghi ngờ thì <b>Xoá mẫu</b>, lượt chấm '
 			. 'sau tự lấy lại.</p>';
 		echo '<p class="description" style="max-width:900px">Cột <b>Ảnh</b> đặt hai tấm cạnh nhau: '
-			. '<span style="color:#1a7f37;font-weight:600">tấm đã sinh ra mẫu</span> (lượt chấm công '
-			. 'đầu tiên của người đó) và <span style="color:#2271b1;font-weight:600">ảnh thẻ trong hồ '
+			. '<span style="color:var(--luc);font-weight:600">tấm đã sinh ra mẫu</span> (lượt chấm công '
+			. 'đầu tiên của người đó) và <span style="color:var(--nhan);font-weight:600">ảnh thẻ trong hồ '
 			. 'sơ</span>. Cùng một người thì duyệt; khác người thì <b>Xoá mẫu</b>. Viền '
-			. '<span style="color:#bd8600;font-weight:600">vàng</span> nghĩa là ảnh gốc không còn, '
+			. '<span style="color:var(--vang-dam);font-weight:600">vàng</span> nghĩa là ảnh gốc không còn, '
 			. 'đang hiện tạm tấm chấm công gần nhất — <b>đừng duyệt theo tấm đó</b>.</p>';
 
 		$url_loc = admin_url( 'admin.php?page=vhcc-mat' );
@@ -207,9 +207,9 @@ class VHCC_Man {
 				. ( '' !== (string) $m['nguon_coso'] ? ' · ' . esc_html( $m['nguon_coso'] ) : '' ) . '</td>'
 				. '<td>' . (int) $m['so_lan'] . ' lần</td>'
 				. '<td>' . ( 'duyet' === $m['trang_thai']
-					? '<span style="color:#1a7f37">✔ đã duyệt</span>'
+					? '<span style="color:var(--luc)">✔ đã duyệt</span>'
 						. ( '' !== (string) $m['nguoi_duyet'] ? '<br><small>' . esc_html( $m['nguoi_duyet'] ) . '</small>' : '' )
-					: '<span style="color:#bd8600">chờ duyệt</span>' ) . '</td>'
+					: '<span style="color:var(--vang-dam)">chờ duyệt</span>' ) . '</td>'
 				. '<td><form method="post" style="margin:0">'
 				. wp_nonce_field( 'vhcc_mat_man', '_wpnonce', true, false )
 				. '<input type="hidden" name="ma_nv" value="' . esc_attr( $m['ma_nv'] ) . '">'
@@ -270,7 +270,7 @@ class VHCC_Man {
 				trim( (string) $a['ngay'] ) . ( '' !== (string) $a['coso'] ? ' · ' . $a['coso'] : '' ),
 				$goc ? '#1a7f37' : '#bd8600' );
 		} else {
-			$o .= '<div style="width:110px;font-size:11px;color:#b32d2e;line-height:1.35">'
+			$o .= '<div style="width:110px;font-size:11px;color:var(--do);line-height:1.35">'
 				. '⚠️ <b>Không còn ảnh</b><br>Lượt chấm sinh ra mẫu này không kèm ảnh, hoặc ảnh đã '
 				. 'bị dọn. <b>Đừng duyệt mò</b> — xoá mẫu đi, lượt chấm sau tự lấy lại.</div>';
 		}
@@ -278,7 +278,7 @@ class VHCC_Man {
 		if ( '' !== $the ) {
 			$o .= self::khoi_anh_( $the, 'Ảnh thẻ trong hồ sơ', 'bản đối chứng', '#2271b1' );
 		} else {
-			$o .= '<div style="width:110px;font-size:11px;color:#646970;line-height:1.35">'
+			$o .= '<div style="width:110px;font-size:11px;color:var(--chu-mo);line-height:1.35">'
 				. 'Hồ sơ <b>chưa có ảnh thẻ</b> — không có gì để đối chiếu. Chỉ duyệt khi anh/chị '
 				. 'nhận ra mặt người này.</div>';
 		}
@@ -300,7 +300,7 @@ class VHCC_Man {
 			/* Chỉ nhận data URI ẢNH. Cột này do người dùng nạp lên (`rua_anh_the`), mà một
 			   `data:text/html,...` nhét vào `src` là một đường chạy mã trong trang quản trị. */
 			if ( ! preg_match( '#^data:image/(jpeg|png|webp|gif);base64,[A-Za-z0-9+/=\s]+$#', (string) $src ) ) {
-				return '<div style="width:110px;font-size:11px;color:#b32d2e">Ảnh thẻ hỏng khuôn.</div>';
+				return '<div style="width:110px;font-size:11px;color:var(--do)">Ảnh thẻ hỏng khuôn.</div>';
 			}
 			$the_anh = '<img src="' . esc_attr( $src ) . '"';
 		} else {
@@ -316,7 +316,7 @@ class VHCC_Man {
 					. 'title="Mở ảnh gốc ở tab mới">' . $the_anh . '</a>' )
 			. '<div style="font-size:11px;color:' . esc_attr( $mau ) . ';font-weight:600;margin-top:3px">'
 			. esc_html( $nhan ) . '</div>'
-			. ( '' !== $phu ? '<div style="font-size:11px;color:#646970">' . esc_html( $phu ) . '</div>' : '' )
+			. ( '' !== $phu ? '<div style="font-size:11px;color:var(--chu-mo)">' . esc_html( $phu ) . '</div>' : '' )
 			. '</div>';
 	}
 
@@ -737,7 +737,7 @@ class VHCC_Man {
 			echo '<tr><td>' . esc_html( $r['ngay'] ) . '</td><td><code>' . esc_html( $r['maNV'] )
 				. '</code></td><td>' . esc_html( $r['hauTo'] ) . '</td><td>' . esc_html( $r['hoTen'] )
 				. '</td><td>' . esc_html( $r['vao'] ) . '</td><td'
-				. ( '' === $r['ra'] ? ' style="color:#b32d2e"' : '' ) . '>'
+				. ( '' === $r['ra'] ? ' style="color:var(--do)"' : '' ) . '>'
 				. esc_html( '' !== $r['ra'] ? $r['ra'] : 'THIẾU' ) . '</td></tr>';
 		}
 		echo '</tbody></table>';

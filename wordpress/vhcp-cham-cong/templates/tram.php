@@ -15,60 +15,112 @@ $cfg = isset( $VHCC_TRAM_CFG ) ? $VHCC_TRAM_CFG : array( 'cong' => '', 'ver' => 
 <meta name="robots" content="noindex,nofollow">
 <title>Chấm công — K&amp;H</title>
 <style>
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * MẶT TỐI CỦA BỘ ÁO CHUNG — cùng TÊN BIẾN, cùng BO GÓC, cùng NHỊP; chỉ khác MÀU.
+ *
+ * `tools/test/kiem-bo-ao-tron.php` canh bảy trang của cả nhà đi cùng một bộ. Trang Ghế và
+ * màn này là hai mặt TỐI trong bảy trang ấy: chúng được miễn phần màu, nhưng KHÔNG được
+ * miễn phần hình — sáu bo góc và sáu bước nhịp phải khớp từng chữ số với năm trang sáng,
+ * nếu không thì mở màn này rồi mở bảng công là thấy hai phần mềm khác nhau.
+ *
+ * 🔴 VÌ SAO MÀN NÀY PHẢI Ở LẠI MẶT TỐI. Không phải thẩm mỹ. Nó mở camera soi mặt để chấm
+ *    công, và chạy cả ca đêm. Nền kem sáng thì màn hình điện thoại hắt thẳng vào mặt người
+ *    đang đứng chụp — ảnh bệt, và đúng cái ảnh ấy là thứ quản lý dùng để đối chiếu sau này.
+ *    Ai đó "cho đồng bộ" bằng cách dán bảng màu sáng vào đây thì phép thử phải đỏ.
+ *
+ * ⚠️ TOKEN KHAI NGAY TẠI ĐÂY, KHÔNG GOM VÀO TỆP DÙNG CHUNG. Màn này và bảng công có MƯỜI MỘT
+ *    lớp trùng tên mà khác nghĩa — `.an` ở đây là `display:none`, ở bảng công là *ẩn với mắt
+ *    nhưng trình đọc màn hình vẫn đọc*; rồi `.bao` `.the` `.mo` `.hang` `.luoi` `.chinh`
+ *    `.phu` `.trong` `.vang` `.ct`. Chúng không bao giờ ở chung một trang nên để yên là đúng;
+ *    gom hai bộ luật vào một chỗ mới là mười một lớp đè nhau.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+:root{
+	/* --- màu: mặt TỐI --- */
+	--nen:#101828; --the:#1b2436; --nen-2:#243049;
+	--vien:#31405e; --vien-dam:#455873;
+	--chu:#e7ecf5; --chu-dam:#ffffff; --chu-mo:#93a3bd;
+	--nhan:#38bdf8; --nhan-dam:#0ea5e9; --nhan-nhat:#12314a;
+	--do:#f87171;
+	/* --- hình: SÁU con số phải khớp từng chữ số với sáu trang kia --- */
+	--d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
+	--bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
+	/* --- chiều sâu: bóng đổ ĐEN, không phải navy loãng. Trên nền tối thì navy loãng không
+	       thấy gì; thứ tách được hai mặt phẳng tối là một vùng đen sâu hơn. --- */
+	--bong:0 1px 2px rgba(0,0,0,.40);
+	--bong-2:0 4px 14px rgba(0,0,0,.50);
+	--bong-3:0 12px 32px rgba(0,0,0,.60);
+}
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
+/* Nền 3D mặt tối: cùng ba vầng sáng như bảng công, chỉ đậm hơn để đọc ra trên nền tối.
+   `fixed` vì cùng lý do — danh sách lượt chấm cuộn dài, nền chạy theo là cả màn trôi. */
 body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
-	background:#0f172a;color:#e2e8f0;-webkit-text-size-adjust:100%}
+	color:var(--chu);-webkit-text-size-adjust:100%;
+	background:
+	  radial-gradient(40rem 30rem at 15% -10%,rgba(56,189,248,.16),transparent 62%),
+	  radial-gradient(36rem 28rem at 95% 8%,rgba(124,58,237,.14),transparent 64%),
+	  radial-gradient(38rem 26rem at 50% 110%,rgba(8,145,178,.12),transparent 60%),
+	  var(--nen);
+	background-attachment:fixed}
 .bao{max-width:520px;margin:0 auto;padding:14px 14px calc(28px + env(safe-area-inset-bottom))}
 h1{font-size:18px;margin:0 0 2px}
-.mo{color:#94a3b8;font-size:12.5px;margin:0 0 14px}
-.the{background:#1e293b;border:1px solid #334155;border-radius:14px;padding:16px;margin:0 0 12px}
-label{display:block;font-size:12.5px;color:#94a3b8;margin:0 0 5px}
-input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:10px;border:1px solid #475569;
-	background:#0f172a;color:#e2e8f0;font-family:inherit}
-input:focus,select:focus{outline:2px solid #38bdf8;outline-offset:-1px}
-button{font-family:inherit;font-size:15px;border:0;border-radius:10px;padding:13px 16px;
-	background:#334155;color:#e2e8f0;cursor:pointer}
+.mo{color:var(--chu-mo);font-size:12.5px;margin:0 0 14px}
+.the{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);
+	padding:var(--d4);margin:0 0 var(--d3);box-shadow:var(--bong)}
+label{display:block;font-size:12.5px;color:var(--chu-mo);margin:0 0 5px}
+input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
+	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
+input:focus,select:focus{outline:none;border-color:var(--nhan);
+	box-shadow:0 0 0 3px rgba(56,189,248,.22)}
+/* Nút nhún khi bấm — cùng nhịp với bảng công, để hai màn nói một thứ tiếng. Ở đây nó còn
+   đáng giá hơn: người bấm đang cầm điện thoại một tay, cần biết ngay là đã trúng nút. */
+button{font-family:inherit;font-size:15px;border:0;border-radius:var(--bo-nut);padding:13px var(--d4);
+	background:var(--nen-2);color:var(--chu);cursor:pointer;box-shadow:var(--bong);
+	transition:transform .12s ease,box-shadow .12s ease}
+button:hover:not(:disabled){transform:translateY(-1px);box-shadow:var(--bong-2)}
+button:active:not(:disabled){transform:translateY(0);box-shadow:var(--bong)}
 button:disabled{opacity:.5;cursor:not-allowed}
-.chinh{background:#0ea5e9;color:#04283a;font-weight:700;width:100%}
+.chinh{background:var(--nhan);color:#04283a;font-weight:700;width:100%}
 .to{font-size:19px;padding:20px 16px;font-weight:800;letter-spacing:.4px}
-.phu{background:transparent;border:1px solid #475569;color:#cbd5e1}
+.phu{background:transparent;border:1px solid var(--vien-dam);color:var(--chu-mo);box-shadow:none}
 .hang{display:flex;gap:9px}
 .hang>*{flex:1}
-.dong{background:#7f1d1d;border:1px solid #b91c1c;color:#fecaca;border-radius:10px;
+.dong{background:#7f1d1d;border:1px solid #b91c1c;color:#fecaca;border-radius:var(--bo-nho);
 	padding:11px 13px;margin:10px 0;font-size:13.5px}
-.xanh{background:#064e3b;border:1px solid #059669;color:#bbf7d0;border-radius:10px;
+.xanh{background:#064e3b;border:1px solid #059669;color:#bbf7d0;border-radius:var(--bo-nho);
 	padding:11px 13px;margin:10px 0;font-size:13.5px}
-.vang{background:#422006;border:1px solid #a16207;color:#fde68a;border-radius:10px;
+.vang{background:#422006;border:1px solid #a16207;color:#fde68a;border-radius:var(--bo-nho);
 	padding:11px 13px;margin:10px 0;font-size:13px}
 .dhho{font-variant-numeric:tabular-nums;font-size:38px;font-weight:800;letter-spacing:1px;
-	text-align:center;margin:2px 0 0;color:#f8fafc}
-.dngay{text-align:center;color:#94a3b8;font-size:12.5px;margin:0 0 2px}
-.nhan{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;
-	background:#334155;color:#cbd5e1;margin-left:6px;vertical-align:2px}
+	text-align:center;margin:2px 0 0;color:var(--chu-dam)}
+.dngay{text-align:center;color:var(--chu-mo);font-size:12.5px;margin:0 0 2px}
+.nhan{display:inline-block;font-size:11px;padding:2px var(--d2);border-radius:var(--bo-badge);
+	background:var(--nen-2);color:var(--chu-mo);margin-left:6px;vertical-align:2px}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th,td{padding:7px 6px;border-bottom:1px solid #334155;text-align:left}
-th{color:#94a3b8;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--vien);text-align:left}
+th{color:var(--chu-mo);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
 td.g{font-variant-numeric:tabular-nums}
-.trong{color:#64748b}
-video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
-.bando{position:relative;width:100%;height:200px;border:1px solid #334155;border-radius:12px;
-	background:#1e293b;overflow:hidden;margin:10px 0 0}
+.trong{color:var(--chu-mo)}
+video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:block}
+.bando{position:relative;width:100%;height:200px;border:1px solid var(--vien);border-radius:var(--bo-the);
+	background:var(--the);overflow:hidden;margin:10px 0 0}
 .bando .luoi{position:absolute;left:50%;top:50%;width:768px;height:768px;
 	display:grid;grid-template-columns:repeat(3,256px);grid-template-rows:repeat(3,256px)}
-.bando .o{display:block;width:256px;height:256px;background:#1e293b}
+.bando .o{display:block;width:256px;height:256px;background:var(--the)}
 .bando .cham{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
 	border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
 .bando .ghi{position:absolute;right:4px;bottom:2px;font-size:10px;color:#0f172a;
-	background:rgba(255,255,255,.72);padding:0 5px;border-radius:4px}
-.thanh{position:sticky;top:0;z-index:8;display:flex;gap:9px;margin:0 0 12px;padding:8px 0;
-	background:#0f172a}
+	background:rgba(255,255,255,.72);padding:0 5px;border-radius:var(--bo-o-bang)}
+/* ⚠️ Thanh dính phải ĐỤC. Nền trang là gradient; để thanh trong suốt là ba vầng sáng chạy
+   qua dưới chữ khi cuộn, và chữ trên nút nhoè theo từng nhịp cuộn. */
+.thanh{position:sticky;top:0;z-index:8;display:flex;gap:9px;margin:0 0 var(--d3);padding:var(--d2) 0;
+	background:var(--nen);box-shadow:0 6px 12px -6px rgba(0,0,0,.7)}
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
 #oKhoiCham,#oKhoiCong{scroll-margin-top:62px}
 .khung{position:relative}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-	pointer-events:none;border-radius:12px}
+	pointer-events:none;border-radius:var(--bo-the)}
 .dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
 	text-shadow:0 0 22px rgba(0,0,0,.85),0 3px 10px rgba(0,0,0,.9);
 	font-variant-numeric:tabular-nums}
@@ -76,9 +128,9 @@ video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
 .mn .bao{padding-top:8px}
-.mmau{width:96px;border-radius:8px;border:1px solid #475569;float:right;margin:0 0 8px 10px}
-a{color:#7dd3fc}
-.ct{text-align:center;color:#64748b;font-size:11.5px;margin:16px 0 0}
+.mmau{width:96px;border-radius:var(--bo-nho);border:1px solid var(--vien-dam);float:right;margin:0 0 var(--d2) 10px}
+a{color:var(--nhan)}
+.ct{text-align:center;color:var(--chu-mo);font-size:11.5px;margin:var(--d4) 0 0}
 </style>
 </head>
 <body>
@@ -944,11 +996,11 @@ function veThang(ym){
 		var h = '<table><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Vào</th><th>Ra</th><th>Giờ</th></tr></thead><tbody>';
 		for(var i=0;i<d.length;i++){
 			var thieu = !d[i].ra;
-			h += '<tr' + (thieu ? ' style="background:#3f1d1d"' : '') + '>'
+			h += '<tr' + (thieu ? ' style="background:var(--nen-2)"' : '') + '>'
 			   + '<td class="g">' + esc(String(d[i].ngay).slice(8)) + '</td>'
 			   + '<td>' + esc(d[i].coSo) + (d[i].hauTo ? '<span class="nhan">'+esc(d[i].hauTo)+'</span>' : '') + '</td>'
 			   + '<td class="g">' + esc(d[i].vao||'—') + '</td>'
-			   + '<td class="g">' + (thieu ? '<b style="color:#fca5a5">thiếu</b>' : esc(d[i].ra)) + '</td>'
+			   + '<td class="g">' + (thieu ? '<b style="color:var(--do)">thiếu</b>' : esc(d[i].ra)) + '</td>'
 			   + '<td class="g">' + gioPhut(d[i].phut) + '</td></tr>';
 		}
 		el('bangThang').innerHTML = h + '</tbody></table>';
@@ -995,10 +1047,10 @@ function veAnhMau(){
 		el('oMau').setAttribute('data-xong','1');
 		if(j && j.ok && j.dataUri){
 			el('oMau').innerHTML = '<img class="mmau" src="'+esc(j.dataUri)+'" alt="ảnh mẫu">'
-				+ '<p style="margin:0;font-size:12.5px;color:#94a3b8">Chụp giống hình mẫu bên cạnh: '
+				+ '<p style="margin:0;font-size:12.5px;color:var(--chu-mo)">Chụp giống hình mẫu bên cạnh: '
 				+ 'thẳng mặt, đủ sáng, không đội mũ.</p>';
 		} else {
-			el('oMau').innerHTML = '<p style="margin:0;font-size:12.5px;color:#94a3b8">'
+			el('oMau').innerHTML = '<p style="margin:0;font-size:12.5px;color:var(--chu-mo)">'
 				+ 'Chụp thẳng mặt, đủ sáng, không đội mũ.</p>';
 		}
 	}).catch(function(){ el('oMau').setAttribute('data-xong','1'); });

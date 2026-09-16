@@ -26,8 +26,46 @@ class VHCC_Admin {
 	public static function dai_ban() {
 		$m = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
 		if ( 'vhcc' !== $m && strpos( $m, 'vhcc-' ) !== 0 ) { return; }
-		echo '<div style="margin:6px 0 0;color:#64748b;font-size:12px">Chấm Công — bản <code>'
-			. esc_html( VHCC_VERSION ) . '</code></div>';
+		echo self::css();
+		echo '<div class="vhcc-pb">Chấm Công — bản <code>' . esc_html( VHCC_VERSION ) . '</code></div>';
+	}
+
+	/**
+	 * BỘ TÊN MÀU CHO MẤY MÀN NẰM TRONG WP-ADMIN.
+	 *
+	 * =============================================================================================
+	 * 🔴 VÌ SAO KHÔNG DÙNG THẲNG BẢNG MÀU CỦA `VHCC_Web::css()`.
+	 *    Mười hai màn ở đây chạy TRONG giao diện quản trị của WordPress: nút, bảng, dải thông
+	 *    báo đều là của WordPress. Dán bảng màu riêng của mình vào là mỗi màn có hai thứ đỏ khác
+	 *    nhau, hai thứ xanh khác nhau — chữ "đã lưu" của mình xanh một kiểu, dải `notice-success`
+	 *    của WordPress ngay bên cạnh xanh một kiểu. Trông hỏng hơn là không làm gì.
+	 *    Nên ở đây token mang ĐÚNG TÊN của bộ áo chung, nhưng TRỎ VÀO màu của WordPress. Một
+	 *    tên gọi, hai nơi, mỗi nơi đúng với chỗ nó đứng.
+	 *
+	 * 🔴 VÌ SAO VẪN PHẢI CÓ TOKEN Ở ĐÂY. Trước bản này, mười hai màn ấy rải ~23 chỗ gõ thẳng mã
+	 *    màu vào `style=` (`#b32d2e` mười hai lần). Mã màu gõ trong `style=` KHÔNG theo bất cứ
+	 *    thay đổi nào ở bảng kiểu — đó đúng là cơ chế làm một trang lệch dần mà không ai báo.
+	 *    `tools/test/kiem-bo-ao-tron.php` nay đếm và bắt phải bằng 0.
+	 *
+	 * ⚠️ Móc vào `in_admin_header` cùng chỗ với dải số bản, nên chỉ chạy trên màn của plugin,
+	 *    không rải ra cả wp-admin. Thẻ `<style>` nằm trong `<body>` là hợp lệ và trình duyệt
+	 *    nào cũng nhận; đổi sang `admin_head` thì phải thêm một móc thứ hai cho cùng một việc.
+	 * =============================================================================================
+	 */
+	public static function css() {
+		return '<style>:root{'
+			/* màu của WordPress, mang tên của bộ áo chung */
+			. '--do:#b32d2e;--luc:#1a7f37;--luc-dam:#046b2d;--nhan:#2271b1;'
+			. '--vang-dam:#bd8600;--chu-mo:#646970;--vien-dam:#c3c4c7;'
+			/* nhịp và bo góc thì GIỐNG HỆT sáu trang kia — hình là phần không được lệch */
+			. '--d1:4px;--d2:8px;--d3:12px;--d4:16px;--d5:20px;--d6:24px;'
+			. '--bo-nho:8px;--bo-o-bang:6px'
+			. '}'
+			. '.vhcc-pb{margin:6px 0 0;color:var(--chu-mo);font-size:12px}'
+			. '.vhcc-khoi{max-width:760px;border:1px solid var(--vien-dam);border-radius:var(--bo-o-bang);'
+			. 'padding:var(--d3);margin-bottom:var(--d3)}'
+			. '.vhcc-khoi.chinh{border:2px solid var(--nhan)}'
+			. '</style>';
 	}
 
 	public static function menu() {
@@ -475,7 +513,7 @@ class VHCC_Admin {
 					. (int) ( isset( $x_td['nguoi'] ) ? $x_td['nguoi'] : 0 ) . '</td><td>'
 					/* 0 giờ = đã kéo nhưng tháng đó sheet không có gì. Nói rõ, vì "đã kéo" mà bảng
 					   trống thì người xem sẽ tưởng lệnh kéo hỏng. */
-					. ( $luot_td ? $luot_td : '<span style="color:#8a6d3b">0 — tháng đó sheet không có dữ liệu</span>' )
+					. ( $luot_td ? $luot_td : '<span style="color:var(--vang-dam)">0 — tháng đó sheet không có dữ liệu</span>' )
 					. '</td><td>' . esc_html( isset( $x_td['luc'] ) ? $x_td['luc'] : '' ) . '</td></tr>';
 			}
 			echo '</tbody></table>';
@@ -923,7 +961,7 @@ class VHCC_Admin {
 			}
 			echo '</ul></div>';
 		} elseif ( $ds ) {
-			echo '<p style="color:#046b2d">✔️ Cả ' . count( $ds ) . ' máy đều đang gửi nhịp.</p>';
+			echo '<p style="color:var(--luc-dam)">✔️ Cả ' . count( $ds ) . ' máy đều đang gửi nhịp.</p>';
 		}
 
 		/* ---- Danh sách máy ---- */
@@ -939,7 +977,7 @@ class VHCC_Admin {
 				$idm = (int) $x['id'];
 				echo '<tr><td>' . ( $x['cua_hang']
 						? esc_html( $x['cua_hang'] )
-						: '<span style="color:#b32d2e">(chưa gán)</span>' ) . '</td>'
+						: '<span style="color:var(--do)">(chưa gán)</span>' ) . '</td>'
 					. '<td><code>' . esc_html( $x['serial'] ) . '</code></td>'
 					. '<td><code>' . esc_html( $x['mac'] ) . '</code></td>'
 					. '<td>' . ( ! empty( $x['con_song'] ) ? '🟢 ' : '🔴 ' ) . esc_html( (string) $x['nhip_luc'] ) . '</td>'
@@ -1027,7 +1065,7 @@ class VHCC_Admin {
 					}
 					echo '</ul></div>';
 				} else {
-					echo '<p style="color:#046b2d">✔️ Không có mặt nào thừa trong máy.</p>';
+					echo '<p style="color:var(--luc-dam)">✔️ Không có mặt nào thừa trong máy.</p>';
 				}
 				if ( $dc['thieu'] ) {
 					echo '<p><strong>' . count( $dc['thieu'] ) . ' người có hồ sơ mà chưa có mặt trong máy'
@@ -1320,7 +1358,7 @@ class VHCC_Admin {
 				. '<td>' . esc_html( $e['luongThang'] ? number_format( $e['luongThang'] ) : '—' ) . '</td>'
 				. '<td>' . esc_html( $e['donGiaCong'] ? number_format( $e['donGiaCong'] ) : '—' ) . '</td>'
 				. '<td><strong>' . esc_html( $e['tien'] ? number_format( $e['tien'] ) : '—' ) . '</strong></td>'
-				. '<td>' . ( $soi ? '<span style="color:#b32d2e">' . esc_html( implode( ' · ', $soi ) )
+				. '<td>' . ( $soi ? '<span style="color:var(--do)">' . esc_html( implode( ' · ', $soi ) )
 					. '</span>' : '' ) . '</td></tr>';
 		}
 		echo '</tbody><tfoot><tr><th colspan="6">Tổng</th><th>' . esc_html( $v['tong']['tong'] )
@@ -1371,7 +1409,7 @@ class VHCC_Admin {
 			. 'chuyển hướng — gặp chuyển hướng nó gọi lại bằng GET và mất trọn lượt bấm.</p>';
 
 		if ( $co_khoa ) {
-			echo '<p style="color:#046b2d">✔️ Đã cấu hình khoá <code>VHCC_KHOA_MAY</code>.</p>';
+			echo '<p style="color:var(--luc-dam)">✔️ Đã cấu hình khoá <code>VHCC_KHOA_MAY</code>.</p>';
 		} else {
 			echo '<div class="notice notice-error"><p><strong>Chưa cấu hình khoá — cổng đang ĐÓNG, '
 				. 'mọi lượt bấm bị chối.</strong> Thêm vào <code>wp-config.php</code>:</p>'
@@ -1508,7 +1546,7 @@ class VHCC_Admin {
 				. (int) $r['vt_trong'] . ' người sổ cũ KHÔNG ghi vai trò đăng nhập</b> — đã đặt thành <b>'
 				. esc_html( (string) $r['vt_mac_dinh'] ) . '</b>.';
 			if ( $het ) {
-				echo ' <b style="color:#b32d2e">Hiện KHÔNG AI đăng nhập được.</b> Chọn lại '
+				echo ' <b style="color:var(--do)">Hiện KHÔNG AI đăng nhập được.</b> Chọn lại '
 					. '<i>Vai trò nếu sổ không ghi</i> rồi nạp lại, hoặc tích thêm vai trò ở mục '
 					. '<b>Vai trò vào được</b> bên dưới.';
 			}
@@ -1613,7 +1651,7 @@ class VHCC_Admin {
 		   KHÔNG bấm Lưu được nữa nếu chưa chọn file. Có phép thử ghim đúng chỗ này. */
 		$form_roi .= '<form method="post" enctype="multipart/form-data" id="vhcc-csv-nd">'
 			. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false ) . '</form>';
-		echo '<div style="max-width:760px;border:2px solid #2271b1;border-radius:4px;padding:12px;margin-bottom:12px">';
+		echo '<div class="vhcc-khoi chinh">';
 		echo '<b>Cách 1 — tải file .csv của sổ NHÂN VIÊN</b> '
 			. '<span class="description">(lấy ĐỦ mọi cột, ghi vào hồ sơ Nhân sự)</span>';
 		echo '<p class="description" style="margin:6px 0">Trong Google Sheets: <b>File → Tải xuống → '
@@ -1638,7 +1676,7 @@ class VHCC_Admin {
 		/* ---- Đường 1: dán từ Sheets ---- */
 		$form_roi .= '<form method="post" id="vhcc-dan-nd">'
 			. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false ) . '</form>';
-		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px;margin-bottom:12px">';
+		echo '<div class="vhcc-khoi">';
 		echo '<b>Cách 2 — dán thẳng từ Google Sheets</b> <span class="description">(chỉ tài khoản đăng nhập: họ tên + PIN)</span>';
 		echo '<p class="description" style="margin:6px 0">Bôi đen các cột <b>Họ tên</b> và <b>PIN</b> '
 			. '(kèm <b>Vai trò</b>, <b>Cơ sở</b> nếu có) của <b>một cơ sở</b> trong Sheet → Ctrl+C → dán vào ô dưới. '
@@ -1659,7 +1697,7 @@ class VHCC_Admin {
 		echo '</div>';
 
 		/* ---- Đường 2: kho đã có sẵn trên host ---- */
-		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px">';
+		echo '<div class="vhcc-khoi">';
 		echo '<b>Cách 3 — nạp tài khoản đăng nhập từ kho đã có trên host</b>';
 		echo '<table class="widefat striped" style="margin:8px 0"><thead><tr><th>Kho</th>'
 			. '<th style="width:90px">Có</th><th style="width:120px">Vào được</th>'
@@ -1672,10 +1710,10 @@ class VHCC_Admin {
 				. '<input type="hidden" name="tu" value="' . esc_attr( $tu ) . '" /></form>';
 			echo '<tr><td>' . esc_html( $nhan );
 			if ( '' !== $k['loi'] ) {
-				echo '<br><span style="color:#b32d2e">' . esc_html( $k['loi'] ) . '</span>';
+				echo '<br><span style="color:var(--do)">' . esc_html( $k['loi'] ) . '</span>';
 			}
 			echo '</td><td><b>' . (int) $k['co'] . '</b></td><td>';
-			echo ( $k['vao'] ? '<b>' . (int) $k['vao'] . '</b>' : '<span style="color:#b32d2e">0</span>' );
+			echo ( $k['vao'] ? '<b>' . (int) $k['vao'] . '</b>' : '<span style="color:var(--do)">0</span>' );
 			echo '</td><td>';
 			if ( $k['co'] ) {
 				echo '<select name="coso" form="' . esc_attr( $id ) . '" style="max-width:220px">';
@@ -2104,7 +2142,7 @@ class VHCC_Admin {
 
 		/* Bản đang chạy — trong lúc cài, câu "anh cài bản mới chưa" phải trả lời được bằng mắt.
 		   Số này cũng hiện ở Plugins của WordPress, nhưng ở đây là chỗ người ta đang đứng. */
-		echo '<p style="color:#64748b">Bản plugin đang chạy: <code>' . esc_html( VHCC_VERSION ) . '</code></p>';
+		echo '<p style="color:var(--chu-mo)">Bản plugin đang chạy: <code>' . esc_html( VHCC_VERSION ) . '</code></p>';
 		if ( $msg === 'chandoan' ) {
 			$cd = get_transient( 'vhcc_cd_' . get_current_user_id() );
 			delete_transient( 'vhcc_cd_' . get_current_user_id() );
@@ -2191,10 +2229,10 @@ class VHCC_Admin {
 		$pin_ad = VHCC_May::pin();
 		echo '<tr><th scope="row">PIN admin gọi app gốc</th><td>';
 		if ( '' === $pin_ad ) {
-			echo '<b style="color:#b32d2e">Chưa khai.</b> Thiếu nó thì không kéo được dữ liệu cũ và '
+			echo '<b style="color:var(--do)">Chưa khai.</b> Thiếu nó thì không kéo được dữ liệu cũ và '
 				. 'màn Máy &amp; Firmware không gọi được gì.';
 		} else {
-			echo '<span style="color:#046b2d">✔️ Đã khai</span> (' . strlen( $pin_ad ) . ' ký tự'
+			echo '<span style="color:var(--luc-dam)">✔️ Đã khai</span> (' . strlen( $pin_ad ) . ' ký tự'
 				. ( defined( 'VHCC_PIN_ADMIN' ) ? ', từ wp-config.php' : ', từ cơ sở dữ liệu' ) . ').';
 		}
 		echo '<p class="description">Khai trong <code>wp-config.php</code>: '
@@ -2220,7 +2258,7 @@ class VHCC_Admin {
 				. '</b> người từ sổ Phân quyền của app gốc sang danh sách riêng — <b>giữ nguyên PIN '
 				. 'mọi người đang dùng</b>, không phải cấp lại lần hai.';
 			if ( ! empty( $nap_ld['bo'] ) ) {
-				echo '<p class="description" style="color:#b32d2e"><b>' . count( (array) $nap_ld['bo'] )
+				echo '<p class="description" style="color:var(--do)"><b>' . count( (array) $nap_ld['bo'] )
 					. ' dòng không nạp được:</b> ' . esc_html( implode( ' · ', (array) $nap_ld['bo'] ) ) . '</p>';
 			}
 			if ( ! empty( $nap_ld['yeu'] ) ) {
@@ -2243,7 +2281,7 @@ class VHCC_Admin {
 					. '" sang <b>danh sách riêng</b> — vì tài khoản trên nằm ở danh sách riêng. '
 					. 'Danh sách cũ <b>không mất gì</b>: chọn lại ô bên dưới là quay về ngay.</p>';
 			}
-			echo '<tr><th scope="row" style="color:#b91c1c">⚠ PIN đăng nhập lần đầu</th><td>'
+			echo '<tr><th scope="row" style="color:var(--do)">⚠ PIN đăng nhập lần đầu</th><td>'
 				. '<code style="user-select:all;font-size:20px;letter-spacing:3px">' . esc_html( $pin_ld ) . '</code>'
 				. ' &nbsp; <button type="submit" name="vhcc_viec" value="quen_pin_lan_dau" class="button">Tôi đã ghi lại — ẩn đi</button>'
 				. '<p class="description">Lúc cài, <b>không tìm được sổ PIN cũ nào</b> (sổ Phân quyền chưa kéo về, '
@@ -2301,7 +2339,7 @@ class VHCC_Admin {
 					$duoc_r = in_array( $u_r['vaiTro'], $cho_r, true );
 					echo '<tr><td><b>' . esc_html( $u_r['ten'] ) . '</b></td><td>'
 						. esc_html( $u_r['vaiTro'] )
-						. ( $duoc_r ? '' : ' <span style="color:#b32d2e">(không vào được)</span>' )
+						. ( $duoc_r ? '' : ' <span style="color:var(--do)">(không vào được)</span>' )
 						. '</td><td>' . esc_html( $u_r['coso'] ) . '</td>'
 						/* ⚠️ CHỈ SỐ CHỮ SỐ. Không bao giờ in PIN — ảnh màn hình đi khắp nơi. */
 						. '<td>' . strlen( $u_r['pin'] ) . ' số</td><td>';
@@ -2364,7 +2402,7 @@ class VHCC_Admin {
 		if ( $nguon === 'chung' ) {
 			$u = VHCC_Auth::users();
 			if ( is_wp_error( $u ) ) {
-				echo '<p style="color:#b32d2e"><b>' . esc_html( $u->get_error_message() ) . '</b></p>';
+				echo '<p style="color:var(--do)"><b>' . esc_html( $u->get_error_message() ) . '</b></p>';
 			} else {
 				/* Vai trò vào được là do Cài đặt quyết định, nên phải đọc qua vai_tro_vao() —
 				   KHÔNG có hằng VHCC_Auth::VAI_TRO_VAO. Dùng tên hằng không tồn tại là lỗi
@@ -2408,10 +2446,10 @@ class VHCC_Admin {
 						. '<th>Vào được</th><th>Vai trò</th><th>Cơ sở</th><th>PIN dài</th></tr></thead><tbody>';
 					foreach ( $hang_vao as $x ) {
 						$pin = (string) $x['pin'];
-						$dai = ( $pin === '' ) ? '<span style="color:#b32d2e">chưa có</span>'
+						$dai = ( $pin === '' ) ? '<span style="color:var(--do)">chưa có</span>'
 							: ( preg_match( '/^\d{4,8}$/', $pin )
 								? strlen( $pin ) . ' số'
-								: '<span style="color:#b32d2e">' . strlen( $pin ) . ' ký tự — không dùng được</span>' );
+								: '<span style="color:var(--do)">' . strlen( $pin ) . ' ký tự — không dùng được</span>' );
 						echo '<tr><td><b>' . esc_html( $x['ten'] ) . '</b></td><td>' . esc_html( $x['vaiTro'] )
 							. '</td><td>' . esc_html( $x['coso'] ) . '</td><td>' . wp_kses_post( $dai ) . '</td></tr>';
 					}
@@ -2459,7 +2497,7 @@ class VHCC_Admin {
 		}
 
 		if ( $tv_mat['co'] ) {
-			echo '<p style="margin:0 0 8px"><b style="color:#1a7f37">✔ Thư viện đã sẵn sàng.</b> '
+			echo '<p style="margin:0 0 8px"><b style="color:var(--luc)">✔ Thư viện đã sẵn sàng.</b> '
 				. 'Ảnh chấm công online sẽ được đối chiếu với mẫu khuôn mặt.</p>';
 			/* Nói rõ đang đọc ở ĐÂU. Nếu còn nằm trong plugin thì nhắc: lần cập nhật tới nó
 			   mất, vì cài đè .zip xoá sạch thư mục plugin cũ. */

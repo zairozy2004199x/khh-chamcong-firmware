@@ -388,6 +388,20 @@ class VHCC_Pdf {
 		   cột còn chưa tới 5mm và con số dính vào nhau. Cả tờ xoay ngang chứ không riêng mục
 		   lưới: `@page` không đổi hướng giữa chừng được, mà hai tờ hai hướng thì kẹp vào cặp
 		   tài liệu cũng không ai lật nổi. */
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 TỜ NÀY CỐ Ý ĐỨNG NGOÀI BỘ ÁO CHUNG — đừng "cho đồng bộ".
+		 *
+		 * 16/09/2026 cả plugin vào bộ áo chung của nhà (`tools/test/kiem-bo-ao-tron.php`): sáu
+		 * bước nhịp 4·8·12·16·20·24px, sáu bo góc, một bảng màu. Tờ này KHÔNG theo, và không
+		 * phải vì quên:
+		 *   · Nhịp ở đây đo bằng MILIMET giấy (`@page margin:8mm`), không phải điểm ảnh màn hình.
+		 *   · Ô ngày đệm `1px` vì 31 cột phải vừa bề ngang tờ A4. Ép lên `--d1` (4px) là bảng
+		 *     tràn sang tờ thứ hai — mà cả điểm của tờ này là một tháng lọt MỘT tờ.
+		 *   · Màu ở đây chọn theo MỰC IN, không theo màn hình: xám `#e8eef5` cho đầu bảng để
+		 *     máy in đen trắng vẫn ra một sắc xám phân biệt được, không phải để đẹp.
+		 * Thứ DUY NHẤT lấy theo bộ áo là thanh nút phía trên — nó là thứ hiện trên MÀN HÌNH và
+		 * không bao giờ in ra, nên nó phải trông như mọi nút khác của hệ.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
 		$h[] = '@page{size:A4 landscape;margin:8mm 8mm}';
 		$h[] = 'body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;margin:0;padding:10mm}';
 		$h[] = 'h1{font-size:16px;margin:0 0 2px;text-align:center;text-transform:uppercase}';
@@ -432,8 +446,15 @@ class VHCC_Pdf {
 		$h[] = '.ky td{border:none;text-align:center;font-size:10px;padding-top:4px}';
 		/* Thanh nút chỉ có trên màn hình, KHÔNG in ra giấy. */
 		$h[] = '.thanh{position:sticky;top:0;background:#fffbe6;border:1px solid #e0c86a;padding:8px 10px;'
-			. 'margin:-6mm -6mm 10px;font-size:12px;border-radius:4px}';
-		$h[] = '.thanh button{font-size:13px;padding:5px 14px;cursor:pointer}';
+			. 'margin:-6mm -6mm 10px;font-size:12px;border-radius:8px;'
+			. 'box-shadow:0 1px 2px rgba(12,23,84,.05)}';
+		/* Nút bo 18px và nhún khi bấm — cùng nhịp với mọi nút khác của hệ. Đây là nút duy nhất
+		   của tờ này, và là thứ người ta bấm chứ không phải thứ in ra. */
+		$h[] = '.thanh button{font-size:13px;padding:5px 14px;cursor:pointer;border-radius:18px;'
+			. 'border:1px solid #2545ff;background:#2545ff;color:#fff;font-weight:600;'
+			. 'box-shadow:0 1px 2px rgba(12,23,84,.05);transition:transform .12s ease,box-shadow .12s ease}';
+		$h[] = '.thanh button:hover{transform:translateY(-1px);box-shadow:0 4px 14px rgba(12,23,84,.10)}';
+		$h[] = '.thanh button:active{transform:translateY(0);box-shadow:0 1px 2px rgba(12,23,84,.05)}';
 		$h[] = '@media print{.thanh{display:none}body{padding:0}}';
 		$h[] = '</style></head><body>';
 

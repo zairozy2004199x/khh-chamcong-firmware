@@ -2528,9 +2528,13 @@ t( '🔴 và dùng chữ số đều bề ngang (tabular-nums)',
 	'thiếu tabular-nums — 5.287.500 và 286.000 sẽ lệch cột dù cùng canh phải' );
 
 /* ───── 2. NỀN ẤM, KHÔNG PHẢI XÁM XANH ───── */
-/* Điều duy nhất cả ba bộ mẫu cùng nói. Nền cũ `#f1f5f9` là xám XANH. */
+/* Điều duy nhất cả ba bộ mẫu cùng nói. Nền cũ `#f1f5f9` là xám XANH.
+   ⚠️ 16/09/2026 con số đổi từ `#f6f4f1` sang `#f9f8f6` — KHÔNG phải đổi ý, mà là nhận đúng
+      một bộ áo đã có: `tools/test/kiem-bo-ao-tron.php` chốt `#f9f8f6` cho cả trang Tổng và
+      ba bản Chi phí từ trước. Vẫn là kem ẤM, chỉ là kem của nhà thay vì kem riêng một trang.
+      Vế cấm `#f1f5f9` GIỮ NGUYÊN — đó mới là thứ bài này canh. */
 t( '🔴 nền trang là trắng ẤM, không còn xám xanh',
-	false === strpos( $css, '--nen:#f1f5f9' ) && 1 === preg_match( '/--nen:#f6f4f1/', $css ), $css );
+	false === strpos( $css, '--nen:#f1f5f9' ) && 1 === preg_match( '/--nen:#f9f8f6/', $css ), $css );
 t( '🔴 viền cũng ấm theo', false === strpos( $css, '--vien:#e2e8f0' ), 'viền vẫn xám lạnh' );
 
 /* ───── 3. HÀNG TỔNG TÁCH KHỎI THÂN BẢNG ───── */
