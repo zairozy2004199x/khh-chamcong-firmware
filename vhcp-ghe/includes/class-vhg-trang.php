@@ -193,15 +193,55 @@ class VHG_Trang {
         box.innerHTML = '<span class="loi">' + esc((r && r.error) || 'Không đọc được danh sách.') + '</span>';
         return;
       }
-      var h = '<table><tr><th>Plugin</th><th>Đang chạy</th><th>Bản mới</th><th></th></tr>';
+      /* Cột "Đã thử ổn" — anh Thắng 16/09/2026: *"lúc test bản nào chạy ổn, anh sẽ chọn bản mới
+         để up, tránh cứ lỗi nếu chọn bản tiếp"*. Cột này KHÔNG suy ra được: cài xong không nổ
+         không có nghĩa là ổn (cả hai lỗi câm hôm nay đều cài trót lọt rồi mới lộ khi có người
+         thật dùng). Nên nó chỉ hiện đúng thứ anh đã tự đánh dấu. */
+      var h = '<table><tr><th>Plugin</th><th>Đang chạy</th><th>Đã thử ổn</th><th>Bản mới</th><th></th></tr>';
       r.ds.forEach(function(p){
+        var on = p.onDinh || '';
+        var cu = p.banCu || [];
         h += '<tr><td><b>' + esc(p.ten) + '</b></td>'
           + '<td class="num">' + esc(p.hien) + '</td>'
+          + '<td class="num">' + (on ? ('<span class="on">✓ ' + esc(on) + '</span>') : '—') + '</td>'
           + '<td class="num">' + (p.moi ? ('<span class="moi">' + esc(p.moi) + '</span>') : '—') + '</td>'
           + '<td style="text-align:right">'
-          + (p.moi ? ('<button data-ma="' + esc(p.ma) + '">Cập nhật</button>') : '') + '</td></tr>';
+          + (p.moi ? ('<button data-ma="' + esc(p.ma) + '">Cập nhật</button> ') : '')
+          + (on === p.hien
+              ? ''
+              : ('<button class="nhe" data-on="' + esc(p.ma) + '" data-ban="' + esc(p.hien) + '">Đánh dấu ổn</button> '));
+        /* Ô lùi bản: chỉ hiện khi có ảnh chụp, tức là khi plugin Cứu Hộ đã cài và đã chụp được
+           ít nhất một bản. Chưa có thì không vẽ gì — đừng bày một nút bấm vào không ăn. */
+        if (cu.length) {
+          h += '<select data-lui="' + esc(p.ma) + '">';
+          cu.forEach(function(a){ h += '<option value="' + esc(a.tep) + '">' + esc(a.ban) + '</option>'; });
+          h += '</select> <button class="nhe" data-luiv="' + esc(p.ma) + '">Lùi về</button>';
+        }
+        h += '</td></tr>';
       });
       box.innerHTML = h + '</table>';
+
+      [].forEach.call(box.querySelectorAll('[data-on]'), function(b){
+        b.onclick = function(){
+          b.disabled = true;
+          goi('cn_danh_dau', { ma: b.getAttribute('data-on'), ban: b.getAttribute('data-ban') }, function(){
+            tai(false);
+          });
+        };
+      });
+      [].forEach.call(box.querySelectorAll('[data-luiv]'), function(b){
+        b.onclick = function(){
+          var ma = b.getAttribute('data-luiv');
+          var o  = box.querySelector('[data-lui="' + ma + '"]');
+          if (!o || !o.value) return;
+          if (!confirm('Lùi ' + ma + ' về bản ' + o.options[o.selectedIndex].text + '?')) return;
+          b.disabled = true; b.textContent = 'Đang lùi…';
+          goi('cn_lui', { tep: o.value }, function(r2){
+            alert((r2 && (r2.thongBao || r2.error)) || 'Không rõ kết quả — tải lại trang rồi xem số bản.');
+            tai(false);
+          }, 120000);
+        };
+      });
       [].forEach.call(box.querySelectorAll('[data-ma]'), function(b){
         b.onclick = function(){
           var ma = b.getAttribute('data-ma');
@@ -242,6 +282,11 @@ JS;
 			. 'td{border-top:1px solid #e5e5e5;padding:12px 0;vertical-align:middle}'
 			. '.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}'
 			. '.moi{color:#b45309;font-weight:700}'
+			. '.on{color:#047857;font-weight:700}'
+			/* Nút phụ (đánh dấu ổn · lùi về) nhạt hơn nút Cập nhật — hai việc khác hẳn nhau về
+			   hậu quả, đừng để chúng trông giống nhau trên một hàng hẹp của điện thoại. */
+			. 'button.nhe{background:#fff;color:#0a0a0a;border:1px solid #e5e5e5;font-weight:600}'
+			. 'select{font:inherit;padding:7px 8px;border:1px solid #e5e5e5;border-radius:12px;background:#fff}'
 			. '.loi{color:#e7000b;font-size:13px;margin-top:10px;min-height:18px}'
 			. '@media(max-width:480px){td,th{font-size:13px}}';
 	}
@@ -392,9 +437,55 @@ JS;
 				}
 			}
 			$ra[] = array( 'ma' => (string) $p['ma'], 'ten' => (string) $p['ten'],
-				'hien' => (string) $p['hien'], 'moi' => $moi );
+				'hien' => (string) $p['hien'], 'moi' => $moi,
+				'onDinh' => self::cn_ban_on_( (string) $p['ma'] ),
+				'banCu'  => self::cn_ban_cu_( (string) $p['ma'] ) );
 		}
 		return array( 'ok' => true, 'ds' => $ra );
+	}
+
+	/**
+	 * ═══════════════════════════════════════════════════════════════════════════════════════════
+	 * BẢN ĐÃ ĐÁNH DẤU "CHẠY ỔN" — anh Thắng 16/09/2026: *"lúc test bản nào chạy ổn, anh sẽ chọn
+	 * bản mới để up, tránh cứ lỗi nếu chọn bản tiếp"*.
+	 *
+	 * Ghi nhớ bằng tay chứ không suy ra. Không có cách nào để máy biết một bản "chạy ổn": cài
+	 * xong không nổ KHÔNG có nghĩa là ổn — cả hai lỗi câm hôm nay (phạm vi 0 cơ sở, chưa chấm
+	 * công) đều cài trót lọt rồi mới lộ ra khi có người thật dùng. Nên chỉ người dùng mới đánh
+	 * dấu được, và dấu ấy chỉ nói đúng một điều: "tôi đã dùng bản này và nó chạy".
+	 * ═══════════════════════════════════════════════════════════════════════════════════════════
+	 */
+	const O_BAN_ON = 'vhg_it_ban_on';
+
+	private static function cn_ban_on_( $ma ) {
+		$b = get_option( self::O_BAN_ON, array() );
+		return ( is_array( $b ) && isset( $b[ $ma ] ) ) ? (string) $b[ $ma ] : '';
+	}
+
+	private static function cn_danh_dau_( $ma, $ban ) {
+		$b = get_option( self::O_BAN_ON, array() );
+		if ( ! is_array( $b ) ) { $b = array(); }
+		if ( '' === $ban ) { unset( $b[ $ma ] ); } else { $b[ $ma ] = $ban; }
+		update_option( self::O_BAN_ON, $b );
+		return array( 'ok' => true, 'onDinh' => $ban );
+	}
+
+	/**
+	 * CÁC BẢN CŨ CÒN CÀI LẠI ĐƯỢC — lấy từ kho ảnh chụp của plugin Cứu Hộ.
+	 *
+	 * ⚠️ PHỤ THUỘC MỘT CHIỀU VÀ ĐƯỢC PHÉP VẮNG. Chưa cài Cứu Hộ thì bộ lọc không ai gắn, trả về
+	 *    mảng rỗng, và ô chọn bản chỉ còn bản mới nhất — đúng như trước. Không bao giờ để trang
+	 *    này đỏ vì thiếu plugin kia.
+	 * ⚠️ Chiều ngược lại thì CẤM: Cứu Hộ không được gọi sang đây. Nó phải chạy được vào cái hôm
+	 *    mà trang này đã chết — xem khối đầu vhcp-cuu-ho.php.
+	 */
+	private static function cn_ban_cu_( $ma ) {
+		$ra = array();
+		foreach ( (array) apply_filters( 'vhcp_cuu_ho_anh', array() ) as $a ) {
+			if ( ! is_array( $a ) || ! isset( $a['ma'] ) || (string) $a['ma'] !== $ma ) { continue; }
+			$ra[] = array( 'ban' => (string) $a['ban'], 'tep' => (string) $a['tep'], 'moc' => (string) $a['moc'] );
+		}
+		return $ra;
 	}
 
 	/**
@@ -889,6 +980,25 @@ JS;
 				return;
 			}
 			if ( 'cn_ds' === $viec )   { self::tra( self::cn_ds_( ! empty( $d['soat'] ) ) ); return; }
+			if ( 'cn_danh_dau' === $viec ) {
+				self::tra( self::cn_danh_dau_( isset( $d['ma'] ) ? sanitize_key( $d['ma'] ) : '',
+					isset( $d['ban'] ) ? preg_replace( '/[^0-9.]/', '', (string) $d['ban'] ) : '' ) );
+				return;
+			}
+			if ( 'cn_lui' === $viec ) {
+				/* 🔴 KHÔNG TỰ CÀI Ở ĐÂY — đẩy sang plugin Cứu Hộ qua bộ lọc, và CHÍNH NÓ soát
+				   quyền lần nữa. Quyền phải soát ở chỗ thực hiện, không phải ở chỗ vẽ nút. */
+				$kq = apply_filters( 'vhcp_cuu_ho_cai', null,
+					isset( $d['tep'] ) ? basename( (string) $d['tep'] ) : '' );
+				if ( ! is_array( $kq ) ) {
+					self::tra( array( 'ok' => false, 'error' => 'Chưa cài plugin Cứu Hộ nên không có bản cũ để lùi về.' ) );
+					return;
+				}
+				self::tra( empty( $kq['ok'] )
+					? array( 'ok' => false, 'error' => (string) $kq['loi'] )
+					: array( 'ok' => true, 'thongBao' => 'Đã lùi ' . $kq['ma'] . ' về bản ' . $kq['ban'] . '.' ) );
+				return;
+			}
 			if ( 'cn_chay' === $viec ) {
 				self::tra( self::cn_chay_( isset( $d['ma'] ) ? (string) $d['ma'] : '', (string) $ai['name'] ) );
 				return;

@@ -3,7 +3,7 @@
  * Plugin Name:       Cứu Hộ Plugin (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Chụp lại bản cũ trước mỗi lượt cập nhật, và cho hạ cấp về bản trước bằng một nút — kể cả khi plugin kia đã chết.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -37,7 +37,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCH_VERSION', '1.0.0' );
+define( 'VHCH_VERSION', '1.1.0' );
 
 if ( ! class_exists( 'VHCH_CuuHo' ) ) :
 
@@ -58,6 +58,35 @@ class VHCH_CuuHo {
 		add_filter( 'upgrader_pre_install', array( __CLASS__, 'chup_truoc' ), 10, 2 );
 		add_action( 'init', array( __CLASS__, 'phuc_vu' ), 1 );
 		add_action( 'admin_menu', array( __CLASS__, 'menu' ) );
+		/* 🔴 MỞ KHO RA CHO TRANG KHÁC ĐỌC — MỘT CHIỀU, CHỈ ĐỌC.
+		   Trang /it (trong plugin Ghế) dựng ô "chọn bản để cài" từ danh sách này, nên anh Thắng
+		   chọn được đúng bản đã thử ổn thay vì chỉ có mỗi bản mới nhất.
+		   ⚠️ Chiều phụ thuộc phải là /it → cứu hộ, TUYỆT ĐỐI không ngược lại. Cứu hộ mà cần /it
+		      còn sống mới chạy được thì nó thành đúng thứ nó đi chữa. Bộ lọc là một chiều: bên
+		      này khai ra rồi thôi, không hỏi han gì bên kia, không có bên kia cũng không sao. */
+		add_filter( 'vhcp_cuu_ho_anh', array( __CLASS__, 'khai_anh' ) );
+		add_filter( 'vhcp_cuu_ho_cai', array( __CLASS__, 'cai_ho' ), 10, 2 );
+	}
+
+	/** Khai danh sách ảnh chụp cho trang khác đọc. Xem khối 🔴 ở init(). */
+	public static function khai_anh( $ds ) {
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		foreach ( self::ds_anh() as $a ) { $ds[] = $a; }
+		return $ds;
+	}
+
+	/**
+	 * CÀI HỘ MỘT ẢNH CHỤP cho trang khác gọi sang.
+	 *
+	 * 🔴 SOÁT QUYỀN TẠI ĐÂY, ĐỪNG TIN BÊN GỌI. Bộ lọc thì ai gắn vào cũng gọi được; một plugin
+	 *    thứ ba (hay một lỗi ở /it) mà gọi nhầm là cài đè mã nguồn lên máy chủ. Quyền phải soát
+	 *    ở chỗ THỰC HIỆN, không phải ở chỗ vẽ nút.
+	 */
+	public static function cai_ho( $tra, $tep ) {
+		if ( ! is_user_logged_in() || ! current_user_can( 'update_plugins' ) ) {
+			return array( 'ok' => false, 'loi' => 'Không đủ quyền cài plugin.' );
+		}
+		return self::ha_cap( (string) $tep );
 	}
 
 	// ══════════════════════════════════════════════════════════════════════ kho ảnh chụp
