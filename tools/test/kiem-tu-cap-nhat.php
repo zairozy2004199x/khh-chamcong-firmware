@@ -40,7 +40,11 @@ function rel( $tag, $co_zip = true, $draft = false, $pre = false ) {
 		'body' => 'ghi chú ' . $tag, 'published_at' => '2026-09-13T10:00:00Z', 'assets' => array() );
 	if ( $co_zip ) {
 		$r['assets'][] = array( 'name' => 'vhcp-chi-phi.zip',
-			'url' => 'https://api.github.com/repos/x/y/releases/assets/' . crc32( $tag ) );
+			/* ⚠️ DÙNG ĐÚNG TÊN KHO THẬT, không phải `x/y`. Bộ lọc gắn khoá chỉ nhận địa chỉ của
+			   CHÍNH kho này (cố ý — gắn bừa là gửi khoá tới mọi máy chủ khác). Đồ thử mang tên
+			   kho giả thì bộ lọc từ chối đúng, mà phép thử lại đỏ vì lý do chẳng liên quan. */
+			'url' => 'https://api.github.com/repos/' . VHCP_TuCapNhat::REPO
+				. '/releases/assets/' . crc32( $tag ) );
 	}
 	return $r;
 }
@@ -162,10 +166,40 @@ t( '🔴 bản mới được chèn vào danh sách cập nhật của WordPress
 if ( isset( $tr->response[ $duong ] ) ) {
 	$o = $tr->response[ $duong ];
 	teq( '   đúng số phiên bản', '9.9.0', $o->new_version );
-	/* Repo riêng tư: WordPress tải gói bằng một lượt gọi thẳng, không qua bộ lọc nào của ta,
-	   nên khoá phải nằm sẵn trong địa chỉ — không thì tải về một trang "404 Not Found". */
-	t( '🔴 địa chỉ tải mang theo khoá (repo riêng tư)',
-		false !== strpos( $o->package, 'ghp_KHOA_BI_MAT_123@' ), '(không in địa chỉ ra đây)' );
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	   🔴 ĐỊA CHỈ TẢI PHẢI SẠCH — KHÔNG MANG KHOÁ. Phép này TRƯỚC ĐÂY canh điều NGƯỢC LẠI, và
+	   chính nó giữ cho cái lỗi sống suốt: nó bắt địa chỉ PHẢI có `<khoá>@`.
+
+	   16/09/2026 anh Thắng gửi ảnh hộp thoại trên trang: *"Download failed. Địa chỉ URL không
+	   hợp lệ"* — và trong câu báo lỗi ấy là NGUYÊN CÁI KHOÁ GitHub của anh, in ra màn hình rồi
+	   đi vào ảnh chụp. Phải thu hồi khoá.
+
+	   Hai điều bản cũ tin là đúng, cả hai đều sai:
+	     · "repo riêng tư nên phải nhét khoá vào địa chỉ" — kho này CÔNG KHAI (§4), tải gói
+	       không cần khoá.
+	     · "WordPress tải thẳng, không qua bộ lọc nào của ta" — có: `http_request_args` chạy cho
+	       MỌI lượt gọi HTTP, kể cả lượt tải gói của bộ nâng cấp.
+	   Và `wp_http_validate_url()` vốn CHỐI mọi địa chỉ `user@host`, nên đường ấy chưa từng tải
+	   được lần nào — phép thử cũ xanh, mà tính năng thì chưa bao giờ chạy.
+
+	   Bài học ghi lại: một phép thử phát biểu SAI luật còn nguy hơn không có phép nào. Nó cho
+	   người sau một cái cớ để giữ đúng chỗ cần bỏ.
+	   ═══════════════════════════════════════════════════════════════════════════════════════ */
+	t( '🔴 địa chỉ tải KHÔNG mang khoá — khoá đi ở tiêu đề, xem `them_khoa_tai()`',
+		false === strpos( $o->package, '@' ) || false === strpos( $o->package, 'KHOA_BI_MAT' ),
+		'(không in địa chỉ ra đây)' );
+	t( '   và bộ lọc gắn khoá vào tiêu đề có tồn tại',
+		method_exists( 'VHCP_TuCapNhat', 'them_khoa_tai' ) );
+	/* Gọi thẳng bộ lọc: đúng địa chỉ gói thì gắn khoá, địa chỉ khác thì TUYỆT ĐỐI không —
+	   gắn bừa là gửi khoá GitHub của anh Thắng tới mọi máy chủ plugin khác gọi tới. */
+	$args_goi = VHCP_TuCapNhat::them_khoa_tai( array(), $o->package );
+	t( '   gọi tới gói thì có tiêu đề Authorization',
+		isset( $args_goi['headers']['Authorization'] ), $args_goi );
+	t( '   và có Accept: octet-stream (thiếu là GitHub trả JSON thay vì tệp)',
+		isset( $args_goi['headers']['Accept'] )
+		&& 'application/octet-stream' === $args_goi['headers']['Accept'], $args_goi );
+	$args_la = VHCP_TuCapNhat::them_khoa_tai( array(), 'https://example.com/gi-do.zip' );
+	t( '🔴 địa chỉ LẠ thì KHÔNG gắn khoá', ! isset( $args_la['headers']['Authorization'] ), $args_la );
 	teq( '   và trỏ đúng vào tệp đính kèm của release', true,
 		false !== strpos( $o->package, 'releases/assets/' ) );
 }

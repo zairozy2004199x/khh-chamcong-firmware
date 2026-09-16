@@ -56,6 +56,9 @@ class VHCP_TuCapNhat {
 		   một bản zip nào đó mang tên khác (tải tay từ giao diện GitHub chẳng hạn) thì plugin
 		   bị cài thành một bản SONG SONG, và trang chạy bản cũ trong khi anh tưởng đã cập nhật. */
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'sua_ten_thu_muc' ), 10, 4 );
+		/* Gắn khoá vào TIÊU ĐỀ cho lượt tải gói — xem `goi_tai()`
+		   để biết vì sao không được nhét vào địa chỉ. */
+		add_filter( 'http_request_args', array( __CLASS__, 'them_khoa_tai' ), 10, 2 );
 		/* Tự khai vào bảng của trang IT — xem khối dài ở `khai_ds()`. */
 		add_filter( 'vhcp_tu_cap_nhat_ds', array( __CLASS__, 'khai_ds' ) );
 	}
@@ -215,19 +218,52 @@ class VHCP_TuCapNhat {
 	}
 
 	/**
-	 * ĐƯỜNG TẢI GÓI.
+	 * ĐƯỜNG TẢI GÓI — ĐỊA CHỈ TRẦN, KHOÁ ĐI Ở TIÊU ĐỀ.
 	 *
-	 * 🔴 REPO RIÊNG TƯ THÌ ĐỊA CHỈ TẢI PHẢI MANG KHOÁ. WordPress tải gói bằng một lượt gọi
-	 *    thẳng, không đi qua bộ lọc nào của ta, nên khoá phải nằm sẵn trong địa chỉ.
-	 *    GitHub nhận `?access_token=` đã bỏ từ lâu; cách còn dùng được là đặt khoá vào phần
-	 *    "người dùng" của địa chỉ — `https://<khoá>@api.github.com/…`.
+	 * =========================================================================================
+	 * 🔴 BẢN TRƯỚC NHÉT KHOÁ VÀO ĐỊA CHỈ (`https://<khoá>@api.github.com/…`) — HỎNG CẢ HAI ĐẦU.
+	 * =========================================================================================
+	 * Anh Thắng 16/09/2026 gửi ảnh hộp thoại trên trang: *"Download failed. Địa chỉ URL không
+	 * hợp lệ"* — và trong chính câu báo lỗi ấy là NGUYÊN CÁI KHOÁ, in ra màn hình rồi đi vào ảnh
+	 * chụp. Khoá coi như lộ, phải thu hồi.
 	 *
-	 * ⚠️ VÌ VẬY ĐỊA CHỈ NÀY CHỨA BÍ MẬT: không log nó, không in nó ra màn hình.
+	 * Hai lỗi cùng một nguyên nhân:
+	 *   1. KHÔNG TẢI ĐƯỢC. `wp_http_validate_url()` CHỐI mọi địa chỉ có phần "người dùng"
+	 *      (`user@host`) — chốt chống SSRF của WordPress, có từ lâu và sẽ không bỏ. Nên đường
+	 *      tải ấy chưa bao giờ chạy được, chỉ là tới hôm nay mới có người bấm.
+	 *   2. LỘ KHOÁ. Chú thích cũ dặn *"không log nó, không in nó ra màn hình"* — nhưng người in
+	 *      ra không phải mã của mình: WordPress dán nguyên địa chỉ hỏng vào câu báo lỗi. Dặn dò
+	 *      không chặn được điều đó; chỉ KHÔNG ĐỂ BÍ MẬT TRONG ĐỊA CHỈ mới chặn được.
+	 *
+	 * 🔴 CÁCH ĐÚNG: địa chỉ để trần, khoá gắn vào tiêu đề `Authorization` qua bộ lọc
+	 *    `http_request_args` — WordPress chạy bộ lọc ấy cho MỌI lượt gọi HTTP, kể cả lượt tải
+	 *    gói của bộ nâng cấp. Tiêu đề không nằm trong địa chỉ nên không lọt vào câu báo lỗi nào.
+	 *
+	 * ⚠️ Kho này CÔNG KHAI (CLAUDE.md §4) nên tải gói vốn KHÔNG CẦN khoá; khoá chỉ để nới trần
+	 *    số lượt gọi API. Chưa khai khoá thì mọi thứ vẫn chạy y nguyên.
 	 */
 	private static function goi_tai( $zip ) {
+		return $zip;
+	}
+
+	/**
+	 * Gắn khoá + `Accept` cho đúng lượt gọi tới gói của kho này.
+	 *
+	 * ⚠️ `Accept: application/octet-stream` LÀ BẮT BUỘC với địa chỉ API của tệp đính kèm. Thiếu
+	 *    nó thì GitHub trả về JSON MÔ TẢ tệp chứ không phải tệp — WordPress lưu cục JSON ấy
+	 *    thành .zip rồi báo "gói không hợp lệ", một câu chẳng chỉ về đâu cả.
+	 *
+	 * ⚠️ CHỈ gắn cho địa chỉ của CHÍNH kho này. Gắn cho mọi lượt gọi là gửi khoá GitHub tới bất
+	 *    cứ máy chủ nào plugin khác trên site gọi tới.
+	 */
+	public static function them_khoa_tai( $args, $url ) {
+		$goc = 'https://api.github.com/repos/' . self::REPO . '/releases/assets/';
+		if ( 0 !== strpos( (string) $url, $goc ) ) { return $args; }
+		if ( ! isset( $args['headers'] ) || ! is_array( $args['headers'] ) ) { $args['headers'] = array(); }
+		$args['headers']['Accept'] = 'application/octet-stream';
 		$khoa = trim( (string) get_option( self::O_KHOA, '' ) );
-		if ( '' === $khoa ) { return $zip; }
-		return preg_replace( '#^https://#', 'https://' . rawurlencode( $khoa ) . '@', $zip );
+		if ( '' !== $khoa ) { $args['headers']['Authorization'] = 'Bearer ' . $khoa; }
+		return $args;
 	}
 
 	/** Nội dung hộp "Xem chi tiết" của plugin. */

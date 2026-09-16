@@ -3,7 +3,7 @@
  * Plugin Name:       Nền tảng K&H
  * Plugin URI:        https://khh.vn/
  * Description:       Nền tảng quản trị nội bộ 15 ứng dụng: dự án & công việc, đề xuất, quy trình, hồ sơ nhân sự, chấm công, bảng công, nghỉ phép, bảng lương (bảo hiểm + thuế TNCN), thông báo, tri thức, họp, trò chuyện, bảng tin, đặt tài nguyên.
- * Version:           1.18.0
+ * Version:           1.19.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_VERSION', '1.18.0' );
+define( 'KHH_VERSION', '1.19.0' );
 define( 'KHH_FILE', __FILE__ );
 define( 'KHH_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_URL', plugin_dir_url( __FILE__ ) );
