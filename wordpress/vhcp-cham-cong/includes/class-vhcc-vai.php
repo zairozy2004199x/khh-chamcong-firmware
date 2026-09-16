@@ -114,6 +114,16 @@ class VHCC_Vai {
 		                                  // hai bậc rủi ro khác hẳn nhau.
 		'ngoai_coso'   => self::QL,       // việc ẢNH HƯỞNG NGOÀI phạm vi một cửa hàng:
 		                                  // tăng cường, khoá bảng, xoá thống kê, cấu hình lịch
+		'gia_gio'      => self::QL,       // SỬA đơn giá giờ của cơ sở.
+		                                  // 🔴 TÁCH KHỎI `luong` (bậc 4) THEO ĐÚNG LỜI ANH THẮNG
+		                                  // 16/09/2026: *"Kế toán, quản lý chỉnh sửa được, còn
+		                                  // cửa hàng trưởng chỉ xem được"*. Để nó ở bậc 4 là
+		                                  // Quản lý — người trực tiếp chốt giá với cửa hàng —
+		                                  // phải đi nhờ kế toán gõ hộ từng con số.
+		                                  // ⚠️ CHỈ LÀ QUYỀN SỬA. Quyền XEM đơn giá thấp hơn hẳn:
+		                                  // Cửa hàng trưởng (`cong_coso`) nhìn được bảng giá của
+		                                  // cơ sở mình để đối chiếu lương, nhưng ô gõ hiện ra
+		                                  // dạng chỉ đọc. Xem `VHCC_GiaGio::QUYEN_XEM`.
 
 		/* --- bậc 4: kế toán ("full quyền ngoài admin") --- */
 		'luong'        => self::KE_TOAN,  // bảng lương, đơn giá, ngày công chuẩn
@@ -199,7 +209,8 @@ class VHCC_Vai {
 		'xu_ly_loi'    => 'Kết luận / đóng cờ',
 		'nap_cong'     => 'Nạp cả tháng công từ .csv',
 		'ngoai_coso'   => 'Việc ảnh hưởng ngoài một cửa hàng',
-		'luong'        => 'Bảng lương, đơn giá, ngày công chuẩn',
+		'gia_gio'      => 'SỬA đơn giá giờ của cơ sở',
+		'luong'        => 'Bảng lương, ngày công chuẩn',
 		'ngay_le'      => 'Lịch nghỉ lễ',
 		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
 		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',

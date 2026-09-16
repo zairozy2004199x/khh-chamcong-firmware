@@ -7556,17 +7556,21 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QTCNOANH',
 $h_tt = vhcc_web( '135791', array(), $g_qtc );
 t( 'vẫn đang soi màn bảng công thật (không phải màn đăng nhập)',
 	strpos( $h_tt, 'name="pin"' ) === false && strpos( $h_tt, 'id="luoithang"' ) !== false, null );
-$_i_anh  = strpos( $h_tt, 'chưa có ảnh thẻ' );
-$_i_luoi2 = strpos( $h_tt, 'id="luoithang"' );
-t( 'khối "chưa có ảnh thẻ" CÓ vẽ (nếu không thì phép dưới vô nghĩa)', false !== $_i_anh, null );
-t( 'và khối Lưới cũng có mặt', false !== $_i_luoi2, null );
-t( '🔴 LƯỚI đứng TRƯỚC khối "chưa có ảnh thẻ"',
-	false !== $_i_anh && false !== $_i_luoi2 && $_i_luoi2 < $_i_anh,
-	'luoi=' . var_export( $_i_luoi2, true ) . ' anh=' . var_export( $_i_anh, true ) );
-/* Đổi chỗ KHÔNG được làm mất khối ảnh thẻ — người mới vẫn phải có đường tải ảnh lên. */
-t( 'khối ảnh thẻ vẫn còn nút tải lên', strpos( $h_tt, 'name="atx_anh"' ) !== false, null );
-t( 'và vẫn gọi đúng tên người thiếu ảnh',
-	strpos( $h_tt, 'Người Chưa Có Ảnh' ) !== false, null );
+/* 🔴 16/09/2026 — KHỐI ẢNH THẺ ĐÃ RỜI HẲN KHỎI MÀN NÀY sang tab Khuôn mặt. Anh Thắng: *"Đẩy
+   này sang tab cấu hình khuôn mặt nhân viên"*. Lượt dời 09/09 (xuống dưới lưới) nay đi trọn. */
+t( 'khối Lưới vẫn có mặt', strpos( $h_tt, 'id="luoithang"' ) !== false, null );
+t( '🔴 màn Bảng công KHÔNG còn ô tải ảnh thẻ',
+	strpos( $h_tt, 'name="atx_anh"' ) === false, 'khối ảnh thẻ còn sót lại trên màn công' );
+/* ⚠️ ĐỪNG đo bằng "tên người ấy có xuất hiện không" — họ là nhân viên, nên tên họ nằm sẵn
+   trong LƯỚI CÔNG ở ngay trên. Đo đúng thứ đã dời đi: cái nhãn bấm-để-tải của khối cũ. */
+t( '🔴 và KHÔNG còn nhãn "bấm để tải ảnh thẻ" của khối cũ',
+	strpos( $h_tt, 'bấm để tải ảnh thẻ' ) === false, 'khối cũ còn sót trên màn công' );
+/* 🔴 NHƯNG KHÔNG BIẾN MẤT LẶNG LẼ. Người đã quen thấy khối ở đây mà mở ra trống trơn thì tưởng
+   mất tính năng. Phải còn đúng một dòng, và dòng ấy phải CHỈ ĐÚNG ĐƯỜNG. */
+t( 'còn một dòng chỉ đường sang tab Khuôn mặt',
+	strpos( $h_tt, 'chưa có ảnh thẻ' ) !== false && strpos( $h_tt, 'man=mat' ) !== false, $h_tt );
+t( 'và dòng ấy mang sẵn cơ sở đang xem, khỏi chọn lại',
+	strpos( $h_tt, 'man=mat&ccs=TUTU_BT' ) !== false, $h_tt );
 /* Cân thẻ lại sau khi đổi chỗ — chuyển một lời gọi ra ngoài nhánh `continue` là chỗ dễ hụt
    `</details>` nhất, mà hụt thì cả phần dưới lọt vào trong khối gập. */
 teq( '🔴 đổi chỗ xong thẻ <details> vẫn cân',
@@ -16515,8 +16519,11 @@ function vhcc_khoi_anh( $h ) {
 	}
 	return substr( $h, $d, $sau - $d );
 }
+/* 🔴 16/09/2026 — KHỐI NÀY NAY Ở TAB KHUÔN MẶT (`man=mat`), không còn trên màn Bảng công.
+   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*. Mọi phép dưới đây giữ nguyên
+   nội dung — chỉ đổi chỗ dựng — vì việc dời KHÔNG được làm mất một tính năng nào. */
 $h_anh = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
-	array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) ) );
+	array( 'man' => 'mat', 'ccs' => 'TUTU_BT' ) ) );
 t( '🔴 màn kêu người chưa có ảnh thẻ', '' !== $h_anh, $h_anh );
 t( 'và kể tên ra để còn biết gọi ai',
 	strpos( $h_anh, 'Không Ảnh' ) !== false, $h_anh );
@@ -16539,8 +16546,13 @@ teq( 'hỏi đúng cơ sở kia thì thấy', 1, count( array_filter(
 /* 🔴 GÕ TAY `ccs` CỦA CỬA HÀNG KHÁC THÌ KHỐI ẢNH PHẢI CÂM. Bảng công bên dưới có chối, nhưng
    khối này vẽ TRƯỚC chỗ chối ấy — thiếu chốt là đọc được họ tên + mã NV cả cơ sở đó. */
 $h_anh_lam = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
-	array( 'man' => 'cham', 'ccs' => 'JP_HCM' ) ) );
-t( '🔴 gõ tay cơ sở khác thì khối ảnh không vẽ ra', '' === $h_anh_lam, $h_anh_lam );
+	array( 'man' => 'mat', 'ccs' => 'JP_HCM' ) ) );
+/* 🔴 16/09/2026 — ĐO ĐÚNG THỨ PHẢI CANH: TÊN NGƯỜI của cơ sở lạ, không phải "khối rỗng".
+   Trên tab Khuôn mặt, ai chỉ phụ trách một cơ sở thì ô chọn tự về cơ sở CỦA HỌ, nên gõ tay
+   `ccs=JP_HCM` vẫn ra một khối — khối của TUTU_BT. Phép cũ đo "khối rỗng" nên đỏ vì lý do
+   chẳng liên quan tới rò rỉ; điều thật sự cấm là lộ người của JP_HCM. */
+t( '🔴 gõ tay cơ sở khác: KHÔNG lộ tên người của cơ sở ấy',
+	strpos( $h_anh_lam, 'JP_HCM' ) === false, $h_anh_lam );
 
 /* ==========================================================================================
  * 🔴 07/09/2026: "BỔ SUNG THÊM TRỰC TIẾP ẢNH THẺ NHÂN VIÊN TRÊN NÀY"
@@ -19551,11 +19563,17 @@ $h_cht = vhcc_web_nhu2( 'WMCHT', 'Cửa hàng trưởng', 'TUTU_BT', array( 'man
 t( 'trang có dựng thật cho Cửa hàng trưởng', strpos( $h_cht, 'K&amp;H' ) !== false
 	|| strpos( $h_cht, 'Chấm công' ) !== false, substr( $h_cht, 0, 400 ) );
 t( '🔴 Cửa hàng trưởng KHÔNG thấy bảng mẫu', strpos( $h_cht, 'Mẫu khuôn mặt' ) === false );
-/* 🔴 GÕ THẲNG `?man=mat` cũng không vào được — và không phải nhờ một phép gác thứ hai: danh
-   sách vẽ tab CHÍNH LÀ danh sách gác (`man_cua()`), nên không có cửa sau nào để quên. Trang rơi
-   về màn mặc định của họ, chứ không phải trang trắng. */
-t( 'gõ thẳng ?man=mat thì rơi về màn khác, không có tab Khuôn mặt trong cột dọc',
-	strpos( $h_cht, 'man=mat' ) === false, substr( $h_cht, 0, 300 ) );
+/* 🔴 16/09/2026 — CỬA HÀNG TRƯỞNG NAY CÓ TAB NÀY, NHƯNG CHỈ NỬA DƯỚI.
+   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"* — khối "chưa có ảnh thẻ" dời về
+   đây, mà khối ấy vốn mở tới bậc Cửa hàng trưởng. Nên tab phải hiện cho họ.
+   ⚠️ ĐIỀU KHÔNG ĐƯỢC ĐỔI là phép ngay trên: họ VẪN không thấy bảng Mẫu khuôn mặt. Một tab hai
+      cửa, mỗi khối tự gác lấy — nới cửa vào tab không được kéo theo cửa duyệt. */
+t( 'Cửa hàng trưởng CÓ tab Khuôn mặt (vì khối ảnh thẻ ở đó)',
+	strpos( $h_cht, 'man=mat' ) !== false, substr( $h_cht, 0, 300 ) );
+t( 'và thấy phần Ảnh thẻ nhân viên',
+	strpos( $h_cht, 'Ảnh thẻ nhân viên' ) !== false, substr( $h_cht, 0, 600 ) );
+t( '🔴 nhưng KHÔNG thấy bảng phân bố lệch (phần duyệt)',
+	strpos( $h_cht, 'Lệch bao nhiêu' ) === false, 'lộ phần duyệt cho cửa hàng trưởng' );
 /* ⚠️ THANG LÀ THANG. Anh Thắng nói *"Quản lý và admin duyệt"*, mà trên thang năm bậc thì "Quản
    lý trở lên" gồm cả Kế toán (bậc 4) đứng giữa. Không có cách nào khai "Quản lý và Admin nhưng
    KHÔNG Kế toán" mà không phá thang — và Kế toán vốn là bậc *"full quyền ngoài admin"*, nên nằm
@@ -20050,10 +20068,11 @@ $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => '' ), array( 'ma_n
 /* ⚠️ Dùng thẻ phiên thay vì đăng nhập bằng PIN: tới cuối tệp này nguồn người dùng đã bị mấy
    mục trên đổi qua đổi lại mấy lần, mà đăng nhập trượt thì trang chỉ có ô PIN — và mọi phép
    "không thấy X" bên dưới sẽ xanh mà chẳng chứng minh gì (bẫy xanh giả, đã trả giá ba lần). */
+/* 🔴 16/09/2026 — dựng trên TAB KHUÔN MẶT, nơi khối ảnh thẻ đã dời về. */
 $h_ac = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
-	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
-t( 'vẫn đang soi màn bảng công thật (không phải màn đăng nhập)',
-	strpos( $h_ac, 'name="pin"' ) === false && strpos( $h_ac, 'id="luoithang"' ) !== false,
+	array( 'man' => 'mat', 'ccs' => 'TUTU_BT' ) );
+t( 'vẫn đang soi màn Khuôn mặt thật (không phải màn đăng nhập)',
+	strpos( $h_ac, 'name="pin"' ) === false && strpos( $h_ac, 'Ảnh thẻ nhân viên' ) !== false,
 	substr( $h_ac, 0, 300 ) );
 t( '🔴 màn hiện ẢNH đề xuất ngay, không giấu sau thẻ gập',
 	strpos( $h_ac, 'vhcc-cham/2026/09/ac-ro.jpg' ) !== false, null );
@@ -20085,7 +20104,7 @@ t( 'và nói thẳng là cơ sở chưa gắn máy nào',
 $wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYAC2', 'mac' => '',
 	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử hai nút' ) );
 $h_ac2 = vhcc_web_nhu2( 'ACAD', 'Admin', 'TUTU_BT',
-	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-09' ) );
+	array( 'man' => 'mat', 'ccs' => 'TUTU_BT' ) );
 t( '🔴 cơ sở CÓ máy thì vẽ ĐỦ HAI nút',
 	strpos( $h_ac2, 'Chỉ lưu vào hồ sơ' ) !== false
 	&& strpos( $h_ac2, 'Lưu &amp; đẩy xuống máy' ) !== false, null );

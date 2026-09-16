@@ -41,7 +41,14 @@
  * ⚠️ KHOÁ CHỨC VỤ BỎ DẤU, BỎ HOA THƯỜNG (`VHCC_Luong::bo_chu`). Hồ sơ do người gõ tay nên cùng
  *    một việc có đủ kiểu viết — "Lái Tàu", "lái tàu", "LAI TAU", "Lái tàu ". Khoá theo chuỗi
  *    thô là khai một kiểu rồi tra kiểu khác không thấy, và người khai đinh ninh mình khai rồi.
- *    Tên hiển thị vẫn giữ nguyên bản người gõ — khoá để TRA, tên để ĐỌC.
+ *    Tên hiển thị giữ nguyên bản người gõ trong nhánh `ten` — khoá để TRA, tên để ĐỌC.
+ *    Xem `ten_cua()`; trước 16/09/2026 nhánh ấy chưa có nên bảng đọc bằng khoá.
+ *
+ * =============================================================================================
+ * 🔴 XEM VÀ SỬA LÀ HAI CỬA
+ * =============================================================================================
+ * `QUYEN` (sửa) ở bậc Quản lý; `QUYEN_XEM` ở bậc Cửa hàng trưởng. Anh Thắng 16/09/2026:
+ * *"Kế toán, quản lý chỉnh sửa được, còn cửa hàng trưởng chỉ xem được"*.
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
@@ -51,8 +58,28 @@ class VHCC_GiaGio {
 	/** Khoá trong bảng `cai_dat`. */
 	const O = 'GIA_GIO_COSO';
 
-	/** Khai đơn giá = đụng vào tiền của cả cơ sở → bậc Kế toán trở lên, cùng cửa với `luong`. */
-	const QUYEN = 'luong';
+	/**
+	 * SỬA đơn giá — bậc Quản lý trở lên.
+	 *
+	 * 🔴 KHÔNG ĐỨNG CHUNG CỬA VỚI `luong` (bậc Kế toán) NỮA. Anh Thắng 16/09/2026: *"Kế toán,
+	 *    quản lý chỉnh sửa được, còn cửa hàng trưởng chỉ xem được"*. Quản lý là người đi chốt
+	 *    giá với từng cửa hàng; bắt họ nhờ kế toán gõ hộ là thêm một người trung gian vào đúng
+	 *    chỗ dễ gõ nhầm nhất. Kế toán (bậc 4) và Admin (5) vẫn qua bằng bậc.
+	 */
+	const QUYEN = 'gia_gio';
+
+	/**
+	 * XEM đơn giá — bậc Cửa hàng trưởng.
+	 *
+	 * 🔴 XEM VÀ SỬA LÀ HAI CỬA KHÁC NHAU. Cửa hàng trưởng phải đối chiếu được lương của người
+	 *    mình quản, mà không thấy đơn giá thì bảng lương chỉ là một cột tiền không giải thích
+	 *    được. Cho xem thì họ soát hộ — giá khai nhầm một nghìn đồng là cả cơ sở sai cả tháng,
+	 *    và người phát hiện sớm nhất chính là người đứng ở cửa hàng.
+	 *
+	 * ⚠️ XEM Ở ĐÂY VẪN CÒN MỘT CHỐT NỮA: phạm vi cơ sở (`co_quyen_coso`). Khối vẽ ra phải tự
+	 *    hỏi, vì hằng số này không biết người xem đang mở cơ sở nào.
+	 */
+	const QUYEN_XEM = 'cong_coso';
 
 	/** Trần vô lý: trên mức này gần như chắc chắn là gõ dư số 0. */
 	const TRAN = 2000000;
@@ -68,9 +95,9 @@ class VHCC_GiaGio {
 	 */
 	public static function so() {
 		$d = VHCC_Luong::cai_dat( self::O, null );
-		$o = array( 'chung' => array(), 'coso' => array(), 'nguoi' => array() );
+		$o = array( 'chung' => array(), 'coso' => array(), 'nguoi' => array(), 'ten' => array() );
 		if ( ! is_array( $d ) ) { return $o; }
-		foreach ( array( 'chung', 'coso', 'nguoi' ) as $nhanh ) {
+		foreach ( array( 'chung', 'coso', 'nguoi', 'ten' ) as $nhanh ) {
 			if ( isset( $d[ $nhanh ] ) && is_array( $d[ $nhanh ] ) ) { $o[ $nhanh ] = $d[ $nhanh ]; }
 		}
 		return $o;
@@ -79,6 +106,25 @@ class VHCC_GiaGio {
 	/** Khoá tra của một chức vụ: bỏ dấu, bỏ hoa thường, bỏ khoảng trắng. */
 	public static function khoa_cv( $cv ) {
 		return VHCC_Luong::bo_chu( (string) $cv );
+	}
+
+	/**
+	 * TÊN ĐỌC ĐƯỢC CỦA MỘT KHOÁ CHỨC VỤ.
+	 *
+	 * 🔴 BẢN TRƯỚC VẼ THẲNG CÁI KHOÁ RA MÀN. Chú thích đầu tệp hứa *"tên hiển thị vẫn giữ nguyên
+	 *    bản người gõ — khoá để TRA, tên để ĐỌC"*, nhưng `sach_bang()` chỉ giữ lại khoá rồi vứt
+	 *    cách viết gốc đi. Anh Thắng 16/09/2026 gõ "Lái tàu · Lơ tàu · CHT", lưu xong mở lại thì
+	 *    bảng đọc là "laitau · lotau · cht". Một lời hứa trong chú thích mà mã không giữ thì còn
+	 *    tệ hơn không hứa: người đọc mã sau tin là đã có, không ai đi kiểm lại.
+	 *
+	 * Khoá cũ lưu trước bản này thì chưa có tên — trả lại chính khoá, đừng trả rỗng: một ô tên
+	 * trống thì người ta tưởng mất dòng và gõ đè lên bằng một dòng mới.
+	 */
+	public static function ten_cua( $khoa, $so = null ) {
+		$so = ( null === $so ) ? self::so() : $so;
+		$k  = (string) $khoa;
+		return ( isset( $so['ten'][ $k ] ) && '' !== trim( (string) $so['ten'][ $k ] ) )
+			? (string) $so['ten'][ $k ] : $k;
 	}
 
 	/** Khoá tra của một cơ sở — cùng phép chuẩn hoá, để `CS_` và hoa thường không đẻ ra hai sổ. */
@@ -134,10 +180,11 @@ class VHCC_GiaGio {
 	 *    phải "chưa khai" theo phép tra ở trên nếu mình nhận số 0), nên mức chung không đỡ được
 	 *    nữa mà màn thì trông như đã xoá. Xoá hẳn khoá mới đúng nghĩa "thôi không khai riêng".
 	 *
-	 * @return array( 'ds' => array, 'loi' => array )  loi = những chức vụ gõ sai
+	 * @return array( 'ds' => array, 'ten' => array, 'loi' => array )  loi = những chức vụ gõ sai
 	 */
 	public static function sach_bang( $vao ) {
 		$ds  = array();
+		$ten = array();
 		$loi = array();
 		foreach ( (array) $vao as $cv => $gia ) {
 			$k = ( '*' === $cv ) ? '*' : self::khoa_cv( $cv );
@@ -147,8 +194,29 @@ class VHCC_GiaGio {
 			$n = VHCC_NhanSu::so_tien( $s );
 			if ( $n <= 0 || $n > self::TRAN ) { $loi[] = (string) $cv; continue; }
 			$ds[ $k ] = (float) $n;
+			/* Giữ CÁCH VIẾT GỐC để còn đọc được — xem `ten_cua()`. Khoá `*` không phải tên người
+			   gõ mà là một quy ước của sổ, nên không ghi tên cho nó.
+
+			   ⚠️ TÊN TRÙNG Y HỆT KHOÁ THÌ KHÔNG GHI. Có biểu mẫu gửi lên chính cái khoá làm khoá
+			      mảng (bảng chung ở màn Cấu hình), nên nhận bừa là ghi đè "Lái tàu" thành
+			      "laitau" — đúng cái lỗi bản này đang đi sửa, chỉ là lần này do mình tự gây.
+			      Ghi tên trùng khoá cũng chẳng thêm gì: `ten_cua()` đã trả lại khoá khi thiếu. */
+			$tho = trim( (string) $cv );
+			if ( '*' !== $k && '' !== $tho && $tho !== $k ) { $ten[ $k ] = $tho; }
 		}
-		return array( 'ds' => $ds, 'loi' => $loi );
+		return array( 'ds' => $ds, 'ten' => $ten, 'loi' => $loi );
+	}
+
+	/**
+	 * Gộp tên mới vào sổ tên, KHÔNG ghi đè bằng mảng rỗng.
+	 *
+	 * ⚠️ Sổ tên dùng CHUNG cho cả ba tầng. Lưu bảng của một cơ sở mà thay sạch sổ tên là xoá tên
+	 *    những chức vụ chỉ có ở cơ sở khác — bảng của họ lại quay về đọc bằng khoá.
+	 */
+	private static function gop_ten( $so, $ten ) {
+		if ( ! isset( $so['ten'] ) || ! is_array( $so['ten'] ) ) { $so['ten'] = array(); }
+		foreach ( (array) $ten as $k => $v ) { $so['ten'][ $k ] = (string) $v; }
+		return $so;
 	}
 
 	private static function ghi( $u, $so ) {
@@ -158,7 +226,9 @@ class VHCC_GiaGio {
 	private static function gac( $u ) {
 		if ( ! VHCC_Vai::duoc( $u, self::QUYEN ) ) {
 			return VHCC_Vai::loi( $u, self::QUYEN, 'Khai đơn giá giờ' )
-				. ' Đơn giá quyết định tiền của cả cơ sở, nên nó đứng cùng cửa với bảng lương.';
+				. ' Đơn giá quyết định tiền của cả cơ sở nên chỉ Quản lý và Kế toán sửa được.'
+				. ' Cửa hàng trưởng vẫn XEM được bảng giá của cơ sở mình ngay dưới bảng lương —'
+				. ' thấy số sai thì báo lên, đừng sửa lén ở chỗ khác.';
 		}
 		return '';
 	}
@@ -174,6 +244,7 @@ class VHCC_GiaGio {
 		}
 		$so = self::so();
 		$so['chung'] = $r['ds'];
+		$so = self::gop_ten( $so, $r['ten'] );
 		self::ghi( $u, $so );
 		return array( 'ok' => true, 'so' => count( $r['ds'] ) );
 	}
@@ -192,6 +263,7 @@ class VHCC_GiaGio {
 		$so = self::so();
 		if ( $r['ds'] ) { $so['coso'][ $kcs ] = $r['ds']; }
 		else            { unset( $so['coso'][ $kcs ] ); }
+		$so = self::gop_ten( $so, $r['ten'] );
 		self::ghi( $u, $so );
 		return array( 'ok' => true, 'so' => count( $r['ds'] ) );
 	}
@@ -210,6 +282,7 @@ class VHCC_GiaGio {
 		$so = self::so();
 		if ( $r['ds'] ) { $so['nguoi'][ $kma ] = $r['ds']; }
 		else            { unset( $so['nguoi'][ $kma ] ); }
+		$so = self::gop_ten( $so, $r['ten'] );
 		self::ghi( $u, $so );
 		return array( 'ok' => true, 'so' => count( $r['ds'] ) );
 	}

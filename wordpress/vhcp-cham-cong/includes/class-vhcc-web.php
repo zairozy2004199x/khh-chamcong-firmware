@@ -1301,6 +1301,20 @@ class VHCC_Web {
 				/* 🔴 BA DÒNG TRỐNG Ở CUỐI BẢNG PHẢI ĐƯỢC ĐỌC. Vẽ ra ô để gõ mà bộ xử lý không
 				   nhận thì người ta gõ một chức vụ mới, bấm Lưu, màn báo "đã lưu" — và chức vụ
 				   ấy biến mất không dấu vết. Thà đừng vẽ ô còn hơn vẽ một ô không ăn. */
+				/* 🔴 DÒNG CŨ GỬI LÊN KHOÁ, KHÔNG PHẢI TÊN. Ô tên của dòng cũ là `gg_chung_ten[khoá]`
+				   (chỉ đọc), còn `gg_chung[khoá]` mới là giá. Bỏ qua ô tên ấy thì sổ nhận khoá
+				   làm tên và cách viết gốc mất luôn. Đổi khoá mảng về TÊN trước khi chuyển xuống;
+				   `sach_bang()` tự tính lại khoá nên tra cứu không đổi. */
+				$ten_cu = isset( $_POST['gg_chung_ten'] )
+					? (array) wp_unslash( $_POST['gg_chung_ten'] ) : array();
+				if ( $ten_cu ) {
+					$doi = array();
+					foreach ( $bang_c as $k_c => $g_c ) {
+						$t_c = isset( $ten_cu[ $k_c ] ) ? trim( (string) $ten_cu[ $k_c ] ) : '';
+						$doi[ '' === $t_c ? $k_c : $t_c ] = $g_c;
+					}
+					$bang_c = $doi;
+				}
 				$ten_moi = isset( $_POST['gg_chung_moi_ten'] )
 					? (array) wp_unslash( $_POST['gg_chung_moi_ten'] ) : array();
 				foreach ( (array) ( isset( $_POST['gg_chung_moi'] ) ? wp_unslash( $_POST['gg_chung_moi'] ) : array() )
@@ -1314,11 +1328,22 @@ class VHCC_Web {
 					: array( 'xong' => 'Đã lưu bảng đơn giá CHUNG của cả chuỗi (' . (int) $r['so']
 						. ' chức vụ). Cơ sở nào có bảng riêng thì bảng riêng vẫn thắng.' );
 			}
-			if ( isset( $_POST['gg_cs'] ) && '' !== $cs_g ) {
-				$r = VHCC_GiaGio::dat_coso( $toi, $cs_g, (array) wp_unslash( $_POST['gg_cs'] ) );
+			if ( ( isset( $_POST['gg_cs'] ) || isset( $_POST['gg_cs_moi'] ) ) && '' !== $cs_g ) {
+				$bang_cs = isset( $_POST['gg_cs'] ) ? (array) wp_unslash( $_POST['gg_cs'] ) : array();
+				/* Ba ô trống ở cuối bảng cơ sở — cùng lẽ với bảng chung ngay trên: vẽ ô ra mà
+				   không đọc thì người ta gõ xong, màn báo "đã lưu", và chức vụ ấy biến mất. */
+				$ten_cs = isset( $_POST['gg_cs_moi_ten'] )
+					? (array) wp_unslash( $_POST['gg_cs_moi_ten'] ) : array();
+				foreach ( (array) ( isset( $_POST['gg_cs_moi'] ) ? wp_unslash( $_POST['gg_cs_moi'] ) : array() )
+					as $i_c => $gia_c ) {
+					$tc = isset( $ten_cs[ $i_c ] ) ? trim( (string) $ten_cs[ $i_c ] ) : '';
+					if ( '' === $tc || '' === trim( (string) $gia_c ) ) { continue; }
+					$bang_cs[ $tc ] = $gia_c;
+				}
+				$r = VHCC_GiaGio::dat_coso( $toi, $cs_g, $bang_cs );
 				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
 					: array( 'xong' => 'Đã lưu đơn giá riêng của ' . $cs_g . ' (' . (int) $r['so']
-						. ' chức vụ). Mở lại khối Bảng lương cơ sở để thấy tiền.' );
+						. ' chức vụ). Bảng lương ngay trên đã tính lại theo giá mới.' );
 			}
 			if ( ! $bao_g ) { $bao_g[] = array( 'loi' => 'Không có ô đơn giá nào được gửi lên.' ); }
 			return $bao_g;
@@ -3294,7 +3319,12 @@ class VHCC_Web {
 		   Cửa hàng trưởng KHÔNG có mục này, dù họ nhận ra mặt người cơ sở mình nhanh hơn ai hết:
 		   thứ mẫu này canh là CHẤM HỘ, mà một lớp gác do chính người bị gác dựng lên thì không
 		   còn là lớp gác. */
-		if ( VHCC_Vai::duoc( $toi, VHCC_WebMat::QUYEN ) ) { $ds['mat'] = 'Khuôn mặt'; }
+		/* 🔴 HAI CỬA, MỘT TAB. `VHCC_WebMat::QUYEN` (Quản lý) là cửa DUYỆT mẫu; còn khối "chưa
+		   có ảnh thẻ" dời về đây 16/09/2026 mở tới bậc Cửa hàng trưởng (`them_nv`). Chỉ hỏi cửa
+		   trên là người có việc ở tab này lại không thấy tab. Mỗi khối bên trong tự gác lấy. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_WebMat::QUYEN ) || VHCC_Vai::duoc( $toi, 'them_nv' ) ) {
+			$ds['mat'] = 'Khuôn mặt';
+		}
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
 	}
@@ -3322,7 +3352,7 @@ class VHCC_Web {
 		'ns_coso'  => 'Người của cửa hàng: sửa liên lạc, cấp PIN',
 		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
-		'mat'      => 'Duyệt mẫu khuôn mặt của chấm công online',
+		'mat'      => 'Ảnh thẻ nhân viên và duyệt mẫu khuôn mặt',
 	);
 
 	public static function bieu_man( $k )  {
@@ -3423,7 +3453,9 @@ class VHCC_Web {
 	 * Đây đúng là loại lỗi mà cả `VHCC_Vai` sinh ra để dẹp: hỏi QUYỀN, đừng so TÊN VAI. Tìm ra
 	 * khi gộp khối lương vào màn này — khối in ra tên cơ sở, và tên ấy không khớp ô chọn.
 	 */
-	private static function ds_coso_xem( $toi ) {
+	/* Công khai để màn Khuôn mặt (`VHCC_WebMat`) dựng được ô chọn cơ sở của nó — chỉ ĐỌC danh
+	   sách cơ sở người này được xem, không nới thêm quyền gì. */
+	public static function ds_coso_xem( $toi ) {
 		if ( VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) ) { return VHCC_NhanSu::ds_coso(); }
 		return VHCC_NhanSu::ds_coso_cua( $toi );
 	}
@@ -4053,7 +4085,32 @@ class VHCC_Web {
 	 * (xem `luu_anh_the_thieu()`) và `VHCC_NhanSu::luu_anh_the_rieng()` chỉ đụng đúng cột
 	 * `anh_the` của đúng một mã — không chạm gì khác trong hồ sơ.
 	 */
-	private static function khoi_thieu_anh( $toi, $cs, $ky = '' ) {
+	/**
+	 * MỘT DÒNG CHỈ ĐƯỜNG sang tab Khuôn mặt, thay cho khối ảnh thẻ đã dời đi.
+	 *
+	 * Chỉ vẽ khi cơ sở này THẬT SỰ còn người thiếu ảnh — một lời nhắc thường trực ở nơi không
+	 * có việc gì để làm thì chỉ là thêm một dòng để mắt lướt qua, và lướt quen thì lúc có việc
+	 * thật cũng lướt nốt.
+	 */
+	private static function dong_chi_anh_the( $toi, $cs ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		$ds = VHCC_NhanSu::thieu_anh_the( $cs );
+		if ( ! $ds ) { return; }
+		echo '<p class="mo" style="margin:10px 0 0">📷 <b>' . count( $ds ) . ' người ở ' . esc_html( $cs )
+			. ' chưa có ảnh thẻ</b> — tải ảnh ở tab <a href="'
+			. esc_url( add_query_arg( array( 'man' => 'mat', 'ccs' => $cs ), self::url() ) )
+			. '"><b>🙂 Khuôn mặt</b></a>.</p>';
+	}
+
+	/* 🔴 16/09/2026 — KHỐI NÀY NAY SỐNG Ở TAB KHUÔN MẶT, không còn trên màn Bảng công.
+	   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*. Cùng lẽ với lượt dời
+	   09/09/2026 (xuống dưới lưới), chỉ là đi nốt quãng còn lại: tải ảnh thẻ là việc làm MỘT
+	   LẦN cho người mới, còn Bảng công là thứ mở ra hằng ngày để đọc. Và ảnh thẻ chính là mẫu
+	   đối chiếu của chấm công online — tức là nó vốn thuộc về màn Khuôn mặt, không phải màn công.
+	   `public` vì `VHCC_WebMat::man()` gọi sang; cửa quyền vẫn nguyên trong thân hàm. */
+	public static function khoi_thieu_anh( $toi, $cs, $ky = '' ) {
 		if ( '' === $cs ) { return; }
 		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
 		/* 🔴 CHỐT CƠ SỞ, VÀ ĐÂY LÀ CHỖ SUÝT RÒ. `$cs` đến thẳng từ thanh địa chỉ; bảng công bên
@@ -4341,7 +4398,6 @@ class VHCC_Web {
 		if ( '' === $cs && '' !== $bp && $ds_cs ) { $hien_het = true; }
 
 		if ( '' === $cs && ! $hien_het ) {
-			self::khoi_thieu_anh( $toi, $cs, $ky );
 			echo '<p class="mo" style="margin-top:12px">'
 				/* Chỉ đường sang dải Bộ phận thay vì chỉ nói "chọn cơ sở": từ 01/09/2026 bấm một
 				   bộ phận là ra thẳng bảng công của từng cơ sở trong đó, nhanh hơn hẳn đường
@@ -4409,24 +4465,22 @@ class VHCC_Web {
 				. ' <span class="mo">· tháng ' . esc_html( $th ) . '</span></summary>';
 			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
 			if ( empty( $b['ok'] ) ) {
-				/* Bảng hỏng thì khối ảnh thẻ VẪN vẽ — nó không phụ thuộc bảng, và đây đúng là
-				   lúc người ta còn đứng lại trên màn này. */
 				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
-				self::khoi_thieu_anh( $toi, $mot_cs, $ky );
 				echo '</details></div>';
 				continue;
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
 
-			/* 🔴 09/09/2026 — KHỐI "CHƯA CÓ ẢNH THẺ" XUỐNG DƯỚI BẢNG. Anh Thắng: *"khi vào bảng
-			   công, thì lưới công luôn xổ ra và hiện lên đầu"*, kèm ảnh: cả màn hình đầu tiên là
-			   một dải vàng liệt kê mười mấy người chưa có ảnh thẻ, còn lưới thì nằm tít dưới đáy
-			   và đang gập.
-			   Khối ấy đúng là cần có, nhưng nó là VIỆC LÀM MỘT LẦN (tải ảnh cho người mới), còn
-			   lưới là thứ mở màn này ra để xem, ngày nào cũng xem. Đặt việc-một-lần chắn trước
-			   việc-hằng-ngày thì mỗi lượt vào là một lượt cuộn qua nó. Vẫn cùng một ô cơ sở,
-			   không mất đi đâu — chỉ đổi chỗ. */
-			self::khoi_thieu_anh( $toi, $mot_cs, $ky );
+			/* 🔴 16/09/2026 — KHỐI "CHƯA CÓ ẢNH THẺ" ĐÃ RỜI HẲN SANG TAB KHUÔN MẶT.
+			   Anh Thắng: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*. Đây là quãng còn lại
+			   của lượt dời 09/09/2026 (khi ấy mới đẩy nó xuống dưới lưới, sau khi anh gửi ảnh cả
+			   màn hình đầu là một dải vàng liệt kê mười mấy người, còn lưới nằm tít đáy).
+			   Lý do vẫn thế và nay đi trọn: tải ảnh thẻ là VIỆC LÀM MỘT LẦN cho người mới, còn
+			   lưới công là thứ mở ra hằng ngày để đọc — mà ảnh thẻ thì vốn là mẫu đối chiếu của
+			   chấm công online, tức thuộc về màn Khuôn mặt chứ không phải màn công.
+			   ⚠️ CHỈ MỘT DÒNG CHỈ ĐƯỜNG, KHÔNG BIẾN MẤT LẶNG LẼ. Người đã quen thấy khối ở đây
+			      mà mở ra không còn gì thì tưởng mất tính năng, rồi đi hỏi. Một dòng là đủ. */
+			self::dong_chi_anh_the( $toi, $mot_cs );
 
 			/* 🔴 KHỐI "LƯƠNG" ĐÃ BỎ KHỎI MÀN — anh Thắng 07/09/2026, sau khi đã bỏ 3 cột tiền của
 			   bảng mtd (bản 3.39.0): *"bỏ nguyên lương luôn, anh chưa cần"*. Trước đây gộp vào
@@ -7451,6 +7505,14 @@ class VHCC_Web {
 					$dang[ $d['cv'] ]++;
 				}
 			}
+			/* Cùng lỗ mất sổ như khối dưới bảng lương (xem `the_gia_gio_cs()`): `dat_coso()` thay
+			   CẢ bảng bằng những gì biểu mẫu gửi lên, nên chức vụ đã khai mà ba tháng qua không
+			   có giờ phải được vẽ ra, không thì bấm Lưu là xoá mất nó. */
+			foreach ( (array) ( isset( $so['coso'][ $kcs ] ) ? $so['coso'][ $kcs ] : array() ) as $k_cu => $v_cu ) {
+				if ( '*' === $k_cu ) { continue; }
+				$t_cu = VHCC_GiaGio::ten_cua( $k_cu, $so );
+				if ( ! isset( $dang[ $t_cu ] ) ) { $dang[ $t_cu ] = 0; }
+			}
 			ksort( $dang );
 			echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 			echo '<input type="hidden" name="viec" value="gia_gio">';
@@ -7504,8 +7566,13 @@ class VHCC_Web {
 		$da_ve = array();
 		foreach ( $chung as $k => $v ) {
 			$da_ve[] = $k;
+			/* 🔴 VẼ TÊN NGƯỜI GÕ, KHÔNG VẼ KHOÁ. Khoá đã bỏ dấu bỏ hoa thường, nên bản trước gõ
+			   vào "Lái tàu" mở lại đọc ra "laitau" — anh Thắng 16/09/2026 nhìn thấy đúng ba dòng
+			   như vậy. Sổ giữ cách viết gốc từ bản này; khoá cũ chưa có tên thì `ten_cua()` trả
+			   lại chính khoá, vẫn hơn một ô trống. */
+			$ten_k = VHCC_GiaGio::ten_cua( $k, $so );
 			echo '<tr><td><input name="gg_chung_ten[' . esc_attr( $k ) . ']" value="'
-				. esc_attr( $k ) . '" readonly style="width:180px;background:#f8fafc"></td>';
+				. esc_attr( $ten_k ) . '" readonly style="width:180px;background:#f8fafc"></td>';
 			echo '<td><input name="gg_chung[' . esc_attr( $k ) . ']" inputmode="numeric" '
 				. 'style="width:130px" value="' . esc_attr( (int) $v ) . '"></td></tr>';
 		}
@@ -7604,6 +7671,147 @@ class VHCC_Web {
 		echo '</form></div></td></tr>';
 	}
 
+
+	/**
+	 * ĐƠN GIÁ GIỜ CỦA CƠ SỞ — NGAY DƯỚI BẢNG LƯƠNG CỦA CHÍNH CƠ SỞ ẤY.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO DỜI VỀ ĐÂY
+	 * =========================================================================================
+	 * Anh Thắng 16/09/2026 mở bảng lương, thấy bảy dòng "CHƯA KHAI ĐƠN GIÁ", rồi phải hỏi *"chỗ
+	 * set giờ lương chỗ nào"*. Khối khai nằm ở tab Cấu hình, dưới một ô chọn cơ sở mang nhãn
+	 * *"Cơ sở (cho khối Ca làm việc & Công thức)"* — nhãn ấy không nhắc gì tới đơn giá, nên anh
+	 * không chọn, khối riêng của cơ sở không vẽ ra, và anh khai nhầm vào BẢNG CHUNG cả chuỗi.
+	 * Khai nhầm tầng không báo lỗi gì cả: nó vẫn lưu, vẫn ra tiền, chỉ là ra tiền cho MỌI cơ sở.
+	 *
+	 * Rồi anh chốt: *"Giá là giá theo từng cơ sở, nên chọn cơ sở sẽ có giá đó. để tính dễ dàng
+	 * hơn"*. Nên khối này bám vào đúng cặp (cơ sở, tháng) mà người ta đang xem — không có ô chọn
+	 * cơ sở thứ hai để chọn lệch, và không đi đâu cả.
+	 *
+	 * =========================================================================================
+	 * 🔴 CHỈ LIỆT KÊ CHỨC VỤ CÓ THẬT TRONG BẢNG THÁNG NÀY
+	 * =========================================================================================
+	 * Không bày cả danh mục chức vụ toàn chuỗi. Người đang đứng ở đây có đúng một câu hỏi — "mấy
+	 * dòng đỏ kia thiếu giá nào" — và mỗi dòng thừa là một dòng để gõ nhầm vào. Ba ô trống ở cuối
+	 * cho người muốn khai trước chức vụ chưa có giờ.
+	 *
+	 * @param array $b Kết quả `VHCC_BangLuong::dung()` đã dựng sẵn — KHÔNG dựng lại. Dựng lại là
+	 *                 quét lại cả tháng công lần hai cho cùng một màn.
+	 */
+	private static function the_gia_gio_cs( $ky, $toi, $cs, $th, $b ) {
+		/* Cửa XEM. Người gọi (`the_bang_luong_cs`) đã hỏi `cong_coso` + `co_quyen_coso` rồi, nên
+		   tới đây là đã đúng người đúng cơ sở; hỏi lại cho khối tự đứng được nếu sau này có ai
+		   gọi nó từ chỗ khác. */
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_GiaGio::QUYEN_XEM ) ) { return; }
+		$sua = VHCC_Vai::duoc( $toi, VHCC_GiaGio::QUYEN );
+
+		$so  = VHCC_GiaGio::so();
+		$kcs = VHCC_GiaGio::khoa_cs( $cs );
+
+		/* Gom chức vụ đang có giờ trong bảng tháng này. Bỏ người ăn lương tháng — họ không tính
+		   theo giờ nên một ô đơn giá ở đây chỉ làm người ta tưởng đã khai. */
+		$dang = array();
+		foreach ( $b['dong'] as $d ) {
+			if ( '' === $d['cv'] || 'thang' === $d['cheDo'] ) { continue; }
+			$k = VHCC_GiaGio::khoa_cv( $d['cv'] );
+			if ( '' === $k ) { continue; }
+			if ( ! isset( $dang[ $k ] ) ) { $dang[ $k ] = array( 'ten' => $d['cv'], 'n' => 0 ); }
+			$dang[ $k ]['n']++;
+		}
+		/* 🔴 PHẢI VẼ CẢ CHỨC VỤ ĐÃ KHAI MÀ THÁNG NÀY KHÔNG CÓ GIỜ — NẾU KHÔNG LÀ MẤT SỔ.
+		   `VHCC_GiaGio::dat_coso()` THAY CẢ bảng của cơ sở bằng đúng những gì biểu mẫu gửi lên
+		   (xem chú thích "ô để trống = xoá" trong sổ). Mà khối này chỉ liệt kê chức vụ có giờ
+		   THÁNG ĐANG XEM. Nên nếu chỉ vẽ bấy nhiêu: cửa hàng tháng này không xếp ca Lơ Tàu, mở
+		   bảng lương ra bấm Lưu một cái là đơn giá Lơ Tàu bay khỏi sổ — không hỏi, không báo,
+		   và tháng sau có giờ trở lại thì dòng ấy lặng lẽ về "CHƯA KHAI".
+		   Vẽ ra thì biểu mẫu chở đủ cả sổ đi và về, Lưu là giữ nguyên. */
+		foreach ( (array) ( isset( $so['coso'][ $kcs ] ) ? $so['coso'][ $kcs ] : array() ) as $k_cu => $v_cu ) {
+			if ( isset( $dang[ $k_cu ] ) || '*' === $k_cu ) { continue; }
+			$dang[ $k_cu ] = array( 'ten' => VHCC_GiaGio::ten_cua( $k_cu, $so ), 'n' => 0 );
+		}
+		uasort( $dang, function ( $x, $y ) { return strcasecmp( $x['ten'], $y['ten'] ); } );
+
+		$mo = ( $b['thieu']['gia'] > 0 ) ? ' open' : '';
+		echo '<div class="the"><a id="giagio"></a><details' . $mo . '>';
+		echo '<summary><b>Đơn giá giờ — ' . esc_html( $cs ) . '</b> '
+			. '<span class="mo">— cột “Tiền/h” của bảng ngay trên</span></summary>';
+
+		if ( ! $sua ) {
+			/* 🔴 NÓI RÕ AI SỬA ĐƯỢC, ĐỪNG CHỈ KHOÁ Ô LẠI. Một bảng chỉ đọc không giải thích thì
+			   người ta tưởng hệ hỏng, rồi đi tìm chỗ khác để gõ — mà chỗ khác chính là bảng
+			   chung cả chuỗi. */
+			echo '<div class="bao" style="margin:0 0 10px">👁 Anh/chị <b>xem được</b> bảng giá này '
+				. 'nhưng không sửa. Sửa đơn giá là việc của <b>Quản lý</b> hoặc <b>Kế toán</b> — '
+				. 'thấy con số nào sai thì báo lên, sửa một dòng ở đây là đổi lương cả nhóm.</div>';
+		} else {
+			echo '<p class="mo">Đây là bảng <b>riêng của ' . esc_html( $cs ) . '</b>, đè lên bảng '
+				. 'chung cả chuỗi. <b>Ô để trống = xoá khai riêng</b> (rơi về bảng chung), không '
+				. 'phải ghi 0. Lưu xong bảng lương ở trên tự tính lại.</p>';
+		}
+
+		if ( ! $dang ) {
+			echo '<p class="mo">Tháng ' . esc_html( $th ) . ' cơ sở này chưa có giờ chấm nào tính '
+				. 'theo giờ — chưa có chức vụ nào để khai.</p>';
+			echo '</details></div>';
+			return;
+		}
+
+		/* Quay lại đúng khối này sau khi lưu: giữ nguyên cơ sở + tháng đang xem. */
+		$ve = add_query_arg( array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th ), self::url() )
+			. '#giagio';
+		if ( $sua ) {
+			echo '<form method="post" action="' . esc_url( $ve ) . '">';
+			echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+			echo '<input type="hidden" name="viec" value="gia_gio">';
+			echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		}
+		echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th><th>Số dòng</th>'
+			. '<th>Đơn giá riêng của ' . esc_html( $cs ) . ' (đ/giờ)</th>'
+			. '<th>Đang lấy từ</th></tr></thead><tbody>';
+		$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở này',
+			'chung' => 'bảng chung cả chuỗi', 'khong' => 'CHƯA KHAI' );
+		foreach ( $dang as $k => $x ) {
+			$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? (int) $so['coso'][ $kcs ][ $k ] : '';
+			$ap = VHCC_GiaGio::tra( $cs, $x['ten'], '', $so );
+			echo '<tr' . ( 'khong' === $ap['tu'] ? ' class="hong"' : '' ) . '>';
+			echo '<td><b>' . esc_html( $x['ten'] ) . '</b></td>';
+			echo '<td class="p">' . ( $x['n'] > 0 ? (int) $x['n']
+				: '<span class="mo">0</span>' ) . '</td>';
+			if ( $sua ) {
+				/* Tên gửi đi là CÁCH VIẾT GỐC trong hồ sơ, không phải khoá — sổ giữ lại để còn
+				   đọc được (xem `VHCC_GiaGio::ten_cua`). */
+				echo '<td><input name="gg_cs[' . esc_attr( $x['ten'] ) . ']" inputmode="numeric" '
+					. 'style="width:130px" value="' . esc_attr( '' === $cu ? '' : (string) $cu )
+					. '" placeholder="vd 23000"></td>';
+			} else {
+				echo '<td class="p">' . ( '' === $cu ? '<span class="mo">—</span>'
+					: esc_html( number_format( (float) $cu, 0, ',', '.' ) ) ) . '</td>';
+			}
+			echo '<td class="mo">' . ( $ap['gia'] > 0
+				? '<b>' . esc_html( number_format( (float) $ap['gia'], 0, ',', '.' ) ) . 'đ</b> · '
+				: '' ) . esc_html( $ten_tu[ $ap['tu'] ] ) . '</td>';
+			echo '</tr>';
+		}
+		if ( $sua ) {
+			/* Ba ô trống để khai TRƯỚC chức vụ chưa có giờ tháng này. */
+			for ( $i = 0; $i < 3; $i++ ) {
+				echo '<tr><td><input name="gg_cs_moi_ten[' . $i . ']" placeholder="chức vụ khác" '
+					. 'style="width:170px"></td><td class="mo">—</td>'
+					. '<td><input name="gg_cs_moi[' . $i . ']" inputmode="numeric" '
+					. 'style="width:130px" placeholder="vd 24000"></td><td class="mo">chưa có giờ '
+					. 'tháng này</td></tr>';
+			}
+		}
+		echo '</tbody></table></div>';
+		if ( $sua ) {
+			echo '<p style="margin:10px 0 0"><button class="chinh">Lưu đơn giá của '
+				. esc_html( $cs ) . '</button> <span class="mo">— chỉ đổi cơ sở này. Bảng chung '
+				. 'cả chuỗi khai ở tab <b>Cấu hình</b>.</span></p>';
+			echo '</form>';
+		}
+		echo '</details></div>';
+	}
+
 	private static function the_bang_luong_cs( $toi, $cs, $th, $ky = '' ) {
 		if ( '' === $cs ) { return; }
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { return; }
@@ -7628,8 +7836,7 @@ class VHCC_Web {
 		if ( $b['thieu']['gia'] > 0 ) {
 			echo '<div class="bao loi" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gia']
 				. ' dòng chưa khai đơn giá giờ</b> — mấy dòng ấy để TRỐNG tiền, không phải 0đ. '
-				. 'Khai ở khối <b>Đơn giá giờ của cơ sở</b> trong tab Cấu hình (bậc Kế toán), '
-				. 'rồi mở lại bảng này.</div>';
+				. 'Khai ngay ở khối <a href="#giagio"><b>Đơn giá giờ</b></a> ngay dưới bảng này.</div>';
 		}
 		if ( ! empty( $b['thieu']['congChuan'] ) ) {
 			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Chưa khai <b>số ngày công chuẩn '
@@ -7716,6 +7923,9 @@ class VHCC_Web {
 			. 'dùng: tựa, hai dòng tiêu đề, nhóm cột cộng/trừ, dòng tổng. Nộp thẳng, không phải '
 			. 'chép tay sang mẫu.</span></p>';
 		echo '</details></div>';
+
+		/* Bảng giá đứng NGAY DƯỚI bảng dùng nó — xem chú thích dài ở `the_gia_gio_cs()`. */
+		self::the_gia_gio_cs( $ky, $toi, $cs, $th, $b );
 	}
 
 	private static function the_khoi_luong( $toi, $cs, $th ) {

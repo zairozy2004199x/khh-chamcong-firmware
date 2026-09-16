@@ -97,11 +97,16 @@ class VHCC_WebMat {
 
 	public static function man( $ky, $toi ) {
 		echo '<div class="the"><h2>🙂 Khuôn mặt</h2>';
-		echo '<p class="mo">Duyệt <b>mẫu đối chiếu khuôn mặt</b> của chấm công online, và đọc số '
-			. 'để chọn ngưỡng lệch.</p></div>';
+		echo '<p class="mo"><b>Ảnh thẻ</b> của nhân viên — cái máy chấm công và chấm công online '
+			. 'lấy làm mẫu đối chiếu — và việc <b>duyệt mẫu</b> đã thu được.</p></div>';
 
+		self::the_anh_the( $ky, $toi );
+
+		/* 🔴 CHỐT ĐỨNG QUANH KHỐI DUYỆT, KHÔNG QUANH CẢ MÀN. Từ 16/09/2026 màn này có hai khối
+		   hai cửa khác nhau (xem `the_anh_the()`); chối cả màn là Cửa hàng trưởng bấm vào tab
+		   của chính mình rồi ăn một câu từ chối về việc họ không định làm. */
 		if ( ! VHCC_Vai::duoc( $toi, self::QUYEN ) ) {
-			echo '<div class="the"><div class="bao loi" style="margin:0">' . self::loi_quyen( $toi )
+			echo '<div class="the"><div class="bao" style="margin:0">' . self::loi_quyen( $toi )
 				. '</div></div>';
 			return;
 		}
@@ -109,6 +114,88 @@ class VHCC_WebMat {
 		self::the_che_do();
 		self::the_mau( $ky, $toi );
 		self::the_thong_ke( $toi );
+	}
+
+	/**
+	 * ẢNH THẺ NHÂN VIÊN — khối "N người chưa có ảnh thẻ", dời từ màn Bảng công về đây.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO NÓ THUỘC VỀ MÀN NÀY
+	 * =========================================================================================
+	 * Anh Thắng 16/09/2026: *"Đẩy này sang tab cấu hình khuôn mặt nhân viên"*, kèm ảnh khối chín
+	 * người chưa có ảnh thẻ đang chiếm nguyên màn Bảng công.
+	 *
+	 * Đây là quãng còn lại của lượt dời 09/09/2026 (khi ấy mới đẩy nó xuống DƯỚI lưới công).
+	 * Bảng công là thứ mở ra hằng ngày để ĐỌC; tải ảnh thẻ là việc làm MỘT LẦN cho người mới.
+	 * Mà ảnh thẻ chính là MẪU ĐỐI CHIẾU của chấm công online — đúng thứ màn này nói về.
+	 *
+	 * ⚠️ GIỮ NGUYÊN CỬA QUYỀN CŨ, KHÔNG NHÂN TIỆN NỚI HAY SIẾT. Thân khối
+	 *    (`VHCC_Web::khoi_thieu_anh()`) tự hỏi `them_nv` hoặc `ho_so`, rồi hỏi phạm vi cơ sở.
+	 *    Dời chỗ mà đổi luôn ai vào được là hai việc trộn làm một, và cái thứ hai thì không ai
+	 *    yêu cầu.
+	 */
+	private static function the_anh_the( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
+
+		$ds_cs = VHCC_Web::ds_coso_xem( $toi );
+		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
+		/* Ai chỉ phụ trách một cơ sở thì khỏi phải chọn — đó là gần hết cửa hàng trưởng. */
+		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+
+		/* 🔴 MỘT CHỐT THÔI, VÀ LÀ CHỐT THẬT: `co_quyen_coso()`.
+		   Bản đầu của khối này còn chối thêm mọi `ccs` không nằm trong `ds_coso_xem()` — nghe thì
+		   chặt hơn, thực ra là dựng lớp gác THỨ HAI bằng một danh sách KHÁC. `ds_coso_xem()` đọc
+		   danh mục (`bo_phan_coso` + `may`), nên một cơ sở có người và có công mà chưa ai khai
+		   vào danh mục thì bị xoá về rỗng, và màn nói "chọn một cơ sở" trong khi người ta vừa
+		   chọn xong. Hai lớp gác bằng hai danh sách thì sớm muộn chúng hiểu khác nhau, và lớp
+		   nói sai luôn là lớp không giữ bí mật nào cả. Danh mục để BÀY RA CHO DỄ CHỌN; ai được
+		   xem cơ sở nào thì `co_quyen_coso()` quyết — cùng một hàm mà `khoi_thieu_anh()` hỏi. */
+		if ( '' !== $cs && ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
+			echo '<div class="the"><div class="bao loi" style="margin:0">Không có quyền ở cơ sở '
+				. esc_html( $cs ) . '.</div></div>';
+			return;
+		}
+
+		echo '<div class="the"><h2>📷 Ảnh thẻ nhân viên</h2>';
+		echo '<p class="mo">Có ảnh thẻ thì máy chấm công <b>tự nhận khuôn mặt</b>, và chấm công '
+			. 'online <b>có cái để đối chiếu</b>. Chưa có thì phải gọi người ra máy chụp lại.</p>';
+		if ( count( $ds_cs ) > 1 || ( '' === $cs && ! $ds_cs ) ) {
+			echo '<form method="get" class="hang" style="margin-top:10px">';
+			if ( ! get_option( 'permalink_structure' ) ) {
+				echo '<input type="hidden" name="vhcc_qt" value="1">';
+			}
+			echo '<input type="hidden" name="man" value="mat">';
+			echo '<div><label for="mccs">Cơ sở</label><select id="mccs" name="ccs">'
+				. '<option value="">— chọn cơ sở —</option>';
+			foreach ( $ds_cs as $x ) {
+				echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+					. esc_html( $x ) . '</option>';
+			}
+			echo '</select></div><div><button class="chinh">Xem</button></div></form>';
+		} elseif ( '' !== $cs ) {
+			echo '<p style="margin:6px 0 0"><b>' . esc_html( $cs ) . '</b></p>';
+		}
+		echo '</div>';
+
+		if ( '' === $cs ) {
+			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để xem ai chưa có ảnh thẻ.'
+				. '</p></div>';
+			return;
+		}
+
+		/* `khoi_thieu_anh()` tự im khi cơ sở không còn ai thiếu ảnh — nên phải tự nói câu "xong
+		   rồi", không thì màn trống trơn và người ta tưởng hỏng. */
+		ob_start();
+		VHCC_Web::khoi_thieu_anh( $toi, $cs, $ky );
+		$khoi = ob_get_clean();
+		echo '<div class="the">';
+		if ( '' === trim( $khoi ) ) {
+			echo '<div class="bao ok" style="margin:0">✓ <b>' . esc_html( $cs ) . ' đủ ảnh thẻ</b> '
+				. '— mọi người đang làm ở cơ sở này đều đã có ảnh.</div>';
+		} else {
+			echo $khoi; // phpcs:ignore WordPress.Security.EscapeOutput -- HTML do khối trên tự dựng và tự thoát.
+		}
+		echo '</div>';
 	}
 
 	/** Chế độ đang chạy — thứ quyết định cả màn này có nghĩa gì. */
