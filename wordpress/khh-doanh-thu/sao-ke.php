@@ -434,11 +434,22 @@ function khh_dt_gan_lai_sao_ke() {
 	return $doi;
 }
 
-/** Tiền ngân hàng thật sự nhận được: [ 'ngay|cơ sở' => tổng ]. */
+/**
+ * Tiền ngân hàng thật sự nhận được, theo ngày × cơ sở.
+ *
+ * Trả [ 'ngay|cơ sở' => [ 'tien', 'so_lan', 'gio_dau', 'ngay_nop', 'noi_dung' ] ].
+ *
+ * 🔴 KÈM GIỜ VÀ NGÀY NỘP THẬT, KHÔNG CHỈ SỐ TIỀN. Câu anh Thắng hỏi là *"xem nhân viên nộp tiền
+ *    chưa"* — mà "chưa nộp" với "nộp muộn ba ngày" là hai chuyện khác hẳn nhau, và một cột tổng
+ *    tiền không phân biệt được. Nộp muộn đều đặn là tiền nằm trong tay người ta mấy ngày liền:
+ *    chưa mất, nhưng là chỗ để mất.
+ */
 function khh_dt_nop_bank( $tu = '', $den = '' ) {
 	global $wpdb;
 	$bang = khh_dt_bang_sk();
-	$sql  = "SELECT ngay_tinh, cua_hang, SUM(so_tien) t FROM $bang WHERE cua_hang<>''";
+	$sql  = "SELECT ngay_tinh, cua_hang, SUM(so_tien) t, COUNT(*) n,
+				MIN(gio) g, MIN(ngay) nd, MAX(ngay) nc, MIN(noi_dung) nn
+			FROM $bang WHERE cua_hang<>''";
 	$args = array();
 	if ( $tu ) {
 		$sql   .= ' AND ngay_tinh >= %s';
@@ -454,9 +465,31 @@ function khh_dt_nop_bank( $tu = '', $den = '' ) {
 	// phpcs:enable
 	$ra = array();
 	foreach ( (array) $ds as $r ) {
-		$ra[ $r['ngay_tinh'] . '|' . $r['cua_hang'] ] = (float) $r['t'];
+		$ra[ $r['ngay_tinh'] . '|' . $r['cua_hang'] ] = array(
+			'tien'     => (float) $r['t'],
+			'so_lan'   => (int) $r['n'],
+			'gio_dau'  => (int) $r['g'],
+			'ngay_nop' => (string) $r['nd'],
+			'ngay_cuoi' => (string) $r['nc'],
+			'noi_dung' => (string) $r['nn'],
+		);
 	}
 	return $ra;
+}
+
+/**
+ * Khoản tiền của ngày này đã ĐẾN HẠN NỘP chưa.
+ *
+ * ⚠️ ĐỪNG GỌI TÊN NGƯỜI TA KHI HỌ CHƯA ĐẾN HẠN. Tiền bán hôm nay thì sáng mai mới mang ra ngân
+ *    hàng — bôi đỏ ngay tối nay là bảng lúc nào cũng có vài dòng đỏ vô nghĩa, và một bảng lúc nào
+ *    cũng đỏ thì không ai nhìn nữa, kể cả hôm đỏ thật.
+ */
+function khh_dt_qua_han_nop( $ngay ) {
+	if ( '' === (string) $ngay ) {
+		return false;
+	}
+	$han = strtotime( $ngay . ' +1 day' ) + khh_dt_gio_cat() * 3600;
+	return (int) current_time( 'timestamp' ) > $han;
 }
 
 /** Còn bao nhiêu dòng tiền chưa gán được cơ sở, và tổng bao nhiêu tiền. */
@@ -476,6 +509,160 @@ function khh_dt_co_sao_ke() {
 	$bang = khh_dt_bang_sk();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang" );
+}
+
+/* ================================================================== *
+ * KÉO THẲNG TỪ CỔNG SEPAY CỦA PLUGIN GHẾ MASSAGE
+ * ================================================================== */
+
+/**
+ * Site này đã có cổng SePay rồi — nó nằm trong plugin Ghế Massage (`VHG_Thu`), hứng webhook mỗi
+ * lần có tiền vào và ghi theo mã tham chiếu của ngân hàng. Nạp file tay là việc thừa nếu số ấy
+ * đã nằm sẵn trong cùng một cơ sở dữ liệu.
+ *
+ * ==================================================================================================
+ * 🔴 BẪY: SỔ ẤY CÓ CẢ TIỀN KHÁCH TRẢ GHẾ, KHÔNG PHẢI CHỈ TIỀN NHÂN VIÊN NỘP.
+ * ==================================================================================================
+ * Cùng một tài khoản ngân hàng nhận hai dòng tiền khác hẳn nhau về ý nghĩa:
+ *
+ *   · khách quét QR trả tiền một lượt ghế  -> đó là DOANH THU, tiền vốn đã ở ngân hàng;
+ *   · cửa hàng trưởng mang tiền mặt đi nộp -> đó là NỘP TIỀN, cái mình đang đi soi.
+ *
+ * Cộng nhầm loại thứ nhất vào "đã nộp" là biến cả phép đối soát thành vô nghĩa: quán nào có nhiều
+ * ghế thì tự nhiên "nộp đủ" mà không ai mang đồng nào ra ngân hàng. Nên ở đây BỎ mọi giao dịch
+ * mà bên ghế đã nhận ra là của một cái ghế (`ma_may` khác rỗng) hoặc của một đơn mua mã.
+ *
+ * ⚠️ BẢN TRÊN SITE CÓ THỂ MỚI HƠN BẢN TRONG KHO (kho 1.47.0, site 2.81.0 — 16/09/2026). Nên hỏi
+ *    bảng và hỏi từng cột trước khi đọc, chứ không tin cấu trúc mình đang thấy.
+ */
+function khh_dt_co_cong_ghe() {
+	global $wpdb;
+	if ( ! class_exists( 'VHG_DB' ) || ! method_exists( 'VHG_DB', 't' ) ) {
+		return false;
+	}
+	$bang = VHG_DB::t( 'thu' );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) );
+}
+
+/**
+ * Kéo giao dịch ngân hàng từ sổ của plugin Ghế sang kho sao kê.
+ *
+ * Trả [ 'ok', 'keo' => số khoản mang sang, 'bo_ghe' => số khoản là tiền khách trả ghế,
+ *       'chua_gan' => còn bao nhiêu khoản chưa nhận ra cơ sở ].
+ */
+function khh_dt_keo_ghe( $tu_ngay = '' ) {
+	global $wpdb;
+	/* ⚠️ GÁC CÙNG THÂN HÀM với lời gọi — gác ở hàm khác thì người đọc sau không thấy được. */
+	if ( ! class_exists( 'VHG_DB' ) || ! method_exists( 'VHG_DB', 't' ) ) {
+		return array(
+			'ok'    => false,
+			'error' => 'Chưa cài plugin Ghế Massage (K&H) trên site này — cổng SePay nằm trong đó.',
+		);
+	}
+	$bang = VHG_DB::t( 'thu' );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array( 'ok' => false, 'error' => 'Không thấy bảng thu của plugin Ghế Massage.' );
+	}
+
+	/* Hỏi từng cột — bản bên ấy có thể mới hơn hoặc cũ hơn bản mình đang đọc. */
+	$co_cot = function ( $ten ) use ( $wpdb, $bang ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		return (bool) $wpdb->get_var( $wpdb->prepare( "SHOW COLUMNS FROM $bang LIKE %s", $ten ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+	};
+	foreach ( array( 'ref', 'luc', 'so_tien', 'noi_dung' ) as $c ) {
+		if ( ! $co_cot( $c ) ) {
+			return array( 'ok' => false, 'error' => 'Bảng thu bên Ghế Massage thiếu cột "' . $c . '".' );
+		}
+	}
+	$co_may  = $co_cot( 'ma_may' );
+	$co_lenh = $co_cot( 'ma_lenh' );
+	$co_ch   = $co_cot( 'ma_ch' );
+	$co_huy  = $co_cot( 'huy' );
+	$co_ng   = $co_cot( 'nguon' );
+
+	$cot = 'ref, luc, so_tien, noi_dung'
+		. ( $co_may ? ', ma_may' : '' ) . ( $co_lenh ? ', ma_lenh' : '' )
+		. ( $co_ch ? ', ma_ch' : '' ) . ( $co_ng ? ', nguon' : '' );
+	$sql  = "SELECT $cot FROM $bang WHERE so_tien > 0";
+	$args = array();
+	if ( $co_huy ) {
+		$sql .= ' AND huy = 0';
+	}
+	if ( $co_ng ) {
+		/* Tiền mặt thu tại quầy (`cash`) KHÔNG phải tiền đã về ngân hàng — chính nó là khoản
+		   đang chờ được mang đi nộp. Chỉ lấy những nguồn thật sự đi qua ngân hàng. */
+		$sql .= " AND nguon IN ('sepay','vietqr','qr')";
+	}
+	if ( $tu_ngay ) {
+		$sql   .= ' AND luc >= %s';
+		$args[] = $tu_ngay . ' 00:00:00';
+	}
+	$sql .= ' ORDER BY luc ASC LIMIT 20000';
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+	// phpcs:enable
+
+	$mang   = array();
+	$bo_ghe = 0;
+	foreach ( (array) $ds as $r ) {
+		/* 🔴 Bên ghế đã nhận ra đây là tiền của một cái ghế -> đó là DOANH THU của khách, không
+		   phải nhân viên mang tiền đi nộp. Xem khối chú thích đầu mục này. */
+		if ( ( $co_may && '' !== trim( (string) $r['ma_may'] ) )
+			|| ( $co_lenh && '' !== trim( (string) $r['ma_lenh'] ) ) ) {
+			$bo_ghe++;
+			continue;
+		}
+		$luc = (string) $r['luc'];
+		$ngay = substr( $luc, 0, 10 );
+		$gio  = (int) substr( $luc, 11, 2 );
+		$nd   = (string) $r['noi_dung'];
+		$tk   = $co_ch ? (string) $r['ma_ch'] : '';
+		$mang[] = array(
+			/* Tiền tố `ghe-` để phân biệt với khoản nạp từ file, và để kéo lại bao nhiêu lần
+			   cũng chỉ ra một hàng. */
+			'ma_gd'     => 'ghe-' . (string) $r['ref'],
+			'ngay'      => $ngay,
+			'gio'       => $gio,
+			'ngay_tinh' => khh_dt_ngay_quy( $ngay, $gio ),
+			'so_tien'   => (float) $r['so_tien'],
+			'noi_dung'  => $nd,
+			'tai_khoan' => $tk,
+			'cua_hang'  => khh_dt_doan_co_so( $nd, $tk ),
+		);
+	}
+	$n = khh_dt_ghi_sao_ke( $mang );
+	return array(
+		'ok'       => true,
+		'keo'      => $n,
+		'bo_ghe'   => $bo_ghe,
+		'chua_gan' => khh_dt_sk_chua_gan(),
+	);
+}
+
+/** Kéo lại mỗi giờ, để màn đối soát không phải chờ ai bấm nút. */
+add_action( 'khh_dt_cron_keo', 'khh_dt_cron_keo_chay' );
+function khh_dt_cron_keo_chay() {
+	if ( ! khh_dt_co_cong_ghe() ) {
+		return;
+	}
+	/* Chỉ kéo 45 ngày gần đây: sổ bên ấy có thể hàng trăm nghìn dòng, mà đối soát chỉ nhìn kỳ
+	   gần. Cần kỳ cũ thì bấm nút kéo tay, nó không giới hạn ngày. */
+	khh_dt_keo_ghe( gmdate( 'Y-m-d', time() - 45 * 86400 ) );
+}
+
+function khh_dt_bat_keo() {
+	if ( ! wp_next_scheduled( 'khh_dt_cron_keo' ) ) {
+		wp_schedule_event( time() + 300, 'hourly', 'khh_dt_cron_keo' );
+	}
+}
+
+function khh_dt_tat_keo() {
+	$t = wp_next_scheduled( 'khh_dt_cron_keo' );
+	if ( $t ) {
+		wp_unschedule_event( $t, 'khh_dt_cron_keo' );
+	}
 }
 
 /* ================================================================== *
@@ -499,6 +686,15 @@ function khh_dt_rest_sk() {
 		array(
 			'methods'             => 'POST',
 			'callback'            => 'khh_dt_rest_sk_ghep',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/sao-ke-keo',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_sk_keo',
 			'permission_callback' => 'khh_dt_duoc_quan_tri',
 		)
 	);
@@ -537,7 +733,23 @@ function khh_dt_rest_sk_xem() {
 		'ghep'     => khh_dt_ghep_bank_ds(),
 		'gio_cat'  => khh_dt_gio_cat(),
 		'cua_hang' => khh_dt_ds_cua_hang(),
+		'co_cong_ghe' => khh_dt_co_cong_ghe(),
+		'tu_keo'   => (bool) wp_next_scheduled( 'khh_dt_cron_keo' ),
 	);
+}
+
+function khh_dt_rest_sk_keo( $req ) {
+	$tu = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'tu' ) );
+	$kq = khh_dt_keo_ghe( $tu );
+	if ( empty( $kq['ok'] ) ) {
+		return new WP_Error( 'khh_dt_keo', $kq['error'], array( 'status' => 400 ) );
+	}
+	if ( $req->get_param( 'tu_dong' ) ) {
+		khh_dt_bat_keo();
+	}
+	$ra = khh_dt_rest_sk_xem();
+	$ra['vua_keo'] = $kq;
+	return $ra;
 }
 
 function khh_dt_rest_sk_ghep( $req ) {

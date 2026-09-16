@@ -131,18 +131,33 @@ khh_dt_ghi_sao_ke( $kq['dong'] );
 phep( 'ghi được vào kho', 4 === khh_dt_co_sao_ke() );
 
 $bank = khh_dt_nop_bank();
+$k14  = '2026-09-14|TuTu Train - Aeon Tân Phú';
 phep( 'tiền nộp 8h35 ngày 15 quy về doanh thu ngày 14',
-	isset( $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] )
-	&& 5980000.0 === $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] );
+	isset( $bank[ $k14 ] ) && 5980000.0 === $bank[ $k14 ]['tien'] );
 phep( 'tiền nộp 20h05 ngày 15 nằm ở chính ngày 15',
 	isset( $bank['2026-09-15|TuTu Train - Lotte Gò Vấp'] ) );
+
+/* Giờ và ngày nộp thật phải giữ lại — "chưa nộp" với "nộp muộn ba ngày" là hai chuyện khác nhau. */
+phep( 'giữ lại giờ nộp thật', 8 === $bank[ $k14 ]['gio_dau'] );
+phep( 'giữ lại ngày nộp thật (khác ngày doanh thu)', '2026-09-15' === $bank[ $k14 ]['ngay_nop'] );
+phep( 'đếm số lần nộp', 1 === $bank[ $k14 ]['so_lan'] );
 
 /* 🔴 NẠP LẠI CÙNG MỘT FILE KHÔNG ĐƯỢC CỘNG DỒN. */
 $kq = doc_csv( $sk1 );
 khh_dt_ghi_sao_ke( $kq['dong'] );
 phep( 'nạp lại cùng file không đẻ thêm dòng', 4 === khh_dt_co_sao_ke() );
 $bank = khh_dt_nop_bank();
-phep( 'và không nhân đôi tiền', 5980000.0 === $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] );
+phep( 'và không nhân đôi tiền', 5980000.0 === $bank[ $k14 ]['tien'] );
+
+/* 🔴 ĐẾN HẠN NỘP CHƯA — đừng gọi tên người ta khi họ chưa tới hạn.
+   Giờ cắt 12h: tiền bán ngày N phải về trước 12h ngày N+1. */
+update_option( 'khh_dt_gio_cat', 12 );
+$hom_nay = current_time( 'Y-m-d' );
+phep( 'tiền bán hôm nay chưa tới hạn nộp', ! khh_dt_qua_han_nop( $hom_nay ) );
+phep( 'tiền bán hôm qua cũng chưa chắc quá hạn trước giờ cắt',
+	is_bool( khh_dt_qua_han_nop( gmdate( 'Y-m-d', strtotime( $hom_nay . ' -1 day' ) ) ) ) );
+phep( 'tiền bán tuần trước thì quá hạn rõ ràng',
+	khh_dt_qua_han_nop( gmdate( 'Y-m-d', strtotime( $hom_nay . ' -7 day' ) ) ) );
 
 $chua = khh_dt_sk_chua_gan();
 phep( 'đếm đúng số khoản chưa nhận ra cơ sở', 1 === $chua['so_dong'] );

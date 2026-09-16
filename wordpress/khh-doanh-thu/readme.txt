@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -95,6 +95,19 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.10.0 =
+* **Tab Đối soát trả lời thẳng câu "nhân viên nộp tiền chưa"**: cột *Ngân hàng nhận* và cột
+  *Nộp tiền* (đã nộp đủ / thiếu bao nhiêu / chưa tới hạn / muộn mấy ngày), cùng ô đếm
+  **Tiền mặt chưa về tài khoản**.
+* Hai cột ấy **không chờ cơ sở nhập báo cáo** — máy POS biết hôm ấy thu bao nhiêu tiền mặt, ngân
+  hàng biết nhận được bao nhiêu, thế là đủ trả lời. (Trước đó cả hàng nấp sau ô "chưa nhập báo
+  cáo", nên đúng chỗ cần nhìn nhất lại là chỗ trống.)
+* Ngày chỉ bị tính là thiếu **sau giờ cắt của hôm sau** — tiền bán tối nay thì sáng mai mới mang
+  ra ngân hàng, bôi đỏ ngay là bảng lúc nào cũng đỏ và không ai nhìn nữa.
+* **Kéo thẳng từ cổng SePay** đã có sẵn trong plugin Ghế Massage, khỏi tải file: nút *Kéo giao
+  dịch về* + tự kéo mỗi giờ. **Bỏ tiền khách trả ghế** (giao dịch đã nhận ra mã ghế) — đó là
+  doanh thu, không phải nhân viên nộp tiền; cộng nhầm vào là phép đối soát thành vô nghĩa.
 
 = 1.9.0 =
 * **Cột "Thực nộp" lấy từ SAO KÊ NGÂN HÀNG**, không còn là số cơ sở tự khai. Nạp sao kê ở

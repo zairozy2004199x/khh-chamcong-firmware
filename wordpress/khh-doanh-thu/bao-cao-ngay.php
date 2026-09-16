@@ -424,8 +424,21 @@ function khh_dt_rest_doi_soat( $req ) {
 		$nop = (float) $r['tien_nop'];                   // cơ sở KHAI đã nộp
 		$kb  = $r['ngay'] . '|' . $r['cua_hang'];
 		$co_bank = array_key_exists( $kb, $bank );
-		$nop_bk  = $co_bank ? (float) $bank[ $kb ] : 0;  // ngân hàng NHẬN ĐƯỢC
+		$b       = $co_bank ? $bank[ $kb ] : array();
+		$nop_bk  = $co_bank ? (float) $b['tien'] : 0;    // ngân hàng NHẬN ĐƯỢC
 		$nop_that = $co_bank ? $nop_bk : $nop;
+
+		/* 🔴 SỐ PHẢI NỘP KHÔNG CHỜ CƠ SỞ NHẬP BÁO CÁO.
+		   Anh Thắng 16/09/2026: *"đối chiếu giao dịch để đẩy vào tab đối soát xem nhân viên nộp
+		   tiền chưa"*. Máy POS đã biết hôm ấy thu bao nhiêu tiền mặt, ngân hàng đã biết nhận được
+		   bao nhiêu — hai đầu ấy đủ để trả lời, KHÔNG cần ai gõ gì. Bắt câu trả lời phải chờ cửa
+		   hàng trưởng nhập báo cáo là bỏ trống đúng chỗ cần nhìn nhất: 25/25 ngày trên màn của anh
+		   đang "chưa nhập báo cáo", và nếu cột nộp tiền nấp sau đó thì cả tháng không ai biết
+		   tiền đã về hay chưa.
+		   Cơ sở có đếm két thì lấy số đếm được (nó có thể nhiều hơn tiền mặt POS); chưa đếm thì
+		   lấy tiền mặt POS. */
+		$phai_nop = $co ? $dem : $tm;
+		$thieu    = $phai_nop - $nop_bk;
 		$ra[] = array(
 			'ngay'       => $r['ngay'],
 			'cua_hang'   => $r['cua_hang'],
@@ -439,6 +452,16 @@ function khh_dt_rest_doi_soat( $req ) {
 			'nop'        => $nop,
 			'nop_bank'   => $nop_bk,
 			'co_bank'    => $co_bank,
+			/* Trả lời thẳng câu "nộp chưa": phải nộp bao nhiêu, về bao nhiêu, còn thiếu bao
+			   nhiêu, nộp mấy lần, nộp ngày nào giờ nào, và đã đến hạn chưa. */
+			'phai_nop'   => $phai_nop,
+			'thieu'      => $thieu,
+			'nop_lan'    => $co_bank ? (int) $b['so_lan'] : 0,
+			'nop_ngay'   => $co_bank ? (string) $b['ngay_nop'] : '',
+			'nop_gio'    => $co_bank ? (int) $b['gio_dau'] : 0,
+			'nop_muon'   => ( $co_bank && $b['ngay_nop'] > $r['ngay'] )
+				? (int) round( ( strtotime( $b['ngay_nop'] ) - strtotime( $r['ngay'] ) ) / 86400 ) : 0,
+			'qua_han'    => khh_dt_qua_han_nop( $r['ngay'] ),
 			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
 			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
 			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận
