@@ -472,8 +472,42 @@ class VHCC_Web {
 		 *    người được giao việc.
 		 * ------------------------------------------------------------------------------- */
 		if ( 'luong' === $loai ) {
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CHỌN NHIỀU CƠ SỞ THÌ GHÉP VÀO MỘT TỆP — anh Thắng 16/09/2026: *"nếu chọn 1 cơ
+			 *    sở, xuất bảng lương có 1 cơ sở, nếu chọn 2, 3 cơ sở thì ghép nhiều bảng vào
+			 *    trong 1 file"*.
+			 *
+			 * ⚠️ THAM SỐ RIÊNG (`cs[]`), không nhồi dấu phẩy vào `ccs`. `ccs` đi qua
+			 *    `chuan_coso()` ở đầu hàm — hàm ấy rửa tên MỘT cơ sở, nên một chuỗi có dấu phẩy
+			 *    vào đó là ra một "cơ sở" không có thật, và cả đường xuất còn lại vẫn tưởng
+			 *    mình đang cầm một cái tên hợp lệ.
+			 * ⚠️ GÁC QUYỀN TỪNG CƠ SỞ MỘT. Cửa ở đầu hàm chỉ chốt cho `ccs`; thêm cơ sở qua
+			 *    `cs[]` mà không hỏi lại là mở đường đọc lương cả chuỗi bằng cách sửa địa chỉ.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$cs_ds = array( $cs );
+			if ( isset( $_GET['cs'] ) ) {
+				/* Ô tích gửi lên mảng `cs[]`; nhận thêm chuỗi ngăn bởi dấu phẩy cho ai gõ tay
+				   địa chỉ. Hai lối vào, một phép rửa. */
+				$vao_n = wp_unslash( $_GET['cs'] );
+				$vao_n = is_array( $vao_n ) ? $vao_n : explode( ',', (string) $vao_n );
+				$cs_ds = array();
+				foreach ( $vao_n as $cs_n ) {
+					$cs_n = sanitize_text_field( (string) $cs_n );
+					$cs_n = VHCC_NhanSu::chuan_coso( $cs_n );
+					if ( '' === $cs_n || in_array( $cs_n, $cs_ds, true ) ) { continue; }
+					if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_n ) ) {
+						$da_gui = true;
+						self::loi_xuat( 'Cơ sở "' . $cs_n . '" không thuộc phạm vi của anh/chị — '
+							. 'bỏ nó ra khỏi danh sách rồi xuất lại.' );
+						return;
+					}
+					$cs_ds[] = $cs_n;
+				}
+				if ( ! $cs_ds ) { $cs_ds = array( $cs ); }
+			}
 			try {
-				$bl = VHCC_BangLuong::to_xlsx( $cs, $th, VHCC_NhanSu::ten_coso( $cs ) );
+				$bl = VHCC_BangLuong::to_xlsx( $cs_ds, $th,
+					( 1 === count( $cs_ds ) ) ? VHCC_NhanSu::ten_coso( $cs_ds[0] ) : '' );
 			} catch ( \Throwable $e ) {
 				$da_gui = true;
 				self::loi_xuat( 'Dựng bảng lương thì gặp lỗi: ' . $e->getMessage()
@@ -494,7 +528,11 @@ class VHCC_Web {
 				return;
 			}
 			$da_gui = true;
-			VHCC_Xuat::gui( VHCC_BangLuong::ten_tep( $cs, $bl['bang']['thang'] ), $noi_l );
+			/* Tên tệp nói ra có mấy cơ sở — mở thư mục Tải về mà ba tệp cùng tên là không ai
+			   biết cái nào có đủ cơ sở cần nộp. */
+			VHCC_Xuat::gui( VHCC_BangLuong::ten_tep(
+				( 1 === count( $cs_ds ) ) ? $cs_ds[0] : ( count( $cs_ds ) . 'COSO' ),
+				$bl['bang']['thang'] ), $noi_l );
 			return;
 		}
 
@@ -8142,8 +8180,11 @@ class VHCC_Web {
 	 * 🔴 CHỈ GÕ NGOẠI LỆ. Ô "giờ khác" không phải chia lại cả tháng: gõ 2 giờ MC thì 124 giờ còn
 	 *    lại tự là việc chính. Xem `VHCC_ChotLuong`.
 	 */
-	private static function hang_chot_luong( $ky, $toi, $cs, $th, $d ) {
-		echo '<tr class="hang-sua"><td colspan="10"><div class="hs-in">';
+	private static function hang_chot_luong( $ky, $toi, $cs, $th, $d, $so_cot = 10 ) {
+		/* ⚠️ SỐ CỘT NHẬN TỪ NƠI GỌI, KHÔNG ĐÓNG CỨNG. Bảng nay bỏ bớt cột Cộng/Trừ khi cả bảng
+		   không có số nào, nên `colspan="10"` cố định sẽ đội khung form rộng hơn bảng một, hai ô
+		   — khối nhập lệch hẳn ra ngoài mép bảng. */
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
 		echo '<a id="cl' . esc_attr( substr( md5( (string) $d['ma'] ), 0, 8 ) ) . '"></a>';
 		self::khoi_chot_luong( $ky, $toi, $cs, $th, $d, 'cl' );
 		echo '</div></td></tr>';
@@ -8504,9 +8545,12 @@ class VHCC_Web {
 		   toán (bậc cao hơn) cũng qua — đúng ý anh Thắng 16/09/2026: *"kế toán và cửa hàng
 		   trưởng chứ em, anh nói là từ dưới đi lên"*. */
 		$duoc_nhap = VHCC_Vai::duoc( $toi, VHCC_ChotLuong::QUYEN );
-		echo '<div class="the"><details>';
+		/* 🔴 MỞ SẴN, KHÔNG BẮT BẤM. Anh Thắng 16/09/2026: *"anh muốn hiện luôn bảng lương phía
+		   dưới bảng công, mở sẵn"*. Nó là thứ người ta cuộn xuống để xem sau khi liếc lưới —
+		   bắt bấm thêm một nhát là thêm một nhát cho mỗi cơ sở, mỗi tháng. */
+		echo '<div class="the"><details open>';
 		echo '<summary><b>Bảng lương cơ sở</b> — ' . esc_html( $cs ) . ' · tháng '
-			. esc_html( $th ) . ' <span class="mo">(đúng mẫu nộp kế toán)</span></summary>';
+			. esc_html( $th ) . ' <span class="mo">(đúng mẫu nộp kế toán · bấm để gập lại)</span></summary>';
 		if ( empty( $b['ok'] ) ) {
 			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div></details></div>';
 			return;
@@ -8536,10 +8580,35 @@ class VHCC_Web {
 			. 'xuất ra có sẵn công thức nên gõ vào là tổng tự nhảy.</p>';
 
 		$sua_cl = isset( $_GET['clm'] ) ? sanitize_text_field( wp_unslash( $_GET['clm'] ) ) : '';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CỘT NÀO CẢ BẢNG KHÔNG CÓ SỐ THÌ THÔI ĐỪNG VẼ.
+		 *
+		 * Anh Thắng 16/09/2026: *"cột nào có giá trị thì hiện, cột nào không có thì thôi"* — ảnh
+		 * anh gửi có hai cột **Cộng** và **Trừ** dài suốt một bảng toàn dấu gạch ngang.
+		 *
+		 * ⚠️ CHỈ BỎ HAI CỘT PHỤ THUỘC NGƯỜI GÕ (Cộng · Trừ). Mấy cột lõi — Số giờ, Tiền/h, Lương
+		 *    chính, Thực nhận — thì GIỮ kể cả khi rỗng: ô trống ở đó là một câu trả lời ("chưa
+		 *    khai đơn giá"), còn giấu cả cột đi thì người đọc tưởng bảng này không có phần ấy.
+		 * ⚠️ `Thực nhận` cũng giữ luôn, vì khi không có cộng/trừ thì nó bằng Lương chính — hai
+		 *    cột giống nhau trông thừa, nhưng bỏ nó đi là bỏ mất đúng con số người ta đi tìm.
+		 * ⚠️ Quyết theo CẢ BẢNG, không theo từng dòng: cột mọc ra rồi mất đi giữa các dòng thì
+		 *    không còn là bảng nữa.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$co_cong = false;
+		$co_tru  = false;
+		foreach ( $b['dong'] as $d_k ) {
+			if ( empty( $d_k['laChinh'] ) ) { continue; }
+			if ( (float) $d_k['tongCong'] ) { $co_cong = true; }
+			if ( (float) $d_k['tongTru'] ) { $co_tru = true; }
+		}
+
 		echo '<div class="cuon"><table class="b"><thead><tr>'
 			. '<th>#</th><th>Họ tên</th><th>Chức vụ</th><th>Số giờ</th><th>Tiền/h</th>'
-			. '<th>Lương chính</th><th>Cộng</th><th>Trừ</th><th>Thực nhận</th>'
-			. '<th>Ghi chú</th></tr></thead><tbody>';
+			. '<th>Lương chính</th>'
+			. ( $co_cong ? '<th>Cộng</th>' : '' )
+			. ( $co_tru ? '<th>Trừ</th>' : '' )
+			. '<th>Thực nhận</th><th>Ghi chú</th></tr></thead><tbody>';
 		foreach ( $b['dong'] as $d ) {
 			$hong = ( null === $d['luongChinh'] );
 			echo '<tr' . ( $hong ? ' class="hong"' : '' ) . '>';
@@ -8559,7 +8628,10 @@ class VHCC_Web {
 			$la_c = ! empty( $d['laChinh'] );
 			$thuc = ( null === $d['luongChinh'] ) ? null
 				: round( (float) $d['luongChinh'] + (float) $d['tongCong'] - (float) $d['tongTru'], 2 );
-			foreach ( array( $la_c ? $d['tongCong'] : null, $la_c ? $d['tongTru'] : null ) as $so_x ) {
+			$o_ct = array();
+			if ( $co_cong ) { $o_ct[] = $la_c ? $d['tongCong'] : null; }
+			if ( $co_tru )  { $o_ct[] = $la_c ? $d['tongTru'] : null; }
+			foreach ( $o_ct as $so_x ) {
 				echo '<td class="p">' . ( ! $so_x ? '<span class="mo">—</span>'
 					: esc_html( number_format( (float) $so_x, 0, ',', '.' ) ) ) . '</td>';
 			}
@@ -8586,7 +8658,8 @@ class VHCC_Web {
 			echo '</td>';
 			echo '</tr>';
 			if ( $la_c && $duoc_nhap && $sua_cl === $d['ma'] ) {
-				self::hang_chot_luong( $ky, $toi, $cs, $th, $d );
+				self::hang_chot_luong( $ky, $toi, $cs, $th, $d,
+					8 + ( $co_cong ? 1 : 0 ) + ( $co_tru ? 1 : 0 ) );
 			}
 		}
 		$t_cong = 0.0; $t_tru = 0.0;
@@ -8599,8 +8672,11 @@ class VHCC_Web {
 			. '<td class="p"><b>' . esc_html( number_format( (float) $b['tong']['gio'], 2, ',', '.' ) )
 			. '</b></td><td></td><td class="p"><b>'
 			. esc_html( number_format( (float) $b['tong']['luongChinh'], 0, ',', '.' ) ) . '</b></td>'
-			. '<td class="p"><b>' . esc_html( number_format( $t_cong, 0, ',', '.' ) ) . '</b></td>'
-			. '<td class="p"><b>' . esc_html( number_format( $t_tru, 0, ',', '.' ) ) . '</b></td>'
+			/* ⚠️ HÀNG TỔNG PHẢI THEO ĐÚNG MẤY CỜ Ở TRÊN. Đầu bảng bớt một cột mà hàng tổng vẫn
+			   in đủ thì cả hàng ấy tụt sang phải một ô — và con số Thực nhận rơi vào cột Ghi
+			   chú, đúng chỗ mắt người ta liếc vào để biết tháng này trả bao nhiêu. */
+			. ( $co_cong ? '<td class="p"><b>' . esc_html( number_format( $t_cong, 0, ',', '.' ) ) . '</b></td>' : '' )
+			. ( $co_tru ? '<td class="p"><b>' . esc_html( number_format( $t_tru, 0, ',', '.' ) ) . '</b></td>' : '' )
 			. '<td class="p"><b>' . esc_html( number_format( $t_thuc, 0, ',', '.' ) ) . '</b></td>'
 			. '<td></td></tr>';
 		echo '</tbody></table></div>';
@@ -8610,6 +8686,59 @@ class VHCC_Web {
 			. '">⬇ Xuất bảng lương (.xlsx)</a> <span class="mo">— đúng bố cục file kế toán đang '
 			. 'dùng: tựa, hai dòng tiêu đề, nhóm cột cộng/trừ, dòng tổng. Nộp thẳng, không phải '
 			. 'chép tay sang mẫu.</span></p>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 XUẤT NHIỀU CƠ SỞ VÀO MỘT TỆP — anh Thắng 16/09/2026: *"nếu chọn 2, 3 cơ sở thì ghép
+		 *    nhiều bảng vào trong 1 file"*, đúng khuôn file `Lương cơ sở HCM 2026` anh gửi: hai
+		 *    mươi khối nằm trong MỘT tờ, mỗi khối một cơ sở.
+		 *
+		 * ⚠️ CHỈ BÀY MẤY CƠ SỞ NGƯỜI NÀY ĐƯỢC XEM. Danh sách lấy từ `ds_coso_cua($toi)` — đúng
+		 *    phạm vi hồ sơ của họ. Đường xuất vẫn hỏi lại quyền từng cơ sở một, nên bày thừa ở
+		 *    đây cũng không lọt, nhưng bày ra một cái tên họ không được mở là đã lộ mất tên ấy.
+		 * ⚠️ MỘT CƠ SỞ THÌ KHÔNG BÀY GÌ CẢ. Người chỉ quản một cửa hàng mà thấy một khối "chọn
+		 *    thêm cơ sở" rỗng thì chỉ tổ làm họ đi tìm thứ không có.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ds_qx = method_exists( 'VHCC_NhanSu', 'ds_coso_cua' ) ? VHCC_NhanSu::ds_coso_cua( $toi ) : array();
+		if ( count( $ds_qx ) > 1 ) {
+			echo '<details style="margin-top:8px"><summary class="mo">Xuất <b>nhiều cơ sở</b> vào '
+				. 'một tệp</summary>';
+			echo '<p class="mo" style="margin:8px 0">Tích mấy cơ sở cần nộp chung. Tệp ra vẫn là '
+				. '<b>một tờ</b>, mỗi cơ sở một khối có số thứ tự và dòng cộng riêng — đúng khuôn '
+				. 'file kế toán đang dùng.</p>';
+			/* ⚠️ FORM GET XOÁ SẠCH QUERY CỦA `action`. Trang này khi hosting chưa bật đường dẫn
+			   tĩnh thì chạy ở `?vhcc_qt=1` — bấm nút mà không gài lại tham số ấy là rơi về
+			   trang chủ WordPress, không phải màn chấm công. Nên bóc query của chính `url()`
+			   ra thành mấy ô ẩn, thay vì gõ tay một danh sách rồi quên cập nhật. */
+			$u_x = self::url();
+			$q_x = (string) wp_parse_url( $u_x, PHP_URL_QUERY );
+			echo '<form method="get" action="' . esc_url( strtok( $u_x, '?' ) )
+				. '" class="hang" style="flex-wrap:wrap;gap:10px">';
+			if ( '' !== $q_x ) {
+				$tam_x = array();
+				wp_parse_str( $q_x, $tam_x );
+				foreach ( $tam_x as $k_x => $v_x ) {
+					echo '<input type="hidden" name="' . esc_attr( $k_x ) . '" value="'
+						. esc_attr( (string) $v_x ) . '">';
+				}
+			}
+			/* ⚠️ CHỞ LUÔN `man`. Biểu mẫu này tải tệp chứ không mở màn nào, nên về lý không cần
+			   — nhưng luật chung của trang là *mọi* biểu mẫu GET phải tự chở `man` (xem phép
+			   thử đếm biểu mẫu trong `test-cham-cong.php`). Xin một ngoại lệ thứ hai là nới
+			   luật, mà nới luật thì biểu mẫu GET viết sau này lại sót và sót im lặng. Một ô ẩn
+			   thừa rẻ hơn nhiều. */
+			echo '<input type="hidden" name="man" value="cham">'
+				. '<input type="hidden" name="xuat" value="luong">'
+				. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
+			foreach ( $ds_qx as $cs_q ) {
+				echo '<label style="font-size:12.5px;white-space:nowrap">'
+					. '<input type="checkbox" name="cs[]" value="' . esc_attr( $cs_q ) . '"'
+					. ( 0 === strcasecmp( $cs_q, (string) $cs ) ? ' checked' : '' ) . '> '
+					. esc_html( VHCC_NhanSu::ten_coso( $cs_q ) ) . '</label>';
+			}
+			echo '<button class="nut">⬇ Xuất mấy cơ sở đã tích</button>';
+			echo '</form></details>';
+		}
 		echo '</details></div>';
 
 		/* Bảng giá đứng NGAY DƯỚI bảng dùng nó — xem chú thích dài ở `the_gia_gio_cs()`. */

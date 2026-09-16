@@ -366,6 +366,12 @@ function wp_remote_retrieve_header( $r, $ten ) {
 }
 function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $r['body'] : ''; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
+/* ⚠️ THIẾU MỘT HÀM Ở ĐÂY LÀ TRANG BỊ CẮT CỤT GIỮA CHỪNG, KHÔNG PHẢI BÁO LỖI TO.
+   16/09/2026: mã dùng `wp_parse_str()` mà bộ giả chưa có, và kết quả là SÁU phép thử ở mấy mục
+   chẳng liên quan cùng đỏ ("thiếu cơ sở thứ hai", "lệch số thẻ details") — vì trang ngã giữa
+   lúc vẽ nên phần sau không có. Mất một lúc mới lần ra. Hàm nào WordPress có mà mã dùng thì
+   khai vào đây, đừng đợi nó ngã. */
+function wp_parse_str( $s, &$a ) { parse_str( (string) $s, $a ); return $a; }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
 function home_url( $p = '/' ) { return 'http://example.test' . $p; }
 /* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép

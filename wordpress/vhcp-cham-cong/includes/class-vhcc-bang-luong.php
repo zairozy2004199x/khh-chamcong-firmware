@@ -321,8 +321,36 @@ class VHCC_BangLuong {
 	 *    một số "có vẻ thật" — số có vẻ thật là thứ lần sau người ta chép lại mà không hỏi.
 	 */
 	public static function to_xlsx( $coso, $thang, $ten_cs = '' ) {
-		$b = self::dung( $coso, $thang );
-		if ( empty( $b['ok'] ) ) { return $b; }
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MỘT TỆP CÓ THỂ CHỨA NHIỀU CƠ SỞ — anh Thắng 16/09/2026: *"nếu chọn 1 cơ sở, xuất
+		 *    bảng lương có 1 cơ sở, nếu chọn 2, 3 cơ sở thì ghép nhiều bảng vào trong 1 file"*.
+		 *
+		 * Đọc ngược từ chính file kế toán anh gửi (`Lương cơ sở HCM 2026`, 20 khối trong MỘT tờ):
+		 * tựa và hai dòng tiêu đề cột chỉ có MỘT LẦN ở đầu tờ, rồi mỗi cơ sở là một KHỐI —
+		 * dòng mở khối mang số La Mã ở cột A và tên cơ sở ở cột B, các dòng người, rồi một dòng
+		 * cộng riêng của khối ấy.
+		 *
+		 * ⚠️ MỘT TỜ, KHÔNG PHẢI MỖI CƠ SỞ MỘT TỜ. Kế toán cộng dọc cả tờ và dò bằng mắt từ trên
+		 *    xuống; tách tờ là bắt họ mở đi mở lại 20 tab.
+		 * ⚠️ `$coso` nhận CHUỖI (một cơ sở), chuỗi ngăn bởi dấu phẩy, hoặc mảng. Nơi gọi cũ
+		 *    truyền một chuỗi và vẫn chạy y như trước.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ds_cs = is_array( $coso ) ? $coso : explode( ',', (string) $coso );
+		$ds_cs = array_values( array_filter( array_map( 'trim', $ds_cs ), 'strlen' ) );
+		if ( ! $ds_cs ) { return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở nào để xuất.' ); }
+
+		/* Dựng bảng của từng cơ sở TRƯỚC, để một cơ sở hỏng thì nói ra ngay bằng tên nó, chứ
+		   không dựng được nửa tệp rồi mới ngã. */
+		$ds_b = array();
+		foreach ( $ds_cs as $cs_x ) {
+			$b_x = self::dung( $cs_x, $thang );
+			if ( empty( $b_x['ok'] ) ) {
+				return array( 'ok' => false,
+					'error' => 'Cơ sở ' . $cs_x . ': ' . ( isset( $b_x['error'] ) ? $b_x['error'] : 'không dựng được.' ) );
+			}
+			$ds_b[ $cs_x ] = $b_x;
+		}
+		$b = reset( $ds_b );          // bảng ĐẦU — dùng cho tháng, tên tờ, và giá trị trả về
 
 		$chu  = function ( $v, $s ) { return array( 'v' => VHCC_Xuat::chu( $v ), 's' => $s ); };
 		$o    = function ( $v, $s ) { return VHCC_Xuat::o_kieu( $v, $s ); };
@@ -334,7 +362,13 @@ class VHCC_BangLuong {
 		$V = VHCC_Xuat::CHU_V;
 		$B = VHCC_Xuat::BANG;
 
-		$cuoi_thang = gmdate( 'd/m/Y', strtotime( $b['thang'] . '-01 12:00:00 UTC +1 month -1 day' ) );
+		/* 🔴 DÒNG NGÀY GHI "Tháng 8/2026", ĐÚNG NHƯ FILE KẾ TOÁN ĐANG DÙNG.
+		   Ô A5 của file anh Thắng gửi là một NGÀY mang định dạng `"Tháng "m/yyyy`, tức mắt đọc
+		   ra "Tháng 8/2026". Bản trước ghi `31/08/2026` — cùng một tháng, nhưng khác chữ, và
+		   người đối chiếu hai tờ cạnh nhau sẽ khựng lại đúng ở dòng đầu tiên.
+		   ⚠️ Ghi thẳng bằng CHỮ, không ghi kiểu ngày rồi gắn định dạng: bộ xuất chưa có kiểu
+		      ngày, mà thêm một kiểu ô mới chỉ để in một dòng tựa là đổi lõi để chữa cái vỏ. */
+		$cuoi_thang = 'Tháng ' . (int) substr( $b['thang'], 5, 2 ) . '/' . substr( $b['thang'], 0, 4 );
 		$ten_cs = '' !== trim( (string) $ten_cs ) ? trim( (string) $ten_cs ) : $b['coso'];
 
 		$rong = function ( $n ) { return array_fill( 0, $n, '' ); };
@@ -344,7 +378,9 @@ class VHCC_BangLuong {
 		$hang[] = $rong( 27 );
 		$hang[] = array_merge( array( $o( 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', VHCC_Xuat::TUA ) ), $rong( 26 ) );
 		$hang[] = array_merge( array( $o( $cuoi_thang, VHCC_Xuat::TUA ) ), $rong( 26 ) );
-		$hang[] = array_merge( array( $o( $ten_cs, VHCC_Xuat::DAM ) ), $rong( 26 ) );
+		/* Dòng 6: tên cơ sở khi xuất MỘT cơ sở. Xuất nhiều thì để trống — tên của từng cơ sở
+		   nằm ở dòng mở khối của chính nó, ghi lại ở đây một cái tên là nói dối về 19 cái kia. */
+		$hang[] = array_merge( array( $o( count( $ds_b ) > 1 ? '' : $ten_cs, VHCC_Xuat::DAM ) ), $rong( 26 ) );
 
 		/* Hai dòng tiêu đề — chữ lấy nguyên văn từ file, kể cả mấy chỗ viết tắt. */
 		$h1 = array( 'STT', 'NAME', 'CCCD', 'POSITION', 'Lương cb', '', 'Số công thực', 'Tiền/h',
@@ -360,8 +396,26 @@ class VHCC_BangLuong {
 			$hang[] = $d;
 		}
 
-		$r = self::DONG_DAU;
-		foreach ( $b['dong'] as $x ) {
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * MỖI CƠ SỞ MỘT KHỐI: dòng mở khối (số La Mã + tên) · các dòng người · dòng cộng khối.
+		 *
+		 * ⚠️ `$r` ĐẾM XUYÊN SUỐT CẢ TỜ, không đếm lại từ đầu mỗi khối. Mọi công thức trong dòng
+		 *    (`=G12*H12`) đều bám số dòng THẬT trong tờ; đếm lại từ 9 là khối thứ hai trở đi trỏ
+		 *    vào đúng mấy dòng của khối thứ nhất — ra số, trông như thật, mà sai của người khác.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$r   = self::DONG_DAU;
+		$i_k = 0;
+		foreach ( $ds_b as $cs_k => $b_k ) {
+		$i_k++;
+		/* Dòng mở khối — cột A số La Mã, cột B tên cơ sở, đúng khuôn file kế toán đang dùng. */
+		$mo_khoi = array( $o( self::so_la_ma( $i_k ), VHCC_Xuat::TONG ),
+			$o( VHCC_NhanSu::ten_coso( $cs_k ), VHCC_Xuat::TONG ) );
+		for ( $i = 2; $i < 27; $i++ ) { $mo_khoi[] = $trong( VHCC_Xuat::TONG ); }
+		$hang[] = $mo_khoi;
+		$r++;
+		$dau_khoi = $r;
+
+		foreach ( $b_k['dong'] as $x ) {
 			$co_gia = ( null !== $x['luongChinh'] );
 			$ghi = array();
 			if ( 'khong' === $x['giaTu'] && 'thang' !== $x['cheDo'] ) {
@@ -422,22 +476,26 @@ class VHCC_BangLuong {
 			$r++;
 		}
 
-		/* Dòng tổng — cộng thẳng bằng SUM để kế toán sửa một ô là tổng theo ngay. */
+		/* Dòng cộng của KHỐI — cộng thẳng bằng SUM để kế toán sửa một ô là tổng theo ngay.
+		   ⚠️ Vùng SUM chạy từ DÒNG ĐẦU CỦA KHỐI NÀY, không phải từ dòng 9 của cả tờ: cộng từ 9
+		      là khối thứ hai ôm luôn mọi khối trước nó, và con số ấy trông vẫn hợp lý. */
 		$cuoi = $r - 1;
 		$tong = array( $trong( VHCC_Xuat::TONG ),
-			$o( 'TỔNG — ' . $ten_cs, VHCC_Xuat::TONG ),
+			$o( 'TỔNG — ' . VHCC_NhanSu::ten_coso( $cs_k ), VHCC_Xuat::TONG ),
 			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ),
 			$trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ), $trong( VHCC_Xuat::TONG ) );
-		if ( $cuoi >= self::DONG_DAU ) {
+		if ( $cuoi >= $dau_khoi ) {
 			foreach ( array( 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U',
 				'V', 'W', 'X', 'Y', 'Z' ) as $c ) {
-				$tong[] = $ct( 'SUM(' . $c . self::DONG_DAU . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG );
+				$tong[] = $ct( 'SUM(' . $c . $dau_khoi . ':' . $c . $cuoi . ')', VHCC_Xuat::TONG );
 			}
 		} else {
 			for ( $i = 0; $i < 18; $i++ ) { $tong[] = $trong( VHCC_Xuat::TONG ); }
 		}
 		$tong[] = $trong( VHCC_Xuat::TONG );
 		$hang[] = $tong;
+		$r++;
+		}   /* hết một khối cơ sở */
 
 		$gop = array( 'A4:AA4', 'A5:AA5', 'A6:AA6', 'A7:A8', 'B7:B8', 'C7:C8', 'D7:D8', 'E7:E8',
 			'G7:G8', 'H7:H8', 'I7:I8', 'J7:J8', 'K7:K8', 'L7:L8', 'M7:M8', 'N7:U7', 'V7:X7',
@@ -450,6 +508,24 @@ class VHCC_BangLuong {
 			'damDongDau' => false,
 			'hang' => $hang,
 		) ) );
+	}
+
+	/**
+	 * Số La Mã cho dòng mở khối — I, II, III… đúng như cột A của file kế toán đang dùng.
+	 *
+	 * ⚠️ Quá 3999 thì trả lại chính con số. Không ai có 3999 cơ sở, nhưng một hàm chuyển đổi mà
+	 *    trả chuỗi rỗng ở rìa thì dòng mở khối mất số thứ tự và không ai hiểu vì sao.
+	 */
+	public static function so_la_ma( $n ) {
+		$n = (int) $n;
+		if ( $n < 1 || $n > 3999 ) { return (string) $n; }
+		$bang = array( 1000 => 'M', 900 => 'CM', 500 => 'D', 400 => 'CD', 100 => 'C', 90 => 'XC',
+			50 => 'L', 40 => 'XL', 10 => 'X', 9 => 'IX', 5 => 'V', 4 => 'IV', 1 => 'I' );
+		$ra = '';
+		foreach ( $bang as $gt => $ch ) {
+			while ( $n >= $gt ) { $ra .= $ch; $n -= $gt; }
+		}
+		return $ra;
 	}
 
 	/** Tên tệp gửi về trình duyệt. */

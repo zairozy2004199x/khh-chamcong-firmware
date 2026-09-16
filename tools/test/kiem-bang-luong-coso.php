@@ -379,7 +379,10 @@ $gv = function ( $dong, $cot ) use ( $h ) {
 
 teq( 'dòng 1 là tên công ty', 'K&H CO. LTD', $gv( 0, 0 ) );
 teq( 'có tựa đúng nguyên văn file', 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', $gv( 3, 0 ) );
-teq( '🔴 ngày là NGÀY CUỐI THÁNG, không phải hôm nay', '31/08/2026', $gv( 4, 0 ) );
+/* 🔴 ĐÚNG CHỮ CỦA FILE KẾ TOÁN: ô A5 của file anh Thắng gửi đọc ra "Tháng 8/2026". Bản trước
+   ghi `31/08/2026` — cùng một tháng, khác chữ, và người đối chiếu hai tờ cạnh nhau khựng lại
+   ngay dòng đầu. Và nó phải là THÁNG ĐANG XEM, không phải tháng hôm nay. */
+teq( '🔴 dòng ngày ghi đúng chữ "Tháng 8/2026"', 'Tháng 8/2026', $gv( 4, 0 ) );
 teq( 'và nói rõ cơ sở nào', 'Cơ SỞ Thử Bình Tân', $gv( 5, 0 ) );
 
 /* Hai dòng tiêu đề, đúng vị trí cột như file — kế toán đối chiếu bằng mắt theo vị trí. */
@@ -440,13 +443,23 @@ teq( '🔴 cột TOTAL SALARY cũng vậy', null, $gv( $d_kg, 25 ) );
 t( '🔴 và ghi chú NÓI THẲNG vì sao trống',
 	false !== strpos( (string) $gv( $d_kg, 26 ), 'CHƯA KHAI ĐƠN GIÁ' ), $gv( $d_kg, 26 ) );
 
-/* Dòng tổng cộng bằng SUM, để kế toán sửa một ô là tổng theo ngay. */
+/* Dòng cộng của khối, cộng bằng SUM để kế toán sửa một ô là tổng theo ngay. */
 $d_tong = count( $h ) - 1;
-t( 'dòng cuối là dòng TỔNG', false !== strpos( (string) $gv( $d_tong, 1 ), 'TỔNG' ), $gv( $d_tong, 1 ) );
-/* ⚠️ Vùng SUM phải trải ĐÚNG số dòng dữ liệu đang có — đóng cứng Z9:Z11 là mỗi lần đồ thử thêm
-   một người thì phép này đỏ vì lý do chẳng liên quan. Tính từ chính số dòng. */
-teq( 'tổng cột Z cộng bằng SUM trải đủ mọi dòng',
-	'=SUM(Z9:Z' . ( $d_tong ) . ')', $gv( $d_tong, 25 ) );
+t( 'dòng cuối là dòng TỔNG của khối', false !== strpos( (string) $gv( $d_tong, 1 ), 'TỔNG' ),
+	$gv( $d_tong, 1 ) );
+/* ⚠️ VÙNG SUM PHẢI TRẢI ĐÚNG KHỐI NÀY, và mốc đầu KHÔNG còn đóng cứng ở dòng 9: từ bản 4.9.0,
+   dòng 9 là DÒNG MỞ KHỐI (số La Mã + tên cơ sở), người bắt đầu từ dòng 10. Đóng cứng `Z9` là
+   ôm luôn dòng mở khối — nay nó rỗng nên vô hại, nhưng khối thứ hai trở đi thì `Z9` trỏ vào
+   giữa khối thứ nhất và cộng nhầm tiền của cơ sở khác.
+   Nên: bóc mốc đầu từ CHÍNH công thức, rồi khẳng định nó trỏ đúng dòng người đầu tiên. */
+$ct_z = (string) $gv( $d_tong, 25 );
+t( 'cột Z của dòng cộng là một công thức SUM', 1 === preg_match( '/^=SUM\(Z(\d+):Z(\d+)\)$/', $ct_z, $m_z ),
+	$ct_z );
+teq( '🔴 vùng SUM kết thúc ĐÚNG dòng ngay trên dòng cộng', (string) $d_tong, (string) $m_z[2] );
+teq( '🔴 và bắt đầu ĐÚNG dòng người đầu tiên (dòng 10 — dưới dòng mở khối)', '10', (string) $m_z[1] );
+/* 🔴 DÒNG MỞ KHỐI: số La Mã ở cột A, tên cơ sở ở cột B — đúng khuôn file kế toán đang dùng. */
+teq( '🔴 dòng 9 là dòng MỞ KHỐI, cột A mang số La Mã', 'I', (string) $gv( 8, 0 ) );
+t( '🔴 và cột B mang tên cơ sở', '' !== trim( (string) $gv( 8, 1 ) ), $gv( 8, 1 ) );
 
 /* Ô gộp và độ rộng cột — lấy theo đúng file, để mở ra trông y hệt cái kế toán đang dùng. */
 t( 'có gộp ô tiêu đề nhóm cộng (N7:U7)', in_array( 'N7:U7', $to['gop'], true ), $to['gop'] );
@@ -1958,5 +1971,199 @@ teq( '🔴 lượt chấm của mã ẩn VẪN nằm trong bảng', 1, (int) $wp
 
 /* ───── Dọn: bỏ ẩn để mấy mục sau không thừa hưởng trạng thái này ───── */
 VHCC_An::dat( $U_QL_E, $cs_e, $ma_eh, false );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 20. BẢNG LƯƠNG MỞ SẴN, VÀ CỘT RỖNG THÌ THÔI ĐỪNG VẼ
+ *
+ * Anh Thắng 16/09/2026: *"anh muốn hiện luôn bảng lương phía dưới bảng công, mở sẵn, cột nào có
+ * giá trị thì hiện, cột nào không có thì thôi"* — kèm ảnh hai cột **Cộng** và **Trừ** dài suốt
+ * một bảng toàn dấu gạch ngang.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_m  = 'KHO_MO';
+$th_m  = '2026-08';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'MO1', 'ho_ten' => 'Người Bảng Mở',
+	'cua_hang' => $cs_m, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'MO1', 'ho_ten' => '', 'coso' => $cs_m, 'ngay' => '2026-08-03',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+VHCC_GiaGio::dat_coso( $U_KT, $cs_m, array( 'Partime' => 25000 ) );
+
+$g_m  = array( 'man' => 'cham', 'ccs' => $cs_m, 'cth' => $th_m );
+$h_m1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_m );
+
+/** Bóc riêng khối "Bảng lương cơ sở" — soi cả trang thì bắt trúng mấy bảng khác cùng màn. */
+function vhcc_khoi_bl( $h ) {
+	$i = strpos( $h, 'Bảng lương cơ sở' );
+	if ( false === $i ) { return null; }
+	$j = strpos( $h, '</details>', $i );
+	return ( false === $j ) ? substr( $h, $i ) : substr( $h, $i, $j - $i );
+}
+$bl_m = vhcc_khoi_bl( $h_m1 );
+t( 'bóc được khối bảng lương', null !== $bl_m, 'không thấy khối' );
+
+/* ───── 1. 🔴 MỞ SẴN ───── */
+/* ⚠️ Soi thẻ `<details open>` ngay TRƯỚC chữ "Bảng lương cơ sở", không soi chữ `open` ở đâu đó
+   trên trang — trang này còn mấy khối khác cũng mở sẵn. */
+$i_bl = strpos( $h_m1, 'Bảng lương cơ sở' );
+$truoc = substr( $h_m1, max( 0, $i_bl - 120 ), 120 );
+t( '🔴 khối bảng lương MỞ SẴN, không bắt bấm',
+	false !== strpos( $truoc, '<details open>' ), $truoc );
+
+/* ───── 2. 🔴 CHƯA AI GÕ CỘNG/TRỪ THÌ KHÔNG VẼ HAI CỘT ẤY ───── */
+t( 'gieo: bảng có dòng thật', false !== strpos( (string) $bl_m, 'Người Bảng Mở' ), $bl_m );
+t( '🔴 chưa ai gõ: KHÔNG có cột "Cộng"', false === strpos( (string) $bl_m, '<th>Cộng</th>' ), $bl_m );
+t( '🔴 và KHÔNG có cột "Trừ"', false === strpos( (string) $bl_m, '<th>Trừ</th>' ), $bl_m );
+/* 🔴 MẤY CỘT LÕI THÌ GIỮ, kể cả khi rỗng — ô trống ở đó là một câu trả lời. */
+foreach ( array( 'Số giờ', 'Tiền/h', 'Lương chính', 'Thực nhận' ) as $c_loi ) {
+	t( '🔴 cột lõi "' . $c_loi . '" vẫn còn', false !== strpos( (string) $bl_m, '<th>' . $c_loi . '</th>' ),
+		$bl_m );
+}
+
+/** Đếm cột của MỘT hàng trong bảng lương — `<th` cũng khớp `<thead>` nên phải kén mặt. */
+function vhcc_dem_o( $hang ) { return preg_match_all( '/<td[ >]/', $hang, $m ); }
+/** Bóc hàng dữ liệu đầu tiên của bảng `table.b`. */
+function vhcc_hang_bl( $khoi, $chua ) {
+	if ( ! preg_match_all( '/<tr[^>]*>.*?<\/tr>/us', $khoi, $m ) ) { return null; }
+	foreach ( $m[0] as $h ) { if ( false !== strpos( $h, $chua ) ) { return $h; } }
+	return null;
+}
+$hang_m = vhcc_hang_bl( (string) $bl_m, 'Người Bảng Mở' );
+$hang_t = vhcc_hang_bl( (string) $bl_m, '<b>TỔNG</b>' );
+t( 'bóc được hàng người và hàng TỔNG', null !== $hang_m && null !== $hang_t,
+	var_export( array( $hang_m, $hang_t ), true ) );
+/* 🔴 HÀNG TỔNG PHẢI CÙNG SỐ Ô VỚI HÀNG NGƯỜI. Bỏ cột ở đầu bảng mà quên hàng tổng thì cả hàng
+   ấy tụt sang phải, và con số Thực nhận rơi vào cột Ghi chú — đúng ô người ta liếc vào. */
+teq( '🔴 hàng TỔNG cùng số ô với hàng người', vhcc_dem_o( (string) $hang_m ),
+	vhcc_dem_o( (string) $hang_t ) );
+teq( '🔴 và đúng 8 ô khi không có Cộng/Trừ', 8, vhcc_dem_o( (string) $hang_m ) );
+
+/* ───── 3. 🔴 GÕ MỘT KHOẢN PHẠT VÀO THÌ CỘT "TRỪ" HIỆN RA ───── */
+VHCC_ChotLuong::dat( $U_KT, $cs_m, $th_m, 'MO1', array(), 9.0, 'Partime' );
+$r_tm = VHCC_ChotLuong::dat_tien( $U_KT, $cs_m, $th_m, 'MO1', array(), array( 'phat' => 200000 ) );
+t( 'gieo: gõ được khoản phạt', ! empty( $r_tm['ok'] ), $r_tm );
+$h_m2  = vhcc_man( 'KT_BL', 'Kế toán', '', $g_m );
+$bl_m2 = vhcc_khoi_bl( $h_m2 );
+t( '🔴 gõ phạt vào: cột "Trừ" hiện ra', false !== strpos( (string) $bl_m2, '<th>Trừ</th>' ), $bl_m2 );
+t( '⚠️ nhưng cột "Cộng" vẫn thôi — nó vẫn chưa có số nào',
+	false === strpos( (string) $bl_m2, '<th>Cộng</th>' ), $bl_m2 );
+$hang_m2 = vhcc_hang_bl( (string) $bl_m2, 'Người Bảng Mở' );
+$hang_t2 = vhcc_hang_bl( (string) $bl_m2, '<b>TỔNG</b>' );
+teq( '🔴 thêm một cột thì hàng TỔNG cũng thêm', vhcc_dem_o( (string) $hang_m2 ),
+	vhcc_dem_o( (string) $hang_t2 ) );
+teq( 'và thành 9 ô', 9, vhcc_dem_o( (string) $hang_m2 ) );
+t( '🔴 và số phạt in ra thật', false !== strpos( (string) $hang_m2, '200.000' ), $hang_m2 );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 21. NHIỀU CƠ SỞ GHÉP VÀO MỘT TỆP
+ *
+ * Anh Thắng 16/09/2026, kèm file thật `Lương cơ sở HCM 2026` (20 khối trong MỘT tờ): *"nếu chọn
+ * 1 cơ sở, xuất bảng lương có 1 cơ sở, nếu chọn 2, 3 cơ sở thì ghép nhiều bảng vào trong 1 file"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$th_n  = '2026-08';
+foreach ( array( 'GHEP_A' => 'Người Cơ Sở A', 'GHEP_B' => 'Người Cơ Sở B' ) as $cs_n => $ten_n ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV' . $cs_n, 'ho_ten' => $ten_n,
+		'cua_hang' => $cs_n, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+		'ma_nv' => 'NV' . $cs_n, 'ho_ten' => '', 'coso' => $cs_n, 'ngay' => '2026-08-03',
+		'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+	VHCC_GiaGio::dat_coso( $U_KT, $cs_n, array( 'Partime' => 25000 ) );
+}
+
+/* ───── 1. MỘT CƠ SỞ: y như cũ, đúng MỘT khối ───── */
+$x1 = VHCC_BangLuong::to_xlsx( 'GHEP_A', $th_n, 'Cơ Sở A' );
+t( 'một cơ sở: dựng được', ! empty( $x1['ok'] ), $x1 );
+teq( 'một cơ sở: vẫn đúng MỘT tờ', 1, count( $x1['to'] ) );
+$h1 = $x1['to'][0]['hang'];
+/** Số ô của một dòng — dùng để dò dòng mở khối (chỉ cột A và B có chữ). */
+function vhcc_o_hang( $d, $i ) {
+	if ( ! isset( $d[ $i ] ) ) { return null; }
+	$v = $d[ $i ];
+	if ( is_array( $v ) && array_key_exists( 'v', $v ) ) { $v = $v['v']; }
+	if ( is_array( $v ) && isset( $v['ct'] ) ) { $v = '=' . $v['ct']; }
+	if ( is_array( $v ) && isset( $v['chu'] ) ) { $v = $v['chu']; }
+	return $v;
+}
+/** Mấy dòng nào là DÒNG MỞ KHỐI — cột A mang số La Mã. */
+function vhcc_dong_mo( $hang ) {
+	$ra = array();
+	foreach ( $hang as $i => $d ) {
+		$a = vhcc_o_hang( $d, 0 );
+		if ( is_string( $a ) && 1 === preg_match( '/^[IVXLCDM]+$/', $a ) ) {
+			$ra[ $i + 1 ] = array( $a, vhcc_o_hang( $d, 1 ) );   // +1: về số dòng 1-indexed
+		}
+	}
+	return $ra;
+}
+$mo1 = vhcc_dong_mo( $h1 );
+teq( '🔴 một cơ sở: đúng MỘT dòng mở khối', 1, count( $mo1 ) );
+teq( 'và nó là số La Mã I', 'I', reset( $mo1 )[0] );
+
+/* ───── 2. 🔴 HAI CƠ SỞ: MỘT TỜ, HAI KHỐI ───── */
+$x2 = VHCC_BangLuong::to_xlsx( array( 'GHEP_A', 'GHEP_B' ), $th_n );
+t( 'hai cơ sở: dựng được', ! empty( $x2['ok'] ), $x2 );
+teq( '🔴 vẫn đúng MỘT tờ, không tách hai tab', 1, count( $x2['to'] ) );
+$h2  = $x2['to'][0]['hang'];
+$mo2 = vhcc_dong_mo( $h2 );
+teq( '🔴 có ĐÚNG HAI dòng mở khối', 2, count( $mo2 ) );
+teq( 'đánh số La Mã I rồi II', array( 'I', 'II' ), array_values( array_map(
+	function ( $x ) { return $x[0]; }, $mo2 ) ) );
+/* 🔴 TÊN CƠ SỞ NẰM Ở DÒNG MỞ KHỐI CỦA CHÍNH NÓ — không thì hai khối trông y hệt nhau. */
+$ten2 = array_values( array_map( function ( $x ) { return (string) $x[1]; }, $mo2 ) );
+t( '🔴 mỗi khối mang tên cơ sở của nó, và hai tên KHÁC nhau',
+	'' !== trim( $ten2[0] ) && '' !== trim( $ten2[1] ) && $ten2[0] !== $ten2[1], $ten2 );
+
+/* ───── 3. 🔴 MỖI KHỐI CỘNG RIÊNG, KHÔNG ÔM KHỐI TRƯỚC ───── */
+/* Đây là phép quan trọng nhất của mục: một dòng cộng trỏ nhầm vùng vẫn ra số, trông vẫn hợp lý,
+   và nó là tiền của cơ sở khác. */
+$dong_mo = array_keys( $mo2 );          // số dòng 1-indexed của hai dòng mở khối
+$vung    = array();
+foreach ( $h2 as $i => $d ) {
+	$z = vhcc_o_hang( $d, 25 );          // cột Z
+	if ( is_string( $z ) && 1 === preg_match( '/^=SUM\(Z(\d+):Z(\d+)\)$/', $z, $m_v ) ) {
+		$vung[] = array( 'dong' => $i + 1, 'tu' => (int) $m_v[1], 'den' => (int) $m_v[2] );
+	}
+}
+teq( '🔴 có đúng HAI dòng cộng khối', 2, count( $vung ) );
+teq( '🔴 khối 1 cộng từ ngay dưới dòng mở khối 1', $dong_mo[0] + 1, $vung[0]['tu'] );
+t( '🔴 khối 1 dừng TRƯỚC dòng mở khối 2 — không ôm sang cơ sở kia',
+	$vung[0]['den'] < $dong_mo[1], $vung[0] );
+teq( '🔴 khối 2 cộng từ ngay dưới dòng mở khối 2', $dong_mo[1] + 1, $vung[1]['tu'] );
+t( '🔴 và KHÔNG bắt đầu từ dòng 9 (kiểu cũ) — thế là ôm cả cơ sở thứ nhất',
+	9 !== $vung[1]['tu'], $vung[1] );
+
+/* ───── 4. CÔNG THỨC TRONG DÒNG NGƯỜI BÁM SỐ DÒNG THẬT CỦA CẢ TỜ ───── */
+/* Đếm lại từ 9 mỗi khối thì khối hai trỏ vào mấy dòng của khối một — ra số, trông như thật. */
+$sai = array();
+foreach ( $h2 as $i => $d ) {
+	$ii = vhcc_o_hang( $d, 8 );          // cột I = G*H
+	if ( is_string( $ii ) && 1 === preg_match( '/^=G(\d+)\*H(\d+)$/', $ii, $m_i ) ) {
+		if ( (int) $m_i[1] !== $i + 1 || (int) $m_i[2] !== $i + 1 ) { $sai[] = array( $i + 1, $ii ); }
+	}
+}
+teq( '🔴 mọi công thức =G*H trỏ đúng dòng của CHÍNH nó', array(), $sai );
+
+/* ───── 5. TIÊU ĐỀ CHỈ MỘT LẦN ───── */
+$so_tua = 0;
+foreach ( $h2 as $d ) {
+	if ( 'STT' === vhcc_o_hang( $d, 0 ) ) { $so_tua++; }
+}
+teq( '🔴 hai dòng tiêu đề cột chỉ có MỘT lần cho cả tờ', 1, $so_tua );
+
+/* ───── 6. CƠ SỞ HỎNG THÌ NÓI TÊN NÓ RA ───── */
+$x3 = VHCC_BangLuong::to_xlsx( array( 'GHEP_A', 'KHONG_CO_THAT' ), 'thang-bay' );
+t( 'tháng sai: không dựng', empty( $x3['ok'] ), $x3 );
+t( '🔴 và nói ra CƠ SỞ NÀO hỏng, chứ không chỉ "không dựng được"',
+	false !== strpos( (string) $x3['error'], 'GHEP_A' ), $x3 );
+
+teq( 'chưa chọn cơ sở nào: nói thẳng', false, (bool) VHCC_BangLuong::to_xlsx( array(), $th_n )['ok'] );
+
+/* ───── 7. SỐ LA MÃ ───── */
+foreach ( array( 1 => 'I', 4 => 'IV', 9 => 'IX', 14 => 'XIV', 20 => 'XX', 40 => 'XL' ) as $n => $la ) {
+	teq( 'số La Mã ' . $n, $la, VHCC_BangLuong::so_la_ma( $n ) );
+}
 
 ket_luan();
