@@ -1460,6 +1460,32 @@ class VHCC_Web {
 					'gio' => isset( $gio_g[ $i_g ] ) ? sanitize_text_field( (string) $gio_g[ $i_g ] ) : '' );
 			}
 			$bao_c = array();
+
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * ĂN LƯƠNG THÁNG — xử TRƯỚC, vì nó đổi CẢ LỐI TÍNH của người ấy.
+			 *
+			 * Anh Thắng 16/09/2026: *"có bạn nhận lương tháng không phải theo giờ, nên tách bạn
+			 * đó ra, khi tích vào bạn đó, nhập lương và ngày công là ra lương tháng"*.
+			 *
+			 * ⚠️ Ô tích KHÔNG gửi lên khi bỏ tích (HTML là vậy), nên "không có `cl_thang`" CHÍNH
+			 *    LÀ cách tắt. Biểu mẫu chốt lương luôn có ô ấy, nên không sợ nhầm với một đường
+			 *    gọi khác vô tình xoá mất khai báo.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$bat_th = ! empty( $_POST['cl_thang'] );
+			$r_th = VHCC_ChotLuong::dat_thang( $toi, $cs_c, $th_c, $ma_c, $bat_th,
+				isset( $_POST['cl_lcb'] ) ? sanitize_text_field( wp_unslash( $_POST['cl_lcb'] ) ) : '',
+				isset( $_POST['cl_cong_yc'] ) ? sanitize_text_field( wp_unslash( $_POST['cl_cong_yc'] ) ) : '' );
+			if ( empty( $r_th['ok'] ) ) {
+				$bao_c[] = array( 'loi' => $r_th['error'] );
+			} elseif ( $bat_th ) {
+				$bao_c[] = array( 'xong' => 'Người này ăn LƯƠNG THÁNG: lương cơ bản '
+					. number_format( (float) $r_th['lcb'], 0, ',', '.' ) . 'đ'
+					. ( $r_th['congYc'] > 0
+						? ' · công chuẩn ' . $r_th['congYc'] . ' ngày'
+						: ' · công chuẩn mượn con số chung của cơ sở' )
+					. '. Cột Số giờ và Tiền/h thôi có nghĩa với người này.' );
+			}
+
 			$r_g = VHCC_ChotLuong::dat( $toi, $cs_c, $th_c, $ma_c, $dong_g, $gio_cham,
 				/* `null` khi biểu mẫu không gửi ô ấy — giữ nguyên việc chính đang có, đừng coi
 				   mọi lượt lưu giờ khác là một lượt bỏ khai việc chính. */
@@ -8372,6 +8398,36 @@ class VHCC_Web {
 				. 'rồi quay lại — như vậy giờ và giá luôn đi cùng nhau.</p>';
 		}
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * ĂN LƯƠNG THÁNG — tích một cái, gõ hai ô, ra lương tháng.
+		 *
+		 * Anh Thắng 16/09/2026: *"có bạn nhận lương tháng không phải theo giờ, nên tách bạn đó
+		 * ra, khi tích vào bạn đó, nhập lương và ngày công là ra lương tháng"*.
+		 *
+		 * ⚠️ ĐẶT NGAY ĐÂY, TRÊN MẤY KHOẢN CỘNG/TRỪ, vì nó đổi CẢ LỐI TÍNH của người ấy: tích
+		 *    vào là mấy ô giờ và đơn giá ở trên thôi có nghĩa. Nhét xuống cuối là người ta gõ
+		 *    xong việc chính rồi mới phát hiện cả khối vừa gõ không dùng tới.
+		 * ⚠️ Số công chuẩn để TRỐNG = mượn con số chung của cơ sở ở tab Cấu hình. Nói ra ngay
+		 *    dưới ô, kẻo người ta tưởng bỏ trống là bằng 0 rồi lương ra 0đ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$lt_ht = VHCC_ChotLuong::thang_cua( $cs, $th, $ma );
+		echo '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--vien)">';
+		echo '<label style="font-weight:600"><input type="checkbox" name="cl_thang" value="1"'
+			. ( $lt_ht ? ' checked' : '' ) . '> Ăn lương tháng — không tính theo giờ</label>';
+		echo '<div class="hang" style="margin:4px 0 0;gap:8px">'
+			. '<div><label style="font-size:11.5px">Lương cơ bản (đ/tháng)</label>'
+			. '<input name="cl_lcb" inputmode="numeric" style="width:150px" value="'
+			. esc_attr( $lt_ht ? number_format( (float) $lt_ht['lcb'], 0, ',', '.' ) : '' ) . '"></div>'
+			. '<div><label style="font-size:11.5px">Số công chuẩn của tháng</label>'
+			. '<input name="cl_cong_yc" inputmode="decimal" style="width:130px" placeholder="VD 26" value="'
+			. esc_attr( ( $lt_ht && null !== $lt_ht['congYc'] ) ? (string) $lt_ht['congYc'] : '' ) . '"></div>'
+			. '</div>';
+		echo '<p class="mo" style="margin:4px 0 0;font-size:12px">Lương chính = <b>Lương cơ bản × '
+			. 'Số công thực ÷ Số công chuẩn</b>. Số công thực lấy từ chính lưới ở trên ('
+			. (int) $d['soNgay'] . ' ngày có chấm). Ô <b>Số công chuẩn</b> để trống thì mượn con số '
+			. 'khai chung cho cơ sở ở tab <b>Cấu hình</b>.</p>';
+		echo '</div>';
+
 		/* ---- các khoản cộng / trừ ---- */
 		echo '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--vien)">';
 		echo '<label style="margin:0 0 6px">Các khoản cộng vào lương</label><div class="hang">';
@@ -8615,24 +8671,22 @@ class VHCC_Web {
 			return;
 		}
 
-		/* 🔴 NÓI NGAY BẢNG NÀY GỒM GÌ VÀ THIẾU GÌ — TRƯỚC KHI NGƯỜI TA ĐỌC SỐ.
-		   Một bảng lương thiếu vài đơn giá vẫn đầy số và trông vẫn xong. Câu cảnh báo phải đứng
-		   TRÊN bảng, không phải nằm lẫn trong một ô ghi chú ở cột cuối mà mắt lướt qua. */
-		if ( $b['thieu']['gia'] > 0 ) {
-			echo '<div class="bao loi" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gia']
-				. ' dòng chưa khai đơn giá giờ</b> — mấy dòng ấy để TRỐNG tiền, không phải 0đ. '
-				. 'Khai ngay ở khối <a href="#giagio"><b>Đơn giá giờ</b></a> ngay dưới bảng này.</div>';
-		}
-		if ( ! empty( $b['thieu']['congChuan'] ) ) {
-			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Chưa khai <b>số ngày công chuẩn '
-				. 'của tháng</b> — người ăn lương tháng chưa ra được tiền. Khai ở tab Cấu hình, '
-				. 'khối <b>Công thức tính công</b>.</div>';
-		}
-		if ( $b['thieu']['gio'] > 0 ) {
-			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gio']
-				. ' lượt thiếu giờ vào hoặc giờ ra</b> — KHÔNG cộng phút nào vào số giờ. '
-				. 'Sửa thẳng trong lưới ở trên rồi mở lại.</div>';
-		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BA DẢI CẢNH BÁO ĐÃ BỎ — anh Thắng 16/09/2026: *"bỏ mấy cảnh báo này đi"*, kèm ảnh
+		 *    cả ba đứng chồng nhau trên bảng.
+		 *
+		 * Chúng sinh ra với lý do đúng ("nói trước khi người ta đọc số"), nhưng nay CẢ BA đều
+		 * lặp lại thứ chính cái bảng ngay dưới đã nói to hơn:
+		 *   · chưa khai đơn giá -> dòng ấy nhuộm đỏ, ô Tiền/h để gạch ngang, cột Ghi chú ghi
+		 *     đích danh, và hàng TỔNG ghi "chưa đủ giá" thay vì một con số;
+		 *   · chưa khai công chuẩn -> ô Lương chính của người ăn lương tháng để trống, và từ
+		 *     bản này khối "Ăn lương tháng" có ô gõ công chuẩn ngay tại dòng người ấy;
+		 *   · lượt thiếu giờ -> ô ngày trên lưới hiện dấu `?`, và cột Ghi chú đếm đủ số lượt.
+		 *
+		 * Ba dải chiếm hết tầm mắt phía trên bảng mỗi lần mở màn, cho một tin người ta đã biết.
+		 * ⚠️ KHÔNG PHẢI GIẤU ĐI: mấy chỗ kể trên vẫn nói nguyên, và `$b['thieu']` vẫn được tính
+		 *    nguyên — bỏ là bỏ chỗ LẶP, không bỏ lời cảnh báo.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 
 		echo '<p class="mo">Số giờ lấy thẳng từ lưới ở trên; đơn giá lấy từ sổ đơn giá. Mấy cột '
 			. '<b>phụ cấp · giảm trừ · BHXH · giờ thêm</b> cố ý để trống — kế toán điền, và tệp '
@@ -8641,103 +8695,193 @@ class VHCC_Web {
 		$sua_cl = isset( $_GET['clm'] ) ? sanitize_text_field( wp_unslash( $_GET['clm'] ) ) : '';
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 CỘT NÀO CẢ BẢNG KHÔNG CÓ SỐ THÌ THÔI ĐỪNG VẼ.
+		 * 🔴 BẢNG NÀY DỰNG THEO ĐÚNG BỐ CỤC FILE EXCEL KẾ TOÁN ĐANG DÙNG.
 		 *
-		 * Anh Thắng 16/09/2026: *"cột nào có giá trị thì hiện, cột nào không có thì thôi"* — ảnh
-		 * anh gửi có hai cột **Cộng** và **Trừ** dài suốt một bảng toàn dấu gạch ngang.
+		 * Anh Thắng 16/09/2026: *"Anh đã bảo tạo bảng lương như excel nằm dưới bảng công để
+		 * check luôn cũng không làm"*. Đúng — bản trước chỉ có mười cột rút gọn, nên muốn đối
+		 * chiếu với tờ nộp kế toán thì phải xuất tệp rồi mở ra, mỗi lần sửa một số lại xuất lại.
 		 *
-		 * ⚠️ CHỈ BỎ HAI CỘT PHỤ THUỘC NGƯỜI GÕ (Cộng · Trừ). Mấy cột lõi — Số giờ, Tiền/h, Lương
-		 *    chính, Thực nhận — thì GIỮ kể cả khi rỗng: ô trống ở đó là một câu trả lời ("chưa
-		 *    khai đơn giá"), còn giấu cả cột đi thì người đọc tưởng bảng này không có phần ấy.
-		 * ⚠️ `Thực nhận` cũng giữ luôn, vì khi không có cộng/trừ thì nó bằng Lương chính — hai
-		 *    cột giống nhau trông thừa, nhưng bỏ nó đi là bỏ mất đúng con số người ta đi tìm.
-		 * ⚠️ Quyết theo CẢ BẢNG, không theo từng dòng: cột mọc ra rồi mất đi giữa các dòng thì
-		 *    không còn là bảng nữa.
+		 * Nay dựng ĐÚNG dãy cột của tệp (CCCD · Lương cb · Số công YC · Tổng lương · nhóm cộng ·
+		 * nhóm trừ · TOTAL SALARY), kèm hai dòng tiêu đề nhóm y như tệp.
+		 *
+		 * 🔴 MỘT BẢN KHAI CỘT DUY NHẤT (`$cot`), DÙNG CHUNG CHO TIÊU ĐỀ · THÂN · HÀNG TỔNG.
+		 *    Trước đây ba chỗ ấy tự liệt kê cột riêng, và mỗi lần thêm bớt một cột là phải nhớ
+		 *    sửa đủ ba — quên một chỗ thì cả hàng tụt sang phải, con số Thực nhận rơi vào cột
+		 *    Ghi chú. Đã xảy ra đúng thế ở bản 4.9.0. Một bản khai thì không lệch được.
+		 *
+		 * ⚠️ CỘT NÀO CẢ BẢNG KHÔNG CÓ SỐ THÌ THÔI (anh Thắng: *"cột nào có giá trị thì hiện,
+		 *    cột nào không có thì thôi"*) — trừ mấy cột LÕI đánh dấu `luon` = true. Ô trống ở
+		 *    cột lõi là một câu trả lời ("chưa khai đơn giá"); giấu cả cột đi thì người đọc
+		 *    tưởng bảng không có phần ấy.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$co_cong = false;
-		$co_tru  = false;
-		foreach ( $b['dong'] as $d_k ) {
-			if ( empty( $d_k['laChinh'] ) ) { continue; }
-			if ( (float) $d_k['tongCong'] ) { $co_cong = true; }
-			if ( (float) $d_k['tongTru'] ) { $co_tru = true; }
+		$tien = function ( $v ) {
+			return ( null === $v || '' === $v || ! (float) $v ) ? null
+				: number_format( (float) $v, 0, ',', '.' );
+		};
+		$cot = array(
+			array( 'k' => 'stt',  'ten' => '#',        'nhom' => '', 'luon' => true, 'so' => false ),
+			array( 'k' => 'ten',  'ten' => 'Họ tên',   'nhom' => '', 'luon' => true, 'so' => false ),
+			array( 'k' => 'cccd', 'ten' => 'CCCD',     'nhom' => '', 'luon' => false, 'so' => false ),
+			array( 'k' => 'cv',   'ten' => 'Chức vụ',  'nhom' => '', 'luon' => true, 'so' => false ),
+			array( 'k' => 'lcb',  'ten' => 'Lương cb', 'nhom' => '', 'luon' => false, 'so' => true ),
+			array( 'k' => 'cyc',  'ten' => 'Số công YC', 'nhom' => '', 'luon' => false, 'so' => true ),
+			array( 'k' => 'gio',  'ten' => 'Số công thực', 'nhom' => '', 'luon' => true, 'so' => true ),
+			array( 'k' => 'gia',  'ten' => 'Tiền/h',   'nhom' => '', 'luon' => true, 'so' => true ),
+			array( 'k' => 'lc',   'ten' => 'Lương chính', 'nhom' => '', 'luon' => true, 'so' => true, 'dam' => true ),
+			array( 'k' => 'bhxh', 'ten' => 'BHXH',     'nhom' => '', 'luon' => false, 'so' => true ),
+		);
+		foreach ( VHCC_ChotLuong::CONG as $k_c => $ten_c ) {
+			$cot[] = array( 'k' => 'c_' . $k_c, 'ten' => $ten_c, 'nhom' => 'Các khoản cộng vào lương',
+				'luon' => false, 'so' => true );
+		}
+		$cot[] = array( 'k' => 'u', 'ten' => 'Tổng', 'nhom' => 'Các khoản cộng vào lương',
+			'luon' => false, 'so' => true );
+		foreach ( VHCC_ChotLuong::TRU as $k_t => $ten_t ) {
+			$cot[] = array( 'k' => 't_' . $k_t, 'ten' => $ten_t, 'nhom' => 'Các khoản giảm trừ vào lương',
+				'luon' => false, 'so' => true );
+		}
+		$cot[] = array( 'k' => 'y', 'ten' => 'Cộng', 'nhom' => 'Các khoản giảm trừ vào lương',
+			'luon' => false, 'so' => true );
+		$cot[] = array( 'k' => 'z', 'ten' => 'TOTAL SALARY', 'nhom' => '', 'luon' => true,
+			'so' => true, 'dam' => true );
+		$cot[] = array( 'k' => 'gc', 'ten' => 'Ghi chú', 'nhom' => '', 'luon' => true, 'so' => false );
+
+		/** Giá trị THÔ của một ô — một chỗ duy nhất, để thân bảng và phép dò cột rỗng không lệch. */
+		$o_gt = function ( $d, $k ) {
+			$la_c = ! empty( $d['laChinh'] );
+			switch ( $k ) {
+				case 'stt':  return (int) $d['stt'];
+				case 'ten':  return $d['ten'];
+				case 'cccd': return $d['cccd'];
+				case 'cv':   return $d['cv'];
+				case 'lcb':  return $d['luongCb'];
+				case 'cyc':  return $d['congYc'];
+				case 'gio':  return ( 'thang' === $d['cheDo'] ) ? $d['congThuc'] : $d['gio'];
+				case 'gia':  return $d['gia'];
+				case 'lc':   return $d['luongChinh'];
+				case 'bhxh': return null;      /* kế toán điền — hệ không có dữ liệu */
+				case 'u':    return $la_c ? $d['tongCong'] : null;
+				case 'y':    return $la_c ? $d['tongTru'] : null;
+				case 'z':
+					return ( null === $d['luongChinh'] ) ? null
+						: round( (float) $d['luongChinh'] + (float) $d['tongCong'] - (float) $d['tongTru'], 2 );
+			}
+			if ( 0 === strpos( $k, 'c_' ) ) {
+				$x = substr( $k, 2);
+				return ( $la_c && ! empty( $d['cong'][ $x ] ) ) ? $d['cong'][ $x ] : null;
+			}
+			if ( 0 === strpos( $k, 't_' ) ) {
+				$x = substr( $k, 2);
+				return ( $la_c && ! empty( $d['tru'][ $x ] ) ) ? $d['tru'][ $x ] : null;
+			}
+			return null;
+		};
+
+		/* Cột nào CẢ BẢNG không có số thì bỏ. Quyết theo cả bảng, không theo từng dòng — cột mọc
+		   ra rồi mất đi giữa các dòng thì không còn là bảng nữa. */
+		$hien = array();
+		foreach ( $cot as $c ) {
+			if ( ! empty( $c['luon'] ) ) { $hien[] = $c; continue; }
+			foreach ( $b['dong'] as $d_k ) {
+				$v = $o_gt( $d_k, $c['k'] );
+				if ( null !== $v && '' !== $v && ( ! $c['so'] || (float) $v ) ) { $hien[] = $c; break; }
+			}
 		}
 
-		echo '<div class="cuon"><table class="b"><thead><tr>'
-			. '<th>#</th><th>Họ tên</th><th>Chức vụ</th><th>Số giờ</th><th>Tiền/h</th>'
-			. '<th>Lương chính</th>'
-			. ( $co_cong ? '<th>Cộng</th>' : '' )
-			. ( $co_tru ? '<th>Trừ</th>' : '' )
-			. '<th>Thực nhận</th><th>Ghi chú</th></tr></thead><tbody>';
-		foreach ( $b['dong'] as $d ) {
-			$hong = ( null === $d['luongChinh'] );
-			echo '<tr' . ( $hong ? ' class="hong"' : '' ) . '>';
-			echo '<td>' . (int) $d['stt'] . '</td>';
-			echo '<td>' . esc_html( $d['ten'] ) . '</td>';
-			/* Dòng giờ ăn giá khác thụt vào, để mắt thấy ngay nó thuộc về người ở dòng trên. */
-			echo '<td>' . ( empty( $d['laChinh'] ) ? '<span class="mo">↳ </span>' : '' )
-				. esc_html( $d['cv'] ) . '</td>';
-			echo '<td class="p">' . ( 'thang' === $d['cheDo']
-				? esc_html( $d['congThuc'] ) . ' <span class="mo">công</span>'
-				: esc_html( number_format( (float) $d['gio'], 2, ',', '.' ) ) ) . '</td>';
-			echo '<td class="p">' . ( null === $d['gia'] ? '<span class="mo">—</span>'
-				: esc_html( number_format( (float) $d['gia'], 0, ',', '.' ) ) ) . '</td>';
-			echo '<td class="p"><b>' . ( null === $d['luongChinh'] ? '<span class="mo">—</span>'
-				: esc_html( number_format( (float) $d['luongChinh'], 0, ',', '.' ) ) ) . '</b></td>';
-			/* Cộng / Trừ / Thực nhận chỉ có nghĩa ở DÒNG CHÍNH — một cái cọc trừ một lần thôi. */
-			$la_c = ! empty( $d['laChinh'] );
-			$thuc = ( null === $d['luongChinh'] ) ? null
-				: round( (float) $d['luongChinh'] + (float) $d['tongCong'] - (float) $d['tongTru'], 2 );
-			$o_ct = array();
-			if ( $co_cong ) { $o_ct[] = $la_c ? $d['tongCong'] : null; }
-			if ( $co_tru )  { $o_ct[] = $la_c ? $d['tongTru'] : null; }
-			foreach ( $o_ct as $so_x ) {
-				echo '<td class="p">' . ( ! $so_x ? '<span class="mo">—</span>'
-					: esc_html( number_format( (float) $so_x, 0, ',', '.' ) ) ) . '</td>';
+		/* ---- hai dòng tiêu đề, y như tệp: dòng nhóm rồi dòng tên cột ---- */
+		echo '<div class="cuon"><table class="b"><thead>';
+		$co_nhom = false;
+		foreach ( $hien as $c ) { if ( '' !== $c['nhom'] ) { $co_nhom = true; break; } }
+		if ( $co_nhom ) {
+			echo '<tr>';
+			$i_n = 0;
+			while ( $i_n < count( $hien ) ) {
+				$nh = $hien[ $i_n ]['nhom'];
+				$so = 1;
+				while ( $i_n + $so < count( $hien ) && $hien[ $i_n + $so ]['nhom'] === $nh && '' !== $nh ) { $so++; }
+				echo '<th' . ( $so > 1 ? ' colspan="' . (int) $so . '"' : '' ) . '>'
+					. ( '' === $nh ? '' : esc_html( $nh ) ) . '</th>';
+				$i_n += $so;
 			}
-			echo '<td class="p"><b>' . ( null === $thuc ? '<span class="mo">—</span>'
-				: esc_html( number_format( (float) $thuc, 0, ',', '.' ) ) ) . '</b></td>';
+			echo '</tr>';
+		}
+		echo '<tr>';
+		foreach ( $hien as $c ) { echo '<th>' . esc_html( $c['ten'] ) . '</th>'; }
+		echo '</tr></thead><tbody>';
 
-			$gc = array();
-			if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
-			/* 🔴 KHÔNG LẶP "CHƯA KHAI ĐƠN GIÁ" Ở TỪNG DÒNG NỮA — anh Thắng 16/09/2026 gửi ảnh
-			   cột Ghi chú bảy dòng y hệt nhau: *"Chỗ này không cần khai"*.
-			   Cùng một sự thật đang được nói BA lần trên cùng một màn: dải đỏ đầu bảng đếm đủ
-			   số dòng, chính dòng ấy đã nhuộm đỏ (`class="hong"`), và ô Tiền/h để gạch ngang.
-			   Lặp lần thứ tư không thêm tin nào, chỉ lấp mất mấy thứ CHỈ có ở dòng ấy — lượt
-			   thiếu giờ, giá khai riêng — là những thứ người ta đọc cột này để tìm.
-			   ⚠️ KHÔNG PHẢI GIẤU ĐI. Ba chỗ kia vẫn nói, và vẫn nói to hơn. */
-			if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
-			if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
-			echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) );
-			if ( $la_c && $duoc_nhap ) {
-				echo ' <a class="mo-hs" href="' . esc_url( add_query_arg(
-					array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $d['ma'] ),
-					self::url() ) . '#cl' . substr( md5( $d['ma'] ), 0, 8 ) ) . '">nhập ▾</a>';
+		foreach ( $b['dong'] as $d ) {
+			$la_c = ! empty( $d['laChinh'] );
+			echo '<tr' . ( null === $d['luongChinh'] ? ' class="hong"' : '' ) . '>';
+			foreach ( $hien as $c ) {
+				$v = $o_gt( $d, $c['k'] );
+				if ( 'gc' === $c['k'] ) {
+					$gc = array();
+					if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
+					/* 🔴 KHÔNG LẶP "CHƯA KHAI ĐƠN GIÁ" Ở TỪNG DÒNG — anh Thắng: *"Chỗ này không
+					   cần khai"*. Chính dòng ấy đã nhuộm đỏ và ô Tiền/h để gạch ngang. */
+					if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
+					if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
+					echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) );
+					if ( $la_c && $duoc_nhap ) {
+						echo ' <a class="mo-hs" href="' . esc_url( add_query_arg(
+							array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $d['ma'] ),
+							self::url() ) . '#cl' . substr( md5( $d['ma'] ), 0, 8 ) ) . '">nhập ▾</a>';
+					}
+					echo '</td>';
+					continue;
+				}
+				if ( 'cv' === $c['k'] ) {
+					/* Dòng giờ ăn giá khác thụt vào, để mắt thấy ngay nó thuộc về người ở trên. */
+					echo '<td>' . ( $la_c ? '' : '<span class="mo">↳ </span>' )
+						. esc_html( (string) $v ) . '</td>';
+					continue;
+				}
+				if ( 'gio' === $c['k'] ) {
+					echo '<td class="p">' . ( null === $v ? '<span class="mo">—</span>'
+						: ( ( 'thang' === $d['cheDo'] )
+							? esc_html( (string) $v ) . ' <span class="mo">công</span>'
+							: esc_html( number_format( (float) $v, 2, ',', '.' ) ) ) ) . '</td>';
+					continue;
+				}
+				if ( empty( $c['so'] ) ) {
+					echo '<td>' . esc_html( (string) $v ) . '</td>';
+					continue;
+				}
+				$ch = $tien( $v );
+				$in = ( null === $ch ) ? '<span class="mo">—</span>' : esc_html( $ch );
+				echo '<td class="p">' . ( empty( $c['dam'] ) ? $in : '<b>' . $in . '</b>' ) . '</td>';
 			}
-			echo '</td>';
 			echo '</tr>';
 			if ( $la_c && $duoc_nhap && $sua_cl === $d['ma'] ) {
-				self::hang_chot_luong( $ky, $toi, $cs, $th, $d,
-					8 + ( $co_cong ? 1 : 0 ) + ( $co_tru ? 1 : 0 ) );
+				self::hang_chot_luong( $ky, $toi, $cs, $th, $d, count( $hien ) );
 			}
 		}
-		$t_cong = 0.0; $t_tru = 0.0;
-		foreach ( $b['dong'] as $d_t ) {
-			$t_cong += (float) $d_t['tongCong'];
-			$t_tru  += (float) $d_t['tongTru'];
+
+		/* ---- hàng TỔNG: cộng THẲNG TỪ mấy dòng vừa in, không tính lại bằng đường khác ---- */
+		echo '<tr>';
+		foreach ( $hien as $i_c => $c ) {
+			if ( 0 === $i_c ) { echo '<td></td>'; continue; }
+			if ( 1 === $i_c ) { echo '<td><b>TỔNG</b></td>'; continue; }
+			if ( 'cv' === $c['k'] ) {
+				echo '<td class="mo">' . (int) $b['tong']['nguoi'] . ' dòng</td>';
+				continue;
+			}
+			if ( empty( $c['so'] ) ) { echo '<td></td>'; continue; }
+			if ( 'gia' === $c['k'] || 'cyc' === $c['k'] || 'lcb' === $c['k'] ) {
+				/* Đơn giá và lương cơ bản KHÔNG cộng dọc — cộng mấy cái giá lại là một con số
+				   vô nghĩa mà trông vẫn như tiền. */
+				echo '<td></td>';
+				continue;
+			}
+			$tg = 0.0;
+			foreach ( $b['dong'] as $d_t ) { $tg += (float) $o_gt( $d_t, $c['k'] ); }
+			if ( 'gio' === $c['k'] ) {
+				echo '<td class="p"><b>' . esc_html( number_format( $tg, 2, ',', '.' ) ) . '</b></td>';
+				continue;
+			}
+			echo '<td class="p"><b>' . esc_html( number_format( $tg, 0, ',', '.' ) ) . '</b></td>';
 		}
-		$t_thuc = (float) $b['tong']['luongChinh'] + $t_cong - $t_tru;
-		echo '<tr><td></td><td><b>TỔNG</b></td><td class="mo">' . (int) $b['tong']['nguoi'] . ' dòng</td>'
-			. '<td class="p"><b>' . esc_html( number_format( (float) $b['tong']['gio'], 2, ',', '.' ) )
-			. '</b></td><td></td><td class="p"><b>'
-			. esc_html( number_format( (float) $b['tong']['luongChinh'], 0, ',', '.' ) ) . '</b></td>'
-			/* ⚠️ HÀNG TỔNG PHẢI THEO ĐÚNG MẤY CỜ Ở TRÊN. Đầu bảng bớt một cột mà hàng tổng vẫn
-			   in đủ thì cả hàng ấy tụt sang phải một ô — và con số Thực nhận rơi vào cột Ghi
-			   chú, đúng chỗ mắt người ta liếc vào để biết tháng này trả bao nhiêu. */
-			. ( $co_cong ? '<td class="p"><b>' . esc_html( number_format( $t_cong, 0, ',', '.' ) ) . '</b></td>' : '' )
-			. ( $co_tru ? '<td class="p"><b>' . esc_html( number_format( $t_tru, 0, ',', '.' ) ) . '</b></td>' : '' )
-			. '<td class="p"><b>' . esc_html( number_format( $t_thuc, 0, ',', '.' ) ) . '</b></td>'
-			. '<td></td></tr>';
+		echo '</tr>';
 		echo '</tbody></table></div>';
 
 		echo '<p style="margin:10px 0 0"><a class="nut chinh" href="'
