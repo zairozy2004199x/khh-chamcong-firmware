@@ -1220,4 +1220,90 @@ t( '🔴 phút ngoài mọi ca được kể RIÊNG ở mục "Ngoài ca"',
 	false !== strpos( $khoi_ng, 'Ngoài ca' ), $khoi_ng );
 t( 'và kể đúng 45 phút', false !== strpos( $khoi_ng, '45m' ), $khoi_ng );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 14. ẨN MỘT MÃ KHỎI BẢNG CÔNG — rác thử máy, thứ "chờ trả về" không đụng tới được
+ *
+ * Anh Thắng 16/09/2026: *"1 số nhân viên chạy test trên máy chấm công cũ... mình sẽ ẩn nó đi,
+ * khi ẩn thì nó không ảnh hưởng đến bảng công"*, rồi: *"bấm chờ trả về thì nó không được, nên
+ * cần ẩn đi"* — kèm ảnh **"Không xong. Không tìm thấy hồ sơ 0000000777."**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/* 🔴 GIEO ĐÚNG CẢNH THẬT: một mã máy thô, KHÔNG có hồ sơ, có lượt chấm.
+   ⚠️ MÃ BỊA (`0000...`), không chép mã thật trong ảnh anh Thắng gửi — kho này CÔNG KHAI, và
+      chính bài kiểm ở mục 5 đã bắt em khi vừa dán mã thật vào. Cảnh thử không cần mã thật:
+      thứ đang thử là "mã KHÔNG có hồ sơ", không phải mã nào. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => '0000000777', 'ho_ten' => '', 'coso' => 'AEON_BT', 'ngay' => '2026-08-03',
+	'gio_vao_giay' => 7 * 3600, 'gio_ra_giay' => 12 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+t( 'gieo: mã rác KHÔNG có hồ sơ', ! VHCC_NhanSu::ho_so( '0000000777' ), 'mã rác lại có hồ sơ' );
+
+$U_CHT_BT = array( 'name' => 'Trưởng BL', 'role' => 'Cửa hàng trưởng', 'coso' => 'AEON_BT' );
+$g_an = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' );
+
+$h_a0 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_an );
+t( 'chưa ẩn: mã rác CÓ trong lưới', false !== strpos( $h_a0, '0000000777' ), 'không thấy mã rác' );
+t( '🔴 và có nút Ẩn cho nó', false !== strpos( $h_a0, 'name="an_ma" value="0000000777"' ), $h_a0 );
+
+/* 🔴 ẨN ĐƯỢC DÙ KHÔNG CÓ HỒ SƠ — cả vấn đề nằm ở đây. */
+$r_an = VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '0000000777', true );
+t( '🔴 ẩn được một mã KHÔNG có hồ sơ', ! empty( $r_an['ok'] ), $r_an );
+t( 'sổ ghi nhận', VHCC_An::la_an( 'AEON_BT', '0000000777' ), 'sổ không ghi' );
+
+$h_a1 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_an );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_a1, $m_a1 );
+$luoi_a = isset( $m_a1[0] ) ? $m_a1[0] : '';
+t( 'cắt được lưới ra để soi', '' !== $luoi_a, substr( $h_a1, 0, 200 ) );
+t( '🔴 ẩn xong: mã rác KHÔNG còn trong lưới',
+	false === strpos( $luoi_a, '0000000777' ), 'vẫn còn trong lưới' );
+
+/* 🔴 "KHÔNG ẢNH HƯỞNG ĐẾN BẢNG CÔNG" = RA KHỎI CẢ BẢNG LƯƠNG, không chỉ khuất mắt. */
+$b_an = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$co_rac = false;
+foreach ( $b_an['dong'] as $d_a ) { if ( '0000000777' === $d_a['ma'] ) { $co_rac = true; } }
+t( '🔴 và KHÔNG còn trong bảng lương (hết đòi đơn giá)', ! $co_rac, 'vẫn đứng trong bảng lương' );
+
+/* 🔴 ẨN KHÔNG PHẢI XOÁ — lượt chấm vẫn nằm nguyên trong sổ. */
+$con = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ma_nv='0000000777'" );
+teq( '🔴 lượt chấm VẪN CÒN NGUYÊN trong sổ, không bị xoá', 1, $con );
+
+/* 🔴 PHẢI CÓ CHỖ NHÌN THẤY THỨ ĐANG ẨN — không thì ẩn đúng bằng xoá. */
+t( '🔴 màn kể ra mã đang ẩn', false !== strpos( $h_a1, 'mã đang ẩn' ), $h_a1 );
+t( 'và gọi đúng tên nó', false !== strpos( $h_a1, '<code>0000000777</code>' ), $h_a1 );
+t( 'kèm nút bỏ ẩn', false !== strpos( $h_a1, 'hiện lại' ), $h_a1 );
+
+/* 🔴 BỎ ẨN LÀ HIỆN LẠI ĐỦ SỐ. */
+VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '0000000777', false );
+$h_a2 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_an );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_a2, $m_a2 );
+t( '🔴 bỏ ẩn thì hàng hiện lại',
+	isset( $m_a2[0] ) && false !== strpos( $m_a2[0], '0000000777' ), 'không hiện lại' );
+
+/* ---- 🔴 GỬI THẬT MỘT LƯỢT POST: nút vẽ đúng mà bộ điều phối không nhận thì bấm xong không
+        có gì xảy ra, và mọi phép soi HTML ở trên vẫn xanh. ---- */
+$tok_an = VHCC_Auth::phat_token( 'Trưởng BL', 'Cửa hàng trưởng', 'AEON_BT', 'CHT_BL' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_an );
+$_GET  = $g_an;
+$_POST = array( 'viec' => 'an_ma', 'ky' => VHCC_Web::chu_ky( $tok_an ),
+	'ccs' => 'AEON_BT', 'an_ma' => '0000000777', 'an_bat' => '1' );
+ob_start(); VHCC_Web::phuc_vu(); $h_an_post = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+t( '🔴 bấm nút Ẩn trên màn thì vào sổ thật', VHCC_An::la_an( 'AEON_BT', '0000000777' ),
+	substr( $h_an_post, 0, 400 ) );
+t( 'và KHÔNG bị chối bằng câu về màn Hồ sơ',
+	false === strpos( $h_an_post, 'thuộc màn Hồ sơ' ), substr( $h_an_post, 0, 400 ) );
+
+/* 🔴 KHÔNG ĐƯỢC ẨN SANG CƠ SỞ NGƯỜI KHÁC. Ẩn là giấu một hàng khỏi bảng của người khác quản. */
+$r_lam = VHCC_An::dat( $U_CHT_BT, 'LOTTE_GV', 'BT_MAN', true );
+t( '🔴 cửa hàng trưởng KHÔNG ẩn được ở cơ sở ngoài phạm vi', empty( $r_lam['ok'] ), $r_lam );
+t( 'và sổ của cơ sở ấy không suy suyển', ! VHCC_An::la_an( 'LOTTE_GV', 'BT_MAN' ), 'ẩn lọt' );
+
+/* 🔴 NHÂN VIÊN BẬC 1 KHÔNG ẨN ĐƯỢC. */
+$r_nv_an = VHCC_An::dat( array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'AEON_BT' ),
+	'AEON_BT', 'BT_MAN', true );
+t( '🔴 nhân viên bậc 1 bị chối', empty( $r_nv_an['ok'] ), $r_nv_an );
+
+VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '0000000777', false );
+
 ket_luan();

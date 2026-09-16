@@ -908,6 +908,10 @@ class VHCC_Web {
 		   là chối đúng người cần dùng, bằng một câu nói về màn Hồ sơ họ không hề đụng tới. Hai
 		   việc này tự hỏi `ngoai_coso` + `co_quyen_coso` ngay dòng đầu — chặt hơn, không lỏng hơn. */
 		'doi_chieu_app', 'nap_app', 'chot_luong',
+		/* Ẩn một mã khỏi bảng công: việc của màn Bảng công, và người cần nó nhất là Cửa hàng
+		   trưởng — đúng người mà chốt dưới sẽ đá ra bằng một câu về màn Hồ sơ họ không đụng
+		   tới. Gác thật ở `VHCC_An::dat()` (cong_coso + đúng phạm vi cơ sở). */
+		'an_ma',
 		/* Khai đơn giá là việc của tab Cấu hình, không dính gì tới màn Hồ sơ. Chốt thật ở
 		   `VHCC_GiaGio::gac()` — bậc Kế toán, chặt hơn chốt dưới chứ không lỏng hơn. */
 		'gia_gio' );
@@ -1293,6 +1297,19 @@ class VHCC_Web {
 
 		/* ĐƠN GIÁ GIỜ CỦA CƠ SỞ — xem `VHCC_GiaGio`. Gác thật nằm trong chính lớp ấy
 		   (`luong`, tức bậc Kế toán); ở đây chỉ đọc biểu mẫu rồi chuyển xuống. */
+		/* ẨN / HIỆN một mã khỏi bảng công — xem `VHCC_An`. */
+		if ( 'an_ma' === $viec ) {
+			$cs_a = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$ma_a = isset( $_POST['an_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['an_ma'] ) ) : '';
+			$bat  = ! empty( $_POST['an_bat'] );
+			$r_a  = VHCC_An::dat( $toi, $cs_a, $ma_a, $bat );
+			if ( empty( $r_a['ok'] ) ) { return array( array( 'loi' => $r_a['error'] ) ); }
+			return array( array( 'xong' => $bat
+				? 'Đã ẩn ' . $r_a['ma'] . ' khỏi bảng công của ' . $cs_a . '. Lượt chấm KHÔNG bị '
+					. 'xoá — bỏ ẩn là hiện lại đủ số.'
+				: 'Đã hiện lại ' . $r_a['ma'] . ' trong bảng công của ' . $cs_a . '.' ) );
+		}
+
 		if ( 'gia_gio' === $viec ) {
 			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$bao_g = array();
@@ -5402,6 +5419,35 @@ class VHCC_Web {
 	 *    nằm gọn trong `<td>` của chính hàng ấy — và lưới này không nằm trong form nào khác
 	 *    (khác hẳn bảng ở màn Quản lý nhân sự, xem chú thích dài ở `hang_sua()`).
 	 */
+	/**
+	 * NÚT ẨN MỘT MÃ KHỎI BẢNG CÔNG — cho rác thử máy, thứ mà "chờ trả về" không đụng tới được.
+	 *
+	 * Anh Thắng 16/09/2026, sau khi bấm "chờ trả về" cho mã `3925996292` và nhận
+	 * **"Không xong. Không tìm thấy hồ sơ 3925996292."**: *"bấm chờ trả về thì nó không được,
+	 * nên cần ẩn đi"*.
+	 *
+	 * Câu chối ấy đúng: mã đó chưa bao giờ là một người, nên mọi cửa đi qua hồ sơ đều chối nó.
+	 * Nút này không hỏi hồ sơ — xem `VHCC_An`.
+	 */
+	private static function o_an_ma( $ma, $dang_an, $ky, $toi, $cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_An::QUYEN ) || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
+			return '';
+		}
+		return ' <form method="post" style="display:inline">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. self::o_loc()
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="an_ma" value="' . esc_attr( $ma ) . '">'
+			. '<input type="hidden" name="an_bat" value="' . ( $dang_an ? '0' : '1' ) . '">'
+			. '<button class="mo-hs" name="viec" value="an_ma" title="'
+			. esc_attr( $dang_an
+				? 'Đang ẩn khỏi bảng công. Bấm để hiện lại — công cũ vẫn còn nguyên.'
+				: 'Ẩn hàng này khỏi bảng công của cơ sở (và khỏi tổng). Lượt chấm KHÔNG bị xoá, '
+					. 'bỏ ẩn là hiện lại đủ số. Dùng cho mã thử máy, mã gõ sai — thứ không phải '
+					. 'một người.' )
+			. '">' . ( $dang_an ? '👁 hiện lại' : '🚫 ẩn' ) . '</button></form>';
+	}
+
 	private static function o_cho_tra( $ma, $dang_cho, $ky, $toi, $cs ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) {
 			/* Người không có quyền tích vẫn phải THẤY ai đang chờ trả — nếu không, họ đọc bảng
@@ -6768,6 +6814,17 @@ class VHCC_Web {
 		$bc_ca = self::bc_ca( '', $tt );
 		self::bao_bc_ca( $bc_ca );
 
+		/* 🔴 HÀNG BỊ ẨN RA KHỎI CẢ LƯỚI LẪN TỔNG — xem `VHCC_An`. Anh Thắng 16/09/2026:
+		   *"khi ẩn thì nó không ảnh hưởng đến bảng công"*. Giấu một hàng mà vẫn cộng nó vào
+		   tổng cơ sở là tệ hơn không giấu: con số không khớp với những gì bày ra, mà cũng
+		   không còn hàng nào để người ta lần ra vì sao. */
+		$so_an  = VHCC_An::so();
+		$ma_an  = array();
+		foreach ( $ten as $ma_a => $t_a ) {
+			if ( VHCC_An::la_an( $cs_luoi, $ma_a, $so_an ) ) { $ma_an[ $ma_a ] = $t_a; }
+		}
+		foreach ( $ma_an as $ma_a => $t_a ) { unset( $ten[ $ma_a ] ); }
+
 		foreach ( $ten as $ma => $ho_ten ) {
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 			$hts = array_keys( $o[ $ma ] );
@@ -6821,6 +6878,7 @@ class VHCC_Web {
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
 						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
 				. self::o_cho_tra( $ma, isset( $cho_tra[ $ma ] ), $ky, $toi, $cs_luoi )
+				. self::o_an_ma( $ma, false, $ky, $toi, $cs_luoi )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$phut_phu = array();
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -6962,6 +7020,24 @@ class VHCC_Web {
 			. ( $co_thieu ? '<div class="mo chu-hong" style="font-size:10px">chưa đủ giá</div>' : '' )
 			. '</td></tr>';
 		echo '</tbody></table></div>';
+
+		/* 🔴 PHẢI CÓ CHỖ NHÌN THẤY THỨ ĐANG ẨN. Một thứ ẩn được mà không liệt kê ra đâu cả thì
+		   đúng bằng xoá: người sau mở bảng thấy thiếu người, không biết hỏi ai, không có nút
+		   nào để thử. Kể tên ra, kèm đúng cái nút bỏ ẩn. */
+		if ( $ma_an ) {
+			echo '<p class="mo" style="margin-top:8px">🚫 <b>' . (int) count( $ma_an )
+				. ' mã đang ẩn</b> khỏi bảng này — công của chúng <b>vẫn còn nguyên</b>, chỉ '
+				. 'không vào lưới và không vào tổng: ';
+			$mau_an = array();
+			foreach ( $ma_an as $ma_a => $t_a ) {
+				$mau_an[] = '<code>' . esc_html( $ma_a ) . '</code>'
+					. ( '' !== trim( (string) $t_a ) && $t_a !== $ma_a
+						? ' ' . esc_html( $t_a ) : '' )
+					. self::o_an_ma( $ma_a, true, $ky, $toi, $cs_luoi );
+			}
+			echo implode( ' · ', $mau_an );  // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '</p>';
+		}
 
 		/* Chú giải mã ca — bắt buộc phải có, vì mã trong ô là C1/C2/C3 theo VỊ TRÍ, không phải
 		   tên ca. Không có bảng quy đổi này thì mã trong ô là chữ vô nghĩa. */

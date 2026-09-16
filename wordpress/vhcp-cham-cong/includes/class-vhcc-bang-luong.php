@@ -109,10 +109,16 @@ class VHCC_BangLuong {
 		   bằng một cái tên không ai khai.
 		   Nay: hậu tố chỉ còn là chuyện của lưới chấm công; ở đây mọi lượt của một người cộng vào
 		   MỘT tổng, rồi `VHCC_GioKhac` trừ ra phần ăn giá khác. */
+		/* 🔴 MÃ BỊ ẨN KHÔNG VÀO BẢNG LƯƠNG. Anh Thắng 16/09/2026: *"khi ẩn thì nó không ảnh
+		   hưởng đến bảng công"* — mà bảng lương đọc cùng một nguồn. Ẩn ở lưới rồi vẫn thấy nó
+		   đứng đòi đơn giá ở bảng lương thì việc ẩn coi như chưa làm gì. Xem `VHCC_An`. */
+		$so_an = VHCC_An::so();
+
 		$gom = array();
 		foreach ( VHCC_Luong::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
+			if ( VHCC_An::la_an( $coso, $ma, $so_an ) ) { continue; }
 			$key = strtolower( $ma );
 			if ( ! isset( $gom[ $key ] ) ) {
 				$gom[ $key ] = array( 'ma' => $ma, 'phut' => 0.0, 'ngay' => array(),
