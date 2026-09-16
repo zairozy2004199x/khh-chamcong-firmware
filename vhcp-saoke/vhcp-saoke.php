@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.40.0
+ * Version:           0.41.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.40.0';
+	const VER = '0.41.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -2826,11 +2826,24 @@ class SAOKE_App {
 		$tf = self::tbl_congfile();
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT ngay, ch_file, ma_bank, so_tien, so_dong FROM $tf WHERE nguon=%s AND thang=%s", $nguon, $thang ), ARRAY_A );
 		$theoCH = array(); $theoNgay = array(); $soNgayCo = array(); $tongFile = 0; $soDongGop = 0; $chuaAnhXa = array();
+		/* 🔴 DOANH THU MỘT CỬA HÀNG THEO TỪNG NGÀY (0.41.0) — anh Thắng 16/09/2026: *"muốn xem
+		   doanh thu momo của 1 cửa hàng theo ngày"*. Bảng gốc đã là từng (ngày × cửa hàng) nên
+		   không phải truy vấn gì thêm, chỉ là trước nay gom mất một chiều: `theoNgay` cộng hết
+		   cửa hàng lại, `theoCuaHang` cộng hết ngày lại — cái chéo giữa hai bảng thì không ai
+		   gửi ra. */
+		$theoNgayCH = array();
 		$khongTenCH = array( 'soTien' => 0, 'soDong' => 0, 'ngay' => array() );
 		foreach ( (array) $rows as $r ) {
 			$ngay = (string) $r['ngay']; $chFile = (string) $r['ch_file']; $tien = (int) $r['so_tien'];
 			$theoNgay[ $ngay ] = ( isset( $theoNgay[ $ngay ] ) ? $theoNgay[ $ngay ] : 0 ) + $tien;
 			$soNgayCo[ $ngay ] = ( isset( $soNgayCo[ $ngay ] ) ? $soNgayCo[ $ngay ] : 0 ) + 1;
+			/* ⚠️ GOM Ở ĐÂY, TRƯỚC cửa `continue` lọc một ngày bên dưới. Gom sau cửa ấy thì hễ
+			   người dùng bấm "xem riêng" một ngày là bảng theo-ngày của cửa hàng rút còn đúng
+			   một dòng — trông y như cửa hàng đó cả tháng chỉ bán một hôm. */
+			if ( '' !== $chFile ) {
+				if ( ! isset( $theoNgayCH[ $chFile ] ) ) { $theoNgayCH[ $chFile ] = array(); }
+				$theoNgayCH[ $chFile ][ $ngay ] = ( isset( $theoNgayCH[ $chFile ][ $ngay ] ) ? $theoNgayCH[ $chFile ][ $ngay ] : 0 ) + $tien;
+			}
 			if ( $ngay1 && $ngay !== $ngay1 ) { continue; }
 			$ax = self::ax_theo_ngay( isset( $anhXa[ self::chuan_ch( $chFile ) ] ) ? $anhXa[ self::chuan_ch( $chFile ) ] : null, $ngay );
 			$tenChuan = $ax ? ( '' !== $ax['tenChuan'] ? $ax['tenChuan'] : $chFile ) : $chFile;
@@ -2871,6 +2884,7 @@ class SAOKE_App {
 		return array( 'ok' => true, 'nguon' => $nguon, 'ten' => self::cong_ten()[ $nguon ], 'thang' => $thang, 'tuKhoa' => $tuKhoa,
 			'cot' => self::cot_file_cong( $nguon ), 'ngayLoc' => $ngay1, 'theoNgay' => $dsNgay, 'tongThang' => array_sum( $theoNgay ),
 			'tongFile' => $tongFile, 'soCuaHang' => count( $dsCH ), 'soDongGop' => $soDongGop, 'theoCuaHang' => $dsCH,
+			'theoNgayCH' => $theoNgayCH,
 			'daCoNgay' => $daCo, 'conThieuNgay' => $conThieu, 'soNgayCanCo' => $denNgay, 'bank' => $bank, 'bankTien' => $bankTien, 'bankDong' => count( $bank ),
 			'chenh' => $tongFile - $bankTien, 'chuaAnhXa' => $chuaAnhXaOut,
 			'khongTenCH' => array( 'soTien' => $khongTenCH['soTien'], 'soDong' => $khongTenCH['soDong'], 'ngay' => $khongTenNgay ),

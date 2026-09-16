@@ -50,6 +50,7 @@ const SEL = {
 	},
 };
 const LBL = { textContent: '' };
+const NGAYCH = { innerHTML: '' };
 
 function dungDOM(dong) {
 	const trs = dong.map(function (d) {
@@ -62,20 +63,23 @@ function dungDOM(dong) {
 		getElementById: function (id) {
 			if (id === 'cg_momo_chLoc') { return SEL; }
 			if (id === 'cg_momo_chLocTong') { return LBL; }
+			if (id === 'cg_momo_chNgayCH') { return NGAYCH; }
 			return null;
 		},
 		querySelectorAll: function () { return trs; },
 	};
-	return { sel: SEL, lbl: LBL, trs: trs };
+	return { sel: SEL, lbl: LBL, trs: trs, ngay: NGAYCH };
 }
 
-const moiTruong = 'var CG_LOCCH = {};\n'
+const moiTruong = 'var CG_LOCCH = {}; var CG_FILE = {};\n'
 	+ 'function cgId(nguon, ten){ return "cg_" + nguon + "_" + ten; }\n'
 	+ 'function cgEl(nguon, ten){ return document.getElementById(cgId(nguon, ten)); }\n'
 	+ 'function esc(s){ return String(s == null ? "" : s); }\n'
 	+ 'function fmt(n){ return String(n); }\n'
 	+ bocHam('cgDungLocCH') + '\n' + bocHam('cgLocCH') + '\n'
-	+ 'return { dung: cgDungLocCH, loc: cgLocCH, state: function(){ return CG_LOCCH; } };';
+	+ bocHam('cgVeNgayCH') + '\n' + bocHam('cgMocNgay') + '\n'
+	+ 'return { dung: cgDungLocCH, loc: cgLocCH, state: function(){ return CG_LOCCH; },'
+	+ '  datFile: function(n, d){ CG_FILE[n] = d; }, moc: cgMocNgay };';
 const M = new Function(moiTruong)();
 
 const DL = { theoCuaHang: [
@@ -176,6 +180,45 @@ t('🔴 không còn dải "không cho nhận webhook" ở đầu màn', THAN.ind
 const CAU = THAN.indexOf('<b>tải lại file cũ bao nhiêu lần cũng không nhân đôi tiền</b>');
 t('🔴 câu "không nhân đôi tiền" vẫn còn trong markup', CAU > 0);
 t('và nó nằm TRONG khối tải file, chỗ sắp bấm nạp', CAU > P_TAI && CAU < P_NGAY, CAU);
+
+/* ── 8. Một cửa hàng, từng ngày — anh Thắng 16/09/2026 ───────────────────────────────────────── */
+M.datFile('momo', { theoNgayCH: { 'Tutu Train - Estella': {
+	'10/09/2026': 3000000, '02/09/2026': 1000000, '01/10/2026': 500000 } } });
+D.sel.value = '';
+M.loc('momo');
+t('chưa lọc thì KHÔNG vẽ bảng theo ngày (chín cửa hàng × mười sáu ngày là thứ không ai đọc)',
+	D.ngay.innerHTML === '');
+
+D = dungDOM([ { ten: 'Tutu Train - Estella', tien: '4.500.000' } ]);
+M.dung('momo', { theoCuaHang: [ { cuaHangFile: 'Tutu Train - Estella', soTien: 4500000 } ] });
+D.sel.value = 'Tutu Train - Estella';
+M.loc('momo');
+t('lọc một cửa hàng thì có bảng theo ngày', D.ngay.innerHTML.indexOf('theo ngày') > 0);
+t('đủ ba ngày', ['10/09/2026','02/09/2026','01/10/2026'].every(function (n) { return D.ngay.innerHTML.indexOf(n) > 0; }));
+/* 🔴 Khoá là "dd/mm/yyyy": so chuỗi thì 10/09 đứng trước 02/09, và 02/09 đứng trước 01/10 —
+   bảng ra thứ tự lộn mà vẫn trông hợp lý, loại sai không ai soi ra bằng mắt. */
+const iA = D.ngay.innerHTML.indexOf('02/09/2026');
+const iB = D.ngay.innerHTML.indexOf('10/09/2026');
+const iC = D.ngay.innerHTML.indexOf('01/10/2026');
+t('🔴 ngày xếp theo MỐC THẬT, không xếp theo chuỗi', iA < iB && iB < iC, { iA: iA, iB: iB, iC: iC });
+t('cgMocNgay so được qua tháng', M.moc('01/10/2026') > M.moc('10/09/2026'));
+t('tổng của cửa hàng in ra đúng', D.ngay.innerHTML.indexOf('4500000') > 0);
+
+/* Cửa hàng có trong bảng nhưng máy chủ chưa gửi chi tiết ngày -> đừng vẽ khung rỗng. */
+M.datFile('momo', { theoNgayCH: {} });
+M.loc('momo');
+t('không có dữ liệu ngày thì không vẽ khung rỗng', D.ngay.innerHTML === '');
+
+/* ── 9. Phía máy chủ: gom bảng chéo TRƯỚC cửa lọc-một-ngày ───────────────────────────────────
+   Bài này vốn chỉ soi app.html, nhưng cái bẫy nặng nhất của tính năng nằm bên PHP và nó câm:
+   `getDoiSoatFile` có một cửa `if ($ngay1 && $ngay !== $ngay1) continue;` để xem riêng một ngày.
+   Gom `theoNgayCH` SAU cửa ấy thì hễ ai bấm "xem riêng" một ngày là bảng theo-ngày của cửa hàng
+   rút còn đúng một dòng — trông y như gian đó cả tháng chỉ bán một hôm. Không có gì báo. */
+const PHP = fs.readFileSync('vhcp-saoke/vhcp-saoke.php', 'utf8');
+const iGom = PHP.indexOf('$theoNgayCH[ $chFile ][ $ngay ]');
+const iCua = PHP.indexOf('if ( $ngay1 && $ngay !== $ngay1 ) { continue; }');
+t('máy chủ có gửi bảng chéo theoNgayCH', PHP.indexOf("'theoNgayCH' => $theoNgayCH") > 0);
+t('🔴 gom theoNgayCH đứng TRƯỚC cửa lọc một ngày', iGom > 0 && iCua > 0 && iGom < iCua, { iGom: iGom, iCua: iCua });
 
 console.log(TRUOT.length ? ('✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):\n  · ' + TRUOT.join('\n  · '))
 	: ('✓ SẠCH — ' + DAT + ' phép.'));
