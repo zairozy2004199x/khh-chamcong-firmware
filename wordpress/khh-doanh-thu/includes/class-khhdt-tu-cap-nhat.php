@@ -50,7 +50,15 @@ class KHHDT_TuCapNhat {
 	const O_KHOA = 'vhcp_gh_token';
 
 	/** Nhớ kết quả hỏi GitHub trong 6 giờ — đừng gọi mạng ở mỗi lượt tải trang admin. */
-	const O_NHO   = 'vhd_gh_ban_moi';
+	/* 🔴 ĐỔI TỪ `vhd_gh_ban_moi` (16/09/2026) — LỖI CHÉP TỆP, VÀ NÓ CÂM HOÀN TOÀN.
+	   Lớp này chép từ `vhcp-hop-dong`, đổi TIEN_TO mà QUÊN đổi ô nhớ, nên hai plugin cùng ghi
+	   đè lên một transient. Cài chung một site thì cái nào hỏi GitHub trước sẽ ghi kết quả của
+	   MÌNH vào ô ấy, cái sau đọc trúng và tin. Hậu quả: bản mới của Báo cáo doanh thu không bao
+	   giờ hiện (nó đọc trúng ô "hợp đồng không có bản mới"), hoặc tệ hơn — hiện ra số bản của
+	   plugin kia. Không có gì đỏ, không có gì báo; chỉ là nút Cập nhật đứng im mãi.
+	   ⚠️ Mỗi plugin MỘT ô nhớ riêng. Chép lớp này sang plugin thứ mười thì đổi CẢ BA: TIEN_TO,
+	      O_NHO, và tên lớp. O_KHOA thì cố ý dùng chung — khai khoá một lần cho cả nhà. */
+	const O_NHO   = 'khhdt_gh_ban_moi';
 	const NHO_LAU = 21600;
 
 	public static function init() {
@@ -61,6 +69,53 @@ class KHHDT_TuCapNhat {
 		   một bản zip nào đó mang tên khác (tải tay từ giao diện GitHub chẳng hạn) thì plugin
 		   bị cài thành một bản SONG SONG, và trang chạy bản cũ trong khi anh tưởng đã cập nhật. */
 		add_filter( 'upgrader_source_selection', array( __CLASS__, 'sua_ten_thu_muc' ), 10, 4 );
+		/* Tự khai vào bảng của trang IT — xem khối dài ở `khai_ds()`. */
+		add_filter( 'vhcp_tu_cap_nhat_ds', array( __CLASS__, 'khai_ds' ) );
+	}
+
+	/* ─────────────────────────────────────────────────────────────────────────────────────────
+	 * KHAI TÊN VÀO BẢNG CHUNG CỦA TRANG IT (16/09/2026).
+	 *
+	 * Anh Thắng 15/09/2026: *"1 trang tổng do IT quản lý như khmatrix.com/it"*, và *"sau các
+	 * trang khác tạo tự cập nhật thì link vào"*. Trang ấy nằm trong plugin Ghế nhưng KHÔNG giữ
+	 * danh sách plugin nào cả — nó dựng bảng từ bộ lọc `vhcp_tu_cap_nhat_ds` lúc chạy. Nên plugin
+	 * nào khai một dòng như dưới là TỰ hiện thêm vào bảng, không ai phải đi sửa trang ấy.
+	 *
+	 * ⚠️ Trang IT gọi `ban_moi_nho()` chứ không gọi `ban_moi()`. Khác nhau một trời: `ban_moi()`
+	 *    hỏi thẳng GitHub và chờ tới 15 giây — nhét nó vào một lượt tải trang bình thường là
+	 *    treo cả màn hình khi mạng chậm, đúng loại lỗi người ta đổ cho "web lag" chứ không ai ngờ
+	 *    tới bộ cập nhật. `ban_moi_nho()` CHỈ đọc thứ đã nhớ. WordPress tự chạy lượt soát định kỳ
+	 *    (qua `pre_set_site_transient_update_plugins` bên trên) nên ô nhớ gần như luôn có sẵn;
+	 *    chưa có thì bảng chỉ đơn giản không khoe gì. Nút "Kiểm tra bản mới" mới gọi `ban_moi()`.
+	 * ───────────────────────────────────────────────────────────────────────────────────────── */
+
+	/** Số bản đang chạy — đọc từ chính hằng của plugin, không chép thành một con số thứ hai. */
+	private static function ban_hien() {
+		return defined( 'KHH_DT_VERSION' ) ? (string) KHH_DT_VERSION : '0';
+	}
+
+	/** 🔴 CHỈ ĐỌC THỨ ĐÃ NHỚ — TUYỆT ĐỐI KHÔNG GỌI MẠNG. Xem khối trên. */
+	public static function ban_moi_nho() {
+		$nho = get_transient( self::O_NHO );
+		return is_array( $nho ) && $nho ? $nho : null;
+	}
+
+	/** Quên ô nhớ để lượt hỏi tới gọi lại GitHub ngay — nút "Kiểm tra bản mới" của trang IT. */
+	public static function quen_nho() {
+		delete_transient( self::O_NHO );
+	}
+
+	/** Khai tên mình vào danh sách plugin tự cập nhật được. */
+	public static function khai_ds( $ds ) {
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$ds[] = array(
+			'ma'    => 'khh-doanh-thu',
+			'ten'   => 'K&H — Báo cáo doanh thu FABi',
+			'duong' => self::duong(),
+			'hien'  => (string) self::ban_hien(),
+			'lop'   => __CLASS__,
+		);
+		return $ds;
 	}
 
 	/** Đã khai khoá chưa — CHỈ trả lời có/không, không bao giờ trả về chính khoá. */
