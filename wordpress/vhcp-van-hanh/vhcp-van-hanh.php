@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       K&H — Vận Hành
  * Description:       Vận hành cơ sở: doanh thu & chi phí theo ngày, sự cố, checklist, kho, đánh giá. Dùng chung sổ nhân sự và cửa đăng nhập với plugin Chấm Công.
- * Version:           1.3.0
+ * Version:           1.4.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'VHVH_VERSION', '1.3.0' );
+define( 'VHVH_VERSION', '1.4.0' );
 define( 'VHVH_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHVH_DIR . 'includes/class-vhvh-db.php';

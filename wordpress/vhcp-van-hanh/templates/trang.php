@@ -166,7 +166,8 @@ var KHOA = 'vhvh_the';
 var toi = null, man = 'tong_quan', banDau = true;
 var loi = '', bao = '';
 var duLieu = { tong_quan:null, tien:null, su_co:null, checklist:null, kho:null,
-  danh_gia:null, tiktok:null, trich_cam:null, thong_bao:null, giao_viec:null, bao_cao:null };
+  danh_gia:null, tiktok:null, trich_cam:null, thong_bao:null, giao_viec:null,
+  bao_cao:null, cai_dat:null };
 var cosoChon = '', ngayChon = homNay(), dangBan = false;
 
 function g(id){ return document.getElementById(id); }
@@ -1350,6 +1351,49 @@ function noiBaoCao(){
 }
 
 /* ============================================================================================
+ * MÀN CÀI ĐẶT — danh sách cơ sở của riêng trang này
+ * ==========================================================================================
+ * 🔴 Danh mục bên chấm công là mã ĐƠN VỊ của cả công ty. Đổ hết vào đây thì màn Tổng quan đầy
+ *    thẻ trống và mỗi ô chọn cơ sở thành một danh sách phải cuộn.
+ * ========================================================================================== */
+function veCaiDat(){
+  var d = duLieu.cai_dat;
+  if (!d) return '<div class="the">Đang tải…</div>';
+  return '<div class="the"><h2>Cơ sở của trang này</h2>'
+    + '<p class="nho">Mỗi dòng một cơ sở. <b>Để trống</b> thì trang tự đọc danh mục đơn vị của hệ '
+    + 'chấm công (' + (d.tu_he||[]).length + ' mục) — thường là quá nhiều so với việc ở đây.</p>'
+    + '<textarea id="csDs" rows="8" style="width:100%;margin-top:8px;border:1px solid var(--vien);'
+    + 'border-radius:9px;padding:10px;font-family:var(--font-mono,monospace);font-size:14px" '
+    + 'placeholder="GHOST HOUSE - GO BÀ RỊA">'+esc((d.ds_khai||[]).join('\n'))+'</textarea>'
+    + '<button class="nut chinh" id="btCsLuu" style="margin-top:10px">LƯU DANH SÁCH</button>'
+    + '<h3>Đang dùng ('+((d.dang_dung||[]).length)+')</h3>'
+    + '<p class="nho">'+esc((d.dang_dung||[]).join(' · '))+'</p>'
+    /* Nói ra cái lưới an toàn, không thì người ta tưởng plugin không nghe lời. */
+    + '<p class="nho" style="margin-top:10px;padding:8px 10px;border-left:3px solid var(--cam)">'
+    + 'Cơ sở <b>đang mang dữ liệu</b> (đã nhập doanh thu, sự cố, checklist) thì vẫn hiện dù không '
+    + 'có trong danh sách trên — giấu một cơ sở đang có doanh thu thật thì tiền ấy biến mất khỏi '
+    + 'mọi báo cáo mà không ai hay. Gõ nhầm tên một lần là nó hiện ra ở đây, và đó là chủ ý.</p>'
+    + '</div>';
+}
+function noiCaiDat(){
+  if (!g('btCsLuu')) return;
+  g('btCsLuu').addEventListener('click', function(){
+    var b=this; if(dangBan) return; dangBan=true; b.disabled=true;
+    var ds = g('csDs').value.split('\n').map(function(x){ return x.trim(); })
+              .filter(function(x){ return x !== ''; });
+    goi('cai_coso', { ds: ds }).then(function(j){
+      dangBan=false;
+      if(!j||!j.ok){ loi=(j&&j.error)||'Không lưu được.'; bao=''; ve(); return; }
+      loi=''; bao = ds.length
+        ? 'Đã lưu — trang chỉ còn ' + j.dang_dung.length + ' cơ sở.'
+        : 'Đã xoá danh sách riêng — quay về đọc danh mục hệ chấm công.';
+      /* Danh sách cơ sở đổi thì ô chọn ở mọi màn cũng phải đổi theo — nạp lại hồ sơ. */
+      goi('toi').then(function(k){ if(k&&k.ok){ toi=k.toi; } napMan(); });
+    }).catch(function(e){ dangBan=false; loi=e.message; ve(); });
+  });
+}
+
+/* ============================================================================================
  * VẼ & NẠP
  * ========================================================================================== */
 function ve(){
@@ -1384,6 +1428,9 @@ function ve(){
   } else if (man === 'bao_cao') {
     tieu = tenMuc('bao_cao'); duoi = 'Tải về CSV — chỉ phần anh được phép xem.';
     than = veBaoCao();
+  } else if (man === 'cai_dat') {
+    tieu = tenMuc('cai_dat'); duoi = 'Khai cơ sở cho riêng trang này.';
+    than = veCaiDat();
   } else if (man === 'su_co') {
     tieu = tenMuc('su_co'); duoi = 'Việc hỏng ngoài hiện trường — phải có người phụ trách và hạn.';
     than = veSuCo();
@@ -1406,7 +1453,7 @@ function ve(){
   });
   g('btRa').addEventListener('click', function(){
     datThe(''); toi=null; duLieu={tong_quan:null,tien:null,su_co:null,checklist:null,kho:null,danh_gia:null,
-      tiktok:null,trich_cam:null,thong_bao:null,giao_viec:null,bao_cao:null}; ve();
+      tiktok:null,trich_cam:null,thong_bao:null,giao_viec:null,bao_cao:null,cai_dat:null}; ve();
   });
 
   /* Đặt chỉ tiêu doanh thu tháng — chỉ quản lý thấy nút này, và máy chủ hỏi lại quyền một lần nữa. */
@@ -1434,6 +1481,7 @@ function ve(){
   if (man==='thong_bao') noiThongBao();
   if (man==='giao_viec') noiGiaoViec();
   if (man==='bao_cao') noiBaoCao();
+  if (man==='cai_dat') noiCaiDat();
 }
 
 function napMan(){
@@ -1477,6 +1525,11 @@ function napMan(){
   } else if (man === 'giao_viec') {
     goi('gv_ds', { tt:'chua' }).then(function(j){
       if (j && j.ok) { duLieu.giao_viec = j; ve(); }
+      else if (j) { loi = j.error||''; ve(); }
+    }).catch(function(e){ loi=e.message; ve(); });
+  } else if (man === 'cai_dat') {
+    goi('cai_doc').then(function(j){
+      if (j && j.ok) { duLieu.cai_dat = j; ve(); }
       else if (j) { loi = j.error||''; ve(); }
     }).catch(function(e){ loi=e.message; ve(); });
   } else if (man === 'bao_cao') {

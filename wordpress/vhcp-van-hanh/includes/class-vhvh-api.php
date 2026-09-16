@@ -235,6 +235,20 @@ class VHVH_API {
 					isset( $d['lam'] ) ? (string) $d['lam'] : '' ) );
 
 			/* ---- xuất báo cáo ---- */
+			/* ---- cài đặt ---- */
+			case 'cai_doc':
+				if ( ! VHVH_Auth::du_quyen( $u, 'quan_ly' ) ) { return self::ra( VHVH_Auth::choi() ); }
+				return self::ra( array( 'ok' => true,
+					'ds_khai'   => VHVH_Tong::ds_coso_khai(),
+					'dang_dung' => VHVH_Tong::ds_coso_he(),
+					'tu_he'     => ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_coso' ) )
+						? array_values( (array) VHCC_NhanSu::ds_coso() ) : array(),
+				) );
+
+			case 'cai_coso':
+				return self::ra( VHVH_Tong::dat_ds_coso( $u,
+					isset( $d['ds'] ) ? (array) $d['ds'] : array() ) );
+
 			case 'bc_loai':
 				return self::ra( array( 'ok' => true, 'loai' => VHVH_BaoCao::LOAI,
 					'ky' => current_time( 'Y-m' ) ) );
@@ -297,6 +311,7 @@ class VHVH_API {
 			$man[] = 'danh_gia';
 			$man[] = 'bao_cao';
 		}
+		if ( VHVH_Auth::du_quyen( $u, 'quan_ly' ) ) { $man[] = 'cai_dat'; }
 		return $man;
 	}
 
@@ -335,6 +350,7 @@ class VHVH_API {
 			) ),
 			array( 'nhom' => 'HỆ THỐNG', 'muc' => array(
 				array( 'ma' => 'bao_cao', 'ten' => 'Xuất báo cáo', 'icon' => '📊', 'xong' => 1 ),
+				array( 'ma' => 'cai_dat', 'ten' => 'Cài đặt', 'icon' => '⚙️', 'xong' => 1 ),
 			) ),
 		);
 	}

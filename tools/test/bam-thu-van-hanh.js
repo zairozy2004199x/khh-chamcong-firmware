@@ -67,7 +67,7 @@ window.fetch = function(url, opt){
         ? { ok:true, the:'THE-GIA-123', toi:{ ten:'CHT C', vai:'cua_hang_truong',
             coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'],
             man:['tong_quan','su_co','tien','checklist','kho','danh_gia','tiktok',
-                 'trich_cam','thong_bao','giao_viec','bao_cao'],
+                 'trich_cam','thong_bao','giao_viec','bao_cao','cai_dat'],
             url_cham_cong:'http://vi-du.test/cham-cong',
             muc:[
               { nhom:'TỔNG QUAN', muc:[{ma:'tong_quan',ten:'Tổng quan',icon:'🏠',xong:1}] },
@@ -85,7 +85,9 @@ window.fetch = function(url, opt){
               { nhom:'CÔNG VIỆC', muc:[
                   {ma:'thong_bao',ten:'Thông báo',icon:'📣',xong:1},
                   {ma:'giao_viec',ten:'Giao việc',icon:'✅',xong:1}] },
-              { nhom:'HỆ THỐNG', muc:[{ma:'bao_cao',ten:'Xuất báo cáo',icon:'📊',xong:1}] }
+              { nhom:'HỆ THỐNG', muc:[
+                  {ma:'bao_cao',ten:'Xuất báo cáo',icon:'📊',xong:1},
+                  {ma:'cai_dat',ten:'Cài đặt',icon:'⚙️',xong:1}] }
             ] } }
         : { ok:false, error:'PIN không đúng hoặc chưa được cấp' };
       break;
@@ -169,6 +171,11 @@ window.fetch = function(url, opt){
         : { ok:false, error:'Chọn người nhận việc.' };
       break;
     case 'gv_tt': j = { ok:true }; break;
+    case 'cai_doc':
+      j = { ok:true, ds_khai:[], dang_dung:['GO BÀ RỊA'],
+            tu_he:['FARM_PT','FF_SC','FZ_ADV_TP','VP_KH-HCM'] };
+      break;
+    case 'cai_coso': j = { ok:true, ds:d.ds, dang_dung:d.ds }; break;
     case 'bc_loai':
       j = { ok:true, ky:'2026-09',
         loai:{ doanh_thu:'Doanh thu & chi phí theo ngày', su_co:'Sự cố' } };
@@ -240,7 +247,7 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   await trang2.fill('#oPin', '246810');
   await trang2.click('#btVao');
   await trang2.waitForTimeout(200);
-  t('PIN đúng thì vào được', 11 === await trang2.locator('[data-man]').count(),
+  t('PIN đúng thì vào được', 12 === await trang2.locator('[data-man]').count(),
     await trang2.locator('[data-man]').count());
   t('hiện tên và vai người đăng nhập',
     (await trang2.locator('.toi').innerText()).indexOf('CHT C') >= 0);
@@ -494,6 +501,29 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
     tai[0] && tai[0].indexOf('doanh_thu') >= 0 && tai[0].indexOf('2026-09') >= 0, tai);
   t('báo đã tải ra màn hình',
     (await trang2.locator('.bao-ok').innerText()).indexOf('.csv') >= 0);
+
+  /* --- màn cài đặt --- */
+  await trang2.click('[data-man="cai_dat"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Cài đặt', await trang2.locator('#csDs').isVisible());
+  t('nói rõ hệ chấm công đang có bao nhiêu mục',
+    (await trang2.locator('.than').innerText()).indexOf('4 mục') >= 0,
+    await trang2.locator('.than').innerText());
+  /* Nói ra cái lưới an toàn, không thì người ta tưởng plugin không nghe lời. */
+  t('🔴 nói rõ cơ sở đang có dữ liệu vẫn hiện',
+    (await trang2.locator('.than').innerText()).indexOf('đang mang dữ liệu') >= 0);
+
+  await trang2.fill('#csDs', 'GHOST HOUSE - GO BÀ RỊA\n\n  \nGHOST HOUSE - VŨNG TÀU');
+  await trang2.click('#btCsLuu');
+  await trang2.waitForTimeout(260);
+  const goiCs = (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'cai_coso').pop();
+  t('bấm LƯU thì có gửi lên', !!goiCs);
+  /* Dòng trống phải bị bỏ ngay ở trang — gửi lên rồi mới lọc thì gói tin mang rác, và một ô
+     rỗng lọt qua là một "cơ sở tên rỗng" trong danh mục. */
+  t('🔴 dòng trống bị bỏ trước khi gửi', goiCs && goiCs.than.ds.length === 2, goiCs && goiCs.than.ds);
+  t('gửi đúng hai tên đã gõ',
+    goiCs && goiCs.than.ds[0] === 'GHOST HOUSE - GO BÀ RỊA'
+      && goiCs.than.ds[1] === 'GHOST HOUSE - VŨNG TÀU', goiCs && goiCs.than.ds);
 
   /* --- thoát --- */
   await trang2.click('#btRa');

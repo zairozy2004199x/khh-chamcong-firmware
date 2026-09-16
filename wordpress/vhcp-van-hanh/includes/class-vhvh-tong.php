@@ -33,7 +33,15 @@ class VHVH_Tong {
 	public static function ds_coso_he() {
 		global $wpdb;
 		$ds = array();
-		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_coso' ) ) {
+		/* 🔴 KHAI RIÊNG THÌ KHÔNG ĐỌC DANH MỤC CHẤM CÔNG NỮA.
+		   Danh mục bên chấm công là mã ĐƠN VỊ của cả công ty (FARM_PT, FF_SC, VP_KH-HCM… — 21
+		   cái), còn trang này chỉ vận hành vài cơ sở Ghost House. Đổ hết 21 cái vào màn Tổng
+		   quan thì thứ cần nhìn chìm mất giữa hai chục thẻ trống, và mỗi ô chọn cơ sở thành một
+		   danh sách phải cuộn. Khai riêng ở Cài đặt là màn hình chỉ còn đúng chỗ đang dùng. */
+		$rieng = self::ds_coso_khai();
+		if ( $rieng ) {
+			$ds = $rieng;
+		} elseif ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_coso' ) ) {
 			foreach ( (array) VHCC_NhanSu::ds_coso() as $c ) {
 				$c = trim( (string) $c );
 				if ( '' !== $c && ! in_array( $c, $ds, true ) ) { $ds[] = $c; }
@@ -48,6 +56,47 @@ class VHVH_Tong {
 		}
 		sort( $ds );
 		return $ds;
+	}
+
+	/**
+	 * Danh sách cơ sở do người dùng tự khai cho trang này. Chưa khai thì mảng rỗng.
+	 *
+	 * ⚠️ Khai rồi thì mấy cơ sở ĐANG MANG DỮ LIỆU vẫn được gộp vào (xem `ds_coso_he()`) — giấu
+	 *    một cơ sở đang có doanh thu thật thì tiền ấy biến mất khỏi mọi báo cáo mà không ai hay.
+	 */
+	public static function ds_coso_khai() {
+		global $wpdb;
+		$r = $wpdb->get_var( $wpdb->prepare(
+			'SELECT noi_dung FROM ' . VHVH_DB::t( 'danh_muc' ) . ' WHERE loai=%s AND pham_vi=%s',
+			'coso', '' ) );
+		if ( ! $r ) { return array(); }
+		$j = json_decode( (string) $r, true );
+		if ( ! is_array( $j ) ) { return array(); }
+		$ds = array();
+		foreach ( $j as $c ) {
+			$c = trim( sanitize_text_field( (string) $c ) );
+			if ( '' !== $c && ! in_array( $c, $ds, true ) ) { $ds[] = $c; }
+		}
+		return $ds;
+	}
+
+	/** Khai danh sách cơ sở — chỉ quản lý. Gửi mảng rỗng = quay về đọc danh mục chấm công. */
+	public static function dat_ds_coso( $u, $ds ) {
+		global $wpdb;
+		if ( ! VHVH_Auth::du_quyen( $u, 'quan_ly' ) ) { return VHVH_Auth::choi(); }
+		$sach = array();
+		foreach ( (array) $ds as $c ) {
+			$c = mb_substr( trim( sanitize_text_field( (string) $c ) ), 0, 190 );
+			if ( '' !== $c && ! in_array( $c, $sach, true ) ) { $sach[] = $c; }
+		}
+		$t  = VHVH_DB::t( 'danh_muc' );
+		$cu = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM $t WHERE loai=%s AND pham_vi=%s", 'coso', '' ) );
+		$hang = array( 'loai' => 'coso', 'pham_vi' => '',
+			'noi_dung' => wp_json_encode( $sach ), 'sua' => current_time( 'mysql' ) );
+		if ( $cu ) { $wpdb->update( $t, $hang, array( 'id' => (int) $cu ) ); }
+		else { $wpdb->insert( $t, $hang ); }
+		return array( 'ok' => true, 'ds' => $sach, 'dang_dung' => self::ds_coso_he() );
 	}
 
 	/** Số hồ sơ nhân sự đang hoạt động. Không đọc được thì trả null để màn hình hiện "—". */

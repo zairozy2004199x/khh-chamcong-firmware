@@ -1,6 +1,6 @@
 # Vận Hành cơ sở — plugin `vhcp-van-hanh`
 
-*Bản 1.3.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+*Bản 1.4.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
 
 > **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
 > nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ.
@@ -127,8 +127,8 @@ kể cả khi biết id.
 ## 6. Phép thử
 
 ```bash
-php tools/test/kiem-van-hanh.php      # 376 — quyền, tiền, điểm, mọi màn, khuôn dbDelta
-node tools/test/bam-thu-van-hanh.js   # 76  — BẤM THẬT trong Chromium
+php tools/test/kiem-van-hanh.php      # 385 — quyền, tiền, điểm, mọi màn, khuôn dbDelta
+node tools/test/bam-thu-van-hanh.js   # 82  — BẤM THẬT trong Chromium
 ```
 
 Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
@@ -168,6 +168,10 @@ Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
 | Chọn "Khen" mà danh sách nội dung không đổi | 2 |
 | Trang tự gửi tiền thưởng TikTok | 1 |
 | CHT thấy ô gửi thông báo toàn hệ | 1 |
+| Khai cơ sở riêng mà vẫn kéo mã đơn vị vào | 2 |
+| Ai cũng khai được danh sách cơ sở | 1 |
+| Giấu mất cơ sở đang có dữ liệu | 3 |
+| Trang không lọc dòng trống trước khi gửi | 2 |
 
 ---
 
@@ -304,10 +308,25 @@ Sáu loại, ra tệp **CSV** mở được bằng Excel · Google Sheet · Libr
 
 ---
 
+## 6i. Cài đặt — cơ sở của riêng trang này
+
+*Cài đặt* (chỉ **Quản lý** thấy) → ô **Cơ sở của trang này**, mỗi dòng một cơ sở.
+
+> 🔴 **Để trống thì trang đọc danh mục đơn vị của hệ chấm công** — mà danh mục ấy là mã đơn vị của
+> cả công ty (`FARM_PT`, `FF_SC`, `VP_KH-HCM`… 21 mục trên khmatrix.com). Đổ hết vào màn Tổng quan
+> thì thứ cần nhìn chìm mất giữa hai chục thẻ trống, và mỗi ô chọn cơ sở thành một danh sách phải
+> cuộn. Dùng một cơ sở thì khai đúng một dòng.
+
+> ⚠️ **Cơ sở đang mang dữ liệu vẫn hiện, dù không có trong danh sách.** Giấu một cơ sở đang có
+> doanh thu thật thì tiền ấy biến mất khỏi mọi báo cáo mà không ai hay. Gõ nhầm tên một lần là nó
+> hiện ra ở màn Tổng quan — và đó là chủ ý, không phải lỗi.
+
+---
+
 ## 7. ✅ Đã dựng xong 12 màn
 
 Tổng quan · Doanh thu & Chi phí · Sự cố · Checklist · Kiểm tra kho · Đánh giá nhân viên ·
-Thống kê TikTok · Thống kê trích cam · Thông báo · Giao việc · Xuất báo cáo.
+Thống kê TikTok · Thống kê trích cam · Thông báo · Giao việc · Xuất báo cáo · Cài đặt.
 
 Bốn mục **Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn** trên thanh dọc là **liên kết
 sang plugin Chấm Công**, cố ý không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
