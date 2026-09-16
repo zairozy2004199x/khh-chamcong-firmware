@@ -37,7 +37,11 @@
   function z24() { var a = []; for (var i = 0; i < 24; i++) a.push(0); return a; }
 
   var S = { cf: null, ngay: [], ky: '7', tu: '', den: '', ch: '*', xepMon: 'r', dangTai: false,
-            tab: 'doanhthu', nhapNgay: '', nhapCH: '' };
+            tab: 'doanhthu', nhapNgay: '', nhapCH: '',
+            /* Kỳ RIÊNG cho tab Đối soát. Dùng chung kỳ với tab Doanh thu thì ô chọn nằm ở tab kia,
+               người đang đứng ở Đối soát không thấy gì để bấm — mà đây mới là tab người ta ngồi
+               lâu nhất, và là tab cần đổi ngày nhiều nhất. */
+            ds: { ky: '7', tu: '', den: '', ch: '*', chiCanh: false } };
   var G = null; // gốc DOM
 
   /* ---------------- gọi máy chủ ---------------- */
@@ -80,24 +84,27 @@
   }
 
   /* ---------------- kỳ báo cáo ---------------- */
-  function tinhKy() {
+  /* `o` là ô giữ kỳ — S cho tab Doanh thu, S.ds cho tab Đối soát. */
+  function tinhKyCua(o) {
     var cf = S.cf || {};
     var cuoi = cf.den_ngay || ymd(new Date());
     var dau = cf.tu_ngay || cuoi;
     var tu, den = cuoi;
-    if (S.ky === 'all') tu = dau;
-    else if (S.ky === 'thang') tu = cuoi.slice(0, 8) + '01';
-    else if (S.ky === 'tay') {
-      tu = S.tu || dau; den = S.den || cuoi;
+    if (o.ky === 'all') tu = dau;
+    else if (o.ky === 'thang') tu = cuoi.slice(0, 8) + '01';
+    else if (o.ky === 'tay') {
+      tu = o.tu || dau; den = o.den || cuoi;
       if (tu > den) { var t = tu; tu = den; den = t; }
     } else {
-      var n = parseInt(S.ky, 10);
+      var n = parseInt(o.ky, 10);
       tu = doi(cuoi, -(n - 1));
       if (tu < dau) tu = dau;
     }
-    S.tu = tu; S.den = den;
+    o.tu = tu; o.den = den;
     return { tu: tu, den: den };
   }
+
+  function tinhKy() { return tinhKyCua(S); }
 
   function tai() {
     if (S.dangTai) return;
@@ -866,16 +873,55 @@
   /* ================= tab ĐỐI SOÁT ================= */
   function taiDoiSoat() {
     var o = q('#dtTabDoiSoat');
-    var k = tinhKy();
+    var k = tinhKyCua(S.ds);
     o.innerHTML = '<div class="khung"><div class="trong">Đang tải…</div></div>';
-    api('doi-soat?tu=' + k.tu + '&den=' + k.den + '&cua_hang=' + encodeURIComponent(S.ch))
+    api('doi-soat?tu=' + k.tu + '&den=' + k.den + '&cua_hang=' + encodeURIComponent(S.ds.ch))
       .then(function (r) { veDoiSoat(o, r, k); })
       .catch(function (e) {
         o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
       });
   }
 
+  /* Hàng nút lọc của riêng tab Đối soát. */
+  function locDoiSoat() {
+    var d = S.ds, ch = (S.cf && S.cf.cua_hang) || [];
+    var nut = [['1', 'Ngày mới nhất'], ['7', '7 ngày'], ['30', '30 ngày'], ['thang', 'Tháng này'], ['all', 'Tất cả']];
+    return '<div class="loc" id="dsLoc" style="margin:14px 0 4px">' +
+      nut.map(function (n) {
+        return '<button class="vien" type="button" data-dsk="' + n[0] + '"' +
+          (d.ky === n[0] ? ' aria-pressed="true"' : '') + '>' + esc(n[1]) + '</button>';
+      }).join('') +
+      '<span class="day"></span>' +
+      (ch.length > 1
+        ? '<span class="o"><label for="dsCH">Cơ sở</label><select id="dsCH">' +
+          '<option value="*">Tất cả cơ sở</option>' +
+          ch.map(function (t) {
+            return '<option value="' + esc(t) + '"' + (d.ch === t ? ' selected' : '') + '>' + esc(t) + '</option>';
+          }).join('') + '</select></span>'
+        : '') +
+      '<span class="o"><label for="dsTu">Từ</label><input type="date" id="dsTu" value="' + esc(d.tu || '') + '">' +
+        '<label for="dsDen">đến</label><input type="date" id="dsDen" value="' + esc(d.den || '') + '"></span>' +
+      '<span class="o"><label for="dsCanh"><input type="checkbox" id="dsCanh"' + (d.chiCanh ? ' checked' : '') +
+        '> chỉ dòng cần xem</label></span>' +
+    '</div>';
+  }
+
+  function noiLocDoiSoat(o) {
+    Array.prototype.forEach.call(o.querySelectorAll('[data-dsk]'), function (b) {
+      b.addEventListener('click', function () { S.ds.ky = b.dataset.dsk; taiDoiSoat(); });
+    });
+    var t = o.querySelector('#dsTu'), d = o.querySelector('#dsDen'),
+        c = o.querySelector('#dsCH'), k = o.querySelector('#dsCanh');
+    if (t) t.addEventListener('change', function () { S.ds.ky = 'tay'; S.ds.tu = t.value; taiDoiSoat(); });
+    if (d) d.addEventListener('change', function () { S.ds.ky = 'tay'; S.ds.den = d.value; taiDoiSoat(); });
+    if (c) c.addEventListener('change', function () { S.ds.ch = c.value; taiDoiSoat(); });
+    /* Lọc "chỉ dòng cần xem" vẽ lại tại chỗ, không hỏi lại máy chủ — cùng một bộ số. */
+    if (k) k.addEventListener('change', function () { S.ds.chiCanh = k.checked; veDoiSoat(q('#dtTabDoiSoat'), S.dsR, S.dsK); });
+  }
+
   function veDoiSoat(o, r, k) {
+    /* Giữ lại bộ số và kỳ vừa tải, để nút "chỉ dòng cần xem" vẽ lại được mà không gọi lại máy chủ. */
+    S.dsR = r; S.dsK = k;
     var ng = r.nguong || { phan_tram: 2, so_tien: 500000 };
     var ds = r.dong || [];
     var chuaNhap = ds.filter(function (x) { return !x.co_bao_cao; }).length;
@@ -892,8 +938,16 @@
       if (canhBao(x, ng)) soCanh++;
     });
     var sk = r.sk_chua_gan || { so_dong: 0, so_tien: 0 };
+    /* Lọc CHỈ ở phần bảng — mấy ô đếm phía trên vẫn tính trên cả kỳ, vì "còn bao nhiêu tiền chưa
+       về" mà đổi theo bộ lọc thì nó không còn là con số để nhìn mỗi sáng nữa. */
+    var hien = S.ds.chiCanh
+      ? ds.filter(function (x) { return canhBao(x, ng) || (x.qua_han && x.thieu > 0) || !x.co_bao_cao; })
+      : ds;
+
     var h = '<div class="khung"><header><h2>Đối soát cơ sở với máy POS</h2>' +
-      '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + ' · ' + ds.length + ' ngày×cơ sở</span></header>' +
+      '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + ' · ' + ds.length + ' ngày×cơ sở' +
+      (S.ds.chiCanh ? ' · hiện ' + hien.length : '') + '</span></header>' +
+      locDoiSoat() +
       '<div class="the-hang" style="margin:16px 0">' +
         the_nho('Tiền mặt chưa về tài khoản', tien(chuaVe) +
           (soChuaVe ? ' · ' + soChuaVe + ' ngày×cơ sở' : ''), chuaVe > 0 ? 'xau' : '') +
@@ -922,7 +976,7 @@
         '<th>Ngân hàng nhận</th><th>Nộp tiền</th>' +
         '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
-    ds.forEach(function (x) {
+    hien.forEach(function (x) {
       var do_ = canhBao(x, ng);
       h += '<tr' + (do_ ? ' class="canh"' : '') + '>' +
         '<td>' + esc(ngayVN(x.ngay)) + '</td>' +
@@ -948,6 +1002,11 @@
           : '<td colspan="5" class="chua">chưa nhập báo cáo ngày</td>') +
         '</tr>';
     });
+    if (!hien.length) {
+      h += '<tr><td colspan="11" class="chua">' +
+        (ds.length ? 'Kỳ này không có dòng nào cần xem — mọi khoản đã về tài khoản.'
+          : 'Kỳ này chưa có số liệu POS nào.') + '</td></tr>';
+    }
     h += '</tbody></table></div>' +
       '<div class="chu-them">Bôi đỏ khi lệch tiền mặt hoặc phần chưa nộp vượt ' +
         phan(ng.phan_tram) + ' doanh thu ngày, hoặc vượt ' + tien(ng.so_tien) + '. ' +
@@ -959,6 +1018,7 @@
           : 'Chưa nạp sao kê nên chưa biết tiền đã về tài khoản hay chưa.') +
         '</div></div>';
     o.innerHTML = h;
+    noiLocDoiSoat(o);
   }
 
   /**
