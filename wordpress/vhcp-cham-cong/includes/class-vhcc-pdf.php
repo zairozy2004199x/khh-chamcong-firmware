@@ -95,11 +95,20 @@ class VHCC_Pdf {
 			. ' WHERE coso=%s AND ngay >= %s AND ngay <= %s ORDER BY ngay, ho_ten, ma_nv, hau_to',
 			$coso, $tu, $den ) );
 
+		/* 🔴 TỜ GIẤY IN RA CŨNG PHẢI THEO SỔ ẨN. Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn"*.
+		   Hàm này có SQL RIÊNG, không đi qua `VHCC_Luong::doc_thang()` nơi phép lọc ở cửa vào
+		   đang đứng — nên nó là chỗ duy nhất còn phải lọc lấy. Ẩn xong mà tờ in nộp lên kế toán
+		   vẫn có tên người ấy thì việc ẩn coi như chưa làm.
+		   ⚠️ Gác `method_exists` cùng chỗ với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$so_an = ( class_exists( 'VHCC_An' ) && method_exists( 'VHCC_An', 'la_an_chum' ) )
+			? VHCC_An::so() : array();
+
 		$chi_tiet = array();
 		$tong = array();
 		foreach ( $hang as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
+			if ( $so_an && VHCC_An::la_an_chum( $coso, $ma, $so_an ) ) { continue; }
 			$hau_to = strtoupper( trim( (string) $r['hau_to'] ) );
 			$ma_hien = $ma . ( '' !== $hau_to ? '-' . $hau_to : '' );
 			$ten = '' !== trim( (string) $r['ho_ten'] ) ? $r['ho_ten'] : $ma_hien;

@@ -66,6 +66,41 @@ class VHCC_An {
 	}
 
 	/**
+	 * Có bị ẩn ở BẤT KỲ cơ sở nào trong CHÙM của cơ sở này không.
+	 *
+	 * 🔴 PHẢI HỎI CẢ CHÙM, KHÔNG CHỈ CƠ SỞ ĐANG XEM. `VHCC_Luong::doc_thang()` đọc lượt chấm của
+	 *    cả chùm (cơ sở chính + mấy cơ sở ghép vào nó), nhưng `dat()` ghi khoá ẩn theo đúng cơ
+	 *    sở người ta ĐANG MỞ. Hỏi mỗi cơ sở đang xem thì: ẩn ở bảng cha xong mở bảng con, hàng
+	 *    vẫn còn — mà trên bảng cha còn có sẵn đường dẫn "Mở bảng ..." sang bảng con.
+	 *
+	 * ⚠️ Gác `method_exists` cùng chỗ với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm chùm
+	 *    thì lui về hỏi đúng một cơ sở, chứ không ngã.
+	 */
+	public static function la_an_chum( $coso, $ma, $so = null ) {
+		$so = ( null === $so ) ? self::so() : $so;
+		if ( self::la_an( $coso, $ma, $so ) ) { return true; }
+		if ( ! class_exists( 'VHCC_Luong' ) || ! method_exists( 'VHCC_Luong', 'chum_cua' ) ) {
+			return false;
+		}
+		foreach ( (array) VHCC_Luong::chum_cua( $coso ) as $cs_x ) {
+			if ( self::la_an( $cs_x, $ma, $so ) ) { return true; }
+		}
+		/* 🔴 VÀ HỎI NGƯỢC LÊN CƠ SỞ CHA. `chum_cua()` chỉ đi XUỐNG (chính nó + mấy cơ sở phụ
+		   ghép vào nó). Nhưng cảnh thật là ngược lại: người ta mở BẢNG GỘP của cơ sở cha, thấy
+		   rác, bấm ẩn ở đó — khoá ghi dưới tên cha. Rồi ai mở bảng của cơ sở CON thì `chum_cua`
+		   của con không chứa cha, và hàng ấy hiện lại. Hỏi cả hai chiều thì mới đúng chữ
+		   *"ẩn thì ẩn luôn"*. */
+		if ( method_exists( 'VHCC_Luong', 'ban_do_ghep' ) ) {
+			$cs_chuan = VHCC_NhanSu::chuan_coso( $coso );
+			foreach ( (array) VHCC_Luong::ban_do_ghep() as $phu => $chinh ) {
+				if ( 0 === strcasecmp( (string) $phu, (string) $cs_chuan )
+					&& self::la_an( $chinh, $ma, $so ) ) { return true; }
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Danh sách mã đang ẩn ở một cơ sở — để màn còn bày ra đường bỏ ẩn.
 	 *
 	 * 🔴 PHẢI CÓ CHỖ NHÌN THẤY. Một thứ ẩn được mà không liệt kê ra đâu cả thì đúng bằng xoá:

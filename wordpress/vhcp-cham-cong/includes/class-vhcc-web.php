@@ -6715,6 +6715,12 @@ class VHCC_Web {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
 				$ma_hs = trim( (string) $hs['ma_nv'] );
 				if ( '' === $ma_hs ) { continue; }
+				/* 🔴 MÃ ĐANG ẨN THÌ KHÔNG DỰNG HÀNG TRỐNG. Vòng này đọc thẳng SỔ NHÂN SỰ, không
+				   đi qua `VHCC_Luong::doc_thang()` nên phép lọc ở cửa vào không với tới. Quên
+				   chỗ này thì mã bị ẩn mà CÓ hồ sơ vẫn hiện ra một hàng toàn dấu chấm — ẩn
+				   được đúng những người không có hồ sơ, tức đúng nửa việc. */
+				if ( class_exists( 'VHCC_An' ) && method_exists( 'VHCC_An', 'la_an_chum' )
+					&& VHCC_An::la_an_chum( (string) $b['coSo'], $ma_hs ) ) { continue; }
 				/* 🔴 CÓ HÀNG RỒI NHƯNG HÀNG ẤY KHÔNG CÓ TÊN THÌ VẪN PHẢI LẤY TÊN TỪ HỒ SƠ.
 				   Lượt chấm của máy/nạp .csv có thể để trống `ho_ten`; trên kia dòng
 				   `$ten[$ma] = $r['hoTen']` vẫn ĐẶT khoá ấy với chuỗi rỗng, nên `isset()` hoá
@@ -6857,7 +6863,51 @@ class VHCC_Web {
 			. ( 'ngay' === $kieu_ct ? 'công' : 'giờ' ) . '</div></th>'
 			. '<th>LƯƠNG</th></tr></thead><tbody>';
 
-		/* ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm
+		$tong_cs = 0;
+		$bc_ca = self::bc_ca( '', $tt );
+		self::bao_bc_ca( $bc_ca );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 DANH SÁCH MÃ ĐANG ẨN PHẢI ĐỌC TỪ SỔ, KHÔNG DỰNG TỪ THÁNG ĐANG XEM.
+		 *
+		 * Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn, không hiện tất cả các tháng"*.
+		 *
+		 * Hàng bị ẩn thì `VHCC_Luong::doc_thang()` đã lọc sẵn ở cửa vào rồi (một luật một chỗ,
+		 * xem chú thích trong hàm ấy) — ở đây không còn phải lọc `$ten` nữa.
+		 *
+		 * ⚠️ NHƯNG VẪN CẦN `$ma_an`, và bản cũ dựng nó TỪ CHÍNH `$ten` của tháng đang xem. Một
+		 *    mã rác kiểu `1281260037` không có hồ sơ: sang tháng nó không có lượt chấm nào nên
+		 *    không có trong `$ten`, nên `$ma_an` rỗng, nên dòng "🚫 N mã đang ẩn" và nút
+		 *    `👁 hiện lại` BIẾN MẤT — mã vẫn bị ẩn mà không còn đường nào bỏ ẩn, cũng không còn
+		 *    dấu vết nào là nó tồn tại. Đúng bằng xoá, chỉ chậm hơn một tháng.
+		 *    `VHCC_An::ds()` viết ra đúng để chữa chuyện này và tới nay chưa nơi nào gọi.
+		 *
+		 * Tên hiện ra tra theo thứ tự: tên của tháng này → hồ sơ → chính cái mã.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ma_an = array();
+		foreach ( VHCC_An::ds( $cs_luoi ) as $ma_a ) {
+			/* ⚠️ KHÔNG `unset( $ten[...] )` Ở ĐÂY. Bản nháp có một dòng như thế, coi là "phòng
+			   xa" — nhưng nó CHE MẤT phép lọc thật ở vòng dựng hàng trống từ hồ sơ: gỡ phép lọc
+			   kia ra thì bài kiểm vẫn xanh, vì dòng này dọn hộ. Đã thử đột biến và thấy đúng
+			   thế. Hai cơ chế cho một luật, mà một cái vô hình, là thứ khiến người sau gỡ nhầm
+			   cái đang làm việc. Một luật, một chỗ: `doc_thang()` lọc lượt chấm, vòng hồ sơ tự
+			   lọc lấy, còn đây CHỈ dựng danh sách để bày ra. */
+			$t_a = '';
+			foreach ( $ten as $m_x => $t_x ) {
+				if ( 0 === strcasecmp( (string) $m_x, (string) $ma_a ) ) { $t_a = (string) $t_x; break; }
+			}
+			if ( '' === $t_a && method_exists( 'VHCC_NhanSu', 'ho_so' ) ) {
+				$hs_a = VHCC_NhanSu::ho_so( $ma_a );
+				if ( is_array( $hs_a ) && isset( $hs_a['ho_ten'] ) ) { $t_a = trim( (string) $hs_a['ho_ten'] ); }
+			}
+			$ma_an[ $ma_a ] = $t_a;
+		}
+
+		/* ⚠️ BA LỜI GỌI NÀY PHẢI ĐỨNG SAU KHỐI GỠ MÃ ẨN Ở TRÊN — chúng nhận `array_keys($ten)`,
+		   và trước 4.8.0 chúng chạy TRƯỚC, tức đi hỏi sổ về cả những mã vừa bị gỡ. Không sai kết
+		   quả (mã ẩn không còn hàng để đọc câu trả lời), chỉ phí truy vấn — nhưng để nguyên thì
+		   người sau đọc sẽ tưởng `$ten` ở hai chỗ là một.
+		   ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm
 		   thì lưới chạy y như trước, chỉ là không có dòng cơ sở khác. */
 		$ck_ds = method_exists( 'VHCC_Cham', 'ngay_o_coso_khac' )
 			? VHCC_Cham::ngay_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
@@ -6865,20 +6915,6 @@ class VHCC_Web {
 			? VHCC_Cham::tong_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
 		$anh_ds = self::anh_the_ds( array_keys( $ten ) );
 
-		$tong_cs = 0;
-		$bc_ca = self::bc_ca( '', $tt );
-		self::bao_bc_ca( $bc_ca );
-
-		/* 🔴 HÀNG BỊ ẨN RA KHỎI CẢ LƯỚI LẪN TỔNG — xem `VHCC_An`. Anh Thắng 16/09/2026:
-		   *"khi ẩn thì nó không ảnh hưởng đến bảng công"*. Giấu một hàng mà vẫn cộng nó vào
-		   tổng cơ sở là tệ hơn không giấu: con số không khớp với những gì bày ra, mà cũng
-		   không còn hàng nào để người ta lần ra vì sao. */
-		$so_an  = VHCC_An::so();
-		$ma_an  = array();
-		foreach ( $ten as $ma_a => $t_a ) {
-			if ( VHCC_An::la_an( $cs_luoi, $ma_a, $so_an ) ) { $ma_an[ $ma_a ] = $t_a; }
-		}
-		foreach ( $ma_an as $ma_a => $t_a ) { unset( $ten[ $ma_a ] ); }
 
 		foreach ( $ten as $ma => $ho_ten ) {
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
@@ -7216,6 +7252,12 @@ class VHCC_Web {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $cs_bc ) as $hs_c ) {
 				$ma_c = trim( (string) $hs_c['ma_nv'] );
 				if ( '' === $ma_c || isset( $da_co[ strtoupper( $ma_c ) ] ) ) { continue; }
+				/* 🔴 MÃ ĐANG ẨN THÌ KHÔNG DỰNG HÀNG TRỐNG. Vòng này đọc thẳng SỔ NHÂN SỰ, không
+				   đi qua `VHCC_Luong::doc_thang()` nên phép lọc ở cửa vào không với tới. Quên
+				   chỗ này thì mã bị ẩn mà CÓ hồ sơ vẫn hiện ra một hàng toàn dấu chấm — ẩn
+				   được đúng những người không có hồ sơ, tức đúng nửa việc. */
+				if ( class_exists( 'VHCC_An' ) && method_exists( 'VHCC_An', 'la_an_chum' )
+					&& VHCC_An::la_an_chum( (string) $cs_bc, $ma_c ) ) { continue; }
 				/* Cơ sở đặt "chỉ quản lý" thì không dựng hàng trống — xem chú thích cùng việc ở
 				   `ve_luoi_gio()`. */
 				if ( method_exists( 'VHCC_NhanSu', 'hs_cham_coso' )

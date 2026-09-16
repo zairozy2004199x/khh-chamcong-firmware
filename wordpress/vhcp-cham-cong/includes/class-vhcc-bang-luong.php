@@ -109,16 +109,15 @@ class VHCC_BangLuong {
 		   bằng một cái tên không ai khai.
 		   Nay: hậu tố chỉ còn là chuyện của lưới chấm công; ở đây mọi lượt của một người cộng vào
 		   MỘT tổng, rồi `VHCC_GioKhac` trừ ra phần ăn giá khác. */
-		/* 🔴 MÃ BỊ ẨN KHÔNG VÀO BẢNG LƯƠNG. Anh Thắng 16/09/2026: *"khi ẩn thì nó không ảnh
-		   hưởng đến bảng công"* — mà bảng lương đọc cùng một nguồn. Ẩn ở lưới rồi vẫn thấy nó
-		   đứng đòi đơn giá ở bảng lương thì việc ẩn coi như chưa làm gì. Xem `VHCC_An`. */
-		$so_an = VHCC_An::so();
-
+		/* 🔴 MÃ BỊ ẨN KHÔNG VÀO BẢNG LƯƠNG — nhưng phép lọc KHÔNG còn ở đây nữa.
+		   Anh Thắng 16/09/2026: *"khi ẩn thì nó không ảnh hưởng đến bảng công"*, rồi *"nếu ẩn
+		   thì ẩn luôn, không hiện tất cả các tháng"*. `VHCC_Luong::doc_thang()` nay lọc sẵn ở
+		   cửa vào cho MỌI nơi đọc nó (xem khối chú thích trong hàm ấy), nên lọc lại ở đây là
+		   hai luật ẩn nằm trong một plugin — thứ sẽ lệch nhau vào một ngày nào đó. */
 		$gom = array();
 		foreach ( VHCC_Luong::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
-			if ( VHCC_An::la_an( $coso, $ma, $so_an ) ) { continue; }
 			$key = strtolower( $ma );
 			if ( ! isset( $gom[ $key ] ) ) {
 				$gom[ $key ] = array( 'ma' => $ma, 'phut' => 0.0, 'ngay' => array(),

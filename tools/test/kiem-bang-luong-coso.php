@@ -483,6 +483,25 @@ if ( VHCC_Xuat::co_xlsx() ) {
 	   tính lại, tức một con số trông như thật mà sai. */
 	t( '🔴 công thức KHÔNG kèm <v> đoán sẵn',
 		false === strpos( $sx, '<f>G' . $r1 . '*H' . $r1 . '</f><v>' ), 'có <v> đi kèm công thức' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 WORKBOOK PHẢI BẢO EXCEL TÍNH LẠI LÚC MỞ.
+	 *
+	 * Anh Thắng 16/09/2026: *"xuất file lương, cột lương chính chưa nhân"* · *"total vẫn chưa
+	 * có"* — kèm ảnh có thanh công thức hiện `=G9*H9` mà ô thì trống. Công thức có, giá trị
+	 * đệm thì cố ý không có (phép ngay trên khoá luật ấy), nên thiếu `<calcPr>` là Excel đọc
+	 * đệm, không thấy gì, in ô trống. Năm ô mỗi hàng: I · M · U · Y · Z.
+	 *
+	 * ⚠️ CANH CẢ VỊ TRÍ, không chỉ "có mặt". Lược đồ `CT_Workbook` xếp `calcPr` SAU `</sheets>`;
+	 *    đặt sai chỗ là Excel từ chối mở cả tệp mà không nói vì sao — đúng cái bẫy mà mấy phép
+	 *    `<cols>`/`<mergeCells>` ở trên đã dựng hàng rào.
+	 * ══════════════════════════════════════════════════════════════════════════════════════*/
+	$wbx = $z->getFromName( 'xl/workbook.xml' );
+	t( '🔴 workbook bảo Excel tính lại lúc mở (fullCalcOnLoad)',
+		false !== strpos( $wbx, 'fullCalcOnLoad="1"' ), $wbx );
+	t( '🔴 <calcPr> đứng SAU </sheets>, đúng thứ tự lược đồ',
+		strpos( $wbx, '<calcPr' ) > strpos( $wbx, '</sheets>' ), $wbx );
+
 	$st = $z->getFromName( 'xl/styles.xml' );
 	t( 'có định dạng tiền #,##0', false !== strpos( $st, '#,##0' ) );
 	t( 'có định dạng giờ 0.00 — 19,2 giờ làm tròn lên 19 là lệch tiền', false !== strpos( $st, '0.00' ) );
@@ -1766,5 +1785,178 @@ t( 'bóc được dòng giờ trong chú thích ô ngày', null !== $dong_gio_o,
 t( '🔴 chú thích rê chuột của Ô NGÀY vẫn giữ lối "Xh Ym"',
 	null !== $dong_gio_o && 1 === preg_match( '/^\d+h( \d+m)?$/u', $dong_gio_o ),
 	var_export( $dong_gio_o, true ) );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 19. ẨN THÌ ẨN Ở MỌI NƠI, VÀ LUÔN CÒN ĐƯỜNG BỎ ẨN
+ *
+ * Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn, không hiện tất cả các tháng"*.
+ *
+ * Sổ ẩn vốn ĐÃ toàn cục theo cơ sở (không có tham số tháng nào). Chỗ hỏng là chỉ HAI trong
+ * khoảng TÁM nơi vẽ ra màn có hỏi nó — và một trong sáu chỗ quên nằm NGAY DƯỚI cái lưới vừa
+ * ẩn. Mục 14 ở trên đã canh phần "ẩn khỏi lưới và bảng lương"; mục này canh phần còn lại.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_e  = 'KHO_AN';
+$ma_e  = '0000000888';                 /* mã bịa, KHÔNG có hồ sơ — kho này công khai */
+$U_QL_E = array( 'name' => 'Anh Quản Lý', 'role' => 'Quản lý', 'coso' => '' );
+
+/* Lượt chấm CHỈ ở tháng 8. Sang tháng 9 người này không có lượt nào — đó chính là cảnh làm
+   dòng "đang ẩn" biến mất ở bản trước. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_e, 'ho_ten' => 'Rác Thử Máy', 'coso' => $cs_e, 'ngay' => '2026-08-04',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+t( 'gieo: mã ẩn KHÔNG có hồ sơ', ! VHCC_NhanSu::ho_so( $ma_e ), 'mã rác lại có hồ sơ' );
+
+/* ⚠️ GIEO THÊM MỘT NGƯỜI KHÔNG BỊ ẨN. Cơ sở chỉ có đúng một người mà người ấy bị ẩn thì lưới
+   lẫn bảng "Tổng giờ theo ca" đều in "Chưa có dữ liệu" và KHÔNG vẽ bảng nào — lúc đó phép thử
+   xanh vì chẳng có gì để soi, chứ không phải vì phép ẩn chạy đúng. Cảnh thật cũng vậy: người
+   ta ẩn một mã rác giữa một cơ sở đang có người đi làm. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'AN_BINHTHUONG', 'ho_ten' => 'Người Vẫn Hiện', 'coso' => $cs_e, 'ngay' => '2026-08-04',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'AN_BINHTHUONG', 'ho_ten' => 'Người Vẫn Hiện', 'coso' => $cs_e, 'ngay' => '2026-09-04',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+
+$g_e8 = array( 'man' => 'cham', 'ccs' => $cs_e, 'cth' => '2026-08' );
+$g_e9 = array( 'man' => 'cham', 'ccs' => $cs_e, 'cth' => '2026-09' );
+
+$h_e0 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_e8 );
+t( 'gieo: chưa ẩn thì mã CÓ trong lưới tháng 8', false !== strpos( $h_e0, $ma_e ), 'không thấy mã' );
+
+$r_e = VHCC_An::dat( $U_QL_E, $cs_e, $ma_e, true );
+t( 'ẩn được', ! empty( $r_e['ok'] ), $r_e );
+
+/* ───── 1. 🔴 PHÉP CHÍNH: SANG THÁNG KHÁC VẪN ẨN, VÀ VẪN CÒN NÚT BỎ ẨN ───── */
+$h_e9 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_e9 );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_e9, $m_e9 );
+t( '🔴 tháng 9: mã ẩn không có hàng nào trong lưới',
+	isset( $m_e9[0] ) && false === strpos( $m_e9[0], $ma_e ), 'còn sót hàng của mã ẩn' );
+/* 🔴 Đây là nửa thứ hai của câu anh Thắng, và là nửa dễ quên: ẩn mà không còn chỗ nào nhìn
+   thấy thì đúng bằng xoá. Bản trước dựng danh sách này TỪ bản đồ tên của tháng đang xem, nên
+   ở tháng 9 (mã không có lượt chấm nào) nó rỗng và cả dòng biến mất. */
+t( '🔴 tháng 9 VẪN có dòng "mã đang ẩn"', false !== strpos( $h_e9, 'mã đang ẩn' ), $h_e9 );
+t( '🔴 và dòng ấy kể đích danh mã', false !== strpos( $h_e9, '<code>' . $ma_e . '</code>' ), $h_e9 );
+t( '🔴 và có nút bỏ ẩn để bấm', false !== strpos( $h_e9, 'hiện lại' ), $h_e9 );
+
+/* ───── 2. 🔴 BẢNG "TỔNG GIỜ THEO CA" NGAY DƯỚI LƯỚI ───── */
+/* ⚠️ BÓC RIÊNG KHỐI ẤY RỒI MỚI SOI. Soi cả trang thì bắt trúng chính dòng "mã đang ẩn" vừa
+   thêm ở trên — và phép thử sẽ đỏ vì một chỗ hoàn toàn đúng. */
+$h_e8 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_e8 );
+function vhcc_khoi_tong_ca( $h ) {
+	$i = strpos( $h, 'Tổng giờ theo ca' );
+	if ( false === $i ) { return null; }
+	if ( ! preg_match( '/<table class="cc">.*?<\/table>/us', substr( $h, $i ), $m ) ) { return null; }
+	return $m[0];
+}
+$tc_e = vhcc_khoi_tong_ca( $h_e8 );
+t( 'bóc được bảng "Tổng giờ theo ca"', null !== $tc_e, 'không thấy khối ấy trên màn' );
+t( '🔴 mã ẩn KHÔNG còn trong bảng "Tổng giờ theo ca"',
+	null !== $tc_e && false === strpos( $tc_e, 'Rác Thử Máy' ), $tc_e );
+
+/* ───── 3. 🔴 CƠ SỞ TÍNH THEO CÔNG (lưới khác hẳn, trước nay ẩn KHÔNG có tác dụng gì) ───── */
+$cs_ec = 'VP_AN';
+$ma_ec = '0000000889';
+/* ⚠️ `'cong'` MỚI LÀ LƯỚI VĂN PHÒNG (`ve_luoi_vp`). `'ngay'` là "có đi là được" và vẫn do
+   `ve_luoi_gio` vẽ — gieo nhầm `'ngay'` thì mục này canh lại đúng cái lưới mục trên đã canh,
+   còn `ve_luoi_vp` thì không ai đụng tới. Đã thử đột biến: gỡ phép lọc của `ve_luoi_vp` ra mà
+   bài kiểm vẫn xanh, và đó là cách phát hiện ra chỗ gieo sai này. */
+VHCC_Luong::dat_cach_tinh( $U_QL_E, array( $cs_ec => 'cong' ) );
+teq( 'gieo: cơ sở ấy dùng LƯỚI VĂN PHÒNG', 'cong', VHCC_Luong::cach_tinh( $cs_ec ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_ec, 'ho_ten' => 'Rác Văn Phòng', 'coso' => $cs_ec, 'ngay' => '2026-08-05',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'VPAN_BT', 'ho_ten' => 'Văn Phòng Vẫn Hiện', 'coso' => $cs_ec, 'ngay' => '2026-08-05',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$g_ec = array( 'man' => 'cham', 'ccs' => $cs_ec, 'cth' => '2026-08' );
+$h_ec0 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_ec );
+t( 'gieo: lưới theo công CÓ hàng ấy khi chưa ẩn',
+	false !== strpos( $h_ec0, 'Rác Văn Phòng' ), 'lưới vp không có hàng — fixture sai' );
+VHCC_An::dat( $U_QL_E, $cs_ec, $ma_ec, true );
+$h_ec1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_ec );
+t( '🔴 lưới THEO CÔNG cũng ẩn được', false === strpos( $h_ec1, 'Rác Văn Phòng' ), $h_ec1 );
+
+/* 🔴 VÀ VÒNG DỰNG HÀNG TRỐNG TỪ HỒ SƠ CỦA LƯỚI THEO CÔNG cũng phải lọc — nó là một khối mã
+   RIÊNG, không dùng chung với lưới theo giờ. Thiếu phép thử này thì gỡ phép lọc bên ấy ra bài
+   kiểm vẫn xanh (đã thử đột biến, và nó KHÔNG đỏ cho tới khi có mấy dòng dưới đây). */
+$ma_ecs = 'VPAN_COHS';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_ecs,
+	'ho_ten' => 'Văn Phòng Ẩn Có Hồ Sơ', 'cua_hang' => $cs_ec, 'chuc_vu' => 'Partime',
+	'vai_tro' => 'Nhân viên' ) );
+$h_ecs0 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_ec );
+/* ⚠️ SOI TRONG LƯỚI, không soi cả trang: tên người ấy còn hiện ở khối "thiếu ảnh thẻ" và mấy
+   khối khác, nên phép gieo soi cả trang sẽ xanh CẢ KHI lưới chẳng dựng hàng nào — và lúc đó
+   phép thử chính bên dưới canh một cảnh không tồn tại. */
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_ecs0, $m_ecs0 );
+t( 'gieo: lưới theo công CÓ hàng trống của người có hồ sơ',
+	isset( $m_ecs0[0] ) && false !== strpos( $m_ecs0[0], 'Văn Phòng Ẩn Có Hồ Sơ' ),
+	isset( $m_ecs0[0] ) ? substr( $m_ecs0[0], 0, 400 ) : '(không có lưới)' );
+VHCC_An::dat( $U_QL_E, $cs_ec, $ma_ecs, true );
+$h_ecs1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_ec );
+/* ⚠️ BÓC LƯỚI RA RỒI MỚI SOI. Soi cả trang thì bắt trúng chính dòng "🚫 N mã đang ẩn" ở cuối
+   lưới — dòng ấy CÓ NHIỆM VỤ kể tên người bị ẩn, nên phép thử đỏ về một chỗ hoàn toàn đúng.
+   Đã vấp đúng thế một lần ở mục này. */
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_ecs1, $m_ecs );
+t( 'bóc được lưới theo công sau khi ẩn', isset( $m_ecs[0] ), 'lưới biến mất' );
+t( '🔴 lưới THEO CÔNG: hàng trống dựng từ HỒ SƠ cũng ẩn được',
+	isset( $m_ecs[0] ) && false === strpos( $m_ecs[0], 'Văn Phòng Ẩn Có Hồ Sơ' ),
+	isset( $m_ecs[0] ) ? substr( $m_ecs[0], 0, 300 ) : '(không có lưới)' );
+
+/* ───── 4. 🔴 MÃ ẨN MÀ **CÓ HỒ SƠ**: vòng dựng hàng trống không đi qua cửa lọc ───── */
+/* Đây là chỗ dễ sót nhất: `ds_nhan_vien()` đọc thẳng sổ nhân sự, không qua `doc_thang()`. */
+$ma_eh = 'AN_COHS';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_eh,
+	'ho_ten' => 'Người Ẩn Có Hồ Sơ', 'cua_hang' => $cs_e, 'chuc_vu' => 'Partime',
+	'vai_tro' => 'Nhân viên' ) );
+$h_eh0 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_e8 );
+t( 'gieo: người có hồ sơ mà chưa chấm VẪN có hàng trống',
+	false !== strpos( $h_eh0, 'Người Ẩn Có Hồ Sơ' ), 'không có hàng trống — fixture sai' );
+VHCC_An::dat( $U_QL_E, $cs_e, $ma_eh, true );
+$h_eh1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_e8 );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_eh1, $m_eh );
+t( 'bóc được lưới sau khi ẩn', isset( $m_eh[0] ), 'lưới biến mất — cơ sở không còn ai không ẩn?' );
+t( '🔴 ẩn xong thì hàng trống dựng từ HỒ SƠ cũng mất',
+	isset( $m_eh[0] ) && false === strpos( $m_eh[0], 'Người Ẩn Có Hồ Sơ' ),
+	isset( $m_eh[0] ) ? $m_eh[0] : '(không có lưới)' );
+
+/* ───── 5. 🔴 ẨN Ở CƠ SỞ CHA CỦA MỘT CHÙM THÌ BẢNG CƠ SỞ CON CŨNG ẨN ───── */
+$cs_cha = 'CHUM_CHA';
+$cs_con = 'CHUM_CON';
+$ma_ch  = '0000000890';
+VHCC_Luong::dat_ghep( $U_QL_E, array( $cs_con => $cs_cha ) );
+t( 'gieo: đã ghép con vào cha',
+	in_array( $cs_con, (array) VHCC_Luong::chum_cua( $cs_cha ), true ), VHCC_Luong::chum_cua( $cs_cha ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_ch, 'ho_ten' => 'Rác Trong Chùm', 'coso' => $cs_con, 'ngay' => '2026-08-06',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'CHUM_BT', 'ho_ten' => 'Chùm Vẫn Hiện', 'coso' => $cs_con, 'ngay' => '2026-08-06',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+$g_con = array( 'man' => 'cham', 'ccs' => $cs_con, 'cth' => '2026-08' );
+$h_con0 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_con );
+t( 'gieo: bảng cơ sở CON có hàng ấy', false !== strpos( $h_con0, 'Rác Trong Chùm' ), 'fixture sai' );
+/* Ẩn từ bảng CHA — đúng cảnh thật: người ta mở bảng gộp, thấy rác, bấm ẩn ở đó. */
+VHCC_An::dat( $U_QL_E, $cs_cha, $ma_ch, true );
+$h_con1 = vhcc_man( 'KT_BL', 'Kế toán', '', $g_con );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_con1, $m_con );
+t( '🔴 ẩn ở bảng CHA thì bảng CON cũng không còn hàng ấy',
+	isset( $m_con[0] ) && false === strpos( $m_con[0], 'Rác Trong Chùm' ),
+	isset( $m_con[0] ) ? substr( $m_con[0], 0, 300 ) : '(không có lưới)' );
+
+/* ───── 6. TỜ IN A4 — SQL riêng, không đi qua cửa lọc ───── */
+$h_in = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'to_in' => '1', 'ics' => $cs_e,
+	'itu' => '2026-08-01', 'iden' => '2026-08-31' ) );
+t( 'gieo: tờ in dựng ra được', false !== strpos( $h_in, '2026' ) && strlen( $h_in ) > 500,
+	substr( $h_in, 0, 300 ) );
+t( '🔴 tờ in A4 cũng không còn mã ẩn', false === strpos( $h_in, 'Rác Thử Máy' ), $h_in );
+
+/* ───── 7. ẨN KHÔNG PHẢI XOÁ — công vẫn còn nguyên trong sổ ───── */
+teq( '🔴 lượt chấm của mã ẩn VẪN nằm trong bảng', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $ma_e ) ) );
+
+/* ───── Dọn: bỏ ẩn để mấy mục sau không thừa hưởng trạng thái này ───── */
+VHCC_An::dat( $U_QL_E, $cs_e, $ma_eh, false );
 
 ket_luan();

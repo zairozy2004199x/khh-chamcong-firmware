@@ -103,7 +103,26 @@ class VHCC_Xuat {
 			$x .= '<sheet name="' . self::ten_to( isset( $t['ten'] ) ? $t['ten'] : '', $i )
 				. '" sheetId="' . ( $i + 1 ) . '" r:id="rId' . ( $i + 1 ) . '"/>';
 		}
-		return $x . '</sheets></workbook>';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢO EXCEL TÍNH LẠI LÚC MỞ — KHÔNG CÓ DÒNG NÀY THÌ MỌI Ô CÔNG THỨC RA Ô TRỐNG.
+		 *
+		 * Anh Thắng 16/09/2026 gửi ảnh file lương: cột **Lương chính** và **TOTAL SALARY** trống
+		 * trơn, mà thanh công thức của Excel VẪN hiện `=G9*H9`. Tức công thức có được ghi, chỉ là
+		 * Excel không chịu tính.
+		 *
+		 * Vì sao: `o()` ghi `<f>` mà CỐ Ý không kèm `<v>` (xem chú thích ở đó — một giá trị đệm
+		 * đoán sẵn là con số trông như thật mà sai). Đúng. Nhưng thiếu `<calcPr>` thì Excel coi
+		 * workbook này "đã tính rồi", đi đọc giá trị đệm, không thấy gì, và in ra ô trống. Hai
+		 * quyết định đúng riêng lẻ, ghép lại thành một tờ lương không có tiền.
+		 *
+		 * `fullCalcOnLoad="1"` bắt tính lại toàn bộ lúc mở. Giữ được cả hai: mở ra là có số NGAY,
+		 * mà kế toán gõ vào mấy cột phụ cấp thì tổng vẫn tự nhảy.
+		 *
+		 * ⚠️ VỊ TRÍ LÀ BẮT BUỘC: lược đồ `CT_Workbook` xếp `calcPr` SAU `</sheets>`. Đặt trước là
+		 *    Excel từ chối mở cả tệp và không nói vì sao — cùng loại bẫy với `<cols>`/`<mergeCells>`
+		 *    ở `to()`, và bài kiểm canh thứ tự ấy cũng canh cái này.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		return $x . '</sheets><calcPr calcId="0" fullCalcOnLoad="1"/></workbook>';
 	}
 
 	private static function wb_rels( $so ) {

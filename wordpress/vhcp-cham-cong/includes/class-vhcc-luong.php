@@ -479,11 +479,47 @@ class VHCC_Luong {
 		if ( ! $chum ) { return array(); }
 		$cho  = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
 		$tham = array_merge( $chum, array( $tt . '-%' ) );
-		return VHCC_DB::rows( $wpdb->prepare(
+		$hang = VHCC_DB::rows( $wpdb->prepare(
 			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso, anh_vao, anh_ra FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
 			$tham ) );
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ ĐANG ẨN THÌ LỌC NGAY Ở ĐÂY — CỬA VÀO, KHÔNG PHẢI SÁU CÁI MÀN.
+		 *
+		 * Anh Thắng 16/09/2026: *"nếu ẩn thì ẩn luôn, không hiện tất cả các tháng"*.
+		 *
+		 * Sổ ẩn (`VHCC_An`) vốn ĐÃ toàn cục theo cơ sở, không theo tháng — nên chỗ hỏng chưa bao
+		 * giờ nằm ở nó. Chỗ hỏng là chỉ HAI trong khoảng TÁM nơi vẽ ra màn có hỏi nó: lưới giờ
+		 * và bảng lương thì lọc, còn bảng "Tổng giờ theo ca" NGAY DƯỚI LƯỚI, lưới của cơ sở tính
+		 * theo công, ba đường xuất tệp và tờ in A4 thì không. Ẩn một hàng rồi cuộn xuống một
+		 * khối là thấy nó ngồi đó.
+		 *
+		 * Dò ngược thì mọi màn / tệp xuất / tờ in đều lấy hàng qua đúng hàm này (hoặc
+		 * `VHCC_Pdf::gom()`, có SQL riêng và đã lọc y hệt). Nên lọc ở đây là một luật một chỗ,
+		 * và mọi màn viết về sau tự thừa hưởng. Phép lọc rải rác ở `ve_luoi_gio()` và
+		 * `VHCC_BangLuong::dung()` đã gỡ — hai luật ẩn trong một plugin là có ngày chúng lệch.
+		 *
+		 * ⚠️ CHÚ THÍCH Ở `ve_luoi_vp()` DẶN *"vá ở đó, KHÔNG vá trong VHCC_Luong"* — lời dặn ấy
+		 *    nói về phép lọc QUYỀN, thứ cần `$toi` mà lõi lương không nhận. `VHCC_An::la_an()`
+		 *    không cần người dùng, nên nó không chặn việc này. Đừng đọc chú thích kia rồi gỡ
+		 *    khối này ra.
+		 *
+		 * ⚠️ VÒNG DỰNG HÀNG TRỐNG TỪ HỒ SƠ (`ds_nhan_vien`) KHÔNG đi qua đây — hai lưới phải tự
+		 *    lọc lấy, kẻo mã ẩn mà CÓ hồ sơ vẫn hiện ra một hàng toàn dấu chấm.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! class_exists( 'VHCC_An' ) || ! method_exists( 'VHCC_An', 'la_an_chum' ) ) {
+			return $hang;
+		}
+		$so_an = VHCC_An::so();
+		if ( ! $so_an ) { return $hang; }          // chưa ai ẩn gì: khỏi lọc, khỏi tốn
+		$ra = array();
+		foreach ( $hang as $r ) {
+			if ( VHCC_An::la_an_chum( $coso, $r['ma_nv'], $so_an ) ) { continue; }
+			$ra[] = $r;
+		}
+		return $ra;
 	}
 
 	// ======================================================================= engine MTD
