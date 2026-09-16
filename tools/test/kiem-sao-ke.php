@@ -234,6 +234,25 @@ khh_dt_ghi_sao_ke( doc_csv( $sk3 )['dong'] );
 khh_dt_ghi_sao_ke( doc_csv( $sk3 )['dong'] );
 phep( 'sao kê không có mã giao dịch vẫn không cộng dồn', 1 === khh_dt_co_sao_ke() );
 
+/* ============================================================ 5b. TIỀN CỔNG QR KHÔNG PHẢI TIỀN NỘP
+   Chính màn sao kê nhà mình đang cảnh báo: "Tổng tiền vào ĐÃ BAO GỒM tiền cổng QR… Đừng cộng hai
+   chỗ lại". Với đối soát nộp tiền thì nặng hơn: tiền cổng QR là KHÁCH trả, tự về tài khoản,
+   không ai phải mang đi nộp. */
+phep( 'nhận ra tiền cổng Việt QR', khh_dt_la_cong_qr( 'VQR CHUYEN TIEN', '' ) );
+phep( 'nhận ra tiền MoMo', khh_dt_la_cong_qr( 'THANH TOAN MOMO', '' ) );
+phep( 'nhận ra tiền VNPAY kể cả khi nằm ở cột nguồn', khh_dt_la_cong_qr( '', 'vnpay' ) );
+phep( 'tiền nhân viên nộp thì KHÔNG bị coi là cổng QR',
+	! khh_dt_la_cong_qr( 'NHAN TU 18865471 TRACE 164325 ND KH989KVCMN0001-110926-01:22:01', 'sepay' ) );
+
+/* Dòng sao kê THẬT của anh Thắng: mã dính liền ngày giờ bằng dấu gạch. */
+khh_dt_dat_ghep_bank( array( 'TuTu Train - Lotte Gò Vấp' => 'KH989KVCMN0001' ) );
+phep( 'mã dính liền "-110926-01:22:01" vẫn nhận ra',
+	'TuTu Train - Lotte Gò Vấp' === khh_dt_doan_co_so(
+		'NHAN TU 18865471 TRACE 164325 ND KH989KVCMN0001-110926-01:22:01 6254ASCB02UMWQY3', '' ) );
+phep( 'và mách đúng mã ấy, không mách cụm mã ngân hàng phía sau',
+	'KH989KVCMN0001' === khh_dt_ma_trong_nd(
+		'NHAN TU 18865471 TRACE 164325 ND KH989KVCMN0001-110926-01:22:01 6254ASCB02UMWQY3' ) );
+
 /* ============================================================ 6. file không phải sao kê */
 
 $kq = doc_csv( "Ten hang,So luong\nVe nguoi lon,3\n" );

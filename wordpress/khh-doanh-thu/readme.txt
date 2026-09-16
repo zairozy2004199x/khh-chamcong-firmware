@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.12.0
+Stable tag: 1.13.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,17 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.13.0 =
+* **Lịch nộp tiền**: lưới cơ sở × ngày cho cả tháng, mỗi ô một dấu — ✓ đã nộp đủ · ▲ về thiếu ·
+  ✕ chưa về · · chưa tới hạn. Nhìn một màn là thấy quán nào nộp đều, quán nào cứ cuối tuần là
+  đứt. Cột cuối cộng tổng còn thiếu của từng cơ sở.
+* **Tự dò sổ sao kê có sẵn trong site**: quét bảng trong chính MySQL (plugin Sao Kê Ngân Hàng,
+  cổng SePay trong plugin Ghế…), bày ra kèm số dòng và khoảng ngày để chọn — không đoán hộ.
+  Bảng nào có sẵn cột "Nhãn phân loại" thì tin nhãn ấy trước, nhãn rỗng mới tự đoán theo mã.
+* **Bỏ tiền cổng QR** (VNPAY / MoMo / Việt QR) khỏi phần "đã nộp" — đúng cảnh báo trên màn sao kê
+  nhà mình: tiền ấy khách trả thẳng vào tài khoản, không ai phải mang đi nộp; tính vào là quán
+  nào nhiều khách quét QR cũng tự khắc "nộp đủ".
 
 = 1.12.0 =
 * **Tab Đối soát có hàng lọc riêng**: Ngày mới nhất / 7 ngày / 30 ngày / Tháng này / Tất cả, ô

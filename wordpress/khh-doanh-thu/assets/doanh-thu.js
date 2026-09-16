@@ -41,7 +41,8 @@
             /* Kỳ RIÊNG cho tab Đối soát. Dùng chung kỳ với tab Doanh thu thì ô chọn nằm ở tab kia,
                người đang đứng ở Đối soát không thấy gì để bấm — mà đây mới là tab người ta ngồi
                lâu nhất, và là tab cần đổi ngày nhiều nhất. */
-            ds: { ky: '7', tu: '', den: '', ch: '*', chiCanh: false } };
+            ds: { ky: '7', tu: '', den: '', ch: '*', chiCanh: false },
+            lich: { thang: '', mo: false } };
   var G = null; // gốc DOM
 
   /* ---------------- gọi máy chủ ---------------- */
@@ -1017,8 +1018,121 @@
             'của ngày hôm sau.'
           : 'Chưa nạp sao kê nên chưa biết tiền đã về tài khoản hay chưa.') +
         '</div></div>';
+    /* Khối lịch nằm DƯỚI mấy ô đếm và TRÊN bảng ngày: nhìn hình dạng cả tháng trước, rồi mới
+       soi từng ngày. */
+    h += '<div class="khung" id="dtLich"><header><h2>Lịch nộp tiền</h2>' +
+      '<span class="goi"><label for="dsThang">Tháng</label> ' +
+      '<input type="month" id="dsThang" value="' + esc(S.lich.thang || thangCua(k.den)) + '"></span></header>' +
+      '<div id="dsLichNoi"><div class="trong">Đang tải…</div></div></div>';
+
     o.innerHTML = h;
     noiLocDoiSoat(o);
+    taiLich(o, S.lich.thang || thangCua(k.den));
+  }
+
+  function thangCua(ngay) { return String(ngay || ymd(new Date())).slice(0, 7); }
+
+  function taiLich(o, thang) {
+    S.lich.thang = thang;
+    var noi = o.querySelector('#dsLichNoi');
+    var oT = o.querySelector('#dsThang');
+    if (oT && !oT.dataset.noi) {
+      oT.dataset.noi = '1';
+      oT.addEventListener('change', function () { if (oT.value) taiLich(o, oT.value); });
+    }
+    if (!noi) return;
+    noi.innerHTML = '<div class="trong">Đang tải…</div>';
+    var cuoi = new Date(parseInt(thang.slice(0, 4), 10), parseInt(thang.slice(5, 7), 10), 0);
+    api('doi-soat?tu=' + thang + '-01&den=' + ymd(cuoi) +
+        '&cua_hang=' + encodeURIComponent(S.ds.ch)).then(function (r) {
+      noi.innerHTML = (r.dong || []).length
+        ? veLich(noi, r, thang)
+        : '<div class="trong">Tháng này chưa có số liệu POS nào trong kho.</div>';
+    }).catch(function (e) {
+      noi.innerHTML = '<div class="trong">' + esc(e.message || e) + '</div>';
+    });
+  }
+
+  /* ================= LỊCH NỘP TIỀN — nhìn cả tháng trong một màn ================= */
+  /*
+   * Anh Thắng 16/09/2026: *"như cơ sở này nó theo ngày, nhưng có bảng nào nhìn 1 tháng biết bạn
+   * nộp ngày nào trong tháng không"*.
+   *
+   * Bảng theo dòng trả lời được từng ngày, nhưng để thấy THÓI QUEN thì phải đọc 31 dòng rồi tự
+   * nhớ trong đầu — mà thứ cần thấy lại chính là hình dạng: quán này nộp đều, quán kia cứ cuối
+   * tuần là đứt, quán nọ dồn ba ngày nộp một lần. Một lưới cơ sở × ngày bày ngay ra chuyện đó.
+   *
+   * 🔴 MÀU ĐI KÈM KÝ HIỆU VÀ CHỮ, KHÔNG BAO GIỜ CHỈ CÓ MÀU. Khoảng 1 trong 12 đàn ông không
+   *    phân biệt được đỏ với xanh lá — mà đây đúng là cặp màu mang nghĩa "mất tiền" với "xong".
+   *    Nên mỗi ô có một dấu (✓ ▲ ✕ ·), và di chuột vào là hiện đủ số.
+   */
+  function veLich(o, r, thang) {
+    var ds = r.dong || [];
+    var n = new Date(parseInt(thang.slice(0, 4), 10), parseInt(thang.slice(5, 7), 10), 0).getDate();
+    var ch = [], theo = {};
+    ds.forEach(function (x) {
+      if (!theo[x.cua_hang]) { theo[x.cua_hang] = {}; ch.push(x.cua_hang); }
+      theo[x.cua_hang][parseInt(x.ngay.slice(8, 10), 10)] = x;
+    });
+    ch.sort();
+
+    var h = '<div class="lich-cuon"><table class="lich"><thead><tr><th class="ten">Cơ sở</th>';
+    for (var d = 1; d <= n; d++) {
+      var wd = new Date(thang + '-' + ('0' + d).slice(-2) + 'T00:00:00').getDay();
+      h += '<th' + (0 === wd ? ' class="cn"' : '') + '>' + d + '</th>';
+    }
+    h += '<th class="ten">Chưa về</th></tr></thead><tbody>';
+
+    ch.forEach(function (c) {
+      var thieu = 0, xong = 0, coNgay = 0;
+      var o_ = '<tr><td class="ten" title="' + esc(c) + '">' + esc(String(c).slice(0, 30)) + '</td>';
+      for (var d = 1; d <= n; d++) {
+        var x = theo[c][d];
+        if (!x) { o_ += '<td class="lo lo-rong"></td>'; continue; }
+        coNgay++;
+        var t = trangThaiNop(x);
+        /* 🔴 CỘNG CẢ 'chua' (chưa về đồng nào), không riêng 'thieu' (về thiếu).
+           Bản đầu chỉ cộng 'thieu', nên một cơ sở cả tháng KHÔNG nộp đồng nào lại hiện chữ "đủ"
+           màu xanh ở cột cuối — đúng cái dòng đáng báo động nhất thì lại trấn an. Dựng thật ra
+           ảnh mới thấy (16/09/2026). */
+        if ('thieu' === t.ma || 'chua' === t.ma) thieu += x.thieu;
+        if (t.ma === 'du') xong++;
+        o_ += '<td class="lo lo-' + t.ma + '"" title="' + esc(ngayVN(x.ngay) + ' · ' + c + '\n' +
+          'Tiền mặt POS: ' + tien(x.pos_tm) + '\n' +
+          'Ngân hàng nhận: ' + (x.co_bank ? tien(x.nop_bank) : 'chưa có') + '\n' + t.chu) + '">' +
+          t.dau + '</td>';
+      }
+      o_ += '<td class="ten s">' + (thieu > 0 ? '<b style="color:var(--xau)">' + tienGon(thieu) + '</b>'
+        : (coNgay ? '<span style="color:var(--tot)">đủ</span>' : '—')) + '</td></tr>';
+      h += o_;
+    });
+    h += '</tbody></table></div>';
+
+    /* Chú giải luôn có mặt — ký hiệu + chữ, để không ai phải đoán màu nghĩa là gì. */
+    h += '<div class="lich-chu">' +
+      '<span><i class="lo lo-du">✓</i> đã nộp đủ</span>' +
+      '<span><i class="lo lo-thieu">▲</i> về thiếu</span>' +
+      '<span><i class="lo lo-chua">✕</i> chưa về, đã quá hạn</span>' +
+      '<span><i class="lo lo-cho">·</i> chưa tới hạn nộp</span>' +
+      '<span><i class="lo lo-khong"></i> không có tiền mặt</span>' +
+      '<span><i class="lo lo-rong"></i> không có số liệu POS</span>' +
+      '</div>';
+    return h;
+  }
+
+  /** Một ngày × cơ sở ở trạng thái nào — dùng chung cho lịch và cho thẻ trong bảng. */
+  function trangThaiNop(x) {
+    if (!x.phai_nop || x.phai_nop <= 0) return { ma: 'khong', dau: '', chu: 'không có tiền mặt' };
+    if (!x.co_bank && !x.qua_han) return { ma: 'cho', dau: '·', chu: 'chưa tới hạn nộp' };
+    var thieu = x.thieu || 0;
+    if (Math.abs(thieu) < 1000) return { ma: 'du', dau: '✓', chu: 'đã nộp đủ' };
+    if (thieu > 0) {
+      if (!x.qua_han) return { ma: 'cho', dau: '·', chu: 'chưa tới hạn nộp' };
+      return x.co_bank
+        ? { ma: 'thieu', dau: '▲', chu: 'về thiếu ' + tien(thieu) }
+        : { ma: 'chua', dau: '✕', chu: 'chưa về đồng nào — thiếu ' + tien(thieu) };
+    }
+    return { ma: 'du', dau: '✓', chu: 'nộp dư ' + tien(-thieu) };
   }
 
   /**
@@ -1084,15 +1198,24 @@
         ? nguyen(r.so_dong) + ' khoản · ' + tien(r.tong) + ' · ' + ngayVN(r.tu_ngay) + ' → ' + ngayVN(r.den_ngay)
         : 'chưa nạp sao kê') + '</span></header>';
 
-    /* Cổng SePay đã có sẵn trong plugin Ghế Massage — kéo thẳng từ đó, khỏi tải file hàng tháng. */
-    if (r.co_cong_ghe) {
-      h += '<div class="canh-ghep" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
-        '<span style="flex:1 1 320px">Site này đã có <b>cổng SePay</b> (trong plugin Ghế Massage) — ' +
-        'giao dịch ngân hàng về thẳng máy chủ, không phải tải file. ' +
-        (r.tu_keo ? 'Đang <b>tự kéo mỗi giờ</b>.' : 'Chưa bật tự kéo.') + '</span>' +
+    /* Sổ sao kê có thể đã nằm sẵn trong chính MySQL này (plugin Sao Kê Ngân Hàng, hoặc cổng SePay
+       trong plugin Ghế) — bày ra để chọn, khỏi tải file hàng tháng. */
+    var ng = r.nguon_ds || [], dangChon = (r.nguon && r.nguon.bang) || '';
+    if (ng.length || r.co_cong_ghe) {
+      h += '<div class="canh-ghep">' +
+        '<div style="margin-bottom:8px">Site này đã có sẵn sổ giao dịch ngân hàng — chọn đúng sổ ' +
+        'rồi bấm kéo, khỏi tải file. ' + (r.tu_keo ? 'Đang <b>tự kéo mỗi giờ</b>.' : '') + '</div>' +
+        '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        (ng.length
+          ? '<select id="dtNguon">' + ng.map(function (x) {
+              return '<option value="' + esc(x.bang) + '"' + (x.bang === dangChon ? ' selected' : '') + '>' +
+                esc(x.bang) + ' — ' + nguyen(x.so_dong) + ' dòng' +
+                (x.tu_ngay ? ' · ' + ngayVN(x.tu_ngay) + ' → ' + ngayVN(x.den_ngay) : '') + '</option>';
+            }).join('') + '</select>'
+          : '<span class="chu-them">Chỉ thấy cổng SePay trong plugin Ghế Massage.</span>') +
         '<button class="nut chinh" type="button" id="dtKeoSk">Kéo giao dịch về</button>' +
         (r.tu_keo ? '' : '<label class="o"><input type="checkbox" id="dtTuKeo" checked> tự kéo mỗi giờ</label>') +
-        '</div>';
+        '</div></div>';
     }
 
     if (!r.so_dong) {
@@ -1175,10 +1298,14 @@
         nutKeo.disabled = true; nutKeo.textContent = 'Đang kéo…';
         var fd = new FormData();
         var tk = o.querySelector('#dtTuKeo');
+        var sn = o.querySelector('#dtNguon');
         if (tk && tk.checked) fd.append('tu_dong', '1');
+        if (sn && sn.value) fd.append('bang', sn.value);
         api('sao-ke-keo', { method: 'POST', body: fd }).then(function (kq) {
           var v = kq.vua_keo || {};
           window.alert('Đã mang về ' + nguyen(v.keo || 0) + ' khoản tiền vào.' +
+            (v.bo_qr ? '\nBỏ ' + nguyen(v.bo_qr) + ' khoản là tiền cổng QR (VNPAY / MoMo / Việt QR) — ' +
+              'khách trả thẳng vào tài khoản, không ai phải mang đi nộp.' : '') +
             (v.bo_ghe ? '\nBỏ ' + nguyen(v.bo_ghe) + ' khoản là tiền khách trả ghế — đó là doanh thu, ' +
               'không phải nhân viên nộp tiền.' : '') +
             ((v.chua_gan && v.chua_gan.so_dong)
