@@ -1138,7 +1138,7 @@
       var c = x.cua_hang;
       if (!theo[c]) {
         theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, pmomo: 0, dau: null, cuoi: null,
-                    ngayDau: '', ngayCuoi: '' };
+                    ngayDau: '', ngayCuoi: '', gop: 0 };
         ten.push(c);
       }
       var t = theo[c];
@@ -1148,6 +1148,8 @@
       t.nop += x.nop_bank || 0;
       t.pmomo += x.pos_momo || 0;
       t.momo += (S.dsR && S.dsR.momo ? (S.dsR.momo[x.ngay + '|' + c] || 0) : 0);
+      /* Đếm những ô lấy từ sổ gộp — chúng cho tổng đúng, nhưng không tra xuống giao dịch được. */
+      if (S.dsR && S.dsR.momo_nguon_o && S.dsR.momo_nguon_o[x.ngay + '|' + c] === 'gop') t.gop++;
       if (!t.ngayCuoi || x.ngay > t.ngayCuoi) { t.ngayCuoi = x.ngay; t.cuoi = x.treo || 0; }
       if (!t.ngayDau || x.ngay < t.ngayDau) {
         t.ngayDau = x.ngay;
@@ -1184,6 +1186,12 @@
       '<div class="chu-them" style="margin-top:6px">Tiền nộp so với <b>tiền mặt</b>, không so với ' +
       'tổng doanh thu: phần khách trả bằng chuyển khoản và quét QR tự về tài khoản, không ai mang ' +
       'đi nộp. Phép đúng là <b>tiền mặt POS = đã nộp + còn treo</b>.</div>' +
+      /* Dấu ◷ phải có chỗ giải nghĩa. Một ký hiệu không ai đọc được thì bằng không có. */
+      (hang.some(function (r_) { return r_.t.gop > 0; })
+        ? '<div class="chu-them" style="margin-top:4px"><b>◷</b> = số MoMo của ngày ấy lấy từ ' +
+          '<b>sổ gộp</b> (tổng ngày đúng, nhưng không tra xuống từng giao dịch được). Muốn tra tới ' +
+          'từng mã thì nạp file <code>Transaction_report_….csv</code> ở thẻ <b>Sao kê MoMo</b>.</div>'
+        : '') +
       '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
         '<th style="text-align:left">Cơ sở</th><th>Doanh thu POS</th><th>CK / QR</th>' +
         (coMomo ? '<th>MoMo (POS)</th><th>MoMo (sao kê)</th><th>Lệch MoMo</th>' : '') +
@@ -1193,7 +1201,11 @@
         var t = r_.t;
         return '<tr><td style="text-align:left">' + esc(String(r_.c).slice(0, 34)) + '</td>' +
           o_(t.dt) + o_(t.ck) +
-          (coMomo ? o_(t.pmomo) + o_(t.momo) + '<td class="s">' + (Math.abs(t.pmomo - t.momo) < 1000
+          (coMomo ? o_(t.pmomo) +
+            '<td class="s">' + tien(t.momo) +
+            (t.gop ? ' <span class="nho" title="' + t.gop + ' ngày lấy từ sổ gộp — chỉ có tổng ' +
+              'ngày, không tra xuống từng giao dịch được">◷</span>' : '') + '</td>' +
+            '<td class="s">' + (Math.abs(t.pmomo - t.momo) < 1000
             ? '<span style="color:var(--tot)">0</span>'
             : '<b style="color:var(--s4)">' + (t.pmomo - t.momo > 0 ? '+' : '') + nguyen(t.pmomo - t.momo) + '</b>')
             + '</td>' : '') +

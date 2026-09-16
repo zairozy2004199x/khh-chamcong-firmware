@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.27.0
+Stable tag: 1.28.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,11 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.28.0 =
+* **Cột MoMo nói rõ số ấy lấy từ sổ nào.** Ngày lấy từ sổ gộp được đánh dấu ◷ kèm dòng giải nghĩa
+  ngay dưới bảng: tổng ngày thì đúng, nhưng không tra xuống từng giao dịch được. Trước đây hai
+  loại số nằm chung một cột, nhìn giống hệt nhau, mà một loại tra được còn loại kia thì không.
 
 = 1.27.0 =
 * **Dùng CẢ HAI sổ MoMo cùng lúc, đè theo từng ô (ngày × cơ sở).** Sổ gộp bên plugin Sao Kê có cả

@@ -583,6 +583,9 @@ function khh_dt_rest_doi_soat( $req ) {
 		'ngay_nhac' => khh_dt_ngay_nhac(),
 		'momo'      => $momo['tong'],
 		'momo_ngay_co' => array_keys( $momo['ngay_co'] ),
+		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
+		   để bảng đừng hứa điều nó không làm được. */
+		'momo_nguon_o' => isset( $momo['nguon_o'] ) ? $momo['nguon_o'] : array(),
 		'co_momo'   => ( function_exists( 'khh_dt_co_momo_sk' ) && khh_dt_co_momo_sk() ) ? true : (bool) khh_dt_nguon_momo(),
 		'pos_som'   => $pos_som,
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
