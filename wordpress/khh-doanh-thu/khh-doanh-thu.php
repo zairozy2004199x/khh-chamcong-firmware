@@ -3,7 +3,7 @@
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
- * Version:           1.23.0
+ * Version:           1.24.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -26,7 +26,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'KHH_DT_VERSION', '1.23.0' );
+define( 'KHH_DT_VERSION', '1.24.0' );
 define( 'KHH_DT_FILE', __FILE__ );
 define( 'KHH_DT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'KHH_DT_URL', plugin_dir_url( __FILE__ ) );
@@ -109,6 +109,7 @@ function khh_dt_kich_hoat() {
 	khh_dt_tao_bang_nguoi();
 	khh_dt_tao_bang_sk();
 	khh_dt_tao_bang_momo();
+	khh_dt_tao_bang_momo_sk();
 	update_option( 'khh_dt_version', KHH_DT_VERSION );
 	khh_dt_rewrite();
 	flush_rewrite_rules( false );
@@ -407,7 +408,7 @@ function khh_dt_rest_nap( $req ) {
 	/* 'pos' = báo cáo bán hàng FABi · 'sao_ke' = sao kê ngân hàng. Hai loại đi chung một đường
 	   tải lên (cùng cách cắt mẩu 1 MB để qua giới hạn của hosting), chỉ khác người đọc ở cuối. */
 	$loai = (string) $req->get_param( 'loai' );
-	$loai = in_array( $loai, array( 'sao_ke', 'momo_pos' ), true ) ? $loai : 'pos';
+	$loai = in_array( $loai, array( 'sao_ke', 'momo_pos', 'momo_sk' ), true ) ? $loai : 'pos';
 	$duoi = strtolower( pathinfo( $ten, PATHINFO_EXTENSION ) );
 	if ( ! in_array( $duoi, array( 'xlsx', 'xlsm', 'csv', 'tsv', 'txt' ), true ) ) {
 		return new WP_Error( 'khh_dt_file', 'Chỉ nhận .xlsx, .csv hoặc .tsv. File .xls đời cũ thì anh mở ra lưu lại thành .xlsx giúp em.', array( 'status' => 400 ) );
@@ -452,6 +453,11 @@ function khh_dt_rest_nap_mau( $req ) {
 	$phan = (int) $req->get_param( 'phan' );
 	$tong = (int) $req->get_param( 'tong' );
 	$ten  = sanitize_file_name( (string) $req->get_param( 'ten' ) );
+	/* 🔴 PHẢI ĐỌC 'loai' Ở ĐÂY. Thiếu dòng này thì mọi file tải lên đều bị đem đi đọc như báo cáo
+	   bán hàng FABi, dù người ta bấm đúng thẻ "Sao kê ngân hàng" hay "MoMo" — và lỗi kiểu ấy im
+	   thin thít, chỉ hiện ra khi đối soát trống trơn. */
+	$loai = (string) $req->get_param( 'loai' );
+	$loai = in_array( $loai, array( 'sao_ke', 'momo_pos', 'momo_sk' ), true ) ? $loai : 'pos';
 
 	if ( strlen( $khoa ) < 8 || strlen( $khoa ) > 40 || $tong < 1 || $phan < 0 || $phan >= $tong ) {
 		return new WP_Error( 'khh_dt_mau', 'Tham số mẩu không hợp lệ.', array( 'status' => 400 ) );
@@ -493,6 +499,36 @@ function khh_dt_rest_nap_mau( $req ) {
 
 	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
 
+	if ( 'momo_sk' === $loai ) {
+		try {
+			$kq = khh_dt_doc_momo_sk( $dich );
+		} catch ( Throwable $t ) {
+			wp_delete_file( $dich );
+			return new WP_Error(
+				'khh_dt_momo_sk',
+				'Đọc file MoMo không xong: ' . $t->getMessage() . ' (' . basename( $t->getFile() ) . ' dòng ' . $t->getLine() . ')',
+				array( 'status' => 500 )
+			);
+		}
+		wp_delete_file( $dich );
+		if ( is_wp_error( $kq ) ) {
+			return $kq;
+		}
+		$n   = khh_dt_ghi_momo_sk( $kq['dong'] );
+		$hoc = khh_dt_hoc_ma_ch_momo();
+		return array(
+			'xong'    => true,
+			'loai'    => 'momo_sk',
+			'da_ghi'  => $n,
+			'so_dong' => (int) $kq['so_dong'],
+			'bo_qua'  => (int) $kq['bo_qua'],
+			'quan'    => $kq['quan'],
+			'hoc'     => (int) $hoc['hoc'],
+			'lan_can' => $hoc['lan_can'],
+			'bang_hoc' => $hoc['bang'],
+		);
+	}
+
 	if ( 'momo_pos' === $loai ) {
 		try {
 			$kq = khh_dt_doc_momo_pos( $dich );
@@ -511,6 +547,8 @@ function khh_dt_rest_nap_mau( $req ) {
 		$n = khh_dt_ghi_momo_pos( $kq['dong'] );
 		/* Nạp xong thì HỌC LẠI bảng ghép tên — đây chính là cái "hệ thống tự rà" khi máy dời cơ sở. */
 		$hoc = khh_dt_hoc_ghep_momo( '', '' );
+		$hoc_ma = khh_dt_hoc_ma_ch_momo();
+		$hoc['hoc'] += $hoc_ma['hoc'];
 		return array(
 			'xong'     => true,
 			'loai'     => 'momo_pos',

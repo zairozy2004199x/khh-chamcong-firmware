@@ -1265,6 +1265,11 @@ function khh_dt_nguon_momo() {
  */
 function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
 	global $wpdb;
+	/* File sao kê MoMo đã nạp được tin trước bảng ngoài: nó có mã cửa hàng MoMo, mà mã ấy đã được
+	   học ra cơ sở FABi từ những cặp khớp mã giao dịch — không phải đoán theo tên. */
+	if ( function_exists( 'khh_dt_co_momo_sk' ) && khh_dt_co_momo_sk() ) {
+		return khh_dt_momo_ngay_tu_file( $tu, $den );
+	}
 	$n = khh_dt_nguon_momo();
 	if ( ! $n ) {
 		return array( 'tong' => array(), 'ngay_co' => array() );
@@ -1313,6 +1318,47 @@ function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
 		}
 		if ( '' === $ch ) {
 			$ch = khh_dt_doan_co_so( (string) $r['ten'], '' );
+		}
+		if ( '' === $ch ) {
+			continue;                       // chưa ghép được cửa hàng — đếm riêng ở màn MoMo
+		}
+		$k          = $ngay . '|' . $ch;
+		$tong[ $k ] = ( isset( $tong[ $k ] ) ? $tong[ $k ] : 0 ) + khh_dt_so( $r['tien'] );
+	}
+	return array( 'tong' => $tong, 'ngay_co' => $ngay_co );
+}
+
+/** Cộng tiền MoMo theo (ngày × cơ sở) từ kho sao kê MoMo đã nạp. */
+function khh_dt_momo_ngay_tu_file( $tu = '', $den = '' ) {
+	global $wpdb;
+	$bang = khh_dt_bang_momo_sk();
+	$sql  = "SELECT ngay, so_tien tien, ten_ch ten, ma_ch FROM $bang WHERE 1=1";
+	$args = array();
+	if ( $tu ) {
+		$sql   .= ' AND ngay >= %s';
+		$args[] = $tu;
+	}
+	if ( $den ) {
+		$sql   .= ' AND ngay <= %s';
+		$args[] = $den;
+	}
+	// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
+	// phpcs:enable
+	$tong    = array();
+	$ngay_co = array();
+	foreach ( (array) $ds as $r ) {
+		$ngay = khh_dt_ngay( substr( (string) $r['ngay'], 0, 10 ) );
+		if ( '' === $ngay ) {
+			continue;
+		}
+		$ngay_co[ $ngay ] = true;
+		$ch = function_exists( 'khh_dt_ma_ch_toi_co_so' ) ? khh_dt_ma_ch_toi_co_so( (string) $r['ma_ch'] ) : '';
+		if ( '' === $ch && function_exists( 'khh_dt_ghep_momo_hoc' ) ) {
+			$ch = khh_dt_ghep_momo_hoc( (string) $r['ten'] );
+		}
+		if ( '' === $ch ) {
+			$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
 		}
 		if ( '' === $ch ) {
 			continue;                       // chưa ghép được cửa hàng — đếm riêng ở màn MoMo

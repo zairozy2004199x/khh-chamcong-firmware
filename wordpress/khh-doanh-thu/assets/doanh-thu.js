@@ -386,6 +386,7 @@
             '<button class="tab on" type="button" data-loai="pos">Báo cáo bán hàng FABi</button>' +
             '<button class="tab" type="button" data-loai="sao_ke">Sao kê ngân hàng</button>' +
             '<button class="tab" type="button" data-loai="momo_pos">Giao dịch MoMo (FABi)</button>' +
+            '<button class="tab" type="button" data-loai="momo_sk">Sao kê MoMo</button>' +
           '</div>' +
           '<div id="dtHdPos">' +
             '<ol><li>Trong CMS FABi: <b>Báo cáo → Báo cáo bán hàng</b> → chọn kỳ → <b>Xuất Excel</b>.</li>' +
@@ -398,6 +399,15 @@
             'khác thì cứ nạp lại file, hệ tự rà, không phải khai tay bảng nào.</li>' +
             '<li>Nạp xong hệ còn <b>học</b> luôn tên cửa hàng bên MoMo ứng với quán nào, từ những ' +
             'cặp giao dịch khớp mã.</li></ol></div>' +
+          '<div id="dtHdMomoSk" hidden>' +
+            '<ol><li>Trong trang quản lý MoMo: <b>Giao dịch → Xuất báo cáo</b> → file ' +
+            '<code>Transaction_report_….csv</code>. MoMo không cho nối API nên đường vào là tải file.</li>' +
+            '<li>Đây là <b>tiền MoMo thật sự trả</b>. Đem so với phần MoMo máy POS ghi nhận sẽ ra ' +
+            'đúng chỗ hai bên lệch nhau.</li>' +
+            '<li>Ghép theo <b>Mã giao dịch</b> — chính là Mã đối tác bên FABi — nên không phụ thuộc ' +
+            'tên quán. Nạp lại cùng kỳ thì ghi đè, không cộng dồn.</li>' +
+            '<li>Sổ MoMo thường chỉ có mấy quán dùng mã MoMo riêng; những quán ngoài sổ em để ' +
+            'riêng một nhóm, <b>không</b> kể là lệch.</li></ol></div>' +
           '<div id="dtHdSk" hidden>' +
             '<ol><li>Tải sao kê tài khoản nhận tiền nộp của các cơ sở — bản <b>bảng</b> (.xlsx hoặc .csv), không phải PDF.</li>' +
             '<li>Em <b>chỉ lấy tiền vào</b>, bỏ mọi khoản chi. Nạp lại cùng một kỳ không cộng dồn (khoá theo mã giao dịch).</li>' +
@@ -442,6 +452,7 @@
         nen.querySelector('#dtHdPos').hidden = S.napLoai !== 'pos';
         nen.querySelector('#dtHdSk').hidden = S.napLoai !== 'sao_ke';
         nen.querySelector('#dtHdMomo').hidden = S.napLoai !== 'momo_pos';
+        nen.querySelector('#dtHdMomoSk').hidden = S.napLoai !== 'momo_sk';
         bao_o.hidden = true;
       });
     });
@@ -493,6 +504,20 @@
         i++;
         if (!r.xong && i < tong) { gui(); return; }
         trangThai.textContent = '';
+        if (r.loai === 'momo_sk') {
+          var quan = Object.keys(r.quan || {});
+          bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' giao dịch</b> từ sao kê MoMo' +
+            (quan.length ? ' — ' + quan.length + ' cửa hàng: ' + esc(quan.map(function (m) {
+              return (r.quan[m] || m); }).join(' · ')) : '') +
+            (r.bo_qua ? ' (bỏ ' + nguyen(r.bo_qua) + ' dòng không đọc được ngày)' : '') + '. ' +
+            (r.hoc ? 'Đã học <b>' + nguyen(r.hoc) + '</b> mã cửa hàng MoMo ứng với quán nào. ' : '') +
+            ((r.lan_can || []).length
+              ? '⚠️ ' + r.lan_can.length + ' mã cửa hàng MoMo trỏ về HAI quán trong kỳ này — đúng ' +
+                'cảnh máy vừa dời cơ sở. Hệ không đoán, giao dịch khớp mã vẫn gán đúng theo file FABi.'
+              : ''), 'xong');
+          khoiDong(true);
+          return;
+        }
         if (r.loai === 'momo_pos') {
           bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' giao dịch MoMo</b> từ ' + nguyen(r.so_trang) +
             ' cửa hàng' + (r.bo_qua ? ' (bỏ ' + nguyen(r.bo_qua) + ' dòng không đọc được ngày)' : '') + '. ' +
@@ -1283,10 +1308,28 @@
       if (!r.co_pos || !r.co_sk) {
         noi.innerHTML = '<div class="trong">' + (!r.co_pos
           ? 'Chưa nạp file <b>Giao dịch MoMo (FABi)</b> — bấm <b>Nạp báo cáo</b> rồi chọn thẻ ấy.'
-          : 'Chưa khai <b>sổ MoMo</b> — vào Quản trị → Khai sổ MoMo.') + '</div>';
+          : 'Chưa có <b>sổ MoMo</b> — bấm <b>Nạp báo cáo</b> → thẻ <b>Sao kê MoMo</b> để tải file ' +
+            '<code>Transaction_report_….csv</code>, hoặc khai bảng sẵn có ở Quản trị → Khai sổ MoMo.') +
+          '</div>';
         return;
       }
-      var h = '<div class="the-hang" style="margin:6px 0 14px">' +
+      /* Sổ MoMo chỉ phủ mấy quán dùng mã MoMo riêng — nói thẳng ra để không ai hiểu nhầm là
+         những quán khác "không có giao dịch MoMo nào". */
+      var pv = r.pham_vi || { co_so: [] };
+      var h = '';
+      if ((pv.co_so || []).length) {
+        h += '<div class="chu-them" style="margin:2px 0 10px">Sổ MoMo đang phủ <b>' +
+          pv.co_so.length + ' cơ sở</b> (' + esc(pv.co_so.join(' · ')) + ')' +
+          (pv.ngay_dau ? ', từ ' + ngayVN(pv.ngay_dau) + ' đến ' + ngayVN(pv.ngay_cuoi) : '') +
+          '. Chỉ những giao dịch nằm trong phạm vi ấy mới đem ra kết luận.</div>';
+      }
+      if (pv.pos_cuoi && pv.ngay_cuoi && pv.pos_cuoi < pv.ngay_cuoi) {
+        h += '<div class="canh-ghep">⚠️ <b>Hai file cắt khác mốc.</b> Sổ MoMo có tới ' +
+          ngayVN(pv.ngay_cuoi) + ' còn bản xuất FABi mới tới ' + ngayVN(pv.pos_cuoi) + '. ' +
+          'Giao dịch MoMo của mấy ngày dôi ra em để riêng ở <b>Ngoài kỳ kho POS</b>, không kể là ' +
+          'máy bỏ sót — nạp bản xuất FABi mới hơn là hết.</div>';
+      }
+      h += '<div class="the-hang" style="margin:6px 0 14px">' +
         the_nho('Khớp hai bên', nguyen(r.so_khop) + ' / ' + nguyen(r.so_pos), '') +
         the_nho('Máy ghi, MoMo không có', nguyen(r.so_chi_pos) + ' · ' + tien(r.tien_chi_pos),
           r.so_chi_pos ? 'xau' : '') +
@@ -1294,6 +1337,8 @@
           r.so_chi_sk ? 'xau' : '') +
         the_nho('Lệch số tiền', nguyen(r.so_lech), r.so_lech ? 'xau' : '') +
         (r.so_loi_pos ? the_nho('Máy ghi lỗi / huỷ', nguyen(r.so_loi_pos), '') : '') +
+        (r.so_ngoai ? the_nho('Ngoài phạm vi sổ MoMo', nguyen(r.so_ngoai) + ' · ' + tien(r.tien_ngoai), '') : '') +
+        (r.so_ngoai_sk ? the_nho('Ngoài kỳ kho POS', nguyen(r.so_ngoai_sk) + ' · ' + tien(r.tien_ngoai_sk), '') : '') +
         '</div>';
 
       function bang(tieu, cot, dong, ghi) {
@@ -1338,6 +1383,28 @@
             '<td class="s">' + tien(p.so_tien) + '</td><td class="s">' + tien(x.sk_tien) + '</td>' +
             '<td class="s"><b style="color:var(--xau)">' + nguyen(p.so_tien - x.sk_tien) + '</b></td></tr>';
         }), '');
+
+      h += bang('Ngoài kỳ kho POS (' + nguyen(r.so_ngoai_sk) + ')',
+        ['Ngày', 'Tên bên MoMo', 'Mã giao dịch', 'Số tiền'],
+        (r.ngoai_sk || []).map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(x.ngay) + '</td>' +
+            '<td style="text-align:left">' + esc(String(x.ten).slice(0, 30)) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.ma) + '</code></td>' +
+            '<td class="s">' + tien(x.tien) + '</td></tr>';
+        }),
+        '<b>Đây KHÔNG phải lệch.</b> MoMo có giao dịch của những ngày mà kho POS chưa có số — ' +
+        'bản xuất FABi cắt sớm hơn. Nạp bản xuất FABi mới hơn rồi xem lại.');
+
+      h += bang('Ngoài phạm vi sổ MoMo (' + nguyen(r.so_ngoai) + ')',
+        ['Ngày', 'Cơ sở', 'Mã đối tác', 'Số tiền'],
+        (r.ngoai || []).map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(ngayVN(x.ngay)) + '</td>' +
+            '<td style="text-align:left">' + esc(String(x.cua_hang).slice(0, 30)) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.ma_doi_tac) + '</code></td>' +
+            '<td class="s">' + tien(x.so_tien) + '</td></tr>';
+        }),
+        '<b>Đây KHÔNG phải lệch.</b> Máy POS ghi MoMo cho những cơ sở (hoặc những ngày) chưa có ' +
+        'trong sổ MoMo đã nạp — muốn đối soát nốt thì tải thêm sao kê MoMo của các cơ sở ấy.');
 
       if (!r.so_chi_pos && !r.so_chi_sk && !r.so_lech) {
         h += '<div class="trong">Hai bên khớp từng giao dịch — không có dòng nào lệch.</div>';

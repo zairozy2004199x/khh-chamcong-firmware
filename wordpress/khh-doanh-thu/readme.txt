@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.23.0
+Stable tag: 1.24.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,26 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.24.0 =
+* **Nạp thẳng sao kê MoMo** (Nạp báo cáo → thẻ *Sao kê MoMo*): file `Transaction_report_….csv`
+  tải từ trang MoMo. MoMo không cho nối API nên đường vào là tải file — nay không phải khai bảng
+  ngoài nữa, cứ tải lên là có sổ.
+* **Ghép hai sổ bằng mã giao dịch.** Cột *Mã giao dịch* của MoMo chính là *Mã đối tác* bên FABi;
+  đo trên hai file thật ngày 16/09/2026 thì 995 trong 1.008 mã trùng nhau. Không còn phải đoán
+  theo tên quán.
+* **Máy dời cơ sở: hệ tự học mã cửa hàng MoMo.** `KHTUTU2` ↔ quán nào là học ra từ chính những
+  cặp khớp mã, mỗi lần nạp lại là dạy lại; một mã trỏ về hai quán trong cùng kỳ thì hệ không đoán.
+* **Thêm nhóm "Ngoài phạm vi sổ MoMo".** Sổ MoMo chỉ phủ mấy quán dùng mã MoMo riêng (file thật:
+  4 quán) trong khi máy POS ghi cả 12 — trước đây so thẳng là đẻ ra hàng nghìn dòng *"MoMo thiếu
+  tiền"* của những quán vốn không nằm trong sổ. Nay chúng nằm riêng một nhóm, ghi rõ **không phải
+  lệch**, và màn nói luôn sổ đang phủ cơ sở nào, từ ngày nào.
+* **Thêm nhóm "Ngoài kỳ kho POS".** Hai file hiếm khi cắt cùng một mốc — đo trên hai file thật thì
+  sổ MoMo chạy tới 16/09 còn bản xuất FABi dừng ở 15/09, và 8 trong 13 dòng *"MoMo nhận tiền, máy
+  không ghi đơn"* chỉ là cái mốc ấy. Nay chúng nằm riêng, kèm lời nhắc nạp bản xuất FABi mới hơn.
+* **Sửa lỗi: tải file lên thì thẻ nào cũng bị đọc như báo cáo bán hàng FABi.** Đường tải theo mẩu
+  quên đọc tham số loại file, nên chọn *Sao kê ngân hàng* hay *MoMo* đều vô ích — mà lỗi ấy im
+  thin thít, chỉ lộ ra khi màn đối soát trống trơn.
 
 = 1.23.0 =
 * **Tích những ngày đã được lần nộp sau xoá sạch.** Cơ sở gom mấy ngày nộp một cục: ngày 1–9 dồn

@@ -583,7 +583,7 @@ function khh_dt_rest_doi_soat( $req ) {
 		'ngay_nhac' => khh_dt_ngay_nhac(),
 		'momo'      => $momo['tong'],
 		'momo_ngay_co' => array_keys( $momo['ngay_co'] ),
-		'co_momo'   => (bool) khh_dt_nguon_momo(),
+		'co_momo'   => ( function_exists( 'khh_dt_co_momo_sk' ) && khh_dt_co_momo_sk() ) ? true : (bool) khh_dt_nguon_momo(),
 		'pos_som'   => $pos_som,
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
 		'nguong'   => khh_dt_nguong(),

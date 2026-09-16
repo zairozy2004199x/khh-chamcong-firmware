@@ -41,6 +41,11 @@ function khh_dt_doc_duoc_xlsx() {
  */
 function khh_dt_khong_dau( $s ) {
 	$s = (string) $s;
+	/* MoMo xuất tên cột kiểu tách dấu (o + dấu sắc rời), bỏ dấu rời trước. */
+	$tach = preg_replace( '/[\x{0300}-\x{036F}]/u', '', $s );
+	if ( null !== $tach ) {
+		$s = $tach;
+	}
 	if ( function_exists( 'remove_accents' ) ) {
 		$s = remove_accents( $s );
 	} else {

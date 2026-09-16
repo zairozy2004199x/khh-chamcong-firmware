@@ -225,6 +225,247 @@ function khh_dt_co_momo_pos() {
 }
 
 /* ================================================================== *
+ * SỔ SAO KÊ MOMO — nạp thẳng file MoMo xuất ra
+ * ================================================================== */
+
+/**
+ * Anh Thắng 16/09/2026: *"vì MoMo không cho kết nối API, nên anh hay upload file này lên sao kê"*.
+ *
+ * File "Transaction report" của MoMo là .csv, cột tiếng Việt, mỗi dòng một giao dịch:
+ *   Thời gian · Mã đơn hàng · Mã giao dịch · Trạng thái · Số tiền · Mã cửa hàng · Tên cửa hàng …
+ *
+ * 🔴 CỘT "MÃ GIAO DỊCH" CHÍNH LÀ "MÃ ĐỐI TÁC" BÊN FABi. Đã đo trên hai file thật của anh Thắng:
+ *    995 trong 1.008 mã của MoMo có mặt trong file FABi. Nhờ vậy ghép được TỪNG GIAO DỊCH, không
+ *    phải so tổng ngày — và 13 mã còn lại chính là nhóm "MoMo nhận mà máy không ghi", tức đúng
+ *    thứ cần soi.
+ *
+ * 🔴 VÀ "MÃ CỬA HÀNG" CỦA MOMO (KHTUTU2, KHECO2…) LÀ THỨ KHÔNG ĐỔI KHI MÁY FABi DỜI CƠ SỞ.
+ *    Đây là mấu chốt bài toán anh Thắng nêu. Mình KHÔNG khai tay mã ấy thuộc quán nào: cứ ghép
+ *    theo mã giao dịch, rồi HỌC ra "KHTUTU2 đang là quán nào" từ chính những cặp đã khớp. Máy
+ *    dời chỗ thì lứa giao dịch mới dạy lại, không ai phải sửa bảng.
+ */
+function khh_dt_bang_momo_sk() {
+	global $wpdb;
+	return $wpdb->prefix . 'khh_dt_momo_sk';
+}
+
+function khh_dt_tao_bang_momo_sk() {
+	global $wpdb;
+	$bang    = khh_dt_bang_momo_sk();
+	$charset = $wpdb->get_charset_collate();
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	dbDelta(
+		"CREATE TABLE $bang (
+			id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+			ma_gd varchar(80) NOT NULL DEFAULT '',
+			ma_don varchar(80) NOT NULL DEFAULT '',
+			ngay date NOT NULL,
+			gio tinyint(4) NOT NULL DEFAULT 0,
+			so_tien double NOT NULL DEFAULT 0,
+			trang_thai varchar(60) NOT NULL DEFAULT '',
+			loai_gd varchar(60) NOT NULL DEFAULT '',
+			nguon_tien varchar(60) NOT NULL DEFAULT '',
+			ma_ch varchar(60) NOT NULL DEFAULT '',
+			ten_ch varchar(190) NOT NULL DEFAULT '',
+			nap_luc datetime NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_gd (ma_gd),
+			KEY ngay (ngay),
+			KEY ma_ch (ma_ch)
+		) $charset;"
+	);
+}
+
+/** Tên cột của file MoMo, so khớp không dấu. */
+function khh_dt_cot_momo_sk() {
+	return array(
+		'ngay'       => array( 'thoi gian', 'thoi diem', 'ngay' ),
+		'ma_gd'      => array( 'ma giao dich' ),
+		'ma_don'     => array( 'ma don hang goc', 'ma don hang' ),
+		'trang_thai' => array( 'trang thai' ),
+		'so_tien'    => array( 'so tien' ),
+		'loai_gd'    => array( 'loai giao dich' ),
+		'nguon_tien' => array( 'nguon tien' ),
+		'ma_ch'      => array( 'ma cua hang' ),
+		'ten_ch'     => array( 'ten cua hang' ),
+	);
+}
+
+/** Đọc file .csv MoMo xuất ra. */
+function khh_dt_doc_momo_sk( $duong_dan ) {
+	$f = fopen( $duong_dan, 'r' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( ! $f ) {
+		return new WP_Error( 'khh_dt_momo_sk', 'Không mở được file.' );
+	}
+	$bom = fread( $f, 3 ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( "\xEF\xBB\xBF" !== $bom ) {
+		rewind( $f );
+	}
+	$map  = null;
+	$gop  = array( 'dong' => array(), 'so_dong' => 0, 'bo_qua' => 0, 'quan' => array() );
+	while ( false !== ( $d = fgetcsv( $f, 0, ',', '"', '\\' ) ) ) {
+		if ( null === $d || ( 1 === count( $d ) && null === $d[0] ) ) {
+			continue;
+		}
+		if ( null === $map ) {
+			$kd  = array_map( 'khh_dt_khong_dau', $d );
+			$map = array();
+			foreach ( khh_dt_cot_momo_sk() as $vai => $ten_ds ) {
+				$map[ $vai ] = -1;
+				foreach ( $ten_ds as $t ) {
+					$i = array_search( $t, $kd, true );
+					if ( false !== $i ) {
+						$map[ $vai ] = $i;
+						break;
+					}
+				}
+			}
+			if ( $map['ngay'] < 0 || $map['so_tien'] < 0 ) {
+				fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+				return new WP_Error(
+					'khh_dt_momo_sk',
+					'Không thấy cột "Thời gian" và "Số tiền". Anh tải đúng bản Transaction report của MoMo giúp em.'
+				);
+			}
+			continue;
+		}
+		$gop['so_dong']++;
+		$o = function ( $vai ) use ( $d, $map ) {
+			return ( $map[ $vai ] > -1 && isset( $d[ $map[ $vai ] ] ) ) ? trim( (string) $d[ $map[ $vai ] ] ) : '';
+		};
+		/* MoMo ghi ngày kiểu 16-09-2026 14:44:48. */
+		$luc  = $o( 'ngay' );
+		$ngay = khh_dt_ngay( $luc );
+		$tien = khh_dt_so( $o( 'so_tien' ) );
+		if ( '' === $ngay || $tien <= 0 ) {
+			$gop['bo_qua']++;
+			continue;
+		}
+		$gop['dong'][] = array(
+			'ma_gd'      => $o( 'ma_gd' ),
+			'ma_don'     => $o( 'ma_don' ),
+			'ngay'       => $ngay,
+			'gio'        => khh_dt_gio( $luc ),
+			'so_tien'    => $tien,
+			'trang_thai' => $o( 'trang_thai' ),
+			'loai_gd'    => $o( 'loai_gd' ),
+			'nguon_tien' => $o( 'nguon_tien' ),
+			'ma_ch'      => $o( 'ma_ch' ),
+			'ten_ch'     => $o( 'ten_ch' ),
+		);
+		if ( '' !== $o( 'ma_ch' ) ) {
+			$gop['quan'][ $o( 'ma_ch' ) ] = $o( 'ten_ch' );
+		}
+	}
+	fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( ! $gop['dong'] ) {
+		return new WP_Error( 'khh_dt_momo_sk', 'Đọc xong mà không có giao dịch nào.' );
+	}
+	return $gop;
+}
+
+/** Ghi vào kho, khoá theo mã giao dịch MoMo. */
+function khh_dt_ghi_momo_sk( $ds ) {
+	global $wpdb;
+	$bang = khh_dt_bang_momo_sk();
+	$luc  = current_time( 'mysql' );
+	$n    = 0;
+	foreach ( (array) $ds as $r ) {
+		$ma = (string) $r['ma_gd'];
+		if ( '' === $ma ) {
+			$ma = 'tu-' . substr( md5( $r['ngay'] . '|' . $r['gio'] . '|' . $r['so_tien'] . '|' . $r['ma_ch'] ), 0, 24 );
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$wpdb->query(
+			$wpdb->prepare(
+				"INSERT INTO $bang (ma_gd,ma_don,ngay,gio,so_tien,trang_thai,loai_gd,nguon_tien,ma_ch,ten_ch,nap_luc)
+				 VALUES (%s,%s,%s,%d,%f,%s,%s,%s,%s,%s,%s)
+				 ON DUPLICATE KEY UPDATE ma_don=VALUES(ma_don), ngay=VALUES(ngay), gio=VALUES(gio),
+				 so_tien=VALUES(so_tien), trang_thai=VALUES(trang_thai), loai_gd=VALUES(loai_gd),
+				 nguon_tien=VALUES(nguon_tien), ma_ch=VALUES(ma_ch), ten_ch=VALUES(ten_ch),
+				 nap_luc=VALUES(nap_luc)",
+				$ma,
+				$r['ma_don'],
+				$r['ngay'],
+				$r['gio'],
+				$r['so_tien'],
+				$r['trang_thai'],
+				$r['loai_gd'],
+				$r['nguon_tien'],
+				$r['ma_ch'],
+				$r['ten_ch'],
+				$luc
+			)
+		);
+		$n++;
+	}
+	return $n;
+}
+
+function khh_dt_co_momo_sk() {
+	global $wpdb;
+	$bang = khh_dt_bang_momo_sk();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return 0;
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	return (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang" );
+}
+
+/**
+ * HỌC "mã cửa hàng MoMo → cơ sở FABi" từ những cặp giao dịch đã khớp mã.
+ *
+ * 🔴 ĐÂY LÀ LỜI GIẢI CHO BÀI "MÁY DỜI CƠ SỞ". Mã cửa hàng của MoMo (KHTUTU2) không đổi; tên cơ sở
+ *    bên FABi thì đổi khi dời máy. Ghép theo MÃ GIAO DỊCH rồi học ngược ra, nên mỗi lứa giao dịch
+ *    mới tự dạy lại bảng — không ai phải sửa tay, và không có cái bảng nào để quên sửa.
+ *
+ * ⚠️ MỘT MÃ TRỎ VỀ HAI QUÁN TRONG CÙNG KỲ THÌ KHÔNG HỌC. Đó đúng là lúc máy vừa dời: học cái nào
+ *    cũng sai một nửa. Giao dịch đã khớp mã vẫn đúng cơ sở theo file FABi, nên không mất gì.
+ */
+function khh_dt_hoc_ma_ch_momo() {
+	global $wpdb;
+	$sk  = khh_dt_bang_momo_sk();
+	$pos = khh_dt_bang_momo();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		"SELECT s.ma_ch, p.cua_hang, COUNT(*) n FROM $sk s
+		 INNER JOIN $pos p ON p.ma_doi_tac = s.ma_gd
+		 WHERE s.ma_ch <> '' AND p.cua_hang <> ''
+		 GROUP BY s.ma_ch, p.cua_hang",
+		ARRAY_A
+	);
+	$theo = array();
+	foreach ( $ds as $r ) {
+		$theo[ $r['ma_ch'] ][ $r['cua_hang'] ] = (int) $r['n'];
+	}
+	$hoc     = get_option( 'khh_dt_ghep_ma_ch_momo', array() );
+	$hoc     = is_array( $hoc ) ? $hoc : array();
+	$so      = 0;
+	$lan_can = array();
+	foreach ( $theo as $ma => $quan ) {
+		if ( count( $quan ) > 1 ) {
+			$lan_can[] = $ma;
+			continue;
+		}
+		$q = key( $quan );
+		if ( ! isset( $hoc[ $ma ] ) || $hoc[ $ma ] !== $q ) {
+			$hoc[ $ma ] = $q;
+			$so++;
+		}
+	}
+	update_option( 'khh_dt_ghep_ma_ch_momo', $hoc, false );
+	return array( 'hoc' => $so, 'lan_can' => $lan_can, 'bang' => $hoc );
+}
+
+/** Mã cửa hàng MoMo -> cơ sở FABi, theo bảng đã học. */
+function khh_dt_ma_ch_toi_co_so( $ma_ch ) {
+	$hoc = get_option( 'khh_dt_ghep_ma_ch_momo', array() );
+	$ma  = trim( (string) $ma_ch );
+	return ( is_array( $hoc ) && isset( $hoc[ $ma ] ) ) ? (string) $hoc[ $ma ] : '';
+}
+
+/* ================================================================== *
  * Đối soát từng giao dịch: máy POS ↔ sao kê MoMo
  * ================================================================== */
 
@@ -248,9 +489,31 @@ function khh_dt_momo_pos_ds( $tu, $den ) {
 	// phpcs:enable
 }
 
-/** Giao dịch trong sổ sao kê MoMo, đọc thẳng nguồn đã khai. */
+/**
+ * Giao dịch trong sổ sao kê MoMo.
+ *
+ * Ưu tiên KHO NỘI BỘ (file MoMo anh Thắng nạp lên) vì nó có đủ mã giao dịch và mã cửa hàng; không
+ * có thì mới đọc bảng ngoài đã khai.
+ */
 function khh_dt_momo_sk_ds( $tu, $den ) {
 	global $wpdb;
+	if ( khh_dt_co_momo_sk() ) {
+		$bang = khh_dt_bang_momo_sk();
+		$sql  = "SELECT ngay, so_tien tien, ten_ch ten, ma_gd ma, ma_ch FROM $bang WHERE 1=1";
+		$args = array();
+		if ( $tu ) {
+			$sql   .= ' AND ngay >= %s';
+			$args[] = $tu;
+		}
+		if ( $den ) {
+			$sql   .= ' AND ngay <= %s';
+			$args[] = $den;
+		}
+		$sql .= ' LIMIT 20000';
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		return (array) ( $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A ) );
+		// phpcs:enable
+	}
 	$n = khh_dt_nguon_momo();
 	if ( ! $n ) {
 		return array();
@@ -291,6 +554,77 @@ function khh_dt_momo_sk_ds( $tu, $den ) {
 }
 
 /**
+ * PHẠM VI SỔ SAO KÊ MOMO: nó phủ những cơ sở nào, từ ngày nào tới ngày nào.
+ *
+ * 🔴 KHÔNG CÓ CÁI NÀY THÌ BẢNG ĐỐI SOÁT NÓI DỐI. Sổ MoMo anh Thắng tải về chỉ có mấy quán dùng
+ *    mã MoMo riêng (đo trên file thật: 4 quán), còn máy POS thì ghi cả 12 quán. So thẳng hai bên
+ *    sẽ đẻ ra hàng nghìn dòng "MoMo thiếu tiền" của những quán vốn dĩ không nằm trong sổ ấy —
+ *    người xem đi tìm cả ngày rồi mới biết là hệ đếm nhầm.
+ *
+ * Nên: chỉ những (cơ sở × ngày) NẰM TRONG sổ mới được đem ra kết luận. Ngoài phạm vi thì đếm
+ * riêng, ghi rõ là "chưa có trong sổ MoMo", không gọi là lệch.
+ */
+function khh_dt_pham_vi_momo_sk( $sk ) {
+	$pv = array( 'ngay_dau' => '', 'ngay_cuoi' => '', 'co_so' => array() );
+	foreach ( (array) $sk as $r ) {
+		$n = substr( (string) $r['ngay'], 0, 10 );
+		if ( '' !== $n ) {
+			if ( '' === $pv['ngay_dau'] || $n < $pv['ngay_dau'] ) {
+				$pv['ngay_dau'] = $n;
+			}
+			if ( $n > $pv['ngay_cuoi'] ) {
+				$pv['ngay_cuoi'] = $n;
+			}
+		}
+		$q = isset( $r['ma_ch'] ) ? khh_dt_ma_ch_toi_co_so( (string) $r['ma_ch'] ) : '';
+		if ( '' === $q ) {
+			$q = khh_dt_ten_co_so_gan( (string) $r['ten'] );
+		}
+		if ( '' !== $q ) {
+			$pv['co_so'][ $q ] = true;
+		}
+	}
+	return $pv;
+}
+
+/**
+ * PHẠM VI SỔ MÁY POS: file FABi đã nạp phủ tới ngày nào.
+ *
+ * 🔴 CÙNG MỘT LÝ DO, NGƯỢC CHIỀU. Hai file hiếm khi cắt cùng một mốc: đo trên hai file thật ngày
+ *    16/09/2026 thì sổ MoMo chạy tới 16/09 còn bản xuất FABi dừng ở 15/09. Không chắn lại thì 8
+ *    trong 13 dòng lệch là do cái mốc ấy, mà nhóm "MoMo nhận tiền, máy không ghi đơn" lại đúng là
+ *    nhóm nặng nhất — bắt người ta đi tìm tám khoản tiền chưa hề thất lạc.
+ */
+function khh_dt_pham_vi_momo_pos( $pos ) {
+	$pv = array( 'ngay_dau' => '', 'ngay_cuoi' => '' );
+	foreach ( (array) $pos as $p ) {
+		$n = (string) $p['ngay'];
+		if ( '' === $n ) {
+			continue;
+		}
+		if ( '' === $pv['ngay_dau'] || $n < $pv['ngay_dau'] ) {
+			$pv['ngay_dau'] = $n;
+		}
+		if ( $n > $pv['ngay_cuoi'] ) {
+			$pv['ngay_cuoi'] = $n;
+		}
+	}
+	return $pv;
+}
+
+/** Dòng máy POS này có nằm trong phạm vi sổ MoMo không. */
+function khh_dt_trong_pham_vi_momo( $p, $pv ) {
+	if ( $pv['ngay_dau'] && ( $p['ngay'] < $pv['ngay_dau'] || $p['ngay'] > $pv['ngay_cuoi'] ) ) {
+		return false;
+	}
+	/* Chưa biết sổ phủ quán nào (lần nạp đầu, chưa học được gì) thì đừng loại ai cả. */
+	if ( ! $pv['co_so'] ) {
+		return true;
+	}
+	return isset( $pv['co_so'][ (string) $p['cua_hang'] ] );
+}
+
+/**
  * Ghép hai bên và kể ra ba nhóm lệch.
  *
  * Ghép hai lượt:
@@ -306,6 +640,8 @@ function khh_dt_momo_sk_ds( $tu, $den ) {
 function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 	$pos = khh_dt_momo_pos_ds( $tu, $den );
 	$sk  = khh_dt_momo_sk_ds( $tu, $den );
+	$pv  = khh_dt_pham_vi_momo_sk( $sk );
+	$pvp = khh_dt_pham_vi_momo_pos( $pos );
 
 	$theo_ma = array();
 	foreach ( $sk as $i => $r ) {
@@ -360,6 +696,7 @@ function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 			$chi_pos[] = $p;
 			continue;
 		}
+		$pv['co_so'][ (string) $p['cua_hang'] ] = true;   // khớp mã tức là quán này CÓ trong sổ
 		$da_dung[ $j ] = true;
 		$tien_sk       = khh_dt_so( $sk[ $j ]['tien'] );
 		if ( abs( $tien_sk - (float) $p['so_tien'] ) >= 1 ) {
@@ -369,17 +706,36 @@ function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 		}
 	}
 
-	$chi_sk = array();
+	/* Lọc lại sau khi đã khớp xong, vì chính những cặp khớp mã mới nói cho biết sổ phủ quán nào. */
+	$ngoai = array();
+	$trong = array();
+	foreach ( $chi_pos as $p ) {
+		if ( khh_dt_trong_pham_vi_momo( $p, $pv ) ) {
+			$trong[] = $p;
+		} else {
+			$ngoai[] = $p;
+		}
+	}
+	$chi_pos = $trong;
+
+	$chi_sk    = array();
+	$ngoai_sk  = array();
 	foreach ( $sk as $k => $r ) {
 		if ( isset( $da_dung[ $k ] ) ) {
 			continue;
 		}
-		$chi_sk[] = array(
+		$mot = array(
 			'ngay' => substr( (string) $r['ngay'], 0, 16 ),
 			'tien' => khh_dt_so( $r['tien'] ),
 			'ten'  => (string) $r['ten'],
 			'ma'   => (string) $r['ma'],
 		);
+		$n = substr( (string) $r['ngay'], 0, 10 );
+		if ( $pvp['ngay_dau'] && ( $n < $pvp['ngay_dau'] || $n > $pvp['ngay_cuoi'] ) ) {
+			$ngoai_sk[] = $mot;               // ngày ấy kho POS chưa có số, không phải máy bỏ sót
+			continue;
+		}
+		$chi_sk[] = $mot;
 	}
 
 	return array(
@@ -396,6 +752,19 @@ function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 		'so_lech'  => count( $lech ),
 		'loi_pos'  => array_slice( $loi_pos, 0, 50 ),
 		'so_loi_pos' => count( $loi_pos ),
+		'ngoai'    => array_slice( $ngoai, 0, 200 ),
+		'so_ngoai' => count( $ngoai ),
+		'tien_ngoai' => array_sum( wp_list_pluck( $ngoai, 'so_tien' ) ),
+		'ngoai_sk' => array_slice( $ngoai_sk, 0, 200 ),
+		'so_ngoai_sk' => count( $ngoai_sk ),
+		'tien_ngoai_sk' => array_sum( wp_list_pluck( $ngoai_sk, 'tien' ) ),
+		'pham_vi'  => array(
+			'ngay_dau'  => $pv['ngay_dau'],
+			'ngay_cuoi' => $pv['ngay_cuoi'],
+			'co_so'     => array_keys( $pv['co_so'] ),
+			'pos_dau'   => $pvp['ngay_dau'],
+			'pos_cuoi'  => $pvp['ngay_cuoi'],
+		),
 	);
 }
 
@@ -480,6 +849,8 @@ function khh_dt_rest_momo_gd( $req ) {
 	$den = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'den' ) );
 	$ra  = khh_dt_doi_soat_momo_gd( $tu, $den );
 	$ra['co_pos']  = (bool) khh_dt_co_momo_pos();
-	$ra['co_sk']   = (bool) khh_dt_nguon_momo();
+	/* Sổ MoMo có thể là file MoMo đã nạp, hoặc bảng ngoài đã khai — cái nào cũng tính. */
+	$ra['co_sk']   = khh_dt_co_momo_sk() ? true : (bool) khh_dt_nguon_momo();
+	$ra['sk_file'] = (bool) khh_dt_co_momo_sk();
 	return $ra;
 }

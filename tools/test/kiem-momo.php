@@ -208,6 +208,85 @@ foreach ( $kq['dong'] as $x ) {
 }
 phep( 'mã đối tác không trùng nhau', count( $ma ) === count( $kq['dong'] ) );
 
+/* ================================================================== *
+ * SAO KÊ MOMO (.csv tải từ trang MoMo)
+ *
+ * Ba cái bẫy của file thật, đã sập đủ cả ba lần đọc đầu:
+ *   1. FILE CÓ BOM UTF-8. Không cắt BOM thì tên cột đầu thành "\u{feff}Thời gian" và mọi phép
+ *      dò cột trượt hết — báo "không thấy cột Thời gian" trong khi cột ấy nằm ngay đó.
+ *   2. MOMO GHI DẤU TÁCH RỜI ở vài tên cột ("gốc" = g + ô + dấu sắc rời). Bỏ dấu kiểu bảng tra
+ *      ký tự dựng sẵn không đụng tới được, phải gỡ dấu rời trước.
+ *   3. Cột "Mã giao dịch" CHÍNH LÀ "Mã đối tác" bên FABi — khoá ghép hai sổ. Đo trên hai file
+ *      thật ngày 16/09/2026: 995 trong 1.008 mã MoMo có mặt trong file FABi.
+ * ================================================================== */
+
+$csv = get_temp_dir() . '/kiem-momo-sk-' . wp_generate_password( 8, false ) . '.csv';
+$h   = "\xEF\xBB\xBF" . "Thời gian,Mã đơn hàng,Mã đơn hàng go\xCC\x81c,Mã giao dịch,Trạng thái," .
+	"Tên khách hàng,Số điện thoại khách hàng,Loại giao dịch,Số tiền,Số tiền giảm giá," .
+	"Kênh thanh toán,Phương thức thanh toán,Nguồn tiền,Mô tả giao dịch,Mã cửa hàng,Tên cửa hàng\n";
+$h .= "16-09-2026 14:44:48,DH01,,147078195272,Thành công,Khách A,09xxxx,Thanh toán,\"90,000\",0," .
+	"QR,QR Code,Ví MoMo,Mua hàng,KHTUTU2,Tutu Train - Estella\n";
+$h .= "15-09-2026 09:10:00,DH02,,147078195273,Thành công,Khách B,09xxxx,Thanh toán,\"120,000\",0," .
+	"QR,QR Code,Ví MoMo,Mua hàng,KHECO2,ECO FARM LOTTE PHAN THIẾT\n";
+$h .= "15-09-2026 10:00:00,DH03,,147078195274,Thất bại,Khách C,09xxxx,Thanh toán,0,0," .
+	"QR,QR Code,Ví MoMo,Mua hàng,KHECO2,ECO FARM LOTTE PHAN THIẾT\n";
+file_put_contents( $csv, $h );
+
+$sk = khh_dt_doc_momo_sk( $csv );
+phep( 'đọc được file sao kê MoMo có BOM', ! is_wp_error( $sk ) );
+if ( ! is_wp_error( $sk ) ) {
+	phep( 'đếm đủ dòng', 3 === (int) $sk['so_dong'] );
+	phep( 'bỏ dòng số tiền bằng 0', 1 === (int) $sk['bo_qua'] && 2 === count( $sk['dong'] ) );
+	phep( 'cộng đúng tiền có dấu phẩy', 210000.0 === (float) array_sum( wp_list_pluck( $sk['dong'], 'so_tien' ) ) );
+	phep( 'ra đủ mã cửa hàng MoMo', 2 === count( $sk['quan'] ) && isset( $sk['quan']['KHTUTU2'] ) );
+	$d0 = $sk['dong'][0];
+	phep( 'đọc đúng ngày kiểu 16-09-2026', '2026-09-16' === $d0['ngay'] );
+	phep( 'đọc đúng giờ', 14 === (int) $d0['gio'] );
+	phep( 'giữ mã giao dịch để ghép với Mã đối tác bên FABi', '147078195272' === $d0['ma_gd'] );
+	phep( 'giữ trạng thái để lọc giao dịch hỏng', 'Thành công' === $d0['trang_thai'] );
+}
+wp_delete_file( $csv );
+
+/* Dấu tách rời phải được gỡ, nếu không cột "gốc" trượt và bài trên đã bắt được rồi. */
+phep( 'bỏ được dấu tách rời của MoMo', 'ma don hang goc' === khh_dt_khong_dau( "Mã đơn hàng go\xCC\x81c" ) );
+
+/* ================================================================== *
+ * PHẠM VI SỔ MOMO
+ *
+ * 🔴 SỔ MOMO KHÔNG PHỦ HẾT CHUỖI. File thật có 4 quán, kho POS có 12. So thẳng là đẻ ra hàng
+ *    nghìn dòng "MoMo thiếu tiền" của những quán vốn không nằm trong sổ.
+ * ================================================================== */
+
+$sk_mau = array(
+	array( 'ngay' => '2026-09-15', 'tien' => 90000, 'ten' => 'Tutu Train - Estella', 'ma' => 'M1', 'ma_ch' => 'KHTUTU2' ),
+	array( 'ngay' => '2026-09-16', 'tien' => 90000, 'ten' => 'Tutu Train - Estella', 'ma' => 'M2', 'ma_ch' => 'KHTUTU2' ),
+);
+$pv = khh_dt_pham_vi_momo_sk( $sk_mau );
+phep( 'lấy đúng ngày đầu của sổ MoMo', '2026-09-15' === $pv['ngay_dau'] );
+phep( 'lấy đúng ngày cuối của sổ MoMo', '2026-09-16' === $pv['ngay_cuoi'] );
+
+/* Ngược chiều: sổ MoMo chạy dài hơn bản xuất FABi thì mấy ngày dôi ra không phải "máy bỏ sót". */
+$pvp = khh_dt_pham_vi_momo_pos(
+	array(
+		array( 'ngay' => '2026-09-01' ),
+		array( 'ngay' => '2026-09-15' ),
+	)
+);
+phep( 'lấy đúng kỳ của kho POS', '2026-09-01' === $pvp['ngay_dau'] && '2026-09-15' === $pvp['ngay_cuoi'] );
+
+$pv2 = array( 'ngay_dau' => '2026-09-15', 'ngay_cuoi' => '2026-09-16', 'co_so' => array( 'Quán A' => true ) );
+phep( 'quán trong sổ thì đem ra kết luận',
+	khh_dt_trong_pham_vi_momo( array( 'ngay' => '2026-09-15', 'cua_hang' => 'Quán A' ), $pv2 ) );
+phep( 'quán NGOÀI sổ thì không kể là lệch',
+	! khh_dt_trong_pham_vi_momo( array( 'ngay' => '2026-09-15', 'cua_hang' => 'Quán B' ), $pv2 ) );
+phep( 'ngày ngoài kỳ của sổ cũng không kể là lệch',
+	! khh_dt_trong_pham_vi_momo( array( 'ngay' => '2026-09-01', 'cua_hang' => 'Quán A' ), $pv2 ) );
+phep( 'chưa biết sổ phủ quán nào thì đừng loại ai',
+	khh_dt_trong_pham_vi_momo(
+		array( 'ngay' => '2026-09-15', 'cua_hang' => 'Quán B' ),
+		array( 'ngay_dau' => '', 'ngay_cuoi' => '', 'co_so' => array() )
+	) );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép:\n";
 	foreach ( $hong as $h ) {
@@ -215,4 +294,4 @@ if ( $hong ) {
 	}
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép đọc file MoMo của FABi\n";
+echo "\n✓ SẠCH — $dat phép đọc file MoMo (máy POS + sao kê MoMo)\n";
