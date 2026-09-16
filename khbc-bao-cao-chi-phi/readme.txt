@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.6.0
+Stable tag: 1.7.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,15 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.7.0 =
+* **Sửa: tài khoản lương phải theo TỪNG bộ phận.** Bản trước gieo 64131 (của Posh) cho cả bảy —
+  Event thật ra là 64191. Đếm lại trên cả 7 tab của file gốc: Tutu 64101 · JP 64111 ·
+  Funzone 64121 · Posh 64131 · Farm 64161 · Pinball 64171 · Event 64191 (TK Có 3341 chung).
+  Sai số này thì chứng từ vẫn nhập được vào MISA, chỉ là chi phí lương bộ phận này chạy vào tài
+  khoản bộ phận khác — sổ vẫn cân, chỉ sai chỗ, nên soát sổ không bắt được.
+* Bộ phận tự thêm (không có trong bảng) thì để trống tài khoản, không bịa một số trông hợp lý;
+  màn Kiểm tra đã có cảnh báo lo phần nhắc.
 
 = 1.6.0 =
 * **Bổ sung cột "Mã đối tượng Có"** (cột 15 của mẫu MISA) — mã nhà cung cấp. Đếm lại trên file

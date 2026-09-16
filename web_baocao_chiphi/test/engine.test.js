@@ -228,6 +228,34 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   const salL = stL.salaryDept.find((x) => x.dept === 'posh');
   assert.strictEqual(salL.misaAccount, 'N64131/C3341', 'gieo từ file thật T8/2026');
   assert.strictEqual(salL.misaAccount2, 'N64131/C3341');
+
+  /* 🔴 MỖI BỘ PHẬN MỘT TÀI KHOẢN LƯƠNG RIÊNG — anh Thắng 16/09/2026: *"sai nữa rồi"*, màn hình
+     hiện 64131 cho Event trong khi file thật ghi 64191. Bản trước đọc mỗi tab Posh rồi gieo
+     64131 cho cả bảy. Bảng dưới đây ĐẾM TỪ CẢ 7 TAB "… chi tiết" của file thật T8/2026.
+     Sai một số thì chứng từ vẫn nhập được vào MISA, chỉ là chi phí lương của bộ phận này chạy
+     vào tài khoản của bộ phận khác — sổ vẫn cân, chỉ sai chỗ, nên soát sổ không bắt được. */
+  const TK_THAT = { tutu: '64101', jp: '64111', funzone: '64121', posh: '64131',
+    farm: '64161', pinball: '64171', event: '64191' };
+  Object.keys(TK_THAT).forEach((d) => {
+    const r = stL.salaryDept.find((x) => x.dept === d);
+    assert.strictEqual(r.misaAccount, `N${TK_THAT[d]}/C3341`, `TK lương của "${d}" phải là ${TK_THAT[d]}`);
+    assert.strictEqual(r.misaAccount2, `N${TK_THAT[d]}/C3341`, `cột lương vận hành của "${d}" cũng vậy`);
+    const m = E.misaRows(stL, E.computeReport(stL), d);
+    if (m && m.rows.length) {
+      assert.strictEqual(m.rows[0].tkNo, TK_THAT[d], `dòng MISA của "${d}" phải mang TK ${TK_THAT[d]}`);
+      assert.strictEqual(m.rows[0].tkCo, '3341');
+    }
+  });
+  // Bảy bộ phận phải ra BẢY số khác nhau — gieo trùng là lỗi đã mắc
+  const daCo = stL.salaryDept.map((r) => r.misaAccount);
+  assert.strictEqual(new Set(daCo).size, 7, 'bảy bộ phận phải có bảy tài khoản lương khác nhau');
+
+  // Bộ phận lạ (người dùng tự thêm): KHÔNG bịa số, để trống cho validate() nhắc
+  const stZ = E.normalizeState({ ...window.SAMPLE_DATA,
+    departments: [...window.SAMPLE_DATA.departments, { id: 'moi', name: 'Bộ phận mới', group: 'KVC', ratio: 0 }],
+    salaryDept: [...(window.SAMPLE_DATA.salaryDept || []), { dept: 'moi' }] });
+  assert.strictEqual((stZ.salaryDept.find((x) => x.dept === 'moi') || {}).misaAccount, '',
+    'bộ phận lạ: để trống, không bịa một số trông hợp lý');
   const pL = E.misaRows(stL, E.computeReport(stL), 'posh');
   assert.strictEqual(pL.rows[0].tkNo, '64131');
   assert.strictEqual(pL.rows[0].tkCo, '3341');

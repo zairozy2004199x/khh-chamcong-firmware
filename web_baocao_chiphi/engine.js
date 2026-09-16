@@ -617,16 +617,35 @@
       misaPrefix: (d.misaPrefix || '').trim() || MISA_PREFIX[d.id] || '',
     }));
     st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', misaGeneral: '', misaDetail: '', objectCode: '', values: {}, ...m, id: m.id || newId('mc') }));
-    /* Hai cột lương KHÔNG CÓ chỗ nào khai tài khoản — đó là lỗ trong mô hình, lộ ra khi dựng tờ
-       nhập MISA: TK Nợ/TK Có để trống là MISA từ chối cả chứng từ. Gieo mặc định `N64131/C3341`
-       đọc từ file thật T8/2026 (cả hai cột lương đều dùng cặp này), vẫn sửa được như mọi ô khác. */
-    st.salaryDept = (st.salaryDept || []).map((r) => ({
-      misaGeneral: '', misaDetail: '', misaGeneral2: '', misaDetail2: '', ...r,
-      misaAccount: (r.misaAccount || '').trim() || 'N64131/C3341',
-      misaAccount2: (r.misaAccount2 || '').trim() || 'N64131/C3341',
-      misaObjectCode: r.misaObjectCode || '',
-      misaObjectCode2: r.misaObjectCode2 || '',
-    }));
+    /* ═════════════════════════════════════════════════════════════════════════════════════════
+     * TÀI KHOẢN LƯƠNG — MỖI BỘ PHẬN MỘT SỐ KHÁC NHAU, KHÔNG PHẢI MỘT SỐ DÙNG CHUNG.
+     *
+     * 🔴 Anh Thắng 16/09/2026: *"sai nữa rồi"* — màn hình hiện 64131 cho Event, trong khi file
+     *    thật ghi 64191. Gốc: bản trước đọc MỖI tab "Posh chi tiết" rồi gieo 64131 cho cả bảy bộ
+     *    phận. Đúng cái sai đã mắc ở vụ "Mã đối tượng Có": đọc một tab rồi suy ra cho tất cả.
+     *
+     * Đếm lại trên CẢ 7 tab "… chi tiết" của file thật T8/2026 — TK Nợ của hai chứng từ lương:
+     *     Tutu 64101 · JP 64111 · Funzone 64121 · Posh 64131 · Farm 64161 · Pinball 64171 ·
+     *     Event 64191                                   (TK Có = 3341 cho tất cả)
+     *
+     * ⚠️ Số này KHÔNG suy ra được từ bất cứ đâu — nó là số hiệu tài khoản kế toán đặt cho từng bộ
+     *    phận. Sai một số thì chứng từ vẫn nhập được vào MISA, chỉ là chi phí lương của bộ phận
+     *    này chạy vào tài khoản của bộ phận khác — sổ vẫn cân, chỉ sai chỗ.
+     * ═════════════════════════════════════════════════════════════════════════════════════════ */
+    const TK_LUONG = { tutu: '64101', jp: '64111', funzone: '64121', posh: '64131',
+      farm: '64161', pinball: '64171', event: '64191' };
+    st.salaryDept = (st.salaryDept || []).map((r) => {
+      /* Bộ phận lạ (do người dùng tự thêm) thì KHÔNG bịa số: để trống, và validate() đã có sẵn
+         cảnh báo "chưa đủ cặp tài khoản" lo phần nhắc. Bịa một số trông hợp lý là tệ nhất. */
+      const mac = TK_LUONG[r.dept] ? `N${TK_LUONG[r.dept]}/C3341` : '';
+      return {
+        misaGeneral: '', misaDetail: '', misaGeneral2: '', misaDetail2: '', ...r,
+        misaAccount: (r.misaAccount || '').trim() || mac,
+        misaAccount2: (r.misaAccount2 || '').trim() || mac,
+        misaObjectCode: r.misaObjectCode || '',
+        misaObjectCode2: r.misaObjectCode2 || '',
+      };
+    });
     st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', ...r, id: r.id || newId('ss') }));
     return st;
   }
