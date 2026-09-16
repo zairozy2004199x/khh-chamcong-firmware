@@ -480,7 +480,13 @@ class VHCC_Luong {
 		$cho  = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
 		$tham = array_merge( $chum, array( $tt . '-%' ) );
 		$hang = VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso, anh_vao, anh_ra FROM '
+			/* `nghi_tu_giay`/`nghi_den_giay` = CA GÃY, khoảng nghỉ giữa ca không tính tiền.
+			   Phải có mặt ở ĐÂY vì đây là cửa vào của gần như mọi nơi đọc công cả tháng —
+			   lưới, bảng lương, lưới văn phòng, báo cáo. Thiếu ở đây thì mấy nơi ấy không có
+			   cách nào biết ngày ấy có nghỉ giữa ca, và trả dư tiền cho mấy giờ người ta về
+			   nhà — không ai kêu, vì bảng vẫn đầy số. */
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay,'
+			. ' nghi_tu_giay, nghi_den_giay, coso, anh_vao, anh_ra FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
 			$tham ) );
@@ -583,11 +589,20 @@ class VHCC_Luong {
 	 * Tách riêng vì có HAI nơi hỏi cùng câu này: bảng lương, và màn "Công của tôi" mà nhân viên
 	 * tự mở trên điện thoại. Hai nơi tự tính lấy thì sớm muộn lệch nhau đúng ở ca đêm — và lúc
 	 * đó nhân viên cầm màn hình của mình cãi với bảng lương, không ai biết bên nào đúng.
+	 *
+	 * ⚠️ CA GÃY: hai tham số cuối là khoảng NGHỈ GIỮA CA, trừ thẳng ở đây. Trừ BÊN TRONG hàm
+	 *    tính giờ, không bắt mỗi nơi gọi tự trừ lấy — nơi nào quên là trả dư tiền cho mấy giờ
+	 *    người ta về nhà, mà bảng vẫn đầy số nên không ai kêu. Xem `VHCC_Cham::phut_nghi()`.
+	 * ⚠️ Gác `class_exists` cùng chỗ với lời gọi — luật của `kiem-goi-cheo.php`.
 	 */
-	public static function phut_ca( $vao_m, $ra_m ) {
+	public static function phut_ca( $vao_m, $ra_m, $nghi_tu = null, $nghi_den = null ) {
 		$vao_m = (int) $vao_m;
 		$ra_m  = (int) $ra_m;
-		return ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+		$p = ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+		if ( class_exists( 'VHCC_Cham' ) && method_exists( 'VHCC_Cham', 'phut_nghi' ) ) {
+			$p -= VHCC_Cham::phut_nghi( $nghi_tu, $nghi_den );
+		}
+		return max( 0, $p );
 	}
 
 	public static function mtd_tinh_luong( $coso, $tt ) {
@@ -626,7 +641,9 @@ class VHCC_Luong {
 			if ( '' === $by[ $ma ]['ten'] ) { $by[ $ma ]['ten'] = $ma; }
 
 			if ( $theo_gio ) {
-				$phut = self::phut_ca( $vao_m, $ra_m );
+				$phut = self::phut_ca( $vao_m, $ra_m,
+					isset( $r['nghi_tu_giay'] ) ? $r['nghi_tu_giay'] : null,
+					isset( $r['nghi_den_giay'] ) ? $r['nghi_den_giay'] : null );
 				$so   = round( $phut / 60, 2 );
 				$dg   = $gia[ 'gio' . $hoa ];
 				$by[ $ma ]['gio'][ $loai ] += $so;

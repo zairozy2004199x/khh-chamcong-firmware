@@ -31,11 +31,37 @@ class VHCC_Cham {
 	 *        đáng lẽ phải đập vào mắt người đang soát.
 	 *
 	 *    Nên: null, và màn hình hiện "—" để người ta nhìn thấy mà mở ra xem.
+	 *
+	 * ⚠️ CA GÃY: hai tham số cuối là khoảng NGHỈ GIỮA CA, trừ thẳng ở đây. Trừ BÊN TRONG hàm
+	 *    tính giờ, không bắt mỗi nơi gọi tự trừ lấy — nơi nào quên là trả dư tiền cho mấy giờ
+	 *    người ta về nhà, mà bảng vẫn đầy số nên không ai kêu. Xem `VHCC_Cham::phut_nghi()`.
 	 */
-	public static function phut_lam( $vao_giay, $ra_giay ) {
+	public static function phut_lam( $vao_giay, $ra_giay, $nghi_tu = null, $nghi_den = null ) {
 		if ( null === $vao_giay || '' === $vao_giay || null === $ra_giay || '' === $ra_giay ) { return null; }
 		$d = (int) $ra_giay - (int) $vao_giay;
 		if ( $d < 0 ) { return null; }
+		return max( 0, (int) round( $d / 60 ) - self::phut_nghi( $nghi_tu, $nghi_den ) );
+	}
+
+	/**
+	 * CA GÃY — số PHÚT NGHỈ GIỮA CA của một lượt, tức phần KHÔNG tính tiền.
+	 *
+	 * Anh Thắng 16/09/2026: *"có những trường hợp ca gãy, như ca 1,3 ... tích vào ca gãy, nó sẽ
+	 * tách thành 2 giờ vào và 2 giờ ra để gộp giờ và bỏ giờ giữa ra"*.
+	 *
+	 * 🔴 MỘT CHỖ TÍNH DUY NHẤT. Khoảng nghỉ phải bị trừ ở MỌI nơi đang cộng giờ — lưới, bảng
+	 *    lương, tờ in, tệp xuất. Mỗi nơi tự trừ lấy là có ngày một nơi quên, và nơi quên ấy
+	 *    lặng lẽ trả dư tiền cho mấy giờ người ta về nhà.
+	 *
+	 * ⚠️ TRẢ 0 CHO MỌI THỨ KHÔNG HỢP LỆ, không trả null. Nơi gọi luôn viết `giờ trừ nghỉ`, nên
+	 *    null ở đây là biến cả phép tính thành null và ngày ấy mất trắng.
+	 * ⚠️ Nghỉ NGƯỢC (đến < từ) coi như không có. Nó chỉ tới được đây nếu ai đó ghi tay vào cơ sở
+	 *    dữ liệu — và lúc ấy trừ một số âm là CỘNG THÊM giờ, đúng thứ tệ nhất có thể làm.
+	 */
+	public static function phut_nghi( $tu_giay, $den_giay ) {
+		if ( null === $tu_giay || '' === $tu_giay || null === $den_giay || '' === $den_giay ) { return 0; }
+		$d = (int) $den_giay - (int) $tu_giay;
+		if ( $d <= 0 ) { return 0; }
 		return (int) round( $d / 60 );
 	}
 
@@ -191,7 +217,13 @@ class VHCC_Cham {
 				   ca từ chuỗi ấy là mất đúng ca đêm. Phép tách phải ăn giây thô. */
 				'vaoGiay' => $r['gio_vao_giay'],
 				'raGiay'  => $r['gio_ra_giay'],
-				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'] ),
+				/* CA GÃY — hai đầu của khoảng nghỉ giữa ca, không tính tiền. Đi kèm hàng để mọi
+				   nơi vẽ ra màn (ô ngày, chú thích rê chuột, bảng tổng giờ theo ca) đọc được
+				   cùng một sự thật, thay vì mỗi nơi tự hỏi lại cơ sở dữ liệu. */
+				'nghiTu'  => $r['nghi_tu_giay'],
+				'nghiDen' => $r['nghi_den_giay'],
+				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'],
+					$r['nghi_tu_giay'], $r['nghi_den_giay'] ),
 				'ghiChu' => isset( $r['ghi_chu'] ) ? (string) $r['ghi_chu'] : '',
 				'nguon'  => isset( $r['nguon'] ) ? (string) $r['nguon'] : '',
 			);

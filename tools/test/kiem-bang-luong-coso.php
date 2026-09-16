@@ -68,6 +68,13 @@ function ket_luan() {
 global $wpdb;
 
 /** Dựng một màn của trang quản trị bằng phiên của một người cụ thể. */
+/** Gọi một hàm `private static` — để thử thẳng bộ xử lý POST mà không phải dựng cả màn. */
+function vhcc_goi_rieng( $lop, $ham, $args ) {
+	$m = new ReflectionMethod( $lop, $ham );
+	$m->setAccessible( true );
+	return $m->invokeArgs( null, $args );
+}
+
 function vhcc_man( $ma_nv, $vai, $coso, $get = array() ) {
 	$_GET = $get; $_POST = array();
 	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người ' . $ma_nv, $vai, $coso, $ma_nv ) );
@@ -2165,5 +2172,145 @@ teq( 'chưa chọn cơ sở nào: nói thẳng', false, (bool) VHCC_BangLuong::t
 foreach ( array( 1 => 'I', 4 => 'IV', 9 => 'IX', 14 => 'XIV', 20 => 'XX', 40 => 'XL' ) as $n => $la ) {
 	teq( 'số La Mã ' . $n, $la, VHCC_BangLuong::so_la_ma( $n ) );
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 22. CA GÃY — bỏ khúc giữa ra khỏi giờ công
+ *
+ * Anh Thắng 16/09/2026: *"có những trường hợp ca gãy, như ca 1,3, nên bận chấm công bị sai,
+ * trường hợp này cứ chấm liên tiếp bình thường, sau đó cửa hàng trưởng vào bảng công, bấm bảng
+ * này lên tích vào ca gãy, nó sẽ tách thành 2 giờ vào và 2 giờ ra để gộp giờ và bỏ giờ giữa ra"*.
+ *
+ * Người làm Ca 1 (07:00–14:00) và Ca 3 (17:00–22:00) nhưng KHÔNG làm Ca 2. Máy chỉ thấy MỘT cặp
+ * 07:00 → 22:00 = 15 giờ. Đúng phải là 12 — dư 3 giờ người ta về nhà.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_g = 'KHO_GAY';
+$th_g = '2026-08';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GAY1', 'ho_ten' => 'Người Ca Gãy',
+	'cua_hang' => $cs_g, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'GAY1', 'ho_ten' => '', 'coso' => $cs_g, 'ngay' => '2026-08-03',
+	'gio_vao_giay' => 7 * 3600, 'gio_ra_giay' => 22 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+VHCC_GiaGio::dat_coso( $U_KT, $cs_g, array( 'Partime' => 20000 ) );
+
+/** Số giờ của một người trong bảng lương. */
+function vhcc_gio_bl( $cs, $th, $ma ) {
+	$b = VHCC_BangLuong::dung( $cs, $th );
+	foreach ( (array) $b['dong'] as $d ) {
+		if ( $d['ma'] === $ma && ! empty( $d['laChinh'] ) ) { return (float) $d['gioTong']; }
+	}
+	return null;
+}
+
+teq( 'gieo: chưa khai ca gãy thì đúng 15 giờ (máy thấy sao ghi vậy)',
+	15.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 1. 🔴 PHÉP CHÍNH: KHAI NGHỈ 14:00–17:00 → CÒN 12 GIỜ ───── */
+$r_g = VHCC_Nhan::dat_gio( $cs_g, '2026-08-03', 'GAY1', 'Người Ca Gãy',
+	7 * 3600, 22 * 3600, 'ca gãy', 14 * 3600, 17 * 3600 );
+t( 'ghi được khoảng nghỉ', ! isset( $r_g['loi'] ), $r_g );
+teq( '🔴 bảng lương còn ĐÚNG 12 giờ, bỏ 3 giờ giữa', 12.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+/* 🔴 KHẲNG ĐỊNH THẲNG LÀ KHÔNG CÒN 15. Thiếu phép này thì gỡ phép trừ ra mà phép trên vẫn có
+   thể xanh nếu ai đó lỡ đổi số gieo. */
+t( '⚠️ và KHÔNG còn là 15 giờ', 15.0 !== vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ), 'vẫn 15' );
+
+/* ───── 2. 🔴 LƯỚI PHẢI NÓI CÙNG CON SỐ VỚI BẢNG LƯƠNG ───── */
+$b_g = VHCC_Cham::bang_cham_cong( $U_KT, $cs_g, $th_g );
+$h_g = null;
+foreach ( (array) $b_g['hang'] as $x ) { if ( '2026-08-03' === $x['ngay'] ) { $h_g = $x; } }
+t( 'bóc được hàng trong lưới', null !== $h_g, 'không thấy hàng' );
+teq( '🔴 ô ngày trên lưới cũng ra 12 giờ', 720, (int) $h_g['phut'] );
+/* 🔴 GIỜ VÀO / GIỜ RA GIỮ NGUYÊN "vào ĐẦU, ra CUỐI" — đó là cả lý do chọn lối lưu này. Đổi
+   chúng là mọi thứ đang đọc chúng (ô ngày, tách ca, trải phẳng ca đêm) phải học lại. */
+teq( 'giờ vào vẫn là 07:00', 7 * 3600, (int) $h_g['vaoGiay'] );
+teq( 'giờ ra vẫn là 22:00', 22 * 3600, (int) $h_g['raGiay'] );
+
+/* ───── 3. 🔴 TỜ IN A4 NÓI CÙNG CON SỐ ───── */
+/* Kế toán cầm tờ in đi đối chiếu với màn; lệch nhau ở đúng mấy ngày ca gãy thì không ai biết
+   bên nào đúng. */
+$t_in = VHCC_Pdf::gom( $cs_g, '2026-08-01', '2026-08-31' );
+$n_in = null;
+foreach ( (array) $t_in['tongHop'] as $x ) { if ( 'GAY1' === $x['ma'] ) { $n_in = $x; } }
+t( 'bóc được người ấy trên tờ in', null !== $n_in, $t_in['tongHop'] );
+teq( '🔴 tờ in cũng ra 12 giờ', 720, (int) $n_in['phut'] );
+
+/* ───── 4. BỎ TÍCH CA GÃY THÌ QUAY LẠI 15 GIỜ ───── */
+VHCC_Nhan::dat_gio( $cs_g, '2026-08-03', 'GAY1', '', 7 * 3600, 22 * 3600, 'bỏ ca gãy', null, null );
+teq( '🔴 bỏ ca gãy: quay lại đủ 15 giờ', 15.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 5. 🔴 SỬA GIỜ BÌNH THƯỜNG KHÔNG ĐƯỢC XOÁ MẤT CA GÃY ĐÃ KHAI ───── */
+/* Đây là chỗ dễ hỏng nhất: mặc định của hai tham số mới phải là "không đụng tới", chứ không
+   phải "xoá". Máy chấm công đẩy một lượt mới về cũng đi qua cửa này. */
+VHCC_Nhan::dat_gio( $cs_g, '2026-08-03', 'GAY1', '', 7 * 3600, 22 * 3600, '', 14 * 3600, 17 * 3600 );
+teq( 'gieo lại ca gãy', 12.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+VHCC_Nhan::dat_gio( $cs_g, '2026-08-03', 'GAY1', '', 7 * 3600, 21 * 3600, 'sửa giờ ra' );
+teq( '🔴 sửa mỗi giờ ra: ca gãy VẪN còn (11 giờ, không phải 14)', 11.0,
+	vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 6. NGHỈ NGƯỢC / NGHỈ RỖNG KHÔNG ĐƯỢC CỘNG THÊM GIỜ ───── */
+teq( 'nghỉ rỗng = 0 phút', 0, VHCC_Cham::phut_nghi( null, null ) );
+teq( '🔴 nghỉ NGƯỢC = 0 phút, không phải số âm', 0, VHCC_Cham::phut_nghi( 17 * 3600, 14 * 3600 ) );
+teq( 'nghỉ 3 tiếng = 180 phút', 180, VHCC_Cham::phut_nghi( 14 * 3600, 17 * 3600 ) );
+
+/* ───── 7. TRÊN MÀN: mở ô ngày ra là thấy ô tích ca gãy, và lưu được ───── */
+/* Khai khung ca 07–14 / 14–17 / 17–22 cho đúng cảnh "ca 1,3" anh Thắng kể. */
+VHCC_Ca::luu( $U_KT, $cs_g, array(
+	array( 'ten' => 'Ca 1', 'tu' => '07:00', 'den' => '14:00' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '17:00' ),
+	array( 'ten' => 'Ca 3', 'tu' => '17:00', 'den' => '22:00' ),
+) );
+/* Trả hàng về 07:00 → 22:00, chưa khai ca gãy. */
+VHCC_Nhan::dat_gio( $cs_g, '2026-08-03', 'GAY1', '', 7 * 3600, 22 * 3600, '', null, null );
+teq( 'gieo lại: 15 giờ, chưa ca gãy', 15.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+$g_o  = array( 'man' => 'cham', 'ccs' => $cs_g, 'cth' => $th_g,
+	'sgn' => '2026-08-03', 'sgm' => 'GAY1' );
+$h_o  = vhcc_man( 'KT_BL', 'Kế toán', '', $g_o );
+t( '🔴 mở ô ngày ra là thấy ô tích "Ca gãy"', false !== strpos( $h_o, 'name="sg_gay"' ), 'không có ô tích' );
+t( 'và hai ô giờ của khúc nghỉ', false !== strpos( $h_o, 'name="sg_nghi_tu"' )
+	&& false !== strpos( $h_o, 'name="sg_nghi_den"' ), 'thiếu ô giờ' );
+/* 🔴 ĐIỀN SẴN THEO KHUNG CA — ngày này chạm ba ca nên hệ đề xuất 14:00–17:00. */
+t( '🔴 điền sẵn "Ra ca 1" = 14:00 theo khung ca', 1 === preg_match(
+	'/name="sg_nghi_tu"[^>]*value="14:00"/', $h_o ), 'không điền sẵn 14:00' );
+t( '🔴 và "Vào ca 2" = 17:00', 1 === preg_match(
+	'/name="sg_nghi_den"[^>]*value="17:00"/', $h_o ), 'không điền sẵn 17:00' );
+/* 🔴 CHƯA TÍCH THÌ CHƯA TRỪ GÌ — điền sẵn là gợi ý, không phải quyết định. */
+t( '🔴 ô tích CHƯA được tích sẵn', 0 === preg_match(
+	'/name="sg_gay"[^>]*checked/', $h_o ), 'tự tích sẵn — thế là tự cắt tiền' );
+teq( '🔴 và giờ công vẫn nguyên 15 cho tới khi có người bấm', 15.0,
+	vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 8. LƯU THẬT QUA ĐƯỜNG POST ───── */
+$r_p = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'sua_gio',
+	array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' ) ) );
+t( 'gieo: gọi thẳng chưa có POST thì không làm gì hỏng', is_array( $r_p ), $r_p );
+$_POST = array( 'ccs' => $cs_g, 'ngay' => '2026-08-03', 'ma_nv' => 'GAY1',
+	'sg_vao' => '07:00', 'sg_ra' => '22:00', 'ly_do' => 'ca gãy, ca 1 và ca 3',
+	'sg_gay' => '1', 'sg_nghi_tu' => '14:00', 'sg_nghi_den' => '17:00' );
+$r_p = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'sua_gio',
+	array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' ) ) );
+$_POST = array();
+t( 'POST tích ca gãy: không bị chối', empty( $r_p[0]['loi'] ), $r_p );
+teq( '🔴 lưu xong bảng lương còn 12 giờ', 12.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 9. BỎ TÍCH QUA ĐƯỜNG POST THÌ XOÁ HẲN ───── */
+$_POST = array( 'ccs' => $cs_g, 'ngay' => '2026-08-03', 'ma_nv' => 'GAY1',
+	'sg_vao' => '07:00', 'sg_ra' => '22:00', 'ly_do' => 'bỏ ca gãy, hôm đó làm suốt' );
+$r_p2 = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'sua_gio',
+	array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' ) ) );
+$_POST = array();
+t( 'POST bỏ tích: không bị chối', empty( $r_p2[0]['loi'] ), $r_p2 );
+teq( '🔴 bỏ tích thì quay lại 15 giờ', 15.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
+
+/* ───── 10. KHÚC NGHỈ THÒ RA NGOÀI LƯỢT CHẤM THÌ CHỐI ───── */
+$_POST = array( 'ccs' => $cs_g, 'ngay' => '2026-08-03', 'ma_nv' => 'GAY1',
+	'sg_vao' => '07:00', 'sg_ra' => '22:00', 'ly_do' => 'gõ nhầm khúc nghỉ',
+	'sg_gay' => '1', 'sg_nghi_tu' => '05:00', 'sg_nghi_den' => '17:00' );
+$r_p3 = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'sua_gio',
+	array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán', 'coso' => '' ) ) );
+$_POST = array();
+t( '🔴 khúc nghỉ thò ra ngoài giờ vào/ra: BỊ CHỐI', ! empty( $r_p3[0]['loi'] ), $r_p3 );
+teq( 'và giờ công không bị đụng vào', 15.0, vhcc_gio_bl( $cs_g, $th_g, 'GAY1' ) );
 
 ket_luan();

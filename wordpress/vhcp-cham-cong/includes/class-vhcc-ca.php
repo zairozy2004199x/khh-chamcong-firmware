@@ -177,6 +177,41 @@ class VHCC_Ca {
 	}
 
 	/**
+	 * CA GÃY — ĐỀ XUẤT khoảng nghỉ giữa ca, tính từ chính khung ca của cơ sở.
+	 *
+	 * Anh Thắng 16/09/2026: *"ca gãy, như ca 1,3"* — người làm Ca 1 và Ca 3, KHÔNG làm Ca 2,
+	 * mà máy chỉ thấy một cặp giờ liền mạch từ đầu Ca 1 tới cuối Ca 3.
+	 *
+	 * Luật đề xuất: **có KHE HỞ giữa hết ca ĐẦU và đầu ca CUỐI** thì khe ấy là phần đáng ngờ.
+	 * Trả về `[từ, đến]` tính bằng GIÂY trong ngày, hoặc null khi không có gì để đề xuất.
+	 *
+	 * ⚠️ ĐỪNG ĐẾM SỐ CA. Bản đầu chốt "từ ba ca trở lên", nghe xuôi vì cảnh anh Thắng kể là
+	 *    Ca 1·2·3. Nhưng đột biến hạ chốt ấy xuống 2 mà bài kiểm KHÔNG đỏ — và lần theo thì
+	 *    thấy chốt đếm ca là THỪA VÀ SAI: thừa vì hai ca LIỀN NHAU tự có `đến <= từ` nên đã bị
+	 *    chốt dưới loại; sai vì một cơ sở khai đúng hai ca RỜI NHAU (07–14 và 17–22, không có
+	 *    ca giữa) thì khe 14:00–17:00 là khe thật, mà chốt đếm ca lại im lặng bỏ qua.
+	 *    Hỏi thẳng câu cần hỏi — "có khe hở không" — vừa ngắn hơn vừa đúng hơn.
+	 * ⚠️ CHỈ LÀ ĐỀ XUẤT, KHÔNG TỰ ÁP. Hàm này chỉ điền sẵn hai ô cho cửa hàng trưởng nhìn rồi
+	 *    sửa. Tự trừ giờ của người ta dựa trên một phép đoán là cắt tiền mà không ai bấm nút.
+	 * ⚠️ `tach()` đã bỏ mấy ca dính dưới 15 phút, nên mấy ca ở đây là ca NGƯỜI TA THẬT SỰ làm,
+	 *    không phải ca chạm mép — về trễ 5 phút không biến thành một lời mời cắt ba tiếng.
+	 */
+	public static function de_xuat_nghi( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan = false ) {
+		$t = self::tach( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan );
+		if ( count( $t['ds'] ) < 2 ) { return null; }
+		$dau  = $t['ds'][0];
+		$cuoi = $t['ds'][ count( $t['ds'] ) - 1 ];
+		$tu   = self::phut( $dau['den'] );      // hết ca đầu
+		$den  = self::phut( $cuoi['tu'] );      // đầu ca cuối
+		if ( null === $tu || null === $den || $den <= $tu ) { return null; }
+		/* Không đề xuất một khoảng nằm ngoài chính lượt chấm ấy. */
+		$v = intdiv( (int) $vao_giay, 60 );
+		$r = intdiv( (int) $ra_giay, 60 );
+		if ( $tu < $v || $den > $r ) { return null; }
+		return array( $tu * 60, $den * 60 );
+	}
+
+	/**
 	 * ĐỘ DÀI của một ca, tính bằng phút. Ca qua nửa đêm đếm sang ngày hôm sau.
 	 * Hàm thuần — vào là một khai báo ca, ra là một con số.
 	 */

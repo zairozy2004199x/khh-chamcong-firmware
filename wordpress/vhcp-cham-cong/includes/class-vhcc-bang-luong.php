@@ -152,7 +152,11 @@ class VHCC_BangLuong {
 			 *    `VHCC_Pdf::phut_lam()` và chính `phut_ca()`. Bảng lương lệch với chúng thì
 			 *    tờ giấy in ra và màn hình nói hai con số khác nhau cho cùng một ngày.
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
-			$gom[ $key ]['phut'] += VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $x, 60 ) );
+			/* ⚠️ CA GÃY — khoảng nghỉ giữa ca đi kèm, `phut_ca()` trừ nó bên trong. Đây là con số
+			   NHÂN VỚI ĐƠN GIÁ, nên quên ở đây là trả dư tiền thật cho mấy giờ người ta về nhà. */
+			$gom[ $key ]['phut'] += VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $x, 60 ),
+				isset( $r['nghi_tu_giay'] ) ? $r['nghi_tu_giay'] : null,
+				isset( $r['nghi_den_giay'] ) ? $r['nghi_den_giay'] : null );
 			$gom[ $key ]['ngay'][ $r['ngay'] ] = true;
 		}
 

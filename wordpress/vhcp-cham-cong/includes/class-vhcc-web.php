@@ -1533,6 +1533,15 @@ class VHCC_Web {
 					'xoa_vao' => ! empty( $_POST['sg_xoa_vao'] ),
 					'xoa_ra'  => ! empty( $_POST['sg_xoa_ra'] ),
 					'ly_do'   => $ly_g,
+					/* CA GÃY — ô tích và hai đầu khoảng nghỉ. Khoá `gay` LUÔN gửi lên (kể cả khi
+					   không tích) ở nhánh DÒNG ĐƠN, vì đó chính là cách bỏ tích: `VHCC_Bu::sua()`
+					   thấy khoá có mặt mà rỗng thì XOÁ khoảng nghỉ. Nhánh nhiều dòng không gửi
+					   khoá này, nên ca gãy ở đó không bị đụng tới. */
+					'gay'      => ! empty( $_POST['sg_gay'] ),
+					'nghi_tu'  => isset( $_POST['sg_nghi_tu'] )
+						? sanitize_text_field( wp_unslash( $_POST['sg_nghi_tu'] ) ) : '',
+					'nghi_den' => isset( $_POST['sg_nghi_den'] )
+						? sanitize_text_field( wp_unslash( $_POST['sg_nghi_den'] ) ) : '',
 				) );
 				if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
 				return array( array( 'xong' => self::chu_sua( array( $r ) ) ) );
@@ -6090,6 +6099,55 @@ class VHCC_Web {
 		return $h;
 	}
 
+	/**
+	 * CA GÃY — ô tích + hai ô giờ của khoảng NGHỈ GIỮA CA.
+	 *
+	 * Anh Thắng 16/09/2026: *"cứ chấm liên tiếp bình thường, sau đó cửa hàng trưởng vào bảng
+	 * công, bấm bảng này lên tích vào ca gãy, nó sẽ tách thành 2 giờ vào và 2 giờ ra để gộp giờ
+	 * và bỏ giờ giữa ra"*.
+	 *
+	 * Bốn ô người ta thấy là: **Giờ vào · Ra ca 1 · Vào ca 2 · Giờ ra**. Hai ô giữa CHÍNH LÀ hai
+	 * đầu của khoảng nghỉ — xem chú thích ở `class-vhcc-db.php` về lý do lưu khoảng nghỉ chứ
+	 * không lưu cặp giờ thứ hai.
+	 *
+	 * 🔴 ĐIỀN SẴN THEO KHUNG CA, NHƯNG KHÔNG TỰ ÁP. `VHCC_Ca::de_xuat_nghi()` đoán khúc giữa từ
+	 *    chính khung ca của cơ sở; ô tích vẫn phải do người bấm. Tự trừ giờ dựa trên một phép
+	 *    đoán là cắt tiền mà không ai bấm nút.
+	 *
+	 * ⚠️ CHỈ HIỆN Ở DÒNG ĐƠN. Ngày có nhiều dòng (hàng `-CD`, cơ sở ghép) thì mỗi dòng đã là một
+	 *    ca riêng rồi — thêm ca gãy vào đó là hai cách nói cùng một chuyện, và người gõ không
+	 *    biết cái nào thắng.
+	 */
+	private static function o_ca_gay( $cs, $ngay, $dg ) {
+		$dang = ( null !== $dg['nghiTu'] && null !== $dg['nghiDen'] );
+		$de   = null;
+		if ( ! $dang && null !== $dg['vaoGiay'] && null !== $dg['raGiay']
+			&& method_exists( 'VHCC_Ca', 'de_xuat_nghi' ) ) {
+			$de = VHCC_Ca::de_xuat_nghi( VHCC_Ca::cua( $cs ), $dg['vaoGiay'], $dg['raGiay'],
+				VHCC_Ca::la_cuoi_tuan( $ngay ) );
+		}
+		$tu  = $dang ? $dg['nghiTu']  : ( $de ? $de[0] : null );
+		$den = $dang ? $dg['nghiDen'] : ( $de ? $de[1] : null );
+
+		$h = '<div style="flex:1 1 100%;border-top:1px dashed #cbd5e1;margin-top:6px;padding-top:6px">';
+		$h .= '<label style="font-weight:600"><input type="checkbox" name="sg_gay" value="1"'
+			. ( $dang ? ' checked' : '' ) . '> Ca gãy — bỏ khúc nghỉ giữa ra khỏi giờ công</label>';
+		$h .= '<div class="hang" style="margin:4px 0 0;align-items:flex-end">'
+			. '<div><label for="iv_ng_tu">Ra ca 1 <span class="mo" style="font-weight:400">(24h)</span></label>'
+			. self::o_gio_24( 'iv_ng_tu', 'sg_nghi_tu', self::gio_o( VHCC_DB::hhmm( $tu ) ) ) . '</div>'
+			. '<div><label for="iv_ng_den">Vào ca 2 <span class="mo" style="font-weight:400">(24h)</span></label>'
+			. self::o_gio_24( 'iv_ng_den', 'sg_nghi_den', self::gio_o( VHCC_DB::hhmm( $den ) ) ) . '</div>'
+			. '</div>';
+		$h .= '<p class="mo" style="margin:4px 0 0;font-size:11.5px">'
+			. ( ( ! $dang && $de )
+				? 'Khung ca của cơ sở cho thấy ngày này <b>chạm ba ca</b> — hệ điền sẵn khúc giữa '
+					. 'để anh/chị xem lại. <b>Chưa tích thì chưa trừ gì cả.</b>'
+				: 'Dùng khi người ta làm <b>ca 1 và ca 3</b> mà máy chỉ ghi một cặp giờ liền mạch: '
+					. 'giờ vào và giờ ra giữ nguyên, phần ở giữa <b>không tính tiền</b>.' )
+			. '</p></div>';
+		return $h;
+	}
+
 	private static function hang_sua( $so_cot, $cs, $ngay, $ma_dd, $co_gio, $ky, $toi ) {
 		$duoc = $co_gio ? VHCC_Vai::duoc( $toi, 'sua_gio' ) : VHCC_Vai::duoc( $toi, 'cham_bu' );
 		/* 🔴 HÀNG SỬA PHẢI DÍNH BÊN TRÁI, KHÔNG TRẢI THEO BỀ RỘNG BẢNG.
@@ -6165,6 +6223,7 @@ class VHCC_Web {
 		} else {
 			/* Đúng một dòng (hoặc chưa có dòng nào) -> giữ nguyên dạng ô ĐƠN. */
 			echo self::o_cap_gio( $co_gio, '', $dg['vao'], $dg['ra'] );
+			if ( $co_gio ) { echo self::o_ca_gay( $cs, $ngay, $dg ); }
 			/* Chế độ BÙ chỉ ghi vào cơ sở đang xem, nhưng vẫn phải NÓI RA ngày ấy cơ sở ghép có
 			   gì — nếu không, người ta bù một ca vào đây trong khi ca kia đã có giờ ở cơ sở phụ,
 			   thành một ngày hai ca chồng nhau mà không ai thấy. */
