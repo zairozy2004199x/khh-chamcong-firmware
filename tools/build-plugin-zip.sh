@@ -5,6 +5,7 @@
 #   bash tools/build-plugin-zip.sh chi-phi    -> chỉ Vận Hành Chi Phí
 #   bash tools/build-plugin-zip.sh hop-dong   -> chỉ Thư Viện Hợp Đồng
 #   bash tools/build-plugin-zip.sh cham-cong  -> chỉ Chấm Công
+#   bash tools/build-plugin-zip.sh cc-app     -> chỉ App Chấm Công (lớp vỏ PWA)
 #   bash tools/build-plugin-zip.sh ghe        -> chỉ Ghế Massage
 #   bash tools/build-plugin-zip.sh noi-bo     -> chỉ Nội Bộ K&H
 #   bash tools/build-plugin-zip.sh du-an      -> chỉ Dự Án & Tiến Độ K&H
@@ -77,6 +78,7 @@ case "$CHON" in
     ;;
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
+  cc-app)    dong_goi "App Chấm Công K&H" vhcp-cc-app ;;
   ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
   noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
   du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
@@ -87,6 +89,7 @@ case "$CHON" in
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
     dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
     dong_goi "Chấm Công" vhcp-cham-cong
+    dong_goi "App Chấm Công K&H" vhcp-cc-app
     dong_goi "Ghế Massage" vhcp-ghe
     dong_goi "Nội Bộ K&H" vhcp-noi-bo
     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an
@@ -133,7 +136,7 @@ case "$CHON" in
       _nn="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$ROOT/wordpress/$_tt/$_tt.php" | head -1)"
       dong_goi "${_nn:-$_tt}" "$_tt"
     else
-      echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | doanh-thu | khh-platform | <tên thư mục> | tatca)"; exit 1
+      echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | cc-app | ghe | noi-bo | du-an | doanh-thu | khh-platform | <tên thư mục> | tatca)"; exit 1
     fi ;;
 esac
 
