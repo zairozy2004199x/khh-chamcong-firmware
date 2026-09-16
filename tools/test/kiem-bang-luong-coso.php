@@ -6,8 +6,15 @@
  * Anh Thắng 15/09/2026 gửi `LƯƠNG CƠ SỞ - T08.2026 - Tháng.xlsx`: *"mỗi cơ sở sẽ xuất bảng công
  * giờ ra theo mẫu file như này"*.
  *
- * 🔴 BÀI NÀY KHÔNG TỰ NGHĨ RA SỐ ĐỂ THỬ. Mọi con số dưới đây LẤY THẲNG TỪ FILE ẤY — tên thật,
- *    giờ thật, đơn giá thật, và kết quả thật mà kế toán đã trả tháng 8. Thử bằng số mình tự bịa
+ * 🔴 TÊN VÀ SỐ CĂN CƯỚC LÀ ĐỒ BỊA — CHỈ CON SỐ LÀ THẬT.
+ *    Kho này CÔNG KHAI. Bản đầu của bài kiểm này (15/09/2026) chép thẳng họ tên và số căn cước
+ *    thật từ file lương của anh Thắng vào đây — em sai, và một phiên làm việc khác bắt được
+ *    ở bản 3.87.0. Giờ đều là tên bịa và số bịa (`0000...`, trông-là-biết-giả).
+ *    SỐ GIỜ · ĐƠN GIÁ · KẾT QUẢ thì giữ nguyên của file thật — đó là bằng chứng công thức,
+ *    và một con số 19,2 × 23.000 tách khỏi tên người thì không còn là thông tin của ai.
+ *
+ * 🔴 BÀI NÀY KHÔNG TỰ NGHĨ RA SỐ ĐỂ THỬ. Mọi con số dưới đây LẤY THẲNG TỪ FILE ẤY — giờ thật,
+ *    đơn giá thật, và kết quả thật mà kế toán đã trả tháng 8. Thử bằng số mình tự bịa
  *    thì chỉ chứng minh mã khớp với chính nó; thử bằng số kế toán đã trả thì mới biết mã có
  *    thay được cái file làm tay hay không.
  *
@@ -108,7 +115,7 @@ VHCC_GiaGio::dat_coso( $U_KT, 'LOTTE_GV', array( 'NV' => 23000 ) );
 teq( '🔴 NV ở Tân Phú vẫn 22.000 (bảng chung)', 22000.0, VHCC_GiaGio::tra( 'AEON_TP', 'NV' )['gia'] );
 teq( '🔴 NV ở Gò Vấp là 23.000 (bảng cơ sở đè lên)', 23000.0, VHCC_GiaGio::tra( 'LOTTE_GV', 'NV' )['gia'] );
 
-/* 🔴 NGƯỜI ĐÈ LÊN CƠ SỞ — Lotte Gò Vấp có ba "NV" ăn 23.000, riêng Bùi Xuân Thuận 25.000. */
+/* 🔴 NGƯỜI ĐÈ LÊN CƠ SỞ — Lotte Gò Vấp có ba "NV" ăn 23.000, riêng một người 25.000. */
 VHCC_GiaGio::dat_nguoi( $U_KT, 'GV_THUAN', array( 'NV' => 25000 ) );
 teq( '🔴 người khai riêng thì ăn giá riêng', 25000.0,
 	VHCC_GiaGio::tra( 'LOTTE_GV', 'NV', 'GV_THUAN' )['gia'] );
@@ -150,10 +157,10 @@ teq( 'và giá không đổi', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu'
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
 
 /* Gieo giờ sao cho tổng ra ĐÚNG số giờ trong file, rồi soi tiền.
-   Lâm Tú Lanh (Aeon Bình Tân): Lái Tàu 19,2h × 23.000 = 441.600 · Lơ Tàu 49,15h × 21.000 =
+   Một người ở Aeon Bình Tân: Lái Tàu 19,2h × 23.000 = 441.600 · Lơ Tàu 49,15h × 21.000 =
    1.032.150 — hai dòng, hai giá, cùng một người. */
-$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_LANH', 'ho_ten' => 'Lâm Tú Lanh',
-	'cccd' => '094301002660', 'cua_hang' => 'AEON_BT', 'chuc_vu' => 'Lái Tàu', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_LANH', 'ho_ten' => 'Người Hai Chức Vụ',
+	'cccd' => '000000000011', 'cua_hang' => 'AEON_BT', 'chuc_vu' => 'Lái Tàu', 'vai_tro' => 'Nhân viên' ) );
 
 $gieo = function ( $ma, $cs, $ngay, $vao_g, $so_phut, $hau_to = '' ) use ( $wpdb ) {
 	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
@@ -187,13 +194,13 @@ teq( '🔴 lương chính 441.600đ — đúng số kế toán đã trả', 4416
 teq( '🔴 dòng thứ hai: 49,15 giờ', 49.15, $d_tt['gio'] );
 teq( 'ăn đơn giá 21.000, KHÔNG phải 23.000 của dòng kia', 21000.0, $d_tt['gia'] );
 teq( '🔴 lương chính 1.032.150đ — đúng số kế toán đã trả', 1032150.0, $d_tt['luongChinh'] );
-teq( 'tên lấy từ hồ sơ', 'Lâm Tú Lanh', $d_chinh['ten'] );
-teq( 'và số căn cước cũng vậy', '094301002660', $d_chinh['cccd'] );
+teq( 'tên lấy từ hồ sơ', 'Người Hai Chức Vụ', $d_chinh['ten'] );
+teq( 'và số căn cước cũng vậy', '000000000011', $d_chinh['cccd'] );
 teq( 'hai dòng của cùng một người đứng liền nhau', 1, $d_chinh['stt'] );
 
-/* ---- Lối THEO THÁNG: Trần Ngọc Minh Truyền, 4.000.000 × 26/26 = 4.000.000 ---- */
+/* ---- Lối THEO THÁNG: 4.000.000 × 26/26 = 4.000.000 ---- */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TP_TRUYEN',
-	'ho_ten' => 'Trần Ngọc Minh Truyền', 'cua_hang' => 'AEON_TP', 'chuc_vu' => 'NV',
+	'ho_ten' => 'Người Lương Tháng', 'cua_hang' => 'AEON_TP', 'chuc_vu' => 'NV',
 	'luong_co_ban' => 4000000, 'vai_tro' => 'Nhân viên' ) );
 for ( $i = 1; $i <= 26; $i++ ) {
 	$gieo( 'TP_TRUYEN', 'AEON_TP', sprintf( '2026-08-%02d', $i ), 8 * 3600, 480 );
@@ -258,11 +265,11 @@ teq( 'ca đêm 5 giờ × 30.000 = 150.000', 150000.0, $d_cd['luongChinh'] );
 /* Thêm vào chính cơ sở này một người CHƯA KHAI ĐƠN GIÁ — để soi cái dòng nguy hiểm nhất của
    tệp xuất ra: dòng mà hệ không ra được tiền. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_NOGIA',
-	'ho_ten' => 'Người Chưa Khai Giá', 'cccd' => '079304016348', 'cua_hang' => 'AEON_BT',
+	'ho_ten' => 'Người Chưa Khai Giá', 'cccd' => '000000000022', 'cua_hang' => 'AEON_BT',
 	'chuc_vu' => 'Việc Chưa Có Trong Sổ', 'vai_tro' => 'Nhân viên' ) );
 $gieo( 'BT_NOGIA', 'AEON_BT', '2026-08-05', 8 * 3600, 480 );
 
-$x = VHCC_BangLuong::to_xlsx( 'AEON_BT', '2026-08', 'TRAIN AEON BÌNH TÂN' );
+$x = VHCC_BangLuong::to_xlsx( 'AEON_BT', '2026-08', 'Cơ SỞ Thử Bình Tân' );
 t( 'dựng được tờ xuất', ! empty( $x['ok'] ), $x );
 $to = $x['to'][0];
 $h  = $to['hang'];
@@ -279,7 +286,7 @@ $gv = function ( $dong, $cot ) use ( $h ) {
 teq( 'dòng 1 là tên công ty', 'K&H CO. LTD', $gv( 0, 0 ) );
 teq( 'có tựa đúng nguyên văn file', 'BẢNG TÍNH - THANH TOÁN TIỀN LƯƠNG', $gv( 3, 0 ) );
 teq( '🔴 ngày là NGÀY CUỐI THÁNG, không phải hôm nay', '31/08/2026', $gv( 4, 0 ) );
-teq( 'và nói rõ cơ sở nào', 'TRAIN AEON BÌNH TÂN', $gv( 5, 0 ) );
+teq( 'và nói rõ cơ sở nào', 'Cơ SỞ Thử Bình Tân', $gv( 5, 0 ) );
 
 /* Hai dòng tiêu đề, đúng vị trí cột như file — kế toán đối chiếu bằng mắt theo vị trí. */
 teq( 'A7 = STT',  'STT', $gv( 6, 0 ) );
@@ -291,20 +298,30 @@ teq( 'F8 = Số công YC (nằm ở dòng hai)', 'Số công YC', $gv( 7, 5 ) );
 teq( 'U8 = Tổng (của nhóm cộng)', 'Tổng', $gv( 7, 20 ) );
 
 /* Dòng dữ liệu đầu tiên nằm ở dòng 9, đúng như file. */
-teq( 'B9 = tên người', 'Lâm Tú Lanh', $gv( 8, 1 ) );
-teq( '🔴 số căn cước GIỮ SỐ 0 ĐẦU — nó đi vào hồ sơ bảo hiểm', '094301002660', $gv( 8, 2 ) );
-teq( 'G9 = số giờ', 19.2, $gv( 8, 6 ) );
-teq( 'H9 = đơn giá', 23000.0, $gv( 8, 7 ) );
-teq( '🔴 I9 là CÔNG THỨC, không phải số chết', '=G9*H9', $gv( 8, 8 ) );
-teq( 'M9 = I+K−L, đúng công thức đọc từ file', '=I9+K9-L9', $gv( 8, 12 ) );
-teq( 'U9 = tổng nhóm cộng', '=SUM(N9:T9)', $gv( 8, 20 ) );
-teq( 'Y9 = tổng nhóm trừ', '=SUM(V9:X9)', $gv( 8, 24 ) );
-teq( 'Z9 = M+U−Y, đúng công thức đọc từ file', '=M9+U9-Y9', $gv( 8, 25 ) );
+/* ⚠️ TÌM DÒNG THEO TÊN, KHÔNG ĐÓNG CỨNG CHỈ SỐ. Bảng xếp theo tên, nên đổi một cái tên
+   trong đồ thử là mọi chỉ số trượt đi một dòng — và bài kiểm đỏ vì lý do chẳng liên quan
+   gì tới thứ nó định canh (đã vấp đúng thế lúc bỏ tên thật ra khỏi bài này). */
+$tim = function ( $ten ) use ( $h, $gv ) {
+	for ( $i = 8; $i < count( $h ); $i++ ) { if ( $ten === $gv( $i, 1 ) ) { return $i; } }
+	return -1;
+};
+$d1 = $tim( 'Người Hai Chức Vụ' );
+t( 'tìm thấy dòng của người hai chức vụ', $d1 >= 8, $d1 );
+$r1 = $d1 + 1;   // số dòng trong Excel (1-indexed)
+teq( 'cột tên đúng người', 'Người Hai Chức Vụ', $gv( $d1, 1 ) );
+teq( '🔴 số căn cước GIỮ SỐ 0 ĐẦU — nó đi vào hồ sơ bảo hiểm', '000000000011', $gv( $d1, 2 ) );
+teq( 'cột G = số giờ', 19.2, $gv( $d1, 6 ) );
+teq( 'cột H = đơn giá', 23000.0, $gv( $d1, 7 ) );
+teq( '🔴 cột I là CÔNG THỨC, không phải số chết', '=G' . $r1 . '*H' . $r1, $gv( $d1, 8 ) );
+teq( 'cột M = I+K−L, đúng công thức đọc từ file', '=I' . $r1 . '+K' . $r1 . '-L' . $r1, $gv( $d1, 12 ) );
+teq( 'cột U = tổng nhóm cộng', '=SUM(N' . $r1 . ':T' . $r1 . ')', $gv( $d1, 20 ) );
+teq( 'cột Y = tổng nhóm trừ', '=SUM(V' . $r1 . ':X' . $r1 . ')', $gv( $d1, 24 ) );
+teq( 'cột Z = M+U−Y, đúng công thức đọc từ file', '=M' . $r1 . '+U' . $r1 . '-Y' . $r1, $gv( $d1, 25 ) );
 
 /* 🔴 CỘT J K L N..Y ĐỂ TRỐNG — anh Thắng chốt kế toán điền. Có số 0 ở đấy là nói dối rằng hệ
    đã xét tới chúng. */
 foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 21 => 'V', 23 => 'X' ) as $ci => $ten ) {
-	teq( '🔴 cột ' . $ten . ' để TRỐNG cho kế toán điền, không phải số 0', null, $gv( 8, $ci ) );
+	teq( '🔴 cột ' . $ten . ' để TRỐNG cho kế toán điền, không phải số 0', null, $gv( $d1, $ci ) );
 }
 
 /* 🔴 DÒNG CHƯA KHAI GIÁ: KHÔNG MỘT CÔNG THỨC NÀO, và nói thẳng vì sao.
@@ -356,11 +373,12 @@ if ( VHCC_Xuat::co_xlsx() ) {
 	t( '🔴 <cols> đứng TRƯỚC <sheetData>', strpos( $sx, '<cols>' ) < strpos( $sx, '<sheetData>' ) );
 	t( '🔴 <mergeCells> đứng SAU </sheetData>',
 		strpos( $sx, '<mergeCells' ) > strpos( $sx, '</sheetData>' ) );
-	t( 'công thức được ghi bằng thẻ <f>', false !== strpos( $sx, '<f>G9*H9</f>' ), 'thiếu <f>' );
+	t( 'công thức được ghi bằng thẻ <f>',
+		false !== strpos( $sx, '<f>G' . $r1 . '*H' . $r1 . '</f>' ), 'thiếu <f>' );
 	/* 🔴 Công thức KHÔNG được kèm <v> đoán sẵn — Excel sẽ hiện số đoán ấy cho tới khi ai đó bấm
 	   tính lại, tức một con số trông như thật mà sai. */
 	t( '🔴 công thức KHÔNG kèm <v> đoán sẵn',
-		false === strpos( $sx, '<f>G9*H9</f><v>' ), 'có <v> đi kèm công thức' );
+		false === strpos( $sx, '<f>G' . $r1 . '*H' . $r1 . '</f><v>' ), 'có <v> đi kèm công thức' );
 	$st = $z->getFromName( 'xl/styles.xml' );
 	t( 'có định dạng tiền #,##0', false !== strpos( $st, '#,##0' ) );
 	t( 'có định dạng giờ 0.00 — 19,2 giờ làm tròn lên 19 là lệch tiền', false !== strpos( $st, '0.00' ) );
@@ -403,7 +421,7 @@ t( '🔴 cửa hàng trưởng thấy khối Bảng lương cơ sở',
 	false !== strpos( $h_cht, 'Bảng lương cơ sở' ), substr( $h_cht, 0, 400 ) );
 t( 'có nút xuất bảng lương', false !== strpos( $h_cht, 'xuat=luong' ), 'thiếu nút xuất' );
 t( 'bảng hiện tên người và số giờ',
-	false !== strpos( $h_cht, 'Lâm Tú Lanh' ) && false !== strpos( $h_cht, '19,20' ), $h_cht );
+	false !== strpos( $h_cht, 'Người Hai Chức Vụ' ) && false !== strpos( $h_cht, '19,20' ), $h_cht );
 /* 🔴 DÒNG CHƯA KHAI GIÁ PHẢI KÊU TO, TRÊN ĐẦU BẢNG — không phải nằm lẫn ở cột ghi chú cuối. */
 t( '🔴 màn cảnh báo ngay đầu khối về dòng chưa khai đơn giá',
 	false !== strpos( $h_cht, 'chưa khai đơn giá giờ' ), $h_cht );
@@ -454,5 +472,29 @@ ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 dòng trống gõ thêm chức vụ mới thì LƯU THẬT', 28000.0,
 	VHCC_GiaGio::tra( 'CS_KHONG_KHAI', 'Thu ngân mới' )['gia'] );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 5. CHỐT CHỐNG DÁN SỐ CĂN CƯỚC THẬT VÀO KHO CÔNG KHAI
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+/* 🔴 LỖI NÀY ĐÃ XẢY RA THẬT, 15/09/2026 — nên phải có chốt, không phải chỉ một lời hứa.
+   Em chép số căn cước thật từ file lương của anh Thắng vào chú thích mã VÀ vào đồ thử. Kho này
+   công khai; một số căn cước lộ ra thì không đổi lại được như đổi mật khẩu.
+
+   Luật: trong hai tệp của tính năng này, MỌI dãy 9 chữ số liền trở lên phải bắt đầu bằng `0000`
+   — tức trông-là-biết-giả. Số thật không bao giờ có dạng ấy, nên chốt này bắt được cả lần sau
+   ai đó "chỉ dán tạm một số cho giống thật". */
+foreach ( array(
+	'wordpress/vhcp-cham-cong/includes/class-vhcc-bang-luong.php',
+	'tools/test/kiem-bang-luong-coso.php',
+) as $_tep ) {
+	$_src = (string) file_get_contents( dirname( dirname( __DIR__ ) ) . '/' . $_tep );
+	preg_match_all( '/\\d{9,}/', $_src, $_m );
+	$_xau = array();
+	foreach ( $_m[0] as $_so ) {
+		if ( 0 !== strpos( $_so, '0000' ) ) { $_xau[] = $_so; }
+	}
+	t( '🔴 ' . basename( $_tep ) . ': không có dãy số nào trông như căn cước thật',
+		empty( $_xau ), implode( ' · ', array_unique( $_xau ) ) );
+}
 
 ket_luan();

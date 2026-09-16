@@ -16,21 +16,20 @@
  * 🔴 HAI LỐI TÍNH NẰM CHUNG MỘT BẢNG — ĐỌC RA TỪ FILE, KHÔNG PHẢI EM NGHĨ RA
  * =============================================================================================
  *   · **Theo giờ** (gần hết mọi người): `Lương chính = Số giờ × Tiền/h`.
- *     Đối chiếu: Trần Thị Thúy Vy 186,3 × 24.000 = 4.471.200 ✓ · Bùi Xuân Thuận 211,05 × 25.000
- *     = 5.276.250 ✓ · Nguyễn Hoàng Quân 235,43 × 23.000 = 5.414.890 ✓.
+ *     Đối chiếu ba dòng của file: 186,3 × 24.000 = 4.471.200 ✓ · 211,05 × 25.000 = 5.276.250 ✓
+ *     · 235,43 × 23.000 = 5.414.890 ✓.
  *   · **Theo tháng** (người có lương cơ bản): `Lương chính = Lương cb × Số công thực / Số công YC`.
- *     Đối chiếu: Trần Ngọc Minh Truyền 4.000.000 × 26/26 = 4.000.000 ✓.
+ *     Đối chiếu: 4.000.000 × 26/26 = 4.000.000 ✓.
  *
  * Phân lối bằng ĐÚNG MỘT điều: hồ sơ có `luong_co_ban > 0` thì theo tháng, không thì theo giờ.
- * Không suy từ chức vụ — trong file có Cửa hàng trưởng ăn theo giờ (Nguyễn Ngọc Kim Ngân, 58h ×
- * 26.000) lẫn Cửa hàng trưởng ăn theo tháng (Trương Thanh Lâm, 4.000.000). Suy theo chức vụ là
- * sai tiền của đúng những người ấy.
+ * Không suy từ chức vụ — trong file có Cửa hàng trưởng ăn theo giờ (58h × 26.000) lẫn Cửa hàng
+ * trưởng ăn theo tháng (4.000.000/tháng). Suy theo chức vụ là sai tiền của đúng những người ấy.
  *
  * Và các cột còn lại, cũng đọc từ file:
  *     Tổng lương (M)  = Lương chính (I) + Lương giờ thêm (K) − BHXH (L)
  *     TOTAL SALARY(Z) = Tổng lương (M) + Tổng cộng (U) − Tổng trừ (Y)
- * Đối chiếu: Kim Ngân 1.508.000 + 0 − 500.000 = 1.008.000 ✓ · Mai Thị Yến Nhi 3.574.800 +
- * 2.000.000 − 0 = 5.574.800 ✓ · Vũ Thị Thanh Thảo 5.092.205,12 + 0 − 150.000 = 4.942.205,12 ✓.
+ * Đối chiếu ba dòng: 1.508.000 + 0 − 500.000 = 1.008.000 ✓ · 3.574.800 + 2.000.000 − 0 =
+ * 5.574.800 ✓ · 5.092.205,12 + 0 − 150.000 = 4.942.205,12 ✓.
  *
  * =============================================================================================
  * 🔴 HỆ CHỈ CHỊU TRÁCH NHIỆM PHẦN NÓ THẬT SỰ BIẾT
@@ -61,8 +60,8 @@ class VHCC_BangLuong {
 	/**
 	 * Chức vụ của MỘT DÒNG — tức đúng cái chữ sẽ nằm ở cột POSITION.
 	 *
-	 * 🔴 MỘT NGƯỜI CÓ THỂ RA NHIỀU DÒNG, MỖI DÒNG MỘT GIÁ. Trong file của anh Thắng, Lâm Tú Lanh
-	 *    có hai dòng: Lái Tàu 19,2h × 23.000 và Lơ Tàu 49,15h × 21.000. Gộp lại thành một dòng
+	 * 🔴 MỘT NGƯỜI CÓ THỂ RA NHIỀU DÒNG, MỖI DÒNG MỘT GIÁ. Trong file của anh Thắng có người
+	 *    mang hai dòng: Lái Tàu 19,2h × 23.000 và Lơ Tàu 49,15h × 21.000. Gộp lại thành một dòng
 	 *    là phải chọn lấy một giá cho cả hai — và chọn cách nào cũng sai tiền.
 	 *    Hệ thống vốn đã tách sẵn bằng HẬU TỐ (`ma-TT`, `ma-TG`…), nên chỗ này chỉ việc đặt tên
 	 *    cho đúng từng dòng.
@@ -245,8 +244,12 @@ class VHCC_BangLuong {
 	 *    này". Ô trống thì người đọc dừng lại hỏi; số 0 thì người đọc tin. Nên dòng thiếu giá để
 	 *    trống trọn, và cột ghi chú nói thẳng ra.
 	 *
-	 * ⚠️ Số CĂN CƯỚC phải là CHỮ. `079304016348` để Excel tự đoán là mất số 0 đầu, thành
-	 *    79304016348 — và đó là số sẽ đi vào hồ sơ bảo hiểm.
+	 * ⚠️ Số CĂN CƯỚC phải là CHỮ. `000000000000` (số BỊA để minh hoạ) để Excel tự đoán là
+	 *    mất số 0 đầu — và đó là số sẽ đi vào hồ sơ bảo hiểm.
+	 *    🔴 KHO NÀY CÔNG KHAI — KHÔNG DÁN SỐ CĂN CƯỚC THẬT CỦA AI, KỂ CẢ LÀM VÍ DỤ.
+	 *    Em đã vấp đúng lỗi này 15/09/2026: chép thẳng một số căn cước thật từ file lương của
+	 *    anh Thắng vào chú thích. Số minh hoạ phải trông-là-biết-giả (toàn số 0), không phải
+	 *    một số "có vẻ thật" — số có vẻ thật là thứ lần sau người ta chép lại mà không hỏi.
 	 */
 	public static function to_xlsx( $coso, $thang, $ten_cs = '' ) {
 		$b = self::dung( $coso, $thang );
