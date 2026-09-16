@@ -1395,7 +1395,10 @@ class VHCC_Web {
 					'gio' => isset( $gio_g[ $i_g ] ) ? sanitize_text_field( (string) $gio_g[ $i_g ] ) : '' );
 			}
 			$bao_c = array();
-			$r_g = VHCC_ChotLuong::dat( $toi, $cs_c, $th_c, $ma_c, $dong_g, $gio_cham );
+			$r_g = VHCC_ChotLuong::dat( $toi, $cs_c, $th_c, $ma_c, $dong_g, $gio_cham,
+				/* `null` khi biểu mẫu không gửi ô ấy — giữ nguyên việc chính đang có, đừng coi
+				   mọi lượt lưu giờ khác là một lượt bỏ khai việc chính. */
+				isset( $_POST['cl_chinh'] ) ? trim( (string) wp_unslash( $_POST['cl_chinh'] ) ) : null );
 			$bao_c[] = empty( $r_g['ok'] ) ? array( 'loi' => $r_g['error'] )
 				: array( 'xong' => 'Đã lưu ' . (int) $r_g['so'] . ' dòng giờ ăn giá khác ('
 					. $r_g['tong'] . 'h) — giờ chính còn ' . $r_g['chinh'] . 'h.' );
@@ -7679,6 +7682,55 @@ class VHCC_Web {
 			. ' giờ</b> trong tháng ' . esc_html( $th ) . '</p>';
 
 		/* ---- giờ ăn giá khác ---- */
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 DÒNG ĐẦU LÀ VIỆC CHÍNH, VÀ NÓ KHÔNG GÕ SỐ GIỜ.
+		 *
+		 * Anh Thắng 16/09/2026: *"Mặc định nhân viên nếu làm 1 công việc thì chọn xong, giờ tự
+		 * chốt, hoặc chọn cái đầu tiên làm giờ chính, cái giờ sau nhập thêm thì giờ chính giảm
+		 * đi"*.
+		 *
+		 * Giờ của việc chính là PHẦN CÒN LẠI, nên bày một ô để gõ nó là bày một cái bẫy: gõ vào
+		 * đấy một con số thì nó hoặc chửi nhau với giờ chấm công, hoặc lặng lẽ bị tính lại.
+		 * Chọn việc, bấm Lưu, hết — cả tháng ăn giá ấy. Gõ thêm dòng giờ khác thì phần còn lại
+		 * tự co lại.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$vc_hien = VHCC_ChotLuong::viec_chinh( $cs, $th, $ma );
+		$ds_ten  = VHCC_GiaGio::ten_khai_cho( $cs );
+		foreach ( $goi as $g_x0 ) {
+			if ( ! in_array( $g_x0, $ds_ten, true ) ) { $ds_ten[] = $g_x0; }
+		}
+		if ( '' !== $vc_hien && ! in_array( $vc_hien, $ds_ten, true ) ) { $ds_ten[] = $vc_hien; }
+
+		$gio_khac_ht = 0.0;
+		foreach ( $gk as $k_ht ) { $gio_khac_ht += (float) $k_ht['gio']; }
+		$gio_chinh_ht = round( (float) $d['gioTong'] - $gio_khac_ht, 2 );
+
+		echo '<label style="margin:0 0 4px">Việc chính</label>';
+		echo '<p class="mo" style="margin:0 0 8px">Chọn một việc là xong — <b>cả phần giờ còn '
+			. 'lại</b> ăn theo giá của nó. Gõ thêm dòng giờ khác bên dưới thì phần này tự co lại.</p>';
+		echo '<div class="hang" style="margin:0 0 10px;gap:8px"><div>';
+		if ( $ds_ten ) {
+			echo '<select name="cl_chinh" style="width:210px">';
+			echo '<option value="">— chưa chọn —</option>';
+			foreach ( $ds_ten as $t_c ) {
+				$gia_c = VHCC_GiaGio::tra( $cs, $t_c, $ma, null );
+				echo '<option value="' . esc_attr( $t_c ) . '"' . selected( $t_c, $vc_hien, false )
+					. '>' . esc_html( $t_c ) . ( $gia_c['gia'] > 0
+						? ' — ' . esc_html( number_format( (float) $gia_c['gia'], 0, ',', '.' ) ) . 'đ/h'
+						: ' — CHƯA KHAI GIÁ' ) . '</option>';
+			}
+			echo '</select>';
+		} else {
+			echo '<input name="cl_chinh" placeholder="tên việc chính" style="width:210px" '
+				. 'value="' . esc_attr( $vc_hien ) . '">';
+		}
+		/* Ô giờ của việc chính CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào. Vẫn hiện ra để
+		   người ta thấy ngay con số mình vừa làm đổi. */
+		echo '</div><div><input value="' . esc_attr( number_format( $gio_chinh_ht, 2, ',', '.' ) )
+			. '" readonly style="width:110px;background:#f8fafc" title="Giờ chấm công trừ đi giờ '
+			. 'khác — không gõ tay được"></div>'
+			. '<div class="mo" style="align-self:center;font-size:12px">giờ tự tính</div></div>';
+
 		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
 		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
 			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính.</p>';
@@ -7701,17 +7753,6 @@ class VHCC_Web {
 		 *    ta mở ra, không chọn được gì, và không có câu nào nói vì sao. Gõ tay được thì ít
 		 *    nhất việc vẫn ghi lại được, và câu nhắc chỉ thẳng xuống bảng đơn giá.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$ds_ten = VHCC_GiaGio::ten_khai_cho( $cs );
-		/* 🔴 MỘT CHỖ GIỮ LUẬT "KHÔNG MẤT DÒNG CŨ", KHÔNG PHẢI HAI.
-		   `ten_da_dung()` quét MỌI tháng của cơ sở này trong sổ chốt lương, nên mọi tên đã từng
-		   lưu đều có mặt ở đây — kể cả tên đã bị xoá khỏi sổ đơn giá. Bản đầu còn nhét thêm
-		   `$v` của từng dòng vào danh sách của riêng dòng ấy; hai đường cùng giữ một luật thì
-		   bỏ đường nào bài kiểm cũng xanh, nên bài kiểm KHÔNG còn canh được luật nữa — chỉ khi
-		   bỏ cả hai mới đỏ. Một chỗ, và có phép thử đứng đúng chỗ ấy. */
-		foreach ( $goi as $g_x ) {
-			if ( ! in_array( $g_x, $ds_ten, true ) ) { $ds_ten[] = $g_x; }
-		}
-
 		/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
 		$n = max( 3, count( $gk ) + 2 );
 		for ( $i = 0; $i < $n; $i++ ) {
@@ -8040,7 +8081,13 @@ class VHCC_Web {
 
 			$gc = array();
 			if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
-			if ( 'khong' === $d['giaTu'] && 'thang' !== $d['cheDo'] ) { $gc[] = 'CHƯA KHAI ĐƠN GIÁ'; }
+			/* 🔴 KHÔNG LẶP "CHƯA KHAI ĐƠN GIÁ" Ở TỪNG DÒNG NỮA — anh Thắng 16/09/2026 gửi ảnh
+			   cột Ghi chú bảy dòng y hệt nhau: *"Chỗ này không cần khai"*.
+			   Cùng một sự thật đang được nói BA lần trên cùng một màn: dải đỏ đầu bảng đếm đủ
+			   số dòng, chính dòng ấy đã nhuộm đỏ (`class="hong"`), và ô Tiền/h để gạch ngang.
+			   Lặp lần thứ tư không thêm tin nào, chỉ lấp mất mấy thứ CHỈ có ở dòng ấy — lượt
+			   thiếu giờ, giá khai riêng — là những thứ người ta đọc cột này để tìm.
+			   ⚠️ KHÔNG PHẢI GIẤU ĐI. Ba chỗ kia vẫn nói, và vẫn nói to hơn. */
 			if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
 			if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
 			echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) );

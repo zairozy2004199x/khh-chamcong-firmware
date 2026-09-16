@@ -83,6 +83,41 @@ class VHCC_ChotLuong {
 		return ( isset( $ds[ $m ] ) && is_array( $ds[ $m ] ) ) ? $ds[ $m ] : array();
 	}
 
+	/**
+	 * VIỆC CHÍNH của một người trong tháng — tên chức vụ mà PHẦN GIỜ CÒN LẠI ăn theo.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI KHAI RIÊNG, KHÔNG SUY TỪ HỒ SƠ ĐƯỢC
+	 * =========================================================================================
+	 * Trước bản này, dòng chính của bảng lương lấy tên từ hồ sơ (`chuc_vu_chinh()`). Chạy số
+	 * thật của anh Thắng thì bảy dòng đều ghi **"Khu vui chơi"** — mà đó là tên MẢNG kinh doanh,
+	 * không phải một chức vụ ăn lương. Không ai khai đơn giá cho "Khu vui chơi" cả, nên cả bảy
+	 * dòng đứng im ở "CHƯA KHAI ĐƠN GIÁ" và không có cách nào thoát ra: khai giá cho tên mảng là
+	 * sai về nghĩa, mà không khai thì bảng lương rỗng.
+	 *
+	 * Anh Thắng 16/09/2026: *"Mặc định nhân viên nếu làm 1 công việc thì chọn xong, giờ tự chốt,
+	 * hoặc chọn cái đầu tiên làm giờ chính, cái giờ sau nhập thêm thì giờ chính giảm đi"*.
+	 *
+	 * Nên việc chính là một LỰA CHỌN của người chốt lương, đúng như mấy dòng giờ khác — chỉ khác
+	 * ở chỗ nó KHÔNG phải gõ số giờ: giờ của nó là phần còn lại.
+	 *
+	 *     giờ chính = giờ chấm công − tổng giờ khác
+	 *
+	 * Chọn xong một việc mà không gõ dòng nào khác thì cả tháng ăn giá ấy — đúng "nếu làm 1 công
+	 * việc thì chọn xong, giờ tự chốt".
+	 *
+	 * ⚠️ CHƯA CHỌN THÌ TRẢ RỖNG, và chỗ dựng bảng tự lùi về tên trong hồ sơ. Đoán bừa một cái
+	 *    tên ở đây là đoán ra tiền.
+	 */
+	public static function viec_chinh( $coso, $thang, $ma_nv, $so = null ) {
+		$so = ( null === $so ) ? self::so() : $so;
+		$k  = self::khoa_cs( $coso );
+		$tt = VHCC_Luong::tien_to_thang( $thang );
+		$m  = strtolower( trim( (string) $ma_nv ) );
+		return isset( $so[ $k ][ $tt ]['chinh'][ $m ] )
+			? trim( (string) $so[ $k ][ $tt ]['chinh'][ $m ] ) : '';
+	}
+
 	/** Tổng giờ khác của một người — dùng để trừ ra khỏi giờ chấm công. */
 	public static function tong_cua( $coso, $thang, $ma_nv, $so = null ) {
 		$t = 0.0;
@@ -239,7 +274,10 @@ class VHCC_ChotLuong {
 	 * @param array $dong  [ [ 'viec' => 'MC', 'gio' => '2' ], … ]. Mảng rỗng = xoá hết.
 	 * @param float $gio_cham  Giờ chấm công của người ấy — để chặn chia quá tay.
 	 */
-	public static function dat( $u, $coso, $thang, $ma_nv, $dong, $gio_cham ) {
+	/**
+	 * @param string|null $viec_chinh  null = không đụng tới; '' = bỏ khai; chuỗi = đặt việc chính.
+	 */
+	public static function dat( $u, $coso, $thang, $ma_nv, $dong, $gio_cham, $viec_chinh = null ) {
 		$chan = self::gac( $u, $coso );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
 		$k  = self::khoa_cs( $coso );
@@ -285,9 +323,20 @@ class VHCC_ChotLuong {
 		else {
 			unset( $so[ $k ][ $tt ]['gio'][ $m ] );
 			if ( empty( $so[ $k ][ $tt ]['gio'] ) ) { unset( $so[ $k ][ $tt ]['gio'] ); }
-			if ( empty( $so[ $k ][ $tt ] ) ) { unset( $so[ $k ][ $tt ] ); }
-			if ( empty( $so[ $k ] ) ) { unset( $so[ $k ] ); }
 		}
+		/* Việc chính — `null` nghĩa là lượt gọi này không nói gì về nó, giữ nguyên cái đang có.
+		   Phân biệt được "không nói" với "bỏ khai" là cần: mọi lượt lưu giờ khác mà cũng xoá
+		   luôn việc chính thì người ta gõ thêm một dòng MC là mất giá của cả phần giờ còn lại. */
+		if ( null !== $viec_chinh ) {
+			$vc = trim( (string) $viec_chinh );
+			if ( '' !== $vc ) { $so[ $k ][ $tt ]['chinh'][ $m ] = $vc; }
+			else {
+				unset( $so[ $k ][ $tt ]['chinh'][ $m ] );
+				if ( empty( $so[ $k ][ $tt ]['chinh'] ) ) { unset( $so[ $k ][ $tt ]['chinh'] ); }
+			}
+		}
+		if ( empty( $so[ $k ][ $tt ] ) ) { unset( $so[ $k ][ $tt ] ); }
+		if ( empty( $so[ $k ] ) ) { unset( $so[ $k ] ); }
 		VHCC_Luong::dat_cai_dat( self::O, $so, $u );
 		return array( 'ok' => true, 'so' => count( $sach ), 'tong' => round( $tong, 2 ),
 			'chinh' => round( $gio_cham - $tong, 2 ) );

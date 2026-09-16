@@ -968,4 +968,91 @@ t( 'và nói rõ vì sao, chỉ đúng chỗ đi khai',
 /* Trả sổ về như cũ cho phép thử sau (nếu có ai thêm) khỏi chạy trên sổ rỗng. */
 VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000 ) );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 10. VIỆC CHÍNH — chọn một cái, phần giờ còn lại tự ăn theo giá của nó
+ *
+ * Anh Thắng 16/09/2026: *"Mặc định nhân viên nếu làm 1 công việc thì chọn xong, giờ tự chốt,
+ * hoặc chọn cái đầu tiên làm giờ chính, cái giờ sau nhập thêm thì giờ chính giảm đi"*.
+ * Và, trước cột Ghi chú bảy dòng "CHƯA KHAI ĐƠN GIÁ" y hệt nhau: *"Chỗ này không cần khai"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'MC' => 30000 ) );
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
+
+/* 🔴 CHƯA CHỌN THÌ VẪN LÙI VỀ TÊN HỒ SƠ — đây chính là cảnh anh Thắng đang gặp: hồ sơ ghi tên
+   MẢNG ("Khu vui chơi"), không ai khai giá cho nó, nên dòng chính đứng im ở CHƯA KHAI. */
+$b_vc0 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$d_vc0 = null;
+foreach ( $b_vc0['dong'] as $x ) { if ( $x['ma'] === 'BT_MAN' && $x['laChinh'] ) { $d_vc0 = $x; break; } }
+t( 'gieo: tìm được dòng chính của BT_MAN', null !== $d_vc0, 'không thấy dòng chính' );
+teq( 'chưa chọn việc chính: tên lấy từ hồ sơ', VHCC_BangLuong::chuc_vu_chinh(
+	VHCC_NhanSu::ho_so( 'BT_MAN' ) ), $d_vc0['cv'] );
+
+/* ---- 🔴 "LÀM 1 CÔNG VIỆC THÌ CHỌN XONG, GIỜ TỰ CHỐT" ---- */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, 'Lái Tàu' );
+teq( 'việc chính vào sổ', 'Lái Tàu', VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+$b_vc1 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$d_vc1 = null;
+foreach ( $b_vc1['dong'] as $x ) { if ( $x['ma'] === 'BT_MAN' && $x['laChinh'] ) { $d_vc1 = $x; break; } }
+teq( '🔴 dòng chính mang TÊN VỪA CHỌN, không phải tên mảng trong hồ sơ', 'Lái Tàu', $d_vc1['cv'] );
+teq( '🔴 và CẢ giờ chấm công dồn vào đó', 126.0, $d_vc1['gio'] );
+teq( '🔴 nên nó tra ra giá thật, hết CHƯA KHAI', 23000.0, $d_vc1['gia'] );
+teq( 'lương chính = 126 × 23.000', 2898000.0, $d_vc1['luongChinh'] );
+teq( 'và bảng KHÔNG còn đếm dòng nào thiếu giá cho người này', 'coso', $d_vc1['giaTu'] );
+
+/* ---- 🔴 "CÁI GIỜ SAU NHẬP THÊM THÌ GIỜ CHÍNH GIẢM ĐI" ---- */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => 6 ) ), 126.0, 'Lái Tàu' );
+$b_vc2 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$d_vc2 = null; $d_mc = null;
+foreach ( $b_vc2['dong'] as $x ) {
+	if ( $x['ma'] !== 'BT_MAN' ) { continue; }
+	if ( $x['laChinh'] ) { $d_vc2 = $x; } elseif ( 'MC' === $x['cv'] ) { $d_mc = $x; }
+}
+teq( '🔴 giờ chính co lại đúng 6 giờ', 120.0, $d_vc2['gio'] );
+teq( 'và dòng MC ăn 6 giờ', 6.0, $d_mc['gio'] );
+teq( 'MC ăn giá của MC', 30000.0, $d_mc['gia'] );
+teq( 'lương việc chính = 120 × 23.000', 2760000.0, $d_vc2['luongChinh'] );
+teq( 'lương MC = 6 × 30.000', 180000.0, $d_mc['luongChinh'] );
+
+/* ---- ⚠️ `null` = KHÔNG NÓI GÌ VỀ VIỆC CHÍNH, đừng coi là bỏ khai ----
+   Mọi lượt lưu giờ khác mà cũng xoá luôn việc chính thì gõ thêm một dòng MC là mất giá của cả
+   phần giờ còn lại — mất tiền vì một thứ người ta không hề đụng tới. */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => 8 ) ), 126.0 );
+teq( '🔴 lưu giờ khác mà không gửi ô việc chính: việc chính CÒN NGUYÊN', 'Lái Tàu',
+	VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+/* Còn gửi chuỗi rỗng thì đúng là bỏ khai — hai ý khác nhau, hai giá trị khác nhau. */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
+teq( 'gửi chuỗi rỗng thì mới là bỏ khai', '',
+	VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+
+/* ---- màn: ô chọn việc chính, và ô giờ của nó KHÔNG gõ tay được ---- */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => 6 ) ), 126.0, 'Lái Tàu' );
+$h_vc = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+t( '🔴 có ô CHỌN việc chính', false !== strpos( $h_vc, '<select name="cl_chinh"' ), $h_vc );
+preg_match( '/<select name="cl_chinh".*?<\/select>/us', $h_vc, $m_vc );
+$o_vc = isset( $m_vc[0] ) ? $m_vc[0] : '';
+t( 'và việc đang khai được chọn sẵn',
+	1 === preg_match( '/<option value="Lái Tàu"[^>]*selected/u', $o_vc ), $o_vc );
+t( '🔴 ô giờ của việc chính là ô CHỈ ĐỌC — nó là kết quả, không phải thứ gõ vào',
+	false !== strpos( $h_vc, 'value="120,00" readonly' ), $h_vc );
+
+/* ---- 🔴 CỘT GHI CHÚ THÔI LẶP "CHƯA KHAI ĐƠN GIÁ" ----
+   Cùng một sự thật đang nói ba lần: dải đỏ đầu bảng, dòng nhuộm đỏ, ô Tiền/h gạch ngang. */
+$h_gc = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+preg_match( '/<table class="b">(?:(?!<\/table>).)*Thực nhận.*?<\/table>/us', $h_gc, $m_gc );
+$bang_gc = isset( $m_gc[0] ) ? $m_gc[0] : $h_gc;
+t( '🔴 trong bảng lương KHÔNG còn dòng nào lặp chữ "CHƯA KHAI ĐƠN GIÁ"',
+	false === strpos( $bang_gc, 'CHƯA KHAI ĐƠN GIÁ' ), substr( $bang_gc, 0, 400 ) );
+/* ⚠️ NHƯNG KHÔNG PHẢI GIẤU ĐI. Dải đỏ đầu bảng vẫn phải đếm và vẫn phải kêu — không có phép
+   này thì phép trên xanh cả khi mã bịt miệng luôn cả lời cảnh báo. */
+t( '🔴 dải cảnh báo đầu bảng VẪN đếm và VẪN kêu',
+	false !== strpos( $h_gc, 'dòng chưa khai đơn giá giờ' ), substr( $h_gc, 0, 400 ) );
+t( 'và ghi chú riêng của từng dòng vẫn còn (lượt thiếu giờ)',
+	false !== strpos( $h_gc, 'lượt thiếu giờ' ) || false === strpos( $h_gc, 'thieuGio' ), $bang_gc );
+
 ket_luan();

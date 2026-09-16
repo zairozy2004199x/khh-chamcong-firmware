@@ -197,7 +197,17 @@ class VHCC_BangLuong {
 
 			/* Dòng CHÍNH luôn có, kể cả khi giờ chính bằng 0 — bỏ đi là người đọc không thấy
 			   người ấy đâu trong bảng, tưởng sót. */
-			$d_chinh = $mot( self::chuc_vu_chinh( $hs ), $gio_chinh, true );
+			/* 🔴 TÊN CỦA DÒNG CHÍNH: LẤY CÁI NGƯỜI TA CHỌN TRƯỚC, HỒ SƠ CHỈ LÀ ĐƯỜNG LÙI.
+			   Hồ sơ của anh Thắng ghi chức vụ là **"Khu vui chơi"** — tên MẢNG kinh doanh, không
+			   phải chức vụ ăn lương. Không ai khai đơn giá cho tên mảng cả, nên bảy dòng đứng im
+			   ở "CHƯA KHAI ĐƠN GIÁ" mà không có lối ra: khai giá cho tên mảng là sai về nghĩa,
+			   không khai thì bảng lương rỗng.
+			   Từ 16/09/2026 người chốt lương CHỌN việc chính cho từng người
+			   (`VHCC_ChotLuong::viec_chinh()`), và phần giờ còn lại ăn theo giá của việc ấy.
+			   Chưa chọn thì vẫn lùi về tên hồ sơ — không im lặng bỏ trống dòng của một người. */
+			$vc_chon = VHCC_ChotLuong::viec_chinh( $coso, $tt, $g['ma'], $so_khac );
+			$d_chinh = $mot( '' !== $vc_chon ? $vc_chon : self::chuc_vu_chinh( $hs ),
+				$gio_chinh, true );
 			$d_chinh['thieuGio'] = isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0;
 			/* 🔴 KHOẢN CỘNG / TRỪ GẮN VÀO DÒNG CHÍNH, KHÔNG RẢI RA MỌI DÒNG.
 			   Một người có thể ra ba dòng (chính + MC + Hỗ Trợ) nhưng cái cọc 200.000 chỉ trừ
