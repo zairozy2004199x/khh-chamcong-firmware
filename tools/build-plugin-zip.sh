@@ -104,7 +104,37 @@ case "$CHON" in
     dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu
     dong_goi "Nền tảng K&H" khh-platform
     ;;
-  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | doanh-thu | tatca)"; exit 1 ;;
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  # 🔴 NHẬN LUÔN TÊN THƯ MỤC LÀM KHOÁ — vì luồng phát hành gọi bằng tên thư mục.
+  #
+  # `.github/workflows/phat-hanh.yml` gọi `build-plugin-zip.sh "${thumuc#vhcp-}"`. Với bộ nào tên
+  # thư mục bắt đầu bằng `vhcp-` thì ra đúng khoá gõ tay ở trên; còn `khh-doanh-thu` KHÔNG có tiền
+  # tố ấy nên nó truyền nguyên `khh-doanh-thu`, mà khoá gõ tay lại là `doanh-thu`.
+  #
+  # Hậu quả, im lặng suốt từ ngày bộ ấy ra đời: rơi vào nhánh "không hiểu tham số" -> workflow ghi
+  # một dòng "chưa khai khoá, bỏ qua" giữa log rồi đi tiếp -> `khh-doanh-thu` KHÔNG CÓ LẤY MỘT TAG
+  # NÀO trên Releases, và bộ tự cập nhật của nó (đọc Releases) chưa bao giờ thấy bản mới. Không ai
+  # phát hiện vì luồng vẫn xanh: nó "bỏ qua" chứ không "hỏng".
+  #
+  # ⚠️ `khh-platform` không dính vì lúc thêm bộ ấy có khai đúng khoá `khh-platform`. Tức là cái bẫy
+  #    này chỉ rình những bộ KHÔNG mang tiền tố `vhcp-` — sẽ còn bộ nữa.
+  # ⚠️ Chốt chống sót bên dưới KHÔNG bắt được ca này: nó soát "thư mục có được đóng gói ở đâu đó
+  #    không", còn đây là "khoá workflow truyền vào có tra ra không" — hai câu hỏi khác nhau.
+  # ══════════════════════════════════════════════════════════════════════════════════════════
+  *)
+    # Thử CẢ HAI hình dạng: tên thư mục nguyên vẹn (`khh-doanh-thu`) và tên đã bị workflow cắt
+    # tiền tố (`foo` -> `vhcp-foo`). Bộ vhcp-* nào mai này quên khai khoá gõ tay vẫn dựng được,
+    # thay vì lặng lẽ bị bỏ qua đúng như `khh-doanh-thu` đã bị.
+    _tt=""
+    if   [ -f "$ROOT/wordpress/$CHON/$CHON.php" ];           then _tt="$CHON"
+    elif [ -f "$ROOT/wordpress/vhcp-$CHON/vhcp-$CHON.php" ]; then _tt="vhcp-$CHON"
+    fi
+    if [ -n "$_tt" ]; then
+      _nn="$(sed -n 's/^ \* Plugin Name:[[:space:]]*//p' "$ROOT/wordpress/$_tt/$_tt.php" | head -1)"
+      dong_goi "${_nn:-$_tt}" "$_tt"
+    else
+      echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | doanh-thu | khh-platform | <tên thư mục> | tatca)"; exit 1
+    fi ;;
 esac
 
 # 🔴 CHỐT CHỐNG SÓT: thư mục plugin nào có trong cây mã mà không nằm trong danh sách trên thì

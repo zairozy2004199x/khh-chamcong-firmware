@@ -87,6 +87,18 @@ for f in tools/test/*.js; do
   chay "node '$f'" "$(basename "$f")"
 done
 
+echo "── Bộ thử shell ───────────────────────────────────────────────"
+# ⚠️ BỎ CHÍNH `chay-het.sh` RA. Không bỏ thì nó tự gọi lại nó, đệ quy vô tận — và lần đầu chạy sẽ
+#    trông như "bộ thử treo", không ai đoán ra vì sao.
+# 🔴 VÌ SAO THÊM VÒNG NÀY (16/09/2026). Bài `kiem-khoa-dong-goi.sh` viết xong nằm đúng thư mục
+#    này mà KHÔNG BAO GIỜ CHẠY: ba vòng trên chỉ gom .php/.js/.py. Bài thử không chạy thì nó chỉ
+#    là một tệp chữ — đúng chuyện `kiem-tran-ngay-sau.js` từng đỏ suốt bốn bản mà không ai thấy.
+for f in tools/test/*.sh; do
+  [ -e "$f" ] || continue
+  [ "$(basename "$f")" = "chay-het.sh" ] && continue
+  chay "bash '$f'" "$(basename "$f")"
+done
+
 echo "── Bộ thử Python ──────────────────────────────────────────────"
 for f in tools/test/*.py; do
   [ -e "$f" ] || continue
