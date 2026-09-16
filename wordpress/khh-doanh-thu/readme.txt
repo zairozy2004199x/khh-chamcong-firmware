@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.10.0
+Stable tag: 1.11.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -56,8 +56,9 @@ Nên cột **Thực nộp** lấy từ sao kê ngân hàng:
 
 1. **Nạp báo cáo → Sao kê ngân hàng** → thả file .xlsx/.csv tải từ ngân hàng. Chỉ tiền vào được
    lấy; nạp lại cùng kỳ không cộng dồn (khoá theo mã giao dịch).
-2. **Quản trị → Sao kê ngân hàng** → khai mẩu chữ nhận mặt cơ sở (tên quán trong nội dung chuyển
-   khoản, hoặc số tài khoản nhận) và **giờ cắt**.
+2. **Quản trị → Sao kê ngân hàng** → khai **mã nộp tiền** của từng cơ sở (mã người nộp gõ vào nội
+   dung chuyển khoản) và **giờ cắt**. Khoản nào chưa nhận ra cơ sở thì màn gom sẵn theo mã đọc
+   được, chọn cơ sở một cái là xong cả nhóm.
 3. Bảng đối soát bày số ngân hàng nhận được, và bày chỗ lệch với số cơ sở khai.
 
 == Cửa hàng trưởng vào bằng PIN chấm công ==
@@ -95,6 +96,17 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.11.0 =
+* **Nhận mặt cơ sở theo MÃ NỘP TIỀN** in trong nội dung chuyển khoản (`… ND IBFT VC Bien Hoa
+  KH705MTDMN0023`), đúng lối nhà mình đang dùng. Màn khai bày theo cơ sở, mỗi cơ sở một ô mã —
+  khai được nhiều mã, cách nhau dấu phẩy, nên đổi mã giữa chừng không làm sao kê cũ hoá "chưa gán".
+* **Mã khớp trọn, có ranh giới hai đầu.** `KH705MTDMN0002` nằm gọn trong `KH705MTDMN0020`; tìm
+  kiểu "có chứa" là tiền quán này chạy vào sổ quán kia, sai âm thầm theo một chiều cố định.
+* Khoản chưa nhận ra cơ sở nay **gom theo mã đọc được** — mười khoản cùng một quán là một dòng
+  phải khai, chọn cơ sở một cái là cả nhóm về sổ.
+* Vẫn khai được mẩu chữ thường (tên quán, số tài khoản) cho những khoản người nộp quên gõ mã; mã
+  luôn được xét trước chữ.
 
 = 1.10.0 =
 * **Tab Đối soát trả lời thẳng câu "nhân viên nộp tiền chưa"**: cột *Ngân hàng nhận* và cột

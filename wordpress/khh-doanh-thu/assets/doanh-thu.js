@@ -1018,7 +1018,7 @@
      Cột "Thực nộp" lấy ở đây chứ không lấy số cơ sở tự khai: ai giữ tiền mà cũng tự khai mình
      nộp bao nhiêu thì con số ấy không kiểm được gì. */
   function veSaoKe(o, r) {
-    var ch = r.cua_hang || [], ghep = r.ghep || [], chua = r.chua_gan || [], theo = r.theo_ch || [];
+    var ch = r.cua_hang || [], chua = r.chua_gan || [], theo = r.theo_ch || [];
     var h = '<div class="khung" id="dtSaoKe"><header><h2>Sao kê ngân hàng</h2>' +
       '<span class="goi">' + (r.so_dong
         ? nguyen(r.so_dong) + ' khoản · ' + tien(r.tong) + ' · ' + ngayVN(r.tu_ngay) + ' → ' + ngayVN(r.den_ngay)
@@ -1041,17 +1041,36 @@
         : 'Bấm <b>Nạp báo cáo</b> ở trên, chọn thẻ <b>Sao kê ngân hàng</b> rồi thả file .xlsx/.csv ' +
           'tải từ ngân hàng xuống.') + '</div>';
     } else if (chua.length) {
-      h += '<div class="canh-ghep">Còn <b>' + nguyen(chua.length) + ' khoản</b> chưa nhận ra cơ sở. ' +
-        'Xem nội dung chuyển khoản bên dưới, lấy một mẩu chữ đặc trưng (tên quán, mã quán, hoặc ' +
-        'số tài khoản nhận) rồi khai vào bảng nhận mặt.</div>' +
+      var maLa = r.ma_la || [];
+      h += '<div class="canh-ghep">Còn <b>' + nguyen(chua.length) + ' khoản</b> chưa nhận ra cơ sở' +
+        (maLa.length ? ', đọc được <b>' + maLa.length + ' mã nộp tiền</b> lạ. Gán mã cho cơ sở là cả ' +
+          'nhóm khoản mang mã ấy về sổ cùng lúc.' : '. Không đọc được mã nộp tiền nào trong nội dung — ' +
+          'khai theo mẩu chữ ở bảng dưới.') + '</div>';
+
+      if (maLa.length) {
+        h += '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+            '<th style="text-align:left">Mã đọc được</th><th>Số khoản</th><th>Tổng tiền</th>' +
+            '<th style="text-align:left">Cơ sở nào?</th></tr></thead><tbody>' +
+          maLa.map(function (m) {
+            return '<tr><td style="text-align:left"><code class="nd">' + esc(m.ma) + '</code>' +
+              '<span class="nho" style="display:block">' + esc(String(m.vi_du).slice(0, 70)) + '</span></td>' +
+              '<td class="s">' + nguyen(m.so_lan) + '</td><td class="s">' + tien(m.so_tien) + '</td>' +
+              '<td style="text-align:left"><select data-ma-la="' + esc(m.ma) + '">' +
+                '<option value="">— chọn cơ sở để gán —</option>' +
+                ch.map(function (t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('') +
+              '</select></td></tr>';
+          }).join('') + '</tbody></table></div>';
+      }
+
+      h += '<details style="margin-top:10px"><summary>Xem từng khoản chưa gán (' + nguyen(chua.length) + ')</summary>' +
         '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
           '<th>Ngày</th><th>Số tiền</th><th style="text-align:left">Nội dung chuyển khoản</th><th>Tài khoản</th>' +
         '</tr></thead><tbody>' +
-        chua.slice(0, 40).map(function (x) {
+        chua.slice(0, 60).map(function (x) {
           return '<tr><td>' + esc(ngayVN(x.ngay)) + '</td><td class="s">' + tien(x.so_tien) + '</td>' +
             '<td style="text-align:left"><code class="nd">' + esc(x.noi_dung || '—') + '</code></td>' +
             '<td>' + esc(x.tai_khoan || '—') + '</td></tr>';
-        }).join('') + '</tbody></table></div>';
+        }).join('') + '</tbody></table></div></details>';
     } else {
       h += '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Cơ sở</th>' +
         '<th>Số khoản</th><th>Tổng nhận được</th></tr></thead><tbody>' +
@@ -1061,20 +1080,25 @@
         }).join('') + '</tbody></table></div>';
     }
 
-    /* Bảng nhận mặt + giờ cắt */
-    h += '<h3 class="tieu-nho">Nhận mặt cơ sở</h3>' +
-      '<div class="chu-them">Mỗi dòng: một mẩu chữ có trong nội dung chuyển khoản hoặc số tài khoản ' +
-      'nhận → cơ sở tương ứng. Không phân biệt hoa thường và dấu. Khoá dài được xét trước khoá ' +
-      'ngắn, nên "TUTU TAN PHU" không bị "TUTU TAN" nuốt mất.</div>' +
+    /* Bảng khai — bày theo CƠ SỞ, y như bảng "Mã nộp tiền" nhà mình đang dùng. */
+    var theo = r.theo_co_so || {};
+    h += '<h3 class="tieu-nho">Mã nộp tiền của từng cơ sở</h3>' +
+      '<div class="chu-them">Người nộp gõ mã này vào nội dung chuyển khoản (<code class="nd">' +
+      '… ND IBFT VC Bien Hoa KH705MTDMN0023</code>) — hệ đọc mã là biết tiền của quán nào. ' +
+      'Một cơ sở khai được <b>nhiều mã</b>, cách nhau dấu phẩy: đổi mã giữa chừng thì mã cũ vẫn ' +
+      'nhận ra, sao kê mấy tháng trước không hoá thành "chưa gán". Khai được cả mẩu chữ thường ' +
+      '(ví dụ <code class="nd">tutu tan phu</code>) cho những khoản người ta quên gõ mã.</div>' +
       '<div class="bang-cuon" style="margin-top:10px"><table id="dtBankBang"><thead><tr>' +
-        '<th style="text-align:left">Chữ trong nội dung / số tài khoản</th><th style="text-align:left">Cơ sở</th><th></th>' +
+        '<th style="text-align:left">Cơ sở</th><th style="text-align:left">Mã nộp tiền</th>' +
       '</tr></thead><tbody>' +
-      (ghep.length ? ghep.map(function (g) { return dongBank(g.khoa, g.cua_hang, ch); }).join('')
-        : dongBank('', '', ch)) +
+      ch.map(function (t) {
+        return '<tr><td style="text-align:left">' + esc(t) + '</td>' +
+          '<td style="text-align:left"><input type="text" data-ch-ma="' + esc(t) + '" style="width:100%" ' +
+          'value="' + esc((theo[t] || []).join(', ')) + '" placeholder="VD: KH705MTDMN0023"></td></tr>';
+      }).join('') +
       '</tbody></table></div>' +
       '<div style="margin-top:12px">' +
-        '<button class="nut" type="button" id="dtBankThem">Thêm dòng</button> ' +
-        '<span class="o" style="margin-left:14px"><label for="dtGioCat">Giờ cắt</label>' +
+        '<span class="o"><label for="dtGioCat">Giờ cắt</label>' +
           '<input type="number" id="dtGioCat" min="0" max="23" step="1" style="width:66px" value="' +
           esc(String(r.gio_cat)) + '"></span> ' +
         '<span class="chu-them">Tiền vào trước giờ này tính cho doanh thu <b>hôm trước</b> — ' +
@@ -1109,18 +1133,27 @@
     }
 
     var bang = o.querySelector('#dtBankBang tbody');
-    o.querySelector('#dtBankThem').addEventListener('click', function () {
-      bang.insertAdjacentHTML('beforeend', dongBank('', '', ch));
-      noiXoaBank(bang);
+
+    /* Chọn cơ sở ngay ở dòng "mã lạ" là mã ấy nhảy vào ô của cơ sở đó — khỏi cuộn xuống gõ lại. */
+    Array.prototype.forEach.call(o.querySelectorAll('[data-ma-la]'), function (se) {
+      se.addEventListener('change', function () {
+        if (!se.value) return;
+        var o_ma = bang.querySelector('[data-ch-ma="' + se.value.replace(/"/g, '\\"') + '"]');
+        if (!o_ma) return;
+        var cu = o_ma.value.trim();
+        var ma = se.dataset.maLa;
+        if (cu.split(/[,;]\s*/).indexOf(ma) < 0) o_ma.value = cu ? cu + ', ' + ma : ma;
+        o_ma.style.outline = '2px solid var(--app)';
+        o_ma.scrollIntoView({ block: 'center' });
+        setTimeout(function () { o_ma.style.outline = ''; }, 1500);
+      });
     });
-    noiXoaBank(bang);
 
     o.querySelector('#dtLuuBank').addEventListener('click', function () {
-      var ds = [];
-      Array.prototype.forEach.call(bang.querySelectorAll('tr'), function (tr) {
-        var k = tr.querySelector('[data-khoa]').value.trim();
-        var c = tr.querySelector('[data-ch]').value;
-        if (k && c) ds.push({ khoa: k, cua_hang: c });
+      var ds = {};
+      Array.prototype.forEach.call(bang.querySelectorAll('[data-ch-ma]'), function (i) {
+        var v = i.value.trim();
+        if (v) ds[i.dataset.chMa] = v;
       });
       var nut = o.querySelector('#dtLuuBank');
       nut.disabled = true; nut.textContent = 'Đang gán lại…';
@@ -1136,24 +1169,6 @@
         nut.disabled = false; nut.textContent = 'Lưu và gán lại';
         o.querySelector('#dtBankBao').textContent = e.message || e;
       });
-    });
-  }
-
-  function dongBank(khoa, cua, ch) {
-    return '<tr><td style="text-align:left"><input type="text" data-khoa value="' + esc(khoa) +
-      '" placeholder="VD: TUTU TAN PHU hoặc 0123456789" style="width:100%"></td>' +
-      '<td style="text-align:left"><select data-ch><option value="">— chọn cơ sở —</option>' +
-      ch.map(function (t) {
-        return '<option value="' + esc(t) + '"' + (t === cua ? ' selected' : '') + '>' + esc(t) + '</option>';
-      }).join('') + '</select></td>' +
-      '<td><button class="nut" type="button" data-xoa>Xoá</button></td></tr>';
-  }
-
-  function noiXoaBank(bang) {
-    Array.prototype.forEach.call(bang.querySelectorAll('[data-xoa]'), function (b) {
-      if (b.dataset.noi) return;
-      b.dataset.noi = '1';
-      b.addEventListener('click', function () { b.closest('tr').remove(); });
     });
   }
 

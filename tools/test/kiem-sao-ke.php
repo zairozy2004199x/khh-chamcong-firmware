@@ -90,6 +90,47 @@ $ch = wp_list_pluck( $kq['dong'], 'cua_hang' );
 phep( 'nhận ra cơ sở theo nội dung chuyển khoản', 'TuTu Train - Aeon Tân Phú' === $ch[0] );
 phep( 'khoản không có dấu hiệu gì thì để trống, KHÔNG đoán bừa', '' === $ch[3] );
 
+/* ============================================================ 2b. MÃ NỘP TIỀN
+   Anh Thắng 16/09/2026 gửi một dòng sao kê thật của VPBank:
+       NHAN TU 050066112230 TRACE 213493 ND IBFT VC Bien Hoa KH705MTDMN0023 — 590.000 vào
+   Nhà mình đã có sổ "Mã nộp tiền" mỗi cơ sở một mã, người nộp gõ mã ấy vào nội dung. */
+
+khh_dt_dat_ghep_bank(
+	array(
+		'VINCOM BIÊN HÒA'            => 'KH705MTDMN0023',
+		'TuTu Train - Aeon Tân Phú'  => 'KH705MTDMN0002',
+		'Tutu Train - Bình Dương'    => 'KH705MTDMN0020',
+	)
+);
+$nd_that = 'NHAN TU 050066112230 TRACE 213493 ND IBFT VC Bien Hoa KH705MTDMN0023';
+phep( 'đọc được mã nộp tiền giữa một nội dung dài', 'VINCOM BIÊN HÒA' === khh_dt_doan_co_so( $nd_that, '' ) );
+phep( 'mách được mã đọc thấy trong nội dung', 'KH705MTDMN0023' === khh_dt_ma_trong_nd( $nd_that ) );
+
+/* 🔴 MÃ NGẮN NẰM GỌN TRONG MÃ DÀI — chỗ chết người.
+   KH705MTDMN0002 (Tân Phú) là một phần của KH705MTDMN0020 (Bình Dương). Tìm kiểu "có chứa" là
+   tiền Bình Dương chạy thẳng vào sổ Tân Phú, sai âm thầm và sai theo một chiều cố định. */
+phep( 'mã dài không bị mã ngắn nuốt',
+	'Tutu Train - Bình Dương' === khh_dt_doan_co_so( 'NOP TIEN KH705MTDMN0020', '' ) );
+phep( 'mã ngắn vẫn nhận đúng quán của nó',
+	'TuTu Train - Aeon Tân Phú' === khh_dt_doan_co_so( 'NOP TIEN KH705MTDMN0002', '' ) );
+phep( 'mã chưa khai thì KHÔNG đoán bừa', '' === khh_dt_doan_co_so( 'NOP TIEN KH705MTDMN9999', '' ) );
+
+/* Một cơ sở khai nhiều mã — đổi mã giữa chừng thì mã cũ vẫn phải nhận ra. */
+khh_dt_dat_ghep_bank( array( 'TuTu Train - Aeon Tân Phú' => 'KH705MTDMN0002, KHCU0001' ) );
+phep( 'một cơ sở khai được nhiều mã',
+	'TuTu Train - Aeon Tân Phú' === khh_dt_doan_co_so( 'NOP KHCU0001', '' )
+	&& 'TuTu Train - Aeon Tân Phú' === khh_dt_doan_co_so( 'NOP KH705MTDMN0002', '' ) );
+
+/* Mã xét trước chữ: nội dung mang cả tên quán lẫn mã của quán KHÁC thì mã thắng. */
+khh_dt_dat_ghep_bank(
+	array(
+		array( 'khoa' => 'KH705MTDMN0023', 'cua_hang' => 'VINCOM BIÊN HÒA' ),
+		array( 'khoa' => 'tutu tan phu', 'cua_hang' => 'TuTu Train - Aeon Tân Phú' ),
+	)
+);
+phep( 'mã được xét trước mẩu chữ',
+	'VINCOM BIÊN HÒA' === khh_dt_doan_co_so( 'TUTU TAN PHU NOP HO KH705MTDMN0023', '' ) );
+
 /* 🔴 KHOÁ DÀI THẮNG KHOÁ NGẮN — "TUTU TAN AN" không được rơi vào "TUTU TAN PHU" và ngược lại. */
 khh_dt_dat_ghep_bank(
 	array(

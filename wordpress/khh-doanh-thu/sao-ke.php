@@ -88,53 +88,160 @@ function khh_dt_ngay_quy( $ngay, $gio ) {
 }
 
 /**
- * Bảng nhận mặt cơ sở: [ [ 'khoa' => chuỗi, 'cua_hang' => tên cơ sở POS ], … ].
+ * BẢNG NHẬN MẶT CƠ SỞ: [ [ 'khoa', 'cua_hang', 'kieu' ], … ].
  *
- * Khoá là một mẩu chữ tìm trong NỘI DUNG chuyển khoản hoặc SỐ TÀI KHOẢN nhận. Cửa hàng trưởng
- * nộp tiền thường ghi "TUTU TAN PHU NOP 15/09" hoặc nộp vào đúng một số tài khoản riêng của
- * quán — hai đường đều nhận mặt được, và bảng này khai cả hai kiểu như nhau.
+ * ==================================================================================================
+ * 🔴 KHOÁ CHÍNH LÀ *MÃ NỘP TIỀN*, KHÔNG PHẢI TÊN QUÁN VIẾT TRONG NỘI DUNG.
+ * ==================================================================================================
+ * Anh Thắng 16/09/2026 gửi một dòng sao kê thật:
+ *
+ *     NHAN TU 050066112230 TRACE 213493 ND IBFT VC Bien Hoa KH705MTDMN0023 — 590.000 vào
+ *
+ * Nhà mình đã có sẵn lối làm này: mỗi cơ sở một **mã nộp tiền** (`KH705MTDMN0001`,
+ * `KH705MTDMN0020`, …) và người nộp gõ mã ấy vào nội dung chuyển khoản. Mã thì cố định, còn tên
+ * quán người ta gõ mỗi hôm một kiểu — "Tutu Tan Phu", "TT TÂN PHÚ", "tan phu nop" — nên nhận mặt
+ * theo mã là chắc, nhận theo tên là hên xui.
+ *
+ * ⚠️ MÃ PHẢI KHỚP TRỌN, KHÔNG ĐƯỢC KHỚP LỒNG NHAU. `KH705MTDMN0002` (Aeon Tân Phú) nằm gọn bên
+ *    trong `KH705MTDMN0020` (Aeon Bình Dương). Tìm kiểu "có chứa" là tiền của Bình Dương chạy
+ *    thẳng vào sổ Tân Phú — sai âm thầm, và sai đúng theo một chiều cố định nên nhìn bảng không
+ *    ai thấy gì lạ. Nên `kieu = 'ma'` khớp có RANH GIỚI hai đầu.
+ *
+ * `kieu = 'chu'` là lối cũ, khớp lỏng — vẫn giữ cho những khoản người ta quên gõ mã, chỉ ghi
+ * "TUTU TAN PHU NOP 15/09", và cho việc khai theo số tài khoản riêng của quán.
  */
 function khh_dt_ghep_bank_ds() {
-	$x = get_option( 'khh_dt_ghep_bank', array() );
-	return is_array( $x ) ? $x : array();
+	$x  = get_option( 'khh_dt_ghep_bank', array() );
+	$ds = is_array( $x ) ? $x : array();
+	foreach ( $ds as $i => $d ) {
+		if ( ! isset( $d['kieu'] ) ) {
+			$ds[ $i ]['kieu'] = khh_dt_kieu_khoa( isset( $d['khoa'] ) ? $d['khoa'] : '' );
+		}
+	}
+	return $ds;
 }
 
+/**
+ * Khoá này là MÃ nộp tiền hay mẩu CHỮ?
+ *
+ * Mã thì liền một cục, có cả chữ lẫn số, từ 6 ký tự trở lên — `KH705MTDMN0023`. Mẩu chữ thì có
+ * khoảng trắng hoặc toàn chữ cái — "tutu tan phu". Đoán sai chiều nào cũng không mất tiền: mã mà
+ * bị coi là chữ thì khớp lỏng hơn (vẫn đúng quán, chỉ kém chặt); chữ mà bị coi là mã thì đòi
+ * khớp trọn nên cùng lắm là không nhận ra, và khoản ấy hiện lên ở mục "chưa gán".
+ */
+function khh_dt_kieu_khoa( $khoa ) {
+	$k = trim( (string) $khoa );
+	return ( preg_match( '/^[a-z0-9._-]{6,}$/i', $k ) && preg_match( '/\d/', $k ) ) ? 'ma' : 'chu';
+}
+
+/**
+ * Khai lại cả bảng.
+ *
+ * Nhận hai hình dạng, vì màn khai bày theo CƠ SỞ còn trong máy lưu theo KHOÁ:
+ *   · [ [ 'khoa' => …, 'cua_hang' => … ], … ]        (hình dạng lưu)
+ *   · [ 'Tên cơ sở POS' => 'MA1, MA2', … ]            (hình dạng màn khai gửi lên)
+ */
 function khh_dt_dat_ghep_bank( $ds ) {
 	$sach = array();
-	foreach ( (array) $ds as $d ) {
-		$khoa = khh_dt_khong_dau( sanitize_text_field( (string) ( isset( $d['khoa'] ) ? $d['khoa'] : '' ) ) );
-		$ch   = sanitize_text_field( (string) ( isset( $d['cua_hang'] ) ? $d['cua_hang'] : '' ) );
+	$them = function ( $khoa, $ch ) use ( &$sach ) {
+		$khoa = khh_dt_khong_dau( sanitize_text_field( (string) $khoa ) );
+		$ch   = sanitize_text_field( (string) $ch );
 		if ( '' === $khoa || '' === $ch ) {
-			continue;
+			return;
+		}
+		foreach ( $sach as $x ) {
+			if ( $x['khoa'] === $khoa ) {
+				return;                          // một khoá chỉ thuộc về một cơ sở
+			}
 		}
 		$sach[] = array(
 			'khoa'     => $khoa,
 			'cua_hang' => $ch,
+			'kieu'     => khh_dt_kieu_khoa( $khoa ),
 		);
+	};
+	foreach ( (array) $ds as $k => $d ) {
+		if ( is_array( $d ) ) {
+			$them( isset( $d['khoa'] ) ? $d['khoa'] : '', isset( $d['cua_hang'] ) ? $d['cua_hang'] : '' );
+			continue;
+		}
+		/* [ tên cơ sở => "MA1, MA2" ] — một cơ sở khai được nhiều mã: đổi mã giữa chừng thì mã cũ
+		   vẫn phải nhận ra, không thì mấy tháng sao kê cũ hoá thành "chưa gán". */
+		foreach ( preg_split( '/[,;\n]+/', (string) $d ) as $m ) {
+			$them( $m, $k );
+		}
 	}
 	update_option( 'khh_dt_ghep_bank', $sach, false );
 	return $sach;
 }
 
+/** Bày theo cơ sở để màn khai dựng bảng: [ 'tên cơ sở' => [ mã, … ] ]. */
+function khh_dt_ghep_theo_co_so() {
+	$ra = array();
+	foreach ( khh_dt_ghep_bank_ds() as $d ) {
+		$ra[ $d['cua_hang'] ][] = $d['khoa'];
+	}
+	return $ra;
+}
+
 /**
  * Nhận mặt cơ sở của một giao dịch; '' nếu chưa nhận ra.
  *
- * ⚠️ KHOÁ DÀI THẮNG KHOÁ NGẮN. "TUTU TAN PHU" và "TUTU TAN AN" cùng bắt đầu bằng "TUTU TAN";
- *    xét theo thứ tự khai thì ai khai trước thắng, và một hôm nào đó tiền của quán này chạy sang
- *    sổ quán kia mà không ai biết vì sao.
+ * ⚠️ MÃ XÉT TRƯỚC CHỮ, VÀ KHOÁ DÀI XÉT TRƯỚC KHOÁ NGẮN. Một nội dung có thể vừa mang mã nộp tiền
+ *    vừa mang tên quán — mà mã mới là thứ chắc chắn. Còn giữa hai mẩu chữ, "TUTU TAN PHU" và
+ *    "TUTU TAN" cùng khớp thì phải để cái dài thắng, không thì tiền quán này chạy sang sổ quán kia.
  */
 function khh_dt_doan_co_so( $noi_dung, $tai_khoan ) {
 	$chuoi = khh_dt_khong_dau( (string) $noi_dung . ' ' . (string) $tai_khoan );
-	$ds    = khh_dt_ghep_bank_ds();
+	if ( '' === trim( $chuoi ) ) {
+		return '';
+	}
+	$ds = khh_dt_ghep_bank_ds();
 	usort(
 		$ds,
 		function ( $a, $b ) {
-			return strlen( $b['khoa'] ) - strlen( $a['khoa'] );
+			$ka = 'ma' === $a['kieu'] ? 1 : 0;
+			$kb = 'ma' === $b['kieu'] ? 1 : 0;
+			if ( $ka !== $kb ) {
+				return $kb - $ka;                                  // mã trước, chữ sau
+			}
+			return strlen( $b['khoa'] ) - strlen( $a['khoa'] );    // rồi dài trước, ngắn sau
 		}
 	);
 	foreach ( $ds as $d ) {
+		if ( 'ma' === $d['kieu'] ) {
+			/* Ranh giới hai đầu: KH705MTDMN0002 KHÔNG được khớp vào KH705MTDMN0020. */
+			if ( preg_match( '/(?<![a-z0-9])' . preg_quote( $d['khoa'], '/' ) . '(?![a-z0-9])/', $chuoi ) ) {
+				return (string) $d['cua_hang'];
+			}
+			continue;
+		}
 		if ( false !== strpos( $chuoi, $d['khoa'] ) ) {
 			return (string) $d['cua_hang'];
+		}
+	}
+	return '';
+}
+
+/**
+ * Mã nộp tiền có trong một nội dung chuyển khoản, kể cả mã chưa khai.
+ *
+ * Dùng để MÁCH cho người khai: khoản chưa nhận ra cơ sở thì màn bày sẵn mã đọc được trong nội
+ * dung, bấm một cái là gán cho cơ sở. Không có nó thì người khai phải tự nhìn một dòng sao kê
+ * dài loằng ngoằng mà lọc ra cụm nào là mã — mỗi khoản một lần, và mỗi lần là một cơ hội gõ sai.
+ *
+ * ⚠️ CHỈ MÁCH, KHÔNG TỰ GÁN. Đọc được một mã không có nghĩa là biết nó của quán nào; tự gán bừa
+ *    là tiền vào nhầm sổ mà lại trông như đã đối soát xong.
+ */
+function khh_dt_ma_trong_nd( $noi_dung ) {
+	$s = strtoupper( (string) $noi_dung );
+	if ( preg_match_all( '/(?<![A-Z0-9])([A-Z]{2,}[A-Z0-9]*\d[A-Z0-9]*)(?![A-Z0-9])/', $s, $m ) ) {
+		foreach ( $m[1] as $x ) {
+			/* Bỏ mấy cụm không phải mã cơ sở: số tài khoản thuần số đã bị loại bởi `[A-Z]{2,}`
+			   ở đầu, còn lại loại cụm quá ngắn. */
+			if ( strlen( $x ) >= 8 ) {
+				return $x;
+			}
 		}
 	}
 	return '';
@@ -718,6 +825,34 @@ function khh_dt_rest_sk_xem() {
 		"SELECT id, ngay, so_tien, noi_dung, tai_khoan FROM $bang WHERE cua_hang='' ORDER BY ngay DESC, id DESC LIMIT 80",
 		ARRAY_A
 	);
+	foreach ( (array) $chua as $i => $c ) {
+		$chua[ $i ]['ma_doc_duoc'] = khh_dt_ma_trong_nd( $c['noi_dung'] );
+	}
+	/* Gom theo MÃ đọc được: mười khoản của cùng một quán là MỘT dòng phải khai, không phải mười.
+	   Khai xong một mã là cả chục khoản về sổ cùng lúc. */
+	$ma_la = array();
+	foreach ( (array) $chua as $c ) {
+		$m = (string) $c['ma_doc_duoc'];
+		if ( '' === $m ) {
+			continue;
+		}
+		if ( ! isset( $ma_la[ $m ] ) ) {
+			$ma_la[ $m ] = array(
+				'ma'      => $m,
+				'so_lan'  => 0,
+				'so_tien' => 0,
+				'vi_du'   => (string) $c['noi_dung'],
+			);
+		}
+		$ma_la[ $m ]['so_lan']++;
+		$ma_la[ $m ]['so_tien'] += (float) $c['so_tien'];
+	}
+	usort(
+		$ma_la,
+		function ( $a, $b ) {
+			return $b['so_tien'] > $a['so_tien'] ? 1 : -1;
+		}
+	);
 	$theo_ch = $wpdb->get_results(
 		"SELECT cua_hang, COUNT(*) n, SUM(so_tien) t FROM $bang WHERE cua_hang<>'' GROUP BY cua_hang ORDER BY t DESC",
 		ARRAY_A
@@ -730,7 +865,9 @@ function khh_dt_rest_sk_xem() {
 		'tong'     => $bien ? (float) $bien['t'] : 0,
 		'chua_gan' => $chua ? $chua : array(),
 		'theo_ch'  => $theo_ch ? $theo_ch : array(),
+		'ma_la'    => array_values( $ma_la ),
 		'ghep'     => khh_dt_ghep_bank_ds(),
+		'theo_co_so' => khh_dt_ghep_theo_co_so(),
 		'gio_cat'  => khh_dt_gio_cat(),
 		'cua_hang' => khh_dt_ds_cua_hang(),
 		'co_cong_ghe' => khh_dt_co_cong_ghe(),
