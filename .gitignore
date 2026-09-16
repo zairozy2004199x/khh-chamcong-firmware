@@ -38,3 +38,9 @@ tools/deploy-hosting.env
 # Không commit: nó là sản phẩm build, mà commit .zip thì mỗi lần đóng gói lại là một bản nhị phân
 # mới trong lịch sử git, phình repo mà không đọc diff được.
 dist/
+
+# node_modules — chỉ sinh ra khi chạy bài bấm thử trang bằng Chromium
+# (`npm install --no-save playwright`). Hơn 1.000 tệp của thư viện ngoài, không phải mã của mình;
+# CI tự cài lại mỗi lượt chạy. Commit vào là phình repo mà không ai đọc diff được.
+node_modules/
+package-lock.json
