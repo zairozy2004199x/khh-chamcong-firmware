@@ -252,6 +252,42 @@ t( 'ký tự đặc biệt được thoát đúng, không thoát hai lần',
 /* Số 0 là số THẬT, không được biến thành ô rỗng. */
 t( 'số 0 vẫn ghi ra là 0, không thành ô trống', false !== strpos( $sheet, '<v>0</v>' ), $sheet );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CA GÃY — ĐỀ XUẤT KHOẢNG NGHỈ GIỮA CA
+ *
+ * Anh Thắng 16/09/2026: *"ca gãy, như ca 1,3"* — làm Ca 1 và Ca 3, KHÔNG làm Ca 2, mà máy chỉ
+ * thấy một cặp giờ liền mạch. Hàm này chỉ ĐỀ XUẤT khúc giữa để cửa hàng trưởng nhìn rồi sửa.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+$CA_GAY = array(
+	array( 'ten' => 'Ca 1', 'tu' => '07:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '17:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 3', 'tu' => '17:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+);
+/* 🔴 CẢNH CHÍNH: 07:00 → 22:00 chạm cả ba ca -> đề xuất bỏ khúc giữa 14:00–17:00. */
+teq( '🔴 ca gãy: đề xuất nghỉ đúng 14:00–17:00',
+	array( g( '14:00' ), g( '17:00' ) ),
+	VHCC_Ca::de_xuat_nghi( $CA_GAY, g( '07:00' ), g( '22:00' ) ) );
+/* 🔴 HAI CA LIỀN NHAU: KHÔNG có khe hở nào -> không đề xuất. */
+teq( '🔴 hai ca LIỀN NHAU: KHÔNG đề xuất', null,
+	VHCC_Ca::de_xuat_nghi( $CA_GAY, g( '07:00' ), g( '17:00' ) ) );
+/* 🔴 NHƯNG HAI CA RỜI NHAU THÌ CÓ. Cơ sở khai đúng hai ca 07–14 và 17–22, không có ca giữa —
+   khe 14:00–17:00 là khe THẬT, phải đề xuất. Bản đầu chốt "từ ba ca trở lên" nên im lặng bỏ
+   qua đúng cảnh này; đột biến hạ chốt xuống 2 mà bài kiểm không đỏ là cách nó lộ ra. */
+$CA_ROI = array(
+	array( 'ten' => 'Ca 1', 'tu' => '07:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 3', 'tu' => '17:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+);
+teq( '🔴 hai ca RỜI NHAU: đề xuất đúng khe 14:00–17:00',
+	array( g( '14:00' ), g( '17:00' ) ),
+	VHCC_Ca::de_xuat_nghi( $CA_ROI, g( '07:00' ), g( '22:00' ) ) );
+teq( 'chạm một ca: không đề xuất', null,
+	VHCC_Ca::de_xuat_nghi( $CA_GAY, g( '08:00' ), g( '12:00' ) ) );
+teq( 'lượt rỗng: không đề xuất', null, VHCC_Ca::de_xuat_nghi( $CA_GAY, null, null ) );
+/* ⚠️ Ca dính dưới 15 phút đã bị `tach()` bỏ, nên một lượt chỉ liếm 5 phút sang Ca 3 vẫn là
+   "hai ca" — không đề xuất. Không thế thì mỗi lượt về trễ 5 phút lại bị mời cắt ba tiếng. */
+teq( '🔴 liếm 5 phút sang ca thứ ba vẫn coi là hai ca', null,
+	VHCC_Ca::de_xuat_nghi( $CA_GAY, g( '07:00' ), g( '17:05' ) ) );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

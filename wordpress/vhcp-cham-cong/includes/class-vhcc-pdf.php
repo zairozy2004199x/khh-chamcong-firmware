@@ -68,18 +68,24 @@ class VHCC_Pdf {
 	 *    hợp) mỗi nơi một bản; hai bản tính giờ trên cùng một tờ giấy là đúng cái mà Code.gs tự
 	 *    cảnh báo — sớm muộn lệch nhau, và lệch giờ trên bảng chấm công là lệch tiền.
 	 */
-	public static function phut_lam( $vao, $ra ) {
+	public static function phut_lam( $vao, $ra, $nghi_tu = null, $nghi_den = null ) {
 		if ( null === $vao || null === $ra || '' === $vao || '' === $ra ) { return null; }
 		$p = intdiv( (int) $ra, 60 ) - intdiv( (int) $vao, 60 );
 		/* Hàng ca đêm đã trải phẳng nên hiệu luôn dương; hàng chính vắt qua nửa đêm thì cộng bù,
 		   giống `_mtdTinhLuong`. Không xử thì ra số ÂM trên tờ giấy chấm công. */
 		if ( $p < 0 ) { $p += 1440; }
-		return $p;
+		/* ⚠️ CA GÃY — trừ khoảng nghỉ giữa ca. Tờ giấy in ra và màn hình phải nói CÙNG một con
+		   số; quên ở đây là kế toán cầm tờ in đi đối chiếu với màn rồi lệch nhau ở đúng mấy
+		   ngày ca gãy, và không ai biết bên nào đúng. */
+		if ( class_exists( 'VHCC_Cham' ) && method_exists( 'VHCC_Cham', 'phut_nghi' ) ) {
+			$p -= VHCC_Cham::phut_nghi( $nghi_tu, $nghi_den );
+		}
+		return max( 0, $p );
 	}
 
 	/** Cùng số đó, dạng chữ để in. */
-	public static function gio_lam( $vao, $ra ) {
-		$p = self::phut_lam( $vao, $ra );
+	public static function gio_lam( $vao, $ra, $nghi_tu = null, $nghi_den = null ) {
+		$p = self::phut_lam( $vao, $ra, $nghi_tu, $nghi_den );
 		return null === $p ? '' : ( number_format( $p / 60, 2 ) . 'h' );
 	}
 
@@ -90,7 +96,8 @@ class VHCC_Pdf {
 	public static function gom( $coso, $tu, $den ) {
 		global $wpdb;
 		$hang = VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay FROM '
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay,'
+			. ' nghi_tu_giay, nghi_den_giay FROM '
 			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE coso=%s AND ngay >= %s AND ngay <= %s ORDER BY ngay, ho_ten, ma_nv, hau_to',
 			$coso, $tu, $den ) );
@@ -117,7 +124,7 @@ class VHCC_Pdf {
 
 			$chi_tiet[] = array( 'ngay' => $r['ngay'], 'ma' => $ma_hien, 'ten' => $ten,
 				'vao' => VHCC_DB::hhmmss( $vao ), 'ra' => VHCC_DB::hhmmss( $ra ),
-				'gio' => self::gio_lam( $vao, $ra ) );
+				'gio' => self::gio_lam( $vao, $ra, $r['nghi_tu_giay'], $r['nghi_den_giay'] ) );
 
 			if ( ! isset( $tong[ $ma_hien ] ) ) {
 				$tong[ $ma_hien ] = array( 'ma' => $ma_hien, 'ten' => $ten,
@@ -127,7 +134,7 @@ class VHCC_Pdf {
 			if ( null === $ra ) { $tong[ $ma_hien ]['thieuRa']++; }
 			/* Ngày thiếu một đầu KHÔNG cộng giờ — `phut_lam` trả null. Cộng bừa 0 hay cộng nửa ngày
 			   là tự bịa giờ làm cho một ngày mà máy không biết người ta làm bao lâu. */
-			$p = self::phut_lam( $vao, $ra );
+			$p = self::phut_lam( $vao, $ra, $r['nghi_tu_giay'], $r['nghi_den_giay'] );
 			if ( null !== $p ) { $tong[ $ma_hien ]['phut'] += $p; }
 		}
 		$tong = array_values( $tong );

@@ -317,7 +317,45 @@ class VHCC_Bu {
 			}
 		}
 
-		if ( $vao_moi === $vao_cu && $ra_moi === $ra_cu ) {
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — khoảng NGHỈ GIỮA CA, không tính tiền.
+		 *
+		 * `$dat['gay']` là ô TÍCH: không tích thì XOÁ khoảng nghỉ (người ta vừa bỏ tích), tích
+		 * thì phải có đủ hai đầu giờ. `false` = biểu mẫu không gửi ô ấy lên (dòng nhiều ca, hoặc
+		 * một đường gọi khác) -> KHÔNG ĐỤNG TỚI.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ng_tu  = false;
+		$ng_den = false;
+		if ( array_key_exists( 'gay', $dat ) ) {
+			if ( empty( $dat['gay'] ) ) {
+				$ng_tu  = null;
+				$ng_den = null;
+			} else {
+				$ng_tu  = self::giay( isset( $dat['nghi_tu'] ) ? $dat['nghi_tu'] : '' );
+				$ng_den = self::giay( isset( $dat['nghi_den'] ) ? $dat['nghi_den'] : '' );
+				if ( null === $ng_tu || null === $ng_den ) {
+					return array( 'ok' => false, 'error' => 'Tích "Ca gãy" thì phải gõ đủ cả '
+						. '"Ra ca 1" lẫn "Vào ca 2" — theo 24 giờ, VD 14:00 và 17:00.' );
+				}
+				if ( $ng_den <= $ng_tu ) {
+					return array( 'ok' => false, 'error' => '"Vào ca 2" phải muộn hơn "Ra ca 1".' );
+				}
+				/* 🔴 KHÚC NGHỈ PHẢI NẰM TRONG CHÍNH LƯỢT CHẤM ẤY. Nghỉ thò ra ngoài [vào, ra] là
+				   trừ nhiều hơn số giờ người ta có mặt — ra số âm, hoặc ăn sang ngày khác. */
+				if ( null === $vao_moi || null === $ra_moi ) {
+					return array( 'ok' => false,
+						'error' => 'Ngày này còn thiếu giờ vào hoặc giờ ra — điền đủ rồi mới khai ca gãy được.' );
+				}
+				if ( $ng_tu < $vao_moi || $ng_den > $ra_moi ) {
+					return array( 'ok' => false, 'error' => 'Khúc nghỉ phải nằm TRONG giờ vào và '
+						. 'giờ ra của ngày ấy (' . self::hhmm_hoac_trong( $vao_moi ) . ' → '
+						. self::hhmm_hoac_trong( $ra_moi ) . ').' );
+				}
+			}
+		}
+
+		$doi_gay = ( false !== $ng_tu || false !== $ng_den );
+		if ( $vao_moi === $vao_cu && $ra_moi === $ra_cu && ! $doi_gay ) {
 			return array( 'ok' => false, 'error' => 'Không có gì thay đổi — giờ mới trùng giờ cũ.' );
 		}
 		/* 🔴 HÀNG CA ĐÊM: GIỜ RA SAU NỬA ĐÊM KHÔNG PHẢI LÀ "SỚM HƠN GIỜ VÀO".
@@ -339,7 +377,7 @@ class VHCC_Bu {
 		}
 
 		$kq = VHCC_Nhan::dat_gio( $coso, $ngay, $ma_nv, (string) $cu['ho_ten'],
-			$vao_moi, $ra_moi, 'Sửa: ' . $ly_do );
+			$vao_moi, $ra_moi, 'Sửa: ' . $ly_do, $ng_tu, $ng_den );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		/* Một dòng nhật ký cho MỖI Ô THẬT SỰ ĐỔI. Ghi cả ô không đổi là sổ đầy dòng vô nghĩa,
@@ -367,11 +405,19 @@ class VHCC_Bu {
 	 */
 	public static function gio_hien_tai( $coso, $ngay, $ma_nv ) {
 		$cu = self::hang( VHCC_NhanSu::chuan_coso( $coso ), $ngay, $ma_nv );
-		if ( ! $cu ) { return array( 'co' => false, 'vao' => '—', 'ra' => '—' ); }
+		if ( ! $cu ) {
+			return array( 'co' => false, 'vao' => '—', 'ra' => '—',
+				'vaoGiay' => null, 'raGiay' => null, 'nghiTu' => null, 'nghiDen' => null );
+		}
 		$v = ( null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
 		$r = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+		/* CA GÃY — hai đầu khoảng nghỉ, trả về dạng GIÂY THÔ (không phải 'HH:mm') vì nơi gọi
+		   còn phải so với giờ vào/ra và với phép đề xuất của `VHCC_Ca`. */
+		$ntu  = ( null !== $cu['nghi_tu_giay'] && '' !== $cu['nghi_tu_giay'] ) ? (int) $cu['nghi_tu_giay'] : null;
+		$nden = ( null !== $cu['nghi_den_giay'] && '' !== $cu['nghi_den_giay'] ) ? (int) $cu['nghi_den_giay'] : null;
 		return array( 'co' => true, 'vao' => self::hhmm_hoac_trong( $v ),
-			'ra' => self::hhmm_hoac_trong( $r ), 'nguon' => (string) $cu['nguon'] );
+			'ra' => self::hhmm_hoac_trong( $r ), 'nguon' => (string) $cu['nguon'],
+			'vaoGiay' => $v, 'raGiay' => $r, 'nghiTu' => $ntu, 'nghiDen' => $nden );
 	}
 
 	/**

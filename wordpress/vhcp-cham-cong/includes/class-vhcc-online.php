@@ -804,7 +804,8 @@ class VHCC_Online {
 		      lệch, là việc của phần mềm; quyết định hai tên ấy có phải một không là việc của
 		      người khai. */
 		$r = $wpdb->get_results( $wpdb->prepare(
-			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay, nghi_tu_giay, nghi_den_giay FROM '
+			. VHCC_DB::t( 'cham_cong' )
 			. ' WHERE ma_nv=%s AND ngay BETWEEN %s AND %s'
 			. ' ORDER BY ngay ASC, coso ASC, hau_to ASC',
 			$ma_nv, $thang . '-01', $thang . '-31' ), ARRAY_A );
@@ -824,7 +825,12 @@ class VHCC_Online {
 			if ( $rong_v && $rong_a ) { continue; }
 			$p = null;
 			if ( null !== $v && '' !== $v && null !== $a && '' !== $a ) {
-				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ) );
+				/* ⚠️ CA GÃY — màn "Công của tôi" mà nhân viên tự mở phải ra CÙNG con số với bảng
+				   lương. Lệch một chỗ là họ cầm điện thoại cãi với bảng lương, không ai biết bên
+				   nào đúng — đúng cái mà chú thích của `phut_ca()` đã dặn. */
+				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ),
+					isset( $x['nghi_tu_giay'] ) ? $x['nghi_tu_giay'] : null,
+					isset( $x['nghi_den_giay'] ) ? $x['nghi_den_giay'] : null );
 				$phut += $p;
 			} elseif ( null !== $v && '' !== $v ) {
 				/* Có vào mà không có ra. Đếm riêng — đây chính là thứ người ta cần thấy để đi
@@ -858,7 +864,8 @@ class VHCC_Online {
 		$oc = implode( ',', array_fill( 0, count( $ds_coso ), '%s' ) );
 		$tv = array_merge( array( $ma_nv ), $ds_coso );
 		$r  = $wpdb->get_results( $wpdb->prepare(
-			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay, nghi_tu_giay, nghi_den_giay FROM '
+			. VHCC_DB::t( 'cham_cong' )
 			. " WHERE ma_nv=%s AND coso IN ($oc) ORDER BY ngay DESC, coso ASC, hau_to ASC LIMIT $n",
 			$tv ), ARRAY_A );
 		$out = array();

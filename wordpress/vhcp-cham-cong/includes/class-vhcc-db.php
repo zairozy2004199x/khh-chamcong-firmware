@@ -381,6 +381,28 @@ class VHCC_DB {
 		   bung ra là phải sửa cả ba engine mà không được gì.
 
 		   `chuan` = cột "Thời gian trong ngày" của sheet, chuỗi tự do người ta gõ tay. */
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — hai cột `nghi_tu_giay` / `nghi_den_giay` dưới đây là KHOẢNG NGHỈ GIỮA CA,
+		 * không tính tiền.
+		 *
+		 * Anh Thắng 16/09/2026: *"có những trường hợp ca gãy, như ca 1,3 ... cứ chấm liên tiếp
+		 * bình thường, sau đó cửa hàng trưởng vào bảng công, tích vào ca gãy, nó sẽ tách thành
+		 * 2 giờ vào và 2 giờ ra để gộp giờ và bỏ giờ giữa ra"*.
+		 *
+		 * Người làm Ca 1 (07:00–14:00) và Ca 3 (17:00–22:00) nhưng KHÔNG làm Ca 2. Máy chấm
+		 * công chỉ thấy MỘT cặp 07:00 → 22:00 = 15 giờ — dư đúng 3 giờ người ta về nhà.
+		 *
+		 * 🔴 VÌ SAO LƯU KHOẢNG NGHỈ, KHÔNG LƯU CẶP GIỜ THỨ HAI:
+		 *    `gio_vao_giay`/`gio_ra_giay` giữ nguyên nghĩa "vào ĐẦU, ra CUỐI". Mọi nơi đang đọc
+		 *    chúng — ô ngày trên lưới, phép tách ca, phép trải phẳng ca đêm `-CD`, tờ in A4 —
+		 *    chạy y như trước, không phải học thêm gì; chỉ phép TÍNH GIỜ trừ thêm khoảng nghỉ.
+		 *    Lưu thành một cặp giờ thứ hai thì ngược lại: mọi nơi đọc một cặp đều phải sửa, và
+		 *    nơi nào quên sẽ lặng lẽ tính thiếu — thứ không ai kêu vì bảng vẫn đầy số.
+		 *    Màn vẫn bày ra BỐN ô đúng như anh Thắng mô tả (vào · ra ca 1 · vào ca 2 · ra), vì
+		 *    hai ô giữa CHÍNH LÀ hai đầu của khoảng nghỉ.
+		 *
+		 * ⚠️ NULL = ngày ấy không có ca gãy. KHÔNG dùng 0 — 0 giây là 00:00:00, một mốc có thật.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$b['cham_cong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			coso VARCHAR(120) NOT NULL,
@@ -390,6 +412,8 @@ class VHCC_DB {
 			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
 			gio_vao_giay INT NULL,
 			gio_ra_giay INT NULL,
+			nghi_tu_giay INT NULL,
+			nghi_den_giay INT NULL,
 			anh_vao VARCHAR(190) NOT NULL DEFAULT '',
 			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
 			chuan VARCHAR(190) NOT NULL DEFAULT '',

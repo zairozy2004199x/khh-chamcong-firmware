@@ -746,7 +746,8 @@ class VHCC_Nhan {
 	 * @param int|null $ra_giay  Giây trong ngày, hoặc null để xoá trắng ô.
 	 * @return array `cu` (giờ trước khi sửa) + `moi`, hoặc `loi`.
 	 */
-	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null ) {
+	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null,
+		$nghi_tu = false, $nghi_den = false ) {
 		global $wpdb;
 		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
 		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
@@ -779,6 +780,24 @@ class VHCC_Nhan {
 			'chuan'        => $chuan,
 			'nguon'        => 'sua',
 		);
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CA GÃY — khoảng nghỉ giữa ca.
+		 *
+		 * 🔴 BA TRẠNG THÁI, KHÔNG PHẢI HAI:
+		 *      `false` (mặc định) = KHÔNG ĐỤNG TỚI — mọi nơi gọi cũ đi qua đây không mất ca gãy
+		 *                            đã khai. Quan trọng nhất: máy chấm công đẩy một lượt mới
+		 *                            về cũng không xoá mất thứ cửa hàng trưởng vừa khai tay.
+		 *      `null`              = XOÁ (bỏ tích ca gãy).
+		 *      số                  = ĐẶT.
+		 *    Dùng `null` làm "không đụng" thì không còn cách nào xoá; dùng `0` thì mất mốc
+		 *    00:00:00. Nên phải là ba.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( false !== $nghi_tu ) {
+			$dat['nghi_tu_giay'] = ( null === $nghi_tu || '' === $nghi_tu ) ? null : (int) $nghi_tu;
+		}
+		if ( false !== $nghi_den ) {
+			$dat['nghi_den_giay'] = ( null === $nghi_den || '' === $nghi_den ) ? null : (int) $nghi_den;
+		}
 		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
 
 		if ( $cu ) {
@@ -794,9 +813,16 @@ class VHCC_Nhan {
 		}
 		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
 
+		$ntu_cu = ( $cu && null !== $cu['nghi_tu_giay'] && '' !== $cu['nghi_tu_giay'] )
+			? (int) $cu['nghi_tu_giay'] : null;
+		$nden_cu = ( $cu && null !== $cu['nghi_den_giay'] && '' !== $cu['nghi_den_giay'] )
+			? (int) $cu['nghi_den_giay'] : null;
 		return array(
-			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu ),
-			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay ),
+			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu,
+				'nghiTu' => $ntu_cu, 'nghiDen' => $nden_cu ),
+			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay,
+				'nghiTu'  => array_key_exists( 'nghi_tu_giay', $dat ) ? $dat['nghi_tu_giay'] : $ntu_cu,
+				'nghiDen' => array_key_exists( 'nghi_den_giay', $dat ) ? $dat['nghi_den_giay'] : $nden_cu ),
 		);
 	}
 
