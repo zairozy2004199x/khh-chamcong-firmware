@@ -50,7 +50,7 @@ const SEL = {
 	},
 };
 const LBL = { textContent: '' };
-const NGAYCH = { innerHTML: '' };
+const NGAYBODY = { innerHTML: '' };
 
 function dungDOM(dong) {
 	const trs = dong.map(function (d) {
@@ -63,12 +63,12 @@ function dungDOM(dong) {
 		getElementById: function (id) {
 			if (id === 'cg_momo_chLoc') { return SEL; }
 			if (id === 'cg_momo_chLocTong') { return LBL; }
-			if (id === 'cg_momo_chNgayCH') { return NGAYCH; }
+			if (id === 'cg_momo_ngayBody') { return NGAYBODY; }
 			return null;
 		},
 		querySelectorAll: function () { return trs; },
 	};
-	return { sel: SEL, lbl: LBL, trs: trs, ngay: NGAYCH };
+	return { sel: SEL, lbl: LBL, trs: trs, ngay: NGAYBODY };
 }
 
 const moiTruong = 'var CG_LOCCH = {}; var CG_FILE = {};\n'
@@ -77,9 +77,9 @@ const moiTruong = 'var CG_LOCCH = {}; var CG_FILE = {};\n'
 	+ 'function esc(s){ return String(s == null ? "" : s); }\n'
 	+ 'function fmt(n){ return String(n); }\n'
 	+ bocHam('cgDungLocCH') + '\n' + bocHam('cgLocCH') + '\n'
-	+ bocHam('cgVeNgayCH') + '\n' + bocHam('cgMocNgay') + '\n'
+	+ bocHam('cgVeBangNgay') + '\n'
 	+ 'return { dung: cgDungLocCH, loc: cgLocCH, state: function(){ return CG_LOCCH; },'
-	+ '  datFile: function(n, d){ CG_FILE[n] = d; }, moc: cgMocNgay };';
+	+ '  datFile: function(n, d){ CG_FILE[n] = d; }, veNgay: cgVeBangNgay };';
 const M = new Function(moiTruong)();
 
 const DL = { theoCuaHang: [
@@ -181,33 +181,53 @@ const CAU = THAN.indexOf('<b>tải lại file cũ bao nhiêu lần cũng không 
 t('🔴 câu "không nhân đôi tiền" vẫn còn trong markup', CAU > 0);
 t('và nó nằm TRONG khối tải file, chỗ sắp bấm nạp', CAU > P_TAI && CAU < P_NGAY, CAU);
 
-/* ── 8. Một cửa hàng, từng ngày — anh Thắng 16/09/2026 ───────────────────────────────────────── */
-M.datFile('momo', { theoNgayCH: { 'Tutu Train - Estella': {
-	'10/09/2026': 3000000, '02/09/2026': 1000000, '01/10/2026': 500000 } } });
-D.sel.value = '';
-M.loc('momo');
-t('chưa lọc thì KHÔNG vẽ bảng theo ngày (chín cửa hàng × mười sáu ngày là thứ không ai đọc)',
-	D.ngay.innerHTML === '');
+/* ── 8. MỘT bảng ngày, ăn theo cửa hàng đang chọn ───────────────────────────────────────────
+   Anh Thắng 16/09/2026: *"gộp lại, chọn cửa hàng và chọn ngày là được"*. 0.41.0 vẽ THÊM một bảng
+   ngày riêng cho cửa hàng — màn thành hai bảng ngày nói hai chuyện khác nhau. Nay chỉ còn một. */
+const NGAY_THANG = [
+	{ ngay: '01/09/2026', coFile: true, soTien: 15059000, soCuaHang: 4, chenhHomTruoc: '' },
+	{ ngay: '02/09/2026', coFile: true, soTien: 16525000, soCuaHang: 4, chenhHomTruoc: 1466000 },
+	{ ngay: '03/09/2026', coFile: true, soTien:  3240000, soCuaHang: 4, chenhHomTruoc: -13285000 },
+	{ ngay: '04/09/2026', coFile: false, soTien: 0,       soCuaHang: 0, chenhHomTruoc: '' },
+];
+const DL2 = { theoNgay: NGAY_THANG, theoCuaHang: [ { cuaHangFile: 'Tutu Train - Estella', soTien: 4500000 } ],
+	theoNgayCH: { 'Tutu Train - Estella': { '01/09/2026': 1000000, '03/09/2026': 3500000 } } };
 
 D = dungDOM([ { ten: 'Tutu Train - Estella', tien: '4.500.000' } ]);
-M.dung('momo', { theoCuaHang: [ { cuaHangFile: 'Tutu Train - Estella', soTien: 4500000 } ] });
+M.datFile('momo', DL2);
+M.dung('momo', DL2);
+
+t('chưa lọc: bảng ngày là số CẢ THÁNG', D.ngay.innerHTML.indexOf('15059000') > 0);
+t('chưa lọc: cột số cửa hàng vẫn có số', D.ngay.innerHTML.indexOf('>4<') > 0);
+
 D.sel.value = 'Tutu Train - Estella';
 M.loc('momo');
-t('lọc một cửa hàng thì có bảng theo ngày', D.ngay.innerHTML.indexOf('theo ngày') > 0);
-t('đủ ba ngày', ['10/09/2026','02/09/2026','01/10/2026'].every(function (n) { return D.ngay.innerHTML.indexOf(n) > 0; }));
-/* 🔴 Khoá là "dd/mm/yyyy": so chuỗi thì 10/09 đứng trước 02/09, và 02/09 đứng trước 01/10 —
-   bảng ra thứ tự lộn mà vẫn trông hợp lý, loại sai không ai soi ra bằng mắt. */
-const iA = D.ngay.innerHTML.indexOf('02/09/2026');
-const iB = D.ngay.innerHTML.indexOf('10/09/2026');
-const iC = D.ngay.innerHTML.indexOf('01/10/2026');
-t('🔴 ngày xếp theo MỐC THẬT, không xếp theo chuỗi', iA < iB && iB < iC, { iA: iA, iB: iB, iC: iC });
-t('cgMocNgay so được qua tháng', M.moc('01/10/2026') > M.moc('10/09/2026'));
-t('tổng của cửa hàng in ra đúng', D.ngay.innerHTML.indexOf('4500000') > 0);
+t('🔴 chọn cửa hàng: CHÍNH bảng ngày đổi sang số của gian ấy',
+	D.ngay.innerHTML.indexOf('1000000') > 0 && D.ngay.innerHTML.indexOf('3500000') > 0);
+t('🔴 và không còn số của cả tháng lẫn vào', D.ngay.innerHTML.indexOf('15059000') < 0);
+/* ⚠️ Ngày gian ấy không bán vẫn phải có dòng 0đ — đó chính là thứ người ta đi tìm. */
+t('ngày có file mà gian không bán -> vẫn có dòng, số 0', D.ngay.innerHTML.indexOf('02/09/2026') > 0);
+/* ⚠️ "chưa có file" khác "bán 0đ" — ngày chưa có file vẫn phải là dấu gạch. */
+t('ngày chưa có file vẫn là "—", không thành 0đ', D.ngay.innerHTML.indexOf('chưa có file') > 0);
+/* 🔴 So-hôm-trước phải tính lại theo chuỗi của CHÍNH gian ấy: 02/09 gian này bán 0đ, nên 03/09
+   so với 0 -> +3.500.000. Dán nguyên chênh lệch cả tháng (-13.285.000) là hai con số cùng hàng
+   nói về hai thứ khác nhau — sai mà trông vẫn hợp lý. */
+t('🔴 "so hôm trước" tính lại theo chuỗi của gian ấy',
+	D.ngay.innerHTML.indexOf('+3500000') > 0 && D.ngay.innerHTML.indexOf('-13285000') < 0);
+/* ⚠️ Ngày CHƯA CÓ FILE thì không so gì cả — kèm một con số chênh lệch là nói gian ấy hôm đó tụt
+   doanh thu, trong khi thật ra mình chưa biết gì về hôm ấy. */
+/* ⚠️ Cắt từ LẦN XUẤT HIỆN ĐẦU tới hết hàng. `04/09/2026` còn nằm lần nữa trong link "xem riêng"
+   ở cuối hàng — dùng lastIndexOf là cắt mất cột chênh lệch, và phép này xanh giả (đục thử phát
+   hiện: gỡ hẳn cửa `if(!coFile)` mà bài vẫn xanh). */
+const hangCuoi = (function () {
+	const h = D.ngay.innerHTML, a = h.indexOf('04/09/2026');
+	return a < 0 ? '' : h.slice(a, h.indexOf('</tr>', a));
+})();
+t('🔴 ngày chưa có file: cột so-hôm-trước là "—", không phải một con số', hangCuoi.indexOf('-3500000') < 0, hangCuoi);
 
-/* Cửa hàng có trong bảng nhưng máy chủ chưa gửi chi tiết ngày -> đừng vẽ khung rỗng. */
-M.datFile('momo', { theoNgayCH: {} });
+D.sel.value = '';
 M.loc('momo');
-t('không có dữ liệu ngày thì không vẽ khung rỗng', D.ngay.innerHTML === '');
+t('bỏ lọc: bảng ngày về lại số cả tháng', D.ngay.innerHTML.indexOf('15059000') > 0);
 
 /* ── 9. Phía máy chủ: gom bảng chéo TRƯỚC cửa lọc-một-ngày ───────────────────────────────────
    Bài này vốn chỉ soi app.html, nhưng cái bẫy nặng nhất của tính năng nằm bên PHP và nó câm:

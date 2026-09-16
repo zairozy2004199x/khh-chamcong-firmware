@@ -1454,6 +1454,16 @@ function dungViewFile(nguon){
   +   'Bấm một ô để <b>xem riêng ngày đó</b> (bảng cửa hàng và cục bank bó lại trong ngày). '
   +   'Muốn xoá dữ liệu một ngày thì chọn ngày đó rồi bấm nút 🗑 — <b>không xoá bằng cú bấm chọn ngày</b>.</div>'
   +   '<div id="'+id('ngayO')+'" style="display:flex;flex-wrap:wrap;gap:6px"></div>'
+  /* 🔴 MỘT CHỖ CHỌN CẢ HAI — anh Thắng 16/09/2026: *"gộp lại, chọn cửa hàng và chọn ngày là được"*.
+     Bản 0.41.0 để ô chọn cửa hàng ở khối dưới và vẽ THÊM một bảng ngày riêng cho cửa hàng ấy —
+     thành ra màn có HAI bảng ngày nói hai chuyện khác nhau, mà người đọc phải tự nhớ bảng nào
+     đang lọc bảng nào không. Nay ô chọn nằm ngay cạnh dải ô ngày, và CHỈ CÒN MỘT bảng: chọn cửa
+     hàng thì chính bảng này đổi theo. */
+  +   '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">'
+  +     '<span class="muted">Cửa hàng:</span>'
+  +     '<select id="'+id('chLoc')+'" onchange="cgLocCH(\''+nguon+'\')" style="min-width:260px"></select>'
+  +     '<span id="'+id('chLocTong')+'" class="muted"></span>'
+  +   '</div>'
   +   '<div id="'+id('locBar')+'" style="display:none;margin-top:12px" class="row"></div>'
   +   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Ngày</th>'
   +     '<th class="num">Số cửa hàng</th><th class="num">Số tiền</th>'
@@ -1462,13 +1472,6 @@ function dungViewFile(nguon){
   + '</div>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Theo cửa hàng <span class="muted" id="'+id('chLbl')+'"></span></h3>'
-  /* Lọc theo MỘT cửa hàng — anh Thắng 16/09/2026. Bảng này có tháng tới vài chục dòng, muốn xem
-     doanh thu của riêng một gian thì phải dò mắt. Lọc ngay tại chỗ, không cần gọi lại máy chủ. */
-  +   '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-  +     '<select id="'+id('chLoc')+'" onchange="cgLocCH(\''+nguon+'\')" style="min-width:240px"></select>'
-  +     '<span id="'+id('chLocTong')+'" class="muted"></span>'
-  +   '</div>'
-  +   '<div id="'+id('chNgayCH')+'"></div>'
   +   '<table><thead><tr><th>Cửa hàng chuẩn</th><th>Tên ở file cổng</th><th>Mã nộp tiền</th>'
   +   '<th class="num">Số ngày có</th><th>Ngày cuối</th><th class="num">Số tiền</th></tr></thead>'
   +   '<tbody id="'+id('chBody')+'"></tbody></table>'
@@ -1588,48 +1591,56 @@ function cgLocCH(nguon){
   });
   var lb = cgEl(nguon,'chLocTong');
   if(lb) lb.textContent = q ? ('→ ' + q + ': ' + fmt(tong) + 'đ · ' + so + ' dòng') : '';
-  cgVeNgayCH(nguon, q);
+  cgVeBangNgay(nguon);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * MỘT CỬA HÀNG, TỪNG NGÀY (0.41.0) — anh Thắng 16/09/2026: *"muốn xem doanh thu momo của 1 cửa
- * hàng theo ngày"*.
+ * BẢNG "ĐỐI SOÁT THEO NGÀY" — MỘT BẢNG, ĂN THEO CỬA HÀNG ĐANG CHỌN (0.42.0)
  *
- * Màn này vốn có hai bảng, mỗi bảng gom mất một chiều: "Đối soát theo ngày" cộng hết cửa hàng
- * lại, "Theo cửa hàng" cộng hết ngày lại. Cái chéo giữa hai bảng thì không có ở đâu — mà đó
- * đúng là câu hỏi thường gặp nhất: *gian này hôm nào bán được bao nhiêu*.
+ * Anh Thắng 16/09/2026: *"gộp lại, chọn cửa hàng và chọn ngày là được"*.
  *
- * ⚠️ CHỈ VẼ KHI ĐANG LỌC MỘT CỬA HÀNG. Vẽ luôn cho "Tất cả" là một bảng chín cửa hàng × mười sáu
- *    ngày đổ thẳng vào màn — thứ không ai đọc, và nó đẩy bảng chính xuống dưới.
- * ⚠️ NGÀY XẾP THEO MỐC THẬT, không xếp theo chuỗi: khoá là "dd/mm/yyyy" nên so chuỗi thì 02/09
- *    đứng trước 01/10 mà 10/09 lại đứng trước 02/09.
+ * 0.41.0 để ô chọn cửa hàng ở khối dưới rồi vẽ THÊM một bảng ngày riêng — màn thành hai bảng
+ * ngày nói hai chuyện khác nhau, người đọc phải tự nhớ bảng nào đang lọc bảng nào không. Nay chỉ
+ * còn MỘT bảng: không chọn cửa hàng thì nó là cả tháng như cũ, chọn rồi thì nó là của riêng gian
+ * ấy.
+ *
+ * ⚠️ "SO HÔM TRƯỚC" PHẢI TÍNH LẠI THEO CHUỖI CỦA CHÍNH CỬA HÀNG ẤY. Cột `chenhHomTruoc` máy chủ
+ *    gửi về là chênh lệch của TỔNG CẢ THÁNG; dán nguyên nó cạnh số tiền của một gian là hai con
+ *    số cùng hàng nói về hai thứ khác nhau — sai mà trông vẫn hợp lý.
+ * ⚠️ NGÀY KHÔNG CÓ DOANH THU VẪN GIỮ DÒNG (0đ). Bỏ dòng đi là mất chính thứ người ta đi tìm: hôm
+ *    nào gian này không bán được gì. Nhưng "chưa có file" thì vẫn là "—", không phải 0 — hai
+ *    chuyện khác hẳn nhau.
  * ══════════════════════════════════════════════════════════════════════════════════════════════ */
-function cgVeNgayCH(nguon, q){
-  var box = cgEl(nguon,'chNgayCH'); if(!box) return;
-  var d = CG_FILE[nguon];
-  if(!q || !d || !d.theoNgayCH || !d.theoNgayCH[q]){ box.innerHTML = ''; return; }
-  var m = d.theoNgayCH[q];
-  var ngay = Object.keys(m).sort(function(a,b){ return cgMocNgay(a) - cgMocNgay(b); });
-  if(!ngay.length){ box.innerHTML = ''; return; }
-  var tong = 0; ngay.forEach(function(n){ tong += Number(m[n]) || 0; });
+function cgVeBangNgay(nguon){
+  var d = CG_FILE[nguon]; if(!d) return;
+  var than = cgEl(nguon,'ngayBody'); if(!than) return;
+  var q = CG_LOCCH[nguon] || '';
+  var m = (q && d.theoNgayCH) ? (d.theoNgayCH[q] || {}) : null;
   var truoc = null;
-  box.innerHTML = '<div style="margin:4px 0 10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px">'
-    + '<b>' + esc(q) + ' — theo ngày</b> <span class="muted">· ' + ngay.length + ' ngày · ' + fmt(tong) + 'đ</span>'
-    + '<table style="margin-top:6px"><thead><tr><th>Ngày</th><th class="num">Số tiền</th>'
-    + '<th class="num">So hôm trước</th></tr></thead><tbody>'
-    + ngay.map(function(n){
-        var v = Number(m[n]) || 0;
-        var ch = (truoc === null) ? '' : (v - truoc); truoc = v;
-        return '<tr><td>' + esc(n) + '</td><td class="num in">' + fmt(v) + '</td>'
-          + '<td class="num" style="color:' + (ch === '' ? 'var(--muted)' : (ch < 0 ? 'var(--red)' : 'var(--green)')) + '">'
-          + (ch === '' ? '—' : ((ch > 0 ? '+' : '') + fmt(ch))) + '</td></tr>'; }).join('')
-    + '</tbody></table></div>';
+  var ds = d.theoNgay || [];
+  than.innerHTML = ds.map(function(x){
+    var coFile = x.coFile, tien, ch, soCH;
+    if(m){
+      tien = Number(m[x.ngay]) || 0;
+      /* Ngày CHƯA CÓ FILE thì không so gì cả: cột tiền đã là "—", kèm thêm một con số chênh lệch
+         là nói rằng hôm ấy gian này tụt doanh thu — trong khi thật ra mình chưa biết gì về hôm
+         ấy. Và cũng không đẩy `truoc` theo, để hôm có file tiếp theo so với hôm CÓ FILE gần nhất. */
+      if(!coFile){ ch = ''; }
+      else { ch = (truoc === null) ? '' : (tien - truoc); truoc = tien; }
+      soCH = '—';                     // một cửa hàng thì cột này không còn nghĩa gì
+    } else {
+      tien = x.soTien; ch = x.chenhHomTruoc; soCH = coFile ? x.soCuaHang : '—';
+    }
+    return '<tr'+(d.ngayLoc===x.ngay?' class="danop"':'')+'>'
+      + '<td>'+esc(x.ngay)+(coFile?'':' <span style="color:var(--doNhat)">chưa có file</span>')+'</td>'
+      + '<td class="num">'+soCH+'</td>'
+      + '<td class="num'+(tien?' in':'')+'">'+(coFile?fmt(tien):'—')+'</td>'
+      + '<td class="num" style="color:'+(ch===''?'var(--muted)':(ch<0?'var(--red)':'var(--green)'))+'">'
+      +   (ch===''?'—':((ch>0?'+':'')+fmt(ch)))+'</td>'
+      + '<td><a href="javascript:void(0)" onclick="cgChonNgay(\''+nguon+'\',\''+x.ngay+'\')">xem riêng</a></td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">Tháng chưa tới ngày nào.</td></tr>';
 }
-/* "dd/mm/yyyy" -> mốc so sánh được. Xem ⚠️ thứ hai ở khối trên. */
-function cgMocNgay(s){
-  var p = String(s || '').split('/');
-  return p.length === 3 ? (Number(p[2]) * 10000 + Number(p[1]) * 100 + Number(p[0])) : 0;
-}
+
 function veDoiSoatFile(nguon, d){
   CG_FILE[nguon] = d;
   cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
@@ -1724,17 +1735,9 @@ function veDoiSoatFile(nguon, d){
       + '<button class="danger" onclick="cgXoaNgay(\''+nguon+'\',\''+d.ngayLoc+'\')">🗑 Xoá dữ liệu ngày này</button>';
   } else lb.style.display='none';
 
-  // Bảng ngày-qua-ngày: chính là "đối soát theo ngày"
-  cgEl(nguon,'ngayBody').innerHTML = dsNgay.map(function(x){
-    var ch = x.chenhHomTruoc;
-    return '<tr'+(d.ngayLoc===x.ngay?' class="danop"':'')+'>'
-      + '<td>'+esc(x.ngay)+(x.coFile?'':' <span style="color:var(--doNhat)">chưa có file</span>')+'</td>'
-      + '<td class="num">'+(x.coFile?x.soCuaHang:'—')+'</td>'
-      + '<td class="num'+(x.soTien?' in':'')+'">'+(x.coFile?fmt(x.soTien):'—')+'</td>'
-      + '<td class="num" style="color:'+(ch===''?'var(--muted)':(ch<0?'var(--red)':'var(--green)'))+'">'
-      +   (ch===''?'—':((ch>0?'+':'')+fmt(ch)))+'</td>'
-      + '<td><a href="javascript:void(0)" onclick="cgChonNgay(\''+nguon+'\',\''+x.ngay+'\')">xem riêng</a></td></tr>';
-  }).join('') || '<tr><td colspan="5" class="muted">Tháng chưa tới ngày nào.</td></tr>';
+  // Bảng ngày-qua-ngày: chính là "đối soát theo ngày". Vẽ trong hàm riêng vì ô chọn cửa hàng
+  // cũng phải vẽ lại nó — xem cgVeBangNgay().
+  cgVeBangNgay(nguon);
 
   cgEl(nguon,'chBody').innerHTML = !d.theoCuaHang.length
     ? '<tr><td colspan="6" class="muted">Chưa có dữ liệu file trong tháng này.</td></tr>'
