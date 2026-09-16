@@ -115,3 +115,133 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   assert(Math.abs(r.grandTotal - (base - 10000000)) < 0.01, 'includePending phải tính khoản chờ duyệt');
   console.log('OK — trạng thái duyệt.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// TỜ NHẬP MISA — "<Bộ phận> chi tiết"  (anh Thắng 16/09/2026)
+//
+// Luật ở đây KHÔNG do ai nghĩ ra: đọc thẳng từ file thật "File chi phí MN T8/2026" của anh Thắng,
+// tab "Posh chi tiết" (20 chứng từ × 66 điểm = 1.320 dòng). Mỗi phép dưới đây trói vào một nét đã
+// quan sát được ở file ấy, nên sửa mã mà lệch khỏi file thật là đỏ ngay.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.period = { month: 8, year: 2026 };
+  const rp = E.computeReport(st);
+
+  // -- tách cặp tài khoản: nguồn viết KHÔNG nhất quán, cả hai dạng đều có thật trong file --
+  assert.deepStrictEqual(E.parseAccount('N64131/C3341'), { no: '64131', co: '3341' });
+  assert.deepStrictEqual(E.parseAccount('N64213/331'), { no: '64213', co: '331' },
+    'thiếu chữ C vẫn phải đọc được — file thật có dạng này');
+  assert.deepStrictEqual(E.parseAccount('  '), { no: '', co: '' });
+  assert.deepStrictEqual(E.parseAccount('N64136/C1543 / N64214/C331'), { no: '64136', co: '1543' },
+    'cột gộp nhiều khoản: lấy CẶP ĐẦU, không trộn số của khoản sau');
+
+  // -- ngày: NGÀY CUỐI THÁNG CỦA KỲ, không phải hôm nay --
+  assert.strictEqual(E.periodLastDay({ month: 8, year: 2026 }).text, '31/08/2026');
+  assert.strictEqual(E.periodLastDay({ month: 2, year: 2024 }).text, '29/02/2024', 'năm nhuận');
+  assert.strictEqual(E.periodLastDay({ month: 2, year: 2026 }).text, '28/02/2026');
+  assert.strictEqual(E.periodLastDay({ month: 4, year: 2026 }).text, '30/04/2026');
+
+  const posh = E.misaRows(st, rp, 'posh');
+  assert(posh && posh.rows.length, 'phải dựng được dòng MISA cho Posh');
+  const soDiem = (st.sites || []).filter((s) => s.dept === 'posh').length;
+  const soCot = E.allocateSites(st, rp, 'posh').cols.length;
+
+  // -- mỗi (cột × điểm) đúng MỘT dòng, kể cả dòng 0đ --
+  assert.strictEqual(posh.rows.length, soCot * soDiem,
+    `phải là ${soCot} chứng từ × ${soDiem} điểm = ${soCot * soDiem} dòng`);
+
+  // 🔴 GIỮ DÒNG 0đ. File thật có (BZONE THẢO ĐIỀN, CENTRAL PREMIUM QUẬN 8 đều 0đ) và MISA nhận.
+  // Lọc bỏ thì số dòng mỗi chứng từ đổi theo từng tháng, người đối chiếu mất mốc để đếm.
+  const theoCT = {};
+  posh.rows.forEach((r) => { theoCT[r.soCT] = (theoCT[r.soCT] || 0) + 1; });
+  assert.strictEqual(Object.keys(theoCT).length, soCot, 'mỗi cột một số chứng từ riêng');
+  Object.keys(theoCT).forEach((k) => assert.strictEqual(theoCT[k], soDiem,
+    `chứng từ ${k} phải đủ ${soDiem} dòng — dòng 0đ cũng giữ`));
+
+  // -- số chứng từ: NVK + prefix + ngày cuối tháng + tháng + số thứ tự --
+  assert.strictEqual(posh.rows[0].soCT, 'NVKPOSH310801', 'đúng dạng của file thật');
+  assert.strictEqual(posh.rows[soDiem].soCT, 'NVKPOSH310802', 'cột kế tiếp tăng số thứ tự');
+  // So CẢ chuỗi, không cắt đầu: cắt đầu thì một mã dài/ngắn hơn vẫn lọt.
+  assert.strictEqual(E.misaRows(st, rp, 'pinball').rows[0].soCT, 'NVKPBMN310801',
+    'Pinball mang đuôi miền — suy từ tên sẽ ra "PINBA", một số chứng từ trông hợp lý mà sai');
+  // 🔴 Dữ liệu đã lưu từ trước KHÔNG có misaPrefix — phải được gieo lúc chuẩn hoá, không thì
+  // người duy nhất có dữ liệu thật lại là người duy nhất nhận số chứng từ sai.
+  assert(!(window.SAMPLE_DATA.departments || []).some((d) => d.misaPrefix),
+    'dữ liệu mẫu cố ý KHÔNG có misaPrefix — đó là điều kiện của phép kiểm này');
+  assert.strictEqual((st.departments.find((d) => d.id === 'funzone') || {}).misaPrefix, 'FZ');
+
+  // -- đổi kỳ thì ngày VÀ số chứng từ cùng đổi theo kỳ, không theo hôm nay --
+  const st2 = E.normalizeState(window.SAMPLE_DATA);
+  st2.period = { month: 2, year: 2026 };
+  const p2 = E.misaRows(st2, E.computeReport(st2), 'posh');
+  assert.strictEqual(p2.rows[0].ngay, '28/02/2026');
+  assert.strictEqual(p2.rows[0].soCT, 'NVKPOSH280201');
+
+  // -- TIỀN KHÔNG ĐƯỢC TÍNH LẠI: phải khớp từng đồng với sheet phân bổ của cùng bộ phận --
+  const alloc = E.allocateSites(st, rp, 'posh');
+  alloc.cols.forEach((c, i) => {
+    const cua = posh.rows.slice(i * soDiem, (i + 1) * soDiem);
+    cua.forEach((r, j) => assert(Math.abs(r.soTien - (alloc.rows[j].vals[c.key] || 0)) < 1e-9,
+      `tiền dòng MISA phải bằng đúng ô trên sheet phân bổ (cột ${c.key})`));
+    const tong = cua.reduce((a, r) => a + r.soTien, 0);
+    assert(Math.abs(tong - (alloc.totals[c.key] || 0)) < 0.01,
+      `cộng một chứng từ phải bằng tổng cột ${c.key} trên sheet phân bổ`);
+  });
+
+  // -- lời: hai cột nói hai chuyện, và KHÔNG được để trống (MISA bắt buộc "Diễn giải") --
+  posh.rows.forEach((r) => {
+    assert(String(r.dienGiai).trim() !== '', 'Diễn giải không được trống');
+    assert(String(r.dienGiaiHT).trim() !== '', 'Diễn giải (Hạch toán) không được trống');
+  });
+  assert(posh.rows[0].dienGiaiHT.endsWith(' - ' + alloc.rows[0].name),
+    'Diễn giải (Hạch toán) = lời của khoản + " - " + tên điểm');
+  // Tên điểm đã mang sẵn "POSH MN …" nên không được chèn tên bộ phận lần nữa
+  assert.strictEqual((posh.rows[0].dienGiaiHT.match(/ - /g) || []).length, 1,
+    'chỉ một dấu " - " ngăn khoản với điểm');
+
+  // -- mã đơn vị đi theo ĐÚNG điểm của dòng đó --
+  posh.rows.forEach((r, i) => assert.strictEqual(r.maDonVi, alloc.rows[i % soDiem].code));
+
+  // -- lương NV và lương vận hành là HAI chứng từ, HAI câu diễn giải khác nhau --
+  const sal = st.salaryDept.find((x) => x.dept === 'posh') || {};
+  sal.misaGeneral = 'Chi phí Lương 1 Posh MN Tháng 8/2026';
+  sal.misaDetail = 'Chi Phí Lương nhân viên cơ sở';
+  sal.misaGeneral2 = 'Chi phí Lương vận hành BP Posh MN Tháng 8/2026';
+  sal.misaDetail2 = 'Chi phí Lương vận hành BP Posh';
+  const p3 = E.misaRows(st, E.computeReport(st), 'posh');
+  assert.strictEqual(p3.rows[0].dienGiai, 'Chi phí Lương 1 Posh MN Tháng 8/2026');
+  assert.strictEqual(p3.rows[soDiem].dienGiai, 'Chi phí Lương vận hành BP Posh MN Tháng 8/2026',
+    'lương vận hành phải mang lời CỦA NÓ, không dùng lại lời của lương nhân viên');
+  assert.notStrictEqual(p3.rows[0].dienGiaiHT, p3.rows[soDiem].dienGiaiHT);
+
+  // -- bộ phận không có điểm nào thì không dựng tờ nhập, và không nổ --
+  const st4 = E.normalizeState(window.SAMPLE_DATA);
+  st4.sites = st4.sites.filter((s) => s.dept !== 'farm');
+  const r4 = E.misaRows(st4, E.computeReport(st4), 'farm');
+  assert(r4 && r4.rows.length === 0, 'bộ phận rỗng: trả về danh sách rỗng, không nổ');
+  assert(E.misaRows(st, rp, 'khong-co-that') === null, 'bộ phận không tồn tại: trả null');
+
+  // -- HAI CỘT LƯƠNG PHẢI CÓ TÀI KHOẢN. Mô hình cũ không có chỗ nào khai, nên mọi dòng lương lên
+  //    tờ nhập với TK Nợ/TK Có TRỐNG — và MISA từ chối CẢ chứng từ, không riêng dòng ấy.
+  const stL = E.normalizeState(window.SAMPLE_DATA);
+  const salL = stL.salaryDept.find((x) => x.dept === 'posh');
+  assert.strictEqual(salL.misaAccount, 'N64131/C3341', 'gieo từ file thật T8/2026');
+  assert.strictEqual(salL.misaAccount2, 'N64131/C3341');
+  const pL = E.misaRows(stL, E.computeReport(stL), 'posh');
+  assert.strictEqual(pL.rows[0].tkNo, '64131');
+  assert.strictEqual(pL.rows[0].tkCo, '3341');
+  assert.strictEqual(pL.rows[soDiem].tkNo, '64131', 'cột lương vận hành cũng phải có');
+  // người dùng tự đặt thì GIỮ, mặc định chỉ để mồi
+  const stL2 = E.normalizeState({ ...window.SAMPLE_DATA,
+    salaryDept: (window.SAMPLE_DATA.salaryDept || []).map((r) =>
+      (r.dept === 'posh' ? { ...r, misaAccount: 'N6421/C331' } : r)) });
+  assert.strictEqual(stL2.salaryDept.find((x) => x.dept === 'posh').misaAccount, 'N6421/C331');
+
+  // -- thiếu tài khoản phải CẢNH BÁO, không im lặng --
+  const canhBao = E.validate(st).filter((i) => i.msg.includes('cặp tài khoản'));
+  assert(canhBao.length && canhBao.every((i) => i.level === 'warn'),
+    'khoản thiếu tài khoản phải ra cảnh báo mức warn');
+
+  console.log('OK — tờ nhập MISA "<Bộ phận> chi tiết".');
+}

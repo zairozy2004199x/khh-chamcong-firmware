@@ -211,9 +211,68 @@
     return aoaToSheet(XLSX, aoa, { cols: [14, 14, 44, 18, 14], pctCols: [4] });
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * SHEET "<Bộ phận> chi tiết" — TỜ NHẬP MISA
+   *
+   * Anh Thắng 16/09/2026: *"tab chi tiết phân bổ ra để xuất MISA chưa có"*.
+   *
+   * 🔴 ĐÂY LÀ MẪU CỦA MISA, KHÔNG PHẢI BẢNG CỦA MÌNH. 50 cột, đúng thứ tự, đúng chữ — chép
+   *    nguyên từ file thật T8/2026 của anh Thắng. Ta chỉ điền 10 cột; 40 cột còn lại để TRỐNG
+   *    nhưng VẪN PHẢI CÓ ĐỦ TIÊU ĐỀ: MISA đọc tờ nhập theo VỊ TRÍ CỘT, bỏ bớt một cột trống ở
+   *    giữa là mọi cột sau nó lệch đi một ô — mà lệch kiểu ấy không báo lỗi, nó nhập vào sai chỗ.
+   *    Nên đừng "dọn cho gọn" danh sách này.
+   *
+   * Dòng 1 là nhãn gộp của MISA ("Chi tiết hạch toán" trên cột 9, "Hóa đơn" trên cột 32); dòng 2
+   * mới là tiêu đề thật. Giữ cả hai cho giống hệt tờ mẫu.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const MISA_COLS = ['Ngày chứng từ (*)', 'Ngày hạch toán (*)', 'Số chứng từ (*)', 'Diễn giải ',
+    'Loại nghiệp vụ', 'Hạn thanh toán', 'Loại tiền', 'Tỷ giá', 'Diễn giải (Hạch toán)', 'TK Nợ (*)',
+    'TK Có (*)', 'Số tiền', 'Số tiền quy đổi', 'Mã đối tượng Nợ', 'Mã đối tượng Có', 'Nghiệp vụ',
+    'Mã nhân viên', 'Số TK ngân hàng', 'Tên ngân hàng', 'Số khế ước đi vay', 'Số khế ước cho vay',
+    'Mã khoản mục chi phí', 'Mã đơn vị', 'Mã đối tượng THCP', 'Mã công trình', 'Số đơn đặt hàng',
+    'Số đơn mua hàng', 'Số hợp đồng mua', 'Số hợp đồng bán', 'Mã thống kê', 'CP không hợp lý',
+    'Hạch toán gộp nhiều hóa đơn', 'Diễn giải thuế', 'Có hóa đơn', 'Loại thuế',
+    'Giá trị HHDV chưa thuế', 'Giá trị HHDV chưa thuế quy đổi', '% thuế GTGT', '% thuế suất KHAC',
+    'Tiền thuế GTGT', 'Tiền thuế GTGT quy đổi', 'TK thuế GTGT', 'Ngày hóa đơn', 'Số hóa đơn',
+    'Mẫu số HĐ', 'Ký hiệu HĐ', 'Nhóm HHDV mua vào', 'Mã đối tượng thuế', 'Tên đối tượng thuế',
+    'Mã số thuế đối tượng thuế'];
+  /* Chỉ số 0 của những cột ta THẬT SỰ điền — đặt tên để khỏi đếm ngón tay giữa 50 cột. */
+  const MC = { ngayCT: 0, ngayHT: 1, soCT: 2, dienGiai: 3, dienGiaiHT: 8, tkNo: 9, tkCo: 10,
+    soTien: 11, soTienQD: 12, maDonVi: 22 };
+
+  function buildMisaSheet(XLSX, state, report, deptId) {
+    const kq = E.misaRows(state, report, deptId);
+    if (!kq) return null;
+    const nhan = [];
+    nhan[8] = 'Chi tiết hạch toán';
+    nhan[31] = 'Hóa đơn';
+    const aoa = [nhan, MISA_COLS.slice()];
+    kq.rows.forEach((r) => {
+      const row = new Array(MISA_COLS.length).fill('');
+      row[MC.ngayCT] = r.ngay;
+      row[MC.ngayHT] = r.ngay;
+      row[MC.soCT] = r.soCT;
+      row[MC.dienGiai] = r.dienGiai;
+      row[MC.dienGiaiHT] = r.dienGiaiHT;
+      /* Tài khoản để nguyên CHUỖI (parseAccount trả chuỗi) — tài khoản có thể bắt đầu bằng số 0
+         mà Excel nuốt số 0 đầu ngay khi ô thành kiểu số. aoaToSheet chỉ gán định dạng cho ô KIỂU
+         SỐ nên chuỗi đi qua nguyên vẹn, không cần tuỳ chọn gì thêm.
+         Số tiền thì ngược lại — phải là số thật để MISA cộng được, nên E.num(). */
+      row[MC.tkNo] = r.tkNo;
+      row[MC.tkCo] = r.tkCo;
+      row[MC.soTien] = E.num(r.soTien);
+      row[MC.soTienQD] = E.num(r.soTien);
+      row[MC.maDonVi] = r.maDonVi;
+      aoa.push(row);
+    });
+    const cols = new Array(MISA_COLS.length).fill(16);
+    cols[MC.dienGiai] = 44; cols[MC.dienGiaiHT] = 56; cols[MC.soTien] = 18; cols[MC.soTienQD] = 18;
+    return aoaToSheet(XLSX, aoa, { cols });
+  }
+
   /** Dựng toàn bộ workbook. options.siteSheets=false để bỏ các sheet phân bổ theo điểm. */
   function buildWorkbook(XLSX, state, report, options) {
-    const opt = Object.assign({ siteSheets: true, allocationSheet: true, revenueSheet: true }, options || {});
+    const opt = Object.assign({ siteSheets: true, allocationSheet: true, revenueSheet: true, misaSheets: true }, options || {});
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, buildReportSheet(XLSX, state, report), 'File tổng báo cáo');
     if (opt.allocationSheet) XLSX.utils.book_append_sheet(wb, buildAllocationSheet(XLSX, state, report), 'Phân bổ theo bộ phận');
@@ -223,6 +282,13 @@
         if (!(state.sites || []).some((s) => s.dept === d.id)) return;
         const ws = buildSiteSheet(XLSX, state, report, d.id);
         if (ws) XLSX.utils.book_append_sheet(wb, ws, safeSheetName(`${d.name} ${short}`));
+        /* Đặt NGAY SAU sheet phân bổ của cùng bộ phận, giống hệt file gốc ("Posh T8.2026" rồi
+           "Posh chi tiết"). Dồn hết tờ nhập MISA xuống cuối file thì người đối chiếu phải nhảy
+           qua lại giữa hai đầu workbook cho mỗi bộ phận. */
+        if (opt.misaSheets) {
+          const wm = buildMisaSheet(XLSX, state, report, d.id);
+          if (wm) XLSX.utils.book_append_sheet(wb, wm, safeSheetName(`${d.name} chi tiết`));
+        }
       });
     }
     if (opt.revenueSheet) XLSX.utils.book_append_sheet(wb, buildRevenueSheet(XLSX, state, report), 'Doanh thu');
@@ -234,5 +300,5 @@
     return `File_tong_bao_cao_${state.region || 'MN'}_T${String(p.month || 1).padStart(2, '0')}_${p.year || ''}.xlsx`;
   }
 
-  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildRevenueSheet, fileName, NUM_FMT };
+  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildMisaSheet, buildRevenueSheet, fileName, MISA_COLS, NUM_FMT };
 });

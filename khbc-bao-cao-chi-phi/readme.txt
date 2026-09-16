@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.2.0 =
+* **Tab "<Bộ phận> chi tiết" — tờ nhập MISA.** Sheet "<Bộ phận> T8.2026" phân bổ xong tiền về từng
+  điểm, nhưng MISA không đọc được bảng hai chiều ấy: nó cần MỘT DÒNG cho mỗi (khoản × điểm). Tab
+  mới bẻ bảng ra thành dòng, đúng mẫu 50 cột của MISA, đặt ngay sau sheet phân bổ của cùng bộ phận.
+* Số chứng từ `NVK<mã><ngày cuối tháng><tháng><stt>` (vd `NVKPOSH310801`) — mã theo bộ phận, gieo
+  sẵn POSH · JP · FZ · EV · FA · TU · PBMN, sửa được.
+* Hai cột lương nay có ô **tài khoản** riêng (trước không có chỗ nào khai, nên mọi dòng lương lên
+  MISA đều trống TK Nợ/Có — MISA từ chối cả chứng từ).
+* Cảnh báo sớm ở màn Kiểm tra khi một khoản chưa đủ cặp tài khoản Nợ/Có.
 
 = 1.1.0 =
 * Hiện ở **Trang IT** (khmatrix.com/it) cạnh Chấm Công · Ghế Massage · Sao Kê — cập nhật ngay tại

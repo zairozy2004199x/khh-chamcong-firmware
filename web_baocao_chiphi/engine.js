@@ -7,7 +7,7 @@
  * Mô hình dữ liệu (state):
  *   period       {month, year}
  *   groups       [{id, name, method}]           method: 'ratio' | 'revenue' | 'equal'
- *   departments  [{id, name, group, ratio, revenue, revenueOverride, unitCode}]
+ *   departments  [{id, name, group, ratio, revenue, revenueOverride, unitCode, misaPrefix}]
  *   sites        [{dept, code, name, revenue}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
  *   costItems    [{id, kind, name, misaGeneral, misaDetail, account, total,
  *                  split, shares:{groupId: amount}, objectCode, excludeDepts:[deptId], groupKey, method, note}]
@@ -143,6 +143,11 @@
       c.title = c.items.map((i) => (i.misaDetail || i.name || '').trim()).filter(Boolean).join(' / ');
       c.account = c.items.map((i) => (i.account || '').trim()).filter(Boolean).join(' / ');
       c.total = c.items.reduce((a, i) => a + num(i.total), 0);
+      /* Hai LỜI khác nhau, đừng gộp: `general` là "Diễn giải" của cả chứng từ, `detail` là
+         "Diễn giải (Hạch toán)" của từng dòng — trên tờ nhập MISA chúng nằm ở hai cột riêng và
+         nói hai chuyện riêng. Xem misaRows(). */
+      c.general = c.items.map((i) => (i.misaGeneral || '').trim()).filter(Boolean).join(' / ');
+      c.detail = c.items.map((i) => (i.misaDetail || i.name || '').trim()).filter(Boolean).join(' / ');
     });
     return cols;
   }
@@ -182,7 +187,14 @@
     // ---- Mục II: lương theo bộ phận
     const salaryDept = depts.map((d) => {
       const row = (state.salaryDept || []).find((r) => r.dept === d.id) || {};
-      const out = { dept: d.id, misaGeneral: row.misaGeneral || '', misaDetail: row.misaDetail || '' };
+      /* HAI cặp lời, không phải một: cột "Lương NV cơ sở" và cột "Lương vận hành BP" lên MISA
+         thành HAI chứng từ riêng với hai câu diễn giải riêng. Dùng chung một cặp là mọi dòng
+         lương vận hành mang nhãn của lương nhân viên — sai mà vẫn cộng đúng tổng, nên soát sổ
+         không bắt được. */
+      const out = { dept: d.id,
+        misaGeneral: row.misaGeneral || '', misaDetail: row.misaDetail || '',
+        misaGeneral2: row.misaGeneral2 || '', misaDetail2: row.misaDetail2 || '',
+        misaAccount: row.misaAccount || '', misaAccount2: row.misaAccount2 || '' };
       let total = 0;
       SALARY_DEPT_FIELDS.forEach((f) => {
         out[f.key] = num(row[f.key]);
@@ -278,11 +290,15 @@
     const sumRev = sites.reduce((a, s) => a + num(s.revenue), 0);
     const sal = report.salaryDept.find((r) => r.dept === deptId) || {};
     const cols = [
-      { key: 'luongNV', title: `Lương NV ${report.periodLabel}`, total: report.salarySitesByDept[deptId].reported },
-      { key: 'luongVanHanh', title: `Lương vận hành ${report.periodLabel}`, total: num(sal.luongVanHanh) },
+      { key: 'luongNV', title: `Lương NV ${report.periodLabel}`, total: report.salarySitesByDept[deptId].reported,
+        general: sal.misaGeneral || '', detail: sal.misaDetail || '', account: sal.misaAccount || '' },
+      { key: 'luongVanHanh', title: `Lương vận hành ${report.periodLabel}`, total: num(sal.luongVanHanh),
+        general: sal.misaGeneral2 || '', detail: sal.misaDetail2 || '', account: sal.misaAccount2 || '' },
     ];
-    report.columns.forEach((c) => cols.push({ key: c.key, title: c.title, total: report.matrix[deptId][c.key], account: c.account }));
-    report.manualCols.forEach((mc) => cols.push({ key: `m:${mc.id}`, title: mc.name, total: mc.vals[deptId], account: mc.account }));
+    report.columns.forEach((c) => cols.push({ key: c.key, title: c.title, total: report.matrix[deptId][c.key],
+      account: c.account, general: c.general, detail: c.detail }));
+    report.manualCols.forEach((mc) => cols.push({ key: `m:${mc.id}`, title: mc.name, total: mc.vals[deptId],
+      account: mc.account, general: mc.misaGeneral || '', detail: mc.misaDetail || '' }));
     const rows = sites.map((s, i) => {
       const w = sumRev > 0 ? num(s.revenue) / sumRev : 0;
       const vals = {};
@@ -293,6 +309,87 @@
     const totals = {};
     cols.forEach((c) => (totals[c.key] = rows.reduce((a, r) => a + r.vals[c.key], 0)));
     return { dept, cols, rows, totals, sumRevenue: sumRev, grandTotal: rows.reduce((a, r) => a + r.total, 0) };
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * TỜ NHẬP MISA — "<Bộ phận> chi tiết"
+   *
+   * Anh Thắng 16/09/2026: *"tab chi tiết phân bổ ra để xuất MISA chưa có"*. Sheet "<Bộ phận>
+   * T8.2026" đã phân bổ xong tiền về từng điểm, nhưng MISA không đọc được bảng hai chiều ấy — nó
+   * cần MỘT DÒNG cho mỗi (khoản chi phí × điểm). Đây là chỗ bẻ bảng ra thành dòng.
+   *
+   * Không tính lại đồng nào: cùng `allocateSites()` đã dựng sheet kia. Tính lại ở đây là một ngày
+   * nào đó hai sheet trong CÙNG một file lệch nhau, và người đọc không có cách nào biết bên nào
+   * đúng.
+   *
+   * ⚠️ GIỮ NGUYÊN DÒNG TIỀN = 0. File thật của anh Thắng có (BZONE THẢO ĐIỀN, CENTRAL PREMIUM
+   *    QUẬN 8 đều 0đ) và MISA nhận. Lọc bỏ thì số dòng mỗi chứng từ đổi theo từng tháng, người
+   *    đối chiếu mất mốc "66 điểm = 66 dòng" để đếm.
+   *
+   * SỐ CHỨNG TỪ `NVK` + prefix + ngày + tháng + số thứ tự, ví dụ `NVKPOSH310801`:
+   *   · `31` = NGÀY CUỐI THÁNG của kỳ, không phải hôm nay. Chứng từ thuộc về kỳ, không thuộc về
+   *     lúc bấm nút — xuất lại tháng sau mà số chứng từ đổi là MISA coi như chứng từ khác.
+   *   · số thứ tự đánh theo THỨ TỰ CỘT, mỗi cột một chứng từ.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+  /**
+   * Tách cặp tài khoản. Nguồn viết KHÔNG nhất quán — file thật có cả `N64131/C3341` lẫn
+   * `N64213/331` (thiếu chữ C) — nên đừng đòi đúng một dạng: người gõ sẽ gõ như họ vẫn gõ, và
+   * một ô lệch dạng mà bị bỏ qua thì dòng đó lên MISA thiếu tài khoản.
+   * @return {{no:string, co:string}}
+   */
+  function parseAccount(txt) {
+    const t = String(txt == null ? '' : txt).trim();
+    if (!t) return { no: '', co: '' };
+    /* Lấy ĐÚNG hai cụm số đầu tiên theo thứ tự Nợ rồi Có. Cột gộp nhiều khoản nối nhau bằng
+       " / " (xem reportColumns) nên có thể có nhiều hơn hai — cặp đầu là cặp của cột. */
+    const so = t.match(/\d+/g) || [];
+    return { no: so[0] || '', co: so[1] || '' };
+  }
+
+  /** Ngày cuối tháng của kỳ, dạng dd/mm/yyyy — xem khối trên về việc vì sao không dùng hôm nay. */
+  function periodLastDay(period) {
+    const p = period || {};
+    const y = Number(p.year) || new Date().getFullYear();
+    const m = Number(p.month) || 1;
+    const d = new Date(Date.UTC(y, m, 0)).getUTCDate();   // ngày 0 của tháng sau = ngày cuối tháng này
+    return { d, m, y, text: `${pad2(d)}/${pad2(m)}/${y}` };
+  }
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  /**
+   * Dựng toàn bộ dòng nhập MISA của MỘT bộ phận.
+   * @return {null|{dept, period, rows:[{ngay, soCT, dienGiai, dienGiaiHT, tkNo, tkCo, soTien, maDonVi}]}}
+   */
+  function misaRows(state, report, deptId) {
+    const alloc = allocateSites(state, report, deptId);
+    if (!alloc) return null;
+    const ky = periodLastDay(state.period);
+    const prefix = (alloc.dept.misaPrefix || '').trim() || String(deptId).toUpperCase();
+    const rows = [];
+    alloc.cols.forEach((c, i) => {
+      const tk = parseAccount(c.account);
+      const soCT = `NVK${prefix}${pad2(ky.d)}${pad2(ky.m)}${pad2(i + 1)}`;
+      /* Thiếu lời thì lùi về tiêu đề cột + kỳ, KHÔNG để trống: MISA bắt buộc "Diễn giải", một ô
+         trống là cả chứng từ bị từ chối lúc nhập — mà lúc ấy người ta đã ở trong MISA rồi. */
+      const chung = (c.general || '').trim() || `${c.title} ${alloc.dept.unitCode || alloc.dept.name} ${report.periodLabel}`.trim();
+      const rieng = (c.detail || '').trim() || c.title;
+      alloc.rows.forEach((r) => {
+        rows.push({
+          ngay: ky.text,
+          soCT,
+          dienGiai: chung,
+          /* Tên điểm ĐÃ mang sẵn "POSH MN …" nên nối thẳng, không chèn thêm tên bộ phận lần nữa. */
+          dienGiaiHT: `${rieng} - ${r.name}`,
+          tkNo: tk.no,
+          tkCo: tk.co,
+          soTien: r.vals[c.key] || 0,
+          maDonVi: r.code || '',
+        });
+      });
+    });
+    return { dept: alloc.dept, period: ky, rows };
   }
 
   /** Kiểm tra dữ liệu, trả về danh sách {level:'error'|'warn'|'info', msg}. */
@@ -307,6 +404,11 @@
       if (!d.id || seenDept.has(d.id)) issues.push({ level: 'error', msg: `Bộ phận "${d.name}" trùng mã hoặc thiếu mã.` });
       seenDept.add(d.id);
       if (!groups.find((g) => g.id === d.group)) issues.push({ level: 'error', msg: `Bộ phận "${d.name}" chưa gán nhóm hợp lệ.` });
+      /* Nói ra chỗ này, đừng lặng lẽ lùi về mã bộ phận: số chứng từ sai vẫn nhập được vào MISA,
+         và chỉ lộ ra khi kế toán đi tìm chứng từ theo số mà không thấy. */
+      if (!(d.misaPrefix || '').trim()) {
+        issues.push({ level: 'warn', msg: `Bộ phận "${d.name}" chưa có mã chứng từ MISA — số chứng từ sẽ lấy tạm "${String(d.id).toUpperCase()}".` });
+      }
     });
     groups.forEach((g) => {
       const gd = depts.filter((d) => d.group === g.id);
@@ -337,6 +439,13 @@
           issues.push({ level: 'error', msg: `Khoản "${label}": tổng chia nhóm (${fmt(s)}) ≠ tổng tiền (${fmt(num(it.total))}).` });
       }
       if (!it.misaDetail) issues.push({ level: 'info', msg: `Khoản "${label}" chưa có nội dung diễn giải chi tiết MISA (tiêu đề cột báo cáo).` });
+      /* 🔴 CẢNH BÁO, KHÔNG PHẢI "info": thiếu tài khoản thì dòng lên tờ nhập MISA có TK Nợ/TK Có
+         TRỐNG, và MISA từ chối CẢ chứng từ chứ không riêng dòng ấy. Lúc đó người ta đã ngồi trong
+         MISA rồi, phải quay ngược về đây sửa — nên nói sớm, ngay trên màn kiểm tra. */
+      const tk = parseAccount(it.account);
+      if (!tk.no || !tk.co) {
+        issues.push({ level: 'warn', msg: `Khoản "${label}" chưa đủ cặp tài khoản Nợ/Có — tờ nhập MISA sẽ trống hai cột này và MISA từ chối cả chứng từ.` });
+      }
       (it.excludeDepts || []).forEach((id) => {
         if (!depts.find((d) => d.id === id)) issues.push({ level: 'warn', msg: `Khoản "${label}" loại trừ bộ phận không tồn tại: ${id}.` });
       });
@@ -384,13 +493,13 @@
         { id: 'KVC', name: 'Khu vui chơi (KVC)', method: 'revenue' },
       ],
       departments: [
-        { id: 'posh', name: 'Posh', group: 'MTD', ratio: 0.6, revenue: 0, revenueOverride: false, unitCode: 'Posh MN' },
-        { id: 'jp', name: 'JP', group: 'MTD', ratio: 0.4, revenue: 0, revenueOverride: false, unitCode: 'JP MN' },
-        { id: 'funzone', name: 'Funzone', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '' },
-        { id: 'event', name: 'Event', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '' },
-        { id: 'farm', name: 'Farm', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '' },
-        { id: 'tutu', name: 'Tutu', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '' },
-        { id: 'pinball', name: 'Pinball', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '' },
+        { id: 'posh', name: 'Posh', group: 'MTD', ratio: 0.6, revenue: 0, revenueOverride: false, unitCode: 'Posh MN', misaPrefix: 'POSH' },
+        { id: 'jp', name: 'JP', group: 'MTD', ratio: 0.4, revenue: 0, revenueOverride: false, unitCode: 'JP MN', misaPrefix: 'JP' },
+        { id: 'funzone', name: 'Funzone', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', misaPrefix: 'FZ' },
+        { id: 'event', name: 'Event', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', misaPrefix: 'EV' },
+        { id: 'farm', name: 'Farm', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', misaPrefix: 'FA' },
+        { id: 'tutu', name: 'Tutu', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', misaPrefix: 'TU' },
+        { id: 'pinball', name: 'Pinball', group: 'KVC', ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', misaPrefix: 'PBMN' },
       ],
       sites: [],
       costItems: [],
@@ -426,8 +535,34 @@
       return o;
     });
     st.options = Object.assign({ includePending: false }, st.options || {});
-    st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', values: {}, ...m, id: m.id || newId('mc') }));
-    st.salaryDept = (st.salaryDept || []).map((r) => ({ misaGeneral: '', misaDetail: '', ...r }));
+    /* ═════════════════════════════════════════════════════════════════════════════════════════
+     * `misaPrefix` = phần giữa của SỐ CHỨNG TỪ (`NVK<prefix><ngày><tháng><stt>`).
+     *
+     * 🔴 PHẢI GIEO THEO MÃ BỘ PHẬN, KHÔNG ĐƯỢC ĐỂ TRỐNG RỒI SUY RA TỪ TÊN. Bảy mã dưới đây đọc
+     *    thẳng từ file thật T8/2026 của anh Thắng, và chúng KHÔNG theo quy luật nào: Funzone → FZ,
+     *    Event → EV, Pinball → PBMN (có đuôi miền). Suy từ tên thì Pinball ra "PINBA" — một số
+     *    chứng từ trông rất hợp lý, nhập vào MISA trót lọt, và sai.
+     *
+     * ⚠️ Gieo ở normalizeState chứ không chỉ ở state mặc định: dữ liệu ANH THẮNG ĐÃ LƯU từ trước
+     *    không có khoá này. Chỉ đặt ở state mặc định thì người đang dùng dở sẽ không bao giờ nhận
+     *    được mã đúng — mà họ lại chính là người duy nhất có dữ liệu thật.
+     * ═════════════════════════════════════════════════════════════════════════════════════════ */
+    const MISA_PREFIX = { posh: 'POSH', jp: 'JP', funzone: 'FZ', event: 'EV', farm: 'FA',
+      tutu: 'TU', pinball: 'PBMN' };
+    st.departments = (st.departments || []).map((d) => ({
+      ...d,
+      /* Người dùng đã tự đặt thì GIỮ — bảng trên chỉ để mồi, không để đè. */
+      misaPrefix: (d.misaPrefix || '').trim() || MISA_PREFIX[d.id] || '',
+    }));
+    st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', misaGeneral: '', misaDetail: '', values: {}, ...m, id: m.id || newId('mc') }));
+    /* Hai cột lương KHÔNG CÓ chỗ nào khai tài khoản — đó là lỗ trong mô hình, lộ ra khi dựng tờ
+       nhập MISA: TK Nợ/TK Có để trống là MISA từ chối cả chứng từ. Gieo mặc định `N64131/C3341`
+       đọc từ file thật T8/2026 (cả hai cột lương đều dùng cặp này), vẫn sửa được như mọi ô khác. */
+    st.salaryDept = (st.salaryDept || []).map((r) => ({
+      misaGeneral: '', misaDetail: '', misaGeneral2: '', misaDetail2: '', ...r,
+      misaAccount: (r.misaAccount || '').trim() || 'N64131/C3341',
+      misaAccount2: (r.misaAccount2 || '').trim() || 'N64131/C3341',
+    }));
     st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', ...r, id: r.id || newId('ss') }));
     return st;
   }
@@ -448,6 +583,9 @@
     reportColumns,
     computeReport,
     allocateSites,
+    misaRows,
+    parseAccount,
+    periodLastDay,
     validate,
     emptyState,
     normalizeState,
