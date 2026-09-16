@@ -2498,13 +2498,27 @@ JS;
        trả ra tổ hợp này; gặp nó tức là phản hồi đến từ MÃ CŨ (opcache giữ tệp cũ) hoặc BỘ ĐỆM
        phát lại phản hồi cũ — không phải lỗi phạm vi. Nói thẳng ra kèm mã báo cáo để không còn
        phải đoán lớp nào hỏng (anh Thắng 15/09/2026, sau 4 bản vá đúng mà "không ăn"). */
+    /* 🔴 CHỈ ĐỔ CHO OPCACHE KHI THẬT SỰ THIẾU VÂN TAY (`banBc`) — SỬA 16/09/2026.
+       Bản trước kết luận "mã cũ / bộ đệm" chỉ dựa vào "ô cơ sở rỗng mà không có chanDoan", nên
+       một phản hồi CÓ banBc 2.102.0 vẫn bị gán tội opcache — và ngay dưới nó, ảnh chụp thư mục
+       lại nói tệp đúng bản đang được nạp. Một khối chẩn đoán tự mâu thuẫn còn tệ hơn không có:
+       nó cử người đi xoá opcache cho một lỗi nằm ở chỗ khác hẳn (xem cửa chấm công ở
+       moBaoCaoTuDuLieu). Có vân tay = mã đang chạy ĐÚNG là bản này; lúc ấy phải nói thế. */
     if(!(BC.coso||[]).length && !BC.chanDoan){
+      var maCu=!BC.banBc;
       var cu=el('div');
       cu.style.cssText='margin:6px 0;padding:10px 12px;border-radius:10px;background:#fef2f2;border:1px solid #fca5a5;color:#7f1d1d;font-size:12px;line-height:1.6';
-      cu.appendChild(el('b',null,'⛔ Phản hồi này đến từ MÃ CŨ hoặc BỘ ĐỆM, không phải bản đang cài.'));
-      var d1=el('div'); d1.textContent='Ô cơ sở rỗng nhưng máy chủ không gửi khối chẩn đoán — bản 2.90.0 trở lên luôn gửi. Mã báo cáo nhận được: '+(BC.banBc||'KHÔNG CÓ (tệp báo cáo cũ)')+'.';
+      cu.appendChild(el('b',null, maCu
+        ? '⛔ Phản hồi này đến từ MÃ CŨ hoặc BỘ ĐỆM, không phải bản đang cài.'
+        : '⛔ Phản hồi thiếu phạm vi — KHÔNG phải lỗi opcache.'));
+      var d1=el('div'); d1.textContent = maCu
+        ? ('Ô cơ sở rỗng nhưng máy chủ không gửi khối chẩn đoán — bản 2.90.0 trở lên luôn gửi. Mã báo cáo nhận được: KHÔNG CÓ (tệp báo cáo cũ).')
+        : ('Mã báo cáo nhận được: '+BC.banBc+' — đúng bản đang cài, nên đây KHÔNG phải tệp cũ còn sống. '
+           +'Phản hồi về thiếu cả danh sách cơ sở lẫn khối chẩn đoán, tức là nó đi ra từ một nhánh trả về sớm của boot().');
       cu.appendChild(d1);
-      var d2=el('div'); d2.textContent='Cách xử lý: nhờ hosting xoá opcache / khởi động lại PHP, hoặc tắt–bật plugin Ghế một lần, rồi tải lại trang.';
+      var d2=el('div'); d2.textContent = maCu
+        ? 'Cách xử lý: nhờ hosting xoá opcache / khởi động lại PHP, hoặc tắt–bật plugin Ghế một lần, rồi tải lại trang.'
+        : 'Cách xử lý: ĐỪNG xoá opcache, không ăn thua. Chụp màn này gửi kỹ thuật — kèm câu "mã báo cáo '+BC.banBc+'".';
       cu.appendChild(d2);
       /* 🔎 ẢNH CHỤP THƯ MỤC THẬT (do class-vhg-trang.php dựng — tệp này chắc chắn mới, xem
          chan_doan_tep_()). Nói thẳng bản sao mang số bản có trên đĩa hay không, thư mục đang có
@@ -4745,6 +4759,21 @@ JS;
       return;
     }
     styleOnce();
+    /* 🔴 CỬA CHẤM CÔNG PHẢI GÁC CẢ ĐƯỜNG NÀY — LỖI 16/09/2026.
+       Cửa `chuaChamCong` thêm ngày 15/09 chỉ được gắn ở đường PIN (`thu()`), sót đúng đường mà
+       nhân viên mở báo cáo từ SPA /ghe. Mà `boot()` trả cho ca chưa chấm công một phản hồi RẤT
+       NGẮN: ok + pinOk + chuaChamCong, KHÔNG có cơ sở, KHÔNG có banBc. Đường này không hỏi gì
+       cứ thế veChinh(), nên màn hiện ra "phạm vi 0 cơ sở · mã báo cáo ?" — trông y hệt lỗi
+       opcache đã mất cả buổi chiều 15/09 để lần ra, và khối chẩn đoán còn đổ oan cho opcache
+       một lần nữa. Chị Võ Nguyễn Hồng Nhung dính đúng ca này.
+       ⚠️ Thêm một đường vào màn báo cáo thì PHẢI qua cửa này. `kiem-ghe-cua-cham-cong.php` đếm
+          chỗ gọi để không ai mở đường thứ ba mà quên. */
+    if (r.chuaChamCong) {
+      var app0=$('bc-app'); app0.className='mo'; app0.textContent='';
+      TU_SPA=true;
+      veChuaChamCong(r.pin||'', r);
+      return;
+    }
     TU_SPA=true;   // mở từ trang quản trị → cho nút "Về trang quản lý"
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
     var app=$('bc-app'); app.className='mo'; app.textContent='';
