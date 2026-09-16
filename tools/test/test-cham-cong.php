@@ -10081,7 +10081,7 @@ delete_option( 'vhg_nguon_nguoidung_canh_thu' );
 /* ---- CỘT THỨ TƯ TRÊN MÀN HÌNH ---- */
 update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
 $g_tok = VHCC_Auth::phat_token( 'Anh Quản Trị', 'Admin', '', 'GH_AD' );
-$g_h   = vhcc_hr_ns( $g_tok );
+$g_h   = vhcc_hr_ns( $g_tok, array( 'ntab' => 'quyen' ) );
 /* ⚠️ SOI CHUỖI RIÊNG CỦA ĐẦU CỘT, ĐỪNG SOI TÊN TRẦN. Chữ "Ghế massage" còn nằm trong khối
    "những trang không khai được" ở cuối trang — khối ấy hiện cho MỌI người, kể cả người không
    có quyền đẩy. Soi tên trần thì phép thử "Kế toán không thấy cột" bắt nhầm chuỗi ở khối kia
@@ -10090,7 +10090,7 @@ t( '🔴 màn nhân sự có cột Ghế massage',
 	strpos( $g_h, 'class="tr-doc">Ghế massage' ) !== false, $g_h );
 /* HAI nút, không phải ba — bên ghế không có khái niệm "theo vai".
    🔴 Từ 3.77.0 dải nút ấy nằm trong khối "sửa ▾" của chính hàng, không còn ở mặt bảng. */
-$g_h_sua = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01' ) );
+$g_h_sua = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01', 'ntab' => 'quyen' ) );
 t( 'ô cột ghế chỉ có Đẩy / Gỡ, không có «theo vai»',
 	strpos( $g_h_sua, 'Đẩy ✓' ) !== false
 	&& strpos( $g_h_sua, 'name="o[GHNV01][ghe]"' ) !== false, $g_h_sua );
@@ -10116,7 +10116,9 @@ t( '🔴 nhưng KHÔNG thấy cột Ghế massage',
 
 /* Đang đọc sổ chung thì phải cảnh báo TRƯỚC khi bấm, kèm nút chuyển. */
 delete_option( VHCC_DayGhe::O_NGUON );
-$g_h = vhcc_hr_ns( $g_tok );
+/* ⚠️ Dải cảnh báo về hệ ghế nay đứng ở tab QUYỀN — cùng chỗ với cột Ghế massage mà nó
+   nhắc tới. Soi ở tab Nhân sự là soi một trang không có cột ấy. */
+$g_h = vhcc_hr_ns( $g_tok, array( 'ntab' => 'quyen' ) );
 t( '🔴 đọc sổ chung thì cảnh báo ngay đầu trang',
 	strpos( $g_h, 'đang đọc SỔ CHUNG' ) !== false, $g_h );
 t( 'kèm nút chuyển sang sổ riêng',
@@ -10302,11 +10304,14 @@ t( '🔴 hồ sơ bị xoá PIN thì GỠ luôn khỏi hệ ghế, không để 
    đi mọi thứ rơi ra ngoài form: nút "Lưu bảng này" ở cuối bảng thành mồ côi.
    ⚠️ HTML sai KHÔNG ném lỗi — nó chỉ lặng lẽ cho ra một cây DOM khác cái mình viết. Nên phép
       thử phải canh CHÍNH con số: cả trang có đúng bao nhiêu form, và mở/đóng có cân không. */
-$g_h = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01', 'ncs' => 'GHE_CS' ) );
+$g_h = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01', 'ncs' => 'GHE_CS', 'ntab' => 'quyen' ) );
 t( 'dựng cảnh: hàng sửa nhanh đang mở', strpos( $g_h, 'Sửa nhanh GHNV01' ) !== false, $g_h );
 teq( '🔴 mở hàng sửa nhanh KHÔNG đẻ thêm form nào',
 	substr_count( $g_h, '<form' ), substr_count( $g_h, '</form>' ) );
-$g_h2 = vhcc_hr_ns( $g_tok, array( 'ncs' => 'GHE_CS' ) );
+/* ⚠️ CÙNG MỘT TAB thì mới so được số form. Từ 3.89.0 trang có hai tab và chúng vẽ số khối
+   khác nhau — so tab này với tab kia là so hai trang khác nhau, và con số lệch đúng bằng
+   phần khối bị tách ra chứ chẳng liên quan gì tới hàng sửa nhanh. */
+$g_h2 = vhcc_hr_ns( $g_tok, array( 'ncs' => 'GHE_CS', 'ntab' => 'quyen' ) );
 teq( '🔴 và số form ĐÚNG BẰNG lúc hàng ấy đóng',
 	substr_count( $g_h2, '<form' ), substr_count( $g_h, '<form' ) );
 /* Ô của hàng sửa nhanh phải nằm TRONG form của bảng — tức là trước thẻ `</form>` của nó. */
@@ -10658,7 +10663,7 @@ t( '🔴 Nhân viên mở trang ra thì thấy màn chối, không thấy bảng
 	strpos( $ns_h, 'Quản lý nhân sự cần vai Kế toán' ) !== false, $ns_h );
 t( 'và không có một ô quyền nào', strpos( $ns_h, 'name="o[' ) === false, $ns_h );
 
-$ns_h = vhcc_ns( 'Kế toán' );
+$ns_h = vhcc_ns( 'Kế toán', array( 'ntab' => 'quyen' ) );
 /* 🔴 3.77.0 — MẶT BẢNG CHỈ CÒN ĐỌC. Cột "Quyền vào trang" in ra dải chip "vào được đâu, vì
    đâu"; chỗ KHAI là bảng luật theo bộ phận & mảng ngay dưới. Anh Thắng 13/09/2026: *"Khi xây
    bộ phận xong thì chỗ này theo bộ rồi, không cần phân quyền từng người nữa"*. */
@@ -10792,7 +10797,109 @@ t( '🔴 đặt chốt một-giờ TRƯỚC khi bật cờ nạp lại — đặ
    🔴 NHƯNG KHÔNG PHẢI Ô TÍCH ☑. Ô tích chỉ có HAI trạng thái, ô này có BA. Ép xuống hai là
    mất trạng thái "theo vai" — mà mất nó thì gỡ một ngoại lệ đã đặt là không gỡ được nữa. */
 delete_option( VHCC_Cong::O );
-$nt_h = vhcc_ns( 'Kế toán' );
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * TÁCH TAB: NHÂN SỰ ↔ QUYỀN VÀO TRANG
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 16/09/2026: *"Chỗ phần phân quyền đẩy nhân sự sang trang, tạo 1 tab riêng, vì sau
+ * này anh rất nhiều trang"*.
+ *
+ * 🔴 PHÉP QUAN TRỌNG NHẤT CỦA CẢ MỤC NÀY LÀ PHÉP CHỐNG MẤT DỮ LIỆU. Tách tab nghĩa là mỗi lượt
+ *    Lưu chỉ chở MỘT nhóm ô. Nếu hàm lưu hiểu "không gửi lên" thành "xoá đi" thì bấm Lưu ở tab
+ *    Nhân sự là xoá sạch quyền trang của mọi người đang hiện — và màn hình vẫn báo "đã lưu".
+ *    Chú thích trong `viec_luu()` đã cảnh báo đúng điều này từ trước; đây là phép biến lời cảnh
+ *    báo ấy thành một cái chốt.
+ */
+$tab_h  = vhcc_ns( 'Kế toán' );
+$tab_hq = vhcc_ns( 'Kế toán', array( 'ntab' => 'quyen' ) );
+
+t( '🔴 có thanh tab', strpos( $tab_h, 'tab-ns' ) !== false, substr( $tab_h, 0, 400 ) );
+t( 'tab Nhân sự đang mở khi chưa chọn gì',
+	preg_match( '/tab-ns-o dang"[^>]*><b>Nhân sự/', $tab_h ) === 1, $tab_h );
+t( 'và tab Quyền vào trang đang mở khi ?ntab=quyen',
+	preg_match( '/tab-ns-o dang"[^>]*><b>Quyền vào trang/', $tab_hq ) === 1, $tab_hq );
+
+/* Tab Nhân sự: KHÔNG một ô quyền trang nào — đó là toàn bộ điểm của việc tách. */
+t( '🔴 tab Nhân sự KHÔNG còn ô quyền trang',
+	strpos( $tab_h, 'name="o[' ) === false, 'tab Nhân sự vẫn vẽ ô quyền' );
+t( 'và KHÔNG còn nút áp cả cột', strpos( $tab_h, 'name="cot"' ) === false, 'vẫn còn nút cột' );
+t( 'nhưng VẪN có ô cơ sở', strpos( $tab_h, 'name="cs_co[' ) !== false, $tab_h );
+t( 'và VẪN có ô vai trò', preg_match( '/name="vai\[/', $tab_h ) === 1, $tab_h );
+
+/* Tab Quyền: ngược lại. */
+t( '🔴 tab Quyền CÓ ô quyền trang', strpos( $tab_hq, 'name="o[' ) !== false, $tab_hq );
+t( 'và có nút áp cả cột', strpos( $tab_hq, 'name="cot"' ) !== false, $tab_hq );
+t( '🔴 tab Quyền KHÔNG vẽ ô cơ sở — một chỗ sửa thôi',
+	strpos( $tab_hq, 'name="cs_co[' ) === false, 'hai chỗ cùng sửa cơ sở' );
+
+/* Tên bảng phải theo nội dung bảng — tab Nhân sự không còn ô quyền nào thì đừng gọi nó là
+   "Ai vào được trang nào". */
+t( '🔴 tab Nhân sự gọi bảng là Hồ sơ nhân sự',
+	strpos( $tab_h, '<h2>Hồ sơ nhân sự</h2>' ) !== false, $tab_h );
+t( 'và KHÔNG còn tên "Ai vào được trang nào"',
+	strpos( $tab_h, 'Ai vào được trang nào</h2>' ) === false, 'tên bảng còn nói về quyền' );
+t( 'tab Quyền vẫn giữ đúng tên cũ',
+	strpos( $tab_hq, '<h2>Ai vào được trang nào</h2>' ) !== false, $tab_hq );
+
+/* Khối nào đứng tab nào. */
+foreach ( array( 'Sơ đồ tổ chức', 'Bảng vai trò', 'Vai trò theo bộ phận' ) as $k_ns ) {
+	t( 'khối "' . $k_ns . '" ở tab Nhân sự', strpos( $tab_h, $k_ns ) !== false, $k_ns );
+	t( '  và KHÔNG lặp lại ở tab Quyền', strpos( $tab_hq, $k_ns ) === false, $k_ns );
+}
+foreach ( array( 'Phân quyền theo bộ phận', 'Chia đầu việc', 'Mặc định theo vai' ) as $k_q ) {
+	t( 'khối "' . $k_q . '" ở tab Quyền', strpos( $tab_hq, $k_q ) !== false, $k_q );
+	t( '  và KHÔNG lặp lại ở tab Nhân sự', strpos( $tab_h, $k_q ) === false, $k_q );
+}
+
+/* ⚠️ "Gộp hai hồ sơ bất kỳ" chỉ Admin thấy (`he_thong`), nên phải soi bằng đúng bậc ấy —
+   soi bằng Kế toán thì phép đỏ vì lý do quyền, chẳng liên quan gì tới việc tách tab. */
+$tab_ad  = vhcc_ns( 'Admin' );
+$tab_adq = vhcc_ns( 'Admin', array( 'ntab' => 'quyen' ) );
+t( 'khối "Gộp hai hồ sơ bất kỳ" ở tab Nhân sự (bậc Admin)',
+	strpos( $tab_ad, 'Gộp hai hồ sơ bất kỳ' ) !== false, 'thiếu khối gộp tay' );
+t( '  và KHÔNG lặp lại ở tab Quyền',
+	strpos( $tab_adq, 'Gộp hai hồ sơ bất kỳ' ) === false, 'khối gộp tay lặp ở tab Quyền' );
+
+/* Bộ lọc phải đi theo khi đổi tab — không thì lọc lại từ đầu, và người ta thôi dùng tab kia. */
+$tab_loc = vhcc_ns( 'Kế toán', array( 'ncs' => 'TUTU_BT', 'nq' => 'Ngân' ) );
+t( '🔴 đổi tab thì GIỮ NGUYÊN bộ lọc',
+	preg_match( '/ntab=quyen[^"]*ncs=TUTU_BT|ncs=TUTU_BT[^"]*ntab=quyen/', $tab_loc ) === 1, $tab_loc );
+t( 'và giữ cả ô tìm tên', strpos( $tab_loc, 'nq=Ng' ) !== false, $tab_loc );
+/* ⚠️ Nhưng KHÔNG mang số trang sang — hai tab rộng khác nhau, `np=7` sang danh sách ngắn hơn
+   là rơi vào trang trống, trông như mất người. */
+$tab_trang = vhcc_ns( 'Kế toán', array( 'np' => 3 ) );
+t( '🔴 KHÔNG mang số trang sang tab kia',
+	preg_match( '/ntab=quyen[^"]*np=3|np=3[^"]*ntab=quyen/', $tab_trang ) === 0, 'mang np sang' );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LƯU Ở TAB NÀY KHÔNG ĐƯỢC XOÁ DỮ LIỆU CỦA TAB KIA
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+global $wpdb;
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TAB1', 'ho_ten' => 'Người Thử Tab',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+$u_tab = array( 'name' => 'Admin', 'role' => 'Admin', 'coso' => 'TUTU_BT' );
+VHCC_Cong::luu_nhieu( $u_tab, array( 'TAB1' => array( 'cham_cong' => 'khoa' ) ) );
+teq( 'dựng cảnh: TAB1 đang bị khoá riêng một trang', 'khoa', VHCC_Cong::o( 'TAB1', 'cham_cong' ) );
+
+/* Bấm Lưu ở tab NHÂN SỰ — lượt gửi KHÔNG chở ô quyền nào. */
+vhcc_ns( 'Admin', array( 'ntab' => '' ), array( 'viec' => 'luu_quyen',
+	'cs_co' => array( 'TAB1' => '1' ), 'cs' => array( 'TAB1' => array( 'TUTU_BT' ) ) ) );
+/* Đối chứng: lượt POST ấy PHẢI thật sự chạy tới `viec_luu()`. Không có phép này thì lượt gửi
+   bị chối ở cửa (sai chữ ký, sai vai) cũng cho ra cùng kết quả "quyền còn nguyên", và cái chốt
+   chống mất dữ liệu ở dưới xanh mà chẳng canh gì cả — đã đúng thế lúc phá thử lần đầu. */
+teq( 'đối chứng: lượt Lưu ấy có chạy thật — cơ sở được ghi lại',
+	'TUTU_BT', VHCC_NhanSu::ho_so( 'TAB1' )['cua_hang'] );
+teq( '🔴 lưu ở tab Nhân sự KHÔNG xoá quyền riêng của người ta',
+	'khoa', VHCC_Cong::o( 'TAB1', 'cham_cong' ) );
+
+/* Và chiều ngược lại: lưu ở tab QUYỀN không được xoá cơ sở. */
+$cs_truoc = VHCC_NhanSu::ho_so( 'TAB1' )['cua_hang'];
+vhcc_ns( 'Admin', array( 'ntab' => 'quyen' ), array( 'viec' => 'luu_quyen',
+	'o' => array( 'TAB1' => array( 'cham_cong' => 'mo' ) ) ) );
+teq( '🔴 lưu ở tab Quyền KHÔNG xoá cơ sở của người ta',
+	$cs_truoc, VHCC_NhanSu::ho_so( 'TAB1' )['cua_hang'] );
+teq( 'và ô quyền vừa bấm thì lưu thật', 'mo', VHCC_Cong::o( 'TAB1', 'cham_cong' ) );
+
+$nt_h = vhcc_ns( 'Kế toán', array( 'ntab' => 'quyen' ) );
 /* ⚠️ SOI ĐÚNG Ô QUYỀN, ĐỪNG SOI TIỀN TỐ LỚP. Bản đầu kiểm `<select class="o-q` — mà cột Vai
    trò (thêm sau) dùng lớp `o-q-vai`, khớp luôn tiền tố ấy, nên phép thử đỏ oan trong khi ô
    quyền vẫn đúng là radio. Ô quyền nhận ra bằng TÊN TRƯỜNG `o[…]`, không phải bằng tên lớp. */
@@ -10800,8 +10907,16 @@ t( '🔴 ô quyền là radio, không còn ô xổ',
 	preg_match( '/<select[^>]*name="o\[/', $nt_h ) === 0, $nt_h );
 /* Cột Vai trò thì NGƯỢC LẠI — cố ý là ô xổ: vai có sáu giá trị chứ không phải ba, vẽ sáu nút
    cạnh nhau là mỗi hàng dài thêm một gang tay. Hai kiểu ô khác nhau ở đây là có chủ ý. */
-t( 'cột Vai trò là ô xổ và sửa được',
-	preg_match( '/<select[^>]*name="vai\[/', $nt_h ) === 1, $nt_h );
+/* 🔴 Ô XỔ VAI TRÒ NAY Ở TAB NHÂN SỰ, KHÔNG Ở TAB QUYỀN — anh Thắng 16/09/2026 tách tab.
+   Tab Quyền chỉ ĐỌC vai (nút đầu mỗi ô là «theo vai», không thấy vai thì không đọc được nó
+   đang theo gì); chỗ ĐỔI vai đứng ở tab Nhân sự. Hai chỗ sửa cùng một thứ là sớm muộn đè
+   mất của nhau, nên phép này canh đúng một chỗ có, và phép dưới canh chỗ kia KHÔNG có. */
+$nt_ns = vhcc_ns( 'Kế toán' );
+t( 'cột Vai trò là ô xổ và sửa được — ở tab Nhân sự',
+	preg_match( '/<select[^>]*name="vai\[/', $nt_ns ) === 1, $nt_ns );
+t( '🔴 và tab Quyền KHÔNG có ô xổ vai thứ hai',
+	preg_match( '/<select[^>]*name="vai\[/', $nt_h ) === 0, $nt_h );
+t( 'nhưng vẫn ĐỌC được vai ở tab Quyền', strpos( $nt_h, 'Nhân viên' ) !== false, $nt_h );
 t( 'ô quyền dùng radio', strpos( $nt_h, 'type="radio"' ) !== false );
 foreach ( array( 'value=""' => 'theo vai', 'value="mo"' => 'mở', 'value="khoa"' => 'khoá' ) as $nt_v => $nt_ten ) {
 	t( 'vẫn đủ ba trạng thái — có nút "' . $nt_ten . '"', strpos( $nt_h, $nt_v ) !== false );
@@ -10811,7 +10926,7 @@ foreach ( array( 'value=""' => 'theo vai', 'value="mo"' => 'mở', 'value="khoa"
    trang này ra để trả lời. */
 /* 🔴 3.77.0 — dải nút ấy chuyển vào khối "sửa ▾" của chính hàng. Mở ra rồi mới thử. */
 $nt_ma  = vhcc_ns_ma_dau( $nt_h );
-$nt_sua = vhcc_ns( 'Kế toán', array( 'sua_o' => $nt_ma ) );
+$nt_sua = vhcc_ns( 'Kế toán', array( 'sua_o' => $nt_ma, 'ntab' => 'quyen' ) );
 t( 'dò được một mã để mở khối sửa', '' !== $nt_ma, $nt_ma );
 t( '🔴 nút "theo vai" in ra ✓ hoặc ✕, không chỉ mỗi chữ "vai"',
 	strpos( $nt_sua, 'vai ✓' ) !== false || strpos( $nt_sua, 'vai ✕' ) !== false, $nt_sua );
@@ -11093,7 +11208,7 @@ t( 'và không còn dùng ô tìm để giả làm đường sửa',
 /* ➕ THÊM NHÂN SỰ — anh Thắng: *"Chưa có chỗ bổ sung thêm nhân sự"*.
    `sua=moi` là mã lệnh "hồ sơ mới" (biểu mẫu có ô Mã NV). Trước là dấu `+`, đã đổi 08/09/2026
    vì `+` trong chuỗi truy vấn bị đọc thành dấu cách -> bấm nút mà trang vẽ lại y nguyên. */
-$vq_ad = vhcc_ns( 'Admin' );
+$vq_ad = vhcc_ns( 'Admin', array( 'ntab' => 'quyen' ) );
 /* 🔴 08/09/2026 — NÚT NÀY ĐÃ BỎ. Anh Thắng: *"loại bỏ chỗ này tránh nhầm"*.
    Nó chỉ là đường dẫn sang biểu mẫu ở màn *Hồ sơ & tài khoản*, nhưng đặt ở đây thì trang này
    trông như một cửa thêm người thứ hai — đúng cái rối đợt 3.42.0 đang gỡ. Trang này làm MỘT
@@ -11482,7 +11597,7 @@ t( '🔴 KHÔNG còn khối tóm tắt "Đang có N ngoại lệ" trên trang',
       chỗ khác thì người đi tìm sẽ tìm ở đây trước, không thấy, rồi kết luận là không đổi được. */
 require_once $goc . '/wordpress/vhcp-noi-bo/includes/class-vhnb-quyen.php';
 delete_option( VHNB_Quyen::O );
-$tt_h = vhcc_ns( 'Kế toán' );
+$tt_h = vhcc_ns( 'Kế toán', array( 'ntab' => 'quyen' ) );
 t( '🔴 trang ngoài có bảng phân quyền Nội bộ',
 	strpos( $tt_h, 'Phân quyền trang Nội bộ' ) !== false, $tt_h );
 /* 🔴 KHÔNG CÒN Ô "VÀO TRANG" — ANH THẮNG BÁO CHUYỆN NÀY HAI LẦN.
@@ -14553,7 +14668,7 @@ t( 'và gỡ dòng thì luôn được', ! empty( $r_dv['ok'] ), $r_dv );
 delete_option( VHCC_Vai::O_NGOAI_LE );
 VHCC_Vai::quen_nho_nl();
 VHCC_Vai::dat_ngoai_le( array( 'role' => 'Admin', 'ma_nv' => 'ZZAD' ), 'vai:Kỹ thuật', 'may', 'mo' );
-$h_dv = vhcc_ns( 'Admin' );
+$h_dv = vhcc_ns( 'Admin', array( 'ntab' => 'quyen' ) );
 t( 'màn Quản lý nhân sự có khối Chia đầu việc', strpos( $h_dv, 'Chia đầu việc' ) !== false, $h_dv );
 t( 'khối ấy kể ra dòng đang có', strpos( $h_dv, 'Máy chấm công &amp; firmware' ) !== false, $h_dv );
 t( 'và nói rõ nó cho vai nào', strpos( $h_dv, 'Kỹ thuật' ) !== false, $h_dv );
@@ -14563,7 +14678,7 @@ t( 'và có nút Gỡ từng dòng', strpos( $h_dv, 'value="dau_viec"' ) !== fal
 
 /* 🔴 Ô CHỌN CẮT Ở BẬC NGƯỜI ĐANG KHAI. Vẽ ra rồi chối là mời người ta bấm vào một việc không
    làm được — mà lõi vẫn chặn ở tầng dưới, nên đây chỉ là chuyện không mời gọi. */
-$h_dv_kt = vhcc_ns( 'Kế toán' );
+$h_dv_kt = vhcc_ns( 'Kế toán', array( 'ntab' => 'quyen' ) );
 t( 'Kế toán KHÔNG thấy dòng "Cài đặt hệ thống" trong ô chọn',
 	strpos( $h_dv_kt, '>Cài đặt hệ thống, nguồn người dùng —' ) === false, $h_dv_kt );
 t( 'nhưng vẫn thấy dòng của bậc mình', strpos( $h_dv_kt, 'Lịch nghỉ lễ' ) !== false, $h_dv_kt );
@@ -16925,7 +17040,7 @@ t( 'Cửa hàng trưởng càng không', empty( VHCC_DayChiPhi::dat(
 	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ), 'CP1', 'mo' )['ok'] ) );
 
 /* ---- Trên MÀN Quản lý nhân sự ---- */
-$h_cp = vhcc_ns( 'Admin' );
+$h_cp = vhcc_ns( 'Admin', array( 'ntab' => 'quyen' ) );
 t( '🔴 bảng có cột Vận hành chi phí',
 	strpos( $h_cp, 'Vận hành chi phí' ) !== false, substr( $h_cp, 0, 400 ) );
 /* 🔴 3.77.0: "áp cả cột" đổi thành LUẬT THEO NHÓM + nút đẩy cho khớp luật. */
@@ -16935,7 +17050,7 @@ t( 'mỗi hàng bấm thẳng được ô của cột ấy',
 	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp );
 /* Đặt riêng cho một người thì vẫn còn — trong khối "sửa ▾" của hàng ấy. */
 $cp_ma  = vhcc_ns_ma_dau( $h_cp );
-$h_cp_s = vhcc_ns( 'Admin', array( 'sua_o' => $cp_ma ) );
+$h_cp_s = vhcc_ns( 'Admin', array( 'sua_o' => $cp_ma, 'ntab' => 'quyen' ) );
 t( 'và đặt riêng được cho từng người trong khối sửa',
 	strpos( $h_cp_s, '][' . VHCC_DayChiPhi::COT . ']"' ) !== false, $h_cp_s );
 /* 🔴 CỘT NÀY KHÔNG PHẢI NGOẠI LỆ QUYỀN — phải tách khỏi bảng trước khi phần còn lại đi vào sổ

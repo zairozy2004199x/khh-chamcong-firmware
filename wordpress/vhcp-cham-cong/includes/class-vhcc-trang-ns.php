@@ -1242,7 +1242,18 @@ class VHCC_TrangNS {
 
 	/** Vài luật riêng của màn này — phần còn lại dùng chung với trang quản trị. */
 	private static function css_them() {
-		return '.o-vai{color:var(--mo)}'
+		return ''
+			/* THANH TAB — hai ô rộng bằng nhau, ô đang mở có gạch xanh dưới chân.
+			   ⚠️ `flex-wrap` để trên điện thoại hai ô xuống dòng thay vì bóp chữ mất dấu. */
+			. '.tab-ns{display:flex;flex-wrap:wrap}'
+			. '.tab-ns-o{flex:1 1 200px;padding:12px 16px;text-decoration:none;color:var(--mo);'
+			. 'border-bottom:3px solid transparent;background:#f8fafc}'
+			. '.tab-ns-o b{display:block;font-size:15px;color:var(--chu)}'
+			. '.tab-ns-o span{display:block;font-size:12.5px;margin-top:2px}'
+			. '.tab-ns-o:hover{background:#eff6ff}'
+			. '.tab-ns-o.dang{background:var(--the);border-bottom-color:var(--xanh)}'
+			. '.tab-ns-o.dang b{color:var(--xanh)}'
+			. '.o-vai{color:var(--mo)}'
 			/* ==============================================================================
 			 * BA NÚT BẤM LIỀN NHAU, KHÔNG PHẢI Ô XỔ
 			 * ==============================================================================
@@ -1514,6 +1525,9 @@ class VHCC_TrangNS {
 		$mang = isset( $_GET['nmang'] ) ? sanitize_text_field( wp_unslash( $_GET['nmang'] ) ) : '';
 		$nbp  = isset( $_GET['nbp'] )  ? sanitize_text_field( wp_unslash( $_GET['nbp'] ) ) : '';
 		$p    = isset( $_GET['np'] )   ? max( 1, (int) $_GET['np'] ) : 1;
+		/* Tab nào đang mở ở màn Tổng quan. Mặc định Nhân sự — người mở trang này hằng ngày là
+		   để tìm một người, không phải để khai quyền. */
+		$tab  = ( isset( $_GET['ntab'] ) && 'quyen' === $_GET['ntab'] ) ? 'quyen' : 'nhan_su';
 
 		echo self::dau( 'Quản lý nhân sự' );
 		echo '<header><div class="bo">'
@@ -1530,10 +1544,14 @@ class VHCC_TrangNS {
 
 		foreach ( self::lay_bao() as $b ) { self::ve_bao( $b ); }
 
-		self::the_duong_di( $toi, $ds_trang );
 		self::dai_tab_ns( $toi );
-		self::canh_nguon();
-		self::canh_ghe( $toi );
+		/* 🔴 CẢNH BÁO ĐỨNG ĐÚNG TAB CỦA NÓ. `canh_nguon()` nói về cột VAI TRÒ — cột ấy chỉ khai
+		   được ở tab Nhân sự; dán nó lên tab Quyền là một dải vàng nói về một cột không có trên
+		   màn. `canh_ghe()` thì ngược lại: nó nói về cột Ghế massage, chỉ có ở tab Quyền.
+		   Cảnh báo đứng nhầm tab còn tệ hơn không có: người đọc đi tìm cái cột nó nhắc tới,
+		   không thấy, rồi thôi không đọc dải vàng nào nữa. */
+		if ( 'quyen' === $tab ) { self::canh_ghe( $toi ); }
+		else { self::canh_nguon(); }
 
 		/* ═══ TAB LỆNH ═══════════════════════════════════════════════════════════════════
 		 * Anh Thắng 15/09/2026: *"Tạo tab lệnh để đẩy dữ liệu nv sang 1 trang chi phí văn
@@ -1572,16 +1590,38 @@ class VHCC_TrangNS {
 		   `khai_ma_song_song()`/`viec_ghep_ma()`/`viec_bo_ghep_ma()`/`viec_don_ma()` GIỮ NGUYÊN
 		   ở tầng máy chủ (không xoá) — cùng cách `go_ngoai_le`/`ngoai_le_phang()` được giữ khi bỏ
 		   `the_ngoai_le()` trước đó: bỏ MÀN HÌNH quản lý qua UI, không bỏ NĂNG LỰC ở lõi. */
+		/* Thanh tab vẽ Ở ĐÂY — sau chỗ rẽ sang màn đẩy, nên nó chỉ có mặt ở màn Tổng quan.
+		   Vẽ sớm hơn là màn đẩy cũng mọc ra hai tab không dùng được. */
+		self::the_tab( $tab );
+
+		if ( 'quyen' === $tab ) {
+			/* ===============================================================================
+			 * TAB "QUYỀN VÀO TRANG" — mọi thứ về việc ai mở được trang nào, và không gì khác.
+			 * =============================================================================== */
+			self::the_duong_di( $toi, $ds_trang );
+			echo '<div class="the">';
+			self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp, 'quyen' );
+			echo '</div>';
+			/* Ngay DƯỚI bảng: khai theo NHÓM nhanh hơn hẳn bấm từng người, nên nó phải là thứ
+			   tiếp theo mắt chạm tới — không bắt người ta đi tìm ở cuối trang. */
+			self::the_quyen_nhom( $toi );
+			self::the_quyen_noi_bo( $toi );
+			self::the_dau_viec( $toi );
+			self::the_ngoai_pham_vi();
+			self::the_mac_dinh( $ds_trang );
+			self::dong_trang();
+			return;
+		}
+
+		/* ===================================================================================
+		 * TAB "NHÂN SỰ" — ai là ai, ở đâu, làm gì. Không một ô quyền trang nào.
+		 * =================================================================================== */
 		self::the_gop( $toi );
 		self::the_cho_duyet_may( $toi );
 		echo '<div class="the">';
-		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp );
+		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang, $nbp, 'nhan_su' );
 		echo '</div>';
-		/* Ngay DƯỚI bảng: cột "Quyền vào trang" trong bảng chỉ ĐỌC, nên chỗ khai phải là thứ
-		   tiếp theo mắt chạm tới — không bắt người ta đi tìm ở cuối trang. */
-		self::the_quyen_nhom( $toi );
 		self::the_dong_bo( $toi );
-		self::the_quyen_noi_bo( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
 		/* Ngay SAU Bảng vai trò: khai vai cho bộ phận chỉ có nghĩa khi vai đã tồn tại, nên hai
@@ -1592,9 +1632,6 @@ class VHCC_TrangNS {
 		self::the_so_do( $toi );
 		self::the_vai_bp( $toi );
 		self::the_gop_tay( $toi );
-		self::the_dau_viec( $toi );
-		self::the_ngoai_pham_vi();
-		self::the_mac_dinh( $ds_trang );
 		self::dong_trang();
 	}
 
@@ -2177,6 +2214,43 @@ class VHCC_TrangNS {
 		return $bao;
 	}
 
+	/**
+	 * THANH TAB CỦA MÀN TỔNG QUAN — Nhân sự ↔ Quyền vào trang.
+	 *
+	 * ⚠️ KHÁC TRỤC VỚI `dai_tab_ns()`. Dải kia chọn MÀN nào (Tổng quan hay một màn đẩy sang app
+	 *    khác); thanh này chia đôi chính màn Tổng quan. Hai trục khác nhau nên không gộp được
+	 *    vào một dải — gộp là người ta tưởng "Quyền vào trang" cũng là một app để đẩy sang.
+	 *    Vì thế thanh này chỉ vẽ ở màn Tổng quan, sau chỗ rẽ sang màn đẩy.
+	 *
+	 * 🔴 GIỮ NGUYÊN BỘ LỌC KHI ĐỔI TAB. Đang lọc "cơ sở FARM_PT" mà bấm sang tab kia lại thấy cả
+	 *    261 người thì coi như phải lọc lại từ đầu — và người ta sẽ thôi dùng tab thứ hai.
+	 *
+	 * ⚠️ BỎ `np` (số trang) khi đổi tab. Hai tab rộng khác nhau nên số hàng mỗi trang có thể
+	 *    khác; mang `np=7` sang một danh sách ngắn hơn là rơi vào trang trống, trông như mất
+	 *    người.
+	 */
+	private static function the_tab( $tab ) {
+		$giu = array();
+		foreach ( array( 'ncs', 'nq', 'nvai', 'nmang', 'nbp' ) as $k ) {
+			if ( isset( $_GET[ $k ] ) && '' !== $_GET[ $k ] ) {
+				$giu[ $k ] = sanitize_text_field( wp_unslash( $_GET[ $k ] ) );
+			}
+		}
+		$cai = array(
+			'nhan_su' => array( 'Nhân sự', 'Hồ sơ, cơ sở, vai trò, sơ đồ tổ chức' ),
+			'quyen'   => array( 'Quyền vào trang', 'Ai mở được trang nào' ),
+		);
+		echo '<div class="the" style="padding:0;overflow:hidden"><div class="tab-ns">';
+		foreach ( $cai as $ma => $x ) {
+			$url = add_query_arg( array_merge( $giu,
+				( 'nhan_su' === $ma ? array( 'ntab' => false ) : array( 'ntab' => $ma ) ) ),
+				self::url() );
+			echo '<a class="tab-ns-o' . ( $tab === $ma ? ' dang' : '' ) . '" href="' . esc_url( $url ) . '">'
+				. '<b>' . esc_html( $x[0] ) . '</b><span>' . esc_html( $x[1] ) . '</span></a>';
+		}
+		echo '</div></div>';
+	}
+
 	private static function the_duong_di( $toi, $ds_trang ) {
 		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px">';
 		/* Cổng K&H là cửa trước, công khai — không nằm trong sổ quyền, nhưng vẫn phải có đường
@@ -2282,7 +2356,29 @@ class VHCC_TrangNS {
 
 	/* ------------------------------------------------------------------ bảng người × trang */
 
-	private static function the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang = '', $nbp = '' ) {
+	/**
+	 * BẢNG NGƯỜI — MỘT HÀM, HAI TẤM ÁO.
+	 *
+	 * @param string $tab 'nhan_su' (mặc định) hoặc 'quyen'.
+	 *
+	 * 🔴 TÁCH CỘT QUYỀN TRANG SANG TAB RIÊNG — anh Thắng 16/09/2026:
+	 *    *"Chỗ phần phân quyền đẩy nhân sự sang trang, tạo 1 tab riêng, vì sau này anh rất nhiều
+	 *    trang"*. Con số nói rõ: năm trang × ba nút = mười lăm nút mỗi hàng, cộng ô cơ sở bốn
+	 *    dòng và ô vai — bảng đã tràn. Thêm trang thứ sáu, thứ bảy thì không còn là "hơi rối"
+	 *    nữa mà là không dùng được.
+	 *
+	 * ⚠️ HAI TAB DÙNG CHUNG MỘT HÀM, KHÔNG CHÉP THÀNH HAI. Bộ lọc, phân trang, dò trùng mã, hàng
+	 *    sửa, hàng xoá — tất cả là một. Chép ra hai bản là sớm muộn hai bản lọc khác nhau, và
+	 *    người dùng thấy hai danh sách khác nhau cho cùng một bộ lọc mà không hiểu vì sao.
+	 *
+	 * 🔴 MỖI TAB CHỈ GỬI LÊN NHÓM Ô CỦA CHÍNH NÓ, và đó là chỗ dễ mất dữ liệu nhất. `viec_luu()`
+	 *    đã lường trước — chú thích của nó viết nguyên văn: *"hôm nay trang luôn vẽ cột quyền nên
+	 *    `o` luôn có mặt và lỗi không lộ; ngày cột ấy ẩn đi với một vai nào đó thì đổi cơ sở im
+	 *    lặng không ăn"*. Đã soát cả năm hàm lưu: thiếu nhóm nào thì nhóm ấy KHÔNG chạy, không
+	 *    phải chạy với mảng rỗng rồi xoá sạch. Bài kiểm canh điều này ở cả hai chiều.
+	 */
+	private static function the_bang( $toi, $ds_trang, $cs, $q, $vai, $p, $mang = '', $nbp = '', $tab = 'nhan_su' ) {
+		$la_quyen = ( 'quyen' === $tab );
 		$dang_sua = isset( $_GET['sua_o'] ) ? sanitize_text_field( wp_unslash( $_GET['sua_o'] ) ) : '';
 		$dang_pin = isset( $_GET['pin_o'] ) ? sanitize_text_field( wp_unslash( $_GET['pin_o'] ) ) : '';
 		$dang_xoa = isset( $_GET['xoa_o'] ) ? sanitize_text_field( wp_unslash( $_GET['xoa_o'] ) ) : '';
@@ -2356,7 +2452,9 @@ class VHCC_TrangNS {
 		   mã về một người") sau nhiều lượt chỉnh chỗ đặt/khung; the_ghep_ma() đã BỎ HẲN sau đó
 		   (anh Thắng: "xóa luôn"), nên khung giờ chỉ còn bọc mỗi the_bang() — vẫn giữ cách tách
 		   mở/đóng khung ra khỏi hàm này, phòng khi có khối khác cần ghép chung sau này. */
-		echo '<h2>Ai vào được trang nào</h2>';
+		/* 🔴 TÊN BẢNG PHẢI THEO NỘI DUNG BẢNG. Tab Nhân sự không còn ô quyền trang nào — để
+		   nguyên tên cũ là mời người ta mở ra tìm quyền rồi thấy một bảng khác hẳn. */
+		echo '<h2>' . ( $la_quyen ? 'Ai vào được trang nào' : 'Hồ sơ nhân sự' ) . '</h2>';
 		echo '<p class="mo">Mặc định theo <b>vai trò</b> — bảng này chỉ ghi những chỗ <b>khác</b> '
 			. 'mặc định. Để ô ở «Theo vai» là người ấy đi theo thang vai, đổi vai là quyền đổi theo. '
 			. 'Chọn «Mở» hay «Khoá» là ghim cứng cho riêng người đó, vai đổi cũng không lay chuyển. '
@@ -2423,7 +2521,12 @@ class VHCC_TrangNS {
 			if ( '' !== $ma_moi ) { VHCC_Cong::nhom_cua( $ma_moi, $r_moi ); }
 		}
 		echo '<div class="cuon cuon-ns"><table class="b-ns"><thead><tr>';
-		echo '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Vai trò</th>';
+		echo '<th>Mã NV</th><th>Họ tên</th>';
+		/* Tab Nhân sự: Cơ sở và Vai trò là ô KHAI. Tab Quyền: chỉ cần ĐỌC được vai — vì nút đầu
+		   của mỗi ô quyền là «theo vai», không thấy vai thì không đọc được nó đang theo gì.
+		   Hai ô khai chỉ đứng ở MỘT tab: hai chỗ sửa cùng một thứ là sớm muộn đè mất của nhau. */
+		if ( $la_quyen ) { echo '<th>Vai trò</th>'; }
+		else { echo '<th>Cơ sở</th><th>Vai trò</th>'; }
 		/* =====================================================================================
 		 * 🔴 BẢNG NÀY LÀ BẢNG QUYỀN, KHÔNG PHẢI BẢNG SƠ ĐỒ TỔ CHỨC — anh Thắng 14/09/2026
 		 * =====================================================================================
@@ -2446,7 +2549,7 @@ class VHCC_TrangNS {
 		   được một lần bấm mỗi ô; còn khoá cả một cơ sở cho một trang thì vẫn là 50 lần bấm.
 		   ⚠️ Chỉ áp cho người ĐANG HIỆN — cùng luật với nút Lưu. Bảng có lọc và phân trang, nên
 		      "cả cột" nghĩa là cả cột của lát cắt này, không phải của 240 người. */
-		foreach ( $ds_trang as $k_t => $t ) {
+		foreach ( ( $la_quyen ? $ds_trang : array() ) as $k_t => $t ) {
 			echo '<th class="tr-doc">' . esc_html( $t['ten'] ) . '<br><span class="cot-nut">';
 			foreach ( array( '' => 'vai', 'mo' => 'Mở', 'khoa' => 'Khoá' ) as $gt => $ten ) {
 				echo '<button type="submit" name="cot" value="' . esc_attr( $k_t . '|' . $gt ) . '"'
@@ -2458,7 +2561,7 @@ class VHCC_TrangNS {
 		/* 🔴 CỘT GHẾ TRÔNG GIỐNG BA CỘT KIA NHƯNG LÀ MỘT CƠ CHẾ KHÁC — xem đầu `VHCC_DayGhe`.
 		   Ba cột kia ghi một NGOẠI LỆ vào sổ quyền; cột này ĐẨY NGƯỜI THẬT sang sổ người dùng
 		   của hệ ghế, vì `/ghe` có phiên riêng và không đọc `ma_nv`. Nên nó chỉ có HAI nút. */
-		$co_ghe = self::cot_ghe( $toi );
+		$co_ghe = $la_quyen && self::cot_ghe( $toi );
 		if ( $co_ghe ) {
 			echo '<th class="tr-doc">Ghế massage<br><span class="cot-nut">';
 			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
@@ -2470,7 +2573,7 @@ class VHCC_TrangNS {
 			}
 			echo '</span></th>';
 		}
-		$co_cp = self::cot_chi_phi( $toi );
+		$co_cp = $la_quyen && self::cot_chi_phi( $toi );
 		if ( $co_cp ) {
 			echo '<th class="tr-doc">Vận hành chi phí<br><span class="cot-nut">';
 			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
@@ -2483,7 +2586,7 @@ class VHCC_TrangNS {
 			}
 			echo '</span></th>';
 		}
-		$co_bc = self::cot_bao_cao( $toi );
+		$co_bc = $la_quyen && self::cot_bao_cao( $toi );
 		if ( $co_bc ) {
 			echo '<th class="tr-doc">Quản trị báo cáo cơ sở<br><span class="cot-nut">';
 			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
@@ -2671,14 +2774,20 @@ class VHCC_TrangNS {
 				if ( $dang_pin === $ma ) { self::o_xem_pin( $toi, $ma ); }
 			}
 			echo '</td>';
-			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'], $r ) . '</td>';
-			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '', $r ) . '</td>';
+			if ( $la_quyen ) {
+				/* CHỈ ĐỌC. Không `o_vai()` ở đây: ô xổ ấy gửi lên `vai[MA]`, mà tab này không
+				   phải chỗ đổi vai — bày ra là mời người ta sửa ở hai nơi cho cùng một thứ. */
+				echo '<td class="mo">' . esc_html( trim( (string) ( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) ) ) . '</td>';
+			} else {
+				echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'], $r ) . '</td>';
+				echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '', $r ) . '</td>';
+			}
 			/* Giả một "người" chỉ có mã + vai, để hỏi `VHCC_Cong` xem MẶC ĐỊNH của họ ra sao.
 			   ⚠️ Hỏi bằng CHÍNH hàm mà cửa vào dùng, không tự tính lại bậc ở đây — hai phép
 			      tính cho cùng một câu hỏi là sớm muộn màn hình nói khác cửa vào. */
 			$gia = array( 'ma_nv' => $ma, 'role' => (string) ( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) );
 
-			foreach ( $ds_trang as $k => $t ) {
+			foreach ( ( $la_quyen ? $ds_trang : array() ) as $k => $t ) {
 				/* ⚠️ Không có mã NV thì ngoại lệ không bám vào đâu được — thẻ phiên mang mã rỗng,
 				   nên `duoc_vao()` bỏ qua sạch. Nói ra, đừng vẽ một ô chọn vô tác dụng. */
 				if ( '' === $ma ) {
@@ -2708,8 +2817,14 @@ class VHCC_TrangNS {
 						: self::hai_nut_bao_cao( $ma ) ) . '</td>';
 			}
 			echo '</tr>';
-			$so_cot_hang = 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 )
-				+ ( $co_bc ? 1 : 0 );
+			/* ⚠️ ĐẾM ĐÚNG SỐ CỘT ĐANG VẼ, không đếm số cột "lẽ ra có". Lệch một cột thì hàng sửa
+			   tràn ra ngoài bảng hoặc thụt vào — trông như vỡ giao diện, mà nguyên do chỉ là một
+			   con số ở đây. Tab Nhân sự: Mã · Tên · Cơ sở · Vai = 4. Tab Quyền: Mã · Tên · Vai
+			   = 3, cộng số trang, cộng ghế / chi phí / báo cáo nếu có. */
+			$so_cot_hang = $la_quyen
+				? ( 3 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 )
+					+ ( $co_bc ? 1 : 0 ) )
+				: 4;
 			if ( $dang_sua === $ma ) {
 				self::hang_sua( $toi, $r, $so_cot_hang );
 			}
