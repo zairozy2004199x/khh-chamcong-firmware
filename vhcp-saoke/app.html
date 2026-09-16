@@ -1479,6 +1479,12 @@ function dungViewFile(nguon){
   + '</div>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Theo cửa hàng <span class="muted" id="'+id('chLbl')+'"></span></h3>'
+  /* Lọc theo MỘT cửa hàng — anh Thắng 16/09/2026. Bảng này có tháng tới vài chục dòng, muốn xem
+     doanh thu của riêng một gian thì phải dò mắt. Lọc ngay tại chỗ, không cần gọi lại máy chủ. */
+  +   '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+  +     '<select id="'+id('chLoc')+'" onchange="cgLocCH(\''+nguon+'\')" style="min-width:240px"></select>'
+  +     '<span id="'+id('chLocTong')+'" class="muted"></span>'
+  +   '</div>'
   +   '<table><thead><tr><th>Cửa hàng chuẩn</th><th>Tên ở file cổng</th><th>Mã nộp tiền</th>'
   +   '<th class="num">Số ngày có</th><th>Ngày cuối</th><th class="num">Số tiền</th></tr></thead>'
   +   '<tbody id="'+id('chBody')+'"></tbody></table>'
@@ -1521,6 +1527,53 @@ function cgBaoLoiFile(nguon, msg){
   cgEl(nguon,'bankBody').innerHTML = '<tr><td colspan="6">Lỗi — xem thông báo phía trên.</td></tr>';
 }
 var CG_DSCH = {}, CG_FILE = {};
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * LỌC DOANH THU THEO MỘT CỬA HÀNG (0.38.0) — anh Thắng 16/09/2026.
+ *
+ * Lọc ở ngay trình duyệt: dữ liệu từng cửa hàng đã nằm sẵn trong `d.theoCuaHang`, gọi lại máy chủ
+ * chỉ để ẩn vài hàng là chờ vô ích.
+ *
+ * 🔴 KHOÁ LỌC LÀ TÊN Ở FILE CỔNG, KHÔNG PHẢI TÊN CHUẨN. Nhiều tên ở file cùng ánh xạ về MỘT tên
+ *    chuẩn ("Tutu Train - Aeon Tân An" và "TU TU TRAIN - AEON TÂN AN" đều ra "TUTU TÂN AN"), mà
+ *    mỗi dòng trong bảng là một tên file. Lọc theo tên chuẩn là chọn một gian nhưng ẩn mất chính
+ *    vài dòng của nó.
+ *
+ * 🔴 TỔNG PHẢI CỘNG LẠI TỪ DÒNG ĐANG HIỆN, KHÔNG LẤY `d.tongFile`. Lấy tổng tháng rồi dán cạnh
+ *    một bảng đã lọc là con số NÓI DỐI — và nói dối về tiền thì không ai kiểm lại bằng mắt được.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function cgDungLocCH(nguon, d){
+  var sel = cgEl(nguon,'chLoc'); if(!sel) return;
+  var cu = CG_LOCCH[nguon] || '';
+  var ten = (d.theoCuaHang||[]).map(function(r){ return r.cuaHangFile || r.cuaHangChuan || ''; })
+    .filter(function(x,i,a){ return x && a.indexOf(x)===i; })
+    .sort(function(a,b){ return a.localeCompare(b,'vi'); });
+  /* Đổi tháng thì danh sách cửa hàng đổi theo; cửa hàng đang lọc có thể không còn. Không cần
+     dòng gác nào cho ca ấy: dựng lại ô chọn mà không option nào mang `selected` thì trình duyệt
+     tự chọn option đầu ("Tất cả", value rỗng), và `cgLocCH()` ở cuối hàm đồng bộ CG_LOCCH theo.
+     ⚠️ Bản đầu có thêm một dòng `if(cu && ten.indexOf(cu)<0){ cu=''; ... }` — đục thử cho thấy
+        gỡ nó đi bài vẫn xanh, tức nó là MÃ CHẾT. Đã gỡ. Đừng thêm lại: phép thử "đổi tháng thì
+        nhả lọc cũ" bên dưới canh đúng hành vi này, không canh dòng mã nào. */
+  sel.innerHTML = '<option value="">— Tất cả cửa hàng ('+ten.length+') —</option>'
+    + ten.map(function(x){ return '<option value="'+esc(x)+'"'+(x===cu?' selected':'')+'>'+esc(x)+'</option>'; }).join('');
+  cgLocCH(nguon);
+}
+function cgLocCH(nguon){
+  var sel = cgEl(nguon,'chLoc'); if(!sel) return;
+  var q = sel.value || ''; CG_LOCCH[nguon] = q;
+  var tong = 0, so = 0;
+  [].forEach.call(document.querySelectorAll('#'+cgId(nguon,'chBody')+' tr[data-ch]'), function(tr){
+    var hien = (!q || tr.getAttribute('data-ch') === q);
+    tr.style.display = hien ? '' : 'none';
+    if(hien){
+      so++;
+      /* Cột cuối là Số tiền. Cộng từ chính ô đang hiện — xem khối 🔴 ở trên. */
+      var td = tr.cells[tr.cells.length-1];
+      tong += Number(String(td ? td.textContent : '').replace(/[^0-9-]/g,'')) || 0;
+    }
+  });
+  var lb = cgEl(nguon,'chLocTong');
+  if(lb) lb.textContent = q ? ('→ ' + q + ': ' + fmt(tong) + 'đ · ' + so + ' dòng') : '';
+}
 function veDoiSoatFile(nguon, d){
   CG_FILE[nguon] = d;
   cgEl(nguon,'capNhat').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
@@ -1631,7 +1684,7 @@ function veDoiSoatFile(nguon, d){
   cgEl(nguon,'chBody').innerHTML = !d.theoCuaHang.length
     ? '<tr><td colspan="6" class="muted">Chưa có dữ liệu file trong tháng này.</td></tr>'
     : d.theoCuaHang.map(function(r){
-        return '<tr'+(r.daAnhXa?'':' style="background:rgba(161,92,7,.10)"')+'>'
+        return '<tr data-ch="'+esc(r.cuaHangFile||r.cuaHangChuan||'')+'"'+(r.daAnhXa?'':' style="background:rgba(161,92,7,.10)"')+'>'
           + '<td>'+esc(r.cuaHangChuan)+(r.daAnhXa?'':' <span class="muted">(chưa ánh xạ)</span>')+'</td>'
           + '<td class="muted">'+esc(r.cuaHangFile)+'</td>'
           + '<td'+(r.maBank?'':' title="'+esc(r.viChuaGan||'')+'"')+'>'
@@ -1639,6 +1692,7 @@ function veDoiSoatFile(nguon, d){
           + '<td class="num">'+r.soNgay+'</td><td>'+esc(r.ngayCuoi)+'</td>'
           + '<td class="num in">'+fmt(r.soTien)+'</td></tr>'; }).join('');
   cgEl(nguon,'chLbl').textContent = d.theoCuaHang.length ? ('· '+d.theoCuaHang.length+' cửa hàng · '+fmt(d.tongFile)+'đ') : '';
+  cgDungLocCH(nguon, d);
 
   cgEl(nguon,'bankBody').innerHTML = !d.bank.length
     ? '<tr><td colspan="6" class="muted">Không có cục nào khớp từ khoá trong tháng.</td></tr>'
@@ -1670,6 +1724,7 @@ function cgLuuAnhXa(nguon, i){
 // Ngày đang xem của từng cổng. Giữ ở đây (không nhét vào ô input) để nút Làm mới / đổi tháng
 // tự bỏ lọc, khỏi cảnh đổi sang tháng khác mà vẫn kẹt lọc ngày của tháng cũ -> bảng trống.
 var CG_NGAY = {};
+var CG_LOCCH = {};   // cửa hàng đang lọc ở mỗi cổng (rỗng = tất cả)
 function cgChonNgay(nguon, ngay){ CG_NGAY[nguon] = ngay || ''; taiDoiSoatFile(nguon); }
 // Sửa 1 dòng ánh xạ: gửi lại ĐÚNG khoảng ngày của dòng đó -> máy chủ sửa dòng đó, không thêm mới.
 function cgSuaAnhXa(nguon, i){
