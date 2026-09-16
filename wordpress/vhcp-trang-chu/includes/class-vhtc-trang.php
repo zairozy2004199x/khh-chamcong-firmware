@@ -135,6 +135,13 @@ class VHTC_Trang {
 				'url'   => $co( 'NHAMA', 'url_ql' ) ? NHAMA::url_ql() : '',
 			),
 			array(
+				'ten'   => 'Vận Hành Cơ Sở',
+				'mo_ta' => 'Doanh thu & chi phí theo ngày, sự cố — đăng nhập bằng PIN chấm công',
+				'icon'  => '🏪',
+				'co'    => $co( 'VHVH', 'url' ),
+				'url'   => $co( 'VHVH', 'url' ) ? VHVH::url() : '',
+			),
+			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',
 				'icon'  => '📄',

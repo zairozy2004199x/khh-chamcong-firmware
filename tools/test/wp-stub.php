@@ -734,6 +734,38 @@ function vhd_dung_bang() {
 	vhd_test_create_tables();
 }
 
+/**
+ * BỆ ĐỠ PLUGIN VẬN HÀNH.
+ *
+ * Bảng dựng thẳng từ `VHVH_DB::bang()`, KHÔNG gõ tay lại — cùng lý do đã ghi ở trên cho chấm
+ * công và hợp đồng: thêm một cột vào sơ đồ thật mà quên sửa bản gõ tay thì bài kiểm chết với
+ * "table has no column named …", một lỗi của BÀI KIỂM trông y như lỗi của plugin.
+ */
+function vhvh_test_boot( $dir ) {
+	if ( ! defined( 'VHVH_VERSION' ) ) { define( 'VHVH_VERSION', 'test' ); }
+	if ( ! defined( 'VHVH_DIR' ) ) { define( 'VHVH_DIR', $dir . '/' ); }
+	foreach ( array( 'db', 'auth', 'tien', 'su-co' ) as $c ) {
+		require_once $dir . '/includes/class-vhvh-' . $c . '.php';
+	}
+	vhvh_test_create_tables();
+}
+
+function vhvh_test_create_tables() {
+	global $wpdb;
+	foreach ( VHVH_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( vhcc_test_ddl( VHVH_DB::t( $ten ), $than ) );
+	}
+}
+
+/** Xoá sạch rồi dựng lại — để mỗi mục của bài kiểm bắt đầu từ bảng trống. */
+function vhvh_dung_bang() {
+	global $wpdb;
+	foreach ( VHVH_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHVH_DB::t( $ten ) );
+	}
+	vhvh_test_create_tables();
+}
+
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
    để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
 function wp_timezone() {

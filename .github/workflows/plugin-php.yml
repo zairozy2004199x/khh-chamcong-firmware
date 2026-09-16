@@ -56,6 +56,12 @@ jobs:
       - name: Bộ thử nhà ma (bán vé theo khung giờ)
         run: php tools/test/kiem-nha-ma.php
 
+      # Plugin Vận Hành dựng lại app Firebase cũ, và bài này canh đúng hai chỗ bản cũ làm sai:
+      # quyền hỏi máy chủ (bản cũ đọc localStorage), và tiền do máy chủ cộng (bản cũ tin con số
+      # máy khách gửi lên). Hai chốt ấy mà tuột thì không có triệu chứng nào nhìn thấy được.
+      - name: Bộ thử vận hành cơ sở
+        run: php tools/test/kiem-van-hanh.php
+
       - name: Bộ thử chi phí
         run: php tools/test/test-flows.php
 
@@ -89,6 +95,15 @@ jobs:
       #    đoạn JS vào Node với một DOM giả rồi bấm đúng cái nút đó.
       - name: Bấm thử trang ghế (JS chạy thật)
         run: node tools/test/bam-thu-trang-ghe.js wordpress/vhcp-ghe/includes/class-vhg-trang.php
+
+      # Cùng lý do với bài bấm thử trang ghế, nhưng chạy trong Chromium thật. Bài PHP canh máy
+      # chủ; bài này canh việc TRANG có gửi đúng thứ lên không — nhất là chuyện nó KHÔNG được
+      # tự tính tổng tiền rồi gửi lên, đúng chỗ bản Firebase cũ làm sai.
+      # Không có Chromium thì bài tự bỏ qua (thoát 0) chứ không làm đỏ CI.
+      - name: Bấm thử trang vận hành (Chromium)
+        run: |
+          npm install --no-save playwright >/dev/null 2>&1 || true
+          node tools/test/bam-thu-van-hanh.js
 
       - name: Bộ thử Apps Script (ghi song song, nhóm chi phí)
         run: |
