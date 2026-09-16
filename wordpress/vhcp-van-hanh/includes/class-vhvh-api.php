@@ -83,10 +83,20 @@ class VHVH_API {
 			case 'tong_quan':
 				$tu  = isset( $d['tu'] ) ? (string) $d['tu'] : current_time( 'Y-m-01' );
 				$den = isset( $d['den'] ) ? (string) $d['den'] : current_time( 'Y-m-d' );
+				if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $tu ) ) { $tu = current_time( 'Y-m-01' ); }
+				if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $den ) ) { $den = current_time( 'Y-m-d' ); }
 				return self::ra( array(
-					'ok'     => true,
-					'so'     => VHVH_Tien::tom_tat( $u, $tu, $den ),
-					'su_co'  => VHVH_SuCo::ds( $u, '', 'mo' ),
+					'ok'    => true,
+					'so'    => VHVH_Tong::so( $u, $tu, $den ),
+					'su_co' => VHVH_SuCo::ds( $u, '', 'mo' ),
+					'hnay'  => current_time( 'Y-m-d' ),
+				) );
+
+			case 'dat_chi_tieu':
+				return self::ra( VHVH_Tong::dat_chi_tieu(
+					$u,
+					isset( $d['coso'] ) ? (string) $d['coso'] : '',
+					isset( $d['so'] ) ? $d['so'] : 0
 				) );
 
 			/* ---- doanh thu & chi phí ---- */
@@ -153,6 +163,8 @@ class VHVH_API {
 			'coso'  => $u['coso'],
 			'ds_coso' => self::ds_coso( $u ),
 			'man'   => self::man_cua( $u ),
+			'muc'   => self::ds_muc(),
+			'url_cham_cong' => self::url_cham_cong(),
 		);
 	}
 
@@ -160,10 +172,7 @@ class VHVH_API {
 	public static function ds_coso( $u ) {
 		$cho = VHVH_Auth::coso_duoc( $u );
 		if ( true !== $cho ) { return array_values( $cho ); }
-		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_coso' ) ) {
-			return array_values( (array) VHCC_NhanSu::ds_coso() );
-		}
-		return array();
+		return VHVH_Tong::ds_coso_he();
 	}
 
 	/**
@@ -176,6 +185,56 @@ class VHVH_API {
 		$man = array( 'tong_quan', 'su_co' );
 		if ( VHVH_Auth::du_quyen( $u, 'thu_ngan' ) ) { $man[] = 'tien'; }
 		return $man;
+	}
+
+	/**
+	 * Mục nào đã làm xong, mục nào chưa.
+	 *
+	 * 🔴 CÁC MỤC CHƯA LÀM VẪN HIỆN TRÊN THANH BÊN, và nói thẳng là *chưa làm*. Giấu đi thì người
+	 *    dùng tưởng trang này chỉ có bấy nhiêu việc rồi đi mở app cũ để làm phần còn lại — và
+	 *    thế là số liệu nằm ở hai nơi. Hiện ra kèm chữ "đang làm" thì họ biết nó sắp về đây.
+	 */
+	public static function ds_muc() {
+		return array(
+			array( 'nhom' => 'TỔNG QUAN', 'muc' => array(
+				array( 'ma' => 'tong_quan', 'ten' => 'Tổng quan', 'icon' => '🏠', 'xong' => 1 ),
+			) ),
+			array( 'nhom' => 'SỰ CỐ & CẢNH BÁO', 'muc' => array(
+				array( 'ma' => 'su_co', 'ten' => 'Sự cố', 'icon' => '⚠️', 'xong' => 1 ),
+			) ),
+			array( 'nhom' => 'VẬN HÀNH CƠ SỞ', 'muc' => array(
+				array( 'ma' => 'cham_cong', 'ten' => 'Chấm công', 'icon' => '🕒', 'xong' => 0, 'noi' => 'cham_cong' ),
+				array( 'ma' => 'checklist', 'ten' => 'Checklist', 'icon' => '📋', 'xong' => 0 ),
+				array( 'ma' => 'kho', 'ten' => 'Kiểm tra kho', 'icon' => '📦', 'xong' => 0 ),
+				array( 'ma' => 'lich', 'ten' => 'Đăng ký lịch làm', 'icon' => '🗓️', 'xong' => 0, 'noi' => 'cham_cong' ),
+				array( 'ma' => 'doi_ca', 'ten' => 'Đổi ca & nhận ca', 'icon' => '🔁', 'xong' => 0, 'noi' => 'cham_cong' ),
+				array( 'ma' => 'di_muon', 'ten' => 'Báo cáo đi muộn', 'icon' => '⏰', 'xong' => 0, 'noi' => 'cham_cong' ),
+			) ),
+			array( 'nhom' => 'KINH DOANH', 'muc' => array(
+				array( 'ma' => 'tien', 'ten' => 'Doanh thu & Chi phí', 'icon' => '💰', 'xong' => 1 ),
+				array( 'ma' => 'danh_gia', 'ten' => 'Đánh giá nhân viên', 'icon' => '⭐', 'xong' => 0 ),
+				array( 'ma' => 'tiktok', 'ten' => 'Thống kê TikTok', 'icon' => '🎬', 'xong' => 0 ),
+				array( 'ma' => 'trich_cam', 'ten' => 'Thống kê trích cam', 'icon' => '🧧', 'xong' => 0 ),
+			) ),
+			array( 'nhom' => 'CÔNG VIỆC', 'muc' => array(
+				array( 'ma' => 'thong_bao', 'ten' => 'Thông báo', 'icon' => '📣', 'xong' => 0 ),
+				array( 'ma' => 'giao_viec', 'ten' => 'Giao việc', 'icon' => '✅', 'xong' => 0 ),
+			) ),
+			array( 'nhom' => 'HỆ THỐNG', 'muc' => array(
+				array( 'ma' => 'bao_cao', 'ten' => 'Xuất báo cáo', 'icon' => '📊', 'xong' => 0 ),
+			) ),
+		);
+	}
+
+	/**
+	 * Đường sang trang chấm công — để mấy mục "nối sang chấm công" bấm được luôn.
+	 * Không có plugin ấy thì trả rỗng, và màn hình hiện chữ chứ không thành liên kết chết.
+	 */
+	public static function url_cham_cong() {
+		if ( class_exists( 'VHCC_Nhan' ) && defined( 'VHCC_Nhan::DUONG' ) ) {
+			return home_url( '/' . VHCC_Nhan::DUONG );
+		}
+		return '';
 	}
 
 	private static function ra( $x ) {

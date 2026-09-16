@@ -250,6 +250,45 @@ t( '🔴 người cơ sở khác KHÔNG đóng được, dù biết id',
 t( '🔴 và cũng không thấy nó trong danh sách', 0 === count( VHVH_SuCo::ds( $nguoi_vt, '', 'mo' ) ) );
 
 /* =============================================================================================
+ * 6b. TỔNG QUAN & ĐIỂM SỨC KHOẺ
+ * =========================================================================================== */
+/* 🔴 MẢNH KHÔNG CÓ DỮ LIỆU THÌ BỎ QUA, KHÔNG TÍNH 0 ĐIỂM. Cơ sở chưa được Quản trị đặt chỉ tiêu
+   mà bị chấm 0 cho mảnh ấy thì điểm tụt xuống vùng đỏ vì một việc NGƯỜI KHÁC chưa làm — và cửa
+   hàng trưởng ở đó không có cách nào sửa. */
+t( 'chưa đặt chỉ tiêu thì trả null, KHÔNG phải 0',
+	null === VHVH_Tong::chi_tieu( 'GO BÀ RỊA' ) );
+
+/* Chỉ quản lý đặt được chỉ tiêu. */
+t( '🔴 CHT KHÔNG đặt được chỉ tiêu', empty( VHVH_Tong::dat_chi_tieu( $CHT, 'GO BÀ RỊA', 5000000 )['ok'] ) );
+t( 'quản lý đặt được', ! empty( VHVH_Tong::dat_chi_tieu( $QL, 'GO BÀ RỊA', 5000000 )['ok'] ) );
+t( 'đặt xong thì đọc ra đúng số', 5000000 === VHVH_Tong::chi_tieu( 'GO BÀ RỊA' ) );
+/* Đặt 0 = gỡ chỉ tiêu, và phải quay về null chứ không phải 0 — 0 thì phép chia điểm sẽ nổ, hoặc
+   tệ hơn là ra 0 điểm cho một cơ sở chẳng làm gì sai. */
+VHVH_Tong::dat_chi_tieu( $QL, 'GO BÀ RỊA', 0 );
+t( '🔴 đặt 0 nghĩa là GỠ chỉ tiêu, đọc ra null', null === VHVH_Tong::chi_tieu( 'GO BÀ RỊA' ) );
+VHVH_Tong::dat_chi_tieu( $QL, 'GO BÀ RỊA', 5000000 );
+
+/* Xếp loại. */
+t( '95 điểm là Tốt',        'tot'       === VHVH_Tong::xep( 95 ) );
+t( '75 điểm là Cần chú ý',  'chu_y'     === VHVH_Tong::xep( 75 ) );
+t( '40 điểm là Có vấn đề',  'co_van_de' === VHVH_Tong::xep( 40 ) );
+/* Cơ sở mới khai chưa nhập gì mà đã bị dán nhãn đỏ thì cái nhãn ấy mất nghĩa. */
+t( '🔴 chưa đủ dữ liệu KHÔNG phải "có vấn đề"', 'chua_du' === VHVH_Tong::xep( null ) );
+
+$tq = VHVH_Tong::so( $CHT, '2000-01-01', '2999-12-31' );
+t( 'tổng quan trả về số cơ sở', isset( $tq['so_coso'] ) );
+t( '🔴 CHT chỉ thấy cơ sở của mình trong bảng', 1 === count( $tq['hang'] ), $tq['hang'] );
+t( 'dòng cơ sở đúng tên', 'GO BÀ RỊA' === $tq['hang'][0]['coso'] );
+t( 'có doanh thu đã cộng', $tq['hang'][0]['thu'] > 0 );
+/* Checklist chưa ai làm thì null, KHÔNG phải 0 — 0% đọc ra là "làm tệ", còn sự thật là "chưa
+   ai báo cáo". Hai chuyện khác hẳn nhau. */
+t( '🔴 checklist chưa có thì null, không phải 0', null === $tq['hang'][0]['checklist'] );
+t( '🔴 checklist trung bình cũng null', null === $tq['checklist_tb'] );
+
+$tq_ql = VHVH_Tong::so( $QL, '2000-01-01', '2999-12-31' );
+t( 'quản lý thấy nhiều cơ sở hơn CHT', count( $tq_ql['hang'] ) >= count( $tq['hang'] ) );
+
+/* =============================================================================================
  * 7. SƠ ĐỒ BẢNG
  * =========================================================================================== */
 $bang = VHVH_DB::bang();
@@ -262,6 +301,31 @@ t( '🔴 checklist có khoá duy nhất (coso,ngay,buoi)',
 	false !== strpos( $bang['checklist'], 'UNIQUE KEY coso_ngay_buoi (coso,ngay,buoi)' ) );
 t( 'kho có khoá duy nhất theo tuần',
 	false !== strpos( $bang['kho'], 'UNIQUE KEY coso_tuan (coso,tuan_tu)' ) );
+
+/* 🔴 KHUÔN dbDelta. `kiem-so-do-bang.php` bóc câu `CREATE TABLE` viết thẳng trong mã, mà sơ đồ
+   ở đây lại dựng bằng cách ghép chuỗi trong `cai_dat()` — nên bài ấy KHÔNG soi tới. Soi ở đây.
+   `dbDelta()` không bao giờ ném lỗi: sai khuôn thì bảng lặng lẽ không có, `$wpdb->insert()` trả
+   false không kêu, màn hình chỉ thấy sổ rỗng — trông y hệt "chưa ai làm gì". */
+foreach ( $bang as $ten => $than ) {
+	/* Hai dấu cách sau PRIMARY KEY. Một dấu cách là dbDelta không nhận ra khoá chính — cái bẫy
+	   nổi tiếng nhất của nó. */
+	t( "bảng $ten: PRIMARY KEY đúng khuôn dbDelta (hai dấu cách)",
+		false !== strpos( $than, 'PRIMARY KEY  (' ), $than );
+
+	$dong = array_values( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) );
+	t( "bảng $ten: có ít nhất 3 dòng khai", count( $dong ) >= 3 );
+	foreach ( $dong as $d ) {
+		/* dbDelta tách theo ký tự xuống dòng; gộp hai cột vào một dòng là nó chỉ thấy cột đầu. */
+		$sach = rtrim( $d, ',' );
+		t( "bảng $ten: mỗi dòng đúng một cột/khoá — [$sach]",
+			substr_count( $sach, ',' ) === 0
+				|| (bool) preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\s/', $sach ) );
+	}
+	/* Chú thích lọt vào THÂN câu là đúng lỗi đã làm bảng `lenh_tu` không dựng được ngày
+	   07/09/2026 — nó không phải chú thích của PHP, nó là văn bản nằm trong chính câu SQL. */
+	t( "bảng $ten: không có chú thích lọt vào thân câu",
+		false === strpos( $than, '/*' ) && false === strpos( $than, '--' ) );
+}
 
 /* Không dựng lại bảng của plugin chấm công — hai sổ nhân sự song song là gốc của mọi lệch. */
 foreach ( array( 'nhan_vien', 'phan_quyen', 'session', 'cham_cong', 'xin_tre' ) as $cam ) {

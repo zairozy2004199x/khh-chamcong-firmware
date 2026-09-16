@@ -38,6 +38,50 @@ button,input,select,textarea{font:inherit}
   padding-left:10px;margin-left:10px}
 .toi{font-size:13px;color:var(--mo)}
 .toi b{color:var(--chu)}
+/* ══ BỐ CỤC HAI CỘT: thanh dọc + thân trang ══════════════════════════════════════════════
+   Thanh dọc CỐ ĐỊNH khi cuộn (position:sticky) — bảng số liệu dài hai màn hình mà thanh trôi
+   mất thì muốn đổi mục phải cuộn ngược lên đầu. */
+.khung{display:grid;grid-template-columns:238px 1fr;gap:0;min-height:calc(100vh - 58px)}
+.ben{background:var(--mat);border-right:1px solid var(--vien);padding:14px 10px 40px;
+  position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto}
+.ben .nhom{font-size:11px;font-weight:700;color:var(--mo);letter-spacing:.06em;
+  padding:14px 10px 6px}
+.ben .nhom:first-child{padding-top:2px}
+.ben button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:none;
+  border:0;border-radius:9px;padding:9px 10px;cursor:pointer;color:var(--chu);font-size:14px}
+.ben button:hover{background:var(--mat2)}
+.ben button.chon{background:#eaf0fd;color:var(--xanh2);font-weight:600;
+  box-shadow:inset 3px 0 0 var(--xanh)}
+.ben button.chua{color:var(--mo);cursor:default}
+.ben button.chua:hover{background:none}
+.ben .sap{margin-left:auto;font-size:10px;font-weight:600;color:var(--cam);
+  background:var(--cam-n);border-radius:999px;padding:1px 7px}
+.than{padding:22px 24px 64px;min-width:0}
+.than h1{margin:0;font-size:26px}
+.than .duoi{color:var(--mo);font-size:14px;margin:4px 0 0}
+.mo-ben{display:none;background:none;border:1px solid var(--vien);border-radius:9px;
+  padding:7px 11px;cursor:pointer}
+@media(max-width:900px){
+  .khung{grid-template-columns:1fr}
+  .ben{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--vien);
+    display:none}
+  .ben.hien{display:block}
+  .mo-ben{display:inline-block}
+  .than{padding:16px 14px 56px}
+}
+/* ══ thẻ cơ sở & bảng điểm ══════════════════════════════════════════════════════════════ */
+.coso-the{max-width:420px}
+.coso-the .ten{font-weight:700;font-size:15px}
+.doi{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+.doi .box{background:var(--mat2);border-radius:10px;padding:10px}
+.doi .box .l{font-size:11px;color:var(--mo);font-weight:600;letter-spacing:.04em}
+.nhan{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;
+  margin-top:4px}
+.nhan.xau{background:var(--do-n);color:var(--do)}
+.nhan.tot{background:var(--luc-n);color:var(--luc)}
+.nhan.chu-y{background:var(--cam-n);color:var(--cam)}
+.nhan.chua{background:var(--mat2);color:var(--mo)}
+
 .nav{display:flex;gap:6px;flex-wrap:wrap;padding:10px 0 2px}
 .nav button{background:none;border:1px solid transparent;border-radius:9px;padding:8px 13px;
   cursor:pointer;color:var(--mo);font-weight:500}
@@ -198,26 +242,65 @@ function noiDangNhap(){
 /* ============================================================================================
  * KHUNG
  * ========================================================================================== */
-var TEN_MAN = { tong_quan:'Tổng quan', tien:'Doanh thu &amp; Chi phí', su_co:'Sự cố' };
 var TEN_VAI = { nhan_vien:'Nhân viên', thu_ngan:'Thu ngân',
                 cua_hang_truong:'Cửa hàng trưởng', quan_ly:'Quản lý' };
+var benHien = false;
 
-function veKhung(than){
+/** Tên mục, tra từ bảng máy chủ gửi về — không gõ lại ở đây để hai nơi khỏi lệch. */
+function tenMuc(ma){
+  var ra = ma;
+  (toi.muc||[]).forEach(function(n){ n.muc.forEach(function(m){ if(m.ma===ma) ra = m.ten; }); });
+  return ra;
+}
+
+/**
+ * 🔴 MỤC CHƯA LÀM VẪN HIỆN, và nói thẳng là chưa. Giấu đi thì người dùng tưởng trang này chỉ có
+ *    bấy nhiêu việc rồi đi mở app cũ làm phần còn lại — số liệu nằm hai nơi từ đó.
+ */
+function veBen(){
   var soSuCo = (duLieu.tong_quan && duLieu.tong_quan.su_co) ? duLieu.tong_quan.su_co.length : 0;
-  var nav = (toi.man||[]).map(function(m){
-    var d = (m==='su_co' && soSuCo) ? '<span class="cham">'+soSuCo+'</span>' : '';
-    return '<button data-man="'+m+'" class="'+(m===man?'chon':'')+'">'+TEN_MAN[m]+d+'</button>';
-  }).join('');
+  var h = '';
+  (toi.muc||[]).forEach(function(n){
+    h += '<div class="nhom">'+esc(n.nhom)+'</div>';
+    n.muc.forEach(function(m){
+      var duoc = m.xong && (toi.man||[]).indexOf(m.ma) >= 0;
+      var cham = (m.ma==='su_co' && soSuCo) ? '<span class="cham">'+soSuCo+'</span>' : '';
+      if (duoc) {
+        h += '<button data-man="'+esc(m.ma)+'" class="'+(m.ma===man?'chon':'')+'">'
+          + '<span>'+m.icon+'</span><span>'+esc(m.ten)+'</span>'+cham+'</button>';
+      } else if (m.noi === 'cham_cong' && toi.url_cham_cong) {
+        /* Mấy mục này KHÔNG dựng lại ở đây — plugin chấm công đã có sổ thật. Nối sang cho bấm
+           được, thay vì dựng sổ thứ hai rồi hai bên lệch nhau. */
+        h += '<a class="ben-noi" href="'+esc(toi.url_cham_cong)+'" '
+          + 'style="display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:9px;'
+          + 'color:var(--mo);text-decoration:none;font-size:14px">'
+          + '<span>'+m.icon+'</span><span>'+esc(m.ten)+'</span>'
+          + '<span class="sap" style="color:var(--xanh);background:#eaf0fd">chấm công</span></a>';
+      } else {
+        h += '<button class="chua" disabled><span>'+m.icon+'</span><span>'+esc(m.ten)+'</span>'
+          + '<span class="sap">đang làm</span></button>';
+      }
+    });
+  });
+  return h;
+}
+
+function veKhung(tieu, duoi, than){
   return '<div class="dinh"><div class="dinh-in">'
-    + '<div class="hieu">VẬN HÀNH<span>K&amp;H</span></div>'
+    + '<div style="display:flex;align-items:center;gap:12px">'
+    + '<button class="mo-ben" id="btBen">☰</button>'
+    + '<div class="hieu">VẬN HÀNH<span>đa cơ sở</span></div></div>'
     + '<div class="toi"><b>'+esc(toi.ten)+'</b> · '+esc(TEN_VAI[toi.vai]||toi.vai)
     + (toi.coso ? ' · '+esc(toi.coso) : '')
-    + ' &nbsp;<button class="nut" id="btRa" style="padding:5px 11px">Thoát</button></div>'
+    + ' &nbsp;<button class="nut" id="btRa" style="padding:5px 11px">Đăng xuất</button></div>'
     + '</div></div>'
-    + '<div class="bao"><div class="nav">'+nav+'</div>'
+    + '<div class="khung">'
+    + '<div class="ben'+(benHien?' hien':'')+'" id="thanhBen">'+veBen()+'</div>'
+    + '<div class="than"><h1>'+esc(tieu)+'</h1>'
+    + (duoi ? '<p class="duoi">'+esc(duoi)+'</p>' : '')
     + (loi ? '<div class="bao-loi">'+esc(loi)+'</div>' : '')
     + (bao ? '<div class="bao-ok">'+esc(bao)+'</div>' : '')
-    + than + '</div>';
+    + than + '</div></div>';
 }
 
 function oCoSo(id, gt){
@@ -236,25 +319,81 @@ function veTongQuan(){
   var d = duLieu.tong_quan;
   if (!d) return '<div class="the">Đang tải…</div>';
   var s = d.so || {};
-  var h = '<div class="the"><h2>Tháng này</h2>'
-    + '<div class="o-so">'
-    + hopSo('Doanh thu', tien(s.thu))
-    + hopSo('Chi phí', tien(s.chi))
-    + hopSo('Còn lại', tien((s.thu||0)-(s.chi||0)))
-    + hopSo('Lượt khách', (s.khach||0).toLocaleString('vi-VN'))
-    + '</div>'
-    + (s.cho_duyet ? '<p class="nho" style="margin-top:10px">⏳ Còn <b>'+s.cho_duyet
-        +'</b> báo cáo doanh thu chờ duyệt.</p>' : '')
+
+  var h = '<div class="o-so" style="margin-top:16px">'
+    + hopSo('CƠ SỞ', s.so_coso, (s.so_coso||0)+' đang hoạt động')
+    + hopSo('NHÂN SỰ', s.so_nhan_su === null ? '—' : s.so_nhan_su,
+        s.so_nhan_su === null ? 'chưa đọc được sổ nhân sự' : '')
+    + hopSo('CHECKLIST TB HÔM NAY', s.checklist_tb === null ? '—' : s.checklist_tb+'%', '')
+    + hopSo('SỰ CỐ ĐANG MỞ', s.su_co_mo||0, '')
     + '</div>';
 
-  var sc = d.su_co || [];
-  h += '<div class="the"><h2>Sự cố đang mở ('+sc.length+')</h2>';
-  h += sc.length ? bangSuCo(sc, false) : '<p class="nho">Không có sự cố nào đang mở.</p>';
-  h += '</div>';
+  /* Thẻ từng cơ sở — thứ người trực nhìn đầu tiên mỗi sáng. */
+  (s.hang||[]).forEach(function(c){
+    h += '<div class="the coso-the"><div class="ten">'+esc(c.coso)+'</div>'
+      + veNhan(c.trang_thai, c.diem)
+      + '<div class="doi">'
+      + '<div class="box"><div class="l">DOANH THU HÔM NAY</div>'
+      + (c.bc_hnay ? '<span class="nhan tot">Đã nhập</span>' : '<span class="nhan xau">Chưa nhập</span>')
+      + '</div>'
+      + '<div class="box"><div class="l">CHECKLIST</div>'
+      + (c.checklist === null ? '<span class="nhan xau">Chưa có báo cáo hôm nay</span>'
+          : '<span class="nhan tot">'+c.checklist+'%</span>')
+      + '</div></div>'
+      + '<div class="doi"><div class="box"><div class="l">SỰ CỐ ĐANG MỞ</div>'
+      + (c.su_co_mo ? '<span class="nhan xau">'+c.su_co_mo+'</span>'
+          : '<span class="nhan tot">0</span>')
+      + '</div>'
+      + '<div class="box"><div class="l">DOANH THU / CHỈ TIÊU</div>'
+      + (c.chi_tieu === null ? '<span class="nhan chua">Chưa đặt chỉ tiêu</span>'
+          : '<span class="nhan '+(c.phan_tram>=90?'tot':(c.phan_tram>=70?'chu-y':'xau'))+'">'
+            + c.phan_tram+'%</span>')
+      + '</div></div></div>';
+  });
+
+  /* Bảng gom — xem được nhiều cơ sở một lúc. */
+  h += '<div class="the"><h2>Tình hình hoạt động các cơ sở</h2>';
+  if (!(s.hang||[]).length) {
+    h += '<p class="nho">Chưa có cơ sở nào trong danh mục. Danh mục cơ sở lấy từ plugin Chấm Công.</p>';
+  } else {
+    h += '<div class="cuon"><table><tr><th>Cơ sở</th><th>Trạng thái</th><th class="so">Điểm</th>'
+      + '<th class="so">Doanh thu/chỉ tiêu</th><th class="so">Checklist</th>'
+      + '<th class="so">Sự cố mở</th>'+(laVai('quan_ly')?'<th></th>':'')+'</tr>';
+    s.hang.forEach(function(c){
+      h += '<tr><td>'+esc(c.coso)+'</td>'
+        + '<td>'+veNhan(c.trang_thai, null)+'</td>'
+        + '<td class="so">'+(c.diem===null?'—':c.diem)+'</td>'
+        + '<td class="so">'+(c.phan_tram===null?'—':c.phan_tram+'%')+'</td>'
+        + '<td class="so">'+(c.checklist===null?'—':c.checklist+'%')+'</td>'
+        + '<td class="so">'+(c.su_co_mo||0)+'</td>'
+        + (laVai('quan_ly') ? '<td><button class="nut" data-ct="'+esc(c.coso)+'" '
+            + 'data-ct-so="'+(c.chi_tieu||'')+'" style="padding:5px 11px">Chỉ tiêu</button></td>' : '')
+        + '</tr>';
+    });
+    h += '</table></div>';
+  }
+  /* 🔴 Nói rõ mảnh nào KHÔNG có dữ liệu thì bị bỏ qua, không tính 0đ. Không nói ra thì cửa hàng
+     trưởng thấy điểm thấp và đi sửa những thứ họ không sửa được. */
+  h += '<p class="nho" style="margin-top:10px">Điểm là trung bình của những mảnh <b>có dữ liệu</b>: '
+    + 'doanh thu/chỉ tiêu · checklist · sự cố. Mảnh nào chưa có dữ liệu (ví dụ cơ sở chưa được '
+    + 'đặt chỉ tiêu) thì <b>bỏ qua khi tính</b>, không tính là 0 điểm — chấm 0 cho một việc người '
+    + 'khác chưa làm thì cửa hàng trưởng không có cách nào sửa. '
+    + '90–100 Tốt · 70–89 Cần chú ý · dưới 70 Có vấn đề.</p></div>';
+
+  h += '<div class="the"><h2>Sự cố đang mở ('+((d.su_co||[]).length)+')</h2>'
+    + ((d.su_co||[]).length ? bangSuCo(d.su_co, false) : '<p class="nho">Không có sự cố nào đang mở.</p>')
+    + '</div>';
   return h;
 }
-function hopSo(l, n){
-  return '<div class="box"><div class="n">'+esc(n)+'</div><div class="l">'+esc(l)+'</div></div>';
+function veNhan(tt, diem){
+  var m = { tot:['tot','Tốt'], chu_y:['chu-y','Cần chú ý'],
+            co_van_de:['xau','Có vấn đề'], chua_du:['chua','Chưa đủ dữ liệu'] };
+  var x = m[tt] || m.chua_du;
+  return '<span class="nhan '+x[0]+'">'+x[1]+(diem===null||diem===undefined?'':' · '+diem)+'</span>';
+}
+function hopSo(l, n, phu){
+  return '<div class="box"><div class="l">'+esc(l)+'</div><div class="n">'+esc(n)+'</div>'
+    + (phu ? '<div class="l" style="margin-top:2px">'+esc(phu)+'</div>' : '')+'</div>';
 }
 
 /* ============================================================================================
@@ -576,17 +715,50 @@ function noiSuCo(){
 function ve(){
   var goc = g('ung-dung');
   if (!toi) { goc.innerHTML = veDangNhap(); noiDangNhap(); return; }
-  var than = man==='tien' ? veTien() : (man==='su_co' ? veSuCo() : veTongQuan());
-  goc.innerHTML = veKhung(than);
+
+  var tieu, duoi, than;
+  if (man === 'tien') {
+    tieu = tenMuc('tien'); duoi = 'Nhập theo ngày, từng cơ sở. Tổng do máy chủ cộng lại.';
+    than = veTien();
+  } else if (man === 'su_co') {
+    tieu = tenMuc('su_co'); duoi = 'Việc hỏng ngoài hiện trường — phải có người phụ trách và hạn.';
+    than = veSuCo();
+  } else {
+    tieu = 'Tổng quan';
+    duoi = 'Trạng thái vận hành ngày ' + ngayVN((duLieu.tong_quan && duLieu.tong_quan.hnay) || homNay()) + '.';
+    than = veTongQuan();
+  }
+  goc.innerHTML = veKhung(tieu, duoi, than);
 
   document.querySelectorAll('[data-man]').forEach(function(o){
     o.addEventListener('click', function(){
-      man = o.getAttribute('data-man'); loi=''; bao=''; ve(); napMan();
+      man = o.getAttribute('data-man'); loi=''; bao=''; benHien=false; ve(); napMan();
     });
+  });
+  var bt = g('btBen');
+  if (bt) bt.addEventListener('click', function(){
+    benHien = !benHien;
+    var b = g('thanhBen'); if (b) b.classList.toggle('hien', benHien);
   });
   g('btRa').addEventListener('click', function(){
     datThe(''); toi=null; duLieu={tong_quan:null,tien:null,su_co:null}; ve();
   });
+
+  /* Đặt chỉ tiêu doanh thu tháng — chỉ quản lý thấy nút này, và máy chủ hỏi lại quyền một lần nữa. */
+  document.querySelectorAll('[data-ct]').forEach(function(o){
+    o.addEventListener('click', function(){
+      var cu = o.getAttribute('data-ct-so') || '';
+      var v = prompt('Chỉ tiêu doanh thu THÁNG của "'+o.getAttribute('data-ct')+'" (đồng).\n'
+        + 'Để trống hoặc 0 = chưa đặt, và mảnh này sẽ không tham gia chấm điểm.', cu);
+      if (v === null) return;
+      goi('dat_chi_tieu', { coso: o.getAttribute('data-ct'), so: parseInt(v,10)||0 })
+        .then(function(j){
+          if(!j||!j.ok){ loi=(j&&j.error)||'Không đặt được.'; ve(); return; }
+          loi=''; bao='Đã đặt chỉ tiêu.'; napMan();
+        }).catch(function(e){ loi=e.message; ve(); });
+    });
+  });
+
   if (man==='tien') noiTien();
   if (man==='su_co') noiSuCo();
 }

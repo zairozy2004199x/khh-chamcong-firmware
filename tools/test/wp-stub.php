@@ -744,7 +744,7 @@ function vhd_dung_bang() {
 function vhvh_test_boot( $dir ) {
 	if ( ! defined( 'VHVH_VERSION' ) ) { define( 'VHVH_VERSION', 'test' ); }
 	if ( ! defined( 'VHVH_DIR' ) ) { define( 'VHVH_DIR', $dir . '/' ); }
-	foreach ( array( 'db', 'auth', 'tien', 'su-co' ) as $c ) {
+	foreach ( array( 'db', 'auth', 'tien', 'su-co', 'tong' ) as $c ) {
 		require_once $dir . '/includes/class-vhvh-' . $c . '.php';
 	}
 	vhvh_test_create_tables();

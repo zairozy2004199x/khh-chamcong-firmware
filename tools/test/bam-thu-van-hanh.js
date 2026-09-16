@@ -65,11 +65,24 @@ window.fetch = function(url, opt){
     case 'dang_nhap':
       j = d.pin === '246810'
         ? { ok:true, the:'THE-GIA-123', toi:{ ten:'CHT C', vai:'cua_hang_truong',
-            coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'], man:['tong_quan','su_co','tien'] } }
+            coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'], man:['tong_quan','su_co','tien'],
+            url_cham_cong:'http://vi-du.test/cham-cong',
+            muc:[
+              { nhom:'TỔNG QUAN', muc:[{ma:'tong_quan',ten:'Tổng quan',icon:'🏠',xong:1}] },
+              { nhom:'SỰ CỐ & CẢNH BÁO', muc:[{ma:'su_co',ten:'Sự cố',icon:'⚠️',xong:1}] },
+              { nhom:'VẬN HÀNH CƠ SỞ', muc:[
+                  {ma:'cham_cong',ten:'Chấm công',icon:'🕒',xong:0,noi:'cham_cong'},
+                  {ma:'checklist',ten:'Checklist',icon:'📋',xong:0}] },
+              { nhom:'KINH DOANH', muc:[{ma:'tien',ten:'Doanh thu & Chi phí',icon:'💰',xong:1}] }
+            ] } }
         : { ok:false, error:'PIN không đúng hoặc chưa được cấp' };
       break;
     case 'tong_quan':
-      j = { ok:true, so:{ thu:5000000, chi:300000, khach:48, cho_duyet:2 }, su_co:[] };
+      j = { ok:true, hnay:'2026-09-16', su_co:[], so:{
+            so_coso:1, so_nhan_su:6, checklist_tb:null, su_co_mo:0,
+            thu:5000000, chi:300000, khach:48, cho_duyet:2,
+            hang:[{ coso:'GHOST HOUSE - GO BÀ RỊA', thu:5000000, chi_tieu:null, phan_tram:null,
+                    checklist:null, su_co_mo:0, bc_hnay:0, diem:60, trang_thai:'co_van_de' }] } };
       break;
     case 'tien_doc':
       j = { ok:true, ban:null, ds_ve:[
@@ -153,8 +166,27 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
     sauDangNhap.map(g => g.than.viec + ':' + g.the));
 
   /* --- màn tổng quan --- */
-  t('tổng quan hiện doanh thu đã định dạng',
-    (await trang2.locator('.o-so').innerText()).indexOf('5.000.000') >= 0);
+  const oSo = await trang2.locator('.o-so').first().innerText();
+  t('tổng quan hiện bốn ô số', oSo.indexOf('CƠ SỞ') >= 0 && oSo.indexOf('NHÂN SỰ') >= 0, oSo);
+  t('chưa có checklist thì hiện gạch, KHÔNG hiện 0%', oSo.indexOf('—') >= 0, oSo);
+  t('hiện thẻ cơ sở với tên thật',
+    (await trang2.locator('.coso-the .ten').innerText()).indexOf('GO BÀ RỊA') >= 0);
+  /* 🔴 Chưa đặt chỉ tiêu thì phải nói "chưa đặt", không được hiện 0% — 0% đọc ra là "làm tệ",
+     trong khi thật ra là "chưa ai khai chỉ tiêu". */
+  t('🔴 chưa đặt chỉ tiêu thì nói CHƯA ĐẶT, không hiện 0%',
+    (await trang2.locator('.coso-the').innerText()).indexOf('Chưa đặt chỉ tiêu') >= 0);
+
+  /* 🔴 Mục chưa làm vẫn hiện trên thanh bên, kèm chữ "đang làm" — giấu đi thì người dùng đi mở
+     app cũ làm phần còn lại, và số liệu nằm hai nơi. */
+  t('🔴 mục chưa làm vẫn hiện trên thanh bên',
+    (await trang2.locator('.ben').innerText()).indexOf('Checklist') >= 0);
+  t('🔴 và nói thẳng là đang làm', 1 <= await trang2.locator('.ben .sap').count());
+  t('mục chưa làm thì KHÔNG bấm được',
+    await trang2.locator('.ben button.chua').first().isDisabled());
+  /* Chấm công nối SANG plugin chấm công, không dựng sổ thứ hai. */
+  t('🔴 mục Chấm công là liên kết sang plugin chấm công',
+    'http://vi-du.test/cham-cong' === await trang2.locator('.ben a.ben-noi').first().getAttribute('href'));
+  t('thanh bên chia nhóm', 4 <= await trang2.locator('.ben .nhom').count());
 
   /* --- màn doanh thu --- */
   await trang2.click('[data-man="tien"]');

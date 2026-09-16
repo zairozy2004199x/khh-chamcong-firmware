@@ -1,6 +1,11 @@
 # Vận Hành cơ sở — plugin `vhcp-van-hanh`
 
-*Bản 1.0.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+*Bản 1.1.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+
+> **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
+> nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ. Mục nào chưa dựng xong thì **vẫn hiện** kèm chữ
+> *đang làm*; giấu đi thì người dùng tưởng trang này chỉ có bấy nhiêu việc rồi đi mở app cũ làm
+> phần còn lại, và số liệu nằm ở hai nơi từ đó.
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -120,8 +125,8 @@ kể cả khi biết id.
 ## 6. Phép thử
 
 ```bash
-php tools/test/kiem-van-hanh.php      # 79 — quyền, tiền, khoá duy nhất
-node tools/test/bam-thu-van-hanh.js   # 28 — BẤM THẬT trong Chromium
+php tools/test/kiem-van-hanh.php      # 246 — quyền, tiền, điểm, khuôn dbDelta
+node tools/test/bam-thu-van-hanh.js   # 36  — BẤM THẬT trong Chromium
 ```
 
 Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
@@ -137,12 +142,36 @@ Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
 | Trang tự gửi kèm tổng tiền | 1 |
 | Bỏ thẻ khỏi header | 1 |
 | Vé online cộng vào doanh thu trên màn hình | 3 |
+| Chỉ tiêu 0 trả 0 thay vì null | 1 |
+| Chưa đủ dữ liệu bị dán nhãn "có vấn đề" | 1 |
+| Checklist chưa có thì trả 0% | 1 |
+| Ai cũng đặt được chỉ tiêu | 1 |
+| Gộp hai cột một dòng trong CREATE TABLE | 2 |
 
 ---
 
-## 7. Còn thiếu — bản 1.0.0 mới có 3 trong 16 màn
+## 6b. Điểm sức khoẻ cơ sở
+
+Trung bình của những mảnh **có dữ liệu**: doanh thu/chỉ tiêu · checklist · sự cố.
+**90–100 Tốt · 70–89 Cần chú ý · dưới 70 Có vấn đề.**
+
+> 🔴 **Mảnh chưa có dữ liệu thì bỏ qua khi tính, không tính là 0 điểm.** Cơ sở chưa được Quản lý
+> đặt chỉ tiêu mà bị chấm 0 cho mảnh ấy thì điểm tụt xuống vùng đỏ vì **một việc người khác chưa
+> làm** — và cửa hàng trưởng ở đó không có cách nào sửa. Cùng lý do: cơ sở chưa nhập gì thì ghi
+> *"Chưa đủ dữ liệu"*, không dán nhãn đỏ; checklist chưa ai báo cáo thì hiện `—`, không hiện `0%`
+> (0% đọc ra là "làm tệ", còn sự thật là "chưa ai báo cáo").
+
+Chỉ tiêu doanh thu tháng: màn Tổng quan → nút **Chỉ tiêu** ở cuối mỗi dòng (**chỉ Quản lý**).
+Đặt `0` là **gỡ** chỉ tiêu, và mảnh ấy rơi khỏi phép tính điểm.
+
+---
+
+## 7. Còn thiếu — bản 1.1.0 mới có 3 trong 16 màn
 
 Đã có: **Tổng quan · Doanh thu & Chi phí · Sự cố**.
+
+Bốn mục **Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn** trên thanh dọc là **liên kết
+sang plugin Chấm Công**, không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
 
 Bảng CSDL đã dựng sẵn cho cả những màn chưa làm, nên thêm màn sau này không phải đụng vào sơ đồ:
 
