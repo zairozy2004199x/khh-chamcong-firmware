@@ -63,17 +63,9 @@ define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'k1' );
 define( 'VHG_KHOA_MAY', 'k2' );
 foreach ( array( 'db', 'doc', 'may' ) as $f ) { require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php'; }
-foreach ( VHG_DB::bang() as $ten => $than ) {
-	$bang = $wpdb->prefix . 'vhg_' . $ten;
-	$cot  = array();
-	foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
-		$d = rtrim( $d, ',' );
-		if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
-		$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $d );
-	}
-	$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $bang );
-	$wpdb->exec_raw( 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)" );
-}
+/* Dựng KÈM CẢ KHOÁ — xem `vhcp_stub_dung_bang()` trong wp-stub.php. Một lối dựng bảng
+   DUY NHẤT cho mọi bài: hai lối khác nhau là hai bộ thử nói về hai lược đồ khác nhau. */
+vhcp_stub_dung_bang( VHG_DB::bang(), $wpdb->prefix . 'vhg_' );
 t( 'nạp được lớp VHG_May của plugin Ghế', class_exists( 'VHG_May' ) );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════

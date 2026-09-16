@@ -55,19 +55,11 @@ foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qr
 }
 
 global $wpdb;
+/* Dựng KÈM CẢ KHOÁ — `UNIQUE KEY ref` là chốt cuối chặn cộng đôi khi hai gói webhook chạy
+   song song, và bản dựng cũ ở đây vứt nó đi. Xem `vhcp_stub_dung_bang()` trong wp-stub.php. */
 function vhg_dung_bang() {
 	global $wpdb;
-	foreach ( VHG_DB::bang() as $ten => $than ) {
-		$bang = $wpdb->prefix . 'vhg_' . $ten;
-		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $bang );
-		$cot = array();
-		foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
-			$d = rtrim( $d, ',' );
-			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
-			$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $d );
-		}
-		$wpdb->exec_raw( 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)" );
-	}
+	vhcp_stub_dung_bang( VHG_DB::bang(), $wpdb->prefix . 'vhg_' );
 }
 function vhg_dem_thu() {
 	global $wpdb;
@@ -229,20 +221,22 @@ teq( 'và không vào sổ', 0, vhg_dem_thu() );
  * lượt cùng SELECT thấy "chưa có", rồi cùng INSERT. Chặn duy nhất lúc ấy là `UNIQUE KEY ref`
  * ở chính cơ sở dữ liệu — lượt sau đâm vào khoá và INSERT trả `false`.
  *
- * 🔴 BỆ ĐỠ THỬ CẮT BỎ MỌI DÒNG `UNIQUE KEY` KHI DỰNG BẢNG (xem `vhg_dung_bang()` — nó bỏ qua
- *    mọi dòng khớp `PRIMARY KEY|UNIQUE KEY|KEY`, vì SQLite không hiểu cú pháp ấy của MySQL).
- *    Nghĩa là trên bệ thử, cái chặn duy nhất KHÔNG TỒN TẠI, và không bài nào bắt được lỗi
- *    trùng `ref` ở tầng cơ sở dữ liệu. Nên ở đây dựng lại bảng `thu` KÈM khoá duy nhất, đúng
- *    như sơ đồ thật, rồi mới thử.
+ * ⚠️ Bệ đỡ thử ĐÃ TỪNG cắt bỏ mọi dòng `UNIQUE KEY` khi dựng bảng, nên chặn duy nhất ấy không
+ *    tồn tại trên bệ thử và bài này phải tự dựng lấy khoá. Nay `vhcp_stub_dung_bang()` mang cả
+ *    khoá sang, nên chỉ cần dựng bảng như bình thường — `kiem-be-do-dung-bang.php` canh riêng
+ *    chuyện bệ đỡ có giữ khoá hay không.
  *
  * Với phép kiểm mới, lượt đâm vào khoá trả `ok = false` -> cổng trả 500 -> SePay bắn lại ->
  * lần sau dòng đã có -> rơi vào nhánh "nới" -> yên. KHÔNG cộng đôi, KHÔNG mất.
  * Trước phép kiểm này, lượt ấy trả `ok = true, moi = true` cho một dòng KHÔNG hề được ghi.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 vhg_dung_bang();
-$wpdb->exec_raw( 'CREATE UNIQUE INDEX vhg_thu_ref ON ' . VHG_DB::t( 'thu' ) . ' (ref)' );
 t( 'sơ đồ thật ĐANG có UNIQUE KEY ref trên bảng thu',
 	strpos( VHG_DB::bang()['thu'], 'UNIQUE KEY ref' ) !== false );
+/* 🔴 Và bệ đỡ phải MANG được khoá ấy sang, không chỉ có nó trên giấy. */
+t( '🔴 và bệ đỡ dựng ra khoá ấy thật', 1 === (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='ix_"
+	. VHG_DB::t( 'thu' ) . "_ref'" ) );
 
 $c1 = VHG_Thu::ghi( array( 'ref' => 'FT-DUA', 'so_tien' => 20000, 'noi_dung' => 'GHE3 CCC',
 	'nguon' => 'sepay', 'luc' => '2026-09-16 10:00:00' ) );

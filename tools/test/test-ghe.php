@@ -55,19 +55,11 @@ foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qr
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
 
 global $wpdb;
+/* Dựng KÈM CẢ KHOÁ — `UNIQUE KEY ref` là chốt cuối chặn cộng đôi khi hai gói webhook chạy
+   song song, và bản dựng cũ ở đây vứt nó đi. Xem `vhcp_stub_dung_bang()` trong wp-stub.php. */
 function vhg_dung_bang() {
 	global $wpdb;
-	foreach ( VHG_DB::bang() as $ten => $than ) {
-		$bang = $wpdb->prefix . 'vhg_' . $ten;
-		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $bang );
-		$cot = array();
-		foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
-			$d = rtrim( $d, ',' );
-			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
-			$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $d );
-		}
-		$wpdb->exec_raw( 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)" );
-	}
+	vhcp_stub_dung_bang( VHG_DB::bang(), $wpdb->prefix . 'vhg_' );
 }
 /** Một lượt ngân hàng bắn webhook. Trả [mã HTTP, thân JSON đã giải]. */
 function vhg_ban( $goi, $khoa = 'khoa-webhook-thu-nghiem', $src = '', $pt = 'POST' ) {

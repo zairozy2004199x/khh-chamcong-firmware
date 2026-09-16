@@ -880,3 +880,114 @@ if ( ! function_exists( 'remove_query_arg' ) ) {
 		return $giu ? $phan[0] . '?' . implode( '&', $giu ) : $phan[0];
 	}
 }
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// DỰNG BẢNG MySQL BẰNG SQLite — KÈM CẢ KHOÁ, KHÔNG VỨT ĐI
+//
+// 🔴 VÌ SAO PHẢI CÓ HÀM NÀY, THAY VÌ MỖI BÀI TỰ DỰNG LẤY:
+//    Năm chỗ trong bộ thử chép nhau cùng một lối dựng bảng, và lối ấy làm thế này:
+//        if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
+//    tức VỨT SẠCH mọi dòng khoá, vì SQLite không hiểu cú pháp khoá của MySQL.
+//
+//    Hậu quả: trên bệ thử, `UNIQUE KEY ref (ref)` KHÔNG TỒN TẠI. Mà ở plugin Ghế, khoá ấy là
+//    thứ DUY NHẤT chặn cộng đôi khi hai gói webhook chạy song song — `ghi()` tra trước rồi mới
+//    thêm, giữa hai nước đi có một khe hở, và cơ sở dữ liệu là chốt cuối. Bệ thử bỏ chốt ấy đi
+//    thì không bài nào bắt được lỗi trùng ở tầng cơ sở dữ liệu, dù bộ thử có bao nhiêu phép.
+//    Bệ đỡ nói dối về lược đồ còn nguy hơn không có bệ đỡ: không có thì mình biết là chưa thử,
+//    còn nói dối thì mình tin là đã thử rồi.
+//
+// ⚠️ LỐI ĐÚNG ĐÃ CÓ SẴN TRONG KHO — `test-cham-cong.php` từ lâu đã dịch dòng khoá thành
+//    `CREATE INDEX` rời thay vì vứt. Hàm này chỉ nâng lối ấy lên thành của dùng chung, để phía
+//    Ghế thôi lệch chuẩn và để lần sau không ai phải nghĩ lại.
+//
+// ⚠️ TÊN CHỈ MỤC PHẢI KÈM TÊN BẢNG. MySQL đặt tên chỉ mục theo từng bảng, SQLite đặt theo cả
+//    cơ sở dữ liệu — mà lược đồ Ghế dùng lại `ref`, `luc`, `ma`, `nguoi`, `cho` ở nhiều bảng.
+//    Không thêm tiền tố là bảng thứ hai dựng trượt vì "index already exists".
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Dịch thân `CREATE TABLE` kiểu MySQL sang SQLite.
+ *
+ * Trả `array( 'tao' => câu CREATE TABLE, 'chi_muc' => array các câu CREATE INDEX )`.
+ */
+function vhcp_stub_ddl( $bang, $than ) {
+	$cot = array();
+	$chi_muc = array();
+	$co_tu_tang = false;
+
+	foreach ( array_filter( array_map( 'trim', explode( "\n", (string) $than ) ) ) as $d ) {
+		$d = rtrim( $d, ',' );
+
+		/* `PRIMARY KEY  (id)` — hai dấu cách là đúng nguyên văn lược đồ, đừng sửa "cho đẹp". */
+		if ( preg_match( '/^PRIMARY KEY\s+\((.+)\)$/i', $d, $m ) ) {
+			/* SQLite đòi AUTOINCREMENT đi liền `INTEGER PRIMARY KEY`, nên cột tự tăng đã ôm
+			   khoá chính rồi; khai thêm một dòng rời là lỗi cú pháp. */
+			if ( ! $co_tu_tang ) { $cot[] = 'PRIMARY KEY (' . vhcp_stub_cot_chi_muc( $m[1] ) . ')'; }
+			continue;
+		}
+		if ( preg_match( '/^(UNIQUE\s+)?KEY\s+(\S+)\s+\((.+)\)$/i', $d, $m ) ) {
+			$chi_muc[] = 'CREATE ' . ( $m[1] ? 'UNIQUE ' : '' ) . 'INDEX ix_' . $bang . '_' . $m[2]
+				. ' ON ' . $bang . ' (' . vhcp_stub_cot_chi_muc( $m[3] ) . ')';
+			continue;
+		}
+
+		$moi = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i',
+			'INTEGER PRIMARY KEY AUTOINCREMENT', $d, -1, $so );
+		if ( $so > 0 ) { $co_tu_tang = true; }
+		$cot[] = $moi;
+	}
+
+	return array(
+		'tao'     => 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)",
+		'chi_muc' => $chi_muc,
+	);
+}
+
+/**
+ * Danh sách cột của một chỉ mục, bỏ độ dài tiền tố kiểu MySQL (`noi_dung(50)`).
+ * SQLite không có khái niệm ấy và sẽ hiểu `(50)` thành lời gọi hàm rồi chết.
+ */
+function vhcp_stub_cot_chi_muc( $cot ) {
+	return preg_replace( '/\(\s*\d+\s*\)/', '', (string) $cot );
+}
+
+/**
+ * Dựng lại TOÀN BỘ bảng của một lược đồ — xoá cũ, tạo mới, kèm chỉ mục.
+ *
+ * `$so_do` là mảng `tên bảng ngắn => thân CREATE TABLE`, đúng thứ `VHG_DB::bang()` trả về.
+ * `$tien_to` ghép trước tên bảng ngắn để ra tên thật (`$wpdb->prefix . 'vhg_'`).
+ */
+function vhcp_stub_dung_bang( $so_do, $tien_to ) {
+	global $wpdb;
+	/* 🔴 DỰNG BẢNG TRƯỢT PHẢI RA BÁO TRƯỢT, KHÔNG RA SẬP.
+	 *
+	 * `exec_raw()` để PDO ném thẳng ngoại lệ ra ngoài. Một câu DDL hỏng ở đây vì thế giết cả
+	 * bài thử bằng fatal error ngay giữa phần dựng bảng — và vì khối in kết quả nằm ở CUỐI
+	 * tệp, mọi phép đã chạy trước đó biến mất cùng. Người đọc thấy một dấu vết ngăn xếp, không
+	 * thấy phép nào sai lẫn còn bao nhiêu phép chưa chạy.
+	 *
+	 * Dính đúng lúc đục thử "bỏ tiền tố tên bảng khỏi tên chỉ mục": SQLite chối chỉ mục trùng
+	 * tên, bài thử sập, và phép canh vốn dựng ra ĐỂ BẮT chuyện ấy không kịp in ra dòng nào —
+	 * nhìn qua tưởng đục thử sống sót.
+	 *
+	 * Nên: gom lỗi lại, để bài thử tự hỏi và tự báo trượt. Cùng lối `test-cham-cong.php` đã
+	 * dùng cho khối dựng bảng của nó. */
+	$GLOBALS['VHCP_STUB_LOI_DDL'] = array();
+	foreach ( $so_do as $ten => $than ) {
+		$bang = $tien_to . $ten;
+		$ddl  = vhcp_stub_ddl( $bang, $than );
+		foreach ( array_merge( array( 'DROP TABLE IF EXISTS ' . $bang, $ddl['tao'] ), $ddl['chi_muc'] ) as $sql ) {
+			try {
+				$wpdb->exec_raw( $sql );
+			} catch ( Exception $e ) {
+				$GLOBALS['VHCP_STUB_LOI_DDL'][] = $ten . ': ' . $e->getMessage();
+			}
+		}
+	}
+	return $GLOBALS['VHCP_STUB_LOI_DDL'];
+}
+
+/** Những câu DDL đã trượt ở lượt `vhcp_stub_dung_bang()` gần nhất. Rỗng là lành. */
+function vhcp_stub_loi_ddl() {
+	return isset( $GLOBALS['VHCP_STUB_LOI_DDL'] ) ? $GLOBALS['VHCP_STUB_LOI_DDL'] : array();
+}
