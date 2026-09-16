@@ -1267,11 +1267,34 @@
       (x.ngay_treo ? ' — ' + x.ngay_treo + ' ngày kể từ lần nộp gần nhất' : '') };
   }
 
-  function canhBao(x, ng) {
-    /* Tiền quá hạn mà chưa về là cảnh báo ĐỘC LẬP với việc cơ sở đã nhập báo cáo hay chưa —
-       không nhập báo cáo không làm khoản tiền ấy hết thiếu. */
+  /**
+   * Ô trả lời câu "tiền mặt của quán này đang nằm ở đâu".
+   *
+   * 🔴 ĐO THEO SỐ DƯ TREO VÀ SỐ NGÀY, KHÔNG PHẢI THEO TỪNG NGÀY CÓ NỘP HAY KHÔNG. Cửa hàng
+   *    trưởng gom mấy ngày nộp một cục (sao kê TÀU GÒ VẤP: 4 lần trong 2 tháng), nên "hôm nay
+   *    không thấy giao dịch" là chuyện bình thường, không phải dấu hiệu gì.
+   *
+   * 🔴 SỐ ĐẦY ĐỦ, KHÔNG LÀM TRÒN. Anh Thắng 16/09/2026: *"chỗ 40tr cần là con số chính xác để
+   *    đối chiếu với ngân hàng"*. "về 40 tr" thì đẹp mắt nhưng không tra được — người ta phải mở
+   *    sao kê tìm dòng 39.870.000.
+   */
+  function theTreo(x, coBank, ng, nhac) {
+    if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
+    if (!x.co_ma && !x.co_bank) return '<span class="chip cho">chưa khai mã nộp tiền</span>';
+    var t = x.treo || 0;
+    var h = x.nop_bank > 0
+      ? '<span class="chip du" title="Số ngân hàng nhận được theo sao kê' +
+        (x.nop_lan > 1 ? ' — ' + x.nop_lan + ' lần chuyển' : '') + '">về ' + nguyen(x.nop_bank) + '</span>'
+      : '';
+    if (t < 1000) return h || '<span class="chip du">sạch</span>';
+    var lau = (x.ngay_treo || 0) >= (nhac || 10) && t > ng.so_tien;
+    return h + '<span class="chip ' + (lau ? 'thieu' : '') + '" title="Cộng dồn tiền mặt phải nộp trừ tiền đã về">' +
+      'treo ' + nguyen(t) + (x.ngay_treo ? ' · ' + x.ngay_treo + ' ngày' : '') + '</span>';
+  }
+
+  function canhBao(x, ng, nhac) {
     /* Treo lâu mới là dấu hiệu, chứ không phải một ngày không có giao dịch. */
-    var m = ((x.ngay_treo || 0) >= 10 && (x.treo || 0) > ng.so_tien) ? x.treo : 0;
+    var m = ((x.ngay_treo || 0) >= (nhac || 10) && (x.treo || 0) > ng.so_tien) ? x.treo : 0;
     if (x.co_bao_cao) {
       m = Math.max(m, Math.abs(x.lech_tm || 0), Math.abs(x.chua_nop || 0), Math.abs(x.lech_nop || 0));
     }

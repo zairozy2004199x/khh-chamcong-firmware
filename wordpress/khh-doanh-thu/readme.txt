@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.20.0
+Stable tag: 1.20.1
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,11 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.20.1 =
+* **Sửa lỗi tab Đối soát trắng màn** ("theTreo is not defined"): dọn một hàm chết ở 1.20.0 đã cắt
+  lẹm sang hàm đang dùng nằm kẹp bên trong. Kèm một bài kiểm mới soi mọi lời gọi JavaScript tới
+  hàm không tồn tại — `node --check` và bộ thử PHP đều mù với lớp lỗi này.
 
 = 1.20.0 =
 * **Số đầy đủ ở chỗ để đối chiếu**: chip nộp tiền ghi `về 39.870.000` thay vì `về 40 tr` — con số
