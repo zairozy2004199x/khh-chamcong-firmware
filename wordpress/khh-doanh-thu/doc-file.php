@@ -28,12 +28,54 @@ function khh_dt_doc_duoc_xlsx() {
 }
 
 /** Bỏ dấu tiếng Việt để so tên cột. */
+/**
+ * Bỏ dấu, hạ chữ thường — dùng để so tên cột và nhận mặt cơ sở trong nội dung chuyển khoản.
+ *
+ * ⚠️ `strtolower()` KHÔNG hạ được chữ có dấu: nó đi từng byte, mà "Ầ" là hai byte. Nên phải bỏ
+ *    dấu TRƯỚC rồi mới hạ, và có `mb_strtolower()` thì dùng.
+ *
+ * ⚠️ CÓ ĐƯỜNG LUI KHI KHÔNG CÓ `remove_accents()`. Hàm ấy của WordPress, và trên site thật thì
+ *    luôn có — nhưng hàm này còn chạy ở bộ thử và ở những đường nạp sớm. Thiếu nó mà cứ thế trả
+ *    chuỗi còn nguyên dấu thì "Tutu Tân Phú" không khớp khoá "TUTU TAN PHU", và cả một cơ sở
+ *    lặng lẽ không nhận được đồng tiền nộp nào — kiểu hỏng không có dòng đỏ nào báo.
+ */
 function khh_dt_khong_dau( $s ) {
 	$s = (string) $s;
+	/* MoMo xuất tên cột kiểu tách dấu (o + dấu sắc rời), bỏ dấu rời trước. */
+	$tach = preg_replace( '/[\x{0300}-\x{036F}]/u', '', $s );
+	if ( null !== $tach ) {
+		$s = $tach;
+	}
 	if ( function_exists( 'remove_accents' ) ) {
 		$s = remove_accents( $s );
+	} else {
+		$s = strtr(
+			$s,
+			array(
+				'à' => 'a', 'á' => 'a', 'ạ' => 'a', 'ả' => 'a', 'ã' => 'a', 'â' => 'a', 'ầ' => 'a',
+				'ấ' => 'a', 'ậ' => 'a', 'ẩ' => 'a', 'ẫ' => 'a', 'ă' => 'a', 'ằ' => 'a', 'ắ' => 'a',
+				'ặ' => 'a', 'ẳ' => 'a', 'ẵ' => 'a', 'è' => 'e', 'é' => 'e', 'ẹ' => 'e', 'ẻ' => 'e',
+				'ẽ' => 'e', 'ê' => 'e', 'ề' => 'e', 'ế' => 'e', 'ệ' => 'e', 'ể' => 'e', 'ễ' => 'e',
+				'ì' => 'i', 'í' => 'i', 'ị' => 'i', 'ỉ' => 'i', 'ĩ' => 'i', 'ò' => 'o', 'ó' => 'o',
+				'ọ' => 'o', 'ỏ' => 'o', 'õ' => 'o', 'ô' => 'o', 'ồ' => 'o', 'ố' => 'o', 'ộ' => 'o',
+				'ổ' => 'o', 'ỗ' => 'o', 'ơ' => 'o', 'ờ' => 'o', 'ớ' => 'o', 'ợ' => 'o', 'ở' => 'o',
+				'ỡ' => 'o', 'ù' => 'u', 'ú' => 'u', 'ụ' => 'u', 'ủ' => 'u', 'ũ' => 'u', 'ư' => 'u',
+				'ừ' => 'u', 'ứ' => 'u', 'ự' => 'u', 'ử' => 'u', 'ữ' => 'u', 'ỳ' => 'y', 'ý' => 'y',
+				'ỵ' => 'y', 'ỷ' => 'y', 'ỹ' => 'y', 'đ' => 'd',
+				'À' => 'A', 'Á' => 'A', 'Ạ' => 'A', 'Ả' => 'A', 'Ã' => 'A', 'Â' => 'A', 'Ầ' => 'A',
+				'Ấ' => 'A', 'Ậ' => 'A', 'Ẩ' => 'A', 'Ẫ' => 'A', 'Ă' => 'A', 'Ằ' => 'A', 'Ắ' => 'A',
+				'Ặ' => 'A', 'Ẳ' => 'A', 'Ẵ' => 'A', 'È' => 'E', 'É' => 'E', 'Ẹ' => 'E', 'Ẻ' => 'E',
+				'Ẽ' => 'E', 'Ê' => 'E', 'Ề' => 'E', 'Ế' => 'E', 'Ệ' => 'E', 'Ể' => 'E', 'Ễ' => 'E',
+				'Ì' => 'I', 'Í' => 'I', 'Ị' => 'I', 'Ỉ' => 'I', 'Ĩ' => 'I', 'Ò' => 'O', 'Ó' => 'O',
+				'Ọ' => 'O', 'Ỏ' => 'O', 'Õ' => 'O', 'Ô' => 'O', 'Ồ' => 'O', 'Ố' => 'O', 'Ộ' => 'O',
+				'Ổ' => 'O', 'Ỗ' => 'O', 'Ơ' => 'O', 'Ờ' => 'O', 'Ớ' => 'O', 'Ợ' => 'O', 'Ở' => 'O',
+				'Ỡ' => 'O', 'Ù' => 'U', 'Ú' => 'U', 'Ụ' => 'U', 'Ủ' => 'U', 'Ũ' => 'U', 'Ư' => 'U',
+				'Ừ' => 'U', 'Ứ' => 'U', 'Ự' => 'U', 'Ử' => 'U', 'Ữ' => 'U', 'Ỳ' => 'Y', 'Ý' => 'Y',
+				'Ỵ' => 'Y', 'Ỷ' => 'Y', 'Ỹ' => 'Y', 'Đ' => 'D',
+			)
+		);
 	}
-	return strtolower( trim( $s ) );
+	return function_exists( 'mb_strtolower' ) ? mb_strtolower( trim( $s ), 'UTF-8' ) : strtolower( trim( $s ) );
 }
 
 /** "BC12" → 54 (số thứ tự cột, tính từ 0). */
@@ -387,7 +429,11 @@ function khh_dt_phan_tich( $duong_dan, $ten_file = '' ) {
 		if ( "\xEF\xBB\xBF" !== $bom ) {
 			rewind( $f );
 		}
-		while ( false !== ( $d = fgetcsv( $f, 0, $dau ) ) ) {
+		/* ⚠️ TRUYỀN ĐỦ CẢ `$escape`. PHP 8.4 kêu Deprecated nếu thiếu, và hosting nào bật
+		   `display_errors` thì dòng cảnh báo ấy in thẳng vào giữa JSON — giao diện nhận được
+		   một chuỗi không phải JSON rồi báo "not valid JSON", đúng lỗi đã cắn ngày 01/09/2026.
+		   Giữ nguyên `'\\'` (mặc định cũ) để cách đọc file không đổi. */
+		while ( false !== ( $d = fgetcsv( $f, 0, $dau, '"', '\\' ) ) ) {
 			if ( null === $d || ( 1 === count( $d ) && null === $d[0] ) ) {
 				continue;
 			}

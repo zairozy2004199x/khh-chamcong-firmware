@@ -401,20 +401,90 @@ function khh_dt_rest_doi_soat( $req ) {
 	$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
 	// phpcs:enable
 
+	/* 🔴 TIỀN THỰC NỘP LẤY Ở SAO KÊ NGÂN HÀNG, KHÔNG PHẢI Ô CƠ SỞ GÕ VÀO.
+	   Anh Thắng 16/09/2026: *"cột thực nộp mình sẽ lấy bên sao kê"*. Ai giữ tiền mà cũng tự khai
+	   mình nộp bao nhiêu thì con số ấy không kiểm được gì — y như báo cáo cơ sở chép từ máy POS
+	   nên khớp 0 đồng suốt 14/14 ngày. Số cơ sở khai vẫn giữ, nhưng để ĐỐI CHIẾU với ngân hàng:
+	   khai 10 triệu mà ngân hàng nhận 8 triệu — chính chỗ lệch ấy mới là tín hiệu. */
+	$bank = khh_dt_nop_bank( $tu, $den );
+
+	/* ==============================================================================================
+	 * 🔴 NỘP TIỀN LÀ MỘT CỤC, KHÔNG PHẢI MỖI NGÀY MỘT LẦN — NÊN PHẢI CỘNG DỒN.
+	 * ==============================================================================================
+	 * Anh Thắng 16/09/2026 gửi sao kê lọc theo mã của TÀU GÒ VẤP: cả hai tháng đúng BỐN lần nộp —
+	 * 10/08, 19/08, 05/09, 11/09 — mỗi lần 17 đến 40 triệu. Tức một lần chuyển gánh tiền mặt của
+	 * cả chục ngày trước đó.
+	 *
+	 * Bản trước so từng ngày với từng ngày: ngày nào không có giao dịch ngân hàng là "chưa nộp".
+	 * Với lối nộp này thì 26 ngày trong tháng đều đỏ, kể cả khi người ta đã nộp đủ đến từng đồng.
+	 * Một bảng mà ngày nào cũng đỏ thì không ai nhìn nữa — và hôm có thất thoát thật cũng chìm
+	 * trong đám đỏ ấy.
+	 *
+	 * Nên đổi sang SỐ DƯ TREO: cộng dồn tiền mặt phải nộp, trừ đi tiền đã về tài khoản. Một cú
+	 * chuyển lớn xoá sạch phần treo của mấy ngày trước nó. Cái đáng soi không còn là "hôm nay có
+	 * nộp không" mà là "đang treo bao nhiêu, và treo bao lâu rồi".
+	 * ==============================================================================================
+	 */
+	$mo_dau = khh_dt_treo_truoc( $tu );
+	$momo   = khh_dt_momo_theo_ngay( $tu, $den );
+
+	/* 🔴 SAO KÊ CÓ THỂ ĐI TRƯỚC KHO POS — và khi ấy "đã nộp" trông nhiều hơn "tiền mặt".
+	   16/09/2026, Lotte Gò Vấp kỳ 01–15/09: tiền mặt 43,3 tr mà đã nộp 66,76 tr, cột không khớp
+	   ra −37 tr. Không phải ai nộp thừa: sổ ngân hàng có cả khoản gánh tiền mặt của THÁNG TRƯỚC,
+	   trong khi kho POS chưa có tháng ấy nên không có gì để trừ. So hai sổ lệch kỳ nhau thì con
+	   số nào cũng vô nghĩa — phải nói ra, chứ không được để người đọc tự đoán. */
+	$pos_som = khh_dt_ngay_som_nhat();
+	/* 🔴 CƠ SỞ CHƯA KHAI MÃ NỘP TIỀN THÌ KHÔNG ĐƯỢC KẾT TỘI HỌ.
+	   Anh Thắng 16/09/2026 kéo sao kê về xong, cả bảng đỏ rực "chưa nộp 1,1 tr · 5,2 tr · 7,8 tr"
+	   cho mọi ngày của Lotte Gò Vấp — trong khi sự thật là chưa ai khai mã nộp tiền của quán ấy,
+	   nên không khoản nào ghép được vào. Hệ không biết mà nói như thể đã biết, và người bị nêu
+	   tên là người có thể đã nộp đủ. Không biết thì phải nói là KHÔNG BIẾT. */
+	$co_ma = array();
+	foreach ( khh_dt_ghep_bank_ds() as $g ) {
+		$co_ma[ (string) $g['cua_hang'] ] = true;
+	}
+
 	$ra = array();
 	foreach ( (array) $rows as $r ) {
 		$tm = 0;
 		$ck = 0;
+		/* 🔴 TÁCH RIÊNG PHẦN MOMO, ĐỪNG GỘP VÀO "CK/QR".
+		   Anh Thắng 16/09/2026: *"giờ đến đối soát MoMo"*. Muốn so được với sao kê MoMo thì phải
+		   biết máy POS ghi bao nhiêu RIÊNG cho MoMo — cục "CK/QR" gộp cả chuyển khoản, VNPAY,
+		   Việt QR và MoMo, đem cục ấy so với sổ MoMo thì lệch bao nhiêu cũng không nói lên gì.
+		   Máy POS đã ghi sẵn tên hình thức thanh toán ở cột PTTT, chỉ việc đọc đúng tên. */
+		$momo_pos = 0;
 		foreach ( khh_dt_json( $r['pttt'], array() ) as $p ) {
-			if ( false !== strpos( khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' ), 'tien mat' ) ) {
+			$ten_pttt = khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' );
+			if ( false !== strpos( $ten_pttt, 'tien mat' ) ) {
 				$tm += (float) $p['r'];
-			} else {
-				$ck += (float) $p['r'];
+				continue;
+			}
+			$ck += (float) $p['r'];
+			if ( false !== strpos( $ten_pttt, 'momo' ) ) {
+				$momo_pos += (float) $p['r'];
 			}
 		}
 		$co  = null !== $r['tien_mat_dem'];
 		$dem = (float) $r['tien_mat_dem'];
-		$nop = (float) $r['tien_nop'];
+		$nop = (float) $r['tien_nop'];                   // cơ sở KHAI đã nộp
+		$kb  = $r['ngay'] . '|' . $r['cua_hang'];
+		$co_bank = array_key_exists( $kb, $bank );
+		$b       = $co_bank ? $bank[ $kb ] : array();
+		$nop_bk  = $co_bank ? (float) $b['tien'] : 0;    // ngân hàng NHẬN ĐƯỢC
+		$nop_that = $co_bank ? $nop_bk : $nop;
+
+		/* 🔴 SỐ PHẢI NỘP KHÔNG CHỜ CƠ SỞ NHẬP BÁO CÁO.
+		   Anh Thắng 16/09/2026: *"đối chiếu giao dịch để đẩy vào tab đối soát xem nhân viên nộp
+		   tiền chưa"*. Máy POS đã biết hôm ấy thu bao nhiêu tiền mặt, ngân hàng đã biết nhận được
+		   bao nhiêu — hai đầu ấy đủ để trả lời, KHÔNG cần ai gõ gì. Bắt câu trả lời phải chờ cửa
+		   hàng trưởng nhập báo cáo là bỏ trống đúng chỗ cần nhìn nhất: 25/25 ngày trên màn của anh
+		   đang "chưa nhập báo cáo", và nếu cột nộp tiền nấp sau đó thì cả tháng không ai biết
+		   tiền đã về hay chưa.
+		   Cơ sở có đếm két thì lấy số đếm được (nó có thể nhiều hơn tiền mặt POS); chưa đếm thì
+		   lấy tiền mặt POS. */
+		$phai_nop = $co ? $dem : $tm;
+		$thieu    = $phai_nop - $nop_bk;
 		$ra[] = array(
 			'ngay'       => $r['ngay'],
 			'cua_hang'   => $r['cua_hang'],
@@ -423,11 +493,27 @@ function khh_dt_rest_doi_soat( $req ) {
 			'so_ve'      => (float) $r['so_ve'],
 			'pos_tm'     => $tm,
 			'pos_ck'     => $ck,
+			'pos_momo'   => $momo_pos,
 			'co_bao_cao' => $co,
 			'dem'        => $dem,
 			'nop'        => $nop,
+			'nop_bank'   => $nop_bk,
+			'co_bank'    => $co_bank,
+			/* Trả lời thẳng câu "nộp chưa": phải nộp bao nhiêu, về bao nhiêu, còn thiếu bao
+			   nhiêu, nộp mấy lần, nộp ngày nào giờ nào, và đã đến hạn chưa. */
+			'phai_nop'   => $phai_nop,
+			'thieu'      => $thieu,
+			'nop_lan'    => $co_bank ? (int) $b['so_lan'] : 0,
+			'nop_ngay'   => $co_bank ? (string) $b['ngay_nop'] : '',
+			'nop_gio'    => $co_bank ? (int) $b['gio_dau'] : 0,
+			'nop_muon'   => ( $co_bank && $b['ngay_nop'] > $r['ngay'] )
+				? (int) round( ( strtotime( $b['ngay_nop'] ) - strtotime( $r['ngay'] ) ) / 86400 ) : 0,
+			'qua_han'    => khh_dt_qua_han_nop( $r['ngay'] ),
+			'co_ma'      => isset( $co_ma[ (string) $r['cua_hang'] ] ),
+			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
+			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
 			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận
-			'chua_nop'   => $co ? $dem - $nop : null,     // đếm được − thực nộp
+			'chua_nop'   => $co ? $dem - $nop_that : null, // đếm được − tiền ngân hàng thật sự nhận
 			'bill_huy'   => (int) $r['so_bill_huy'],
 			'tien_huy'   => (float) $r['tien_bill_huy'],
 			'khach'      => (int) $r['tong_khach'],
@@ -438,11 +524,140 @@ function khh_dt_rest_doi_soat( $req ) {
 			'chot'       => (int) $r['chot'],
 		);
 	}
+
+	/* Cộng dồn theo từng cơ sở, đi từ ngày cũ tới ngày mới. $ra đang xếp ngày mới trước. */
+	$treo    = $mo_dau;
+	$lan_nop = array();                       // cơ sở => ngày về gần nhất
+	$cho     = array();                       // cơ sở => mấy dòng đang chờ được một cú nộp xoá
+	for ( $i = count( $ra ) - 1; $i >= 0; $i-- ) {
+		$c = $ra[ $i ]['cua_hang'];
+		if ( ! isset( $treo[ $c ] ) ) {
+			$treo[ $c ] = 0;
+		}
+		$treo[ $c ] += (float) $ra[ $i ]['phai_nop'] - (float) $ra[ $i ]['nop_bank'];
+		if ( $treo[ $c ] < 0 ) {
+			/* Nộp dư (gộp cả tiền của kỳ trước kỳ đang xem) — kẹp về 0, đừng để số âm chạy tiếp
+			   rồi che mất phần treo của những ngày sau. */
+			$treo[ $c ] = 0;
+		}
+		if ( $ra[ $i ]['nop_bank'] > 0 ) {
+			$lan_nop[ $c ] = $ra[ $i ]['ngay'];
+		}
+		$ra[ $i ]['treo'] = $treo[ $c ];
+		$ra[ $i ]['nop_gan_nhat'] = isset( $lan_nop[ $c ] ) ? $lan_nop[ $c ] : '';
+		$ra[ $i ]['ngay_treo'] = isset( $lan_nop[ $c ] )
+			? (int) round( ( strtotime( $ra[ $i ]['ngay'] ) - strtotime( $lan_nop[ $c ] ) ) / 86400 )
+			: 0;
+
+		/* ==========================================================================================
+		 * 🔴 MỘT CÚ NỘP XOÁ LUÔN MẤY NGÀY TRƯỚC NÓ — VÀ PHẢI TÍCH LẠI MẤY NGÀY ẤY.
+		 * ==========================================================================================
+		 * Anh Thắng 16/09/2026: *"nếu cùng doanh thu, sau khi nộp thoả mãn đúng thì tích các ngày
+		 * đúng đã nộp cho dễ hiểu"*.
+		 *
+		 * Cơ sở gom mấy ngày nộp một cục. Ngày 1–9 dồn tiền, ngày 10 nộp 26.890.000 là xong sạch
+		 * cả chín ngày — nhưng bản trước chín ngày ấy vẫn nằm im với chữ "đang dồn", chỉ mỗi ngày
+		 * 10 có dấu tích. Nhìn bảng thì tưởng chín ngày kia còn nợ, trong khi tiền đã về đủ.
+		 *
+		 * Nên khi số dư treo chạm 0, ĐÁNH DẤU NGƯỢC LẠI cho mọi ngày đang chờ từ lần sạch trước
+		 * tới đây. Từ đó "đã xong" là một sự thật đọc được ngay, không phải thứ người xem tự suy
+		 * trong đầu.
+		 * ========================================================================================== */
+		$cho[ $c ][] = $i;
+		if ( $treo[ $c ] < 1000 ) {
+			foreach ( $cho[ $c ] as $j ) {
+				$ra[ $j ]['da_xong'] = true;
+			}
+			$cho[ $c ] = array();
+		}
+	}
+	/* Những dòng còn lại trong hàng chờ là phần thật sự chưa được nộp bù. */
+	foreach ( $cho as $c => $ds_cho ) {
+		foreach ( $ds_cho as $j ) {
+			$ra[ $j ]['da_xong'] = false;
+		}
+	}
+
 	return array(
-		'dong'    => $ra,
-		'cua_toi' => khh_dt_co_so_mac_dinh(),
-		'nguong'  => khh_dt_nguong(),
+		'dong'     => $ra,
+		'ngay_nhac' => khh_dt_ngay_nhac(),
+		'momo'      => $momo['tong'],
+		'momo_ngay_co' => array_keys( $momo['ngay_co'] ),
+		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
+		   để bảng đừng hứa điều nó không làm được. */
+		'momo_nguon_o' => isset( $momo['nguon_o'] ) ? $momo['nguon_o'] : array(),
+		'co_momo'   => ( function_exists( 'khh_dt_co_momo_sk' ) && khh_dt_co_momo_sk() ) ? true : (bool) khh_dt_nguon_momo(),
+		'pos_som'   => $pos_som,
+		'cua_toi'  => khh_dt_co_so_mac_dinh(),
+		'nguong'   => khh_dt_nguong(),
+		'co_bank'  => (bool) khh_dt_co_sao_ke(),
+		/* 🔴 NÓI RÕ SỐ "NGÂN HÀNG NHẬN" ĐANG LẤY TỪ SỔ NÀO, VÀ SỔ ẤY CÓ TỚI NGÀY NÀO.
+		   16/09/2026: anh Thắng chọn nhầm `wpt9_vhg_thu` — sổ tiền ghế massage, không phải sao kê
+		   ngân hàng — rồi cả tháng Lotte Gò Vấp đỏ rực "chưa nộp 43 tr". Con số ấy đúng theo cái
+		   sổ đang đọc, nhưng cái sổ thì sai, mà màn không hề nói nó đang đọc sổ nào. Người xem
+		   không có cách nào biết mình đang bị lừa bởi một nguồn sai. */
+		'nguon_bank' => khh_dt_nguon_mo_ta(),
+		/* Bày ra số dòng tiền chưa gán được cơ sở. Mỗi dòng bỏ sót là một khoản "chưa nộp" GIẢ,
+		   tố oan một người đã nộp tiền thật — nên nó phải nằm ngay trên bảng đối soát. */
+		'sk_chua_gan' => khh_dt_sk_chua_gan(),
 	);
+}
+
+/**
+ * Số dư tiền mặt còn treo của từng cơ sở TRƯỚC ngày $tu.
+ *
+ * ⚠️ KHÔNG CÓ SỐ MỞ ĐẦU THÌ CỘNG DỒN VÔ NGHĨA. Xem kỳ 7 ngày mà bắt đầu từ 0 thì một cơ sở đang
+ *    ôm 40 triệu từ tháng trước trông vẫn sạch sẽ.
+ */
+function khh_dt_treo_truoc( $tu ) {
+	global $wpdb;
+	if ( ! $tu ) {
+		return array();
+	}
+	$hom_truoc = gmdate( 'Y-m-d', strtotime( $tu . ' -1 day' ) );
+	$bang      = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$rows = (array) $wpdb->get_results(
+		$wpdb->prepare( "SELECT cua_hang, pttt FROM $bang WHERE ngay <= %s", $hom_truoc ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $rows as $r ) {
+		$tm = 0;
+		foreach ( khh_dt_json( $r['pttt'], array() ) as $p ) {
+			if ( false !== strpos( khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' ), 'tien mat' ) ) {
+				$tm += (float) $p['r'];
+			}
+		}
+		$c = (string) $r['cua_hang'];
+		$ra[ $c ] = ( isset( $ra[ $c ] ) ? $ra[ $c ] : 0 ) + $tm;
+	}
+	foreach ( khh_dt_nop_bank( '', $hom_truoc ) as $k => $b ) {
+		$c = substr( $k, strpos( $k, '|' ) + 1 );
+		if ( isset( $ra[ $c ] ) ) {
+			$ra[ $c ] -= (float) $b['tien'];
+		}
+	}
+	foreach ( $ra as $c => $v ) {
+		if ( $v < 0 ) {
+			$ra[ $c ] = 0;
+		}
+	}
+	return $ra;
+}
+
+/** Ngày sớm nhất có số liệu POS trong kho — để biết kỳ nào so được, kỳ nào không. */
+function khh_dt_ngay_som_nhat() {
+	global $wpdb;
+	$bang = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$x = $wpdb->get_var( "SELECT MIN(ngay) FROM $bang" );
+	return $x ? (string) $x : '';
+}
+
+/** Treo quá bao nhiêu ngày thì nhắc. Cơ sở nộp gộp mỗi tuần một lần là bình thường; quá 10 ngày thì không. */
+function khh_dt_ngay_nhac() {
+	return (int) get_option( 'khh_dt_ngay_nhac', 10 );
 }
 
 /** Ngưỡng bôi đỏ: lệch quá 2% hoặc quá 500.000 ₫ một ngày một cơ sở. */

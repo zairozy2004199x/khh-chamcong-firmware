@@ -52,3 +52,29 @@ function khh_dt_test_dat_the( $token ) {
 function khh_dt_test_quen_phien() {
 	khh_dt_phien_quen();
 }
+
+if ( ! function_exists( 'wp_delete_file' ) ) {
+	function wp_delete_file( $f ) { return @unlink( $f ); } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+}
+
+if ( ! function_exists( 'wp_list_pluck' ) ) {
+	function wp_list_pluck( $ds, $khoa ) {
+		$ra = array();
+		foreach ( (array) $ds as $x ) { $ra[] = is_array( $x ) ? $x[ $khoa ] : $x->$khoa; }
+		return $ra;
+	}
+}
+
+/**
+ * `khh_dt_ds_cua_hang()` thật đọc bảng số liệu POS. Bài kiểm không dựng cả bảng ấy, nên cho phép
+ * đặt sẵn danh sách qua $GLOBALS['KHH_DT_TEST_CH'].
+ */
+if ( ! function_exists( 'khh_dt_ds_cua_hang' ) ) {
+	function khh_dt_ds_cua_hang() {
+		return isset( $GLOBALS['KHH_DT_TEST_CH'] ) ? (array) $GLOBALS['KHH_DT_TEST_CH'] : array();
+	}
+}
+
+if ( ! function_exists( 'get_temp_dir' ) ) {
+	function get_temp_dir() { return rtrim( sys_get_temp_dir(), '/' ) . '/'; }
+}
