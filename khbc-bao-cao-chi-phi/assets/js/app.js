@@ -25,7 +25,7 @@
   let report = null;
   let issues = [];
   let prevState = null; // để hoàn tác sau khi nhập Excel / nạp mẫu
-  let ui = Object.assign({ tab: 'dashboard', sitesDept: '', siteFilter: 'all', costFilter: 'all' }, loadJSON(UI_KEY) || {});
+  let ui = Object.assign({ tab: 'dashboard', sitesDept: '', siteFilter: 'all', costFilter: 'all', misaMo: [], misaThieu: false }, loadJSON(UI_KEY) || {});
   let saveTimer = null;
 
   function loadJSON(key) {
@@ -585,6 +585,98 @@
       </div>`;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * TAB "CHI TIẾT MISA" — anh Thắng 16/09/2026: *"Muốn nhìn chi tiết trực quan trước khi xuất"*.
+   *
+   * Cùng một `E.misaRows()` đã dựng sheet "<Bộ phận> chi tiết" trong file Excel — KHÔNG dựng lại
+   * bằng đường khác. Nhìn ở đây thấy sao thì xuất ra đúng vậy; hai đường riêng là một ngày nào đó
+   * màn hình nói một đằng, file nói một nẻo, mà lúc phát hiện thì file đã nằm trong MISA rồi.
+   *
+   * GẬP SẴN THEO CHỨNG TỪ. Posh có 21 chứng từ × 66 điểm = 1.386 dòng; đổ hết ra là một bức tường
+   * số không ai soát nổi. Gập lại thì mỗi chứng từ một dòng tóm tắt (tài khoản + tổng tiền + số
+   * dòng) — đúng mức để liếc qua thấy sai ngay, muốn xem kỹ thì bấm mở.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function renderMisa(root) {
+    if (!ui.sitesDept || !state.departments.find((d) => d.id === ui.sitesDept)) ui.sitesDept = (state.departments[0] || {}).id || '';
+    const kq = ui.sitesDept ? E.misaRows(state, report, ui.sitesDept) : null;
+    const segs = state.departments.map((d) => `<button data-act="sitesDept" data-arg="${d.id}" class="${ui.sitesDept === d.id ? 'active' : ''}">${esc(d.name)}</button>`).join('');
+
+    if (!kq || !kq.rows.length) {
+      root.innerHTML = `
+        <div class="card">
+          <div class="card-head"><h2>Chi tiết MISA</h2><div class="spacer"></div><div class="seg">${segs}</div></div>
+          <div class="empty">Bộ phận này chưa có điểm bán nào nhận chi phí (tab Doanh thu).</div>
+        </div>`;
+      return;
+    }
+
+    // gom theo số chứng từ, giữ nguyên thứ tự misaRows đã xếp
+    const ct = [];
+    const map = {};
+    kq.rows.forEach((r) => {
+      if (!map[r.soCT]) { map[r.soCT] = { soCT: r.soCT, dienGiai: r.dienGiai, tkNo: r.tkNo, tkCo: r.tkCo, rows: [], tong: 0 }; ct.push(map[r.soCT]); }
+      map[r.soCT].rows.push(r);
+      map[r.soCT].tong += r.soTien;
+    });
+    const thieu = ct.filter((c) => !c.tkNo || !c.tkCo);
+    const hien = ui.misaThieu ? thieu : ct;
+    const mo = new Set(ui.misaMo || []);
+    const tongTien = ct.reduce((a, c) => a + c.tong, 0);
+    const nghi = (state.sites || []).filter((x) => x.dept === ui.sitesDept && x.khongChiPhi);
+    const soCot = 8;
+
+    root.innerHTML = `
+      <div class="card">
+        <div class="card-head">
+          <h2>Chi tiết MISA</h2>
+          <span class="hint">Đúng những dòng sẽ nằm trong sheet "<strong>${esc(kq.dept.name)} chi tiết</strong>" khi bấm Xuất Excel. Ngày lấy theo kỳ: <strong>${esc(kq.period.text)}</strong>.</span>
+          <div class="spacer"></div>
+          <div class="seg">${segs}</div>
+        </div>
+        <div class="toolbar" style="margin-bottom:10px">
+          <span class="pill">${ct.length} chứng từ</span>
+          <span class="pill">${kq.rows.length} dòng</span>
+          <span class="pill">Tổng ${fmt(tongTien)}</span>
+          ${thieu.length ? `<button class="btn small ${ui.misaThieu ? 'primary' : 'danger'}" data-act="misaThieu">${ui.misaThieu ? '← Xem tất cả' : `⚠ ${thieu.length} chứng từ thiếu tài khoản`}</button>` : '<span class="pill ok">Đủ tài khoản</span>'}
+          <div class="spacer"></div>
+          <button class="btn small" data-act="misaMoHet">${mo.size >= ct.length ? 'Gập tất cả' : 'Mở tất cả'}</button>
+          <button class="btn small primary" data-act="export">Xuất Excel</button>
+        </div>
+        ${nghi.length ? `<p class="hint">${nghi.length} cơ sở không nhận chi phí (${esc(nghi.map((x) => x.code || x.name).join(', '))}) — đã bỏ khỏi danh sách dưới đây, đúng như khi xuất ra file.</p>` : ''}
+        ${thieu.length ? `<div class="issue warn"><span class="lv">CẢNH BÁO</span><span>${thieu.length} chứng từ chưa có đủ TK Nợ/TK Có. MISA từ chối <strong>cả chứng từ</strong> chứ không riêng dòng thiếu — khai tài khoản ở tab "Chi phí đầu vào" (hoặc tab Lương) trước khi xuất.</span></div>` : ''}
+        <div class="table-wrap tall"><table class="grid-table dense">
+          <thead><tr>
+            <th style="width:26px"></th><th>Số chứng từ</th><th>Diễn giải</th>
+            <th class="num">TK Nợ</th><th class="num">TK Có</th><th class="num">Số dòng</th><th class="num">Số tiền</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${hien.map((c) => {
+              const dang = mo.has(c.soCT);
+              const xau = !c.tkNo || !c.tkCo;
+              return `<tr class="subtotal" data-act="misaMo" data-arg="${esc(c.soCT)}" style="cursor:pointer" title="Bấm để ${dang ? 'gập' : 'mở'} ${c.rows.length} dòng">
+                  <td>${dang ? '▾' : '▸'}</td>
+                  <td><code>${esc(c.soCT)}</code></td>
+                  <td>${esc(c.dienGiai)}</td>
+                  <td class="num ${xau ? 'neg' : ''}">${esc(c.tkNo) || '⚠ thiếu'}</td>
+                  <td class="num ${xau ? 'neg' : ''}">${esc(c.tkCo) || '⚠ thiếu'}</td>
+                  <td class="num muted">${c.rows.length}</td>
+                  ${tdn(c.tong)}
+                  <td></td>
+                </tr>
+                ${dang ? c.rows.map((r) => `<tr>
+                  <td></td><td></td>
+                  <td class="muted" style="padding-left:18px">${esc(r.dienGiaiHT)}</td>
+                  <td class="num muted">${esc(r.tkNo)}</td><td class="num muted">${esc(r.tkCo)}</td>
+                  <td class="num"><code>${esc(r.maDonVi)}</code></td>
+                  ${tdn(r.soTien)}<td></td>
+                </tr>`).join('') : ''}`;
+            }).join('')}
+            <tr class="total"><td></td><td>Tổng cộng</td><td class="muted">${hien.length}/${ct.length} chứng từ</td><td></td><td></td><td class="num">${hien.reduce((a, c) => a + c.rows.length, 0)}</td>${tdn(hien.reduce((a, c) => a + c.tong, 0))}<td></td></tr>
+          </tbody>
+        </table></div>
+      </div>`;
+  }
+
   // ------------------------------------------------------------------ Tab: Kiểm tra
   function renderCheck(root) {
     const R = report;
@@ -642,7 +734,7 @@
     root.innerHTML = `<div class="card"><div class="card-head"><h2>Nhật ký hoạt động</h2><span class="hint">Ai làm gì, lúc nào — 200 dòng gần nhất.</span><div class="spacer"></div><button class="btn small" data-act="reloadLog">↻ Tải lại</button></div><div id="logBox" class="table-wrap tall"><div class="empty">Đang tải…</div></div></div>`;
     ACTIONS.reloadLog();
   }
-  const RENDERERS = { dashboard: renderDashboard, revenue: renderRevenue, costs: renderCosts, salary: renderSalary, report: renderReport, sites: renderSites, check: renderCheck, log: renderLog };
+  const RENDERERS = { dashboard: renderDashboard, revenue: renderRevenue, costs: renderCosts, salary: renderSalary, report: renderReport, sites: renderSites, misa: renderMisa, check: renderCheck, log: renderLog };
   function renderTab(tab) {
     if (tab) ui.tab = tab;
     if (!RENDERERS[ui.tab]) ui.tab = 'dashboard';
@@ -877,6 +969,23 @@
     // khác
     sitesDept(v) {
       ui.sitesDept = v;
+      renderTab();
+    },
+    /* Mở/gập một chứng từ ở tab Chi tiết MISA. Nhớ theo SỐ CHỨNG TỪ chứ không theo vị trí: thêm
+       bớt một khoản chi phí là mọi vị trí xê dịch, mà cái đang mở thì nhảy sang chứng từ khác. */
+    misaMo(v) {
+      const ds = ui.misaMo || [];
+      ui.misaMo = ds.includes(v) ? ds.filter((x) => x !== v) : ds.concat([v]);
+      renderTab();
+    },
+    misaMoHet() {
+      const kq = E.misaRows(state, report, ui.sitesDept);
+      const tat = kq ? [...new Set(kq.rows.map((r) => r.soCT))] : [];
+      ui.misaMo = (ui.misaMo || []).length >= tat.length ? [] : tat;
+      renderTab();
+    },
+    misaThieu() {
+      ui.misaThieu = !ui.misaThieu;
       renderTab();
     },
     export: exportExcel,
