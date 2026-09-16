@@ -5,7 +5,7 @@ const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
   const p=await b.newPage({viewport:{width:1700,height:1000}});
   const loi=[]; p.on('pageerror',e=>loi.push(String(e)));
-  await p.goto('http://127.0.0.1:8104/bao-cao-chi-phi/'); await p.waitForTimeout(700);
+  await p.goto('http://127.0.0.1:8105/bao-cao-chi-phi/'); await p.waitForTimeout(700);
   // Cổng PIN: gõ vào ô rồi bấm Đăng nhập (bàn phím số là nút, không nhận keypress toàn trang).
   if (await p.$('#gatePin')) {
     await p.fill('#gatePin', '1111');

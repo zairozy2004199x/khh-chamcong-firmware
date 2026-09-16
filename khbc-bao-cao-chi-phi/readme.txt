@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.5.0
+Stable tag: 1.6.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,15 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.6.0 =
+* **Bổ sung cột "Mã đối tượng Có"** (cột 15 của mẫu MISA) — mã nhà cung cấp. Đếm lại trên file
+  gốc T8/2026: trong 50 cột chỉ 11 cột có dữ liệu, bản trước điền 10, bỏ sót đúng cột này
+  (1.497 ô). Lấy từ ô "Mã đối tượng" đã có sẵn ở tab Chi phí đầu vào.
+* Chứng từ lương (TK Có 3341) và phân bổ 1543 vẫn để trống cột này — đúng như file gốc, vì
+  không có nhà cung cấp nào để trỏ tới.
+* Thêm người gác trong bài kiểm: 50 cột của mẫu và 11 cột phải điền được chốt lại bằng con số
+  đếm từ file gốc, ai thêm cột mà quên nối dữ liệu là báo đỏ ngay.
 
 = 1.5.0 =
 * **Sửa: tab "Chi tiết MISA" bày cột khác file và thiếu cột.** Thiếu Ngày chứng từ, Ngày hạch

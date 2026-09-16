@@ -148,6 +148,11 @@
          nói hai chuyện riêng. Xem misaRows(). */
       c.general = c.items.map((i) => (i.misaGeneral || '').trim()).filter(Boolean).join(' / ');
       c.detail = c.items.map((i) => (i.misaDetail || i.name || '').trim()).filter(Boolean).join(' / ');
+      /* MÃ ĐỐI TƯỢNG CÓ — mã nhà cung cấp, MỘT mã cho cả chứng từ. Lấy cái đầu tiên có giá trị
+         chứ KHÔNG nối bằng " / " như `account`: đây là một ô mã của MISA, nối hai mã vào là MISA
+         không tra ra đối tượng nào và từ chối chứng từ. (Cột gộp nhiều khoản khác nhà cung cấp là
+         chuyện hiếm — file thật T8/2026 có đúng 1 trong 132 chứng từ.) */
+      c.objectCode = (c.items.map((i) => (i.objectCode || '').trim()).filter(Boolean)[0]) || '';
     });
     return cols;
   }
@@ -194,7 +199,8 @@
       const out = { dept: d.id,
         misaGeneral: row.misaGeneral || '', misaDetail: row.misaDetail || '',
         misaGeneral2: row.misaGeneral2 || '', misaDetail2: row.misaDetail2 || '',
-        misaAccount: row.misaAccount || '', misaAccount2: row.misaAccount2 || '' };
+        misaAccount: row.misaAccount || '', misaAccount2: row.misaAccount2 || '',
+        misaObjectCode: row.misaObjectCode || '', misaObjectCode2: row.misaObjectCode2 || '' };
       let total = 0;
       SALARY_DEPT_FIELDS.forEach((f) => {
         out[f.key] = num(row[f.key]);
@@ -308,15 +314,20 @@
     const sumRevCP = sites.reduce((a, s) => a + (s.khongChiPhi ? 0 : num(s.revenue)), 0);
     const sal = report.salaryDept.find((r) => r.dept === deptId) || {};
     const cols = [
+      /* Hai cột lương KHÔNG có Mã đối tượng Có, và đó là đúng: TK Có 3341 là "phải trả người lao
+         động" — không có nhà cung cấp nào để trỏ tới. File thật T8/2026 cũng để trống đúng hai
+         chứng từ này (và cả chứng từ 1543). Vẫn cho khai đè, phòng khi kế toán cần. */
       { key: 'luongNV', title: `Lương NV ${report.periodLabel}`, total: report.salarySitesByDept[deptId].reported,
-        general: sal.misaGeneral || '', detail: sal.misaDetail || '', account: sal.misaAccount || '' },
+        general: sal.misaGeneral || '', detail: sal.misaDetail || '', account: sal.misaAccount || '',
+        objectCode: sal.misaObjectCode || '' },
       { key: 'luongVanHanh', title: `Lương vận hành ${report.periodLabel}`, total: num(sal.luongVanHanh),
-        general: sal.misaGeneral2 || '', detail: sal.misaDetail2 || '', account: sal.misaAccount2 || '' },
+        general: sal.misaGeneral2 || '', detail: sal.misaDetail2 || '', account: sal.misaAccount2 || '',
+        objectCode: sal.misaObjectCode2 || '' },
     ];
     report.columns.forEach((c) => cols.push({ key: c.key, title: c.title, total: report.matrix[deptId][c.key],
-      account: c.account, general: c.general, detail: c.detail }));
+      account: c.account, general: c.general, detail: c.detail, objectCode: c.objectCode }));
     report.manualCols.forEach((mc) => cols.push({ key: `m:${mc.id}`, title: mc.name, total: mc.vals[deptId],
-      account: mc.account, general: mc.misaGeneral || '', detail: mc.misaDetail || '' }));
+      account: mc.account, general: mc.misaGeneral || '', detail: mc.misaDetail || '', objectCode: mc.objectCode || '' }));
     const rows = sites.map((s, i) => {
       /* Cơ sở nghỉ: tỷ trọng 0 nên mọi cột chi phí ra 0 — giống hệt dòng SC VIVO trong file thật.
          Vẫn GIỮ DÒNG (không lọc bỏ) vì doanh thu của nó là thật và phải đọc được ở sheet này. */
@@ -397,6 +408,7 @@
          trống là cả chứng từ bị từ chối lúc nhập — mà lúc ấy người ta đã ở trong MISA rồi. */
       const chung = (c.general || '').trim() || `${c.title} ${alloc.dept.unitCode || alloc.dept.name} ${report.periodLabel}`.trim();
       const rieng = (c.detail || '').trim() || c.title;
+      const dtCo = (c.objectCode || '').trim();
       alloc.rows.forEach((r) => {
         /* 🔴 BỎ HẲN DÒNG, không đẩy một dòng 0đ. Khác hẳn chỗ dòng 0đ vẫn giữ ở trên: dòng 0đ kia
            là điểm ĐANG hoạt động mà tháng này không phát sinh, còn đây là điểm CỐ Ý không nhận
@@ -411,6 +423,8 @@
           dienGiaiHT: `${rieng} - ${r.name}`,
           tkNo: tk.no,
           tkCo: tk.co,
+          maDoiTuongNo: '',        // file thật T8/2026 để trống toàn bộ cột này
+          maDoiTuongCo: dtCo,
           soTien: r.vals[c.key] || 0,
           maDonVi: r.code || '',
         });
@@ -602,7 +616,7 @@
       /* Người dùng đã tự đặt thì GIỮ — bảng trên chỉ để mồi, không để đè. */
       misaPrefix: (d.misaPrefix || '').trim() || MISA_PREFIX[d.id] || '',
     }));
-    st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', misaGeneral: '', misaDetail: '', values: {}, ...m, id: m.id || newId('mc') }));
+    st.manualCols = (st.manualCols || []).map((m) => ({ name: '', account: '', misaGeneral: '', misaDetail: '', objectCode: '', values: {}, ...m, id: m.id || newId('mc') }));
     /* Hai cột lương KHÔNG CÓ chỗ nào khai tài khoản — đó là lỗ trong mô hình, lộ ra khi dựng tờ
        nhập MISA: TK Nợ/TK Có để trống là MISA từ chối cả chứng từ. Gieo mặc định `N64131/C3341`
        đọc từ file thật T8/2026 (cả hai cột lương đều dùng cặp này), vẫn sửa được như mọi ô khác. */
@@ -610,6 +624,8 @@
       misaGeneral: '', misaDetail: '', misaGeneral2: '', misaDetail2: '', ...r,
       misaAccount: (r.misaAccount || '').trim() || 'N64131/C3341',
       misaAccount2: (r.misaAccount2 || '').trim() || 'N64131/C3341',
+      misaObjectCode: r.misaObjectCode || '',
+      misaObjectCode2: r.misaObjectCode2 || '',
     }));
     st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', ...r, id: r.id || newId('ss') }));
     return st;

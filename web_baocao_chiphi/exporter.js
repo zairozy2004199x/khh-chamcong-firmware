@@ -251,6 +251,8 @@
    * `i` = chỉ số cột (0-based) trong mẫu 50 cột · `key` = tên trường trong dòng của misaRows()
    * `num` = ô số (Excel phải để kiểu số cho MISA cộng được; màn hình canh phải + ngăn hàng nghìn)
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  /* ⚠️ Bảng này XẾP THEO `i` TĂNG DẦN, và phải giữ vậy: màn hình vẽ cột theo đúng thứ tự trong
+     bảng, nên chèn một dòng sai chỗ là cột trên màn hình lệch khỏi thứ tự của file. */
   const MISA_MAP = [
     { i: 0, key: 'ngay' },        // Ngày chứng từ (*)
     { i: 1, key: 'ngay' },        // Ngày hạch toán (*) — file thật để "=A3", tức luôn bằng cột trước
@@ -261,8 +263,10 @@
     { i: 10, key: 'tkCo' },       // TK Có (*)
     { i: 11, key: 'soTien', num: true },   // Số tiền
     { i: 12, key: 'soTien', num: true },   // Số tiền quy đổi — file thật để "=L3"
+    { i: 14, key: 'maDoiTuongCo' }, // Mã đối tượng Có — mã nhà cung cấp, 1.497 ô có giá trị ở file thật
     { i: 22, key: 'maDonVi' },    // Mã đơn vị
   ];
+
 
   function buildMisaSheet(XLSX, state, report, deptId) {
     const kq = E.misaRows(state, report, deptId);

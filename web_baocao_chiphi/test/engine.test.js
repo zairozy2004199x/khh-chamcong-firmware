@@ -331,3 +331,85 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — cơ sở nghỉ: giữ doanh thu, không nhận chi phí, tiền chia lại đủ.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// MÃ ĐỐI TƯỢNG CÓ — cột 15 của mẫu MISA  (anh Thắng 16/09/2026: "Đọc file để lấy đủ cột chứ em")
+//
+// Đếm trên file thật T8/2026: trong 50 cột của mẫu, CHỈ 11 cột có dữ liệu. Bản trước điền 10 —
+// bỏ sót đúng "Mã đối tượng Có" (1.497 ô, mã nhà cung cấp dạng CC00004 / CC00458…).
+//
+// Luật đọc được từ file: MỘT mã cho cả chứng từ, và chỉ có khi TK Có = 331 (phải trả người bán);
+// chứng từ lương (TK Có 3341) và phân bổ 1543 thì để TRỐNG — không có nhà cung cấp nào để trỏ tới.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.period = { month: 8, year: 2026 };
+  // đặt mã nhà cung cấp cho một khoản, y như file thật
+  const it = st.costItems.find((x) => (x.account || '').trim());
+  it.objectCode = 'CC00004';
+  const rp = E.computeReport(st);
+  const mi = E.misaRows(st, rp, 'posh');
+
+  const soDiem = (st.sites || []).filter((x) => x.dept === 'posh').length;
+  const cua = mi.rows.filter((r) => r.maDoiTuongCo === 'CC00004');
+  assert.strictEqual(cua.length, soDiem, 'mã nhà cung cấp phải phủ ĐỦ mọi dòng của chứng từ đó');
+  assert.strictEqual(new Set(cua.map((r) => r.soCT)).size, 1, 'và chỉ nằm trong ĐÚNG một chứng từ');
+
+  // Hai cột lương để TRỐNG — TK Có 3341 không có nhà cung cấp
+  assert.strictEqual(mi.rows[0].maDoiTuongCo, '', 'chứng từ lương phải để trống Mã đối tượng Có');
+  assert.strictEqual(mi.rows[soDiem].maDoiTuongCo, '', 'lương vận hành cũng vậy');
+
+  // Mã đối tượng Nợ: file thật để trống TOÀN BỘ cột
+  assert(mi.rows.every((r) => r.maDoiTuongNo === ''), 'Mã đối tượng Nợ để trống, đúng như file thật');
+
+  // 🔴 Cột GỘP nhiều khoản khác nhà cung cấp: lấy MÃ ĐẦU TIÊN, không nối " / ".
+  //    Đây là một ô MÃ của MISA — nối hai mã vào là MISA không tra ra đối tượng nào và từ chối
+  //    cả chứng từ. (`account` thì nối được vì parseAccount chỉ bốc cặp số đầu.)
+  const st2 = E.normalizeState(window.SAMPLE_DATA);
+  const hai = st2.costItems.filter((x) => (x.account || '').trim()).slice(0, 2);
+  hai[0].groupKey = 'gop'; hai[1].groupKey = 'gop';
+  hai[0].objectCode = 'CC00111'; hai[1].objectCode = 'CC00222';
+  const cot = E.computeReport(st2).columns.find((c) => c.key === 'g:gop');
+  assert.strictEqual(cot.objectCode, 'CC00111', 'cột gộp: lấy mã đầu tiên, KHÔNG nối hai mã');
+  assert(!/\//.test(cot.objectCode), 'không được có dấu "/" trong ô mã');
+
+  // Khoản không khai mã thì để trống, không bịa
+  const st3 = E.normalizeState(window.SAMPLE_DATA);
+  st3.costItems.forEach((x) => { x.objectCode = ''; });
+  const mi3 = E.misaRows(st3, E.computeReport(st3), 'posh');
+  assert(mi3.rows.every((r) => r.maDoiTuongCo === ''), 'chưa khai mã thì để trống');
+
+  /* ═════════════════════════════════════════════════════════════════════════════════════════
+   * 🔴 NGƯỜI GÁC: MẪU 50 CỘT VÀ NHỮNG CỘT PHẢI ĐIỀN.
+   *
+   * Anh Thắng 16/09/2026: *"Đọc file để lấy đủ cột chứ em"* — bản trước bỏ sót "Mã đối tượng Có"
+   * vì chỉ nhìn mấy dòng đầu của file rồi suy ra, thay vì ĐẾM xem cột nào thật sự có dữ liệu.
+   *
+   * Hai con số dưới đây ĐẾM TRÊN CẢ 7 TAB "… chi tiết" của file thật T8/2026 (1.849 dòng):
+   *   · mẫu có đúng 50 cột, giống hệt nhau ở cả 7 tab
+   *   · trong đó 11 cột có dữ liệu — theo chỉ số 1-based:
+   *       1 Ngày chứng từ · 2 Ngày hạch toán · 3 Số chứng từ · 4 Diễn giải ·
+   *       9 Diễn giải (Hạch toán) · 10 TK Nợ · 11 TK Có · 12 Số tiền · 13 Số tiền quy đổi ·
+   *       15 Mã đối tượng Có · 23 Mã đơn vị
+   *   · 39 cột còn lại TRỐNG SẠCH ở cả 1.849 dòng
+   *
+   * Bài này chốt lại con số ấy. Sau này ai thêm cột vào mẫu mà quên nối dữ liệu — hoặc ngược lại,
+   * nối một cột mà file gốc không hề dùng — là đỏ ngay tại đây, không phải đợi kế toán phát hiện
+   * lúc nhập vào MISA.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  const EXP = require('../exporter.js');
+  const CO_DU_LIEU = [1, 2, 3, 4, 9, 10, 11, 12, 13, 15, 23];   // 1-based, đếm từ file thật
+  assert.strictEqual(EXP.MISA_COLS.length, 50, 'mẫu MISA phải đúng 50 cột');
+  const dienVao = [...new Set(EXP.MISA_MAP.map((m) => m.i + 1))].sort((a, b) => a - b);
+  assert.deepStrictEqual(dienVao, CO_DU_LIEU,
+    'những cột app điền phải khớp ĐÚNG những cột có dữ liệu trong file gốc T8/2026');
+  // và bảng phải xếp theo thứ tự cột — màn hình vẽ theo đúng thứ tự này
+  const thuTu = EXP.MISA_MAP.map((m) => m.i);
+  assert.deepStrictEqual(thuTu, [...thuTu].sort((a, b) => a - b),
+    'MISA_MAP phải xếp theo chỉ số cột tăng dần, không thì cột trên màn hình lệch khỏi file');
+  // mọi key trong bảng phải là trường có thật của một dòng misaRows()
+  const mau = mi.rows[0];
+  EXP.MISA_MAP.forEach((m) => assert(m.key in mau, `MISA_MAP trỏ tới trường không có: ${m.key}`));
+
+  console.log('OK — Mã đối tượng Có (cột 15) đi đúng đường; mẫu 50 cột / 11 cột điền khớp file gốc.');
+}
