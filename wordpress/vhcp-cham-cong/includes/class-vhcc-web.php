@@ -914,7 +914,11 @@ class VHCC_Web {
 		'an_ma',
 		/* Khai đơn giá là việc của tab Cấu hình, không dính gì tới màn Hồ sơ. Chốt thật ở
 		   `VHCC_GiaGio::gac()` — bậc Kế toán, chặt hơn chốt dưới chứ không lỏng hơn. */
-		'gia_gio' );
+		'gia_gio',
+		/* Ghép hai mã: việc của màn Bảng công — đó là nơi người ta NHÌN THẤY hai hàng cùng tên.
+		   Chốt thật ở `VHCC_NhanSu::ghep_hai_ma()` (bậc Quản lý, cùng cửa với `don_ma()`) —
+		   chặt hơn chốt dưới chứ không lỏng hơn. */
+		'ghep_ma' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -1308,6 +1312,29 @@ class VHCC_Web {
 				? 'Đã ẩn ' . $r_a['ma'] . ' khỏi bảng công của ' . $cs_a . '. Lượt chấm KHÔNG bị '
 					. 'xoá — bỏ ẩn là hiện lại đủ số.'
 				: 'Đã hiện lại ' . $r_a['ma'] . ' trong bảng công của ' . $cs_a . '.' ) );
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GHÉP HAI MÃ LÀM MỘT — anh Thắng 16/09/2026: *"thêm tính năng ghép 2 mã nhân viên
+		 *    lại 1"*, sau khi gửi ảnh bảng công có hai hàng cùng tên.
+		 *
+		 * Chốt quyền THẬT nằm ở `VHCC_NhanSu::ghep_hai_ma()` → `co_quan_tri_nv` (bậc Quản lý),
+		 * cùng cửa với `khai_ma_song_song()`/`don_ma()`. Ở đây không gác lại lần nữa bằng một
+		 * luật khác — hai cửa cho một việc thì có ngày một cửa rộng hơn cửa kia.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'ghep_ma' === $viec ) {
+			$g_a = isset( $_POST['gm_a'] ) ? sanitize_text_field( wp_unslash( $_POST['gm_a'] ) ) : '';
+			$g_b = isset( $_POST['gm_b'] ) ? sanitize_text_field( wp_unslash( $_POST['gm_b'] ) ) : '';
+			$r_g = VHCC_NhanSu::ghep_hai_ma( $toi, $g_a, $g_b );
+			if ( empty( $r_g['ok'] ) ) { return array( array( 'loi' => $r_g['error'] ) ); }
+			/* 🔴 NÓI RA ĐÃ GIỮ MÃ NÀO VÀ VÌ SAO. Việc này không đảo được, nên người bấm phải
+			   đọc được ngay công đã dồn về đâu — chứ không phải mở lại bảng rồi tự đoán. */
+			return array( array( 'xong' => 'Đã ghép ' . $r_g['phu'] . ' vào ' . $r_g['chinh']
+				. ' — giữ ' . $r_g['chinh'] . ' làm mã chính vì ' . $r_g['viSao'] . '. Chuyển '
+				. (int) $r_g['chuyen'] . ' hàng chấm công, gộp ' . (int) $r_g['gop']
+				. ' hàng trùng ngày (ngày trùng thì giữ lượt DÀI HƠN). Từ nay lượt mang mã '
+				. $r_g['phu'] . ' — kể cả lượt Nạp về từ app gốc — tự chảy vào ' . $r_g['chinh']
+				. '. Việc này KHÔNG đảo lại được.' ) );
 		}
 
 		if ( 'gia_gio' === $viec ) {
@@ -5435,6 +5462,91 @@ class VHCC_Web {
 			. '">' . ( $dang_an ? '👁 hiện lại' : '🚫 ẩn' ) . '</button></form>';
 	}
 
+	/**
+	 * Nút 🔗 ghép — mở khối chọn mã ngay dưới hàng người ấy.
+	 *
+	 * 🔴 ĐẶT NGAY TRÊN BẢNG CÔNG, chỗ người ta NHÌN THẤY trùng. Anh Thắng 16/09/2026:
+	 *    *"sinh ra trùng nhân viên"* → *"thêm tính năng ghép 2 mã nhân viên lại 1"*. Cơ chế ghép
+	 *    đã có từ 28/08, nhưng nó nằm ở Trang Nhân Sự — còn hai hàng cùng tên thì hiện ở đây.
+	 *
+	 * ⚠️ CÙNG CỬA QUYỀN VỚI `don_ma()`/`khai_ma_song_song()`: `co_quan_tri_nv` (bậc Quản lý).
+	 *    Đừng đặt một cửa riêng ở đây — hai cửa cho một việc thì có ngày một cửa mở rộng hơn
+	 *    cửa kia, và việc này là GỘP LƯƠNG HAI NGƯỜI nếu bấm nhầm.
+	 */
+	private static function o_ghep_ma( $ma, $ky, $toi, $cs ) {
+		if ( ! VHCC_NhanSu::co_quan_tri_nv( $toi ) ) { return ''; }
+		$dang = isset( $_GET['ghm'] )
+			&& 0 === strcasecmp( (string) $ma, sanitize_text_field( wp_unslash( $_GET['ghm'] ) ) );
+		$url = $dang ? remove_query_arg( 'ghm', self::url_hien() )
+			: add_query_arg( 'ghm', $ma, self::url_hien() );
+		return ' <a class="mo-hs" href="' . esc_url( $url ) . '" title="'
+			. esc_attr( 'Cùng một người mà bảng công hiện hai hàng (một mã của máy chấm công, '
+				. 'một mã của app cũ)? Bấm đây để gộp hai mã làm một.' )
+			. '">' . ( $dang ? '✕ thôi ghép' : '🔗 ghép' ) . '</a>';
+	}
+
+	/**
+	 * Khối chọn mã để ghép — mở ra ngay dưới hàng người vừa bấm.
+	 *
+	 * 🔴 KHÔNG ĐOÁN THEO TÊN. Chú thích của bảng `ma_song_song` dặn thẳng: *"tên người Việt
+	 *    trùng rất nhiều, đoán sai là gộp lương hai người khác nhau"*. Nên màn chỉ BÀY ra mấy
+	 *    mã khác trong cùng bảng kèm số lượt chấm, còn chọn ai là việc của người bấm. Mã trùng
+	 *    tên được xếp lên đầu và đánh dấu — gợi ý, không phải quyết định.
+	 *
+	 * ⚠️ NÓI TRƯỚC LÀ KHÔNG ĐẢO ĐƯỢC. `don_ma()` viết đè mã lên hàng cũ; bỏ ghép sau đó cũng
+	 *    không tách lại được vì hàng đã mang mã chính, không còn dấu vết nó từng thuộc mã nào.
+	 */
+	private static function hang_ghep_ma( $so_cot, $ma, $ho_ten, $ten_ds, $ky, $toi, $cs ) {
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
+		echo '<p style="margin:0 0 8px"><b>Ghép ' . esc_html( $ho_ten ) . '</b> · <code>'
+			. esc_html( $ma ) . '</code> với một mã khác — chọn mã <b>cùng là người này</b>:</p>';
+
+		$ma_ch = strtoupper( trim( (string) $ma ) );
+		$ten_g = VHCC_Luong::bo_chu( (string) $ho_ten );
+		$ds    = array();
+		foreach ( (array) $ten_ds as $m_x => $t_x ) {
+			if ( strtoupper( trim( (string) $m_x ) ) === $ma_ch ) { continue; }
+			$giong = ( '' !== $ten_g && VHCC_Luong::bo_chu( (string) $t_x ) === $ten_g );
+			$ds[]  = array( 'ma' => (string) $m_x, 'ten' => (string) $t_x, 'giong' => $giong );
+		}
+		/* Trùng tên lên đầu — gợi ý, không phải quyết định. */
+		usort( $ds, function ( $a, $b ) {
+			if ( $a['giong'] !== $b['giong'] ) { return $a['giong'] ? -1 : 1; }
+			return strcasecmp( $a['ten'], $b['ten'] );
+		} );
+
+		if ( ! $ds ) {
+			echo '<p class="mo" style="margin:0">Bảng này không còn mã nào khác để ghép.</p>';
+		} else {
+			echo '<div class="hang" style="gap:8px;flex-wrap:wrap">';
+			foreach ( $ds as $x ) {
+				echo '<form method="post" style="display:inline">'
+					. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+					. self::o_loc()
+					. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+					. '<input type="hidden" name="gm_a" value="' . esc_attr( $ma ) . '">'
+					. '<input type="hidden" name="gm_b" value="' . esc_attr( $x['ma'] ) . '">'
+					. '<button class="mo-hs" name="viec" value="ghep_ma" title="'
+					. esc_attr( 'Gộp hai mã này làm một. Hệ giữ mã có NHIỀU LƯỢT CHẤM hơn làm mã '
+						. 'chính và dồn công của mã kia về đó. KHÔNG ĐẢO LẠI ĐƯỢC.' )
+					. '">' . ( $x['giong'] ? '⭑ ' : '' ) . '<code>' . esc_html( $x['ma'] ) . '</code>'
+					. ( '' !== trim( $x['ten'] ) && trim( $x['ten'] ) !== $x['ma']
+						? ' ' . esc_html( $x['ten'] ) : '' )
+					. '</button></form>';
+			}
+			echo '</div>';
+			echo '<p class="mo" style="margin:8px 0 0;font-size:12px">⭑ = trùng tên với người này '
+				. '— chỉ là <b>gợi ý</b>. Tên người Việt trùng rất nhiều, nên hệ <b>không tự đoán</b>: '
+				. 'chọn sai là gộp lương của hai người khác nhau.</p>';
+		}
+		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">Hệ giữ mã <b>nhiều lượt chấm '
+			. 'hơn</b> làm mã chính, dồn công của mã kia về đó, và từ nay mọi lượt mang mã cũ — kể '
+			. 'cả lượt do <b>Nạp về</b> từ app gốc — tự chảy vào mã chính. '
+			. '<b>Việc này KHÔNG đảo lại được.</b> Ngày nào cả hai mã cùng có giờ thì giữ lượt '
+			. '<b>dài hơn</b>.</p>';
+		echo '</div></td></tr>';
+	}
+
 	private static function o_cho_tra( $ma, $dang_cho, $ky, $toi, $cs ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) {
 			/* Người không có quyền tích vẫn phải THẤY ai đang chờ trả — nếu không, họ đọc bảng
@@ -6970,6 +7082,7 @@ class VHCC_Web {
 						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
 				. self::o_cho_tra( $ma, isset( $cho_tra[ $ma ] ), $ky, $toi, $cs_luoi )
 				. self::o_an_ma( $ma, false, $ky, $toi, $cs_luoi )
+				. self::o_ghep_ma( $ma, $ky, $toi, $cs_luoi )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$phut_phu = array();
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -7093,6 +7206,12 @@ class VHCC_Web {
 					: '<b>' . esc_html( number_format( $t_ng['tien'], 0, ',', '.' ) ) . 'đ</b>' ) )
 				. '</td>';
 			echo '</tr>';
+
+			/* Khối chọn mã để ghép — mở ra ngay dưới hàng người vừa bấm. */
+			if ( isset( $_GET['ghm'] )
+				&& 0 === strcasecmp( (string) $ma, sanitize_text_field( wp_unslash( $_GET['ghm'] ) ) ) ) {
+				self::hang_ghep_ma( $so_ngay + 3, $ma, $ho_ten, $ten, $ky, $toi, $cs_luoi );
+			}
 
 			/* Khối "xem giờ theo ca" mở ra NGAY DƯỚI hàng người vừa bấm — xem `hang_xem_nguoi()`. */
 			if ( isset( $_GET['xng'] )

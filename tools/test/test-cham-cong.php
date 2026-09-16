@@ -11960,12 +11960,50 @@ teq( '🔴 mã phụ KHÔNG còn hàng nào — lưới thôi vẽ hai dòng', 0
 teq( 'và mã chính có đủ hai ngày', 2, (int) $wpdb->get_var(
 	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DON_A'" ) );
 
-/* 🔴 TRÙNG NGÀY THÌ GỘP, KHÔNG BỎ. Hai mã là MỘT người, một ngày họ chỉ có một ca — nên giờ
-   vào lấy SỚM NHẤT, giờ ra lấy MUỘN NHẤT. Bỏ hàng phụ đi là mất giờ thật. */
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TRÙNG NGÀY THÌ GIỮ LƯỢT DÀI HƠN, BỎ LƯỢT KIA — anh Thắng chốt 16/09/2026.
+ *
+ * ⚠️ LUẬT NÀY ĐÃ ĐỔI. Bản trước gộp: vào SỚM NHẤT + ra MUỘN NHẤT.
+ * ⚠️ VÀ CẢNH GIEO Ở ĐÂY KHÔNG PHÂN BIỆT ĐƯỢC HAI LUẬT: hàng phụ 30000→62000 bao trọn hàng
+ *    chính 32000→59000, nên "sớm nhất/muộn nhất" và "giữ hàng dài hơn" ra CÙNG một cặp số.
+ *    Đổi luật xong bài kiểm vẫn xanh — chỉ mỗi cột `nguon` đỏ. Nên phải có thêm một cảnh
+ *    HAI CA RỜI ở dưới; không có nó thì mục này không canh gì cả.
+ * ══════════════════════════════════════════════════════════════════════════════════════════*/
 $h_don = vhcc_hang( 'TUTU_BT', '2026-08-02', 'DON_A' );
-teq( '🔴 ngày trùng: giờ vào lấy SỚM NHẤT', 30000, (int) $h_don['gio_vao_giay'] );
-teq( '🔴 và giờ ra lấy MUỘN NHẤT', 62000, (int) $h_don['gio_ra_giay'] );
+teq( '🔴 ngày trùng: giữ hàng DÀI HƠN — giờ vào', 30000, (int) $h_don['gio_vao_giay'] );
+teq( '🔴 ngày trùng: giữ hàng DÀI HƠN — giờ ra', 62000, (int) $h_don['gio_ra_giay'] );
 teq( 'nguồn thành hỗn hợp vì hai bên khác nguồn', 'hon-hop', (string) $h_don['nguon'] );
+
+/* ───── 🔴 CẢNH PHÂN BIỆT: HAI CA RỜI TRONG MỘT NGÀY ─────
+   Mã chính 08:00–12:00 (4 giờ), mã phụ 14:00–18:00 (4 giờ) — hai khoảng KHÔNG chạm nhau.
+     · luật CŨ  -> 08:00–18:00 = 10 giờ, tức trả dư 6 giờ cho giờ không ai làm
+     · luật MỚI -> giữ nguyên một ca 4 giờ
+   Gieo ca phụ DÀI HƠN một chút để biết hệ có thật sự so độ dài không, hay chỉ luôn giữ hàng
+   của mã chính. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'ROI_A', 'ho_ten' => 'Người Hai Ca Rời',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-09',
+	'ma_nv' => 'ROI_A', 'ho_ten' => 'Người Hai Ca Rời', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 12 * 3600, 'nguon' => 'online' ) );          /* 4 giờ  */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-09',
+	'ma_nv' => 'ROI_B', 'ho_ten' => 'Người Hai Ca Rời', 'gio_vao_giay' => 14 * 3600,
+	'gio_ra_giay' => 19 * 3600, 'nguon' => 'may' ) );             /* 5 giờ — DÀI HƠN */
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'ROI_A', 'ROI_B', 'Người Hai Ca Rời', 'mã máy cũ' );
+$kq_roi = VHCC_NhanSu::don_ma( $U_AD, 'ROI_A', 'ROI_B' );
+t( 'dồn được cặp hai ca rời', ! empty( $kq_roi['ok'] ), $kq_roi );
+teq( '🔴 ngày ấy chỉ còn ĐÚNG MỘT hàng', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+	. ' WHERE ma_nv=%s AND ngay=%s', 'ROI_A', '2026-08-09' ) ) );
+$h_roi = vhcc_hang( 'TUTU_BT', '2026-08-09', 'ROI_A' );
+teq( '🔴 giữ CA DÀI HƠN (ca phụ 14:00), không phải ca của mã chính', 14 * 3600,
+	(int) $h_roi['gio_vao_giay'] );
+teq( '🔴 và giờ ra của chính ca ấy', 19 * 3600, (int) $h_roi['gio_ra_giay'] );
+/* 🔴 KHẲNG ĐỊNH THẲNG LÀ KHÔNG RA KIỂU CŨ. Thiếu phép này thì trả luật về sớm-nhất/muộn-nhất
+   mà bài kiểm vẫn xanh ở hai phép trên — đã thử đột biến đúng như thế. */
+t( '🔴 KHÔNG gộp thành 08:00 → 19:00 kiểu cũ (sẽ trả dư 6 giờ)',
+	8 * 3600 !== (int) $h_roi['gio_vao_giay'], $h_roi );
+teq( '🔴 tổng giờ ngày ấy là 5, không phải 11', 5.0,
+	round( ( (int) $h_roi['gio_ra_giay'] - (int) $h_roi['gio_vao_giay'] ) / 3600, 2 ) );
 
 /* ---- Đường lưu thật (viec don_ma), không còn màn hình để soi nút ---- */
 /* ⚠️ Dựng lại cảnh còn hàng — phần trên vừa dồn sạch rồi. */
@@ -20949,6 +20987,144 @@ t( '🔴 màn hình cũng nói ra ca nào không nhận',
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='G24'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='G24'" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='MAYG24'" );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * GHÉP HAI MÃ LÀM MỘT — và chặn đường đồng bộ đẻ ra người trùng
+ *
+ * Anh Thắng 16/09/2026: *"sinh ra trùng nhân viên"* · *"khi đồng bộ, nó lại sinh ra nhân viên
+ * mới, do 2 mã nhân viên khác nhau"* · *"thêm tính năng ghép 2 mã nhân viên lại 1"*.
+ *
+ * 🔴 CHỖ HỎNG KHÔNG PHẢI "CHƯA CÓ TÍNH NĂNG GHÉP" — nó có từ 28/08. Chỗ hỏng là `ma_that()` chỉ
+ *    được gọi ở `VHCC_Nhan::mot_luot()` (lượt do MÁY đẩy lên), còn nút **Nạp về** và nạp .csv
+ *    đi thẳng vào `ghi_gio()`, không qua đó. Nên khai ghép xong, đồng bộ phát nữa là trùng lại.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_gh = 'TUTU_BT';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GH_CHINH',
+	'ho_ten' => 'Người Một Mã Chuẩn', 'vai_tro' => 'Nhân viên', 'cua_hang' => $cs_gh ) );
+/* Mã máy: cố ý KHÔNG có hồ sơ — đúng cảnh thật. */
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'GH_CHINH', 'GH_MAY', 'Người Một Mã Chuẩn', 'mã máy cũ' );
+
+/* ───── 1. 🔴 PHÉP CHÍNH: LƯỢT MANG MÃ PHỤ GHI QUA `ghi_gio()` PHẢI VÀO MÃ CHÍNH ─────
+   Đây là đường của nút Nạp về (`VHCC_Keo::keo_thang()` gọi thẳng `ghi_gio()`) và của nạp .csv. */
+VHCC_Nhan::ghi_gio( $cs_gh, '2026-09-01', 'GH_MAY', 'Ten Tren May', 8 * 3600, '', 'sheet' );
+VHCC_Nhan::ghi_gio( $cs_gh, '2026-09-01', 'GH_MAY', 'Ten Tren May', 17 * 3600, '', 'sheet' );
+teq( '🔴 lượt nạp về mang mã PHỤ vào thẳng mã CHÍNH', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s AND ngay=%s',
+	'GH_CHINH', '2026-09-01' ) ) );
+teq( '🔴 và KHÔNG sinh hàng nào mang mã phụ', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', 'GH_MAY' ) ) );
+/* ⚠️ `vhcc_hang()` trả null khi không có hàng. Đọc thẳng vào nó là mỗi lần phép trên đỏ lại
+   kèm thêm ba cảnh báo PHP — mà bộ chạy đếm cảnh báo là hỏng, nên một lỗi hoá thành bốn và
+   người đọc phải lần ngược mới biết cái nào là gốc. */
+$h_gh = vhcc_hang( $cs_gh, '2026-09-01', 'GH_CHINH' );
+$gv = function ( $h, $k ) { return is_array( $h ) && isset( $h[ $k ] ) ? $h[ $k ] : null; };
+teq( 'giờ vào vào đúng chỗ', 8 * 3600, (int) $gv( $h_gh, 'gio_vao_giay' ) );
+teq( 'giờ ra cũng thế', 17 * 3600, (int) $gv( $h_gh, 'gio_ra_giay' ) );
+/* 🔴 DỊCH MÃ THÌ LẤY LUÔN TÊN HỒ SƠ — tên trên máy cũ hay viết tắt/không dấu, giữ nó là bảng
+   công hiện một cái tên sổ nhân sự không có. */
+teq( '🔴 và lấy tên từ HỒ SƠ, không giữ tên viết tắt của máy',
+	'Người Một Mã Chuẩn', trim( (string) $gv( $h_gh, 'ho_ten' ) ) );
+
+/* ───── 2. CHƯA KHAI CẶP THÌ KHÔNG ĐỔI GÌ — không lượt nào biến mất ───── */
+VHCC_Nhan::ghi_gio( $cs_gh, '2026-09-02', 'GH_LA', 'Người Lạ', 8 * 3600, '', 'sheet' );
+teq( '🔴 mã chưa khai cặp: lượt vẫn vào đúng mã của nó', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', 'GH_LA' ) ) );
+
+/* ───── 3. HẬU TỐ CA PHẢI GIỮ NGUYÊN khi dịch mã ───── */
+VHCC_Nhan::ghi_gio( $cs_gh, '2026-09-03', 'GH_MAY-CD', 'Ten Tren May', 22 * 3600, '', 'sheet' );
+$h_cd = vhcc_hang( $cs_gh, '2026-09-03', 'GH_CHINH', 'CD' );
+t( '🔴 dịch mã nhưng GIỮ hậu tố ca (-CD)', is_array( $h_cd ) && ! empty( $h_cd ), $h_cd );
+
+/* ───── 4. 🔴 ĐỒNG BỘ HỒ SƠ KHÔNG ĐƯỢC ĐẺ HỒ SƠ THỨ HAI ───── */
+/* `dong_bo_nhan_su()` lấy `employeeNo` của app gốc làm khoá. Có hồ sơ là có hàng trong lưới,
+   kể cả khi không lượt chấm nào — đúng cái anh Thắng thấy. */
+/* ⚠️ Dùng đúng bộ giả app gốc của mục kéo nhân sự ở trên (`vhcc_app_goc`) — gọi thẳng vòng
+   lặp bên trong không được, nó là mã riêng tư nằm trong `keo_nhan_su()`. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array( 'getEmployees' => array(
+	array( 'employeeNo' => 'GH_MAY', 'name' => 'Ten Tren May', 'station' => $cs_gh ),
+) ) ) );
+$r_db = VHCC_Keo::keo_nhan_su( false );
+t( 'đồng bộ chạy được', ! empty( $r_db['ok'] ), $r_db );
+teq( '🔴 đồng bộ mã đã khai cặp: KHÔNG tạo hồ sơ mã cũ', false, (bool) VHCC_NhanSu::ho_so( 'GH_MAY' ) );
+t( 'hồ sơ mã chính vẫn còn', (bool) VHCC_NhanSu::ho_so( 'GH_CHINH' ), 'mất hồ sơ mã chính' );
+/* 🔴 VÀ TÊN CỦA APP GỐC ĐƯỢC GHI VÀO HỒ SƠ MÃ CHÍNH — chứng tỏ nó đi đường `update`, không
+   phải lặng lẽ bỏ qua cả dòng. Bỏ qua thì cũng "không tạo hồ sơ mới", và phép trên xanh nhầm. */
+teq( '🔴 và cập nhật vào hồ sơ MÃ CHÍNH, không bỏ qua dòng ấy',
+	'Ten Tren May', trim( (string) VHCC_NhanSu::ho_so( 'GH_CHINH' )['ho_ten'] ) );
+
+/* ───── 5. 🔴 TỰ CHỌN MÃ CHÍNH THEO SỐ LƯỢT CHẤM ───── */
+/* Gieo số lượt LỆCH HẲN, đừng gieo bằng nhau — bằng nhau thì không biết hệ có đếm thật không. */
+foreach ( array( '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04' ) as $ng_x ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gh, 'ngay' => $ng_x,
+		'ma_nv' => 'TC_NHIEU', 'ho_ten' => 'Người Nhiều Công', 'gio_vao_giay' => 8 * 3600,
+		'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+}
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gh, 'ngay' => '2026-10-05',
+	'ma_nv' => 'TC_IT', 'ho_ten' => 'Người Nhiều Công', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TC_NHIEU',
+	'ho_ten' => 'Người Nhiều Công', 'vai_tro' => 'Nhân viên', 'cua_hang' => $cs_gh ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TC_IT',
+	'ho_ten' => 'Người Nhiều Công', 'vai_tro' => 'Nhân viên', 'cua_hang' => $cs_gh ) );
+
+/* ⚠️ GỌI NGƯỢC CHIỀU (mã ít công đứng TRƯỚC) — nếu hệ chỉ lấy tham số đầu làm mã chính thì
+   phép thử này đỏ, còn gọi xuôi thì nó xanh cả khi hệ chẳng đếm gì. */
+$kq_tc = VHCC_NhanSu::ghep_hai_ma( $U_AD, 'TC_IT', 'TC_NHIEU' );
+t( 'ghép được', ! empty( $kq_tc['ok'] ), $kq_tc );
+teq( '🔴 giữ mã NHIỀU LƯỢT hơn làm mã chính', 'TC_NHIEU', (string) $kq_tc['chinh'] );
+teq( 'và mã kia là mã phụ', 'TC_IT', (string) $kq_tc['phu'] );
+t( '🔴 và NÓI RA vì sao chọn mã ấy', false !== strpos( (string) $kq_tc['viSao'], 'nhiều lượt' ),
+	$kq_tc );
+teq( '🔴 công dồn hết về mã chính', 5, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', 'TC_NHIEU' ) ) );
+teq( 'mã phụ không còn hàng nào', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', 'TC_IT' ) ) );
+/* 🔴 VÀ CẶP ĐƯỢC KHAI VÀO SỔ — không thì lần đồng bộ sau lại trùng, tức chữa được đúng một lần. */
+t( '🔴 cặp được khai vào sổ ma_song_song, nên lần sau tự gộp', 1 === (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'ma_song_song' )
+	. " WHERE (ma_a='TC_NHIEU' AND ma_b='TC_IT') OR (ma_a='TC_IT' AND ma_b='TC_NHIEU')" ) );
+
+/* ───── 6. HOÀ SỐ LƯỢT thì ưu tiên mã CÓ HỒ SƠ ───── */
+/* `ma_that()` chỉ dịch được về mã CÓ hồ sơ, nên chọn mã không hồ sơ làm mã chính là tự tay làm
+   cho lần đồng bộ sau hết tác dụng. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gh, 'ngay' => '2026-11-01',
+	'ma_nv' => 'HOA_COHS', 'ho_ten' => 'Người Hoà', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gh, 'ngay' => '2026-11-02',
+	'ma_nv' => 'HOA_KHONG', 'ho_ten' => 'Người Hoà', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'HOA_COHS',
+	'ho_ten' => 'Người Hoà', 'vai_tro' => 'Nhân viên', 'cua_hang' => $cs_gh ) );
+$kq_hoa = VHCC_NhanSu::ghep_hai_ma( $U_AD, 'HOA_KHONG', 'HOA_COHS' );
+teq( '🔴 hoà số lượt: giữ mã CÓ hồ sơ', 'HOA_COHS', (string) $kq_hoa['chinh'] );
+t( 'và nói rõ lý do là hồ sơ', false !== strpos( (string) $kq_hoa['viSao'], 'hồ sơ' ), $kq_hoa );
+
+/* ───── 7. CỬA HÀNG TRƯỞNG KHÔNG GHÉP ĐƯỢC ───── */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => $cs_gh, 'ngay' => '2026-11-05',
+	'ma_nv' => 'CHT_X', 'ho_ten' => 'X', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+$kq_cht = VHCC_NhanSu::ghep_hai_ma( $U_CHT, 'CHT_X', 'CHT_Y' );
+t( '🔴 Cửa hàng trưởng KHÔNG ghép được — gộp nhầm là trộn lương hai người thật',
+	empty( $kq_cht['ok'] ), $kq_cht );
+teq( 'và hàng chấm công không bị đụng vào', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', 'CHT_X' ) ) );
+
+/* ───── 8. TRÊN MÀN: nút ghép và khối chọn mã ───── */
+$g_luoi = array( 'man' => 'cham', 'ccs' => $cs_gh, 'cth' => '2026-10' );
+$h_g1 = vhcc_web_nhu2( 'AD1', 'ADMIN', '', $g_luoi );
+t( '🔴 lưới có nút ghép', false !== strpos( $h_g1, '🔗 ghép' ), substr( $h_g1, 0, 300 ) );
+$h_g2 = vhcc_web_nhu2( 'AD1', 'ADMIN', '', $g_luoi + array( 'ghm' => 'TC_NHIEU' ) );
+t( '🔴 bấm vào thì mở khối chọn mã', false !== strpos( $h_g2, 'value="ghep_ma"' ), 'không có khối chọn' );
+t( '🔴 và NÓI TRƯỚC là không đảo lại được',
+	false !== strpos( $h_g2, 'KHÔNG đảo lại được' ), 'màn không cảnh báo' );
+/* 🔴 Cửa hàng trưởng KHÔNG thấy nút — cửa quyền phải thấy được trên màn, không chỉ ở tầng dưới. */
+$h_g3 = vhcc_web_nhu2( 'CHT_BT', 'CUA_HANG_TRUONG', $cs_gh, $g_luoi );
+t( '🔴 Cửa hàng trưởng KHÔNG thấy nút ghép', false === strpos( $h_g3, '🔗 ghép' ), 'nút lọt ra' );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'ma_song_song' )
+	. " WHERE ma_a IN ('GH_CHINH','TC_NHIEU','TC_IT','HOA_COHS','HOA_KHONG')"
+	. " OR ma_b IN ('GH_CHINH','TC_NHIEU','TC_IT','HOA_COHS','HOA_KHONG')" );
 
 vhcc_dung_bang();
 

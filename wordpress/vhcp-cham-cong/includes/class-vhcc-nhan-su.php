@@ -4407,6 +4407,74 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * GHÉP HAI MÃ LÀM MỘT, MỘT LƯỢT: tự chọn mã chính → khai cặp → dồn lượt cũ.
+	 *
+	 * =========================================================================================
+	 * 🔴 ANH THẮNG CHỐT 16/09/2026: *"thêm tính năng ghép 2 mã nhân viên lại 1"*, và khi hỏi giữ
+	 *    mã nào: **"Luôn giữ mã có nhiều công hơn"**.
+	 * =========================================================================================
+	 * Đồ nghề đã có đủ từ trước (`khai_ma_song_song()` + `don_ma()`), nhưng chúng bắt người dùng
+	 * tự gõ mã nào chính mã nào phụ. Đứng trước bảng công thấy hai hàng cùng tên thì không ai
+	 * biết mã nào "đúng" — và gõ ngược thì công dồn về cái mã sắp bị bỏ.
+	 *
+	 * Thước chọn: **mã nào nhiều LƯỢT CHẤM hơn thì làm mã chính.** Không đếm số giờ — một lượt
+	 * quên bấm giờ ra có 0 giờ nhưng vẫn là một ngày người ta đi làm, và nó vẫn phải kéo theo
+	 * mã của mình.
+	 *
+	 * ⚠️ NÓI RA ĐÃ CHỌN MÃ NÀO VÀ VÌ SAO. Chọn ngầm rồi im lặng là thứ không lần lại được: việc
+	 *    này KHÔNG ĐẢO ĐƯỢC (xem `don_ma()`), nên người bấm phải đọc được ngay sau đó rằng công
+	 *    đã dồn về đâu.
+	 *
+	 * ⚠️ HOÀ THÌ ƯU TIÊN MÃ CÓ HỒ SƠ. `ma_that()` chỉ dịch được về một mã CÓ hồ sơ, nên chọn mã
+	 *    không hồ sơ làm mã chính là tự tay làm cho lần đồng bộ sau hết tác dụng. Hoà nữa thì
+	 *    lấy mã đứng trước theo abc — cốt để hai lần bấm cùng một cặp ra cùng một kết quả.
+	 */
+	public static function ghep_hai_ma( $u, $ma_x, $ma_y ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Ghép hai mã ảnh hưởng cả chuỗi — ' . self::LOI_QT );
+		}
+		$x = trim( (string) $ma_x );
+		$y = trim( (string) $ma_y );
+		if ( '' === $x || '' === $y ) { return array( 'ok' => false, 'error' => 'Thiếu một trong hai mã.' ); }
+		if ( 0 === strcasecmp( $x, $y ) ) { return array( 'ok' => false, 'error' => 'Hai mã giống nhau.' ); }
+
+		$t  = VHCC_DB::t( 'cham_cong' );
+		$dem = function ( $ma ) use ( $wpdb, $t ) {
+			return (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ma_nv=%s", $ma ) );
+		};
+		$lx = $dem( $x );
+		$ly = $dem( $y );
+
+		if ( $lx !== $ly ) {
+			$chinh = ( $lx > $ly ) ? $x : $y;
+			$vi_sao = 'nhiều lượt chấm hơn (' . max( $lx, $ly ) . ' so với ' . min( $lx, $ly ) . ')';
+		} else {
+			$hx = (bool) self::ho_so( $x );
+			$hy = (bool) self::ho_so( $y );
+			if ( $hx !== $hy ) {
+				$chinh  = $hx ? $x : $y;
+				$vi_sao = 'hai mã bằng nhau về số lượt (' . $lx . '), nhưng mã này CÓ hồ sơ';
+			} else {
+				$chinh  = ( strcasecmp( $x, $y ) <= 0 ) ? $x : $y;
+				$vi_sao = 'hai mã bằng nhau mọi mặt (' . $lx . ' lượt), lấy mã đứng trước theo abc';
+			}
+		}
+		$phu = ( $chinh === $x ) ? $y : $x;
+
+		$kh = self::khai_ma_song_song( $u, $chinh, $phu, '', 'ghép từ bảng công' );
+		/* Cặp đã khai từ trước thì KHÔNG phải lỗi — người ta đang muốn dồn nốt phần cũ. */
+		if ( empty( $kh['ok'] ) && false === strpos( (string) $kh['error'], 'đã khai' ) ) {
+			return array( 'ok' => false, 'error' => (string) $kh['error'] );
+		}
+		$dm = self::don_ma( $u, $chinh, $phu );
+		if ( empty( $dm['ok'] ) ) { return array( 'ok' => false, 'error' => (string) $dm['error'] ); }
+
+		return array( 'ok' => true, 'chinh' => $chinh, 'phu' => $phu, 'viSao' => $vi_sao,
+			'chuyen' => (int) $dm['chuyen'], 'gop' => (int) $dm['gop'] );
+	}
+
+	/**
 	 * ĐẾM XEM DỒN MÃ PHỤ VỀ MÃ CHÍNH THÌ ĐỘNG VÀO BAO NHIÊU HÀNG.
 	 *
 	 * Trả [ 'chuyen' => số hàng chỉ việc đổi mã, 'gop' => số hàng phải gộp vì trùng ngày ].
@@ -4447,10 +4515,24 @@ class VHCC_NhanSu {
 	 *    chính rồi thì không còn dấu vết nó từng thuộc mã nào. Vì thế nó là một NÚT RIÊNG, đứng
 	 *    sau việc khai cặp, chứ không chạy kèm: khai cặp là việc nhẹ và bỏ được, dồn thì không.
 	 *
-	 * 🔴 TRÙNG NGÀY THÌ GỘP, KHÔNG BỎ. Bảng có `UNIQUE KEY o (coso,ngay,ma_nv,hau_to)` nên đổi
-	 *    mã thẳng sẽ đụng khoá ở những ngày cả hai mã cùng có giờ. Bỏ hàng phụ đi là mất giờ
-	 *    thật. Hai mã là MỘT người, một ngày họ chỉ có một ca — nên gộp: giờ vào lấy SỚM NHẤT,
-	 *    giờ ra lấy MUỘN NHẤT. Đó là khoảng người ấy thật sự có mặt.
+	 * 🔴 TRÙNG NGÀY THÌ GIỮ LƯỢT DÀI HƠN, BỎ LƯỢT KIA. Bảng có `UNIQUE KEY o (coso,ngay,ma_nv,
+	 *    hau_to)` nên đổi mã thẳng sẽ đụng khoá ở những ngày cả hai mã cùng có giờ.
+	 *
+	 *    ⚠️ LUẬT NÀY ĐÃ ĐỔI 16/09/2026. Bản trước gộp bằng cách lấy giờ vào SỚM NHẤT và giờ ra
+	 *       MUỘN NHẤT của hai hàng, với lý do "hai mã là MỘT người, một ngày họ chỉ có một ca".
+	 *       Lý do ấy nghe xuôi nhưng phép tính thì NỚI KHOẢNG RA: một người thật sự làm hai ca
+	 *       rời trong ngày (08:00–12:00 ở mã này, 14:00–18:00 ở mã kia) bị gộp thành một khoảng
+	 *       08:00–18:00 = 10 giờ, tức **trả dư 2 giờ tiền cho giờ không ai làm**.
+	 *
+	 *       Anh Thắng chốt: *"Giữ lượt dài hơn, bỏ lượt kia"* — vì cảnh có thật ở đây là app cũ
+	 *       và máy mới cùng chép về MỘT ca, hai hàng gần như trùng nhau. Giữ hàng dài hơn cho ra
+	 *       đúng ca ấy, và không bao giờ sinh ra giờ chưa ai làm. Đổi lại, nếu đúng là hai ca
+	 *       rời thật thì mất ca ngắn — nhưng thiếu giờ thì người ta kêu và bù được, còn dư giờ
+	 *       thì không ai biết mà kêu.
+	 *
+	 *    ⚠️ Hàng thiếu một đầu giờ (chỉ có giờ vào, hoặc chỉ có giờ ra) coi như dài 0 — hàng nào
+	 *       ĐỦ CẶP thì luôn thắng. Cả hai cùng thiếu thì giữ hàng của mã chính, vì nó đã nằm sẵn
+	 *       đúng khoá.
 	 */
 	public static function don_ma( $u, $ma_chinh, $ma_phu ) {
 		global $wpdb;
@@ -4486,11 +4568,17 @@ class VHCC_NhanSu {
 				$chuyen++;
 				continue;
 			}
-			/* Gộp: vào SỚM NHẤT, ra MUỘN NHẤT. `null` nghĩa là ô trống — bên nào có thì lấy. */
-			$vao = self::nho_hon( $cu['gio_vao_giay'], $r['gio_vao_giay'] );
-			$ra  = self::lon_hon( $cu['gio_ra_giay'],  $r['gio_ra_giay'] );
-			$ng  = ( (string) $cu['nguon'] !== (string) $r['nguon'] && '' !== trim( (string) $r['nguon'] ) )
-				? 'hon-hop' : $cu['nguon'];
+			/* Giữ lượt DÀI HƠN, bỏ lượt kia — xem khối chú thích của hàm. */
+			$d_cu  = self::dai_luot( $cu['gio_vao_giay'], $cu['gio_ra_giay'] );
+			$d_moi = self::dai_luot( $r['gio_vao_giay'],  $r['gio_ra_giay'] );
+			/* 🔴 HAI NGUỒN KHÁC NHAU THÌ VẪN GHI `hon-hop`, DÙ CHỈ GIỮ MỘT HÀNG. Hàng còn lại
+			   là giờ của một nguồn, nhưng việc "có hai nguồn cùng ghi ngày này và chúng khác
+			   nhau" là thứ người đi soi cần biết — xoá dấu vết ấy đi thì sau này không ai lần
+			   ra vì sao một ca biến mất. */
+			$ng = ( '' !== trim( (string) $r['nguon'] )
+				&& (string) $cu['nguon'] !== (string) $r['nguon'] ) ? 'hon-hop' : $cu['nguon'];
+			$vao = ( $d_moi > $d_cu ) ? $r['gio_vao_giay'] : $cu['gio_vao_giay'];
+			$ra  = ( $d_moi > $d_cu ) ? $r['gio_ra_giay']  : $cu['gio_ra_giay'];
 			$wpdb->update( $t, array(
 				'gio_vao_giay' => $vao, 'gio_ra_giay' => $ra, 'nguon' => $ng,
 				'chuan' => trim( VHCC_DB::hhmm( $vao ) . ' ' . VHCC_DB::hhmm( $ra ) ),
@@ -4499,6 +4587,22 @@ class VHCC_NhanSu {
 			$gop++;
 		}
 		return array( 'ok' => true, 'chuyen' => $chuyen, 'gop' => $gop );
+	}
+
+	/**
+	 * Một lượt dài bao nhiêu phút — để so xem hàng nào "dài hơn" lúc dồn mã.
+	 *
+	 * 🔴 THIẾU MỘT ĐẦU GIỜ THÌ COI LÀ 0, không phải "chưa biết". Một hàng chỉ có giờ vào không
+	 *    nói được người ta làm bao lâu; đặt nó bằng 0 để hàng ĐỦ CẶP luôn thắng — đó đúng là
+	 *    hàng đáng giữ.
+	 * ⚠️ Ca vắt qua nửa đêm: cộng bù `+24h`, cùng luật với `VHCC_Luong::phut_ca()`. Không cộng
+	 *    bù thì một ca 22:00 → 02:00 ra số ÂM và luôn thua — tức luôn bị bỏ.
+	 */
+	private static function dai_luot( $vao, $ra ) {
+		if ( null === $vao || '' === $vao || null === $ra || '' === $ra ) { return 0; }
+		$d = (int) $ra - (int) $vao;
+		if ( $d < 0 ) { $d += VHCC_DB::NGAY_GIAY; }
+		return $d;
 	}
 
 	/** Nhỏ hơn, bỏ qua null. Cả hai null -> null. */

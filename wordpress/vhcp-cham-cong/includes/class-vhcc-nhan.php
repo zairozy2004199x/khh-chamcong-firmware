@@ -560,6 +560,42 @@ class VHCC_Nhan {
 		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		$bang = VHCC_DB::t( 'cham_cong' );
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 MÃ PHỤ ĐÃ KHAI CẶP THÌ DỊCH VỀ MÃ CHÍNH — Ở ĐÂY, CHỐT CUỐI CỦA MỌI ĐƯỜNG GHI.
+		 *
+		 * Anh Thắng 16/09/2026: *"khi đồng bộ, nó lại sinh ra nhân viên mới, do 2 mã nhân viên
+		 * khác nhau"* — và trước đó, 28/08: *"cần đồng bộ 2 mã chạy song song được không, chứ
+		 * nó đang nhân 2 nhân viên ra"*.
+		 *
+		 * Cơ chế ghép đã có từ lâu (sổ `ma_song_song` + `ma_that()`), nhưng `ma_that()` CHỈ được
+		 * gọi ở `mot_luot()` — tức chỉ lượt do MÁY CHẤM CÔNG đẩy lên. Nút **Nạp về** đi đường
+		 * `VHCC_Keo::keo_thang()` → thẳng vào hàm này, và nạp .csv cũng thế. Nên mỗi lần đồng bộ
+		 * lại rót về một lô lượt mang MÃ CŨ, và bảng công lại mọc ra người thứ hai. Khai ghép
+		 * bao nhiêu lần cũng vô ích nếu đường đổ dữ liệu vào không thèm hỏi sổ ghép.
+		 *
+		 * Chốt ở đây là chốt đúng chỗ — chú thích ngay trên đã nói: *"Mọi đường ghi vào bảng
+		 * chấm công đều qua đây, nên chốt ở đây là chốt cho cả những đường sẽ mọc ra sau."*
+		 *
+		 * ⚠️ `mot_luot()` VẪN gọi `ma_that()` trước khi vào đây, và đó KHÔNG phải thừa: nó cần
+		 *    biết mã đã đổi để lấy luôn TÊN từ hồ sơ trước mấy nhánh nhật ký. Gọi hai lần vô hại
+		 *    — `ma_that()` của một mã chính trả lại chính nó. Đừng thấy trùng rồi gỡ cái ở đây.
+		 * ⚠️ `ma_that()` chỉ đổi khi đầu kia CÓ hồ sơ; chưa khai cặp thì nó trả lại nguyên mã cũ
+		 *    và lượt ấy vẫn vào bảng như trước. Không lượt nào biến mất.
+		 * ⚠️ Dịch TRƯỚC `tach_hau_to()`: hậu tố (`-CD`, `-TC`) là chuyện của CA, không phải của
+		 *    người, còn sổ ghép khai theo mã trần. Dịch xong lắp lại đúng hậu tố cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ma_that' ) ) {
+			list( $ma_tr, $ht_tr ) = self::tach_hau_to( $ma_nv );
+			$ma_th = VHCC_NhanSu::ma_that( $ma_tr );
+			if ( '' !== $ma_th && 0 !== strcasecmp( (string) $ma_th, (string) $ma_tr ) ) {
+				$ma_nv  = $ma_th . ( '' !== $ht_tr ? '-' . $ht_tr : '' );
+				$hs_th  = VHCC_NhanSu::ho_so( $ma_th );
+				if ( $hs_th && '' !== trim( (string) $hs_th['ho_ten'] ) ) {
+					$ho_ten = (string) $hs_th['ho_ten'];
+				}
+			}
+		}
+
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
 
 		$cu = $wpdb->get_row( $wpdb->prepare(

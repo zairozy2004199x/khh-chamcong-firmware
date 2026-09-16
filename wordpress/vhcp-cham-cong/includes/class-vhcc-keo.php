@@ -109,6 +109,25 @@ class VHCC_Keo {
 			if ( $ma === '' )  { $bo[] = 'một dòng thiếu Mã NV'; continue; }
 			if ( $ten === '' ) { $bo[] = $ma . ': thiếu Họ tên'; continue; }
 
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 MÃ ĐÃ KHAI CẶP THÌ CẬP NHẬT HỒ SƠ MÃ CHÍNH, ĐỪNG ĐẺ HỒ SƠ THỨ HAI.
+			 *
+			 * Anh Thắng 16/09/2026: *"khi đồng bộ, nó lại sinh ra nhân viên mới, do 2 mã nhân
+			 * viên khác nhau"*. Đây đúng là chỗ đẻ ra nó: `employeeNo` của app gốc được lấy
+			 * NGUYÊN XI làm khoá, nên một người đã khai ghép vẫn mọc thêm một hồ sơ mã cũ mỗi
+			 * lần kéo — và có hồ sơ là có hàng trong lưới, kể cả khi không lượt chấm nào.
+			 *
+			 * ⚠️ `ma_that()` chỉ đổi khi đầu kia CÓ hồ sơ, nên mã chưa khai ghép đi qua đây y
+			 *    như trước: vẫn tạo hồ sơ mới, không mất ai.
+			 * ⚠️ ĐỔI CẢ `$ma` chứ không chỉ dòng `insert`: `$dang_co`, `$dong` (bảng "sẽ làm
+			 *    gì") và nhánh `update` bên dưới đều tra theo `$ma`. Đổi nửa vời thì màn xem
+			 *    trước nói một đằng, ghi xuống một nẻo.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			if ( method_exists( 'VHCC_NhanSu', 'ma_that' ) ) {
+				$ma_ch = VHCC_NhanSu::ma_that( $ma );
+				if ( '' !== $ma_ch && 0 !== strcasecmp( (string) $ma_ch, $ma ) ) { $ma = $ma_ch; }
+			}
+
 			$ghi = array();
 			foreach ( self::BAN_DO_NV as $khoa_app => $cot ) {
 				if ( ! array_key_exists( $khoa_app, $e ) ) { continue; }
