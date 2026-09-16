@@ -177,6 +177,38 @@ class VHG_Cong {
 			) );
 			$kq[] = $r;
 		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GHI SỔ TRƯỢT -> TRẢ KHÁC 2xx, ĐỂ BÊN GỬI BẮN LẠI.
+		 *
+		 * SePay đọc 2xx là coi như đã giao xong và bỏ gói đi. Nên gật đầu cho một lượt ghi sổ
+		 * hỏng nghĩa là giao dịch ấy MẤT HẲN, im lặng, không đường dựng lại.
+		 *
+		 * Bắn lại AN TOÀN: `ref` là UNIQUE và `ghi()` ghi theo `ref`, nên lượt bắn lại rơi
+		 * đúng vào hàng cũ chứ không cộng thêm. Chính vì vậy đòi bắn lại mới là nước đi đúng.
+		 *
+		 * ⚠️ KHÁC HẲN GÓI KHÔNG ĐỌC ĐƯỢC ở khối trên: gói ấy bắn lại bao nhiêu lần cũng vẫn
+		 *    không đọc nổi, mà đòi mãi thì bên gửi TẮT webhook — và từ đó mất mọi giao dịch
+		 *    chứ không riêng gói ấy. Nên nó giữ 200. Chỉ lượt GHI SỔ HỎNG mới đòi bắn lại, vì
+		 *    chỉ nó mới có cơ ăn ở lần sau.
+		 *
+		 * ⚠️ `bo_qua` (gói thử của SePay, tiền ra, số tiền 0) mang `ok = true` — chúng cố ý
+		 *    không vào sổ và là đường chạy ĐÚNG, không được lọt vào nhánh này.
+		 *
+		 * Nhật ký đã ghi ở vòng trên rồi, kèm lý do — trả 500 mà không để lại dấu vết thì bên
+		 * gửi bắn đủ số lần rồi bỏ cuộc, và mình vẫn không hay biết.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		$truot = array();
+		foreach ( $kq as $r ) {
+			if ( empty( $r['ok'] ) ) { $truot[] = isset( $r['ref'] ) ? $r['ref'] : ''; }
+		}
+		if ( $truot ) {
+			self::tra( 500, array( 'success' => false, 'nguon' => $nguon, 'count' => count( $kq ),
+				'failed' => count( $truot ),
+				'error'  => 'Không ghi được ' . count( $truot ) . '/' . count( $kq )
+					. ' giao dịch vào sổ — xin gửi lại gói này.' ) );
+			return;
+		}
 		self::tra( 200, array( 'success' => true, 'nguon' => $nguon, 'count' => count( $kq ) ) );
 	}
 
