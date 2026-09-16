@@ -1412,6 +1412,15 @@ function dungViewFile(nguon){
   +   '<div class="card"><div class="lbl">Ngày còn thiếu file</div><div class="val out" id="'+id('fThieu')+'">0</div><div class="lbl" id="'+id('fThieuSub')+'"></div></div>'
   + '</div>'
   + '<div class="panel" id="'+id('canhBao')+'" style="display:none"></div>'
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * THỨ TỰ KHỐI TRÊN MÀN NÀY LÀ CỐ Ý — anh Thắng 16/09/2026, sau khi *"chưa thấy lọc doanh thu
+   * theo cửa hàng"*: ô lọc CÓ, nhưng khối chứa nó nằm gần cuối trang, dưới cả phần nạp file và
+   * hai khối sửa ánh xạ. Một thứ phải cuộn qua bốn khối mới thấy thì coi như chưa làm.
+   *
+   * Nay: số liệu trước, việc-phải-làm sau —
+   *   tải file  ->  theo ngày  ->  theo cửa hàng (có ô lọc)  ->  chưa ra mã  ->  sửa ánh xạ  ->  bank
+   * ⚠️ Đừng chèn khối mới vào giữa ba khối đầu: chúng là thứ người ta mở màn này để xem.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   + '<div class="panel">'
   +   '<h3 style="margin-top:0">📤 Tải file kết xuất ' + esc(ten) + '</h3>'
   +   '<div class="hint">Chọn file <code>.xlsx</code> hoặc <code>.csv</code>. App đọc ngay trên máy anh (không gửi file đi đâu), '
@@ -1433,6 +1442,30 @@ function dungViewFile(nguon){
   +     '<div class="hint" id="'+id('xemTruoc')+'"></div>'
   +   '</div>'
   +   '<div id="'+id('napKq')+'" style="margin-top:8px"></div>'
+  + '</div>'
+  + '<div class="panel">'
+  +   '<h3 style="margin-top:0">📅 Đối soát theo ngày <span class="muted" id="'+id('ngayLbl')+'"></span></h3>'
+  +   '<div class="hint">Ô <b>đỏ</b> là ngày <b>chưa có file</b> — đó chính là chỗ số tháng đang thiếu tiền. '
+  +   'Bấm một ô để <b>xem riêng ngày đó</b> (bảng cửa hàng và cục bank bó lại trong ngày). '
+  +   'Muốn xoá dữ liệu một ngày thì chọn ngày đó rồi bấm nút 🗑 — <b>không xoá bằng cú bấm chọn ngày</b>.</div>'
+  +   '<div id="'+id('ngayO')+'" style="display:flex;flex-wrap:wrap;gap:6px"></div>'
+  +   '<div id="'+id('locBar')+'" style="display:none;margin-top:12px" class="row"></div>'
+  +   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Ngày</th>'
+  +     '<th class="num">Số cửa hàng</th><th class="num">Số tiền</th>'
+  +     '<th class="num">So hôm trước</th><th></th></tr></thead>'
+  +     '<tbody id="'+id('ngayBody')+'"></tbody></table></div>'
+  + '</div>'
+  + '<div class="panel" style="overflow:auto">'
+  +   '<h3 style="margin-top:0">Theo cửa hàng <span class="muted" id="'+id('chLbl')+'"></span></h3>'
+  /* Lọc theo MỘT cửa hàng — anh Thắng 16/09/2026. Bảng này có tháng tới vài chục dòng, muốn xem
+     doanh thu của riêng một gian thì phải dò mắt. Lọc ngay tại chỗ, không cần gọi lại máy chủ. */
+  +   '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
+  +     '<select id="'+id('chLoc')+'" onchange="cgLocCH(\''+nguon+'\')" style="min-width:240px"></select>'
+  +     '<span id="'+id('chLocTong')+'" class="muted"></span>'
+  +   '</div>'
+  +   '<table><thead><tr><th>Cửa hàng chuẩn</th><th>Tên ở file cổng</th><th>Mã nộp tiền</th>'
+  +   '<th class="num">Số ngày có</th><th>Ngày cuối</th><th class="num">Số tiền</th></tr></thead>'
+  +   '<tbody id="'+id('chBody')+'"></tbody></table>'
   + '</div>'
   + '<div class="panel" id="'+id('axWrap')+'" style="display:none">'
   +   '<h3 style="margin-top:0">🏪 Cửa hàng CHƯA ra được mã nộp tiền</h3>'
@@ -1465,30 +1498,6 @@ function dungViewFile(nguon){
   +   '</div>'
   +   '<div id="'+id('cgKq')+'" style="margin-top:8px"></div>'
   + '</details>'
-  + '<div class="panel">'
-  +   '<h3 style="margin-top:0">📅 Đối soát theo ngày <span class="muted" id="'+id('ngayLbl')+'"></span></h3>'
-  +   '<div class="hint">Ô <b>đỏ</b> là ngày <b>chưa có file</b> — đó chính là chỗ số tháng đang thiếu tiền. '
-  +   'Bấm một ô để <b>xem riêng ngày đó</b> (bảng cửa hàng và cục bank bó lại trong ngày). '
-  +   'Muốn xoá dữ liệu một ngày thì chọn ngày đó rồi bấm nút 🗑 — <b>không xoá bằng cú bấm chọn ngày</b>.</div>'
-  +   '<div id="'+id('ngayO')+'" style="display:flex;flex-wrap:wrap;gap:6px"></div>'
-  +   '<div id="'+id('locBar')+'" style="display:none;margin-top:12px" class="row"></div>'
-  +   '<div style="overflow:auto;margin-top:12px"><table><thead><tr><th>Ngày</th>'
-  +     '<th class="num">Số cửa hàng</th><th class="num">Số tiền</th>'
-  +     '<th class="num">So hôm trước</th><th></th></tr></thead>'
-  +     '<tbody id="'+id('ngayBody')+'"></tbody></table></div>'
-  + '</div>'
-  + '<div class="panel" style="overflow:auto">'
-  +   '<h3 style="margin-top:0">Theo cửa hàng <span class="muted" id="'+id('chLbl')+'"></span></h3>'
-  /* Lọc theo MỘT cửa hàng — anh Thắng 16/09/2026. Bảng này có tháng tới vài chục dòng, muốn xem
-     doanh thu của riêng một gian thì phải dò mắt. Lọc ngay tại chỗ, không cần gọi lại máy chủ. */
-  +   '<div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">'
-  +     '<select id="'+id('chLoc')+'" onchange="cgLocCH(\''+nguon+'\')" style="min-width:240px"></select>'
-  +     '<span id="'+id('chLocTong')+'" class="muted"></span>'
-  +   '</div>'
-  +   '<table><thead><tr><th>Cửa hàng chuẩn</th><th>Tên ở file cổng</th><th>Mã nộp tiền</th>'
-  +   '<th class="num">Số ngày có</th><th>Ngày cuối</th><th class="num">Số tiền</th></tr></thead>'
-  +   '<tbody id="'+id('chBody')+'"></tbody></table>'
-  + '</div>'
   + '<div class="panel" style="overflow:auto">'
   +   '<h3 style="margin-top:0">Cục về ngân hàng trong tháng <span class="muted" id="'+id('bankLbl')+'"></span></h3>'
   +   '<table><thead><tr><th>Ngày GD</th><th>Ngân hàng</th><th>Số TK</th><th>Pháp nhân</th>'
@@ -1587,23 +1596,22 @@ function veDoiSoatFile(nguon, d){
   cgEl(nguon,'fThieuSub').textContent = 'trên ' + d.soNgayCanCo + ' ngày cần có';
   /* Ô sửa từ khoá đã dời sang tab Cấu hình (v0.27.0) — không còn ghi vào màn đối soát nữa. */
 
-  var ds = [];
-  if(!d.tongFile) ds.push('Tháng này <b>chưa nạp file nào</b>. Tải file kết xuất '+esc(d.ten)+' ở khối bên dưới.');
-  if(d.chuaAnhXa.length) ds.push('<b>'+d.chuaAnhXa.length+' cửa hàng CHƯA ra được mã nộp tiền</b> — khai ở khối 🏪 bên dưới. '
-    + 'Tiền của các cửa hàng này KHÔNG vào được tab Tổng hợp doanh thu cơ sở.');
-  if(d.khongTenCH && d.khongTenCH.soDong) ds.push('<b>'+d.khongTenCH.soDong+' dòng file không đọc ra tên cửa hàng</b> ('
-    + fmt(d.khongTenCH.soTien)+'đ, ngày '+d.khongTenCH.ngay.slice(0,6).map(esc).join(' · ')
-    + (d.khongTenCH.ngay.length>6?' …':'') + ') — không ánh xạ bằng tên được, phải <b>chọn lại cột Cửa hàng</b> rồi nạp lại file các ngày đó.');
-  if(d.soAnhXa && d.soAnhXaCoMa < d.soAnhXa) ds.push('Bảng ánh xạ có <b>'+(d.soAnhXa-d.soAnhXaCoMa)+'/'+d.soAnhXa
-    + ' dòng chưa ra được mã</b> (tên chuẩn gõ khác tên trong danh sách điểm, hoặc điểm chưa khai ở tab Tendinhdanh).');
-  if(d.conThieuNgay.length) ds.push('Còn <b>'+d.conThieuNgay.length+' ngày chưa có file</b>: '
-    + d.conThieuNgay.slice(0,10).map(esc).join(' · ') + (d.conThieuNgay.length>10?' …':'') + '. Số tháng đang thiếu phần này.');
-  if(d.chenh !== 0 && (d.tongFile || d.bankTien)) ds.push('File và bank <b>lệch '+fmt(Math.abs(d.chenh))+'đ</b> — '
-    + (d.chenh > 0 ? 'file nhiều hơn bank: cổng <b>trừ phí</b> trước khi chuyển, hoặc cục cuối tháng về sang tháng sau.'
-                   : 'bank nhiều hơn file: còn ngày chưa nạp file, hoặc cục chứa cả tiền của tháng trước.'));
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * KHỐI "CẦN BIẾT" ĐÃ BỎ (0.39.0) — anh Thắng 16/09/2026: *"ẩn này đi"*.
+   *
+   * Nó liệt kê lại những thứ MÀN HÌNH ĐÃ NÓI Ở CHỖ KHÁC, ngay bên dưới nó:
+   *   · "N cửa hàng chưa ra được mã"  -> đã có nguyên một bảng 🏪 liệt kê từng cái;
+   *   · "bảng ánh xạ còn x/y dòng chưa ra mã" -> đã in ngay trên tiêu đề khối 🔧 Sửa ánh xạ;
+   *   · "file và bank lệch N đ"       -> đã là hẳn một ô số to "Chênh lệch (file − bank)";
+   *   · "còn N ngày chưa có file"     -> đã là ô số "Ngày còn thiếu file", và dải ô ngày đỏ.
+   * Một dải chữ nhắc lại bốn con số đang nằm cách nó vài dòng thì không thêm thông tin, chỉ đẩy
+   * bảng số liệu xuống dưới màn — mà đó mới là thứ người ta mở trang này để xem.
+   *
+   * 🔴 KHÔNG XOÁ Ô `canhBao`: nó CÒN DÙNG để báo lỗi tải số liệu (`cgBaoLoiFile`). Xoá luôn ô ấy
+   *    là lượt tải hỏng không còn chỗ nào nói ra, màn chỉ đứng im — đúng loại hỏng câm tệ nhất.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
   var b = cgEl(nguon,'canhBao');
-  if(ds.length){ b.style.display=''; b.innerHTML = '<h3 style="margin-top:0">Cần biết</h3><div class="hint">• '+ds.join('<br>• ')+'</div>'; }
-  else b.style.display='none';
+  b.style.display='none'; b.innerHTML='';
 
   // Cửa hàng mới chưa ánh xạ
   var aw = cgEl(nguon,'axWrap');

@@ -132,6 +132,38 @@ t('🔴 cửa hàng đang lọc không có trong tháng mới -> tự nhả về
 	M.state().momo === '' && D.sel.value === '', { state: M.state().momo, o: D.sel.value });
 t('và bảng không bị ẩn sạch', D.trs.every(function (r) { return r.style.display === ''; }));
 
+/* ── 5. Thứ tự khối trên màn — anh Thắng 16/09/2026: *"chưa thấy lọc doanh thu theo cửa hàng"*.
+   Ô lọc CÓ mà khối chứa nó nằm gần cuối trang, dưới cả phần nạp file và hai khối sửa ánh xạ:
+   phải cuộn qua bốn khối mới thấy thì coi như chưa làm. Ghim thứ tự lại — số liệu trước,
+   việc-phải-làm sau. ──────────────────────────────────────────────────────────────────────── */
+/* ⚠️ DÒ TRONG THÂN `dungViewFile()` THÔI. app.html còn một BẢNG DỊCH ở đầu tệp liệt kê đúng mấy
+   tiêu đề này ('Theo cửa hàng':'By store', …); dò trên cả tệp là trúng bảng dịch và mọi phép thứ
+   tự đều vô nghĩa — bản đầu của bài này đỏ đúng vì thế. */
+const THAN = (function () {
+	const i = src.indexOf('function dungViewFile(');
+	if (i < 0) { throw new Error('không thấy dungViewFile trong app.html'); }
+	return src.slice(i, src.indexOf('\nfunction ', i + 10));
+})();
+const viTri = function (s) { return THAN.indexOf(s); };
+const P_TAI  = viTri('📤 Tải file kết xuất');
+const P_NGAY = viTri('📅 Đối soát theo ngày');
+const P_CH   = viTri('Theo cửa hàng <span');
+const P_AX   = viTri('🏪 Cửa hàng CHƯA ra được mã');
+const P_BANK = viTri('Cục về ngân hàng trong tháng');
+t('tìm thấy đủ năm khối', [P_TAI, P_NGAY, P_CH, P_AX, P_BANK].every(function (x) { return x > 0; }));
+t('🔴 khối "Theo cửa hàng" (chứa ô lọc) đứng TRƯỚC hai khối sửa ánh xạ', P_CH < P_AX);
+t('đối soát theo ngày nằm ngay dưới khối tải file', P_TAI < P_NGAY && P_NGAY < P_CH);
+t('cục ngân hàng vẫn ở cuối', P_BANK > P_AX);
+
+/* ── 6. Khối "Cần biết" đã bỏ, nhưng ô báo lỗi PHẢI còn ─────────────────────────────────────── */
+t('🔴 màn đối soát cổng không còn dựng khối "Cần biết"',
+	(function () {
+		const i = src.indexOf('function veDoiSoatFile(');
+		return src.slice(i, src.indexOf('\nfunction ', i + 10)).indexOf('Cần biết') < 0;
+	})());
+/* 🔴 Xoá luôn ô `canhBao` là lượt tải hỏng không còn chỗ nào nói ra — màn chỉ đứng im. */
+t('🔴 vẫn giữ ô canhBao cho đường báo lỗi', src.indexOf("id('canhBao')") > 0 && src.indexOf('function cgBaoLoiFile(') > 0);
+
 console.log(TRUOT.length ? ('✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):\n  · ' + TRUOT.join('\n  · '))
 	: ('✓ SẠCH — ' + DAT + ' phép.'));
 process.exit(TRUOT.length ? 1 : 0);
