@@ -621,7 +621,9 @@ t( '🔴 cơ sở đang có dữ liệu vẫn hiện dù không khai',
 	in_array( 'GO BÀ RỊA', $dung, true ), $dung );
 t( 'và cơ sở mới khai cũng có', in_array( 'GHOST HOUSE - GO BÀ RỊA', $dung, true ), $dung );
 
-/* Khai rồi thì KHÔNG đọc danh mục chấm công nữa — đó mới là mục đích. */
+/* 🔴 KHÔNG BAO GIỜ TỰ ĐỔ DANH MỤC CHẤM CÔNG VÀO, KỂ CẢ KHI CHƯA KHAI GÌ.
+   Bản 1.4.0 lấy danh mục ấy làm mặc định, và cài xong là đập ngay vào mặt 21 thẻ trống — thứ
+   cần nhìn chìm mất, mà người mới cài chưa biết có màn Cài đặt để tắt đi. */
 if ( ! class_exists( 'VHCC_NhanSu' ) ) {
 	/* Bệ đỡ không có plugin chấm công; dựng một lớp giả để chứng minh đúng chốt ấy. */
 	eval( 'class VHCC_NhanSu { public static function ds_coso() {
@@ -631,11 +633,15 @@ $co_khai = VHVH_Tong::ds_coso_he();
 t( '🔴 khai rồi thì KHÔNG kéo mã đơn vị của hệ chấm công vào',
 	! in_array( 'FARM_PT', $co_khai, true ), $co_khai );
 
-/* Xoá danh sách riêng thì quay về đọc danh mục hệ. */
+/* Xoá danh sách riêng thì vẫn KHÔNG kéo danh mục hệ vào. */
 VHVH_Tong::dat_ds_coso( $QL, array() );
 t( 'gửi mảng rỗng là xoá danh sách riêng', array() === VHVH_Tong::ds_coso_khai() );
 $khong_khai = VHVH_Tong::ds_coso_he();
-t( 'xoá rồi thì đọc lại danh mục hệ', in_array( 'FARM_PT', $khong_khai, true ), $khong_khai );
+t( '🔴 CHƯA khai gì thì cũng KHÔNG kéo 21 mã đơn vị vào',
+	! in_array( 'FARM_PT', $khong_khai, true ), $khong_khai );
+/* Nhưng cơ sở đang mang dữ liệu thì vẫn phải hiện — không thì tiền đã nhập biến mất khỏi sổ. */
+t( 'nhưng cơ sở đang có dữ liệu vẫn hiện',
+	in_array( 'GO BÀ RỊA', $khong_khai, true ), $khong_khai );
 
 /* Khai lại cho mấy phép thử sau chạy trên trạng thái gọn. */
 VHVH_Tong::dat_ds_coso( $QL, array( 'GO BÀ RỊA', 'VŨNG TÀU' ) );

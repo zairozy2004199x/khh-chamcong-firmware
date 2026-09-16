@@ -33,20 +33,14 @@ class VHVH_Tong {
 	public static function ds_coso_he() {
 		global $wpdb;
 		$ds = array();
-		/* 🔴 KHAI RIÊNG THÌ KHÔNG ĐỌC DANH MỤC CHẤM CÔNG NỮA.
+		/* 🔴 KHÔNG TỰ ĐỔ DANH MỤC CHẤM CÔNG VÀO ĐÂY — KỂ CẢ KHI CHƯA KHAI GÌ.
 		   Danh mục bên chấm công là mã ĐƠN VỊ của cả công ty (FARM_PT, FF_SC, VP_KH-HCM… — 21
-		   cái), còn trang này chỉ vận hành vài cơ sở Ghost House. Đổ hết 21 cái vào màn Tổng
-		   quan thì thứ cần nhìn chìm mất giữa hai chục thẻ trống, và mỗi ô chọn cơ sở thành một
-		   danh sách phải cuộn. Khai riêng ở Cài đặt là màn hình chỉ còn đúng chỗ đang dùng. */
-		$rieng = self::ds_coso_khai();
-		if ( $rieng ) {
-			$ds = $rieng;
-		} elseif ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_coso' ) ) {
-			foreach ( (array) VHCC_NhanSu::ds_coso() as $c ) {
-				$c = trim( (string) $c );
-				if ( '' !== $c && ! in_array( $c, $ds, true ) ) { $ds[] = $c; }
-			}
-		}
+		   cái trên khmatrix.com), còn trang này chỉ vận hành vài cơ sở. Bản 1.4.0 lấy danh mục
+		   ấy làm MẶC ĐỊNH, và cài xong là đập ngay vào mặt hai chục thẻ trống — thứ cần nhìn
+		   chìm mất, mà người mới cài thì chưa biết có màn Cài đặt để tắt đi.
+		   Nay mặc định là RỖNG: chỉ hiện cơ sở đã khai, cộng cơ sở đang thật sự mang dữ liệu.
+		   Muốn lấy danh mục hệ thì bấm một nút trong Cài đặt — chủ động, không bị ép. */
+		$ds = self::ds_coso_khai();
 		foreach ( array( 'doanh_thu', 'su_co', 'checklist' ) as $bang ) {
 			$cot = (array) $wpdb->get_col( 'SELECT DISTINCT coso FROM ' . VHVH_DB::t( $bang ) );
 			foreach ( $cot as $c ) {

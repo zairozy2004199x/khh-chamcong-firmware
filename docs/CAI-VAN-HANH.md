@@ -1,6 +1,6 @@
 # Vận Hành cơ sở — plugin `vhcp-van-hanh`
 
-*Bản 1.4.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+*Bản 1.5.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
 
 > **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
 > nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ.
@@ -127,8 +127,8 @@ kể cả khi biết id.
 ## 6. Phép thử
 
 ```bash
-php tools/test/kiem-van-hanh.php      # 385 — quyền, tiền, điểm, mọi màn, khuôn dbDelta
-node tools/test/bam-thu-van-hanh.js   # 82  — BẤM THẬT trong Chromium
+php tools/test/kiem-van-hanh.php      # 386 — quyền, tiền, điểm, mọi màn, khuôn dbDelta
+node tools/test/bam-thu-van-hanh.js   # 85  — BẤM THẬT trong Chromium
 ```
 
 Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
@@ -172,6 +172,7 @@ Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
 | Ai cũng khai được danh sách cơ sở | 1 |
 | Giấu mất cơ sở đang có dữ liệu | 3 |
 | Trang không lọc dòng trống trước khi gửi | 2 |
+| Chưa khai gì thì lại đổ danh mục hệ vào | 1 |
 
 ---
 
@@ -312,10 +313,13 @@ Sáu loại, ra tệp **CSV** mở được bằng Excel · Google Sheet · Libr
 
 *Cài đặt* (chỉ **Quản lý** thấy) → ô **Cơ sở của trang này**, mỗi dòng một cơ sở.
 
-> 🔴 **Để trống thì trang đọc danh mục đơn vị của hệ chấm công** — mà danh mục ấy là mã đơn vị của
-> cả công ty (`FARM_PT`, `FF_SC`, `VP_KH-HCM`… 21 mục trên khmatrix.com). Đổ hết vào màn Tổng quan
-> thì thứ cần nhìn chìm mất giữa hai chục thẻ trống, và mỗi ô chọn cơ sở thành một danh sách phải
-> cuộn. Dùng một cơ sở thì khai đúng một dòng.
+> 🔴 **Trang KHÔNG tự lấy danh mục đơn vị của hệ chấm công** — kể cả khi chưa khai gì. Danh mục ấy
+> là mã đơn vị của cả công ty (`FARM_PT`, `FF_SC`, `VP_KH-HCM`… 21 mã trên khmatrix.com); bản 1.4.0
+> lấy nó làm mặc định và cài xong là đập ngay vào mặt hai chục thẻ trống, mà người mới cài thì chưa
+> biết có màn Cài đặt để tắt đi. Dùng một cơ sở thì khai đúng một dòng.
+>
+> Cần danh mục hệ thì bấm nút **Nhập … mã đơn vị từ hệ chấm công** — nó chỉ **điền vào ô** để xoá
+> bớt rồi mới Lưu, chứ không lưu thẳng.
 
 > ⚠️ **Cơ sở đang mang dữ liệu vẫn hiện, dù không có trong danh sách.** Giấu một cơ sở đang có
 > doanh thu thật thì tiền ấy biến mất khỏi mọi báo cáo mà không ai hay. Gõ nhầm tên một lần là nó

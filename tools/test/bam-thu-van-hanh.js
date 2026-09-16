@@ -506,9 +506,18 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   await trang2.click('[data-man="cai_dat"]');
   await trang2.waitForTimeout(220);
   t('mở được màn Cài đặt', await trang2.locator('#csDs').isVisible());
-  t('nói rõ hệ chấm công đang có bao nhiêu mục',
-    (await trang2.locator('.than').innerText()).indexOf('4 mục') >= 0,
+  t('nói rõ hệ chấm công đang có bao nhiêu mã',
+    (await trang2.locator('.than').innerText()).indexOf('4 mã') >= 0,
     await trang2.locator('.than').innerText());
+  /* 🔴 Nhập thì chỉ ĐIỀN VÀO Ô, không lưu luôn — lưu thẳng là lại đúng cảnh hai chục thẻ trống. */
+  await trang2.fill('#csDs', 'GHOST HOUSE - GO BÀ RỊA');
+  await trang2.click('#btCsNhap');
+  await trang2.waitForTimeout(120);
+  const sauNhap = await trang2.inputValue('#csDs');
+  t('nút Nhập điền danh mục hệ vào ô', sauNhap.indexOf('FARM_PT') >= 0, sauNhap);
+  t('và GIỮ dòng đang gõ dở', sauNhap.indexOf('GHOST HOUSE - GO BÀ RỊA') >= 0, sauNhap);
+  t('🔴 nhập xong KHÔNG tự lưu',
+    0 === (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'cai_coso').length);
   /* Nói ra cái lưới an toàn, không thì người ta tưởng plugin không nghe lời. */
   t('🔴 nói rõ cơ sở đang có dữ liệu vẫn hiện',
     (await trang2.locator('.than').innerText()).indexOf('đang mang dữ liệu') >= 0);

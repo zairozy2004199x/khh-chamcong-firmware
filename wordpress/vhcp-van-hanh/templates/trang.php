@@ -360,7 +360,11 @@ function veTongQuan(){
   /* Bảng gom — xem được nhiều cơ sở một lúc. */
   h += '<div class="the"><h2>Tình hình hoạt động các cơ sở</h2>';
   if (!(s.hang||[]).length) {
-    h += '<p class="nho">Chưa có cơ sở nào trong danh mục. Danh mục cơ sở lấy từ plugin Chấm Công.</p>';
+    /* Trạng thái rỗng phải CHỈ ĐƯỜNG, không chỉ báo là rỗng — người mới cài không biết có màn
+       Cài đặt, và sẽ tưởng plugin hỏng. */
+    h += '<p class="nho">Chưa khai cơ sở nào.' + (laVai('quan_ly')
+        ? ' Vào <b>⚙️ Cài đặt</b> ở cuối thanh bên để khai — mỗi dòng một cơ sở.'
+        : ' Nhờ Quản lý khai trong mục Cài đặt.') + '</p>';
   } else {
     h += '<div class="cuon"><table><tr><th>Cơ sở</th><th>Trạng thái</th><th class="so">Điểm</th>'
       + '<th class="so">Doanh thu/chỉ tiêu</th><th class="so">Checklist</th>'
@@ -1360,12 +1364,20 @@ function veCaiDat(){
   var d = duLieu.cai_dat;
   if (!d) return '<div class="the">Đang tải…</div>';
   return '<div class="the"><h2>Cơ sở của trang này</h2>'
-    + '<p class="nho">Mỗi dòng một cơ sở. <b>Để trống</b> thì trang tự đọc danh mục đơn vị của hệ '
-    + 'chấm công (' + (d.tu_he||[]).length + ' mục) — thường là quá nhiều so với việc ở đây.</p>'
+    + '<p class="nho">Mỗi dòng một cơ sở. Dùng một cơ sở thì gõ đúng một dòng.</p>'
+    + '<p class="nho">Trang <b>không tự</b> lấy danh mục đơn vị của hệ chấm công ('
+    + ((d.tu_he||[]).length) + ' mã: FARM_PT, FF_SC, VP_KH-HCM…) — đó là mã đơn vị của cả công ty, '
+    + 'đổ hết vào đây thì thứ cần nhìn chìm mất giữa hai chục thẻ trống. Cần thì bấm nút nhập '
+    + 'bên dưới rồi xoá bớt.</p>'
     + '<textarea id="csDs" rows="8" style="width:100%;margin-top:8px;border:1px solid var(--vien);'
     + 'border-radius:9px;padding:10px;font-family:var(--font-mono,monospace);font-size:14px" '
     + 'placeholder="GHOST HOUSE - GO BÀ RỊA">'+esc((d.ds_khai||[]).join('\n'))+'</textarea>'
-    + '<button class="nut chinh" id="btCsLuu" style="margin-top:10px">LƯU DANH SÁCH</button>'
+    + '<div class="hang" style="margin-top:10px">'
+    + '<button class="nut chinh" id="btCsLuu">LƯU DANH SÁCH</button>'
+    + ((d.tu_he||[]).length
+        ? '<button class="nut" id="btCsNhap">Nhập '+((d.tu_he||[]).length)
+          +' mã đơn vị từ hệ chấm công</button>' : '')
+    + '</div>'
     + '<h3>Đang dùng ('+((d.dang_dung||[]).length)+')</h3>'
     + '<p class="nho">'+esc((d.dang_dung||[]).join(' · '))+'</p>'
     /* Nói ra cái lưới an toàn, không thì người ta tưởng plugin không nghe lời. */
@@ -1377,6 +1389,16 @@ function veCaiDat(){
 }
 function noiCaiDat(){
   if (!g('btCsLuu')) return;
+  /* Nhập thì chỉ ĐIỀN VÀO Ô, không lưu luôn — để anh xoá bớt trước khi chốt. Lưu thẳng là lại
+     đúng cái cảnh hai chục thẻ trống mà bản trước đã gây ra. */
+  if (g('btCsNhap')) g('btCsNhap').addEventListener('click', function(){
+    var o = g('csDs');
+    var co = o.value.split('\n').map(function(x){ return x.trim(); })
+              .filter(function(x){ return x !== ''; });
+    (duLieu.cai_dat.tu_he||[]).forEach(function(c){ if (co.indexOf(c) < 0) co.push(c); });
+    o.value = co.join('\n');
+    o.focus();
+  });
   g('btCsLuu').addEventListener('click', function(){
     var b=this; if(dangBan) return; dangBan=true; b.disabled=true;
     var ds = g('csDs').value.split('\n').map(function(x){ return x.trim(); })
