@@ -60,7 +60,9 @@ jobs:
         if: steps.ver.outputs.exists == '0'
         run: |
           rm -rf _pkg && mkdir _pkg
-          rsync -a --exclude 'tools/dev' khbc-bao-cao-chi-phi/ _pkg/khbc-bao-cao-chi-phi/
+          # Loai CA tools/dev lan tools/test: ca hai deu la do phat trien, len may chu that
+          # thi vua thua vua la ma chay duoc nam trong thu muc plugin dang chay.
+          rsync -a --exclude 'tools/dev' --exclude 'tools/test' khbc-bao-cao-chi-phi/ _pkg/khbc-bao-cao-chi-phi/
           (cd _pkg && zip -qr ../khbc-bao-cao-chi-phi.zip khbc-bao-cao-chi-phi)
           ls -la khbc-bao-cao-chi-phi.zip
 
