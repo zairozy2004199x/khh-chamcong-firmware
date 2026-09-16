@@ -1521,4 +1521,85 @@ teq( '🔴 không ô TỔNG nào mang title rỗng', 0,
 /* Và màn phải NÓI RA là rê được — chú giải không ai đoán ra là có. */
 t( 'màn nói rõ là rê chuột được', false !== strpos( $h_rc4, 'Rê chuột vào ô TỔNG' ), $h_rc4 );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 17. HÀNG "GIỜ RA < GIỜ VÀO": 0 GIỜ VÀ KÊU LÊN — KHÔNG TRẢ TIỀN CHO DỮ LIỆU HỎNG
+ *
+ * Anh Thắng 16/09/2026 xác nhận ca có *"vắt qua nửa đêm"*. Nhưng ca đêm THẬT được TRẢI PHẲNG
+ * lúc ghi (05:30 hôm sau lưu là 105000 giây = 29h30 — xem `VHCC_Online::trai_phang()` và chú
+ * thích đầu `VHCC_DB`: *"cho phép giá trị > 86400 là cố ý"*). Nên `ra < vao` chỉ còn nghĩa là
+ * HÀNG GHI SAI.
+ *
+ * Trước bản này `phut_ca()` cộng bù +1440 cho khỏi ra số âm — và biến một lỗi gõ thành gần 24
+ * giờ công ĐƯỢC TRẢ TIỀN, trong khi lưới ngay trên đã bôi đỏ đúng hàng ấy.
+ * Anh Thắng chốt: *"Tính 0 giờ và kêu lên, giống lưới"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_h  = 'KHO_LA';
+$th_h  = '2026-08';
+$ma_h  = 'HONG1';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_h, 'ho_ten' => 'Người Hàng Hỏng',
+	'cua_hang' => $cs_h, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+/* Một ngày LÀNH để bảng có sẵn một mốc — 08:00 → 17:00 = 9 giờ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_h, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-05',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+
+$b_h0 = VHCC_BangLuong::dung( $cs_h, $th_h );
+$g_h0 = null;
+foreach ( $b_h0['dong'] as $x ) { if ( $x['ma'] === $ma_h && $x['laChinh'] ) { $g_h0 = $x; } }
+t( 'gieo: tìm được dòng của người ấy', null !== $g_h0, 'không thấy dòng' );
+teq( 'gieo: ngày lành cho đúng 9 giờ', 9.0, (float) $g_h0['gioTong'] );
+
+/* 🔴 GIEO MỘT HÀNG HỎNG: vào 22:00, ra 02:00 — KHÔNG trải phẳng (7200 < 79200). */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_h, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-06',
+	'gio_vao_giay' => 22 * 3600, 'gio_ra_giay' => 2 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+
+$b_h1 = VHCC_BangLuong::dung( $cs_h, $th_h );
+$g_h1 = null;
+foreach ( $b_h1['dong'] as $x ) { if ( $x['ma'] === $ma_h && $x['laChinh'] ) { $g_h1 = $x; } }
+teq( '🔴 hàng hỏng cộng 0 giờ — tổng KHÔNG đổi', 9.0, (float) $g_h1['gioTong'] );
+/* 🔴 VÀ NHẤT LÀ: KHÔNG ra ~20 giờ. Phép trên một mình có thể xanh vì lý do khác, phép này nói
+   thẳng cái hậu quả cũ ra để không ai lặng lẽ trả lại nó. */
+t( '🔴 KHÔNG cộng bù gần 24 giờ (lỗi cũ: 9 + 20 = 29)',
+	(float) $g_h1['gioTong'] < 12.0, $g_h1['gioTong'] );
+
+/* ⚠️ ĐO BẰNG CHÊNH LỆCH TRƯỚC/SAU, đừng so với 0: cơ sở này đã có sẵn hàng thiếu giờ từ mấy
+   mục trên, nên "phải bằng 0" là một giả định sai về bộ gieo chứ không phải về mã. */
+teq( '🔴 và bộ đếm hàng hỏng tăng đúng 1', (int) $b_h0['thieu']['hongGio'] + 1,
+	(int) $b_h1['thieu']['hongGio'] );
+teq( 'hàng hỏng KHÔNG bị đếm nhầm sang "thiếu giờ"',
+	(int) $b_h0['thieu']['gio'], (int) $b_h1['thieu']['gio'] );
+
+/* ⚠️ CA ĐÊM THẬT (ĐÃ TRẢI PHẲNG) VẪN PHẢI ĐỦ GIỜ.
+   Thiếu phép này thì bản vá có thể giết luôn ca đêm thật mà bộ thử vẫn xanh — đúng kiểu hỏng
+   không kêu tiếng nào. 22:00 → 06:00 hôm sau = 8 giờ, lưu ra = 21600 + 86400. */
+$ma_d = 'DEM1';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_d, 'ho_ten' => 'Người Ca Đêm',
+	'cua_hang' => $cs_h, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_d, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-07',
+	'gio_vao_giay' => 22 * 3600, 'gio_ra_giay' => 6 * 3600 + VHCC_DB::NGAY_GIAY,
+	'hau_to' => 'CD', 'nguon' => 'may' ) );
+$b_h2 = VHCC_BangLuong::dung( $cs_h, $th_h );
+$g_h2 = null;
+foreach ( $b_h2['dong'] as $x ) { if ( $x['ma'] === $ma_d && $x['laChinh'] ) { $g_h2 = $x; } }
+t( 'gieo: tìm được dòng người ca đêm', null !== $g_h2, 'không thấy dòng ca đêm' );
+teq( '🔴 CA ĐÊM THẬT (trải phẳng) vẫn ra đủ 8 giờ', 8.0, (float) $g_h2['gioTong'] );
+teq( 'và KHÔNG bị đếm là hàng hỏng (số đếm giữ nguyên)',
+	(int) $b_h1['thieu']['hongGio'], (int) $b_h2['thieu']['hongGio'] );
+
+/* Trên màn: dải cảnh báo riêng, và nó phải NÓI CÁCH SỬA. */
+$h_h = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_h, 'cth' => $th_h ) );
+t( '🔴 màn kêu lên về hàng ghi sai',
+	false !== strpos( $h_h, 'giờ ra SỚM HƠN giờ vào' ), substr( $h_h, 0, 300 ) );
+t( 'và nói rõ là KHÔNG trả tiền cho mấy hàng ấy',
+	false !== strpos( $h_h, 'không trả tiền' ), $h_h );
+t( 'và chỉ đúng cách sửa (sửa trong lưới)',
+	false !== strpos( $h_h, 'Sửa thẳng trong lưới' ), $h_h );
+/* ⚠️ Không gộp với câu "thiếu giờ" — hai lỗi, hai cách bù khác nhau. */
+t( '⚠️ câu này KHÁC câu "thiếu giờ vào hoặc giờ ra"',
+	false !== strpos( $h_h, 'hàng có giờ ra SỚM HƠN' ), $h_h );
+
 ket_luan();

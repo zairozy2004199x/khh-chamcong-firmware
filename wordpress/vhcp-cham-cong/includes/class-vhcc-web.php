@@ -8341,6 +8341,17 @@ class VHCC_Web {
 				. 'của tháng</b> — người ăn lương tháng chưa ra được tiền. Khai ở tab Cấu hình, '
 				. 'khối <b>Công thức tính công</b>.</div>';
 		}
+		/* 🔴 HÀNG GHI SAI PHẢI KÊU RIÊNG, ĐỪNG GỘP VÀO "thiếu giờ".
+		   Hai chuyện khác nhau và cách sửa khác nhau: "thiếu giờ ra" là quên bấm lúc về (bù một
+		   đầu giờ là xong), còn "giờ ra sớm hơn giờ vào" là hàng ghi ngược (phải sửa cả hai đầu,
+		   hoặc đúng ra là một ca đêm chưa được trải phẳng). Gộp một câu thì người ta bù sai kiểu. */
+		if ( ! empty( $b['thieu']['hongGio'] ) ) {
+			echo '<div class="bao loi" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['hongGio']
+				. ' hàng có giờ ra SỚM HƠN giờ vào</b> — KHÔNG tính giờ nào, và <b>không trả tiền '
+				. 'cho mấy hàng ấy</b>. Đó là hàng ghi sai (máy ghi nhầm, bù tay nhầm), không phải '
+				. 'ca đêm: ca đêm thật được lưu ở dạng trải phẳng nên giờ ra luôn muộn hơn giờ vào. '
+				. 'Sửa thẳng trong lưới ở trên rồi mở lại.</div>';
+		}
 		if ( $b['thieu']['gio'] > 0 ) {
 			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gio']
 				. ' lượt thiếu giờ vào hoặc giờ ra</b> — KHÔNG cộng phút nào vào số giờ. '
