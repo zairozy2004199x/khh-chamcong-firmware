@@ -250,6 +250,105 @@ t( '🔴 người cơ sở khác KHÔNG đóng được, dù biết id',
 t( '🔴 và cũng không thấy nó trong danh sách', 0 === count( VHVH_SuCo::ds( $nguoi_vt, '', 'mo' ) ) );
 
 /* =============================================================================================
+ * 6c. CHECKLIST ĐẦU / CUỐI NGÀY
+ * =========================================================================================== */
+$dm_cl = VHVH_Checklist::danh_muc( 'GO BÀ RỊA' );
+t( 'danh mục mặc định có 4 khu', 4 === count( $dm_cl ), count( $dm_cl ) );
+$tong_cl = VHVH_Checklist::dem_tong( $dm_cl );
+t( 'đếm được tổng số mục', $tong_cl > 20, $tong_cl );
+
+/* Tích 3 mục thật + 2 khoá bịa. */
+$cl = VHVH_Checklist::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => $hnay, 'buoi' => 'dau_ngay',
+	'muc' => array( 'thu_ngan_0' => 1, 'thu_ngan_1' => 1, 'ki_thuat_0' => 1,
+		'khoa_bia_dat_9' => 1, 'thu_ngan_999' => 1 ) ) );
+t( 'nhân viên ghi được checklist cơ sở mình', ! empty( $cl['ok'] ), $cl );
+/* 🔴 CHỈ NHẬN KHOÁ CÓ THẬT. Nhận khoá lạ thì gọi thẳng API nhét 50 khoá bịa là `xong` vọt lên 50
+   trong khi cơ sở chưa làm gì — mà điểm sức khoẻ lại ăn theo đúng con số ấy. */
+t( '🔴 khoá bịa bị bỏ, chỉ đếm 3 mục thật', 3 === $cl['ban']['xong'], $cl['ban']['xong'] );
+t( 'tổng lấy theo danh mục', $tong_cl === $cl['ban']['tong'] );
+
+/* 🔴 SỐ MỤC XONG DO MÁY CHỦ ĐẾM. Gửi kèm `xong` giả phải vô tác dụng — cùng lỗ với `tong_thu`. */
+$cl_gian = VHVH_Checklist::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => $hnay,
+	'buoi' => 'dau_ngay', 'muc' => array( 'thu_ngan_0' => 1 ), 'xong' => 999, 'tong' => 999 ) );
+t( '🔴 `xong` do trang gửi lên bị BỎ QUA', 1 === $cl_gian['ban']['xong'], $cl_gian['ban']['xong'] );
+t( '🔴 `tong` gửi lên cũng bị bỏ qua', $tong_cl === $cl_gian['ban']['tong'] );
+
+/* Một cơ sở · một ngày · một buổi · một dòng. */
+$so_cl = (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHVH_DB::t( 'checklist' ) . ' WHERE coso=%s AND ngay=%s AND buoi=%s',
+	'GO BÀ RỊA', $hnay, 'dau_ngay' ) );
+t( '🔴 ghi hai lượt vẫn chỉ MỘT dòng', 1 === $so_cl, $so_cl );
+
+/* Hai buổi là hai bản ghi riêng — đầu ngày xong rồi không có nghĩa cuối ngày cũng xong. */
+VHVH_Checklist::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => $hnay, 'buoi' => 'cuoi_ngay',
+	'muc' => array( 'thu_ngan_0' => 1 ) ) );
+t( 'đầu ngày và cuối ngày là hai bản ghi riêng',
+	1 === VHVH_Checklist::doc( 'GO BÀ RỊA', $hnay, 'cuoi_ngay' )['xong']
+	&& 1 === VHVH_Checklist::doc( 'GO BÀ RỊA', $hnay, 'dau_ngay' )['xong'] );
+
+t( 'buổi lạ thì chối', empty( VHVH_Checklist::luu( $NV, array( 'coso' => 'GO BÀ RỊA',
+	'ngay' => $hnay, 'buoi' => 'giua_trua', 'muc' => array() ) )['ok'] ) );
+t( '🔴 ghi sang cơ sở khác bị chối', empty( VHVH_Checklist::luu( $NV, array(
+	'coso' => 'VŨNG TÀU', 'ngay' => $hnay, 'buoi' => 'dau_ngay', 'muc' => array() ) )['ok'] ) );
+
+/* Checklist đã có thì màn Tổng quan phải hiện phần trăm, không còn null. */
+$tq_cl = VHVH_Tong::so( $CHT, '2000-01-01', '2999-12-31' );
+t( 'có checklist thì tổng quan hiện phần trăm', null !== $tq_cl['hang'][0]['checklist'] );
+
+/* =============================================================================================
+ * 6d. KIỂM KHO
+ * =========================================================================================== */
+/* 🔴 Quy về thứ Hai ở MÁY CHỦ. Nhận thẳng ngày do trang gửi thì hai người kiểm cùng tuần mà gửi
+   hai ngày khác nhau là ra hai bản ghi cho một tuần, và khoá duy nhất không cứu được. */
+t( 'thứ Tư 16/09/2026 quy về thứ Hai 14/09', '2026-09-14' === VHVH_Kho::dau_tuan( '2026-09-16' ) );
+t( 'chính thứ Hai thì giữ nguyên',            '2026-09-14' === VHVH_Kho::dau_tuan( '2026-09-14' ) );
+t( '🔴 CHỦ NHẬT thuộc tuần TRƯỚC, không phải tuần sau',
+	'2026-09-14' === VHVH_Kho::dau_tuan( '2026-09-20' ), VHVH_Kho::dau_tuan( '2026-09-20' ) );
+t( 'ngày sai khuôn trả rỗng', '' === VHVH_Kho::dau_tuan( '16/09/2026' ) );
+
+$k1 = VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-16',
+	'muc' => array(
+		'choi'   => array( 'so' => 6 ),
+		'tu_tho' => array( 'so' => 2, 'tinh' => 80 ),
+		'mon_bia' => array( 'so' => 99 ),
+	) ) );
+t( 'ghi được sổ kho', ! empty( $k1['ok'] ), $k1 );
+t( '🔴 món bịa bị bỏ', ! isset( $k1['ban']['muc']['mon_bia'] ) );
+t( 'món đếm thường KHÔNG có ô tình trạng', ! isset( $k1['ban']['muc']['choi']['tinh'] ) );
+t( 'món hao mòn có ô tình trạng', 80 === $k1['ban']['muc']['tu_tho']['tinh'] );
+
+/* Gõ nhầm 1000% thì món ấy thành "tốt hơn cả mới". */
+$k_qua = VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-16',
+	'muc' => array( 'tu_tho' => array( 'so' => 2, 'tinh' => 1000 ) ) ) );
+t( '🔴 tình trạng bị kẹp về 100', 100 === $k_qua['ban']['muc']['tu_tho']['tinh'] );
+$k_am = VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-16',
+	'muc' => array( 'tu_tho' => array( 'so' => -5, 'tinh' => -20 ) ) ) );
+t( 'số âm kẹp về 0', 0 === $k_am['ban']['muc']['tu_tho']['so'] );
+t( 'tình trạng âm kẹp về 0', 0 === $k_am['ban']['muc']['tu_tho']['tinh'] );
+
+/* Mọi ngày trong cùng tuần ghi vào đúng một bản. */
+VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-18',
+	'muc' => array( 'choi' => array( 'so' => 4 ) ) ) );
+$so_kho = (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHVH_DB::t( 'kho' ) . ' WHERE coso=%s AND tuan_tu=%s',
+	'GO BÀ RỊA', '2026-09-14' ) );
+t( '🔴 kiểm hai ngày khác nhau trong cùng tuần vẫn MỘT dòng', 1 === $so_kho, $so_kho );
+
+/* So với tuần trước — thứ người ta thật sự muốn biết. */
+VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-07',
+	'muc' => array( 'choi' => array( 'so' => 6 ), 'tu_tho' => array( 'so' => 2, 'tinh' => 90 ) ) ) );
+VHVH_Kho::luu( $NV, array( 'coso' => 'GO BÀ RỊA', 'ngay' => '2026-09-14',
+	'muc' => array( 'choi' => array( 'so' => 2 ), 'tu_tho' => array( 'so' => 2, 'tinh' => 70 ) ) ) );
+$ss = VHVH_Kho::so_sanh( 'GO BÀ RỊA', '2026-09-16' );
+t( '🔴 thấy được mất mát so với tuần trước', -4 === $ss['choi']['lech'], $ss );
+t( '🔴 và thấy được xuống cấp', -20 === $ss['tu_tho']['hao'], $ss );
+t( 'món không đổi thì không kêu', ! isset( $ss['tu_tho']['lech'] ) || 0 === $ss['tu_tho']['lech'] );
+t( 'chưa có tuần trước thì so sánh ra rỗng',
+	array() === VHVH_Kho::so_sanh( 'GO BÀ RỊA', '2020-01-08' ) );
+t( '🔴 kho: ghi sang cơ sở khác bị chối', empty( VHVH_Kho::luu( $NV, array(
+	'coso' => 'VŨNG TÀU', 'ngay' => '2026-09-16', 'muc' => array() ) )['ok'] ) );
+
+/* =============================================================================================
  * 6b. TỔNG QUAN & ĐIỂM SỨC KHOẺ
  * =========================================================================================== */
 /* 🔴 MẢNH KHÔNG CÓ DỮ LIỆU THÌ BỎ QUA, KHÔNG TÍNH 0 ĐIỂM. Cơ sở chưa được Quản trị đặt chỉ tiêu
@@ -280,10 +379,22 @@ t( 'tổng quan trả về số cơ sở', isset( $tq['so_coso'] ) );
 t( '🔴 CHT chỉ thấy cơ sở của mình trong bảng', 1 === count( $tq['hang'] ), $tq['hang'] );
 t( 'dòng cơ sở đúng tên', 'GO BÀ RỊA' === $tq['hang'][0]['coso'] );
 t( 'có doanh thu đã cộng', $tq['hang'][0]['thu'] > 0 );
-/* Checklist chưa ai làm thì null, KHÔNG phải 0 — 0% đọc ra là "làm tệ", còn sự thật là "chưa
-   ai báo cáo". Hai chuyện khác hẳn nhau. */
-t( '🔴 checklist chưa có thì null, không phải 0', null === $tq['hang'][0]['checklist'] );
-t( '🔴 checklist trung bình cũng null', null === $tq['checklist_tb'] );
+/* 🔴 Checklist chưa ai làm thì null, KHÔNG phải 0 — 0% đọc ra là "làm tệ", còn sự thật là "chưa
+   ai báo cáo". Hai chuyện khác hẳn nhau.
+   Soi trên VŨNG TÀU: cơ sở ấy có doanh thu (mục 4 ghi vào) nhưng chưa ai làm checklist bao giờ,
+   đúng ca cần canh. GO BÀ RỊA thì mục 6c vừa ghi checklist nên không dùng được nữa. */
+$tq_vt = null;
+foreach ( VHVH_Tong::so( $QL, '2000-01-01', '2999-12-31' )['hang'] as $x ) {
+	if ( 'VŨNG TÀU' === $x['coso'] ) { $tq_vt = $x; }
+}
+t( 'tìm được dòng VŨNG TÀU trong bảng của quản lý', null !== $tq_vt );
+t( '🔴 checklist chưa có thì null, không phải 0', $tq_vt && null === $tq_vt['checklist'] );
+t( '🔴 checklist trung bình của cơ sở chưa làm cũng null',
+	null === VHVH_Tong::checklist_tb( array( 'VŨNG TÀU' ), current_time( 'Y-m-d' ) ) );
+/* Còn cơ sở ĐÃ làm thì phải ra số, không được cũng null — null cho cả hai ca thì phép thử trên
+   chẳng chứng minh được gì. */
+t( 'cơ sở đã làm checklist thì ra số thật',
+	null !== VHVH_Tong::checklist_tb( array( 'GO BÀ RỊA' ), current_time( 'Y-m-d' ) ) );
 
 $tq_ql = VHVH_Tong::so( $QL, '2000-01-01', '2999-12-31' );
 t( 'quản lý thấy nhiều cơ sở hơn CHT', count( $tq_ql['hang'] ) >= count( $tq['hang'] ) );

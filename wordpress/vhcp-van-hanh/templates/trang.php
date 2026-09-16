@@ -70,6 +70,10 @@ button,input,select,textarea{font:inherit}
   .than{padding:16px 14px 56px}
 }
 /* ══ thẻ cơ sở & bảng điểm ══════════════════════════════════════════════════════════════ */
+.cl-dong{display:flex;gap:10px;align-items:flex-start;padding:7px 2px;
+  border-bottom:1px solid var(--vien);cursor:pointer;font-size:14px}
+.cl-dong:last-child{border-bottom:0}
+.cl-dong input{margin-top:3px;width:17px;height:17px;flex:none;cursor:pointer}
 .coso-the{max-width:420px}
 .coso-the .ten{font-weight:700;font-size:15px}
 .doi{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
@@ -161,7 +165,7 @@ var KHOA = 'vhvh_the';
 
 var toi = null, man = 'tong_quan', banDau = true;
 var loi = '', bao = '';
-var duLieu = { tong_quan:null, tien:null, su_co:null };
+var duLieu = { tong_quan:null, tien:null, su_co:null, checklist:null, kho:null };
 var cosoChon = '', ngayChon = homNay(), dangBan = false;
 
 function g(id){ return document.getElementById(id); }
@@ -628,6 +632,172 @@ function noiTien(){
 }
 
 /* ============================================================================================
+ * MÀN CHECKLIST ĐẦU / CUỐI NGÀY
+ * ==========================================================================================
+ * 🔴 KHÔNG khoá sau khi lưu. Người ta tích dần trong ca rồi bổ sung nốt mục quên; khoá lại là
+ *    lần sau họ chờ xong hết mới tích một lượt, và cái danh sách mất tác dụng nhắc việc.
+ * ========================================================================================== */
+var clBuoi = 'dau_ngay';
+function veChecklist(){
+  var d = duLieu.checklist;
+  if (!d) return '<div class="the">Đang tải…</div>';
+  var ban = d.ban, tich = (ban && ban.muc) || {};
+
+  var h = '<div class="the"><div class="hang">'
+    + oCoSo('clCoSo', cosoChon)
+    + '<div class="o"><label>Ngày</label><input id="clNgay" type="date" value="'+esc(ngayChon)+'"></div>'
+    + '<div class="o"><label>Buổi</label><select id="clBuoi">'
+    + '<option value="dau_ngay"'+(clBuoi==='dau_ngay'?' selected':'')+'>Đầu ngày</option>'
+    + '<option value="cuoi_ngay"'+(clBuoi==='cuoi_ngay'?' selected':'')+'>Cuối ngày</option>'
+    + '</select></div>'
+    + '<button class="nut" id="btClMo">Mở</button>'
+    + '</div>'
+    + '<p class="nho" style="margin-top:8px" id="clTien">'
+    + (ban ? 'Đã tích <b>'+ban.xong+'/'+ban.tong+'</b>'
+        + (ban.nguoi ? ' — người ghi gần nhất: <b>'+esc(ban.nguoi)+'</b>' : '')
+      : 'Chưa có báo cáo cho buổi này.')
+    + '</p></div>';
+
+  (d.dm||[]).forEach(function(khu){
+    h += '<div class="the"><h2>'+esc(khu.ten)+'</h2>';
+    khu.muc.forEach(function(m, i){
+      var k = khu.khoa+'_'+i;
+      h += '<label class="cl-dong"><input type="checkbox" data-cl="'+esc(k)+'"'
+        + (tich[k]?' checked':'')+'><span>'+esc(m)+'</span></label>';
+    });
+    h += '</div>';
+  });
+
+  h += '<button class="nut chinh" id="btClLuu" style="width:100%;margin-top:14px">LƯU CHECKLIST</button>';
+  return h;
+}
+function noiChecklist(){
+  ['clCoSo','clNgay','clBuoi'].forEach(function(id){
+    var o=g(id); if(o) o.addEventListener('change', function(){
+      cosoChon=g('clCoSo').value; ngayChon=g('clNgay').value; clBuoi=g('clBuoi').value; napMan(); });
+  });
+  if (g('btClMo')) g('btClMo').addEventListener('click', napMan);
+
+  /* Đếm tại chỗ khi tích — không phải bấm Lưu mới biết còn thiếu mấy mục. */
+  function demTam(){
+    var tong = document.querySelectorAll('[data-cl]').length;
+    var xong = document.querySelectorAll('[data-cl]:checked').length;
+    var o = g('clTien');
+    if (o) o.innerHTML = 'Đang tích <b>'+xong+'/'+tong+'</b>'
+      + (xong===tong && tong ? ' — đủ hết.' : '');
+  }
+  document.querySelectorAll('[data-cl]').forEach(function(o){
+    o.addEventListener('change', demTam);
+  });
+
+  if (g('btClLuu')) g('btClLuu').addEventListener('click', function(){
+    var b=this; if(dangBan) return; dangBan=true; b.disabled=true; b.textContent='Đang lưu…';
+    var muc = {};
+    document.querySelectorAll('[data-cl]').forEach(function(o){
+      if (o.checked) muc[o.getAttribute('data-cl')] = 1;
+    });
+    goi('cl_luu', { coso:cosoChon, ngay:ngayChon, buoi:clBuoi, muc:muc }).then(function(j){
+      dangBan=false;
+      if(!j||!j.ok){ loi=(j&&j.error)||'Không lưu được.'; bao=''; ve(); return; }
+      loi=''; bao='Đã lưu checklist — '+j.ban.xong+'/'+j.ban.tong+' mục.';
+      duLieu.checklist.ban = j.ban; ve();
+    }).catch(function(e){ dangBan=false; loi=e.message; ve(); });
+  });
+}
+
+/* ============================================================================================
+ * MÀN KIỂM KHO
+ * ==========================================================================================
+ * Đếm theo TUẦN. Máy chủ quy mọi ngày về thứ Hai của tuần ấy, nên kiểm ngày nào trong tuần cũng
+ * rơi vào đúng một bản ghi.
+ * ========================================================================================== */
+function veKho(){
+  var d = duLieu.kho;
+  if (!d) return '<div class="the">Đang tải…</div>';
+  var ban = d.ban, co = (ban && ban.muc) || {}, ss = d.so_sanh || {};
+
+  var h = '<div class="the"><div class="hang">'
+    + oCoSo('khCoSo', cosoChon)
+    + '<div class="o"><label>Ngày kiểm</label><input id="khNgay" type="date" value="'+esc(ngayChon)+'"></div>'
+    + '<button class="nut" id="btKhMo">Mở</button></div>'
+    + '<p class="nho" style="margin-top:8px">Tuần bắt đầu <b>'+ngayVN(d.tuan_tu)+'</b> (thứ Hai). '
+    + 'Kiểm ngày nào trong tuần cũng ghi vào đúng bản này.'
+    + (ban && ban.nguoi ? ' Người ghi gần nhất: <b>'+esc(ban.nguoi)+'</b>.' : '')
+    + '</p></div>';
+
+  var coLech = Object.keys(ss).length;
+  if (coLech) {
+    /* Thứ người ta thật sự cần biết: mất mát và xuống cấp so với tuần trước. */
+    h += '<div class="the"><h2>Lệch so với tuần trước</h2><div class="cuon"><table>'
+      + '<tr><th>Món</th><th class="so">Số lượng</th><th class="so">Tình trạng</th></tr>';
+    Object.keys(ss).forEach(function(k){
+      var x = ss[k];
+      h += '<tr><td>'+esc(tenMon(d.dm, k))+'</td>'
+        + '<td class="so">'+(x.lech===0?'—':(x.lech>0?'+':'')+x.lech)+'</td>'
+        + '<td class="so">'+(x.hao===null||x.hao===0?'—':(x.hao>0?'+':'')+x.hao+'%')+'</td></tr>';
+    });
+    h += '</table></div></div>';
+  }
+
+  (d.dm||[]).forEach(function(nh){
+    h += '<div class="the"><h2>'+esc(nh.ten)+'</h2><div class="cuon"><table>'
+      + '<tr><th>Món</th><th class="so">Số lượng</th><th class="so">Còn dùng được</th><th>Ghi chú</th></tr>';
+    nh.muc.forEach(function(m){
+      var v = co[m.khoa] || {};
+      h += '<tr><td>'+esc(m.ten)+'</td>'
+        + '<td class="so"><input type="number" min="0" data-kho="'+esc(m.khoa)+'" data-o="so" '
+        + 'style="width:80px;text-align:right" value="'+esc(v.so===undefined?'':v.so)+'"></td>'
+        + '<td class="so">'
+        + (m.kieu==='dem_tinh'
+            ? '<input type="number" min="0" max="100" data-kho="'+esc(m.khoa)+'" data-o="tinh" '
+              + 'style="width:74px;text-align:right" value="'+esc(v.tinh===undefined?'':v.tinh)+'">%'
+            : '<span class="nho">—</span>')
+        + '</td>'
+        + '<td><input data-kho="'+esc(m.khoa)+'" data-o="ghi" style="width:100%" '
+        + 'value="'+esc(v.ghi||'')+'" placeholder="hỏng, mất, cần thay…"></td></tr>';
+    });
+    h += '</table></div></div>';
+  });
+
+  h += '<button class="nut chinh" id="btKhLuu" style="width:100%;margin-top:14px">LƯU SỔ KHO TUẦN NÀY</button>';
+  return h;
+}
+function tenMon(dm, khoa){
+  var ra = khoa;
+  (dm||[]).forEach(function(n){ n.muc.forEach(function(m){ if(m.khoa===khoa) ra = m.ten; }); });
+  return ra;
+}
+function noiKho(){
+  ['khCoSo','khNgay'].forEach(function(id){
+    var o=g(id); if(o) o.addEventListener('change', function(){
+      cosoChon=g('khCoSo').value; ngayChon=g('khNgay').value; napMan(); });
+  });
+  if (g('btKhMo')) g('btKhMo').addEventListener('click', napMan);
+
+  if (g('btKhLuu')) g('btKhLuu').addEventListener('click', function(){
+    var b=this; if(dangBan) return; dangBan=true; b.disabled=true; b.textContent='Đang lưu…';
+    var muc = {};
+    document.querySelectorAll('[data-kho]').forEach(function(o){
+      var k = o.getAttribute('data-kho'), t = o.getAttribute('data-o');
+      var v = o.value;
+      /* Ô để trống thì KHÔNG gửi món ấy lên — gửi 0 nghĩa là "đếm rồi, còn 0 cái", khác hẳn
+         "chưa đếm tới". Hai chuyện ấy mà nhập làm một thì sổ kho báo mất sạch đồ. */
+      if (t === 'so' && String(v).trim() === '') { return; }
+      muc[k] = muc[k] || {};
+      muc[k][t] = (t === 'ghi') ? v : (parseInt(v, 10) || 0);
+    });
+    /* Món chỉ có ghi chú mà chưa đếm thì cũng bỏ — cùng lý do trên. */
+    Object.keys(muc).forEach(function(k){ if (muc[k].so === undefined) delete muc[k]; });
+    goi('kho_luu', { coso:cosoChon, ngay:ngayChon, muc:muc }).then(function(j){
+      dangBan=false;
+      if(!j||!j.ok){ loi=(j&&j.error)||'Không lưu được.'; bao=''; ve(); return; }
+      loi=''; bao='Đã lưu sổ kho tuần bắt đầu '+ngayVN(duLieu.kho.tuan_tu)+'.';
+      napMan();
+    }).catch(function(e){ dangBan=false; loi=e.message; ve(); });
+  });
+}
+
+/* ============================================================================================
  * MÀN SỰ CỐ
  * ========================================================================================== */
 function veSuCo(){
@@ -720,6 +890,12 @@ function ve(){
   if (man === 'tien') {
     tieu = tenMuc('tien'); duoi = 'Nhập theo ngày, từng cơ sở. Tổng do máy chủ cộng lại.';
     than = veTien();
+  } else if (man === 'checklist') {
+    tieu = tenMuc('checklist'); duoi = 'Tích dần trong ca — lưu lại bao nhiêu lần cũng được.';
+    than = veChecklist();
+  } else if (man === 'kho') {
+    tieu = tenMuc('kho'); duoi = 'Đếm theo tuần, và so với tuần trước để thấy mất mát.';
+    than = veKho();
   } else if (man === 'su_co') {
     tieu = tenMuc('su_co'); duoi = 'Việc hỏng ngoài hiện trường — phải có người phụ trách và hạn.';
     than = veSuCo();
@@ -741,7 +917,7 @@ function ve(){
     var b = g('thanhBen'); if (b) b.classList.toggle('hien', benHien);
   });
   g('btRa').addEventListener('click', function(){
-    datThe(''); toi=null; duLieu={tong_quan:null,tien:null,su_co:null}; ve();
+    datThe(''); toi=null; duLieu={tong_quan:null,tien:null,su_co:null,checklist:null,kho:null}; ve();
   });
 
   /* Đặt chỉ tiêu doanh thu tháng — chỉ quản lý thấy nút này, và máy chủ hỏi lại quyền một lần nữa. */
@@ -760,6 +936,8 @@ function ve(){
   });
 
   if (man==='tien') noiTien();
+  if (man==='checklist') noiChecklist();
+  if (man==='kho') noiKho();
   if (man==='su_co') noiSuCo();
 }
 
@@ -774,6 +952,18 @@ function napMan(){
     if (!cosoChon) { cosoChon = toi.coso || (toi.ds_coso&&toi.ds_coso[0]) || ''; }
     goi('tien_doc', { coso: cosoChon, ngay: ngayChon }).then(function(j){
       if (j && j.ok) { duLieu.tien = j; ve(); }
+      else if (j) { loi = j.error||''; ve(); }
+    }).catch(function(e){ loi=e.message; ve(); });
+  } else if (man === 'checklist') {
+    if (!cosoChon) { cosoChon = toi.coso || (toi.ds_coso&&toi.ds_coso[0]) || ''; }
+    goi('cl_doc', { coso: cosoChon, ngay: ngayChon, buoi: clBuoi }).then(function(j){
+      if (j && j.ok) { duLieu.checklist = j; ve(); }
+      else if (j) { loi = j.error||''; ve(); }
+    }).catch(function(e){ loi=e.message; ve(); });
+  } else if (man === 'kho') {
+    if (!cosoChon) { cosoChon = toi.coso || (toi.ds_coso&&toi.ds_coso[0]) || ''; }
+    goi('kho_doc', { coso: cosoChon, ngay: ngayChon }).then(function(j){
+      if (j && j.ok) { duLieu.kho = j; ve(); }
       else if (j) { loi = j.error||''; ve(); }
     }).catch(function(e){ loi=e.message; ve(); });
   } else if (man === 'su_co') {

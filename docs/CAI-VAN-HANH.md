@@ -1,6 +1,6 @@
 # Vận Hành cơ sở — plugin `vhcp-van-hanh`
 
-*Bản 1.1.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+*Bản 1.2.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
 
 > **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
 > nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ. Mục nào chưa dựng xong thì **vẫn hiện** kèm chữ
@@ -125,8 +125,8 @@ kể cả khi biết id.
 ## 6. Phép thử
 
 ```bash
-php tools/test/kiem-van-hanh.php      # 246 — quyền, tiền, điểm, khuôn dbDelta
-node tools/test/bam-thu-van-hanh.js   # 36  — BẤM THẬT trong Chromium
+php tools/test/kiem-van-hanh.php      # 277 — quyền, tiền, điểm, checklist, kho, khuôn dbDelta
+node tools/test/bam-thu-van-hanh.js   # 53  — BẤM THẬT trong Chromium
 ```
 
 Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
@@ -147,6 +147,13 @@ Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
 | Checklist chưa có thì trả 0% | 1 |
 | Ai cũng đặt được chỉ tiêu | 1 |
 | Gộp hai cột một dòng trong CREATE TABLE | 2 |
+| Checklist nhận cả khoá bịa | 1 |
+| Checklist tin số `xong` do trang gửi | 2 |
+| Kho không quy ngày về thứ Hai | 4 |
+| Kho không kẹp % tình trạng | 2 |
+| Kho không báo lệch so tuần trước | 2 |
+| Trang gửi `0` cho món chưa đếm | 1 |
+| Trang tự gửi số `xong` của checklist | 1 |
 
 ---
 
@@ -166,9 +173,49 @@ Chỉ tiêu doanh thu tháng: màn Tổng quan → nút **Chỉ tiêu** ở cu�
 
 ---
 
-## 7. Còn thiếu — bản 1.1.0 mới có 3 trong 16 màn
+## 6c. Checklist đầu / cuối ngày
 
-Đã có: **Tổng quan · Doanh thu & Chi phí · Sự cố**.
+Danh mục mặc định lấy nguyên từ bản đang chạy: **4 khu · 32 mục** (quầy thu ngân · phòng kĩ thuật ·
+phòng kho–phòng hù · các phòng diễn + hành lang). Mỗi cơ sở khai được danh mục riêng; chưa khai thì
+dùng bản chung.
+
+- **Đầu ngày và cuối ngày là hai bản ghi riêng.** Xong đầu ngày không có nghĩa cuối ngày cũng xong.
+- **Không khoá sau khi lưu** — khác doanh thu. Người ta tích dần trong ca rồi bổ sung nốt mục quên;
+  khoá lại là lần sau họ chờ xong hết mới tích một lượt, và cái danh sách mất tác dụng nhắc việc.
+- **Số mục xong do máy chủ đếm**, và **chỉ đếm khoá có thật trong danh mục**. Nhận khoá lạ thì gọi
+  thẳng API nhét 50 khoá bịa là `xong` vọt lên 50 trong khi cơ sở chưa làm gì — mà điểm sức khoẻ
+  lại ăn theo đúng con số ấy.
+- Trạng thái lưu theo **khoá** mục, không theo vị trí trong mảng. Lưu theo vị trí thì thêm một mục
+  vào giữa danh mục là mọi bản ghi tháng trước lệch hết một nấc.
+- `tong` đếm theo danh mục **lúc ghi**. Thêm mục mới thì báo cáo hôm qua vẫn là "28/28 xong" chứ
+  không tụt thành "28/31" — người làm hôm qua không bỏ sót gì, mục ấy lúc đó chưa tồn tại.
+
+---
+
+## 6d. Kiểm tra kho
+
+Đếm **theo tuần**. Hai kiểu theo dõi, và đừng gộp làm một:
+
+| Kiểu | Dùng cho | Vì sao tách |
+|---|---|---|
+| **Đếm số lượng** | tivi, loa, chổi | Mất là mất, không có "mất một nửa" |
+| **Đếm + % còn dùng được** | tủ thờ, tủ trang điểm | Hao mòn dần: vẫn đủ 2 cái nhưng một cái sắp bung. Chỉ đếm số lượng thì đến lúc nó gãy giữa buổi diễn mới biết, mà sổ vẫn ghi "đủ 2" |
+
+> 🔴 **Máy chủ quy mọi ngày về thứ Hai của tuần ấy.** Nhận thẳng ngày do trang gửi thì hai người
+> kiểm cùng một tuần mà gửi hai ngày khác nhau là ra **hai bản ghi cho một tuần** — khoá duy nhất
+> `(coso, tuan_tu)` không cứu được, vì hai giá trị `tuan_tu` khác nhau thật.
+
+> 🔴 **Ô số lượng để trống thì không gửi món ấy lên.** Gửi `0` nghĩa là *"đếm rồi, còn 0 cái"* —
+> khác hẳn *"chưa đếm tới"*. Nhập hai chuyện ấy làm một thì sổ kho báo mất sạch đồ.
+
+Màn hình có bảng **Lệch so với tuần trước** — thứ người ta thật sự muốn biết. Chỉ nhìn con số tuần
+này thì không ai phát hiện tuần trước 6 cái chổi giờ còn 2.
+
+---
+
+## 7. Còn thiếu — bản 1.2.0 có 5 trong 16 màn
+
+Đã có: **Tổng quan · Doanh thu & Chi phí · Sự cố · Checklist · Kiểm tra kho**.
 
 Bốn mục **Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn** trên thanh dọc là **liên kết
 sang plugin Chấm Công**, không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
@@ -177,8 +224,6 @@ Bảng CSDL đã dựng sẵn cho cả những màn chưa làm, nên thêm màn 
 
 | Màn | Bảng đã có | Ghi chú |
 |---|---|---|
-| Checklist đầu/cuối ngày | `checklist` + `danh_muc` | Danh mục 4 khu lấy từ bản cũ |
-| Kiểm kho | `kho` + `danh_muc` | Có loại đếm kèm % tình trạng |
 | Đánh giá nhân viên | `danh_gia` | Bảng phạt, mức tăng dần theo lần 1/2/3 |
 | TikTok | `tiktok` | Thưởng theo bậc lượt xem |
 | Trích cam | `trich_cam` | |

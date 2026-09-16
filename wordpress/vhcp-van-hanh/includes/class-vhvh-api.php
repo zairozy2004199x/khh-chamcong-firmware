@@ -129,6 +129,37 @@ class VHVH_API {
 					isset( $d['coso'] ) ? (string) $d['coso'] : ''
 				) ) );
 
+			/* ---- checklist ---- */
+			case 'cl_doc':
+				$coso = isset( $d['coso'] ) ? (string) $d['coso'] : '';
+				$ngay = isset( $d['ngay'] ) ? (string) $d['ngay'] : current_time( 'Y-m-d' );
+				$buoi = isset( $d['buoi'] ) ? (string) $d['buoi'] : 'dau_ngay';
+				if ( '' === $coso || ! VHVH_Auth::duoc_coso( $u, $coso ) ) { return self::ra( VHVH_Auth::choi() ); }
+				return self::ra( array(
+					'ok'  => true,
+					'ban' => VHVH_Checklist::doc( $coso, $ngay, $buoi ),
+					'dm'  => VHVH_Checklist::danh_muc( $coso ),
+				) );
+
+			case 'cl_luu':
+				return self::ra( VHVH_Checklist::luu( $u, $d ) );
+
+			/* ---- kiểm kho ---- */
+			case 'kho_doc':
+				$coso = isset( $d['coso'] ) ? (string) $d['coso'] : '';
+				$ngay = isset( $d['ngay'] ) ? (string) $d['ngay'] : current_time( 'Y-m-d' );
+				if ( '' === $coso || ! VHVH_Auth::duoc_coso( $u, $coso ) ) { return self::ra( VHVH_Auth::choi() ); }
+				return self::ra( array(
+					'ok'      => true,
+					'ban'     => VHVH_Kho::doc( $coso, $ngay ),
+					'dm'      => VHVH_Kho::danh_muc( $coso ),
+					'tuan_tu' => VHVH_Kho::dau_tuan( $ngay ),
+					'so_sanh' => VHVH_Kho::so_sanh( $coso, $ngay ),
+				) );
+
+			case 'kho_luu':
+				return self::ra( VHVH_Kho::luu( $u, $d ) );
+
 			/* ---- sự cố ---- */
 			case 'su_co_ds':
 				return self::ra( array( 'ok' => true, 'ds' => VHVH_SuCo::ds(
@@ -183,6 +214,8 @@ class VHVH_API {
 	 */
 	public static function man_cua( $u ) {
 		$man = array( 'tong_quan', 'su_co' );
+		$man[] = 'checklist';
+		$man[] = 'kho';
 		if ( VHVH_Auth::du_quyen( $u, 'thu_ngan' ) ) { $man[] = 'tien'; }
 		return $man;
 	}
@@ -204,8 +237,8 @@ class VHVH_API {
 			) ),
 			array( 'nhom' => 'VẬN HÀNH CƠ SỞ', 'muc' => array(
 				array( 'ma' => 'cham_cong', 'ten' => 'Chấm công', 'icon' => '🕒', 'xong' => 0, 'noi' => 'cham_cong' ),
-				array( 'ma' => 'checklist', 'ten' => 'Checklist', 'icon' => '📋', 'xong' => 0 ),
-				array( 'ma' => 'kho', 'ten' => 'Kiểm tra kho', 'icon' => '📦', 'xong' => 0 ),
+				array( 'ma' => 'checklist', 'ten' => 'Checklist', 'icon' => '📋', 'xong' => 1 ),
+				array( 'ma' => 'kho', 'ten' => 'Kiểm tra kho', 'icon' => '📦', 'xong' => 1 ),
 				array( 'ma' => 'lich', 'ten' => 'Đăng ký lịch làm', 'icon' => '🗓️', 'xong' => 0, 'noi' => 'cham_cong' ),
 				array( 'ma' => 'doi_ca', 'ten' => 'Đổi ca & nhận ca', 'icon' => '🔁', 'xong' => 0, 'noi' => 'cham_cong' ),
 				array( 'ma' => 'di_muon', 'ten' => 'Báo cáo đi muộn', 'icon' => '⏰', 'xong' => 0, 'noi' => 'cham_cong' ),

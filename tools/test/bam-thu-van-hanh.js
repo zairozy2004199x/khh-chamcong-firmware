@@ -65,14 +65,17 @@ window.fetch = function(url, opt){
     case 'dang_nhap':
       j = d.pin === '246810'
         ? { ok:true, the:'THE-GIA-123', toi:{ ten:'CHT C', vai:'cua_hang_truong',
-            coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'], man:['tong_quan','su_co','tien'],
+            coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'],
+            man:['tong_quan','su_co','tien','checklist','kho'],
             url_cham_cong:'http://vi-du.test/cham-cong',
             muc:[
               { nhom:'TỔNG QUAN', muc:[{ma:'tong_quan',ten:'Tổng quan',icon:'🏠',xong:1}] },
               { nhom:'SỰ CỐ & CẢNH BÁO', muc:[{ma:'su_co',ten:'Sự cố',icon:'⚠️',xong:1}] },
               { nhom:'VẬN HÀNH CƠ SỞ', muc:[
                   {ma:'cham_cong',ten:'Chấm công',icon:'🕒',xong:0,noi:'cham_cong'},
-                  {ma:'checklist',ten:'Checklist',icon:'📋',xong:0}] },
+                  {ma:'checklist',ten:'Checklist',icon:'📋',xong:1},
+                  {ma:'kho',ten:'Kiểm tra kho',icon:'📦',xong:1},
+                  {ma:'danh_gia',ten:'Đánh giá nhân viên',icon:'⭐',xong:0}] },
               { nhom:'KINH DOANH', muc:[{ma:'tien',ten:'Doanh thu & Chi phí',icon:'💰',xong:1}] }
             ] } }
         : { ok:false, error:'PIN không đúng hoặc chưa được cấp' };
@@ -95,6 +98,21 @@ window.fetch = function(url, opt){
       j = { ok:true, ban:{ tt:'duyet', tong_thu:1060000, tong_chi:0, khach:10,
             nguoi_duyet:'CHT C', ve:d.ve, tra_tien:{}, khach_gio:[], chi:[], thu_khac:[], ghi:'' } };
       break;
+    case 'cl_doc':
+      j = { ok:true, ban:null, dm:[
+        { khoa:'thu_ngan', ten:'Quầy thu ngân', muc:['Lau mặt bàn','Vệ sinh mặt tiền','Bật tivi'] },
+        { khoa:'ki_thuat', ten:'Phòng kĩ thuật', muc:['Kiểm tra bộ đàm','Kiểm tra camera'] } ] };
+      break;
+    case 'cl_luu':
+      j = { ok:true, ban:{ xong:Object.keys(d.muc||{}).length, tong:5, nguoi:'CHT C', muc:d.muc } };
+      break;
+    case 'kho_doc':
+      j = { ok:true, tuan_tu:'2026-09-14', ban:null, so_sanh:{ choi:{lech:-4,hao:null} }, dm:[
+        { khoa:'van_hanh', ten:'Đồ vận hành', muc:[
+            {khoa:'choi',ten:'Chổi',kieu:'dem'},
+            {khoa:'tu_tho',ten:'Tủ thờ',kieu:'dem_tinh'}] } ] };
+      break;
+    case 'kho_luu': j = { ok:true, ban:{ muc:d.muc, nguoi:'CHT C' } }; break;
     case 'su_co_ds': j = { ok:true, ds:[] }; break;
     case 'su_co_them':
       j = (d.tieu_de && d.giao_ten && d.han) ? { ok:true, id:1 }
@@ -154,7 +172,8 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   await trang2.fill('#oPin', '246810');
   await trang2.click('#btVao');
   await trang2.waitForTimeout(200);
-  t('PIN đúng thì vào được', 3 === await trang2.locator('[data-man]').count());
+  t('PIN đúng thì vào được', 5 === await trang2.locator('[data-man]').count(),
+    await trang2.locator('[data-man]').count());
   t('hiện tên và vai người đăng nhập',
     (await trang2.locator('.toi').innerText()).indexOf('CHT C') >= 0);
 
@@ -241,6 +260,61 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   /* Máy chủ trả về trạng thái đã duyệt → màn hình phải KHOÁ lại, không cho gõ tiếp. */
   t('🔴 báo cáo đã duyệt thì ô nhập bị khoá',
     await trang2.locator('[data-ve="ve_1luot"]').isDisabled());
+
+  /* --- màn checklist --- */
+  await trang2.click('[data-man="checklist"]');
+  await trang2.waitForTimeout(200);
+  t('mở được màn Checklist', 5 === await trang2.locator('[data-cl]').count());
+  t('checklist chia theo khu', 2 <= await trang2.locator('.the h2').count());
+  await trang2.check('[data-cl="thu_ngan_0"]');
+  await trang2.check('[data-cl="ki_thuat_1"]');
+  await trang2.waitForTimeout(80);
+  /* Đếm tại chỗ khi tích — không phải bấm Lưu mới biết còn thiếu mấy mục. */
+  t('tích thì số đếm đổi ngay',
+    (await trang2.locator('#clTien').innerText()).indexOf('2/5') >= 0,
+    await trang2.locator('#clTien').innerText());
+  await trang2.click('#btClLuu');
+  await trang2.waitForTimeout(250);
+  const goiCl = (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'cl_luu').pop();
+  t('bấm LƯU CHECKLIST thì có gửi lên', !!goiCl);
+  t('gửi đúng khoá mục đã tích',
+    goiCl && goiCl.than.muc.thu_ngan_0 === 1 && goiCl.than.muc.ki_thuat_1 === 1,
+    goiCl && goiCl.than.muc);
+  /* 🔴 Mục KHÔNG tích thì không gửi — gửi 0 cho mọi mục thì máy chủ vẫn đếm đúng, nhưng gói tin
+     phình vô ích và khoá nào bỏ sót cũng khó thấy. */
+  t('🔴 mục chưa tích thì KHÔNG gửi', goiCl && goiCl.than.muc.thu_ngan_1 === undefined);
+  t('🔴 KHÔNG gửi kèm số "xong" — máy chủ tự đếm',
+    goiCl && goiCl.than.xong === undefined && goiCl.than.tong === undefined,
+    goiCl && Object.keys(goiCl.than));
+  t('lưu xong hiện băng báo', (await trang2.locator('.bao-ok').innerText()).indexOf('2/5') >= 0);
+
+  /* --- màn kiểm kho --- */
+  await trang2.click('[data-man="kho"]');
+  await trang2.waitForTimeout(200);
+  t('mở được màn Kiểm kho', await trang2.locator('[data-kho="choi"][data-o="so"]').isVisible());
+  t('nói rõ tuần bắt đầu từ thứ Hai nào',
+    (await trang2.locator('.the').first().innerText()).indexOf('14/09/2026') >= 0);
+  /* Món đếm thường KHÔNG có ô % tình trạng; món hao mòn thì có. */
+  t('🔴 món đếm thường không có ô tình trạng',
+    0 === await trang2.locator('[data-kho="choi"][data-o="tinh"]').count());
+  t('món hao mòn có ô tình trạng',
+    1 === await trang2.locator('[data-kho="tu_tho"][data-o="tinh"]').count());
+  t('hiện bảng lệch so với tuần trước',
+    (await trang2.locator('.than').innerText()).indexOf('Lệch so với tuần trước') >= 0);
+  t('và hiện tên món chứ không phải khoá',
+    (await trang2.locator('.than').innerText()).indexOf('Chổi') >= 0);
+
+  await trang2.fill('[data-kho="choi"][data-o="so"]', '4');
+  await trang2.fill('[data-kho="tu_tho"][data-o="tinh"]', '70');
+  await trang2.click('#btKhLuu');
+  await trang2.waitForTimeout(250);
+  const goiKho = (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'kho_luu').pop();
+  t('bấm LƯU SỔ KHO thì có gửi lên', !!goiKho);
+  t('gửi đúng số lượng đã đếm', goiKho && goiKho.than.muc.choi.so === 4, goiKho && goiKho.than.muc);
+  /* 🔴 Ô số lượng để TRỐNG thì không gửi món ấy. Gửi 0 nghĩa là "đếm rồi, còn 0 cái" — khác hẳn
+     "chưa đếm tới". Nhập hai chuyện ấy làm một thì sổ kho báo mất sạch đồ. */
+  t('🔴 món chưa đếm thì KHÔNG gửi lên', goiKho && goiKho.than.muc.tu_tho === undefined,
+    goiKho && goiKho.than.muc);
 
   /* --- màn sự cố --- */
   await trang2.click('[data-man="su_co"]');
