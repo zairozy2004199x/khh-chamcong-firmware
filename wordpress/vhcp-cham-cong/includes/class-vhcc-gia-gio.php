@@ -26,7 +26,12 @@
  *     Thuận 25.000. Bắt khai tay 240 người là không ai làm; bỏ hẳn đường đè riêng là tháng nào
  *     cũng phải sửa tay file Excel sau khi xuất, tức là xuất ra để đó.
  *
- * Thứ tự tra: **người → cơ sở → chung**. Tầng dưới chỉ đỡ khi tầng trên chưa khai.
+ * Thứ tự tra: **người → cơ sở**. Tầng dưới chỉ đỡ khi tầng trên chưa khai.
+ *
+ * 🔴 TẦNG "CẢ CHUỖI" ĐÃ BỎ (16/09/2026). Anh Thắng: *"mỗi cơ sở 1 mức giá lương khác nhau"*.
+ *    Một bảng chung nghe thì tiện, nhưng nó âm thầm trả lời hộ một câu hỏi mà mỗi cửa hàng có
+ *    một đáp án: cơ sở chưa ai ngồi khai giá vẫn ra tiền — ra bằng giá của cửa hàng khác — và
+ *    bảng lương trông vẫn đầy đủ nên không ai đi kiểm. Nay chưa khai là TRỐNG và kêu lên.
  *
  * =============================================================================================
  * 🔴 CHƯA KHAI THÌ TRẢ 0 VÀ NÓI RA, TUYỆT ĐỐI KHÔNG ĐOÁN
@@ -95,6 +100,8 @@ class VHCC_GiaGio {
 	 */
 	public static function so() {
 		$d = VHCC_Luong::cai_dat( self::O, null );
+		/* Nhánh `chung` vẫn đọc vào — dữ liệu cũ của người ta nằm im ở đó, `tra()` không dùng
+		   tới nữa nhưng `chung_cu()` còn kể ra để khai lại. Xem chú thích đầu tệp. */
 		$o = array( 'chung' => array(), 'coso' => array(), 'nguoi' => array(), 'ten' => array() );
 		if ( ! is_array( $d ) ) { return $o; }
 		foreach ( array( 'chung', 'coso', 'nguoi', 'ten' ) as $nhanh ) {
@@ -163,11 +170,14 @@ class VHCC_GiaGio {
 			&& isset( $so['coso'][ $kcs ][ $kcv ] ) && (float) $so['coso'][ $kcs ][ $kcv ] > 0 ) {
 			return array( 'gia' => (float) $so['coso'][ $kcs ][ $kcv ], 'tu' => 'coso' );
 		}
-		/* Tầng 3 — cả chuỗi, theo chức vụ. */
-		if ( '' !== $kcv && isset( $so['chung'][ $kcv ] ) && (float) $so['chung'][ $kcv ] > 0 ) {
-			return array( 'gia' => (float) $so['chung'][ $kcv ], 'tu' => 'chung' );
-		}
-		/* 🔴 CHƯA KHAI. Không đoán, và nói rõ là chưa khai — xem chú thích đầu tệp. */
+		/* 🔴 KHÔNG CÒN TẦNG "BẢNG CHUNG CẢ CHUỖI".
+		   Anh Thắng 16/09/2026, trước ô chọn việc bày ba dòng đều mang nhãn `· bảng chung`:
+		   *"mỗi cơ sở 1 mức giá lương khác nhau"*, và chốt: bỏ hẳn bảng chung, chưa khai là để
+		   trống.
+		   Tầng ấy nghe thì tiện — khai một lần cho cả chuỗi — nhưng nó âm thầm trả lời hộ một
+		   câu hỏi mà mỗi cửa hàng có một đáp án. Cơ sở chưa ai ngồi khai giá vẫn ra tiền, ra
+		   bằng giá của cửa hàng khác, và bảng lương trông vẫn đầy đủ nên không ai đi kiểm.
+		   Nay chưa khai thì `khong` — bảng lương để TRỐNG và kêu lên. Xem chú thích đầu tệp. */
 		return array( 'gia' => 0.0, 'tu' => 'khong' );
 	}
 
@@ -196,17 +206,12 @@ class VHCC_GiaGio {
 		$so  = ( null === $so ) ? self::so() : $so;
 		$kcs = self::khoa_cs( $coso );
 		$ra  = array();
-		$nguon = array();
-		if ( isset( $so['coso'][ $kcs ] ) && is_array( $so['coso'][ $kcs ] ) ) {
-			$nguon[] = $so['coso'][ $kcs ];
-		}
-		if ( isset( $so['chung'] ) && is_array( $so['chung'] ) ) { $nguon[] = $so['chung']; }
-		foreach ( $nguon as $bang ) {
-			foreach ( $bang as $k => $v ) {
-				if ( '*' === $k || (float) $v <= 0 ) { continue; }
-				if ( isset( $ra[ $k ] ) ) { continue; }      // tầng cơ sở đã lấy thì thôi
-				$ra[ $k ] = self::ten_cua( $k, $so );
-			}
+		/* CHỈ bảng của chính cơ sở này — không còn tầng chung để gộp vào (16/09/2026). */
+		$bang = ( isset( $so['coso'][ $kcs ] ) && is_array( $so['coso'][ $kcs ] ) )
+			? $so['coso'][ $kcs ] : array();
+		foreach ( $bang as $k => $v ) {
+			if ( '*' === $k || (float) $v <= 0 ) { continue; }
+			$ra[ $k ] = self::ten_cua( $k, $so );
 		}
 		natcasesort( $ra );
 		return array_values( $ra );
@@ -274,20 +279,35 @@ class VHCC_GiaGio {
 		return '';
 	}
 
+	/**
+	 * BẢNG CHUNG CẢ CHUỖI ĐÃ BỎ — 16/09/2026.
+	 *
+	 * 🔴 GIỮ HÀM ĐỂ CHỐI THẲNG, KHÔNG XOÁ HẲN. Xoá thì mọi lối gọi còn sót lại thành lỗi chí
+	 *    mạng giữa lúc người ta đang chốt lương; còn để nó ghi tiếp thì tầng vừa bỏ lại sống
+	 *    ngầm trong sổ và không ai biết. Chối thẳng là cách duy nhất vừa không gãy vừa không
+	 *    âm thầm.
+	 */
 	public static function dat_chung( $u, $bang ) {
-		$chan = self::gac( $u );
-		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
-		$r  = self::sach_bang( $bang );
-		if ( $r['loi'] ) {
-			return array( 'ok' => false, 'error' => 'Đơn giá phải là số dương và dưới '
-				. number_format( self::TRAN, 0, ',', '.' ) . 'đ/giờ — sai ở: '
-				. implode( ', ', $r['loi'] ) . '.' );
+		return array( 'ok' => false, 'error' => 'Bảng đơn giá chung cả chuỗi đã bỏ — mỗi cơ sở '
+			. 'khai đơn giá của riêng mình. Khai ở khối Đơn giá giờ ngay dưới bảng lương của '
+			. 'cơ sở ấy.' );
+	}
+
+	/**
+	 * Mấy dòng còn sót trong nhánh `chung` của sổ cũ — CHỈ để màn kể ra cho người ta khai lại.
+	 *
+	 * ⚠️ KHÔNG XOÁ DỮ LIỆU CỦA NGƯỜI TA. Bỏ một tầng là việc của mã; xoá con số người ta đã gõ
+	 *    là việc khác hẳn. Nhánh ấy nằm im trong sổ, `tra()` không đọc tới nữa, và màn bày ra
+	 *    để biết mà gõ lại cho từng cơ sở.
+	 */
+	public static function chung_cu( $so = null ) {
+		$so = ( null === $so ) ? self::so() : $so;
+		$ra = array();
+		foreach ( (array) ( isset( $so['chung'] ) ? $so['chung'] : array() ) as $k => $v ) {
+			if ( '*' === $k || (float) $v <= 0 ) { continue; }
+			$ra[ self::ten_cua( $k, $so ) ] = (float) $v;
 		}
-		$so = self::so();
-		$so['chung'] = $r['ds'];
-		$so = self::gop_ten( $so, $r['ten'] );
-		self::ghi( $u, $so );
-		return array( 'ok' => true, 'so' => count( $r['ds'] ) );
+		return $ra;
 	}
 
 	public static function dat_coso( $u, $coso, $bang ) {

@@ -97,11 +97,22 @@ $g0 = VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu', 'X1' );
 teq( '🔴 chưa khai đơn giá -> trả 0', 0.0, $g0['gia'] );
 teq( '🔴 và NÓI RÕ là chưa khai, không im lặng', 'khong', $g0['tu'] );
 
-/* Tầng chung — cả chuỗi, theo chức vụ. Số lấy từ khối Aeon Tân Phú trong file. */
-$r = VHCC_GiaGio::dat_chung( $U_KT, array( 'TN' => 24000, 'NV' => 22000, 'LT' => 24000 ) );
-t( 'kế toán khai được bảng đơn giá chung', ! empty( $r['ok'] ), $r );
-teq( 'TN ăn 24.000 theo bảng chung', 24000.0, VHCC_GiaGio::tra( 'AEON_TP', 'TN' )['gia'] );
-teq( 'và nói rõ giá đến từ bảng chung', 'chung', VHCC_GiaGio::tra( 'AEON_TP', 'TN' )['tu'] );
+/* 🔴 TẦNG "BẢNG CHUNG CẢ CHUỖI" ĐÃ BỎ — anh Thắng 16/09/2026: *"mỗi cơ sở 1 mức giá lương khác
+   nhau"*. Cửa cũ phải CHỐI THẲNG, không được lặng lẽ ghi vào một nhánh chẳng ai đọc nữa. */
+$r = VHCC_GiaGio::dat_chung( $U_KT, array( 'TN' => 24000 ) );
+t( '🔴 khai bảng chung bị CHỐI (tầng ấy đã bỏ)', empty( $r['ok'] ), $r );
+t( 'và câu chối chỉ đúng chỗ khai mới', false !== strpos( $r['error'], 'mỗi cơ sở' ), $r );
+
+/* Mỗi cơ sở khai của mình. Số lấy từ khối Aeon Tân Phú trong file. */
+$r = VHCC_GiaGio::dat_coso( $U_KT, 'AEON_TP', array( 'TN' => 24000, 'NV' => 22000, 'LT' => 24000 ) );
+t( 'kế toán khai được đơn giá của Tân Phú', ! empty( $r['ok'] ), $r );
+teq( 'TN ở Tân Phú ăn 24.000', 24000.0, VHCC_GiaGio::tra( 'AEON_TP', 'TN' )['gia'] );
+teq( 'và nói rõ giá đến từ bảng của cơ sở', 'coso', VHCC_GiaGio::tra( 'AEON_TP', 'TN' )['tu'] );
+
+/* 🔴 CƠ SỞ CHƯA KHAI THÌ TRỐNG, không mượn giá của cơ sở khác. Đây là cả lý do bỏ tầng chung:
+   trước đây Bình Tân chưa ai khai vẫn ra tiền, ra bằng giá của Tân Phú, mà bảng vẫn đầy số. */
+teq( '🔴 cơ sở KHÁC chưa khai thì vẫn CHƯA KHAI, không mượn giá Tân Phú', 'khong',
+	VHCC_GiaGio::tra( 'KHO_LA', 'TN' )['tu'] );
 
 /* Tầng cơ sở — Aeon Bình Tân: Lái Tàu 23.000, Lơ Tàu 21.000 (đúng file). */
 $r = VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
@@ -112,7 +123,7 @@ teq( 'Lơ Tàu ở Bình Tân: 21.000', 21000.0, VHCC_GiaGio::tra( 'AEON_BT', 'L
 /* 🔴 CÙNG CHỨC VỤ, KHÁC CƠ SỞ, KHÁC GIÁ — chính là lý do sổ phải có tầng cơ sở.
    Trong file: "NV" ở Aeon Tân Phú 22.000, ở Lotte Gò Vấp 23.000. */
 VHCC_GiaGio::dat_coso( $U_KT, 'LOTTE_GV', array( 'NV' => 23000 ) );
-teq( '🔴 NV ở Tân Phú vẫn 22.000 (bảng chung)', 22000.0, VHCC_GiaGio::tra( 'AEON_TP', 'NV' )['gia'] );
+teq( '🔴 NV ở Tân Phú vẫn 22.000 (bảng của Tân Phú)', 22000.0, VHCC_GiaGio::tra( 'AEON_TP', 'NV' )['gia'] );
 teq( '🔴 NV ở Gò Vấp là 23.000 (bảng cơ sở đè lên)', 23000.0, VHCC_GiaGio::tra( 'LOTTE_GV', 'NV' )['gia'] );
 
 /* 🔴 NGƯỜI ĐÈ LÊN CƠ SỞ — Lotte Gò Vấp có ba "NV" ăn 23.000, riêng một người 25.000. */
@@ -137,6 +148,11 @@ VHCC_GiaGio::dat_nguoi( $U_KT, 'GV_THUAN', array( 'NV' => '' ) );
 teq( '🔴 xoá khai riêng thì rơi về giá của cơ sở', 23000.0,
 	VHCC_GiaGio::tra( 'LOTTE_GV', 'NV', 'GV_THUAN' )['gia'] );
 teq( 'và nguồn giá nay là cơ sở', 'coso', VHCC_GiaGio::tra( 'LOTTE_GV', 'NV', 'GV_THUAN' )['tu'] );
+/* Hai tầng, hết — không còn tầng nào đỡ bên dưới cơ sở nữa. */
+VHCC_GiaGio::dat_coso( $U_KT, 'LOTTE_GV', array() );
+teq( '🔴 cơ sở bỏ khai thì rơi thẳng về CHƯA KHAI, không có tầng nào đỡ', 'khong',
+	VHCC_GiaGio::tra( 'LOTTE_GV', 'NV', 'GV_THUAN' )['tu'] );
+VHCC_GiaGio::dat_coso( $U_KT, 'LOTTE_GV', array( 'NV' => 23000 ) );
 
 /* 🔴 SỐ GÕ BẬY BỊ CHỐI, KHÔNG GHI BỪA. Gõ dư một số 0 là nhân mười lương cả cơ sở. */
 $r = VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 0 ) );
@@ -527,7 +543,9 @@ t( '🔴 kế toán thấy khối khai đơn giá',
 	false !== strpos( $h_kt, 'Đơn giá giờ của cơ sở' ), substr( $h_kt, 0, 400 ) );
 t( 'khối liệt kê chức vụ đang dùng thật của tháng, không bắt gõ tay',
 	false !== strpos( $h_kt, 'name="gg_cs_ten[' ), $h_kt );
-t( 'và có bảng chung cả chuỗi', false !== strpos( $h_kt, 'name="gg_chung_ten[' ), $h_kt );
+t( '🔴 KHÔNG còn bảng chung cả chuỗi trên màn',
+	false === strpos( $h_kt, 'name="gg_chung_ten[' ), 'bảng chung còn sót' );
+t( 'mà nói thẳng là nó đã bỏ', false !== strpos( $h_kt, 'chung cả chuỗi đã bỏ' ), $h_kt );
 
 $h_cht_ch = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
 	array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' ) );
@@ -548,17 +566,17 @@ teq( '🔴 bấm Lưu trên màn thì đơn giá vào sổ thật', 26500.0,
 t( 'và màn KHÔNG báo câu chối về màn Hồ sơ',
 	false === strpos( $h_post, 'thuộc màn Hồ sơ' ), substr( $h_post, 0, 600 ) );
 
-/* Ba dòng trống ở cuối bảng chung phải ĐỌC ĐƯỢC — vẽ ô mà không nhận là người ta gõ xong,
+/* Ba dòng trống ở cuối bảng của CƠ SỞ phải ĐỌC ĐƯỢC — vẽ ô mà không nhận là người ta gõ xong,
    thấy báo "đã lưu", rồi chức vụ biến mất không dấu vết. */
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_kt );
-$_GET  = array( 'man' => 'cau_hinh' );
-$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ),
-	'gg_chung_ten' => array( 0 => 'TN', 1 => 'Thu ngân mới' ),
-	'gg_chung_gia' => array( 0 => '24000', 1 => '28000' ) );
+$_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' );
+$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ), 'ccs' => 'AEON_BT',
+	'gg_cs_ten' => array( 0 => 'Lái Tàu', 1 => 'Thu ngân mới' ),
+	'gg_cs_gia' => array( 0 => '26500', 1 => '28000' ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 dòng trống gõ thêm chức vụ mới thì LƯU THẬT', 28000.0,
-	VHCC_GiaGio::tra( 'CS_KHONG_KHAI', 'Thu ngân mới' )['gia'] );
+	VHCC_GiaGio::tra( 'AEON_BT', 'Thu ngân mới' )['gia'] );
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 5. CHỐT CHỐNG DÁN SỐ CĂN CƯỚC THẬT VÀO KHO CÔNG KHAI
@@ -680,7 +698,7 @@ teq( 'và sổ không suy suyển', $gia_truoc, VHCC_GiaGio::tra( 'AEON_BT', 'L�
 
 /* 🔴 TÊN GÕ SAO ĐỌC LẠI Y VẬY. Bản trước vẽ thẳng cái khoá ra màn nên "Lái tàu" đọc lại thành
    "laitau" — đúng ba dòng anh Thắng nhìn thấy. */
-VHCC_GiaGio::dat_chung( $U_KT, array( 'Lái tàu' => 23000, 'Lơ tàu' => 21000, 'CHT' => 26000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'KHO_LA', array( 'Lái tàu' => 23000, 'Lơ tàu' => 21000, 'CHT' => 26000 ) );
 teq( '🔴 "Lái tàu" đọc lại vẫn là "Lái tàu", không phải "laitau"',
 	'Lái tàu', VHCC_GiaGio::ten_cua( VHCC_GiaGio::khoa_cv( 'Lái tàu' ) ) );
 teq( 'và "CHT" vẫn là "CHT", không thành "cht"',
@@ -764,17 +782,17 @@ $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 CHT gõ tay POST đơn giá: KHÔNG ăn', 23000.0,
 	VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );  // vẫn là giá vừa gieo, không phải 99.000
 
-/* 🔴 LƯU BẢNG CHUNG KHÔNG ĐƯỢC ĐÈ TÊN THÀNH KHOÁ. Ô tên nay gõ được và mang CÁCH VIẾT của
-   người, không mang khoá — bộ xử lý phải lấy đúng nó. */
+/* 🔴 LƯU BẢNG CƠ SỞ KHÔNG ĐƯỢC ĐÈ TÊN THÀNH KHOÁ. Ô tên gõ được và mang CÁCH VIẾT của người —
+   bộ xử lý phải lấy đúng nó, không nhận bừa cái khoá làm tên. */
 $tok_ch = VHCC_Auth::phat_token( 'Chị KT', 'Kế toán', '', 'KT_BL' );
 $k_lt = VHCC_GiaGio::khoa_cv( 'Lái tàu' );
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_ch );
-$_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' );
-$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_ch ),
-	'gg_chung_ten' => array( 0 => 'Lái tàu' ), 'gg_chung_gia' => array( 0 => '23500' ) );
+$_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'KHO_LA' );
+$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_ch ), 'ccs' => 'KHO_LA',
+	'gg_cs_ten' => array( 0 => 'Lái tàu' ), 'gg_cs_gia' => array( 0 => '23500' ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
-teq( 'lưu bảng chung thì giá đổi', 23500.0, VHCC_GiaGio::tra( 'KHO_LA', 'Lái tàu' )['gia'] );
+teq( 'lưu bảng cơ sở thì giá đổi', 23500.0, VHCC_GiaGio::tra( 'KHO_LA', 'Lái tàu' )['gia'] );
 teq( '🔴 và TÊN KHÔNG bị đè thành khoá', 'Lái tàu', VHCC_GiaGio::ten_cua( $k_lt ) );
 
 
@@ -827,17 +845,17 @@ teq( '🔴 XOÁ: tick Xoá thì bỏ khai riêng, DÙ ô giá vẫn còn số', 
 	VHCC_GiaGio::tra( 'AEON_BT', 'Bảo vệ ca đêm' )['tu'] );
 teq( 'dòng không tick thì còn nguyên', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
 
-/* 🔴 XOÁ Ở TẦNG CƠ SỞ LÀ RƠI VỀ BẢNG CHUNG, KHÔNG PHẢI THÀNH 0đ. */
-VHCC_GiaGio::dat_chung( $U_KT, array( 'Lái tàu' => 20000, 'Gác cổng' => 18000 ) );
+/* 🔴 XOÁ Ở TẦNG CƠ SỞ LÀ RƠI VỀ "CHƯA KHAI", KHÔNG PHẢI THÀNH 0đ — và cũng không còn tầng chung
+   nào đỡ bên dưới nữa (16/09/2026). */
 vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
 	array( 0 => 'Gác cổng' ), array( 0 => '25000' ) );
-teq( 'gieo: cơ sở đang đè giá riêng', 25000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
+teq( 'gieo: cơ sở đang khai giá', 25000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
 vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
 	array( 0 => 'Gác cổng' ), array( 0 => '25000' ), array( 0 => '1' ) );
-teq( '🔴 xoá khai riêng thì rơi về BẢNG CHUNG', 18000.0,
-	VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
-teq( 'và nói rõ giá nay đến từ bảng chung', 'chung',
+teq( '🔴 xoá thì về CHƯA KHAI, không thành 0đ', 'khong',
 	VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['tu'] );
+teq( 'và tiền là 0 kèm lời nói rõ, chứ không phải một con số đoán', 0.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
 
 /* ---- màn: ô tên có gõ được không, và ô Xoá có vẽ không ---- */
 /* Gieo lại dòng không-giờ đã bị mấy phép xoá ở trên dọn đi, để phần soi màn có đủ hai loại. */
@@ -896,12 +914,16 @@ t( '🔴 lưu xong màn CẢNH BÁO còn dòng chưa có đơn giá',
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
 
 /* ---- lõi: gộp bảng cơ sở + bảng chung, KHÔNG gộp giá khai riêng người ---- */
-VHCC_GiaGio::dat_chung( $U_KT, array( 'Gác cổng' => 18000, 'MC' => 30000 ) );
-VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT',
+	array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000, 'MC' => 30000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'KHO_LA', array( 'Việc Của Kho' => 33000 ) );
 VHCC_GiaGio::dat_nguoi( $U_KT, 'BT_MAN', array( 'Việc Của Riêng Mẫn' => 40000 ) );
 $ds_tk = VHCC_GiaGio::ten_khai_cho( 'AEON_BT' );
 t( 'có tên của bảng CƠ SỞ', in_array( 'Lái Tàu', $ds_tk, true ), $ds_tk );
-t( 'có tên của bảng CHUNG', in_array( 'MC', $ds_tk, true ), $ds_tk );
+/* 🔴 CHỈ CỦA CƠ SỞ NÀY. Tầng chung đã bỏ, nên tên khai ở cơ sở khác KHÔNG được lọt vào ô chọn
+   của cơ sở này — lọt là mời người ta gán giờ theo giá của cửa hàng khác. */
+t( '🔴 KHÔNG có tên khai ở cơ sở khác',
+	! in_array( 'Việc Của Kho', $ds_tk, true ), $ds_tk );
 t( '🔴 KHÔNG có giá khai riêng của một người',
 	! in_array( 'Việc Của Riêng Mẫn', $ds_tk, true ),
 	'giá riêng của người lọt vào danh sách việc của cả cửa hàng' );
@@ -913,8 +935,8 @@ t( '🔴 ô tên việc là ô CHỌN, không phải ô gõ tay',
 	false !== strpos( $h_cl, '<select name="cl_viec[0]"' ), $h_cl );
 t( 'và bày đúng tên đã khai giá', false !== strpos( $h_cl, '>Lái Tàu — 23.000đ/h<' ), $h_cl );
 /* ⚠️ Dòng của bảng chung nay mang thêm nhãn "· bảng chung" — xem mục 11. */
-t( 'tên của bảng chung cũng có',
-	false !== strpos( $h_cl, '>MC — 30.000đ/h · bảng chung<' ), $h_cl );
+t( 'và tên nào cũng chỉ mang giá, không còn nhãn nguồn nào khác',
+	false !== strpos( $h_cl, '>MC — 30.000đ/h<' ), $h_cl );
 t( 'có dòng "— chọn việc —" để bỏ trống',
 	false !== strpos( $h_cl, '<option value="">— chọn việc —</option>' ), $h_cl );
 t( '🔴 giá khai riêng của người KHÔNG lọt vào ô chọn',
@@ -1059,57 +1081,78 @@ t( 'và ghi chú riêng của từng dòng vẫn còn (lượt thiếu giờ)',
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 11. "SINH THỪA TỪ ĐÂU" — tên của bảng chung phải NÓI RA là của bảng chung
+ * 11. MỖI CƠ SỞ MỘT MỨC GIÁ — KHÔNG CƠ SỞ NÀO MƯỢN GIÁ CỦA CƠ SỞ NÀO
  *
- * Anh Thắng 16/09/2026 mở ô chọn việc, thấy `cht — 26.000đ/h` đứng cạnh
- * `Cửa Hàng Trưởng — 26.000đ/h`: *"sinh thừa từ đâu"*.
- * `cht` ở BẢNG CHUNG, `Cửa Hàng Trưởng` ở bảng cơ sở — hai chuỗi khác nhau nên hai khoá khác
- * nhau (`cht` ≠ `cuahangtruong`), thành hai dòng. Còn `laitau` và `Lái Tàu` thì CÙNG khoá nên
- * gộp làm một — đó là lý do chỉ mỗi dòng ấy nhân đôi.
- * Lỗi của màn: ô chọn lấy tên từ CẢ HAI bảng, mà khối đơn giá chỉ bày bảng của cơ sở — cái tên
- * thừa hiện ra ở một chỗ và không có mặt ở chỗ nào để xoá.
+ * Anh Thắng 16/09/2026 mở ô chọn việc, thấy CẢ BA dòng đều mang nhãn `· bảng chung`:
+ * *"mỗi cơ sở 1 mức giá lương khác nhau"*. Tầng chung cả chuỗi bỏ từ đây.
+ *
+ * Trước đó anh đã hỏi *"sinh thừa từ đâu"* khi thấy `cht` đứng cạnh `Cửa Hàng Trưởng`: hai
+ * chuỗi khác nhau ra hai khoá khác nhau (`cht` ≠ `cuahangtruong`) nên thành hai dòng, còn
+ * `laitau` và `Lái Tàu` cùng khoá nên gộp. Phép canh khoá vẫn giữ — nó không dính tầng nào.
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
-
-/* Dựng lại ĐÚNG hai ảnh anh gửi. */
-VHCC_GiaGio::dat_chung( $U_KT, array( 'cht' => 26000, 'laitau' => 23000, 'lotau' => 21000 ) );
-VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT',
-	array( 'Cửa Hàng Trưởng' => 26000, 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
 
 teq( '🔴 "cht" và "Cửa Hàng Trưởng" ra HAI khoá khác nhau',
 	false, VHCC_GiaGio::khoa_cv( 'cht' ) === VHCC_GiaGio::khoa_cv( 'Cửa Hàng Trưởng' ) );
 teq( '⚠️ còn "laitau" và "Lái Tàu" thì CÙNG khoá — nên chúng gộp, không nhân đôi',
 	VHCC_GiaGio::khoa_cv( 'laitau' ), VHCC_GiaGio::khoa_cv( 'Lái Tàu' ) );
-$ds_td = VHCC_GiaGio::ten_khai_cho( 'AEON_BT' );
-teq( 'nên ô chọn ra đúng BỐN dòng, không phải sáu', 4, count( $ds_td ) );
 
+/* Hai cơ sở, hai mức giá cho CÙNG một chức vụ — đúng câu anh Thắng nói. */
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_TP', array( 'Lái Tàu' => 27000 ) );
+teq( 'Lái Tàu ở Bình Tân: 23.000', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
+teq( 'Lái Tàu ở Tân Phú: 27.000', 27000.0, VHCC_GiaGio::tra( 'AEON_TP', 'Lái Tàu' )['gia'] );
+
+/* 🔴 CƠ SỞ THỨ BA CHƯA KHAI THÌ TRỐNG — không mượn của bên nào, dù cả hai bên đều có giá. */
+VHCC_GiaGio::dat_coso( $U_KT, 'KHO_LA', array() );
+teq( '🔴 cơ sở chưa khai: CHƯA KHAI, không mượn giá của ai', 'khong',
+	VHCC_GiaGio::tra( 'KHO_LA', 'Lái Tàu' )['tu'] );
+teq( 'và tiền là 0, không phải một con số đoán', 0.0,
+	VHCC_GiaGio::tra( 'KHO_LA', 'Lái Tàu' )['gia'] );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 DỮ LIỆU CŨ CÒN NẰM TRONG NHÁNH `chung` PHẢI BỊ LỜ ĐI HOÀN TOÀN.
+ *
+ * Đây là phép quan trọng nhất của cả mục này, và là phép mà bản đầu KHÔNG có: sổ thật của anh
+ * Thắng ĐANG có `cht · laitau · lotau` nằm trong nhánh ấy. Nếu `tra()` còn ngó tới, thì mọi cơ
+ * sở chưa khai vẫn lặng lẽ ăn giá cũ — đúng cái vừa bỏ, chỉ khác là không còn chỗ nào nhìn thấy
+ * để mà sửa.
+ *
+ * ⚠️ PHẢI GHI THẲNG VÀO SỔ, KHÔNG QUA `dat_chung()`. Cửa ấy nay chối, nên đi qua nó thì nhánh
+ *    `chung` luôn rỗng và phép thử xanh mà chẳng chứng minh gì — đột biến trả lại tầng chung
+ *    trong `tra()` VẪN xanh. Đã thử đúng như vậy, nó không đỏ.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+$so_thuong = VHCC_GiaGio::so();
+$so_thuong['chung'] = array( VHCC_GiaGio::khoa_cv( 'Lái Tàu' ) => 99000 );
+VHCC_Luong::dat_cai_dat( VHCC_GiaGio::O, $so_thuong, $U_KT );
+teq( 'gieo: nhánh chung cũ có số thật trong sổ', 99000.0,
+	(float) VHCC_GiaGio::so()['chung'][ VHCC_GiaGio::khoa_cv( 'Lái Tàu' ) ] );
+teq( '🔴 cơ sở CHƯA khai vẫn là CHƯA KHAI, không ăn số cũ trong nhánh chung', 'khong',
+	VHCC_GiaGio::tra( 'KHO_LA', 'Lái Tàu' )['tu'] );
+teq( 'và tiền vẫn là 0', 0.0, VHCC_GiaGio::tra( 'KHO_LA', 'Lái Tàu' )['gia'] );
+teq( '🔴 cơ sở ĐÃ khai thì ăn giá CỦA NÓ, không bị số cũ đè lên', 23000.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
+/* Và số cũ ấy KHÔNG lọt vào ô chọn việc của cơ sở nào. */
+t( '🔴 số cũ không lọt vào danh sách việc của cơ sở chưa khai',
+	array() === VHCC_GiaGio::ten_khai_cho( 'KHO_LA' ), VHCC_GiaGio::ten_khai_cho( 'KHO_LA' ) );
+/* ⚠️ NHƯNG KHÔNG XOÁ NÓ ĐI. Bỏ một tầng là việc của mã; xoá con số người ta đã gõ là việc khác. */
+teq( '⚠️ và số cũ vẫn nằm im trong sổ, không bị xoá', 99000.0,
+	(float) VHCC_GiaGio::so()['chung'][ VHCC_GiaGio::khoa_cv( 'Lái Tàu' ) ] );
+teq( 'màn Cấu hình kể nó ra để còn khai lại', 99000.0,
+	(float) VHCC_GiaGio::chung_cu()['Lái Tàu'] );
+
+/* Trên màn: ô chọn việc không còn nhãn nguồn nào, vì chỉ còn một nguồn. */
 $h_td = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
 	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
-/* ⚠️ TÊN HIỆN RA LÀ "CHT", KHÔNG PHẢI "cht" — và đó là ĐÚNG. Mục 7 đã lưu cách viết "CHT" cho
-   khoá ấy; `dat_chung()` ở trên gửi lên chính cái khoá làm tên nên `sach_bang()` bỏ qua (tên
-   trùng khoá thì không ghi đè — xem chú thích ở đó), sổ giữ nguyên "CHT". Phép thử phải đo cái
-   màn THẬT SỰ vẽ ra, không đo cái mình gõ vào. */
-$ten_cht = VHCC_GiaGio::ten_cua( VHCC_GiaGio::khoa_cv( 'cht' ) );
-t( '🔴 dòng của bảng chung NÓI RA là của bảng chung',
-	false !== strpos( $h_td, $ten_cht . ' — 26.000đ/h · bảng chung' ), $h_td );
-t( '⚠️ còn dòng của chính cơ sở thì KHÔNG bị dán nhãn ấy',
-	false === strpos( $h_td, 'Lái Tàu — 23.000đ/h · bảng chung' ), $h_td );
-
-/* 🔴 VÀ KHỐI ĐƠN GIÁ PHẢI BÀY NÓ RA — không thì tên thừa hiện ở ô chọn mà không có chỗ nào xoá. */
-t( '🔴 khối đơn giá kể tên mấy dòng đến từ bảng chung',
-	false !== strpos( $h_td, 'từ <b>bảng chung cả chuỗi</b>' ), $h_td );
-t( 'và gọi đúng tên cái dòng thừa ấy',
-	1 === preg_match( '/bảng chung cả chuỗi<\/b>.*?<b>' . preg_quote( $ten_cht, '/' ) . '<\/b>/us',
-		$h_td ), $h_td );
-t( 'kèm đường sang đúng chỗ sửa được nó',
-	false !== strpos( $h_td, 'man=cau_hinh' ), $h_td );
-t( '⚠️ và cảnh báo đổi ở đó là đổi cho MỌI cơ sở',
-	false !== strpos( $h_td, 'đổi cho mọi cơ sở' ), $h_td );
-
-/* ⚠️ Dòng bảng chung ĐÃ BỊ CƠ SỞ ĐÈ LÊN thì đừng kể — nó không còn tác dụng ở đây, kể ra chỉ
-   làm người ta đi xoá một thứ không liên quan. */
-t( '🔴 dòng bảng chung đã bị cơ sở đè thì KHÔNG kể',
-	1 !== preg_match( '/bảng chung cả chuỗi<\/b>.*?<b>Lái Tàu<\/b>/us', $h_td ), $h_td );
-
+t( '🔴 ô chọn KHÔNG còn nhãn "· bảng chung"',
+	false === strpos( $h_td, '· bảng chung' ), 'nhãn cũ còn sót' );
+t( 'khối đơn giá KHÔNG còn kể "nhận từ bảng chung"',
+	false === strpos( $h_td, 'từ <b>bảng chung cả chuỗi</b>' ), 'đoạn kể cũ còn sót' );
+/* ⚠️ Nút Lưu chỉ vẽ cho người SỬA được đơn giá — cửa hàng trưởng chỉ xem, nên phải dựng bằng
+   phiên Kế toán. Dùng nhầm phiên thì phép thử đỏ vì một lý do chẳng liên quan tới điều đang canh. */
+$h_td_kt = vhcc_man( 'KT_BL', 'Kế toán', '',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( 'và nút Lưu nói rõ đây là TOÀN BỘ giá của cơ sở',
+	false !== strpos( $h_td_kt, 'TOÀN BỘ đơn giá đang' ), $h_td_kt );
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 12. CỘT LƯƠNG NGAY SAU CỘT TỔNG CỦA LƯỚI

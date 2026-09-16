@@ -1313,26 +1313,9 @@ class VHCC_Web {
 		if ( 'gia_gio' === $viec ) {
 			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$bao_g = array();
-			/* BẢNG CHUNG CẢ CHUỖI — cùng lối với bảng cơ sở: đánh số theo dòng, một bộ ô lo
-			   cả thêm · sửa tên · sửa giá · xoá. Xem chú thích ở nhánh dưới. */
-			if ( isset( $_POST['gg_chung_ten'] ) ) {
-				$tc = (array) wp_unslash( $_POST['gg_chung_ten'] );
-				$gc = isset( $_POST['gg_chung_gia'] ) ? (array) wp_unslash( $_POST['gg_chung_gia'] ) : array();
-				$xc = isset( $_POST['gg_chung_xoa'] ) ? (array) wp_unslash( $_POST['gg_chung_xoa'] ) : array();
-				$bang_c = array();
-				foreach ( $tc as $i_c => $t_c ) {
-					$t_c = trim( (string) $t_c );
-					if ( '' === $t_c ) { continue; }
-					if ( ! empty( $xc[ $i_c ] ) ) { continue; }
-					$g_c = isset( $gc[ $i_c ] ) ? trim( (string) $gc[ $i_c ] ) : '';
-					if ( '' === $g_c ) { continue; }
-					$bang_c[ $t_c ] = $g_c;
-				}
-				$r = VHCC_GiaGio::dat_chung( $toi, $bang_c );
-				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
-					: array( 'xong' => 'Đã lưu bảng đơn giá CHUNG của cả chuỗi (' . (int) $r['so']
-						. ' chức vụ). Cơ sở nào có bảng riêng thì bảng riêng vẫn thắng.' );
-			}
+			/* 🔴 16/09/2026 — NHÁNH "LƯU BẢNG CHUNG" ĐÃ BỎ cùng với chính tầng ấy. Không còn
+			   biểu mẫu nào gửi `gg_chung_*` lên nữa; `VHCC_GiaGio::dat_chung()` cũng chối
+			   thẳng nếu có lối gọi nào còn sót. Xem chú thích đầu `VHCC_GiaGio`. */
 
 			/* ═══════════════════════════════════════════════════════════════════════════
 			 * BẢNG RIÊNG CỦA MỘT CƠ SỞ — thêm · sửa tên · sửa giá · xoá, cùng MỘT bộ ô.
@@ -7726,7 +7709,7 @@ class VHCC_Web {
 	 *    quyết, chứ không lẳng lặng mở.
 	 */
 	/**
-	 * KHỐI KHAI ĐƠN GIÁ GIỜ — bảng chung của cả chuỗi, và bảng riêng của một cơ sở.
+	 * KHỐI KHAI ĐƠN GIÁ GIỜ — bảng riêng của MỘT cơ sở. Tầng chung cả chuỗi đã bỏ 16/09/2026.
 	 *
 	 * 🔴 LIỆT KÊ ĐÚNG NHỮNG CHỨC VỤ ĐANG DÙNG THẬT CỦA THÁNG, KHÔNG BẮT GÕ TAY.
 	 *    Khoá tra là tên chức vụ đã bỏ dấu; gõ tay thì khai "Lơ tàu" mà bảng in ra "Lơ Tàu" vẫn
@@ -7744,7 +7727,7 @@ class VHCC_Web {
 		echo '<div class="the"><details><summary><b>Đơn giá giờ của cơ sở</b> '
 			. '<span class="mo">— cột “Tiền/h” của bảng lương</span></summary>';
 		echo '<p class="mo">Tra theo thứ tự <b>người → cơ sở → chung</b>: khai riêng cho ai thì '
-			. 'người ấy thắng, không thì lấy bảng của cơ sở, không nữa thì lấy bảng chung. '
+			. 'người ấy thắng, không thì lấy bảng của cơ sở. '
 			. '<b>Ô để trống = xoá khai</b> (rơi về tầng dưới), không phải ghi 0.</p>';
 		/* 🔴 NÓI THẲNG HẬU QUẢ CỦA VIỆC KHÔNG KHAI — đây là chỗ duy nhất người ta đọc trước khi
 		   bỏ qua nó. Chưa khai thì bảng lương để TRỐNG tiền, chứ hệ không đoán lấy một con số. */
@@ -7793,8 +7776,8 @@ class VHCC_Web {
 				. esc_html( implode( ' · ', array_reverse( $cac_thang ) ) ) . ')</span></h3>';
 			if ( ! $dang ) {
 				echo '<p class="mo">Ba tháng gần nhất cơ sở này chưa có giờ chấm nào tính theo '
-					. 'giờ — chưa có chức vụ nào để khai. Khai ở <b>bảng chung</b> bên dưới cũng '
-					. 'được, cơ sở sẽ lấy theo đó.</p>';
+					. 'giờ — chưa có chức vụ nào để khai. Gõ vào ba dòng trống ở bảng dưới để '
+					. 'khai trước.</p>';
 			} else {
 				/* ⚠️ CÙNG BỘ Ô VỚI KHỐI DƯỚI BẢNG LƯƠNG (`gg_cs_ten/gia/xoa`, đánh số theo
 				   dòng). Hai màn cùng sửa một cuốn sổ mà gửi hai dạng biểu mẫu khác nhau thì
@@ -7809,7 +7792,7 @@ class VHCC_Web {
 					$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? $so['coso'][ $kcs ][ $k ] : '';
 					$ap = VHCC_GiaGio::tra( $cs, $cv, '', $so );
 					$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở',
-						'chung' => 'bảng chung', 'khong' => 'CHƯA KHAI' );
+						'khong' => 'CHƯA KHAI' );
 					echo '<tr' . ( 'khong' === $ap['tu'] ? ' class="hong"' : '' ) . '>';
 					/* Tên đến từ hồ sơ khi dòng có giờ (xem chú thích dài ở `the_gia_gio_cs`);
 					   dòng không giờ là nhãn của chính sổ, sửa được. */
@@ -7854,44 +7837,34 @@ class VHCC_Web {
 			echo '<p class="mo">Chọn một cơ sở ở ô trên để khai đơn giá riêng cho cơ sở đó.</p>';
 		}
 
-		/* --- bảng chung của cả chuỗi --- */
-		echo '<form method="post" style="margin-top:18px">';
-		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
-		echo '<input type="hidden" name="viec" value="gia_gio">';
-		echo '<h3 style="margin:0 0 6px">Bảng chung cả chuỗi '
-			. '<span class="mo">— dùng khi cơ sở không khai riêng</span></h3>';
-		$chung = isset( $so['chung'] ) ? $so['chung'] : array();
-		echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th>'
-			. '<th>Đơn giá (đ/giờ)</th><th>Xoá</th></tr></thead><tbody>';
-		$i_ch = 0;
-		foreach ( $chung as $k => $v ) {
-			/* 🔴 VẼ TÊN NGƯỜI GÕ, KHÔNG VẼ KHOÁ. Khoá đã bỏ dấu bỏ hoa thường, nên bản trước gõ
-			   vào "Lái tàu" mở lại đọc ra "laitau" — anh Thắng 16/09/2026 nhìn thấy đúng ba dòng
-			   như vậy. Sổ giữ cách viết gốc từ bản này; khoá cũ chưa có tên thì `ten_cua()` trả
-			   lại chính khoá, vẫn hơn một ô trống.
-			   🔴 VÀ Ô ẤY NAY SỬA ĐƯỢC — *"thêm xóa , sửa tên đơn giá"*. Bảng chung không mượn
-			   tên của hồ sơ nào cả: nó là nhãn của chính sổ, nên sổ tự sửa được. Đây cũng là chỗ
-			   anh Thắng đang có ba dòng đọc ra "cht · laitau · lotau" cần gõ lại cho tử tế. */
-			echo '<tr><td><input name="gg_chung_ten[' . $i_ch . ']" value="'
-				. esc_attr( VHCC_GiaGio::ten_cua( $k, $so ) ) . '" style="width:180px"></td>';
-			echo '<td><input name="gg_chung_gia[' . $i_ch . ']" inputmode="numeric" '
-				. 'style="width:130px" value="' . esc_attr( (int) $v ) . '"></td>';
-			echo '<td class="p"><input type="checkbox" name="gg_chung_xoa[' . $i_ch . ']" '
-				. 'value="1" title="Bỏ chức vụ này khỏi bảng chung"></td></tr>';
-			$i_ch++;
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẢNG CHUNG CẢ CHUỖI ĐÃ BỎ — 16/09/2026.
+		 * Anh Thắng, trước ô chọn việc bày ba dòng đều mang nhãn `· bảng chung`: *"mỗi cơ sở 1
+		 * mức giá lương khác nhau"*. Xem chú thích đầu `VHCC_GiaGio`.
+		 *
+		 * ⚠️ KHÔNG XOÁ CON SỐ NGƯỜI TA ĐÃ GÕ. Bỏ một tầng là việc của mã; xoá dữ liệu là việc
+		 *    khác hẳn. Mấy dòng cũ nằm im trong sổ, `tra()` không đọc tới nữa — và bày ra ở đây
+		 *    để còn biết mà gõ lại cho từng cơ sở. Biến mất không dấu vết thì người ta chỉ phát
+		 *    hiện khi bảng lương đã trống.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$cu = VHCC_GiaGio::chung_cu( $so );
+		echo '<div class="bao canh" style="margin:18px 0 0"><b>Bảng đơn giá chung cả chuỗi đã '
+			. 'bỏ.</b> Mỗi cơ sở khai đơn giá của riêng mình — khai ở khối <b>Đơn giá giờ</b> '
+			. 'ngay dưới bảng lương của cơ sở ấy. Cơ sở nào chưa khai thì bảng lương để '
+			. '<b>trống</b> và kêu lên, chứ không mượn giá của cửa hàng khác.';
+		if ( $cu ) {
+			echo '<br><br>Sổ cũ còn <b>' . (int) count( $cu ) . ' dòng</b> của bảng chung — '
+				. '<b>không còn áp dụng cho cơ sở nào</b>, chép lại ra đây để anh/chị khai lại: ';
+			$mau_cu = array();
+			foreach ( $cu as $t_cu => $g_cu ) {
+				$mau_cu[] = '<b>' . esc_html( $t_cu ) . '</b> '
+					. esc_html( number_format( $g_cu, 0, ',', '.' ) ) . 'đ';
+			}
+			echo implode( ' · ', $mau_cu );  // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '.';
 		}
-		/* Ba dòng trống để thêm chức vụ mới — không có thì khai xong một lần là hết chỗ thêm.
-		   Cùng bộ ô với dòng cũ, nên bộ xử lý chỉ đọc một đường. */
-		for ( $i = 0; $i < 3; $i++ ) {
-			echo '<tr><td><input name="gg_chung_ten[' . $i_ch . ']" placeholder="+ chức vụ mới" '
-				. 'style="width:180px"></td><td><input name="gg_chung_gia[' . $i_ch . ']" '
-				. 'inputmode="numeric" style="width:130px" placeholder="vd 24000"></td>'
-				. '<td></td></tr>';
-			$i_ch++;
-		}
-		echo '</tbody></table></div>';
-		echo '<p style="margin:10px 0 0"><button class="chinh">Lưu bảng chung</button></p>';
-		echo '</form></details></div>';
+		echo '</div>';
+		echo '</details></div>';
 	}
 
 	/**
@@ -7918,8 +7891,7 @@ class VHCC_Web {
 				   tên lạ mà không biết ở đâu ra thì không ai dám xoá, cũng không ai dám chọn. */
 				. ( $gia['gia'] > 0
 					? ' — ' . esc_html( number_format( (float) $gia['gia'], 0, ',', '.' ) ) . 'đ/h'
-						. ( 'chung' === $gia['tu'] ? ' · bảng chung' : '' )
-					: ' — CHƯA KHAI GIÁ' )
+						: ' — CHƯA KHAI GIÁ' )
 				. '</option>';
 		}
 		echo '</select>';
@@ -8168,9 +8140,9 @@ class VHCC_Web {
 				. 'nhưng không sửa. Sửa đơn giá là việc của <b>Quản lý</b> hoặc <b>Kế toán</b> — '
 				. 'thấy con số nào sai thì báo lên, sửa một dòng ở đây là đổi lương cả nhóm.</div>';
 		} else {
-			echo '<p class="mo">Đây là bảng <b>riêng của ' . esc_html( $cs ) . '</b>, đè lên bảng '
-				. 'chung cả chuỗi. <b>Ô để trống = xoá khai riêng</b> (rơi về bảng chung), không '
-				. 'phải ghi 0. Lưu xong bảng lương ở trên tự tính lại.</p>';
+			echo '<p class="mo">Đơn giá <b>của riêng ' . esc_html( $cs ) . '</b> — mỗi cơ sở một '
+				. 'mức. <b>Ô để trống = chưa khai</b>, bảng lương sẽ để trống ô tiền và kêu lên, '
+				. 'chứ không mượn giá của cơ sở khác. Lưu xong bảng lương ở trên tự tính lại.</p>';
 		}
 
 		if ( ! $dang ) {
@@ -8195,7 +8167,7 @@ class VHCC_Web {
 			. '<th>Đơn giá riêng của ' . esc_html( $cs ) . ' (đ/giờ)</th>'
 			. '<th>Đang lấy từ</th>' . ( $sua ? '<th>Xoá</th>' : '' ) . '</tr></thead><tbody>';
 		$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở này',
-			'chung' => 'bảng chung cả chuỗi', 'khong' => 'CHƯA KHAI' );
+			'khong' => 'CHƯA KHAI' );
 		$i_hang = 0;
 		foreach ( $dang as $k => $x ) {
 			$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? (int) $so['coso'][ $kcs ][ $k ] : '';
@@ -8255,7 +8227,7 @@ class VHCC_Web {
 				   vẫn đúng, nhưng nó là luật NGẦM — người gõ nhìn một ô trống thì không biết
 				   mình vừa bỏ khai hay chỉ chưa gõ. Một ô tick nói thẳng ra ý định. */
 				echo '<td class="p"><input type="checkbox" name="gg_cs_xoa[' . $i_hang . ']" '
-					. 'value="1" title="Bỏ khai riêng dòng này — giá rơi về bảng chung cả chuỗi"'
+					. 'value="1" title="Bỏ khai dòng này — bảng lương quay về CHƯA KHAI ĐƠN GIÁ"'
 					. ( '' === $cu ? ' disabled' : '' ) . '></td>';
 			}
 			echo '</tr>';
@@ -8276,49 +8248,15 @@ class VHCC_Web {
 		echo '</tbody></table></div>';
 		if ( $sua ) {
 			echo '<p style="margin:10px 0 0"><button class="chinh">Lưu đơn giá của '
-				. esc_html( $cs ) . '</button> <span class="mo">— chỉ đổi cơ sở này. Bảng chung '
-				. 'cả chuỗi khai ở tab <b>Cấu hình</b>.</span></p>';
+				. esc_html( $cs ) . '</button> <span class="mo">— đây là TOÀN BỘ đơn giá đang '
+				. 'áp ở cơ sở này; không mượn giá của cơ sở nào khác.</span></p>';
 			echo '</form>';
 		}
 
-		/* ═══════════════════════════════════════════════════════════════════════════════════
-		 * 🔴 BÀY LUÔN MẤY DÒNG CỦA BẢNG CHUNG ĐANG LỌT VÀO CƠ SỞ NÀY.
-		 *
-		 * Anh Thắng 16/09/2026 mở ô chọn việc, thấy một dòng `cht — 26.000đ/h` bên cạnh
-		 * `Cửa Hàng Trưởng — 26.000đ/h` và hỏi *"sinh thừa từ đâu"*.
-		 *
-		 * Nó từ BẢNG CHUNG CẢ CHUỖI — anh gõ vào đó hôm trước, khi còn vướng cái bẫy ô chọn cơ
-		 * sở ở tab Cấu hình. `cht` và `Cửa Hàng Trưởng` là hai chuỗi khác hẳn nên ra hai khoá
-		 * khác nhau (`cht` ≠ `cuahangtruong`), thành hai dòng; còn `laitau` và `Lái Tàu` thì
-		 * cùng khoá nên gộp làm một — đó là lý do chỉ mỗi dòng ấy nhân đôi.
-		 *
-		 * Lỗi của màn, không phải của anh: ô chọn việc lấy tên từ CẢ HAI bảng, mà bảng này chỉ
-		 * bày bảng của cơ sở. Cái tên thừa hiện ra ở một chỗ và không có mặt ở chỗ nào để xoá.
-		 *
-		 * ⚠️ CHỈ BÀY, KHÔNG CHO SỬA TẠI ĐÂY. Bảng chung dùng cho MỌI cơ sở; sửa nó từ màn của
-		 *    một cửa hàng là đổi tiền của cả chuỗi bằng một cú bấm tưởng chỉ đụng chỗ mình.
-		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$chung_lot = array();
-		foreach ( (array) ( isset( $so['chung'] ) ? $so['chung'] : array() ) as $k_ch => $v_ch ) {
-			if ( '*' === $k_ch || (float) $v_ch <= 0 ) { continue; }
-			if ( isset( $so['coso'][ $kcs ][ $k_ch ] ) ) { continue; }   // cơ sở đã đè lên
-			$chung_lot[ $k_ch ] = $v_ch;
-		}
-		if ( $chung_lot ) {
-			echo '<p class="mo" style="margin:12px 0 0;padding-top:10px;'
-				. 'border-top:1px dashed var(--vien)">Ngoài ra ' . esc_html( $cs ) . ' còn nhận '
-				. (int) count( $chung_lot ) . ' đơn giá từ <b>bảng chung cả chuỗi</b> — '
-				. 'chúng cũng hiện trong ô chọn việc: ';
-			$mau = array();
-			foreach ( $chung_lot as $k_ch => $v_ch ) {
-				$mau[] = '<b>' . esc_html( VHCC_GiaGio::ten_cua( $k_ch, $so ) ) . '</b> '
-					. esc_html( number_format( (float) $v_ch, 0, ',', '.' ) ) . 'đ';
-			}
-			echo implode( ' · ', $mau );  // phpcs:ignore WordPress.Security.EscapeOutput
-			echo '. Sửa hoặc xoá chúng ở tab <a href="'
-				. esc_url( add_query_arg( array( 'man' => 'cau_hinh', 'ccs' => $cs ), self::url() ) )
-				. '"><b>Cấu hình</b></a> — <b>đổi ở đó là đổi cho mọi cơ sở</b>.</p>';
-		}
+		/* 🔴 16/09/2026 — KHÔNG CÒN ĐOẠN "cơ sở này còn nhận N đơn giá từ bảng chung".
+		   Tầng ấy đã bỏ (xem `VHCC_GiaGio`), nên cơ sở không nhận của ai cái gì nữa: bảng ngay
+		   trên là TOÀN BỘ đơn giá đang áp ở đây. Giữ lại đoạn kể ấy là chỉ về một nơi không còn
+		   quyết định gì — tệ hơn không nói. */
 		echo '</details></div>';
 	}
 
