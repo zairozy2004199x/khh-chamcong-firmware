@@ -7016,8 +7016,16 @@ class VHCC_Web {
 		echo '<td><b>' . esc_html( 'ngay' === $kieu_ct
 			? ( (int) $tong_cs . ' công' )
 			: VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td>';
-		echo '<td><b>' . esc_html( number_format( $tien_cs, 0, ',', '.' ) ) . 'đ</b>'
-			. ( $co_thieu ? '<div class="mo chu-hong" style="font-size:10px">chưa đủ giá</div>' : '' )
+		/* 🔴 CHƯA ĐỦ GIÁ THÌ ĐỪNG IN TỔNG — KỂ CẢ KHI NÓ RA SỐ ÂM.
+		   Anh Thắng 16/09/2026 gửi ảnh hàng tổng ghi **-240.000đ**: cả cơ sở chưa khai đơn giá
+		   nào nên phần lương chính là 0, còn mấy khoản TRỪ (phạt, đặt cọc) thì đã gõ — cộng lại
+		   ra một con số âm. Nó không sai về phép tính, nhưng nó KHÔNG PHẢI tổng lương của ai
+		   cả, mà lại nằm đúng ô người ta liếc vào để biết tháng này trả bao nhiêu.
+		   Từng hàng đã ghi "thiếu giá" thay vì số; hàng tổng phải theo cùng một luật. */
+		echo '<td>' . ( $co_thieu
+			? '<span class="chu-hong" title="Còn dòng chưa khai đơn giá — cộng lại sẽ ra một con '
+				. 'số không phải tổng lương của ai">chưa đủ giá</span>'
+			: '<b>' . esc_html( number_format( $tien_cs, 0, ',', '.' ) ) . 'đ</b>' )
 			. '</td></tr>';
 		echo '</tbody></table></div>';
 
@@ -7030,10 +7038,15 @@ class VHCC_Web {
 				. 'không vào lưới và không vào tổng: ';
 			$mau_an = array();
 			foreach ( $ma_an as $ma_a => $t_a ) {
-				$mau_an[] = '<code>' . esc_html( $ma_a ) . '</code>'
-					. ( '' !== trim( (string) $t_a ) && $t_a !== $ma_a
-						? ' ' . esc_html( $t_a ) : '' )
-					. self::o_an_ma( $ma_a, true, $ky, $toi, $cs_luoi );
+				/* ⚠️ SO BẰNG CHUỖI, KHÔNG SO `!==` THẲNG. Khoá mảng PHP TỰ ÉP một chuỗi toàn
+				   số về KIỂU SỐ, nên mã máy "3925996292" thành int, còn tên vẫn là chuỗi —
+				   `!==` luôn đúng và màn in cái mã ra HAI LẦN liền nhau. Anh Thắng nhìn thấy
+				   đúng dòng ấy. Ép cả hai về chuỗi rồi mới so. */
+				$ma_ch = (string) $ma_a;
+				$t_ch  = trim( (string) $t_a );
+				$mau_an[] = '<code>' . esc_html( $ma_ch ) . '</code>'
+					. ( '' !== $t_ch && $t_ch !== $ma_ch ? ' ' . esc_html( $t_ch ) : '' )
+					. self::o_an_ma( $ma_ch, true, $ky, $toi, $cs_luoi );
 			}
 			echo implode( ' · ', $mau_an );  // phpcs:ignore WordPress.Security.EscapeOutput
 			echo '</p>';

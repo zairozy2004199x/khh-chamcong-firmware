@@ -1154,8 +1154,10 @@ foreach ( $m_tr as $tr_x ) {
 teq( '🔴 không hàng nào lệch cột so với tiêu đề (' . $so_th . ' cột)', 0, count( $lech_cot ) );
 
 /* Hàng tổng cuối bảng cũng phải có ô tiền — không thì thêm cột xong bảng thọt một ô ở đáy. */
-t( 'hàng tổng cuối lưới có ô tiền',
-	1 === preg_match( '/<tr class="tong">.*?người.*?đ<\/b>/us', $bang_lc ), $bang_lc );
+/* ⚠️ Ô ấy in TIỀN khi đủ giá, và in chữ "chưa đủ giá" khi chưa — nhận cả hai, vì thứ đang canh
+   là "hàng tổng có ô thứ tư", không phải "ô ấy ghi gì". */
+t( 'hàng tổng cuối lưới có ô lương',
+	1 === preg_match( '/<tr class="tong">.*?người.*?(đ<\/b>|chưa đủ giá)/us', $bang_lc ), $bang_lc );
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1271,6 +1273,23 @@ teq( '🔴 lượt chấm VẪN CÒN NGUYÊN trong sổ, không bị xoá', 1, $
 /* 🔴 PHẢI CÓ CHỖ NHÌN THẤY THỨ ĐANG ẨN — không thì ẩn đúng bằng xoá. */
 t( '🔴 màn kể ra mã đang ẩn', false !== strpos( $h_a1, 'mã đang ẩn' ), $h_a1 );
 t( 'và gọi đúng tên nó', false !== strpos( $h_a1, '<code>0000000777</code>' ), $h_a1 );
+/* 🔴 IN ĐÚNG MỘT LẦN. Khoá mảng PHP tự ép chuỗi toàn số về kiểu SỐ, nên so `!==` với tên (vẫn
+   là chuỗi) luôn đúng và màn in cái mã ra HAI LẦN liền nhau — anh Thắng nhìn thấy đúng dòng ấy.
+   ⚠️ Mã gieo ở trên (`0000000777`) có số 0 đứng đầu nên PHP KHÔNG ép về số; phải thử thêm một
+      mã toàn số KHÔNG có số 0 đầu thì mới đúng cảnh hỏng. Và phải NGẮN — chốt chống dán số căn
+      cước ở mục 5 chối mọi dãy 9+ chữ số không mở đầu bằng `0000`. */
+/* ⚠️ `ho_ten` PHẢI BẰNG ĐÚNG CÁI MÃ — đó mới là cảnh thật: máy đẩy về một mã không có hồ sơ,
+   lưới không có tên nào để hiện nên lấy chính cái mã làm tên. Gieo `ho_ten` rỗng thì không có
+   gì để in lặp, và phép thử xanh cả khi lỗi còn nguyên (đã thử đột biến, nó KHÔNG đỏ). */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => '777001', 'ho_ten' => '777001', 'coso' => 'AEON_BT', 'ngay' => '2026-08-04',
+	'gio_vao_giay' => 7 * 3600, 'gio_ra_giay' => 9 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
+VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '777001', true );
+$h_a1b = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_an );
+t( 'gieo: mã ấy có ra dòng đang ẩn', false !== strpos( $h_a1b, '<code>777001</code>' ), $h_a1b );
+teq( '🔴 mã toàn số in ĐÚNG MỘT LẦN, không lặp', 0,
+	substr_count( $h_a1b, '<code>777001</code> 777001' ) );
+VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '777001', false );
 t( 'kèm nút bỏ ẩn', false !== strpos( $h_a1, 'hiện lại' ), $h_a1 );
 
 /* 🔴 BỎ ẨN LÀ HIỆN LẠI ĐỦ SỐ. */
@@ -1305,5 +1324,21 @@ $r_nv_an = VHCC_An::dat( array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' 
 t( '🔴 nhân viên bậc 1 bị chối', empty( $r_nv_an['ok'] ), $r_nv_an );
 
 VHCC_An::dat( $U_CHT_BT, 'AEON_BT', '0000000777', false );
+
+/* 🔴 CHƯA ĐỦ GIÁ THÌ HÀNG TỔNG KHÔNG IN SỐ — kể cả khi nó ra số ÂM.
+   Anh Thắng gửi ảnh hàng tổng ghi -240.000đ: chưa khai đơn giá nào nên lương chính là 0, còn
+   mấy khoản TRỪ đã gõ — cộng lại ra số âm. Phép tính không sai, nhưng nó KHÔNG PHẢI tổng lương
+   của ai cả, mà lại nằm đúng ô người ta liếc vào để biết tháng này trả bao nhiêu. */
+VHCC_GiaGio::dat_chung( $U_KT, array() );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array() );
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
+VHCC_ChotLuong::dat_tien( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array(), array( 'phat' => 240000 ) );
+$h_am = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+preg_match( '/<tr class="tong">.*?<\/tr>/us', $h_am, $m_am );
+$hang_tong = isset( $m_am[0] ) ? $m_am[0] : '';
+t( 'cắt được hàng tổng ra để soi', '' !== $hang_tong, substr( $h_am, 0, 200 ) );
+t( '🔴 hàng tổng KHÔNG in số âm', false === strpos( $hang_tong, '-240.000đ' ), $hang_tong );
+t( 'mà nói thẳng là chưa đủ giá', false !== strpos( $hang_tong, 'chưa đủ giá' ), $hang_tong );
 
 ket_luan();
