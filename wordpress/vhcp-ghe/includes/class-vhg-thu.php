@@ -72,11 +72,39 @@ class VHG_Thu {
 			foreach ( array( 'ma_may', 'ma_lenh', 'ten_khai', 'vvb', 'ma_ch', 'noi_dung' ) as $c ) {
 				if ( '' === $hang[ $c ] && '' !== (string) $cu[ $c ] ) { $hang[ $c ] = $cu[ $c ]; }
 			}
-			$wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) );
+			$ok = $wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) );
+			/* ⚠️ `false` là HỎNG; `0` chỉ là "không dòng nào đổi giá trị" — đó là chuyện thường
+			   gặp nhất ở đây, vì webhook bắn lại gói y hệt. Lẫn hai thứ đó là mỗi lượt bắn lại
+			   lành lặn đều bị báo hỏng. Nên so sánh CHẶT. */
+			if ( false === $ok ) { return self::hong( $ref, 'nới' ); }
 			return array( 'ok' => true, 'moi' => false, 'ref' => $ref );
 		}
-		$wpdb->insert( $bang, $hang );
+		$ok = $wpdb->insert( $bang, $hang );
+		if ( false === $ok ) { return self::hong( $ref, 'thêm' ); }
 		return array( 'ok' => true, 'moi' => true, 'ref' => $ref );
+	}
+
+	/**
+	 * Một lượt ghi sổ tiền vừa TRƯỢT.
+	 *
+	 * 🔴 VÌ SAO PHẢI NÓI RA, DÙ NÓI RA LÀ THÊM MỘT NHÁNH LỖI PHẢI NUÔI:
+	 *    `ghi()` trả `ok = true` cho một lượt ghi hỏng thì `nhan()` đi tiếp, cổng trả HTTP 200,
+	 *    SePay đọc 2xx và XOÁ gói khỏi hàng đợi — không bao giờ bắn lại. Sổ tiền không có dòng
+	 *    nào, nhật ký không có lời nào, và cuối tháng không còn gì để dựng lại giao dịch ấy.
+	 *    Mất tiền trong im lặng tệ hơn hẳn cộng đôi: cộng đôi thì con số vênh ra mà lần được.
+	 *
+	 * ⚠️ VẪN TRẢ VỀ `ref`. Nhật ký của cổng in `ref` ra, và đó là đầu mối duy nhất để dò lại
+	 *    giao dịch vừa trượt trong sao kê ngân hàng.
+	 *
+	 * ⚠️ KHÔNG kèm `moi`. `moi = true` nghĩa là "đã thêm một dòng vào sổ" — điều vừa KHÔNG xảy
+	 *    ra. Nơi nào đọc `moi` mà không đọc `ok` thì thiếu `moi` còn đỡ hơn `moi` nói dối.
+	 */
+	private static function hong( $ref, $viec ) {
+		global $wpdb;
+		$vi = trim( (string) $wpdb->last_error );
+		return array( 'ok' => false, 'ref' => $ref,
+			'error' => 'Không ' . $viec . ' được dòng doanh thu ' . $ref . ' vào sổ'
+				. ( '' === $vi ? '.' : ' — ' . $vi ) );
 	}
 
 	/**
