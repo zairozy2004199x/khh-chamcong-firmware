@@ -80,8 +80,16 @@ $cc_x = function ( $ma, $ngay ) use ( $wpdb ) {
 foreach ( array( '2026-07-01', '2026-07-02', '2026-07-15' ) as $n_x ) { $cc_x( 'MNNV2KVC0024', $n_x ); }
 foreach ( array( '2026-07-01', '2026-07-02', '2026-08-10', '2026-09-13' ) as $n_x ) { $cc_x( 'MNNV2KVC0036', $n_x ); }
 
-$_GET = isset( $argv[2] ) && 'gop' === $argv[2]
-	? array( 'gop_a' => 'MNNV2KVC0036', 'gop_b' => 'MNNV2KVC0024' ) : array();
+/* Đối số thứ hai chọn cảnh muốn dựng:
+     (không có) — tab Nhân sự
+     gop        — màn xem trước lúc gộp hai hồ sơ
+     quyen      — tab Quyền vào trang (nơi có cột quyền cho từng trang)
+   Có cảnh `quyen` mới soi được bảng rộng nhất của cả trang: thêm một trang là thêm một cột,
+   nên đó chính là chỗ tràn bề ngang trước tiên. */
+$man_x = isset( $argv[2] ) ? (string) $argv[2] : '';
+$_GET = ( 'gop' === $man_x )
+	? array( 'gop_a' => 'MNNV2KVC0036', 'gop_b' => 'MNNV2KVC0024' )
+	: ( ( 'quyen' === $man_x ) ? array( 'ntab' => 'quyen' ) : array() );
 $_POST = array();
 $_COOKIE = array( VHCC_Web::COOKIE => $tok );
 ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
