@@ -1392,10 +1392,13 @@ function dungViewFile(nguon){
   var ten = CONG_TEN[nguon], id = function(t){ return cgId(nguon,t); };
   document.getElementById('v-c'+nguon).innerHTML =
     '<h2>Sao Kê ' + esc(ten) + '</h2>'
-  + '<div class="hint"><b>' + esc(ten) + ' không cho nhận webhook</b> (anh đã hỏi cổng), nên đối soát bằng '
-  + '<b>file kết xuất</b>. Tải file lên <b>hằng ngày</b>, app cộng dồn theo <b>tháng</b>: '
-  + 'ngày nào <b>đã có thì bỏ qua</b>, ngày nào <b>thiếu thì cộng thêm</b> — nên tải lại file cũ bao nhiêu lần '
-  + 'cũng không nhân đôi tiền. Cửa hàng đọc từ <b>cột P</b>, có bảng ánh xạ để khớp với cửa hàng bên ngân hàng.</div>'
+  /* ⚠️ DẢI GIỚI THIỆU ĐẦU MÀN ĐÃ BỎ (0.40.0) — anh Thắng 16/09/2026: *"ẩn này đi"*.
+     Nó giải thích VÌ SAO màn này tồn tại (cổng không cho webhook nên phải nạp file) — đọc một
+     lần là biết, còn nó thì chiếm hàng đầu màn mỗi ngày.
+     🔴 Nhưng một câu trong đó KHÔNG có ở chỗ nào khác và người ta cần đúng lúc sắp bấm nạp:
+        "tải lại file cũ bao nhiêu lần cũng không nhân đôi tiền". Thiếu câu ấy thì người dùng
+        ngần ngại nạp lại, mà ngần ngại nạp lại chính là cách để tháng bị thiếu ngày. Đã dời
+        xuống khối 📤 Tải file — chỗ nó thật sự được dùng, không phải chỗ nó được đọc. */
   + '<div class="panel row">'
   +   '<div class="fld"><label>Tháng đối soát</label><input type="month" id="'+id('thang')+'" '
   +     'onchange="cgChonNgay(\''+nguon+'\',\'\')"></div>'
@@ -1427,7 +1430,9 @@ function dungViewFile(nguon){
   +   'rồi anh chốt các cột trước khi nạp — em <b>không đoán</b> bố cục file của cổng.<br>'
   +   '<b>Cột Mã cửa hàng</b> chỉ dùng khi ô Tên cửa hàng <b>rỗng</b> — MoMo có mã không kèm tên '
   +   '(<code>85635</code>, <code>85716</code>…), không đọc mã thì mấy khoản đó không gán được về cơ sở nào. '
-  +   'Lúc đó tên hiện là <code>#85635</code> để nhìn là biết đây là mã.</div>'
+  +   'Lúc đó tên hiện là <code>#85635</code> để nhìn là biết đây là mã.<br>'
+  +   'App cộng dồn theo <b>tháng</b>: ngày nào <b>đã có thì bỏ qua</b>, ngày nào <b>thiếu thì cộng thêm</b> — '
+  +   'nên <b>tải lại file cũ bao nhiêu lần cũng không nhân đôi tiền</b>.</div>'
   +   '<div style="margin:6px 0"><input type="file" accept=".xlsx,.csv,.tsv,.txt" id="'+id('file')+'" onchange="cgChonFile(\''+nguon+'\',this)"></div>'
   +   '<div id="'+id('cotWrap')+'" style="display:none">'
   +     '<div class="row">'

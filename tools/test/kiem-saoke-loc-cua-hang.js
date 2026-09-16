@@ -164,6 +164,19 @@ t('🔴 màn đối soát cổng không còn dựng khối "Cần biết"',
 /* 🔴 Xoá luôn ô `canhBao` là lượt tải hỏng không còn chỗ nào nói ra — màn chỉ đứng im. */
 t('🔴 vẫn giữ ô canhBao cho đường báo lỗi', src.indexOf("id('canhBao')") > 0 && src.indexOf('function cgBaoLoiFile(') > 0);
 
+/* ── 7. Dải giới thiệu đầu màn đã bỏ, nhưng câu KHÔNG-NHÂN-ĐÔI-TIỀN phải còn ──────────────────
+   Anh Thắng 16/09/2026: *"ẩn này đi"*. Dải ấy giải thích vì sao màn tồn tại — đọc một lần là
+   biết. Nhưng nó chứa một câu không có ở đâu khác: "tải lại file cũ bao nhiêu lần cũng không
+   nhân đôi tiền". Bỏ luôn câu ấy là người dùng ngần ngại nạp lại, mà ngần ngại nạp lại chính
+   là cách để tháng bị thiếu ngày — bỏ một dải chữ mà đổi lấy tiền thiếu thì không đáng. */
+t('🔴 không còn dải "không cho nhận webhook" ở đầu màn', THAN.indexOf('không cho nhận webhook') < 0);
+/* ⚠️ Dò ĐÚNG ĐOẠN MARKUP, không dò câu chữ suông: chú thích ngay trên chỗ sửa cũng nhắc lại câu
+   ấy trong ngoặc kép, nên `indexOf('không nhân đôi tiền')` trúng comment (vị trí 567) chứ không
+   trúng mã — hai phép này xanh giả và phép thứ tự thì đỏ oan. Đã dính đúng một lần lúc viết. */
+const CAU = THAN.indexOf('<b>tải lại file cũ bao nhiêu lần cũng không nhân đôi tiền</b>');
+t('🔴 câu "không nhân đôi tiền" vẫn còn trong markup', CAU > 0);
+t('và nó nằm TRONG khối tải file, chỗ sắp bấm nạp', CAU > P_TAI && CAU < P_NGAY, CAU);
+
 console.log(TRUOT.length ? ('✗ TRƯỢT ' + TRUOT.length + ' phép (đạt ' + DAT + '):\n  · ' + TRUOT.join('\n  · '))
 	: ('✓ SẠCH — ' + DAT + ' phép.'));
 process.exit(TRUOT.length ? 1 : 0);
