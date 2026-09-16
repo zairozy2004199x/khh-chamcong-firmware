@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.21.0
+Stable tag: 1.22.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,18 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.22.0 =
+* **Nạp file "MoMo payments" của FABi** (Nạp báo cáo → thẻ *Giao dịch MoMo*): đọc cả 12 trang, cả
+  khối QR Tĩnh lẫn QR Động, và ghép tên trang bị Excel cắt ở 31 ký tự về đúng tên cơ sở.
+* **Bảng lệch TỪNG GIAO DỊCH** giữa máy POS và sổ MoMo: máy ghi mà MoMo không có · MoMo có mà máy
+  không ghi · khớp mã nhưng lệch tiền · máy ghi lỗi/huỷ. So tổng một ngày thì hai lỗi ngược chiều
+  triệt tiêu nhau; xuống từng mã thì cả hai hiện ra.
+* **Máy FABi dời cơ sở thì cứ nạp lại file** — không phải khai tay bảng nào. Chính file nói giao
+  dịch nào thuộc quán nào, theo từng giao dịch từng ngày; nạp lại là ghi đè cả cột cửa hàng.
+* Nạp xong hệ còn **học** bảng "tên cửa hàng bên MoMo ↔ cơ sở FABi" từ các cặp khớp mã. Tên nào
+  trỏ về hai quán trong cùng kỳ (đúng cảnh vừa dời máy) thì **không học** — học cái nào cũng sai
+  một nửa.
 
 = 1.21.0 =
 * **Khối Đối soát MoMo**: so ĐÚNG phần MoMo máy POS ghi (đọc từ cột hình thức thanh toán) với sổ

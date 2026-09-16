@@ -74,3 +74,7 @@ if ( ! function_exists( 'khh_dt_ds_cua_hang' ) ) {
 		return isset( $GLOBALS['KHH_DT_TEST_CH'] ) ? (array) $GLOBALS['KHH_DT_TEST_CH'] : array();
 	}
 }
+
+if ( ! function_exists( 'get_temp_dir' ) ) {
+	function get_temp_dir() { return rtrim( sys_get_temp_dir(), '/' ) . '/'; }
+}

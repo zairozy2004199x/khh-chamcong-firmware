@@ -385,11 +385,19 @@
           '<div class="tab-hang nho-hon">' +
             '<button class="tab on" type="button" data-loai="pos">Báo cáo bán hàng FABi</button>' +
             '<button class="tab" type="button" data-loai="sao_ke">Sao kê ngân hàng</button>' +
+            '<button class="tab" type="button" data-loai="momo_pos">Giao dịch MoMo (FABi)</button>' +
           '</div>' +
           '<div id="dtHdPos">' +
             '<ol><li>Trong CMS FABi: <b>Báo cáo → Báo cáo bán hàng</b> → chọn kỳ → <b>Xuất Excel</b>.</li>' +
             '<li>Thả file xuống ô dưới — file mấy chục MB vẫn được, trang tự cắt nhỏ gửi lên. Máy chủ đọc trang <b>"Tất cả cửa hàng"</b> và bỏ các dòng "Tổng" cộng dồn.</li>' +
             '<li>Nạp lại cùng một ngày thì <b>ghi đè</b> ngày đó, không cộng dồn.</li></ol></div>' +
+          '<div id="dtHdMomo" hidden>' +
+            '<ol><li>Trong CMS FABi: <b>Báo cáo → MoMo payments</b> → chọn kỳ → <b>Xuất Excel</b>. ' +
+            'Mỗi trang tính là một cửa hàng, có cả khối QR Tĩnh và QR Động.</li>' +
+            '<li>File này nói <b>giao dịch nào thuộc cửa hàng nào</b> — nên máy FABi dời sang cơ sở ' +
+            'khác thì cứ nạp lại file, hệ tự rà, không phải khai tay bảng nào.</li>' +
+            '<li>Nạp xong hệ còn <b>học</b> luôn tên cửa hàng bên MoMo ứng với quán nào, từ những ' +
+            'cặp giao dịch khớp mã.</li></ol></div>' +
           '<div id="dtHdSk" hidden>' +
             '<ol><li>Tải sao kê tài khoản nhận tiền nộp của các cơ sở — bản <b>bảng</b> (.xlsx hoặc .csv), không phải PDF.</li>' +
             '<li>Em <b>chỉ lấy tiền vào</b>, bỏ mọi khoản chi. Nạp lại cùng một kỳ không cộng dồn (khoá theo mã giao dịch).</li>' +
@@ -433,6 +441,7 @@
         });
         nen.querySelector('#dtHdPos').hidden = S.napLoai !== 'pos';
         nen.querySelector('#dtHdSk').hidden = S.napLoai !== 'sao_ke';
+        nen.querySelector('#dtHdMomo').hidden = S.napLoai !== 'momo_pos';
         bao_o.hidden = true;
       });
     });
@@ -484,6 +493,17 @@
         i++;
         if (!r.xong && i < tong) { gui(); return; }
         trangThai.textContent = '';
+        if (r.loai === 'momo_pos') {
+          bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' giao dịch MoMo</b> từ ' + nguyen(r.so_trang) +
+            ' cửa hàng' + (r.bo_qua ? ' (bỏ ' + nguyen(r.bo_qua) + ' dòng không đọc được ngày)' : '') + '. ' +
+            (r.hoc ? 'Đã học <b>' + nguyen(r.hoc) + '</b> tên cửa hàng bên MoMo ứng với quán nào. ' : '') +
+            ((r.lan_can || []).length
+              ? '⚠️ ' + r.lan_can.length + ' tên bên MoMo trỏ về HAI quán khác nhau trong kỳ này — ' +
+                'đúng cảnh máy vừa dời cơ sở. Hệ không đoán, giao dịch vẫn gán đúng theo file.'
+              : ''), 'xong');
+          khoiDong(true);
+          return;
+        }
         if (r.loai === 'sao_ke') {
           var cg = r.chua_gan || { so_dong: 0, so_tien: 0 };
           bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' khoản tiền vào</b> từ ' + nguyen(r.so_dong) + ' dòng sao kê' +
@@ -1048,6 +1068,10 @@
     h += veTongHop(ds, k);
 
     h += veMomo(ds, k);
+    /* Bảng lệch TỪNG GIAO DỊCH nạp riêng, vì nó đọc hai sổ giao dịch chứ không dùng lại bộ số
+       của bảng ngày. */
+    h += '<div class="khung" id="dtMomoGd"><header><h2>Lệch giao dịch MoMo</h2></header>' +
+      '<div id="dtMomoGdNoi"><div class="trong">Đang tải…</div></div></div>';
 
     /* Khối lịch nằm DƯỚI mấy ô đếm và TRÊN bảng ngày: nhìn hình dạng cả tháng trước, rồi mới
        soi từng ngày. */
@@ -1059,6 +1083,7 @@
     o.innerHTML = h;
     noiLocDoiSoat(o);
     taiLich(o, S.lich.thang || thangCua(k.den));
+    taiMomoGd(o, k);
   }
 
   /**
@@ -1227,6 +1252,91 @@
       '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> lệch <b>dương</b> là máy POS ' +
       'ghi nhiều hơn MoMo nhận — thường do bấm nhầm hình thức thanh toán, hoặc đơn huỷ mà máy vẫn ' +
       'ghi. Lệch <b>âm</b> nặng hơn: MoMo nhận tiền mà máy không ghi.</div></div>';
+  }
+
+  /**
+   * BẢNG LỆCH TỪNG GIAO DỊCH MOMO.
+   *
+   * 🔴 SO TỔNG MỘT NGÀY THÌ HAI LỖI NGƯỢC CHIỀU TRIỆT TIÊU NHAU. Một giao dịch MoMo nhận mà máy
+   *    không ghi, cộng một giao dịch máy ghi mà MoMo không nhận — tổng vẫn khớp, mà thực tế là
+   *    HAI cái sai. Anh Thắng 16/09/2026: *"2 bên cũng hay lỗi do nhận tiền lỗi, nên cần có bảng
+   *    lệch giao dịch giữa 2 bên"*. Xuống tới từng mã thì cả hai hiện ra.
+   */
+  function taiMomoGd(o, k) {
+    var noi = o.querySelector('#dtMomoGdNoi');
+    if (!noi) return;
+    api('momo-gd?tu=' + k.tu + '&den=' + k.den).then(function (r) {
+      if (!r.co_pos && !r.co_sk) {
+        var khung = o.querySelector('#dtMomoGd');
+        if (khung) khung.hidden = true;
+        return;
+      }
+      if (!r.co_pos || !r.co_sk) {
+        noi.innerHTML = '<div class="trong">' + (!r.co_pos
+          ? 'Chưa nạp file <b>Giao dịch MoMo (FABi)</b> — bấm <b>Nạp báo cáo</b> rồi chọn thẻ ấy.'
+          : 'Chưa khai <b>sổ MoMo</b> — vào Quản trị → Khai sổ MoMo.') + '</div>';
+        return;
+      }
+      var h = '<div class="the-hang" style="margin:6px 0 14px">' +
+        the_nho('Khớp hai bên', nguyen(r.so_khop) + ' / ' + nguyen(r.so_pos), '') +
+        the_nho('Máy ghi, MoMo không có', nguyen(r.so_chi_pos) + ' · ' + tien(r.tien_chi_pos),
+          r.so_chi_pos ? 'xau' : '') +
+        the_nho('MoMo có, máy không ghi', nguyen(r.so_chi_sk) + ' · ' + tien(r.tien_chi_sk),
+          r.so_chi_sk ? 'xau' : '') +
+        the_nho('Lệch số tiền', nguyen(r.so_lech), r.so_lech ? 'xau' : '') +
+        (r.so_loi_pos ? the_nho('Máy ghi lỗi / huỷ', nguyen(r.so_loi_pos), '') : '') +
+        '</div>';
+
+      function bang(tieu, cot, dong, ghi) {
+        if (!dong.length) return '';
+        return '<h3 class="tieu-nho">' + esc(tieu) + '</h3>' +
+          (ghi ? '<div class="chu-them">' + ghi + '</div>' : '') +
+          '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+          cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
+          '</tr></thead><tbody>' + dong.join('') + '</tbody></table></div>';
+      }
+
+      h += bang('Máy POS ghi mà sổ MoMo không có (' + nguyen(r.so_chi_pos) + ')',
+        ['Ngày', 'Cơ sở', 'Mã đối tác', 'Mã hoá đơn', 'Số tiền'],
+        (r.chi_pos || []).map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(ngayVN(x.ngay)) + ' ' + esc(String(x.gio)) + 'h</td>' +
+            '<td style="text-align:left">' + esc(String(x.cua_hang).slice(0, 30)) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.ma_doi_tac) + '</code></td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.ma_hd) + '</code></td>' +
+            '<td class="s">' + tien(x.so_tien) + '</td></tr>';
+        }),
+        'Máy tính tiền ghi là khách đã trả qua MoMo, nhưng sổ MoMo không có giao dịch ấy — ' +
+        'thường là bấm nhầm hình thức thanh toán, hoặc giao dịch rớt giữa chừng mà máy vẫn chốt đơn.');
+
+      h += bang('Sổ MoMo có mà máy POS không ghi (' + nguyen(r.so_chi_sk) + ')',
+        ['Ngày', 'Tên bên MoMo', 'Mã giao dịch', 'Số tiền'],
+        (r.chi_sk || []).map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(x.ngay) + '</td>' +
+            '<td style="text-align:left">' + esc(String(x.ten).slice(0, 30)) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.ma) + '</code></td>' +
+            '<td class="s">' + tien(x.tien) + '</td></tr>';
+        }),
+        '<b>Nhóm này nặng hơn:</b> MoMo đã nhận tiền của khách mà máy tính tiền không ghi đơn nào — ' +
+        'tiền vào tài khoản nhưng không nằm trong doanh thu.');
+
+      h += bang('Khớp mã nhưng lệch số tiền (' + nguyen(r.so_lech) + ')',
+        ['Ngày', 'Cơ sở', 'Mã đối tác', 'Máy POS', 'Sổ MoMo', 'Lệch'],
+        (r.lech || []).map(function (x) {
+          var p = x.pos;
+          return '<tr><td style="text-align:left">' + esc(ngayVN(p.ngay)) + '</td>' +
+            '<td style="text-align:left">' + esc(String(p.cua_hang).slice(0, 26)) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(p.ma_doi_tac) + '</code></td>' +
+            '<td class="s">' + tien(p.so_tien) + '</td><td class="s">' + tien(x.sk_tien) + '</td>' +
+            '<td class="s"><b style="color:var(--xau)">' + nguyen(p.so_tien - x.sk_tien) + '</b></td></tr>';
+        }), '');
+
+      if (!r.so_chi_pos && !r.so_chi_sk && !r.so_lech) {
+        h += '<div class="trong">Hai bên khớp từng giao dịch — không có dòng nào lệch.</div>';
+      }
+      noi.innerHTML = h;
+    }).catch(function (e) {
+      noi.innerHTML = '<div class="trong">' + esc(e.message || e) + '</div>';
+    });
   }
 
   function thangCua(ngay) { return String(ngay || ymd(new Date())).slice(0, 7); }

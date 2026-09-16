@@ -1258,7 +1258,12 @@ function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
 			continue;
 		}
 		$ngay_co[ $ngay ] = true;
-		$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
+		/* Bảng ĐÃ HỌC từ file MoMo của FABi được tin trước — nó dựng từ những cặp giao dịch khớp
+		   mã thật, nên đúng cả khi máy FABi vừa dời sang cơ sở khác. Xem `khh_dt_hoc_ghep_momo()`. */
+		$ch = function_exists( 'khh_dt_ghep_momo_hoc' ) ? khh_dt_ghep_momo_hoc( (string) $r['ten'] ) : '';
+		if ( '' === $ch ) {
+			$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
+		}
 		if ( '' === $ch ) {
 			$ch = khh_dt_doan_co_so( (string) $r['ten'], '' );
 		}
