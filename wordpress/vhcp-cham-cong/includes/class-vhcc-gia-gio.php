@@ -171,6 +171,47 @@ class VHCC_GiaGio {
 		return array( 'gia' => 0.0, 'tu' => 'khong' );
 	}
 
+	/**
+	 * DANH SÁCH CHỨC VỤ ĐÃ KHAI ĐƠN GIÁ Ở MỘT CƠ SỞ — để ô "tên việc" chọn sẵn, khỏi gõ tay.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO Ô "TÊN VIỆC" PHẢI LẤY TỪ ĐÂY
+	 * =========================================================================================
+	 * Anh Thắng 16/09/2026: *"Tên việc giờ chọn sẵn từ đơn giá"*.
+	 *
+	 * Ô ấy trước là ô gõ tay tự do. Mà tên việc gõ vào đó KHÔNG phải một cái nhãn — nó là KHOÁ
+	 * TRA đơn giá. Gõ "Lơ tàu" trong khi sổ khai "Lơ Tàu " thì vẫn khớp (khoá bỏ dấu, bỏ hoa
+	 * thường), nhưng gõ "Lơ" hay "Lơ tau " thiếu một chữ là dòng giờ ấy tra không ra giá và lặng
+	 * lẽ thành 0đ — người gõ thì đinh ninh đã xong vì màn báo "đã lưu".
+	 *
+	 * Bày sẵn đúng những cái tên CÓ GIÁ thì cái bẫy ấy biến mất: không còn chỗ để gõ lệch.
+	 *
+	 * Gộp hai tầng — bảng riêng của cơ sở và bảng chung cả chuỗi — vì cả hai đều tra ra giá
+	 * thật. Trùng khoá thì tầng cơ sở thắng, đúng thứ tự `tra()`.
+	 *
+	 * ⚠️ KHÔNG gộp tầng "khai riêng người": giá của một người không phải một LOẠI VIỆC của cửa
+	 *    hàng, bày nó vào danh sách chung là mời người ta gán giờ của người này theo tên người kia.
+	 */
+	public static function ten_khai_cho( $coso, $so = null ) {
+		$so  = ( null === $so ) ? self::so() : $so;
+		$kcs = self::khoa_cs( $coso );
+		$ra  = array();
+		$nguon = array();
+		if ( isset( $so['coso'][ $kcs ] ) && is_array( $so['coso'][ $kcs ] ) ) {
+			$nguon[] = $so['coso'][ $kcs ];
+		}
+		if ( isset( $so['chung'] ) && is_array( $so['chung'] ) ) { $nguon[] = $so['chung']; }
+		foreach ( $nguon as $bang ) {
+			foreach ( $bang as $k => $v ) {
+				if ( '*' === $k || (float) $v <= 0 ) { continue; }
+				if ( isset( $ra[ $k ] ) ) { continue; }      // tầng cơ sở đã lấy thì thôi
+				$ra[ $k ] = self::ten_cua( $k, $so );
+			}
+		}
+		natcasesort( $ra );
+		return array_values( $ra );
+	}
+
 	/* ==================================================================== ghi sổ */
 
 	/**

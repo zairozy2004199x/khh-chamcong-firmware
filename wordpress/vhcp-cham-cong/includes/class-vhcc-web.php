@@ -7682,23 +7682,72 @@ class VHCC_Web {
 		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
 		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
 			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính.</p>';
-		if ( $goi ) {
-			echo '<datalist id="cl_ten">';
-			foreach ( $goi as $g ) { echo '<option value="' . esc_attr( $g ) . '">'; }
-			echo '</datalist>';
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 TÊN VIỆC CHỌN SẴN TỪ SỔ ĐƠN GIÁ, KHÔNG GÕ TAY NỮA.
+		 *
+		 * Anh Thắng 16/09/2026: *"Tên việc giờ chọn sẵn từ đơn giá"*.
+		 *
+		 * Chữ gõ vào ô này KHÔNG phải một cái nhãn — nó là KHOÁ TRA đơn giá (xem
+		 * `VHCC_GiaGio::ten_khai_cho()`). Gõ thiếu một chữ là dòng giờ ấy tra không ra giá rồi
+		 * lặng lẽ thành 0đ, trong khi màn vẫn báo "đã lưu". Bày sẵn đúng những cái tên CÓ GIÁ
+		 * thì không còn chỗ để gõ lệch.
+		 *
+		 * ⚠️ DÒNG ĐÃ LƯU LUÔN CÓ MẶT TRONG DANH SÁCH, kể cả khi tên ấy không còn trong sổ đơn
+		 *    giá (khai từ trước rồi bị xoá, hay đổi tên bên bảng giá). Thiếu nó thì mở khối ra
+		 *    là ô chọn nhảy về "— chọn việc —", bấm Lưu một cái là MẤT dòng giờ ấy — mất một
+		 *    thứ người ta chưa hề đụng tới.
+		 *
+		 * ⚠️ CHƯA KHAI ĐƠN GIÁ NÀO THÌ QUAY VỀ Ô GÕ TAY. Một ô chọn rỗng là một khối chết: người
+		 *    ta mở ra, không chọn được gì, và không có câu nào nói vì sao. Gõ tay được thì ít
+		 *    nhất việc vẫn ghi lại được, và câu nhắc chỉ thẳng xuống bảng đơn giá.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$ds_ten = VHCC_GiaGio::ten_khai_cho( $cs );
+		/* 🔴 MỘT CHỖ GIỮ LUẬT "KHÔNG MẤT DÒNG CŨ", KHÔNG PHẢI HAI.
+		   `ten_da_dung()` quét MỌI tháng của cơ sở này trong sổ chốt lương, nên mọi tên đã từng
+		   lưu đều có mặt ở đây — kể cả tên đã bị xoá khỏi sổ đơn giá. Bản đầu còn nhét thêm
+		   `$v` của từng dòng vào danh sách của riêng dòng ấy; hai đường cùng giữ một luật thì
+		   bỏ đường nào bài kiểm cũng xanh, nên bài kiểm KHÔNG còn canh được luật nữa — chỉ khi
+		   bỏ cả hai mới đỏ. Một chỗ, và có phép thử đứng đúng chỗ ấy. */
+		foreach ( $goi as $g_x ) {
+			if ( ! in_array( $g_x, $ds_ten, true ) ) { $ds_ten[] = $g_x; }
 		}
+
 		/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
 		$n = max( 3, count( $gk ) + 2 );
 		for ( $i = 0; $i < $n; $i++ ) {
 			$v = isset( $gk[ $i ]['viec'] ) ? $gk[ $i ]['viec'] : '';
 			$g = isset( $gk[ $i ]['gio'] ) ? $gk[ $i ]['gio'] : '';
-			echo '<div class="hang" style="margin:0 0 5px;gap:8px">'
-				. '<div><input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
-				. 'list="cl_ten" style="width:210px" value="' . esc_attr( $v ) . '"></div>'
+			echo '<div class="hang" style="margin:0 0 5px;gap:8px"><div>';
+			if ( $ds_ten ) {
+				echo '<select name="cl_viec[' . $i . ']" style="width:210px">';
+				echo '<option value="">— chọn việc —</option>';
+				foreach ( $ds_ten as $t_x ) {
+					$co_gia = VHCC_GiaGio::tra( $cs, $t_x, '', null );
+					echo '<option value="' . esc_attr( $t_x ) . '"' . selected( $t_x, $v, false )
+						. '>' . esc_html( $t_x )
+						/* Nói luôn giá ngay trong ô chọn: người gõ thấy được hậu quả của lựa
+						   chọn trước khi bấm Lưu, chứ không phải sau khi bảng lương đã tính. */
+						. ( $co_gia['gia'] > 0
+							? ' — ' . esc_html( number_format( (float) $co_gia['gia'], 0, ',', '.' ) ) . 'đ/h'
+							: ' — CHƯA KHAI GIÁ' )
+						. '</option>';
+				}
+				echo '</select>';
+			} else {
+				echo '<input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
+					. 'style="width:210px" value="' . esc_attr( $v ) . '">';
+			}
+			echo '</div>'
 				. '<div><input name="cl_gio[' . $i . ']" inputmode="decimal" placeholder="số giờ" '
 				. 'style="width:110px" value="' . esc_attr( '' === $g ? '' : (string) $g ) . '"></div>'
 				. '<div class="mo" style="align-self:center;font-size:12px">'
-				. ( '' !== $v ? 'đơn giá tra theo tên việc này' : '' ) . '</div></div>';
+				. ( $ds_ten ? '' : 'chưa khai đơn giá nào — gõ tay, rồi khai giá ở bảng dưới' )
+				. '</div></div>';
+		}
+		if ( $ds_ten ) {
+			echo '<p class="mo" style="margin:2px 0 0;font-size:12px">Việc cần chưa có trong '
+				. 'danh sách? Khai đơn giá cho nó ở khối <b>Đơn giá giờ</b> ngay dưới bảng lương, '
+				. 'rồi quay lại — như vậy giờ và giá luôn đi cùng nhau.</p>';
 		}
 
 		/* ---- các khoản cộng / trừ ---- */

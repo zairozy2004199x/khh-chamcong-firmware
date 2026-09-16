@@ -886,4 +886,86 @@ $h_lech = vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
 t( '🔴 lưu xong màn CẢNH BÁO còn dòng chưa có đơn giá',
 	false !== strpos( $h_lech, 'CHƯA có đơn giá' ), substr( $h_lech, 0, 900 ) );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 9. Ô "TÊN VIỆC" CHỌN SẴN TỪ SỔ ĐƠN GIÁ
+ *
+ * Anh Thắng 16/09/2026: *"Tên việc giờ chọn sẵn từ đơn giá"*.
+ * Chữ trong ô ấy là KHOÁ TRA đơn giá, không phải cái nhãn — gõ lệch một chữ là dòng giờ ấy
+ * lặng lẽ thành 0đ trong khi màn vẫn báo "đã lưu".
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/* ---- lõi: gộp bảng cơ sở + bảng chung, KHÔNG gộp giá khai riêng người ---- */
+VHCC_GiaGio::dat_chung( $U_KT, array( 'Gác cổng' => 18000, 'MC' => 30000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
+VHCC_GiaGio::dat_nguoi( $U_KT, 'BT_MAN', array( 'Việc Của Riêng Mẫn' => 40000 ) );
+$ds_tk = VHCC_GiaGio::ten_khai_cho( 'AEON_BT' );
+t( 'có tên của bảng CƠ SỞ', in_array( 'Lái Tàu', $ds_tk, true ), $ds_tk );
+t( 'có tên của bảng CHUNG', in_array( 'MC', $ds_tk, true ), $ds_tk );
+t( '🔴 KHÔNG có giá khai riêng của một người',
+	! in_array( 'Việc Của Riêng Mẫn', $ds_tk, true ),
+	'giá riêng của người lọt vào danh sách việc của cả cửa hàng' );
+
+/* ---- màn: là ô CHỌN, và nói luôn giá ---- */
+$g_mo = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' );
+$h_cl = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_mo );
+t( '🔴 ô tên việc là ô CHỌN, không phải ô gõ tay',
+	false !== strpos( $h_cl, '<select name="cl_viec[0]"' ), $h_cl );
+t( 'và bày đúng tên đã khai giá', false !== strpos( $h_cl, '>Lái Tàu — 23.000đ/h<' ), $h_cl );
+t( 'tên của bảng chung cũng có', false !== strpos( $h_cl, '>MC — 30.000đ/h<' ), $h_cl );
+t( 'có dòng "— chọn việc —" để bỏ trống',
+	false !== strpos( $h_cl, '<option value="">— chọn việc —</option>' ), $h_cl );
+t( '🔴 giá khai riêng của người KHÔNG lọt vào ô chọn',
+	false === strpos( $h_cl, 'Việc Của Riêng Mẫn' ), 'lộ giá riêng của người vào ô chọn' );
+
+/* ---- 🔴 DÒNG ĐÃ LƯU MANG TÊN NGOÀI SỔ VẪN PHẢI CÓ TRONG Ô CHỌN ----
+   Nếu thiếu, mở khối ra là ô chọn nhảy về "— chọn việc —", bấm Lưu một cái là MẤT dòng giờ ấy
+   — mất một thứ người ta chưa hề đụng tới. */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'Việc Cũ Đã Bỏ', 'gio' => 3 ) ), 126.0 );
+teq( 'gieo: dòng giờ mang tên ngoài sổ đã vào sổ chốt lương', 3.0,
+	VHCC_ChotLuong::tong_cua( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+$h_cl2 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_mo );
+/* ⚠️ CẮT LẤY ĐÚNG Ô CHỌN RỒI MỚI SOI. Quét cả trang thì "Việc Cũ Đã Bỏ" vẫn thấy — nó nằm
+   trong chính bảng lương ở trên — nên phép thử xanh cả khi ô chọn rỗng trơn. */
+preg_match( '/<select name="cl_viec\[0\]".*?<\/select>/us', $h_cl2, $m_sel );
+$o_chon = isset( $m_sel[0] ) ? $m_sel[0] : '';
+t( 'cắt được ô chọn ra để soi', '' !== $o_chon, substr( $h_cl2, 0, 300 ) );
+t( '🔴 tên ngoài sổ VẪN có trong ô chọn (không thì bấm Lưu là mất dòng)',
+	false !== strpos( $o_chon, 'Việc Cũ Đã Bỏ' ), $o_chon );
+t( 'và nó đang được chọn sẵn',
+	1 === preg_match( '/<option value="Việc Cũ Đã Bỏ"[^>]*selected/u', $o_chon ), $o_chon );
+t( 'kèm lời nói thẳng là tên ấy chưa có giá',
+	false !== strpos( $o_chon, 'Việc Cũ Đã Bỏ — CHƯA KHAI GIÁ' ), $o_chon );
+
+/* ---- gửi thật: chọn một việc rồi Lưu thì vào sổ ---- */
+$tok_cl = VHCC_Auth::phat_token( 'Trưởng BL', 'Cửa hàng trưởng', 'AEON_BT', 'CHT_BL' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_cl );
+$_GET  = $g_mo;
+$_POST = array( 'viec' => 'chot_luong', 'ky' => VHCC_Web::chu_ky( $tok_cl ),
+	'ccs' => 'AEON_BT', 'cth' => '2026-08', 'cl_ma' => 'BT_MAN',
+	'cl_viec' => array( 0 => 'Lơ Tàu' ), 'cl_gio' => array( 0 => '5' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 chọn việc rồi Lưu: vào sổ thật', 5.0,
+	VHCC_ChotLuong::tong_cua( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+$d_cl = VHCC_ChotLuong::cua( 'AEON_BT', '2026-08', 'BT_MAN' );
+teq( 'và lưu đúng cái tên đã chọn', 'Lơ Tàu', $d_cl[0]['viec'] );
+
+/* ---- ⚠️ CHƯA KHAI GIÁ NÀO THÌ QUAY VỀ Ô GÕ TAY ----
+   Một ô chọn rỗng là khối chết: mở ra không chọn được gì, không câu nào nói vì sao. */
+VHCC_GiaGio::dat_chung( $U_KT, array() );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array() );
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0 );
+teq( 'gieo: sổ đơn giá của cơ sở này nay rỗng', 0, count( VHCC_GiaGio::ten_khai_cho( 'AEON_BT' ) ) );
+$h_cl3 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_mo );
+t( '🔴 sổ rỗng thì trả lại ô GÕ TAY, không bày ô chọn rỗng',
+	false !== strpos( $h_cl3, 'name="cl_viec[0]" placeholder="tên việc' )
+	&& false === strpos( $h_cl3, '<select name="cl_viec[0]"' ), $h_cl3 );
+t( 'và nói rõ vì sao, chỉ đúng chỗ đi khai',
+	false !== strpos( $h_cl3, 'chưa khai đơn giá nào' ), $h_cl3 );
+
+/* Trả sổ về như cũ cho phép thử sau (nếu có ai thêm) khỏi chạy trên sổ rỗng. */
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000 ) );
+
 ket_luan();
