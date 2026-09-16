@@ -807,17 +807,30 @@ function khh_dt_tat_keo() {
  *    plugin, bảng nháp, bảng của bản cũ). Tự chọn nhầm là đối soát bằng một sổ chết mà vẫn xanh.
  */
 function khh_dt_cot_nguon() {
+	/* ⚠️ DANH SÁCH NÀY LỚN DẦN THEO THỰC TẾ, KHÔNG THEO TRÍ TƯỞNG TƯỢNG. `thoi_diem` thiếu ở bản
+	   đầu, và đúng vì thiếu nó mà sổ `wpt9_saoke_cong` (34.860 dòng) không hiện ra trong danh
+	   sách dò — anh Thắng phải mở đường chọn tay mới thấy (16/09/2026). Mỗi tên thêm vào đây là
+	   một lần bớt phải chọn tay. */
 	return array(
-		'ngay'      => array( 'ngay_gd', 'ngay_giao_dich', 'ngay', 'luc', 'thoi_gian', 'created_at', 'transaction_date' ),
-		'so_tien'   => array( 'tien_vao', 'so_tien', 'amount', 'credit', 'ghi_co' ),
-		'tien_ra'   => array( 'tien_ra', 'debit', 'ghi_no' ),
-		'noi_dung'  => array( 'noi_dung', 'mo_ta', 'dien_giai', 'description', 'content' ),
-		'ma_gd'     => array( 'ma_gd', 'ma_giao_dich', 'ref', 'reference_code', 'ma_tham_chieu', 'id' ),
-		'tai_khoan' => array( 'so_tk', 'so_tai_khoan', 'tai_khoan', 'account_number', 'ma_ch' ),
-		'nhan'      => array( 'nhan', 'nhan_phan_loai', 'co_so', 'cua_hang', 'ten_khai' ),
-		'ma_may'    => array( 'ma_may' ),
-		'nguon'     => array( 'nguon', 'nguon_tien', 'loai' ),
-		'huy'       => array( 'huy', 'da_huy', 'cancelled' ),
+		'ngay'       => array( 'thoi_diem', 'ngay_gd', 'ngay_giao_dich', 'thoi_gian_gd', 'ngay_gio',
+			'ngay', 'luc', 'thoi_gian', 'created_at', 'transaction_date', 'transactiondate' ),
+		/* `tien` — tên cột của sổ thật `wpt9_saoke_gd`. Thiếu nó nên máy dò ra bảng mà vẫn bỏ
+		   trống ô "Số tiền vào", người khai phải tự chỉ. */
+		'so_tien'    => array( 'tien_vao', 'so_tien', 'tien', 'amount', 'amount_in', 'credit', 'ghi_co' ),
+		'tien_ra'    => array( 'tien_ra', 'debit', 'ghi_no' ),
+		'noi_dung'   => array( 'noi_dung', 'mo_ta', 'dien_giai', 'description', 'content', 'remark' ),
+		'ma_gd'      => array( 'ma_gd', 'ma_giao_dich', 'ref', 'reference_code', 'ma_tham_chieu', 'khoa', 'id' ),
+		'tai_khoan'  => array( 'so_tk', 'so_tai_khoan', 'tai_khoan', 'account_number' ),
+		'nhan'       => array( 'nhan', 'nhan_phan_loai', 'nhan_luc', 'co_so', 'cua_hang', 'ten_khai', 'diem_ban', 'ma_ch' ),
+		'ma_may'     => array( 'ma_may', 'may_tay' ),
+		/* 🔴 `loai` LÀ CHIỀU TIỀN, KHÔNG PHẢI NGUỒN — và phải xét TRƯỚC `nguon`, vì một cột chỉ
+		   được nhận một vai. Sổ `wpt9_saoke_gd` ghi `loai = in`; xếp nhầm nó vào "nguồn" thì cột
+		   chiều bỏ trống, và mọi khoản tiền ĐI cũng được cộng vào phần "đã nộp" — báo cáo đẹp lên
+		   mà không ai nộp thêm đồng nào. */
+		'huong'      => array( 'huong', 'chieu', 'direction', 'loai' ),
+		'trang_thai' => array( 'trang_thai', 'status' ),
+		'nguon'      => array( 'nguon', 'nguon_tien' ),
+		'huy'        => array( 'huy', 'da_huy', 'cancelled' ),
 	);
 }
 
@@ -976,7 +989,8 @@ function khh_dt_keo_nguon( $nguon, $tu_ngay = '' ) {
 	}
 
 	$lay = array();
-	foreach ( array( 'ngay', 'so_tien', 'tien_ra', 'noi_dung', 'ma_gd', 'tai_khoan', 'nhan', 'ma_may', 'nguon', 'huy' ) as $v ) {
+	foreach ( array( 'ngay', 'so_tien', 'tien_ra', 'noi_dung', 'ma_gd', 'tai_khoan', 'nhan', 'ma_may',
+		'nguon', 'huong', 'trang_thai', 'huy' ) as $v ) {
 		if ( ! empty( $c[ $v ] ) ) {
 			$lay[ $v ] = $c[ $v ];
 		}
@@ -1002,6 +1016,26 @@ function khh_dt_keo_nguon( $nguon, $tu_ngay = '' ) {
 	foreach ( (array) $ds as $r ) {
 		if ( isset( $lay['huy'] ) && (int) $o( $r, 'huy' ) ) {
 			continue;
+		}
+		/* 🔴 CHỈ LẤY TIỀN ĐẾN VÀ GIAO DỊCH THÀNH CÔNG.
+		   Sổ thật của nhà mình có cột `huong` (Đến / Đi) và `trang_thai` (Thành công / …). Cộng
+		   một khoản tiền ĐI vào phần "đã nộp" là báo cáo đẹp lên mà không ai nộp thêm đồng nào;
+		   cộng một giao dịch chưa thành công thì tệ hơn — tiền chưa hề về. */
+		if ( isset( $lay['huong'] ) ) {
+			$hg = khh_dt_khong_dau( $o( $r, 'huong' ) );
+			if ( '' !== $hg && false === strpos( $hg, 'den' ) && false === strpos( $hg, 'vao' )
+				&& false === strpos( $hg, 'in' ) && '+' !== $hg ) {
+				$bo_ra++;
+				continue;
+			}
+		}
+		if ( isset( $lay['trang_thai'] ) ) {
+			$tt = khh_dt_khong_dau( $o( $r, 'trang_thai' ) );
+			if ( '' !== $tt && false === strpos( $tt, 'thanh cong' ) && false === strpos( $tt, 'success' )
+				&& false === strpos( $tt, 'ok' ) && false === strpos( $tt, 'hoan tat' ) ) {
+				$bo_ra++;
+				continue;
+			}
 		}
 		$tien = khh_dt_so( $o( $r, 'so_tien' ) );
 		if ( $tien <= 0 ) {

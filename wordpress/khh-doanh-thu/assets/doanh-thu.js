@@ -1392,15 +1392,7 @@
         if (tk && tk.checked) fd.append('tu_dong', '1');
         if (sn && sn.value) fd.append('bang', sn.value);
         api('sao-ke-keo', { method: 'POST', body: fd }).then(function (kq) {
-          var v = kq.vua_keo || {};
-          window.alert('Đã mang về ' + nguyen(v.keo || 0) + ' khoản tiền vào.' +
-            (v.bo_qr ? '\nBỏ ' + nguyen(v.bo_qr) + ' khoản là tiền cổng QR (VNPAY / MoMo / Việt QR) — ' +
-              'khách trả thẳng vào tài khoản, không ai phải mang đi nộp.' : '') +
-            (v.bo_ghe ? '\nBỏ ' + nguyen(v.bo_ghe) + ' khoản là tiền khách trả ghế — đó là doanh thu, ' +
-              'không phải nhân viên nộp tiền.' : '') +
-            ((v.chua_gan && v.chua_gan.so_dong)
-              ? '\nCòn ' + nguyen(v.chua_gan.so_dong) + ' khoản chưa nhận ra cơ sở — khai bảng nhận mặt bên dưới.'
-              : ''));
+          window.alert(keChuyenKeo(kq.vua_keo || {}, ''));
           taiQuanTri();
         }).catch(function (e) {
           nutKeo.disabled = false; nutKeo.textContent = 'Kéo giao dịch về';
@@ -1452,6 +1444,28 @@
     });
   }
 
+  /* Kể lại một lượt kéo cho ra chuyện — nhất là khi kéo về 0 khoản, vì đó là lúc người ta cần
+     biết VÌ SAO chứ không phải một con số 0. */
+  function keChuyenKeo(v, bang) {
+    var d = [];
+    d.push('Đã mang về ' + nguyen(v.keo || 0) + ' khoản tiền vào' + (bang ? ' từ ' + bang : '') + '.');
+    if (v.bo_qr) d.push('Bỏ ' + nguyen(v.bo_qr) + ' khoản tiền cổng QR (VietQR / MoMo / VNPAY).');
+    if (v.bo_ghe) d.push('Bỏ ' + nguyen(v.bo_ghe) + ' khoản là tiền khách trả ghế.');
+    if (v.bo_ra) d.push('Bỏ ' + nguyen(v.bo_ra) + ' dòng tiền đi hoặc chưa thành công.');
+    if (!v.keo && v.bo_qr) {
+      d.push('');
+      d.push('⚠️ Sổ này toàn tiền CỔNG QR — đó là khách quét mã trả tiền, tự về tài khoản, không ' +
+        'ai phải mang đi nộp. Sổ cần tìm là sổ SAO KÊ NGÂN HÀNG (nộp trực tiếp).');
+    } else if (!v.keo) {
+      d.push('');
+      d.push('⚠️ Không có khoản nào hợp lệ. Kiểm lại cột Ngày / Số tiền / Hướng đã chỉ đúng chưa.');
+    }
+    if (v.chua_gan && v.chua_gan.so_dong) {
+      d.push('Còn ' + nguyen(v.chua_gan.so_dong) + ' khoản chưa nhận ra cơ sở — khai mã bên dưới.');
+    }
+    return d.join('\n');
+  }
+
   /* ---- chọn tay: bảng nào cũng được, cột nào là gì thì tự khai ----
      Máy dò bằng tên cột, mà tên cột là thứ người khác đặt. Đoán được thì tốt; đoán không được
      thì phải để người chỉ, chứ không bắt người ta chờ mình đoán đúng. */
@@ -1485,7 +1499,8 @@
       if (!cot.length) { noi.innerHTML = '<div class="chu-them">Bảng rỗng hoặc không đọc được.</div>'; return; }
       var vai = [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền vào *'], ['noi_dung', 'Nội dung'],
                  ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
-                 ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại']];
+                 ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại'],
+                 ['huong', 'Hướng (Đến / Đi)'], ['trang_thai', 'Trạng thái']];
       var h = '<div class="bang-cuon"><table><thead><tr>' +
         cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
         '</tr></thead><tbody>' +
@@ -1518,11 +1533,7 @@
         var b = noi.querySelector('#dtKeoTay');
         b.disabled = true; b.textContent = 'Đang kéo…';
         api('sao-ke-keo', { method: 'POST', body: fd }).then(function (kq) {
-          var v = kq.vua_keo || {};
-          window.alert('Đã mang về ' + nguyen(v.keo || 0) + ' khoản tiền vào từ ' + bang + '.' +
-            (v.bo_qr ? '\nBỏ ' + nguyen(v.bo_qr) + ' khoản tiền cổng QR.' : '') +
-            ((v.chua_gan && v.chua_gan.so_dong) ? '\nCòn ' + nguyen(v.chua_gan.so_dong) +
-              ' khoản chưa nhận ra cơ sở — khai mã bên dưới.' : ''));
+          window.alert(keChuyenKeo(kq.vua_keo || {}, bang));
           taiQuanTri();
         }).catch(function (e) {
           b.disabled = false; b.textContent = 'Dùng sổ này và kéo về';

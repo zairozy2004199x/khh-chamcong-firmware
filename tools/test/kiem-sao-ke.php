@@ -275,6 +275,36 @@ phep( 'ghép "VR SC Vivo Q7" vào VR FUN - SC Vivo Q7',
    gợi ý sai mà trông chắc chắn thì người ta bấm lưu cho nhanh, và tiền vào nhầm sổ. */
 phep( 'tên lạ hoàn toàn thì điểm thấp', khh_dt_ghep_ten_gan( 'CGV LANDMARK 81' )['diem'] < 0.6 );
 
+/* ============================================================ 5d. DÒ CỘT CỦA SỔ THẬT
+   Hai sổ thật trên site anh Thắng (16/09/2026):
+     · wpt9_saoke_gd   — ID, SEPAY_ID, NGAY_GD, SO_TK, NGAN_HANG, LOAI(in), TIEN, LUY_KE,
+                         NOI_DUNG, MA_GD, NHAN, NGUON(api), TAO_LUC   <- sao kê ngân hàng
+     · wpt9_saoke_cong — ID, NGUON(vietqr), KHOA, MA_GD, REF, THOI_DIEM, SO_TIEN, HUONG(Đến),
+                         TRANG_THAI, SO_TK, NOI_DUNG, DIEM_BAN, …     <- cổng QR
+   Dò hụt một cột là người khai phải chỉ tay; dò NHẦM một cột thì tệ hơn nhiều. */
+$cot_gd = array( 'ID', 'SEPAY_ID', 'NGAY_GD', 'SO_TK', 'NGAN_HANG', 'LOAI', 'TIEN', 'LUY_KE',
+	'NOI_DUNG', 'MA_GD', 'NHAN', 'NGUON', 'TAO_LUC' );
+$m = khh_dt_doan_cot( $cot_gd );
+phep( 'sổ ngân hàng: đọc đúng cột ngày', 'NGAY_GD' === $m['ngay'] );
+phep( 'sổ ngân hàng: đọc đúng cột tiền', 'TIEN' === $m['so_tien'] );
+phep( 'sổ ngân hàng: đọc đúng cột nội dung', 'NOI_DUNG' === $m['noi_dung'] );
+phep( 'sổ ngân hàng: đọc đúng cột mã giao dịch', 'MA_GD' === $m['ma_gd'] );
+phep( 'sổ ngân hàng: đọc đúng cột nhãn', 'NHAN' === $m['nhan'] );
+/* 🔴 `LOAI` = in/out là CHIỀU tiền. Nhận nhầm nó thành "nguồn" là cột chiều bỏ trống, và tiền ĐI
+   cũng được cộng vào phần đã nộp. */
+phep( 'sổ ngân hàng: LOAI là CHIỀU tiền, không phải nguồn', 'LOAI' === $m['huong'] );
+phep( 'sổ ngân hàng: NGUON vẫn là nguồn', 'NGUON' === $m['nguon'] );
+/* `LUY_KE` là số dư cộng dồn — tuyệt đối không được nhận nhầm thành số tiền của giao dịch. */
+phep( 'sổ ngân hàng: không nhận nhầm LUY_KE thành số tiền', 'LUY_KE' !== $m['so_tien'] );
+
+$cot_cong = array( 'ID', 'NGUON', 'KHOA', 'MA_GD', 'REF', 'THOI_DIEM', 'SO_TIEN', 'HUONG',
+	'TRANG_THAI', 'SO_TK', 'NOI_DUNG', 'DIEM_BAN', 'DOC_DUOC', 'RAW', 'NHAN_LUC', 'MA_CH', 'MAY_TAY' );
+$c = khh_dt_doan_cot( $cot_cong );
+phep( 'sổ cổng QR: đọc đúng cột thời điểm', 'THOI_DIEM' === $c['ngay'] );
+phep( 'sổ cổng QR: đọc đúng cột số tiền', 'SO_TIEN' === $c['so_tien'] );
+phep( 'sổ cổng QR: đọc đúng cột hướng', 'HUONG' === $c['huong'] );
+phep( 'sổ cổng QR: đọc đúng cột trạng thái', 'TRANG_THAI' === $c['trang_thai'] );
+
 /* ============================================================ 6. file không phải sao kê */
 
 $kq = doc_csv( "Ten hang,So luong\nVe nguoi lon,3\n" );
