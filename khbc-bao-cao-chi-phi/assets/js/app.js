@@ -273,7 +273,7 @@
           </div>
         </div>
         <div class="table-wrap tall"><table class="grid-table dense">
-          <thead><tr><th>#</th><th>Bộ phận</th><th>Mã đơn vị</th><th>Tên điểm</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng trong BP</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Bộ phận</th><th>Mã đơn vị</th><th>Tên điểm</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng trong BP</th><th title="Cơ sở nghỉ / đóng cửa: VẪN ghi doanh thu, nhưng không nhận chi phí phân bổ. Phần chi phí đó chia lại cho các cơ sở còn lại — tổng chi phí bộ phận không đổi.">Không nhận<br>chi phí</th><th></th></tr></thead>
           <tbody>${
             sites.length
               ? sites
@@ -286,13 +286,14 @@
                       <td>${inp(`sites.${i}.name`, s.name, 'text', 'xwide')}</td>
                       <td>${inp(`sites.${i}.revenue`, s.revenue, 'num')}</td>
                       <td class="num muted">${rev > 0 ? pct(E.num(s.revenue) / rev) : '—'}</td>
+                      <td class="num" title="Cơ sở nghỉ / đóng cửa: vẫn ghi doanh thu, không nhận chi phí.">${chk(`sites.${i}.khongChiPhi`, s.khongChiPhi)}</td>
                       ${actBtns([{ act: 'delSite', arg: i, icon: '🗑', title: 'Xoá điểm', cls: 'danger' }])}
                     </tr>`;
                   })
                   .join('')
-              : `<tr><td colspan="7" class="empty">Chưa có điểm nào. Nhập Excel, dán nhanh, hoặc thêm từng điểm.</td></tr>`
+              : `<tr><td colspan="8" class="empty">Chưa có điểm nào. Nhập Excel, dán nhanh, hoặc thêm từng điểm.</td></tr>`
           }
-          ${sites.length ? `<tr class="total"><td colspan="4">Cộng (${sites.length} điểm)</td>${tdn(sites.reduce((a, x) => a + E.num(x.s.revenue), 0))}<td></td><td></td></tr>` : ''}
+          ${sites.length ? `<tr class="total"><td colspan="4">Cộng (${sites.length} điểm)${(() => { const n = sites.filter((x) => x.s.khongChiPhi).length; return n ? ` · <span class="muted">${n} điểm không nhận chi phí</span>` : ''; })()}</td>${tdn(sites.reduce((a, x) => a + E.num(x.s.revenue), 0))}<td></td><td></td><td></td></tr>` : ''}
           </tbody>
         </table></div>
       </div>`;
@@ -572,10 +573,10 @@
             ? `<div class="table-wrap tall"><table class="grid-table dense">
             <thead>
               <tr><th class="sticky-col">Tên điểm</th><th>Mã đơn vị</th><th class="num">Doanh thu</th><th class="num">Tỷ trọng</th>${alloc.cols.map((c) => `<th class="num">${esc(c.title)}</th>`).join('')}<th class="num">Tổng</th></tr>
-              <tr class="subtotal"><td class="sticky-col"><strong>Số tiền phân bổ</strong></td><td class="muted">${alloc.cols.length} cột</td>${tdn(alloc.sumRevenue)}<td class="num">100%</td>${alloc.cols.map((c) => tdn(c.total)).join('')}${tdn(alloc.cols.reduce((a, c) => a + c.total, 0))}</tr>
+              <tr class="subtotal"><td class="sticky-col"><strong>Số tiền phân bổ</strong></td><td class="muted">${alloc.cols.length} cột</td>${tdn(alloc.sumRevenue)}<td class="num" title="${alloc.sumRevenueCP < alloc.sumRevenue ? 'Chi phí chia trên ' + fmt(alloc.sumRevenueCP) + ' — đã trừ doanh thu của cơ sở không nhận chi phí.' : 'Chia trên toàn bộ doanh thu.'}">100%</td>${alloc.cols.map((c) => tdn(c.total)).join('')}${tdn(alloc.cols.reduce((a, c) => a + c.total, 0))}</tr>
             </thead>
             <tbody>
-              ${alloc.rows.map((r) => `<tr><td class="sticky-col">${esc(r.name)}</td><td><code>${esc(r.code)}</code></td>${tdn(r.revenue)}<td class="num muted">${pct(r.weight)}</td>${alloc.cols.map((c) => tdn(r.vals[c.key])).join('')}${tdn(r.total)}</tr>`).join('')}
+              ${alloc.rows.map((r) => `<tr class="${r.khongChiPhi ? 'muted' : ''}"><td class="sticky-col">${esc(r.name)}${r.khongChiPhi ? ' <span class="hint" title="Cơ sở nghỉ: vẫn ghi doanh thu, không nhận chi phí. Phần của nó đã chia lại cho các cơ sở còn lại.">· không nhận chi phí</span>' : ''}</td><td><code>${esc(r.code)}</code></td>${tdn(r.revenue)}<td class="num muted">${pct(r.weight)}</td>${alloc.cols.map((c) => tdn(r.vals[c.key])).join('')}${tdn(r.total)}</tr>`).join('')}
               <tr class="total"><td class="sticky-col">Tổng cộng</td><td></td>${tdn(alloc.sumRevenue)}<td class="num">100%</td>${alloc.cols.map((c) => tdn(alloc.totals[c.key])).join('')}${tdn(alloc.grandTotal)}</tr>
             </tbody>
           </table></div>`

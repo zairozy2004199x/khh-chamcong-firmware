@@ -8,7 +8,7 @@
  *   period       {month, year}
  *   groups       [{id, name, method}]           method: 'ratio' | 'revenue' | 'equal'
  *   departments  [{id, name, group, ratio, revenue, revenueOverride, unitCode, misaPrefix}]
- *   sites        [{dept, code, name, revenue}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
+ *   sites        [{dept, code, name, revenue, khongChiPhi}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
  *   costItems    [{id, kind, name, misaGeneral, misaDetail, account, total,
  *                  split, shares:{groupId: amount}, objectCode, excludeDepts:[deptId], groupKey, method, note}]
  *                  split: 'equal' (chia đều các nhóm) | '<groupId>' (100% một nhóm) | 'custom' (nhập tay shares)
@@ -287,7 +287,25 @@
     const dept = (state.departments || []).find((d) => d.id === deptId);
     if (!dept) return null;
     const sites = (state.sites || []).filter((s) => s.dept === deptId);
+    /* ═════════════════════════════════════════════════════════════════════════════════════════
+     * HAI TỔNG DOANH THU KHÁC NHAU, ĐỪNG DÙNG LẪN.
+     *
+     * Anh Thắng 16/09/2026: *"Có 1 số cơ sở nghỉ hay đóng cửa, vẫn ghi nhận doanh thu chứ không
+     * muốn thêm chi phí vào nó"* (ví dụ PBSCVV — PINBALL MN SC VIVO).
+     *
+     *   · `sumRev`   — CẢ cơ sở nghỉ. Đây là doanh thu thật của bộ phận, hiện ở cột Doanh thu và
+     *                  dòng Tổng cộng. Bỏ nó ra là báo cáo doanh thu sai.
+     *   · `sumRevCP` — BỎ cơ sở nghỉ. Đây là MẪU SỐ chia chi phí. Bỏ nó ra khỏi mẫu số thì phần
+     *                  chi phí đáng lẽ về nó được các cơ sở còn lại GÁNH LẠI, nên TỔNG CHI PHÍ
+     *                  của bộ phận KHÔNG ĐỔI — chỉ đổi chỗ ngồi.
+     *
+     * Đo trên file thật T8/2026 của anh Thắng: Pinball có 3 điểm, SC VIVO nghỉ (doanh thu 120.000
+     * vẫn ghi). AMTP nhận 5.783.649 / 10.061.700 = 57,48%, đúng bằng 47.400.000 / (47.400.000 +
+     * 35.060.838) — tức mẫu số KHÔNG có 120.000. Và tổng hai điểm còn lại = 10.061.700, đúng
+     * bằng tổng chi phí của bộ phận: không đồng nào rơi mất.
+     * ═════════════════════════════════════════════════════════════════════════════════════════ */
     const sumRev = sites.reduce((a, s) => a + num(s.revenue), 0);
+    const sumRevCP = sites.reduce((a, s) => a + (s.khongChiPhi ? 0 : num(s.revenue)), 0);
     const sal = report.salaryDept.find((r) => r.dept === deptId) || {};
     const cols = [
       { key: 'luongNV', title: `Lương NV ${report.periodLabel}`, total: report.salarySitesByDept[deptId].reported,
@@ -300,15 +318,19 @@
     report.manualCols.forEach((mc) => cols.push({ key: `m:${mc.id}`, title: mc.name, total: mc.vals[deptId],
       account: mc.account, general: mc.misaGeneral || '', detail: mc.misaDetail || '' }));
     const rows = sites.map((s, i) => {
-      const w = sumRev > 0 ? num(s.revenue) / sumRev : 0;
+      /* Cơ sở nghỉ: tỷ trọng 0 nên mọi cột chi phí ra 0 — giống hệt dòng SC VIVO trong file thật.
+         Vẫn GIỮ DÒNG (không lọc bỏ) vì doanh thu của nó là thật và phải đọc được ở sheet này. */
+      const w = s.khongChiPhi ? 0 : (sumRevCP > 0 ? num(s.revenue) / sumRevCP : 0);
       const vals = {};
       cols.forEach((c) => (vals[c.key] = c.total * w));
       const total = cols.reduce((a, c) => a + vals[c.key], 0);
-      return { stt: i + 1, code: s.code, name: s.name, revenue: num(s.revenue), weight: w, vals, total };
+      return { stt: i + 1, code: s.code, name: s.name, revenue: num(s.revenue), weight: w,
+        khongChiPhi: !!s.khongChiPhi, vals, total };
     });
     const totals = {};
     cols.forEach((c) => (totals[c.key] = rows.reduce((a, r) => a + r.vals[c.key], 0)));
-    return { dept, cols, rows, totals, sumRevenue: sumRev, grandTotal: rows.reduce((a, r) => a + r.total, 0) };
+    return { dept, cols, rows, totals, sumRevenue: sumRev, sumRevenueCP: sumRevCP,
+      grandTotal: rows.reduce((a, r) => a + r.total, 0) };
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -376,6 +398,11 @@
       const chung = (c.general || '').trim() || `${c.title} ${alloc.dept.unitCode || alloc.dept.name} ${report.periodLabel}`.trim();
       const rieng = (c.detail || '').trim() || c.title;
       alloc.rows.forEach((r) => {
+        /* 🔴 BỎ HẲN DÒNG, không đẩy một dòng 0đ. Khác hẳn chỗ dòng 0đ vẫn giữ ở trên: dòng 0đ kia
+           là điểm ĐANG hoạt động mà tháng này không phát sinh, còn đây là điểm CỐ Ý không nhận
+           chi phí — đẩy lên MISA một bút toán 0đ cho nó là ghi nhận chi phí cho một cơ sở đã nghỉ,
+           đúng thứ anh Thắng muốn tránh. File thật cũng bỏ hẳn (Pinball chi tiết không có PBSCVV). */
+        if (r.khongChiPhi) return;
         rows.push({
           ngay: ky.text,
           soCT,
@@ -410,6 +437,27 @@
         issues.push({ level: 'warn', msg: `Bộ phận "${d.name}" chưa có mã chứng từ MISA — số chứng từ sẽ lấy tạm "${String(d.id).toUpperCase()}".` });
       }
     });
+    /* ═════════════════════════════════════════════════════════════════════════════════════════
+     * CƠ SỞ KHÔNG NHẬN CHI PHÍ — nói ra, đừng để im.
+     *
+     * 🔴 Nếu MỌI cơ sở của một bộ phận đều tích "không nhận chi phí" thì mẫu số bằng 0, mọi tỷ
+     *    trọng ra 0, và TOÀN BỘ chi phí của bộ phận ấy BỐC HƠI khỏi sheet phân bổ lẫn tờ nhập
+     *    MISA — trong khi File tổng báo cáo vẫn cộng đủ. Hai sheet trong cùng một file lệch nhau
+     *    mà không có dòng nào báo, chỉ lộ ra khi kế toán đối chiếu tổng.
+     * ═════════════════════════════════════════════════════════════════════════════════════════ */
+    depts.forEach((d) => {
+      const ds = (state.sites || []).filter((x) => x.dept === d.id);
+      if (!ds.length) return;
+      const nghi = ds.filter((x) => x.khongChiPhi);
+      if (!nghi.length) return;
+      const conNhan = ds.reduce((a, x) => a + (x.khongChiPhi ? 0 : num(x.revenue)), 0);
+      if (conNhan <= 0) {
+        issues.push({ level: 'error', msg: `Bộ phận "${d.name}": mọi cơ sở đều không nhận chi phí (hoặc doanh thu 0) — toàn bộ chi phí của bộ phận sẽ KHÔNG được phân bổ về điểm nào. Bỏ tích ít nhất một cơ sở.` });
+      } else {
+        issues.push({ level: 'info', msg: `Bộ phận "${d.name}": ${nghi.length} cơ sở không nhận chi phí (${nghi.map((x) => x.code || x.name).join(', ')}) — vẫn ghi doanh thu, phần chi phí chia lại cho các cơ sở còn lại.` });
+      }
+    });
+
     groups.forEach((g) => {
       const gd = depts.filter((d) => d.group === g.id);
       if (!gd.length) {
@@ -518,7 +566,7 @@
     st.period = Object.assign({ month: 1, year: 2026 }, st.period || {});
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
-    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, ...x }));
+    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, ...x, khongChiPhi: !!x.khongChiPhi }));
     st.costItems = (st.costItems || []).map((it) => {
       const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: '', createdBy: '', ...it };
       if (!o.id) o.id = newId('ci');

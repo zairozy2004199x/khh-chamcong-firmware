@@ -245,3 +245,89 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — tờ nhập MISA "<Bộ phận> chi tiết".');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// CƠ SỞ NGHỈ / ĐÓNG CỬA — vẫn ghi doanh thu, KHÔNG nhận chi phí  (anh Thắng 16/09/2026)
+//
+// Bộ số dưới đây LẤY THẲNG từ tab "Pinball T8.2026" trong file thật T8/2026: 3 điểm, SC VIVO nghỉ.
+// Nhờ có số thật nên bài kiểm trả lời được câu quan trọng nhất — tiền của cơ sở nghỉ ĐI ĐÂU:
+// nó được hai điểm còn lại GÁNH LẠI, tổng bộ phận không đổi một đồng.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const TONG_CP = 10061700;            // tổng "Lương NV" của Pinball trên file thật
+  const DT = { AMTP: 47400000, SCVV: 120000, LMPT: 35060838 };
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.period = { month: 8, year: 2026 };
+  st.sites = [
+    { dept: 'pinball', code: 'PBAMTP', name: 'PINBALL MN AMTP', revenue: DT.AMTP },
+    { dept: 'pinball', code: 'PBSCVV', name: 'PINBALL MN SC VIVO', revenue: DT.SCVV },
+    { dept: 'pinball', code: 'PBLMPT', name: 'PINBALL MN LMPT', revenue: DT.LMPT },
+  ];
+  // ép đúng một cột chi phí bằng tổng thật, để so được với con số trong file
+  st.salarySites = [];
+  st.salaryDept = st.salaryDept.map((r) => (r.dept === 'pinball'
+    ? { ...r, luongVP: 0, luongVanHanh: TONG_CP, luongQLAC: 0, luongAlex: 0, luongKPI: 0, bonus: 0 } : r));
+
+  // -- CHƯA tích: chia theo cả 3 điểm --
+  let rp = E.computeReport(st);
+  let al = E.allocateSites(st, rp, 'pinball');
+  const truoc = al.rows.find((r) => r.code === 'PBSCVV').vals.luongVanHanh;
+  assert(truoc > 0, 'chưa tích thì cơ sở vẫn nhận chi phí');
+
+  // -- TÍCH "không nhận chi phí" cho SC VIVO --
+  st.sites[1].khongChiPhi = true;
+  rp = E.computeReport(st);
+  al = E.allocateSites(st, rp, 'pinball');
+  const g = (c) => al.rows.find((r) => r.code === c);
+
+  // 1. Doanh thu VẪN ghi nhận — cả ở dòng của nó lẫn ở tổng bộ phận
+  assert.strictEqual(g('PBSCVV').revenue, DT.SCVV, 'vẫn ghi doanh thu của cơ sở nghỉ');
+  assert.strictEqual(al.sumRevenue, DT.AMTP + DT.SCVV + DT.LMPT, 'tổng doanh thu gồm CẢ cơ sở nghỉ');
+  assert.strictEqual(al.sumRevenueCP, DT.AMTP + DT.LMPT, 'mẫu số chia chi phí BỎ cơ sở nghỉ');
+  assert.strictEqual(rp.revenue.pinball, DT.AMTP + DT.SCVV + DT.LMPT,
+    'doanh thu bộ phận trên File tổng báo cáo KHÔNG được đổi — tích ô này chỉ động tới chi phí');
+
+  // 2. Cơ sở nghỉ: MỌI cột chi phí = 0, nhưng VẪN CÒN DÒNG ở sheet phân bổ (như file thật)
+  assert.strictEqual(g('PBSCVV').weight, 0);
+  assert.strictEqual(g('PBSCVV').total, 0);
+  al.cols.forEach((c) => assert.strictEqual(g('PBSCVV').vals[c.key], 0, `cột ${c.key} phải 0`));
+  assert.strictEqual(al.rows.length, 3, 'vẫn đủ 3 dòng — doanh thu của nó phải đọc được');
+
+  // 3. 🔴 TIỀN CHIA LẠI, KHÔNG MẤT — đối chiếu TỪNG ĐỒNG với file thật
+  assert(Math.abs(g('PBAMTP').vals.luongVanHanh - 5783649.445813296) < 0.01,
+    'AMTP phải khớp đúng con số trong file thật T8/2026');
+  assert(Math.abs(g('PBLMPT').vals.luongVanHanh - 4278050.554186704) < 0.01,
+    'LMPT phải khớp đúng con số trong file thật T8/2026');
+  assert(Math.abs(al.totals.luongVanHanh - TONG_CP) < 0.01,
+    'tổng cột KHÔNG đổi — tiền của cơ sở nghỉ được hai điểm kia gánh lại, không rơi mất');
+
+  // 4. Tờ nhập MISA BỎ HẲN dòng của cơ sở nghỉ (không phải đẩy một dòng 0đ)
+  const mi = E.misaRows(st, rp, 'pinball');
+  const maDV = {};
+  mi.rows.forEach((r) => { maDV[r.maDonVi] = (maDV[r.maDonVi] || 0) + 1; });
+  assert.deepStrictEqual(Object.keys(maDV).sort(), ['PBAMTP', 'PBLMPT'],
+    'chỉ hai mã đơn vị — y như tab "Pinball chi tiết" của file thật');
+  assert(!mi.rows.some((r) => r.maDonVi === 'PBSCVV'),
+    'không được đẩy bút toán 0đ cho cơ sở đã nghỉ — đó vẫn là ghi nhận chi phí cho nó');
+  const ct1 = mi.rows.filter((r) => r.soCT === mi.rows[0].soCT);
+  assert.strictEqual(ct1.length, 2, 'mỗi chứng từ còn 2 dòng, không phải 3');
+
+  // 5. Bỏ tích thì mọi thứ quay lại y như cũ — không để lại dấu vết
+  st.sites[1].khongChiPhi = false;
+  const al2 = E.allocateSites(st, E.computeReport(st), 'pinball');
+  assert(Math.abs(al2.rows.find((r) => r.code === 'PBSCVV').vals.luongVanHanh - truoc) < 1e-9);
+
+  // 6. Cả bộ phận đều nghỉ = chi phí bốc hơi -> phải báo LỖI, không im lặng
+  const stX = E.normalizeState({ ...window.SAMPLE_DATA,
+    sites: st.sites.map((x) => ({ ...x, khongChiPhi: true })) });
+  const loi = E.validate(stX).filter((i) => i.msg.includes('KHÔNG được phân bổ'));
+  assert(loi.length && loi[0].level === 'error',
+    'mọi cơ sở đều nghỉ: phải là LỖI — không thì chi phí biến mất mà File tổng báo cáo vẫn cộng đủ');
+
+  // 7. Có cơ sở nghỉ thì nói ra cho người dùng biết
+  const tin = E.validate(st).filter((i) => i.msg.includes('không nhận chi phí'));
+  st.sites[1].khongChiPhi = true;
+  assert(E.validate(st).some((i) => i.msg.includes('PBSCVV')), 'phải nêu đích danh cơ sở đang nghỉ');
+
+  console.log('OK — cơ sở nghỉ: giữ doanh thu, không nhận chi phí, tiền chia lại đủ.');
+}

@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,14 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.3.0 =
+* **Ô tích "Không nhận chi phí" cho từng cơ sở** (tab Doanh thu). Cơ sở nghỉ / đóng cửa **vẫn ghi
+  doanh thu** như cũ, nhưng không nhận chi phí phân bổ; phần chi phí đó **chia lại** cho các cơ sở
+  còn lại nên **tổng chi phí bộ phận không đổi một đồng**. Tab "<Bộ phận> chi tiết" bỏ hẳn dòng
+  của cơ sở ấy — đẩy lên MISA một bút toán 0đ vẫn là ghi nhận chi phí cho nó.
+* Báo **LỖI** nếu mọi cơ sở của một bộ phận đều được tích: khi ấy chi phí của bộ phận sẽ không
+  phân bổ về đâu cả, trong khi File tổng báo cáo vẫn cộng đủ.
 
 = 1.2.0 =
 * **Tab "<Bộ phận> chi tiết" — tờ nhập MISA.** Sheet "<Bộ phận> T8.2026" phân bổ xong tiền về từng
