@@ -1833,6 +1833,13 @@
             'một bảng</b> — nhớ dùng ô <i>Chỉ lấy những dòng có</i> bên dưới để lọc đúng nguồn MoMo, ' +
             'không thì tiền VietQR của cả chuỗi cộng nhầm vào phần MoMo.</div>'
           : '') +
+        (viec === 'momo'
+          ? '<div style="margin-bottom:10px"><button class="nut chinh" type="button" id="dtTimMomo">' +
+            'Tự tìm giao dịch MoMo trong site</button> <span class="chu-them">Không bảng nào tên ' +
+            '"momo" cả — nếu có thì MoMo nằm lẫn trong sổ cổng, nhận ra bằng một giá trị trong cột ' +
+            'nguồn. Bấm cái này để em dò hộ, khỏi mở từng bảng.</span>' +
+            '<div id="dtTimMomoNoi" style="margin-top:10px"></div></div>'
+          : '') +
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
           '<select id="dtBangTay">' + ds.map(function (x) {
             return '<option value="' + esc(x.bang) + '">' + esc(x.bang) + ' — khoảng ' +
@@ -1841,17 +1848,79 @@
           '<button class="nut" type="button" id="dtSoiBang">Xem bảng này</button>' +
         '</div><div id="dtSoiNoi" style="margin-top:10px"></div>';
       noi.querySelector('#dtSoiBang').addEventListener('click', function () {
+        S.locGoi = null;
         soiBang(o, noi.querySelector('#dtBangTay').value, viec);
       });
+      var nTim = noi.querySelector('#dtTimMomo');
+      if (nTim) nTim.addEventListener('click', function () { timMomo(o, noi, viec); });
     }).catch(function (e) {
       noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
+    });
+  }
+
+  /**
+   * DÒ XEM SITE CÓ SỔ NÀO CHỨA GIAO DỊCH MOMO KHÔNG.
+   *
+   * 🔴 ANH THẮNG MỞ DANH SÁCH BẢNG RA VÀ KHÔNG THẤY CÁI NÀO LÀ MOMO. Đúng — chẳng có bảng nào tên
+   *    "momo". MoMo nếu có thì nằm LẪN trong sổ cổng, phân biệt bằng một giá trị trong cột nguồn.
+   *    Bắt người ta mở hơn hai chục bảng rồi dò từng cột là bắt làm việc của máy.
+   *
+   *    Và khi dò xong mà KHÔNG CÓ thì phải nói thẳng là không có, kèm đường đi thật (nạp file
+   *    sao kê MoMo) — chứ để màn im lặng là người ta còn đi tìm tiếp một thứ không tồn tại.
+   */
+  function timMomo(o, noi, viec) {
+    var hop = noi.querySelector('#dtTimMomoNoi');
+    var nut = noi.querySelector('#dtTimMomo');
+    if (!hop) return;
+    nut.disabled = true;
+    hop.innerHTML = '<div class="chu-them">Đang dò từng sổ trong site…</div>';
+    api('tim-momo').then(function (r) {
+      nut.disabled = false;
+      var thay = r.thay || [];
+      if (!thay.length) {
+        hop.innerHTML = '<div class="canh-ghep">Đã dò <b>' + nguyen(r.so_bang) + ' sổ</b> trong site: ' +
+          '<b>không sổ nào có giao dịch MoMo</b>. Nghĩa là cổng thanh toán đang về site này không ' +
+          'ghi phần MoMo — không phải anh chọn nhầm bảng.<br>Đường đi đúng: bấm <b>Nạp báo cáo → ' +
+          'thẻ Sao kê MoMo</b> và thả file <code>Transaction_report_….csv</code> tải từ trang MoMo. ' +
+          (r.co_file ? 'Kho MoMo hiện đã có <b>' + nguyen(r.co_file) + ' giao dịch</b> — sổ MoMo ' +
+            'đang chạy bằng file ấy, anh không cần khai bảng nào nữa.' : '') + '</div>';
+        return;
+      }
+      hop.innerHTML = '<div class="chu-them">Dò <b>' + nguyen(r.so_bang) + ' sổ</b>, thấy ' +
+          nguyen(thay.length) + ' chỗ có chữ "momo":</div>' +
+        '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+          '<th style="text-align:left">Sổ</th><th style="text-align:left">Cột</th>' +
+          '<th style="text-align:left">Giá trị</th><th>Số dòng</th><th></th>' +
+        '</tr></thead><tbody>' +
+        thay.map(function (x, i) {
+          return '<tr><td style="text-align:left"><code class="nd">' + esc(x.bang) + '</code></td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.cot) + '</code></td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.gt) + '</code></td>' +
+            '<td class="s">' + nguyen(x.n) + '</td>' +
+            '<td><button class="nut" type="button" data-momo="' + i + '">Khai sổ này →</button></td></tr>';
+        }).join('') + '</tbody></table></div>';
+      Array.prototype.forEach.call(hop.querySelectorAll('[data-momo]'), function (b) {
+        b.addEventListener('click', function () {
+          var x = thay[parseInt(b.dataset.momo, 10)];
+          var se = noi.querySelector('#dtBangTay');
+          if (se) se.value = x.bang;
+          /* Chuyển sẵn cả bộ lọc sang màn khai — đây chính là chỗ dễ sai nhất: chọn đúng bảng mà
+             quên lọc nguồn là tiền VietQR của cả chuỗi cộng nhầm vào phần MoMo. */
+          S.locGoi = { cot: x.cot, gt: x.gt };
+          soiBang(o, x.bang, viec);
+        });
+      });
+    }).catch(function (e) {
+      nut.disabled = false;
+      hop.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
     });
   }
 
   function soiBang(o, bang, viec) {
     var noi = o.querySelector('#dtSoiNoi');
     noi.innerHTML = '<div class="chu-them">Đang đọc…</div>';
-    api('soi-bang?bang=' + encodeURIComponent(bang)).then(function (r) {
+    api('soi-bang?bang=' + encodeURIComponent(bang) +
+        (S.locGoi ? '&cot_them=' + encodeURIComponent(S.locGoi.cot) : '')).then(function (r) {
       var cot = r.cot || [], dong = r.dong || [], doan = r.doan || {};
       if (!cot.length) { noi.innerHTML = '<div class="chu-them">Bảng rỗng hoặc không đọc được.</div>'; return; }
       var vai = viec === 'momo'
@@ -1898,14 +1967,23 @@
       noi.innerHTML = h;
 
       var oCot = noi.querySelector('#dtLocCot'), oGt = noi.querySelector('#dtLocGt');
+      function veGiaTri() {
+        var ds = gtri[oCot.value] || [];
+        oGt.innerHTML = '<option value="">—</option>' + ds.map(function (v) {
+          return '<option value="' + esc(v.gt) + '">' + esc(v.gt || '(trống)') + ' — ' +
+            nguyen(v.n) + ' dòng</option>';
+        }).join('');
+      }
       if (oCot) {
-        oCot.addEventListener('change', function () {
-          var ds = gtri[oCot.value] || [];
-          oGt.innerHTML = '<option value="">—</option>' + ds.map(function (v) {
-            return '<option value="' + esc(v.gt) + '">' + esc(v.gt || '(trống)') + ' — ' +
-              nguyen(v.n) + ' dòng</option>';
-          }).join('');
-        });
+        oCot.addEventListener('change', veGiaTri);
+        /* Vào đây từ nút "Tự tìm giao dịch MoMo" thì bộ lọc đã biết rồi — điền sẵn, đừng bắt
+           người ta chọn lại đúng cái vừa chỉ cho họ. */
+        if (S.locGoi && gtri[S.locGoi.cot]) {
+          oCot.value = S.locGoi.cot;
+          veGiaTri();
+          oGt.value = S.locGoi.gt;
+        }
+        S.locGoi = null;
       }
 
       noi.querySelector('#dtKeoTay').addEventListener('click', function () {

@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.24.0
+Stable tag: 1.25.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,15 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.25.0 =
+* **Nút "Tự tìm giao dịch MoMo trong site".** Mở danh sách bảng ra thì không cái nào tên *momo* —
+  vì chẳng có bảng nào tên thế: MoMo nếu có thì nằm **lẫn** trong sổ cổng, nhận ra bằng một giá
+  trị trong cột nguồn. Nay hệ dò hộ từng sổ từng cột, chỉ thẳng ra *sổ nào · cột nào · giá trị
+  nào · bao nhiêu dòng*, bấm một nút là sang màn khai với **bộ lọc điền sẵn**.
+* **Dò xong mà không có thì nói thẳng là không có**, kèm đường đi thật: nạp file
+  `Transaction_report_….csv` ở thẻ *Sao kê MoMo*. Trước đây màn im lặng, người ta còn đi tìm tiếp
+  một thứ không tồn tại.
 
 = 1.24.0 =
 * **Nạp thẳng sao kê MoMo** (Nạp báo cáo → thẻ *Sao kê MoMo*): file `Transaction_report_….csv`

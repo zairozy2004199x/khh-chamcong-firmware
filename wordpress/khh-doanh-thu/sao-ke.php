@@ -1150,6 +1150,87 @@ function khh_dt_moi_bang() {
 }
 
 /**
+ * ĐI TÌM GIAO DỊCH MOMO TRONG MỌI SỔ CỦA SITE.
+ *
+ * 🔴 ANH THẮNG MỞ DANH SÁCH BẢNG RA VÀ KHÔNG THẤY CÁI NÀO LÀ MOMO — đúng, vì chẳng có bảng nào
+ *    tên "momo" cả. MoMo nếu có mặt thì nằm LẪN trong sổ cổng thanh toán, phân biệt bằng một giá
+ *    trị trong cột `nguon` / `kenh` / `phuong_thuc`. Bắt người ta mở từng bảng trong hơn hai chục
+ *    bảng rồi dò từng cột là bắt làm việc của máy.
+ *
+ *    Nên hàm này quét: mỗi bảng có vẻ là sổ tiền, mỗi cột chữ ngắn, xem có giá trị nào chứa
+ *    "momo" không. Có thì chỉ thẳng ra bảng nào cột nào giá trị nào bao nhiêu dòng. Không có thì
+ *    NÓI THẲNG LÀ KHÔNG CÓ — để anh khỏi đi tìm tiếp một thứ không tồn tại, và biết đường nạp
+ *    file sao kê MoMo.
+ */
+function khh_dt_tim_momo_trong_so() {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$bang_ds = (array) $wpdb->get_col( 'SHOW TABLES' );
+	$bo = array( 'posts', 'postmeta', 'comments', 'commentmeta', 'options', 'users', 'usermeta',
+		'terms', 'termmeta', 'term_taxonomy', 'term_relationships', 'links' );
+	$thay   = array();
+	$da_soi = 0;
+	@set_time_limit( 120 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+	foreach ( $bang_ds as $b ) {
+		if ( $da_soi >= 60 ) {
+			break;                                      // site nào có hơn sáu chục sổ thì đã sai chỗ khác
+		}
+		if ( in_array( substr( $b, strlen( $wpdb->prefix ) ), $bo, true ) ) {
+			continue;
+		}
+		if ( $b === khh_dt_bang_sk() || ( function_exists( 'khh_dt_bang_momo_sk' ) && $b === khh_dt_bang_momo_sk() ) ) {
+			continue;                                   // kho của chính mình, không kể là "sổ có sẵn"
+		}
+		/* Chỉ quét cột CHỮ NGẮN. Cột nội dung dài thì "momo" hay nằm trong câu chuyển khoản của
+		   khách, không phải nhãn nguồn tiền — chỉ về nhiễu chứ không chỉ ra sổ. */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$cot_ds = (array) $wpdb->get_results(
+			$wpdb->prepare(
+				'SELECT COLUMN_NAME ten FROM information_schema.COLUMNS
+				 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+				   AND DATA_TYPE IN ("varchar","char","enum")
+				   AND CHARACTER_MAXIMUM_LENGTH <= 64',
+				$b
+			),
+			ARRAY_A
+		);
+		if ( ! $cot_ds ) {
+			continue;
+		}
+		$da_soi++;
+		foreach ( array_slice( $cot_ds, 0, 12 ) as $c ) {
+			$cot = (string) $c['ten'];
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+			$gt = (array) $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT `$cot` gt, COUNT(*) n FROM `$b` WHERE `$cot` LIKE %s GROUP BY `$cot` ORDER BY n DESC LIMIT 5", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					'%momo%'
+				),
+				ARRAY_A
+			);
+			foreach ( $gt as $r ) {
+				$thay[] = array(
+					'bang' => $b,
+					'cot'  => $cot,
+					'gt'   => (string) $r['gt'],
+					'n'    => (int) $r['n'],
+				);
+			}
+		}
+	}
+	usort(
+		$thay,
+		function ( $a, $b ) {
+			return $b['n'] - $a['n'];
+		}
+	);
+	return array(
+		'thay'   => array_slice( $thay, 0, 20 ),
+		'so_bang' => $da_soi,
+	);
+}
+
+/**
  * Các giá trị có thật trong một cột, kèm số dòng — để người khai CHỌN, không phải gõ.
  *
  * 🔴 SỔ CỔNG GỘP CẢ BA CỔNG VÀO MỘT BẢNG. Site anh Thắng có `wpt9_saoke_cong` 36.478 dòng, trong
@@ -1183,8 +1264,14 @@ function khh_dt_gia_tri_cot( $bang, $cot, $gioi_han = 15 ) {
 	return $ra;
 }
 
-/** Cột của một bảng, kèm ba dòng đầu để người khai nhìn mà biết cột nào là cột gì. */
-function khh_dt_soi_bang( $bang ) {
+/**
+ * Cột của một bảng, kèm ba dòng đầu để người khai nhìn mà biết cột nào là cột gì.
+ *
+ * `$cot_them` là cột mà phép dò MoMo vừa chỉ ra. Phải bày giá trị của ĐÚNG cột ấy, vì nó thường
+ * không nằm trong ba vai quen thuộc (nguồn / hướng / trạng thái) — thiếu nó thì màn khai vừa chỉ
+ * cho người ta "cột `phuong_thuc` = MoMo" xong lại không cho chọn chính cột ấy để lọc.
+ */
+function khh_dt_soi_bang( $bang, $cot_them = '' ) {
 	global $wpdb;
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
@@ -1206,6 +1293,9 @@ function khh_dt_soi_bang( $bang ) {
 		if ( ! empty( $doan[ $vai ] ) ) {
 			$gia_tri[ $doan[ $vai ] ] = khh_dt_gia_tri_cot( $bang, $doan[ $vai ] );
 		}
+	}
+	if ( '' !== $cot_them && in_array( $cot_them, $cot, true ) && ! isset( $gia_tri[ $cot_them ] ) ) {
+		$gia_tri[ $cot_them ] = khh_dt_gia_tri_cot( $bang, $cot_them, 30 );
 	}
 	return array(
 		'cot'     => $cot,
@@ -1602,6 +1692,15 @@ function khh_dt_rest_sk() {
 	);
 	register_rest_route(
 		'khh-dt/v1',
+		'/tim-momo',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_tim_momo',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
 		'/nguon-momo',
 		array(
 			'methods'             => 'POST',
@@ -1786,12 +1885,19 @@ function khh_dt_rest_moi_bang() {
 	return array( 'bang_ds' => khh_dt_moi_bang() );
 }
 
+function khh_dt_rest_tim_momo() {
+	$ra = khh_dt_tim_momo_trong_so();
+	$ra['co_file'] = function_exists( 'khh_dt_co_momo_sk' ) ? (int) khh_dt_co_momo_sk() : 0;
+	return $ra;
+}
+
 function khh_dt_rest_soi_bang( $req ) {
 	$bang = sanitize_text_field( (string) $req->get_param( 'bang' ) );
 	if ( '' === $bang ) {
 		return new WP_Error( 'khh_dt_soi', 'Chưa chọn bảng.', array( 'status' => 400 ) );
 	}
-	$ra         = khh_dt_soi_bang( $bang );
+	$them       = sanitize_text_field( (string) $req->get_param( 'cot_them' ) );
+	$ra         = khh_dt_soi_bang( $bang, $them );
 	$ra['bang'] = $bang;
 	return $ra;
 }
