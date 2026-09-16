@@ -66,7 +66,8 @@ window.fetch = function(url, opt){
       j = d.pin === '246810'
         ? { ok:true, the:'THE-GIA-123', toi:{ ten:'CHT C', vai:'cua_hang_truong',
             coso:'GO BÀ RỊA', ds_coso:['GO BÀ RỊA'],
-            man:['tong_quan','su_co','tien','checklist','kho'],
+            man:['tong_quan','su_co','tien','checklist','kho','danh_gia','tiktok',
+                 'trich_cam','thong_bao','giao_viec','bao_cao'],
             url_cham_cong:'http://vi-du.test/cham-cong',
             muc:[
               { nhom:'TỔNG QUAN', muc:[{ma:'tong_quan',ten:'Tổng quan',icon:'🏠',xong:1}] },
@@ -75,8 +76,16 @@ window.fetch = function(url, opt){
                   {ma:'cham_cong',ten:'Chấm công',icon:'🕒',xong:0,noi:'cham_cong'},
                   {ma:'checklist',ten:'Checklist',icon:'📋',xong:1},
                   {ma:'kho',ten:'Kiểm tra kho',icon:'📦',xong:1},
-                  {ma:'danh_gia',ten:'Đánh giá nhân viên',icon:'⭐',xong:0}] },
-              { nhom:'KINH DOANH', muc:[{ma:'tien',ten:'Doanh thu & Chi phí',icon:'💰',xong:1}] }
+                  {ma:'lich',ten:'Đăng ký lịch làm',icon:'🗓️',xong:0,noi:'cham_cong'}] },
+              { nhom:'KINH DOANH', muc:[
+                  {ma:'tien',ten:'Doanh thu & Chi phí',icon:'💰',xong:1},
+                  {ma:'danh_gia',ten:'Đánh giá nhân viên',icon:'⭐',xong:1},
+                  {ma:'tiktok',ten:'Thống kê TikTok',icon:'🎬',xong:1},
+                  {ma:'trich_cam',ten:'Thống kê trích cam',icon:'🧧',xong:1}] },
+              { nhom:'CÔNG VIỆC', muc:[
+                  {ma:'thong_bao',ten:'Thông báo',icon:'📣',xong:1},
+                  {ma:'giao_viec',ten:'Giao việc',icon:'✅',xong:1}] },
+              { nhom:'HỆ THỐNG', muc:[{ma:'bao_cao',ten:'Xuất báo cáo',icon:'📊',xong:1}] }
             ] } }
         : { ok:false, error:'PIN không đúng hoặc chưa được cấp' };
       break;
@@ -113,6 +122,61 @@ window.fetch = function(url, opt){
             {khoa:'tu_tho',ten:'Tủ thờ',kieu:'dem_tinh'}] } ] };
       break;
     case 'kho_luu': j = { ok:true, ban:{ muc:d.muc, nguoi:'CHT C' } }; break;
+    case 'dg_ds':
+      j = { ok:true, ky:'2026-09',
+        dm:[{ khoa:'thoi_gian', ten:'Vi phạm thời gian', muc:[
+              {khoa:'di_tre_duoi_15',ten:'Đi trễ <15 phút',do:'nhe'},
+              {khoa:'bo_ca',ten:'Bỏ ca không phép',do:'nghiem_trong'}] }],
+        dm_khen:[{khoa:'sang_kien',ten:'Sáng kiến cải thiện vận hành',diem:10}],
+        xep:[{ma_nv:'NV01',ten:'Nhân Viên A',coso:'GO BÀ RỊA',diem:95,xep:'xuat_sac',
+               vi_pham:2,khen:1,co_nghiem_trong:0},
+             {ma_nv:'NV88',ten:'Người Sạch',coso:'GO BÀ RỊA',diem:75,xep:'trung_binh',
+               vi_pham:1,khen:0,co_nghiem_trong:1}],
+        ds:[{id:1,ten:'Nhân Viên A',nhan:'Đi trễ <15 phút',muc:'nhe',lan_thu:2,diem:3,
+             phat:'50.000đ',nguoi_ghi:'CHT C',loai:'vi_pham',ghi:''}] };
+      break;
+    case 'dg_ghi':
+      j = (d.ten && d.khoa) ? { ok:true, ban:{ loai:d.loai, diem:3, phat:'50.000đ' } }
+        : { ok:false, error:'Chọn người.' };
+      break;
+    case 'tk_ds':
+      j = { ok:true, ky:'2026-09', bac:[{tu:1000000,tien:500000},{tu:10000,tien:30000}],
+        ds:[{id:7,ngay_dang:'2026-09-15',ten:'Nhân Viên A',kenh:'ghosthouse.gobr',
+             duong_dan:'https://www.tiktok.com/@x/video/1',luot_xem:120000,tien:150000,
+             chot_luc:null}] };
+      break;
+    case 'tk_them': j = d.duong_dan ? { ok:true, id:8 } : { ok:false, error:'Dán đường dẫn clip.' }; break;
+    case 'tk_luot': j = { ok:true, tien:150000 }; break;
+    case 'tk_chot': j = { ok:true }; break;
+    case 'tc_ds':
+      j = { ok:true, ky:'2026-09',
+        ds:[{id:3,ngay_dk:'2026-09-16',so_hd:'HD001',sdt:'0901',ten:'Nhân Viên A',xong:0}] };
+      break;
+    case 'tc_them': j = d.so_hd ? { ok:true, id:4 } : { ok:false, error:'Nhập số hoá đơn.' }; break;
+    case 'tc_xong': j = { ok:true }; break;
+    case 'tb_ds':
+      j = { ok:true, ds:[
+        {id:1,tieu_de:'Nghỉ lễ 2/9',than:'Nghỉ hai ngày',coso:'',nguoi:'Quản Lý D',tao:'2026-09-01 08:00'},
+        {id:2,tieu_de:'Lịch tuần tới',than:'',coso:'GO BÀ RỊA',nguoi:'CHT C',tao:'2026-09-15 09:00'}] };
+      break;
+    case 'tb_dang': j = d.tieu_de ? { ok:true, id:9 } : { ok:false, error:'Nhập tiêu đề.' }; break;
+    case 'gv_ds':
+      j = { ok:true, ds:[{id:5,tieu_de:'Thay bóng đèn hành lang',mo_ta:'',coso:'GO BÀ RỊA',
+             giao_ten:'Nhân Viên A',nguoi_giao:'CHT C',han:'2026-09-10',tt:'chua',tre:1}] };
+      break;
+    case 'gv_giao':
+      j = (d.tieu_de && d.giao_ten && d.han) ? { ok:true, id:6 }
+        : { ok:false, error:'Chọn người nhận việc.' };
+      break;
+    case 'gv_tt': j = { ok:true }; break;
+    case 'bc_loai':
+      j = { ok:true, ky:'2026-09',
+        loai:{ doanh_thu:'Doanh thu & chi phí theo ngày', su_co:'Sự cố' } };
+      break;
+    case 'bc_xuat':
+      j = { ok:true, ten:'van-hanh-'+d.loai+'-'+d.ky+'.csv',
+            csv:'\\uFEFFNgày,Cơ sở\\r\\n2026-09-16,GO BÀ RỊA\\r\\n' };
+      break;
     case 'su_co_ds': j = { ok:true, ds:[] }; break;
     case 'su_co_them':
       j = (d.tieu_de && d.giao_ten && d.han) ? { ok:true, id:1 }
@@ -152,6 +216,10 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   const trang2 = await trinh.newPage();
   const loiJs = [];
   trang2.on('pageerror', function (e) { loiJs.push(String(e)); });
+  if (process.env.VH_SOI) {
+    trang2.on('console', function (m) { console.log('[trang]', m.type(), m.text()); });
+    trang2.on('pageerror', function (e) { console.log('[LỖI JS]', String(e)); });
+  }
   await trang2.goto('file://' + trang);
 
   /* --- màn đăng nhập --- */
@@ -172,7 +240,7 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   await trang2.fill('#oPin', '246810');
   await trang2.click('#btVao');
   await trang2.waitForTimeout(200);
-  t('PIN đúng thì vào được', 5 === await trang2.locator('[data-man]').count(),
+  t('PIN đúng thì vào được', 11 === await trang2.locator('[data-man]').count(),
     await trang2.locator('[data-man]').count());
   t('hiện tên và vai người đăng nhập',
     (await trang2.locator('.toi').innerText()).indexOf('CHT C') >= 0);
@@ -195,17 +263,17 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   t('🔴 chưa đặt chỉ tiêu thì nói CHƯA ĐẶT, không hiện 0%',
     (await trang2.locator('.coso-the').innerText()).indexOf('Chưa đặt chỉ tiêu') >= 0);
 
-  /* 🔴 Mục chưa làm vẫn hiện trên thanh bên, kèm chữ "đang làm" — giấu đi thì người dùng đi mở
-     app cũ làm phần còn lại, và số liệu nằm hai nơi. */
-  t('🔴 mục chưa làm vẫn hiện trên thanh bên',
-    (await trang2.locator('.ben').innerText()).indexOf('Checklist') >= 0);
-  t('🔴 và nói thẳng là đang làm', 1 <= await trang2.locator('.ben .sap').count());
-  t('mục chưa làm thì KHÔNG bấm được',
-    await trang2.locator('.ben button.chua').first().isDisabled());
-  /* Chấm công nối SANG plugin chấm công, không dựng sổ thứ hai. */
+  /* 🔴 KHÔNG CÒN MỤC NÀO "ĐANG LÀM". Mọi màn của trang này đã dựng xong; mục nào còn chữ ấy là
+     một màn bị bỏ quên, và người dùng sẽ quay lại app cũ để làm phần còn lại — số liệu nằm hai
+     nơi từ đó. */
+  t('🔴 không còn mục nào "đang làm"',
+    0 === await trang2.locator('.ben button.chua').count(),
+    await trang2.locator('.ben').innerText());
+  /* Bốn mục chấm công nối SANG plugin chấm công, không dựng sổ thứ hai. */
   t('🔴 mục Chấm công là liên kết sang plugin chấm công',
     'http://vi-du.test/cham-cong' === await trang2.locator('.ben a.ben-noi').first().getAttribute('href'));
-  t('thanh bên chia nhóm', 4 <= await trang2.locator('.ben .nhom').count());
+  t('thanh bên chia nhóm', 5 <= await trang2.locator('.ben .nhom').count(),
+    await trang2.locator('.ben .nhom').count());
 
   /* --- màn doanh thu --- */
   await trang2.click('[data-man="tien"]');
@@ -328,6 +396,104 @@ fs.writeFileSync(trang, html.replace('<div id="ung-dung"></div>', gia + '<div id
   t('bấm GHI SỰ CỐ thì có gửi lên', !!sc);
   t('thiếu người phụ trách thì máy chủ chối và trang hiện câu chối',
     (await trang2.locator('.bao-loi').innerText()).indexOf('Thiếu ô bắt buộc') >= 0);
+
+  /* --- màn đánh giá --- */
+  await trang2.click('[data-man="danh_gia"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Đánh giá', await trang2.locator('#dgTen').isVisible());
+  t('bảng xếp loại hiện điểm', (await trang2.locator('.than').innerText()).indexOf('95') >= 0);
+  /* 🔴 Người có lỗi nghiêm trọng phải hiện cờ, không thì không ai hiểu vì sao 75 điểm mà chỉ
+     xếp Trung bình. */
+  t('🔴 người có lỗi nghiêm trọng được gắn cờ',
+    (await trang2.locator('.than').innerText()).indexOf('có lỗi nghiêm trọng') >= 0);
+
+  /* Đổi loại sang Khen thì danh sách nội dung phải đổi theo — không đổi là người ta ghi nhầm,
+     và ghi nhầm ở sổ này là trừ oan điểm của một người. */
+  const truocKhen = await trang2.locator('#dgKhoa').innerText();
+  await trang2.selectOption('#dgLoai', 'khen');
+  await trang2.waitForTimeout(100);
+  const sauKhen = await trang2.locator('#dgKhoa').innerText();
+  t('🔴 chọn Khen thì danh sách nội dung ĐỔI theo', truocKhen !== sauKhen, { truocKhen, sauKhen });
+  t('và hiện đúng mục khen', sauKhen.indexOf('Sáng kiến') >= 0, sauKhen);
+  await trang2.selectOption('#dgLoai', 'vi_pham');
+  await trang2.waitForTimeout(100);
+
+  await trang2.fill('#dgTen', 'Nhân Viên A');
+  await trang2.click('#btDgGhi');
+  await trang2.waitForTimeout(220);
+  const goiDg = (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'dg_ghi').pop();
+  t('bấm GHI NHẬN thì có gửi lên', !!goiDg);
+  /* 🔴 Trang chỉ gửi ai · lỗi gì · ghi chú. Điểm và mức phạt là việc của máy chủ. */
+  t('🔴 KHÔNG gửi kèm điểm hay mức phạt',
+    goiDg && goiDg.than.diem === undefined && goiDg.than.phat === undefined
+      && goiDg.than.lan_thu === undefined, goiDg && Object.keys(goiDg.than));
+
+  /* --- màn tiktok --- */
+  await trang2.click('[data-man="tiktok"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn TikTok', await trang2.locator('#tkKenh').isVisible());
+  t('hiện bậc thưởng', (await trang2.locator('.than').innerText()).indexOf('≥1000k') >= 0);
+  t('hiện tổng thưởng trong kỳ',
+    (await trang2.locator('.than').innerText()).indexOf('150.000') >= 0);
+  await trang2.fill('[data-tkl="7"]', '120000');
+  await trang2.dispatchEvent('[data-tkl="7"]', 'change');
+  await trang2.waitForTimeout(220);
+  const goiTk = (await trang2.evaluate(() => window.__GOI)).filter(x => x.than.viec === 'tk_luot').pop();
+  t('khai lượt xem thì gửi lên ngay', !!goiTk && goiTk.than.luot === 120000);
+  /* 🔴 Tiền do máy chủ tra bậc — gửi kèm là ai cũng tự khai 5 triệu một clip. */
+  t('🔴 KHÔNG gửi kèm số tiền thưởng', goiTk && goiTk.than.tien === undefined);
+
+  /* --- màn trích cam --- */
+  await trang2.click('[data-man="trich_cam"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Trích cam', await trang2.locator('#tcHd').isVisible());
+  t('hiện số đăng ký trong kỳ', (await trang2.locator('.than').innerText()).indexOf('HD001') >= 0);
+
+  /* --- màn thông báo --- */
+  await trang2.click('[data-man="thong_bao"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Thông báo', await trang2.locator('#tbTieu').isVisible());
+  t('phân biệt thông báo toàn hệ và theo cơ sở',
+    (await trang2.locator('.than').innerText()).indexOf('Toàn hệ') >= 0);
+  /* 🔴 CHT không được chọn "Toàn hệ" — ô ấy chỉ hiện cho Quản lý. Chốt thật vẫn ở máy chủ. */
+  t('🔴 CHT KHÔNG có lựa chọn gửi toàn hệ',
+    0 === await trang2.locator('#tbCoSo option[value=""]').count());
+
+  /* --- màn giao việc --- */
+  await trang2.click('[data-man="giao_viec"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Giao việc', await trang2.locator('#gvNhan').isVisible());
+  t('việc quá hạn được đánh dấu Trễ',
+    (await trang2.locator('.than').innerText()).indexOf('Trễ') >= 0);
+  await trang2.fill('#gvTieu', 'Thay bóng đèn');
+  await trang2.click('#btGvGiao');
+  await trang2.waitForTimeout(220);
+  t('thiếu người nhận thì máy chủ chối và trang hiện câu chối',
+    (await trang2.locator('.bao-loi').innerText()).indexOf('người nhận') >= 0,
+    await trang2.locator('.bao-loi').innerText());
+
+  /* --- màn xuất báo cáo --- */
+  await trang2.click('[data-man="bao_cao"]');
+  await trang2.waitForTimeout(220);
+  t('mở được màn Xuất báo cáo', await trang2.locator('#bcLoai').isVisible());
+  t('liệt kê các loại báo cáo', 2 === await trang2.locator('#bcLoai option').count());
+  /* Chặn lượt tải thật rồi bấm — nút không nối được vào hàm thì không có gì xảy ra. */
+  await trang2.evaluate(() => {
+    window.__TAI = [];
+    const cu = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download) { window.__TAI.push(this.download); return; }
+      return cu.apply(this, arguments);
+    };
+  });
+  await trang2.click('#btBcXuat');
+  await trang2.waitForTimeout(260);
+  const tai = await trang2.evaluate(() => window.__TAI);
+  t('bấm TẢI VỀ thì trang dựng tệp và tải xuống', tai.length === 1, tai);
+  t('tên tệp mang loại báo cáo và kỳ',
+    tai[0] && tai[0].indexOf('doanh_thu') >= 0 && tai[0].indexOf('2026-09') >= 0, tai);
+  t('báo đã tải ra màn hình',
+    (await trang2.locator('.bao-ok').innerText()).indexOf('.csv') >= 0);
 
   /* --- thoát --- */
   await trang2.click('#btRa');

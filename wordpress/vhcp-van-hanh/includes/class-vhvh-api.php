@@ -171,6 +171,76 @@ class VHVH_API {
 			case 'su_co_them':
 				return self::ra( VHVH_SuCo::them( $u, $d ) );
 
+			/* ---- đánh giá nhân viên ---- */
+			case 'dg_ds':
+				return self::ra( array( 'ok' => true,
+					'ds'  => VHVH_DanhGia::ds( $u,
+						isset( $d['ky'] ) ? (string) $d['ky'] : '',
+						isset( $d['coso'] ) ? (string) $d['coso'] : '' ),
+					'xep' => VHVH_DanhGia::xep_loai( $u,
+						isset( $d['ky'] ) ? (string) $d['ky'] : '',
+						isset( $d['coso'] ) ? (string) $d['coso'] : '' ),
+					'dm'      => VHVH_DanhGia::danh_muc(),
+					'dm_khen' => VHVH_DanhGia::khen_mac_dinh(),
+					'ky'      => current_time( 'Y-m' ),
+				) );
+
+			case 'dg_ghi':
+				return self::ra( VHVH_DanhGia::ghi( $u, $d ) );
+
+			case 'dg_xoa':
+				return self::ra( VHVH_DanhGia::xoa( $u, isset( $d['id'] ) ? (int) $d['id'] : 0 ) );
+
+			/* ---- tiktok ---- */
+			case 'tk_ds':
+				return self::ra( array( 'ok' => true,
+					'ds'  => VHVH_KD::tk_ds( $u, isset( $d['ky'] ) ? (string) $d['ky'] : '',
+						isset( $d['coso'] ) ? (string) $d['coso'] : '' ),
+					'bac' => VHVH_KD::bac(),
+					'ky'  => current_time( 'Y-m' ),
+				) );
+			case 'tk_them': return self::ra( VHVH_KD::tk_them( $u, $d ) );
+			case 'tk_luot':
+				return self::ra( VHVH_KD::tk_luot( $u, isset( $d['id'] ) ? (int) $d['id'] : 0,
+					isset( $d['luot'] ) ? $d['luot'] : 0 ) );
+			case 'tk_chot':
+				return self::ra( VHVH_KD::tk_chot( $u, isset( $d['id'] ) ? (int) $d['id'] : 0,
+					! empty( $d['chot'] ) ) );
+
+			/* ---- trích cam ---- */
+			case 'tc_ds':
+				return self::ra( array( 'ok' => true,
+					'ds' => VHVH_KD::tc_ds( $u, isset( $d['ky'] ) ? (string) $d['ky'] : '',
+						isset( $d['coso'] ) ? (string) $d['coso'] : '' ),
+					'ky' => current_time( 'Y-m' ),
+				) );
+			case 'tc_them': return self::ra( VHVH_KD::tc_them( $u, $d ) );
+			case 'tc_xong':
+				return self::ra( VHVH_KD::tc_xong( $u, isset( $d['id'] ) ? (int) $d['id'] : 0,
+					! empty( $d['xong'] ) ) );
+
+			/* ---- thông báo ---- */
+			case 'tb_ds':   return self::ra( array( 'ok' => true, 'ds' => VHVH_Viec::tb_ds( $u ) ) );
+			case 'tb_dang': return self::ra( VHVH_Viec::tb_dang( $u, $d ) );
+			case 'tb_xoa':  return self::ra( VHVH_Viec::tb_xoa( $u, isset( $d['id'] ) ? (int) $d['id'] : 0 ) );
+
+			/* ---- giao việc ---- */
+			case 'gv_ds':
+				return self::ra( array( 'ok' => true, 'ds' => VHVH_Viec::ds( $u,
+					isset( $d['coso'] ) ? (string) $d['coso'] : '',
+					isset( $d['tt'] ) ? (string) $d['tt'] : 'chua' ) ) );
+			case 'gv_giao': return self::ra( VHVH_Viec::giao( $u, $d ) );
+			case 'gv_tt':
+				return self::ra( VHVH_Viec::doi_tt( $u, isset( $d['id'] ) ? (int) $d['id'] : 0,
+					isset( $d['lam'] ) ? (string) $d['lam'] : '' ) );
+
+			/* ---- xuất báo cáo ---- */
+			case 'bc_loai':
+				return self::ra( array( 'ok' => true, 'loai' => VHVH_BaoCao::LOAI,
+					'ky' => current_time( 'Y-m' ) ) );
+			case 'bc_xuat':
+				return self::ra( VHVH_BaoCao::xuat( $u, $d ) );
+
 			case 'su_co_tt':
 				return self::ra( VHVH_SuCo::doi_tt(
 					$u,
@@ -216,7 +286,17 @@ class VHVH_API {
 		$man = array( 'tong_quan', 'su_co' );
 		$man[] = 'checklist';
 		$man[] = 'kho';
+		$man[] = 'thong_bao';
+		$man[] = 'giao_viec';
+		$man[] = 'tiktok';
+		$man[] = 'trich_cam';
 		if ( VHVH_Auth::du_quyen( $u, 'thu_ngan' ) ) { $man[] = 'tien'; }
+		/* Đánh giá và Xuất báo cáo là chuyện của người quản — nhân viên xem sổ phạt của đồng
+		   nghiệp thì cái sổ ấy thành chỗ soi nhau. Chốt thật vẫn nằm trong từng việc ở `cong()`. */
+		if ( VHVH_Auth::du_quyen( $u, 'cua_hang_truong' ) ) {
+			$man[] = 'danh_gia';
+			$man[] = 'bao_cao';
+		}
 		return $man;
 	}
 
@@ -245,16 +325,16 @@ class VHVH_API {
 			) ),
 			array( 'nhom' => 'KINH DOANH', 'muc' => array(
 				array( 'ma' => 'tien', 'ten' => 'Doanh thu & Chi phí', 'icon' => '💰', 'xong' => 1 ),
-				array( 'ma' => 'danh_gia', 'ten' => 'Đánh giá nhân viên', 'icon' => '⭐', 'xong' => 0 ),
-				array( 'ma' => 'tiktok', 'ten' => 'Thống kê TikTok', 'icon' => '🎬', 'xong' => 0 ),
-				array( 'ma' => 'trich_cam', 'ten' => 'Thống kê trích cam', 'icon' => '🧧', 'xong' => 0 ),
+				array( 'ma' => 'danh_gia', 'ten' => 'Đánh giá nhân viên', 'icon' => '⭐', 'xong' => 1 ),
+				array( 'ma' => 'tiktok', 'ten' => 'Thống kê TikTok', 'icon' => '🎬', 'xong' => 1 ),
+				array( 'ma' => 'trich_cam', 'ten' => 'Thống kê trích cam', 'icon' => '🧧', 'xong' => 1 ),
 			) ),
 			array( 'nhom' => 'CÔNG VIỆC', 'muc' => array(
-				array( 'ma' => 'thong_bao', 'ten' => 'Thông báo', 'icon' => '📣', 'xong' => 0 ),
-				array( 'ma' => 'giao_viec', 'ten' => 'Giao việc', 'icon' => '✅', 'xong' => 0 ),
+				array( 'ma' => 'thong_bao', 'ten' => 'Thông báo', 'icon' => '📣', 'xong' => 1 ),
+				array( 'ma' => 'giao_viec', 'ten' => 'Giao việc', 'icon' => '✅', 'xong' => 1 ),
 			) ),
 			array( 'nhom' => 'HỆ THỐNG', 'muc' => array(
-				array( 'ma' => 'bao_cao', 'ten' => 'Xuất báo cáo', 'icon' => '📊', 'xong' => 0 ),
+				array( 'ma' => 'bao_cao', 'ten' => 'Xuất báo cáo', 'icon' => '📊', 'xong' => 1 ),
 			) ),
 		);
 	}

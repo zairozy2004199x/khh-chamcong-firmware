@@ -1,11 +1,13 @@
 # Vận Hành cơ sở — plugin `vhcp-van-hanh`
 
-*Bản 1.2.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
+*Bản 1.3.0. Dựng lại app "Vận Hành Nhà Ma" (trước chạy trên Firebase) thành plugin WordPress.*
 
 > **Đây là một trang ĐỨNG RIÊNG**, không phải một ô nhỏ trong Cổng K&H: thanh dọc bên trái chia
-> nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ. Mục nào chưa dựng xong thì **vẫn hiện** kèm chữ
-> *đang làm*; giấu đi thì người dùng tưởng trang này chỉ có bấy nhiêu việc rồi đi mở app cũ làm
-> phần còn lại, và số liệu nằm ở hai nơi từ đó.
+> nhóm, đủ 16 mục, đa cơ sở — giống bố cục app cũ.
+>
+> ✅ **Bản 1.3.0 đã dựng xong cả 12 màn riêng của trang này.** Bốn mục còn lại trên thanh dọc
+> (Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn) là **liên kết sang plugin Chấm Công** —
+> cố ý không dựng lại, vì bên ấy đã có sổ thật đang chạy.
 
 | Địa chỉ | Ai dùng |
 |---|---|
@@ -125,8 +127,8 @@ kể cả khi biết id.
 ## 6. Phép thử
 
 ```bash
-php tools/test/kiem-van-hanh.php      # 277 — quyền, tiền, điểm, checklist, kho, khuôn dbDelta
-node tools/test/bam-thu-van-hanh.js   # 53  — BẤM THẬT trong Chromium
+php tools/test/kiem-van-hanh.php      # 376 — quyền, tiền, điểm, mọi màn, khuôn dbDelta
+node tools/test/bam-thu-van-hanh.js   # 76  — BẤM THẬT trong Chromium
 ```
 
 Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
@@ -154,6 +156,18 @@ Cả hai đã **đột biến ngược** để chắc chúng thật sự cắn:
 | Kho không báo lệch so tuần trước | 2 |
 | Trang gửi `0` cho món chưa đếm | 1 |
 | Trang tự gửi số `xong` của checklist | 1 |
+| Mức phạt không tăng theo lần 1/2/3 | 3 |
+| Lỗi nghiêm trọng vẫn xếp Tốt | 1 |
+| Cho xoá dòng vi phạm ở giữa dãy | 2 |
+| Bậc thưởng TikTok tra từ thấp lên | 3 |
+| Không chặn hoá đơn trích cam trùng | 2 |
+| CSV không chặn công thức Excel | 2 |
+| CSV thiếu BOM | 1 |
+| CHT gửi được thông báo toàn hệ | 1 |
+| Trang tự gửi điểm & mức phạt | 1 |
+| Chọn "Khen" mà danh sách nội dung không đổi | 2 |
+| Trang tự gửi tiền thưởng TikTok | 1 |
+| CHT thấy ô gửi thông báo toàn hệ | 1 |
 
 ---
 
@@ -213,22 +227,90 @@ này thì không ai phát hiện tuần trước 6 cái chổi giờ còn 2.
 
 ---
 
-## 7. Còn thiếu — bản 1.2.0 có 5 trong 16 màn
+## 6e. Đánh giá nhân viên
 
-Đã có: **Tổng quan · Doanh thu & Chi phí · Sự cố · Checklist · Kiểm tra kho**.
+Bảng phạt lấy từ *BẢNG PHẠT GHOST BRIDE* và *CHI TIẾT VẬN HÀNH GHOST BRIDE*: 4 nhóm, 31 lỗi, mỗi
+lỗi một mức độ và mức phạt theo lần 1 / 2 / 3.
+
+Bắt đầu **100 điểm**, trừ theo mức (nhẹ 2 · trung bình 5 · nặng 10 · nghiêm trọng 25), **lần 2
+nặng gấp rưỡi, lần 3 trở đi gấp đôi**, cộng lại khi có khen.
+
+> 🔴 **Lần thứ mấy chốt LÚC GHI, không tính lúc đọc.** Tính lúc đọc thì xoá một dòng cũ là mọi
+> dòng sau nó tụt một bậc phạt — trong khi biên bản đã ký và người ta đã nộp tiền theo mức cũ.
+> Cùng lý do, **không xoá được dòng ở giữa dãy**: xoá thì mấy dòng sau mang "lần thứ mấy" sai.
+
+> 🔴 **Có một lỗi mức Nghiêm trọng thì tối đa chỉ đạt Trung bình**, dù điểm còn cao. Gian lận
+> doanh thu một lần mà vẫn xếp Tốt vì tháng ấy không vi phạm gì khác thì bảng xếp loại này chẳng
+> còn nghĩa gì.
+
+> ⚠️ **Mức phạt tiền chỉ để hiện tham khảo.** Plugin không đụng gì tới lương — trừ tiền là việc
+> của người làm lương, và một phần mềm tự trừ lương thì sai một lần là mất lòng tin vĩnh viễn.
+
+Chỉ **Cửa hàng trưởng trở lên** ghi được. Nhân viên tự ghi vi phạm cho nhau là cái sổ này thành
+chỗ đấu đá, và không ai tin con số cuối kỳ nữa.
+
+---
+
+## 6f. TikTok & Trích cam
+
+**TikTok** — thưởng theo bậc lượt xem, máy chủ tra bậc rồi tự tính tiền; trang chỉ gửi con số lượt
+xem. Bắt buộc có **đường dẫn clip**: thưởng trả theo lượt xem tự khai, không có link thì không ai
+kiểm được clip có thật không. Cửa hàng trưởng **chốt** clip lại thì nhân viên không sửa lượt xem
+nữa.
+
+> 🔴 Bậc tra từ **cao xuống thấp**. Tra từ thấp lên thì clip 1 triệu view cũng chỉ được bậc đáy.
+
+**Trích cam** — một hoá đơn chỉ đăng ký **một lần trong cùng cơ sở**: đăng ký hai lần là một lượt
+đếm đôi, mà khoản ấy tính vào thành tích của nhân viên. Hai cơ sở đánh số hoá đơn riêng nên cùng
+số ở cơ sở khác thì vẫn cho.
+
+---
+
+## 6g. Thông báo & Giao việc
+
+Hai thứ khác nhau, cố ý để cạnh nhau:
+
+| | Thông báo | Giao việc |
+|---|---|---|
+| Gửi cho | nhiều người | **một** người |
+| Có hạn | không | **bắt buộc** |
+| Đánh dấu xong | không | có |
+
+> 🔴 **Đừng dùng Thông báo để giao việc.** *"Nhờ mọi người làm X trước thứ Sáu"* gửi cho mười
+> người là việc của không ai cả: không ai thấy tên mình, không có gì để đánh dấu xong, và đến thứ
+> Sáu không có cách nào biết nó có được làm hay không.
+
+Thông báo **toàn hệ** (mọi cơ sở) chỉ Quản lý gửi được — cửa hàng trưởng gửi toàn hệ thì bảng tin
+đầy thông báo nội bộ của một cơ sở. Người **nhận** việc tự đánh dấu xong được; bắt chờ quản lý bấm
+thì danh sách lúc nào cũng đỏ và không ai tin nó nữa.
+
+---
+
+## 6h. Xuất báo cáo
+
+Sáu loại, ra tệp **CSV** mở được bằng Excel · Google Sheet · LibreOffice.
+
+> 🔴 **Chỉ xuất phần người xuất được phép xem.** Cửa hàng trưởng xuất ra cũng chỉ có cơ sở của
+> mình — lộ sổ tiền qua đường tệp là một cửa hậu mà chốt lọc trên màn hình không che được.
+
+> 🔴 **Ô bắt đầu bằng `=`, `+`, `-`, `@` bị chặn bằng một dấu nháy đơn.** Excel hiểu mấy ô ấy là
+> **công thức** — đó là đường để nhét công thức độc vào máy người mở tệp.
+
+> 🔴 **Có dấu BOM ở đầu tệp.** Thiếu nó thì Excel trên Windows đọc UTF-8 thành ký tự rác
+> (`GHOST HOUSE - GO BÃ€ Rá»ŠA`), và người nhận nghĩ dữ liệu hỏng chứ không nghĩ tại Excel.
+
+*Sự cố* và *Giao việc* xuất **toàn bộ**, không cắt theo kỳ: một sự cố mở từ tháng trước mà chưa
+đóng thì nó vẫn là việc của tháng này.
+
+---
+
+## 7. ✅ Đã dựng xong 12 màn
+
+Tổng quan · Doanh thu & Chi phí · Sự cố · Checklist · Kiểm tra kho · Đánh giá nhân viên ·
+Thống kê TikTok · Thống kê trích cam · Thông báo · Giao việc · Xuất báo cáo.
 
 Bốn mục **Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo đi muộn** trên thanh dọc là **liên kết
-sang plugin Chấm Công**, không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
+sang plugin Chấm Công**, cố ý không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
 
-Bảng CSDL đã dựng sẵn cho cả những màn chưa làm, nên thêm màn sau này không phải đụng vào sơ đồ:
-
-| Màn | Bảng đã có | Ghi chú |
-|---|---|---|
-| Đánh giá nhân viên | `danh_gia` | Bảng phạt, mức tăng dần theo lần 1/2/3 |
-| TikTok | `tiktok` | Thưởng theo bậc lượt xem |
-| Trích cam | `trich_cam` | |
-| Thông báo | `thong_bao` | |
-| Xuất báo cáo | — | |
-| Chấm công · Lịch làm · Đổi ca · Xin đi muộn | *(của plugin chấm công)* | **Không dựng lại** — nối sang plugin chấm công |
 
 Chưa chạy thử trên hosting thật: bản này mới chạy trong bộ thử và trong Chromium ở máy dựng.

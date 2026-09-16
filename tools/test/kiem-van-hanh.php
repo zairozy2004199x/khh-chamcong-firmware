@@ -400,10 +400,209 @@ $tq_ql = VHVH_Tong::so( $QL, '2000-01-01', '2999-12-31' );
 t( 'quản lý thấy nhiều cơ sở hơn CHT', count( $tq_ql['hang'] ) >= count( $tq['hang'] ) );
 
 /* =============================================================================================
+ * 6e. ĐÁNH GIÁ NHÂN VIÊN
+ * =========================================================================================== */
+$ky = current_time( 'Y-m' );
+$dg = array( 'coso' => 'GO BÀ RỊA', 'ky' => $ky, 'loai' => 'vi_pham',
+	'khoa' => 'di_tre_duoi_15', 'ten' => 'Nhân Viên A', 'ma_nv' => 'NV01' );
+
+/* 🔴 Nhân viên tự ghi vi phạm cho nhau là cái sổ này thành chỗ đấu đá, và không ai tin con số
+   cuối kỳ nữa. */
+t( '🔴 nhân viên KHÔNG ghi được vi phạm', empty( VHVH_DanhGia::ghi( $NV, $dg )['ok'] ) );
+t( '🔴 thu ngân cũng không',              empty( VHVH_DanhGia::ghi( $TN, $dg )['ok'] ) );
+
+$l1 = VHVH_DanhGia::ghi( $CHT, $dg );
+t( 'CHT ghi được', ! empty( $l1['ok'] ), $l1 );
+t( 'lần đầu là lần 1', 1 === $l1['ban']['lan_thu'] );
+t( 'mức nhẹ trừ 2 điểm', 2 === $l1['ban']['diem'], $l1['ban']['diem'] );
+t( 'mức phạt lần 1 lấy từ bảng phạt', 'Nhắc nhở' === $l1['ban']['phat'], $l1['ban']['phat'] );
+
+/* 🔴 Mức tăng dần theo lần — và LẦN THỨ MẤY CHỐT LÚC GHI. */
+$l2 = VHVH_DanhGia::ghi( $CHT, $dg );
+t( 'lần hai là lần 2', 2 === $l2['ban']['lan_thu'] );
+t( 'lần hai nặng gấp rưỡi', 3 === $l2['ban']['diem'], $l2['ban']['diem'] );
+t( 'và lấy mức phạt lần 2', '50.000đ' === $l2['ban']['phat'], $l2['ban']['phat'] );
+$l3 = VHVH_DanhGia::ghi( $CHT, $dg );
+t( 'lần ba gấp đôi', 4 === $l3['ban']['diem'], $l3['ban']['diem'] );
+t( 'lần bốn vẫn lấy mức phạt cuối bảng, không nổ',
+	'100.000đ + biên bản' === VHVH_DanhGia::ghi( $CHT, $dg )['ban']['phat'] );
+
+/* Lỗi KHÁC thì đếm lần riêng — không cộng dồn mọi lỗi vào một dãy. */
+$khac = $dg; $khac['khoa'] = 'sai_dong_phuc';
+t( '🔴 lỗi khác đếm lần RIÊNG', 1 === VHVH_DanhGia::ghi( $CHT, $khac )['ban']['lan_thu'] );
+/* Người khác cũng vậy. */
+$ng2 = $dg; $ng2['ten'] = 'Người Khác'; $ng2['ma_nv'] = 'NV77';
+t( '🔴 người khác đếm lần RIÊNG', 1 === VHVH_DanhGia::ghi( $CHT, $ng2 )['ban']['lan_thu'] );
+
+t( 'lỗi không có trong bảng thì chối',
+	empty( VHVH_DanhGia::ghi( $CHT, array_merge( $dg, array( 'khoa' => 'toi_bia_ra' ) ) )['ok'] ) );
+t( 'thiếu tên thì chối',
+	empty( VHVH_DanhGia::ghi( $CHT, array_merge( $dg, array( 'ten' => '  ' ) ) )['ok'] ) );
+t( '🔴 ghi sang cơ sở khác bị chối',
+	empty( VHVH_DanhGia::ghi( $CHT, array_merge( $dg, array( 'coso' => 'VŨNG TÀU' ) ) )['ok'] ) );
+
+/* Khen thì cộng lại. */
+$kh = VHVH_DanhGia::ghi( $CHT, array( 'coso' => 'GO BÀ RỊA', 'ky' => $ky, 'loai' => 'khen',
+	'khoa' => 'sang_kien', 'ten' => 'Nhân Viên A', 'ma_nv' => 'NV01' ) );
+t( 'ghi khen được', ! empty( $kh['ok'] ) );
+t( 'khen cộng 10 điểm', 10 === $kh['ban']['diem'] );
+t( 'khen không mang mức phạt', '' === $kh['ban']['phat'] );
+
+$xep = VHVH_DanhGia::xep_loai( $CHT, $ky );
+$a_row = null;
+foreach ( $xep as $x ) { if ( 'NV01' === $x['ma_nv'] ) { $a_row = $x; } }
+t( 'bảng xếp loại có dòng của NV01', null !== $a_row );
+/* 100 − (2+3+4+4) trừ cho di_tre, − 2 cho sai_dong_phuc, + 10 khen = 95 */
+t( 'điểm cộng trừ đúng', 95 === $a_row['diem'], $a_row['diem'] );
+t( 'xếp loại Xuất sắc', 'xuat_sac' === $a_row['xep'], $a_row['xep'] );
+
+/* 🔴 MỘT LỖI NGHIÊM TRỌNG THÌ TỐI ĐA TRUNG BÌNH. Gian lận doanh thu một lần mà vẫn xếp Tốt vì
+   tháng ấy không vi phạm gì khác thì bảng xếp loại này chẳng còn nghĩa gì. */
+VHVH_DanhGia::ghi( $CHT, array( 'coso' => 'GO BÀ RỊA', 'ky' => $ky, 'loai' => 'vi_pham',
+	'khoa' => 'gian_lan_doanh_thu', 'ten' => 'Người Sạch', 'ma_nv' => 'NV88' ) );
+$xep2 = VHVH_DanhGia::xep_loai( $CHT, $ky );
+$s_row = null;
+foreach ( $xep2 as $x ) { if ( 'NV88' === $x['ma_nv'] ) { $s_row = $x; } }
+t( 'người chỉ có 1 lỗi nghiêm trọng vẫn còn 75 điểm', 75 === $s_row['diem'], $s_row['diem'] );
+t( '🔴 nhưng xếp loại BỊ CHẶN ở Trung bình', 'trung_binh' === $s_row['xep'], $s_row['xep'] );
+t( 'và có cờ báo lỗi nghiêm trọng', 1 === $s_row['co_nghiem_trong'] );
+
+/* 🔴 KHÔNG XOÁ DÒNG Ở GIỮA. Xoá thì mọi dòng sau mang `lan_thu` sai và mức phạt đã chốt không
+   còn khớp — mà biên bản thì đã ký. */
+t( '🔴 CHT không xoá được', empty( VHVH_DanhGia::xoa( $CHT, $l1['ban']['id'] )['ok'] ) );
+$xoa_giua = VHVH_DanhGia::xoa( $QL, $l1['ban']['id'] );
+t( '🔴 quản lý xoá dòng Ở GIỮA cũng bị chặn', empty( $xoa_giua['ok'] ), $xoa_giua );
+t( 'và câu chối nói rõ vì sao', false !== strpos( $xoa_giua['error'], 'lần thứ mấy' ) );
+t( 'xoá dòng mới nhất thì được',
+	! empty( VHVH_DanhGia::xoa( $QL, VHVH_DanhGia::ds( $QL, $ky )[0]['id'] )['ok'] ) );
+
+/* Khen thì xoá lúc nào cũng được — nó không có dãy lần thứ mấy. */
+t( 'xoá một lời khen thì không vướng', ! empty( VHVH_DanhGia::xoa( $QL, $kh['ban']['id'] )['ok'] ) );
+
+/* =============================================================================================
+ * 6f. TIKTOK & TRÍCH CAM
+ * =========================================================================================== */
+t( 'chưa khai lượt xem thì thưởng 0', 0 === VHVH_KD::thuong( null ) );
+t( 'dưới bậc thấp nhất cũng 0',       0 === VHVH_KD::thuong( 999 ) );
+t( '10k view → 30k',              30000 === VHVH_KD::thuong( 10000 ) );
+/* 🔴 Bậc phải tra từ CAO xuống. Tra từ thấp lên thì clip 1 triệu view cũng chỉ được bậc đáy. */
+t( '🔴 1 triệu view → 500k, KHÔNG phải bậc đáy', 500000 === VHVH_KD::thuong( 1000000 ),
+	VHVH_KD::thuong( 1000000 ) );
+t( '5 triệu view vẫn lấy bậc cao nhất', 500000 === VHVH_KD::thuong( 5000000 ) );
+
+$tk = array( 'coso' => 'GO BÀ RỊA', 'kenh' => 'ghosthouse.gobr',
+	'duong_dan' => 'https://www.tiktok.com/@ghosthouse/video/123', 'ngay_dang' => $hnay );
+t( '🔴 thiếu đường dẫn thì chối',
+	empty( VHVH_KD::tk_them( $NV, array_merge( $tk, array( 'duong_dan' => '' ) ) )['ok'] ) );
+$tk1 = VHVH_KD::tk_them( $NV, $tk );
+t( 'thêm clip được', ! empty( $tk1['ok'] ), $tk1 );
+
+/* 🔴 Tiền do máy chủ tra bậc — nhận `tien` do trang gửi thì ai cũng tự khai 5 triệu một clip. */
+$lt = VHVH_KD::tk_luot( $NV, $tk1['id'], 120000 );
+t( 'khai lượt xem thì máy chủ tự tính tiền', 150000 === $lt['tien'], $lt );
+$ds_tk = VHVH_KD::tk_ds( $NV, substr( $hnay, 0, 7 ) );
+t( 'clip nằm trong danh sách kỳ này', 1 === count( $ds_tk ) );
+t( 'tiền đã ghi vào sổ', 150000 === $ds_tk[0]['tien'] );
+
+t( '🔴 nhân viên KHÔNG chốt được', empty( VHVH_KD::tk_chot( $NV, $tk1['id'], 1 )['ok'] ) );
+t( 'CHT chốt được', ! empty( VHVH_KD::tk_chot( $CHT, $tk1['id'], 1 )['ok'] ) );
+t( '🔴 chốt rồi thì nhân viên không sửa lượt xem nữa',
+	empty( VHVH_KD::tk_luot( $NV, $tk1['id'], 999999 )['ok'] ) );
+t( 'nhưng CHT vẫn sửa được', ! empty( VHVH_KD::tk_luot( $CHT, $tk1['id'], 60000 )['ok'] ) );
+
+$tc = array( 'coso' => 'GO BÀ RỊA', 'so_hd' => 'HD20260916001', 'sdt' => '0901234567',
+	'ngay_dk' => $hnay );
+t( 'đăng ký trích cam được', ! empty( VHVH_KD::tc_them( $NV, $tc )['ok'] ) );
+/* 🔴 Một hoá đơn đăng ký hai lần là một lượt đếm đôi, mà khoản ấy tính vào thành tích. */
+$trung = VHVH_KD::tc_them( $NV, $tc );
+t( '🔴 hoá đơn TRÙNG bị chặn', empty( $trung['ok'] ), $trung );
+t( 'và câu chối nói rõ số hoá đơn', false !== strpos( $trung['error'], 'HD20260916001' ) );
+/* Cùng số hoá đơn nhưng CƠ SỞ KHÁC thì cho — hai cơ sở đánh số hoá đơn riêng. */
+t( 'cùng số nhưng cơ sở khác thì cho',
+	! empty( VHVH_KD::tc_them( $QL, array_merge( $tc, array( 'coso' => 'VŨNG TÀU' ) ) )['ok'] ) );
+t( 'thiếu số hoá đơn thì chối',
+	empty( VHVH_KD::tc_them( $NV, array_merge( $tc, array( 'so_hd' => ' ' ) ) )['ok'] ) );
+
+/* =============================================================================================
+ * 6g. THÔNG BÁO & GIAO VIỆC
+ * =========================================================================================== */
+t( '🔴 nhân viên KHÔNG đăng được thông báo',
+	empty( VHVH_Viec::tb_dang( $NV, array( 'tieu_de' => 'Thử', 'coso' => 'GO BÀ RỊA' ) )['ok'] ) );
+t( 'CHT đăng cho cơ sở mình được',
+	! empty( VHVH_Viec::tb_dang( $CHT, array( 'tieu_de' => 'Lịch tuần tới', 'coso' => 'GO BÀ RỊA' ) )['ok'] ) );
+/* CHT gửi toàn hệ thì bảng tin đầy thông báo nội bộ của một cơ sở. */
+t( '🔴 CHT KHÔNG gửi được toàn hệ',
+	empty( VHVH_Viec::tb_dang( $CHT, array( 'tieu_de' => 'Toàn hệ', 'coso' => '' ) )['ok'] ) );
+t( 'quản lý gửi toàn hệ được',
+	! empty( VHVH_Viec::tb_dang( $QL, array( 'tieu_de' => 'Nghỉ lễ', 'coso' => '' ) )['ok'] ) );
+
+$tb_nv = VHVH_Viec::tb_ds( $NV );
+$co_toan_he = false; $co_coso_khac = false;
+foreach ( $tb_nv as $x ) {
+	if ( '' === $x['coso'] ) { $co_toan_he = true; }
+	if ( '' !== $x['coso'] && 'GO BÀ RỊA' !== $x['coso'] ) { $co_coso_khac = true; }
+}
+t( 'nhân viên thấy thông báo toàn hệ', $co_toan_he );
+t( '🔴 nhưng KHÔNG thấy thông báo nội bộ của cơ sở khác', ! $co_coso_khac );
+
+$gv = array( 'coso' => 'GO BÀ RỊA', 'tieu_de' => 'Thay bóng đèn hành lang',
+	'giao_ten' => 'Nhân Viên A', 'han' => $hnay );
+t( '🔴 nhân viên KHÔNG giao việc được', empty( VHVH_Viec::giao( $NV, $gv )['ok'] ) );
+/* Hai ô bắt buộc, cùng lý do với Sự cố. */
+t( '🔴 thiếu người nhận thì chối',
+	empty( VHVH_Viec::giao( $CHT, array_merge( $gv, array( 'giao_ten' => '' ) ) )['ok'] ) );
+t( '🔴 thiếu hạn thì chối',
+	empty( VHVH_Viec::giao( $CHT, array_merge( $gv, array( 'han' => '' ) ) )['ok'] ) );
+$gv1 = VHVH_Viec::giao( $CHT, $gv );
+t( 'CHT giao được', ! empty( $gv1['ok'] ) );
+t( 'việc mới nằm trong danh sách chưa xong', 1 === count( VHVH_Viec::ds( $NV, '', 'chua' ) ) );
+/* Người nhận tự đánh dấu xong được — bắt chờ quản lý thì danh sách lúc nào cũng đỏ. */
+t( 'người nhận tự đánh dấu xong được', ! empty( VHVH_Viec::doi_tt( $NV, $gv1['id'], 'xong' )['ok'] ) );
+t( 'xong rồi thì rời danh sách chưa xong', 0 === count( VHVH_Viec::ds( $NV, '', 'chua' ) ) );
+t( '🔴 người cơ sở khác KHÔNG đụng được, dù biết id',
+	empty( VHVH_Viec::doi_tt( $nguoi_vt, $gv1['id'], 'mo_lai' )['ok'] ) );
+
+/* =============================================================================================
+ * 6h. XUẤT BÁO CÁO CSV
+ * =========================================================================================== */
+$bc = VHVH_BaoCao::xuat( $QL, array( 'loai' => 'doanh_thu', 'ky' => substr( $hnay, 0, 7 ) ) );
+t( 'xuất được doanh thu', ! empty( $bc['ok'] ) );
+/* 🔴 Thiếu BOM thì Excel trên Windows đọc UTF-8 thành ký tự rác, và người nhận nghĩ dữ liệu
+   hỏng chứ không nghĩ tại Excel. */
+t( '🔴 CSV có dấu BOM ở đầu tệp', "\xEF\xBB\xBF" === substr( $bc['csv'], 0, 3 ) );
+t( 'có dòng tiêu đề cột', false !== strpos( $bc['csv'], 'Doanh thu' ) );
+t( 'tên tệp mang loại và kỳ', false !== strpos( $bc['ten'], 'doanh_thu' ) );
+t( 'loại lạ thì chối', empty( VHVH_BaoCao::xuat( $QL, array( 'loai' => 'bia_dat' ) )['ok'] ) );
+
+/* 🔴 Ô bắt đầu bằng =, +, -, @ bị Excel chạy như CÔNG THỨC. Đó là đường nhét công thức độc vào
+   máy người mở tệp. */
+t( '🔴 ô bắt đầu bằng "=" được chặn bằng dấu nháy',
+	"'=SUM(A1)" === VHVH_BaoCao::o( '=SUM(A1)' ) );
+t( '🔴 và cả "+", "-", "@"',
+	"'+1" === VHVH_BaoCao::o( '+1' ) && "'-1" === VHVH_BaoCao::o( '-1' )
+	&& "'@x" === VHVH_BaoCao::o( '@x' ) );
+t( 'ô có dấu phẩy thì bọc nháy kép', '"a,b"' === VHVH_BaoCao::o( 'a,b' ) );
+t( 'nháy kép trong ô thì nhân đôi', '"a""b"' === VHVH_BaoCao::o( 'a"b' ) );
+t( 'ô thường thì để nguyên', 'GO BÀ RỊA' === VHVH_BaoCao::o( 'GO BÀ RỊA' ) );
+
+/* 🔴 XUẤT ĐÚNG PHẦN ĐƯỢC PHÉP XEM. CHT xuất ra mà có cơ sở khác là lộ sổ tiền qua đường tệp —
+   một cửa hậu mà chốt lọc trên màn hình không che được. */
+$bc_cht = VHVH_BaoCao::xuat( $CHT, array( 'loai' => 'doanh_thu', 'ky' => substr( $hnay, 0, 7 ) ) );
+t( '🔴 CSV của CHT KHÔNG chứa cơ sở khác',
+	false === strpos( $bc_cht['csv'], 'VŨNG TÀU' ), $bc_cht['csv'] );
+$bc_ql = VHVH_BaoCao::xuat( $QL, array( 'loai' => 'doanh_thu', 'ky' => substr( $hnay, 0, 7 ) ) );
+t( 'còn CSV của quản lý thì có', false !== strpos( $bc_ql['csv'], 'VŨNG TÀU' ) );
+
+foreach ( array( 'danh_gia', 'su_co', 'viec', 'tiktok', 'trich_cam' ) as $l ) {
+	$x = VHVH_BaoCao::xuat( $QL, array( 'loai' => $l, 'ky' => substr( $hnay, 0, 7 ) ) );
+	t( "xuất được báo cáo $l", ! empty( $x['ok'] ) && strlen( $x['csv'] ) > 10 );
+}
+
+/* =============================================================================================
  * 7. SƠ ĐỒ BẢNG
  * =========================================================================================== */
 $bang = VHVH_DB::bang();
-t( 'có đủ 9 bảng', 9 === count( $bang ), count( $bang ) );
+t( 'có đủ 10 bảng', 10 === count( $bang ), count( $bang ) );
 /* Khoá duy nhất là thứ chặn hai dòng cho một ngày — chặn ở PHP thôi thì hai lượt song song đều
    thấy "chưa có" rồi cùng chèn. */
 t( '🔴 doanh_thu có khoá duy nhất (coso,ngay)',

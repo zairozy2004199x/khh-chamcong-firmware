@@ -19,7 +19,7 @@ defined( 'ABSPATH' ) || exit;
 class VHVH_DB {
 
 	/** Đổi số này khi sơ đồ đổi — plugin so với `vhvh_so_do` rồi tự chạy dbDelta. */
-	const SO_DO = '1.0.0';
+	const SO_DO = '1.1.0';
 
 	public static function tien_to() {
 		global $wpdb;
@@ -195,6 +195,27 @@ class VHVH_DB {
 			tao DATETIME NULL,
 			PRIMARY KEY  (id),
 			KEY tao (tao)";
+
+		/* ===== GIAO VIỆC ======================================================================
+		   `han` để DATE: người giao việc nghĩ theo ngày, và một hạn 17:30 thì đến 17:31 đã đỏ
+		   trong khi người ta vẫn đang làm. Cùng lý do với bảng `su_co`. */
+		$b['viec'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			tieu_de VARCHAR(255) NOT NULL DEFAULT '',
+			mo_ta TEXT NULL,
+			giao_ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			giao_ten VARCHAR(190) NOT NULL DEFAULT '',
+			nguoi_giao VARCHAR(190) NOT NULL DEFAULT '',
+			han DATE NULL,
+			tt VARCHAR(20) NOT NULL DEFAULT 'chua',
+			xong_luc DATETIME NULL,
+			xong_boi VARCHAR(190) NOT NULL DEFAULT '',
+			tao DATETIME NULL,
+			sua DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY coso_tt (coso,tt),
+			KEY han (han)";
 
 		/* ===== DANH MỤC (checklist, kho, vi phạm, loại vé) =====================================
 		   Một bảng cho mọi danh mục thay vì bốn bảng gần giống nhau. `pham_vi` cho phép mỗi cơ sở
