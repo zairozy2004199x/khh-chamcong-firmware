@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.26.0
+Stable tag: 1.27.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,20 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.27.0 =
+* **Dùng CẢ HAI sổ MoMo cùng lúc, đè theo từng ô (ngày × cơ sở).** Sổ gộp bên plugin Sao Kê có cả
+  trăm ngày lịch sử, file thô nạp thẳng vào đây chỉ có kỳ vừa tải. Bỏ sổ gộp đi là mất lịch sử;
+  cộng hai sổ là nhân đôi những ngày cả hai cùng có. Nay ô nào có file thô thì lấy file thô (tra
+  được tới từng giao dịch, theo được máy khi dời cơ sở), ô nào không có thì giữ số của sổ gộp —
+  mỗi ô một nguồn, không bao giờ hai.
+* **"Không phải nạp lại lần hai."** Thêm nút *Tìm file MoMo trên máy chủ*: dò thư mục tải lên của
+  WordPress, thấy `Transaction_report_….csv` nào thì hút thẳng về kho, chọn file nào tuỳ anh.
+  Nạp lại đúng file cũ cũng không sao — khoá theo mã giao dịch nên ghi đè, không cộng dồn.
+  Không thấy file nào thì nói thẳng là plugin kia đã xoá file sau khi gộp, và file thô phải qua
+  đây **một lần** — không phải nạp lại hàng ngày.
+* **Khai sổ bằng một nút.** Bảng dò MoMo có thêm nút *Khai ngay*: lấy cột hệ đoán, kèm bộ lọc vừa
+  tìm được, khai luôn. Không đoán chắc được thì mới mở màn khai tay ra.
 
 = 1.26.0 =
 * **Sửa lỗi "Phải chỉ cột Tên cửa hàng" trong khi cột ấy nằm ngay đó.** Sổ `wpt9_saoke_congfile`

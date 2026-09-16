@@ -287,6 +287,38 @@ phep( 'chưa biết sổ phủ quán nào thì đừng loại ai',
 		array( 'ngay_dau' => '', 'ngay_cuoi' => '', 'co_so' => array() )
 	) );
 
+/* ================================================================== *
+ * HÚT FILE MOMO CÓ SẴN TRÊN MÁY CHỦ
+ *
+ * 🔴 ANH THẮNG HỎI: "NẠP TRÊN SAO KÊ RỒI, SAO PHẢI NẠP LẠI LẦN 2?" — nên nếu file gốc còn nằm
+ *    trong thư mục tải lên thì phải nhặt được nó. Nhặt SAI thì tệ hơn: đọc bừa file khác trong
+ *    uploads là đem dữ liệu chẳng liên quan vào kho tiền.
+ * ================================================================== */
+
+$up  = wp_upload_dir();
+$thu = rtrim( (string) $up['basedir'], '/' ) . '/kiem-momo-' . wp_generate_password( 8, false );
+mkdir( $thu . '/2026/09', 0777, true );
+file_put_contents( $thu . '/2026/09/Transaction_report_16_09_2026.csv', 'x' );
+file_put_contents( $thu . '/2026/09/transaction-report-01.csv', 'x' );
+file_put_contents( $thu . '/2026/09/anh-cua-hang.jpg', 'x' );
+file_put_contents( $thu . '/2026/09/bao-cao-ban-hang.csv', 'x' );
+
+$san = khh_dt_file_momo_san();
+$ten = wp_list_pluck( $san, 'ten' );
+phep( 'nhặt được file MoMo nằm sâu trong thư mục con', in_array( 'Transaction_report_16_09_2026.csv', $ten, true ) );
+phep( 'nhặt cả bản tên viết gạch nối', in_array( 'transaction-report-01.csv', $ten, true ) );
+phep( 'không đụng tới ảnh', ! in_array( 'anh-cua-hang.jpg', $ten, true ) );
+/* 🔴 CÁI NÀY QUAN TRỌNG NHẤT: file .csv khác trong uploads KHÔNG ĐƯỢC nhặt nhầm. */
+phep( 'không nhặt nhầm file .csv khác', ! in_array( 'bao-cao-ban-hang.csv', $ten, true ) );
+phep( 'chỉ ra đúng hai file', 2 === count( $san ) );
+phep( 'không đưa đường dẫn thật ra ngoài qua REST',
+	! array_key_exists( 'duong', khh_dt_rest_momo_file()['file_ds'][0] ) );
+
+array_map( 'unlink', glob( $thu . '/2026/09/*' ) );
+rmdir( $thu . '/2026/09' );
+rmdir( $thu . '/2026' );
+rmdir( $thu );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép:\n";
 	foreach ( $hong as $h ) {

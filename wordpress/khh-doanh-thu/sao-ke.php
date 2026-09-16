@@ -1379,12 +1379,41 @@ function khh_dt_momo_la_so_gop() {
  * nhau: ngày không có dòng nào và ngày chưa tải file trông giống hệt nhau nếu chỉ nhìn tổng.
  */
 function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
-	global $wpdb;
-	/* File sao kê MoMo đã nạp được tin trước bảng ngoài: nó có mã cửa hàng MoMo, mà mã ấy đã được
-	   học ra cơ sở FABi từ những cặp khớp mã giao dịch — không phải đoán theo tên. */
-	if ( function_exists( 'khh_dt_co_momo_sk' ) && khh_dt_co_momo_sk() ) {
-		return khh_dt_momo_ngay_tu_file( $tu, $den );
+	$gop = khh_dt_momo_ngay_tu_bang( $tu, $den );
+	if ( ! function_exists( 'khh_dt_co_momo_sk' ) || ! khh_dt_co_momo_sk() ) {
+		return $gop;
 	}
+	$file = khh_dt_momo_ngay_tu_file( $tu, $den );
+
+	/* 🔴 DÙNG CẢ HAI SỔ, ĐÈ THEO TỪNG Ô (ngày × cơ sở) — KHÔNG CỘNG DỒN.
+	 *
+	 *    Anh Thắng nạp file `Transaction_report_….csv` lên plugin Sao Kê từ lâu, nên sổ gộp bên
+	 *    ấy có cả trăm ngày lịch sử; còn file thô nạp thẳng vào đây thì chỉ có kỳ vừa tải. Bỏ sổ
+	 *    gộp đi là mất sạch lịch sử; cộng hai sổ vào nhau là nhân đôi những ngày cả hai cùng có.
+	 *
+	 *    Nên: ô nào file thô có thì lấy file thô (nó tra được tới từng giao dịch, và theo được
+	 *    máy khi dời cơ sở), ô nào không có thì giữ nguyên số của sổ gộp. Mỗi ô một nguồn, không
+	 *    bao giờ hai. `nguon_o` nói rõ từng ô lấy ở đâu, để màn hình đừng hứa điều nó không làm
+	 *    được — ngày lấy từ sổ gộp thì không đối soát tới giao dịch được. */
+	$tong    = $gop['tong'];
+	$nguon_o = array();
+	foreach ( array_keys( $tong ) as $k ) {
+		$nguon_o[ $k ] = 'gop';
+	}
+	foreach ( $file['tong'] as $k => $v ) {
+		$tong[ $k ]    = $v;
+		$nguon_o[ $k ] = 'file';
+	}
+	return array(
+		'tong'    => $tong,
+		'ngay_co' => $gop['ngay_co'] + $file['ngay_co'],
+		'nguon_o' => $nguon_o,
+	);
+}
+
+/** Cộng tiền MoMo theo (ngày × cơ sở) từ BẢNG NGOÀI đã khai. */
+function khh_dt_momo_ngay_tu_bang( $tu = '', $den = '' ) {
+	global $wpdb;
 	$n = khh_dt_nguon_momo();
 	if ( ! $n ) {
 		return array( 'tong' => array(), 'ngay_co' => array() );

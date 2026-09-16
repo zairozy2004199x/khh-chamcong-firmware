@@ -1847,7 +1847,15 @@
             'Tự tìm giao dịch MoMo trong site</button> <span class="chu-them">Không bảng nào tên ' +
             '"momo" cả — nếu có thì MoMo nằm lẫn trong sổ cổng, nhận ra bằng một giá trị trong cột ' +
             'nguồn. Bấm cái này để em dò hộ, khỏi mở từng bảng.</span>' +
-            '<div id="dtTimMomoNoi" style="margin-top:10px"></div></div>'
+            '<div id="dtTimMomoNoi" style="margin-top:10px"></div>' +
+            '<div style="margin-top:14px"><b class="tieu-nho">File MoMo có sẵn trên máy chủ</b>' +
+            '<div class="chu-them">Anh đã tải <code>Transaction_report_….csv</code> lên site rồi thì ' +
+            '<b>không phải tải lần nữa</b>. Em dò trong thư mục tải lên, thấy file nào thì hút thẳng ' +
+            'về kho MoMo. Nạp lại đúng file cũ cũng không sao — khoá theo mã giao dịch nên ghi đè, ' +
+            'không cộng dồn.</div>' +
+            '<div style="margin-top:8px"><button class="nut" type="button" id="dtFileMomo">' +
+            'Tìm file MoMo trên máy chủ</button></div>' +
+            '<div id="dtFileMomoNoi" style="margin-top:10px"></div></div></div>'
           : '') +
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
           '<select id="dtBangTay">' + ds.map(function (x) {
@@ -1862,6 +1870,8 @@
       });
       var nTim = noi.querySelector('#dtTimMomo');
       if (nTim) nTim.addEventListener('click', function () { timMomo(o, noi, viec); });
+      var nFile = noi.querySelector('#dtFileMomo');
+      if (nFile) nFile.addEventListener('click', function () { timFileMomo(o, noi); });
     }).catch(function (e) {
       noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
     });
@@ -1906,8 +1916,48 @@
             '<td style="text-align:left"><code class="nd">' + esc(x.cot) + '</code></td>' +
             '<td style="text-align:left"><code class="nd">' + esc(x.gt) + '</code></td>' +
             '<td class="s">' + nguyen(x.n) + '</td>' +
-            '<td><button class="nut" type="button" data-momo="' + i + '">Khai sổ này →</button></td></tr>';
+            '<td><button class="nut chinh" type="button" data-momo-ngay="' + i + '">Khai ngay</button> ' +
+            '<button class="nut" type="button" data-momo="' + i + '">Xem rồi khai →</button></td></tr>';
         }).join('') + '</tbody></table></div>';
+      /* Một chạm: lấy cột hệ đoán rồi khai luôn. Màn khai tay vẫn còn cho ai muốn xem trước —
+         nhưng bắt người ta đi qua nó chỉ để bấm đúng cái nút cuối là bắt làm việc thừa. */
+      Array.prototype.forEach.call(hop.querySelectorAll('[data-momo-ngay]'), function (b) {
+        b.addEventListener('click', function () {
+          var x = thay[parseInt(b.dataset.momoNgay, 10)];
+          b.disabled = true; b.textContent = 'Đang khai…';
+          api('soi-bang?bang=' + encodeURIComponent(x.bang) +
+              '&cot_them=' + encodeURIComponent(x.cot)).then(function (sb) {
+            var doan = sb.doan || {};
+            if (!doan.ngay || !doan.so_tien || (!doan.nhan && !doan.noi_dung)) {
+              b.disabled = false; b.textContent = 'Khai ngay';
+              S.locGoi = { cot: x.cot, gt: x.gt };
+              soiBang(o, x.bang, viec);
+              window.alert('Sổ này em chưa đoán chắc được cột nào là cột nào — anh chỉ giúp em ở ' +
+                'bảng vừa mở bên dưới.');
+              return;
+            }
+            var fd = new FormData();
+            fd.append('bang', x.bang);
+            fd.append('cot', JSON.stringify(doan));
+            fd.append('loc_cot', x.cot);
+            fd.append('loc_gt', x.gt);
+            return api('nguon-momo', { method: 'POST', body: fd }).then(function (kq) {
+              window.alert('Đã khai sổ MoMo: ' + x.bang + ' — chỉ lấy dòng có ' + x.cot + ' = ' + x.gt +
+                '.\nNgày lấy từ cột ' + doan.ngay + ', tiền từ ' + doan.so_tien +
+                ', tên cửa hàng từ ' + (doan.nhan || doan.noi_dung) + '.' +
+                (kq.cot && kq.cot.dem
+                  ? '\n\nSổ này GỘP THEO NGÀY (cột đếm ' + kq.cot.dem + ') nên nó cho tổng ngày × ' +
+                    'cơ sở. Muốn đối soát tới từng giao dịch thì cần file thô — xem khối "File MoMo ' +
+                    'có sẵn trên máy chủ" ngay dưới.'
+                  : ''));
+              taiQuanTri();
+            });
+          }).catch(function (e) {
+            b.disabled = false; b.textContent = 'Khai ngay';
+            window.alert(e.message || e);
+          });
+        });
+      });
       Array.prototype.forEach.call(hop.querySelectorAll('[data-momo]'), function (b) {
         b.addEventListener('click', function () {
           var x = thay[parseInt(b.dataset.momo, 10)];
@@ -1917,6 +1967,84 @@
              quên lọc nguồn là tiền VietQR của cả chuỗi cộng nhầm vào phần MoMo. */
           S.locGoi = { cot: x.cot, gt: x.gt };
           soiBang(o, x.bang, viec);
+        });
+      });
+    }).catch(function (e) {
+      nut.disabled = false;
+      hop.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
+    });
+  }
+
+  /**
+   * DÒ FILE MOMO CÒN NẰM TRÊN MÁY CHỦ, ĐỂ KHỎI TẢI LÊN LẦN HAI.
+   *
+   * 🔴 ANH THẮNG HỎI: "NẠP TRÊN SAO KÊ RỒI, SAO PHẢI NẠP LẠI LẦN 2 TRÊN FABi?" — đúng là không
+   *    nên. Plugin Sao Kê nhận file rồi chỉ giữ bản GỘP theo ngày, vứt từng giao dịch đi, nên bên
+   *    này không có gì để đối soát tới từng mã. Nhưng nếu file gốc còn trong thư mục tải lên thì
+   *    lấy về là xong — bắt tải lên lần nữa cùng một file mới là việc thừa.
+   */
+  function timFileMomo(o, noi) {
+    var hop = noi.querySelector('#dtFileMomoNoi');
+    var nut = noi.querySelector('#dtFileMomo');
+    if (!hop) return;
+    nut.disabled = true;
+    hop.innerHTML = '<div class="chu-them">Đang dò thư mục tải lên…</div>';
+    api('momo-file').then(function (r) {
+      nut.disabled = false;
+      var ds = r.file_ds || [];
+      if (!ds.length) {
+        hop.innerHTML = '<div class="canh-ghep">Không thấy file <code>Transaction_report_….csv</code> ' +
+          'nào còn trên máy chủ — plugin Sao Kê đọc xong thì xoá file đi, chỉ giữ bản gộp. ' +
+          'Vậy file thô phải qua đây một lần: <b>Nạp báo cáo → thẻ Sao kê MoMo</b>. ' +
+          'Mỗi file chỉ nạp một lần, không phải nạp lại hàng ngày.' +
+          (r.da_co ? '<br>Kho MoMo hiện đã có <b>' + nguyen(r.da_co) + ' giao dịch</b>.' : '') + '</div>';
+        return;
+      }
+      hop.innerHTML = '<div class="chu-them">Thấy <b>' + nguyen(ds.length) + ' file</b>:</div>' +
+        '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+          '<th style="text-align:left"><input type="checkbox" id="dtFileHet" checked></th>' +
+          '<th style="text-align:left">File</th><th>Nặng</th><th>Sửa lúc</th>' +
+        '</tr></thead><tbody>' +
+        ds.map(function (f) {
+          return '<tr><td><input type="checkbox" data-file="' + esc(f.ten) + '" checked></td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(f.ten) + '</code></td>' +
+            '<td class="s">' + nguyen(Math.round(f.co / 1024)) + ' KB</td>' +
+            '<td class="s">' + esc(f.luc) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div style="margin-top:10px"><button class="nut chinh" type="button" id="dtHutMomo">' +
+        'Hút những file đã chọn về kho</button></div>';
+      var het = hop.querySelector('#dtFileHet');
+      het.addEventListener('change', function () {
+        Array.prototype.forEach.call(hop.querySelectorAll('[data-file]'), function (c) {
+          c.checked = het.checked;
+        });
+      });
+      hop.querySelector('#dtHutMomo').addEventListener('click', function () {
+        var ten = [];
+        Array.prototype.forEach.call(hop.querySelectorAll('[data-file]'), function (c) {
+          if (c.checked) ten.push(c.dataset.file);
+        });
+        if (!ten.length) { window.alert('Chưa chọn file nào.'); return; }
+        var b = hop.querySelector('#dtHutMomo');
+        b.disabled = true; b.textContent = 'Đang hút ' + ten.length + ' file…';
+        var fd = new FormData();
+        fd.append('ten', JSON.stringify(ten));
+        api('momo-hut', { method: 'POST', body: fd }).then(function (kq) {
+          window.alert('Đã hút ' + nguyen(kq.so_file) + ' file · ghi ' + nguyen(kq.da_ghi) +
+            ' giao dịch vào kho MoMo.' +
+            (kq.hoc ? '\nĐã học ' + nguyen(kq.hoc) + ' mã cửa hàng MoMo ứng với quán nào.' : '') +
+            ((kq.lan_can || []).length
+              ? '\n⚠️ ' + kq.lan_can.length + ' mã cửa hàng MoMo trỏ về HAI quán trong cùng kỳ — ' +
+                'đúng cảnh máy vừa dời cơ sở. Hệ không đoán.'
+              : '') +
+            ((kq.hong || []).length
+              ? '\n\nĐọc không được ' + kq.hong.length + ' file:\n' +
+                kq.hong.map(function (h) { return '· ' + h.ten + ': ' + h.vi; }).join('\n')
+              : ''));
+          taiQuanTri();
+        }).catch(function (e) {
+          b.disabled = false; b.textContent = 'Hút những file đã chọn về kho';
+          window.alert(e.message || e);
         });
       });
     }).catch(function (e) {

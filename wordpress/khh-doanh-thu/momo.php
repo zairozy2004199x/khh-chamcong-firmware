@@ -828,11 +828,126 @@ function khh_dt_ghep_momo_hoc( $ten ) {
 }
 
 /* ================================================================== *
+ * TỰ HÚT FILE MOMO ĐÃ CÓ SẴN TRÊN MÁY CHỦ
+ *
+ * 🔴 ANH THẮNG HỎI ĐÚNG: "NẠP TRÊN SAO KÊ RỒI, SAO PHẢI NẠP LẠI LẦN 2?"
+ *
+ *    Không phải. Plugin Sao Kê nhận file `Transaction_report_….csv` rồi CHỈ GIỮ BẢN GỘP theo
+ *    ngày — nó vứt từng giao dịch đi, nên bên này không có gì để đối soát tới từng mã. Nhưng nếu
+ *    file gốc còn nằm đâu đó trong thư mục tải lên của WordPress thì lấy về là xong, không phải
+ *    bắt người ta tải lên lần nữa cùng một file.
+ *
+ *    Nên: quét thư mục uploads tìm file mang tên Transaction_report…, bày ra, bấm một nút là nạp
+ *    hết. Nạp lại đúng file cũ cũng không sao — khoá theo mã giao dịch nên ghi đè, không cộng dồn.
+ *
+ * ⚠️ ĐƯỜNG DẪN KHÔNG BAO GIỜ NHẬN TỪ TRÌNH DUYỆT. Client chỉ gửi tên file; máy chủ tự đối chiếu
+ *    lại với danh sách vừa quét rồi mới đọc. Nhận thẳng đường dẫn là mở cửa cho người ta đọc bất
+ *    kỳ file nào trên máy chủ.
+ * ================================================================== */
+
+/** Các file MoMo còn nằm trong thư mục tải lên của WordPress. */
+function khh_dt_file_momo_san() {
+	$goc = wp_upload_dir();
+	$goc = isset( $goc['basedir'] ) ? (string) $goc['basedir'] : '';
+	if ( '' === $goc || ! is_dir( $goc ) ) {
+		return array();
+	}
+	$ra = array();
+	try {
+		$di = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $goc, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::LEAVES_ONLY
+		);
+		foreach ( $di as $f ) {
+			if ( count( $ra ) >= 200 ) {
+				break;
+			}
+			$ten = $f->getFilename();
+			if ( ! preg_match( '/^transaction[_\- ]?report.*\.csv$/i', $ten ) ) {
+				continue;
+			}
+			$ra[] = array(
+				'ten'  => $ten,
+				'co'   => (int) $f->getSize(),
+				'luc'  => gmdate( 'Y-m-d H:i', (int) $f->getMTime() ),
+				'duong' => $f->getPathname(),
+			);
+		}
+	} catch ( Exception $e ) {
+		return array();
+	}
+	usort(
+		$ra,
+		function ( $a, $b ) {
+			return strcmp( $b['luc'], $a['luc'] );
+		}
+	);
+	return $ra;
+}
+
+/**
+ * Nạp những file MoMo có sẵn trên máy chủ vào kho.
+ *
+ * `$ten_ds` là TÊN file, không phải đường dẫn — xem lời cảnh báo ở đầu khối. Rỗng thì nạp hết.
+ */
+function khh_dt_hut_file_momo( $ten_ds = array() ) {
+	$san  = khh_dt_file_momo_san();
+	$loc  = array_map( 'strval', (array) $ten_ds );
+	$ghi  = 0;
+	$doc  = 0;
+	$xong = array();
+	$hong = array();
+	@set_time_limit( 300 ); // phpcs:ignore WordPress.PHP.NoSilencedErrors
+	foreach ( $san as $f ) {
+		if ( $loc && ! in_array( $f['ten'], $loc, true ) ) {
+			continue;
+		}
+		$kq = khh_dt_doc_momo_sk( $f['duong'] );
+		if ( is_wp_error( $kq ) ) {
+			$hong[] = array( 'ten' => $f['ten'], 'vi' => $kq->get_error_message() );
+			continue;
+		}
+		$n     = khh_dt_ghi_momo_sk( $kq['dong'] );
+		$ghi  += $n;
+		$doc  += count( $kq['dong'] );
+		$xong[] = array( 'ten' => $f['ten'], 'so' => count( $kq['dong'] ) );
+	}
+	$hoc = khh_dt_hoc_ma_ch_momo();
+	return array(
+		'so_file' => count( $xong ),
+		'da_ghi'  => $ghi,
+		'da_doc'  => $doc,
+		'xong'    => $xong,
+		'hong'    => $hong,
+		'hoc'     => (int) $hoc['hoc'],
+		'lan_can' => $hoc['lan_can'],
+	);
+}
+
+/* ================================================================== *
  * REST
  * ================================================================== */
 
 add_action( 'rest_api_init', 'khh_dt_rest_momo' );
 function khh_dt_rest_momo() {
+	register_rest_route(
+		'khh-dt/v1',
+		'/momo-file',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_momo_file',
+			'permission_callback' => 'khh_dt_duoc_nap',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/momo-hut',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_momo_hut',
+			'permission_callback' => 'khh_dt_duoc_nap',
+		)
+	);
 	register_rest_route(
 		'khh-dt/v1',
 		'/momo-gd',
@@ -842,6 +957,22 @@ function khh_dt_rest_momo() {
 			'permission_callback' => 'khh_dt_duoc_xem',
 		)
 	);
+}
+
+function khh_dt_rest_momo_file() {
+	$ds = khh_dt_file_momo_san();
+	foreach ( $ds as $i => $f ) {
+		unset( $ds[ $i ]['duong'] );        // đường dẫn thật không cần ra tới trình duyệt
+	}
+	return array( 'file_ds' => array_values( $ds ), 'da_co' => (int) khh_dt_co_momo_sk() );
+}
+
+function khh_dt_rest_momo_hut( $req ) {
+	$ten = $req->get_param( 'ten' );
+	if ( is_string( $ten ) ) {
+		$ten = json_decode( $ten, true );
+	}
+	return khh_dt_hut_file_momo( is_array( $ten ) ? $ten : array() );
 }
 
 function khh_dt_rest_momo_gd( $req ) {
