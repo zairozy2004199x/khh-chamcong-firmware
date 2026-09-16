@@ -912,7 +912,9 @@ $h_cl = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_mo );
 t( '🔴 ô tên việc là ô CHỌN, không phải ô gõ tay',
 	false !== strpos( $h_cl, '<select name="cl_viec[0]"' ), $h_cl );
 t( 'và bày đúng tên đã khai giá', false !== strpos( $h_cl, '>Lái Tàu — 23.000đ/h<' ), $h_cl );
-t( 'tên của bảng chung cũng có', false !== strpos( $h_cl, '>MC — 30.000đ/h<' ), $h_cl );
+/* ⚠️ Dòng của bảng chung nay mang thêm nhãn "· bảng chung" — xem mục 11. */
+t( 'tên của bảng chung cũng có',
+	false !== strpos( $h_cl, '>MC — 30.000đ/h · bảng chung<' ), $h_cl );
 t( 'có dòng "— chọn việc —" để bỏ trống',
 	false !== strpos( $h_cl, '<option value="">— chọn việc —</option>' ), $h_cl );
 t( '🔴 giá khai riêng của người KHÔNG lọt vào ô chọn',
@@ -1054,5 +1056,58 @@ t( '🔴 dải cảnh báo đầu bảng VẪN đếm và VẪN kêu',
 	false !== strpos( $h_gc, 'dòng chưa khai đơn giá giờ' ), substr( $h_gc, 0, 400 ) );
 t( 'và ghi chú riêng của từng dòng vẫn còn (lượt thiếu giờ)',
 	false !== strpos( $h_gc, 'lượt thiếu giờ' ) || false === strpos( $h_gc, 'thieuGio' ), $bang_gc );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 11. "SINH THỪA TỪ ĐÂU" — tên của bảng chung phải NÓI RA là của bảng chung
+ *
+ * Anh Thắng 16/09/2026 mở ô chọn việc, thấy `cht — 26.000đ/h` đứng cạnh
+ * `Cửa Hàng Trưởng — 26.000đ/h`: *"sinh thừa từ đâu"*.
+ * `cht` ở BẢNG CHUNG, `Cửa Hàng Trưởng` ở bảng cơ sở — hai chuỗi khác nhau nên hai khoá khác
+ * nhau (`cht` ≠ `cuahangtruong`), thành hai dòng. Còn `laitau` và `Lái Tàu` thì CÙNG khoá nên
+ * gộp làm một — đó là lý do chỉ mỗi dòng ấy nhân đôi.
+ * Lỗi của màn: ô chọn lấy tên từ CẢ HAI bảng, mà khối đơn giá chỉ bày bảng của cơ sở — cái tên
+ * thừa hiện ra ở một chỗ và không có mặt ở chỗ nào để xoá.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/* Dựng lại ĐÚNG hai ảnh anh gửi. */
+VHCC_GiaGio::dat_chung( $U_KT, array( 'cht' => 26000, 'laitau' => 23000, 'lotau' => 21000 ) );
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT',
+	array( 'Cửa Hàng Trưởng' => 26000, 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000 ) );
+
+teq( '🔴 "cht" và "Cửa Hàng Trưởng" ra HAI khoá khác nhau',
+	false, VHCC_GiaGio::khoa_cv( 'cht' ) === VHCC_GiaGio::khoa_cv( 'Cửa Hàng Trưởng' ) );
+teq( '⚠️ còn "laitau" và "Lái Tàu" thì CÙNG khoá — nên chúng gộp, không nhân đôi',
+	VHCC_GiaGio::khoa_cv( 'laitau' ), VHCC_GiaGio::khoa_cv( 'Lái Tàu' ) );
+$ds_td = VHCC_GiaGio::ten_khai_cho( 'AEON_BT' );
+teq( 'nên ô chọn ra đúng BỐN dòng, không phải sáu', 4, count( $ds_td ) );
+
+$h_td = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+/* ⚠️ TÊN HIỆN RA LÀ "CHT", KHÔNG PHẢI "cht" — và đó là ĐÚNG. Mục 7 đã lưu cách viết "CHT" cho
+   khoá ấy; `dat_chung()` ở trên gửi lên chính cái khoá làm tên nên `sach_bang()` bỏ qua (tên
+   trùng khoá thì không ghi đè — xem chú thích ở đó), sổ giữ nguyên "CHT". Phép thử phải đo cái
+   màn THẬT SỰ vẽ ra, không đo cái mình gõ vào. */
+$ten_cht = VHCC_GiaGio::ten_cua( VHCC_GiaGio::khoa_cv( 'cht' ) );
+t( '🔴 dòng của bảng chung NÓI RA là của bảng chung',
+	false !== strpos( $h_td, $ten_cht . ' — 26.000đ/h · bảng chung' ), $h_td );
+t( '⚠️ còn dòng của chính cơ sở thì KHÔNG bị dán nhãn ấy',
+	false === strpos( $h_td, 'Lái Tàu — 23.000đ/h · bảng chung' ), $h_td );
+
+/* 🔴 VÀ KHỐI ĐƠN GIÁ PHẢI BÀY NÓ RA — không thì tên thừa hiện ở ô chọn mà không có chỗ nào xoá. */
+t( '🔴 khối đơn giá kể tên mấy dòng đến từ bảng chung',
+	false !== strpos( $h_td, 'từ <b>bảng chung cả chuỗi</b>' ), $h_td );
+t( 'và gọi đúng tên cái dòng thừa ấy',
+	1 === preg_match( '/bảng chung cả chuỗi<\/b>.*?<b>' . preg_quote( $ten_cht, '/' ) . '<\/b>/us',
+		$h_td ), $h_td );
+t( 'kèm đường sang đúng chỗ sửa được nó',
+	false !== strpos( $h_td, 'man=cau_hinh' ), $h_td );
+t( '⚠️ và cảnh báo đổi ở đó là đổi cho MỌI cơ sở',
+	false !== strpos( $h_td, 'đổi cho mọi cơ sở' ), $h_td );
+
+/* ⚠️ Dòng bảng chung ĐÃ BỊ CƠ SỞ ĐÈ LÊN thì đừng kể — nó không còn tác dụng ở đây, kể ra chỉ
+   làm người ta đi xoá một thứ không liên quan. */
+t( '🔴 dòng bảng chung đã bị cơ sở đè thì KHÔNG kể',
+	1 !== preg_match( '/bảng chung cả chuỗi<\/b>.*?<b>Lái Tàu<\/b>/us', $h_td ), $h_td );
 
 ket_luan();

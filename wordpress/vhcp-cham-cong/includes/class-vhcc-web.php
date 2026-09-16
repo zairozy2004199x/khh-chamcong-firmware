@@ -7649,6 +7649,37 @@ class VHCC_Web {
 	}
 
 	/**
+	 * Ô CHỌN TÊN VIỆC — dùng chung cho cả "việc chính" và mấy dòng "giờ ăn đơn giá khác".
+	 *
+	 * 🔴 MỘT CHỖ DỰNG, KHÔNG PHẢI HAI. Bản trước dựng hai ô ấy bằng hai đoạn mã gần giống nhau,
+	 *    và nhãn "· bảng chung" phải sửa ở cả hai. Hai đoạn cùng giữ một luật thì bỏ đoạn nào
+	 *    bài kiểm cũng xanh — tức bài kiểm KHÔNG còn canh được luật nữa, chỉ đỏ khi bỏ cả hai.
+	 *    Đã trả giá đúng cái bẫy này hai lần trong ngày (xem `the_gia_gio_cs` và danh sách tên
+	 *    việc), nên gom lại.
+	 *
+	 * @param string $ma_nv Có mã thì tra cả tầng "khai riêng người" — giá hiện ra đúng cái người
+	 *                      ấy sẽ ăn, chứ không phải giá chung của cửa hàng.
+	 */
+	private static function o_chon_viec( $ten_o, $ds_ten, $dang_chon, $cs, $ma_nv = '', $trong = '— chọn việc —' ) {
+		echo '<select name="' . esc_attr( $ten_o ) . '" style="width:210px">';
+		echo '<option value="">' . esc_html( $trong ) . '</option>';
+		foreach ( $ds_ten as $t_x ) {
+			$gia = VHCC_GiaGio::tra( $cs, $t_x, $ma_nv, null );
+			echo '<option value="' . esc_attr( $t_x ) . '"'
+				. selected( $t_x, $dang_chon, false ) . '>' . esc_html( $t_x )
+				/* Nói luôn giá NGAY TRONG ô chọn: người gõ thấy hậu quả trước khi bấm Lưu, chứ
+				   không phải sau khi bảng lương đã tính. Và nói luôn giá ấy TỪ ĐÂU — một cái
+				   tên lạ mà không biết ở đâu ra thì không ai dám xoá, cũng không ai dám chọn. */
+				. ( $gia['gia'] > 0
+					? ' — ' . esc_html( number_format( (float) $gia['gia'], 0, ',', '.' ) ) . 'đ/h'
+						. ( 'chung' === $gia['tu'] ? ' · bảng chung' : '' )
+					: ' — CHƯA KHAI GIÁ' )
+				. '</option>';
+		}
+		echo '</select>';
+	}
+
+	/**
 	 * HÀNG NHẬP CHỐT LƯƠNG CỦA MỘT NGƯỜI — giờ ăn giá khác, và các khoản cộng / trừ.
 	 *
 	 * 🔴 NHẬP NGAY TRONG BẢNG, KHÔNG DỰNG MỘT MÀN RIÊNG. Anh Thắng 16/09/2026: *"xây vô tab này
@@ -7710,16 +7741,7 @@ class VHCC_Web {
 			. 'lại</b> ăn theo giá của nó. Gõ thêm dòng giờ khác bên dưới thì phần này tự co lại.</p>';
 		echo '<div class="hang" style="margin:0 0 10px;gap:8px"><div>';
 		if ( $ds_ten ) {
-			echo '<select name="cl_chinh" style="width:210px">';
-			echo '<option value="">— chưa chọn —</option>';
-			foreach ( $ds_ten as $t_c ) {
-				$gia_c = VHCC_GiaGio::tra( $cs, $t_c, $ma, null );
-				echo '<option value="' . esc_attr( $t_c ) . '"' . selected( $t_c, $vc_hien, false )
-					. '>' . esc_html( $t_c ) . ( $gia_c['gia'] > 0
-						? ' — ' . esc_html( number_format( (float) $gia_c['gia'], 0, ',', '.' ) ) . 'đ/h'
-						: ' — CHƯA KHAI GIÁ' ) . '</option>';
-			}
-			echo '</select>';
+			self::o_chon_viec( 'cl_chinh', $ds_ten, $vc_hien, $cs, $ma, '— chưa chọn —' );
 		} else {
 			echo '<input name="cl_chinh" placeholder="tên việc chính" style="width:210px" '
 				. 'value="' . esc_attr( $vc_hien ) . '">';
@@ -7760,20 +7782,7 @@ class VHCC_Web {
 			$g = isset( $gk[ $i ]['gio'] ) ? $gk[ $i ]['gio'] : '';
 			echo '<div class="hang" style="margin:0 0 5px;gap:8px"><div>';
 			if ( $ds_ten ) {
-				echo '<select name="cl_viec[' . $i . ']" style="width:210px">';
-				echo '<option value="">— chọn việc —</option>';
-				foreach ( $ds_ten as $t_x ) {
-					$co_gia = VHCC_GiaGio::tra( $cs, $t_x, '', null );
-					echo '<option value="' . esc_attr( $t_x ) . '"' . selected( $t_x, $v, false )
-						. '>' . esc_html( $t_x )
-						/* Nói luôn giá ngay trong ô chọn: người gõ thấy được hậu quả của lựa
-						   chọn trước khi bấm Lưu, chứ không phải sau khi bảng lương đã tính. */
-						. ( $co_gia['gia'] > 0
-							? ' — ' . esc_html( number_format( (float) $co_gia['gia'], 0, ',', '.' ) ) . 'đ/h'
-							: ' — CHƯA KHAI GIÁ' )
-						. '</option>';
-				}
-				echo '</select>';
+				self::o_chon_viec( 'cl_viec[' . $i . ']', $ds_ten, $v, $cs, $ma );
 			} else {
 				echo '<input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
 					. 'style="width:210px" value="' . esc_attr( $v ) . '">';
@@ -8003,6 +8012,45 @@ class VHCC_Web {
 				. esc_html( $cs ) . '</button> <span class="mo">— chỉ đổi cơ sở này. Bảng chung '
 				. 'cả chuỗi khai ở tab <b>Cấu hình</b>.</span></p>';
 			echo '</form>';
+		}
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BÀY LUÔN MẤY DÒNG CỦA BẢNG CHUNG ĐANG LỌT VÀO CƠ SỞ NÀY.
+		 *
+		 * Anh Thắng 16/09/2026 mở ô chọn việc, thấy một dòng `cht — 26.000đ/h` bên cạnh
+		 * `Cửa Hàng Trưởng — 26.000đ/h` và hỏi *"sinh thừa từ đâu"*.
+		 *
+		 * Nó từ BẢNG CHUNG CẢ CHUỖI — anh gõ vào đó hôm trước, khi còn vướng cái bẫy ô chọn cơ
+		 * sở ở tab Cấu hình. `cht` và `Cửa Hàng Trưởng` là hai chuỗi khác hẳn nên ra hai khoá
+		 * khác nhau (`cht` ≠ `cuahangtruong`), thành hai dòng; còn `laitau` và `Lái Tàu` thì
+		 * cùng khoá nên gộp làm một — đó là lý do chỉ mỗi dòng ấy nhân đôi.
+		 *
+		 * Lỗi của màn, không phải của anh: ô chọn việc lấy tên từ CẢ HAI bảng, mà bảng này chỉ
+		 * bày bảng của cơ sở. Cái tên thừa hiện ra ở một chỗ và không có mặt ở chỗ nào để xoá.
+		 *
+		 * ⚠️ CHỈ BÀY, KHÔNG CHO SỬA TẠI ĐÂY. Bảng chung dùng cho MỌI cơ sở; sửa nó từ màn của
+		 *    một cửa hàng là đổi tiền của cả chuỗi bằng một cú bấm tưởng chỉ đụng chỗ mình.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$chung_lot = array();
+		foreach ( (array) ( isset( $so['chung'] ) ? $so['chung'] : array() ) as $k_ch => $v_ch ) {
+			if ( '*' === $k_ch || (float) $v_ch <= 0 ) { continue; }
+			if ( isset( $so['coso'][ $kcs ][ $k_ch ] ) ) { continue; }   // cơ sở đã đè lên
+			$chung_lot[ $k_ch ] = $v_ch;
+		}
+		if ( $chung_lot ) {
+			echo '<p class="mo" style="margin:12px 0 0;padding-top:10px;'
+				. 'border-top:1px dashed var(--vien)">Ngoài ra ' . esc_html( $cs ) . ' còn nhận '
+				. (int) count( $chung_lot ) . ' đơn giá từ <b>bảng chung cả chuỗi</b> — '
+				. 'chúng cũng hiện trong ô chọn việc: ';
+			$mau = array();
+			foreach ( $chung_lot as $k_ch => $v_ch ) {
+				$mau[] = '<b>' . esc_html( VHCC_GiaGio::ten_cua( $k_ch, $so ) ) . '</b> '
+					. esc_html( number_format( (float) $v_ch, 0, ',', '.' ) ) . 'đ';
+			}
+			echo implode( ' · ', $mau );  // phpcs:ignore WordPress.Security.EscapeOutput
+			echo '. Sửa hoặc xoá chúng ở tab <a href="'
+				. esc_url( add_query_arg( array( 'man' => 'cau_hinh', 'ccs' => $cs ), self::url() ) )
+				. '"><b>Cấu hình</b></a> — <b>đổi ở đó là đổi cho mọi cơ sở</b>.</p>';
 		}
 		echo '</details></div>';
 	}
