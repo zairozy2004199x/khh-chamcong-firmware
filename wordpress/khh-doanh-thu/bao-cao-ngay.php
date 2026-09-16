@@ -407,6 +407,25 @@ function khh_dt_rest_doi_soat( $req ) {
 	   nên khớp 0 đồng suốt 14/14 ngày. Số cơ sở khai vẫn giữ, nhưng để ĐỐI CHIẾU với ngân hàng:
 	   khai 10 triệu mà ngân hàng nhận 8 triệu — chính chỗ lệch ấy mới là tín hiệu. */
 	$bank = khh_dt_nop_bank( $tu, $den );
+
+	/* ==============================================================================================
+	 * 🔴 NỘP TIỀN LÀ MỘT CỤC, KHÔNG PHẢI MỖI NGÀY MỘT LẦN — NÊN PHẢI CỘNG DỒN.
+	 * ==============================================================================================
+	 * Anh Thắng 16/09/2026 gửi sao kê lọc theo mã của TÀU GÒ VẤP: cả hai tháng đúng BỐN lần nộp —
+	 * 10/08, 19/08, 05/09, 11/09 — mỗi lần 17 đến 40 triệu. Tức một lần chuyển gánh tiền mặt của
+	 * cả chục ngày trước đó.
+	 *
+	 * Bản trước so từng ngày với từng ngày: ngày nào không có giao dịch ngân hàng là "chưa nộp".
+	 * Với lối nộp này thì 26 ngày trong tháng đều đỏ, kể cả khi người ta đã nộp đủ đến từng đồng.
+	 * Một bảng mà ngày nào cũng đỏ thì không ai nhìn nữa — và hôm có thất thoát thật cũng chìm
+	 * trong đám đỏ ấy.
+	 *
+	 * Nên đổi sang SỐ DƯ TREO: cộng dồn tiền mặt phải nộp, trừ đi tiền đã về tài khoản. Một cú
+	 * chuyển lớn xoá sạch phần treo của mấy ngày trước nó. Cái đáng soi không còn là "hôm nay có
+	 * nộp không" mà là "đang treo bao nhiêu, và treo bao lâu rồi".
+	 * ==============================================================================================
+	 */
+	$mo_dau = khh_dt_treo_truoc( $tu );
 	/* 🔴 CƠ SỞ CHƯA KHAI MÃ NỘP TIỀN THÌ KHÔNG ĐƯỢC KẾT TỘI HỌ.
 	   Anh Thắng 16/09/2026 kéo sao kê về xong, cả bảng đỏ rực "chưa nộp 1,1 tr · 5,2 tr · 7,8 tr"
 	   cho mọi ngày của Lotte Gò Vấp — trong khi sự thật là chưa ai khai mã nộp tiền của quán ấy,
@@ -486,8 +505,34 @@ function khh_dt_rest_doi_soat( $req ) {
 			'chot'       => (int) $r['chot'],
 		);
 	}
+
+	/* Cộng dồn theo từng cơ sở, đi từ ngày cũ tới ngày mới. $ra đang xếp ngày mới trước. */
+	$treo = $mo_dau;
+	$lan_nop = array();                       // cơ sở => ngày về gần nhất
+	for ( $i = count( $ra ) - 1; $i >= 0; $i-- ) {
+		$c = $ra[ $i ]['cua_hang'];
+		if ( ! isset( $treo[ $c ] ) ) {
+			$treo[ $c ] = 0;
+		}
+		$treo[ $c ] += (float) $ra[ $i ]['phai_nop'] - (float) $ra[ $i ]['nop_bank'];
+		if ( $treo[ $c ] < 0 ) {
+			/* Nộp dư (gộp cả tiền của kỳ trước kỳ đang xem) — kẹp về 0, đừng để số âm chạy tiếp
+			   rồi che mất phần treo của những ngày sau. */
+			$treo[ $c ] = 0;
+		}
+		if ( $ra[ $i ]['nop_bank'] > 0 ) {
+			$lan_nop[ $c ] = $ra[ $i ]['ngay'];
+		}
+		$ra[ $i ]['treo'] = $treo[ $c ];
+		$ra[ $i ]['nop_gan_nhat'] = isset( $lan_nop[ $c ] ) ? $lan_nop[ $c ] : '';
+		$ra[ $i ]['ngay_treo'] = isset( $lan_nop[ $c ] )
+			? (int) round( ( strtotime( $ra[ $i ]['ngay'] ) - strtotime( $lan_nop[ $c ] ) ) / 86400 )
+			: 0;
+	}
+
 	return array(
 		'dong'     => $ra,
+		'ngay_nhac' => khh_dt_ngay_nhac(),
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
 		'nguong'   => khh_dt_nguong(),
 		'co_bank'  => (bool) khh_dt_co_sao_ke(),
@@ -501,6 +546,54 @@ function khh_dt_rest_doi_soat( $req ) {
 		   tố oan một người đã nộp tiền thật — nên nó phải nằm ngay trên bảng đối soát. */
 		'sk_chua_gan' => khh_dt_sk_chua_gan(),
 	);
+}
+
+/**
+ * Số dư tiền mặt còn treo của từng cơ sở TRƯỚC ngày $tu.
+ *
+ * ⚠️ KHÔNG CÓ SỐ MỞ ĐẦU THÌ CỘNG DỒN VÔ NGHĨA. Xem kỳ 7 ngày mà bắt đầu từ 0 thì một cơ sở đang
+ *    ôm 40 triệu từ tháng trước trông vẫn sạch sẽ.
+ */
+function khh_dt_treo_truoc( $tu ) {
+	global $wpdb;
+	if ( ! $tu ) {
+		return array();
+	}
+	$hom_truoc = gmdate( 'Y-m-d', strtotime( $tu . ' -1 day' ) );
+	$bang      = khh_dt_bang();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$rows = (array) $wpdb->get_results(
+		$wpdb->prepare( "SELECT cua_hang, pttt FROM $bang WHERE ngay <= %s", $hom_truoc ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $rows as $r ) {
+		$tm = 0;
+		foreach ( khh_dt_json( $r['pttt'], array() ) as $p ) {
+			if ( false !== strpos( khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' ), 'tien mat' ) ) {
+				$tm += (float) $p['r'];
+			}
+		}
+		$c = (string) $r['cua_hang'];
+		$ra[ $c ] = ( isset( $ra[ $c ] ) ? $ra[ $c ] : 0 ) + $tm;
+	}
+	foreach ( khh_dt_nop_bank( '', $hom_truoc ) as $k => $b ) {
+		$c = substr( $k, strpos( $k, '|' ) + 1 );
+		if ( isset( $ra[ $c ] ) ) {
+			$ra[ $c ] -= (float) $b['tien'];
+		}
+	}
+	foreach ( $ra as $c => $v ) {
+		if ( $v < 0 ) {
+			$ra[ $c ] = 0;
+		}
+	}
+	return $ra;
+}
+
+/** Treo quá bao nhiêu ngày thì nhắc. Cơ sở nộp gộp mỗi tuần một lần là bình thường; quá 10 ngày thì không. */
+function khh_dt_ngay_nhac() {
+	return (int) get_option( 'khh_dt_ngay_nhac', 10 );
 }
 
 /** Ngưỡng bôi đỏ: lệch quá 2% hoặc quá 500.000 ₫ một ngày một cơ sở. */

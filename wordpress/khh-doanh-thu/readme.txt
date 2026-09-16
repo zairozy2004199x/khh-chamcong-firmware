@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.15.0
+Stable tag: 1.16.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,18 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.16.0 =
+* **Đổi sang SỐ DƯ TREO cộng dồn.** Cơ sở gom mấy ngày nộp một cục (sao kê TÀU GÒ VẤP: 4 lần
+  trong 2 tháng, mỗi lần 17–40 triệu), nên so từng ngày với từng ngày là 26/30 ngày đều đỏ kể cả
+  khi người ta đã nộp đủ. Nay cộng dồn tiền mặt phải nộp trừ tiền đã về; một cú chuyển lớn xoá
+  sạch phần treo của mấy ngày trước.
+* Cột **Đang treo** thay cột Nộp tiền; ô đếm đổi thành **Tiền mặt đang treo ở cơ sở** và
+  **Cơ sở treo quá N ngày** (N khai được, mặc định 10).
+* Lịch đọc lại theo lối ấy: **✓ là ngày tiền về tài khoản**, chấm là ngày tiền dồn lên (bình
+  thường), **✕ chỉ khi treo quá lâu và quá nhiều**. Cột cuối là số dư treo cuối kỳ.
+* Số dư mở đầu tính từ toàn bộ lịch sử trước kỳ đang xem — không thì một cơ sở ôm 40 triệu từ
+  tháng trước vẫn trông sạch sẽ.
 
 = 1.15.0 =
 * **Bảng đối soát nói rõ nó đang đọc sổ nào** — tên bảng, số khoản, khoảng ngày. Chọn nhầm sổ thì

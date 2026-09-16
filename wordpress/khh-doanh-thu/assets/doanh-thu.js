@@ -929,21 +929,31 @@
     var tongLech = 0, tongHuy = 0, soCanh = 0, tongLechNop = 0, soLechNop = 0;
     /* Câu hỏi chính của tab này: TIỀN ĐÃ VỀ TÀI KHOẢN CHƯA. Đếm nó trên MỌI dòng, kể cả dòng cơ
        sở chưa nhập báo cáo — máy POS và ngân hàng đủ trả lời, không phải chờ ai gõ gì. */
-    var chuaVe = 0, soChuaVe = 0, soNopMuon = 0, chuaKhai = {};
+    /* Tiền đang treo = cộng dồn tiền mặt phải nộp trừ tiền đã về. Lấy DÒNG MỚI NHẤT của mỗi cơ
+       sở, vì đó là số dư cuối kỳ — cộng mọi dòng lại là cộng cùng một khoản mấy chục lần. */
+    var cuoi = {}, chuaKhai = {};
     ds.forEach(function (x) {
       if (!x.co_ma && !x.co_bank) { chuaKhai[x.cua_hang] = true; return; }
-      if (x.qua_han && x.thieu > 0) { chuaVe += x.thieu; soChuaVe++; }
-      if (x.nop_muon >= 2) soNopMuon++;
+      if (!cuoi[x.cua_hang] || x.ngay > cuoi[x.cua_hang].ngay) cuoi[x.cua_hang] = x;
       if (!x.co_bao_cao) return;
       tongLech += x.lech_tm || 0; tongHuy += x.tien_huy || 0;
       if (x.lech_nop) { tongLechNop += x.lech_nop; soLechNop++; }
-      if (canhBao(x, ng)) soCanh++;
+      if (canhBao(x, ng, r.ngay_nhac)) soCanh++;
+    });
+    var nhac = r.ngay_nhac || 10;
+    var dangTreo = 0, soTreoLau = 0, treoLau = [];
+    Object.keys(cuoi).forEach(function (c) {
+      var x = cuoi[c];
+      dangTreo += x.treo || 0;
+      if ((x.treo || 0) > ng.so_tien && (x.ngay_treo || 0) >= nhac) {
+        soTreoLau++; treoLau.push(c);
+      }
     });
     var sk = r.sk_chua_gan || { so_dong: 0, so_tien: 0 };
     /* Lọc CHỈ ở phần bảng — mấy ô đếm phía trên vẫn tính trên cả kỳ, vì "còn bao nhiêu tiền chưa
        về" mà đổi theo bộ lọc thì nó không còn là con số để nhìn mỗi sáng nữa. */
     var hien = S.ds.chiCanh
-      ? ds.filter(function (x) { return canhBao(x, ng) || (x.qua_han && x.thieu > 0) || !x.co_bao_cao; })
+      ? ds.filter(function (x) { return canhBao(x, ng, r.ngay_nhac) || !x.co_bao_cao; })
       : ds;
 
     var h = '<div class="khung"><header><h2>Đối soát cơ sở với máy POS</h2>' +
@@ -951,9 +961,10 @@
       (S.ds.chiCanh ? ' · hiện ' + hien.length : '') + '</span></header>' +
       locDoiSoat() +
       '<div class="the-hang" style="margin:16px 0">' +
-        the_nho('Tiền mặt chưa về tài khoản', tien(chuaVe) +
-          (soChuaVe ? ' · ' + soChuaVe + ' ngày×cơ sở' : ''), chuaVe > 0 ? 'xau' : '') +
-        the_nho('Nộp muộn từ 2 ngày', nguyen(soNopMuon), soNopMuon ? 'xau' : '') +
+        the_nho('Tiền mặt đang treo ở cơ sở', tien(dangTreo), dangTreo > ng.so_tien ? 'xau' : '') +
+        the_nho('Cơ sở treo quá ' + nhac + ' ngày', nguyen(soTreoLau) +
+          (treoLau.length ? ' · ' + String(treoLau[0]).slice(0, 18) + (treoLau.length > 1 ? '…' : '') : ''),
+          soTreoLau ? 'xau' : '') +
         the_nho('Ngày chưa nhập báo cáo', nguyen(chuaNhap), chuaNhap ? 'xau' : '') +
         the_nho('Ngày vượt ngưỡng', nguyen(soCanh), soCanh ? 'xau' : '') +
         the_nho('Tổng tiền bill huỷ', tien(tongHuy), tongHuy > 0 ? 'xau' : '') +
@@ -989,11 +1000,11 @@
         : '') +
       '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Tiền mặt POS</th>' +
-        '<th>Ngân hàng nhận</th><th>Nộp tiền</th>' +
+        '<th>Ngân hàng nhận</th><th>Đang treo</th>' +
         '<th>Đếm két</th><th>Lệch</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
     hien.forEach(function (x) {
-      var do_ = canhBao(x, ng);
+      var do_ = canhBao(x, ng, r.ngay_nhac);
       h += '<tr' + (do_ ? ' class="canh"' : '') + '>' +
         '<td>' + esc(ngayVN(x.ngay)) + '</td>' +
         '<td>' + esc(String(x.cua_hang).slice(0, 34)) + '</td>' +
@@ -1008,7 +1019,7 @@
                 (x.lech_nop > 0 ? '+' : '') + tienGon(x.lech_nop) + '</span>'
               : '')
           : '<span class="khai">—</span>') + '</td>' +
-        '<td>' + theNop(x, r.co_bank) + '</td>' +
+        '<td>' + theTreo(x, r.co_bank, ng, r.ngay_nhac || 10) + '</td>' +
         (x.co_bao_cao
           ? '<td class="s">' + tien(x.dem) + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
@@ -1027,10 +1038,10 @@
       '<div class="chu-them">Bôi đỏ khi lệch tiền mặt hoặc phần chưa nộp vượt ' +
         phan(ng.phan_tram) + ' doanh thu ngày, hoặc vượt ' + tien(ng.so_tien) + '. ' +
         (r.co_bank
-          ? 'Cột <b>Ngân hàng nhận</b> là tiền thật sự về tài khoản theo sao kê. Cột <b>Nộp tiền</b> so ' +
-            'nó với số phải nộp (đếm két nếu cơ sở đã đếm, không thì tiền mặt máy POS) — nên trả lời ' +
-            'được cả những ngày cơ sở chưa nhập báo cáo. Tiền hôm nay chỉ tính là thiếu sau giờ cắt ' +
-            'của ngày hôm sau.'
+          ? 'Cột <b>Ngân hàng nhận</b> là tiền thật sự về tài khoản theo sao kê. Cột <b>Đang treo</b> ' +
+            'là <b>cộng dồn</b> tiền mặt phải nộp trừ tiền đã về — vì cơ sở gom mấy ngày nộp một cục, ' +
+            'nên "hôm nay không có giao dịch" là bình thường. Chỉ bôi đỏ khi treo quá ' +
+            (r.ngay_nhac || 10) + ' ngày và quá ' + tien(ng.so_tien) + '.'
           : 'Chưa nạp sao kê nên chưa biết tiền đã về tài khoản hay chưa.') +
         '</div></div>';
     /* Khối lịch nằm DƯỚI mấy ô đếm và TRÊN bảng ngày: nhìn hình dạng cả tháng trước, rồi mới
@@ -1096,39 +1107,37 @@
       var wd = new Date(thang + '-' + ('0' + d).slice(-2) + 'T00:00:00').getDay();
       h += '<th' + (0 === wd ? ' class="cn"' : '') + '>' + d + '</th>';
     }
-    h += '<th class="ten">Chưa về</th></tr></thead><tbody>';
+    h += '<th class="ten">Còn treo</th></tr></thead><tbody>';
 
+    var nhac = r.ngay_nhac || 10;
     ch.forEach(function (c) {
-      var thieu = 0, xong = 0, coNgay = 0;
+      var xong = 0, coNgay = 0, treoCuoi = 0, ngayCuoi = '';
       var o_ = '<tr><td class="ten" title="' + esc(c) + '">' + esc(String(c).slice(0, 30)) + '</td>';
       for (var d = 1; d <= n; d++) {
         var x = theo[c][d];
         if (!x) { o_ += '<td class="lo lo-rong"></td>'; continue; }
         coNgay++;
-        var t = trangThaiNop(x);
-        /* 🔴 CỘNG CẢ 'chua' (chưa về đồng nào), không riêng 'thieu' (về thiếu).
-           Bản đầu chỉ cộng 'thieu', nên một cơ sở cả tháng KHÔNG nộp đồng nào lại hiện chữ "đủ"
-           màu xanh ở cột cuối — đúng cái dòng đáng báo động nhất thì lại trấn an. Dựng thật ra
-           ảnh mới thấy (16/09/2026). */
-        if ('thieu' === t.ma || 'chua' === t.ma) thieu += x.thieu;
+        if (x.ngay > ngayCuoi) { ngayCuoi = x.ngay; treoCuoi = x.treo || 0; }
+        var t = trangThaiNop(x, nhac);
         if (t.ma === 'du') xong++;
         o_ += '<td class="lo lo-' + t.ma + '"" title="' + esc(ngayVN(x.ngay) + ' · ' + c + '\n' +
           'Tiền mặt POS: ' + tien(x.pos_tm) + '\n' +
           'Ngân hàng nhận: ' + (x.co_bank ? tien(x.nop_bank) : 'chưa có') + '\n' + t.chu) + '">' +
           t.dau + '</td>';
       }
-      o_ += '<td class="ten s">' + (thieu > 0 ? '<b style="color:var(--xau)">' + tienGon(thieu) + '</b>'
-        : (coNgay ? '<span style="color:var(--tot)">đủ</span>' : '—')) + '</td></tr>';
+      /* Cột cuối là SỐ DƯ TREO CUỐI KỲ, không phải tổng mấy ngày thiếu cộng lại — cộng lại là
+         đếm cùng một khoản tiền nhiều lần. */
+      o_ += '<td class="ten s">' + (treoCuoi > 1000 ? '<b style="color:var(--xau)">' + tienGon(treoCuoi) + '</b>'
+        : (coNgay ? '<span style="color:var(--tot)">sạch</span>' : '—')) + '</td></tr>';
       h += o_;
     });
     h += '</tbody></table></div>';
 
     /* Chú giải luôn có mặt — ký hiệu + chữ, để không ai phải đoán màu nghĩa là gì. */
     h += '<div class="lich-chu">' +
-      '<span><i class="lo lo-du">✓</i> đã nộp đủ</span>' +
-      '<span><i class="lo lo-thieu">▲</i> về thiếu</span>' +
-      '<span><i class="lo lo-chua">✕</i> chưa về, đã quá hạn</span>' +
-      '<span><i class="lo lo-cho">·</i> chưa tới hạn nộp</span>' +
+      '<span><i class="lo lo-du">✓</i> ngày tiền về tài khoản</span>' +
+      '<span><i class="lo lo-cho">·</i> đang dồn, chưa tới hạn</span>' +
+      '<span><i class="lo lo-chua">✕</i> treo quá lâu</span>' +
       '<span><i class="lo lo-cho">?</i> chưa khai mã nộp tiền</span>' +
       '<span><i class="lo lo-khong"></i> không có tiền mặt</span>' +
       '<span><i class="lo lo-rong"></i> không có số liệu POS</span>' +
@@ -1137,20 +1146,28 @@
   }
 
   /** Một ngày × cơ sở ở trạng thái nào — dùng chung cho lịch và cho thẻ trong bảng. */
-  function trangThaiNop(x) {
-    if (!x.phai_nop || x.phai_nop <= 0) return { ma: 'khong', dau: '', chu: 'không có tiền mặt' };
-    /* Chưa khai mã thì chưa biết — xem `theNop()`. */
+  /**
+   * Một ô trong lịch.
+   *
+   * 🔴 NGÀY CÓ TIỀN VỀ MỚI LÀ ✓; ngày không có giao dịch chỉ là ngày TIỀN DỒN LÊN, không phải
+   *    ngày sai phạm. Cửa hàng trưởng nộp gộp mỗi tuần một lần là lối làm bình thường ở nhà mình.
+   *    Ô đỏ chỉ dành cho lúc tiền đã treo quá lâu và quá nhiều.
+   */
+  function trangThaiNop(x, nhac) {
+    nhac = nhac || 10;
     if (!x.co_ma && !x.co_bank) return { ma: 'cho', dau: '?', chu: 'chưa khai mã nộp tiền cho cơ sở này' };
-    if (!x.co_bank && !x.qua_han) return { ma: 'cho', dau: '·', chu: 'chưa tới hạn nộp' };
-    var thieu = x.thieu || 0;
-    if (Math.abs(thieu) < 1000) return { ma: 'du', dau: '✓', chu: 'đã nộp đủ' };
-    if (thieu > 0) {
-      if (!x.qua_han) return { ma: 'cho', dau: '·', chu: 'chưa tới hạn nộp' };
-      return x.co_bank
-        ? { ma: 'thieu', dau: '▲', chu: 'về thiếu ' + tien(thieu) }
-        : { ma: 'chua', dau: '✕', chu: 'chưa về đồng nào — thiếu ' + tien(thieu) };
+    if (x.nop_bank > 0) {
+      return { ma: 'du', dau: '✓', chu: 'ngân hàng nhận ' + tien(x.nop_bank) +
+        (x.treo > 1000 ? ' — còn treo ' + tien(x.treo) : ' — sạch') };
     }
-    return { ma: 'du', dau: '✓', chu: 'nộp dư ' + tien(-thieu) };
+    if (!x.phai_nop || x.phai_nop <= 0) return { ma: 'khong', dau: '', chu: 'không có tiền mặt' };
+    var t = x.treo || 0;
+    if (t < 1000) return { ma: 'du', dau: '✓', chu: 'không còn treo đồng nào' };
+    if ((x.ngay_treo || 0) >= nhac) {
+      return { ma: 'chua', dau: '✕', chu: 'treo ' + tien(t) + ' — ' + x.ngay_treo + ' ngày chưa nộp' };
+    }
+    return { ma: 'cho', dau: '·', chu: 'đang dồn ' + tien(t) +
+      (x.ngay_treo ? ' — ' + x.ngay_treo + ' ngày kể từ lần nộp gần nhất' : '') };
   }
 
   /**
@@ -1162,6 +1179,25 @@
    *   · thiếu / chưa  — đã quá hạn mà tiền chưa về, hoặc về không đủ.
    *   · muộn          — có về, nhưng mấy ngày sau. Tiền không mất, nhưng nằm trong tay người ta.
    */
+  /**
+   * Ô trả lời câu "tiền mặt của quán này đang nằm ở đâu".
+   *
+   * 🔴 ĐO THEO SỐ DƯ TREO VÀ SỐ NGÀY, KHÔNG PHẢI THEO TỪNG NGÀY CÓ NỘP HAY KHÔNG. Cửa hàng
+   *    trưởng gom mấy ngày nộp một cục (sao kê TÀU GÒ VẤP: 4 lần trong 2 tháng), nên "hôm nay
+   *    không thấy giao dịch" là chuyện bình thường, không phải dấu hiệu gì.
+   */
+  function theTreo(x, coBank, ng, nhac) {
+    if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
+    if (!x.co_ma && !x.co_bank) return '<span class="chip cho">chưa khai mã nộp tiền</span>';
+    var t = x.treo || 0;
+    var h = x.nop_bank > 0
+      ? '<span class="chip du">về ' + tienGon(x.nop_bank) + '</span>' : '';
+    if (t < 1000) return h || '<span class="chip du">sạch</span>';
+    var lau = (x.ngay_treo || 0) >= nhac && t > ng.so_tien;
+    return h + '<span class="chip ' + (lau ? 'thieu' : '') + '" title="Cộng dồn tiền mặt phải nộp trừ tiền đã về">' +
+      'treo ' + tienGon(t) + (x.ngay_treo ? ' · ' + x.ngay_treo + ' ngày' : '') + '</span>';
+  }
+
   function theNop(x, coBank) {
     if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
     if (x.phai_nop <= 0) return '<span class="chip">không có tiền mặt</span>';
@@ -1183,7 +1219,8 @@
   function canhBao(x, ng) {
     /* Tiền quá hạn mà chưa về là cảnh báo ĐỘC LẬP với việc cơ sở đã nhập báo cáo hay chưa —
        không nhập báo cáo không làm khoản tiền ấy hết thiếu. */
-    var m = (x.qua_han && x.thieu > 0) ? x.thieu : 0;
+    /* Treo lâu mới là dấu hiệu, chứ không phải một ngày không có giao dịch. */
+    var m = ((x.ngay_treo || 0) >= 10 && (x.treo || 0) > ng.so_tien) ? x.treo : 0;
     if (x.co_bao_cao) {
       m = Math.max(m, Math.abs(x.lech_tm || 0), Math.abs(x.chua_nop || 0), Math.abs(x.lech_nop || 0));
     }
