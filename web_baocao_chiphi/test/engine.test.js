@@ -439,5 +439,39 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   const mau = mi.rows[0];
   EXP.MISA_MAP.forEach((m) => assert(m.key in mau, `MISA_MAP trỏ tới trường không có: ${m.key}`));
 
-  console.log('OK — Mã đối tượng Có (cột 15) đi đúng đường; mẫu 50 cột / 11 cột điền khớp file gốc.');
+  /* ═════════════════════════════════════════════════════════════════════════════════════════
+   * FILE RIÊNG CHO MISA — anh Thắng 16/09/2026: *"xuất file MISA KHÔNG ĐÚNG CỘT"*.
+   *
+   * Cột trong sheet "<Bộ phận> chi tiết" vốn đã đúng (đã đối chiếu từng ô với file gốc). Vấn đề
+   * là FILE: nút cũ xuất workbook 17 sheet, mà sheet ĐẦU TIÊN là "File tổng báo cáo" — bố cục
+   * hoàn toàn khác. Đưa nguyên file ấy cho MISA thì nó đọc trúng sheet đầu rồi báo sai cột.
+   *
+   * Nên có `buildMisaWorkbook()`: file CHỈ gồm tờ nhập, mở lên là đúng thứ cần nhập.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  const XL = { utils: {
+    book_new: () => ({ SheetNames: [], Sheets: {} }),
+    book_append_sheet: (wb, ws, n) => { wb.SheetNames.push(n); wb.Sheets[n] = ws; },
+    aoa_to_sheet: (aoa) => ({ '!ref': `A1:BX${aoa.length}`, __aoa: aoa }),
+    /* aoaToSheet quét ô bằng decode_range().s/.e — stub phải trả ĐÚNG hình dạng ấy, không thì
+       nổ ngay ở dòng đầu. Giữ kèm `__src` để còn kiểm được chuỗi gộp đã truyền vào. */
+    decode_range: (r) => ({ s: { r: 0, c: 0 }, e: { r: 0, c: 0 }, __src: r }),
+    decode_cell: () => ({ r: 0, c: 0 }),
+    encode_cell: () => 'A1',
+    encode_col: (c) => String(c),
+  } };
+  const wbM = EXP.buildMisaWorkbook(XL, st, rp, 'posh');
+  assert.strictEqual(wbM.SheetNames.length, 1, 'xuất một bộ phận thì file chỉ có MỘT sheet');
+  assert(/chi tiết$/.test(wbM.SheetNames[0]), 'và sheet ĐẦU TIÊN phải là tờ nhập, không phải báo cáo');
+  const wbA = EXP.buildMisaWorkbook(XL, st, rp, '');
+  assert(wbA.SheetNames.length > 1 && wbA.SheetNames.every((n) => /chi tiết$/.test(n)),
+    'xuất cả loạt thì MỌI sheet đều là tờ nhập — không lẫn sheet báo cáo nào');
+  // dòng nhãn phải gộp đúng như mẫu (đo từ file gốc)
+  const wsM = wbM.Sheets[wbM.SheetNames[0]];
+  assert.deepStrictEqual((wsM['!merges'] || []).map((x) => x.__src), ['I1:AE1', 'AF1:AX1'],
+    'hai ô gộp của dòng nhãn — đo từ file gốc T8/2026');
+  // tên file nói rõ là tờ MISA của kỳ nào
+  assert(/^MISA_.*T08_2026\.xlsx$/.test(EXP.misaFileName(st, st.departments[0])),
+    EXP.misaFileName(st, st.departments[0]));
+
+  console.log('OK — Mã đối tượng Có (cột 15), mẫu 50 cột / 11 cột điền, và file riêng cho MISA.');
 }

@@ -674,7 +674,9 @@
           <div class="spacer"></div>
           <button class="btn small ${dayDu ? 'primary' : ''}" data-act="misa50" title="Bày trọn mẫu 50 cột của MISA, gồm cả các cột để trống — để đối chiếu mẫu cho chắc.">${dayDu ? 'Chỉ cột có dữ liệu' : 'Đủ 50 cột như file'}</button>
           <button class="btn small" data-act="misaMoHet">${mo.size >= ct.length ? 'Gập tất cả' : 'Mở tất cả'}</button>
-          <button class="btn small primary" data-act="export">Xuất Excel</button>
+          <button class="btn small primary" data-act="xuatMisa" title="Chỉ tờ nhập MISA của bộ phận này — file riêng, mở ra là đúng sheet cần nhập.">⬇ Xuất tờ MISA (${esc(kq.dept.name)})</button>
+          <button class="btn small" data-act="xuatMisaHet" title="Một file, mỗi bộ phận một sheet — vẫn chỉ gồm tờ nhập MISA, không kèm báo cáo.">⬇ Cả 7 bộ phận</button>
+          <button class="btn small" data-act="export" title="File tổng 17 sheet: báo cáo + phân bổ + tờ nhập MISA. KHÔNG dùng để nhập thẳng vào MISA.">Xuất file tổng</button>
         </div>
         ${nghi.length ? `<p class="hint">${nghi.length} cơ sở không nhận chi phí (${esc(nghi.map((x) => x.code || x.name).join(', '))}) — đã bỏ khỏi danh sách dưới đây, đúng như khi xuất ra file.</p>` : ''}
         ${thieu.length ? `<div class="issue warn"><span class="lv">CẢNH BÁO</span><span>${thieu.length} chứng từ chưa có đủ TK Nợ/TK Có. MISA từ chối <strong>cả chứng từ</strong> chứ không riêng dòng thiếu — khai tài khoản ở tab "Chi phí đầu vào" (hoặc tab Lương) trước khi xuất.</span></div>` : ''}
@@ -1009,6 +1011,12 @@
       ui.misa50 = !ui.misa50;
       renderTab();
     },
+    /* 🔴 XUẤT RIÊNG TỜ NHẬP MISA. File tổng có 17 sheet và sheet ĐẦU là "File tổng báo cáo" —
+       bố cục khác hẳn; đưa nguyên file ấy cho MISA là nó đọc trúng sheet đầu rồi báo sai cột, dù
+       mấy sheet "<Bộ phận> chi tiết" bên trong hoàn toàn đúng. Hai nút này cho ra file CHỈ có tờ
+       nhập, mở lên là đúng thứ cần nhập. */
+    xuatMisa() { xuatFileMisa(ui.sitesDept); },
+    xuatMisaHet() { xuatFileMisa(''); },
     export: exportExcel,
     print() { renderTab('report'); setTimeout(() => window.print(), 100); },
     copyReport: copyReport,
@@ -1023,6 +1031,20 @@
     } catch (e) {
       console.error(e);
       toast('Xuất Excel lỗi: ' + e.message);
+    }
+  }
+
+  function xuatFileMisa(deptId) {
+    try {
+      const wb = EXP.buildMisaWorkbook(XLSX, state, report, deptId);
+      if (!wb) return toast('Chưa có dòng nào để xuất — bộ phận này chưa có điểm bán nhận chi phí.');
+      const d = deptId ? state.departments.find((x) => x.id === deptId) : null;
+      const ten = EXP.misaFileName(state, d);
+      XLSX.writeFile(wb, ten);
+      toast('Đã tạo tờ nhập MISA: ' + ten);
+    } catch (e) {
+      console.error(e);
+      toast('Xuất tờ MISA lỗi: ' + e.message);
     }
   }
 

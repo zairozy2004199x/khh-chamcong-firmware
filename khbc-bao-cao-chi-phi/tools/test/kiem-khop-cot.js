@@ -13,7 +13,7 @@ const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
   const p=await b.newPage({viewport:{width:1900,height:1000}});
   const loi=[]; p.on('pageerror',e=>loi.push(String(e)));
-  await p.goto('http://127.0.0.1:8106/bao-cao-chi-phi/'); await p.waitForTimeout(800);
+  await p.goto('http://127.0.0.1:8107/bao-cao-chi-phi/'); await p.waitForTimeout(800);
   if (await p.$('#gatePin')) { await p.fill('#gatePin','1111'); await p.click('#gateBtn');
     await p.waitForSelector('#gate',{state:'hidden',timeout:15000}); }
   await p.waitForTimeout(800);

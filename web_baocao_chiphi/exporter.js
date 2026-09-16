@@ -286,7 +286,10 @@
     });
     const cols = new Array(MISA_COLS.length).fill(16);
     cols[3] = 44; cols[8] = 56; cols[11] = 18; cols[12] = 18;
-    return aoaToSheet(XLSX, aoa, { cols });
+    /* Hai ô gộp của dòng nhãn — đo từ file thật: "Chi tiết hạch toán" trải I1:AE1, "Hóa đơn"
+       trải AF1:AX1. Không gộp thì hai chữ ấy nằm lọt thỏm trong một ô, nhìn không ra là nhãn
+       của cả một mảng cột. */
+    return aoaToSheet(XLSX, aoa, { cols, merges: ['I1:AE1', 'AF1:AX1'] });
   }
 
   /** Dựng toàn bộ workbook. options.siteSheets=false để bỏ các sheet phân bổ theo điểm. */
@@ -314,10 +317,34 @@
     return wb;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * WORKBOOK CHỈ GỒM TỜ NHẬP MISA.
+   *
+   * 🔴 File tổng có 17 sheet, và sheet ĐẦU TIÊN là "File tổng báo cáo" — bố cục hoàn toàn khác.
+   *    Đưa nguyên file ấy cho MISA thì nó đọc trúng sheet đầu và báo sai cột, dù mấy sheet
+   *    "<Bộ phận> chi tiết" bên trong hoàn toàn đúng. Nên cần một file RIÊNG chỉ có tờ nhập.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function buildMisaWorkbook(XLSX, state, report, deptId) {
+    const wb = XLSX.utils.book_new();
+    const ds = deptId ? report.departments.filter((d) => d.id === deptId) : report.departments;
+    ds.forEach((d) => {
+      const ws = buildMisaSheet(XLSX, state, report, d.id);
+      if (ws) XLSX.utils.book_append_sheet(wb, ws, safeSheetName(`${d.name} chi tiết`));
+    });
+    return wb.SheetNames.length ? wb : null;
+  }
+
+  function misaFileName(state, dept) {
+    const p = state.period || {};
+    const ky = `T${String(p.month || 1).padStart(2, '0')}_${p.year || ''}`;
+    return `MISA_${dept ? dept.name.replace(/\s+/g, '_') + '_' : ''}${state.region || 'MN'}_${ky}.xlsx`;
+  }
+
   function fileName(state) {
     const p = state.period || {};
     return `File_tong_bao_cao_${state.region || 'MN'}_T${String(p.month || 1).padStart(2, '0')}_${p.year || ''}.xlsx`;
   }
 
-  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildMisaSheet, buildRevenueSheet, fileName, MISA_COLS, MISA_MAP, NUM_FMT };
+  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildMisaSheet,
+    buildMisaWorkbook, misaFileName, buildRevenueSheet, fileName, MISA_COLS, MISA_MAP, NUM_FMT };
 });
