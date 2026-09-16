@@ -10,6 +10,12 @@
 #    vẫn "xanh" trong khi khối mới chưa hề được kiểm. Script tự tìm nên thêm khối bao nhiêu
 #    cũng không sót.
 #
+# 🔴 VÌ SAO ĐÒI `<<<'JS'` Ở CUỐI DÒNG. PHP bắt nowdoc mở xong là hết dòng, nên dòng mở THẬT bao
+#    giờ cũng kết thúc bằng `<<<'JS'`. Bắt bất kỳ chỗ nào xuất hiện chuỗi ấy thì một dòng CHÚ THÍCH
+#    nhắc tới `<<<'JS'` cũng bị coi là mở khối — 16/09/2026 class-vhcc-web.php dính đúng vậy: khối
+#    bị cắt từ giữa đoạn chú thích nên node báo sai cú pháp ở chỗ mã hoàn toàn đúng. Bài đỏ giả
+#    tốn thời gian ngang bài xanh giả: lần sau ai thấy nó cũng bỏ qua cả script.
+#
 # Chạy: bash tools/soat-js-heredoc.sh
 # Trả mã thoát khác 0 nếu có khối nào sai cú pháp — dùng được cho CI.
 # ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -38,8 +44,8 @@ while IFS= read -r f; do
       printf '%s\n' "$err" | head -5 | sed 's/^/      /'
       HONG=$((HONG+1))
     fi
-  done < <(grep -n "<<<'JS'" "$f" || true)
-done < <(grep -rl "<<<'JS'" --include='*.php' . 2>/dev/null | grep -v '/class-vhg-baocao-v')
+  done < <(grep -nE "<<<'JS'[[:space:]]*$" "$f" || true)
+done < <(grep -rlE "<<<'JS'[[:space:]]*$" --include='*.php' . 2>/dev/null | grep -v '/class-vhg-baocao-v')
 
 echo "───────────────────────────────────────────────────────────────"
 if [ "$HONG" -gt 0 ]; then echo "✗ HỎNG $HONG / $SO khối JS"; exit 1; fi

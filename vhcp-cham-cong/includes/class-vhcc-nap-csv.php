@@ -1,0 +1,517 @@
+<?php
+/**
+ * NẠP HỒ SƠ NHÂN VIÊN TỪ CSV / DÁN TỪ GOOGLE SHEETS — ĐỦ MỌI CỘT.
+ *
+ * Anh Thắng: *"cấu trúc trang nhân viên nó như này mà, nạp bằng .csv được không"* → *"lấy đủ
+ * luôn nhé, các cột"*.
+ *
+ * Sheet nhân viên của anh có: Mã NV · Họ tên · Cửa hàng · Trạng thái đồng bộ · Cập nhật · CCCD ·
+ * Chức vụ · Nhiệm vụ · Cơ sở phụ · PIN đăng nhập — và mấy nhóm cột đang thu gọn. Bảng `nhan_vien`
+ * đã có sẵn đủ chỗ cho tất cả, nên đường này ghi thẳng vào đó, KHÔNG dựng bảng thứ hai.
+ *
+ * ĐƯỜNG NÀY KHÔNG CẦN CẦU NỐI APPS SCRIPT. Đó là điểm chính: cầu nối còn phụ thuộc app gốc còn
+ * sống, còn đúng WEB_KEY, còn đúng bản Deploy. Tải một file .csv lên thì không phụ thuộc gì cả.
+ *
+ * 🔴 BỐN CHỖ SAI LÀ HỎNG DỮ LIỆU THẬT, cả bốn đều đã gặp trong dự án này:
+ *
+ *   1. **Ô rỗng KHÔNG được ghi đè lên giá trị đang có.** Sheet của anh Thắng đang thu gọn nhiều
+ *      nhóm cột; xuất ra một file thiếu cột rồi nạp đè là xoá trắng số tài khoản, lương, CCCD…
+ *      mà màn hình vẫn báo "cập nhật N người". Chỉ ghi ô CÓ giá trị.
+ *   2. **Dấu phẩy trong ô.** Cột "Cơ sở phụ" có giá trị `FARM_PT, FZ_LTVT`. Cắt chuỗi bằng
+ *      explode(',') là dòng đó lệch hết cột từ đó trở đi. Phải đọc CSV đúng luật dấu nháy.
+ *   3. **Số 0 ở đầu PIN.** Sheets coi PIN là SỐ nên `013013` xuất ra `13013`, `246813` ra
+ *      `246813.0`. Đuôi `.0` thì cắt được; số 0 đầu MẤT RỒI thì không dựng lại được — chỉ dám
+ *      CẢNH BÁO đích danh, không tự đoán thêm số 0 vào PIN của người ta.
+ *   4. **CCCD không bao giờ được hiểu nhầm là PIN.** Nhầm một cái là số căn cước của người ta
+ *      thành mật khẩu đăng nhập.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCC_NapCsv {
+
+	/**
+	 * TIÊU ĐỀ TRONG SHEET -> CỘT BẢNG `nhan_vien`.
+	 *
+	 * Khoá đã bỏ dấu và bỏ mọi ký tự không phải chữ/số, nên `Họ và Tên`, `HO VA TEN`, `họ_và_tên`
+	 * đều ra `hovaten`. Nhiều cách gọi cùng trỏ về một cột — sổ mỗi cơ sở gõ một kiểu.
+	 */
+	const BAN_DO = array(
+		/* 🔴 KHÔNG NHẬN 'id' LÀM MÃ NV. Anh Thắng 26/08/2026: *"Hồ sơ nhân sự đang bị lỗi giữa
+		   các nhân sự"* — và đây là chỗ nó bắt đầu.
+
+		   Sổ xuất từ Google Sheets gần như luôn có một cột đánh số dòng, đặt tên `ID` hoặc `STT`.
+		   Nhận nó làm Mã NV thì cả sổ mang mã 1, 2, 3… lẫn với mã thật (`MNLX1CTY0001`). Mà MÃ LÀ
+		   KHOÁ: nạp file thứ hai, dòng 15 của file mới GHI ĐÈ lên người đang mang mã 15 — hai
+		   người khác nhau, cùng một khoá. Hồ sơ người này lẫn sang người kia, và không có gì kêu.
+		   Chấm công cũng khoá theo mã, nên một người bị tách làm hai mã thì công cũng tách đôi.
+
+		   ⚠️ BỎ HẲN CÒN AN TOÀN HƠN ĐOÁN. Sổ nào thật sự đặt tên cột mã là `ID` thì nạp vào sẽ
+		      dừng lại với câu "Không thấy cột MÃ NV" — hỏng TO TIẾNG, sửa tiêu đề một lần là
+		      xong. Còn nhận bừa thì hỏng IM LẶNG, và chỉ lộ ra ở bảng lương. */
+		'manv' => 'ma_nv', 'ma' => 'ma_nv', 'manhanvien' => 'ma_nv', 'mann' => 'ma_nv',
+		'employeeno' => 'ma_nv',
+
+		'hoten' => 'ho_ten', 'hovaten' => 'ho_ten', 'ten' => 'ho_ten', 'tennhanvien' => 'ho_ten',
+		'name' => 'ho_ten',
+
+		'cuahang' => 'cua_hang', 'coso' => 'cua_hang', 'chinhanh' => 'cua_hang',
+		'cosochinh' => 'cua_hang', 'station' => 'cua_hang',
+
+		'pinmay' => 'pin_may', 'pinmaychamcong' => 'pin_may', 'machinepin' => 'pin_may',
+		'pindangnhap' => 'pin_dang_nhap', 'pin' => 'pin_dang_nhap', 'matkhau' => 'pin_dang_nhap',
+
+		'trangthaidongbo' => 'trang_thai_dong_bo', 'dongbo' => 'trang_thai_dong_bo',
+
+		'sdt' => 'sdt', 'sodienthoai' => 'sdt', 'dienthoai' => 'sdt', 'phone' => 'sdt',
+		'ngaysinh' => 'ngay_sinh', 'dob' => 'ngay_sinh',
+		'gioitinh' => 'gioi_tinh',
+		'cccd' => 'cccd', 'cmnd' => 'cccd', 'cccdcmnd' => 'cccd', 'socccd' => 'cccd',
+		'diachi' => 'dia_chi',
+		'nguoilienhekhan' => 'nguoi_lien_he_khan', 'lienhekhan' => 'nguoi_lien_he_khan',
+		'sdtkhan' => 'sdt_khan', 'dienthoaikhan' => 'sdt_khan', 'sdtkhancap' => 'sdt_khan',
+		'sodienthoaikhancap' => 'sdt_khan', 'dienthoaikhancap' => 'sdt_khan',
+		'lienhekhancap' => 'nguoi_lien_he_khan', 'nguoilienhekhancap' => 'nguoi_lien_he_khan',
+
+		'chucvu' => 'chuc_vu', 'congviec' => 'chuc_vu', 'bophan' => 'chuc_vu',
+		/* Vai trò ĐĂNG NHẬP, khác `chuc_vu` là công việc. Xem ghi chú ở class-vhcc-db.php. */
+		'vaitro' => 'vai_tro', 'quyen' => 'vai_tro', 'vaitrodangnhap' => 'vai_tro',
+		'phanquyen' => 'vai_tro',
+		'nhiemvu' => 'nhiem_vu',
+		'cosophu' => 'coso_phu', 'cuahangphu' => 'coso_phu',
+
+		'ngayvaolam' => 'ngay_vao_lam', 'ngaybatdau' => 'ngay_vao_lam',
+		'trangthailamviec' => 'trang_thai_lam_viec', 'trangthai' => 'trang_thai_lam_viec',
+		'loaihopdong' => 'loai_hop_dong',
+		'luongcoban' => 'luong_co_ban', 'luong' => 'luong_co_ban',
+		'sotaikhoan' => 'so_tai_khoan', 'stk' => 'so_tai_khoan',
+		'nganhang' => 'ngan_hang',
+		'cccdfileid' => 'cccd_file_id', 'anhcccd' => 'cccd_file_id', 'anhcccdfileid' => 'cccd_file_id',
+		'filecccd' => 'cccd_file_id',
+		'hopdongfileid' => 'hop_dong_file_id', 'anhhopdong' => 'hop_dong_file_id',
+		'filehopdong' => 'hop_dong_file_id', 'anhhopdongfileid' => 'hop_dong_file_id',
+		'anh' => 'photo_file_id', 'photofileid' => 'photo_file_id', 'anhchandung' => 'photo_file_id',
+		'anhnhanvien' => 'photo_file_id', 'anhfileid' => 'photo_file_id',
+	);
+
+	/** Cột kiểu ngày — phải quy về yyyy-mm-dd, không nhận ra thì để TRỐNG chứ không đoán. */
+	const COT_NGAY  = array( 'ngay_sinh', 'ngay_vao_lam' );
+	/** Cột kiểu ngày-giờ. */
+	const COT_GIO   = array( 'cap_nhat' );
+
+	/**
+	 * CỘT BỎ QUA CÓ CHỦ Ý — nhận ra nhưng KHÔNG nạp, và nói rõ ra chứ không im lặng.
+	 *
+	 * 🔴 `Cập nhật` của sheet là "sheet này đồng bộ lần cuối lúc nào", không phải dữ liệu của
+	 *    nhân viên. Nạp nó vào thì cột `cap_nhat` trên host thành một câu nói dối: nó phải trả
+	 *    lời "hồ sơ này sửa lần cuối lúc nào TRÊN HOST".
+	 *
+	 * 🔴 Và nó phá luôn bảng xem trước. Anh Thắng nạp thử: 240/240 dòng "đổi", mà đổi duy nhất
+	 *    một ô `cap_nhat` — 240 dòng nhiễu che sạch những ô đổi THẬT, đúng thứ bảng đó sinh ra
+	 *    để cho thấy. Bỏ nó đi thì còn lại toàn là thay đổi có nghĩa.
+	 */
+	/* Cột BỎ QUA CÓ CHỦ Ý — khác với "cột lạ": cột lạ thì màn hình kể tên ra để người ta soi,
+	   còn mấy cột này thì bỏ im lặng vì chắc chắn không mang dữ liệu nhân sự nào.
+	   `stt` / `id` / `#` là SỐ THỨ TỰ DÒNG của bảng tính — xem khối cảnh báo ở `BAN_DO`. */
+	const COT_BO_QUA = array( 'capnhat' => 'Cập nhật', 'lancapnhat' => 'Cập nhật',
+		'stt' => 'STT', 'sothutu' => 'Số thứ tự', 'id' => 'ID', 'no' => 'No', 'index' => 'Index' );
+	/** Cột kiểu số tiền. */
+	const COT_TIEN  = array( 'luong_co_ban' );
+
+	// ======================================================================= đọc file
+
+	/** Bỏ dấu + bỏ ký tự lạ, chỉ để SO TIÊU ĐỀ. */
+	public static function khoa( $s ) {
+		return preg_replace( '/[^a-z0-9]+/u', '', VHCC_NguoiDung::bo_dau( (string) $s ) );
+	}
+
+	/**
+	 * Tách văn bản thành bảng ô, ĐÚNG LUẬT DẤU NHÁY của CSV.
+	 *
+	 * 🔴 Không dùng explode(). Ô `"FARM_PT, FZ_LTVT"` có dấu phẩy BÊN TRONG dấu nháy; explode
+	 *    cắt luôn ở đó và dòng ấy lệch hết cột từ đó trở đi — PIN của người này rơi vào cột CCCD
+	 *    của người kia. Ô cũng có thể chứa xuống dòng (địa chỉ nhiều dòng), nên phải quét từng
+	 *    ký tự chứ không tách theo dòng trước.
+	 */
+	public static function tach( $noi_dung, $ngan = '' ) {
+		$s = (string) $noi_dung;
+		if ( 0 === strncmp( $s, "\xEF\xBB\xBF", 3 ) ) { $s = substr( $s, 3 ); }   // BOM của Excel
+		if ( '' === $ngan ) { $ngan = self::doan_ngan( $s ); }
+
+		$bang = array(); $dong = array(); $o = ''; $trong_nhay = false;
+		$n = strlen( $s );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$c = $s[ $i ];
+			if ( $trong_nhay ) {
+				if ( '"' === $c ) {
+					if ( $i + 1 < $n && '"' === $s[ $i + 1 ] ) { $o .= '"'; $i++; }   // "" = một dấu nháy
+					else { $trong_nhay = false; }
+				} else { $o .= $c; }
+				continue;
+			}
+			if ( '"' === $c && '' === trim( $o ) ) { $trong_nhay = true; $o = ''; continue; }
+			if ( $c === $ngan )  { $dong[] = trim( $o ); $o = ''; continue; }
+			if ( "\r" === $c )   { continue; }
+			if ( "\n" === $c )   { $dong[] = trim( $o ); $o = ''; $bang[] = $dong; $dong = array(); continue; }
+			$o .= $c;
+		}
+		$dong[] = trim( $o );
+		$bang[] = $dong;
+
+		$ra = array();
+		foreach ( $bang as $h ) {
+			foreach ( $h as $v ) { if ( '' !== $v ) { $ra[] = $h; break; } }   // bỏ dòng rỗng hẳn
+		}
+		return $ra;
+	}
+
+	/** Dấu ngăn cột: đếm NGOÀI dấu nháy, nhiều nhất thì thắng. Dán từ Sheets ra TAB. */
+	public static function doan_ngan( $s ) {
+		$dem = array( "\t" => 0, ',' => 0, ';' => 0 );
+		$trong_nhay = false;
+		$n = min( strlen( $s ), 20000 );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$c = $s[ $i ];
+			if ( '"' === $c ) { $trong_nhay = ! $trong_nhay; continue; }
+			if ( $trong_nhay ) { continue; }
+			if ( isset( $dem[ $c ] ) ) { $dem[ $c ]++; }
+		}
+		arsort( $dem );
+		$top = key( $dem );
+		return $dem[ $top ] > 0 ? $top : "\t";
+	}
+
+	// ======================================================================= rửa từng ô
+
+	/**
+	 * SÊ-RI NGÀY CỦA BẢNG TÍNH -> [ngày, giờ].
+	 *
+	 * 🔴 Google Sheets / Excel lưu ngày là SỐ NGÀY KỂ TỪ 1899-12-30, phần lẻ là giờ. Xuất .csv
+	 *    từ một ô chưa định dạng ngày thì ra `46232.6543` chứ không ra `29/07/2026 15:42`. Đọc
+	 *    thẳng số đó như năm thì thành năm 4623 — đúng lỗi đã làm cả loạt đơn chi phí tháng 7
+	 *    biến mất khỏi bộ lọc, vì chúng rơi vào một năm không ai đi tìm.
+	 *
+	 * ⚠️ Viết lại ở đây, KHÔNG gọi sang VHCP_Util của plugin chi phí. Chấm công phải chạy được
+	 *    khi plugin kia chưa cài hoặc đang ở bản khác — một lời gọi chéo không gác là cả trang
+	 *    trắng. Đã xảy ra thật, và có phép soát ghim điều đó.
+	 */
+	public static function seri( $v ) {
+		$s = trim( (string) $v );
+		if ( ! preg_match( '#^(\d{5})(?:[.,](\d+))?$#', $s, $m ) ) { return null; }
+		$n = (int) $m[1];
+		if ( $n < 20000 || $n > 60000 ) { return null; }   // ngoài khoảng 1954–2064: không phải ngày
+		$giay = 0;
+		if ( isset( $m[2] ) && '' !== $m[2] ) {
+			$giay = (int) round( (float) ( '0.' . $m[2] ) * 86400 );
+			if ( $giay >= 86400 ) { $giay = 86399; }
+		}
+		$ts = ( $n - 25569 ) * 86400;                       // 25569 = 1970-01-01 tính theo sê-ri
+		return array( gmdate( 'Y-m-d', $ts ), gmdate( 'H:i:s', $giay ) );
+	}
+
+	/** Ngày kiểu Sheets: yyyy-mm-dd, dd/mm/yyyy, hoặc sê-ri. Không nhận ra thì null. */
+	public static function ngay( $v ) {
+		$s = trim( (string) $v );
+		if ( '' === $s ) { return null; }
+		$sr = self::seri( $s );
+		if ( null !== $sr ) { return $sr[0]; }
+		return VHCC_Keo::ngay( $s );
+	}
+
+	/** Ngày + giờ -> 'Y-m-d H:i:s', hoặc null. */
+	public static function gio( $v ) {
+		$s = trim( (string) $v );
+		if ( '' === $s ) { return null; }
+		$sr = self::seri( $s );
+		if ( null !== $sr ) { return $sr[0] . ' ' . $sr[1]; }
+		if ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?#', $s, $m ) ) {
+			return $m[1] . '-' . $m[2] . '-' . $m[3] . ' ' . $m[4] . ':' . $m[5] . ':'
+				. ( isset( $m[6] ) ? $m[6] : '00' );
+		}
+		$d = VHCC_Keo::ngay( $s );
+		return null === $d ? null : $d . ' 00:00:00';
+	}
+
+	/** Tiền kiểu Việt: `8.500.000`, `8,500,000`, `8500000 đ`. */
+	public static function tien( $v ) {
+		$s = preg_replace( '/[^0-9]/', '', (string) $v );
+		return '' === $s ? 0 : (float) $s;
+	}
+
+	/**
+	 * PIN: cắt đuôi `.0` của Sheets. KHÔNG tự thêm số 0 ở đầu.
+	 *
+	 * Thêm bừa số 0 là đặt cho người ta một mật khẩu họ không hề biết. Ngắn bất thường thì
+	 * CẢNH BÁO đích danh, để anh Thắng mở sheet xem lại — đó là việc của người, không phải của
+	 * phép đoán.
+	 */
+	public static function pin( $v ) {
+		$s = trim( (string) $v );
+		if ( preg_match( '/^(\d+)\.0+$/', $s, $m ) ) { $s = $m[1]; }
+		return $s;
+	}
+
+	// ======================================================================= nạp
+
+	/**
+	 * Đọc nội dung -> hồ sơ đã quy về khuôn bảng `nhan_vien`.
+	 *
+	 * @param string $noi_dung nội dung file .csv hoặc chuỗi dán từ Sheets.
+	 * @param bool   $chi_xem  true = chỉ đếm và soi, không ghi gì.
+	 * @param string $coso     rỗng = nhận hết; có tên = CHỈ cơ sở đó.
+	 */
+	public static function nap( $noi_dung, $chi_xem = true, $coso = '' ) {
+		global $wpdb;
+
+		$o = self::tach( $noi_dung );
+		if ( count( $o ) < 2 ) {
+			return array( 'ok' => false, 'error' => 'File phải có DÒNG TIÊU ĐỀ rồi mới tới dòng dữ liệu. '
+				. 'Trong Google Sheets: File → Tải xuống → Giá trị được phân tách bằng dấu phẩy (.csv), '
+				. 'hoặc bôi đen cả vùng KỂ CẢ dòng tiêu đề rồi Ctrl+C dán vào ô.' );
+		}
+
+		/* Tiêu đề -> cột. Cột nào không nhận ra thì GIỮ TÊN LẠI để kể ra: anh Thắng bảo "lấy đủ
+		   luôn các cột", nên phải nói rõ cái nào KHÔNG lấy được, chứ không im lặng bỏ. */
+		$cot = array(); $la = array(); $co_y = array();
+		foreach ( $o[0] as $i => $ten_cot ) {
+			$k = self::khoa( $ten_cot );
+			if ( '' === $k ) { continue; }
+			if ( isset( self::COT_BO_QUA[ $k ] ) ) { $co_y[] = trim( (string) $ten_cot ); continue; }
+			if ( isset( self::BAN_DO[ $k ] ) && ! in_array( self::BAN_DO[ $k ], $cot, true ) ) {
+				$cot[ $i ] = self::BAN_DO[ $k ];
+			} else {
+				$la[] = trim( (string) $ten_cot );
+			}
+		}
+		if ( ! in_array( 'ma_nv', $cot, true ) ) {
+			return array( 'ok' => false, 'error' => 'Không thấy cột MÃ NV. Đây là cột khoá — không có nó '
+				. 'thì nạp lần hai sẽ nhân đôi mọi người thay vì cập nhật. Tiêu đề đọc được: '
+				. implode( ' · ', array_slice( (array) $o[0], 0, 20 ) ) );
+		}
+
+		$hien_co = array();
+		foreach ( VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) ) as $r ) {
+			$hien_co[ (string) $r['ma_nv'] ] = $r;
+		}
+
+		$them = 0; $sua = 0; $bo = array(); $canh = array(); $lech = 0;
+		$dai_pin = array();
+		/* PIN đã gặp TRONG CHÍNH FILE này -> mã NV + cơ sở của dòng ấy (xem khối soát trùng). */
+		$pin_trong_file = array( 'pin_dang_nhap' => array(), 'pin_may' => array() );
+		$coso    = trim( (string) $coso );
+		/* TỪNG Ô ĐỔI GÌ — anh Thắng: *"nạp bên trong này sai hết dữ liệu"*. Một con số
+		   "cập nhật 240" không cho biết nó sắp làm gì; phải chỉ ra `cũ -> mới` của từng ô thì
+		   sai bản đồ cột mới lộ ra NGAY Ở BƯỚC XEM TRƯỚC, chứ không phải sau khi đã ghi đè. */
+		$doi = array();
+		/* Ảnh chụp giá trị CŨ để hoàn tác. Ghi đè 240 hồ sơ mà không có đường lùi thì một lần
+		   bấm nhầm là mất dữ liệu thật. */
+		$truoc = array(); $ma_them = array();
+
+		for ( $d = 1; $d < count( $o ); $d++ ) {
+			$h   = $o[ $d ];
+			$ghi = array();
+			foreach ( $cot as $i => $ten ) {
+				$v = isset( $h[ $i ] ) ? trim( (string) $h[ $i ] ) : '';
+				if ( '' === $v ) { continue; }        // ⬅ ô rỗng: BỎ QUA, không ghi đè
+				if ( in_array( $ten, self::COT_NGAY, true ) )      { $x = self::ngay( $v ); }
+				elseif ( in_array( $ten, self::COT_GIO, true ) )   { $x = self::gio( $v ); }
+				elseif ( in_array( $ten, self::COT_TIEN, true ) )  { $x = self::tien( $v ); }
+				elseif ( 'pin_dang_nhap' === $ten || 'pin_may' === $ten ) { $x = self::pin( $v ); }
+			elseif ( 'vai_tro' === $ten ) {
+				/* Vai trò lạ -> để TRỐNG, KHÔNG rơi về "Nhân viên". Trống thì màn hình còn hỏi
+				   được "sổ không ghi vai trò, đặt thành gì?"; rơi bừa về Nhân viên thì nó im
+				   lặng và không ai đăng nhập được. */
+				$x = VHCC_NguoiDung::vai_tro_biet( $v );
+				if ( '' === $x ) { continue; }
+			}
+				else { $x = $v; }
+				if ( null === $x ) { continue; }      // ngày không đọc được: để trống, KHÔNG đoán
+				$ghi[ $ten ] = $x;
+			}
+
+			$ma = isset( $ghi['ma_nv'] ) ? $ghi['ma_nv'] : '';
+			if ( '' === $ma ) {
+				$ten_d = isset( $ghi['ho_ten'] ) ? $ghi['ho_ten'] : ( 'dòng ' . ( $d + 1 ) );
+				$bo[] = $ten_d . ': thiếu Mã NV';
+				continue;
+			}
+			$ten_ng = isset( $ghi['ho_ten'] ) ? $ghi['ho_ten']
+				: ( isset( $hien_co[ $ma ]['ho_ten'] ) ? $hien_co[ $ma ]['ho_ten'] : $ma );
+
+			if ( '' !== $coso ) {
+				$cs = isset( $ghi['cua_hang'] ) ? $ghi['cua_hang']
+					: ( isset( $hien_co[ $ma ]['cua_hang'] ) ? $hien_co[ $ma ]['cua_hang'] : '' );
+				if ( ! VHCC_NguoiDung::cung_coso( $cs, $coso ) ) { $lech++; continue; }
+			}
+
+			/* PIN ngắn bất thường = Sheets đã ăn mất số 0 ở đầu. Không dựng lại được, chỉ báo. */
+			if ( isset( $ghi['pin_dang_nhap'] ) && '' !== $ghi['pin_dang_nhap'] ) {
+				$dai_pin[] = strlen( $ghi['pin_dang_nhap'] );
+				if ( ! preg_match( '/^\d+$/', $ghi['pin_dang_nhap'] ) ) {
+					$canh[] = $ten_ng . ': PIN có ký tự không phải số';
+				}
+			}
+
+			/* ===================================================================================
+			 *  PIN TRÙNG TRONG LƯỢT NẠP — BỎ Ô PIN, GIỮ CÁC Ô KHÁC, VÀ BÁO RA
+			 * -----------------------------------------------------------------------------------
+			 *  🔴 08/09/2026 — anh Thắng: *"chặn trường hợp tạo mã pin trùng nhé"*. Đường nạp .csv
+			 *  trước đây chỉ soát KHUÔN của PIN, không soát TRÙNG — nên một file có hai dòng cùng
+			 *  PIN (hoặc trùng người đang có trong sổ) là nạp vào cả hai, rồi cổng đăng nhập nhận
+			 *  người gặp trước và nhật ký ghi tên người đó.
+			 *
+			 *  ⚠️ CHỈ BỎ Ô PIN, KHÔNG bỏ cả dòng. Nạp .csv là lượt đổ hàng trăm dòng: chối cả dòng
+			 *     vì một ô PIN là mất luôn tên/cơ sở/chức vụ của người đó, mà mấy ô ấy vẫn đúng.
+			 *     Bỏ đúng ô hỏng rồi báo tên ra thì người nạp sửa một chỗ là xong.
+			 *  ⚠️ Soát CẢ trùng với dòng khác TRONG CÙNG FILE (`$pin_trong_file`): chỉ so với sổ
+			 *     thì hai dòng mới cùng gõ một PIN lọt cả hai — đúng cái bẫy đường "lưu cả bảng"
+			 *     đã phải chặn riêng.
+			 * =================================================================================== */
+			$cs_dong = VHCC_NhanSu::ds_coso_hs( array(
+				'cua_hang' => isset( $ghi['cua_hang'] ) ? $ghi['cua_hang']
+					: ( isset( $hien_co[ $ma ]['cua_hang'] ) ? $hien_co[ $ma ]['cua_hang'] : '' ),
+				'coso_phu' => isset( $ghi['coso_phu'] ) ? $ghi['coso_phu']
+					: ( isset( $hien_co[ $ma ]['coso_phu'] ) ? $hien_co[ $ma ]['coso_phu'] : '' ),
+			) );
+			foreach ( array( 'pin_dang_nhap' => 'PIN đăng nhập', 'pin_may' => 'PIN máy' ) as $o_p => $nhan_p ) {
+				if ( empty( $ghi[ $o_p ] ) ) { continue; }
+				$p    = (string) $ghi[ $o_p ];
+				$dung = '';
+				/* Trùng ngay trong file: so trước, vì lỗi này người nạp sửa được ngay trên file. */
+				if ( isset( $pin_trong_file[ $o_p ][ $p ] ) && $pin_trong_file[ $o_p ][ $p ]['ma'] !== $ma ) {
+					$truoc = $pin_trong_file[ $o_p ][ $p ];
+					$chung = ( 'pin_dang_nhap' === $o_p )
+						|| array_intersect( array_map( 'strtolower', $cs_dong ),
+							array_map( 'strtolower', $truoc['cs'] ) );
+					if ( $chung ) { $dung = $truoc['ma'] . ' (cùng file)'; }
+				}
+				if ( '' === $dung ) {
+					$dung = ( 'pin_dang_nhap' === $o_p )
+						? VHCC_NhanSu::pin_dang_dung( $p, $ma )
+						: VHCC_NhanSu::pin_may_dang_dung( $p, $ma, $cs_dong );
+				}
+				if ( '' !== $dung ) {
+					$canh[] = $ten_ng . ': ' . $nhan_p . ' trùng với ' . $dung
+						. ' — đã BỎ ô ' . $nhan_p . ' của dòng này, các ô khác vẫn nạp';
+					unset( $ghi[ $o_p ] );
+					continue;
+				}
+				$pin_trong_file[ $o_p ][ $p ] = array( 'ma' => $ma, 'cs' => $cs_dong );
+			}
+
+			if ( isset( $hien_co[ $ma ] ) ) {
+				/* Chỉ tính là SỬA khi thật sự có ô đổi giá trị. Nạp lại y hệt file cũ mà báo
+				   "cập nhật 240" thì con số đó vô nghĩa — và che mất lượt nạp thật sự đổi gì. */
+				$khac = array();
+				foreach ( $ghi as $c => $v ) {
+					if ( 'ma_nv' === $c ) { continue; }
+					$cu = isset( $hien_co[ $ma ][ $c ] ) ? (string) $hien_co[ $ma ][ $c ] : '';
+					if ( (string) $v === $cu ) { continue; }
+					if ( in_array( $c, self::COT_TIEN, true ) && (float) $v === (float) $cu ) { continue; }
+					$khac[ $c ] = array( 'cu' => $cu, 'moi' => (string) $v );
+				}
+				if ( ! $khac ) { continue; }
+				$sua++;
+				if ( count( $doi ) < 200 ) { $doi[ $ma ] = array( 'ten' => $ten_ng, 'o' => $khac ); }
+				if ( $chi_xem ) { continue; }
+				$luu_cu = array();
+				foreach ( $khac as $c => $x ) { $luu_cu[ $c ] = $x['cu']; }
+				$luu_cu['cap_nhat'] = isset( $hien_co[ $ma ]['cap_nhat'] ) ? $hien_co[ $ma ]['cap_nhat'] : null;
+				$truoc[ $ma ] = $luu_cu;
+				$moi_ghi = array();
+				foreach ( $khac as $c => $x ) { $moi_ghi[ $c ] = $ghi[ $c ]; }
+				/* Đóng dấu giờ TẠI ĐÂY, không lấy từ sheet: cột này trả lời "hồ sơ sửa lần cuối
+				   lúc nào TRÊN HOST". */
+				$moi_ghi['cap_nhat'] = current_time( 'mysql' );
+				$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $moi_ghi, array( 'ma_nv' => $ma ) );
+			} else {
+				$them++;
+				if ( count( $doi ) < 200 ) { $doi[ $ma ] = array( 'ten' => $ten_ng, 'moi' => 1 ); }
+				if ( $chi_xem ) { continue; }
+				$ma_them[] = $ma;
+				$ghi['cap_nhat'] = current_time( 'mysql' );
+				$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi );
+			}
+		}
+		if ( ! $chi_xem && ( $truoc || $ma_them ) ) {
+			update_option( self::O_LUI, array( 'luc' => current_time( 'mysql' ),
+				'truoc' => $truoc, 'them' => $ma_them ), false );
+		}
+
+		/* PIN ngắn hơn phần lớn = mất số 0 đầu. Chỉ so khi có đủ dòng để "phần lớn" có nghĩa. */
+		if ( count( $dai_pin ) >= 5 ) {
+			$dem = array_count_values( $dai_pin );
+			arsort( $dem );
+			$chuan = (int) key( $dem );
+			$ngan  = 0;
+			foreach ( $dai_pin as $l ) { if ( $l < $chuan ) { $ngan++; } }
+			if ( $ngan ) {
+				$canh[] = $ngan . ' người có PIN ngắn hơn ' . $chuan . ' số — nhiều khả năng Google '
+					. 'Sheets đã cắt mất số 0 ở đầu. Định dạng cột PIN thành Văn bản rồi tải lại; '
+					. 'hệ thống KHÔNG tự thêm số 0 vì đoán sai là đặt cho người ta một PIN họ không biết.';
+			}
+		}
+
+		/* 🔴 CỘT MÃ NV TRÔNG NHƯ SỐ THỨ TỰ THÌ KÊU LÊN, ĐỪNG NẠP LẶNG LẼ.
+		   Bỏ `id` khỏi bản đồ cột chặn được cái tên phổ biến nhất, nhưng người ta còn đặt tên cột
+		   là `Mã` rồi đổ số thứ tự vào đó. Mã là KHOÁ: nạp file sau, dòng 15 ghi đè lên người
+		   đang mang mã 15 — hai người khác nhau, cùng một khoá.
+		   Nên soi CHÍNH GIÁ TRỊ: gần như cả cột là số nguyên ngắn thì đó không phải mã nhân viên.
+		   ⚠️ Đây là CẢNH BÁO ở bước xem trước, không phải chối. Có nơi đánh mã bằng số thật; chối
+		      thẳng là khoá cửa của họ. Nói ra để người bấm quyết định. */
+		/* `$doi` khoá BẰNG CHÍNH MÃ, nên lấy khoá — đừng tìm một ô 'ma' không tồn tại trong đó. */
+		$ma_thay = array_map( 'strval', array_keys( (array) $doi ) );
+		if ( ! $ma_thay ) { $ma_thay = array_map( 'strval', (array) $ma_them ); }
+		$so_ngan = 0;
+		foreach ( $ma_thay as $_m ) {
+			if ( preg_match( '/^\\d{1,4}$/', $_m ) ) { $so_ngan++; }
+		}
+		if ( count( $ma_thay ) >= 5 && $so_ngan >= (int) ceil( count( $ma_thay ) * 0.8 ) ) {
+			$canh[] = '⚠️ Cột MÃ NV toàn số ngắn (' . $so_ngan . '/' . count( $ma_thay ) . ' dòng) — '
+				. 'nhiều khả năng đây là cột SỐ THỨ TỰ chứ không phải mã nhân viên. Mã là KHOÁ: nạp '
+				. 'lần sau, dòng số 15 sẽ GHI ĐÈ lên người đang mang mã 15 — hai người khác nhau. '
+				. 'Kiểm lại tiêu đề cột trước khi bấm Nạp thật.';
+		}
+
+		return array( 'ok' => true, 'them' => $them, 'sua' => $sua, 'bo' => $bo, 'canh' => $canh,
+			'lech' => $lech, 'coso' => $coso, 'cot' => array_values( $cot ), 'cot_la' => $la,
+			'cot_co_y' => $co_y,
+			'so_dong' => count( $o ) - 1, 'doi' => $doi );
+	}
+
+	// ======================================================================= hoàn tác
+
+	const O_LUI = 'vhcc_nap_csv_lui';
+
+	/** Lượt nạp gần nhất còn hoàn tác được: ['luc','truoc','them'] — hoặc [] nếu không có. */
+	public static function co_lui() { return (array) get_option( self::O_LUI, array() ); }
+
+	/**
+	 * HOÀN TÁC LƯỢT NẠP GẦN NHẤT — trả từng ô về đúng giá trị cũ, xoá người mới thêm.
+	 *
+	 * 🔴 Chỉ trả lại NHỮNG Ô LƯỢT NẠP ĐÓ ĐỘNG VÀO. Không chép đè cả dòng: giữa lúc nạp và lúc
+	 *    hoàn tác có thể có người đã sửa tay ô khác, chép đè cả dòng là xoá luôn công sửa đó.
+	 *
+	 * ⚠️ CHỈ MỘT BƯỚC LÙI. Hoàn tác xong là xoá ảnh chụp — không có lùi hai lượt, và nói thẳng
+	 *    điều đó ra ở màn hình thay vì để người dùng tưởng lùi được mãi.
+	 */
+	public static function lui() {
+		global $wpdb;
+		$l = self::co_lui();
+		if ( empty( $l['truoc'] ) && empty( $l['them'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có lượt nạp nào để hoàn tác.' );
+		}
+		$ve = 0; $xoa = 0;
+		foreach ( (array) $l['truoc'] as $ma => $o_cu ) {
+			if ( ! is_array( $o_cu ) || ! $o_cu ) { continue; }
+			$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $o_cu, array( 'ma_nv' => (string) $ma ) );
+			$ve++;
+		}
+		foreach ( (array) $l['them'] as $ma ) {
+			$wpdb->delete( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => (string) $ma ) );
+			$xoa++;
+		}
+		delete_option( self::O_LUI );
+		return array( 'ok' => true, 've' => $ve, 'xoa' => $xoa, 'luc' => isset( $l['luc'] ) ? $l['luc'] : '' );
+	}
+}

@@ -27,9 +27,11 @@ chay() {   # $1 = lệnh, $2 = tên hiển thị
 }
 
 echo "── Soát cú pháp PHP ───────────────────────────────────────────"
+# ⚠️ `vhcp-cham-cong` vào kho ngày 16/09/2026 (anh Thắng gửi zip) — thêm ngay vào dòng dưới cùng
+#    lượt, đừng để lặp lại chuyện của vhcp-saoke.
 # ⚠️ `vhcp-saoke` từng KHÔNG nằm trong dòng này — plugin sao kê sửa bao nhiêu lượt cũng không ai
 #    soát nổi một dấu chấm phẩy. Thêm vào 12/09/2026, cùng lượt có bộ thử đầu tiên cho nó.
-if find vhcp-ghe vhcp-ve vhcp-saoke -name '*.php' -print0 2>/dev/null | xargs -0 -n1 php -l 2>&1 | grep -v 'No syntax errors'; then
+if find vhcp-ghe vhcp-ve vhcp-saoke vhcp-cham-cong -name '*.php' -print0 2>/dev/null | xargs -0 -n1 php -l 2>&1 | grep -v 'No syntax errors'; then
   echo "  ✗ có tệp PHP sai cú pháp"; HONG=$((HONG+1)); TEN_HONG+=("cú pháp PHP")
 else
   echo "  ✓ mọi tệp PHP đọc được"; DAT=$((DAT+1))

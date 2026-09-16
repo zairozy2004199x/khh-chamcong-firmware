@@ -1,0 +1,138 @@
+# Hàm phía máy chủ mà GIAO DIỆN GỐC gọi (google.script.run)
+#
+# Rút tự động từ goc/Index.html (123 lượt gọi) + goc/ChamCongOnline.html (12 lượt gọi).
+# Đây là BỀ MẶT PHẢI PORT: bỏ cầu nối = phải viết lại đủ 111 hàm này bằng PHP + MySQL.
+# Nhóm dưới đây xếp theo tên hàm và theo tab, KHÔNG phải theo mã nguồn Code.gs.
+# Chỉ có tên hàm — không khoá, không dữ liệu.
+
+## Đăng nhập / phiên / quyền (10)
+loginByPin
+doiPin
+getMyStations
+getNvPerms
+getRoles
+saveRole
+deleteRole
+capPinHangLoat
+napPinTuSheet
+xuatPinRaSheet
+
+## Chấm công (bảng chính, cờ, ảnh) (12)
+getSheetDataVaFlags
+getSheetsList
+getFlags
+saveFlag
+resolveFlag
+getAttPhoto
+getPhotoDay
+requestAttPhoto
+toMauCoVaoSheet
+getNoCheckinWarning
+xuatPdfChamCong
+requestBackfill
+
+## Phân lịch làm (9)
+getWorkSchedule
+saveWorkSchedule
+getScheduleConfig
+setScheduleStations
+setShifts
+setJobTypes
+xinDoiLich
+getDoiLichList
+duyetDoiLich
+
+## Giờ & lương / cách tính công (10)
+getWorkPayReport
+getCauHinhCong
+setWages
+setNgayCongThang
+soSanhCachTinhCong
+luuQuyDoiCoSo
+khoaTangCuong
+themTangCuong
+getThongKeDay
+xoaThongKeDay
+
+## Công văn phòng (3)
+getCongVanPhong
+getCauHinhVanPhong
+setCauHinhVanPhong
+
+## Chấm công online (trang nhẹ) (11)
+chamCongOnline
+getChamCongOnlineInfo
+getLichSuChamCongOnline
+getGioMayChu
+getNvCoChamCongOnline
+getAnhMauThe
+getAnhMauTheInfo
+datAnhMauThe
+traPinTheoCccd
+guiThongTinNvOnline
+dsCoSoChoNvGui
+
+## Nhân sự (hồ sơ, cơ sở, bộ phận) (26)
+getEmployees
+upsertEmployee
+deleteEmployee
+deleteEmployees
+datNghiViec
+doiMaNhanVien
+xemTruocDoiMa
+nhapNhanSu
+xemTruocNhapNhanSu
+getBoPhanCoSo
+setBoPhanCoSo
+getBoPhanVaSheets
+getNhiemVuNV
+datNhiemVuCoSo
+taoSheetNvCoSo
+taoSheetMauNv
+chuanHoaSheetNhanVien
+quetNvVeNhanVien
+getNvChuaCoHoSo
+getNvChonTheoCoSo
+timHoSoDaoCot
+timTaiKhoanTrung
+gopTaiKhoan
+getMaSongSong
+khaiMaSongSong
+boMaSongSong
+
+## Yêu cầu nhân viên (chờ duyệt) (8)
+dsYeuCauNV
+guiYeuCauNV
+guiYeuCauNVLoat
+duyetYeuCauNV
+tuChoiYeuCauNV
+demYeuCauNVCho
+addFromMachine
+demMayChuaGan
+
+## Máy chấm công (Firebase / hàng đợi) (18)
+getDanhSachMay
+getMachineStatus
+getMachineRoster
+ganMayVaoCuaHang
+boGanMay
+requestMachineScan
+chanDoanMay
+getQueueMay
+xoaLenhQueue
+getHangDoiTaiLai
+xoaLenhTaiLai
+dungTaiLai
+luuSimMay
+getLuongMayTuDong
+getGiaMayTuDong
+setGiaMayTuDong
+xemKhoiTest
+donKhoiTest
+
+## Cập nhật firmware (OTA) (4)
+getFwMoiNhat
+getOtaTarget
+setOtaTarget
+clearOtaTarget
+
