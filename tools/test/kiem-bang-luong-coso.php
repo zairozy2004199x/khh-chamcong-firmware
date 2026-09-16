@@ -1438,4 +1438,87 @@ $h_gt_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT', $g_xn + array( 'xng' => 
 t( '🔴 bậc 1 KHÔNG thấy ô nhập trong khối bấm-tên',
 	false === strpos( $h_gt_nv, 'name="cl_chinh"' ), 'lộ ô nhập cho bậc 1' );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 16. RÊ CHUỘT VÀO Ô TỔNG → GIỜ CHIA CHO TỪNG CÔNG VIỆC
+ *
+ * Anh Thắng 16/09/2026: *"Rê chuột vào tổng giờ, sẽ ra được từng tổng giờ theo công việc"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'MC' => 30000 ) );
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => 6 ) ), 126.0, 'Lái Tàu' );
+
+$h_rc = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+
+/** Bóc (title, chữ trong ô) của ô TỔNG mang đúng chú giải cần soi. */
+function vhcc_o_tong( $h, $chua ) {
+	preg_match_all( '/<td class="tong" title="([^"]*)"><b>([^<]*)<\/b>/u', $h, $m, PREG_SET_ORDER );
+	foreach ( $m as $x ) {
+		if ( false !== strpos( $x[1], $chua ) ) {
+			return array( html_entity_decode( $x[1], ENT_QUOTES ), html_entity_decode( $x[2], ENT_QUOTES ) );
+		}
+	}
+	return array( '', '' );
+}
+list( $tt_rc, $so_rc ) = vhcc_o_tong( $h_rc, 'Lái Tàu' );
+t( '🔴 ô TỔNG có chú giải rê chuột', '' !== $tt_rc, substr( $h_rc, 0, 200 ) );
+t( 'chú giải kể việc chính', false !== strpos( $tt_rc, 'Lái Tàu' ), $tt_rc );
+t( '🔴 và kể cả dòng giờ ăn đơn giá khác', false !== strpos( $tt_rc, 'MC' ), $tt_rc );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 PHÉP QUAN TRỌNG NHẤT: SỐ TRONG CHÚ GIẢI CỘNG LẠI PHẢI BẰNG SỐ IN TRONG Ô.
+ * Canh bằng PHÉP CỘNG THẬT, không so chuỗi — một chú giải nói khác con số nó đang giải thích
+ * thì tệ hơn không có chú giải nào.
+ * ══════════════════════════════════════════════════════════════════════════════════════════*/
+function vhcc_phut_tu_chu( $chu ) {
+	$p = 0;
+	if ( preg_match_all( '/(\d+)h(?:\s+(\d+)m)?/u', $chu, $m, PREG_SET_ORDER ) ) {
+		foreach ( $m as $x ) { $p += (int) $x[1] * 60 + ( isset( $x[2] ) ? (int) $x[2] : 0 ); }
+	}
+	return $p;
+}
+$p_chu = vhcc_phut_tu_chu( $tt_rc );
+$p_o   = vhcc_phut_tu_chu( $so_rc );
+t( 'bóc được số phút từ cả hai chỗ', $p_chu > 0 && $p_o > 0, "chu=$p_chu o=$p_o" );
+teq( '🔴 chú giải cộng lại ĐÚNG BẰNG con số trong ô', $p_o, $p_chu );
+
+/* 🔴 CHƯA CHỌN VIỆC CHÍNH THÌ NÓI THẲNG, ĐỪNG BỊA TÊN. */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
+$h_rc2 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+list( $tt_rc2, ) = vhcc_o_tong( $h_rc2, 'chưa chọn việc chính' );
+t( '🔴 chưa chọn việc chính: chú giải nói thẳng, không bịa tên', '' !== $tt_rc2, $h_rc2 );
+
+/* 🔴 NGƯỜI BỊ ẨN KHÔNG CÓ HÀNG, NÊN KHÔNG CÓ CHÚ GIẢI NÀO CỦA HỌ. */
+$U_CHT_BT2 = array( 'name' => 'Trưởng BL', 'role' => 'Cửa hàng trưởng', 'coso' => 'AEON_BT' );
+VHCC_An::dat( $U_CHT_BT2, 'AEON_BT', 'BT_MAN', true );
+$h_rc3 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_rc3, $m_rc3 );
+t( '🔴 người bị ẩn: không còn hàng nào, nên không chú giải nào',
+	isset( $m_rc3[0] ) && false === strpos( $m_rc3[0], 'BT_MAN' ), 'còn sót hàng người bị ẩn' );
+VHCC_An::dat( $U_CHT_BT2, 'AEON_BT', 'BT_MAN', false );
+
+/* 🔴 GIEO MỘT NGƯỜI KHÔNG CÓ LƯỢT CHẤM NÀO. Lưới vẫn vẽ hàng cho họ (đọc từ hồ sơ), nhưng
+   `BangLuong::dung()` KHÔNG có dòng nào — đó chính là cảnh làm `$chu_viec` rỗng. Thiếu người
+   này thì nhánh "không gắn title" không bao giờ chạy, và phép dưới xanh mà chẳng canh gì (đã
+   thử đột biến gắn title rỗng: nó KHÔNG đỏ). */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_KHONGCHAM',
+	'ho_ten' => 'Người Chưa Chấm Lượt Nào', 'cua_hang' => 'AEON_BT',
+	'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+
+/* ⚠️ KHÔNG GẮN `title` RỖNG. Một chú giải rỗng vẫn bật ra một khung trống khi rê chuột —
+   người ta tưởng hỏng. Người không có dòng lương thì ô TỔNG phải KHÔNG mang title. */
+$h_rc4 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( 'gieo: người ấy CÓ hàng trong lưới', false !== strpos( $h_rc4, 'Người Chưa Chấm Lượt Nào' ),
+	'không thấy hàng của người chưa chấm' );
+teq( '🔴 không ô TỔNG nào mang title rỗng', 0,
+	substr_count( $h_rc4, '<td class="tong" title="">' ) );
+
+/* Và màn phải NÓI RA là rê được — chú giải không ai đoán ra là có. */
+t( 'màn nói rõ là rê chuột được', false !== strpos( $h_rc4, 'Rê chuột vào ô TỔNG' ), $h_rc4 );
+
 ket_luan();

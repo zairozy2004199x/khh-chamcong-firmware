@@ -6790,6 +6790,7 @@ class VHCC_Web {
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
 		$tien_ds    = array();
 		$dong_chinh = array();
+		$viec_ds    = array();
 		$tien_cs    = 0.0;
 		$co_thieu = false;
 		$bl_luoi  = VHCC_BangLuong::dung( (string) $b['coSo'], $tt );
@@ -6804,7 +6805,23 @@ class VHCC_Web {
 			foreach ( $tien_ds as $v_bl ) { $tien_cs += $v_bl['tien']; }
 			/* Dòng CHÍNH của từng người — khối mở ra khi bấm tên cần nó để dựng ô nhập. */
 			foreach ( $bl_luoi['dong'] as $d_bl ) {
-				if ( ! empty( $d_bl['laChinh'] ) ) { $dong_chinh[ strtoupper( (string) $d_bl['ma'] ) ] = $d_bl; }
+				$k_v = strtoupper( (string) $d_bl['ma'] );
+				if ( ! empty( $d_bl['laChinh'] ) ) { $dong_chinh[ $k_v ] = $d_bl; }
+				/* 🔴 PHẦN CHIA THEO VIỆC — cho chú giải rê chuột ở ô TỔNG.
+				   Anh Thắng 16/09/2026: *"Rê chuột vào tổng giờ, sẽ ra được từng tổng giờ theo
+				   công việc"*.
+				   ⚠️ LẤY TỪ `dung()`, ĐỪNG TỰ CỘNG LẠI từ `VHCC_ChotLuong::cua()`. `dung()` là
+				      hàm dựng Bảng lương, nên chú giải và bảng lương không thể nói hai chuyện
+				      khác nhau. Tự tính lại là dựng bộ luật THỨ HAI cho cùng một câu hỏi — mà
+				      màn này đã có ba bộ luật cho "mấy giờ" rồi. Và nó không tốn thêm lượt quét
+				      nào: vòng lặp này vốn đã chạy để dựng cột LƯƠNG. */
+				if ( 'thang' === $d_bl['cheDo'] || null === $d_bl['gio'] ) { continue; }
+				if ( ! isset( $viec_ds[ $k_v ] ) ) { $viec_ds[ $k_v ] = array(); }
+				$viec_ds[ $k_v ][] = array(
+					'cv'  => (string) $d_bl['cv'],
+					'gio' => (float) $d_bl['gio'],
+					'ch'  => ! empty( $d_bl['laChinh'] ),
+				);
 			}
 		}
 
@@ -6963,7 +6980,36 @@ class VHCC_Web {
 			/* TỔNG vẫn là tổng CẢ NGƯỜI (mọi hàng), y như trước — chỉ khác chỗ nó không còn phải
 			   nói "gồm cả hàng dưới" nữa, vì không còn hàng dưới. Có hàng phụ thì kể ra từng
 			   hậu tố mấy tiếng: đó là con số trước đây nằm ở ô TỔNG của hàng riêng. */
-			echo '<td class="tong"><b>' . esc_html( 'ngay' === $kieu_ct
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CHÚ GIẢI RÊ CHUỘT: CON SỐ NÀY GỒM NHỮNG VIỆC NÀO.
+			 *
+			 * Anh Thắng 16/09/2026: *"Rê chuột vào tổng giờ, sẽ ra được từng tổng giờ theo công
+			 * việc"*.
+			 *
+			 * ⚠️ IN BẰNG `chu_gio()` — CÙNG LỐI VIẾT VỚI CHÍNH CON SỐ NÓ GIẢI THÍCH. Ô ghi
+			 *    `211h 30m` mà chú giải ghi `205,50` thì lại đúng cái nhầm đang đi sửa (anh
+			 *    Thắng vừa đọc `211,50` thành "211 giờ 50 phút").
+			 *
+			 * ⚠️ KIỂU "ngay" THÌ THÔI. Ô ấy đếm NGÀY CÔNG, không phải giờ — dán một chú giải
+			 *    theo giờ vào đó là trả lời một câu không ai hỏi.
+			 *
+			 * ⚠️ KHÔNG CÓ GÌ ĐỂ NÓI THÌ KHÔNG GẮN `title`. Một chú giải rỗng vẫn hiện ra một
+			 *    khung trống khi rê chuột — người ta tưởng hỏng.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$chu_viec = '';
+			if ( 'ngay' !== $kieu_ct && isset( $viec_ds[ strtoupper( (string) $ma ) ] ) ) {
+				$mau_v = array();
+				foreach ( $viec_ds[ strtoupper( (string) $ma ) ] as $v_x ) {
+					$ten_v = ( '' !== trim( $v_x['cv'] ) )
+						? $v_x['cv']
+						: ( $v_x['ch'] ? 'chưa chọn việc chính' : '(không tên)' );
+					$mau_v[] = $ten_v . ' ' . VHCC_Cham::chu_gio( (int) round( $v_x['gio'] * 60 ) );
+				}
+				if ( $mau_v ) { $chu_viec = implode( ' · ', $mau_v ); }
+			}
+			echo '<td class="tong"'
+				. ( '' !== $chu_viec ? ' title="' . esc_attr( $chu_viec ) . '"' : '' )
+				. '><b>' . esc_html( 'ngay' === $kieu_ct
 				? ( (int) $tong_nguoi . ' công' )
 				: VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>';
 			foreach ( $phut_phu as $ht_p => $p_p ) {
@@ -7090,6 +7136,10 @@ class VHCC_Web {
 				. '<b>không tính</b> (rê chuột lên ô để xem giờ thật). Đổi kiểu tính ở tab '
 				. '<b>Cấu hình</b> → khối <b>Cách tính công của từng cơ sở</b>.</p>';
 		}
+		/* 🔴 NÓI RA LÀ RÊ ĐƯỢC. Một chú giải `title` không ai đoán ra là có; không nói thì nó
+		   coi như không tồn tại với đúng những người cần nó nhất. */
+		echo '<p class="mo" style="margin-top:8px"><b>Rê chuột vào ô TỔNG</b> để xem giờ ấy chia '
+			. 'cho những việc nào (việc chính và mấy dòng giờ ăn đơn giá khác).</p>';
 		echo '<p class="mo" style="margin-top:8px">Ô là <b>số giờ làm</b> của ngày đó (giờ ra trừ giờ '
 			. 'vào) · dấu <b>·</b> = không có dữ liệu chấm công · '
 			. '<span class="k hong">?</span> = thiếu giờ ra (quên bấm lúc về) · '
