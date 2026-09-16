@@ -159,6 +159,13 @@ VHCP_Cfg::$coso = array(
 	array( 'ten' => '',                          'donVi' => 'KVC', 'tinh' => '', 'dongCua' => '' ),
 );
 
+/* Khoá của sổ mã là `chuan_ch(tên)` — gọi CHÍNH hàm của lớp thật, đừng chép lại luật chuẩn hoá
+   (§5 CLAUDE.md: hai kiểu chuẩn hoá lệch nhau là nguồn của lỗi âm thầm). */
+function SAOKE_App_k( $ten ) {
+	$m = new ReflectionMethod( 'SAOKE_App', 'chuan_ch' ); $m->setAccessible( true );
+	return $m->invoke( null, $ten );
+}
+
 $r = new ReflectionMethod( 'SAOKE_App', 'chiphi_ds_coso' );
 $r->setAccessible( true );
 $ds = $r->invoke( null );
@@ -175,6 +182,36 @@ k( 'còn đúng 1 cơ sở (đang có ' . count( $ten ) . ': ' . implode( ' · '
 k( 'giữ được tỉnh để màn hình hiện kèm',
 	isset( $ds[0]['tinh'] ) && 'TP HCM' === $ds[0]['tinh'] );
 k( 'đánh dấu nguồn là chiphi', isset( $ds[0]['nguon'] ) && 'chiphi' === $ds[0]['nguon'] );
+
+/* 🔴 CA CHÍNH ANH THẮNG BÁO: khai mã cho một cơ sở KVC ở tab Cấu hình, rồi hỏi cổng suy mã từ
+   tên chuẩn ấy. Trước 0.37.0 trả rỗng kèm "không có trong danh sách điểm". */
+$GLOBALS['OPT']['saoke_coso_ma_kvc'] = array( SAOKE_App_k( 'KHU VUI CHƠI AEON TÂN PHÚ' ) => 'KH705KVCMN0002' );
+$mt = new ReflectionMethod( 'SAOKE_App', 'map_ten_diem' ); $mt->setAccessible( true );
+$am = new ReflectionMethod( 'SAOKE_App', 'ax_ma_nop' );    $am->setAccessible( true );
+$suy = $am->invoke( null, array( 'maBank' => '', 'tenChuan' => 'KHU VUI CHƠI AEON TÂN PHÚ' ), $mt->invoke( null ) );
+k( '🔴 khai mã KVC ở Cấu hình -> cổng suy ra ĐÚNG mã ấy (đang ra "' . $suy['ma'] . '")',
+	'KH705KVCMN0002' === $suy['ma'] );
+$suy2 = $am->invoke( null, array( 'maBank' => '', 'tenChuan' => 'Khu Vui Chơi Aeon Tân Phú' ), $mt->invoke( null ) );
+k( 'khác hoa/thường và dấu vẫn ra đúng mã', 'KH705KVCMN0002' === $suy2['ma'] );
+$suy3 = $am->invoke( null, array( 'maBank' => '', 'tenChuan' => 'TÊN KHÔNG CÓ Ở ĐÂU' ), $mt->invoke( null ) );
+k( 'tên lạ thì vẫn rỗng và nói rõ đã dò những đâu',
+	'' === $suy3['ma'] && false !== mb_strpos( $suy3['vi'], 'tab Cấu hình' ) );
+
+echo "── Khai mã ở Cấu hình thì cổng phải tự suy ra ──\n";
+/* 🔴 Anh Thắng 16/09/2026: *"trong cấu hình đã gán cơ sở theo mã nộp tiền rồi, thì chọn bên momo
+   cơ sở là nó tự chuyển qua chứ"*. Tới 0.36.0 thì KHÔNG: `map_ten_diem()` chỉ tra danh sách
+   điểm, hai sổ mã gõ ở tab Cấu hình nằm ngoài. Người dùng đã làm đúng việc được yêu cầu mà hệ
+   thống vẫn nói chưa làm — loại lỗi làm mất niềm tin vào cả màn hình. */
+k( 'map_ten_diem() có tra hai sổ mã ở Cấu hình',
+	1 === preg_match( '/function map_ten_diem\(\).*?self::so_ma_cau_hinh\(\)/s', $s ) );
+k( 'sổ gồm CẢ hai bên (Ghế + KVC)',
+	1 === preg_match( '/function so_ma_cau_hinh\(\).*?self::coso_ma_map\(\).*?self::coso_ma_map_kvc\(\)/s', $s ) );
+/* ⚠️ Dò bằng strpos trên THÂN HÀM, đừng nhét biến PHP vào mẫu regex trong chuỗi nháy kép —
+   PHP nội suy `$map`/`$kk` thành rỗng, mẫu hỏng, bài đỏ ở chỗ mã nguồn không hề sai. */
+k( '🔴 trùng tên khác mã thì đánh trung, không đoán bừa',
+	1 === preg_match( '/function map_ten_diem\(\).*?\n\t\}/s', $s, $mmt )
+	&& false !== strpos( $mmt[0], "'trung'] = true;" ) );
+k( 'câu báo nhắc luôn tab Cấu hình', false !== strpos( $s, 'cũng chưa có mã ở tab Cấu hình' ) );
 
 echo "── Bảng riêng trên màn Cấu hình ──\n";
 $app = (string) file_get_contents( dirname( __DIR__, 2 ) . '/vhcp-saoke/app.html' );

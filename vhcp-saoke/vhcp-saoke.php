@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.36.0
+ * Version:           0.37.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.36.0';
+	const VER = '0.37.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1915,7 +1915,9 @@ class SAOKE_App {
 		/* Không khớp exact thì thử KHOÁ LỎNG (bỏ ngoặc/đuôi) — vd "CGV VINCOM XUÂN KHÁNH ( Cần Thơ )
 		   — Cần Thơ" khớp điểm "CGV VINCOM XUÂN KHÁNH ( Cần Thơ )". Exact vẫn ưu tiên. */
 		if ( ! isset( $map_ten[ $k ] ) ) { $kl = self::chuan_ch_long( $tc ); if ( isset( $map_ten[ $kl ] ) ) { $k = $kl; } }
-		if ( ! isset( $map_ten[ $k ] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" không có trong danh sách điểm' ); }
+		/* Câu báo phải nói đủ CẢ BA chỗ đã dò, không thì người dùng khai mã ở tab Cấu hình xong vẫn
+		   tưởng mình khai sai chỗ (0.37.0 mới nối hai sổ ấy vào đây). */
+		if ( ! isset( $map_ten[ $k ] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" không có trong danh sách điểm, cũng chưa có mã ở tab Cấu hình (bảng Ghế lẫn Khu vui chơi)' ); }
 		if ( ! empty( $map_ten[ $k ]['trung'] ) ) { return array( 'ma' => '', 'vi' => 'tên "' . $tc . '" bị nhiều điểm dùng chung — phải điền Mã bank' ); }
 		return array( 'ma' => $map_ten[ $k ]['ma'], 'vi' => '' );
 	}
@@ -2148,7 +2150,57 @@ class SAOKE_App {
 			elseif ( $loose[ $kl ]['ma'] !== $ma ) { $loose[ $kl ]['trung'] = true; }
 		}
 		foreach ( $loose as $kl => $v ) { if ( ! isset( $map[ $kl ] ) ) { $map[ $kl ] = $v; } }
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 TRA THÊM HAI SỔ MÃ Ở TAB CẤU HÌNH (0.37.0).
+		 *
+		 * Anh Thắng 16/09/2026: *"trong cấu hình đã gán cơ sở theo mã nộp tiền rồi, thì chọn bên
+		 * momo cơ sở là nó tự chuyển qua chứ"*. Đúng — và tới 0.36.0 thì KHÔNG.
+		 *
+		 * Hàm này chỉ tra `ds_diem()` (danh sách điểm nộp). Hai sổ "Mã nộp tiền theo cơ sở" mà kế
+		 * toán gõ ở tab Cấu hình — `saoke_coso_ma` (Ghế) và `saoke_coso_ma_kvc` (Khu vui chơi) —
+		 * nằm ngoài. Nên khai xong `FARM PHAN THIẾT = KH705KVCMN0002` mà màn cổng vẫn báo *tên
+		 * "FARM PHAN THIẾT" không có trong danh sách điểm*: người dùng đã làm đúng việc được yêu
+		 * cầu, hệ thống vẫn nói chưa làm. Loại lỗi làm người ta mất niềm tin vào cả màn hình.
+		 *
+		 * ⚠️ XẾP SAU khoá exact của `ds_diem()`, TRƯỚC khoá lỏng — khớp đúng tên ở sổ mã là bằng
+		 *    chứng mạnh hơn khớp lỏng (bỏ ngoặc/đuôi) ở danh sách điểm.
+		 * ⚠️ TRÙNG TÊN MÀ KHÁC MÃ THÌ ĐÁNH `trung`, KHÔNG ĐOÁN BỪA. Một cái tên có mặt ở cả danh
+		 *    sách điểm lẫn sổ KVC với hai mã khác nhau là hai nơi thu tiền khác nhau — chọn đại
+		 *    một bên là tiền chạy sang sổ của người khác mà không có gì báo. Buộc điền Mã bank,
+		 *    đúng như luật sẵn có cho ca "nhiều điểm dùng chung".
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
+		foreach ( self::so_ma_cau_hinh() as $so ) {
+			foreach ( $so as $ten => $ma ) {
+				$ma = trim( (string) $ma ); if ( '' === $ma ) { continue; }
+				foreach ( array( self::chuan_ch( $ten ), self::chuan_ch_long( $ten ) ) as $kk ) {
+					if ( '' === $kk ) { continue; }
+					if ( ! isset( $map[ $kk ] ) ) { $map[ $kk ] = array( 'ma' => $ma, 'trung' => false ); }
+					elseif ( $map[ $kk ]['ma'] !== $ma ) { $map[ $kk ]['trung'] = true; }
+				}
+			}
+		}
 		return $map;
+	}
+
+	/**
+	 * HAI SỔ MÃ GÕ Ở TAB CẤU HÌNH, trả về [ [tên cơ sở => mã], … ].
+	 *
+	 * Sổ lưu khoá theo `chuan_ch(tên)` chứ không giữ tên gốc, nên phải đi ngược từ DANH SÁCH cơ
+	 * sở của từng bên để lấy lại tên — cần tên gốc mới dựng được khoá lỏng.
+	 */
+	private static function so_ma_cau_hinh() {
+		$ra = array();
+		foreach ( array( array( self::ghe_ds_coso(), self::coso_ma_map() ),
+		                 array( self::chiphi_ds_coso(), self::coso_ma_map_kvc() ) ) as $cap ) {
+			$so = array();
+			foreach ( $cap[0] as $c ) {
+				$k = self::chuan_ch( $c['ten'] );
+				if ( isset( $cap[1][ $k ] ) && '' !== trim( (string) $cap[1][ $k ] ) ) { $so[ $c['ten'] ] = $cap[1][ $k ]; }
+			}
+			if ( $so ) { $ra[] = $so; }
+		}
+		return $ra;
 	}
 
 	// ───────────────────────────── WP Admin (đặt PIN/khoá) ─────────────────────────────
