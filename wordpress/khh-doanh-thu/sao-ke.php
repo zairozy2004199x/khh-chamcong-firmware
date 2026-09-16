@@ -1062,6 +1062,178 @@ function khh_dt_ten_co_so_gan( $nhan ) {
 	return '';
 }
 
+/** Một câu tả nguồn đang dùng, để màn đối soát nói ra mình đang đọc sổ nào. */
+function khh_dt_nguon_mo_ta() {
+	global $wpdb;
+	$n = khh_dt_nguon_dang_chon();
+	if ( ! $n ) {
+		return array( 'bang' => '', 'nhan' => '' );
+	}
+	$bang = khh_dt_bang_sk();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$b = $wpdb->get_row( "SELECT COUNT(*) n, MIN(ngay) tu, MAX(ngay) den FROM $bang", ARRAY_A );
+	return array(
+		'bang'    => (string) $n['bang'],
+		'so_dong' => $b ? (int) $b['n'] : 0,
+		'tu_ngay' => $b && $b['tu'] ? (string) $b['tu'] : '',
+		'den_ngay' => $b && $b['den'] ? (string) $b['den'] : '',
+	);
+}
+
+/* ================================================================== *
+ * LẤY SỔ MÃ NỘP TIỀN CÓ SẴN, KHÔNG BẮT GÕ LẠI LẦN HAI
+ * ================================================================== */
+
+/**
+ * Anh Thắng 16/09/2026 gửi ảnh màn *"Mã nộp tiền — Khu vui chơi"* của plugin Sao Kê: mỗi cơ sở
+ * một ô mã, đã khai sẵn. Bắt anh gõ lại đúng bộ mã ấy sang đây là việc thừa — và tệ hơn, là tạo
+ * ra HAI SỔ MÃ. Hai sổ thì có ngày lệch nhau, mà lệch ở đây nghĩa là tiền của quán này chạy vào
+ * cột của quán kia, âm thầm, trong khi cả hai màn đều trông như đã đối soát xong.
+ *
+ * ⚠️ NHÀ MÌNH CÓ HAI SỔ MÃ RIÊNG — khu vui chơi và ghế massage — vì *"nhiều cơ sở trùng tên
+ *    (cùng một trung tâm thương mại) mà là hai sổ tiền khác nhau"*. Nên ở đây chỉ nhận MỘT bảng
+ *    mỗi lần, do người khai chỉ đích danh; gộp cả hai là trộn hai dòng tiền vào một.
+ *
+ * ⚠️ VÀ PHẢI CHO XEM TRƯỚC KHI GHI. Tên bên ấy viết gọn ("TÀU GÒ VẤP"), tên bên máy POS viết dài
+ *    ("TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )") — máy ghép được phần lớn, nhưng ghép sai một
+ *    dòng là sai cả một quán. Nên máy chỉ ĐỀ NGHỊ, người khai gật rồi mới ghi.
+ */
+function khh_dt_cot_ma_nguon() {
+	return array(
+		'ten' => array( 'ten_co_so', 'ten_coso', 'co_so', 'coso', 'cua_hang', 'ten', 'name', 'title' ),
+		'ma'  => array( 'ma_nop_tien', 'ma_nop', 'ma_ct', 'ma_co_so', 'ma_coso', 'ma', 'code' ),
+	);
+}
+
+/** Những bảng trông như sổ "cơ sở → mã nộp tiền". */
+function khh_dt_ma_nguon_ds() {
+	global $wpdb;
+	$tien_to = str_replace( '_', '\_', $wpdb->prefix );
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$bang_ds = (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tien_to . '%' ) );
+	$bo      = array( 'posts', 'postmeta', 'comments', 'commentmeta', 'options', 'users', 'usermeta',
+		'terms', 'termmeta', 'term_taxonomy', 'term_relationships', 'links' );
+	$ra = array();
+	foreach ( $bang_ds as $b ) {
+		if ( in_array( substr( $b, strlen( $wpdb->prefix ) ), $bo, true ) ) {
+			continue;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$cot_ds = (array) $wpdb->get_col( "SHOW COLUMNS FROM `$b`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		$thuong = array_map( 'strtolower', $cot_ds );
+		$map    = array();
+		foreach ( khh_dt_cot_ma_nguon() as $vai => $ten_ds ) {
+			$map[ $vai ] = '';
+			foreach ( $ten_ds as $t ) {
+				$i = array_search( $t, $thuong, true );
+				if ( false !== $i ) {
+					$map[ $vai ] = $cot_ds[ $i ];
+					break;
+				}
+			}
+		}
+		if ( '' === $map['ten'] || '' === $map['ma'] ) {
+			continue;
+		}
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `$b` WHERE `{$map['ma']}` <> ''" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		if ( ! $n ) {
+			continue;                                   // bảng có cột nhưng chưa khai mã nào
+		}
+		$ra[] = array(
+			'bang'    => $b,
+			'so_ma'   => $n,
+			'cot'     => $map,
+		);
+	}
+	usort(
+		$ra,
+		function ( $a, $b ) {
+			return $b['so_ma'] - $a['so_ma'];
+		}
+	);
+	return $ra;
+}
+
+/** Đọc một sổ mã ra [ [ 'ten', 'ma' ], … ]. */
+function khh_dt_ma_nguon_doc( $bang, $cot ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		"SELECT `{$cot['ten']}` ten, `{$cot['ma']}` ma FROM `$bang` WHERE `{$cot['ma']}` <> '' ORDER BY `{$cot['ten']}`", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$ten = trim( (string) $r['ten'] );
+		$ma  = trim( (string) $r['ma'] );
+		if ( '' !== $ten && '' !== $ma ) {
+			$ra[] = array( 'ten' => $ten, 'ma' => $ma );
+		}
+	}
+	return $ra;
+}
+
+/**
+ * Ghép tên viết gọn bên kia với tên dài bên máy POS.
+ *
+ * "TÀU GÒ VẤP"  <->  "TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )"
+ *
+ * Đếm chữ chung, bỏ những chữ có ở khắp nơi ("dich", "vu", "k&h", "giai", "tri") vì chúng khớp
+ * với mọi quán nên chỉ làm nhiễu. Trả về tên POS khớp nhất kèm ĐIỂM, để màn biết chỗ nào chắc
+ * chỗ nào cần người nhìn lại.
+ */
+function khh_dt_ghep_ten_gan( $ten_ngan ) {
+	$bo  = array( 'dich', 'vu', 'va', 'giai', 'tri', 'kh', 'k&h', 'cong', 'ty', 'tnhh', 'mall', '-', 'the' );
+	$cat = function ( $s ) use ( $bo ) {
+		$s  = khh_dt_khong_dau( $s );
+		$s  = preg_replace( '/[^a-z0-9]+/', ' ', $s );
+		$ra = array();
+		foreach ( explode( ' ', $s ) as $t ) {
+			$t = trim( $t );
+			if ( '' !== $t && ! in_array( $t, $bo, true ) ) {
+				$ra[] = $t;
+			}
+		}
+		return $ra;
+	};
+	$a = $cat( $ten_ngan );
+	if ( ! $a ) {
+		return array( 'ten' => '', 'diem' => 0 );
+	}
+	$tot = array( 'ten' => '', 'diem' => 0 );
+	foreach ( khh_dt_ds_cua_hang() as $dai ) {
+		$b   = $cat( $dai );
+		$chung = count( array_intersect( $a, $b ) );
+		$diem  = $chung / count( $a );
+		if ( $diem > $tot['diem'] ) {
+			$tot = array( 'ten' => $dai, 'diem' => $diem );
+		}
+	}
+	return $tot;
+}
+
+/** Dựng đề nghị ghép cho cả một sổ mã: [ ten, ma, goi_y, diem ]. */
+function khh_dt_ma_nguon_de_nghi( $bang, $cot ) {
+	$ra = array();
+	foreach ( khh_dt_ma_nguon_doc( $bang, $cot ) as $r ) {
+		$g    = khh_dt_ghep_ten_gan( $r['ten'] );
+		$ra[] = array(
+			'ten'   => $r['ten'],
+			'ma'    => $r['ma'],
+			/* Dưới 0,6 thì coi như không đoán ra — thà để trống còn hơn gợi ý sai rồi người ta
+			   bấm lưu cho nhanh. */
+			'goi_y' => $g['diem'] >= 0.6 ? $g['ten'] : '',
+			'diem'  => round( $g['diem'], 2 ),
+		);
+	}
+	return $ra;
+}
+
 /* ================================================================== *
  * REST
  * ================================================================== */
@@ -1092,6 +1264,15 @@ function khh_dt_rest_sk() {
 		array(
 			'methods'             => 'POST',
 			'callback'            => 'khh_dt_rest_sk_keo',
+			'permission_callback' => 'khh_dt_duoc_quan_tri',
+		)
+	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/ma-nguon',
+		array(
+			'methods'             => 'GET',
+			'callback'            => 'khh_dt_rest_ma_nguon',
 			'permission_callback' => 'khh_dt_duoc_quan_tri',
 		)
 	);
@@ -1217,6 +1398,36 @@ function khh_dt_rest_sk_ghep( $req ) {
 	$ra  = khh_dt_rest_sk_xem();
 	$ra['da_gan_lai'] = $doi;
 	return $ra;
+}
+
+/**
+ * Bày sổ mã có sẵn để người khai chọn, và nếu đã chọn một bảng thì kèm đề nghị ghép.
+ *
+ * ⚠️ CHỈ ĐỀ NGHỊ, KHÔNG GHI. Việc ghi vẫn đi qua đường khai bình thường (`sao-ke-ghep`), tức là
+ *    người khai đã nhìn thấy từng dòng trước khi bấm lưu.
+ */
+function khh_dt_rest_ma_nguon( $req ) {
+	$ds   = khh_dt_ma_nguon_ds();
+	$bang = sanitize_text_field( (string) $req->get_param( 'bang' ) );
+	$de   = array();
+	$chon = array();
+	if ( '' !== $bang ) {
+		foreach ( $ds as $n ) {
+			if ( $n['bang'] === $bang ) {
+				$chon = $n;
+				break;
+			}
+		}
+		if ( $chon ) {
+			$de = khh_dt_ma_nguon_de_nghi( $chon['bang'], $chon['cot'] );
+		}
+	}
+	return array(
+		'nguon_ds' => $ds,
+		'bang'     => $chon ? $chon['bang'] : '',
+		'de_nghi'  => $de,
+		'cua_hang' => khh_dt_ds_cua_hang(),
+	);
 }
 
 function khh_dt_rest_sk_xoa() {

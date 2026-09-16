@@ -491,6 +491,12 @@ function khh_dt_rest_doi_soat( $req ) {
 		'cua_toi'  => khh_dt_co_so_mac_dinh(),
 		'nguong'   => khh_dt_nguong(),
 		'co_bank'  => (bool) khh_dt_co_sao_ke(),
+		/* 🔴 NÓI RÕ SỐ "NGÂN HÀNG NHẬN" ĐANG LẤY TỪ SỔ NÀO, VÀ SỔ ẤY CÓ TỚI NGÀY NÀO.
+		   16/09/2026: anh Thắng chọn nhầm `wpt9_vhg_thu` — sổ tiền ghế massage, không phải sao kê
+		   ngân hàng — rồi cả tháng Lotte Gò Vấp đỏ rực "chưa nộp 43 tr". Con số ấy đúng theo cái
+		   sổ đang đọc, nhưng cái sổ thì sai, mà màn không hề nói nó đang đọc sổ nào. Người xem
+		   không có cách nào biết mình đang bị lừa bởi một nguồn sai. */
+		'nguon_bank' => khh_dt_nguon_mo_ta(),
 		/* Bày ra số dòng tiền chưa gán được cơ sở. Mỗi dòng bỏ sót là một khoản "chưa nộp" GIẢ,
 		   tố oan một người đã nộp tiền thật — nên nó phải nằm ngay trên bảng đối soát. */
 		'sk_chua_gan' => khh_dt_sk_chua_gan(),

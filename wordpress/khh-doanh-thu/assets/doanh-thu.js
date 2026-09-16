@@ -973,6 +973,13 @@
         ? '<div class="canh-ghep">Chưa nạp sao kê ngân hàng nên cột <b>Thực nộp</b> đang lấy số ' +
           'cơ sở tự khai — số ấy không kiểm được gì. Bấm <b>Nạp báo cáo → Sao kê ngân hàng</b>.</div>'
         : '') +
+      (r.co_bank && r.nguon_bank && r.nguon_bank.bang
+        ? '<div class="chu-them" style="margin:8px 0">Cột <b>Ngân hàng nhận</b> đang đọc sổ ' +
+          '<code class="nd">' + esc(r.nguon_bank.bang) + '</code> — ' + nguyen(r.nguon_bank.so_dong) +
+          ' khoản' + (r.nguon_bank.tu_ngay ? ', từ ' + ngayVN(r.nguon_bank.tu_ngay) + ' đến ' +
+            ngayVN(r.nguon_bank.den_ngay) : '') + '. Nếu đó không phải sao kê ngân hàng thì mọi ' +
+          'kết luận "chưa nộp" bên dưới đều sai — đổi sổ ở <b>Quản trị → Sao kê ngân hàng</b>.</div>'
+        : '') +
       (Object.keys(chuaKhai).length
         ? '<div class="canh-ghep"><b>' + Object.keys(chuaKhai).length + ' cơ sở chưa khai mã nộp tiền</b> — ' +
           'hệ chưa biết tiền của họ đã về hay chưa, nên không tính vào ô "chưa về tài khoản" và ' +
@@ -1277,6 +1284,14 @@
         }).join('') + '</tbody></table></div>';
     }
 
+    /* Lấy sổ mã có sẵn — anh Thắng đã khai một bộ mã bên plugin Sao Kê rồi, gõ lại lần hai là
+       tạo ra hai sổ, mà hai sổ thì có ngày lệch nhau. */
+    h += '<h3 class="tieu-nho">Lấy sổ mã có sẵn</h3>' +
+      '<div class="chu-them">Site này có thể đã khai mã nộp tiền ở chỗ khác. Chọn sổ, xem em ghép ' +
+      'thử, sửa chỗ nào lệch rồi mới lưu — em chỉ <b>đề nghị</b>, không tự ghi.</div>' +
+      '<div id="dsMaNguon" style="margin-top:10px"><button class="nut" type="button" id="dsTimMa">' +
+      'Tìm sổ mã trong site</button></div>';
+
     /* Bảng khai — bày theo CƠ SỞ, y như bảng "Mã nộp tiền" nhà mình đang dùng. */
     var theo = r.theo_co_so || {};
     h += '<h3 class="tieu-nho">Mã nộp tiền của từng cơ sở</h3>' +
@@ -1333,6 +1348,9 @@
       });
     }
 
+    var nutTim = o.querySelector('#dsTimMa');
+    if (nutTim) nutTim.addEventListener('click', function () { timSoMa(o, ''); });
+
     var bang = o.querySelector('#dtBankBang tbody');
 
     /* Chọn cơ sở ngay ở dòng "mã lạ" là mã ấy nhảy vào ô của cơ sở đó — khỏi cuộn xuống gõ lại. */
@@ -1370,6 +1388,65 @@
         nut.disabled = false; nut.textContent = 'Lưu và gán lại';
         o.querySelector('#dtBankBao').textContent = e.message || e;
       });
+    });
+  }
+
+  /* Tìm và bày sổ mã có sẵn trong site, kèm đề nghị ghép tên. */
+  function timSoMa(o, bang) {
+    var noi = o.querySelector('#dsMaNguon');
+    noi.innerHTML = '<div class="chu-them">Đang tìm…</div>';
+    api('ma-nguon' + (bang ? '?bang=' + encodeURIComponent(bang) : '')).then(function (r) {
+      var ds = r.nguon_ds || [], de = r.de_nghi || [], ch = r.cua_hang || [];
+      if (!ds.length) {
+        noi.innerHTML = '<div class="chu-them">Không thấy sổ mã nào trong site — khai tay ở bảng dưới.</div>';
+        return;
+      }
+      var h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+        '<select id="dsMaBang">' + ds.map(function (x) {
+          return '<option value="' + esc(x.bang) + '"' + (x.bang === r.bang ? ' selected' : '') + '>' +
+            esc(x.bang) + ' — ' + nguyen(x.so_ma) + ' mã</option>';
+        }).join('') + '</select>' +
+        '<button class="nut" type="button" id="dsXemMa">Xem thử</button></div>';
+      if (de.length) {
+        h += '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+          '<th style="text-align:left">Tên bên sổ kia</th><th style="text-align:left">Mã</th>' +
+          '<th style="text-align:left">Ghép vào cơ sở POS</th></tr></thead><tbody>' +
+          de.map(function (x) {
+            return '<tr><td style="text-align:left">' + esc(x.ten) +
+              (x.goi_y ? '' : '<span class="nho xau" style="display:block">chưa đoán ra — chọn tay</span>') +
+              '</td><td style="text-align:left"><code class="nd">' + esc(x.ma) + '</code></td>' +
+              '<td style="text-align:left"><select data-de-ma="' + esc(x.ma) + '">' +
+              '<option value="">— bỏ qua —</option>' +
+              ch.map(function (t) {
+                return '<option value="' + esc(t) + '"' + (t === x.goi_y ? ' selected' : '') + '>' + esc(t) + '</option>';
+              }).join('') + '</select></td></tr>';
+          }).join('') + '</tbody></table></div>' +
+          '<div style="margin-top:10px"><button class="nut chinh" type="button" id="dsNhanMa">' +
+          'Điền ' + de.length + ' mã này vào bảng dưới</button> ' +
+          '<span class="chu-them">Điền xong vẫn phải bấm <b>Lưu và gán lại</b>.</span></div>';
+      }
+      noi.innerHTML = h;
+      noi.querySelector('#dsXemMa').addEventListener('click', function () {
+        timSoMa(o, noi.querySelector('#dsMaBang').value);
+      });
+      var nhan = noi.querySelector('#dsNhanMa');
+      if (nhan) {
+        nhan.addEventListener('click', function () {
+          var so = 0;
+          Array.prototype.forEach.call(noi.querySelectorAll('[data-de-ma]'), function (se) {
+            if (!se.value) return;
+            var i = o.querySelector('[data-ch-ma="' + se.value.replace(/"/g, '\\"') + '"]');
+            if (!i) return;
+            var cu = i.value.trim(), ma = se.dataset.deMa;
+            if (cu.split(/[,;]\s*/).indexOf(ma) < 0) { i.value = cu ? cu + ', ' + ma : ma; so++; }
+          });
+          window.alert('Đã điền ' + so + ' mã vào bảng bên dưới. Kiểm lại rồi bấm "Lưu và gán lại".');
+          var b = o.querySelector('#dtBankBang');
+          if (b) b.scrollIntoView({ block: 'start' });
+        });
+      }
+    }).catch(function (e) {
+      noi.innerHTML = '<div class="chu-them">' + esc(e.message || e) + '</div>';
     });
   }
 

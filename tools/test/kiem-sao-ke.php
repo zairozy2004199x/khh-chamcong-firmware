@@ -253,6 +253,28 @@ phep( 'và mách đúng mã ấy, không mách cụm mã ngân hàng phía sau',
 	'KH989KVCMN0001' === khh_dt_ma_trong_nd(
 		'NHAN TU 18865471 TRACE 164325 ND KH989KVCMN0001-110926-01:22:01 6254ASCB02UMWQY3' ) );
 
+/* ============================================================ 5c. GHÉP TÊN GỌN VỚI TÊN DÀI
+   Sổ mã bên plugin Sao Kê viết gọn ("TÀU GÒ VẤP"), máy POS viết dài
+   ("TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )"). Máy chỉ ĐỀ NGHỊ, người khai gật rồi mới ghi —
+   nhưng đề nghị sai nhiều quá thì người ta bấm bừa cho xong, nên phải đo. */
+$GLOBALS['KHH_DT_TEST_CH'] = array(
+	'TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )',
+	'TuTu Train - Aeon Tân Phú ( Dịch Vụ K&H )',
+	'Tutu Train - Aeon Bình Tân ( Dịch Vụ và Giải Trí K&H )',
+	'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )',
+	'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )',
+	'ECO FARM LOTTE PHAN THIẾT ( Dịch Vụ K&H )',
+);
+phep( 'ghép "TÀU GÒ VẤP" vào đúng quán Lotte Gò Vấp',
+	'TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )' === khh_dt_ghep_ten_gan( 'TÀU GÒ VẤP' )['ten'] );
+phep( 'ghép "TÀU TÂN PHÚ" vào Aeon Tân Phú',
+	'TuTu Train - Aeon Tân Phú ( Dịch Vụ K&H )' === khh_dt_ghep_ten_gan( 'TÀU TÂN PHÚ' )['ten'] );
+phep( 'ghép "VR SC Vivo Q7" vào VR FUN - SC Vivo Q7',
+	'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )' === khh_dt_ghep_ten_gan( 'VR SC Vivo Q7' )['ten'] );
+/* 🔴 KHÔNG ĐOÁN BỪA. Tên lạ hoàn toàn thì điểm phải thấp để màn để trống cho người chọn tay —
+   gợi ý sai mà trông chắc chắn thì người ta bấm lưu cho nhanh, và tiền vào nhầm sổ. */
+phep( 'tên lạ hoàn toàn thì điểm thấp', khh_dt_ghep_ten_gan( 'CGV LANDMARK 81' )['diem'] < 0.6 );
+
 /* ============================================================ 6. file không phải sao kê */
 
 $kq = doc_csv( "Ten hang,So luong\nVe nguoi lon,3\n" );

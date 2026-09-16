@@ -64,3 +64,13 @@ if ( ! function_exists( 'wp_list_pluck' ) ) {
 		return $ra;
 	}
 }
+
+/**
+ * `khh_dt_ds_cua_hang()` thật đọc bảng số liệu POS. Bài kiểm không dựng cả bảng ấy, nên cho phép
+ * đặt sẵn danh sách qua $GLOBALS['KHH_DT_TEST_CH'].
+ */
+if ( ! function_exists( 'khh_dt_ds_cua_hang' ) ) {
+	function khh_dt_ds_cua_hang() {
+		return isset( $GLOBALS['KHH_DT_TEST_CH'] ) ? (array) $GLOBALS['KHH_DT_TEST_CH'] : array();
+	}
+}
