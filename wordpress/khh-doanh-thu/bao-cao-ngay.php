@@ -448,11 +448,21 @@ function khh_dt_rest_doi_soat( $req ) {
 	foreach ( (array) $rows as $r ) {
 		$tm = 0;
 		$ck = 0;
+		/* 🔴 TÁCH RIÊNG PHẦN MOMO, ĐỪNG GỘP VÀO "CK/QR".
+		   Anh Thắng 16/09/2026: *"giờ đến đối soát MoMo"*. Muốn so được với sao kê MoMo thì phải
+		   biết máy POS ghi bao nhiêu RIÊNG cho MoMo — cục "CK/QR" gộp cả chuyển khoản, VNPAY,
+		   Việt QR và MoMo, đem cục ấy so với sổ MoMo thì lệch bao nhiêu cũng không nói lên gì.
+		   Máy POS đã ghi sẵn tên hình thức thanh toán ở cột PTTT, chỉ việc đọc đúng tên. */
+		$momo_pos = 0;
 		foreach ( khh_dt_json( $r['pttt'], array() ) as $p ) {
-			if ( false !== strpos( khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' ), 'tien mat' ) ) {
+			$ten_pttt = khh_dt_khong_dau( isset( $p['n'] ) ? $p['n'] : '' );
+			if ( false !== strpos( $ten_pttt, 'tien mat' ) ) {
 				$tm += (float) $p['r'];
-			} else {
-				$ck += (float) $p['r'];
+				continue;
+			}
+			$ck += (float) $p['r'];
+			if ( false !== strpos( $ten_pttt, 'momo' ) ) {
+				$momo_pos += (float) $p['r'];
 			}
 		}
 		$co  = null !== $r['tien_mat_dem'];
@@ -483,6 +493,7 @@ function khh_dt_rest_doi_soat( $req ) {
 			'so_ve'      => (float) $r['so_ve'],
 			'pos_tm'     => $tm,
 			'pos_ck'     => $ck,
+			'pos_momo'   => $momo_pos,
 			'co_bao_cao' => $co,
 			'dem'        => $dem,
 			'nop'        => $nop,

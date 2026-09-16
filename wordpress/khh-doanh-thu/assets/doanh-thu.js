@@ -1047,6 +1047,8 @@
     /* Tổng hợp theo cơ sở nằm ngay dưới bảng ngày: nhìn từng ngày xong thì hỏi "cả kỳ thì sao". */
     h += veTongHop(ds, k);
 
+    h += veMomo(ds, k);
+
     /* Khối lịch nằm DƯỚI mấy ô đếm và TRÊN bảng ngày: nhìn hình dạng cả tháng trước, rồi mới
        soi từng ngày. */
     h += '<div class="khung" id="dtLich"><header><h2>Lịch nộp tiền</h2>' +
@@ -1076,7 +1078,8 @@
     ds.forEach(function (x) {
       var c = x.cua_hang;
       if (!theo[c]) {
-        theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, dau: null, cuoi: null, ngayDau: '', ngayCuoi: '' };
+        theo[c] = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, pmomo: 0, dau: null, cuoi: null,
+                    ngayDau: '', ngayCuoi: '' };
         ten.push(c);
       }
       var t = theo[c];
@@ -1084,6 +1087,7 @@
       t.tm += x.phai_nop || 0;
       t.ck += x.pos_ck || 0;
       t.nop += x.nop_bank || 0;
+      t.pmomo += x.pos_momo || 0;
       t.momo += (S.dsR && S.dsR.momo ? (S.dsR.momo[x.ngay + '|' + c] || 0) : 0);
       if (!t.ngayCuoi || x.ngay > t.ngayCuoi) { t.ngayCuoi = x.ngay; t.cuoi = x.treo || 0; }
       if (!t.ngayDau || x.ngay < t.ngayDau) {
@@ -1097,10 +1101,10 @@
     if (!ten.length) return '';
     var coMomo = !!(S.dsR && S.dsR.co_momo);
 
-    var T = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, dau: 0, cuoi: 0 };
+    var T = { dt: 0, tm: 0, ck: 0, nop: 0, momo: 0, pmomo: 0, dau: 0, cuoi: 0 };
     var hang = ten.map(function (c) {
       var t = theo[c];
-      ['dt', 'tm', 'ck', 'nop', 'momo', 'dau', 'cuoi'].forEach(function (f) { T[f] += t[f] || 0; });
+      ['dt', 'tm', 'ck', 'nop', 'momo', 'pmomo', 'dau', 'cuoi'].forEach(function (f) { T[f] += t[f] || 0; });
       /* Tiền mặt vào trong kỳ phải bằng: đã nộp + (treo cuối − treo đầu). Lệch ra là con số
          không giải thích được — gần như luôn là do sao kê thiếu khoản, hoặc mã nộp tiền khai
          sót; nhưng phải bày ra chứ không được lặng lẽ làm tròn. */
@@ -1123,16 +1127,16 @@
       'đi nộp. Phép đúng là <b>tiền mặt POS = đã nộp + còn treo</b>.</div>' +
       '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
         '<th style="text-align:left">Cơ sở</th><th>Doanh thu POS</th><th>CK / QR</th>' +
-        (coMomo ? '<th>MoMo (sao kê)</th><th>Lệch MoMo</th>' : '') +
+        (coMomo ? '<th>MoMo (POS)</th><th>MoMo (sao kê)</th><th>Lệch MoMo</th>' : '') +
         '<th>Tiền mặt</th><th>Đã nộp</th><th>Treo đầu kỳ</th><th>Treo cuối kỳ</th><th>Không khớp</th>' +
       '</tr></thead><tbody>' +
       hang.map(function (r_) {
         var t = r_.t;
         return '<tr><td style="text-align:left">' + esc(String(r_.c).slice(0, 34)) + '</td>' +
           o_(t.dt) + o_(t.ck) +
-          (coMomo ? o_(t.momo) + '<td class="s">' + (Math.abs(t.ck - t.momo) < 1000
+          (coMomo ? o_(t.pmomo) + o_(t.momo) + '<td class="s">' + (Math.abs(t.pmomo - t.momo) < 1000
             ? '<span style="color:var(--tot)">0</span>'
-            : '<b style="color:var(--s4)">' + (t.ck - t.momo > 0 ? '+' : '') + nguyen(t.ck - t.momo) + '</b>')
+            : '<b style="color:var(--s4)">' + (t.pmomo - t.momo > 0 ? '+' : '') + nguyen(t.pmomo - t.momo) + '</b>')
             + '</td>' : '') +
           o_(t.tm) + o_(t.nop) + o_(t.dau) + o_(t.cuoi) +
           '<td class="s">' + (Math.abs(r_.lech) < 1000 ? '<span style="color:var(--tot)">0</span>'
@@ -1141,7 +1145,7 @@
       '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
         '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở</td>' +
         o_(T.dt) + o_(T.ck) +
-        (coMomo ? o_(T.momo) + '<td class="s">' + nguyen(T.ck - T.momo) + '</td>' : '') +
+        (coMomo ? o_(T.pmomo) + o_(T.momo) + '<td class="s">' + nguyen(T.pmomo - T.momo) + '</td>' : '') +
         o_(T.tm) + o_(T.nop) + o_(T.dau) + o_(T.cuoi) +
         '<td class="s">' + nguyen(T.tm - (T.nop + (T.cuoi - T.dau))) + '</td></tr>' +
       '</tbody></table></div>' +
@@ -1151,6 +1155,78 @@
       'khoản, mã nộp tiền khai sót, hoặc có kỳ nộp dư (phần dư không mang sang kỳ sau). Nó là dấu ' +
       'hiệu <b>số liệu chưa đủ</b>, không phải dấu hiệu ai lấy tiền.</div></div>';
     return h;
+  }
+
+  /**
+   * ĐỐI SOÁT MOMO — ba con số cho cùng một đồng tiền.
+   *
+   *   máy POS ghi khách trả qua MoMo  →  sao kê MoMo ghi MoMo nhận  →  ngân hàng ghi MoMo chuyển về
+   *
+   * Mỗi chỗ lệch là một câu hỏi KHÁC NHAU, nên không được gộp thành một con số "chênh lệch":
+   *   POS > sao kê MoMo   — có giao dịch ghi trên máy mà MoMo không nhận (bấm nhầm hình thức,
+   *                         hoặc đơn huỷ mà máy vẫn ghi).
+   *   sao kê MoMo > POS   — MoMo nhận tiền mà máy không ghi: thu ngoài sổ.
+   *
+   * ⚠️ NGÀY CHƯA TẢI FILE KHÔNG PHẢI NGÀY BẰNG 0. MoMo không bắn webhook nên sổ ấy do người ta
+   *    tải file lên hằng ngày. Đếm ngày thiếu file RIÊNG, và trừ hẳn những ngày ấy ra khỏi phép
+   *    so — không thì mỗi ngày quên tải file lại hoá thành một lời tố "MoMo giữ tiền".
+   */
+  function veMomo(ds, k) {
+    if (!(S.dsR && S.dsR.co_momo)) return '';
+    var co = {}; (S.dsR.momo_ngay_co || []).forEach(function (n) { co[n] = true; });
+    var sk = S.dsR.momo || {};
+    var theo = {}, ten = [], ngayThieu = {};
+    ds.forEach(function (x) {
+      if (!theo[x.cua_hang]) { theo[x.cua_hang] = { pos: 0, mm: 0, ngay: 0, bo: 0 }; ten.push(x.cua_hang); }
+      var t = theo[x.cua_hang];
+      if (!co[x.ngay]) {
+        /* Sổ MoMo chưa có ngày này — bỏ hẳn khỏi phép so, và đếm lại để nói ra. */
+        if (x.pos_momo > 0) { t.bo++; ngayThieu[x.ngay] = true; }
+        return;
+      }
+      t.pos += x.pos_momo || 0;
+      t.mm += sk[x.ngay + '|' + x.cua_hang] || 0;
+      t.ngay++;
+    });
+    ten.sort();
+    if (!ten.length) return '';
+
+    var TP = 0, TM = 0;
+    var hang = ten.map(function (c) {
+      var t = theo[c]; TP += t.pos; TM += t.mm;
+      return '<tr><td style="text-align:left">' + esc(String(c).slice(0, 34)) + '</td>' +
+        '<td class="s">' + tien(t.pos) + '</td><td class="s">' + tien(t.mm) + '</td>' +
+        '<td class="s">' + (Math.abs(t.pos - t.mm) < 1000
+          ? '<span style="color:var(--tot)">0</span>'
+          : '<b style="color:var(--xau)">' + (t.pos - t.mm > 0 ? '+' : '') + nguyen(t.pos - t.mm) + '</b>') + '</td>' +
+        '<td class="s">' + nguyen(t.ngay) + '</td>' +
+        '<td class="s">' + (t.bo ? '<b style="color:var(--s4)">' + nguyen(t.bo) + '</b>' : '0') + '</td></tr>';
+    }).join('');
+
+    var thieu = Object.keys(ngayThieu).sort();
+    return '<div class="khung"><header><h2>Đối soát MoMo</h2>' +
+      '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + '</span></header>' +
+      '<div class="chu-them" style="margin-top:6px">So <b>đúng phần MoMo</b> máy POS ghi với sổ ' +
+      'sao kê MoMo — không so với cả cục CK/QR, vì cục ấy còn có chuyển khoản, VNPAY và Việt QR.' +
+      '</div>' +
+      (thieu.length
+        ? '<div class="canh-ghep">Sổ MoMo <b>chưa có ' + thieu.length + ' ngày</b> mà máy POS lại có ' +
+          'doanh thu MoMo: ' + esc(thieu.map(ngayVN).join(' · ')) + '. Mấy ngày ấy đã được <b>bỏ ra ' +
+          'khỏi phép so</b> — thiếu file khác hẳn với MoMo giữ tiền. Tải file MoMo của những ngày ' +
+          'này lên rồi xem lại.</div>'
+        : '') +
+      '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+        '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th><th>MoMo theo sao kê</th>' +
+        '<th>Lệch</th><th>Ngày so được</th><th>Ngày thiếu file</th>' +
+      '</tr></thead><tbody>' + hang +
+      '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
+        '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở</td>' +
+        '<td class="s">' + tien(TP) + '</td><td class="s">' + tien(TM) + '</td>' +
+        '<td class="s">' + nguyen(TP - TM) + '</td><td></td><td></td></tr>' +
+      '</tbody></table></div>' +
+      '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> lệch <b>dương</b> là máy POS ' +
+      'ghi nhiều hơn MoMo nhận — thường do bấm nhầm hình thức thanh toán, hoặc đơn huỷ mà máy vẫn ' +
+      'ghi. Lệch <b>âm</b> nặng hơn: MoMo nhận tiền mà máy không ghi.</div></div>';
   }
 
   function thangCua(ngay) { return String(ngay || ymd(new Date())).slice(0, 7); }

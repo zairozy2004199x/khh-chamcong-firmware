@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.20.1
+Stable tag: 1.21.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,15 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.21.0 =
+* **Khối Đối soát MoMo**: so ĐÚNG phần MoMo máy POS ghi (đọc từ cột hình thức thanh toán) với sổ
+  sao kê MoMo, theo từng cơ sở — không so với cả cục CK/QR, vì cục ấy còn có chuyển khoản, VNPAY
+  và Việt QR.
+* **Ngày chưa tải file MoMo bị loại khỏi phép so** và đếm riêng. MoMo không bắn webhook nên sổ ấy
+  do người ta tải file hằng ngày; coi ngày thiếu file là ngày bằng 0 thì mỗi lần quên tải lại hoá
+  thành một lời tố "MoMo giữ tiền".
+* Bảng Tổng hợp tách cột **MoMo (POS)** riêng với **MoMo (sao kê)**.
 
 = 1.20.1 =
 * **Sửa lỗi tab Đối soát trắng màn** ("theTreo is not defined"): dọn một hàm chết ở 1.20.0 đã cắt
