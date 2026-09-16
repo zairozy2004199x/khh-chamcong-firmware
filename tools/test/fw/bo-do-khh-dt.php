@@ -52,3 +52,15 @@ function khh_dt_test_dat_the( $token ) {
 function khh_dt_test_quen_phien() {
 	khh_dt_phien_quen();
 }
+
+if ( ! function_exists( 'wp_delete_file' ) ) {
+	function wp_delete_file( $f ) { return @unlink( $f ); } // phpcs:ignore WordPress.PHP.NoSilencedErrors
+}
+
+if ( ! function_exists( 'wp_list_pluck' ) ) {
+	function wp_list_pluck( $ds, $khoa ) {
+		$ra = array();
+		foreach ( (array) $ds as $x ) { $ra[] = is_array( $x ) ? $x[ $khoa ] : $x->$khoa; }
+		return $ra;
+	}
+}

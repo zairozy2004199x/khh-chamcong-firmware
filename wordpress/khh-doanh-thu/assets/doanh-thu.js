@@ -111,7 +111,7 @@
       ve();
     }).catch(function (e) {
       S.dangTai = false;
-      bao(String(e.message || e), 'loi');
+      bao(esc(String(e.message || e)), 'loi');
     });
   }
 
@@ -350,11 +350,14 @@
 
   /* ---------------- hộp nạp ---------------- */
   var nen, bao_o;
+  /* ⚠️ `t` LÀ HTML — hàm này KHÔNG rào chữ. Câu báo do chính mã này dựng nên có <b> cho dễ đọc;
+     mọi mẩu chữ đến từ máy chủ, từ tên file hay từ lời lỗi đều phải qua `esc()` TRƯỚC khi ghép
+     vào. Quên một chỗ là mở một đường chèn mã vào trang. */
   function bao(t, loai) {
     if (!bao_o) return;
     bao_o.hidden = false;
     bao_o.className = 'khh-dt-bao' + (loai ? ' ' + loai : '');
-    bao_o.textContent = t;
+    bao_o.innerHTML = t;
   }
   function moHop() {
     if (!nen) dungHop();
@@ -368,13 +371,23 @@
     nen = el('div', 'khh-dt-nen');
     nen.innerHTML =
       '<div class="khh-dt-hop" role="dialog" aria-modal="true">' +
-        '<div class="h"><h2>Nạp báo cáo bán hàng FABi</h2>' +
+        '<div class="h"><h2>Nạp số liệu</h2>' +
           '<button class="nut" type="button" data-dong>Đóng</button></div>' +
         '<div class="b">' +
-          '<ol><li>Trong CMS FABi: <b>Báo cáo → Báo cáo bán hàng</b> → chọn kỳ → <b>Xuất Excel</b>.</li>' +
-          '<li>Thả file xuống ô dưới — file mấy chục MB vẫn được, trang tự cắt nhỏ gửi lên. Máy chủ đọc trang <b>"Tất cả cửa hàng"</b> và bỏ các dòng "Tổng" cộng dồn.</li>' +
-          '<li>Nạp lại cùng một ngày thì <b>ghi đè</b> ngày đó, không cộng dồn.</li></ol>' +
-          '<div class="khh-dt-tha" id="dtTha" tabindex="0" role="button" aria-label="Chọn hoặc thả file FABi">' +
+          '<div class="tab-hang nho-hon">' +
+            '<button class="tab on" type="button" data-loai="pos">Báo cáo bán hàng FABi</button>' +
+            '<button class="tab" type="button" data-loai="sao_ke">Sao kê ngân hàng</button>' +
+          '</div>' +
+          '<div id="dtHdPos">' +
+            '<ol><li>Trong CMS FABi: <b>Báo cáo → Báo cáo bán hàng</b> → chọn kỳ → <b>Xuất Excel</b>.</li>' +
+            '<li>Thả file xuống ô dưới — file mấy chục MB vẫn được, trang tự cắt nhỏ gửi lên. Máy chủ đọc trang <b>"Tất cả cửa hàng"</b> và bỏ các dòng "Tổng" cộng dồn.</li>' +
+            '<li>Nạp lại cùng một ngày thì <b>ghi đè</b> ngày đó, không cộng dồn.</li></ol></div>' +
+          '<div id="dtHdSk" hidden>' +
+            '<ol><li>Tải sao kê tài khoản nhận tiền nộp của các cơ sở — bản <b>bảng</b> (.xlsx hoặc .csv), không phải PDF.</li>' +
+            '<li>Em <b>chỉ lấy tiền vào</b>, bỏ mọi khoản chi. Nạp lại cùng một kỳ không cộng dồn (khoá theo mã giao dịch).</li>' +
+            '<li>Nhận mặt cơ sở theo nội dung chuyển khoản hoặc số tài khoản — khai ở <b>Quản trị → Sao kê ngân hàng</b>.</li>' +
+            '<li>Tiền nộp sáng hôm sau tính cho doanh thu <b>hôm trước</b> (giờ cắt khai được).</li></ol></div>' +
+          '<div class="khh-dt-tha" id="dtTha" tabindex="0" role="button" aria-label="Chọn hoặc thả file">' +
             '<strong>Thả file vào đây</strong><span>hoặc bấm để chọn — nhận .xlsx, .csv</span>' +
             '<input type="file" id="dtFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt" hidden></div>' +
           '<div class="khh-dt-bao" id="dtBao" hidden></div>' +
@@ -396,13 +409,26 @@
         if (!k.xmlreader) thieu.push('thiếu XMLReader');
         if (!k.ghi_duoc_tam) thieu.push('không ghi được thư mục tạm ' + k.thu_muc_tam);
         if (!k.bang) thieu.push('chưa tạo được bảng dữ liệu');
-        bao('PHP ' + k.php + ' · WordPress ' + k.wp + ' · plugin ' + k.plugin +
+        bao(esc('PHP ' + k.php + ' · WordPress ' + k.wp + ' · plugin ' + k.plugin +
           ' · bộ nhớ ' + k.bo_nho + ' · chạy tối đa ' + k.thoi_gian + 's' +
           ' · tải lên ' + k.tai_len + ' (post_max ' + k.post_max + ')' +
-          (thieu.length ? ' — VƯỚNG: ' + thieu.join(', ') + '.' : ' — đủ điều kiện đọc file .xlsx.'),
+          (thieu.length ? ' — VƯỚNG: ' + thieu.join(', ') + '.' : ' — đủ điều kiện đọc file .xlsx.')),
           thieu.length ? 'loi' : 'xong');
-      }).catch(function (e) { bao(String(e.message || e), 'loi'); });
+      }).catch(function (e) { bao(esc(String(e.message || e)), 'loi'); });
     });
+
+    Array.prototype.forEach.call(nen.querySelectorAll('[data-loai]'), function (b) {
+      b.addEventListener('click', function () {
+        S.napLoai = b.dataset.loai;
+        Array.prototype.forEach.call(nen.querySelectorAll('[data-loai]'), function (x) {
+          x.classList.toggle('on', x === b);
+        });
+        nen.querySelector('#dtHdPos').hidden = S.napLoai !== 'pos';
+        nen.querySelector('#dtHdSk').hidden = S.napLoai !== 'sao_ke';
+        bao_o.hidden = true;
+      });
+    });
+    S.napLoai = 'pos';
 
     var tha = nen.querySelector('#dtTha'), file = nen.querySelector('#dtFile');
     tha.addEventListener('click', function () { file.click(); });
@@ -441,6 +467,7 @@
       fd.append('phan', String(i));
       fd.append('tong', String(tong));
       fd.append('ten', f.name);
+      fd.append('loai', S.napLoai || 'pos');
       fd.append('mau', f.slice(i * MAU, (i + 1) * MAU), 'mau.bin');
       trangThai.textContent = (i === tong - 1)
         ? 'Đã gửi xong, máy chủ đang đọc file…'
@@ -449,14 +476,27 @@
         i++;
         if (!r.xong && i < tong) { gui(); return; }
         trangThai.textContent = '';
-        bao('Đã nạp ' + nguyen(r.so_dong) + ' dòng' +
-          (r.bo_qua ? ' (bỏ ' + nguyen(r.bo_qua) + ' dòng "Tổng" cộng dồn của FABi)' : '') +
-          ' · ' + nguyen(r.so_ban_ghi) + ' ngày×cửa hàng · tổng ' + tien(r.tong_doanh_thu) + '.', 'xong');
-        S.ky = 'all';
+        if (r.loai === 'sao_ke') {
+          var cg = r.chua_gan || { so_dong: 0, so_tien: 0 };
+          bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' khoản tiền vào</b> từ ' + nguyen(r.so_dong) + ' dòng sao kê' +
+            (r.tien_ra ? ' (bỏ ' + nguyen(r.tien_ra) + ' dòng tiền ra)' : '') + '. ' +
+            (cg.so_dong
+              ? '<b>Còn ' + nguyen(cg.so_dong) + ' khoản chưa nhận ra cơ sở</b> — tổng ' + tien(cg.so_tien) +
+                '. Vào Quản trị → Sao kê ngân hàng để khai nội dung nhận mặt.'
+              : 'Mọi khoản đều nhận ra cơ sở.') +
+            (r.doan_dau
+              ? ' ⚠️ File không có cột tiền vào/ra nên em coi mọi số dương là tiền vào — nếu sai anh tải bản có cột Ghi nợ / Ghi có.'
+              : ''), cg.so_dong ? 'loi' : 'xong');
+        } else {
+          bao('Đã nạp ' + nguyen(r.so_dong) + ' dòng' +
+            (r.bo_qua ? ' (bỏ ' + nguyen(r.bo_qua) + ' dòng "Tổng" cộng dồn của FABi)' : '') +
+            ' · ' + nguyen(r.so_ban_ghi) + ' ngày×cửa hàng · tổng ' + tien(r.tong_doanh_thu) + '.', 'xong');
+          S.ky = 'all';
+        }
         khoiDong(true);
       }).catch(function (e) {
         trangThai.textContent = '';
-        bao(String(e.message || e), 'loi');
+        bao(esc(String(e.message || e)), 'loi');
       });
     }
     gui();
@@ -839,12 +879,14 @@
     var ng = r.nguong || { phan_tram: 2, so_tien: 500000 };
     var ds = r.dong || [];
     var chuaNhap = ds.filter(function (x) { return !x.co_bao_cao; }).length;
-    var tongLech = 0, tongChuaNop = 0, tongHuy = 0, soCanh = 0;
+    var tongLech = 0, tongChuaNop = 0, tongHuy = 0, soCanh = 0, tongLechNop = 0, soLechNop = 0;
     ds.forEach(function (x) {
       if (!x.co_bao_cao) return;
       tongLech += x.lech_tm || 0; tongChuaNop += x.chua_nop || 0; tongHuy += x.tien_huy || 0;
+      if (x.lech_nop) { tongLechNop += x.lech_nop; soLechNop++; }
       if (canhBao(x, ng)) soCanh++;
     });
+    var sk = r.sk_chua_gan || { so_dong: 0, so_tien: 0 };
     var h = '<div class="khung"><header><h2>Đối soát cơ sở với máy POS</h2>' +
       '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + ' · ' + ds.length + ' ngày×cơ sở</span></header>' +
       '<div class="the-hang" style="margin:16px 0">' +
@@ -852,10 +894,26 @@
         the_nho('Ngày vượt ngưỡng', nguyen(soCanh), soCanh ? 'xau' : '') +
         the_nho('Tổng thu rồi chưa nộp', tien(tongChuaNop), tongChuaNop > 0 ? 'xau' : '') +
         the_nho('Tổng tiền bill huỷ', tien(tongHuy), tongHuy > 0 ? 'xau' : '') +
+        (r.co_bank
+          ? the_nho('Khai nộp nhiều hơn ngân hàng nhận', tien(tongLechNop) +
+              (soLechNop ? ' · ' + soLechNop + ' ngày' : ''), tongLechNop > 0 ? 'xau' : '')
+          : '') +
       '</div>' +
+      /* Dòng tiền chưa nhận mặt được cơ sở là "chưa nộp" GIẢ — nó tố oan người đã nộp thật, nên
+         phải nằm ngay trên bảng chứ không nằm trong một tab nào đó. */
+      (sk.so_dong
+        ? '<div class="canh-ghep">Sao kê còn <b>' + nguyen(sk.so_dong) + ' dòng tiền vào</b> chưa ' +
+          'nhận ra cơ sở nào — tổng <b>' + tien(sk.so_tien) + '</b>. Chừng nào chưa gán thì mấy ' +
+          'khoản ấy vẫn bị tính là chưa nộp. Vào tab <b>Quản trị → Sao kê ngân hàng</b> để khai.</div>'
+        : '') +
+      (!r.co_bank
+        ? '<div class="canh-ghep">Chưa nạp sao kê ngân hàng nên cột <b>Thực nộp</b> đang lấy số ' +
+          'cơ sở tự khai — số ấy không kiểm được gì. Bấm <b>Nạp báo cáo → Sao kê ngân hàng</b>.</div>'
+        : '') +
       '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Tiền mặt POS</th><th>Đếm két</th><th>Lệch</th>' +
-        '<th>Thực nộp</th><th>Chưa nộp</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
+        '<th>Thực nộp' + (r.co_bank ? ' <span class="nho">(ngân hàng)</span>' : '') + '</th>' +
+        '<th>Chưa nộp</th><th>Bill huỷ</th><th>Khách − vé</th><th>Người nhập</th>' +
       '</tr></thead><tbody>';
     ds.forEach(function (x) {
       var do_ = canhBao(x, ng);
@@ -867,7 +925,13 @@
         (x.co_bao_cao
           ? '<td class="s">' + tien(x.dem) + '</td>' +
             '<td class="s">' + (x.lech_tm ? (x.lech_tm > 0 ? '+' : '') + tien(x.lech_tm) : '0') + '</td>' +
-            '<td class="s">' + tien(x.nop) + '</td>' +
+            '<td class="s">' + (x.co_bank
+              ? tien(x.nop_bank) + (x.lech_nop
+                  /* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỗ lệch ấy mới là tín hiệu. */
+                  ? '<span class="nho xau" title="Cơ sở khai đã nộp ' + esc(tien(x.nop)) + '">' +
+                    ' khai ' + (x.lech_nop > 0 ? '+' : '') + tienGon(x.lech_nop) + '</span>'
+                  : '')
+              : '<span class="khai">' + tien(x.nop) + '</span>') + '</td>' +
             '<td class="s">' + (x.chua_nop ? tien(x.chua_nop) : '0') + '</td>' +
             '<td class="s">' + (x.bill_huy ? nguyen(x.bill_huy) + ' · ' + tien(x.tien_huy) : '—') + '</td>' +
             '<td class="s">' + (x.khach && x.so_ve ? nguyen(x.khach - Math.round(x.so_ve)) : '—') + '</td>' +
@@ -877,13 +941,17 @@
     });
     h += '</tbody></table></div>' +
       '<div class="chu-them">Bôi đỏ khi lệch tiền mặt hoặc phần chưa nộp vượt ' +
-        phan(ng.phan_tram) + ' doanh thu ngày, hoặc vượt ' + tien(ng.so_tien) + '.</div></div>';
+        phan(ng.phan_tram) + ' doanh thu ngày, hoặc vượt ' + tien(ng.so_tien) + '. ' +
+        (r.co_bank
+          ? 'Cột <b>Thực nộp</b> là số <b>ngân hàng nhận được</b> theo sao kê — không phải số cơ sở khai.'
+          : 'Cột <b>Thực nộp</b> đang là số cơ sở tự khai.') +
+        '</div></div>';
     o.innerHTML = h;
   }
 
   function canhBao(x, ng) {
     if (!x.co_bao_cao) return false;
-    var m = Math.max(Math.abs(x.lech_tm || 0), Math.abs(x.chua_nop || 0));
+    var m = Math.max(Math.abs(x.lech_tm || 0), Math.abs(x.chua_nop || 0), Math.abs(x.lech_nop || 0));
     return m > ng.so_tien || (x.doanh_thu > 0 && m / x.doanh_thu * 100 > ng.phan_tram);
   }
 
@@ -896,11 +964,119 @@
   function taiQuanTri() {
     var o = q('#dtTabQuanTri');
     o.innerHTML = '<div class="khung"><div class="trong">Đang tải…</div></div>';
-    Promise.all([api('nhan-su'), api('ghep-co-so')]).then(function (kq) {
+    Promise.all([api('nhan-su'), api('ghep-co-so'), api('sao-ke')]).then(function (kq) {
       veQuanTri(o, kq[0]);
       veGhep(o, kq[1]);
+      veSaoKe(o, kq[2]);
     }).catch(function (e) {
       o.innerHTML = '<div class="khung"><div class="trong">' + esc(e.message || e) + '</div></div>';
+    });
+  }
+
+  /* ---- SAO KÊ NGÂN HÀNG: giờ cắt + bảng nhận mặt cơ sở ----
+     Cột "Thực nộp" lấy ở đây chứ không lấy số cơ sở tự khai: ai giữ tiền mà cũng tự khai mình
+     nộp bao nhiêu thì con số ấy không kiểm được gì. */
+  function veSaoKe(o, r) {
+    var ch = r.cua_hang || [], ghep = r.ghep || [], chua = r.chua_gan || [], theo = r.theo_ch || [];
+    var h = '<div class="khung" id="dtSaoKe"><header><h2>Sao kê ngân hàng</h2>' +
+      '<span class="goi">' + (r.so_dong
+        ? nguyen(r.so_dong) + ' khoản · ' + tien(r.tong) + ' · ' + ngayVN(r.tu_ngay) + ' → ' + ngayVN(r.den_ngay)
+        : 'chưa nạp sao kê') + '</span></header>';
+
+    if (!r.so_dong) {
+      h += '<div class="trong">Chưa có sao kê. Bấm <b>Nạp báo cáo</b> ở trên, chọn thẻ ' +
+        '<b>Sao kê ngân hàng</b> rồi thả file .xlsx/.csv tải từ ngân hàng xuống.</div>';
+    } else if (chua.length) {
+      h += '<div class="canh-ghep">Còn <b>' + nguyen(chua.length) + ' khoản</b> chưa nhận ra cơ sở. ' +
+        'Xem nội dung chuyển khoản bên dưới, lấy một mẩu chữ đặc trưng (tên quán, mã quán, hoặc ' +
+        'số tài khoản nhận) rồi khai vào bảng nhận mặt.</div>' +
+        '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+          '<th>Ngày</th><th>Số tiền</th><th style="text-align:left">Nội dung chuyển khoản</th><th>Tài khoản</th>' +
+        '</tr></thead><tbody>' +
+        chua.slice(0, 40).map(function (x) {
+          return '<tr><td>' + esc(ngayVN(x.ngay)) + '</td><td class="s">' + tien(x.so_tien) + '</td>' +
+            '<td style="text-align:left"><code class="nd">' + esc(x.noi_dung || '—') + '</code></td>' +
+            '<td>' + esc(x.tai_khoan || '—') + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    } else {
+      h += '<div class="bang-cuon"><table><thead><tr><th style="text-align:left">Cơ sở</th>' +
+        '<th>Số khoản</th><th>Tổng nhận được</th></tr></thead><tbody>' +
+        theo.map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(x.cua_hang) + '</td>' +
+            '<td class="s">' + nguyen(x.n) + '</td><td class="s">' + tien(x.t) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    }
+
+    /* Bảng nhận mặt + giờ cắt */
+    h += '<h3 class="tieu-nho">Nhận mặt cơ sở</h3>' +
+      '<div class="chu-them">Mỗi dòng: một mẩu chữ có trong nội dung chuyển khoản hoặc số tài khoản ' +
+      'nhận → cơ sở tương ứng. Không phân biệt hoa thường và dấu. Khoá dài được xét trước khoá ' +
+      'ngắn, nên "TUTU TAN PHU" không bị "TUTU TAN" nuốt mất.</div>' +
+      '<div class="bang-cuon" style="margin-top:10px"><table id="dtBankBang"><thead><tr>' +
+        '<th style="text-align:left">Chữ trong nội dung / số tài khoản</th><th style="text-align:left">Cơ sở</th><th></th>' +
+      '</tr></thead><tbody>' +
+      (ghep.length ? ghep.map(function (g) { return dongBank(g.khoa, g.cua_hang, ch); }).join('')
+        : dongBank('', '', ch)) +
+      '</tbody></table></div>' +
+      '<div style="margin-top:12px">' +
+        '<button class="nut" type="button" id="dtBankThem">Thêm dòng</button> ' +
+        '<span class="o" style="margin-left:14px"><label for="dtGioCat">Giờ cắt</label>' +
+          '<input type="number" id="dtGioCat" min="0" max="23" step="1" style="width:66px" value="' +
+          esc(String(r.gio_cat)) + '"></span> ' +
+        '<span class="chu-them">Tiền vào trước giờ này tính cho doanh thu <b>hôm trước</b> — ' +
+          'quán đóng cửa đêm, sáng hôm sau mới mang tiền ra ngân hàng.</span>' +
+      '</div>' +
+      '<div style="margin-top:12px"><button class="nut chinh" type="button" id="dtLuuBank">Lưu và gán lại</button> ' +
+        '<span id="dtBankBao" class="chu-them"></span></div></div>';
+
+    o.insertAdjacentHTML('beforeend', h);
+
+    var bang = o.querySelector('#dtBankBang tbody');
+    o.querySelector('#dtBankThem').addEventListener('click', function () {
+      bang.insertAdjacentHTML('beforeend', dongBank('', '', ch));
+      noiXoaBank(bang);
+    });
+    noiXoaBank(bang);
+
+    o.querySelector('#dtLuuBank').addEventListener('click', function () {
+      var ds = [];
+      Array.prototype.forEach.call(bang.querySelectorAll('tr'), function (tr) {
+        var k = tr.querySelector('[data-khoa]').value.trim();
+        var c = tr.querySelector('[data-ch]').value;
+        if (k && c) ds.push({ khoa: k, cua_hang: c });
+      });
+      var nut = o.querySelector('#dtLuuBank');
+      nut.disabled = true; nut.textContent = 'Đang gán lại…';
+      var fd = new FormData();
+      fd.append('ghep', JSON.stringify(ds));
+      fd.append('gio_cat', o.querySelector('#dtGioCat').value);
+      api('sao-ke-ghep', { method: 'POST', body: fd }).then(function (kq) {
+        nut.disabled = false; nut.textContent = 'Lưu và gán lại';
+        o.querySelector('#dtBankBao').textContent = 'Đã gán lại ' + nguyen(kq.da_gan_lai) + ' khoản. ' +
+          ((kq.chua_gan || []).length ? 'Còn ' + (kq.chua_gan || []).length + ' khoản chưa nhận ra cơ sở.' : 'Không còn khoản nào lạc.');
+        taiQuanTri();
+      }).catch(function (e) {
+        nut.disabled = false; nut.textContent = 'Lưu và gán lại';
+        o.querySelector('#dtBankBao').textContent = e.message || e;
+      });
+    });
+  }
+
+  function dongBank(khoa, cua, ch) {
+    return '<tr><td style="text-align:left"><input type="text" data-khoa value="' + esc(khoa) +
+      '" placeholder="VD: TUTU TAN PHU hoặc 0123456789" style="width:100%"></td>' +
+      '<td style="text-align:left"><select data-ch><option value="">— chọn cơ sở —</option>' +
+      ch.map(function (t) {
+        return '<option value="' + esc(t) + '"' + (t === cua ? ' selected' : '') + '>' + esc(t) + '</option>';
+      }).join('') + '</select></td>' +
+      '<td><button class="nut" type="button" data-xoa>Xoá</button></td></tr>';
+  }
+
+  function noiXoaBank(bang) {
+    Array.prototype.forEach.call(bang.querySelectorAll('[data-xoa]'), function (b) {
+      if (b.dataset.noi) return;
+      b.dataset.noi = '1';
+      b.addEventListener('click', function () { b.closest('tr').remove(); });
     });
   }
 

@@ -1,0 +1,196 @@
+<?php
+/**
+ * SAO KÊ NGÂN HÀNG — NGUỒN ĐỘC LẬP DUY NHẤT, NÊN ĐỌC SAI LÀ HỎNG CẢ CÁI ĐỐI SOÁT.
+ *
+ * Anh Thắng 16/09/2026: *"cột thực nộp mình sẽ lấy bên sao kê"*. Từ đó cột ấy không còn là số cơ
+ * sở tự khai nữa — nó là số ngân hàng ghi. Mà mỗi chỗ đọc sai ở đây đều đi thẳng ra một lời buộc
+ * tội sai:
+ *
+ *   · cộng nhầm một khoản TIỀN RA thành tiền nộp  -> báo cáo đẹp lên, không ai nộp thêm đồng nào;
+ *   · bỏ sót một khoản vì không nhận ra cơ sở      -> "chưa nộp" GIẢ, tố oan người đã nộp thật;
+ *   · nạp lại cùng một file mà cộng dồn            -> gấp đôi tiền nộp, ngày hôm ấy hoá ra nộp thừa;
+ *   · tính nhầm ngày (nộp sáng hôm sau)            -> ngày nào cũng thiếu, hôm sau nào cũng thừa.
+ *
+ * Bốn chuyện ấy là bốn phần của bài này.
+ *
+ * Chạy: php tools/test/kiem-sao-ke.php
+ */
+
+require_once __DIR__ . '/fw/bo-do-khh-dt.php';
+
+$goc = dirname( __DIR__, 2 ) . '/wordpress/khh-doanh-thu';
+require_once $goc . '/doc-file.php';
+require_once $goc . '/sao-ke.php';
+
+$dat  = 0;
+$hong = array();
+function phep( $ten, $dung ) {
+	global $dat, $hong;
+	if ( $dung ) {
+		$dat++;
+	} else {
+		$hong[] = $ten;
+	}
+}
+
+/** Viết một file CSV tạm rồi đọc bằng đúng đường plugin dùng. */
+function doc_csv( $noi_dung ) {
+	$f = tempnam( sys_get_temp_dir(), 'sk' ) . '.csv';
+	file_put_contents( $f, $noi_dung );
+	$kq = khh_dt_doc_sao_ke( $f, 'sao-ke.csv' );
+	wp_delete_file( $f );
+	return $kq;
+}
+
+function dung_bang_sk() {
+	global $wpdb;
+	$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . khh_dt_bang_sk() );
+	$wpdb->exec_raw(
+		'CREATE TABLE ' . khh_dt_bang_sk() . " (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			ma_gd TEXT NOT NULL DEFAULT '' UNIQUE,
+			ngay TEXT NOT NULL, gio INTEGER NOT NULL DEFAULT 0, ngay_tinh TEXT NOT NULL,
+			so_tien REAL NOT NULL DEFAULT 0, noi_dung TEXT NOT NULL,
+			tai_khoan TEXT NOT NULL DEFAULT '', cua_hang TEXT NOT NULL DEFAULT '', nap_luc TEXT NULL )"
+	);
+}
+
+/* ============================================================ 1. đọc file có cột Ghi nợ / Ghi có */
+
+$sk1 = "SAO KE TAI KHOAN\nChu tai khoan: CONG TY K&H\nTu ngay 14/09/2026 den 16/09/2026\n\n"
+	. "Ngay giao dich,So tai khoan,Ghi no,Ghi co,Noi dung,Ma giao dich\n"
+	. "15/09/2026 08:35,0123456789,,5.980.000,TUTU TAN PHU NOP TIEN 14/09,FT2609150001\n"
+	. "15/09/2026 09:10,0123456789,,2.840.000,TUTU BINH DUONG NOP 14/09,FT2609150002\n"
+	. "15/09/2026 14:20,0123456789,1.200.000,,TRA TIEN DIEN THANG 8,FT2609150003\n"
+	. "15/09/2026 20:05,0123456789,,1.750.000,TUTU LOTTE GO VAP NOP 15/09,FT2609150004\n"
+	. "16/09/2026 07:50,0123456789,,3.320.000,CHUYEN KHOAN KHONG RO,FT2609160001\n";
+
+$kq = doc_csv( $sk1 );
+phep( 'đọc được sao kê có dòng đầu trang', ! is_wp_error( $kq ) );
+if ( is_wp_error( $kq ) ) {
+	echo "\n✗ " . $kq->get_error_message() . "\n";
+	exit( 1 );
+}
+phep( 'lấy đúng 4 khoản tiền vào', 4 === count( $kq['dong'] ) );
+phep( 'bỏ đúng 1 khoản tiền ra', 1 === (int) $kq['tien_ra'] );
+phep( 'không phải đoán chiều tiền', 0 === (int) $kq['doan_dau'] );
+phep( 'đọc đúng số tiền có dấu chấm ngăn', 5980000.0 === (float) $kq['dong'][0]['so_tien'] );
+
+/* ============================================================ 2. nhận mặt cơ sở */
+
+khh_dt_dat_ghep_bank(
+	array(
+		array( 'khoa' => 'TUTU TAN PHU', 'cua_hang' => 'TuTu Train - Aeon Tân Phú' ),
+		array( 'khoa' => 'TUTU BINH DUONG', 'cua_hang' => 'Tutu Train - Bình Dương' ),
+		array( 'khoa' => 'TUTU LOTTE GO VAP', 'cua_hang' => 'TuTu Train - Lotte Gò Vấp' ),
+	)
+);
+$kq = doc_csv( $sk1 );
+$ch = wp_list_pluck( $kq['dong'], 'cua_hang' );
+phep( 'nhận ra cơ sở theo nội dung chuyển khoản', 'TuTu Train - Aeon Tân Phú' === $ch[0] );
+phep( 'khoản không có dấu hiệu gì thì để trống, KHÔNG đoán bừa', '' === $ch[3] );
+
+/* 🔴 KHOÁ DÀI THẮNG KHOÁ NGẮN — "TUTU TAN AN" không được rơi vào "TUTU TAN PHU" và ngược lại. */
+khh_dt_dat_ghep_bank(
+	array(
+		array( 'khoa' => 'TUTU TAN', 'cua_hang' => 'SAI - khoá ngắn' ),
+		array( 'khoa' => 'TUTU TAN PHU', 'cua_hang' => 'TuTu Train - Aeon Tân Phú' ),
+	)
+);
+phep( 'khoá dài được xét trước khoá ngắn',
+	'TuTu Train - Aeon Tân Phú' === khh_dt_doan_co_so( 'TUTU TAN PHU NOP TIEN', '' ) );
+phep( 'nhận mặt không phân biệt dấu và hoa thường',
+	'TuTu Train - Aeon Tân Phú' === khh_dt_doan_co_so( 'Tutu Tân Phú nộp tiền', '' ) );
+phep( 'nhận mặt được cả theo số tài khoản',
+	'' === khh_dt_doan_co_so( 'NOP TIEN MAT', '9999' ) );
+khh_dt_dat_ghep_bank( array( array( 'khoa' => '9999', 'cua_hang' => 'FUNZONE CITY VŨNG TÀU' ) ) );
+phep( 'khai số tài khoản thì nhận ra theo tài khoản',
+	'FUNZONE CITY VŨNG TÀU' === khh_dt_doan_co_so( 'NOP TIEN MAT', '9999' ) );
+
+/* ============================================================ 3. giờ cắt */
+
+update_option( 'khh_dt_gio_cat', 12 );
+phep( 'nộp 8h sáng tính cho doanh thu hôm trước', '2026-09-14' === khh_dt_ngay_quy( '2026-09-15', 8 ) );
+phep( 'nộp 20h tính cho chính ngày hôm đó', '2026-09-15' === khh_dt_ngay_quy( '2026-09-15', 20 ) );
+update_option( 'khh_dt_gio_cat', 6 );
+phep( 'đổi giờ cắt thì đổi theo', '2026-09-15' === khh_dt_ngay_quy( '2026-09-15', 8 ) );
+update_option( 'khh_dt_gio_cat', 12 );
+
+/* ============================================================ 4. ghi kho, nạp lại không cộng dồn */
+
+dung_bang_sk();
+khh_dt_dat_ghep_bank(
+	array(
+		array( 'khoa' => 'TUTU TAN PHU', 'cua_hang' => 'TuTu Train - Aeon Tân Phú' ),
+		array( 'khoa' => 'TUTU BINH DUONG', 'cua_hang' => 'Tutu Train - Bình Dương' ),
+		array( 'khoa' => 'TUTU LOTTE GO VAP', 'cua_hang' => 'TuTu Train - Lotte Gò Vấp' ),
+	)
+);
+$kq = doc_csv( $sk1 );
+khh_dt_ghi_sao_ke( $kq['dong'] );
+phep( 'ghi được vào kho', 4 === khh_dt_co_sao_ke() );
+
+$bank = khh_dt_nop_bank();
+phep( 'tiền nộp 8h35 ngày 15 quy về doanh thu ngày 14',
+	isset( $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] )
+	&& 5980000.0 === $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] );
+phep( 'tiền nộp 20h05 ngày 15 nằm ở chính ngày 15',
+	isset( $bank['2026-09-15|TuTu Train - Lotte Gò Vấp'] ) );
+
+/* 🔴 NẠP LẠI CÙNG MỘT FILE KHÔNG ĐƯỢC CỘNG DỒN. */
+$kq = doc_csv( $sk1 );
+khh_dt_ghi_sao_ke( $kq['dong'] );
+phep( 'nạp lại cùng file không đẻ thêm dòng', 4 === khh_dt_co_sao_ke() );
+$bank = khh_dt_nop_bank();
+phep( 'và không nhân đôi tiền', 5980000.0 === $bank['2026-09-14|TuTu Train - Aeon Tân Phú'] );
+
+$chua = khh_dt_sk_chua_gan();
+phep( 'đếm đúng số khoản chưa nhận ra cơ sở', 1 === $chua['so_dong'] );
+phep( 'và đếm đúng số tiền đang treo', 3320000.0 === $chua['so_tien'] );
+
+/* Khai thêm một khoá rồi gán lại — khoản đang treo phải về đúng cơ sở, KHÔNG cần nạp lại file. */
+khh_dt_dat_ghep_bank(
+	array(
+		array( 'khoa' => 'TUTU TAN PHU', 'cua_hang' => 'TuTu Train - Aeon Tân Phú' ),
+		array( 'khoa' => 'TUTU BINH DUONG', 'cua_hang' => 'Tutu Train - Bình Dương' ),
+		array( 'khoa' => 'TUTU LOTTE GO VAP', 'cua_hang' => 'TuTu Train - Lotte Gò Vấp' ),
+		array( 'khoa' => 'CHUYEN KHOAN KHONG RO', 'cua_hang' => 'FUNZONE CITY VŨNG TÀU' ),
+	)
+);
+$doi = khh_dt_gan_lai_sao_ke();
+phep( 'khai thêm khoá thì gán lại được dòng cũ', 1 === $doi );
+phep( 'không còn khoản nào treo', 0 === khh_dt_sk_chua_gan()['so_dong'] );
+
+/* ============================================================ 5. file chỉ có một cột Số tiền */
+
+$sk2 = "Ngay,So tien,Noi dung,Ma tham chieu\n"
+	. "15/09/2026 09:00,509000,COFFE GO AN LAC NOP,ABC1\n"
+	. "15/09/2026 10:00,-250000,PHI DICH VU,ABC2\n";
+$kq = doc_csv( $sk2 );
+phep( 'file một cột tiền: lấy số dương', 1 === count( $kq['dong'] ) );
+phep( 'file một cột tiền: số âm là tiền ra', 1 === (int) $kq['tien_ra'] );
+phep( 'và báo lại là đã phải đoán chiều tiền', $kq['doan_dau'] > 0 );
+
+/* Sao kê không có mã giao dịch -> tự đúc mã, nạp lại vẫn không cộng dồn. */
+$sk3 = "Ngay giao dich,So tien,Noi dung\n15/09/2026 09:00,509000,COFFE GO AN LAC NOP\n";
+dung_bang_sk();
+khh_dt_ghi_sao_ke( doc_csv( $sk3 )['dong'] );
+khh_dt_ghi_sao_ke( doc_csv( $sk3 )['dong'] );
+phep( 'sao kê không có mã giao dịch vẫn không cộng dồn', 1 === khh_dt_co_sao_ke() );
+
+/* ============================================================ 6. file không phải sao kê */
+
+$kq = doc_csv( "Ten hang,So luong\nVe nguoi lon,3\n" );
+phep( 'file không phải sao kê thì chối, có nói lý do',
+	is_wp_error( $kq ) && false !== strpos( $kq->get_error_message(), 'tên cột' ) );
+
+/* ============================================================ kết */
+
+if ( $hong ) {
+	echo "\n✗ HỎNG " . count( $hong ) . " phép:\n";
+	foreach ( $hong as $h ) {
+		echo "   · $h\n";
+	}
+	exit( 1 );
+}
+echo "\n✓ SẠCH — $dat phép đọc sao kê ngân hàng\n";

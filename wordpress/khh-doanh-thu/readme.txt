@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.8.0
+Stable tag: 1.9.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -46,6 +46,20 @@ Thiếu thì xuất bản CSV từ FABi, plugin vẫn đọc được.
 
 Ai được nạp và xoá số liệu: người có quyền `edit_posts` trở lên. Ai đăng nhập cũng xem được.
 
+== Sao kê ngân hàng — tiền thực nộp ==
+
+Đối soát báo cáo cơ sở với máy POS cho kết quả khớp **0 đồng suốt 14/14 ngày** — vì báo cáo ấy
+chép ra từ chính máy POS. Hai con số cùng một nguồn thì so với nhau mãi mãi bằng không, kể cả khi
+có thất thoát. Tiền thực nộp mà cũng để cơ sở tự gõ thì y hệt.
+
+Nên cột **Thực nộp** lấy từ sao kê ngân hàng:
+
+1. **Nạp báo cáo → Sao kê ngân hàng** → thả file .xlsx/.csv tải từ ngân hàng. Chỉ tiền vào được
+   lấy; nạp lại cùng kỳ không cộng dồn (khoá theo mã giao dịch).
+2. **Quản trị → Sao kê ngân hàng** → khai mẩu chữ nhận mặt cơ sở (tên quán trong nội dung chuyển
+   khoản, hoặc số tài khoản nhận) và **giờ cắt**.
+3. Bảng đối soát bày số ngân hàng nhận được, và bày chỗ lệch với số cơ sở khai.
+
 == Cửa hàng trưởng vào bằng PIN chấm công ==
 
 Cửa hàng trưởng KHÔNG cần tài khoản WordPress. Ở trang **Nhân sự** của plugin Chấm công có cột
@@ -81,6 +95,23 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.9.0 =
+* **Cột "Thực nộp" lấy từ SAO KÊ NGÂN HÀNG**, không còn là số cơ sở tự khai. Nạp sao kê ở
+  **Nạp báo cáo → Sao kê ngân hàng** (.xlsx hoặc .csv). Chỉ lấy tiền vào; nạp lại cùng kỳ không
+  cộng dồn.
+* Số cơ sở khai vẫn giữ để ĐỐI CHIẾU: khai đã nộp 10 triệu mà ngân hàng nhận 8 triệu thì bảng
+  đối soát bày ngay chỗ lệch ấy, và có ô đếm "Khai nộp nhiều hơn ngân hàng nhận".
+* **Quản trị → Sao kê ngân hàng**: khai mẩu chữ trong nội dung chuyển khoản (hoặc số tài khoản)
+  → cơ sở. Khoá dài xét trước khoá ngắn. Khai thêm khoá là gán lại được cả những kỳ đã nạp, khỏi
+  nạp lại file.
+* **Giờ cắt** (mặc định 12h): tiền nộp trước giờ này tính cho doanh thu hôm trước — quán đóng cửa
+  đêm, sáng hôm sau mới mang tiền ra ngân hàng.
+* Khoản chưa nhận ra cơ sở được đếm và bày ngay trên bảng đối soát: mỗi khoản bỏ sót là một lời
+  "chưa nộp" oan cho người đã nộp thật.
+* Sửa: `fgetcsv()` thiếu tham số `$escape` — trên PHP 8.4 in Deprecated vào giữa JSON, giao diện
+  nhận được "not valid JSON". Và bỏ dấu tiếng Việt nay không phụ thuộc `remove_accents()` của
+  WordPress.
 
 = 1.8.0 =
 * **Một mã cơ sở ghép được nhiều quán trên máy POS.** Cùng một điểm Gò An Lạc mà máy POS tách

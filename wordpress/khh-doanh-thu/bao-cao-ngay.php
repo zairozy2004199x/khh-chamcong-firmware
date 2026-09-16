@@ -401,6 +401,13 @@ function khh_dt_rest_doi_soat( $req ) {
 	$rows = $args ? $wpdb->get_results( $wpdb->prepare( $sql, $args ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A );
 	// phpcs:enable
 
+	/* 🔴 TIỀN THỰC NỘP LẤY Ở SAO KÊ NGÂN HÀNG, KHÔNG PHẢI Ô CƠ SỞ GÕ VÀO.
+	   Anh Thắng 16/09/2026: *"cột thực nộp mình sẽ lấy bên sao kê"*. Ai giữ tiền mà cũng tự khai
+	   mình nộp bao nhiêu thì con số ấy không kiểm được gì — y như báo cáo cơ sở chép từ máy POS
+	   nên khớp 0 đồng suốt 14/14 ngày. Số cơ sở khai vẫn giữ, nhưng để ĐỐI CHIẾU với ngân hàng:
+	   khai 10 triệu mà ngân hàng nhận 8 triệu — chính chỗ lệch ấy mới là tín hiệu. */
+	$bank = khh_dt_nop_bank( $tu, $den );
+
 	$ra = array();
 	foreach ( (array) $rows as $r ) {
 		$tm = 0;
@@ -414,7 +421,11 @@ function khh_dt_rest_doi_soat( $req ) {
 		}
 		$co  = null !== $r['tien_mat_dem'];
 		$dem = (float) $r['tien_mat_dem'];
-		$nop = (float) $r['tien_nop'];
+		$nop = (float) $r['tien_nop'];                   // cơ sở KHAI đã nộp
+		$kb  = $r['ngay'] . '|' . $r['cua_hang'];
+		$co_bank = array_key_exists( $kb, $bank );
+		$nop_bk  = $co_bank ? (float) $bank[ $kb ] : 0;  // ngân hàng NHẬN ĐƯỢC
+		$nop_that = $co_bank ? $nop_bk : $nop;
 		$ra[] = array(
 			'ngay'       => $r['ngay'],
 			'cua_hang'   => $r['cua_hang'],
@@ -426,8 +437,12 @@ function khh_dt_rest_doi_soat( $req ) {
 			'co_bao_cao' => $co,
 			'dem'        => $dem,
 			'nop'        => $nop,
+			'nop_bank'   => $nop_bk,
+			'co_bank'    => $co_bank,
+			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
+			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
 			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận
-			'chua_nop'   => $co ? $dem - $nop : null,     // đếm được − thực nộp
+			'chua_nop'   => $co ? $dem - $nop_that : null, // đếm được − tiền ngân hàng thật sự nhận
 			'bill_huy'   => (int) $r['so_bill_huy'],
 			'tien_huy'   => (float) $r['tien_bill_huy'],
 			'khach'      => (int) $r['tong_khach'],
@@ -439,9 +454,13 @@ function khh_dt_rest_doi_soat( $req ) {
 		);
 	}
 	return array(
-		'dong'    => $ra,
-		'cua_toi' => khh_dt_co_so_mac_dinh(),
-		'nguong'  => khh_dt_nguong(),
+		'dong'     => $ra,
+		'cua_toi'  => khh_dt_co_so_mac_dinh(),
+		'nguong'   => khh_dt_nguong(),
+		'co_bank'  => (bool) khh_dt_co_sao_ke(),
+		/* Bày ra số dòng tiền chưa gán được cơ sở. Mỗi dòng bỏ sót là một khoản "chưa nộp" GIẢ,
+		   tố oan một người đã nộp tiền thật — nên nó phải nằm ngay trên bảng đối soát. */
+		'sk_chua_gan' => khh_dt_sk_chua_gan(),
 	);
 }
 
