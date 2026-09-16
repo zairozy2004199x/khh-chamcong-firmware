@@ -313,4 +313,16 @@ Bốn mục **Chấm công · Đăng ký lịch làm · Đổi ca · Báo cáo �
 sang plugin Chấm Công**, cố ý không dựng lại ở đây — bên ấy đã có sổ thật đang chạy.
 
 
+## 8. App Firebase cũ — ngừng dùng
+
+Quyết ngày 16/09/2026, anh Thắng: *"dữ liệu cũ chưa có gì đâu, dùng mới trên web này luôn"*.
+
+- **Không chuyển dữ liệu** — app cũ chỉ có dữ liệu thử.
+- **Ngừng nhập vào app Firebase.** Hai sổ doanh thu tách biệt thì nhập bên này bên kia không
+  thấy, và cuối tháng phải ngồi ghép tay.
+- **Gỡ hoặc khoá app cũ lại.** Nó vẫn còn lỗ đăng nhập nói ở mục 2; để đấy mà quên thì một ngày
+  nào đó có người nhập số thật vào nhầm chỗ.
+
+---
+
 Chưa chạy thử trên hosting thật: bản này mới chạy trong bộ thử và trong Chromium ở máy dựng.
