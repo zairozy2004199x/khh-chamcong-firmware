@@ -7815,6 +7815,22 @@ t( '🔴 và câu chối KHÔNG còn nói cần quyền Admin',
 		|| strpos( $r_sg[0]['loi'], 'cần quyền Admin' ) === false ), $r_sg );
 $_POST = array();
 
+/* 🔴 VÀ CÂU CHỐI CŨNG KHÔNG ĐƯỢC LÀ CÂU "VIỆC NÀY THUỘC MÀN HỒ SƠ".
+   Đây là phép bù cho một lỗ hổng thật, kéo dài từ 28/08 đến 15/09/2026: `sua_gio` đã hạ xuống
+   bậc Cửa hàng trưởng, hàng sửa đã vẽ ra cho họ, `VHCC_Bu::sua()` đã cho qua — nhưng tên việc
+   không có trong `VIEC_CHAM`, nên `lam_viec()` đá họ ra bằng một câu nói về màn Hồ sơ. Anh Thắng
+   15/09/2026 gửi ảnh chính câu ấy.
+
+   ⚠️ PHÉP NGAY TRÊN ĐÃ XANH OAN SUỐT THỜI GIAN ẤY: nó chỉ hỏi câu chối có chứa chữ "cần quyền
+      Admin" không — mà câu chối sai này nói "cần bậc Kế toán trở lên", nên không dính. Một phép
+      hỏi "không chứa chuỗi X" chỉ gác đúng chuỗi X; mọi câu chối sai KHÁC vẫn lọt. */
+t( '🔴 và cũng KHÔNG bị đá ra bằng câu nói về màn Hồ sơ',
+	is_array( $r_sg ) && ( ! isset( $r_sg[0]['loi'] )
+		|| strpos( $r_sg[0]['loi'], 'thuộc màn Hồ sơ' ) === false ), $r_sg );
+t( 'danh sách việc của màn Bảng công có khai `sua_gio`',
+	in_array( 'sua_gio', VHCC_Web::VIEC_CHAM, true ), VHCC_Web::VIEC_CHAM );
+
+
 /* 🔴 CƠ SỞ KHÁC THÌ VẪN CHỐI. Đây là chốt còn lại sau khi bậc đã hạ — mất nó là một cửa hàng
    trưởng sửa được bảng công của 25 cửa hàng kia. */
 $r_sg_xa = VHCC_Bu::sua(
@@ -7872,6 +7888,110 @@ foreach ( $nk_sau as $x ) {
 t( 'sổ nhật ký (dữ liệu) vẫn ghi đúng lượt sửa vừa rồi', null !== $nk_qtc1, $nk_sau );
 t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
 	null !== $nk_qtc1 && 'sua' === $nk_qtc1['viec'], $nk_qtc1 );
+
+/* =============================================================================================
+ * 🔴 CỬA HÀNG TRƯỞNG SỬA VÀ BÙ GIỜ — QUA ĐÚNG CỬA POST CỦA TRANG, BẰNG CHÍNH TÀI KHOẢN ẤY.
+ * =============================================================================================
+ * Anh Thắng 15/09/2026, kèm ảnh câu chối trên màn: *"Cho cửa hàng trưởng sửa và thêm giờ công"*.
+ *
+ * 🔴 Mọi phép sửa giờ trước đây đều chạy BẰNG TÀI KHOẢN ADMIN (`135791`) hoặc gọi THẲNG
+ *    `VHCC_Bu::sua()`. Hai đường ấy đều đi VÒNG QUA danh sách trắng `VIEC_CHAM` — nơi lỗi thật nằm.
+ *    Nên 5000 phép vẫn xanh trong lúc một Cửa hàng trưởng thật không sửa nổi một ô nào.
+ *    Khối này đi ĐÚNG ĐƯỜNG NGƯỜI DÙNG ĐI: `phuc_vu()` → `lam_viec()` → `VHCC_Bu`, bằng một
+ *    phiên Cửa hàng trưởng thật. Phá thử: bỏ `'sua_gio'` khỏi `VIEC_CHAM` thì khối này đỏ.
+ */
+/* ⚠️ KHÔNG `vhcc_dung_bang()` ở đây: các mục phía sau còn đọc dữ liệu đang có. Dùng cơ sở
+   và mã RIÊNG cho khối này là đủ tách bạch, không phải dọn của ai. */
+$giay_cu_chtg = $GLOBALS['VHCP_GIAY_BAY_GIO'];
+$GLOBALS['VHCP_GIAY_BAY_GIO'] = strtotime( '2026-09-15 10:00:00 UTC' );
+$cs_cht = 'CHTG_BT';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG1', 'ho_ten' => 'Trưởng Giờ',
+	'cua_hang' => $cs_cht, 'vai_tro' => 'Cửa hàng trưởng', 'pin_dang_nhap' => '551122' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG2', 'ho_ten' => 'Nhân Viên Giờ',
+	'cua_hang' => $cs_cht, 'vai_tro' => 'Nhân viên' ) );
+/* Một ngày ĐÃ CÓ giờ → đường `sua_gio`. Một ngày ĐỂ TRỐNG → đường `bu`. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTG2', 'ho_ten' => 'Nhân Viên Giờ',
+	'coso' => $cs_cht, 'ngay' => '2026-09-02', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'hau_to' => '', 'nguon' => 'may' ) );
+
+$u_chtg = array( 'name' => 'Trưởng Giờ', 'role' => 'Cửa hàng trưởng',
+	'coso' => $cs_cht, 'ma_nv' => 'CHTG1' );
+$tok_chtg = VHCC_Auth::phat_token( 'Trưởng Giờ', 'Cửa hàng trưởng', $cs_cht, 'CHTG1' );
+
+/* ---- (a) SỬA giờ đã có ---- */
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_chtg );
+$_GET  = array( 'man' => 'cham', 'ccs' => $cs_cht, 'cth' => '2026-09' );
+$_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'sg_vao' => '09:30', 'sg_ra' => '18:15', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' );
+ob_start(); VHCC_Web::phuc_vu(); $h_chtg = ob_get_clean();
+$_POST = array();
+/* Câu chối cũ hiện nguyên văn trên màn — soi thẳng nó thì lúc hỏng đọc ra ngay lý do. */
+t( '🔴 KHÔNG còn bị đá ra bằng câu "chỉ xem được bảng chấm công"',
+	strpos( $h_chtg, 'chỉ xem được bảng chấm công' ) === false,
+	( preg_match( '#<div class="bao loi">(.{0,300}?)</div>#s', $h_chtg, $m_chtg )
+		? trim( wp_strip_all_tags( $m_chtg[1] ) ) : 'không thấy câu lỗi nào' ) );
+$d_sua = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+teq( '🔴 giờ vào đã đổi thật trong sổ', '09:30', (string) $d_sua['vao'] );
+teq( 'và giờ ra cũng vậy', '18:15', (string) $d_sua['ra'] );
+
+/* ---- (b) BÙ giờ vào ô trống ("thêm giờ công") ---- */
+/* ⚠️ Đường bù dùng TÊN Ô KHÁC (`bu_vao`/`bu_ra`) chứ không phải `sg_*` — xem `o_cap_gio()`.
+   Gõ nhầm sang `sg_*` thì lượt gửi vẫn đến nơi, vẫn không báo lỗi quyền, mà chẳng ghi gì. */
+$_POST = array( 'viec' => 'bu', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-03', 'ma_nv' => 'CHTG2',
+	'bu_vao' => '08:00', 'bu_ra' => '17:00', 'ly_do' => 'máy hỏng sáng nay, có camera' );
+ob_start(); VHCC_Web::phuc_vu(); $h_chtg_bu = ob_get_clean();
+$_POST = array();
+$d_bu = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-03', 'CHTG2' );
+teq( '🔴 bù giờ vào ô trống cũng ăn', '08:00', (string) $d_bu['vao'] );
+teq( 'và có giờ ra', '17:00', (string) $d_bu['ra'] );
+
+/* ---- (c) ⚠️ MỞ CỬA KHÔNG ĐƯỢC KÉO THEO MỞ PHẠM VI. Ba chốt phải còn nguyên. ---- */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'XA1', 'ho_ten' => 'Người Cơ Sở Khác',
+	'cua_hang' => 'XA_BT', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'XA1', 'ho_ten' => 'Người Cơ Sở Khác',
+	'coso' => 'XA_BT', 'ngay' => '2026-09-02', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'hau_to' => '', 'nguon' => 'may' ) );
+$_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => 'XA_BT', 'ngay' => '2026-09-02', 'ma_nv' => 'XA1',
+	'sg_vao' => '05:00', 'ly_do' => 'thử sửa cơ sở khác' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+$d_xa = VHCC_Bu::gio_hien_tai( 'XA_BT', '2026-09-02', 'XA1' );
+teq( '🔴 vẫn KHÔNG sửa được giờ của cơ sở KHÁC', '08:00', (string) $d_xa['vao'] );
+
+/* Bắt ghi vì sao: thiếu lý do thì không ăn, dù đúng cơ sở mình. */
+$_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'sg_vao' => '04:00', 'ly_do' => '' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+$d_kl = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+teq( '🔴 thiếu "vì sao" thì lượt sửa KHÔNG ăn', '09:30', (string) $d_kl['vao'] );
+
+/* Vào sổ, không xoá được — chốt thứ ba. */
+$nk_chtg = VHCC_Bu::ds_nhat_ky( $u_chtg, $cs_cht, '2026-09' );
+$co_sua = false; $co_bu = false;
+foreach ( $nk_chtg as $x ) {
+	if ( 'CHTG2' === $x['ma_nv'] && '2026-09-02' === $x['ngay'] && 'sua' === $x['viec'] ) { $co_sua = true; }
+	if ( 'CHTG2' === $x['ma_nv'] && '2026-09-03' === $x['ngay'] ) { $co_bu = true; }
+}
+t( '🔴 lượt sửa của cửa hàng trưởng có vào sổ', $co_sua, $nk_chtg );
+t( 'và lượt bù cũng vậy', $co_bu, $nk_chtg );
+
+/* ---- (d) Nhân viên bậc 1 thì KHÔNG. Mở cho Cửa hàng trưởng không phải mở cho mọi người. ---- */
+$tok_nvg = VHCC_Auth::phat_token( 'Nhân Viên Giờ', 'Nhân viên', $cs_cht, 'CHTG2' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_nvg );
+$_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_nvg ),
+	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'sg_vao' => '03:00', 'ly_do' => 'nhân viên tự sửa giờ của mình' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+$d_nv = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+teq( '🔴 nhân viên bậc 1 TỰ SỬA giờ của mình: KHÔNG ăn', '09:30', (string) $d_nv['vao'] );
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$GLOBALS['VHCP_GIAY_BAY_GIO'] = $giay_cu_chtg;
 
 // ====== 48b. XẾP CƠ SỞ VÀO BỘ PHẬN + THỨ TỰ KHỐI CẤU HÌNH
 /* Anh Thắng 26/08/2026: *"bổ sung set cơ sở thuộc bộ phận nào"*, *"thêm bộ phận PART TIME"*,

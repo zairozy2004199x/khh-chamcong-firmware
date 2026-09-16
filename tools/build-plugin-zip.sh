@@ -9,6 +9,7 @@
 #   bash tools/build-plugin-zip.sh noi-bo     -> chỉ Nội Bộ K&H
 #   bash tools/build-plugin-zip.sh du-an      -> chỉ Dự Án & Tiến Độ K&H
 #   bash tools/build-plugin-zip.sh doanh-thu  -> chỉ Báo Cáo Doanh Thu FABi
+#   bash tools/build-plugin-zip.sh khh-platform -> chỉ Nền tảng K&H
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -71,6 +72,7 @@ case "$CHON" in
   noi-bo)    dong_goi "Nội Bộ K&H" vhcp-noi-bo ;;
   du-an)     dong_goi "Dự Án & Tiến Độ K&H" vhcp-du-an ;;
   doanh-thu) dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu ;;
+  khh-platform) dong_goi "Nền tảng K&H" khh-platform ;;
   tatca)
     dong_goi "Trang Vận Hành K&H" vhcp-trang-chu
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
@@ -91,6 +93,7 @@ case "$CHON" in
       dong_goi "${_n:-$_t}" "$_t"
     done
     dong_goi "Báo Cáo Doanh Thu FABi" khh-doanh-thu
+    dong_goi "Nền tảng K&H" khh-platform
     ;;
   *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | noi-bo | du-an | doanh-thu | tatca)"; exit 1 ;;
 esac

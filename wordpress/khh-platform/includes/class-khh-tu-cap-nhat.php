@@ -17,7 +17,7 @@
  *     repo mà không lọc theo plugin thì bản chấm công hiện thành "bản mới" của chi phí.
  *   · REPO RIÊNG TƯ. Tài liệu của Git Updater hướng chuyện này sang bản trả phí.
  *
- *   Lớp này chỉ lọc tag theo TIỀN TỐ của chính plugin mình (`vhcp-chi-phi-v…`), nên chín plugin
+ *   Lớp này chỉ lọc tag theo TIỀN TỐ của chính plugin mình (`khh-platform-v…`), nên chín plugin
  *   sống chung một repo mà không ai nhầm bản của ai; và repo riêng tư thì dùng khoá truy cập.
  *
  * =================================================================================================
@@ -33,19 +33,19 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-class VHCP_TuCapNhat {
+class KHH_TuCapNhat {
 
 	/** Repo giữ mã. Đổi chủ repo thì đổi đúng một dòng này. */
 	const REPO = 'zairozy2004199x/khh-chamcong-firmware';
 
 	/** Tiền tố tag của RIÊNG plugin này — xem khối dài ở đầu tệp. */
-	const TIEN_TO = 'vhcp-chi-phi-v';
+	const TIEN_TO = 'khh-platform-v';
 
 	/** Khoá truy cập GitHub (chỉ cần quyền đọc). Dùng chung cho mọi plugin trên cùng site. */
 	const O_KHOA = 'vhcp_gh_token';
 
 	/** Nhớ kết quả hỏi GitHub trong 6 giờ — đừng gọi mạng ở mỗi lượt tải trang admin. */
-	const O_NHO   = 'vhcp_gh_ban_moi';
+	const O_NHO   = 'khh_gh_ban_moi';
 	const NHO_LAU = 21600;
 
 	public static function init() {
@@ -78,7 +78,7 @@ class VHCP_TuCapNhat {
 
 	/** Số bản đang chạy — đọc từ chính hằng của plugin, không chép thành một con số thứ hai. */
 	private static function ban_hien() {
-		return defined( 'VHCP_VERSION' ) ? (string) VHCP_VERSION : '0';
+		return defined( 'KHH_VERSION' ) ? (string) KHH_VERSION : '0';
 	}
 
 	/** 🔴 CHỈ ĐỌC THỨ ĐÃ NHỚ — TUYỆT ĐỐI KHÔNG GỌI MẠNG. Xem khối trên. */
@@ -96,8 +96,8 @@ class VHCP_TuCapNhat {
 	public static function khai_ds( $ds ) {
 		if ( ! is_array( $ds ) ) { $ds = array(); }
 		$ds[] = array(
-			'ma'    => 'vhcp-chi-phi',
-			'ten'   => 'Vận Hành Chi Phí (K&H)',
+			'ma'    => 'khh-platform',
+			'ten'   => 'Nền tảng K&H',
 			'duong' => self::duong(),
 			'hien'  => (string) self::ban_hien(),
 			'lop'   => __CLASS__,
@@ -124,7 +124,7 @@ class VHCP_TuCapNhat {
 
 	/** Đường dẫn plugin dạng `vhcp-chi-phi/vhcp-chi-phi.php` — khoá WordPress dùng để nhận plugin. */
 	private static function duong() {
-		return plugin_basename( VHCP_DIR . 'vhcp-chi-phi.php' );
+		return plugin_basename( KHH_DIR . 'khh-platform.php' );
 	}
 
 	/**
@@ -141,7 +141,7 @@ class VHCP_TuCapNhat {
 
 		$dau = array( 'headers' => array(
 			'Accept'     => 'application/vnd.github+json',
-			'User-Agent' => 'vhcp-tu-cap-nhat',
+			'User-Agent' => 'khh-platform-tu-cap-nhat',
 		), 'timeout' => 15 );
 		$khoa = trim( (string) get_option( self::O_KHOA, '' ) );
 		if ( '' !== $khoa ) { $dau['headers']['Authorization'] = 'Bearer ' . $khoa; }
@@ -157,13 +157,13 @@ class VHCP_TuCapNhat {
 		$ds = json_decode( wp_remote_retrieve_body( $r ), true );
 		if ( ! is_array( $ds ) ) { set_transient( self::O_NHO, 'khong', 900 ); return null; }
 
-		$hien  = defined( 'VHCP_VERSION' ) ? VHCP_VERSION : '0';
+		$hien  = defined( 'KHH_VERSION' ) ? KHH_VERSION : '0';
 		$tot   = null;
 		foreach ( $ds as $rel ) {
 			if ( ! empty( $rel['draft'] ) || ! empty( $rel['prerelease'] ) ) { continue; }
 			$tag = isset( $rel['tag_name'] ) ? (string) $rel['tag_name'] : '';
 			/* 🔴 LỌC THEO TIỀN TỐ CỦA CHÍNH PLUGIN NÀY. Không có bước này thì bản chấm công
-			   `vhcp-cham-cong-v3.76.0` hiện ra như bản mới của chi phí. */
+			   `vhcp-cham-cong-v3.89.0` hiện ra như bản mới của nền tảng. */
 			if ( 0 !== strpos( $tag, self::TIEN_TO ) ) { continue; }
 			$ver = substr( $tag, strlen( self::TIEN_TO ) );
 			/* 🔴 LỚP THỨ HAI: SỐ PHIÊN BẢN PHẢI RA HÌNH MỘT SỐ PHIÊN BẢN.
@@ -237,7 +237,7 @@ class VHCP_TuCapNhat {
 		$moi = self::ban_moi();
 		if ( ! $moi ) { return $ket_qua; }
 		$o = new stdClass();
-		$o->name          = 'Vận Hành Chi Phí';
+		$o->name          = 'Nền tảng K&H';
 		$o->slug          = $args->slug;
 		$o->version       = $moi['ver'];
 		$o->last_updated  = $moi['ngay'];
