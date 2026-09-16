@@ -1305,6 +1305,15 @@
         if (khung) khung.hidden = true;
         return;
       }
+      if (r.sk_gop) {
+        noi.innerHTML = '<div class="canh-ghep">Sổ MoMo đang khai (<code>' + esc(r.sk_bang) + '</code>) là ' +
+          '<b>sổ đã gộp theo ngày</b> — mỗi dòng là cả một ngày của một quán, có cột đếm giao dịch. ' +
+          'Tổng ngày × cơ sở thì nó đúng và bảng <b>Tổng hợp cả kỳ</b> đang dùng được ngay.<br>' +
+          'Nhưng đối soát <b>từng giao dịch</b> thì phải có từng giao dịch. Sổ ấy dựng từ chính mấy ' +
+          'file <code>Transaction_report_….csv</code> — nạp thẳng file ấy ở <b>Nạp báo cáo → thẻ ' +
+          'Sao kê MoMo</b> là có ngay bảng lệch tới từng mã, ghép bằng Mã giao dịch.</div>';
+        return;
+      }
       if (!r.co_pos || !r.co_sk) {
         noi.innerHTML = '<div class="trong">' + (!r.co_pos
           ? 'Chưa nạp file <b>Giao dịch MoMo (FABi)</b> — bấm <b>Nạp báo cáo</b> rồi chọn thẻ ấy.'
@@ -1925,7 +1934,7 @@
       if (!cot.length) { noi.innerHTML = '<div class="chu-them">Bảng rỗng hoặc không đọc được.</div>'; return; }
       var vai = viec === 'momo'
         ? [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền *'], ['nhan', 'Tên cửa hàng *'],
-           ['noi_dung', 'Nội dung / mã cửa hàng']]
+           ['noi_dung', 'Nội dung / mã cửa hàng'], ['dem', 'Cột đếm giao dịch (nếu sổ gộp theo ngày)']]
         : [['ngay', 'Ngày giao dịch *'], ['so_tien', 'Số tiền vào *'], ['noi_dung', 'Nội dung'],
            ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
            ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại'],
@@ -1992,7 +2001,10 @@
           if (se.value) map[se.dataset.cot] = se.value;
         });
         if (!map.ngay || !map.so_tien) { window.alert('Phải chỉ cột Ngày và cột Số tiền.'); return; }
-        if (viec === 'momo' && !map.nhan) { window.alert('Phải chỉ cột Tên cửa hàng.'); return; }
+        if (viec === 'momo' && !map.nhan && !map.noi_dung) {
+          window.alert('Phải chỉ cột Tên cửa hàng — để biết tiền ấy của cơ sở nào.');
+          return;
+        }
         var fd = new FormData();
         fd.append('bang', bang);
         fd.append('cot', JSON.stringify(map));
@@ -2008,7 +2020,12 @@
           api('nguon-momo', { method: 'POST', body: fd }).then(function (kq) {
             window.alert('Đã khai sổ MoMo' +
               ((kq.loc && kq.loc.cot) ? ' — chỉ lấy dòng có ' + kq.loc.cot + ' = ' + kq.loc.gt : '') +
-              '.\nBảng Tổng hợp cả kỳ nay có thêm cột MoMo và cột Lệch MoMo.');
+              '.\nBảng Tổng hợp cả kỳ nay có thêm cột MoMo và cột Lệch MoMo.' +
+              (map.dem
+                ? '\n\nSổ này GỘP THEO NGÀY (có cột đếm giao dịch ' + map.dem + '), nên nó cho ' +
+                  'tổng ngày × cơ sở chứ không đối soát được từng giao dịch. Muốn tới từng mã thì ' +
+                  'nạp file Transaction_report_….csv ở thẻ Sao kê MoMo — cùng file ấy, chưa gộp.'
+                : ''));
             taiQuanTri();
           }).catch(function (e) {
             b.disabled = false; b.textContent = 'Dùng sổ MoMo này';

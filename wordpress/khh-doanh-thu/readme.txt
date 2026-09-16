@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.25.0
+Stable tag: 1.26.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,16 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.26.0 =
+* **Sửa lỗi "Phải chỉ cột Tên cửa hàng" trong khi cột ấy nằm ngay đó.** Sổ `wpt9_saoke_congfile`
+  đặt tên cột là `ch_chuan` / `ch_file`, mà hai tên ấy chưa có trong danh sách hệ nhận mặt — nên
+  màn khai sổ MoMo chặn lại không cho lưu. Nay nhận cả hai, ưu tiên bản đã chuẩn hoá.
+* **Nhận ra sổ ĐÃ GỘP THEO NGÀY và nói rõ nó làm được gì.** Sổ ấy mỗi dòng là một ngày của một
+  quán, có cột đếm giao dịch — tổng ngày × cơ sở thì đúng và dùng được ngay, nhưng đối soát *từng
+  giao dịch* thì không: 188 dòng gộp đem so với mấy nghìn giao dịch của máy POS sẽ kể lệch toàn
+  phần, người đọc tưởng mất tiền thật. Nay màn MoMo nói thẳng điều đó thay vì bày một bảng sai,
+  kèm đường đi đúng: nạp thẳng `Transaction_report_….csv` — cùng file ấy, chỉ là chưa gộp.
 
 = 1.25.0 =
 * **Nút "Tự tìm giao dịch MoMo trong site".** Mở danh sách bảng ra thì không cái nào tên *momo* —

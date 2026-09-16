@@ -821,7 +821,15 @@ function khh_dt_cot_nguon() {
 		'noi_dung'   => array( 'noi_dung', 'mo_ta', 'dien_giai', 'description', 'content', 'remark' ),
 		'ma_gd'      => array( 'ma_gd', 'ma_giao_dich', 'ref', 'reference_code', 'ma_tham_chieu', 'khoa', 'id' ),
 		'tai_khoan'  => array( 'so_tk', 'so_tai_khoan', 'tai_khoan', 'account_number' ),
-		'nhan'       => array( 'nhan', 'nhan_phan_loai', 'nhan_luc', 'co_so', 'cua_hang', 'ten_khai', 'diem_ban', 'ma_ch' ),
+		/* `ch_chuan` trước `ch_file`: sổ `wpt9_saoke_congfile` giữ cả tên gốc trong file MoMo lẫn
+		   tên đã chuẩn hoá — lấy bản đã chuẩn hoá thì đỡ một lần ghép mờ. Thiếu hai tên này nên
+		   màn khai bắt "phải chỉ cột Tên cửa hàng" trong khi cột ấy nằm ngay đó (16/09/2026). */
+		'nhan'       => array( 'ch_chuan', 'ch_file', 'nhan', 'nhan_phan_loai', 'nhan_luc', 'co_so',
+			'cua_hang', 'ten_cua_hang', 'ten_ch', 'ten_khai', 'diem_ban', 'ma_ch' ),
+		/* 🔴 CỘT ĐẾM GIAO DỊCH = DẤU HIỆU SỔ ĐÃ GỘP THEO NGÀY. Một dòng ở đó là cả một ngày của
+		   một quán, không phải một giao dịch — đem đi đối soát từng giao dịch là so 188 "giao
+		   dịch" với vài nghìn, sai từ dòng đầu. */
+		'dem'        => array( 'so_dong', 'so_gd', 'so_giao_dich', 'so_luong', 'so_ban_ghi' ),
 		'ma_may'     => array( 'ma_may', 'may_tay' ),
 		/* 🔴 `loai` LÀ CHIỀU TIỀN, KHÔNG PHẢI NGUỒN — và phải xét TRƯỚC `nguon`, vì một cột chỉ
 		   được nhận một vai. Sổ `wpt9_saoke_gd` ghi `loai = in`; xếp nhầm nó vào "nguồn" thì cột
@@ -1345,6 +1353,23 @@ function khh_dt_doan_cot( $cot_ds ) {
 function khh_dt_nguon_momo() {
 	$x = get_option( 'khh_dt_nguon_momo', array() );
 	return is_array( $x ) && ! empty( $x['bang'] ) ? $x : array();
+}
+
+/**
+ * Sổ MoMo đang khai có phải SỔ ĐÃ GỘP THEO NGÀY không.
+ *
+ * 🔴 CÂU HỎI NÀY QUYẾT ĐỊNH ĐƯỢC PHÉP KẾT LUẬN TỚI ĐÂU. Sổ `wpt9_saoke_congfile` của anh Thắng
+ *    là bản gộp của chính mấy file `Transaction_report_….csv`: mỗi dòng là một ngày của một quán,
+ *    kèm cột đếm `so_dong`. Tổng ngày × cơ sở thì nó đúng và dùng được ngay. Nhưng đối soát TỪNG
+ *    GIAO DỊCH thì không: 188 dòng gộp đem so với mấy nghìn giao dịch của máy POS sẽ ra một bảng
+ *    lệch toàn phần, và người đọc tưởng mất tiền thật.
+ *
+ *    Muốn đối soát từng giao dịch thì nạp thẳng file `Transaction_report_….csv` ở thẻ Sao kê MoMo
+ *    — cùng một file ấy, chỉ là chưa bị gộp.
+ */
+function khh_dt_momo_la_so_gop() {
+	$n = khh_dt_nguon_momo();
+	return ( $n && ! empty( $n['cot']['dem'] ) );
 }
 
 /**

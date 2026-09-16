@@ -305,6 +305,24 @@ phep( 'sổ cổng QR: đọc đúng cột số tiền', 'SO_TIEN' === $c['so_ti
 phep( 'sổ cổng QR: đọc đúng cột hướng', 'HUONG' === $c['huong'] );
 phep( 'sổ cổng QR: đọc đúng cột trạng thái', 'TRANG_THAI' === $c['trang_thai'] );
 
+/* Sổ MoMo đã gộp theo ngày của anh Thắng — `wpt9_saoke_congfile`, 188 dòng, mỗi dòng là một ngày
+   của một quán, dựng từ chính mấy file Transaction_report_….csv nạp vào plugin Sao Kê.
+
+   🔴 HAI CÁI PHẢI ĐÚNG Ở ĐÂY. Một: nhận ra cột tên cửa hàng, không thì màn khai bắt "phải chỉ cột
+      Tên cửa hàng" trong khi cột ấy nằm ngay trước mặt (đã xảy ra 16/09/2026). Hai: nhận ra cột
+      ĐẾM giao dịch — nó là dấu hiệu sổ đã gộp, mà sổ gộp thì đối soát từng giao dịch sẽ so 188
+      dòng với mấy nghìn giao dịch và kể lệch toàn phần. */
+$cot_gop = array( 'ID', 'NGUON', 'KHOA', 'THANG', 'NGAY', 'CH_FILE', 'CH_CHUAN', 'MA_BANK',
+	'SO_TIEN', 'SO_DONG', 'TEN_FILE', 'TAI_LUC' );
+$g = khh_dt_doan_cot( $cot_gop );
+phep( 'sổ MoMo gộp: đọc đúng cột ngày', 'NGAY' === $g['ngay'] );
+phep( 'sổ MoMo gộp: đọc đúng cột số tiền', 'SO_TIEN' === $g['so_tien'] );
+phep( 'sổ MoMo gộp: nhận ra cột tên cửa hàng', 'CH_CHUAN' === $g['nhan'] );
+phep( 'sổ MoMo gộp: nhận ra cột đếm giao dịch', 'SO_DONG' === $g['dem'] );
+phep( 'sổ MoMo gộp: không nhận nhầm cột đếm thành số tiền', 'SO_DONG' !== $g['so_tien'] );
+/* Sổ chưa gộp thì cột đếm phải TRỐNG — nếu không, đối soát từng giao dịch bị chặn oan. */
+phep( 'sổ cổng QR chưa gộp thì không có cột đếm', '' === $c['dem'] );
+
 /* ============================================================ 6. file không phải sao kê */
 
 $kq = doc_csv( "Ten hang,So luong\nVe nguoi lon,3\n" );

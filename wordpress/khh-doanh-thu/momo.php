@@ -847,6 +847,18 @@ function khh_dt_rest_momo() {
 function khh_dt_rest_momo_gd( $req ) {
 	$tu  = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'tu' ) );
 	$den = preg_replace( '/[^0-9\-]/', '', (string) $req->get_param( 'den' ) );
+	/* 🔴 SỔ ĐÃ GỘP THEO NGÀY THÌ KHÔNG ĐỐI SOÁT TỪNG GIAO DỊCH ĐƯỢC — và phải nói ra chứ không
+	   được cứ thế chạy. Mỗi dòng ở đó là cả một ngày của một quán; đem 188 dòng gộp so với mấy
+	   nghìn giao dịch của máy POS thì ra một bảng lệch toàn phần, người đọc tưởng mất tiền thật. */
+	if ( ! khh_dt_co_momo_sk() && function_exists( 'khh_dt_momo_la_so_gop' ) && khh_dt_momo_la_so_gop() ) {
+		$n = khh_dt_nguon_momo();
+		return array(
+			'co_pos'  => (bool) khh_dt_co_momo_pos(),
+			'co_sk'   => true,
+			'sk_gop'  => true,
+			'sk_bang' => (string) $n['bang'],
+		);
+	}
 	$ra  = khh_dt_doi_soat_momo_gd( $tu, $den );
 	$ra['co_pos']  = (bool) khh_dt_co_momo_pos();
 	/* Sổ MoMo có thể là file MoMo đã nạp, hoặc bảng ngoài đã khai — cái nào cũng tính. */
