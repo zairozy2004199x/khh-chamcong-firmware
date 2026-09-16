@@ -3729,11 +3729,28 @@ JS;
         var b=(r.meterBefore===''||r.meterBefore==null)?'':Number(r.meterBefore);
         var a=(r.meterAfter===''||r.meterAfter==null)?'':Number(r.meterAfter);
         var kx=(KICHXA[r.chairCode]||{tien:0});
-        var actual;
-        if(r.actualOverride!=null&&r.actualOverride!==undefined&&r.actualOverride!=='') actual=Number(r.actualOverride);
-        else if(b===''||a==='') actual=0;
-        else actual=(a-b)*dv-(Number(kx.tien)||0);
-        var qr=Number(r.qr||0), cash=actual-qr;
+        var qr=Number(r.qr||0), actual, cash;
+        /* ══════════════════════════════════════════════════════════════════════════════════════
+         * 🔴 Ô "THỰC THU TIỀN MẶT" LÀ TIỀN MẶT, KHÔNG PHẢI TỔNG. (sửa 16/09/2026)
+         *
+         * Anh Thắng: *"cột cash là cột thực thu — đang lấy nhầm giá trị"*. Đúng, và nặng hơn một
+         * lỗi hiển thị: ẢNH BÁO CÁO ĐANG NÓI KHÁC CƠ SỞ DỮ LIỆU.
+         *
+         * Máy chủ (`VHG_BaoCao::luu()`) lưu:  tien_mat = thực thu · tong = tien_mat + qr.
+         * Hàm này thì lấy thực thu gán vào `actual` rồi TRỪ QR LẦN NỮA — nên ghế VW-GP-6 thực thu
+         * 150.000đ, QR 80.000đ in ra thành "Actual 150.000 · Cash 70.000": vừa mất 80.000đ tiền
+         * mặt, vừa mất luôn 80.000đ khỏi tổng doanh thu của ghế.
+         *
+         * ⚠️ Và hai ảnh của CÙNG một báo cáo đang vênh nhau: `baoCaoAnhTuRp_()` (khối "Báo cáo
+         *    trong 24h") đọc thẳng số máy chủ nên in đúng 150.000. Cùng một ghế, hai con số —
+         *    ai nhìn ảnh nào thì tin ảnh ấy.
+         * ══════════════════════════════════════════════════════════════════════════════════════ */
+        var coTT=(r.actualOverride!=null&&r.actualOverride!==undefined&&r.actualOverride!=='');
+        if(coTT){ cash=Number(r.actualOverride); actual=cash+qr; }   // đúng công thức máy chủ
+        else {
+          actual=(b===''||a==='')?0:((a-b)*dv-(Number(kx.tien)||0));
+          cash=actual-qr;
+        }
         if(b!=='') tB+=b; if(a!=='') tA+=a; tAct+=actual; tCash+=cash; tQr+=qr;
         list.push({ name:(r.chairName||r.chairCode||''), before:(b===''?'':money(b)), after:(a===''?'':money(a)),
           actual:money(actual), cash:money(cash), qr:money(qr), note:(r.abnormalReason||r.note||'') });
