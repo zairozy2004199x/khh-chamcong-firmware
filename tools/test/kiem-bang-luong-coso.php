@@ -526,8 +526,8 @@ $h_kt = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cau_hinh', 'ccs' =
 t( '🔴 kế toán thấy khối khai đơn giá',
 	false !== strpos( $h_kt, 'Đơn giá giờ của cơ sở' ), substr( $h_kt, 0, 400 ) );
 t( 'khối liệt kê chức vụ đang dùng thật của tháng, không bắt gõ tay',
-	false !== strpos( $h_kt, 'name="gg_cs[' ), $h_kt );
-t( 'và có bảng chung cả chuỗi', false !== strpos( $h_kt, 'name="gg_chung[' ), $h_kt );
+	false !== strpos( $h_kt, 'name="gg_cs_ten[' ), $h_kt );
+t( 'và có bảng chung cả chuỗi', false !== strpos( $h_kt, 'name="gg_chung_ten[' ), $h_kt );
 
 $h_cht_ch = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
 	array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' ) );
@@ -540,7 +540,7 @@ $tok_kt = VHCC_Auth::phat_token( 'Chị Kế Toán', 'Kế toán', '', 'KT_BL' )
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_kt );
 $_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' );
 $_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ), 'ccs' => 'AEON_BT',
-	'gg_cs' => array( 'Lái Tàu' => '26500' ) );
+	'gg_cs_ten' => array( 0 => 'Lái Tàu' ), 'gg_cs_gia' => array( 0 => '26500' ) );
 ob_start(); VHCC_Web::phuc_vu(); $h_post = ob_get_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 bấm Lưu trên màn thì đơn giá vào sổ thật', 26500.0,
@@ -553,9 +553,8 @@ t( 'và màn KHÔNG báo câu chối về màn Hồ sơ',
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_kt );
 $_GET  = array( 'man' => 'cau_hinh' );
 $_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_kt ),
-	'gg_chung' => array( 'tn' => '24000' ),
-	'gg_chung_moi_ten' => array( 0 => 'Thu ngân mới' ),
-	'gg_chung_moi'     => array( 0 => '28000' ) );
+	'gg_chung_ten' => array( 0 => 'TN', 1 => 'Thu ngân mới' ),
+	'gg_chung_gia' => array( 0 => '24000', 1 => '28000' ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 dòng trống gõ thêm chức vụ mới thì LƯU THẬT', 28000.0,
@@ -698,11 +697,11 @@ $h_gg_ql  = vhcc_man( 'QL_BL', 'Quản lý', '', $g_bl );
 t( 'cửa hàng trưởng THẤY khối đơn giá ngay dưới bảng lương',
 	false !== strpos( $h_gg_cht, 'id="giagio"' ), 'không vẽ khối cho CHT' );
 t( '🔴 nhưng KHÔNG có ô gõ nào',
-	false === strpos( $h_gg_cht, 'name="gg_cs[' ), 'lộ ô gõ đơn giá cho cửa hàng trưởng' );
+	false === strpos( $h_gg_cht, 'name="gg_cs_gia[' ), 'lộ ô gõ đơn giá cho cửa hàng trưởng' );
 t( 'và màn nói rõ ai mới sửa được',
 	false !== strpos( $h_gg_cht, 'xem được' ), $h_gg_cht );
-t( '🔴 kế toán CÓ ô gõ', false !== strpos( $h_gg_kt, 'name="gg_cs[' ), 'kế toán không gõ được' );
-t( '🔴 quản lý CÓ ô gõ', false !== strpos( $h_gg_ql, 'name="gg_cs[' ), 'quản lý không gõ được' );
+t( '🔴 kế toán CÓ ô gõ', false !== strpos( $h_gg_kt, 'name="gg_cs_gia[' ), 'kế toán không gõ được' );
+t( '🔴 quản lý CÓ ô gõ', false !== strpos( $h_gg_ql, 'name="gg_cs_gia[' ), 'quản lý không gõ được' );
 
 /* Khối phải bám đúng cặp (cơ sở, tháng) đang xem — không đẻ thêm ô chọn cơ sở thứ hai để chọn
    lệch, đó là chính cái bẫy đã làm anh Thắng khai nhầm vào bảng chung. */
@@ -716,8 +715,8 @@ t( 'biểu mẫu mang sẵn đúng cơ sở đang xem',
  * chức vụ có giờ THÁNG ĐANG XEM. Nên nếu biểu mẫu không chở theo mấy chức vụ đã khai mà tháng
  * này nghỉ, thì mở bảng lương bấm Lưu một cái là chúng bay khỏi sổ — im lặng.
  *
- * Phép này KHÔNG tự bịa nội dung biểu mẫu: nó BÓC đúng mấy ô `gg_cs[...]` mà màn vừa vẽ ra rồi
- * gửi lại y hệt, tức là mô phỏng đúng cú bấm Lưu của người thật.
+ * Phép này KHÔNG tự bịa nội dung biểu mẫu: nó BÓC đúng mấy cặp ô (tên, giá) mà màn vừa vẽ ra
+ * rồi gửi lại y hệt, tức là mô phỏng đúng cú bấm Lưu của người thật.
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
 VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array(
 	'Lái Tàu' => 23000, 'Lơ Tàu' => 21000,
@@ -728,19 +727,22 @@ teq( 'gieo: chức vụ tháng này không có giờ vẫn đang ở trong sổ'
 
 $h_rt = vhcc_man( 'KT_BL', 'Kế toán', '', $g_bl );
 t( '🔴 màn CÓ vẽ ra dòng cho chức vụ tháng này không có giờ',
-	false !== strpos( $h_rt, 'name="gg_cs[Nghỉ Hè]"' ), 'không vẽ -> bấm Lưu là mất sổ' );
+	false !== strpos( $h_rt, 'value="Nghỉ Hè"' ), 'không vẽ -> bấm Lưu là mất sổ' );
 
-/* Bóc mọi ô gg_cs[...] kèm value ra khỏi HTML vừa dựng — đúng thứ trình duyệt sẽ gửi đi. */
-preg_match_all( '/name="gg_cs\[([^\]]*)\]"[^>]*?value="([^"]*)"/', $h_rt, $m_rt, PREG_SET_ORDER );
-$gui_rt = array();
-foreach ( $m_rt as $x_rt ) { $gui_rt[ html_entity_decode( $x_rt[1], ENT_QUOTES ) ] = $x_rt[2]; }
-t( 'bóc được ít nhất ba ô đơn giá từ màn', count( $gui_rt ) >= 3, $gui_rt );
+/* Bóc mọi cặp (gg_cs_ten[i], gg_cs_gia[i]) ra khỏi HTML vừa dựng — đúng thứ trình duyệt gửi. */
+preg_match_all( '/name="gg_cs_ten\[(\d+)\]" value="([^"]*)"/', $h_rt, $m_t, PREG_SET_ORDER );
+preg_match_all( '/name="gg_cs_gia\[(\d+)\]"[^>]*?value="([^"]*)"/', $h_rt, $m_g, PREG_SET_ORDER );
+$ten_rt = array(); $gia_rt = array();
+foreach ( $m_t as $x ) { $ten_rt[ (int) $x[1] ] = html_entity_decode( $x[2], ENT_QUOTES ); }
+foreach ( $m_g as $x ) { $gia_rt[ (int) $x[1] ] = html_entity_decode( $x[2], ENT_QUOTES ); }
+t( 'bóc được ít nhất ba dòng đơn giá từ màn', count( $ten_rt ) >= 3, $ten_rt );
 
 $tok_rt = VHCC_Auth::phat_token( 'Chị KT', 'Kế toán', '', 'KT_BL' );
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_rt );
 $_GET  = $g_bl;
 $_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_rt ),
-	'ccs' => 'AEON_BT', 'gg_cs' => $gui_rt );
+	'ccs' => 'AEON_BT', 'cth' => '2026-08',
+	'gg_cs_ten' => $ten_rt, 'gg_cs_gia' => $gia_rt );
 ob_start(); VHCC_Web::phuc_vu(); $h_rt_post = ob_get_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 
@@ -755,24 +757,133 @@ $tok_c2 = VHCC_Auth::phat_token( 'Trưởng BL', 'Cửa hàng trưởng', 'AEON_
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_c2 );
 $_GET  = $g_bl;
 $_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_c2 ),
-	'ccs' => 'AEON_BT', 'gg_cs' => array( 'Lái Tàu' => '99000' ) );
+	'ccs' => 'AEON_BT',
+	'gg_cs_ten' => array( 0 => 'Lái Tàu' ), 'gg_cs_gia' => array( 0 => '99000' ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 CHT gõ tay POST đơn giá: KHÔNG ăn', 23000.0,
 	VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );  // vẫn là giá vừa gieo, không phải 99.000
 
-/* 🔴 LƯU BẢNG CHUNG KHÔNG ĐƯỢC ĐÈ TÊN THÀNH KHOÁ. Ô tên của dòng cũ là ô CHỈ ĐỌC mang khoá làm
-   khoá mảng; bộ xử lý phải đọc `gg_chung_ten[...]` chứ không nhận bừa cái khoá làm tên. */
+/* 🔴 LƯU BẢNG CHUNG KHÔNG ĐƯỢC ĐÈ TÊN THÀNH KHOÁ. Ô tên nay gõ được và mang CÁCH VIẾT của
+   người, không mang khoá — bộ xử lý phải lấy đúng nó. */
 $tok_ch = VHCC_Auth::phat_token( 'Chị KT', 'Kế toán', '', 'KT_BL' );
 $k_lt = VHCC_GiaGio::khoa_cv( 'Lái tàu' );
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_ch );
 $_GET  = array( 'man' => 'cau_hinh', 'ccs' => 'AEON_BT' );
 $_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok_ch ),
-	'gg_chung' => array( $k_lt => '23500' ),
-	'gg_chung_ten' => array( $k_lt => 'Lái tàu' ) );
+	'gg_chung_ten' => array( 0 => 'Lái tàu' ), 'gg_chung_gia' => array( 0 => '23500' ) );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( 'lưu bảng chung thì giá đổi', 23500.0, VHCC_GiaGio::tra( 'KHO_LA', 'Lái tàu' )['gia'] );
 teq( '🔴 và TÊN KHÔNG bị đè thành khoá', 'Lái tàu', VHCC_GiaGio::ten_cua( $k_lt ) );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 8. THÊM · XOÁ · SỬA TÊN ngay trong bảng đơn giá
+ *
+ * Anh Thắng 16/09/2026: *"thêm xóa , sửa tên đơn giá"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+/** Gửi một lượt Lưu bảng đơn giá riêng của cơ sở, như trình duyệt gửi. */
+function vhcc_luu_gia( $ma_nv, $vai, $coso, $cs, $ten, $gia, $xoa = array(), $th = '2026-08' ) {
+	$tok = VHCC_Auth::phat_token( 'Người ' . $ma_nv, $vai, $coso, $ma_nv );
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	$_GET  = array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th );
+	$_POST = array( 'viec' => 'gia_gio', 'ky' => VHCC_Web::chu_ky( $tok ), 'ccs' => $cs,
+		'cth' => $th, 'gg_cs_ten' => $ten, 'gg_cs_gia' => $gia, 'gg_cs_xoa' => $xoa );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_GET = array(); $_COOKIE = array();
+	return $h;
+}
+
+/* ---- THÊM: dòng trống ở cuối bảng phải lưu thật ---- */
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Lái Tàu', 1 => 'Bảo vệ đêm' ), array( 0 => '23000', 1 => '31000' ) );
+teq( '🔴 THÊM: chức vụ gõ ở dòng trống vào sổ thật', 31000.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Bảo vệ đêm' )['gia'] );
+teq( 'và dòng cũ không suy suyển', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
+
+/* ---- SỬA TÊN: đổi tên là đổi khoá tra — khoá cũ đi, khoá mới tới ---- */
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Lái Tàu', 1 => 'Bảo vệ ca đêm' ), array( 0 => '23000', 1 => '31000' ) );
+teq( '🔴 SỬA TÊN: tên mới tra ra đúng giá cũ', 31000.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Bảo vệ ca đêm' )['gia'] );
+teq( '🔴 và tên CŨ không còn khai riêng nữa', 'khong',
+	VHCC_GiaGio::tra( 'AEON_BT', 'Bảo vệ đêm' )['tu'] );
+teq( 'tên đọc lại đúng cách viết mới', 'Bảo vệ ca đêm',
+	VHCC_GiaGio::ten_cua( VHCC_GiaGio::khoa_cv( 'Bảo vệ ca đêm' ) ) );
+
+/* ⚠️ ĐỔI HOA THƯỜNG / DẤU CÁCH KHÔNG PHẢI ĐỔI KHOÁ — chỉ là làm đẹp cách đọc, giá vẫn y nguyên. */
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Lái Tàu', 1 => 'BẢO VỆ CA ĐÊM' ), array( 0 => '23000', 1 => '31000' ) );
+teq( 'gõ lại hoa thường khác: giá KHÔNG đổi', 31000.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'bảo vệ ca đêm' )['gia'] );
+
+/* ---- XOÁ: tick ô Xoá thì dòng ấy rời sổ, dù ô giá vẫn còn số ---- */
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Lái Tàu', 1 => 'BẢO VỆ CA ĐÊM' ), array( 0 => '23000', 1 => '31000' ),
+	array( 1 => '1' ) );
+teq( '🔴 XOÁ: tick Xoá thì bỏ khai riêng, DÙ ô giá vẫn còn số', 'khong',
+	VHCC_GiaGio::tra( 'AEON_BT', 'Bảo vệ ca đêm' )['tu'] );
+teq( 'dòng không tick thì còn nguyên', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu' )['gia'] );
+
+/* 🔴 XOÁ Ở TẦNG CƠ SỞ LÀ RƠI VỀ BẢNG CHUNG, KHÔNG PHẢI THÀNH 0đ. */
+VHCC_GiaGio::dat_chung( $U_KT, array( 'Lái tàu' => 20000, 'Gác cổng' => 18000 ) );
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Gác cổng' ), array( 0 => '25000' ) );
+teq( 'gieo: cơ sở đang đè giá riêng', 25000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
+vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Gác cổng' ), array( 0 => '25000' ), array( 0 => '1' ) );
+teq( '🔴 xoá khai riêng thì rơi về BẢNG CHUNG', 18000.0,
+	VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['gia'] );
+teq( 'và nói rõ giá nay đến từ bảng chung', 'chung',
+	VHCC_GiaGio::tra( 'AEON_BT', 'Gác cổng' )['tu'] );
+
+/* ---- màn: ô tên có gõ được không, và ô Xoá có vẽ không ---- */
+/* Gieo lại dòng không-giờ đã bị mấy phép xoá ở trên dọn đi, để phần soi màn có đủ hai loại. */
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'Nghỉ Hè' => 19000 ) );
+$b_rt_kiem = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$h_sx = vhcc_man( 'KT_BL', 'Kế toán', '', $g_bl );
+t( 'có ô tick Xoá', false !== strpos( $h_sx, 'name="gg_cs_xoa[' ), $h_sx );
+t( 'có ba dòng trống để THÊM chức vụ mới',
+	substr_count( $h_sx, 'placeholder="+ chức vụ mới"' ) === 3, $h_sx );
+
+/* 🔴 TÊN LẤY TỪ HỒ SƠ THÌ KHÔNG CHO GÕ ĐÈ.
+   Dòng có giờ tháng này mang tên của HỒ SƠ. Gõ đè ở đây không đổi hồ sơ của ai — nó chỉ làm đơn
+   giá quay sang một cái tên không ai mang, tức âm thầm bỏ giá của đúng mấy người đang hiện trên
+   bảng lương. Nên ô ấy phải là ô ẨN, không phải ô gõ. */
+/* ⚠️ BẮT CẢ THẺ, ĐỪNG BẮT TỪ `name=`. `type="hidden"` đứng TRƯỚC `name=` trong thẻ, nên một
+   biểu thức khởi từ `name=` sẽ không bao giờ thấy nó — phép thử đỏ vì chính nó viết hụt, và
+   nếu viết ngược lại (khẳng định "không ẩn") thì nó XANH trong khi mã đúng. */
+$cv_hs = '';
+foreach ( $b_rt_kiem['dong'] as $d_sx ) {
+	if ( '' !== $d_sx['cv'] && 'thang' !== $d_sx['cheDo'] ) { $cv_hs = $d_sx['cv']; break; }
+}
+t( 'gieo: tìm được một chức vụ CÓ giờ để soi', '' !== $cv_hs, $cv_hs );
+preg_match( '/<input[^>]*value="' . preg_quote( htmlspecialchars( $cv_hs, ENT_QUOTES ), '/' )
+	. '"[^>]*>/', $h_sx, $m_sx );
+t( '🔴 dòng CÓ giờ: ô tên là ô ẩn, không gõ đè được',
+	isset( $m_sx[0] ) && false !== strpos( $m_sx[0], 'type="hidden"' ),
+	isset( $m_sx[0] ) ? $m_sx[0] : 'không thấy ô tên của ' . $cv_hs );
+/* Và ngược lại: dòng KHÔNG có giờ thì ô tên PHẢI gõ được — không có phép này thì phép trên
+   vẫn xanh cả khi mọi ô tên đều bị khoá cứng. */
+preg_match( '/<input[^>]*value="Nghỉ Hè"[^>]*>/u', $h_sx, $m_sx2 );
+t( '🔴 dòng KHÔNG có giờ: ô tên GÕ ĐƯỢC',
+	isset( $m_sx2[0] ) && false === strpos( $m_sx2[0], 'type="hidden"' ),
+	isset( $m_sx2[0] ) ? $m_sx2[0] : 'không thấy ô tên của Nghỉ Hè' );
+t( 'và màn chỉ đường sang Hồ sơ để đổi tên ấy',
+	false !== strpos( $h_sx, 'tên lấy từ hồ sơ' ), $h_sx );
+
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG CÓ Ô XOÁ. */
+$h_sx_cht = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_bl );
+t( '🔴 cửa hàng trưởng KHÔNG thấy ô Xoá',
+	false === strpos( $h_sx_cht, 'name="gg_cs_xoa[' ), 'lộ ô xoá cho cửa hàng trưởng' );
+
+/* 🔴 SỬA TÊN LỆCH THÌ PHẢI NÓI RA, không chỉ báo "Đã lưu".
+   Gõ tên chức vụ khác với hồ sơ là bảng lương mất tiền của cả nhóm mà câu báo vẫn xanh. */
+$h_lech = vhcc_luu_gia( 'KT_BL', 'Kế toán', '', 'AEON_BT',
+	array( 0 => 'Lai Tau Go Nham' ), array( 0 => '23000' ) );
+t( '🔴 lưu xong màn CẢNH BÁO còn dòng chưa có đơn giá',
+	false !== strpos( $h_lech, 'CHƯA có đơn giá' ), substr( $h_lech, 0, 900 ) );
 
 ket_luan();

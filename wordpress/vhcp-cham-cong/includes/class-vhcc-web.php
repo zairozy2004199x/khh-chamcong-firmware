@@ -1296,54 +1296,76 @@ class VHCC_Web {
 		if ( 'gia_gio' === $viec ) {
 			$cs_g = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
 			$bao_g = array();
-			if ( isset( $_POST['gg_chung'] ) || isset( $_POST['gg_chung_moi'] ) ) {
-				$bang_c = isset( $_POST['gg_chung'] ) ? (array) wp_unslash( $_POST['gg_chung'] ) : array();
-				/* 🔴 BA DÒNG TRỐNG Ở CUỐI BẢNG PHẢI ĐƯỢC ĐỌC. Vẽ ra ô để gõ mà bộ xử lý không
-				   nhận thì người ta gõ một chức vụ mới, bấm Lưu, màn báo "đã lưu" — và chức vụ
-				   ấy biến mất không dấu vết. Thà đừng vẽ ô còn hơn vẽ một ô không ăn. */
-				/* 🔴 DÒNG CŨ GỬI LÊN KHOÁ, KHÔNG PHẢI TÊN. Ô tên của dòng cũ là `gg_chung_ten[khoá]`
-				   (chỉ đọc), còn `gg_chung[khoá]` mới là giá. Bỏ qua ô tên ấy thì sổ nhận khoá
-				   làm tên và cách viết gốc mất luôn. Đổi khoá mảng về TÊN trước khi chuyển xuống;
-				   `sach_bang()` tự tính lại khoá nên tra cứu không đổi. */
-				$ten_cu = isset( $_POST['gg_chung_ten'] )
-					? (array) wp_unslash( $_POST['gg_chung_ten'] ) : array();
-				if ( $ten_cu ) {
-					$doi = array();
-					foreach ( $bang_c as $k_c => $g_c ) {
-						$t_c = isset( $ten_cu[ $k_c ] ) ? trim( (string) $ten_cu[ $k_c ] ) : '';
-						$doi[ '' === $t_c ? $k_c : $t_c ] = $g_c;
-					}
-					$bang_c = $doi;
-				}
-				$ten_moi = isset( $_POST['gg_chung_moi_ten'] )
-					? (array) wp_unslash( $_POST['gg_chung_moi_ten'] ) : array();
-				foreach ( (array) ( isset( $_POST['gg_chung_moi'] ) ? wp_unslash( $_POST['gg_chung_moi'] ) : array() )
-					as $i_m => $gia_m ) {
-					$tn = isset( $ten_moi[ $i_m ] ) ? trim( (string) $ten_moi[ $i_m ] ) : '';
-					if ( '' === $tn || '' === trim( (string) $gia_m ) ) { continue; }
-					$bang_c[ $tn ] = $gia_m;
+			/* BẢNG CHUNG CẢ CHUỖI — cùng lối với bảng cơ sở: đánh số theo dòng, một bộ ô lo
+			   cả thêm · sửa tên · sửa giá · xoá. Xem chú thích ở nhánh dưới. */
+			if ( isset( $_POST['gg_chung_ten'] ) ) {
+				$tc = (array) wp_unslash( $_POST['gg_chung_ten'] );
+				$gc = isset( $_POST['gg_chung_gia'] ) ? (array) wp_unslash( $_POST['gg_chung_gia'] ) : array();
+				$xc = isset( $_POST['gg_chung_xoa'] ) ? (array) wp_unslash( $_POST['gg_chung_xoa'] ) : array();
+				$bang_c = array();
+				foreach ( $tc as $i_c => $t_c ) {
+					$t_c = trim( (string) $t_c );
+					if ( '' === $t_c ) { continue; }
+					if ( ! empty( $xc[ $i_c ] ) ) { continue; }
+					$g_c = isset( $gc[ $i_c ] ) ? trim( (string) $gc[ $i_c ] ) : '';
+					if ( '' === $g_c ) { continue; }
+					$bang_c[ $t_c ] = $g_c;
 				}
 				$r = VHCC_GiaGio::dat_chung( $toi, $bang_c );
 				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
 					: array( 'xong' => 'Đã lưu bảng đơn giá CHUNG của cả chuỗi (' . (int) $r['so']
 						. ' chức vụ). Cơ sở nào có bảng riêng thì bảng riêng vẫn thắng.' );
 			}
-			if ( ( isset( $_POST['gg_cs'] ) || isset( $_POST['gg_cs_moi'] ) ) && '' !== $cs_g ) {
-				$bang_cs = isset( $_POST['gg_cs'] ) ? (array) wp_unslash( $_POST['gg_cs'] ) : array();
-				/* Ba ô trống ở cuối bảng cơ sở — cùng lẽ với bảng chung ngay trên: vẽ ô ra mà
-				   không đọc thì người ta gõ xong, màn báo "đã lưu", và chức vụ ấy biến mất. */
-				$ten_cs = isset( $_POST['gg_cs_moi_ten'] )
-					? (array) wp_unslash( $_POST['gg_cs_moi_ten'] ) : array();
-				foreach ( (array) ( isset( $_POST['gg_cs_moi'] ) ? wp_unslash( $_POST['gg_cs_moi'] ) : array() )
-					as $i_c => $gia_c ) {
-					$tc = isset( $ten_cs[ $i_c ] ) ? trim( (string) $ten_cs[ $i_c ] ) : '';
-					if ( '' === $tc || '' === trim( (string) $gia_c ) ) { continue; }
-					$bang_cs[ $tc ] = $gia_c;
+
+			/* ═══════════════════════════════════════════════════════════════════════════
+			 * BẢNG RIÊNG CỦA MỘT CƠ SỞ — thêm · sửa tên · sửa giá · xoá, cùng MỘT bộ ô.
+			 *
+			 * Anh Thắng 16/09/2026: *"thêm xóa , sửa tên đơn giá"*.
+			 *
+			 * 🔴 ĐÁNH SỐ THEO DÒNG, KHÔNG THEO TÊN. Bản trước lấy chính cái tên làm khoá mảng
+			 *    (`gg_cs[Lái Tàu]`), nên sửa tên là chuyện KHÔNG diễn đạt nổi: đổi khoá mảng
+			 *    thì máy chủ chỉ thấy một tên lạ xuất hiện và tên cũ biến mất, không biết đó là
+			 *    một lượt đổi tên hay một lượt xoá kèm một lượt thêm. Đánh số dòng thì ô tên
+			 *    trở thành một GIÁ TRỊ gõ được như mọi ô khác, và dòng thêm mới dùng chung đúng
+			 *    bộ ô ấy — một đường đọc thay vì hai.
+			 * ═══════════════════════════════════════════════════════════════════════════ */
+			if ( isset( $_POST['gg_cs_ten'] ) && '' !== $cs_g ) {
+				$ten_h = (array) wp_unslash( $_POST['gg_cs_ten'] );
+				$gia_h = isset( $_POST['gg_cs_gia'] ) ? (array) wp_unslash( $_POST['gg_cs_gia'] ) : array();
+				$xoa_h = isset( $_POST['gg_cs_xoa'] ) ? (array) wp_unslash( $_POST['gg_cs_xoa'] ) : array();
+				$bang_cs = array();
+				foreach ( $ten_h as $i_h => $t_h ) {
+					$t_h = trim( (string) $t_h );
+					if ( '' === $t_h ) { continue; }
+					/* Tick Xoá thắng mọi thứ còn gõ trên dòng ấy — người ta đã nói rõ ý định,
+					   đừng bắt họ phải nhớ xoá luôn ô giá thì mới ăn. */
+					if ( ! empty( $xoa_h[ $i_h ] ) ) { continue; }
+					$g_h = isset( $gia_h[ $i_h ] ) ? trim( (string) $gia_h[ $i_h ] ) : '';
+					if ( '' === $g_h ) { continue; }          // ô giá trống = không khai (luật cũ)
+					$bang_cs[ $t_h ] = $g_h;
 				}
 				$r = VHCC_GiaGio::dat_coso( $toi, $cs_g, $bang_cs );
-				$bao_g[] = empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
-					: array( 'xong' => 'Đã lưu đơn giá riêng của ' . $cs_g . ' (' . (int) $r['so']
-						. ' chức vụ). Bảng lương ngay trên đã tính lại theo giá mới.' );
+				if ( empty( $r['ok'] ) ) {
+					$bao_g[] = array( 'loi' => $r['error'] );
+				} else {
+					/* 🔴 ĐẾM HẬU QUẢ RỒI NÓI RA, ĐỪNG CHỈ BÁO "ĐÃ LƯU".
+					   Sửa tên là đổi khoá tra. Gõ lệch một chữ là đơn giá quay sang một cái tên
+					   không ai mang, và bảng lương lặng lẽ mất tiền của cả một nhóm — mà câu
+					   "Đã lưu" thì vẫn xanh. Dựng lại bảng ngay, đếm xem còn mấy dòng chưa có
+					   giá, và nếu có thì NÓI THẲNG trong chính câu báo. */
+					$th_g  = isset( $_POST['cth'] ) ? sanitize_text_field( wp_unslash( $_POST['cth'] ) ) : '';
+					$nhac  = '';
+					if ( '' !== $th_g ) {
+						$b_g = VHCC_BangLuong::dung( $cs_g, $th_g );
+						if ( ! empty( $b_g['ok'] ) && (int) $b_g['thieu']['gia'] > 0 ) {
+							$nhac = ' ⚠️ Còn ' . (int) $b_g['thieu']['gia'] . ' dòng trong bảng '
+								. 'lương CHƯA có đơn giá — kiểm lại xem có gõ lệch tên chức vụ '
+								. 'so với hồ sơ không.';
+						}
+					}
+					$bao_g[] = array( 'xong' => 'Đã lưu đơn giá riêng của ' . $cs_g . ' ('
+						. (int) $r['so'] . ' chức vụ). Bảng lương ngay trên đã tính lại.' . $nhac );
+				}
 			}
 			if ( ! $bao_g ) { $bao_g[] = array( 'loi' => 'Không có ô đơn giá nào được gửi lên.' ); }
 			return $bao_g;
@@ -7525,9 +7547,14 @@ class VHCC_Web {
 					. 'giờ — chưa có chức vụ nào để khai. Khai ở <b>bảng chung</b> bên dưới cũng '
 					. 'được, cơ sở sẽ lấy theo đó.</p>';
 			} else {
+				/* ⚠️ CÙNG BỘ Ô VỚI KHỐI DƯỚI BẢNG LƯƠNG (`gg_cs_ten/gia/xoa`, đánh số theo
+				   dòng). Hai màn cùng sửa một cuốn sổ mà gửi hai dạng biểu mẫu khác nhau thì
+				   bộ xử lý phải có hai đường đọc — và đường ít người đi là đường mục sau quên
+				   sửa. */
 				echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th>'
 					. '<th>Số dòng</th><th>Đơn giá riêng của cơ sở (đ/giờ)</th>'
-					. '<th>Đang áp dụng</th></tr></thead><tbody>';
+					. '<th>Đang áp dụng</th><th>Xoá</th></tr></thead><tbody>';
+				$i_cf = 0;
 				foreach ( $dang as $cv => $n ) {
 					$k  = VHCC_GiaGio::khoa_cv( $cv );
 					$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? $so['coso'][ $kcs ][ $k ] : '';
@@ -7535,15 +7562,39 @@ class VHCC_Web {
 					$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở',
 						'chung' => 'bảng chung', 'khong' => 'CHƯA KHAI' );
 					echo '<tr' . ( 'khong' === $ap['tu'] ? ' class="hong"' : '' ) . '>';
-					echo '<td><b>' . esc_html( $cv ) . '</b></td>';
-					echo '<td class="p">' . (int) $n . '</td>';
-					echo '<td><input name="gg_cs[' . esc_attr( $cv ) . ']" inputmode="numeric" '
+					/* Tên đến từ hồ sơ khi dòng có giờ (xem chú thích dài ở `the_gia_gio_cs`);
+					   dòng không giờ là nhãn của chính sổ, sửa được. */
+					echo '<td>';
+					if ( $n > 0 ) {
+						echo '<b>' . esc_html( $cv ) . '</b>'
+							. '<input type="hidden" name="gg_cs_ten[' . $i_cf . ']" value="'
+							. esc_attr( $cv ) . '">'
+							. '<div class="mo" style="font-size:11px">tên lấy từ hồ sơ</div>';
+					} else {
+						echo '<input name="gg_cs_ten[' . $i_cf . ']" value="' . esc_attr( $cv )
+							. '" style="width:170px">';
+					}
+					echo '</td>';
+					echo '<td class="p">' . ( $n > 0 ? (int) $n : '<span class="mo">0</span>' ) . '</td>';
+					echo '<td><input name="gg_cs_gia[' . $i_cf . ']" inputmode="numeric" '
 						. 'style="width:130px" value="' . esc_attr( '' === $cu ? '' : (int) $cu )
 						. '" placeholder="vd 23000"></td>';
 					echo '<td class="mo">' . ( $ap['gia'] > 0
 						? esc_html( number_format( (float) $ap['gia'], 0, ',', '.' ) ) . 'đ · '
 						: '' ) . esc_html( $ten_tu[ $ap['tu'] ] ) . '</td>';
+					echo '<td class="p"><input type="checkbox" name="gg_cs_xoa[' . $i_cf . ']" '
+						. 'value="1" title="Bỏ khai riêng dòng này"'
+						. ( '' === $cu ? ' disabled' : '' ) . '></td>';
 					echo '</tr>';
+					$i_cf++;
+				}
+				for ( $j_cf = 0; $j_cf < 3; $j_cf++ ) {
+					echo '<tr><td><input name="gg_cs_ten[' . $i_cf . ']" placeholder="+ chức vụ mới" '
+						. 'style="width:170px"></td><td class="mo">—</td>'
+						. '<td><input name="gg_cs_gia[' . $i_cf . ']" inputmode="numeric" '
+						. 'style="width:130px" placeholder="vd 24000"></td>'
+						. '<td class="mo">dòng thêm mới</td><td></td></tr>';
+					$i_cf++;
 				}
 				echo '</tbody></table></div>';
 				echo '<p style="margin:10px 0 0"><button class="chinh">Lưu đơn giá của '
@@ -7562,25 +7613,32 @@ class VHCC_Web {
 			. '<span class="mo">— dùng khi cơ sở không khai riêng</span></h3>';
 		$chung = isset( $so['chung'] ) ? $so['chung'] : array();
 		echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th>'
-			. '<th>Đơn giá (đ/giờ)</th></tr></thead><tbody>';
-		$da_ve = array();
+			. '<th>Đơn giá (đ/giờ)</th><th>Xoá</th></tr></thead><tbody>';
+		$i_ch = 0;
 		foreach ( $chung as $k => $v ) {
-			$da_ve[] = $k;
 			/* 🔴 VẼ TÊN NGƯỜI GÕ, KHÔNG VẼ KHOÁ. Khoá đã bỏ dấu bỏ hoa thường, nên bản trước gõ
 			   vào "Lái tàu" mở lại đọc ra "laitau" — anh Thắng 16/09/2026 nhìn thấy đúng ba dòng
 			   như vậy. Sổ giữ cách viết gốc từ bản này; khoá cũ chưa có tên thì `ten_cua()` trả
-			   lại chính khoá, vẫn hơn một ô trống. */
-			$ten_k = VHCC_GiaGio::ten_cua( $k, $so );
-			echo '<tr><td><input name="gg_chung_ten[' . esc_attr( $k ) . ']" value="'
-				. esc_attr( $ten_k ) . '" readonly style="width:180px;background:#f8fafc"></td>';
-			echo '<td><input name="gg_chung[' . esc_attr( $k ) . ']" inputmode="numeric" '
-				. 'style="width:130px" value="' . esc_attr( (int) $v ) . '"></td></tr>';
+			   lại chính khoá, vẫn hơn một ô trống.
+			   🔴 VÀ Ô ẤY NAY SỬA ĐƯỢC — *"thêm xóa , sửa tên đơn giá"*. Bảng chung không mượn
+			   tên của hồ sơ nào cả: nó là nhãn của chính sổ, nên sổ tự sửa được. Đây cũng là chỗ
+			   anh Thắng đang có ba dòng đọc ra "cht · laitau · lotau" cần gõ lại cho tử tế. */
+			echo '<tr><td><input name="gg_chung_ten[' . $i_ch . ']" value="'
+				. esc_attr( VHCC_GiaGio::ten_cua( $k, $so ) ) . '" style="width:180px"></td>';
+			echo '<td><input name="gg_chung_gia[' . $i_ch . ']" inputmode="numeric" '
+				. 'style="width:130px" value="' . esc_attr( (int) $v ) . '"></td>';
+			echo '<td class="p"><input type="checkbox" name="gg_chung_xoa[' . $i_ch . ']" '
+				. 'value="1" title="Bỏ chức vụ này khỏi bảng chung"></td></tr>';
+			$i_ch++;
 		}
-		/* Ba dòng trống để thêm chức vụ mới — không có thì khai xong một lần là hết chỗ thêm. */
+		/* Ba dòng trống để thêm chức vụ mới — không có thì khai xong một lần là hết chỗ thêm.
+		   Cùng bộ ô với dòng cũ, nên bộ xử lý chỉ đọc một đường. */
 		for ( $i = 0; $i < 3; $i++ ) {
-			echo '<tr><td><input name="gg_chung_moi_ten[' . $i . ']" placeholder="vd Thu ngân" '
-				. 'style="width:180px"></td><td><input name="gg_chung_moi[' . $i . ']" '
-				. 'inputmode="numeric" style="width:130px" placeholder="vd 24000"></td></tr>';
+			echo '<tr><td><input name="gg_chung_ten[' . $i_ch . ']" placeholder="+ chức vụ mới" '
+				. 'style="width:180px"></td><td><input name="gg_chung_gia[' . $i_ch . ']" '
+				. 'inputmode="numeric" style="width:130px" placeholder="vd 24000"></td>'
+				. '<td></td></tr>';
+			$i_ch++;
 		}
 		echo '</tbody></table></div>';
 		echo '<p style="margin:10px 0 0"><button class="chinh">Lưu bảng chung</button></p>';
@@ -7764,23 +7822,59 @@ class VHCC_Web {
 			echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 			echo '<input type="hidden" name="viec" value="gia_gio">';
 			echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+			/* Tháng để bộ xử lý còn dựng lại bảng mà ĐẾM HẬU QUẢ — xem câu báo sau khi lưu. */
+			echo '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
 		}
 		echo '<div class="cuon"><table class="b"><thead><tr><th>Chức vụ</th><th>Số dòng</th>'
 			. '<th>Đơn giá riêng của ' . esc_html( $cs ) . ' (đ/giờ)</th>'
-			. '<th>Đang lấy từ</th></tr></thead><tbody>';
+			. '<th>Đang lấy từ</th>' . ( $sua ? '<th>Xoá</th>' : '' ) . '</tr></thead><tbody>';
 		$ten_tu = array( 'nguoi' => 'khai riêng người', 'coso' => 'bảng cơ sở này',
 			'chung' => 'bảng chung cả chuỗi', 'khong' => 'CHƯA KHAI' );
+		$i_hang = 0;
 		foreach ( $dang as $k => $x ) {
 			$cu = isset( $so['coso'][ $kcs ][ $k ] ) ? (int) $so['coso'][ $kcs ][ $k ] : '';
 			$ap = VHCC_GiaGio::tra( $cs, $x['ten'], '', $so );
 			echo '<tr' . ( 'khong' === $ap['tu'] ? ' class="hong"' : '' ) . '>';
-			echo '<td><b>' . esc_html( $x['ten'] ) . '</b></td>';
+
+			/* ================================ CỘT TÊN ================================
+			 * 🔴 SỬA TÊN ĐƯỢC, NHƯNG KHÔNG PHẢI DÒNG NÀO CŨNG SỬA.
+			 *
+			 * Anh Thắng 16/09/2026: *"thêm xóa , sửa tên đơn giá"*. Thêm và xoá thì thẳng
+			 * băng; sửa tên thì phải chia hai loại dòng, vì tên ở hai loại có CHỦ khác nhau:
+			 *
+			 *   · Dòng CÓ GIỜ tháng này — tên đến từ HỒ SƠ nhân viên. Sổ đơn giá chỉ mượn nó
+			 *     để tra. Gõ đè ở đây KHÔNG đổi được hồ sơ của ai; nó chỉ làm đơn giá quay
+			 *     sang một cái tên không ai mang, tức là <b>âm thầm bỏ giá</b> của đúng mấy
+			 *     người đang hiện trên bảng lương. Nên để chỉ đọc, và chỉ đường sang Hồ sơ.
+			 *   · Dòng KHÔNG CÓ GIỜ — tên là nhãn của chính sổ này (gõ sai chính tả, hoặc
+			 *     chức vụ khai trước). Sổ tự làm chủ, sửa thoải mái.
+			 *
+			 * ⚠️ Đổi tên = đổi KHOÁ TRA, tức xoá khoá cũ và thêm khoá mới. Cùng một chữ khác
+			 *    dấu hoa thường thì khoá không đổi, nên sửa "lo tau" thành "Lơ Tàu" chỉ là làm
+			 *    đẹp cách đọc, không đụng gì tới giá đang áp.
+			 * ======================================================================== */
+			if ( $sua ) {
+				echo '<td><input type="hidden" name="gg_cs_goc[' . $i_hang . ']" value="'
+					. esc_attr( $k ) . '">';
+				if ( $x['n'] > 0 ) {
+					echo '<b>' . esc_html( $x['ten'] ) . '</b>'
+						. '<input type="hidden" name="gg_cs_ten[' . $i_hang . ']" value="'
+						. esc_attr( $x['ten'] ) . '">'
+						. '<div class="mo" style="font-size:11px">tên lấy từ hồ sơ — đổi ở màn '
+						. '<b>Hồ sơ</b></div>';
+				} else {
+					echo '<input name="gg_cs_ten[' . $i_hang . ']" value="'
+						. esc_attr( $x['ten'] ) . '" style="width:170px">';
+				}
+				echo '</td>';
+			} else {
+				echo '<td><b>' . esc_html( $x['ten'] ) . '</b></td>';
+			}
+
 			echo '<td class="p">' . ( $x['n'] > 0 ? (int) $x['n']
 				: '<span class="mo">0</span>' ) . '</td>';
 			if ( $sua ) {
-				/* Tên gửi đi là CÁCH VIẾT GỐC trong hồ sơ, không phải khoá — sổ giữ lại để còn
-				   đọc được (xem `VHCC_GiaGio::ten_cua`). */
-				echo '<td><input name="gg_cs[' . esc_attr( $x['ten'] ) . ']" inputmode="numeric" '
+				echo '<td><input name="gg_cs_gia[' . $i_hang . ']" inputmode="numeric" '
 					. 'style="width:130px" value="' . esc_attr( '' === $cu ? '' : (string) $cu )
 					. '" placeholder="vd 23000"></td>';
 			} else {
@@ -7790,16 +7884,27 @@ class VHCC_Web {
 			echo '<td class="mo">' . ( $ap['gia'] > 0
 				? '<b>' . esc_html( number_format( (float) $ap['gia'], 0, ',', '.' ) ) . 'đ</b> · '
 				: '' ) . esc_html( $ten_tu[ $ap['tu'] ] ) . '</td>';
+			if ( $sua ) {
+				/* 🔴 Ô TICK RỜI, KHÔNG BẮT NGƯỜI TA ĐOÁN. Luật "xoá ô giá = bỏ khai" vẫn còn và
+				   vẫn đúng, nhưng nó là luật NGẦM — người gõ nhìn một ô trống thì không biết
+				   mình vừa bỏ khai hay chỉ chưa gõ. Một ô tick nói thẳng ra ý định. */
+				echo '<td class="p"><input type="checkbox" name="gg_cs_xoa[' . $i_hang . ']" '
+					. 'value="1" title="Bỏ khai riêng dòng này — giá rơi về bảng chung cả chuỗi"'
+					. ( '' === $cu ? ' disabled' : '' ) . '></td>';
+			}
 			echo '</tr>';
+			$i_hang++;
 		}
 		if ( $sua ) {
-			/* Ba ô trống để khai TRƯỚC chức vụ chưa có giờ tháng này. */
-			for ( $i = 0; $i < 3; $i++ ) {
-				echo '<tr><td><input name="gg_cs_moi_ten[' . $i . ']" placeholder="chức vụ khác" '
+			/* Ba ô trống để THÊM chức vụ — cùng một dạng ô với dòng trên, nên bộ xử lý chỉ có
+			   MỘT đường đọc chứ không phải hai (thêm và sửa trước đây là hai bộ ô khác nhau). */
+			for ( $j = 0; $j < 3; $j++ ) {
+				echo '<tr><td><input name="gg_cs_ten[' . $i_hang . ']" placeholder="+ chức vụ mới" '
 					. 'style="width:170px"></td><td class="mo">—</td>'
-					. '<td><input name="gg_cs_moi[' . $i . ']" inputmode="numeric" '
-					. 'style="width:130px" placeholder="vd 24000"></td><td class="mo">chưa có giờ '
-					. 'tháng này</td></tr>';
+					. '<td><input name="gg_cs_gia[' . $i_hang . ']" inputmode="numeric" '
+					. 'style="width:130px" placeholder="vd 24000"></td>'
+					. '<td class="mo">dòng thêm mới</td><td></td></tr>';
+				$i_hang++;
 			}
 		}
 		echo '</tbody></table></div>';
