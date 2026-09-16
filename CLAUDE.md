@@ -16,8 +16,7 @@ Dán code chỉ khi anh ấy hỏi *"sửa chỗ nào"* / *"cho xem code"* — v
 
 ```bash
 # build (chạy ở gốc repo, tên thư mục = tên plugin)
-bash tools/build-ghe.sh        # GHẾ: tạo bản sao lớp báo cáo mang số bản, zip, tự diff — xem §1 bên dưới
-bash tools/build-chamcong.sh  # CHẤM CÔNG: zip + tự diff
+bash tools/build-ghe.sh   # GHẾ: tạo bản sao lớp báo cáo mang số bản, zip, tự diff — xem §1 bên dưới
 rm -f dist/vhcp-saoke.zip && zip -qr dist/vhcp-saoke.zip vhcp-saoke -x '*.DS_Store'   # các plugin khác
 ```
 
@@ -29,13 +28,6 @@ rm -f dist/vhcp-saoke.zip && zip -qr dist/vhcp-saoke.zip vhcp-saoke -x '*.DS_Sto
   luôn ghi được, opcache luôn biên dịch tươi. **Chỉ sửa tệp gốc**, không sửa tay bản sao; bài
   `kiem-ghe-ban-baocao.php` canh bản sao đúng MỘT, đúng tên, byte-y-nguyên. Commit cả bản sao.
 - `vhcp-saoke/` → `dist/vhcp-saoke.zip`
-- `vhcp-cham-cong/` → `dist/vhcp-cham-cong.zip` (**build bằng `tools/build-chamcong.sh`**). Vào kho
-  16/09/2026. Số bản khai **hai** chỗ: header `Version:` và hằng `VHCC_VERSION`, phải bằng nhau —
-  hằng ấy không chỉ để khoe: `vhcc_maybe_upgrade()` so nó với option `vhcc_ver` để quyết có chạy
-  `VHCC_DB::install()` hay không, quên tăng là **lược đồ bảng không được nâng mà không có gì đỏ**.
-  ⚠️ Model khuôn mặt (~7 MB) **không nằm trong gói** và đó là cố ý: cài đè zip là WordPress xoá
-  sạch thư mục plugin cũ; chỗ đúng là `wp-content/uploads/vhcc-mat/` (xem `assets/mat/DOC-TRUOC.txt`).
-  Bài `tools/test/kiem-chamcong-ban.php` canh cả hai điều trên.
 - `vhcp-ve/` → `dist/vhcp-ve.zip`
 - `dist/vhcp-du-an.zip` → chỉ có zip, **không có mã nguồn trong repo**, không sửa được từ đây
 
