@@ -8922,7 +8922,7 @@ t( '🔴 hàng -CD là dòng phụ ngay trong ô, không phải hàng riêng',
 t( 'và không còn hàng ↳ riêng nào', strpos( $h_gio, '↳ <code>' ) === false, $h_gio );
 /* Con số của riêng hàng phụ trước đây nằm ở ô TỔNG của hàng riêng — bỏ hàng ấy thì phải kể
    lại ở đây, kẻo mất hẳn "hàng -CD của người này cả tháng mấy tiếng". */
-t( 'ô TỔNG kể ra hậu tố nào mấy tiếng', strpos( $h_gio, '>-CD 2h</div>' ) !== false, $h_gio );
+t( 'ô TỔNG kể ra hậu tố nào mấy tiếng', strpos( $h_gio, '>-CD 2,00</div>' ) !== false, $h_gio );
 /* 9.5h (hàng chính) + 2h (hàng -CD) = 11h 30m. Lấy CÙNG phép tính với màn Bảng chấm công.
    ⚠️ Soi Ô TỔNG, không soi chuỗi '11h 30m' trần: bảng "Tổng giờ theo ca" ngay dưới lưới cũng
       in đúng con số ấy, nên đo chuỗi trần thì ô TỔNG có ra 0 phép thử vẫn xanh. Đã phá thử để
@@ -8931,8 +8931,8 @@ t( 'ô TỔNG kể ra hậu tố nào mấy tiếng', strpos( $h_gio, '>-CD 2h</
    trên lưới cũng có cột TỔNG, cũng ra 11h 30m cho đúng người ấy, cũng dùng `<td class="tong">`.
    Nên phải bám vào thứ CHỈ lưới mới có — dòng kể hậu tố ngay dưới con số. Bản trước của phép
    thử này chỉ soi `<td class="tong"><b>11h 30m</b>` và nó xanh cả khi ô TỔNG của lưới ra 0h. */
-t( '🔴 ô TỔNG của LƯỚI cộng cả hai hàng (9.5h + 2h = 11h 30m)',
-	strpos( $h_gio, '<b>11h 30m</b><div class="mo" style="font-size:10px">-CD 2h</div>' ) !== false,
+t( '🔴 ô TỔNG của LƯỚI cộng cả hai hàng (9,50 + 2,00 = 11,50 giờ)',
+	strpos( $h_gio, '<b>11,50</b><div class="mo" style="font-size:10px">-CD 2,00</div>' ) !== false,
 	$h_gio );
 /* 🔴 BA KÝ HIỆU CHO BA CHUYỆN. Gộp `?` với `—` là xoá mất phân biệt "quên bấm lúc về" (chuyện
    thường, bù là xong) với "giờ ra sớm hơn giờ vào" (dữ liệu ghi sai, phải tra lại nguồn).
@@ -8961,18 +8961,18 @@ foreach ( array( 'C1' => 'Ca 1', 'C2' => 'Ca 2', 'C3' => 'Ca 3' ) as $ma_tc => $
 	t( 'bảng theo ca có cột "' . $tc . '" kèm mã ngắn ' . $ma_tc,
 		strpos( $h_gio, '<b>' . $ma_tc . '</b> ' . $tc ) !== false, $h_gio );
 }
-t( 'và có cột Ngoài ca', strpos( $h_gio, '<th>Ngoài ca</th>' ) !== false, $h_gio );
+t( 'và có cột Ngoài ca', strpos( $h_gio, '<th>Ngoài ca<div style="font-weight:400;opacity:.7">giờ</div></th>' ) !== false, $h_gio );
 /* GIO1 ngày 01/07 có HAI hàng: hàng chính 08:00–17:30 và hàng -CD 21:00–23:00.
      Ca 1 (06–14) = 6h        (08:00→14:00 của hàng chính)
      Ca 2 (14–22) = 4h 30m    (14:00→17:30 hàng chính  +  21:00→22:00 hàng -CD)
      Ca 3 (22–06) = 1h        (22:00→23:00 hàng -CD)
    ⚠️ Em gõ 3h 30m cho Ca 2 vì chỉ nhẩm hàng chính — quên rằng hàng -CD cũng chạm Ca 2. Con số
       dưới đây lấy từ phép tính thật, và tổng 11h 30m khớp với cột TỔNG của lưới ở trên. */
-t( 'tách đúng giờ vào Ca 1', strpos( $h_gio, '>6h</b>' ) !== false, $h_gio );
+t( 'tách đúng giờ vào Ca 1', strpos( $h_gio, '>6,00</b>' ) !== false, $h_gio );
 t( 'Ca 2 gom cả hàng chính lẫn phần hàng -CD chạm vào nó',
-	strpos( $h_gio, '>4h 30m</b>' ) !== false, $h_gio );
-t( 'tổng theo ca khớp tổng giờ làm của lưới (11h 30m)',
-	substr_count( $h_gio, '11h 30m' ) >= 2, $h_gio );
+	strpos( $h_gio, '>4,50</b>' ) !== false, $h_gio );
+t( 'tổng theo ca khớp tổng giờ làm của lưới (11,50 giờ)',
+	substr_count( $h_gio, '11,50' ) >= 2, $h_gio );
 /* 🔴 MÃ CA IN THẲNG VÀO Ô. Anh Thắng 26/08: *"hiện sẵn bạn ca nào ca nào luôn nhé, đi rà này
    rất khó"* — một tháng của 21 người là hơn 600 ô, rê chuột từng ô thì không ai rà nổi. */
 t( 'ô lưới in sẵn mã ca, không bắt rê chuột mới biết',
@@ -9008,13 +9008,13 @@ t( 'và nói mỗi ca mấy tiếng kèm khung giờ',
 
 /* 🔴 Hàng ca đêm: 21:00–23:00 phải rơi vào Ca 3 (22:00–06:00, qua nửa đêm), không được biến
    mất. Ca qua nửa đêm là chỗ mà phép so ngây thơ `tu <= x && x < den` luôn trượt. */
-t( 'hàng ca đêm vẫn được tách vào Ca 3', strpos( $h_gio, '>1h</b>' ) !== false, $h_gio );
+t( 'hàng ca đêm vẫn được tách vào Ca 3', strpos( $h_gio, '>1,00</b>' ) !== false, $h_gio );
 /* 🔴 GIO2 làm 21:30 → 05:30 HÔM SAU = 8 tiếng, trong đó Ca 3 (22:00–06:00) ăn trọn 7h 30m và
    Ca 2 (14:00–22:00) ăn 30 phút đầu. Đọc từ chuỗi giờ đã gói về trong ngày thì ra ~0 và cả ca
    đêm này biến mất mà tổng vẫn có số — đúng kiểu hỏng không kêu tiếng nào. */
-t( 'ca đêm qua hôm sau tách đúng 7h 30m vào Ca 3',
-	strpos( $h_gio, '>7h 30m</b>' ) !== false, $h_gio );
-t( 'và 30 phút đầu rơi vào Ca 2', strpos( $h_gio, '>0h 30m</b>' ) !== false, $h_gio );
+t( 'ca đêm qua hôm sau tách đúng 7,50 giờ vào Ca 3',
+	strpos( $h_gio, '>7,50</b>' ) !== false, $h_gio );
+t( 'và 30 phút đầu rơi vào Ca 2', strpos( $h_gio, '>0,50</b>' ) !== false, $h_gio );
 
 /* Khối khai ca — Cửa hàng trưởng trở lên.
    ⚠️ Khối này nay ở TAB CẤU HÌNH, không còn trên màn bảng công — nên soi màn cấu hình. */
@@ -9057,8 +9057,8 @@ t( 'và nói là cơ sở này đã có khung ca RIÊNG',
 	strpos( $h_ca2, 'khai riêng cho' ) !== false, $h_ca2 );
 t( 'ca cũ không còn trong bảng', strpos( $h_ca2, '<b>C1</b> Ca 1' ) === false, $h_ca2 );
 /* 08:00–17:30 với ca Sáng 06–12 và Chiều 12–20 -> 4h + 5h 30m. */
-t( 'tách lại đúng theo khung ca mới', strpos( $h_ca2, '>4h</b>' ) !== false
-	&& strpos( $h_ca2, '>5h 30m</b>' ) !== false, $h_ca2 );
+t( 'tách lại đúng theo khung ca mới', strpos( $h_ca2, '>4,00</b>' ) !== false
+	&& strpos( $h_ca2, '>5,50</b>' ) !== false, $h_ca2 );
 /* 🔴 Hàng ca đêm 21:00–23:00 nay nằm NGOÀI mọi ca -> phải hiện ở cột Ngoài ca, không được nuốt. */
 t( 'giờ không thuộc ca nào hiện ở cột Ngoài ca, không bị nuốt',
 	strpos( $h_ca2, 'oc vang' ) !== false, $h_ca2 );
@@ -10568,7 +10568,10 @@ delete_option( VHCC_Cong::O );
  *    chọn người…) cũng in đúng những cái tên ấy, và mỗi khối xếp một kiểu.
  */
 function vhcc_than_luoi( $html ) {
-	$i = strpos( $html, 'TỔNG</th>' );
+	/* ⚠️ BÁM VÀO ĐẦU Ô TIÊU ĐỀ, KHÔNG BÁM VÀO ĐUÔI. Bản 4.7.0 gắn thêm dòng đơn vị vào tiêu đề
+	   (`<th>TỔNG<div…>giờ</div></th>`), nên mốc cũ `TỔNG</th>` không còn khớp — và hàm này im
+	   lặng trả về chuỗi RỖNG, khiến phép thử thứ tự đỏ với lý do hoàn toàn không liên quan. */
+	$i = strpos( $html, '<th>TỔNG' );
 	if ( false === $i ) { return ''; }
 	$a = strpos( $html, '<tbody>', $i );
 	if ( false === $a ) { return ''; }
@@ -13261,9 +13264,9 @@ foreach ( $hc_b['hang'] as $hc_r ) {
 teq( '🔴 tổng giờ của người ấy ở cơ sở này vẫn đúng 9 tiếng, không ăn thêm 6 tiếng của cơ sở kia',
 	540, $hc_t );
 t( 'và ô TỔNG trên lưới vẫn in đúng con số ấy',
-	strpos( $h_hc, '<td class="tong"><b>9h</b>' ) !== false, $h_hc );
-t( 'lưới KHÔNG in ra con số 15h (9h + 6h) ở bất cứ đâu',
-	strpos( $h_hc, '>15h<' ) === false, $h_hc );
+	strpos( $h_hc, '<td class="tong"><b>9,00</b>' ) !== false, $h_hc );
+t( 'lưới KHÔNG in ra con số 15 giờ (9 + 6) ở bất cứ đâu',
+	strpos( $h_hc, '>15,00<' ) === false, $h_hc );
 
 /* ---- 🔴 Ô TỔNG PHẢI TÁCH RA: cơ sở này bao nhiêu, cơ sở kia bao nhiêu ----
    Anh Thắng 27/08/2026: *"phải hiện rõ cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu công"*.

@@ -332,6 +332,24 @@ class VHCC_Cham {
 		return $h . 'h' . ( $m ? ' ' . $m . 'm' : '' );
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 GIỜ THẬP PHÂN — MỘT LỐI VIẾT DUY NHẤT VỚI CỘT "SỐ GIỜ" CỦA BẢNG LƯƠNG.
+	 *
+	 * Anh Thắng 16/09/2026 gửi ảnh `211,50` nằm cạnh `211h 30m` trên cùng một màn: *"sửa lại
+	 * đúng số giờ đồng nhất cho đối chiếu chứ"*. Hai lối viết cho CÙNG một đại lượng thì mắt
+	 * không đối chiếu được — tệ hơn, `211,50` dễ bị đọc thành "211 giờ 50 phút".
+	 *
+	 * ⚠️ NHẬN PHÚT, TRẢ GIỜ. Phải đổi đơn vị, không chỉ đổi hàm in.
+	 *
+	 * ⚠️ PHÉP LÀM TRÒN PHẢI ĐÚNG BẰNG `VHCC_BangLuong::dung()` (`round( phút / 60, 2 )`) và
+	 *    cách in phải đúng bằng cột Số giờ (`number_format( …, 2, ',', '.' )`). Lệch một trong
+	 *    hai là hai màn lại nói hai con số cho cùng một người — đúng cái đang đi sửa.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════ */
+	public static function gio_tp( $phut ) {
+		if ( null === $phut || '' === $phut ) { return '—'; }
+		return number_format( round( (int) $phut / 60, 2 ), 2, ',', '.' );
+	}
+
 	// ======================================================================= cờ cần kiểm
 
 	public static function ds_ghi_chu( $u, $coso = '', $thang = '' ) {

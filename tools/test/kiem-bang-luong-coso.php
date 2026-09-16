@@ -1167,7 +1167,14 @@ VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000 ) );
 VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, 'Lái Tàu' );
 
 $h_lc = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
-t( '🔴 lưới có cột LƯƠNG', false !== strpos( $h_lc, '<th>TỔNG</th><th>LƯƠNG</th>' ), substr( $h_lc, 0, 300 ) );
+t( '🔴 lưới có cột LƯƠNG ngay sau cột TỔNG',
+	1 === preg_match( '/<th>TỔNG<div[^>]*>giờ<\/div><\/th><th>LƯƠNG<\/th>/u', $h_lc ),
+	substr( $h_lc, 0, 300 ) );
+/* 🔴 ĐƠN VỊ PHẢI ĐỨNG Ở ĐẦU CỘT. Ô chỉ ghi `211,50` — không nói đơn vị thì người ta đọc thành
+   "211 giờ 50 phút", đúng cái nhầm anh Thắng đã mắc. */
+t( '🔴 đầu cột TỔNG nói rõ đơn vị là "giờ"',
+	false !== strpos( $h_lc, '<th>TỔNG<div style="font-weight:400;opacity:.7">giờ</div></th>' ),
+	'đầu cột TỔNG không ghi đơn vị' );
 t( '🔴 và người đã đủ giá hiện ra TIỀN', false !== strpos( $h_lc, '2.898.000đ' ), 'không thấy tiền của BT_MAN' );
 
 /* 🔴 CHƯA ĐỦ GIÁ THÌ NÓI "THIẾU GIÁ", ĐỪNG IN MỘT CON SỐ NHỎ HƠN SỰ THẬT.
@@ -1254,6 +1261,18 @@ t( 'kế toán thì thấy, và trỏ đúng người',
    Cộng nó vào một ca là bịa; bỏ đi thì mấy ca cộng lại KHÁC tổng của hàng, và người đọc mất
    mười phút đi tìm xem thiếu ở đâu. Ca của AEON_BT là 06:00–22:00, nên một lượt 23:00→23:45
    nằm ngoài cả hai. */
+/** Bóc số "Ngoài ca" của khối bấm-tên. Trả null khi không thấy — để phép thử nói được là
+ *  nó KHÔNG thấy, thay vì lặng lẽ coi như 0 rồi xanh nhầm. */
+function vhcc_ngoai_ca( $h ) {
+	if ( ! preg_match( '/Ngoài ca<\/label><div><b[^>]*>([^<]+)<\/b>/u', $h, $m ) ) { return null; }
+	return (float) str_replace( ',', '.', str_replace( '.', '', trim( $m[1] ) ) );
+}
+/* ⚠️ ĐO BẰNG HIỆU SỐ, KHÔNG VIẾT CỨNG. Cơ sở này đã có sẵn mấy lượt ngoài ca từ mấy mục trên;
+   khẳng định "Ngoài ca = 0,75" là khẳng định về CẢ FIXTURE chứ không phải về lượt vừa gieo, và
+   nó sẽ vỡ mỗi lần mục khác thêm một lượt. */
+$h_ng_truoc = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_xn + array( 'xng' => 'BT_MAN' ) );
+$ngoai_truoc = vhcc_ngoai_ca( $h_ng_truoc );
+
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'ma_nv' => 'BT_MAN', 'ho_ten' => '', 'coso' => 'AEON_BT', 'ngay' => '2026-08-28',
 	'gio_vao_giay' => 23 * 3600, 'gio_ra_giay' => 23 * 3600 + 45 * 60,
@@ -1263,7 +1282,14 @@ preg_match( '/<tr class="hang-sua">.*?<\/tr>/us', $h_ngoai, $m_ng2 );
 $khoi_ng = isset( $m_ng2[0] ) ? $m_ng2[0] : '';
 t( '🔴 phút ngoài mọi ca được kể RIÊNG ở mục "Ngoài ca"',
 	false !== strpos( $khoi_ng, 'Ngoài ca' ), $khoi_ng );
-t( 'và kể đúng 45 phút', false !== strpos( $khoi_ng, '45m' ), $khoi_ng );
+$ngoai_sau = vhcc_ngoai_ca( $h_ngoai );
+t( 'bóc được số Ngoài ca ở cả hai lần vẽ', null !== $ngoai_truoc && null !== $ngoai_sau,
+	"truoc=" . var_export( $ngoai_truoc, true ) . " sau=" . var_export( $ngoai_sau, true ) );
+teq( '🔴 và kể đúng 45 phút = 0,75 giờ', 0.75,
+	round( (float) $ngoai_sau - (float) $ngoai_truoc, 2 ) );
+/* 🔴 IN THẬP PHÂN, KHÔNG PHẢI `Xh Ym` — đây là con số đem đối chiếu với bảng lương. */
+t( '🔴 khối bấm tên in giờ THẬP PHÂN, không còn "45m"',
+	false === strpos( $khoi_ng, '45m' ), $khoi_ng );
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1472,17 +1498,21 @@ t( '🔴 và kể cả dòng giờ ăn đơn giá khác', false !== strpos( $tt_
  * Canh bằng PHÉP CỘNG THẬT, không so chuỗi — một chú giải nói khác con số nó đang giải thích
  * thì tệ hơn không có chú giải nào.
  * ══════════════════════════════════════════════════════════════════════════════════════════*/
-function vhcc_phut_tu_chu( $chu ) {
-	$p = 0;
-	if ( preg_match_all( '/(\d+)h(?:\s+(\d+)m)?/u', $chu, $m, PREG_SET_ORDER ) ) {
-		foreach ( $m as $x ) { $p += (int) $x[1] * 60 + ( isset( $x[2] ) ? (int) $x[2] : 0 ); }
+/* ⚠️ BẢN 4.7.0 ĐỔI ĐƠN VỊ: chú giải và ô TỔNG giờ in GIỜ THẬP PHÂN (`126,75`), không còn
+   `Xh Ym`. Phép canh vẫn y nguyên — cộng lại phải bằng — chỉ bộ bóc số là đổi. */
+function vhcc_gio_tu_chu( $chu ) {
+	$g = 0.0;
+	if ( preg_match_all( '/(\d{1,3}(?:\.\d{3})*),(\d{2})\b/u', $chu, $m, PREG_SET_ORDER ) ) {
+		foreach ( $m as $x ) { $g += (float) ( str_replace( '.', '', $x[1] ) . '.' . $x[2] ); }
 	}
-	return $p;
+	return round( $g, 2 );
 }
-$p_chu = vhcc_phut_tu_chu( $tt_rc );
-$p_o   = vhcc_phut_tu_chu( $so_rc );
-t( 'bóc được số phút từ cả hai chỗ', $p_chu > 0 && $p_o > 0, "chu=$p_chu o=$p_o" );
+$p_chu = vhcc_gio_tu_chu( $tt_rc );
+$p_o   = vhcc_gio_tu_chu( $so_rc );
+t( 'bóc được số giờ từ cả hai chỗ', $p_chu > 0 && $p_o > 0, "chu=$p_chu o=$p_o" );
 teq( '🔴 chú giải cộng lại ĐÚNG BẰNG con số trong ô', $p_o, $p_chu );
+t( '🔴 ô TỔNG in THẬP PHÂN, không còn "Xh Ym"', 0 === preg_match( '/\dh( \d+m)?/u', $so_rc ), $so_rc );
+t( '🔴 chú giải cũng in THẬP PHÂN', 0 === preg_match( '/\dh( \d+m)?/u', $tt_rc ), $tt_rc );
 
 /* 🔴 CHƯA CHỌN VIỆC CHÍNH THÌ NÓI THẲNG, ĐỪNG BỊA TÊN. */
 VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN', array(), 126.0, '' );
@@ -1523,24 +1553,26 @@ t( 'màn nói rõ là rê chuột được', false !== strpos( $h_rc4, 'Rê chu�
 
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
- * 17. HÀNG "GIỜ RA < GIỜ VÀO": 0 GIỜ VÀ KÊU LÊN — KHÔNG TRẢ TIỀN CHO DỮ LIỆU HỎNG
+ * 17. CA VẮT QUA NỬA ĐÊM: `ra < vao` LÀ 4 TIẾNG, KHÔNG PHẢI HÀNG HỎNG
  *
- * Anh Thắng 16/09/2026 xác nhận ca có *"vắt qua nửa đêm"*. Nhưng ca đêm THẬT được TRẢI PHẲNG
- * lúc ghi (05:30 hôm sau lưu là 105000 giây = 29h30 — xem `VHCC_Online::trai_phang()` và chú
- * thích đầu `VHCC_DB`: *"cho phép giá trị > 86400 là cố ý"*). Nên `ra < vao` chỉ còn nghĩa là
- * HÀNG GHI SAI.
+ * Anh Thắng 16/09/2026, nói thẳng luật: *"qua đêm hệ thống sẽ hiểu: 22h00 - 2h00 là 4 tiếng,
+ * vì 22h ngày 16 và 2h ngày 17, thì coi như nó sẽ tính 22h00-24h00, sau đó quay lại
+ * 00h00 - 2h00"*.
  *
- * Trước bản này `phut_ca()` cộng bù +1440 cho khỏi ra số âm — và biến một lỗi gõ thành gần 24
- * giờ công ĐƯỢC TRẢ TIỀN, trong khi lưới ngay trên đã bôi đỏ đúng hàng ấy.
- * Anh Thắng chốt: *"Tính 0 giờ và kêu lên, giống lưới"*.
+ * 🔴 MỤC NÀY TỪNG KHẲNG ĐỊNH NGƯỢC LẠI (bản 4.6.0) — và nó SAI.
+ *    Em tin rằng ca đêm luôn được trải phẳng lúc ghi nên `ra < vao` chỉ còn là rác, rồi hỏi
+ *    anh Thắng *"hàng ra < vào mà KHÔNG phải ca đêm thì làm gì"*, nhận về *"tính 0 giờ và kêu
+ *    lên"*, và viết hẳn một mục thử khoá cái sai ấy lại. Anh trả lời đúng câu được hỏi; TIỀN
+ *    ĐỀ của câu hỏi mới là thứ hỏng — chỉ văn phòng chấm qua cổng online mới trải phẳng.
+ *    Một mục thử phát biểu SAI luật là thứ khiến bản sau không ai dám sửa lại cho đúng.
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
 
 $cs_h  = 'KHO_LA';
 $th_h  = '2026-08';
 $ma_h  = 'HONG1';
-$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_h, 'ho_ten' => 'Người Hàng Hỏng',
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_h, 'ho_ten' => 'Người Ca Đêm Thô',
 	'cua_hang' => $cs_h, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
-/* Một ngày LÀNH để bảng có sẵn một mốc — 08:00 → 17:00 = 9 giờ. */
+/* Một ngày LÀNH làm mốc — 08:00 → 17:00 = 9 giờ. */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'ma_nv' => $ma_h, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-05',
 	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
@@ -1551,7 +1583,7 @@ foreach ( $b_h0['dong'] as $x ) { if ( $x['ma'] === $ma_h && $x['laChinh'] ) { $
 t( 'gieo: tìm được dòng của người ấy', null !== $g_h0, 'không thấy dòng' );
 teq( 'gieo: ngày lành cho đúng 9 giờ', 9.0, (float) $g_h0['gioTong'] );
 
-/* 🔴 GIEO MỘT HÀNG HỎNG: vào 22:00, ra 02:00 — KHÔNG trải phẳng (7200 < 79200). */
+/* 🔴 PHÉP CHÍNH: 22:00 → 02:00 trên MỘT hàng, chưa trải phẳng, phải ra ĐÚNG 4 GIỜ. */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'ma_nv' => $ma_h, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-06',
 	'gio_vao_giay' => 22 * 3600, 'gio_ra_giay' => 2 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
@@ -1559,24 +1591,19 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 $b_h1 = VHCC_BangLuong::dung( $cs_h, $th_h );
 $g_h1 = null;
 foreach ( $b_h1['dong'] as $x ) { if ( $x['ma'] === $ma_h && $x['laChinh'] ) { $g_h1 = $x; } }
-teq( '🔴 hàng hỏng cộng 0 giờ — tổng KHÔNG đổi', 9.0, (float) $g_h1['gioTong'] );
-/* 🔴 VÀ NHẤT LÀ: KHÔNG ra ~20 giờ. Phép trên một mình có thể xanh vì lý do khác, phép này nói
-   thẳng cái hậu quả cũ ra để không ai lặng lẽ trả lại nó. */
-t( '🔴 KHÔNG cộng bù gần 24 giờ (lỗi cũ: 9 + 20 = 29)',
-	(float) $g_h1['gioTong'] < 12.0, $g_h1['gioTong'] );
+teq( '🔴 22:00 → 02:00 cho đúng 4 giờ (9 + 4 = 13)', 13.0, (float) $g_h1['gioTong'] );
+/* ⚠️ Và KHÔNG phải 0: nói thẳng cái sai của bản 4.6.0 ra để không ai lặng lẽ trả nó lại. */
+t( '⚠️ KHÔNG bị chặn thành 0 giờ (lỗi của bản 4.6.0)',
+	(float) $g_h1['gioTong'] > 9.0, $g_h1['gioTong'] );
+/* ⚠️ Cũng KHÔNG phải 20 giờ — cộng bù đúng một vòng, không phải lấy hiệu thô. */
+t( '⚠️ và KHÔNG thành ~20 giờ', (float) $g_h1['gioTong'] < 16.0, $g_h1['gioTong'] );
 
-/* ⚠️ ĐO BẰNG CHÊNH LỆCH TRƯỚC/SAU, đừng so với 0: cơ sở này đã có sẵn hàng thiếu giờ từ mấy
-   mục trên, nên "phải bằng 0" là một giả định sai về bộ gieo chứ không phải về mã. */
-teq( '🔴 và bộ đếm hàng hỏng tăng đúng 1', (int) $b_h0['thieu']['hongGio'] + 1,
-	(int) $b_h1['thieu']['hongGio'] );
-teq( 'hàng hỏng KHÔNG bị đếm nhầm sang "thiếu giờ"',
-	(int) $b_h0['thieu']['gio'], (int) $b_h1['thieu']['gio'] );
-
-/* ⚠️ CA ĐÊM THẬT (ĐÃ TRẢI PHẲNG) VẪN PHẢI ĐỦ GIỜ.
-   Thiếu phép này thì bản vá có thể giết luôn ca đêm thật mà bộ thử vẫn xanh — đúng kiểu hỏng
-   không kêu tiếng nào. 22:00 → 06:00 hôm sau = 8 giờ, lưu ra = 21600 + 86400. */
+/* 🔴 HAI LỐI GHI, CÙNG MỘT KẾT QUẢ ĐÚNG.
+   Ca đêm ghi qua cổng online được TRẢI PHẲNG (05:30 hôm sau = 21600 + 86400). Lối ấy phải ra
+   đúng số giờ y như lối ghi thô ở trên — nếu không thì cùng một ca, chấm bằng hai đường, ra
+   hai số tiền. 22:00 → 06:00 = 8 giờ. */
 $ma_d = 'DEM1';
-$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_d, 'ho_ten' => 'Người Ca Đêm',
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_d, 'ho_ten' => 'Người Ca Đêm Phẳng',
 	'cua_hang' => $cs_h, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'ma_nv' => $ma_d, 'ho_ten' => '', 'coso' => $cs_h, 'ngay' => '2026-08-07',
@@ -1585,21 +1612,159 @@ $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 $b_h2 = VHCC_BangLuong::dung( $cs_h, $th_h );
 $g_h2 = null;
 foreach ( $b_h2['dong'] as $x ) { if ( $x['ma'] === $ma_d && $x['laChinh'] ) { $g_h2 = $x; } }
-t( 'gieo: tìm được dòng người ca đêm', null !== $g_h2, 'không thấy dòng ca đêm' );
-teq( '🔴 CA ĐÊM THẬT (trải phẳng) vẫn ra đủ 8 giờ', 8.0, (float) $g_h2['gioTong'] );
-teq( 'và KHÔNG bị đếm là hàng hỏng (số đếm giữ nguyên)',
-	(int) $b_h1['thieu']['hongGio'], (int) $b_h2['thieu']['hongGio'] );
+t( 'gieo: tìm được dòng người ca đêm trải phẳng', null !== $g_h2, 'không thấy dòng' );
+teq( '🔴 ca đêm TRẢI PHẲNG cũng ra đủ 8 giờ', 8.0, (float) $g_h2['gioTong'] );
 
-/* Trên màn: dải cảnh báo riêng, và nó phải NÓI CÁCH SỬA. */
+/* 🔴 VÀ MÀN KHÔNG ĐƯỢC KÊU OAN. Dải "N hàng ghi sai" của bản 4.6.0 đã gỡ — nó bôi đỏ đúng
+   những ca đêm lành lặn, và người ta sẽ đi "sửa" chúng. */
 $h_h = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_h, 'cth' => $th_h ) );
-t( '🔴 màn kêu lên về hàng ghi sai',
-	false !== strpos( $h_h, 'giờ ra SỚM HƠN giờ vào' ), substr( $h_h, 0, 300 ) );
-t( 'và nói rõ là KHÔNG trả tiền cho mấy hàng ấy',
-	false !== strpos( $h_h, 'không trả tiền' ), $h_h );
-t( 'và chỉ đúng cách sửa (sửa trong lưới)',
-	false !== strpos( $h_h, 'Sửa thẳng trong lưới' ), $h_h );
-/* ⚠️ Không gộp với câu "thiếu giờ" — hai lỗi, hai cách bù khác nhau. */
-t( '⚠️ câu này KHÁC câu "thiếu giờ vào hoặc giờ ra"',
-	false !== strpos( $h_h, 'hàng có giờ ra SỚM HƠN' ), $h_h );
+t( '🔴 màn KHÔNG còn bôi đỏ ca đêm là "hàng ghi sai"',
+	false === strpos( $h_h, 'giờ ra SỚM HƠN giờ vào' ), 'dải cảnh báo sai còn sót' );
+
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 18. MỘT LỐI IN GIỜ DUY NHẤT — LƯỚI VÀ BẢNG LƯƠNG PHẢI RA ĐÚNG CÙNG MỘT CHUỖI
+ *
+ * Anh Thắng 16/09/2026 gửi ảnh `211,50` nằm cạnh `211h 30m` trên cùng một màn: *"sửa lại đúng
+ * số giờ đồng nhất cho đối chiếu chứ"*. Cùng một đại lượng, hai lối viết, nên mắt không đối
+ * chiếu được — và `211,50` còn bị đọc nhầm thành "211 giờ 50 phút".
+ *
+ * ⚠️ SO CHUỖI BÓC ĐƯỢC VỚI CHUỖI BÓC ĐƯỢC, KHÔNG VIẾT CỨNG MỘT CON SỐ. Viết cứng `17,25` thì
+ *    phép này vẫn xanh cả khi hai màn cùng sai như nhau — mà thứ đang canh chính là "hai màn
+ *    có nói cùng một câu không".
+ *
+ * ⚠️ SỐ PHẢI LẺ. Chọn 17,25 giờ chứ không phải 17 giờ chẵn: `17h` và `17,00` chỉ lệch nhau ở
+ *    phần thập phân, nên một giờ chẵn sẽ KHÔNG bắt được lỗi quên đổi đơn vị.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+$cs_d = 'KHO_DC';
+$th_d = '2026-08';
+$ma_dc = 'DC1';
+$ten_dc = 'Người Đối Chiếu';
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $ma_dc, 'ho_ten' => $ten_dc,
+	'cua_hang' => $cs_d, 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
+/* 09:30 (9,5 giờ) + 07:45 (7,75 giờ) = 17,25 giờ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_dc, 'ho_ten' => '', 'coso' => $cs_d, 'ngay' => '2026-08-03',
+	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 + 30 * 60, 'hau_to' => '', 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => $ma_dc, 'ho_ten' => '', 'coso' => $cs_d, 'ngay' => '2026-08-04',
+	'gio_vao_giay' => 9 * 3600, 'gio_ra_giay' => 16 * 3600 + 45 * 60, 'hau_to' => '', 'nguon' => 'may' ) );
+VHCC_GiaGio::dat_coso( $U_KT, $cs_d, array( 'Partime' => 25000 ) );
+
+$b_d = VHCC_BangLuong::dung( $cs_d, $th_d );
+$g_d = null;
+foreach ( $b_d['dong'] as $x ) { if ( $x['ma'] === $ma_dc && $x['laChinh'] ) { $g_d = $x; } }
+t( 'gieo: tìm được dòng của người đối chiếu', null !== $g_d, 'không thấy dòng' );
+teq( 'gieo: engine cho đúng 17,25 giờ', 17.25, (float) $g_d['gioTong'] );
+
+$h_d = vhcc_man( 'KT_BL', 'Kế toán', '', array( 'man' => 'cham', 'ccs' => $cs_d, 'cth' => $th_d ) );
+
+/** Bóc ô TỔNG của lưới (`table.cc`) ở hàng mang tên người ấy. */
+function vhcc_tong_luoi( $h, $ten ) {
+	if ( ! preg_match( '/<table class="cc">.*?<\/table>/us', $h, $mt ) ) { return null; }
+	foreach ( explode( '<tr', $mt[0] ) as $hang ) {
+		if ( false === strpos( $hang, $ten ) ) { continue; }
+		if ( preg_match( '/<td class="tong"[^>]*><b>([^<]*)<\/b>/u', $hang, $m ) ) {
+			return html_entity_decode( trim( $m[1] ), ENT_QUOTES );
+		}
+	}
+	return null;
+}
+/** Bóc cột "Số giờ" (ô thứ 4) của bảng lương (`table.b`) ở hàng mang tên người ấy. */
+function vhcc_so_gio_bang( $h, $ten ) {
+	if ( ! preg_match( '/<table class="b">.*?<\/table>/us', $h, $mt ) ) { return null; }
+	foreach ( explode( '<tr', $mt[0] ) as $hang ) {
+		if ( false === strpos( $hang, $ten ) ) { continue; }
+		preg_match_all( '/<td[^>]*>(.*?)<\/td>/us', $hang, $m );
+		if ( isset( $m[1][3] ) ) {
+			return html_entity_decode( trim( wp_strip_all_tags( $m[1][3] ) ), ENT_QUOTES );
+		}
+	}
+	return null;
+}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 HÀNG LƯỚI PHẢI CÓ TÊN, KỂ CẢ KHI LƯỢT CHẤM KHÔNG MANG TÊN.
+ * Mấy lượt gieo ở trên cố ý để `ho_ten => ''` — đúng như máy chấm công / nạp .csv vẫn ghi.
+ * Trước bản 4.7.0 lưới để trống ô tên (chỉ còn mấy cái nút) trong khi BẢNG LƯƠNG ngay dưới
+ * lại in đủ tên: cùng một người, hai bảng trên cùng một màn, không đối chiếu nổi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════*/
+preg_match( '/<table class="cc">.*?<\/table>/us', $h_d, $m_lt );
+$luoi_d = isset( $m_lt[0] ) ? $m_lt[0] : '';
+t( '🔴 lưới in TÊN của người dù lượt chấm để trống ho_ten',
+	false !== strpos( $luoi_d, $ten_dc ), substr( $luoi_d, 0, 400 ) );
+t( 'gieo: bảng lương thì vẫn luôn có tên', false !== strpos( $h_d, '<td>' . $ten_dc . '</td>' ),
+	'bảng lương không in tên — fixture sai' );
+
+$o_luoi  = vhcc_tong_luoi( $h_d, $ten_dc );
+$o_bang  = vhcc_so_gio_bang( $h_d, $ten_dc );
+t( 'bóc được ô TỔNG của lưới', null !== $o_luoi && '' !== $o_luoi, var_export( $o_luoi, true ) );
+t( 'bóc được cột Số giờ của bảng lương', null !== $o_bang && '' !== $o_bang, var_export( $o_bang, true ) );
+teq( '🔴 ô TỔNG của lưới và cột Số giờ của bảng lương ra ĐÚNG CÙNG MỘT CHUỖI', $o_bang, $o_luoi );
+t( '🔴 và đó là lối thập phân, không phải "Xh Ym"',
+	0 === preg_match( '/\dh( \d+m)?/u', (string) $o_luoi ), $o_luoi );
+
+/* 🔴 HÀNG TỔNG CUỐI LƯỚI CŨNG PHẢI THEO LUẬT ẤY. Cơ sở này chỉ có một người, nên tổng cả cơ
+   sở phải trùng đúng ô TỔNG của người ấy — bắt được cả lỗi quên đổi riêng hàng cuối. */
+if ( preg_match( '/<tr class="tong"><td>1 người<\/td>.*?<td><b>([^<]*)<\/b><\/td>/us', $h_d, $m_hc ) ) {
+	$o_cuoi = html_entity_decode( trim( $m_hc[1] ), ENT_QUOTES );
+} else {
+	$o_cuoi = null;
+}
+t( 'bóc được hàng tổng cuối lưới', null !== $o_cuoi, 'không thấy hàng tổng' );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 `the_tong_cham()` — BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" — CŨNG PHẢI THEO LUẬT NÀY.
+ *
+ * ⚠️ LỜI GỌI NÓ ĐÃ BỊ BỎ KHỎI MÀN, hàm thì còn. Chú thích ở `class-vhcc-web.php` bảo "vẫn có
+ *    bài kiểm" — nhưng không có: `grep the_tong_cham tools/test/` chỉ ra đúng một dòng CHÚ
+ *    THÍCH. Nên phải GỌI THẲNG, không dò trên trang: dò trên trang thì bảng không có ở đó,
+ *    phép thử đỏ vì một lý do sai, mà bỏ hẳn thì lối in trong hàm ấy không ai canh — và ngày
+ *    nó được bật lại, nó sẽ là bảng DUY NHẤT trên màn còn ghi `17h 15m`.
+ * ══════════════════════════════════════════════════════════════════════════════════════════*/
+$rm_tgl = new ReflectionMethod( 'VHCC_Web', 'the_tong_cham' );
+$rm_tgl->setAccessible( true );
+$b_tgl   = VHCC_Cham::bang_cham_cong( $U_KT, $cs_d, $th_d );
+$loc_tgl = (array) $b_tgl['hang'];
+ob_start();
+$rm_tgl->invoke( null, $loc_tgl, $th_d, $cs_d, $th_d );
+$h_tgl = ob_get_clean();
+preg_match_all( '/<td><b>([^<]*)<\/b><\/td>/u', $h_tgl, $m_tgo );
+$o_tgl = isset( $m_tgo[1][0] ) ? html_entity_decode( trim( $m_tgo[1][0] ), ENT_QUOTES ) : null;
+t( 'bóc được ô của bảng Tổng giờ làm', null !== $o_tgl && '' !== $o_tgl,
+	var_export( $o_tgl, true ) . ' | ' . substr( $h_tgl, 0, 400 ) );
+teq( '🔴 bảng Tổng giờ làm in CÙNG MỘT CHUỖI với ô TỔNG của lưới', $o_luoi, $o_tgl );
+t( '🔴 và đầu cột ấy cũng nói rõ đơn vị',
+	false !== strpos( $h_tgl, '<th>Tổng giờ làm<div style="font-weight:400;opacity:.7">giờ</div></th>' ),
+	'đầu cột Tổng giờ làm không ghi đơn vị' );
+teq( '🔴 hàng tổng cuối lưới cũng in thập phân, trùng ô TỔNG của người duy nhất', $o_luoi, $o_cuoi );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHÚ THÍCH RÊ CHUỘT CỦA TỪNG Ô NGÀY VẪN PHẢI LÀ `Xh Ym` — ĐỪNG ĐỔI NHẦM CHỖ.
+ * Ô ngày nói về MỘT ca cụ thể: `9h 30m` đọc tự nhiên hơn `9,50`, và nó không phải con số đem
+ * đi đối chiếu với bảng lương. Chỉ mấy chỗ TỔNG mới phải đổi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════*/
+/* ⚠️ PHẢI CANH ĐÚNG DÒNG GIỜ CỦA LƯỢT CHẤM, không phải "có chữ `h` ở đâu đó".
+   Chú thích ô ngày còn mấy dòng `Ca 1 6h (06:00–14:00)` do `VHCC_Ca::chu()` in ra — mục này
+   không đụng tới chúng. Bắt hớ vào chúng thì phép thử xanh cả khi dòng giờ của lượt chấm đã
+   bị đổi nhầm sang thập phân (đã thử đột biến: nó KHÔNG đỏ). Nên: bắt đúng DÒNG ĐỨNG RIÊNG
+   ngay dưới dòng `vào → ra`. */
+$dong_gio_o = null;
+if ( preg_match_all( '/<td class="o[^"]*" title="([^"]*)"/u', $h_d, $m_o, PREG_SET_ORDER ) ) {
+	foreach ( $m_o as $x ) {
+		$dong = explode( "\n", html_entity_decode( $x[1], ENT_QUOTES ) );
+		foreach ( $dong as $i => $d ) {
+			if ( $i > 0 && preg_match( '/^\d{2}:\d{2}:\d{2} → \d{2}:\d{2}:\d{2}$/u', trim( $d ) )
+				&& isset( $dong[ $i + 1 ] ) ) {
+				$dong_gio_o = trim( $dong[ $i + 1 ] );
+				break 2;
+			}
+		}
+	}
+}
+t( 'bóc được dòng giờ trong chú thích ô ngày', null !== $dong_gio_o, 'không thấy dòng giờ nào' );
+t( '🔴 chú thích rê chuột của Ô NGÀY vẫn giữ lối "Xh Ym"',
+	null !== $dong_gio_o && 1 === preg_match( '/^\d+h( \d+m)?$/u', $dong_gio_o ),
+	var_export( $dong_gio_o, true ) );
 
 ket_luan();

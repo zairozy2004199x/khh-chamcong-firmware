@@ -4675,8 +4675,12 @@ class VHCC_Web {
 		   giờ. Từ bản này lưới còn có thêm cột LƯƠNG, nên bảng kia không còn nói được gì mà lưới
 		   chưa nói. Hai bảng cùng một dữ liệu là bắt người đọc dò xem chúng có khớp nhau không,
 		   mỗi lần mở màn — cùng lý do đã bỏ bảng "Chi tiết từng lượt" hôm 01/09.
-		   ⚠️ CHỈ BỎ LỜI GỌI, KHÔNG XOÁ `the_tong_cham()`. Hàm vẫn dựng được và vẫn có bài kiểm
-		      canh — muốn bày lại thì thêm một dòng, không phải viết lại. */
+		   ⚠️ CHỈ BỎ LỜI GỌI, KHÔNG XOÁ `the_tong_cham()` — muốn bày lại thì thêm một dòng, không
+		      phải viết lại. Bài kiểm canh nó là mục 18 của `tools/test/kiem-bang-luong-coso.php`,
+		      GỌI THẲNG bằng reflection (bảng không có trên màn nên dò trên trang không thấy).
+		      Câu "vẫn có bài kiểm canh" ở đây từng là bịa: tới 4.7.0 mới có thật. Hàm không ai
+		      gọi mà không ai canh thì nó lặng lẽ trôi khỏi phần còn lại của màn — 4.7.0 bắt
+		      được đúng chuyện ấy, nó là chỗ CUỐI CÙNG còn in `17h 15m`. */
 
 		/* 🔴 BẢNG "CHI TIẾT TỪNG LƯỢT" ĐÃ BỎ — anh Thắng 01/09/2026: *"bỏ phần này đi, vì nó
 		   hiện trong chi tiết bảng công rồi"*. Lưới cả tháng ở trên đã bày đúng những lượt ấy,
@@ -4720,7 +4724,7 @@ class VHCC_Web {
 		} else {
 			echo '<div class="cuon"><table class="cc"><thead><tr>'
 				. '<th>Mã NV</th><th>Họ tên</th><th>Ngày công</th><th>Ngày thiếu giờ ra</th>'
-				. '<th>Tổng giờ làm</th></tr></thead><tbody>';
+				. '<th>Tổng giờ làm<div style="font-weight:400;opacity:.7">giờ</div></th></tr></thead><tbody>';
 			$tong_phut = 0;
 			$tong_ngay = 0;
 			foreach ( $tong as $o ) {
@@ -4731,12 +4735,12 @@ class VHCC_Web {
 				echo '<td style="text-align:left">' . esc_html( $o['hoTen'] ) . '</td>';
 				echo '<td>' . (int) $o['ngay'] . '</td>';
 				echo '<td' . ( $o['thieu'] ? ' class="chu-hong"' : '' ) . '>' . (int) $o['thieu'] . '</td>';
-				echo '<td><b>' . esc_html( VHCC_Cham::chu_gio( $o['phut'] ) ) . '</b></td>';
+				echo '<td><b>' . esc_html( VHCC_Cham::gio_tp( $o['phut'] ) ) . '</b></td>';
 				echo '</tr>';
 			}
 			echo '<tr class="tong"><td colspan="2">' . count( $tong ) . ' người</td>'
 				. '<td>' . (int) $tong_ngay . '</td><td></td>'
-				. '<td><b>' . esc_html( VHCC_Cham::chu_gio( $tong_phut ) ) . '</b></td></tr>';
+				. '<td><b>' . esc_html( VHCC_Cham::gio_tp( $tong_phut ) ) . '</b></td></tr>';
 			echo '</tbody></table></div>';
 		}
 		echo '</details></div>';
@@ -5660,7 +5664,7 @@ class VHCC_Web {
 		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
 		echo '<a id="xn' . esc_attr( substr( md5( (string) $ma ), 0, 8 ) ) . '"></a>';
 		echo '<p style="margin:0 0 8px"><b>' . esc_html( $ho_ten ) . '</b> · '
-			. esc_html( $ma ) . ' — <b>' . esc_html( VHCC_Cham::chu_gio( $tong ) ) . '</b> trong '
+			. esc_html( $ma ) . ' — <b>' . esc_html( VHCC_Cham::gio_tp( $tong ) ) . ' giờ</b> trong '
 			. (int) $so_ngay . ' ngày có chấm'
 			. ( null !== $tien_ng ? ' · lương <b>' . esc_html( $tien_ng ) . '</b>' : '' ) . '</p>';
 
@@ -5672,12 +5676,12 @@ class VHCC_Web {
 		echo '<div class="hang" style="gap:14px;flex-wrap:wrap">';
 		foreach ( $theo_ca as $t_ca => $p_ca ) {
 			echo '<div><label style="font-size:11.5px">' . esc_html( $t_ca ) . '</label>'
-				. '<div><b>' . esc_html( VHCC_Cham::chu_gio( $p_ca ) ) . '</b></div></div>';
+				. '<div><b>' . esc_html( VHCC_Cham::gio_tp( $p_ca ) ) . '</b></div></div>';
 		}
 		if ( $ngoai > 0 ) {
 			echo '<div><label style="font-size:11.5px" title="Phút không rơi vào khung ca nào — '
 				. 'kể riêng, không nhét vào ca nào cả">Ngoài ca</label><div><b class="chu-hong">'
-				. esc_html( VHCC_Cham::chu_gio( $ngoai ) ) . '</b></div></div>';
+				. esc_html( VHCC_Cham::gio_tp( $ngoai ) ) . '</b></div></div>';
 		}
 		echo '</div>';
 		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">Tách theo <b>khung ca của cơ '
@@ -6404,19 +6408,20 @@ class VHCC_Web {
 				. '</b> ' . esc_html( $c['ten'] ) . '<div style="font-weight:400;opacity:.7">'
 				. esc_html( $c['tu'] . '–' . $c['den'] ) . '</div></th>';
 		}
-		echo '<th>Ngoài ca</th><th>TỔNG</th></tr></thead><tbody>';
+		echo '<th>Ngoài ca<div style="font-weight:400;opacity:.7">giờ</div></th>'
+			. '<th>TỔNG<div style="font-weight:400;opacity:.7">giờ</div></th></tr></thead><tbody>';
 		foreach ( $nguoi as $x ) {
 			echo '<tr><td>' . esc_html( $x['ten'] ) . '</td>';
 			$tong = 0;
 			foreach ( $ten_ca as $tc ) {
 				$p = isset( $x['ca'][ $tc ] ) ? (int) $x['ca'][ $tc ] : 0;
 				$tong += $p;
-				echo '<td class="oc">' . ( $p ? '<b>' . esc_html( VHCC_Cham::chu_gio( $p ) ) . '</b>' : '·' ) . '</td>';
+				echo '<td class="oc">' . ( $p ? '<b>' . esc_html( VHCC_Cham::gio_tp( $p ) ) . '</b>' : '·' ) . '</td>';
 			}
 			$tong += (int) $x['ngoai'];
 			echo '<td class="oc' . ( $x['ngoai'] ? ' vang' : '' ) . '">'
-				. ( $x['ngoai'] ? esc_html( VHCC_Cham::chu_gio( $x['ngoai'] ) ) : '·' ) . '</td>';
-			echo '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong ) ) . '</b></td></tr>';
+				. ( $x['ngoai'] ? esc_html( VHCC_Cham::gio_tp( $x['ngoai'] ) ) : '·' ) . '</td>';
+			echo '<td class="tong"><b>' . esc_html( VHCC_Cham::gio_tp( $tong ) ) . '</b></td></tr>';
 		}
 		echo '</tbody></table></div>';
 		echo '<p class="mo" style="margin-top:8px">Cột <b>Ngoài ca</b> có số nghĩa là người ta có làm '
@@ -6709,7 +6714,19 @@ class VHCC_Web {
 		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
 			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
 				$ma_hs = trim( (string) $hs['ma_nv'] );
-				if ( '' === $ma_hs || isset( $ten[ $ma_hs ] ) ) { continue; }
+				if ( '' === $ma_hs ) { continue; }
+				/* 🔴 CÓ HÀNG RỒI NHƯNG HÀNG ẤY KHÔNG CÓ TÊN THÌ VẪN PHẢI LẤY TÊN TỪ HỒ SƠ.
+				   Lượt chấm của máy/nạp .csv có thể để trống `ho_ten`; trên kia dòng
+				   `$ten[$ma] = $r['hoTen']` vẫn ĐẶT khoá ấy với chuỗi rỗng, nên `isset()` hoá
+				   ra true và vòng này bỏ qua — hàng trong lưới mất tên, chỉ còn cái nút.
+				   Mà BẢNG LƯƠNG ngay dưới lại tra tên riêng nên CÓ tên: cùng một người, hai
+				   bảng trên cùng một màn gọi hai kiểu, không đối chiếu được.
+				   ⚠️ Chỉ vá phần TÊN. Người đã có lượt chấm thì hàng của họ dựng từ chính lượt
+				      ấy rồi — không được đụng vào `$o[]` hay `$khong_cham[]` của họ. */
+				if ( isset( $ten[ $ma_hs ] ) ) {
+					if ( '' === $ten[ $ma_hs ] ) { $ten[ $ma_hs ] = trim( (string) $hs['ho_ten'] ); }
+					continue;
+				}
 				/* 🔴 NGƯỜI ĐẶT "CHỈ QUẢN LÝ" Ở CƠ SỞ NÀY THÌ KHÔNG DỰNG HÀNG TRỐNG. Anh Thắng
 				   09/09/2026: *"đối với cửa hàng chỉ quản lý nhân viên không chấm công thì làm
 				   sao để loại ra khỏi bảng chấm công"*. Họ vẫn ở trong sổ nhân sự của cơ sở này
@@ -6832,7 +6849,13 @@ class VHCC_Web {
 			echo '<th class="ng' . ( $cn ? ' cn' : '' ) . '">' . $i
 				. '<div style="font-weight:400;opacity:.7">' . $thu_vn[ $t ] . '</div></th>';
 		}
-		echo '<th>TỔNG</th><th>LƯƠNG</th></tr></thead><tbody>';
+		/* ⚠️ ĐƠN VỊ NÓI Ở ĐẦU CỘT, KHÔNG DÁN VÀO TỪNG Ô. Ô ghi `211,50` mà không nói đơn vị thì
+		   người ta đọc thành "211 giờ 50 phút" — anh Thắng đã đọc đúng như thế. Dán chữ `giờ`
+		   vào 40 ô thì bảng rối; nói một lần ở tiêu đề là đủ. Lối TÍNH THEO NGÀY thì cột ấy đếm
+		   CÔNG chứ không phải giờ, nên đơn vị phải đổi theo. */
+		echo '<th>TỔNG<div style="font-weight:400;opacity:.7">'
+			. ( 'ngay' === $kieu_ct ? 'công' : 'giờ' ) . '</div></th>'
+			. '<th>LƯƠNG</th></tr></thead><tbody>';
 
 		/* ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm
 		   thì lưới chạy y như trước, chỉ là không có dòng cơ sở khác. */
@@ -6986,9 +7009,9 @@ class VHCC_Web {
 			 * Anh Thắng 16/09/2026: *"Rê chuột vào tổng giờ, sẽ ra được từng tổng giờ theo công
 			 * việc"*.
 			 *
-			 * ⚠️ IN BẰNG `chu_gio()` — CÙNG LỐI VIẾT VỚI CHÍNH CON SỐ NÓ GIẢI THÍCH. Ô ghi
-			 *    `211h 30m` mà chú giải ghi `205,50` thì lại đúng cái nhầm đang đi sửa (anh
-			 *    Thắng vừa đọc `211,50` thành "211 giờ 50 phút").
+			 * ⚠️ IN BẰNG `gio_tp()` — CÙNG LỐI VIẾT VỚI CHÍNH CON SỐ NÓ GIẢI THÍCH, và cùng lối
+			 *    với cột Số giờ của bảng lương. Chú giải và ô TỔNG mà viết hai kiểu thì cộng
+			 *    nhẩm mấy dòng chú giải không ra được con số trong ô.
 			 *
 			 * ⚠️ KIỂU "ngay" THÌ THÔI. Ô ấy đếm NGÀY CÔNG, không phải giờ — dán một chú giải
 			 *    theo giờ vào đó là trả lời một câu không ai hỏi.
@@ -7003,7 +7026,7 @@ class VHCC_Web {
 					$ten_v = ( '' !== trim( $v_x['cv'] ) )
 						? $v_x['cv']
 						: ( $v_x['ch'] ? 'chưa chọn việc chính' : '(không tên)' );
-					$mau_v[] = $ten_v . ' ' . VHCC_Cham::chu_gio( (int) round( $v_x['gio'] * 60 ) );
+					$mau_v[] = $ten_v . ' ' . VHCC_Cham::gio_tp( (int) round( $v_x['gio'] * 60 ) );
 				}
 				if ( $mau_v ) { $chu_viec = implode( ' · ', $mau_v ); }
 			}
@@ -7011,10 +7034,10 @@ class VHCC_Web {
 				. ( '' !== $chu_viec ? ' title="' . esc_attr( $chu_viec ) . '"' : '' )
 				. '><b>' . esc_html( 'ngay' === $kieu_ct
 				? ( (int) $tong_nguoi . ' công' )
-				: VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>';
+				: VHCC_Cham::gio_tp( $tong_nguoi ) ) . '</b>';
 			foreach ( $phut_phu as $ht_p => $p_p ) {
 				echo '<div class="mo" style="font-size:10px">-' . esc_html( $ht_p ) . ' '
-					. esc_html( VHCC_Cham::chu_gio( $p_p ) ) . '</div>';
+					. esc_html( VHCC_Cham::gio_tp( $p_p ) ) . '</div>';
 			}
 			/* Anh Thắng: *"cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu công"* — con số lớn
 			   là cơ sở đang xem, mỗi dòng dưới là một cơ sở khác. */
@@ -7079,7 +7102,7 @@ class VHCC_Web {
 		echo '<td colspan="' . (int) $so_ngay . '"></td>';
 		echo '<td><b>' . esc_html( 'ngay' === $kieu_ct
 			? ( (int) $tong_cs . ' công' )
-			: VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td>';
+			: VHCC_Cham::gio_tp( $tong_cs ) ) . '</b></td>';
 		/* 🔴 CHƯA ĐỦ GIÁ THÌ ĐỪNG IN TỔNG — KỂ CẢ KHI NÓ RA SỐ ÂM.
 		   Anh Thắng 16/09/2026 gửi ảnh hàng tổng ghi **-240.000đ**: cả cơ sở chưa khai đơn giá
 		   nào nên phần lương chính là 0, còn mấy khoản TRỪ (phạt, đặt cọc) thì đã gõ — cộng lại
@@ -8340,17 +8363,6 @@ class VHCC_Web {
 			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ Chưa khai <b>số ngày công chuẩn '
 				. 'của tháng</b> — người ăn lương tháng chưa ra được tiền. Khai ở tab Cấu hình, '
 				. 'khối <b>Công thức tính công</b>.</div>';
-		}
-		/* 🔴 HÀNG GHI SAI PHẢI KÊU RIÊNG, ĐỪNG GỘP VÀO "thiếu giờ".
-		   Hai chuyện khác nhau và cách sửa khác nhau: "thiếu giờ ra" là quên bấm lúc về (bù một
-		   đầu giờ là xong), còn "giờ ra sớm hơn giờ vào" là hàng ghi ngược (phải sửa cả hai đầu,
-		   hoặc đúng ra là một ca đêm chưa được trải phẳng). Gộp một câu thì người ta bù sai kiểu. */
-		if ( ! empty( $b['thieu']['hongGio'] ) ) {
-			echo '<div class="bao loi" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['hongGio']
-				. ' hàng có giờ ra SỚM HƠN giờ vào</b> — KHÔNG tính giờ nào, và <b>không trả tiền '
-				. 'cho mấy hàng ấy</b>. Đó là hàng ghi sai (máy ghi nhầm, bù tay nhầm), không phải '
-				. 'ca đêm: ca đêm thật được lưu ở dạng trải phẳng nên giờ ra luôn muộn hơn giờ vào. '
-				. 'Sửa thẳng trong lưới ở trên rồi mở lại.</div>';
 		}
 		if ( $b['thieu']['gio'] > 0 ) {
 			echo '<div class="bao canh" style="margin:0 0 10px">⚠️ <b>' . (int) $b['thieu']['gio']

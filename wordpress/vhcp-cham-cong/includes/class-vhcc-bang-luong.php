@@ -136,29 +136,23 @@ class VHCC_BangLuong {
 				continue;
 			}
 			/* ═══════════════════════════════════════════════════════════════════════════════
-			 * 🔴 GIỜ RA < GIỜ VÀO LÀ HÀNG HỎNG — KHÔNG TÍNH GIỜ NÀO, VÀ ĐẾM NÓ.
+			 * 🔴 GIỜ RA < GIỜ VÀO LÀ CA VẮT QUA NỬA ĐÊM — CỘNG BÙ, ĐỪNG CHẶN.
 			 *
-			 * Ca đêm thật KHÔNG rơi vào đây: nó được TRẢI PHẲNG lúc ghi (05:30 hôm sau lưu là
-			 * 105000 giây = 29h30, xem `VHCC_Online::trai_phang()` và chú thích đầu
-			 * `VHCC_DB` — *"cho phép giá trị > 86400 là cố ý"*). Nên `ra < vao` chỉ còn nghĩa
-			 * là hàng ghi sai: máy ghi nhầm, bù tay nhầm, hoặc dữ liệu cũ chưa trải phẳng.
+			 * Anh Thắng 16/09/2026, nói thẳng luật: *"qua đêm hệ thống sẽ hiểu: 22h00 - 2h00 là
+			 * 4 tiếng, vì 22h ngày 16 và 2h ngày 17, thì coi như nó sẽ tính 22h00-24h00, sau đó
+			 * quay lại 00h00 - 2h00"*. `VHCC_Luong::phut_ca()` ngay dưới làm đúng việc ấy.
 			 *
-			 * `VHCC_Luong::phut_ca()` cộng bù `+1440` cho khỏi ra số âm — đúng mục đích, sai
-			 * cách. Với một hàng hỏng nó biến lỗi gõ thành GẦN 24 GIỜ CÔNG ĐƯỢC TRẢ TIỀN, lặng
-			 * lẽ, trong khi lưới ngay trên đã bôi đỏ đúng hàng ấy (`VHCC_Cham::phut_lam()` trả
-			 * `null`) và người soát tưởng nó bị loại rồi. Hai màn nói ngược nhau về cùng một
-			 * hàng, và màn trả tiền là màn nói sai.
+			 * ⚠️ BẢN 4.6.0 CHẶN CHỖ NÀY — SAI, ĐÃ GỠ. Em từng tin rằng ca đêm luôn được trải
+			 *    phẳng lúc ghi nên `ra < vao` chỉ còn là rác, rồi hỏi anh Thắng *"hàng ra < vào
+			 *    mà KHÔNG phải ca đêm thì làm gì"* và nhận về *"tính 0 giờ"*. Anh trả lời đúng
+			 *    câu được hỏi; TIỀN ĐỀ của câu hỏi mới là thứ sai: chỉ VĂN PHÒNG chấm qua cổng
+			 *    online mới trải phẳng (`VHCC_Online::trai_phang`), còn máy chấm công và nạp
+			 *    .csv thì không. Chặn ở đây là xoá trắng 4 giờ của một ca đêm thật.
 			 *
-			 * Anh Thắng 16/09/2026 chốt: *"Tính 0 giờ và kêu lên, giống lưới"*.
-			 *
-			 * ⚠️ CHẶN Ở ĐÂY, ĐỪNG SỬA `phut_ca()`. Hàm ấy còn phục vụ đường khác (`pm()`,
-			 *    khối văn phòng) — sửa trong đó là đổi cả những chỗ chưa ai soát.
+			 * ⚠️ Hai engine khác đã làm đúng luật này từ lâu và có phép thử khoá lại:
+			 *    `VHCC_Pdf::phut_lam()` và chính `phut_ca()`. Bảng lương lệch với chúng thì
+			 *    tờ giấy in ra và màn hình nói hai con số khác nhau cho cùng một ngày.
 			 * ═══════════════════════════════════════════════════════════════════════════════ */
-			if ( (int) $x < (int) $v ) {
-				$gom[ $key ]['hongGio'] = isset( $gom[ $key ]['hongGio'] ) ? $gom[ $key ]['hongGio'] + 1 : 1;
-				$gom[ $key ]['ngay'][ $r['ngay'] ] = true;
-				continue;
-			}
 			$gom[ $key ]['phut'] += VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $x, 60 ) );
 			$gom[ $key ]['ngay'][ $r['ngay'] ] = true;
 		}
@@ -171,7 +165,6 @@ class VHCC_BangLuong {
 		$so_khac = VHCC_ChotLuong::so();
 		$dong = array();
 		$vuot  = 0;
-		$hong_gio = 0;
 		foreach ( $gom as $g ) {
 			$kma = strtolower( $g['ma'] );
 			$hs  = isset( $hs_ds[ $kma ] ) ? $hs_ds[ $kma ] : array();
@@ -240,7 +233,6 @@ class VHCC_BangLuong {
 			$d_chinh = $mot( '' !== $vc_chon ? $vc_chon : self::chuc_vu_chinh( $hs ),
 				$gio_chinh, true );
 			$d_chinh['thieuGio'] = isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0;
-			$d_chinh['hongGio']  = isset( $g['hongGio'] ) ? (int) $g['hongGio'] : 0;
 			/* 🔴 KHOẢN CỘNG / TRỪ GẮN VÀO DÒNG CHÍNH, KHÔNG RẢI RA MỌI DÒNG.
 			   Một người có thể ra ba dòng (chính + MC + Hỗ Trợ) nhưng cái cọc 200.000 chỉ trừ
 			   MỘT LẦN. Rải ra mỗi dòng là trừ ba lần — và bảng vẫn có số nên không ai thấy. */
@@ -254,7 +246,6 @@ class VHCC_BangLuong {
 			foreach ( $khac as $k ) {
 				$d_k = $mot( (string) $k['viec'], round( (float) $k['gio'], 2 ), false );
 				$d_k['thieuGio'] = 0;
-				$d_k['hongGio']  = 0;
 				$dong[] = $d_k;
 			}
 		}
@@ -281,7 +272,6 @@ class VHCC_BangLuong {
 			else { $tong_chinh += $d['luongChinh']; }
 			if ( null !== $d['gio'] ) { $tong_gio += $d['gio']; }
 			$thieu_gio += $d['thieuGio'];
-			$hong_gio  += isset( $d['hongGio'] ) ? (int) $d['hongGio'] : 0;
 		}
 
 		return array(
@@ -295,8 +285,6 @@ class VHCC_BangLuong {
 				'gia'       => $thieu_gia,
 				'congChuan' => ( $cong_yc <= 0 ),
 				'gio'       => $thieu_gio,
-				/* Hàng có giờ ra SỚM HƠN giờ vào — đã bị chặn, không tính giờ nào. */
-				'hongGio'   => $hong_gio,
 			),
 		);
 	}
