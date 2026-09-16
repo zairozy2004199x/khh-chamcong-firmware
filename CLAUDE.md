@@ -50,10 +50,28 @@ Sau khi build: giải nén ra chỗ tạm rồi `diff -rq` với thư mục ngu�
    Trang in số bản ra góc phải; số không đổi thì không ai biết bản mới đã lên chưa.
 4. Build zip, commit cả zip lẫn source, push.
 
-## 3. Nhánh
+## 3. Nhánh — VÀ MỘT KHO NÀY CÓ HAI CÂY PLUGIN, ĐỌC KỸ
 
-Nhánh phát triển: **`claude/posh-qr-kh1urz`**. Chỉ commit/push lên nhánh này.
+Nhánh của trang Ghế / Sao Kê / bán vé: **`claude/posh-qr-kh1urz`**.
 Không mở PR nếu chưa được yêu cầu. `main` đang tụt lại rất xa (chỉ còn phần firmware).
+
+🔴 **Nhưng plugin KHÔNG chỉ sống ở nhánh này.** Nhánh
+**`claude/rebuild-chi-phi-wordpress-hl2yze`** giữ 14 plugin trong thư mục `wordpress/`:
+Chi Phí (+4 biến thể hn · mtd · vp · tổng), Chấm Công, Dự Án, Hợp Đồng, Nội Bộ, Trang Chủ,
+Cổng, Doanh Thu FABi, Nền tảng K&H, và **một `vhcp-ghe` KHÁC HẲN** cái ở nhánh này.
+Nhánh ấy có sẵn workflow `phat-hanh.yml` tự dựng zip và treo lên Releases theo tag
+`<tên-plugin>-v<số bản>`, nên plugin ở đó tự cập nhật qua Releases chứ không qua `dist/`.
+
+⚠️ **Tìm mã một plugin thì phải dò CẢ HAI NƠI.** 15/09/2026 em tìm mỗi nhánh này rồi kết luận
+"Chi phí không có trên GitHub" — sai, nó nằm ở `wordpress/vhcp-chi-phi` suốt.
+
+🔴 **ĐỪNG ĐÁNH SỐ BẢN MÀ KHÔNG HỎI CÁC NHÁNH KIA.** Cùng một plugin đang được vá ở 3–4 nhánh
+song song; hai nhánh cùng đánh `3.83.0` cho hai việc khác nhau thì WordPress chỉ so được CON SỐ
+và báo *"đang tải lên một phiên bản cũ"* — một câu đúng về số mà sai về việc, và cài đè bên nào
+cũng mất việc của bên kia. 16/09/2026 em dính đúng bẫy này: dựng một `vhcp-cham-cong` 3.87.0 ở
+nhánh này trong khi nhánh kia đã phát hành 3.87.0 với nội dung khác. Trước khi chốt số, chạy
+**`php tools/test/kiem-so-ban-doc-nhat.php`** (bài ấy nằm ở nhánh rebuild, hỏi sang MỌI nhánh
+trên `origin` — bài kiểm duy nhất trong kho làm việc đó).
 
 ## 4. Repo này CÔNG KHAI
 
