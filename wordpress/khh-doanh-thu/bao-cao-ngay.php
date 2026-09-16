@@ -526,8 +526,9 @@ function khh_dt_rest_doi_soat( $req ) {
 	}
 
 	/* Cộng dồn theo từng cơ sở, đi từ ngày cũ tới ngày mới. $ra đang xếp ngày mới trước. */
-	$treo = $mo_dau;
+	$treo    = $mo_dau;
 	$lan_nop = array();                       // cơ sở => ngày về gần nhất
+	$cho     = array();                       // cơ sở => mấy dòng đang chờ được một cú nộp xoá
 	for ( $i = count( $ra ) - 1; $i >= 0; $i-- ) {
 		$c = $ra[ $i ]['cua_hang'];
 		if ( ! isset( $treo[ $c ] ) ) {
@@ -547,6 +548,34 @@ function khh_dt_rest_doi_soat( $req ) {
 		$ra[ $i ]['ngay_treo'] = isset( $lan_nop[ $c ] )
 			? (int) round( ( strtotime( $ra[ $i ]['ngay'] ) - strtotime( $lan_nop[ $c ] ) ) / 86400 )
 			: 0;
+
+		/* ==========================================================================================
+		 * 🔴 MỘT CÚ NỘP XOÁ LUÔN MẤY NGÀY TRƯỚC NÓ — VÀ PHẢI TÍCH LẠI MẤY NGÀY ẤY.
+		 * ==========================================================================================
+		 * Anh Thắng 16/09/2026: *"nếu cùng doanh thu, sau khi nộp thoả mãn đúng thì tích các ngày
+		 * đúng đã nộp cho dễ hiểu"*.
+		 *
+		 * Cơ sở gom mấy ngày nộp một cục. Ngày 1–9 dồn tiền, ngày 10 nộp 26.890.000 là xong sạch
+		 * cả chín ngày — nhưng bản trước chín ngày ấy vẫn nằm im với chữ "đang dồn", chỉ mỗi ngày
+		 * 10 có dấu tích. Nhìn bảng thì tưởng chín ngày kia còn nợ, trong khi tiền đã về đủ.
+		 *
+		 * Nên khi số dư treo chạm 0, ĐÁNH DẤU NGƯỢC LẠI cho mọi ngày đang chờ từ lần sạch trước
+		 * tới đây. Từ đó "đã xong" là một sự thật đọc được ngay, không phải thứ người xem tự suy
+		 * trong đầu.
+		 * ========================================================================================== */
+		$cho[ $c ][] = $i;
+		if ( $treo[ $c ] < 1000 ) {
+			foreach ( $cho[ $c ] as $j ) {
+				$ra[ $j ]['da_xong'] = true;
+			}
+			$cho[ $c ] = array();
+		}
+	}
+	/* Những dòng còn lại trong hàng chờ là phần thật sự chưa được nộp bù. */
+	foreach ( $cho as $c => $ds_cho ) {
+		foreach ( $ds_cho as $j ) {
+			$ra[ $j ]['da_xong'] = false;
+		}
 	}
 
 	return array(

@@ -961,6 +961,13 @@
       if (canhBao(x, ng, r.ngay_nhac)) soCanh++;
     });
     var nhac = r.ngay_nhac || 10;
+    var soXong = 0, soCanNop = 0;
+    ds.forEach(function (x) {
+      if (!x.phai_nop || x.phai_nop <= 0) return;
+      if (!x.co_ma && !x.co_bank) return;
+      soCanNop++;
+      if (x.da_xong || (x.treo || 0) < 1000) soXong++;
+    });
     var dangTreo = 0, soTreoLau = 0, treoLau = [];
     Object.keys(cuoi).forEach(function (c) {
       var x = cuoi[c];
@@ -981,6 +988,8 @@
       (S.ds.chiCanh ? ' · hiện ' + hien.length : '') + '</span></header>' +
       locDoiSoat() +
       '<div class="the-hang" style="margin:16px 0">' +
+        the_nho('Ngày đã nộp đủ', soCanNop ? nguyen(soXong) + ' / ' + nguyen(soCanNop) : '—',
+          (soCanNop && soXong < soCanNop) ? '' : '') +
         the_nho('Tiền mặt đang treo ở cơ sở', tien(dangTreo), dangTreo > ng.so_tien ? 'xau' : '') +
         the_nho('Cơ sở treo quá ' + nhac + ' ngày', nguyen(soTreoLau) +
           (treoLau.length ? ' · ' + String(treoLau[0]).slice(0, 18) + (treoLau.length > 1 ? '…' : '') : ''),
@@ -1418,7 +1427,7 @@
 
     /* Chú giải luôn có mặt — ký hiệu + chữ, để không ai phải đoán màu nghĩa là gì. */
     h += '<div class="lich-chu">' +
-      '<span><i class="lo lo-du">✓</i> ngày tiền về tài khoản</span>' +
+      '<span><i class="lo lo-du">✓</i> đã nộp đủ (gồm ngày được lần nộp sau xoá sạch)</span>' +
       '<span><i class="lo lo-cho">·</i> đang dồn, chưa tới hạn</span>' +
       '<span><i class="lo lo-chua">✕</i> treo quá lâu</span>' +
       '<span><i class="lo lo-cho">?</i> chưa khai mã nộp tiền</span>' +
@@ -1446,6 +1455,11 @@
     if (!x.phai_nop || x.phai_nop <= 0) return { ma: 'khong', dau: '', chu: 'không có tiền mặt' };
     var t = x.treo || 0;
     if (t < 1000) return { ma: 'du', dau: '✓', chu: 'không còn treo đồng nào' };
+    /* Ngày dồn tiền đã được cú nộp sau đó xoá sạch — tích luôn, xem khối chú thích ở máy chủ. */
+    if (x.da_xong) {
+      return { ma: 'du', dau: '✓', chu: 'tiền của ngày này đã nằm trong lần nộp ' +
+        ngayVN(x.nop_gan_nhat || '') };
+    }
     if ((x.ngay_treo || 0) >= nhac) {
       return { ma: 'chua', dau: '✕', chu: 'treo ' + tien(t) + ' — ' + x.ngay_treo + ' ngày chưa nộp' };
     }
@@ -1472,7 +1486,12 @@
       ? '<span class="chip du" title="Số ngân hàng nhận được theo sao kê' +
         (x.nop_lan > 1 ? ' — ' + x.nop_lan + ' lần chuyển' : '') + '">về ' + nguyen(x.nop_bank) + '</span>'
       : '';
-    if (t < 1000) return h || '<span class="chip du">sạch</span>';
+    if (t < 1000) return h || '<span class="chip du">✓ đã nộp đủ</span>';
+    /* Ngày dồn tiền nhưng ĐÃ được một cú nộp sau đó xoá sạch — tích lại cho khỏi tưởng còn nợ. */
+    if (x.da_xong) {
+      return h + '<span class="chip du" title="Tiền của ngày này đã nằm trong lần nộp ' +
+        esc(ngayVN(x.nop_gan_nhat || '')) + '">✓ đã nộp đủ</span>';
+    }
     var lau = (x.ngay_treo || 0) >= (nhac || 10) && t > ng.so_tien;
     return h + '<span class="chip ' + (lau ? 'thieu' : '') + '" title="Cộng dồn tiền mặt phải nộp trừ tiền đã về">' +
       'treo ' + nguyen(t) + (x.ngay_treo ? ' · ' + x.ngay_treo + ' ngày' : '') + '</span>';
@@ -1743,7 +1762,9 @@
           ? '<div class="chu-them" style="margin-bottom:8px"><b>Sổ MoMo</b> — để biết phần khách trả ' +
             'qua MoMo mà máy POS ghi có khớp với số MoMo nhận không. MoMo không bắn webhook nên sổ ' +
             'ấy do người ta tải file lên; ngày nào chưa tải thì sổ thiếu ngày đó, và thiếu file ' +
-            'khác hẳn với "MoMo giữ tiền".</div>'
+            'khác hẳn với "MoMo giữ tiền".<br><b>Sổ cổng thường gộp cả VietQR, MoMo và VNPAY trong ' +
+            'một bảng</b> — nhớ dùng ô <i>Chỉ lấy những dòng có</i> bên dưới để lọc đúng nguồn MoMo, ' +
+            'không thì tiền VietQR của cả chuỗi cộng nhầm vào phần MoMo.</div>'
           : '') +
         '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
           '<select id="dtBangTay">' + ds.map(function (x) {
@@ -1773,6 +1794,7 @@
            ['ma_gd', 'Mã giao dịch'], ['tai_khoan', 'Số tài khoản'], ['nhan', 'Nhãn phân loại'],
            ['tien_ra', 'Tiền ra'], ['nguon', 'Nguồn / loại'],
            ['huong', 'Hướng (Đến / Đi)'], ['trang_thai', 'Trạng thái']];
+      var gtri = r.gia_tri || {};
       var h = '<div class="bang-cuon"><table><thead><tr>' +
         cot.map(function (c) { return '<th style="text-align:left">' + esc(c) + '</th>'; }).join('') +
         '</tr></thead><tbody>' +
@@ -1789,12 +1811,36 @@
               return '<option value="' + esc(c) + '"' + (doan[v[0]] === c ? ' selected' : '') + '>' + esc(c) + '</option>';
             }).join('') + '</select></label>';
         }).join('') + '</div>' +
+        /* Sổ cổng gộp cả VietQR / MoMo / VNPAY trong một bảng — phải lọc đúng nguồn, không thì
+           tiền cổng khác cộng nhầm vào phần đang xét. */
+        (Object.keys(gtri).length
+          ? '<div style="margin-top:12px"><b class="tieu-nho">Chỉ lấy những dòng có</b>' +
+            '<div class="bc-luoi" style="margin-top:6px">' +
+            '<label class="bc-o"><b>Cột</b><select id="dtLocCot"><option value="">— lấy tất cả —</option>' +
+            Object.keys(gtri).map(function (c) {
+              return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+            }).join('') + '</select></label>' +
+            '<label class="bc-o"><b>Bằng giá trị</b><select id="dtLocGt"><option value="">—</option></select></label>' +
+            '</div></div>'
+          : '') +
         '<div style="margin-top:12px"><button class="nut chinh" type="button" id="dtKeoTay">' +
         (viec === 'momo' ? 'Dùng sổ MoMo này' : 'Dùng sổ này và kéo về') +
         '</button> <span class="chu-them">' +
         (viec === 'momo' ? 'Ngày, Số tiền và Tên cửa hàng là bắt buộc.' : 'Ngày và Số tiền là bắt buộc.') +
         '</span></div>';
       noi.innerHTML = h;
+
+      var oCot = noi.querySelector('#dtLocCot'), oGt = noi.querySelector('#dtLocGt');
+      if (oCot) {
+        oCot.addEventListener('change', function () {
+          var ds = gtri[oCot.value] || [];
+          oGt.innerHTML = '<option value="">—</option>' + ds.map(function (v) {
+            return '<option value="' + esc(v.gt) + '">' + esc(v.gt || '(trống)') + ' — ' +
+              nguyen(v.n) + ' dòng</option>';
+          }).join('');
+        });
+      }
+
       noi.querySelector('#dtKeoTay').addEventListener('click', function () {
         var map = {};
         Array.prototype.forEach.call(noi.querySelectorAll('[data-cot]'), function (se) {
@@ -1807,11 +1853,17 @@
         fd.append('cot', JSON.stringify(map));
         var b = noi.querySelector('#dtKeoTay');
         b.disabled = true; b.textContent = 'Đang lưu…';
+        if (oCot && oCot.value && oGt && oGt.value) {
+          fd.append('loc_cot', oCot.value);
+          fd.append('loc_gt', oGt.value);
+        }
         if (viec === 'momo') {
           /* Sổ MoMo KHÔNG kéo vào kho: đọc thẳng mỗi lần xem báo cáo. Nó là sổ đối chiếu, không
              phải sổ tiền nộp — nhập nó vào kho là lẫn hai dòng tiền với nhau. */
-          api('nguon-momo', { method: 'POST', body: fd }).then(function () {
-            window.alert('Đã khai sổ MoMo. Bảng Tổng hợp cả kỳ nay có thêm cột MoMo và cột Lệch MoMo.');
+          api('nguon-momo', { method: 'POST', body: fd }).then(function (kq) {
+            window.alert('Đã khai sổ MoMo' +
+              ((kq.loc && kq.loc.cot) ? ' — chỉ lấy dòng có ' + kq.loc.cot + ' = ' + kq.loc.gt : '') +
+              '.\nBảng Tổng hợp cả kỳ nay có thêm cột MoMo và cột Lệch MoMo.');
             taiQuanTri();
           }).catch(function (e) {
             b.disabled = false; b.textContent = 'Dùng sổ MoMo này';

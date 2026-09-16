@@ -271,6 +271,11 @@ function khh_dt_momo_sk_ds( $tu, $den ) {
 	$lay .= $ma ? ", `$ma` ma" : ", '' ma";
 	$sql  = "SELECT $lay FROM `$bang` WHERE 1=1";
 	$args = array();
+	/* Cùng bộ lọc với `khh_dt_momo_theo_ngay()` — sổ cổng gộp cả VietQR/MoMo/VNPAY. */
+	if ( ! empty( $n['loc']['cot'] ) ) {
+		$sql   .= ' AND `' . $n['loc']['cot'] . '` = %s';
+		$args[] = (string) $n['loc']['gt'];
+	}
 	if ( $tu ) {
 		$sql   .= " AND `{$c['ngay']}` >= %s";
 		$args[] = $tu . ' 00:00:00';

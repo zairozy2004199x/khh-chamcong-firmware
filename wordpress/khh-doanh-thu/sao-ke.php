@@ -1149,6 +1149,40 @@ function khh_dt_moi_bang() {
 	return $ra;
 }
 
+/**
+ * Các giá trị có thật trong một cột, kèm số dòng — để người khai CHỌN, không phải gõ.
+ *
+ * 🔴 SỔ CỔNG GỘP CẢ BA CỔNG VÀO MỘT BẢNG. Site anh Thắng có `wpt9_saoke_cong` 36.478 dòng, trong
+ *    đó VietQR, MoMo và VNPAY nằm chung, phân biệt bằng cột `NGUON`. Muốn đối soát MoMo thì phải
+ *    lọc đúng `nguon = momo`; lấy cả bảng là đem tiền VietQR của cả chuỗi cộng vào phần MoMo.
+ *
+ *    Mà tên giá trị thì mỗi nơi viết một kiểu ("momo", "MOMO", "MoMo Wallet") — nên bày ra cho
+ *    người ta chọn, đừng bắt gõ rồi gõ sai một chữ là lọc ra 0 dòng mà không hiểu vì sao.
+ */
+function khh_dt_gia_tri_cot( $bang, $cot, $gioi_han = 15 ) {
+	global $wpdb;
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT `$cot` gt, COUNT(*) n FROM `$bang` GROUP BY `$cot` ORDER BY n DESC LIMIT %d", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			(int) $gioi_han
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$ra[] = array(
+			'gt' => (string) $r['gt'],
+			'n'  => (int) $r['n'],
+		);
+	}
+	return $ra;
+}
+
 /** Cột của một bảng, kèm ba dòng đầu để người khai nhìn mà biết cột nào là cột gì. */
 function khh_dt_soi_bang( $bang ) {
 	global $wpdb;
@@ -1165,11 +1199,20 @@ function khh_dt_soi_bang( $bang ) {
 			$dong[ $i ][ $k ] = mb_substr( (string) $v, 0, 60 );
 		}
 	}
+	$doan = khh_dt_doan_cot( $cot );
+	/* Bày sẵn các giá trị của mấy cột hay dùng để lọc — nguồn, loại, trạng thái. */
+	$gia_tri = array();
+	foreach ( array( 'nguon', 'huong', 'trang_thai' ) as $vai ) {
+		if ( ! empty( $doan[ $vai ] ) ) {
+			$gia_tri[ $doan[ $vai ] ] = khh_dt_gia_tri_cot( $bang, $doan[ $vai ] );
+		}
+	}
 	return array(
-		'cot'  => $cot,
-		'dong' => $dong,
+		'cot'     => $cot,
+		'dong'    => $dong,
 		/* Đoán sẵn để người khai chỉ phải sửa chỗ sai, không phải khai từ đầu. */
-		'doan' => khh_dt_doan_cot( $cot ),
+		'doan'    => $doan,
+		'gia_tri' => $gia_tri,
 	);
 }
 
@@ -1238,6 +1281,10 @@ function khh_dt_momo_theo_ngay( $tu = '', $den = '' ) {
 	}
 	$sql  = "SELECT `{$c['ngay']}` ngay, `{$c['so_tien']}` tien, `$cot_ten` ten FROM `$bang` WHERE 1=1";
 	$args = array();
+	if ( ! empty( $n['loc']['cot'] ) ) {
+		$sql   .= ' AND `' . $n['loc']['cot'] . '` = %s';
+		$args[] = (string) $n['loc']['gt'];
+	}
 	if ( $tu ) {
 		$sql   .= " AND `{$c['ngay']}` >= %s";
 		$args[] = $tu . ' 00:00:00';
@@ -1726,8 +1773,14 @@ function khh_dt_rest_nguon_momo( $req ) {
 	if ( '' === $sach['nhan'] && '' === $sach['noi_dung'] ) {
 		return new WP_Error( 'khh_dt_momo', 'Cần một cột mang tên cửa hàng để biết tiền của cơ sở nào.', array( 'status' => 400 ) );
 	}
-	update_option( 'khh_dt_nguon_momo', array( 'bang' => $bang, 'cot' => $sach ), false );
-	return array( 'ok' => true, 'bang' => $bang, 'cot' => $sach );
+	/* Bộ lọc "chỉ lấy dòng có cột X bằng Y" — để tách MoMo ra khỏi sổ cổng gộp chung. */
+	$loc_cot = sanitize_text_field( (string) $req->get_param( 'loc_cot' ) );
+	$loc_gt  = sanitize_text_field( (string) $req->get_param( 'loc_gt' ) );
+	$loc     = ( '' !== $loc_cot && in_array( $loc_cot, $soi['cot'], true ) && '' !== $loc_gt )
+		? array( 'cot' => $loc_cot, 'gt' => $loc_gt )
+		: array();
+	update_option( 'khh_dt_nguon_momo', array( 'bang' => $bang, 'cot' => $sach, 'loc' => $loc ), false );
+	return array( 'ok' => true, 'bang' => $bang, 'cot' => $sach, 'loc' => $loc );
 }
 
 function khh_dt_rest_sk_xoa() {

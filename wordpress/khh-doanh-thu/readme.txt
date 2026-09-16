@@ -4,7 +4,7 @@ Tags: doanh-thu, bao-cao, fabi, ipos, pos
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.22.0
+Stable tag: 1.23.0
 License: Proprietary
 
 Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo
@@ -96,6 +96,14 @@ code, không lên GitHub. Khi có tài liệu iPOS, chỗ duy nhất phải sử
 chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()`.
 
 == Changelog ==
+
+= 1.23.0 =
+* **Tích những ngày đã được lần nộp sau xoá sạch.** Cơ sở gom mấy ngày nộp một cục: ngày 1–9 dồn
+  tiền, ngày 10 nộp 26.890.000 là xong cả chín ngày — nay chín ngày ấy hiện **✓ đã nộp đủ** thay
+  vì nằm im với chữ "đang dồn". Thêm ô đếm **Ngày đã nộp đủ**.
+* **Lọc đúng nguồn khi khai sổ MoMo**: sổ cổng gộp cả VietQR / MoMo / VNPAY trong một bảng, nay
+  chọn được *chỉ lấy dòng có `nguon` = `momo`*. Màn bày sẵn các giá trị có thật trong cột kèm số
+  dòng, khỏi gõ tay rồi sai một chữ.
 
 = 1.22.0 =
 * **Nạp file "MoMo payments" của FABi** (Nạp báo cáo → thẻ *Giao dịch MoMo*): đọc cả 12 trang, cả
