@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.42.0
+ * Version:           0.43.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.42.0';
+	const VER = '0.43.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -36,6 +36,8 @@ class SAOKE_App {
 
 	// ───────────────────────────── Bootstrap ─────────────────────────────
 	public static function init() {
+		/* Cửa đọc giao dịch cổng cho plugin khác — xem khối 🔴 ở gd_cong_ds(). */
+		add_filter( 'saoke_gd_cong', array( __CLASS__, 'loc_gd_cong' ), 10, 4 );
 		self::bao_dam_bang();
 		self::bao_dam_trang();
 		add_action( 'rest_api_init', array( __CLASS__, 'routes' ) );
@@ -2900,6 +2902,58 @@ class SAOKE_App {
 	}
 
 	// ── Nạp bù giao dịch cổng từ file (napFileCongTx) — Việt QR, vào CongThanhToan ──
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CỬA ĐỌC GIAO DỊCH CỔNG CHO PLUGIN KHÁC CÙNG SITE (0.43.0)
+	 *
+	 * Anh Thắng 16/09/2026: *"có bên khác muốn lấy dữ liệu momo, nhưng chỉ bóc theo ngày, không
+	 * lấy theo giao dịch lẻ được"*.
+	 *
+	 * Bảng đối soát `saoke_congfile` gộp theo (ngày × cửa hàng) — cố ý, cả màn đối soát sống bằng
+	 * nó. Còn từng giao dịch thì nằm ở bảng `saoke_cong`, và từ bản này MoMo cũng đổ vào đó nếu
+	 * người nạp có chọn cột Mã giao dịch.
+	 *
+	 * 🔴 CHỈ ĐỌC. Không có đường ghi nào ở đây: plugin khác cần sửa dữ liệu thì đi qua màn của
+	 *    Sao Kê, để mọi thay đổi còn lại dấu vết ở một chỗ.
+	 * ⚠️ TRẢ MẢNG THUẦN, KHÔNG TRẢ ĐỐI TƯỢNG $wpdb. Bên kia lỡ giữ tham chiếu là giữ luôn cả
+	 *    trạng thái kết nối; mảng thì họ muốn làm gì cũng không đụng tới mình.
+	 * ⚠️ `$gioi_han` có trần cứng 20000 — một lượt đọc lỡ tay không được phép kéo sập trang.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	public static function gd_cong_ds( $nguon = 'momo', $tu = '', $den = '', $gioi_han = 5000 ) {
+		global $wpdb;
+		$nguon = strtolower( trim( (string) $nguon ) );
+		if ( ! in_array( $nguon, self::cong_ds(), true ) ) { return array(); }
+		$tc = self::tbl_cong();
+		if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tc ) ) !== $tc ) { return array(); }
+		$gioi_han = max( 1, min( 20000, (int) $gioi_han ) );
+		$w = array( 'nguon=%s', 'doc_duoc=1' ); $ar = array( $nguon );
+		if ( '' !== $tu )  { $w[] = 'DATE(thoi_diem)>=%s'; $ar[] = (string) $tu; }
+		if ( '' !== $den ) { $w[] = 'DATE(thoi_diem)<=%s'; $ar[] = (string) $den; }
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_gd, ref, thoi_diem, so_tien, noi_dung, ma_ch, diem_ban, trang_thai, may_tay"
+			. " FROM $tc WHERE " . implode( ' AND ', $w ) . " ORDER BY thoi_diem ASC, id ASC LIMIT " . $gioi_han,
+			$ar ), ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $r ) {
+			$ra[] = array(
+				'maGD'      => (string) $r['ma_gd'],
+				'ref'       => (string) $r['ref'],
+				'thoiDiem'  => (string) $r['thoi_diem'],
+				'soTien'    => (int) $r['so_tien'],
+				'cuaHang'   => (string) $r['noi_dung'],   // tên cửa hàng ở file cổng
+				'maCH'      => (string) $r['ma_ch'],
+				'diemBan'   => (string) $r['diem_ban'],
+				'trangThai' => (string) $r['trang_thai'],
+				'may'       => self::cong_may_dong( (string) $r['noi_dung'], (string) $r['ma_ch'], (string) $r['diem_ban'], (string) $r['may_tay'] ),
+			);
+		}
+		return $ra;
+	}
+
+	/** Cho bên nào thích dùng bộ lọc hơn gọi thẳng lớp. Cùng dữ liệu, cùng luật. */
+	public static function loc_gd_cong( $mac_dinh, $nguon = 'momo', $tu = '', $den = '' ) {
+		return self::gd_cong_ds( $nguon, $tu, $den );
+	}
+
 	public static function rpc_napFileCongTx( $a ) {
 		self::can_pin( $a );
 		$nguon = strtolower( trim( isset( $a[1] ) ? (string) $a[1] : '' ) );

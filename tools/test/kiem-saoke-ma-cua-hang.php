@@ -63,11 +63,14 @@ teq( '🔴 cong_ten_may() chỉ được gọi từ MỘT chỗ (trong cong_may_
 	substr_count( $SRC, 'self::cong_ten_may(' ) );
 teq( '🔴 may_hop_le() chỉ được gọi từ HAI chỗ (cong_ten_may + cong_may_dong)', 2,
 	substr_count( $SRC, 'self::may_hop_le(' ) );
-/* Năm nơi cần biết máy: bảng Sao Kê cổng (REST) · bảng Sao Kê cổng (đường app gọi) · phép gom
-   tiền theo mã nộp · lượt nạp file · và (0.29.0) vietqr_theo_coso_ngay() cho báo cáo bên Ghế gọi
-   sang. Năm nơi, MỘT luật — đếm chỗ GỌI cùng một hàm, tăng khi có chỗ tái dùng hợp lệ là đúng;
-   §6 cấm CHÉP lại luật, không cấm gọi lại. */
-teq( 'và năm nơi cần biết máy đều gọi đúng hàm chung ấy', 5,
+/* SÁU nơi cần biết máy: bảng Sao Kê cổng (REST) · bảng Sao Kê cổng (đường app gọi) · phép gom
+   tiền theo mã nộp · lượt nạp file · vietqr_theo_coso_ngay() cho báo cáo bên Ghế gọi sang
+   (0.29.0) · và gd_cong_ds() — cửa đọc giao dịch lẻ cho plugin khác cùng site (0.43.0).
+   Sáu nơi, MỘT luật — đếm chỗ GỌI cùng một hàm, tăng khi có chỗ tái dùng hợp lệ là đúng;
+   §6 cấm CHÉP lại luật, không cấm gọi lại.
+   ⚠️ Con số này KHÔNG được sửa cho hết đỏ. Mỗi lần nó nhảy, phải mở ra xem chỗ mới là TÁI DÙNG
+      hay là một bản sao của luật — bản sao thì sửa mã, không sửa con số. */
+teq( 'và sáu nơi cần biết máy đều gọi đúng hàm chung ấy', 6,
 	substr_count( $SRC, 'self::cong_may_dong(' ) );
 /* Hàm màn hình THẬT SỰ gọi phải lấy cột `ma_ch` về — thiếu nó thì gọi hàm chung cũng vô ích. */
 t( '🔴 rpc_getSaoKeCong lấy cột ma_ch + may_tay trong câu SELECT',

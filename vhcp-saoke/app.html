@@ -1440,6 +1440,16 @@ function dungViewFile(nguon){
   +       '<div class="fld"><label>Cột Số tiền</label><select id="'+id('cotTien')+'"></select></div>'
   +       '<div class="fld"><label>Cột Cửa hàng</label><select id="'+id('cotCH')+'"></select></div>'
   +       '<div class="fld"><label>Cột Mã cửa hàng (dự phòng)</label><select id="'+id('cotMaCH')+'"></select></div>'
+  /* 🔴 CỘT MÃ GIAO DỊCH — để app khác lấy được GIAO DỊCH LẺ (0.43.0).
+     Anh Thắng 16/09/2026: *"có bên khác muốn lấy dữ liệu momo, nhưng chỉ bóc theo ngày, không
+     lấy theo giao dịch lẻ được"*. Đúng, và chỗ mất dữ liệu là ở CHÍNH MÌNH: trình duyệt đọc đủ
+     1016 dòng rồi gửi lên, nhưng máy chủ gộp ngay thành một dòng mỗi (ngày × cửa hàng) — từng
+     giao dịch bị vứt tại cửa. Mà kể cả giữ lại cũng vô dụng: mã giao dịch chưa bao giờ được
+     chọn nên không có gì để ghép với mã đối tác bên kia.
+     ⚠️ KHÔNG BẮT BUỘC. Để "(không có)" thì mọi thứ chạy y như cũ — bảng đối soát theo ngày vẫn
+        là bảng gộp, không ai phải đổi nếp làm. Chọn cột này thì nạp thêm một lượt giao dịch lẻ. */
+  +       '<div class="fld"><label>Cột Mã giao dịch <span class="muted">(để app khác lấy)</span></label>'
+  +         '<select id="'+id('cotMaGD')+'"></select></div>'
   +       '<div class="fld" style="align-self:flex-end"><label style="display:flex;align-items:center;gap:6px;cursor:pointer">'
   +         '<input type="checkbox" id="'+id('ghiDe')+'"> Ghi đè ngày trùng</label></div>'
   +       '<div class="fld" style="align-self:flex-end"><button onclick="cgNapFile(\''+nguon+'\')">📥 Nạp vào tháng</button></div>'
@@ -2139,10 +2149,10 @@ function cgChonFile(nguon, input){
     cgEl(nguon,'cotWrap').style.display = '';
     var head = rows[0] || [];
     var soCot = rows.reduce(function(m,r){ return Math.max(m, r.length); }, 0);
-    ['cotNgay','cotTien','cotCH','cotMaCH'].forEach(function(t){
+    ['cotNgay','cotTien','cotCH','cotMaCH','cotMaGD'].forEach(function(t){
       var s = cgEl(nguon,t); if(!s) return;
-      // Riêng cột mã có thêm "(không dùng)" — file nào cột Tên cửa hàng luôn đủ thì khỏi cần
-      var h = (t === 'cotMaCH') ? '<option value="">(không dùng)</option>' : '';
+      // Hai cột tuỳ chọn có thêm "(không dùng)" — file nào cột Tên cửa hàng luôn đủ thì khỏi cần
+      var h = (t === 'cotMaCH' || t === 'cotMaGD') ? '<option value="">(không dùng)</option>' : '';
       for(var c=0;c<soCot;c++){
         var nhan = cgTenCot(c) + (head[c] ? (' — ' + String(head[c]).substring(0,28)) : '');
         h += '<option value="'+c+'">'+esc(nhan)+'</option>';
@@ -2189,7 +2199,11 @@ function cgDatCot(nguon, cot){
   if(cot.cuaHang >= 0) cgEl(nguon,'cotCH').value = String(cot.cuaHang);
   var m = cgEl(nguon,'cotMaCH');
   if(m) m.value = (cot.maCH >= 0) ? String(cot.maCH) : '';
-  ['cotNgay','cotTien','cotCH','cotMaCH'].forEach(function(t){
+  /* ⚠️ Mã giao dịch KHÔNG đoán tự động. Đoán sai cột này là nạp cả nghìn dòng mang mã rác vào
+     bảng giao dịch, mà bảng ấy khoá chống trùng theo chính mã — dọn lại rất phiền. Để anh chọn
+     tay, và mặc định là "(không dùng)" nên không chọn thì không có gì xảy ra. */
+  var g = cgEl(nguon,'cotMaGD'); if(g && g.value === undefined) g.value = '';
+  ['cotNgay','cotTien','cotCH','cotMaCH','cotMaGD'].forEach(function(t){
     var e = cgEl(nguon,t); if(e) e.onchange = function(){ cgXemTruoc(nguon); };
   });
 }
@@ -2248,6 +2262,57 @@ function cgSoO(v){
   else s = s.replace(/,/g,'');
   var n = Number(s); return isNaN(n) ? 0 : n;
 }
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * NẠP THÊM GIAO DỊCH LẺ — để plugin khác cùng site lấy được (0.43.0).
+ *
+ * Anh Thắng 16/09/2026: *"có bên khác muốn lấy dữ liệu momo, nhưng chỉ bóc theo ngày, không lấy
+ * theo giao dịch lẻ được"*.
+ *
+ * Lượt nạp chính vẫn gộp theo (ngày × cửa hàng) — đó là thứ cả màn đối soát này sống bằng, không
+ * đụng tới. Lượt này chạy THÊM, đổ từng giao dịch vào bảng giao dịch cổng (cùng bảng Việt QR
+ * đang dùng), để bên kia ghép mã giao dịch MoMo với mã đối tác của họ.
+ *
+ * 🔴 KHÔNG CỘNG TIỀN HAI LẦN. Hai bảng khác nhau, và mọi truy vấn đọc bảng giao dịch đều khoá
+ *    theo `nguon`; riêng màn Tổng hợp doanh thu cơ sở gõ cứng `nguon='vietqr'`. Nên dòng MoMo
+ *    nằm đó không lọt vào phép cộng nào của màn hiện có — đã soi từng chỗ đọc trước khi làm.
+ *
+ * ⚠️ CHỈ CHẠY KHI ĐÃ CHỌN CỘT MÃ GIAO DỊCH. Không có mã thì cửa nạp bên kia từ chối cả dòng (nó
+ *    cần mã để chống trùng), nên nạp mò chỉ tổ ra một đống lỗi không ai hiểu.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function cgNapGiaoDichLe(nguon, kq){
+  var eg = cgEl(nguon,'cotMaGD'); var vg = eg ? eg.value : '';
+  if(vg === '' || vg == null) return;                 // không chọn cột -> không làm gì cả
+  var d = CG_ROWS[nguon]; if(!d) return;
+  var cg = Number(vg);
+  var cn = Number(cgEl(nguon,'cotNgay').value), ct = Number(cgEl(nguon,'cotTien').value), cc = Number(cgEl(nguon,'cotCH').value);
+  var vMa = (cgEl(nguon,'cotMaCH')||{}).value, cm = (vMa === '' || vMa == null) ? -1 : Number(vMa);
+  /* Khuôn dòng của cửa nạp giao dịch: [thời điểm, số tiền, mã GD, ref, nội dung, mã CH, mã điểm,
+     trạng thái]. Tên cửa hàng đi vào ô "nội dung" — đó là ô bên kia dò ra tên máy/cơ sở. */
+  var goi = [];
+  for(var i=0;i<d.rows.length;i++){
+    var r = d.rows[i], ng = cgNgayO(r[cn]), ti = cgSoO(r[ct]);
+    if(!ng || !(ti>0)) continue;
+    var maGD = String(r[cg]==null?'':r[cg]).trim();
+    if(!maGD) continue;                                // không mã thì bên kia cũng bỏ, khỏi gửi
+    goi.push([ng, ti, maGD, '', String(r[cc]==null?'':r[cc]).trim(),
+              cm >= 0 ? String(r[cm]==null?'':r[cm]).trim() : '', '', '']);
+  }
+  if(!goi.length){
+    kq.innerHTML += '<div class="hint" style="margin-top:6px">• <b>Giao dịch lẻ:</b> không dòng nào có mã giao dịch — chọn lại cột.</div>';
+    return;
+  }
+  kq.innerHTML += '<div class="hint" id="'+cgId(nguon,'gdKq')+'" style="margin-top:6px">• Đang nạp '+goi.length+' giao dịch lẻ…</div>';
+  google.script.run.withSuccessHandler(function(r2){
+    var e = cgEl(nguon,'gdKq'); if(!e) return;
+    if(!r2 || !r2.ok){ e.innerHTML = '• <b style="color:var(--doNhat)">Giao dịch lẻ không nạp được:</b> '+esc((r2&&r2.error)||'Lỗi'); return; }
+    e.innerHTML = '• <b>Giao dịch lẻ:</b> thêm <b>'+(r2.moi||0)+'</b>, trùng bỏ qua <b>'+(r2.trung||0)+'</b>'
+      + ((r2.boQua) ? (', bỏ '+r2.boQua+' dòng không đọc được') : '')
+      + ' — plugin khác lấy qua <code>SAOKE_App::gd_cong_ds()</code>.';
+  }).withFailureHandler(function(e2){
+    var e = cgEl(nguon,'gdKq'); if(e) e.innerHTML = '• <b style="color:var(--doNhat)">Giao dịch lẻ lỗi:</b> '+esc(e2.message);
+  }).napFileCongTx(PIN, nguon, goi, (d.tenFile||''));
+}
+
 function cgNapFile(nguon){
   var d = CG_ROWS[nguon];
   var kq = cgEl(nguon,'napKq');
@@ -2279,6 +2344,7 @@ function cgNapFile(nguon){
       + 'Muốn tách theo mã thì tick <b>Ghi đè ngày trùng</b> rồi nạp lại.');
     if(r.cuaHangMoi.length) ph.push('<b style="color:var(--vang)">Cửa hàng mới chưa ánh xạ ('+r.cuaHangMoi.length+'):</b> '+r.cuaHangMoi.map(esc).join(' · '));
     kq.innerHTML = '<div class="hint">• '+ph.join('<br>• ')+'</div>';
+    cgNapGiaoDichLe(nguon, kq);
     // Nhớ 3 cột cho lần sau
     google.script.run.withSuccessHandler(function(){}).withFailureHandler(function(){})
       .luuCotFileCong(PIN, nguon, { ngay: cn, soTien: ct, cuaHang: cc, maCH: cm });
