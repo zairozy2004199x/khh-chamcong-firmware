@@ -7346,10 +7346,15 @@ VHCC_NhanSu::xep_bo_phan( $u_qtc, 'TUTU_BT', '' );
    hiện trong chi tiết bảng công rồi"*. Lưới cả tháng ở trên đã bày đúng những lượt ấy, ngay tại
    ô của từng người từng ngày. Mọi phép canh cột/thứ tự/thu-gọn của bảng ấy vì thế cũng bỏ theo;
    chốt duy nhất còn lại nằm ở khối "🔴 BA KHỐI ĐÃ BỎ" cuối tệp. */
-foreach ( array( 'Ngày công', 'Ngày thiếu giờ ra', 'Tổng giờ làm' ) as $c_qtc ) {
-	t( 'bảng tổng có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
-}
-t( 'in ra giờ làm đã quy đổi ("9h 30m") chứ không phải số phút trần',
+/* 🔴 16/09/2026 — BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" ĐÃ BỎ KHỎI MÀN. Anh Thắng, trước ảnh
+   chính bảng ấy: *"bỏ"*. Nó kể lại đúng thứ LƯỚI CẢ THÁNG đã bày (mỗi người một dòng, ngày
+   công và tổng giờ), mà lưới nay còn thêm cột LƯƠNG. Hai bảng cùng một dữ liệu là bắt người
+   đọc dò xem chúng có khớp nhau không, mỗi lần mở màn. */
+t( '🔴 bảng "Tổng giờ làm theo nhân viên" KHÔNG còn trên màn',
+	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) === false, 'bảng cũ còn sót lại' );
+/* ⚠️ NHƯNG SỐ GIỜ KHÔNG ĐƯỢC MẤT THEO — nó phải còn ở cột TỔNG của lưới. Không có phép này thì
+   phép trên xanh cả khi lưới cũng hỏng và màn chẳng còn con số nào. */
+t( '⚠️ giờ quy đổi vẫn còn trên lưới ("9h 30m")',
 	strpos( $h_qtc, '9h 30m' ) !== false, $h_qtc );
 t( 'màn này vẫn KHÔNG có ô nhập giờ nào — chỉ đọc, y như trước',
 	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_qtc ), $h_qtc );
@@ -7406,8 +7411,9 @@ $h_qtc_cong = vhcc_web( '135791', array(),
 	array( 'man' => 'cham', 'ccs' => $cs_cong_qtc, 'cth' => '2026-07' ) );
 t( '🔴 cơ sở THEO CÔNG: bảng "Tổng giờ làm theo nhân viên" KHÔNG còn hiện',
 	strpos( $h_qtc_cong, 'Tổng giờ làm theo nhân viên' ) === false, $h_qtc_cong );
-t( 'và cơ sở TUTU_BT (tính THEO GIỜ) không bị đụng — bảng tổng vẫn hiện như cũ',
-	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) !== false, $h_qtc );
+/* Từ 16/09/2026 bảng ấy bỏ cho MỌI cơ sở, nên cơ sở theo giờ cũng không còn. */
+t( 'cơ sở tính THEO GIỜ cũng không còn bảng ấy',
+	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) === false, $h_qtc );
 
 /* ---- lọc theo NGÀY: ô Ngày vẫn giữ lựa chọn, KHÔNG còn kéo bảng tổng ----
    🔴 Ô lọc "Ngày" từng còn kéo theo MỘT danh sách lọc được theo từng ngày — "Ngày thiếu giờ ra"
@@ -7425,11 +7431,10 @@ t( 'ô lọc "Ngày" giữ đúng giá trị đã chọn',
 /* ⚠️ Bám đúng MỘT DÒNG của bảng tổng, không dùng `.*?` bắc cầu: `.*?` với cờ /s vắt được qua
    cả dòng khác, nên phép thử vẫn xanh trong khi bảng tổng đã tụt xuống còn một ngày. Đã thử
    phá thật (cho bảng tổng ăn mảng đã lọc ngày) để chắc phép này đỏ. */
-$re_tong_qtc = '/<td>QTC1<\/td><td[^>]*>[^<]*<\/td><td>2<\/td><td[^>]*>1<\/td>/';
-t( 'bảng TỔNG (cả tháng, không lọc ngày) đúng: QTC1 có 2 ngày công, 1 ngày thiếu giờ ra',
-	preg_match( $re_tong_qtc, $h_qtc ) === 1, $h_qtc );
-t( 'chọn một ngày thì bảng TỔNG VẪN THẾ — ô Ngày chỉ kéo bảng chi tiết',
-	preg_match( $re_tong_qtc, $h_ng ) === 1, $h_ng );
+/* 🔴 LƯỚI CỐ Ý KHÔNG TỤT THEO Ô NGÀY — cùng luật bảng tổng cũ giữ, nay lưới giữ.
+   Ô "Ngày" chỉ kéo bảng chi tiết; để lưới tụt xuống một ngày thì cả tháng chỉ còn một cột. */
+t( 'chọn một ngày thì LƯỚI cả tháng vẫn đủ cột',
+	substr_count( $h_ng, 'class="ng' ) >= 28, substr_count( $h_ng, 'class="ng' ) );
 t( 'và màn nói rõ với người dùng chuyện đó', strpos( $h_ng, 'cả tháng' ) !== false );
 
 /* ---- lọc theo MÃ NV: kéo cả hai bảng ---- */
@@ -7515,7 +7520,7 @@ t( '🔴 chọn đúng một cơ sở thì ô ấy MỞ SẴN',
 /* Và các tính năng bên trong đều là dòng gập, xếp một cột.
    🔴 "Đã động vào giờ công tháng này" đã BỎ khỏi màn này — anh Thắng 07/09/2026: *"bỏ chỗ này
    trên web quản trị chấm công"*. Xem khối 🔴 ở cuối `VHCC_Web::ve_bang_cham()`. */
-foreach ( array( 'Lưới cả tháng', 'Tổng giờ làm theo nhân viên' ) as $_tn ) {
+foreach ( array( 'Lưới cả tháng' ) as $_tn ) {
 	t( 'tính năng "' . $_tn . '" là một dòng gập',
 		preg_match( '/<summary><b>' . preg_quote( $_tn, '/' ) . '<\/b>/u', $h_qtc ) === 1, $_tn );
 }
@@ -8450,11 +8455,10 @@ t( 'lưới thật sự có mặt ngay trên màn ấy, khỏi phải chọn cơ
    dùng nhiều nằm dưới thì mỗi lượt phải cuộn qua thứ dùng ít.
    ⚠️ So VỊ TRÍ hai mốc, không chỉ hỏi "có mặt không": cả hai khối vẫn còn nguyên sau khi đổi
       thứ tự, nên phép thử có-mặt vẫn xanh dù xếp ngược. */
+/* Bảng tổng theo nhân viên đã bỏ (16/09/2026), nên không còn cặp nào để so thứ tự. Giữ lại
+   chốt lưới CÓ MẶT — mất nó thì màn chẳng còn gì. */
 $vt_luoi = strpos( $h_qtc, 'id="luoithang"' );
-$vt_tong = strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' );
-t( 'dựng cảnh: màn có cả hai khối', false !== $vt_luoi && false !== $vt_tong );
-t( '🔴 lưới cả tháng đứng TRƯỚC bảng tổng theo nhân viên',
-	$vt_luoi < $vt_tong, $vt_luoi . ' vs ' . $vt_tong );
+t( 'dựng cảnh: màn có lưới cả tháng', false !== $vt_luoi );
 t( 'lưới vẽ ra được', strpos( $h_vp, 'Nhân viên' ) !== false, $h_vp );
 /* Đủ 31 cột ngày cho tháng 7 + cột Nhân viên + cột TỔNG. Đếm số THẬT, không gõ tay con số. */
 $sn_vp = (int) gmdate( 't', strtotime( '2026-07-01' ) );
@@ -12851,29 +12855,18 @@ t( '🔴 đảo ngày thì NÓI RÕ, đừng trả tờ giấy rỗng', '' !== $
 t( 'và câu chối nói đúng chuyện đảo ngày',
 	strpos( $in_ly, 'trước ngày bắt đầu' ) !== false, $in_ly );
 
-/* ---- Khối In trong màn Bảng công ---- */
+/* ---- 🔴 16/09/2026: KHỐI IN ĐÃ BỎ KHỎI MÀN BẢNG CÔNG ----
+   Anh Thắng: *"trên bảng công ngày có sẵn rồi, phía dưới xóa luôn"*. Cùng một tờ in mà hai chỗ
+   mời bấm thì người ta phải nhớ mình đang ở lối nào, và lối ít dùng là lối đến lúc sửa thì quên.
+   ⚠️ CHỈ BỎ LỜI MỜI, KHÔNG BỎ TÍNH NĂNG. Đường `?to_in=1` vẫn sống, và `vi_sao_khong_in()` vẫn
+      gác nó — mấy phép ngay trên vẫn canh đủ. Không có phép dưới đây thì "bỏ khối" có thể lặng
+      lẽ biến thành "bỏ luôn tờ in". */
 $in_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'TUTU_BT', 'cth' => '2026-08' ) );
-t( '🔴 màn Bảng công có khối In', strpos( $in_h, 'In bảng chấm công' ) !== false, $in_h );
-t( 'biểu mẫu trỏ đúng cửa tờ in', strpos( $in_h, 'name="to_in"' ) !== false );
-/* ⚠️ KHÔNG ĐẺ Ô CHỌN CƠ SỞ RIÊNG — cơ sở lấy thẳng từ màn Bảng công, cùng luật với khối lương.
-   Hai ô cho cùng một thứ thì người ta sẽ chọn lệch, và cả hai đều trông đúng. */
-t( '🔴 khối In KHÔNG có ô chọn cơ sở riêng',
-	preg_match( '/<select[^>]*name="ics"/', $in_h ) === 0, $in_h );
-t( 'mà mang thẳng cơ sở đang xem',
-	strpos( $in_h, 'name="ics" value="TUTU_BT"' ) !== false, $in_h );
-/* Mặc định đầu và cuối THÁNG ĐANG XEM — phần lớn lượt chỉ việc bấm. */
-t( 'ngày mặc định là đầu tháng đang xem',
-	strpos( $in_h, 'name="itu" value="2026-08-01"' ) !== false, $in_h );
-t( '🔴 và cuối tháng tính đúng số ngày của tháng ấy (không gõ cứng 31)',
-	strpos( $in_h, 'name="iden" value="2026-08-31"' ) !== false, $in_h );
-/* ⚠️ Mở ở THẺ MỚI: tờ in là trang HTML riêng khổ A4. Mở đè thì in xong phải bấm Back rồi chọn
-   lại cơ sở + tháng — đúng cái phiền mà việc gộp trang vừa dẹp xong. */
-t( '🔴 tờ in mở ở thẻ mới', strpos( $in_h, 'target="_blank"' ) !== false, $in_h );
-
-/* Tháng 2 — chỗ mà "gõ cứng 31" sẽ đẻ ra một ngày không tồn tại và câu SQL trả rỗng. */
-$in_h2 = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'TUTU_BT', 'cth' => '2026-02' ) );
-t( '🔴 tháng 2 ra ngày 28, không phải 31',
-	strpos( $in_h2, 'name="iden" value="2026-02-28"' ) !== false, $in_h2 );
+t( '🔴 màn Bảng công KHÔNG còn khối In',
+	strpos( $in_h, 'In bảng chấm công' ) === false, 'khối In còn sót lại trên màn tháng' );
+t( '⚠️ nhưng cửa tờ in vẫn còn gác (không bị gỡ theo)',
+	'' === VHCC_Web::vi_sao_khong_in( $U_AD, 'TUTU_BT', '2026-08-01', '2026-08-31' ),
+	'cửa tờ in hỏng theo' );
 
 /* Chưa chọn cơ sở thì không vẽ khối In — không có cơ sở thì in của ai?
    ⚠️ PHẢI CÓ ÍT NHẤT HAI CƠ SỞ TRONG SỔ mới dựng được cảnh này: `the_bang_cham()` TỰ CHỌN khi
@@ -15214,10 +15207,17 @@ vhcc_cham( 'HR_CS', '2026-08-06', 'LNV1', '', '08:00:00', '17:00:00' );
 $h_ln = vhcc_hr( $tok_hr, array( 'man' => 'cham', 'ccs' => 'HR_CS', 'cth' => '2026-08' ) );
 t( 'dựng cảnh: lưới có người', strpos( $h_ln, 'Người LNV1' ) !== false, substr( $h_ln, 0, 300 ) );
 t( '🔴 tên người là một liên kết', strpos( $h_ln, 'class="ten-nv"' ) !== false, $h_ln );
-/* 🔴 TRỎ ĐÚNG NGƯỜI. Bỏ tham số `sua` thì mọi tên dẫn về cùng một danh sách trơn — vẫn là liên
-   kết, vẫn bấm được, và vẫn phải đi tìm lại từ đầu. */
-t( '🔴 và trỏ tới ĐÚNG hồ sơ của người ấy',
-	preg_match( '~<a class="ten-nv" href="[^"]*man=ho_so[^"]*sua=LNV1[^"]*"~', $h_ln ) === 1, $h_ln );
+/* 🔴 16/09/2026 — BẤM TÊN LÀ XEM GIỜ, KHÔNG PHẢI MỞ HỒ SƠ.
+   Anh Thắng: *"Chọn tên nhân viên ra giờ làm và các tổng giờ các ca luôn được không, chứ bấm
+   nhả qua nhảy lại khá nhức mặt"*. Tên người trong LƯỚI CÔNG là một câu hỏi về CÔNG; trỏ nó
+   sang màn Hồ sơ là trả lời một câu hỏi khác, ở một màn khác. */
+t( '🔴 bấm tên là mở khối giờ của ĐÚNG người ấy',
+	preg_match( '~<a class="ten-nv" href="[^"]*xng=LNV1[^"]*"~', $h_ln ) === 1, $h_ln );
+t( '⚠️ và KHÔNG còn trỏ sang màn Hồ sơ nữa',
+	preg_match( '~<a class="ten-nv" href="[^"]*man=ho_so~', $h_ln ) === 0, $h_ln );
+/* Nhưng hồ sơ vẫn phải tới được — lùi về một liên kết nhỏ ngay cạnh, không mất đường. */
+t( '🔴 hồ sơ vẫn có đường sang, trỏ đúng người',
+	preg_match( '~href="[^"]*man=ho_so[^"]*sua=LNV1[^"]*"[^>]*>hồ sơ~u', $h_ln ) === 1, $h_ln );
 
 /* ⚠️ CHỈ VẼ CHO NGƯỜI MỞ ĐƯỢC HỒ SƠ. Vẽ cho cả người không có quyền thì bấm vào chỉ nhận một
    câu chối — mà cái liên kết thì cứ nằm đó mời gọi mỗi ngày. Cùng luật với cột dọc và thẻ. */
@@ -15225,8 +15225,13 @@ $tok_cht_ln = VHCC_Auth::phat_token( 'Chị Trưởng', 'Cửa hàng trưởng',
 $h_ln_cht = vhcc_hr( $tok_cht_ln, array( 'man' => 'cham', 'ccs' => 'HR_CS', 'cth' => '2026-08' ) );
 t( 'dựng cảnh: Cửa hàng trưởng cũng thấy lưới', strpos( $h_ln_cht, 'Người LNV1' ) !== false,
 	substr( $h_ln_cht, 0, 300 ) );
-t( '🔴 Cửa hàng trưởng KHÔNG thấy tên thành liên kết',
-	strpos( $h_ln_cht, 'class="ten-nv"' ) === false, $h_ln_cht );
+/* 🔴 16/09/2026 — CỬA HÀNG TRƯỞNG NAY BẤM ĐƯỢC TÊN, vì tên nay mở KHỐI GIỜ chứ không mở hồ sơ.
+   Giờ công của người cơ sở mình vốn là thứ họ được xem (`cong_coso`). Điều KHÔNG được đổi là
+   đường sang hồ sơ: cái ấy vẫn phải đóng với họ. */
+t( '🔴 Cửa hàng trưởng bấm được tên để xem giờ',
+	strpos( $h_ln_cht, 'class="ten-nv"' ) !== false, $h_ln_cht );
+t( '🔴 nhưng KHÔNG thấy đường sang hồ sơ',
+	strpos( $h_ln_cht, 'man=ho_so' ) === false, 'lộ đường sang hồ sơ cho cửa hàng trưởng' );
 t( 'nhưng tên vẫn hiện đủ', strpos( $h_ln_cht, 'Người LNV1' ) !== false, $h_ln_cht );
 
 /* ---- Nhãn khối (ảnh 2) ---- */

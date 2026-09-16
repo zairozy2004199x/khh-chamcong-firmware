@@ -4500,7 +4500,13 @@ class VHCC_Web {
 			   tiền theo engine từng bộ phận, khối này dựng đúng BỐ CỤC FILE KẾ TOÁN từ giờ và
 			   đơn giá — hai thứ khác nhau, nên `the_khoi_luong()` vẫn nằm im chỗ cũ. */
 			self::the_bang_luong_cs( $toi, $mot_cs, $th, $ky );
-			self::the_khoi_in( $toi, $mot_cs, $th );
+			/* 🔴 16/09/2026 — KHỐI "IN BẢNG CHẤM CÔNG" ĐÃ BỎ KHỎI ĐÂY. Anh Thắng: *"trên bảng
+			   công ngày có sẵn rồi, phía dưới xóa luôn"*.
+			   Cùng một tờ in, hai chỗ mời bấm: một ở màn Bảng công ngày, một nữa nằm dưới đáy
+			   màn tháng. Hai lối vào cùng một việc thì người ta phải nhớ mình đang ở lối nào,
+			   và lối ít dùng là lối đến lúc sửa thì quên.
+			   ⚠️ CHỈ BỎ LỜI GỌI Ở ĐÂY. `the_khoi_in()` và đường `?to_in=1` vẫn nguyên — tờ in
+			      vẫn mở được từ màn ngày, và bài kiểm canh tờ giấy vẫn chạy. */
 			self::the_doi_chieu_app( $toi, $mot_cs, $th, $ky );
 			echo '</details></div>';
 		}
@@ -4663,16 +4669,14 @@ class VHCC_Web {
 		   bảng nói về hai chỗ khác nhau. */
 		self::the_luoi_thang( $cs, $th, $ky, $toi );
 
-		/* 🔴 CHỈ CƠ SỞ TÍNH THEO GIỜ MỚI CẦN BẢNG NÀY. Anh Thắng 29/08/2026: *"cơ sở nào tính
-		   công theo giờ mới hiện, còn tính theo công thì bỏ đi"*.
-		   "Tổng giờ làm theo nhân viên" cộng thẳng số PHÚT thô — đúng nghĩa với cơ sở tính THEO
-		   GIỜ (giờ ra trừ giờ vào là chính con số trả lương). Cơ sở tính THEO CÔNG đã có bảng
-		   riêng của nó (Lưới cả tháng theo công + Công thức tính công, xem `the_cong_thuc_vp()`)
-		   — bảng phút thô ở đây không khớp với công đã quy đổi (ca đêm, bậc thang, khung giờ…),
-		   bày ra chỉ thêm một con số không dùng để chốt lương mà dễ bị đọc nhầm là con số thật. */
-		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
-			self::the_tong_cham( $loc_thang, $tt, $cs, $th );
-		}
+		/* 🔴 16/09/2026 — BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" ĐÃ BỎ. Anh Thắng, trước ảnh chính
+		   bảng ấy: *"bỏ"*.
+		   Nó kể lại đúng thứ LƯỚI CẢ THÁNG ở trên đã bày: mỗi người một dòng, ngày công và tổng
+		   giờ. Từ bản này lưới còn có thêm cột LƯƠNG, nên bảng kia không còn nói được gì mà lưới
+		   chưa nói. Hai bảng cùng một dữ liệu là bắt người đọc dò xem chúng có khớp nhau không,
+		   mỗi lần mở màn — cùng lý do đã bỏ bảng "Chi tiết từng lượt" hôm 01/09.
+		   ⚠️ CHỈ BỎ LỜI GỌI, KHÔNG XOÁ `the_tong_cham()`. Hàm vẫn dựng được và vẫn có bài kiểm
+		      canh — muốn bày lại thì thêm một dòng, không phải viết lại. */
 
 		/* 🔴 BẢNG "CHI TIẾT TỪNG LƯỢT" ĐÃ BỎ — anh Thắng 01/09/2026: *"bỏ phần này đi, vì nó
 		   hiện trong chi tiết bảng công rồi"*. Lưới cả tháng ở trên đã bày đúng những lượt ấy,
@@ -5587,6 +5591,69 @@ class VHCC_Web {
 			'lop'     => ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' ) . $lop_th,
 			'cong'    => (int) $cong,
 			'phut'    => $phut_o );
+	}
+
+	/**
+	 * KHỐI MỞ RA NGAY DƯỚI HÀNG NGƯỜI — giờ làm cả tháng, tách theo từng ca.
+	 *
+	 * Anh Thắng 16/09/2026: *"Chọn tên nhân viên ra giờ làm và các tổng giờ các ca luôn được
+	 * không, chứ bấm nhả qua nhảy lại khá nhức mặt"*.
+	 *
+	 * ⚠️ TÁCH THEO CA TÍNH LẠI TỪ GIỜ VÀO / GIỜ RA, không đọc một cột tổng nào có sẵn — vì
+	 *    không có cột nào như thế. `VHCC_Ca::tach()` là đúng hàm lưới đang dùng để tô màu ô và
+	 *    in mã `C1·C2`, nên con số ở đây và mã trong ô luôn nói cùng một chuyện.
+	 *
+	 * ⚠️ PHÚT NGOÀI MỌI CA PHẢI KỂ RA RIÊNG. Cộng nó vào một ca nào đó là bịa; bỏ đi thì tổng
+	 *    mấy ca cộng lại KHÁC tổng của hàng, và người đọc mất mười phút tìm xem thiếu ở đâu.
+	 */
+	private static function hang_xem_nguoi( $so_cot, $ma, $ho_ten, $o_nguoi, $ds_ca, $tien_ng ) {
+		$theo_ca = array();
+		$ngoai   = 0;
+		$tong    = 0;
+		$so_ngay = 0;
+		foreach ( (array) $o_nguoi as $ht => $theo_ngay ) {
+			foreach ( (array) $theo_ngay as $r ) {
+				if ( ! isset( $r['vaoGiay'] ) || ! isset( $r['raGiay'] ) ) { continue; }
+				$tc = VHCC_Ca::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'] );
+				if ( empty( $tc['tong_phut'] ) ) { continue; }
+				$so_ngay++;
+				$tong += (int) $tc['tong_phut'];
+				foreach ( (array) $tc['ds'] as $seg ) {
+					$t_ca = (string) $seg['ten'];
+					if ( ! isset( $theo_ca[ $t_ca ] ) ) { $theo_ca[ $t_ca ] = 0; }
+					$theo_ca[ $t_ca ] += (int) $seg['phut'];
+				}
+				$ngoai += (int) ( isset( $tc['ngoai_ca'] ) ? $tc['ngoai_ca'] : 0 );
+			}
+		}
+
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
+		echo '<a id="xn' . esc_attr( substr( md5( (string) $ma ), 0, 8 ) ) . '"></a>';
+		echo '<p style="margin:0 0 8px"><b>' . esc_html( $ho_ten ) . '</b> · '
+			. esc_html( $ma ) . ' — <b>' . esc_html( VHCC_Cham::chu_gio( $tong ) ) . '</b> trong '
+			. (int) $so_ngay . ' ngày có chấm'
+			. ( null !== $tien_ng ? ' · lương <b>' . esc_html( $tien_ng ) . '</b>' : '' ) . '</p>';
+
+		if ( ! $theo_ca && ! $ngoai ) {
+			echo '<p class="mo" style="margin:0">Tháng này chưa có lượt chấm nào đủ cả giờ vào '
+				. 'lẫn giờ ra.</p></div></td></tr>';
+			return;
+		}
+		echo '<div class="hang" style="gap:14px;flex-wrap:wrap">';
+		foreach ( $theo_ca as $t_ca => $p_ca ) {
+			echo '<div><label style="font-size:11.5px">' . esc_html( $t_ca ) . '</label>'
+				. '<div><b>' . esc_html( VHCC_Cham::chu_gio( $p_ca ) ) . '</b></div></div>';
+		}
+		if ( $ngoai > 0 ) {
+			echo '<div><label style="font-size:11.5px" title="Phút không rơi vào khung ca nào — '
+				. 'kể riêng, không nhét vào ca nào cả">Ngoài ca</label><div><b class="chu-hong">'
+				. esc_html( VHCC_Cham::chu_gio( $ngoai ) ) . '</b></div></div>';
+		}
+		echo '</div>';
+		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">Tách theo <b>khung ca của cơ '
+			. 'sở</b> — cùng phép tính với mã <code>C1·C2</code> in trong từng ô. Phút không rơi '
+			. 'vào ca nào được kể riêng ở <b>Ngoài ca</b>, không nhét vào ca nào cả.</p>';
+		echo '</div></td></tr>';
 	}
 
 	private static function o_sua( $noi_dung, $ngay, $ma_day_du, $co_gio, $duoc_sua, $duoc_bu ) {
@@ -6849,6 +6916,15 @@ class VHCC_Web {
 				. '</td>';
 			echo '</tr>';
 
+			/* Khối "xem giờ theo ca" mở ra NGAY DƯỚI hàng người vừa bấm — xem `hang_xem_nguoi()`. */
+			if ( isset( $_GET['xng'] )
+				&& 0 === strcasecmp( (string) $ma, sanitize_text_field( wp_unslash( $_GET['xng'] ) ) ) ) {
+				self::hang_xem_nguoi( $so_ngay + 3, $ma, $ho_ten,
+					isset( $o[ $ma ] ) ? $o[ $ma ] : array(), $ds_ca,
+					( null !== $t_ng && ! empty( $t_ng['du'] ) )
+						? number_format( $t_ng['tien'], 0, ',', '.' ) . 'đ' : null );
+			}
+
 			/* =============================================================================
 			 * 🔴 HÀNG RIÊNG CHO TỪNG CƠ SỞ PHỤ.
 			 * =============================================================================
@@ -7345,11 +7421,34 @@ class VHCC_Web {
 		   thấy được huy hiệu này (chỉ Admin/Cửa hàng trưởng mới thấy lưới cả tháng), không nhất
 		   thiết phải có quyền `ho_so` mới xem được mặt người mình đang chấm công cho. */
 		$anh_bd = self::anh_the_badge( $anh );
-		if ( '' === $ma || ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return $ten_h . $duoi . $anh_bd; }
-		$url = add_query_arg( array( 'man' => 'ho_so', 'sua' => $ma ), self::url() );
-		return '<a class="ten-nv" href="' . esc_url( $url ) . '" title="'
-			. esc_attr( 'Mở hồ sơ ' . $ma . ' — sửa cơ sở, bộ phận, lương cơ bản, PIN' ) . '">'
-			. $ten_h . '</a>' . $duoi . $anh_bd;
+		if ( '' === $ma ) { return $ten_h . $duoi . $anh_bd; }
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 BẤM TÊN LÀ XEM GIỜ, KHÔNG PHẢI MỞ HỒ SƠ.
+		 *
+		 * Anh Thắng 16/09/2026: *"Chọn tên nhân viên ra giờ làm và các tổng giờ các ca luôn
+		 * được không, chứ bấm nhả qua nhảy lại khá nhức mặt"*.
+		 *
+		 * Tên người trong LƯỚI CÔNG là một câu hỏi về CÔNG — "người này tháng này làm bao
+		 * nhiêu, ca nào mấy tiếng". Trỏ nó sang màn Hồ sơ là trả lời một câu hỏi khác, ở một
+		 * màn khác, và muốn quay lại thì bấm Back rồi cuộn tìm lại đúng hàng.
+		 *
+		 * Hồ sơ vẫn tới được — lùi về một liên kết nhỏ ngay cạnh, và chỉ vẽ cho ai có quyền.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$hs_link = VHCC_Vai::duoc( $toi, 'ho_so' )
+			? ' <a class="duoi" href="' . esc_url( add_query_arg(
+				array( 'man' => 'ho_so', 'sua' => $ma ), self::url() ) ) . '" title="'
+				. esc_attr( 'Mở hồ sơ ' . $ma . ' — cơ sở, bộ phận, lương cơ bản, PIN' )
+				. '">hồ sơ ↗</a>'
+			: '';
+		$dang_xem = isset( $_GET['xng'] )
+			&& 0 === strcasecmp( (string) $ma, sanitize_text_field( wp_unslash( $_GET['xng'] ) ) );
+		$url = $dang_xem
+			? remove_query_arg( 'xng', self::url_hien() )
+			: add_query_arg( 'xng', $ma, self::url_hien() );
+		return '<a class="ten-nv" href="' . esc_url( $url . '#xn' . substr( md5( $ma ), 0, 8 ) )
+			. '" title="' . esc_attr( $dang_xem ? 'Đóng khối giờ' : 'Xem giờ làm & tổng giờ từng ca' )
+			. '">' . $ten_h . ( $dang_xem ? ' ▾' : '' ) . '</a>' . $hs_link . $duoi . $anh_bd;
 	}
 
 	/**

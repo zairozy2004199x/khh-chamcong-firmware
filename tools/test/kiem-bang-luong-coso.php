@@ -1157,4 +1157,67 @@ teq( '🔴 không hàng nào lệch cột so với tiêu đề (' . $so_th . ' c
 t( 'hàng tổng cuối lưới có ô tiền',
 	1 === preg_match( '/<tr class="tong">.*?người.*?đ<\/b>/us', $bang_lc ), $bang_lc );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 13. BẤM TÊN LÀ MỞ KHỐI GIỜ NGAY DƯỚI HÀNG — tách theo từng ca
+ *
+ * Anh Thắng 16/09/2026: *"Chọn tên nhân viên ra giờ làm và các tổng giờ các ca luôn được không,
+ * chứ bấm nhả qua nhảy lại khá nhức mặt"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+VHCC_Ca::luu( $U_KT, 'AEON_BT', array(
+	array( 'ten' => 'Ca 1', 'tu' => '06:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+) );
+
+$g_xn = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' );
+$h_x0 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_xn );
+t( 'chưa bấm ai thì KHÔNG có khối giờ nào mở sẵn',
+	false === strpos( $h_x0, 'id="xn' ), 'khối mở sẵn khi chưa bấm' );
+t( '🔴 tên người là liên kết mở khối giờ, mang đúng mã',
+	1 === preg_match( '/<a class="ten-nv" href="[^"]*xng=BT_MAN[^"]*"/', $h_x0 ), $h_x0 );
+
+$h_x1 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_xn + array( 'xng' => 'BT_MAN' ) );
+t( '🔴 bấm tên thì khối giờ mở ra', false !== strpos( $h_x1, 'id="xn' ), $h_x1 );
+t( 'và nó mở ĐÚNG người vừa bấm',
+	false !== strpos( $h_x1, 'id="xn' . substr( md5( 'BT_MAN' ), 0, 8 ) . '"' ), $h_x1 );
+
+/* ⚠️ Cắt lấy đúng khối rồi mới soi — tên người và số giờ cũng nằm rải khắp lưới. */
+preg_match( '/<tr class="hang-sua">.*?<\/tr>/us', $h_x1, $m_xn );
+$khoi_xn = isset( $m_xn[0] ) ? $m_xn[0] : '';
+t( 'cắt được khối ra để soi', '' !== $khoi_xn, substr( $h_x1, 0, 200 ) );
+t( '🔴 khối kể TỔNG GIỜ TỪNG CA — Ca 1',
+	false !== strpos( $khoi_xn, 'Ca 1' ), $khoi_xn );
+t( '🔴 và Ca 2', false !== strpos( $khoi_xn, 'Ca 2' ), $khoi_xn );
+t( 'kèm số ngày có chấm', 1 === preg_match( '/\d+ ngày có chấm/u', $khoi_xn ), $khoi_xn );
+
+/* 🔴 CHỈ MỞ MỘT NGƯỜI. Mở hết là lưới dài gấp đôi và mất luôn ý nghĩa của việc bấm. */
+teq( '🔴 mỗi lượt chỉ MỘT khối mở ra', 1, substr_count( $h_x1, 'class="hang-sua"' ) );
+
+/* 🔴 BẤM LẠI LÀ ĐÓNG — không thì mở ra rồi phải đi tìm cách tắt. */
+t( 'đang mở thì liên kết đổi thành đường ĐÓNG (bỏ xng)',
+	1 === preg_match( '/<a class="ten-nv" href="[^"]*"[^>]*title="Đóng khối giờ"/u', $h_x1 ), $h_x1 );
+
+/* 🔴 HỒ SƠ VẪN TỚI ĐƯỢC, nhưng chỉ cho ai có quyền — cửa hàng trưởng thì không. */
+t( '🔴 cửa hàng trưởng KHÔNG thấy đường sang hồ sơ',
+	false === strpos( $h_x1, 'man=ho_so' ), 'lộ đường hồ sơ cho cửa hàng trưởng' );
+$h_x_kt = vhcc_man( 'KT_BL', 'Kế toán', '', $g_xn + array( 'xng' => 'BT_MAN' ) );
+t( 'kế toán thì thấy, và trỏ đúng người',
+	1 === preg_match( '/href="[^"]*man=ho_so[^"]*sua=BT_MAN[^"]*"[^>]*>hồ sơ/u', $h_x_kt ), $h_x_kt );
+
+/* 🔴 PHÚT NGOÀI MỌI CA PHẢI KỂ RIÊNG, KHÔNG NHÉT VÀO CA NÀO.
+   Cộng nó vào một ca là bịa; bỏ đi thì mấy ca cộng lại KHÁC tổng của hàng, và người đọc mất
+   mười phút đi tìm xem thiếu ở đâu. Ca của AEON_BT là 06:00–22:00, nên một lượt 23:00→23:45
+   nằm ngoài cả hai. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'ma_nv' => 'BT_MAN', 'ho_ten' => '', 'coso' => 'AEON_BT', 'ngay' => '2026-08-28',
+	'gio_vao_giay' => 23 * 3600, 'gio_ra_giay' => 23 * 3600 + 45 * 60,
+	'hau_to' => '', 'nguon' => 'may' ) );
+$h_ngoai = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_xn + array( 'xng' => 'BT_MAN' ) );
+preg_match( '/<tr class="hang-sua">.*?<\/tr>/us', $h_ngoai, $m_ng2 );
+$khoi_ng = isset( $m_ng2[0] ) ? $m_ng2[0] : '';
+t( '🔴 phút ngoài mọi ca được kể RIÊNG ở mục "Ngoài ca"',
+	false !== strpos( $khoi_ng, 'Ngoài ca' ), $khoi_ng );
+t( 'và kể đúng 45 phút', false !== strpos( $khoi_ng, '45m' ), $khoi_ng );
+
 ket_luan();
