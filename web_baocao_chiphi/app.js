@@ -25,7 +25,7 @@
   let report = null;
   let issues = [];
   let prevState = null; // để hoàn tác sau khi nhập Excel / nạp mẫu
-  let ui = Object.assign({ tab: 'dashboard', sitesDept: '', siteFilter: 'all', costFilter: 'all', misaMo: [], misaThieu: false }, loadJSON(UI_KEY) || {});
+  let ui = Object.assign({ tab: 'dashboard', sitesDept: '', siteFilter: 'all', costFilter: 'all', misaMo: [], misaThieu: false, misa50: false }, loadJSON(UI_KEY) || {});
   let saveTimer = null;
 
   function loadJSON(key) {
@@ -589,12 +589,17 @@
    * TAB "CHI TIẾT MISA" — anh Thắng 16/09/2026: *"Muốn nhìn chi tiết trực quan trước khi xuất"*.
    *
    * Cùng một `E.misaRows()` đã dựng sheet "<Bộ phận> chi tiết" trong file Excel — KHÔNG dựng lại
-   * bằng đường khác. Nhìn ở đây thấy sao thì xuất ra đúng vậy; hai đường riêng là một ngày nào đó
-   * màn hình nói một đằng, file nói một nẻo, mà lúc phát hiện thì file đã nằm trong MISA rồi.
+   * bằng đường khác. Nhìn ở đây thấy sao thì xuất ra đúng vậy.
+   *
+   * 🔴 VÀ CỘT CŨNG PHẢI ĐỌC TỪ ĐÚNG MỘT CHỖ VỚI FILE. Anh Thắng 16/09/2026: *"khác nhau và thiếu
+   *    cột"* — bản đầu tự kê một bộ cột riêng cho màn hình, thiếu Ngày chứng từ / Ngày hạch toán /
+   *    Số tiền quy đổi và xếp sai thứ tự. Hai danh sách thì sớm muộn cũng lệch, mà lệch ở đây phá
+   *    đúng lời hứa của cái tab. Nay dựng từ `EXP.MISA_COLS` + `EXP.MISA_MAP` — chính hai bảng
+   *    exporter dùng để ghi file.
    *
    * GẬP SẴN THEO CHỨNG TỪ. Posh có 21 chứng từ × 66 điểm = 1.386 dòng; đổ hết ra là một bức tường
-   * số không ai soát nổi. Gập lại thì mỗi chứng từ một dòng tóm tắt (tài khoản + tổng tiền + số
-   * dòng) — đúng mức để liếc qua thấy sai ngay, muốn xem kỹ thì bấm mở.
+   * số không ai soát nổi. Gập lại thì mỗi chứng từ một dòng tóm tắt — đúng mức để liếc qua thấy
+   * sai ngay, muốn xem kỹ thì bấm mở.
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
   function renderMisa(root) {
     if (!ui.sitesDept || !state.departments.find((d) => d.id === ui.sitesDept)) ui.sitesDept = (state.departments[0] || {}).id || '';
@@ -610,26 +615,54 @@
       return;
     }
 
+    /* Cột hiện ra: mặc định CHỈ những cột có dữ liệu, nhưng vẫn đúng thứ tự và đúng TÊN như trong
+       file. Bật "đủ 50 cột" thì bày trọn mẫu MISA, gồm cả 40 cột để trống — để soi cho chắc mẫu
+       khớp, chứ ngày thường nhìn 40 cột rỗng thì chẳng soát được gì. */
+    const dayDu = !!ui.misa50;
+    const cot = dayDu
+      ? EXP.MISA_COLS.map((ten, i) => ({ i, ten, m: EXP.MISA_MAP.find((x) => x.i === i) || null }))
+      : EXP.MISA_MAP.map((m) => ({ i: m.i, ten: EXP.MISA_COLS[m.i], m }));
+
     // gom theo số chứng từ, giữ nguyên thứ tự misaRows đã xếp
     const ct = [];
     const map = {};
     kq.rows.forEach((r) => {
-      if (!map[r.soCT]) { map[r.soCT] = { soCT: r.soCT, dienGiai: r.dienGiai, tkNo: r.tkNo, tkCo: r.tkCo, rows: [], tong: 0 }; ct.push(map[r.soCT]); }
+      if (!map[r.soCT]) { map[r.soCT] = { soCT: r.soCT, rows: [], tong: 0 }; ct.push(map[r.soCT]); }
       map[r.soCT].rows.push(r);
       map[r.soCT].tong += r.soTien;
     });
-    const thieu = ct.filter((c) => !c.tkNo || !c.tkCo);
+    const thieu = ct.filter((c) => !c.rows[0].tkNo || !c.rows[0].tkCo);
     const hien = ui.misaThieu ? thieu : ct;
     const mo = new Set(ui.misaMo || []);
     const tongTien = ct.reduce((a, c) => a + c.tong, 0);
     const nghi = (state.sites || []).filter((x) => x.dept === ui.sitesDept && x.khongChiPhi);
-    const soCot = 8;
+
+    /* Ô của một dòng chi tiết — mỗi cột lấy ĐÚNG trường mà exporter sẽ ghi vào ô ấy. */
+    function oChiTiet(r, c) {
+      if (!c.m) return '<td class="muted"></td>';
+      const v = r[c.m.key];
+      if (c.m.num) return tdn(E.num(v));
+      return `<td>${c.m.key === 'maDonVi' || c.m.key === 'soCT' ? `<code>${esc(v)}</code>` : esc(v)}</td>`;
+    }
+    /* Ô của dòng TÓM TẮT chứng từ: cột nào giống nhau ở mọi dòng thì in ra, cột nào khác nhau
+       (diễn giải hạch toán, mã đơn vị) thì nói rõ "N dòng" thay vì bịa một giá trị đại diện. */
+    function oTomTat(c, cum) {
+      if (!c.m) return '<td></td>';
+      const dau = cum.rows[0];
+      if (c.m.num) return tdn(cum.tong);
+      if (c.m.key === 'dienGiaiHT') return `<td class="muted">${cum.rows.length} dòng</td>`;
+      if (c.m.key === 'maDonVi') return '<td class="muted">—</td>';
+      const v = dau[c.m.key];
+      const xau = (c.m.key === 'tkNo' || c.m.key === 'tkCo') && !v;
+      if (xau) return '<td class="num neg">⚠ thiếu</td>';
+      return `<td${c.m.key === 'dienGiai' ? '' : ' class="num"'}>${c.m.key === 'soCT' ? `<code>${esc(v)}</code>` : esc(v)}</td>`;
+    }
 
     root.innerHTML = `
       <div class="card">
         <div class="card-head">
           <h2>Chi tiết MISA</h2>
-          <span class="hint">Đúng những dòng sẽ nằm trong sheet "<strong>${esc(kq.dept.name)} chi tiết</strong>" khi bấm Xuất Excel. Ngày lấy theo kỳ: <strong>${esc(kq.period.text)}</strong>.</span>
+          <span class="hint">Đúng những dòng — và đúng những cột — sẽ nằm trong sheet "<strong>${esc(kq.dept.name)} chi tiết</strong>" khi bấm Xuất Excel.</span>
           <div class="spacer"></div>
           <div class="seg">${segs}</div>
         </div>
@@ -639,39 +672,23 @@
           <span class="pill">Tổng ${fmt(tongTien)}</span>
           ${thieu.length ? `<button class="btn small ${ui.misaThieu ? 'primary' : 'danger'}" data-act="misaThieu">${ui.misaThieu ? '← Xem tất cả' : `⚠ ${thieu.length} chứng từ thiếu tài khoản`}</button>` : '<span class="pill ok">Đủ tài khoản</span>'}
           <div class="spacer"></div>
+          <button class="btn small ${dayDu ? 'primary' : ''}" data-act="misa50" title="Bày trọn mẫu 50 cột của MISA, gồm cả các cột để trống — để đối chiếu mẫu cho chắc.">${dayDu ? 'Chỉ cột có dữ liệu' : 'Đủ 50 cột như file'}</button>
           <button class="btn small" data-act="misaMoHet">${mo.size >= ct.length ? 'Gập tất cả' : 'Mở tất cả'}</button>
           <button class="btn small primary" data-act="export">Xuất Excel</button>
         </div>
         ${nghi.length ? `<p class="hint">${nghi.length} cơ sở không nhận chi phí (${esc(nghi.map((x) => x.code || x.name).join(', '))}) — đã bỏ khỏi danh sách dưới đây, đúng như khi xuất ra file.</p>` : ''}
         ${thieu.length ? `<div class="issue warn"><span class="lv">CẢNH BÁO</span><span>${thieu.length} chứng từ chưa có đủ TK Nợ/TK Có. MISA từ chối <strong>cả chứng từ</strong> chứ không riêng dòng thiếu — khai tài khoản ở tab "Chi phí đầu vào" (hoặc tab Lương) trước khi xuất.</span></div>` : ''}
         <div class="table-wrap tall"><table class="grid-table dense">
-          <thead><tr>
-            <th style="width:26px"></th><th>Số chứng từ</th><th>Diễn giải</th>
-            <th class="num">TK Nợ</th><th class="num">TK Có</th><th class="num">Số dòng</th><th class="num">Số tiền</th><th></th>
-          </tr></thead>
+          <thead><tr><th style="width:26px"></th>${cot.map((c) => `<th class="${c.m && c.m.num ? 'num' : ''}${c.m ? '' : ' muted'}">${esc(c.ten)}</th>`).join('')}</tr></thead>
           <tbody>
             ${hien.map((c) => {
               const dang = mo.has(c.soCT);
-              const xau = !c.tkNo || !c.tkCo;
               return `<tr class="subtotal" data-act="misaMo" data-arg="${esc(c.soCT)}" style="cursor:pointer" title="Bấm để ${dang ? 'gập' : 'mở'} ${c.rows.length} dòng">
-                  <td>${dang ? '▾' : '▸'}</td>
-                  <td><code>${esc(c.soCT)}</code></td>
-                  <td>${esc(c.dienGiai)}</td>
-                  <td class="num ${xau ? 'neg' : ''}">${esc(c.tkNo) || '⚠ thiếu'}</td>
-                  <td class="num ${xau ? 'neg' : ''}">${esc(c.tkCo) || '⚠ thiếu'}</td>
-                  <td class="num muted">${c.rows.length}</td>
-                  ${tdn(c.tong)}
-                  <td></td>
+                  <td>${dang ? '▾' : '▸'}</td>${cot.map((x) => oTomTat(x, c)).join('')}
                 </tr>
-                ${dang ? c.rows.map((r) => `<tr>
-                  <td></td><td></td>
-                  <td class="muted" style="padding-left:18px">${esc(r.dienGiaiHT)}</td>
-                  <td class="num muted">${esc(r.tkNo)}</td><td class="num muted">${esc(r.tkCo)}</td>
-                  <td class="num"><code>${esc(r.maDonVi)}</code></td>
-                  ${tdn(r.soTien)}<td></td>
-                </tr>`).join('') : ''}`;
+                ${dang ? c.rows.map((r) => `<tr><td></td>${cot.map((x) => oChiTiet(r, x)).join('')}</tr>`).join('') : ''}`;
             }).join('')}
-            <tr class="total"><td></td><td>Tổng cộng</td><td class="muted">${hien.length}/${ct.length} chứng từ</td><td></td><td></td><td class="num">${hien.reduce((a, c) => a + c.rows.length, 0)}</td>${tdn(hien.reduce((a, c) => a + c.tong, 0))}<td></td></tr>
+            <tr class="total"><td></td>${cot.map((c) => (c.m && c.m.num ? tdn(hien.reduce((a, x) => a + x.tong, 0)) : `<td>${c.i === 2 ? `${hien.length}/${ct.length} chứng từ` : c.i === 8 ? `${hien.reduce((a, x) => a + x.rows.length, 0)} dòng` : ''}</td>`)).join('')}</tr>
           </tbody>
         </table></div>
       </div>`;
@@ -986,6 +1003,10 @@
     },
     misaThieu() {
       ui.misaThieu = !ui.misaThieu;
+      renderTab();
+    },
+    misa50() {
+      ui.misa50 = !ui.misa50;
       renderTab();
     },
     export: exportExcel,

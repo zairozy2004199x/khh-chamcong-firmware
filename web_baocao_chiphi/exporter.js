@@ -236,9 +236,33 @@
     'Tiền thuế GTGT', 'Tiền thuế GTGT quy đổi', 'TK thuế GTGT', 'Ngày hóa đơn', 'Số hóa đơn',
     'Mẫu số HĐ', 'Ký hiệu HĐ', 'Nhóm HHDV mua vào', 'Mã đối tượng thuế', 'Tên đối tượng thuế',
     'Mã số thuế đối tượng thuế'];
-  /* Chỉ số 0 của những cột ta THẬT SỰ điền — đặt tên để khỏi đếm ngón tay giữa 50 cột. */
-  const MC = { ngayCT: 0, ngayHT: 1, soCT: 2, dienGiai: 3, dienGiaiHT: 8, tkNo: 9, tkCo: 10,
-    soTien: 11, soTienQD: 12, maDonVi: 22 };
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * NHỮNG CỘT TA THẬT SỰ ĐIỀN — MỘT ĐỊNH NGHĨA DUY NHẤT, DÙNG CHUNG CHO CẢ FILE LẪN MÀN HÌNH.
+   *
+   * 🔴 Anh Thắng 16/09/2026: *"khác nhau và thiếu cột"* — tab "Chi tiết MISA" trên màn hình bày
+   *    ra một bộ cột khác hẳn file xuất ra (thiếu Ngày chứng từ, Ngày hạch toán, Số tiền quy đổi,
+   *    và xếp sai thứ tự). Gốc: cột được kê ở HAI NƠI — bảng này cho file, một danh sách viết tay
+   *    khác trong app.js cho màn hình. Hai danh sách thì sớm muộn cũng lệch, mà lệch kiểu ấy phá
+   *    đúng lời hứa của cái tab: "nhìn trước khi xuất".
+   *
+   * Nay CHỈ CÓ bảng này. app.js đọc `EXP.MISA_COLS` + `EXP.MISA_MAP` để dựng bảng trên màn hình,
+   * nên thêm/bớt/đổi thứ tự một cột là cả hai bên đổi theo cùng lúc — không còn chỗ để lệch.
+   *
+   * `i` = chỉ số cột (0-based) trong mẫu 50 cột · `key` = tên trường trong dòng của misaRows()
+   * `num` = ô số (Excel phải để kiểu số cho MISA cộng được; màn hình canh phải + ngăn hàng nghìn)
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const MISA_MAP = [
+    { i: 0, key: 'ngay' },        // Ngày chứng từ (*)
+    { i: 1, key: 'ngay' },        // Ngày hạch toán (*) — file thật để "=A3", tức luôn bằng cột trước
+    { i: 2, key: 'soCT' },        // Số chứng từ (*)
+    { i: 3, key: 'dienGiai' },    // Diễn giải
+    { i: 8, key: 'dienGiaiHT' },  // Diễn giải (Hạch toán)
+    { i: 9, key: 'tkNo' },        // TK Nợ (*)
+    { i: 10, key: 'tkCo' },       // TK Có (*)
+    { i: 11, key: 'soTien', num: true },   // Số tiền
+    { i: 12, key: 'soTien', num: true },   // Số tiền quy đổi — file thật để "=L3"
+    { i: 22, key: 'maDonVi' },    // Mã đơn vị
+  ];
 
   function buildMisaSheet(XLSX, state, report, deptId) {
     const kq = E.misaRows(state, report, deptId);
@@ -249,24 +273,15 @@
     const aoa = [nhan, MISA_COLS.slice()];
     kq.rows.forEach((r) => {
       const row = new Array(MISA_COLS.length).fill('');
-      row[MC.ngayCT] = r.ngay;
-      row[MC.ngayHT] = r.ngay;
-      row[MC.soCT] = r.soCT;
-      row[MC.dienGiai] = r.dienGiai;
-      row[MC.dienGiaiHT] = r.dienGiaiHT;
       /* Tài khoản để nguyên CHUỖI (parseAccount trả chuỗi) — tài khoản có thể bắt đầu bằng số 0
          mà Excel nuốt số 0 đầu ngay khi ô thành kiểu số. aoaToSheet chỉ gán định dạng cho ô KIỂU
-         SỐ nên chuỗi đi qua nguyên vẹn, không cần tuỳ chọn gì thêm.
-         Số tiền thì ngược lại — phải là số thật để MISA cộng được, nên E.num(). */
-      row[MC.tkNo] = r.tkNo;
-      row[MC.tkCo] = r.tkCo;
-      row[MC.soTien] = E.num(r.soTien);
-      row[MC.soTienQD] = E.num(r.soTien);
-      row[MC.maDonVi] = r.maDonVi;
+         SỐ nên chuỗi đi qua nguyên vẹn. Số tiền thì ngược lại: phải là số thật để MISA cộng được,
+         nên `num: true` trong MISA_MAP. */
+      MISA_MAP.forEach((m) => { row[m.i] = m.num ? E.num(r[m.key]) : r[m.key]; });
       aoa.push(row);
     });
     const cols = new Array(MISA_COLS.length).fill(16);
-    cols[MC.dienGiai] = 44; cols[MC.dienGiaiHT] = 56; cols[MC.soTien] = 18; cols[MC.soTienQD] = 18;
+    cols[3] = 44; cols[8] = 56; cols[11] = 18; cols[12] = 18;
     return aoaToSheet(XLSX, aoa, { cols });
   }
 
@@ -300,5 +315,5 @@
     return `File_tong_bao_cao_${state.region || 'MN'}_T${String(p.month || 1).padStart(2, '0')}_${p.year || ''}.xlsx`;
   }
 
-  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildMisaSheet, buildRevenueSheet, fileName, MISA_COLS, NUM_FMT };
+  return { buildWorkbook, buildReportSheet, buildAllocationSheet, buildSiteSheet, buildMisaSheet, buildRevenueSheet, fileName, MISA_COLS, MISA_MAP, NUM_FMT };
 });

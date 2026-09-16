@@ -1,17 +1,3 @@
-/*
- * Kiểm tab "Chi tiết MISA" trên TRÌNH DUYỆT THẬT, chạy trên app thật qua bộ giả lập.
- *
- * Anh Thắng 16/09/2026: *"Muốn nhìn chi tiết trực quan trước khi xuất"*.
- *
- * Chạy:
- *     php -S 127.0.0.1:8103 khbc-bao-cao-chi-phi/tools/dev/router.php &
- *     NODE_PATH=/opt/node22/lib/node_modules node khbc-bao-cao-chi-phi/tools/test/kiem-tab-misa.js
- *
- * ⚠️ Cổng PIN nhận phím qua Ô NHẬP + nút Đăng nhập, không nghe keypress toàn trang — gõ phím
- *    trống không thì cổng đứng nguyên và mọi phép sau đó chờ tới hết giờ.
- * ⚠️ Đọc số từ CHÍNH thẻ pill của tab, đừng quét cả trang: chữ "dòng" còn xuất hiện ở tab Tổng
- *    quan, quét cả trang là bắt nhầm rồi so với rác (lần đầu ra "57720 dòng").
- */
 const { chromium } = require('playwright');
 const KQ={pass:[],fail:[]};
 const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
@@ -19,7 +5,7 @@ const ok=(t,c,g)=>(c?KQ.pass:KQ.fail).push(t+(g?' — '+g:''));
   const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
   const p=await b.newPage({viewport:{width:1700,height:1000}});
   const loi=[]; p.on('pageerror',e=>loi.push(String(e)));
-  await p.goto('http://127.0.0.1:8103/bao-cao-chi-phi/'); await p.waitForTimeout(700);
+  await p.goto('http://127.0.0.1:8104/bao-cao-chi-phi/'); await p.waitForTimeout(700);
   // Cổng PIN: gõ vào ô rồi bấm Đăng nhập (bàn phím số là nút, không nhận keypress toàn trang).
   if (await p.$('#gatePin')) {
     await p.fill('#gatePin', '1111');
