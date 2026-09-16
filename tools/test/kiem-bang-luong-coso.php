@@ -1341,4 +1341,58 @@ t( 'cắt được hàng tổng ra để soi', '' !== $hang_tong, substr( $h_am,
 t( '🔴 hàng tổng KHÔNG in số âm', false === strpos( $hang_tong, '-240.000đ' ), $hang_tong );
 t( 'mà nói thẳng là chưa đủ giá', false !== strpos( $hang_tong, 'chưa đủ giá' ), $hang_tong );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 15. KHỐI BẤM-TÊN CHO GÕ LUÔN, KHÔNG CHỈ ĐỌC
+ *
+ * Anh Thắng 16/09/2026, trước khối chỉ kể giờ theo ca: *"Chưa cho sửa giờ theo công việc làm
+ * trong tháng"*. Ca là KHUNG GIỜ của cửa hàng, việc là thứ người ta LÀM — một người chạy Ca 2
+ * có thể vừa Lái Tàu vừa MC. Đọc được mà không gõ được thì xem xong vẫn phải đi tìm chỗ khác.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+
+VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT', array( 'Lái Tàu' => 23000, 'MC' => 30000 ) );
+$h_gt = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT', $g_xn + array( 'xng' => 'BT_MAN' ) );
+preg_match( '/<tr class="hang-sua">.*?<\/tr>/us', $h_gt, $m_gt );
+$khoi_gt = isset( $m_gt[0] ) ? $m_gt[0] : '';
+t( 'cắt được khối bấm-tên ra để soi', '' !== $khoi_gt, substr( $h_gt, 0, 200 ) );
+t( '🔴 khối có ô chọn VIỆC CHÍNH', false !== strpos( $khoi_gt, 'name="cl_chinh"' ), $khoi_gt );
+t( '🔴 và ô gõ giờ ăn đơn giá khác', false !== strpos( $khoi_gt, 'name="cl_viec[0]"' ), $khoi_gt );
+t( 'và mấy ô khoản cộng/trừ', false !== strpos( $khoi_gt, 'name="cl_tru[phat]"' ), $khoi_gt );
+t( 'vẫn giữ phần giờ THEO CA ở trên', false !== strpos( $khoi_gt, 'Ca 1' ), $khoi_gt );
+
+/* 🔴 LƯU XONG QUAY VỀ ĐÚNG KHỐI VỪA GÕ, không nhảy sang khối dưới bảng lương. */
+t( '🔴 biểu mẫu quay về đúng khối bấm-tên (xng), không phải khối bảng lương (clm)',
+	1 === preg_match( '/<form method="post" action="[^"]*xng=BT_MAN[^"]*#xn/u', $khoi_gt ), $khoi_gt );
+
+/* ---- 🔴 GỬI THẬT: gõ từ khối bấm-tên phải vào sổ ---- */
+$tok_gt = VHCC_Auth::phat_token( 'Trưởng BL', 'Cửa hàng trưởng', 'AEON_BT', 'CHT_BL' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_gt );
+$_GET  = $g_xn + array( 'xng' => 'BT_MAN' );
+$_POST = array( 'viec' => 'chot_luong', 'ky' => VHCC_Web::chu_ky( $tok_gt ),
+	'ccs' => 'AEON_BT', 'cth' => '2026-08', 'cl_ma' => 'BT_MAN',
+	'cl_chinh' => 'Lái Tàu',
+	'cl_viec' => array( 0 => 'MC' ), 'cl_gio' => array( 0 => '4' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_gt_post = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 gõ từ khối bấm-tên: việc chính vào sổ', 'Lái Tàu',
+	VHCC_ChotLuong::viec_chinh( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+teq( 'và giờ khác cũng vậy', 4.0, VHCC_ChotLuong::tong_cua( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+t( 'không bị chối bằng câu về màn Hồ sơ',
+	false === strpos( $h_gt_post, 'thuộc màn Hồ sơ' ), substr( $h_gt_post, 0, 400 ) );
+
+/* 🔴 MỘT BIỂU MẪU, HAI CHỖ GỌI — không phải hai bản chép.
+   Khối dưới bảng lương phải có y hệt mấy ô ấy; lệch nhau là có ngày sửa một bên quên bên kia. */
+$h_gt2 = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+foreach ( array( 'name="cl_chinh"', 'name="cl_viec[0]"', 'name="cl_tru[phat]"' ) as $o_kh ) {
+	t( 'khối dưới bảng lương cũng có ' . $o_kh, false !== strpos( $h_gt2, $o_kh ), $o_kh );
+}
+t( 'và nó quay về đúng khối CỦA NÓ (clm), không phải xng',
+	1 === preg_match( '/<form method="post" action="[^"]*clm=BT_MAN[^"]*#cl/u', $h_gt2 ), $h_gt2 );
+
+/* 🔴 NHÂN VIÊN BẬC 1 xem được giờ nhưng KHÔNG gõ được. */
+$h_gt_nv = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT', $g_xn + array( 'xng' => 'BT_MAN' ) );
+t( '🔴 bậc 1 KHÔNG thấy ô nhập trong khối bấm-tên',
+	false === strpos( $h_gt_nv, 'name="cl_chinh"' ), 'lộ ô nhập cho bậc 1' );
+
 ket_luan();

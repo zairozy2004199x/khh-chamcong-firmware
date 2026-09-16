@@ -5652,7 +5652,8 @@ class VHCC_Web {
 	 * ⚠️ PHÚT NGOÀI MỌI CA PHẢI KỂ RA RIÊNG. Cộng nó vào một ca nào đó là bịa; bỏ đi thì tổng
 	 *    mấy ca cộng lại KHÁC tổng của hàng, và người đọc mất mười phút tìm xem thiếu ở đâu.
 	 */
-	private static function hang_xem_nguoi( $so_cot, $ma, $ho_ten, $o_nguoi, $ds_ca, $tien_ng ) {
+	private static function hang_xem_nguoi( $so_cot, $ma, $ho_ten, $o_nguoi, $ds_ca, $tien_ng,
+		$ky = '', $toi = array(), $cs = '', $th = '', $d_chinh = null ) {
 		$theo_ca = array();
 		$ngoai   = 0;
 		$tong    = 0;
@@ -5699,6 +5700,32 @@ class VHCC_Web {
 		echo '<p class="mo" style="margin:8px 0 0;font-size:12px">Tách theo <b>khung ca của cơ '
 			. 'sở</b> — cùng phép tính với mã <code>C1·C2</code> in trong từng ô. Phút không rơi '
 			. 'vào ca nào được kể riêng ở <b>Ngoài ca</b>, không nhét vào ca nào cả.</p>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CHIA GIỜ THEO CÔNG VIỆC — GÕ NGAY TẠI ĐÂY, KHÔNG ĐI ĐÂU NỮA.
+		 *
+		 * Anh Thắng 16/09/2026, trước đúng khối này: *"Chưa cho sửa giờ theo công việc làm
+		 * trong tháng"*.
+		 *
+		 * Đúng. Khối vừa dựng CHIA GIỜ THEO CA — mà ca là khung giờ của cửa hàng, không phải
+		 * việc người ta làm. Hai thứ khác nhau: một người chạy Ca 2 có thể vừa Lái Tàu vừa MC.
+		 * Đọc được mà không gõ được thì xem xong vẫn phải đi tìm chỗ khác — đúng cái "bấm nhả
+		 * qua nhảy lại" mà khối này sinh ra để dẹp.
+		 *
+		 * Cùng MỘT biểu mẫu với khối dưới bảng lương (`khoi_chot_luong`), không phải bản chép.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( null !== $d_chinh && '' !== $cs && '' !== $th
+			&& VHCC_Vai::duoc( $toi, VHCC_ChotLuong::QUYEN )
+			&& VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
+			echo '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--vien)">';
+			self::khoi_chot_luong( $ky, $toi, $cs, $th, $d_chinh, 'xn' );
+			echo '</div>';
+		} elseif ( null === $d_chinh ) {
+			/* Nói ra, đừng im. Không có dòng lương nghĩa là tháng này người ấy chưa vào bảng
+			   lương được — bày một khối trống mà không giải thích thì người ta tưởng hỏng. */
+			echo '<p class="mo" style="margin:8px 0 0;font-size:12px">Chưa dựng được dòng lương '
+				. 'của người này trong tháng — chưa chia giờ theo công việc ở đây được.</p>';
+		}
 		echo '</div></td></tr>';
 	}
 
@@ -6778,8 +6805,9 @@ class VHCC_Web {
 		 *
 		 * ⚠️ Cột này chỉ là NHẮC LẠI, không phải nguồn. Chỗ sửa vẫn là khối Bảng lương.
 		 * ═══════════════════════════════════════════════════════════════════════════════════ */
-		$tien_ds  = array();
-		$tien_cs  = 0.0;
+		$tien_ds    = array();
+		$dong_chinh = array();
+		$tien_cs    = 0.0;
 		$co_thieu = false;
 		$bl_luoi  = VHCC_BangLuong::dung( (string) $b['coSo'], $tt );
 		if ( ! empty( $bl_luoi['ok'] ) ) {
@@ -6791,6 +6819,10 @@ class VHCC_Web {
 				$tien_ds[ $k_bl ]['tien'] += (float) $d_bl['tongCong'] - (float) $d_bl['tongTru'];
 			}
 			foreach ( $tien_ds as $v_bl ) { $tien_cs += $v_bl['tien']; }
+			/* Dòng CHÍNH của từng người — khối mở ra khi bấm tên cần nó để dựng ô nhập. */
+			foreach ( $bl_luoi['dong'] as $d_bl ) {
+				if ( ! empty( $d_bl['laChinh'] ) ) { $dong_chinh[ strtoupper( (string) $d_bl['ma'] ) ] = $d_bl; }
+			}
 		}
 
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Nhân viên</th>';
@@ -6980,7 +7012,10 @@ class VHCC_Web {
 				self::hang_xem_nguoi( $so_ngay + 3, $ma, $ho_ten,
 					isset( $o[ $ma ] ) ? $o[ $ma ] : array(), $ds_ca,
 					( null !== $t_ng && ! empty( $t_ng['du'] ) )
-						? number_format( $t_ng['tien'], 0, ',', '.' ) . 'đ' : null );
+						? number_format( $t_ng['tien'], 0, ',', '.' ) . 'đ' : null,
+					$ky, $toi, $cs_luoi, $tt,
+					isset( $dong_chinh[ strtoupper( (string) $ma ) ] )
+						? $dong_chinh[ strtoupper( (string) $ma ) ] : null );
 			}
 
 			/* =============================================================================
@@ -7902,16 +7937,36 @@ class VHCC_Web {
 	 *    lại tự là việc chính. Xem `VHCC_ChotLuong`.
 	 */
 	private static function hang_chot_luong( $ky, $toi, $cs, $th, $d ) {
+		echo '<tr class="hang-sua"><td colspan="10"><div class="hs-in">';
+		echo '<a id="cl' . esc_attr( substr( md5( (string) $d['ma'] ), 0, 8 ) ) . '"></a>';
+		self::khoi_chot_luong( $ky, $toi, $cs, $th, $d, 'cl' );
+		echo '</div></td></tr>';
+	}
+
+	/**
+	 * RUỘT CỦA KHỐI CHỐT LƯƠNG — việc chính, giờ ăn giá khác, khoản cộng/trừ.
+	 *
+	 * 🔴 TÁCH RA KHỎI CÁI `<tr>` để DÙNG ĐƯỢC Ở HAI CHỖ. Anh Thắng 16/09/2026, trước khối mở ra
+	 *    khi bấm tên (chỉ kể giờ theo ca): *"Chưa cho sửa giờ theo công việc làm trong tháng"*.
+	 *    Đúng: khối ấy đọc được mà không gõ được, nên xem xong vẫn phải đi tìm chỗ khác — đúng
+	 *    cái "bấm nhả qua nhảy lại" mà nó sinh ra để dẹp.
+	 *    Chép đoạn dựng biểu mẫu sang khối kia thì thành hai bản gần giống nhau, và bài kiểm mất
+	 *    khả năng canh (bỏ một bản vẫn xanh) — đã trả giá ba lần trong ngày. Nên tách ruột.
+	 *
+	 * @param string $neo Tiền tố của cái neo `#...` để sau khi Lưu quay về ĐÚNG khối vừa gõ —
+	 *                    hai chỗ gọi nằm ở hai nơi khác nhau trên màn.
+	 */
+	private static function khoi_chot_luong( $ky, $toi, $cs, $th, $d, $neo = 'cl' ) {
 		$ma  = (string) $d['ma'];
 		$gk  = VHCC_ChotLuong::cua( $cs, $th, $ma );
 		$ti  = VHCC_ChotLuong::tien_cua( $cs, $th, $ma );
 		$goi = VHCC_ChotLuong::ten_da_dung( $cs );
 
-		echo '<tr class="hang-sua"><td colspan="10"><div class="hs-in">';
-		echo '<a id="cl' . esc_attr( substr( md5( $ma ), 0, 8 ) ) . '"></a>';
-		echo '<form method="post" action="' . esc_url( add_query_arg(
-			array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $ma ), self::url() )
-			. '#cl' . substr( md5( $ma ), 0, 8 ) ) . '">';
+		$ve_neo = ( 'cl' === $neo )
+			? add_query_arg( array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $ma ), self::url() )
+			: add_query_arg( array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'xng' => $ma ), self::url() );
+		echo '<form method="post" action="' . esc_url( $ve_neo . '#' . $neo
+			. substr( md5( $ma ), 0, 8 ) ) . '">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<input type="hidden" name="viec" value="chot_luong">';
 		echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
@@ -8034,9 +8089,10 @@ class VHCC_Web {
 			. 'khác với gõ số 0. Tờ xuất ra để trống đúng mấy ô ấy.</p>';
 		echo '<div class="hang" style="margin-top:10px">'
 			. '<button class="chinh">Lưu chốt lương</button>'
-			. '<a class="nut" href="' . esc_url( remove_query_arg( 'clm', self::url_hien() ) )
+			. '<a class="nut" href="' . esc_url( remove_query_arg(
+				( 'cl' === $neo ) ? 'clm' : 'xng', self::url_hien() ) )
 			. '">Đóng</a></div>';
-		echo '</form></div></td></tr>';
+		echo '</form>';
 	}
 
 
