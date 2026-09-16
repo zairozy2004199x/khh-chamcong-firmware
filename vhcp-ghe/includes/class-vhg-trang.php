@@ -411,6 +411,32 @@ JS;
 	 * ⚠️ Nạp các tệp wp-admin/includes/* bằng tay: đây là lượt gọi ở NGOÀI trang quản trị nên
 	 *    WordPress chưa nạp sẵn Plugin_Upgrader.
 	 */
+	/**
+	 * DÒ TỆP KHÔNG XOÁ ĐƯỢC TRONG MỘT THƯ MỤC PLUGIN — xem khối 🔴 trong cn_chay_().
+	 *
+	 * Xoá một tệp cần quyền GHI trên THƯ MỤC CHA, không phải trên chính tệp. Đây là chỗ dễ soát
+	 * nhầm nhất: một tệp `chmod 444` nằm trong thư mục ghi được thì vẫn xoá được bình thường,
+	 * còn một tệp `chmod 777` trong thư mục khoá thì không. Nên duyệt theo THƯ MỤC.
+	 *
+	 * @return array đường dẫn tương đối của những chỗ chặn (rỗng = xoá sạch được).
+	 */
+	private static function cn_tep_ket_( $thu_muc ) {
+		$ket = array();
+		if ( ! is_dir( $thu_muc ) ) { return $ket; }
+		$goc = trailingslashit( dirname( $thu_muc ) );
+		$xep = new RecursiveIteratorIterator(
+			new RecursiveDirectoryIterator( $thu_muc, FilesystemIterator::SKIP_DOTS ),
+			RecursiveIteratorIterator::CHILD_FIRST );
+		/* Chính thư mục plugin cũng phải xoá được — nó nằm trong wp-content/plugins/. */
+		if ( ! is_writable( dirname( $thu_muc ) ) ) { $ket[] = basename( $thu_muc ) . '/ (thư mục cha khoá)'; }
+		foreach ( $xep as $t ) {
+			$d = $t->getPathname();
+			clearstatcache( true, $d );
+			if ( ! is_writable( dirname( $d ) ) ) { $ket[] = str_replace( $goc, '', $d ); }
+		}
+		return array_values( array_unique( $ket ) );
+	}
+
 	private static function cn_chay_( $ma, $boi ) {
 		$ma   = trim( $ma );
 		$chon = null;
@@ -419,10 +445,43 @@ JS;
 		}
 		if ( ! $chon ) { return array( 'ok' => false, 'error' => 'Không có plugin này trong danh sách cập nhật.' ); }
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 SOÁT XOÁ ĐƯỢC HAY KHÔNG — TRƯỚC KHI ĐỘNG VÀO THƯ MỤC. (16/09/2026)
+		 *
+		 * Sáng 16/09 trang khmatrix.com/ghe SẬP sau một lượt bấm cập nhật từ chính trang này:
+		 * `/ghe` và `/it` cùng trả 404, phải cài tay lại bằng zip mới sống. Nguyên nhân nằm sẵn
+		 * trong CLAUDE.md §1 mà lúc dựng nút này không ai nối hai việc lại với nhau:
+		 *
+		 *   · Trên host thật, `includes/class-vhg-baocao.php` KẸT QUYỀN — sáu lượt cài zip liên
+		 *     tiếp (2.86→2.92) không ghi đè nổi mà vẫn báo "cài thành công".
+		 *   · Cơ chế bản-sao-mang-số-bản né được chuyện ấy, nhưng nó chỉ né lúc GHI ĐÈ.
+		 *   · Còn `Plugin_Upgrader` thì XOÁ SẠCH thư mục plugin rồi mới giải nén. Một tệp không
+		 *     xoá được là lượt cài đứt giữa chừng, thư mục còn lại dở dang, plugin chết — và
+		 *     cùng với nó là mọi trang ảo `/ghe`, `/it`, `/mua-ma`.
+		 *
+		 * Né được lúc ghi đè KHÔNG có nghĩa là né được lúc xoá. Nên hỏi trước: có xoá được từng
+		 * tệp không. Không chắc thì THÀ KHÔNG CÀI — cài tay bằng zip mất hai phút, còn dựng lại
+		 * một trang đang giữ sổ tiền thì mất cả buổi.
+		 *
+		 * ⚠️ Phép thử chỉ đúng khi WordPress ghi tệp TRỰC TIẾP (`direct`). Host đòi FTP/SSH thì
+		 *    `is_writable()` không nói lên điều gì — lúc ấy bỏ qua phép soát, vì `upgrade()` bên
+		 *    dưới đã có nhánh báo rõ ca đó rồi.
+		 * ══════════════════════════════════════════════════════════════════════════════════════ */
 		require_once ABSPATH . 'wp-admin/includes/file.php';
 		require_once ABSPATH . 'wp-admin/includes/misc.php';
 		require_once ABSPATH . 'wp-admin/includes/plugin.php';
 		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+
+		if ( 'direct' === get_filesystem_method() ) {
+			$ket = self::cn_tep_ket_( WP_PLUGIN_DIR . '/' . dirname( (string) $chon['duong'] ) );
+			if ( $ket ) {
+				return array( 'ok' => false, 'error' => 'CHƯA CÀI GÌ CẢ — dừng trước khi động vào thư mục. '
+					. count( $ket ) . ' tệp/thư mục không xoá được: ' . implode( ' · ', array_slice( $ket, 0, 4 ) )
+					. ( count( $ket ) > 4 ? ' …' : '' ) . '. WordPress xoá sạch thư mục plugin rồi mới giải nén, '
+					. 'nên cài tiếp là hỏng nửa chừng và trang tắt. Cách làm: tải zip rồi cài đè qua '
+					. 'wp-admin → Plugin → Tải lên, hoặc nhờ hosting sửa quyền thư mục.' );
+			}
+		}
 
 		if ( isset( $chon['lop'] ) && class_exists( $chon['lop'] ) && method_exists( $chon['lop'], 'quen_nho' ) ) {
 			call_user_func( array( $chon['lop'], 'quen_nho' ) );
