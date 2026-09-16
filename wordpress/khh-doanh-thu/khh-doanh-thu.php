@@ -1,13 +1,18 @@
 <?php
 /**
  * Plugin Name:       K&H — Báo cáo doanh thu FABi
- * Plugin URI:        https://khh.vn/
+ * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Nạp file "Báo cáo bán hàng" xuất từ máy POS FABi (iPOS) và dựng báo cáo doanh thu theo ngày, cửa hàng, khung giờ, hình thức thanh toán, tại chỗ/mang về và món bán chạy. Có sẵn đường nối API FABi để bật khi iPOS cấp khoá.
  * Version:           1.9.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
  * Text Domain:       khh-doanh-thu
+ *
+ * ⚠️ `Plugin URI` trỏ đúng kho mã, y như Chấm Công và Ghế Massage — bộ tự cập nhật ở trang IT
+ *    (khmatrix.com/it) nhận mặt plugin qua thư mục trên nhánh đã ghim, và số ở dòng `Version`
+ *    trên kia là thứ nó đem so với bản đang chạy. Đánh số lùi hay trùng là nó im lặng không mời
+ *    cập nhật, hoặc tệ hơn: mời cài đè một bản thiếu tính năng.
  *
  * Cài xong vào menu "Doanh thu FABi" trong trang quản trị, và mở được bằng đường
  * link ngoài (mặc định /doanh-thu-hcm), hoặc nhúng vào trang bất kỳ bằng shortcode
