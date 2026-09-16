@@ -3,7 +3,7 @@
  * Plugin Name:       Sao Kê Ngân Hàng K&H (SePay)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Sao kê & đối soát dòng tiền ngân hàng qua SePay (webhook + Open API) + đối chiếu nộp tiền theo điểm + sao kê cổng Việt QR/MoMo/VNPAY + tổng hợp doanh thu cơ sở. Trang [posh_saoke] bảo vệ bằng PIN. ĐỘC LẬP với plugin vé/ghế.
- * Version:           0.35.0
+ * Version:           0.36.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -25,7 +25,7 @@ class SAOKE_App {
 	   thêm file"* — câu đầu tiên phải trả lời là "bản đang chạy có khối ấy chưa", mà trang thì
 	   không in số bản ở đâu cả, nên không ai đáp được ngoài cách đi mở wp-admin. Ghi ở đây, hiện
 	   ở góc cột trái. ⚠️ PHẢI BẰNG số ở header `Version:` phía trên — hai chỗ, một giá trị. */
-	const VER = '0.35.0';
+	const VER = '0.36.0';
 
 	/* 3 cổng thanh toán + tên hiển thị. Việt QR về bank 1:1; MoMo/VNPAY gộp cục N:1. */
 	private static function cong_ds() { return array( 'vietqr', 'momo', 'vnpay' ); }
@@ -1978,11 +1978,19 @@ class SAOKE_App {
 	private static function chiphi_ds_coso() {
 		if ( ! self::chiphi_co() ) { return array(); }
 		static $ds = null; if ( null !== $ds ) { return $ds; }
-		$dv = self::dv_chi_phi(); $ds = array();
+		$dv = self::dv_chi_phi(); $ds = array(); $thay = array();
 		$cfg = VHCP_Cfg::cfg_static();
 		foreach ( (array) ( isset( $cfg['coso'] ) ? $cfg['coso'] : array() ) as $c ) {
 			$ten = trim( (string) ( isset( $c['ten'] ) ? $c['ten'] : '' ) );
 			if ( '' === $ten ) { continue; }
+			/* 🔴 KHỬ TRÙNG NGAY TRONG SỔ NÀY, đừng trông vào hàm gộp ở ngoài. Sổ mã khoá theo
+			   `chuan_ch(tên)`, nên hai dòng "AEON TÂN PHÚ" và "Aeon Tân Phú" trong cùng danh mục
+			   Chi Phí sẽ ra HAI hàng nhập mà chung MỘT ô lưu: gõ hàng dưới là mất mã hàng trên,
+			   và không có gì báo. (Bên Chi Phí chặn trùng lúc thêm bằng so chữ thường, nhưng dữ
+			   liệu cũ nạp từ bảng tính thì không qua cửa ấy.) */
+			$k = self::chuan_ch( $ten );
+			if ( '' === $k || isset( $thay[ $k ] ) ) { continue; }
+			$thay[ $k ] = 1;
 			if ( ! VHCP_DonVi::bang( isset( $c['donVi'] ) ? $c['donVi'] : '', $dv ) ) { continue; }
 			/* ⚠️ Cơ sở ĐÃ ĐÓNG CỬA thì bỏ — để lại là mỗi kỳ đối chiếu lại có một dòng "chưa nộp"
 			   vĩnh viễn đỏ, và một dòng đỏ không bao giờ xanh được là dòng người ta thôi nhìn. */
@@ -1994,7 +2002,12 @@ class SAOKE_App {
 	}
 
 	/**
-	 * 🔴 NGUỒN DUY NHẤT CỦA DANH SÁCH CƠ SỞ — Ghế + Chi Phí(KVC), đã khử trùng.
+	 * GỘP TÊN HAI NGUỒN — CHỈ DÙNG CHO CÂU HỎI "TÊN NÀY CÓ PHẢI MỘT CƠ SỞ KHÔNG".
+	 *
+	 * ⚠️ ĐỪNG DÙNG CHO BẤT CỨ MÀN NÀO DÍNH TỚI TIỀN. Hàm này khử trùng theo tên, nên "AEON MALL
+	 *    TÂN PHÚ" của ghế và của khu vui chơi gộp làm một dòng — mất đường khai mã cho một bên
+	 *    (anh Thắng 16/09/2026). Màn nào cần từng sổ riêng thì gọi `ds_coso_ghe()` /
+	 *    `chiphi_ds_coso()`, xem khối 🔴 ở `coso_ma_map_kvc()`.
 	 *
 	 * Trước bản này, bảy chỗ trong tệp gọi thẳng `ghe_ds_coso()`. Thêm một nguồn mà chỉ vá vài
 	 * chỗ là KVC hiện ở màn này, vắng ở màn kia — đúng bài học 0.18.1 (§6): luật đúng, một bản
@@ -2043,6 +2056,22 @@ class SAOKE_App {
 	/* Mã nộp tiền RIÊNG theo cơ sở (do người dùng chỉnh) — dùng để lọc sao kê ngân hàng xem cơ sở
 	   đó đã nộp tiền mặt chưa. Lưu option saoke_coso_ma: [ chuan_ch(tên cơ sở) => mã ]. */
 	private static function coso_ma_map() { $o = get_option( 'saoke_coso_ma' ); return is_array( $o ) ? $o : array(); }
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KVC CÓ SỔ MÃ RIÊNG — VÌ TÊN CƠ SỞ TRÙNG NHAU LÀ CHUYỆN BÌNH THƯỜNG.
+	 *
+	 * Anh Thắng 16/09/2026: *"cơ sở trùng tên không thể thêm bên ngoài được"*.
+	 *
+	 * Khu vui chơi và ghế massage cùng nằm trong MỘT trung tâm thương mại: "AEON MALL TÂN PHÚ" là
+	 * tên của cả hai. Nhưng đó là HAI sổ tiền khác nhau, hai mã nộp khác nhau (`KH705MTD…` với
+	 * `KH705KVC…` — xem RE_MA_NOP). Dồn chung một bảng, khoá theo `chuan_ch(tên)`, là cái nào gõ
+	 * sau ĐÈ cái trước và một trong hai bên vĩnh viễn không khai được mã.
+	 *
+	 * 0.35.0 còn khử trùng theo tên khi gộp hai nguồn — đúng cho việc "đừng đếm tiền hai lần của
+	 * CÙNG một nơi", nhưng sai ở đây: hai nơi khác hẳn nhau tình cờ trùng tên. Nay hai danh sách
+	 * và hai sổ mã đi riêng; chỗ nào chỉ cần "tên này có phải cơ sở không" thì mới gộp.
+	 * ══════════════════════════════════════════════════════════════════════════════════════════ */
+	private static function coso_ma_map_kvc() { $o = get_option( 'saoke_coso_ma_kvc' ); return is_array( $o ) ? $o : array(); }
 	private static function coso_ma( $coso ) { $m = self::coso_ma_map(); $k = self::chuan_ch( $coso ); return isset( $m[ $k ] ) ? (string) $m[ $k ] : ''; }
 	/**
 	 * VietQR THỰC theo CƠ SỞ × NGÀY — cho báo cáo bên Ghế gọi sang.
@@ -2187,7 +2216,7 @@ class SAOKE_App {
 		echo '</table><p><button class="button button-primary" name="saoke_luu" value="1">Lưu</button> <button class="button" name="saoke_keo_conglog" value="1">Kéo VietQR từ Nhật ký ngay</button></p></form>';
 		// ── Mã nộp tiền theo cơ sở (POSH) — để lọc sao kê ngân hàng xem cơ sở đã nộp tiền mặt chưa ──
 		if ( self::coso_co() ) {
-			$cm = self::coso_ma_map(); $dscs = self::ds_coso_all();
+			$cm = self::coso_ma_map(); $dscs = self::ghe_ds_coso();
 			echo '<hr><h2>Mã nộp tiền theo cơ sở</h2>';
 			echo '<p class="description">Mỗi cơ sở một mã (chuỗi nhân viên/kế toán ghi trong nội dung khi <b>nộp tiền mặt</b> vào ngân hàng). Dùng để dò trong Sao kê ngân hàng biết cơ sở đó <b>đã nộp tiền mặt chưa</b>. Sửa được, bỏ trống = chưa dùng. Danh sách cơ sở gộp từ trang Ghế và đơn vị ' . esc_html( self::dv_chi_phi() ) . ' bên Chi Phí (' . count( $dscs ) . ' cơ sở).</p>';
 			echo '<form method="post">'; wp_nonce_field( 'saoke_cfg' );
@@ -2236,6 +2265,9 @@ class SAOKE_App {
 			'napFileCong', 'napFileCongTx', 'luuAnhXaCuaHang', 'chuyenGianCuaHang', 'xoaAnhXaCuaHang',
 			'xoaNgayFileCong', 'dsCuaHangChuan', 'luuTuKhoaCong', 'testWebhookCong', 'luuCotFileCong', 'luuCotTxCong',
 			'getCosoMa', 'saveCosoMa',
+			/* ⚠️ Hàm mới PHẢI khai vào danh sách này — quên là màn hình báo "Hàm không hợp lệ",
+			   mà lỗi ấy chỉ lộ ra lúc bấm, không có gì đỏ lúc dựng. */
+			'getCosoMaKvc', 'saveCosoMaKvc',
 			'napDsCuaHangVqr', 'getDsCuaHangVqr', 'xoaDsCuaHangVqr',
 			'getNopTienMat', 'ganMayTay',
 		);
@@ -2414,13 +2446,26 @@ class SAOKE_App {
 	// ── Mã nộp tiền theo cơ sở (kế toán tự nhập ở tab Cấu hình) ──
 	public static function rpc_getCosoMa( $a ) {
 		self::can_pin( $a ); $cm = self::coso_ma_map(); $ds = array();
-		foreach ( self::ds_coso_all() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
+		foreach ( self::ghe_ds_coso() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
 		return array( 'ok' => true, 'ds' => $ds, 'coGhe' => self::ghe_co() );
 	}
 	public static function rpc_saveCosoMa( $a ) {
 		self::can_pin( $a ); $in = isset( $a[1] ) && is_array( $a[1] ) ? $a[1] : array(); $map = array();
 		foreach ( $in as $k => $v ) { $k = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $k ) ); $v = trim( sanitize_text_field( (string) $v ) ); if ( '' !== $k && '' !== $v ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
 		update_option( 'saoke_coso_ma', $map );
+		return array( 'ok' => true, 'so' => count( $map ) );
+	}
+
+	/* ── Mã nộp tiền theo cơ sở KHU VUI CHƠI — sổ RIÊNG, xem khối 🔴 ở coso_ma_map_kvc() ────── */
+	public static function rpc_getCosoMaKvc( $a ) {
+		self::can_pin( $a ); $cm = self::coso_ma_map_kvc(); $ds = array();
+		foreach ( self::chiphi_ds_coso() as $c ) { $k = self::chuan_ch( $c['ten'] ); $ds[] = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'key' => $k, 'ma' => isset( $cm[ $k ] ) ? (string) $cm[ $k ] : '' ); }
+		return array( 'ok' => true, 'ds' => $ds, 'coChiPhi' => self::chiphi_co(), 'donVi' => self::dv_chi_phi() );
+	}
+	public static function rpc_saveCosoMaKvc( $a ) {
+		self::can_pin( $a ); $in = isset( $a[1] ) && is_array( $a[1] ) ? $a[1] : array(); $map = array();
+		foreach ( $in as $k => $v ) { $k = preg_replace( '/[^a-z0-9]/', '', strtolower( (string) $k ) ); $v = trim( sanitize_text_field( (string) $v ) ); if ( '' !== $k && '' !== $v ) { $map[ $k ] = mb_substr( $v, 0, 60 ); } }
+		update_option( 'saoke_coso_ma_kvc', $map );
 		return array( 'ok' => true, 'so' => count( $map ) );
 	}
 	/* ── GÁN MÁY THỦ CÔNG cho MỘT giao dịch cổng ──────────────────────────────────────────────
@@ -2446,11 +2491,21 @@ class SAOKE_App {
 	public static function rpc_getNopTienMat( $a ) {
 		self::can_pin( $a ); global $wpdb;
 		$tu = self::vn2ymd( isset( $a[1] ) ? (string) $a[1] : '' ); $den = self::vn2ymd( isset( $a[2] ) ? (string) $a[2] : '' );
-		$cm = self::coso_ma_map(); $tbl = self::tbl();
+		$tbl = self::tbl();
 		$rows = array(); $soDaNop = 0; $soChuaNop = 0; $soChuaMa = 0; $tongNop = 0;
-		foreach ( self::ds_coso_all() as $c ) {
+		/* 🔴 HAI SỔ, ĐI RIÊNG. Ghế và Khu vui chơi có thể CÙNG TÊN ("AEON MALL TÂN PHÚ") mà là hai
+		   nơi thu tiền khác nhau, hai mã nộp khác nhau. Gộp một danh sách rồi tra một sổ là một
+		   trong hai bên vĩnh viễn hiện "chưa đặt mã" — mà dòng đỏ không bao giờ xanh được là dòng
+		   người ta thôi nhìn. Cột `he` cho màn hình phân biệt hai dòng trùng tên. */
+		$nguon = array(
+			array( 'he' => 'POSH', 'ds' => self::ghe_ds_coso(),    'cm' => self::coso_ma_map() ),
+			array( 'he' => 'KVC',  'ds' => self::chiphi_ds_coso(), 'cm' => self::coso_ma_map_kvc() ),
+		);
+		foreach ( $nguon as $ng ) {
+		$cm = $ng['cm'];
+		foreach ( $ng['ds'] as $c ) {
 			$ma = isset( $cm[ self::chuan_ch( $c['ten'] ) ] ) ? trim( (string) $cm[ self::chuan_ch( $c['ten'] ) ] ) : '';
-			$o = array( 'coso' => $c['ten'], 'tinh' => $c['tinh'], 'ma' => $ma, 'coMa' => '' !== $ma, 'daNop' => false, 'tong' => 0, 'soLan' => 0, 'lanCuoi' => '' );
+			$o = array( 'coso' => $c['ten'], 'he' => $ng['he'], 'tinh' => $c['tinh'], 'ma' => $ma, 'coMa' => '' !== $ma, 'daNop' => false, 'tong' => 0, 'soLan' => 0, 'lanCuoi' => '' );
 			if ( '' !== $ma ) {
 				$w = array( "loai='in'", 'noi_dung LIKE %s' ); $ar = array( '%' . $wpdb->esc_like( $ma ) . '%' );
 				if ( $tu )  { $w[] = 'DATE(ngay_gd)>=%s'; $ar[] = $tu; }
@@ -2464,6 +2519,7 @@ class SAOKE_App {
 			}
 			if ( '' === $ma ) { $soChuaMa++; } elseif ( $o['daNop'] ) { $soDaNop++; $tongNop += $o['tong']; } else { $soChuaNop++; }
 			$rows[] = $o;
+		}
 		}
 		// Chưa nộp (có mã) lên đầu để soi, rồi đã nộp, cuối là chưa đặt mã.
 		usort( $rows, function ( $x, $y ) {
@@ -2538,7 +2594,9 @@ class SAOKE_App {
 		// TỰ PHÂN LOẠI theo mã nộp của cơ sở: nội dung chứa mã nào -> nhãn tự = cơ sở đó.
 		$maToCoso = array(); $maRe = '';
 		if ( self::coso_co() ) {
-			$cmMap = self::coso_ma_map(); $tenByKey = array();
+			/* Gộp CẢ HAI sổ mã: mã nộp đã tự mang hệ trong chuỗi (KH705MTD… / KH705KVC…) nên
+			   không lẫn được, và bỏ sót một sổ là giao dịch của hệ ấy mất nhãn tự động. */
+			$cmMap = self::coso_ma_map() + self::coso_ma_map_kvc(); $tenByKey = array();
 			foreach ( self::ds_coso_all() as $c ) { $tenByKey[ self::chuan_ch( $c['ten'] ) ] = $c['ten']; }
 			$maList = array();
 			foreach ( $cmMap as $k => $ma ) { $ma = trim( (string) $ma ); if ( '' !== $ma && isset( $tenByKey[ $k ] ) ) { $maToCoso[ mb_strtoupper( $ma ) ] = $tenByKey[ $k ]; $maList[] = preg_quote( $ma, '/' ); } }

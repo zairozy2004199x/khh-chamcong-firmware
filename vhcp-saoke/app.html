@@ -2828,6 +2828,58 @@ function renderCosoMa(){
           + '<td><input data-cm="'+esc(c.key)+'" value="'+esc(c.ma||'')+'" placeholder="mã (nếu có)" style="width:200px"></td></tr>'; }).join('')
       + '</tbody></table></div><div style="margin-top:10px"><button onclick="luuCosoMa()">Lưu mã theo cơ sở</button></div>';
   }).withFailureHandler(function(e){ var b=document.getElementById('cfgCosoMaBody'); if(b) b.textContent='Lỗi: '+e.message; }).getCosoMa(PIN);
+  renderCosoMaKvc();
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BẢNG RIÊNG CHO KHU VUI CHƠI.
+ *
+ * Anh Thắng 16/09/2026: *"cơ sở trùng tên không thể thêm bên ngoài được"*.
+ *
+ * Khu vui chơi và ghế massage cùng nằm trong MỘT trung tâm thương mại — "AEON MALL TÂN PHÚ" là
+ * tên của cả hai. Nhưng là hai sổ tiền khác nhau, hai mã nộp khác nhau (KH705MTD… / KH705KVC…).
+ * Chung một bảng, khoá theo tên đã bỏ dấu, thì cái gõ sau ĐÈ cái trước và một bên vĩnh viễn
+ * không khai được mã. Nên hai bảng, hai sổ (option `saoke_coso_ma` và `saoke_coso_ma_kvc`).
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+function renderCosoMaKvc(){
+  var host = document.getElementById('v-cfg'); if(!host) return;
+  var box = document.getElementById('cfgCosoMaKvc');
+  if(!box){ box = document.createElement('div'); box.id='cfgCosoMaKvc'; box.style.cssText='margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)'; host.appendChild(box); }
+  box.innerHTML = '<h3 style="margin:0 0 6px">Mã nộp tiền — Khu vui chơi</h3>'
+    + '<div class="muted" style="margin-bottom:8px">Sổ <b>riêng</b> của khu vui chơi, lấy cơ sở từ plugin Chi Phí. Để riêng vì nhiều cơ sở <b>trùng tên</b> với bên ghế massage (cùng một trung tâm thương mại) mà là hai sổ tiền khác nhau.</div>'
+    + '<input id="cmkSearch" placeholder="🔎 Tìm cơ sở..." oninput="cmkLoc()" style="width:260px;margin-bottom:8px">'
+    + '<div id="cfgCosoMaKvcBody" class="muted">Đang tải…</div>';
+  google.script.run.withSuccessHandler(function(r){
+    var body = document.getElementById('cfgCosoMaKvcBody'); if(!body) return;
+    if(!r || !r.ok){ body.textContent = (r && r.error) || 'Không tải được'; return; }
+    var ds = r.ds || [];
+    if(!ds.length){
+      /* Nói rõ THIẾU CÁI GÌ. "Chưa có cơ sở nào" suông thì người đọc không biết phải đi làm gì
+         tiếp: chưa cài plugin, hay đã cài mà chưa khai đơn vị cho cơ sở nào. */
+      body.textContent = r.coChiPhi
+        ? ('Chưa có cơ sở nào mang đơn vị "' + (r.donVi||'KVC') + '" bên plugin Chi Phí.')
+        : 'Chưa nối được plugin Chi Phí (phải cài chung một WordPress).';
+      return;
+    }
+    body.innerHTML = '<div style="max-height:60vh;overflow:auto"><table><thead><tr><th>Cơ sở</th><th>Tỉnh</th><th>Mã nộp tiền</th></tr></thead><tbody>'
+      + ds.map(function(c){ return '<tr data-ten="'+esc(kdJS(c.coso))+'"><td><b>'+esc(c.coso)+'</b></td><td class="muted">'+esc(c.tinh||'')+'</td>'
+          + '<td><input data-cmk="'+esc(c.key)+'" value="'+esc(c.ma||'')+'" placeholder="mã (nếu có)" style="width:200px"></td></tr>'; }).join('')
+      + '</tbody></table></div><div style="margin-top:10px"><button onclick="luuCosoMaKvc()">Lưu mã khu vui chơi</button></div>';
+  }).withFailureHandler(function(e){ var b=document.getElementById('cfgCosoMaKvcBody'); if(b) b.textContent='Lỗi: '+e.message; }).getCosoMaKvc(PIN);
+}
+function cmkLoc(){
+  var el=document.getElementById('cmkSearch'); var q=kdJS(el?el.value:'');
+  [].forEach.call(document.querySelectorAll('#cfgCosoMaKvcBody tbody tr'), function(tr){
+    tr.style.display = (!q || (tr.getAttribute('data-ten')||'').indexOf(q)>=0) ? '' : 'none';
+  });
+}
+function luuCosoMaKvc(){
+  /* Lưu TẤT CẢ ô, kể cả ô đang bị lọc ẩn — lọc chỉ để nhìn, không được làm mất dữ liệu.
+     ⚠️ `data-cmk` chứ không phải `data-cm`: trùng thuộc tính là hai bảng ghi đè sổ của nhau,
+        đúng cái lỗi bảng này sinh ra để chữa. */
+  var map = {};
+  [].forEach.call(document.querySelectorAll('#cfgCosoMaKvcBody [data-cmk]'), function(i){ var v=(i.value||'').trim(); if(v) map[i.getAttribute('data-cmk')] = v; });
+  google.script.run.withSuccessHandler(function(r){ toast('Đã lưu mã cho '+((r&&r.so)||0)+' cơ sở khu vui chơi'); }).withFailureHandler(function(e){ toast(e.message, true); }).saveCosoMaKvc(PIN, map);
 }
 function kdJS(s){ return String(s==null?'':s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d'); }
 function cmLoc(){

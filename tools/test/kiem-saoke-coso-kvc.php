@@ -29,15 +29,49 @@ function k( $ten, $ok ) {
 	if ( ! $ok ) { $LOI++; }
 }
 
-echo "── Một nguồn duy nhất ──\n";
-$goi_ghe = preg_match_all( '/self::ghe_ds_coso\(\)/', $s );
+echo "── Hai sổ đi riêng ──\n";
+/* 🔴 0.35.0 GỘP HAI NGUỒN VÀ KHỬ TRÙNG THEO TÊN — SAI, và anh Thắng bắt ngay:
+   *"cơ sở trùng tên không thể thêm bên ngoài được"*. Khu vui chơi và ghế massage cùng nằm trong
+   MỘT trung tâm thương mại nên "AEON MALL TÂN PHÚ" là tên của cả hai, mà là hai sổ tiền khác
+   nhau. Khử trùng đúng cho "đừng đếm tiền hai lần của CÙNG một nơi", sai cho "hai nơi khác hẳn
+   nhau tình cờ trùng tên". Nay mỗi bên một danh sách, một sổ mã, một bảng nhập. */
+k( '🔴 KVC có sổ mã RIÊNG (option khác)',
+	false !== strpos( $s, "get_option( 'saoke_coso_ma_kvc' )" )
+	&& false !== strpos( $s, "get_option( 'saoke_coso_ma' )" ) );
+k( 'hai option KHÔNG trùng tên', false === strpos( $s, "update_option( 'saoke_coso_ma', \$map );\n\t\tupdate_option( 'saoke_coso_ma_kvc'" ) );
+
+/* Màn nào dính TIỀN thì phải đi danh sách riêng — gộp là một bên vĩnh viễn "chưa đặt mã". */
+k( '🔴 màn nhập mã (Ghế) dùng ghe_ds_coso, KHÔNG dùng danh sách gộp',
+	1 === preg_match( '/function rpc_getCosoMa\(.*?self::ghe_ds_coso\(\)/s', $s ) );
+k( '🔴 màn nhập mã (KVC) dùng chiphi_ds_coso',
+	1 === preg_match( '/function rpc_getCosoMaKvc\(.*?self::chiphi_ds_coso\(\)/s', $s ) );
+foreach ( array( 'rpc_getCosoMa', 'rpc_getCosoMaKvc', 'rpc_getNopTienMat' ) as $ham ) {
+	k( "🔴 $ham() KHÔNG chạm danh sách gộp ds_coso_all()",
+		1 === preg_match( '/function ' . $ham . '\(.*?\n\t\}/s', $s, $mf )
+		&& false === strpos( $mf[0], 'ds_coso_all()' ) );
+}
+
+echo "── Màn nộp tiền mặt chạy CẢ HAI sổ ──\n";
+k( 'khai hai nguồn kèm sổ mã của chính nó',
+	false !== strpos( $s, "'he' => 'POSH', 'ds' => self::ghe_ds_coso(),    'cm' => self::coso_ma_map()" )
+	&& false !== strpos( $s, "'he' => 'KVC',  'ds' => self::chiphi_ds_coso(), 'cm' => self::coso_ma_map_kvc()" ) );
+k( "🔴 mỗi dòng mang cột 'he' để màn hình phân biệt hai dòng trùng tên",
+	false !== strpos( $s, "'he' => \$ng['he']," ) );
+k( 'nhãn tự động gộp CẢ HAI sổ mã (mã đã tự mang hệ nên không lẫn)',
+	false !== strpos( $s, 'self::coso_ma_map() + self::coso_ma_map_kvc()' ) );
+
+echo "── Hàm mới phải khai vào danh sách cho phép ──\n";
+/* ⚠️ Quên khai là màn hình báo "Hàm không hợp lệ" — chỉ lộ ra lúc bấm, không có gì đỏ lúc dựng. */
+foreach ( array( 'getCosoMaKvc', 'saveCosoMaKvc' ) as $fn ) {
+	k( "$fn có trong danh sách r_rpc", 1 === preg_match( "/'" . $fn . "',/", $s ) );
+	k( "$fn có hàm rpc_ tương ứng", false !== strpos( $s, 'function rpc_' . $fn . '(' ) );
+}
+
+echo "── Danh sách gộp chỉ dùng cho câu hỏi tên ──\n";
 $goi_all = preg_match_all( '/self::ds_coso_all\(\)/', $s );
-k( "🔴 ghe_ds_coso() chỉ còn gọi ĐÚNG 1 chỗ (trong ds_coso_all) — đang có $goi_ghe", 1 === $goi_ghe );
-k( "🔴 ds_coso_all() được gọi đúng 7 chỗ (đủ bảy màn cũ) — đang có $goi_all", 7 === $goi_all );
-k( 'ghe_ds_coso() được gọi TRONG ds_coso_all()',
-	1 === preg_match( '/function ds_coso_all\(\).*?self::ghe_ds_coso\(\)/s', $s ) );
-k( 'và chiphi_ds_coso() cũng vậy',
-	1 === preg_match( '/function ds_coso_all\(\).*?self::chiphi_ds_coso\(\)/s', $s ) );
+k( "ds_coso_all() còn đúng 4 chỗ, đều là hỏi-tên/liệt-kê-tên — đang có $goi_all", 4 === $goi_all );
+k( 'và nó cảnh báo rõ ĐỪNG dùng cho màn dính tiền',
+	false !== strpos( $s, 'ĐỪNG DÙNG CHO BẤT CỨ MÀN NÀO DÍNH TỚI TIỀN' ) );
 
 echo "── Cửa gác ──\n";
 /* Hai khối từng gác bằng `ghe_co()`. Giữ nguyên là site chỉ có Chi Phí (không cài Ghế) thì cả
@@ -67,8 +101,15 @@ echo "── Hai cái bẫy tiền ──\n";
    thiếu ai cũng thấy; đếm gấp đôi không ai thấy (§8). */
 k( '🔴 khử trùng theo chuan_ch() khi gộp hai nguồn',
 	1 === preg_match( '/function ds_coso_all\(\).*?\$thay\[ \$k \]/s', $s ) );
-k( 'khử trùng chạy cho CẢ hai nguồn',
-	2 === preg_match_all( '/if \( \'\' === \$k \|\| isset\( \$thay\[ \$k \] \) \) \{ continue; \}/', $s ) );
+/* 🔴 KHỬ TRÙNG PHẢI NẰM TRONG TỪNG SỔ, không chỉ ở hàm gộp. Màn nhập mã gọi thẳng
+   `chiphi_ds_coso()`, nên hai dòng trùng tên trong cùng danh mục Chi Phí sẽ ra HAI hàng nhập mà
+   chung MỘT ô lưu (sổ khoá theo `chuan_ch`): gõ hàng dưới là mất mã hàng trên, không có gì báo.
+   Bản đầu 0.36.0 để khử trùng ở ngoài và chính phép "chạy thật" bên dưới bắt được. */
+foreach ( array( 'chiphi_ds_coso', 'ds_coso_all' ) as $ham ) {
+	k( "🔴 $ham() tự khử trùng trong chính nó",
+		1 === preg_match( '/function ' . $ham . '\(\).*?\n\t\}/s', $s, $mk )
+		&& false !== strpos( $mk[0], '$thay[ $k ]' ) );
+}
 /* Cơ sở đã đóng cửa mà vẫn kéo về là mỗi kỳ có một dòng "chưa nộp" đỏ vĩnh viễn — và một dòng
    đỏ không bao giờ xanh được là dòng người ta thôi nhìn. */
 k( 'bỏ cơ sở đã đóng cửa bên Chi Phí', false !== strpos( $s, "isset( \$c['dongCua'] )" ) );
@@ -118,13 +159,13 @@ VHCP_Cfg::$coso = array(
 	array( 'ten' => '',                          'donVi' => 'KVC', 'tinh' => '', 'dongCua' => '' ),
 );
 
-$r = new ReflectionMethod( 'SAOKE_App', 'ds_coso_all' );
+$r = new ReflectionMethod( 'SAOKE_App', 'chiphi_ds_coso' );
 $r->setAccessible( true );
 $ds = $r->invoke( null );
 $ten = array();
 foreach ( (array) $ds as $c ) { $ten[] = $c['ten']; }
 
-k( '🔴 hai dòng cùng tên khác hoa/thường -> gộp còn MỘT (không thì tiền đếm hai lần)',
+k( '🔴 hai dòng KVC cùng tên khác hoa/thường -> trong CÙNG một sổ vẫn gộp còn MỘT',
 	1 === count( array_filter( $ten, function ( $x ) { return false !== mb_stripos( $x, 'aeon tân phú' ); } ) ) );
 k( '🔴 chỉ lấy đơn vị KVC — không kéo cơ sở POSH sang',
 	! in_array( 'SÂN BAY CẦN THƠ', $ten, true ) );
@@ -134,6 +175,24 @@ k( 'còn đúng 1 cơ sở (đang có ' . count( $ten ) . ': ' . implode( ' · '
 k( 'giữ được tỉnh để màn hình hiện kèm',
 	isset( $ds[0]['tinh'] ) && 'TP HCM' === $ds[0]['tinh'] );
 k( 'đánh dấu nguồn là chiphi', isset( $ds[0]['nguon'] ) && 'chiphi' === $ds[0]['nguon'] );
+
+echo "── Bảng riêng trên màn Cấu hình ──\n";
+$app = (string) file_get_contents( dirname( __DIR__, 2 ) . '/vhcp-saoke/app.html' );
+k( 'có bảng riêng "Mã nộp tiền — Khu vui chơi"', false !== strpos( $app, 'Mã nộp tiền — Khu vui chơi' ) );
+k( 'bảng Ghế gọi renderCosoMaKvc() nên nó luôn được vẽ kèm',
+	false !== strpos( $app, 'renderCosoMaKvc();' ) );
+/* 🔴 HAI BẢNG PHẢI DÙNG HAI THUỘC TÍNH KHÁC NHAU. Trùng `data-cm` là nút Lưu của bảng này quét
+   trúng ô của bảng kia và ghi đè sổ của nhau — đúng cái lỗi bảng riêng sinh ra để chữa. */
+k( '🔴 ô nhập của hai bảng mang thuộc tính KHÁC nhau (data-cm vs data-cmk)',
+	false !== strpos( $app, 'data-cmk="' ) && false !== strpos( $app, 'data-cm="' ) );
+k( 'nút lưu KVC chỉ quét ô data-cmk',
+	1 === preg_match( '/function luuCosoMaKvc\(\).*?\[data-cmk\]/s', $app ) );
+k( 'nút lưu Ghế chỉ quét ô data-cm',
+	1 === preg_match( '/function luuCosoMa\(\)\{.*?\[data-cm\]/s', $app ) );
+/* Rỗng thì phải nói THIẾU CÁI GÌ — "chưa có cơ sở nào" suông thì không ai biết đi làm gì tiếp. */
+k( 'khi rỗng, phân biệt "chưa cài Chi Phí" với "chưa khai đơn vị"',
+	false !== strpos( $app, 'Chưa nối được plugin Chi Phí' )
+	&& false !== strpos( $app, 'Chưa có cơ sở nào mang đơn vị' ) );
 
 echo "\n" . ( $LOI ? "ĐỎ: $LOI/$SO phép hỏng" : "SẠCH: $SO phép" ) . "\n";
 exit( $LOI ? 1 : 0 );
