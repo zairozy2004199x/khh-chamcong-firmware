@@ -407,6 +407,15 @@ function khh_dt_rest_doi_soat( $req ) {
 	   nên khớp 0 đồng suốt 14/14 ngày. Số cơ sở khai vẫn giữ, nhưng để ĐỐI CHIẾU với ngân hàng:
 	   khai 10 triệu mà ngân hàng nhận 8 triệu — chính chỗ lệch ấy mới là tín hiệu. */
 	$bank = khh_dt_nop_bank( $tu, $den );
+	/* 🔴 CƠ SỞ CHƯA KHAI MÃ NỘP TIỀN THÌ KHÔNG ĐƯỢC KẾT TỘI HỌ.
+	   Anh Thắng 16/09/2026 kéo sao kê về xong, cả bảng đỏ rực "chưa nộp 1,1 tr · 5,2 tr · 7,8 tr"
+	   cho mọi ngày của Lotte Gò Vấp — trong khi sự thật là chưa ai khai mã nộp tiền của quán ấy,
+	   nên không khoản nào ghép được vào. Hệ không biết mà nói như thể đã biết, và người bị nêu
+	   tên là người có thể đã nộp đủ. Không biết thì phải nói là KHÔNG BIẾT. */
+	$co_ma = array();
+	foreach ( khh_dt_ghep_bank_ds() as $g ) {
+		$co_ma[ (string) $g['cua_hang'] ] = true;
+	}
 
 	$ra = array();
 	foreach ( (array) $rows as $r ) {
@@ -462,6 +471,7 @@ function khh_dt_rest_doi_soat( $req ) {
 			'nop_muon'   => ( $co_bank && $b['ngay_nop'] > $r['ngay'] )
 				? (int) round( ( strtotime( $b['ngay_nop'] ) - strtotime( $r['ngay'] ) ) / 86400 ) : 0,
 			'qua_han'    => khh_dt_qua_han_nop( $r['ngay'] ),
+			'co_ma'      => isset( $co_ma[ (string) $r['cua_hang'] ] ),
 			/* Cơ sở khai một đằng, ngân hàng nhận một nẻo — chỉ tính khi CÓ CẢ HAI số. */
 			'lech_nop'   => ( $co_bank && $co && $nop > 0 ) ? $nop - $nop_bk : null,
 			'lech_tm'    => $co ? $dem - $tm : null,      // đếm được − POS ghi nhận

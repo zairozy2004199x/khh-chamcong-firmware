@@ -117,6 +117,12 @@ function khh_dt_ghep_bank_ds() {
 		if ( ! isset( $d['kieu'] ) ) {
 			$ds[ $i ]['kieu'] = khh_dt_kieu_khoa( isset( $d['khoa'] ) ? $d['khoa'] : '' );
 		}
+		/* Bảng khai từ bản cũ chưa có chữ để hiện — lấy tạm chính khoá, và viết hoa nếu trông
+		   như mã, để mấy ô đã khai thôi hiện chữ thường. */
+		if ( ! isset( $d['hien'] ) || '' === $d['hien'] ) {
+			$k = (string) ( isset( $d['khoa'] ) ? $d['khoa'] : '' );
+			$ds[ $i ]['hien'] = ( 'ma' === $ds[ $i ]['kieu'] ) ? strtoupper( $k ) : $k;
+		}
 	}
 	return $ds;
 }
@@ -144,7 +150,12 @@ function khh_dt_kieu_khoa( $khoa ) {
 function khh_dt_dat_ghep_bank( $ds ) {
 	$sach = array();
 	$them = function ( $khoa, $ch ) use ( &$sach ) {
-		$khoa = khh_dt_khong_dau( sanitize_text_field( (string) $khoa ) );
+		/* 🔴 GIỮ NGUYÊN CHỮ NGƯỜI TA GÕ ĐỂ HIỆN LẠI, chỉ hạ chữ thường ở BẢN ĐEM ĐI SO.
+		   Anh Thắng 16/09/2026 gõ `KH705KVCMN0002` rồi mở lại thấy `kh705kvcmn0002` — khớp vẫn
+		   đúng (hai đầu cùng hạ chữ), nhưng người khai nhìn là tưởng hệ làm hỏng mã của mình,
+		   rồi ngồi sửa lại từng ô. Hiện sai cũng là một loại hỏng. */
+		$hien = trim( sanitize_text_field( (string) $khoa ) );
+		$khoa = khh_dt_khong_dau( $hien );
 		$ch   = sanitize_text_field( (string) $ch );
 		if ( '' === $khoa || '' === $ch ) {
 			return;
@@ -156,6 +167,7 @@ function khh_dt_dat_ghep_bank( $ds ) {
 		}
 		$sach[] = array(
 			'khoa'     => $khoa,
+			'hien'     => $hien,
 			'cua_hang' => $ch,
 			'kieu'     => khh_dt_kieu_khoa( $khoa ),
 		);
@@ -179,7 +191,7 @@ function khh_dt_dat_ghep_bank( $ds ) {
 function khh_dt_ghep_theo_co_so() {
 	$ra = array();
 	foreach ( khh_dt_ghep_bank_ds() as $d ) {
-		$ra[ $d['cua_hang'] ][] = $d['khoa'];
+		$ra[ $d['cua_hang'] ][] = ( isset( $d['hien'] ) && '' !== $d['hien'] ) ? $d['hien'] : $d['khoa'];
 	}
 	return $ra;
 }
@@ -809,17 +821,32 @@ function khh_dt_cot_nguon() {
 	);
 }
 
-/** Các bảng trong site trông như sổ giao dịch ngân hàng. */
+/**
+ * Các bảng trong site trông như sổ giao dịch ngân hàng.
+ *
+ * ⚠️ DÒ THEO CỘT, KHÔNG DÒ THEO TÊN BẢNG. Bản đầu lọc tên bảng bằng một danh sách chữ
+ *    (`sepay|sao_ke|bank|…`) — và nó trượt đúng cái bảng cần tìm: màn của anh Thắng 16/09/2026
+ *    chỉ hiện `wpt9_vhg_thu` và `wpt9_vhg_sao_ke`, còn sổ thật của plugin "Sao Kê Ngân Hàng
+ *    (SePay)" thì không có trong danh sách, vì tên nó không chứa chữ nào mình đoán.
+ *
+ *    Tên bảng là thứ người khác đặt, mình không đoán được. Nhưng CỘT thì phải có: một sổ tiền
+ *    ngân hàng nào cũng phải có ngày, có số tiền, có nội dung. Nên quét mọi bảng mang tiền tố
+ *    của site rồi soi cột — bảng nào đủ ba thứ ấy mới là ứng viên.
+ */
 function khh_dt_nguon_ds() {
 	global $wpdb;
+	$tien_to = str_replace( '_', '\_', $wpdb->prefix );
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
-	$bang_ds = (array) $wpdb->get_col( 'SHOW TABLES' );
+	$bang_ds = (array) $wpdb->get_col( $wpdb->prepare( 'SHOW TABLES LIKE %s', $tien_to . '%' ) );
 	$ra      = array();
+	/* Mấy bảng lõi của WordPress thì chắc chắn không phải sổ tiền — bỏ sớm cho nhanh. */
+	$bo = array( 'posts', 'postmeta', 'comments', 'commentmeta', 'options', 'users', 'usermeta',
+		'terms', 'termmeta', 'term_taxonomy', 'term_relationships', 'links' );
 	foreach ( $bang_ds as $b ) {
 		if ( $b === khh_dt_bang_sk() ) {
 			continue;                                   // kho của chính mình
 		}
-		if ( ! preg_match( '/sepay|sao_?ke|saoke|bank|ngan_?hang|giao_?dich|_thu$/i', $b ) ) {
+		if ( in_array( substr( $b, strlen( $wpdb->prefix ) ), $bo, true ) ) {
 			continue;
 		}
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
@@ -839,6 +866,17 @@ function khh_dt_nguon_ds() {
 		if ( '' === $map['ngay'] || '' === $map['so_tien'] || '' === $map['noi_dung'] ) {
 			continue;                                   // thiếu một trong ba thì không phải sổ tiền
 		}
+		/* Cột ngày phải thật sự là ngày. Bảng nhật ký nào cũng có `noi_dung` và một cột số tên
+		   `so_tien`… ít khi, nhưng có bảng cấu hình mang đủ ba tên mà rỗng nghĩa. */
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+		$kieu = (string) $wpdb->get_var( $wpdb->prepare(
+			'SELECT DATA_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=%s AND COLUMN_NAME=%s',
+			$b,
+			$map['ngay']
+		) );
+		if ( $kieu && ! in_array( strtolower( $kieu ), array( 'date', 'datetime', 'timestamp', 'varchar', 'char', 'int', 'bigint' ), true ) ) {
+			continue;
+		}
 		// phpcs:disable WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 		$n   = (int) $wpdb->get_var( "SELECT COUNT(*) FROM `$b`" );
 		$bien = $wpdb->get_row( "SELECT MIN(`{$map['ngay']}`) tu, MAX(`{$map['ngay']}`) den FROM `$b`", ARRAY_A );
@@ -854,6 +892,18 @@ function khh_dt_nguon_ds() {
 	usort(
 		$ra,
 		function ( $a, $b ) {
+			/* Bảng có dòng lên trước bảng rỗng; trong cùng nhóm thì tên gợi ý sổ ngân hàng lên
+			   trước, rồi mới tới bảng nhiều dòng hơn. */
+			$ca = $a['so_dong'] > 0 ? 1 : 0;
+			$cb = $b['so_dong'] > 0 ? 1 : 0;
+			if ( $ca !== $cb ) {
+				return $cb - $ca;
+			}
+			$ga = preg_match( '/sepay|sao_?ke|saoke|bank|ngan_?hang|giao_?dich/i', $a['bang'] ) ? 1 : 0;
+			$gb = preg_match( '/sepay|sao_?ke|saoke|bank|ngan_?hang|giao_?dich/i', $b['bang'] ) ? 1 : 0;
+			if ( $ga !== $gb ) {
+				return $gb - $ga;
+			}
 			return $b['so_dong'] - $a['so_dong'];
 		}
 	);

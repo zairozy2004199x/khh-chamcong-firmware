@@ -929,8 +929,9 @@
     var tongLech = 0, tongHuy = 0, soCanh = 0, tongLechNop = 0, soLechNop = 0;
     /* Câu hỏi chính của tab này: TIỀN ĐÃ VỀ TÀI KHOẢN CHƯA. Đếm nó trên MỌI dòng, kể cả dòng cơ
        sở chưa nhập báo cáo — máy POS và ngân hàng đủ trả lời, không phải chờ ai gõ gì. */
-    var chuaVe = 0, soChuaVe = 0, soNopMuon = 0;
+    var chuaVe = 0, soChuaVe = 0, soNopMuon = 0, chuaKhai = {};
     ds.forEach(function (x) {
+      if (!x.co_ma && !x.co_bank) { chuaKhai[x.cua_hang] = true; return; }
       if (x.qua_han && x.thieu > 0) { chuaVe += x.thieu; soChuaVe++; }
       if (x.nop_muon >= 2) soNopMuon++;
       if (!x.co_bao_cao) return;
@@ -971,6 +972,13 @@
       (!r.co_bank
         ? '<div class="canh-ghep">Chưa nạp sao kê ngân hàng nên cột <b>Thực nộp</b> đang lấy số ' +
           'cơ sở tự khai — số ấy không kiểm được gì. Bấm <b>Nạp báo cáo → Sao kê ngân hàng</b>.</div>'
+        : '') +
+      (Object.keys(chuaKhai).length
+        ? '<div class="canh-ghep"><b>' + Object.keys(chuaKhai).length + ' cơ sở chưa khai mã nộp tiền</b> — ' +
+          'hệ chưa biết tiền của họ đã về hay chưa, nên không tính vào ô "chưa về tài khoản" và ' +
+          'không nêu tên ai. Khai ở <b>Quản trị → Sao kê ngân hàng</b>: ' +
+          esc(Object.keys(chuaKhai).map(function (t) { return String(t).slice(0, 26); }).join(' · ')) +
+          '</div>'
         : '') +
       '<div class="bang-cuon"><table><thead><tr>' +
         '<th>Ngày</th><th>Cơ sở</th><th>POS</th><th>Tiền mặt POS</th>' +
@@ -1114,6 +1122,7 @@
       '<span><i class="lo lo-thieu">▲</i> về thiếu</span>' +
       '<span><i class="lo lo-chua">✕</i> chưa về, đã quá hạn</span>' +
       '<span><i class="lo lo-cho">·</i> chưa tới hạn nộp</span>' +
+      '<span><i class="lo lo-cho">?</i> chưa khai mã nộp tiền</span>' +
       '<span><i class="lo lo-khong"></i> không có tiền mặt</span>' +
       '<span><i class="lo lo-rong"></i> không có số liệu POS</span>' +
       '</div>';
@@ -1123,6 +1132,8 @@
   /** Một ngày × cơ sở ở trạng thái nào — dùng chung cho lịch và cho thẻ trong bảng. */
   function trangThaiNop(x) {
     if (!x.phai_nop || x.phai_nop <= 0) return { ma: 'khong', dau: '', chu: 'không có tiền mặt' };
+    /* Chưa khai mã thì chưa biết — xem `theNop()`. */
+    if (!x.co_ma && !x.co_bank) return { ma: 'cho', dau: '?', chu: 'chưa khai mã nộp tiền cho cơ sở này' };
     if (!x.co_bank && !x.qua_han) return { ma: 'cho', dau: '·', chu: 'chưa tới hạn nộp' };
     var thieu = x.thieu || 0;
     if (Math.abs(thieu) < 1000) return { ma: 'du', dau: '✓', chu: 'đã nộp đủ' };
@@ -1147,6 +1158,9 @@
   function theNop(x, coBank) {
     if (!coBank) return '<span class="chip cho">chưa nạp sao kê</span>';
     if (x.phai_nop <= 0) return '<span class="chip">không có tiền mặt</span>';
+    /* Chưa khai mã nộp tiền cho cơ sở này thì hệ KHÔNG BIẾT tiền đã về hay chưa — nói "chưa nộp"
+       là kết tội một người có thể đã nộp đủ. */
+    if (!x.co_ma && !x.co_bank) return '<span class="chip cho">chưa khai mã nộp tiền</span>';
     var thieu = x.thieu || 0;
     if (Math.abs(thieu) < 1000) {
       return '<span class="chip du">đã nộp đủ</span>' +
