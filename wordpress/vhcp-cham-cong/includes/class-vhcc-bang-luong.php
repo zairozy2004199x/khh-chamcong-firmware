@@ -53,30 +53,22 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_BangLuong {
 
-	/** Tên ca của từng hậu tố — cùng bộ chữ với hàng sửa ở màn Bảng công. */
-	const TEN_HAU_TO = array( 'TT' => 'Thu tiền', 'TG' => 'Trực ghế', 'CD' => 'Ca đêm / tăng ca',
-		'CT' => 'Công tối', 'TC' => 'Tăng cường' );
 
 	/**
-	 * Chức vụ của MỘT DÒNG — tức đúng cái chữ sẽ nằm ở cột POSITION.
+	 * Chức vụ của DÒNG CHÍNH — tức chữ ở cột POSITION cho phần giờ ăn giá chính.
 	 *
-	 * 🔴 MỘT NGƯỜI CÓ THỂ RA NHIỀU DÒNG, MỖI DÒNG MỘT GIÁ. Trong file của anh Thắng có người
-	 *    mang hai dòng: Lái Tàu 19,2h × 23.000 và Lơ Tàu 49,15h × 21.000. Gộp lại thành một dòng
-	 *    là phải chọn lấy một giá cho cả hai — và chọn cách nào cũng sai tiền.
-	 *    Hệ thống vốn đã tách sẵn bằng HẬU TỐ (`ma-TT`, `ma-TG`…), nên chỗ này chỉ việc đặt tên
-	 *    cho đúng từng dòng.
+	 * 🔴 KHÔNG CÒN ĐOÁN TÊN TỪ HẬU TỐ CA. Bản trước có một bảng cố định (`TT` => 'Thu tiền'…) và
+	 *    nó sai ngay lượt đối chiếu đầu tiên với file thật: mảng Khu vui chơi gọi `TT` là **Lơ
+	 *    Tàu**, nên mười dòng tra đơn giá bằng một cái tên không ai khai và ra 0đ. Anh Thắng
+	 *    16/09/2026: *"nhiều mảng sẽ có khác nữa, nên nếu thiết kế theo tàu thì lại không đúng"*.
+	 *    Tên việc nay do người gõ (`VHCC_ChotLuong`), còn dòng chính lấy đúng chức vụ trong hồ sơ.
 	 */
-	public static function chuc_vu_dong( $hs, $hau_to ) {
-		$hau_to = strtoupper( trim( (string) $hau_to ) );
-		if ( '' === $hau_to ) {
-			$cv = trim( (string) ( isset( $hs['chuc_vu'] ) ? $hs['chuc_vu'] : '' ) );
-			if ( '' !== $cv ) { return $cv; }
-			$nv = trim( (string) ( isset( $hs['nhiem_vu'] ) ? $hs['nhiem_vu'] : '' ) );
-			if ( '' !== $nv ) { $p = explode( ',', $nv ); return trim( $p[0] ); }
-			return '';
-		}
-		if ( isset( self::TEN_HAU_TO[ $hau_to ] ) ) { return self::TEN_HAU_TO[ $hau_to ]; }
-		return $hau_to;
+	public static function chuc_vu_chinh( $hs ) {
+		$cv = trim( (string) ( isset( $hs['chuc_vu'] ) ? $hs['chuc_vu'] : '' ) );
+		if ( '' !== $cv ) { return $cv; }
+		$nv = trim( (string) ( isset( $hs['nhiem_vu'] ) ? $hs['nhiem_vu'] : '' ) );
+		if ( '' !== $nv ) { $p = explode( ',', $nv ); return trim( $p[0] ); }
+		return '';
 	}
 
 	/** Hồ sơ của cả cơ sở, đánh theo mã chữ thường — một lượt đọc, không hỏi từng người. */
@@ -107,15 +99,23 @@ class VHCC_BangLuong {
 		$hs_ds = self::ho_so_cua( $coso );
 		$so_gia = VHCC_GiaGio::so();
 
-		/* Gom giờ theo (mã, hậu tố) — đúng cách `bang_cong_tho()` gom, để hai bảng không lệch. */
+		/* 🔴 GOM VỀ MỘT TỔNG MỖI NGƯỜI — KHÔNG TÁCH THEO HẬU TỐ.
+		   Anh Thắng 16/09/2026: *"trên chấm công sẽ chỉ có giờ tổng"*. Máy ghi một con số giờ cho
+		   mỗi người; trong đó có mấy giờ dẫn chương trình, mấy giờ hỗ trợ thì máy không biết, và
+		   không dữ liệu nào suy ra được. Bản trước của em tách dòng theo hậu tố ca rồi ĐẶT TÊN
+		   cho từng dòng bằng một bảng cố định (`TT` => 'Thu tiền'…) — sai hai lần: mảng Khu vui
+		   chơi gọi `TT` là **Lơ Tàu**, còn mảng khác lại có MC / Hỗ Trợ / Partime, những việc
+		   không gắn với hậu tố nào cả. Đối chiếu file T08 thật thì mười dòng ra 0đ vì tra đơn giá
+		   bằng một cái tên không ai khai.
+		   Nay: hậu tố chỉ còn là chuyện của lưới chấm công; ở đây mọi lượt của một người cộng vào
+		   MỘT tổng, rồi `VHCC_GioKhac` trừ ra phần ăn giá khác. */
 		$gom = array();
 		foreach ( VHCC_Luong::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
-			$ht  = strtoupper( trim( (string) $r['hau_to'] ) );
-			$key = strtolower( $ma ) . '|' . $ht;
+			$key = strtolower( $ma );
 			if ( ! isset( $gom[ $key ] ) ) {
-				$gom[ $key ] = array( 'ma' => $ma, 'hauTo' => $ht, 'phut' => 0.0, 'ngay' => array(),
+				$gom[ $key ] = array( 'ma' => $ma, 'phut' => 0.0, 'ngay' => array(),
 					'ten' => trim( (string) $r['ho_ten'] ) );
 			}
 			$v = $r['gio_vao_giay'];
@@ -138,48 +138,82 @@ class VHCC_BangLuong {
 		$cong_yc = ( isset( $cfg['ngayCongThang'] ) && (float) $cfg['ngayCongThang'] > 0 )
 			? (float) $cfg['ngayCongThang'] : 0.0;
 
+		$so_khac = VHCC_ChotLuong::so();
 		$dong = array();
+		$vuot  = 0;
 		foreach ( $gom as $g ) {
 			$kma = strtolower( $g['ma'] );
 			$hs  = isset( $hs_ds[ $kma ] ) ? $hs_ds[ $kma ] : array();
-			$cv  = self::chuc_vu_dong( $hs, $g['hauTo'] );
-			$gio = round( $g['phut'] / 60, 2 );
+			$gio_tong = round( $g['phut'] / 60, 2 );
 			$lcb = (float) ( isset( $hs['luong_co_ban'] ) ? $hs['luong_co_ban'] : 0 );
-			/* ⚠️ LỐI THEO THÁNG CHỈ ÁP CHO DÒNG CA CHÍNH. Người ăn lương tháng mà có thêm dòng
-			   hậu tố (ca đêm, trực ghế) thì dòng ấy là việc NGOÀI lương tháng — tính theo giờ.
-			   Nhân lương tháng lên hai lần là trả gấp đôi cho một người. */
-			$theo_thang = ( $lcb > 0 && '' === $g['hauTo'] );
-
-			$gia = array( 'gia' => 0.0, 'tu' => 'khong' );
-			if ( ! $theo_thang ) {
-				$gia = VHCC_GiaGio::tra( $coso, $cv, $g['ma'], $so_gia );
-			}
+			$ten = ( '' !== trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) ) )
+				? trim( (string) $hs['ho_ten'] ) : $g['ten'];
+			$cccd = trim( (string) ( isset( $hs['cccd'] ) ? $hs['cccd'] : '' ) );
 			$cong_thuc = count( $g['ngay'] );
-			$luong_chinh = null;
-			if ( $theo_thang ) {
-				if ( $cong_yc > 0 ) { $luong_chinh = round( $lcb * $cong_thuc / $cong_yc, 2 ); }
-			} elseif ( $gia['gia'] > 0 ) {
-				$luong_chinh = round( $gio * $gia['gia'], 2 );
-			}
 
-			$dong[] = array(
-				'ma'        => $g['ma'],
-				'hauTo'     => $g['hauTo'],
-				'ten'       => ( '' !== trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) ) )
-					? trim( (string) $hs['ho_ten'] ) : $g['ten'],
-				'cccd'      => trim( (string) ( isset( $hs['cccd'] ) ? $hs['cccd'] : '' ) ),
-				'cv'        => $cv,
-				'cheDo'     => $theo_thang ? 'thang' : 'gio',
-				'luongCb'   => $theo_thang ? $lcb : null,
-				'congYc'    => $theo_thang ? ( $cong_yc > 0 ? $cong_yc : null ) : null,
-				'congThuc'  => $theo_thang ? $cong_thuc : null,
-				'gio'       => $theo_thang ? null : $gio,
-				'gia'       => $theo_thang ? null : ( $gia['gia'] > 0 ? $gia['gia'] : null ),
-				'giaTu'     => $gia['tu'],
-				'luongChinh' => $luong_chinh,
-				'soNgay'    => $cong_thuc,
-				'thieuGio'  => isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0,
-			);
+			/* 🔴 GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI MẤY DÒNG ĂN GIÁ KHÁC.
+			   Luật của anh Thắng 16/09/2026: kế toán chỉ gõ NGOẠI LỆ (MC 2h, Hỗ Trợ 6h…), phần
+			   còn lại tự là việc chính. Đối chiếu file T08: 118 + 2 + 6 = 126 giờ chấm công. */
+			$khac = VHCC_ChotLuong::cua( $coso, $tt, $g['ma'], $so_khac );
+			$gio_khac = 0.0;
+			foreach ( $khac as $k ) { $gio_khac += (float) $k['gio']; }
+			$gio_khac = round( $gio_khac, 2 );
+			$gio_chinh = round( $gio_tong - $gio_khac, 2 );
+			/* Chặn ở `VHCC_ChotLuong::dat()` rồi, nhưng giờ chấm công có thể TỤT sau lúc nhập (ai
+			   đó xoá một lượt chấm nhầm). Nên vẫn phải đỡ ở đây: không để ra giờ âm, và ĐẾM. */
+			if ( $gio_chinh < 0 ) { $gio_chinh = 0.0; $vuot++; }
+
+			$theo_thang = ( $lcb > 0 );
+			$mot = function ( $cv, $gio, $la_chinh ) use ( $coso, $g, $so_gia, $ten, $cccd,
+				$theo_thang, $lcb, $cong_yc, $cong_thuc, $gio_tong, $gio_khac ) {
+				$gia = VHCC_GiaGio::tra( $coso, $cv, $g['ma'], $so_gia );
+				$luong = null;
+				if ( $la_chinh && $theo_thang ) {
+					if ( $cong_yc > 0 ) { $luong = round( $lcb * $cong_thuc / $cong_yc, 2 ); }
+				} elseif ( $gia['gia'] > 0 ) {
+					$luong = round( $gio * $gia['gia'], 2 );
+				}
+				return array(
+					'ma'    => $g['ma'],
+					'ten'   => $ten,
+					'cccd'  => $cccd,
+					'cv'    => $cv,
+					'laChinh' => $la_chinh,
+					'cheDo' => ( $la_chinh && $theo_thang ) ? 'thang' : 'gio',
+					'luongCb'  => ( $la_chinh && $theo_thang ) ? $lcb : null,
+					'congYc'   => ( $la_chinh && $theo_thang ) ? ( $cong_yc > 0 ? $cong_yc : null ) : null,
+					'congThuc' => ( $la_chinh && $theo_thang ) ? $cong_thuc : null,
+					'gio'   => ( $la_chinh && $theo_thang ) ? null : $gio,
+					'gia'   => ( $la_chinh && $theo_thang ) ? null : ( $gia['gia'] > 0 ? $gia['gia'] : null ),
+					'giaTu' => $gia['tu'],
+					'luongChinh' => $luong,
+					'soNgay' => $cong_thuc,
+					'gioTong' => $gio_tong,
+					'gioKhac' => $gio_khac,
+					/* Dòng giờ khác KHÔNG mang khoản tiền nào — xem chú thích ở dòng chính. */
+					'cong' => array(), 'tru' => array(), 'tongCong' => 0.0, 'tongTru' => 0.0,
+				);
+			};
+
+			/* Dòng CHÍNH luôn có, kể cả khi giờ chính bằng 0 — bỏ đi là người đọc không thấy
+			   người ấy đâu trong bảng, tưởng sót. */
+			$d_chinh = $mot( self::chuc_vu_chinh( $hs ), $gio_chinh, true );
+			$d_chinh['thieuGio'] = isset( $g['thieuGio'] ) ? (int) $g['thieuGio'] : 0;
+			/* 🔴 KHOẢN CỘNG / TRỪ GẮN VÀO DÒNG CHÍNH, KHÔNG RẢI RA MỌI DÒNG.
+			   Một người có thể ra ba dòng (chính + MC + Hỗ Trợ) nhưng cái cọc 200.000 chỉ trừ
+			   MỘT LẦN. Rải ra mỗi dòng là trừ ba lần — và bảng vẫn có số nên không ai thấy. */
+			$kt = VHCC_ChotLuong::tien_cua( $coso, $tt, $g['ma'], $so_khac );
+			$tt_tien = VHCC_ChotLuong::tong_tien( $coso, $tt, $g['ma'], $so_khac );
+			$d_chinh['cong']     = $kt['cong'];
+			$d_chinh['tru']      = $kt['tru'];
+			$d_chinh['tongCong'] = $tt_tien['cong'];
+			$d_chinh['tongTru']  = $tt_tien['tru'];
+			$dong[] = $d_chinh;
+			foreach ( $khac as $k ) {
+				$d_k = $mot( (string) $k['viec'], round( (float) $k['gio'], 2 ), false );
+				$d_k['thieuGio'] = 0;
+				$dong[] = $d_k;
+			}
 		}
 
 		/* Xếp theo TÊN rồi tới hậu tố, để hai dòng của cùng một người đứng liền nhau — đúng như
@@ -187,7 +221,9 @@ class VHCC_BangLuong {
 		usort( $dong, function ( $a, $b ) {
 			$c = strcmp( $a['ten'], $b['ten'] );
 			if ( 0 !== $c ) { return $c; }
-			return strcmp( $a['hauTo'], $b['hauTo'] );
+			/* Dòng chính đứng trước các dòng giờ khác của cùng người — đúng như file kế toán. */
+			if ( $a['laChinh'] !== $b['laChinh'] ) { return $a['laChinh'] ? -1 : 1; }
+			return strcmp( $a['cv'], $b['cv'] );
 		} );
 		$i = 0;
 		foreach ( $dong as &$d ) { $d['stt'] = ++$i; }
@@ -331,11 +367,20 @@ class VHCC_BangLuong {
 				$dong[] = $trong( $T );                                   // K lương giờ thêm
 				$dong[] = $trong( $T );                                   // L BHXH
 				$dong[] = $ct( 'I' . $r . '+K' . $r . '-L' . $r, $T );    // M tổng lương
-				for ( $i = 0; $i < 7; $i++ ) { $dong[] = $trong( $T ); }  // N..T
+				/* 🔴 BẢY CỘT CỘNG ĐỔ THẲNG TỪ SỐ CỬA HÀNG TRƯỞNG ĐÃ GÕ — anh Thắng 16/09/2026
+				   đổi quyết định hôm trước ("để trống, kế toán điền"): *"mấy cột đó sẽ do cửa
+				   hàng trưởng nhập"*. Ô nào chưa gõ vẫn để TRỐNG chứ không ghi 0: một tờ lương
+				   đầy số 0 trông như đã xét hết mọi khoản, trong khi chưa ai gõ gì. */
+				foreach ( array_keys( VHCC_ChotLuong::CONG ) as $k_c ) {   // N..T
+					$dong[] = empty( $x['cong'][ $k_c ] ) ? $trong( $T )
+						: $o( (float) $x['cong'][ $k_c ], $T );
+				}
 				$dong[] = $ct( 'SUM(N' . $r . ':T' . $r . ')', $T );      // U
-				$dong[] = $trong( $T );                                   // V phạt
-				$dong[] = $trong( $T );                                   // W
-				$dong[] = $trong( $T );                                   // X đặt cọc
+				$dong[] = empty( $x['tru']['phat'] ) ? $trong( $T )
+					: $o( (float) $x['tru']['phat'], $T );                // V phạt
+				$dong[] = $trong( $T );                                   // W (cột trống của mẫu)
+				$dong[] = empty( $x['tru']['datCoc'] ) ? $trong( $T )
+					: $o( (float) $x['tru']['datCoc'], $T );              // X đặt cọc
 				$dong[] = $ct( 'SUM(V' . $r . ':X' . $r . ')', $T );      // Y
 				$dong[] = $ct( 'M' . $r . '+U' . $r . '-Y' . $r, $T );    // Z
 			}

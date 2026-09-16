@@ -156,11 +156,19 @@ teq( 'và giá không đổi', 23000.0, VHCC_GiaGio::tra( 'AEON_BT', 'Lái Tàu'
  * 2. DỰNG BẢNG — ĐỐI CHIẾU VỚI CHÍNH SỐ KẾ TOÁN ĐÃ TRẢ THÁNG 8/2026
  * ═════════════════════════════════════════════════════════════════════════════════════════════*/
 
-/* Gieo giờ sao cho tổng ra ĐÚNG số giờ trong file, rồi soi tiền.
-   Một người ở Aeon Bình Tân: Lái Tàu 19,2h × 23.000 = 441.600 · Lơ Tàu 49,15h × 21.000 =
-   1.032.150 — hai dòng, hai giá, cùng một người. */
-$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_LANH', 'ho_ten' => 'Người Hai Chức Vụ',
-	'cccd' => '000000000011', 'cua_hang' => 'AEON_BT', 'chuc_vu' => 'Lái Tàu', 'vai_tro' => 'Nhân viên' ) );
+/* 🔴 LUẬT MỚI, 16/09/2026 — GIỜ TỔNG LÀ GIỜ CHÍNH, TRỪ ĐI GIỜ ĂN GIÁ KHÁC.
+   Anh Thắng: *"trên chấm công sẽ chỉ có giờ tổng"* và *"kế toán sẽ làm 1 việc, nhập giờ lương
+   khác, nó sẽ trừ giờ tổng đi"*.
+
+   Bản trước của em tách dòng theo HẬU TỐ CA rồi đặt tên bằng một bảng cố định. Đối chiếu file
+   T08 thật thì MƯỜI dòng ra 0đ: mảng Khu vui chơi gọi hậu tố `TT` là **Lơ Tàu**, còn bảng cố
+   định nói là "Thu tiền" — tra đơn giá bằng một cái tên không ai khai. Chính lượt đối chiếu ấy
+   bắt được, chứ không phép thử nào trước đó thấy.
+
+   Cảnh dưới đây lấy đúng từ ảnh anh Thắng gửi: một người 126 giờ chấm công, trong đó 2 giờ MC
+   và 6 giờ Hỗ Trợ, còn lại 118 giờ Partime. 118 + 2 + 6 = 126. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'BT_MAN', 'ho_ten' => 'Người Ba Loại Việc',
+	'cccd' => '000000000011', 'cua_hang' => 'AEON_BT', 'chuc_vu' => 'Partime', 'vai_tro' => 'Nhân viên' ) );
 
 $gieo = function ( $ma, $cs, $ngay, $vao_g, $so_phut, $hau_to = '' ) use ( $wpdb ) {
 	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
@@ -168,35 +176,89 @@ $gieo = function ( $ma, $cs, $ngay, $vao_g, $so_phut, $hau_to = '' ) use ( $wpdb
 		'gio_vao_giay' => $vao_g, 'gio_ra_giay' => $vao_g + (int) round( $so_phut * 60 ),
 		'hau_to' => $hau_to, 'nguon' => 'may' ) );
 };
-/* 19,2 giờ = 1152 phút, chia hai ngày cho giống thật. */
-$gieo( 'BT_LANH', 'AEON_BT', '2026-08-01', 8 * 3600, 600 );
-$gieo( 'BT_LANH', 'AEON_BT', '2026-08-02', 8 * 3600, 552 );
-/* 49,15 giờ = 2949 phút, dòng Lơ Tàu (hậu tố TT). */
-$gieo( 'BT_LANH', 'AEON_BT', '2026-08-03', 8 * 3600, 1500, 'TT' );
-$gieo( 'BT_LANH', 'AEON_BT', '2026-08-04', 8 * 3600, 1449, 'TT' );
+/* 126 giờ = 7560 phút, rải nhiều ngày. Cố ý cho MỘT ngày mang hậu tố ca đêm: hậu tố là chuyện
+   của lưới chấm công, KHÔNG được đẻ ra một dòng lương riêng nữa. */
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-01', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-02', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-03', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-04', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-05', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-06', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-07', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-08', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-09', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-10', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-11', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-12', 8 * 3600, 600 );
+$gieo( 'BT_MAN', 'AEON_BT', '2026-08-13', 22 * 3600, 360, 'CD' );   // hậu tố, vẫn cộng vào tổng
 
-/* Hậu tố TT vốn mang tên "Thu tiền" — ở cơ sở này nó là Lơ Tàu, nên khai giá cho đúng cái tên
-   mà bảng in ra. Đây chính là lý do màn khai phải liệt kê chức vụ ĐANG DÙNG THẬT của tháng. */
 VHCC_GiaGio::dat_coso( $U_KT, 'AEON_BT',
-	array( 'Lái Tàu' => 23000, 'Lơ Tàu' => 21000, 'Thu tiền' => 21000 ) );
+	array( 'Partime' => 20000, 'MC' => 30000, 'Hỗ Trợ' => 25000, 'Lái Tàu' => 23000 ) );
 
-$b = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
-t( 'dựng được bảng', ! empty( $b['ok'] ), $b );
-teq( '🔴 một người hai chức vụ ra HAI dòng', 2, count( $b['dong'] ) );
+/* Chưa nhập giờ khác: cả 126 giờ là giờ chính, MỘT dòng duy nhất. */
+$b0 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$d0 = null;
+foreach ( $b0['dong'] as $d ) { if ( 'BT_MAN' === $d['ma'] ) { $d0 = $d; } }
+teq( '🔴 chưa nhập giờ khác thì ra ĐÚNG MỘT dòng', 126.0, $d0['gio'] );
+teq( 'và hậu tố ca đêm KHÔNG đẻ ra dòng lương riêng', true, (bool) $d0['laChinh'] );
+teq( 'ăn đơn giá của chức vụ trong hồ sơ', 20000.0, $d0['gia'] );
+teq( 'lương chính 126 × 20.000', 2520000.0, $d0['luongChinh'] );
 
-$d_chinh = null; $d_tt = null;
-foreach ( $b['dong'] as $d ) {
-	if ( '' === $d['hauTo'] ) { $d_chinh = $d; } else { $d_tt = $d; }
-}
-teq( '🔴 dòng ca chính: 19,2 giờ đúng như file', 19.2, $d_chinh['gio'] );
-teq( 'ăn đơn giá Lái Tàu 23.000', 23000.0, $d_chinh['gia'] );
-teq( '🔴 lương chính 441.600đ — đúng số kế toán đã trả', 441600.0, $d_chinh['luongChinh'] );
-teq( '🔴 dòng thứ hai: 49,15 giờ', 49.15, $d_tt['gio'] );
-teq( 'ăn đơn giá 21.000, KHÔNG phải 23.000 của dòng kia', 21000.0, $d_tt['gia'] );
-teq( '🔴 lương chính 1.032.150đ — đúng số kế toán đã trả', 1032150.0, $d_tt['luongChinh'] );
-teq( 'tên lấy từ hồ sơ', 'Người Hai Chức Vụ', $d_chinh['ten'] );
-teq( 'và số căn cước cũng vậy', '000000000011', $d_chinh['cccd'] );
-teq( 'hai dòng của cùng một người đứng liền nhau', 1, $d_chinh['stt'] );
+/* 🔴 NHẬP HAI DÒNG GIỜ KHÁC — hệ tự trừ ra. */
+$r_gk = VHCC_ChotLuong::dat( $U_CHT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => '2' ), array( 'viec' => 'Hỗ Trợ', 'gio' => '6' ) ), 126 );
+t( '🔴 cửa hàng trưởng nhập được giờ lương khác', ! empty( $r_gk['ok'] ), $r_gk );
+teq( 'hệ tự tính giờ chính còn lại', 118.0, $r_gk['chinh'] );
+
+$b1 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$ds = array();
+foreach ( $b1['dong'] as $d ) { if ( 'BT_MAN' === $d['ma'] ) { $ds[ $d['cv'] ] = $d; } }
+teq( '🔴 ra BA dòng: chính + hai loại việc', 3, count( $ds ) );
+teq( '🔴 Partime 118 giờ — đúng ảnh anh Thắng gửi', 118.0, $ds['Partime']['gio'] );
+teq( '   × 20.000 = 2.360.000', 2360000.0, $ds['Partime']['luongChinh'] );
+teq( '🔴 MC 2 giờ', 2.0, $ds['MC']['gio'] );
+teq( '   × 30.000 = 60.000', 60000.0, $ds['MC']['luongChinh'] );
+teq( '🔴 Hỗ Trợ 6 giờ', 6.0, $ds['Hỗ Trợ']['gio'] );
+teq( '   × 25.000 = 150.000', 150000.0, $ds['Hỗ Trợ']['luongChinh'] );
+teq( 'dòng chính được đánh dấu là chính', true, (bool) $ds['Partime']['laChinh'] );
+teq( 'hai dòng kia thì không', false, (bool) $ds['MC']['laChinh'] );
+/* Ba dòng cộng lại vẫn đúng 126 giờ — không tạo ra giờ từ hư không, không đánh rơi giờ nào. */
+teq( '🔴 ba dòng cộng lại = giờ chấm công', 126.0,
+	round( $ds['Partime']['gio'] + $ds['MC']['gio'] + $ds['Hỗ Trợ']['gio'], 2 ) );
+
+/* 🔴 GÕ QUÁ GIỜ CHẤM CÔNG THÌ BỊ CHỐI — không để giờ chính ra âm. */
+$r_qua = VHCC_ChotLuong::dat( $U_CHT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => '200' ) ), 126 );
+t( '🔴 tổng giờ khác vượt giờ chấm công: BỊ CHỐI', empty( $r_qua['ok'] ), $r_qua );
+t( 'và câu chối nói rõ đang lệch bao nhiêu',
+	false !== strpos( (string) $r_qua['error'], '126' ), $r_qua );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CÁC KHOẢN CỘNG / TRỪ — cửa hàng trưởng nhập (anh Thắng 16/09/2026)
+ * ═════════════════════════════════════════════════════════════════════════════════════════════*/
+$r_t = VHCC_ChotLuong::dat_tien( $U_CHT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( 'traTN' => '2000000', 'hoanCoc' => '300000' ), array( 'datCoc' => '100000' ) );
+t( '🔴 cửa hàng trưởng nhập được khoản cộng / trừ', ! empty( $r_t['ok'] ), $r_t );
+teq( 'tổng cộng', 2300000.0, $r_t['cong'] );
+teq( 'tổng trừ', 100000.0, $r_t['tru'] );
+
+$b2 = VHCC_BangLuong::dung( 'AEON_BT', '2026-08' );
+$dc = null;
+foreach ( $b2['dong'] as $d ) { if ( 'BT_MAN' === $d['ma'] && $d['laChinh'] ) { $dc = $d; } }
+teq( '🔴 khoản tiền gắn vào DÒNG CHÍNH', 2300000.0, $dc['tongCong'] );
+teq( 'và khoản trừ cũng vậy', 100000.0, $dc['tongTru'] );
+/* 🔴 KHÔNG RẢI RA MỌI DÒNG. Một cái cọc chỉ trừ MỘT LẦN, dù người ấy có ba dòng việc. */
+teq( '🔴 dòng giờ khác KHÔNG mang khoản tiền nào', 0.0, $ds['MC']['tongCong'] );
+
+/* Số âm bị chối — muốn trừ thì gõ vào nhóm giảm trừ, không phải gõ số âm vào nhóm cộng. */
+$r_am = VHCC_ChotLuong::dat_tien( $U_CHT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( 'target' => '-500000' ), array() );
+t( '🔴 số âm ở nhóm cộng bị chối', empty( $r_am['ok'] ), $r_am );
+
+/* Cơ sở khác thì không đụng được — mở cửa cho cửa hàng trưởng không kéo theo mở phạm vi. */
+$r_xa = VHCC_ChotLuong::dat_tien( $U_CHT, 'LOTTE_GV', '2026-08', 'BT_MAN',
+	array( 'target' => '500000' ), array() );
+t( '🔴 cửa hàng trưởng KHÔNG nhập được cho cơ sở khác', empty( $r_xa['ok'] ), $r_xa );
 
 /* ---- Lối THEO THÁNG: 4.000.000 × 26/26 = 4.000.000 ---- */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TP_TRUYEN',
@@ -247,16 +309,32 @@ $b5 = VHCC_BangLuong::dung( 'KHO_LA', '2026-08' );
 teq( '🔴 ngày quên chấm ra KHÔNG cộng phút nào vào', 8.0, $b5['dong'][0]['gio'] );
 teq( '🔴 nhưng bảng ĐẾM và nói ra', 1, $b5['thieu']['gio'] );
 
-/* ---- Người ăn lương tháng mà có thêm dòng hậu tố ---- */
+/* ---- Người ăn lương tháng: hậu tố ca KHÔNG còn đẻ ra dòng lương riêng ----
+   Luật 16/09/2026. Trước đây một ngày mang hậu tố `CD` sinh ra dòng lương thứ hai tính theo
+   giờ; nay hậu tố chỉ là chuyện của lưới chấm công, và ngày ấy đếm vào số công như mọi ngày. */
 $gieo( 'TP_TRUYEN', 'AEON_TP', '2026-08-27', 22 * 3600, 300, 'CD' );
-VHCC_GiaGio::dat_coso( $U_KT, 'AEON_TP', array( 'Ca đêm / tăng ca' => 30000 ) );
 $b6 = VHCC_BangLuong::dung( 'AEON_TP', '2026-08' );
-teq( 'ra hai dòng', 2, count( $b6['dong'] ) );
-$d_cd = null; $d_ch = null;
-foreach ( $b6['dong'] as $d ) { if ( 'CD' === $d['hauTo'] ) { $d_cd = $d; } else { $d_ch = $d; } }
-teq( '🔴 dòng ca chính vẫn ăn trọn lương tháng', 4000000.0, $d_ch['luongChinh'] );
-teq( '🔴 dòng ca đêm tính THEO GIỜ, không nhân lương tháng lần hai', 'gio', $d_cd['cheDo'] );
-teq( 'ca đêm 5 giờ × 30.000 = 150.000', 150000.0, $d_cd['luongChinh'] );
+$d_ch = null;
+foreach ( $b6['dong'] as $d ) { if ( 'TP_TRUYEN' === $d['ma'] ) { $d_ch = $d; } }
+teq( '🔴 vẫn ĐÚNG MỘT dòng cho người ấy', 1,
+	count( array_filter( $b6['dong'], function ( $x ) { return 'TP_TRUYEN' === $x['ma']; } ) ) );
+teq( 'ngày mang hậu tố đếm vào số công như mọi ngày', 27, $d_ch['congThuc'] );
+teq( '🔴 lương tháng theo số công thực: 4.000.000 × 27/26', 4153846.15, $d_ch['luongChinh'] );
+
+/* 🔴 KẾ TOÁN CŨNG NHẬP ĐƯỢC, KHÔNG CHỈ CỬA HÀNG TRƯỞNG.
+   Anh Thắng 16/09/2026: *"kế toán và cửa hàng trưởng chứ em, anh nói là từ dưới đi lên"* —
+   cửa hàng trưởng gõ trước, kế toán soi lại và sửa. Cửa gác là `cong_coso` (bậc Cửa hàng
+   trưởng); Kế toán bậc cao hơn nên qua luôn — phép này canh đúng điều ấy, để ngày ai siết
+   `cong_coso` lên bậc khác thì biết là đã chặn mất kế toán. */
+$r_kt_gio = VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => '3' ) ), 126 );
+t( '🔴 kế toán nhập được giờ lương khác', ! empty( $r_kt_gio['ok'] ), $r_kt_gio );
+$r_kt_tien = VHCC_ChotLuong::dat_tien( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( 'traTN' => '2000000', 'hoanCoc' => '300000' ), array( 'datCoc' => '100000' ) );
+t( 'và sửa được khoản tiền cửa hàng trưởng vừa gõ', ! empty( $r_kt_tien['ok'] ), $r_kt_tien );
+/* Trả lại đúng cảnh cũ cho mấy phép phía sau. */
+VHCC_ChotLuong::dat( $U_KT, 'AEON_BT', '2026-08', 'BT_MAN',
+	array( array( 'viec' => 'MC', 'gio' => '2' ), array( 'viec' => 'Hỗ Trợ', 'gio' => '6' ) ), 126 );
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * 3. TỆP XUẤT RA — ĐÚNG DẠNG FILE KẾ TOÁN, VÀ MỞ ĐƯỢC
@@ -305,13 +383,13 @@ $tim = function ( $ten ) use ( $h, $gv ) {
 	for ( $i = 8; $i < count( $h ); $i++ ) { if ( $ten === $gv( $i, 1 ) ) { return $i; } }
 	return -1;
 };
-$d1 = $tim( 'Người Hai Chức Vụ' );
-t( 'tìm thấy dòng của người hai chức vụ', $d1 >= 8, $d1 );
+$d1 = $tim( 'Người Ba Loại Việc' );
+t( 'tìm thấy dòng của người ba loại việc', $d1 >= 8, $d1 );
 $r1 = $d1 + 1;   // số dòng trong Excel (1-indexed)
-teq( 'cột tên đúng người', 'Người Hai Chức Vụ', $gv( $d1, 1 ) );
+teq( 'cột tên đúng người', 'Người Ba Loại Việc', $gv( $d1, 1 ) );
 teq( '🔴 số căn cước GIỮ SỐ 0 ĐẦU — nó đi vào hồ sơ bảo hiểm', '000000000011', $gv( $d1, 2 ) );
-teq( 'cột G = số giờ', 19.2, $gv( $d1, 6 ) );
-teq( 'cột H = đơn giá', 23000.0, $gv( $d1, 7 ) );
+teq( 'cột G = số giờ', 118.0, $gv( $d1, 6 ) );
+teq( 'cột H = đơn giá', 20000.0, $gv( $d1, 7 ) );
 teq( '🔴 cột I là CÔNG THỨC, không phải số chết', '=G' . $r1 . '*H' . $r1, $gv( $d1, 8 ) );
 teq( 'cột M = I+K−L, đúng công thức đọc từ file', '=I' . $r1 . '+K' . $r1 . '-L' . $r1, $gv( $d1, 12 ) );
 teq( 'cột U = tổng nhóm cộng', '=SUM(N' . $r1 . ':T' . $r1 . ')', $gv( $d1, 20 ) );
@@ -320,9 +398,16 @@ teq( 'cột Z = M+U−Y, đúng công thức đọc từ file', '=M' . $r1 . '+U
 
 /* 🔴 CỘT J K L N..Y ĐỂ TRỐNG — anh Thắng chốt kế toán điền. Có số 0 ở đấy là nói dối rằng hệ
    đã xét tới chúng. */
-foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 21 => 'V', 23 => 'X' ) as $ci => $ten ) {
-	teq( '🔴 cột ' . $ten . ' để TRỐNG cho kế toán điền, không phải số 0', null, $gv( $d1, $ci ) );
+/* 🔴 LUẬT ĐỔI 16/09/2026: mấy cột cộng/trừ nay DO NGƯỜI GÕ TRÊN TRANG, không để trống chờ kế
+   toán nữa. Nhưng luật "ô chưa gõ thì để TRỐNG, không ghi 0" thì GIỮ NGUYÊN — một tờ lương đầy
+   số 0 trông như đã xét hết mọi khoản, trong khi chưa ai gõ gì. */
+foreach ( array( 9 => 'J', 10 => 'K', 11 => 'L', 13 => 'N', 21 => 'V' ) as $ci => $ten ) {
+	teq( '🔴 cột ' . $ten . ' chưa ai gõ thì để TRỐNG, không phải số 0', null, $gv( $d1, $ci ) );
 }
+/* Ô ĐÃ gõ thì đổ thẳng số vào tờ xuất — đây là chỗ khác hẳn bản hôm qua. */
+teq( '🔴 cột X (Đặt cọc) mang đúng số đã gõ trên trang', 100000.0, $gv( $d1, 23 ) );
+teq( 'cột S (Trả TN) cũng vậy', 2000000.0, $gv( $d1, 18 ) );
+teq( 'cột T (Hoàn cọc) cũng vậy', 300000.0, $gv( $d1, 19 ) );
 
 /* 🔴 DÒNG CHƯA KHAI GIÁ: KHÔNG MỘT CÔNG THỨC NÀO, và nói thẳng vì sao.
    Để `M=I+K−L` chạy trên dòng I trống thì M ra 0 — trông y như người này tháng nay không có
@@ -342,7 +427,10 @@ t( '🔴 và ghi chú NÓI THẲNG vì sao trống',
 /* Dòng tổng cộng bằng SUM, để kế toán sửa một ô là tổng theo ngay. */
 $d_tong = count( $h ) - 1;
 t( 'dòng cuối là dòng TỔNG', false !== strpos( (string) $gv( $d_tong, 1 ), 'TỔNG' ), $gv( $d_tong, 1 ) );
-teq( 'tổng cột Z cộng bằng SUM', '=SUM(Z9:Z11)', $gv( $d_tong, 25 ) );
+/* ⚠️ Vùng SUM phải trải ĐÚNG số dòng dữ liệu đang có — đóng cứng Z9:Z11 là mỗi lần đồ thử thêm
+   một người thì phép này đỏ vì lý do chẳng liên quan. Tính từ chính số dòng. */
+teq( 'tổng cột Z cộng bằng SUM trải đủ mọi dòng',
+	'=SUM(Z9:Z' . ( $d_tong ) . ')', $gv( $d_tong, 25 ) );
 
 /* Ô gộp và độ rộng cột — lấy theo đúng file, để mở ra trông y hệt cái kế toán đang dùng. */
 t( 'có gộp ô tiêu đề nhóm cộng (N7:U7)', in_array( 'N7:U7', $to['gop'], true ), $to['gop'] );
@@ -421,7 +509,7 @@ t( '🔴 cửa hàng trưởng thấy khối Bảng lương cơ sở',
 	false !== strpos( $h_cht, 'Bảng lương cơ sở' ), substr( $h_cht, 0, 400 ) );
 t( 'có nút xuất bảng lương', false !== strpos( $h_cht, 'xuat=luong' ), 'thiếu nút xuất' );
 t( 'bảng hiện tên người và số giờ',
-	false !== strpos( $h_cht, 'Người Hai Chức Vụ' ) && false !== strpos( $h_cht, '19,20' ), $h_cht );
+	false !== strpos( $h_cht, 'Người Ba Loại Việc' ) && false !== strpos( $h_cht, '118,00' ), $h_cht );
 /* 🔴 DÒNG CHƯA KHAI GIÁ PHẢI KÊU TO, TRÊN ĐẦU BẢNG — không phải nằm lẫn ở cột ghi chú cuối. */
 t( '🔴 màn cảnh báo ngay đầu khối về dòng chưa khai đơn giá',
 	false !== strpos( $h_cht, 'chưa khai đơn giá giờ' ), $h_cht );
@@ -496,5 +584,73 @@ foreach ( array(
 	t( '🔴 ' . basename( $_tep ) . ': không có dãy số nào trông như căn cước thật',
 		empty( $_xau ), implode( ' · ', array_unique( $_xau ) ) );
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 6. ĐƯỜNG NGƯỜI DÙNG ĐI — KHỐI NHẬP CÓ VẼ RA, VÀ NÚT CÓ ĂN
+ * ═════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 Đúng bài học `sua_gio` hôm 15/09: quyền đúng, lõi đúng, khối vẽ đúng — mà tên việc không
+ *    có trong danh sách trắng thì bấm nút không ăn, và 5000 phép vẫn xanh vì chúng gọi thẳng
+ *    vào lõi. Nên mục này đi đúng đường người dùng đi.
+ */
+teq( '🔴 việc chốt lương có tên trong danh sách việc của màn Bảng công',
+	true, in_array( 'chot_luong', VHCC_Web::VIEC_CHAM, true ) );
+
+$h_bl = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' ) );
+t( '🔴 có đường mở khối nhập trên mỗi hàng', false !== strpos( $h_bl, 'clm=' ), 'thiếu nút nhập' );
+t( 'bảng có cột Cộng / Trừ / Thực nhận',
+	false !== strpos( $h_bl, '<th>Cộng</th>' ) && false !== strpos( $h_bl, '<th>Thực nhận</th>' ), $h_bl );
+
+$h_mo = vhcc_man( 'CHT_BL', 'Cửa hàng trưởng', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+t( '🔴 bấm vào thì hiện khối nhập', false !== strpos( $h_mo, 'value="chot_luong"' ), 'thiếu khối nhập' );
+t( 'có ô tên việc và ô số giờ',
+	false !== strpos( $h_mo, 'name="cl_viec[0]"' ) && false !== strpos( $h_mo, 'name="cl_gio[0]"' ), $h_mo );
+foreach ( array_keys( VHCC_ChotLuong::CONG ) as $k_c ) {
+	t( 'có ô cộng "' . VHCC_ChotLuong::CONG[ $k_c ] . '"',
+		false !== strpos( $h_mo, 'name="cl_cong[' . $k_c . ']"' ), $k_c );
+}
+foreach ( array_keys( VHCC_ChotLuong::TRU ) as $k_t ) {
+	t( 'có ô trừ "' . VHCC_ChotLuong::TRU[ $k_t ] . '"',
+		false !== strpos( $h_mo, 'name="cl_tru[' . $k_t . ']"' ), $k_t );
+}
+t( 'khối nhập nói rõ giờ chấm công của người ấy', false !== strpos( $h_mo, '126' ), $h_mo );
+
+/* 🔴 NHÂN VIÊN BẬC 1 KHÔNG THẤY KHỐI NÀY — nó sửa được tiền. */
+$h_nv_bl = vhcc_man( 'NV_BL', 'Nhân viên', 'AEON_BT',
+	array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08', 'clm' => 'BT_MAN' ) );
+t( '🔴 nhân viên bậc 1 KHÔNG mở được khối nhập',
+	false === strpos( $h_nv_bl, 'value="chot_luong"' ), 'lộ khối nhập cho bậc 1' );
+
+/* ---- 🔴 GỬI THẬT MỘT LƯỢT POST ---- */
+$tok_bl = VHCC_Auth::phat_token( 'Trưởng BL', 'Cửa hàng trưởng', 'AEON_BT', 'CHT_BL' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_bl );
+$_GET  = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' );
+$_POST = array( 'viec' => 'chot_luong', 'ky' => VHCC_Web::chu_ky( $tok_bl ),
+	'ccs' => 'AEON_BT', 'cth' => '2026-08', 'cl_ma' => 'BT_MAN',
+	'cl_viec' => array( 0 => 'MC', 1 => 'Hỗ Trợ' ), 'cl_gio' => array( 0 => '2', 1 => '6' ),
+	'cl_cong' => array( 'target' => '500000' ), 'cl_tru' => array( 'phat' => '150000' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_post_bl = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 bấm Lưu trên màn thì giờ khác vào sổ thật', 8.0,
+	VHCC_ChotLuong::tong_cua( 'AEON_BT', '2026-08', 'BT_MAN' ) );
+$tt_bl = VHCC_ChotLuong::tong_tien( 'AEON_BT', '2026-08', 'BT_MAN' );
+teq( 'và khoản cộng cũng vậy', 500000.0, $tt_bl['cong'] );
+teq( 'và khoản trừ cũng vậy', 150000.0, $tt_bl['tru'] );
+t( 'màn KHÔNG báo câu chối về màn Hồ sơ',
+	false === strpos( $h_post_bl, 'thuộc màn Hồ sơ' ), substr( $h_post_bl, 0, 500 ) );
+
+/* 🔴 Ô ẨN "giờ chấm công" KHÔNG ĐƯỢC TIN. Sửa HTML gửi lên 900 giờ thì vẫn phải bị chối bằng
+   con số máy chủ tự đọc lại, chứ không phải bằng con số trong biểu mẫu. */
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_bl );
+$_GET  = array( 'man' => 'cham', 'ccs' => 'AEON_BT', 'cth' => '2026-08' );
+$_POST = array( 'viec' => 'chot_luong', 'ky' => VHCC_Web::chu_ky( $tok_bl ),
+	'ccs' => 'AEON_BT', 'cth' => '2026-08', 'cl_ma' => 'BT_MAN',
+	'cl_gio_cham' => '9999',
+	'cl_viec' => array( 0 => 'MC' ), 'cl_gio' => array( 0 => '900' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 gõ 900 giờ kèm ô ẩn giả: KHÔNG ăn, sổ giữ nguyên', 8.0,
+	VHCC_ChotLuong::tong_cua( 'AEON_BT', '2026-08', 'BT_MAN' ) );
 
 ket_luan();

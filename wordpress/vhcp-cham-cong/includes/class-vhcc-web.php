@@ -907,7 +907,7 @@ class VHCC_Web {
 		   cần nó nhất là Quản lý (bậc 3) — mà `co_ho_so` đòi bậc 4, nên để ngoài danh sách này
 		   là chối đúng người cần dùng, bằng một câu nói về màn Hồ sơ họ không hề đụng tới. Hai
 		   việc này tự hỏi `ngoai_coso` + `co_quyen_coso` ngay dòng đầu — chặt hơn, không lỏng hơn. */
-		'doi_chieu_app', 'nap_app',
+		'doi_chieu_app', 'nap_app', 'chot_luong',
 		/* Khai đơn giá là việc của tab Cấu hình, không dính gì tới màn Hồ sơ. Chốt thật ở
 		   `VHCC_GiaGio::gac()` — bậc Kế toán, chặt hơn chốt dưới chứ không lỏng hơn. */
 		'gia_gio' );
@@ -1322,6 +1322,45 @@ class VHCC_Web {
 			}
 			if ( ! $bao_g ) { $bao_g[] = array( 'loi' => 'Không có ô đơn giá nào được gửi lên.' ); }
 			return $bao_g;
+		}
+
+		/* CHỐT LƯƠNG THÁNG CỦA MỘT NGƯỜI — giờ ăn giá khác + khoản cộng/trừ. Gác thật nằm trong
+		   `VHCC_ChotLuong::gac()` (bậc Cửa hàng trưởng + đúng phạm vi cơ sở); ở đây chỉ đọc
+		   biểu mẫu rồi chuyển xuống. */
+		if ( 'chot_luong' === $viec ) {
+			$cs_c = isset( $_POST['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_POST['ccs'] ) ) : '';
+			$th_c = isset( $_POST['cth'] ) ? sanitize_text_field( wp_unslash( $_POST['cth'] ) ) : '';
+			$ma_c = isset( $_POST['cl_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['cl_ma'] ) ) : '';
+			/* 🔴 GIỜ CHẤM CÔNG ĐỌC LẠI TỪ MÁY CHỦ, KHÔNG TIN Ô ẨN. Ô ẩn `cl_gio_cham` chỉ để
+			   hiện ra màn; nhận nó làm mốc chặn là ai sửa HTML cũng gõ được 900 giờ MC. */
+			$b_c  = VHCC_BangLuong::dung( $cs_c, $th_c );
+			$gio_cham = 0.0;
+			if ( ! empty( $b_c['ok'] ) ) {
+				foreach ( $b_c['dong'] as $d_c ) {
+					if ( $d_c['ma'] === $ma_c ) { $gio_cham = (float) $d_c['gioTong']; break; }
+				}
+			}
+			$viec_g = isset( $_POST['cl_viec'] ) ? (array) wp_unslash( $_POST['cl_viec'] ) : array();
+			$gio_g  = isset( $_POST['cl_gio'] ) ? (array) wp_unslash( $_POST['cl_gio'] ) : array();
+			$dong_g = array();
+			foreach ( $viec_g as $i_g => $v_g ) {
+				$dong_g[] = array( 'viec' => sanitize_text_field( (string) $v_g ),
+					'gio' => isset( $gio_g[ $i_g ] ) ? sanitize_text_field( (string) $gio_g[ $i_g ] ) : '' );
+			}
+			$bao_c = array();
+			$r_g = VHCC_ChotLuong::dat( $toi, $cs_c, $th_c, $ma_c, $dong_g, $gio_cham );
+			$bao_c[] = empty( $r_g['ok'] ) ? array( 'loi' => $r_g['error'] )
+				: array( 'xong' => 'Đã lưu ' . (int) $r_g['so'] . ' dòng giờ ăn giá khác ('
+					. $r_g['tong'] . 'h) — giờ chính còn ' . $r_g['chinh'] . 'h.' );
+			if ( ! empty( $r_g['ok'] ) ) {
+				$r_t = VHCC_ChotLuong::dat_tien( $toi, $cs_c, $th_c, $ma_c,
+					isset( $_POST['cl_cong'] ) ? (array) wp_unslash( $_POST['cl_cong'] ) : array(),
+					isset( $_POST['cl_tru'] ) ? (array) wp_unslash( $_POST['cl_tru'] ) : array() );
+				$bao_c[] = empty( $r_t['ok'] ) ? array( 'loi' => $r_t['error'] )
+					: array( 'xong' => 'Khoản cộng ' . number_format( (float) $r_t['cong'], 0, ',', '.' )
+						. 'đ · giảm trừ ' . number_format( (float) $r_t['tru'], 0, ',', '.' ) . 'đ.' );
+			}
+			return $bao_c;
 		}
 
 		if ( 'sua_gio' === $viec ) {
@@ -4404,7 +4443,7 @@ class VHCC_Web {
 			   `VHCC_GiaGio` là chỗ khai ấy. Nhưng đây là khối KHÁC: khối cũ quy tổng công ra
 			   tiền theo engine từng bộ phận, khối này dựng đúng BỐ CỤC FILE KẾ TOÁN từ giờ và
 			   đơn giá — hai thứ khác nhau, nên `the_khoi_luong()` vẫn nằm im chỗ cũ. */
-			self::the_bang_luong_cs( $toi, $mot_cs, $th );
+			self::the_bang_luong_cs( $toi, $mot_cs, $th, $ky );
 			self::the_khoi_in( $toi, $mot_cs, $th );
 			self::the_doi_chieu_app( $toi, $mot_cs, $th, $ky );
 			echo '</details></div>';
@@ -7481,12 +7520,100 @@ class VHCC_Web {
 		echo '</form></details></div>';
 	}
 
-	private static function the_bang_luong_cs( $toi, $cs, $th ) {
+	/**
+	 * HÀNG NHẬP CHỐT LƯƠNG CỦA MỘT NGƯỜI — giờ ăn giá khác, và các khoản cộng / trừ.
+	 *
+	 * 🔴 NHẬP NGAY TRONG BẢNG, KHÔNG DỰNG MỘT MÀN RIÊNG. Anh Thắng 16/09/2026: *"xây vô tab này
+	 *    nhé"*. Người gõ đang nhìn đúng con số giờ của người ấy; bắt họ mở một màn khác rồi chọn
+	 *    lại cơ sở, tháng, người là ba lần chọn cho một lần gõ — và chọn lệch một ô là gõ nhầm
+	 *    vào người khác.
+	 *
+	 * 🔴 CHỈ GÕ NGOẠI LỆ. Ô "giờ khác" không phải chia lại cả tháng: gõ 2 giờ MC thì 124 giờ còn
+	 *    lại tự là việc chính. Xem `VHCC_ChotLuong`.
+	 */
+	private static function hang_chot_luong( $ky, $toi, $cs, $th, $d ) {
+		$ma  = (string) $d['ma'];
+		$gk  = VHCC_ChotLuong::cua( $cs, $th, $ma );
+		$ti  = VHCC_ChotLuong::tien_cua( $cs, $th, $ma );
+		$goi = VHCC_ChotLuong::ten_da_dung( $cs );
+
+		echo '<tr class="hang-sua"><td colspan="10"><div class="hs-in">';
+		echo '<a id="cl' . esc_attr( substr( md5( $ma ), 0, 8 ) ) . '"></a>';
+		echo '<form method="post" action="' . esc_url( add_query_arg(
+			array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $ma ), self::url() )
+			. '#cl' . substr( md5( $ma ), 0, 8 ) ) . '">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<input type="hidden" name="viec" value="chot_luong">';
+		echo '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<input type="hidden" name="cth" value="' . esc_attr( $th ) . '">';
+		echo '<input type="hidden" name="cl_ma" value="' . esc_attr( $ma ) . '">';
+		echo '<input type="hidden" name="cl_gio_cham" value="' . esc_attr( (string) $d['gioTong'] ) . '">';
+
+		echo '<p style="margin:0 0 8px"><b>' . esc_html( $d['ten'] ) . '</b> · '
+			. esc_html( $ma ) . ' · chấm công <b>' . esc_html( number_format( (float) $d['gioTong'], 2, ',', '.' ) )
+			. ' giờ</b> trong tháng ' . esc_html( $th ) . '</p>';
+
+		/* ---- giờ ăn giá khác ---- */
+		echo '<label style="margin:0 0 4px">Giờ ăn đơn giá khác</label>';
+		echo '<p class="mo" style="margin:0 0 8px">Chỉ gõ phần <b>khác</b> việc chính — phần còn '
+			. 'lại tự là giờ chính. Bỏ trống hết = cả tháng ăn giá chính.</p>';
+		if ( $goi ) {
+			echo '<datalist id="cl_ten">';
+			foreach ( $goi as $g ) { echo '<option value="' . esc_attr( $g ) . '">'; }
+			echo '</datalist>';
+		}
+		/* Hiện mấy dòng đã có, cộng ba dòng trống để gõ thêm. */
+		$n = max( 3, count( $gk ) + 2 );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$v = isset( $gk[ $i ]['viec'] ) ? $gk[ $i ]['viec'] : '';
+			$g = isset( $gk[ $i ]['gio'] ) ? $gk[ $i ]['gio'] : '';
+			echo '<div class="hang" style="margin:0 0 5px;gap:8px">'
+				. '<div><input name="cl_viec[' . $i . ']" placeholder="tên việc (VD: MC)" '
+				. 'list="cl_ten" style="width:210px" value="' . esc_attr( $v ) . '"></div>'
+				. '<div><input name="cl_gio[' . $i . ']" inputmode="decimal" placeholder="số giờ" '
+				. 'style="width:110px" value="' . esc_attr( '' === $g ? '' : (string) $g ) . '"></div>'
+				. '<div class="mo" style="align-self:center;font-size:12px">'
+				. ( '' !== $v ? 'đơn giá tra theo tên việc này' : '' ) . '</div></div>';
+		}
+
+		/* ---- các khoản cộng / trừ ---- */
+		echo '<div style="margin-top:12px;padding-top:10px;border-top:1px dashed var(--vien)">';
+		echo '<label style="margin:0 0 6px">Các khoản cộng vào lương</label><div class="hang">';
+		foreach ( VHCC_ChotLuong::CONG as $k => $ten ) {
+			$v = isset( $ti['cong'][ $k ] ) ? (int) $ti['cong'][ $k ] : '';
+			echo '<div><label style="font-size:11.5px">' . esc_html( $ten ) . '</label>'
+				. '<input name="cl_cong[' . esc_attr( $k ) . ']" inputmode="numeric" '
+				. 'style="width:120px" value="' . esc_attr( (string) $v ) . '"></div>';
+		}
+		echo '</div>';
+		echo '<label style="margin:10px 0 6px">Các khoản giảm trừ</label><div class="hang">';
+		foreach ( VHCC_ChotLuong::TRU as $k => $ten ) {
+			$v = isset( $ti['tru'][ $k ] ) ? (int) $ti['tru'][ $k ] : '';
+			echo '<div><label style="font-size:11.5px">' . esc_html( $ten ) . '</label>'
+				. '<input name="cl_tru[' . esc_attr( $k ) . ']" inputmode="numeric" '
+				. 'style="width:120px" value="' . esc_attr( (string) $v ) . '"></div>';
+		}
+		echo '</div></div>';
+
+		echo '<p class="mo" style="margin:8px 0 0">Ô để <b>trống</b> nghĩa là không có khoản ấy — '
+			. 'khác với gõ số 0. Tờ xuất ra để trống đúng mấy ô ấy.</p>';
+		echo '<div class="hang" style="margin-top:10px">'
+			. '<button class="chinh">Lưu chốt lương</button>'
+			. '<a class="nut" href="' . esc_url( remove_query_arg( 'clm', self::url_hien() ) )
+			. '">Đóng</a></div>';
+		echo '</form></div></td></tr>';
+	}
+
+	private static function the_bang_luong_cs( $toi, $cs, $th, $ky = '' ) {
 		if ( '' === $cs ) { return; }
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { return; }
 		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 
 		$b = VHCC_BangLuong::dung( $cs, $th );
+		/* Ai gõ được giờ khác và khoản cộng/trừ. Cửa `cong_coso` = bậc Cửa hàng trưởng, nên Kế
+		   toán (bậc cao hơn) cũng qua — đúng ý anh Thắng 16/09/2026: *"kế toán và cửa hàng
+		   trưởng chứ em, anh nói là từ dưới đi lên"*. */
+		$duoc_nhap = VHCC_Vai::duoc( $toi, VHCC_ChotLuong::QUYEN );
 		echo '<div class="the"><details>';
 		echo '<summary><b>Bảng lương cơ sở</b> — ' . esc_html( $cs ) . ' · tháng '
 			. esc_html( $th ) . ' <span class="mo">(đúng mẫu nộp kế toán)</span></summary>';
@@ -7519,17 +7646,19 @@ class VHCC_Web {
 			. '<b>phụ cấp · giảm trừ · BHXH · giờ thêm</b> cố ý để trống — kế toán điền, và tệp '
 			. 'xuất ra có sẵn công thức nên gõ vào là tổng tự nhảy.</p>';
 
+		$sua_cl = isset( $_GET['clm'] ) ? sanitize_text_field( wp_unslash( $_GET['clm'] ) ) : '';
 		echo '<div class="cuon"><table class="b"><thead><tr>'
 			. '<th>#</th><th>Họ tên</th><th>Chức vụ</th><th>Số giờ</th><th>Tiền/h</th>'
-			. '<th>Lương chính</th><th>Ghi chú</th></tr></thead><tbody>';
+			. '<th>Lương chính</th><th>Cộng</th><th>Trừ</th><th>Thực nhận</th>'
+			. '<th>Ghi chú</th></tr></thead><tbody>';
 		foreach ( $b['dong'] as $d ) {
 			$hong = ( null === $d['luongChinh'] );
 			echo '<tr' . ( $hong ? ' class="hong"' : '' ) . '>';
 			echo '<td>' . (int) $d['stt'] . '</td>';
 			echo '<td>' . esc_html( $d['ten'] ) . '</td>';
-			echo '<td>' . esc_html( $d['cv'] )
-				. ( '' !== $d['hauTo'] ? ' <span class="mo">(-' . esc_html( $d['hauTo'] ) . ')</span>' : '' )
-				. '</td>';
+			/* Dòng giờ ăn giá khác thụt vào, để mắt thấy ngay nó thuộc về người ở dòng trên. */
+			echo '<td>' . ( empty( $d['laChinh'] ) ? '<span class="mo">↳ </span>' : '' )
+				. esc_html( $d['cv'] ) . '</td>';
 			echo '<td class="p">' . ( 'thang' === $d['cheDo']
 				? esc_html( $d['congThuc'] ) . ' <span class="mo">công</span>'
 				: esc_html( number_format( (float) $d['gio'], 2, ',', '.' ) ) ) . '</td>';
@@ -7537,19 +7666,48 @@ class VHCC_Web {
 				: esc_html( number_format( (float) $d['gia'], 0, ',', '.' ) ) ) . '</td>';
 			echo '<td class="p"><b>' . ( null === $d['luongChinh'] ? '<span class="mo">—</span>'
 				: esc_html( number_format( (float) $d['luongChinh'], 0, ',', '.' ) ) ) . '</b></td>';
+			/* Cộng / Trừ / Thực nhận chỉ có nghĩa ở DÒNG CHÍNH — một cái cọc trừ một lần thôi. */
+			$la_c = ! empty( $d['laChinh'] );
+			$thuc = ( null === $d['luongChinh'] ) ? null
+				: round( (float) $d['luongChinh'] + (float) $d['tongCong'] - (float) $d['tongTru'], 2 );
+			foreach ( array( $la_c ? $d['tongCong'] : null, $la_c ? $d['tongTru'] : null ) as $so_x ) {
+				echo '<td class="p">' . ( ! $so_x ? '<span class="mo">—</span>'
+					: esc_html( number_format( (float) $so_x, 0, ',', '.' ) ) ) . '</td>';
+			}
+			echo '<td class="p"><b>' . ( null === $thuc ? '<span class="mo">—</span>'
+				: esc_html( number_format( (float) $thuc, 0, ',', '.' ) ) ) . '</b></td>';
+
 			$gc = array();
 			if ( 'thang' === $d['cheDo'] ) { $gc[] = 'lương tháng'; }
 			if ( 'khong' === $d['giaTu'] && 'thang' !== $d['cheDo'] ) { $gc[] = 'CHƯA KHAI ĐƠN GIÁ'; }
 			if ( 'nguoi' === $d['giaTu'] ) { $gc[] = 'giá khai riêng'; }
 			if ( $d['thieuGio'] > 0 ) { $gc[] = $d['thieuGio'] . ' lượt thiếu giờ'; }
-			echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) ) . '</td>';
+			echo '<td class="mo">' . esc_html( implode( ' · ', $gc ) );
+			if ( $la_c && $duoc_nhap ) {
+				echo ' <a class="mo-hs" href="' . esc_url( add_query_arg(
+					array( 'man' => 'cham', 'ccs' => $cs, 'cth' => $th, 'clm' => $d['ma'] ),
+					self::url() ) . '#cl' . substr( md5( $d['ma'] ), 0, 8 ) ) . '">nhập ▾</a>';
+			}
+			echo '</td>';
 			echo '</tr>';
+			if ( $la_c && $duoc_nhap && $sua_cl === $d['ma'] ) {
+				self::hang_chot_luong( $ky, $toi, $cs, $th, $d );
+			}
 		}
+		$t_cong = 0.0; $t_tru = 0.0;
+		foreach ( $b['dong'] as $d_t ) {
+			$t_cong += (float) $d_t['tongCong'];
+			$t_tru  += (float) $d_t['tongTru'];
+		}
+		$t_thuc = (float) $b['tong']['luongChinh'] + $t_cong - $t_tru;
 		echo '<tr><td></td><td><b>TỔNG</b></td><td class="mo">' . (int) $b['tong']['nguoi'] . ' dòng</td>'
 			. '<td class="p"><b>' . esc_html( number_format( (float) $b['tong']['gio'], 2, ',', '.' ) )
 			. '</b></td><td></td><td class="p"><b>'
-			. esc_html( number_format( (float) $b['tong']['luongChinh'], 0, ',', '.' ) )
-			. '</b></td><td></td></tr>';
+			. esc_html( number_format( (float) $b['tong']['luongChinh'], 0, ',', '.' ) ) . '</b></td>'
+			. '<td class="p"><b>' . esc_html( number_format( $t_cong, 0, ',', '.' ) ) . '</b></td>'
+			. '<td class="p"><b>' . esc_html( number_format( $t_tru, 0, ',', '.' ) ) . '</b></td>'
+			. '<td class="p"><b>' . esc_html( number_format( $t_thuc, 0, ',', '.' ) ) . '</b></td>'
+			. '<td></td></tr>';
 		echo '</tbody></table></div>';
 
 		echo '<p style="margin:10px 0 0"><a class="nut chinh" href="'
