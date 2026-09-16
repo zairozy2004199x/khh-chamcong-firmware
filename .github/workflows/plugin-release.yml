@@ -34,6 +34,12 @@ jobs:
       - name: Plugin đã đồng bộ giao diện chưa
         run: python3 khbc-bao-cao-chi-phi/tools/dong-bo-giao-dien.py --check
 
+      # Giao kèo với TRANG IT (khmatrix.com/it) nằm ở một plugin KHÁC, nên không có trình biên
+      # dịch nào bắt được lúc nó gãy: gỡ nhầm dòng khai `vhcp_tu_cap_nhat_ds` thì plugin lặng lẽ
+      # biến khỏi bảng cập nhật, không lỗi, không cảnh báo. Đây là người gác chỗ đó.
+      - name: Còn hiện được ở trang IT không
+        run: php khbc-bao-cao-chi-phi/tools/test/kiem-trang-it.php
+
       - name: Lint PHP
         run: |
           for f in $(find khbc-bao-cao-chi-phi -name '*.php'); do php -l "$f" >/dev/null || exit 1; done
@@ -54,7 +60,9 @@ jobs:
         if: steps.ver.outputs.exists == '0'
         run: |
           rm -rf _pkg && mkdir _pkg
-          rsync -a --exclude 'tools/dev' khbc-bao-cao-chi-phi/ _pkg/khbc-bao-cao-chi-phi/
+          # Loai CA tools/dev lan tools/test: ca hai deu la do phat trien, len may chu that
+          # thi vua thua vua la ma chay duoc nam trong thu muc plugin dang chay.
+          rsync -a --exclude 'tools/dev' --exclude 'tools/test' khbc-bao-cao-chi-phi/ _pkg/khbc-bao-cao-chi-phi/
           (cd _pkg && zip -qr ../khbc-bao-cao-chi-phi.zip khbc-bao-cao-chi-phi)
           ls -la khbc-bao-cao-chi-phi.zip
 
