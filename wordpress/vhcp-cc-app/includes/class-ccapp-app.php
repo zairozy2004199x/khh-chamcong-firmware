@@ -64,6 +64,7 @@ class CCAPP_App {
 		add_rewrite_rule( '^' . $s . '/?$', 'index.php?ccapp=app', 'top' );
 		add_rewrite_rule( '^' . $s . '/manifest\.json$', 'index.php?ccapp=manifest', 'top' );
 		add_rewrite_rule( '^' . $s . '/sw\.js$', 'index.php?ccapp=sw', 'top' );
+		add_rewrite_rule( '^' . $s . '/nhac/?$', 'index.php?ccapp=nhac', 'top' );
 	}
 
 	public static function query_vars( $v ) { $v[] = 'ccapp'; return $v; }
@@ -78,6 +79,7 @@ class CCAPP_App {
 
 		if ( 'manifest' === $viec ) { self::ra_manifest(); }
 		if ( 'sw' === $viec )       { self::ra_sw(); }
+		if ( 'nhac' === $viec )     { self::ra_nhac(); }
 		if ( 'app' === $viec )      { self::ra_app(); }
 	}
 
@@ -156,6 +158,78 @@ class CCAPP_App {
 		   chỉ thì thành một thợ nền KHÁC, và thợ cũ vẫn nằm đó quản trang như thường. */
 		$js = str_replace( '__BAN__', CCAPP_VERSION, $js );
 		echo $js; // phpcs:ignore WordPress.Security.EscapeOutput -- JavaScript, không phải HTML
+		exit;
+	}
+
+	// ============================================================================ cổng nhắc
+
+	/**
+	 * `/cc/nhac` — ba việc của bộ nhắc chấm công. Nhận JSON, trả JSON.
+	 *
+	 *   dangky  đăng ký máy này nhận nhắc   (cần thẻ phiên của trạm)
+	 *   huy     thôi nhận                   (cần thẻ phiên)
+	 *   hoi     thợ nền hỏi "đang có lời nhắc gì cho tôi"   (chỉ cần endpoint của chính nó)
+	 *
+	 * 🔴 ĐI CHUNG ĐƯỜNG VỚI TRANG, KHÔNG QUA `/wp-json/`. Cùng lý do đã ghi ở `VHCC_Tram`:
+	 *    hosting của mình (Imunify360) đã từng chặn `/wp-json/` theo đường dẫn, và lúc đó cả
+	 *    trạm chết mà không báo gì.
+	 *
+	 * ⚠️ `hoi` CỐ Ý KHÔNG ĐÒI ĐĂNG NHẬP. Lúc thông báo tới thì app đang đóng, không có phiên
+	 *    nào — thợ nền chỉ cầm được đúng cái endpoint của nó. Nên cửa này chỉ được trả về một
+	 *    câu nhắc chung, không tên, không mã NV, không giờ công. Xem `CCAPP_Nhac::loi_nhac`.
+	 */
+	public static function ra_nhac() {
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+
+		$raw = file_get_contents( 'php://input' );
+		$b   = ( '' !== $raw && false !== $raw ) ? json_decode( (string) $raw, true ) : null;
+		if ( ! is_array( $b ) ) { $b = array(); }
+		$viec = isset( $b['viec'] ) ? sanitize_key( (string) $b['viec'] ) : '';
+
+		if ( ! class_exists( 'CCAPP_Nhac' ) ) {
+			echo wp_json_encode( array( 'ok' => false, 'error' => 'Bộ nhắc chưa sẵn sàng.' ) );
+			exit;
+		}
+
+		if ( 'hoi' === $viec ) {
+			$chu = CCAPP_Nhac::loi_nhac( isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '' );
+			echo wp_json_encode( array( 'ok' => true, 'tieuDe' => $chu['tieu_de'], 'than' => $chu['than'],
+				'mo' => self::url() ) );
+			exit;
+		}
+
+		/* Đổi địa chỉ cũng KHÔNG đòi thẻ phiên, cùng lý do với `hoi`: thợ nền gọi lúc app đóng.
+		   Chứng cứ là biết ĐỊA CHỈ CŨ, và `doi_dia_chi()` chối thẳng khi không tìm thấy nó. */
+		if ( 'doi' === $viec ) {
+			echo wp_json_encode( CCAPP_Nhac::doi_dia_chi(
+				isset( $b['cu'] ) ? (string) $b['cu'] : '',
+				isset( $b['moi'] ) ? (string) $b['moi'] : '' ) );
+			exit;
+		}
+
+		/* Hai việc còn lại đụng vào sổ máy của một NGƯỜI, nên phải có thẻ phiên của trạm. */
+		if ( ! class_exists( 'VHCC_Tram' ) || ! method_exists( 'VHCC_Tram', 'nguoi' ) ) {
+			echo wp_json_encode( array( 'ok' => false, 'error' => 'Chưa cài Chấm Công.' ) );
+			exit;
+		}
+		$u = VHCC_Tram::nguoi( isset( $b['token'] ) ? (string) $b['token'] : '' );
+		if ( ! $u ) {
+			echo wp_json_encode( array( 'ok' => false, 'ma' => 'het_phien',
+				'error' => 'Phiên đã hết — đăng nhập lại bằng PIN.' ) );
+			exit;
+		}
+
+		if ( 'dangky' === $viec ) {
+			echo wp_json_encode( CCAPP_Nhac::dang_ky( $u, $b ) );
+			exit;
+		}
+		if ( 'huy' === $viec ) {
+			echo wp_json_encode( CCAPP_Nhac::huy( isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '' ) );
+			exit;
+		}
+
+		echo wp_json_encode( array( 'ok' => false, 'error' => 'Việc không rõ.' ) );
 		exit;
 	}
 
@@ -243,9 +317,16 @@ class CCAPP_App {
 		$h .= '<meta name="apple-mobile-web-app-status-bar-style" content="black">' . "\n";
 		$h .= '<meta name="apple-mobile-web-app-title" content="' . esc_attr( $ten ) . "\">\n";
 
+		/* Khoá công khai VAPID đi thẳng vào thẻ script: trình duyệt cần nó NGAY lúc đăng ký
+		   nhận thông báo, và một lượt gọi mạng nữa chỉ để lấy một chuỗi không đổi là thừa.
+		   Khoá CÔNG KHAI — công bố là đúng việc của nó, khác hẳn khoá riêng (xem CCAPP_Khoa). */
+		$k_pub = class_exists( 'CCAPP_Khoa' ) ? CCAPP_Khoa::pub() : '';
 		$h .= '<script src="' . esc_url( CCAPP_URL . 'assets/app.js?v=' . CCAPP_VERSION )
 			. '" data-sw="' . esc_url( self::url() . 'sw.js' )
 			. '" data-pham-vi="' . esc_url( self::url() )
+			. '" data-nhac="' . esc_url( self::url() . 'nhac' )
+			. '" data-vapid="' . esc_attr( $k_pub )
+			. '" data-bat-nhac="' . ( ( class_exists( 'CCAPP_Nhac' ) && ! empty( CCAPP_Nhac::lich()['bat'] ) ) ? '1' : '0' )
 			. "\" defer></script>\n";
 
 		/**
