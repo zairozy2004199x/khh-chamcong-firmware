@@ -387,6 +387,18 @@ a{color:var(--nhan)}
 	<!-- ============ TAB 2: CÔNG CỦA TÔI ============ -->
 	<div id="tCong" class="tab-o an">
 
+	<!-- ============ LỊCH LÀM CỦA TÔI ============
+	     Dùng CHUNG bộ lật tháng với bảng công ngay dưới — một tháng, một cặp nút ‹ ›. Hai bộ
+	     lật riêng thì người ta lật cái này quên cái kia, rồi đọc lịch tháng 9 cạnh công tháng
+	     8 mà không thấy gì sai.
+
+	     🔴 ĐẶT TRÊN BẢNG CÔNG, không đặt dưới. Lịch nói việc SẮP tới, bảng công nói việc ĐÃ
+	        qua; người mở tab này giữa tháng cần cái sắp tới trước. -->
+	<div class="the" id="oKhoiLichToi">
+		<label style="margin:0 0 8px">Lịch làm của tôi</label>
+		<div id="bangLichToi"><p class="trong">—</p></div>
+	</div>
+
 	<div class="the" id="oKhoiCong">
 		<label style="margin:0 0 8px">Công của tôi</label>
 		<div class="hang" style="align-items:center;margin:0 0 10px">
@@ -1407,6 +1419,7 @@ function gioPhut(p){
 function veThang(ym){
 	THANG = ym;
 	el('nhanThang').textContent = 'Tháng ' + ym.slice(5) + '/' + ym.slice(0,4);
+	veLichToi(ym);
 	/* Không cho đi tới tương lai — tháng sau chắc chắn trống, và một bảng trống làm người ta
 	   tưởng mất dữ liệu. */
 	el('btThangSau').disabled = ( thangNay() !== '' && ym >= thangNay() );
@@ -1783,6 +1796,55 @@ el('btGuiLich').addEventListener('click', function(){
 		return '✔ Đã gửi yêu cầu đổi lịch — mã ' + j.maYc + '. Người xếp lịch của cơ sở sẽ duyệt.';
 	});
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LỊCH LÀM CỦA TÔI
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHƯA XẾP LỊCH KHÁC HẲN KHÔNG CÓ LỊCH. Cơ sở chưa bật phân lịch, hoặc bật rồi mà tháng này
+ *    người xếp chưa làm — hai chuyện ấy nhìn từ đây giống nhau (danh sách rỗng), nhưng việc
+ *    người dùng phải làm thì khác: một bên là không phải chờ gì, một bên là đi hỏi. Nói rõ là
+ *    "chưa xếp" chứ đừng để một ô trống, vì ô trống thì ai cũng đọc thành "hệ thống hỏng".
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function veLichToi(ym){
+	el('bangLichToi').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('lichtoi', { token: token(), thang: ym }).then(function(j){
+		if(!j || !j.ok){
+			el('bangLichToi').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được lịch.') + '</p>';
+			return;
+		}
+		var ds = j.dong || [];
+		if(!ds.length){
+			el('bangLichToi').innerHTML = '<p class="trong">Tháng này chưa xếp lịch cho anh/chị. '
+				+ 'Cơ sở nào không dùng phân lịch thì ô này luôn trống — không phải lỗi.</p>';
+			return;
+		}
+		var h = '<table><thead><tr><th>Ngày</th><th>Ca</th><th>Việc</th><th>Cơ sở</th></tr></thead><tbody>';
+		for(var i=0;i<ds.length;i++){
+			var x = ds[i];
+			/* Đánh dấu HÔM NAY. Người mở tab giữa tháng phải tìm được dòng của mình trong ba mươi
+			   dòng, và họ tìm bằng mắt chứ không đọc từng ngày. */
+			var nay = (x.ngay === j.homNay);
+			h += '<tr' + (nay ? ' class="hong"' : '') + '><td>' + esc(ngayGon(x.ngay))
+				+ (nay ? ' <b>• hôm nay</b>' : '') + '</td>'
+				+ '<td>' + esc(x.ca || '—') + '</td>'
+				+ '<td style="text-align:left">' + esc(x.viec || '—') + '</td>'
+				+ '<td>' + esc(x.coso || '') + '</td></tr>';
+		}
+		h += '</tbody></table>';
+		el('bangLichToi').innerHTML = h;
+	}).catch(function(){
+		el('bangLichToi').innerHTML = '<p class="trong">Chưa đọc được lịch — kiểm tra mạng rồi lật lại tháng.</p>';
+	});
+}
+
+/* '2026-09-17' -> '17/09 T5'. Thứ đọc được ngay là thứ người ta thật sự dùng để nhớ ca. */
+function ngayGon(s){
+	var p = String(s||'').split('-');
+	if(p.length !== 3) return String(s||'');
+	var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+	var tt = ['CN','T2','T3','T4','T5','T6','T7'][d.getUTCDay()];
+	return p[2] + '/' + p[1] + ' ' + tt;
+}
 
 el('btThangTruoc').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,-1)); });
 el('btThangSau').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,1)); });

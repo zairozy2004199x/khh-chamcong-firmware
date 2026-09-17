@@ -257,6 +257,29 @@ class VHCC_Lich {
 		return is_array( $r ) ? $r : array();
 	}
 
+	/**
+	 * LỊCH LÀM CỦA CHÍNH MỘT NGƯỜI, trong một khoảng ngày.
+	 *
+	 * 🔴 KHÔNG DÙNG `ds_lich()` ĐƯỢC. Hàm ấy nhận `$coso` và trả về lịch của CẢ cơ sở — gọi nó
+	 *    từ trạm rồi lọc ở trình duyệt nghĩa là đã gửi lịch của toàn bộ đồng nghiệp xuống máy
+	 *    một nhân viên. Lọc phải nằm ở CÂU SQL, không nằm ở màn hình.
+	 *
+	 * ⚠️ KHÔNG lọc theo cơ sở: người làm hai nơi có lịch ở cả hai, và họ cần thấy cả hai trong
+	 *    một bảng. Khoá là MÃ NV, và mã NV thì duy nhất toàn chuỗi.
+	 */
+	public static function lich_cua_nguoi( $ma_nv, $tu, $den ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $tu )
+			|| ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $den ) ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT coso, ngay, ca, viec FROM ' . VHCC_DB::t( 'lich_cv' )
+			. ' WHERE ma_nv=%s AND ngay BETWEEN %s AND %s ORDER BY ngay, ca',
+			$ma, (string) $tu, (string) $den ), ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
 	/** Cơ sở này có bật phân lịch không — trạm hỏi trước khi bày ô "xin đổi lịch". */
 	public static function co_bat_lich( $coso ) {
 		$cs = VHCC_NhanSu::chuan_coso( (string) $coso );

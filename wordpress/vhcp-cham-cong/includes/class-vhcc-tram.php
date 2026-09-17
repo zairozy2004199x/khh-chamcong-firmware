@@ -468,6 +468,30 @@ class VHCC_Tram {
 		 *    KHÔNG được chuyển tiếp `ma_nv` do trình duyệt gửi lên — không thì ai cũng nộp được
 		 *    đơn đứng tên người khác.
 		 * ═════════════════════════════════════════════════════════════════════════════════ */
+		/**
+		 * LỊCH LÀM CỦA TÔI — một tháng, chỉ của chính người đang đăng nhập.
+		 *
+		 * 🔴 MÃ NV TỪ PHIÊN, và phép lọc nằm ở CÂU SQL (xem `VHCC_Lich::lich_cua_nguoi`). Lấy cả
+		 *    lịch cơ sở rồi lọc ở trình duyệt là đã gửi lịch của toàn bộ đồng nghiệp xuống máy
+		 *    một nhân viên — họ không thấy trên màn, nhưng nó nằm trong lượt trả về.
+		 *
+		 * ⚠️ TRẢ VỀ CẢ KHI CƠ SỞ CHƯA BẬT PHÂN LỊCH. Lúc ấy danh sách rỗng, và màn nói "chưa xếp
+		 *    lịch" — khác hẳn với chối lượt gọi. Chối thì người dùng thấy một câu lỗi đỏ cho một
+		 *    việc chẳng ai làm sai.
+		 */
+		if ( 'lichtoi' === $viec ) {
+			$th_l = isset( $b['thang'] ) ? (string) $b['thang'] : '';
+			if ( ! preg_match( '/^\d{4}-\d{2}$/', $th_l ) ) { $th_l = current_time( 'Y-m' ); }
+			$tu_l  = $th_l . '-01';
+			$den_l = gmdate( 'Y-m-t', strtotime( $tu_l . ' 00:00:00 UTC' ) );
+			self::ra( array(
+				'ok'      => true,
+				'thang'   => $th_l,
+				'homNay'  => current_time( 'Y-m-d' ),
+				'dong'    => VHCC_Lich::lich_cua_nguoi( $u['ma_nv'], $tu_l, $den_l ),
+			) );
+		}
+
 		if ( 'xintre' === $viec ) {
 			self::ra( VHCC_XinTre::nop( $u, array(
 				'ngay'    => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
