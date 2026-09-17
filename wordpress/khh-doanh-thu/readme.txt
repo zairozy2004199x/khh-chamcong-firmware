@@ -97,6 +97,15 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.31.0 =
+* Bảng Đối soát MoMo: câu nhắc "Sổ MoMo chưa có N ngày" nay kèm **nút Nạp sao kê MoMo** mở
+  thẳng vào đúng thẻ. Trước đây câu nhắc là chữ trơn kiểu "bấm Nạp báo cáo → thẻ Sao kê MoMo",
+  tức bắt người đang soát sổ tự tìm nút ở góc trên màn rồi đếm sang thẻ thứ tư — nên thẻ ấy có
+  từ bản 1.28.0 mà vẫn bị hiểu là "chưa có chỗ nạp MoMo".
+* Hai câu nhắc còn lại (chưa nạp Giao dịch MoMo FABi · sổ MoMo là sổ gộp theo ngày) cũng có nút.
+* Phép thử mới `tools/test/kiem-nut-nap-momo.py` — 13 phép, canh cả chỗ gắn sự kiện, vì lỗi
+  "nút mở hộp mà không chọn thẻ nào" thì cú pháp vẫn sạch và không có câu báo nào.
+
 = 1.30.0 =
 * **Sửa lỗi che mất khoản lệch tiền trong đối soát MoMo.** Lõi ghép hai sổ ghi là "ghép hai
   lượt" ngay từ đầu, nhưng thực tế chạy MỘT lượt: với từng giao dịch máy POS, thử ghép theo mã —

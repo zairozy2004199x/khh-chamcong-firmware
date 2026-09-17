@@ -367,11 +367,27 @@
     bao_o.className = 'khh-dt-bao' + (loai ? ' ' + loai : '');
     bao_o.innerHTML = t;
   }
-  function moHop() {
+  /* Mẫu nút dùng ở nhiều câu nhắc — một bản để bốn chỗ không lệch chữ nhau. */
+  var NUT_NAP_MOMO_SK = '<button class="nut" type="button" data-mo-nap="momo_sk">⬆️ Nạp sao kê MoMo</button>';
+
+  /* Mở hộp nạp, chọn sẵn một thẻ nếu nơi gọi nói rõ.
+     Vì sao cần: mọi câu nhắc trong app đều dạng "bấm Nạp báo cáo → thẻ Sao kê MoMo", tức bắt
+     người đọc tự tìm nút ở góc trên rồi đếm sang thẻ thứ tư. Anh Thắng 17/09/2026 đứng ngay
+     trước bảng đối soát MoMo và kết luận "chưa có chỗ nạp momo" — chỗ nạp CÓ từ bản 1.28.0,
+     chỉ là không ai chỉ đường tới nó. Nhắc mà không kèm đường đi thì bằng không nhắc.
+     ⚠️ Chọn thẻ bằng cách BẤM đúng cái thẻ ấy, không tự đặt S.napLoai: luật đổi thẻ (đổi
+     S.napLoai + tô nút + ẩn/hiện 4 khối hướng dẫn) nằm trong bộ xử lý bấm. Tự đặt là có bản
+     thứ hai của luật, và bản thứ hai sớm muộn lệch — hộp sẽ mở ra thẻ này mà hướng dẫn của
+     thẻ khác. */
+  function moHop(loai) {
     if (!nen) dungHop();
     bao_o.hidden = true;
     nen.querySelector('.day').textContent = '';
     nen.setAttribute('data-on', '1');
+    if (loai) {
+      var t = nen.querySelector('[data-loai="' + loai + '"]');
+      if (t) t.click();
+    }
   }
   function dongHop() { if (nen) nen.removeAttribute('data-on'); }
 
@@ -630,7 +646,19 @@
     q('#dtXepR').addEventListener('click', function () { S.xepMon = 'r'; ve(); });
     q('#dtXepQ').addEventListener('click', function () { S.xepMon = 'q'; ve(); });
     q('#dtIn').addEventListener('click', function () { window.print(); });
-    q('#dtNap').addEventListener('click', moHop);
+    /* ⚠️ PHẢI bọc. Truyền `moHop` trực tiếp làm bộ xử lý thì tham số đầu là ĐỐI TƯỢNG SỰ KIỆN,
+       nên từ lúc moHop nhận tham số `loai`, nút này sẽ đi tìm thẻ `[data-loai="[object
+       PointerEvent]"]` — không thấy, im lặng không chọn thẻ nào. Trước đây moHop không nhận
+       tham số nên viết gọn thế vô hại; nay thì không. */
+    q('#dtNap').addEventListener('click', function () { moHop(); });
+    /* Nút "nạp file ngay tại đây" nằm TRONG các khối được vẽ lại (đối soát, tổng hợp…), nên gắn
+       sự kiện lên từng nút là gắn xong rồi mất khi vẽ lại. Uỷ quyền một lần trên khung. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-mo-nap]') : null;
+      if (!b) return;
+      e.preventDefault();
+      moHop(b.getAttribute('data-mo-nap'));
+    });
     q('#dtXoa').addEventListener('click', function () {
       if (!window.confirm('Xoá toàn bộ số liệu trong kho? Số trong FABi và file gốc không bị ảnh hưởng.')) return;
       api('xoa', { method: 'POST' }).then(function () { khoiDong(true); });
@@ -1284,7 +1312,8 @@
         ? '<div class="canh-ghep">Sổ MoMo <b>chưa có ' + thieu.length + ' ngày</b> mà máy POS lại có ' +
           'doanh thu MoMo: ' + esc(thieu.map(ngayVN).join(' · ')) + '. Mấy ngày ấy đã được <b>bỏ ra ' +
           'khỏi phép so</b> — thiếu file khác hẳn với MoMo giữ tiền. Tải file MoMo của những ngày ' +
-          'này lên rồi xem lại.</div>'
+          'này lên rồi xem lại.' +
+          '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div></div>'
         : '') +
       '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
         '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th><th>MoMo theo sao kê</th>' +
@@ -1322,15 +1351,20 @@
           '<b>sổ đã gộp theo ngày</b> — mỗi dòng là cả một ngày của một quán, có cột đếm giao dịch. ' +
           'Tổng ngày × cơ sở thì nó đúng và bảng <b>Tổng hợp cả kỳ</b> đang dùng được ngay.<br>' +
           'Nhưng đối soát <b>từng giao dịch</b> thì phải có từng giao dịch. Sổ ấy dựng từ chính mấy ' +
-          'file <code>Transaction_report_….csv</code> — nạp thẳng file ấy ở <b>Nạp báo cáo → thẻ ' +
-          'Sao kê MoMo</b> là có ngay bảng lệch tới từng mã, ghép bằng Mã giao dịch.</div>';
+          'file <code>Transaction_report_….csv</code> — nạp thẳng file ấy là có ngay bảng lệch tới ' +
+          'từng mã, ghép bằng Mã giao dịch.' +
+          '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div></div>';
         return;
       }
       if (!r.co_pos || !r.co_sk) {
         noi.innerHTML = '<div class="trong">' + (!r.co_pos
-          ? 'Chưa nạp file <b>Giao dịch MoMo (FABi)</b> — bấm <b>Nạp báo cáo</b> rồi chọn thẻ ấy.'
-          : 'Chưa có <b>sổ MoMo</b> — bấm <b>Nạp báo cáo</b> → thẻ <b>Sao kê MoMo</b> để tải file ' +
-            '<code>Transaction_report_….csv</code>, hoặc khai bảng sẵn có ở Quản trị → Khai sổ MoMo.') +
+          ? 'Chưa nạp file <b>Giao dịch MoMo (FABi)</b>.' +
+            '<div style="margin-top:8px"><button class="nut" type="button" ' +
+            'data-mo-nap="momo_pos">⬆️ Nạp giao dịch MoMo (FABi)</button></div>'
+          : 'Chưa có <b>sổ MoMo</b> — cần file <code>Transaction_report_….csv</code> xuất từ trang ' +
+            'quản lý MoMo (<b>Giao dịch → Xuất báo cáo</b>), hoặc khai bảng sẵn có ở Quản trị → ' +
+            'Khai sổ MoMo.' +
+            '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div>') +
           '</div>';
         return;
       }
