@@ -52,6 +52,7 @@ function nut(opt) {
     HM_NHAN: null,
   };
   const src = `${bocVar('HM_NHAN')}
+    ${boc('_dotHien')}
     ${boc('_hmNhanCua')}
     ${boc('_hmLaKT')}
     ${boc('_hmLaDuyet')}
@@ -190,7 +191,7 @@ function veForm(ham, ...them) {
       scrollIntoView() {},
     }) },
   };
-  const src = `${boc('_hmO')}\n${boc('_hmMo')}\n${boc('_hmTen')}
+  const src = `${boc('_dotHien')}\n${boc('_dotHienCua')}\n${boc('_hmO')}\n${boc('_hmMo')}\n${boc('_hmTen')}
     ${boc('_hmOTep')}\n${boc('_hmNutDay')}\n${boc(ham)}\n return ${ham};`;
   new Function('moi', `with(moi){ ${src} }`)(moi)('P7', 'DA1', 7, ...them);
   return NK;
@@ -312,7 +313,7 @@ function veLenh(role, loc) {
   };
   const src = `${bocVar('LENH_NHAN')}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
-    ${boc('_lenhKey')}\n${boc('_hmNgay')}\n${boc('lenhNutChung')}\n${boc('renderLenhDA')}
+    ${boc('_lenhKey')}\n${boc('_hmNgay')}\n${boc('lenhNutChung')}\n${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('renderLenhDA')}
     return renderLenhDA;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)();
   return NK.lenhBody.innerHTML;

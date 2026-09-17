@@ -37,7 +37,7 @@ const KHO = {};
 function chay(items) {
   ['hmBody', 'hmEmpty', 'hmNhac', 'hmFilter'].forEach(function (id) { KHO[id] = { innerHTML: '', style: {}, value: 'all' }; });
   new Function('HM_ITEMS', 'el', 'esc', 'money', '_dmy', '_hmKeyDuyet', 'hmNutChung', 'hmNhanChung', '_uncGon',
-    MOI + '\nrenderDonHM();')(
+    bocHam('_dotHienCua') + '\n' + MOI + '\nrenderDonHM();')(
     items,
     function (id) { return KHO[id]; },
     function (x) { return String(x == null ? '' : x); },

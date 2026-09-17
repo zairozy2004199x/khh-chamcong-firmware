@@ -326,6 +326,62 @@ t( '🔴 hạng mục chưa có số nào thì CHỐI, không dựng lệnh 0đ'
 t( '   và câu chối nói ra phải điền gì',
 	isset( $x3['error'] ) && false !== mb_strpos( (string) $x3['error'], 'Dự toán' ), $x3 );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 13. 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ MỘT ĐỢT
+ *
+ * Anh Thắng 17/09/2026: *"khi trả đơn thì phải hiểu không tính đó là 1 đợt"*, sau khi Đợt 1
+ * bị trả (vì nó mang số tiền 0đ) và lệnh gửi lại hiện ra thành "Đợt 2" — đọc bảng thành ra dự
+ * án này ứng làm hai đợt, mà đợt 1 là một lệnh không còn tồn tại.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+vai( 'Admin', 'KT' );
+$maD = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian đếm đợt', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maD, array( 'noiDung' => 'Thợ Phụ',  'duToan' => 48000000 ) );
+VHCP_DuAn::add_line( $maD, array( 'noiDung' => 'Băng keo', 'duToan' => 390000 ) );
+VHCP_DuAn::add_line( $maD, array( 'noiDung' => 'Vận chuyển', 'duToan' => 1600000 ) );
+$dD = VHCP_DuAn::get_du_an( $maD );
+$RD = array();
+foreach ( $dD['lines'] as $l ) { if ( '' === $l['capCha'] ) { $RD[ $l['noiDung'] ] = $l['row']; } }
+
+vai( 'Nhân viên', 'NV' );
+$l1 = VHCP_DuAn::xin_tam_ung_dot( $maD, array( $RD['Thợ Phụ'], $RD['Băng keo'] ), array(), '' );
+teq( 'lệnh đầu: số trong sổ là 1', 1, (int) $l1['dot']['dot'] );
+teq( '   và số hiện ra cũng là 1', 1, (int) $l1['dot']['soHien'] );
+
+/* Trả lại → lệnh ấy thôi tính là một đợt. */
+vai( 'Admin', 'KT' );
+VHCP_DuAn::dat_tt_dot( $maD, 1, 'tra', array( 'lyDo' => 'số tiền 0đ' ) );
+$ds = VHCP_DuAn::ds_dot( $maD );
+teq( '🔴 lệnh bị trả có soHien = 0 (không tính là một đợt)', 0, (int) $ds[0]['soHien'] );
+teq( '   nhưng vẫn còn trong sổ để giữ dấu vết ai trả, lúc nào', 1, count( $ds ) );
+teq( '   và số trong sổ KHÔNG đổi (nó là khoá của mọi tham chiếu)', 1, (int) $ds[0]['dot'] );
+
+/* Gửi lại → người dùng phải thấy "Đợt 1", dù trong sổ nó là 2. */
+vai( 'Nhân viên', 'NV' );
+$l2 = VHCP_DuAn::xin_tam_ung_dot( $maD, array( $RD['Thợ Phụ'], $RD['Băng keo'] ), array(), '' );
+teq( 'lệnh gửi lại: số trong sổ là 2', 2, (int) $l2['dot']['dot'] );
+teq( '🔴 nhưng SỐ HIỆN RA là 1 — đây là điều anh Thắng hỏi', 1, (int) $l2['dot']['soHien'] );
+teq( '   và số tiền đã đúng, không còn 0đ', 48390000, (int) $l2['dot']['soTien'] );
+
+/* Lệnh thật thứ hai → Đợt 2. */
+$l3 = VHCP_DuAn::xin_tam_ung_dot( $maD, array( $RD['Vận chuyển'] ), array(), '' );
+teq( 'lệnh thật thứ hai: số trong sổ là 3', 3, (int) $l3['dot']['dot'] );
+teq( '🔴 số hiện ra là 2 — đếm tiếp, không nhảy cóc theo số sổ', 2, (int) $l3['dot']['soHien'] );
+
+teq( '🔴 bản đồ số đợt: sổ 1 không tính, sổ 2 -> 1, sổ 3 -> 2',
+	array( '1' => 0, '2' => 1, '3' => 2 ), VHCP_DuAn::ban_do_so_dot( $maD ) );
+
+$dd = VHCP_DuAn::get_du_an( $maD );
+t( '   và bản đồ ấy đi kèm dự án ra tới màn hình',
+	isset( $dd['dotHien'] ) && isset( $dd['qtDotHien'] ), array_keys( $dd ) );
+teq( '   ba lệnh đều còn trên bảng', 3, count( $dd['lenh'] ) );
+
+/* ⚠️ Lệnh đã trả là TẬN CÙNG — không có đường quay lại 'xin'. Nếu có thì số hiện ra của mấy
+   lệnh sau nó sẽ nhảy, và bảng đổi số sau lưng người dùng. */
+vai( 'Admin', 'KT' );
+$quay = VHCP_DuAn::dat_tt_dot( $maD, 1, 'duyet' );
+t( '🔴 lệnh đã trả KHÔNG duyệt lại được (nếu được thì số đợt nhảy sau lưng người dùng)',
+	empty( $quay['success'] ), $quay );
+
 /* ═══ 9. CỬA API ═══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

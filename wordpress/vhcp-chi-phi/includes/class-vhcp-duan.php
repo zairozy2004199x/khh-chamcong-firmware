@@ -259,6 +259,11 @@ class VHCP_DuAn {
 				&& ! VHCP_DonVi::duoc_xem( VHCP_DonVi::cua_nguoi( isset( $r['nguoi_tao'] ) ? $r['nguoi_tao'] : '' ) ) ) { continue; }
 			$ma_da = (string) $r['ma_da'];
 			$hm_all = self::get_hm( $ma_da );
+			/* Bản đồ số đợt của dự án này — tính MỘT lần cho cả dự án, không tính lại theo từng
+			   hạng mục (mỗi lượt là một lượt đọc sổ lệnh). Màn Duyệt in "đợt mấy" trên nhãn UNC
+			   của từng hàng, mà lệnh bị trả không tính là một đợt — xem 🔴 ở `ds_dot()`. */
+			$bd_tu = self::ban_do_so_dot( $ma_da );
+			$bd_qt = self::ban_do_so_dot( $ma_da, 'qt' );
 			/* Tiền của một "đơn": hạng mục có con thì tiền nằm ở CON, không có con thì ở chính
 			   nó. Cộng cả hai là đếm hai lần — và đây là con số kế toán chuẩn bị tiền. */
 			$con = array();
@@ -288,6 +293,8 @@ class VHCP_DuAn {
 					'duToan'    => VHCP_Util::num( $x['du_toan'] ),
 					'thucTe'    => ( isset( $con[ $nd ] ) && $con[ $nd ] > 0 ) ? $con[ $nd ] : VHCP_Util::num( $x['thuc_te'] ),
 					'hm'        => $h,
+					'dotHien'   => $bd_tu,
+					'qtDotHien' => $bd_qt,
 					'kyDA'      => self::get_ky_da( $ma_da ),
 				);
 			}
@@ -572,6 +579,11 @@ class VHCP_DuAn {
 			'kyDA'            => self::get_ky_da( $ma_da ),
 			'lenh'            => $lenh,
 			'lenhQT'          => $lenhQT,
+			/* Bản đồ `số đợt trong sổ` -> `số đợt hiện ra`. Màn hình in số đợt ở BỐN chỗ (bảng
+			   lệnh, bảng quyết toán, nhãn UNC trên hàng hạng mục, huy hiệu "đã gửi QT đợt"); gửi
+			   một bản đồ chung thì bốn chỗ ấy không thể lệch nhau. Xem 🔴 ở `ds_dot()`. */
+			'dotHien'         => self::ban_do_so_dot( $ma_da ),
+			'qtDotHien'       => self::ban_do_so_dot( $ma_da, 'qt' ),
 			'qtDaGui'         => $qt_gui,
 			'qtDaChot'        => $qt_chot,
 			'duKienTU'        => $du_kien,
@@ -935,7 +947,29 @@ class VHCP_DuAn {
 		);
 	}
 
-	/** Mọi lệnh của một dự án, đợt nhỏ trước. */
+	/**
+	 * Mọi lệnh của một dự án, đợt nhỏ trước — kèm `soHien`, SỐ ĐỢT NGƯỜI TA NHÌN THẤY.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ MỘT ĐỢT. Anh Thắng 17/09/2026: *"khi trả đơn thì phải
+	 *    hiểu không tính đó là 1 đợt"*.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Trước đây gửi lại sau khi bị trả thì ra "Đợt 2", trong khi thực tế tiền mới đi đúng một
+	 * lần. Đọc bảng thành ra dự án này ứng làm hai đợt — mà đợt 1 là một lệnh không tồn tại
+	 * nữa. Con số đợt là thứ kế toán dùng để nói chuyện ("cấp tiền đợt mấy rồi"), nên nó đếm
+	 * sai là hai bên nói hai chuyện.
+	 *
+	 * ⚠️ KHOÁ LƯU TRỮ (`dot`) GIỮ NGUYÊN, KHÔNG ĐÁNH SỐ LẠI. Nó là khoá của cả sổ lệnh lẫn cột
+	 *    `dot` trên từng hạng mục; đánh số lại là mọi tham chiếu cũ trỏ sang lệnh khác — im
+	 *    lặng, và đúng vào chỗ tiền. Chỉ con số HIỆN RA mới đếm lại.
+	 *
+	 * ⚠️ `soHien = 0` nghĩa là "không tính" — màn hình in một dấu gạch kèm chữ đã trả, chứ
+	 *    không giấu dòng đi. Giấu là mất dấu vết ai trả, trả lúc nào, vì sao; mà dòng ấy còn
+	 *    mang cả mốc thời gian của lượt xin và lượt duyệt trước đó.
+	 *
+	 * ⚠️ Lệnh đã trả là TẬN CÙNG — `dat_tt_dot()` chỉ cho 'tra' từ 'xin'/'duyet' và không có
+	 *    đường nào quay lại 'xin'. Nên số hiện của mấy lệnh sau nó không bao giờ nhảy lại.
+	 */
 	public static function ds_dot( $ma_da, $loai = 'tu' ) {
 		$ra = array();
 		foreach ( array_keys( self::get_dot( $ma_da, $loai ) ) as $k ) {
@@ -943,7 +977,20 @@ class VHCP_DuAn {
 			if ( $d ) { $ra[] = $d; }
 		}
 		usort( $ra, function ( $a, $b ) { return $a['dot'] - $b['dot']; } );
+		$dem = 0;
+		foreach ( $ra as $i => $d ) {
+			if ( 'tra' === $d['tt'] ) { $ra[ $i ]['soHien'] = 0; continue; }
+			$dem++;
+			$ra[ $i ]['soHien'] = $dem;
+		}
 		return $ra;
+	}
+
+	/** Bản đồ `số đợt trong sổ` -> `số đợt hiện ra`. Màn hình nào in số đợt cũng dịch qua đây. */
+	public static function ban_do_so_dot( $ma_da, $loai = 'tu' ) {
+		$m = array();
+		foreach ( self::ds_dot( $ma_da, $loai ) as $d ) { $m[ (string) $d['dot'] ] = (int) $d['soHien']; }
+		return $m;
 	}
 
 	private static function dot_ghi_( $ma_da, $dot, $sua, $viec, $loai = 'tu' ) {
@@ -1132,6 +1179,10 @@ class VHCP_DuAn {
 			'lyDo' => trim( (string) $ghi_chu ), 'unc' => '',
 		), 'Xin tạm ứng cho dự án' );
 		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'tt' => 'xin', 'dot' => $dot ) ); }
+		/* Câu báo trên màn phải nói ĐÚNG con số mà bảng ngay dưới nó sắp in ra — lệnh bị trả
+		   không tính là một đợt (🔴 ở `ds_dot()`). Gửi kèm `soHien` thay vì để màn tự đoán. */
+		$__bd = self::ban_do_so_dot( $ma_da, 'tu' );
+		$moi['soHien'] = isset( $__bd[ (string) $dot ] ) ? (int) $__bd[ (string) $dot ] : 0;
 		return VHCP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
 	}
 
@@ -1241,6 +1292,9 @@ class VHCP_DuAn {
 			'lyDo' => trim( (string) $ghi_chu ), 'unc' => '',
 		), 'Gửi quyết toán dự án', 'qt' );
 		foreach ( $nhan as $r ) { self::hm_ghi_( $ma_da, $r, array( 'qtDot' => $dot ) ); }
+		/* Cùng lý do với lệnh tạm ứng: câu báo phải nói đúng con số bảng sắp in. */
+		$__bd = self::ban_do_so_dot( $ma_da, 'qt' );
+		$moi['soHien'] = isset( $__bd[ (string) $dot ] ) ? (int) $__bd[ (string) $dot ] : 0;
 		return VHCP_Util::ok( array( 'dot' => $moi, 'soTien' => $tong, 'so' => count( $nhan ) ) );
 	}
 
@@ -1408,6 +1462,8 @@ class VHCP_DuAn {
 					'isCoSo'   => self::la_don_coso( $r['loai'] ),
 					'nguoiTao' => isset( $r['nguoi_tao'] ) ? (string) $r['nguoi_tao'] : '',
 					'dot'      => $d['dot'],
+					/* Số đợt HIỆN RA — lệnh bị trả không tính là một đợt (🔴 ở `ds_dot()`). */
+					'soHien'   => isset( $d['soHien'] ) ? (int) $d['soHien'] : 0,
 					'tt'       => $d['tt'],
 					'rows'     => $d['rows'],
 					'tenHM'    => $ten,

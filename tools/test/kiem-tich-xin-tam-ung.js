@@ -85,7 +85,9 @@ function be(oTich, opt) {
         this._ok({ success: true, dot: { dot: 1 }, so: rows.length, soTien: 1 }); },
     } } },
   };
-  const src = `${boc('_daOTich')}\n${boc('daTichDoi')}\n${boc('daTichHet')}
+  /* Bốc CẢ hàm số-đợt thật, không khai rỗng: khai rỗng là bài kiểm thôi soi chính cái hàm
+     quyết định con số đợt hiện ra. */
+  const src = `${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('_daOTich')}\n${boc('daTichDoi')}\n${boc('daTichHet')}
     ${boc('daXinBarDoi')}\n${boc('daMoXinTU')}\n${boc('daGuiXinTU')}
     ${boc('_daLichO')}\n${boc('_daLichSo')}\n${boc('_daLichDat')}
     ${boc('_daXinTongLenh')}\n${boc('daLichDoi')}
@@ -308,7 +310,7 @@ function veLenhDA(role, lenh) {
   };
   const src = `${(() => { const i = HTML.indexOf('var LENH_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
-    ${boc('lenhNutChung')}\n${boc('renderDaLenh')}
+    ${boc('lenhNutChung')}\n${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('renderDaLenh')}
     return renderDaLenh;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)({ maDA: 'DA1', ten: 'Aeon', lenh: lenh });
   return { html: NK.daLenhBody.innerHTML, box: NK.daLenhBox };
@@ -481,7 +483,7 @@ function beQt(oTich, opt) {
     } } },
   };
   const src = `${boc('_daOTichQt')}\n${boc('daTichQtDoi')}\n${boc('daTichQtHet')}
-    ${boc('daQtBarDoi')}\n${boc('daMoQt')}\n${boc('daGuiQt')}
+    ${boc('daQtBarDoi')}\n${boc('daMoQt')}\n${boc('_dotHien')}\n${boc('daGuiQt')}
     return { doi: daTichQtDoi, het: daTichQtHet, bar: daQtBarDoi, mo: daMoQt, gui: daGuiQt };`;
   return { NK, O, F: new Function('moi', `with(moi){ ${src} }`)(moi) };
 }
@@ -525,7 +527,7 @@ const q = (row, tien, checked) => ({ checked: !!checked, value: '',
     esc: x => String(x == null ? '' : x), HM_NHAN: null };
   const src = `${(() => { const i = HTML.indexOf('var HM_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmNhanCua')}\n${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}
-    ${boc('hmNhanChung')}\n${boc('hmNutChung')}\n${boc('hmNutDaBang')}\n${boc('_hmKeyDA')}
+    ${boc('hmNhanChung')}\n${boc('_dotHienCua')}\n${boc('hmNutChung')}\n${boc('hmNutDaBang')}\n${boc('_hmKeyDA')}
     return (hm, tien) => hmNutDaBang({ row: 7, noiDung: 'X', hinhThuc: '', hm: hm }, tien);`;
   const f = new Function('moi', `with(moi){ ${src} }`)(moi);
   const xong = f({ tt: 'xong', dot: 1, qtDot: 0 }, 2300000);
@@ -566,7 +568,7 @@ function veQtTab(role, loc, ds, trang) {
   };
   const src = `${(() => { const i = HTML.indexOf('var QT_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('qtNhan')}\n${boc('_hmNgay')}
-    ${boc('_qtLenhPager')}\n${boc('renderQtLenh')}
+    ${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('_qtLenhPager')}\n${boc('renderQtLenh')}
     renderQtLenh(); return QTLENH_TRANG;`;
   NK.trangSau = new Function('moi', `with(moi){ ${src} }`)(moi);
   return NK;
@@ -733,7 +735,7 @@ function veDonHM(role, loc, items) {
   };
   const src = `${(() => { const i = HTML.indexOf('var HM_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmNhanCua')}\n${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}
-    ${boc('hmNhanChung')}\n${boc('hmNutChung')}\n${boc('_hmKeyDuyet')}
+    ${boc('hmNhanChung')}\n${boc('_dotHienCua')}\n${boc('hmNutChung')}\n${boc('_hmKeyDuyet')}
     ${boc('hmDongForm')}\n${boc('_hmNgay')}\n${boc('_uncGon')}\n${boc('renderDonHM')}
     return renderDonHM;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)();
