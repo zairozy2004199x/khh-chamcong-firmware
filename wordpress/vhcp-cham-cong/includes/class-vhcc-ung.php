@@ -146,7 +146,7 @@ class VHCC_Ung {
 			);
 		}
 
-		/* ---- 2. Nộp báo cáo cửa hàng ----------------------------------------------------
+		/* ---- 2. Báo cáo FABi ----------------------------------------------------
 		   🔴 GÁC BẰNG SỔ ĐÃ ĐẨY, KHÔNG BẰNG VAI "Cửa hàng trưởng". Hai thứ ấy KHÔNG trùng
 		      nhau: có cửa hàng trưởng mới lên chưa được đẩy, có người vai khác được đẩy vì
 		      kiêm việc. Đoán theo vai là bộ luật quyền thứ hai, mà bộ thứ hai bao giờ cũng
@@ -161,9 +161,15 @@ class VHCC_Ung {
 			$o[] = self::o(
 				VHCC_DayBaoCao::da_day( $ma ),
 				array(
-					'ten'  => 'Nộp báo cáo cửa hàng',
+					/* ⚠️ TÊN Ô ĐỔI 17/09/2026 — anh Thắng: *"Bổ sung Báo Cáo Fabi vào Vận Hành"*.
+					   Dò ra thì ô này VỐN ĐÃ là FABi: nó trỏ vào `khh-doanh-thu`, mà tên đầy đủ
+					   của plugin ấy là *"K&H — Báo cáo doanh thu FABi"* (nạp file xuất từ máy POS
+					   FABi / iPOS). Thêm một ô mới tên "Báo cáo FABi" là hai ô cạnh nhau cùng mở
+					   một trang — người dùng bấm thử cả hai rồi không hiểu khác nhau chỗ nào.
+					   Nên: ĐỔI NHÃN cho đúng cái tên người ta gọi hằng ngày, không đẻ thêm ô. */
+					'ten'  => 'Báo cáo FABi',
 					'nhom' => 'Vận hành',
-					'mo'   => 'Tiền két, tiền nộp, bill huỷ, khách vào',
+					'mo'   => 'Doanh thu POS, tiền nộp, bill huỷ',
 					'url'  => VHCC_VeTram::danh_dau( khh_dt_link() ),
 					'icon' => '🏪',
 					'mau'  => 'luc',

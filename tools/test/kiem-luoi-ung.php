@@ -165,6 +165,29 @@ foreach ( VHCC_Ung::ds( $u_cht ) as $x_m ) {
 		false !== strpos( $tpl_m, 'id="' . $x_m['man'] . '" class="mn an"' ), $x_m['man'] );
 }
 
+/* ── TÊN Ô KHỚP VỚI APP NÓ MỞ ─────────────────────────────────────────────────────────────
+   Anh Thắng 17/09/2026: *"Bổ sung Báo Cáo Fabi vào Vận Hành"*. Dò ra thì ô ấy VỐN ĐÃ là FABi
+   — nó trỏ vào `khh-doanh-thu`, tên đầy đủ *"K&H — Báo cáo doanh thu FABi"* — chỉ là mang
+   nhãn "Nộp báo cáo cửa hàng" nên không ai nhận ra. Thêm một ô mới là hai ô cùng mở một
+   trang; nên đổi nhãn.
+
+   🔴 KHÔNG ĐẺ THÊM Ô TRÙNG ĐÍCH. Hai ô cùng `url` là người dùng bấm thử cả hai rồi không hiểu
+   khác nhau chỗ nào — và lần sau họ bấm nhầm cái không cần. Phép thử canh chuyện ấy cho MỌI
+   ô, không riêng cặp này. */
+$ds_cht_all = VHCC_Ung::ds( $u_cht );
+$dich = array();
+foreach ( $ds_cht_all as $x_d ) {
+	$k_d = isset( $x_d['url'] ) ? 'u:' . $x_d['url'] : ( isset( $x_d['man'] ) ? 'm:' . $x_d['man'] : '' );
+	if ( '' === $k_d ) { continue; }
+	t( '🔴 không có hai ô cùng mở một đích (' . $x_d['ten'] . ')',
+		! isset( $dich[ $k_d ] ), isset( $dich[ $k_d ] ) ? $dich[ $k_d ] . ' vs ' . $x_d['ten'] : '' );
+	$dich[ $k_d ] = $x_d['ten'];
+}
+/* Và không hai ô nào trùng TÊN — trùng tên thì dù khác đích, người đọc vẫn không chọn được. */
+$ten_o = array();
+foreach ( $ds_cht_all as $x_d ) { $ten_o[] = $x_d['ten']; }
+t( '🔴 không hai ô nào trùng tên', count( $ten_o ) === count( array_unique( $ten_o ) ), $ten_o );
+
 /* =============================================================== 3. Ô KHOÁ VẪN KHOÁ */
 
 /* 🔴 Xem chốt 1 đầu tệp. Đổi bố cục là lúc dễ đánh rơi phép gác nhất, vì mắt chỉ soi cái mới. */

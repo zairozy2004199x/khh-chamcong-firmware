@@ -308,7 +308,7 @@ button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);curso
 .o-ung.o-khoa:active{background:transparent}
 .o-ung.o-khoa .o-icon{filter:grayscale(1)}
 .o-ung b{display:block;font-size:12px;font-weight:600;line-height:1.3;color:var(--chu-dam);
-	/* Tên dài ("Nộp báo cáo cửa hàng") phải xuống dòng trong cột, không đẩy toang lưới. */
+	/* Tên dài ("Gửi đơn đi trễ") phải xuống dòng trong cột, không đẩy toang lưới. */
 	overflow-wrap:anywhere}
 .o-icon{display:flex;align-items:center;justify-content:center;width:52px;height:52px;
 	border-radius:15px;font-size:25px;flex:0 0 52px}
