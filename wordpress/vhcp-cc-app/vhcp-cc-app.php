@@ -3,7 +3,7 @@
  * Plugin Name:       App Chấm Công K&H
  * Plugin URI:        https://khh.vn/
  * Description:       Biến trang chấm công online thành một app cài được lên màn hình chính của iPhone/Android (PWA): chạy toàn màn hình, có biểu tượng riêng, mở được cả khi mạng chập chờn.
- * Version:           1.1.0
+ * Version:           1.0.0
  * Requires at least: 5.8
  * Requires PHP:      7.2
  * Author:            K&H
@@ -43,19 +43,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'CCAPP_VERSION', '1.1.0' );
+define( 'CCAPP_VERSION', '1.0.0' );
 define( 'CCAPP_FILE', __FILE__ );
 define( 'CCAPP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CCAPP_URL', plugin_dir_url( __FILE__ ) );
 
-require_once CCAPP_DIR . 'includes/class-ccapp-khoa.php';
-require_once CCAPP_DIR . 'includes/class-ccapp-nhac.php';
 require_once CCAPP_DIR . 'includes/class-ccapp-app.php';
 require_once CCAPP_DIR . 'includes/class-ccapp-cai-dat.php';
 require_once CCAPP_DIR . 'includes/class-ccapp-tu-cap-nhat.php';
 
 CCAPP_App::init();
-CCAPP_Nhac::init();
 CCAPP_CaiDat::init();
 CCAPP_TuCapNhat::init();
 
@@ -71,17 +68,9 @@ CCAPP_TuCapNhat::init();
  * ───────────────────────────────────────────────────────────────────────────────────────────── */
 register_activation_hook( __FILE__, function () {
 	CCAPP_App::luat();
-	CCAPP_Nhac::dung_bang();
 	flush_rewrite_rules();
 } );
 
 register_deactivation_hook( __FILE__, function () {
-	/* ⚠️ GỠ LỊCH QUÉT KHI TẮT PLUGIN. Không gỡ thì WP-Cron còn giữ một sự kiện trỏ tới một hàm
-	   không còn ai khai — mỗi lượt chạy là một dòng lỗi trong nhật ký, và nó không bao giờ tự
-	   hết. ⚠️ Bảng máy thì GIỮ NGUYÊN: tắt plugin một lúc rồi bật lại mà mất sổ máy là cả công
-	   ty phải cấp quyền thông báo lại từ đầu, mà iOS chỉ hỏi quyền ấy MỘT LẦN — từ chối hay mất
-	   là phải vào Cài đặt của máy mới bật lại được. */
-	$hen = wp_next_scheduled( CCAPP_Nhac::HOOK );
-	if ( $hen ) { wp_unschedule_event( $hen, CCAPP_Nhac::HOOK ); }
 	flush_rewrite_rules();
 } );

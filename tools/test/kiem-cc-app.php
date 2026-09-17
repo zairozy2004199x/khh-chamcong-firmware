@@ -340,39 +340,7 @@ foreach ( glob( $BO . '/includes/*.php' ) as $f ) { $moi_php .= bo_chu_thich( fi
 $moi_php .= bo_chu_thich( $CHINH );
 t( '🔴 không tự gọi VHCC_Online::cham_cong()',
 	false === strpos( $moi_php, 'cham_cong(' ), '' );
-/* ─────────────────────────────────────────────────────────────────────────────────────────
- * 🔴 1.1.0 — PHÉP THỬ NÀY SIẾT LẠI, KHÔNG NỚI RA.
- *
- * Trước bản ấy nó đọc là *"không tự đụng vào bảng dữ liệu nào"* (`$wpdb` không được xuất hiện),
- * và nó đúng vì bộ này chưa có gì để nhớ. Bộ NHẮC CHẤM CÔNG thì phải nhớ sổ máy đã đăng ký —
- * một bảng của riêng nó, `wp_ccapp_may`, chẳng liên quan gì tới giờ công.
- *
- * Nhưng luật thật đằng sau phép thử cũ KHÔNG phải "đừng dùng $wpdb". Nó là: **bộ này không bao
- * giờ được GHI vào bảng của Chấm Công**. Nên phép thử nay nói đúng câu ấy, và nói chặt hơn:
- *
- *   · mọi lượt GHI (`insert`/`update`/`delete`/`replace`) chỉ được nhắm vào bảng của chính nó;
- *   · bảng của Chấm Công (`VHCC_DB::t(`) chỉ được ĐỌC, và chỉ trong đúng một hàm;
- *   · không có `$wpdb->query(` nào — câu SQL trần là chỗ duy nhất hai luật trên lách được.
- *
- * Nới thành "được ghi khi cần" là mất luôn cái lưới; nên nếu bộ này lớn thêm, sửa danh sách
- * dưới đây chứ đừng xoá phép thử.
- * ───────────────────────────────────────────────────────────────────────────────────────── */
-preg_match_all( '/\$wpdb->(insert|update|delete|replace)\(\s*([^,]+),/', $moi_php, $m_ghi );
-$ghi_la = array();
-foreach ( (array) $m_ghi[2] as $bang_ghi ) {
-	$bang_ghi = trim( $bang_ghi );
-	if ( in_array( $bang_ghi, array( '$t', 'self::bang()', 'CCAPP_Nhac::bang()' ), true ) ) { continue; }
-	$ghi_la[] = $bang_ghi;
-}
-t( '🔴 mọi lượt GHI chỉ nhắm vào bảng của chính bộ này', ! $ghi_la, implode( ' · ', $ghi_la ) );
-t( '🔴 không có câu SQL trần ($wpdb->query) — chỗ duy nhất lách được hai luật kia',
-	false === strpos( $moi_php, '$wpdb->query(' ), '' );
-t( '🔴 bảng của Chấm Công chỉ được ĐỌC, và chỉ ở một chỗ',
-	1 === substr_count( $moi_php, 'VHCC_DB::t(' ), substr_count( $moi_php, 'VHCC_DB::t(' ) );
-t( '   chỗ đọc ấy là một câu SELECT', 1 === preg_match(
-	"/VHCC_DB::t\(\s*'cham_cong'\s*\)[\s\S]{0,200}?SELECT/", $moi_php ), '' );
-t( '   và bảng của chính bộ này mang tiền tố riêng, không đụng tên với vhcc_',
-	false !== strpos( $moi_php, "'ccapp_may'" ), '' );
+t( '🔴 không tự đụng vào bảng dữ liệu nào', false === strpos( $moi_php, '$wpdb' ), '' );
 teq( '🔴 gọi VHCC_Tram::render() đúng MỘT chỗ', 1, substr_count( $moi_php, 'VHCC_Tram::render()' ) );
 t( '   và chưa cài Chấm Công thì báo bằng chữ, không trả trang trắng',
 	false !== strpos( $LOP_MA, 'trang_thieu' ) && false !== mb_strpos( $LOP_MA, 'chưa chạy được' ), '' );
