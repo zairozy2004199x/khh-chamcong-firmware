@@ -1288,7 +1288,39 @@
       t.ngay++;
     });
     ten.sort();
-    if (!ten.length) return '';
+
+    /* ═══ TÁCH RIÊNG "CHƯA CÓ SỔ CHO CƠ SỞ NÀY" ═══════════════════════════════════════════
+       K&H có HAI pháp nhân MoMo, mỗi pháp nhân một bản Transaction report riêng. Nạp bên này
+       mà chưa nạp bên kia là chuyện thường ngày, không phải sự cố.
+
+       Trước 17/09/2026 mấy cơ sở của pháp nhân chưa nạp bị kể thẳng vào ô Lệch: bảng báo
+       98.160.000đ "máy POS ghi mà MoMo không nhận" trong khi không mất một đồng nào. Kế toán
+       đọc con số ấy là đi tìm gần trăm triệu không hề thất lạc — và lần sau sẽ không tin bảng
+       này nữa, kể cả lúc nó báo đúng.
+
+       ⚠️ CHỖ HỎNG LÀ `co[x.ngay]`: nó hỏi "sổ có NGÀY này không", một cờ chung cho cả hệ. Sổ
+          của pháp nhân A phủ đủ ngày, nên mọi ngày đều tính là "có sổ" — kể cả với cơ sở của
+          pháp nhân B mà sổ ấy không hề nhắc tới. Vì thế cột "Ngày thiếu file" đứng 0 trong khi
+          cơ sở ấy không có lấy một dòng sổ.
+
+       ⚠️ PHÂN ĐỊNH BẰNG "SỔ CÓ NHẮC TỚI CƠ SỞ NÀY KHÔNG", KHÔNG PHẢI "tiền sổ có bằng 0 không".
+          Hai ca ấy khác hẳn nhau: sổ KHÔNG PHỦ cơ sở thì không kết luận được gì; sổ CÓ PHỦ mà
+          bằng 0 thì đó là lệch thật — máy ghi có mà MoMo không nhận — và phải kêu. Lấy khoá
+          'ngay|cơ sở' của chính sổ mà suy ra, nên không cần máy chủ gửi thêm gì. */
+    var coSoTrongSo = {};
+    Object.keys(sk).forEach(function (kk) {
+      var i = kk.indexOf('|');
+      if (i > 0) coSoTrongSo[kk.slice(i + 1)] = true;
+    });
+    var chuaSo = [];
+    ten = ten.filter(function (c) {
+      /* Cơ sở không có đồng MoMo nào bên POS thì để yên trong bảng chính (0/0/0) — nó không
+         thiếu sổ, nó chỉ không bán được gì qua MoMo. */
+      if (coSoTrongSo[c] || !(theo[c].pos > 0)) return true;
+      chuaSo.push(c);
+      return false;
+    });
+    if (!ten.length && !chuaSo.length) return '';
 
     var TP = 0, TM = 0;
     var hang = ten.map(function (c) {
@@ -1303,6 +1335,28 @@
     }).join('');
 
     var thieu = Object.keys(ngayThieu).sort();
+
+    var TC = 0;
+    chuaSo.forEach(function (c) { TC += theo[c].pos; });
+    var khoiChuaSo = !chuaSo.length ? '' :
+      '<div class="canh-ghep" style="margin-top:12px">' +
+      '<b>' + chuaSo.length + ' cơ sở chưa có sổ MoMo</b> — sổ đang nạp không chứa giao dịch nào ' +
+      'của mấy cơ sở này, nên <b>KHÔNG kể là lệch</b> và không cộng vào bảng trên. Chưa có sổ thì ' +
+      'chưa kết luận được gì, khác hẳn với "MoMo không nhận tiền".<br>' +
+      'K&amp;H có <b>hai pháp nhân MoMo</b>, mỗi pháp nhân một bản Transaction report riêng — ' +
+      'nhiều khả năng đây là mấy cơ sở thuộc bản còn lại.' +
+      '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+        '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th>' +
+      '</tr></thead><tbody>' +
+      chuaSo.map(function (c) {
+        return '<tr><td style="text-align:left">' + esc(String(c).slice(0, 34)) + '</td>' +
+          '<td class="s">' + tien(theo[c].pos) + '</td></tr>';
+      }).join('') +
+      '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
+        '<td style="text-align:left">Cộng</td><td class="s">' + tien(TC) + '</td></tr>' +
+      '</tbody></table></div>' +
+      '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div></div>';
+
     return '<div class="khung"><header><h2>Đối soát MoMo</h2>' +
       '<span class="goi">' + ngayVN(k.tu) + ' → ' + ngayVN(k.den) + '</span></header>' +
       '<div class="chu-them" style="margin-top:6px">So <b>đúng phần MoMo</b> máy POS ghi với sổ ' +
@@ -1315,15 +1369,20 @@
           'này lên rồi xem lại.' +
           '<div style="margin-top:8px">' + NUT_NAP_MOMO_SK + '</div></div>'
         : '') +
-      '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
-        '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th><th>MoMo theo sao kê</th>' +
-        '<th>Lệch</th><th>Ngày so được</th><th>Ngày thiếu file</th>' +
-      '</tr></thead><tbody>' + hang +
-      '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
-        '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở</td>' +
-        '<td class="s">' + tien(TP) + '</td><td class="s">' + tien(TM) + '</td>' +
-        '<td class="s">' + nguyen(TP - TM) + '</td><td></td><td></td></tr>' +
-      '</tbody></table></div>' +
+      /* Không cơ sở nào so được thì ĐỪNG vẽ bảng rỗng với dòng tổng 0 — một bảng toàn số 0
+         trông y như "đã soát xong, không lệch gì", đúng điều ngược lại với sự thật. */
+      (ten.length
+        ? '<div class="bang-cuon" style="margin-top:10px"><table><thead><tr>' +
+            '<th style="text-align:left">Cơ sở</th><th>MoMo trên máy POS</th><th>MoMo theo sao kê</th>' +
+            '<th>Lệch</th><th>Ngày so được</th><th>Ngày thiếu file</th>' +
+          '</tr></thead><tbody>' + hang +
+          '<tr style="font-weight:700;border-top:2px solid var(--line-2)">' +
+            '<td style="text-align:left">Tất cả ' + ten.length + ' cơ sở <b>so được</b></td>' +
+            '<td class="s">' + tien(TP) + '</td><td class="s">' + tien(TM) + '</td>' +
+            '<td class="s">' + nguyen(TP - TM) + '</td><td></td><td></td></tr>' +
+          '</tbody></table></div>'
+        : '<div class="trong" style="margin-top:10px">Chưa cơ sở nào so được — sổ MoMo đang nạp ' +
+          'không phủ cơ sở nào có doanh thu MoMo trong kỳ.</div>') + khoiChuaSo +
       '<div class="chu-them" style="margin-top:10px"><b>Cách đọc:</b> lệch <b>dương</b> là máy POS ' +
       'ghi nhiều hơn MoMo nhận — thường do bấm nhầm hình thức thanh toán, hoặc đơn huỷ mà máy vẫn ' +
       'ghi. Lệch <b>âm</b> nặng hơn: MoMo nhận tiền mà máy không ghi.</div></div>';

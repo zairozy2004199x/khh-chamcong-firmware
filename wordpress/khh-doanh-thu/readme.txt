@@ -97,6 +97,20 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.34.0 =
+* **"Chưa có sổ" tách hẳn khỏi "lệch tiền".** Bảng Đối soát MoMo từng báo lệch 98.160.000đ cho
+  kỳ 01→16/09 trong khi không mất một đồng: K&H có hai pháp nhân MoMo, sổ pháp nhân kia chưa
+  nạp. Kế toán đọc con số ấy là đi tìm gần trăm triệu không hề thất lạc.
+* Chỗ hỏng là `co[x.ngay]` — nó hỏi "sổ có NGÀY này không", một cờ chung cho cả hệ, không theo
+  cơ sở. Sổ pháp nhân A phủ đủ ngày nên mọi ngày đều tính là "có sổ", kể cả với cơ sở của pháp
+  nhân B mà sổ ấy không nhắc tới. Vì thế cột "Ngày thiếu file" đứng 0 trong khi cơ sở đó không
+  có lấy một dòng sổ.
+* Nay cơ sở nào sổ không nhắc tới thì xuống khối riêng "N cơ sở chưa có sổ MoMo", có nút nạp,
+  **không** cộng vào ô Lệch. Dòng tổng nói rõ "N cơ sở so được".
+* Phân định bằng **"sổ có nhắc tới cơ sở này không"**, không phải "tiền sổ có bằng 0 không" —
+  cơ sở CÓ trong sổ mà tiền bằng 0 là lệch THẬT (máy ghi có thu, MoMo không trả), phải kêu.
+* Bài kiểm mới `tools/test/kiem-momo-chua-so.js` — 13 phép, chạy thật hàm bốc từ doanh-thu.js.
+
 = 1.33.0 =
 * **Máy POS dời cơ sở thì bảng ghép đi theo FABi.** `khh_dt_hoc_ma_ch_momo()` tự nhận là "lời
   giải cho bài máy dời cơ sở" và chốt "một mã trỏ về hai quán trong cùng kỳ thì không học" —
