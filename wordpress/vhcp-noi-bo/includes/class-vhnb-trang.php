@@ -819,6 +819,11 @@ class VHNB_Trang {
 			foreach ( self::ds_trang_khac() as $tr ) {
 				if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' )
 					&& $tr['url'] === VHTC_Trang::url() ) { continue; }   // đã có nút Cổng riêng
+				/* Bỏ nút quản trị đã tích ẩn. ẨN KHỎI THANH KHÔNG PHẢI CẤM QUYỀN — người có
+				   quyền vẫn vào được bằng địa chỉ và vẫn thấy trang ấy ở Cổng K&H. Xem
+				   VHNB_Thanh. */
+				if ( class_exists( 'VHNB_Thanh' ) && method_exists( 'VHNB_Thanh', 'hien' )
+					&& ! VHNB_Thanh::hien( $tr['url'] ) ) { continue; }
 				echo '<a class="nut" href="' . esc_url( $tr['url'] ) . '">'
 					. esc_html( $tr['icon'] . ' ' . $tr['ten'] ) . '</a>';
 			}

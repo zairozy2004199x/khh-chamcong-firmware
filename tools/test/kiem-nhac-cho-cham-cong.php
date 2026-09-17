@@ -228,6 +228,56 @@ t( '🔴 nói thẳng khi mã đang chạy CHƯA có khối này',
 t( "ô tích đọc bằng isset( \$_POST['nhac_bat'] )",
 	false !== strpos( $src_ad, "isset( \$_POST['nhac_bat'] )" ) );
 
+/* ═══════════════════════════════════════════════════════════ 9. ẨN BỚT NÚT TRÊN THANH */
+
+require_once $bo . '/includes/class-vhnb-thanh.php';
+
+/* Chưa khai gì thì MỌI nút đều hiện — mặc định phải là hiện, không phải ẩn. Ngược lại là mỗi
+   trang mới mọc ra sau này lặng lẽ không bao giờ xuất hiện trên thanh. */
+t( '🔴 chưa khai gì -> mọi nút đều hiện', VHNB_Thanh::hien( 'https://khmatrix.com/ghe/' ) );
+t( 'danh sách ẩn rỗng', array() === VHNB_Thanh::ds_an(), VHNB_Thanh::ds_an() );
+
+VHNB_Thanh::dat_an( array( 'https://khmatrix.com/ghe/', 'https://khmatrix.com/chi-phi-hn/' ) );
+t( 'ẩn được một nút', ! VHNB_Thanh::hien( 'https://khmatrix.com/ghe/' ) );
+t( 'nút khác không bị ảnh hưởng', VHNB_Thanh::hien( 'https://khmatrix.com/cham-cong/' ) );
+t( 'ẩn hai nút thì nhớ hai', 2 === count( VHNB_Thanh::ds_an() ), VHNB_Thanh::ds_an() );
+
+/* 🔴 CỔNG K&H KHÔNG ẨN ĐƯỢC. Nó là trang liệt kê mọi app; ẩn nốt nó thì mấy trang vừa ẩn không
+   còn đường nào tới ngoài gõ tay địa chỉ — tức là nhốt người dùng trong đúng một trang. */
+if ( ! class_exists( 'VHTC_Trang' ) ) {
+	eval( 'class VHTC_Trang { public static function url() { return "https://khmatrix.com/cong/"; } }' );
+}
+t( 'nhận ra đâu là Cổng', VHNB_Thanh::la_cong( 'https://khmatrix.com/cong/' ) );
+VHNB_Thanh::dat_an( array( 'https://khmatrix.com/cong/', 'https://khmatrix.com/ghe/' ) );
+t( '🔴 tích ẩn Cổng thì bị BỎ QUA, Cổng vẫn hiện', VHNB_Thanh::hien( 'https://khmatrix.com/cong/' ) );
+t( 'và nó không lọt vào danh sách ẩn',
+	! in_array( 'https://khmatrix.com/cong/', VHNB_Thanh::ds_an(), true ), VHNB_Thanh::ds_an() );
+t( 'nút kia vẫn ẩn được như thường', ! VHNB_Thanh::hien( 'https://khmatrix.com/ghe/' ) );
+
+/* 🔴 ĐỔI ĐỊA CHỈ THÌ NÚT HIỆN LẠI, không biến mất. Thừa một nút thì nhìn thấy ngay và bỏ tích
+   lại; mất một nút thì không ai biết để đi tìm. */
+t( '🔴 trang đổi đường dẫn -> nút HIỆN LẠI',
+	VHNB_Thanh::hien( 'https://khmatrix.com/ghe-massage/' ) );
+
+VHNB_Thanh::dat_an( array() );
+t( 'bỏ hết tích ẩn thì mọi nút hiện lại', VHNB_Thanh::hien( 'https://khmatrix.com/ghe/' ) );
+
+/* Dây nối ở chỗ vẽ thanh và ở màn khai. */
+t( 'chỗ vẽ thanh có hỏi VHNB_Thanh', false !== strpos( $src_trang, 'VHNB_Thanh::hien(' ) );
+t( 'và gác method_exists cùng chỗ gọi',
+	false !== strpos( $src_trang, "method_exists( 'VHNB_Thanh', 'hien' )" ) );
+t( 'có màn khai nút nào hiện', false !== strpos( $src_ad, 'khoi_thanh' ) );
+/* 🔴 BIỂU MẪU GỬI LÊN CÁI ĐƯỢC HIỆN, máy chủ tự suy ra cái bị ẩn. Gửi ngược lại thì trang mới
+   mọc ra sau này mặc định bị ẩn — mà mặc định phải là HIỆN. */
+t( '🔴 biểu mẫu gửi danh sách ĐƯỢC HIỆN, không gửi danh sách bị ẩn',
+	false !== strpos( $src_ad, "name=\"thanh[]\"" )
+	&& false !== strpos( $src_ad, "! in_array( (string) \$tr['url'], \$hien, true )" ) );
+/* Ô tích của Cổng để `disabled`, nên trình duyệt KHÔNG gửi nó lên — phải có ô ẩn gửi thay,
+   không thì mỗi lượt Lưu lại coi như Cổng "không được tích". */
+t( '🔴 ô Cổng bị khoá thì có ô ẩn gửi giá trị thay',
+	false !== strpos( $src_ad, 'checked disabled' )
+	&& false !== strpos( $src_ad, "type=\"hidden\" name=\"thanh[]\"" ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

@@ -31,6 +31,51 @@ class VHNB_Admin {
 	}
 
 	/**
+	 * KHỐI "NÚT NÀO HIỆN TRÊN THANH ĐẦU TRANG". Cùng form với phần trên, cùng một nút Lưu.
+	 */
+	private static function khoi_thanh() {
+		if ( ! class_exists( 'VHNB_Thanh' ) ) { return; }
+		$ds = VHNB_Thanh::ds_khai();
+
+		echo '<h2>Nút trên thanh đầu trang</h2>';
+		if ( ! $ds ) {
+			echo '<p>Chưa dò thấy trang nào để bày. Khai ở plugin <b>Cổng K&amp;H</b>.</p>';
+			return;
+		}
+		echo '<p style="max-width:780px">Bỏ tích là nút ấy <b>không hiện trên thanh</b> nữa. '
+			. '🔴 <b>Đây không phải phân quyền.</b> Người có quyền vào trang ấy vẫn vào được bằng '
+			. 'địa chỉ, và vẫn thấy nó ở <b>Cổng K&amp;H</b> — khối này thuần là dọn cho thanh đỡ '
+			. 'dài. Muốn CẤM thì khai ở bảng quyền phía trên, hoặc ở chính plugin của trang ấy.</p>';
+
+		echo '<table class="widefat striped" style="max-width:640px"><thead><tr>'
+			. '<th style="width:70px">Hiện</th><th>Trang</th><th>Địa chỉ</th></tr></thead><tbody>';
+		foreach ( $ds as $t ) {
+			$id = 'th_' . md5( (string) $t['url'] );
+			echo '<tr><td>';
+			if ( ! empty( $t['laCong'] ) ) {
+				/* 🔴 CỔNG KHÔNG ẨN ĐƯỢC. Nó là trang liệt kê mọi app; ẩn nốt nó thì mấy trang
+				   vừa ẩn không còn đường nào tới ngoài gõ tay địa chỉ. Ô tích để `disabled` và
+				   kèm một ô ẩn gửi giá trị lên, không thì bỏ trống = bị coi là "không tích". */
+				echo '<input type="checkbox" checked disabled> '
+					. '<input type="hidden" name="thanh[]" value="' . esc_attr( $t['url'] ) . '">';
+			} else {
+				echo '<input type="checkbox" id="' . esc_attr( $id ) . '" name="thanh[]" value="'
+					. esc_attr( $t['url'] ) . '"' . checked( ! empty( $t['hien'] ), true, false ) . '>';
+			}
+			echo '</td><td><label for="' . esc_attr( $id ) . '">'
+				. esc_html( trim( $t['icon'] . ' ' . $t['ten'] ) ) . '</label>'
+				. ( ! empty( $t['laCong'] ) ? ' <span class="description">— luôn hiện, là đường tới '
+					. 'mọi trang còn lại</span>' : '' )
+				. '</td>'
+				. '<td class="description"><code>' . esc_html( $t['url'] ) . '</code></td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description" style="max-width:780px">⚠️ Trang nào <b>đổi đường dẫn</b> thì '
+			. 'nút của nó <b>hiện lại</b> (khoá nhớ theo địa chỉ). Cố ý: thừa một nút thì nhìn thấy '
+			. 'ngay và bỏ tích lại, còn mất một nút thì không ai biết để đi tìm.</p>';
+	}
+
+	/**
 	 * KHỐI "NHẮC CHỖ CHẤM CÔNG". Nằm TRONG cùng cái form với phần trên — cố ý.
 	 *
 	 * 🔴 KHÔNG LỒNG <form> TRONG <form>. HTML không cho phép và trình duyệt KHÔNG báo lỗi: nó
@@ -127,6 +172,19 @@ class VHNB_Admin {
 			   chặn rỗng ở đây — chặn hai nơi là hai luật, và hai luật thì lệch. */
 			update_option( 'vhnb_slug', isset( $_POST['slug'] )
 				? sanitize_title( wp_unslash( $_POST['slug'] ) ) : '' );
+
+			/* Nút nào hiện trên thanh đầu trang. Biểu mẫu gửi lên danh sách được HIỆN (ô tích),
+			   nên cái bị ẩn = tất cả trừ cái được tích. Đọc ngược lại (gửi cái bị ẩn) thì trang
+			   mới mọc ra sau này mặc định bị ẩn — mà mặc định phải là HIỆN. */
+			if ( class_exists( 'VHNB_Thanh' ) && class_exists( 'VHNB_Trang' ) ) {
+				$hien = isset( $_POST['thanh'] ) ? (array) wp_unslash( $_POST['thanh'] ) : array();
+				$hien = array_map( 'strval', $hien );
+				$an   = array();
+				foreach ( VHNB_Trang::ds_trang_khac() as $tr ) {
+					if ( ! in_array( (string) $tr['url'], $hien, true ) ) { $an[] = (string) $tr['url']; }
+				}
+				VHNB_Thanh::dat_an( $an );
+			}
 
 			/* Dải nhắc chỗ chấm công. Ô tích KHÔNG gửi gì khi không tích, nên đọc bằng `isset`
 			   chứ không bằng giá trị — đọc giá trị thì bỏ tích xong bấm Lưu là nó vẫn bật. */
@@ -289,6 +347,7 @@ class VHNB_Admin {
 
 		echo '</tbody></table>';
 
+		self::khoi_thanh();
 		self::khoi_nhac();
 
 		submit_button( 'Lưu', 'primary', 'vhnb_luu' );
