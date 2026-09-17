@@ -282,6 +282,37 @@ VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $TH . '-02',
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'giờ đã trả lại đủ 10h', 10.0 === (float) $n['gioThang'], $n );
 
+/* ── AI ĐƯỢC CHỈNH GIỜ CÔNG — khoá lại câu trả lời, 17/09/2026 ──────────────────────────────
+   Anh Thắng hỏi *"nó đang làm ai phân quyền mới được chỉnh giờ công phải không (cửa hàng
+   trưởng)"*. Đúng: `sua_gio` ở bậc Cửa hàng trưởng từ 28/08/2026, theo chính lời anh. Con số
+   ấy là QUYẾT ĐỊNH của anh nên phép thử không cãi nó — nhưng nó khoá lại để không ai lặng lẽ
+   đổi, và khoá luôn mấy chốt đỡ cho nó. */
+t( '🔴 chỉnh giờ công ở bậc CỬA HÀNG TRƯỞNG', VHCC_Vai::CHT === VHCC_Vai::QUYEN['sua_gio'] );
+t( 'bù vào ô trống cũng cùng bậc ấy', VHCC_Vai::CHT === VHCC_Vai::QUYEN['cham_bu'] );
+t( '⚠️ và nạp cả tháng từ .csv thì CAO HƠN (Quản lý)',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] );
+
+/* 🔴 KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, KỂ CẢ ADMIN. Đây là chốt đỡ quan trọng nhất cho việc
+   hạ `sua_gio` xuống bậc 2: cửa hàng trưởng viết lại được bảng công của cửa hàng mình, nhưng
+   KHÔNG viết lại được của chính mình — nên giờ của người ký duyệt luôn là giờ máy ghi. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTA',
+	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTA', 'ho_ten' => 'Trưởng A',
+	'coso' => $CS_A, 'ngay' => $TH . '-04', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+$r = VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CHTA', 'ngay' => $TH . '-04',
+	'vao' => '06:00', 'lyDo' => 'tự sửa giờ cho chính mình' ) );
+t( '🔴 cửa hàng trưởng KHÔNG tự sửa giờ của CHÍNH MÌNH', empty( $r['ok'] ), $r );
+$r = VHCC_CuaHang::sua_gio( array( 'name' => 'Sếp', 'role' => VHCC_Vai::ADMIN,
+	'coso' => $CS_A, 'ma_nv' => 'CHTA' ), array( 'coSo' => $CS_A, 'maNV' => 'CHTA',
+	'ngay' => $TH . '-04', 'vao' => '06:00', 'lyDo' => 'admin tự sửa giờ của mình' ) );
+t( '🔴 KỂ CẢ ADMIN cũng không tự sửa giờ của mình', empty( $r['ok'] ), $r );
+
+/* ⚠️ MỌI LƯỢT SỬA VÀO NHẬT KÝ, GIỮ GIỜ CŨ. Đó là thứ duy nhất còn lại để tra ngược khi bảng
+   công đã bị viết đè. */
+$nk = VHCC_Bu::ds_nhat_ky( $CHT_A, $CS_A );
+t( '⚠️ mọi lượt sửa đều vào nhật ký', count( $nk ) > 0, count( $nk ) );
+
 /* =============================================================== 4c. CHỐT LƯƠNG THEO VIỆC */
 
 $c = VHCC_CuaHang::chot_cua( $CHT_A, $CS_A, $TH, 'CH001' );

@@ -159,11 +159,27 @@ class VHCC_Vai {
 		                                     · mọi lượt sửa vào sổ "Đã động vào giờ công", giữ
 		                                       giờ cũ, và KHÔNG xoá được.
 		                                     Đó là ba thứ khiến việc này còn tra ngược được. */
-		                                  // ⚠️ Cố ý ĐẶT TRÊN cả `nap_cong`. Bù và nạp chỉ THÊM
-		                                  // vào ô trống; việc này ĐÈ LÊN thứ máy đã ghi, tức là
-		                                  // xoá mất bằng chứng gốc. Anh Thắng 26/08 chốt: *"admin
-		                                  // có quyền chỉnh sửa lại giờ công cho nhân viên"* —
-		                                  // đúng chữ ADMIN, không nới xuống Quản lý.
+		                                  /* ⚠️ CHÚ THÍCH CŨ Ở ĐÂY ĐÃ SAI SO VỚI MÃ — sửa 17/09/2026
+		                                     khi anh Thắng hỏi lại *"ai phân quyền mới được chỉnh
+		                                     giờ công phải không (cửa hàng trưởng)"*.
+		                                     Nó viết: *"Cố ý ĐẶT TRÊN cả `nap_cong`… đúng chữ
+		                                     ADMIN, không nới xuống Quản lý"*. Đó là chú thích của
+		                                     bản 26/08, khi `sua_gio` còn là Admin. Ngày 28/08 anh
+		                                     hạ xuống Cửa hàng trưởng (xem khối 🔴 ngay trên) mà
+		                                     mấy dòng này không ai sửa theo — nên suốt từ đó nó
+		                                     nói NGƯỢC với con số ngay bên cạnh: `sua_gio` là bậc
+		                                     2, còn `nap_cong` là bậc 3, tức nó nằm DƯỚI.
+		                                     Chú thích sai nguy hơn không có chú thích: người đọc
+		                                     tin nó và bỏ qua con số.
+
+		                                     PHẦN CÒN ĐÚNG, giữ lại vì nó là lý do thiết kế: bù
+		                                     và nạp chỉ THÊM vào ô trống, còn việc này ĐÈ LÊN thứ
+		                                     máy đã ghi — tức xoá mất bằng chứng gốc. Đó là việc
+		                                     rủi ro nhất trong ba cái, nhưng nay lại ở bậc thấp
+		                                     nhất. Anh Thắng biết và chọn vậy; cái đỡ cho nó
+		                                     không phải BẬC mà là ba chốt kể ở khối 🔴 trên, cộng
+		                                     một chốt nữa từ `vi_sao_khong_duoc()`: KHÔNG AI TỰ
+		                                     SỬA GIỜ CỦA CHÍNH MÌNH, kể cả Admin. */
 		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác.
 		                                  // 🔴 CAO HƠN `ho_so` (cấp PIN) MỘT BẬC, CỐ Ý. Cấp PIN là
 		                                  // đặt số MỚI — người ta biết ngay, vì số cũ thôi vào
