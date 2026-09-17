@@ -4,7 +4,7 @@ Tags: quan-ly-cong-viec, nhan-su, cham-cong, bang-luong, intranet
 Requires at least: 5.8
 Tested up to: 6.6
 Requires PHP: 7.2
-Stable tag: 1.20.0
+Stable tag: 1.20.1
 License: Proprietary
 
 Nền tảng quản trị nội bộ 16 ứng dụng chạy ngay trong WordPress: dự án & công việc, báo cáo dự án,
@@ -24,6 +24,13 @@ shortcode `[khh_platform]`. Dữ liệu lưu trong bảng riêng của WordPress
 3. Vào menu **Nền tảng K&H**.
 
 == Changelog ==
+
+= 1.20.1 =
+* Sửa **lệch giao diện** ở mọi hộp thoại có hai ô đứng cạnh nhau mà chỉ một ô có dòng nhắc:
+  ô không có dòng nhắc bị giãn ra cho cao bằng ô kia, làm ô nhập của nó **tụt xuống 10px và
+  cao thêm 10px**. Thấy rõ nhất ở hộp *Đổi mật khẩu* (Mật khẩu mới ↔ Nhập lại mật khẩu mới).
+  Nguyên nhân ở `.fld` trong `app.css`, nay ghim `align-content:start`. Bộ thử đo thẳng toạ độ
+  hai ô nên lỗi này không quay lại được.
 
 = 1.20.0 =
 * **Ứng dụng mới "Báo cáo Dự Án" — trang tổng.** Ứng dụng Công việc & Dự án trả lời "dự án NÀY

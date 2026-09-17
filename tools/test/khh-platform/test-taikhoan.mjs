@@ -129,6 +129,19 @@ t('đủ ba ô mật khẩu',
 t('nhắc độ dài tối thiểu lấy từ cấu hình',
   (await chu()).includes('Tối thiểu 8 ký tự'), true);
 
+/* 🔴 HAI Ô CẠNH NHAU PHẢI THẲNG HÀNG. Ô "Mật khẩu mới" có dòng nhắc, ô "Nhập lại" thì không —
+   `.two` kéo hai ô cao bằng nhau, và nếu `.fld` không ghim `align-content:start` thì ô không có
+   dòng nhắc tự giãn hai hàng còn lại: nhãn đứng yên, ô nhập tụt xuống 10px và cao thêm 10px.
+   Đo thẳng toạ độ chứ không nhìn bằng mắt — lệch mười pixel là thứ chỉ thấy khi có người chụp
+   màn hình gửi lại, đúng như lần 17/09/2026. */
+const doO = await p.evaluate(() =>
+  Array.from(document.querySelectorAll('dialog[open] .two .fld')).map(f => {
+    const i = f.querySelector('input').getBoundingClientRect();
+    return { tren: Math.round(i.top), cao: Math.round(i.height) };
+  }));
+t('hai ô mật khẩu mới thẳng hàng', doO.length === 2 && doO[0].tren === doO[1].tren, true);
+t('và cao bằng nhau', doO.length === 2 && doO[0].cao === doO[1].cao, true);
+
 /* Hai ô mật khẩu mới khác nhau → báo lỗi, và hộp KHÔNG được đóng mất công gõ lại */
 await p.evaluate(() => {
   const o = document.querySelectorAll('dialog[open] input[type="password"]');
