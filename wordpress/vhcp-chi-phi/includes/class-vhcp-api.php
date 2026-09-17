@@ -330,6 +330,7 @@ class VHCP_API {
 			'listDonHangMuc'        => array( 'VHCP_DuAn', 'list_don_hm' ),
 			'xinTamUngDuAn'         => array( 'VHCP_DuAn', 'xin_tam_ung_dot' ),
 			'datTrangThaiLenhDuAn'  => array( 'VHCP_DuAn', 'dat_tt_dot' ),
+			'capTienPhanDuAn'       => array( 'VHCP_DuAn', 'cap_tien_phan' ),
 			'listLenhDuAn'          => array( 'VHCP_DuAn', 'list_lenh_da' ),
 			'xinQuyetToanDuAn'      => array( 'VHCP_DuAn', 'xin_quyet_toan_dot' ),
 			'datTrangThaiQTDuAn'    => array( 'VHCP_DuAn', 'dat_tt_qt' ),

@@ -310,7 +310,7 @@ function veLenhDA(role, lenh) {
   };
   const src = `${(() => { const i = HTML.indexOf('var LENH_NHAN='); return HTML.slice(i, HTML.indexOf('};', i) + 2); })()}
     ${boc('_hmLaKT')}\n${boc('_hmLaDuyet')}\n${boc('lenhNhan')}
-    ${boc('lenhNutChung')}\n${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('renderDaLenh')}
+    ${boc('lenhNutChung')}\n${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('_daCapTong')}\n${boc('_conPhaiCap')}\n${boc('_capChu')}\n${boc('renderDaLenh')}
     return renderDaLenh;`;
   new Function('moi', `with(moi){ ${src} }`)(moi)({ maDA: 'DA1', ten: 'Aeon', lenh: lenh });
   return { html: NK.daLenhBody.innerHTML, box: NK.daLenhBox };

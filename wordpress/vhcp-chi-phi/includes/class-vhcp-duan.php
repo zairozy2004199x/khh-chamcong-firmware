@@ -480,7 +480,12 @@ class VHCP_DuAn {
 			   là con số "đã xin" phình lên bởi những lệnh không còn tồn tại, rồi nhân viên gửi
 			   lại là cộng thêm lần nữa. */
 			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) { $da_xin += $d['soTien']; }
-			if ( 'ung' === $d['tt'] ) { $da_chi += $d['soTien']; }
+			/* 🔴 "ĐÃ CHI" ĐỌC THEO TIỀN THẬT ĐÃ ĐƯA, KHÔNG THEO TRẠNG THÁI LỆNH. Từ 1.194.0 kế
+			   toán cấp được làm nhiều lần: lệnh 48tr mới đưa 20tr thì tiền ẤY ĐÃ RA KHỎI KÉT,
+			   trong khi lệnh còn ở 'duyet'. Đếm theo trạng thái là bỏ sót đúng phần đang dở dang,
+			   và con số "còn treo trên TK 141" nói thiếu. Lượt cấp trọn cũng ghi vào `daCap`
+			   (xem `dat_tt_dot`), nên lối cũ ra đúng con số cũ. */
+			$da_chi += self::da_cap_tong( $d );
 		}
 
 		/* 🔴 DỰ KIẾN TẠM ỨNG = tổng tiền của mọi hạng mục 💰 NV TỰ TRẢ, kể cả cái còn nháp.
@@ -943,8 +948,33 @@ class VHCP_DuAn {
 			'unc'    => isset( $x['unc'] ) ? (string) $x['unc'] : '',
 			'lyDo'   => isset( $x['lyDo'] ) ? (string) $x['lyDo'] : '',
 			'lich'   => isset( $x['lich'] ) && is_array( $x['lich'] ) ? array_values( $x['lich'] ) : array(),
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * SỔ CÁC LẦN CẤP TIỀN THẬT — khác hẳn `lich` ở ngay trên.
+			 * ═══════════════════════════════════════════════════════════════════════════════════
+			 * `lich` là KẾ HOẠCH nhân viên khai lúc xin ("ngày 3 lấy 10tr, ngày 10 lấy 20tr") để
+			 * kế toán liệu tiền. `daCap` là thứ ĐÃ XẢY RA: mỗi lần kế toán đưa tiền là một dòng,
+			 * có số tiền, ngày, uỷ nhiệm chi và tên người cấp.
+			 * Trộn hai thứ làm một là không bao giờ trả lời được câu "còn phải đưa bao nhiêu" —
+			 * kế hoạch thì luôn đủ, còn tiền thật thì chưa.
+			 */
+			'daCap'  => isset( $x['daCap'] ) && is_array( $x['daCap'] ) ? array_values( $x['daCap'] ) : array(),
 			'moc'    => isset( $x['moc'] ) && is_array( $x['moc'] ) ? $x['moc'] : array(),
 		);
+	}
+
+	/** Tổng tiền THẬT đã cấp cho một lệnh. */
+	public static function da_cap_tong( $d ) {
+		$t = 0;
+		foreach ( (array) ( isset( $d['daCap'] ) ? $d['daCap'] : array() ) as $x ) {
+			$t += VHCP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 );
+		}
+		return $t;
+	}
+
+	/** Còn phải cấp bao nhiêu nữa cho một lệnh (không bao giờ âm). */
+	public static function con_phai_cap( $d ) {
+		$con = VHCP_Util::num( isset( $d['soTien'] ) ? $d['soTien'] : 0 ) - self::da_cap_tong( $d );
+		return $con > 0 ? $con : 0;
 	}
 
 	/**
@@ -1192,6 +1222,90 @@ class VHCP_DuAn {
 	 * 🔴 CHỐT THEO VAI. Ẩn nút trên màn chỉ là tiện tay; ai gọi thẳng API vẫn phải bị chặn,
 	 *    nếu không thì nhân viên tự duyệt rồi tự cấp tạm ứng cho chính mình.
 	 */
+	/**
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * CẤP TIỀN LÀM NHIỀU LẦN CHO MỘT LỆNH.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 10/09/2026: *"nếu 1 lần mà đi tạm ứng nhiều lần thì nv có thể lịch chọn ngày đi
+	 * tạm ứng lần 1,2,3"*; rồi 17/09/2026 hỏi thẳng *"nếu xin nhiều lần và cấp nhiều lần thì
+	 * sao"*. Phần HẸN LỊCH đã có từ lâu (`lich`); phần GHI NHẬN TỪNG LẦN NHẬN thì chưa — cấp
+	 * tiền vốn là một cú lật duy nhất, cấp là cấp trọn lệnh.
+	 *
+	 * Hệ quả của việc thiếu nó: lệnh 48 triệu mà kế toán mới đưa 20 triệu thì không có chỗ nào
+	 * ghi lại. Muốn biết "còn phải đưa bao nhiêu" thì hỏi mồm — đúng thứ hệ này sinh ra để bỏ.
+	 *
+	 * 🔴 KHÔNG THÊM TRẠNG THÁI MỚI CHO LỆNH. Thêm 'đang cấp' vào `TT_DOT` là nó chảy xuống trạng
+	 *    thái của TỪNG HẠNG MỤC (`dat_tt_dot` đẩy `tt` của lệnh xuống mọi hàng), rồi vào
+	 *    `hm_du_tu_qt()`, vào bảng Duyệt, vào mọi phép so `'ung' === $h['tt']`. Một trạng thái
+	 *    mới là một nhánh chưa ai đi trong hàng chục phép so — và chúng hỏng im lặng.
+	 *    Nên: lệnh vẫn ở 'duyet' cho tới khi cấp ĐỦ, rồi mới sang 'ung'. Phần "đang cấp dở" nằm
+	 *    ở SỐ TIỀN (`daCap`), không nằm ở trạng thái. Màn hình đọc số ấy mà nói "đã cấp 20/48".
+	 *
+	 * 🔴 CẤP ĐỦ THÌ ĐI ĐÚNG ĐƯỜNG CŨ. Lượt cấp cuối gọi thẳng `dat_tt_dot(...,'ung')`, nên mọi
+	 *    thứ móc vào lượt ấy — hạng mục sang 'ung', `tu_quyet_toan_coso()` của đơn cơ sở, mốc
+	 *    thời gian, nhật ký — chạy y như trước. Chép lại một bản rút gọn ở đây là hai đường cấp
+	 *    tiền, và sớm muộn một đường quên một việc.
+	 *
+	 * ⚠️ KHÔNG CHO CẤP QUÁ SỐ CỦA LỆNH. Đưa dư là tiền ra khỏi két nhiều hơn số đã duyệt, mà
+	 *    lệnh thì chỉ được duyệt tới đấy. Cần đưa thêm thì xin một lệnh mới — ở đó có người duyệt.
+	 * ⚠️ 0đ HAY SỐ ÂM THÌ CHỐI. Một dòng cấp 0đ chỉ làm sổ dài ra mà không nói gì.
+	 */
+	public static function cap_tien_phan( $ma_da, $dot, $them = array() ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$d = self::dot_cua( $ma_da, $dot );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy lệnh tạm ứng đợt ' . (int) $dot ); }
+		$vai = VHCP_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCP_Util::err( 'Chỉ kế toán cấp tạm ứng được.' );
+		}
+		if ( 'ung' === $d['tt'] ) { return VHCP_Util::err( 'Lệnh này đã cấp đủ tiền rồi.' ); }
+		if ( 'duyet' !== $d['tt'] ) {
+			return VHCP_Util::err( 'Chỉ cấp tiền cho lệnh ĐÃ DUYỆT. Lệnh này đang ở bước "'
+				. $d['tt'] . '".' );
+		}
+
+		$them   = (array) $them;
+		$so     = VHCP_Util::num( isset( $them['soTien'] ) ? $them['soTien'] : 0 );
+		$con    = self::con_phai_cap( $d );
+		if ( $so <= 0 ) {
+			return VHCP_Util::err( 'Nhập số tiền thật sự đưa lần này (lớn hơn 0).' );
+		}
+		if ( $so > $con ) {
+			return VHCP_Util::err( 'Lệnh này chỉ còn ' . number_format( (float) $con, 0, ',', '.' )
+				. 'đ chưa cấp, không đưa được ' . number_format( (float) $so, 0, ',', '.' ) . 'đ. '
+				. 'Cần đưa thêm thì nhân viên xin một lệnh mới — lệnh mới có người duyệt.' );
+		}
+
+		$ghi = $d['daCap'];
+		$ghi[] = array(
+			'lan'    => count( $ghi ) + 1,
+			'soTien' => $so,
+			'ngay'   => trim( (string) ( isset( $them['ngay'] ) ? $them['ngay'] : '' ) ),
+			'unc'    => trim( (string) ( isset( $them['unc'] ) ? $them['unc'] : '' ) ),
+			'nguoi'  => VHCP_Auth::nguoi(),
+			'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+		);
+		$het = ( $so >= $con );   // lượt này trả nốt phần còn lại
+
+		if ( $het ) {
+			/* Ghi sổ TRƯỚC rồi mới lật trạng thái: `dat_tt_dot` đọc lại lệnh từ sổ, nên ghi sau
+			   là lượt cấp cuối biến mất khỏi sổ. */
+			self::dot_ghi_( $ma_da, $dot, array( 'daCap' => $ghi ), 'Cấp tạm ứng (lần cuối) cho dự án' );
+			$kq = self::dat_tt_dot( $ma_da, $dot, 'ung',
+				isset( $them['unc'] ) ? array( 'unc' => trim( (string) $them['unc'] ) ) : array() );
+			if ( empty( $kq['success'] ) ) { return $kq; }
+			$moi = self::dot_cua( $ma_da, $dot );
+			return VHCP_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
+				'con' => 0, 'xong' => true,
+				'tuQuyetToan' => isset( $kq['tuQuyetToan'] ) ? (int) $kq['tuQuyetToan'] : 0 ) );
+		}
+
+		$moi = self::dot_ghi_( $ma_da, $dot, array( 'daCap' => $ghi ), 'Cấp tạm ứng từng phần cho dự án' );
+		$moi = self::dot_cua( $ma_da, $dot );
+		return VHCP_Util::ok( array( 'dot' => $moi, 'daCap' => self::da_cap_tong( $moi ),
+			'con' => self::con_phai_cap( $moi ), 'xong' => false ) );
+	}
+
 	public static function dat_tt_dot( $ma_da, $dot, $tt, $them = array() ) {
 		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		$tt = (string) $tt;
@@ -1217,6 +1331,25 @@ class VHCP_DuAn {
 		$sua = array( 'tt' => $tt );
 		if ( isset( $them['unc'] ) ) { $sua['unc'] = trim( (string) $them['unc'] ); }
 		if ( isset( $them['lyDo'] ) ) { $sua['lyDo'] = trim( (string) $them['lyDo'] ); }
+		/* 🔴 CẤP TRỌN MỘT LẦN CŨNG PHẢI VÀO SỔ CÁC LẦN CẤP. Nếu chỉ `cap_tien_phan()` ghi sổ thì
+		   sổ ấy thủng đúng ở lối đang được dùng nhiều nhất, và con số "đã chi" đọc theo nó sẽ
+		   thiếu mất phần lớn tiền. Ghi nốt phần CÒN LẠI — lượt cấp cuối của đường từng phần đã
+		   ghi dòng của nó rồi, nên ở đây `con` bằng 0 và không sinh dòng thừa. */
+		if ( 'ung' === $tt ) {
+			$con_lai = self::con_phai_cap( $d );
+			if ( $con_lai > 0 ) {
+				$ghi_c   = $d['daCap'];
+				$ghi_c[] = array(
+					'lan'    => count( $ghi_c ) + 1,
+					'soTien' => $con_lai,
+					'ngay'   => '',
+					'unc'    => isset( $sua['unc'] ) ? $sua['unc'] : $d['unc'],
+					'nguoi'  => VHCP_Auth::nguoi(),
+					'luc'    => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+				);
+				$sua['daCap'] = $ghi_c;
+			}
+		}
 		$viec = array( 'duyet' => 'Duyệt lệnh tạm ứng dự án', 'tra' => 'Trả lại lệnh tạm ứng dự án',
 			'ung' => 'Cấp tạm ứng cho dự án', 'xin' => 'Xin tạm ứng cho dự án' );
 		$moi = self::dot_ghi_( $ma_da, $dot, $sua, isset( $viec[ $tt ] ) ? $viec[ $tt ] : 'Đổi lệnh tạm ứng' );

@@ -5841,20 +5841,65 @@
     }
     return x;
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     TIỀN ĐÃ CẤP CHO MỘT LỆNH — đọc từ sổ các lần cấp, không đọc theo trạng thái.
+     Anh Thắng 17/09/2026: *"nếu xin nhiều lần và cấp nhiều lần thì sao"*. Lệnh 48tr mà kế toán
+     mới đưa 20tr thì trạng thái vẫn là "chờ cấp tiền" — đúng, vì chưa đủ — nhưng 20tr ấy ĐÃ RA
+     KHỎI KÉT. Con số ấy phải hiện ra, không thì không ai biết còn phải đưa bao nhiêu.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _daCapTong(x){
+    var t=0; ((x&&x.daCap)||[]).forEach(function(y){ t+=Number(y.soTien)||0; });
+    return t;
+  }
+  function _conPhaiCap(x){
+    var c=(Number(x&&x.soTien)||0)-_daCapTong(x);
+    return c>0?c:0;
+  }
+  /* Dòng phụ dưới số tiền của lệnh: chỉ hiện khi đã đưa một phần — đưa đủ hay chưa đưa gì thì
+     con số tổng ở trên đã nói hết, thêm một dòng nữa chỉ làm bảng ồn. */
+  function _capChu(x){
+    var da=_daCapTong(x);
+    if(!da || da>=(Number(x&&x.soTien)||0)) return '';
+    return '<div style="font-size:10.5px;color:#0f766e;font-weight:600">đã cấp '+money(da)
+      +'đ · còn <b>'+money(_conPhaiCap(x))+'đ</b></div>';
+  }
   function lenhMoCap(k,maDA,dot){
     var x=_lenhTim(maDA,dot);
     if(!x){ toast('err','Không tìm thấy lệnh'); return; }
+    var con=_conPhaiCap(x), da=_daCapTong(x);
+    /* 🔴 Ô SỐ TIỀN ĐIỀN SẴN PHẦN CÒN LẠI. Đưa trọn là việc thường nhất, nên nó phải là đường
+       KHÔNG phải gõ gì. Ai đưa một phần thì sửa số — chứ không phải ngược lại, bắt mọi người
+       gõ số mỗi lần chỉ vì thỉnh thoảng có người đưa dở. */
     _hmMo(k, '<b>💵 Cấp tạm ứng — '+esc(x.tenDA)+' · đợt '+_dotHien(x)+'</b>'
-      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cấp <b>'+money(x.soTien)+'đ</b> cho '
-      +(x.rows||[]).length+' hạng mục trong lệnh này — <b>một lần chuyển, một uỷ nhiệm chi</b>. '
-      +'Trả tiền mặt thì để trống cũng được.</div>'
+      +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Lệnh <b>'+money(x.soTien)+'đ</b> cho '
+      +(x.rows||[]).length+' hạng mục.'
+      +(da?(' Đã đưa <b>'+money(da)+'đ</b>, còn <b>'+money(con)+'đ</b>.'):'')
+      +' Đưa hết một lần thì để nguyên số; đưa làm nhiều lần thì sửa lại — mỗi lần một dòng '
+      +'trong sổ, có uỷ nhiệm chi riêng.</div>'
       +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;align-items:center">'
+      +'<span style="white-space:nowrap">Số tiền đưa lần này: <input type="text" inputmode="numeric" '
+      +'data-hmcap="'+k+'" value="'+money(con)+'" style="width:130px;font-size:12px;text-align:right"> đ</span>'
+      +'<span style="white-space:nowrap">Ngày đưa: <input type="text" data-hmcapngay="'+k+'" '
+      +'placeholder="dd/mm/yyyy" style="width:110px;font-size:12px"></span>'
       +_hmOTep(k,maDA,'unc','Uỷ nhiệm chi',false,220)+'</div>'
-      +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp '+money(x.soTien)+'đ</button>'
+      +'<div style="margin-top:8px"><button class="btn b-g" onclick="lenhGuiCap(\''+k+'\',\''+esc(maDA)+'\','+dot+')">✓ Cấp tiền</button>'
       +' <button class="btn b-x" onclick="hmDongLai(\''+k+'\')">✕ Thôi</button></div>');
   }
   function lenhGuiCap(k,maDA,dot){
-    lenhDat(maDA,dot,'ung',{unc:_hmVal('unc',k)},_lenhSau(k));
+    var o=document.querySelector('[data-hmcap="'+k+'"]');
+    var od=document.querySelector('[data-hmcapngay="'+k+'"]');
+    /* Bỏ dấu chấm nghìn trước khi gửi — ô này người ta gõ "20.000.000" như mọi ô tiền khác. */
+    var so=o?Number(String(o.value||'').replace(/[^0-9]/g,'')):0;
+    if(!so){ toast('warn','Nhập số tiền đưa lần này'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      toast('ok', r.xong ? ('Đã cấp đủ '+money(r.daCap)+'đ cho lệnh này')
+                         : ('Đã cấp '+money(so)+'đ — còn '+money(r.con)+'đ'));
+      _log('Cấp tạm ứng dự án', maDA, money(so)+'đ'+(r.xong?' (đủ)':(' · còn '+money(r.con)+'đ')));
+      var sau=_lenhSau(k); if(typeof sau==='function') sau();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .capTienPhanDuAn(maDA, dot, { soTien:so, ngay:(od?String(od.value||'').trim():''), unc:_hmVal('unc',k) });
   }
   /* Bộ nút của MỘT lệnh — dùng chung cho bảng ở màn Duyệt và bảng trong trang dự án.
      Anh Thắng: *"cho nút duyệt trực tiếp trong trang luôn"* — kế toán đang mở dự án để soi
@@ -6612,7 +6657,7 @@
       return '<tr><td>'+_nhanDot(d)+'</td>'
         +'<td style="font-size:12px">'+(d.tenHM||[]).map(esc).join(' · ')+lich
         +(d.lyDo?('<div style="font-size:10.5px;color:#64748b">'+esc(d.lyDo)+'</div>'):'')+'</td>'
-        +'<td class="money"><b>'+money(d.soTien)+'</b></td>'
+        +'<td class="money"><b>'+money(d.soTien)+'</b>'+_capChu(d)+'</td>'
         +'<td>'+lenhNhan(d.tt)+'</td>'
         +'<td style="font-size:11.5px;color:#2545ff">'+(d.unc?esc(d.unc):'—')+'</td>'
         +'<td style="font-size:10.5px;color:#8c8781">'+moc+'</td>'
