@@ -155,12 +155,24 @@ t( '🔴 trang Ghế giữ nền TỐI, không nhận nền kem của bản sán
 t( '🔴 và giữ VÀNG làm dấu nhận mặt', (bool) preg_match( '#--nhan:\s*\#f0b429#i', $g ), '' );
 /* Ảnh nền và lớp phủ tối là cặp không tách rời: bỏ lớp phủ thì chữ trắng nằm trên vùng sáng
    của ảnh là không đọc nổi. */
-/* Trạm bấm cũng là mặt TỐI, và cũng vì một lý do làm được chứ không phải vì đẹp: nó mở camera
-   soi mặt để chấm công và chạy cả ca đêm. Nền kem sáng thì màn hình hắt thẳng vào mặt người
-   đang đứng chụp, ảnh bệt — mà đúng cái ảnh ấy là thứ quản lý dùng đối chiếu về sau. */
+/* Trạm bấm: MÀN CHỤP phải tối, và vì một lý do làm được chứ không phải vì đẹp — nó mở camera
+   soi mặt để chấm công và chạy cả ca đêm. Màn sáng thì hắt thẳng vào mặt người đang đứng chụp,
+   ảnh bệt, mà đúng tấm ảnh ấy là thứ quản lý dùng đối chiếu về sau.
+
+   ⚠️ 17/09/2026 — CANH MÀN CHỤP, KHÔNG CANH CẢ TRANG. Từ bản 4.29.1 trạm đổi sang mặt sáng cho
+      hợp với bảng công và ba trang Chi phí; chỉ năm giây đứng chụp mới có chuyện hắt sáng, nên
+      chữa đúng chỗ ấy là đủ. Chính chú thích đầu `tram.php` đã chốt hướng này.
+
+      Nhưng lúc hoà nhánh mới lộ ra là hướng ấy MỚI ĐƯỢC VIẾT RA CHỨ CHƯA ĐƯỢC LÀM: `#mChup`
+      không có lấy một luật màu, và bài kiểm này cũng chưa hề đổi như chú thích nói. Tức trạm
+      đã sáng toàn bộ, kể cả lúc chụp, suốt từ đó. Nay `#mChup` có bảng màu tối riêng và phép
+      dưới đây canh đúng nó — canh cả trang nữa thì đỏ oan, mà bỏ hẳn thì mất luôn cái gác. */
 $tr = $css['Trạm bấm (tối)'];
-t( '🔴 Trạm bấm giữ nền TỐI, không nhận nền kem của bản sáng',
-	false === strpos( $tr, '--nen:#f9f8f6' ) && (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $tr ), '' );
+$m_chup = '';
+if ( preg_match( '~#mChup\s*\{(.*?)\}~s', $tr, $m ) ) { $m_chup = $m[1]; }
+t( '🔴 màn chụp của Trạm có bảng màu riêng', '' !== $m_chup, '' );
+t( '🔴 màn chụp giữ nền TỐI, không nhận nền kem của bản sáng',
+	false === strpos( $m_chup, '--nen:#f9f8f6' ) && (bool) preg_match( '#--nen:\s*\#1[0-9a-f]{5}#i', $m_chup ), '' );
 
 $ghe_php = file_get_contents( $GOC . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
 t( '⚠️ ảnh nền còn nguyên', false !== strpos( $ghe_php, 'body.co-anh::before' ), '' );
@@ -235,6 +247,18 @@ $VE   = array_merge( $VE, glob( $GOC . '/wordpress/vhcp-cham-cong/templates/*.ph
 $dinh = array();
 foreach ( $VE as $tep ) {
 	$noi = (string) @file_get_contents( $tep );
+	/* ⚠️ BỎ CHÚ THÍCH KHỐI RA TRƯỚC KHI SOI. 17/09/2026: `class-vhcc-ve-tram.php` viết trong
+	   chú thích của chính nó rằng nó KHÔNG dùng `style="` dán thẳng — và đúng là không dùng.
+	   Nhưng mẫu `style="[^"]*"` vớ ngay mấy chữ `style="` trong câu chú thích ấy rồi quét tiếp
+	   tới dấu " kế, nuốt luôn khối <style> bên dưới và báo oan hai mã màu trong đó.
+
+	   Báo oan ở đây đắt hơn vẻ ngoài: phép này là phép BÉN NHẤT của cả bài, và nó đã một mình
+	   giữ `phat-hanh.yml` đỏ suốt — không plugin nào trong kho tạo được tag. Một bài kiểm đỏ vì
+	   lý do không phải lỗi là bài người ta tắt đi, rồi mất luôn cả cái gác thật.
+
+	   Bỏ theo tên tệp thì trái chính lời bài này dặn ("MIỄN THEO TÊN CHUỖI, KHÔNG MIỄN THEO
+	   TỆP"), nên bỏ đúng thứ đáng bỏ: chữ trong chú thích không phải là mã chạy. */
+	$noi = (string) preg_replace( '~/\*[\s\S]*?\*/~', ' ', $noi );
 	/* Chỉ soi TRONG thuộc tính `style="…"`. Mã màu trong bảng kiểu ở `<style>` là chuyện khác:
 	   ở đó nó nằm cạnh tên biến, sửa một chỗ là xong. */
 	if ( ! preg_match_all( '#style="[^"]*"#', $noi, $m_st ) ) { continue; }

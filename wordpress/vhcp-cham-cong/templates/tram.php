@@ -76,6 +76,27 @@ VHCC_PWA::the_head();
 	--bong-2:0 4px 14px rgba(0,0,0,.50);
 	--bong-3:0 12px 32px rgba(0,0,0,.60);
 }
+/* ═══ MÀN CHỤP GIỮ MẶT TỐI ═════════════════════════════════════════════════════════════════
+   Chú thích đầu tệp (mục "hắt sáng") hứa đúng việc này. 17/09/2026 hoà nhánh mới phát hiện
+   lời hứa ấy CHƯA ĐƯỢC LÀM: trạm đã sang nền kem mà `#mChup` không có lấy một luật màu, và
+   `kiem-bo-ao-tron.php` cũng chưa hề được sửa như chú thích nói. Nên nguyên nỗi lo vẫn còn
+   nguyên: màn kem sáng hắt thẳng vào mặt người đang đứng chụp, ảnh bệt — mà đúng tấm ảnh ấy là
+   thứ quản lý dùng đối chiếu về sau, và trạm chạy cả ca đêm.
+
+   Chỉ đổi màu, KHÔNG đổi hình: cùng tên biến, cùng bo góc, cùng nhịp 4px với bản sáng — đúng
+   luật "sáng và tối khác màu, không khác hình" của bộ áo. Và chỉ trong năm giây đứng chụp. */
+#mChup{
+	/* Mười hai mã dưới đây CHÉP NGUYÊN từ bản tối của chính tệp này trước lượt 4.29.1 (xem
+	   `git show bb871c6d:…/tram.php`) — không tự pha màu mới, để mặt tối của trạm vẫn đúng
+	   một thứ màu với mấy trang tối khác trong bộ. */
+	--nen:#101828; --the:#1b2436; --nen-2:#243049;
+	--vien:#31405e; --vien-dam:#455873;
+	--chu:#e7ecf5; --chu-dam:#ffffff; --chu-mo:#93a3bd;
+	--nhan:#38bdf8; --nhan-dam:#0ea5e9; --nhan-nhat:#12314a;
+	--do:#f87171;
+	background:var(--nen); color:var(--chu);
+}
+
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 /* Nền 3D mặt tối: cùng ba vầng sáng như bảng công, chỉ đậm hơn để đọc ra trên nền tối.

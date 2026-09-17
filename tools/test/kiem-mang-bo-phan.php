@@ -337,8 +337,18 @@ t( 'cả hai đều có KEY để lọc cho nhanh',
 	&& strpos( $so_do['nhan_vien'], 'KEY bo_phan (bo_phan)' ) !== false );
 
 /* 🔴 Không tăng SCHEMA_VERSION là cột không bao giờ mọc ra trên site ĐANG CHẠY — bảng mới chỉ
-   dựng đúng cho site cài mới, nên lỗi này rất dễ lọt qua mọi bài thử chạy trên sổ trắng. */
-t( '🔴 SCHEMA_VERSION đã tăng', '2.10.0' === VHCC_DB::SCHEMA_VERSION, VHCC_DB::SCHEMA_VERSION );
+   dựng đúng cho site cài mới, nên lỗi này rất dễ lọt qua mọi bài thử chạy trên sổ trắng.
+
+   ⚠️ SO "TỪ 2.10.0 TRỞ LÊN", KHÔNG GHIM BẰNG `===`. Hai cột `mang`/`bo_phan` ra đời ở 2.10.0,
+      nên mọi bản từ đó trở đi đều có chúng. Ghim cứng thì MỌI lượt tăng hợp lệ về sau đều làm
+      bài này đỏ — và nó đã đỏ thật: nhánh claude/nifty-albattani nâng sổ lên 2.12.0 cho đơn xin
+      nghỉ phép và gác vị trí, bài này đỏ theo, kéo cả `phat-hanh.yml` đỏ, và không plugin nào
+      trong kho tạo được tag nữa. Một bài kiểm đỏ vì lý do không phải lỗi là bài người ta tắt đi. */
+t(
+	'🔴 SCHEMA_VERSION đã tăng (>= 2.10.0, bản có cột mang/bo_phan)',
+	version_compare( VHCC_DB::SCHEMA_VERSION, '2.10.0', '>=' ),
+	VHCC_DB::SCHEMA_VERSION
+);
 
 $src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
 t( 'bảng có cột Mảng kinh doanh', strpos( $src, 'Mảng kinh doanh' ) !== false );
