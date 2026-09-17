@@ -243,11 +243,55 @@ t( 'viec=gio trả mốc epoch', ! empty( $g['ok'] ) && (int) $g['moc'] > 0, $g 
 t( 'viec=gio trả cả ngày lẫn giờ', (bool) preg_match( '/^\d{4}-\d{2}-\d{2}$/', $g['ngay'] )
 	&& (bool) preg_match( '/^\d{2}:\d{2}:\d{2}$/', $g['gio'] ), $g );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * GÁC 1 SAU KHI CÓ HÀNG ĐỢI OFFLINE (4.16.0) — phép thử đổi hình, KHÔNG đổi luật.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Trước bản ấy phép thử này đọc là *"cham_cong() KHÔNG có tham số nào cho client truyền GIỜ
+ * vào"*, và nó đúng vì lúc đó không có lượt chấm nào cần ghi một giờ đã trôi qua. Hàng đợi
+ * offline thì BUỘC phải ghi giờ đã bấm, nên `$moc_giu` xuất hiện — và nếu chỉ xoá phép thử cũ
+ * đi thì luật "không nhận giờ từ điện thoại" mất người canh đúng lúc nó dễ vỡ nhất.
+ *
+ * Nên phép thử siết vào chỗ khác, chặt hơn: tham số ấy chỉ được nhận một con số ĐÃ QUA VÉ ĐÃ
+ * KÝ, và chỉ có ĐÚNG MỘT nơi gọi trong cả bộ được truyền nó. Một nơi gọi thứ hai truyền thẳng
+ * `time()` hay một số từ `$_POST` là đã mở lại nguyên cái lỗ — mà nhìn mã thì vẫn "có gác".
+ */
 $ref = new ReflectionMethod( 'VHCC_Online', 'cham_cong' );
 $ten_tham_so = array();
 foreach ( $ref->getParameters() as $p ) { $ten_tham_so[] = $p->getName(); }
-t( 'cham_cong() KHÔNG có tham số nào cho client truyền GIỜ vào',
-	! preg_grep( '/gio|giay|thoi_gian|moc/i', $ten_tham_so ), $ten_tham_so );
+t( 'cham_cong() chỉ có ĐÚNG MỘT tham số giờ, và là mốc đã ký (moc_giu)',
+	array( 'moc_giu' ) === array_values( preg_grep( '/gio|giay|thoi_gian|moc/i', $ten_tham_so ) ),
+	$ten_tham_so );
+
+$thu_muc = $goc . '/wordpress/vhcp-cham-cong/includes/';
+$noi_goi = array();
+foreach ( glob( $thu_muc . '*.php' ) as $tep ) {
+	$ma = file_get_contents( $tep );
+	/* Lời gọi có tham số thứ 6 = có truyền mốc. Đếm dấu phẩy ở mức ngoặc ngoài cùng. */
+	if ( preg_match_all( '/VHCC_Online::cham_cong\(/', $ma ) ) {
+		foreach ( explode( 'VHCC_Online::cham_cong(', $ma ) as $i => $sau ) {
+			if ( 0 === $i ) { continue; }
+			$sau_num = 0; $muc = 1; $phay = 0;
+			for ( $k = 0; $k < strlen( $sau ) && $muc > 0; $k++ ) {
+				$c = $sau[ $k ];
+				if ( '(' === $c ) { $muc++; }
+				elseif ( ')' === $c ) { $muc--; }
+				elseif ( ',' === $c && 1 === $muc ) { $phay++; }
+			}
+			if ( $phay >= 5 ) { $noi_goi[] = basename( $tep ); }
+			unset( $sau_num );
+		}
+	}
+}
+t( '🔴 chỉ ĐÚNG MỘT nơi gọi truyền mốc giờ vào cham_cong()',
+	array( 'class-vhcc-tram.php' ) === array_values( array_unique( $noi_goi ) ), $noi_goi );
+
+$src_tram = file_get_contents( $thu_muc . 'class-vhcc-tram.php' );
+t( '🔴 nơi ấy lấy mốc từ doc_ve(), không lấy từ thân yêu cầu',
+	false !== strpos( $src_tram, '$moc = (int) $v[\'moc\'];' ), '' );
+t( '🔴 và chối ngay khi vé không hợp lệ',
+	false !== strpos( $src_tram, "if ( empty( \$v['ok'] ) ) { self::ra(" ), '' );
+t( '🔴 cửa KHÔNG đọc thẳng một con số giờ nào từ thân yêu cầu',
+	false === strpos( $src_tram, "\$b['moc']" ) && false === strpos( $src_tram, "\$b['gio']" ), '' );
 
 /* ================================================================== 6. BỐN RÀNG BUỘC Ở GIAO DIỆN */
 
@@ -992,7 +1036,17 @@ t( 'soát ra ĐÃ GHI thì đóng màn chọn và bỏ ảnh, y như lượt th�
 	preg_match( "/chuoiHomNay\(cs\) === truoc[\s\S]{0,600}?ANH = null;[\s\S]{0,80}?hien\('mChon',false\);/", $tram_js2 ) === 1 );
 t( 'soát ra ĐÃ GHI thì dặn ĐỪNG bấm lại',
 	strpos( $tram_js2, 'ĐỪNG bấm lưu lại' ) !== false );
-t( 'hỏi lại cũng hỏng thì nói thẳng là CHƯA BIẾT, không bịa',
+/* 🔴 4.16.0 — NHÁNH NÀY ĐỔI THỨ TỰ, KHÔNG ĐỔI LUẬT. Trước bản ấy "hỏi lại cũng hỏng" chỉ còn
+   cách nói thẳng là chưa biết, rồi đẩy việc suy đoán sang cho người đang đứng ngoài cửa hàng
+   với cái điện thoại không sóng. Nay máy GIỮ LẤY lượt ấy (hàng đợi, xem kiem-hang-cho.php) —
+   an toàn vì lượt gửi lại mang nguyên vé giờ cũ nên trùng từng giây với lượt đầu.
+   Nhưng khi ngay cả việc giữ cũng hỏng (kho đầy, lượt không có vé) thì câu cũ phải còn nguyên:
+   đó là lúc duy nhất còn lại mà người dùng buộc phải tự đi xem, và nói mơ hồ ở đúng lúc ấy là
+   tệ nhất. */
+t( 'hỏi lại cũng hỏng thì XẾP HÀNG ĐỢI, không đẩy việc sang cho người dùng',
+	strpos( $tram_js2, 'var xep = xepHang(goiCham);' ) !== false );
+t( 'xếp được thì dặn ĐỪNG chấm lại', strpos( $tram_js2, 'ĐỪNG chấm lại: chấm lại là hai lượt' ) !== false );
+t( 'giữ cũng không xong thì vẫn nói thẳng là CHƯA BIẾT, không bịa',
 	strpos( $tram_js2, 'CHƯA BIẾT giờ đã ghi hay' ) !== false );
 
 /* Câu lỗi mang mã ngắn để anh Thắng chụp màn là em đọc ra ngay việc nào hỏng ở đâu. */

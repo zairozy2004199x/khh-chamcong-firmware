@@ -57,6 +57,105 @@ class VHCC_Tram {
 
 	const SLUG_MD = 'cham-cong-online';
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * VÉ GIỜ — cách DUY NHẤT một lượt chấm gửi lại sau khi mất mạng được mang theo giờ cũ.
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 GÁC 1 KHÔNG ĐƯỢC NỚI. "Giờ lấy ở máy chủ, tuyệt đối không nhận giờ từ điện thoại" —
+	 *    nhận giờ của client là ai cũng tự khai mình đến từ 8 giờ sáng. Hàng đợi offline thì
+	 *    lại BUỘC phải ghi một giờ đã trôi qua. Hai điều ấy chỉ sống chung được nếu giờ ấy
+	 *    KHÔNG do điện thoại nghĩ ra, mà do CHÍNH MÁY CHỦ phát ra lúc còn mạng.
+	 *
+	 *    Nên `viec=gio` phát kèm một cái vé đã ký. Vé nói: *"máy chủ ở thời điểm M, vé này của
+	 *    thẻ phiên T, dùng được tới M+30 phút"*. Lượt chấm gửi lại nộp vé cùng số mili giây đã
+	 *    trôi (đo bằng `performance.now()`, không đọc đồng hồ máy). Máy chủ tự cộng lại và tự
+	 *    kiểm — điện thoại không chọn được một con số nào nằm ngoài khoảng vé cho phép.
+	 *
+	 * 🔴 BA CHỐT, THIẾU CHỐT NÀO CŨNG THÀNH CỬA KHAI GIỜ TỰ DO:
+	 *    1. CHỮ KÝ. Không ký thì vé là một con số gõ tay được, và cả bộ này chỉ là thủ tục.
+	 *    2. BUỘC VÀO THẺ PHIÊN. Vé không gắn thẻ thì một người xin vé lúc 6 giờ rồi đưa vé cho
+	 *       cả cửa hàng — mười người cùng "đến từ 6 giờ".
+	 *    3. HẠN NGẮN. Giờ khai được chỉ nằm trong khoảng [lúc phát vé, lúc phát vé + 30 phút].
+	 *       Hạn dài là mở lại đúng cái lỗ vừa bịt: xin vé lúc 6h, 9h mới bấm, khai 6h.
+	 *
+	 * ⚠️ VÉ KHÔNG PHẢI THẺ ĐĂNG NHẬP. Nó chỉ chứng nhận MỘT MỐC GIỜ, không mở cửa gì. Lộ vé thì
+	 *    kẻ cầm nó cũng phải có thẻ phiên khớp mới dùng được, và dùng được cũng chỉ để ghi một
+	 *    lượt chấm vào đúng nửa giờ đã qua — bằng đúng việc họ làm được khi chấm bình thường.
+	 */
+	const VE_HAN = 1800;
+
+	/**
+	 * Lượt gửi lại cũ hơn bấy nhiêu giây thì THÔI, không nhận nữa.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ TRẦN, dù vé đã có hạn riêng. Hạn vé chặn việc khai một giờ QUÁ SỚM;
+	 *    trần này chặn việc NỘP QUÁ MUỘN. Hai chuyện khác nhau: một cái điện thoại để trong
+	 *    ngăn kéo ba ngày rồi mới có mạng sẽ nhả ra một lượt chấm cho ngày thứ Hai vào sáng
+	 *    thứ Năm — công của một ngày đã chốt bỗng đổi, sau khi bảng công ngày ấy đã được đọc,
+	 *    đã được duyệt, và có khi đã tính lương. Việc sửa công của ngày đã qua có cửa riêng
+	 *    (chấm bù), có người duyệt và có dấu vết; hàng đợi không được lén làm thay việc ấy.
+	 */
+	const GUI_LAI_TOI_DA = 43200;   // 12 giờ
+
+	private static function ve_ky( $moc, $han, $token ) {
+		return substr( hash_hmac( 'sha256',
+			(int) $moc . '|' . (int) $han . '|' . (string) $token, wp_salt( 'auth' ) ), 0, 32 );
+	}
+
+	/** Vé cho một thẻ phiên. Thẻ rỗng -> không phát vé (khách chưa đăng nhập không cần vé). */
+	public static function ve_gio( $token ) {
+		$token = trim( (string) $token );
+		if ( '' === $token ) { return ''; }
+		$moc = (int) current_time( 'timestamp' );
+		$han = $moc + self::VE_HAN;
+		return $moc . '.' . $han . '.' . self::ve_ky( $moc, $han, $token );
+	}
+
+	/**
+	 * Đọc vé + số mili giây đã trôi -> mốc giờ ĐƯỢC PHÉP ghi.
+	 *
+	 * @return array array('ok'=>bool,'moc'=>int,'cham'=>int giây trễ,'error'=>string)
+	 */
+	public static function doc_ve( $ve, $token, $troi_ms ) {
+		$chia = explode( '.', trim( (string) $ve ) );
+		if ( 3 !== count( $chia ) ) {
+			return array( 'ok' => false, 'error' => 'Vé giờ không đọc được — chấm lại khi có mạng.' );
+		}
+		list( $moc, $han, $ky ) = $chia;
+		if ( ! ctype_digit( (string) $moc ) || ! ctype_digit( (string) $han ) ) {
+			return array( 'ok' => false, 'error' => 'Vé giờ hỏng — chấm lại khi có mạng.' );
+		}
+		$moc = (int) $moc;
+		$han = (int) $han;
+		/* `hash_equals` chứ không phải `===`: so chuỗi bằng `===` thoát ra ở byte đầu khác nhau,
+		   và thời gian thoát ấy đo được — đủ để dò dần ra chữ ký đúng. */
+		if ( ! hash_equals( self::ve_ky( $moc, $han, $token ), (string) $ky ) ) {
+			return array( 'ok' => false, 'error' => 'Vé giờ không phải của phiên này — đăng nhập '
+				. 'lại rồi chấm lại.' );
+		}
+
+		$troi = ( is_numeric( $troi_ms ) && $troi_ms > 0 ) ? (int) round( (float) $troi_ms / 1000 ) : 0;
+		$khai = $moc + $troi;
+		$nay  = (int) current_time( 'timestamp' );
+
+		/* Khai vượt hạn vé -> kéo về mốc vé. KHÔNG chối: người bấm không làm gì sai, họ chỉ
+		   mất mạng lâu hơn nửa giờ. Kéo về là ghi SỚM HƠN thực tế — bất lợi cho người bấm ở
+		   lượt giờ vào, nhưng nó là con số máy chủ chắc chắn, và lệch bao nhiêu thì có ghi. */
+		$keo = false;
+		if ( $khai > $han ) { $khai = $han; $keo = true; }
+
+		/* 🔴 KHÔNG BAO GIỜ GHI MỘT GIỜ Ở TƯƠNG LAI. Đồng hồ máy chủ có thể bị chỉnh lùi (đồng bộ
+		   NTP, đổi múi giờ của hosting) và lúc đó mốc cũ nằm sau "bây giờ". Ghi giờ ra ở tương
+		   lai là ca ấy dài thêm vài tiếng mà không ai hiểu vì sao. */
+		if ( $khai > $nay ) { $khai = $nay; }
+
+		$cham = $nay - $khai;
+		if ( $cham > self::GUI_LAI_TOI_DA ) {
+			return array( 'ok' => false, 'error' => 'Lượt chấm này giữ trong máy đã '
+				. round( $cham / 3600 ) . ' giờ — quá lâu để tự ghi vào bảng công. Nhờ quản lý '
+				. 'chấm bù (có ghi lại ai bù, vì sao).' );
+		}
+		return array( 'ok' => true, 'moc' => $khai, 'cham' => $cham, 'keo' => $keo );
+	}
+
 	/** Số lượt gõ PIN sai cho mỗi IP trong 10 phút. */
 	const SAI_TOI_DA = 12;
 
@@ -182,7 +281,15 @@ class VHCC_Tram {
 		$b = self::than();
 
 		/* --- việc công khai: chưa đăng nhập cũng gọi được --- */
-		if ( 'gio' === $viec ) { self::ra( VHCC_Online::gio_may_chu() ); }
+		if ( 'gio' === $viec ) {
+			/* Vé giờ đi kèm mốc, CHỈ khi lượt hỏi có mang thẻ phiên. Màn đăng nhập cũng gọi
+			   `gio` để chạy đồng hồ, và lúc ấy chưa có thẻ — không phát vé cho nó là đúng:
+			   vé không gắn thẻ thì một người xin vé rồi đưa cho cả cửa hàng. */
+			$g = VHCC_Online::gio_may_chu();
+			$tk_g = isset( $b['token'] ) ? (string) $b['token'] : '';
+			if ( '' !== $tk_g && self::nguoi( $tk_g ) ) { $g['ve'] = self::ve_gio( $tk_g ); }
+			self::ra( $g );
+		}
 
 		if ( 'anhmau' === $viec ) { self::ra( VHCC_Online::anh_mau_the() ); }
 
@@ -213,6 +320,12 @@ class VHCC_Tram {
 
 		if ( 'toi' === $viec ) {
 			$tt = VHCC_Online::thong_tin( $u );
+			/* Mốc giờ trong `toi` phải đi KÈM VÉ, y như `gio`. Trạm đặt lại `MOC` từ lượt này,
+			   và một mốc không vé là mốc không dùng được cho hàng đợi — lúc mất mạng mới lộ
+			   ra, tức đúng lúc không sửa được gì. */
+			if ( isset( $tt['gio'] ) && is_array( $tt['gio'] ) ) {
+				$tt['gio']['ve'] = self::ve_gio( isset( $b['token'] ) ? (string) $b['token'] : '' );
+			}
 			/* Đường sang trang quản trị — CHỈ gửi cho người thật sự mở được nó. Gửi cho ai
 			   cũng thì nhân viên bấm vào rồi nhận một trang chối, và họ tưởng mình hỏng máy.
 			   Cùng một thẻ dùng được cả hai bên nên bấm sang là vào thẳng, không gõ PIN lại. */
@@ -225,12 +338,29 @@ class VHCC_Tram {
 
 		if ( 'cham' === $viec ) {
 			$gps = ( isset( $b['gps'] ) && is_array( $b['gps'] ) ) ? $b['gps'] : null;
+
+			/* LƯỢT GỬI LẠI TỪ HÀNG ĐỢI — mang vé giờ, nên ghi vào giờ ĐÃ BẤM chứ không phải
+			   giờ máy chủ nhận được. Lượt chấm bình thường không có vé và đi đúng đường cũ:
+			   `$moc = null` -> `cham_cong()` tự lấy giờ máy chủ, gác 1 nguyên vẹn. */
+			$moc  = null;
+			$tre_gui = 0;
+			if ( ! empty( $b['veGio'] ) ) {
+				$v = self::doc_ve( (string) $b['veGio'],
+					isset( $b['token'] ) ? (string) $b['token'] : '',
+					isset( $b['troi'] ) ? $b['troi'] : 0 );
+				if ( empty( $v['ok'] ) ) { self::ra( array( 'ok' => false, 'error' => $v['error'] ) ); }
+				$moc = (int) $v['moc'];
+				$tre_gui = (int) $v['cham'];
+			}
+
 			self::ra( VHCC_Online::cham_cong(
 				$u,
 				isset( $b['anh'] ) ? (string) $b['anh'] : '',
 				$gps,
 				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
-				isset( $b['nhiemVu'] ) ? (string) $b['nhiemVu'] : ''
+				isset( $b['nhiemVu'] ) ? (string) $b['nhiemVu'] : '',
+				$moc,
+				$tre_gui
 			) );
 		}
 

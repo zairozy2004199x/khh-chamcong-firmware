@@ -195,6 +195,18 @@ a{color:var(--nhan)}
 		<button id="btCham" class="chinh to">📷 CHẤM CÔNG</button>
 	</div>
 
+	<!-- ============ LƯỢT CHẤM ĐANG GIỮ TRONG MÁY ============
+	     Ẩn khi hàng đợi trống, và đó là trạng thái bình thường. Bày một ô "Chờ gửi: 0" suốt
+	     ngày là dạy người ta bỏ qua chính cái ô ấy đúng hôm nó có số. -->
+	<div class="the an" id="oHangCho">
+		<label style="margin:0 0 8px">Chờ gửi lên máy chủ</label>
+		<div id="dsHangCho"></div>
+		<p class="ct" style="text-align:left;margin:8px 0 10px">Mấy lượt này đã đóng dấu <b>giờ máy
+			chủ</b> lúc bấm, nên gửi muộn vẫn vào đúng giờ ấy. <b>Đừng chấm lại</b> — chấm lại là
+			hai lượt.</p>
+		<button id="btDayHang" class="phu" style="width:100%">Thử gửi ngay</button>
+	</div>
+
 	<!-- ============ VỊ TRÍ ĐANG ĐỨNG ============ -->
 	<div class="the">
 		<label style="margin:0 0 8px">Vị trí đang đứng</label>
@@ -522,11 +534,13 @@ function datToken(t){ try{ t?localStorage.setItem(KHOA_PHIEN,t):localStorage.rem
    Lấy mốc từ máy chủ MỘT lần rồi để nó tự trôi theo đồng hồ máy. Không bao giờ đọc
    `new Date()` làm giờ hiển thị hay giờ đóng dấu — điện thoại lệch giờ là chuyện thường, và
    một tấm ảnh in sai giờ là bằng chứng nói ngược lại hàng đã ghi. */
-var MOC = null;   /* {sec: giây epoch của máy chủ, tuLuc: performance.now() lúc nhận} */
+var MOC = null;   /* {sec: giây epoch máy chủ, tuLuc: performance.now() lúc nhận, ve: vé đã ký} */
 
 function napGio(){
-	return goi('gio',{}).then(function(j){
-		if(j && j.ok){ MOC = { sec: Number(j.moc)||0, tuLuc: performance.now() }; }
+	/* Gửi kèm thẻ phiên để máy chủ phát VÉ GIỜ (xem VHCC_Tram::ve_gio). Màn đăng nhập cũng gọi
+	   hàm này lúc chưa có thẻ — lúc ấy không có vé, và đúng: chưa đăng nhập thì chưa chấm. */
+	return goi('gio',{token:token()}).then(function(j){
+		if(j && j.ok){ MOC = { sec: Number(j.moc)||0, tuLuc: performance.now(), ve: j.ve || '' }; }
 		return j;
 	}).catch(function(e){
 		/* Đồng hồ đứng ở "--:--:--" là dấu hiệu đầu tiên người ta nhìn thấy khi máy chủ hỏng —
@@ -884,7 +898,11 @@ function moManChinh(){
 	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
 	   khi một nửa vẫn đang treo. */
 	Promise.all([ napGio().then(nhipDongHo), napToi() ])
-		.then(function(){ dangGoi(false); }, function(){ dangGoi(false); });
+		.then(function(){ dangGoi(false); }, function(){ dangGoi(false); })
+		/* Đẩy hàng đợi SAU khi đã có mốc giờ và hồ sơ: lượt gửi lại cần thẻ phiên còn sống, mà
+		   thẻ chỉ chắc chắn còn sống sau khi `napToi()` về không lỗi. */
+		.then(veHangCho)
+		.then(dayHang);
 }
 
 function napToi(){
@@ -898,7 +916,7 @@ function napToi(){
 			return;
 		}
 		TOI = j;
-		if(j.gio){ MOC = { sec: Number(j.gio.moc)||0, tuLuc: performance.now() }; nhipDongHo(); }
+		if(j.gio){ MOC = { sec: Number(j.gio.moc)||0, tuLuc: performance.now(), ve: j.gio.ve || '' }; nhipDongHo(); }
 		el('tenToi').textContent = j.hoTen || '—';
 		el('maToi').textContent  = 'Mã ' + (j.maNV || '—');
 		el('csToi').textContent  = j.coSoMacDinh || '—';
@@ -1207,6 +1225,13 @@ function guiDon(viec, than, oLoi, nut, chuXong){
 	});
 }
 
+el('btDayHang').addEventListener('click', function(){ dayHang(); });
+
+/* Trình duyệt báo có sóng lại -> thử ngay. `online` không bảo đảm mạng THẬT SỰ đi được (wifi
+   của quán không có internet cũng bắn sự kiện này), nên `dayHang()` phải chịu được lượt hỏng —
+   nó chịu được: hỏng thì giữ nguyên hàng và không nói gì. */
+window.addEventListener('online', function(){ dayHang(); });
+
 el('btDenXin').addEventListener('click', function(){ moManXin(); });
 el('btDongXin').addEventListener('click', function(){ hien('mXin',false); });
 
@@ -1475,7 +1500,18 @@ el('btLuu').addEventListener('click', function(){
 
 	var anhVuaGui = ANH;   /* giữ lại để đối chiếu mặt SAU KHI giờ đã ghi xong */
 	var truocKhiGui = chuoiHomNay(cs);   /* ảnh chụp trạng thái để soát lại nếu lượt gọi hỏng */
-	goi('cham',{ token:token(), anh:ANH, gps:GPS, coSo:cs, nhiemVu:nv }, CHO_CO_ANH).then(function(j){
+
+	/* 🔴 ĐÓNG BĂNG MỐC GIỜ NGAY TẠI ĐÂY, và gửi kèm ở CẢ lượt online.
+	   Lượt gửi lại sau phải mang ĐÚNG TỪNG GIÂY con số này thì máy chủ mới nhận ra nó là lượt
+	   trùng (`quyet_dinh_gio` trả 'trung') và bỏ qua. Nếu lượt đầu ghi bằng giờ máy chủ lúc
+	   NHẬN còn lượt gửi lại ghi bằng giờ lúc BẤM thì hai con số lệch vài giây, và lượt thứ hai
+	   thành GIỜ RA — một ca dài 0 phút, mà bảng công thấy đã đủ cặp nên không báo thiếu. */
+	var goiCham = {
+		token: token(), anh: ANH, gps: GPS, coSo: cs, nhiemVu: nv,
+		veGio: (MOC && MOC.ve) || '',
+		troi:  MOC ? Math.max(0, Math.round(performance.now() - MOC.tuLuc)) : 0
+	};
+	goi('cham', goiCham, CHO_CO_ANH).then(function(j){
 		if(!j || !j.ok){ bao('loiChon','dong',(j&&j.error)||'Không lưu được.'); return; }
 		ANH = null;
 		soiMat(anhVuaGui, j.ngay, j.coSo);
@@ -1496,7 +1532,7 @@ el('btLuu').addEventListener('click', function(){
 		napToi();
 	}).catch(function(e){
 		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */
-		return soatLaiDaGhi(cs, truocKhiGui, (e && e.message) || 'Lỗi mạng — chưa lưu được.');
+		return soatLaiDaGhi(cs, truocKhiGui, (e && e.message) || 'Lỗi mạng — chưa lưu được.', goiCham);
 	}).then(function(){
 		DANG_LUU = false;
 		b.disabled = false; b.textContent = 'LƯU CHẤM CÔNG';
@@ -1539,7 +1575,7 @@ function chuHomNay(cs){
  * ⚠️ Hỏi lại mà cũng hỏng thì NÓI THẲNG LÀ KHÔNG BIẾT, và chỉ việc kiểm tra bằng tay. Bịa ra
  *    một câu chắc chắn ở đây là thứ đắt nhất: nó khiến người ta bấm thêm một lượt nữa.
  */
-function soatLaiDaGhi(cs, truoc, loi){
+function soatLaiDaGhi(cs, truoc, loi, goiCham){
 	bao('loiChon','vang', loi + ' — đang hỏi lại máy chủ xem giờ có vào được không…');
 	return goi('toi',{token:token()}).then(function(j){
 		if(!j || !j.ok || !j.bat){ throw new Error('chưa đọc được hồ sơ'); }
@@ -1557,9 +1593,123 @@ function soatLaiDaGhi(cs, truoc, loi){
 		bao('baoCham','xanh','✔ Câu trả lời về chậm, nhưng GIỜ ĐÃ ĐƯỢC GHI. Hôm nay ở ' + cs
 			+ ' — ' + chuHomNay(cs) + '. ĐỪNG bấm lưu lại: bấm nữa là ghi thành giờ ra.');
 	}).catch(function(){
-		bao('loiChon','dong', loi + ' Hỏi lại máy chủ cũng không được, nên CHƯA BIẾT giờ đã ghi hay '
-			+ 'chưa. Chờ có sóng rồi mở lại trang, xem bảng "Hôm nay" ở đầu trang: đã có giờ thì '
-			+ 'thôi, chưa có thì chấm lại.');
+		/* 🔴 CHƯA BIẾT ĐÃ GHI HAY CHƯA -> XẾP HÀNG ĐỢI, ĐỪNG BẮT NGƯỜI TA TỰ ĐOÁN.
+		   Câu cũ ở đây bảo họ "chờ có sóng rồi mở lại trang mà xem" — đúng, nhưng nó đẩy một
+		   việc của máy sang cho người đang đứng ngoài cửa hàng với cái điện thoại không sóng.
+		   Và xếp hàng đợi AN TOÀN ở đúng chỗ này vì lượt gửi lại mang nguyên vé giờ cũ: ghi
+		   được thì trùng từng giây với lượt đầu và máy chủ bỏ qua, chưa ghi thì nó vào. */
+		var xep = xepHang(goiCham);
+		if(xep.ok){
+			ANH = null;
+			hien('mChon',false);
+			bao('baoCham','vang','⏳ Chưa gửi được lên máy chủ — lượt chấm đã được GIỮ TRONG MÁY '
+				+ 'và sẽ tự gửi khi có sóng. ĐỪNG chấm lại: chấm lại là hai lượt. Mở lại trang '
+				+ 'này khi có mạng để nó gửi đi, và xem mục "Chờ gửi" ở đầu trang.');
+			veHangCho();
+			return;
+		}
+		bao('loiChon','dong', loi + ' Hỏi lại máy chủ cũng không được, và máy cũng KHÔNG giữ được '
+			+ 'lượt này (' + xep.viSao + '), nên CHƯA BIẾT giờ đã ghi hay chưa. Chờ có sóng rồi mở '
+			+ 'lại trang, xem bảng "Hôm nay" ở đầu trang: đã có giờ thì thôi, chưa có thì chấm lại.');
+	});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * HÀNG ĐỢI KHI MẤT MẠNG
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHỈ XẾP HÀNG KHI ĐÃ HỎI LẠI MÁY CHỦ MÀ CŨNG KHÔNG ĐƯỢC. Lượt gọi hỏng vì quá hạn thì rất
+ *    có thể ảnh đã tới nơi rồi; xếp hàng ngay là mời một lượt ghi thứ hai. `soatLaiDaGhi()`
+ *    hỏi lại trước, và chỉ nhánh "hỏi lại cũng hỏng" mới rơi xuống đây.
+ *
+ * 🔴 LƯU CẢ VÉ GIỜ VÀ ĐỘ TRÔI ĐÃ ĐÓNG BĂNG, KHÔNG ĐO LẠI LÚC GỬI. Đo lại là giờ nhảy tới lúc
+ *    có sóng — tức ghi giờ vào là lúc người ta bắt được sóng, không phải lúc tới cửa hàng.
+ *    Đóng băng còn là thứ làm lượt gửi lại TRÙNG TỪNG GIÂY với lượt đầu, nên gửi hai lần vô hại.
+ *
+ * ⚠️ TRẦN BA LƯỢT. Mỗi lượt mang một tấm ảnh base64 cỡ 100–300 KB, mà `localStorage` chỉ có
+ *    khoảng 5 MB và dùng chung với mọi thứ khác của tên miền. Đầy kho thì `setItem` NÉM LỖI —
+ *    không phải trả về false — và nếu không bắt thì cả khối script chết tại đó, nút bấm không
+ *    lên, y hệt trang hỏng. Ba lượt là quá đủ: một ca bình thường có hai lượt.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var KHOA_HANG   = 'cc_hang_cho';
+var HANG_TOI_DA = 3;
+var DANG_DAY    = false;
+
+function docHang(){
+	try {
+		var d = JSON.parse(localStorage.getItem(KHOA_HANG) || '[]');
+		return Object.prototype.toString.call(d) === '[object Array]' ? d : [];
+	} catch(e){ return []; }
+}
+
+function ghiHang(ds){
+	try { localStorage.setItem(KHOA_HANG, JSON.stringify(ds)); return true; }
+	catch(e){ return false; }
+}
+
+function xepHang(goiCham){
+	if(!goiCham || !goiCham.veGio){
+		/* Không có vé thì máy chủ sẽ ghi bằng giờ NHẬN, tức giờ lúc có sóng lại. Giữ một lượt
+		   như thế là hứa hẹn một con số sai — thà nói thẳng là không giữ được. */
+		return { ok:false, viSao:'lượt này không có vé giờ của máy chủ' };
+	}
+	var ds = docHang();
+	if(ds.length >= HANG_TOI_DA){
+		return { ok:false, viSao:'trong máy đã có ' + ds.length + ' lượt chờ gửi' };
+	}
+	ds.push(goiCham);
+	if(!ghiHang(ds)){ return { ok:false, viSao:'bộ nhớ của trình duyệt đã đầy' }; }
+	return { ok:true };
+}
+
+function veHangCho(){
+	var ds = docHang();
+	if(!ds.length){ hien('oHangCho',false); return; }
+	hien('oHangCho',true);
+	var h = '';
+	for(var i=0;i<ds.length;i++){
+		h += '<p class="trong">• ' + esc(ds[i].coSo || '') + (ds[i].nhiemVu ? ' · ' + esc(ds[i].nhiemVu) : '')
+			+ ' — chờ gửi</p>';
+	}
+	el('dsHangCho').innerHTML = h;
+}
+
+/**
+ * ĐẨY HÀNG ĐỢI ĐI. Gọi được nhiều lần, chạy một lần.
+ *
+ * 🔴 CHỈ BỎ MỘT LƯỢT KHỎI HÀNG KHI MÁY CHỦ TRẢ LỜI RÕ RÀNG. Mất mạng giữa chừng thì GIỮ LẠI —
+ *    bỏ đi là mất công của người ta mà không ai biết. Còn máy chủ CHỐI (vé hết hạn, giữ quá
+ *    12 tiếng, ở ngoài vùng cơ sở) thì phải bỏ, và phải NÓI RA: giữ lại một lượt không bao giờ
+ *    gửi được là mỗi lần mở trang lại thử lại, mãi mãi, và ô "Chờ gửi" không bao giờ trống.
+ */
+function dayHang(){
+	if(DANG_DAY) return Promise.resolve();
+	var ds = docHang();
+	if(!ds.length){ hien('oHangCho',false); return Promise.resolve(); }
+	DANG_DAY = true;
+
+	var mot = ds[0];
+	/* Thẻ phiên có thể đã đổi từ lúc xếp hàng (hết hạn rồi đăng nhập lại). Vé thì buộc vào thẻ
+	   CŨ, nên gửi thẻ mới là vé không khớp. Gửi đúng thẻ đã lưu cùng lượt ấy. */
+	return goi('cham', mot, CHO_CO_ANH).then(function(j){
+		var con = docHang();
+		con.shift();
+		ghiHang(con);
+		if(j && j.ok){
+			bao('baoCham','xanh','✔ Đã gửi nốt lượt chấm giữ trong máy: ' + esc(j.coSo) + ' '
+				+ esc(j.gio) + ' (' + esc(j.ngay) + ').');
+			napToi();
+		} else {
+			bao('baoCham','dong','Lượt chấm giữ trong máy KHÔNG ghi được, và đã bỏ khỏi hàng chờ: '
+				+ esc((j && j.error) || 'máy chủ chối') + ' Nếu hôm nay thiếu giờ thì nhờ quản lý '
+				+ 'chấm bù.');
+		}
+		veHangCho();
+	}).catch(function(){
+		/* Vẫn chưa có sóng — giữ nguyên hàng, không nói gì. Nói mỗi lần thử là mỗi hai phút một
+		   dòng đỏ, và người ta thôi đọc mọi dòng đỏ. */
+		veHangCho();
+	}).then(function(){
+		DANG_DAY = false;
 	});
 }
 
