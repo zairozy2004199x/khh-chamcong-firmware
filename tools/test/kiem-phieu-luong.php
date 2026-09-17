@@ -281,9 +281,25 @@ $than = strstr( $tpl, '<style' ) ? substr( $tpl, 0, strpos( $tpl, '<style' ) )
 foreach ( array( 'oKhoiPhieu', 'plThang', 'bangPhieu' ) as $o ) {
 	t( 'màn trạm có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
-/* Chưa công bố tháng nào thì khối tự ẩn — không bày một ô xổ rỗng trên màn lương. */
-t( '🔴 khối tự ẩn khi chưa có tháng nào',
-	false !== strpos( $tpl, "el('oKhoiPhieu').classList.toggle('an', !ds.length)" ), $tpl );
+/* 🔴 CHƯA CÔNG BỐ THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ — sửa 17/09/2026.
+   Bản 4.32.0 ẩn hẳn cả khối. Anh Thắng là người đầu tiên mở nó và câu đầu tiên là *"chưa
+   thấy"*: một khối vô hình không phân biệt được với một khối hỏng, và người dùng không có
+   cách nào đoán ra rằng mình đang chờ kế toán bấm một cái nút bên trang quản trị. */
+t( '🔴 KHÔNG còn ẩn cả khối khi chưa có tháng nào',
+	false === strpos( $tpl, "classList.toggle('an', !ds.length)" ), $tpl );
+t( '🔴 mọi lối ra đều bỏ lớp ẩn khỏi khối', 1 === substr_count( $tpl, "function phieuHien(" )
+	&& false !== strpos( $tpl, "el('oKhoiPhieu').classList.remove('an')" ), $tpl );
+t( 'và nói ra đang chờ ai làm gì, không để một ô câm',
+	false !== strpos( $tpl, 'chưa được công bố' )
+	&& false !== strpos( $tpl, 'anh/chị không phải làm gì cả' ), $tpl );
+/* Ba lối ra: chưa công bố · cửa trả lỗi · mạng hỏng. Cả ba đều phải hiện khối, không thì
+   đúng cái lỗi vừa sửa quay lại qua một nhánh khác. */
+t( '🔴 cả ba lối ra đều gọi phieuHien()', 3 === substr_count( $tpl, 'phieuHien();' ), $tpl );
+/* Ô xổ rỗng thì ẩn RIÊNG nó — bày một ô xổ không có lựa chọn nào còn khó hiểu hơn không bày. */
+t( 'ô xổ khởi đầu đã mang lớp ẩn',
+	false !== strpos( $than, '<select id="plThang" class="an">' ), $than );
+t( 'có tháng thì ô xổ hiện lại',
+	false !== strpos( $tpl, "el('plThang').classList.remove('an')" ), $tpl );
 /* 🔴 Câu "đây không phải số chuyển khoản" phải có mặt — xem chốt 3 đầu class. */
 t( '🔴 màn nói rõ BHXH và giờ thêm nằm ngoài hệ',
 	false !== strpos( $tpl, 'BHXH' ) && false !== strpos( $tpl, 'số chuyển khoản có thể khác' ), $tpl );

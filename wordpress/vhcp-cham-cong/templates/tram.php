@@ -422,10 +422,18 @@ a{color:var(--nhan)}
 	        phiếu lương chỉ có tháng kế toán ĐÃ CÔNG BỐ — nối chung một bộ lật thì bảy tháng
 	        trong mười hai lật tới chỗ trống, và chỗ trống ấy đọc y như "tháng đó anh không có
 	        lương". Ô xổ chỉ liệt kê tháng thật sự mở được, nên không có cái lật nào hụt.
-	     ⚠️ Ô xổ trống = chưa công bố tháng nào; khối tự ẩn đi thay vì bày một ô rỗng. -->
+     🔴 CHƯA CÔNG BỐ THÁNG NÀO THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ.
+	        Bản 4.32.0 ẩn hẳn cả khối, với lý do "chưa có gì để xem thì đừng bày". Anh Thắng là
+	        người đầu tiên mở nó và câu đầu tiên là *"chưa thấy"* — nên lý do ấy sai. Một khối
+	        vô hình không phân biệt được với một khối HỎNG, và người dùng không có cách nào
+	        biết mình đang chờ ai làm gì. Ẩn chỉ đúng khi thứ bị ẩn là thứ người ta chưa từng
+	        nghe tới; phiếu lương thì ai cũng biết là phải có.
+	     ⚠️ Khối chỉ ẩn ở trạng thái ĐẦU, trước lượt nạp — để không loé lên một thẻ rỗng rồi
+	        mới có chữ. `napPhieu()` bỏ `an` ngay khi có câu trả lời, kể cả câu trả lời là
+	        "chưa công bố" hay "mạng hỏng". -->
 	<div class="the an" id="oKhoiPhieu">
 		<label style="margin:0 0 8px">Phiếu lương của tôi</label>
-		<select id="plThang"></select>
+		<select id="plThang" class="an"></select>
 		<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
 	</div>
 
@@ -1984,13 +1992,36 @@ function tienVN(n){
 	return (am ? '-' : '') + t + r + 'đ';
 }
 
+/* Khối HIỆN, ô xổ ẩn — ba lối ra "chưa có gì để chọn" của `napPhieu()` đều bắt đầu như nhau.
+   ⚠️ Chỉ đổi lớp, KHÔNG nhận chuỗi rồi tự nhét vào innerHTML: nhận chuỗi là mở một đường cho
+      dữ liệu chưa thoát đi vào HTML qua một hàm trông rất vô hại. Chữ do nơi gọi tự đặt, ngay
+      tại chỗ, để mắt đọc mã thấy được nó là chữ viết sẵn hay là dữ liệu. */
+function phieuHien(){
+	el('oKhoiPhieu').classList.remove('an');
+	el('plThang').classList.add('an');
+}
+
 function napPhieu(){
 	return goi('phieuluong', { token: token() }).then(function(j){
-		if(!j || !j.ok){ return; }
+		if(!j || !j.ok){
+			phieuHien();
+			el('bangPhieu').innerHTML = '<p class="trong">'
+				+ esc((j && j.error) || 'Chưa đọc được phiếu lương.') + '</p>';
+			return;
+		}
 		PL_KHOAN = j.khoan || null;
 		var ds = j.dsThang || [];
-		el('oKhoiPhieu').classList.toggle('an', !ds.length);
-		if(!ds.length){ return; }
+		/* 🔴 KHÔNG ẨN KHỐI — xem khối chú thích ở markup. Nói ra đang chờ ai làm gì, vì người
+		   đọc không có cách nào tự đoán rằng có một cái nút bên trang quản trị. */
+		if(!ds.length){
+			phieuHien();
+			el('bangPhieu').innerHTML = '<p class="trong">Phiếu lương <b>chưa được công bố</b>. '
+				+ 'Kế toán chốt xong tháng nào thì tháng ấy tự hiện ra ở đây — không phải lỗi, '
+				+ 'và anh/chị không phải làm gì cả.</p>';
+			return;
+		}
+		el('oKhoiPhieu').classList.remove('an');
+		el('plThang').classList.remove('an');
 		/* Giá trị của mỗi dòng gói cả cơ sở lẫn tháng: một người làm hai nơi thì tháng 8 có hai
 		   phiếu khác nhau, và chỉ mang theo cái tháng thì hai dòng ấy không phân biệt được. */
 		var h = '';
@@ -2001,6 +2032,10 @@ function napPhieu(){
 		}
 		el('plThang').innerHTML = h;
 		vePhieu();
+	}).catch(function(){
+		phieuHien();
+		el('bangPhieu').innerHTML = '<p class="trong">Chưa đọc được phiếu lương — kiểm tra mạng '
+			+ 'rồi mở lại tab.</p>';
 	});
 }
 
