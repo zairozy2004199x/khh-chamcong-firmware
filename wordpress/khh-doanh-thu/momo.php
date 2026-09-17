@@ -484,8 +484,19 @@ function khh_dt_co_momo_sk() {
  *    bên FABi thì đổi khi dời máy. Ghép theo MÃ GIAO DỊCH rồi học ngược ra, nên mỗi lứa giao dịch
  *    mới tự dạy lại bảng — không ai phải sửa tay, và không có cái bảng nào để quên sửa.
  *
- * ⚠️ MỘT MÃ TRỎ VỀ HAI QUÁN TRONG CÙNG KỲ THÌ KHÔNG HỌC. Đó đúng là lúc máy vừa dời: học cái nào
- *    cũng sai một nửa. Giao dịch đã khớp mã vẫn đúng cơ sở theo file FABi, nên không mất gì.
+ * ⚠️ LỨA FABi MỚI NHẤT THẮNG. Anh Thắng 17/09/2026 chốt luật: *"nạp dữ liệu FABi vào là xác định
+ *    giá trị thật nó đang nằm cơ sở nào"* — FABi là nguồn sự thật về máy đang ở đâu.
+ *
+ * 🔴 TRƯỚC 17/09/2026 HÀM NÀY HỎNG ĐÚNG CÁI VIỆC NÓ SINH RA ĐỂ LÀM. Chú thích cũ ghi "một mã trỏ
+ *    về hai quán TRONG CÙNG KỲ thì không học", nhưng câu SQL KHÔNG LỌC NGÀY — nó quét sạch lịch
+ *    sử. Nên chỉ cần dời máy MỘT lần là mã ấy vĩnh viễn trỏ về hai quán, vĩnh viễn rơi vào nhánh
+ *    "không học", và bảng ghép ĐỨNG YÊN Ở TÊN CŨ. Máy đã sang quán mới cả tháng mà doanh thu vẫn
+ *    được kể cho quán cũ — sai ở cả hai đầu, và không có lấy một câu báo. Càng dùng lâu càng sai,
+ *    vì lịch sử chỉ dài thêm chứ không ngắn đi.
+ *
+ * ⚠️ CHỈ DỪNG LẠI KHI THẬT SỰ KHÔNG PHÂN ĐỊNH ĐƯỢC: hai quán cùng chia nhau NGÀY MỚI NHẤT. Lúc ấy
+ *    đoán bên nào cũng sai một nửa nên không đoán, và mã vào danh sách `lan_can` để màn hình nói
+ *    ra. Giao dịch đã khớp mã vẫn đúng cơ sở theo file FABi, nên không mất gì.
  */
 function khh_dt_hoc_ma_ch_momo() {
 	global $wpdb;
@@ -493,26 +504,30 @@ function khh_dt_hoc_ma_ch_momo() {
 	$pos = khh_dt_bang_momo();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds = (array) $wpdb->get_results(
-		"SELECT s.ma_ch, p.cua_hang, COUNT(*) n FROM $sk s
+		"SELECT s.ma_ch, p.cua_hang, COUNT(*) n, MAX(p.ngay) ngay_cuoi FROM $sk s
 		 INNER JOIN $pos p ON p.ma_doi_tac = s.ma_gd
 		 WHERE s.ma_ch <> '' AND p.cua_hang <> ''
 		 GROUP BY s.ma_ch, p.cua_hang",
 		ARRAY_A
 	);
+	/* Ngày lưu dạng YYYY-MM-DD nên so chuỗi là so đúng thứ tự thời gian. */
 	$theo = array();
 	foreach ( $ds as $r ) {
-		$theo[ $r['ma_ch'] ][ $r['cua_hang'] ] = (int) $r['n'];
+		$theo[ $r['ma_ch'] ][ $r['cua_hang'] ] = (string) $r['ngay_cuoi'];
 	}
 	$hoc     = get_option( 'khh_dt_ghep_ma_ch_momo', array() );
 	$hoc     = is_array( $hoc ) ? $hoc : array();
 	$so      = 0;
 	$lan_can = array();
 	foreach ( $theo as $ma => $quan ) {
-		if ( count( $quan ) > 1 ) {
+		/* Quán nào giữ máy tới NGÀY MUỘN NHẤT thì quán ấy đang giữ máy. */
+		$muon_nhat = max( $quan );
+		$dan_dau   = array_keys( $quan, $muon_nhat, true );
+		if ( count( $dan_dau ) > 1 ) {
 			$lan_can[] = $ma;
 			continue;
 		}
-		$q = key( $quan );
+		$q = $dan_dau[0];
 		if ( ! isset( $hoc[ $ma ] ) || $hoc[ $ma ] !== $q ) {
 			$hoc[ $ma ] = $q;
 			$so++;

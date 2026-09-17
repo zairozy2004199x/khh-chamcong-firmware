@@ -97,6 +97,18 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.33.0 =
+* **Máy POS dời cơ sở thì bảng ghép đi theo FABi.** `khh_dt_hoc_ma_ch_momo()` tự nhận là "lời
+  giải cho bài máy dời cơ sở" và chốt "một mã trỏ về hai quán trong cùng kỳ thì không học" —
+  nhưng câu SQL của nó không lọc ngày, nó quét sạch lịch sử. Nên chỉ cần dời máy MỘT lần là mã
+  ấy vĩnh viễn trỏ về hai quán, vĩnh viễn không học lại, và bảng ghép đứng yên ở tên cơ sở CŨ.
+  Máy sang quán mới cả tháng mà doanh thu vẫn kể cho quán cũ, không một câu báo.
+* Nay quán nào giữ máy tới **ngày muộn nhất** thì quán ấy đang giữ máy — đúng luật "nạp dữ liệu
+  FABi vào là xác định máy đang nằm cơ sở nào". Dời bao nhiêu lần cũng theo kịp.
+* Chỉ dừng lại khi thật sự không phân định được: hai quán cùng chia nhau ngày mới nhất. Lúc ấy
+  không đoán, và mã vào danh sách `lan_can` để màn hình nói ra.
+* Bài kiểm mới `tools/test/kiem-momo-hoc-coso.php` — 9 phép trên bảng thật (SQLite).
+
 = 1.32.0 =
 * Thả file **MoMo payments của FABi** vào thẻ "Sao kê MoMo" thì câu lỗi nay nói đúng: *"file
   đúng, nhưng nhầm thẻ — nạp ở thẻ Giao dịch MoMo (FABi) ngay bên cạnh"*. Trước đây nó bảo
