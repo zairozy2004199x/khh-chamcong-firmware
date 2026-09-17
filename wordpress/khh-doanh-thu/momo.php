@@ -291,6 +291,73 @@ function khh_dt_cot_momo_sk() {
 	);
 }
 
+/**
+ * NÓI ĐÚNG VÌ SAO FILE KHÔNG ĐỌC ĐƯỢC — thay vì đổ cho người nạp.
+ *
+ * 17/09/2026: anh Thắng nạp `MoMo-payments.xlsx` vào thẻ "Sao kê MoMo" và nhận câu
+ * *"Anh tải đúng bản Transaction report của MoMo giúp em."* File ấy KHÔNG sai — nó là file
+ * MoMo payments xuất từ FABi, hợp lệ hoàn toàn, chỉ thuộc thẻ bên cạnh ("Giao dịch MoMo
+ * (FABi)"). Bảo người ta đi tải lại một file họ đang có sẵn là đẩy họ đi một vòng vô ích, và
+ * lần sau họ sẽ tin rằng chỗ nạp bị hỏng.
+ *
+ * Hai ca phân biệt được chắc chắn, nên phải phân biệt:
+ *   · file là .xlsx (bắt đầu bằng "PK") — mà bộ đọc sổ MoMo chỉ ăn .csv. Ô thả lại ghi "nhận
+ *     .xlsx, .csv" nên người nạp không có cách nào tự biết. Nếu trong ruột có dấu vết của bảng
+ *     FABi thì chỉ luôn sang thẻ đúng.
+ *   · file là .csv thật nhưng thiếu cột — lúc ấy câu cũ mới đúng.
+ */
+function khh_dt_momo_sk_loi_cot( $duong_dan ) {
+	$dau = '';
+	$f   = fopen( $duong_dan, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( $f ) {
+		$dau = (string) fread( $f, 4 ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	}
+	/* .xlsx/.docx… đều là gói ZIP, nên bốn byte đầu là "PK\x03\x04". */
+	if ( 0 !== strpos( $dau, 'PK' ) ) {
+		return 'Không thấy cột "Thời gian" và "Số tiền". Sổ MoMo phải là bản Transaction report '
+			. 'xuất từ trang quản lý MoMo (Giao dịch → Xuất báo cáo).';
+	}
+
+	/* Dò dấu vết bảng FABi ở CẢ HAI chỗ Excel có thể đặt chữ:
+	     · `xl/sharedStrings.xml` — file FABi thật dùng đường này (13.924 chuỗi);
+	     · chuỗi nội tuyến (`inlineStr`) ngay trong trang tính — hợp lệ y như vậy, và một bộ xuất
+	       khác hoàn toàn có thể dùng.
+	   Soi mỗi sharedStrings là đủ cho file hôm nay và lọt cho file mai. Chính bài kiểm bắt được
+	   chỗ này: nó dựng file mẫu bằng inlineStr, nên bản vá đầu của hàm không nhận ra gì cả.
+	   ⚠️ Chỉ đọc 64KB đầu mỗi tệp: tiêu đề cột nằm ở hai dòng trên cùng, còn trang tính thật
+	   nặng hàng MB — nạp cả vào bộ nhớ chỉ để đọc tiêu đề là đổi lỗi này lấy lỗi hết RAM. */
+	$la_fabi = false;
+	if ( khh_dt_doc_duoc_xlsx() ) {
+		$zip = new ZipArchive();
+		if ( true === $zip->open( $duong_dan ) ) {
+			$mau = '';
+			foreach ( array( 'xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml' ) as $ten ) {
+				$m = $zip->getFromName( $ten, 65536 );
+				if ( is_string( $m ) ) {
+					$mau .= ' ' . $m;
+				}
+			}
+			$zip->close();
+			$k = khh_dt_khong_dau( $mau );
+			/* "Mã đối tác" là cột riêng của bảng FABi; sổ MoMo không có cột nào tên thế. */
+			if ( false !== strpos( $k, 'ma doi tac' ) || false !== strpos( $k, 'giao dich qr' ) ) {
+				$la_fabi = true;
+			}
+		}
+	}
+
+	if ( $la_fabi ) {
+		return 'Đây là file <b>MoMo payments xuất từ FABi</b>, không phải sổ MoMo — file đúng, '
+			. 'nhưng nhầm thẻ. Nạp nó ở thẻ <b>Giao dịch MoMo (FABi)</b> ngay bên cạnh. '
+			. 'Còn thẻ này cần bản <b>Transaction report</b> (.csv) tải từ trang quản lý MoMo: '
+			. 'Giao dịch → Xuất báo cáo.';
+	}
+	return 'Thẻ này chỉ đọc <b>.csv</b>, mà anh vừa thả một file bảng tính (.xlsx). Bản '
+		. 'Transaction report tải từ trang quản lý MoMo (Giao dịch → Xuất báo cáo) là .csv — '
+		. 'nạp thẳng file ấy.';
+}
+
 /** Đọc file .csv MoMo xuất ra. */
 function khh_dt_doc_momo_sk( $duong_dan ) {
 	$f = fopen( $duong_dan, 'r' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
@@ -322,10 +389,7 @@ function khh_dt_doc_momo_sk( $duong_dan ) {
 			}
 			if ( $map['ngay'] < 0 || $map['so_tien'] < 0 ) {
 				fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
-				return new WP_Error(
-					'khh_dt_momo_sk',
-					'Không thấy cột "Thời gian" và "Số tiền". Anh tải đúng bản Transaction report của MoMo giúp em.'
-				);
+				return new WP_Error( 'khh_dt_momo_sk', khh_dt_momo_sk_loi_cot( $duong_dan ) );
 			}
 			continue;
 		}
@@ -420,8 +484,19 @@ function khh_dt_co_momo_sk() {
  *    bên FABi thì đổi khi dời máy. Ghép theo MÃ GIAO DỊCH rồi học ngược ra, nên mỗi lứa giao dịch
  *    mới tự dạy lại bảng — không ai phải sửa tay, và không có cái bảng nào để quên sửa.
  *
- * ⚠️ MỘT MÃ TRỎ VỀ HAI QUÁN TRONG CÙNG KỲ THÌ KHÔNG HỌC. Đó đúng là lúc máy vừa dời: học cái nào
- *    cũng sai một nửa. Giao dịch đã khớp mã vẫn đúng cơ sở theo file FABi, nên không mất gì.
+ * ⚠️ LỨA FABi MỚI NHẤT THẮNG. Anh Thắng 17/09/2026 chốt luật: *"nạp dữ liệu FABi vào là xác định
+ *    giá trị thật nó đang nằm cơ sở nào"* — FABi là nguồn sự thật về máy đang ở đâu.
+ *
+ * 🔴 TRƯỚC 17/09/2026 HÀM NÀY HỎNG ĐÚNG CÁI VIỆC NÓ SINH RA ĐỂ LÀM. Chú thích cũ ghi "một mã trỏ
+ *    về hai quán TRONG CÙNG KỲ thì không học", nhưng câu SQL KHÔNG LỌC NGÀY — nó quét sạch lịch
+ *    sử. Nên chỉ cần dời máy MỘT lần là mã ấy vĩnh viễn trỏ về hai quán, vĩnh viễn rơi vào nhánh
+ *    "không học", và bảng ghép ĐỨNG YÊN Ở TÊN CŨ. Máy đã sang quán mới cả tháng mà doanh thu vẫn
+ *    được kể cho quán cũ — sai ở cả hai đầu, và không có lấy một câu báo. Càng dùng lâu càng sai,
+ *    vì lịch sử chỉ dài thêm chứ không ngắn đi.
+ *
+ * ⚠️ CHỈ DỪNG LẠI KHI THẬT SỰ KHÔNG PHÂN ĐỊNH ĐƯỢC: hai quán cùng chia nhau NGÀY MỚI NHẤT. Lúc ấy
+ *    đoán bên nào cũng sai một nửa nên không đoán, và mã vào danh sách `lan_can` để màn hình nói
+ *    ra. Giao dịch đã khớp mã vẫn đúng cơ sở theo file FABi, nên không mất gì.
  */
 function khh_dt_hoc_ma_ch_momo() {
 	global $wpdb;
@@ -429,26 +504,30 @@ function khh_dt_hoc_ma_ch_momo() {
 	$pos = khh_dt_bang_momo();
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
 	$ds = (array) $wpdb->get_results(
-		"SELECT s.ma_ch, p.cua_hang, COUNT(*) n FROM $sk s
+		"SELECT s.ma_ch, p.cua_hang, COUNT(*) n, MAX(p.ngay) ngay_cuoi FROM $sk s
 		 INNER JOIN $pos p ON p.ma_doi_tac = s.ma_gd
 		 WHERE s.ma_ch <> '' AND p.cua_hang <> ''
 		 GROUP BY s.ma_ch, p.cua_hang",
 		ARRAY_A
 	);
+	/* Ngày lưu dạng YYYY-MM-DD nên so chuỗi là so đúng thứ tự thời gian. */
 	$theo = array();
 	foreach ( $ds as $r ) {
-		$theo[ $r['ma_ch'] ][ $r['cua_hang'] ] = (int) $r['n'];
+		$theo[ $r['ma_ch'] ][ $r['cua_hang'] ] = (string) $r['ngay_cuoi'];
 	}
 	$hoc     = get_option( 'khh_dt_ghep_ma_ch_momo', array() );
 	$hoc     = is_array( $hoc ) ? $hoc : array();
 	$so      = 0;
 	$lan_can = array();
 	foreach ( $theo as $ma => $quan ) {
-		if ( count( $quan ) > 1 ) {
+		/* Quán nào giữ máy tới NGÀY MUỘN NHẤT thì quán ấy đang giữ máy. */
+		$muon_nhat = max( $quan );
+		$dan_dau   = array_keys( $quan, $muon_nhat, true );
+		if ( count( $dan_dau ) > 1 ) {
 			$lan_can[] = $ma;
 			continue;
 		}
-		$q = key( $quan );
+		$q = $dan_dau[0];
 		if ( ! isset( $hoc[ $ma ] ) || $hoc[ $ma ] !== $q ) {
 			$hoc[ $ma ] = $q;
 			$so++;

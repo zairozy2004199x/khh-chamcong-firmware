@@ -97,6 +97,42 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.34.0 =
+* **"Chưa có sổ" tách hẳn khỏi "lệch tiền".** Bảng Đối soát MoMo từng báo lệch 98.160.000đ cho
+  kỳ 01→16/09 trong khi không mất một đồng: K&H có hai pháp nhân MoMo, sổ pháp nhân kia chưa
+  nạp. Kế toán đọc con số ấy là đi tìm gần trăm triệu không hề thất lạc.
+* Chỗ hỏng là `co[x.ngay]` — nó hỏi "sổ có NGÀY này không", một cờ chung cho cả hệ, không theo
+  cơ sở. Sổ pháp nhân A phủ đủ ngày nên mọi ngày đều tính là "có sổ", kể cả với cơ sở của pháp
+  nhân B mà sổ ấy không nhắc tới. Vì thế cột "Ngày thiếu file" đứng 0 trong khi cơ sở đó không
+  có lấy một dòng sổ.
+* Nay cơ sở nào sổ không nhắc tới thì xuống khối riêng "N cơ sở chưa có sổ MoMo", có nút nạp,
+  **không** cộng vào ô Lệch. Dòng tổng nói rõ "N cơ sở so được".
+* Phân định bằng **"sổ có nhắc tới cơ sở này không"**, không phải "tiền sổ có bằng 0 không" —
+  cơ sở CÓ trong sổ mà tiền bằng 0 là lệch THẬT (máy ghi có thu, MoMo không trả), phải kêu.
+* Bài kiểm mới `tools/test/kiem-momo-chua-so.js` — 13 phép, chạy thật hàm bốc từ doanh-thu.js.
+
+= 1.33.0 =
+* **Máy POS dời cơ sở thì bảng ghép đi theo FABi.** `khh_dt_hoc_ma_ch_momo()` tự nhận là "lời
+  giải cho bài máy dời cơ sở" và chốt "một mã trỏ về hai quán trong cùng kỳ thì không học" —
+  nhưng câu SQL của nó không lọc ngày, nó quét sạch lịch sử. Nên chỉ cần dời máy MỘT lần là mã
+  ấy vĩnh viễn trỏ về hai quán, vĩnh viễn không học lại, và bảng ghép đứng yên ở tên cơ sở CŨ.
+  Máy sang quán mới cả tháng mà doanh thu vẫn kể cho quán cũ, không một câu báo.
+* Nay quán nào giữ máy tới **ngày muộn nhất** thì quán ấy đang giữ máy — đúng luật "nạp dữ liệu
+  FABi vào là xác định máy đang nằm cơ sở nào". Dời bao nhiêu lần cũng theo kịp.
+* Chỉ dừng lại khi thật sự không phân định được: hai quán cùng chia nhau ngày mới nhất. Lúc ấy
+  không đoán, và mã vào danh sách `lan_can` để màn hình nói ra.
+* Bài kiểm mới `tools/test/kiem-momo-hoc-coso.php` — 9 phép trên bảng thật (SQLite).
+
+= 1.32.0 =
+* Thả file **MoMo payments của FABi** vào thẻ "Sao kê MoMo" thì câu lỗi nay nói đúng: *"file
+  đúng, nhưng nhầm thẻ — nạp ở thẻ Giao dịch MoMo (FABi) ngay bên cạnh"*. Trước đây nó bảo
+  *"Anh tải đúng bản Transaction report của MoMo giúp em"* — tức đẩy người ta đi tải lại một
+  file họ đang cầm trong tay, và lần sau họ sẽ tin là chỗ nạp bị hỏng.
+* Thả một .xlsx khác thì nói rõ thẻ này chỉ đọc `.csv` (ô thả ghi "nhận .xlsx, .csv" nên không
+  ai tự biết được).
+* `.csv` thiếu cột thì vẫn báo thiếu cột như cũ — đó mới là ca câu cũ nói đúng.
+* `kiem-momo.php` 62 → 72 phép, có chốt ngược: sổ MoMo đúng dạng vẫn phải đọc được.
+
 = 1.31.0 =
 * Bảng Đối soát MoMo: câu nhắc "Sổ MoMo chưa có N ngày" nay kèm **nút Nạp sao kê MoMo** mở
   thẳng vào đúng thẻ. Trước đây câu nhắc là chữ trơn kiểu "bấm Nạp báo cáo → thẻ Sao kê MoMo",
