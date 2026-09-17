@@ -322,12 +322,7 @@ a{color:var(--nhan)}
 	<p class="mo"><span id="maToi"></span> · <span id="csToi"></span></p>
 	<div id="tinhTrang"></div>
 
-	<!-- ============ TAB 1: CHẤM CÔNG ============
-	     Trước đây cả ba khối này nằm chung một trang cuộn dài, với một thanh nhảy nhanh ở
-	     đầu. Nhảy neo giải quyết được việc "bấm được dù đang cuộn tới đâu", nhưng không giải
-	     quyết được việc người ta phải cuộn qua bảng tháng 30 dòng để về lại nút chấm. -->
-	<div id="tChamCong" class="tab-o">
-
+	<!-- ============ TAB 1: CHẤM CÔNG =====
 	<!-- ============ THẺ CHẤM CÔNG ============
 	     Gộp đồng hồ + trạng thái + nút vào MỘT thẻ. Trước đây là hai thẻ rời: đồng hồ ở trên,
 	     nút ở dưới — mà hai thứ ấy là một câu ("bây giờ là mấy giờ, và tôi bấm cái này"), tách
@@ -429,6 +424,64 @@ a{color:var(--nhan)}
 		<div id="oHoSo"><p class="trong">Đang tải…</p></div>
 	</div>
 
+	<!-- ============ XIN PHÉP ============
+	     Đi trễ và đổi lịch (gồm cả xin nghỉ một ngày). Nghiệp vụ nằm nguyên ở VHCC_XinTre và
+	     VHCC_Lich; mấy ô này chỉ là cái cửa — xem chú thích khối `xintre` trong class-vhcc-tram.php.
+
+	     🔴 NẰM TRONG TAB "TÔI", KHÔNG PHẢI MỘT TAB THỨ NĂM. Thanh tab dưới đáy đang có bốn ô, và
+	        bốn là vừa hết bề ngang một điện thoại hẹp; ô thứ năm là chữ bị cắt cụt ở cả bốn ô
+	        kia. Mà đơn xin phép thì cùng họ với hồ sơ và mật khẩu — đều là việc của CHÍNH người
+	        đang đăng nhập — nên nó thuộc về đây chứ không đứng riêng.
+
+	     🔴 HAI KHỐI TÁCH RỜI, KHÔNG GỘP THÀNH MỘT Ô XỔ "LOẠI ĐƠN". Hai loại đơn đi về hai bảng
+	        khác nhau, hai người duyệt khác nhau, hai bộ hạn nộp khác nhau, và đơn đi trễ thì cơ
+	        sở nào cũng nộp được còn đơn đổi lịch chỉ có nghĩa ở cơ sở đã bật phân lịch. Gộp vào
+	        một biểu mẫu là phải ẩn/hiện quá nửa số ô theo lựa chọn — và người nộp không bao giờ
+	        biết chắc cái ô mình vừa điền có được gửi đi hay không. -->
+	<div class="the">
+		<label style="margin:0 0 8px">Xin phép đi trễ</label>
+		<p class="ct" style="text-align:left;margin:0 0 10px">Cơ sở nào cũng nộp được. Đơn được duyệt
+			thì ô vàng "chấm thiếu giờ" của ngày ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
+		<label for="xtNgay">Ngày xin trễ</label>
+		<input id="xtNgay" type="date">
+		<label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
+		<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20">
+		<label for="xtLyDo">Lý do</label>
+		<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do">
+		<div id="loiTre"></div>
+		<p></p>
+		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
+	</div>
+
+	<div class="the" id="oKhoiLich">
+		<label style="margin:0 0 8px">Xin đổi lịch / xin nghỉ một ngày</label>
+		<div id="oLichTat" class="an"><p class="trong">—</p></div>
+		<div id="oLichMo" class="an">
+			<p class="ct" style="text-align:left;margin:0 0 10px">Đổi việc của một ngày đã xếp lịch, hoặc
+				dời sang ngày khác. Duyệt xong là <b>lịch đổi thật</b>, không chỉ đổi trạng thái đơn.</p>
+			<label for="xlCoSo">Cơ sở</label>
+			<select id="xlCoSo"></select>
+			<label for="xlNgay">Ngày cần đổi</label>
+			<input id="xlNgay" type="date">
+			<label for="xlCa">Ca</label>
+			<select id="xlCa"></select>
+			<label for="xlViec">Việc mới cho ngày đó</label>
+			<select id="xlViec"></select>
+			<label for="xlDoiSang">Dời sang ngày khác (để trống nếu chỉ đổi việc)</label>
+			<input id="xlDoiSang" type="date">
+			<label for="xlLyDo">Lý do</label>
+			<input id="xlLyDo" type="text" maxlength="250" placeholder="Người xếp lịch duyệt theo lý do">
+			<div id="loiLich"></div>
+			<p></p>
+			<button id="btGuiLich" class="chinh to">GỬI ĐƠN ĐỔI LỊCH</button>
+		</div>
+	</div>
+
+	<div class="the">
+		<label style="margin:0 0 8px">Đơn của tôi</label>
+		<div id="bangDon"><p class="trong">Đang tải…</p></div>
+	</div>
+
 	<!-- ============ ĐỔI MẬT KHẨU ============ -->
 	<div class="the">
 		<label style="margin:0 0 8px">Đổi mật khẩu (PIN)</label>
@@ -506,6 +559,7 @@ a{color:var(--nhan)}
 		<p style="margin:10px 0 0"><button id="btHuyChon" class="phu" style="width:100%">Quay lại</button></p>
 	</div>
 </div></div>
+
 
 <script>
 (function(){
@@ -1538,7 +1592,7 @@ function denTab(ten){
 	var ds = document.querySelectorAll('.tab-nut');
 	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
 	if(ten === 'tUng'){ napUng(); }
-	if(ten === 'tToi'){ napHoSo(); }
+	if(ten === 'tToi'){ napHoSo(); moManXin(); }
 	/* Về đầu trang khi đổi tab. Không có dòng này thì đang cuộn giữa bảng tháng mà bấm sang
 	   tab Chấm công là rơi vào khoảng trắng — nút chấm nằm trên đầu, khuất khỏi màn hình. */
 	try { window.scrollTo({ top:0, behavior:'instant' }); } catch(e){ window.scrollTo(0,0); }
@@ -1550,6 +1604,155 @@ function denTab(ten){
 		ds[i].addEventListener('click', function(){ denTab(this.getAttribute('data-tab')); });
 	}
 })();
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * XIN PHÉP — đi trễ và đổi lịch. Cửa, không phải nghiệp vụ: xem class-vhcc-tram.php.
+ *
+ * 🔴 NẠP LẠI DANH SÁCH ĐƠN MỖI LẦN MỞ MÀN, không nhớ đệm. Trạng thái đơn đổi ở phía cửa hàng
+ *    trưởng chứ không ở đây, nên một bản nhớ đệm là màn hình nói "Chờ duyệt" trong khi đơn đã
+ *    bị từ chối từ hôm qua — và người ta cứ thế đi trễ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var XIN = null;
+
+/* Gọi khi mở tab "Tôi". Không còn màn riêng để mở — xem khối markup ở tab ấy. */
+function moManXin(){
+	bao('loiTre','',null); bao('loiLich','',null);
+	napXin();
+}
+
+function napXin(){
+	return goi('donxin',{token:token()}).then(function(j){
+		if(!j || !j.ok){
+			el('bangDon').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được đơn.') + '</p>';
+			return;
+		}
+		XIN = j;
+		/* Ngày mặc định là HÔM NAY THEO MÁY CHỦ, không theo điện thoại. Điện thoại lệch ngày
+		   (múi giờ sai, đồng hồ chạy sau nửa đêm) thì đơn rơi vào ngày hôm qua, và cửa hàng
+		   trưởng thấy một đơn xin trễ cho ngày đã xong. */
+		if(!el('xtNgay').value){ el('xtNgay').value = j.homNay || ''; }
+		el('xtPhut').max = j.phutToiDa || 120;
+		veKhoiLich(j);
+		veBangDon(j);
+	});
+}
+
+function veKhoiLich(j){
+	var bat = j.coSoBatLich || [];
+	if(!bat.length){
+		hien('oLichMo',false); hien('oLichTat',true);
+		el('oLichTat').innerHTML = '<p class="trong">Cơ sở của anh/chị chưa bật phân lịch nên không '
+			+ 'có lịch nào để đổi. Xin nghỉ thì báo trực tiếp quản lý.</p>';
+		return;
+	}
+	hien('oLichTat',false); hien('oLichMo',true);
+	el('xlCoSo').innerHTML = xoOption(bat, j.coSoMacDinh || bat[0]);
+	el('xlCa').innerHTML   = xoOption(j.ca || [], '');
+	/* Ô "Việc mới" để TRỐNG được: đổi ca mà giữ nguyên việc là một yêu cầu có thật. Còn XIN
+	   NGHỈ thì chọn đúng loại việc mà công ty đã khai cho việc ấy — bộ này cố ý không tự đẻ
+	   ra một mục "Nghỉ" không có trong danh mục, vì lúc duyệt nó sẽ được GHI THẲNG vào lịch
+	   và một tên việc lạ nằm trong lịch thì không bảng nào tính được. */
+	el('xlViec').innerHTML = xoOption(j.loaiViec || [], '', '— giữ nguyên việc —');
+	if(!el('xlNgay').value){ el('xlNgay').value = j.homNay || ''; }
+}
+
+/* Dựng cả khối <option>. Dòng trống đầu tiên (nếu có) cũng dựng TRONG ĐÂY, không ghép ở nơi
+   gọi — ghép ở ngoài là một chuỗi HTML nối với kết quả hàm, và bộ kiểm "không rò HTML" không
+   phân biệt nổi chuỗi ấy với một cái tên cơ sở chưa thoát. */
+function xoOption(ds, chon, dong_trong){
+	var h = dong_trong ? ('<option value="">' + esc(dong_trong) + '</option>') : '';
+	for(var i=0;i<ds.length;i++){
+		h += '<option value="' + esc(ds[i]) + '"' + (ds[i]===chon ? ' selected' : '') + '>'
+			+ esc(ds[i]) + '</option>';
+	}
+	return h;
+}
+
+function veBangDon(j){
+	var h = '', i, x;
+	var tre = j.donTre || [], lich = j.donLich || [];
+	if(!tre.length && !lich.length){
+		el('bangDon').innerHTML = '<p class="trong">Chưa nộp đơn nào.</p>';
+		return;
+	}
+	h += '<table><thead><tr><th>Ngày</th><th>Đơn</th><th>Trạng thái</th></tr></thead><tbody>';
+	for(i=0;i<tre.length;i++){
+		x = tre[i];
+		h += '<tr><td>' + esc(x.ngay) + '</td><td style="text-align:left">trễ '
+			+ esc(x.so_phut) + ' phút · ' + esc(x.ly_do || '') + '</td><td>'
+			+ esc(tenTT(x.trang_thai)) + '</td></tr>';
+	}
+	for(i=0;i<lich.length;i++){
+		x = lich[i];
+		h += '<tr><td>' + esc(x.ngay) + '</td><td style="text-align:left">đổi lịch'
+			+ (x.ca ? ' · ca ' + esc(x.ca) : '')
+			+ (x.viec_moi ? ' · ' + esc(x.viec_moi) : '')
+			+ (x.doi_sang_ngay ? ' · dời sang ' + esc(x.doi_sang_ngay) : '')
+			+ '</td><td>' + esc(x.trang_thai || '') + '</td></tr>';
+	}
+	h += '</tbody></table>';
+	el('bangDon').innerHTML = h;
+}
+
+/* Bảng `xin_tre` giữ mã trạng thái (`cho`/`duyet`/`tu_choi`), bảng `doi_lich_cv` giữ thẳng chữ
+   tiếng Việt. Dịch ở đây chứ không sửa một trong hai bảng: đổi giá trị đang nằm trong kho là
+   việc của một lượt nâng cấp có kế hoạch, không phải của một màn hình. */
+function tenTT(ma){
+	if(ma === 'cho')     return 'Chờ duyệt';
+	if(ma === 'duyet')   return 'Đã duyệt';
+	if(ma === 'tu_choi') return 'Không duyệt';
+	return ma || '';
+}
+
+/* 🔴 KHOÁ NÚT SAU KHI BẤM — cùng lý do với ràng buộc 4 của nút LƯU CHẤM CÔNG. Mạng chậm, người
+   ta bấm ba lần; ba lượt nộp đơn đi trễ liên tiếp thì hai lượt sau ĐÈ lên lượt đầu và kéo đơn
+   về "chờ duyệt", kể cả khi cửa hàng trưởng vừa kịp duyệt lượt đầu. */
+var DANG_GUI = false;
+
+function guiDon(viec, than, oLoi, nut, chuXong){
+	if(DANG_GUI) return;
+	DANG_GUI = true;
+	var b = el(nut), chuCu = b.textContent;
+	b.disabled = true; b.textContent = 'ĐANG GỬI…';
+	bao(oLoi,'',null);
+	goi(viec, than).then(function(j){
+		if(!j || !j.ok){ bao(oLoi,'dong',(j&&j.error)||'Không gửi được.'); return; }
+		bao(oLoi,'xanh', chuXong(j));
+		return napXin();
+	}).catch(function(e){
+		bao(oLoi,'dong',(e && e.message) || 'Lỗi mạng — chưa gửi được.');
+	}).then(function(){
+		DANG_GUI = false;
+		b.disabled = false; b.textContent = chuCu;
+	});
+}
+
+el('btGuiTre').addEventListener('click', function(){
+	guiDon('xintre', {
+		token: token(),
+		ngay:  el('xtNgay').value,
+		soPhut: el('xtPhut').value,
+		lyDo:  el('xtLyDo').value
+	}, 'loiTre', 'btGuiTre', function(j){
+		return '✔ Đã gửi đơn xin trễ ' + j.phut + ' phút ngày ' + j.ngay + ' — ' + j.coSo
+			+ (j.muon ? ' (nộp muộn, đơn vẫn nhận nhưng có đánh dấu)' : '')
+			+ (j.lai ? ' · đè lên đơn cũ của ngày này, đơn quay về CHỜ DUYỆT' : '');
+	});
+});
+
+el('btGuiLich').addEventListener('click', function(){
+	guiDon('xinlich', {
+		token: token(),
+		coSo:  el('xlCoSo').value,
+		ngay:  el('xlNgay').value,
+		ca:    el('xlCa').value,
+		viecMoi: el('xlViec').value,
+		doiSangNgay: el('xlDoiSang').value,
+		lyDo:  el('xlLyDo').value
+	}, 'loiLich', 'btGuiLich', function(j){
+		return '✔ Đã gửi yêu cầu đổi lịch — mã ' + j.maYc + '. Người xếp lịch của cơ sở sẽ duyệt.';
+	});
+});
 
 el('btThangTruoc').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,-1)); });
 el('btThangSau').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,1)); });

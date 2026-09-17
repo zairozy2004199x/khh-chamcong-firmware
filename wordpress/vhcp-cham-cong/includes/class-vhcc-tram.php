@@ -318,6 +318,98 @@ class VHCC_Tram {
 				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
 		}
 
+		/* ═════════════════════════════════════════════════════════════════════════════════
+		 * XIN PHÉP NGAY TRÊN TRẠM — đi trễ, và đổi lịch (gồm cả xin nghỉ một ngày).
+		 *
+		 * Anh Thắng 27/08/2026 đã nói rõ chỗ nộp đơn đi trễ nằm ở đâu: *"tại trang chấm công
+		 * online nhân viên sẽ chọn Xin Phép đi trễ TRƯỚC KHI TỚI cửa hàng"*. Nghiệp vụ ấy viết
+		 * xong từ bản 3.x và chạy đủ (VHCC_XinTre), nhưng MÀN ĐỂ NỘP thì chưa bao giờ có — nó
+		 * chỉ hiện ở trang quản trị, nơi nhân viên không vào được. Nên trên thực tế người duy
+		 * nhất nộp được đơn đi trễ là cửa hàng trưởng, nộp hộ.
+		 *
+		 * 🔴 KHÔNG VIẾT LẠI MỘT DÒNG NGHIỆP VỤ NÀO Ở ĐÂY. Cả hai lệnh chuyển thẳng xuống
+		 *    `VHCC_XinTre::nop()` và `VHCC_Lich::xin_doi_lich()` — đúng hai hàm mà trang quản
+		 *    trị gọi. Dựng đường nộp thứ hai là hai bộ luật (hạn nộp trước/sau, một người một
+		 *    ngày một đơn, đơn nộp lại về chờ duyệt), và sớm muộn hai bộ lệch nhau ở đúng chỗ
+		 *    không ai kịp phát hiện.
+		 *
+		 * ⚠️ MÃ NV LUÔN LẤY TỪ THẺ PHIÊN. `nop()` đã tự lấy từ `$u` và cố ý không đọc biểu mẫu;
+		 *    `xin_doi_lich()` thì NHẬN mã từ tham số, nên ở đây phải tự chèn mã của phiên vào và
+		 *    KHÔNG được chuyển tiếp `ma_nv` do trình duyệt gửi lên — không thì ai cũng nộp được
+		 *    đơn đứng tên người khác.
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'xintre' === $viec ) {
+			self::ra( VHCC_XinTre::nop( $u, array(
+				'ngay'    => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'so_phut' => isset( $b['soPhut'] ) ? $b['soPhut'] : '',
+				'ly_do'   => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
+		if ( 'xinlich' === $viec ) {
+			/* Cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có, đúng gác 2
+			   của đường chấm công. Không kiểm thì một người nộp được đơn nghỉ vào lịch cơ sở
+			   khác, và cửa hàng trưởng bên ấy thấy một cái tên lạ xin nghỉ. */
+			$cs_x = trim( (string) ( isset( $b['coSo'] ) ? $b['coSo'] : '' ) );
+			$duoc = VHCC_Online::ds_coso_cham_cua_nv( $u['ma_nv'], isset( $u['coso'] ) ? $u['coso'] : '' );
+			$hop  = '';
+			foreach ( $duoc as $x ) { if ( 0 === strcasecmp( $x, $cs_x ) ) { $hop = $x; } }
+			if ( '' === $hop ) { $hop = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' ); }
+			if ( '' === $hop ) {
+				self::ra( array( 'ok' => false, 'error' => 'Hồ sơ của anh/chị chưa tích cơ sở nào '
+					. 'nên đơn không biết gửi cho ai duyệt.' ) );
+			}
+			if ( ! VHCC_Lich::co_bat_lich( $hop ) ) {
+				self::ra( array( 'ok' => false, 'error' => 'Cơ sở "' . $hop . '" chưa bật phân lịch '
+					. 'nên không có lịch nào để đổi. Xin nghỉ thì báo trực tiếp quản lý.' ) );
+			}
+			$hs = VHCC_NhanSu::ho_so( $u['ma_nv'] );
+			self::ra( VHCC_Lich::xin_doi_lich( $u, array(
+				'coso'          => $hop,
+				'ma_nv'         => $u['ma_nv'],          // ⚠️ từ PHIÊN, không từ biểu mẫu
+				'ho_ten'        => $hs && isset( $hs['ho_ten'] ) ? (string) $hs['ho_ten'] : (string) $u['ho_ten'],
+				'ngay'          => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'ca'            => isset( $b['ca'] ) ? (string) $b['ca'] : '',
+				'viec_moi'      => isset( $b['viecMoi'] ) ? (string) $b['viecMoi'] : '',
+				'doi_sang_ngay' => isset( $b['doiSangNgay'] ) ? (string) $b['doiSangNgay'] : '',
+				'ly_do'         => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
+		/**
+		 * MÀN XIN PHÉP CẦN GÌ ĐỂ DỰNG, VÀ ĐƠN CŨ CỦA CHÍNH NGƯỜI NÀY.
+		 *
+		 * 🔴 TRẢ VỀ CẢ ĐƠN ĐÃ NỘP, KHÔNG CHỈ Ô ĐỂ NỘP. Nộp xong mà màn không hiện đơn nào thì
+		 *    người ta không phân biệt được "đã gửi" với "bấm hụt" — và cách duy nhất họ có để
+		 *    chắc chắn là nộp lại. Đơn đi trễ nộp lại thì ĐÈ lên đơn cũ và quay về chờ duyệt
+		 *    (đúng luật của VHCC_XinTre), nên đơn vừa được duyệt có thể bị chính người xin huỷ
+		 *    mất — chỉ vì màn không nói cho họ biết đơn đang nằm đó.
+		 */
+		if ( 'donxin' === $viec ) {
+			$cs_mac = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' );
+			$ds_cs  = VHCC_Online::ds_coso_cham_cua_nv( $u['ma_nv'], isset( $u['coso'] ) ? $u['coso'] : '' );
+			$bat    = array();
+			foreach ( $ds_cs as $x ) { if ( VHCC_Lich::co_bat_lich( $x ) ) { $bat[] = $x; } }
+			$cf = array(
+				'ca'       => (array) VHCC_Luong::cai_dat( 'LICH_CA', array( 'Sáng', 'Chiều', 'Tối' ) ),
+				'loaiViec' => (array) VHCC_Luong::cai_dat( 'LICH_LOAI_VIEC', array() ),
+			);
+			self::ra( array(
+				'ok'          => true,
+				'phutToiDa'   => VHCC_Tre::TOI_DA,
+				'truocToiDa'  => VHCC_XinTre::TRUOC_TOI_DA,
+				'muonToiDa'   => VHCC_XinTre::MUON_TOI_DA,
+				'homNay'      => current_time( 'Y-m-d' ),
+				'coSoMacDinh' => $cs_mac,
+				'dsCoSo'      => $ds_cs,
+				'coSoBatLich' => $bat,
+				'ca'          => $cf['ca'],
+				'loaiViec'    => $cf['loaiViec'],
+				'donTre'      => VHCC_XinTre::cua_nguoi( $u['ma_nv'], 12 ),
+				'donLich'     => VHCC_Lich::cua_nguoi( $u['ma_nv'], 12 ),
+			) );
+		}
+
 		if ( 'ra' === $viec ) {
 			VHCC_Auth::logout( isset( $b['token'] ) ? $b['token'] : '' );
 			self::ra( array( 'ok' => true ) );

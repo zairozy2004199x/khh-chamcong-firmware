@@ -184,8 +184,23 @@ t( 'xinlich chuyển thẳng xuống VHCC_Lich::xin_doi_lich',
 /* =============================================================== 5. MÀN TRÊN ĐIỆN THOẠI */
 
 $tpl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
-t( 'có nút mở màn xin phép', false !== strpos( $tpl, 'id="btDenXin"' ) );
-t( 'có màn xin phép', false !== strpos( $tpl, 'id="mXin"' ) );
+/* 🔴 4.29.1 ĐỔI TRẠM SANG DẠNG TAB, nên khối xin phép nằm TRONG tab "Tôi" chứ không còn là
+   một màn riêng bật ra. Phép thử đi theo chỗ ở mới, và canh thêm hai thứ mà chỗ ở mới đòi:
+   khối phải nằm trong đúng tab ấy, và phải được NẠP khi tab ấy mở — để trong một tab mà
+   không ai gọi nạp thì nó hiện "Đang tải…" vĩnh viễn, đúng kiểu hỏng im lặng. */
+$i_toi = strpos( $tpl, 'id="tToi"' );
+$i_xin = strpos( $tpl, 'Xin phép đi trễ' );
+$i_het = strpos( $tpl, '<!-- /tToi -->' );
+t( 'khối xin phép nằm TRONG tab "Tôi"',
+	false !== $i_toi && false !== $i_xin && false !== $i_het && $i_toi < $i_xin && $i_xin < $i_het,
+	array( $i_toi, $i_xin, $i_het ) );
+t( '🔴 mở tab "Tôi" thì nạp luôn danh sách đơn',
+	false !== strpos( $tpl, "if(ten === 'tToi'){ napHoSo(); moManXin(); }" ) );
+t( 'không còn màn riêng bật ra nữa', false === strpos( $tpl, 'id="mXin"' ) );
+/* Thanh tab dưới đáy giữ ĐÚNG bốn ô. Ô thứ năm là chữ bị cắt cụt ở cả bốn ô kia trên điện
+   thoại hẹp — và đó là lý do khối này nằm trong tab "Tôi" thay vì đứng riêng. */
+t( 'thanh tab vẫn đúng bốn ô', 4 === substr_count( $tpl, '<button class="tab-nut' ),
+	substr_count( $tpl, '<button class="tab-nut' ) );
 t( 'có khối đơn đã nộp', false !== strpos( $tpl, 'id="bangDon"' ) );
 /* 🔴 NGÀY MẶC ĐỊNH LẤY TỪ MÁY CHỦ. Lấy `new Date()` của điện thoại thì máy lệch múi giờ hoặc
    chạy sau nửa đêm là đơn rơi vào ngày hôm qua — cửa hàng trưởng nhận một đơn xin trễ cho một
