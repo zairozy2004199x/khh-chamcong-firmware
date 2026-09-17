@@ -128,6 +128,43 @@ t( '🔴 nhân viên thường KHÔNG thấy ô Thêm nhân sự',
 t( 'quyền gác ô đúng bằng quyền của cửa thật',
 	VHCC_Vai::duoc( $u_cht, 'them_nv' ) && ! VHCC_Vai::duoc( $u_nv, 'them_nv' ) );
 
+/* ── HAI Ô MỞ MÀN NỮA: PHIẾU LƯƠNG VÀ GỬI ĐƠN ĐI TRỄ ──────────────────────────────────────
+   Anh Thắng 17/09/2026: *"Phiếu lương cho vào vị trí này"* và *"Gửi đơn đi trễ là 1 tính
+   năng"*. Cùng một lối: việc thỉnh thoảng mới làm thì đừng nằm giữa một trang cuộn dài. */
+$o_pl_nv  = o_ten( VHCC_Ung::ds( $u_nv ),  'Phiếu lương' );
+$o_pl_cht = o_ten( VHCC_Ung::ds( $u_cht ), 'Phiếu lương' );
+t( '🔴 AI CŨNG có ô Phiếu lương', is_array( $o_pl_nv ) && is_array( $o_pl_cht ) );
+t( 'nó mở màn trong trạm', $o_pl_nv && 'mPhieu' === $o_pl_nv['man'], $o_pl_nv );
+/* ⚠️ NHÓM ĐỔI THEO VAI, CỐ Ý. Với nhân viên đây là giấy tờ CỦA HỌ; với cửa hàng trưởng nó còn
+   mở ra lương cả cơ sở, tức một công cụ quản lý — và anh Thắng khoanh đúng ô ấy trong hàng
+   QUẢN LÝ CỬA HÀNG. Nhét lương của chính mình vào mục "Quản lý cửa hàng" cho một nhân viên
+   thì họ không bao giờ nghĩ để nhìn vào đó. */
+t( '⚠️ nhân viên: Phiếu lương nằm ở "Của tôi"', 'Của tôi' === $o_pl_nv['nhom'], $o_pl_nv );
+t( '⚠️ cửa hàng trưởng: nằm ở "Quản lý cửa hàng"',
+	'Quản lý cửa hàng' === $o_pl_cht['nhom'], $o_pl_cht );
+/* 🔴 Ô PHIẾU LƯƠNG KHÔNG GÁC GÌ, CỐ Ý. Ai cũng có phiếu của chính mình; tháng chưa công bố thì
+   máy chủ chối và màn nói rõ đang chờ kế toán. Giấu ô đi thì người chưa có tháng nào lại tưởng
+   hệ không có mục ấy. */
+t( '🔴 ô Phiếu lương luôn mở, không khoá ai',
+	! empty( $o_pl_nv['mo_duoc'] ) && ! empty( $o_pl_cht['mo_duoc'] ) );
+
+$o_tre = o_ten( VHCC_Ung::ds( $u_nv ), 'Gửi đơn đi trễ' );
+t( '🔴 nhân viên có ô Gửi đơn đi trễ', is_array( $o_tre ), $o_tre );
+t( 'nó mở màn trong trạm và nằm ở "Của tôi"',
+	$o_tre && 'mXinTre' === $o_tre['man'] && 'Của tôi' === $o_tre['nhom'], $o_tre );
+
+/* Mọi ô mở màn phải có mặt trong danh sách trắng của `moMan()` — thiếu một cái là bấm không
+   ra gì, mà không có dòng lỗi nào. */
+$tpl_m = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+foreach ( VHCC_Ung::ds( $u_cht ) as $x_m ) {
+	if ( empty( $x_m['man'] ) ) { continue; }
+	t( '🔴 màn "' . $x_m['man'] . '" có trong danh sách trắng của moMan()',
+		false !== strpos( $tpl_m, "'" . $x_m['man'] . "' === ten" )
+		|| false !== strpos( $tpl_m, "'" . $x_m['man'] . "'  === ten" ), $x_m['man'] );
+	t( '   và có khối màn thật trong HTML',
+		false !== strpos( $tpl_m, 'id="' . $x_m['man'] . '" class="mn an"' ), $x_m['man'] );
+}
+
 /* =============================================================== 3. Ô KHOÁ VẪN KHOÁ */
 
 /* 🔴 Xem chốt 1 đầu tệp. Đổi bố cục là lúc dễ đánh rơi phép gác nhất, vì mắt chỉ soi cái mới. */

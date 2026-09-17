@@ -607,11 +607,24 @@ class VHCC_Tram {
 		 *    để chỉ có MỘT nơi gác chứ không phải hai nơi gác khác nhau.
 		 */
 		if ( 'phieuluong' === $viec ) {
+			/* Cửa hàng trưởng còn xem được CẢ CƠ SỞ — anh Thắng 17/09/2026: *"nhân viên thì 1
+			   phiếu của chính mình. Cửa hàng trưởng thì có chính mình và cả cửa hàng"*. Máy chủ
+			   quyết có phần ấy hay không; màn chỉ vẽ theo. */
+			$cs_ql = VHCC_Vai::duoc( $u, VHCC_PhieuLuong::QUYEN_CS )
+				? VHCC_CuaHang::ds_coso( $u ) : array();
 			self::ra( array(
 				'ok'     => true,
 				'dsThang' => VHCC_PhieuLuong::ds_thang( $u ),
 				'khoan'  => VHCC_PhieuLuong::ten_khoan(),
+				'dsCoSoQl' => $cs_ql,
+				'thangNay' => current_time( 'Y-m' ),
 			) );
+		}
+
+		if ( 'phieucs' === $viec ) {
+			self::ra( VHCC_PhieuLuong::ca_coso( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
 		}
 
 		if ( 'phieu' === $viec ) {

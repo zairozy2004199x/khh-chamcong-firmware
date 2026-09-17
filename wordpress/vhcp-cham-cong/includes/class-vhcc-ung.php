@@ -84,7 +84,7 @@ class VHCC_Ung {
 	 * ⚠️ Ô mang tên nhóm KHÔNG có trong danh sách này thì rơi xuống cuối, giữ nguyên thứ tự
 	 *    khai. Thà thừa một nhóm lạ ở cuối còn hơn nuốt mất một ô người ta đang cần.
 	 */
-	const NHOM = array( 'Vận hành', 'Quản lý cửa hàng', 'Thông tin chung' );
+	const NHOM = array( 'Vận hành', 'Quản lý cửa hàng', 'Của tôi', 'Thông tin chung' );
 
 	/** Nhóm của các ô, theo đúng thứ tự trên. Ô nào không khai nhóm thì về 'Vận hành'. */
 	public static function ds_nhom( $ds ) {
@@ -236,6 +236,42 @@ class VHCC_Ung {
 				'mau'  => 'xanh',
 			) );
 		}
+
+		/* ---- 6. Phiếu lương ---------------------------------------------------------------
+		   Anh Thắng 17/09/2026 gạch chéo khối cuối tab Công và chỉ sang ô trống trong lưới:
+		   *"Phiếu lương cho vào vị trí này (nhân viên thì 1 phiếu của chính mình). Cửa hàng
+		   trưởng thì có chính mình và cả cửa hàng"*.
+
+		   ⚠️ NHÓM ĐỔI THEO VAI, CỐ Ý. Với nhân viên đây là giấy tờ CỦA HỌ; với cửa hàng trưởng
+		      nó còn mở ra lương cả cơ sở, tức là một công cụ quản lý — và anh Thắng khoanh đúng
+		      ô ấy trong hàng QUẢN LÝ CỬA HÀNG. Một cái tên nằm dưới đúng tiêu đề thì người ta
+		      tìm ra bằng mắt; nhét lương của chính mình vào mục "Quản lý cửa hàng" cho một
+		      nhân viên thì họ không bao giờ nghĩ để nhìn vào đó.
+
+		   🔴 Ô NÀY KHÔNG GÁC GÌ CẢ, CỐ Ý. Ai cũng có phiếu lương của chính mình; tháng nào chưa
+		      công bố thì `VHCC_PhieuLuong::phieu()` chối ngay ở máy chủ, và màn nói rõ là đang
+		      chờ kế toán. Giấu ô đi thì người chưa có tháng nào lại tưởng hệ không có mục ấy. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Phiếu lương',
+			'nhom' => VHCC_Vai::duoc( $u, 'cong_coso' ) ? 'Quản lý cửa hàng' : 'Của tôi',
+			'mo'   => 'Lương tháng đã công bố',
+			'man'  => 'mPhieu',
+			'icon' => '🧾',
+			'mau'  => 'luc',
+		) );
+
+		/* ---- 7. Gửi đơn đi trễ ------------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh đúng khối ấy ở tab
+		   Tôi. Cùng một lối với hai ô trên: việc thỉnh thoảng mới làm thì đừng nằm giữa một
+		   trang cuộn dài. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Gửi đơn đi trễ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Xin phép đi trễ một buổi',
+			'man'  => 'mXinTre',
+			'icon' => '⏰',
+			'mau'  => 'vang',
+		) );
 
 		return $o;
 	}

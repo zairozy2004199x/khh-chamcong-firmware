@@ -485,26 +485,6 @@ a{color:var(--nhan)}
 	</div>
 
 
-	<!-- ============ PHIẾU LƯƠNG CỦA TÔI ============
-	     🔴 KHÔNG DÙNG CHUNG BỘ LẬT THÁNG với bảng công ngay trên. Bảng công có MỌI tháng, còn
-	        phiếu lương chỉ có tháng kế toán ĐÃ CÔNG BỐ — nối chung một bộ lật thì bảy tháng
-	        trong mười hai lật tới chỗ trống, và chỗ trống ấy đọc y như "tháng đó anh không có
-	        lương". Ô xổ chỉ liệt kê tháng thật sự mở được, nên không có cái lật nào hụt.
-     🔴 CHƯA CÔNG BỐ THÁNG NÀO THÌ KHỐI VẪN HIỆN, CHỈ ẨN Ô XỔ.
-	        Bản 4.32.0 ẩn hẳn cả khối, với lý do "chưa có gì để xem thì đừng bày". Anh Thắng là
-	        người đầu tiên mở nó và câu đầu tiên là *"chưa thấy"* — nên lý do ấy sai. Một khối
-	        vô hình không phân biệt được với một khối HỎNG, và người dùng không có cách nào
-	        biết mình đang chờ ai làm gì. Ẩn chỉ đúng khi thứ bị ẩn là thứ người ta chưa từng
-	        nghe tới; phiếu lương thì ai cũng biết là phải có.
-	     ⚠️ Khối chỉ ẩn ở trạng thái ĐẦU, trước lượt nạp — để không loé lên một thẻ rỗng rồi
-	        mới có chữ. `napPhieu()` bỏ `an` ngay khi có câu trả lời, kể cả câu trả lời là
-	        "chưa công bố" hay "mạng hỏng". -->
-	<div class="the an" id="oKhoiPhieu">
-		<label style="margin:0 0 8px">Phiếu lương của tôi</label>
-		<select id="plThang" class="an"></select>
-		<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
-	</div>
-
 	</div><!-- /tCong -->
 
 	<!-- ============ TAB CỬA HÀNG (chỉ cửa hàng trưởng) ============
@@ -631,21 +611,6 @@ a{color:var(--nhan)}
 	        một biểu mẫu là phải ẩn/hiện quá nửa số ô theo lựa chọn — và người nộp không bao giờ
 	        biết chắc cái ô mình vừa điền có được gửi đi hay không. -->
 	<div class="the">
-		<label style="margin:0 0 8px">Xin phép đi trễ</label>
-		<p class="ct" style="text-align:left;margin:0 0 10px">Cơ sở nào cũng nộp được. Đơn được duyệt
-			thì ô vàng "chấm thiếu giờ" của ngày ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
-		<label for="xtNgay">Ngày xin trễ</label>
-		<input id="xtNgay" type="date">
-		<label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
-		<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20">
-		<label for="xtLyDo">Lý do</label>
-		<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do">
-		<div id="loiTre"></div>
-		<p></p>
-		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
-	</div>
-
-	<div class="the">
 		<label style="margin:0 0 8px">Xin nghỉ</label>
 		<div id="oQuyPhep"></div>
 		<p class="ct" style="text-align:left;margin:0 0 10px">Cửa hàng trưởng duyệt. <b>Đơn được
@@ -732,6 +697,79 @@ a{color:var(--nhan)}
 	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
+
+<!-- ============ MÀN XIN PHÉP ĐI TRỄ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG — anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh
+        đúng khối này ở tab Tôi. Cùng lối với Thêm nhân sự và Phiếu lương: việc thỉnh thoảng
+        mới làm thì đừng nằm giữa một trang cuộn dài.
+     ⚠️ ĐƠN ĐÃ NỘP VẪN Ở TAB TÔI. Chỗ này là chỗ NỘP; chỗ xem kết quả là danh sách đơn bên
+        tab Tôi, và nó gom cả ba loại đơn. Tách danh sách ấy ra theo từng loại là ba chỗ phải
+        nhớ mở, mà cái quên mở là cái nằm đó cả tuần. -->
+<div id="mXinTre" class="mn an"><div class="bao">
+	<h1>Xin phép đi trễ</h1>
+	<p class="mo">Cơ sở nào cũng nộp được. Đơn được duyệt thì ô vàng "chấm thiếu giờ" của ngày
+		ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
+
+	<div class="the">
+		<div class="fldx"><label for="xtNgay">Ngày xin trễ</label>
+			<input id="xtNgay" type="date"></div>
+		<div class="fldx"><label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
+			<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20"></div>
+		<div class="fldx"><label for="xtLyDo">Lý do</label>
+			<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do"></div>
+		<div id="loiTre"></div>
+		<p></p>
+		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Đơn đã nộp và kết quả duyệt xem ở
+			tab <b>Tôi</b> — ở đó gom cả đơn đi trễ, xin nghỉ và đổi lịch trong một danh sách.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongTre" class="phu to">Đóng</button>
+</div></div>
+
+<!-- ============ MÀN PHIẾU LƯƠNG ============
+     🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI KHỐI CUỐI TAB CÔNG. Anh Thắng 17/09/2026 gạch chéo khối
+        ấy và chỉ sang ô trống trong lưới: *"Phiếu lương cho vào vị trí này"*.
+     🔴 HAI PHẦN, VÀ AI THẤY PHẦN NÀO LÀ DO MÁY CHỦ QUYẾT: *"nhân viên thì 1 phiếu của chính
+        mình. Cửa hàng trưởng thì có chính mình và cả cửa hàng"*. Nút "Cả cửa hàng" ẩn sẵn
+        trong HTML; `?viec=phieuluong` trả `dsCoSoQl` rỗng cho nhân viên thường nên nó không
+        bao giờ hiện — và cửa `phieucs` vẫn gác lại lần nữa ở máy chủ.
+     ⚠️ KHÔNG DÙNG CHUNG BỘ LẬT THÁNG cho hai phần. Phần "của tôi" chỉ có tháng ĐÃ CÔNG BỐ;
+        phần "cả cửa hàng" có MỌI tháng (quản lý cần thấy cả tháng đang gõ dở). Nối chung một
+        ô chọn thì một trong hai bên luôn lật tới chỗ trống. -->
+<div id="mPhieu" class="mn an"><div class="bao">
+	<h1>Phiếu lương</h1>
+
+	<div class="hang" id="plNut" style="margin:0 0 12px">
+		<button id="btPlToi" class="chinh">Của tôi</button>
+		<button id="btPlCs" class="phu an">Cả cửa hàng</button>
+	</div>
+
+	<div id="plPhanToi">
+		<div class="the">
+			<label for="plThang" style="margin:0 0 8px">Tháng</label>
+			<select id="plThang" class="an"></select>
+			<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
+		</div>
+	</div>
+
+	<div id="plPhanCs" class="an">
+		<div class="the">
+			<label for="plCsCoSo" style="margin:0 0 8px">Cơ sở</label>
+			<select id="plCsCoSo"></select>
+			<div class="hang" style="align-items:center;margin:10px 0 0">
+				<button id="plThangTruoc" class="phu" style="flex:0 0 46px">‹</button>
+				<b id="plNhanThang" style="flex:1;text-align:center;font-variant-numeric:tabular-nums;font-size:16px">—</b>
+				<button id="plThangSau" class="phu" style="flex:0 0 46px">›</button>
+			</div>
+			<div id="bangPhieuCs" style="margin-top:10px"><p class="trong">—</p></div>
+		</div>
+	</div>
+
+	<p></p>
+	<button id="btDongPhieu" class="phu to">Đóng</button>
+</div></div>
 
 <!-- ============ MÀN THÊM NHÂN SỰ ============
      🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI MỘT KHỐI DƯỚI ĐÁY TAB. Anh Thắng 17/09/2026: *"Chuyển
@@ -1975,7 +2013,7 @@ function denTab(ten){
 	});
 	var ds = document.querySelectorAll('.tab-nut');
 	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
-	if(ten === 'tCong'){ napPhieu(); }
+
 	if(ten === 'tCuaHang'){ napCuaHang(); }
 	if(ten === 'tUng'){ napUng(); }
 	if(ten === 'tToi'){ napHoSo(); moManXin(); }
@@ -2225,6 +2263,97 @@ el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
    một tên màn lạ thì `el()` trả null và `hien()` nổ, làm chết cả khối JS phía sau. */
 function moMan(ten){
 	if('mThemNv' === ten){ moThemNv(); }
+	if('mPhieu'  === ten){ moPhieu(); }
+	if('mXinTre' === ten){ moXinTre(); }
+}
+
+/* Màn nộp đơn đi trễ. `napXin()` là nơi duy nhất biết "hôm nay theo MÁY CHỦ là ngày nào" và
+   mấy cái trần — nên gọi lại nó thay vì màn tự đoán. */
+function moXinTre(){
+	bao('loiTre','',null);
+	hien('mXinTre', true);
+	if(!XIN){ napXin(); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN PHIẾU LƯƠNG — hai phần, và ai thấy phần nào là do MÁY CHỦ quyết.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var PL_CS_THANG = '';
+
+function moPhieu(){
+	hien('mPhieu', true);
+	phanPhieu(false);
+	napPhieu();
+}
+
+/* `cs` = true thì mở phần CẢ CỬA HÀNG. Nút nào đang chọn thì mang kiểu `chinh`, nút kia `phu` —
+   không có nút nào "đang chọn" thì người ta không biết mình đang xem cái gì. */
+function phanPhieu(cs){
+	hien('plPhanToi', !cs);
+	hien('plPhanCs', cs);
+	el('btPlToi').className = cs ? 'phu' : 'chinh';
+	el('btPlCs').className  = cs ? 'chinh' : 'phu';
+	if(cs){ veThangPlCs(); }
+}
+
+function veThangPlCs(){
+	el('plNhanThang').textContent = 'Tháng ' + (PL_CS_THANG || '—').replace(/^(\d{4})-(\d{2})$/, '$2/$1');
+	napPhieuCs();
+}
+
+function doiThangPlCs(b){
+	var p = (PL_CS_THANG || '').split('-');
+	if(p.length !== 2){ return; }
+	var d = new Date(Date.UTC(+p[0], +p[1] - 1 + b, 1));
+	PL_CS_THANG = d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2);
+	veThangPlCs();
+}
+
+function napPhieuCs(){
+	el('bangPhieuCs').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('phieucs', { token: token(), coSo: el('plCsCoSo').value, thang: PL_CS_THANG })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('bangPhieuCs').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			var ds = j.dong || [];
+			/* 🔴 NÓI RA NHÂN VIÊN BÊN DƯỚI ĐANG THẤY GÌ. Người quản lý xem được cả tháng kế toán
+			   còn đang gõ dở — nhưng nếu không nói rõ tháng ấy chưa công bố thì họ tưởng nhân
+			   viên cũng đang nhìn đúng mấy con số này. */
+			var h = j.daCongBo
+				? '<div class="xanh" style="margin:0 0 10px">✔ Tháng này <b>đã công bố</b> — '
+					+ 'nhân viên xem được phiếu của chính họ.</div>'
+				: '<div class="vang" style="margin:0 0 10px">Tháng này <b>chưa công bố</b>. '
+					+ 'Anh/chị xem được, nhưng nhân viên thì chưa. Kế toán bấm công bố ở trang quản trị.</div>';
+			if(!ds.length){
+				el('bangPhieuCs').innerHTML = h + '<p class="trong">Tháng này chưa có ai có giờ ở '
+					+ esc(j.coSo) + '.</p>';
+				return;
+			}
+			h += '<div class="xanh" style="margin:0 0 10px">' + esc(j.soNguoi) + ' người'
+			  +  (j.tong === null ? '' : ' · tổng <b>' + tienVN(j.tong) + '</b>') + '</div>';
+			if(!j.daDu){
+				h += '<div class="vang" style="margin:0 0 10px">Có dòng <b>chưa khai đơn giá</b> '
+				  +  'nên chưa cộng được tổng cả cơ sở.</div>';
+			}
+			h += '<table><thead><tr><th>Nhân viên</th><th>Giờ</th><th>Tổng</th></tr></thead><tbody>';
+			for(var i=0;i<ds.length;i++){
+				var d = ds[i];
+				h += '<tr' + (d.thieuGia ? ' class="hong"' : '') + '>'
+				  +  '<td style="text-align:left">' + esc(d.hoTen)
+				  +  (d.thieuGio ? ' <b>· thiếu ' + esc(d.thieuGio) + '</b>' : '') + '</td>'
+				  +  '<td>' + esc(d.gio) + '</td>'
+				  +  '<td>' + (d.tong === null ? '<b>chưa đủ giá</b>' : tienVN(d.tong)) + '</td></tr>';
+			}
+			h += '</tbody></table>'
+			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
+			  +  'được</b>. <b>BHXH</b> và <b>lương giờ thêm</b> kế toán tính ngoài hệ, nên số '
+			  +  'chuyển khoản có thể khác.</p>';
+			el('bangPhieuCs').innerHTML = h;
+		}).catch(function(){
+			el('bangPhieuCs').innerHTML = '<p class="trong">Chưa đọc được — kiểm tra mạng rồi lật lại tháng.</p>';
+		});
 }
 
 function moThemNv(){
@@ -2238,6 +2367,13 @@ function moThemNv(){
 	hien('mThemNv', true);
 }
 
+el('btDongTre').addEventListener('click', function(){ hien('mXinTre', false); });
+el('btDongPhieu').addEventListener('click', function(){ hien('mPhieu', false); });
+el('btPlToi').addEventListener('click', function(){ phanPhieu(false); });
+el('btPlCs').addEventListener('click', function(){ phanPhieu(true); });
+el('plCsCoSo').addEventListener('change', napPhieuCs);
+el('plThangTruoc').addEventListener('click', function(){ doiThangPlCs(-1); });
+el('plThangSau').addEventListener('click', function(){ doiThangPlCs(1); });
 el('btDongThem').addEventListener('click', function(){ hien('mThemNv', false); });
 el('btDongNguoi').addEventListener('click', function(){ hien('mNguoi', false); });
 el('sgGay').addEventListener('change', function(){ hien('oNghi', this.checked); });
@@ -2786,12 +2922,11 @@ function tienVN(n){
 	return (am ? '-' : '') + t + r + 'đ';
 }
 
-/* Khối HIỆN, ô xổ ẩn — ba lối ra "chưa có gì để chọn" của `napPhieu()` đều bắt đầu như nhau.
+/* Ô xổ ẩn khi không có tháng nào để chọn.
    ⚠️ Chỉ đổi lớp, KHÔNG nhận chuỗi rồi tự nhét vào innerHTML: nhận chuỗi là mở một đường cho
       dữ liệu chưa thoát đi vào HTML qua một hàm trông rất vô hại. Chữ do nơi gọi tự đặt, ngay
       tại chỗ, để mắt đọc mã thấy được nó là chữ viết sẵn hay là dữ liệu. */
 function phieuHien(){
-	el('oKhoiPhieu').classList.remove('an');
 	el('plThang').classList.add('an');
 }
 
@@ -2804,6 +2939,14 @@ function napPhieu(){
 			return;
 		}
 		PL_KHOAN = j.khoan || null;
+		/* Phần "cả cửa hàng" chỉ hiện khi MÁY CHỦ gửi danh sách cơ sở — nhân viên thường nhận
+		   mảng rỗng, nên nút không bao giờ lộ ra. Cửa `phieucs` vẫn gác lại lần nữa. */
+		var dsq = j.dsCoSoQl || [];
+		if(dsq.length){
+			if(!el('plCsCoSo').options.length){ el('plCsCoSo').innerHTML = xoOption(dsq, dsq[0] || ''); }
+			PL_CS_THANG = PL_CS_THANG || j.thangNay || '';
+			el('btPlCs').classList.remove('an');
+		}
 		var ds = j.dsThang || [];
 		/* 🔴 KHÔNG ẨN KHỐI — xem khối chú thích ở markup. Nói ra đang chờ ai làm gì, vì người
 		   đọc không có cách nào tự đoán rằng có một cái nút bên trang quản trị. */
@@ -2814,7 +2957,6 @@ function napPhieu(){
 				+ 'và anh/chị không phải làm gì cả.</p>';
 			return;
 		}
-		el('oKhoiPhieu').classList.remove('an');
 		el('plThang').classList.remove('an');
 		/* Giá trị của mỗi dòng gói cả cơ sở lẫn tháng: một người làm hai nơi thì tháng 8 có hai
 		   phiếu khác nhau, và chỉ mang theo cái tháng thì hai dòng ấy không phân biệt được. */
