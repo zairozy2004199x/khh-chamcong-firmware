@@ -98,6 +98,22 @@ h1{font-size:18px;margin:0 0 2px}
 .the{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);
 	padding:var(--d4);margin:0 0 var(--d3);box-shadow:var(--bong)}
 label{display:block;font-size:12.5px;color:var(--chu-mo);margin:0 0 5px}
+/* Ô TÍCH. Cả dòng chữ là vùng chạm (label `for=`), không phải mỗi cái ô vuông 16px — ngón cái
+   không trúng ô vuông ấy, và trượt một nhát thì người ta tưởng máy không nhận. */
+label.tich{display:flex;align-items:center;gap:9px;min-height:44px;margin:0;
+	font-size:13.5px;color:var(--chu);cursor:pointer}
+label.tich input{flex:0 0 auto;width:19px;height:19px;margin:0}
+/* Hàng hai ô nhập cạnh nhau trong màn sửa — gãy xuống một cột ở máy rất hẹp. */
+#mNguoi .hang{gap:10px;flex-wrap:wrap}
+#mNguoi .hang .fldx{min-width:120px}
+/* Dòng giờ khác: tên việc rộng, số giờ hẹp — đúng nhịp của biểu mẫu bên trang quản trị. */
+.dong-gio{display:flex;gap:8px;margin:0 0 8px}
+.dong-gio input.viec{flex:1;min-width:0}
+.dong-gio input.gio{flex:0 0 84px}
+.dong-gio button{flex:0 0 42px}
+/* Lưới khoản tiền: hai cột, nhãn nhỏ trên ô. Chín khoản xếp một cột là cuộn mãi không hết. */
+.luoi-khoan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.luoi-khoan .fldx{margin:0}
 input,select{width:100%;padding:12px 13px;font-size:16px;border-radius:var(--bo-o);
 	border:1px solid var(--vien-dam);background:var(--nen);color:var(--chu);font-family:inherit}
 input:focus,select:focus{outline:none;border-color:var(--nhan);
@@ -706,6 +722,94 @@ a{color:var(--nhan)}
 	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
+
+<!-- ============ MÀN MỘT NGƯỜI — sửa công & chốt lương ============
+     🔴 MÀN PHỦ TOÀN TRANG, KHÔNG PHẢI MỘT KHỐI NHÉT THÊM VÀO TAB. Anh Thắng 17/09/2026:
+        *"giao diện dùng như app nhé"*. Hai việc này là việc làm cho MỘT người, cần trọn màn
+        hình và một nút Đóng rõ ràng — nhét vào giữa tab Cửa hàng thì nó đẩy bảng công xuống
+        dưới và người ta mất chỗ đang đứng.
+     ⚠️ Cùng khuôn `.mn` với màn Chụp ảnh / Quên PIN, không dựng kiểu riêng: một khuôn thì
+        thói quen bấm (cuộn, nút Đóng ở đáy) giống nhau ở mọi màn. -->
+<div id="mNguoi" class="mn an"><div class="bao">
+	<h1 id="nguoiTen">—</h1>
+	<p class="mo" id="nguoiPhu">—</p>
+
+	<!-- ── SỬA CÔNG TỪNG NGÀY ─────────────────────────────────────────────────────────── -->
+	<div class="the">
+		<label style="margin:0 0 8px">Công từng ngày</label>
+		<div id="dsNgay"><p class="trong">Đang tải…</p></div>
+	</div>
+
+	<!-- Ô sửa MỞ RA khi bấm một ngày. Không bày sẵn: bày sẵn thì màn mở lên đã có một biểu
+	     mẫu trống, và người ta gõ vào đó trước khi chọn ngày nào. -->
+	<div class="the an" id="oSuaNgay">
+		<label style="margin:0 0 8px" id="suaTieuDe">Sửa ngày —</label>
+		<div class="hang">
+			<div class="fldx" style="flex:1"><label for="sgVao">Giờ vào (24h)</label>
+				<input id="sgVao" type="text" inputmode="numeric" maxlength="5" placeholder="08:30"></div>
+			<div class="fldx" style="flex:1"><label for="sgRa">Giờ ra (24h)</label>
+				<input id="sgRa" type="text" inputmode="numeric" maxlength="5" placeholder="17:00"></div>
+		</div>
+		<label class="tich" for="sgGay"><input id="sgGay" type="checkbox"> Ca gãy — bỏ khúc nghỉ giữa ra khỏi giờ công</label>
+		<div class="hang an" id="oNghi">
+			<div class="fldx" style="flex:1"><label for="sgNghiTu">Ra ca 1</label>
+				<input id="sgNghiTu" type="text" inputmode="numeric" maxlength="5" placeholder="13:00"></div>
+			<div class="fldx" style="flex:1"><label for="sgNghiDen">Vào ca 2</label>
+				<input id="sgNghiDen" type="text" inputmode="numeric" maxlength="5" placeholder="17:00"></div>
+		</div>
+		<div class="fldx"><label for="sgLyDo">Vì sao phải sửa (bắt buộc)</label>
+			<input id="sgLyDo" type="text" maxlength="200" placeholder="VD: máy lệch đồng hồ 2 tiếng — đối chiếu camera"></div>
+		<div id="loiSua"></div>
+		<p></p>
+		<button id="btLuuGio" class="chinh to">LƯU GIỜ</button>
+		<p></p>
+		<button id="btXoaGio" class="phu to">Xoá giờ ngày này</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Ô để <b>trống</b> nghĩa là
+			<b>giữ nguyên</b>, không phải xoá. Muốn bỏ hẳn giờ của ngày thì bấm
+			<b>Xoá giờ ngày này</b> — dòng chấm công vẫn ở lại với giờ trống và một dòng nhật
+			ký, để sau còn lần lại được.</p>
+	</div>
+
+	<!-- ── CHỐT LƯƠNG THEO VIỆC ───────────────────────────────────────────────────────── -->
+	<div class="the an" id="oChot">
+		<label style="margin:0 0 8px">Chốt lương theo việc</label>
+		<div id="chotTom" class="xanh" style="margin:0 0 10px">—</div>
+
+		<div class="fldx"><label for="clViec">Việc chính</label>
+			<input id="clViec" type="text" maxlength="60" placeholder="tên việc chính" list="dsViec">
+			<datalist id="dsViec"></datalist></div>
+		<p class="ct" style="text-align:left;margin:0 0 12px">Chọn một việc là xong —
+			<b>cả phần giờ còn lại</b> ăn theo giá của nó. Gõ thêm dòng giờ khác bên dưới thì
+			phần này tự co lại.</p>
+
+		<label style="margin:0 0 6px">Giờ ăn đơn giá khác</label>
+		<div id="dsDongGio"></div>
+		<button id="btThemDong" class="phu">+ Thêm một dòng</button>
+
+		<p></p>
+		<label class="tich" for="clThang"><input id="clThang" type="checkbox"> Ăn lương tháng — không tính theo giờ</label>
+		<div class="hang an" id="oLuongThang">
+			<div class="fldx" style="flex:1"><label for="clLcb">Lương cơ bản (đ/tháng)</label>
+				<input id="clLcb" type="tel" inputmode="numeric" maxlength="12" placeholder="4000000"></div>
+			<div class="fldx" style="flex:1"><label for="clCongYc">Số công chuẩn</label>
+				<input id="clCongYc" type="tel" inputmode="numeric" maxlength="4" placeholder="VD 26"></div>
+		</div>
+
+		<label style="margin:14px 0 6px">Các khoản cộng vào lương</label>
+		<div id="dsCong"></div>
+		<label style="margin:14px 0 6px">Các khoản giảm trừ</label>
+		<div id="dsTru"></div>
+		<p class="ct" style="text-align:left;margin:8px 0 0">Ô để <b>trống</b> nghĩa là không có
+			khoản ấy — khác với gõ số 0. Tờ xuất ra để trống đúng mấy ô ấy.</p>
+
+		<div id="loiChot"></div>
+		<p></p>
+		<button id="btLuuChot" class="chinh to">LƯU CHỐT LƯƠNG</button>
+	</div>
+
+	<p></p>
+	<button id="btDongNguoi" class="phu to">Đóng</button>
+</div></div>
 
 <!-- ============ MÀN CHỤP ẢNH ============ -->
 <div id="mChup" class="mn an"><div class="bao">
@@ -2052,6 +2156,14 @@ el('btGuiTre').addEventListener('click', function(){
 el('plThang').addEventListener('change', vePhieu);
 
 el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
+
+el('btDongNguoi').addEventListener('click', function(){ hien('mNguoi', false); });
+el('sgGay').addEventListener('change', function(){ hien('oNghi', this.checked); });
+el('clThang').addEventListener('change', function(){ hien('oLuongThang', this.checked); });
+el('btThemDong').addEventListener('click', function(){ themDongGio('', ''); });
+el('btLuuGio').addEventListener('click', function(){ guiSuaGio(false); });
+el('btXoaGio').addEventListener('click', function(){ guiSuaGio(true); });
+el('btLuuChot').addEventListener('click', guiChot);
 el('chThangTruoc').addEventListener('click', function(){ doiThangCH(-1); });
 el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
 
@@ -2247,22 +2359,257 @@ function napCongCH(){
 				  +  '</b> lượt thiếu một đầu giờ — mấy lượt ấy KHÔNG tính phút nào. '
 				  +  'Bổ sung trước khi kế toán chốt lương.</div>';
 			}
-			h += '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th></tr></thead><tbody>';
+			h += '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th><th></th></tr>'
+			  +  '</thead><tbody>';
 			for(var i=0;i<ds.length;i++){
 				var d = ds[i];
 				h += '<tr' + (d.thieu ? ' class="hong"' : '') + '>'
 				  +  '<td style="text-align:left">' + esc(d.hoTen)
 				  +  (d.thieu ? ' <b>· thiếu ' + esc(d.thieu) + '</b>' : '') + '</td>'
 				  +  '<td>' + esc(d.soNgay) + '</td>'
-				  +  '<td>' + esc(d.gio) + '</td></tr>';
+				  +  '<td>' + esc(d.gio) + '</td>'
+				  +  '<td><button class="phu ch-mo" data-ma="' + esc(d.maNV) + '">Mở</button></td>'
+				  +  '</tr>';
 			}
 			h += '</tbody></table>'
 			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Số ở đây là <b>giờ có mặt</b>, '
 			  +  'chưa quy ra công tính lương. Cần từng ô từng ngày thì mở trang quản trị trên máy tính.</p>';
 			el('bangCongCH').innerHTML = h;
+			/* Nút dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ — cùng lý do với `gaiNutDon()`:
+			   `onclick=` trong chuỗi HTML thì một dấu nháy trong dữ liệu là vỡ thẻ. */
+			var nm = el('bangCongCH').querySelectorAll('.ch-mo');
+			for(var m=0;m<nm.length;m++){
+				nm[m].addEventListener('click', function(){ moNguoi(this.getAttribute('data-ma')); });
+			}
 		}).catch(function(){
 			el('bangCongCH').innerHTML = '<p class="trong">Chưa đọc được bảng công — kiểm tra mạng rồi lật lại tháng.</p>';
 		});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * MÀN MỘT NGƯỜI — sửa công từng ngày & chốt lương theo việc.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 17/09/2026: *"có thêm chức năng sửa công nhân viên và set giờ theo công việc như
+ * web luôn được không, mà giao diện dùng như app nhé"*.
+ *
+ * 🔴 CỬA, KHÔNG PHẢI NGHIỆP VỤ. Mọi luật nằm ở `VHCC_Bu::sua` và `VHCC_ChotLuong::dat` — lý do
+ *    bắt buộc ≥5 ký tự, ô trống là GIỮ NGUYÊN chứ không xoá, tổng giờ khác không được vượt giờ
+ *    chấm công. Màn này chỉ bày ô và nói lại câu máy chủ trả về.
+ *
+ * ⚠️ CẢN TRƯỚC Ở MÀN, NHƯNG KHÔNG THAY PHÉP GÁC. Con số "còn lại bao nhiêu giờ" hiện ngay khi
+ *    gõ, để người ta thấy mình sắp vượt — nhưng máy chủ vẫn là nơi chối. Cản ở màn mà bỏ chốt
+ *    ở máy chủ là mở cửa cho bất kỳ ai gửi thẳng gói dữ liệu.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var NG = null;        // dữ liệu người đang mở
+var NG_NGAY = '';     // ngày đang sửa
+
+function moNguoi(ma){
+	NG = null; NG_NGAY = '';
+	hien('oSuaNgay', false); hien('oChot', false);
+	el('nguoiTen').textContent = '…';
+	el('nguoiPhu').textContent = '';
+	el('dsNgay').innerHTML = '<p class="trong">Đang tải…</p>';
+	hien('mNguoi', true);
+	goi('chngay', { token: token(), coSo: el('chCoSo').value, thang: CH_THANG, maNV: ma })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('dsNgay').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			NG = j;
+			el('nguoiTen').textContent = j.hoTen;
+			el('nguoiPhu').textContent = j.maNV + ' · ' + j.coSo + ' · tháng ' + j.thang
+				+ ' · ' + j.gioThang + ' giờ';
+			veDsNgay();
+			napChot();
+		}).catch(function(){
+			el('dsNgay').innerHTML = '<p class="trong">Mất mạng — đóng rồi mở lại.</p>';
+		});
+}
+
+function veDsNgay(){
+	var ds = (NG && NG.ngay) || [];
+	if(!ds.length){
+		el('dsNgay').innerHTML = '<p class="trong">Tháng này chưa có lượt chấm nào.</p>';
+		return;
+	}
+	if(!NG.duocSua){
+		/* Nói TRƯỚC khi người ta gõ xong rồi mới bị chối — và nói ra đường đi tiếp. */
+		el('dsNgay').innerHTML = '<div class="vang" style="margin:0 0 10px">Tài khoản của anh/chị '
+			+ 'chưa được mở quyền <b>sửa giờ</b>, nên bảng dưới chỉ để xem. Thấy giờ sai thì báo '
+			+ 'quản lý.</div>' + bangNgay(ds);
+		return;
+	}
+	el('dsNgay').innerHTML = bangNgay(ds);
+	var b = el('dsNgay').querySelectorAll('.ng-sua');
+	for(var i=0;i<b.length;i++){
+		b[i].addEventListener('click', function(){ moSuaNgay(this.getAttribute('data-ngay')); });
+	}
+}
+
+function bangNgay(ds){
+	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th><th></th></tr></thead><tbody>';
+	for(var i=0;i<ds.length;i++){
+		var x = ds[i];
+		h += '<tr' + (x.thieu ? ' class="hong"' : '') + '>'
+		  +  '<td>' + esc(ngayGon(x.ngay)) + (x.hauTo ? ' <b>' + esc(x.hauTo) + '</b>' : '') + '</td>'
+		  +  '<td>' + esc(x.vao || '—') + '</td>'
+		  +  '<td>' + (x.thieu ? '<b>thiếu</b>' : esc(x.ra || '—')) + '</td>'
+		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio)) + '</td>'
+		  +  '<td><button class="phu ng-sua" data-ngay="' + esc(x.ngay) + '">Sửa</button></td></tr>';
+	}
+	return h + '</tbody></table>';
+}
+
+function moSuaNgay(ngay){
+	var ds = (NG && NG.ngay) || [], x = null;
+	for(var i=0;i<ds.length;i++){ if(ds[i].ngay === ngay){ x = ds[i]; } }
+	if(!x){ return; }
+	NG_NGAY = ngay;
+	el('suaTieuDe').textContent = 'Sửa ngày ' + ngayGon(ngay);
+	/* 🔴 ĐỔ GIỜ ĐANG CÓ VÀO Ô. Không đổ thì người sửa phải NHỚ giờ cũ, mà nhớ sai một chữ số
+	   là ghi đè mất một giờ công thật — và không có gì trên màn mâu thuẫn với con số vừa gõ. */
+	el('sgVao').value = x.vao || '';
+	el('sgRa').value  = x.ra || '';
+	var gay = !!(x.nghiTu && x.nghiDen);
+	el('sgGay').checked = gay;
+	el('sgNghiTu').value  = x.nghiTu || '';
+	el('sgNghiDen').value = x.nghiDen || '';
+	hien('oNghi', gay);
+	el('sgLyDo').value = '';
+	bao('loiSua','',null);
+	hien('oSuaNgay', true);
+	el('oSuaNgay').scrollIntoView({ block:'start' });
+}
+
+function guiSuaGio(xoa){
+	if(!NG_NGAY){ return; }
+	/* ⚠️ XOÁ GIỜ PHẢI HỎI LẠI. Nó không hỏng gì vĩnh viễn (dòng ở lại, nhật ký ghi giờ cũ),
+	   nhưng nó làm một người mất công cả ngày cho tới khi có ai để ý. */
+	if(xoa && !window.confirm('Xoá giờ vào và giờ ra của ngày này?')){ return; }
+	guiDon('chsua', {
+		token:   token(),
+		coSo:    el('chCoSo').value,
+		maNV:    NG.maNV,
+		ngay:    NG_NGAY,
+		vao:     xoa ? '' : el('sgVao').value,
+		ra:      xoa ? '' : el('sgRa').value,
+		xoaVao:  xoa ? 1 : 0,
+		xoaRa:   xoa ? 1 : 0,
+		gay:     el('sgGay').checked ? 1 : 0,
+		nghiTu:  el('sgNghiTu').value,
+		nghiDen: el('sgNghiDen').value,
+		lyDo:    el('sgLyDo').value
+	}, 'loiSua', xoa ? 'btXoaGio' : 'btLuuGio', function(j){
+		/* Nạp lại cả màn: sửa một ngày là đổi tổng giờ tháng, mà tổng giờ ấy lại là TRẦN của
+		   khối chốt lương ngay dưới. Vá một ô trên màn thì hai chỗ kia nói số cũ. */
+		var ma = NG.maNV;
+		setTimeout(function(){ moNguoi(ma); napCongCH(); }, 900);
+		var d = j.doi || {};
+		var noi = [];
+		if(d.vao){ noi.push('vào ' + d.vao.cu + ' → ' + d.vao.moi); }
+		if(d.ra){  noi.push('ra ' + d.ra.cu + ' → ' + d.ra.moi); }
+		return '✔ Đã lưu' + (noi.length ? ' — ' + noi.join(' · ') : ' (không ô nào đổi)');
+	});
+}
+
+/* ── chốt lương theo việc ───────────────────────────────────────────────────────────────── */
+
+function napChot(){
+	goi('chchot', { token: token(), coSo: el('chCoSo').value, thang: CH_THANG, maNV: NG.maNV })
+		.then(function(j){
+			if(!j || !j.ok){ return; }
+			NG.chot = j;
+			el('clViec').value = j.vieChinh || '';
+			var dl = '';
+			for(var i=0;i<(j.tenDaDung||[]).length;i++){
+				dl += '<option value="' + esc(j.tenDaDung[i]) + '">';
+			}
+			el('dsViec').innerHTML = dl;
+
+			el('dsDongGio').innerHTML = '';
+			var dg = j.dong || [];
+			for(var k=0;k<dg.length;k++){ themDongGio(dg[k].viec, dg[k].gio); }
+			themDongGio('', '');
+
+			var lt = j.luongThang;
+			el('clThang').checked = !!lt;
+			el('clLcb').value    = lt ? lt.lcb : '';
+			el('clCongYc').value = (lt && lt.congYc) ? lt.congYc : '';
+			hien('oLuongThang', !!lt);
+
+			el('dsCong').innerHTML = oKhoan(j.tenCong, j.cong, 'kc');
+			el('dsTru').innerHTML  = oKhoan(j.tenTru,  j.tru,  'kt');
+			tomChot();
+			hien('oChot', true);
+		}).catch(function(){});
+}
+
+function oKhoan(ten, gia, tien_to){
+	var h = '<div class="luoi-khoan">';
+	for(var k in ten){
+		if(!Object.prototype.hasOwnProperty.call(ten, k)) continue;
+		var v = (gia && gia[k]) ? gia[k] : '';
+		h += '<div class="fldx"><label>' + esc(ten[k]) + '</label>'
+		  +  '<input type="tel" inputmode="numeric" maxlength="12" data-khoan="'
+		  +  esc(tien_to) + ':' + esc(k) + '" value="' + esc(v) + '"></div>';
+	}
+	return h + '</div>';
+}
+
+function themDongGio(viec, gio){
+	var d = document.createElement('div');
+	d.className = 'dong-gio';
+	d.innerHTML = '<input class="viec" type="text" maxlength="60" placeholder="tên việc (VD: MC)" list="dsViec">'
+	            + '<input class="gio" type="text" inputmode="decimal" maxlength="7" placeholder="số giờ">'
+	            + '<button class="phu bo">✕</button>';
+	d.querySelector('.viec').value = viec || '';
+	d.querySelector('.gio').value  = (gio === 0 || gio) ? gio : '';
+	d.querySelector('.gio').addEventListener('input', tomChot);
+	d.querySelector('.bo').addEventListener('click', function(){ d.remove(); tomChot(); });
+	el('dsDongGio').appendChild(d);
+}
+
+/* Con số "còn lại" cập nhật ngay khi gõ — xem khối chú thích đầu phần này: cản trước ở màn,
+   nhưng máy chủ vẫn là nơi chối. */
+function tomChot(){
+	if(!NG || !NG.chot){ return; }
+	var tran = Number(NG.chot.gioCham) || 0, tong = 0;
+	var o = el('dsDongGio').querySelectorAll('.gio');
+	for(var i=0;i<o.length;i++){
+		var v = parseFloat(String(o[i].value).replace(',', '.'));
+		if(!isNaN(v) && v > 0){ tong += v; }
+	}
+	var con = Math.round((tran - tong) * 100) / 100;
+	el('chotTom').className = (con < 0) ? 'vang' : 'xanh';
+	el('chotTom').innerHTML = 'Chấm công <b>' + esc(tran) + '</b> giờ · giờ khác <b>'
+		+ esc(Math.round(tong * 100) / 100) + '</b> · việc chính còn <b>' + esc(con) + '</b> giờ'
+		+ (con < 0 ? ' — <b>vượt giờ chấm công</b>, máy chủ sẽ chối.' : '');
+}
+
+function guiChot(){
+	var dong = [], o = el('dsDongGio').querySelectorAll('.dong-gio');
+	for(var i=0;i<o.length;i++){
+		dong.push({ viec: o[i].querySelector('.viec').value,
+		            gio:  o[i].querySelector('.gio').value });
+	}
+	var cong = {}, tru = {};
+	var ok = el('oChot').querySelectorAll('[data-khoan]');
+	for(var k=0;k<ok.length;k++){
+		var p = ok[k].getAttribute('data-khoan').split(':');
+		if(p[0] === 'kc'){ cong[p[1]] = ok[k].value; } else { tru[p[1]] = ok[k].value; }
+	}
+	guiDon('chchotluu', {
+		token: token(), coSo: el('chCoSo').value, thang: CH_THANG, maNV: NG.maNV,
+		viecChinh: el('clViec').value,
+		dong: dong,
+		anLuongThang: el('clThang').checked ? 1 : 0,
+		luongCb: el('clLcb').value,
+		congYc:  el('clCongYc').value,
+		cong: cong, tru: tru
+	}, 'loiChot', 'btLuuChot', function(){
+		return '✔ Đã lưu chốt lương tháng ' + CH_THANG + '. Bảng lương bên trang quản trị đổi theo ngay.';
+	});
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════

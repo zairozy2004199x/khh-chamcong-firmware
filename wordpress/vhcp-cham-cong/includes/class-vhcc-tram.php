@@ -531,6 +531,51 @@ class VHCC_Tram {
 				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
 		}
 
+		if ( 'chngay' === $viec ) {
+			self::ra( VHCC_CuaHang::ngay_cua( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '',
+				isset( $b['maNV'] ) ? (string) $b['maNV'] : '' ) );
+		}
+
+		if ( 'chsua' === $viec ) {
+			self::ra( VHCC_CuaHang::sua_gio( $u, array(
+				'coSo'    => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'maNV'    => isset( $b['maNV'] ) ? (string) $b['maNV'] : '',
+				'ngay'    => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'vao'     => isset( $b['vao'] ) ? (string) $b['vao'] : '',
+				'ra'      => isset( $b['ra'] ) ? (string) $b['ra'] : '',
+				'xoaVao'  => ! empty( $b['xoaVao'] ),
+				'xoaRa'   => ! empty( $b['xoaRa'] ),
+				'gay'     => ! empty( $b['gay'] ),
+				'nghiTu'  => isset( $b['nghiTu'] ) ? (string) $b['nghiTu'] : '',
+				'nghiDen' => isset( $b['nghiDen'] ) ? (string) $b['nghiDen'] : '',
+				'lyDo'    => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
+		if ( 'chchot' === $viec ) {
+			self::ra( VHCC_CuaHang::chot_cua( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '',
+				isset( $b['maNV'] ) ? (string) $b['maNV'] : '' ) );
+		}
+
+		if ( 'chchotluu' === $viec ) {
+			self::ra( VHCC_CuaHang::chot_luu( $u, array(
+				'coSo'        => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'thang'       => isset( $b['thang'] ) ? (string) $b['thang'] : '',
+				'maNV'        => isset( $b['maNV'] ) ? (string) $b['maNV'] : '',
+				'viecChinh'   => isset( $b['viecChinh'] ) ? (string) $b['viecChinh'] : '',
+				'dong'        => isset( $b['dong'] ) && is_array( $b['dong'] ) ? $b['dong'] : array(),
+				'anLuongThang' => ! empty( $b['anLuongThang'] ),
+				'luongCb'     => isset( $b['luongCb'] ) ? $b['luongCb'] : '',
+				'congYc'      => isset( $b['congYc'] ) ? $b['congYc'] : '',
+				'cong'        => isset( $b['cong'] ) && is_array( $b['cong'] ) ? $b['cong'] : array(),
+				'tru'         => isset( $b['tru'] ) && is_array( $b['tru'] ) ? $b['tru'] : array(),
+			) ) );
+		}
+
 		if ( 'chthem' === $viec ) {
 			self::ra( VHCC_CuaHang::them_nguoi( $u, array(
 				'coSo'     => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',

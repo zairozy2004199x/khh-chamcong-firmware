@@ -227,6 +227,174 @@ class VHCC_CuaHang {
 			'soNguoi' => count( $dong ), 'tongGio' => round( $t_gio, 2 ), 'tongThieu' => $t_thieu );
 	}
 
+	/* ====================================================================== sửa công một người */
+
+	/**
+	 * MỌI NGÀY CÓ CHẤM của một người trong tháng — để màn trạm bày ra cho bấm vào mà sửa.
+	 *
+	 * 🔴 HIỆN GIỜ ĐANG CÓ, KHÔNG BẮT NGƯỜI SỬA TỰ NHỚ. Cùng lý do `VHCC_Bu::gio_hien_tai()` tồn
+	 *    tại: nhớ sai một chữ số là ghi đè mất một giờ công thật, mà không có gì trên màn hình
+	 *    mâu thuẫn với con số vừa gõ.
+	 */
+	public static function ngay_cua( $u, $coso, $thang, $ma_nv ) {
+		$cs = self::chot_coso( $u, $coso );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã nhân viên.' ); }
+
+		$b = VHCC_Cham::bang_cham_cong( $u, $cs, $thang );
+		if ( empty( $b['ok'] ) ) { return $b; }
+
+		$ds = array(); $ten = ''; $phut = 0.0;
+		foreach ( $b['hang'] as $h ) {
+			if ( 0 !== strcasecmp( trim( (string) $h['maNV'] ), $ma ) ) { continue; }
+			if ( '' !== trim( (string) $h['hoTen'] ) ) { $ten = (string) $h['hoTen']; }
+			$thieu = ( null === $h['vaoGiay'] || '' === $h['vaoGiay']
+				|| null === $h['raGiay'] || '' === $h['raGiay'] );
+			if ( ! $thieu ) { $phut += (float) $h['phut']; }
+			$ds[] = array(
+				'ngay'    => (string) $h['ngay'],
+				'hauTo'   => (string) $h['hauTo'],
+				'vao'     => VHCC_Bu::hhmm_hoac_trong( $h['vaoGiay'] ),
+				'ra'      => VHCC_Bu::hhmm_hoac_trong( $h['raGiay'] ),
+				'nghiTu'  => VHCC_Bu::hhmm_hoac_trong( $h['nghiTu'] ),
+				'nghiDen' => VHCC_Bu::hhmm_hoac_trong( $h['nghiDen'] ),
+				'gio'     => $thieu ? null : round( (float) $h['phut'] / 60, 2 ),
+				'thieu'   => $thieu,
+				'ghiChu'  => (string) $h['ghiChu'],
+			);
+		}
+		usort( $ds, function ( $a, $b2 ) { return strcmp( $a['ngay'], $b2['ngay'] ); } );
+		return array(
+			'ok'      => true,
+			'coSo'    => $cs,
+			'thang'   => $b['thang'],
+			'maNV'    => $ma,
+			'hoTen'   => ( '' !== $ten ) ? $ten : $ma,
+			'ngay'    => $ds,
+			'gioThang' => round( $phut / 60, 2 ),
+			/* Người sửa cần biết mình CÓ được sửa không TRƯỚC khi gõ xong rồi mới bị chối. */
+			'duocSua' => VHCC_Vai::duoc( $u, 'sua_gio' ),
+		);
+	}
+
+	/**
+	 * Sửa giờ một ngày — chuyển thẳng cho `VHCC_Bu::sua`.
+	 *
+	 * 🔴 KHÔNG NỚI MỘT LUẬT NÀO CỦA HÀM KIA. Nó đòi quyền `sua_gio` riêng, đòi lý do ≥5 ký tự,
+	 *    hiểu ô trống là GIỮ NGUYÊN chứ không phải xoá, và ghi nhật ký từng ô thật sự đổi. Cả
+	 *    bốn thứ ấy là lý do nó tồn tại — chép lại một bản "gọn hơn" cho điện thoại là bỏ đúng
+	 *    mấy phép gác đắt nhất.
+	 *
+	 * ⚠️ XOÁ GIỜ = TÍCH CẢ HAI Ô `xoaVao`/`xoaRa`, và VẪN phải có lý do. Dòng chấm công KHÔNG
+	 *    biến mất — nó ở lại với giờ trống và hai dòng nhật ký. Xoá hẳn hàng thì mất dấu là
+	 *    hôm ấy vốn có người chấm, và không ai lần lại được.
+	 */
+	public static function sua_gio( $u, $dat ) {
+		$cs = self::chot_coso( $u, isset( $dat['coSo'] ) ? $dat['coSo'] : '' );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		return VHCC_Bu::sua( $u, array(
+			'coso'     => $cs,
+			'ma_nv'    => isset( $dat['maNV'] ) ? $dat['maNV'] : '',
+			'ngay'     => isset( $dat['ngay'] ) ? $dat['ngay'] : '',
+			'vao'      => isset( $dat['vao'] ) ? $dat['vao'] : '',
+			'ra'       => isset( $dat['ra'] ) ? $dat['ra'] : '',
+			'xoa_vao'  => ! empty( $dat['xoaVao'] ),
+			'xoa_ra'   => ! empty( $dat['xoaRa'] ),
+			'gay'      => ! empty( $dat['gay'] ),
+			'nghi_tu'  => isset( $dat['nghiTu'] ) ? $dat['nghiTu'] : '',
+			'nghi_den' => isset( $dat['nghiDen'] ) ? $dat['nghiDen'] : '',
+			'ly_do'    => isset( $dat['lyDo'] ) ? $dat['lyDo'] : '',
+		) );
+	}
+
+	/* ====================================================================== chốt lương theo việc */
+
+	/**
+	 * MÀN CHỐT LƯƠNG CỦA MỘT NGƯỜI cần gì để dựng — giờ đã chấm, dòng giờ khác, khoản cộng/trừ.
+	 *
+	 * ⚠️ `gioCham` LÀ TRẦN CỦA MỌI THỨ GÕ Ở ĐÂY. `VHCC_ChotLuong::dat()` chối khi tổng giờ khác
+	 *    vượt nó, vì vượt là giờ chính ra ÂM — trừ tiền một người vì một con số gõ nhầm, mà
+	 *    bảng vẫn có số nên nhìn qua không thấy gì lạ. Trả sẵn con số ấy để màn tự cộng và cản
+	 *    trước, chứ không để người ta gõ xong mới bị chối.
+	 */
+	public static function chot_cua( $u, $coso, $thang, $ma_nv ) {
+		$cs = self::chot_coso( $u, $coso );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã nhân viên.' ); }
+
+		$n = self::ngay_cua( $u, $cs, $thang, $ma );
+		if ( empty( $n['ok'] ) ) { return $n; }
+		$tt = $n['thang'];
+
+		$lt = VHCC_ChotLuong::thang_cua( $cs, $tt, $ma );
+		$t  = VHCC_ChotLuong::tien_cua( $cs, $tt, $ma );
+		return array(
+			'ok'       => true,
+			'coSo'     => $cs,
+			'thang'    => $tt,
+			'maNV'     => $ma,
+			'hoTen'    => $n['hoTen'],
+			'gioCham'  => $n['gioThang'],
+			'vieChinh' => VHCC_ChotLuong::viec_chinh( $cs, $tt, $ma ),
+			'dong'     => VHCC_ChotLuong::cua( $cs, $tt, $ma ),
+			'tenDaDung' => VHCC_ChotLuong::ten_da_dung( $cs ),
+			'luongThang' => $lt,
+			'cong'     => isset( $t['cong'] ) ? $t['cong'] : array(),
+			'tru'      => isset( $t['tru'] ) ? $t['tru'] : array(),
+			'tenCong'  => VHCC_ChotLuong::CONG,
+			'tenTru'   => VHCC_ChotLuong::TRU,
+			'gioToiDa' => VHCC_ChotLuong::GIO_TOI_DA,
+		);
+	}
+
+	/**
+	 * Lưu chốt lương — BA lượt ghi, và mỗi lượt là một hàm đã có sẵn phép gác riêng.
+	 *
+	 * 🔴 DỪNG Ở LƯỢT ĐẦU TIÊN HỎNG. Ghi tiếp sau một lượt chối là lưu một nửa: người dùng thấy
+	 *    câu lỗi và tưởng KHÔNG có gì được ghi, trong khi mấy khoản trừ đã vào sổ rồi. Nửa vời
+	 *    tệ hơn hỏng hẳn, vì hỏng hẳn thì người ta làm lại.
+	 *
+	 * ⚠️ `gioCham` KHÔNG nhận từ biểu mẫu — tính lại từ chính bảng chấm công. Nhận từ màn là
+	 *    trần tự khai, tức bỏ luôn phép chặn "giờ khác không được vượt giờ chấm".
+	 */
+	public static function chot_luu( $u, $dat ) {
+		$cs = self::chot_coso( $u, isset( $dat['coSo'] ) ? $dat['coSo'] : '' );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		$ma = trim( (string) ( isset( $dat['maNV'] ) ? $dat['maNV'] : '' ) );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã nhân viên.' ); }
+
+		$n = self::ngay_cua( $u, $cs, isset( $dat['thang'] ) ? $dat['thang'] : '', $ma );
+		if ( empty( $n['ok'] ) ) { return $n; }
+		$tt = $n['thang'];
+
+		$dong = array();
+		foreach ( (array) ( isset( $dat['dong'] ) ? $dat['dong'] : array() ) as $d ) {
+			$dong[] = array(
+				'viec' => isset( $d['viec'] ) ? (string) $d['viec'] : '',
+				'gio'  => isset( $d['gio'] ) ? (string) $d['gio'] : '',
+			);
+		}
+		$r = VHCC_ChotLuong::dat( $u, $cs, $tt, $ma, $dong, $n['gioThang'],
+			isset( $dat['viecChinh'] ) ? (string) $dat['viecChinh'] : null );
+		if ( empty( $r['ok'] ) ) { return $r; }
+
+		$r2 = VHCC_ChotLuong::dat_thang( $u, $cs, $tt, $ma,
+			! empty( $dat['anLuongThang'] ),
+			isset( $dat['luongCb'] ) ? $dat['luongCb'] : '',
+			isset( $dat['congYc'] ) ? $dat['congYc'] : '' );
+		if ( empty( $r2['ok'] ) ) { return $r2; }
+
+		$r3 = VHCC_ChotLuong::dat_tien( $u, $cs, $tt, $ma,
+			(array) ( isset( $dat['cong'] ) ? $dat['cong'] : array() ),
+			(array) ( isset( $dat['tru'] ) ? $dat['tru'] : array() ) );
+		if ( empty( $r3['ok'] ) ) { return $r3; }
+
+		return array( 'ok' => true, 'coSo' => $cs, 'thang' => $tt, 'maNV' => $ma,
+			'gioCham' => $n['gioThang'] );
+	}
+
 	/* ====================================================================== thêm người */
 
 	/**
