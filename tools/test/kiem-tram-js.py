@@ -149,6 +149,10 @@ print('— mọi nút đều có người nghe —')
 # Nút vẽ ra mà quên gài sự kiện là nút bấm không xảy ra gì, và trang không báo lỗi.
 nut = set(re.findall(r'<button id="([A-Za-z0-9_]+)"', src))
 o_nhap = set(re.findall(r'<input id="([A-Za-z0-9_]+)"', src))
+# Ô XỔ cũng tính. Nó không phải nút nên không bắt buộc phải có người nghe, nhưng gài `change`
+# cho nó là chuyện thường — mà nếu không kể vào đây thì phép thử dưới đọc thành "gài cho phần
+# tử không tồn tại" và bắt người ta gỡ một dòng hoàn toàn đúng.
+o_nhap |= set(re.findall(r'<select id="([A-Za-z0-9_]+)"', src))
 nghe = set(re.findall(r"el\('([A-Za-z0-9_]+)'\)\.addEventListener", js))
 la('không nút nào bị bỏ quên', nut <= nghe, 'thiếu: %s' % sorted(nut - nghe))
 # Ô nhập cũng được gài (Enter để gửi) nên tính cả vào; còn gài cho một id KHÔNG tồn tại thì

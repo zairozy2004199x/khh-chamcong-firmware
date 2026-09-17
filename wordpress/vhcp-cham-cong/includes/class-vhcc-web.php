@@ -1790,6 +1790,20 @@ class VHCC_Web {
 					. 'đơn NGHỈ PHÉP NĂM đã duyệt trong năm.' ) );
 		}
 
+		if ( 'phieu_cb' === $viec || 'phieu_thu' === $viec ) {
+			$r = VHCC_PhieuLuong::cong_bo( $toi,
+				isset( $_POST['pl_cs'] ) ? wp_unslash( $_POST['pl_cs'] ) : '',
+				isset( $_POST['pl_th'] ) ? wp_unslash( $_POST['pl_th'] ) : '',
+				( 'phieu_cb' === $viec ) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $r['bat']
+				? 'Đã công bố phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
+					. '. Nhân viên cơ sở này xem được phiếu CỦA CHÍNH HỌ trên trạm — họ không '
+					. 'thấy dòng của ai khác.'
+				: 'Đã thu lại phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
+					. '. Trạm thôi hiện tháng này.' ) );
+		}
+
 		if ( 'xin_tre' === $viec ) {
 			$r = VHCC_XinTre::nop( $toi, array(
 				'ngay'    => isset( $_POST['xt_ngay'] ) ? wp_unslash( $_POST['xt_ngay'] ) : '',
@@ -9018,6 +9032,34 @@ class VHCC_Web {
 		echo '<p class="mo">Số giờ lấy thẳng từ lưới ở trên; đơn giá lấy từ sổ đơn giá. Mấy cột '
 			. '<b>phụ cấp · giảm trừ · BHXH · giờ thêm</b> cố ý để trống — kế toán điền, và tệp '
 			. 'xuất ra có sẵn công thức nên gõ vào là tổng tự nhảy.</p>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CÔNG BỐ PHIẾU LƯƠNG CHO NHÂN VIÊN TỰ XEM TRÊN TRẠM.
+		 *
+		 * 🔴 MỘT ĐỘNG TÁC CỐ Ý, KHÔNG PHẢI MẶC ĐỊNH BẬT. Bảng này có số ngay từ ngày 1 của tháng
+		 *    sau, nhưng lúc ấy khoản cộng/trừ còn chưa gõ. Cho nhân viên xem sống thì mỗi lần
+		 *    kế toán gõ thêm một dòng trừ là một người thấy lương mình vừa tụt — và họ không có
+		 *    cách nào biết đó là việc bình thường đang diễn ra.
+		 * ⚠️ TẮT ĐƯỢC. Công bố nhầm thì phải rút lại được ngay, chứ không phải chữa cho xong rồi
+		 *    mới dám nhìn mặt người ta.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( VHCC_Vai::duoc( $toi, VHCC_PhieuLuong::QUYEN ) ) {
+			$da_cb = VHCC_PhieuLuong::da_cong_bo( $cs, $th );
+			echo '<form method="post" class="hang" style="margin:0 0 12px;align-items:center">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="pl_cs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="pl_th" value="' . esc_attr( $th ) . '">' . self::o_loc()
+				. '<div><button class="' . ( $da_cb ? '' : 'chinh' ) . '" name="viec" value="'
+				. ( $da_cb ? 'phieu_thu' : 'phieu_cb' ) . '">'
+				. ( $da_cb ? 'Thu lại phiếu lương' : 'Công bố phiếu lương tháng này' ) . '</button></div>'
+				. '<div><span class="mo">' . ( $da_cb
+					? '✔ <b>Đang công bố.</b> Nhân viên cơ sở này xem được phiếu tháng '
+						. esc_html( $th ) . ' của CHÍNH HỌ ở trang chấm công online, tab '
+						. '<b>Công của tôi</b>. Họ chỉ thấy dòng của mình.'
+					: 'Chưa công bố — trên trạm nhân viên không thấy tháng này. Bấm khi đã gõ xong '
+						. 'khoản cộng / khoản trừ.' )
+				. '</span></div></form>';
+		}
 
 		$sua_cl = isset( $_GET['clm'] ) ? sanitize_text_field( wp_unslash( $_GET['clm'] ) ) : '';
 

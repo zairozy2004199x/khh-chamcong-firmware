@@ -71,6 +71,9 @@ jobs:
       - name: Bộ thử đơn xin nghỉ
         run: php tools/test/kiem-xin-nghi.php
 
+      - name: Bộ thử phiếu lương của tôi
+        run: php tools/test/kiem-phieu-luong.php
+
       - name: Bộ thử app PWA
         run: php tools/test/kiem-cc-app.php
 

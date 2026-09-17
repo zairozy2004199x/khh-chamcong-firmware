@@ -493,6 +493,27 @@ class VHCC_Tram {
 		}
 
 		/**
+		 * PHIẾU LƯƠNG CỦA TÔI. Nghiệp vụ ở `VHCC_PhieuLuong`; cửa này chỉ chuyển tiếp.
+		 *
+		 * 🔴 KHÔNG NHẬN `ma_nv` TỪ BIỂU MẪU. `phieu()` tự lấy từ `$u` và tự kiểm cơ sở gửi lên
+		 *    có thuộc về người ấy không — cửa này gửi thẳng `$u` xuống chứ không tự quyết gì,
+		 *    để chỉ có MỘT nơi gác chứ không phải hai nơi gác khác nhau.
+		 */
+		if ( 'phieuluong' === $viec ) {
+			self::ra( array(
+				'ok'     => true,
+				'dsThang' => VHCC_PhieuLuong::ds_thang( $u ),
+				'khoan'  => VHCC_PhieuLuong::ten_khoan(),
+			) );
+		}
+
+		if ( 'phieu' === $viec ) {
+			self::ra( VHCC_PhieuLuong::phieu( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
+		}
+
+		/**
 		 * BÁO MỘT LƯỢT CHẤM SAI, và danh sách lượt đã báo. Nghiệp vụ ở `VHCC_Cham::nv_bao_sai`.
 		 *
 		 * ⚠️ Cửa này KHÔNG sửa giờ. Nó gắn một cái cờ nằm cạnh ngày ấy để cửa hàng trưởng thấy ở

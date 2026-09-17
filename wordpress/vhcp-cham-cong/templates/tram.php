@@ -416,6 +416,19 @@ a{color:var(--nhan)}
 			có thể khác — thấy lệch thì báo, đừng tự cộng.</p>
 	</div>
 
+
+	<!-- ============ PHIẾU LƯƠNG CỦA TÔI ============
+	     🔴 KHÔNG DÙNG CHUNG BỘ LẬT THÁNG với bảng công ngay trên. Bảng công có MỌI tháng, còn
+	        phiếu lương chỉ có tháng kế toán ĐÃ CÔNG BỐ — nối chung một bộ lật thì bảy tháng
+	        trong mười hai lật tới chỗ trống, và chỗ trống ấy đọc y như "tháng đó anh không có
+	        lương". Ô xổ chỉ liệt kê tháng thật sự mở được, nên không có cái lật nào hụt.
+	     ⚠️ Ô xổ trống = chưa công bố tháng nào; khối tự ẩn đi thay vì bày một ô rỗng. -->
+	<div class="the an" id="oKhoiPhieu">
+		<label style="margin:0 0 8px">Phiếu lương của tôi</label>
+		<select id="plThang"></select>
+		<div id="bangPhieu" style="margin-top:10px"><p class="trong">—</p></div>
+	</div>
+
 	</div><!-- /tCong -->
 
 	<!-- ============ TAB 3: ỨNG DỤNG ============
@@ -1674,6 +1687,7 @@ function denTab(ten){
 	});
 	var ds = document.querySelectorAll('.tab-nut');
 	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
+	if(ten === 'tCong'){ napPhieu(); }
 	if(ten === 'tUng'){ napUng(); }
 	if(ten === 'tToi'){ napHoSo(); moManXin(); }
 	/* Về đầu trang khi đổi tab. Không có dòng này thì đang cuộn giữa bảng tháng mà bấm sang
@@ -1914,6 +1928,8 @@ el('btGuiTre').addEventListener('click', function(){
 	});
 });
 
+el('plThang').addEventListener('change', vePhieu);
+
 el('btGuiNghi').addEventListener('click', function(){
 	guiDon('xinnghi', {
 		token: token(),
@@ -1942,6 +1958,137 @@ el('btGuiLich').addEventListener('click', function(){
 		return '✔ Đã gửi yêu cầu đổi lịch — mã ' + j.maYc + '. Người xếp lịch của cơ sở sẽ duyệt.';
 	});
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * PHIẾU LƯƠNG CỦA TÔI — cửa, không phải nghiệp vụ. Xem class-vhcc-phieu-luong.php.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHỐI NÀY TỰ ẨN KHI CHƯA CÓ THÁNG NÀO CÔNG BỐ. Bày một ô xổ rỗng kèm chữ "chưa có" thì mỗi
+ *    lần mở tab người ta lại đọc lại một câu không giúp được gì, và ô rỗng trên màn lương thì
+ *    ai cũng bấm thử vài lần trước khi tin. Chưa có gì để xem thì không bày gì cả.
+ *
+ * ⚠️ MỌI CON SỐ Ở ĐÂY LÀ SỐ CỦA HỆ, KHÔNG PHẢI SỐ CHUYỂN KHOẢN. BHXH và lương giờ thêm kế toán
+ *    điền ngoài hệ (xem đầu class-vhcc-bang-luong.php), nên câu ấy phải nằm ngay dưới con số
+ *    tổng — không phải ở cuối trang, không phải trong một dấu hỏi phải bấm mới ra.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var PL_KHOAN = null;
+
+function tienVN(n){
+	if(n === null || n === undefined || n === '') return '—';
+	var x = Math.round(Number(n));
+	if(!isFinite(x)) return '—';
+	/* Chấm nghìn bằng vòng lặp, KHÔNG bằng biểu thức chính quy. `toLocaleString` thì phụ thuộc
+	   máy người dùng — điện thoại đặt tiếng Anh sẽ ra "1,234,000" giữa một tờ lương tiếng Việt. */
+	var am = x < 0; if(am){ x = -x; }
+	var t = String(x), r = '';
+	while(t.length > 3){ r = '.' + t.slice(-3) + r; t = t.slice(0, -3); }
+	return (am ? '-' : '') + t + r + 'đ';
+}
+
+function napPhieu(){
+	return goi('phieuluong', { token: token() }).then(function(j){
+		if(!j || !j.ok){ return; }
+		PL_KHOAN = j.khoan || null;
+		var ds = j.dsThang || [];
+		el('oKhoiPhieu').classList.toggle('an', !ds.length);
+		if(!ds.length){ return; }
+		/* Giá trị của mỗi dòng gói cả cơ sở lẫn tháng: một người làm hai nơi thì tháng 8 có hai
+		   phiếu khác nhau, và chỉ mang theo cái tháng thì hai dòng ấy không phân biệt được. */
+		var h = '';
+		for(var i=0;i<ds.length;i++){
+			var v = ds[i].coSo + '|' + ds[i].thang;
+			h += '<option value="' + esc(v) + '">Tháng ' + esc(ds[i].thang)
+				+ ' — ' + esc(ds[i].coSo) + '</option>';
+		}
+		el('plThang').innerHTML = h;
+		vePhieu();
+	});
+}
+
+function vePhieu(){
+	var v = (el('plThang').value || '').split('|');
+	if(v.length < 2){ return; }
+	el('bangPhieu').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('phieu', { token: token(), coSo: v[0], thang: v[1] }).then(function(j){
+		if(!j || !j.ok){
+			el('bangPhieu').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được phiếu.') + '</p>';
+			return;
+		}
+		if(j.trong){
+			el('bangPhieu').innerHTML = '<p class="trong">' + esc(j.loi) + '</p>';
+			return;
+		}
+		var h = '<table><thead><tr><th>Việc</th><th>Giờ</th><th>Đơn giá</th><th>Thành tiền</th>'
+			+ '</tr></thead><tbody>';
+		for(var i=0;i<j.dong.length;i++){
+			var d = j.dong[i];
+			/* Dòng ăn lương tháng không có giờ và không có đơn giá — nó ra tiền bằng
+			   lương cơ bản × công thực / công yêu cầu. Bày hai ô trống thì đúng hơn là bày
+			   một con số mượn ở đâu đó. */
+			var mo = (d.cheDo === 'thang')
+				? (tienVN(d.luongCb) + '/tháng × ' + esc(d.congThuc) + '/' + esc(d.congYc || '—') + ' công')
+				: (d.gia === null ? '<b>chưa khai đơn giá</b>' : tienVN(d.gia) + '/giờ');
+			h += '<tr><td style="text-align:left">' + esc(d.cv || '—') + '</td>'
+				+ '<td>' + (d.gio === null ? '—' : esc(d.gio)) + '</td>'
+				+ '<td>' + mo + '</td>'
+				+ '<td>' + (d.luongChinh === null ? '—' : tienVN(d.luongChinh)) + '</td></tr>';
+		}
+		h += '</tbody></table>';
+
+		h += veKhoanPL(j.dong[0].cong, PL_KHOAN && PL_KHOAN.cong, 'Khoản cộng');
+		h += veKhoanPL(j.dong[0].tru,  PL_KHOAN && PL_KHOAN.tru,  'Khoản trừ');
+
+		/* 🔴 THIẾU ĐƠN GIÁ THÌ KHÔNG BÀY TỔNG. Cộng những dòng có giá rồi gọi đó là tổng thì
+		   con số ra THẤP HƠN thật mà trông hoàn chỉnh — và người đọc sẽ đi khiếu nại một con
+		   số không ai tính ra như thế. Máy chủ đã trả `tong` là null trong trường hợp ấy; ở
+		   đây chỉ cần đừng tự cộng lại. */
+		if(!j.daDu){
+			h += '<div class="vang" style="margin-top:10px">Phiếu này còn <b>' + esc(j.thieuGia)
+				+ '</b> dòng chưa khai đơn giá nên chưa cộng được tổng. Báo cửa hàng trưởng để '
+				+ 'kế toán khai giá cho việc ấy.</div>';
+		} else {
+			h += '<div class="the" style="margin-top:10px;padding:10px">'
+				+ '<div class="hang" style="justify-content:space-between"><span>Lương chính</span>'
+				+ '<b>' + tienVN(j.luongChinh) + '</b></div>'
+				+ '<div class="hang" style="justify-content:space-between"><span>Cộng</span>'
+				+ '<b>' + tienVN(j.tongCong) + '</b></div>'
+				+ '<div class="hang" style="justify-content:space-between"><span>Trừ</span>'
+				+ '<b>' + tienVN(j.tongTru) + '</b></div>'
+				+ '<div class="hang" style="justify-content:space-between;font-size:17px">'
+				+ '<span><b>Tổng</b></span><b>' + tienVN(j.tong) + '</b></div></div>';
+		}
+
+		if(j.thieuGio){
+			h += '<div class="vang" style="margin-top:10px">Tháng này có <b>' + esc(j.thieuGio)
+				+ '</b> lượt thiếu một đầu giờ (quên chấm vào hoặc chấm ra) nên KHÔNG tính phút nào. '
+				+ 'Thấy sai thì báo ở tab <b>Tôi</b> → Báo lượt chấm sai.</div>';
+		}
+
+		/* ⚠️ Xem khối chú thích đầu hàm: câu này nằm dưới con số tổng, không nằm cuối trang. */
+		h += '<p class="ct" style="text-align:left;margin:10px 0 0">Đây là số <b>hệ thống tính '
+			+ 'được</b> từ giờ đã chấm và các khoản kế toán đã nhập. <b>BHXH</b> và <b>lương giờ '
+			+ 'thêm</b> kế toán tính ngoài hệ, nên số chuyển khoản có thể khác. Lệch thì hỏi cửa '
+			+ 'hàng trưởng — đừng tự cộng lại.</p>';
+		el('bangPhieu').innerHTML = h;
+	}).catch(function(){
+		el('bangPhieu').innerHTML = '<p class="trong">Chưa đọc được phiếu — kiểm tra mạng rồi chọn lại tháng.</p>';
+	});
+}
+
+/* Chỉ vẽ những khoản THẬT SỰ CÓ. Liệt kê cả chín khoản với số 0 thì tờ phiếu trông như đã xét
+   hết mọi thứ, trong khi thật ra kế toán chưa gõ gì — cùng luật với ô trống của tệp .xlsx. */
+function veKhoanPL(d, ten, nhan){
+	if(!d || !ten){ return ''; }
+	var h = '';
+	for(var k in ten){
+		if(!Object.prototype.hasOwnProperty.call(ten, k)) continue;
+		if(!d[k]) continue;
+		h += '<div class="hang" style="justify-content:space-between"><span>' + esc(ten[k])
+			+ '</span><b>' + tienVN(d[k]) + '</b></div>';
+	}
+	if(!h){ return ''; }
+	return '<div class="the" style="margin-top:10px;padding:10px"><label style="margin:0 0 6px">'
+		+ esc(nhan) + '</label>' + h + '</div>';
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * LỊCH LÀM CỦA TÔI
