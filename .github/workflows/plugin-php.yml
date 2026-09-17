@@ -59,6 +59,9 @@ jobs:
       - name: Bộ thử hàng đợi khi mất mạng
         run: php tools/test/kiem-hang-cho.php
 
+      - name: Bộ thử dải nhắc chỗ chấm công
+        run: php tools/test/kiem-nhac-cho-cham-cong.php
+
       - name: Bộ thử app PWA
         run: php tools/test/kiem-cc-app.php
 

@@ -927,6 +927,10 @@ class VHNB_Trang {
 			$h = VHCC_Cty::html();
 			if ( '' !== $h ) { echo '<div class="bo">' . $h . '</div>'; }
 		}
+		/* Dải nhắc chỗ chấm công — vẽ SAU chân trang, ngay trước `</body>`. Đặt ở đầu trang
+		   thì nó đẩy cả nội dung xuống và người đang đọc bảng tin mất chỗ đang đọc. Lớp tự
+		   im khi chưa bật hoặc đã hết hạn (xem VHNB_Nhac::nen_ve). */
+		if ( class_exists( 'VHNB_Nhac' ) && method_exists( 'VHNB_Nhac', 've' ) ) { VHNB_Nhac::ve(); }
 		echo '</body></html>';
 	}
 

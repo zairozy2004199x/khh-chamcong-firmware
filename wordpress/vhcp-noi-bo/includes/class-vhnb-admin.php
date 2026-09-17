@@ -30,6 +30,88 @@ class VHNB_Admin {
 		);
 	}
 
+	/**
+	 * KHỐI "NHẮC CHỖ CHẤM CÔNG". Nằm TRONG cùng cái form với phần trên — cố ý.
+	 *
+	 * 🔴 KHÔNG LỒNG <form> TRONG <form>. HTML không cho phép và trình duyệt KHÔNG báo lỗi: nó
+	 *    lặng lẽ vứt thẻ bên trong rồi gộp mọi ô nhập vào form ngoài. Bộ chấm công đã trả giá
+	 *    cho đúng lỗi này ngày 22/08/2026 — bấm Lưu ở khối này thì trình duyệt đòi điền một ô
+	 *    `required` tận cuối trang, chẳng liên quan gì. Một form, một nút Lưu.
+	 */
+	private static function khoi_nhac() {
+		if ( ! class_exists( 'VHNB_Nhac' ) ) { return; }
+		$c    = VHNB_Nhac::cai();
+		$dich = VHNB_Nhac::dich();
+
+		echo '<h2>Nhắc chỗ chấm công</h2>';
+		echo '<p style="max-width:780px">Nhân viên cũ quen vào trang này để chấm công. Hai trang '
+			. 'dùng <b>chung một mã PIN</b> nên vào nhầm vẫn đăng nhập được — không có câu lỗi nào, '
+			. 'và họ đứng tìm một cái nút không có ở đây. Dải này nói chỗ chấm công thật, hiện vài '
+			. 'giây ở <b>đáy màn</b> rồi tự đi; không che, không chặn thao tác nào.</p>';
+
+		echo '<table class="form-table"><tbody>';
+
+		echo '<tr><th scope="row">Bật dải nhắc</th><td>'
+			. '<label><input type="checkbox" name="nhac_bat" value="1"'
+			. checked( ! empty( $c['bat'] ), true, false ) . '> Hiện trên mọi trang Nội bộ</label>'
+			. '<p class="description">Người bấm <b>“Đừng hiện nữa”</b> thì máy của họ nhớ, lần sau '
+			. 'không thấy nữa. Tắt ô này là im với tất cả.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_giay">Tự đi sau</label></th><td>'
+			. '<input id="nhac_giay" name="nhac_giay" type="number" min="' . (int) VHNB_Nhac::GIAY_IT
+			. '" max="' . (int) VHNB_Nhac::GIAY_NHIEU . '" style="width:90px" value="'
+			. esc_attr( (string) $c['giay'] ) . '"> giây'
+			. '<p class="description">Có một vạch rút ngắn dần chạy suốt bấy nhiêu giây, để người ta '
+			. 'biết nó sắp tự đi thay vì phải dừng việc đi tìm nút đóng. '
+			. 'Bấm phát video thì <b>dừng đếm</b> — không thì dải tự đóng giữa lúc đang xem.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_dich">Địa chỉ trang chấm công</label></th><td>'
+			. '<input id="nhac_dich" name="nhac_dich" type="url" class="large-text" value="'
+			. esc_attr( (string) $c['dich'] ) . '" placeholder="' . esc_attr( $dich ) . '">'
+			. '<p class="description">Để trống là <b>tự hỏi plugin Chấm Công</b> — nên đường dẫn bên '
+			. 'ấy đổi thì dải này theo ngay. Chỉ khai tay khi hai plugin nằm trên hai website khác '
+			. 'nhau. ' . ( '' === $dich
+				? '<b style="color:#b32d2e">Hiện chưa biết dẫn đi đâu — dải sẽ KHÔNG hiện cho tới khi '
+					. 'có địa chỉ.</b>'
+				: 'Đang dẫn tới <code>' . esc_html( $dich ) . '</code>.' )
+			. '</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_video">Video hướng dẫn</label></th><td>'
+			. '<input id="nhac_video" name="nhac_video" type="url" class="large-text" value="'
+			. esc_attr( (string) $c['video'] ) . '" placeholder="để trống = không có video">'
+			. '<p class="description">Tải video lên <b>Thư viện Media</b> của WordPress rồi dán địa '
+			. 'chỉ vào đây. <b>Đừng nhét video vào plugin</b>: một tệp 4 MB làm mỗi lượt tự cập nhật '
+			. 'tải thêm 4 MB, và mỗi bản phát hành phình theo.<br>'
+			. 'Địa chỉ kết thúc bằng <code>.mp4</code>/<code>.webm</code> thì phát ngay trong dải '
+			. '(<b>không tự tải</b> — bấm mới tải, vì ở cơ sở người ta dùng 3G). Địa chỉ khác '
+			. '(YouTube, Drive) thì hiện thành một đường dẫn mở tab mới.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_han">Tự tắt sau ngày</label></th><td>'
+			. '<input id="nhac_han" name="nhac_han" type="date" value="'
+			. esc_attr( (string) $c['han'] ) . '">'
+			. '<p class="description">🔴 <b>Nên đặt.</b> Đây là thông báo <b>chuyển đổi</b>, không phải '
+			. 'nội dung thường trực. Không có hạn thì sang năm nó vẫn nằm đó nhắc một việc không còn '
+			. 'ai nhầm nữa — và lúc ấy nó thành thứ mọi người đã quen bỏ qua, nên lần sau có thông báo '
+			. 'thật cũng không ai đọc. Để trống = không bao giờ tự tắt.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_tieu">Dòng đậm</label></th><td>'
+			. '<input id="nhac_tieu" name="nhac_tieu" class="large-text" maxlength="120" value="'
+			. esc_attr( (string) $c['tieu'] ) . '"></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_chu">Dòng giải thích</label></th><td>'
+			. '<textarea id="nhac_chu" name="nhac_chu" class="large-text" rows="3">'
+			. esc_textarea( (string) $c['chu'] ) . '</textarea>'
+			. '<p class="description">Chữ thuần, không thẻ HTML.</p></td></tr>';
+
+		echo '</tbody></table>';
+
+		if ( ! empty( $c['bat'] ) && ! VHNB_Nhac::con_han() ) {
+			echo '<div class="notice notice-warning inline"><p><b>Dải đang bật nhưng đã quá hạn '
+				. esc_html( (string) $c['han'] ) . '</b> nên không hiện nữa. Đổi ngày hoặc bỏ tích '
+				. 'cho gọn.</p></div>';
+		}
+	}
+
 	public static function ve() {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Không đủ quyền.' ); }
 		$bao = '';
@@ -45,6 +127,20 @@ class VHNB_Admin {
 			   chặn rỗng ở đây — chặn hai nơi là hai luật, và hai luật thì lệch. */
 			update_option( 'vhnb_slug', isset( $_POST['slug'] )
 				? sanitize_title( wp_unslash( $_POST['slug'] ) ) : '' );
+
+			/* Dải nhắc chỗ chấm công. Ô tích KHÔNG gửi gì khi không tích, nên đọc bằng `isset`
+			   chứ không bằng giá trị — đọc giá trị thì bỏ tích xong bấm Lưu là nó vẫn bật. */
+			if ( class_exists( 'VHNB_Nhac' ) ) {
+				VHNB_Nhac::dat( array(
+					'bat'   => isset( $_POST['nhac_bat'] ),
+					'giay'  => isset( $_POST['nhac_giay'] ) ? (int) $_POST['nhac_giay'] : 0,
+					'dich'  => isset( $_POST['nhac_dich'] ) ? wp_unslash( $_POST['nhac_dich'] ) : '',
+					'video' => isset( $_POST['nhac_video'] ) ? wp_unslash( $_POST['nhac_video'] ) : '',
+					'tieu'  => isset( $_POST['nhac_tieu'] ) ? wp_unslash( $_POST['nhac_tieu'] ) : '',
+					'chu'   => isset( $_POST['nhac_chu'] ) ? wp_unslash( $_POST['nhac_chu'] ) : '',
+					'han'   => isset( $_POST['nhac_han'] ) ? wp_unslash( $_POST['nhac_han'] ) : '',
+				) );
+			}
 			update_option( 'vhnb_rw', 1 );   // đổi đường dẫn -> phải ghi lại bộ luật đường
 
 			/* Trang chủ + phần công khai. Anh Thắng 30/08/2026: *"cho trang này là trang chủ
@@ -166,6 +262,9 @@ class VHNB_Admin {
 			. '</td></tr>';
 
 		echo '</tbody></table>';
+
+		self::khoi_nhac();
+
 		submit_button( 'Lưu', 'primary', 'vhnb_luu' );
 		echo '</form>';
 
