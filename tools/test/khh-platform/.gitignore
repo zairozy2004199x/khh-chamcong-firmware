@@ -1,0 +1,14 @@
+# Sinh ra khi CHẠY bộ thử, không phải mã nguồn.
+
+# playwright cài bằng `npm i playwright` để chạy mấy bài .mjs — vài trăm MB, và bản cài phụ
+# thuộc hệ điều hành của máy chạy. Commit vào là phình kho mà máy khác vẫn phải cài lại.
+node_modules/
+package.json
+package-lock.json
+
+# Ảnh chụp màn hình các bài .mjs để lại.
+*.png
+
+# Tệp MẪU đầu vào thì giữ — không có chúng thì bài thử đính kèm không chạy được.
+!tepthu/*
+!xlsxfix/*
