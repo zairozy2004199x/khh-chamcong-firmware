@@ -32,12 +32,19 @@ const boc = ten => {
   const j = HTML.indexOf('\n  }', i);
   return j < i ? '' : HTML.slice(i, j + 4);
 };
-const F = new Function('esc', 'money', '_dmy',
-  boc('_daCapTong') + '\n' + boc('_conPhaiCap') + '\n' + boc('_dotBlock')
-  + '\nreturn { blk: _dotBlock, tong: _daCapTong, con: _conPhaiCap };')(
+/* `DA_CUR` là dự án đang mở — `_daTenHang()` tra tên hạng mục trong đó. Truyền vào một dự án
+   giả có đúng mấy dòng đang thử, chứ KHÔNG chặn `_daTenHang` bằng bản rút gọn: chính nó là thứ
+   đang kiểm ở mục 5. */
+const DA_GIA = { lines: [
+  { row: 3, noiDung: 'Thợ Phụ' },
+  { row: 5, noiDung: 'Vật tư điện' },
+] };
+const F = new Function('esc', 'money', '_dmy', 'DA_CUR',
+  boc('_daCapTong') + '\n' + boc('_conPhaiCap') + '\n' + boc('_daTenHang') + '\n' + boc('_dotBlock')
+  + '\nreturn { blk: _dotBlock, tong: _daCapTong, con: _conPhaiCap, ten: _daTenHang };')(
   x => String(x == null ? '' : x),
   n => String(Number(n) || 0).replace(/\B(?=(\d{3})+(?!\d))/g, '.'),
-  v => String(v));
+  v => String(v), DA_GIA);
 
 /* ── 1. ĐÚNG CẢNH TRONG ẢNH ───────────────────────────────────────────────────────────── */
 {
@@ -103,6 +110,28 @@ t('🔴 và nhãn từng dòng cũng ghi "Lệnh N"', /return '<b>Lệnh '\+n\+'
 t('   tiêu đề bảng vẫn là "Lệnh tạm ứng của dự án" — nay cột khớp tiêu đề',
   HTML.indexOf('Lệnh tạm ứng của dự án') >= 0);
 t('🔴 khối đợt được gắn vào bảng', /var lich=_dotBlock\(d\);/.test(HTML));
+
+/* ── 5. MỖI ĐỢT NÓI RA GỒM NHỮNG HẠNG MỤC NÀO ───────────────────────────────────────────
+ * Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+ * Xếp được rồi thì bảng phải ĐỌC LẠI được: một dòng "Đợt 2 · hẹn … · 20tr" mà không nói gồm
+ * gì thì vẫn phải mở form ra dò, tức chưa trả lời được câu anh hỏi.
+ * ────────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const h = F.blk({ soTien: 30000000, daCap: [], lich: [
+    { lan: 1, ngay: '03/09/2026', soTien: 10000000, rows: [3] },
+    { lan: 2, ngay: '10/09/2026', soTien: 20000000, rows: [5] },
+  ] });
+  t('🔴 đợt 1 gọi TÊN hạng mục của nó, không chỉ một con số', h.indexOf('Thợ Phụ') >= 0, h);
+  t('🔴 và đợt 2 gọi tên hạng mục của đợt 2', h.indexOf('Vật tư điện') >= 0, h);
+  /* Đặt nhầm chỗ là nguy hiểm hơn cả không có: đọc "Đợt 1 · Vật tư điện" rồi chuẩn bị sai tiền. */
+  t('   đúng hạng mục vào đúng đợt, không đảo chỗ',
+    h.indexOf('Thợ Phụ') < h.indexOf('Vật tư điện'), h);
+}
+t('lệnh cũ (chưa có `rows`) vẫn vẽ được, không nổ và không in tên bịa',
+  F.blk({ soTien: 10000000, daCap: [], lich: [{ lan: 1, ngay: '03/09/2026', soTien: 10000000 }] })
+    .indexOf('Thợ Phụ') < 0);
+t('🔴 dòng không tra được tên thì gọi theo SỐ DÒNG, không để ô trống', F.ten(99) === 'Dòng 99', F.ten(99));
+t('   tra được thì lấy đúng tên', F.ten(5) === 'Vật tư điện', F.ten(5));
 
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if (TRUOT.length) {

@@ -6250,84 +6250,129 @@
     if(!ds.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
     var tong=ds.reduce(function(a,o){ return a+(Number(o.getAttribute('data-tien'))||0); },0);
     var o=el('daXinForm'); if(!o) return;
-    /* 🔴 LẦN 1 ĐIỀN SẴN CẢ TỔNG. Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua
-       lần 2, không được nhập lớn hơn"*.
-       Phần đông nhận tiền một lần — bày ba ô trống là bắt họ tự gõ lại con số máy vừa cộng ra,
-       và gõ lại là chỗ gõ lệch. Ai cần chia thì sửa lần 1 nhỏ đi, phần dư TỰ chảy sang lần sau.
-       ⚠️ NGÀY LẦN 1 ĐIỀN SẴN HÔM NAY. Có tiền mà thiếu ngày thì lúc gửi bị chối (xem
-          `daGuiXinTU`) — mở form ra đã đỏ sẵn thì khó chịu. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       GÁN TỪNG HÀNG VÀO LẦN CHI — TIỀN MỖI LẦN TỰ CỘNG, KHÔNG GÕ TAY.
+
+       Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+
+       🔴 VÌ SAO BỎ BA Ô GÕ TIỀN CŨ. Bản trước cho gõ tay số tiền từng lần, và con số ấy không
+          dính gì tới hàng nào — không ai trả lời được "lần 1 gồm những gì". Nó còn lệch được
+          với tổng lệnh: đơn của anh khai 10tr + 20tr cho một lệnh 68.790.000đ, và 38.790.000đ
+          không thuộc lần nào mà chẳng có gì nói ra. Gán theo HÀNG thì hai chuyện ấy hết cùng
+          lúc: mỗi lần biết gồm những gì, và tổng các lần không thể vượt tổng lệnh.
+
+       ⚠️ MẶC ĐỊNH MỌI HÀNG VÀO LẦN 1. Phần đông nhận một lần; mở form ra đã xếp sẵn thì họ chỉ
+          việc bấm Gửi. Ai cần chia thì đổi vài hàng sang lần 2 — đúng chiều anh Thắng vẫn dặn:
+          việc thường nhất phải là đường KHÔNG phải thao tác gì.
+       ⚠️ NGÀY LẦN 1 ĐIỀN SẴN HÔM NAY. Có hàng mà thiếu ngày thì lúc gửi bị chối; mở form ra đã
+          đỏ sẵn thì khó chịu.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     o.setAttribute('data-tong', String(tong));
     var homNay=_ngayISO(new Date());
+    var hang=ds.map(function(x){
+      var row=Number(x.getAttribute('data-xtu'))||0;
+      return { row:row, tien:Number(x.getAttribute('data-tien'))||0, ten:_daTenHang(row) };
+    });
     o.innerHTML='<b>📤 Gửi lệnh tạm ứng — '+ds.length+' hạng mục · tổng '+money(tong)+'đ</b>'
       +'<div style="font-size:11.5px;color:#8c8781;margin:4px 0 8px">Cả '+ds.length
-      +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần, kế toán cấp một lần kèm '
-      +'<b>một uỷ nhiệm chi</b>. Nhận hết trong một hôm thì để nguyên; cần chia ra thì '
-      +'<b>sửa số tiền lần 1 nhỏ đi</b> — phần còn lại tự nhảy sang lần sau.</div>'
-      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px">'
+      +' hạng mục này đi thành <b>MỘT lệnh</b>: quản lý duyệt một lần. Bên dưới chọn <b>mỗi hàng '
+      +'nhận tiền lần mấy</b> — số tiền từng lần máy tự cộng, khỏi gõ. Nhận hết trong một hôm thì '
+      +'để nguyên lần 1.</div>'
+      +'<div style="max-height:260px;overflow:auto;border:1px solid #e2d6c7;border-radius:8px">'
+      +'<table style="width:100%;font-size:12px;border-collapse:collapse">'
+      +'<thead><tr style="background:#f4f1ec"><th style="text-align:left;padding:4px 8px">Hạng mục</th>'
+      +'<th style="text-align:right;padding:4px 8px">Số tiền</th>'
+      +'<th style="text-align:center;padding:4px 8px;width:96px">Nhận lần</th></tr></thead><tbody>'
+      +hang.map(function(h){
+        return '<tr style="border-top:1px solid #f0ece6"><td style="padding:3px 8px">'+esc(h.ten)+'</td>'
+          +'<td style="padding:3px 8px;text-align:right;font-variant-numeric:tabular-nums">'+money(h.tien)+'</td>'
+          +'<td style="padding:3px 8px;text-align:center">'
+          +'<select data-xlan="'+h.row+'" data-tien="'+h.tien+'" onchange="daLanDoi()" style="font-size:12px">'
+          +[1,2,3].map(function(i){ return '<option value="'+i+'"'+(i===1?' selected':'')+'>Lần '+i+'</option>'; }).join('')
+          +'<option value="0">— chưa xếp —</option>'
+          +'</select></td></tr>';
+      }).join('')
+      +'</tbody></table></div>'
+      +'<div style="display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;margin-top:8px">'
       +[1,2,3].map(function(i){
-        var ro=(i===3);   // lần 3 luôn là PHẦN CÒN LẠI, không có lần 4 để đẩy tiếp
-        return '<span style="white-space:nowrap">Lần '+i+': '
+        return '<span style="white-space:nowrap" data-lanbox="'+i+'">Lần '+i+': '
           +'<input type="date" data-lnd="'+i+'" value="'+(i===1?homNay:'')+'" style="font-size:12px">'
-          +' <input type="text" data-lst="'+i+'" value="'+(i===1?_tienDep(tong):'')+'" placeholder="số tiền"'
-          +' inputmode="numeric"'+(ro?' readonly title="Tự tính — phần còn lại sau lần 1 và lần 2"':'')
-          +' onfocus="'+(ro?'':'tienVao(this)')+'" onblur="'+(ro?'':'tienRa(this);daLichDoi('+i+')')+'"'
-          +' style="width:110px;font-size:12px;text-align:right'+(ro?';background:#f4f1ec;color:#8c8781':'')+'"></span>';
+          +' <b data-lsum="'+i+'" style="font-variant-numeric:tabular-nums">0đ</b></span>';
       }).join('')+'</div>'
       +'<div id="daLichNhac" style="font-size:11px;color:#b45309;margin-top:4px"></div>'
       +'<div style="margin-top:6px;font-size:12px">Ghi chú cho kế toán: <input type="text" id="daXinGhiChu" placeholder="VD: mua vật tư đợt đầu" style="width:280px;font-size:12px"></div>'
       +'<div style="margin-top:8px"><button class="btn b-g" onclick="daGuiXinTU()">✓ Gửi lệnh tạm ứng</button>'
       +' <button class="btn b-x" onclick="el(\'daXinForm\').style.display=\'none\'">✕ Thôi</button></div>';
     o.style.display='';
+    daLanDoi();
     try{ o.scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
   }
-  /* ── Chia tiền giữa ba lần nhận ────────────────────────────────────────────────────────
-     Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua lần 2, không được nhập lớn
-     hơn"*.
-     🔴 TỔNG BA LẦN LUÔN BẰNG TỔNG LỆNH. Cho gõ tuỳ ý thì tổng lịch lệch với số tiền của lệnh —
-        kế toán chuẩn bị tiền theo lịch, mà lệnh lại đòi con số khác, và không ai biết bên nào
-        đúng. Nên: gõ quá phần còn lại thì KẸP LẠI và nói ra; gõ ít đi thì phần dư chảy sang
-        lần sau; lần 3 không sửa được vì nó chính là phần còn lại. */
-  function _daLichO(i, cot){ return document.querySelector('[data-l'+(cot==='ngay'?'nd':'st')+'="'+i+'"]'); }
-  function _daLichSo(i){ var o=_daLichO(i,'tien'); return o?(Number(_tienSo(o.value))||0):0; }
-  function _daLichDat(i, v){ var o=_daLichO(i,'tien'); if(o) o.value=(v>0?_tienDep(v):''); }
-  function _daXinTongLenh(){
-    var o=el('daXinForm');
-    return o?(Number(o.getAttribute('data-tong'))||0):0;
+  /* Tên hạng mục của một dòng, tra từ dự án đang mở. Không tra được thì gọi theo số dòng — thà
+     "Dòng 7" còn hơn một ô trống, vì đây là bảng người ta soát trước khi gửi tiền đi. */
+  function _daTenHang(row){
+    var ten='';
+    ((DA_CUR&&DA_CUR.lines)||[]).forEach(function(l){ if(Number(l.row)===Number(row)) ten=String(l.noiDung||''); });
+    return ten || ('Dòng '+row);
   }
-  function daLichDoi(i){
-    var tong=_daXinTongLenh(); if(tong<=0) return;
-    var truoc=0; for(var j=1;j<i;j++) truoc+=_daLichSo(j);
-    var conLai=Math.max(0, tong-truoc);
-    var v=_daLichSo(i);
+  /* Đổi ô chọn lần → cộng lại tổng từng lần, và bật/tắt ô ngày theo lần CÓ hàng.
+     🔴 Ô NGÀY CỦA LẦN KHÔNG CÓ HÀNG PHẢI MỜ ĐI. Để nó sáng là mời người ta chọn một cái ngày
+        cho một lần rỗng, rồi tưởng đã hẹn được gì đó. */
+  function daLanDoi(){
+    var t=[0,0,0,0], chua=0;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-xlan]'), function(sel){
+      var i=Number(sel.value)||0, tien=Number(sel.getAttribute('data-tien'))||0;
+      if(i>=1&&i<=3) t[i]+=tien; else chua+=tien;
+    });
+    for(var i=1;i<=3;i++){
+      var b=document.querySelector('[data-lsum="'+i+'"]');
+      if(b) b.textContent=money(t[i])+'đ';
+      var d=_daLichO(i);
+      if(d){ d.disabled=(t[i]<=0); d.style.opacity=(t[i]>0?'1':'.45'); }
+      var box=document.querySelector('[data-lanbox="'+i+'"]');
+      if(box) box.style.opacity=(t[i]>0?'1':'.55');
+    }
     var nhac=el('daLichNhac');
-    if(v>conLai){
-      v=conLai; _daLichDat(i, v);
-      if(nhac) nhac.textContent='⚠️ Lần '+i+' không được quá '+money(conLai)+'đ — đó là phần còn lại của lệnh. Đã kẹp về đúng số.';
-    } else if(nhac){ nhac.textContent=''; }
-    /* Phần dư chảy sang lần kế; các lần sau nữa dọn trắng, kẻo còn số cũ của lần chia trước. */
-    var du=conLai-v;
-    if(i<3) _daLichDat(i+1, du);
-    for(var k=i+2;k<=3;k++) _daLichDat(k, 0);
+    if(nhac){
+      nhac.innerHTML = chua
+        ? ('↳ <b>'+money(chua)+'đ</b> chưa xếp lần nào — phần này thành <b>dự kiến đợt tiếp theo</b>, '
+           +'xin sau ở một lệnh khác.')
+        : '';
+      nhac.style.color='#8c8781';
+    }
   }
+  /* `_daLichSo` / `_daLichDat` / `daLichDoi` / `_daXinTongLenh` đã GỠ 17/09/2026 cùng ba ô gõ
+     tiền tay. Từ khi mỗi hàng tự chọn "nhận lần mấy", số tiền của từng lần do máy chủ cộng từ
+     danh sách hàng — không còn gì để gõ, nên cũng không còn gì để kẹp lại cho khỏi vượt tổng.
+     Giữ lại `_daLichO` vì ô NGÀY vẫn dùng nó — nay nó chỉ còn một nghĩa, khỏi tham số thứ hai. */
+  function _daLichO(i){ return document.querySelector('[data-lnd="'+i+'"]'); }
   function daGuiXinTU(){
     if(!DA_CUR) return;
     var rows=_daOTich().filter(function(o){ return o.checked; })
       .map(function(o){ return Number(o.getAttribute('data-xtu')); });
     if(!rows.length){ toast('warn','Tích ít nhất một hạng mục đã'); return; }
+    /* Gom hàng theo LẦN. Số tiền KHÔNG gửi lên — máy chủ tự cộng từ chính mấy hàng này, nên
+       danh sách hàng và con số không thể lệch nhau (xem 🔴 ở `xin_tam_ung_dot`). */
+    var theoLan={1:[],2:[],3:[]}, tienLan={1:0,2:0,3:0};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-xlan]'), function(sel){
+      var i=Number(sel.value)||0;
+      if(i<1||i>3) return;
+      theoLan[i].push(Number(sel.getAttribute('data-xlan'))||0);
+      tienLan[i]+=Number(sel.getAttribute('data-tien'))||0;
+    });
     var lich=[];
     for(var i=1;i<=3;i++){
-      var d=_daLichO(i,'ngay');
+      var d=_daLichO(i);
       var ngay=d?String(d.value||'').trim():'';
-      var so=_daLichSo(i);
-      /* 🔴 CÓ TIỀN MÀ THIẾU NGÀY THÌ CHỐI, KHÔNG BỎ QUA IM LẶNG. Máy chủ bỏ dòng thiếu ngày;
-         nếu màn cũng lặng lẽ bỏ thì người dùng nhìn thấy 3.000.000đ ở lần 2 rồi gửi đi, mà lệnh
-         chỉ ghi nhận lần 1 — kế toán chuẩn bị thiếu tiền và không ai biết vì sao. */
-      if(so>0 && !ngay){
-        toast('warn','Lần '+i+' có '+money(so)+'đ mà chưa chọn ngày — kế toán chuẩn bị tiền vào hôm nào?');
+      /* 🔴 CÓ HÀNG MÀ THIẾU NGÀY THÌ CHỐI, KHÔNG BỎ QUA IM LẶNG. Máy chủ bỏ đợt thiếu ngày;
+         nếu màn cũng lặng lẽ bỏ thì người dùng vừa xếp 3 hàng vào lần 2 rồi gửi đi, mà lệnh
+         không ghi nhận lần ấy — kế toán chuẩn bị thiếu tiền và không ai biết vì sao. */
+      if(theoLan[i].length && !ngay){
+        toast('warn','Lần '+i+' có '+theoLan[i].length+' hạng mục ('+money(tienLan[i])
+          +'đ) mà chưa chọn ngày — kế toán chuẩn bị tiền vào hôm nào?');
         return;
       }
-      if(!ngay) continue;
-      lich.push({ngay:ngay, soTien:so});
+      if(!ngay || !theoLan[i].length) continue;
+      lich.push({ngay:ngay, rows:theoLan[i]});
     }
     var gc=String((el('daXinGhiChu')&&el('daXinGhiChu').value)||'').trim();
     loading(true);
@@ -6698,9 +6743,13 @@
       lich.forEach(function(y){ tongLich+=Number(y.soTien)||0; });
       h+='<div style="font-size:11px;color:#7c3aed;font-weight:700;margin:0 0 2px">📅 Lịch nhận tiền</div>';
       lich.forEach(function(y,i){
+        /* Kể TÊN mấy hàng của đợt ấy — đó chính là câu anh Thắng hỏi: "chi phí từng hàng là
+           chi lần 1 hay lần 2". Một con số tiền không trả lời được nó. */
+        var tenHang=(y.rows||[]).map(_daTenHang).join(' · ');
         h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
           +'<b>Đợt '+(Number(y.lan)||(i+1))+'</b> · hẹn '+esc(_dmy(y.ngay))
           +(y.soTien?(' · <b>'+money(y.soTien)+'đ</b>'):' · <span style="color:#8c8781">chưa ghi số tiền</span>')
+          +(tenHang?('<div style="color:#8c8781;padding-left:14px">'+esc(tenHang)+'</div>'):'')
           +'</div>';
       });
       /* 🔴 KHÔNG GỌI ĐÂY LÀ LỖI. Bản trước in một dòng cam "⚠️ chưa xếp vào đợt nào". Nhưng

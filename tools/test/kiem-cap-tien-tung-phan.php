@@ -33,16 +33,24 @@ function vai( $v, $ten = 'Ai đó' ) { VHCP_Auth::dat_vai_tro( $v, $ten ); }
 
 vai( 'Admin', 'KT' );
 $ma = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian cấp nhiều lần', 'NV' )['maDA'];
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thợ Phụ', 'duToan' => 48000000, 'thucTe' => 48000000 ) );
+/* Ba hàng để còn CHIA ĐƯỢC theo hàng — từ 1.197.0 mỗi đợt nhận tiền gán lấy mấy hàng cụ thể,
+   và số tiền của đợt do máy chủ cộng từ chính mấy hàng ấy. Một hàng duy nhất thì không chia được. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thợ Phụ', 'duToan' => 10000000, 'thucTe' => 10000000 ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Vật tư',  'duToan' => 20000000, 'thucTe' => 20000000 ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe cẩu',  'duToan' => 18000000, 'thucTe' => 18000000 ) );
 $d = VHCP_DuAn::get_du_an( $ma );
-$row = 0;
-foreach ( $d['lines'] as $l ) { if ( 'Thợ Phụ' === $l['noiDung'] ) { $row = (int) $l['row']; } }
+$R = array();
+foreach ( $d['lines'] as $l ) { $R[ $l['noiDung'] ] = (int) $l['row']; }
+$row = $R['Thợ Phụ'];
 
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ),
-	array( array( 'ngay' => '03/09/2026', 'soTien' => 10000000 ),
-	       array( 'ngay' => '10/09/2026', 'soTien' => 20000000 ) ), '' );
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $R['Thợ Phụ'], $R['Vật tư'], $R['Xe cẩu'] ),
+	array( array( 'ngay' => '03/09/2026', 'rows' => array( $R['Thợ Phụ'] ) ),
+	       array( 'ngay' => '10/09/2026', 'rows' => array( $R['Vật tư'] ) ) ), '' );
 teq( 'lệnh 48tr gửi được', 48000000, (int) $x['dot']['soTien'] );
+teq( '🔴 đợt 1 = tổng hàng gán vào nó (Thợ Phụ 10tr)', 10000000, (int) $x['dot']['lich'][0]['soTien'] );
+teq( '   đợt 2 = Vật tư 20tr', 20000000, (int) $x['dot']['lich'][1]['soTien'] );
+teq( '   và đợt 1 nhớ ĐÚNG hàng nào của nó', array( $R['Thợ Phụ'] ), $x['dot']['lich'][0]['rows'] );
 
 /* ═══ 1. CHƯA DUYỆT THÌ CHƯA CẤP ═══════════════════════════════════════════════════════ */
 vai( 'Kế toán cá nhân', 'KTCN' );
