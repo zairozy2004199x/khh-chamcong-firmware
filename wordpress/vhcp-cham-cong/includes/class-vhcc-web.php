@@ -809,6 +809,8 @@ class VHCC_Web {
 			echo '</main></div>';
 			$GLOBALS['VHCC_CO_COT'] = false;
 		}
+		/* Đường về trạm — chỉ hiện khi mở từ lưới Ứng dụng. Xem class-vhcc-ve-tram.php. */
+		if ( class_exists( 'VHCC_VeTram' ) && method_exists( 'VHCC_VeTram', 'nut' ) ) { VHCC_VeTram::nut(); }
 		echo '</body></html>';
 	}
 
@@ -1112,6 +1114,53 @@ class VHCC_Web {
 			return array( array( 'xong' => $noi
 				? 'Đã ' . implode( ' và ', $noi ) . '. Mã cơ sở KHÔNG đổi: mọi bảng cũ vẫn trỏ đúng chỗ.'
 				: 'Không có gì đổi.' ) );
+		}
+
+		/* VỊ TRÍ CƠ SỞ — cả bảng gửi lên một lượt, nên phải phân biệt cho được ba việc khác
+		   hẳn nhau trên từng dòng: khai mới / sửa, BỎ mốc (xoá trắng ô toạ độ), và KHÔNG ĐỔI GÌ.
+		   Ghi lại cả bảng mỗi lượt Lưu thì cột "Khai lúc" của mọi cơ sở nhảy về hôm nay, và dấu
+		   vết ai khai mốc nào lúc nào — thứ duy nhất tra được khi một cơ sở bị chặn oan — mất sạch. */
+		if ( 'vi_tri_cs' === $viec ) {
+			$o_td = isset( $_POST['vt_td'] ) ? (array) wp_unslash( $_POST['vt_td'] ) : array();
+			$o_bk = isset( $_POST['vt_bk'] ) ? (array) wp_unslash( $_POST['vt_bk'] ) : array();
+			$o_cd = isset( $_POST['vt_cd'] ) ? (array) wp_unslash( $_POST['vt_cd'] ) : array();
+			$luu = 0; $bo = 0; $loi = array();
+			foreach ( $o_td as $cs_v => $td_v ) {
+				$cs_v = sanitize_text_field( $cs_v );
+				$td_v = trim( sanitize_text_field( is_array( $td_v ) ? '' : $td_v ) );
+				$bk_v = isset( $o_bk[ $cs_v ] ) ? sanitize_text_field( (string) $o_bk[ $cs_v ] ) : '';
+				$cd_v = isset( $o_cd[ $cs_v ] ) ? sanitize_text_field( (string) $o_cd[ $cs_v ] ) : VHCC_ViTri::TAT;
+				$cu_v = VHCC_ViTri::mot( $cs_v );
+
+				if ( '' === $td_v ) {
+					if ( ! $cu_v ) { continue; }          // vốn đã trống — không phải một lượt xoá
+					$r = VHCC_ViTri::xoa( $toi, $cs_v );
+					if ( empty( $r['ok'] ) ) { $loi[] = $cs_v . ': ' . $r['error']; } else { $bo++; }
+					continue;
+				}
+
+				/* Không đổi gì thì đừng ghi — giữ nguyên cột "Khai lúc". So bằng chính chuỗi đang
+				   bày ra ô, vì đó là thứ người dùng nhìn thấy và không sửa. */
+				if ( $cu_v
+					&& $td_v === ( $cu_v['lat'] . ', ' . $cu_v['lng'] )
+					&& (string) $bk_v === (string) $cu_v['bk']
+					&& $cd_v === $cu_v['cheDo'] ) { continue; }
+
+				$r = VHCC_ViTri::luu( $toi, $cs_v, array( 'toaDo' => $td_v, 'bk' => $bk_v, 'cheDo' => $cd_v ) );
+				if ( empty( $r['ok'] ) ) { $loi[] = $cs_v . ': ' . $r['error']; } else { $luu++; }
+			}
+			$noi = array();
+			if ( $luu ) { $noi[] = 'khai mốc cho ' . $luu . ' cơ sở'; }
+			if ( $bo )  { $noi[] = 'bỏ mốc của ' . $bo . ' cơ sở'; }
+			$bao = array();
+			if ( $loi ) { $bao[] = array( 'loi' => implode( ' · ', $loi ) ); }
+			if ( $noi ) {
+				$bao[] = array( 'xong' => 'Đã ' . implode( ' và ', $noi ) . '. Phép gác chỉ áp cho lượt '
+					. 'chấm BẰNG ĐIỆN THOẠI; lượt từ máy chấm công không đổi gì.' );
+			} elseif ( ! $loi ) {
+				$bao[] = array( 'xong' => 'Không có gì đổi.' );
+			}
+			return $bao;
 		}
 
 		if ( 'gop_cs' === $viec ) {
@@ -1716,6 +1765,43 @@ class VHCC_Web {
 					. '. Ô vàng của đúng ngày đó thôi kêu — số giờ giữ nguyên.'
 				: 'Đã ghi KHÔNG duyệt đơn của ' . $r['ma_nv'] . ' ngày ' . $r['ngay']
 					. '. Ô vàng vẫn còn.' ) );
+		}
+
+		if ( 'duyet_nghi' === $viec || 'choi_nghi' === $viec ) {
+			$dat_n = ( 'duyet_nghi' === $viec ) ? VHCC_XinNghi::DUYET : VHCC_XinNghi::TU_CHOI;
+			$r = VHCC_XinNghi::duyet( $toi, isset( $_POST['don'] ) ? wp_unslash( $_POST['don'] ) : 0,
+				$dat_n, isset( $_POST['ly_do_choi'] ) ? wp_unslash( $_POST['ly_do_choi'] ) : '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* Nói ra HẬU QUẢ, không chỉ "đã duyệt". Ở đây hậu quả quan trọng nhất lại là một
+			   điều KHÔNG xảy ra — công không đổi — và nếu không nói thì người duyệt tưởng mình
+			   vừa cấp cho người ta mấy ngày công. */
+			return array( array( 'xong' => ( VHCC_XinNghi::DUYET === $dat_n ? 'Đã duyệt' : 'Đã ghi KHÔNG duyệt' )
+				. ' đơn nghỉ #' . (int) $r['id'] . '. Giờ công KHÔNG đổi vì đơn này — nó chỉ ghi '
+				. 'lại rằng những ngày ấy vắng có phép.' ) );
+		}
+
+		if ( 'phep_nam' === $viec ) {
+			$r = VHCC_XinNghi::dat_phep_nam( $toi,
+				isset( $_POST['pn_so'] ) ? wp_unslash( $_POST['pn_so'] ) : 0 );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => 0 === (int) $r['so']
+				? 'Đã tắt theo dõi phép năm — trạm thôi hiện dòng "còn lại", đơn vẫn nộp bình thường.'
+				: 'Phép năm của công ty: ' . (int) $r['so'] . ' ngày. Trạm tính "còn lại" theo số '
+					. 'đơn NGHỈ PHÉP NĂM đã duyệt trong năm.' ) );
+		}
+
+		if ( 'phieu_cb' === $viec || 'phieu_thu' === $viec ) {
+			$r = VHCC_PhieuLuong::cong_bo( $toi,
+				isset( $_POST['pl_cs'] ) ? wp_unslash( $_POST['pl_cs'] ) : '',
+				isset( $_POST['pl_th'] ) ? wp_unslash( $_POST['pl_th'] ) : '',
+				( 'phieu_cb' === $viec ) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $r['bat']
+				? 'Đã công bố phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
+					. '. Nhân viên cơ sở này xem được phiếu CỦA CHÍNH HỌ trên trạm — họ không '
+					. 'thấy dòng của ai khác.'
+				: 'Đã thu lại phiếu lương tháng ' . $r['thang'] . ' của ' . $r['coso']
+					. '. Trạm thôi hiện tháng này.' ) );
 		}
 
 		if ( 'xin_tre' === $viec ) {
@@ -5353,6 +5439,7 @@ class VHCC_Web {
 		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
 			self::the_khai_ca( $cs, $ky, $toi );
 			self::the_lenh_tre( $cs, $ky, $toi );
+			self::the_don_nghi( $cs, $ky, $toi );
 		}
 	}
 
@@ -6856,6 +6943,90 @@ class VHCC_Web {
 	 * ⚠️ KHỐI TỰ MỞ khi có đơn đang chờ. Đơn chờ duyệt mà nằm trong một khối gập kín thì nó chờ
 	 *    mãi — và người nộp đơn thì đang đứng ở cửa hàng.
 	 */
+	/**
+	 * ĐƠN XIN NGHỈ — của cửa hàng này, cửa hàng trưởng duyệt.
+	 *
+	 * Đặt ngay dưới "Lệnh đi trễ" và cùng bộ gác (`lich_lam` + `co_quyen_coso`): hai khối trả lời
+	 * cùng một loại câu hỏi — hôm ấy người này vắng/trễ có phép hay không — nên người mở màn đọc
+	 * liền một mạch thay vì đi tìm ở hai chỗ.
+	 *
+	 * 🔴 KHỐI TỰ MỞ KHI CÓ ĐƠN CHỜ. Đơn nghỉ chờ trong một khối gập kín thì nó chờ tới đúng ngày
+	 *    người ta định nghỉ — và lúc đó thì duyệt hay không cũng đã muộn.
+	 */
+	private static function the_don_nghi( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		if ( ! class_exists( 'VHCC_XinNghi' ) || ! method_exists( 'VHCC_XinNghi', 'cho_duyet' ) ) { return; }
+
+		$cho = VHCC_XinNghi::cho_duyet( $cs );
+		$mo  = (bool) $cho;
+
+		echo '<div class="the" id="donnghi"><details' . ( $mo ? ' open' : '' ) . '>';
+		echo '<summary><b>Đơn xin nghỉ</b> — '
+			. ( $cho ? '<b style="color:var(--vang-dam)">' . count( $cho ) . ' đơn đang chờ duyệt</b>'
+				: 'không có đơn nào chờ' ) . '</summary>';
+
+		/* Ô đặt phép năm — chỉ bậc `ngoai_coso` sửa được, vì đây là con số CHUNG của cả công ty,
+		   không phải của riêng cửa hàng này. */
+		if ( VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) {
+			$pn = VHCC_XinNghi::phep_nam();
+			echo '<form method="post" class="hang" style="margin:10px 0 4px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="phep_nam">' . self::o_loc()
+				. '<div><label for="pnso">Phép năm của công ty (ngày)</label>'
+				. '<input id="pnso" name="pn_so" type="number" min="0" max="365" style="width:110px" '
+				. 'value="' . esc_attr( (string) $pn ) . '"></div>'
+				. '<div><button class="chinh">Lưu</button></div>'
+				. '<div><span class="mo">Số <b>0</b> = không theo dõi phép năm; trạm thôi hiện dòng '
+				. '"còn lại". Con số này dùng chung cho mọi cơ sở.</span></div>'
+				. '</form>';
+		}
+
+		echo '<p class="mo" style="margin:0 0 12px">🔴 <b>Duyệt đơn KHÔNG cộng và KHÔNG trừ công.</b> '
+			. 'Giờ công vẫn là thứ máy chấm công ghi được. Đơn chỉ ghi lại rằng những ngày ấy vắng '
+			. '<b>có phép</b> — cho đơn tự cộng công là mở một cửa cấp công không qua chấm công nào.</p>';
+
+		if ( ! $cho ) {
+			echo '<p class="mo">Chưa có đơn nào chờ. Nhân viên nộp ở trang <b>chấm công online</b>, '
+				. 'tab <b>Tôi</b> → mục <b>Xin nghỉ</b>.</p></details></div>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Từ ngày</th><th>Đến hết</th>'
+			. '<th>Số ngày</th><th>Nhân viên</th><th>Loại</th><th>Lý do</th><th>Duyệt</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $cho as $d ) {
+			$ten_loai = isset( VHCC_XinNghi::TEN_LOAI[ $d['loai'] ] )
+				? VHCC_XinNghi::TEN_LOAI[ $d['loai'] ] : (string) $d['loai'];
+			echo '<tr><td><b>' . esc_html( self::ngay_vn( (string) $d['tu_ngay'] ) ) . '</b></td>';
+			echo '<td>' . esc_html( self::ngay_vn( (string) $d['den_ngay'] ) ) . '</td>';
+			echo '<td class="oc"><b>' . esc_html( (string) $d['so_ngay'] ) . '</b></td>';
+			echo '<td>' . esc_html( (string) $d['ho_ten'] )
+				. ' <span class="mo">' . esc_html( (string) $d['ma_nv'] ) . '</span>';
+			/* Người duyệt cần biết người này đã dùng bao nhiêu phép năm rồi — không thì mỗi đơn
+			   duyệt một mình và không ai thấy tổng. */
+			if ( VHCC_XinNghi::PHEP === (string) $d['loai'] ) {
+				$q = VHCC_XinNghi::quy_phep( (string) $d['ma_nv'] );
+				echo '<br><span class="mo">phép năm đã dùng: ' . esc_html( (string) $q['daDung'] )
+					. ( $q['tran'] ? '/' . esc_html( (string) $q['tran'] ) : '' ) . ' ngày</span>';
+			}
+			echo '</td>';
+			echo '<td>' . esc_html( $ten_loai ) . '</td>';
+			echo '<td>' . esc_html( (string) $d['ly_do'] ) . '</td>';
+			/* Mỗi hàng một biểu mẫu RIÊNG — cùng luật với Lệnh đi trễ: một biểu mẫu chung thì
+			   bấm nút ở hàng nào cũng gửi đi id của hàng cuối. */
+			echo '<td><form method="post" style="margin:0">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc()
+				. '<input type="hidden" name="don" value="' . (int) $d['id'] . '">'
+				. '<input name="ly_do_choi" placeholder="lý do nếu không duyệt" style="width:150px">'
+				. ' <button class="chinh" name="viec" value="duyet_nghi">Duyệt</button>'
+				. ' <button name="viec" value="choi_nghi">Không</button>'
+				. '</form></td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div></details></div>';
+	}
+
 	private static function the_lenh_tre( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
@@ -8862,6 +9033,34 @@ class VHCC_Web {
 			. '<b>phụ cấp · giảm trừ · BHXH · giờ thêm</b> cố ý để trống — kế toán điền, và tệp '
 			. 'xuất ra có sẵn công thức nên gõ vào là tổng tự nhảy.</p>';
 
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * CÔNG BỐ PHIẾU LƯƠNG CHO NHÂN VIÊN TỰ XEM TRÊN TRẠM.
+		 *
+		 * 🔴 MỘT ĐỘNG TÁC CỐ Ý, KHÔNG PHẢI MẶC ĐỊNH BẬT. Bảng này có số ngay từ ngày 1 của tháng
+		 *    sau, nhưng lúc ấy khoản cộng/trừ còn chưa gõ. Cho nhân viên xem sống thì mỗi lần
+		 *    kế toán gõ thêm một dòng trừ là một người thấy lương mình vừa tụt — và họ không có
+		 *    cách nào biết đó là việc bình thường đang diễn ra.
+		 * ⚠️ TẮT ĐƯỢC. Công bố nhầm thì phải rút lại được ngay, chứ không phải chữa cho xong rồi
+		 *    mới dám nhìn mặt người ta.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		if ( VHCC_Vai::duoc( $toi, VHCC_PhieuLuong::QUYEN ) ) {
+			$da_cb = VHCC_PhieuLuong::da_cong_bo( $cs, $th );
+			echo '<form method="post" class="hang" style="margin:0 0 12px;align-items:center">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="pl_cs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="pl_th" value="' . esc_attr( $th ) . '">' . self::o_loc()
+				. '<div><button class="' . ( $da_cb ? '' : 'chinh' ) . '" name="viec" value="'
+				. ( $da_cb ? 'phieu_thu' : 'phieu_cb' ) . '">'
+				. ( $da_cb ? 'Thu lại phiếu lương' : 'Công bố phiếu lương tháng này' ) . '</button></div>'
+				. '<div><span class="mo">' . ( $da_cb
+					? '✔ <b>Đang công bố.</b> Nhân viên cơ sở này xem được phiếu tháng '
+						. esc_html( $th ) . ' của CHÍNH HỌ ở trang chấm công online, tab '
+						. '<b>Công của tôi</b>. Họ chỉ thấy dòng của mình.'
+					: 'Chưa công bố — trên trạm nhân viên không thấy tháng này. Bấm khi đã gõ xong '
+						. 'khoản cộng / khoản trừ.' )
+				. '</span></div></form>';
+		}
+
 		$sua_cl = isset( $_GET['clm'] ) ? sanitize_text_field( wp_unslash( $_GET['clm'] ) ) : '';
 
 		/* ═══════════════════════════════════════════════════════════════════════════════════
@@ -9396,9 +9595,93 @@ class VHCC_Web {
 			. 'bằng công thức của bộ phận khác), nhưng phải biết mà xếp.</p>';
 		echo '</div>';
 
+		self::the_vi_tri_cs( $ky, $toi, $tk );
 		self::the_ghep_cs( $ky, $toi );
 		self::the_coso_la( $ky, $toi );
 		self::the_tra_cs( $ky, $toi );
+	}
+
+	/**
+	 * KHỐI VỊ TRÍ CƠ SỞ — toạ độ + bán kính, để lượt chấm online tự đối chiếu (xem `VHCC_ViTri`).
+	 *
+	 * 🔴 BẢNG NÀY BÀY CẢ CƠ SỞ CHƯA KHAI MỐC, KHÔNG CHỈ CƠ SỞ ĐÃ KHAI. Chỉ liệt kê cái đã khai
+	 *    thì người mở màn thấy hai dòng và tưởng cả hệ đang được gác — trong khi mười hai cơ sở
+	 *    còn lại không gác gì. Câu màn này phải trả lời được là *"cơ sở nào ĐANG gác, cơ sở nào
+	 *    chưa"*, và câu đó chỉ đọc ra được khi cả hai loại nằm cạnh nhau.
+	 *
+	 * ⚠️ MẶC ĐỊNH CỦA Ô CHẾ ĐỘ LUÔN LÀ TRẠNG THÁI HIỆN TẠI, KHÔNG PHẢI "Tắt". Cả bảng gửi lên
+	 *    trong một lượt POST, nên ô nào vẽ sai mặc định là lượt Lưu ấy TẮT gác của cơ sở đó — mà
+	 *    người bấm chỉ định sửa bán kính của một dòng khác.
+	 */
+	private static function the_vi_tri_cs( $ky, $toi, $tk ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_ViTri::QUYEN ) ) { return; }
+
+		$moc = VHCC_ViTri::ds();
+		$bat = 0;
+		foreach ( $moc as $m ) { if ( VHCC_ViTri::TAT !== $m['cheDo'] ) { $bat++; } }
+
+		echo '<div class="the" id="vitri"><h3 style="margin:0 0 8px">📍 Vị trí cơ sở — gác chấm công online</h3>';
+		echo '<p class="mo">Khai toạ độ cửa hàng rồi chọn chế độ: mỗi lượt chấm <b>bằng điện thoại</b> '
+			. 'sẽ tự so khoảng cách. Máy chấm công ngoài cửa hàng <b>không</b> đi qua phép gác này — '
+			. 'nó vốn đã đứng sẵn tại chỗ.</p>';
+		echo '<p class="mo">Lấy toạ độ: mở <b>Google Maps</b> trên điện thoại → nhấn giữ vào cửa hàng '
+			. '→ <b>Chia sẻ → Sao chép liên kết</b> → dán nguyên cái link vào ô. Dán cặp số '
+			. '<code>10.775500, 106.702100</code> cũng được.</p>';
+		echo '<p class="mo">⚠️ <b>Bật dần từng cơ sở, và bật ở mức “Chỉ ghi chú” trước.</b> Chạy vài '
+			. 'ngày, mở Bảng công đọc cột ghi chú xem có ai bị báo “ngoài vùng” oan không, rồi mới '
+			. 'chuyển sang Chặn. Bật Chặn ngay là sáng hôm sau cả cửa hàng không chấm công được mà '
+			. 'không ai biết vì sao.</p>';
+		echo '<p class="mo">Ba điều bộ gác <b>không bao giờ</b> làm, kể cả ở mức Chặn: chặn khi máy '
+			. 'không gửi được toạ độ (trong nhà, dưới hầm), chặn khi sai số GPS thô hơn '
+			. VHCC_ViTri::met( VHCC_Online::GPS_THO ) . ', và chặn khi sai số còn đủ lớn để che '
+			. 'được ranh giới. Chỉ chặn khi <b>chắc chắn</b> ở ngoài.</p>';
+
+		if ( ! $tk ) {
+			echo '<p class="mo">Chưa có cơ sở nào trong danh mục.</p></div>';
+			return;
+		}
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th>'
+			. '<th>Toạ độ (cặp số hoặc link Google Maps)</th><th>Bán kính (m)</th>'
+			. '<th>Chế độ</th><th>Khai lúc</th></tr></thead><tbody>';
+		foreach ( $tk as $x ) {
+			$ma = (string) $x['ma'];
+			$m  = isset( $moc[ $ma ] ) ? $moc[ $ma ] : VHCC_ViTri::mot( $ma );
+			$id = 'vt_' . preg_replace( '/[^A-Za-z0-9]+/', '_', $ma );
+			$gt = $m ? ( $m['lat'] . ', ' . $m['lng'] ) : '';
+			$cd = $m ? $m['cheDo'] : VHCC_ViTri::TAT;
+
+			echo '<tr><td><b>' . esc_html( $ma ) . '</b></td>';
+			echo '<td style="text-align:left"><label class="an" for="' . esc_attr( $id ) . '">Toạ độ của '
+				. esc_html( $ma ) . '</label>'
+				. '<input id="' . esc_attr( $id ) . '" name="vt_td[' . esc_attr( $ma ) . ']" '
+				. 'style="width:100%" placeholder="để trống = chưa khai" '
+				. 'value="' . esc_attr( $gt ) . '"></td>';
+			echo '<td><label class="an" for="' . esc_attr( $id ) . '_bk">Bán kính của '
+				. esc_html( $ma ) . '</label>'
+				. '<input id="' . esc_attr( $id ) . '_bk" name="vt_bk[' . esc_attr( $ma ) . ']" '
+				. 'type="number" min="' . (int) VHCC_ViTri::BK_TOI_THIEU . '" '
+				. 'max="' . (int) VHCC_ViTri::BK_TOI_DA . '" style="width:88px" '
+				. 'value="' . esc_attr( $m ? (string) $m['bk'] : (string) VHCC_ViTri::BK_MAC_DINH ) . '"></td>';
+			echo '<td><label class="an" for="' . esc_attr( $id ) . '_cd">Chế độ của '
+				. esc_html( $ma ) . '</label>'
+				. '<select id="' . esc_attr( $id ) . '_cd" name="vt_cd[' . esc_attr( $ma ) . ']">';
+			foreach ( VHCC_ViTri::TEN_CHE_DO as $k_cd => $t_cd ) {
+				echo '<option value="' . esc_attr( $k_cd ) . '"' . selected( $k_cd, $cd, false ) . '>'
+					. esc_html( $t_cd ) . '</option>';
+			}
+			echo '</select></td>';
+			echo '<td class="mo">' . ( $m && '' !== $m['luc']
+				? esc_html( $m['luc'] . ( '' !== $m['nguoi'] ? ' · ' . $m['nguoi'] : '' ) )
+				: '—' ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh" name="viec" value="vi_tri_cs">💾 Lưu vị trí cơ sở</button>'
+			. ' <span class="mo">Đang gác: <b>' . (int) $bat . '</b>/' . count( $tk ) . ' cơ sở. '
+			. 'Xoá trắng ô toạ độ rồi Lưu là bỏ mốc của cơ sở đó.</span></p>';
+		echo '</form></div>';
 	}
 
 	/**

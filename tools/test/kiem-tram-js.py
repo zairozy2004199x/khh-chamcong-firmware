@@ -73,6 +73,10 @@ CO_SAN = set("""
     localStorage sessionStorage history screen getComputedStyle btoa atob
     Map Set WeakMap WeakSet Symbol Proxy Reflect BigInt
     if for while switch catch return typeof function
+    # `in` và `instanceof` là TOÁN TỬ, không bao giờ là hàm. Thiếu chúng thì `for(k in obj)` bị
+    # đọc thành lời gọi `in()` và bài kiểm đỏ oan — mà cách "sửa" hiển nhiên lúc ấy là viết vòng
+    # lặp xấu đi để né bộ kiểm, tức là bộ kiểm bắt đầu điều khiển mã thay vì canh mã.
+    in instanceof void delete new
 """.split())
 
 def ten_khai(ma):
@@ -145,6 +149,10 @@ print('— mọi nút đều có người nghe —')
 # Nút vẽ ra mà quên gài sự kiện là nút bấm không xảy ra gì, và trang không báo lỗi.
 nut = set(re.findall(r'<button id="([A-Za-z0-9_]+)"', src))
 o_nhap = set(re.findall(r'<input id="([A-Za-z0-9_]+)"', src))
+# Ô XỔ cũng tính. Nó không phải nút nên không bắt buộc phải có người nghe, nhưng gài `change`
+# cho nó là chuyện thường — mà nếu không kể vào đây thì phép thử dưới đọc thành "gài cho phần
+# tử không tồn tại" và bắt người ta gỡ một dòng hoàn toàn đúng.
+o_nhap |= set(re.findall(r'<select id="([A-Za-z0-9_]+)"', src))
 nghe = set(re.findall(r"el\('([A-Za-z0-9_]+)'\)\.addEventListener", js))
 la('không nút nào bị bỏ quên', nut <= nghe, 'thiếu: %s' % sorted(nut - nghe))
 # Ô nhập cũng được gài (Enter để gửi) nên tính cả vào; còn gài cho một id KHÔNG tồn tại thì
@@ -177,8 +185,36 @@ la('RB4 · có cờ chặn bấm lại', 'DANG_LUU' in js)
 print('— không rò HTML —')
 # Tên cơ sở / họ tên đi thẳng vào innerHTML là một dấu nháy trong tên cũng vỡ bảng.
 la('có hàm thoát HTML', 'function esc(' in js)
-tho = re.findall(r"innerHTML\s*=\s*'[^']*'\s*\+\s*(?!esc\()([A-Za-z_$][\w$.]*)", js)
+def hang_chuoi_thuan(src):
+    """Tên hằng khai ở mức ngoài cùng mà giá trị CHỈ gồm chuỗi ghép chuỗi.
+
+    🔴 VÌ SAO CẦN MIỄN TRỪ NÀY, VÀ VÌ SAO NÓ PHẢI HẸP ĐÚNG NHƯ VẬY.
+    Phép thử dưới canh việc ghép DỮ LIỆU chưa thoát vào innerHTML — một dấu nháy trong tên
+    cơ sở là vỡ bảng. Nhưng nó dò theo HÌNH của câu lệnh, nên một hằng chữ viết sẵn
+    (`var NHAC_UNG = '<p>…' + '…</p>';`) trông y hệt một biến mang dữ liệu, và bị báo đỏ oan.
+    Bản 4.29.1 nhập từ hosting về có đúng một trường hợp như thế.
+
+    ⚠️ ĐIỀU KIỆN PHẢI CHẶT: bỏ hết chuỗi ra khỏi vế phải thì phần còn lại chỉ được là dấu `+`
+       và khoảng trắng. Chỉ cần một cái tên lọt vào vế phải là hằng ấy có thể mang dữ liệu, và
+       nó rơi lại vào diện bị canh. Nới rộng hơn (ví dụ "cứ TÊN VIẾT HOA thì tha") là mở đúng
+       cái cửa phép thử này sinh ra để đóng.
+    """
+    ra = set()
+    for m in re.finditer(r"^var ([A-Za-z_$][\w$]*)\s*=\s*(.*?);\s*$", src, re.M | re.S):
+        con = re.sub(r"'(?:[^'\\]|\\.)*'", '', m.group(2), flags=re.S)
+        con = re.sub(r'"(?:[^"\\]|\\.)*"', '', con, flags=re.S)
+        if re.fullmatch(r'[\s+]*', con):
+            ra.add(m.group(1))
+    return ra
+
+an_toan = hang_chuoi_thuan(js)
+tho = [t for t in re.findall(r"innerHTML\s*=\s*'[^']*'\s*\+\s*(?!esc\()([A-Za-z_$][\w$.]*)", js)
+       if t not in an_toan]
 la('không ghép thẳng biến vào innerHTML', not tho, str(tho[:5]))
+
+# Phép thử NGƯỢC cho chính chỗ miễn trừ: một hằng có tên lọt vào vế phải thì KHÔNG được tha.
+gia_js = js + "\nvar THU_HANG = '<b>' + tenCoSo + '</b>';\n"
+la('miễn trừ không tha hằng có ghép biến vào', 'THU_HANG' not in hang_chuoi_thuan(gia_js))
 
 print()
 if hong:

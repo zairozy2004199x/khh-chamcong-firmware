@@ -235,6 +235,61 @@ class VHCC_Lich {
 			: array( 'ok' => true, 'maYc' => $ma_yc );
 	}
 
+	/**
+	 * Yêu cầu đổi lịch gần đây của CHÍNH MỘT NGƯỜI — để họ tự thấy đơn mình nộp và kết quả.
+	 *
+	 * 🔴 KHÔNG DÙNG `ds_doi_lich()` ĐƯỢC. Hàm ấy lọc theo `co_quyen_coso()`, tức theo cơ sở mà
+	 *    người xem PHỤ TRÁCH — nhân viên thường không phụ trách cơ sở nào, nên gọi nó từ trạm
+	 *    thì họ nhận về danh sách RỖNG dù vừa nộp đơn xong. Và "nộp xong không thấy đâu" là
+	 *    đúng cái khiến người ta nộp lại lần hai, lần ba.
+	 *
+	 * ⚠️ Lọc theo MÃ NV, không theo tên: hai người trùng tên thì lọc theo tên là người này đọc
+	 *    được đơn của người kia.
+	 */
+	public static function cua_nguoi( $ma_nv, $so = 12 ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' )
+			. ' WHERE ma_nv=%s ORDER BY luc_xin DESC, id DESC LIMIT %d', $ma, max( 1, (int) $so ) ),
+			ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
+	/**
+	 * LỊCH LÀM CỦA CHÍNH MỘT NGƯỜI, trong một khoảng ngày.
+	 *
+	 * 🔴 KHÔNG DÙNG `ds_lich()` ĐƯỢC. Hàm ấy nhận `$coso` và trả về lịch của CẢ cơ sở — gọi nó
+	 *    từ trạm rồi lọc ở trình duyệt nghĩa là đã gửi lịch của toàn bộ đồng nghiệp xuống máy
+	 *    một nhân viên. Lọc phải nằm ở CÂU SQL, không nằm ở màn hình.
+	 *
+	 * ⚠️ KHÔNG lọc theo cơ sở: người làm hai nơi có lịch ở cả hai, và họ cần thấy cả hai trong
+	 *    một bảng. Khoá là MÃ NV, và mã NV thì duy nhất toàn chuỗi.
+	 */
+	public static function lich_cua_nguoi( $ma_nv, $tu, $den ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $tu )
+			|| ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $den ) ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT coso, ngay, ca, viec FROM ' . VHCC_DB::t( 'lich_cv' )
+			. ' WHERE ma_nv=%s AND ngay BETWEEN %s AND %s ORDER BY ngay, ca',
+			$ma, (string) $tu, (string) $den ), ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
+	/** Cơ sở này có bật phân lịch không — trạm hỏi trước khi bày ô "xin đổi lịch". */
+	public static function co_bat_lich( $coso ) {
+		$cs = VHCC_NhanSu::chuan_coso( (string) $coso );
+		if ( '' === $cs ) { return false; }
+		foreach ( (array) VHCC_Luong::cai_dat( 'LICH_CO_SO', array() ) as $x ) {
+			if ( 0 === strcasecmp( (string) $x, $cs ) ) { return true; }
+		}
+		return false;
+	}
+
 	public static function ds_doi_lich( $u, $chi_cho_duyet = false ) {
 		global $wpdb;
 		$sql = 'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' );
@@ -291,6 +346,19 @@ class VHCC_Lich {
 			'trang_thai' => $dong_y ? self::DA_DUYET : self::TU_CHOI,
 			'nguoi_duyet' => isset( $u['name'] ) ? (string) $u['name'] : '',
 			'luc_duyet' => current_time( 'mysql' ) ), array( 'id' => (int) $r['id'] ) );
+
+		/* Báo cho người xin. Đây là lý do CHÍNH đáng để có thông báo đẩy: người ta xin đổi lịch
+		   rồi không biết được duyệt hay chưa, phải mở app hỏi lại mấy lần trong ngày.
+		   ⚠️ Không để lượt gửi làm hỏng lượt duyệt: `class_exists` vì plugin có thể chạy với
+		      tệp push bị gỡ, và duyệt lịch thì quan trọng hơn thông báo. */
+		if ( class_exists( 'VHCC_Push' ) ) {
+			VHCC_Push::gui(
+				$r['ma_nv'],
+				$dong_y ? 'Đổi lịch được duyệt' : 'Đổi lịch bị từ chối',
+				'Ngày ' . $r['ngay'] . ( $dong_y ? ' đã được duyệt.' : ' không được duyệt.' )
+			);
+		}
+
 		return array( 'ok' => true, 'trangThai' => $dong_y ? self::DA_DUYET : self::TU_CHOI );
 	}
 }

@@ -448,6 +448,121 @@ class VHCC_Cham {
 		return array( 'ok' => true, 'flagId' => $id );
 	}
 
+	/** Trạng thái của cờ do CHÍNH NHÂN VIÊN gắn — tách khỏi "Cần kiểm" của quản lý. */
+	const NV_BAO = 'Nhân viên báo';
+
+	/** Báo lùi được xa nhất bấy nhiêu ngày. Xa hơn là chuyện của bảng lương, không phải của đây. */
+	const BAO_MUON_TOI_DA = 31;
+
+	/**
+	 * NHÂN VIÊN TỰ BÁO MỘT LƯỢT CHẤM SAI.
+	 *
+	 * =============================================================================================
+	 * Tài liệu phát cho cơ sở ghi thẳng: *"Chấm nhầm cơ sở rồi thì tự sửa không được — không có nút
+	 * xoá lượt chấm, cố chấm lại chỉ làm dòng sai thêm rối. Báo quản lý sửa ở màn Bảng công, trong
+	 * ngày."* Câu ấy đúng, nhưng "báo quản lý" không có đường nào trong app — nó là nhắn Zalo, và
+	 * tin nhắn Zalo thì trôi mất giữa hai trăm tin khác trước khi ai kịp mở Bảng công.
+	 * =============================================================================================
+	 *
+	 * 🔴 CỬA NÀY KHÔNG SỬA GIỜ, VÀ ĐÓ LÀ TOÀN BỘ THIẾT KẾ. Nó gắn một cái cờ nằm CẠNH ngày ấy,
+	 *    đúng cơ chế `luu_ghi_chu` mà quản lý vẫn dùng — nên cửa hàng trưởng thấy nó ở CHÍNH màn
+	 *    cờ đang mở hằng ngày, không phải một màn thứ hai mọc thêm. Cho nhân viên sửa được giờ
+	 *    của chính mình là bỏ luôn ý nghĩa của việc chấm công.
+	 *
+	 * 🔴 VÌ SAO KHÔNG GỌI THẲNG `luu_ghi_chu`. Hàm ấy mở đầu bằng `co_quyen_coso()` — nhân viên
+	 *    thường không phụ trách cơ sở nào nên luôn bị chối. Nới phép gác ấy để lọt nhân viên vào
+	 *    là cùng lúc cho họ gắn cờ lên ngày của BẤT KỲ AI trong cơ sở. Nên đây là cửa RIÊNG, hẹp
+	 *    hơn hẳn: chỉ ngày của chính mình, chỉ cơ sở mình thật sự có, và mang trạng thái riêng.
+	 *
+	 * ⚠️ TRẠNG THÁI RIÊNG `NV_BAO`, không dùng chung "Cần kiểm". Hai nguồn khác nhau cần đọc khác
+	 *    nhau: cờ của quản lý là "tôi thấy ngày này lạ", còn cờ này là "người trong cuộc nói nó
+	 *    sai". Gộp làm một thì tới lúc lọc, không tách được cái nào đáng hỏi lại người ta.
+	 */
+	public static function nv_bao_sai( $u, $dat ) {
+		$ma = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' === $ma ) {
+			return array( 'ok' => false, 'error' => 'Tài khoản này chưa bật chấm công online.' );
+		}
+
+		$ngay = trim( isset( $dat['ngay'] ) ? (string) $dat['ngay'] : '' );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) {
+			return array( 'ok' => false, 'error' => 'Ngày không hợp lệ.' );
+		}
+		$hom_nay = (string) current_time( 'Y-m-d' );
+		if ( $ngay > $hom_nay ) {
+			return array( 'ok' => false, 'error' => 'Chưa tới ngày ' . $ngay . ' thì chưa có lượt chấm nào để báo.' );
+		}
+		$cach = (int) round( ( strtotime( $hom_nay . ' 00:00:00 UTC' ) - strtotime( $ngay . ' 00:00:00 UTC' ) ) / 86400 );
+		if ( $cach > self::BAO_MUON_TOI_DA ) {
+			return array( 'ok' => false, 'error' => 'Ngày ' . $ngay . ' đã qua hơn '
+				. self::BAO_MUON_TOI_DA . ' ngày — việc này thuộc về bảng lương, nhờ kế toán xem giúp.' );
+		}
+
+		/* 🔴 CƠ SỞ ĐỐI CHIẾU VỚI DANH SÁCH NGƯỜI ĐÓ THẬT SỰ CÓ — đúng gác 2 của đường chấm công.
+		   Không kiểm thì một người gắn được cờ vào cơ sở khác, và cửa hàng trưởng bên ấy nhận một
+		   cái tên lạ báo sai một ngày họ không quản. */
+		$cs_vao = trim( (string) ( isset( $dat['coso'] ) ? $dat['coso'] : '' ) );
+		$duoc   = VHCC_Online::ds_coso_cham_cua_nv( $ma, isset( $u['coso'] ) ? $u['coso'] : '' );
+		$coso   = '';
+		foreach ( $duoc as $x ) { if ( 0 === strcasecmp( (string) $x, $cs_vao ) ) { $coso = (string) $x; } }
+		if ( '' === $coso ) { $coso = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' ); }
+		if ( '' === $coso ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ của anh/chị chưa tích cơ sở nào nên '
+				. 'lượt báo không biết gửi cho ai.' );
+		}
+
+		$ly_do = trim( (string) ( isset( $dat['lyDo'] ) ? $dat['lyDo'] : '' ) );
+		if ( '' === $ly_do ) {
+			return array( 'ok' => false, 'error' => 'Ghi rõ sai chỗ nào — "sai" một mình thì người '
+				. 'sửa không biết sửa gì.' );
+		}
+
+		/* MỘT NGƯỜI, MỘT NGÀY, MỘT CỜ. Báo lại là ĐÈ lên cờ cũ và quay về chờ xử lý, không xếp
+		   thêm — xếp thêm thì cửa hàng trưởng phải đọc ba cái cờ cho cùng một ngày và không biết
+		   cái nào mới nhất. Cùng luật với đơn xin đi trễ. */
+		global $wpdb;
+		$bang = VHCC_DB::t( 'ghi_chu' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, flag_id FROM $bang WHERE ma_nv=%s AND ngay=%s AND LOWER(coso)=LOWER(%s) AND trang_thai=%s",
+			$ma, $ngay, $coso, self::NV_BAO ), ARRAY_A );
+
+		$hs  = VHCC_NhanSu::ho_so( $ma );
+		$ten = ( $hs && ! empty( $hs['ho_ten'] ) ) ? (string) $hs['ho_ten'] : (string) $u['ho_ten'];
+
+		$id = $cu ? (string) $cu['flag_id'] : VHCC_DB::ma_moi( 'CO', 'ghi_chu', 'flag_id' );
+		if ( '' === $id ) {
+			return array( 'ok' => false, 'error' => 'Không cấp được mã, thử lại giúp em.' );
+		}
+		$hang = array(
+			'flag_id'    => $id,
+			'coso'       => $coso,
+			'ngay'       => $ngay,
+			'ma_nv'      => $ma,
+			'ho_ten'     => $ten,
+			'ghi_chu'    => mb_substr( $ly_do, 0, 500 ),
+			/* Người gắn là CHÍNH NGƯỜI ẤY, ghi rõ để đọc phát biết ngay đây không phải cờ quản lý. */
+			'nguoi_gan'  => $ten . ' (tự báo)',
+			'trang_thai' => self::NV_BAO,
+			'tao_luc'    => current_time( 'mysql' ),
+			'xu_ly_luc'  => null,
+		);
+		if ( $cu ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) ); }
+		else       { $wpdb->insert( $bang, $hang ); }
+		return array( 'ok' => true, 'flagId' => $id, 'ngay' => $ngay, 'coSo' => $coso, 'lai' => (bool) $cu );
+	}
+
+	/** Cờ do chính một người tự báo — để trạm bày lại cho họ thấy đã gửi và kết quả. */
+	public static function nv_bao_cua( $ma_nv, $so = 20 ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT ngay, coso, ghi_chu, trang_thai, tao_luc FROM ' . VHCC_DB::t( 'ghi_chu' )
+			. ' WHERE ma_nv=%s AND nguoi_gan LIKE %s ORDER BY tao_luc DESC LIMIT %d',
+			$ma, '%(tự báo)', max( 1, (int) $so ) ), ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
 	public static function xu_ly_ghi_chu( $u, $flag_id, $ket_luan = '' ) {
 		global $wpdb;
 		$r = $wpdb->get_row( $wpdb->prepare(
