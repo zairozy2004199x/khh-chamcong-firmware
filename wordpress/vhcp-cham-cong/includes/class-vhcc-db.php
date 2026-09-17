@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.11.0';
+	const SCHEMA_VERSION = '2.12.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -485,6 +485,33 @@ class VHCC_DB {
 			KEY cho_duyet (coso,trang_thai)";
 
 		/* ===== 6. NHIỆM VỤ THEO NGÀY (sheet ChamCongNhiemVu) ================================= */
+		/* ===== 7b. ĐƠN XIN NGHỈ ============================================================
+		   Khác `xin_tre` ở đúng một chỗ có hệ quả: đơn nghỉ trải nhiều NGÀY, nên khoá là một
+		   KHOẢNG chứ không phải một ngày. Vì vậy KHÔNG có `UNIQUE KEY (ma_nv,ngay)` như bên
+		   kia — một người xin nghỉ hai đợt rời nhau trong tháng là chuyện thường, và khoá duy
+		   nhất theo ngày sẽ chối đợt thứ hai mà không nói được vì sao.
+		   ⚠️ Chống trùng làm ở tầng nghiệp vụ (`VHCC_XinNghi::nop` chối khi CHỒNG LÊN một đơn
+		      đang chờ hoặc đã duyệt), chứ không làm bằng khoá — khoá chỉ chặn được trùng khít,
+		      còn cái hay gặp là chồng LẤN một phần. */
+		$b['xin_nghi'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			tu_ngay DATE NOT NULL,
+			den_ngay DATE NOT NULL,
+			so_ngay DECIMAL(4,1) NOT NULL DEFAULT 0,
+			loai VARCHAR(30) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			duyet_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY cua_nguoi (ma_nv,tu_ngay),
+			KEY cho_duyet (coso,trang_thai)";
+
 		$b['cham_cong_nhiem_vu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ngay DATE NOT NULL,

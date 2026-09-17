@@ -1767,6 +1767,29 @@ class VHCC_Web {
 					. '. Ô vàng vẫn còn.' ) );
 		}
 
+		if ( 'duyet_nghi' === $viec || 'choi_nghi' === $viec ) {
+			$dat_n = ( 'duyet_nghi' === $viec ) ? VHCC_XinNghi::DUYET : VHCC_XinNghi::TU_CHOI;
+			$r = VHCC_XinNghi::duyet( $toi, isset( $_POST['don'] ) ? wp_unslash( $_POST['don'] ) : 0,
+				$dat_n, isset( $_POST['ly_do_choi'] ) ? wp_unslash( $_POST['ly_do_choi'] ) : '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* Nói ra HẬU QUẢ, không chỉ "đã duyệt". Ở đây hậu quả quan trọng nhất lại là một
+			   điều KHÔNG xảy ra — công không đổi — và nếu không nói thì người duyệt tưởng mình
+			   vừa cấp cho người ta mấy ngày công. */
+			return array( array( 'xong' => ( VHCC_XinNghi::DUYET === $dat_n ? 'Đã duyệt' : 'Đã ghi KHÔNG duyệt' )
+				. ' đơn nghỉ #' . (int) $r['id'] . '. Giờ công KHÔNG đổi vì đơn này — nó chỉ ghi '
+				. 'lại rằng những ngày ấy vắng có phép.' ) );
+		}
+
+		if ( 'phep_nam' === $viec ) {
+			$r = VHCC_XinNghi::dat_phep_nam( $toi,
+				isset( $_POST['pn_so'] ) ? wp_unslash( $_POST['pn_so'] ) : 0 );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => 0 === (int) $r['so']
+				? 'Đã tắt theo dõi phép năm — trạm thôi hiện dòng "còn lại", đơn vẫn nộp bình thường.'
+				: 'Phép năm của công ty: ' . (int) $r['so'] . ' ngày. Trạm tính "còn lại" theo số '
+					. 'đơn NGHỈ PHÉP NĂM đã duyệt trong năm.' ) );
+		}
+
 		if ( 'xin_tre' === $viec ) {
 			$r = VHCC_XinTre::nop( $toi, array(
 				'ngay'    => isset( $_POST['xt_ngay'] ) ? wp_unslash( $_POST['xt_ngay'] ) : '',
@@ -5402,6 +5425,7 @@ class VHCC_Web {
 		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
 			self::the_khai_ca( $cs, $ky, $toi );
 			self::the_lenh_tre( $cs, $ky, $toi );
+			self::the_don_nghi( $cs, $ky, $toi );
 		}
 	}
 
@@ -6905,6 +6929,90 @@ class VHCC_Web {
 	 * ⚠️ KHỐI TỰ MỞ khi có đơn đang chờ. Đơn chờ duyệt mà nằm trong một khối gập kín thì nó chờ
 	 *    mãi — và người nộp đơn thì đang đứng ở cửa hàng.
 	 */
+	/**
+	 * ĐƠN XIN NGHỈ — của cửa hàng này, cửa hàng trưởng duyệt.
+	 *
+	 * Đặt ngay dưới "Lệnh đi trễ" và cùng bộ gác (`lich_lam` + `co_quyen_coso`): hai khối trả lời
+	 * cùng một loại câu hỏi — hôm ấy người này vắng/trễ có phép hay không — nên người mở màn đọc
+	 * liền một mạch thay vì đi tìm ở hai chỗ.
+	 *
+	 * 🔴 KHỐI TỰ MỞ KHI CÓ ĐƠN CHỜ. Đơn nghỉ chờ trong một khối gập kín thì nó chờ tới đúng ngày
+	 *    người ta định nghỉ — và lúc đó thì duyệt hay không cũng đã muộn.
+	 */
+	private static function the_don_nghi( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		if ( ! class_exists( 'VHCC_XinNghi' ) || ! method_exists( 'VHCC_XinNghi', 'cho_duyet' ) ) { return; }
+
+		$cho = VHCC_XinNghi::cho_duyet( $cs );
+		$mo  = (bool) $cho;
+
+		echo '<div class="the" id="donnghi"><details' . ( $mo ? ' open' : '' ) . '>';
+		echo '<summary><b>Đơn xin nghỉ</b> — '
+			. ( $cho ? '<b style="color:var(--vang-dam)">' . count( $cho ) . ' đơn đang chờ duyệt</b>'
+				: 'không có đơn nào chờ' ) . '</summary>';
+
+		/* Ô đặt phép năm — chỉ bậc `ngoai_coso` sửa được, vì đây là con số CHUNG của cả công ty,
+		   không phải của riêng cửa hàng này. */
+		if ( VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) {
+			$pn = VHCC_XinNghi::phep_nam();
+			echo '<form method="post" class="hang" style="margin:10px 0 4px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="phep_nam">' . self::o_loc()
+				. '<div><label for="pnso">Phép năm của công ty (ngày)</label>'
+				. '<input id="pnso" name="pn_so" type="number" min="0" max="365" style="width:110px" '
+				. 'value="' . esc_attr( (string) $pn ) . '"></div>'
+				. '<div><button class="chinh">Lưu</button></div>'
+				. '<div><span class="mo">Số <b>0</b> = không theo dõi phép năm; trạm thôi hiện dòng '
+				. '"còn lại". Con số này dùng chung cho mọi cơ sở.</span></div>'
+				. '</form>';
+		}
+
+		echo '<p class="mo" style="margin:0 0 12px">🔴 <b>Duyệt đơn KHÔNG cộng và KHÔNG trừ công.</b> '
+			. 'Giờ công vẫn là thứ máy chấm công ghi được. Đơn chỉ ghi lại rằng những ngày ấy vắng '
+			. '<b>có phép</b> — cho đơn tự cộng công là mở một cửa cấp công không qua chấm công nào.</p>';
+
+		if ( ! $cho ) {
+			echo '<p class="mo">Chưa có đơn nào chờ. Nhân viên nộp ở trang <b>chấm công online</b>, '
+				. 'tab <b>Tôi</b> → mục <b>Xin nghỉ</b>.</p></details></div>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Từ ngày</th><th>Đến hết</th>'
+			. '<th>Số ngày</th><th>Nhân viên</th><th>Loại</th><th>Lý do</th><th>Duyệt</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $cho as $d ) {
+			$ten_loai = isset( VHCC_XinNghi::TEN_LOAI[ $d['loai'] ] )
+				? VHCC_XinNghi::TEN_LOAI[ $d['loai'] ] : (string) $d['loai'];
+			echo '<tr><td><b>' . esc_html( self::ngay_vn( (string) $d['tu_ngay'] ) ) . '</b></td>';
+			echo '<td>' . esc_html( self::ngay_vn( (string) $d['den_ngay'] ) ) . '</td>';
+			echo '<td class="oc"><b>' . esc_html( (string) $d['so_ngay'] ) . '</b></td>';
+			echo '<td>' . esc_html( (string) $d['ho_ten'] )
+				. ' <span class="mo">' . esc_html( (string) $d['ma_nv'] ) . '</span>';
+			/* Người duyệt cần biết người này đã dùng bao nhiêu phép năm rồi — không thì mỗi đơn
+			   duyệt một mình và không ai thấy tổng. */
+			if ( VHCC_XinNghi::PHEP === (string) $d['loai'] ) {
+				$q = VHCC_XinNghi::quy_phep( (string) $d['ma_nv'] );
+				echo '<br><span class="mo">phép năm đã dùng: ' . esc_html( (string) $q['daDung'] )
+					. ( $q['tran'] ? '/' . esc_html( (string) $q['tran'] ) : '' ) . ' ngày</span>';
+			}
+			echo '</td>';
+			echo '<td>' . esc_html( $ten_loai ) . '</td>';
+			echo '<td>' . esc_html( (string) $d['ly_do'] ) . '</td>';
+			/* Mỗi hàng một biểu mẫu RIÊNG — cùng luật với Lệnh đi trễ: một biểu mẫu chung thì
+			   bấm nút ở hàng nào cũng gửi đi id của hàng cuối. */
+			echo '<td><form method="post" style="margin:0">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc()
+				. '<input type="hidden" name="don" value="' . (int) $d['id'] . '">'
+				. '<input name="ly_do_choi" placeholder="lý do nếu không duyệt" style="width:150px">'
+				. ' <button class="chinh" name="viec" value="duyet_nghi">Duyệt</button>'
+				. ' <button name="viec" value="choi_nghi">Không</button>'
+				. '</form></td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div></details></div>';
+	}
+
 	private static function the_lenh_tre( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
 		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }

@@ -59,6 +59,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-bu.php';
 require_once VHCC_DIR . 'includes/class-vhcc-ca.php';
 require_once VHCC_DIR . 'includes/class-vhcc-anh.php';
 require_once VHCC_DIR . 'includes/class-vhcc-xin-tre.php';
+require_once VHCC_DIR . 'includes/class-vhcc-xin-nghi.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tra-ve.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tre.php';
 require_once VHCC_DIR . 'includes/class-vhcc-day-chi-phi.php';

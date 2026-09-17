@@ -524,6 +524,17 @@ class VHCC_Tram {
 			) ) );
 		}
 
+		/* ĐƠN XIN NGHỈ. Nghiệp vụ ở `VHCC_XinNghi`; cửa này chỉ chuyển tiếp, và mã NV thì lấy
+		   từ thẻ phiên (nop() tự lấy từ `$u`, cố ý không đọc biểu mẫu). */
+		if ( 'xinnghi' === $viec ) {
+			self::ra( VHCC_XinNghi::nop( $u, array(
+				'tu'   => isset( $b['tu'] ) ? (string) $b['tu'] : '',
+				'den'  => isset( $b['den'] ) ? (string) $b['den'] : '',
+				'loai' => isset( $b['loai'] ) ? (string) $b['loai'] : '',
+				'lyDo' => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
 		if ( 'xinlich' === $viec ) {
 			/* Cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có, đúng gác 2
 			   của đường chấm công. Không kiểm thì một người nộp được đơn nghỉ vào lịch cơ sở
@@ -585,6 +596,9 @@ class VHCC_Tram {
 				'loaiViec'    => $cf['loaiViec'],
 				'donTre'      => VHCC_XinTre::cua_nguoi( $u['ma_nv'], 12 ),
 				'donLich'     => VHCC_Lich::cua_nguoi( $u['ma_nv'], 12 ),
+				'donNghi'     => VHCC_XinNghi::cua_nguoi( $u['ma_nv'], 12 ),
+				'loaiNghi'    => VHCC_XinNghi::TEN_LOAI,
+				'quyPhep'     => VHCC_XinNghi::quy_phep( $u['ma_nv'] ),
 			) );
 		}
 

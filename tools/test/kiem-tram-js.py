@@ -73,6 +73,10 @@ CO_SAN = set("""
     localStorage sessionStorage history screen getComputedStyle btoa atob
     Map Set WeakMap WeakSet Symbol Proxy Reflect BigInt
     if for while switch catch return typeof function
+    # `in` và `instanceof` là TOÁN TỬ, không bao giờ là hàm. Thiếu chúng thì `for(k in obj)` bị
+    # đọc thành lời gọi `in()` và bài kiểm đỏ oan — mà cách "sửa" hiển nhiên lúc ấy là viết vòng
+    # lặp xấu đi để né bộ kiểm, tức là bộ kiểm bắt đầu điều khiển mã thay vì canh mã.
+    in instanceof void delete new
 """.split())
 
 def ten_khai(ma):

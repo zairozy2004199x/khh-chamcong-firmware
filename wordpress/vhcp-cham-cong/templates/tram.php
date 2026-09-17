@@ -511,6 +511,24 @@ a{color:var(--nhan)}
 		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
 	</div>
 
+	<div class="the">
+		<label style="margin:0 0 8px">Xin nghỉ</label>
+		<div id="oQuyPhep"></div>
+		<p class="ct" style="text-align:left;margin:0 0 10px">Cửa hàng trưởng duyệt. <b>Đơn được
+			duyệt không tự cộng hay trừ công</b> — nó chỉ trả lời "hôm ấy vắng có phép hay không".</p>
+		<label for="xnTu">Nghỉ từ ngày</label>
+		<input id="xnTu" type="date">
+		<label for="xnDen">Đến hết ngày (để trống nếu nghỉ một ngày)</label>
+		<input id="xnDen" type="date">
+		<label for="xnLoai">Loại nghỉ</label>
+		<select id="xnLoai"></select>
+		<label for="xnLyDo">Lý do</label>
+		<input id="xnLyDo" type="text" maxlength="250" placeholder="Người duyệt quyết theo lý do">
+		<div id="loiNghi"></div>
+		<p></p>
+		<button id="btGuiNghi" class="chinh to">GỬI ĐƠN XIN NGHỈ</button>
+	</div>
+
 	<div class="the" id="oKhoiLich">
 		<label style="margin:0 0 8px">Xin đổi lịch / xin nghỉ một ngày</label>
 		<div id="oLichTat" class="an"><p class="trong">—</p></div>
@@ -1698,9 +1716,34 @@ function napXin(){
 		   trưởng thấy một đơn xin trễ cho ngày đã xong. */
 		if(!el('xtNgay').value){ el('xtNgay').value = j.homNay || ''; }
 		el('xtPhut').max = j.phutToiDa || 120;
+		if(!el('xnTu').value){ el('xnTu').value = j.homNay || ''; }
+		if(!el('xnLoai').options.length){
+			var dsL = [], k;
+			for(k in (j.loaiNghi||{})){ if(Object.prototype.hasOwnProperty.call(j.loaiNghi,k)){ dsL.push(k); } }
+			el('xnLoai').innerHTML = xoOptionCap(j.loaiNghi || {}, dsL);
+		}
+		veQuyPhep(j.quyPhep);
 		veKhoiLich(j);
 		veBangDon(j);
 	});
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * QUỸ PHÉP NĂM
+ * 🔴 TRẦN = 0 NGHĨA LÀ CÔNG TY KHÔNG THEO DÕI PHÉP NĂM — lúc ấy KHÔNG bày dòng "còn lại", chứ
+ *    không bày "còn lại 0". Bày số 0 là nói với cả công ty rằng họ hết phép, trong khi sự thật
+ *    là chưa ai đặt con số ấy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function veQuyPhep(q){
+	if(!q){ el('oQuyPhep').innerHTML = ''; return; }
+	if(!q.tran){
+		el('oQuyPhep').innerHTML = '<p class="ct" style="text-align:left;margin:0 0 8px">Công ty '
+			+ 'chưa đặt số ngày phép năm, nên màn này không tính "còn lại". Đơn vẫn nộp bình thường.</p>';
+		return;
+	}
+	el('oQuyPhep').innerHTML = '<div class="vang">Phép năm ' + esc(q.nam) + ': đã dùng <b>'
+		+ esc(q.daDung) + '</b> / ' + esc(q.tran) + ' ngày · còn <b>' + esc(q.conLai)
+		+ '</b> ngày.<br><span class="ct">Chỉ tính đơn <b>nghỉ phép năm</b> đã được duyệt.</span></div>';
 }
 
 function veKhoiLich(j){
@@ -1725,6 +1768,17 @@ function veKhoiLich(j){
 /* Dựng cả khối <option>. Dòng trống đầu tiên (nếu có) cũng dựng TRONG ĐÂY, không ghép ở nơi
    gọi — ghép ở ngoài là một chuỗi HTML nối với kết quả hàm, và bộ kiểm "không rò HTML" không
    phân biệt nổi chuỗi ấy với một cái tên cơ sở chưa thoát. */
+/* Ô xổ dựng từ bản đồ mã -> tên: giá trị gửi lên là MÃ (`phep`), chữ hiện ra là TÊN
+   ("Nghỉ phép năm"). Gửi tên lên thì máy chủ phải dịch ngược bằng chuỗi tiếng Việt — đổi một
+   chữ ở màn là mọi đơn cũ hoá loại lạ. */
+function xoOptionCap(banDo, khoa){
+	var h = '';
+	for(var i=0;i<khoa.length;i++){
+		h += '<option value="' + esc(khoa[i]) + '">' + esc(banDo[khoa[i]]) + '</option>';
+	}
+	return h;
+}
+
 function xoOption(ds, chon, dong_trong){
 	var h = dong_trong ? ('<option value="">' + esc(dong_trong) + '</option>') : '';
 	for(var i=0;i<ds.length;i++){
@@ -1737,7 +1791,7 @@ function xoOption(ds, chon, dong_trong){
 function veBangDon(j){
 	var h = '', i, x;
 	var tre = j.donTre || [], lich = j.donLich || [];
-	if(!tre.length && !lich.length){
+	if(!tre.length && !lich.length && !(j.donNghi||[]).length){
 		el('bangDon').innerHTML = '<p class="trong">Chưa nộp đơn nào.</p>';
 		return;
 	}
@@ -1747,6 +1801,14 @@ function veBangDon(j){
 		h += '<tr><td>' + esc(x.ngay) + '</td><td style="text-align:left">trễ '
 			+ esc(x.so_phut) + ' phút · ' + esc(x.ly_do || '') + '</td><td>'
 			+ esc(tenTT(x.trang_thai)) + '</td></tr>';
+	}
+	var nghi = j.donNghi || [];
+	for(i=0;i<nghi.length;i++){
+		x = nghi[i];
+		h += '<tr><td>' + esc(x.tu_ngay) + (x.den_ngay !== x.tu_ngay ? '→' + esc(x.den_ngay) : '')
+			+ '</td><td style="text-align:left">nghỉ ' + esc(x.so_ngay) + ' ngày · '
+			+ esc((j.loaiNghi && j.loaiNghi[x.loai]) || x.loai) + ' · ' + esc(x.ly_do || '')
+			+ '</td><td>' + esc(tenTT(x.trang_thai)) + '</td></tr>';
 	}
 	for(i=0;i<lich.length;i++){
 		x = lich[i];
@@ -1849,6 +1911,21 @@ el('btGuiTre').addEventListener('click', function(){
 		return '✔ Đã gửi đơn xin trễ ' + j.phut + ' phút ngày ' + j.ngay + ' — ' + j.coSo
 			+ (j.muon ? ' (nộp muộn, đơn vẫn nhận nhưng có đánh dấu)' : '')
 			+ (j.lai ? ' · đè lên đơn cũ của ngày này, đơn quay về CHỜ DUYỆT' : '');
+	});
+});
+
+el('btGuiNghi').addEventListener('click', function(){
+	guiDon('xinnghi', {
+		token: token(),
+		tu:    el('xnTu').value,
+		den:   el('xnDen').value,
+		loai:  el('xnLoai').value,
+		lyDo:  el('xnLyDo').value
+	}, 'loiNghi', 'btGuiNghi', function(j){
+		return '✔ Đã gửi đơn nghỉ ' + j.soNgay + ' ngày (' + j.tu
+			+ (j.den !== j.tu ? ' → ' + j.den : '') + ') — ' + j.coSo
+			+ (j.muon ? ' · nộp muộn, đơn vẫn nhận nhưng người duyệt sẽ thấy' : '')
+			+ '. Công KHÔNG đổi vì đơn này.';
 	});
 });
 
