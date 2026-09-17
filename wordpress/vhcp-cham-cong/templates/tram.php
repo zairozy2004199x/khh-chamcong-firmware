@@ -610,24 +610,6 @@ a{color:var(--nhan)}
 	        sở nào cũng nộp được còn đơn đổi lịch chỉ có nghĩa ở cơ sở đã bật phân lịch. Gộp vào
 	        một biểu mẫu là phải ẩn/hiện quá nửa số ô theo lựa chọn — và người nộp không bao giờ
 	        biết chắc cái ô mình vừa điền có được gửi đi hay không. -->
-	<div class="the">
-		<label style="margin:0 0 8px">Xin nghỉ</label>
-		<div id="oQuyPhep"></div>
-		<p class="ct" style="text-align:left;margin:0 0 10px">Cửa hàng trưởng duyệt. <b>Đơn được
-			duyệt không tự cộng hay trừ công</b> — nó chỉ trả lời "hôm ấy vắng có phép hay không".</p>
-		<label for="xnTu">Nghỉ từ ngày</label>
-		<input id="xnTu" type="date">
-		<label for="xnDen">Đến hết ngày (để trống nếu nghỉ một ngày)</label>
-		<input id="xnDen" type="date">
-		<label for="xnLoai">Loại nghỉ</label>
-		<select id="xnLoai"></select>
-		<label for="xnLyDo">Lý do</label>
-		<input id="xnLyDo" type="text" maxlength="250" placeholder="Người duyệt quyết theo lý do">
-		<div id="loiNghi"></div>
-		<p></p>
-		<button id="btGuiNghi" class="chinh to">GỬI ĐƠN XIN NGHỈ</button>
-	</div>
-
 	<div class="the" id="oKhoiLich">
 		<label style="margin:0 0 8px">Xin đổi lịch / xin nghỉ một ngày</label>
 		<div id="oLichTat" class="an"><p class="trong">—</p></div>
@@ -697,6 +679,38 @@ a{color:var(--nhan)}
 	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
+
+<!-- ============ MÀN XIN NGHỈ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG — anh Thắng 17/09/2026 khoanh đúng khối này: *"Chuyển này thành 1
+        tính năng"*. Cùng lối với Thêm nhân sự · Phiếu lương · Gửi đơn đi trễ.
+     ⚠️ Ô QUỸ PHÉP ĐỨNG TRÊN BIỂU MẪU, KHÔNG PHẢI DƯỚI. Người mở màn này ra là để quyết "xin
+        mấy ngày" — con số còn lại phải đọc được TRƯỚC khi họ gõ, không phải sau. -->
+<div id="mXinNghi" class="mn an"><div class="bao">
+	<h1>Xin nghỉ</h1>
+	<p class="mo">Cửa hàng trưởng duyệt. <b>Đơn được duyệt không tự cộng hay trừ công</b> — nó
+		chỉ trả lời "hôm ấy vắng có phép hay không".</p>
+
+	<div id="oQuyPhep"></div>
+
+	<div class="the">
+		<div class="fldx"><label for="xnTu">Nghỉ từ ngày</label>
+			<input id="xnTu" type="date"></div>
+		<div class="fldx"><label for="xnDen">Đến hết ngày (để trống nếu nghỉ một ngày)</label>
+			<input id="xnDen" type="date"></div>
+		<div class="fldx"><label for="xnLoai">Loại nghỉ</label>
+			<select id="xnLoai"></select></div>
+		<div class="fldx"><label for="xnLyDo">Lý do</label>
+			<input id="xnLyDo" type="text" maxlength="250" placeholder="Người duyệt quyết theo lý do"></div>
+		<div id="loiNghi"></div>
+		<p></p>
+		<button id="btGuiNghi" class="chinh to">GỬI ĐƠN XIN NGHỈ</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Đơn đã nộp và kết quả duyệt xem ở
+			tab <b>Tôi</b> — ở đó gom cả đơn đi trễ, xin nghỉ và đổi lịch trong một danh sách.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongNghi" class="phu to">Đóng</button>
+</div></div>
 
 <!-- ============ MÀN XIN PHÉP ĐI TRỄ ============
      🔴 MỘT TÍNH NĂNG RIÊNG — anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh
@@ -2265,6 +2279,15 @@ function moMan(ten){
 	if('mThemNv' === ten){ moThemNv(); }
 	if('mPhieu'  === ten){ moPhieu(); }
 	if('mXinTre' === ten){ moXinTre(); }
+	if('mXinNghi' === ten){ moXinNghi(); }
+}
+
+function moXinNghi(){
+	bao('loiNghi','',null);
+	hien('mXinNghi', true);
+	/* `napXin()` là nơi duy nhất biết hôm nay theo MÁY CHỦ là ngày nào, danh sách loại nghỉ và
+	   quỹ phép còn lại — gọi lại nó thay vì màn tự đoán. */
+	if(!XIN){ napXin(); }
 }
 
 /* Màn nộp đơn đi trễ. `napXin()` là nơi duy nhất biết "hôm nay theo MÁY CHỦ là ngày nào" và
@@ -2367,6 +2390,7 @@ function moThemNv(){
 	hien('mThemNv', true);
 }
 
+el('btDongNghi').addEventListener('click', function(){ hien('mXinNghi', false); });
 el('btDongTre').addEventListener('click', function(){ hien('mXinTre', false); });
 el('btDongPhieu').addEventListener('click', function(){ hien('mPhieu', false); });
 el('btPlToi').addEventListener('click', function(){ phanPhieu(false); });

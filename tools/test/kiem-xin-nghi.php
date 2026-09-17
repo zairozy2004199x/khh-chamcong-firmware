@@ -332,6 +332,22 @@ $than = strstr( $tpl, '<style' ) ? substr( $tpl, 0, strpos( $tpl, '<style' ) )
 foreach ( array( 'xnTu', 'xnDen', 'xnLoai', 'xnLyDo', 'btGuiNghi', 'oQuyPhep', 'loiNghi' ) as $o ) {
 	t( 'màn trạm có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
+
+/* 🔴 SỬA 17/09/2026 — BIỂU MẪU RA KHỎI TAB "TÔI". Anh Thắng khoanh đúng khối này: *"Chuyển này
+   thành 1 tính năng"*. Nay nó là màn riêng mở từ ô trong lưới Ứng dụng. */
+t( '🔴 biểu mẫu xin nghỉ là màn riêng',
+	false !== strpos( $than, '<div id="mXinNghi" class="mn an">' ), $than );
+$i_toi_het = strpos( $than, '<!-- /tToi -->' );
+t( 'và KHÔNG còn nằm trong tab "Tôi"',
+	strpos( $than, 'id="mXinNghi"' ) > $i_toi_het,
+	array( strpos( $than, 'id="mXinNghi"' ), $i_toi_het ) );
+/* ⚠️ Ô QUỸ PHÉP ĐỨNG TRÊN BIỂU MẪU. Người mở màn này ra là để quyết "xin mấy ngày" — con số
+   còn lại phải đọc được TRƯỚC khi họ gõ, không phải sau. */
+t( '⚠️ ô quỹ phép đứng TRÊN ô nhập ngày',
+	strpos( $than, 'id="oQuyPhep"' ) < strpos( $than, 'id="xnTu"' ), $than );
+/* Người nộp xong phải biết đi đâu xem kết quả — không thì họ nộp lại vì tưởng hụt. */
+t( 'màn chỉ đường sang tab Tôi để xem kết quả',
+	false !== strpos( $than, 'Đơn đã nộp và kết quả duyệt xem ở' ), $than );
 t( 'nút gửi đơn nghỉ gọi đúng cửa xinnghi', false !== strpos( $tpl, "guiDon('xinnghi'" ) );
 
 /* 🔴 NGÀY MẶC ĐỊNH LẤY TỪ MÁY CHỦ. Lấy `new Date()` của điện thoại thì máy lệch múi giờ là đơn

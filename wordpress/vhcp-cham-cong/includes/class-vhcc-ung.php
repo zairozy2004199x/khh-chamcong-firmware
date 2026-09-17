@@ -260,6 +260,17 @@ class VHCC_Ung {
 			'mau'  => 'luc',
 		) );
 
+		/* ---- 8. Gửi đơn xin nghỉ ----------------------------------------------------------
+		   Anh Thắng 17/09/2026 khoanh đúng khối ấy: *"Chuyển này thành 1 tính năng"*. */
+		$o[] = self::o( true, array(
+			'ten'  => 'Xin nghỉ',
+			'nhom' => 'Của tôi',
+			'mo'   => 'Nghỉ phép, nghỉ ốm, việc riêng',
+			'man'  => 'mXinNghi',
+			'icon' => '🌴',
+			'mau'  => 'tim',
+		) );
+
 		/* ---- 7. Gửi đơn đi trễ ------------------------------------------------------------
 		   Anh Thắng 17/09/2026: *"Gửi đơn đi trễ là 1 tính năng"*, khoanh đúng khối ấy ở tab
 		   Tôi. Cùng một lối với hai ô trên: việc thỉnh thoảng mới làm thì đừng nằm giữa một
