@@ -97,6 +97,30 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.30.0 =
+* **Sửa lỗi che mất khoản lệch tiền trong đối soát MoMo.** Lõi ghép hai sổ ghi là "ghép hai
+  lượt" ngay từ đầu, nhưng thực tế chạy MỘT lượt: với từng giao dịch máy POS, thử ghép theo mã —
+  không thấy thì ghép mờ (ngày + số tiền + cơ sở) ngay tại đó. Nên một giao dịch KHÔNG có mã đi
+  trước chiếm được đúng dòng sổ mà một giao dịch CÓ MÃ đứng sau cần.
+
+  Đo bằng cách cho bản cũ và bản mới chạy cùng dữ kiện: máy ghi 70.000 cho mã M2, sổ MoMo trả
+  71.000 cho đúng mã ấy, kèm một giao dịch không mã tình cờ đúng 71.000 cùng ngày cùng quán.
+  Bản cũ kể `khớp=1 · lệch=0` — **khoản chênh 1.000đ trên đúng mã M2 biến mất khỏi báo cáo**,
+  bị thay bằng một cặp "khớp + máy có, MoMo thiếu" không liên quan. Bản mới kể `lệch=1`, nêu
+  đúng mã và đúng số.
+  Nay LƯỢT 1 ghép mã cho **tất cả** giao dịch POS trước; chỉ phần còn lại mới vào LƯỢT 2 ghép
+  mờ, nên ghép mờ không bao giờ tranh được dòng mà mã đã nhận. Cùng ngày · cùng số tiền · cùng
+  quán là chuyện thường ngày trong quán ăn, nên ca này không hiếm.
+
+* **Lõi ghép nay thử được bằng con số.** Tách `khh_dt_doi_soat_momo_lam( $pos, $sk )` ra khỏi
+  `khh_dt_doi_soat_momo_gd()`: một hàm đọc database, một hàm thuần tính toán. Trước bản này hàm
+  KẾT LUẬN VỀ TIỀN — giao dịch nào thiếu, giao dịch nào lệch — **không có một phép thử nào**;
+  `kiem-momo.php` chỉ canh hai hàm đọc file, vì muốn gọi hàm đối soát thì phải dựng cả MySQL.
+  `kiem-momo.php` thêm 22 phép cho lõi ghép (40 → 62): khớp · lệch tiền · chỉ một bên · giao
+  dịch lỗi ở máy đếm riêng · mỗi dòng sổ chỉ ghép một lần · hai mốc cắt khác nhau không kết
+  luận oan · ghép mờ không bắc cầu sang quán khác · và ca che-lệch ở trên.
+
+
 = 1.28.0 =
 * **Cột MoMo nói rõ số ấy lấy từ sổ nào.** Ngày lấy từ sổ gộp được đánh dấu ◷ kèm dòng giải nghĩa
   ngay dưới bảng: tổng ngày thì đúng, nhưng không tra xuống từng giao dịch được. Trước đây hai

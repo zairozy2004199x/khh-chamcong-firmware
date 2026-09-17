@@ -638,8 +638,43 @@ function khh_dt_trong_pham_vi_momo( $p, $pv ) {
  *    tồn tại.
  */
 function khh_dt_doi_soat_momo_gd( $tu, $den ) {
-	$pos = khh_dt_momo_pos_ds( $tu, $den );
-	$sk  = khh_dt_momo_sk_ds( $tu, $den );
+	return khh_dt_doi_soat_momo_lam( khh_dt_momo_pos_ds( $tu, $den ), khh_dt_momo_sk_ds( $tu, $den ) );
+}
+
+/**
+ * LÕI GHÉP — nhận hai mảng, trả kết quả. Không đọc database, không in gì.
+ *
+ * 🔴 TÁCH RA KHỎI `khh_dt_doi_soat_momo_gd()` ĐỂ THỬ ĐƯỢC BẰNG CON SỐ. Đây là hàm quyết định
+ *    "giao dịch nào thiếu, giao dịch nào lệch" — tức là hàm kết luận về TIỀN — mà trước 1.30.0
+ *    nó không có một phép thử nào: `kiem-momo.php` chỉ canh hai hàm ĐỌC FILE. Muốn thử nó thì
+ *    phải dựng cả MySQL, nên trên thực tế là không ai thử.
+ *
+ * 🔴 VÀ ĐÂY LÀ CHỖ SỬA LỖI 1.30.0: PHẢI GHÉP ĐỦ HAI LƯỢT, THEO ĐÚNG THỨ TỰ.
+ *    Chú thích phía trên đã ghi "ghép hai lượt" từ đầu, nhưng mã thì chạy MỘT lượt: với từng
+ *    giao dịch POS, thử mã — không thấy thì ghép mờ NGAY. Nên một giao dịch KHÔNG có mã đi
+ *    trước chiếm mất đúng dòng sổ mà một giao dịch CÓ MÃ đứng sau cần.
+ *
+ *    ⚠️ HỎNG NHƯ THẾ NÀO THÌ PHẢI NÓI ĐÚNG — đã đo bằng cách cho hai bản chạy cùng dữ kiện:
+ *    khi hai bên có đủ dòng để ghép chéo nhau thì TỔNG vẫn đúng, chỉ khác ở chỗ dòng nào ghép
+ *    với dòng nào. Cái giá thật nằm ở ca dưới đây, và nó là ca ĐẮT nhất:
+ *
+ *        sổ MoMo   mã "M2"  · 12/09 · 71.000
+ *        POS #1    không mã · 12/09 · 71.000   -> ghép mờ, ĂN dòng M2 (đúng 71.000, khớp)
+ *        POS #2    mã "M2"  · 12/09 · 70.000   -> mã đã bị dùng, ghép mờ không ra -> "máy có,
+ *                                                MoMo thiếu"
+ *
+ *    Kết quả bản cũ: `khớp=1 · lệch=0`. Khoản **lệch 1.000đ trên đúng mã M2 BỊ CHE** — máy ghi
+ *    70.000 mà MoMo trả 71.000, đúng thứ cả module này sinh ra để bắt, lại bị kể thành một cặp
+ *    "khớp + thiếu" không liên quan. Bản hai lượt trả `khớp=0 · lệch=1`, nêu đúng mã và đúng số.
+ *    Trong quán ăn thì cùng ngày · cùng số tiền · cùng quán là chuyện suốt ngày, nên ca này
+ *    không hiếm.
+ *
+ *    Nay: LƯỢT 1 ghép mã cho TẤT CẢ giao dịch POS trước. Chỉ những gì còn lại mới vào LƯỢT 2
+ *    ghép mờ — nên ghép mờ không bao giờ tranh được dòng mà mã đã nhận.
+ */
+function khh_dt_doi_soat_momo_lam( $pos, $sk ) {
+	$pos = array_values( (array) $pos );
+	$sk  = array_values( (array) $sk );
 	$pv  = khh_dt_pham_vi_momo_sk( $sk );
 	$pvp = khh_dt_pham_vi_momo_pos( $pos );
 
@@ -651,12 +686,15 @@ function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 		}
 	}
 	$da_dung = array();
+	$cap     = array();   // chỉ số POS => chỉ số sổ đã ghép
+	$con_lai = array();   // chỉ số POS chưa ghép được theo mã
 	$khop    = array();
 	$chi_pos = array();
 	$lech    = array();
 	$loi_pos = array();
 
-	foreach ( $pos as $p ) {
+	/* ── LƯỢT 1: THEO MÃ, cho tất cả giao dịch POS ───────────────────────────────────────── */
+	foreach ( $pos as $ip => $p ) {
 		$tt = khh_dt_khong_dau( $p['trang_thai'] );
 		if ( '' !== $tt && false === strpos( $tt, 'thanh cong' ) && false === strpos( $tt, 'success' ) ) {
 			$loi_pos[] = $p;                      // máy ghi nhưng không thành công
@@ -673,32 +711,54 @@ function khh_dt_doi_soat_momo_gd( $tu, $den ) {
 			}
 		}
 		if ( null === $j ) {
-			/* Lui về ghép mờ: cùng ngày, cùng số tiền, cùng cơ sở. */
-			foreach ( $sk as $k => $r ) {
-				if ( isset( $da_dung[ $k ] ) ) {
-					continue;
-				}
-				if ( substr( (string) $r['ngay'], 0, 10 ) !== $p['ngay'] ) {
-					continue;
-				}
-				if ( abs( khh_dt_so( $r['tien'] ) - (float) $p['so_tien'] ) >= 1 ) {
-					continue;
-				}
-				$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
-				if ( '' !== $ch && $ch !== $p['cua_hang'] ) {
-					continue;
-				}
-				$j = $k;
-				break;
+			$con_lai[] = $ip;
+			continue;
+		}
+		$da_dung[ $j ] = true;
+		$cap[ $ip ]    = $j;
+		$pv['co_so'][ (string) $p['cua_hang'] ] = true;   // khớp được tức là quán này CÓ trong sổ
+	}
+
+	/* ── LƯỢT 2: GHÉP MỜ cho phần còn lại — cùng ngày, cùng số tiền, cùng cơ sở ──────────── */
+	foreach ( $con_lai as $ip ) {
+		$p = $pos[ $ip ];
+		$j = null;
+		foreach ( $sk as $k => $r ) {
+			if ( isset( $da_dung[ $k ] ) ) {
+				continue;
 			}
+			if ( substr( (string) $r['ngay'], 0, 10 ) !== $p['ngay'] ) {
+				continue;
+			}
+			if ( abs( khh_dt_so( $r['tien'] ) - (float) $p['so_tien'] ) >= 1 ) {
+				continue;
+			}
+			$ch = khh_dt_ten_co_so_gan( (string) $r['ten'] );
+			if ( '' !== $ch && $ch !== $p['cua_hang'] ) {
+				continue;
+			}
+			$j = $k;
+			break;
 		}
 		if ( null === $j ) {
+			continue;   // để nguyên; phần kết luận ở dưới gom lại theo đúng thứ tự POS
+		}
+		$da_dung[ $j ] = true;
+		$cap[ $ip ]    = $j;
+		$pv['co_so'][ (string) $p['cua_hang'] ] = true;
+	}
+
+	/* ── Kết luận, đi theo THỨ TỰ POS để bảng hiện ra vẫn như cũ ─────────────────────────── */
+	foreach ( $pos as $ip => $p ) {
+		$tt = khh_dt_khong_dau( $p['trang_thai'] );
+		if ( '' !== $tt && false === strpos( $tt, 'thanh cong' ) && false === strpos( $tt, 'success' ) ) {
+			continue;   // đã đếm ở nhóm lỗi
+		}
+		if ( ! isset( $cap[ $ip ] ) ) {
 			$chi_pos[] = $p;
 			continue;
 		}
-		$pv['co_so'][ (string) $p['cua_hang'] ] = true;   // khớp mã tức là quán này CÓ trong sổ
-		$da_dung[ $j ] = true;
-		$tien_sk       = khh_dt_so( $sk[ $j ]['tien'] );
+		$tien_sk = khh_dt_so( $sk[ $cap[ $ip ] ]['tien'] );
 		if ( abs( $tien_sk - (float) $p['so_tien'] ) >= 1 ) {
 			$lech[] = array( 'pos' => $p, 'sk_tien' => $tien_sk );
 		} else {

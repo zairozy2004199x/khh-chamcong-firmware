@@ -319,6 +319,154 @@ rmdir( $thu . '/2026/09' );
 rmdir( $thu . '/2026' );
 rmdir( $thu );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   LÕI GHÉP HAI SỔ — `khh_dt_doi_soat_momo_lam()`
+
+   🔴 TRƯỚC 1.30.0 HÀM NÀY KHÔNG CÓ MỘT PHÉP THỬ NÀO. Bài này canh hai hàm ĐỌC FILE, còn hàm
+   KẾT LUẬN VỀ TIỀN — "giao dịch nào thiếu, giao dịch nào lệch" — thì không ai chạm, vì muốn
+   gọi nó phải dựng cả MySQL. Nay lõi đã tách khỏi phần đọc database nên thử được bằng con số.
+   ══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* Hai tên cơ sở dưới đây LẤY ĐÚNG từ danh sách ở đầu bài (`KHH_DT_TEST_CH`).
+   ⚠️ ĐỪNG bịa tên: `khh_dt_ten_co_so_gan()` trả RỖNG cho tên nó không nhận ra, và lõi ghép thì
+      bỏ qua chốt cơ sở khi tên rỗng — nên tên bịa làm phép "không bắc cầu sang quán khác" xanh
+      hay đỏ tuỳ may, không nói được gì về mã. Đã hụt đúng vậy một lần lúc viết bài này. */
+define( 'CH_A', 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )' );
+define( 'CH_B', 'TuTu Train - Aeon Tân Phú ( Dịch Vụ K&H )' );
+
+/** Một dòng máy POS. Chỉ khai những trường mà lõi ghép thật sự đọc. */
+function gd_pos( $ma, $ngay, $tien, $ch = CH_A, $tt = 'Thành công' ) {
+	return array(
+		'ma_doi_tac' => $ma,
+		'ngay'       => $ngay,
+		'so_tien'    => $tien,
+		'cua_hang'   => $ch,
+		'trang_thai' => $tt,
+	);
+}
+/** Một dòng sổ MoMo. */
+function gd_sk( $ma, $ngay, $tien, $ten = CH_A ) {
+	return array( 'ma' => $ma, 'ngay' => $ngay, 'tien' => $tien, 'ten' => $ten );
+}
+
+/* ---- Ca cơ bản: khớp · lệch tiền · chỉ một bên · giao dịch lỗi ---- */
+$r = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( 'M1', '2026-09-12', 50000 ),
+		gd_pos( 'M2', '2026-09-12', 70000 ),          // sổ ghi 71.000 -> lệch
+		gd_pos( 'M3', '2026-09-12', 30000 ),          // sổ không có   -> chỉ bên máy
+		gd_pos( 'M9', '2026-09-12', 90000, CH_A, 'Thất bại' ),
+	),
+	array(
+		gd_sk( 'M1', '2026-09-12 08:00', 50000 ),
+		gd_sk( 'M2', '2026-09-12 09:00', 71000 ),
+		gd_sk( 'M8', '2026-09-12 10:00', 12000 ),     // máy không có -> chỉ bên MoMo
+	)
+);
+phep( 'ghép mã: 1 khớp', 1 === $r['so_khop'] );
+phep( 'lệch tiền đếm riêng, không gọi là thiếu', 1 === $r['so_lech'] );
+phep( 'lệch tiền kể đúng số bên sổ', ! empty( $r['lech'] ) && 71000.0 === (float) $r['lech'][0]['sk_tien'] );
+phep( 'chỉ có bên máy: 1', 1 === $r['so_chi_pos'] );
+phep( 'chỉ có bên MoMo: 1', 1 === $r['so_chi_sk'] );
+phep( 'giao dịch LỖI ở máy đếm riêng, không dồn vào thiếu', 1 === $r['so_loi_pos'] );
+phep( 'giao dịch lỗi KHÔNG bị tính là chỉ-bên-máy', 1 === $r['so_chi_pos'] );
+
+/* ══ CA CHỐT CỦA 1.30.0: GHÉP MỜ KHÔNG ĐƯỢC TRANH DÒNG MÀ MÃ ĐÃ NHẬN ══════════════════════
+   Trước 1.30.0 lõi chạy MỘT lượt: giao dịch KHÔNG có mã đi trước ghép mờ ngay, ăn đúng dòng sổ
+   mà giao dịch CÓ MÃ đứng sau cần.
+
+   ⚠️ CA NÀY (hai bên đủ dòng để ghép chéo) BẢN CŨ CŨNG XANH — đã đo. Nó ở đây làm chốt bất
+      biến: ghép chéo hay ghép đúng thì tổng vẫn phải là "khớp hết, không thiếu bên nào". Ca
+      THẬT SỰ phân biệt được hai bản nằm ngay dưới ($r_che).
+   ⚠️ Thứ tự hai dòng POS CÓ NGHĨA: dòng không mã phải đứng TRƯỚC. */
+$r2 = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( '',   '2026-09-12', 50000 ),          // không mã, đứng TRƯỚC
+		gd_pos( 'M2', '2026-09-12', 50000 ),          // có mã, đứng SAU
+	),
+	array(
+		gd_sk( 'M2', '2026-09-12 09:00', 50000 ),
+		gd_sk( '',   '2026-09-12 08:00', 50000 ),
+	)
+);
+phep( '🔴 hai bên khớp hết, KHÔNG bịa ra cặp lệch', 2 === $r2['so_khop'] );
+phep( '🔴 không có dòng nào bị kể là chỉ-bên-máy', 0 === $r2['so_chi_pos'] );
+phep( '🔴 không có dòng nào bị kể là chỉ-bên-MoMo', 0 === $r2['so_chi_sk'] );
+phep( 'và không có dòng nào bị kể là lệch tiền', 0 === $r2['so_lech'] );
+
+/* ══ 🔴 CA ĐẮT NHẤT — BẢN MỘT LƯỢT CHE MẤT KHOẢN LỆCH TIỀN ═════════════════════════════════
+   Đo thật bằng cách cho bản cũ (trích nguyên văn từ git) và bản mới chạy cùng dữ kiện:
+
+       bản CŨ   khớp=1 · lệch=0 · chỉ-bên-máy=1      ← khoản lệch 1.000đ BỊ CHE
+       bản MỚI  khớp=0 · lệch=1 · chỉ-bên-máy=1      ← nêu đúng mã, đúng số
+
+   Máy POS ghi 70.000 cho mã M2, sổ MoMo trả 71.000 cho đúng mã ấy — đúng thứ cả module này
+   sinh ra để bắt. Bản cũ để một giao dịch không mã (tình cờ đúng 71.000) ăn trước dòng M2, nên
+   cặp M2 ↔ M2 không bao giờ được đem so với nhau, và 1.000đ chênh biến mất khỏi báo cáo. */
+$r_che = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( '',   '2026-09-12', 71000 ),   // không mã, tình cờ đúng số tiền của sổ
+		gd_pos( 'M2', '2026-09-12', 70000 ),   // có mã, máy ghi THIẾU 1.000đ
+	),
+	array( gd_sk( 'M2', '2026-09-12 09:00', 71000 ) )
+);
+phep( '🔴 lệch tiền trên đúng mã KHÔNG bị che', 1 === $r_che['so_lech'] );
+phep( '🔴 và không bị kể thành "khớp"', 0 === $r_che['so_khop'] );
+phep( 'số bên sổ kể đúng 71.000',
+	! empty( $r_che['lech'] ) && 71000.0 === (float) $r_che['lech'][0]['sk_tien'] );
+phep( 'dòng được nêu lệch là dòng CÓ MÃ M2',
+	! empty( $r_che['lech'] ) && 'M2' === $r_che['lech'][0]['pos']['ma_doi_tac'] );
+
+/* Cùng ca ấy nhưng sổ CHỈ có một dòng: phần thiếu là thật, phải kể ra. */
+$r3 = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( '',   '2026-09-12', 50000 ),
+		gd_pos( 'M2', '2026-09-12', 50000 ),
+	),
+	array( gd_sk( 'M2', '2026-09-12 09:00', 50000 ) )
+);
+phep( 'thiếu thật thì vẫn kể: 1 khớp', 1 === $r3['so_khop'] );
+phep( 'thiếu thật thì vẫn kể: 1 chỉ-bên-máy', 1 === $r3['so_chi_pos'] );
+phep( 'và dòng CÓ MÃ là dòng được khớp, không phải dòng không mã',
+	! empty( $r3['khop'] ) || 1 === $r3['so_khop'] );
+
+/* ---- Mỗi dòng sổ chỉ được ghép MỘT lần: hai giao dịch giống nhau không nhân đôi ---- */
+$r4 = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( '', '2026-09-12', 50000 ),
+		gd_pos( '', '2026-09-12', 50000 ),
+	),
+	array( gd_sk( '', '2026-09-12 08:00', 50000 ) )
+);
+phep( 'một dòng sổ ghép đúng một lần', 1 === $r4['so_khop'] && 1 === $r4['so_chi_pos'] );
+
+/* ---- Hai mốc cắt khác nhau: ngày ngoài phạm vi sổ kia thì KHÔNG kết luận ---- */
+$r5 = khh_dt_doi_soat_momo_lam(
+	array(
+		gd_pos( 'M1', '2026-09-12', 50000 ),
+		gd_pos( 'M5', '2026-09-16', 60000 ),          // sổ MoMo dừng ở 12/09
+	),
+	array( gd_sk( 'M1', '2026-09-12 08:00', 50000 ) )
+);
+phep( 'ngày ngoài phạm vi sổ MoMo -> nhóm "ngoài", không phải "MoMo thiếu"',
+	1 === $r5['so_ngoai'] && 0 === $r5['so_chi_pos'] );
+$r6 = khh_dt_doi_soat_momo_lam(
+	array( gd_pos( 'M1', '2026-09-12', 50000 ) ),
+	array(
+		gd_sk( 'M1', '2026-09-12 08:00', 50000 ),
+		gd_sk( 'M7', '2026-09-16 08:00', 60000 ),     // kho POS dừng ở 12/09
+	)
+);
+phep( 'ngày ngoài phạm vi kho POS -> nhóm "ngoài", không phải "máy bỏ sót"',
+	1 === $r6['so_ngoai_sk'] && 0 === $r6['so_chi_sk'] );
+
+/* ---- Ghép mờ phải cùng CƠ SỞ ---- */
+$r7 = khh_dt_doi_soat_momo_lam(
+	array( gd_pos( '', '2026-09-12', 50000, CH_A ) ),
+	array( gd_sk( '', '2026-09-12 08:00', 50000, CH_B ) )
+);
+phep( 'ghép mờ KHÔNG bắc cầu sang quán khác', 0 === $r7['so_khop'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép:\n";
 	foreach ( $hong as $h ) {
@@ -326,4 +474,4 @@ if ( $hong ) {
 	}
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép đọc file MoMo (máy POS + sao kê MoMo)\n";
+echo "\n✓ SẠCH — $dat phép: đọc file MoMo (máy POS + sao kê) và LÕI GHÉP hai sổ\n";
