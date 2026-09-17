@@ -445,6 +445,66 @@ class VHCC_CuaHang {
 			'gioCham' => $n['gioThang'] );
 	}
 
+	/* ====================================================================== danh sách nhân sự */
+
+	/** Xem danh sách người của cơ sở mình — bậc Cửa hàng trưởng, đúng cửa với trang Nhân sự cửa hàng. */
+	const QUYEN_NS = 'ho_so_xem';
+
+	/**
+	 * DANH SÁCH NHÂN SỰ CỦA MỘT CƠ SỞ, gọn lại cho màn điện thoại.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*, kèm ảnh màn "Danh sách
+	 * nhân sự" của một app HRM (tên · mã · phòng ban · trạng thái).
+	 *
+	 * 🔴 GỌI LẠI `VHCC_NhanSu::ds_nhan_vien()`, KHÔNG TỰ VIẾT CÂU SQL. Hàm ấy đã làm ba việc mà
+	 *    một câu SQL mới ở đây chắc chắn sẽ làm thiếu:
+	 *      · lọc cơ sở tính CẢ `coso_phu` — hỏi mỗi `cua_hang` là sót đúng những người chạy giữa
+	 *        hai chi nhánh, tức những người cần theo dõi nhất;
+	 *      · gác từng dòng bằng `co_quyen_ho_so()`;
+	 *      · CẮT ô lương khỏi dữ liệu (không phải ẩn bằng CSS) khi người xem không có quyền lương.
+	 *    Việc thứ ba là lý do nặng nhất: cửa hàng trưởng KHÔNG được thấy lương, và nếu tự viết
+	 *    `SELECT *` ở đây thì con số ấy đi thẳng xuống trình duyệt — ẩn trên màn hay không cũng
+	 *    đã muộn.
+	 *
+	 * ⚠️ CHỈ TRẢ MẤY Ô CẦN VẼ. `ds_nhan_vien()` trả nguyên hàng hồ sơ (căn cước, số tài khoản,
+	 *    ngày sinh…). Màn này chỉ cần tên · mã · chức vụ · điện thoại · có PIN chưa · trạng thái,
+	 *    nên chọn ra đúng ngần ấy. Gửi cả hàng rồi để giao diện chọn là bày căn cước của cả cửa
+	 *    hàng xuống một cái điện thoại, chỉ vì màn tình cờ không vẽ nó ra.
+	 *
+	 * ⚠️ KHÔNG BAO GIỜ TRẢ PIN — chỉ trả CÓ hay CHƯA. Cùng luật với trang Nhân sự cửa hàng:
+	 *    *"không in PIN, kể cả cho chính cửa hàng trưởng"*. Biết PIN của một người là đăng nhập
+	 *    thay họ được, mà màn hình của họ không có gì đổi.
+	 */
+	public static function nhan_su( $u, $coso, $tim = '' ) {
+		if ( ! VHCC_Vai::duoc( $u, self::QUYEN_NS ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, self::QUYEN_NS, 'Xem danh sách nhân sự' ) );
+		}
+		$cs = self::chot_coso( $u, $coso );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+
+		$ds = array(); $chua_pin = 0;
+		foreach ( VHCC_NhanSu::ds_nhan_vien( $u, $cs, (string) $tim ) as $r ) {
+			$co_pin = ( '' !== trim( (string) ( isset( $r['pin_dang_nhap'] ) ? $r['pin_dang_nhap'] : '' ) ) );
+			if ( ! $co_pin ) { $chua_pin++; }
+			$ds[] = array(
+				'maNV'   => (string) $r['ma_nv'],
+				'hoTen'  => (string) $r['ho_ten'],
+				'chucVu' => trim( (string) ( isset( $r['chuc_vu'] ) ? $r['chuc_vu'] : '' ) ),
+				'sdt'    => trim( (string) ( isset( $r['sdt'] ) ? $r['sdt'] : '' ) ),
+				'coPin'  => $co_pin,
+				/* ⚠️ CÓ CĂN CƯỚC HAY KHÔNG, chứ không phải SỐ căn cước. Màn cần biết đúng một
+				   điều: người này tự đặt PIN được chưa (đường "Quên PIN" đòi căn cước). */
+				'coCccd' => ( '' !== trim( (string) ( isset( $r['cccd'] ) ? $r['cccd'] : '' ) ) ),
+				'trangThai' => trim( (string) ( isset( $r['trang_thai_lam_viec'] ) ? $r['trang_thai_lam_viec'] : '' ) ),
+				'coSo'   => trim( (string) ( isset( $r['cua_hang'] ) ? $r['cua_hang'] : '' ) ),
+			);
+		}
+		return array( 'ok' => true, 'coSo' => $cs, 'nguoi' => $ds, 'so' => count( $ds ),
+			'chuaPin' => $chua_pin );
+	}
+
 	/* ====================================================================== thêm người */
 
 	/**

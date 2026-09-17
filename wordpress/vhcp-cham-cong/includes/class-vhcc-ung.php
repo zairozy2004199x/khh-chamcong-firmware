@@ -266,6 +266,24 @@ class VHCC_Ung {
 			'mau'  => 'luc',
 		) );
 
+		/* ---- 9. Nhân sự cửa hàng ----------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*, kèm ảnh màn "Danh
+		   sách nhân sự" của một app HRM.
+
+		   ⚠️ GÁC BẰNG `ho_so_xem` — đúng quyền mà `VHCC_CuaHang::nhan_su()` đòi, không phải
+		      `cong_coso` của cả tab. Hai đầu việc khác nhau: xem bảng công là một chuyện, xem
+		      hồ sơ người ta là chuyện khác, và bảng vai tách chúng ra từ lâu. */
+		if ( VHCC_Vai::duoc( $u, VHCC_CuaHang::QUYEN_NS ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Nhân sự',
+				'nhom' => 'Quản lý cửa hàng',
+				'mo'   => 'Danh sách người của cơ sở mình',
+				'man'  => 'mNhanSu',
+				'icon' => '👥',
+				'mau'  => 'luc',
+			) );
+		}
+
 		/* ---- 8. Gửi đơn xin nghỉ ----------------------------------------------------------
 		   Anh Thắng 17/09/2026 khoanh đúng khối ấy: *"Chuyển này thành 1 tính năng"*. */
 		$o[] = self::o( true, array(

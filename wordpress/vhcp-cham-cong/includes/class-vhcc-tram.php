@@ -589,6 +589,12 @@ class VHCC_Tram {
 			) ) );
 		}
 
+		if ( 'chnhansu' === $viec ) {
+			self::ra( VHCC_CuaHang::nhan_su( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['tim'] ) ? (string) $b['tim'] : '' ) );
+		}
+
 		if ( 'chthem' === $viec ) {
 			self::ra( VHCC_CuaHang::them_nguoi( $u, array(
 				'coSo'     => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',

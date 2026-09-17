@@ -627,6 +627,55 @@ t( 'và vai ấy là Nhân viên, không phải bậc cao hơn',
 	VHCC_Vai::TEN[ VHCC_Vai::NV ] === (string) $hs['vai_tro'], $hs );
 t( '🔴 cửa này KHÔNG đặt lương cơ bản', empty( $hs['luong_co_ban'] ), $hs );
 
+/* ── DANH SÁCH NHÂN SỰ CỦA CƠ SỞ ───────────────────────────────────────────────────────────
+   Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*. */
+
+$r_ns = VHCC_CuaHang::nhan_su( $NV, $CS_A );
+t( '🔴 nhân viên thường KHÔNG xem được danh sách nhân sự', empty( $r_ns['ok'] ), $r_ns );
+$r_ns = VHCC_CuaHang::nhan_su( $CHT_B, $CS_A );
+t( '🔴 trưởng cơ sở khác KHÔNG xem được', empty( $r_ns['ok'] ), $r_ns );
+
+$ns = VHCC_CuaHang::nhan_su( $CHT_A, $CS_A );
+t( 'cửa hàng trưởng xem được người của cơ sở mình', ! empty( $ns['ok'] ), $ns );
+t( 'có người trong danh sách', $ns['so'] > 0, $ns );
+$chuoi_ns = wp_json_encode( $ns );
+t( '🔴 KHÔNG lẫn người cơ sở khác', false === strpos( $chuoi_ns, 'Hồ Văn Kia' ), $ns );
+
+/* 🔴 KHÔNG BAO GIỜ TRẢ PIN — chỉ CÓ hay CHƯA. Biết PIN của một người là đăng nhập thay họ
+   được, mà màn hình của họ không có gì đổi. Cùng luật với trang Nhân sự cửa hàng. */
+foreach ( $ns['nguoi'] as $x ) {
+	t( '🔴 không trả PIN của ai', ! isset( $x['pin_dang_nhap'] ) && ! isset( $x['pin'] ), $x );
+	t( 'chỉ nói CÓ hay CHƯA có PIN', isset( $x['coPin'] ) && is_bool( $x['coPin'] ), $x );
+	/* ⚠️ CĂN CƯỚC CŨNG CHỈ CÓ/KHÔNG. Màn cần biết đúng một điều: người này tự đặt PIN được
+	   chưa (đường "Quên PIN" đòi căn cước) — không cần chính con số ấy. */
+	t( '⚠️ không trả SỐ căn cước', ! isset( $x['cccd'] ), $x );
+	t( 'chỉ nói có khai căn cước chưa', isset( $x['coCccd'] ) && is_bool( $x['coCccd'] ), $x );
+	/* 🔴 VÀ TUYỆT ĐỐI KHÔNG TRẢ LƯƠNG. Cửa hàng trưởng không được thấy ô ấy. */
+	foreach ( array( 'luong_co_ban', 'luongCb', 'so_tai_khoan' ) as $cam_ns ) {
+		t( '🔴 không trả ' . $cam_ns, ! isset( $x[ $cam_ns ] ), $x );
+	}
+}
+t( '🔴 cả gói KHÔNG chứa PIN thật của ai',
+	false === strpos( $chuoi_ns, '941111' ) && false === strpos( $chuoi_ns, '942222' ), $ns );
+
+/* Đếm sẵn số người chưa có PIN — họ chưa đăng nhập được, tức chưa chấm công được, mà nhìn hai
+   mươi thẻ thì không ai đếm ra. */
+t( 'đếm sẵn số người chưa có PIN', isset( $ns['chuaPin'] ), $ns );
+
+/* Ô tìm lọc được, và lọc ở MÁY CHỦ chứ không ở trình duyệt. */
+$ns_tim = VHCC_CuaHang::nhan_su( $CHT_A, $CS_A, 'Vũ Thị Nhân' );
+t( 'ô tìm lọc được theo tên', 1 === (int) $ns_tim['so'], $ns_tim );
+$ns_tim = VHCC_CuaHang::nhan_su( $CHT_A, $CS_A, 'khong-co-ai-ten-nay' );
+t( 'tìm không ra thì trả danh sách rỗng', 0 === (int) $ns_tim['so'], $ns_tim );
+
+/* 🔴 GỌI LẠI `ds_nhan_vien()`, KHÔNG TỰ VIẾT SQL. Hàm ấy lọc cơ sở tính cả `coso_phu`, gác
+   từng dòng, và CẮT ô lương khỏi dữ liệu. Tự viết `SELECT *` ở đây là lương đi thẳng xuống
+   trình duyệt — ẩn trên màn hay không cũng đã muộn. */
+t( '🔴 dùng lại VHCC_NhanSu::ds_nhan_vien()',
+	false !== strpos( $src, 'VHCC_NhanSu::ds_nhan_vien' ), $src );
+t( 'quyền gác đúng bậc Cửa hàng trưởng',
+	VHCC_Vai::CHT === VHCC_Vai::QUYEN[ VHCC_CuaHang::QUYEN_NS ] );
+
 /* ── NGƯỜI MỚI DÙNG ĐƯỢC NGAY HAI TRANG: CHẤM CÔNG VÀ NỘI BỘ ───────────────────────────────
    Anh Thắng 17/09/2026: *"Để cho nhân viên chấm đk công luôn… nhân viên được quyền sử dụng 2
    trang này trước theo mặc định là nội bộ và chấm công. Mấy trang khác thì phải cấp quyền"*.
@@ -806,7 +855,7 @@ t( '🔴 màn nói rõ người mới tự lấy PIN ở màn "Quên PIN"',
 
 /* ── 6b. MÀN MỘT NGƯỜI (sửa công & chốt lương) ──────────────────────────────────────────── */
 
-foreach ( array( 'chngay', 'chsua', 'chxoadong', 'chchot', 'chchotluu' ) as $v ) {
+foreach ( array( 'chngay', 'chsua', 'chxoadong', 'chchot', 'chchotluu', 'chnhansu' ) as $v ) {
 	t( 'trạm có cửa ' . $v, false !== strpos( $tram, "'" . $v . "' === \$viec" ), $v );
 }
 /* ⚠️ `gioCham` TÍNH LẠI Ở MÁY CHỦ. Cửa không được chuyển tiếp trần giờ từ biểu mẫu — nhận từ

@@ -785,6 +785,30 @@ a{color:var(--nhan)}
 	<button id="btDongPhieu" class="phu to">Đóng</button>
 </div></div>
 
+<!-- ============ MÀN NHÂN SỰ (danh sách người của cơ sở) ============
+     Anh Thắng 17/09/2026: *"Thêm tab Nhân Sự trong Quản Lý Cửa Hàng"*.
+     ⚠️ DANH SÁCH, KHÔNG PHẢI BẢNG. Sáu cột của trang quản trị nhét vào 390px là không đọc nổi.
+        Mỗi người một thẻ: tên to, mấy dòng phụ nhỏ — đúng lối app anh gửi ảnh.
+     🔴 KHÔNG BAO GIỜ BÀY PIN, chỉ bày CÓ hay CHƯA — cùng luật với trang Nhân sự cửa hàng.
+        Biết PIN của một người là đăng nhập thay họ được, mà màn của họ không có gì đổi. -->
+<div id="mNhanSu" class="mn an"><div class="bao">
+	<h1>Nhân sự</h1>
+	<p class="mo" id="nsPhu">—</p>
+
+	<div class="the">
+		<div class="fldx"><label for="nsCoSo">Cơ sở</label>
+			<select id="nsCoSo"></select></div>
+		<div class="fldx"><label for="nsTim">Tìm tên hoặc mã</label>
+			<input id="nsTim" type="search" placeholder="gõ rồi bấm Tìm"></div>
+		<button id="btNsTim" class="phu">Tìm</button>
+	</div>
+
+	<div id="dsNhanSu"><p class="trong">—</p></div>
+
+	<p></p>
+	<button id="btDongNs" class="phu to">Đóng</button>
+</div></div>
+
 <!-- ============ MÀN THÊM NHÂN SỰ ============
      🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI MỘT KHỐI DƯỚI ĐÁY TAB. Anh Thắng 17/09/2026: *"Chuyển
         sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh đúng ô trống trong lưới Ứng dụng.
@@ -2280,6 +2304,62 @@ function moMan(ten){
 	if('mPhieu'  === ten){ moPhieu(); }
 	if('mXinTre' === ten){ moXinTre(); }
 	if('mXinNghi' === ten){ moXinNghi(); }
+	if('mNhanSu' === ten){ moNhanSu(); }
+}
+
+/* ── DANH SÁCH NHÂN SỰ CỦA CƠ SỞ ────────────────────────────────────────────────────────── */
+
+function moNhanSu(){
+	var ds = (CH && CH.dsCoSo) ? CH.dsCoSo : [];
+	if(!ds.length){
+		window.alert('Tài khoản của anh/chị chưa được giao cơ sở nào.');
+		return;
+	}
+	if(!el('nsCoSo').options.length){ el('nsCoSo').innerHTML = xoOption(ds, ds[0] || ''); }
+	hien('mNhanSu', true);
+	napNhanSu();
+}
+
+function napNhanSu(){
+	el('dsNhanSu').innerHTML = '<p class="trong">Đang tải…</p>';
+	goi('chnhansu', { token: token(), coSo: el('nsCoSo').value, tim: el('nsTim').value })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('nsPhu').textContent = '';
+				el('dsNhanSu').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được.') + '</p>';
+				return;
+			}
+			el('nsPhu').textContent = j.coSo + ' · ' + j.so + ' người';
+			var ds = j.nguoi || [];
+			if(!ds.length){
+				el('dsNhanSu').innerHTML = '<p class="trong">Không có ai khớp.</p>';
+				return;
+			}
+			/* 🔴 NGƯỜI CHƯA CÓ PIN LÀ VIỆC PHẢI LÀM, NÊN NÓI NGAY Ở ĐẦU. Họ chưa đăng nhập được,
+			   tức chưa chấm công được — mà nhìn danh sách hai mươi thẻ thì không ai đếm ra. */
+			var h = '';
+			if(j.chuaPin){
+				h += '<div class="vang" style="margin:0 0 10px"><b>' + esc(j.chuaPin)
+				  +  '</b> người chưa có PIN nên chưa đăng nhập được. Bảo họ vào trang chấm công, '
+				  +  'bấm <b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt.</div>';
+			}
+			for(var i=0;i<ds.length;i++){
+				var x = ds[i];
+				h += '<div class="the" style="margin:0 0 10px;padding:12px">'
+				  +  '<b style="display:block;font-size:15px">' + esc(x.hoTen) + '</b>'
+				  +  '<span class="ct" style="display:block;margin:2px 0 6px">' + esc(x.maNV)
+				  +  (x.chucVu ? ' · ' + esc(x.chucVu) : '')
+				  +  (x.sdt ? ' · ' + esc(x.sdt) : '') + '</span>'
+				  +  '<span class="ct" style="display:block">'
+				  +  (x.coPin ? '✔ có PIN' : '<b>⚠️ chưa có PIN</b>')
+				  +  (x.coCccd ? '' : ' · <b>chưa khai căn cước</b> nên chưa tự đặt PIN được')
+				  +  (x.trangThai ? ' · ' + esc(x.trangThai) : '') + '</span>'
+				  +  '</div>';
+			}
+			el('dsNhanSu').innerHTML = h;
+		}).catch(function(){
+			el('dsNhanSu').innerHTML = '<p class="trong">Chưa đọc được — kiểm tra mạng rồi mở lại.</p>';
+		});
 }
 
 function moXinNghi(){
@@ -2390,6 +2470,9 @@ function moThemNv(){
 	hien('mThemNv', true);
 }
 
+el('btDongNs').addEventListener('click', function(){ hien('mNhanSu', false); });
+el('nsCoSo').addEventListener('change', napNhanSu);
+el('btNsTim').addEventListener('click', napNhanSu);
 el('btDongNghi').addEventListener('click', function(){ hien('mXinNghi', false); });
 el('btDongTre').addEventListener('click', function(){ hien('mXinTre', false); });
 el('btDongPhieu').addEventListener('click', function(){ hien('mPhieu', false); });
