@@ -227,7 +227,17 @@ t('render() có điền vào chỗ đó', /str_replace\( '<!--VHCP_CHAN-->', sel
 // phải nhớ sửa hai nơi, và nơi quên thì im lặng nói sai.
 t('đọc từ VHG_Chan chứ không chép lại thông tin công ty', /VHG_Chan::html\(\)/.test(APP));
 t('KHÔNG có bản sao mã số thuế trong plugin chi phí', !/0106924989/.test(APP + HTML));
-t('chưa cài plugin Ghế thì để trống, không bịa', /\) \) \{ return ''; \}/.test(APP) && /class_exists\( 'VHG_Chan' \)/.test(APP));
+/* ⚠️ KHOÁ THEO ĐIỀU PHẢI ĐÚNG, KHÔNG KHOÁ THEO MẶT CHỮ.
+   Phép này vốn dò đúng chuỗi `) ) { return ''; }`. Rồi 1.189.0 chèn nút "về trạm chấm công" vào
+   cùng hàm ấy, nên đường thoát đổi thành `return $ve;` — và phép đỏ, trong khi HÀNH VI không đổi
+   một li: thiếu Ghế thì vẫn không có chân trang nào được dựng. Một phép đỏ mà chẳng có gì để sửa
+   là phép người ta bắt đầu bỏ qua.
+   Điều thật sự phải đúng gồm hai vế: đường thoát KHÔNG trả gì lấy từ Ghế, và thứ nó trả ra khởi
+   đầu bằng rỗng. Cộng với phép 'KHÔNG có bản sao mã số thuế' ngay trên, đó là đủ nghĩa "không bịa". */
+t('chưa cài plugin Ghế thì không dựng chân trang nào, không bịa',
+  /\)\s*\)\s*\{\s*return \$ve;\s*\}/.test(APP)
+  && /\$ve\s*=\s*'';/.test(APP)
+  && /class_exists\( 'VHG_Chan' \)/.test(APP));
 // 23/08/2026: bản trước gọi thẳng một hàm VỪA THÊM bên plugin Ghế, chỉ gác class_exists.
 // Máy anh Thắng chạy Ghế bản cũ -> lớp CÓ, hàm KHÔNG -> trắng cả trang WordPress.
 t('gác TỪNG HÀM chứ không chỉ tên lớp (2 plugin cài độc lập, bản lệch nhau được)',

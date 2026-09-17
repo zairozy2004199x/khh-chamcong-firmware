@@ -1940,9 +1940,106 @@
     window.addEventListener('scroll',an,true);
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     BẤM ẢNH BILL -> MỞ TRONG TRANG, KHÔNG RỜI TRANG.
+
+     🔴 LỖI ĐÃ SỬA (anh Thắng 17/09/2026): *"bấm ảnh lên xem muốn tắt, bấm x hoặc quay lại
+        trang là nó tự quay lại trang chủ, lại phải mở lại đơn từ đầu"*.
+
+        Ảnh bill là thẻ `<a target="_blank">`. Trên MÁY TÍNH nó mở tab mới, đóng tab là về chỗ
+        cũ — không sao. Nhưng trong app điện thoại (chế độ standalone) KHÔNG CÓ TAB: `_blank`
+        thành điều hướng ngay trong cửa sổ duy nhất ấy. Bấm quay lại thì `/chi-phi` nạp mới, mà
+        đơn đang mở KHÔNG nằm trong địa chỉ — nên nó về màn đầu, và người ta phải chọn lại đơn,
+        cuộn lại tới đúng dòng. Soát 23 dòng bill là 23 lần như vậy.
+
+     ⚠️ CHỮA Ở CHỖ NÀO. Hai đường:
+          a) nhét mã đơn vào địa chỉ để quay lại còn dựng lại được — đúng về lâu dài, nhưng
+             đụng vào định tuyến của cả app, và vẫn còn một lượt rời trang.
+          b) đừng rời trang nữa: mở ảnh trong một lớp phủ ngay tại chỗ.
+        Chọn (b): nó xoá hẳn nguyên nhân thay vì dựng đường lùi cho nó, và gói gọn trong một
+        hàm. Đường (a) vẫn nên làm, nhưng là việc khác.
+
+     ⚠️ KHÔNG ĐỤNG NHÁNH RÊ CHUỘT ở trên. Máy tính giữ nguyên thói quen cũ (rê xem nhanh, bấm
+        mở ảnh gốc ở tab mới); lớp phủ này chỉ chen vào khi máy KHÔNG có chuột thật.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _billTapInit(){
+    /* Máy có chuột thật thì thôi — `hover: hover` là phép thử chuẩn, đúng cả với iPad có bàn
+       phím rời (lúc ấy nó BÁO có hover, và người dùng cũng thật sự có trỏ chuột). */
+    var coChuot = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (coChuot) { return; }
+
+    var lp = null, img = null;
+
+    function dung(){
+      if (lp) { return lp; }
+      lp = document.createElement('div');
+      lp.id = 'billTap';
+      lp.innerHTML = '<img alt="Ảnh chứng từ"><button type="button" aria-label="Đóng">✕</button>';
+      document.body.appendChild(lp);
+      img = lp.querySelector('img');
+      /* Bấm bất kỳ đâu trên lớp phủ là đóng — kể cả trúng ảnh. Người đang cầm điện thoại một
+         tay thì ngón cái với tới nút ✕ ở góc là chuyện khó; cả tấm màn là nút đóng thì không
+         phải với. */
+      lp.addEventListener('click', dongTay);
+      return lp;
+    }
+
+    /* Có đang giữ một lượt history của riêng mình không. Xem `mo()` / `dongTay()`. */
+    var daDay = false;
+
+    function mo(url){
+      var o = dung();
+      if (img.getAttribute('src') !== url) { img.setAttribute('src', url); }
+      o.classList.add('hien');
+      /* Khoá cuộn nền: không khoá thì vuốt trên ảnh làm bảng phía sau chạy, đóng ra mất chỗ. */
+      document.body.style.overflow = 'hidden';
+
+      /* 🔴 ĐẨY MỘT LƯỢT HISTORY GIẢ. Đây mới là thứ làm nút back (Android) và vuốt mép (iOS)
+         ĐÓNG ẢNH thay vì rời khỏi trang chi phí. Không có nó thì `popstate` bên dưới có nghe
+         cũng vô ích: lượt back ấy là lượt rời trang thật, và người ta lại về màn đầu — đúng
+         cái lỗi này sinh ra để chữa.
+         ⚠️ Chỉ đẩy khi CHƯA đẩy: mở ảnh này rồi bấm sang ảnh khác mà đẩy thêm một lượt nữa là
+            phải back hai lần mới ra. */
+      if (!daDay) {
+        try { history.pushState({ billTap: 1 }, ''); daDay = true; } catch (e) {}
+      }
+    }
+
+    /* Ẩn thôi, KHÔNG đụng history — dùng khi chính `popstate` gọi tới. */
+    function an_(){
+      if (!lp) { return; }
+      lp.classList.remove('hien');
+      document.body.style.overflow = '';
+    }
+
+    /* Người dùng bấm để đóng. Nếu đang giữ lượt history của mình thì lùi nó ra, để lượt back
+       kế tiếp của họ là lượt back THẬT — không để lại một bậc thang rỗng trong lịch sử. */
+    function dongTay(){
+      if (daDay) { daDay = false; try { history.back(); return; } catch (e) {} }
+      an_();
+    }
+
+    document.addEventListener('click', function(e){
+      var t = e.target && e.target.closest ? e.target.closest('[data-bill]') : null;
+      if (!t) { return; }
+      var u = t.getAttribute('data-bill');
+      if (!u) { return; }
+      /* 🔴 CHẶN CẢ HAI: `preventDefault` bỏ lượt điều hướng của thẻ <a>, `stopPropagation`
+         chặn mấy handler khác của bảng (bấm dòng để sửa). Thiếu cái thứ hai thì mở ảnh xong
+         màn sửa dòng cũng bật lên phía sau. */
+      e.preventDefault();
+      e.stopPropagation();
+      mo(u);
+    }, true);
+
+    /* Lượt back rơi vào đây: ẩn ảnh, và bỏ cờ vì lượt history của mình vừa bị tiêu. */
+    window.addEventListener('popstate', function(){ daDay = false; an_(); });
+  }
+
   window.onload=initApp;
   function initApp(){
     _billZoomInit();
+    _billTapInit();
     _tienGanHet();   // ô tiền hiện dấu chấm nghìn ngay lúc gõ
     // SSO: có danh tính từ trang tổng → tự đăng nhập, bỏ cổng PIN (xác thực lại mỗi lần tải từ token)
     if(typeof SSO_USER!=='undefined' && SSO_USER && SSO_USER.role){

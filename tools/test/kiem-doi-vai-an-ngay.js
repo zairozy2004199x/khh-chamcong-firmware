@@ -78,13 +78,19 @@ function chay(opt) {
   const o = {};
   ['gate', 'gatePin', 'main'].forEach(function (id) { o[id] = { style: {}, value: '', focus: function () {} }; });
 
-  /* `initApp()` còn gọi vài thứ dựng giao diện (phóng to ảnh bill…) không liên quan phép thử.
-     Khai chúng thành hàm rỗng chứ đừng bỏ dòng gọi ra khỏi mã bốc được: bỏ là bắt đầu SỬA mã
-     thật cho vừa bài kiểm, và bài kiểm ấy thôi nói về thứ đang chạy. */
+  /* `initApp()` còn gọi vài thứ dựng giao diện (phóng to ảnh bill, mở ảnh bill trong lớp phủ…)
+     không liên quan phép thử. Khai chúng thành hàm rỗng chứ đừng bỏ dòng gọi ra khỏi mã bốc
+     được: bỏ là bắt đầu SỬA mã thật cho vừa bài kiểm, và bài kiểm ấy thôi nói về thứ đang chạy.
+
+     ⚠️ DANH SÁCH NÀY PHẢI ĐUỔI KỊP `initApp()`. Thêm một lời gọi dựng giao diện bên app.html mà
+        quên thêm tên vào đây thì bài đỏ — đúng, nhưng phải đỏ cho NGƯỜI ĐỌC HIỂU. Đó là lý do có
+        khối bắt lỗi ngay dưới: 1.189.0 thêm `_billTapInit()` và bài này nổ ra mười dòng ngăn xếp
+        của Node, trông y hệt một lỗi sản phẩm. Mất một vòng mới biết chỉ thiếu một cái tên. */
   const f = new Function('sessionStorage', 'localStorage', 'google', 'el', 'loading',
     'onLoggedIn', '_moCongPin', 'SSO_USER', 'LOG', 'setTimeout', '_billZoomInit', 'toast',
-    '_tienGanHet',
+    '_tienGanHet', '_billTapInit',
     fnDung + '\n' + fnInit + '\ninitApp();');
+  try {
   f(
     { getItem: function (k) { return ss[k] || null; }, setItem: function (k, v) { ss[k] = v; log.luuLai = JSON.parse(v); } },
     { getItem: function (k) { return ls[k] || ''; }, removeItem: function (k) { delete ls[k]; } },
@@ -101,8 +107,22 @@ function chay(opt) {
     function () {},
     function () { log.veLai++; },
     function () { log.moCong++; },
-    null, log, function (fn) { fn(); }, function () {}, function () {}, function () {}
+    null, log, function (fn) { fn(); }, function () {}, function () {}, function () {},
+    function () {}
   );
+  } catch (e) {
+    /* Thiếu một cái tên trong danh sách khai rỗng ở trên thì Node ném `ReferenceError: X is not
+       defined` kèm ngăn xếp — không nói được là phải sửa ở ĐÂY, và trông hệt lỗi sản phẩm.
+       Dịch nó ra một câu chỉ thẳng việc phải làm. */
+    const m = /^(\w+) is not defined$/.exec((e && e.message) || '');
+    if (e instanceof ReferenceError && m) {
+      throw new Error('`initApp()` gọi thêm `' + m[1] + '()` — một thứ dựng giao diện mà bài này '
+        + 'chưa khai rỗng. Thêm "' + m[1] + '" vào danh sách tên của `new Function(...)` và thêm '
+        + 'MỘT `function () {}` vào cuối lời gọi `f(...)` ngay dưới. ĐỪNG bỏ dòng gọi ấy ra khỏi '
+        + 'app.html để bài xanh.');
+    }
+    throw e;
+  }
   return { log: log, o: o };
 }
 

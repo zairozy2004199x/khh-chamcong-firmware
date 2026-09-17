@@ -90,12 +90,48 @@ function khai_bao( $tep ) {
 	return $dm;
 }
 
-/** Mọi chỗ dùng `Lop::ten` — kèm số dòng và có dấu ngoặc hay không. */
+/**
+ * THÂN CỦA TỪNG HÀM, theo CHỈ SỐ TOKEN — để hỏi được "lời gọi này có gác cùng hàm không".
+ *
+ * Cắt y như `tools/test/kiem-goi-cheo.php`, và bỏ chú thích vì cùng một lý do: giữ lại thì một
+ * dòng giải thích có chữ `method_exists` bị tính là ĐÃ GÁC trong khi mã thật thì chưa.
+ *
+ * @return array mỗi phần tử ['tu'=>token mở thân, 'den'=>token đóng thân, 'ma'=>thân đã bỏ chú thích]
+ */
+function than_ham_token( $tk ) {
+	$than = array();
+	$n    = count( $tk );
+	for ( $i = 0; $i < $n; $i++ ) {
+		if ( ! ( is_array( $tk[ $i ] ) && $tk[ $i ][0] === T_FUNCTION ) ) { continue; }
+		$j  = $i;
+		$bo = false;
+		while ( $j < $n && $tk[ $j ] !== '{' ) {
+			if ( $tk[ $j ] === ';' ) { $bo = true; break; }   // khai báo trừu tượng / interface
+			$j++;
+		}
+		if ( $bo || $j >= $n ) { continue; }
+		$sau = 1; $k = $j + 1; $ma = '';
+		while ( $k < $n && $sau > 0 ) {
+			if ( $tk[ $k ] === '{' ) { $sau++; }
+			elseif ( $tk[ $k ] === '}' ) { $sau--; if ( ! $sau ) { break; } }
+			if ( is_array( $tk[ $k ] )
+				&& in_array( $tk[ $k ][0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { $k++; continue; }
+			$ma .= is_array( $tk[ $k ] ) ? $tk[ $k ][1] : $tk[ $k ];
+			$k++;
+		}
+		$than[] = array( 'tu' => $j, 'den' => $k, 'ma' => $ma );
+		$i = $k;
+	}
+	return $than;
+}
+
+/** Mọi chỗ dùng `Lop::ten` — kèm số dòng, có dấu ngoặc hay không, và THÂN HÀM chứa nó. */
 function cho_dung( $tep ) {
 	$ra = array();
 	foreach ( $tep as $f ) {
-		$tk = token_get_all( file_get_contents( $f ) );
-		$n  = count( $tk );
+		$tk   = token_get_all( file_get_contents( $f ) );
+		$n    = count( $tk );
+		$than = than_ham_token( $tk );
 		for ( $i = 0; $i < $n; $i++ ) {
 			if ( ! ( is_array( $tk[ $i ] ) && $tk[ $i ][0] === T_DOUBLE_COLON ) ) { continue; }
 			// Lùi lại tìm tên lớp (bỏ khoảng trắng/chú thích).
@@ -116,7 +152,13 @@ function cho_dung( $tep ) {
 			while ( $m < $n && is_array( $tk[ $m ] )
 				&& in_array( $tk[ $m ][0], array( T_WHITESPACE, T_COMMENT, T_DOC_COMMENT ), true ) ) { $m++; }
 			$la_ham = ( $m < $n && $tk[ $m ] === '(' );
-			$ra[] = array( 'tep' => $f, 'dong' => $dong, 'lop' => $lop, 'ten' => $ten, 'ham' => $la_ham );
+			/* Thân hàm chứa lời gọi này (rỗng = nằm ngoài mọi hàm). */
+			$trong = '';
+			foreach ( $than as $b ) {
+				if ( $i > $b['tu'] && $i < $b['den'] ) { $trong = $b['ma']; break; }
+			}
+			$ra[] = array( 'tep' => $f, 'dong' => $dong, 'lop' => $lop, 'ten' => $ten,
+				'ham' => $la_ham, 'than' => $trong );
 		}
 	}
 	return $ra;
@@ -130,6 +172,32 @@ foreach ( cho_dung( $tep ) as $d ) {
 	// Chỉ soát lớp của mình. `self`, `parent`, `static`, `WP_Error`, `wpdb`… để yên.
 	if ( ! preg_match( '/^VHC[PC]_/', $d['lop'] ) ) { continue; }
 	if ( ! isset( $dm[ $d['lop'] ] ) ) {
+		/**
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 LỜI GỌI ĐÃ GÁC THÌ KHÔNG THỂ FATAL — VÀ FATAL LÀ THỨ DUY NHẤT BÀI NÀY CANH.
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * 17/09/2026. Bốn plugin cài ĐỘC LẬP, mà mã của chúng không nhất thiết cùng nằm trong
+		 * cây này cùng lúc: `vhcp-chi-phi` 1.189.0 gọi `VHCC_VeTram::nut()` — một lớp bên bộ
+		 * Chấm Công. Lời gọi ấy có gác đủ cặp `class_exists` + `method_exists` ngay cùng hàm,
+		 * đúng LUẬT mà `tools/test/kiem-goi-cheo.php` bắt buộc.
+		 *
+		 * Không nới chỗ này thì hai bài kiểm chống nhau: một bài BẮT BUỘC gác, bài kia lại đòi
+		 * lớp phải có mặt trong cây. Và "đỏ" ở đây không chỉ ra lỗi nào cả — lớp thiếu thì gác
+		 * trả false, hàm trả về sớm, trang vẫn dựng. Bài kiểm đỏ mà không có gì để sửa là bài
+		 * kiểm người ta bắt đầu bỏ qua, rồi bỏ qua luôn cái đỏ THẬT nằm cạnh nó.
+		 *
+		 * ⚠️ NỚI ĐÚNG NHÁNH NÀY, KHÔNG NỚI NHÁNH DƯỚI. Lớp CÓ mà thành viên KHÔNG vẫn đỏ như
+		 *    cũ — đó mới là lỗi gõ nhầm (`VHCC_Auth::VAI_TRO_VAO`, chính ca sinh ra bài này), và
+		 *    nó fatal thật vì không ai gác một cái tên mình tưởng là đúng.
+		 * ⚠️ ĐÒI ĐÚNG CẶP (lớp, thành viên) trong CÙNG THÂN HÀM. Gác lớp này rồi gọi hàm khác
+		 *    của nó là đúng cái bẫy `kiem-goi-cheo.php` sinh ra để dẹp — đừng mở lại ở đây.
+		 */
+		$cap = "'" . $d['lop'] . "','" . $d['ten'] . "'";
+		$than_sach = str_replace( array( "\n", "\t", ' ' ), '', (string) $d['than'] );
+		if ( $d['ham'] && false !== strpos( $than_sach, $cap )
+			&& false !== strpos( $than_sach, 'method_exists(' ) ) {
+			continue;
+		}
 		$sai[] = array( $d, 'không có lớp này' );
 		continue;
 	}
