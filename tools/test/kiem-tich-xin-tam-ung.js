@@ -368,7 +368,8 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
 {
   const moi = { money: x => String(x) };
   const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
-  const h = the({ duKienTU: 25410999, daXinTU: 25299999, daChiTU: 15300000, tongDuToan: 0 }, 0);
+  const h = the({ duKienTU: 25410999, daXinTU: 25299999, daVaoLenh: 25299999,
+    daChiTU: 15300000, tongDuToan: 0 }, 0);
   t('🔴 hiện đủ ba nhãn anh Thắng gọi tên',
     /Dự kiến tạm ứng tổng đơn/.test(h) && /Số tiền đã xin tạm ứng/.test(h)
     && /Số tiền kế toán đã chi tạm ứng/.test(h), h);
@@ -381,23 +382,55 @@ t('🔴 bảng hạng mục của màn Duyệt không nổ khi chưa mở màn �
   t('🔴 mỗi nhãn đi với ĐÚNG con số của nó', cap('Dự kiến tạm ứng tổng đơn') === '25410999', cap('Dự kiến tạm ứng tổng đơn'));
   t('   "đã xin" là 25.299.999', cap('Số tiền đã xin tạm ứng') === '25299999', cap('Số tiền đã xin tạm ứng'));
   t('   "đã chi" là 15.300.000', cap('Số tiền kế toán đã chi tạm ứng') === '15300000', cap('Số tiền kế toán đã chi tạm ứng'));
-  t('🔴 nói rõ còn bao nhiêu chưa gửi xin', /còn <b>111000đ<\/b> chưa gửi xin/.test(h), h);
+  /* 🔴 Dòng chân nay đo bằng `daVaoLenh` (tổng mọi lệnh đã gửi), KHÔNG bằng `daXinTU` — từ
+     1.196.0 `daXinTU` đếm theo ĐỢT, nên dùng nó ở đây là phần chưa xếp đợt bị đếm lần thứ hai
+     thành "chưa gửi lệnh", và một đơn đã gửi hết hạng mục vẫn báo còn thiếu. */
+  t('🔴 nói rõ còn bao nhiêu hạng mục chưa đưa vào lệnh nào',
+    /còn <b>111000đ<\/b> hạng mục chưa đưa vào lệnh nào/.test(h), h);
   t('   dự toán không mất hẳn, lui xuống dòng phụ', /dự toán 0đ/.test(h), h);
 }
 {
   const moi = { money: x => String(x) };
   const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
-  const h = the({ duKienTU: 10000000, daXinTU: 12000000, daChiTU: 0, tongDuToan: 0 }, 0);
+  const h = the({ duKienTU: 10000000, daXinTU: 12000000, daVaoLenh: 12000000,
+    daChiTU: 0, tongDuToan: 0 }, 0);
   /* 🔴 Xin nhiều hơn dự kiến là chuyện có thật (phát sinh thêm sau khi gửi). Bày
      "-2.000.000đ còn phải xin" thì đọc ra vô nghĩa — phải nói thẳng là đã xin vượt. */
-  t('🔴 xin VƯỢT dự kiến → nói thẳng là vượt, không in số âm',
-    /đã xin vượt dự kiến <b>2000000đ<\/b>/.test(h) && !/-2000000/.test(h), h);
+  t('🔴 lệnh gửi VƯỢT dự kiến → nói thẳng là vượt, không in số âm',
+    /lệnh đã gửi vượt dự kiến <b>2000000đ<\/b>/.test(h) && !/-2000000/.test(h), h);
 }
 {
   const moi = { money: x => String(x) };
   const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
-  const h = the({ duKienTU: 5000000, daXinTU: 5000000, daChiTU: 5000000, tongDuToan: 0 }, 0);
-  t('xin hết rồi → báo đã gửi xong', /đã gửi xin hết/.test(h), h);
+  const h = the({ duKienTU: 5000000, daXinTU: 5000000, daVaoLenh: 5000000,
+    daChiTU: 5000000, tongDuToan: 0 }, 0);
+  t('đưa hết hạng mục vào lệnh rồi → báo xong', /đã đưa hết hạng mục vào lệnh/.test(h), h);
+}
+{
+  /* 🔴 THẺ PHẢI NÓI RA "DỰ KIẾN ĐỢT TIẾP THEO". Anh Thắng 17/09/2026: *"Tạm ứng xin đợt 1, đợt
+     2… còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"*. Đúng cảnh trong ảnh: lệnh
+     68.790.000đ, lịch khai 30tr, còn 38.790.000đ chưa tới lượt. */
+  const moi = { money: x => String(x) };
+  const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
+  const h = the({ duKienTU: 68790000, daXinTU: 30000000, duKienDotSau: 38790000,
+    daVaoLenh: 68790000, daChiTU: 0, tongDuToan: 0 }, 0);
+  /* Khoá theo CẶP nhãn–số, không khoá mỗi con số: cả hai con số đều có mặt trên thẻ (68.79tr ở
+     dòng "dự kiến tổng đơn"), nên dò số trần thì phép xanh kể cả khi hai dòng đổi chỗ cho nhau. */
+  t('🔴 "đã xin" là tổng các đợt (30tr), không phải cả lệnh (68.79tr)',
+    /Số tiền đã xin tạm ứng<\/span><b[^>]*>30000000đ</.test(h), h);
+  t('🔴 và bày "dự kiến đợt tiếp theo" 38.790.000đ',
+    /dự kiến đợt tiếp theo/.test(h) && />38790000đ</.test(h), h);
+  t('   đưa hết hạng mục vào lệnh rồi thì dòng chân báo xong, không đòi thêm',
+    /đã đưa hết hạng mục vào lệnh/.test(h), h);
+}
+{
+  /* Không có phần chưa xếp đợt thì KHÔNG in dòng ấy — một dòng "0đ" chỉ làm thẻ dài ra. */
+  const moi = { money: x => String(x) };
+  const the = new Function('moi', `with(moi){ ${boc('_tqCardTU')}\n return _tqCardTU; }`)(moi);
+  const h = the({ duKienTU: 5000000, daXinTU: 5000000, duKienDotSau: 0,
+    daVaoLenh: 5000000, daChiTU: 0, tongDuToan: 0 }, 0);
+  t('xếp đợt đủ rồi → không in dòng "dự kiến đợt tiếp theo"',
+    h.indexOf('dự kiến đợt tiếp theo') < 0, h);
 }
 t('🔴 thẻ này thay chỗ ô "Tổng dự toán" cũ', HTML.indexOf("_tqCardTU(r, hmDT)+") >= 0);
 

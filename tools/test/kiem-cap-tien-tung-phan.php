@@ -92,7 +92,11 @@ teq( '   còn 18tr', 18000000, (int) $r['con'] );
 $dd = VHCP_DuAn::get_du_an( $ma );
 teq( '🔴 "đã chi" đọc theo TIỀN THẬT đã đưa (30tr), không theo trạng thái lệnh',
 	30000000, (int) $dd['daChiTU'] );
-teq( '   trong khi "đã xin" vẫn là cả lệnh 48tr', 48000000, (int) $dd['daXinTU'] );
+/* 🔴 "Đã xin" đếm theo ĐỢT: lịch khai 10tr + 20tr cho một lệnh 48tr, nên đã xin là 30tr và
+   18tr còn lại là "dự kiến đợt tiếp theo" (1.196.0). */
+teq( '   "đã xin" = tổng các đợt đã khai (10tr + 20tr)', 30000000, (int) $dd['daXinTU'] );
+teq( '   phần chưa xếp đợt = dự kiến đợt tiếp theo', 18000000, (int) $dd['duKienDotSau'] );
+teq( '   còn `daVaoLenh` vẫn là trọn lệnh 48tr', 48000000, (int) $dd['daVaoLenh'] );
 
 /* ═══ 5. LẦN CUỐI ĐI ĐÚNG ĐƯỜNG CŨ ═════════════════════════════════════════════════════ */
 $r = VHCP_DuAn::cap_tien_phan( $ma, 1, array( 'soTien' => 18000000, 'ngay' => '17/09/2026', 'unc' => 'UNC-3' ) );

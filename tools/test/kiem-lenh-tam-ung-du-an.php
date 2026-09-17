@@ -238,8 +238,16 @@ t( '🔴 và BỎ khoản 🏢 kế toán trả thẳng NCC (2tr) — tiền ấ
 	28110999 != $dd['duKienTU'], $dd['duKienTU'] );
 /* Lệnh đợt 1 (15,3tr, ĐÃ CẤP) + đợt 3 (9.999.999, đang xin) + đợt 4 (700.000, ĐÃ DUYỆT chưa
    cấp). Đợt 2 ĐÃ BỊ TRẢ → không tính. */
-t( '🔴 đã xin = lệnh đang xin / đã duyệt / đã cấp — KHÔNG tính lệnh bị trả lại (25.999.999)',
-	25999999 == $dd['daXinTU'], $dd['daXinTU'] );
+/* 🔴 TỪ 1.196.0 "ĐÃ XIN" ĐẾM THEO ĐỢT, KHÔNG ĐẾM CẢ LỆNH. Anh Thắng 17/09/2026: *"Số tiền xin
+   tạm ứng đợt 1, chứ xin tổng vẫn chưa mà"*. Lệnh đợt 1 là 15.300.000đ nhưng lịch chỉ khai một
+   đợt 10.000.000đ, nên phần "đã xin" của nó là 10tr; 5.300.000đ còn lại là "dự kiến đợt tiếp
+   theo". Hai lệnh kia không khai lịch → lấy trọn số lệnh, đúng ca thường nhất. */
+t( '🔴 đã xin = tổng các ĐỢT đã khai, KHÔNG tính lệnh bị trả lại (10.000.000 + 9.999.999 + 700.000)',
+	20699999 == $dd['daXinTU'], $dd['daXinTU'] );
+t( '🔴 phần lệnh chưa xếp vào đợt nào = dự kiến đợt tiếp theo (15.300.000 − 10.000.000)',
+	5300000 == $dd['duKienDotSau'], $dd['duKienDotSau'] );
+t( '   `daVaoLenh` giữ nghĩa CŨ (tổng mọi lệnh đã gửi) cho dòng "đã đưa hết hạng mục vào lệnh"',
+	25999999 == $dd['daVaoLenh'], $dd['daVaoLenh'] );
 t( '   nên nó KHÁC con số dự kiến — còn "Vật tư lẻ" chưa gửi',
 	$dd['duKienTU'] != $dd['daXinTU'], array( $dd['duKienTU'], $dd['daXinTU'] ) );
 t( '🔴 đã chi = CHỈ lệnh kế toán đã cấp tiền (15.300.000) — lệnh mới duyệt chưa tính',

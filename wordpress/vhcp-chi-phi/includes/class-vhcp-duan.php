@@ -458,6 +458,11 @@ class VHCP_DuAn {
 		$ten_cua = array();
 		foreach ( self::lines_of( $ma_da ) as $r2 ) { $ten_cua[ (int) $r2['row_no'] ] = trim( (string) $r2['noi_dung'] ); }
 		$da_xin = 0; $da_chi = 0;
+		/* `du_kien_sau` = phần của lệnh chưa được xếp vào đợt nào — anh Thắng gọi là "dự kiến
+		   đợt tiếp theo". `da_vao_lenh` giữ NGHĨA CŨ của `da_xin` (tổng mọi lệnh đã gửi) vì
+		   dòng chân thẻ vẫn cần nó để nói "đã đưa hết hạng mục vào lệnh chưa" — một câu
+		   khác hẳn "đã xin nhận bao nhiêu". Gộp hai câu vào một con số là chỗ vừa phải tách. */
+		$du_kien_sau = 0; $da_vao_lenh = 0;
 		$lenhQT = array(); $qt_gui = 0; $qt_chot = 0;
 		foreach ( self::ds_dot( $ma_da, 'qt' ) as $q ) {
 			$tq = array();
@@ -479,7 +484,37 @@ class VHCP_DuAn {
 			/* 🔴 LỆNH BỊ TRẢ LẠI KHÔNG TÍNH LÀ ĐÃ XIN. Nó đã quay về cho nhân viên sửa; cộng vào
 			   là con số "đã xin" phình lên bởi những lệnh không còn tồn tại, rồi nhân viên gửi
 			   lại là cộng thêm lần nữa. */
-			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) { $da_xin += $d['soTien']; }
+			if ( in_array( $d['tt'], array( 'xin', 'duyet', 'ung' ), true ) ) {
+				/* ═══════════════════════════════════════════════════════════════════════════════
+				 * 🔴 "ĐÃ XIN TẠM ỨNG" = TỔNG CÁC ĐỢT ĐÃ KHAI, KHÔNG PHẢI TỔNG CẢ LỆNH.
+				 * ═══════════════════════════════════════════════════════════════════════════════
+				 * Anh Thắng 17/09/2026, nhìn thẻ ghi 68.790.000đ: *"Số tiền xin tạm ứng đợt 1,
+				 * chứ xin tổng vẫn chưa mà"*; rồi chốt: *"Tạm ứng xin đợt 1, đợt 2… còn số nào
+				 * chưa lên thì ghi là dự kiến đợt tiếp theo"*.
+				 *
+				 * Một LỆNH xin duyệt chi cho cả lô hạng mục (68.79tr), nhưng nhân viên chỉ xin
+				 * CẦM VỀ theo từng đợt (10tr ngày 03/09, 20tr ngày 10/09). Cộng cả lệnh vào ô
+				 * "đã xin" là nói nhân viên đã xin 68.79tr trong khi họ mới xin nhận 30tr — kế
+				 * toán đọc con số ấy để liệu tiền, nên nó phóng đại đúng khoản phải chuẩn bị.
+				 *
+				 * ⚠️ LỆNH KHÔNG KHAI LỊCH THÌ LẤY TRỌN SỐ LỆNH. Đó là ca thường nhất — nhận một
+				 *    lần, không chia đợt — và ở đó "đã xin" đúng bằng cả lệnh. Lấy tổng lịch
+				 *    (bằng 0) là mọi lệnh không chia đợt bỗng thành "chưa xin đồng nào".
+				 * ⚠️ LỊCH CÓ DÒNG MÀ KHÔNG GHI SỐ TIỀN (chỉ hẹn ngày) cũng rơi về trọn số lệnh:
+				 *    tổng lịch bằng 0 thì nó không nói được gì về tiền. */
+				$tong_lich = 0;
+				foreach ( (array) $d['lich'] as $lx ) {
+					$tong_lich += VHCP_Util::num( isset( $lx['soTien'] ) ? $lx['soTien'] : 0 );
+				}
+				if ( $tong_lich > 0 ) {
+					$da_xin += $tong_lich;
+					$con_lich = $d['soTien'] - $tong_lich;
+					if ( $con_lich > 0 ) { $du_kien_sau += $con_lich; }
+				} else {
+					$da_xin += $d['soTien'];
+				}
+				$da_vao_lenh += $d['soTien'];
+			}
 			/* 🔴 "ĐÃ CHI" ĐỌC THEO TIỀN THẬT ĐÃ ĐƯA, KHÔNG THEO TRẠNG THÁI LỆNH. Từ 1.194.0 kế
 			   toán cấp được làm nhiều lần: lệnh 48tr mới đưa 20tr thì tiền ẤY ĐÃ RA KHỎI KÉT,
 			   trong khi lệnh còn ở 'duyet'. Đếm theo trạng thái là bỏ sót đúng phần đang dở dang,
@@ -593,6 +628,8 @@ class VHCP_DuAn {
 			'qtDaChot'        => $qt_chot,
 			'duKienTU'        => $du_kien,
 			'daXinTU'         => $da_xin,
+			'duKienDotSau'    => $du_kien_sau,
+			'daVaoLenh'       => $da_vao_lenh,
 			'daChiTU'         => $da_chi,
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,

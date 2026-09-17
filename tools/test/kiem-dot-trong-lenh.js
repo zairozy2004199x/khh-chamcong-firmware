@@ -51,10 +51,13 @@ const F = new Function('esc', 'money', '_dmy',
   t('   và đợt 2 là 20tr', /Đợt 2<\/b> · hẹn 10\/09\/2026 · <b>20\.000\.000đ/.test(h), h);
   t('🔴 KHÔNG gán 68tr cho đợt nào — đó là tổng của LỆNH, không phải của một đợt',
     h.indexOf('68.790.000') < 0, h);
-  /* Lịch khai 30tr cho một lệnh 68.79tr: 38.79tr không nằm trong đợt nào, mà bản trước
-     chẳng có gì nói thế. Kế toán nhìn lịch mà liệu tiền thì chuẩn bị thiếu hơn một nửa. */
-  t('🔴 nói ra phần CHƯA XẾP ĐỢT (38.790.000đ)',
-    /chưa xếp vào đợt nào/.test(h) && /38\.790\.000đ/.test(h), h);
+  /* Lịch khai 30tr cho một lệnh 68.79tr: 38.79tr chưa nằm trong đợt nào. Anh Thắng chốt
+     17/09: *"còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"* — xin từng đợt là ĐÚNG quy
+     trình, nên chỗ này nói bằng giọng bình thường, KHÔNG gắn dấu cảnh báo. Gắn ⚠️ lên một việc
+     bình thường thì mọi lệnh đều có một dòng cam, rồi người ta thôi đọc màu ấy. */
+  t('🔴 nói ra phần chưa xếp đợt, gọi là "dự kiến đợt tiếp theo" (38.790.000đ)',
+    /dự kiến đợt tiếp theo: <b>38\.790\.000đ/.test(h), h);
+  t('   và KHÔNG gắn dấu cảnh báo cho một việc đúng quy trình', h.indexOf('⚠️') < 0, h);
 }
 
 /* ── 2. LỊCH PHỦ ĐỦ THÌ KHÔNG KÊU ─────────────────────────────────────────────────────── */
@@ -63,7 +66,8 @@ const F = new Function('esc', 'money', '_dmy',
     { lan: 1, ngay: '03/09/2026', soTien: 10000000 },
     { lan: 2, ngay: '10/09/2026', soTien: 20000000 },
   ] });
-  t('lịch phủ đủ tổng lệnh → không có dòng cảnh báo', h.indexOf('chưa xếp vào đợt nào') < 0, h);
+  t('lịch phủ đủ tổng lệnh → không có dòng "dự kiến đợt tiếp theo"',
+    h.indexOf('dự kiến đợt tiếp theo') < 0, h);
 }
 /* Lệnh không khai lịch nào là chuyện thường (nhận một lần). Kêu ở đó thì MỌI lệnh đều có một
    dòng cảnh báo, và người ta thôi đọc nó. */

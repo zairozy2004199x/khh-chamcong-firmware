@@ -4395,10 +4395,20 @@
   /* Thẻ TẠM ỨNG của dự án — ba con số xếp dọc, thay cho ô "Tổng dự toán" cũ. */
   function _tqCardTU(r, hmDT){
     var dk=Number(r.duKienTU)||0, xin=Number(r.daXinTU)||0, chi=Number(r.daChiTU)||0;
-    /* Còn phải xin = phần chưa gửi lệnh nào. Âm thì kẹp về 0: xin nhiều hơn dự kiến là chuyện
-       có thật (phát sinh thêm sau khi gửi), mà bày "-2.000.000đ còn phải xin" thì đọc ra vô
-       nghĩa — chỗ ấy nói thẳng là đã xin vượt. */
-    var con=dk-xin;
+    /* 🔴 BA CON SỐ, BA CÂU HỎI KHÁC NHAU — 17/09/2026.
+       Anh Thắng: *"Số tiền xin tạm ứng đợt 1, chứ xin tổng vẫn chưa mà"*, rồi *"Tạm ứng xin đợt
+       1, đợt 2… còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"*.
+         · `xin`  = tổng các ĐỢT đã khai — nhân viên xin CẦM VỀ bấy nhiêu
+         · `sau`  = phần của lệnh chưa xếp vào đợt nào — "dự kiến đợt tiếp theo"
+         · `con`  = phần hạng mục CHƯA ĐƯA VÀO LỆNH NÀO — câu khác hẳn hai cái trên
+       Trước đây `xin` ôm cả lệnh nên nó vừa trả lời câu một vừa trả lời câu ba, và trả lời sai
+       cả hai: thẻ báo đã xin 68.790.000đ trong khi nhân viên mới xin nhận 30.000.000đ.
+       ⚠️ `con` nay đo bằng `daVaoLenh`, không đo bằng `xin` — không thì phần chưa xếp đợt bị
+          đếm lần thứ hai thành "chưa gửi xin", và một đơn đã gửi hết hạng mục vẫn báo còn thiếu. */
+    var sau=Number(r.duKienDotSau)||0;
+    /* Âm thì kẹp về 0: đưa hạng mục vào lệnh nhiều hơn dự kiến là chuyện có thật (phát sinh thêm
+       sau khi gửi), mà bày "-2.000.000đ còn phải xin" thì đọc ra vô nghĩa. */
+    var con=dk-(Number(r.daVaoLenh)||0);
     function dong(nhan, so, mau, dam){
       return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
         +(dam?'margin-bottom:4px':'margin-top:3px')+'">'
@@ -4408,10 +4418,14 @@
     return '<div style="flex:1;min-width:250px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 14px">'
       +dong('Dự kiến tạm ứng tổng đơn', dk, '#1e40af', true)
       +dong('Số tiền đã xin tạm ứng', xin, '#b45309')
+      +(sau?('<div style="display:flex;justify-content:space-between;gap:10px;align-items:baseline;'
+        +'margin-top:1px;padding-left:10px"><span style="font-size:11px;color:#8c8781">↳ dự kiến '
+        +'đợt tiếp theo</span><b style="font-size:12.5px;font-weight:700;color:#8c8781;'
+        +'white-space:nowrap">'+money(sau)+'đ</b></div>'):'')
       +dong('Số tiền kế toán đã chi tạm ứng', chi, '#2545ff')
       +'<div style="border-top:1px dashed #bfdbfe;margin-top:6px;padding-top:5px;font-size:11px;color:#1e40af;opacity:.85">'
-      +(con>0 ? ('còn <b>'+money(con)+'đ</b> chưa gửi xin')
-              : (con<0 ? ('⚠️ đã xin vượt dự kiến <b>'+money(-con)+'đ</b>') : '✓ đã gửi xin hết'))
+      +(con>0 ? ('còn <b>'+money(con)+'đ</b> hạng mục chưa đưa vào lệnh nào')
+              : (con<0 ? ('⚠️ lệnh đã gửi vượt dự kiến <b>'+money(-con)+'đ</b>') : '✓ đã đưa hết hạng mục vào lệnh'))
       +' · dự toán '+money(Number(r.tongDuToan)||0)+'đ (hạng mục '+money(hmDT)+'đ)</div>'
       +'</div>';
   }
@@ -6681,11 +6695,15 @@
           +(y.soTien?(' · <b>'+money(y.soTien)+'đ</b>'):' · <span style="color:#8c8781">chưa ghi số tiền</span>')
           +'</div>';
       });
+      /* 🔴 KHÔNG GỌI ĐÂY LÀ LỖI. Bản trước in một dòng cam "⚠️ chưa xếp vào đợt nào". Nhưng
+         anh Thắng chốt 17/09: *"còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"* — xin
+         từng đợt là ĐÚNG QUY TRÌNH, phần chưa khai chỉ là đợt chưa tới lượt. Gắn dấu cảnh báo
+         lên một việc bình thường thì mọi lệnh đều có một dòng cam, rồi người ta thôi đọc màu ấy
+         — và bỏ qua luôn cái cam THẬT nằm cạnh. */
       var thieu=tong-tongLich;
       if(thieu>0){
-        h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#b45309;font-weight:600">'
-          +'⚠️ còn <b>'+money(thieu)+'đ</b> chưa xếp vào đợt nào — kế toán nhìn lịch mà liệu tiền '
-          +'thì sẽ chuẩn bị thiếu đúng khoản này.</div>';
+        h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#8c8781">'
+          +'↳ dự kiến đợt tiếp theo: <b>'+money(thieu)+'đ</b></div>';
       }
     }
 
