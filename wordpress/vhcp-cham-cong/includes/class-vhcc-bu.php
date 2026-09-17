@@ -398,6 +398,84 @@ class VHCC_Bu {
 	}
 
 	/**
+	 * XOÁ HẲN MỘT DÒNG CHẤM CÔNG.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 17/09/2026: *"làm nút xóa hẳn dòng công"*. Trước bản này chỉ có cách xoá TRẮNG hai
+	 * ô giờ (`sua` + `xoa_vao` + `xoa_ra`): dòng ở lại, không còn giờ. Anh muốn dòng biến mất khỏi
+	 * lưới, và đó là một việc khác — nên là một hàm khác, không nhét thêm một ô tích vào `sua()`.
+	 *
+	 * =============================================================================================
+	 * 🔴 ĐÂY LÀ VIỆC PHÁ NHIỀU NHẤT TRONG CẢ LỚP — GÁC Y HỆT `sua()`, KHÔNG BỚT MỘT CHỐT
+	 * =============================================================================================
+	 * Xoá trắng giờ còn để lại dấu "hôm ấy có một dòng". Xoá hẳn thì lưới trông y như người ta
+	 * KHÔNG ĐI LÀM hôm đó — và không còn gì trên màn hình mâu thuẫn với chuyện ấy. Nên nó dùng
+	 * đúng bộ gác của `sua()`, không rẻ hơn một li:
+	 *   · quyền `sua_gio` (Cửa hàng trưởng trở lên);
+	 *   · `vi_sao_khong_duoc()` — đúng cơ sở mình, mã có hồ sơ, và KHÔNG TỰ XOÁ CỦA CHÍNH MÌNH;
+	 *   · bắt ghi VÌ SAO, tối thiểu 5 ký tự.
+	 *
+	 * 🔴 GHI NHẬT KÝ TRƯỚC, XOÁ SAU — thứ tự này là cố ý.
+	 * Hai thứ tự đều có một nhánh hỏng, và phải chọn nhánh hỏng NÀO chịu được:
+	 *   · Xoá trước, ghi sổ sau: sổ hỏng thì dòng đã mất mà KHÔNG CÒN GÌ nói nó từng tồn tại.
+	 *     Không ai lần lại được, và cũng không ai biết là có chuyện để lần.
+	 *   · Ghi sổ trước, xoá sau: xoá hỏng thì sổ có một dòng "đã xoá" trong khi dòng vẫn còn —
+	 *     đọc lên thấy mâu thuẫn ngay, và hàm trả về câu lỗi nói đúng chuyện đó.
+	 * Cái thứ hai sai một cách NHÌN THẤY ĐƯỢC. Bằng chứng không bao giờ được là thứ thiếu.
+	 *
+	 * ⚠️ GHI CẢ HAI Ô vào sổ, kể cả ô vốn đã trống. Ở `sua()` thì chỉ ghi ô THẬT SỰ đổi, vì ghi
+	 *    cả ô không đổi là sổ đầy dòng vô nghĩa. Ở đây ngược lại: cả dòng biến mất, nên "ô giờ ra
+	 *    vốn đã trống" cũng là một sự thật cần giữ — thiếu nó thì sau này đọc sổ không biết được
+	 *    lúc xoá dòng ấy đang thiếu giờ ra hay đã đủ.
+	 */
+	public static function xoa( $u, $dat ) {
+		global $wpdb;
+		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
+		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
+
+		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Xoá dòng chấm công' )
+					. ' Trong lúc chờ mở, thấy dòng sai thì gắn cờ để cấp trên xử.' );
+		}
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+
+		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
+		$loi  = self::ngay_hop_le( $ngay );
+		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+
+		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
+		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
+			return array( 'ok' => false,
+				'error' => 'Ghi rõ vì sao xoá dòng này (ít nhất 5 ký tự) — VD: "máy chấm nhầm '
+					. 'sang mã người khác, đã đối chiếu camera".' );
+		}
+
+		$cu = self::hang( $coso, $ngay, $ma_nv );
+		if ( ! $cu ) {
+			return array( 'ok' => false, 'error' => 'Ngày này không có dòng chấm công nào để xoá.' );
+		}
+		$vao_cu = ( null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra_cu  = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		/* Bằng chứng trước — xem khối chú thích trên. */
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'vao', null, $ly_do, 'xoa', $vao_cu );
+		self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'ra',  null, $ly_do, 'xoa', $ra_cu );
+
+		$bo = $wpdb->delete( VHCC_DB::t( 'cham_cong' ), array( 'id' => (int) $cu['id'] ) );
+		if ( false === $bo || 0 === (int) $bo ) {
+			return array( 'ok' => false, 'error' => 'Không xoá được dòng (MySQL: '
+				. ( $wpdb->last_error ? $wpdb->last_error : 'không rõ' ) . '). '
+				. 'Sổ "Đã động vào giờ công" đã ghi một dòng XOÁ cho lượt này — nếu dòng chấm '
+				. 'công vẫn còn thì hai chỗ đang nói khác nhau, báo quản trị soát lại.' );
+		}
+		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv,
+			'daXoa' => array( 'vao' => self::hhmm_hoac_trong( $vao_cu ),
+				'ra' => self::hhmm_hoac_trong( $ra_cu ) ) );
+	}
+
+	/**
 	 * Giờ đang có của một dòng, đã dạng 'HH:mm' — để màn hình HIỆN RA trước khi người ta sửa.
 	 *
 	 * 🔴 Không hiện thì người sửa phải NHỚ giờ cũ. Nhớ sai một chữ số là ghi đè mất một giờ công

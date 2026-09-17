@@ -353,7 +353,25 @@ teq( 'và giờ cũ để rỗng (ô vốn trống)', null, $nk_bu[0]['gio_cu_gi
 // ============================================================ 7. NHẬT KÝ KHÔNG XOÁ ĐƯỢC
 echo "— nhật ký —\n";
 $than = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-bu.php' );
-t( 'lớp bù KHÔNG có câu DELETE nào', false === stripos( $than, 'DELETE' ), 'có DELETE' );
+/* 🔴 SỬA 17/09/2026 — SIẾT VÀO ĐÚNG Ý, KHÔNG NỚI RA.
+   Câu cũ: *"lớp bù KHÔNG có câu DELETE nào"*. Ý nó là NHẬT KÝ KHÔNG XOÁ ĐƯỢC, và cấm sạch
+   DELETE là cách rẻ để bảo đảm điều ấy khi cả lớp chưa hề xoá gì.
+   Nay `VHCC_Bu::xoa()` xoá một dòng CHẤM CÔNG (anh Thắng 17/09: *"làm nút xóa hẳn dòng
+   công"*) — đó là bảng KHÁC, và ý cũ vẫn còn nguyên. Nên phép thử nói thẳng ra cái ý ấy
+   thay vì đếm chữ "DELETE":
+     · không câu DELETE nào chạm bảng nhật ký `cham_bu`;
+     · và chỉ có ĐÚNG MỘT câu DELETE trong cả lớp, nằm trong `xoa()`.
+   Chốt thứ hai quan trọng ngang chốt thứ nhất: nới thành "được phép xoá" mà không đếm thì
+   mai có thêm một đường xoá thứ hai ở chỗ khác cũng lọt. */
+t( '🔴 KHÔNG câu DELETE nào chạm bảng nhật ký',
+	false === strpos( $than, "delete( VHCC_DB::t( 'cham_bu'" ), 'có DELETE lên cham_bu' );
+t( '🔴 cả lớp chỉ có ĐÚNG MỘT câu DELETE', 1 === substr_count( $than, '$wpdb->delete(' ),
+	substr_count( $than, '$wpdb->delete(' ) );
+$i_xoa = strpos( $than, 'public static function xoa(' );
+t( 'và nó nằm trong xoa()', false !== $i_xoa
+	&& strpos( $than, '$wpdb->delete(' ) > $i_xoa );
+t( 'nó xoá dòng CHẤM CÔNG, không xoá thứ gì khác',
+	false !== strpos( $than, "delete( VHCC_DB::t( 'cham_cong' )" ), $than );
 t( 'và không có câu UPDATE nào lên nhật ký',
 	false === strpos( $than, "update( VHCC_DB::t( 'cham_bu'" ) );
 /* Bù đi qua đúng cổng ghi chung, không tự viết INSERT vào bảng chấm công — nếu tự viết thì luật

@@ -100,6 +100,17 @@ h1{font-size:18px;margin:0 0 2px}
 label{display:block;font-size:12.5px;color:var(--chu-mo);margin:0 0 5px}
 /* Ô TÍCH. Cả dòng chữ là vùng chạm (label `for=`), không phải mỗi cái ô vuông 16px — ngón cái
    không trúng ô vuông ấy, và trượt một nhát thì người ta tưởng máy không nhận. */
+/* NÚT PHÁ. Đỏ đặc, không phải viền đỏ — nó phải khác hẳn mọi nút khác trên màn, kể cả khi
+   nhìn lướt. ⚠️ Đỏ là để BÁO, không phải để cấm: việc này hợp lệ và có người cần làm hằng
+   tuần, nên nút vẫn nằm chỗ dễ thấy chứ không giấu sau một menu. */
+/* DÒNG BẤM ĐƯỢC trong bảng công cơ sở. Vùng chạm là cả dòng (cao ~44px nhờ đệm của ô), nên
+   không cần nút riêng — xem chú thích ở `napCongCH()`. */
+tr.hang-mo{cursor:pointer}
+tr.hang-mo:active{background:var(--nhan-nhat)}
+tr.hang-mo td{padding-top:12px;padding-bottom:12px}
+.mui{color:var(--chu-mo);font-weight:700;margin-left:2px}
+button.nguy{background:#dc2626;border-color:#dc2626;color:#fff;font-weight:700}
+button.nguy:active{background:#b91c1c}
 label.tich{display:flex;align-items:center;gap:9px;min-height:44px;margin:0;
 	font-size:13.5px;color:var(--chu);cursor:pointer}
 label.tich input{flex:0 0 auto;width:19px;height:19px;margin:0}
@@ -501,6 +512,14 @@ a{color:var(--nhan)}
 	<div class="the">
 		<label for="chCoSo" style="margin:0 0 8px">Cơ sở tôi phụ trách</label>
 		<select id="chCoSo"></select>
+		<!-- ⚠️ Anh Thắng 17/09/2026: *"Cơ sở phụ trách là cơ sở theo dõi nhân sự, thêm nhân sự,
+		     chứ không có chấm công trong đó, trừ nó có tên trong chọn cơ sở chấm công"*. Hai
+		     danh sách cố ý khác nhau, nên màn phải nói ra — không thì người ta thấy một cái tên
+		     ở đây rồi đi tìm nó trong ô chấm công, không có, và tưởng hồ sơ mình bị sót. -->
+		<p class="ct" style="text-align:left;margin:8px 0 0">Đây là cơ sở anh/chị <b>theo dõi
+			nhân sự</b> — xem công, duyệt đơn, thêm người. Nó <b>không phải</b> nơi anh/chị chấm
+			công; ô chấm công ở tab <b>Chấm công</b> là danh sách riêng. Một cơ sở có thể nằm ở
+			cả hai, hoặc chỉ một trong hai.</p>
 	</div>
 
 	<!-- ĐƠN TỪ NHÂN VIÊN — ba loại gộp một hộp. Người duyệt nghĩ theo "hôm nay còn ai chờ
@@ -764,10 +783,16 @@ a{color:var(--nhan)}
 		<button id="btLuuGio" class="chinh to">LƯU GIỜ</button>
 		<p></p>
 		<button id="btXoaGio" class="phu to">Xoá giờ ngày này</button>
+		<p></p>
+		<button id="btXoaDong" class="nguy to">🗑 Xoá hẳn dòng công</button>
 		<p class="ct" style="text-align:left;margin:10px 0 0">Ô để <b>trống</b> nghĩa là
-			<b>giữ nguyên</b>, không phải xoá. Muốn bỏ hẳn giờ của ngày thì bấm
-			<b>Xoá giờ ngày này</b> — dòng chấm công vẫn ở lại với giờ trống và một dòng nhật
-			ký, để sau còn lần lại được.</p>
+			<b>giữ nguyên</b>, không phải xoá.<br>
+			<b>Xoá giờ ngày này</b> — dòng còn, hai ô giờ trống. Lưới vẫn nói "hôm ấy có một
+			dòng". Dùng khi giờ sai mà chưa biết giờ đúng.<br>
+			<b>Xoá hẳn dòng công</b> — dòng biến mất khỏi lưới, trông như hôm ấy người ta
+			<b>không đi làm</b>. Chỉ dùng khi dòng ấy vốn không nên tồn tại (máy chấm nhầm sang
+			mã người khác chẳng hạn).<br>
+			Cả hai đều <b>vào sổ</b> kèm giờ cũ và lý do, nên sau còn lần lại được.</p>
 	</div>
 
 	<!-- ── CHỐT LƯƠNG THEO VIỆC ───────────────────────────────────────────────────────── -->
@@ -2163,6 +2188,7 @@ el('clThang').addEventListener('change', function(){ hien('oLuongThang', this.ch
 el('btThemDong').addEventListener('click', function(){ themDongGio('', ''); });
 el('btLuuGio').addEventListener('click', function(){ guiSuaGio(false); });
 el('btXoaGio').addEventListener('click', function(){ guiSuaGio(true); });
+el('btXoaDong').addEventListener('click', xoaHanDong);
 el('btLuuChot').addEventListener('click', guiChot);
 el('chThangTruoc').addEventListener('click', function(){ doiThangCH(-1); });
 el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
@@ -2234,6 +2260,12 @@ function doCuaHang(){
 		CH = j;
 		CH_THANG = CH_THANG || j.thang || '';
 		var ds = j.dsCoSo || [];
+		/* 🔴 KHÔNG CÓ CƠ SỞ NÀO THÌ KHÔNG BÀY TAB. Bày một ô xổ rỗng rồi để mọi lượt bấm trả
+		   về "Không có quyền cơ sở này" là đúng cái anh Thắng gặp 17/09 — người ta đọc thành
+		   "hệ thống hỏng" chứ không đọc thành "mình chưa được giao cơ sở nào". Máy chủ nay chỉ
+		   trả về cơ sở ĐÃ QUA phép gác, nên danh sách rỗng nghĩa là thật sự không có việc gì
+		   để làm ở đây. */
+		if(!ds.length){ return; }
 		el('chCoSo').innerHTML = xoOption(ds, ds[0] || '');
 		el('nutCH').classList.remove('an');
 		/* Năm ô thì thu chữ — xem khối CSS `#thanhTab.tab5`. Gắn ở ĐÂY, cùng một dòng lệnh với
@@ -2359,25 +2391,35 @@ function napCongCH(){
 				  +  '</b> lượt thiếu một đầu giờ — mấy lượt ấy KHÔNG tính phút nào. '
 				  +  'Bổ sung trước khi kế toán chốt lương.</div>';
 			}
-			h += '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th><th></th></tr>'
+			/* 🔴 CHẠM CẢ DÒNG, KHÔNG PHẢI MỘT NÚT Ở CỘT THỨ TƯ.
+			   Bản 4.35 để nút "Mở" trong một cột riêng. Anh Thắng 17/09/2026 chụp màn iPhone:
+			   *"trên điện thoại không có nút mở"* — bốn cột trên màn 390px thì cột cuối bị bóp
+			   còn vài pixel, và cái nút thực tế biến mất khỏi tầm mắt. Bảng ba cột thì vừa, nên
+			   bỏ cột ấy đi và cho CẢ DÒNG làm vùng chạm: vùng chạm to hơn hẳn một cái nút, và
+			   không có cột nào để mà bóp nữa.
+			   ⚠️ Vẫn phải có DẤU HIỆU nhìn thấy được. Một dòng bấm được mà trông y hệt một dòng
+			      chữ thì không ai thử bấm — nên có mũi › ở cuối và một dòng nhắc trên bảng. */
+			h += '<p class="ct" style="text-align:left;margin:0 0 8px">Chạm vào một dòng để '
+			  +  '<b>sửa công từng ngày</b> hoặc <b>chốt lương theo việc</b>.</p>'
+			  +  '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th></tr>'
 			  +  '</thead><tbody>';
 			for(var i=0;i<ds.length;i++){
 				var d = ds[i];
-				h += '<tr' + (d.thieu ? ' class="hong"' : '') + '>'
+				h += '<tr class="hang-mo' + (d.thieu ? ' hong' : '') + '" data-ma="'
+				  +  esc(d.maNV) + '">'
 				  +  '<td style="text-align:left">' + esc(d.hoTen)
 				  +  (d.thieu ? ' <b>· thiếu ' + esc(d.thieu) + '</b>' : '') + '</td>'
 				  +  '<td>' + esc(d.soNgay) + '</td>'
-				  +  '<td>' + esc(d.gio) + '</td>'
-				  +  '<td><button class="phu ch-mo" data-ma="' + esc(d.maNV) + '">Mở</button></td>'
+				  +  '<td>' + esc(d.gio) + ' <span class="mui">›</span></td>'
 				  +  '</tr>';
 			}
 			h += '</tbody></table>'
 			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Số ở đây là <b>giờ có mặt</b>, '
 			  +  'chưa quy ra công tính lương. Cần từng ô từng ngày thì mở trang quản trị trên máy tính.</p>';
 			el('bangCongCH').innerHTML = h;
-			/* Nút dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ — cùng lý do với `gaiNutDon()`:
+			/* Dòng dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ — cùng lý do với `gaiNutDon()`:
 			   `onclick=` trong chuỗi HTML thì một dấu nháy trong dữ liệu là vỡ thẻ. */
-			var nm = el('bangCongCH').querySelectorAll('.ch-mo');
+			var nm = el('bangCongCH').querySelectorAll('.hang-mo');
 			for(var m=0;m<nm.length;m++){
 				nm[m].addEventListener('click', function(){ moNguoi(this.getAttribute('data-ma')); });
 			}
@@ -2434,10 +2476,13 @@ function veDsNgay(){
 		return;
 	}
 	if(!NG.duocSua){
-		/* Nói TRƯỚC khi người ta gõ xong rồi mới bị chối — và nói ra đường đi tiếp. */
+		/* Nói TRƯỚC khi người ta gõ xong rồi mới bị chối — và nói ra đường đi tiếp.
+		   ⚠️ KHÔNG gài sự kiện, và bỏ luôn mũi ›: dòng chỉ để xem mà vẫn trông bấm được thì
+		      người ta bấm mãi không ra gì, tệ hơn là nhìn biết ngay không bấm được. */
 		el('dsNgay').innerHTML = '<div class="vang" style="margin:0 0 10px">Tài khoản của anh/chị '
 			+ 'chưa được mở quyền <b>sửa giờ</b>, nên bảng dưới chỉ để xem. Thấy giờ sai thì báo '
-			+ 'quản lý.</div>' + bangNgay(ds);
+			+ 'quản lý.</div>' + bangNgay(ds).replace(/ class="ng-sua/g, ' class="')
+				.replace(/<span class="mui">›<\/span>/g, '');
 		return;
 	}
 	el('dsNgay').innerHTML = bangNgay(ds);
@@ -2447,16 +2492,17 @@ function veDsNgay(){
 	}
 }
 
+/* Bốn cột, và CẢ DÒNG là vùng chạm — cùng một luật với bảng công cơ sở, cùng một lý do: cột
+   thứ năm chứa nút thì trên màn 390px nó bị bóp mất. Xem chú thích ở `napCongCH()`. */
 function bangNgay(ds){
-	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th><th></th></tr></thead><tbody>';
+	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th></tr></thead><tbody>';
 	for(var i=0;i<ds.length;i++){
 		var x = ds[i];
-		h += '<tr' + (x.thieu ? ' class="hong"' : '') + '>'
+		h += '<tr class="ng-sua' + (x.thieu ? ' hong' : '') + '" data-ngay="' + esc(x.ngay) + '">'
 		  +  '<td>' + esc(ngayGon(x.ngay)) + (x.hauTo ? ' <b>' + esc(x.hauTo) + '</b>' : '') + '</td>'
 		  +  '<td>' + esc(x.vao || '—') + '</td>'
 		  +  '<td>' + (x.thieu ? '<b>thiếu</b>' : esc(x.ra || '—')) + '</td>'
-		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio)) + '</td>'
-		  +  '<td><button class="phu ng-sua" data-ngay="' + esc(x.ngay) + '">Sửa</button></td></tr>';
+		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio)) + ' <span class="mui">›</span></td></tr>';
 	}
 	return h + '</tbody></table>';
 }
@@ -2480,6 +2526,32 @@ function moSuaNgay(ngay){
 	bao('loiSua','',null);
 	hien('oSuaNgay', true);
 	el('oSuaNgay').scrollIntoView({ block:'start' });
+}
+
+/* 🔴 XOÁ HẲN DÒNG PHẢI HỎI BẰNG NGÀY, KHÔNG PHẢI MỘT CÂU "CHẮC CHƯA?".
+   Một hộp thoại đồng ý/huỷ thì ngón tay bấm qua được mà mắt chưa kịp đọc — và cái vừa bấm
+   qua là một dòng chấm công không dựng lại được. Nhắc đúng NGÀY và đúng TÊN trong câu hỏi
+   buộc người ta đối chiếu một lần với thứ mình đang định xoá. */
+function xoaHanDong(){
+	if(!NG || !NG_NGAY){ return; }
+	if(el('sgLyDo').value.trim().length < 5){
+		bao('loiSua','loi','Ghi vì sao xoá (ít nhất 5 ký tự) trước đã — sổ cần câu ấy để sau còn lần lại.');
+		el('sgLyDo').focus();
+		return;
+	}
+	if(!window.confirm('XOÁ HẲN dòng chấm công ngày ' + ngayGon(NG_NGAY) + ' của '
+		+ NG.hoTen + '?\n\nDòng sẽ biến mất khỏi lưới — nhìn vào sẽ tưởng hôm ấy không đi làm. '
+		+ 'Giờ cũ và lý do vẫn vào sổ.')){ return; }
+	guiDon('chxoadong', {
+		token: token(), coSo: el('chCoSo').value, maNV: NG.maNV,
+		ngay: NG_NGAY, lyDo: el('sgLyDo').value
+	}, 'loiSua', 'btXoaDong', function(j){
+		var ma = NG.maNV;
+		setTimeout(function(){ moNguoi(ma); napCongCH(); }, 900);
+		var d = j.daXoa || {};
+		return '✔ Đã xoá hẳn dòng ngày ' + j.ngay + ' (vào ' + (d.vao || '—')
+			+ ', ra ' + (d.ra || '—') + '). Sổ đã ghi lại giờ cũ.';
+	});
 }
 
 function guiSuaGio(xoa){

@@ -53,14 +53,40 @@ class VHCC_CuaHang {
 	}
 
 	/**
-	 * Cơ sở người này phụ trách.
+	 * CƠ SỞ NGƯỜI NÀY PHỤ TRÁCH — lọc qua CHÍNH phép gác sẽ dùng khi bấm.
 	 *
-	 * ⚠️ DÙNG `ds_coso_cua()` — CÙNG MỘT NGUỒN với `co_quyen_coso()`. Dựng danh sách riêng ở đây
-	 *    là hai danh sách, và cái lệch sẽ là một cơ sở hiện trong ô chọn nhưng mọi lượt gửi lên
-	 *    đều bị chối: người dùng thấy tên cửa hàng mình mà bấm vào thì báo "không có quyền".
+	 * =============================================================================================
+	 * 🔴 BẢN TRƯỚC TRẢ THẲNG `ds_coso_cua()` VÀ CHÚ THÍCH Ở ĐÂY NÓI NÓ "CÙNG MỘT NGUỒN VỚI
+	 *    `co_quyen_coso()`". SAI, và anh Thắng gặp đúng hậu quả 17/09/2026: ô xổ bày hai cơ sở,
+	 *    chọn cái nào cũng ra *"Không có quyền cơ sở này"*.
+	 *
+	 * Cùng ĐẦU VÀO thì đúng, nhưng `co_quyen_coso()` còn chồng thêm mấy lớp nữa lên trên:
+	 *   · phải có quyền `cong_coso`;
+	 *   · ai có `cong_tat_ca` (Quản lý trở lên) thì đi nhánh `qua_bo_mang()` — bó theo MẢNG, và
+	 *     mảng không liên quan gì tới danh sách cơ sở trong thẻ phiên.
+	 * Nên "cùng đầu vào" KHÔNG phải "cùng kết quả". Một danh sách bày ra mà bấm vào cái nào cũng
+	 * bị chối còn tệ hơn danh sách rỗng: người dùng thấy tên cửa hàng MÌNH ở đó và kết luận hệ
+	 * thống hỏng, chứ không nghĩ là mình không được giao.
+	 *
+	 * 🔴 CÁCH CHỮA LÀ HỎI ĐÚNG CÁI SẼ HỎI LÚC BẤM, chứ không phải chép luật gác sang đây. Lọc
+	 *    bằng chính `co_quyen_coso()` thì bất kể mai này nó mọc thêm lớp nào nữa, hai bên vẫn
+	 *    khớp — vì chỉ còn MỘT bên.
+	 *
+	 * ⚠️ ĐÂY LÀ CƠ SỞ PHỤ TRÁCH, KHÔNG PHẢI CƠ SỞ CHẤM CÔNG. Anh Thắng 17/09/2026: *"Cơ sở được
+	 *    chọn để chấm công là cơ sở người đang đăng nhập chấm công và tính lương. Cơ sở phụ
+	 *    trách là cơ sở theo dõi nhân sự, thêm nhân sự, chứ không có chấm công trong đó, trừ nó
+	 *    có tên trong chọn cơ sở chấm công"*.
+	 *    Hai danh sách khác nhau và CỐ Ý khác: `VHCC_Online::ds_coso_cham_cua_nv()` (dùng cho ô
+	 *    chấm công) TRỪ ĐI mấy cơ sở đặt cờ "chỉ quản lý", còn tab này thì lấy đúng mấy cơ sở
+	 *    ấy. Lẫn hai danh sách là hoặc cho người ta chấm công ở nơi họ chỉ theo dõi, hoặc giấu
+	 *    mất cửa hàng họ đang quản.
 	 */
 	public static function ds_coso( $u ) {
-		return VHCC_NhanSu::ds_coso_cua( $u );
+		$ra = array();
+		foreach ( VHCC_NhanSu::ds_coso_cua( $u ) as $x ) {
+			if ( VHCC_NhanSu::co_quyen_coso( $u, $x ) ) { $ra[] = $x; }
+		}
+		return $ra;
 	}
 
 	/** Cơ sở gửi lên có thật là của người này không. Trả tên đã chuẩn hoá, hoặc '' nếu không. */
@@ -305,6 +331,25 @@ class VHCC_CuaHang {
 			'nghi_tu'  => isset( $dat['nghiTu'] ) ? $dat['nghiTu'] : '',
 			'nghi_den' => isset( $dat['nghiDen'] ) ? $dat['nghiDen'] : '',
 			'ly_do'    => isset( $dat['lyDo'] ) ? $dat['lyDo'] : '',
+		) );
+	}
+
+	/**
+	 * XOÁ HẲN MỘT DÒNG CHẤM CÔNG — chuyển thẳng cho `VHCC_Bu::xoa`.
+	 *
+	 * 🔴 KHÁC HẲN "xoá giờ" của `sua_gio()`. Xoá giờ để dòng ở lại với hai ô trống, tức lưới vẫn
+	 *    nói "hôm ấy có một dòng". Hàm này bỏ cả dòng: lưới trông y như người ta KHÔNG ĐI LÀM.
+	 *    Hai việc khác nhau nên là hai cửa khác nhau, chứ không phải một ô tích thêm — ô tích
+	 *    thì bấm nhầm được, còn hai nút thì phải chọn.
+	 */
+	public static function xoa_cong( $u, $dat ) {
+		$cs = self::chot_coso( $u, isset( $dat['coSo'] ) ? $dat['coSo'] : '' );
+		if ( '' === $cs ) { return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' ); }
+		return VHCC_Bu::xoa( $u, array(
+			'coso'  => $cs,
+			'ma_nv' => isset( $dat['maNV'] ) ? $dat['maNV'] : '',
+			'ngay'  => isset( $dat['ngay'] ) ? $dat['ngay'] : '',
+			'ly_do' => isset( $dat['lyDo'] ) ? $dat['lyDo'] : '',
 		) );
 	}
 

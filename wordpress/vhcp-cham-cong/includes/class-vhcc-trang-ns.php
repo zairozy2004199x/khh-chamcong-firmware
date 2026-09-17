@@ -2881,8 +2881,32 @@ class VHCC_TrangNS {
 			return;
 		}
 		if ( '' === (string) $r['pin'] ) {
-			echo '<div class="pin-o">Người này <b>chưa có PIN</b> — cấp ở ô <b>sửa ▾</b> hoặc ở '
-				. 'màn Nhân sự cửa hàng.</div>';
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 NÓI RA ĐƯỜNG TỰ ĐẶT PIN TRƯỚC, CẤP TAY SAU — anh Thắng 17/09/2026: *"khi cửa
+			 *    hàng trưởng tạo nv mới, thì cho quyền nhân viên quên pin để tạo pin mới luôn"*.
+			 *
+			 * Quyền ấy VỐN ĐÃ CÓ: `VHCC_QuenPin::tra()` chỉ hỏi họ tên + căn cước, không đòi
+			 * PIN cũ, nên hồ sơ `TAM-` vừa mở đã đi qua được (thử cả luồng: tra → đặt PIN →
+			 * đăng nhập trạm, chạy thẳng). Thứ sai là DÒNG CHỮ NÀY: nó chỉ kể hai cách CẤP TAY
+			 * và không nhắc đường tự phục vụ, nên cửa hàng trưởng đọc xong là đi cấp PIN hộ —
+			 * rồi phải đọc con số ấy cho người ta qua điện thoại.
+			 *
+			 * Tự đặt tốt hơn ở đúng một chỗ quan trọng: KHÔNG AI phải biết PIN của ai, kể cả
+			 * cửa hàng trưởng.
+			 *
+			 * ⚠️ NHƯNG ĐƯỜNG ẤY CẦN CĂN CƯỚC. Hồ sơ chưa khai căn cước thì `tra()` không khớp
+			 *    nổi, và bảo người ta "bấm Quên PIN" là chỉ họ tới một cửa đóng. Nên câu chữ
+			 *    phải rẽ theo đúng cái điều kiện ấy, chứ không nói chung một câu cho cả hai.
+			 * ═══════════════════════════════════════════════════════════════════════════════ */
+			$hs_p = VHCC_NhanSu::ho_so( $ma );
+			$co_cccd = ( $hs_p && '' !== trim( (string) $hs_p['cccd'] ) );
+			echo '<div class="pin-o">Người này <b>chưa có PIN</b> — ' . ( $co_cccd
+				? 'và <b>không cần ai cấp</b>. Bảo họ mở trang <b>chấm công online</b>, bấm '
+					. '<b>Quên PIN</b>, gõ đúng họ tên + số căn cước trong hồ sơ rồi tự đặt PIN. '
+					. 'Cách này không ai phải đọc PIN của ai. Vẫn muốn cấp tay thì ô <b>sửa ▾</b>.'
+				: 'và hồ sơ <b>chưa khai căn cước</b>, nên đường tự đặt PIN (<b>Quên PIN</b>) '
+					. 'đang tắc. Khai căn cước vào hồ sơ là họ tự đặt được; hoặc cấp tay ở ô '
+					. '<b>sửa ▾</b>.' ) . '</div>';
 			return;
 		}
 		/* Số to, giãn chữ: người ta mở ô này ra để ĐỌC CHO AI ĐÓ QUA ĐIỆN THOẠI, và 6 chữ số

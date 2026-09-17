@@ -554,6 +554,15 @@ class VHCC_Tram {
 			) ) );
 		}
 
+		if ( 'chxoadong' === $viec ) {
+			self::ra( VHCC_CuaHang::xoa_cong( $u, array(
+				'coSo' => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'maNV' => isset( $b['maNV'] ) ? (string) $b['maNV'] : '',
+				'ngay' => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'lyDo' => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
 		if ( 'chchot' === $viec ) {
 			self::ra( VHCC_CuaHang::chot_cua( $u,
 				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
