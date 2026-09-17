@@ -291,6 +291,73 @@ function khh_dt_cot_momo_sk() {
 	);
 }
 
+/**
+ * NÓI ĐÚNG VÌ SAO FILE KHÔNG ĐỌC ĐƯỢC — thay vì đổ cho người nạp.
+ *
+ * 17/09/2026: anh Thắng nạp `MoMo-payments.xlsx` vào thẻ "Sao kê MoMo" và nhận câu
+ * *"Anh tải đúng bản Transaction report của MoMo giúp em."* File ấy KHÔNG sai — nó là file
+ * MoMo payments xuất từ FABi, hợp lệ hoàn toàn, chỉ thuộc thẻ bên cạnh ("Giao dịch MoMo
+ * (FABi)"). Bảo người ta đi tải lại một file họ đang có sẵn là đẩy họ đi một vòng vô ích, và
+ * lần sau họ sẽ tin rằng chỗ nạp bị hỏng.
+ *
+ * Hai ca phân biệt được chắc chắn, nên phải phân biệt:
+ *   · file là .xlsx (bắt đầu bằng "PK") — mà bộ đọc sổ MoMo chỉ ăn .csv. Ô thả lại ghi "nhận
+ *     .xlsx, .csv" nên người nạp không có cách nào tự biết. Nếu trong ruột có dấu vết của bảng
+ *     FABi thì chỉ luôn sang thẻ đúng.
+ *   · file là .csv thật nhưng thiếu cột — lúc ấy câu cũ mới đúng.
+ */
+function khh_dt_momo_sk_loi_cot( $duong_dan ) {
+	$dau = '';
+	$f   = fopen( $duong_dan, 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	if ( $f ) {
+		$dau = (string) fread( $f, 4 ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+		fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
+	}
+	/* .xlsx/.docx… đều là gói ZIP, nên bốn byte đầu là "PK\x03\x04". */
+	if ( 0 !== strpos( $dau, 'PK' ) ) {
+		return 'Không thấy cột "Thời gian" và "Số tiền". Sổ MoMo phải là bản Transaction report '
+			. 'xuất từ trang quản lý MoMo (Giao dịch → Xuất báo cáo).';
+	}
+
+	/* Dò dấu vết bảng FABi ở CẢ HAI chỗ Excel có thể đặt chữ:
+	     · `xl/sharedStrings.xml` — file FABi thật dùng đường này (13.924 chuỗi);
+	     · chuỗi nội tuyến (`inlineStr`) ngay trong trang tính — hợp lệ y như vậy, và một bộ xuất
+	       khác hoàn toàn có thể dùng.
+	   Soi mỗi sharedStrings là đủ cho file hôm nay và lọt cho file mai. Chính bài kiểm bắt được
+	   chỗ này: nó dựng file mẫu bằng inlineStr, nên bản vá đầu của hàm không nhận ra gì cả.
+	   ⚠️ Chỉ đọc 64KB đầu mỗi tệp: tiêu đề cột nằm ở hai dòng trên cùng, còn trang tính thật
+	   nặng hàng MB — nạp cả vào bộ nhớ chỉ để đọc tiêu đề là đổi lỗi này lấy lỗi hết RAM. */
+	$la_fabi = false;
+	if ( khh_dt_doc_duoc_xlsx() ) {
+		$zip = new ZipArchive();
+		if ( true === $zip->open( $duong_dan ) ) {
+			$mau = '';
+			foreach ( array( 'xl/sharedStrings.xml', 'xl/worksheets/sheet1.xml' ) as $ten ) {
+				$m = $zip->getFromName( $ten, 65536 );
+				if ( is_string( $m ) ) {
+					$mau .= ' ' . $m;
+				}
+			}
+			$zip->close();
+			$k = khh_dt_khong_dau( $mau );
+			/* "Mã đối tác" là cột riêng của bảng FABi; sổ MoMo không có cột nào tên thế. */
+			if ( false !== strpos( $k, 'ma doi tac' ) || false !== strpos( $k, 'giao dich qr' ) ) {
+				$la_fabi = true;
+			}
+		}
+	}
+
+	if ( $la_fabi ) {
+		return 'Đây là file <b>MoMo payments xuất từ FABi</b>, không phải sổ MoMo — file đúng, '
+			. 'nhưng nhầm thẻ. Nạp nó ở thẻ <b>Giao dịch MoMo (FABi)</b> ngay bên cạnh. '
+			. 'Còn thẻ này cần bản <b>Transaction report</b> (.csv) tải từ trang quản lý MoMo: '
+			. 'Giao dịch → Xuất báo cáo.';
+	}
+	return 'Thẻ này chỉ đọc <b>.csv</b>, mà anh vừa thả một file bảng tính (.xlsx). Bản '
+		. 'Transaction report tải từ trang quản lý MoMo (Giao dịch → Xuất báo cáo) là .csv — '
+		. 'nạp thẳng file ấy.';
+}
+
 /** Đọc file .csv MoMo xuất ra. */
 function khh_dt_doc_momo_sk( $duong_dan ) {
 	$f = fopen( $duong_dan, 'r' ); // phpcs:ignore WordPress.WP.AlternativeFunctions
@@ -322,10 +389,7 @@ function khh_dt_doc_momo_sk( $duong_dan ) {
 			}
 			if ( $map['ngay'] < 0 || $map['so_tien'] < 0 ) {
 				fclose( $f ); // phpcs:ignore WordPress.WP.AlternativeFunctions
-				return new WP_Error(
-					'khh_dt_momo_sk',
-					'Không thấy cột "Thời gian" và "Số tiền". Anh tải đúng bản Transaction report của MoMo giúp em.'
-				);
+				return new WP_Error( 'khh_dt_momo_sk', khh_dt_momo_sk_loi_cot( $duong_dan ) );
 			}
 			continue;
 		}

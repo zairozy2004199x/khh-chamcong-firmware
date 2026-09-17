@@ -467,6 +467,68 @@ $r7 = khh_dt_doi_soat_momo_lam(
 );
 phep( 'ghép mờ KHÔNG bắc cầu sang quán khác', 0 === $r7['so_khop'] );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   NẠP SAI THẺ: CÂU BÁO LỖI PHẢI CHỈ SANG THẺ ĐÚNG, KHÔNG ĐỔ CHO NGƯỜI NẠP
+   ═══════════════════════════════════════════════════════════════════════════════════════════
+   17/09/2026 anh Thắng thả `MoMo-payments.xlsx` vào thẻ "Sao kê MoMo" và nhận câu *"Anh tải
+   đúng bản Transaction report của MoMo giúp em."* File ấy KHÔNG sai — nó là file FABi, hợp lệ,
+   3.851 giao dịch đọc ra sạch — chỉ thuộc thẻ bên cạnh. Bảo người ta đi tải lại một file họ
+   đang cầm trong tay là đẩy họ đi một vòng vô ích; lần sau họ sẽ tin chỗ nạp bị hỏng.
+
+   Bốn ca dưới đây khoá cả hai chiều: chỉ đúng đường khi nhầm thẻ, VÀ không báo oan file đúng. */
+
+$tep_fabi = dung_file_momo(
+	array(
+		'Tutu Train - Aeon Tan An ( Dich v' => array(
+			array( 'M1', 'HD1', '1', '15/09/2026 19:56', 20000, 'tinh', 'Thành công' ),
+		),
+	)
+);
+$r_nham = khh_dt_doc_momo_sk( $tep_fabi );
+phep( 'nạp file FABi vào thẻ sổ MoMo thì BÁO LỖI', is_wp_error( $r_nham ) );
+if ( is_wp_error( $r_nham ) ) {
+	$m = $r_nham->get_error_message();
+	phep( 'câu lỗi NHẬN RA đây là file FABi', false !== strpos( $m, 'FABi' ) );
+	phep( 'câu lỗi CHỈ SANG thẻ đúng', false !== strpos( $m, 'Giao dịch MoMo' ) );
+	phep( 'câu lỗi KHÔNG bảo đi tải lại file (file đang cầm là đúng)',
+		false === stripos( $m, 'tải đúng bản' ) );
+}
+
+/* Một .xlsx khác hẳn — không phải FABi. Vẫn phải nói ra "thẻ này chỉ đọc .csv", vì ô thả ghi
+   "nhận .xlsx, .csv" nên người nạp không có cách nào tự biết. */
+$tep_la = tempnam( sys_get_temp_dir(), 'la' ) . '.xlsx';
+$z_la   = new ZipArchive();
+$z_la->open( $tep_la, ZipArchive::CREATE | ZipArchive::OVERWRITE );
+$z_la->addFromString( 'xl/sharedStrings.xml', '<sst><si><t>Ho ten</t></si></sst>' );
+$z_la->close();
+$r_la = khh_dt_doc_momo_sk( $tep_la );
+phep( 'xlsx lạ cũng báo lỗi', is_wp_error( $r_la ) );
+if ( is_wp_error( $r_la ) ) {
+	$m = $r_la->get_error_message();
+	phep( 'câu lỗi nói rõ thẻ này chỉ đọc .csv', false !== strpos( $m, '.csv' ) );
+	phep( 'KHÔNG nhận oan xlsx lạ là file FABi', false === strpos( $m, 'FABi' ) );
+}
+
+/* .csv thật mà thiếu cột — đây mới là ca câu cũ nói đúng, phải giữ. */
+$tep_thieu = tempnam( sys_get_temp_dir(), 'thieu' ) . '.csv';
+file_put_contents( $tep_thieu, "Ho ten,Dia chi\nA,B\n" );
+$r_thieu = khh_dt_doc_momo_sk( $tep_thieu );
+phep( 'csv thiếu cột thì báo thiếu cột', is_wp_error( $r_thieu )
+	&& false !== strpos( $r_thieu->get_error_message(), 'Thời gian' ) );
+phep( 'csv thiếu cột KHÔNG bị đoán là file FABi', is_wp_error( $r_thieu )
+	&& false === strpos( $r_thieu->get_error_message(), 'FABi' ) );
+
+/* 🔴 CHỐT NGƯỢC — không có nó thì cả khối trên vẫn xanh khi hàm đọc chối MỌI file. */
+$tep_dung = tempnam( sys_get_temp_dir(), 'dung' ) . '.csv';
+file_put_contents(
+	$tep_dung,
+	"Thoi gian,Ma giao dich,So tien,Ma cua hang,Ten cua hang,Trang thai\n"
+	. "16-09-2026 14:44:48,146972800768,20000,CH01,Quan A,Thanh cong\n"
+);
+$r_dung = khh_dt_doc_momo_sk( $tep_dung );
+phep( 'sổ MoMo ĐÚNG dạng vẫn đọc được, không báo oan',
+	! is_wp_error( $r_dung ) && 1 === count( $r_dung['dong'] ) );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép:\n";
 	foreach ( $hong as $h ) {

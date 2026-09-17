@@ -97,6 +97,16 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.32.0 =
+* Thả file **MoMo payments của FABi** vào thẻ "Sao kê MoMo" thì câu lỗi nay nói đúng: *"file
+  đúng, nhưng nhầm thẻ — nạp ở thẻ Giao dịch MoMo (FABi) ngay bên cạnh"*. Trước đây nó bảo
+  *"Anh tải đúng bản Transaction report của MoMo giúp em"* — tức đẩy người ta đi tải lại một
+  file họ đang cầm trong tay, và lần sau họ sẽ tin là chỗ nạp bị hỏng.
+* Thả một .xlsx khác thì nói rõ thẻ này chỉ đọc `.csv` (ô thả ghi "nhận .xlsx, .csv" nên không
+  ai tự biết được).
+* `.csv` thiếu cột thì vẫn báo thiếu cột như cũ — đó mới là ca câu cũ nói đúng.
+* `kiem-momo.php` 62 → 72 phép, có chốt ngược: sổ MoMo đúng dạng vẫn phải đọc được.
+
 = 1.31.0 =
 * Bảng Đối soát MoMo: câu nhắc "Sổ MoMo chưa có N ngày" nay kèm **nút Nạp sao kê MoMo** mở
   thẳng vào đúng thẻ. Trước đây câu nhắc là chữ trơn kiểu "bấm Nạp báo cáo → thẻ Sao kê MoMo",
