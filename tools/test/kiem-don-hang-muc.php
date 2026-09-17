@@ -145,7 +145,7 @@ t( 'dự án không có thật → chối', empty( $x['success'] ), $x );
  * 5. TRẢ XUỐNG MÀN
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 vai( 'Admin', 'KT' );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện', 'thucTe' => 2000000 ) );
+VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện', 'thucTe' => 2000000 ) );
 $d = VHCP_DuAn::get_du_an( $ma );
 $cha = null; $con = null;
 foreach ( $d['lines'] as $l ) {

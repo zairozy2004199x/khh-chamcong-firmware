@@ -16,7 +16,7 @@ function seed( $n, $today ) {
 	for ( $i = 0; $i < $n; $i++ ) {
 		$da = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'Dự án ' . uniqid(), 'KT' );
 		VHCP_DuAn::add_line( $da['maDA'], array( 'noiDung' => 'Hạng mục lớn', 'duToan' => 1000000, 'hinhThuc' => 'Tạm ứng' ) );
-		VHCP_DuAn::add_line( $da['maDA'], array( 'noiDung' => 'Con', 'thucTe' => 900000, 'capCha' => 'Hạng mục lớn' ) );
+		VHCP_DuAn::them_dong_muc_con_cu( $da['maDA'], array( 'noiDung' => 'Con', 'thucTe' => 900000, 'capCha' => 'Hạng mục lớn' ) );
 		VHCP_DuAn::submit( $da['maDA'] );
 		VHCP_DuAn::approve( $da['maDA'], 'KT' );
 

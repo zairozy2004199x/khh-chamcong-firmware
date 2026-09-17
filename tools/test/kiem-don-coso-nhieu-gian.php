@@ -157,7 +157,7 @@ VHCP_DuAn::add_line( $D1, array( 'noiDung' => 'Sửa điện', 'gian' => 'Gian A
 foreach ( array( array( 'Bóng đèn', 2000000 ), array( 'Dây điện', 3000000 ) ) as $c ) {
 	/* 🔴 MỤC CON ĐỂ TRỐNG GIAN — đúng như nhân viên nhập thật: gõ gian ở hạng mục cha rồi
 	   thôi. Gán sẵn 'Gian A' cho con là bài kiểm tự đắp cái mà mã phải tự làm. */
-	VHCP_DuAn::add_line( $D1, array( 'noiDung' => $c[0], 'capCha' => 'Sửa điện', 'thucTe' => $c[1] ) );
+	VHCP_DuAn::them_dong_muc_con_cu( $D1, array( 'noiDung' => $c[0], 'capCha' => 'Sửa điện', 'thucTe' => $c[1] ) );
 }
 VHCP_DuAn::add_line( $D1, array( 'noiDung' => 'Thay khoá', 'gian' => 'Gian B', 'duToan' => 1000000, 'thucTe' => 1200000 ) );
 VHCP_DuAn::add_line( $D1, array( 'noiDung' => 'Vệ sinh máy lạnh', 'gian' => 'Gian C', 'duToan' => 800000, 'thucTe' => 800000 ) );

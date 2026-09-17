@@ -40,7 +40,7 @@ vai( 'Admin', 'KT' );
 $r  = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thử đính tệp', 'NV' );
 $ma = $r['maDA'];
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 0 ) );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện',
+VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện',
 	'thucTe' => 2000000, 'soLuong' => 1, 'donGia' => 2000000, 'vat' => 'Có VAT',
 	'loaiCp' => 'Chi phí tháo dỡ', 'tkNo' => '64125', 'note' => 'ghi chú' ) );
 $con = dong( $ma, 'Bóng đèn' );

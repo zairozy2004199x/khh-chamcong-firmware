@@ -1588,6 +1588,64 @@ class VHCP_DuAn {
 		);
 	}
 
+	/**
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 CHI PHÍ DỰ ÁN KHÔNG ĐẺ THÊM MỤC CON NỮA — CHỐT Ở ĐÂY, KHÔNG PHẢI Ở NÚT BẤM.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều là
+	 * hạng mục lớn"*, và chốt tiếp: giữ nguyên mục con ĐANG CÓ, chỉ cấm tạo mới.
+	 *
+	 * Gỡ nút `＋ con` và `↳ vào mục` trên màn là ĐỦ CHO NGƯỜI DÙNG, nhưng không đủ cho hệ thống:
+	 * `saveDuAnLine` là một cửa API công khai, và mọi đường ghi khác (nạp tệp, gọi từ bộ khác,
+	 * một bản app.html cũ còn nằm trong bộ nhớ đệm của trình duyệt ai đó) đều đi thẳng vào đây.
+	 * Chốt ở nút bấm thì mục con vẫn mọc lại được, và mọc IM LẶNG — nó chỉ lộ ra ở chỗ tiền của
+	 * hạng mục cha bỗng chuyển sang tính bằng "tổng con".
+	 *
+	 * ⚠️ `(Phát sinh)` KHÔNG PHẢI MỤC CON. Nó là khoản nảy ra lúc thi công, đứng độc lập, không
+	 *    thuộc hạng mục nào — anh Thắng không bảo bỏ nó, và bỏ nhầm là mất một loại chi phí thật.
+	 * ⚠️ DÒNG CŨ SỬA ĐƯỢC MÀ KHÔNG RƠI CẤP. Giữ nguyên cha của chính nó thì cho qua; chỉ chặn
+	 *    khi ai đó gán một cha MỚI. Không có vế ấy thì mở một mục con cũ ra sửa mỗi cái ghi chú
+	 *    cũng bị chối, và người ta sẽ đi xoá dòng — mất luôn ảnh bill lẫn hồ sơ đính kèm.
+	 *
+	 * @param string $cap_moi Cha mà lượt ghi này muốn đặt.
+	 * @param string $cap_cu  Cha dòng ấy đang có ('' nếu là dòng mới).
+	 * @return string Câu chối, '' nghĩa là cho qua.
+	 */
+	private static function loi_mo_muc_con_( $cap_moi, $cap_cu = '' ) {
+		$moi = trim( (string) $cap_moi );
+		$cu  = trim( (string) $cap_cu );
+		if ( '' === $moi || '(Phát sinh)' === $moi ) { return ''; }
+		if ( $moi === $cu ) { return ''; }   // dòng con cũ, giữ nguyên cha -> sửa thoải mái
+		return 'Chi phí dự án nay chỉ có hạng mục lớn — không thêm mục con nữa. '
+			. 'Nhập "' . $moi . '" thành một hạng mục lớn đứng riêng, hoặc chọn "Phát sinh" nếu '
+			. 'đây là khoản nảy ra lúc thi công.';
+	}
+
+	/**
+	 * DỰNG LẠI MỘT DÒNG MỤC CON CŨ — CỬA DUY NHẤT ĐI VÒNG QUA `loi_mo_muc_con_()`.
+	 *
+	 * 🔴 KHÔNG PHẢI ĐƯỜNG CHO NGƯỜI DÙNG, và không có mặt trong bảng cửa API
+	 *    (`class-vhcp-api.php`) — cố ý. Nó tồn tại vì đúng một lẽ: mục con CŨ có thật trong sổ
+	 *    đang chạy, nên phải có cách dựng lại đúng hình dạng ấy để còn kiểm được rằng chúng vẫn
+	 *    hiện đủ và vẫn tính đúng sau khi đóng đường tạo mới.
+	 *
+	 * ⚠️ Không có cửa này thì bộ thử KHÔNG dựng nổi dữ liệu cũ, và "giữ nguyên mục con đang có"
+	 *    thành một lời hứa không ai kiểm được — thứ tệ hơn cả không hứa.
+	 * ⚠️ Ai định dùng nó cho một tính năng mới thì dừng lại: anh Thắng đã chốt chi phí dự án chỉ
+	 *    còn hạng mục lớn. Đây là cửa DI TRÚ, không phải cửa nghiệp vụ.
+	 */
+	public static function them_dong_muc_con_cu( $ma_da, $rec ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$data           = self::line_data( $rec );
+		$data['ma_da']  = (string) $ma_da;
+		$data['row_no'] = self::next_row( $ma_da );
+		$wpdb->insert( VHCP_DB::t( 'da_line' ), $data );
+		self::push_nd( $f['loai'], $data['noi_dung'] );
+		return VHCP_Util::ok();
+	}
+
 	public static function add_line( $ma_da, $rec ) {
 		global $wpdb;
 		$f = self::find( $ma_da );
@@ -1599,6 +1657,8 @@ class VHCP_DuAn {
 			return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi nhập' );
 		}
 		$data           = self::line_data( $rec );
+		$_mc = self::loi_mo_muc_con_( $data['cap_cha'] );
+		if ( '' !== $_mc ) { return VHCP_Util::err( $_mc ); }
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
 		$wpdb->insert( VHCP_DB::t( 'da_line' ), $data );
@@ -1685,6 +1745,8 @@ class VHCP_DuAn {
 		if ( ! $cur ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
 		$old_name = trim( (string) $cur['noi_dung'] );
 		$data     = self::line_data( $rec );
+		$_mc = self::loi_mo_muc_con_( $data['cap_cha'], (string) $cur['cap_cha'] );
+		if ( '' !== $_mc ) { return VHCP_Util::err( $_mc ); }
 		$wpdb->update( $t, $data, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
 		if ( $data['cap_cha'] === '' && $old_name !== '' && $old_name !== $data['noi_dung'] ) {
 			self::relink_children( $ma_da, $old_name, $data['noi_dung'] );   // hạng mục lớn đổi tên -> cập nhật mục con

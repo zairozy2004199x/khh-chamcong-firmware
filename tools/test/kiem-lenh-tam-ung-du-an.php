@@ -49,7 +49,7 @@ $ma = $r['maDA'];
    con" xanh oan — cộng thêm 0 vẫn ra đúng số. */
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 0, 'thucTe' => 500000 ) );
 foreach ( array( array( 'Bóng đèn', 2000000 ), array( 'Dây điện', 3000000 ), array( 'Phích cắm', 6000000 ), array( 'Xe cẩu', 2000000 ) ) as $c ) {
-	VHCP_DuAn::add_line( $ma, array( 'noiDung' => $c[0], 'capCha' => 'Mua đồ điện', 'thucTe' => $c[1] ) );
+	VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => $c[0], 'capCha' => 'Mua đồ điện', 'thucTe' => $c[1] ) );
 }
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thợ bốc vác', 'thucTe' => 2300000 ) );
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe ba gác', 'thucTe' => 2000000, 'hinhThuc' => 'Trực tiếp' ) );
@@ -263,7 +263,7 @@ VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Thợ Phụ',   'duToan' => 4800
 VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Băng keo',  'duToan' => 390000 ) );
 /* Hạng mục lớn có con, mà con CHƯA nhập thực tế — hình dạng thường gặp nhất lúc lập dự toán. */
 VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Vật tư', 'duToan' => 5000000 ) );
-VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Ốc vít', 'capCha' => 'Vật tư' ) );
+VHCP_DuAn::them_dong_muc_con_cu( $ma2, array( 'noiDung' => 'Ốc vít', 'capCha' => 'Vật tư' ) );
 /* Và một hạng mục ĐÃ có thực tế — thực tế phải THẮNG dự toán. */
 VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Xe cẩu', 'duToan' => 1000000, 'thucTe' => 1750000 ) );
 $d2 = VHCP_DuAn::get_du_an( $ma2 );

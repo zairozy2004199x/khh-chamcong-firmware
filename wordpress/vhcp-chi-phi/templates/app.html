@@ -5370,10 +5370,41 @@
     phatSinh=_daGomGian(phatSinh);
     Object.keys(childrenBy).forEach(function(c){ childrenBy[c]=_daGomGian(childrenBy[c]); });
     // Đổ danh sách hạng mục lớn vào bộ chọn "Thuộc" (giữ lựa chọn hiện tại nếu còn hợp lệ)
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       Ô "THUỘC" — THÔI BÀY ĐƯỜNG TẠO MỤC CON MỚI.
+
+       Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều là
+       hạng mục lớn"*, và chốt: giữ nguyên mục con ĐANG CÓ, chỉ cấm tạo mới — không một con số
+       nào của dự án cũ được phép đổi.
+
+       🔴 CÁI BẪY Ở ĐÂY, VÀ NÓ ĐỔI TIỀN. Bỏ thẳng mấy option "↳ mục con của: X" đi là xong về
+          mặt giao diện — nhưng `daEditLine()` sửa một MỤC CON CŨ sẽ đặt `da_capCha.value` bằng
+          tên cha, mà option ấy không còn tồn tại, nên trình duyệt lặng lẽ để ô ở giá trị rỗng.
+          Bấm Cập nhật là dòng ấy được ghi với `capCha=''` → nó NHẢY LÊN thành hạng mục lớn.
+          Hậu quả tiền: cha cũ mất con nên tiền của cha chuyển từ "tổng con" sang "thực tế của
+          chính nó" (`tien_hm()`), và dòng vừa nhảy lên được cộng thêm một lần nữa. Tổng dự án
+          đổi, không câu cảnh báo nào, chỉ vì người ta mở ra sửa mỗi cái ghi chú.
+
+       Nên: chỉ bày option cha của CHÍNH dòng đang sửa. Dòng mới thì không có option cha nào —
+       hết đường tạo mục con; dòng con cũ thì giữ đúng cha của nó, sửa gì cũng không rơi cấp.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     var selCap=el('da_capCha');
     if(selCap){ var cur=selCap.value;
+      /* Cha của dòng ĐANG SỬA (nếu nó vốn là mục con). `DA_EDIT_ROW` là số dòng đang mở form. */
+      var _chaGiu='';
+      if(DA_EDIT_ROW){
+        L.forEach(function(x){
+          if(Number(x.row)===Number(DA_EDIT_ROW)){
+            var c=String(x.capCha||'');
+            if(c && c!=='(Phát sinh)') _chaGiu=c;
+          }
+        });
+      }
+      /* Ô đang giữ sẵn một tên cha (form vừa được `daEditLine` điền) thì cũng phải giữ lấy —
+         thứ tự hai lượt vẽ không phải lúc nào cũng như nhau, và mất option là mất cấp. */
+      if(!_chaGiu && cur && cur!=='(Phát sinh)') _chaGiu=cur;
       selCap.innerHTML='<option value="">— Hạng mục lớn (mới) —</option>'+
-        parents.map(function(p){return '<option value="'+esc(p.noiDung)+'">↳ mục con của: '+esc(p.noiDung)+'</option>';}).join('')+
+        (_chaGiu?('<option value="'+esc(_chaGiu)+'">↳ mục con của: '+esc(_chaGiu)+' (dòng cũ)</option>'):'')+
         '<option value="(Phát sinh)">➕ Phát sinh (độc lập)</option>';
       if(cur){ for(var oi=0;oi<selCap.options.length;oi++){ if(selCap.options[oi].value===cur){ selCap.value=cur; break; } } } }
     // Hình thức chi CHỈ hiện ở hạng mục lớn / phát sinh; mục con theo hình thức của cha -> để trống
@@ -5405,21 +5436,20 @@
       var html='';
       ds.forEach(function(p){
       var kids=childrenBy[p.noiDung]||[];
-      var addChild=canEdit?(' <button class="btn b-s" onclick="daAddChild(this.getAttribute(\'data-p\'))" data-p="'+esc(p.noiDung)+'" title="Thêm mục con">＋ con</button>'):'';
-      /* Nút gộp một hạng mục lớn vào hạng mục lớn khác. Anh Thắng 10/09/2026: *"cái xe 3 tấn gõ
-         nhầm, nó là con của xe vận chuyển, muốn chuyển nó thành con của xe vận chuyển"*.
-         Vốn vẫn làm được — bấm ✏️ rồi đổi ô "Thuộc" — nhưng phải nhớ là ô ấy có, mà nhìn hàng
-         thì không có gì gợi ra. Đặt nút ngay cạnh "＋ con" cho thấy đường.
-         ⚠️ CHỈ HIỆN KHI HẠNG MỤC ẤY CHƯA CÓ CON. Gộp một hạng mục đang có con vào hạng mục
-            khác là lồng ba cấp, mà bảng chỉ vẽ hai — mấy dòng con sẽ biến khỏi màn tuy vẫn
-            nằm trong sổ và vẫn cộng vào tổng. */
-      /* 🔴 NÚT HIỆN Ở MỌI HẠNG MỤC LỚN, chốt nằm TRONG hàm. Anh Thắng 10/09/2026: *"Sao có đơn
-         chuyển được, có đơn không chuyển được"* — bản trước ẩn nút với hạng mục đang có mục
-         con, nên người dùng phải tự đoán ra luật. Ẩn im lặng là bắt người ta đoán; hiện nút
-         rồi nói rõ lý do thì họ biết phải làm gì (gỡ mục con ra trước). */
-      var goNut=(canEdit && parents.length>1)
-        ? (' <span data-gop="'+p.row+'"><button class="btn b-x" onclick="daGopVaoMuc('+p.row+')" title="Gộp hạng mục LỚN này thành mục con của hạng mục lớn khác — dùng khi lỡ gõ nó thành mục lớn">↳ vào mục</button></span>') : '';
-      addChild+=goNut;
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+         KHÔNG CÒN ĐƯỜNG TẠO MỤC CON MỚI.
+
+         Anh Thắng 17/09/2026: *"Đối với chi phí dự án, hạng mục con bỏ đi, vì các chi phí đều
+         là hạng mục lớn"*. Hai nút đã gỡ, vì cả hai đều SINH RA quan hệ cha–con:
+           · `＋ con`      — thêm thẳng một mục con cho hạng mục này
+           · `↳ vào mục`  — hạ một hạng mục lớn xuống làm con của hạng mục lớn khác
+
+         ⚠️ CHỈ GỠ ĐƯỜNG TẠO, KHÔNG GỠ ĐƯỜNG VẼ. Dự án cũ còn mục con thì vẫn phải hiện đủ và
+            tính đúng y như trước — anh Thắng chốt: không một con số nào của dự án cũ được đổi.
+            Nút `↳ đổi mục` ở hàng con vẫn còn, nhưng nay chỉ để ĐƯA LÊN hạng mục lớn (xem chỗ
+            gọi `daGopVaoMuc` bên dưới) — tức đường một chiều, dọn được chứ không tạo thêm.
+         ══════════════════════════════════════════════════════════════════════════════════════ */
+      var addChild='';
       /* Tiền của hạng mục = tổng CON nếu có con, không thì thực tế của chính nó — đúng luật
          `tongNhom()` bên dưới và `VHCP_DuAn::tien_hm()` bên máy chủ. Cộng cả cha lẫn con là
          đếm hai lần, mà đây là con số kế toán chuẩn bị tiền. */
@@ -6585,6 +6615,24 @@
     if(!l){ toast('err','Không tìm thấy dòng'); return; }
     var chaCu=String(l.capCha||'');
     var laCon=(chaCu!=='' && chaCu!=='(Phát sinh)');
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       17/09/2026 — ĐƯỜNG MỘT CHIỀU: chỉ còn ĐƯA LÊN, không còn HẠ XUỐNG.
+
+       Anh Thắng: *"hạng mục con bỏ đi, vì các chi phí đều là hạng mục lớn"*. Hàm này vốn làm hai
+       việc ngược nhau — đưa một mục con lên làm hạng mục lớn, VÀ hạ một hạng mục lớn xuống làm
+       con. Việc thứ hai là một đường tạo mục con mới, nên nó đi.
+
+       ⚠️ GIỮ LẠI VIỆC THỨ NHẤT. Dự án cũ còn mục con, và đây là đường duy nhất dọn chúng lên mà
+          không phải xoá dòng rồi nhập lại — xoá rồi nhập lại là mất ảnh bill, mất hồ sơ đính
+          kèm, mất mã tài khoản đã gắn. Cấm tạo mới thì phải chừa lối ra, không thì người ta sẽ
+          đi xoá dòng.
+       ⚠️ Hàng KHÔNG phải mục con thì nút này không còn việc gì để làm — nói thẳng thay vì bày
+          một hộp chọn rỗng rồi để họ đoán. */
+    if(!laCon){
+      toast('warn','Chi phí dự án nay chỉ có hạng mục lớn — không hạ một hạng mục xuống làm mục '
+        +'con nữa. Nút này chỉ dùng để ĐƯA mục con cũ lên thành hạng mục lớn.');
+      return;
+    }
     /* 🔴 HẠNG MỤC ĐANG CÓ CON THÌ KHÔNG GỘP ĐƯỢC — và phải NÓI RA. Gộp nó vào hạng mục khác
        là lồng ba cấp, mà bảng chỉ vẽ hai: mấy dòng con sẽ biến khỏi màn tuy vẫn nằm trong sổ
        và vẫn cộng vào tổng.
@@ -6599,21 +6647,13 @@
         return;
       }
     }
-    /* Danh sách đích: mọi HẠNG MỤC LỚN, trừ chính nó và trừ hạng mục lớn nó đang thuộc về
-       (dời vào đúng chỗ đang đứng thì không phải là dời). */
-    var cha=(DA_CUR.lines||[]).filter(function(x){
-      return String(x.capCha||'')==='' && x.row!==row && String(x.noiDung||'')!==chaCu;
-    }).map(function(x){ return String(x.noiDung||''); }).filter(Boolean);
-    if(!cha.length && !laCon){ toast('warn','Chưa có hạng mục lớn nào khác để gộp vào'); return; }
     var o=document.querySelector('[data-gop="'+row+'"]');
     if(!o){ toast('err','Không tìm thấy chỗ đặt hộp chọn'); return; }
-    /* Mục con còn một đường nữa: ĐƯA LÊN thành hạng mục lớn. Gõ nhầm theo chiều nào cũng có
-       lối về, khỏi phải xoá dòng rồi nhập lại. */
-    var dsChon=cha.map(function(c){ return '<option value="'+esc(c)+'">↳ '+esc(c)+'</option>'; });
-    if(laCon){ dsChon.push('<option value="__LEN__">⬆ Đưa lên thành hạng mục lớn</option>'); }
+    /* Chỉ còn MỘT đích. Vẫn giữ hộp chọn (thay vì làm thẳng) để bấm nhầm nút còn có một nhịp
+       xác nhận — dòng này đang mang tiền, và đưa lên cấp trên là đổi cách tính tổng của cha. */
     o.innerHTML='<select data-gopsel="'+row+'" style="max-width:170px;font-size:12px">'
-      +dsChon.join('')
-      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="'+(laCon?'Dời sang chỗ đã chọn':'Gộp vào hạng mục đã chọn')+'">✓</button>'
+      +'<option value="__LEN__">⬆ Đưa lên thành hạng mục lớn</option>'
+      +'</select> <button class="btn b-g" onclick="daGopChot('+row+')" title="Đưa mục con này lên thành hạng mục lớn">✓</button>'
       +' <button class="btn b-x" onclick="openDuAn(DA_CUR.maDA)" title="Thôi">✕</button>';
   }
   function daGopChot(row){
@@ -6650,12 +6690,9 @@
       openDuAn(DA_CUR.maDA); loadDuAn();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).updateDuAnLine(DA_CUR.maDA, row, rec);
   }
-  function daAddChild(parentName){
-    if(el('da_capCha')) el('da_capCha').value=parentName;
-    daCapChaHint();
-    try{ el('daLineForm').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
-    toast('ok','Đang thêm MỤC CON cho: '+parentName+' (điền Chi phí thực tế)');
-  }
+  /* `daAddChild()` đã gỡ 17/09/2026 cùng nút `＋ con` — anh Thắng: *"hạng mục con bỏ đi, vì các
+     chi phí đều là hạng mục lớn"*. Chốt thật nằm ở `VHCP_DuAn::loi_mo_muc_con_()` bên máy chủ,
+     không ở nút bấm; xem khối 🔴 ở đó. Mục con CŨ vẫn hiện và vẫn tính đúng như trước. */
   // Xuất báo cáo gom theo nhánh -> mở cửa sổ in (Lưu thành PDF) để gửi bộ phận
   function exportDuAnPDF(){
     if(!DA_CUR){ toast('warn','Chưa mở dự án'); return; }
@@ -6755,7 +6792,26 @@
   function daEditLine(row){ if(!DA_CUR)return; var l=null; (DA_CUR.lines||[]).forEach(function(x){ if(x.row===row) l=x; }); if(!l)return;
     el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; _datTien('da_dt',(l.duToan||l.duToan===0)?l.duToan:''); el('da_sl').value=l.soLuong||''; _datTien('da_dg', l.donGia); daCalcTT();
     _datTien('da_thucte', l.thucTe); el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
-    if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
+    /* 🔴 CHÊM LẠI OPTION CHA TRƯỚC KHI GÁN — không thì dòng con cũ lặng lẽ rơi lên cấp trên.
+       Từ 17/09/2026 ô "Thuộc" thôi bày đường tạo mục con mới (xem khối 🔴 ở chỗ dựng `selCap`),
+       nên lúc mở sửa một MỤC CON CŨ thì option mang tên cha của nó chưa chắc có mặt. Gán một
+       giá trị không có option là trình duyệt lặng lẽ để ô ở rỗng, và bấm Cập nhật là dòng ấy
+       nhảy lên thành hạng mục lớn — đổi tổng tiền của dự án mà không một dòng cảnh báo nào.
+       Chêm đúng MỘT option, của đúng cha dòng này; không mở lại đường tạo con mới. */
+    if(el('da_capCha')){
+      var _cc=String(l.capCha||'');
+      if(_cc && _cc!=='(Phát sinh)'){
+        var _co=false, _s=el('da_capCha');
+        for(var _i=0;_i<_s.options.length;_i++){ if(_s.options[_i].value===_cc){ _co=true; break; } }
+        if(!_co){
+          var _op=document.createElement('option');
+          _op.value=_cc; _op.textContent='↳ mục con của: '+_cc+' (dòng cũ)';
+          _s.insertBefore(_op, _s.options[_s.options.length-1]||null);
+        }
+      }
+      el('da_capCha').value=_cc;
+    }
+    if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
     _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso(), l.tkNo||'', l.hinhThuc||''); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}

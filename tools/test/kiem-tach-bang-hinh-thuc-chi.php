@@ -39,8 +39,8 @@ $ma = $r['maDA'];
 
 /* Hạng mục TẠM ỨNG: dự toán 10tr, hai mục con thực chi 4tr + 3tr. */
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 10000000, 'hinhThuc' => '' ) );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện', 'thucTe' => 4000000 ) );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Dây điện', 'capCha' => 'Mua đồ điện', 'thucTe' => 3000000 ) );
+VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => 'Bóng đèn', 'capCha' => 'Mua đồ điện', 'thucTe' => 4000000 ) );
+VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => 'Dây điện', 'capCha' => 'Mua đồ điện', 'thucTe' => 3000000 ) );
 /* Hạng mục TRỰC TIẾP: kế toán trả thẳng NCC 5tr. */
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe cẩu', 'duToan' => 6000000, 'thucTe' => 5000000, 'hinhThuc' => 'Trực tiếp' ) );
 
@@ -69,7 +69,7 @@ teq( 'tổng dự toán cũng vậy (10tr + 6tr)', 16000000, $d['tongDuToan'] );
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 2. 🔴 MỤC CON THEO HÌNH THỨC CỦA CHA
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê cẩu 20 tấn', 'capCha' => 'Xe cẩu', 'thucTe' => 2000000 ) );
+VHCP_DuAn::them_dong_muc_con_cu( $ma, array( 'noiDung' => 'Thuê cẩu 20 tấn', 'capCha' => 'Xe cẩu', 'thucTe' => 2000000 ) );
 $d2 = VHCP_DuAn::get_du_an( $ma );
 teq( '🔴 mục con của hạng mục TRỰC TIẾP cũng vào rổ trực tiếp, không vào tạm ứng',
 	7000000, $d2['ttTamUng'] );
