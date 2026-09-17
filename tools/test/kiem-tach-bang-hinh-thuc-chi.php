@@ -94,7 +94,11 @@ t( '🔴 và phần trả thẳng NCC thì KHÔNG',
 	false !== mb_strpos( $HTML, 'KHÔNG vào tạm ứng & quyết toán' ), '' );
 t( '   nói luôn ai chi cho ai', false !== mb_strpos( $HTML, 'kế toán tạm ứng cho nhân viên' )
 	&& false !== mb_strpos( $HTML, 'KẾ TOÁN TRẢ THẲNG NCC' ), '' );
-t( '   mỗi bảng có tổng riêng', false !== strpos( $HTML, 'money(tongNhom(nhomHt[k],psHt[k]))' ), '' );
+/* 17/09/2026: dòng tổng nay in CẢ dự toán lẫn thực tế (`tongNhomChu`) thay cho một con số trần —
+   ở giai đoạn lập dự toán thì thực tế còn 0, nên dòng tổng đứng đúng một chữ số 0 trong khi dưới
+   nó là mười mấy dòng có tiền. Vẫn là "mỗi bảng có tổng riêng", chỉ khác cách in; nội dung con số
+   do `tools/test/kiem-tong-nhom-du-an.js` canh. */
+t( '   mỗi bảng có tổng riêng', false !== strpos( $HTML, 'tongNhomChu(tongNhom(nhomHt[k],psHt[k]))' ), '' );
 /* Tổng của bảng: hạng mục có con thì tiền nằm ở con — cộng cả cha lẫn con là đếm hai lần. */
 t( '🔴 tổng bảng không đếm hai lần (cha có con thì chỉ cộng con)',
 	false !== strpos( $HTML, 'if(kids.length) kids.forEach(function(k){ t+=Number(k.thucTe)||0; });' )

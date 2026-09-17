@@ -247,6 +247,85 @@ t( '🔴 đã chi = CHỈ lệnh kế toán đã cấp tiền (15.300.000) — l
 t( '   ba con số không cái nào bằng cái nào (phép này bắt lỗi đổi chỗ)',
 	$dd['duKienTU'] != $dd['daChiTU'] && $dd['daXinTU'] != $dd['daChiTU'], $dd );
 
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 10. 🔴 SỐ TIỀN TRƯỚC KHI CHI = DỰ TOÁN, KHÔNG PHẢI THỰC TẾ
+ *
+ * Anh Thắng 17/09/2026: *"đã nhập số liệu thì cần cộng vào luôn để biết bao nhiêu"*, kèm ảnh
+ * một dự án 125.907.312đ dự toán mà thẻ "Dự kiến tạm ứng tổng đơn" đứng 0đ và "Số tiền đã xin
+ * tạm ứng" cũng 0đ — trong khi dòng ghi chú ngay cạnh nói "✓ đã gửi xin hết".
+ *
+ * Vì `tien_hm()` chỉ đọc cột thực tế. Đúng cho quyết toán, SAI cho mọi con số đứng trước lúc
+ * tiền ra khỏi két — lúc ấy chưa ai tiêu gì, nên nó luôn bằng 0.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+vai( 'Admin', 'KT' );
+$ma2 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian chỉ có dự toán', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Thợ Phụ',   'duToan' => 48000000 ) );
+VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Băng keo',  'duToan' => 390000 ) );
+/* Hạng mục lớn có con, mà con CHƯA nhập thực tế — hình dạng thường gặp nhất lúc lập dự toán. */
+VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Vật tư', 'duToan' => 5000000 ) );
+VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Ốc vít', 'capCha' => 'Vật tư' ) );
+/* Và một hạng mục ĐÃ có thực tế — thực tế phải THẮNG dự toán. */
+VHCP_DuAn::add_line( $ma2, array( 'noiDung' => 'Xe cẩu', 'duToan' => 1000000, 'thucTe' => 1750000 ) );
+$d2 = VHCP_DuAn::get_du_an( $ma2 );
+$R2 = array();
+foreach ( $d2['lines'] as $l ) { if ( '' === $l['capCha'] ) { $R2[ $l['noiDung'] ] = $l['row']; } }
+
+t( '🔴 chưa chi gì thì tiền dự kiến = DỰ TOÁN (48tr), không phải 0',
+	48000000 == VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Thợ Phụ'] ),
+	VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Thợ Phụ'] ) );
+t( '   có con mà con chưa nhập thực tế → lùi về dự toán của CHA (5tr)',
+	5000000 == VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Vật tư'] ),
+	VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Vật tư'] ) );
+t( '   đã có thực tế thì THỰC TẾ thắng dự toán (1.75tr, không phải 1tr)',
+	1750000 == VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Xe cẩu'] ),
+	VHCP_DuAn::tien_hm_du_kien( $ma2, $R2['Xe cẩu'] ) );
+t( '   dòng không có thật → 0, không nổ', 0 == VHCP_DuAn::tien_hm_du_kien( $ma2, 999 ) );
+
+/* 🔴 CHỐT CHỐNG GỘP HAI HÀM. Ai đó thấy hai hàm gần giống nhau rồi gộp lại thì quyết toán sẽ
+   chốt sổ bằng con số KẾ HOẠCH — sổ khớp đẹp, tiền thì không ai biết đã đi đâu. */
+t( '🔴 `tien_hm()` KHÔNG đổi: vẫn chỉ đọc thực tế, hạng mục chỉ có dự toán ra 0',
+	0 == VHCP_DuAn::tien_hm( $ma2, $R2['Thợ Phụ'] ), VHCP_DuAn::tien_hm( $ma2, $R2['Thợ Phụ'] ) );
+
+$dd2 = VHCP_DuAn::get_du_an( $ma2 );
+teq( '🔴 thẻ "Dự kiến tạm ứng tổng đơn" cộng đủ mọi hạng mục NV tự trả, không còn 0',
+	48000000 + 390000 + 5000000 + 1750000, (int) $dd2['duKienTU'] );
+
+/* 🔴 CỘT THỨ BA: ĐƠN CHI PHÍ CƠ SỞ KHÔNG DÙNG Ô DỰ TOÁN.
+   Nhân viên gõ Số lượng × Đơn giá, tiền nằm trọn ở `thanh_tien`. Bản đầu của `tien_hm_du_kien()`
+   chỉ nhìn thực tế + dự toán, nên nó vá xong đơn dự án mà đơn cơ sở VẪN xin 0đ. */
+vai( 'Admin', 'KT' );
+$maC = VHCP_DuAn::tao_don_coso( 'Tuần thử cột thành tiền', 'Sếp', '14/09/2026', '20/09/2026' )['maDA'];
+VHCP_DuAn::add_line( $maC, array( 'noiDung' => 'Cáp màn hình', 'gian' => 'G1', 'soLuong' => 2, 'donGia' => 500000 ) );
+$dC = VHCP_DuAn::get_du_an( $maC );
+$RC = array();
+foreach ( $dC['lines'] as $l ) { if ( '' === $l['capCha'] ) { $RC[ $l['noiDung'] ] = $l['row']; } }
+t( '🔴 đơn cơ sở: tiền dự kiến lấy từ SỐ LƯỢNG × ĐƠN GIÁ (1tr), không phải 0',
+	1000000 == VHCP_DuAn::tien_hm_du_kien( $maC, $RC['Cáp màn hình'] ),
+	VHCP_DuAn::tien_hm_du_kien( $maC, $RC['Cáp màn hình'] ) );
+
+/* ═══ 11. LỆNH XIN TẠM ỨNG LẤY ĐÚNG SỐ ẤY — chỗ đắt nhất của lỗi ═══════════════════════ */
+vai( 'Nhân viên', 'NV' );
+$x2 = VHCP_DuAn::xin_tam_ung_dot( $ma2, array( $R2['Thợ Phụ'], $R2['Băng keo'] ),
+	array( array( 'ngay' => '18/09/2026' ) ), 'Đợt đầu' );
+t( '🔴 xin tạm ứng cho hạng mục mới chỉ có dự toán → gửi được',
+	! empty( $x2['success'] ), $x2 );
+teq( '🔴 và số tiền của lệnh = 48tr + 390k, KHÔNG phải 0đ',
+	48390000, (int) $x2['dot']['soTien'] );
+
+/* ═══ 12. LƯỚI CUỐI: KHÔNG DỰNG LỆNH 0đ ════════════════════════════════════════════════ */
+vai( 'Admin', 'KT' );
+$ma3 = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian trống trơn', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $ma3, array( 'noiDung' => 'Chưa gõ giá', 'duToan' => 0, 'thucTe' => 0, 'note' => 'x' ) );
+$d3 = VHCP_DuAn::get_du_an( $ma3 );
+$R3 = array();
+foreach ( $d3['lines'] as $l ) { if ( '' === $l['capCha'] ) { $R3[ $l['noiDung'] ] = $l['row']; } }
+vai( 'Nhân viên', 'NV' );
+$x3 = VHCP_DuAn::xin_tam_ung_dot( $ma3, array( $R3['Chưa gõ giá'] ), array(), '' );
+t( '🔴 hạng mục chưa có số nào thì CHỐI, không dựng lệnh 0đ',
+	empty( $x3['success'] ), $x3 );
+t( '   và câu chối nói ra phải điền gì',
+	isset( $x3['error'] ) && false !== mb_strpos( (string) $x3['error'], 'Dự toán' ), $x3 );
+
 /* ═══ 9. CỬA API ═══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 foreach ( array(

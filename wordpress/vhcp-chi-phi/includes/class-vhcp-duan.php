@@ -486,7 +486,10 @@ class VHCP_DuAn {
 			if ( ! self::is_real( $r3 ) ) { continue; }
 			if ( trim( (string) $r3['cap_cha'] ) !== '' ) { continue; }
 			if ( 'Trực tiếp' === trim( (string) $r3['hinh_thuc'] ) ) { continue; }
-			$du_kien += self::tien_hm( $ma_da, (int) $r3['row_no'] );
+			/* ⚠️ `tien_hm_du_kien`, KHÔNG phải `tien_hm`. Chú thích ngay trên nói con số này để
+			   kế toán liệu tiền TRƯỚC khi nhân viên bấm xin — mà `tien_hm()` chỉ đọc thực tế,
+			   nên trước lúc xin nó luôn bằng 0. Xem khối 🔴 ở `tien_hm_du_kien()`. */
+			$du_kien += self::tien_hm_du_kien( $ma_da, (int) $r3['row_no'] );
 		}
 
 		$dt = 0; $tt = 0; $du_tu = 0; $du_tt = 0; $tt_tu = 0; $tt_tt = 0; $tt_vat = 0; $tt_novat = 0;
@@ -988,6 +991,72 @@ class VHCP_DuAn {
 	}
 
 	/**
+	 * TIỀN DỰ KIẾN CỦA MỘT HẠNG MỤC — dùng cho mọi con số đứng TRƯỚC lúc tiền ra khỏi két.
+	 *
+	 * =============================================================================================
+	 * 🔴 VÌ SAO PHẢI CÓ HÀM THỨ HAI — 17/09/2026, anh Thắng: *"đã nhập số liệu thì cần cộng vào
+	 *    luôn để biết bao nhiêu"*, kèm ảnh một dự án có 125.907.312đ dự toán mà thẻ
+	 *    *"Dự kiến tạm ứng tổng đơn"* đứng **0đ**, và *"Số tiền đã xin tạm ứng"* cũng **0đ** dù
+	 *    dòng ghi chú ngay cạnh nói *"✓ đã gửi xin hết"*.
+	 * =============================================================================================
+	 * `tien_hm()` chỉ đọc cột `thuc_te`. Điều ấy ĐÚNG cho quyết toán — quyết toán là đối chiếu
+	 * tiền đã tiêu thật. Nhưng nó SAI cho hai chỗ đứng trước đó:
+	 *
+	 *   · thẻ "Dự kiến tạm ứng tổng đơn" — chú thích của chính nó ghi *"để kế toán liệu tiền
+	 *     TRƯỚC khi nhân viên bấm xin"*. Trước khi xin thì chưa tiêu đồng nào, nên nó bằng 0
+	 *     đúng vào lúc người ta cần nó nhất.
+	 *   · `xin_tam_ung_dot()` — SỐ TIỀN CỦA LỆNH XIN TẠM ỨNG. Đây mới là chỗ đắt: nhân viên
+	 *     tích đủ hạng mục, bấm xin, và hệ thống dựng một lệnh xin **0đ**. Không câu lỗi nào,
+	 *     màn hình vẫn báo đã gửi. Kế toán mở ra thấy một lệnh rỗng, còn nhân viên thì tưởng
+	 *     mình đã xin xong 125 triệu. Đó chính là hai con số 0 trong ảnh.
+	 *
+	 * 🔴 BA CỘT TIỀN, KHÔNG PHẢI HAI — chỗ này suýt sửa hụt. Một dòng chi phí có `thuc_te`,
+	 *    `du_toan` VÀ `thanh_tien` (= số lượng × đơn giá, xem `line_data()`). Đơn **chi phí cơ
+	 *    sở** không dùng ô Dự toán chút nào: nhân viên gõ số lượng và đơn giá, tiền nằm trọn ở
+	 *    `thanh_tien`. Bản đầu của hàm này chỉ nhìn `thuc_te` + `du_toan`, nên nó vá xong đơn dự
+	 *    án mà đơn cơ sở VẪN xin 0đ — cùng một lỗi, ở cột thứ ba.
+	 *    `kiem-don-coso-tu-quyet-toan.php` bắt được ngay, và đó là lý do bài ấy đáng giá.
+	 *
+	 * LUẬT: lấy số ĐÃ BIẾT TỐT NHẤT — thực tế → dự toán → thành tiền.
+	 *   · Hạng mục có mục con: tổng thực tế của con; con chưa nhập gì thì lùi về số của cha.
+	 *   · Hạng mục không con: thực tế của chính nó, rồi dự toán, rồi thành tiền.
+	 *   Dự toán đứng TRƯỚC thành tiền vì ở màn dự án nó là ô người ta cố ý gõ "xin bấy nhiêu",
+	 *   còn thành tiền là số máy tự nhân ra. Một dòng hiếm khi có cả hai — đơn cơ sở chỉ có
+	 *   thành tiền, đơn dự án chỉ có dự toán — nên thứ tự này phục vụ đủ cả hai mà không phải đoán.
+	 *
+	 * ⚠️ HÀM RIÊNG, KHÔNG SỬA `tien_hm()`. Hàm ấy còn hai nơi gọi nữa — `gui_quyet_toan()` và
+	 *    đường quyết toán tự động — và cả hai PHẢI giữ nguyên "chỉ thực tế". Cho quyết toán lùi
+	 *    về dự toán là chốt sổ bằng con số kế hoạch khi chưa ai nhập tiền thật: sổ khớp đẹp,
+	 *    tiền thì không ai biết đã đi đâu. Đây đúng là loại hỏng im lặng mà đổi một hàm dùng
+	 *    chung sẽ gây ra, nên tách làm hai cái tên.
+	 *
+	 * ⚠️ 0 KHÔNG PHẢI "CHƯA NHẬP" theo nghĩa tuyệt đối — một hạng mục thực chi đúng 0đ là có
+	 *    thật (hàng được tặng). Nhưng nó lùi về dự toán thì cũng chỉ ra đúng con số kế hoạch,
+	 *    và người dùng thấy nó trên màn để sửa. Ngược lại — báo 0 cho một khoản 48 triệu — thì
+	 *    không có gì trên màn hình chỉ ra là sai.
+	 */
+	public static function tien_hm_du_kien( $ma_da, $row ) {
+		$lines = self::lines_of( $ma_da );
+		$nd = ''; $tu_than = 0; $ke_hoach = 0;
+		foreach ( $lines as $l ) {
+			if ( (int) $l['row_no'] === (int) $row ) {
+				$nd      = trim( (string) $l['noi_dung'] );
+				$tu_than = VHCP_Util::num( $l['thuc_te'] );
+				$dt      = VHCP_Util::num( $l['du_toan'] );
+				$tht     = VHCP_Util::num( $l['thanh_tien'] );
+				$ke_hoach = $dt > 0 ? $dt : $tht;
+			}
+		}
+		if ( '' === $nd ) { return 0; }
+		$con = 0; $co_con = false;
+		foreach ( $lines as $l ) {
+			if ( trim( (string) $l['cap_cha'] ) === $nd ) { $co_con = true; $con += VHCP_Util::num( $l['thuc_te'] ); }
+		}
+		if ( $co_con ) { return $con > 0 ? $con : $ke_hoach; }
+		return $tu_than > 0 ? $tu_than : $ke_hoach;
+	}
+
+	/**
 	 * NHÂN VIÊN TÍCH MẤY HẠNG MỤC → MỘT LỆNH TẠM ỨNG.
 	 *
 	 * 🔴 CHỈ NHẬN HẠNG MỤC LỚN ĐANG Ở 'nhap' HOẶC 'tra'. Hạng mục đã nằm trong một lệnh khác mà
@@ -1023,7 +1092,22 @@ class VHCP_DuAn {
 				return VHCP_Util::err( '"' . $lon[ $r ] . '" đã nằm trong một lệnh tạm ứng rồi.' );
 			}
 			$nhan[] = $r;
-			$tong  += self::tien_hm( $ma_da, $r );
+			/* ⚠️ `tien_hm_du_kien`, KHÔNG phải `tien_hm`. Đây là SỐ TIỀN CỦA LỆNH XIN TẠM ỨNG —
+			   tiền chưa tiêu, nên hỏi cột thực tế thì được đúng số 0. Xem khối 🔴 ở
+			   `tien_hm_du_kien()`; đây là chỗ đắt nhất của lỗi ấy. */
+			$tong  += self::tien_hm_du_kien( $ma_da, $r );
+		}
+
+		/* 🔴 KHÔNG DỰNG LỆNH XIN 0đ. 17/09/2026 — đây là cái đã xảy ra thật: mọi hạng mục mới
+		   chỉ có dự toán, `tien_hm()` đọc cột thực tế nên `$tong` ra 0, và hệ thống vẫn dựng
+		   một lệnh xin tạm ứng rỗng rồi báo "đã gửi". Nhân viên tưởng đã xin xong 125 triệu;
+		   kế toán mở ra thấy một lệnh không đồng nào; không bên nào có gì trên màn hình để nghi.
+		   Nay `tien_hm_du_kien()` lùi về dự toán nên ca ấy hết. Chốt này là LƯỚI CUỐI cho những
+		   ca còn lại — hạng mục chưa gõ cả dự toán lẫn thực tế — và nó nói thẳng phải làm gì. */
+		if ( $tong <= 0 ) {
+			return VHCP_Util::err( 'Mấy hạng mục vừa tích đều chưa có số tiền nào — Dự toán, '
+				. 'Số lượng × Đơn giá và Chi phí thực tế đều trống hoặc 0. Điền số vào rồi xin '
+				. 'tạm ứng; gửi một lệnh 0đ thì kế toán không có gì để cấp.' );
 		}
 
 		$ds  = self::get_dot( $ma_da );

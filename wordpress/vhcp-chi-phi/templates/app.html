@@ -5472,15 +5472,43 @@
     }
     /* Tổng của một bảng = thực tế của MỤC CON (hạng mục lớn có con thì tiền nằm ở con) cộng
        thực tế của hạng mục không có con, cộng phát sinh. Cộng cả cha lẫn con là đếm hai lần. */
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+       TỔNG CỦA MỘT NHÓM — TRẢ VỀ HAI SỐ, VÌ Ở ĐÂY CÓ HAI SỰ THẬT.
+
+       🔴 17/09/2026, anh Thắng: *"đã nhập số liệu thì cần cộng vào luôn để biết bao nhiêu"*, kèm
+          ảnh một dự án 125.907.312đ dự toán mà dòng tổng nhóm "NV TỰ TRẢ" đứng **0**.
+
+          Bản trước chỉ cộng `thucTe`. Đúng luật của bảng — nhưng ở giai đoạn LẬP DỰ TOÁN thì
+          chưa ai tiêu đồng nào, nên con số duy nhất trên dòng tổng luôn là 0, trong khi ngay
+          dưới nó là mười mấy dòng có tiền. Người nhập không có cách nào biết mình đã gõ vào
+          bao nhiêu ngoài việc tự cộng nhẩm — đúng việc máy phải làm hộ.
+
+       ⚠️ KHÔNG GỘP HAI SỐ LÀM MỘT. Cách rẻ là cho dòng tổng "lấy thực tế, chưa có thì lấy dự
+          toán". Làm thế thì một nhóm nửa đã chi nửa chưa ra một con số không phải cái nào cả,
+          và không có gì trên màn hình nói ra điều đó. Dự toán và thực chi là hai đại lượng
+          khác nhau; bày cả hai, mỗi cái một nhãn.
+       ══════════════════════════════════════════════════════════════════════════════════════════ */
     function tongNhom(ds, ps){
-      var t=0;
+      var dt=0, t=0;
       ds.forEach(function(p){
         var kids=childrenBy[p.noiDung]||[];
+        /* Dự toán chỉ nằm ở HẠNG MỤC LỚN (mục con không nhập dự toán — xem `daCapChaHint()`),
+           nên cộng dự toán của cha là đủ, và cộng thêm của con thì cũng không có gì để cộng. */
+        dt+=Number(p.duToan)||0;
         if(kids.length) kids.forEach(function(k){ t+=Number(k.thucTe)||0; });
         else t+=Number(p.thucTe)||0;
       });
       ps.forEach(function(k){ t+=Number(k.thucTe)||0; });
-      return t;
+      return { duToan:dt, thucTe:t };
+    }
+    /* Dòng tổng của nhóm, dạng chữ. Chỉ bày phần có số — một nhóm chưa chi đồng nào mà vẫn in
+       "thực tế 0đ" thì con số 0 ấy lại là thứ đập vào mắt trước, đúng cái vừa phải sửa. */
+    function tongNhomChu(o){
+      var p=[];
+      if(o.duToan) p.push('dự toán <b>'+money(o.duToan)+'đ</b>');
+      if(o.thucTe) p.push('thực tế <b>'+money(o.thucTe)+'đ</b>');
+      if(!p.length) p.push('<span style="font-weight:400;opacity:.75">chưa có số nào</span>');
+      return p.join(' · ');
     }
     var html='';
     if(coHai){
@@ -5497,11 +5525,20 @@
         var k=g[0];
         if(!nhomHt[k].length && !psHt[k].length) return;
         html+='<tr><td colspan="12" style="background:'+g[2]+';color:'+g[3]+';font-weight:800;padding:7px 10px">'+g[1]+'</td>'
-          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+money(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
+          +'<td style="background:'+g[2]+';color:'+g[3]+';font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(tongNhom(nhomHt[k],psHt[k]))+'</td></tr>';
         html+=veNhom(nhomHt[k])+vePhatSinh(psHt[k]);
       });
     } else {
+      /* 🔴 MỘT HÌNH THỨC CHI THÌ CŨNG PHẢI CÓ DÒNG TỔNG. Bản trước chỉ vẽ dòng tổng khi dự án
+         có CẢ HAI hình thức (vì dòng tổng đi kèm nhãn nhóm). Nên đúng cái dự án đơn giản nhất —
+         một hình thức, mười mấy dòng — lại là dự án KHÔNG có chỗ nào nói tổng bao nhiêu, và
+         người nhập phải cộng nhẩm. Đúng việc anh Thắng vừa bảo máy phải làm hộ. */
+      var _tg=tongNhom(parents, phatSinh);
       html=veNhom(parents)+vePhatSinh(phatSinh);
+      if(html){
+        html+='<tr><td colspan="12" style="background:#f4f1ec;font-weight:800;padding:7px 10px">TỔNG</td>'
+          +'<td style="background:#f4f1ec;font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(_tg)+'</td></tr>';
+      }
     }
     el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
     /* Thanh tích + bảng lệnh dựng SAU khi bảng đã vẽ: ô tích nằm trong bảng, dựng trước thì
