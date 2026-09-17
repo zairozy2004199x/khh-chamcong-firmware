@@ -414,11 +414,29 @@ class VHCC_Online {
 		// GPS: bản gốc ghi làm GHI CHÚ trên ô giờ. Ở đây có cột riêng.
 		$ghi_chu = self::gps_thanh_chu( $gps );
 
+		/* Gác 5: ĐỐI CHIẾU VỚI MỐC CỦA CƠ SỞ (xem VHCC_ViTri).
+		   🔴 XÉT SAU khi `$coso` đã chốt, KHÔNG xét theo `$coso_chon` của client. Người làm hai
+		      nơi gửi lên một tên, gác 2 đổi nó sang tên đúng trong hồ sơ — so mốc theo tên chưa
+		      chốt là so với mốc của cơ sở khác.
+		   🔴 CHỐI TRƯỚC KHI GHI. Đặt phép chối sau `ghi_gio()` thì hàng đã nằm trong bảng, và
+		      "lượt bị chặn" hoá ra vẫn là công. */
+		if ( class_exists( 'VHCC_ViTri' ) ) {
+			$xv = VHCC_ViTri::xet( $coso, $gps );
+			if ( ! empty( $xv['chan'] ) ) {
+				return array( 'ok' => false, 'error' => VHCC_ViTri::loi_chan( $coso, $xv ),
+					'viTri' => $xv );
+			}
+			if ( ! empty( $xv['gac'] ) && '' !== (string) $xv['chu'] ) {
+				$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $xv['chu'] : $xv['chu'];
+			}
+		}
+
 		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		return array( 'ok' => true, 'loai' => $kq['loai'], 'coSo' => $coso, 'ngay' => $ngay,
-			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'] );
+			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'],
+			'viTri' => ( isset( $xv ) ? $xv : null ) );
 	}
 
 	/** Hậu tố hàng của một nhiệm vụ. Không khớp -> rỗng = ghi vào hàng chính. */

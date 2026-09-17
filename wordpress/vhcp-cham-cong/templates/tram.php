@@ -1269,6 +1269,16 @@ el('btLuu').addEventListener('click', function(){
 		var nhan = (j.loai==='ra') ? 'GIỜ RA' : 'GIỜ VÀO';
 		bao('baoCham','xanh', '✔ Đã ghi ' + nhan + ' ' + j.gio + ' — ' + j.coSo
 			+ ' (' + j.ngay + ')' + (j.ma!==(TOI&&TOI.maNV) ? ' · hàng ' + j.ma : ''));
+		/* 🔴 CƠ SỞ ĐANG GÁC VỊ TRÍ MÀ LƯỢT NÀY BỊ CHẤM Ở NGOÀI VÙNG -> NÓI RA NGAY, ở đây.
+		   Lượt vẫn được ghi (mức "Chỉ ghi chú" cố ý không chặn), nhưng dòng ghi chú ấy nằm
+		   trong Bảng công — nơi người vừa bấm không mở. Im lặng thì tới cuối tháng quản lý mới
+		   hỏi "sao hôm đó chấm cách cửa hàng 3km", mà lúc đó thì không ai còn nhớ nổi hôm ấy
+		   đứng ở đâu. Nói ngay lúc còn đứng đó thì họ sửa được ngay, hoặc giải thích được ngay. */
+		if(j.viTri && j.viTri.gac && j.viTri.ket === 'ngoai'){
+			el('baoCham').innerHTML += '<div class="vang">⚠ Lượt vừa ghi bị đánh dấu <b>NGOÀI '
+				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
+				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
+		}
 		napToi();
 	}).catch(function(e){
 		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */

@@ -1114,6 +1114,53 @@ class VHCC_Web {
 				: 'Không có gì đổi.' ) );
 		}
 
+		/* VỊ TRÍ CƠ SỞ — cả bảng gửi lên một lượt, nên phải phân biệt cho được ba việc khác
+		   hẳn nhau trên từng dòng: khai mới / sửa, BỎ mốc (xoá trắng ô toạ độ), và KHÔNG ĐỔI GÌ.
+		   Ghi lại cả bảng mỗi lượt Lưu thì cột "Khai lúc" của mọi cơ sở nhảy về hôm nay, và dấu
+		   vết ai khai mốc nào lúc nào — thứ duy nhất tra được khi một cơ sở bị chặn oan — mất sạch. */
+		if ( 'vi_tri_cs' === $viec ) {
+			$o_td = isset( $_POST['vt_td'] ) ? (array) wp_unslash( $_POST['vt_td'] ) : array();
+			$o_bk = isset( $_POST['vt_bk'] ) ? (array) wp_unslash( $_POST['vt_bk'] ) : array();
+			$o_cd = isset( $_POST['vt_cd'] ) ? (array) wp_unslash( $_POST['vt_cd'] ) : array();
+			$luu = 0; $bo = 0; $loi = array();
+			foreach ( $o_td as $cs_v => $td_v ) {
+				$cs_v = sanitize_text_field( $cs_v );
+				$td_v = trim( sanitize_text_field( is_array( $td_v ) ? '' : $td_v ) );
+				$bk_v = isset( $o_bk[ $cs_v ] ) ? sanitize_text_field( (string) $o_bk[ $cs_v ] ) : '';
+				$cd_v = isset( $o_cd[ $cs_v ] ) ? sanitize_text_field( (string) $o_cd[ $cs_v ] ) : VHCC_ViTri::TAT;
+				$cu_v = VHCC_ViTri::mot( $cs_v );
+
+				if ( '' === $td_v ) {
+					if ( ! $cu_v ) { continue; }          // vốn đã trống — không phải một lượt xoá
+					$r = VHCC_ViTri::xoa( $toi, $cs_v );
+					if ( empty( $r['ok'] ) ) { $loi[] = $cs_v . ': ' . $r['error']; } else { $bo++; }
+					continue;
+				}
+
+				/* Không đổi gì thì đừng ghi — giữ nguyên cột "Khai lúc". So bằng chính chuỗi đang
+				   bày ra ô, vì đó là thứ người dùng nhìn thấy và không sửa. */
+				if ( $cu_v
+					&& $td_v === ( $cu_v['lat'] . ', ' . $cu_v['lng'] )
+					&& (string) $bk_v === (string) $cu_v['bk']
+					&& $cd_v === $cu_v['cheDo'] ) { continue; }
+
+				$r = VHCC_ViTri::luu( $toi, $cs_v, array( 'toaDo' => $td_v, 'bk' => $bk_v, 'cheDo' => $cd_v ) );
+				if ( empty( $r['ok'] ) ) { $loi[] = $cs_v . ': ' . $r['error']; } else { $luu++; }
+			}
+			$noi = array();
+			if ( $luu ) { $noi[] = 'khai mốc cho ' . $luu . ' cơ sở'; }
+			if ( $bo )  { $noi[] = 'bỏ mốc của ' . $bo . ' cơ sở'; }
+			$bao = array();
+			if ( $loi ) { $bao[] = array( 'loi' => implode( ' · ', $loi ) ); }
+			if ( $noi ) {
+				$bao[] = array( 'xong' => 'Đã ' . implode( ' và ', $noi ) . '. Phép gác chỉ áp cho lượt '
+					. 'chấm BẰNG ĐIỆN THOẠI; lượt từ máy chấm công không đổi gì.' );
+			} elseif ( ! $loi ) {
+				$bao[] = array( 'xong' => 'Không có gì đổi.' );
+			}
+			return $bao;
+		}
+
 		if ( 'gop_cs' === $viec ) {
 			$o = isset( $_POST['gcs'] ) ? (array) wp_unslash( $_POST['gcs'] ) : array();
 			$xong = array(); $loi = array(); $de_lai = array();
@@ -9396,9 +9443,93 @@ class VHCC_Web {
 			. 'bằng công thức của bộ phận khác), nhưng phải biết mà xếp.</p>';
 		echo '</div>';
 
+		self::the_vi_tri_cs( $ky, $toi, $tk );
 		self::the_ghep_cs( $ky, $toi );
 		self::the_coso_la( $ky, $toi );
 		self::the_tra_cs( $ky, $toi );
+	}
+
+	/**
+	 * KHỐI VỊ TRÍ CƠ SỞ — toạ độ + bán kính, để lượt chấm online tự đối chiếu (xem `VHCC_ViTri`).
+	 *
+	 * 🔴 BẢNG NÀY BÀY CẢ CƠ SỞ CHƯA KHAI MỐC, KHÔNG CHỈ CƠ SỞ ĐÃ KHAI. Chỉ liệt kê cái đã khai
+	 *    thì người mở màn thấy hai dòng và tưởng cả hệ đang được gác — trong khi mười hai cơ sở
+	 *    còn lại không gác gì. Câu màn này phải trả lời được là *"cơ sở nào ĐANG gác, cơ sở nào
+	 *    chưa"*, và câu đó chỉ đọc ra được khi cả hai loại nằm cạnh nhau.
+	 *
+	 * ⚠️ MẶC ĐỊNH CỦA Ô CHẾ ĐỘ LUÔN LÀ TRẠNG THÁI HIỆN TẠI, KHÔNG PHẢI "Tắt". Cả bảng gửi lên
+	 *    trong một lượt POST, nên ô nào vẽ sai mặc định là lượt Lưu ấy TẮT gác của cơ sở đó — mà
+	 *    người bấm chỉ định sửa bán kính của một dòng khác.
+	 */
+	private static function the_vi_tri_cs( $ky, $toi, $tk ) {
+		if ( ! VHCC_Vai::duoc( $toi, VHCC_ViTri::QUYEN ) ) { return; }
+
+		$moc = VHCC_ViTri::ds();
+		$bat = 0;
+		foreach ( $moc as $m ) { if ( VHCC_ViTri::TAT !== $m['cheDo'] ) { $bat++; } }
+
+		echo '<div class="the" id="vitri"><h3 style="margin:0 0 8px">📍 Vị trí cơ sở — gác chấm công online</h3>';
+		echo '<p class="mo">Khai toạ độ cửa hàng rồi chọn chế độ: mỗi lượt chấm <b>bằng điện thoại</b> '
+			. 'sẽ tự so khoảng cách. Máy chấm công ngoài cửa hàng <b>không</b> đi qua phép gác này — '
+			. 'nó vốn đã đứng sẵn tại chỗ.</p>';
+		echo '<p class="mo">Lấy toạ độ: mở <b>Google Maps</b> trên điện thoại → nhấn giữ vào cửa hàng '
+			. '→ <b>Chia sẻ → Sao chép liên kết</b> → dán nguyên cái link vào ô. Dán cặp số '
+			. '<code>10.775500, 106.702100</code> cũng được.</p>';
+		echo '<p class="mo">⚠️ <b>Bật dần từng cơ sở, và bật ở mức “Chỉ ghi chú” trước.</b> Chạy vài '
+			. 'ngày, mở Bảng công đọc cột ghi chú xem có ai bị báo “ngoài vùng” oan không, rồi mới '
+			. 'chuyển sang Chặn. Bật Chặn ngay là sáng hôm sau cả cửa hàng không chấm công được mà '
+			. 'không ai biết vì sao.</p>';
+		echo '<p class="mo">Ba điều bộ gác <b>không bao giờ</b> làm, kể cả ở mức Chặn: chặn khi máy '
+			. 'không gửi được toạ độ (trong nhà, dưới hầm), chặn khi sai số GPS thô hơn '
+			. VHCC_ViTri::met( VHCC_Online::GPS_THO ) . ', và chặn khi sai số còn đủ lớn để che '
+			. 'được ranh giới. Chỉ chặn khi <b>chắc chắn</b> ở ngoài.</p>';
+
+		if ( ! $tk ) {
+			echo '<p class="mo">Chưa có cơ sở nào trong danh mục.</p></div>';
+			return;
+		}
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th>'
+			. '<th>Toạ độ (cặp số hoặc link Google Maps)</th><th>Bán kính (m)</th>'
+			. '<th>Chế độ</th><th>Khai lúc</th></tr></thead><tbody>';
+		foreach ( $tk as $x ) {
+			$ma = (string) $x['ma'];
+			$m  = isset( $moc[ $ma ] ) ? $moc[ $ma ] : VHCC_ViTri::mot( $ma );
+			$id = 'vt_' . preg_replace( '/[^A-Za-z0-9]+/', '_', $ma );
+			$gt = $m ? ( $m['lat'] . ', ' . $m['lng'] ) : '';
+			$cd = $m ? $m['cheDo'] : VHCC_ViTri::TAT;
+
+			echo '<tr><td><b>' . esc_html( $ma ) . '</b></td>';
+			echo '<td style="text-align:left"><label class="an" for="' . esc_attr( $id ) . '">Toạ độ của '
+				. esc_html( $ma ) . '</label>'
+				. '<input id="' . esc_attr( $id ) . '" name="vt_td[' . esc_attr( $ma ) . ']" '
+				. 'style="width:100%" placeholder="để trống = chưa khai" '
+				. 'value="' . esc_attr( $gt ) . '"></td>';
+			echo '<td><label class="an" for="' . esc_attr( $id ) . '_bk">Bán kính của '
+				. esc_html( $ma ) . '</label>'
+				. '<input id="' . esc_attr( $id ) . '_bk" name="vt_bk[' . esc_attr( $ma ) . ']" '
+				. 'type="number" min="' . (int) VHCC_ViTri::BK_TOI_THIEU . '" '
+				. 'max="' . (int) VHCC_ViTri::BK_TOI_DA . '" style="width:88px" '
+				. 'value="' . esc_attr( $m ? (string) $m['bk'] : (string) VHCC_ViTri::BK_MAC_DINH ) . '"></td>';
+			echo '<td><label class="an" for="' . esc_attr( $id ) . '_cd">Chế độ của '
+				. esc_html( $ma ) . '</label>'
+				. '<select id="' . esc_attr( $id ) . '_cd" name="vt_cd[' . esc_attr( $ma ) . ']">';
+			foreach ( VHCC_ViTri::TEN_CHE_DO as $k_cd => $t_cd ) {
+				echo '<option value="' . esc_attr( $k_cd ) . '"' . selected( $k_cd, $cd, false ) . '>'
+					. esc_html( $t_cd ) . '</option>';
+			}
+			echo '</select></td>';
+			echo '<td class="mo">' . ( $m && '' !== $m['luc']
+				? esc_html( $m['luc'] . ( '' !== $m['nguoi'] ? ' · ' . $m['nguoi'] : '' ) )
+				: '—' ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh" name="viec" value="vi_tri_cs">💾 Lưu vị trí cơ sở</button>'
+			. ' <span class="mo">Đang gác: <b>' . (int) $bat . '</b>/' . count( $tk ) . ' cơ sở. '
+			. 'Xoá trắng ô toạ độ rồi Lưu là bỏ mốc của cơ sở đó.</span></p>';
+		echo '</form></div>';
 	}
 
 	/**
