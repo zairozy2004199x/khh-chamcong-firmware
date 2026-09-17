@@ -105,6 +105,9 @@ label{display:block;font-size:12.5px;color:var(--chu-mo);margin:0 0 5px}
    tuần, nên nút vẫn nằm chỗ dễ thấy chứ không giấu sau một menu. */
 /* DÒNG BẤM ĐƯỢC trong bảng công cơ sở. Vùng chạm là cả dòng (cao ~44px nhờ đệm của ô), nên
    không cần nút riêng — xem chú thích ở `napCongCH()`. */
+/* Dòng ĐÃ KHOÁ (ngày đã qua, cửa hàng trưởng hết hạn sửa). Mờ đủ để đọc ra là "khác", và
+   KHÔNG có con trỏ bấm — nói "đây không phải nút" trước cả khi người ta chạm vào. */
+tr.ng-khoa{opacity:.55}
 tr.hang-mo{cursor:pointer}
 tr.hang-mo:active{background:var(--nhan-nhat)}
 tr.hang-mo td{padding-top:12px;padding-bottom:12px}
@@ -508,6 +511,11 @@ a{color:var(--nhan)}
 	     ⚠️ Ẩn bằng lớp `an` ngay trong HTML, không chờ JS gỡ: chờ JS thì nhân viên thường thấy
 	        nút loé lên một nhịp trước khi biến mất, và cái loé ấy đủ để người ta bấm. -->
 	<div id="tCuaHang" class="tab-o an">
+
+	<!-- ⚠️ CÂU NHẮC NẰM Ở ĐẦU TAB, TRƯỚC MỌI THỨ KHÁC — anh Thắng 17/09/2026: *"Nên chỗ đầu cửa
+	     hàng. Thông báo nội dung hết 24h hôm này không cho phép sửa giờ công. Vui lòng liên hệ
+	     kế toán"*. Nhắc ở cuối hay nhắc lúc bị chối thì người ta đã gõ xong mới biết. -->
+	<div id="nhacHan" class="an"></div>
 
 	<div class="the">
 		<label for="chCoSo" style="margin:0 0 8px">Cơ sở tôi phụ trách</label>
@@ -2267,6 +2275,12 @@ function doCuaHang(){
 		   để làm ở đây. */
 		if(!ds.length){ return; }
 		el('chCoSo').innerHTML = xoOption(ds, ds[0] || '');
+		/* Máy chủ quyết có nhắc hay không — người có `cong_tat_ca` không bị khoá nên không
+		   thấy câu này. Bày cho cả những người không bị khoá là dạy họ một luật sai. */
+		if(j.nhacHan){
+			el('nhacHan').innerHTML = '<div class="vang">⏰ ' + esc(j.nhacHan) + '</div>';
+			el('nhacHan').classList.remove('an');
+		}
 		el('nutCH').classList.remove('an');
 		/* Năm ô thì thu chữ — xem khối CSS `#thanhTab.tab5`. Gắn ở ĐÂY, cùng một dòng lệnh với
 		   lượt mở nút, để không bao giờ có trạng thái "năm ô mà chưa thu chữ". */
@@ -2481,11 +2495,19 @@ function veDsNgay(){
 		      người ta bấm mãi không ra gì, tệ hơn là nhìn biết ngay không bấm được. */
 		el('dsNgay').innerHTML = '<div class="vang" style="margin:0 0 10px">Tài khoản của anh/chị '
 			+ 'chưa được mở quyền <b>sửa giờ</b>, nên bảng dưới chỉ để xem. Thấy giờ sai thì báo '
-			+ 'quản lý.</div>' + bangNgay(ds).replace(/ class="ng-sua/g, ' class="')
+			+ 'quản lý.</div>' + bangNgay(ds, '').replace(/ class="ng-sua/g, ' class="')
 				.replace(/<span class="mui">›<\/span>/g, '');
 		return;
 	}
-	el('dsNgay').innerHTML = bangNgay(ds);
+	/* 🔴 NGÀY ĐÃ QUÁ HẠN THÌ KHÔNG CHO MỞ Ô SỬA, và nói ra ngay tại chỗ. Cho mở rồi mới chối
+	   lúc bấm Lưu là bắt người ta gõ cả giờ lẫn lý do cho một lượt không bao giờ đi được. */
+	var chi_nay = !!NG.khoaNgayCu;
+	var h = '';
+	if(chi_nay && NG.nhacHan){
+		h += '<div class="vang" style="margin:0 0 10px">⏰ ' + esc(NG.nhacHan)
+		  +  ' Dòng của ngày đã qua chỉ để xem.</div>';
+	}
+	el('dsNgay').innerHTML = h + bangNgay(ds, chi_nay ? NG.homNay : '');
 	var b = el('dsNgay').querySelectorAll('.ng-sua');
 	for(var i=0;i<b.length;i++){
 		b[i].addEventListener('click', function(){ moSuaNgay(this.getAttribute('data-ngay')); });
@@ -2494,15 +2516,21 @@ function veDsNgay(){
 
 /* Bốn cột, và CẢ DÒNG là vùng chạm — cùng một luật với bảng công cơ sở, cùng một lý do: cột
    thứ năm chứa nút thì trên màn 390px nó bị bóp mất. Xem chú thích ở `napCongCH()`. */
-function bangNgay(ds){
+/* `chi_ngay` khác rỗng = CHỈ ngày ấy còn sửa được (cửa hàng trưởng, sau 24h là khoá). Dòng
+   ngoài ngày ấy mất lớp bấm và mất mũi › — nhìn là biết không bấm được, không phải bấm rồi
+   mới biết. */
+function bangNgay(ds, chi_ngay){
 	var h = '<table><thead><tr><th>Ngày</th><th>Vào</th><th>Ra</th><th>Giờ</th></tr></thead><tbody>';
 	for(var i=0;i<ds.length;i++){
 		var x = ds[i];
-		h += '<tr class="ng-sua' + (x.thieu ? ' hong' : '') + '" data-ngay="' + esc(x.ngay) + '">'
+		var mo = (!chi_ngay || x.ngay === chi_ngay);
+		h += '<tr class="' + (mo ? 'ng-sua' : 'ng-khoa') + (x.thieu ? ' hong' : '')
+		  +  '" data-ngay="' + esc(x.ngay) + '">'
 		  +  '<td>' + esc(ngayGon(x.ngay)) + (x.hauTo ? ' <b>' + esc(x.hauTo) + '</b>' : '') + '</td>'
 		  +  '<td>' + esc(x.vao || '—') + '</td>'
 		  +  '<td>' + (x.thieu ? '<b>thiếu</b>' : esc(x.ra || '—')) + '</td>'
-		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio)) + ' <span class="mui">›</span></td></tr>';
+		  +  '<td>' + (x.gio === null ? '—' : esc(x.gio))
+		  +  (mo ? ' <span class="mui">›</span>' : '') + '</td></tr>';
 	}
 	return h + '</tbody></table>';
 }

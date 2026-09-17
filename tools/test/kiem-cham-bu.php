@@ -61,9 +61,15 @@ function bu( $u, $dat_them = array() ) {
 		'ma_nv' => 'NV001', 'vao' => '08:00', 'ra' => '17:00',
 		'ly_do' => 'máy hỏng, có camera' ), $dat_them ) );
 }
+/* ⚠️ NGÀY MẶC ĐỊNH ĐỔI GIỮA CHỪNG, CỐ Ý. Mục BÙ chạy trên ngày HÔM QUA (bù là điền ô trống,
+   và luật cho bù ngày cũ). Mục SỬA ĐÈ thì phải chạy trên HÔM NAY, vì từ 17/09/2026 cửa hàng
+   trưởng chỉ sửa được giờ của chính hôm nay (`VHCC_Bu::han_ngay`). Một biến chung, đổi đúng
+   một lần ở ranh giới hai mục, thay vì rải ngày vào mười chỗ rồi lệch nhau. */
+$NGAY_MD = date( 'Y-m-d', strtotime( '-1 day' ) );
+
 function hang( $ma = 'NV001', $ngay = null, $hau = '' ) {
-	global $wpdb;
-	$ngay = $ngay ? $ngay : date( 'Y-m-d', strtotime( '-1 day' ) );
+	global $wpdb, $NGAY_MD;
+	$ngay = $ngay ? $ngay : $NGAY_MD;
 	return $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' )
 		. ' WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s', 'TUTU_BT', $ngay, $ma, $hau ), ARRAY_A );
 }
@@ -196,13 +202,18 @@ teq( 'và hàng chính không bị đụng', VHCC_DB::giay( '08:10:00' ), (int) 
 echo "— sửa đè —\n";
 
 function sua( $u, $dat_them = array() ) {
+	global $NGAY_MD;
 	return VHCC_Bu::sua( $u, array_merge( array(
-		'coso' => 'TUTU_BT', 'ngay' => date( 'Y-m-d', strtotime( '-1 day' ) ),
+		'coso' => 'TUTU_BT', 'ngay' => $NGAY_MD,
 		'ma_nv' => 'NV009', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' ), $dat_them ) );
 }
 
-/* Dựng một ngày đã có đủ giờ, ghi qua đúng cổng máy. */
-$ND = date( 'Y-m-d', strtotime( '-1 day' ) );
+/* Dựng một ngày đã có đủ giờ, ghi qua đúng cổng máy.
+   🔴 TỪ ĐÂY TRỞ XUỐNG LÀ HÔM NAY — xem chú thích ở `$NGAY_MD`. Cửa hàng trưởng chỉ sửa được
+      giờ của chính hôm nay, nên mọi phép thử CƠ CHẾ sửa đè phải đứng trên một ngày còn mở;
+      cái khoá theo ngày có bài riêng ở `kiem-cua-hang.php`. */
+$NGAY_MD = current_time( 'Y-m-d' );
+$ND      = $NGAY_MD;
 VHCC_Nhan::ghi_gio( 'TUTU_BT', $ND, 'NV009', 'Người NV009', VHCC_DB::giay( '08:00:00' ), '', 'may' );
 VHCC_Nhan::ghi_gio( 'TUTU_BT', $ND, 'NV009', 'Người NV009', VHCC_DB::giay( '17:00:00' ), '', 'may' );
 teq( 'dựng được ngày có đủ giờ, nguồn máy', 'may', hang( 'NV009' )['nguon'] );

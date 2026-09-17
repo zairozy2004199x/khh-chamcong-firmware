@@ -301,6 +301,11 @@ class VHCC_CuaHang {
 			'gioThang' => round( $phut / 60, 2 ),
 			/* Người sửa cần biết mình CÓ được sửa không TRƯỚC khi gõ xong rồi mới bị chối. */
 			'duocSua' => VHCC_Vai::duoc( $u, 'sua_gio' ),
+			/* Và biết NGÀY NÀO còn sửa được — xem `VHCC_Bu::han_ngay()`. Trả cả hai thứ để màn
+			   khỏi tự suy ra luật: nó chỉ so `ngay === homNay` khi `khoaNgayCu` bật. */
+			'khoaNgayCu' => VHCC_Bu::bi_khoa_ngay_cu( $u ),
+			'homNay'     => (string) current_time( 'Y-m-d' ),
+			'nhacHan'    => VHCC_Bu::nhac_han_ngay( $u ),
 		);
 	}
 

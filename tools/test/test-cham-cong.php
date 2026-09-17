@@ -7942,8 +7942,13 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG1', 'ho_ten' =>
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTG2', 'ho_ten' => 'Nhân Viên Giờ',
 	'cua_hang' => $cs_cht, 'vai_tro' => 'Nhân viên' ) );
 /* Một ngày ĐÃ CÓ giờ → đường `sua_gio`. Một ngày ĐỂ TRỐNG → đường `bu`. */
+/* ⚠️ NGÀY HÔM NAY, KHÔNG PHẢI MỘT NGÀY CỐ ĐỊNH. Từ 17/09/2026 cửa hàng trưởng chỉ SỬA/XOÁ được
+   giờ của chính hôm nay (`VHCC_Bu::han_ngay` — anh Thắng: *"hết 24h hôm nay không cho phép sửa
+   giờ công"*). Khối này canh CƠ CHẾ sửa của cửa hàng trưởng, nên nó phải đứng trên một ngày
+   còn mở; cái khoá theo ngày có bài riêng ở `kiem-cua-hang.php`. */
+$ng_cht = current_time( 'Y-m-d' );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTG2', 'ho_ten' => 'Nhân Viên Giờ',
-	'coso' => $cs_cht, 'ngay' => '2026-09-02', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'coso' => $cs_cht, 'ngay' => $ng_cht, 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
 	'hau_to' => '', 'nguon' => 'may' ) );
 
 $u_chtg = array( 'name' => 'Trưởng Giờ', 'role' => 'Cửa hàng trưởng',
@@ -7952,9 +7957,9 @@ $tok_chtg = VHCC_Auth::phat_token( 'Trưởng Giờ', 'Cửa hàng trưởng', $
 
 /* ---- (a) SỬA giờ đã có ---- */
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_chtg );
-$_GET  = array( 'man' => 'cham', 'ccs' => $cs_cht, 'cth' => '2026-09' );
+$_GET  = array( 'man' => 'cham', 'ccs' => $cs_cht, 'cth' => substr( $ng_cht, 0, 7 ) );
 $_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
-	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'ccs' => $cs_cht, 'ngay' => $ng_cht, 'ma_nv' => 'CHTG2',
 	'sg_vao' => '09:30', 'sg_ra' => '18:15', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' );
 ob_start(); VHCC_Web::phuc_vu(); $h_chtg = ob_get_clean();
 $_POST = array();
@@ -7963,7 +7968,7 @@ t( '🔴 KHÔNG còn bị đá ra bằng câu "chỉ xem được bảng chấm 
 	strpos( $h_chtg, 'chỉ xem được bảng chấm công' ) === false,
 	( preg_match( '#<div class="bao loi">(.{0,300}?)</div>#s', $h_chtg, $m_chtg )
 		? trim( wp_strip_all_tags( $m_chtg[1] ) ) : 'không thấy câu lỗi nào' ) );
-$d_sua = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+$d_sua = VHCC_Bu::gio_hien_tai( $cs_cht, $ng_cht, 'CHTG2' );
 teq( '🔴 giờ vào đã đổi thật trong sổ', '09:30', (string) $d_sua['vao'] );
 teq( 'và giờ ra cũng vậy', '18:15', (string) $d_sua['ra'] );
 
@@ -7995,18 +8000,18 @@ teq( '🔴 vẫn KHÔNG sửa được giờ của cơ sở KHÁC', '08:00', (st
 
 /* Bắt ghi vì sao: thiếu lý do thì không ăn, dù đúng cơ sở mình. */
 $_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_chtg ),
-	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'ccs' => $cs_cht, 'ngay' => $ng_cht, 'ma_nv' => 'CHTG2',
 	'sg_vao' => '04:00', 'ly_do' => '' );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array();
-$d_kl = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+$d_kl = VHCC_Bu::gio_hien_tai( $cs_cht, $ng_cht, 'CHTG2' );
 teq( '🔴 thiếu "vì sao" thì lượt sửa KHÔNG ăn', '09:30', (string) $d_kl['vao'] );
 
 /* Vào sổ, không xoá được — chốt thứ ba. */
 $nk_chtg = VHCC_Bu::ds_nhat_ky( $u_chtg, $cs_cht, '2026-09' );
 $co_sua = false; $co_bu = false;
 foreach ( $nk_chtg as $x ) {
-	if ( 'CHTG2' === $x['ma_nv'] && '2026-09-02' === $x['ngay'] && 'sua' === $x['viec'] ) { $co_sua = true; }
+	if ( 'CHTG2' === $x['ma_nv'] && $ng_cht === $x['ngay'] && 'sua' === $x['viec'] ) { $co_sua = true; }
 	if ( 'CHTG2' === $x['ma_nv'] && '2026-09-03' === $x['ngay'] ) { $co_bu = true; }
 }
 t( '🔴 lượt sửa của cửa hàng trưởng có vào sổ', $co_sua, $nk_chtg );
@@ -8016,11 +8021,11 @@ t( 'và lượt bù cũng vậy', $co_bu, $nk_chtg );
 $tok_nvg = VHCC_Auth::phat_token( 'Nhân Viên Giờ', 'Nhân viên', $cs_cht, 'CHTG2' );
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_nvg );
 $_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_nvg ),
-	'ccs' => $cs_cht, 'ngay' => '2026-09-02', 'ma_nv' => 'CHTG2',
+	'ccs' => $cs_cht, 'ngay' => $ng_cht, 'ma_nv' => 'CHTG2',
 	'sg_vao' => '03:00', 'ly_do' => 'nhân viên tự sửa giờ của mình' );
 ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
 $_POST = array();
-$d_nv = VHCC_Bu::gio_hien_tai( $cs_cht, '2026-09-02', 'CHTG2' );
+$d_nv = VHCC_Bu::gio_hien_tai( $cs_cht, $ng_cht, 'CHTG2' );
 teq( '🔴 nhân viên bậc 1 TỰ SỬA giờ của mình: KHÔNG ăn', '09:30', (string) $d_nv['vao'] );
 $_GET = array(); $_POST = array(); $_COOKIE = array();
 $GLOBALS['VHCP_GIAY_BAY_GIO'] = $giay_cu_chtg;

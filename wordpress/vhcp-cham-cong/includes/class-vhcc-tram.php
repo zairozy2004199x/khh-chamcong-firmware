@@ -510,6 +510,10 @@ class VHCC_Tram {
 				'duoc'   => true,
 				'dsCoSo' => VHCC_CuaHang::ds_coso( $u ),
 				'thang'  => current_time( 'Y-m' ),
+				/* Câu nhắc "hết 24h là khoá" do CHÍNH nơi thi hành luật đọc ra, không phải màn
+				   tự chế — bày một câu mà luật không làm đúng vậy là nói dối người dùng. */
+				'nhacHan' => VHCC_Bu::nhac_han_ngay( $u ),
+				'homNay'  => current_time( 'Y-m-d' ),
 			) );
 		}
 

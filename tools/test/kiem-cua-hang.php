@@ -48,6 +48,12 @@ global $wpdb;
 $CS_A = 'CH_SHOP_A';
 $CS_B = 'CH_SHOP_B';
 $TH   = current_time( 'Y-m' );
+/* ⚠️ MẤY LƯỢT SỬA/XOÁ GIEO VÀO NGÀY HÔM NAY, KHÔNG PHẢI MỘT NGÀY BẤT KỲ TRONG THÁNG.
+   Từ 17/09/2026 cửa hàng trưởng chỉ sửa được giờ của CHÍNH HÔM NAY (`VHCC_Bu::han_ngay`).
+   Gieo vào ngày cũ thì mọi phép thử cơ chế đều đỏ vì MỘT lý do chung — và lý do ấy che mất
+   đúng cái thứ chúng sinh ra để canh. Cái khoá theo ngày có mục riêng ở dưới. */
+$HOM  = current_time( 'Y-m-d' );
+$CU   = gmdate( 'Y-m-d', strtotime( $HOM . ' 00:00:00 UTC' ) - 86400 );
 
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
 	'ma_nv' => 'CH001', 'ho_ten' => 'Vũ Thị Nhân', 'cua_hang' => $CS_A, 'chuc_vu' => 'Nhân viên',
@@ -224,10 +230,10 @@ foreach ( $m_h[1] as $i => $h ) {
 /* =============================================================== 4. BẢNG CÔNG */
 
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
-	'ma_nv' => 'CH001', 'ho_ten' => 'Vũ Thị Nhân', 'coso' => $CS_A, 'ngay' => $TH . '-02',
+	'ma_nv' => 'CH001', 'ho_ten' => 'Vũ Thị Nhân', 'coso' => $CS_A, 'ngay' => $HOM,
 	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 16 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
-	'ma_nv' => 'CH002', 'ho_ten' => 'Hồ Văn Kia', 'coso' => $CS_B, 'ngay' => $TH . '-02',
+	'ma_nv' => 'CH002', 'ho_ten' => 'Hồ Văn Kia', 'coso' => $CS_B, 'ngay' => $HOM,
 	'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 20 * 3600, 'hau_to' => '', 'nguon' => 'may' ) );
 
 $c = VHCC_CuaHang::cong_coso( $CHT_A, $CS_A, $TH );
@@ -265,12 +271,21 @@ t( '🔴 nhân viên thường KHÔNG xem được bảng công cơ sở', empty
 /* Anh Thắng 17/09/2026: *"có thêm chức năng sửa công nhân viên và set giờ theo công việc như
    web luôn được không, mà giao diện dùng như app nhé"*. */
 
+/* ⚠️ TRA DÒNG THEO NGÀY, KHÔNG THEO THỨ TỰ TRONG MẢNG. Danh sách xếp theo ngày, nên thêm một
+   ngày gieo là mọi chỉ số dịch đi một — bài kiểm đỏ ở chỗ chẳng liên quan gì tới cái nó canh. */
+function ngay_o( $n, $d ) {
+	foreach ( (array) ( isset( $n['ngay'] ) ? $n['ngay'] : array() ) as $x ) {
+		if ( $x['ngay'] === $d ) { return $x; }
+	}
+	return null;
+}
+
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'đọc được danh sách ngày của một người', ! empty( $n['ok'] ), $n );
 t( 'đúng tên người ấy', 'Vũ Thị Nhân' === $n['hoTen'], $n );
 t( 'có hai ngày (một đủ giờ, một thiếu)', 2 === count( $n['ngay'] ), $n['ngay'] );
-t( '🔴 hiện GIỜ ĐANG CÓ để khỏi phải nhớ', '08:00' === $n['ngay'][0]['vao'], $n['ngay'][0] );
-t( 'ngày thiếu giờ ra được đánh dấu', ! empty( $n['ngay'][1]['thieu'] ), $n['ngay'][1] );
+t( '🔴 hiện GIỜ ĐANG CÓ để khỏi phải nhớ', '08:00' === ngay_o( $n, $HOM )['vao'], ngay_o( $n, $HOM ) );
+t( 'ngày thiếu giờ ra được đánh dấu', ! empty( ngay_o( $n, $TH . '-03' )['thieu'] ), ngay_o( $n, $TH . '-03' ) );
 t( 'tổng giờ tháng khớp với bảng công', 8.0 === (float) $n['gioThang'], $n );
 t( 'nói trước người xem có quyền sửa hay không', isset( $n['duocSua'] ), $n );
 
@@ -287,20 +302,20 @@ t( 'thiếu mã nhân viên thì chối',
 /* 🔴 KHÔNG NỚI MỘT LUẬT NÀO CỦA `VHCC_Bu::sua`. Lý do <5 ký tự phải bị chối — đó là thứ duy
    nhất còn lại để sau này lần ra ai sửa giờ của ai và vì sao. */
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '09:00', 'lyDo' => 'x' ) );
+	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '09:00', 'lyDo' => 'x' ) );
 t( '🔴 lý do quá ngắn thì CHỐI', empty( $r['ok'] ), $r );
 
 $r = VHCC_CuaHang::sua_gio( $NV, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '09:00', 'lyDo' => 'máy lệch giờ, xem camera' ) );
+	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '09:00', 'lyDo' => 'máy lệch giờ, xem camera' ) );
 t( '🔴 nhân viên thường KHÔNG sửa được giờ', empty( $r['ok'] ), $r );
 
 $r = VHCC_CuaHang::sua_gio( $CHT_B, array(
-	'coSo' => $CS_A, 'maNV' => 'CH001', 'ngay' => $TH . '-02',
+	'coSo' => $CS_A, 'maNV' => 'CH001', 'ngay' => $HOM,
 	'vao' => '09:00', 'lyDo' => 'máy lệch giờ, xem camera' ) );
 t( '🔴 trưởng B KHÔNG sửa được giờ của cơ sở A', empty( $r['ok'] ), $r );
 
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '09:00',
+	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '09:00',
 	'lyDo' => 'máy lệch đồng hồ, đối chiếu camera' ) );
 t( 'trưởng A sửa được giờ vào', ! empty( $r['ok'] ), $r );
 t( 'và nói ra ô nào đổi, từ đâu sang đâu',
@@ -308,31 +323,31 @@ t( 'và nói ra ô nào đổi, từ đâu sang đâu',
 		&& '09:00' === $r['doi']['vao']['moi'], $r );
 
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
-t( 'giờ mới vào sổ', '09:00' === $n['ngay'][0]['vao'], $n['ngay'][0] );
+t( 'giờ mới vào sổ', '09:00' === ngay_o( $n, $HOM )['vao'], ngay_o( $n, $HOM ) );
 t( 'và tổng giờ tháng giảm theo (8h -> 7h)', 7.0 === (float) $n['gioThang'], $n );
 
 /* 🔴 Ô TRỐNG = GIỮ NGUYÊN, KHÔNG PHẢI XOÁ. Đây là luật của `VHCC_Bu::sua` và là chỗ dễ mất
    giờ công nhất: người sửa giờ ra mà không gõ lại giờ vào là chuyện thường. */
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'vao' => '', 'ra' => '17:00',
+	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '', 'ra' => '17:00',
 	'lyDo' => 'chỉ sửa giờ ra thôi' ) );
 t( 'sửa mỗi giờ ra được', ! empty( $r['ok'] ), $r );
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
-t( '🔴 ô trống GIỮ NGUYÊN giờ vào, không xoá nó', '09:00' === $n['ngay'][0]['vao'], $n['ngay'][0] );
-t( 'và giờ ra là giá trị mới', '17:00' === $n['ngay'][0]['ra'], $n['ngay'][0] );
+t( '🔴 ô trống GIỮ NGUYÊN giờ vào, không xoá nó', '09:00' === ngay_o( $n, $HOM )['vao'], ngay_o( $n, $HOM ) );
+t( 'và giờ ra là giá trị mới', '17:00' === ngay_o( $n, $HOM )['ra'], ngay_o( $n, $HOM ) );
 
 /* ⚠️ XOÁ GIỜ LÀ TÍCH CẢ HAI Ô, VÀ VẪN PHẢI CÓ LÝ DO. Dòng chấm công KHÔNG biến mất — mất dấu
    là hôm ấy vốn có người chấm thì không ai lần lại được. */
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-02', 'xoaVao' => 1, 'xoaRa' => 1,
+	'maNV' => 'CH001', 'ngay' => $HOM, 'xoaVao' => 1, 'xoaRa' => 1,
 	'lyDo' => 'chấm nhầm người, xoá giờ ngày này' ) );
 t( '⚠️ xoá được giờ cả hai đầu', ! empty( $r['ok'] ), $r );
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( '🔴 DÒNG VẪN CÒN, chỉ là không còn giờ', 2 === count( $n['ngay'] ), $n['ngay'] );
-t( 'và ngày ấy nay tính là thiếu giờ', ! empty( $n['ngay'][0]['thieu'] ), $n['ngay'][0] );
+t( 'và ngày ấy nay tính là thiếu giờ', ! empty( ngay_o( $n, $HOM )['thieu'] ), ngay_o( $n, $HOM ) );
 
 /* Trả giờ lại cho phần chốt lương phía dưới có số mà tính. */
-VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $TH . '-02',
+VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $HOM,
 	'vao' => '08:00', 'ra' => '18:00', 'lyDo' => 'trả lại giờ cho phép thử sau' ) );
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'giờ đã trả lại đủ 10h', 10.0 === (float) $n['gioThang'], $n );
@@ -353,14 +368,14 @@ t( '⚠️ và nạp cả tháng từ .csv thì CAO HƠN (Quản lý)',
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CHTA',
 	'ho_ten' => 'Trưởng A', 'cua_hang' => $CS_A, 'trang_thai_lam_viec' => 'Đang làm' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CHTA', 'ho_ten' => 'Trưởng A',
-	'coso' => $CS_A, 'ngay' => $TH . '-04', 'gio_vao_giay' => 28800,
+	'coso' => $CS_A, 'ngay' => $HOM, 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
-$r = VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CHTA', 'ngay' => $TH . '-04',
+$r = VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CHTA', 'ngay' => $HOM,
 	'vao' => '06:00', 'lyDo' => 'tự sửa giờ cho chính mình' ) );
 t( '🔴 cửa hàng trưởng KHÔNG tự sửa giờ của CHÍNH MÌNH', empty( $r['ok'] ), $r );
 $r = VHCC_CuaHang::sua_gio( array( 'name' => 'Sếp', 'role' => VHCC_Vai::ADMIN,
 	'coso' => $CS_A, 'ma_nv' => 'CHTA' ), array( 'coSo' => $CS_A, 'maNV' => 'CHTA',
-	'ngay' => $TH . '-04', 'vao' => '06:00', 'lyDo' => 'admin tự sửa giờ của mình' ) );
+	'ngay' => $HOM, 'vao' => '06:00', 'lyDo' => 'admin tự sửa giờ của mình' ) );
 t( '🔴 KỂ CẢ ADMIN cũng không tự sửa giờ của mình', empty( $r['ok'] ), $r );
 
 /* ⚠️ MỌI LƯỢT SỬA VÀO NHẬT KÝ, GIỮ GIỜ CŨ. Đó là thứ duy nhất còn lại để tra ngược khi bảng
@@ -373,41 +388,45 @@ t( '⚠️ mọi lượt sửa đều vào nhật ký', count( $nk ) > 0, count(
    hẳn thì lưới trông y như người ta KHÔNG ĐI LÀM, và không còn gì trên màn mâu thuẫn với
    chuyện ấy. Nên nó phải gác Y HỆT `sua()`, không rẻ hơn một li. */
 
-$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CH001', 'ho_ten' => 'Vũ Thị Nhân',
-	'coso' => $CS_A, 'ngay' => $TH . '-07', 'gio_vao_giay' => 28800,
+/* ⚠️ NGƯỜI RIÊNG CHO MỤC XOÁ. Xoá trên chính CH001 là phá mất giờ mà mục chốt lương ngay dưới
+   đang dùng làm TRẦN — rồi mục ấy đỏ vì một lý do chẳng liên quan gì tới nó. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CH003',
+	'ho_ten' => 'Đinh Bị Xoá', 'cua_hang' => $CS_A, 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CH003', 'ho_ten' => 'Đinh Bị Xoá',
+	'coso' => $CS_A, 'ngay' => $HOM, 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
-$truoc = count( VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' )['ngay'] );
+$truoc = count( VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH003' )['ngay'] );
 
 $r = VHCC_CuaHang::xoa_cong( $NV, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-07', 'lyDo' => 'nhân viên thử xoá' ) );
+	'maNV' => 'CH003', 'ngay' => $HOM, 'lyDo' => 'nhân viên thử xoá' ) );
 t( '🔴 nhân viên thường KHÔNG xoá được dòng', empty( $r['ok'] ), $r );
 $r = VHCC_CuaHang::xoa_cong( $CHT_B, array( 'coSo' => $CS_A,
-	'maNV' => 'CH001', 'ngay' => $TH . '-07', 'lyDo' => 'trưởng cơ sở khác thử xoá' ) );
+	'maNV' => 'CH003', 'ngay' => $HOM, 'lyDo' => 'trưởng cơ sở khác thử xoá' ) );
 t( '🔴 trưởng cơ sở khác KHÔNG xoá được', empty( $r['ok'] ), $r );
 $r = VHCC_CuaHang::xoa_cong( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-07', 'lyDo' => 'x' ) );
+	'maNV' => 'CH003', 'ngay' => $HOM, 'lyDo' => 'x' ) );
 t( '🔴 lý do quá ngắn thì CHỐI', empty( $r['ok'] ), $r );
 $r = VHCC_CuaHang::xoa_cong( $CHT_A, array(
-	'maNV' => 'CHTA', 'ngay' => $TH . '-04', 'lyDo' => 'tự xoá dòng của chính mình' ) );
+	'maNV' => 'CHTA', 'ngay' => $HOM, 'lyDo' => 'tự xoá dòng của chính mình' ) );
 t( '🔴 KHÔNG tự xoá dòng của CHÍNH MÌNH', empty( $r['ok'] ), $r );
 $r = VHCC_CuaHang::xoa_cong( $CHT_A, array(
-	'maNV' => 'CH001', 'ngay' => $TH . '-28', 'lyDo' => 'ngày không có dòng nào' ) );
+	'maNV' => 'CH002', 'ngay' => $HOM, 'lyDo' => 'người này không có dòng ở cơ sở A' ) );
 t( 'ngày không có dòng thì báo không có gì để xoá', empty( $r['ok'] ), $r );
 
 t( 'sau năm lượt bị chối, dòng vẫn còn nguyên',
-	$truoc === count( VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' )['ngay'] ) );
+	$truoc === count( VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH003' )['ngay'] ) );
 
 $nk_truoc = count( VHCC_Bu::ds_nhat_ky( $CHT_A, $CS_A ) );
-$r = VHCC_CuaHang::xoa_cong( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $TH . '-07',
+$r = VHCC_CuaHang::xoa_cong( $CHT_A, array( 'maNV' => 'CH003', 'ngay' => $HOM,
 	'lyDo' => 'máy chấm nhầm sang mã người khác, đã đối chiếu camera' ) );
 t( 'trưởng A xoá được dòng của cơ sở mình', ! empty( $r['ok'] ), $r );
 t( 'và trả về giờ vừa xoá để nói lại cho người bấm',
 	isset( $r['daXoa']['vao'] ) && '08:00' === $r['daXoa']['vao'], $r );
 
-$sau = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
+$sau = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH003' );
 t( '🔴 DÒNG BIẾN MẤT HẲN khỏi lưới', $truoc - 1 === count( $sau['ngay'] ), $sau['ngay'] );
 foreach ( $sau['ngay'] as $x ) {
-	t( 'không còn ngày vừa xoá trong danh sách', $TH . '-07' !== $x['ngay'], $x );
+	t( 'không còn ngày vừa xoá trong danh sách', $HOM !== $x['ngay'], $x );
 }
 
 /* 🔴 BẰNG CHỨNG KHÔNG BAO GIỜ ĐƯỢC LÀ THỨ THIẾU. Dòng mất rồi thì sổ là chỗ duy nhất còn nói
@@ -437,11 +456,79 @@ t( 'và vẫn gác bằng vi_sao_khong_duoc như sua()',
 	false !== strpos( $than_x, 'vi_sao_khong_duoc' ), $than_x );
 t( "và vẫn đòi quyền 'sua_gio'", false !== strpos( $than_x, "'sua_gio'" ), $than_x );
 
+/* ── HẾT 24H LÀ KHOÁ (anh Thắng 17/09/2026) ────────────────────────────────────────────────
+   *"Hiện quản lý không cho cửa hàng trưởng sửa nữa… hết 24h hôm nay không cho phép sửa giờ
+   công. Vui lòng liên hệ kế toán"*.
+
+   🔴 KHOÁ THEO NGÀY, KHÔNG PHẢI THU QUYỀN. Hạ `sua_gio` khỏi bậc Cửa hàng trưởng thì họ mất
+   luôn đường sửa cái vừa gõ nhầm năm phút trước. Khoá theo ngày thì hôm nay tự dọn, hôm qua
+   trở về trước đã đóng — đúng chỗ rủi ro thật. */
+
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'CH001', 'ho_ten' => 'Vũ Thị Nhân',
+	'coso' => $CS_A, 'ngay' => $CU, 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'hau_to' => '', 'nguon' => 'may' ) );
+
+t( '🔴 cửa hàng trưởng BỊ khoá theo ngày', VHCC_Bu::bi_khoa_ngay_cu( $CHT_A ) );
+t( 'nhưng hôm nay thì vẫn mở', '' === VHCC_Bu::han_ngay( $CHT_A, $HOM ) );
+t( '🔴 còn ngày hôm qua thì đã khoá', '' !== VHCC_Bu::han_ngay( $CHT_A, $CU ) );
+t( 'và câu chối chỉ đúng người cần liên hệ',
+	false !== mb_strpos( VHCC_Bu::han_ngay( $CHT_A, $CU ), 'liên hệ kế toán' ),
+	VHCC_Bu::han_ngay( $CHT_A, $CU ) );
+
+/* 🔴 AI KHÔNG BỊ KHOÁ — chốt bằng QUYỀN `cong_tat_ca`, không bằng tên vai. */
+foreach ( array( VHCC_Vai::QL, VHCC_Vai::KE_TOAN, VHCC_Vai::ADMIN ) as $v_mo ) {
+	$u_mo = array( 'name' => 'x', 'role' => $v_mo, 'coso' => $CS_A, 'ma_nv' => 'AI_DO' );
+	t( VHCC_Vai::TEN[ $v_mo ] . ' KHÔNG bị khoá theo ngày', ! VHCC_Bu::bi_khoa_ngay_cu( $u_mo ) );
+	t( '  và sửa được ngày cũ', '' === VHCC_Bu::han_ngay( $u_mo, $CU ) );
+}
+
+/* Chốt bằng HÀNH VI, không chỉ bằng hàm phụ: cửa thật phải chối. */
+$r = VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $CU,
+	'vao' => '09:00', 'lyDo' => 'sửa ngày hôm qua, đã quá hạn' ) );
+t( '🔴 cửa SỬA chối ngày đã qua', empty( $r['ok'] ), $r );
+t( 'và đánh dấu rõ là quá hạn để màn nói đúng câu', ! empty( $r['quaHan'] ), $r );
+
+/* ⚠️ XOÁ CŨNG CHỊU CÙNG CÁI KHOÁ. Mở một trong hai mà khoá cái kia là để hở đúng đường phá
+   nhiều hơn. */
+$r = VHCC_CuaHang::xoa_cong( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $CU,
+	'lyDo' => 'xoá ngày hôm qua, đã quá hạn' ) );
+t( '🔴 cửa XOÁ cũng chối ngày đã qua', empty( $r['ok'] ), $r );
+$sau_cu = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
+$con = false;
+foreach ( $sau_cu['ngay'] as $x ) { if ( $x['ngay'] === $CU ) { $con = true; } }
+t( 'dòng hôm qua vẫn còn nguyên', $con, $sau_cu['ngay'] );
+
+/* ⚠️ BÙ THÌ KHÔNG KHOÁ. Bù là điền vào ô TRỐNG — đó chính là việc màn trạm đang giục làm
+   ("lượt thiếu một đầu giờ, bổ sung trước khi kế toán chốt lương"), và mấy lượt ấy gần như
+   luôn là của hôm trước. Khoá bù theo ngày là vừa giục vừa chặn. */
+$r = VHCC_Bu::ghi( $CHT_A, array( 'coso' => $CS_A, 'ma_nv' => 'CH001', 'ngay' => $TH . '-03',
+	'ra' => '17:00', 'ly_do' => 'bổ sung giờ ra bị thiếu hôm ấy' ) );
+t( '⚠️ BÙ vào ô trống của ngày cũ thì VẪN ĐƯỢC', ! empty( $r['ok'] ), $r );
+
+/* Máy chủ trả sẵn câu nhắc cho màn — màn không tự chế luật. */
+t( 'máy chủ trả câu nhắc cho người bị khoá',
+	'' !== VHCC_Bu::nhac_han_ngay( $CHT_A ), VHCC_Bu::nhac_han_ngay( $CHT_A ) );
+t( '🔴 và câu ấy đúng nội dung anh Thắng yêu cầu',
+	false !== mb_strpos( VHCC_Bu::nhac_han_ngay( $CHT_A ), 'hết 24h hôm nay' )
+	|| false !== mb_strpos( VHCC_Bu::nhac_han_ngay( $CHT_A ), 'Hết 24h hôm nay' ),
+	VHCC_Bu::nhac_han_ngay( $CHT_A ) );
+t( 'người không bị khoá thì KHÔNG thấy câu nhắc',
+	'' === VHCC_Bu::nhac_han_ngay( array( 'name' => 'Sếp', 'role' => VHCC_Vai::ADMIN, 'coso' => '' ) ) );
+
+$n_k = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
+t( 'màn một người biết mình bị khoá theo ngày', ! empty( $n_k['khoaNgayCu'] ), $n_k );
+t( 'và biết hôm nay là ngày nào (theo MÁY CHỦ)', $HOM === (string) $n_k['homNay'], $n_k );
+
 /* =============================================================== 4c. CHỐT LƯƠNG THEO VIỆC */
 
 $c = VHCC_CuaHang::chot_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'đọc được màn chốt lương của một người', ! empty( $c['ok'] ), $c );
-t( '🔴 trần giờ lấy từ CHÍNH bảng chấm công', 10.0 === (float) $c['gioCham'], $c );
+/* 🔴 SO VỚI CHÍNH BẢNG CHẤM CÔNG, KHÔNG SO VỚI MỘT CON SỐ GÕ CỨNG. Gõ cứng "10.0" thì thêm
+   một hàng gieo ở mục khác là bài này đỏ — mà nó có canh chuyện gieo đâu. Nó canh đúng một
+   điều: trần của màn chốt lương ĐÚNG BẰNG giờ đã chấm, không phải một con số khác. */
+$gio_that = (float) VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' )['gioThang'];
+t( 'người này có giờ để mà chốt', $gio_that > 0, $gio_that );
+t( '🔴 trần giờ lấy từ CHÍNH bảng chấm công', $gio_that === (float) $c['gioCham'], $c );
 t( 'có bảng tên khoản cộng', ! empty( $c['tenCong'] ), $c );
 t( 'có bảng tên khoản trừ', ! empty( $c['tenTru'] ), $c );
 t( '🔴 nhân viên thường KHÔNG mở được màn chốt lương',
@@ -540,14 +627,58 @@ t( 'và vai ấy là Nhân viên, không phải bậc cao hơn',
 	VHCC_Vai::TEN[ VHCC_Vai::NV ] === (string) $hs['vai_tro'], $hs );
 t( '🔴 cửa này KHÔNG đặt lương cơ bản', empty( $hs['luong_co_ban'] ), $hs );
 
+/* ── NGƯỜI MỚI DÙNG ĐƯỢC NGAY HAI TRANG: CHẤM CÔNG VÀ NỘI BỘ ───────────────────────────────
+   Anh Thắng 17/09/2026: *"Để cho nhân viên chấm đk công luôn… nhân viên được quyền sử dụng 2
+   trang này trước theo mặc định là nội bộ và chấm công. Mấy trang khác thì phải cấp quyền"*.
+
+   🔴 ĐIỀU NÀY ĐÃ ĐÚNG SẴN, VÀ LÝ DO LÀ THANG VAI — không phải một ô tích nào cả. Hai trang ấy
+   khai `quyen => cham_online`, tức bậc Nhân viên, nên người vừa mở hồ sơ đã qua. Mấy trang còn
+   lại (POSH · Báo cáo cửa hàng · Chi phí) KHÔNG gác bằng vai mà bằng SỔ ĐÃ ĐẨY riêng của từng
+   hệ, nên chúng đóng cho tới khi có người đẩy sang.
+
+   ⚠️ CỐ Ý KHÔNG ĐẶT NGOẠI LỆ "mở" ĐÍCH DANH cho từng người mới. Ngoại lệ riêng là TẦNG 1 của
+      `VHCC_Cong::giai()` — nó THẮNG cả luật bộ phận lẫn luật mảng, và thắng mãi mãi. Ghim nó
+      lúc tạo hồ sơ thì mai công ty đóng Nội bộ cho một bộ phận, mọi người do cửa hàng trưởng
+      tạo vẫn mở — mà không ai thấy vì sao. Để thang vai lo là đúng: nó mở sẵn, và vẫn đóng
+      được bằng luật nhóm khi cần.
+
+   Nên bài thử canh CÁI LUẬT, không canh một lượt ghi: hai trang ấy phải ở bậc Nhân viên. */
+$ma_moi = (string) $r['ma_nv'];
+$hs_moi = VHCC_NhanSu::ho_so( $ma_moi );
+t( 'đọc lại được hồ sơ vừa tạo', is_array( $hs_moi ), $ma_moi );
+
+foreach ( array( 'tram' => 'Chấm công', 'noi_bo' => 'Nội bộ' ) as $k_tr => $ten_tr ) {
+	t( 'có khai trang ' . $ten_tr . ' trong sổ trang', isset( VHCC_Cong::SO[ $k_tr ] ), $k_tr );
+	$q_tr = VHCC_Cong::SO[ $k_tr ]['quyen'];
+	t( '🔴 ' . $ten_tr . ' gác ở bậc NHÂN VIÊN, nên người mới vào được ngay',
+		VHCC_Vai::NV === VHCC_Vai::QUYEN[ $q_tr ], array( $k_tr, $q_tr ) );
+}
+$u_moi2 = array( 'name' => $hs_moi['ho_ten'], 'role' => $hs_moi['vai_tro'],
+	'coso' => $hs_moi['cua_hang'], 'ma_nv' => $hs_moi['ma_nv'] );
+t( '🔴 người vừa tạo VÀO ĐƯỢC trạm chấm công', VHCC_Cong::duoc_vao( $u_moi2, 'tram' ) );
+t( '🔴 và VÀO ĐƯỢC Nội bộ', VHCC_Cong::duoc_vao( $u_moi2, 'noi_bo' ) );
+t( 'vai của người mới đúng là Nhân viên (bậc thấp nhất)',
+	VHCC_Vai::TEN[ VHCC_Vai::NV ] === (string) $hs_moi['vai_tro'], $hs_moi );
+
+/* ⚠️ MẤY TRANG KHÁC THÌ PHẢI CẤP. Chúng không gác bằng vai mà bằng sổ ĐÃ ĐẨY của từng hệ —
+   nên người mới chưa có tên trong sổ nào cả. */
+foreach ( array( 'VHCC_DayGhe' => 'hệ ghế (POSH)', 'VHCC_DayBaoCao' => 'Báo cáo cửa hàng',
+	'VHCC_DayChiPhi' => 'Vận hành chi phí' ) as $lop_d => $ten_d ) {
+	if ( ! class_exists( $lop_d ) || ! method_exists( $lop_d, 'da_day' ) ) { continue; }
+	t( '⚠️ người mới CHƯA được đẩy sang ' . $ten_d . ' — phải cấp quyền',
+		! call_user_func( array( $lop_d, 'da_day' ), $ma_moi ), $ten_d );
+}
+/* Và mấy hệ ấy KHÔNG gác bằng thang vai — nếu có, chúng đã tự mở cho mọi nhân viên. */
+foreach ( array( 'ghe', 'bao_cao', 'chi_phi' ) as $k_la ) {
+	t( 'sổ trang KHÔNG khai ' . $k_la . ' (nó có sổ đẩy riêng)', ! isset( VHCC_Cong::SO[ $k_la ] ) );
+}
+
 /* ── NGƯỜI MỚI TỰ ĐẶT PIN, KHÔNG AI CẤP HỘ ─────────────────────────────────────────────────
    Anh Thắng 17/09/2026: *"khi cửa hàng trưởng tạo nv mới, thì cho quyền nhân viên quên pin
    để tạo pin mới luôn"*. Quyền ấy VỐN ĐÃ CÓ — `VHCC_QuenPin::tra()` chỉ hỏi họ tên + căn
    cước, không đòi PIN cũ. Bài này khoá cả luồng lại, vì nó đi qua BA lớp (hồ sơ tạm → quên
    PIN → đăng nhập trạm) và chỉ cần một lớp siết thêm một điều kiện là cả đường tắc mà không
    ai phát hiện cho tới khi có người mới vào làm. */
-$ma_moi = (string) $r['ma_nv'];
-$hs_moi = VHCC_NhanSu::ho_so( $ma_moi );
 t( 'hồ sơ mới CHƯA có PIN', '' === trim( (string) $hs_moi['pin_dang_nhap'] ), $hs_moi );
 t( 'nhưng CÓ căn cước — điều kiện để tự đặt PIN', '' !== trim( (string) $hs_moi['cccd'] ), $hs_moi );
 
@@ -692,6 +823,29 @@ t( '⚠️ dòng chỉ-để-xem bị gỡ mũi › và gỡ lớp bấm',
 t( '⚠️ có dấu hiệu nhìn thấy được rằng dòng bấm được',
 	false !== strpos( $tpl, 'class="mui"' ) && false !== strpos( $tpl, 'tr.hang-mo{cursor:pointer}' ), $tpl );
 t( 'và có dòng nhắc chạm vào', false !== strpos( $tpl, 'Chạm vào một dòng để' ), $tpl );
+
+/* ── HẾT 24H: câu nhắc ở ĐẦU tab, và dòng ngày cũ nhìn là biết khoá ───────────────────────
+   Anh Thắng 17/09/2026: *"Nên chỗ đầu cửa hàng. Thông báo nội dung hết 24h hôm này không cho
+   phép sửa giờ công. Vui lòng liên hệ kế toán"*. */
+$i_tab = strpos( $than, 'id="tCuaHang"' );
+$i_nhac = strpos( $than, 'id="nhacHan"' );
+$i_cs_o = strpos( $than, 'id="chCoSo"' );
+t( '🔴 ô nhắc nằm ở ĐẦU tab, trước cả ô chọn cơ sở',
+	false !== $i_tab && false !== $i_nhac && $i_tab < $i_nhac && $i_nhac < $i_cs_o,
+	array( $i_tab, $i_nhac, $i_cs_o ) );
+/* 🔴 CÂU CHỮ DO MÁY CHỦ ĐƯA, không chép cứng vào màn — bày một câu mà luật không làm đúng
+   vậy là nói dối người dùng. */
+t( '🔴 câu nhắc lấy từ máy chủ (j.nhacHan), không chép cứng',
+	false !== strpos( $tpl, 'if(j.nhacHan)' ) && false !== strpos( $tpl, 'esc(j.nhacHan)' ), $tpl );
+t( 'và màn KHÔNG tự chế câu ấy',
+	false === strpos( $than, 'hết 24h hôm nay thì không' ), $than );
+/* Dòng của ngày đã qua: mất lớp bấm, mất mũi ›, và mờ đi. Cho mở rồi mới chối lúc bấm Lưu là
+   bắt người ta gõ cả giờ lẫn lý do cho một lượt không bao giờ đi được. */
+t( '🔴 dòng ngày đã qua KHÔNG mở được ô sửa',
+	false !== strpos( $tpl, "(mo ? 'ng-sua' : 'ng-khoa')" ), $tpl );
+t( 'và nhìn là biết bị khoá', false !== strpos( $tpl, 'tr.ng-khoa{opacity:' ), $tpl );
+t( 'ngày còn sửa được do MÁY CHỦ nói, không do trình duyệt tự tính',
+	false !== strpos( $tpl, 'NG.khoaNgayCu' ) && false !== strpos( $tpl, 'NG.homNay' ), $tpl );
 t( '⚠️ vùng chạm cả dòng đủ cao', false !== strpos( $tpl, 'tr.hang-mo td{padding-top:12px' ), $tpl );
 /* 🔴 ĐỔ GIỜ ĐANG CÓ VÀO Ô — không đổ thì người sửa phải NHỚ giờ cũ, mà nhớ sai một chữ số là
    ghi đè mất một giờ công thật. */

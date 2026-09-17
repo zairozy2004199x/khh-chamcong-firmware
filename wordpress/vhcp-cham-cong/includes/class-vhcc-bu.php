@@ -83,6 +83,48 @@ class VHCC_Bu {
 		return $goc;
 	}
 
+	/* ═══════════════════════════════════════════════════════════════════════════════════════
+	 * HẾT NGÀY LÀ KHOÁ — cửa hàng trưởng chỉ sửa được giờ của CHÍNH HÔM NAY
+	 * ═══════════════════════════════════════════════════════════════════════════════════════
+	 * Anh Thắng 17/09/2026: *"Hiện quản lý không cho cửa hàng trưởng sửa nữa… hết 24h hôm nay
+	 * không cho phép sửa giờ công. Vui lòng liên hệ kế toán"*.
+	 *
+	 * 🔴 KHOÁ THEO NGÀY, KHÔNG PHẢI THU QUYỀN. Hai cách làm ra hai kết quả rất khác:
+	 *    · Hạ `sua_gio` khỏi bậc Cửa hàng trưởng thì họ mất luôn cả đường sửa cái vừa gõ nhầm
+	 *      năm phút trước — mỗi lỗi vặt thành một cuộc gọi cho kế toán.
+	 *    · Khoá theo ngày thì hôm nay họ tự dọn, còn hôm qua trở về trước đã đóng — đúng cái
+	 *      anh Thắng nói, và đúng chỗ rủi ro thật: sửa ngược quá khứ là thứ không ai nhìn thấy.
+	 *
+	 * 🔴 AI KHÔNG BỊ KHOÁ: người có `cong_tat_ca` (Quản lý · Kế toán · Admin). Chốt bằng QUYỀN
+	 *    chứ không bằng tên vai — thêm một vai mới mai sau thì nó tự rơi đúng phía.
+	 *
+	 * ⚠️ CHỈ KHOÁ **SỬA** VÀ **XOÁ**, KHÔNG KHOÁ **BÙ**. Bù là điền vào ô TRỐNG — đó chính là
+	 *    việc màn trạm đang giục làm ("4 lượt thiếu một đầu giờ, bổ sung trước khi kế toán chốt
+	 *    lương"), và mấy lượt ấy gần như luôn là của ngày hôm trước. Khoá bù theo ngày là vừa
+	 *    giục người ta làm vừa chặn không cho làm. Sửa và xoá thì ĐÈ LÊN thứ đã có — khác hẳn.
+	 *
+	 * ⚠️ SO BẰNG NGÀY CỦA MÁY CHỦ (`current_time`), không bằng giờ trình duyệt. Điện thoại lệch
+	 *    múi giờ hoặc để sai ngày là tự mở thêm cho mình một ngày.
+	 */
+	public static function bi_khoa_ngay_cu( $u ) {
+		return ! VHCC_Vai::duoc( $u, 'cong_tat_ca' );
+	}
+
+	/** '' = qua được; khác rỗng = câu chối, nói đúng phải liên hệ ai. */
+	public static function han_ngay( $u, $ngay, $viec = 'sửa' ) {
+		if ( ! self::bi_khoa_ngay_cu( $u ) ) { return ''; }
+		$hom_nay = (string) current_time( 'Y-m-d' );
+		if ( (string) $ngay === $hom_nay ) { return ''; }
+		return 'Hết 24h ngày ' . $ngay . ' thì không ' . $viec . ' giờ công của ngày ấy nữa. '
+			. 'Vui lòng liên hệ kế toán.';
+	}
+
+	/** Câu nhắc bày sẵn ở đầu màn Cửa hàng — '' nếu người này không bị khoá. */
+	public static function nhac_han_ngay( $u ) {
+		if ( ! self::bi_khoa_ngay_cu( $u ) ) { return ''; }
+		return 'Hết 24h hôm nay thì không cho phép sửa giờ công nữa. Vui lòng liên hệ kế toán.';
+	}
+
 	/* ===================================================================== ghi */
 
 	/**
@@ -273,6 +315,10 @@ class VHCC_Bu {
 		$loi  = self::ngay_hop_le( $ngay );
 		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
 
+		/* Hết ngày là khoá — xem khối chú thích `han_ngay()`. */
+		$han = self::han_ngay( $u, $ngay, 'sửa' );
+		if ( '' !== $han ) { return array( 'ok' => false, 'error' => $han, 'quaHan' => true ); }
+
 		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
 		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
 			return array( 'ok' => false,
@@ -444,6 +490,11 @@ class VHCC_Bu {
 		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
 		$loi  = self::ngay_hop_le( $ngay );
 		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+
+		/* Xoá cũng là đè lên thứ đã có, nên chịu cùng cái khoá với sửa. Mở một trong hai mà
+		   khoá cái kia là để hở đúng đường phá nhiều hơn. */
+		$han = self::han_ngay( $u, $ngay, 'xoá' );
+		if ( '' !== $han ) { return array( 'ok' => false, 'error' => $han, 'quaHan' => true ); }
 
 		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
 		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
