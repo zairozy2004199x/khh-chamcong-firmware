@@ -33,8 +33,12 @@
 /* ⚠️ FW_VERSION bị nhồi NGUYÊN VĂN vào JSON của heartbeat (hbSend) và vào HTML portal.
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> máy chủ trả 400, mất nhịp sống,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
-   Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-22a (chay thang tren host - bo Apps Script va Firebase)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+   Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất.
+   ⚠️ 17/09/2026: câu trên TỪNG KHÔNG ĐÚNG. `pushEvent` — đường chấm công, tức đường duy nhất
+      chở tiền lương — là builder JSON duy nhất trong tệp không escape gì cả, suốt từ lúc chuyển
+      sang chạy thẳng trên host. Nay đã vá và có phép thử chốt lại ở CẢ chỗ dựng chuỗi lẫn chỗ
+      gọi: tools/test/fw/kiem-than-cham-cong.sh (đã gắn vào CI, chạy trước bước Compile). */
+#define FW_VERSION "2026-09-17a (escape du truong o than cham cong - ten co so mot luat ba cua)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -256,6 +260,57 @@ bool wpUrlHopLe(const String& u){
   if (u.indexOf(".firebasedatabase.app") > 0) return false;   // dán lẫn link Firebase cũ
   if (u.indexOf('.', 8) < 0)       return false;   // phải có tên miền thật
   return u.length() > 12;
+}
+
+/**
+ * TÊN CƠ SỞ có dùng được không.
+ *
+ * Tên cơ sở đi NGUYÊN VĂN vào trường "stationName" của thân JSON mỗi lượt chấm công, nên một
+ * dấu nháy kép trong đó là JSON hỏng -> cổng nhận trả 400 -> MẤT LƯỢT. Máy chủ cũng lấy chính
+ * chuỗi này để dò ra cơ sở, nên ký tự lạ còn có nghĩa là dò không ra.
+ *
+ * ⚠️ MỘT LUẬT, BA CỬA. Tên cơ sở vào máy từ ba đường: `hoiCuaHang()` (máy chủ trả lời riêng),
+ *    nhịp sống (`d["coSo"]`), và ô gõ tay ở portal (`handleSaveStation`). Trước 17/09/2026 mỗi
+ *    cửa một kiểu — hai cửa đầu mỗi cửa MỘT BẢN CHÉP TAY của vòng lọc này, còn cửa portal chỉ
+ *    `trim()` rồi lưu thẳng. Nghĩa là gõ tay `Quán "Bò Tơ"` ở portal là từ đó MỌI lượt chấm công
+ *    của máy đó hỏng JSON, mà nhịp sống vẫn xanh nên không ai biết để sửa — công của nhân viên
+ *    rơi im lặng. Nay cả ba cửa gọi CHUNG hàm này; thêm cửa thứ tư thì gọi nó, đừng chép lại.
+ *
+ * Bộ ký tự cố tình hẹp (chữ không dấu, số, `_`, `-`): không dấu cách, không dấu tiếng Việt. Tên
+ * ở đây là MÃ để khớp với máy chủ, không phải tên hiển thị cho khách đọc.
+ *
+ * Phép thử: tools/test/fw/kiem-than-cham-cong.sh (chạy bằng g++, không cần máy thật).
+ */
+/**
+ * MÃ NGÀY của một chuỗi bản firmware — phần trước dấu cách đầu tiên.
+ *
+ * `FW_VERSION` là "2026-09-17a (câu mô tả dài)", còn `otaVer` máy chủ gửi về chỉ là "2026-09-17a".
+ * Hai chuỗi ấy KHÔNG BAO GIỜ bằng nhau, nên phép so `ver == String(FW_VERSION)` trong
+ * `checkOtaUpdate` là một cửa gác CHẾT từ lúc câu mô tả được thêm vào FW_VERSION.
+ *
+ * Hậu quả không phải là nạp sai bản — dòng `prefs.getString("otaVer")` ngay dưới vẫn đỡ được ca
+ * thường. Nhưng máy vừa nạp lại bằng USB thì NVS chưa có `otaVer`, nên nó tải và nạp lại ĐÚNG
+ * BẢN ĐANG CHẠY một lượt: ~1,5MB qua 4G, mỗi máy một lần, 26 máy — tốn dung lượng và một lượt
+ * khởi động lại vô ích giữa giờ làm.
+ *
+ * So bằng mã ngày thì đúng cho CẢ HAI kiểu chuỗi máy chủ có thể gửi: gửi mã ngày gọn hay gửi
+ * nguyên văn FW_VERSION đều khớp, vì cắt mã ngày của một chuỗi đã gọn thì ra chính nó.
+ *
+ * Phép thử: tools/test/fw/kiem-than-cham-cong.sh
+ */
+String fwMaNgay(const String& v){
+  int sp = v.indexOf(' ');
+  return (sp > 0) ? v.substring(0, sp) : v;
+}
+
+bool tenCoSoHopLe(const String& t){
+  if (t.length() == 0) return false;
+  for (unsigned i = 0; i < t.length(); i++){
+    char c = t.charAt(i);
+    bool okc = (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-';
+    if (!okc) return false;
+  }
+  return true;
 }
 /** Giá trị này DÙNG ĐƯỢC không. Hai khoá là link nên còn phải đúng dạng, không chỉ "khác mẫu". */
 bool cfgDungDuoc(const char* khoa, const String& v){
@@ -492,9 +547,7 @@ void showIdle() {
      ⚠️ Font 1 (cao 8px) đặt ở y=6 -> chiếm y 6..14, còn tiêu đề font 4 canh giữa y=28 chiếm
         y 15..41. Không đụng nhau. Đổi font/toạ độ thì phải tính lại chỗ này. */
   {
-    String _fw = String(FW_VERSION);
-    int _sp = _fw.indexOf(' ');
-    if (_sp > 0) _fw = _fw.substring(0, _sp);
+    String _fw = fwMaNgay(String(FW_VERSION));
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(tft.color565(110, 130, 150), COL_BG);
     tft.drawString("fw " + _fw, 10, 6, 1);
@@ -815,6 +868,38 @@ String atWait(const char* token, unsigned long to);
 String jsonEscMin_(const String& s);
 
 /**
+ * DỰNG THÂN JSON CỦA MỘT LƯỢT CHẤM CÔNG.
+ *
+ * Tách riêng khỏi `pushEvent` vì hai lẽ. Một: đây là chuỗi mà TIỀN LƯƠNG đi qua, nên nó phải có
+ * phép thử chạy được trên máy tính (tools/test/fw/kiem-than-cham-cong.sh) chứ không thể chỉ
+ * "đọc thấy đúng". Hai: hàm rời thì phép thử gọi được THẲNG vào nó, nên không ai gỡ được lớp
+ * escape mà phép thử vẫn xanh — chốt ở chính chỗ dựng chuỗi, không phải ở bản chép trong test.
+ *
+ * ⚠️ MỌI TRƯỜNG ĐỀU QUA `jsonEscMin_`. Trước 17/09/2026 hàm này là builder JSON DUY NHẤT trong
+ *    cả firmware không escape gì cả — `wpViec`, `hbSend`, sổ mặt, ảnh đều escape, riêng đường
+ *    chấm công thì không. Mà `name` ở đây là tên nhân viên LẤY TỪ MÁY HIKVISION, tức chuỗi do
+ *    người khác gõ vào máy chấm công, không phải chuỗi của mình. Một dấu " trong tên là JSON
+ *    hỏng, cổng trả 400, `wpGoi` trả "" -> thử lại 3 lần rồi bỏ vào sổ đầu đọc. Nhịp sống VẪN
+ *    XANH, màn hình VẪN báo bình thường, nên cơ sở đó mất công cả tháng mà không ai biết.
+ *    Nghiêm hơn nữa: lỗi chỉ xảy ra với ĐÚNG những nhân viên có dấu " hay \\ trong tên, nên
+ *    nhìn bảng chấm công chỉ thấy "vài người hay thiếu công" — rất dễ bị quy thành lỗi người.
+ *
+ * KHÔNG KÈM ẢNH: trường "image" cố tình để rỗng, xem chú thích ở `pushEvent`.
+ */
+String thanChamCong(const String& mac, const String& serial, const String& model,
+                    const String& tram, const String& empNo, const String& name,
+                    const String& eventTime) {
+  return String("{\"macAddress\":\"") + jsonEscMin_(mac)
+       + "\",\"hikSerial\":\"" + jsonEscMin_(serial)
+       + "\",\"hikModel\":\"" + jsonEscMin_(model)
+       + "\",\"stationName\":\"" + jsonEscMin_(tram)
+       + "\",\"employeeNo\":\"" + jsonEscMin_(empNo)
+       + "\",\"name\":\"" + jsonEscMin_(name)
+       + "\",\"time\":\"" + jsonEscMin_(eventTime)
+       + "\",\"image\":\"\"}";
+}
+
+/**
  * ĐẨY MỘT LƯỢT CHẤM CÔNG.
  *
  * Trước 22/08/2026 hàm này đẩy vào Apps Script rồi đẩy thêm một bản sang WordPress. Nay chỉ còn
@@ -832,11 +917,7 @@ bool pushEvent(String empNo, String name, String eventTime, char* imageB64, int 
   if (imageB64) { free(imageB64); imageB64 = NULL; }
   (void) imageB64Len;
 
-  String body = String("{\"macAddress\":\"") + macBo()
-              + "\",\"hikSerial\":\"" + HIK_SERIAL + "\",\"hikModel\":\"" + HIK_MODEL
-              + "\",\"stationName\":\"" + String(STATION_NAME)
-              + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name
-              + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
+  String body = thanChamCong(macBo(), HIK_SERIAL, HIK_MODEL, STATION_NAME, empNo, name, eventTime);
 
   for (int lan = 1; lan <= 3; lan++) {
     Serial.printf("   -> [WP] gui luot (lan %d, %d byte, heap %d)...\n", lan, body.length(), ESP.getFreeHeap());
@@ -874,10 +955,15 @@ String wpGoi(const String& body, bool docThan){
   if (!netUp()) return "";
 
   /* Nhét khoá vào thân. Chèn ngay sau dấu { đầu tiên để khỏi phải phân tích JSON — thân nào ở
-     đây cũng do chính firmware dựng nên chắc chắn mở bằng '{'. */
+     đây cũng do chính firmware dựng nên chắc chắn mở bằng '{'.
+
+     ⚠️ KHOÁ CŨNG PHẢI ESCAPE. `wp_key` là chuỗi anh Thắng gõ tay ở portal (khớp VHCC_KHOA_MAY
+     trong wp-config.php), mà khoá thì người ta hay chọn cho rối — có \ hoặc " là thân JSON hỏng
+     ở NGAY đầu, tức hỏng MỌI lượt của máy đó: chấm công, nhịp sống, lấy lệnh, sổ mặt. Máy sẽ im
+     như mất mạng dù mạng vẫn tốt, và 401/400 không nói ra là do dấu nháy trong khoá. */
   String than = body;
   if (than.length() > 1 && than.charAt(0) == '{') {
-    than = "{\"key\":\"" + String(wp_key) + "\"," + than.substring(1);
+    than = "{\"key\":\"" + jsonEscMin_(String(wp_key)) + "\"," + than.substring(1);
   }
 
   if (USE_4G) {
@@ -1164,11 +1250,7 @@ bool hoiCuaHang() {
   String st = String((const char*)(d["coSo"] | "")); st.trim();
   if (st.length() == 0) { Serial.println("[CƠ SỞ] server không trả tên -> giữ '" + STATION_NAME + "'"); return false; }
   /* Chỉ nhận tên hợp lệ — một ô cơ sở bị gõ ký tự lạ không được biến thành tên trạm. */
-  for (unsigned i = 0; i < st.length(); i++){
-    char c = st.charAt(i);
-    bool okc = (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-';
-    if (!okc){ Serial.println("[CƠ SỞ] ⚠️ Tên cơ sở có ký tự lạ -> bỏ qua: '" + st + "'"); return false; }
-  }
+  if (!tenCoSoHopLe(st)){ Serial.println("[CƠ SỞ] ⚠️ Tên cơ sở có ký tự lạ -> bỏ qua: '" + st + "'"); return false; }
   STATION_TU_SERVER = true;
   if (st != STATION_NAME) {
     Serial.println("[CƠ SỞ] Server gán máy này vào '" + st + "' (trước là '" + STATION_NAME + "') -> ghi nhớ");
@@ -2139,12 +2221,7 @@ void hbSend() {
      cờ dừng). Trên 4G mỗi lượt AT-HTTP mất 3-6 giây; bốn lượt mỗi phút × 26 máy là nghẽn. */
   String cs = String((const char*)(d["coSo"] | "")); cs.trim();
   if (cs.length() && cs != STATION_NAME) {
-    bool sach = true;
-    for (unsigned i = 0; i < cs.length(); i++){
-      char c = cs.charAt(i);
-      if (!((c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-')) { sach = false; break; }
-    }
-    if (sach) {
+    if (tenCoSoHopLe(cs)) {
       Serial.println("[CƠ SỞ] nhip: may nay thuoc '" + cs + "' (truoc la '" + STATION_NAME + "')");
       STATION_NAME = cs; STATION_TU_SERVER = true; prefs.putString("station", cs);
     }
@@ -2217,7 +2294,8 @@ void checkOtaUpdate(){
   if (!netUp()) return;
   String ver = g_otaVer, furl = g_otaUrl;
   if (ver.length() == 0 || furl.length() == 0) return;
-  if (ver == String(FW_VERSION)) return;               // đang chạy đúng bản đó rồi
+  /* So bằng MÃ NGÀY, không so nguyên văn: xem `fwMaNgay()`. So nguyên văn là cửa gác chết. */
+  if (fwMaNgay(ver) == fwMaNgay(String(FW_VERSION))) return;   // đang chạy đúng bản đó rồi
   if (ver == prefs.getString("otaVer", "")) return;    // đã áp bản này rồi
   if (ver == g_otaTriedVer) return;                    // đã thử (lỗi) trong phiên này -> chờ reboot / bản mới hơn
   g_otaTriedVer = ver;
@@ -3026,6 +3104,16 @@ void handleSaveCfg(){
 void handleSaveStation(){
   String s=server.arg("station"); s.trim();
   if (s.length()==0) { server.send(400,"text/plain; charset=utf-8","Thiếu tên cơ sở"); return; }
+  /* ⚠️ LỌC Y NHƯ HAI CỬA KIA — xem `tenCoSoHopLe()`. Cửa này là cửa DUY NHẤT người gõ tay, tức
+     cửa dễ vào ký tự lạ nhất, mà trước 17/09/2026 lại là cửa duy nhất KHÔNG lọc. Nhận bừa ở đây
+     là hỏng JSON mọi lượt chấm công về sau, và hỏng im lặng. Thà chối ngay lúc gõ, có câu chỉ rõ
+     phải gõ thế nào, còn hơn để mất công cả cơ sở rồi mới đi tìm nguyên nhân. */
+  if (!tenCoSoHopLe(s)) {
+    server.send(400,"text/plain; charset=utf-8",
+      "KHONG luu: ten co so chi duoc dung chu KHONG DAU, so, _ va - (khong dau cach, khong dau tieng Viet). "
+      "Vi du: POSH_HCM_Q1");
+    return;
+  }
   prefs.putString("station", s);
   server.send(200,"text/plain; charset=utf-8","Đã đặt cơ sở \"" + s + "\". Thiết bị khởi động lại...");
   delay(900); ESP.restart();
