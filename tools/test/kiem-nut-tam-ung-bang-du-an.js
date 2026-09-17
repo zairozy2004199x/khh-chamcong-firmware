@@ -53,6 +53,7 @@ function nut(opt) {
   };
   const src = `${bocVar('HM_NHAN')}
     ${boc('_dotHien')}
+    ${boc('_dotHienCua')}
     ${boc('_hmNhanCua')}
     ${boc('_hmLaKT')}
     ${boc('_hmLaDuyet')}
@@ -64,8 +65,38 @@ function nut(opt) {
       ? hmNutChung('D1_7', 'DA1', 7, opt.hinhThuc || '', HM, false, true)
       : hmNutDaBang({ row: 7, noiDung: 'Xe ba gác', hinhThuc: opt.hinhThuc || '', hm: HM }, opt.tienHM || 0);`;
   moi.opt = opt;
-  moi.HM = { tt: opt.tt || 'nhap', dot: opt.dot || 0 };
+  moi.HM = { tt: opt.tt || 'nhap', dot: opt.dot || 0, qtDot: opt.qtDot || 0 };
   return new Function('moi', `with(moi){ ${src} }`)(moi);
+}
+
+/* ── 0. 🔴 HUY HIỆU "ĐÃ GỬI QT ĐỢT" CHỈ HIỆN KHI THẬT SỰ ĐÃ GỬI ────────────────────────
+ *
+ * 17/09/2026 — lỗi đã cắn thật, và bộ thử KHÔNG bắt được. Anh Thắng gửi ảnh: MỌI hàng hạng mục
+ * đều mang nhãn tím "🧾 đã gửi QT đợt undefined", kể cả hàng chưa gửi quyết toán lần nào.
+ *
+ * Nguyên nhân: dòng `if(tt==='xong' && h.qtDot>0)` vốn KHÔNG có ngoặc nhọn, thân chỉ một câu
+ * lệnh. Bản 1.192.0 chèn thêm một dòng `var` vào để dịch số đợt — thế là thân `if` ăn mất dòng
+ * `var`, còn dòng vẽ huy hiệu tụt ra NGOÀI, thành vô điều kiện. Cú pháp vẫn đúng nên php -l và
+ * mọi bài kiểm đều xanh; chỉ có màn hình là sai.
+ *
+ * 🔴 KHOÁ THEO HÀNH VI, KHÔNG KHOÁ THEO NGOẶC. Dò chữ "{" trong mã thì chỉ bắt đúng ca này; đo
+ *    "hàng chưa gửi QT thì KHÔNG có nhãn" bắt được mọi cách làm hỏng nó.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const chua = nut({ tt: 'xong', qtDot: 0, editable: true });
+  t('🔴 hạng mục CHƯA gửi quyết toán → KHÔNG có nhãn "đã gửi QT"',
+    chua.indexOf('đã gửi QT') < 0, chua);
+  t('🔴 và tuyệt đối không in "undefined" ra màn', chua.indexOf('undefined') < 0, chua);
+
+  const roi = nut({ tt: 'xong', qtDot: 2, editable: true });
+  t('đã gửi rồi thì CÓ nhãn', roi.indexOf('đã gửi QT') >= 0, roi);
+  t('   kèm số đợt, không phải undefined',
+    /đã gửi QT đợt 2</.test(roi) && roi.indexOf('undefined') < 0, roi);
+
+  /* Hàng chưa chốt hoàn thành thì càng không có nhãn — dù sổ có lỡ ghi qtDot. */
+  const nhap = nut({ tt: 'nhap', qtDot: 3, editable: true });
+  t('hạng mục chưa chốt xong → không có nhãn dù sổ có qtDot',
+    nhap.indexOf('đã gửi QT') < 0, nhap);
 }
 
 /* ── 1. 🔴 NHÂN VIÊN TÍCH HẠNG MỤC, KHÔNG BẤM NÚT LẺ ───────────────────────────────────── */

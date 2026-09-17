@@ -6152,9 +6152,17 @@
         +' title="Tích rồi bấm «Gửi quyết toán» ở thanh dưới bảng — mấy hạng mục đã tích gộp thành MỘT lệnh quyết toán">'
         +'<input type="checkbox" data-xqt="'+row+'" data-tien="'+(Number(h.tienHM)||0)+'" onchange="daTichQtDoi()" style="margin:0;cursor:pointer">tích để quyết toán</label>';
     }
-    if(tt==='xong' && h.qtDot>0)
+    /* ⚠️ NGOẶC NHỌN LÀ BẮT BUỘC Ở ĐÂY — 17/09/2026, lỗi đã cắn thật.
+       Dòng `if` này vốn KHÔNG có ngoặc, thân chỉ một câu lệnh. Bản 1.192.0 chèn thêm một dòng
+       `var` vào giữa để dịch số đợt, và thế là thân `if` ăn mất dòng `var`, còn dòng vẽ huy
+       hiệu tụt ra NGOÀI — thành vô điều kiện. Kết quả trên màn anh Thắng: MỌI hàng đều mang
+       nhãn "🧾 đã gửi QT đợt undefined", kể cả hàng chưa gửi quyết toán lần nào.
+       Đây là bẫy của `if` không ngoặc: thêm một dòng vào thân là đổi luôn ý nghĩa của dòng kế
+       tiếp, mà cú pháp vẫn đúng nên không có gì báo. */
+    if(tt==='xong' && h.qtDot>0){
       var _qtN=_dotHienCua(h.qtDot, DA_CUR&&DA_CUR.qtDotHien);
       out+=' <span style="font-size:11px;color:#7c3aed;white-space:nowrap" title="Đã nằm trong lệnh quyết toán đợt '+_qtN+'">🧾 đã gửi QT đợt '+_qtN+'</span>';
+    }
     if(tt==='xong'&&laKT)    out+=datNut('b-x','nhap','🔓 Mở lại','Mở lại hạng mục đã chốt');
     return out;
   }
