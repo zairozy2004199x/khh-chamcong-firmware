@@ -214,6 +214,29 @@ class VHCC_Ung {
 			);
 		}
 
+		/* ---- 5. Thêm nhân sự mới ---------------------------------------------------------
+		   Anh Thắng 17/09/2026: *"Chuyển sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh
+		   đúng ô trống trong lưới.
+
+		   🔴 Ô NÀY KHÔNG DẪN ĐI ĐÂU — nó mở một màn NGAY TRONG TRẠM (`man`), khác hẳn bốn ô
+		      trên (mỗi ô là một địa chỉ sang app khác). Trước bản này lưới chỉ biết ô có `url`;
+		      nay biết cả hai loại, và ô khoá thì mất CẢ HAI đường (xem `o()`).
+
+		   ⚠️ GÁC BẰNG `them_nv` — đúng cái quyền mà `VHCC_NhanSu::them_nv_cua_hang()` đòi.
+		      Bày ô cho người không có quyền rồi để họ gõ xong mới bị chối là bắt người ta làm
+		      không công; còn gác ở đây bằng MỘT quyền khác với cửa thật là hai luật, và hai
+		      luật thì lệch. */
+		if ( VHCC_Vai::duoc( $u, 'them_nv' ) ) {
+			$o[] = self::o( true, array(
+				'ten'  => 'Thêm nhân sự',
+				'nhom' => 'Quản lý cửa hàng',
+				'mo'   => 'Mở hồ sơ tạm cho người mới vào làm',
+				'man'  => 'mThemNv',
+				'icon' => '🧑‍💼',
+				'mau'  => 'xanh',
+			) );
+		}
+
 		return $o;
 	}
 
@@ -240,6 +263,10 @@ class VHCC_Ung {
 		$x['mo_duoc'] = (bool) $mo_duoc;
 		if ( ! $x['mo_duoc'] ) {
 			unset( $x['url'] );
+			/* 🔴 Ô MỞ MÀN TRONG TRẠM CŨNG PHẢI MẤT ĐƯỜNG MỞ, y như ô dẫn sang app khác. Bỏ mỗi
+			   `url` mà quên `man` là ô khoá trông thì mờ nhưng bấm vẫn ra màn — đúng cái lỗi
+			   mà chú thích trên vừa nói là không được để xảy ra. */
+			unset( $x['man'] );
 			/* Dòng nhắc (như "gõ lại PIN") chỉ có nghĩa khi vào được. Giữ lại trên ô khoá là
 			   bày hai câu cùng lúc, mà câu cần đọc là câu "chưa được cấp". */
 			unset( $x['ghi_chu'] );

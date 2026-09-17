@@ -769,9 +769,31 @@ t( 'tab Cửa hàng nằm trong danh sách đổi tab',
 t( '🔴 hỏi quyền ngay lúc đăng nhập, không chờ bấm tab',
 	false !== strpos( $tpl, 'doCuaHang();' ), $tpl );
 
-foreach ( array( 'chCoSo', 'bangDonCH', 'bangCongCH', 'tnTen', 'tnCccd', 'btThemNguoi' ) as $o ) {
-	t( 'màn có ô ' . $o, false !== strpos( $than, $o ), $o );
+foreach ( array( 'chCoSo', 'bangDonCH', 'bangCongCH' ) as $o ) {
+	t( 'tab Cửa hàng có ô ' . $o, false !== strpos( $than, $o ), $o );
 }
+
+/* 🔴 THÊM NHÂN SỰ ĐÃ RA KHỎI TAB — anh Thắng 17/09/2026: *"Chuyển sang thêm nhân sự là 1 tính
+   năng"*. Nó là việc dăm bữa một lần, còn tab Cửa hàng mở hằng ngày; để nó nằm cuối tab thì
+   mỗi lần xem bảng công lại phải cuộn qua một biểu mẫu trống. Nay là một màn riêng, mở từ ô
+   trong lưới Ứng dụng (`kiem-luoi-ung.php` canh cái ô ấy). */
+$i_ch_mo = strpos( $than, 'id="tCuaHang"' );
+$i_ch_het = strpos( $than, '/tCuaHang' );
+$than_ch = substr( $than, $i_ch_mo, $i_ch_het - $i_ch_mo );
+t( '🔴 biểu mẫu thêm nhân sự KHÔNG còn nằm trong tab Cửa hàng',
+	false === strpos( $than_ch, 'btThemNguoi' ), $than_ch );
+t( 'nó nằm ở màn riêng', false !== strpos( $than, '<div id="mThemNv" class="mn an">' ), $than );
+foreach ( array( 'tnCoSo', 'tnTen', 'tnCccd', 'btThemNguoi', 'btDongThem' ) as $o ) {
+	t( 'màn thêm nhân sự có ô ' . $o, false !== strpos( $than, $o ), $o );
+}
+/* ⚠️ MÀN RIÊNG PHẢI CÓ Ô CHỌN CƠ SỞ CỦA CHÍNH NÓ. Trước đây nó mượn ô của tab Cửa hàng; mở từ
+   lưới thì không còn ô ấy, mà đoán bừa cơ sở là thêm người vào nhầm cửa hàng. */
+t( '🔴 gửi đi kèm cơ sở chọn TRÊN CHÍNH MÀN ẤY',
+	false !== strpos( $tpl, "coSo:     el('tnCoSo').value" ), $tpl );
+t( 'và ô ấy nạp từ danh sách cơ sở máy chủ đã lọc',
+	false !== strpos( $tpl, "xoOption(ds, ds[0] || '')" ) && false !== strpos( $tpl, 'CH.dsCoSo' ), $tpl );
+t( '⚠️ chưa có cơ sở nào thì nói ra, không mở màn rỗng',
+	false !== strpos( $tpl, 'chưa được giao cơ sở nào, nên chưa thêm người được' ), $tpl );
 /* ⚠️ "KHÔNG DUYỆT" phải hỏi lại — bấm nhầm thì người xin nhận câu từ chối mà không ai cố ý gửi. */
 t( '⚠️ bấm KHÔNG DUYỆT thì hỏi lại', false !== strpos( $tpl, 'Ghi KHÔNG DUYỆT đơn này?' ), $tpl );
 /* Khoá đơn ghép loại + id: ba loại đánh số riêng nhau, chỉ mang id là duyệt nhầm đơn khác. */

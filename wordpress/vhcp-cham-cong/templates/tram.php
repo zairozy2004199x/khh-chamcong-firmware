@@ -295,6 +295,10 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 	gap:7px;text-align:center;text-decoration:none;color:var(--chu);
 	padding:8px 2px;border-radius:var(--bo-o);min-width:0;min-height:48px}
 .o-ung:active{background:var(--nen-2)}
+/* Ô MỞ MÀN TRONG TRẠM dựng bằng <button>, nên phải gỡ hết nét mặc định của nút — không gỡ thì
+   nó có viền, có nền xám và chữ font hệ thống, đứng cạnh mấy ô <a> thành một ô trông hỏng. */
+button.o-ung{border:0;background:transparent;font:inherit;color:var(--chu);cursor:pointer;
+	-webkit-appearance:none;appearance:none;width:100%}
 /* Ô CHƯA ĐƯỢC CẤP. Mờ đủ để đọc ra là "khác", KHÔNG mờ tới mức không đọc nổi: cả điểm của
    việc bày nó ra là để người ta biết thứ ấy tồn tại mà đi xin.
    ⚠️ `cursor:default` + không có :active — ô này không phải thẻ <a> nên vốn đã không bấm được;
@@ -546,27 +550,6 @@ a{color:var(--nhan)}
 		<div id="bangCongCH"><p class="trong">—</p></div>
 	</div>
 
-	<!-- THÊM NGƯỜI MỚI — cửa hẹp, hồ sơ TẠM. Xem chốt 4 đầu class-vhcc-cua-hang.php. -->
-	<div class="the">
-		<label style="margin:0 0 8px">Thêm nhân sự mới</label>
-		<div class="fldx"><label for="tnTen">Họ và tên</label>
-			<input id="tnTen" type="text" maxlength="120" placeholder="Nguyễn Văn A"></div>
-		<div class="fldx"><label for="tnCccd">Số căn cước</label>
-			<input id="tnCccd" type="tel" inputmode="numeric" maxlength="12" placeholder="12 số"></div>
-		<div class="fldx"><label for="tnSdt">Điện thoại</label>
-			<input id="tnSdt" type="tel" inputmode="numeric" maxlength="15" placeholder="không bắt buộc"></div>
-		<div class="fldx"><label for="tnGt">Giới tính</label>
-			<select id="tnGt"><option value="">— không khai —</option><option>Nam</option><option>Nữ</option></select></div>
-		<div id="loiThem"></div>
-		<p></p>
-		<button id="btThemNguoi" class="chinh to">THÊM VÀO CƠ SỞ NÀY</button>
-		<p class="ct" style="text-align:left;margin:10px 0 0">Hệ cấp <b>mã tạm</b> và
-			<b>không phát PIN cho ai cả</b>: người mới tự vào trang chấm công, bấm
-			<b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt PIN. Vì vậy
-			<b>căn cước là bắt buộc</b> — thiếu nó thì đường ấy tắc và hồ sơ vừa tạo thành
-			hồ sơ chết. Lương, vai trò, mã chuẩn do nhân sự đặt sau.</p>
-	</div>
-
 	</div><!-- /tCuaHang -->
 
 	<!-- ============ TAB 3: ỨNG DỤNG ============
@@ -749,6 +732,42 @@ a{color:var(--nhan)}
 	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
+
+<!-- ============ MÀN THÊM NHÂN SỰ ============
+     🔴 MỘT TÍNH NĂNG RIÊNG, KHÔNG PHẢI MỘT KHỐI DƯỚI ĐÁY TAB. Anh Thắng 17/09/2026: *"Chuyển
+        sang thêm nhân sự là 1 tính năng"*, kèm ảnh khoanh đúng ô trống trong lưới Ứng dụng.
+        Nó là việc làm dăm bữa một lần, còn tab Cửa hàng là thứ mở hằng ngày — để nó nằm cuối
+        tab thì mỗi lần xem bảng công lại phải cuộn qua một biểu mẫu trống.
+     ⚠️ CÓ Ô CHỌN CƠ SỞ RIÊNG. Trước đây nó mượn ô của tab Cửa hàng; mở từ lưới thì không còn
+        ô ấy nữa, mà đoán bừa cơ sở là thêm người vào nhầm cửa hàng. -->
+<div id="mThemNv" class="mn an"><div class="bao">
+	<h1>Thêm nhân sự</h1>
+	<p class="mo">Mở hồ sơ <b>tạm</b> cho người vừa vào làm, để họ chấm công được ngay.</p>
+
+	<div class="the">
+		<div class="fldx"><label for="tnCoSo">Thêm vào cơ sở</label>
+			<select id="tnCoSo"></select></div>
+		<div class="fldx"><label for="tnTen">Họ và tên</label>
+			<input id="tnTen" type="text" maxlength="120" placeholder="Nguyễn Văn A"></div>
+		<div class="fldx"><label for="tnCccd">Số căn cước</label>
+			<input id="tnCccd" type="tel" inputmode="numeric" maxlength="12" placeholder="12 số"></div>
+		<div class="fldx"><label for="tnSdt">Điện thoại</label>
+			<input id="tnSdt" type="tel" inputmode="numeric" maxlength="15" placeholder="không bắt buộc"></div>
+		<div class="fldx"><label for="tnGt">Giới tính</label>
+			<select id="tnGt"><option value="">— không khai —</option><option>Nam</option><option>Nữ</option></select></div>
+		<div id="loiThem"></div>
+		<p></p>
+		<button id="btThemNguoi" class="chinh to">THÊM VÀO CƠ SỞ NÀY</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Hệ cấp <b>mã tạm</b> và
+			<b>không phát PIN cho ai cả</b>: người mới tự vào trang chấm công, bấm
+			<b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt PIN. Vì vậy
+			<b>căn cước là bắt buộc</b> — thiếu nó thì đường ấy tắc và hồ sơ vừa tạo thành
+			hồ sơ chết. Lương, vai trò, mã chuẩn do nhân sự đặt sau.</p>
+	</div>
+
+	<p></p>
+	<button id="btDongThem" class="phu to">Đóng</button>
+</div></div>
 
 <!-- ============ MÀN MỘT NGƯỜI — sửa công & chốt lương ============
      🔴 MÀN PHỦ TOÀN TRANG, KHÔNG PHẢI MỘT KHỐI NHÉT THÊM VÀO TAB. Anh Thắng 17/09/2026:
@@ -1894,7 +1913,14 @@ function napUng(){
 				         + thoat(x.icon||'') + '</span>'
 				         + '<b>' + thoat(x.ten||'') + '</b>';
 
-				if(mo){
+				if(mo && x.man){
+					/* 🔴 Ô MỞ MÀN NGAY TRONG TRẠM — dựng bằng <button>, không phải <a href="#">.
+					   Thẻ <a> rỗng thì bấm là nhảy lên đầu trang, và trên iOS còn đổi cả địa
+					   chỉ — người dùng bấm "Thêm nhân sự" xong thấy trang giật một cái rồi
+					   không có gì. <button type="button"> thì không có hành vi mặc định nào. */
+					oG += '<button type="button" class="o-ung o-man" data-man="' + thoat(x.man)
+					   +  '" title="' + thoat(x.mo||'') + '">' + ruot + '</button>';
+				} else if(mo){
 					/* `title` mang phần mô tả đã rời khỏi ô — máy tính rê chuột là thấy, điện
 					   thoại thì không, nên nó chỉ là phần THÊM, không phải chỗ giấu thông tin
 					   cần thiết. Thứ cần thiết nằm ở danh sách chú thích dưới lưới. */
@@ -1914,6 +1940,11 @@ function napUng(){
 			  +  '<div class="luoi-ung">' + oG + '</div></div>';
 		}
 		el('oUng').innerHTML = h + (ghi ? '<div class="ghi-ung">' + ghi + '</div>' : '') + NHAC_UNG;
+		/* Ô mở màn dựng lúc chạy nên gài sự kiện sau mỗi lượt vẽ. */
+		var om = el('oUng').querySelectorAll('.o-man');
+		for(var q=0;q<om.length;q++){
+			om[q].addEventListener('click', function(){ moMan(this.getAttribute('data-man')); });
+		}
 	}).catch(function(){
 		DA_NAP_UNG = false;
 	DA_NAP_HS = false;
@@ -2190,6 +2221,24 @@ el('plThang').addEventListener('change', vePhieu);
 
 el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
 
+/* Mở một màn của trạm từ ô trong lưới. Danh sách trắng, không mở bừa theo chuỗi máy chủ gửi:
+   một tên màn lạ thì `el()` trả null và `hien()` nổ, làm chết cả khối JS phía sau. */
+function moMan(ten){
+	if('mThemNv' === ten){ moThemNv(); }
+}
+
+function moThemNv(){
+	var ds = (CH && CH.dsCoSo) ? CH.dsCoSo : [];
+	if(!ds.length){
+		window.alert('Tài khoản của anh/chị chưa được giao cơ sở nào, nên chưa thêm người được.');
+		return;
+	}
+	if(!el('tnCoSo').options.length){ el('tnCoSo').innerHTML = xoOption(ds, ds[0] || ''); }
+	bao('loiThem','',null);
+	hien('mThemNv', true);
+}
+
+el('btDongThem').addEventListener('click', function(){ hien('mThemNv', false); });
 el('btDongNguoi').addEventListener('click', function(){ hien('mNguoi', false); });
 el('sgGay').addEventListener('change', function(){ hien('oNghi', this.checked); });
 el('clThang').addEventListener('change', function(){ hien('oLuongThang', this.checked); });
@@ -2204,7 +2253,7 @@ el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
 el('btThemNguoi').addEventListener('click', function(){
 	guiDon('chthem', {
 		token:    token(),
-		coSo:     el('chCoSo').value,
+		coSo:     el('tnCoSo').value,
 		hoTen:    el('tnTen').value,
 		cccd:     el('tnCccd').value,
 		sdt:      el('tnSdt').value,
