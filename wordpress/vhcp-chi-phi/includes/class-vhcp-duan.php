@@ -1229,16 +1229,55 @@ class VHCP_DuAn {
 		foreach ( array_keys( $ds ) as $k ) { $dot = max( $dot, (int) $k ); }
 		$dot++;
 
-		/* Lịch đi nhận tiền: dòng thiếu ngày thì bỏ — một đợt không ngày thì kế toán chuẩn bị
-		   tiền vào hôm nào? */
-		$lc = array(); $lan = 0;
+		/* ═════════════════════════════════════════════════════════════════════════════════════
+		 * LỊCH NHẬN TIỀN = TỪNG ĐỢT GÁN LẤY MẤY HẠNG MỤC, TIỀN DO MÁY CHỦ CỘNG.
+		 * ═════════════════════════════════════════════════════════════════════════════════════
+		 * Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+		 *
+		 * Bản trước cho gõ TAY số tiền của từng lần. Hai cái giá đã trả:
+		 *   · Số ấy không dính gì tới hàng nào cả — không ai trả lời được "lần 1 gồm những gì".
+		 *   · Và nó lệch được với tổng lệnh: đơn của anh khai 10tr + 20tr cho một lệnh
+		 *     68.790.000đ, còn 38.790.000đ không thuộc lần nào mà chẳng có gì nói ra.
+		 *
+		 * Nay mỗi đợt mang DANH SÁCH HÀNG (`rows`), và `soTien` do đây cộng từ chính mấy hàng ấy.
+		 *
+		 * 🔴 KHÔNG NHẬN `soTien` TỪ MÀN. Nhận là mở đường cho hai con số: danh sách hàng nói một
+		 *    đằng, số tiền nói một nẻo, và không ai biết bên nào đúng. Máy chủ cộng thì con số ấy
+		 *    KHÔNG THỂ lệch với danh sách — đó là cả điểm của việc này.
+		 * 🔴 CỘNG BẰNG `tien_hm_du_kien()`, đúng hàm dựng nên `$tong` của cả lệnh ở trên. Dùng
+		 *    hàm khác là tổng các đợt không bao giờ khớp tổng lệnh.
+		 *
+		 * ⚠️ MỘT HÀNG KHÔNG ĐƯỢC NẰM TRONG HAI ĐỢT — cùng một khoản mà hẹn nhận hai lần thì tổng
+		 *    các đợt vượt tổng lệnh, và kế toán chuẩn bị thừa tiền.
+		 * ⚠️ HÀNG KHÔNG THUỘC LỆNH NÀY THÌ CHỐI, không lặng lẽ bỏ: người dùng thấy nó trong danh
+		 *    sách lúc gửi, mà lệnh lại không có nó.
+		 * ⚠️ Dòng thiếu NGÀY vẫn bỏ như cũ — một đợt không ngày thì kế toán chuẩn bị tiền hôm nào?
+		 * ⚠️ Hàng KHÔNG gán vào đợt nào là chuyện bình thường: đó là "dự kiến đợt tiếp theo"
+		 *    (xem `get_du_an`), không phải lỗi.
+		 */
+		$lc = array(); $lan = 0; $da_gan = array();
+		$trong_lenh = array_fill_keys( $nhan, 1 );
 		foreach ( (array) $lich as $x ) {
-			$x = (array) $x;
+			$x    = (array) $x;
 			$ngay = isset( $x['ngay'] ) ? trim( (string) $x['ngay'] ) : '';
 			if ( '' === $ngay ) { continue; }
+			$rows_dot = array(); $tien_dot = 0;
+			foreach ( (array) ( isset( $x['rows'] ) ? $x['rows'] : array() ) as $rr ) {
+				$rr = (int) $rr;
+				if ( ! isset( $trong_lenh[ $rr ] ) ) {
+					return VHCP_Util::err( 'Dòng ' . $rr . ' được xếp vào một đợt nhận tiền nhưng '
+						. 'không nằm trong lệnh này.' );
+				}
+				if ( isset( $da_gan[ $rr ] ) ) {
+					return VHCP_Util::err( '"' . $lon[ $rr ] . '" bị xếp vào hai đợt nhận tiền — '
+						. 'một khoản chỉ nhận một lần.' );
+				}
+				$da_gan[ $rr ] = 1;
+				$rows_dot[]    = $rr;
+				$tien_dot     += self::tien_hm_du_kien( $ma_da, $rr );
+			}
 			$lan++;
-			$lc[] = array( 'lan' => $lan, 'ngay' => $ngay,
-				'soTien' => VHCP_Util::num( isset( $x['soTien'] ) ? $x['soTien'] : 0 ) );
+			$lc[] = array( 'lan' => $lan, 'ngay' => $ngay, 'soTien' => $tien_dot, 'rows' => $rows_dot );
 		}
 
 		$moi = self::dot_ghi_( $ma_da, $dot, array(

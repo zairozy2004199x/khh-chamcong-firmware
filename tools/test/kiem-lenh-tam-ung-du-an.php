@@ -69,8 +69,11 @@ t( 'dòng không có thật → 0, không nổ', 0 == VHCP_DuAn::tien_hm( $ma, 9
 /* ═══ 2. 🔴 TÍCH NHIỀU HẠNG MỤC → MỘT LỆNH, MỘT SỐ TIỀN ═════════════════════════════════ */
 teq( 'chưa bấm xin thì hạng mục là NHÁP', 'nhap', VHCP_DuAn::hm_cua( $ma, $R['Mua đồ điện'] )['tt'] );
 vai( 'Nhân viên', 'NV' );
+/* Lịch: xếp "Mua đồ điện" vào đợt nhận tiền đầu, "Thợ bốc vác" vào một mục thiếu ngày (bị bỏ).
+   Số tiền của đợt KHÔNG khai ở đây — máy chủ cộng lấy từ chính mấy hàng được xếp vào. */
 $x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $R['Mua đồ điện'], $R['Thợ bốc vác'] ),
-	array( array( 'ngay' => '12/09/2026', 'soTien' => 10000000 ), array( 'soTien' => 5 ) ), 'Vật tư đợt đầu' );
+	array( array( 'ngay' => '12/09/2026', 'rows' => array( $R['Mua đồ điện'] ) ),
+		array( 'rows' => array( $R['Thợ bốc vác'] ) ) ), 'Vật tư đợt đầu' );
 t( '🔴 tích hai hạng mục → gửi được MỘT lệnh', ! empty( $x['success'] ), $x );
 teq( '   lệnh đánh số đợt 1', 1, $x['dot']['dot'] );
 teq( '   gồm đúng 2 hạng mục', 2, $x['so'] );
@@ -78,6 +81,11 @@ t( '🔴 SỐ TIỀN CỦA LỆNH = 13.000.000 + 2.300.000 = 15.300.000',
 	15300000 == $x['soTien'], $x['soTien'] );
 teq( '   lệnh ở trạng thái chờ duyệt', 'xin', $x['dot']['tt'] );
 teq( '🔴 lịch thiếu ngày bị bỏ (kế toán chuẩn bị tiền vào hôm nào?)', 1, count( $x['dot']['lich'] ) );
+/* 🔴 SỐ TIỀN CỦA ĐỢT MÁY CHỦ TỰ CỘNG — "Mua đồ điện" là hạng mục CÓ CON, nên 13.000.000đ
+   (tổng con), y hệt `tien_hm()`. Lấy 500k của chính cha là đợt hụt mất 12,5 triệu. */
+t( '🔴 số tiền đợt 1 = tổng hàng xếp vào nó (Mua đồ điện = 13.000.000, tiền nằm ở con)',
+	13000000 == $x['dot']['lich'][0]['soTien'], $x['dot']['lich'][0] );
+teq( '   và đợt giữ danh sách hàng của nó', array( $R['Mua đồ điện'] ), $x['dot']['lich'][0]['rows'] );
 teq( '   giữ ghi chú cho kế toán', 'Vật tư đợt đầu', $x['dot']['lyDo'] );
 teq( 'hạng mục trong lệnh chuyển sang chờ duyệt', 'xin', VHCP_DuAn::hm_cua( $ma, $R['Mua đồ điện'] )['tt'] );
 teq( '   và mang số đợt của lệnh', 1, VHCP_DuAn::hm_cua( $ma, $R['Mua đồ điện'] )['dot'] );
@@ -240,12 +248,13 @@ t( '🔴 và BỎ khoản 🏢 kế toán trả thẳng NCC (2tr) — tiền ấ
    cấp). Đợt 2 ĐÃ BỊ TRẢ → không tính. */
 /* 🔴 TỪ 1.196.0 "ĐÃ XIN" ĐẾM THEO ĐỢT, KHÔNG ĐẾM CẢ LỆNH. Anh Thắng 17/09/2026: *"Số tiền xin
    tạm ứng đợt 1, chứ xin tổng vẫn chưa mà"*. Lệnh đợt 1 là 15.300.000đ nhưng lịch chỉ khai một
-   đợt 10.000.000đ, nên phần "đã xin" của nó là 10tr; 5.300.000đ còn lại là "dự kiến đợt tiếp
-   theo". Hai lệnh kia không khai lịch → lấy trọn số lệnh, đúng ca thường nhất. */
-t( '🔴 đã xin = tổng các ĐỢT đã khai, KHÔNG tính lệnh bị trả lại (10.000.000 + 9.999.999 + 700.000)',
-	20699999 == $dd['daXinTU'], $dd['daXinTU'] );
-t( '🔴 phần lệnh chưa xếp vào đợt nào = dự kiến đợt tiếp theo (15.300.000 − 10.000.000)',
-	5300000 == $dd['duKienDotSau'], $dd['duKienDotSau'] );
+   đợt gồm mỗi "Mua đồ điện" = 13.000.000đ, nên phần "đã xin" của nó là 13tr; 2.300.000đ của
+   "Thợ bốc vác" là "dự kiến đợt tiếp theo". Hai lệnh kia không khai lịch → lấy trọn số lệnh,
+   đúng ca thường nhất. */
+t( '🔴 đã xin = tổng các ĐỢT đã khai, KHÔNG tính lệnh bị trả lại (13.000.000 + 9.999.999 + 700.000)',
+	23699999 == $dd['daXinTU'], $dd['daXinTU'] );
+t( '🔴 phần lệnh chưa xếp vào đợt nào = dự kiến đợt tiếp theo (15.300.000 − 13.000.000)',
+	2300000 == $dd['duKienDotSau'], $dd['duKienDotSau'] );
 t( '   `daVaoLenh` giữ nghĩa CŨ (tổng mọi lệnh đã gửi) cho dòng "đã đưa hết hạng mục vào lệnh"',
 	25999999 == $dd['daVaoLenh'], $dd['daVaoLenh'] );
 t( '   nên nó KHÁC con số dự kiến — còn "Vật tư lẻ" chưa gửi',
@@ -314,11 +323,16 @@ t( '🔴 đơn cơ sở: tiền dự kiến lấy từ SỐ LƯỢNG × ĐƠN GI
 /* ═══ 11. LỆNH XIN TẠM ỨNG LẤY ĐÚNG SỐ ẤY — chỗ đắt nhất của lỗi ═══════════════════════ */
 vai( 'Nhân viên', 'NV' );
 $x2 = VHCP_DuAn::xin_tam_ung_dot( $ma2, array( $R2['Thợ Phụ'], $R2['Băng keo'] ),
-	array( array( 'ngay' => '18/09/2026' ) ), 'Đợt đầu' );
+	array( array( 'ngay' => '18/09/2026', 'rows' => array( $R2['Thợ Phụ'], $R2['Băng keo'] ) ) ), 'Đợt đầu' );
 t( '🔴 xin tạm ứng cho hạng mục mới chỉ có dự toán → gửi được',
 	! empty( $x2['success'] ), $x2 );
 teq( '🔴 và số tiền của lệnh = 48tr + 390k, KHÔNG phải 0đ',
 	48390000, (int) $x2['dot']['soTien'] );
+/* 🔴 SỐ TIỀN CỦA ĐỢT CŨNG PHẢI LẤY DỰ TOÁN. Đây là chỗ đắt nhất: đợt nhận tiền là con số kế
+   toán ĐỌC ĐỂ CHUẨN BỊ TIỀN, mà lúc này chưa ai tiêu đồng nào. Cộng bằng `tien_hm()` (chỉ đọc
+   thực tế) thì lệnh ghi 48.390.000đ còn đợt ghi 0đ — kế toán đi tay không. */
+teq( '🔴 và đợt nhận tiền cũng là 48.390.000đ, không phải 0đ (chưa ai chi đồng nào)',
+	48390000, (int) $x2['dot']['lich'][0]['soTien'] );
 
 /* ═══ 12. LƯỚI CUỐI: KHÔNG DỰNG LỆNH 0đ ════════════════════════════════════════════════ */
 vai( 'Admin', 'KT' );
@@ -389,6 +403,81 @@ vai( 'Admin', 'KT' );
 $quay = VHCP_DuAn::dat_tt_dot( $maD, 1, 'duyet' );
 t( '🔴 lệnh đã trả KHÔNG duyệt lại được (nếu được thì số đợt nhảy sau lưng người dùng)',
 	empty( $quay['success'] ), $quay );
+
+/* ═══ 8c. 🔴 XẾP TỪNG HÀNG VÀO ĐỢT NHẬN TIỀN ═══════════════════════════════════════════
+ * Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
+ *
+ * =========================================================================================
+ * 🔴 SỐ TIỀN CỦA ĐỢT LÀ PHÉP CỘNG, KHÔNG PHẢI MỘT Ô GÕ TAY. Bản trước nhận thẳng `soTien` từ
+ *    màn hình: sửa được HTML là khai bao nhiêu cũng xong, và ngay cả dùng đúng thì nó vẫn lệch
+ *    được với tổng lệnh (đơn của anh khai 10tr + 20tr cho một lệnh 68.790.000đ). Nay màn gửi
+ *    lên DANH SÁCH HÀNG, máy chủ cộng — hai con số không còn đường nào để lệch.
+ *
+ * ⚠️ THỬ MẤY CA BỊ CHỐI TRƯỚC, LÚC CHƯA CÓ LỆNH NÀO. Thử sau khi đã gửi một lệnh thì luật cũ
+ *    ("hạng mục đã nằm trong lệnh") chối trước, và phép xanh mà chốt mới có bị đục thủng cũng
+ *    không biết — đúng cái bẫy đã sập một lần ở mục 8.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$maX = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian xếp đợt', 'NV' )['maDA'];
+foreach ( array( array( 'Thợ Phụ', 10000000 ), array( 'Vật tư', 20000000 ), array( 'Xe cẩu', 18790000 ) ) as $c ) {
+	VHCP_DuAn::add_line( $maX, array( 'noiDung' => $c[0], 'thucTe' => $c[1] ) );
+}
+$RX = array();
+foreach ( VHCP_DuAn::get_du_an( $maX )['lines'] as $l ) { $RX[ $l['noiDung'] ] = $l['row']; }
+$ba = array( $RX['Thợ Phụ'], $RX['Vật tư'], $RX['Xe cẩu'] );
+
+vai( 'Nhân viên', 'NV' );
+/* 🔴 MỘT HÀNG KHÔNG ĐƯỢC NẰM Ở HAI ĐỢT. Nhận tiền hai lần cho một khoản là tiền ra khỏi két
+   gấp đôi — và tổng lịch vọt quá tổng lệnh mà chẳng có gì nói ra. */
+$xd = VHCP_DuAn::xin_tam_ung_dot( $maX, $ba, array(
+	array( 'ngay' => '03/09/2026', 'rows' => array( $RX['Thợ Phụ'] ) ),
+	array( 'ngay' => '10/09/2026', 'rows' => array( $RX['Thợ Phụ'] ) ),
+) );
+t( '🔴 xếp MỘT hàng vào hai đợt → chối', empty( $xd['success'] ), $xd );
+/* Câu chối phải nói ĐÚNG CHUYỆN: gọi tên hàng, và nói rõ vướng ở chỗ HAI ĐỢT. Chỉ canh cái tên
+   thì câu chối cũ ("hạng mục đã nằm trong lệnh") cũng khớp, và phép này xanh oan. */
+t( '   gọi TÊN hàng đang vướng, và nói rõ vướng vì HAI ĐỢT',
+	isset( $xd['error'] ) && false !== mb_strpos( $xd['error'], 'Thợ Phụ' )
+	&& false !== mb_strpos( $xd['error'], 'hai đợt' ), $xd );
+teq( '   và lệnh KHÔNG được dựng ra dở dang', 'nhap', VHCP_DuAn::hm_cua( $maX, $RX['Thợ Phụ'] )['tt'] );
+
+/* 🔴 CHỐI HÀNG KHÔNG NẰM TRONG LỆNH — xếp một dòng lạ vào đợt là hứa đưa tiền cho một khoản
+   chưa ai duyệt. */
+$xb = VHCP_DuAn::xin_tam_ung_dot( $maX, array( $RX['Thợ Phụ'] ),
+	array( array( 'ngay' => '03/09/2026', 'rows' => array( $RX['Vật tư'] ) ) ) );
+t( '🔴 xếp một dòng KHÔNG nằm trong lệnh vào đợt → chối', empty( $xb['success'] ), $xb );
+t( '   và nói rõ dòng nào',
+	isset( $xb['error'] ) && false !== mb_strpos( $xb['error'], 'không nằm trong lệnh này' ), $xb );
+teq( '   lệnh cũng không được dựng ra dở dang', 'nhap', VHCP_DuAn::hm_cua( $maX, $RX['Thợ Phụ'] )['tt'] );
+
+/* ── Đường đi đúng ─────────────────────────────────────────────────────────────────────── */
+$xx = VHCP_DuAn::xin_tam_ung_dot( $maX, $ba, array(
+	array( 'ngay' => '03/09/2026', 'rows' => array( $RX['Thợ Phụ'] ) ),
+	array( 'ngay' => '10/09/2026', 'rows' => array( $RX['Vật tư'], $RX['Xe cẩu'] ) ),
+) );
+t( 'gửi được lệnh có hai đợt nhận tiền', ! empty( $xx['success'] ), $xx );
+$LX = $xx['dot']['lich'];
+t( '🔴 đợt 1 = đúng hàng xếp vào nó (10.000.000)', 10000000 == $LX[0]['soTien'], $LX[0] );
+t( '🔴 đợt 2 = TỔNG hai hàng (20.000.000 + 18.790.000)', 38790000 == $LX[1]['soTien'], $LX[1] );
+t( '   tổng hai đợt đúng bằng tổng lệnh — không cách nào khai lệch',
+	48790000 == ( $LX[0]['soTien'] + $LX[1]['soTien'] ) && 48790000 == $xx['soTien'], $xx['soTien'] );
+teq( '🔴 đợt giữ đủ DANH SÁCH HÀNG (không có nó thì bảng không đọc ra "đợt này gồm gì")',
+	array( $RX['Vật tư'], $RX['Xe cẩu'] ), $LX[1]['rows'] );
+teq( '   và đợt 1 giữ hàng của đợt 1', array( $RX['Thợ Phụ'] ), $LX[0]['rows'] );
+
+/* Không xếp hết cũng được — phần còn lại là "dự kiến đợt tiếp theo", đúng lời anh Thắng. */
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maX, 1, 'tra' );
+vai( 'Nhân viên', 'NV' );
+$xc = VHCP_DuAn::xin_tam_ung_dot( $maX, $ba, array(
+	array( 'ngay' => '03/09/2026', 'rows' => array( $RX['Thợ Phụ'] ) ),
+) );
+t( 'xếp thiếu vẫn gửi được', ! empty( $xc['success'] ), $xc );
+$ddx = VHCP_DuAn::get_du_an( $maX );
+t( '🔴 phần chưa xếp đợt nào = dự kiến đợt tiếp theo (48.790.000 − 10.000.000)',
+	38790000 == $ddx['duKienDotSau'], $ddx['duKienDotSau'] );
+t( '   còn "đã xin" chỉ đếm đợt đã khai', 10000000 == $ddx['daXinTU'], $ddx['daXinTU'] );
+VHCP_DuAn::delete( $maX );
 
 /* ═══ 9. CỬA API ═══════════════════════════════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );

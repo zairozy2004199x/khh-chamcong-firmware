@@ -41,10 +41,16 @@ $ma = $r['maDA'];
 /* Có CẢ thực tế: từ 1.193.0 chốt hoàn thành đòi hạng mục phải có số tiền thật, không thì
    lệnh quyết toán của nó ra 0đ. Fixture cũ chỉ có dự toán — tức đúng cảnh chốt ấy chặn. */
 VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 10000000, 'thucTe' => 9500000 ) );
+/* Hạng mục thứ hai để có gì mà XẾP sang đợt nhận tiền thứ hai — từ 1.197.0 mỗi đợt là một
+   danh sách hàng, nên một dự án một hàng thì chỉ khai được một đợt. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê xe cẩu', 'duToan' => 6000000, 'thucTe' => 6000000 ) );
 $d = VHCP_DuAn::get_du_an( $ma );
-$row = null;
-foreach ( $d['lines'] as $l ) { if ( $l['noiDung'] === 'Mua đồ điện' ) { $row = $l['row']; } }
-t( 'dựng được hạng mục thử', null !== $row, $d['lines'] );
+$row = null; $row2 = null;
+foreach ( $d['lines'] as $l ) {
+	if ( $l['noiDung'] === 'Mua đồ điện' ) { $row  = $l['row']; }
+	if ( $l['noiDung'] === 'Thuê xe cẩu' ) { $row2 = $l['row']; }
+}
+t( 'dựng được hạng mục thử', null !== $row && null !== $row2, $d['lines'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * 1. ĐƯỜNG ĐI ĐÚNG — ĐI QUA LỆNH, KHÔNG ĐI LẺ TỪNG HẠNG MỤC
@@ -58,10 +64,10 @@ t( '   dự án cũ (chưa có trạng thái nào) vẫn đọc ra "nhap", khôn
 	'nhap' === VHCP_DuAn::hm_cua( $ma, 999 )['tt'] );
 
 vai( 'Nhân viên', 'NV' );
-$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row ), array(
-	array( 'ngay' => '12/09/2026', 'soTien' => 4000000 ),
-	array( 'ngay' => '20/09/2026', 'soTien' => 6000000 ),
-	array( 'soTien' => 1000 ),   // thiếu ngày -> bỏ
+$x = VHCP_DuAn::xin_tam_ung_dot( $ma, array( $row, $row2 ), array(
+	array( 'ngay' => '12/09/2026', 'rows' => array( $row ) ),
+	array( 'ngay' => '20/09/2026', 'rows' => array( $row2 ) ),
+	array( 'rows' => array() ),   // thiếu ngày -> bỏ
 ) );
 t( 'nhân viên gửi lệnh tạm ứng được', ! empty( $x['success'] ), $x );
 teq( '   hạng mục sang "xin"', 'xin', VHCP_DuAn::hm_cua( $ma, $row )['tt'] );
@@ -69,7 +75,12 @@ $L = VHCP_DuAn::dot_cua( $ma, 1 );
 teq( '🔴 lịch đi nhận tiền giữ đủ hai đợt có ngày', 2, count( $L['lich'] ) );
 teq( '   đánh số lần theo thứ tự', 1, $L['lich'][0]['lan'] );
 teq( '   giữ đúng ngày hẹn', '20/09/2026', $L['lich'][1]['ngay'] );
-t( '   và số tiền của đợt', 6000000 == $L['lich'][1]['soTien'], $L['lich'][1] );
+/* 🔴 SỐ TIỀN CỦA ĐỢT DO MÁY CHỦ CỘNG, từ chính mấy hàng được xếp vào đợt ấy — màn không gửi
+   con số nào lên. Gõ tay được là gõ cho lệch được, và lệch ở đây là kế toán chuẩn bị sai tiền. */
+t( '🔴 số tiền của đợt = tổng các hàng xếp vào nó (Thuê xe cẩu 6.000.000)',
+	6000000 == $L['lich'][1]['soTien'], $L['lich'][1] );
+teq( '   và đợt giữ lại DANH SÁCH HÀNG để về sau đọc ra "đợt này gồm những gì"',
+	array( $row2 ), $L['lich'][1]['rows'] );
 
 vai( 'Quản lý', 'QL' );
 $x = VHCP_DuAn::dat_tt_dot( $ma, 1, 'duyet' );

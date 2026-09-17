@@ -274,7 +274,7 @@ function veForm(ham, ...them) {
    ⚠️ CANH TỪNG HÀM, không canh cả vùng: canh cả vùng thì thêm bất kỳ chỗ hỏi-một-câu nào cũng
       làm phép này đỏ oan, rồi người ta nới nó ra và mất luôn chốt thật. */
 ['hmMoCap', 'hmGuiCap', 'hmMoChot', 'hmGuiChot', 'hmNccMo', 'hmNccChot', 'hmDinhTep',
- 'daMoXinTU', 'daGuiXinTU', 'daLichDoi', 'lenhMoCap', 'lenhGuiCap'].forEach(ten => {
+ 'daMoXinTU', 'daGuiXinTU', 'daLanDoi', 'lenhMoCap', 'lenhGuiCap'].forEach(ten => {
   const i = HTML.indexOf('function ' + ten + '(');
   t('🔴 ' + ten + '() không hỏi chứng từ / ngày / số tiền bằng prompt',
     i >= 0 && HTML.slice(i, HTML.indexOf('\n  }', i)).indexOf('prompt(') < 0);

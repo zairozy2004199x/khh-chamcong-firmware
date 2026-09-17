@@ -51,19 +51,31 @@ function be(oTich, opt) {
     daXinGhiChu: { value: opt.ghiChu || '' },
   };
   NK.O = O;
-  /* Ô lịch là ô THẬT, giữ được giá trị: luật chia tiền ghi ngược vào chính mấy ô này, nên bệ
-     đỡ trả ra một đối tượng mới mỗi lần hỏi là mọi phép chia đều xanh oan. */
-  const O_LICH = {};
+  /* Ô lịch là ô THẬT, giữ được giá trị: `daLanDoi()` ghi ngược vào chính mấy ô này (mờ đi,
+     khoá lại), nên bệ đỡ trả ra một đối tượng mới mỗi lần hỏi là mọi phép đều xanh oan. */
+  const O_LICH = {}, O_SUM = {}, O_BOX = {};
   for (let i = 1; i <= 3; i++) {
-    O_LICH['lnd' + i] = { value: (opt.lich || {})['lnd' + i] || '' };
-    O_LICH['lst' + i] = { value: (opt.lich || {})['lst' + i] || '' };
+    O_LICH['lnd' + i] = { value: (opt.lich || {})['lnd' + i] || '', disabled: false, style: {} };
+    O_SUM[i] = { textContent: '' };
+    O_BOX[i] = { style: {} };
   }
-  NK.lich = O_LICH;
-  O.daLichNhac = { textContent: '' };
+  NK.lich = O_LICH; NK.sum = O_SUM; NK.box = O_BOX;
+  /* Mấy ô CHỌN LẦN — một ô cho mỗi hạng mục đã tích. Đây là thứ `daLanDoi()` và `daGuiXinTU()`
+     đọc, nên nó phải là ô thật giữ được giá trị: đổi `.value` ở bài kiểm chính là người dùng
+     kéo ô chọn sang "Lần 2". */
+  const O_LAN = oTich.filter(x => x.checked).map(x => {
+    const row = Number(x.getAttribute('data-xlan')), tien = String(x.getAttribute('data-tien'));
+    return { value: String((opt.lan || {})[row] === undefined ? 1 : (opt.lan || {})[row]),
+      getAttribute: k => (k === 'data-tien' ? tien : String(row)) };
+  });
+  NK.lan = O_LAN;
+  O.daLichNhac = { textContent: '', innerHTML: '', style: {} };
   O.daXinForm.getAttribute = k => (k === 'data-tong' ? String(opt.tong || 0) : null);
   O.daXinForm.setAttribute = (k, v) => { if (k === 'data-tong') opt.tong = Number(v) || 0; };
   const moi = {
-    DA_CUR: { maDA: 'DA1', ten: 'Aeon' },
+    DA_CUR: { maDA: 'DA1', ten: 'Aeon', lines: [
+      { row: 2, noiDung: 'Mua đồ điện' }, { row: 5, noiDung: 'Thợ bốc vác' },
+      { row: 7, noiDung: 'Đơn linh tinh' } ] },
     el: id => O[id] || null,
     esc: x => String(x == null ? '' : x),
     money: x => String(x),
@@ -72,11 +84,13 @@ function be(oTich, opt) {
     _tienSo: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' || s === '-' ? '' : String(Number(s)); },
     _tienDep: v => { const s = String(v == null ? '' : v).replace(/[^0-9-]/g, ''); return s === '' ? '' : Number(s).toLocaleString('vi-VN'); },
     _ngayISO: d => '2026-09-11',
-    document: { querySelectorAll: sel => (/\[data-xtu\]/.test(sel) ? oTich : []),
+    document: { querySelectorAll: sel => (/\[data-xtu\]/.test(sel) ? oTich
+        : (/\[data-xlan\]/.test(sel) ? O_LAN : [])),
       querySelector: sel => {
-        const m = sel.match(/data-(lnd|lst)="(\d)"/);
-        if (!m) return null;
-        return O_LICH[m[1] + m[2]] || null;
+        let m = sel.match(/data-lnd="(\d)"/);   if (m) return O_LICH['lnd' + m[1]] || null;
+        m = sel.match(/data-lsum="(\d)"/);      if (m) return O_SUM[m[1]] || null;
+        m = sel.match(/data-lanbox="(\d)"/);    if (m) return O_BOX[m[1]] || null;
+        return null;
       } },
     google: { script: { run: {
       withSuccessHandler(f) { this._ok = f; return this; },
@@ -89,14 +103,15 @@ function be(oTich, opt) {
      quyết định con số đợt hiện ra. */
   const src = `${boc('_dotHien')}\n${boc('_nhanDot')}\n${boc('_daOTich')}\n${boc('daTichDoi')}\n${boc('daTichHet')}
     ${boc('daXinBarDoi')}\n${boc('daMoXinTU')}\n${boc('daGuiXinTU')}
-    ${boc('_daLichO')}\n${boc('_daLichSo')}\n${boc('_daLichDat')}
-    ${boc('_daXinTongLenh')}\n${boc('daLichDoi')}
+    ${boc('_daTenHang')}\n${boc('daLanDoi')}\n${boc('_daLichO')}
     return { doi: daTichDoi, het: daTichHet, bar: daXinBarDoi, mo: daMoXinTU, gui: daGuiXinTU,
-             chia: daLichDoi };`;
+             xep: daLanDoi };`;
   return { NK, O, F: new Function('moi', `with(moi){ ${src} }`)(moi) };
 }
 const o = (row, tien, checked) => ({ checked: !!checked, value: '',
   getAttribute: k => (k === 'data-tien' ? String(tien) : String(row)) });
+/* Kéo ô chọn của một hạng mục sang lần khác — đúng thao tác người dùng làm trong form. */
+const xep = (b, row, lan) => { b.NK.lan.forEach(s => { if (Number(s.getAttribute('data-xlan')) === row) s.value = String(lan); }); };
 
 /* ── 1. TỔNG TIỀN ─────────────────────────────────────────────────────────────────────── */
 {
@@ -141,8 +156,27 @@ const o = (row, tien, checked) => ({ checked: !!checked, value: '',
   t('🔴 nói rõ cả mấy hạng mục này đi thành MỘT lệnh', /MỘT lệnh/.test(f), f);
   t('   và cho thấy số hạng mục lẫn tổng tiền', /2 hạng mục/.test(f) && /15300000/.test(f), f);
   t('   có ba dòng lịch đi nhận tiền', (f.match(/data-lnd="/g) || []).length === 3, f);
-  t('   ô tiền của lịch có dấu chấm hàng nghìn', /data-lst=[^]{0,200}tienVao\(this\)/.test(f), f);
   t('   và một ô ghi chú cho kế toán', /daXinGhiChu/.test(f), f);
+  /* 🔴 MỖI HÀNG MỘT Ô CHỌN LẦN. Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là
+     chi lần 1, hay chi lần 2"*. Không có ô này thì câu ấy chưa có chỗ nào trả lời được. */
+  t('🔴 mỗi hạng mục đã tích có một ô chọn "nhận lần mấy"',
+    (f.match(/data-xlan="/g) || []).length === 2, f);
+  t('   ô chọn gắn đúng SỐ DÒNG của hạng mục (gắn nhầm là xếp tiền sang hàng khác)',
+    /data-xlan="2"/.test(f) && /data-xlan="5"/.test(f), f);
+  t('🔴 và gọi TÊN hạng mục trên từng hàng — soát trước khi gửi tiền thì phải đọc được tên',
+    /Mua đồ điện/.test(f) && /Thợ bốc vác/.test(f), f);
+  t('   kèm số tiền của chính hàng ấy', /13000000/.test(f) && /2300000/.test(f), f);
+  t('🔴 mở ra là mọi hàng đã xếp sẵn LẦN 1 (phần đông nhận một lần — đường thường nhất phải là '
+    + 'đường không phải thao tác gì)',
+    (f.match(/<option value="1" selected>/g) || []).length === 2, f);
+  t('   nhưng vẫn xếp sang lần 2 / lần 3 được', /value="2"/.test(f) && /value="3"/.test(f), f);
+  t('   và bỏ ra khỏi mọi lần được (phần ấy thành dự kiến đợt sau)', /— chưa xếp —/.test(f), f);
+  t('🔴 KHÔNG còn ô gõ tay số tiền từng lần (gõ tay là lệch với tổng lệnh, đúng lỗi 68.790.000đ)',
+    !/data-lst=/.test(f), f);
+  t('   thay vào đó mỗi lần có một chỗ MÁY cộng', (f.match(/data-lsum="/g) || []).length === 3, f);
+  t('🔴 và ngày lần 1 điền sẵn hôm nay (có hàng mà thiếu ngày thì gửi bị chối)',
+    /data-lnd="1" value="2026-09-11"/.test(f), f);
+  t('   lần 2 và lần 3 để trống ngày', /data-lnd="2" value=""/.test(f) && /data-lnd="3" value=""/.test(f), f);
 }
 {
   const b = be([o(2, 100, false)]);
@@ -153,20 +187,46 @@ const o = (row, tien, checked) => ({ checked: !!checked, value: '',
 
 /* ── 3. GỬI ĐI ────────────────────────────────────────────────────────────────────────── */
 {
+  /* Hai hạng mục, xếp mỗi cái một lần: đúng cảnh anh Thắng hỏi — "hàng này chi lần 1, hàng kia
+     chi lần 2". */
   const b = be([o(2, 13000000, true), o(5, 2300000, true), o(7, 50000, false)],
-    { lich: { lnd1: '2026-09-12', lst1: '10.000.000', lnd3: '2026-09-20' }, ghiChu: 'Vật tư đợt đầu' });
+    { lan: { 2: 1, 5: 2 }, lich: { lnd1: '2026-09-12', lnd2: '2026-09-20' },
+      ghiChu: 'Vật tư đợt đầu' });
   b.F.gui();
   t('🔴 gửi đi SỐ DÒNG của các hạng mục đã tích',
     b.NK.gui && JSON.stringify(b.NK.gui.rows) === '[2,5]', b.NK.gui);
   t('🔴 KHÔNG gửi số tiền (máy chủ tự cộng lại từ sổ — tin trình duyệt là ai cũng xin bao nhiêu cũng được)',
     b.NK.gui && !/15300000/.test(JSON.stringify(b.NK.gui)), b.NK.gui);
   t('   kèm đúng mã dự án', b.NK.gui && b.NK.gui.ma === 'DA1', b.NK.gui);
-  t('🔴 lịch giữ hai dòng có ngày, bỏ dòng thiếu ngày',
-    b.NK.gui && b.NK.gui.lc.length === 2 && b.NK.gui.lc[0].ngay === '2026-09-12', b.NK.gui && b.NK.gui.lc);
-  t('🔴 số tiền của lịch BỎ dấu chấm trước khi gửi (gửi "10.000.000" là máy chủ đọc thành 10)',
-    b.NK.gui && b.NK.gui.lc[0].soTien === 10000000, b.NK.gui && b.NK.gui.lc);
+  t('🔴 lịch thành HAI đợt, mỗi đợt một ngày', b.NK.gui && b.NK.gui.lc.length === 2
+    && b.NK.gui.lc[0].ngay === '2026-09-12' && b.NK.gui.lc[1].ngay === '2026-09-20',
+    b.NK.gui && b.NK.gui.lc);
+  /* 🔴 ĐÂY LÀ CÁI MỚI: mỗi đợt mang theo DANH SÁCH HÀNG, không mang một con số gõ tay. Nhờ nó
+     máy chủ cộng lại được, và về sau bảng đọc ra "đợt 1 gồm những gì". */
+  t('🔴 mỗi đợt mang theo danh sách HÀNG của nó',
+    b.NK.gui && JSON.stringify(b.NK.gui.lc[0].rows) === '[2]'
+    && JSON.stringify(b.NK.gui.lc[1].rows) === '[5]', b.NK.gui && b.NK.gui.lc);
+  t('🔴 và KHÔNG gửi kèm số tiền của đợt — gõ tay là chỗ duy nhất làm lệch được',
+    b.NK.gui && b.NK.gui.lc.every(x => x.soTien === undefined), b.NK.gui && b.NK.gui.lc);
   t('   và kèm ghi chú', b.NK.gui && b.NK.gui.gc === 'Vật tư đợt đầu', b.NK.gui);
   t('   gửi xong thì đóng ô nhập', b.O.daXinForm.style.display === 'none', b.O.daXinForm.style);
+}
+{
+  /* Nhận một lần — đường thường nhất: mở form ra, bấm Gửi, xong. */
+  const b = be([o(2, 13000000, true), o(5, 2300000, true)], { lich: { lnd1: '2026-09-12' } });
+  b.F.gui();
+  t('🔴 để nguyên mặc định → MỘT đợt gồm cả hai hàng (đường thường nhất không phải thao tác gì)',
+    b.NK.gui && b.NK.gui.lc.length === 1 && JSON.stringify(b.NK.gui.lc[0].rows) === '[2,5]',
+    b.NK.gui && b.NK.gui.lc);
+}
+{
+  /* Xếp một hàng ra ngoài mọi lần: phần ấy KHÔNG thành một đợt, nó là dự kiến đợt sau. */
+  const b = be([o(2, 13000000, true), o(5, 2300000, true)],
+    { lan: { 2: 1, 5: 0 }, lich: { lnd1: '2026-09-12' } });
+  b.F.gui();
+  t('🔴 hàng để "chưa xếp" KHÔNG lọt vào đợt nào — nhưng vẫn nằm trong lệnh',
+    b.NK.gui && b.NK.gui.lc.length === 1 && JSON.stringify(b.NK.gui.lc[0].rows) === '[2]'
+    && JSON.stringify(b.NK.gui.rows) === '[2,5]', b.NK.gui);
 }
 {
   const b = be([o(2, 100, false)]);
@@ -216,78 +276,67 @@ t('🔴 đính ảnh đi đường RIÊNG, không ghi lại cả dòng qua updat
   t('   gửi kèm TÊN TỆP (kho cần tên để giữ đuôi)', NK.tai.d.name === 'bill.jpg', NK.tai.d);
 }
 
-/* ── 2b. 🔴 LẦN 1 LÀ CẢ TỔNG, DƯ THÌ CHẢY SANG LẦN SAU ────────────────────────────────
- * Anh Thắng: *"Lần 1 hiện luôn tổng, nếu nhập nhỏ hơn chuyển qua lần 2, không được nhập lớn
- * hơn"*.
+/* ── 2b. 🔴 XẾP TỪNG HÀNG VÀO LẦN CHI — TIỀN MỖI LẦN MÁY TỰ CỘNG ─────────────────────
+ * Anh Thắng 17/09/2026: *"Anh muốn xác định chi phí từng hàng là chi lần 1, hay chi lần 2"*.
  *
- * 🔴 TỔNG BA LẦN LUÔN BẰNG TỔNG LỆNH. Cho gõ tuỳ ý thì tổng lịch lệch với số tiền của lệnh —
- *    kế toán chuẩn bị tiền theo lịch, mà lệnh lại đòi con số khác, và không ai biết bên nào
- *    đúng.
+ * =========================================================================================
+ * 🔴 VÌ SAO BỎ HẲN BA Ô GÕ TIỀN CŨ. Bản trước cho gõ tay số tiền từng lần, và con số ấy không
+ *    dính tới hàng nào — không ai trả lời được "lần 1 gồm những gì". Nó còn lệch được với
+ *    tổng lệnh: đơn của anh khai 10tr + 20tr cho một lệnh 68.790.000đ, và 38.790.000đ không
+ *    thuộc lần nào mà chẳng có gì nói ra. Gán theo HÀNG thì hai chuyện ấy hết cùng lúc —
+ *    mỗi lần biết gồm những gì, và tổng các lần KHÔNG THỂ vượt tổng lệnh vì nó là phép cộng
+ *    của chính mấy hàng trong lệnh.
  * ───────────────────────────────────────────────────────────────────────────────────────── */
 {
   const b = be([o(2, 13000000, true), o(5, 2300000, true)]);
   b.F.mo();
-  const f = b.O.daXinForm.innerHTML;
-  t('🔴 mở ra là ô tiền lần 1 điền sẵn CẢ TỔNG', /data-lst="1" value="15\.300\.000"/.test(f), f);
-  t('🔴 và ngày lần 1 điền sẵn hôm nay (có tiền mà thiếu ngày thì gửi bị chối)',
-    /data-lnd="1" value="2026-09-11"/.test(f), f);
-  t('   lần 2 và lần 3 để trống', /data-lst="2" value=""/.test(f) && /data-lst="3" value=""/.test(f), f);
-  t('🔴 ô tiền lần 3 KHOÁ — nó luôn là phần còn lại, không có lần 4 để đẩy tiếp',
-    /data-lst="3"[^>]*readonly/.test(f), f);
-  t('   lần 1 và lần 2 vẫn sửa được', !/data-lst="1"[^>]*readonly/.test(f) && !/data-lst="2"[^>]*readonly/.test(f), f);
-  t('   sửa xong là chia lại ngay', /onblur="tienRa\(this\);daLichDoi\(1\)"/.test(f), f);
+  t('🔴 mở ra: cả hai hàng ở lần 1 → lần 1 cộng đủ 15.300.000đ',
+    b.NK.sum[1].textContent === '15300000đ', b.NK.sum[1]);
+  t('   lần 2 và lần 3 còn 0đ', b.NK.sum[2].textContent === '0đ' && b.NK.sum[3].textContent === '0đ', b.NK.sum);
+  /* 🔴 Ô NGÀY CỦA LẦN RỖNG PHẢI KHOÁ. Để nó sáng là mời người ta chọn một cái ngày cho một lần
+     không có hàng nào, rồi tưởng đã hẹn được gì đó. */
+  t('🔴 ô ngày của lần CÓ hàng mở, lần RỖNG khoá lại',
+    b.NK.lich.lnd1.disabled === false && b.NK.lich.lnd2.disabled === true
+    && b.NK.lich.lnd3.disabled === true, b.NK.lich);
+  t('   và lần rỗng mờ đi cho khỏi mời gõ vào', b.NK.box[2].style.opacity === '.55', b.NK.box[2].style);
+
+  xep(b, 5, 2);
+  b.F.xep();
+  t('🔴 kéo "Thợ bốc vác" sang lần 2 → tiền chạy theo hàng, không phải gõ lại',
+    b.NK.sum[1].textContent === '13000000đ' && b.NK.sum[2].textContent === '2300000đ', b.NK.sum);
+  t('   ô ngày lần 2 mở ra ngay khi có hàng', b.NK.lich.lnd2.disabled === false, b.NK.lich.lnd2);
+  t('🔴 tổng hai lần vẫn đúng bằng tổng lệnh — không cách nào gõ cho lệch được',
+    13000000 + 2300000 === 15300000);
+
+  xep(b, 2, 3); xep(b, 5, 3);
+  b.F.xep();
+  t('dồn cả hai sang lần 3 → lần 1 về 0 và ô ngày lần 1 khoá lại',
+    b.NK.sum[3].textContent === '15300000đ' && b.NK.sum[1].textContent === '0đ'
+    && b.NK.lich.lnd1.disabled === true, b.NK.sum);
 }
 {
-  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '5.000.000' } });
-  b.NK.lich.lst1.value = '2.000.000';
-  b.F.chia(1);
-  t('🔴 gõ lần 1 NHỎ HƠN → phần dư tự nhảy sang lần 2',
-    b.NK.lich.lst2.value === '3.000.000', b.NK.lich);
-  t('   lần 3 vẫn trống', b.NK.lich.lst3.value === '', b.NK.lich.lst3);
-  b.NK.lich.lst2.value = '1.000.000';
-  b.F.chia(2);
-  t('🔴 gõ lần 2 nhỏ hơn nữa → phần dư nhảy sang lần 3',
-    b.NK.lich.lst3.value === '2.000.000', b.NK.lich);
-  t('   và tổng ba lần vẫn đúng bằng tổng lệnh',
-    2000000 + 1000000 + 2000000 === 5000000);
+  /* 🔴 PHẦN CHƯA XẾP LẦN NÀO PHẢI NÓI RA — và nói bằng GIỌNG BÌNH THƯỜNG. Anh Thắng chốt
+     17/09: *"còn số nào chưa lên thì ghi là dự kiến đợt tiếp theo"*. Xin từng đợt là ĐÚNG quy
+     trình; gắn ⚠️ vào đó thì mọi lệnh đều có một dòng cam, rồi người ta thôi đọc màu ấy. */
+  const b = be([o(2, 13000000, true), o(5, 2300000, true)], { lan: { 2: 1, 5: 0 } });
+  b.F.mo();
+  t('🔴 hàng để "chưa xếp" → nói ra số tiền ấy',
+    /2300000đ/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   và gọi đúng tên: "dự kiến đợt tiếp theo"',
+    /dự kiến đợt tiếp theo/.test(b.O.daLichNhac.innerHTML), b.O.daLichNhac.innerHTML);
+  t('   KHÔNG gắn dấu cảnh báo cho một việc đúng quy trình',
+    b.O.daLichNhac.innerHTML.indexOf('⚠️') < 0, b.O.daLichNhac.innerHTML);
+  xep(b, 5, 2); b.F.xep();
+  t('   xếp nốt vào lần 2 → dòng nhắc biến mất', b.O.daLichNhac.innerHTML === '', b.O.daLichNhac.innerHTML);
 }
 {
-  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '5.000.000' } });
-  b.NK.lich.lst1.value = '9.000.000';
-  b.F.chia(1);
-  t('🔴 gõ LỚN HƠN tổng → kẹp lại đúng tổng, không cho vượt',
-    b.NK.lich.lst1.value === '5.000.000', b.NK.lich.lst1);
-  t('   và nói rõ vì sao bị kẹp', /không được quá 5000000đ/.test(b.O.daLichNhac.textContent), b.O.daLichNhac);
-  t('   lần 2 về trống vì lần 1 đã ăn hết', b.NK.lich.lst2.value === '', b.NK.lich.lst2);
-}
-{
-  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '2.000.000' } });
-  b.NK.lich.lst2.value = '4.000.000';
-  b.F.chia(2);
-  t('🔴 lần 2 gõ quá PHẦN CÒN LẠI (3tr) → kẹp về 3tr, không phải về tổng',
-    b.NK.lich.lst2.value === '3.000.000', b.NK.lich.lst2);
-}
-{
-  /* 🔴 Chia rồi chia lại: lần 1 tăng lên ăn hết thì mấy ô sau phải DỌN TRẮNG, kẻo còn số của
-     lần chia trước nằm đó và tổng lịch vọt quá tổng lệnh. */
-  const b = be([o(2, 5000000, true)], { tong: 5000000, lich: { lst1: '1.000.000' } });
-  b.F.chia(1);
-  b.NK.lich.lst2.value = '1.000.000';
-  b.F.chia(2);
-  t('chia ba lần: 1tr / 1tr / 3tr', b.NK.lich.lst3.value === '3.000.000', b.NK.lich);
-  b.NK.lich.lst1.value = '5.000.000';
-  b.F.chia(1);
-  t('🔴 sửa lần 1 lên cả tổng → lần 2 VÀ lần 3 dọn trắng (còn số cũ là tổng lịch vọt quá lệnh)',
-    b.NK.lich.lst2.value === '' && b.NK.lich.lst3.value === '', b.NK.lich);
-}
-{
-  const b = be([o(2, 5000000, true)], { tong: 5000000,
-    lich: { lnd1: '2026-09-11', lst1: '2.000.000', lst2: '3.000.000' } });
+  const b = be([o(2, 13000000, true), o(5, 2300000, true)],
+    { lan: { 2: 1, 5: 2 }, lich: { lnd1: '2026-09-11' } });
   b.F.gui();
-  t('🔴 lần 2 CÓ TIỀN mà chưa chọn ngày → CHỐI, không lặng lẽ bỏ (máy chủ bỏ dòng thiếu ngày, '
-    + 'người dùng nhìn thấy 3tr rồi gửi mà lệnh chỉ ghi 2tr)', b.NK.gui === null, b.NK.gui);
-  t('   và nói rõ lần nào, bao nhiêu tiền',
-    b.NK.toast.some(x => /Lần 2 có 3000000đ mà chưa chọn ngày/.test(x[1])), b.NK.toast);
+  t('🔴 lần 2 CÓ HÀNG mà chưa chọn ngày → CHỐI, không lặng lẽ bỏ (máy chủ bỏ đợt thiếu ngày, '
+    + 'người dùng nhìn thấy 2,3tr rồi gửi mà lệnh chỉ ghi 13tr)', b.NK.gui === null, b.NK.gui);
+  t('   và nói rõ lần nào, mấy hạng mục, bao nhiêu tiền',
+    b.NK.toast.some(x => /Lần 2 có 1 hạng mục \(2300000đ\) mà chưa chọn ngày/.test(x[1])), b.NK.toast);
 }
 
 /* ── 4b. 🔴 DUYỆT / CẤP TIỀN NGAY TRONG TRANG DỰ ÁN ───────────────────────────────────
