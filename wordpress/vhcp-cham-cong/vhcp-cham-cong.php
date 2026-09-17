@@ -74,6 +74,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-may.php';
 require_once VHCC_DIR . 'includes/class-vhcc-may-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
+require_once VHCC_DIR . 'includes/class-vhcc-vi-tri.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-mat.php';
 require_once VHCC_DIR . 'includes/class-vhcc-bao-cao-ca.php';
