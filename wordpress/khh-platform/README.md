@@ -1,6 +1,6 @@
 # Nền tảng K&H — plugin WordPress
 
-Nền tảng quản trị nội bộ 15 ứng dụng chạy ngay trong WordPress.
+Nền tảng quản trị nội bộ 16 ứng dụng chạy ngay trong WordPress.
 Không cần build, không phụ thuộc thư viện ngoài: PHP + HTML + CSS + JavaScript thuần.
 
 ## Cài đặt
@@ -282,9 +282,14 @@ assets/
   app.css          giao diện, nền sáng/tối, responsive
   core.js          lõi: dữ liệu, điều hướng, vai trò, hộp thoại dùng chung
   charts.js        biểu đồ SVG
-  home.js wework.js request.js workflow.js hrm.js attendance.js
+  home.js wework.js baocao.js request.js workflow.js hrm.js attendance.js
   leave.js payroll.js info.js message.js square.js booking.js
 ```
+
+Ngoài `khh-platform.php` còn mấy tệp PHP rời, mỗi tệp một việc:
+`pin-login.php` · `switch-user.php` · `cap-tai-khoan.php` · `dang-nhap.php` ·
+`import.php` + `xlsx.php` · `nhap-cham-cong.php` · `noi-vhcc.php` ·
+`tai-khoan-cua-toi.php` (nhân viên tự xem hồ sơ và tự đổi mật khẩu).
 
 ## Thêm một ứng dụng mới
 
@@ -306,6 +311,78 @@ Tạo `assets/myapp.js`, rồi thêm tên `'myapp'` vào mảng trong hàm `khh_
 
 Muốn thêm nhóm dữ liệu mới thì khai tên nhóm ở hai chỗ: mảng `COLLS` trong `core.js`
 và hàm `khh_collections()` trong PHP.
+
+## Báo cáo Dự Án — trang tổng
+
+Ứng dụng **Công việc & Dự án** trả lời *"dự án NÀY đang thế nào"*. Ứng dụng **Báo cáo Dự Án**
+trả lời câu khác hẳn: *"TẤT CẢ dự án đang thế nào"* — thứ mà trước đây phải mở từng dự án ra
+cộng tay.
+
+Số liệu chia **hai loại, ghi rõ ngay trên màn hình**, vì trộn vào nhau là báo cáo sai:
+
+| Nhóm | Gồm gì | Kỳ báo cáo có ăn không |
+|---|---|---|
+| **Hiện tại** | việc chưa xong, quá hạn, sắp đến hạn trong 7 ngày | **Không.** Việc quá hạn từ tháng trước hôm nay vẫn đang quá hạn; lọc nó ra khỏi kỳ là giấu mất chỗ đang cháy |
+| **Trong kỳ** | mở mới, hoàn thành, tỷ lệ đúng hạn | **Có** — 30 ngày / 90 ngày / năm nay / tất cả |
+
+Bốn màn:
+
+- **Tổng quan** — 8 thẻ số, vòng tròn trạng thái công việc, đường nhịp độ *mở mới vs hoàn thành*
+  theo tuần, và bảng từng dự án (xếp được theo tên, bộ phận, tiến độ hoặc hạn chót).
+- **Theo bộ phận** — việc quá hạn và việc xong trong kỳ của từng bộ phận, kèm bảng đối chiếu.
+- **Theo người** — được giao / đang làm / xong / quá hạn / đúng hạn của từng người phụ trách.
+- **Cần xử lý** — dự án trễ hạn, dự án **đứng im** (14 ngày không có việc nào mở mới, hoàn thành
+  hay bình luận), việc quá hạn lâu nhất, việc chưa giao ai. Bấm vào là sang thẳng dự án đó.
+
+Vài quy ước cố ý, để con số đọc lên không đánh lừa người xem:
+
+- **Tỷ lệ đúng hạn chỉ tính trên việc CÓ đặt hạn.** Việc quên đặt hạn thì không có gì để đúng hay
+  muộn; gom nó vào mẫu số là tỷ lệ tự đẹp lên theo số việc làm ẩu.
+- **Việc mồ côi** (dự án đã xoá) không được cộng vào đâu cả — nó không thuộc bộ phận nào, cộng
+  vào là tổng các bộ phận không bằng tổng chung.
+- **Dự án đã xong hết việc thì không bị kêu trễ hạn**, dù đã quá ngày kết thúc.
+- Bộ lọc **bộ phận** đọc ô *Bộ phận* của dự án, cùng danh mục với Hồ sơ nhân sự.
+
+Nút **Tải CSV** xuất toàn bộ bảng dự án (dấu `;` và BOM để Excel bản tiếng Việt mở ra đúng cột,
+đúng dấu), nút **In trang** in đúng những gì đang hiện.
+
+## Tài khoản của nhân viên
+
+Bấm vào tên mình ở góc trên bên trái để mở hộp **Tài khoản của bạn**. Quản trị viên bật/tắt
+hai việc dưới đây ở **Nền tảng K&H → Cấu hình → Tài khoản của nhân viên**.
+
+### Xem hồ sơ của chính mình
+
+Mỗi người chỉ thấy hồ sơ của mình: mã nhân sự, chức danh, bộ phận, mảng, cơ sở, quản lý trực
+tiếp, ngày vào làm, hợp đồng, phép còn lại, liên hệ. Chỉ để xem — sai chỗ nào thì báo văn phòng
+sửa trong ứng dụng Hồ sơ nhân sự, sửa ở đó thì bảng công, phép và lương mới khớp theo.
+
+Cố ý **không** bày ngày sinh, số sổ BHXH, tài khoản ngân hàng: chủ hồ sơ đã biết rồi, bày ra chỉ
+thêm rủi ro khi có người ngó màn hình.
+
+Lương cơ bản và phụ cấp có một ô bật riêng, **mặc định tắt**. Nói cho đúng: đó là *ẩn trên màn
+hình*, không phải khoá dữ liệu — nền tảng vẫn gửi toàn bộ hồ sơ nhân sự về máy của mọi tài khoản
+đã đăng nhập, đúng như trước nay. Muốn lương thật sự kín thì phải chặn từ tầng dữ liệu, chưa làm
+trong bản này.
+
+Hồ sơ được tìm theo mã WordPress ghi sẵn (`khh_staff_id`), không có mã thì mới dò theo tên —
+tên hiển thị hay bị gõ lệch dấu hoặc trùng nhau, dò theo tên là có lúc mở nhầm hồ sơ người khác.
+
+### Tự đổi mật khẩu
+
+Trước đây muốn đổi mật khẩu phải nhờ quản trị đặt lại rồi đọc mật khẩu mới qua điện thoại —
+mật khẩu đi qua tay người thứ ba là mất ý nghĩa của mật khẩu.
+
+Chốt chặn:
+
+- Bắt nhập **đúng mật khẩu hiện tại**. Ai mượn được máy đang mở sẵn cũng không đổi được.
+- Sai 5 lần thì khoá 15 phút, đếm theo **từng tài khoản** — không theo IP, vì cả cơ sở dùng chung
+  một đường mạng, đếm theo IP là một người gõ sai khoá cả cửa hàng.
+- Mật khẩu mới tối thiểu 8 ký tự (đổi được, 6–64) và phải khác mật khẩu cũ.
+- Đổi xong, **các máy khác đang mở tài khoản này phải đăng nhập lại** — WordPress vô hiệu mọi
+  phiên cũ; máy vừa đổi được cấp lại phiên và tự tải lại trang.
+- Người vào bằng **mã PIN** không thấy nút này: đổi mật khẩu cần mật khẩu hiện tại, mà họ không
+  có. Nhờ quản trị đặt lại ở màn *Cấp tài khoản*.
 
 ## Cách tính lương
 

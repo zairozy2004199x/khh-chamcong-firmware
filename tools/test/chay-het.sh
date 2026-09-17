@@ -78,6 +78,25 @@ for f in tools/test/*.php; do
   chay "php '$f'" "$(basename "$f")"
 done
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# BỘ THỬ CỦA NỀN TẢNG K&H — nằm trong thư mục con nên ba vòng trên KHÔNG quét tới.
+#
+# 🔴 17/09/2026: `tools/test/khh-platform/` có mười bài PHP viết từ lâu mà chưa bài nào chạy
+#    trong lượt này, vì vòng ở trên chỉ gom `tools/test/*.php` — thư mục con thì không. Bài thử
+#    không chạy thì cũng như không có, đúng bài học ghi ở đầu tệp.
+#
+# ⚠️ CHỈ PHẦN PHP. Mười bài `test-*.mjs` cạnh đó mở trình duyệt thật bằng playwright — thư viện
+#    ấy KHÔNG có sẵn trên máy chạy CI, mà cài nó vào lượt phát hành là kéo thêm vài trăm MB và
+#    một nguồn đỏ ngoài tầm kiểm soát vào đúng chỗ không được phép đỏ oan. Chạy tay khi sửa
+#    giao diện nền tảng:
+#        cd tools/test/khh-platform && npm i playwright && for f in test-*.mjs; do node "$f"; done
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+echo "── Bộ thử Nền tảng K&H (PHP) ──────────────────────────────────"
+for f in tools/test/khh-platform/phptest*.php; do
+  [ -e "$f" ] || continue
+  chay "php '$f'" "khh-platform/$(basename "$f")"
+done
+
 echo "── Bộ thử JavaScript ──────────────────────────────────────────"
 # ⚠️ KHÔNG TRUYỀN THAM SỐ Ở ĐÂY. Bài nào cần đường dẫn thì tự có mặc định — để đường mặc định
 #    ấy cũng được chạy thật, chứ không phải một nhánh không ai đi tới rồi mục ra lúc nào không

@@ -16,7 +16,7 @@
 #   bash tren-host.sh                # làm cả ba việc, theo thứ tự
 #
 #   bash tren-host.sh soat           # chỉ xem đang có gì, KHÔNG ghi gì cả
-#   bash tren-host.sh khoa tatca     # MỘT lượt gõ, khai khoá cho CẢ MƯỜI MỘT bộ  ← nên dùng
+#   bash tren-host.sh khoa tatca     # MỘT lượt gõ, khai khoá cho CẢ MƯỜI BỐN bộ  ← nên dùng
 #   bash tren-host.sh khoa           # chỉ khai khoá GitHub
 #   bash tren-host.sh khoa vhcphn_gh_token    # khoá của BẢN VÙNG Hà Nội (site riêng)
 #   bash tren-host.sh capnhat        # chỉ bắt WordPress hỏi lại GitHub ngay
@@ -36,15 +36,35 @@ set -uo pipefail
 VIEC="${1:-tatca}"
 O_KHOA="${2:-vhcp_gh_token}"
 
-# Tám plugin trên cùng một site dùng chung một ô khoá; bản vùng có ô riêng.
-# ⚠️ THÊM MỘT BỘ THÌ THÊM VÀO CẢ HAI DÒNG. Anh Thắng 14/09/2026 tách chi phí theo mảng, nên
-#    nay có bốn bản chi phí: KVC (bản gốc) · MTD · VP · TỔNG. Mỗi bản một khoá GitHub riêng —
-#    bốn plugin cài chung một WordPress thì dùng chung khoá cấu hình là đổi bên này đổi luôn
-#    bên kia.
-DS_PLUGIN="vhcp-chi-phi vhcp-chi-phi-mtd vhcp-chi-phi-vp vhcp-chi-phi-tong vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn"
-DS_NHO="vhcp vhcpmtd vhcpvp vhcpt vhcc vhg vhnb vhtc vhd vhda vhcphn"
-# Ô khoá GitHub của từng bộ. Dùng cho cả lượt soát lẫn lượt khai "tatca".
-DS_O_KHOA="vhcp_gh_token vhcpmtd_gh_token vhcpvp_gh_token vhcpt_gh_token vhcc_gh_token vhg_gh_token vhnb_gh_token vhtc_gh_token vhd_gh_token vhda_gh_token vhcphn_gh_token"
+# ⚠️ THÊM MỘT BỘ THÌ THÊM VÀO CẢ HAI DÒNG DƯỚI. Quên là bộ ấy không hiện lúc soát và không
+#    bao giờ được nhắc hỏi lại GitHub — nó đứng yên mãi ở bản cũ mà không có dòng lỗi nào.
+#    `tools/test/kiem-tren-host-du-bo.php` nay canh đúng chuyện này: bộ nào có lớp tự cập nhật
+#    mà thiếu ở đây là bộ thử đỏ.
+#
+# Anh Thắng 14/09/2026 tách chi phí theo mảng, nên có bốn bản chi phí: KVC (bản gốc) · MTD ·
+# VP · TỔNG. Bốn bản ấy cài chung một WordPress nên mỗi bản phải có Ô cấu hình riêng, không
+# thì đổi bên này đổi luôn bên kia.
+DS_PLUGIN="vhcp-chi-phi vhcp-chi-phi-mtd vhcp-chi-phi-vp vhcp-chi-phi-tong vhcp-cham-cong vhcp-ghe vhcp-noi-bo vhcp-trang-chu vhcp-hop-dong vhcp-du-an vhcp-chi-phi-hn khh-platform khh-doanh-thu vhcp-cc-app"
+DS_NHO="vhcp vhcpmtd vhcpvp vhcpt vhcc vhg vhnb vhtc vhd vhda vhcphn khh khhdt ccapp"
+
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+# Ô KHOÁ GITHUB — CHỈ NĂM Ô, KHÔNG PHẢI MỖI BỘ MỘT Ô.
+#
+# 🔴 17/09/2026: dòng này trước đây liệt kê mười một ô, một ô cho mỗi bộ trong DS_PLUGIN —
+#    `vhcc_gh_token`, `vhg_gh_token`, `vhnb_gh_token`, `vhtc_gh_token`, `vhd_gh_token`,
+#    `vhda_gh_token`. SÁU Ô ẤY KHÔNG BỘ NÀO ĐỌC. Mở bất kỳ lớp tự cập nhật nào ra xem
+#    `const O_KHOA` là thấy: chấm công, ghế, nội bộ, trang chủ, hợp đồng, dự án, nền tảng,
+#    doanh thu và chi phí KVC đều đọc chung `vhcp_gh_token`.
+#
+#    Khai khoá vẫn chạy được, vì `vhcp_gh_token` có trong danh sách — nên lỗi này không làm
+#    hỏng việc gì, chỉ ghi thừa sáu Option chết. Chỗ nó thật sự đánh lừa là lượt SOÁT: sáu ô
+#    ấy báo "ĐÃ KHAI" và người soát yên tâm, trong khi con số ấy không nói gì về việc bộ kia
+#    có khoá hay không.
+#
+# ⚠️ Danh sách này KHÔNG song song với DS_PLUGIN — nhiều bộ dùng chung một ô. Lấy đúng tập
+#    `O_KHOA` có thật trong mã, `kiem-tren-host-du-bo.php` đối chiếu giúp.
+# ══════════════════════════════════════════════════════════════════════════════════════════════
+DS_O_KHOA="vhcp_gh_token vhcpmtd_gh_token vhcpvp_gh_token vhcpt_gh_token vhcphn_gh_token"
 
 gach() { printf '─%.0s' $(seq 1 72); echo; }
 
@@ -164,12 +184,13 @@ viec_khoa() {
   # ══════════════════════════════════════════════════════════════════════════════════════════
   # MỘT LƯỢT GÕ, KHAI CHO MỌI BỘ — `khoa tatca`
   # ══════════════════════════════════════════════════════════════════════════════════════════
-  # Anh Thắng 14/09/2026: *"kèm token chạy git auto cho anh luôn nhé"*. Nay có mười một bộ, mỗi
-  # bộ một ô khoá riêng (bốn plugin chi phí cài chung một WordPress thì dùng chung khoá cấu hình
-  # là đổi bên này đổi luôn bên kia). Bắt gõ mười một lượt thì lượt thứ tám là lượt bị bỏ, và bộ
-  # ấy im lặng không bao giờ thấy bản mới — không câu lỗi nào, chỉ là nó đứng yên mãi.
+  # Anh Thắng 14/09/2026: *"kèm token chạy git auto cho anh luôn nhé"*. Nay có mười bốn bộ dùng
+  # chung NĂM ô khoá (xem khối dài ở DS_O_KHOA: phần lớn các bộ đọc chung `vhcp_gh_token`, chỉ
+  # ba bản chi phí theo mảng và bản vùng Hà Nội là có ô riêng). Bắt gõ năm lượt thì lượt cuối
+  # là lượt bị bỏ, và bộ ấy im lặng không bao giờ thấy bản mới — không câu lỗi nào, chỉ là nó
+  # đứng yên mãi.
   #
-  # ⚠️ `$ds_ghi` đã dựng ở đầu hàm — một ô, hay cả mười một.
+  # ⚠️ `$ds_ghi` đã dựng ở đầu hàm — một ô, hay cả năm.
   local hong=0 xong=0 o moi
   for o in $ds_ghi; do
     wp option update "$o" "$khoa" --quiet
