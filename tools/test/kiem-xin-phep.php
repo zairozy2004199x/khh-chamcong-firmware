@@ -197,9 +197,16 @@ t( 'khối xin phép nằm TRONG tab "Tôi"',
 t( '🔴 mở tab "Tôi" thì nạp luôn danh sách đơn',
 	false !== strpos( $tpl, "if(ten === 'tToi'){ napHoSo(); moManXin(); }" ) );
 t( 'không còn màn riêng bật ra nữa', false === strpos( $tpl, 'id="mXin"' ) );
-/* Thanh tab dưới đáy giữ ĐÚNG bốn ô. Ô thứ năm là chữ bị cắt cụt ở cả bốn ô kia trên điện
-   thoại hẹp — và đó là lý do khối này nằm trong tab "Tôi" thay vì đứng riêng. */
-t( 'thanh tab vẫn đúng bốn ô', 4 === substr_count( $tpl, '<button class="tab-nut' ),
+/* Thanh tab dưới đáy giữ ĐÚNG bốn ô MẶC ĐỊNH. Ô thứ năm là chữ bị cắt cụt ở cả bốn ô kia trên
+   điện thoại hẹp — và đó là lý do khối này nằm trong tab "Tôi" thay vì đứng riêng.
+   ⚠️ 17/09/2026: có thêm ô "Cửa hàng", nhưng nó ẩn sẵn và CHỈ cửa hàng trưởng mới thấy. Phép
+      thử vì thế đếm ô MẶC ĐỊNH HIỆN (`class="tab-nut"` không kèm `an`) chứ không đếm tổng số
+      nút — nới thành "đếm tổng" là bỏ mất chính cái ràng buộc này, còn giữ nguyên "tổng = 4"
+      là cấm luôn mọi ô chỉ dành cho một vai. Ô ẩn thì có phép thử riêng ở `kiem-cua-hang.php`
+      canh rằng nó ẩn sẵn và thanh thu chữ lại khi nó hiện ra. */
+t( 'thanh tab vẫn đúng bốn ô MẶC ĐỊNH',
+	4 === substr_count( $tpl, '<button class="tab-nut"' )
+		+ substr_count( $tpl, '<button class="tab-nut dang"' ),
 	substr_count( $tpl, '<button class="tab-nut' ) );
 t( 'có khối đơn đã nộp', false !== strpos( $tpl, 'id="bangDon"' ) );
 /* 🔴 NGÀY MẶC ĐỊNH LẤY TỪ MÁY CHỦ. Lấy `new Date()` của điện thoại thì máy lệch múi giờ hoặc

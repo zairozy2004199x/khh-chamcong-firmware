@@ -496,6 +496,51 @@ class VHCC_Tram {
 			) );
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * CỬA HÀNG TRƯỞNG — nghiệp vụ ở `VHCC_CuaHang`, mấy cửa này chỉ chuyển tiếp.
+		 *
+		 * 🔴 KHÔNG CÓ CỬA NÀO TỰ QUYẾT QUYỀN. Chúng gửi thẳng `$u` xuống, và `VHCC_CuaHang` gọi
+		 *    lại đúng hàm nghiệp vụ đã có — hàm ấy chốt cơ sở từ CHÍNH BẢN GHI. Kiểm quyền ở
+		 *    đây nữa là bộ luật quyền thứ hai, và bộ thứ hai bao giờ cũng lệch trước.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'cuahang' === $viec ) {
+			if ( ! VHCC_CuaHang::duoc( $u ) ) { self::ra( array( 'ok' => true, 'duoc' => false ) ); }
+			self::ra( array(
+				'ok'     => true,
+				'duoc'   => true,
+				'dsCoSo' => VHCC_CuaHang::ds_coso( $u ),
+				'thang'  => current_time( 'Y-m' ),
+			) );
+		}
+
+		if ( 'chdon' === $viec ) {
+			self::ra( VHCC_CuaHang::don_cho( $u, isset( $b['coSo'] ) ? (string) $b['coSo'] : '' ) );
+		}
+
+		if ( 'chduyet' === $viec ) {
+			self::ra( VHCC_CuaHang::duyet( $u,
+				isset( $b['loai'] ) ? (string) $b['loai'] : '',
+				isset( $b['id'] ) ? (string) $b['id'] : '',
+				! empty( $b['dongY'] ),
+				isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '' ) );
+		}
+
+		if ( 'chcong' === $viec ) {
+			self::ra( VHCC_CuaHang::cong_coso( $u,
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
+		}
+
+		if ( 'chthem' === $viec ) {
+			self::ra( VHCC_CuaHang::them_nguoi( $u, array(
+				'coSo'     => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'hoTen'    => isset( $b['hoTen'] ) ? (string) $b['hoTen'] : '',
+				'cccd'     => isset( $b['cccd'] ) ? (string) $b['cccd'] : '',
+				'sdt'      => isset( $b['sdt'] ) ? (string) $b['sdt'] : '',
+				'gioiTinh' => isset( $b['gioiTinh'] ) ? (string) $b['gioiTinh'] : '',
+			) ) );
+		}
+
 		/**
 		 * PHIẾU LƯƠNG CỦA TÔI. Nghiệp vụ ở `VHCC_PhieuLuong`; cửa này chỉ chuyển tiếp.
 		 *

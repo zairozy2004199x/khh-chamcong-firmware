@@ -222,6 +222,22 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 	/* 48px: ngưỡng vùng chạm của Apple. Thấp hơn là ngón cái trượt sang tab bên cạnh. */
 	min-height:48px}
 .tab-nut span{font-size:19px;line-height:1}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * THANH NĂM Ô — chỉ cửa hàng trưởng mới có.
+ *
+ * 🔴 CHÚ THÍCH CŨ (và `kiem-xin-phep.php`) CHỐT "ĐÚNG BỐN Ô", vì ô thứ năm làm chữ bị cắt cụt
+ *    ở cả bốn ô kia trên điện thoại hẹp. Chốt ấy ĐÚNG và vẫn giữ: mặc định vẫn là bốn ô, và
+ *    nhân viên thường không bao giờ thấy ô thứ năm.
+ *
+ * Nhưng cửa hàng trưởng thì có năm. 360px chia năm còn 72px/ô, mà "Công của tôi" ở 11px đã
+ * ~66px cộng đệm là tràn. Nên khi — và CHỈ khi — ô thứ năm hiện ra, cả thanh thu chữ xuống
+ * 10px và bớt đệm ngang. Thu cho MỌI NGƯỜI thì bốn ô của 95% người dùng xấu đi vì một ô mà
+ * họ không có.
+ *
+ * ⚠️ VÙNG CHẠM `min-height:48px` KHÔNG ĐỔI. Thu là thu CHỮ, không thu chỗ để ngón tay chạm.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+#thanhTab.tab5 .tab-nut{font-size:10px;padding:9px 2px 8px}
+#thanhTab.tab5 .tab-nut span{font-size:17px}
 .tab-nut.dang{color:var(--nhan)}
 .tab-o{animation:hienTab .18s ease-out}
 @keyframes hienTab{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
@@ -457,6 +473,59 @@ a{color:var(--nhan)}
 
 	</div><!-- /tCong -->
 
+	<!-- ============ TAB CỬA HÀNG (chỉ cửa hàng trưởng) ============
+	     🔴 NÚT TAB ẨN SẴN, MÁY CHỦ MỞ. Trình duyệt không tự quyết ai thấy tab: `?viec=cuahang`
+	        trả `duoc:false` cho nhân viên thường, và cả bốn cửa còn lại đều gác lại lần nữa ở
+	        máy chủ. Một cái tab hiện nhầm thì chỉ là xấu; một cái cửa mở nhầm mới là hỏng —
+	        nên phép gác nằm ở cửa, còn tab chỉ là chuyện bày biện.
+	     ⚠️ Ẩn bằng lớp `an` ngay trong HTML, không chờ JS gỡ: chờ JS thì nhân viên thường thấy
+	        nút loé lên một nhịp trước khi biến mất, và cái loé ấy đủ để người ta bấm. -->
+	<div id="tCuaHang" class="tab-o an">
+
+	<div class="the">
+		<label for="chCoSo" style="margin:0 0 8px">Cơ sở tôi phụ trách</label>
+		<select id="chCoSo"></select>
+	</div>
+
+	<!-- ĐƠN TỪ NHÂN VIÊN — ba loại gộp một hộp. Người duyệt nghĩ theo "hôm nay còn ai chờ
+	     mình", không nghĩ theo loại đơn; ba tab là ba chỗ phải nhớ mở. -->
+	<div class="the">
+		<label style="margin:0 0 8px">Đơn từ nhân viên</label>
+		<div id="bangDonCH"><p class="trong">—</p></div>
+	</div>
+
+	<div class="the">
+		<div class="hang" style="align-items:center;margin:0 0 10px">
+			<button id="chThangTruoc" class="phu" style="flex:0 0 46px">‹</button>
+			<b id="chNhanThang" style="flex:1;text-align:center;font-variant-numeric:tabular-nums;font-size:16px">—</b>
+			<button id="chThangSau" class="phu" style="flex:0 0 46px">›</button>
+		</div>
+		<div id="bangCongCH"><p class="trong">—</p></div>
+	</div>
+
+	<!-- THÊM NGƯỜI MỚI — cửa hẹp, hồ sơ TẠM. Xem chốt 4 đầu class-vhcc-cua-hang.php. -->
+	<div class="the">
+		<label style="margin:0 0 8px">Thêm nhân sự mới</label>
+		<div class="fldx"><label for="tnTen">Họ và tên</label>
+			<input id="tnTen" type="text" maxlength="120" placeholder="Nguyễn Văn A"></div>
+		<div class="fldx"><label for="tnCccd">Số căn cước</label>
+			<input id="tnCccd" type="tel" inputmode="numeric" maxlength="12" placeholder="12 số"></div>
+		<div class="fldx"><label for="tnSdt">Điện thoại</label>
+			<input id="tnSdt" type="tel" inputmode="numeric" maxlength="15" placeholder="không bắt buộc"></div>
+		<div class="fldx"><label for="tnGt">Giới tính</label>
+			<select id="tnGt"><option value="">— không khai —</option><option>Nam</option><option>Nữ</option></select></div>
+		<div id="loiThem"></div>
+		<p></p>
+		<button id="btThemNguoi" class="chinh to">THÊM VÀO CƠ SỞ NÀY</button>
+		<p class="ct" style="text-align:left;margin:10px 0 0">Hệ cấp <b>mã tạm</b> và
+			<b>không phát PIN cho ai cả</b>: người mới tự vào trang chấm công, bấm
+			<b>Quên PIN</b>, gõ họ tên + căn cước của chính mình rồi tự đặt PIN. Vì vậy
+			<b>căn cước là bắt buộc</b> — thiếu nó thì đường ấy tắc và hồ sơ vừa tạo thành
+			hồ sơ chết. Lương, vai trò, mã chuẩn do nhân sự đặt sau.</p>
+	</div>
+
+	</div><!-- /tCuaHang -->
+
 	<!-- ============ TAB 3: ỨNG DỤNG ============
 	     Lưới dựng ở trình duyệt, nhưng phép gác nằm trọn ở máy chủ: `?viec=ung` chỉ trả về
 	     những ô người này thật sự vào được, nên trình duyệt chưa bao giờ nhận được ô bị khoá
@@ -633,6 +702,7 @@ a{color:var(--nhan)}
 <nav id="thanhTab" class="an">
 	<button class="tab-nut dang" data-tab="tChamCong"><span>📷</span>Chấm công</button>
 	<button class="tab-nut" data-tab="tCong"><span>📅</span>Công của tôi</button>
+	<button class="tab-nut an" id="nutCH" data-tab="tCuaHang"><span>🏪</span>Cửa hàng</button>
 	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
 	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
 </nav>
@@ -1299,6 +1369,11 @@ function moManChinh(){
 	denTab('tChamCong');
 	dangGoi(true);
 	xinGps();
+	/* 🔴 HỎI QUYỀN CỬA HÀNG NGAY LÚC VÀO, không chờ bấm tab. Nút phải hiện sẵn thì người ta
+	   mới biết có tab ấy — cái tab chỉ hiện sau khi bấm vào chính nó là cái tab không ai tìm
+	   ra. Lượt hỏi này KHÔNG nằm trong `Promise.all` dưới: hỏng nó thì chỉ thiếu một nút, còn
+	   `Promise.all` hỏng là màn hình đứng ở "đang gọi máy chủ". */
+	doCuaHang();
 	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
 	   khi một nửa vẫn đang treo. */
 	Promise.all([ napGio().then(nhipDongHo), napToi() ])
@@ -1727,12 +1802,13 @@ var TAB = 'tChamCong';
 function denTab(ten){
 	if(!el(ten)) return;
 	TAB = ten;
-	['tChamCong','tCong','tUng','tToi'].forEach(function(x){
+	['tChamCong','tCong','tCuaHang','tUng','tToi'].forEach(function(x){
 		var o = el(x); if(o){ o.classList.toggle('an', x !== ten); }
 	});
 	var ds = document.querySelectorAll('.tab-nut');
 	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
 	if(ten === 'tCong'){ napPhieu(); }
+	if(ten === 'tCuaHang'){ napCuaHang(); }
 	if(ten === 'tUng'){ napUng(); }
 	if(ten === 'tToi'){ napHoSo(); moManXin(); }
 	/* Về đầu trang khi đổi tab. Không có dòng này thì đang cuộn giữa bảng tháng mà bấm sang
@@ -1975,6 +2051,28 @@ el('btGuiTre').addEventListener('click', function(){
 
 el('plThang').addEventListener('change', vePhieu);
 
+el('chCoSo').addEventListener('change', function(){ napDonCH(); napCongCH(); });
+el('chThangTruoc').addEventListener('click', function(){ doiThangCH(-1); });
+el('chThangSau').addEventListener('click', function(){ doiThangCH(1); });
+
+el('btThemNguoi').addEventListener('click', function(){
+	guiDon('chthem', {
+		token:    token(),
+		coSo:     el('chCoSo').value,
+		hoTen:    el('tnTen').value,
+		cccd:     el('tnCccd').value,
+		sdt:      el('tnSdt').value,
+		gioiTinh: el('tnGt').value
+	}, 'loiThem', 'btThemNguoi', function(j){
+		el('tnTen').value = ''; el('tnCccd').value = ''; el('tnSdt').value = '';
+		/* Nói ra MÃ vừa cấp và BƯỚC KẾ TIẾP. Báo "đã thêm" suông thì cửa hàng trưởng đứng chờ
+		   một cái PIN không bao giờ tới — hệ không phát PIN cho ai cả. */
+		return '✔ Đã thêm — mã ' + (j.ma_nv || '(tạm)')
+			+ '. Bảo người mới vào trang chấm công, bấm "Quên PIN", gõ họ tên + căn cước '
+			+ 'của chính họ rồi tự đặt PIN.';
+	});
+});
+
 el('btGuiNghi').addEventListener('click', function(){
 	guiDon('xinnghi', {
 		token: token(),
@@ -2003,6 +2101,169 @@ el('btGuiLich').addEventListener('click', function(){
 		return '✔ Đã gửi yêu cầu đổi lịch — mã ' + j.maYc + '. Người xếp lịch của cơ sở sẽ duyệt.';
 	});
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * TAB CỬA HÀNG — cửa, không phải nghiệp vụ. Xem class-vhcc-cua-hang.php.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 NÚT TAB DO MÁY CHỦ MỞ. `?viec=cuahang` trả `duoc:false` cho nhân viên thường và JS không
+ *    gỡ lớp `an`. Nhưng đó CHỈ là bày biện: bốn cửa còn lại đều gác lại ở máy chủ, nên một
+ *    lượt sửa DOM bằng tay cũng không mở được gì.
+ *
+ * ⚠️ HỎI MỘT LẦN MỖI PHIÊN, và hỏi NGAY LÚC ĐĂNG NHẬP chứ không chờ bấm tab — nút phải hiện
+ *    sẵn thì người ta mới biết có tab ấy. Cái tab chỉ hiện sau khi bấm vào chính nó là cái
+ *    tab không ai tìm ra.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+var CH = null;
+var CH_THANG = '';
+
+function doCuaHang(){
+	return goi('cuahang', { token: token() }).then(function(j){
+		if(!j || !j.ok || !j.duoc){ return; }
+		CH = j;
+		CH_THANG = CH_THANG || j.thang || '';
+		var ds = j.dsCoSo || [];
+		el('chCoSo').innerHTML = xoOption(ds, ds[0] || '');
+		el('nutCH').classList.remove('an');
+		/* Năm ô thì thu chữ — xem khối CSS `#thanhTab.tab5`. Gắn ở ĐÂY, cùng một dòng lệnh với
+		   lượt mở nút, để không bao giờ có trạng thái "năm ô mà chưa thu chữ". */
+		el('thanhTab').classList.add('tab5');
+	}).catch(function(){});
+}
+
+function napCuaHang(){
+	if(!CH){ return; }
+	veThangCH();
+	napDonCH();
+}
+
+function veThangCH(){
+	el('chNhanThang').textContent = 'Tháng ' + (CH_THANG || '—').replace(/^(\d{4})-(\d{2})$/, '$2/$1');
+	napCongCH();
+}
+
+function doiThangCH(b){
+	var p = (CH_THANG || '').split('-');
+	if(p.length !== 2){ return; }
+	var d = new Date(Date.UTC(+p[0], +p[1] - 1 + b, 1));
+	CH_THANG = d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2);
+	veThangCH();
+}
+
+/* ── đơn từ ─────────────────────────────────────────────────────────────────────────────── */
+
+function napDonCH(){
+	el('bangDonCH').innerHTML = '<p class="trong">Đang tải…</p>';
+	return goi('chdon', { token: token(), coSo: el('chCoSo').value }).then(function(j){
+		if(!j || !j.ok){
+			el('bangDonCH').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được đơn.') + '</p>';
+			return;
+		}
+		var ds = j.don || [];
+		if(!ds.length){
+			el('bangDonCH').innerHTML = '<p class="trong">Không có đơn nào chờ anh/chị. '
+				+ 'Nhân viên nộp ở tab <b>Tôi</b> thì đơn hiện ra đây.</p>';
+			return;
+		}
+		var h = '';
+		for(var i=0;i<ds.length;i++){
+			var d = ds[i];
+			/* Khoá đơn ghép LOẠI + ID. Ba loại đánh số riêng nhau, nên chỉ mang id là hai đơn
+			   khác loại trùng số và bấm duyệt cái này ra cái kia. */
+			var k = esc(d.loai) + '|' + esc(d.id);
+			h += '<div class="the" style="margin:0 0 10px;padding:12px">'
+			  +  '<b style="display:block;font-size:15px">' + esc(d.hoTen || d.maNV) + '</b>'
+			  +  '<span class="ct" style="display:block;margin:2px 0 6px">' + esc(d.tenLoai)
+			  +  ' · ' + esc(ngayGon(d.ngay)) + ' · ' + esc(d.chiTiet) + '</span>'
+			  +  '<div class="vang" style="margin:0 0 10px">' + esc(d.lyDo || '(không ghi lý do)') + '</div>'
+			  +  '<div class="hang">'
+			  +  '<button class="chinh ch-ok" data-don="' + k + '">Duyệt</button>'
+			  +  '<button class="phu ch-no" data-don="' + k + '">Không duyệt</button>'
+			  +  '</div></div>';
+		}
+		el('bangDonCH').innerHTML = h;
+		gaiNutDon();
+	}).catch(function(){
+		el('bangDonCH').innerHTML = '<p class="trong">Chưa đọc được đơn — kiểm tra mạng rồi mở lại tab.</p>';
+	});
+}
+
+/* Nút dựng lúc chạy nên phải gài sự kiện sau mỗi lượt vẽ. Gài bằng vòng lặp chứ không bằng
+   `onclick=` trong chuỗi HTML: lý do trong chính tên hàm `esc()` ở trên — chuỗi ghép vào HTML
+   thì một dấu nháy trong dữ liệu là vỡ thẻ, còn addEventListener thì không có chỗ nào để vỡ. */
+function gaiNutDon(){
+	var ds = el('bangDonCH').querySelectorAll('.ch-ok, .ch-no');
+	for(var i=0;i<ds.length;i++){
+		ds[i].addEventListener('click', function(){
+			quyetDon(this.getAttribute('data-don'), this.classList.contains('ch-ok'), this);
+		});
+	}
+}
+
+function quyetDon(khoa, dongY, nut){
+	var p = String(khoa || '').split('|');
+	if(p.length < 2){ return; }
+	/* ⚠️ KHÔNG DUYỆT là một quyết định, phải hỏi lại — bấm nhầm thì người xin nhận câu từ chối
+	   mà không ai cố ý gửi. Duyệt thì không hỏi: nó là việc làm cả ngày. */
+	if(!dongY && !window.confirm('Ghi KHÔNG DUYỆT đơn này?')){ return; }
+	var ds = el('bangDonCH').querySelectorAll('button');
+	for(var i=0;i<ds.length;i++){ ds[i].disabled = true; }
+	nut.textContent = 'Đang gửi…';
+	goi('chduyet', { token: token(), loai: p[0], id: p.slice(1).join('|'), dongY: dongY ? 1 : 0 })
+		.then(function(j){
+			if(!j || !j.ok){
+				for(var i=0;i<ds.length;i++){ ds[i].disabled = false; }
+				window.alert((j && j.error) || 'Không gửi được.');
+				return;
+			}
+			/* Nạp lại cả hộp: đơn vừa quyết phải biến mất, và trong lúc mình bấm có thể có đơn
+			   mới nộp vào. Xoá đúng một thẻ trên màn thì hộp nói sai ngay lượt sau. */
+			napDonCH();
+		}).catch(function(){
+			for(var i=0;i<ds.length;i++){ ds[i].disabled = false; }
+			window.alert('Mất mạng — đơn CHƯA được quyết. Thử lại.');
+		});
+}
+
+/* ── bảng công cơ sở ────────────────────────────────────────────────────────────────────── */
+
+function napCongCH(){
+	el('bangCongCH').innerHTML = '<p class="trong">Đang tải…</p>';
+	return goi('chcong', { token: token(), coSo: el('chCoSo').value, thang: CH_THANG })
+		.then(function(j){
+			if(!j || !j.ok){
+				el('bangCongCH').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được bảng công.') + '</p>';
+				return;
+			}
+			var ds = j.dong || [];
+			if(!ds.length){
+				el('bangCongCH').innerHTML = '<p class="trong">Tháng này chưa có lượt chấm nào ở '
+					+ esc(j.coSo) + '.</p>';
+				return;
+			}
+			var h = '<div class="xanh" style="margin:0 0 10px">' + esc(j.soNguoi) + ' người · '
+			      + esc(j.tongGio) + ' giờ</div>';
+			if(j.tongThieu){
+				h += '<div class="vang" style="margin:0 0 10px"><b>' + esc(j.tongThieu)
+				  +  '</b> lượt thiếu một đầu giờ — mấy lượt ấy KHÔNG tính phút nào. '
+				  +  'Bổ sung trước khi kế toán chốt lương.</div>';
+			}
+			h += '<table><thead><tr><th>Nhân viên</th><th>Ngày</th><th>Giờ</th></tr></thead><tbody>';
+			for(var i=0;i<ds.length;i++){
+				var d = ds[i];
+				h += '<tr' + (d.thieu ? ' class="hong"' : '') + '>'
+				  +  '<td style="text-align:left">' + esc(d.hoTen)
+				  +  (d.thieu ? ' <b>· thiếu ' + esc(d.thieu) + '</b>' : '') + '</td>'
+				  +  '<td>' + esc(d.soNgay) + '</td>'
+				  +  '<td>' + esc(d.gio) + '</td></tr>';
+			}
+			h += '</tbody></table>'
+			  +  '<p class="ct" style="text-align:left;margin:10px 0 0">Số ở đây là <b>giờ có mặt</b>, '
+			  +  'chưa quy ra công tính lương. Cần từng ô từng ngày thì mở trang quản trị trên máy tính.</p>';
+			el('bangCongCH').innerHTML = h;
+		}).catch(function(){
+			el('bangCongCH').innerHTML = '<p class="trong">Chưa đọc được bảng công — kiểm tra mạng rồi lật lại tháng.</p>';
+		});
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * PHIẾU LƯƠNG CỦA TÔI — cửa, không phải nghiệp vụ. Xem class-vhcc-phieu-luong.php.
