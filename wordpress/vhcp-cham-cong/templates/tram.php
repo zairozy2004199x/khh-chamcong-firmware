@@ -379,6 +379,9 @@ a{color:var(--nhan)}
 
 	<div class="the">
 		<label style="margin:0 0 8px">Hôm nay</label>
+		<p class="ct" style="text-align:left;margin:0 0 8px">Thấy dòng nào sai (nhầm cơ sở, thiếu
+			giờ ra)? Báo ở tab <b>👤 Tôi → Báo lượt chấm sai</b>. Đừng chấm lại — chấm lại là thêm
+			một lượt nữa, dòng sai vẫn còn.</p>
 		<div id="bangHN"><p class="trong">Đang tải…</p></div>
 	</div>
 
@@ -451,6 +454,32 @@ a{color:var(--nhan)}
 			<span id="nhanThieu" class="nhan an"></span>
 		</div>
 		<div id="oHoSo"><p class="trong">Đang tải…</p></div>
+	</div>
+
+	<!-- ============ BÁO LƯỢT CHẤM SAI ============
+	     Tài liệu phát cho cơ sở ghi thẳng: *"Chấm nhầm cơ sở rồi thì tự sửa không được… Báo quản
+	     lý sửa ở màn Bảng công, trong ngày."* Câu ấy đúng, nhưng "báo quản lý" không có đường
+	     nào trong app — nó là nhắn Zalo, và tin Zalo thì trôi mất giữa hai trăm tin khác trước
+	     khi ai kịp mở Bảng công.
+
+	     🔴 Ô NÀY KHÔNG SỬA GIỜ. Nó gắn một cái cờ nằm CẠNH ngày ấy, đúng cơ chế cửa hàng trưởng
+	        vẫn đọc hằng ngày. Cho người ta tự sửa giờ của chính mình là bỏ luôn ý nghĩa của việc
+	        chấm công. -->
+	<div class="the">
+		<label style="margin:0 0 8px">Báo lượt chấm sai</label>
+		<p class="ct" style="text-align:left;margin:0 0 10px">Chấm nhầm cơ sở, thiếu giờ ra, giờ
+			không đúng… Báo ở đây thì cửa hàng trưởng thấy ngay trên bảng công.
+			<b>Báo không tự sửa giờ</b> — người có quyền xem rồi mới sửa.</p>
+		<label for="bsNgay">Ngày bị sai</label>
+		<input id="bsNgay" type="date">
+		<label for="bsCoSo">Cơ sở</label>
+		<select id="bsCoSo"></select>
+		<label for="bsLyDo">Sai chỗ nào</label>
+		<input id="bsLyDo" type="text" maxlength="500" placeholder="VD: chấm nhầm sang VP_KH-HCM, đúng ra là SETUP_VP">
+		<div id="loiBaoSai"></div>
+		<p></p>
+		<button id="btBaoSai" class="chinh to">GỬI BÁO SAI</button>
+		<div id="bangDaBao" style="margin-top:12px"></div>
 	</div>
 
 	<!-- ============ XIN PHÉP ============
@@ -1652,7 +1681,8 @@ var XIN = null;
 
 /* Gọi khi mở tab "Tôi". Không còn màn riêng để mở — xem khối markup ở tab ấy. */
 function moManXin(){
-	bao('loiTre','',null); bao('loiLich','',null);
+	bao('loiTre','',null); bao('loiLich','',null); bao('loiBaoSai','',null);
+	napBaoSai();
 	napXin();
 }
 
@@ -1769,6 +1799,45 @@ el('btDayHang').addEventListener('click', function(){ dayHang(); });
    của quán không có internet cũng bắn sự kiện này), nên `dayHang()` phải chịu được lượt hỏng —
    nó chịu được: hỏng thì giữ nguyên hàng và không nói gì. */
 window.addEventListener('online', function(){ dayHang(); });
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * BÁO LƯỢT CHẤM SAI — cửa, không phải nghiệp vụ. Xem VHCC_Cham::nv_bao_sai.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function napBaoSai(){
+	return goi('dabao', { token: token() }).then(function(j){
+		if(!j || !j.ok){ return; }
+		/* Ngày mặc định là HÔM NAY THEO MÁY CHỦ — cùng lý do với ô ngày của đơn xin trễ. */
+		if(!el('bsNgay').value){ el('bsNgay').value = j.homNay || ''; }
+		el('bsNgay').max = j.homNay || '';
+		var ds = j.dsCoSo || [];
+		if(!el('bsCoSo').options.length){ el('bsCoSo').innerHTML = xoOption(ds, ds[0] || ''); }
+		veDaBao(j.dong || []);
+	});
+}
+
+function veDaBao(ds){
+	if(!ds.length){ el('bangDaBao').innerHTML = ''; return; }
+	var h = '<label style="margin:0 0 6px">Đã báo</label><table><thead><tr><th>Ngày</th>'
+		+ '<th>Nội dung</th><th>Trạng thái</th></tr></thead><tbody>';
+	for(var i=0;i<ds.length;i++){
+		h += '<tr><td>' + esc(ds[i].ngay) + '</td><td style="text-align:left">'
+			+ esc(ds[i].ghi_chu || '') + '</td><td>' + esc(ds[i].trang_thai || '') + '</td></tr>';
+	}
+	el('bangDaBao').innerHTML = h + '</tbody></table>';
+}
+
+el('btBaoSai').addEventListener('click', function(){
+	guiDon('baosai', {
+		token: token(),
+		ngay:  el('bsNgay').value,
+		coSo:  el('bsCoSo').value,
+		lyDo:  el('bsLyDo').value
+	}, 'loiBaoSai', 'btBaoSai', function(j){
+		return '✔ Đã báo ngày ' + j.ngay + ' — ' + j.coSo
+			+ (j.lai ? ' (đè lên lượt báo trước của ngày này)' : '')
+			+ '. Cửa hàng trưởng sẽ thấy trên bảng công. Giờ công CHƯA đổi — chờ người có quyền sửa.';
+	});
+});
 
 el('btGuiTre').addEventListener('click', function(){
 	guiDon('xintre', {

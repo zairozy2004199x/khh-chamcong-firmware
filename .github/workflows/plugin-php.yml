@@ -65,6 +65,9 @@ jobs:
       - name: Bộ thử lịch làm của tôi
         run: php tools/test/kiem-lich-toi.php
 
+      - name: Bộ thử báo lượt chấm sai
+        run: php tools/test/kiem-bao-sai.php
+
       - name: Bộ thử app PWA
         run: php tools/test/kiem-cc-app.php
 

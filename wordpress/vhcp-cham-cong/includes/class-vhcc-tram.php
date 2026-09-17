@@ -492,6 +492,30 @@ class VHCC_Tram {
 			) );
 		}
 
+		/**
+		 * BÁO MỘT LƯỢT CHẤM SAI, và danh sách lượt đã báo. Nghiệp vụ ở `VHCC_Cham::nv_bao_sai`.
+		 *
+		 * ⚠️ Cửa này KHÔNG sửa giờ. Nó gắn một cái cờ nằm cạnh ngày ấy để cửa hàng trưởng thấy ở
+		 *    chính màn cờ họ vẫn mở. Cho nhân viên sửa giờ của chính mình là bỏ luôn ý nghĩa của
+		 *    việc chấm công.
+		 */
+		if ( 'baosai' === $viec ) {
+			self::ra( VHCC_Cham::nv_bao_sai( $u, array(
+				'ngay' => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				'coso' => isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
+				'lyDo' => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
+			) ) );
+		}
+
+		if ( 'dabao' === $viec ) {
+			self::ra( array( 'ok' => true,
+				'dong'   => VHCC_Cham::nv_bao_cua( $u['ma_nv'], 20 ),
+				'homNay' => current_time( 'Y-m-d' ),
+				'dsCoSo' => VHCC_Online::ds_coso_cham_cua_nv( $u['ma_nv'],
+					isset( $u['coso'] ) ? $u['coso'] : '' ),
+			) );
+		}
+
 		if ( 'xintre' === $viec ) {
 			self::ra( VHCC_XinTre::nop( $u, array(
 				'ngay'    => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
