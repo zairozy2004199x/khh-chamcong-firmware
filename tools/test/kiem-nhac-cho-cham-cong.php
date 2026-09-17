@@ -213,6 +213,17 @@ t( '🔴 khối khai KHÔNG mở form riêng',
 	false === strpos( substr( $src_ad, strpos( $src_ad, 'private static function khoi_nhac' ),
 		(int) ( strpos( $src_ad, 'public static function ve()' )
 			- strpos( $src_ad, 'private static function khoi_nhac' ) ) ), '<form' ) );
+/* 🔴 MÀN KHAI PHẢI TỰ NÓI BẢN NÀO ĐANG CHẠY. Cài 1.21.0 lên hosting mà khối mới không hiện
+   thì có ba khả năng — chưa bấm Thay thế, trình duyệt giữ trang cũ, OPcache giữ mã cũ — và
+   cả ba nhìn từ màn hình giống hệt nhau. Một dòng số bản đọc từ CHÍNH hằng PHP đã nạp trả
+   lời câu ấy bằng mắt; nó khác số ở màn Plugins, vốn đọc chú thích đầu tệp chứ không đọc mã
+   đang chạy. */
+t( '🔴 màn khai in ra bản đang chạy', false !== strpos( $src_ad, 'Bản đang chạy' ) );
+t( '   và đọc từ hằng đã nạp, không đọc chú thích tệp',
+	false !== strpos( $src_ad, "defined( 'VHNB_VERSION' ) ? VHNB_VERSION" ) );
+t( '🔴 nói thẳng khi mã đang chạy CHƯA có khối này',
+	false !== strpos( $src_ad, 'CHƯA CÓ' ) && false !== strpos( $src_ad, 'OPcache' ) );
+
 /* Ô tích đọc bằng isset — đọc giá trị thì bỏ tích xong bấm Lưu là nó vẫn bật. */
 t( "ô tích đọc bằng isset( \$_POST['nhac_bat'] )",
 	false !== strpos( $src_ad, "isset( \$_POST['nhac_bat'] )" ) );

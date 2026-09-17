@@ -173,6 +173,32 @@ class VHNB_Admin {
 
 		$cf = VHNB_Quyen::cai_dat();
 		echo '<div class="wrap"><h1>Nội bộ K&amp;H</h1>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * BẢN ĐANG CHẠY — in ra ngay đầu màn, và đây KHÔNG phải trang trí.
+		 *
+		 * 🔴 17/09/2026: cài bản 1.21.0 lên hosting xong mà khối mới không hiện, và không có
+		 *    cách nào biết vì sao — tệp trong .zip thì đúng, nên chỉ còn ba khả năng (chưa bấm
+		 *    Thay thế, trình duyệt giữ trang cũ, hoặc OPcache của hosting còn giữ mã cũ) và cả
+		 *    ba nhìn từ màn hình giống hệt nhau. Mất một vòng hỏi đi hỏi lại chỉ để biết cái
+		 *    đang chạy là bản nào.
+		 *
+		 *    Một dòng số bản đọc từ CHÍNH MÃ ĐANG CHẠY trả lời câu đó bằng mắt. Nó khác hẳn số
+		 *    ở màn Plugins: màn kia đọc phần chú thích đầu tệp, còn dòng này đọc hằng mà PHP
+		 *    thật sự đã nạp — lệch nhau là biết ngay OPcache đang giữ mã cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$co_nhac = class_exists( 'VHNB_Nhac' );
+		echo '<p style="color:var(--chu-mo,#646970)">Bản đang chạy: <code>'
+			. esc_html( defined( 'VHNB_VERSION' ) ? VHNB_VERSION : '?' ) . '</code>'
+			. ' · khối <b>Nhắc chỗ chấm công</b>: '
+			. ( $co_nhac ? 'có' : '<b style="color:#b32d2e">CHƯA CÓ</b>' ) . '</p>';
+		if ( ! $co_nhac ) {
+			echo '<div class="notice notice-warning"><p><b>Mã đang chạy chưa có khối Nhắc chỗ '
+				. 'chấm công.</b> Bản cài có thể chưa thay xong, hoặc hosting còn giữ mã cũ trong '
+				. 'bộ nhớ đệm (OPcache). Thử theo thứ tự: tải lại trang này bằng '
+				. '<kbd>Ctrl+F5</kbd> → vào <b>Plugin</b> tắt rồi bật lại <b>Nội Bộ K&amp;H</b> → '
+				. 'nếu vẫn vậy thì cài lại bản .zip một lượt nữa.</p></div>';
+		}
 		if ( '' !== $bao ) {
 			/* Lời báo có thể kèm một chữ <b> (tên plugin vừa bị tắt) — cho đúng thẻ ấy, không
 			   mở cửa cho thẻ nào khác. */
