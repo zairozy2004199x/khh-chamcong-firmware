@@ -86,6 +86,11 @@ function khh_table(){ return 'wp_khh_docs'; }
 function khh_get_coll($c){ return $GLOBALS['_docs'][$c] ?? []; }
 function khh_put_doc($c,$i,$b){ $GLOBALS['_docs'][$c][$i]=$b; return true; }
 
+/* Phần "Tài khoản của nhân viên" nằm ở tệp riêng nhưng khh_settings() gọi thẳng vào nó,
+   nên phải nạp trước — bỏ đi là lỗi "undefined function" chứ không phải phép thử đỏ. */
+$tk = file_get_contents(__DIR__.'/../../../wordpress/khh-platform/tai-khoan-cua-toi.php');
+eval(preg_replace('/^<\?php/', '', $tk, 1));
+
 /* nạp plugin, bỏ qua phần khai báo trùng */
 $src = file_get_contents(__DIR__.'/../../../wordpress/khh-platform/khh-platform.php');
 $src = preg_replace('/^<\?php/', '', $src, 1);
