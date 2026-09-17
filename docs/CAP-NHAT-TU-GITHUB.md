@@ -15,8 +15,8 @@ Từ đợt này, **mỗi bản mới hiện thẳng ở màn Plugin của wp-ad
 | Mã nguồn | nhánh **`claude/rebuild-chi-phi-wordpress-hl2yze`** (repo `khh-chamcong-firmware`) |
 | Repo plugin đang trỏ vào | **`zairozy2004199x/khh-chamcong-firmware`** — khai ở hằng `REPO` trong mỗi lớp tự cập nhật |
 | Repo đang **công khai** hay riêng tư | **CÔNG KHAI** tính tới 13/09/2026 — xem mục 2 và mục 9 |
-| Số bộ tự cập nhật được | **8 / 9** (`vhcp-cong` cố ý không — bản viết lại đã dừng) |
-| Bộ thử | **116 mục** đều đạt (`bash tools/test/chay-het.sh`) |
+| Số bộ tự cập nhật được | **14 / 15** (`vhcp-cong` cố ý không — bản viết lại đã dừng) |
+| Bộ thử | **152 mục** đều đạt (`bash tools/test/chay-het.sh`) |
 
 ---
 
@@ -65,20 +65,29 @@ Xong. Ô sẽ đổi thành **"Đã khai khoá"**.
 
 ---
 
-## 3. Một khoá dùng cho bảy bộ
+## 3. Một khoá dùng cho mười bộ
 
-Bảy bộ dưới đây đọc **cùng một ô khoá** (`vhcp_gh_token`). Khai một lần ở Cài đặt Vận Hành Chi
+Mười bộ dưới đây đọc **cùng một ô khoá** (`vhcp_gh_token`). Khai một lần ở Cài đặt Vận Hành Chi
 Phí là đủ — **không cần tạo token nào nữa**.
 
 | Bộ | Thư mục | Tiền tố tag |
 |---|---|---|
 | Vận Hành Chi Phí (K&H) | `vhcp-chi-phi` | `vhcp-chi-phi-v…` |
 | Chấm Công (K&H) | `vhcp-cham-cong` | `vhcp-cham-cong-v…` |
+| App Chấm Công K&H | `vhcp-cc-app` | `vhcp-cc-app-v…` |
 | Ghế Massage (K&H) | `vhcp-ghe` | `vhcp-ghe-v…` |
 | Nội Bộ K&H | `vhcp-noi-bo` | `vhcp-noi-bo-v…` |
 | Trang Vận Hành K&H | `vhcp-trang-chu` | `vhcp-trang-chu-v…` |
 | Thư Viện Hợp Đồng | `vhcp-hop-dong` | `vhcp-hop-dong-v…` |
 | Dự Án & Tiến Độ K&H | `vhcp-du-an` | `vhcp-du-an-v…` |
+| Nền tảng K&H | `khh-platform` | `khh-platform-v…` |
+| K&H — Báo cáo doanh thu FABi | `khh-doanh-thu` | `khh-doanh-thu-v…` |
+
+Ba bản chi phí tách theo mảng (`vhcp-chi-phi-mtd`, `-vp`, `-tong`) cài **chung một WordPress**
+với bản gốc nên phải có ô riêng: `vhcpmtd_gh_token`, `vhcpvp_gh_token`, `vhcpt_gh_token`.
+
+> ⚠️ Bảng này khai tay nên có lúc rơi rớt — `tools/test/kiem-tren-host-du-bo.php` canh giúp phần
+> quan trọng hơn: bộ nào có lớp tự cập nhật mà thiếu tên trong `tools/tren-host.sh` là bộ thử đỏ.
 
 ### 🔴 Trừ bản vùng — khoá RIÊNG
 
