@@ -235,6 +235,38 @@ class VHCC_Lich {
 			: array( 'ok' => true, 'maYc' => $ma_yc );
 	}
 
+	/**
+	 * Yêu cầu đổi lịch gần đây của CHÍNH MỘT NGƯỜI — để họ tự thấy đơn mình nộp và kết quả.
+	 *
+	 * 🔴 KHÔNG DÙNG `ds_doi_lich()` ĐƯỢC. Hàm ấy lọc theo `co_quyen_coso()`, tức theo cơ sở mà
+	 *    người xem PHỤ TRÁCH — nhân viên thường không phụ trách cơ sở nào, nên gọi nó từ trạm
+	 *    thì họ nhận về danh sách RỖNG dù vừa nộp đơn xong. Và "nộp xong không thấy đâu" là
+	 *    đúng cái khiến người ta nộp lại lần hai, lần ba.
+	 *
+	 * ⚠️ Lọc theo MÃ NV, không theo tên: hai người trùng tên thì lọc theo tên là người này đọc
+	 *    được đơn của người kia.
+	 */
+	public static function cua_nguoi( $ma_nv, $so = 12 ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' )
+			. ' WHERE ma_nv=%s ORDER BY luc_xin DESC, id DESC LIMIT %d', $ma, max( 1, (int) $so ) ),
+			ARRAY_A );
+		return is_array( $r ) ? $r : array();
+	}
+
+	/** Cơ sở này có bật phân lịch không — trạm hỏi trước khi bày ô "xin đổi lịch". */
+	public static function co_bat_lich( $coso ) {
+		$cs = VHCC_NhanSu::chuan_coso( (string) $coso );
+		if ( '' === $cs ) { return false; }
+		foreach ( (array) VHCC_Luong::cai_dat( 'LICH_CO_SO', array() ) as $x ) {
+			if ( 0 === strcasecmp( (string) $x, $cs ) ) { return true; }
+		}
+		return false;
+	}
+
 	public static function ds_doi_lich( $u, $chi_cho_duyet = false ) {
 		global $wpdb;
 		$sql = 'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' );
