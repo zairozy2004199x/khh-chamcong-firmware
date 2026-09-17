@@ -73,8 +73,35 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_Ung {
 
+	/* ══════════════════════════════════════════════════════════════════════════════════════
+	 * CHIA NHÓM — anh Thắng 17/09/2026: *"tính năng nhiều thì ô chức năng nhỏ lại… nhiều tính
+	 * năng thì tách phân loại theo từng tính năng"*, kèm ảnh một app chia mục WORKPLACE / HRM.
+	 *
+	 * 🔴 THỨ TỰ NHÓM KHAI Ở ĐÂY, KHÔNG SẮP THEO CHỮ CÁI. Sắp theo chữ cái thì nhóm nào lên đầu
+	 *    là chuyện ngẫu nhiên của tiếng Việt, và nó đổi chỗ mỗi lần thêm một nhóm mới — người
+	 *    dùng nhớ vị trí bằng mắt chứ không đọc lại tiêu đề mỗi lần.
+	 *
+	 * ⚠️ Ô mang tên nhóm KHÔNG có trong danh sách này thì rơi xuống cuối, giữ nguyên thứ tự
+	 *    khai. Thà thừa một nhóm lạ ở cuối còn hơn nuốt mất một ô người ta đang cần.
+	 */
+	const NHOM = array( 'Vận hành', 'Quản lý cửa hàng', 'Thông tin chung' );
+
+	/** Nhóm của các ô, theo đúng thứ tự trên. Ô nào không khai nhóm thì về 'Vận hành'. */
+	public static function ds_nhom( $ds ) {
+		$co = array();
+		foreach ( (array) $ds as $x ) {
+			$n = ( isset( $x['nhom'] ) && '' !== trim( (string) $x['nhom'] ) )
+				? (string) $x['nhom'] : self::NHOM[0];
+			if ( ! in_array( $n, $co, true ) ) { $co[] = $n; }
+		}
+		$ra = array();
+		foreach ( self::NHOM as $n ) { if ( in_array( $n, $co, true ) ) { $ra[] = $n; } }
+		foreach ( $co as $n ) { if ( ! in_array( $n, $ra, true ) ) { $ra[] = $n; } }
+		return $ra;
+	}
+
 	/**
-	 * Danh sách ô cho MỘT người. Trả mảng: ten · mo · url · icon · mau · ghi_chu · ngoai.
+	 * Danh sách ô cho MỘT người. Trả mảng: ten · mo · url · icon · mau · nhom · ghi_chu · ngoai.
 	 *
 	 * @param array $u Người đang đăng nhập (mảng phiên của `VHCC_Tram::nguoi()`).
 	 */
@@ -108,6 +135,7 @@ class VHCC_Ung {
 				VHCC_DayGhe::da_day( $ma ),
 				array(
 					'ten'     => 'Nộp báo cáo POSH',
+					'nhom'    => 'Vận hành',
 					'mo'      => 'Doanh thu ghế, tiền mặt, chứng từ',
 					'url'     => VHCC_VeTram::danh_dau( VHG_Trang::url() ),
 					'icon'    => '🪑',
@@ -134,6 +162,7 @@ class VHCC_Ung {
 				VHCC_DayBaoCao::da_day( $ma ),
 				array(
 					'ten'  => 'Nộp báo cáo cửa hàng',
+					'nhom' => 'Vận hành',
 					'mo'   => 'Tiền két, tiền nộp, bill huỷ, khách vào',
 					'url'  => VHCC_VeTram::danh_dau( khh_dt_link() ),
 					'icon' => '🏪',
@@ -159,6 +188,7 @@ class VHCC_Ung {
 				VHCC_DayChiPhi::da_day( $ma ),
 				array(
 					'ten'  => 'Chi phí cơ sở',
+					'nhom' => 'Vận hành',
 					'mo'   => 'Đề nghị chi, chứng từ, duyệt',
 					'url'  => VHCC_VeTram::danh_dau( VHCP_App::app_url() ),
 					'icon' => '💰',
@@ -174,6 +204,7 @@ class VHCC_Ung {
 				self::duoc_vao( $u, 'noi_bo' ),
 				array(
 					'ten'  => 'Nội bộ',
+					'nhom' => 'Thông tin chung',
 					'mo'   => 'Thông báo, tài liệu chung',
 					'url'  => VHCC_VeTram::danh_dau( VHNB_Trang::url() ),
 					'icon' => '📄',

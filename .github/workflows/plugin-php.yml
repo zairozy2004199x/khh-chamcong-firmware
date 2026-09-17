@@ -74,6 +74,9 @@ jobs:
       - name: Bộ thử phiếu lương của tôi
         run: php tools/test/kiem-phieu-luong.php
 
+      - name: Bộ thử lưới ứng dụng
+        run: php tools/test/kiem-luoi-ung.php
+
       - name: Bộ thử app PWA
         run: php tools/test/kiem-cc-app.php
 

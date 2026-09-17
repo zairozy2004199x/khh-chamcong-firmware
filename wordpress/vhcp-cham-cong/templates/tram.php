@@ -226,31 +226,49 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 .tab-o{animation:hienTab .18s ease-out}
 @keyframes hienTab{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 /* ══════════════════════════════════════════════════════════════════════════════════════════
- * LƯỚI ỨNG DỤNG
+ * LƯỚI ỨNG DỤNG — BA CỘT, Ô NHỎ, CHIA NHÓM
  *
- * Hai cột, không phải ba. Ba cột ở bề rộng 520px là mỗi ô còn ~150px: tên "Nộp báo cáo POSH"
- * xuống ba dòng, và vùng chạm tụt xuống dưới ngưỡng ngón cái. Lưới ba cột của mấy app lớn
- * chạy được vì nhãn của họ một hai chữ.
+ * Anh Thắng 17/09/2026: *"tính năng nhiều thì ô chức năng nhỏ lại như này. Nhiều tính năng thì
+ * tách phân loại theo từng tính năng"*, kèm ảnh một app chia mục WORKPLACE / HRM.
+ *
+ * 🔴 BẢN TRƯỚC LÀ HAI CỘT Ô TO, VÀ CHÚ THÍCH Ở ĐÂY TỪNG NÓI BA CỘT LÀ SAI. Lý do cũ: *"tên
+ *    'Nộp báo cáo POSH' xuống ba dòng"*. Lý do ấy đúng khi mỗi ô còn mang theo một dòng mô tả
+ *    và một dòng nhắc — lúc ấy ô to là bắt buộc. Nay mô tả và lời nhắc dời xuống một danh sách
+ *    chú thích dưới lưới, ô chỉ còn ICON + TÊN, nên ba cột vừa đủ. Đổi bố cục thì phải đổi cả
+ *    thứ nằm trong ô, không thì đúng là hỏng như chú thích cũ cảnh báo.
+ *
+ * ⚠️ VÙNG CHẠM VẪN PHẢI ≥48px. Icon 52px + nhãn nên mỗi ô cao hơn ngưỡng nhiều; `min-height`
+ *    dưới đây là chốt chặn cho ô có nhãn một chữ.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
-.luoi-ung{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--d3)}
-.o-ung{display:block;text-decoration:none;color:var(--chu);background:var(--nen-2);
-	border:1px solid var(--vien);border-radius:var(--bo-o);padding:var(--d3);
-	/* minmax(0,1fr) ở trên + min-width:0 ở đây: thiếu một trong hai là tên dài đẩy toang cột. */
-	min-width:0}
-.o-ung:active{background:var(--vien)}
+.nhom-ung{margin:0 0 18px}
+.nhom-ung:last-child{margin-bottom:0}
+.nhom-ten{font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;
+	color:var(--chu-mo);margin:0 0 10px}
+.luoi-ung{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px 4px}
+.o-ung{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+	gap:7px;text-align:center;text-decoration:none;color:var(--chu);
+	padding:8px 2px;border-radius:var(--bo-o);min-width:0;min-height:48px}
+.o-ung:active{background:var(--nen-2)}
 /* Ô CHƯA ĐƯỢC CẤP. Mờ đủ để đọc ra là "khác", KHÔNG mờ tới mức không đọc nổi: cả điểm của
    việc bày nó ra là để người ta biết thứ ấy tồn tại mà đi xin.
    ⚠️ `cursor:default` + không có :active — ô này không phải thẻ <a> nên vốn đã không bấm được;
       mấy dòng này chỉ để ngón tay chạm vào KHÔNG thấy phản hồi, tức là nói "đây không phải nút"
       trước cả khi người ta đọc chữ. */
-.o-ung.o-khoa{opacity:.55;cursor:default;background:var(--nen-2);border-style:dashed}
+.o-ung.o-khoa{opacity:.45;cursor:default}
+.o-ung.o-khoa:active{background:transparent}
 .o-ung.o-khoa .o-icon{filter:grayscale(1)}
-.o-xin{display:block;font-size:11px;color:var(--chu-mo);margin-top:8px;line-height:1.4}
-.o-ung b{display:block;font-size:14px;margin:9px 0 2px;color:var(--chu-dam)}
-.o-mo{display:block;font-size:11.5px;color:var(--chu-mo);line-height:1.4}
-.o-nhac{display:block;font-size:11px;color:var(--vang-dam);margin-top:6px;line-height:1.35}
-.o-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;
-	border-radius:12px;font-size:21px}
+.o-ung b{display:block;font-size:12px;font-weight:600;line-height:1.3;color:var(--chu-dam);
+	/* Tên dài ("Nộp báo cáo cửa hàng") phải xuống dòng trong cột, không đẩy toang lưới. */
+	overflow-wrap:anywhere}
+.o-icon{display:flex;align-items:center;justify-content:center;width:52px;height:52px;
+	border-radius:15px;font-size:25px;flex:0 0 52px}
+/* ⚠️ CHÚ THÍCH DỜI XUỐNG ĐÂY, KHÔNG BỎ ĐI. Ô nhỏ không chứa nổi câu "Xin quản lý đẩy sang Báo
+   cáo cơ sở" — nhưng bỏ hẳn câu ấy thì ô mờ chỉ còn là một ô mờ, và người ta không biết phải
+   đi hỏi ai. Một dòng dưới lưới vẫn đọc được, mà không làm phình cái ô. */
+.ghi-ung{margin:14px 0 0;padding:12px 0 0;border-top:1px solid var(--vien)}
+.ghi-ung p{margin:0 0 6px;font-size:11.5px;line-height:1.45;color:var(--chu-mo);text-align:left}
+.ghi-ung p:last-child{margin-bottom:0}
+.ghi-ung b{color:var(--chu-dam)}
 .o-xanh{background:var(--nhan-nhat)}
 .o-vang{background:var(--vang-nhat)}
 .o-tim{background:var(--tim-nhat)}
@@ -1641,30 +1659,49 @@ function napUng(){
 				+ NHAC_UNG;
 			return;
 		}
-		var h = '<div class="luoi-ung">';
-		for(var i=0;i<j.ds.length;i++){
-			var x = j.ds[i];
-			/* 🔴 Ô KHOÁ DỰNG BẰNG <div>, KHÔNG PHẢI <a> KÈM CLASS. Máy chủ đã bỏ hẳn `url` của
-			   ô khoá, nên ở đây không có gì để bấm vào — kể cả một dòng CSS sửa nhầm cũng
-			   không biến nó thành bấm được. Dùng <a> rồi chặn bằng JS thì chỉ cần một lượt
-			   JS hỏng là năm cái ô khoá thành năm cái link sống. */
-			var mo = !!x.mo_duoc && !!x.url;
-			var ruot = '<span class="o-icon o-' + thoat(x.mau||'xanh') + '">' + thoat(x.icon||'') + '</span>'
-			         + '<b>' + thoat(x.ten||'') + '</b>'
-			         + '<span class="o-mo">' + thoat(x.mo||'') + '</span>';
-
-			if(mo){
-				h += '<a class="o-ung" href="' + thoat(x.url) + '">' + ruot
-				  +  (x.ghi_chu ? '<span class="o-nhac">' + thoat(x.ghi_chu) + '</span>' : '')
-				  +  '</a>';
-			} else {
-				h += '<div class="o-ung o-khoa">' + ruot
-				  +  '<span class="o-xin">🔒 Chưa được cấp'
-				  +  (x.xin ? '<br>' + thoat(x.xin) : '') + '</span>'
-				  +  '</div>';
-			}
+		/* Nhóm nào máy chủ không kể tên thì vẫn phải vẽ — thiếu một nhóm là nuốt mất mấy ô
+		   người ta đang cần, mà không có dòng nào báo. */
+		var nhom = (j.nhom && j.nhom.length) ? j.nhom.slice() : [];
+		for(var n=0;n<j.ds.length;n++){
+			var tn = j.ds[n].nhom || 'Khác';
+			if(nhom.indexOf(tn) < 0){ nhom.push(tn); }
 		}
-		el('oUng').innerHTML = h + '</div>' + NHAC_UNG;
+
+		var h = '', ghi = '';
+		for(var g=0; g<nhom.length; g++){
+			var oG = '';
+			for(var i=0;i<j.ds.length;i++){
+				var x = j.ds[i];
+				if((x.nhom || 'Khác') !== nhom[g]){ continue; }
+				/* 🔴 Ô KHOÁ DỰNG BẰNG <div>, KHÔNG PHẢI <a> KÈM CLASS. Máy chủ đã bỏ hẳn `url`
+				   của ô khoá, nên ở đây không có gì để bấm vào — kể cả một dòng CSS sửa nhầm
+				   cũng không biến nó thành bấm được. Dùng <a> rồi chặn bằng JS thì chỉ cần một
+				   lượt JS hỏng là năm cái ô khoá thành năm cái link sống. */
+				var mo = !!x.mo_duoc && !!x.url;
+				var ruot = '<span class="o-icon o-' + thoat(x.mau||'xanh') + '">'
+				         + thoat(x.icon||'') + '</span>'
+				         + '<b>' + thoat(x.ten||'') + '</b>';
+
+				if(mo){
+					/* `title` mang phần mô tả đã rời khỏi ô — máy tính rê chuột là thấy, điện
+					   thoại thì không, nên nó chỉ là phần THÊM, không phải chỗ giấu thông tin
+					   cần thiết. Thứ cần thiết nằm ở danh sách chú thích dưới lưới. */
+					oG += '<a class="o-ung" href="' + thoat(x.url) + '" title="' + thoat(x.mo||'') + '">'
+					   +  ruot + '</a>';
+					if(x.ghi_chu){
+						ghi += '<p>💡 <b>' + thoat(x.ten||'') + '</b> — ' + thoat(x.ghi_chu) + '</p>';
+					}
+				} else {
+					oG += '<div class="o-ung o-khoa">' + ruot + '</div>';
+					ghi += '<p>🔒 <b>' + thoat(x.ten||'') + '</b> — chưa được cấp.'
+					    +  (x.xin ? ' ' + thoat(x.xin) : '') + '</p>';
+				}
+			}
+			if(!oG){ continue; }
+			h += '<div class="nhom-ung"><p class="nhom-ten">' + thoat(nhom[g]) + '</p>'
+			  +  '<div class="luoi-ung">' + oG + '</div></div>';
+		}
+		el('oUng').innerHTML = h + (ghi ? '<div class="ghi-ung">' + ghi + '</div>' : '') + NHAC_UNG;
 	}).catch(function(){
 		DA_NAP_UNG = false;
 	DA_NAP_HS = false;

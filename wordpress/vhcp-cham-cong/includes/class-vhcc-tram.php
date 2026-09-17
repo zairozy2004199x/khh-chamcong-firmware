@@ -388,7 +388,11 @@ class VHCC_Tram {
 		}
 
 		if ( 'ung' === $viec ) {
-			self::ra( array( 'ok' => true, 'ds' => VHCC_Ung::ds( $u ) ) );
+			/* ⚠️ THỨ TỰ NHÓM DO MÁY CHỦ ĐẶT, không để trình duyệt tự gom. Trình duyệt gom thì
+			   thứ tự ra theo thứ tự ô gặp được, tức thêm một ô ở giữa là cả trang đổi bố cục
+			   — người dùng nhớ chỗ bằng mắt, không đọc lại tiêu đề mỗi lần. */
+			$ds_ung = VHCC_Ung::ds( $u );
+			self::ra( array( 'ok' => true, 'ds' => $ds_ung, 'nhom' => VHCC_Ung::ds_nhom( $ds_ung ) ) );
 		}
 
 		if ( 'cham' === $viec ) {
