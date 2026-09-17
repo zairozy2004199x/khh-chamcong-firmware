@@ -14,19 +14,36 @@ $cfg = isset( $VHCC_TRAM_CFG ) ? $VHCC_TRAM_CFG : array( 'cong' => '', 'ver' => 
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>Chấm công — K&amp;H</title>
+<?php
+/* Manifest + biểu tượng + đăng ký worker. Đặt TRƯỚC <style> để iPhone đọc được `theme-color`
+   ngay từ mảnh HTML đầu tiên — muộn hơn thì nó nháy một khung trắng rồi mới tối lại. Nội dung
+   và lý do từng thẻ nằm ở `VHCC_PWA::the_head()`. */
+VHCC_PWA::the_head();
+?>
 <style>
 /* ══════════════════════════════════════════════════════════════════════════════════════════
- * MẶT TỐI CỦA BỘ ÁO CHUNG — cùng TÊN BIẾN, cùng BO GÓC, cùng NHỊP; chỉ khác MÀU.
+ * BỘ ÁO CHUNG, MẶT SÁNG — cùng TÊN BIẾN, cùng BO GÓC, cùng NHỊP, và từ 17/09/2026 cùng cả MÀU.
  *
- * `tools/test/kiem-bo-ao-tron.php` canh bảy trang của cả nhà đi cùng một bộ. Trang Ghế và
- * màn này là hai mặt TỐI trong bảy trang ấy: chúng được miễn phần màu, nhưng KHÔNG được
- * miễn phần hình — sáu bo góc và sáu bước nhịp phải khớp từng chữ số với năm trang sáng,
- * nếu không thì mở màn này rồi mở bảng công là thấy hai phần mềm khác nhau.
+ * `tools/test/kiem-bo-ao-tron.php` canh bảy trang của cả nhà đi cùng một bộ. Sáu bo góc và
+ * sáu bước nhịp phải khớp từng chữ số với các trang kia, nếu không thì mở màn này rồi mở
+ * bảng công là thấy hai phần mềm khác nhau.
  *
- * 🔴 VÌ SAO MÀN NÀY PHẢI Ở LẠI MẶT TỐI. Không phải thẩm mỹ. Nó mở camera soi mặt để chấm
- *    công, và chạy cả ca đêm. Nền kem sáng thì màn hình điện thoại hắt thẳng vào mặt người
- *    đang đứng chụp — ảnh bệt, và đúng cái ảnh ấy là thứ quản lý dùng để đối chiếu sau này.
- *    Ai đó "cho đồng bộ" bằng cách dán bảng màu sáng vào đây thì phép thử phải đỏ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MÀN NÀY TỪNG LÀ MẶT TỐI. ĐỔI SANG SÁNG LÀ MỘT ĐÁNH ĐỔI CÓ Ý THỨC, KHÔNG PHẢI SƠ SUẤT
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Lý do cũ, vẫn đúng về mặt vật lý: màn này mở camera soi mặt để chấm công và chạy cả ca đêm.
+ * Nền sáng thì màn hình điện thoại hắt vào mặt người đang đứng chụp, ảnh bệt hơn — mà đúng
+ * tấm ảnh ấy là thứ quản lý dùng để đối chiếu khi tranh cãi.
+ *
+ * Anh Thắng 17/09/2026 chốt SÁNG TOÀN BỘ, đổi lại được sự đồng nhất với bảy trang còn lại.
+ * Ghi lại đây để người sau đọc được cả hai vế, thay vì thấy một quyết định trần trụi rồi
+ * đoán là ai đó dán nhầm bảng màu.
+ *
+ * ⚠️ THỨ CẦN THEO DÕI, KHÔNG PHẢI THỨ CẦN SỢ. Nếu về sau ảnh chấm công ca đêm bị phàn nàn là
+ *    mờ hoặc bệt mặt, thì đây là chỗ đầu tiên phải nghi — không phải camera, không phải mạng.
+ *    Cách chữa nhẹ nhất mà không quay lại nền tối cho cả trang: cho RIÊNG màn chụp (`#mChup`)
+ *    một bảng màu tối, vì chỉ năm giây đứng chụp mới có vấn đề hắt sáng. Phép thử ở mục 5 của
+ *    `kiem-bo-ao-tron.php` đã đổi theo hướng đó — nó canh màn chụp, không canh cả trang.
  *
  * ⚠️ TOKEN KHAI NGAY TẠI ĐÂY, KHÔNG GOM VÀO TỆP DÙNG CHUNG. Màn này và bảng công có MƯỜI MỘT
  *    lớp trùng tên mà khác nghĩa — `.an` ở đây là `display:none`, ở bảng công là *ẩn với mắt
@@ -35,12 +52,21 @@ $cfg = isset( $VHCC_TRAM_CFG ) ? $VHCC_TRAM_CFG : array( 'cong' => '', 'ver' => 
  *    gom hai bộ luật vào một chỗ mới là mười một lớp đè nhau.
  * ══════════════════════════════════════════════════════════════════════════════════════════ */
 :root{
-	/* --- màu: mặt TỐI --- */
-	--nen:#101828; --the:#1b2436; --nen-2:#243049;
-	--vien:#31405e; --vien-dam:#455873;
-	--chu:#e7ecf5; --chu-dam:#ffffff; --chu-mo:#93a3bd;
-	--nhan:#38bdf8; --nhan-dam:#0ea5e9; --nhan-nhat:#12314a;
-	--do:#f87171;
+	/* --- màu: mặt SÁNG, khớp từng mã với bảng công và ba trang Chi phí --- */
+	--nen:#f9f8f6; --the:#ffffff; --nen-2:#f4f1ec;
+	--vien:#f0e9e1; --vien-dam:#e2d6c7;
+	--chu:#171417; --chu-dam:#0c1754; --chu-mo:#8c8781;
+	--nhan:#2545ff; --nhan-dam:#1a34c9; --nhan-nhat:#eaebf8;
+	--do:#e7000b;
+	/* Chỉ dùng ở một chỗ (dòng nhắc "cần gõ PIN riêng" trên ô POSH), nhưng vẫn KHAI chứ không
+	   dán thẳng mã màu vào luật: `kiem-bo-ao-tron.php` mục 2 bắt đúng lỗi này, và nó bắt đúng —
+	   một hex dán tay là chỗ đầu tiên lệch khỏi bộ áo chung khi ai đó đổi bảng màu. Mã lấy từ
+	   `VHCC_Web::css()`, cùng một thứ vàng với bảy trang kia. */
+	--vang-dam:#b45309;
+	/* Bốn nền nhạt của ô ứng dụng. KHAI chứ không dán hex vào từng luật, cùng lý do như
+	   `--vang-dam` ngay trên: bốn mã này lấy từ `VHCC_Web::css()`, nên đổi bảng màu ở đó là
+	   đổi được cả đây. Dán tay bốn hex là bốn chỗ phải nhớ sửa, và sẽ quên. */
+	--luc-nhat:#f0fdf4; --vang-nhat:#fffbeb; --tim-nhat:#f5f3ff; --cam-nhat:#fff7ed;
 	/* --- hình: SÁU con số phải khớp từng chữ số với sáu trang kia --- */
 	--d1:4px; --d2:8px; --d3:12px; --d4:16px; --d5:20px; --d6:24px;
 	--bo-the:16px; --bo-nut:18px; --bo-o:10px; --bo-o-bang:6px; --bo-nho:8px; --bo-badge:16px;
@@ -62,7 +88,11 @@ body{font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,san
 	  radial-gradient(38rem 26rem at 50% 110%,rgba(8,145,178,.12),transparent 60%),
 	  var(--nen);
 	background-attachment:fixed}
-.bao{max-width:520px;margin:0 auto;padding:14px 14px calc(28px + env(safe-area-inset-bottom))}
+/* Đáy chừa 76px cho thanh tab + khoảng an toàn. Thiếu chỗ này thì nút Thoát và dòng phiên
+   bản nằm khuất dưới thanh, và không cuộn xuống thêm được nữa. */
+.bao{max-width:520px;margin:0 auto;padding:14px 14px calc(76px + env(safe-area-inset-bottom))}
+/* Màn đăng nhập và mấy màn phủ không có thanh tab — trả lại khoảng đáy bình thường. */
+.mn .bao,#mVao.bao,#mQuen.bao{padding-bottom:calc(28px + env(safe-area-inset-bottom))}
 h1{font-size:18px;margin:0 0 2px}
 .mo{color:var(--chu-mo);font-size:12.5px;margin:0 0 14px}
 .the{background:var(--the);border:1px solid var(--vien);border-radius:var(--bo-the);
@@ -85,12 +115,71 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .phu{background:transparent;border:1px solid var(--vien-dam);color:var(--chu-mo);box-shadow:none}
 .hang{display:flex;gap:9px}
 .hang>*{flex:1}
-.dong{background:#7f1d1d;border:1px solid #b91c1c;color:#fecaca;border-radius:var(--bo-nho);
+/* ⚠️ BA LỚP NÀY SÓT LẠI TỪ BẢN NỀN TỐI — sửa 17/09/2026.
+   Lúc trang chuyển sang nền sáng, ba lớp báo trạng thái vẫn giữ nền tối (#7f1d1d, #064e3b,
+   #422006). Trên nền kem chúng thành ba mảng nâu/đỏ sẫm — vẫn ĐỌC ĐƯỢC nên không ai báo lỗi,
+   nhưng nhìn như dán nhầm từ trang khác sang. Đây đúng kiểu lỗi mà đổi bảng màu hay bỏ sót:
+   thứ chỉ hiện ra trong mấy trạng thái, mà lúc thử thì không ai cố tình làm cho nó lỗi.
+
+   ⚠️ NGOẠI LỆ: bên TRONG thẻ chấm công (nền tối) thì ba lớp này lại phải tối — xem luật
+      `.the-cham .dong` ở dưới. */
+.dong{background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:var(--bo-nho);
 	padding:11px 13px;margin:10px 0;font-size:13.5px}
-.xanh{background:#064e3b;border:1px solid #059669;color:#bbf7d0;border-radius:var(--bo-nho);
+.xanh{background:var(--luc-nhat);border:1px solid #bbf7d0;color:#166534;border-radius:var(--bo-nho);
 	padding:11px 13px;margin:10px 0;font-size:13.5px}
-.vang{background:#422006;border:1px solid #a16207;color:#fde68a;border-radius:var(--bo-nho);
-	padding:11px 13px;margin:10px 0;font-size:13px}
+.vang{background:var(--vang-nhat);border:1px solid #fde68a;color:var(--vang-dam);
+	border-radius:var(--bo-nho);padding:11px 13px;margin:10px 0;font-size:13px}
+/* Trong thẻ tối thì ngược lại — nền nhạt trên nền tối là một mảng chói giữa màn. */
+.the-cham .dong{background:rgba(127,29,29,.5);border-color:#b91c1c;color:#fecaca}
+.the-cham .xanh{background:rgba(6,78,59,.5);border-color:#059669;color:#bbf7d0}
+.the-cham .vang{background:rgba(66,32,6,.6);border-color:#a16207;color:#fde68a}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * THẺ CHẤM CÔNG — mảng tối duy nhất của trang sáng.
+ *
+ * ⚠️ MÃ MÀU DÁN TAY, KHÔNG DÙNG TTOKEN. Đây là ngoại lệ có chủ ý và là ngoại lệ DUY NHẤT:
+ *    các biến `--nen` `--the` `--chu` của trang nay là bảng SÁNG, mà thẻ này cố ý tối — dùng
+ *    chúng thì ra một thẻ trắng trên nền trắng. Khai thêm một bộ biến tối chỉ cho một thẻ là
+ *    sáu tên biến nữa trong :root mà sáu trang kia không có, và `kiem-bo-ao-tron.php` mục 1
+ *    canh đúng bộ tên ấy. Nên: dán thẳng, và ghi rõ ở đây để người sau biết là cố ý.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.the-cham{background:linear-gradient(160deg,#132038 0%,#1b2b4a 55%,#16243d 100%);
+	border-radius:var(--bo-the);padding:var(--d5) var(--d4) var(--d6);margin:0 0 var(--d3);
+	text-align:center;position:relative;overflow:hidden}
+/* Vầng sáng rất loãng sau đồng hồ — cùng thủ pháp "nền 3D" của sáu trang kia, chỉ đổi tông. */
+.the-cham::before{content:'';position:absolute;top:-70px;left:50%;transform:translateX(-50%);
+	width:280px;height:280px;border-radius:50%;
+	background:radial-gradient(circle,rgba(201,168,76,.13) 0%,transparent 68%);pointer-events:none}
+.cc-ngay{color:#93a3bd;font-size:12.5px;margin:0 0 2px;position:relative}
+.cc-gio{font-variant-numeric:tabular-nums;font-size:44px;font-weight:800;letter-spacing:1px;
+	margin:2px 0 0;color:#fff;position:relative;line-height:1.05}
+.cc-nhan{color:#93a3bd;font-size:12px;margin:4px 0 0;position:relative}
+
+/* NÚT TRÒN.
+   🔴 160px là con số có lý do: đây là nút người ta bấm bằng một tay, thường đang cầm thêm
+      thứ khác, đôi khi trong ánh sáng kém ở cơ sở. Nút chữ nhật cao 48px đủ chuẩn vùng chạm
+      nhưng vẫn phải NHÌN mới bấm trúng; một vòng tròn to giữa màn thì bấm được không cần nhìn.
+   ⚠️ Không dùng `aspect-ratio` — Safari cũ trên máy nhân viên bỏ qua nó và nút thành hình
+      thuôn. Khai thẳng width + height. */
+.nut-tron{width:160px;height:160px;border-radius:50%;margin:var(--d4) auto 0;
+	display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+	border:3px solid #C9A84C;background:rgba(201,168,76,.12);cursor:pointer;
+	font:inherit;position:relative;
+	box-shadow:0 0 0 9px rgba(201,168,76,.055), 0 0 0 18px rgba(201,168,76,.028);
+	transition:transform .12s, background .12s}
+.nut-tron:active{transform:scale(.96);background:rgba(201,168,76,.22)}
+.nut-tron i{font-style:normal;font-size:33px;line-height:1}
+.nut-tron span{color:#C9A84C;font-size:13px;font-weight:800;letter-spacing:1.1px}
+.nut-tron:disabled{opacity:.45;border-color:#455873;box-shadow:none;cursor:default}
+.nut-tron:disabled span{color:#93a3bd}
+/* Đã chấm vào, đang chờ ra: đổi sang xanh lá. Cùng nghĩa với tông trạng thái của sáu trang
+   kia — xanh lá = xong, không phải trang trí. */
+.nut-tron.dang-lam{border-color:#4ade80;background:rgba(74,222,128,.14);
+	box-shadow:0 0 0 9px rgba(74,222,128,.06), 0 0 0 18px rgba(74,222,128,.03)}
+.nut-tron.dang-lam span{color:#4ade80}
+/* Trạng thái và báo lỗi nằm TRONG thẻ tối nên phải đổi chữ, không thì chữ tối trên nền tối. */
+.the-cham #trangThai,.the-cham #baoCham{color:#e7ecf5;position:relative;margin-top:var(--d3)}
+.the-cham #trangThai:empty,.the-cham #baoCham:empty{margin-top:0}
+
 .dhho{font-variant-numeric:tabular-nums;font-size:38px;font-weight:800;letter-spacing:1px;
 	text-align:center;margin:2px 0 0;color:var(--chu-dam)}
 .dngay{text-align:center;color:var(--chu-mo);font-size:12.5px;margin:0 0 2px}
@@ -113,11 +202,71 @@ video,canvas.xem{width:100%;border-radius:var(--bo-the);background:#000;display:
 	background:rgba(255,255,255,.72);padding:0 5px;border-radius:var(--bo-o-bang)}
 /* ⚠️ Thanh dính phải ĐỤC. Nền trang là gradient; để thanh trong suốt là ba vầng sáng chạy
    qua dưới chữ khi cuộn, và chữ trên nút nhoè theo từng nhịp cuộn. */
-.thanh{position:sticky;top:0;z-index:8;display:flex;gap:9px;margin:0 0 var(--d3);padding:var(--d2) 0;
-	background:var(--nen);box-shadow:0 6px 12px -6px rgba(0,0,0,.7)}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * THANH TAB DƯỚI ĐÁY
+ *
+ * 🔴 `bottom:0` KÈM `padding-bottom: env(safe-area-inset-bottom)`, KHÔNG PHẢI `bottom: env(…)`.
+ *    Đặt `bottom` bằng khoảng an toàn thì thanh nổi lơ lửng, dưới nó là một dải nền trống —
+ *    trên iPhone có thanh gạt về nhà thì dải ấy cao 34px và nhìn như lỗi hiển thị. Cách đúng
+ *    là dán sát đáy rồi đẩy NỘI DUNG BÊN TRONG lên.
+ *
+ * ⚠️ z-index 8 — THẤP HƠN `.mn` (9). Màn chụp ảnh phải phủ kín thanh này: đang đứng trước ống
+ *    kính mà bấm trúng một tab là thoát giữa chừng, ảnh không có mà giờ cũng không được ghi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+#thanhTab{position:fixed;left:0;right:0;bottom:0;z-index:8;display:flex;
+	background:var(--the);border-top:1px solid var(--vien);
+	padding-bottom:env(safe-area-inset-bottom)}
+.tab-nut{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+	gap:3px;padding:9px 4px 8px;border:0;background:transparent;cursor:pointer;
+	font:inherit;font-size:11px;font-weight:600;color:var(--chu-mo);
+	/* 48px: ngưỡng vùng chạm của Apple. Thấp hơn là ngón cái trượt sang tab bên cạnh. */
+	min-height:48px}
+.tab-nut span{font-size:19px;line-height:1}
+.tab-nut.dang{color:var(--nhan)}
+.tab-o{animation:hienTab .18s ease-out}
+@keyframes hienTab{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * LƯỚI ỨNG DỤNG
+ *
+ * Hai cột, không phải ba. Ba cột ở bề rộng 520px là mỗi ô còn ~150px: tên "Nộp báo cáo POSH"
+ * xuống ba dòng, và vùng chạm tụt xuống dưới ngưỡng ngón cái. Lưới ba cột của mấy app lớn
+ * chạy được vì nhãn của họ một hai chữ.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+.luoi-ung{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--d3)}
+.o-ung{display:block;text-decoration:none;color:var(--chu);background:var(--nen-2);
+	border:1px solid var(--vien);border-radius:var(--bo-o);padding:var(--d3);
+	/* minmax(0,1fr) ở trên + min-width:0 ở đây: thiếu một trong hai là tên dài đẩy toang cột. */
+	min-width:0}
+.o-ung:active{background:var(--vien)}
+/* Ô CHƯA ĐƯỢC CẤP. Mờ đủ để đọc ra là "khác", KHÔNG mờ tới mức không đọc nổi: cả điểm của
+   việc bày nó ra là để người ta biết thứ ấy tồn tại mà đi xin.
+   ⚠️ `cursor:default` + không có :active — ô này không phải thẻ <a> nên vốn đã không bấm được;
+      mấy dòng này chỉ để ngón tay chạm vào KHÔNG thấy phản hồi, tức là nói "đây không phải nút"
+      trước cả khi người ta đọc chữ. */
+.o-ung.o-khoa{opacity:.55;cursor:default;background:var(--nen-2);border-style:dashed}
+.o-ung.o-khoa .o-icon{filter:grayscale(1)}
+.o-xin{display:block;font-size:11px;color:var(--chu-mo);margin-top:8px;line-height:1.4}
+.o-ung b{display:block;font-size:14px;margin:9px 0 2px;color:var(--chu-dam)}
+.o-mo{display:block;font-size:11.5px;color:var(--chu-mo);line-height:1.4}
+.o-nhac{display:block;font-size:11px;color:var(--vang-dam);margin-top:6px;line-height:1.35}
+.o-icon{display:flex;align-items:center;justify-content:center;width:42px;height:42px;
+	border-radius:12px;font-size:21px}
+.o-xanh{background:var(--nhan-nhat)}
+.o-vang{background:var(--vang-nhat)}
+.o-tim{background:var(--tim-nhat)}
+.o-luc{background:var(--luc-nhat)}
+.o-cam{background:var(--cam-nhat)}
+/* Ô nhập hồ sơ: nhãn nhỏ trên, ô nhập dưới — cùng nhịp với .fld của sáu trang kia. */
+.fldx{margin:0 0 var(--d3)}
+.fldx label{display:block;font-size:11px;font-weight:700;color:var(--chu-mo);
+	text-transform:uppercase;letter-spacing:.4px;margin:0 0 4px}
+.fldx input{width:100%}
+
+/* Chữ cái đầu tên, dùng ở tab Tôi. */
+#chuCai{flex:0 0 46px;height:46px;border-radius:50%;background:var(--nhan-nhat);color:var(--nhan);
+	display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800}
 .thanh button{flex:1;padding:11px 8px;font-size:14px}
 /* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
-#oKhoiCham,#oKhoiCong{scroll-margin-top:62px}
 .khung{position:relative}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:var(--bo-the)}
@@ -173,38 +322,33 @@ a{color:var(--nhan)}
 	<p class="mo"><span id="maToi"></span> · <span id="csToi"></span></p>
 	<div id="tinhTrang"></div>
 
-	<!-- ============ THANH NHẢY NHANH ============
-	     Dính ở đầu màn hình, nên bấm được dù đang cuộn tới đâu. Người ta mở trang này vì hai
-	     việc, và hai việc ấy nằm cách nhau bốn khối. -->
-	<div class="thanh">
-		<button id="btDenCham" class="phu">📷 Chấm công</button>
-		<button id="btDenCong" class="phu">📅 Công của tôi</button>
-		<button id="btDenXin" class="phu">📝 Xin phép</button>
-	</div>
+	<!-- ============ TAB 1: CHẤM CÔNG ============
+	     Trước đây cả ba khối này nằm chung một trang cuộn dài, với một thanh nhảy nhanh ở
+	     đầu. Nhảy neo giải quyết được việc "bấm được dù đang cuộn tới đâu", nhưng không giải
+	     quyết được việc người ta phải cuộn qua bảng tháng 30 dòng để về lại nút chấm. -->
+	<div id="tChamCong" class="tab-o">
 
-	<div class="the">
-		<p class="dngay" id="ngayMC">—</p>
-		<p class="dhho" id="gioMC">--:--:--</p>
-		<p class="dngay" style="margin-top:4px">giờ máy chủ</p>
-	</div>
+	<!-- ============ THẺ CHẤM CÔNG ============
+	     Gộp đồng hồ + trạng thái + nút vào MỘT thẻ. Trước đây là hai thẻ rời: đồng hồ ở trên,
+	     nút ở dưới — mà hai thứ ấy là một câu ("bây giờ là mấy giờ, và tôi bấm cái này"), tách
+	     ra thì mắt phải đi hai lượt.
 
-	<div class="the" id="oKhoiCham">
+	     🔴 THẺ NÀY LÀ MẢNG TỐI DUY NHẤT CÒN LẠI SAU KHI TRANG CHUYỂN SANG NỀN SÁNG, và đó là
+	        chủ ý. Nó chứa hai thứ quan trọng nhất màn hình — mốc giờ máy chủ và cái nút ghi
+	        công — nên phải tách khỏi phần còn lại bằng một thứ mạnh hơn cái viền. Nền tối cũng
+	        là thứ duy nhất trong trang KHÔNG hắt sáng vào mặt lúc người ta đứng chụp ngay sau
+	        khi bấm. -->
+	<div class="the-cham">
+		<p class="cc-ngay" id="ngayMC">—</p>
+		<p class="cc-gio" id="gioMC">--:--:--</p>
+		<p class="cc-nhan">giờ máy chủ</p>
 		<div id="trangThai"></div>
 		<div id="baoCham"></div>
-		<p></p>
-		<button id="btCham" class="chinh to">📷 CHẤM CÔNG</button>
-	</div>
-
-	<!-- ============ LƯỢT CHẤM ĐANG GIỮ TRONG MÁY ============
-	     Ẩn khi hàng đợi trống, và đó là trạng thái bình thường. Bày một ô "Chờ gửi: 0" suốt
-	     ngày là dạy người ta bỏ qua chính cái ô ấy đúng hôm nó có số. -->
-	<div class="the an" id="oHangCho">
-		<label style="margin:0 0 8px">Chờ gửi lên máy chủ</label>
-		<div id="dsHangCho"></div>
-		<p class="ct" style="text-align:left;margin:8px 0 10px">Mấy lượt này đã đóng dấu <b>giờ máy
-			chủ</b> lúc bấm, nên gửi muộn vẫn vào đúng giờ ấy. <b>Đừng chấm lại</b> — chấm lại là
-			hai lượt.</p>
-		<button id="btDayHang" class="phu" style="width:100%">Thử gửi ngay</button>
+		<div id="oKhoiCham">
+			<button id="btCham" class="nut-tron">
+				<i>📷</i><span>CHẤM CÔNG</span>
+			</button>
+		</div>
 	</div>
 
 	<!-- ============ VỊ TRÍ ĐANG ĐỨNG ============ -->
@@ -226,6 +370,11 @@ a{color:var(--nhan)}
 		<div id="bangHN"><p class="trong">Đang tải…</p></div>
 	</div>
 
+	</div><!-- /tChamCong -->
+
+	<!-- ============ TAB 2: CÔNG CỦA TÔI ============ -->
+	<div id="tCong" class="tab-o an">
+
 	<div class="the" id="oKhoiCong">
 		<label style="margin:0 0 8px">Công của tôi</label>
 		<div class="hang" style="align-items:center;margin:0 0 10px">
@@ -240,20 +389,90 @@ a{color:var(--nhan)}
 			có thể khác — thấy lệch thì báo, đừng tự cộng.</p>
 	</div>
 
-	<p id="oQuanTri" class="an" style="margin:14px 0 0">
-		<a id="lkQuanTri" class="phu" href="#"
-			style="display:block;text-align:center;text-decoration:none;padding:13px 16px;border-radius:10px">
-			Trang quản trị →</a></p>
+	</div><!-- /tCong -->
+
+	<!-- ============ TAB 3: ỨNG DỤNG ============
+	     Lưới dựng ở trình duyệt, nhưng phép gác nằm trọn ở máy chủ: `?viec=ung` chỉ trả về
+	     những ô người này thật sự vào được, nên trình duyệt chưa bao giờ nhận được ô bị khoá
+	     để mà ẩn đi. Xem khối chú thích đầu `class-vhcc-ung.php`. -->
+	<div id="tUng" class="tab-o an">
+		<div class="the">
+			<label style="margin:0 0 10px">Ứng dụng của bạn</label>
+			<div id="oUng"><p class="trong">Đang tải…</p></div>
+		</div>
+	</div><!-- /tUng -->
+
+	<!-- ============ TAB 4: TÔI ============ -->
+	<div id="tToi" class="tab-o an">
+
+	<div class="the">
+		<label style="margin:0 0 8px">Tài khoản</label>
+		<div class="hang" style="align-items:center;gap:12px">
+			<div id="chuCai">—</div>
+			<div style="flex:1;min-width:0">
+				<b id="tenToi2" style="display:block;font-size:16px">—</b>
+				<span class="ct" id="moToi2">—</span>
+				<span class="ct an" id="oVaiToi">Vai: <b id="vaiToi">—</b></span>
+			</div>
+		</div>
+	</div>
+
+	<!-- ============ HỒ SƠ NHÂN SỰ ============
+	     Danh sách ô do MÁY CHỦ quyết (VHCC_HoSoToi::SUA_DUOC), không gõ tay ở đây: gõ hai nơi
+	     là sớm muộn màn hình bày một ô mà máy chủ không nhận, người ta gõ xong bấm Lưu rồi
+	     thấy nó biến mất. -->
+	<div class="the">
+		<div class="hang" style="align-items:center;margin:0 0 4px">
+			<label style="margin:0;flex:1">Hồ sơ nhân sự</label>
+			<span id="nhanThieu" class="nhan an"></span>
+		</div>
+		<div id="oHoSo"><p class="trong">Đang tải…</p></div>
+	</div>
+
+	<!-- ============ ĐỔI MẬT KHẨU ============ -->
+	<div class="the">
+		<label style="margin:0 0 8px">Đổi mật khẩu (PIN)</label>
+		<div id="oPin">
+			<input id="pinCu"  type="password" inputmode="numeric" autocomplete="off" placeholder="Mật khẩu đang dùng">
+			<p></p>
+			<input id="pinMoi" type="password" inputmode="numeric" autocomplete="off" placeholder="Mật khẩu mới">
+			<p></p>
+			<input id="pinLai" type="password" inputmode="numeric" autocomplete="off" placeholder="Nhập lại mật khẩu mới">
+			<p></p>
+			<button id="btDoiPin" class="phu" style="width:100%">Đổi mật khẩu</button>
+			<div id="baoPin"></div>
+		</div>
+	</div>
+
+	<?php
+	/* Ô cài ứng dụng (Android/Chrome). Tự ẩn khi đã cài, và tự ẩn hẳn trên iPhone — iOS không
+	   bắn `beforeinstallprompt`, phần chỉ đường cho iPhone nằm ở ô Bật thông báo ngay dưới. */
+	VHCC_PWA::nut_cai();
+
+	/* Ô bật thông báo. Tự ẩn khi máy không làm được — xem VHCC_Push::giao_dien(). */
+	VHCC_Push::giao_dien();
+	?>
 
 	<p style="margin:14px 0 0"><button id="btRa" class="phu" style="width:100%">Thoát</button></p>
 	<p class="ct">K&amp;H · b<?php echo esc_html( $cfg['ver'] ); ?></p>
+
+	</div><!-- /tToi -->
 </div>
+
+<!-- ============ THANH TAB DƯỚI ĐÁY ============
+     z-index 8 — THẤP HƠN `.mn` (9), để màn chụp ảnh và màn chọn cơ sở phủ kín nó. Bằng hoặc
+     cao hơn thì lúc đứng chụp vẫn thấy thanh tab ló ra, bấm trúng là thoát giữa chừng. -->
+<nav id="thanhTab" class="an">
+	<button class="tab-nut dang" data-tab="tChamCong"><span>📷</span>Chấm công</button>
+	<button class="tab-nut" data-tab="tCong"><span>📅</span>Công của tôi</button>
+	<button class="tab-nut" data-tab="tUng"><span>🧩</span>Ứng dụng</button>
+	<button class="tab-nut" data-tab="tToi"><span>👤</span>Tôi</button>
+</nav>
 
 <!-- ============ MÀN CHỤP ẢNH ============ -->
 <div id="mChup" class="mn an"><div class="bao">
 	<h1>Chụp ảnh</h1>
-	<p class="mo">Đưa mặt vào khung, đủ sáng. Máy tự chụp sau <b>5 giây</b> —
-		chạm vào khung hình để đếm lại từ đầu. Ảnh được đóng dấu giờ máy chủ.</p>
+	<p class="mo">Đưa mặt vào khung, đủ sáng, rồi bấm <b>Chụp ngay</b>. Ảnh được đóng dấu giờ máy chủ.</p>
 	<div class="the" id="oMau"></div>
 	<div class="the" style="padding:10px">
 		<div class="khung">
@@ -286,67 +505,6 @@ a{color:var(--nhan)}
 		<button id="btLuu" class="chinh to">LƯU CHẤM CÔNG</button>
 		<p style="margin:10px 0 0"><button id="btHuyChon" class="phu" style="width:100%">Quay lại</button></p>
 	</div>
-</div></div>
-
-<!-- ============ MÀN XIN PHÉP ============
-     Đi trễ và đổi lịch (gồm cả xin nghỉ một ngày). Nghiệp vụ nằm nguyên ở VHCC_XinTre và
-     VHCC_Lich; màn này chỉ là cái cửa — xem chú thích khối `xintre` trong class-vhcc-tram.php.
-
-     🔴 HAI KHỐI TÁCH RỜI, KHÔNG GỘP THÀNH MỘT Ô XỔ "LOẠI ĐƠN". Hai loại đơn đi về hai bảng
-        khác nhau, hai người duyệt khác nhau, hai bộ hạn nộp khác nhau, và đơn đi trễ thì cơ
-        sở nào cũng nộp được còn đơn đổi lịch chỉ có nghĩa ở cơ sở đã bật phân lịch. Gộp vào
-        một biểu mẫu là phải ẩn/hiện quá nửa số ô theo lựa chọn — và người nộp không bao giờ
-        biết chắc cái ô mình vừa điền có được gửi đi hay không. -->
-<div id="mXin" class="mn an"><div class="bao">
-	<h1>Xin phép</h1>
-	<p class="mo">Nộp <b>trước</b> thì cửa hàng trưởng duyệt kịp. Đơn đã duyệt chỉ bỏ cảnh báo,
-		<b>không</b> cộng thêm giờ công.</p>
-
-	<div class="the">
-		<label style="margin:0 0 8px">Xin phép đi trễ</label>
-		<p class="ct" style="text-align:left;margin:0 0 10px">Cơ sở nào cũng nộp được. Đơn được duyệt
-			thì ô vàng "chấm thiếu giờ" của ngày ấy bỏ đi — <b>số giờ trong ô không đổi</b>.</p>
-		<label for="xtNgay">Ngày xin trễ</label>
-		<input id="xtNgay" type="date">
-		<label for="xtPhut">Trễ khoảng bao nhiêu phút</label>
-		<input id="xtPhut" type="number" inputmode="numeric" min="1" step="1" placeholder="VD: 20">
-		<label for="xtLyDo">Lý do</label>
-		<input id="xtLyDo" type="text" maxlength="250" placeholder="Cửa hàng trưởng duyệt theo lý do">
-		<div id="loiTre"></div>
-		<p></p>
-		<button id="btGuiTre" class="chinh to">GỬI ĐƠN ĐI TRỄ</button>
-	</div>
-
-	<div class="the" id="oKhoiLich">
-		<label style="margin:0 0 8px">Xin đổi lịch / xin nghỉ một ngày</label>
-		<div id="oLichTat" class="an"><p class="trong">—</p></div>
-		<div id="oLichMo" class="an">
-			<p class="ct" style="text-align:left;margin:0 0 10px">Đổi việc của một ngày đã xếp lịch, hoặc
-				dời sang ngày khác. Duyệt xong là <b>lịch đổi thật</b>, không chỉ đổi trạng thái đơn.</p>
-			<label for="xlCoSo">Cơ sở</label>
-			<select id="xlCoSo"></select>
-			<label for="xlNgay">Ngày cần đổi</label>
-			<input id="xlNgay" type="date">
-			<label for="xlCa">Ca</label>
-			<select id="xlCa"></select>
-			<label for="xlViec">Việc mới cho ngày đó</label>
-			<select id="xlViec"></select>
-			<label for="xlDoiSang">Dời sang ngày khác (để trống nếu chỉ đổi việc)</label>
-			<input id="xlDoiSang" type="date">
-			<label for="xlLyDo">Lý do</label>
-			<input id="xlLyDo" type="text" maxlength="250" placeholder="Người xếp lịch duyệt theo lý do">
-			<div id="loiLich"></div>
-			<p></p>
-			<button id="btGuiLich" class="chinh to">GỬI ĐƠN ĐỔI LỊCH</button>
-		</div>
-	</div>
-
-	<div class="the">
-		<label style="margin:0 0 8px">Đơn của tôi</label>
-		<div id="bangDon"><p class="trong">Đang tải…</p></div>
-	</div>
-
-	<p style="margin:10px 0 0"><button id="btDongXin" class="phu" style="width:100%">Quay lại</button></p>
 </div></div>
 
 <script>
@@ -534,13 +692,11 @@ function datToken(t){ try{ t?localStorage.setItem(KHOA_PHIEN,t):localStorage.rem
    Lấy mốc từ máy chủ MỘT lần rồi để nó tự trôi theo đồng hồ máy. Không bao giờ đọc
    `new Date()` làm giờ hiển thị hay giờ đóng dấu — điện thoại lệch giờ là chuyện thường, và
    một tấm ảnh in sai giờ là bằng chứng nói ngược lại hàng đã ghi. */
-var MOC = null;   /* {sec: giây epoch máy chủ, tuLuc: performance.now() lúc nhận, ve: vé đã ký} */
+var MOC = null;   /* {sec: giây epoch của máy chủ, tuLuc: performance.now() lúc nhận} */
 
 function napGio(){
-	/* Gửi kèm thẻ phiên để máy chủ phát VÉ GIỜ (xem VHCC_Tram::ve_gio). Màn đăng nhập cũng gọi
-	   hàm này lúc chưa có thẻ — lúc ấy không có vé, và đúng: chưa đăng nhập thì chưa chấm. */
-	return goi('gio',{token:token()}).then(function(j){
-		if(j && j.ok){ MOC = { sec: Number(j.moc)||0, tuLuc: performance.now(), ve: j.ve || '' }; }
+	return goi('gio',{}).then(function(j){
+		if(j && j.ok){ MOC = { sec: Number(j.moc)||0, tuLuc: performance.now() }; }
 		return j;
 	}).catch(function(e){
 		/* Đồng hồ đứng ở "--:--:--" là dấu hiệu đầu tiên người ta nhìn thấy khi máy chủ hỏng —
@@ -607,6 +763,72 @@ function dai(m){
 	m = Math.round(Number(m) || 0);
 	if(m < 1000) return m + 'm';
 	return (m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + 'km';
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * Ô BẢN ĐỒ ĐÓNG LÊN ẢNH — anh Thắng 17/09/2026: *"kèm bản đồ được không"*.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TẢI SẴN, KHÔNG TẢI LÚC BẤM CHỤP
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bấm chụp là thao tác KHÔNG ĐƯỢC PHÉP HỎNG. Thêm một lượt tải ảnh từ mạng vào đúng khoảnh
+ * khắc ấy là thêm một chỗ treo, mà người ta đang đứng giơ điện thoại. Nên: lấy được GPS thì
+ * tải ngay ô bản đồ, cất sẵn trong bộ nhớ; lúc chụp chỉ VẼ cái đã có. Chưa kịp tải thì bỏ qua
+ * — ảnh vẫn có dấu giờ và dấu toạ độ như thường.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LẤY Ô ẢNH QUA `urlO()` — MÁY CHỦ MÌNH, KHÔNG MÓC THẲNG VÀO OSM
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Bản nháp của tệp này gọi thẳng `tile.openstreetmap.org`. `tools/test/kiem-tram.php` đỏ ngay,
+ * và nó đỏ vì KHO ĐÃ TRẢ GIÁ CHO ĐÚNG CHUYỆN NÀY HAI LẦN (xem chú thích ở phép thử ấy):
+ *   1. nhúng `<iframe> openstreetmap.org` -> "đã từ chối kết nối", JavaScript không bắt được
+ *      lỗi để hiện thứ khác thay;
+ *   2. tải thẳng ô ảnh từ `tile.openstreetmap.org` -> ô trắng, dấu hỏi ảnh vỡ. Chính sách của
+ *      họ KHÔNG cho một trang bất kỳ móc thẳng vào máy chủ ô ảnh — họ chặn, và họ đúng.
+ * Cách đang dùng: MÁY CHỦ MÌNH tải hộ một lần rồi nhớ lại (`?viec=o&z=..`), đúng cái `urlO()`
+ * mà bản đồ trên màn hình đã dùng.
+ *
+ * ⚠️ VÀ NÓ GIẢI QUYẾT LUÔN CHUYỆN CANVAS NHIỄM. Ảnh về từ CÙNG TÊN MIỀN nên không có rào CORS
+ *    nào cả — `toDataURL()` chạy bình thường. Nếu lấy từ tên miền khác mà thiếu CORS thì canvas
+ *    bị "nhiễm" và `toDataURL()` NÉM LỖI: mất cả tấm ảnh chứ không phải mất mỗi ô bản đồ.
+ *    Vẫn giữ `try` quanh chỗ vẽ — rẻ, và là chốt cuối.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 CHỈ TẢI KHI GPS THẬT
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Sai số ±200km mà vẽ một cái chấm giữa Quận 1 là NÓI DỐI BẰNG HÌNH ẢNH — người xem tin vào
+ * cái chấm chứ không đọc dòng ±. Đây đúng là lý do `veViTri()` không vẽ bản đồ ở mức ấy, và ô
+ * trên ảnh phải theo cùng luật.
+ *
+ * ⚠️ GHI NGUỒN LÀ BẮT BUỘC, KHÔNG PHẢI TRANG TRÍ. Bản đồ OpenStreetMap phát hành theo giấy
+ *    phép ODbL; dùng mà không ghi "© OpenStreetMap" là vi phạm. Chữ ấy vẽ ngay trên ô, không
+ *    được bỏ để "cho gọn".
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+var BANDO = null;        /* Image đã tải xong, kèm vị trí tương đối của điểm trong ô */
+var BANDO_KHOA = '';     /* toạ độ đã tải, để đứng yên một chỗ thì không tải lại */
+
+var BANDO_Z = 16;        /* ~2,4 m/điểm ảnh — một ô phủ khoảng 600m, đủ nói "toà nhà nào" */
+
+function taiBanDo(){
+	if(GPS_TRANG !== 'co' || !GPS) return;
+	if(mucGps(GPS.acc) === 'mang') return;    /* xem khối chú thích trên: không vẽ ở mức này */
+
+	var khoa = GPS.lat.toFixed(4) + ',' + GPS.lng.toFixed(4);
+	if(khoa === BANDO_KHOA) return;           /* cùng một chỗ (±11m) — khỏi tải lại */
+	BANDO_KHOA = khoa;
+
+	/* Toạ độ → ô bản đồ (Web Mercator). `fx`/`fy` là vị trí LẺ của điểm bên trong ô, dùng để
+	   đặt cái ghim đúng chỗ — ranh giới ô là cố định nên điểm hiếm khi nằm giữa. */
+	var n = Math.pow(2, BANDO_Z);
+	var xf = (GPS.lng + 180) / 360 * n;
+	var la = GPS.lat * Math.PI / 180;
+	var yf = (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n;
+	var xt = Math.floor(xf), yt = Math.floor(yf);
+
+	var im = new Image();
+	im.onload  = function(){ BANDO = { im: im, fx: xf - xt, fy: yf - yt }; };
+	im.onerror = function(){ BANDO = null; }; /* hụt thì thôi, ảnh vẫn chụp được */
+	im.src = urlO(BANDO_Z, xt, yt);           /* 🔴 máy chủ MÌNH — xem chú thích trên */
 }
 
 function veViTri(){
@@ -805,6 +1027,7 @@ function xinGps(){
 		if(!GPS || moi.acc < GPS.acc){ GPS = moi; }
 		if(GPS.acc <= GPS_DU){ thoiTheoGps(); GPS_TRANG = 'co'; }
 		veViTri();
+		taiBanDo();
 	}, function(err){
 		/* err.code 1 = PERMISSION_DENIED. Hai mã còn lại (2 hết chỗ dò, 3 quá hạn) đều là
 		   "không bắt được sóng" với người dùng, nên gộp — họ làm cùng một việc: ra chỗ thoáng. */
@@ -861,7 +1084,13 @@ el('btTra').addEventListener('click', function(){
 function dangXuat(imLang){
 	datToken('');
 	TOI = null;
-	hien('mChinh',false); hien('mChup',false); hien('mChon',false);
+	/* Máy quầy dùng chung: người sau đăng nhập phải thấy lưới CỦA HỌ, không phải lưới của
+	   người trước còn nằm trong DOM. */
+	DA_NAP_UNG = false;
+	DA_NAP_HS = false;
+	var _h = el('oHoSo'); if(_h){ _h.innerHTML = '<p class="trong">Đang tải…</p>'; }
+	var _u = el('oUng'); if(_u){ _u.innerHTML = '<p class="trong">Đang tải…</p>'; }
+	hien('mChinh',false); hien('mChup',false); hien('mChon',false); hien('thanhTab',false);
 	hien('mVao',true);
 	if(!imLang){ bao('loiVao','',null); }
 	else { bao('loiVao','vang','Phiên đã hết. Đăng nhập lại bằng PIN.'); }
@@ -893,16 +1122,16 @@ function dangGoi(bat){
 
 function moManChinh(){
 	hien('mVao',false); hien('mQuen',false); hien('mChinh',true);
+	hien('thanhTab',true);
+	/* Mở ra là ở tab Chấm công — đó là lý do 9/10 lần người ta mở trang này. Giữ tab cũ
+	   thì ai vừa xem bảng tháng hôm qua, sáng nay mở lên lại thấy bảng tháng. */
+	denTab('tChamCong');
 	dangGoi(true);
 	xinGps();
 	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
 	   khi một nửa vẫn đang treo. */
 	Promise.all([ napGio().then(nhipDongHo), napToi() ])
-		.then(function(){ dangGoi(false); }, function(){ dangGoi(false); })
-		/* Đẩy hàng đợi SAU khi đã có mốc giờ và hồ sơ: lượt gửi lại cần thẻ phiên còn sống, mà
-		   thẻ chỉ chắc chắn còn sống sau khi `napToi()` về không lỗi. */
-		.then(veHangCho)
-		.then(dayHang);
+		.then(function(){ dangGoi(false); }, function(){ dangGoi(false); });
 }
 
 function napToi(){
@@ -916,10 +1145,15 @@ function napToi(){
 			return;
 		}
 		TOI = j;
-		if(j.gio){ MOC = { sec: Number(j.gio.moc)||0, tuLuc: performance.now(), ve: j.gio.ve || '' }; nhipDongHo(); }
+		if(j.gio){ MOC = { sec: Number(j.gio.moc)||0, tuLuc: performance.now() }; nhipDongHo(); }
 		el('tenToi').textContent = j.hoTen || '—';
 		el('maToi').textContent  = 'Mã ' + (j.maNV || '—');
 		el('csToi').textContent  = j.coSoMacDinh || '—';
+		/* Tab Tôi nhắc lại đúng ba thứ ấy. Không phải thừa: trên máy quầy dùng chung, người ta
+		   vào tab Tôi để kiểm xem mình có đang đứng nhầm phiên của người trước không. */
+		el('tenToi2').textContent = j.hoTen || '—';
+		el('moToi2').textContent  = 'Mã ' + (j.maNV || '—') + ' · ' + (j.coSoMacDinh || '—');
+		el('chuCai').textContent  = chuDau(j.hoTen || '');
 		el('btCham').disabled = false;
 		veCoSo(j);
 		/* 🔴 08/09/2026 — CHƯA CÓ CƠ SỞ THÌ KHOÁ NÚT NGAY, đừng để họ chụp ảnh xong mới biết.
@@ -933,16 +1167,16 @@ function napToi(){
 				+ ') chưa tích cơ sở nào, nên chưa chấm công được. Nhờ quản lý mở hồ sơ người này, '
 				+ 'tích ít nhất một ô ở lưới "Cơ sở" rồi Lưu — xong thì tải lại trang này.');
 		}
-		/* Đường sang trang quản trị chỉ hiện khi MÁY CHỦ gửi nó về — tức người này thật sự mở
-		   được. Trang không tự đoán theo vai trò: đoán ở đây là bộ luật quyền thứ hai, và bộ
-		   thứ hai bao giờ cũng lệch trước. */
-		if(j.qtUrl){
-			el('lkQuanTri').href = j.qtUrl;
-			el('lkQuanTri').textContent = 'Trang quản trị (' + (j.vaiTen || '') + ') →';
-			el('oQuanTri').classList.remove('an');
-		} else {
-			el('oQuanTri').classList.add('an');
-		}
+		/* ⚠️ `j.qtUrl` KHÔNG CÒN DỰNG LINK Ở ĐÂY — ô "Quản trị chấm công" nay nằm trong lưới
+		   tab Ứng dụng, vẽ ở MÁY CHỦ bởi `VHCC_Ung::ve()`.
+
+		   Giữ nguyên tinh thần cũ, chỉ đổi chỗ: trang vẫn KHÔNG tự đoán theo vai trò, vì đoán
+		   ở đây là bộ luật quyền thứ hai, và bộ thứ hai bao giờ cũng lệch trước. Khác là phép
+		   gác chạy trước cả lúc gửi HTML xuống, chứ không phải ẩn/hiện một khối đã gửi rồi.
+
+		   Vẫn dùng `j.vaiTen` cho tab Tôi để người ta biết mình đang mang vai gì. */
+		if(j.vaiTen){ el('vaiToi').textContent = j.vaiTen; el('oVaiToi').classList.remove('an'); }
+		else { el('oVaiToi').classList.add('an'); }
 		veHomNay(j);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
 	}).catch(function(e){
@@ -1023,6 +1257,37 @@ function veHomNay(j){
 	}
 	h += '</tbody></table>';
 	el('bangHN').innerHTML = co ? h : '<p class="trong">Hôm nay chưa chấm lượt nào.</p>';
+	veNutCham(hn, cs);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * CHỮ TRÊN NÚT TRÒN THEO TÌNH TRẠNG HÔM NAY.
+ *
+ * ⚠️ CHỈ ĐỔI CHỮ VÀ MÀU, KHÔNG ĐỔI VIỆC NÚT LÀM. Cùng một nút gọi cùng một luồng chụp ảnh rồi
+ *    `viec=cham`; máy chủ mới là nơi quyết định lượt bấm ấy là VÀO hay RA (xem `cham_cong()`
+ *    và `dinh_tuyen()`). Để trình duyệt tự quyết rồi gửi lên là dựng bộ luật thứ hai — mà bộ
+ *    thứ hai bao giờ cũng lệch trước, và lệch ở đây nghĩa là ghi nhầm giờ vào thành giờ ra.
+ *
+ * Nên chữ ở đây là DỰ ĐOÁN để người ta biết mình đang ở đâu, không phải một lựa chọn.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+function veNutCham(hn, cs){
+	var bt = el('btCham'); if(!bt) return;
+	var nhan = bt.querySelector('span'), bieu = bt.querySelector('i');
+	if(!nhan || !bieu) return;
+
+	/* Có ít nhất một hàng đã vào mà chưa ra -> đang trong ca. */
+	var dangLam = false;
+	for(var i=0;i<cs.length;i++){
+		var ds = hn[cs[i]] || [];
+		for(var k=0;k<ds.length;k++){
+			if(ds[k].vao && !ds[k].ra){ dangLam = true; break; }
+		}
+		if(dangLam) break;
+	}
+
+	bt.classList.toggle('dang-lam', dangLam);
+	nhan.textContent = dangLam ? 'CHẤM RA' : 'CHẤM CÔNG';
+	bieu.textContent = dangLam ? '🏁' : '📷';
 }
 
 /* ------------------------------------------------------- công của tôi (theo tháng)
@@ -1045,6 +1310,15 @@ function thangDich(ym, buoc){
 function thangNay(){
 	var ng = (TOI && TOI.gio && TOI.gio.ngay) ? String(TOI.gio.ngay) : '';
 	return /^\d{4}-\d{2}/.test(ng) ? ng.slice(0,7) : '';
+}
+
+/* Hai chữ cái cuối của tên — "Huỳnh Quang Thắng" -> "QT". Lấy hai từ CUỐI vì người Việt gọi
+   nhau bằng tên, không bằng họ: lấy hai từ đầu thì cả phòng họ Nguyễn đều ra "NV". */
+function chuDau(ten){
+	var t = String(ten||'').trim().split(/\s+/).filter(Boolean);
+	if(!t.length) return '—';
+	if(t.length === 1) return t[0].slice(0,2).toUpperCase();
+	return (t[t.length-2].charAt(0) + t[t.length-1].charAt(0)).toUpperCase();
 }
 
 function gioPhut(p){
@@ -1094,173 +1368,188 @@ function veThang(ym){
  *    tuỳ chọn và nhảy phắt tới, mà nhảy phắt thì vẫn ĐÚNG VIỆC. Nên gọi trong try/catch rồi
  *    lùi về bản không tham số: thà nhảy giật còn hơn nút bấm không lên.
  */
-function nhayToi(id){
-	var o = el(id);
-	if(!o) return;
-	try { o.scrollIntoView({ behavior:'smooth', block:'start' }); }
-	catch(e){ o.scrollIntoView(); }
-}
-el('btDenCham').addEventListener('click', function(){ nhayToi('oKhoiCham'); });
-el('btDenCong').addEventListener('click', function(){ nhayToi('oKhoiCong'); });
+/* ---------------------------------------------------------------- hồ sơ của tôi
 
-/* ═══════════════════════════════════════════════════════════════════════════════════════════
- * XIN PHÉP — đi trễ và đổi lịch. Cửa, không phải nghiệp vụ: xem class-vhcc-tram.php.
- *
- * 🔴 NẠP LẠI DANH SÁCH ĐƠN MỖI LẦN MỞ MÀN, không nhớ đệm. Trạng thái đơn đổi ở phía cửa hàng
- *    trưởng chứ không ở đây, nên một bản nhớ đệm là màn hình nói "Chờ duyệt" trong khi đơn đã
- *    bị từ chối từ hôm qua — và người ta cứ thế đi trễ.
- * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-var XIN = null;
+   Nạp khi mở tab Tôi. Danh sách ô lấy TỪ MÁY CHỦ (`VHCC_HoSoToi::SUA_DUOC`) chứ không gõ ở
+   đây — gõ hai nơi là sớm muộn màn hình bày một ô mà máy chủ không nhận, người ta gõ xong bấm
+   Lưu rồi thấy nó biến mất mà không hiểu vì sao. */
+var DA_NAP_HS = false;
 
-function moManXin(){
-	hien('mXin',true);
-	bao('loiTre','',null); bao('loiLich','',null);
-	napXin();
-}
-
-function napXin(){
-	return goi('donxin',{token:token()}).then(function(j){
+function napHoSo(){
+	if(DA_NAP_HS) return;
+	DA_NAP_HS = true;
+	goi('hoso', { token: token() }).then(function(j){
 		if(!j || !j.ok){
-			el('bangDon').innerHTML = '<p class="trong">' + esc((j&&j.error)||'Không đọc được đơn.') + '</p>';
+			el('oHoSo').innerHTML = '<p class="trong">' + esc((j && j.error) || 'Không tải được hồ sơ.') + '</p>';
 			return;
 		}
-		XIN = j;
-		/* Ngày mặc định là HÔM NAY THEO MÁY CHỦ, không theo điện thoại. Điện thoại lệch ngày
-		   (múi giờ sai, đồng hồ chạy sau nửa đêm) thì đơn rơi vào ngày hôm qua, và cửa hàng
-		   trưởng thấy một đơn xin trễ cho ngày đã xong. */
-		if(!el('xtNgay').value){ el('xtNgay').value = j.homNay || ''; }
-		el('xtPhut').max = j.phutToiDa || 120;
-		veKhoiLich(j);
-		veBangDon(j);
+		veHoSo(j);
+	}).catch(function(){
+		DA_NAP_HS = false;
+		el('oHoSo').innerHTML = '<p class="trong">Lỗi mạng. Bấm lại tab này để thử.</p>';
 	});
 }
 
-function veKhoiLich(j){
-	var bat = j.coSoBatLich || [];
-	if(!bat.length){
-		hien('oLichMo',false); hien('oLichTat',true);
-		el('oLichTat').innerHTML = '<p class="trong">Cơ sở của anh/chị chưa bật phân lịch nên không '
-			+ 'có lịch nào để đổi. Xin nghỉ thì báo trực tiếp quản lý.</p>';
-		return;
-	}
-	hien('oLichTat',false); hien('oLichMo',true);
-	el('xlCoSo').innerHTML = xoOption(bat, j.coSoMacDinh || bat[0]);
-	el('xlCa').innerHTML   = xoOption(j.ca || [], '');
-	/* Ô "Việc mới" để TRỐNG được: đổi ca mà giữ nguyên việc là một yêu cầu có thật. Còn XIN
-	   NGHỈ thì chọn đúng loại việc mà công ty đã khai cho việc ấy — bộ này cố ý không tự đẻ
-	   ra một mục "Nghỉ" không có trong danh mục, vì lúc duyệt nó sẽ được GHI THẲNG vào lịch
-	   và một tên việc lạ nằm trong lịch thì không bảng nào tính được. */
-	el('xlViec').innerHTML = xoOption(j.loaiViec || [], '', '— giữ nguyên việc —');
-	if(!el('xlNgay').value){ el('xlNgay').value = j.homNay || ''; }
-}
+function veHoSo(j){
+	var hs = j.hs || {}, h = '';
 
-/* Dựng cả khối <option>. Dòng trống đầu tiên (nếu có) cũng dựng TRONG ĐÂY, không ghép ở nơi
-   gọi — ghép ở ngoài là một chuỗi HTML nối với kết quả hàm, và bộ kiểm "không rò HTML" không
-   phân biệt nổi chuỗi ấy với một cái tên cơ sở chưa thoát. */
-function xoOption(ds, chon, dong_trong){
-	var h = dong_trong ? ('<option value="">' + esc(dong_trong) + '</option>') : '';
-	for(var i=0;i<ds.length;i++){
-		h += '<option value="' + esc(ds[i]) + '"' + (ds[i]===chon ? ' selected' : '') + '>'
-			+ esc(ds[i]) + '</option>';
-	}
-	return h;
-}
-
-function veBangDon(j){
-	var h = '', i, x;
-	var tre = j.donTre || [], lich = j.donLich || [];
-	if(!tre.length && !lich.length){
-		el('bangDon').innerHTML = '<p class="trong">Chưa nộp đơn nào.</p>';
-		return;
-	}
-	h += '<table><thead><tr><th>Ngày</th><th>Đơn</th><th>Trạng thái</th></tr></thead><tbody>';
-	for(i=0;i<tre.length;i++){
-		x = tre[i];
-		h += '<tr><td>' + esc(x.ngay) + '</td><td style="text-align:left">trễ '
-			+ esc(x.so_phut) + ' phút · ' + esc(x.ly_do || '') + '</td><td>'
-			+ esc(tenTT(x.trang_thai)) + '</td></tr>';
-	}
-	for(i=0;i<lich.length;i++){
-		x = lich[i];
-		h += '<tr><td>' + esc(x.ngay) + '</td><td style="text-align:left">đổi lịch'
-			+ (x.ca ? ' · ca ' + esc(x.ca) : '')
-			+ (x.viec_moi ? ' · ' + esc(x.viec_moi) : '')
-			+ (x.doi_sang_ngay ? ' · dời sang ' + esc(x.doi_sang_ngay) : '')
-			+ '</td><td>' + esc(x.trang_thai || '') + '</td></tr>';
-	}
+	/* Phần CHỈ ĐỌC lên trước: người ta mở tab này phần lớn là để xem mình là ai, chỉ thỉnh
+	   thoảng mới sửa. */
+	var cd = j.chi_doc || {}, k;
+	h += '<table><tbody>';
+	for(k in cd){ if(Object.prototype.hasOwnProperty.call(cd,k)){
+		h += '<tr><td style="color:var(--chu-mo);width:42%">' + esc(cd[k]) + '</td>'
+		  +  '<td><b>' + esc(hs[k] || '—') + '</b></td></tr>';
+	}}
 	h += '</tbody></table>';
-	el('bangDon').innerHTML = h;
+	h += '<p class="ct" style="text-align:left;margin:8px 0 14px">Mấy dòng trên là hồ sơ gốc — '
+	  +  'sai thì báo quản lý, không tự sửa được ở đây.</p>';
+
+	/* Phần SỬA ĐƯỢC. */
+	var sd = j.sua_duoc || {}, thieu = j.thieu || [];
+	for(k in sd){ if(Object.prototype.hasOwnProperty.call(sd,k)){
+		var conThieu = thieu.indexOf(k) >= 0;
+		var kieu = (k === 'ngay_sinh') ? 'date'
+		         : ((k === 'sdt' || k === 'sdt_khan' || k === 'cccd') ? 'tel' : 'text');
+		h += '<div class="fldx"><label>' + esc(sd[k])
+		  +  (conThieu ? ' <span class="nhan vang">chưa có</span>' : '') + '</label>'
+		  +  '<input data-hs="' + esc(k) + '" type="' + kieu + '"'
+		  +  (kieu === 'tel' ? ' inputmode="numeric"' : '')
+		  +  ' value="' + esc(hs[k] || '') + '"></div>';
+	}}
+	h += '<p></p><button id="btLuuHS" class="chinh" style="width:100%">Lưu hồ sơ</button>'
+	  +  '<div id="baoHS"></div>';
+
+	el('oHoSo').innerHTML = h;
+	el('btLuuHS').addEventListener('click', luuHoSo);
+
+	/* Nhãn đếm số ô còn thiếu — để người ta biết có việc phải làm mà không cần cuộn. */
+	var n = thieu.length, nh = el('nhanThieu');
+	if(n > 0){ nh.textContent = 'thiếu ' + n; nh.classList.remove('an'); }
+	else { nh.classList.add('an'); }
 }
 
-/* Bảng `xin_tre` giữ mã trạng thái (`cho`/`duyet`/`tu_choi`), bảng `doi_lich_cv` giữ thẳng chữ
-   tiếng Việt. Dịch ở đây chứ không sửa một trong hai bảng: đổi giá trị đang nằm trong kho là
-   việc của một lượt nâng cấp có kế hoạch, không phải của một màn hình. */
-function tenTT(ma){
-	if(ma === 'cho')     return 'Chờ duyệt';
-	if(ma === 'duyet')   return 'Đã duyệt';
-	if(ma === 'tu_choi') return 'Không duyệt';
-	return ma || '';
+function luuHoSo(){
+	var o = {}, ds = document.querySelectorAll('[data-hs]');
+	for(var i=0;i<ds.length;i++){ o[ds[i].getAttribute('data-hs')] = ds[i].value; }
+
+	var bt = el('btLuuHS');
+	bt.disabled = true;
+	bao('baoHS','','Đang lưu…');
+	goi('luu_hoso', { token: token(), hs: o }).then(function(j){
+		if(!j || !j.ok){ bao('baoHS','dong',(j && j.error) || 'Không lưu được.'); return; }
+		bao('baoHS','xanh', j.message || 'Đã lưu.');
+		/* Nạp lại để nhãn "chưa có" và số đếm khớp với thứ vừa ghi — tự sửa ở trình duyệt là
+		   hai chỗ tính "thiếu", và chúng sẽ lệch. */
+		DA_NAP_HS = false;
+		napHoSo();
+	}).catch(function(){ bao('baoHS','dong','Lỗi mạng.'); })
+	  .then(function(){ bt.disabled = false; });
 }
 
-/* 🔴 KHOÁ NÚT SAU KHI BẤM — cùng lý do với ràng buộc 4 của nút LƯU CHẤM CÔNG. Mạng chậm, người
-   ta bấm ba lần; ba lượt nộp đơn đi trễ liên tiếp thì hai lượt sau ĐÈ lên lượt đầu và kéo đơn
-   về "chờ duyệt", kể cả khi cửa hàng trưởng vừa kịp duyệt lượt đầu. */
-var DANG_GUI = false;
-
-function guiDon(viec, than, oLoi, nut, chuXong){
-	if(DANG_GUI) return;
-	DANG_GUI = true;
-	var b = el(nut), chuCu = b.textContent;
-	b.disabled = true; b.textContent = 'ĐANG GỬI…';
-	bao(oLoi,'',null);
-	goi(viec, than).then(function(j){
-		if(!j || !j.ok){ bao(oLoi,'dong',(j&&j.error)||'Không gửi được.'); return; }
-		bao(oLoi,'xanh', chuXong(j));
-		return napXin();
-	}).catch(function(e){
-		bao(oLoi,'dong',(e && e.message) || 'Lỗi mạng — chưa gửi được.');
-	}).then(function(){
-		DANG_GUI = false;
-		b.disabled = false; b.textContent = chuCu;
-	});
-}
-
-el('btDayHang').addEventListener('click', function(){ dayHang(); });
-
-/* Trình duyệt báo có sóng lại -> thử ngay. `online` không bảo đảm mạng THẬT SỰ đi được (wifi
-   của quán không có internet cũng bắn sự kiện này), nên `dayHang()` phải chịu được lượt hỏng —
-   nó chịu được: hỏng thì giữ nguyên hàng và không nói gì. */
-window.addEventListener('online', function(){ dayHang(); });
-
-el('btDenXin').addEventListener('click', function(){ moManXin(); });
-el('btDongXin').addEventListener('click', function(){ hien('mXin',false); });
-
-el('btGuiTre').addEventListener('click', function(){
-	guiDon('xintre', {
-		token: token(),
-		ngay:  el('xtNgay').value,
-		soPhut: el('xtPhut').value,
-		lyDo:  el('xtLyDo').value
-	}, 'loiTre', 'btGuiTre', function(j){
-		return '✔ Đã gửi đơn xin trễ ' + j.phut + ' phút ngày ' + j.ngay + ' — ' + j.coSo
-			+ (j.muon ? ' (nộp muộn, đơn vẫn nhận nhưng có đánh dấu)' : '')
-			+ (j.lai ? ' · đè lên đơn cũ của ngày này, đơn quay về CHỜ DUYỆT' : '');
-	});
+/* ---------------------------------------------------------------- đổi mật khẩu */
+el('btDoiPin').addEventListener('click', function(){
+	var cu = el('pinCu').value, moi = el('pinMoi').value, lai = el('pinLai').value;
+	var bt = this;
+	bt.disabled = true;
+	bao('baoPin','','Đang đổi…');
+	goi('doi_pin', { token: token(), cu: cu, moi: moi, lai: lai }).then(function(j){
+		if(!j || !j.ok){ bao('baoPin','dong',(j && j.error) || 'Không đổi được.'); return; }
+		bao('baoPin','xanh','Đã đổi mật khẩu. Lần sau đăng nhập bằng mật khẩu mới.');
+		el('pinCu').value = ''; el('pinMoi').value = ''; el('pinLai').value = '';
+	}).catch(function(){ bao('baoPin','dong','Lỗi mạng.'); })
+	  .then(function(){ bt.disabled = false; });
 });
 
-el('btGuiLich').addEventListener('click', function(){
-	guiDon('xinlich', {
-		token: token(),
-		coSo:  el('xlCoSo').value,
-		ngay:  el('xlNgay').value,
-		ca:    el('xlCa').value,
-		viecMoi: el('xlViec').value,
-		doiSangNgay: el('xlDoiSang').value,
-		lyDo:  el('xlLyDo').value
-	}, 'loiLich', 'btGuiLich', function(j){
-		return '✔ Đã gửi yêu cầu đổi lịch — mã ' + j.maYc + '. Người xếp lịch của cơ sở sẽ duyệt.';
+/* ---------------------------------------------------------------- lưới ứng dụng
+   Nạp MỘT LẦN cho mỗi phiên. Danh sách này đổi khi quản lý cấp quyền — chuyện của tuần, không
+   phải của phút — nên gọi lại mỗi lần bấm tab là chín lượt hỏi máy chủ một ngày cho một thứ
+   không đổi. Cấp quyền xong thì người ta đăng nhập lại là thấy. */
+var DA_NAP_UNG = false;
+
+/* Dòng chỉ đường khi thiếu ô. KHÔNG nói người này bị khoá những gì — chỉ nói CÁI CÔNG TẮC nằm
+   ở đâu. Thiếu dòng này thì câu hỏi "sao tôi không thấy app chi phí" phải đi một vòng qua bộ
+   phận kỹ thuật, trong khi công tắc nằm đúng ở màn mà quản lý mở hằng tuần. */
+var NHAC_UNG = '<p class="ct" style="text-align:left;margin:12px 0 0">Thiếu ứng dụng nào? '
+	+ 'Quản lý cấp ở màn <b>Quản lý nhân sự</b> — cột Ghế massage · Vận hành chi phí · '
+	+ 'Báo cáo cơ sở. Cấp xong thì đăng xuất rồi vào lại.</p>';
+
+function napUng(){
+	if(DA_NAP_UNG) return;
+	DA_NAP_UNG = true;
+	goi('ung', { token: token() }).then(function(j){
+		if(!j || !j.ok || !j.ds || !j.ds.length){
+			el('oUng').innerHTML = '<p class="trong">Bạn chưa được cấp ứng dụng nào ngoài chấm công.</p>'
+				+ NHAC_UNG;
+			return;
+		}
+		var h = '<div class="luoi-ung">';
+		for(var i=0;i<j.ds.length;i++){
+			var x = j.ds[i];
+			/* 🔴 Ô KHOÁ DỰNG BẰNG <div>, KHÔNG PHẢI <a> KÈM CLASS. Máy chủ đã bỏ hẳn `url` của
+			   ô khoá, nên ở đây không có gì để bấm vào — kể cả một dòng CSS sửa nhầm cũng
+			   không biến nó thành bấm được. Dùng <a> rồi chặn bằng JS thì chỉ cần một lượt
+			   JS hỏng là năm cái ô khoá thành năm cái link sống. */
+			var mo = !!x.mo_duoc && !!x.url;
+			var ruot = '<span class="o-icon o-' + thoat(x.mau||'xanh') + '">' + thoat(x.icon||'') + '</span>'
+			         + '<b>' + thoat(x.ten||'') + '</b>'
+			         + '<span class="o-mo">' + thoat(x.mo||'') + '</span>';
+
+			if(mo){
+				h += '<a class="o-ung" href="' + thoat(x.url) + '">' + ruot
+				  +  (x.ghi_chu ? '<span class="o-nhac">' + thoat(x.ghi_chu) + '</span>' : '')
+				  +  '</a>';
+			} else {
+				h += '<div class="o-ung o-khoa">' + ruot
+				  +  '<span class="o-xin">🔒 Chưa được cấp'
+				  +  (x.xin ? '<br>' + thoat(x.xin) : '') + '</span>'
+				  +  '</div>';
+			}
+		}
+		el('oUng').innerHTML = h + '</div>' + NHAC_UNG;
+	}).catch(function(){
+		DA_NAP_UNG = false;
+	DA_NAP_HS = false;
+	var _h = el('oHoSo'); if(_h){ _h.innerHTML = '<p class="trong">Đang tải…</p>'; }   // hỏng thì cho thử lại lần bấm sau
+		el('oUng').innerHTML = '<p class="trong">Không tải được danh sách. Bấm lại tab này để thử.</p>';
 	});
-});
+}
+
+/* Thoát ký tự trước khi ghép vào innerHTML. Tên ứng dụng do máy chủ đặt nên hôm nay lành, nhưng
+   một dấu " trong tên là vỡ luôn thẻ a — mà lỗi kiểu đó không kêu, chỉ hiện sai. */
+function thoat(v){
+	return String(v == null ? '' : v)
+		.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+		.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* ---------------------------------------------------------------- tab
+   Ba tab thay cho một trang cuộn dài. Đổi tab là đổi `display`, KHÔNG nạp lại dữ liệu:
+   `toi()` đã nạp đủ cả ba tab lúc đăng nhập, và đồng hồ chạy bằng `setInterval` chứ không
+   bằng vòng lặp gắn vào khối đang hiện — nên tab Chấm công ẩn đi rồi hiện lại vẫn đúng giờ. */
+var TAB = 'tChamCong';
+
+function denTab(ten){
+	if(!el(ten)) return;
+	TAB = ten;
+	['tChamCong','tCong','tUng','tToi'].forEach(function(x){
+		var o = el(x); if(o){ o.classList.toggle('an', x !== ten); }
+	});
+	var ds = document.querySelectorAll('.tab-nut');
+	for(var i=0;i<ds.length;i++){ ds[i].classList.toggle('dang', ds[i].getAttribute('data-tab') === ten); }
+	if(ten === 'tUng'){ napUng(); }
+	if(ten === 'tToi'){ napHoSo(); }
+	/* Về đầu trang khi đổi tab. Không có dòng này thì đang cuộn giữa bảng tháng mà bấm sang
+	   tab Chấm công là rơi vào khoảng trắng — nút chấm nằm trên đầu, khuất khỏi màn hình. */
+	try { window.scrollTo({ top:0, behavior:'instant' }); } catch(e){ window.scrollTo(0,0); }
+}
+
+(function(){
+	var ds = document.querySelectorAll('.tab-nut');
+	for(var i=0;i<ds.length;i++){
+		ds[i].addEventListener('click', function(){ denTab(this.getAttribute('data-tab')); });
+	}
+})();
 
 el('btThangTruoc').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,-1)); });
 el('btThangSau').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,1)); });
@@ -1341,7 +1630,32 @@ el('btChupLai').addEventListener('click', function(){ dungDem(); ANH=null; moCam
 
    ⚠️ Chưa có mốc giờ máy chủ thì KHÔNG chụp. Đếm lại chứ không chụp bừa — xem `chupNgay()`. */
 var DEM = null;          /* id của bộ đếm đang chạy */
-var DEM_GIAY = 5;
+
+/**
+ * ⚠️ 0 = KHÔNG TỰ CHỤP, CHỜ NGƯỜI BẤM "Chụp ngay".
+ *
+ * Ba bản trong một ngày, ghi lại cả ba để người sau thấy đường đi:
+ *
+ *   · 25/08/2026 — đếm ngược 5 giây. Lý do anh Thắng nêu: chụp một tay trong khi tay kia giơ
+ *     điện thoại thì ngón cái dễ che ống kính hoặc làm rung máy; năm giây là thời gian chỉnh
+ *     lại tay. Ảnh mờ thì mất luôn công dụng duy nhất của nó — đối chiếu khi tranh cãi.
+ *
+ *   · 17/09/2026 sáng — anh Thắng: *"cho chụp luôn, không cần đến giây"*. Tôi hiểu thành TỰ
+ *     CHỤP NGAY khi camera lên hình, và đó là chỗ SAI: người ta vừa bấm nút CHẤM CÔNG, màn
+ *     chụp mở ra, và máy bấm máy trước khi họ kịp đưa mặt vào khung. Ảnh ra là ảnh trần nhà.
+ *
+ *   · 17/09/2026 — anh Thắng: *"phải bấm chụp sao lại để tự chụp"*. Đúng: nếu đằng nào cũng
+ *     phải bấm thì đừng tự chụp. Nay màn chụp chỉ bày hình trực tiếp và đứng chờ; người ta
+ *     canh xong thì bấm "Chụp ngay".
+ *
+ * Cách này giải quyết luôn nỗi lo 25/08 mà không tốn năm giây của ai: người bấm lúc họ SẴN
+ * SÀNG, không phải lúc đồng hồ đếm xong.
+ *
+ * 🔴 GIỮ BỘ ĐẾM LẠI DƯỚI DẠNG MỘT CON SỐ. Muốn quay về tự chụp sau N giây thì sửa đúng số này
+ *    thành N — không phải dựng lại cơ chế. Và toàn bộ chốt chống-hụt (`DEM_HUT`, đợi khi chưa
+ *    có giờ máy chủ) vẫn nguyên: nó phục vụ cả đường bấm tay.
+ */
+var DEM_GIAY = 0;
 var DEM_HUT = 0;         /* số lần đếm xong mà chụp không được */
 var HUT_TOI_DA = 3;
 
@@ -1352,6 +1666,19 @@ function dungDem(){
 
 function batDem(){
 	dungDem();
+
+	/* 🔴 DEM_GIAY = 0 → KHÔNG TỰ CHỤP. Chỉ bày hình trực tiếp rồi đứng chờ người bấm "Chụp ngay".
+	   Không đặt hẹn giờ, không đếm, không thử lại ngầm — mọi lượt chụp đều do người bấm, nên
+	   `chupNgay()` chạy đúng lúc họ đã canh xong khung hình.
+
+	   ⚠️ KHÔNG ẨN nút "Chụp ngay" hay đổi nó thành thứ khác: ở chế độ này nó là đường DUY NHẤT
+	      để chụp. Bản trước tự chụp nên nút ấy chỉ là lối thoát khi máy hụt; nay nó là nút
+	      chính. */
+	if(DEM_GIAY <= 0){
+		el('oDem').classList.add('an');
+		return;
+	}
+
 	var con = DEM_GIAY;
 	el('soDem').textContent = con;
 	el('oDem').classList.remove('an');
@@ -1376,8 +1703,14 @@ function batDem(){
 }
 
 /* Chạm vào khung hình = "khoan, đếm lại từ đầu". Không thêm nút: màn chụp đã có hai nút, thêm
-   nút thứ ba vào chỗ người ta đang giơ điện thoại một tay là mời bấm nhầm. */
+   nút thứ ba vào chỗ người ta đang giơ điện thoại một tay là mời bấm nhầm.
+
+   ⚠️ CHỈ CÓ NGHĨA Ở CHẾ ĐỘ ĐẾM NGƯỢC (DEM_GIAY > 0). Khi máy chờ người bấm thì không có gì để
+      "đếm lại", nên chạm khung KHÔNG làm gì — và cố ý không cho nó chụp luôn: vùng xem hình
+      chiếm gần hết màn, người đang giơ điện thoại một tay chạm trúng là mất một tấm ảnh trần
+      nhà, rồi phải bấm "Chụp lại". Một đường chụp duy nhất, rõ ràng, là nút "Chụp ngay". */
 el('oDem').parentNode.addEventListener('click', function(){
+	if(DEM_GIAY <= 0) return;             /* chờ người bấm — không có bộ đếm để khởi động lại */
 	if(ANH) return;                       /* đã chụp xong, đang xem lại */
 	if(el('vid').classList.contains('an')) return;
 	batDem();
@@ -1417,6 +1750,115 @@ function chupNgay(){
 	g.fillRect(0, H - co - 16, rong + 20, co + 16);
 	g.fillStyle = '#fff';
 	g.fillText(chu, 10, H - 10);
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   DẤU VỊ TRÍ — góc PHẢI dưới (anh Thắng 17/09/2026).
+	   Dấu giờ ở góc trái, dấu vị trí ở góc phải: hai mốc của cùng một lượt chấm công, đọc được
+	   ngay trên ảnh mà không phải mở phiếu ra tra.
+
+	   🔴 ĐÓNG ĐÚNG THỨ ĐANG CÓ, KHÔNG ĐÓNG THỨ MONG MUỐN. Ba trạng thái, ba dòng khác nhau:
+	     · GPS thật  -> toạ độ 6 số lẻ kèm ±sai số
+	     · vị trí theo địa chỉ mạng (sai số hàng trăm km) -> ghi rõ "≈ theo mạng"
+	     · không có  -> "KHÔNG GPS"
+	     In toạ độ ±200km như thể nó là GPS chính là nói dối bằng con số — cùng lý do màn hình
+	     KHÔNG vẽ bản đồ ở mức ấy (xem `veViTri()`). Ảnh này là bằng chứng đối chiếu khi tranh
+	     cãi; một con số trông chính xác mà sai là tệ hơn chữ "KHÔNG GPS".
+
+	   ⚠️ CỠ CHỮ NHỎ HƠN DẤU GIỜ. Toạ độ dài gấp đôi; để cùng cỡ thì trên ảnh dọc 720px nó chạm
+	      vào dấu giờ ở giữa cạnh dưới, hai dấu dính nhau thành một vệt đen không đọc được.
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	var chuVT = '';
+	if(GPS_TRANG === 'co' && GPS){
+		var uocLuong = (mucGps(GPS.acc) === 'mang');
+		/* 🔴 SỐ LẺ KHỚP VỚI SAI SỐ, KHÔNG PHẢI LUÔN 6. Sáu số lẻ là độ phân giải ~11cm — in nó
+		   bên cạnh "±217km" là tự mâu thuẫn ngay trong một dòng, và người đọc tin vào con số
+		   dài chứ không đọc cái ±. Cùng lý do màn hình không vẽ bản đồ khi sai số hàng trăm km.
+		   Tiện thể chuỗi ngắn lại, đỡ đè vào dấu giờ. */
+		var le = (GPS.acc <= 50) ? 6 : (GPS.acc <= 200 ? 5 : 3);
+		chuVT = (uocLuong ? '≈ ' : '') + GPS.lat.toFixed(le) + ', ' + GPS.lng.toFixed(le)
+		      + ' ±' + dai(GPS.acc);
+	} else {
+		chuVT = 'KHÔNG GPS';
+	}
+	var coVT = Math.max(11, Math.round(W/40));
+
+	/* ⚠️ CHỐT KHÔNG ĐÈ DẤU GIỜ. Trên ảnh dọc 720px, chuỗi toạ độ theo-mạng từng dài tới mức hộp
+	   của nó chạm hộp dấu giờ, hai vệt đen dính thành một mảng không đọc được. Rút số lẻ ở trên
+	   đã đủ cho mọi ca hiện tại — chốt này để phòng ca sau (máy ảnh hẹp hơn, chuỗi dài hơn):
+	   thu nhỏ dần cho tới khi lọt. Thà chữ nhỏ còn hơn hai dấu chồng nhau. */
+	g.font = '700 ' + coVT + 'px monospace';
+	var rongVT = g.measureText(chuVT).width;
+	while(coVT > 9 && (rong + 20) > (W - rongVT - 20)){
+		coVT--;
+		g.font = '700 ' + coVT + 'px monospace';
+		rongVT = g.measureText(chuVT).width;
+	}
+
+	g.fillStyle = 'rgba(0,0,0,.62)';
+	g.fillRect(W - rongVT - 20, H - coVT - 14, rongVT + 20, coVT + 14);
+	/* Không GPS thì chữ vàng — người soát ảnh nhận ra ngay mà không phải đọc. */
+	g.fillStyle = (GPS_TRANG === 'co' && GPS) ? '#fff' : '#fde68a';
+	g.fillText(chuVT, W - rongVT - 10, H - 9);
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	   Ô BẢN ĐỒ — ngay TRÊN dòng toạ độ, cùng góc phải.
+
+	   🔴 BỌC `try`. Dù đã đặt `crossOrigin` đúng cách, một bản trình duyệt lạ vẫn có thể làm
+	      canvas nhiễm — và canvas nhiễm thì `toDataURL()` ở dưới ném lỗi, tức MẤT CẢ TẤM ẢNH.
+	      Thà mất ô bản đồ còn hơn mất lượt chấm công. Đây không phải `try` cho có: nó là chốt
+	      giữa "thiếu một ô trang trí" và "không ghi được công".
+	   ══════════════════════════════════════════════════════════════════════════════════════════ */
+	if(BANDO && BANDO.im && BANDO.im.complete && BANDO.im.naturalWidth > 0){
+		try {
+			var oB = Math.max(72, Math.round(W / 4));          /* cạnh ô vuông */
+			var oX = W - oB - 10;
+			var oY = H - coVT - 14 - oB - 8;                   /* nằm trên dòng toạ độ, chừa 8px */
+
+			/* ⚠️ Ảnh quá thấp (máy ảnh lạ, tỉ lệ dẹt) thì ô tràn lên khỏi mép trên — bỏ ô, giữ
+			   dòng toạ độ. Một ô bản đồ cụt đầu còn khó đọc hơn không có. */
+			if(oY < 8){ throw new Error('anh qua thap'); }
+
+			g.save();
+			/* Cắt tròn góc cho ô — và quan trọng hơn: chặn ảnh bản đồ tràn ra ngoài khung. */
+			g.beginPath();
+			g.rect(oX, oY, oB, oB);
+			g.clip();
+			g.drawImage(BANDO.im, oX, oY, oB, oB);
+
+			/* Ghim đúng chỗ. Ranh giới ô bản đồ là cố định nên điểm hiếm khi nằm giữa — đặt theo
+			   vị trí lẻ đã tính lúc tải, chứ không đặt bừa vào tâm ô. */
+			var gx = oX + BANDO.fx * oB;
+			var gy = oY + BANDO.fy * oB;
+			g.beginPath();
+			g.arc(gx, gy, Math.max(4, oB / 18), 0, Math.PI * 2);
+			g.fillStyle = '#e7000b';
+			g.fill();
+			g.lineWidth = 2;
+			g.strokeStyle = '#fff';
+			g.stroke();
+
+			/* ⚠️ GHI NGUỒN — BẮT BUỘC theo giấy phép ODbL của OpenStreetMap, không phải trang
+			   trí. Bỏ dòng này "cho gọn" là dùng dữ liệu của người ta trái phép. */
+			var coN = Math.max(8, Math.round(oB / 11));
+			g.font = '700 ' + coN + 'px sans-serif';
+			var chuN = '© OpenStreetMap';
+			var rongN = g.measureText(chuN).width;
+			g.fillStyle = 'rgba(0,0,0,.55)';
+			g.fillRect(oX, oY + oB - coN - 5, rongN + 8, coN + 5);
+			g.fillStyle = '#fff';
+			g.fillText(chuN, oX + 4, oY + oB - 4);
+			g.restore();
+
+			/* Viền trắng mảnh: tách ô khỏi nền ảnh, nhất là khi chụp trần nhà sáng. */
+			g.lineWidth = 2;
+			g.strokeStyle = 'rgba(255,255,255,.85)';
+			g.strokeRect(oX, oY, oB, oB);
+		} catch(e){
+			/* Nhiễm canvas hoặc lỗi vẽ: bỏ ô bản đồ, đi tiếp. Không báo gì — người đang chấm
+			   công không làm được gì với thông tin này, và dấu giờ/toạ độ vẫn còn nguyên. */
+			g.restore();
+		}
+	}
 
 	ANH = c.toDataURL('image/jpeg', 0.8);
 	dungDem();
@@ -1500,18 +1942,7 @@ el('btLuu').addEventListener('click', function(){
 
 	var anhVuaGui = ANH;   /* giữ lại để đối chiếu mặt SAU KHI giờ đã ghi xong */
 	var truocKhiGui = chuoiHomNay(cs);   /* ảnh chụp trạng thái để soát lại nếu lượt gọi hỏng */
-
-	/* 🔴 ĐÓNG BĂNG MỐC GIỜ NGAY TẠI ĐÂY, và gửi kèm ở CẢ lượt online.
-	   Lượt gửi lại sau phải mang ĐÚNG TỪNG GIÂY con số này thì máy chủ mới nhận ra nó là lượt
-	   trùng (`quyet_dinh_gio` trả 'trung') và bỏ qua. Nếu lượt đầu ghi bằng giờ máy chủ lúc
-	   NHẬN còn lượt gửi lại ghi bằng giờ lúc BẤM thì hai con số lệch vài giây, và lượt thứ hai
-	   thành GIỜ RA — một ca dài 0 phút, mà bảng công thấy đã đủ cặp nên không báo thiếu. */
-	var goiCham = {
-		token: token(), anh: ANH, gps: GPS, coSo: cs, nhiemVu: nv,
-		veGio: (MOC && MOC.ve) || '',
-		troi:  MOC ? Math.max(0, Math.round(performance.now() - MOC.tuLuc)) : 0
-	};
-	goi('cham', goiCham, CHO_CO_ANH).then(function(j){
+	goi('cham',{ token:token(), anh:ANH, gps:GPS, coSo:cs, nhiemVu:nv }, CHO_CO_ANH).then(function(j){
 		if(!j || !j.ok){ bao('loiChon','dong',(j&&j.error)||'Không lưu được.'); return; }
 		ANH = null;
 		soiMat(anhVuaGui, j.ngay, j.coSo);
@@ -1519,20 +1950,10 @@ el('btLuu').addEventListener('click', function(){
 		var nhan = (j.loai==='ra') ? 'GIỜ RA' : 'GIỜ VÀO';
 		bao('baoCham','xanh', '✔ Đã ghi ' + nhan + ' ' + j.gio + ' — ' + j.coSo
 			+ ' (' + j.ngay + ')' + (j.ma!==(TOI&&TOI.maNV) ? ' · hàng ' + j.ma : ''));
-		/* 🔴 CƠ SỞ ĐANG GÁC VỊ TRÍ MÀ LƯỢT NÀY BỊ CHẤM Ở NGOÀI VÙNG -> NÓI RA NGAY, ở đây.
-		   Lượt vẫn được ghi (mức "Chỉ ghi chú" cố ý không chặn), nhưng dòng ghi chú ấy nằm
-		   trong Bảng công — nơi người vừa bấm không mở. Im lặng thì tới cuối tháng quản lý mới
-		   hỏi "sao hôm đó chấm cách cửa hàng 3km", mà lúc đó thì không ai còn nhớ nổi hôm ấy
-		   đứng ở đâu. Nói ngay lúc còn đứng đó thì họ sửa được ngay, hoặc giải thích được ngay. */
-		if(j.viTri && j.viTri.gac && j.viTri.ket === 'ngoai'){
-			el('baoCham').innerHTML += '<div class="vang">⚠ Lượt vừa ghi bị đánh dấu <b>NGOÀI '
-				+ 'vùng cơ sở</b>. ' + esc(j.viTri.chu||'') + ' Lượt công vẫn được ghi, nhưng quản '
-				+ 'lý sẽ thấy dấu này. Chọn nhầm cơ sở thì báo quản lý sửa ngay hôm nay.</div>';
-		}
 		napToi();
 	}).catch(function(e){
 		/* KHÔNG dừng ở câu lỗi. Xem `soatLaiDaGhi`. */
-		return soatLaiDaGhi(cs, truocKhiGui, (e && e.message) || 'Lỗi mạng — chưa lưu được.', goiCham);
+		return soatLaiDaGhi(cs, truocKhiGui, (e && e.message) || 'Lỗi mạng — chưa lưu được.');
 	}).then(function(){
 		DANG_LUU = false;
 		b.disabled = false; b.textContent = 'LƯU CHẤM CÔNG';
@@ -1575,7 +1996,7 @@ function chuHomNay(cs){
  * ⚠️ Hỏi lại mà cũng hỏng thì NÓI THẲNG LÀ KHÔNG BIẾT, và chỉ việc kiểm tra bằng tay. Bịa ra
  *    một câu chắc chắn ở đây là thứ đắt nhất: nó khiến người ta bấm thêm một lượt nữa.
  */
-function soatLaiDaGhi(cs, truoc, loi, goiCham){
+function soatLaiDaGhi(cs, truoc, loi){
 	bao('loiChon','vang', loi + ' — đang hỏi lại máy chủ xem giờ có vào được không…');
 	return goi('toi',{token:token()}).then(function(j){
 		if(!j || !j.ok || !j.bat){ throw new Error('chưa đọc được hồ sơ'); }
@@ -1593,123 +2014,9 @@ function soatLaiDaGhi(cs, truoc, loi, goiCham){
 		bao('baoCham','xanh','✔ Câu trả lời về chậm, nhưng GIỜ ĐÃ ĐƯỢC GHI. Hôm nay ở ' + cs
 			+ ' — ' + chuHomNay(cs) + '. ĐỪNG bấm lưu lại: bấm nữa là ghi thành giờ ra.');
 	}).catch(function(){
-		/* 🔴 CHƯA BIẾT ĐÃ GHI HAY CHƯA -> XẾP HÀNG ĐỢI, ĐỪNG BẮT NGƯỜI TA TỰ ĐOÁN.
-		   Câu cũ ở đây bảo họ "chờ có sóng rồi mở lại trang mà xem" — đúng, nhưng nó đẩy một
-		   việc của máy sang cho người đang đứng ngoài cửa hàng với cái điện thoại không sóng.
-		   Và xếp hàng đợi AN TOÀN ở đúng chỗ này vì lượt gửi lại mang nguyên vé giờ cũ: ghi
-		   được thì trùng từng giây với lượt đầu và máy chủ bỏ qua, chưa ghi thì nó vào. */
-		var xep = xepHang(goiCham);
-		if(xep.ok){
-			ANH = null;
-			hien('mChon',false);
-			bao('baoCham','vang','⏳ Chưa gửi được lên máy chủ — lượt chấm đã được GIỮ TRONG MÁY '
-				+ 'và sẽ tự gửi khi có sóng. ĐỪNG chấm lại: chấm lại là hai lượt. Mở lại trang '
-				+ 'này khi có mạng để nó gửi đi, và xem mục "Chờ gửi" ở đầu trang.');
-			veHangCho();
-			return;
-		}
-		bao('loiChon','dong', loi + ' Hỏi lại máy chủ cũng không được, và máy cũng KHÔNG giữ được '
-			+ 'lượt này (' + xep.viSao + '), nên CHƯA BIẾT giờ đã ghi hay chưa. Chờ có sóng rồi mở '
-			+ 'lại trang, xem bảng "Hôm nay" ở đầu trang: đã có giờ thì thôi, chưa có thì chấm lại.');
-	});
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════════════════════
- * HÀNG ĐỢI KHI MẤT MẠNG
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- * 🔴 CHỈ XẾP HÀNG KHI ĐÃ HỎI LẠI MÁY CHỦ MÀ CŨNG KHÔNG ĐƯỢC. Lượt gọi hỏng vì quá hạn thì rất
- *    có thể ảnh đã tới nơi rồi; xếp hàng ngay là mời một lượt ghi thứ hai. `soatLaiDaGhi()`
- *    hỏi lại trước, và chỉ nhánh "hỏi lại cũng hỏng" mới rơi xuống đây.
- *
- * 🔴 LƯU CẢ VÉ GIỜ VÀ ĐỘ TRÔI ĐÃ ĐÓNG BĂNG, KHÔNG ĐO LẠI LÚC GỬI. Đo lại là giờ nhảy tới lúc
- *    có sóng — tức ghi giờ vào là lúc người ta bắt được sóng, không phải lúc tới cửa hàng.
- *    Đóng băng còn là thứ làm lượt gửi lại TRÙNG TỪNG GIÂY với lượt đầu, nên gửi hai lần vô hại.
- *
- * ⚠️ TRẦN BA LƯỢT. Mỗi lượt mang một tấm ảnh base64 cỡ 100–300 KB, mà `localStorage` chỉ có
- *    khoảng 5 MB và dùng chung với mọi thứ khác của tên miền. Đầy kho thì `setItem` NÉM LỖI —
- *    không phải trả về false — và nếu không bắt thì cả khối script chết tại đó, nút bấm không
- *    lên, y hệt trang hỏng. Ba lượt là quá đủ: một ca bình thường có hai lượt.
- * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-var KHOA_HANG   = 'cc_hang_cho';
-var HANG_TOI_DA = 3;
-var DANG_DAY    = false;
-
-function docHang(){
-	try {
-		var d = JSON.parse(localStorage.getItem(KHOA_HANG) || '[]');
-		return Object.prototype.toString.call(d) === '[object Array]' ? d : [];
-	} catch(e){ return []; }
-}
-
-function ghiHang(ds){
-	try { localStorage.setItem(KHOA_HANG, JSON.stringify(ds)); return true; }
-	catch(e){ return false; }
-}
-
-function xepHang(goiCham){
-	if(!goiCham || !goiCham.veGio){
-		/* Không có vé thì máy chủ sẽ ghi bằng giờ NHẬN, tức giờ lúc có sóng lại. Giữ một lượt
-		   như thế là hứa hẹn một con số sai — thà nói thẳng là không giữ được. */
-		return { ok:false, viSao:'lượt này không có vé giờ của máy chủ' };
-	}
-	var ds = docHang();
-	if(ds.length >= HANG_TOI_DA){
-		return { ok:false, viSao:'trong máy đã có ' + ds.length + ' lượt chờ gửi' };
-	}
-	ds.push(goiCham);
-	if(!ghiHang(ds)){ return { ok:false, viSao:'bộ nhớ của trình duyệt đã đầy' }; }
-	return { ok:true };
-}
-
-function veHangCho(){
-	var ds = docHang();
-	if(!ds.length){ hien('oHangCho',false); return; }
-	hien('oHangCho',true);
-	var h = '';
-	for(var i=0;i<ds.length;i++){
-		h += '<p class="trong">• ' + esc(ds[i].coSo || '') + (ds[i].nhiemVu ? ' · ' + esc(ds[i].nhiemVu) : '')
-			+ ' — chờ gửi</p>';
-	}
-	el('dsHangCho').innerHTML = h;
-}
-
-/**
- * ĐẨY HÀNG ĐỢI ĐI. Gọi được nhiều lần, chạy một lần.
- *
- * 🔴 CHỈ BỎ MỘT LƯỢT KHỎI HÀNG KHI MÁY CHỦ TRẢ LỜI RÕ RÀNG. Mất mạng giữa chừng thì GIỮ LẠI —
- *    bỏ đi là mất công của người ta mà không ai biết. Còn máy chủ CHỐI (vé hết hạn, giữ quá
- *    12 tiếng, ở ngoài vùng cơ sở) thì phải bỏ, và phải NÓI RA: giữ lại một lượt không bao giờ
- *    gửi được là mỗi lần mở trang lại thử lại, mãi mãi, và ô "Chờ gửi" không bao giờ trống.
- */
-function dayHang(){
-	if(DANG_DAY) return Promise.resolve();
-	var ds = docHang();
-	if(!ds.length){ hien('oHangCho',false); return Promise.resolve(); }
-	DANG_DAY = true;
-
-	var mot = ds[0];
-	/* Thẻ phiên có thể đã đổi từ lúc xếp hàng (hết hạn rồi đăng nhập lại). Vé thì buộc vào thẻ
-	   CŨ, nên gửi thẻ mới là vé không khớp. Gửi đúng thẻ đã lưu cùng lượt ấy. */
-	return goi('cham', mot, CHO_CO_ANH).then(function(j){
-		var con = docHang();
-		con.shift();
-		ghiHang(con);
-		if(j && j.ok){
-			bao('baoCham','xanh','✔ Đã gửi nốt lượt chấm giữ trong máy: ' + esc(j.coSo) + ' '
-				+ esc(j.gio) + ' (' + esc(j.ngay) + ').');
-			napToi();
-		} else {
-			bao('baoCham','dong','Lượt chấm giữ trong máy KHÔNG ghi được, và đã bỏ khỏi hàng chờ: '
-				+ esc((j && j.error) || 'máy chủ chối') + ' Nếu hôm nay thiếu giờ thì nhờ quản lý '
-				+ 'chấm bù.');
-		}
-		veHangCho();
-	}).catch(function(){
-		/* Vẫn chưa có sóng — giữ nguyên hàng, không nói gì. Nói mỗi lần thử là mỗi hai phút một
-		   dòng đỏ, và người ta thôi đọc mọi dòng đỏ. */
-		veHangCho();
-	}).then(function(){
-		DANG_DAY = false;
+		bao('loiChon','dong', loi + ' Hỏi lại máy chủ cũng không được, nên CHƯA BIẾT giờ đã ghi hay '
+			+ 'chưa. Chờ có sóng rồi mở lại trang, xem bảng "Hôm nay" ở đầu trang: đã có giờ thì '
+			+ 'thôi, chưa có thì chấm lại.');
 	});
 }
 

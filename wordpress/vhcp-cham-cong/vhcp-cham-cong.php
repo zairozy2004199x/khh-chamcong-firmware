@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           4.16.0
+ * Version:           4.29.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '4.16.0' );
+define( 'VHCC_VERSION', '4.29.1' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -74,7 +74,6 @@ require_once VHCC_DIR . 'includes/class-vhcc-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-may.php';
 require_once VHCC_DIR . 'includes/class-vhcc-may-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
-require_once VHCC_DIR . 'includes/class-vhcc-vi-tri.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-mat.php';
 require_once VHCC_DIR . 'includes/class-vhcc-bao-cao-ca.php';
@@ -84,6 +83,12 @@ require_once VHCC_DIR . 'includes/class-vhcc-nguoi-dung.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nap-csv.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tram.php';
+/* Manifest + worker cho trạm. Nạp SAU class-vhcc-tram.php vì nó hỏi `VHCC_Tram::slug()`
+   để biết khai luật đường ở đâu. */
+require_once VHCC_DIR . 'includes/class-vhcc-pwa.php';
+/* Thông báo đẩy. Nạp SAU class-vhcc-pwa.php: nút bật thông báo chỉ có nghĩa khi trang đã
+   cài được lên màn hình chính, và worker phát ra từ đó là chỗ nhận tiếng gõ cửa. */
+require_once VHCC_DIR . 'includes/class-vhcc-push.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 /* Màn Máy & Firmware của trang web. Tách tệp riêng vì class-vhcc-web.php đã ~4500 dòng —
    dồn thêm một màn 400 dòng vào đó là không ai đọc lại được. */
@@ -97,6 +102,18 @@ require_once VHCC_DIR . 'includes/class-vhcc-web-mat.php';
    chung phiên và bảng kiểu của trang quản trị. */
 require_once VHCC_DIR . 'includes/class-vhcc-cong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-day-ghe.php';
+/* Lưới ứng dụng của trạm. Đặt SAU cả `class-vhcc-tram.php` lẫn `class-vhcc-day-ghe.php` vì nó
+   hỏi cả hai.
+   ⚠️ Thứ tự này thực ra KHÔNG bắt buộc — `VHCC_Ung::ds()` chỉ gọi chúng lúc CHẠY, và gọi nào
+      cũng bọc `class_exists` + `method_exists`. Xếp đúng chỗ là để người đọc khỏi phải tự đi
+      kiểm chuyện đó, chứ không phải vì nạp sai thứ tự thì gãy. */
+require_once VHCC_DIR . 'includes/class-vhcc-ung.php';
+/* Hồ sơ của chính mình — nhân viên tự xem và bổ sung. Nạp SAU class-vhcc-quyen.php (nó uỷ việc
+   đổi PIN cho VHCC_Quyen) và SAU class-vhcc-db.php. */
+require_once VHCC_DIR . 'includes/class-vhcc-ho-so-toi.php';
+/* Nút "← Về trạm" cho mấy trang mở ra từ lưới Ứng dụng. Nạp SAU class-vhcc-tram.php (nó hỏi
+   `VHCC_Tram::url()`). Bốn trang đích gọi `VHCC_VeTram::nut()` ngay trước </body> của chúng. */
+require_once VHCC_DIR . 'includes/class-vhcc-ve-tram.php';
 require_once VHCC_DIR . 'includes/class-vhcc-quen-pin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang-ns.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
@@ -135,6 +152,11 @@ add_action( 'init', array( 'VHCC_Web', 'init' ), 5 );
 add_action( 'init', array( 'VHCC_TrangNS', 'init' ), 5 );
 /* Trạm chấm công của nhân viên — trang họ mở hàng ngày bằng điện thoại. */
 add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
+/* Ba đường phụ của trạm (manifest, worker, biểu tượng) — để nhân viên cài được lên màn
+   hình chính. Cùng ưu tiên 5 và khai NGAY SAU trạm: luật của nó dựng trên `VHCC_Tram::slug()`,
+   nên trạm đổi slug thì ba đường này đi theo, không lệch. */
+add_action( 'init', array( 'VHCC_PWA', 'init' ), 5 );
+add_action( 'init', array( 'VHCC_Push', 'init' ), 5 );
 /* Cổng nhận chấm công của máy. Gài ở ưu tiên 4 — TRƯỚC trang (5) và trước lượt nạp lại luật
    đường dẫn (99) — để luật đường của máy có mặt sớm nhất. Đường của máy là đường duy nhất trong
    plugin này mà một lượt bị chuyển hướng đồng nghĩa MẤT chấm công, xem class-vhcc-nhan.php. */

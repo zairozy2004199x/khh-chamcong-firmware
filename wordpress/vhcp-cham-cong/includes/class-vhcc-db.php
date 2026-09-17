@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.10.0';
+	const SCHEMA_VERSION = '2.11.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -902,6 +902,44 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY khoa (khoa),
 			KEY cua_so_tu (cua_so_tu)";
+
+		/* ===== THUÊ BAO THÔNG BÁO ĐẨY ====================================================
+		   Khoá theo `bam` = SHA-256 của endpoint, KHÔNG theo chính endpoint. Endpoint của
+		   Apple dài 300+ ký tự, mà `UNIQUE KEY` trên cột utf8mb4 chỉ dùng được 191 ký tự đầu —
+		   hai máy khác nhau có thể trùng 191 ký tự đầu và một cái sẽ ghi đè cái kia.
+
+		   `khoa_hop` là chìa của HỘP TIN, không phải thẻ phiên: worker không đọc được
+		   localStorage nên cần một chìa riêng cất ở IndexedDB. Xem class-vhcc-push.php. */
+		$b['push'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			bam CHAR(64) NOT NULL,
+			endpoint VARCHAR(500) NOT NULL DEFAULT '',
+			p256dh VARCHAR(190) NOT NULL DEFAULT '',
+			auth VARCHAR(190) NOT NULL DEFAULT '',
+			khoa_hop CHAR(64) NOT NULL,
+			thiet_bi VARCHAR(190) NOT NULL DEFAULT '',
+			hong_lan TINYINT NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			lan_cuoi DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY bam (bam),
+			UNIQUE KEY khoa_hop (khoa_hop),
+			KEY ma_nv (ma_nv)";
+
+		/* ===== TIN CHỜ CHO THÔNG BÁO ĐẨY =================================================
+		   Máy chủ đẩy một tiếng gõ cửa RỖNG; worker nghe thấy thì tới đây lấy nội dung. Nên
+		   bảng này là hộp thư tạm, không phải nhật ký: `hop()` lấy xong là xoá. Muốn xem lịch
+		   sử thông báo thì đọc `nhat_ky_ho_so`, không phải bảng này. */
+		$b['push_tin'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			tieu_de VARCHAR(190) NOT NULL DEFAULT '',
+			than VARCHAR(500) NOT NULL DEFAULT '',
+			duong_dan VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY ma_nv_luc (ma_nv,tao_luc)";
 
 		return $b;
 	}

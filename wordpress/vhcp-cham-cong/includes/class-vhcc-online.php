@@ -309,8 +309,7 @@ class VHCC_Online {
 	 *
 	 * `$u` là người đã đăng nhập: array('pin','ma_nv','ho_ten','coso'). Giờ KHÔNG nhận từ tham số.
 	 */
-	public static function cham_cong( $u, $anh_data_url = '', $gps = null, $coso_chon = '',
-		$nhiem_vu_chon = '', $moc_giu = null, $tre_gui = 0 ) {
+	public static function cham_cong( $u, $anh_data_url = '', $gps = null, $coso_chon = '', $nhiem_vu_chon = '' ) {
 		if ( empty( $u['ma_nv'] ) ) {
 			return array( 'ok' => false, 'error' => 'Tài khoản này chưa bật chấm công online.' );
 		}
@@ -374,19 +373,9 @@ class VHCC_Online {
 			}
 		}
 
-		/* Gác 1: GIỜ LẤY Ở ĐÂY. Không có tham số nào cho client truyền giờ vào.
-		 *
-		 * ⚠️ `$moc_giu` KHÔNG PHẢI MỘT NGOẠI LỆ CỦA GÁC 1 — đọc kỹ chỗ nó tới từ đâu. Nó là một
-		 *    con số CHÍNH MÁY CHỦ đã phát ra và đã ký (vé giờ, xem `VHCC_Tram::doc_ve`), dùng
-		 *    cho lượt gửi lại sau khi mất mạng. Điện thoại không nghĩ ra được một giá trị nào
-		 *    nằm ngoài khoảng vé cho phép, và mọi phép kiểm nằm ở CỬA chứ không ở đây.
-		 *
-		 * 🔴 CHO NÊN HÀM NÀY KHÔNG ĐƯỢC TỰ KIỂM LẠI VÉ, VÀ CŨNG KHÔNG ĐƯỢC NHẬN GIỜ TRẦN. Nơi
-		 *    gọi nào truyền thẳng một con số chưa qua `doc_ve()` là đã mở lại đúng cái lỗ ấy —
-		 *    có phép thử soi rằng chỉ có một nơi gọi duy nhất truyền tham số này. */
-		$moc  = ( null !== $moc_giu && (int) $moc_giu > 0 ) ? (int) $moc_giu : (int) current_time( 'timestamp' );
-		$ngay = gmdate( 'Y-m-d', $moc );
-		$giay = VHCC_DB::giay( gmdate( 'H:i:s', $moc ) );
+		// Gác 1: GIỜ LẤY Ở ĐÂY. Không có tham số nào cho client truyền giờ vào.
+		$ngay = current_time( 'Y-m-d' );
+		$giay = VHCC_DB::giay( current_time( 'H:i:s' ) );
 
 		/* Định tuyến Văn phòng. Phải kiểm "hàng 1 đã có giờ vào mà chưa có giờ ra" TRƯỚC khi quyết
 		   định, vì đó là điều kiện của ân hạn tan làm. */
@@ -425,42 +414,11 @@ class VHCC_Online {
 		// GPS: bản gốc ghi làm GHI CHÚ trên ô giờ. Ở đây có cột riêng.
 		$ghi_chu = self::gps_thanh_chu( $gps );
 
-		/* 🔴 LƯỢT GỬI LẠI PHẢI TỰ KHAI RA LÀ NÓ GỬI LẠI. Hàng này mang một giờ khác hẳn giờ nó
-		   được ghi vào bảng; ba tháng sau không có cách nào nhìn ra điều đó từ con số. Mà đúng
-		   những hàng ấy là thứ đầu tiên bị nghi khi có tranh cãi về giờ công — nên nó phải tự
-		   nói, chứ không để ai đi tìm trong nhật ký máy chủ. */
-		if ( null !== $moc_giu && (int) $tre_gui >= self::TRE_DANG_KE ) {
-			$phut = (int) round( (int) $tre_gui / 60 );
-			$gc_gui = 'GỬI LẠI SAU KHI MẤT MẠNG: bấm lúc ' . gmdate( 'H:i:s', $moc )
-				. ', máy chủ nhận lúc ' . current_time( 'H:i:s' )
-				. ' (chậm ' . ( $phut < 1 ? '<1' : $phut ) . ' phút).';
-			$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $gc_gui : $gc_gui;
-		}
-
-		/* Gác 5: ĐỐI CHIẾU VỚI MỐC CỦA CƠ SỞ (xem VHCC_ViTri).
-		   🔴 XÉT SAU khi `$coso` đã chốt, KHÔNG xét theo `$coso_chon` của client. Người làm hai
-		      nơi gửi lên một tên, gác 2 đổi nó sang tên đúng trong hồ sơ — so mốc theo tên chưa
-		      chốt là so với mốc của cơ sở khác.
-		   🔴 CHỐI TRƯỚC KHI GHI. Đặt phép chối sau `ghi_gio()` thì hàng đã nằm trong bảng, và
-		      "lượt bị chặn" hoá ra vẫn là công. */
-		if ( class_exists( 'VHCC_ViTri' ) ) {
-			$xv = VHCC_ViTri::xet( $coso, $gps );
-			if ( ! empty( $xv['chan'] ) ) {
-				return array( 'ok' => false, 'error' => VHCC_ViTri::loi_chan( $coso, $xv ),
-					'viTri' => $xv );
-			}
-			if ( ! empty( $xv['gac'] ) && '' !== (string) $xv['chu'] ) {
-				$ghi_chu = ( '' !== $ghi_chu ) ? $ghi_chu . ' · ' . $xv['chu'] : $xv['chu'];
-			}
-		}
-
 		$kq = VHCC_Nhan::ghi_gio( $coso, $ngay, $ma_ghi, (string) $u['ho_ten'], $giay_ghi, $b64, 'online', $ghi_chu );
 		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
 
 		return array( 'ok' => true, 'loai' => $kq['loai'], 'coSo' => $coso, 'ngay' => $ngay,
-			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'],
-			'viTri' => ( isset( $xv ) ? $xv : null ),
-			'guiLai' => ( (int) $tre_gui >= self::TRE_DANG_KE ), 'treGiay' => (int) $tre_gui );
+			'gio' => VHCC_DB::hhmmss( $giay ), 'ma' => $ma_ghi, 'img' => $kq['anh'] );
 	}
 
 	/** Hậu tố hàng của một nhiệm vụ. Không khớp -> rỗng = ghi vào hàng chính. */
@@ -486,22 +444,6 @@ class VHCC_Online {
 
 	/** Sai số (mét) từ đó trở lên thì toạ độ KHÔNG còn xác nhận được ai đứng ở đâu. */
 	const GPS_THO = 2000;
-
-	/**
-	 * Trễ từ bấy nhiêu giây trở lên thì lượt ấy mới đáng gọi là "gửi lại".
-	 *
-	 * 🔴 VÌ SAO KHÔNG PHẢI `> 0`. Từ 4.16.0 MỌI lượt chấm của trạm đều đi qua vé giờ, kể cả
-	 *    lượt online — cố ý, để một lượt gửi lại mang ĐÚNG TỪNG GIÂY con số của lượt đầu và
-	 *    `quyet_dinh_gio()` nhận ra nó là 'trung' rồi bỏ qua. Nếu lượt đầu ghi bằng giờ máy
-	 *    chủ lúc NHẬN còn lượt gửi lại ghi bằng giờ lúc BẤM thì hai con số lệch nhau vài
-	 *    giây, và lượt thứ hai thành GIỜ RA — một ca dài 0 phút, mà bảng công lại thấy đã đủ
-	 *    cặp nên không báo thiếu. Đó là hỏng im lặng, đúng loại tệ nhất.
-	 *
-	 *    Cái giá của quyết định ấy: lượt online bình thường cũng có `tre_gui` khác 0 (một, hai
-	 *    giây đường truyền). Dán chữ "GỬI LẠI SAU KHI MẤT MẠNG" vào mọi hàng thì dòng ghi chú
-	 *    ấy hết nghĩa đúng lúc cần nó nhất. Nên chỉ ghi khi trễ THẬT.
-	 */
-	const TRE_DANG_KE = 60;
 
 	/**
 	 * GPS -> dòng chữ đóng vào ghi chú của lượt chấm.

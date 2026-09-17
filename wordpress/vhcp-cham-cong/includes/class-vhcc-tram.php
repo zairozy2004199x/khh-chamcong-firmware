@@ -57,105 +57,6 @@ class VHCC_Tram {
 
 	const SLUG_MD = 'cham-cong-online';
 
-	/* ═══════════════════════════════════════════════════════════════════════════════════════
-	 * VÉ GIỜ — cách DUY NHẤT một lượt chấm gửi lại sau khi mất mạng được mang theo giờ cũ.
-	 * ═══════════════════════════════════════════════════════════════════════════════════════
-	 * 🔴 GÁC 1 KHÔNG ĐƯỢC NỚI. "Giờ lấy ở máy chủ, tuyệt đối không nhận giờ từ điện thoại" —
-	 *    nhận giờ của client là ai cũng tự khai mình đến từ 8 giờ sáng. Hàng đợi offline thì
-	 *    lại BUỘC phải ghi một giờ đã trôi qua. Hai điều ấy chỉ sống chung được nếu giờ ấy
-	 *    KHÔNG do điện thoại nghĩ ra, mà do CHÍNH MÁY CHỦ phát ra lúc còn mạng.
-	 *
-	 *    Nên `viec=gio` phát kèm một cái vé đã ký. Vé nói: *"máy chủ ở thời điểm M, vé này của
-	 *    thẻ phiên T, dùng được tới M+30 phút"*. Lượt chấm gửi lại nộp vé cùng số mili giây đã
-	 *    trôi (đo bằng `performance.now()`, không đọc đồng hồ máy). Máy chủ tự cộng lại và tự
-	 *    kiểm — điện thoại không chọn được một con số nào nằm ngoài khoảng vé cho phép.
-	 *
-	 * 🔴 BA CHỐT, THIẾU CHỐT NÀO CŨNG THÀNH CỬA KHAI GIỜ TỰ DO:
-	 *    1. CHỮ KÝ. Không ký thì vé là một con số gõ tay được, và cả bộ này chỉ là thủ tục.
-	 *    2. BUỘC VÀO THẺ PHIÊN. Vé không gắn thẻ thì một người xin vé lúc 6 giờ rồi đưa vé cho
-	 *       cả cửa hàng — mười người cùng "đến từ 6 giờ".
-	 *    3. HẠN NGẮN. Giờ khai được chỉ nằm trong khoảng [lúc phát vé, lúc phát vé + 30 phút].
-	 *       Hạn dài là mở lại đúng cái lỗ vừa bịt: xin vé lúc 6h, 9h mới bấm, khai 6h.
-	 *
-	 * ⚠️ VÉ KHÔNG PHẢI THẺ ĐĂNG NHẬP. Nó chỉ chứng nhận MỘT MỐC GIỜ, không mở cửa gì. Lộ vé thì
-	 *    kẻ cầm nó cũng phải có thẻ phiên khớp mới dùng được, và dùng được cũng chỉ để ghi một
-	 *    lượt chấm vào đúng nửa giờ đã qua — bằng đúng việc họ làm được khi chấm bình thường.
-	 */
-	const VE_HAN = 1800;
-
-	/**
-	 * Lượt gửi lại cũ hơn bấy nhiêu giây thì THÔI, không nhận nữa.
-	 *
-	 * 🔴 VÌ SAO PHẢI CÓ TRẦN, dù vé đã có hạn riêng. Hạn vé chặn việc khai một giờ QUÁ SỚM;
-	 *    trần này chặn việc NỘP QUÁ MUỘN. Hai chuyện khác nhau: một cái điện thoại để trong
-	 *    ngăn kéo ba ngày rồi mới có mạng sẽ nhả ra một lượt chấm cho ngày thứ Hai vào sáng
-	 *    thứ Năm — công của một ngày đã chốt bỗng đổi, sau khi bảng công ngày ấy đã được đọc,
-	 *    đã được duyệt, và có khi đã tính lương. Việc sửa công của ngày đã qua có cửa riêng
-	 *    (chấm bù), có người duyệt và có dấu vết; hàng đợi không được lén làm thay việc ấy.
-	 */
-	const GUI_LAI_TOI_DA = 43200;   // 12 giờ
-
-	private static function ve_ky( $moc, $han, $token ) {
-		return substr( hash_hmac( 'sha256',
-			(int) $moc . '|' . (int) $han . '|' . (string) $token, wp_salt( 'auth' ) ), 0, 32 );
-	}
-
-	/** Vé cho một thẻ phiên. Thẻ rỗng -> không phát vé (khách chưa đăng nhập không cần vé). */
-	public static function ve_gio( $token ) {
-		$token = trim( (string) $token );
-		if ( '' === $token ) { return ''; }
-		$moc = (int) current_time( 'timestamp' );
-		$han = $moc + self::VE_HAN;
-		return $moc . '.' . $han . '.' . self::ve_ky( $moc, $han, $token );
-	}
-
-	/**
-	 * Đọc vé + số mili giây đã trôi -> mốc giờ ĐƯỢC PHÉP ghi.
-	 *
-	 * @return array array('ok'=>bool,'moc'=>int,'cham'=>int giây trễ,'error'=>string)
-	 */
-	public static function doc_ve( $ve, $token, $troi_ms ) {
-		$chia = explode( '.', trim( (string) $ve ) );
-		if ( 3 !== count( $chia ) ) {
-			return array( 'ok' => false, 'error' => 'Vé giờ không đọc được — chấm lại khi có mạng.' );
-		}
-		list( $moc, $han, $ky ) = $chia;
-		if ( ! ctype_digit( (string) $moc ) || ! ctype_digit( (string) $han ) ) {
-			return array( 'ok' => false, 'error' => 'Vé giờ hỏng — chấm lại khi có mạng.' );
-		}
-		$moc = (int) $moc;
-		$han = (int) $han;
-		/* `hash_equals` chứ không phải `===`: so chuỗi bằng `===` thoát ra ở byte đầu khác nhau,
-		   và thời gian thoát ấy đo được — đủ để dò dần ra chữ ký đúng. */
-		if ( ! hash_equals( self::ve_ky( $moc, $han, $token ), (string) $ky ) ) {
-			return array( 'ok' => false, 'error' => 'Vé giờ không phải của phiên này — đăng nhập '
-				. 'lại rồi chấm lại.' );
-		}
-
-		$troi = ( is_numeric( $troi_ms ) && $troi_ms > 0 ) ? (int) round( (float) $troi_ms / 1000 ) : 0;
-		$khai = $moc + $troi;
-		$nay  = (int) current_time( 'timestamp' );
-
-		/* Khai vượt hạn vé -> kéo về mốc vé. KHÔNG chối: người bấm không làm gì sai, họ chỉ
-		   mất mạng lâu hơn nửa giờ. Kéo về là ghi SỚM HƠN thực tế — bất lợi cho người bấm ở
-		   lượt giờ vào, nhưng nó là con số máy chủ chắc chắn, và lệch bao nhiêu thì có ghi. */
-		$keo = false;
-		if ( $khai > $han ) { $khai = $han; $keo = true; }
-
-		/* 🔴 KHÔNG BAO GIỜ GHI MỘT GIỜ Ở TƯƠNG LAI. Đồng hồ máy chủ có thể bị chỉnh lùi (đồng bộ
-		   NTP, đổi múi giờ của hosting) và lúc đó mốc cũ nằm sau "bây giờ". Ghi giờ ra ở tương
-		   lai là ca ấy dài thêm vài tiếng mà không ai hiểu vì sao. */
-		if ( $khai > $nay ) { $khai = $nay; }
-
-		$cham = $nay - $khai;
-		if ( $cham > self::GUI_LAI_TOI_DA ) {
-			return array( 'ok' => false, 'error' => 'Lượt chấm này giữ trong máy đã '
-				. round( $cham / 3600 ) . ' giờ — quá lâu để tự ghi vào bảng công. Nhờ quản lý '
-				. 'chấm bù (có ghi lại ai bù, vì sao).' );
-		}
-		return array( 'ok' => true, 'moc' => $khai, 'cham' => $cham, 'keo' => $keo );
-	}
-
 	/** Số lượt gõ PIN sai cho mỗi IP trong 10 phút. */
 	const SAI_TOI_DA = 12;
 
@@ -281,15 +182,7 @@ class VHCC_Tram {
 		$b = self::than();
 
 		/* --- việc công khai: chưa đăng nhập cũng gọi được --- */
-		if ( 'gio' === $viec ) {
-			/* Vé giờ đi kèm mốc, CHỈ khi lượt hỏi có mang thẻ phiên. Màn đăng nhập cũng gọi
-			   `gio` để chạy đồng hồ, và lúc ấy chưa có thẻ — không phát vé cho nó là đúng:
-			   vé không gắn thẻ thì một người xin vé rồi đưa cho cả cửa hàng. */
-			$g = VHCC_Online::gio_may_chu();
-			$tk_g = isset( $b['token'] ) ? (string) $b['token'] : '';
-			if ( '' !== $tk_g && self::nguoi( $tk_g ) ) { $g['ve'] = self::ve_gio( $tk_g ); }
-			self::ra( $g );
-		}
+		if ( 'gio' === $viec ) { self::ra( VHCC_Online::gio_may_chu() ); }
 
 		if ( 'anhmau' === $viec ) { self::ra( VHCC_Online::anh_mau_the() ); }
 
@@ -304,6 +197,19 @@ class VHCC_Tram {
 
 		/* ĐANG CÓ PHIÊN Ở TRANG QUẢN TRỊ THÌ VÀO THẲNG — xem `phien_tu_cookie()`. */
 		if ( 'phien' === $viec ) { self::ra( self::phien_tu_cookie() ); }
+
+		/**
+		 * HỘP TIN CHO WORKER — cố ý KHÔNG đòi thẻ phiên.
+		 *
+		 * ⚠️ Worker chạy khi trang đã đóng: nó không đọc được `localStorage`, nên không có thẻ
+		 *    nào để gửi kèm. Gác ở đây là `khoa_hop` — chìa 64 ký tự hex do máy chủ phát lúc
+		 *    đăng ký, worker cất ở IndexedDB. Chìa ấy mở đúng một việc: đọc tin chờ của chính
+		 *    thuê bao đó. Không chấm công được, không xem được lương.
+		 */
+		if ( 'push_hop' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Push::hop( isset( $b['khoa'] ) ? (string) $b['khoa'] : '' ) );
+		}
 
 		if ( 'quenpin' === $viec ) {
 			/* Bộ đếm chống dò nằm TRONG VHCC_Quyen::tra_pin_theo_cccd — không nhân bản ở đây.
@@ -320,12 +226,6 @@ class VHCC_Tram {
 
 		if ( 'toi' === $viec ) {
 			$tt = VHCC_Online::thong_tin( $u );
-			/* Mốc giờ trong `toi` phải đi KÈM VÉ, y như `gio`. Trạm đặt lại `MOC` từ lượt này,
-			   và một mốc không vé là mốc không dùng được cho hàng đợi — lúc mất mạng mới lộ
-			   ra, tức đúng lúc không sửa được gì. */
-			if ( isset( $tt['gio'] ) && is_array( $tt['gio'] ) ) {
-				$tt['gio']['ve'] = self::ve_gio( isset( $b['token'] ) ? (string) $b['token'] : '' );
-			}
 			/* Đường sang trang quản trị — CHỈ gửi cho người thật sự mở được nó. Gửi cho ai
 			   cũng thì nhân viên bấm vào rồi nhận một trang chối, và họ tưởng mình hỏng máy.
 			   Cùng một thẻ dùng được cả hai bên nên bấm sang là vào thẳng, không gõ PIN lại. */
@@ -336,31 +236,56 @@ class VHCC_Tram {
 			self::ra( $tt );
 		}
 
+		if ( 'push_dk' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Push::dang_ky(
+				$u['ma_nv'],
+				isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '',
+				isset( $b['p256dh'] ) ? (string) $b['p256dh'] : '',
+				isset( $b['auth'] ) ? (string) $b['auth'] : '',
+				isset( $_SERVER['HTTP_USER_AGENT'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_USER_AGENT'] ) ) : ''
+			) );
+		}
+
+		if ( 'push_huy' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Push::huy( isset( $b['endpoint'] ) ? (string) $b['endpoint'] : '' ) );
+		}
+
+		if ( 'hoso' === $viec ) {
+			self::ra( VHCC_HoSoToi::doc( $u['ma_nv'] ) );
+		}
+
+		if ( 'luu_hoso' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_HoSoToi::luu( $u, isset( $b['hs'] ) ? $b['hs'] : array() ) );
+		}
+
+		/* Đổi PIN — uỷ THẲNG cho `VHCC_Quyen::doi_pin()`, không viết lại.
+		   ⚠️ Hàm ấy đã mang đủ chốt: cấm PIN dễ đoán, chặn nhịp độ khi dò trúng PIN người
+		      khác, và nói thật khi trùng. Viết một bản rút gọn ở đây là bỏ mất cả ba mà không
+		      ai nhận ra, vì đường này vẫn "chạy được". */
+		if ( 'doi_pin' === $viec ) {
+			$b = self::than();
+			self::ra( VHCC_Quyen::doi_pin(
+				isset( $b['cu'] ) ? $b['cu'] : '',
+				isset( $b['moi'] ) ? $b['moi'] : '',
+				isset( $b['lai'] ) ? $b['lai'] : ''
+			) );
+		}
+
+		if ( 'ung' === $viec ) {
+			self::ra( array( 'ok' => true, 'ds' => VHCC_Ung::ds( $u ) ) );
+		}
+
 		if ( 'cham' === $viec ) {
 			$gps = ( isset( $b['gps'] ) && is_array( $b['gps'] ) ) ? $b['gps'] : null;
-
-			/* LƯỢT GỬI LẠI TỪ HÀNG ĐỢI — mang vé giờ, nên ghi vào giờ ĐÃ BẤM chứ không phải
-			   giờ máy chủ nhận được. Lượt chấm bình thường không có vé và đi đúng đường cũ:
-			   `$moc = null` -> `cham_cong()` tự lấy giờ máy chủ, gác 1 nguyên vẹn. */
-			$moc  = null;
-			$tre_gui = 0;
-			if ( ! empty( $b['veGio'] ) ) {
-				$v = self::doc_ve( (string) $b['veGio'],
-					isset( $b['token'] ) ? (string) $b['token'] : '',
-					isset( $b['troi'] ) ? $b['troi'] : 0 );
-				if ( empty( $v['ok'] ) ) { self::ra( array( 'ok' => false, 'error' => $v['error'] ) ); }
-				$moc = (int) $v['moc'];
-				$tre_gui = (int) $v['cham'];
-			}
-
 			self::ra( VHCC_Online::cham_cong(
 				$u,
 				isset( $b['anh'] ) ? (string) $b['anh'] : '',
 				$gps,
 				isset( $b['coSo'] ) ? (string) $b['coSo'] : '',
-				isset( $b['nhiemVu'] ) ? (string) $b['nhiemVu'] : '',
-				$moc,
-				$tre_gui
+				isset( $b['nhiemVu'] ) ? (string) $b['nhiemVu'] : ''
 			) );
 		}
 
@@ -391,98 +316,6 @@ class VHCC_Tram {
 			$ds = VHCC_Online::ds_coso_cua_nv( $u['ma_nv'], VHCC_NhanSu::chuan_coso( $u['coso'] ) );
 			self::ra( VHCC_Online::bang_thang( $u['ma_nv'], $ds,
 				isset( $b['thang'] ) ? (string) $b['thang'] : '' ) );
-		}
-
-		/* ═════════════════════════════════════════════════════════════════════════════════
-		 * XIN PHÉP NGAY TRÊN TRẠM — đi trễ, và đổi lịch (gồm cả xin nghỉ một ngày).
-		 *
-		 * Anh Thắng 27/08/2026 đã nói rõ chỗ nộp đơn đi trễ nằm ở đâu: *"tại trang chấm công
-		 * online nhân viên sẽ chọn Xin Phép đi trễ TRƯỚC KHI TỚI cửa hàng"*. Nghiệp vụ ấy viết
-		 * xong từ bản 3.x và chạy đủ (VHCC_XinTre), nhưng MÀN ĐỂ NỘP thì chưa bao giờ có — nó
-		 * chỉ hiện ở trang quản trị, nơi nhân viên không vào được. Nên trên thực tế người duy
-		 * nhất nộp được đơn đi trễ là cửa hàng trưởng, nộp hộ.
-		 *
-		 * 🔴 KHÔNG VIẾT LẠI MỘT DÒNG NGHIỆP VỤ NÀO Ở ĐÂY. Cả hai lệnh chuyển thẳng xuống
-		 *    `VHCC_XinTre::nop()` và `VHCC_Lich::xin_doi_lich()` — đúng hai hàm mà trang quản
-		 *    trị gọi. Dựng đường nộp thứ hai là hai bộ luật (hạn nộp trước/sau, một người một
-		 *    ngày một đơn, đơn nộp lại về chờ duyệt), và sớm muộn hai bộ lệch nhau ở đúng chỗ
-		 *    không ai kịp phát hiện.
-		 *
-		 * ⚠️ MÃ NV LUÔN LẤY TỪ THẺ PHIÊN. `nop()` đã tự lấy từ `$u` và cố ý không đọc biểu mẫu;
-		 *    `xin_doi_lich()` thì NHẬN mã từ tham số, nên ở đây phải tự chèn mã của phiên vào và
-		 *    KHÔNG được chuyển tiếp `ma_nv` do trình duyệt gửi lên — không thì ai cũng nộp được
-		 *    đơn đứng tên người khác.
-		 * ═════════════════════════════════════════════════════════════════════════════════ */
-		if ( 'xintre' === $viec ) {
-			self::ra( VHCC_XinTre::nop( $u, array(
-				'ngay'    => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
-				'so_phut' => isset( $b['soPhut'] ) ? $b['soPhut'] : '',
-				'ly_do'   => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
-			) ) );
-		}
-
-		if ( 'xinlich' === $viec ) {
-			/* Cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có, đúng gác 2
-			   của đường chấm công. Không kiểm thì một người nộp được đơn nghỉ vào lịch cơ sở
-			   khác, và cửa hàng trưởng bên ấy thấy một cái tên lạ xin nghỉ. */
-			$cs_x = trim( (string) ( isset( $b['coSo'] ) ? $b['coSo'] : '' ) );
-			$duoc = VHCC_Online::ds_coso_cham_cua_nv( $u['ma_nv'], isset( $u['coso'] ) ? $u['coso'] : '' );
-			$hop  = '';
-			foreach ( $duoc as $x ) { if ( 0 === strcasecmp( $x, $cs_x ) ) { $hop = $x; } }
-			if ( '' === $hop ) { $hop = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' ); }
-			if ( '' === $hop ) {
-				self::ra( array( 'ok' => false, 'error' => 'Hồ sơ của anh/chị chưa tích cơ sở nào '
-					. 'nên đơn không biết gửi cho ai duyệt.' ) );
-			}
-			if ( ! VHCC_Lich::co_bat_lich( $hop ) ) {
-				self::ra( array( 'ok' => false, 'error' => 'Cơ sở "' . $hop . '" chưa bật phân lịch '
-					. 'nên không có lịch nào để đổi. Xin nghỉ thì báo trực tiếp quản lý.' ) );
-			}
-			$hs = VHCC_NhanSu::ho_so( $u['ma_nv'] );
-			self::ra( VHCC_Lich::xin_doi_lich( $u, array(
-				'coso'          => $hop,
-				'ma_nv'         => $u['ma_nv'],          // ⚠️ từ PHIÊN, không từ biểu mẫu
-				'ho_ten'        => $hs && isset( $hs['ho_ten'] ) ? (string) $hs['ho_ten'] : (string) $u['ho_ten'],
-				'ngay'          => isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
-				'ca'            => isset( $b['ca'] ) ? (string) $b['ca'] : '',
-				'viec_moi'      => isset( $b['viecMoi'] ) ? (string) $b['viecMoi'] : '',
-				'doi_sang_ngay' => isset( $b['doiSangNgay'] ) ? (string) $b['doiSangNgay'] : '',
-				'ly_do'         => isset( $b['lyDo'] ) ? (string) $b['lyDo'] : '',
-			) ) );
-		}
-
-		/**
-		 * MÀN XIN PHÉP CẦN GÌ ĐỂ DỰNG, VÀ ĐƠN CŨ CỦA CHÍNH NGƯỜI NÀY.
-		 *
-		 * 🔴 TRẢ VỀ CẢ ĐƠN ĐÃ NỘP, KHÔNG CHỈ Ô ĐỂ NỘP. Nộp xong mà màn không hiện đơn nào thì
-		 *    người ta không phân biệt được "đã gửi" với "bấm hụt" — và cách duy nhất họ có để
-		 *    chắc chắn là nộp lại. Đơn đi trễ nộp lại thì ĐÈ lên đơn cũ và quay về chờ duyệt
-		 *    (đúng luật của VHCC_XinTre), nên đơn vừa được duyệt có thể bị chính người xin huỷ
-		 *    mất — chỉ vì màn không nói cho họ biết đơn đang nằm đó.
-		 */
-		if ( 'donxin' === $viec ) {
-			$cs_mac = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' );
-			$ds_cs  = VHCC_Online::ds_coso_cham_cua_nv( $u['ma_nv'], isset( $u['coso'] ) ? $u['coso'] : '' );
-			$bat    = array();
-			foreach ( $ds_cs as $x ) { if ( VHCC_Lich::co_bat_lich( $x ) ) { $bat[] = $x; } }
-			$cf = array(
-				'ca'       => (array) VHCC_Luong::cai_dat( 'LICH_CA', array( 'Sáng', 'Chiều', 'Tối' ) ),
-				'loaiViec' => (array) VHCC_Luong::cai_dat( 'LICH_LOAI_VIEC', array() ),
-			);
-			self::ra( array(
-				'ok'          => true,
-				'phutToiDa'   => VHCC_Tre::TOI_DA,
-				'truocToiDa'  => VHCC_XinTre::TRUOC_TOI_DA,
-				'muonToiDa'   => VHCC_XinTre::MUON_TOI_DA,
-				'homNay'      => current_time( 'Y-m-d' ),
-				'coSoMacDinh' => $cs_mac,
-				'dsCoSo'      => $ds_cs,
-				'coSoBatLich' => $bat,
-				'ca'          => $cf['ca'],
-				'loaiViec'    => $cf['loaiViec'],
-				'donTre'      => VHCC_XinTre::cua_nguoi( $u['ma_nv'], 12 ),
-				'donLich'     => VHCC_Lich::cua_nguoi( $u['ma_nv'], 12 ),
-			) );
 		}
 
 		if ( 'ra' === $viec ) {
