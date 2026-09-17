@@ -98,6 +98,15 @@ jobs:
           # O — dan link /exec vao o WordPress thi khong luot nao toi MySQL ma log trong nhu xong.
           bash tools/test/fw/kiem-link.sh
 
+      - name: Kiem than JSON luot cham cong + luat ten co so (g++)
+        run: |
+          set -e
+          # Chay TRUOC buoc Compile: day la chuoi ma TIEN LUONG di qua. Thieu escape o day thi
+          # cong trinh bien dich VAN dich duoc, .bin VAN nap duoc, nhip song VAN xanh — chi rieng
+          # nhung nhan vien co dau " hay \ trong ten la mat cong, im lang, khong dau vet. Khong
+          # co lop nao khac trong CI cham tới loi nay.
+          bash tools/test/fw/kiem-than-cham-cong.sh
+
       - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
         run: |
           set -e
