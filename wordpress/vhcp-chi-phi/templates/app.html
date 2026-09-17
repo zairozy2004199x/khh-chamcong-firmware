@@ -716,7 +716,7 @@
       <div id="daQtBox" style="display:none;margin:10px 0 0">
         <div style="font-size:12.5px;font-weight:700;color:#171417;margin-bottom:4px">🧾 Lệnh quyết toán của dự án</div>
         <div class="tw"><table>
-          <thead><tr><th style="width:64px">Đợt</th><th>Hạng mục trong lệnh</th>
+          <thead><tr><th style="width:74px">Lệnh</th><th>Hạng mục trong lệnh</th>
             <th style="text-align:right">Số tiền</th><th>Trạng thái</th><th>Mốc</th>
             <th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="daQtBody"></tbody>
@@ -6606,7 +6606,13 @@
   }
   function _nhanDot(d){
     var n=_dotHien(d);
-    if(n) return '<b>Đợt '+n+'</b>';
+    /* 🔴 "LỆNH", KHÔNG PHẢI "ĐỢT" — 17/09/2026. Anh Thắng nhìn dòng 68.790.000đ ghi "Đợt 1" và
+       hỏi *"đợt 1 là 10tr, sao lại ghi trong này là 68tr"*. Vì hệ có HAI tầng mà cột này gọi
+       nhầm tầng: LỆNH là lô hạng mục gửi xin cùng lúc (68.79tr, một lượt duyệt), còn ĐỢT là mỗi
+       lần thật sự đi nhận tiền trong lô ấy (10tr ngày 03/09). Chính bảng cũng đang tự mâu thuẫn:
+       tiêu đề ghi "Lệnh tạm ứng của dự án", cột đầu ghi "Đợt". Mã nguồn gọi đúng từ lâu —
+       `lenh` cho lô, `lich`/`daCap` cho từng lần — chỉ cái nhãn trên màn là sai. */
+    if(n) return '<b>Lệnh '+n+'</b>';
     /* Lệnh đã trả: giữ dòng để còn dấu vết ai trả, lúc nào, vì sao — nhưng KHÔNG mang số đợt.
        Giấu dòng đi thì mốc "xin lúc mấy giờ / duyệt lúc mấy giờ" của nó mất theo. */
     return '<span style="color:#b91c1c;font-weight:700" title="Lệnh này bị trả lại nên không '
@@ -6637,6 +6643,71 @@
     return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;color:'
       +n[1]+';background:'+n[2]+'">'+n[0]+'</span>';
   }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     MỖI ĐỢT MỘT DÒNG — dưới mỗi LỆNH.
+
+     Anh Thắng 17/09/2026: *"đợt 1 là 10tr, sao lại ghi trong này là 68tr"*. Hệ có hai tầng và
+     bảng chỉ vẽ tầng ngoài, nên tầng trong — thứ anh gọi là "đợt" — không có chỗ nào hiện ra:
+       · LỆNH = lô hạng mục gửi xin cùng lúc, một tổng tiền, một lượt duyệt   (68.790.000đ)
+       · ĐỢT  = mỗi lần thật sự đi nhận tiền trong lô ấy                      (03/09 · 10tr)
+
+     🔴 KHÔNG GHÉP LỊCH VỚI LẦN CẤP THẬT THEO THỨ TỰ. Cám dỗ là in "Đợt 1: hẹn 10tr → đã cấp
+        10tr" cho gọn. Nhưng hai danh sách ấy độc lập: kế toán có thể đưa 15tr thay vì 10tr, đưa
+        gộp hai đợt làm một, hay đưa sớm một hôm. Ghép theo chỉ số là BỊA ra một sự thật thứ ba —
+        và nó trông đáng tin hơn hẳn hai cái thật. Nên: lịch hẹn là lịch hẹn, đã cấp là đã cấp,
+        hai khối riêng, ai đọc cũng tự đối chiếu được.
+
+     🔴 NÓI RA PHẦN CHƯA XẾP ĐỢT. Lịch của anh khai 10tr + 20tr = 30tr cho một lệnh 68.790.000đ —
+        còn 38.790.000đ không nằm trong đợt nào, mà chẳng có gì trên màn nói thế. Kế toán nhìn
+        lịch mà liệu tiền thì chuẩn bị thiếu hơn một nửa.
+     ⚠️ CHỈ KÊU KHI CÓ KHAI LỊCH MÀ THIẾU. Lệnh không khai lịch nào là chuyện thường (nhận một
+        lần); kêu ở đó thì mọi lệnh đều có một dòng cảnh báo, và người ta thôi đọc nó.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _dotBlock(d){
+    var lich=(d&&d.lich)||[], daCap=(d&&d.daCap)||[];
+    /* Không có đường thoát sớm cho "rỗng cả hai": hai vòng dưới không chạy thì `h` vốn đã là
+       chuỗi rỗng. Bản nháp có một dòng `if(...) return ''` ở đây; phá nó thì bài kiểm KHÔNG đỏ
+       — đúng như phải thế, vì nó không gánh gì. Hai dòng cho một kết quả là chỗ để người sau
+       sửa nhầm dòng không gánh rồi tưởng đã sửa. Đã bỏ. */
+    var tong=Number(d&&d.soTien)||0, h='';
+
+    if(lich.length){
+      var tongLich=0;
+      lich.forEach(function(y){ tongLich+=Number(y.soTien)||0; });
+      h+='<div style="font-size:11px;color:#7c3aed;font-weight:700;margin:0 0 2px">📅 Lịch nhận tiền</div>';
+      lich.forEach(function(y,i){
+        h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
+          +'<b>Đợt '+(Number(y.lan)||(i+1))+'</b> · hẹn '+esc(_dmy(y.ngay))
+          +(y.soTien?(' · <b>'+money(y.soTien)+'đ</b>'):' · <span style="color:#8c8781">chưa ghi số tiền</span>')
+          +'</div>';
+      });
+      var thieu=tong-tongLich;
+      if(thieu>0){
+        h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#b45309;font-weight:600">'
+          +'⚠️ còn <b>'+money(thieu)+'đ</b> chưa xếp vào đợt nào — kế toán nhìn lịch mà liệu tiền '
+          +'thì sẽ chuẩn bị thiếu đúng khoản này.</div>';
+      }
+    }
+
+    if(daCap.length){
+      var daTong=_daCapTong(d), con=_conPhaiCap(d);
+      h+='<div style="font-size:11px;color:#0f766e;font-weight:700;margin:6px 0 2px">💵 Đã cấp</div>';
+      daCap.forEach(function(y,i){
+        h+='<div style="font-size:11.5px;margin:1px 0 1px 10px">'
+          +'<b>Lần '+(Number(y.lan)||(i+1))+'</b>'
+          +(y.ngay?(' · '+esc(_dmy(y.ngay))):'')
+          +' · <b>'+money(y.soTien)+'đ</b>'
+          +(y.unc?(' · <span style="color:#2545ff">UNC '+esc(y.unc)+'</span>'):'')
+          +(y.nguoi?(' <span style="color:#8c8781">— '+esc(y.nguoi)+'</span>'):'')
+          +'</div>';
+      });
+      h+='<div style="font-size:11.5px;margin:2px 0 0 10px;color:#0f766e;font-weight:600">'
+        +'tổng đã đưa <b>'+money(daTong)+'đ</b>'
+        +(con?(' · còn phải đưa <b>'+money(con)+'đ</b>'):' · <b>đủ</b>')+'</div>';
+    }
+    return h;
+  }
+
   function renderDaLenh(r){
     var box=el('daLenhBox'), body=el('daLenhBody');
     if(!box||!body) return;
@@ -6650,8 +6721,11 @@
     var ma=String(r&&r.maDA||'');
     body.innerHTML=ds.map(function(d){
       var k='Q'+ma.replace(/[^A-Za-z0-9_-]/g,'')+'_'+d.dot;
-      var lich=(d.lich||[]).length?('<div style="font-size:10.5px;color:#7c3aed">lịch: '
-        +(d.lich||[]).map(function(y){ return _dmy(y.ngay)+(y.soTien?(' · '+money(y.soTien)):''); }).join(' · ')+'</div>'):'';
+      /* Khối "mỗi đợt một dòng" thay cho dòng lịch gộp một hàng của bản trước — xem 🔴 ở
+         `_dotBlock()`. Dòng gộp ấy bắt người đọc tự cộng nhẩm, và nó không nói được phần chưa
+         xếp đợt lẫn phần đã cấp thật. */
+      var lich=_dotBlock(d);
+      if(lich) lich='<div style="margin-top:4px;padding-left:8px;border-left:2px solid #e2d6c7">'+lich+'</div>';
       var moc=Object.keys(d.moc||{}).map(function(x){ return esc(x)+': '+esc(d.moc[x]); }).join('<br>');
       var nut=lenhNutChung(k, ma, d.dot, d.tt);
       return '<tr><td>'+_nhanDot(d)+'</td>'

@@ -323,7 +323,9 @@ function veLenh(role, loc) {
   t('🔴 một dòng = MỘT LỆNH, có tổng tiền của cả lệnh', /15300000/.test(out), out.slice(0, 300));
   t('   và kể tên các hạng mục trong lệnh',
     /Mua đồ điện/.test(out) && /Thợ bốc vác/.test(out), out.slice(0, 400));
-  t('   nói rõ đợt mấy', /Đợt 1/.test(out) && /Đợt 2/.test(out), out.slice(0, 300));
+  /* 17/09/2026: cột đầu nay ghi LỆNH, không ghi ĐỢT — hệ có hai tầng và cột này là tầng
+     ngoài (lô hạng mục, một lượt duyệt). "Đợt" để dành cho từng lần đi nhận tiền. */
+  t('   nói rõ lệnh mấy', /Lệnh 1/.test(out) && /Lệnh 2/.test(out), out.slice(0, 300));
   t('🔴 lệnh chờ duyệt → kế toán duyệt được CẢ LỆNH một lần',
     /lenhDat\('DA1',1,'duyet',\{\},_lenhSau\('LDA1_1'\)\)/.test(out), out);
   t('🔴 lệnh đã duyệt → mở ô nhập uỷ nhiệm chi rồi cấp CẢ LỆNH',
@@ -349,7 +351,7 @@ function veLenh(role, loc) {
 {
   const out = veLenh('Kế toán cá nhân', 'cho');
   t('🔴 lọc "cần xử lý" chỉ giữ lệnh chờ duyệt / chờ cấp tiền',
-    /Đợt 1/.test(out) && /Đợt 2/.test(out) && !/UNC-9/.test(out), out);
+    /Lệnh 1/.test(out) && /Lệnh 2/.test(out) && !/UNC-9/.test(out), out);
 }
 t('🔴 màn Duyệt nạp bảng lệnh khi mở', HTML.indexOf('loadLenhDA(); loadDonHM();') >= 0);
 t('   bảng hạng mục nay chỉ lo NHẮC CHỐT hoá đơn, không còn lọc duyệt/cấp',
