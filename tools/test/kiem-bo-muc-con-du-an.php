@@ -104,6 +104,57 @@ teq( '🔴 hạng mục cha CÓ CON: tiền vẫn = tổng con (5tr), KHÔNG c�
 teq( '   và tổng thực tế cả dự án vẫn đúng 5tr', 5000000, (int) $dC['tongThucTe'] );
 teq( '   ba dòng cũ còn đủ trên bảng', 3, count( $dC['lines'] ) );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 3b. 🔴 CHỐT HOÀN THÀNH PHẢI CÓ SỐ TIỀN THẬT
+ *
+ * 'xong' nghĩa là "đây là chi thực tế". Bản trước chỉ đòi có hoá đơn, không đòi có SỐ TIỀN —
+ * nên chốt được một hạng mục 48 triệu với thực tế 0đ, rồi đem đi quyết toán: lệnh quyết toán
+ * ra 0đ (`xin_quyet_toan_dot` cộng bằng `tien_hm()`), khoản tạm ứng vẫn treo nguyên trên TK
+ * 141, mà sổ thì trông như đã tất toán. Cùng họ với lỗi lệnh xin 0đ, chỉ khác đầu kia của chuỗi.
+ * ══════════════════════════════════════════════════════════════════════════════════════════ */
+VHCP_Auth::dat_vai_tro( 'Admin', 'KT' );
+$maX = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian chốt 0đ', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maX, array( 'noiDung' => 'Thợ Phụ', 'duToan' => 48000000 ) );
+VHCP_DuAn::add_line( $maX, array( 'noiDung' => 'Xe cẩu', 'duToan' => 1000000, 'thucTe' => 900000 ) );
+$dX = VHCP_DuAn::get_du_an( $maX );
+$RX = array();
+foreach ( $dX['lines'] as $l ) { if ( '' === $l['capCha'] ) { $RX[ $l['noiDung'] ] = (int) $l['row']; } }
+
+$r = VHCP_DuAn::dat_hm( $maX, $RX['Thợ Phụ'], 'xong', array( 'hoaDon' => 'hd.pdf' ) );
+t( '🔴 chốt hoàn thành khi thực tế = 0 → CHỐI, dù đã có hoá đơn', empty( $r['success'] ), $r );
+t( '   và câu chối nói ra hậu quả (quyết toán ra 0đ, tạm ứng vẫn treo)',
+	isset( $r['error'] ) && false !== mb_strpos( (string) $r['error'], '0đ' ), $r );
+t( '   chỉ đúng ô phải điền', isset( $r['error'] )
+	&& false !== mb_strpos( (string) $r['error'], 'Chi phí thực tế' ), $r );
+teq( '   trạng thái không đổi', 'nhap', VHCP_DuAn::hm_cua( $maX, $RX['Thợ Phụ'] )['tt'] );
+
+$r = VHCP_DuAn::dat_hm( $maX, $RX['Xe cẩu'], 'xong', array( 'hoaDon' => 'hd2.pdf' ) );
+t( '🔴 có số tiền thật thì chốt được như thường', ! empty( $r['success'] ), $r );
+
+/* 🔴 ĐƠN CƠ SỞ: tiền ở SỐ LƯỢNG × ĐƠN GIÁ, ô thực tế để trống — máy chủ phải tự lấy thành
+   tiền, không thì chốt của nó bị chặn oan VÀ quyết toán của nó ra 0đ. Luật này trước chỉ nằm
+   ở màn web (`app.html`: "thực tế trống -> = thành tiền"), tức mọi đường ghi khác đều hụt. */
+$maY = VHCP_DuAn::tao_don_coso( 'Tuần thử thực tế', 'Sếp', '14/09/2026', '20/09/2026' )['maDA'];
+VHCP_DuAn::add_line( $maY, array( 'noiDung' => 'Cáp màn hình', 'soLuong' => 2, 'donGia' => 500000 ) );
+$dY = VHCP_DuAn::get_du_an( $maY );
+$rY = 0;
+foreach ( $dY['lines'] as $l ) { if ( 'Cáp màn hình' === $l['noiDung'] ) { $rY = (int) $l['row']; } }
+teq( '🔴 thực tế để trống → máy chủ lấy SL × đơn giá (1tr), không phải 0',
+	1000000, (int) VHCP_DuAn::tien_hm( $maY, $rY ) );
+$r = VHCP_DuAn::dat_hm( $maY, $rY, 'xong', array( 'hoaDon' => 'hd3.pdf' ) );
+t( '   nên chốt hoàn thành không bị chặn oan', ! empty( $r['success'] ), $r );
+
+/* ⚠️ Gửi THẲNG số 0 là lời khai có chủ ý ("hàng được tặng") — giữ nguyên 0, đừng đè bằng
+   thành tiền, không thì tự sinh ra một khoản chi không có thật. */
+$maZ = VHCP_DuAn::tao_don_coso( 'Tuần hàng tặng', 'Sếp', '14/09/2026', '20/09/2026' )['maDA'];
+VHCP_DuAn::add_line( $maZ, array( 'noiDung' => 'Hàng tặng', 'soLuong' => 1, 'donGia' => 500000, 'thucTe' => 0 ) );
+$dZ = VHCP_DuAn::get_du_an( $maZ );
+foreach ( $dZ['lines'] as $l ) {
+	if ( 'Hàng tặng' === $l['noiDung'] ) {
+		teq( '🔴 khai thẳng 0 thì GIỮ 0, không đè bằng thành tiền', 0.0, (float) $l['thucTe'] );
+	}
+}
+
 /* ═══ 4. CỬA DI TRÚ KHÔNG ĐƯỢC LỘ RA API ══════════════════════════════════════════════ */
 $src = file_get_contents( $goc . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
 t( '🔴 `them_dong_muc_con_cu` KHÔNG có mặt trong bảng cửa API — nó là cửa di trú, không phải '

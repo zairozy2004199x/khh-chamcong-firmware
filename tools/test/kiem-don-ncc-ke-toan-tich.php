@@ -40,8 +40,9 @@ function vai( $v, $ten = 'Ai đó' ) { VHCP_Auth::dat_vai_tro( $v, $ten ); }
 vai( 'Admin', 'KT' );
 $r  = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thử đơn NCC', 'NV' );
 $ma = $r['maDA'];
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe ba gác', 'duToan' => 2000000, 'hinhThuc' => 'Trực tiếp' ) );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Vật tư', 'duToan' => 5000000 ) );
+/* Kèm thực tế: chốt hoàn thành đòi có số tiền thật (1.193.0). */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Xe ba gác', 'duToan' => 2000000, 'thucTe' => 2000000, 'hinhThuc' => 'Trực tiếp' ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Vật tư', 'duToan' => 5000000, 'thucTe' => 4800000 ) );
 $d = VHCP_DuAn::get_du_an( $ma );
 $ncc = null; $ung = null;
 foreach ( $d['lines'] as $l ) {
@@ -127,7 +128,7 @@ t( '🔴 đơn tạm ứng: chốt mà THIẾU HOÁ ĐƠN vẫn bị chối', em
 /* Hạng mục NCC MỚI TINH — chưa từng có hoá đơn nào. Dùng lại hạng mục cũ là phép này xanh
    oan: mở lại đơn không xoá hoá đơn đã đính, nên "thiếu hoá đơn" không còn thiếu nữa. */
 vai( 'Admin', 'KT' );
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê cẩu', 'duToan' => 3000000, 'hinhThuc' => 'Trực tiếp' ) );
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Thuê cẩu', 'duToan' => 3000000, 'thucTe' => 3000000, 'hinhThuc' => 'Trực tiếp' ) );
 $d2 = VHCP_DuAn::get_du_an( $ma ); $ncc2 = null;
 foreach ( $d2['lines'] as $l ) { if ( 'Thuê cẩu' === $l['noiDung'] ) { $ncc2 = $l['row']; } }
 t( 'dựng được hạng mục NCC mới', null !== $ncc2, $d2['lines'] );

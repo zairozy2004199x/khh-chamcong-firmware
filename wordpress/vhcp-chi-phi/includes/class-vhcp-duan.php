@@ -1571,6 +1571,31 @@ class VHCP_DuAn {
 			} elseif ( '' === $hd ) {
 				return VHCP_Util::err( 'Phải đính hoá đơn trước khi chốt hoàn thành.' );
 			}
+			/* ═══════════════════════════════════════════════════════════════════════════════════
+			 * 🔴 CHỐT HOÀN THÀNH MÀ SỐ TIỀN LÀ 0 THÌ CHỐT CÁI GÌ — 17/09/2026.
+			 * ═══════════════════════════════════════════════════════════════════════════════════
+			 * 'xong' nghĩa là *"đây là chi thực tế"*. Bản trước chỉ đòi có hoá đơn, không đòi có
+			 * SỐ TIỀN. Nên chốt được một hạng mục 48 triệu với thực tế bằng 0, rồi đem đi quyết
+			 * toán — `xin_quyet_toan_dot()` và `tu_quyet_toan_coso()` đều cộng bằng `tien_hm()`,
+			 * tức đúng cột thực tế ấy. Lệnh quyết toán ra 0đ, khoản tạm ứng 48 triệu vẫn treo
+			 * nguyên trên TK 141, và sổ thì trông như đã tất toán.
+			 *
+			 * Đây là cùng một họ với lỗi lệnh xin 0đ vừa vá hôm nay, chỉ khác đầu kia của chuỗi:
+			 * một đầu xin 0đ, một đầu quyết toán 0đ. Vá một đầu mà bỏ đầu kia là còn nguyên nửa.
+			 *
+			 * ⚠️ ĐO BẰNG `tien_hm()`, KHÔNG PHẢI `tien_hm_du_kien()`. Phải đúng con số sẽ đi vào
+			 *    lệnh quyết toán; hỏi bản "dự kiến" thì một hạng mục mới có dự toán cũng lọt, và
+			 *    lệnh quyết toán vẫn ra 0đ — chốt thành ra không canh gì cả.
+			 * ⚠️ Hạng mục có mục con thì `tien_hm()` lấy tổng con, nên câu chối phải nói cả hai
+			 *    đường sửa; người đọc không nhớ luật "tiền nằm ở con".
+			 * ⚠️ Màn web tự điền thực tế = thành tiền khi ô ấy trống, nên đơn cơ sở nhập bình
+			 *    thường không vướng chốt này. Nó chặn đúng mấy đường ghi KHÔNG qua màn. */
+			if ( self::tien_hm( $ma_da, $row ) <= 0 ) {
+				return VHCP_Util::err( 'Hạng mục này chưa có số tiền thực tế nào (đang là 0đ) — '
+					. 'chốt hoàn thành thì lệnh quyết toán cũng ra 0đ và khoản tạm ứng vẫn treo '
+					. 'nguyên. Điền ô "Chi phí thực tế" cho hạng mục (hoặc cho các mục con của nó) '
+					. 'rồi chốt lại.' );
+			}
 		}
 
 		$sua = array( 'tt' => $tt );
@@ -1630,7 +1655,17 @@ class VHCP_DuAn {
 			'ma_dt'      => $loai_cp !== '' ? $tk['ma_dt'] : '',
 			'noi_dung'   => VHCP_Util::st( $g( 'noiDung' ) ),
 			'du_toan'    => ( $cap === '' ) ? VHCP_Util::num( $g( 'duToan' ) ) : 0,   // chỉ hạng mục lớn có dự toán
-			'thuc_te'    => VHCP_Util::num( $g( 'thucTe' ) ),
+			/* 🔴 THỰC TẾ TRỐNG -> LẤY THÀNH TIỀN (SL × ĐƠN GIÁ). Chuyển luật này TỪ MÀN HÌNH
+			   XUỐNG MÁY CHỦ, 17/09/2026.
+			   Màn web vẫn tự điền (`app.html`: *"thực tế trống -> = thành tiền"*), nhưng đó là
+			   luật của MỘT đường ghi. Mọi đường khác — cửa API, nạp tệp, một bản app.html cũ
+			   trong bộ nhớ đệm — đều ghi thực tế bằng 0 trong khi tiền nằm ở `thanh_tien`. Hàng
+			   ấy trông có tiền trên bảng mà `tien_hm()` đọc ra 0, nên lệnh QUYẾT TOÁN của nó ra
+			   0đ và khoản tạm ứng vẫn treo trên TK 141 — im lặng.
+			   ⚠️ CHỈ LÙI KHI Ô ẤY THẬT SỰ TRỐNG. Gửi thẳng số 0 là lời khai có chủ ý ("hàng được
+			      tặng"), giữ nguyên 0; đè nó là tự sinh ra một khoản chi không có thật. */
+			'thuc_te'    => ( ( null === $g( 'thucTe' ) || '' === $g( 'thucTe' ) ) && $sl * $dg > 0 )
+				? ( $sl * $dg ) : VHCP_Util::num( $g( 'thucTe' ) ),
 			'so_luong'   => $sl,
 			'don_gia'    => $dg,
 			'thanh_tien' => $sl * $dg,

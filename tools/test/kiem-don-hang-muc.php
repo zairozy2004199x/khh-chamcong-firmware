@@ -38,7 +38,9 @@ function vai( $v, $ten = 'Ai đó' ) { VHCP_Auth::dat_vai_tro( $v, $ten ); }
 vai( 'Admin', 'KT' );
 $r = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thử đơn hạng mục', 'NV' );
 $ma = $r['maDA'];
-VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 10000000 ) );
+/* Có CẢ thực tế: từ 1.193.0 chốt hoàn thành đòi hạng mục phải có số tiền thật, không thì
+   lệnh quyết toán của nó ra 0đ. Fixture cũ chỉ có dự toán — tức đúng cảnh chốt ấy chặn. */
+VHCP_DuAn::add_line( $ma, array( 'noiDung' => 'Mua đồ điện', 'duToan' => 10000000, 'thucTe' => 9500000 ) );
 $d = VHCP_DuAn::get_du_an( $ma );
 $row = null;
 foreach ( $d['lines'] as $l ) { if ( $l['noiDung'] === 'Mua đồ điện' ) { $row = $l['row']; } }
