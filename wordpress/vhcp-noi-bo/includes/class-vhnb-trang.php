@@ -819,6 +819,11 @@ class VHNB_Trang {
 			foreach ( self::ds_trang_khac() as $tr ) {
 				if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' )
 					&& $tr['url'] === VHTC_Trang::url() ) { continue; }   // đã có nút Cổng riêng
+				/* Bỏ nút quản trị đã tích ẩn. ẨN KHỎI THANH KHÔNG PHẢI CẤM QUYỀN — người có
+				   quyền vẫn vào được bằng địa chỉ và vẫn thấy trang ấy ở Cổng K&H. Xem
+				   VHNB_Thanh. */
+				if ( class_exists( 'VHNB_Thanh' ) && method_exists( 'VHNB_Thanh', 'hien' )
+					&& ! VHNB_Thanh::hien( $tr['url'] ) ) { continue; }
 				echo '<a class="nut" href="' . esc_url( $tr['url'] ) . '">'
 					. esc_html( $tr['icon'] . ' ' . $tr['ten'] ) . '</a>';
 			}
@@ -927,6 +932,10 @@ class VHNB_Trang {
 			$h = VHCC_Cty::html();
 			if ( '' !== $h ) { echo '<div class="bo">' . $h . '</div>'; }
 		}
+		/* Dải nhắc chỗ chấm công — vẽ SAU chân trang, ngay trước `</body>`. Đặt ở đầu trang
+		   thì nó đẩy cả nội dung xuống và người đang đọc bảng tin mất chỗ đang đọc. Lớp tự
+		   im khi chưa bật hoặc đã hết hạn (xem VHNB_Nhac::nen_ve). */
+		if ( class_exists( 'VHNB_Nhac' ) && method_exists( 'VHNB_Nhac', 've' ) ) { VHNB_Nhac::ve(); }
 		echo '</body></html>';
 	}
 

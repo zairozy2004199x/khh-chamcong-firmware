@@ -108,8 +108,18 @@ class VHCC_TrangNS {
 	   thiếu thì lưu xong hàng tự đóng, mà anh Thắng đang muốn sửa tiếp mấy ô nữa. */
 	/* `nman` + bốn ô lọc của TAB LỆNH cũng phải sống sót: bấm Đẩy xong mà rơi về trang tổng
 	   không lọc là người đang làm dở mất chỗ đứng, và dễ đẩy nhầm ở lượt sau. */
+	/* 🔴 `ntab` PHẢI CÓ MẶT Ở ĐÂY. Thiếu nó thì đang đứng ở tab "Quyền vào trang" mà bấm bất cứ
+	   thứ gì của một người — `sửa ▾`, `xem PIN`, `xoá`, một chip lọc, hay Lưu — đều dựng địa chỉ
+	   mới bằng `url_hien()` / `o_loc()`, mà hai hàm ấy chỉ chở đúng danh sách này. `ntab=quyen`
+	   rơi mất, `trang_chinh()` đọc không thấy nên rẽ về mặc định `nhan_su`, và màn hình NHẢY VỀ
+	   TAB NHÂN SỰ ngay giữa lúc đang khai quyền. Mỗi lượt bấm mất một lần chỗ đứng, nên tab thứ
+	   hai gần như không dùng nổi. Anh Thắng 17/09/2026: *"nó cứ nhảy lại trang chính, rất khó chịu"*.
+	   ⚠️ Không đụng `the_tab()`: dải tab tự dựng `ntab` (và cố ý bỏ `np`) trên `url()`, không đi
+	   qua đây — thêm vào đây không làm hỏng việc đổi tab. Ở tab Nhân sự thì `$_GET['ntab']` vốn
+	   không có, `o_loc()` / `url_hien()` bỏ qua ô rỗng nên cũng không mọc thêm tham số thừa.
+	   Phép thử canh: `tools/test/kiem-giu-tab-quyen.php`. */
 	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'nmang', 'nbp', 'np', 'sua_o', 'pin_o', 'gop_a', 'gop_b',
-		'nman', 'vbp', 'vcs', 'vq', 'vchi' );
+		'nman', 'vbp', 'vcs', 'vq', 'vchi', 'ntab' );
 
 	private static function url_hien() {
 		$them = array();

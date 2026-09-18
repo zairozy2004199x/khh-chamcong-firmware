@@ -100,6 +100,11 @@ function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
 function untrailingslashit( $s ) { return rtrim( (string) $s, '/\\' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
+/* Khác `sanitize_text_field` đúng một điều: GIỮ xuống dòng. WordPress thật cũng vậy — dùng cho
+   ô <textarea>, nơi xuống dòng là một phần nội dung chứ không phải rác. */
+function sanitize_textarea_field( $s ) {
+	return trim( preg_replace( '/[ \t]+$/m', '', strip_tags( (string) $s ) ) );
+}
 function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]+/u', '-', (string) $s ); }
 function sanitize_title( $s ) { return strtolower( preg_replace( '/[^A-Za-z0-9-]+/', '-', (string) $s ) ); }
 function wp_unslash( $s ) { return is_string( $s ) ? stripslashes( $s ) : $s; }

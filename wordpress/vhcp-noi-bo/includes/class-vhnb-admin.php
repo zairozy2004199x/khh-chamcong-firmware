@@ -30,6 +30,133 @@ class VHNB_Admin {
 		);
 	}
 
+	/**
+	 * KHỐI "NÚT NÀO HIỆN TRÊN THANH ĐẦU TRANG". Cùng form với phần trên, cùng một nút Lưu.
+	 */
+	private static function khoi_thanh() {
+		if ( ! class_exists( 'VHNB_Thanh' ) ) { return; }
+		$ds = VHNB_Thanh::ds_khai();
+
+		echo '<h2>Nút trên thanh đầu trang</h2>';
+		if ( ! $ds ) {
+			echo '<p>Chưa dò thấy trang nào để bày. Khai ở plugin <b>Cổng K&amp;H</b>.</p>';
+			return;
+		}
+		echo '<p style="max-width:780px">Bỏ tích là nút ấy <b>không hiện trên thanh</b> nữa. '
+			. '🔴 <b>Đây không phải phân quyền.</b> Người có quyền vào trang ấy vẫn vào được bằng '
+			. 'địa chỉ, và vẫn thấy nó ở <b>Cổng K&amp;H</b> — khối này thuần là dọn cho thanh đỡ '
+			. 'dài. Muốn CẤM thì khai ở bảng quyền phía trên, hoặc ở chính plugin của trang ấy.</p>';
+
+		echo '<table class="widefat striped" style="max-width:640px"><thead><tr>'
+			. '<th style="width:70px">Hiện</th><th>Trang</th><th>Địa chỉ</th></tr></thead><tbody>';
+		foreach ( $ds as $t ) {
+			$id = 'th_' . md5( (string) $t['url'] );
+			echo '<tr><td>';
+			if ( ! empty( $t['laCong'] ) ) {
+				/* 🔴 CỔNG KHÔNG ẨN ĐƯỢC. Nó là trang liệt kê mọi app; ẩn nốt nó thì mấy trang
+				   vừa ẩn không còn đường nào tới ngoài gõ tay địa chỉ. Ô tích để `disabled` và
+				   kèm một ô ẩn gửi giá trị lên, không thì bỏ trống = bị coi là "không tích". */
+				echo '<input type="checkbox" checked disabled> '
+					. '<input type="hidden" name="thanh[]" value="' . esc_attr( $t['url'] ) . '">';
+			} else {
+				echo '<input type="checkbox" id="' . esc_attr( $id ) . '" name="thanh[]" value="'
+					. esc_attr( $t['url'] ) . '"' . checked( ! empty( $t['hien'] ), true, false ) . '>';
+			}
+			echo '</td><td><label for="' . esc_attr( $id ) . '">'
+				. esc_html( trim( $t['icon'] . ' ' . $t['ten'] ) ) . '</label>'
+				. ( ! empty( $t['laCong'] ) ? ' <span class="description">— luôn hiện, là đường tới '
+					. 'mọi trang còn lại</span>' : '' )
+				. '</td>'
+				. '<td class="description"><code>' . esc_html( $t['url'] ) . '</code></td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description" style="max-width:780px">⚠️ Trang nào <b>đổi đường dẫn</b> thì '
+			. 'nút của nó <b>hiện lại</b> (khoá nhớ theo địa chỉ). Cố ý: thừa một nút thì nhìn thấy '
+			. 'ngay và bỏ tích lại, còn mất một nút thì không ai biết để đi tìm.</p>';
+	}
+
+	/**
+	 * KHỐI "NHẮC CHỖ CHẤM CÔNG". Nằm TRONG cùng cái form với phần trên — cố ý.
+	 *
+	 * 🔴 KHÔNG LỒNG <form> TRONG <form>. HTML không cho phép và trình duyệt KHÔNG báo lỗi: nó
+	 *    lặng lẽ vứt thẻ bên trong rồi gộp mọi ô nhập vào form ngoài. Bộ chấm công đã trả giá
+	 *    cho đúng lỗi này ngày 22/08/2026 — bấm Lưu ở khối này thì trình duyệt đòi điền một ô
+	 *    `required` tận cuối trang, chẳng liên quan gì. Một form, một nút Lưu.
+	 */
+	private static function khoi_nhac() {
+		if ( ! class_exists( 'VHNB_Nhac' ) ) { return; }
+		$c    = VHNB_Nhac::cai();
+		$dich = VHNB_Nhac::dich();
+
+		echo '<h2>Nhắc chỗ chấm công</h2>';
+		echo '<p style="max-width:780px">Nhân viên cũ quen vào trang này để chấm công. Hai trang '
+			. 'dùng <b>chung một mã PIN</b> nên vào nhầm vẫn đăng nhập được — không có câu lỗi nào, '
+			. 'và họ đứng tìm một cái nút không có ở đây. Dải này nói chỗ chấm công thật, hiện vài '
+			. 'giây ở <b>đáy màn</b> rồi tự đi; không che, không chặn thao tác nào.</p>';
+
+		echo '<table class="form-table"><tbody>';
+
+		echo '<tr><th scope="row">Bật dải nhắc</th><td>'
+			. '<label><input type="checkbox" name="nhac_bat" value="1"'
+			. checked( ! empty( $c['bat'] ), true, false ) . '> Hiện trên mọi trang Nội bộ</label>'
+			. '<p class="description">Người bấm <b>“Đừng hiện nữa”</b> thì máy của họ nhớ, lần sau '
+			. 'không thấy nữa. Tắt ô này là im với tất cả.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_giay">Tự đi sau</label></th><td>'
+			. '<input id="nhac_giay" name="nhac_giay" type="number" min="' . (int) VHNB_Nhac::GIAY_IT
+			. '" max="' . (int) VHNB_Nhac::GIAY_NHIEU . '" style="width:90px" value="'
+			. esc_attr( (string) $c['giay'] ) . '"> giây'
+			. '<p class="description">Có một vạch rút ngắn dần chạy suốt bấy nhiêu giây, để người ta '
+			. 'biết nó sắp tự đi thay vì phải dừng việc đi tìm nút đóng. '
+			. 'Bấm phát video thì <b>dừng đếm</b> — không thì dải tự đóng giữa lúc đang xem.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_dich">Địa chỉ trang chấm công</label></th><td>'
+			. '<input id="nhac_dich" name="nhac_dich" type="url" class="large-text" value="'
+			. esc_attr( (string) $c['dich'] ) . '" placeholder="' . esc_attr( $dich ) . '">'
+			. '<p class="description">Để trống là <b>tự hỏi plugin Chấm Công</b> — nên đường dẫn bên '
+			. 'ấy đổi thì dải này theo ngay. Chỉ khai tay khi hai plugin nằm trên hai website khác '
+			. 'nhau. ' . ( '' === $dich
+				? '<b style="color:#b32d2e">Hiện chưa biết dẫn đi đâu — dải sẽ KHÔNG hiện cho tới khi '
+					. 'có địa chỉ.</b>'
+				: 'Đang dẫn tới <code>' . esc_html( $dich ) . '</code>.' )
+			. '</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_video">Video hướng dẫn</label></th><td>'
+			. '<input id="nhac_video" name="nhac_video" type="url" class="large-text" value="'
+			. esc_attr( (string) $c['video'] ) . '" placeholder="để trống = không có video">'
+			. '<p class="description">Tải video lên <b>Thư viện Media</b> của WordPress rồi dán địa '
+			. 'chỉ vào đây. <b>Đừng nhét video vào plugin</b>: một tệp 4 MB làm mỗi lượt tự cập nhật '
+			. 'tải thêm 4 MB, và mỗi bản phát hành phình theo.<br>'
+			. 'Địa chỉ kết thúc bằng <code>.mp4</code>/<code>.webm</code> thì phát ngay trong dải '
+			. '(<b>không tự tải</b> — bấm mới tải, vì ở cơ sở người ta dùng 3G). Địa chỉ khác '
+			. '(YouTube, Drive) thì hiện thành một đường dẫn mở tab mới.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_han">Tự tắt sau ngày</label></th><td>'
+			. '<input id="nhac_han" name="nhac_han" type="date" value="'
+			. esc_attr( (string) $c['han'] ) . '">'
+			. '<p class="description">🔴 <b>Nên đặt.</b> Đây là thông báo <b>chuyển đổi</b>, không phải '
+			. 'nội dung thường trực. Không có hạn thì sang năm nó vẫn nằm đó nhắc một việc không còn '
+			. 'ai nhầm nữa — và lúc ấy nó thành thứ mọi người đã quen bỏ qua, nên lần sau có thông báo '
+			. 'thật cũng không ai đọc. Để trống = không bao giờ tự tắt.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_tieu">Dòng đậm</label></th><td>'
+			. '<input id="nhac_tieu" name="nhac_tieu" class="large-text" maxlength="120" value="'
+			. esc_attr( (string) $c['tieu'] ) . '"></td></tr>';
+
+		echo '<tr><th scope="row"><label for="nhac_chu">Dòng giải thích</label></th><td>'
+			. '<textarea id="nhac_chu" name="nhac_chu" class="large-text" rows="3">'
+			. esc_textarea( (string) $c['chu'] ) . '</textarea>'
+			. '<p class="description">Chữ thuần, không thẻ HTML.</p></td></tr>';
+
+		echo '</tbody></table>';
+
+		if ( ! empty( $c['bat'] ) && ! VHNB_Nhac::con_han() ) {
+			echo '<div class="notice notice-warning inline"><p><b>Dải đang bật nhưng đã quá hạn '
+				. esc_html( (string) $c['han'] ) . '</b> nên không hiện nữa. Đổi ngày hoặc bỏ tích '
+				. 'cho gọn.</p></div>';
+		}
+	}
+
 	public static function ve() {
 		if ( ! current_user_can( 'manage_options' ) ) { wp_die( 'Không đủ quyền.' ); }
 		$bao = '';
@@ -45,6 +172,33 @@ class VHNB_Admin {
 			   chặn rỗng ở đây — chặn hai nơi là hai luật, và hai luật thì lệch. */
 			update_option( 'vhnb_slug', isset( $_POST['slug'] )
 				? sanitize_title( wp_unslash( $_POST['slug'] ) ) : '' );
+
+			/* Nút nào hiện trên thanh đầu trang. Biểu mẫu gửi lên danh sách được HIỆN (ô tích),
+			   nên cái bị ẩn = tất cả trừ cái được tích. Đọc ngược lại (gửi cái bị ẩn) thì trang
+			   mới mọc ra sau này mặc định bị ẩn — mà mặc định phải là HIỆN. */
+			if ( class_exists( 'VHNB_Thanh' ) && class_exists( 'VHNB_Trang' ) ) {
+				$hien = isset( $_POST['thanh'] ) ? (array) wp_unslash( $_POST['thanh'] ) : array();
+				$hien = array_map( 'strval', $hien );
+				$an   = array();
+				foreach ( VHNB_Trang::ds_trang_khac() as $tr ) {
+					if ( ! in_array( (string) $tr['url'], $hien, true ) ) { $an[] = (string) $tr['url']; }
+				}
+				VHNB_Thanh::dat_an( $an );
+			}
+
+			/* Dải nhắc chỗ chấm công. Ô tích KHÔNG gửi gì khi không tích, nên đọc bằng `isset`
+			   chứ không bằng giá trị — đọc giá trị thì bỏ tích xong bấm Lưu là nó vẫn bật. */
+			if ( class_exists( 'VHNB_Nhac' ) ) {
+				VHNB_Nhac::dat( array(
+					'bat'   => isset( $_POST['nhac_bat'] ),
+					'giay'  => isset( $_POST['nhac_giay'] ) ? (int) $_POST['nhac_giay'] : 0,
+					'dich'  => isset( $_POST['nhac_dich'] ) ? wp_unslash( $_POST['nhac_dich'] ) : '',
+					'video' => isset( $_POST['nhac_video'] ) ? wp_unslash( $_POST['nhac_video'] ) : '',
+					'tieu'  => isset( $_POST['nhac_tieu'] ) ? wp_unslash( $_POST['nhac_tieu'] ) : '',
+					'chu'   => isset( $_POST['nhac_chu'] ) ? wp_unslash( $_POST['nhac_chu'] ) : '',
+					'han'   => isset( $_POST['nhac_han'] ) ? wp_unslash( $_POST['nhac_han'] ) : '',
+				) );
+			}
 			update_option( 'vhnb_rw', 1 );   // đổi đường dẫn -> phải ghi lại bộ luật đường
 
 			/* Trang chủ + phần công khai. Anh Thắng 30/08/2026: *"cho trang này là trang chủ
@@ -77,6 +231,32 @@ class VHNB_Admin {
 
 		$cf = VHNB_Quyen::cai_dat();
 		echo '<div class="wrap"><h1>Nội bộ K&amp;H</h1>';
+
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * BẢN ĐANG CHẠY — in ra ngay đầu màn, và đây KHÔNG phải trang trí.
+		 *
+		 * 🔴 17/09/2026: cài bản 1.21.0 lên hosting xong mà khối mới không hiện, và không có
+		 *    cách nào biết vì sao — tệp trong .zip thì đúng, nên chỉ còn ba khả năng (chưa bấm
+		 *    Thay thế, trình duyệt giữ trang cũ, hoặc OPcache của hosting còn giữ mã cũ) và cả
+		 *    ba nhìn từ màn hình giống hệt nhau. Mất một vòng hỏi đi hỏi lại chỉ để biết cái
+		 *    đang chạy là bản nào.
+		 *
+		 *    Một dòng số bản đọc từ CHÍNH MÃ ĐANG CHẠY trả lời câu đó bằng mắt. Nó khác hẳn số
+		 *    ở màn Plugins: màn kia đọc phần chú thích đầu tệp, còn dòng này đọc hằng mà PHP
+		 *    thật sự đã nạp — lệch nhau là biết ngay OPcache đang giữ mã cũ.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$co_nhac = class_exists( 'VHNB_Nhac' );
+		echo '<p style="color:var(--chu-mo,#646970)">Bản đang chạy: <code>'
+			. esc_html( defined( 'VHNB_VERSION' ) ? VHNB_VERSION : '?' ) . '</code>'
+			. ' · khối <b>Nhắc chỗ chấm công</b>: '
+			. ( $co_nhac ? 'có' : '<b style="color:#b32d2e">CHƯA CÓ</b>' ) . '</p>';
+		if ( ! $co_nhac ) {
+			echo '<div class="notice notice-warning"><p><b>Mã đang chạy chưa có khối Nhắc chỗ '
+				. 'chấm công.</b> Bản cài có thể chưa thay xong, hoặc hosting còn giữ mã cũ trong '
+				. 'bộ nhớ đệm (OPcache). Thử theo thứ tự: tải lại trang này bằng '
+				. '<kbd>Ctrl+F5</kbd> → vào <b>Plugin</b> tắt rồi bật lại <b>Nội Bộ K&amp;H</b> → '
+				. 'nếu vẫn vậy thì cài lại bản .zip một lượt nữa.</p></div>';
+		}
 		if ( '' !== $bao ) {
 			/* Lời báo có thể kèm một chữ <b> (tên plugin vừa bị tắt) — cho đúng thẻ ấy, không
 			   mở cửa cho thẻ nào khác. */
@@ -166,6 +346,10 @@ class VHNB_Admin {
 			. '</td></tr>';
 
 		echo '</tbody></table>';
+
+		self::khoi_thanh();
+		self::khoi_nhac();
+
 		submit_button( 'Lưu', 'primary', 'vhnb_luu' );
 		echo '</form>';
 
