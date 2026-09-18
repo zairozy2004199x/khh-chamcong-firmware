@@ -736,6 +736,8 @@
     st.costItems = (st.costItems || []).map((it) => ({
       ...it, total: 0, shares: {}, status: 'cho_duyet', approvedBy: '', createdAt: '',
     }));
+    /* Số đã về 0 hết thì từ đây chúng là số CỦA KỲ NÀY. */
+    st.soCuaKy = khoaKy(st.period);
     return st;
   }
 
@@ -871,9 +873,28 @@
       mat: doi.filter((x) => x.mat), chuaGia: doi.filter((x) => x.chuaGia) };
   }
 
+  /** Khoá kỳ dạng '2026-09' — cùng cách đặt khoá với máy chủ (BaoCaoApi.periodKey). */
+  function khoaKy(p) {
+    p = p || {};
+    return `${p.year}-${String(p.month).padStart(2, '0')}`;
+  }
+
+  /** Số trên màn hình có đúng là của kỳ đang chọn không. */
+  function lechKy(state) {
+    const nay = khoaKy((state || {}).period);
+    const cua = String((state || {}).soCuaKy || nay);
+    return cua === nay ? '' : cua;
+  }
+
   /** Kiểm tra dữ liệu, trả về danh sách {level:'error'|'warn'|'info', msg}. */
   function validate(state) {
     const issues = [];
+    const lech = lechKy(state);
+    if (lech) {
+      issues.push({ level: 'error', msg: `SỐ ĐANG XEM LÀ CỦA KỲ ${lech}, KHÔNG PHẢI ${khoaKy(state.period)}. `
+        + 'Đổi ô chọn tháng chỉ đổi nhãn — doanh thu, lương và tiền từng khoản vẫn là của kỳ cũ. '
+        + 'Vào ⋯ → "Xoá số liệu kỳ này" để dựng kỳ mới từ danh mục, rồi nạp lại số.' });
+    }
     const depts = state.departments || [];
     const groups = state.groups || [];
     if (!depts.length) issues.push({ level: 'error', msg: 'Chưa có bộ phận nào.' });
@@ -1024,6 +1045,12 @@
   function normalizeState(s) {
     const st = Object.assign(emptyState(), s || {});
     st.period = Object.assign({ month: 1, year: 2026 }, st.period || {});
+    /* 🔴 `soCuaKy` — SỐ TRÊN MÀN HÌNH LÀ CỦA KỲ NÀO.
+       Đổi ô chọn tháng chỉ đổi cái NHÃN; doanh thu, lương, tiền từng khoản vẫn là của kỳ cũ cho
+       tới khi có người nạp lại. Không ghi dấu lại thì màn Tổng quan bày một bộ số trông hoàn
+       chỉnh mà là số tháng trước, đội tên tháng này — %CP/DT sai, không ô nào đỏ. Dấu này để
+       validate() và màn Tổng quan bắt được chuyện đó. */
+    st.soCuaKy = String(st.soCuaKy || khoaKy(st.period));
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
     /* HAI khoá liên kết, hai nguồn: `fabiTen` ← Doanh thu FABi, `gheTen` ← Ghế Massage (Posh/JP).
@@ -1133,6 +1160,8 @@
     doanBoPhan,
     dongBoFabi,
     batDauKyMoi,
+    khoaKy,
+    lechKy,
     khoaTen,
     tenGonFabi,
     parseAccount,

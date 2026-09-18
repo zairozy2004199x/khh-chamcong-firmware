@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.14.0
+Stable tag: 1.15.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,18 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.15.0 =
+* 🔴 **Sửa lỗi Tổng quan trộn hai kỳ.** Đổi ô chọn tháng chỉ đổi cái *nhãn* — doanh thu, lương,
+  cột nhập tay và tiền từng khoản vẫn là số của kỳ cũ. Liên kết sống thì nạp doanh thu kỳ MỚI đè
+  lên, ra một báo cáo trộn hai kỳ mà nhìn thì hoàn chỉnh (%CP/DT ra 254%, tổng vẫn cộng đẹp,
+  không ô nào đỏ). Tệ hơn: lần lưu kế tiếp đẩy mớ ấy lên máy chủ dưới tên kỳ mới.
+* Mỗi bộ số giờ mang **dấu kỳ** (`soCuaKy`). Lệch với kỳ đang chọn là Tổng quan **báo đỏ ngay
+  trên đầu**, kèm hai lối thoát: *Dựng kỳ này từ danh mục (đưa mọi số về 0)* hoặc *Quay về kỳ cũ*.
+  Tab Kiểm tra cũng ghi thành LỖI.
+* Hộp "Kỳ chưa có trên máy chủ — dựng kỳ mới?" mà bấm **Huỷ** thì nay **quay về kỳ cũ**, thay vì
+  đứng lại ở kỳ mới với nguyên số của kỳ cũ.
+* Bắt được cả những kỳ đã lỡ lưu số của kỳ khác từ trước.
 
 = 1.14.0 =
 * **Lương Mục III lấy thẳng từ trang Nhân sự (Chấm công), mỗi cơ sở một dòng.** Nút

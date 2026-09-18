@@ -823,3 +823,49 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — lương từ Nhân sự: mỗi cơ sở một dòng, chưa khai giá giờ thì KHÔNG ghi 0.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// SỐ CỦA KỲ NÀO  (anh Thắng 18/09/2026: "Hệ thống tổng quan đang lấy dữ liệu sai")
+//
+// Ảnh anh gửi: nhãn T09/2026, Mục I "0 khoản", nhưng cột nhập tay 1.194.249.138, Lương BP
+// 221.217.588, Lương cơ sở 836.158.577 / 20 dòng — đó là NGUYÊN số của T08 đội tên T09, vì đổi ô
+// chọn tháng chỉ đổi cái nhãn. Doanh thu thì đã được liên kết sống nạp số T09 vào. Ra một báo cáo
+// trộn hai kỳ mà nhìn thì hoàn chỉnh: Posh %CP/DT = 254,41% và không ô nào đỏ.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  assert.strictEqual(E.khoaKy({ month: 9, year: 2026 }), '2026-09');
+  assert.strictEqual(E.khoaKy({ month: 12, year: 2026 }), '2026-12');
+  assert.strictEqual(E.lechKy(st), '', 'mới nạp thì số đúng là của kỳ đang chọn');
+  assert.strictEqual(st.soCuaKy, E.khoaKy(st.period));
+
+  // -- đổi ô chọn tháng: số KHÔNG đổi, nên phải báo lệch kỳ --
+  const cu = st.soCuaKy;
+  st.period = { month: 9, year: 2026 };
+  assert.strictEqual(E.lechKy(st), cu, 'đổi nhãn tháng mà không nạp lại số → phải bắt được');
+  const loi = E.validate(st).filter((i) => i.level === 'error' && /KHÔNG PHẢI/.test(i.msg));
+  assert.strictEqual(loi.length, 1, 'và phải là LỖI ĐỎ, không phải ghi chú cho qua');
+  assert(loi[0].msg.indexOf(cu) >= 0 && loi[0].msg.indexOf('2026-09') >= 0,
+    'nói rõ số của kỳ nào và đang đứng ở kỳ nào: ' + loi[0].msg);
+
+  // -- dựng kỳ mới thì hết lệch --
+  const moi = E.batDauKyMoi(st);
+  assert.strictEqual(E.lechKy(moi), '', 'xoá số xong thì số là của kỳ này');
+  assert.strictEqual(moi.soCuaKy, '2026-09');
+  assert.strictEqual(E.validate(moi).filter((i) => /KHÔNG PHẢI/.test(i.msg)).length, 0);
+
+  // 🔴 Chính cái hình dạng trong ảnh: doanh thu kỳ này + chi phí kỳ trước.
+  const tron = E.normalizeState(window.SAMPLE_DATA);
+  tron.period = { month: 9, year: 2026 };
+  tron.sites = tron.sites.map((s) => ({ ...s, revenue: 0 }));
+  tron.sites[0].revenue = 523755000;
+  assert(E.validate(tron).some((i) => i.level === 'error' && /KHÔNG PHẢI/.test(i.msg)),
+    'doanh thu kỳ mới nạp đè lên chi phí kỳ cũ vẫn phải kêu — đây đúng là ảnh anh Thắng gửi');
+
+  // -- kỳ nạp từ máy chủ mang dấu của chính nó, không kêu oan --
+  const tuMayChu = E.normalizeState({ ...JSON.parse(JSON.stringify(window.SAMPLE_DATA)), period: { month: 9, year: 2026 } });
+  assert.strictEqual(E.lechKy(tuMayChu), '',
+    'bản cũ chưa có dấu thì lấy ngay kỳ của chính nó — đừng báo đỏ cả những kỳ vẫn đúng');
+
+  console.log('OK — số của kỳ nào: đổi nhãn tháng mà không nạp lại số thì phải báo đỏ.');
+}

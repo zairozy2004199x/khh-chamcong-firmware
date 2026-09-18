@@ -141,12 +141,30 @@
   ];
 
   // ------------------------------------------------------------------ Tab: Tổng quan
+  /* 🔴 SỐ CỦA KỲ NÀO. Đổi ô chọn tháng chỉ đổi cái NHÃN — doanh thu, lương và tiền từng khoản vẫn
+     là số của kỳ cũ cho tới khi có người nạp lại. Không nói ra thì màn Tổng quan bày một bộ số
+     trông hoàn chỉnh mà là số tháng trước đội tên tháng này: %CP/DT ra 254%, tổng vẫn cộng đẹp,
+     không ô nào đỏ. Đây là dòng bắt buộc phải đập vào mắt trước mọi con số khác. */
+  function lechKyHtml() {
+    const cu = E.lechKy(state);
+    if (!cu) return '';
+    return `<div class="issue error" style="margin:0 0 12px">
+      <span class="lv">SAI KỲ</span>
+      <span><strong>Số đang xem là của kỳ ${esc(cu)}, không phải ${esc(E.khoaKy(state.period))}.</strong>
+      Đổi ô chọn tháng chỉ đổi nhãn — doanh thu, lương, cột nhập tay và tiền từng khoản vẫn nguyên
+      của kỳ cũ, nên mọi tỉ lệ %CP/DT trên màn này đang <strong>sai</strong>.<br>
+      <button class="btn small primary" data-act="dungKyMoi">Dựng kỳ ${esc(E.khoaKy(state.period))} từ danh mục (đưa mọi số về 0)</button>
+      <button class="btn small" data-act="veKyCu">Quay về kỳ ${esc(cu)}</button>
+      </span></div>`;
+  }
+
   function renderDashboard(root) {
     const R = report;
     const totalRev = Object.values(R.revenue).reduce((a, b) => a + b, 0);
     const manualTotal = R.manualCols.reduce((a, m) => a + m.total, 0);
     const totalCost = R.grandTotal + manualTotal + R.salaryDeptTotals.total + R.salarySitesTotal.actual;
     root.innerHTML = `
+      ${lechKyHtml()}
       <div class="kpis">
         <div class="kpi"><div class="k">Tổng doanh thu ${R.periodLabel}</div><div class="v">${fmt(totalRev)}</div><div class="s">${state.sites.length} điểm · ${state.departments.length} bộ phận</div></div>
         <div class="kpi"><div class="k">Chi phí phân bổ (Mục I)</div><div class="v">${fmt(R.grandTotal)}</div><div class="s">${state.costItems.length} khoản → ${R.columns.length} cột báo cáo</div></div>
@@ -1295,6 +1313,19 @@
       commit();
     },
     fabiDong() { fabi = null; renderTab(); },
+    /* Hai nút của dòng "SAI KỲ" — một đường dựng kỳ mới, một đường quay lại. */
+    dungKyMoi() { xoaSoKyNay(); },
+    veKyCu() {
+      const cu = E.lechKy(state);
+      if (!cu) return;
+      const [y, m] = cu.split('-');
+      state.period = { month: +m, year: +y };
+      $('#selMonth').value = String(+m);
+      $('#inpYear').value = String(+y);
+      commit({ noPush: true });
+      sync.onPeriodChange();
+      toast(`Đã quay về kỳ ${E.periodLabel(state.period)}.`);
+    },
     /* ---------------- Lương từ trang Nhân sự ---------------- */
     napLuong() { napTuNhanSu(); },
     luongDong() { luong = null; renderTab(); },
@@ -1507,6 +1538,8 @@
        hứa), còn đường kia thì giữ danh mục để làm bản gốc cho kỳ mới. */
     const moi = E.batDauKyMoi(state);
     moi.period = { month: m, year: y };
+    /* Đổi kỳ SAU khi xoá số nên phải đóng lại dấu, không thì kỳ mới toanh lại tự báo "SAI KỲ". */
+    moi.soCuaKy = E.khoaKy(moi.period);
     moi.costItems = [];
     state = moi;
     commit({ tab: 'revenue', noPush: true });
@@ -1948,6 +1981,23 @@
             renderTab();
             return;
           }
+          /* 🔴 BẤM HUỶ THÌ QUAY VỀ KỲ CŨ. Bản trước cứ thế chạy tiếp: số của kỳ cũ ở lại nguyên
+             trên màn hình nhưng đã đội nhãn kỳ mới, rồi liên kết sống nạp doanh thu kỳ MỚI đè lên
+             — ra một báo cáo trộn hai kỳ (doanh thu kỳ này + lương, cột nhập tay, chi phí kỳ
+             trước) mà nhìn thì hoàn chỉnh. Tệ hơn nữa: lần lưu kế tiếp đẩy mớ ấy lên máy chủ dưới
+             tên kỳ mới. Nên: không dựng thì không đứng lại đây. */
+          const veKy = hasLocal ? E.lechKy(state) : '';
+          if (!veKy) { this.busy = false; recompute(); renderTab(); return; }
+          const [yy, mm] = veKy.split('-');
+          state.period = { month: +mm, year: +yy };
+          $('#selMonth').value = String(+mm);
+          $('#inpYear').value = String(+yy);
+          this.periodKey = API.periodKey(state.period);
+          recompute();
+          saveState();
+          renderTab();
+          toast(`Chưa dựng kỳ ${E.periodLabel({ month: +period.slice(5), year: +period.slice(0, 4) })} — đã quay về kỳ ${E.periodLabel(state.period)} để số không bị lẫn hai kỳ.`);
+          return;
         }
         // hoà trộn khoản chi phí: máy chủ thắng với khoản chưa sửa cục bộ; giữ khoản mới cục bộ chưa đẩy
         const localById = {};
