@@ -918,6 +918,36 @@
     return { xong, boQua: bo, tao, chuaGia };
   }
 
+  /**
+   * Dòng lương RỖNG: không tên, không số, không nối nguồn. Anh Thắng 18/09/2026: *"nó nhân ra
+   * hàng thừa, giờ sao xoá đi"*. Trước 1.30.0 mấy dòng này nằm trong một khối không tên ở cuối
+   * bảng nên không ai thấy; đặt tên khối xong thì chúng lộ ra.
+   *
+   * ⚠️ CHỈ tính là rỗng khi SẠCH cả bốn cột tiền lẫn tên lẫn liên kết. Một dòng có tên mà chưa có
+   *    số là dòng ĐANG CHỜ số của kỳ này — xoá nó là xoá mất một cơ sở khỏi báo cáo.
+   */
+  function dongLuongRong(state) {
+    const ra = [];
+    (state.salarySites || []).forEach((r, i) => {
+      if (String(r.name || '').trim()) return;
+      if (String(r.nsTen || '').trim()) return;
+      if (String(r.unitCode || '').trim() || String(r.misaGeneral || '').trim() || String(r.misaDetail || '').trim()) return;
+      if (num(r.reported) || num(r.report) || num(r.dntt) || num(r.actual)) return;
+      ra.push(i);
+    });
+    return ra;
+  }
+
+  /** Xoá những dòng lương rỗng. Trả về số dòng đã xoá. */
+  function xoaDongLuongRong(state) {
+    const bo = dongLuongRong(state);
+    if (!bo.length) return 0;
+    const giu = {};
+    bo.forEach((i) => { giu[i] = true; });
+    state.salarySites = (state.salarySites || []).filter((r, i) => !giu[i]);
+    return bo.length;
+  }
+
   /** Liên kết sống: chỉ đi theo `nsTen` đã chốt, không đoán. Cùng luật với dongBoFabi. */
   function dongBoLuong(state, ds) {
     const rows = state.salarySites || [];
@@ -1321,6 +1351,8 @@
     napFabi,
     ghepLuong,
     napLuong,
+    dongLuongRong,
+    xoaDongLuongRong,
     dongBoLuong,
     taoDiemTuFabi,
     doanBoPhan,

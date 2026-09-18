@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.30.0
+Stable tag: 1.31.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,14 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.31.0 =
+* **Nút 🗑 Xoá dòng trống** trên Mục III (anh Thắng: *"nó nhân ra hàng thừa, giờ sao xoá đi"*).
+  Nút chỉ hiện khi thật sự có dòng trống, nói rõ bao nhiêu dòng, và có **Hoàn tác**.
+* 🔴 Chỉ xoá dòng **không tên · không số · không nối nguồn · không mã đơn vị · không nội dung
+  MISA**. Dòng **có tên mà chưa có số vẫn giữ** — đó là cơ sở đang chờ số của kỳ này; xoá nó là
+  xoá mất một cơ sở khỏi báo cáo.
+* Chặn từ gốc: đường tự tạo không còn sinh dòng không tên.
 
 = 1.30.0 =
 * 🔴 **Sửa "bấm nạp lại thấy, bấm ghi lại mất".** Số CÓ được ghi — chỉ là dòng tự tạo để trống

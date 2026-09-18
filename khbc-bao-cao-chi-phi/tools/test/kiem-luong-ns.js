@@ -144,6 +144,26 @@ const PORT = process.env.PORT || '8113';
      n.co && n.nhom==='Funzone HCM', 'nhóm = "'+n.nhom+'"');
   ok('Và số vẫn nằm đó sau khi Ghi', n.so===52287040, String(n.so));
 
+  // ── 🗑 XOÁ DÒNG TRỐNG ────────────────────────────────────────────────────────────────────────
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    s.salarySites.push({id:'r1',dept:'jp',name:'',reported:0,report:0,dntt:0,actual:0});
+    s.salarySites.push({id:'r2',dept:'jp',name:'',reported:0,report:0,dntt:0,actual:0});
+    s.salarySites.push({id:'r3',dept:'jp',name:'Đang chờ số',reported:0,report:0,dntt:0,actual:0});
+    window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(2000);
+  await moLuong(p);
+  const t1 = await p.evaluate(()=>{const b=document.querySelector('[data-act="xoaDongRong"]');
+    return b?b.textContent.trim():'';});
+  ok('Có nút xoá dòng trống, nói rõ bao nhiêu dòng', /Xoá 2 dòng trống/.test(t1), t1);
+  await p.click('[data-act="xoaDongRong"]'); await p.waitForTimeout(2000);
+  const t2 = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    return { rong: s.salarySites.filter(x=>!(x.name||'').trim() && !(x.nsTen||'').trim()).length,
+      cho: s.salarySites.some(x=>x.name==='Đang chờ số'),
+      conNut: !!document.querySelector('[data-act="xoaDongRong"]') };});
+  ok('🔴 Xoá sạch dòng trống', t2.rong===0, t2.rong+' dòng trống còn lại');
+  ok('🔴 GIỮ dòng có tên mà chưa có số', t2.cho);
+  ok('Hết dòng trống thì nút biến mất', !t2.conNut);
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});
   await b.close();

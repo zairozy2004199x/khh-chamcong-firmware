@@ -511,6 +511,7 @@
           <button class="btn small primary" data-act="napLuong" title="quan-tri-cham-cong — tổng lương mỗi cơ sở của kỳ này">⬇ Nạp lương từ Nhân sự</button>
           <button class="btn small ghost" data-act="nsKham" title="Liệt kê lớp / hàm / bảng của plugin Chấm công, để tìm đúng hàm tính lương. Chỉ in TÊN, không đọc nội dung bảng nào.">🔍 Khám plugin Nhân sự</button>
           <button class="btn small" data-act="syncSalary" title="Đặt Báo cáo và DNTT = Theo báo cáo cho tất cả dòng">Báo cáo = DNTT = Theo báo cáo</button>
+          ${E.dongLuongRong(state).length ? `<button class="btn small danger" data-act="xoaDongRong" title="Xoá những dòng không tên, không số, không nối nguồn. Dòng có tên mà chưa có số thì GIỮ — đó là cơ sở đang chờ số của kỳ này.">🗑 Xoá ${E.dongLuongRong(state).length} dòng trống</button>` : ''}
           <button class="btn small primary" data-act="addSalarySite">+ Thêm dòng</button>
         </div>
         ${luongTrangThaiHtml()}
@@ -1161,6 +1162,9 @@
         const md = bpLuongMacDinh();
         g.forEach((x) => {
           if (x.co_luong === false || x.rowIndex !== null) return;
+          /* Không tên thì KHÔNG tạo — một dòng lương không tên là hàng thừa, không ai biết nó là
+             cơ sở nào, mà vẫn chiếm chỗ trong bảng. */
+          if (!String(x.cua_hang || '').trim()) return;
           let bp = E.doanBoPhan(x.cua_hang, state.departments);
           if (!bp && (x.bo_phan || '').trim() && state.departments.some((y) => y.id === x.bo_phan)) { bp = x.bo_phan; }
           if (!bp && md) { bp = md; }
@@ -1206,8 +1210,9 @@
     let n = 0, khong = 0;
     luong.ghep.forEach((g) => {
       /* Cơ sở chưa ra tiền thì KHÔNG tạo dòng — tạo ra một dòng lương 0 đồng là đúng cái sai
-         "ghi 0" chỉ khác chỗ nó nằm ở danh mục thay vì ở con số. */
+         "ghi 0" chỉ khác chỗ nó nằm ở danh mục thay vì ở con số. Không tên cũng vậy. */
       if (g.co_luong === false || g.rowIndex !== null || g.taoMoi) return;
+      if (!String(g.cua_hang || '').trim()) return;
       let d = E.doanBoPhan(g.cua_hang, state.departments);
       if (!d && (g.bo_phan || '').trim() && state.departments.some((x) => x.id === g.bo_phan)) { d = g.bo_phan; }
       if (!d && md) { d = md; }
@@ -1610,6 +1615,17 @@
     },
     /* ---------------- Lương từ trang Nhân sự ---------------- */
     napLuong() { napTuNhanSu(); },
+    xoaDongRong() {
+      const n = E.dongLuongRong(state).length;
+      if (!n) return;
+      if (!confirm(`Xoá ${n} dòng lương trống?\n\n`
+        + `Chỉ xoá dòng KHÔNG tên, KHÔNG số, KHÔNG nối nguồn.\n`
+        + `Dòng có tên mà chưa có số vẫn giữ — đó là cơ sở đang chờ số của kỳ này.`)) return;
+      prevState = JSON.parse(JSON.stringify(state));
+      E.xoaDongLuongRong(state);
+      commit();
+      toast(`Đã xoá ${n} dòng trống.`, { label: 'Hoàn tác', fn: undo });
+    },
     /* 🔧 Chẩn đoán: in ra đúng cấu trúc dữ liệu bên Chấm công cho một cơ sở, để sửa cho trúng chỗ
        để tiền thay vì đoán. Chỉ in SỐ — họ tên và CCCD của nhân viên bị giấu ngay từ máy chủ. */
     /* 🔍 Khám: in ra lớp / hàm / bảng của plugin Chấm công. `bang_cong_va_luong()` với Khu vui

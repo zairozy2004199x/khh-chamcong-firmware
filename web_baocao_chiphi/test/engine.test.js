@@ -1170,3 +1170,30 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
     console.log('OK — mở kỳ nào chỉ có số của kỳ ấy, chỗ chưa có thì để trống.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// XOÁ DÒNG LƯƠNG TRỐNG  (anh Thắng 18/09/2026: "nó nhân ra hàng thừa. giờ sao xóa đi")
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.salarySites = [
+    { id: 'a', dept: 'jp', name: '', reported: 0, report: 0, dntt: 0, actual: 0 },          // rỗng
+    { id: 'b', dept: 'jp', name: '', reported: 0, actual: 0, nsTen: 'JP_HCM' },              // có liên kết
+    { id: 'c', dept: 'jp', name: 'JP_SANBAY', reported: 0, actual: 0 },                      // có tên, chờ số
+    { id: 'd', dept: 'jp', name: '', reported: 0, actual: 0, unitCode: 'JP MN' },            // có mã đơn vị
+    { id: 'e', dept: 'jp', name: '', reported: 5, actual: 5 },                               // có số
+    { id: 'f', dept: 'jp', name: '', reported: 0, actual: 0 },                               // rỗng
+  ];
+  assert.deepStrictEqual(E.dongLuongRong(st), [0, 5], 'chỉ dòng SẠCH mọi thứ mới là rỗng');
+
+  const n = E.xoaDongLuongRong(st);
+  assert.strictEqual(n, 2);
+  assert.deepStrictEqual(st.salarySites.map((r) => r.id), ['b', 'c', 'd', 'e'],
+    'giữ dòng có liên kết, có tên, có mã đơn vị, có số');
+
+  // 🔴 Dòng CÓ TÊN mà chưa có số là cơ sở ĐANG CHỜ số của kỳ này — xoá là mất một cơ sở.
+  assert(st.salarySites.some((r) => r.name === 'JP_SANBAY'));
+  assert.strictEqual(E.xoaDongLuongRong(st), 0, 'chạy lại không còn gì để xoá');
+
+  console.log('OK — xoá dòng lương trống: chỉ dòng sạch mọi thứ, giữ dòng đang chờ số.');
+}
