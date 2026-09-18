@@ -40,6 +40,40 @@ if ( strpos( $path, '/uploads/' ) === 0 ) {
 	if ( $f && is_file( $f ) ) { header( 'Content-Type: application/octet-stream' ); readfile( $f ); exit; }
 	http_response_code( 404 ); exit;
 }
+/* Dựng bảng của plugin "Doanh thu FABi" + vài dòng thật, để kiểm đường nạp doanh thu ngay tại
+   chỗ mà không cần cài plugin kia. 13 tên cửa hàng lấy đúng trang khmatrix.com/doanh-thu-hcm. */
+if ( $path === '/__dev/fabi' ) {
+	global $wpdb;
+	$b = $wpdb->prefix . 'khh_dt_ngay';
+	$wpdb->query( "CREATE TABLE IF NOT EXISTS $b ( id INTEGER PRIMARY KEY AUTOINCREMENT,
+		ngay TEXT NOT NULL, cua_hang TEXT NOT NULL DEFAULT '', thanh_tien REAL NOT NULL DEFAULT 0 )" );
+	$wpdb->query( "DELETE FROM $b" );
+	$quan = array(
+		array( '(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ ( Dịch Vụ và Giải Trí K&H )', 18225000 ),
+		array( 'COFFE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 620000 ),
+		array( 'ECO FARM LOTTE PHAN THIẾT ( Dịch Vụ và Giải Trí K&H )', 6935000 ),
+		array( 'FUNZONE ADVENTURE GO AN LẠC ( Dịch Vụ và Giải Trí K&H )', 2265000 ),
+		array( 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )', 27667000 ),
+		array( 'TuTu Train - Aeon Tân Phú ( Dịch Vụ và Giải Trí K&H )', 29905000 ),
+		array( 'TuTu Train - Lotte Gò Vấp ( Dịch vụ K&H )', 10440000 ),
+		array( 'Tutu Train - Aeon Tân An ( Dịch vụ K&H )', 3580000 ),
+		array( 'Tutu Train - Aeon Bình Tân ( Dịch vụ K&H )', 0 ),
+		array( 'Tutu Train - Bình Dương ( Dịch Vụ K&H )', 12045000 ),
+		array( 'Tutu Train - Estella ( Dịch vụ K&H )', 20770000 ),
+		array( 'VR FUN - SC Vivo Q7 ( Dịch Vụ và Giải Trí K&H )', 3680000 ),
+		array( 'VR Fun Aeon Tân An ( Dịch Vụ K&H )', 3120000 ),
+	);
+	/* Chia đều ra 2 ngày trong tháng 8/2026 — cốt để phép CỘNG THEO KỲ có việc mà làm; một dòng
+	   một cửa hàng thì không kiểm được là nó có cộng hay chỉ lấy dòng cuối. */
+	foreach ( $quan as $q ) {
+		$wpdb->insert( $b, array( 'ngay' => '2026-08-05', 'cua_hang' => $q[0], 'thanh_tien' => $q[1] * 0.4 ) );
+		$wpdb->insert( $b, array( 'ngay' => '2026-08-20', 'cua_hang' => $q[0], 'thanh_tien' => $q[1] * 0.6 ) );
+		$wpdb->insert( $b, array( 'ngay' => '2026-07-15', 'cua_hang' => $q[0], 'thanh_tien' => 999000000 ) );  // kỳ khác — KHÔNG được lọt vào
+	}
+	header( 'Content-Type: application/json' );
+	echo wp_json_encode( array( 'ok' => true, 'quan' => count( $quan ) ) );
+	exit;
+}
 if ( $path === '/__dev/reset' ) {
 	global $wpdb;
 	foreach ( array( 'khoan', 'ky', 'nhat_ky', 'phien' ) as $t ) { $wpdb->query( 'DELETE FROM ' . KHBC_DB::t( $t ) ); }

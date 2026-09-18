@@ -8,7 +8,7 @@
  *   period       {month, year}
  *   groups       [{id, name, method}]           method: 'ratio' | 'revenue' | 'equal'
  *   departments  [{id, name, group, ratio, revenue, revenueOverride, unitCode, misaPrefix}]
- *   sites        [{dept, code, name, revenue, khongChiPhi}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
+ *   sites        [{dept, code, name, revenue, khongChiPhi, fabiTen}]   điểm bán / cơ sở, dùng để tính doanh thu BP và phân bổ theo điểm
  *   costItems    [{id, kind, name, misaGeneral, misaDetail, account, total,
  *                  split, shares:{groupId: amount}, objectCode, excludeDepts:[deptId], groupKey, method, note}]
  *                  split: 'equal' (chia đều các nhóm) | '<groupId>' (100% một nhóm) | 'custom' (nhập tay shares)
@@ -433,6 +433,153 @@
     return { dept: alloc.dept, period: ky, rows };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * GHÉP CỬA HÀNG "DOANH THU FABi" VỚI ĐIỂM BÁN — anh Thắng 18/09/2026: *"lấy đẩy doanh thu từ
+   * doanh thu hcm sang báo cáo tổng"*.
+   *
+   * 🔴 MÁY CHỈ ĐỀ NGHỊ, NGƯỜI MỚI QUYẾT. Tên hai bên viết khác hẳn nhau — bên FABi là tên quán
+   *    ("TuTu Train - Aeon Tân Phú", "(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ"), bên này là tên điểm
+   *    trong sổ kế toán. Không có luật nào ghép đúng 100%, mà ghép sai thì doanh thu chạy vào
+   *    nhầm bộ phận và kéo theo TOÀN BỘ chi phí phân bổ sai — sổ vẫn cân, chỉ sai chỗ.
+   *    Nên hàm này chỉ trả về ĐỀ NGHỊ kèm lý do; ghi vào báo cáo là một bước riêng, sau khi người
+   *    dùng nhìn và xác nhận. Ghép xong nhớ lại ở `site.fabiTen` để tháng sau khỏi làm lại.
+   *
+   * Cách ghép, theo thứ tự tin cậy giảm dần:
+   *    1. `da_luu`  — site.fabiTen trùng đúng tên cửa hàng (lần trước người dùng đã chốt)
+   *    2. `ten`     — khoá tên (bỏ dấu, bỏ ký tự lạ) trùng khít
+   *    3. `gan`     — trùng nhiều từ đặc trưng nhất, và chỉ khi HƠN HẲN cái thứ nhì
+   *    4. null      — không đoán; để người dùng tự chọn
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+  /** Khoá so tên: bỏ dấu tiếng Việt, hoa hết, bỏ mọi thứ không phải chữ/số. */
+  function khoaTen(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .toUpperCase().replace(/[^A-Z0-9]+/g, '');
+  }
+
+  /* ĐUÔI PHÁP NHÂN. Tên bên FABi gần như cái nào cũng kèm "( Dịch Vụ và Giải Trí K&H )" —
+     đó là tên công ty, không phải tên quán, và nó có ở MỌI cửa hàng nên chẳng phân biệt được gì.
+     Không cắt thì không tên nào trùng khít được, mọi thứ rơi xuống nhánh đoán gần.
+     ⚠️ Chỉ cắt khi dấu "(" nằm SAU phần chữ: "(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ" mở ngoặc ngay
+        từ ký tự đầu — cắt ở đó là mất sạch tên. */
+  function tenGonFabi(s) {
+    const t = String(s == null ? '' : s).trim();
+    const i = t.lastIndexOf('(');
+    return (i > 3 ? t.slice(0, i) : t).trim();
+  }
+
+  /** Tách thành từ (>=3 ký tự) để đếm phần chung — "AEON", "TANPHU"… */
+  function tuTen(s) {
+    return String(s == null ? '' : s)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+      .toUpperCase().split(/[^A-Z0-9]+/).filter((t) => t.length >= 3);
+  }
+
+  /* Từ quá phổ biến thì KHÔNG tính là bằng chứng: "MN" có ở mọi điểm, "AEON" có ở cả chục nơi.
+     Đếm cả chúng thì hai điểm khác hẳn nhau vẫn ra điểm số cao bằng nhau. */
+  const TU_CHUNG = ['MN', 'DICH', 'VU', 'VA', 'GIAI', 'TRI', 'CONG', 'TY', 'TNHH', 'CHI', 'NHANH'];
+
+  /* Điểm ghép = SỐ TỪ CHUNG + TỶ LỆ phủ. Chỉ đếm từ chung là chưa đủ:
+     "Tutu Train - Bình Dương" và "POSH MN AEON MALL BÌNH DƯƠNG" chung đúng 2 từ (BINH, DUONG) —
+     đủ để lọt nếu chỉ xét số lượng, mà ghép vậy là doanh thu Tutu chạy vào Posh rồi kéo theo
+     toàn bộ chi phí phân bổ sai. Thêm tỷ lệ thì hai từ ấy chỉ phủ 2/4 tên bên kia → rớt;
+     còn "Tutu Train - Estella" ↔ "TUTU MN ESTELLA" phủ 2/2 → đậu, dù cũng chỉ 2 từ. */
+  function diemGhep_(a, b) {
+    const ta = tuTen(a).filter((t) => TU_CHUNG.indexOf(t) < 0);
+    const tb = tuTen(b).filter((t) => TU_CHUNG.indexOf(t) < 0);
+    if (!ta.length || !tb.length) return { chung: 0, ty_le: 0 };
+    let chung = 0;
+    ta.forEach((t) => { if (tb.indexOf(t) >= 0) chung++; });
+    return { chung, ty_le: chung / Math.min(ta.length, tb.length) };
+  }
+
+  const NGUONG_TU = 2;      // ít nhất 2 từ đặc trưng chung
+  const NGUONG_TY_LE = 0.6; // và phủ ít nhất 60% cái tên ngắn hơn
+
+  /**
+   * @param {object} state
+   * @param {Array}  ds   [{cua_hang, thanh_tien, so_ngay}] — từ KHBC_FABi
+   * @return {Array} [{cua_hang, thanh_tien, so_ngay, siteIndex, cach, diem, deNghi}]
+   */
+  function ghepFabi(state, ds) {
+    const sites = state.sites || [];
+    const khoaSite = sites.map((s) => khoaTen(s.name));
+    const ra = (ds || []).map((d) => ({
+      cua_hang: String(d.cua_hang || ''),
+      thanh_tien: num(d.thanh_tien),
+      so_ngay: num(d.so_ngay),
+      siteIndex: null, cach: 'khong', diem: 0,
+    }));
+    const daDung = {};
+    const nhan = (k, i, cach, diem) => { ra[k].siteIndex = i; ra[k].cach = cach; ra[k].diem = diem || 0; daDung[i] = true; };
+
+    // 1. đã lưu từ lần trước — chốt trước tiên, người dùng đã quyết rồi
+    ra.forEach((r, k) => {
+      if (r.siteIndex !== null || !r.cua_hang.trim()) return;
+      const i = sites.findIndex((s, ix) => !daDung[ix] && (s.fabiTen || '').trim() === r.cua_hang.trim());
+      if (i >= 0) { nhan(k, i, 'da_luu'); }
+    });
+
+    // 2. khoá tên trùng khít (sau khi cắt đuôi pháp nhân)
+    ra.forEach((r, k) => {
+      if (r.siteIndex !== null) return;
+      const kh = khoaTen(tenGonFabi(r.cua_hang));
+      if (!kh) return;
+      const i = khoaSite.findIndex((x, ix) => !daDung[ix] && x && x === kh);
+      if (i >= 0) { nhan(k, i, 'ten'); }
+    });
+
+    /* 3. Ghép gần đúng — XẾP THEO ĐIỂM, KHÔNG THEO THỨ TỰ DANH SÁCH.
+       Chạy tuần tự theo danh sách thì cửa hàng đứng trước "xí" mất điểm bán mà lẽ ra thuộc về
+       cửa hàng đứng sau khớp hơn — kết quả đổi theo thứ tự sắp xếp của trang FABi, một thứ
+       chẳng liên quan gì tới chuyện ghép. */
+    const cap = [];
+    ra.forEach((r, k) => {
+      if (r.siteIndex !== null) return;
+      let top1 = 0, top2 = 0;
+      sites.forEach((s, i) => {
+        if (daDung[i]) return;
+        const d = diemGhep_(tenGonFabi(r.cua_hang), s.name);
+        if (d.chung < NGUONG_TU || d.ty_le < NGUONG_TY_LE) return;
+        if (d.chung > top1) { top2 = top1; top1 = d.chung; } else if (d.chung > top2) { top2 = d.chung; }
+        cap.push({ k, i, chung: d.chung, ty_le: d.ty_le });
+      });
+      /* Hai điểm cùng giống như nhau thì THÀ ĐỂ TRỐNG: đoán bừa là 50% sai, mà cái sai ấy im
+         lặng — số vẫn vào, tổng vẫn đẹp. */
+      if (top1 > 0 && top1 === top2) {
+        for (let x = cap.length - 1; x >= 0 && cap[x].k === k; x--) { cap.pop(); }
+      }
+    });
+    cap.sort((a, b) => (b.chung - a.chung) || (b.ty_le - a.ty_le));
+    cap.forEach((c) => {
+      if (ra[c.k].siteIndex !== null || daDung[c.i]) return;
+      nhan(c.k, c.i, 'gan', c.chung);
+    });
+    return ra;
+  }
+
+  /**
+   * Ghi doanh thu đã ghép vào state. Trả về {xong, boQua} — KHÔNG tự gọi, giao diện gọi sau khi
+   * người dùng bấm xác nhận.
+   * @param {Array} ghep [{cua_hang, thanh_tien, siteIndex}]
+   */
+  function napFabi(state, ghep) {
+    let xong = 0, bo = 0;
+    (ghep || []).forEach((g) => {
+      const i = g.siteIndex;
+      if (i === null || i === undefined || !state.sites[i]) { bo++; return; }
+      state.sites[i].revenue = num(g.thanh_tien);
+      /* Nhớ lại lựa chọn để tháng sau tự ghép — đây là thứ biến một việc làm tay hằng tháng
+         thành một việc làm tay ĐÚNG MỘT LẦN. */
+      state.sites[i].fabiTen = String(g.cua_hang || '');
+      xong++;
+    });
+    return { xong, boQua: bo };
+  }
+
   /** Kiểm tra dữ liệu, trả về danh sách {level:'error'|'warn'|'info', msg}. */
   function validate(state) {
     const issues = [];
@@ -580,7 +727,7 @@
     st.period = Object.assign({ month: 1, year: 2026 }, st.period || {});
     st.groups = (st.groups || []).map((g) => ({ method: 'revenue', ...g }));
     st.departments = (st.departments || []).map((d) => ({ ratio: 0, revenue: 0, revenueOverride: false, unitCode: '', ...d }));
-    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, ...x, khongChiPhi: !!x.khongChiPhi }));
+    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, fabiTen: '', ...x, khongChiPhi: !!x.khongChiPhi }));
     st.costItems = (st.costItems || []).map((it) => {
       const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: '', createdBy: '', ...it };
       if (!o.id) o.id = newId('ci');
@@ -667,6 +814,10 @@
     computeReport,
     allocateSites,
     misaRows,
+    ghepFabi,
+    napFabi,
+    khoaTen,
+    tenGonFabi,
     parseAccount,
     periodLastDay,
     validate,

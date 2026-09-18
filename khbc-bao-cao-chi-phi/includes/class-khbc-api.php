@@ -17,7 +17,9 @@ class KHBC_API {
 	/** Hàm chỉ cho vai nhất định. Nhân viên (Nhân viên) chỉ được nhóm 'nhap'. */
 	private static function required_roles( $fn ) {
 		$admin  = array( 'listUsers', 'saveUser', 'deleteUser', 'lockPeriod' );
-		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog' );
+		/* `fabiDoanhThu` CHỈ ĐỌC, nhưng vẫn gác ở mức Kế toán: đó là doanh thu toàn chuỗi, không
+		   phải thứ để nhân viên nhập chi phí mở ra xem. */
+		$ketoan = array( 'saveState', 'setCostStatus', 'setAllStatus', 'listPeriods', 'getLog', 'fabiDoanhThu' );
 		if ( in_array( $fn, $admin, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $ketoan, true ) ) { return array( 'Admin', 'Kế toán' ); }
 		return array();
@@ -44,11 +46,34 @@ class KHBC_API {
 			'saveUser'       => array( __CLASS__, 'save_user' ),
 			'deleteUser'     => array( __CLASS__, 'delete_user' ),
 			'getLog'         => array( 'KHBC_Store', 'get_log' ),
+			'fabiDoanhThu'   => array( __CLASS__, 'fabi_doanh_thu' ),
 		);
 	}
 
 	// ---- bọc payload → tham số
 	private static function p( $a, $k, $d = null ) { return ( is_array( $a ) && array_key_exists( $k, $a ) ) ? $a[ $k ] : $d; }
+	/**
+	 * Doanh thu theo cửa hàng, đọc từ plugin Doanh thu FABi — anh Thắng 18/09/2026:
+	 * *"lấy đẩy doanh thu từ doanh thu hcm sang báo cáo tổng"*.
+	 *
+	 * Nhận kỳ (thang/nam) hoặc khoảng ngày (tu/den). CHỈ ĐỌC và CHỈ TRẢ SỐ — việc ghép cửa hàng
+	 * nào vào điểm nào là của giao diện, và người dùng phải nhìn thấy trước khi số chạy vào báo
+	 * cáo. Tự ghép rồi tự ghi là một ngày nào đó doanh thu nhảy vào nhầm bộ phận mà không ai biết.
+	 */
+	public static function fabi_doanh_thu( $a ) {
+		$a = is_array( $a ) ? $a : array();
+		if ( ! empty( $a['tu'] ) || ! empty( $a['den'] ) ) {
+			return KHBC_FABi::theo_cua_hang(
+				isset( $a['tu'] ) ? (string) $a['tu'] : '',
+				isset( $a['den'] ) ? (string) $a['den'] : ''
+			);
+		}
+		return KHBC_FABi::theo_ky(
+			isset( $a['thang'] ) ? (int) $a['thang'] : 0,
+			isset( $a['nam'] ) ? (int) $a['nam'] : 0
+		);
+	}
+
 	public static function ping( $a ) {
 		$u = KHBC_Auth::nguoi();
 		return KHBC_Util::ok( array( 'version' => KHBC_VERSION, 'role' => $u ? KHBC_Auth::vai_app() : null, 'user' => $u ? KHBC_Auth::out_user( $u ) : null, 'now' => gmdate( 'c' ) ) );

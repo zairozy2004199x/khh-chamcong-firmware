@@ -475,3 +475,103 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — Mã đối tượng Có (cột 15), mẫu 50 cột / 11 cột điền, và file riêng cho MISA.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// GHÉP DOANH THU FABi  (anh Thắng 18/09/2026: "lấy đẩy doanh thu từ doanh thu hcm sang báo cáo tổng")
+//
+// 13 tên cửa hàng dưới đây LẤY ĐÚNG từ trang khmatrix.com/doanh-thu-hcm anh Thắng gửi — kể cả
+// cái ngoặc dính liền "(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ" và mấy tên bị cắt cụt giữa chừng.
+// Tên thật mới bày ra được chỗ khó: bên FABi là tên quán, bên này là tên điểm trong sổ kế toán.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const FABI = [
+    { cua_hang: '(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ', thanh_tien: 18225000, so_ngay: 7 },
+    { cua_hang: 'COFFE GO AN LẠC ( Dịch Vụ và Giải', thanh_tien: 620000, so_ngay: 5 },
+    { cua_hang: 'ECO FARM LOTTE PHAN THIẾT ( Dịch V', thanh_tien: 6935000, so_ngay: 7 },
+    { cua_hang: 'FUNZONE ADVENTURE GO AN LẠC ( Dịch', thanh_tien: 2265000, so_ngay: 4 },
+    { cua_hang: 'FUNZONE CITY VŨNG TÀU ( Dịch Vụ và', thanh_tien: 27667000, so_ngay: 7 },
+    { cua_hang: 'TuTu Train - Aeon Tân Phú ( Dịch V', thanh_tien: 29905000, so_ngay: 7 },
+    { cua_hang: 'TuTu Train - Lotte Gò Vấp ( Dịch v', thanh_tien: 10440000, so_ngay: 7 },
+    { cua_hang: 'Tutu Train - Aeon Tân An ( Dịch v', thanh_tien: 3580000, so_ngay: 7 },
+    { cua_hang: 'Tutu Train - Aeon Bình Tân ( Dịch', thanh_tien: 0, so_ngay: 7 },
+    { cua_hang: 'Tutu Train - Bình Dương ( Dịch Vụ', thanh_tien: 12045000, so_ngay: 7 },
+    { cua_hang: 'Tutu Train - Estella ( Dịch vụ K&', thanh_tien: 20770000, so_ngay: 6 },
+    { cua_hang: 'VR FUN - SC Vivo Q7 ( Dịch Vụ và G', thanh_tien: 3680000, so_ngay: 7 },
+    { cua_hang: 'VR Fun Aeon Tân An ( Dịch Vụ K&H )', thanh_tien: 3120000, so_ngay: 7 },
+  ];
+
+  // -- khoá tên: bỏ dấu, bỏ ký tự lạ --
+  assert.strictEqual(E.khoaTen('TuTu Train - Aeon Tân Phú'), 'TUTUTRAINAEONTANPHU');
+  assert.strictEqual(E.khoaTen('(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ'), 'GHOSTBRIDEBARIACODAUAMPHU');
+  assert.strictEqual(E.khoaTen('Đầm Sen'), 'DAMSEN', 'chữ đ phải thành d');
+  assert.strictEqual(E.khoaTen(null), '');
+
+  // -- cắt đuôi pháp nhân: nó có ở MỌI cửa hàng nên không phân biệt được gì --
+  assert.strictEqual(E.tenGonFabi('FUNZONE CITY VŨNG TÀU ( Dịch Vụ và Giải Trí K&H )'), 'FUNZONE CITY VŨNG TÀU');
+  assert.strictEqual(E.tenGonFabi('VR Fun Aeon Tân An ( Dịch Vụ K&H )'), 'VR Fun Aeon Tân An');
+  assert.strictEqual(E.tenGonFabi('(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ'), '(GHOST BRIDE BÀ RỊA)Cô Dâu Âm Phủ',
+    'mở ngoặc ngay từ đầu thì KHÔNG cắt — cắt là mất sạch tên');
+
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [
+    { dept: 'tutu', code: 'TTAMTP', name: 'TUTU MN AEON TÂN PHÚ', revenue: 0 },
+    { dept: 'tutu', code: 'TTLGV', name: 'TUTU MN LOTTE GÒ VẤP', revenue: 0 },
+    { dept: 'tutu', code: 'TTEST', name: 'TUTU MN ESTELLA', revenue: 0 },
+    { dept: 'funzone', code: 'FZVT', name: 'FUNZONE CITY VŨNG TÀU', revenue: 0 },
+    { dept: 'event', code: 'EVGBBR', name: 'EVENT MN GHOST BRIDE BÀ RỊA', revenue: 0 },
+    { dept: 'farm', code: 'FALPT', name: 'FARM MN LOTTE PHAN THIẾT', revenue: 0 },
+    { dept: 'posh', code: 'KHONGLIENQUAN', name: 'POSH MN AEON MALL BÌNH DƯƠNG', revenue: 0 },
+  ];
+
+  const g = E.ghepFabi(st, FABI);
+  assert.strictEqual(g.length, 13, 'mọi cửa hàng đều phải có một dòng, kể cả khi không ghép được');
+  const tim = (t) => g.find((x) => x.cua_hang.indexOf(t) === 0);
+  const ten = (x) => (x.siteIndex === null ? null : st.sites[x.siteIndex].code);
+
+  // -- tên trùng khít --
+  assert.strictEqual(ten(tim('FUNZONE CITY')), 'FZVT');
+  assert.strictEqual(tim('FUNZONE CITY').cach, 'ten', 'trùng khít thì phải là "ten", không phải đoán gần');
+
+  // -- gần đúng: đủ từ đặc trưng --
+  assert.strictEqual(ten(tim('TuTu Train - Aeon Tân Phú')), 'TTAMTP');
+  assert.strictEqual(ten(tim('TuTu Train - Lotte Gò Vấp')), 'TTLGV');
+  assert.strictEqual(ten(tim('Tutu Train - Estella')), 'TTEST');
+  assert.strictEqual(ten(tim('(GHOST BRIDE')), 'EVGBBR');
+  assert.strictEqual(ten(tim('ECO FARM LOTTE PHAN THIẾT')), 'FALPT');
+
+  // 🔴 KHÔNG ĐƯỢC ĐOÁN BỪA. Mấy quán này không có điểm tương ứng trong danh sách.
+  assert.strictEqual(ten(tim('COFFE GO AN LẠC')), null, 'không có điểm nào khớp thì để trống');
+  assert.strictEqual(tim('COFFE GO AN LẠC').cach, 'khong');
+  assert.strictEqual(ten(tim('Tutu Train - Aeon Tân An')), null,
+    '"Aeon Tân An" và "Aeon Tân Phú" chỉ hơn nhau một từ — bằng điểm thì thà để trống');
+
+  // 🔴 MỘT ĐIỂM CHỈ NHẬN MỘT CỬA HÀNG. Hai quán cùng ghép vào một điểm là doanh thu đè lên nhau,
+  //    mà tổng vẫn ra một con số trông hợp lý.
+  const daDung = g.map(ten).filter(Boolean);
+  assert.strictEqual(new Set(daDung).size, daDung.length, 'không điểm nào bị hai cửa hàng nhận');
+
+  // -- POSH không được dính vào: nó không có mặt ở FABi --
+  assert(!daDung.includes('KHONGLIENQUAN'), 'điểm không liên quan phải đứng ngoài');
+
+  // -- NHỚ LỰA CHỌN: lần sau ghép bằng `da_luu`, không phải đoán lại --
+  const kq = E.napFabi(st, g);
+  assert.strictEqual(kq.xong, daDung.length);
+  assert.strictEqual(kq.boQua, 13 - daDung.length, 'cửa hàng không ghép được thì KHÔNG ghi bừa');
+  assert.strictEqual(st.sites.find((s) => s.code === 'TTAMTP').revenue, 29905000);
+  assert.strictEqual(st.sites.find((s) => s.code === 'KHONGLIENQUAN').revenue, 0, 'điểm ngoài cuộc giữ nguyên');
+  const g2 = E.ghepFabi(st, FABI);
+  assert.strictEqual(g2.find((x) => x.cua_hang.indexOf('TuTu Train - Aeon Tân Phú') === 0).cach, 'da_luu',
+    'tháng sau phải ghép bằng lựa chọn đã lưu, không đoán lại');
+
+  // -- người dùng sửa tay thì phải theo, kể cả khi máy đoán khác --
+  const g3 = E.ghepFabi(st, FABI);
+  const iCoffe = g3.findIndex((x) => x.cua_hang.indexOf('COFFE') === 0);
+  g3[iCoffe].siteIndex = st.sites.findIndex((s) => s.code === 'FZVT');
+  // ...nhưng FZVT đang là của FUNZONE CITY, nên bỏ nó ra trước cho khỏi đè
+  g3.find((x) => x.cua_hang.indexOf('FUNZONE CITY') === 0).siteIndex = null;
+  E.napFabi(st, g3);
+  assert.strictEqual(st.sites.find((s) => s.code === 'FZVT').revenue, 620000, 'sửa tay phải thắng');
+  assert.strictEqual(st.sites.find((s) => s.code === 'FZVT').fabiTen.indexOf('COFFE'), 0);
+
+  console.log('OK — ghép doanh thu FABi: khớp tên, không đoán bừa, nhớ lựa chọn.');
+}

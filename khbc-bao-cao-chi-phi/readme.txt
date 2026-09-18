@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.8.0
+Stable tag: 1.9.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.9.0 =
+* **Nạp doanh thu thẳng từ trang "Doanh thu FABi"** (khmatrix.com/doanh-thu-hcm). Nút ở tab
+  Doanh thu: đọc doanh thu kỳ đang chọn, cộng theo cửa hàng, ghép với điểm bán rồi **bày ra xem
+  trước** — đổi được từng dòng, bấm Ghi mới vào báo cáo.
+* Ghép tên tự động (bỏ dấu, cắt đuôi pháp nhân "( Dịch Vụ và Giải Trí K&H )", so từ đặc trưng).
+  **Không đoán bừa**: hai điểm cùng giống như nhau thì để trống cho người chọn. Lựa chọn được
+  **nhớ lại** nên kỳ sau tự ghép.
+* Đọc thẳng bảng của plugin kia (cùng một WordPress), chỉ đọc, không bao giờ ghi sang.
+  Site chưa cài Doanh thu FABi thì báo bằng tiếng Việt chứ không lỗi trắng màn hình.
 
 = 1.8.0 =
 * **Nút "Xuất tờ MISA" — file RIÊNG chỉ có tờ nhập.** Nút cũ xuất workbook 17 sheet mà sheet đầu

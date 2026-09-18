@@ -26,6 +26,10 @@
   let issues = [];
   let prevState = null; // để hoàn tác sau khi nhập Excel / nạp mẫu
   let ui = Object.assign({ tab: 'dashboard', sitesDept: '', siteFilter: 'all', costFilter: 'all', misaMo: [], misaThieu: false, misa50: false }, loadJSON(UI_KEY) || {});
+  /* Kết quả ghép FABi đang chờ người dùng duyệt. CỐ Ý KHÔNG lưu vào localStorage: đây là bản
+     nháp của một lượt thao tác, để nó sống qua lần tải trang sau là người ta quay lại thấy một
+     bảng số cũ của kỳ nào đó rồi bấm Ghi. */
+  let fabi = null;
   let saveTimer = null;
 
   function loadJSON(key) {
@@ -262,8 +266,10 @@
           </label>
           <button class="btn small" data-act="addSite">+ Thêm điểm</button>
           <button class="btn small" data-act="togglePaste">Dán nhanh từ Excel</button>
+          <button class="btn small primary" data-act="napFabi" title="Đọc doanh thu kỳ này từ trang Doanh thu FABi (khmatrix.com/doanh-thu-hcm) và điền vào các điểm khớp. Có màn xem trước, không ghi thẳng.">⬇ Nạp từ Doanh thu FABi</button>
           <button class="btn small danger" data-act="zeroSites" title="Đưa doanh thu tất cả điểm đang lọc về 0">Xoá số doanh thu</button>
         </div>
+        ${fabiBoxHtml()}
         <div id="pasteBox" class="card" style="margin:0 0 10px;background:var(--panel-2)" hidden>
           <p class="hint">Mỗi dòng: <kbd>Mã đơn vị</kbd> <kbd>Tab</kbd> <kbd>Tên điểm</kbd> <kbd>Tab</kbd> <kbd>Doanh thu</kbd> (tuỳ chọn thêm <kbd>Tab</kbd> <kbd>Bộ phận</kbd>). Điểm trùng mã sẽ được cập nhật doanh thu.</p>
           <textarea id="pasteArea" placeholder="50AMBT	POSH MN AEON MALL BÌNH TÂN	197260000	Posh"></textarea>
@@ -696,6 +702,77 @@
       </div>`;
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * NẠP DOANH THU TỪ "DOANH THU FABi" — anh Thắng 18/09/2026.
+   *
+   * 🔴 XEM TRƯỚC RỒI MỚI GHI, KHÔNG BAO GIỜ GHI THẲNG. Ghép tên quán bên FABi với điểm bán bên
+   *    này là việc máy chỉ ĐOÁN được, mà đoán sai thì doanh thu chạy vào nhầm bộ phận và kéo theo
+   *    TOÀN BỘ chi phí phân bổ sai — tổng vẫn đẹp, không ai thấy gì. Nên bảng dưới bày rõ từng
+   *    dòng ghép vào đâu, vì sao, và cho đổi trước khi bấm Ghi.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  const FABI_CACH = {
+    da_luu: { chu: 'đã lưu', mo: 'Lần trước chính anh đã chọn điểm này cho cửa hàng ấy.' },
+    ten: { chu: 'trùng tên', mo: 'Tên cửa hàng và tên điểm khớp nhau sau khi bỏ dấu và đuôi pháp nhân.' },
+    gan: { chu: 'gần đúng', mo: 'Đoán theo số từ chung — nên nhìn lại trước khi ghi.' },
+    khong: { chu: 'chưa ghép', mo: 'Không đoán được. Tự chọn điểm, hoặc để nguyên thì bỏ qua cửa hàng này.' },
+    tay: { chu: 'anh chọn', mo: 'Anh vừa chọn tay — sẽ được nhớ cho kỳ sau.' },
+  };
+
+  function fabiBoxHtml() {
+    if (!fabi) return '';
+    if (fabi.dangTai) return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)"><p class="hint">Đang đọc doanh thu từ Doanh thu FABi…</p></div>`;
+    if (fabi.loi) {
+      return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
+        <div class="issue error"><span class="lv">LỖI</span><span>${esc(fabi.loi)}</span></div>
+        <div class="toolbar" style="margin-top:6px"><button class="btn small" data-act="fabiDong">Đóng</button></div></div>`;
+    }
+    const ds = fabi.ghep || [];
+    const chon = ds.filter((x) => x.siteIndex !== null);
+    const tongChon = chon.reduce((a, x) => a + x.thanh_tien, 0);
+    const opt = (sel) => `<option value="">— chưa ghép —</option>` + state.sites
+      .map((s, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code)}</option>`).join('');
+    return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
+      <div class="card-head">
+        <h2>Doanh thu FABi ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
+        <span class="hint">${ds.length} cửa hàng · đã ghép ${chon.length} · tổng sẽ ghi ${fmt(tongChon)}</span>
+        <div class="spacer"></div>
+        <button class="btn small primary" data-act="fabiGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} điểm vào báo cáo</button>
+        <button class="btn small" data-act="fabiDong">Huỷ</button>
+      </div>
+      <div class="table-wrap"><table class="grid-table dense">
+        <thead><tr><th>Cửa hàng (FABi)</th><th class="num">Doanh thu</th><th class="num">Ngày</th><th>Ghép vào điểm</th><th>Vì sao</th></tr></thead>
+        <tbody>
+          ${ds.map((x, k) => `<tr class="${x.siteIndex === null ? 'muted' : ''}">
+            <td>${esc(x.cua_hang)}</td>
+            ${tdn(x.thanh_tien)}
+            <td class="num muted">${x.so_ngay}</td>
+            <td><select data-fabi="${k}" style="min-width:230px">${opt(x.siteIndex)}</select></td>
+            <td class="muted" title="${esc((FABI_CACH[x.cach] || {}).mo || '')}">${esc((FABI_CACH[x.cach] || {}).chu || x.cach)}${x.diem ? ` (${x.diem} từ chung)` : ''}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table></div>
+      <p class="hint">Cửa hàng để "— chưa ghép —" sẽ <strong>bỏ qua</strong>, không ghi gì. Điểm nào được ghi sẽ <strong>nhớ lựa chọn</strong> cho kỳ sau.</p>
+    </div>`;
+  }
+
+  async function napTuFabi() {
+    if (!API.isEnabled()) return toast('Chức năng này cần đăng nhập vào máy chủ (bản chạy trên WordPress).');
+    fabi = { dangTai: true };
+    renderTab();
+    try {
+      const r = await API.call('fabiDoanhThu', { thang: state.period.month, nam: state.period.year });
+      const d = r && r.data ? r.data : r;
+      if (!d || d.ok === false) { fabi = { loi: (d && d.error) || 'Không đọc được doanh thu FABi.' }; renderTab(); return; }
+      if (!d.ds || !d.ds.length) { fabi = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu nào bên Doanh thu FABi.` }; renderTab(); return; }
+      fabi = { tu: d.tu, den: d.den, ghep: E.ghepFabi(state, d.ds) };
+      renderTab();
+    } catch (e) {
+      fabi = { loi: 'Lỗi khi gọi máy chủ: ' + e.message };
+      renderTab();
+    }
+  }
+  function R_periodLabel() { return E.periodLabel(state.period); }
+
   // ------------------------------------------------------------------ Tab: Kiểm tra
   function renderCheck(root) {
     const R = report;
@@ -1011,6 +1088,15 @@
       ui.misa50 = !ui.misa50;
       renderTab();
     },
+    napFabi() { napTuFabi(); },
+    fabiDong() { fabi = null; renderTab(); },
+    fabiGhi() {
+      if (!fabi || !fabi.ghep) return;
+      const kq = E.napFabi(state, fabi.ghep);
+      fabi = null;
+      commit();
+      toast(`Đã ghi doanh thu cho ${kq.xong} điểm${kq.boQua ? ` · bỏ qua ${kq.boQua} cửa hàng chưa ghép` : ''}.`);
+    },
     /* 🔴 XUẤT RIÊNG TỜ NHẬP MISA. File tổng có 17 sheet và sheet ĐẦU là "File tổng báo cáo" —
        bố cục khác hẳn; đưa nguyên file ấy cho MISA là nó đọc trúng sheet đầu rồi báo sai cột, dù
        mấy sheet "<Bộ phận> chi tiết" bên trong hoàn toàn đúng. Hai nút này cho ra file CHỈ có tờ
@@ -1208,6 +1294,20 @@
     const main = $('#main');
     main.addEventListener('change', (e) => {
       const el = e.target;
+      /* Đổi điểm ghép cho một cửa hàng FABi. Ghi vào BẢN NHÁP thôi — vẫn phải bấm Ghi. */
+      if (el.matches('[data-fabi]')) {
+        const k = Number(el.getAttribute('data-fabi'));
+        const v = el.value === '' ? null : Number(el.value);
+        if (fabi && fabi.ghep && fabi.ghep[k]) {
+          /* Một điểm chỉ nhận MỘT cửa hàng: gán cho dòng này thì gỡ khỏi dòng kia, không thì
+             hai cửa hàng cùng ghi vào một điểm và cái sau đè mất cái trước. */
+          if (v !== null) { fabi.ghep.forEach((g, i) => { if (i !== k && g.siteIndex === v) { g.siteIndex = null; g.cach = 'khong'; } }); }
+          fabi.ghep[k].siteIndex = v;
+          fabi.ghep[k].cach = v === null ? 'khong' : 'tay';
+          renderTab();
+        }
+        return;
+      }
       if (el.matches('[data-path]')) onFieldChange(el);
     });
     main.addEventListener('keydown', (e) => {
