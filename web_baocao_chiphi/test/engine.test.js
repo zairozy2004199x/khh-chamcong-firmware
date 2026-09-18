@@ -979,3 +979,60 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — cơ sở bỏ hẳn: không ghép, không kéo vào khi "Lấy hết", không kêu oan.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// NGUỒN NÀO CHỈ THUỘC MẤY BỘ PHẬN ẤY  (anh Thắng 18/09/2026: "Chưa đồng nhất các chỗ")
+//
+// Ảnh anh gửi: nguồn Ghế có 1.243.443.000, ghép đủ 56 cửa hàng, mà Posh chỉ lên 777.443.000 —
+// đúng 466.000.000 chạy sang Event (Event nhảy từ 1.640.513.000 lên 2.106.513.000). Ghép gần đúng
+// theo tên đã nối cơ sở Ghế "AEON MALL …" vào điểm Event cùng địa điểm. Tiền ghế nằm ở Event thì
+// tỷ trọng phân bổ chi phí sai cho CẢ HAI bộ phận, mà tổng vẫn cộng đẹp nên không ai nghi.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const BP = ['posh', 'jp'];
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.sites = [
+    { dept: 'event', code: 'EVAMBD', name: 'AEON MALL BÌNH DƯƠNG', revenue: 0 },
+    { dept: 'posh', code: 'PAMTP', name: 'POSH AEON MALL TÂN PHÚ', revenue: 0 },
+  ];
+  const DS = [
+    { cua_hang: 'AEON MALL BÌNH DƯƠNG', thanh_tien: 466000000 },
+    { cua_hang: 'AEON MALL TÂN PHÚ', thanh_tien: 52990000 },
+  ];
+
+  // -- không chặn: đúng cái sai của anh Thắng --
+  const tuDo = E.ghepFabi(st, DS, 'gheTen');
+  assert.strictEqual(tuDo[0].siteIndex, 0, 'không chặn thì nó nối thẳng vào điểm Event — đây là lỗi');
+
+  // 🔴 chặn theo bộ phận của nguồn
+  const ghep = E.ghepFabi(st, DS, 'gheTen', BP);
+  assert.strictEqual(ghep[0].siteIndex, null, 'cơ sở Ghế KHÔNG được ghép vào điểm ngoài Posh / JP');
+  assert.strictEqual(ghep[1].siteIndex, 1, 'còn điểm Posh thì vẫn ghép bình thường');
+
+  // -- liên kết CŨ trỏ vào điểm sai bộ phận: ngừng ghi, báo ra --
+  st.sites[0].gheTen = 'AEON MALL BÌNH DƯƠNG';
+  st.sites[0].revenue = 466000000;
+  const ghep2 = E.ghepFabi(st, DS, 'gheTen', BP);
+  assert.strictEqual(ghep2[0].siteIndex, null, 'kể cả liên kết đã lưu cũng không được honour');
+
+  const kq = E.dongBoFabi(st, DS, 'gheTen', BP);
+  assert.strictEqual(kq.saiBp.length, 1, 'phải BÁO RA điểm đang nối sai bộ phận');
+  assert.strictEqual(kq.saiBp[0].dept, 'event');
+  assert.strictEqual(kq.saiBp[0].fabiTen, 'AEON MALL BÌNH DƯƠNG');
+  assert.strictEqual(st.sites[0].revenue, 466000000, 'ngừng GHI, nhưng không tự ý xoá — người quyết');
+  assert.strictEqual(kq.daLinh, 0, 'điểm sai bộ phận không được tính là một liên kết đang chạy');
+
+  // -- và tiền của nó phải nằm trong phần "chưa nối", không biến mất --
+  assert.strictEqual(kq.tongChuaNoi, 466000000 + 52990000,
+    'cơ sở ấy giờ chưa có điểm hợp lệ nào nhận — phải hiện ra là tiền đang rơi, không im lặng');
+  assert(kq.chuaNoi.some((x) => x.cua_hang === 'AEON MALL BÌNH DƯƠNG'),
+    'điểm nối sai bộ phận KHÔNG được tính là "đã có chỗ"');
+
+  // -- FABi trải khắp các bộ phận nên KHÔNG chặn --
+  const stf = E.normalizeState(window.SAMPLE_DATA);
+  stf.sites = [{ dept: 'event', code: 'EV1', name: 'Ngôi Nhà Ma - Aeon Bình Dương', revenue: 0 }];
+  const gf = E.ghepFabi(stf, [{ cua_hang: 'Ngôi Nhà Ma - Aeon Bình Dương ( Dịch Vụ K&H )', thanh_tien: 9 }], 'fabiTen');
+  assert.strictEqual(gf[0].siteIndex, 0, 'nguồn không khai bộ phận thì ghép như cũ');
+
+  console.log('OK — nguồn Ghế chỉ vào Posh / JP: tiền ghế không chảy sang bộ phận khác.');
+}

@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.17.0
+Stable tag: 1.18.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,24 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.18.0 =
+* 🔴 **Nguồn Ghế chỉ được vào Posh / JP.** Nguồn có 1.243.443.000, ghép đủ 56 cửa hàng, mà Posh chỉ
+  lên 777.443.000 — đúng **466.000.000 chạy sang Event**: ghép gần đúng theo tên nối cơ sở Ghế
+  "AEON MALL …" vào điểm Event cùng địa điểm. Tiền ghế nằm ở Event thì tỷ trọng phân bổ chi phí sai
+  cho **cả hai** bộ phận, mà tổng vẫn cộng đẹp nên không ai nghi.
+* Từ nay cơ sở bên Ghế **không ghép được** vào điểm ngoài Posh / JP — kể cả liên kết cũ đã lưu;
+  ô "tạo điểm mới" cũng chỉ còn Posh / JP.
+* Điểm đang nối sai bộ phận thì **ngừng ghi số vào đó** và hiện dòng đỏ trên tab Doanh thu, kèm nút
+  *Gỡ liên kết sai & xoá số đã ghi nhầm* (có Hoàn tác). Tiền của cơ sở ấy quay lại phần
+  "chưa nối" chứ không biến mất.
+* **Nạp xong là lấy hết luôn, không phải bấm thêm nút.** Bản xem trước mở ra đã chọn sẵn "tạo điểm
+  mới" cho MỌI cửa hàng chưa ghép — *bỏ lại 0đ*. Vẫn là bản xem trước: còn phải bấm Ghi, và cửa
+  hàng nào không muốn thì đổi sang "bỏ qua" hoặc "🚫 bỏ hẳn".
+* **Bộ phận mặc định tự suy ra** từ chính dữ liệu của anh: các điểm đang nối nguồn ấy phần lớn
+  thuộc bộ phận nào thì lấy bộ phận ấy (VD 40 điểm đang nối Ghế đều là Posh → mặc định Posh). Không
+  còn bắt chọn tay một lần nữa mới lấy hết được. Vẫn đổi được bằng ô "Bộ phận mặc định", và đổi thì
+  bảng chia lại ngay.
 
 = 1.17.0 =
 * **"Lấy hết" cơ sở của một nguồn bằng một nút.** Dòng THIẾU LIÊN KẾT trên Tổng quan có nút

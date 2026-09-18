@@ -20,25 +20,21 @@ const PORT = process.env.PORT || '8116';
   await p.click('[data-act="napFabi"][data-arg="ghe"]'); await p.waitForTimeout(2500);
 
   ok('Hộp xem trước có ô "Bộ phận mặc định"', !!(await p.$('select[data-bpmd]')));
-  const nhan = await p.evaluate(()=>{const b=document.querySelector('[data-act="fabiTaoHet"]'); return b?b.textContent.trim():'';});
-  ok('Nút đổi thành "Lấy hết …"', /Lấy hết/.test(nhan), nhan);
 
-  // chua chon bo phan mac dinh: ten ben Ghe khong doan duoc -> khong tao bua
-  await p.click('[data-act="fabiTaoHet"]'); await p.waitForTimeout(900);
+  // 🔴 CHUA co diem nao noi nguon nay va chua chon bo phan -> khong nhet bua vao mot bo phan
   const t1 = await p.evaluate(()=>[...document.querySelectorAll('select[data-fabi]')].filter(s=>s.value.indexOf('new:')===0).length);
-  /* Tên bên Ghế là tên địa điểm, chỉ vài cái có chữ hiệu bộ phận. Số còn lại phải ĐỨNG YÊN chứ
-     không được nhét bừa vào một bộ phận nào đó. */
-  ok('🔴 Chưa chọn bộ phận mặc định thì chỉ lấy những cơ sở ĐOÁN ĐƯỢC, còn lại để yên',
-     t1>0 && t1<7, t1+'/7 dòng đoán được theo tên');
+  /* Nguồn Ghế chỉ thuộc Posh / JP, và chưa có điểm nào để suy ra → lấy bộ phận đầu của nguồn
+     (Posh). Nên nạp xong là đã lấy hết, khỏi bấm gì. */
+  ok('🔴 Nạp xong là LẤY HẾT ngay, không phải chọn gì', t1===7, t1+'/7 dòng đã chọn tạo mới');
 
-  // chon Posh roi lay het
-  await p.selectOption('select[data-bpmd]','posh'); await p.waitForTimeout(1200);
-  await p.click('[data-act="fabiTaoHet"]'); await p.waitForTimeout(1200);
+  // chon Posh -> bang CHIA LAI ngay, khong phai bam them nut
+  await p.selectOption('select[data-bpmd]','posh'); await p.waitForTimeout(1500);
   const t2 = await p.evaluate(()=>{const ss=[...document.querySelectorAll('select[data-fabi]')];
     return { tao: ss.filter(s=>s.value.indexOf('new:')===0).length, tong: ss.length,
       hint: (()=>{const n=document.querySelector('[data-act="fabiGhi"]'); const c=n&&n.closest('.card');
         const h=c&&c.querySelector('.hint'); return h?h.textContent:'';})() };});
-  ok('Chọn bộ phận mặc định rồi thì LẤY HẾT', t2.tao===t2.tong && t2.tong===7, t2.tao+'/'+t2.tong+' cơ sở');
+  ok('🔴 Chọn bộ phận mặc định là CHIA LẠI NGAY, lấy hết, khỏi bấm thêm nút',
+     t2.tao===t2.tong && t2.tong===7, t2.tao+'/'+t2.tong+' cơ sở');
   ok('Không còn bỏ lại đồng nào', !/bỏ lại/.test(t2.hint), t2.hint.replace(/\s+/g,' ').slice(0,110));
 
   await p.click('[data-act="fabiGhi"]'); await p.waitForTimeout(3500);
@@ -65,8 +61,8 @@ const PORT = process.env.PORT || '8116';
   const ten = await p.evaluate(()=>{const s=document.querySelector('select[data-fabi]');
     s.value='bo_han'; s.dispatchEvent(new Event('change',{bubbles:true}));
     return s.closest('tr').cells[0].textContent.trim();});
-  await p.waitForTimeout(900);
-  await p.click('[data-act="fabiTaoHet"]'); await p.waitForTimeout(1200);
+  await p.waitForTimeout(1200);
+  /* Không bấm nút nào: nạp xong là đã chọn sẵn tạo mới cho mọi cửa hàng chưa ghép. */
   const h1 = await p.evaluate(()=>{const ss=[...document.querySelectorAll('select[data-fabi]')];
     return { tao: ss.filter(s=>s.value.indexOf('new:')===0).length, boHan: ss.filter(s=>s.value==='bo_han').length };});
   ok('🔴 "Lấy hết" KHÔNG kéo cơ sở đã bỏ hẳn vào', h1.tao===6 && h1.boHan===1, h1.tao+' tạo mới · '+h1.boHan+' bỏ hẳn');
@@ -88,6 +84,53 @@ const PORT = process.env.PORT || '8116';
   await p.click('[data-act="napFabi"][data-arg="ghe"]'); await p.waitForTimeout(2500);
   const h4 = await p.evaluate(()=>[...document.querySelectorAll('select[data-fabi]')].filter(s=>s.value==='bo_han').length);
   ok('Mở lại nguồn thì vẫn nhớ, không hỏi lại', h4===1, h4+' dòng giữ trạng thái bỏ hẳn');
+
+  // ── 🔴 TỰ SUY RA bộ phận từ các điểm ĐANG NỐI, khỏi chọn tay ────────────────────────────────
+  //    Đúng cảnh của anh Thắng: 40 điểm đã nối Ghế (đều Posh), 16 cửa hàng còn lại bị bỏ lại 696tr
+  //    chỉ vì chưa ai chọn "bộ phận mặc định".
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    s.options.bpMacDinh={}; s.options.boQuaNguon={};   // quên lựa chọn tay đi
+    s.sites=s.sites.slice(0,3);                        // còn 3 điểm đang nối Ghế, đều Posh
+    window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(1500);
+  await mo(p,'Doanh thu');
+  await p.click('[data-act="napFabi"][data-arg="ghe"]'); await p.waitForTimeout(3000);
+  const z = await p.evaluate(()=>{const ss=[...document.querySelectorAll('select[data-fabi]')];
+    const n=document.querySelector('[data-act="fabiGhi"]'); const c=n&&n.closest('.card');
+    const h=c&&c.querySelector('.hint');
+    return { chuaGhep: ss.filter(s=>s.value==='').length, tong: ss.length,
+      mac: (document.querySelector('select[data-bpmd] option[value=""]')||{}).textContent||'',
+      hint: h?h.textContent:'' };});
+  ok('🔴 Tự suy bộ phận từ các điểm đang nối — nạp xong là LẤY HẾT, không phải chọn tay',
+     z.chuaGhep===0, z.chuaGhep+'/'+z.tong+' cửa hàng còn bỏ lại');
+  ok('Không còn dòng "bỏ lại" nào', !/bỏ lại/.test(z.hint), z.hint.replace(/\s+/g,' ').slice(0,110));
+  ok('Ô mặc định nói rõ đang tự theo bộ phận nào', /tự theo các điểm đang nối/.test(z.mac), z.mac);
+
+  // ── 🔴 NGUỒN GHẾ KHÔNG ĐƯỢC CHẢY SANG BỘ PHẬN KHÁC ──────────────────────────────────────────
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    s.options.bpMacDinh={}; s.options.boQuaNguon={};
+    s.sites=[{dept:'event',code:'EVAMBT',name:'AEON MALL BÌNH TÂN',revenue:0,gheTen:'AEON MALL BÌNH TÂN'}];
+    window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(1500);
+  await mo(p,'Doanh thu');
+  await p.click('[data-act="napFabi"][data-arg="ghe"]'); await p.waitForTimeout(3000);
+  const w = await p.evaluate(()=>{
+    const tr=[...document.querySelectorAll('select[data-fabi]')].map(s=>s.closest('tr'))
+      .find(r=>/AEON MALL BÌNH TÂN/.test(r.cells[0].textContent));
+    const sel=tr&&tr.querySelector('select');
+    return { noiVaoEvent: sel? sel.value : '?',
+      bpTaoMoi: sel? [...sel.querySelectorAll('optgroup[label*="Tạo điểm"] option')].map(o=>o.textContent.split('—')[0].trim()) : [] };});
+  ok('🔴 Cơ sở Ghế KHÔNG ghép vào điểm Event, kể cả liên kết cũ đã lưu',
+     w.noiVaoEvent.indexOf('new:')===0 || w.noiVaoEvent==='', 'ô chọn = '+w.noiVaoEvent);
+  ok('🔴 Ô "tạo điểm mới" chỉ còn Posh / JP', w.bpTaoMoi.length===2 && /Posh/.test(w.bpTaoMoi[0]),
+     w.bpTaoMoi.join(' · '));
+
+  await mo(p,'Doanh thu');
+  const w2 = await p.evaluate(()=>(document.querySelector('#tab-revenue .issue.error')||{}).textContent||'');
+  ok('🔴 Báo đỏ điểm đang nối sai bộ phận, kèm nút gỡ', /nối SAI BỘ PHẬN/.test(w2),
+     w2.replace(/\s+/g,' ').slice(0,120));
+  const coNut = await p.$('[data-act="goSaiBp"]');
+  ok('Có nút "Gỡ liên kết sai & xoá số ghi nhầm"', !!coNut);
 
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/lay-het.png'});

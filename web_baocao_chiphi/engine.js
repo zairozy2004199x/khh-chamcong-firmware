@@ -515,9 +515,15 @@
    * @param {Array}  ds   [{cua_hang, thanh_tien, so_ngay}] — từ KHBC_FABi
    * @return {Array} [{cua_hang, thanh_tien, so_ngay, siteIndex, cach, diem, deNghi}]
    */
-  function ghepFabi(state, ds, khoa) {
+  function ghepFabi(state, ds, khoa, bpCho) {
     khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
+    /* 🔴 NGUỒN NÀO CHỈ THUỘC MẤY BỘ PHẬN ẤY. Anh Thắng 18/09/2026: nguồn Ghế có 1.243.443.000,
+       ghép đủ 56 cửa hàng, mà Posh chỉ lên 777.443.000 — 466.000.000 chảy sang Event, vì ghép gần
+       đúng theo tên nối "AEON MALL …" bên Ghế vào điểm Event cùng địa điểm. Doanh thu ghế nằm ở
+       bộ phận Event thì tỷ trọng phân bổ chi phí sai cho CẢ HAI bộ phận, mà tổng vẫn cộng đẹp.
+       Ghế là Posh/JP — ngoài hai bộ phận ấy thì không ghép, kể cả liên kết cũ đã lưu. */
+    const chan = (i) => (bpCho && bpCho.length ? bpCho.indexOf((sites[i] || {}).dept) < 0 : false);
     const khoaSite = sites.map((s) => khoaTen(s.name));
     const bq = dsBoQua(state, khoa);
     const ra = (ds || []).map((d) => ({
@@ -535,7 +541,7 @@
     // 1. đã lưu từ lần trước — chốt trước tiên, người dùng đã quyết rồi
     ra.forEach((r, k) => {
       if (r.boHan || r.siteIndex !== null || !r.cua_hang.trim()) return;
-      const i = sites.findIndex((s, ix) => !daDung[ix] && (s[khoa] || '').trim() === r.cua_hang.trim());
+      const i = sites.findIndex((s, ix) => !daDung[ix] && !chan(ix) && (s[khoa] || '').trim() === r.cua_hang.trim());
       if (i >= 0) { nhan(k, i, 'da_luu'); }
     });
 
@@ -544,7 +550,7 @@
       if (r.boHan || r.siteIndex !== null) return;
       const kh = khoaTen(tenGonFabi(r.cua_hang));
       if (!kh) return;
-      const i = khoaSite.findIndex((x, ix) => !daDung[ix] && x && x === kh);
+      const i = khoaSite.findIndex((x, ix) => !daDung[ix] && !chan(ix) && x && x === kh);
       if (i >= 0) { nhan(k, i, 'ten'); }
     });
 
@@ -557,7 +563,7 @@
       if (r.boHan || r.siteIndex !== null) return;
       let top1 = 0, top2 = 0;
       sites.forEach((s, i) => {
-        if (daDung[i]) return;
+        if (daDung[i] || chan(i)) return;
         const d = diemGhep_(tenGonFabi(r.cua_hang), s.name);
         if (d.chung < NGUONG_TU || d.ty_le < NGUONG_TY_LE) return;
         if (d.chung > top1) { top2 = top1; top1 = d.chung; } else if (d.chung > top2) { top2 = d.chung; }
@@ -587,9 +593,10 @@
    *
    * Muốn thêm liên kết mới thì vẫn qua nút "Nạp từ Doanh thu FABi" — ở đó có màn xem trước.
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
-  function dongBoFabi(state, ds, khoa) {
+  function dongBoFabi(state, ds, khoa, bpCho) {
     khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
+    const saiBp = [];
     const tien = {};
     (ds || []).forEach((d) => { tien[String(d.cua_hang || '').trim()] = num(d.thanh_tien); });
     const doi = [];
@@ -597,6 +604,11 @@
     sites.forEach((s, i) => {
       const k = (s[khoa] || '').trim();
       if (!k) return;
+      /* Liên kết cũ trỏ vào điểm sai bộ phận: KHÔNG ghi số mới vào đó nữa, và báo ra để gỡ. */
+      if (bpCho && bpCho.length && bpCho.indexOf(s.dept) < 0) {
+        saiBp.push({ i, code: s.code, name: s.name, dept: s.dept, nguon: khoa, fabiTen: k });
+        return;
+      }
       daLinh++;
       if (!Object.prototype.hasOwnProperty.call(tien, k)) {
         /* Cửa hàng biến mất bên FABi (đổi tên, ngừng bán). KHÔNG đưa về 0: số 0 trông y hệt một
@@ -616,13 +628,19 @@
        nên nhìn màn Tổng quan thì tưởng doanh thu tháng này thấp. Đếm phần dôi ra và trả về để
        giao diện bày thành số, đừng để nó biến mất. */
     const daNoi = {};
-    sites.forEach((x) => { const k = (x[khoa] || '').trim(); if (k) daNoi[k] = true; });
+    sites.forEach((x) => {
+      /* Điểm nối SAI BỘ PHẬN không phải một liên kết hợp lệ — đừng coi cơ sở ấy là "đã có chỗ",
+         không thì tiền của nó lặng lẽ biến khỏi cả phần "đang rơi" lẫn báo cáo. */
+      if (bpCho && bpCho.length && bpCho.indexOf(x.dept) < 0) return;
+      const k = (x[khoa] || '').trim();
+      if (k) daNoi[k] = true;
+    });
     const bq = dsBoQua(state, khoa);
     const chuaNoi = (ds || []).filter((d) => {
       const t = String(d.cua_hang || '').trim();
       return !daNoi[t] && bq.indexOf(t) < 0 && num(d.thanh_tien) !== 0;
     });
-    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat),
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat), saiBp,
       chuaNoi, tongNguon: (ds || []).reduce((a, d) => a + num(d.thanh_tien), 0),
       tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }

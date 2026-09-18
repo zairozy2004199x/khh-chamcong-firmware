@@ -770,7 +770,11 @@
   const NGUON = {
     fabi: { khoa: 'fabiTen', ten: 'Doanh thu FABi', api: 'fabiDoanhThu', nhan: 'FABi',
             mo: 'khmatrix.com/doanh-thu-hcm — Funzone, Tutu, Event, Farm…' },
+    /* `bp` — nguồn này CHỈ thuộc mấy bộ phận ấy. Xem khối dài trong engine.ghepFabi: không chặn
+       thì ghép gần đúng theo tên nối cơ sở Ghế vào điểm Event cùng địa điểm, và 466 triệu tiền ghế
+       chạy sang Event. FABi trải khắp các bộ phận nên để trống = không chặn. */
     ghe: { khoa: 'gheTen', ten: 'Ghế Massage (Posh / JP)', api: 'gheDoanhThu', nhan: 'Ghế',
+           bp: ['posh', 'jp'],
            mo: 'khmatrix.com/ghe → Báo cáo tổng — doanh thu ghế theo cơ sở' },
   };
 
@@ -808,7 +812,7 @@
       + `<option value="bo_han" ${x.boHan ? 'selected' : ''}>🚫 Bỏ hẳn — không thuộc báo cáo này, đừng hỏi lại</option>`
       + `<optgroup label="Ghép vào điểm sẵn có">` + state.sites
         .map((s, i) => `<option value="${i}" ${i === x.siteIndex ? 'selected' : ''}>${esc(deptName(s.dept))} · ${esc(s.name || s.code || '(chưa đặt tên)')}</option>`).join('')
-      + `</optgroup><optgroup label="➕ Tạo điểm mới trong bộ phận">` + state.departments
+      + `</optgroup><optgroup label="➕ Tạo điểm mới trong bộ phận">` + bpCuaNguon()
         .map((d) => `<option value="new:${esc(d.id)}" ${x.taoMoi === d.id ? 'selected' : ''}>➕ ${esc(d.name)} — "${esc(E.tenGonFabi(x.cua_hang))}"</option>`).join('')
       + `</optgroup>`;
     return `<div class="card" style="margin:0 0 10px;background:var(--panel-2)">
@@ -816,12 +820,12 @@
         <h2>${esc((NGUON[fabi.nguon] || NGUON.fabi).ten)} ${esc(fabi.tu)} → ${esc(fabi.den)}</h2>
         <span class="hint">${ds.length} cửa hàng${soBoHan ? ` (bỏ hẳn ${soBoHan})` : ''} · <strong>nguồn có ${fmt(tongNguon)}</strong> · đã ghép ${chon.length - soTao}${soTao ? ` · tạo mới ${soTao}` : ''} · tổng sẽ ghi ${fmt(tongChon)}${tongNguon - tongChon > 0 ? ` · <strong class="bad-text">bỏ lại ${fmt(tongNguon - tongChon)}</strong>` : ''}</span>
         <div class="spacer"></div>
-        ${chuaGhep.length ? `<label class="hint" style="display:flex;align-items:center;gap:4px">Bộ phận mặc định
+        ${(chuaGhep.length || soTao) ? `<label class="hint" style="display:flex;align-items:center;gap:4px">Bộ phận mặc định
           <select data-bpmd title="Cơ sở nào đoán được bộ phận từ tên thì theo tên; còn lại vào bộ phận này. Nhớ cho những lần sau.">
-            <option value="">— đoán theo tên —</option>
-            ${state.departments.map((d) => `<option value="${esc(d.id)}" ${bpMacDinh(fabi.nguon) === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
+            <option value="">${bpTuNguon(fabi.nguon) ? `— tự theo các điểm đang nối (${esc(deptName(bpTuNguon(fabi.nguon)))}) —` : '— đoán theo tên —'}</option>
+            ${bpCuaNguon().map((d) => `<option value="${esc(d.id)}" ${((state.options.bpMacDinh || {})[fabi.nguon] || '') === d.id ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}
           </select></label>
-          <button class="btn small primary" data-act="fabiTaoHet" title="Lấy hết: cửa hàng nào đoán được bộ phận từ tên thì theo tên, còn lại vào bộ phận mặc định. Vẫn sửa được từng dòng trước khi Ghi.">➕ Lấy hết ${chuaGhep.length} cửa hàng còn lại</button>` : ''}
+          ${chuaGhep.length ? `<button class="btn small primary" data-act="fabiTaoHet" title="Lấy hết: cửa hàng nào đoán được bộ phận từ tên thì theo tên, còn lại vào bộ phận mặc định. Vẫn sửa được từng dòng trước khi Ghi.">➕ Lấy hết ${chuaGhep.length} cửa hàng còn lại</button>` : ''}` : ''}
         <button class="btn small primary" data-act="fabiGhi" ${chon.length ? '' : 'disabled'}>Ghi ${chon.length} điểm vào báo cáo</button>
         <button class="btn small" data-act="fabiDong">Huỷ</button>
       </div>
@@ -849,7 +853,51 @@
      anh chọn MỘT LẦN cho mỗi nguồn, em nhớ, từ đó bấm một nút là lấy hết. */
   function bpMacDinh(nguon) {
     const m = (state.options && state.options.bpMacDinh) || {};
-    return m[nguon || 'fabi'] || '';
+    return m[nguon || 'fabi'] || bpTuNguon(nguon);
+  }
+
+  /* Chưa chọn tay thì SUY RA từ chính dữ liệu của anh: các điểm đang nối nguồn này phần lớn thuộc
+     bộ phận nào thì lấy bộ phận ấy. Đây không phải em đoán — nó là lựa chọn anh đã làm cho 40 điểm
+     trước đó. Bắt anh chọn thêm một lần nữa mới "lấy hết" được thì vẫn là còn bỏ lại. */
+  /* Điểm đang nối một nguồn nhưng nằm ngoài các bộ phận của nguồn ấy. Tính THẲNG TỪ STATE chứ
+     không đợi lần lấy sống gần nhất — một cái sai về tiền thì phải hiện ngay khi mở trang, không
+     phụ thuộc vào việc có vừa gọi máy chủ hay chưa. */
+  function diemSaiBp() {
+    const ra = [];
+    Object.keys(NGUON).forEach((n) => {
+      const N = NGUON[n];
+      if (!N.bp || !N.bp.length) return;
+      (state.sites || []).forEach((s, i) => {
+        if ((s[N.khoa] || '').trim() && N.bp.indexOf(s.dept) < 0) {
+          ra.push({ i, code: s.code, name: s.name, dept: s.dept, nguon: N.khoa, fabiTen: s[N.khoa] });
+        }
+      });
+    });
+    return ra;
+  }
+
+  /** Các bộ phận mà nguồn đang mở được phép dùng (Ghế → Posh/JP; FABi → tất cả). */
+  function bpCuaNguon() {
+    const N = NGUON[(fabi && fabi.nguon) || 'fabi'] || NGUON.fabi;
+    if (!N.bp || !N.bp.length) return state.departments;
+    return state.departments.filter((d) => N.bp.indexOf(d.id) >= 0);
+  }
+
+  function bpTuNguon(nguon) {
+    const N = NGUON[nguon] || NGUON.fabi;
+    const khoa = N.khoa;
+    const dem = {};
+    (state.sites || []).forEach((s) => {
+      if (N.bp && N.bp.length && N.bp.indexOf(s.dept) < 0) return;
+      if ((s[khoa] || '').trim() && s.dept) { dem[s.dept] = (dem[s.dept] || 0) + 1; }
+    });
+    let bp = '', n = 0;
+    Object.keys(dem).forEach((d) => { if (dem[d] > n) { n = dem[d]; bp = d; } });
+    /* Chưa có điểm nào để suy ra thì lấy bộ phận ĐẦU của nguồn (Ghế → Posh). Vẫn là một lựa chọn
+       hiện rõ trong ô "Bộ phận mặc định" và đổi được — nhưng không để "Lấy hết" đứng im vì thiếu
+       một cú bấm mà anh đã bảo bốn lần là không muốn phải bấm. */
+    if (!bp && N.bp && N.bp.length) { bp = N.bp[0]; }
+    return bp;
   }
 
   /** Điểm này đang nối nguồn nào ('fabi' | 'ghe'), hay chưa nối ('' ). */
@@ -862,15 +910,21 @@
     const dem = {};
     Object.keys(NGUON).forEach((n) => { dem[n] = (state.sites || []).filter((s) => nguonCua(s) === n).length; });
     const linh = Object.values(dem).reduce((a, b) => a + b, 0);
-    if (!state.options.fabiTuDong && !linh) return '';
+    if (!state.options.fabiTuDong && !linh && !diemSaiBp().length) return '';
     const mat = (fabiLan && fabiLan.mat) || [];
+    const sai = diemSaiBp();
     const chot = sync.locked;
-    return `<div class="issue ${mat.length ? 'warn' : 'info'}" style="margin:0 0 10px">
+    return `<div class="issue ${sai.length ? 'error' : mat.length ? 'warn' : 'info'}" style="margin:0 0 10px">
       <span class="lv">${state.options.fabiTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
       <span>${Object.keys(NGUON).filter((n) => dem[n]).map((n) => `${dem[n]} điểm ← ${esc(NGUON[n].ten)}`).join(' · ') || '0 điểm'}.
       ${!state.options.fabiTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : chot ? `Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.`
         : (fabiLan && fabiLan.luc) ? `Lấy lần cuối lúc ${esc(fabiLan.luc)}${fabiLan.soDoi ? ` · đổi ${fabiLan.soDoi} điểm` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
+      ${sai.length ? `<br><strong style="color:var(--bad,#c00)">🔴 ${sai.length} điểm nối SAI BỘ PHẬN</strong>:
+        ${esc(sai.map((x) => `${x.name || x.code} (${deptName(x.dept)})`).join(', '))} — đây là cơ sở bên
+        ${esc(NGUON.ghe.nhan)} nhưng điểm lại nằm ngoài ${esc((NGUON.ghe.bp || []).map(deptName).join(' / '))},
+        nên tiền ghế đang cộng vào bộ phận khác. Em đã <strong>ngừng ghi</strong> vào mấy điểm ấy.
+        <button class="btn small" data-act="goSaiBp">Gỡ ${sai.length} liên kết sai & xoá số đã ghi nhầm</button>` : ''}
       ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên FABi): ${esc(mat.map((x) => x.code || x.name).join(', '))} — số cũ được giữ nguyên, vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
       </span></div>`;
   }
@@ -878,7 +932,7 @@
   async function fabiLayNgay(im) {
     if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
     /* Chạy CẢ HAI nguồn. Nguồn nào chưa có điểm nào nối thì bỏ qua, khỏi gọi máy chủ thừa. */
-    let doi = 0; const mat = []; const soDu = [];
+    let doi = 0; const mat = []; const soDu = []; const sai = [];
     for (const n of Object.keys(NGUON)) {
       const N = NGUON[n];
       if (!(state.sites || []).some((s) => (s[N.khoa] || '').trim())) continue;
@@ -886,16 +940,35 @@
         const r = await API.call(N.api, { thang: state.period.month, nam: state.period.year });
         const d = r && r.data ? r.data : r;
         if (!d || d.ok === false || !d.ds) continue;
-        const kq = E.dongBoFabi(state, d.ds, N.khoa);
+        const kq = E.dongBoFabi(state, d.ds, N.khoa, N.bp);
         doi += kq.soDoi;
         kq.mat.forEach((x) => mat.push(x));
+        kq.saiBp.forEach((x) => sai.push(x));
         /* Phần tiền bên nguồn chưa nối vào điểm nào — xem khối dài trong engine.dongBoFabi. */
         if (kq.tongChuaNoi > 0) soDu.push({ nguon: n, ds: kq.chuaNoi, tien: kq.tongChuaNoi, tongNguon: kq.tongNguon });
       } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
     }
-    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu };
+    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai };
     if (doi) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.`); }
     else { recompute(); renderTab(); }
+  }
+
+  /* Chọn sẵn "tạo điểm mới" cho MỌI cửa hàng chưa ghép: đoán bộ phận theo tên trước, không ra thì
+     lấy bộ phận mặc định (tự suy ra từ các điểm đang nối nguồn này). Dùng chung cho lúc nạp và cho
+     nút "Lấy hết". Trả về đếm được để còn nói cho người dùng biết vừa làm gì. */
+  function layHetVaoNhap() {
+    const md = fabi ? bpMacDinh(fabi.nguon) : '';
+    let n = 0, khong = 0, theoMd = 0;
+    if (!fabi || !fabi.ghep) return { n, khong, theoMd, md };
+    fabi.ghep.forEach((g) => {
+      if (g.boHan || g.siteIndex !== null || g.taoMoi) return;
+      /* Đoán theo tên, nhưng chỉ trong các bộ phận của nguồn — không thì "SNOW FUN AEON…" bên
+         Ghế lại chui sang Event. */
+      let d = E.doanBoPhan(g.cua_hang, bpCuaNguon());
+      if (!d && md) { d = md; theoMd++; }
+      if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
+    });
+    return { n, khong, theoMd, md };
   }
 
   async function napTuFabi(nguon) {
@@ -909,7 +982,12 @@
       const d = r && r.data ? r.data : r;
       if (!d || d.ok === false) { fabi = { loi: (d && d.error) || `Không đọc được ${N.ten}.` }; renderTab(); return; }
       if (!d.ds || !d.ds.length) { fabi = { loi: `Kỳ ${R_periodLabel()} chưa có dữ liệu nào bên ${N.ten}.` }; renderTab(); return; }
-      fabi = { tu: d.tu, den: d.den, nguon: kieu, ghep: E.ghepFabi(state, d.ds, N.khoa) };
+      fabi = { tu: d.tu, den: d.den, nguon: kieu, ghep: E.ghepFabi(state, d.ds, N.khoa, N.bp) };
+      /* 🔴 LẤY HẾT NGAY. Anh Thắng 18/09/2026, ba lần: *"Cứ lấy hết cơ sở đó là được"*, *"Sao
+         không lấy hết cơ sở đang có"*, *"nó đang bỏ lại, cần là lấy hết"*. Nên bản xem trước mở ra
+         là đã chọn sẵn "tạo điểm mới" cho MỌI cửa hàng chưa ghép — bỏ lại 0đ. Vẫn là bản xem
+         trước: còn phải bấm Ghi, và cửa hàng nào không muốn thì đổi sang "bỏ qua" hoặc "bỏ hẳn". */
+      layHetVaoNhap();
       renderTab();
     } catch (e) {
       fabi = { loi: 'Lỗi khi gọi máy chủ: ' + e.message };
@@ -1359,14 +1437,27 @@
     },
     fabiDong() { fabi = null; renderTab(); },
     moDoanhThu() { renderTab('revenue'); },
+    /* Gỡ những liên kết trỏ vào điểm sai bộ phận, VÀ xoá luôn con số chúng đã ghi vào đó. Giữ số
+       lại mới là nguy: đó là tiền ghế nằm trong doanh thu Event, không nguồn nào nhận, không ai
+       biết nó từ đâu ra, mà vẫn kéo lệch tỷ trọng phân bổ chi phí của cả hai bộ phận. */
+    goSaiBp() {
+      const sai = diemSaiBp();
+      if (!sai.length) return;
+      if (!confirm(`Gỡ ${sai.length} liên kết sai bộ phận?\n\n`
+        + sai.map((x) => `· ${x.name || x.code} (${deptName(x.dept)}) ← ${x.fabiTen}`).join('\n')
+        + `\n\nDoanh thu đã ghi nhầm vào mấy điểm này sẽ được ĐƯA VỀ 0 — đó là tiền ghế, không phải `
+        + `doanh thu của bộ phận ấy. Sau đó bấm "Nạp từ Ghế" để tạo điểm đúng bên Posh / JP.`)) return;
+      prevState = JSON.parse(JSON.stringify(state));
+      sai.forEach((x) => { const s = state.sites[x.i]; if (!s) return; s[x.nguon] = ''; s.revenue = 0; });
+      commit();
+      toast(`Đã gỡ ${sai.length} liên kết sai bộ phận và xoá số ghi nhầm.`, { label: 'Hoàn tác', fn: undo });
+    },
     /* "Cứ lấy hết cơ sở đó là được" — mở nguồn, chọn sẵn tạo mới cho mọi cửa hàng chưa ghép, rồi
        DỪNG Ở BẢN XEM TRƯỚC. Vẫn phải bấm Ghi: đây là thứ tạo ra điểm bán mới trong sổ, không phải
        thứ nên tự chạy sau lưng. */
     async layHetNguon(nguon) {
       renderTab('revenue');
       await napTuFabi(nguon);
-      if (!fabi || !fabi.ghep) return;
-      ACTIONS.fabiTaoHet();
     },
     /* Hai nút của dòng "SAI KỲ" — một đường dựng kỳ mới, một đường quay lại. */
     dungKyMoi() { xoaSoKyNay(); },
@@ -1426,19 +1517,10 @@
         + (kq.tao ? ' Nhớ điền Mã đơn vị cho dòng mới.' : ''));
     },
     fabiTaoHet() {
-      if (!fabi || !fabi.ghep) return;
-      const md = bpMacDinh(fabi.nguon);
-      let n = 0, khong = 0, theoMd = 0;
-      fabi.ghep.forEach((g) => {
-        if (g.boHan || g.siteIndex !== null || g.taoMoi) return;
-        /* Đoán theo TÊN trước; không ra thì mới dùng bộ phận mặc định anh đã chọn. */
-        let d = E.doanBoPhan(g.cua_hang, state.departments);
-        if (!d && md) { d = md; theoMd++; }
-        if (d) { g.taoMoi = d; g.cach = 'tao'; n++; } else { khong++; }
-      });
+      const r = layHetVaoNhap();
       renderTab();
-      toast(`Đã chọn tạo mới ${n} điểm` + (theoMd ? ` (${theoMd} theo bộ phận mặc định ${deptName(md)})` : '') + '.'
-        + (khong ? ` ${khong} cửa hàng không đoán được bộ phận — chọn "Bộ phận mặc định" rồi bấm lại là lấy hết.` : ''));
+      toast(`Đã chọn tạo mới ${r.n} điểm` + (r.theoMd ? ` (${r.theoMd} theo bộ phận ${deptName(r.md)})` : '') + '.'
+        + (r.khong ? ` ${r.khong} cửa hàng chưa có bộ phận — chọn "Bộ phận mặc định" rồi bấm lại.` : ''));
     },
     fabiGhi() {
       if (!fabi || !fabi.ghep) return;
@@ -1721,6 +1803,12 @@
       if (el.matches('[data-bpmd]')) {
         state.options.bpMacDinh = Object.assign({}, state.options.bpMacDinh);
         state.options.bpMacDinh[(fabi && fabi.nguon) || 'fabi'] = el.value;
+        /* Đổi bộ phận thì CHIA LẠI những dòng đang chờ tạo mới — không thì ô chọn đổi mà bảng vẫn
+           giữ bộ phận cũ, và người ta chỉ phát hiện sau khi đã Ghi. */
+        if (fabi && fabi.ghep) {
+          fabi.ghep.forEach((g) => { if (g.cach === 'tao') { g.taoMoi = ''; g.cach = 'khong'; } });
+          layHetVaoNhap();
+        }
         commit();
         return;
       }

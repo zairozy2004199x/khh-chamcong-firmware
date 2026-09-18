@@ -23,13 +23,18 @@ const PORT = process.env.PORT || '8115';
     const the=nut&&nut.closest('.card'); const h=the&&the.querySelector('.hint');
     return { hint: h?h.textContent:'' };});
   ok('Hộp xem trước ghi rõ TỔNG CỦA NGUỒN', /nguồn có/i.test(x1.hint), x1.hint.replace(/\s+/g,' ').slice(0,120));
-  ok('Và ghi rõ phần SẼ BỎ LẠI khi chưa ghép hết', /bỏ lại/i.test(x1.hint), x1.hint.replace(/\s+/g,' ').slice(0,120));
+  /* Nạp xong là đã lấy hết nên KHÔNG còn gì bỏ lại — phần "bỏ lại" chỉ hiện khi người dùng tự bỏ
+     bớt dòng ra, kiểm ngay bên dưới. */
+  ok('Nạp xong thì không còn gì bỏ lại', !/bỏ lại/i.test(x1.hint), x1.hint.replace(/\s+/g,' ').slice(0,120));
 
   // chi ghep MOT co so roi Ghi -> phan con lai phai bao THIEU LIEN KET
   await p.evaluate(()=>{const ss=[...document.querySelectorAll('select[data-luong], select[data-fabi]')];
     ss.forEach((s,i)=>{ if(i>0){ s.value=''; s.dispatchEvent(new Event('change',{bubbles:true})); } });});
   await p.waitForTimeout(1200);
   const conChon = await p.evaluate(()=>[...document.querySelectorAll('select[data-fabi]')].filter(s=>s.value!=='').length);
+  const hint2 = await p.evaluate(()=>{const n=document.querySelector('[data-act="fabiGhi"]');
+    const c=n&&n.closest('.card'); const h=c&&c.querySelector('.hint'); return h?h.textContent:'';});
+  ok('Bỏ bớt dòng ra thì ghi rõ phần SẼ BỎ LẠI', /bỏ lại/i.test(hint2), hint2.replace(/\s+/g,' ').slice(0,120));
   await p.click('[data-act="fabiGhi"]'); await p.waitForTimeout(3500);
 
   await mo(p,'Tổng quan');
