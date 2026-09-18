@@ -51,7 +51,11 @@ body.khh-dt-body{margin:0;background:#f2f1ee}
 .khh-dt .than{padding:18px}
 .khh-dt .loc{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px}
 .khh-dt .vien{border:1px solid var(--line);background:var(--card);color:var(--ink-2);padding:6px 12px;
-  border-radius:99px;cursor:pointer;font-size:13px;font-weight:500}
+  border-radius:99px;cursor:pointer;font-size:13px;font-weight:500;
+  /* Lớp này nay dùng cho CẢ <a> (nút Thoát của người vào bằng tài khoản WordPress, phải là link
+     vì wp_logout_url mang nonce). Hai dòng dưới là để <a> trông đúng như <button>: không có
+     chúng thì nút bị gạch chân và lệch khỏi hàng. Với <button> cả hai đều vô hại. */
+  text-decoration:none;display:inline-block}
 .khh-dt .vien[aria-pressed="true"]{background:var(--app-mem);border-color:var(--app);color:var(--app);font-weight:600}
 .khh-dt .loc .day{flex:1}
 .khh-dt .o{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3)}
