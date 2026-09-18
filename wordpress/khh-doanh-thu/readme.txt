@@ -97,6 +97,22 @@ chỗ lấy mảng dòng trong JSON trả về, trong hàm `khh_dt_dong_bo_api()
 
 == Changelog ==
 
+= 1.43.0 =
+* 🔴 **Ghép cơ sở vào tài khoản MoMo ngay trên màn Đối soát.** K&H có hai pháp nhân và **phí
+  hai tài khoản khác nhau**, nên phép "chia tạm" của 1.41.0 (gộp mọi cơ sở chưa có chủ vào một
+  rổ) lấy phí của KH785 rắc sang cả cơ sở của KH989. Nay có bảng **"Ghép cơ sở vào tài khoản
+  MoMo"**: mỗi cơ sở một ô gõ mã tài khoản, bấm Lưu ghép là xong. Ghép rồi thì phí của tài
+  khoản nào chỉ chia cho cơ sở của tài khoản ấy.
+* Trước bản này, bảng ghép **chỉ học được từ lượt nạp sao kê có gõ mã tài khoản** — tức muốn
+  sửa một cơ sở thì phải đi nạp lại sao kê cả tháng.
+* Bảng **mở sẵn khi còn cơ sở chưa ghép**, và cơ sở chưa ghép **xếp lên đầu** — đó là việc còn
+  dở, không phải mục nâng cao. Mỗi dòng bày kèm doanh thu MoMo trong kỳ để biết cơ sở nào đáng
+  ghép trước.
+* **Ô để trống là bỏ ghép** (kể cả khi chỉ còn một dấu cách) — ghép nhầm thì gỡ được.
+* Câu "Đang chia TẠM" nay **chỉ thẳng xuống bảng ghép**, và nói rõ phí hai tài khoản khác nhau.
+* `tools/test/kiem-momo-phi.php` lên **74 phép**, `tools/test/kiem-sua-phi-momo.py` lên **46
+  phép**.
+
 = 1.42.0 =
 * 🔴 **Nút Xoá lượt phí giờ xoá thật.** Trước đây bấm Xoá là không có gì xảy ra và cũng không
   câu báo nào. Màn hình gửi mã lượt phí trong *thân* một yêu cầu DELETE dạng multipart — mà PHP

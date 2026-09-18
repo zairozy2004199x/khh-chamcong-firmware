@@ -94,8 +94,40 @@ t('co bien chiaTam', m is not None)
 if m:
     t('chiaTam lay tu momo_phi.chia_tam', 'chia_tam' in m.group(1))
 t('co cau "Dang chia TAM" tren man', 'Đang chia TẠM' in ma)
-t('cau chia tam co chi duong nap lai sao ke kem ma tai khoan',
-  re.search(r'Đang chia TẠM.*?Sao kê MoMo', ma, re.S) is not None)
+# 🔴 Câu báo tạm phải chỉ TỚI BẢNG GHÉP, không phải chỉ nói "đang tạm". Anh Thắng đọc câu cũ
+#    rồi vẫn phải hỏi lại *"Phí của 2 MoMo khác nhau mà"* — vì lối thoát nó chỉ (nạp lại sao kê
+#    cả tháng) không phải thứ người ta sẽ làm giữa lúc đang soát sổ.
+#    ⚠️ Cắt đúng ĐOẠN câu báo rồi mới tìm, chứ tìm cả tệp thì chuỗi nào ở xa cũng khớp.
+m = re.search(r'Đang chia TẠM(.*?)</div>', ma, re.S)
+t('cat duoc doan cau bao tam', m is not None)
+if m:
+    t('🔴 cau chia tam chi TOI BANG GHEP ngay duoi',
+      'Ghép cơ sở vào tài khoản MoMo' in m.group(1))
+    t('cau chia tam noi ro phi 2 tai khoan KHAC NHAU',
+      'khác nhau' in m.group(1))
+
+# ---- 6. bảng ghép cơ sở -> tài khoản ----
+# 🔴 *"sau lại chia chung rồi"*: chia tạm gộp mọi cơ sở chưa có chủ vào một rổ, nên phí của
+#    KH785 rắc sang cả cơ sở của KH989. Phải có chỗ ghép ngay trên màn — bảng ghép trước nay
+#    chỉ học được từ lượt nạp sao kê CÓ gõ mã, tức phải nạp lại cả tháng mới sửa được.
+t('man hinh doc danh sach ma cua hang tu may chu', 'momo_ma_ch_ds' in ma)
+t('co bang ghep co so -> tai khoan', 'Ghép cơ sở vào tài khoản MoMo' in ma)
+t('moi dong co o go ma tai khoan', 'data-ghep=' in ma)
+t('co nut Luu ghep', 'data-ghep-luu' in ma)
+m = re.search(r'var khoiGhep\s*=(.*?);\n', ma, re.S)
+t('dung duoc khoi ghep', m is not None)
+if m:
+    t('🔴 bang ghep MO SAN khi con co so chua ghep', 'chuaAi' in m.group(1) and 'open' in m.group(1))
+    t('bang ghep bay ca doanh thu de biet co so nao dang', 'tien(' in m.group(1))
+m = re.search(r"closest\('\[data-ghep-luu\]'\)(.*?)\n    \}\);", ma, re.S)
+t('co bo xu ly nut Luu ghep', m is not None)
+if m:
+    than = m.group(1)
+    t('🔴 gui CA BANG mot luot (o trong la lenh bo ghep)', 'querySelectorAll' in than)
+    t('gui len duong momo-tk-ghep', 'momo-tk-ghep' in than)
+    t('luu xong nap lai phan Doi soat', 'taiDoiSoat' in than)
+    t('luu hong thi mo lai nut, khong ket cung "Dang luu…"',
+      re.search(r'catch[\s\S]*?disabled = false', than) is not None)
 
 # ---- 5. nút Xoá: id phải đi trên ĐƯỜNG DẪN, và kết quả phải được xem ----
 # 🔴 *"bấm xóa mà không xóa được"* (18/09/2026), và không câu báo nào. Màn hình gửi `id` trong

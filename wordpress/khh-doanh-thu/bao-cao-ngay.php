@@ -597,6 +597,9 @@ function khh_dt_rest_doi_soat( $req ) {
 		   `momo_tk_ds` (có cả tài khoản mới chỉ nhập phí) là lỗi của 1.39.0. */
 		'momo_tk_ghep' => function_exists( 'khh_dt_momo_tk_da_ghep' ) ? khh_dt_momo_tk_da_ghep() : array(),
 		'momo_phi_ds' => function_exists( 'khh_dt_momo_phi_ds' ) ? khh_dt_momo_phi_ds( $tu, $den ) : array(),
+		/* Mọi mã cửa hàng MoMo trong kỳ, để màn hình bày ra cho người ta tự ghép vào tài khoản.
+		   Không có nó thì cách duy nhất để ghép là nạp lại sao kê cả tháng kèm mã tài khoản. */
+		'momo_ma_ch_ds' => function_exists( 'khh_dt_momo_ma_ch_ds' ) ? khh_dt_momo_ma_ch_ds( $tu, $den ) : array(),
 		/* Ô nào lấy từ sổ gộp thì chỉ có TỔNG ngày — không tra ngược xuống giao dịch được. Bày ra
 		   để bảng đừng hứa điều nó không làm được. */
 		'momo_nguon_o' => isset( $momo['nguon_o'] ) ? $momo['nguon_o'] : array(),

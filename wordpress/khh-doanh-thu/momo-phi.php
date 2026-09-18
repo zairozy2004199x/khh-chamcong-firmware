@@ -100,6 +100,71 @@ function khh_dt_momo_tk_hoc( $ds_ma_ch, $tk ) {
 	return $so;
 }
 
+/** Bỏ ghép một mã cửa hàng khỏi tài khoản — ghép nhầm thì phải gỡ được. */
+function khh_dt_momo_tk_bo( $ma_ch ) {
+	$b  = khh_dt_momo_tk_bang();
+	$m  = trim( (string) $ma_ch );
+	if ( ! isset( $b[ $m ] ) ) {
+		return false;
+	}
+	unset( $b[ $m ] );
+	update_option( 'khh_dt_momo_ma_ch_tk', $b, false );
+	return true;
+}
+
+/**
+ * Mọi mã cửa hàng MoMo thấy trong kỳ, kèm cơ sở, doanh thu và tài khoản đang ghép.
+ *
+ * Để màn hình bày ra cho người ta tự ghép. Anh Thắng 18/09/2026: *"Phí của 2 MoMo khác nhau
+ * mà"* — đúng, nên phép chia tạm (gộp mọi cơ sở chưa có chủ vào một rổ) chỉ là chỗ đỡ tạm.
+ * Muốn phí về đúng pháp nhân thì phải có chỗ NÓI cơ sở nào của tài khoản nào, mà không bắt
+ * người ta đi nạp lại sao kê cả tháng.
+ */
+function khh_dt_momo_ma_ch_ds( $tu, $den ) {
+	global $wpdb;
+	$bang = khh_dt_bang_momo_sk();
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	if ( ! $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $bang ) ) ) {
+		return array();
+	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery, WordPress.DB.PreparedSQL.NotPrepared
+	$ds = (array) $wpdb->get_results(
+		$wpdb->prepare(
+			"SELECT ma_ch, MAX(ten_ch) ten_ch, SUM(so_tien) tien, COUNT(*) so_gd FROM $bang
+			 WHERE ngay >= %s AND ngay <= %s AND ma_ch <> '' GROUP BY ma_ch",
+			$tu,
+			$den
+		),
+		ARRAY_A
+	);
+	$ra = array();
+	foreach ( $ds as $r ) {
+		$cs = function_exists( 'khh_dt_ma_ch_toi_co_so' ) ? khh_dt_ma_ch_toi_co_so( $r['ma_ch'] ) : '';
+		$ra[] = array(
+			'ma_ch'     => (string) $r['ma_ch'],
+			'ten_ch'    => (string) $r['ten_ch'],
+			'co_so'     => $cs,
+			'tien'      => (float) $r['tien'],
+			'so_gd'     => (int) $r['so_gd'],
+			'tai_khoan' => khh_dt_momo_tk_cua_ma_ch( $r['ma_ch'] ),
+		);
+	}
+	/* Chưa ghép lên trước — đó là việc còn phải làm. Rồi tới doanh thu lớn trước. */
+	usort(
+		$ra,
+		function ( $a, $b ) {
+			if ( ( '' === $a['tai_khoan'] ) !== ( '' === $b['tai_khoan'] ) ) {
+				return '' === $a['tai_khoan'] ? -1 : 1;
+			}
+			if ( $a['tien'] === $b['tien'] ) {
+				return strcmp( $a['ma_ch'], $b['ma_ch'] );
+			}
+			return $a['tien'] < $b['tien'] ? 1 : -1;
+		}
+	);
+	return $ra;
+}
+
 function khh_dt_momo_tk_cua_ma_ch( $ma_ch ) {
 	$b = khh_dt_momo_tk_bang();
 	$m = trim( (string) $ma_ch );
@@ -515,6 +580,40 @@ function khh_dt_momo_phi_route() {
 			),
 		)
 	);
+	register_rest_route(
+		'khh-dt/v1',
+		'/momo-tk-ghep',
+		array(
+			'methods'             => 'POST',
+			'callback'            => 'khh_dt_rest_momo_tk_ghep',
+			/* Ghép cơ sở vào tài khoản là đổi chỗ tiền phí rơi vào — cùng mức quyền với nhập phí. */
+			'permission_callback' => 'khh_dt_duoc_ghi',
+		)
+	);
+}
+
+/**
+ * Ghép cơ sở vào tài khoản MoMo, cả loạt một lượt.
+ *
+ * Nhận `ghep` là JSON `{ "mã cửa hàng": "tài khoản", … }`. Tài khoản rỗng nghĩa là BỎ ghép.
+ */
+function khh_dt_rest_momo_tk_ghep( $req ) {
+	$tho = $req->get_param( 'ghep' );
+	$map = is_array( $tho ) ? $tho : json_decode( (string) $tho, true );
+	if ( ! is_array( $map ) || ! $map ) {
+		return new WP_Error( 'khh_dt_ghep', 'Không có cặp ghép nào để lưu.', array( 'status' => 400 ) );
+	}
+	$ghep = 0;
+	$bo   = 0;
+	foreach ( $map as $ma_ch => $tk ) {
+		$tk = khh_dt_momo_tk_chuan( $tk );
+		if ( '' === $tk ) {
+			$bo += khh_dt_momo_tk_bo( $ma_ch ) ? 1 : 0;
+			continue;
+		}
+		$ghep += khh_dt_momo_tk_hoc( array( $ma_ch ), $tk );
+	}
+	return array( 'ghep' => $ghep, 'bo' => $bo, 'tk' => khh_dt_momo_tk_da_ghep() );
 }
 
 function khh_dt_rest_momo_phi_dat( $req ) {

@@ -766,6 +766,25 @@
         })
         .catch(function (err) { window.alert(err.message || err); });
     });
+    /* Lưu bảng ghép cơ sở -> tài khoản. Gửi CẢ BẢNG một lượt, kể cả ô để trống (ô trống là
+       lệnh bỏ ghép) — gửi từng ô một thì bỏ ghép không có cách nào diễn đạt. */
+    G.addEventListener('click', function (e) {
+      var b = e.target.closest ? e.target.closest('[data-ghep-luu]') : null;
+      if (!b) return;
+      e.preventDefault();
+      var map = {};
+      Array.prototype.forEach.call(G.querySelectorAll('[data-ghep]'), function (o) {
+        map[o.getAttribute('data-ghep')] = o.value.trim();
+      });
+      var fd = new FormData();
+      fd.append('ghep', JSON.stringify(map));
+      b.disabled = true; b.textContent = 'Đang lưu…';
+      /* 🔴 `taiDoiSoat()`, KHÔNG phải `tai()` — bảng ghép và phí đều nằm trong `S.dsR`. */
+      api('momo-tk-ghep', { method: 'POST', body: fd }).then(taiDoiSoat).catch(function (err) {
+        b.disabled = false; b.textContent = 'Lưu ghép';
+        window.alert(err.message || err);
+      });
+    });
     /* Lưu phí MoMo. Cũng uỷ quyền, vì khối này nằm trong phần được vẽ lại mỗi lần đổi kỳ. */
     G.addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('[data-phi-luu]') : null;
@@ -1595,6 +1614,39 @@
             '</td></tr>';
         }).join('') + '</tbody></table></div>';
 
+      /* ═══ BẢNG GHÉP CƠ SỞ VÀO TÀI KHOẢN ═════════════════════════════════════════════════
+         Anh Thắng 18/09/2026: *"Phí của 2 MoMo khác nhau mà"*, *"sau lại chia chung rồi"* —
+         đúng. Chia tạm (gộp mọi cơ sở chưa có chủ vào một rổ) chỉ đỡ được lúc cả hệ mới có
+         một tài khoản; K&H có hai pháp nhân nên nó lấy phí của KH785 rắc sang cả cơ sở của
+         KH989. Muốn đúng thì phải có chỗ NÓI cơ sở nào thuộc tài khoản nào — mà không bắt đi
+         nạp lại sao kê cả tháng, vì bảng ghép trước nay chỉ học được từ lượt nạp có gõ mã.
+
+         Mở sẵn khi còn cơ sở chưa ghép: đó là việc đang dở, không phải mục nâng cao. */
+      var maChDs  = S.dsR.momo_ma_ch_ds || [];
+      var chuaAi  = maChDs.filter(function (x) { return !x.tai_khoan; }).length;
+      var khoiGhep = !maChDs.length ? '' :
+        '<details class="hop-ghep" style="margin-top:10px"' + (chuaAi ? ' open' : '') + '>' +
+        '<summary style="cursor:pointer"><b>Ghép cơ sở vào tài khoản MoMo</b> — ' +
+        (chuaAi ? '<b>còn ' + chuaAi + '/' + maChDs.length + ' cơ sở chưa ghép</b>'
+                : 'đã ghép đủ ' + maChDs.length + ' cơ sở') + '</summary>' +
+        '<div class="chu-them" style="margin-top:6px">Gõ mã tài khoản quyết toán của từng cơ sở ' +
+        '(ví dụ KH785, KH989) rồi bấm Lưu ghép. Ghép xong thì phí của tài khoản nào chỉ chia cho ' +
+        'cơ sở của tài khoản ấy. Để trống là bỏ ghép.</div>' +
+        '<div class="bang-cuon" style="margin-top:8px"><table><thead><tr>' +
+          '<th style="text-align:left">Cơ sở</th><th style="text-align:left">Mã cửa hàng</th>' +
+          '<th>Doanh thu MoMo trong kỳ</th><th style="text-align:left">Tài khoản</th>' +
+        '</tr></thead><tbody>' +
+        maChDs.map(function (x) {
+          return '<tr><td style="text-align:left">' + esc(x.co_so || x.ten_ch || '—') + '</td>' +
+            '<td style="text-align:left" class="s">' + esc(x.ma_ch) + '</td>' +
+            '<td class="s">' + tien(x.tien) + '</td>' +
+            '<td style="text-align:left"><input type="text" list="dtTkGoi" data-ghep="' +
+              esc(x.ma_ch) + '" value="' + esc(x.tai_khoan || '') + '" placeholder="KH785" ' +
+              'style="width:100px"></td></tr>';
+        }).join('') + '</tbody></table></div>' +
+        '<div style="margin-top:8px"><button class="nut" type="button" data-ghep-luu="1">Lưu ghép</button></div>' +
+        '</details>';
+
       /* Không bọc `.khung` — khối này nằm BÊN TRONG khung Đối soát MoMo, lồng khung vào khung
          là hai lớp viền và hai lớp nền chồng nhau. */
       khoiPhi = '<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
@@ -1605,8 +1657,9 @@
         'hệ chia về từng cơ sở theo <b>% doanh thu</b>.' +
         (tkGhep.length
           ? ' Tài khoản đã ghép được cơ sở: <b>' + tkGhep.map(esc).join('</b> · <b>') + '</b>.'
-          : ' <b>Chưa cơ sở nào được ghép vào tài khoản nào</b> — nạp lại sao kê MoMo có gõ mã tài ' +
-            'khoản (thẻ Sao kê MoMo) thì hệ mới chia phí về đúng cơ sở được.') +
+          : ' <b>Chưa cơ sở nào được ghép vào tài khoản nào</b> — mở bảng "Ghép cơ sở vào tài ' +
+            'khoản MoMo" dưới đây mà ghép, hoặc nạp lại sao kê MoMo có gõ mã tài khoản (thẻ Sao kê ' +
+            'MoMo).') +
         '</div>' +
         /* 🔴 Phí đã nhập mà chưa chia được thì PHẢI nói ra. Im lặng ở đây là anh Thắng gõ tiền
            vào rồi nhìn cột Phí trống trơn, không có gì để lần ra nguyên nhân. */
@@ -1630,10 +1683,12 @@
                 ' · ' + tien(x.phi) + ' chia cho ' + (x.so_co_so || 0) + ' cơ sở';
             }).join(' · ') +
             '.<br>Tài khoản này chưa ghép được cơ sở nào, nên hệ tạm chia cho <b>mọi cơ sở chưa ' +
-            'thuộc tài khoản nào khác</b> — theo % doanh thu MoMo, y như lúc đã ghép. Đúng khi cả ' +
-            'hệ chỉ có một tài khoản chưa ghép; có tài khoản thứ hai thì <b>nạp lại sao kê MoMo có ' +
-            'gõ mã tài khoản</b> (thẻ Sao kê MoMo) để chia cho đúng pháp nhân.</div>'
+            'thuộc tài khoản nào khác</b> — theo % doanh thu MoMo, y như lúc đã ghép. ' +
+            '🔴 <b>Phí hai tài khoản MoMo khác nhau</b>, nên chia chung thế này là cơ sở bên này ' +
+            'gánh phí bên kia. Mở <b>"Ghép cơ sở vào tài khoản MoMo"</b> ngay dưới đây, gõ mã tài ' +
+            'khoản cho từng cơ sở rồi Lưu ghép — xong là phí về đúng pháp nhân.</div>'
           : '') + nhac +
+        khoiGhep +
         '<div class="loc" style="margin-top:10px;gap:6px">' +
           '<label class="o">Tài khoản<input type="text" data-phi="tk" list="dtTkGoi" placeholder="KH785" style="width:110px"></label>' +
           '<datalist id="dtTkGoi">' + tkDs.map(function (t) { return '<option value="' + esc(t) + '">'; }).join('') + '</datalist>' +

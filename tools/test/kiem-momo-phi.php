@@ -261,6 +261,60 @@ $hut = khh_dt_rest_momo_phi_xoa( new WP_REST_Request( array( 'id' => 999999 ) ) 
 phep( 'id không có thật thì báo chưa xong (để màn hình kêu lên)',
 	! is_wp_error( $hut ) && empty( $hut['xong'] ) );
 
+/* ⑥ 🔴 GHÉP CƠ SỞ VÀO TÀI KHOẢN NGAY TRÊN MÀN.
+      Anh Thắng 18/09/2026: *"Phí của 2 MoMo khác nhau mà"*, *"sau lại chia chung rồi"*. Phép
+      chia tạm gộp mọi cơ sở chưa có chủ vào MỘT rổ, nên với hai pháp nhân thì phí của KH785
+      rắc sang cả cơ sở của KH989. Bảng ghép trước nay chỉ học được từ lượt NẠP SAO KÊ có gõ
+      mã tài khoản — tức muốn sửa thì phải nạp lại cả tháng. Nay ghép được thẳng trên màn. */
+dung_bang();
+gd( 'g1', '2026-09-01', 6000000, 'KHA1' );
+gd( 'g2', '2026-09-01', 4000000, 'KHB1' );
+gd( 'g3', '2026-09-02', 1000000, 'KHA1' );
+
+$ds_g = khh_dt_momo_ma_ch_ds( '2026-09-01', '2026-09-16' );
+phep( 'liệt kê đủ mã cửa hàng trong kỳ', 2 === count( $ds_g ) );
+phep( 'kèm doanh thu cộng theo mã, không phải từng giao dịch',
+	7000000.0 === (float) $ds_g[0]['tien'] && 'KHA1' === $ds_g[0]['ma_ch'] );
+phep( 'mã chưa ghép thì tài khoản để rỗng', '' === $ds_g[0]['tai_khoan'] );
+
+/* Ghép cả loạt một lượt. */
+$r = khh_dt_rest_momo_tk_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'KHA1' => 'KH785', 'KHB1' => 'kh989 ' ) ) ) ) );
+phep( 'ghép cả loạt một lượt', ! is_wp_error( $r ) && 2 === (int) $r['ghep'] );
+phep( 'mã tài khoản được chuẩn hoá ("kh989 " -> "KH989")',
+	'KH989' === khh_dt_momo_tk_cua_ma_ch( 'KHB1' ) );
+
+/* 🔴 ĐÂY LÀ PHÉP CHÍNH: ghép xong thì phí KH785 KHÔNG còn rơi sang cơ sở của KH989. */
+khh_dt_momo_phi_dat( '2026-09-01', '2026-09-02', 'KH785', 100000 );
+$c11 = khh_dt_momo_phi_chia( '2026-09-01', '2026-09-16' );
+$a1  = khh_dt_ma_ch_toi_co_so( 'KHA1' );
+$a1  = '' === $a1 ? 'KHA1' : $a1;
+$b1  = khh_dt_ma_ch_toi_co_so( 'KHB1' );
+$b1  = '' === $b1 ? 'KHB1' : $b1;
+phep( '🔴 ghép xong: phí KH785 chỉ vào cơ sở của KH785',
+	100000 === (int) $c11['co_so'][ $a1 ] && ! isset( $c11['co_so'][ $b1 ] ) );
+phep( 'và hết chia tạm', array() === $c11['chia_tam'] );
+
+/* Ô để trống là BỎ ghép — ghép nhầm thì phải gỡ được. */
+$r2 = khh_dt_rest_momo_tk_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'KHB1' => '' ) ) ) ) );
+phep( 'ô để trống là lệnh bỏ ghép', ! is_wp_error( $r2 ) && 1 === (int) $r2['bo'] );
+phep( 'bỏ xong thì mã ấy hết chủ', '' === khh_dt_momo_tk_cua_ma_ch( 'KHB1' ) );
+phep( 'mà mã kia KHÔNG bị đụng', 'KH785' === khh_dt_momo_tk_cua_ma_ch( 'KHA1' ) );
+/* Ô "trống" mà người ta lỡ gõ một dấu cách thì VẪN là lệnh bỏ ghép. Không chuẩn hoá trước khi
+   xét rỗng thì ' ' rơi xuống nhánh ghép, `khh_dt_momo_tk_hoc` chuẩn hoá ra rỗng rồi trả về 0 —
+   và bảng ghép cũ NẰM NGUYÊN. Màn báo "đã lưu", mà không có gì đổi. */
+khh_dt_rest_momo_tk_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'KHB1' => 'KH989' ) ) ) ) );
+$r3 = khh_dt_rest_momo_tk_ghep( new WP_REST_Request( array( 'ghep' => wp_json_encode( array( 'KHB1' => '   ' ) ) ) ) );
+phep( '🔴 ô chỉ có dấu cách cũng là lệnh bỏ ghép', ! is_wp_error( $r3 ) && 1 === (int) $r3['bo'] );
+phep( 'và mã ấy hết chủ thật', '' === khh_dt_momo_tk_cua_ma_ch( 'KHB1' ) );
+
+phep( 'gửi bảng rỗng thì báo lỗi, không im lặng coi như xong',
+	is_wp_error( khh_dt_rest_momo_tk_ghep( new WP_REST_Request( array( 'ghep' => '{}' ) ) ) ) );
+
+/* Chưa ghép lên đầu danh sách — đó là việc còn phải làm. */
+$ds_g2 = khh_dt_momo_ma_ch_ds( '2026-09-01', '2026-09-16' );
+phep( '🔴 mã CHƯA ghép xếp lên trước, dù doanh thu nhỏ hơn',
+	'KHB1' === $ds_g2[0]['ma_ch'] && '' === $ds_g2[0]['tai_khoan'] );
+
 if ( $hong ) {
 	echo "\n✗ HỎNG " . count( $hong ) . " phép (đạt $dat):\n";
 	foreach ( $hong as $h ) { echo "   · 🔴 $h\n"; }
