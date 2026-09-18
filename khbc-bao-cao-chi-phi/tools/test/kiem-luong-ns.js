@@ -105,6 +105,25 @@ const PORT = process.env.PORT || '8113';
      k.hien && /VHCC_BangLuong/.test(k.than) && /dung/.test(k.than), k.than.replace(/\s+/g,' ').slice(0,110));
   ok('🔴 Khám chỉ in TÊN, không đọc nội dung bảng', /Không đọc nội dung bảng nào/.test(k.than));
 
+  // ── 🔴 SANG KỲ MỚI CHƯA CÓ SỐ → VỀ 0 (anh Thắng: "sang tháng mới nếu chưa có số liệu cho về 0")
+  await p.evaluate(()=>{document.querySelector('#logModal').hidden=true;});
+  await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    /* Dựng đúng cảnh trong ảnh: dòng lương mang số của kỳ TRƯỚC, kỳ này nguồn không có. */
+    s.salarySites=[{id:'z',dept:'posh',name:'Posh HCM',reported:111649262,actual:111649262,
+      nsTen:'KHÔNG CÒN BÊN NHÂN SỰ',nsKy:'2026-07'}];
+    s.options.luongTuDong=true; window.BaoCaoApp.setState(s);});
+  await p.waitForTimeout(2500);
+  /* Tải lại trang: "tự lấy" chạy ngay khi mở trang (1.19.0), đó là lúc luật về-0 làm việc. */
+  await p.reload(); await p.waitForTimeout(1200);
+  if (await p.isVisible('#gatePin')) { await p.fill('#gatePin','1111'); await p.click('#gateBtn'); await p.waitForSelector('#gate',{state:'hidden',timeout:15000}); }
+  await p.waitForTimeout(5000);
+  await moLuong(p);
+  const z = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    return { so: s.salarySites[0].reported, tt: (document.querySelector('#tab-salary .issue')||{}).textContent||'' };});
+  ok('🔴 Số của kỳ TRƯỚC mà kỳ này chưa có số liệu → VỀ 0', z.so===0, 'còn '+z.so);
+  ok('Nói rõ đã đưa bao nhiêu dòng về 0 và vì sao', /đưa về 0/.test(z.tt) && /kỳ trước/.test(z.tt),
+     z.tt.replace(/\s+/g,' ').slice(0,130));
+
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/luong-ns.png'});
   await b.close();

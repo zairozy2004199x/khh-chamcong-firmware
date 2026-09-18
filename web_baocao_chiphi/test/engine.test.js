@@ -659,11 +659,23 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   assert.strictEqual(st.sites[2].revenue, 777,
     'chưa liên kết thì đường tự động KHÔNG được đụng vào, dù tên khớp');
 
-  // 🔴 CỬA HÀNG BIẾN MẤT BÊN FABi: KHÔNG đưa về 0. Số 0 trông y hệt một tháng ế, mà thật ra là
-  //    mất liên kết — người ta sẽ chốt sổ với một điểm doanh thu 0 mà không biết vì sao.
-  assert.strictEqual(st.sites[3].revenue, 123456, 'mất liên kết thì GIỮ số cũ, không về 0');
-  assert.strictEqual(r.mat.length, 1, 'và phải báo ra');
-  assert.strictEqual(r.mat[0].code, 'EVCU');
+  /* 🔴 CỬA HÀNG BIẾN MẤT BÊN NGUỒN — số cũ là của KỲ NÀO quyết định giữ hay về 0.
+     Anh Thắng 18/09/2026: *"sang tháng mới nếu chưa có số liệu cho về 0 nhé"*. Số chưa mang dấu
+     kỳ nào (hoặc mang dấu kỳ TRƯỚC) thì về 0. */
+  assert.strictEqual(st.sites[3].revenue, 0, 'số của kỳ trước mà kỳ này nguồn không có → VỀ 0');
+  assert.strictEqual(r.veKhong.length, 1, 'và phải báo ra');
+  assert.strictEqual(r.veKhong[0].code, 'EVCU');
+  assert.strictEqual(r.mat.length, 0);
+
+  // -- nhưng số ĐÚNG của kỳ này thì GIỮ: nguồn lỗi giữa tháng không được xoá một con số đúng --
+  st.sites[3].revenue = 123456;
+  st.sites[3].dtKy = E.khoaKy(st.period);
+  const rGiu = E.dongBoFabi(st, DS);
+  assert.strictEqual(st.sites[3].revenue, 123456, 'số của CHÍNH kỳ này thì giữ, chỉ báo mất liên kết');
+  assert.strictEqual(rGiu.mat.length, 1);
+  assert.strictEqual(rGiu.mat[0].code, 'EVCU');
+  st.sites[3].revenue = 0;
+  st.sites[3].dtKy = '';
 
   assert.strictEqual(r.daLinh, 3, 'đếm đúng số điểm đang liên kết');
   assert.strictEqual(r.soDoi, 2, 'đếm đúng số điểm vừa đổi số');
@@ -671,12 +683,12 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   // -- chạy lại mà số không đổi thì KHÔNG báo đổi (khỏi làm bẩn nhật ký/đồng bộ) --
   const r2 = E.dongBoFabi(st, DS);
   assert.strictEqual(r2.soDoi, 0, 'chạy lại không đổi gì thì không báo đổi');
-  assert.strictEqual(r2.mat.length, 1, 'nhưng vẫn báo cái mất liên kết');
+  assert.strictEqual(r2.veKhong.length, 0, 'đã về 0 rồi thì thôi, không báo lại mỗi lần');
 
   // -- công tắc mặc định TẮT: không tự ý đổi cách app đang lấy số --
   assert.strictEqual(E.normalizeState({}).options.fabiTuDong, false);
 
-  console.log('OK — liên kết sống FABi: chỉ theo liên kết đã chốt, mất liên kết thì giữ số cũ.');
+  console.log('OK — liên kết sống FABi: số của kỳ này thì giữ, số kỳ trước thì về 0.');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1035,4 +1047,63 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
   assert.strictEqual(gf[0].siteIndex, 0, 'nguồn không khai bộ phận thì ghép như cũ');
 
   console.log('OK — nguồn Ghế chỉ vào Posh / JP: tiền ghế không chảy sang bộ phận khác.');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// SANG KỲ MỚI CHƯA CÓ SỐ → VỀ 0  (anh Thắng 18/09/2026: "Nguyên tắc, sang tháng mới nếu chưa có
+// số liệu cho về 0 nhé")
+//
+// Ảnh anh gửi: Mục III kỳ T09 mà Posh HCM / JP còn nguyên số T08 (111.649.262,55) vì luật cũ là
+// "mất liên kết thì giữ số cũ". Giữ số tháng trước dưới nhãn tháng này thì báo cáo nhìn vẫn đầy
+// đủ — không ô nào đỏ, mà mọi tỉ lệ đều sai.
+//
+// Nhưng KHÔNG đưa tất cả về 0: số ĐÚNG của kỳ này mà nguồn lỗi giữa chừng thì phải giữ. Phân biệt
+// bằng dấu kỳ trên từng dòng (`dtKy` / `nsKy`).
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const st = E.normalizeState(window.SAMPLE_DATA);
+  st.period = { month: 9, year: 2026 };
+  st.soCuaKy = '2026-09';
+  st.salarySites = [
+    { id: 'a', dept: 'posh', name: 'Posh HCM', reported: 111649262, actual: 111649262,
+      nsTen: 'POSH_HCM', nsKy: '2026-08' },                       // số của KỲ TRƯỚC
+    { id: 'b', dept: 'jp', name: 'BP JP HCM', reported: 41635755, actual: 41635755,
+      nsTen: 'JP_HCM', nsKy: '2026-09' },                         // số của CHÍNH kỳ này
+    { id: 'c', dept: 'tutu', name: 'Tàu Tân An', reported: 12133000, actual: 12133000,
+      nsTen: 'TUTU_TA' },                                          // bản cũ, chưa có dấu kỳ
+  ];
+
+  // Kỳ T09 bên Nhân sự chưa có số cho cả ba (POSH/JP chưa khai giá, TUTU_TA biến mất).
+  const kq = E.dongBoLuong(st, [{ cua_hang: 'POSH_HCM', thanh_tien: 0, co_luong: false }]);
+
+  assert.strictEqual(st.salarySites[0].reported, 0, '🔴 số của kỳ TRƯỚC → về 0');
+  assert.strictEqual(st.salarySites[0].actual, 0);
+  assert.strictEqual(st.salarySites[2].reported, 0, 'bản cũ chưa có dấu kỳ cũng coi như kỳ trước → về 0');
+  assert.strictEqual(kq.veKhong.length, 2, 'và phải ĐẾM RA, không lặng lẽ xoá');
+
+  assert.strictEqual(st.salarySites[1].reported, 41635755,
+    '🔴 số ĐÚNG của kỳ này thì GIỮ — nguồn lỗi giữa tháng không được xoá một con số đúng');
+  assert.strictEqual(kq.mat.length, 1, 'chỉ báo mất liên kết, không đụng số');
+
+  // -- chạy lại thì thôi, đã 0 rồi không báo nữa --
+  const kq2 = E.dongBoLuong(st, []);
+  assert.strictEqual(kq2.veKhong.length, 0, 'đã về 0 rồi thì không báo lại mỗi lần lấy');
+
+  // -- nguồn CÓ số thì ghi và đóng dấu kỳ, lần sau nguồn lỗi là giữ được --
+  const st2 = E.normalizeState(window.SAMPLE_DATA);
+  st2.period = { month: 9, year: 2026 };
+  st2.salarySites = [{ id: 'x', dept: 'posh', name: 'Posh HCM', reported: 0, actual: 0, nsTen: 'POSH_HCM' }];
+  E.dongBoLuong(st2, [{ cua_hang: 'POSH_HCM', thanh_tien: 99000000, co_luong: true }]);
+  assert.strictEqual(st2.salarySites[0].reported, 99000000);
+  assert.strictEqual(st2.salarySites[0].nsKy, '2026-09', 'ghi số xong là đóng dấu kỳ');
+  E.dongBoLuong(st2, []);
+  assert.strictEqual(st2.salarySites[0].reported, 99000000, 'từ đây nguồn lỗi cũng không xoá mất');
+
+  // -- bắt đầu kỳ mới thì XOÁ dấu, để kỳ mới tự nạp lại từ đầu --
+  const moi = E.batDauKyMoi(st2);
+  assert.strictEqual(moi.salarySites[0].nsKy, '', 'kỳ mới: xoá dấu kỳ');
+  assert.strictEqual(moi.salarySites[0].reported, 0);
+  assert.strictEqual(moi.sites[0].dtKy, '');
+
+  console.log('OK — sang kỳ mới chưa có số thì về 0; số đúng của kỳ này thì giữ.');
 }

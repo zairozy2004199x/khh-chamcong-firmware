@@ -596,6 +596,7 @@
   function dongBoFabi(state, ds, khoa, bpCho) {
     khoa = khoa || 'fabiTen';
     const sites = state.sites || [];
+    const ky = khoaKy(state.period);
     const saiBp = [];
     const tien = {};
     (ds || []).forEach((d) => { tien[String(d.cua_hang || '').trim()] = num(d.thanh_tien); });
@@ -611,9 +612,23 @@
       }
       daLinh++;
       if (!Object.prototype.hasOwnProperty.call(tien, k)) {
-        /* Cửa hàng biến mất bên FABi (đổi tên, ngừng bán). KHÔNG đưa về 0: số 0 trông y hệt một
-           tháng ế, mà thật ra là mất liên kết. Báo ra để người ta đi nối lại. */
-        doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, mat: true });
+        /* ═══════════════════════════════════════════════════════════════════════════════════════
+         * KỲ NÀY NGUỒN KHÔNG CÓ SỐ — hai chuyện khác hẳn nhau, phân biệt bằng DẤU KỲ:
+         *
+         *   · Số đang có ĐÚNG LÀ của kỳ này (`dtKy` = kỳ đang mở) → GIỮ. Nguồn vừa đổi tên, vừa
+         *     lỗi mạng, hay cửa hàng ngừng bán giữa tháng — đưa về 0 là xoá một con số đúng.
+         *   · Số đang có là của KỲ TRƯỚC → VỀ 0. Anh Thắng 18/09/2026: *"Nguyên tắc, sang tháng
+         *     mới nếu chưa có số liệu cho về 0 nhé"*. Giữ lại là số tháng trước đội tên tháng này,
+         *     mà báo cáo thì nhìn vẫn đầy đủ — đúng cái bẫy đã gặp ở Mục III.
+         * ═══════════════════════════════════════════════════════════════════════════════════════ */
+        if ((s.dtKy || '') === ky) {
+          doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, mat: true });
+          return;
+        }
+        if (num(s.revenue) !== 0) {
+          doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, cu: num(s.revenue), moi: 0, veKhong: true });
+          s.revenue = 0;
+        }
         return;
       }
       const moi = tien[k];
@@ -621,6 +636,7 @@
         doi.push({ i, code: s.code, name: s.name, nguon: khoa, fabiTen: k, cu: num(s.revenue), moi });
         s.revenue = moi;
       }
+      s.dtKy = ky;
     });
     /* 🔴 TIỀN BÊN NGUỒN KHÔNG NỐI VÀO ĐIỂM NÀO THÌ RƠI RA NGOÀI BÁO CÁO — VÀ IM LẶNG.
        Anh Thắng 18/09/2026: trang Ghế 01→17/09 tổng 1.216.383.000, báo cáo chỉ thấy 546.005.000.
@@ -640,7 +656,11 @@
       const t = String(d.cua_hang || '').trim();
       return !daNoi[t] && bq.indexOf(t) < 0 && num(d.thanh_tien) !== 0;
     });
-    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat).length, mat: doi.filter((x) => x.mat), saiBp,
+    /* `soDoi` = số điểm nhận SỐ MỚI từ nguồn. Dòng bị đưa về 0 vì kỳ này chưa có số thì đếm
+       riêng ở `veKhong` — trộn chung là dòng trạng thái khoe "đổi N điểm" trong khi thật ra vừa
+       xoá N điểm. */
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat && !x.veKhong).length, mat: doi.filter((x) => x.mat),
+      veKhong: doi.filter((x) => x.veKhong), saiBp,
       chuaNoi, tongNguon: (ds || []).reduce((a, d) => a + num(d.thanh_tien), 0),
       tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
@@ -738,6 +758,7 @@
       const i = g.siteIndex;
       if (i === null || i === undefined || !state.sites[i]) { bo++; return; }
       state.sites[i].revenue = num(g.thanh_tien);
+      state.sites[i].dtKy = khoaKy(state.period);
       /* Nhớ lại lựa chọn để tháng sau tự ghép — đây là thứ biến một việc làm tay hằng tháng
          thành một việc làm tay ĐÚNG MỘT LẦN. */
       state.sites[i][khoa] = String(g.cua_hang || '');
@@ -771,7 +792,7 @@
    * ═══════════════════════════════════════════════════════════════════════════════════════════ */
   function batDauKyMoi(state) {
     const st = normalizeState(JSON.parse(JSON.stringify(state || {})));
-    st.sites = (st.sites || []).map((s) => ({ ...s, revenue: 0 }));
+    st.sites = (st.sites || []).map((s) => ({ ...s, revenue: 0, dtKy: '' }));
     st.departments = (st.departments || []).map((d) => ({ ...d, revenue: 0, revenueOverride: false }));
     st.manualCols = (st.manualCols || []).map((m) => ({ ...m, values: {} }));
     st.salaryDept = (st.salaryDept || []).map((r) => {
@@ -779,7 +800,7 @@
       SALARY_DEPT_FIELDS.forEach((f) => { o[f.key] = 0; });
       return o;
     });
-    st.salarySites = (st.salarySites || []).map((r) => ({ ...r, reported: 0, report: 0, dntt: 0, actual: 0 }));
+    st.salarySites = (st.salarySites || []).map((r) => ({ ...r, reported: 0, report: 0, dntt: 0, actual: 0, nsKy: '' }));
     /* Khoản chi phí: GIỮ danh mục (tên, tài khoản, lời MISA, cách chia, mã đối tượng) nhưng số
        tiền về 0 và trạng thái về "chờ duyệt" — kỳ mới thì chưa ai duyệt gì cả. Giữ nguyên tiền là
        đúng cái bẫy ở trên, chỉ khác chỗ nó nằm ở cột chi phí thay vì cột doanh thu. */
@@ -885,6 +906,7 @@
       r.reported = num(g.thanh_tien);
       r.actual = num(g.thanh_tien);
       r.nsTen = String(g.cua_hang || '');
+      r.nsKy = khoaKy(state.period);
       xong++;
     });
     return { xong, boQua: bo, tao, chuaGia };
@@ -893,6 +915,7 @@
   /** Liên kết sống: chỉ đi theo `nsTen` đã chốt, không đoán. Cùng luật với dongBoFabi. */
   function dongBoLuong(state, ds) {
     const rows = state.salarySites || [];
+    const ky = khoaKy(state.period);
     const tien = {};
     const coGia = {};
     (ds || []).forEach((d) => {
@@ -906,26 +929,39 @@
       const k = (r.nsTen || '').trim();
       if (!k) return;
       daLinh++;
-      if (!Object.prototype.hasOwnProperty.call(tien, k)) {
-        doi.push({ i, name: r.name, nsTen: k, mat: true });
+      /* Kỳ này bên Nhân sự không có số cho cơ sở ấy, hoặc có mà chưa ra tiền — cùng một luật với
+         doanh thu: số của CHÍNH kỳ này thì giữ, số của kỳ trước thì VỀ 0. Xem khối dài ở
+         dongBoFabi. */
+      const khongCo = !Object.prototype.hasOwnProperty.call(tien, k) || !coGia[k];
+      if (khongCo) {
+        const mat = !Object.prototype.hasOwnProperty.call(tien, k);
+        if ((r.nsKy || '') === ky) {
+          doi.push(mat ? { i, name: r.name, nsTen: k, mat: true } : { i, name: r.name, nsTen: k, chuaGia: true });
+          return;
+        }
+        if (num(r.reported) !== 0 || num(r.actual) !== 0) {
+          doi.push({ i, name: r.name, nsTen: k, cu: num(r.reported), moi: 0, veKhong: true });
+          r.reported = 0;
+          r.actual = 0;
+        }
         return;
       }
-      /* Tháng này bên ấy chưa khai giá thì GIỮ SỐ CŨ, y như khi mất liên kết. */
-      if (!coGia[k]) { doi.push({ i, name: r.name, nsTen: k, chuaGia: true }); return; }
       const moi = tien[k];
       if (num(r.reported) !== moi) {
         doi.push({ i, name: r.name, nsTen: k, cu: num(r.reported), moi });
         r.reported = moi;
         r.actual = moi;
       }
+      r.nsKy = ky;
     });
     /* Cùng luật với dongBoFabi: lương bên Nhân sự không nối vào dòng nào thì cũng phải đếm ra. */
     const daNoi = {};
     rows.forEach((x) => { const k = (x.nsTen || '').trim(); if (k) daNoi[k] = true; });
     const chuaNoi = (ds || []).filter((d) => !daNoi[String(d.cua_hang || '').trim()]
       && d.co_luong !== false && num(d.thanh_tien) !== 0);
-    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat && !x.chuaGia).length,
+    return { daLinh, doi, soDoi: doi.filter((x) => !x.mat && !x.chuaGia && !x.veKhong).length,
       mat: doi.filter((x) => x.mat), chuaGia: doi.filter((x) => x.chuaGia),
+      veKhong: doi.filter((x) => x.veKhong),
       chuaNoi, tongChuaNoi: chuaNoi.reduce((a, d) => a + num(d.thanh_tien), 0) };
   }
 
@@ -1112,7 +1148,7 @@
     /* HAI khoá liên kết, hai nguồn: `fabiTen` ← Doanh thu FABi, `gheTen` ← Ghế Massage (Posh/JP).
        Một điểm chỉ được nối MỘT nguồn — hai nguồn cùng ghi vào một điểm là chúng đè nhau mỗi lần
        mở kỳ, và số cuối cùng phụ thuộc vào cái nào chạy sau. napFabi() lo việc dọn khoá kia. */
-    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, fabiTen: '', gheTen: '', ...x, khongChiPhi: !!x.khongChiPhi }));
+    st.sites = (st.sites || []).map((x) => ({ code: '', name: '', revenue: 0, khongChiPhi: false, fabiTen: '', gheTen: '', dtKy: '', ...x, khongChiPhi: !!x.khongChiPhi }));
     st.costItems = (st.costItems || []).map((it) => {
       const o = { kind: 'company', name: '', misaGeneral: '', misaDetail: '', account: '', total: 0, split: 'equal', shares: {}, objectCode: '', excludeDepts: [], groupKey: '', method: '', note: '', status: '', createdBy: '', ...it };
       if (!o.id) o.id = newId('ci');
@@ -1193,7 +1229,11 @@
     /* `nsTen` = tên cơ sở bên plugin Chấm công mà dòng lương này lấy số về. Cùng lối liên kết
        sống như `fabiTen`/`gheTen` ở điểm bán, nhưng nằm trên DÒNG LƯƠNG vì anh Thắng chọn
        "tổng mỗi cơ sở một dòng" chứ không kéo từng nhân viên. */
-    st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', nsTen: '', ...r, id: r.id || newId('ss') }));
+    /* `nsKy` / `dtKy` — con số hiện tại là của KỲ NÀO (dạng '2026-09'). Anh Thắng 18/09/2026:
+       *"Nguyên tắc, sang tháng mới nếu chưa có số liệu cho về 0 nhé"*. Có dấu này thì phân biệt
+       được hai chuyện vốn nhìn giống hệt nhau: nguồn trục trặc GIỮA KỲ (giữ số, vì số ấy đúng của
+       kỳ này) và SANG KỲ MỚI chưa có số (về 0, vì giữ lại là số tháng trước đội tên tháng này). */
+    st.salarySites = (st.salarySites || []).map((r) => ({ reported: 0, report: 0, dntt: 0, actual: 0, unitCode: '', misaGeneral: '', misaDetail: '', nsTen: '', nsKy: '', ...r, id: r.id || newId('ss') }));
     return st;
   }
 

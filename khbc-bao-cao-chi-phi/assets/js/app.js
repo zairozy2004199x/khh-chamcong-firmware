@@ -914,6 +914,7 @@
     if (!state.options.fabiTuDong && !linh && !diemSaiBp().length) return '';
     const mat = (fabiLan && fabiLan.mat) || [];
     const sai = diemSaiBp();
+    const ve0 = (fabiLan && fabiLan.ve0) || [];
     const chot = sync.locked;
     return `<div class="issue ${sai.length ? 'error' : mat.length ? 'warn' : 'info'}" style="margin:0 0 10px">
       <span class="lv">${state.options.fabiTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
@@ -926,6 +927,8 @@
         ${esc(NGUON.ghe.nhan)} nhưng điểm lại nằm ngoài ${esc((NGUON.ghe.bp || []).map(deptName).join(' / '))},
         nên tiền ghế đang cộng vào bộ phận khác. Em đã <strong>ngừng ghi</strong> vào mấy điểm ấy.
         <button class="btn small" data-act="goSaiBp">Gỡ ${sai.length} liên kết sai & xoá số đã ghi nhầm</button>` : ''}
+      ${ve0.length ? `<br><strong>${ve0.length} điểm đưa về 0</strong> vì kỳ này nguồn chưa có số liệu (số cũ là của kỳ trước):
+        ${esc(ve0.map((x) => x.code || x.name).join(', '))}.` : ''}
       ${mat.length ? `<br><strong>⚠ ${mat.length} điểm mất liên kết</strong> (cửa hàng không còn bên FABi): ${esc(mat.map((x) => x.code || x.name).join(', '))} — số cũ được giữ nguyên, vào cột Nguồn gỡ liên kết rồi nối lại.` : ''}
       </span></div>`;
   }
@@ -933,7 +936,7 @@
   async function fabiLayNgay(im) {
     if (!state.options.fabiTuDong || !API.isEnabled() || sync.locked) return;
     /* Chạy CẢ HAI nguồn. Nguồn nào chưa có điểm nào nối thì bỏ qua, khỏi gọi máy chủ thừa. */
-    let doi = 0; const mat = []; const soDu = []; const sai = [];
+    let doi = 0; const mat = []; const soDu = []; const sai = []; const ve0 = [];
     for (const n of Object.keys(NGUON)) {
       const N = NGUON[n];
       if (!(state.sites || []).some((s) => (s[N.khoa] || '').trim())) continue;
@@ -945,12 +948,13 @@
         doi += kq.soDoi;
         kq.mat.forEach((x) => mat.push(x));
         kq.saiBp.forEach((x) => sai.push(x));
+        kq.veKhong.forEach((x) => ve0.push(x));
         /* Phần tiền bên nguồn chưa nối vào điểm nào — xem khối dài trong engine.dongBoFabi. */
         if (kq.tongChuaNoi > 0) soDu.push({ nguon: n, ds: kq.chuaNoi, tien: kq.tongChuaNoi, tongNguon: kq.tongNguon });
       } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn — lần mở sau lấy lại */ }
     }
-    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai };
-    if (doi) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.`); }
+    fabiLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: doi, mat, soDu, sai, ve0 };
+    if (doi || ve0.length) { commit(); if (!im) toast(`🔗 Cập nhật ${doi} điểm từ nguồn đã nối.` + (ve0.length ? ` ${ve0.length} điểm về 0 vì kỳ này chưa có số.` : '')); }
     else { recompute(); renderTab(); }
   }
 
@@ -1064,13 +1068,16 @@
     const mat = (luongLan && luongLan.mat) || [];
     const chuaGia = (luongLan && luongLan.chuaGia) || [];
     const chuaNoi = (luongLan && luongLan.chuaNoi) || [];
-    return `<div class="issue ${mat.length || chuaGia.length || chuaNoi.length ? 'warn' : 'info'}" style="margin:0 0 10px">
+    const lve0 = (luongLan && luongLan.ve0) || [];
+    return `<div class="issue ${mat.length || chuaGia.length || chuaNoi.length || lve0.length ? 'warn' : 'info'}" style="margin:0 0 10px">
       <span class="lv">${state.options.luongTuDong ? '🔗 TỰ LẤY' : 'LIÊN KẾT'}</span>
       <span>${linh} dòng lương ← trang Nhân sự.
       ${!state.options.luongTuDong ? 'Đang <strong>tắt</strong> tự lấy — số giữ nguyên như đã ghi.'
         : sync.locked ? 'Kỳ <strong>đã chốt</strong> nên dừng lấy, số đứng yên.'
         : (luongLan && luongLan.luc) ? `Lấy lần cuối lúc ${esc(luongLan.luc)}${luongLan.soDoi ? ` · đổi ${luongLan.soDoi} dòng` : ' · không có gì đổi'}.` : 'Sẽ tự lấy khi mở kỳ.'}
       ${mat.length ? `<br><strong>⚠ ${mat.length} dòng mất liên kết</strong> (cơ sở không còn bên Nhân sự): ${esc(mat.map((x) => x.name).join(', '))} — số cũ được giữ nguyên.` : ''}
+      ${lve0.length ? `<br><strong>${lve0.length} dòng đưa về 0</strong> vì kỳ này Nhân sự chưa có số liệu (số cũ là của kỳ trước):
+        ${esc(lve0.map((x) => x.name).join(', '))}.` : ''}
       ${chuaGia.length ? `<br><strong>⚠ ${chuaGia.length} dòng kỳ này chưa khai giá giờ</strong>: ${esc(chuaGia.map((x) => x.name).join(', '))} — <strong>giữ số cũ</strong>, em không ghi 0 đè lên.` : ''}
       ${chuaNoi.length ? `<br><strong>⚠ ${fmt(luongLan.tongChuaNoi)} lương bên Nhân sự chưa nối vào dòng nào</strong> (${chuaNoi.length} cơ sở: ${esc(chuaNoi.slice(0, 6).map((x) => x.cua_hang).join(', '))}${chuaNoi.length > 6 ? '…' : ''}) — chỗ này KHÔNG vào báo cáo, bấm "⬇ Nạp lương từ Nhân sự" để ghép.` : ''}
       </span></div>`;
@@ -1085,8 +1092,8 @@
       if (!d || d.ok === false || !d.ds) return;
       const kq = E.dongBoLuong(state, d.ds);
       luongLan = { luc: new Date().toLocaleTimeString('vi-VN'), soDoi: kq.soDoi, mat: kq.mat,
-        chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi };
-      if (kq.soDoi) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.`); }
+        chuaGia: kq.chuaGia, chuaNoi: kq.chuaNoi, tongChuaNoi: kq.tongChuaNoi, ve0: kq.veKhong };
+      if (kq.soDoi || kq.veKhong.length) { commit(); if (!im) toast(`🔗 Cập nhật ${kq.soDoi} dòng lương từ Nhân sự.` + (kq.veKhong.length ? ` ${kq.veKhong.length} dòng về 0 vì kỳ này chưa có số.` : '')); }
       else { recompute(); renderTab(); }
     } catch (e) { /* mạng hỏng thì thôi, số cũ vẫn còn */ }
   }
