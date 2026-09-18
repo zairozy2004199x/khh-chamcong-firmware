@@ -443,7 +443,8 @@ a{color:var(--nhan)}
 			<div style="flex:1"><label for="xbRa">Giờ ra</label>
 				<input id="xbRa" type="tel" inputmode="numeric" placeholder="17:00" maxlength="5"></div>
 		</div>
-		<div id="xbTong" class="mo" style="margin:6px 0 0;font-size:13px"></div>
+		<div id="xbCa" class="mo" style="margin:6px 0 0;font-size:13px"></div>
+		<div id="xbTong" class="mo" style="margin:4px 0 0;font-size:13px"></div>
 		<p></p>
 		<label for="xbLyDo">Vì sao thiếu giờ hôm ấy</label>
 		<input id="xbLyDo" type="text" placeholder="VD: máy hỏng sáng hôm ấy, có camera" maxlength="250">
@@ -2547,6 +2548,7 @@ function moXinBu(){
 	hien('mXinBu', true);
 	if(!el('xbNgay').value){ el('xbNgay').value = (NG && NG.homNay) ? NG.homNay : ''; }
 	napXinBu();
+	napXbCa();
 }
 
 function napXinBu(){
@@ -2642,6 +2644,41 @@ function xbPhut(v){
    cửa hàng trưởng và kế toán sẽ nhìn để duyệt, nên người gửi phải thấy nó TRƯỚC khi gửi.
    Và bắt được ngay hai lỗi hay gặp mà máy chủ chỉ nói bằng một câu cụt: giờ ra sớm hơn giờ
    vào (gõ ngược hai ô), và giờ quá dài (gõ nhầm 0700 thành 1700). */
+/* Ca làm của ngày đang chọn — máy chủ trả về, xem cửa `xinbuca`. `null` = chưa hỏi xong. */
+var XB_CA = null;
+
+/** Đổi số phút ra "7h" / "7h30" — một chỗ duy nhất, để mọi dòng dưới đây nói cùng một kiểu. */
+function xbGioChu(p){
+	return Math.floor(p / 60) + 'h' + (p % 60 ? String(p % 60).padStart(2, '0') : '');
+}
+
+/* 🔴 BÀY CA LÀM CỦA HÔM ẤY RA NGAY LÚC GÕ.
+   Anh Thắng 18/09/2026: *"Hiện giờ thiếu so với ca làm"*.
+   Cửa hàng trưởng nhìn một đơn xin 10:00–17:00 thì câu đầu tiên trong đầu họ là "hôm ấy bạn
+   này trực ca mấy?". Người gửi không thấy ca của chính mình lúc gõ nên rất hay xin lệch — rồi
+   đơn bị chối, gửi lại, hai cấp duyệt lại từ đầu. Bày ra ở đây là cắt trọn vòng ấy. */
+function napXbCa(){
+	var ng = el('xbNgay').value;
+	XB_CA = null;
+	el('xbCa').textContent = '';
+	if(!ng){ xbHienTong(); return; }
+	goi('xinbuca', { token: token(), ngay: ng }).then(function(j){
+		if(!j || !j.ok || el('xbNgay').value !== ng){ return; }   // đổi ngày giữa chừng thì bỏ
+		XB_CA = j;
+		var ds = j.ca || [];
+		if(!ds.length){
+			/* 🔴 KHÔNG CÓ LỊCH THÌ NÓI LÀ KHÔNG CÓ, ĐỪNG IM. Im thì người dùng tưởng màn hỏng,
+			   hoặc tệ hơn, tưởng mình không phải trực hôm ấy. */
+			el('xbCa').textContent = 'Hôm ấy không thấy ca nào xếp cho anh/chị — cứ xin theo giờ thật.';
+		} else {
+			var t = [];
+			for(var i = 0; i < ds.length; i++){ t.push(ds[i].ten + ' ' + ds[i].tu + '–' + ds[i].den); }
+			el('xbCa').textContent = 'Ca hôm ấy: ' + t.join(' · ') + ' (' + xbGioChu(j.tongPhut) + ')';
+		}
+		xbHienTong();
+	}).catch(function(){ /* mất mạng thì thôi, đơn vẫn gửi được */ });
+}
+
 function xbHienTong(){
 	var a = xbPhut(el('xbVao').value), b = xbPhut(el('xbRa').value), o = el('xbTong');
 	if(null === a || null === b){ o.textContent = ''; o.className = 'mo'; return; }
@@ -2651,11 +2688,21 @@ function xbHienTong(){
 		return;
 	}
 	var p = b - a;
+	var chu = '= xin bù ' + xbGioChu(p);
+	/* 🔴 SO VỚI CA: nói ra THIẾU hay DƯ, và bao nhiêu. Chỉ so khi máy chủ THẬT SỰ có ca —
+	   `XB_CA.tongPhut > 0`. Không có lịch mà vẫn so thì mọi đơn đều "dư", và một lời cảnh báo
+	   sai thì lần sau người ta không đọc nữa. */
+	if(XB_CA && XB_CA.tongPhut > 0){
+		var l = p - XB_CA.tongPhut;
+		if(0 === l){ chu += ' — vừa đúng ca'; }
+		else if(l < 0){ chu += ' — THIẾU ' + xbGioChu(-l) + ' so với ca'; }
+		else { chu += ' — DƯ ' + xbGioChu(l) + ' so với ca'; }
+	}
 	o.className = 'mo';
-	o.textContent = '= xin bù ' + Math.floor(p / 60) + 'h'
-		+ (p % 60 ? String(p % 60).padStart(2, '0') : '')
-		+ (p > 16 * 60 ? ' — dài bất thường, xem lại giúp em' : '');
+	o.textContent = chu + (p > 16 * 60 ? ' — dài bất thường, xem lại giúp em' : '');
 }
+
+el('xbNgay').addEventListener('change', napXbCa);
 
 [['xbVao'], ['xbRa']].forEach(function(x){
 	var o = el(x[0]);

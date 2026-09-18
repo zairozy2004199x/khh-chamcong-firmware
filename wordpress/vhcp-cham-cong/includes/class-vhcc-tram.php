@@ -203,6 +203,25 @@ class VHCC_Tram {
 	}
 
 	/** Thân JSON của lượt POST. Trạm gửi JSON, không gửi biểu mẫu. */
+	/**
+	 * SỐ PHÚT CỦA MỘT KHUNG CA `HH:mm` → `HH:mm`.
+	 *
+	 * ⚠️ CA QUA NỬA ĐÊM LÀ CHUYỆN THƯỜNG Ở ĐÂY — Ca 3 mặc định là 22:00→06:00. Trừ thẳng ra số
+	 *    ÂM, và một con số âm đi tiếp vào phép so "thiếu mấy giờ" thì ra một câu vô nghĩa mà
+	 *    trông vẫn như tính toán. Nên cộng thêm một ngày khi đầu ≥ cuối.
+	 * ⚠️ Khung nào không đúng hình `HH:mm` thì trả null — bỏ qua ca ấy, đừng đoán.
+	 */
+	private static function phut_ca( $tu, $den ) {
+		if ( ! preg_match( '/^(\d{1,2}):(\d{2})$/', trim( (string) $tu ), $a )
+			|| ! preg_match( '/^(\d{1,2}):(\d{2})$/', trim( (string) $den ), $b ) ) {
+			return null;
+		}
+		$p1 = (int) $a[1] * 60 + (int) $a[2];
+		$p2 = (int) $b[1] * 60 + (int) $b[2];
+		if ( $p2 <= $p1 ) { $p2 += 24 * 60; }
+		return $p2 - $p1;
+	}
+
 	private static function than() {
 		$raw = file_get_contents( 'php://input' );
 		$j   = ( '' !== $raw && false !== $raw ) ? json_decode( (string) $raw, true ) : null;
@@ -389,6 +408,49 @@ class VHCC_Tram {
 		if ( 'xinbuds' === $viec ) {
 			self::ra( array( 'ok' => true, 'ds' => VHCC_XinBu::cua_toi( $u ),
 				'ten' => VHCC_XinBu::TEN_TT, 'homNay' => (string) current_time( 'Y-m-d' ) ) );
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * CA LÀM CỦA NGÀY ĐANG XIN BÙ — để màn nói ra THIẾU MẤY GIỜ SO VỚI CA.
+		 *
+		 * Anh Thắng 18/09/2026: *"Hiện giờ thiếu so với ca làm"*.
+		 *
+		 * 🔴 CON SỐ NÀY LÀ THỨ NGƯỜI DUYỆT SẼ HỎI. Cửa hàng trưởng nhìn một đơn xin 10:00–17:00
+		 *    thì câu đầu tiên trong đầu họ là *"hôm ấy bạn này trực ca mấy?"*. Người gửi không
+		 *    thấy ca của chính mình lúc gõ, nên rất hay xin lệch — rồi đơn bị chối, gửi lại,
+		 *    hai cấp duyệt lại từ đầu. Bày ca ra ngay lúc gõ là cắt trọn vòng ấy.
+		 *
+		 * ⚠️ CHỈ ĐỌC, VÀ CHỈ CỦA CHÍNH MÌNH. Mã NV lấy từ thẻ phiên (`$u`), không nhận từ thân —
+		 *    nhận từ thân là đọc được lịch của người khác. Cùng luật với mọi cửa khác của trạm.
+		 * ⚠️ KHÔNG CÓ LỊCH THÌ TRẢ RỖNG, ĐỪNG ĐOÁN. Cơ sở chưa bật phân lịch, hoặc hôm ấy không
+		 *    xếp ai — hai ca đó đều là "không biết", và một con số bịa ra ở đây sẽ đi thẳng vào
+		 *    đầu người duyệt như thể nó có thật.
+		 * ══════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'xinbuca' === $viec ) {
+			$b   = self::than();
+			$ng  = isset( $b['ngay'] ) ? (string) $b['ngay'] : '';
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ng ) ) {
+				self::ra( array( 'ok' => true, 'ngay' => '', 'ca' => array(), 'tongPhut' => 0 ) );
+			}
+			$ds_ca = array();
+			$tong  = 0;
+			if ( class_exists( 'VHCC_Lich' ) && method_exists( 'VHCC_Lich', 'lich_cua_nguoi' )
+				&& class_exists( 'VHCC_Ca' ) && method_exists( 'VHCC_Ca', 'cua' ) ) {
+				foreach ( (array) VHCC_Lich::lich_cua_nguoi( $u['ma_nv'], $ng, $ng ) as $d ) {
+					$ten_ca = trim( (string) $d['ca'] );
+					if ( '' === $ten_ca ) { continue; }
+					foreach ( (array) VHCC_Ca::cua( (string) $d['coso'] ) as $k ) {
+						if ( 0 !== strcasecmp( trim( (string) $k['ten'] ), $ten_ca ) ) { continue; }
+						$p = self::phut_ca( (string) $k['tu'], (string) $k['den'] );
+						if ( null === $p ) { break; }
+						$ds_ca[] = array( 'ten' => $ten_ca, 'tu' => (string) $k['tu'],
+							'den' => (string) $k['den'], 'phut' => $p );
+						$tong += $p;
+						break;
+					}
+				}
+			}
+			self::ra( array( 'ok' => true, 'ngay' => $ng, 'ca' => $ds_ca, 'tongPhut' => $tong ) );
 		}
 
 		/* Cửa hàng trưởng duyệt CẤP MỘT ngay trên điện thoại — đó là chỗ họ đứng cả ngày. */

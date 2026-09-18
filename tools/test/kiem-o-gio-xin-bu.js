@@ -71,7 +71,37 @@ t('   và có hàm tính nó', TPL.indexOf('function xbHienTong(') >= 0);
 t('🔴 bắt được ca gõ ngược hai ô', TPL.indexOf('hai ô đang ngược nhau') >= 0);
 t('   và ca giờ dài bất thường', TPL.indexOf('dài bất thường') >= 0);
 
-/* ── 4. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
+/* ── 4. THIẾU MẤY GIỜ SO VỚI CA ────────────────────────────────────────────────────────── */
+/* Anh Thắng 18/09/2026: *"Hiện giờ thiếu so với ca làm"*. Chạy thật `xbGioChu` + soi `xbHienTong`. */
+const ma2 = boc('xbGioChu');
+const chay2 = new Function(ma2 + '\nreturn xbGioChu;')();
+t('7h tròn ghi là "7h"', '7h' === chay2(420), chay2(420));
+t('7h30 ghi là "7h30"', '7h30' === chay2(450), chay2(450));
+t('có phút lẻ một chữ số thì vẫn hai chữ ("8h05")', '8h05' === chay2(485), chay2(485));
+
+t('🔴 có chỗ bày ca của hôm ấy', TPL.indexOf('id="xbCa"') >= 0);
+t('   và hỏi máy chủ bằng cửa riêng', TPL.indexOf("goi('xinbuca'") >= 0);
+t('🔴 nói ra THIẾU bao nhiêu so với ca', TPL.indexOf('THIẾU ') >= 0);
+t('   và cả DƯ, không chỉ thiếu', TPL.indexOf('DƯ ') >= 0);
+t('   khớp đúng ca thì cũng nói', TPL.indexOf('vừa đúng ca') >= 0);
+/* 🔴 KHÔNG CÓ LỊCH THÌ ĐỪNG SO. Không có ca mà vẫn so thì mọi đơn đều "dư", và một lời cảnh
+   báo sai thì lần sau người ta không đọc nữa. */
+t('🔴 chỉ so khi máy chủ THẬT SỰ có ca (tongPhut > 0)',
+  TPL.indexOf('XB_CA && XB_CA.tongPhut > 0') >= 0);
+t('   và không có lịch thì NÓI LÀ không có, không im',
+  TPL.indexOf('không thấy ca nào xếp cho anh/chị') >= 0);
+/* Đổi ngày giữa chừng: lượt trả về của ngày cũ không được đè lên ngày mới. */
+t('🔴 lượt trả về trễ của ngày cũ bị bỏ',
+  TPL.indexOf("el('xbNgay').value !== ng") >= 0);
+
+/* Máy chủ: ca qua nửa đêm (Ca 3 22:00→06:00) phải ra 8h, không ra số âm. */
+const TRAM = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php'), 'utf8');
+t('🔴 máy chủ cộng thêm một ngày cho ca qua nửa đêm',
+  TRAM.indexOf('if ( $p2 <= $p1 ) { $p2 += 24 * 60; }') >= 0);
+t('   và mã NV lấy từ thẻ phiên, không nhận từ thân',
+  TRAM.indexOf("VHCC_Lich::lich_cua_nguoi( $u['ma_nv'], $ng, $ng )") >= 0);
+
+/* ── 5. MÁY CHỦ VẪN CHẶT ───────────────────────────────────────────────────────────────── */
 /* 🔴 Đây là vế dễ quên nhất: sửa cho người dùng đỡ khổ rồi tiện tay nới luôn cửa cuối. `phut()`
    là chỗ cuối cùng trước khi một con giờ thành công thành tiền. */
 t('🔴 VHCC_XinBu::phut() VẪN đòi đúng HH:mm',
