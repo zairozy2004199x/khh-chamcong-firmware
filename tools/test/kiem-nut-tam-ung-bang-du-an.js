@@ -202,7 +202,18 @@ function nut(opt) {
 t('🔴 nút trạng thái nằm NGOÀI nhánh canEdit (kế toán không sửa được dòng vẫn phải thấy nút)',
   HTML.indexOf("</button>'):'')+addChild+'</td></tr>'") >= 0);
 t('   hàng hạng mục lớn có chỗ mở ô nhập ngay dưới', HTML.indexOf("function hmDongXin(p){") >= 0);
-t('   hàng ấy trải hết bề ngang bảng', /function hmDongXin\(p\)\{ return hmDongForm\(_hmKeyDA\(p\.row\), 13\)/.test(HTML));
+/* ⚠️ ĐẾM TỪ CHÍNH ĐẦU BẢNG, đừng gõ cứng con số — cùng bài học với `test-o-loai-chi-phi.js`.
+   Gõ cứng thì thêm cột là phép đỏ vì con số hết hạn, rồi người sửa chỉ đổi số mà không ai soi
+   xem hàng ô nhập còn trải hết bảng không. Đếm thì nó bắt đúng cái nó sinh ra để bắt. */
+{
+  const _b = HTML.slice(HTML.indexOf('id="daLineTable"') >= 0
+    ? HTML.indexOf('id="daLineTable"') : HTML.indexOf('<th>Nội dung</th><th title="Lúc dòng này'));
+  const _dau = _b.slice(0, _b.indexOf('</thead>'));
+  const _so = (_dau.match(/<th[ >]/g) || []).length;
+  const _khai = (HTML.match(/hmDongForm\(_hmKeyDA\(p\.row\), (\d+)\)/) || [])[1];
+  t('   hàng ấy trải hết bề ngang bảng (' + _so + ' cột)',
+    _so > 0 && Number(_khai) === _so, { dauBang: _so, khaiTrongMa: _khai });
+}
 /* 🔴 MÃ CHẾT PHẢI BỎ HẲN, không để lại cho gọn mắt: máy chủ nay CHỐI đường xin lẻ từng hạng
    mục, nên để `hmMoXin` nằm đó là mời người sau nối lại một cái nút bấm vào chỉ ra câu lỗi. */
 t('🔴 đường xin lẻ từng hạng mục đã bỏ HẲN khỏi mã nguồn',
@@ -369,6 +380,42 @@ function veForm(ham, ...them) {
 }
 t('🔴 thoát sửa dòng có gọi mở khoá', /daCancelEditLine\(\)\{[^]{0,400}_daKhoaDuToanO\(null\)/.test(HTML));
 t('   và mở sửa một dòng thì gọi khoá', /_daKhoaDuToanO\(l\);/.test(HTML));
+
+/* ── 4a4. 📅 HAI CỘT MỚI CỦA BẢNG DỰ ÁN — VẼ THẬT MỘT HÀNG RỒI ĐẾM ─────────────────────
+ * Anh Thắng 18/09/2026, nhìn bảng dự án sau khi thấy hai cột mới ở đơn tuần: *"vậy cột ngày
+ * chưa có rồi"*.
+ *
+ * ⚠️ VẼ THẬT, ĐỪNG DÒ CHUỖI TRONG MÃ NGUỒN. Dò chuỗi chỉ thấy đầu bảng có `<th>`, không thấy
+ *    HÀNG có `<td>` — gỡ ô ra khỏi hàng mà vẫn để `<th>` thì bảng lệch cột mà phép vẫn xanh.
+ *    Đúng chỗ ấy đã xanh oan một lần lúc dựng bài này.
+ * ───────────────────────────────────────────────────────────────────────────────────────── */
+{
+  const i = HTML.indexOf('    function daLineCells(');
+  const src = HTML.slice(i, HTML.indexOf('\n    }', i) + 6);
+  t('bốc được daLineCells()', i >= 0);
+  const F = new Function('moi', `with(moi){ ${src}\n return daLineCells; }`)({
+    esc: x => String(x == null ? '' : x), money: n => String(Number(n) || 0),
+    canEdit: true, htBadge: () => 'HT',
+    tkBadge: (a, b) => (b ? ('[' + a + ' No ' + b + ']') : (a ? ('[' + a + ' chua ma]') : '')),
+    _daTtHang: () => 'nhap', _daOLoaiCp: l => '<td>LOAI:' + String(l.loaiCp || '') + '</td>',
+    DA_CUR: { maDA: 'DA1', lines: [] } });
+
+  /* Số ô của HÀNG phải bằng số cột của ĐẦU BẢNG — lệch một ô là cả bảng trượt cột. */
+  const dau = HTML.slice(HTML.indexOf('<thead><tr><th>Nội dung</th>'));
+  const soCot = (dau.slice(0, dau.indexOf('</thead>')).match(/<th[ >]/g) || []).length;
+
+  const h = F({ row: 3, noiDung: 'Thợ Phụ', taoLuc: '18/09/2026',
+    loaiCp: 'Chi phí nuôi thú', duToan: 1, capCha: '' }, false, '', true);
+  t('🔴 hàng dự án IN RA ngày nhập', h.indexOf('18/09/2026') >= 0, h);
+  t('🔴 và có ô loại chi phí riêng', h.indexOf('LOAI:Chi phí nuôi thú') >= 0, h);
+  t('🔴 số ô của hàng bằng đúng số cột đầu bảng (' + soCot + ')',
+    (h.match(/<td/g) || []).length === soCot, { hang: (h.match(/<td/g) || []).length, dauBang: soCot });
+
+  const h2 = F({ row: 4, noiDung: 'Dòng cũ', loaiCp: '', duToan: 0, capCha: '' }, false, '', true);
+  t('🔴 dòng nhập TRƯỚC khi có cột này → in "—", KHÔNG bịa ra một ngày', /—/.test(h2), h2);
+  t('   và vẫn đủ số ô, không thiếu một ô nào',
+    (h2.match(/<td/g) || []).length === soCot, (h2.match(/<td/g) || []).length);
+}
 
 /* ── 4b. 📎 ĐÍNH TỆP THẬT CHO UỶ NHIỆM CHI VÀ HOÁ ĐƠN ──────────────────────────────────
  * Uỷ nhiệm chi và hoá đơn là ảnh chụp / bản PDF nằm trong máy kế toán, không phải một địa chỉ

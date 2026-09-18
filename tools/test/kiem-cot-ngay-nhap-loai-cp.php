@@ -149,6 +149,98 @@ t( '🔴 chỉ kế toán mới thấy ô CHỌN; người khác chỉ đọc',
 t( '   gắn xong mà loại ấy vẫn chưa có mã thì NÓI RA, không im lặng báo xong',
 	false !== mb_strpos( $HTML, 'CHƯA khai mã tài khoản' ) );
 
+/* ═══ 6. 🔴 BẢNG DỰ ÁN CŨNG PHẢI CÓ HAI CỘT ẤY ════════════════════════════════════════
+ * Anh Thắng 18/09/2026, nhìn bảng dự án sau khi thấy hai cột mới ở đơn tuần: *"vậy cột ngày
+ * chưa có rồi"*.
+ *
+ * =========================================================================================
+ * `da_line` trước nay KHÔNG có cột ngày nào — không `ngay`, không `tao_luc`. Mà dự án kéo dài
+ * mấy tuần, nên nhìn một hàng thì không biết nó vào sổ hôm nào. Phải thêm cột vào SỔ, không
+ * phải chỉ vẽ thêm ô trên màn.
+ * ─────────────────────────────────────────────────────────────────────────────────────── */
+vai( 'Admin', 'KT' );
+$maD = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'Gian thử cột', 'NV' )['maDA'];
+VHCP_DuAn::add_line( $maD, array( 'noiDung' => 'Thợ Phụ', 'duToan' => 48000000,
+	'loaiCp' => 'Chi phí NVL đồ ăn - Mua lẻ' ) );
+$D = null;
+foreach ( VHCP_DuAn::get_du_an( $maD )['lines'] as $l ) { if ( 'Thợ Phụ' === $l['noiDung'] ) { $D = $l; } }
+t( 'dựng được dòng dự án thử', null !== $D, $D );
+
+t( '🔴 dòng dự án mang theo NGÀY NHẬP xuống màn', isset( $D['taoLuc'] ), array_keys( (array) $D ) );
+t( '   và nó có thật, không rỗng', '' !== trim( (string) $D['taoLuc'] ), $D['taoLuc'] );
+/* ⚠️ SỬA DÒNG THÌ MỐC KHÔNG ĐƯỢC NHẢY. Nhảy sang hôm nay là nó thành mốc "lần sửa gần nhất",
+   tức mất đúng thứ cần giữ. */
+VHCP_DuAn::update_line( $maD, (int) $D['row'], array( 'noiDung' => 'Thợ Phụ', 'duToan' => 47000000,
+	'loaiCp' => 'Chi phí NVL đồ ăn - Mua lẻ' ) );
+$D2 = null;
+foreach ( VHCP_DuAn::get_du_an( $maD )['lines'] as $l ) { if ( 'Thợ Phụ' === $l['noiDung'] ) { $D2 = $l; } }
+teq( '🔴 sửa dòng thì NGÀY NHẬP KHÔNG nhảy (nhảy là nó thành mốc "lần sửa gần nhất")',
+	(string) $D['taoLuc'], (string) $D2['taoLuc'] );
+teq( '   nhưng số thì sửa được thật', 47000000.0, (float) $D2['duToan'] );
+
+/* ── Gắn lại loại chi phí ở bảng dự án ─────────────────────────────────────────────────── */
+vai( 'Nhân viên', 'NV' );
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], 'Chi phí nuôi thú' );
+t( '🔴 NHÂN VIÊN gắn lại loại chi phí → CHỐI (cùng luật với đơn tuần)', empty( $x['success'] ), $x );
+t( '   và nói rõ vì sao', isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'kế toán' ), $x );
+
+vai( 'Kế toán cá nhân', 'KT' );
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], 'Chi phí nuôi thú' );
+t( '🔴 kế toán gắn lại được', ! empty( $x['success'] ), $x );
+$D3 = null;
+foreach ( VHCP_DuAn::get_du_an( $maD )['lines'] as $l ) { if ( 'Thợ Phụ' === $l['noiDung'] ) { $D3 = $l; } }
+teq( '   loại mới vào sổ', 'Chi phí nuôi thú', (string) $D3['loaiCp'] );
+t( '🔴 và MÃ TÀI KHOẢN tính lại theo loại mới', '' !== (string) $D3['tkNo'], $D3 );
+t( '   (mã ấy KHÁC mã của loại cũ — nếu bằng nhau thì phép trên chẳng nói được gì)',
+	(string) $D3['tkNo'] !== (string) $D['tkNo'], array( (string) $D['tkNo'], (string) $D3['tkNo'] ) );
+/* 🔴 CHỈ ĐỔI LOẠI + MÃ — đi nhờ `update_line()` là mấy ô không gửi lên bị dọn về rỗng, im lặng. */
+teq( '🔴 dự toán còn nguyên', 47000000.0, (float) $D3['duToan'] );
+teq( '   tên dòng còn nguyên', 'Thợ Phụ', (string) $D3['noiDung'] );
+teq( '   ngày nhập cũng còn nguyên', (string) $D['taoLuc'], (string) $D3['taoLuc'] );
+
+/* 🔴 CA "CHƯA GẮN MÃ" — chính câu anh Thắng hỏi. */
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], 'Chi phí chưa khai mã' );
+t( '🔴 gắn vào loại CHƯA KHAI MÃ → vẫn cho gắn (kế toán đang phân loại dở)', ! empty( $x['success'] ), $x );
+teq( '🔴 nhưng mã trả về RỖNG, để màn báo "chưa gắn mã"', '', (string) $x['tkNo'] );
+
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], '  ' );
+t( 'gắn loại RỖNG → chối', empty( $x['success'] ), $x );
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, 9999, 'Chi phí nuôi thú' );
+t( 'dòng không có thật → chối, không nổ', empty( $x['success'] ), $x );
+
+/* ⚠️ GẮN MÃ KHÔNG ĐỔI MỘT ĐỒNG NÀO, nên KHÔNG áp chốt "dự toán đã lên lệnh" — dòng sai mã phải
+   sửa được kể cả lúc lệnh đã cấp tiền, không thì nó kẹt tới lúc xuất MISA mà vẫn sai. */
+vai( 'Nhân viên', 'NV' );
+VHCP_DuAn::xin_tam_ung_dot( $maD, array( (int) $D['row'] ), array(), '' );
+vai( 'Kế toán cá nhân', 'KT' );
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], 'Chi phí nuôi thú' );
+t( '🔴 hạng mục ĐÃ LÊN LỆNH vẫn gắn lại mã được (gắn mã không đổi một đồng nào)',
+	! empty( $x['success'] ), $x );
+/* Nhưng ĐÃ CHỐT SỔ thì khoá — lúc ấy số đã vào sổ quyết toán. */
+vai( 'Quản lý', 'QL' );
+VHCP_DuAn::dat_tt_dot( $maD, 1, 'duyet' );
+vai( 'Kế toán cá nhân', 'KT' );
+VHCP_DuAn::dat_tt_dot( $maD, 1, 'ung', array( 'unc' => 'UNC-1' ) );
+VHCP_DuAn::dat_o_line( $maD, (int) $D['row'], 'thucTe', 47000000 );
+VHCP_DuAn::dat_hm( $maD, (int) $D['row'], 'xong', array( 'hoaDon' => 'https://kho/hd.pdf' ) );
+teq( 'hạng mục đã chốt & khoá', 'xong', VHCP_DuAn::hm_cua( $maD, (int) $D['row'] )['tt'] );
+$x = VHCP_DuAn::dat_loai_cp_line( $maD, (int) $D['row'], 'Chi phí NVL đồ ăn - Mua lẻ' );
+t( '🔴 nhưng ĐÃ CHỐT SỔ thì khoá — lúc ấy số đã vào sổ quyết toán', empty( $x['success'] ), $x );
+t( '   và nói đúng câu cũ: mở lại thì mới đụng được',
+	isset( $x['error'] ) && false !== mb_strpos( $x['error'], 'Mở lại' ), $x );
+VHCP_DuAn::delete( $maD );
+
+/* ── Màn hình của bảng dự án ───────────────────────────────────────────────────────────── */
+t( '🔴 đầu bảng DỰ ÁN có cột "Ngày nhập"',
+	false !== mb_strpos( $HTML, '<th>Nội dung</th><th title="Lúc dòng này được nhập vào' ) );
+t( '   và mỗi hàng dự án vẽ ô loại chi phí riêng', false !== strpos( $HTML, '+_daOLoaiCp(l)' ) );
+t( '🔴 mục con KHÔNG bày ô chọn (mã đi theo hạng mục lớn — hai mã cho một khoản tiền)',
+	false !== strpos( $HTML, 'if(laCon || !_laKeToan()){' ) );
+t( "🔴 'datLoaiCpDuAnLine' đã khai vào cửa API",
+	false !== strpos( $src, "'datLoaiCpDuAnLine'" )
+	&& false !== strpos( $src, "array( 'VHCP_DuAn', 'dat_loai_cp_line' )" ) );
+t( '   và nhân viên bị chặn ở cổng', false !== strpos( $src, "'datLoaiCpDuAnLine'," ) );
+
 /* ═════════════════════════════════════════════════════════════════════════════════════════ */
 if ( $TRUOT ) {
 	echo "\n✗ TRƯỢT " . count( $TRUOT ) . " phép (đạt $DAT):\n";

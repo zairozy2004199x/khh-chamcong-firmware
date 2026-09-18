@@ -87,7 +87,7 @@ class VHCP_API {
 			   [sửa] loại chi phí nếu nó sai"*. Loại chi phí suy ra TK Nợ, nên người nhập đổi được
 			   là con số nhảy tài khoản sau lưng kế toán — và cái sai chỉ lộ ra lúc xuất MISA.
 			   Lõi `set_line_nhom()` cũng gác, đây là lớp thứ hai ở cổng. */
-			'setLineNhom',
+			'setLineNhom', 'datLoaiCpDuAnLine',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
@@ -342,6 +342,7 @@ class VHCP_API {
 			'datTrangThaiQTDuAn'    => array( 'VHCP_DuAn', 'dat_tt_qt' ),
 			'datAnhDuAnLine'        => array( 'VHCP_DuAn', 'dat_anh_line' ),
 			'datODuAnLine'          => array( 'VHCP_DuAn', 'dat_o_line' ),
+			'datLoaiCpDuAnLine'     => array( 'VHCP_DuAn', 'dat_loai_cp_line' ),
 			'goAnhDuAnLine'         => array( 'VHCP_DuAn', 'go_anh_line' ),
 			'themHoSoDuAnLine'      => array( 'VHCP_DuAn', 'them_ho_so_line' ),
 			'datKyDuAn'             => array( 'VHCP_DuAn', 'set_ky_da' ),

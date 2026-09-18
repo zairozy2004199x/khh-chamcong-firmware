@@ -409,6 +409,7 @@ class VHCPMTD_DuAn {
 			$lines[] = array(
 				'row'       => (int) $r['row_no'],
 				'noiDung'   => (string) $r['noi_dung'],
+				'taoLuc'    => VHCPMTD_Util::fmt( isset( $r['tao_luc'] ) ? $r['tao_luc'] : '' ),
 				'duToan'    => VHCPMTD_Util::num( $r['du_toan'] ),
 				'thucTe'    => VHCPMTD_Util::num( $r['thuc_te'] ),
 				'soLuong'   => VHCPMTD_Util::num( $r['so_luong'] ),
@@ -2133,6 +2134,7 @@ class VHCPMTD_DuAn {
 		$data           = self::line_data( $rec );
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
+		$data['tao_luc'] = VHCPMTD_Util::now_sql();   // xem 🔴 ở `add_line()`
 		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
@@ -2153,6 +2155,16 @@ class VHCPMTD_DuAn {
 		if ( '' !== $_mc ) { return VHCPMTD_Util::err( $_mc ); }
 		$data['ma_da']  = (string) $ma_da;
 		$data['row_no'] = self::next_row( $ma_da );
+		/* 🔴 NGÀY NHẬP — mốc máy ghi, không ai gõ được. Bảng dự án trước nay KHÔNG có ô ngày nào
+		   (`da_line` không có cả `ngay` lẫn `tao_luc`), mà dự án kéo dài mấy tuần: nhìn một hàng
+		   thì không biết nó vào sổ hôm nào. Anh Thắng 18/09/2026, sau khi thấy cột này ở đơn
+		   tuần: *"vậy cột ngày chưa có rồi"*.
+		   ⚠️ CHỈ ĐẶT LÚC THÊM DÒNG. `update_line()` không đụng tới nó — sửa lại một dòng cũ mà
+		      mốc nhảy sang hôm nay thì nó thành mốc "lần sửa gần nhất", tức mất đúng thứ cần giữ.
+		   ⚠️ Đặt ở ĐÂY chứ không ở `line_data()`: hàm ấy dùng chung với `update_line()`, nhét vào
+		      đó là mỗi lần sửa một ô lại đóng dấu lại. Đã đặt nhầm chỗ một lần lúc dựng (rơi vào
+		      `them_dong_muc_con_cu` vì mẩu neo trùng nhau ở hai hàm). */
+		$data['tao_luc'] = VHCPMTD_Util::now_sql();
 		$wpdb->insert( VHCPMTD_DB::t( 'da_line' ), $data );
 		self::push_nd( $f['loai'], $data['noi_dung'] );
 		return VHCPMTD_Util::ok();
@@ -2245,6 +2257,66 @@ class VHCPMTD_DuAn {
 			'detail' => $cot . ': ' . VHCPMTD_Util::st( $gt ),
 		) );
 		return VHCPMTD_Util::ok();
+	}
+
+	/**
+	 * GẮN LẠI LOẠI CHI PHÍ CHO MỘT DÒNG DỰ ÁN — kế toán sửa khi chọn sai.
+	 *
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 Anh Thắng 18/09/2026: *"cột loại chi phí (kế toán có thể [sửa] loại chi phí nếu nó
+	 *    sai). Còn chưa có thì báo chưa gắn mã"* — hôm ấy nói về đơn tuần; rồi nhìn bảng dự án:
+	 *    *"vậy cột ngày chưa có rồi"*. Bảng dự án cần đúng hai cột ấy.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════
+	 * Loại chi phí quyết định TK Nợ / TK Có / mã đối tượng (`VHCPMTD_Cfg::resolve_tk`). Chọn sai là
+	 * dòng ấy vào sai tài khoản, và cái sai chỉ lộ ra lúc xuất MISA — khi đã quá muộn để hỏi lại
+	 * người nhập họ mua cái gì.
+	 *
+	 * ⚠️ CHỈ KẾ TOÁN — cùng luật với `VHCPMTD_Don::set_line_nhom()` bên đơn tuần. Gắn mã hạch toán
+	 *    không phải sửa nội dung dòng; người nhập đổi được là con số nhảy tài khoản sau lưng
+	 *    kế toán.
+	 * ⚠️ KHÔNG đi qua `update_line()`: hàm ấy ghi lại CẢ DÒNG, gửi thiếu ô nào là ô ấy bị dọn về
+	 *    rỗng, im lặng. Một ô thì ghi đúng một ô + ba mã nó sinh ra.
+	 * ⚠️ KHÔNG áp chốt "dự toán đã lên lệnh" ở đây: gắn mã KHÔNG đổi một đồng nào của dòng, mà
+	 *    dòng sai mã thì phải sửa được kể cả lúc lệnh đã cấp tiền — không thì nó kẹt tới lúc
+	 *    xuất MISA mà vẫn sai. Chốt "hạng mục đã chốt sổ" thì VẪN áp, vì lúc ấy số đã vào sổ.
+	 */
+	public static function dat_loai_cp_line( $ma_da, $row, $loai_cp ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCPMTD_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( 'Đã đóng' === $st ) { return VHCPMTD_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
+		$vai = VHCPMTD_Auth::vai_tro();
+		if ( ! in_array( $vai, array( 'Admin', 'Kế toán cá nhân', 'Kế toán NCC' ), true ) ) {
+			return VHCPMTD_Util::err( 'Chỉ kế toán gắn lại loại chi phí được — '
+				. 'đây là mã hạch toán, không phải nội dung dòng.' );
+		}
+		$row = (int) $row;
+		$_c  = self::loi_hang_muc_da_chot_( $ma_da, $row, 'gắn lại loại chi phí' );
+		if ( '' !== $_c ) { return VHCPMTD_Util::err( $_c ); }
+		$t   = VHCPMTD_DB::t( 'da_line' );
+		$cur = VHCPMTD_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCPMTD_Util::err( 'Dòng không hợp lệ' ); }
+		$loai_cp = trim( (string) $loai_cp );
+		if ( '' === $loai_cp ) { return VHCPMTD_Util::err( 'Chọn loại chi phí' ); }
+
+		$tk = VHCPMTD_Cfg::resolve_tk( $loai_cp, (string) $cur['hinh_thuc'],
+			array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '' ), (string) $cur['gian'] );
+		$wpdb->update( $t, array(
+			'loai_cp' => $loai_cp,
+			'tk_no'   => $tk['tk_no'],
+			'tk_co'   => $tk['tk_co'],
+			'ma_dt'   => $tk['ma_dt'],
+		), array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		VHCPMTD_Log::log_action( array(
+			'actor'  => VHCPMTD_Auth::nguoi(),
+			'role'   => $vai,
+			'action' => 'Gắn lại loại chi phí cho dòng dự án',
+			'target' => (string) $ma_da . '#' . $row,
+			'detail' => (string) $cur['loai_cp'] . ' → ' . $loai_cp
+				. ( '' !== $tk['tk_no'] ? ( ' · Nợ ' . $tk['tk_no'] ) : ' · CHƯA GẮN MÃ' ),
+		) );
+		return VHCPMTD_Util::ok( array( 'loaiCp' => $loai_cp, 'tkNo' => $tk['tk_no'], 'tkCo' => $tk['tk_co'] ) );
 	}
 
 	public static function dat_anh_line( $ma_da, $row, $url ) {

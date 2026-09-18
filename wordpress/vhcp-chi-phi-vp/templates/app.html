@@ -679,7 +679,7 @@
       <!-- Hiện khi mở sửa một hạng mục ĐÃ LÊN LỆNH — xem 🔴 ở `_daKhoaDuToanO()`. -->
       <div id="daKhoaNhac" style="display:none;font-size:11.5px;color:#b45309;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:6px 10px;margin:0 0 8px"></div>
       <div class="tw"><table>
-        <thead><tr><th>Nội dung</th><th>Gian</th><th style="text-align:right">Dự toán</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực tế</th><th>Hình thức chi</th><th>VAT</th><th style="text-align:center">Ảnh</th><th style="text-align:center">Hồ sơ</th><th>Ghi chú</th><th style="width:36px"></th></tr></thead>
+        <thead><tr><th>Nội dung</th><th title="Lúc dòng này được nhập vào — máy ghi, không ai gõ được">Ngày nhập</th><th title="Loại chi phí quyết định mã tài khoản (TK Nợ). Kế toán gắn lại được nếu chọn sai.">Loại chi phí</th><th>Gian</th><th style="text-align:right">Dự toán</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực tế</th><th>Hình thức chi</th><th>VAT</th><th style="text-align:center">Ảnh</th><th style="text-align:center">Hồ sơ</th><th>Ghi chú</th><th style="width:36px"></th></tr></thead>
         <tbody id="daLineBody"></tbody>
       </table></div>
 
@@ -5521,7 +5521,15 @@
       var oDT=(String(l.capCha||'')==='')
         ? o('duToan', money(l.duToan), khoaDT)
         : '<td class="money"></td>';
-      return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+tkBadge(l.loaiCp,l.tkNo,l.tkCo)+'</td><td>'+esc(l.gian)+'</td>'
+      return '<tr'+trS+'><td'+tdS+'>'+(indent?'↳ ':(laLon?'📦 ':''))+esc(l.noiDung)+'</td>'
+        /* NGÀY NHẬP — mốc máy ghi lúc dòng vào sổ. Bảng dự án trước nay không có ô ngày nào, mà
+           dự án kéo dài mấy tuần: nhìn một hàng thì không biết nó vào sổ hôm nào. Dòng nhập
+           trước 1.208.0 không có mốc, nên in '—' chứ không bịa ra một ngày. */
+        +'<td style="font-size:11px;color:#8c8781;white-space:nowrap">'+(l.taoLuc?esc(l.taoLuc):'—')+'</td>'
+        /* LOẠI CHI PHÍ tách hẳn thành CỘT RIÊNG. Trước nay nó là một dòng chữ nhỏ nép dưới Nội
+           dung (`tkBadge`), nên soi cả bảng xem dòng nào chưa gắn mã là phải đọc từng ô. */
+        +_daOLoaiCp(l)
+        +'<td>'+esc(l.gian)+'</td>'
         +oDT
         +o('soLuong', money(l.soLuong), khoaDT)
         +o('donGia',  money(l.donGia),  khoaDT)
@@ -5597,7 +5605,7 @@
     var coHai=(nhomHt.ung.length||psHt.ung.length) && (nhomHt.ncc.length||psHt.ncc.length);
     function vePhatSinh(ds){
       if(!ds.length) return '';
-      return '<tr><td colspan="13" style="background:#fff7ed;font-weight:700;color:#b45309;padding:6px 10px">➕ PHÁT SINH — không thuộc hạng mục nào ('+ds.length+')</td></tr>'
+      return '<tr><td colspan="15" style="background:#fff7ed;font-weight:700;color:#b45309;padding:6px 10px">➕ PHÁT SINH — không thuộc hạng mục nào ('+ds.length+')</td></tr>'
         + ds.map(function(k){ return daLineCells(k,false); }).join('');
     }
     /* Tổng của một bảng = thực tế của MỤC CON (hạng mục lớn có con thì tiền nằm ở con) cộng
@@ -5670,7 +5678,7 @@
           +'<td style="background:#f4f1ec;font-weight:800;text-align:right;padding:7px 10px;white-space:nowrap">'+tongNhomChu(_tg)+'</td></tr>';
       }
     }
-    el('daLineBody').innerHTML=html||'<tr><td colspan="13" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
+    el('daLineBody').innerHTML=html||'<tr><td colspan="15" style="text-align:center;color:#8c8781;padding:12px">Chưa có dòng chi phí — thêm ở trên.</td></tr>';
     /* Thanh tích + bảng lệnh dựng SAU khi bảng đã vẽ: ô tích nằm trong bảng, dựng trước thì
        `querySelectorAll('[data-xtu]')` chưa thấy gì và thanh không bao giờ hiện. */
     daXinBarDoi();
@@ -7084,7 +7092,7 @@
     return hmNutChung(_hmKeyDA(p.row), DA_CUR.maDA, p.row, p.hinhThuc, h, suaDuoc);
   }
   /* Hàng trống nằm ngay dưới mỗi hạng mục lớn — chỗ mở ô nhập, khỏi phải bày hộp thoại. */
-  function hmDongXin(p){ return hmDongForm(_hmKeyDA(p.row), 13); }
+  function hmDongXin(p){ return hmDongForm(_hmKeyDA(p.row), 15); }
   function daCapChaHint(){   // gợi ý + KHÓA dự toán: hạng mục lớn -> điền Dự toán (tạm ứng); mục con/phát sinh -> điền Thực tế
     var v=el('da_capCha')?el('da_capCha').value:'';
     var isParent=(v==='');
@@ -7322,6 +7330,52 @@
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
     _daKhoaDuToanO(l);
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
+  }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+     Ô LOẠI CHI PHÍ CỦA MỘT DÒNG DỰ ÁN — bản song sinh của `_oLoaiCp()` bên đơn tuần.
+
+     Anh Thắng 18/09/2026, nhìn bảng dự án sau khi thấy hai cột mới ở đơn tuần: *"vậy cột ngày
+     chưa có rồi"*.
+
+     🔴 CHỈ KẾ TOÁN ĐỔI ĐƯỢC — cùng luật với đơn tuần. Loại chi phí quyết định TK Nợ / TK Có / mã
+        đối tượng, nên người nhập đổi được là con số nhảy tài khoản sau lưng kế toán.
+     🔴 CHƯA CÓ MÃ THÌ BÁO ĐỎ, dùng lại `tkBadge()` — cùng một câu, cùng một màu với đơn tuần và
+        với dòng chữ nhỏ vốn nép dưới Nội dung. Ba chỗ nói cùng một chuyện thì phải cùng một lời.
+     ⚠️ MỤC CON KHÔNG CÓ Ô CHỌN. Mã hạch toán đi theo hạng mục lớn; bày ô chọn ở dòng con là mời
+        gắn hai mã cho một khoản tiền.
+     ══════════════════════════════════════════════════════════════════════════════════════════ */
+  function _daOLoaiCp(l){
+    var ten=String(l.loaiCp||''), badge=tkBadge(ten, l.tkNo, l.tkCo);
+    var chuaCo='<span style="color:#dc2626;font-size:11px">⚠ chưa gắn mã</span>';
+    var laCon=(String(l.capCha||'')!=='' && String(l.capCha||'')!=='(Phát sinh)');
+    if(laCon || !_laKeToan()){
+      return '<td style="font-size:11.5px">'+(ten?esc(ten):chuaCo)+badge+'</td>';
+    }
+    var ds=_loaiCpList(l.gian||'', l.hinhThuc||'', '')
+      .map(function(x){ return String(x.ten||'').trim(); }).filter(Boolean);
+    /* Loại của dòng nay không còn trong danh mục thì VẪN phải hiện ra — không thì mở ô chọn lên
+       là ô rỗng, bấm ra ngoài một cái là dòng mất luôn loại đang có. */
+    if(ten && ds.indexOf(ten)<0) ds.push(ten);
+    return '<td style="font-size:11.5px">'
+      +'<select onchange="daSaveLoaiCp('+l.row+',this.value)" style="font-size:11.5px;max-width:170px">'
+      +'<option value="">— chưa gắn mã —</option>'
+      +ds.map(function(v){ return '<option value="'+esc(v)+'"'+(v===ten?' selected':'')+'>'+esc(v)+'</option>'; }).join('')
+      +'</select>'+(ten?badge:'<div>'+chuaCo+'</div>')+'</td>';
+  }
+  function daSaveLoaiCp(row, val){
+    if(!DA_CUR) return;
+    var lai=function(){ openDuAn(DA_CUR.maDA); loadDuAn(); };
+    if(!String(val||'').trim()){ toast('warn','Chọn loại chi phí'); lai(); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); lai(); return; }
+      _log('Gắn loại chi phí dự án', DA_CUR.ten, 'dòng '+row+' → '+val);
+      /* 🔴 NÓI RA KHI LOẠI VỪA GẮN CŨNG CHƯA CÓ MÃ. Gắn xong mà im lặng thì kế toán tưởng đã
+         xong, trong khi dòng vẫn sẽ rơi ra ở bước xuất MISA. */
+      toast(r.tkNo?'ok':'warn','Đã gắn "'+val+'"'+(r.tkNo?(' · Nợ '+r.tkNo):' — nhưng loại này CHƯA khai mã tài khoản'));
+      lai();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);lai();})
+      .datLoaiCpDuAnLine(DA_CUR.maDA, row, val);
   }
   /* Trạng thái hạng mục mà một DÒNG đi theo — dòng cha thì của chính nó, mục con thì của cha.
      Tiền của hạng mục lớn cộng từ con, nên con phải khoá theo cha. */
