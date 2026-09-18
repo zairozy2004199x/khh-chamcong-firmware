@@ -180,6 +180,21 @@
       </span></div>`;
   }
 
+  /* Hỏi ĐÚNG MỘT LẦN cho mỗi kỳ: mấy dòng có số mà chưa rõ của tháng nào thì để trống hay giữ.
+     Xem khối dài ở engine.dongChuaRoKy(). Trả lời xong là biến mất vĩnh viễn. */
+  function chuaRoKyHtml() {
+    const c = E.dongChuaRoKy(state);
+    if (!c.tong) return '';
+    return `<div class="issue warn" style="margin:0 0 12px">
+      <span class="lv">${esc(R_periodLabel())}</span>
+      <span><strong>${c.tong} dòng đang có số nhưng chưa rõ của tháng nào</strong>
+      (${c.diem.length} điểm bán · ${c.luong.length} dòng lương) — dữ liệu từ bản cũ, không ghi lại tháng.<br>
+      <button class="btn small primary" data-act="kyTrong">Để trống hết, lấy lại số ${esc(R_periodLabel())}</button>
+      <button class="btn small" data-act="kyGiu">Giữ lại — đây đúng là số ${esc(R_periodLabel())}</button>
+      <br><span class="muted">Chọn một lần thôi, từ sau máy tự biết và không hỏi lại.</span>
+      </span></div>`;
+  }
+
   function renderDashboard(root) {
     const R = report;
     const totalRev = Object.values(R.revenue).reduce((a, b) => a + b, 0);
@@ -187,6 +202,7 @@
     const totalCost = R.grandTotal + manualTotal + R.salaryDeptTotals.total + R.salarySitesTotal.actual;
     root.innerHTML = `
       ${lechKyHtml()}
+      ${chuaRoKyHtml()}
       ${soDuNguonHtml()}
       <div class="kpis">
         <div class="kpi"><div class="k">Tổng doanh thu ${R.periodLabel}</div><div class="v">${fmt(totalRev)}</div><div class="s">${state.sites.length} điểm · ${state.departments.length} bộ phận</div></div>
@@ -318,6 +334,7 @@
           <button class="btn small primary" data-act="napFabi" data-arg="ghe" title="${esc(NGUON.ghe.mo)}">⬇ Nạp từ ${esc(NGUON.ghe.nhan)}</button>
           <button class="btn small danger" data-act="zeroSites" title="Đưa doanh thu tất cả điểm đang lọc về 0">Xoá số doanh thu</button>
         </div>
+        ${chuaRoKyHtml()}
         ${fabiTrangThaiHtml()}
         ${fabiBoxHtml()}
         <div id="pasteBox" class="card" style="margin:0 0 10px;background:var(--panel-2)" hidden>
@@ -513,6 +530,7 @@
           <button class="btn small" data-act="syncSalary" title="Đặt Báo cáo và DNTT = Theo báo cáo cho tất cả dòng">Báo cáo = DNTT = Theo báo cáo</button>
           <button class="btn small primary" data-act="addSalarySite">+ Thêm dòng</button>
         </div>
+        ${chuaRoKyHtml()}
         ${luongTrangThaiHtml()}
         ${luongBoxHtml()}
         <div class="table-wrap tall"><table class="grid-table dense">
@@ -1495,6 +1513,22 @@
     },
     fabiDong() { fabi = null; renderTab(); },
     moDoanhThu() { renderTab('revenue'); },
+    kyTrong() {
+      const c = E.dongChuaRoKy(state);
+      if (!c.tong) return;
+      prevState = JSON.parse(JSON.stringify(state));
+      E.chotDauKy(state, false);
+      commit();
+      toast(`Đã để trống ${c.tong} dòng. Bấm "Nạp" để lấy số ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
+    },
+    kyGiu() {
+      const c = E.dongChuaRoKy(state);
+      if (!c.tong) return;
+      prevState = JSON.parse(JSON.stringify(state));
+      E.chotDauKy(state, true);
+      commit();
+      toast(`Đã nhận ${c.tong} dòng là số của ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
+    },
     /* Gỡ những liên kết trỏ vào điểm sai bộ phận, VÀ xoá luôn con số chúng đã ghi vào đó. Giữ số
        lại mới là nguy: đó là tiền ghế nằm trong doanh thu Event, không nguồn nào nhận, không ai
        biết nó từ đâu ra, mà vẫn kéo lệch tỷ trọng phân bổ chi phí của cả hai bộ phận. */

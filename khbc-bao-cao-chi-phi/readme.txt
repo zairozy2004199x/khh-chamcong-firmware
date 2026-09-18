@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.26.0
+Stable tag: 1.27.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,16 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.27.0 =
+* 🔴 **Sửa lỗi 1.26.0 không dọn được gì.** Bản ấy cho những dòng chưa có dấu kỳ "thừa hưởng" dấu
+  của cả bản trạng thái — mà dấu ấy chính là kỳ đang mở, nên nó tự đóng dấu "đúng kỳ" cho mọi thứ
+  nó gặp. Tự khẳng định điều cần chứng minh. Mở T09 vẫn thấy nguyên số T08.
+* Với dữ liệu từ bản cũ thì **không có cách nào biết** mấy con số ấy của tháng nào — điều đó không
+  nằm trong dữ liệu. Nên hỏi đúng **một lần cho mỗi kỳ**, bằng một dòng gọn trên cả ba màn
+  (Tổng quan · Doanh thu · Lương):
+  **[Để trống hết, lấy lại số tháng này]** hoặc **[Giữ lại — đây đúng là số tháng này]**.
+* Trả lời xong là mọi dòng có dấu, từ đó máy tự dọn mãi mãi, không hỏi lại. Có Hoàn tác.
 
 = 1.26.0 =
 * 🔴 **Bỏ hẳn chuyện "kỳ cũ / kỳ này". Mở kỳ nào thì bảng chỉ có số của kỳ ấy; chỗ nào chưa có số

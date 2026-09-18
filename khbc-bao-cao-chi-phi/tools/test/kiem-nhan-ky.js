@@ -20,6 +20,8 @@ const PORT = process.env.PORT || '8117';
       {id:'a',dept:'posh',name:'Posh HCM',reported:111649262,report:111649262,dntt:111649262,actual:111649262,nsKy:'2026-07'},
       {id:'b',dept:'jp',name:'BP JP HCM',reported:41635755,report:41635755,dntt:41635755,actual:41435755,nsKy:'2026-08'},
     ];
+    /* Thêm một dòng KHÔNG có dấu kỳ — dữ liệu bản cũ, phải được HỎI chứ không xoá lén. */
+    s.salarySites.push({id:'c',dept:'tutu',name:'Tàu Tân An',reported:12133000,report:12133000,dntt:12133000,actual:12133000});
     s.sites=[{dept:'tutu',code:'TTAMTP',name:'AMTP',revenue:29905000,dtKy:'2026-07'}];
     window.BaoCaoApp.setState(s);});
   await p.waitForTimeout(1500);
@@ -68,6 +70,26 @@ const PORT = process.env.PORT || '8117';
     const r=s.salarySites.find(y=>y.name==='Posh HCM');
     return { so: r.reported, sauDon: (()=>{ return r.reported; })() };});
   ok('🔴 Gõ tay xong thì lần dọn sau KHÔNG xoá mất', g.so===5000000, String(g.so));
+
+  // ── 🔴 DÒNG CŨ CHƯA RÕ THÁNG NÀO: hỏi đúng một lần, không xoá lén ──────────────────────────
+  await mo(p,'Tổng quan');
+  const h = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const r=s.salarySites.find(x=>x.name==='Tàu Tân An');
+    const e=[...document.querySelectorAll('#tab-dashboard .issue')].find(x=>/chưa rõ của tháng nào/.test(x.textContent));
+    return { so: r?r.reported:null, co: !!e, chu: e?e.textContent.replace(/\s+/g,' '):'',
+      nut: e?[...e.querySelectorAll('button')].map(b=>b.dataset.act):[] };});
+  ok('🔴 Dòng bản cũ KHÔNG bị xoá lén', h.so===12133000, String(h.so));
+  ok('Hỏi một lần, nói rõ bao nhiêu dòng', h.co && /1 dòng|2 dòng/.test(h.chu), h.chu.slice(0,120));
+  ok('Có đủ hai lối trả lời', h.nut.includes('kyTrong') && h.nut.includes('kyGiu'), h.nut.join(' · '));
+
+  await p.click('#tab-dashboard [data-act="kyTrong"]'); await p.waitForTimeout(2000);
+  const h2 = await p.evaluate(()=>{const s=window.BaoCaoApp.getState();
+    const r=s.salarySites.find(x=>x.name==='Tàu Tân An');
+    return { bon:[r.reported,r.report,r.dntt,r.actual], ten:r.name, bp:r.dept,
+      conHoi: /chưa rõ của tháng nào/.test(document.querySelector('#tab-dashboard').textContent) };});
+  ok('🔴 Bấm "Để trống hết" là sạch cả bốn cột', h2.bon.every(v=>v===0), JSON.stringify(h2.bon));
+  ok('Giữ nguyên danh mục', h2.ten==='Tàu Tân An' && h2.bp==='tutu', h2.ten+' · '+h2.bp);
+  ok('Trả lời xong thì KHÔNG hỏi lại', !h2.conHoi);
 
   ok('Không lỗi JS', loi.length===0, loi.join(' | '));
   await p.screenshot({path:'/tmp/claude-0/nhan-ky.png'});
