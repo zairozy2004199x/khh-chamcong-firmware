@@ -4,7 +4,7 @@ Tags: chi phí, phân bổ, báo cáo, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.9.0
+Stable tag: 1.10.0
 License: GPLv2 or later
 
 Phân bổ chi phí Máy tự động / Khu vui chơi ra "File tổng báo cáo" và phân bổ theo điểm để hạch toán MISA.
@@ -35,6 +35,15 @@ Nhân viên nhập khoản chi phí, kế toán duyệt, web tự tính.
 4. Nhập Excel kỳ đầu (hoặc ⋯ → Nạp dữ liệu mẫu) rồi bắt đầu.
 
 == Changelog ==
+
+= 1.10.0 =
+* **Sửa: kỳ mới mở ra mang nguyên số liệu kỳ trước.** Đổi sang kỳ chưa có, app hỏi "đẩy dữ liệu
+  đang có lên làm bản gốc?" — bấm OK là nó chép cả doanh thu, lương và tiền từng khoản. Kỳ mới
+  mở ra đã có một bộ số trông hoàn chỉnh mà là số THÁNG TRƯỚC, không dòng nào báo.
+  Nay chép **danh mục** (bộ phận, điểm bán, mã đơn vị, tài khoản, nội dung MISA, cách chia, liên
+  kết FABi, tích "không nhận chi phí") và đưa **mọi số về 0**.
+* Thêm **"Xoá số liệu kỳ này (giữ danh mục)"** ở menu ⋯ — dọn kỳ đang mở mà không nhảy sang tháng
+  sau, để chữa những kỳ đã lỡ mang số cũ.
 
 = 1.9.0 =
 * **Nạp doanh thu thẳng từ trang "Doanh thu FABi"** (khmatrix.com/doanh-thu-hcm). Nút ở tab

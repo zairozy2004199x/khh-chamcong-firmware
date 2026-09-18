@@ -575,3 +575,57 @@ console.log(`OK — ${passed} phép so khớp với Excel đều đạt, các tr
 
   console.log('OK — ghép doanh thu FABi: khớp tên, không đoán bừa, nhớ lựa chọn.');
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+// BẮT ĐẦU KỲ MỚI  (anh Thắng 18/09/2026: "ủa, nếu chọn kỳ tháng 9 nó phải trống chứ")
+//
+// Kỳ mới mở ra mà đã có sẵn một bộ số trông hoàn chỉnh — cộng đúng, tỷ trọng đẹp — nhưng là số
+// của THÁNG TRƯỚC, là loại sai tệ nhất: không dòng nào báo, không ô nào đỏ.
+// ═══════════════════════════════════════════════════════════════════════════════════════════════
+{
+  const cu = E.normalizeState(window.SAMPLE_DATA);
+  cu.sites[0].khongChiPhi = true;
+  cu.sites[0].fabiTen = 'TuTu Train - Estella ( Dịch vụ K&H )';
+  const bcCu = E.computeReport(cu);
+  assert(bcCu.grandTotal > 0 && Object.values(bcCu.revenue).some((v) => v > 0), 'kỳ cũ phải có số thật');
+
+  const moi = E.batDauKyMoi(cu);
+  const bc = E.computeReport(moi);
+
+  // -- SỐ về 0 hết --
+  assert(moi.sites.every((s) => s.revenue === 0), 'doanh thu từng điểm về 0');
+  assert(Object.values(bc.revenue).every((v) => v === 0), 'doanh thu từng bộ phận về 0');
+  assert.strictEqual(bc.grandTotal, 0, 'tổng chi phí phân bổ về 0');
+  assert(moi.costItems.every((it) => E.num(it.total) === 0), 'tiền từng khoản về 0');
+  assert(moi.salaryDept.every((r) => E.SALARY_DEPT_FIELDS.every((f) => E.num(r[f.key]) === 0)), 'lương bộ phận về 0');
+  assert(moi.salarySites.every((r) => E.num(r.reported) === 0 && E.num(r.actual) === 0), 'lương NV cơ sở về 0');
+  assert(moi.manualCols.every((m) => !Object.keys(m.values || {}).length), 'cột nhập tay về rỗng');
+
+  // -- DANH MỤC giữ nguyên: đó là công dựng một lần dùng mãi --
+  assert.strictEqual(moi.sites.length, cu.sites.length, 'giữ đủ điểm bán');
+  assert.strictEqual(moi.sites[0].code, cu.sites[0].code);
+  assert.strictEqual(moi.sites[0].name, cu.sites[0].name);
+  assert.strictEqual(moi.sites[0].dept, cu.sites[0].dept);
+  assert.strictEqual(moi.departments.length, cu.departments.length);
+  assert.strictEqual(moi.costItems.length, cu.costItems.length, 'giữ danh mục khoản chi phí');
+  const it0 = moi.costItems[0], c0 = cu.costItems[0];
+  assert.strictEqual(it0.name, c0.name);
+  assert.strictEqual(it0.account, c0.account, 'giữ tài khoản — khai lại hằng tháng là chỗ sinh lỗi');
+  assert.strictEqual(it0.misaDetail, c0.misaDetail);
+  assert.strictEqual(it0.split, c0.split, 'giữ cách chia');
+
+  // 🔴 GIỮ `fabiTen` và `khongChiPhi` — đó là DANH MỤC, không phải số. Xoá đi thì tháng nào cũng
+  //    phải ghép lại tên cửa hàng FABi và tích lại cơ sở nghỉ.
+  assert.strictEqual(moi.sites[0].khongChiPhi, true, 'giữ tích "không nhận chi phí"');
+  assert.strictEqual(moi.sites[0].fabiTen, cu.sites[0].fabiTen, 'giữ liên kết với cửa hàng FABi');
+  // và tài khoản lương theo bộ phận cũng phải còn
+  assert.strictEqual(moi.salaryDept.find((r) => r.dept === 'event').misaAccount, 'N64191/C3341');
+
+  // -- kỳ mới thì chưa ai duyệt gì --
+  assert(moi.costItems.every((it) => it.status === 'cho_duyet'), 'khoản chi phí về "chờ duyệt"');
+
+  // -- KHÔNG đụng vào state gốc --
+  assert(cu.sites.some((s) => E.num(s.revenue) > 0), 'state cũ phải còn nguyên số của nó');
+
+  console.log('OK — bắt đầu kỳ mới: giữ danh mục, xoá sạch số.');
+}

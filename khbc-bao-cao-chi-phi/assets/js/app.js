@@ -1230,16 +1230,32 @@
     const p = state.period;
     const m = p.month === 12 ? 1 : p.month + 1;
     const y = p.month === 12 ? p.year + 1 : p.year;
-    state.period = { month: m, year: y };
-    state.sites.forEach((s) => (s.revenue = 0));
-    state.departments.forEach((d) => { if (d.revenueOverride) d.revenue = 0; });
-    state.costItems = [];
-    state.manualCols.forEach((mc) => (mc.values = {}));
-    state.salaryDept.forEach((r) => E.SALARY_DEPT_FIELDS.forEach((f) => (r[f.key] = 0)));
-    state.salarySites.forEach((r) => { r.reported = 0; r.report = 0; r.dntt = 0; r.actual = 0; });
+    /* Xoá số bằng CHÍNH hàm mà đường "đổi sang kỳ chưa có" dùng — hai chỗ cùng một luật thì không
+       có cửa nào lệch. Riêng nút này còn DỌN HẲN danh sách khoản chi phí (đúng như câu hỏi ở trên
+       hứa), còn đường kia thì giữ danh mục để làm bản gốc cho kỳ mới. */
+    const moi = E.batDauKyMoi(state);
+    moi.period = { month: m, year: y };
+    moi.costItems = [];
+    state = moi;
     commit({ tab: 'revenue', noPush: true });
     sync.onPeriodChange();
     toast(`Đã tạo kỳ ${E.periodLabel(state.period)}.`, { label: 'Hoàn tác', fn: undo });
+  }
+
+  /* 🔴 DỌN SỐ CỦA CHÍNH KỲ ĐANG MỞ, KHÔNG NHẢY SANG KỲ SAU.
+     Anh Thắng 18/09/2026 mở T09 và thấy nguyên số của T08 — vì kỳ ấy đã bị dựng bằng lối chép cả
+     số. Nút "Kỳ mới" thì lại NHẢY sang tháng kế, nên không dùng để chữa được. Đây là nút để chữa:
+     đứng yên ở kỳ đang mở, giữ danh mục, đưa mọi con số về 0. */
+  function xoaSoKyNay() {
+    const nhan = E.periodLabel(state.period);
+    if (!confirm(`Xoá MỌI SỐ LIỆU của kỳ ${nhan}?\n\n`
+      + `Giữ nguyên danh mục: bộ phận, điểm bán, mã đơn vị, tài khoản, nội dung MISA, cách chia, `
+      + `liên kết với Doanh thu FABi, tích "không nhận chi phí".\n\n`
+      + `Đưa về 0: doanh thu từng điểm, lương, tiền từng khoản chi phí.`)) return;
+    prevState = JSON.parse(JSON.stringify(state));
+    state = E.batDauKyMoi(state);
+    commit({ tab: 'revenue' });
+    toast(`Đã xoá số liệu kỳ ${nhan}, giữ nguyên danh mục.`, { label: 'Hoàn tác', fn: undo });
   }
 
   function resetAll() {
@@ -1344,7 +1360,7 @@
       const b = e.target.closest('button[data-act]');
       if (!b) return;
       $('#moreMenu').hidden = true;
-      ({ sample: loadSample, newPeriod, exportJson, print: ACTIONS.print, copyReport, reset: resetAll, syncNow: ACTIONS.syncNow }[b.dataset.act] || (() => {}))();
+      ({ sample: loadSample, newPeriod, xoaSoKyNay, exportJson, print: ACTIONS.print, copyReport, reset: resetAll, syncNow: ACTIONS.syncNow }[b.dataset.act] || (() => {}))();
     });
     // kết nối máy chủ
     $('#btnSettings').addEventListener('click', openSettings);
@@ -1610,8 +1626,16 @@
         } else if (opts.initial) {
           // kỳ chưa có trên máy chủ → hỏi đẩy cấu hình đang có lên
           const hasLocal = state.departments.length && (state.sites.length || state.costItems.length || state.salarySites.length);
-          if (hasLocal && confirm(`Kỳ ${E.periodLabel(state.period)} chưa có trên máy chủ. Đẩy dữ liệu đang có trên máy này lên (nhóm, bộ phận, điểm, lương, ${state.costItems.length} khoản chi phí) làm bản gốc?`)) {
-            state.costItems.forEach((it) => { if (!it.status) it.status = 'da_duyet'; if (!it.createdBy) it.createdBy = API.getConfig().user; });
+          /* 🔴 CHÉP DANH MỤC, KHÔNG CHÉP SỐ — anh Thắng 18/09/2026: *"nếu chọn kỳ tháng 9 nó phải
+             trống chứ"*. Bản trước chép nguyên cả doanh thu, lương và tiền từng khoản của kỳ
+             trước, nên kỳ mới mở ra đã có sẵn một bộ số trông hoàn chỉnh mà là số THÁNG TRƯỚC —
+             không dòng nào báo, không ô nào đỏ. Xem E.batDauKyMoi(). */
+          if (hasLocal && confirm(`Kỳ ${E.periodLabel(state.period)} chưa có trên máy chủ.\n\n`
+            + `Dựng kỳ mới từ danh mục đang có (${state.departments.length} bộ phận, ${state.sites.length} điểm bán, `
+            + `${state.costItems.length} khoản chi phí — giữ tên, mã đơn vị, tài khoản, cách chia)?\n\n`
+            + `MỌI SỐ LIỆU sẽ bắt đầu từ 0: doanh thu, lương, tiền từng khoản.`)) {
+            state = E.batDauKyMoi(state);
+            state.costItems.forEach((it) => { if (!it.createdBy) it.createdBy = API.getConfig().user; });
             this.stateSnap = '';
             this.costSnap = {};
             this.version = 0;

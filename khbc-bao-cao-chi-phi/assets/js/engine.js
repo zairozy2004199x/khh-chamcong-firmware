@@ -580,6 +580,45 @@
     return { xong, boQua: bo };
   }
 
+  /* ═══════════════════════════════════════════════════════════════════════════════════════════
+   * BẮT ĐẦU MỘT KỲ MỚI — GIỮ DANH MỤC, XOÁ SỐ.
+   *
+   * 🔴 Anh Thắng 18/09/2026: *"ủa, nếu chọn kỳ tháng 9 nó phải trống chứ"*. Đúng. Trước đây đổi
+   *    sang kỳ chưa có thì app hỏi "đẩy dữ liệu đang có lên làm bản gốc?" và chép NGUYÊN CẢ SỐ
+   *    LIỆU của kỳ trước — doanh thu từng điểm, lương từng bộ phận, tiền từng khoản chi phí.
+   *
+   *    Đó là loại sai tệ nhất trong cả cái app này: kỳ mới mở ra đã có sẵn một bộ số trông hoàn
+   *    chỉnh, cộng đúng, tỷ trọng đẹp — nhưng là số của THÁNG TRƯỚC. Không có dòng nào báo, không
+   *    có ô nào đỏ. Người dùng nhập thêm vài khoản mới rồi xuất báo cáo, và tháng 9 đi ra bằng
+   *    doanh thu tháng 8.
+   *
+   * Nên tách hai thứ: DANH MỤC (nhóm, bộ phận, điểm bán, mã đơn vị, tài khoản, lời diễn giải,
+   * cách chia…) thì chép sang — đó là công dựng một lần dùng mãi. SỐ thì về 0 hết.
+   *
+   * ⚠️ Giữ `fabiTen` và `khongChiPhi` của điểm bán: đó là DANH MỤC, không phải số. Xoá đi thì
+   *    tháng nào cũng phải ghép lại tên cửa hàng FABi và tích lại cơ sở nghỉ — đúng cái việc mà
+   *    hai tính năng kia sinh ra để khỏi phải làm lại.
+   * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+  function batDauKyMoi(state) {
+    const st = normalizeState(JSON.parse(JSON.stringify(state || {})));
+    st.sites = (st.sites || []).map((s) => ({ ...s, revenue: 0 }));
+    st.departments = (st.departments || []).map((d) => ({ ...d, revenue: 0, revenueOverride: false }));
+    st.manualCols = (st.manualCols || []).map((m) => ({ ...m, values: {} }));
+    st.salaryDept = (st.salaryDept || []).map((r) => {
+      const o = { ...r };
+      SALARY_DEPT_FIELDS.forEach((f) => { o[f.key] = 0; });
+      return o;
+    });
+    st.salarySites = (st.salarySites || []).map((r) => ({ ...r, reported: 0, report: 0, dntt: 0, actual: 0 }));
+    /* Khoản chi phí: GIỮ danh mục (tên, tài khoản, lời MISA, cách chia, mã đối tượng) nhưng số
+       tiền về 0 và trạng thái về "chờ duyệt" — kỳ mới thì chưa ai duyệt gì cả. Giữ nguyên tiền là
+       đúng cái bẫy ở trên, chỉ khác chỗ nó nằm ở cột chi phí thay vì cột doanh thu. */
+    st.costItems = (st.costItems || []).map((it) => ({
+      ...it, total: 0, shares: {}, status: 'cho_duyet', approvedBy: '', createdAt: '',
+    }));
+    return st;
+  }
+
   /** Kiểm tra dữ liệu, trả về danh sách {level:'error'|'warn'|'info', msg}. */
   function validate(state) {
     const issues = [];
@@ -816,6 +855,7 @@
     misaRows,
     ghepFabi,
     napFabi,
+    batDauKyMoi,
     khoaTen,
     tenGonFabi,
     parseAccount,
