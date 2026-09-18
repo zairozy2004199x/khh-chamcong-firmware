@@ -212,6 +212,23 @@ class VHCC_XinNghi {
 			'ly_do_choi'  => ( self::TU_CHOI === $dat ) ? mb_substr( trim( (string) $ly_do_choi ), 0, 250 ) : '',
 			'duyet_luc'   => current_time( 'mysql' ),
 		), array( 'id' => (int) $d['id'] ) );
+
+		/* Báo cho người xin. Nộp đơn xong không biết được duyệt hay chưa thì người ta mở app
+		   hỏi lại mấy lần trong ngày — đúng cái việc chuông sinh ra để bỏ.
+		   ⚠️ Đặt SAU lượt ghi, và KHÔNG để nó làm hỏng lượt duyệt: duyệt đơn quan trọng hơn báo.
+		   Gộp theo id đơn nên duyệt rồi đổi ý thì vẫn một dòng, không đẻ dòng thứ hai. */
+		$ten_loai = isset( self::TEN_LOAI[ $d['loai'] ] ) ? self::TEN_LOAI[ $d['loai'] ] : 'Nghỉ';
+		$khoang   = ( (string) $d['tu_ngay'] === (string) $d['den_ngay'] )
+			? (string) $d['tu_ngay']
+			: ( (string) $d['tu_ngay'] . ' → ' . (string) $d['den_ngay'] );
+		$chu = ( self::DUYET === $dat )
+			? ( 'Đơn ' . mb_strtolower( $ten_loai ) . ' ' . $khoang . ' đã được duyệt.' )
+			: ( 'Đơn ' . mb_strtolower( $ten_loai ) . ' ' . $khoang . ' không được duyệt.'
+				. ( '' !== trim( (string) $ly_do_choi ) ? ' Lý do: ' . trim( (string) $ly_do_choi ) : '' ) );
+
+		VHCC_Chuong::bao( (string) $d['ma_nv'], $chu, 'cc_nghi:' . (int) $d['id'],
+			isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );
+
 		return array( 'ok' => true, 'id' => (int) $d['id'], 'quyet' => $dat );
 	}
 

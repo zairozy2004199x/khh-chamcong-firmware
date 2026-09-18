@@ -122,6 +122,11 @@ class VHCC_Bu {
 	/** Câu nhắc bày sẵn ở đầu màn Cửa hàng — '' nếu người này không bị khoá. */
 	public static function nhac_han_ngay( $u ) {
 		if ( ! self::bi_khoa_ngay_cu( $u ) ) { return ''; }
+		/* ⚠️ 18/09/2026 — KHÔNG NHẮC HẠN CHO NGƯỜI VỐN KHÔNG SỬA ĐƯỢC. Từ hôm nay `sua_gio` là
+		   bậc Admin + chỉ định từng người, nên phần lớn cửa hàng trưởng không sửa được ngày
+		   NÀO cả. Bày câu "hết 24h hôm nay thì không sửa nữa" cho họ là nói sai theo hướng tệ
+		   nhất: nó ngụ ý hôm nay thì sửa được, và họ đi tìm cái nút không tồn tại. */
+		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) { return ''; }
 		return 'Hết 24h hôm nay thì không cho phép sửa giờ công nữa. Vui lòng liên hệ kế toán.';
 	}
 

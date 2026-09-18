@@ -51,6 +51,41 @@ class VHCC_Chuong {
 			&& method_exists( 'VHNB_Bao', 'danh_dau_doc' );
 	}
 
+	/* ====================================================================== cửa GỬI */
+
+	/**
+	 * GỬI MỘT TIN VÀO CHUÔNG. Đây là cửa cho các lớp chấm công khác gọi vào.
+	 *
+	 * =========================================================================================
+	 * 🔴 GỌI QUA ĐÂY, ĐỪNG GỌI THẲNG `VHCC_Push::gui()`
+	 * =========================================================================================
+	 * Từ 17/09/2026 chuông Nội bộ tự đẩy ra điện thoại (xem `VHCC_Push::nghe_bao()`). Nên một
+	 * lời gọi ở đây được CẢ HAI: dòng trong chuông để đọc lại, và tiếng rung trên máy. Gọi
+	 * thêm `VHCC_Push::gui()` nữa là rung hai cái cho cùng một việc — và người ta tắt thông
+	 * báo sau đúng hai lần như thế.
+	 *
+	 * ⚠️ TRẢ FALSE KHI CHƯA CÀI NỘI BỘ. Bên gọi tự quyết định có lùi về đẩy thẳng hay không;
+	 *    ở đây KHÔNG tự lùi, vì lùi âm thầm thì chỗ nào cũng tưởng mình có chuông.
+	 *
+	 * ⚠️ KHÔNG BAO GIỜ ĐỂ LƯỢT GỬI LÀM HỎNG LƯỢT NGHIỆP VỤ. Duyệt một cái đơn quan trọng hơn
+	 *    báo cho người ta biết là đã duyệt. Bên gọi đặt lời gọi này SAU khi đã ghi xong.
+	 *
+	 * @param string $ma_nv     người NHẬN.
+	 * @param string $chu       câu hiện ra. Bên gọi viết sẵn, đủ nghĩa khi đứng một mình.
+	 * @param string $khoa      khoá gộp — cùng khoá thì cộng dồn vào một dòng, không đẻ dòng mới.
+	 * @param string $tu_ma_nv  người GÂY RA việc, để không tự báo cho chính mình.
+	 * @param string $duong_dan bấm vào thì đi đâu. Rỗng = tin chỉ để đọc.
+	 */
+	public static function bao( $ma_nv, $chu, $khoa = '', $tu_ma_nv = '', $duong_dan = '' ) {
+		if ( '' === trim( (string) $ma_nv ) || '' === trim( (string) $chu ) ) { return false; }
+		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return false; }
+		VHNB_Bao::gui( (string) $ma_nv, 'cham_cong', (string) $chu, (string) $duong_dan,
+			(string) $khoa, (string) $tu_ma_nv );
+		return true;
+	}
+
+	/* ====================================================================== cửa ĐỌC */
+
 	/** Mã NV của người đang cầm thẻ phiên. Rỗng = không có hộp thư (tài khoản chưa gắn mã). */
 	private static function ma( $u ) {
 		return ( is_array( $u ) && isset( $u['ma_nv'] ) ) ? trim( (string) $u['ma_nv'] ) : '';

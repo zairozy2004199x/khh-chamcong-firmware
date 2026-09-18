@@ -68,6 +68,8 @@ t( 'hai nhân viên đăng nhập được', is_array( $NV ) && is_array( $NV_B 
 
 $CHT_A = array( 'name' => 'Trưởng A', 'role' => VHCC_Vai::CHT, 'coso' => $CS_A, 'ma_nv' => 'CHTA' );
 $CHT_B = array( 'name' => 'Trưởng B', 'role' => VHCC_Vai::CHT, 'coso' => $CS_B, 'ma_nv' => 'CHTB' );
+/* Người khai bảng ngoại lệ. `dat_ngoai_le` đòi quyền `ho_so` (Kế toán trở lên). */
+$ADMIN = array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'AD001' );
 
 /* =============================================================== 1. AI THẤY TAB */
 
@@ -314,10 +316,23 @@ $r = VHCC_CuaHang::sua_gio( $CHT_B, array(
 	'vao' => '09:00', 'lyDo' => 'máy lệch giờ, xem camera' ) );
 t( '🔴 trưởng B KHÔNG sửa được giờ của cơ sở A', empty( $r['ok'] ), $r );
 
+/* 🔴 18/09/2026 — CỬA HÀNG TRƯỞNG KHÔNG CÒN TỰ SỬA ĐƯỢC. Anh Thắng: *"cơ chế hiện tại là
+   cửa hàng trưởng không được sửa công nữa mà theo người được chỉ định bật quyền mới được sửa
+   thôi"*. Phải chối TRƯỚC khi có dòng chỉ định, không thì phần dưới xanh mà không ai biết cái
+   gì làm nó xanh — bậc hay dòng ngoại lệ. */
 $r = VHCC_CuaHang::sua_gio( $CHT_A, array(
 	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '09:00',
 	'lyDo' => 'máy lệch đồng hồ, đối chiếu camera' ) );
-t( 'trưởng A sửa được giờ vào', ! empty( $r['ok'] ), $r );
+t( '🔴 trưởng A CHƯA được chỉ định thì không sửa được', empty( $r['ok'] ), $r );
+
+/* Kế toán trở lên khai một dòng cho đúng người. Từ đây trở xuống trưởng A là "người được
+   chỉ định", và mọi phép thử cơ chế phía sau chạy trên cảnh ấy. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT_A['ma_nv'], 'sua_gio', 'mo' );
+
+$r = VHCC_CuaHang::sua_gio( $CHT_A, array(
+	'maNV' => 'CH001', 'ngay' => $HOM, 'vao' => '09:00',
+	'lyDo' => 'máy lệch đồng hồ, đối chiếu camera' ) );
+t( 'được chỉ định rồi thì trưởng A sửa được giờ vào', ! empty( $r['ok'] ), $r );
 t( 'và nói ra ô nào đổi, từ đâu sang đâu',
 	isset( $r['doi']['vao'] ) && '08:00' === $r['doi']['vao']['cu']
 		&& '09:00' === $r['doi']['vao']['moi'], $r );
@@ -352,15 +367,21 @@ VHCC_CuaHang::sua_gio( $CHT_A, array( 'maNV' => 'CH001', 'ngay' => $HOM,
 $n = VHCC_CuaHang::ngay_cua( $CHT_A, $CS_A, $TH, 'CH001' );
 t( 'giờ đã trả lại đủ 10h', 10.0 === (float) $n['gioThang'], $n );
 
-/* ── AI ĐƯỢC CHỈNH GIỜ CÔNG — khoá lại câu trả lời, 17/09/2026 ──────────────────────────────
-   Anh Thắng hỏi *"nó đang làm ai phân quyền mới được chỉnh giờ công phải không (cửa hàng
-   trưởng)"*. Đúng: `sua_gio` ở bậc Cửa hàng trưởng từ 28/08/2026, theo chính lời anh. Con số
-   ấy là QUYẾT ĐỊNH của anh nên phép thử không cãi nó — nhưng nó khoá lại để không ai lặng lẽ
-   đổi, và khoá luôn mấy chốt đỡ cho nó. */
-t( '🔴 chỉnh giờ công ở bậc CỬA HÀNG TRƯỞNG', VHCC_Vai::CHT === VHCC_Vai::QUYEN['sua_gio'] );
-t( 'bù vào ô trống cũng cùng bậc ấy', VHCC_Vai::CHT === VHCC_Vai::QUYEN['cham_bu'] );
-t( '⚠️ và nạp cả tháng từ .csv thì CAO HƠN (Quản lý)',
-	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] );
+/* ── AI ĐƯỢC CHỈNH GIỜ CÔNG — khoá lại câu trả lời, 18/09/2026 ──────────────────────────────
+   Anh Thắng 17/09 hỏi *"ai phân quyền mới được chỉnh giờ công phải không (cửa hàng trưởng)"*,
+   rồi 18/09 chốt lại: *"cửa hàng trưởng không được sửa công nữa mà theo người được chỉ định
+   bật quyền mới được sửa thôi"*.
+
+   Nên BẬC cố tình đặt cao tới mức gần như không ai với tới, và việc chỉ định làm bằng bảng
+   ngoại lệ. Phép thử này khoá cả hai nửa: bậc cao, và bù thì KHÔNG bị kéo lên theo. */
+t( '🔴 chỉnh giờ công ở bậc KẾ TOÁN — cửa hàng trưởng và quản lý không có sẵn',
+	VHCC_Vai::KE_TOAN === VHCC_Vai::QUYEN['sua_gio'] );
+t( '🔴 và đúng là người mà mọi câu chối chỉ tới ("liên hệ kế toán")',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] <= VHCC_Vai::BAC[ VHCC_Vai::ADMIN ] );
+t( '🔴 bù vào ô trống VẪN ở bậc Cửa hàng trưởng — siết sửa đè không siết bù',
+	VHCC_Vai::CHT === VHCC_Vai::QUYEN['cham_bu'] );
+t( '⚠️ và sửa đè nay CAO HƠN cả nạp .csv — đè lên giờ máy ghi là việc đắt nhất',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['sua_gio'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['nap_cong'] ] );
 
 /* 🔴 KHÔNG AI TỰ SỬA GIỜ CỦA CHÍNH MÌNH, KỂ CẢ ADMIN. Đây là chốt đỡ quan trọng nhất cho việc
    hạ `sua_gio` xuống bậc 2: cửa hàng trưởng viết lại được bảng công của cửa hàng mình, nhưng

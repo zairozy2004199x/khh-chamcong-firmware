@@ -7955,6 +7955,16 @@ $u_chtg = array( 'name' => 'Trưởng Giờ', 'role' => 'Cửa hàng trưởng',
 	'coso' => $cs_cht, 'ma_nv' => 'CHTG1' );
 $tok_chtg = VHCC_Auth::phat_token( 'Trưởng Giờ', 'Cửa hàng trưởng', $cs_cht, 'CHTG1' );
 
+/* 🔴 18/09/2026 — CHỈ ĐỊNH NGƯỜI NÀY ĐƯỢC SỬA GIỜ. Anh Thắng: *"cửa hàng trưởng không được
+   sửa công nữa mà theo người được chỉ định bật quyền mới được sửa thôi"*, nên `sua_gio` nay ở
+   bậc Admin và cái vai không còn mở nó ra.
+   Khối dưới canh CƠ CHẾ sửa (đổi đúng ô nào, có bắt ghi vì sao không, có vào sổ không), chứ
+   không canh cái gác quyền — cái gác ấy có bài riêng ở `kiem-cua-hang.php` và `kiem-cham-bu.php`.
+   Nên ở đây dựng sẵn cảnh "đã được chỉ định" rồi mới thử cơ chế. */
+VHCC_Vai::dat_ngoai_le(
+	array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'ADSUA' ),
+	'nv:CHTG1', 'sua_gio', 'mo' );
+
 /* ---- (a) SỬA giờ đã có ---- */
 $_COOKIE = array( VHCC_Web::COOKIE => $tok_chtg );
 $_GET  = array( 'man' => 'cham', 'ccs' => $cs_cht, 'cth' => substr( $ng_cht, 0, 7 ) );
@@ -8915,18 +8925,46 @@ t( '🔴 ngày lạc tháng thì KHÔNG mở hàng sửa trong lưới',
 
 /* Cửa hàng trưởng bấm ô CÓ GIỜ: hàng vẫn mở, nhưng nói rõ cần quyền Admin — chứ không im lặng
    bày ra một biểu mẫu bấm Lưu là bị chối. */
-VHCC_NguoiDung::luu( '', 'CHT Lưới', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
-$h_ic = vhcc_web( '357913', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
-	'sgn' => '2026-07-06', 'sgm' => 'QTC1' ) );
-/* 🔴 NAY BÀY RA Ô NHẬP THẬT. Anh Thắng 28/08/2026 mở `sua_gio` cho Cửa hàng trưởng, nên bấm
-   vào ô có giờ phải mở đúng biểu mẫu sửa — chứ không phải một câu chối. */
-t( '🔴 cửa hàng trưởng bấm ô có giờ thì mở được ô nhập',
-	strpos( $h_ic, 'name="sg_vao"' ) !== false, $h_ic );
-t( 'và không còn câu chối cần quyền Admin',
-	strpos( $h_ic, 'cần quyền Admin' ) === false, $h_ic );
-/* ⚠️ Ô VÌ SAO vẫn bắt buộc — bậc hạ xuống thì cái duy nhất còn tra ngược được là lý do người
-   ta gõ vào. Mất nó là bảng công sửa được mà không ai biết vì sao. */
-t( '🔴 và vẫn bắt ghi VÌ SAO', strpos( $h_ic, 'name="ly_do"' ) !== false, $h_ic );
+/* ⚠️ VÀO BẰNG THẺ CÓ MÃ NV, không bằng PIN. Việc chỉ định từng người khai theo `nv:<Mã NV>`,
+   mà tài khoản dựng bằng `VHCC_NguoiDung::luu()` thì KHÔNG có mã NV — đăng nhập kiểu ấy thì
+   chỉ còn đường khai theo `vai:`, tức mở cho TOÀN BỘ cửa hàng trưởng, đúng cái phải tránh.
+   Tài khoản thật đều có mã NV (màn quản trị in ra ngay dưới tên), nên đây mới là cảnh thật. */
+$ma_chtl  = 'CHTLUOI1';
+$tok_chtl = VHCC_Auth::phat_token( 'CHT Lưới', 'Cửa hàng trưởng', 'TUTU_BT', $ma_chtl );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_chtl );
+$_GET = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'QTC1' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_ic = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+/* 🔴 18/09/2026 — CHƯA ĐƯỢC CHỈ ĐỊNH THÌ KHÔNG BÀY Ô NHẬP. Anh Thắng: *"cửa hàng trưởng không
+   được sửa công nữa mà theo người được chỉ định bật quyền mới được sửa thôi"*.
+   Bày ra một biểu mẫu mà bấm Lưu là bị chối thì tệ hơn nói thẳng ngay từ đầu: người ta gõ hết
+   giờ, gõ cả lý do, rồi mới ăn câu chối. */
+t( '🔴 cửa hàng trưởng CHƯA được chỉ định thì KHÔNG bày ô nhập',
+	strpos( $h_ic, 'name="sg_vao"' ) === false, $h_ic );
+t( 'và nói rõ cần bậc nào', strpos( $h_ic, 'bậc Kế toán trở lên' ) !== false, $h_ic );
+
+/* Chỉ định đúng MỘT người ấy rồi bấm lại: nay phải mở đúng biểu mẫu sửa. */
+VHCC_Vai::dat_ngoai_le(
+	array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'ADSUA' ),
+	'nv:' . $ma_chtl, 'sua_gio', 'mo' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_chtl );
+$_GET = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'QTC1' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_ic2 = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 được chỉ định thì bày ô nhập thật',
+	strpos( $h_ic2, 'name="sg_vao"' ) !== false, $h_ic2 );
+t( 'và không còn câu chối về bậc',
+	strpos( $h_ic2, 'bậc Kế toán trở lên' ) === false, $h_ic2 );
+/* ⚠️ Ô VÌ SAO vẫn bắt buộc — người được chỉ định cũng phải ghi lý do. Mất nó là bảng công sửa
+   được mà không ai biết vì sao. */
+t( '🔴 và vẫn bắt ghi VÌ SAO', strpos( $h_ic2, 'name="ly_do"' ) !== false, $h_ic2 );
+VHCC_Vai::dat_ngoai_le(
+	array( 'name' => 'Quản trị', 'role' => VHCC_Vai::ADMIN, 'coso' => '', 'ma_nv' => 'ADSUA' ),
+	'nv:' . $ma_chtl, 'sua_gio', '' );
 
 /* Hàng -CD là hàng RIÊNG: đường bấm phải mang mã KÈM hậu tố, không thì sửa nhầm sang hàng chính. */
 t( '🔴 ô của hàng -CD mang mã KÈM hậu tố',
