@@ -1359,6 +1359,15 @@ class VHCC_TrangNS {
 			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--chu-mo)}'
 			/* Một hàng = một cơ sở: ô tích bên trái, nút tròn "chính" dạt sang phải. */
 			. '.o-cs-tich .cs-hang{display:flex;align-items:center;gap:8px;justify-content:space-between}'
+			/* Nhãn nhóm cơ sở — chấm công / chỉ quản lý / chưa tích. Dính lại khi cuộn trong
+			   khung hẹp, không thì cuộn xuống giữa danh sách là mất luôn cái nhãn. */
+			. '.o-cs-tich .cs-nhan{position:sticky;top:0;z-index:1;background:var(--nen-2);'
+			. 'margin:6px -6px 3px;padding:3px 6px;font-size:10.5px;font-weight:700;'
+			. 'text-transform:uppercase;letter-spacing:.3px;color:var(--chu-dam);'
+			. 'border-radius:3px;line-height:1.35}'
+			. '.o-cs-tich .cs-nhan:first-child{margin-top:0}'
+			. '.o-cs-tich .cs-nhan span{font-weight:400;text-transform:none;letter-spacing:0;'
+			. 'color:var(--chu-mo)}'
 			. '.o-cs-tich .cs-ch{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
 			. '.o-cs-tich .cs-ch:has(input:checked){color:var(--xanh,#0369a1);font-weight:600}'
 			. '.o-cs-tich .cs-ql{color:var(--chu-mo);font-size:10.5px;gap:3px;flex:0 0 auto}'
@@ -3164,8 +3173,49 @@ class VHCC_TrangNS {
 		if ( '' !== $chinh ) {
 			$h .= '<input type="hidden" name="' . $ten_ch . '" value="' . esc_attr( $chinh ) . '">';
 		}
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 XẾP THÀNH BA KHỐI CÓ NHÃN, ĐỪNG ĐỔ MỘT MẠCH
+		 *
+		 * Anh Thắng 18/09/2026: *"Đang hiểu sai giữa cửa hàng quản lý và cửa hàng chấm công.
+		 * Tách ra cho anh"*, rồi *"chỗ này lẫn lộn hết"*.
+		 *
+		 * Bản cũ liệt kê thẳng một mạch theo bảng chữ cái, và sự khác nhau giữa "chấm công ở
+		 * đây" với "chỉ trông coi ở đây" nằm gọn trong MỘT ô tích nhỏ tên `chỉ QL` ở cuối hàng.
+		 * Người đọc phải rà từng hàng mới dựng lại được trong đầu hai danh sách — mà hai danh
+		 * sách ấy quyết định hai thứ khác hẳn nhau: nơi tính LƯƠNG của người này, và nơi họ
+		 * QUẢN người khác.
+		 *
+		 * Nên xếp lại: chấm công lên trước, chỉ quản lý sau, chưa tích xuống cuối. TÊN Ô GIỮ
+		 * NGUYÊN — đây là đổi cách bày, không đổi dữ liệu, nên `luu()` không phải biết gì.
+		 * ═══════════════════════════════════════════════════════════════════════════════════ */
+		$nhom = array( 'cham' => array(), 'ql' => array(), 'khong' => array() );
+		foreach ( $bay as $b ) {
+			if ( empty( $b[1] ) ) { $nhom['khong'][] = $b; continue; }
+			$nhom[ isset( $co_ql[ VHCC_NhanSu::chu_thuong( $b[0] ) ] ) ? 'ql' : 'cham' ][] = $b;
+		}
+		$nhan = array(
+			'cham'  => array( 'Cơ sở CHẤM CÔNG', 'nơi người này làm — giờ công và lương tính ở đây' ),
+			'ql'    => array( 'Cơ sở QUẢN LÝ', 'chỉ trông coi nhân sự — KHÔNG chấm công, không có giờ ở đây' ),
+			'khong' => array( 'Chưa tích', 'không thuộc về cơ sở nào dưới đây' ),
+		);
+		$xep = array();
+		foreach ( array( 'cham', 'ql', 'khong' ) as $k ) {
+			if ( ! $nhom[ $k ] ) { continue; }
+			/* Chỉ đắp nhãn khi ô này CÓ vẽ cột "chính/chỉ QL" — hàng không vẽ hai cột ấy thì
+			   phép chia không có nghĩa, và một dòng nhãn thừa chỉ tổ rối. */
+			if ( $ve_chinh ) { $xep[] = array( '__nhan__', $k, false ); }
+			foreach ( $nhom[ $k ] as $b ) { $xep[] = $b; }
+		}
+		$bay = $xep;
+
 		foreach ( $bay as $b ) {
 			list( $c, $tich, $duoc ) = $b;
+			if ( '__nhan__' === $c ) {
+				$h .= '<div class="cs-nhan" title="' . esc_attr( $nhan[ $tich ][1] ) . '">'
+					. esc_html( $nhan[ $tich ][0] ) . ' <span>· ' . esc_html( $nhan[ $tich ][1] )
+					. '</span></div>';
+				continue;
+			}
 			$h .= '<div class="cs-hang">';
 			$h .= '<label' . ( $duoc ? '' : ' title="Cơ sở bạn không phụ trách — giữ nguyên"' ) . '>'
 				. '<input type="checkbox" name="' . $ten . '" value="' . esc_attr( $c ) . '"'

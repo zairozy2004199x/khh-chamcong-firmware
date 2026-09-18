@@ -3504,6 +3504,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'lich_su' === $man ) {
+			VHCC_WebLichSu::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		/* ===========================================================================
 		 *  "HỒ SƠ MỚI" NAY LÀ `sua=moi`, KHÔNG CÒN LÀ DẤU `+`
 		 * ---------------------------------------------------------------------------
@@ -3591,7 +3597,7 @@ class VHCC_Web {
 	/* ⚠️ `mat` đứng CUỐI, cùng lối với `may`: Quản lý mở app ra là để xem bảng công, không phải
 	   để rơi thẳng vào hàng chờ duyệt mẫu. Nhưng vẫn PHẢI có tên ở đây — có phép thử canh mọi
 	   màn khai được đều có mặt, kẻo người chỉ có màn này lại rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'don_tuan', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'don_tuan', 'lich_su', 'cong_toi', 'coso', 'cau_hinh', 'du_lieu',
 		'ns_coso', 'lich', 'may', 'mat' );
 
 	public static function man_mac_dinh( $ds_man ) {
@@ -3739,6 +3745,13 @@ class VHCC_Web {
 		if ( VHCC_Vai::duoc( $toi, VHCC_TuanCong::QUYEN_DUYET ) ) {
 			$ds['don_tuan'] = 'Đơn duyệt chỉnh bảng công lương';
 		}
+		/* 🔴 LỊCH SỬ SỬA BẢNG CÔNG — anh Thắng 18/09/2026: *"thêm tab lịch sử sửa bảng công"*.
+		   Cùng cửa với màn Bảng công (`cong_coso`), KHÔNG cao hơn: cửa hàng trưởng nay không sửa
+		   được giờ nữa, nên họ càng cần chỗ tra xem ai đã sửa gì ở cơ sở mình. Phạm vi cơ sở vẫn
+		   chặt như cũ — `VHCC_Bu::ds_nhat_ky()` lọc từng dòng qua `co_quyen_coso()`. */
+		if ( VHCC_Vai::duoc( $toi, VHCC_WebLichSu::QUYEN ) ) {
+			$ds['lich_su'] = 'Lịch sử sửa bảng công';
+		}
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		/* 🔴 KHUÔN MẶT LÀ BẬC QUẢN LÝ / ADMIN (`ngoai_coso`) — anh Thắng 08/09/2026, khi em hỏi
@@ -3764,7 +3777,7 @@ class VHCC_Web {
 	const MAN_BIEU = array(
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
-		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥',
+		'ns_coso'  => '🏪', 'coso'     => '🏬', 'mat'   => '🙂', 'don_tuan' => '📥', 'lich_su' => '🕘',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -3781,6 +3794,7 @@ class VHCC_Web {
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
 		'mat'      => 'Ảnh thẻ nhân viên và duyệt mẫu khuôn mặt',
 		'don_tuan' => 'Cửa hàng gửi .xlsx sửa bảng công tuần — duyệt là lên bảng công và khoá tuần',
+		'lich_su'  => 'Ai đã động vào giờ công: giờ cũ, giờ mới, ai làm, vì sao',
 	);
 
 	public static function bieu_man( $k )  {
@@ -3886,6 +3900,87 @@ class VHCC_Web {
 	public static function ds_coso_xem( $toi ) {
 		if ( VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) ) { return VHCC_NhanSu::ds_coso(); }
 		return VHCC_NhanSu::ds_coso_cua( $toi );
+	}
+
+	/**
+	 * CHIA DANH SÁCH CƠ SỞ LÀM HAI NHÓM: chấm công, và chỉ quản lý.
+	 *
+	 * =========================================================================================
+	 * 🔴 HAI THỨ KHÁC HẲN NHAU, ĐỪNG ĐỔ CHUNG MỘT Ô XỔ
+	 * =========================================================================================
+	 * Anh Thắng 18/09/2026: *"Đang hiểu sai giữa cửa hàng quản lý và cửa hàng chấm công. Tách ra
+	 * cho anh"*, rồi *"chỗ này lẫn lộn hết"* — ô Cơ sở trên màn Bảng công liệt kê thẳng một mạch
+	 * cả hai loại, không có gì nói cái nào là cái nào.
+	 *
+	 * Luật anh chốt 17/09/2026: *"Cơ sở được chọn để chấm công là cơ sở người đang đăng nhập
+	 * chấm công và tính lương. Cơ sở phụ trách là cơ sở theo dõi nhân sự, thêm nhân sự, chứ
+	 * không có chấm công trong đó"*. Tức hai danh sách trả lời hai câu khác nhau:
+	 *   · CHẤM CÔNG — nơi người ta đứng làm, và là nơi tính ra tiền của họ;
+	 *   · CHỈ QUẢN LÝ — nơi người ta trông coi nhân sự, KHÔNG có giờ công của chính họ ở đó.
+	 *
+	 * Trộn vào một ô là người ta chọn một cơ sở "chỉ quản lý" rồi ngồi hỏi vì sao bảng công
+	 * không có tên mình, hoặc ngược lại — sửa lương ở một chỗ mình tưởng là chỗ khác.
+	 *
+	 * ⚠️ KHÔNG GIẤU BỚT NHÓM NÀO. Cửa hàng trưởng VẪN phải xem được bảng công của cơ sở mình
+	 *    phụ trách — đó đúng là việc của họ. Cái thiếu là NHÃN, không phải là quyền.
+	 *
+	 * @return array( 'cham' => [...], 'ql' => [...] )
+	 */
+	public static function coso_hai_nhom( $toi, $ds = null ) {
+		$ds = ( null === $ds ) ? self::ds_coso_xem( $toi ) : array_values( (array) $ds );
+
+		/* Bậc `cong_tat_ca` (Quản lý trở lên) xem được MỌI cơ sở, không phải qua hồ sơ của họ —
+		   với họ thì phép chia này vô nghĩa, và bày một nhóm "chỉ quản lý" rỗng chỉ tổ rối. */
+		if ( VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) ) {
+			return array( 'cham' => $ds, 'ql' => array() );
+		}
+
+		$hs = VHCC_NhanSu::ho_so( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' );
+		if ( ! $hs ) { return array( 'cham' => $ds, 'ql' => array() ); }
+
+		$chi_ql = array();
+		foreach ( (array) VHCC_NhanSu::ds_coso_ql( $hs ) as $x ) {
+			$chi_ql[ strtolower( trim( (string) $x ) ) ] = 1;
+		}
+		$cham = array();
+		$ql   = array();
+		foreach ( $ds as $x ) {
+			if ( isset( $chi_ql[ strtolower( trim( (string) $x ) ) ] ) ) { $ql[] = $x; }
+			else { $cham[] = $x; }
+		}
+		return array( 'cham' => $cham, 'ql' => $ql );
+	}
+
+	/**
+	 * Ô XỔ CƠ SỞ, chia hai nhóm có nhãn. Dùng thay cho vòng `<option>` gõ tay.
+	 *
+	 * ⚠️ Chỉ bọc `<optgroup>` KHI CÓ CẢ HAI NHÓM. Một nhóm duy nhất mà vẫn đắp nhãn lên thì
+	 *    thêm một dòng chữ không nói gì — gần hết nhân viên và cửa hàng trưởng chỉ có một loại.
+	 */
+	public static function o_chon_coso( $ten_o, $chon, $toi, $ds = null, $rong = '' ) {
+		$n = self::coso_hai_nhom( $toi, $ds );
+		echo '<select id="' . esc_attr( $ten_o ) . '" name="' . esc_attr( $ten_o ) . '">';
+		if ( '' !== $rong ) { echo '<option value="">' . esc_html( $rong ) . '</option>'; }
+
+		if ( ! $n['ql'] ) {
+			foreach ( $n['cham'] as $x ) { self::o_coso_mot( $x, $chon ); }
+			echo '</select>';
+			return;
+		}
+		if ( $n['cham'] ) {
+			echo '<optgroup label="Cơ sở chấm công — có giờ công &amp; lương của anh/chị">';
+			foreach ( $n['cham'] as $x ) { self::o_coso_mot( $x, $chon ); }
+			echo '</optgroup>';
+		}
+		echo '<optgroup label="Cơ sở quản lý — chỉ theo dõi nhân sự, không chấm công ở đây">';
+		foreach ( $n['ql'] as $x ) { self::o_coso_mot( $x, $chon ); }
+		echo '</optgroup>';
+		echo '</select>';
+	}
+
+	private static function o_coso_mot( $x, $chon ) {
+		echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $chon, false ) . '>'
+			. esc_html( $x ) . '</option>';
 	}
 
 	/* ===========================================================================
@@ -4747,13 +4842,11 @@ class VHCC_Web {
 		   sách cơ sở nhảy về đầy đủ ngay sau cú bấm — đúng cái lỗi vừa sửa, chỉ chậm một nhịp. */
 		if ( '' !== $bp ) { echo '<input type="hidden" name="cbp" value="' . esc_attr( $bp ) . '">'; }
 
-		echo '<div><label for="ccs">Cơ sở</label><select id="ccs" name="ccs">';
-		echo '<option value="">— chọn cơ sở —</option>';
-		foreach ( $ds_cs as $x ) {
-			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
-				. esc_html( $x ) . '</option>';
-		}
-		echo '</select></div>';
+		/* Chia hai nhóm có nhãn — xem `coso_hai_nhom()`. Anh Thắng 18/09/2026: *"chỗ này lẫn
+		   lộn hết"*, cơ sở chấm công và cơ sở chỉ-quản-lý nằm chung một mạch không phân biệt. */
+		echo '<div><label for="ccs">Cơ sở</label>';
+		self::o_chon_coso( 'ccs', $cs, $toi, $ds_cs, '— chọn cơ sở —' );
+		echo '</div>';
 
 		echo '<div><label for="cth">Tháng</label><input id="cth" name="cth" type="month" value="'
 			. esc_attr( $th ) . '"></div>';
