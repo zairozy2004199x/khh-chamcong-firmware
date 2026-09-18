@@ -403,6 +403,7 @@
             '<button class="tab" type="button" data-loai="sao_ke">Sao kê ngân hàng</button>' +
             '<button class="tab" type="button" data-loai="momo_pos">Giao dịch MoMo (FABi)</button>' +
             '<button class="tab" type="button" data-loai="momo_sk">Sao kê MoMo</button>' +
+            '<button class="tab" type="button" data-loai="bes">Bán hàng (Bes)</button>' +
           '</div>' +
           '<div id="dtHdPos">' +
             '<ol><li>Trong CMS FABi: <b>Báo cáo → Báo cáo bán hàng</b> → chọn kỳ → <b>Xuất Excel</b>.</li>' +
@@ -429,6 +430,23 @@
             '<li>Em <b>chỉ lấy tiền vào</b>, bỏ mọi khoản chi. Nạp lại cùng một kỳ không cộng dồn (khoá theo mã giao dịch).</li>' +
             '<li>Nhận mặt cơ sở theo nội dung chuyển khoản hoặc số tài khoản — khai ở <b>Quản trị → Sao kê ngân hàng</b>.</li>' +
             '<li>Tiền nộp sáng hôm sau tính cho doanh thu <b>hôm trước</b> (giờ cắt khai được).</li></ol></div>' +
+          '<div id="dtHdBes" hidden>' +
+            '<ol><li>Dành cho cửa hàng chạy hệ <b>Bes</b> (không phải FABi): trong BesReportViewer ' +
+            'xuất <b>TỔNG HỢP MÓN ĂN BÁN</b> ra <code>.csv</code>, một ngày một file.</li>' +
+            '<li>Ngày lấy từ <b>chân trang</b> của báo cáo, nên đừng cắt dòng ấy đi. Nạp lại cùng ' +
+            'ngày thì ghi đè, không cộng dồn.</li>' +
+            '<li><b>Gõ tên cơ sở</b> vào ô dưới. Tên trong file thường trơ ("FUNZONE") và sẽ đụng ' +
+            'mấy cơ sở đã có — gõ tên đầy đủ, dùng đúng một tên ấy cho mọi lần nạp về sau.</li>' +
+            '<li>⚠️ Báo cáo này <b>không có hình thức thanh toán</b>, nên cơ sở này có doanh thu ' +
+            'nhưng <b>chưa đối soát được</b> tiền mặt / CK / MoMo. Phần ấy nhập tay ở ' +
+            '<b>Nhập báo cáo ngày</b>, hoặc xin Bes một báo cáo có cột thanh toán rồi bảo em.</li></ol>' +
+            /* Lớp `.o` là lớp nhãn+ô nhập sẵn có của trang (doanh-thu.css dòng 57-58), đã
+               có kiểu cho `input` bên trong. Đặt lớp mới là thêm một chỗ phải nhớ sửa khi
+               đổi bộ áo — và `kiem-bo-ao-tron.php` canh đúng chuyện ấy. */
+            '<label class="o" for="dtCoSo" style="margin:6px 0 10px">Tên cơ sở ghi vào sổ' +
+            '<input type="text" id="dtCoSo" placeholder="ví dụ: FUNZONE KVC Aeon Bình Dương" ' +
+            'style="flex:1"></label>' +
+          '</div>' +
           '<div class="khh-dt-tha" id="dtTha" tabindex="0" role="button" aria-label="Chọn hoặc thả file">' +
             '<strong>Thả file vào đây</strong><span>hoặc bấm để chọn — nhận .xlsx, .csv</span>' +
             '<input type="file" id="dtFile" accept=".xlsx,.xlsm,.csv,.tsv,.txt" hidden></div>' +
@@ -469,6 +487,7 @@
         nen.querySelector('#dtHdSk').hidden = S.napLoai !== 'sao_ke';
         nen.querySelector('#dtHdMomo').hidden = S.napLoai !== 'momo_pos';
         nen.querySelector('#dtHdMomoSk').hidden = S.napLoai !== 'momo_sk';
+        nen.querySelector('#dtHdBes').hidden = S.napLoai !== 'bes';
         bao_o.hidden = true;
       });
     });
@@ -512,6 +531,11 @@
       fd.append('tong', String(tong));
       fd.append('ten', f.name);
       fd.append('loai', S.napLoai || 'pos');
+      /* Ô tên cơ sở chỉ có ở thẻ Bes. Gửi kèm MỌI mẩu: máy chủ đọc file ở mẩu CUỐI, mà mỗi mẩu
+         là một lượt POST riêng — gửi mỗi mẩu đầu là mẩu cuối không có tên, rồi rơi về tên trơ
+         trong file và số liệu vào sai cơ sở. */
+      var o_cs = nen && nen.querySelector('#dtCoSo');
+      if (o_cs && o_cs.value.trim()) { fd.append('co_so', o_cs.value.trim()); }
       fd.append('mau', f.slice(i * MAU, (i + 1) * MAU), 'mau.bin');
       trangThai.textContent = (i === tong - 1)
         ? 'Đã gửi xong, máy chủ đang đọc file…'
@@ -520,6 +544,14 @@
         i++;
         if (!r.xong && i < tong) { gui(); return; }
         trangThai.textContent = '';
+        if (r.loai === 'bes') {
+          bao('Đã nạp <b>' + tien(r.thanh_tien) + '</b> cho cơ sở <b>' + esc(r.cua_hang) + '</b> ' +
+            'ngày ' + ngayVN(r.ngay) + ' — ' + nguyen(r.so_mon) + ' món, ' + nguyen(r.so_ve) + ' vé.' +
+            '<br><b>Chưa có hình thức thanh toán</b> (báo cáo Bes không có cột ấy), nên cơ sở này ' +
+            'chưa đối soát được tiền mặt / CK / MoMo.', 'tot');
+          khoiDong(true);
+          return;
+        }
         if (r.loai === 'momo_sk') {
           var quan = Object.keys(r.quan || {});
           bao('Đã nạp <b>' + nguyen(r.da_ghi) + ' giao dịch</b> từ sao kê MoMo' +
